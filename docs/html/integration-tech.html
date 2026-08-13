@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2.4 Claude Code/Codex 연동 기술 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html" class="active">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 2부 · 리서치 / 2.4 Claude Code/Codex 연동 기술</div>
+
+  <header class="page-header">
+    <h1>Claude Code/Codex 연동 기술 — 표면 목록과 NERV 결선도</h1>
+    <p class="lead">Claude Code는 훅 31종·MCP 클라이언트·스킬·서브에이전트·플러그인·헤드리스·Agent SDK·OTel까지 여덟 개의 공식 연동 표면을 열어두고 있고, 그중 <code>type:"http"</code> 훅 하나만으로 세션 전 생명주기를 래퍼 스크립트 없이 NERV 수집 엔드포인트로 직접 POST할 수 있다. Codex도 거의 대칭이지만 <b>MCP의 resources·prompts·elicitation을 소비하지 못하고, 마켓플레이스급 일괄 배포 체계가 없으며, cloud 태스크 생성 API가 문서화되어 있지 않다</b> — 이 격차가 D-05의 tools-first 설계를 강제한다. FR-15와 D-05의 1차 근거.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-13)</span>
+      <span>원본: <code>docs/02-research/integration-tech.md</code></span>
+      <span>1차 소스: 웹 딥리서치 노트 1건(공식 문서 26개 출처, 확인일 2026-08-13)</span>
+    </div>
+  </header>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">Claude Code 훅 이벤트</b><div class="big">31</div><p>세션·턴·툴·에이전트 전 계층. <code>type:"http"</code>로 NERV에 직접 POST</p></div>
+    <div class="card"><b class="card-title">Codex 훅 이벤트</b><div class="big">11</div><p>같은 계열이지만 좁다. 실질 차단은 <code>PreToolUse</code> 하나</p></div>
+    <div class="card"><b class="card-title">Codex가 못 쓰는 MCP 프리미티브</b><div class="big">3</div><p>resources · prompts · elicitation → <b>tools-first 강제</b></p></div>
+  </div>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">연동 관점의 Claude Code — 여덟 개의 표면</a></li>
+      <li><a href="#sec-2">MCP 프로토콜 — 무엇을 어떤 프리미티브로 줄 것인가</a></li>
+      <li><a href="#sec-3">Codex — 대칭 표면과 세 가지 결정적 격차</a></li>
+      <li><a href="#sec-4">NERV 시사점 (FR-15 · D-05 · D-14)</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 연동 관점의 Claude Code</h2>
+
+  <h3 id="sec-1-1">1.1 여덟 개의 표면 — 한눈에 보는 지도</h3>
+
+  <p>"에이전트를 플랫폼에 붙인다"는 말은 실제로는 <b>다섯 가지 서로 다른 일</b>이다: ① 세션이 무엇을 하는지 받아온다(수집) ② 에이전트에게 스펙·작업을 준다(공급) ③ 규칙과 절차를 배포한다(배포) ④ 사람 승인을 강제한다(게이트) ⑤ 누가 무엇에 접근하는지 통제한다(인증). Claude Code는 이 다섯 가지를 각각 담당하는 공식 표면을 이미 전부 갖고 있다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>표면</th><th>무엇인가</th><th>방향</th><th>NERV 용도</th></tr></thead>
+    <tbody>
+      <tr><td><b>Hooks (31종 이벤트)</b></td><td>수명주기 이벤트마다 셸/HTTP/MCP 툴/LLM/서브에이전트 핸들러 실행</td><td>수집 + 제어</td><td>AgentSession 등록·종료, Activity 스트림, 클레임 scope 위반 실시간 차단, Stop 게이트 (FR-07·FR-08·FR-10)</td></tr>
+      <tr><td><b>MCP 클라이언트</b></td><td>원격/로컬 MCP 서버의 tools·resources·prompts 소비</td><td>공급</td><td><code>nerv_*</code> 도구로 스펙 조회·Task 클레임·리뷰 제출 (FR-01·FR-05·FR-09)</td></tr>
+      <tr><td><b>Skills (SKILL.md)</b></td><td>절차를 md 한 파일로 규격화, 자동/수동 트리거</td><td>배포</td><td>NERV 워크플로(스펙 작성·구현·리뷰) 절차 배포. Codex와 <b>같은 파일</b> 재사용</td></tr>
+      <tr><td><b>Sub-agents</b></td><td>역할별 격리 실행 단위(<code>.claude/agents/*.md</code>)</td><td>배포 + 수집</td><td>리뷰어·스펙 검증자 역할 배포, <code>SubagentStart/Stop</code>으로 역할별 활동 추적</td></tr>
+      <tr><td><b>Plugins + 마켓플레이스</b></td><td>스킬·에이전트·훅·<code>.mcp.json</code>을 한 번들로 묶어 git으로 배포</td><td>배포</td><td>NERV 클라이언트 v1의 유일한 배포 단위. 관리형 settings로 조직 강제 활성화 (FR-15)</td></tr>
+      <tr><td><b>Headless</b> (<code>claude -p</code>, stream-json)</td><td>비대화형 실행·재개·JSON 스트림</td><td>공급 + 수집</td><td>서버가 워커 세션을 기동/재개, <code>system/init</code>으로 "NERV 플러그인이 실제 로드됐는지" 검증</td></tr>
+      <tr><td><b>Agent SDK</b></td><td>에이전트 루프를 TS/Python 라이브러리로 임베드</td><td>공급</td><td>서버측 자동화(스펙 lint·일관성 검사·리뷰 봇). <b>과금은 API 키 체계로 분리 필수</b></td></tr>
+      <tr><td><b>OpenTelemetry(OTLP)</b></td><td>메트릭 8종 + 이벤트 13종+ 표준 스키마</td><td>수집(정량)</td><td>조직 단위 비용·토큰·툴 사용 관측, 부서/팀 라벨링. 훅과 <code>prompt_id</code>로 조인</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>여기에 보조 표면으로 <b>statusline</b>(세션 메타데이터를 스크립트에 흘려주는 로컬 표면)이 있는데, 이것만 방향이 반대다 — 수집이 아니라 <b>표시</b>용 역채널이다.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 940 340" role="img" aria-label="Claude Code와 Codex의 연동 표면이 NERV 서버의 어느 컴포넌트로 연결되는지 보여주는 결선도">
+      <defs>
+        <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/></marker>
+        <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+      </defs>
+
+      <text x="104" y="18" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">클라이언트</text>
+      <text x="375" y="18" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">에이전트 측 표면</text>
+      <text x="645" y="18" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">NERV 서버</text>
+      <text x="852" y="18" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">저장</text>
+
+      <!-- 클라이언트 -->
+      <rect x="24" y="56" width="160" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="104" y="80" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">Claude Code 세션</text>
+      <text x="104" y="99" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">hostname: mbp-kim</text>
+
+      <rect x="24" y="176" width="160" height="62" rx="10" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="104" y="200" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">Codex 세션</text>
+      <text x="104" y="219" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">hostname: wks-park</text>
+
+      <!-- 버스 -->
+      <line x1="184" y1="87" x2="216" y2="87" stroke="var(--border-strong)" stroke-width="1.2"/>
+      <line x1="184" y1="207" x2="216" y2="207" stroke="var(--border-strong)" stroke-width="1.2"/>
+      <line x1="216" y1="56" x2="216" y2="266" stroke="var(--border-strong)" stroke-width="1.2"/>
+      <line x1="216" y1="56" x2="250" y2="56" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#arrR)"/>
+      <line x1="216" y1="126" x2="250" y2="126" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#arrA)"/>
+      <line x1="216" y1="196" x2="250" y2="196" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#arrR)"/>
+      <line x1="250" y1="266" x2="216" y2="266" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arrR)"/>
+
+      <!-- 표면 -->
+      <rect x="250" y="30" width="250" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="375" y="50" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">훅 이벤트 (수집 평면)</text>
+      <text x="375" y="68" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">CC 31종 type:"http" · CX 11종 + notify</text>
+
+      <rect x="250" y="100" width="250" height="52" rx="9" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="375" y="120" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">MCP 클라이언트 (공급 평면)</text>
+      <text x="375" y="138" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">tools = 공통 · resources/prompts = CC 전용</text>
+
+      <rect x="250" y="170" width="250" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="375" y="190" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">OpenTelemetry (관측 평면)</text>
+      <text x="375" y="208" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">메트릭 8종 · 이벤트 13종+</text>
+
+      <rect x="250" y="240" width="250" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border)" stroke-dasharray="4 3"/>
+      <text x="375" y="260" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">플러그인 · SKILL.md · AGENTS.md (배포 평면)</text>
+      <text x="375" y="278" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">관리형 settings 강제 / 저장소 온보딩</text>
+
+      <!-- NERV -->
+      <line x1="500" y1="56" x2="560" y2="56" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#arrR)"/>
+      <text x="530" y="47" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">POST</text>
+      <line x1="500" y1="126" x2="560" y2="126" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#arrA)"/>
+      <text x="530" y="117" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">tools/call</text>
+      <line x1="500" y1="196" x2="560" y2="196" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#arrR)"/>
+      <text x="530" y="187" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">OTLP</text>
+      <line x1="560" y1="266" x2="500" y2="266" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arrR)"/>
+      <text x="530" y="257" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">설치</text>
+
+      <rect x="560" y="30" width="170" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="645" y="61" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">Ingest API (훅 수집기)</text>
+      <rect x="560" y="100" width="170" height="52" rx="9" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="645" y="122" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">NERV MCP 서버</text>
+      <text x="645" y="139" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">Streamable HTTP · tools-first</text>
+      <rect x="560" y="170" width="170" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="645" y="201" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">OTLP collector</text>
+      <rect x="560" y="240" width="170" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border)" stroke-dasharray="4 3"/>
+      <text x="645" y="264" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">사내 git 마켓플레이스</text>
+      <text x="645" y="280" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">+ 관리형 settings</text>
+
+      <!-- DB -->
+      <line x1="730" y1="56" x2="790" y2="90" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#arrR)"/>
+      <line x1="730" y1="126" x2="790" y2="126" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#arrR)"/>
+      <line x1="730" y1="196" x2="790" y2="162" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#arrR)"/>
+      <rect x="790" y="60" width="126" height="132" rx="10" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="853" y="92" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">Postgres</text>
+      <text x="853" y="112" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">Spec / Task</text>
+      <text x="853" y="128" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">AgentSession</text>
+      <text x="853" y="144" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">Activity / Event</text>
+      <text x="853" y="160" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">ReviewSession</text>
+      <text x="853" y="176" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">Finding</text>
+    </svg>
+    <div class="cap">그림 1. 연동 표면 결선도 — 실선은 데이터가 NERV로, 점선은 배포가 세션으로 흐르는 방향(D-05의 3층 + 관측 평면)</div>
+  </div>
+
+  <p class="src"><a href="https://code.claude.com/docs/en/hooks">Hooks reference — Claude Code Docs</a> (확인일 2026-08-13): 31종 이벤트·공통 페이로드·핸들러 5종의 1차 출처.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP — Claude Code Docs</a> (확인일 2026-08-13): 트랜스포트·스코프·인증·프리미티브 소비 방식.</p>
+
+  <h3 id="sec-1-2">1.2 Hooks — 수집의 1차 표면</h3>
+
+  <p>Claude Code는 현재 <b>31개 훅 이벤트</b>를 제공한다. 세션·턴·툴·에이전트 전 계층이 덮여 있어, 별도 텔레메트리 SDK 없이도 "누가(hostname) 어떤 세션에서 무엇을 했는지"를 완결적으로 복원할 수 있다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>계층</th><th>이벤트</th><th>NERV 용도</th></tr></thead>
+    <tbody>
+      <tr><td><b>세션 (4)</b></td><td><code>SessionStart</code>(matcher <code>startup|resume|clear|compact|fork</code>), <code>SessionEnd</code>(payload <code>reason</code>), <code>Setup</code>, <code>InstructionsLoaded</code></td><td>AgentSession 생성/종료(FR-07). <code>cwd</code>·worktree·hostname 기록, <code>reason</code>으로 정상/비정상 종료 구분 → <code>stale</code> 오판 방지(D-13)</td></tr>
+      <tr><td><b>턴 (4)</b></td><td><code>UserPromptSubmit</code>, <code>UserPromptExpansion</code>, <code>Stop</code>, <code>StopFailure</code></td><td>Activity(<code>thought</code>/<code>response</code>) 스트림(FR-08). <code>Stop</code>에서 "해소된 리뷰 없음 → 종료 차단" 게이트 판정(FR-10)</td></tr>
+      <tr><td><b>툴 (6)</b></td><td><code>PreToolUse</code>, <code>PostToolUse</code>, <code>PostToolUseFailure</code>, <code>PostToolBatch</code>, <code>PermissionRequest</code>, <code>PermissionDenied</code></td><td>Activity(<code>action</code>) 기록. <code>tool_input.file_path</code>를 Claim의 <code>file_globs</code>와 대조해 <b>scope 이탈 실시간 경고/차단</b>(FR-06), Evidence 자동 수집(FR-13)</td></tr>
+      <tr><td><b>에이전트 (5)</b></td><td><code>SubagentStart</code>, <code>SubagentStop</code>(<code>agent_id</code>/<code>agent_type</code>), <code>TeammateIdle</code>, <code>TaskCreated</code>, <code>TaskCompleted</code></td><td>역할별 서브에이전트 활동 대시보드화, <code>TaskCreated</code>/<code>TaskCompleted</code> 거부로 "ready 아닌 작업 착수" 차단</td></tr>
+      <tr><td><b>기타 (12)</b></td><td><code>Notification</code>, <code>PreCompact</code>, <code>PostCompact</code>, <code>FileChanged</code>, <code>CwdChanged</code>, <code>DirectoryAdded</code>, <code>ConfigChange</code>, <code>WorktreeCreate</code>, <code>WorktreeRemove</code>, <code>Elicitation</code>, <code>ElicitationResult</code>, <code>MessageDisplay</code></td><td><code>Elicitation*</code> → Question 로그, <code>WorktreeCreate/Remove</code>·<code>CwdChanged</code> → 격리 단위 추적, <code>ConfigChange</code> → 감사 로그(FR-16)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>공통 입력 페이로드</h4>
+  <p>모든 훅은 stdin으로 JSON을 받는다. 공통 필드는 <code>session_id</code>, <code>prompt_id</code>(v2.1.196+, OTel의 <code>prompt.id</code>와 동일 UUID), <code>transcript_path</code>, <code>cwd</code>, <code>permission_mode</code>, <code>effort.level</code>, <code>hook_event_name</code>이고, 툴 이벤트는 <code>tool_name</code>·<code>tool_input</code>·<code>tool_use_id</code>가, 서브에이전트 이벤트는 <code>agent_id</code>·<code>agent_type</code>이 추가된다.</p>
+
+<pre><code>{
+  "hook_event_name": "PostToolUse",
+  "session_id": "b4f2c0de-9a71-4e55-9b3a-2e0a1c77d001",
+  "prompt_id": "0f9c1a44-3d2e-4c88-9a10-77bf6d2c3311",
+  "transcript_path": "/Users/kim/.claude/projects/nerv/b4f2c0de.jsonl",
+  "cwd": "/Volumes/project/private/clemvion/.claude/worktrees/spec-editor",
+  "permission_mode": "acceptEdits",
+  "effort": { "level": "high" },
+  "tool_name": "Edit",
+  "tool_input": { "file_path": "apps/web/src/spec/editor.tsx" },
+  "tool_use_id": "toolu_013jW8Qk2Zr9"
+}</code></pre>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">hostname은 페이로드에 없다</b>
+    <p>공식 필드가 아니므로 <code>command</code> 핸들러라면 래퍼에서 <code>$(hostname)</code>을 덧붙이고, <code>type:"http"</code> 핸들러라면 헤더(예: <code>X-NERV-Host</code>)로 실어 보낸다. 멀티호스트 식별(P8·FR-07)의 유일한 출처이므로 클라이언트 설정 단계에서 반드시 고정한다.</p>
+  </div></div>
+
+  <h4>제어: exit code와 JSON 출력</h4>
+  <ul>
+    <li><b>exit 0</b> — 성공. stdout의 JSON이 구조화 결정으로 해석되고, <code>UserPromptSubmit</code>/<code>SessionStart</code> 등에서는 stdout이 Claude 컨텍스트로 주입된다.</li>
+    <li><b>exit 2</b> — 차단 가능 이벤트에서 해당 동작을 막고 stderr를 모델에 전달한다. 차단 가능: <code>PreToolUse</code>(툴 차단), <code>UserPromptSubmit</code>(프롬프트 거부), <code>Stop</code>(종료 방지), <code>PermissionRequest</code>(거부), <code>TaskCreated</code>/<code>TaskCompleted</code>, <code>PreCompact</code>, <code>PostToolBatch</code>. <code>PostToolUse</code> 같은 관찰 전용 이벤트에서는 되돌릴 수 없고 stderr만 노출된다.</li>
+    <li><b>JSON 출력</b> — <code>continue:false</code>+<code>stopReason</code>(전체 중단), <code>systemMessage</code>, <code>decision</code>, <code>hookSpecificOutput.permissionDecision</code>(<code>allow|deny|escalate</code>), <code>additionalContext</code>(모델 컨텍스트 주입).</li>
+  </ul>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-14 · 게이트는 fail-open + 관측 + 격상, 진실은 서버 산출물</b>
+    <p><code>type:"http"</code> 훅은 요청/응답 쌍이므로 <b>NERV 서버가 응답 JSON으로 게이트 판정을 되돌려줄 수 있다.</b> <code>Stop</code> 훅 응답에 <code>{"decision":"block","reason":"…"}</code>를 실으면 "해소된 리뷰가 없으면 턴을 끝낼 수 없다"가 서버 SQL 한 방으로 강제된다. 반대로 NERV가 응답하지 못하면(타임아웃·5xx) 훅은 통과시키되 연속 실패를 카운트해 격상한다 — clemvion에서 5개월 검증된 fail-open 패턴의 서버 이식이다.</p>
+  </div></div>
+
+  <p><code>additionalContext</code>도 못지않게 중요하다. <code>SessionStart</code> 응답으로 "지금 이 사용자가 클레임한 Task, 관련 SpecVersion 요약, 겹치는 scope 경고"를 주입하면 에이전트는 첫 프롬프트부터 플랫폼 상태를 알고 시작한다.</p>
+
+  <h4>핸들러 5종과 설정 위치</h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>핸들러</th><th>동작</th><th>NERV 용도</th></tr></thead>
+    <tbody>
+      <tr><td><code>command</code></td><td>셸 명령 실행(stdin JSON)</td><td>로컬 전처리가 필요할 때(hostname·git 정보 덧붙이기), Codex와 공통 스크립트 재사용</td></tr>
+      <tr><td><b><code>http</code></b></td><td><b>지정 URL로 이벤트 JSON POST, 응답 JSON 해석. 헤더/Authorization 지정 가능</b></td><td><b>NERV 기본 경로.</b> 래퍼 스크립트 0개로 수집 + 서버 게이트 판정 회수</td></tr>
+      <tr><td><code>mcp_tool</code></td><td>연결된 MCP 서버의 툴을 훅으로 호출(<code>${tool_input.file_path}</code> 치환)</td><td><code>nerv_session_event</code>를 훅으로 직접 호출하는 대안 경로(인증을 MCP 세션과 공유)</td></tr>
+      <tr><td><code>prompt</code></td><td>단발 LLM 평가</td><td>스펙 규약 위반 같은 판단형 검사(비용 주의)</td></tr>
+      <tr><td><code>agent</code></td><td>검증용 서브에이전트 실행</td><td>로컬 사전 검증(리뷰 제출 전 자체 점검)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>설정은 <code>~/.claude/settings.json</code>(유저) · <code>.claude/settings.json</code>(프로젝트, 커밋 공유) · <code>.claude/settings.local.json</code> · 관리형 설정 · 플러그인 <code>hooks/hooks.json</code> · 스킬/에이전트 frontmatter에 둘 수 있다. matcher는 정확일치·<code>|</code> 목록·정규식이며 툴 이벤트는 <code>if: "Bash(rm *)"</code> 권한 규칙 문법으로 추가 필터링한다. <code>async</code>/<code>asyncRewake</code>로 비동기 실행도 가능하다 — 수집 전용 이벤트는 비동기로 돌려 세션 지연을 0에 가깝게 만든다.</p>
+
+<pre><code>{
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume|fork",
+        "hooks": [{
+          "type": "http",
+          "url": "https://nerv.example.com/ingest/claude/hook",
+          "headers": {
+            "Authorization": "Bearer ${NERV_TOKEN}",
+            "X-NERV-Host": "mbp-kim",
+            "X-NERV-Project": "clemvion"
+          }
+        }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/hook", "async": true }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/gate" }] }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/hook" }] }
+    ]
+  }
+}</code></pre>
+
+  <div class="callout note"><span class="ico">📝</span><div class="body">
+    <b class="title">확인 필요</b>
+    <p>위 예시의 키(<code>type</code>·<code>url</code>·<code>headers</code>·<code>matcher</code>·<code>async</code>)는 공식 문서에서 확인한 것이지만, <code>${NERV_TOKEN}</code> 형태의 환경변수 확장은 <code>.mcp.json</code>에 대해서만 명시적으로 문서화되어 있다. 훅 헤더의 토큰 주입 방식(환경변수 확장 vs 관리형 설정 고정값)은 플러그인 v1 구현 시 실측 확인 항목이다.</p>
+  </div></div>
+
+  <p>조직 통제 측면에서는 <code>allowedHttpHookUrls</code> 설정으로 <b>HTTP 훅이 POST할 수 있는 URL을 허용목록으로 제한</b>할 수 있다. NERV 엔드포인트만 열어두면 훅이 임의 외부로 세션 데이터를 유출하는 경로를 원천 차단한다(NFR-03).</p>
+
+  <h3 id="sec-1-3">1.3 MCP 클라이언트 — 스펙·작업 공급 표면</h3>
+
+  <p>트랜스포트는 stdio(로컬), <b>HTTP(권장, <code>streamable-http</code> 별칭 허용)</b>, SSE(deprecated), WebSocket(<code>type:"ws"</code>, JSON 설정 전용·OAuth 불가)이다. 스코프는 local(<code>~/.claude.json</code>, 프로젝트별) · project(<code>.mcp.json</code>, 커밋 공유) · user(전역) 3종이고 우선순위는 local &gt; project &gt; user &gt; plugin &gt; claude.ai 커넥터다. <code>.mcp.json</code>은 <code>command/args/env/url/headers</code>에서 <code>${VAR}</code>/<code>${VAR:-default}</code> 확장을 지원한다.</p>
+
+<pre><code>{
+  "mcpServers": {
+    "nerv": {
+      "type": "http",
+      "url": "https://nerv.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${NERV_TOKEN}" }
+    }
+  }
+}</code></pre>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>기능</th><th>내용</th><th>NERV 용도</th></tr></thead>
+    <tbody>
+      <tr><td>tools</td><td><code>tools/list</code>·<code>tools/call</code></td><td><code>nerv_task_claim</code>·<code>nerv_spec_get</code> 등 <b>모든 핵심 동작</b>(Codex 호환의 유일한 공통분모)</td></tr>
+      <tr><td>resources</td><td><code>@server:protocol://path</code> 멘션으로 프롬프트 첨부</td><td><code>nerv://spec/{project}/{id}</code>로 승인된 SpecVersion 첨부 — Claude 전용 향상</td></tr>
+      <tr><td>prompts</td><td><code>/mcp__nerv__&lt;prompt&gt;</code> 슬래시 명령</td><td>"스펙 리뷰 시작" 같은 정형 워크플로 — Claude 전용 향상</td></tr>
+      <tr><td>elicitation</td><td>서버가 mid-task로 구조화 입력(form)·URL 승인을 요청, <code>Elicitation</code> 훅으로 자동 응답 가능</td><td>클레임 충돌 시 "어느 Task로 갈지" 즉시 질의 — Claude 전용 향상</td></tr>
+      <tr><td>tool search</td><td>툴 정의 기본 지연 로딩(서버 <code>instructions</code> 2KB가 검색 힌트), <code>alwaysLoad:true</code> 또는 툴별 <code>_meta["anthropic/alwaysLoad"]</code></td><td><code>nerv_bootstrap</code>·<code>nerv_task_next</code>만 상시 로딩, 나머지는 지연</td></tr>
+      <tr><td>출력 한도</td><td>기본 25,000 토큰(<code>MAX_MCP_OUTPUT_TOKENS</code>), 툴별 <code>_meta["anthropic/maxResultSizeChars"]</code>(최대 50만자)</td><td>스펙 트리·리뷰 목록 응답에 페이지네이션 강제</td></tr>
+      <tr><td><code>requiresUserInteraction</code></td><td><code>_meta["anthropic/requiresUserInteraction"]: true</code> 툴은 <b>모든 permission 모드에서 매 호출 사람 승인 강제</b>(v2.1.199+)</td><td>스펙 승인 제출·게이트 면제 같은 되돌리기 어려운 도구에 지정(D-06)</td></tr>
+      <tr><td>channels</td><td>서버가 <code>claude/channel</code> capability 선언 + <code>--channels</code>로 활성화 시 <b>서버→세션 메시지 push</b></td><td>승인 결과·충돌 발생을 대기 없이 세션에 통지 — Claude 전용 향상</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>인증은 401/403 시 <code>/mcp</code> 또는 <code>claude mcp login &lt;name&gt;</code>(v2.1.186+)으로 브라우저 OAuth를 수행하며 <b>Dynamic Client Registration + CIMD 자동 발견</b>을 지원한다. 미지원 서버는 <code>--client-id/--client-secret/--callback-port</code>로 사전 등록 자격증명을 쓴다(secret은 macOS 키체인). <code>oauth.scopes</code>로 스코프 고정, <code>authServerMetadataUrl</code>로 발견 체인 오버라이드가 가능하고, OAuth 대신 <code>headers</code>(정적 Bearer) 또는 <code>headersHelper</code>(연결 시마다 셸로 동적 헤더 생성, 401/403 시 자동 재실행)도 공식 경로다. 비대화형(<code>claude -p</code>)에서는 OAuth 플로우를 띄울 수 없으므로 <b>사전 로그인이 필수</b>다 — CI·서버 워커 설계의 제약 조건이다. 조직 통제는 <code>managed-mcp.json</code> + <code>allowedMcpServers</code>/<code>deniedMcpServers</code>로 한다.</p>
+
+  <h3 id="sec-1-4">1.4 Skills — 절차의 배포 포맷</h3>
+
+  <p>스킬은 <code>&lt;name&gt;/SKILL.md</code> 디렉터리이며 커스텀 커맨드와 통합된다. 위치는 Enterprise(관리형)/Personal(<code>~/.claude/skills/</code>)/Project(<code>.claude/skills/</code>)/Plugin(<code>&lt;plugin&gt;/skills/</code>, <code>/plugin:skill</code> 네임스페이스)이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>frontmatter</th><th>NERV 용도</th></tr></thead>
+    <tbody>
+      <tr><td><code>name</code>·<code>description</code>(+<code>when_to_use</code>, 합계 1,536자에서 잘림)</td><td>자동 트리거 문구. "스펙 작성/구현 착수/리뷰 제출" 상황 매칭</td></tr>
+      <tr><td><code>allowed-tools</code> / <code>disallowed-tools</code></td><td>해당 턴 동안 <code>nerv_*</code> 툴 무승인 허용 — 마찰 없는 상태 보고</td></tr>
+      <tr><td><code>context: fork</code> + <code>agent</code> + <code>background</code></td><td>리뷰 제출 같은 무거운 절차를 서브에이전트로 격리 실행</td></tr>
+      <tr><td><code>hooks</code></td><td>스킬 수명 동안만 유효한 훅 — 예: <code>/nerv:impl</code> 중에만 scope 검사 강화</td></tr>
+      <tr><td><code>paths</code></td><td>글롭 매칭 시에만 자동 로드 — 스펙 디렉터리 편집 시 스펙 규약 스킬 자동 로드</td></tr>
+      <tr><td><code>disable-model-invocation</code> / <code>user-invocable:false</code></td><td>사람 전용 명령과 에이전트 전용 절차 구분</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>본문에서는 <code>$ARGUMENTS</code>/<code>$0</code>/<code>$name</code>, <code>${CLAUDE_SESSION_ID}</code>, <code>${CLAUDE_PROJECT_DIR}</code>, <code>${CLAUDE_PLUGIN_ROOT}</code> 치환과 <code>!`cmd`</code> 사전 셸 실행(동적 컨텍스트 주입)이 지원된다. <code>${CLAUDE_SESSION_ID}</code>는 NERV의 AgentSession 키와 직접 대응하므로, 스킬 본문에서 세션 ID를 그대로 도구 인자로 넘길 수 있다.</p>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · SKILL.md는 오픈 표준이다</b>
+    <p>SKILL.md 포맷은 Anthropic이 만든 뒤 오픈 표준으로 공개되어 <b>Claude Code·Claude·ChatGPT/Codex·Cursor·GitHub Copilot·VS Code·Gemini CLI·Goose·OpenHands 등 40여 개 도구가 지원</b>한다(progressive disclosure: 시작 시 name/description만, 매칭 시 본문 로드). NERV의 절차 배포 포맷을 스킬로 잡으면 <b>한 파일로 Claude Code와 Codex 양쪽에 배포</b>된다.</p>
+  </div></div>
+
+  <p class="src"><a href="https://code.claude.com/docs/en/skills">Extend Claude with skills — Claude Code Docs</a> (확인일 2026-08-13): SKILL.md frontmatter 전 필드와 로딩 위치(Enterprise/Personal/Project/Plugin).</p>
+  <p class="src"><a href="https://agentskills.io/">Agent Skills 오픈 표준 (agentskills.io)</a> (확인일 2026-08-13): SKILL.md 포맷의 40여 개 도구 지원.</p>
+
+  <h3 id="sec-1-5">1.5 Sub-agents — 역할 실행 단위</h3>
+
+  <p><code>.claude/agents/*.md</code>(프로젝트) · <code>~/.claude/agents/</code>(유저) · 플러그인 <code>agents/</code>의 YAML frontmatter + 시스템 프롬프트. 필수 필드는 <code>name</code>(훅의 <code>agent_type</code>으로 전달)·<code>description</code>, 선택 필드는 <code>tools</code>·<code>model</code>·<code>isolation: worktree</code> 등이다. <b>플러그인으로 배포할 때 <code>hooks</code>/<code>mcpServers</code>/<code>permissionMode</code> frontmatter는 보안상 무시된다</b> — 서브에이전트로 권한을 몰래 확대할 수 없다는 뜻이며, D-08의 "권한 상속, 절대 비확대" 원칙과 정확히 같은 방향이다.</p>
+
+  <p>추적 경로는 <code>SubagentStart</code>/<code>SubagentStop</code> 훅(<code>agent_id</code>·<code>agent_type</code>)과 stream-json의 <code>parent_tool_use_id</code>다. NERV는 이것으로 "박개발의 세션 안에서 <code>spec-reviewer</code> 서브에이전트가 12분간 돌았다"를 Activity 트리로 복원한다.</p>
+
+  <p class="src"><a href="https://code.claude.com/docs/en/sub-agents">Create custom subagents — Claude Code Docs</a> (확인일 2026-08-13): 서브에이전트 정의 필드와 플러그인 배포 시 <code>hooks</code>/<code>mcpServers</code>/<code>permissionMode</code> 무시 동작.</p>
+
+  <h3 id="sec-1-6">1.6 Plugins &amp; 마켓플레이스 — 하네스 일괄 배포 채널</h3>
+
+  <p>플러그인은 <code>.claude-plugin/plugin.json</code> 매니페스트 + 구성요소 디렉터리다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>구성요소</th><th>NERV 플러그인에 담을 것</th></tr></thead>
+    <tbody>
+      <tr><td><code>skills/</code></td><td><code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:review</code> <code>/nerv:question</code></td></tr>
+      <tr><td><code>agents/</code></td><td>스펙 검증자·리뷰어 서브에이전트</td></tr>
+      <tr><td><code>hooks/hooks.json</code></td><td>SessionStart/PostToolUse/Stop/SessionEnd <code>type:"http"</code> 훅 일괄</td></tr>
+      <tr><td><code>.mcp.json</code></td><td>NERV MCP 서버 주소·인증 동봉</td></tr>
+      <tr><td><code>monitors/</code></td><td>백그라운드 모니터(명령 stdout 각 줄이 Claude 알림으로 전달) — 승인 결과 폴링 표시</td></tr>
+      <tr><td><code>settings.json</code> · <code>bin/</code></td><td>플러그인 기본 설정, PATH에 추가되는 보조 CLI</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>배포는 git 저장소의 <code>.claude-plugin/marketplace.json</code>을 <code>/plugin marketplace add owner/repo</code>로 등록한 뒤 <code>/plugin install name@marketplace</code>. 로컬 테스트는 <code>--plugin-dir</code>(zip 허용)·<code>--plugin-url</code>(CI 아티팩트), 반영은 <code>/reload-plugins</code>.</p>
+
+  <p>설정 우선순위는 <b>관리형(macOS <code>/Library/Application Support/ClaudeCode/managed-settings.json</code>, Linux <code>/etc/claude-code/managed-settings.json</code>) &gt; CLI 인자 &gt; <code>.claude/settings.local.json</code> &gt; <code>.claude/settings.json</code> &gt; <code>~/.claude/settings.json</code></b>이다. 즉 조직은 관리형 설정 하나로 OTel 활성화 + 마켓플레이스 등록 + 플러그인 강제 설치 + 훅 URL 허용목록을 무조작 배포할 수 있다.</p>
+
+<pre><code>{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.nerv.example.com",
+    "OTEL_RESOURCE_ATTRIBUTES": "department=eng,team.id=platform"
+  },
+  "allowedHttpHookUrls": ["https://nerv.example.com/ingest/claude/hook"],
+  "extraKnownMarketplaces": { "nerv": "git.example.com/nerv/plugins" },
+  "enabledPlugins": { "nerv@nerv": true },
+  "strictKnownMarketplaces": true,
+  "otelHeadersHelper": "/usr/local/bin/nerv-otel-headers"
+}</code></pre>
+
+  <div class="callout note"><span class="ico">📝</span><div class="body">
+    <b class="title">확인 필요</b>
+    <p>위 키 이름은 모두 공식 settings 문서에서 확인한 것이지만 <code>extraKnownMarketplaces</code>/<code>enabledPlugins</code>의 값 스키마(문자열 vs 객체)는 문서에서 형태까지 확인하지 못했다. 플러그인 v1 구현 시 확정한다.</p>
+  </div></div>
+
+  <p class="src"><a href="https://code.claude.com/docs/en/plugins">Create plugins — Claude Code Docs</a> (확인일 2026-08-13): 플러그인 구성요소와 마켓플레이스 배포 절차.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/settings">Settings — Claude Code Docs</a> (확인일 2026-08-13): 설정 우선순위와 <code>allowedHttpHookUrls</code>·<code>extraKnownMarketplaces</code>·<code>enabledPlugins</code>·<code>otelHeadersHelper</code>.</p>
+
+  <h3 id="sec-1-7">1.7 Headless와 Agent SDK — 프로그래매틱 구동</h3>
+
+  <p><code>claude -p "prompt"</code>는 비대화형 실행이며 <code>--output-format text|json|stream-json</code>(+<code>--include-partial-messages</code>), <code>--json-schema</code>(구조화 출력), <code>--continue</code>/<code>--resume &lt;session_id&gt;</code>(v2.1.223+ 어느 디렉터리에서든 ID로 재개), <code>--allowedTools</code>/<code>--permission-mode</code>/<code>--permission-prompt-tool</code>, <code>--mcp-config</code>, <code>--bare</code>(훅·플러그인·CLAUDE.md 미로딩), <code>--append-system-prompt</code>를 지원한다.</p>
+
+  <p>stream-json의 <b><code>system/init</code> 이벤트가 세션 메타데이터</b>(model, tools, <code>mcp_servers[{name,status}]</code>, <code>mcp_server_errors</code>, <code>plugins</code>, <code>plugin_errors</code>, <code>capabilities</code>)를 준다. NERV 관점에서 이건 단순 로그가 아니라 <b>컴플라이언스 검사 지점</b>이다 — "이 세션에 NERV MCP와 플러그인이 실제로 로드됐는가"를 CI/부트스트랩에서 기계적으로 검증할 수 있다(FR-15). JSON 결과에는 <code>session_id</code>·<code>total_cost_usd</code>가 포함되고, SIGTERM 종료 시에도 <code>SessionEnd</code> 훅이 실행되며 exit 143이다 — <b>강제 종료도 세션 종료로 정확히 기록된다</b>.</p>
+
+  <p>Agent SDK는 같은 루프를 라이브러리로 제공한다(TypeScript <code>@anthropic-ai/claude-agent-sdk</code>, Python <code>claude-agent-sdk</code>). 내장 툴·훅·서브에이전트·MCP 연결(및 <code>createSdkMcpServer</code>+<code>tool()</code> 인프로세스 커스텀 툴)·권한 콜백(<code>canUseTool</code>)·세션 유지/재개/포크·<code>.claude/</code> 스킬 로딩을 쓸 수 있다. 단 <b>서드파티 제품에 claude.ai 구독 로그인을 제공하는 것은 금지되고 API 키 인증이 필수</b>다 — NERV 서버측 자동화(스펙 lint, 일관성 검사 봇)는 조직 API 키 과금 체계로 분리해 설계해야 한다.</p>
+
+  <p class="src"><a href="https://code.claude.com/docs/en/headless">Run Claude Code programmatically (headless) — Claude Code Docs</a> (확인일 2026-08-13): stream-json <code>system/init</code> 메타데이터·<code>--resume</code>·SIGTERM 시 <code>SessionEnd</code> 실행.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/agent-sdk/overview">Agent SDK overview — Claude Code Docs</a> (확인일 2026-08-13): 라이브러리 기능과 API 키 인증 요건.</p>
+
+  <h3 id="sec-1-8">1.8 OpenTelemetry — 조직 단위 정량 관측</h3>
+
+  <p><code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code> + <code>OTEL_METRICS_EXPORTER</code>/<code>OTEL_LOGS_EXPORTER</code>(otlp|prometheus|console) + <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>로 활성화하고, 관리형 설정의 <code>env</code>로 조직 전체에 강제할 수 있다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>종류</th><th>항목</th><th>NERV 용도</th></tr></thead>
+    <tbody>
+      <tr><td>메트릭 8종</td><td><code>session.count</code>(start_type: fresh/resume/continue/agents_view), <code>lines_of_code.count</code>, <code>pull_request.count</code>, <code>commit.count</code>, <code>cost.usage</code>, <code>token.usage</code>, <code>code_edit_tool.decision</code>, <code>active_time.total</code></td><td>프로젝트·팀별 비용/산출 대시보드, 로드맵의 성공 지표 계측</td></tr>
+      <tr><td>이벤트(로그)</td><td><code>user_prompt</code>, <code>assistant_response</code>, <code>tool_result</code>(tool_name·success·duration_ms·decision_source), <code>api_request</code>(model·cost_usd·tokens + <code>agent.name</code>/<code>skill.name</code>/<code>plugin.name</code>/<code>mcp_server.name</code>/<code>mcp_tool.name</code> 귀속), <code>api_error</code>, <code>api_refusal</code>, <code>tool_decision</code>, <code>permission_mode_changed</code>, <code>auth</code>, <code>mcp_server_connection</code>, <code>plugin_installed</code>/<code>plugin_loaded</code>, <code>skill_activated</code>, <code>internal_error</code></td><td><b>NERV 스킬·플러그인·MCP 툴의 실제 사용률 측정</b>(규약이 지켜지는지의 정량 근거), 연동 장애(<code>mcp_server_connection</code>) 조기 감지</td></tr>
+      <tr><td>표준 속성</td><td><code>session.id</code>·<code>prompt.id</code>·<code>organization.id</code>·<code>user.account_uuid</code>·<code>user.email</code>·<code>terminal.type</code>, <code>OTEL_RESOURCE_ATTRIBUTES</code>로 커스텀 태깅</td><td>훅 데이터와의 조인 키, 부서/팀 라벨</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>민감정보는 기본 마스킹되고 <code>OTEL_LOG_USER_PROMPTS=1</code>·<code>OTEL_LOG_TOOL_DETAILS=1</code> 등으로 opt-in한다(NFR-03의 기본값). <code>otelHeadersHelper</code>로 동적 인증 헤더를 붙일 수 있고, 베타 트레이싱은 <code>claude_code.interaction → llm_request/tool/hook</code> 스팬 계층을 제공한다.</p>
+
+  <h3 id="sec-1-9">1.9 statusline과 클라우드 세션 — 보조 표면과 사각지대</h3>
+
+  <p><b>statusline</b>은 <code>settings.json</code>의 <code>statusLine: {type:"command", command:"..."}</code>로 스크립트를 실행하고 stdin으로 세션 JSON을 받는다(<code>session_id</code>, <code>prompt_id</code>, <code>model.*</code>, <code>workspace.*</code>, <code>cost.*</code>, <code>context_window.used_percentage</code>, <code>rate_limits.*</code>, <code>agent.name</code>, <code>pr.number/url/review_state</code>, <code>worktree.*</code>). NERV에는 <b>역채널</b>로 쓴다 — 서버가 계산한 "현재 클레임한 Task / 리스 잔여 / 겹침 경고"를 개발자 터미널에 상시 표시.</p>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">클라우드 세션은 훅 사각지대다</b>
+    <p><b>Claude Code on the web</b>은 Anthropic 관리 VM에서 세션을 돌린다(research preview). <code>claude --cloud "task"</code>로 생성, <code>claude -p "msg" --cloud &lt;session-id&gt;</code>로 실행 중 세션에 메시지 큐잉, <code>--teleport</code>로 로컬 회수가 가능하다. 문제는 <b>로컬 훅을 심을 수 없다</b>는 점이다(저장소 커밋 settings·환경변수로 일부만 커버). NERV의 세션 레지스트리는 로컬 CLI 세션과 클라우드 세션을 <b>구분 취급</b>해야 하며, 클라우드 세션은 git forge 이벤트와 사용자 자기보고에 의존하는 저해상도 추적이 된다(D-14의 "자기보고 vs 산출물 분리 검증"이 여기서 특히 중요하다).</p>
+  </div></div>
+
+  <p class="src"><a href="https://code.claude.com/docs/en/monitoring-usage">Monitoring / OpenTelemetry — Claude Code Docs</a> (확인일 2026-08-13): 메트릭 8종·이벤트 13종+·표준 속성·마스킹 기본값.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/statusline">Status line — Claude Code Docs</a> (확인일 2026-08-13): 세션 JSON 필드 목록.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/claude-code-on-the-web">Claude Code on the web — Claude Code Docs</a> (확인일 2026-08-13): 관리형 VM·<code>--cloud</code>·<code>--teleport</code>, 로컬 훅 미적용 사각지대.</p>
+
+  <h2 id="sec-2">2. MCP 프로토콜 — 무엇을 어떤 프리미티브로 줄 것인가</h2>
+
+  <h3 id="sec-2-1">2.1 프리미티브와 "누가 결정하나"</h3>
+
+  <p>MCP는 JSON-RPC 2.0 기반이며 서버 기능을 <b>Tools(모델 제어)</b> · <b>Resources(앱 제어)</b> · <b>Prompts(사용자 제어)</b>로 나누고, 클라이언트 기능으로 <b>Elicitation</b>(서버발 사용자 입력 요청)을 명시한다. 옵션 확장으로 <b>Tasks</b>(장기 실행 비동기), <b>Skills over MCP</b>, <b>MCP Apps</b>(인라인 UI)가 있다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>프리미티브</th><th>제어 주체</th><th>NERV 매핑</th><th>Codex 소비</th></tr></thead>
+    <tbody>
+      <tr><td>Tools</td><td>모델</td><td><code>nerv_bootstrap</code>, <code>nerv_spec_search/get/tree</code>, <code>nerv_task_next/claim/heartbeat/update/release</code>, <code>nerv_review_submit</code>, <code>nerv_finding_resolve</code>, <code>nerv_question_create</code>, <code>nerv_session_event</code></td><td><span class="badge approved">가능</span></td></tr>
+      <tr><td>Resources</td><td>앱</td><td><code>nerv://spec/{project}/{id}</code> 승인된 SpecVersion 본문, 리소스 템플릿·자동완성</td><td><span class="badge blocked">불가</span></td></tr>
+      <tr><td>Prompts</td><td>사용자</td><td><code>/mcp__nerv__spec_review</code> 같은 정형 워크플로 슬래시 명령</td><td><span class="badge blocked">불가</span></td></tr>
+      <tr><td>Elicitation</td><td>클라이언트</td><td>클레임 충돌·모호한 요구사항의 즉시 질의</td><td><span class="badge blocked">불가</span></td></tr>
+      <tr><td>Tasks(확장)</td><td>서버</td><td>사람 승인 대기 게이트를 <code>input_required</code> 상태로 모델링</td><td><span class="badge draft">미확인</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>MCP Tasks 확장은 특히 흥미롭다. 서버가 즉시 결과 대신 <code>CreateTaskResult</code>(taskId, status, TTL, pollInterval)를 돌려주고, 클라이언트가 <code>tasks/get</code> 폴링·<code>tasks/update</code>(mid-flight 입력)·<code>tasks/cancel</code>을 쓴다. 상태는 <code>working|input_required|completed|failed|cancelled</code>다. <b>"스펙 승인 대기"를 <code>input_required</code>로 모델링하면 에이전트가 끊겼다 재접속해도 taskId로 승인 결과를 회수</b>할 수 있다 — <code>awaiting_input</code> 세션 상태(D-13)의 프로토콜 대응물이다. 다만 클라이언트 지원 여부는 별도 확인이 필요하므로, MVP는 "웹 UI 승인 + 폴링 툴"로 가고 Tasks는 Phase 2 이후 검토 대상으로 둔다.</p>
+
+  <h3 id="sec-2-2">2.2 Streamable HTTP 리비전 변화 — 2026-07-28의 무세션화</h3>
+
+  <p>표준 트랜스포트는 stdio와 Streamable HTTP(단일 MCP 엔드포인트에 요청당 POST, 응답은 JSON 또는 요청 스코프 SSE 스트림)다. <b>2026-07-28 리비전에는 파괴적 변경이 있다.</b></p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 250" role="img" aria-label="MCP Streamable HTTP 구 리비전과 2026-07-28 리비전의 차이 비교도">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/></marker>
+        <marker id="arr2d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--danger)"/></marker>
+        <marker id="arr2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+      </defs>
+
+      <rect x="10" y="10" width="420" height="230" rx="10" fill="var(--bg-sunken)" stroke="var(--border)"/>
+      <text x="220" y="32" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="12">구 리비전 (2025-03-26 ~ 2025-11-25)</text>
+      <rect x="30" y="46" width="110" height="38" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="85" y="70" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5">클라이언트</text>
+      <rect x="300" y="46" width="110" height="38" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="355" y="70" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5">MCP 서버</text>
+      <line x1="85" y1="110" x2="355" y2="110" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#arr2)"/>
+      <text x="220" y="103" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">POST /mcp + Mcp-Session-Id</text>
+      <line x1="355" y1="148" x2="85" y2="148" stroke="var(--danger)" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr2d)"/>
+      <text x="220" y="141" text-anchor="middle" fill="var(--danger)" font-family="var(--font)" font-size="11">GET /mcp SSE 스트림 — 제거됨</text>
+      <line x1="85" y1="186" x2="355" y2="186" stroke="var(--danger)" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arr2d)"/>
+      <text x="220" y="179" text-anchor="middle" fill="var(--danger)" font-family="var(--font)" font-size="11">Last-Event-ID 재개 — 제거됨</text>
+      <text x="220" y="220" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">세션 상태가 프로토콜 안에 있다</text>
+
+      <rect x="450" y="10" width="420" height="230" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="660" y="32" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12">신 리비전 (2026-07-28)</text>
+      <rect x="470" y="46" width="110" height="38" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="525" y="70" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5">클라이언트</text>
+      <rect x="740" y="46" width="110" height="38" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="795" y="70" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5">MCP 서버</text>
+      <line x1="525" y1="110" x2="795" y2="110" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#arr2a)"/>
+      <text x="660" y="103" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">POST /mcp (요청 스코프 SSE) · 무세션</text>
+      <line x1="525" y1="148" x2="795" y2="148" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#arr2a)"/>
+      <text x="660" y="141" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">subscriptions/listen → 응답 스트림으로 알림</text>
+      <line x1="525" y1="186" x2="795" y2="186" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#arr2a)"/>
+      <text x="660" y="179" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">MCP-Protocol-Version + Mcp-Method 미러 헤더 필수</text>
+      <text x="660" y="220" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="11">세션 상태는 OAuth 토큰 + NERV DB에 있다</text>
+    </svg>
+    <div class="cap">그림 2. 무세션화 — 프로토콜에서 세션이 사라졌으므로 클레임·리스·하트비트는 애초에 NERV DB에 붙어 있어야 한다</div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>항목</th><th>구 리비전 (2025-03-26 ~ 2025-11-25)</th><th>신 리비전 (2026-07-28)</th><th>NERV 대응</th></tr></thead>
+    <tbody>
+      <tr><td>프로토콜 세션</td><td><code>Mcp-Session-Id</code> 헤더로 세션 유지</td><td><b>제거</b> — 요청별 capability 협상(stateless)</td><td>세션 상태를 프로토콜이 아니라 <b>OAuth 토큰 + NERV DB</b>에 결부</td></tr>
+      <tr><td>서버→클라이언트 스트림</td><td>GET 스트림 엔드포인트</td><td><b>제거</b></td><td>알림은 <code>subscriptions/listen</code> 응답 스트림으로 수신</td></tr>
+      <tr><td>재개</td><td><code>Last-Event-ID</code> 재개</td><td><b>제거</b></td><td>재접속 시 NERV 측 커서(마지막 Event id)로 재동기화</td></tr>
+      <tr><td>서버발 상호작용</td><td>별도 요청(sampling/elicitation/roots)</td><td>MRTR(SEP-2322)의 <code>InputRequiredResult</code> → 재시도</td><td>질문/승인은 도구 재호출 규약으로 설계</td></tr>
+      <tr><td>필수 헤더</td><td>—</td><td><code>MCP-Protocol-Version</code> 필수 + <code>Mcp-Method</code>/<code>Mcp-Name</code> 미러 헤더(불일치 시 400 <code>HeaderMismatch</code>)</td><td>게이트웨이에서 헤더 검증·로깅</td></tr>
+      <tr><td>보안</td><td>—</td><td>Origin 검증·localhost 바인딩 필수</td><td>리버스 프록시 규칙에 반영</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-11 · 기술 스택(제안) — MCP 리비전 이중 서빙</b>
+    <p>NERV MCP 서버는 <b>2026-07-28 리비전 기준으로 구현하되 구 리비전(Mcp-Session-Id 시대)도 당분간 함께 서빙</b>한다. 현재 배포된 Claude Code·Codex 클라이언트가 어떤 리비전을 협상할지는 버전마다 다르고 우리가 통제할 수 없다. 핵심 원칙은 하나다 — <b>세션 상태를 프로토콜 세션에 의존시키지 않는다.</b> 클레임·리스·하트비트는 전부 NERV DB의 AgentSession에 붙어 있으므로 트랜스포트가 무상태로 바뀌어도 영향이 없다.</p>
+  </div></div>
+
+  <h3 id="sec-2-3">2.3 OAuth 2.1 — 인증 평면</h3>
+
+  <p>MCP 서버는 OAuth 2.1 리소스 서버로서 <b>RFC 9728 Protected Resource Metadata 구현이 필수</b>이고, 인증 서버는 RFC 8414 또는 OIDC Discovery 중 하나가 필수(클라이언트는 둘 다 지원 필수)다. 클라이언트 등록은 <b>CIMD(Client ID Metadata Documents) 권장(SHOULD)</b>이며 <b>DCR(RFC 7591)은 하위호환용으로 격하(deprecated)</b>됐다. 그 밖에 RFC 8707 resource 파라미터 필수(토큰 audience 바인딩), <code>WWW-Authenticate</code> scope 챌린지와 403 <code>insufficient_scope</code> step-up, RFC 9207 iss 검증, Bearer 헤더 필수·쿼리스트링 금지.</p>
+
+  <ul>
+    <li><b>정식 경로</b> — NERV IdP가 PRM(9728) + AS metadata(8414) + CIMD + PKCE + resource indicator를 구현하면 Claude Code(<code>/mcp</code>, <code>claude mcp login</code>)와 Codex(<code>codex mcp login</code>) 양쪽에서 무설정 로그인이 된다.</li>
+    <li><b>저비용 대안(MVP)</b> — Claude는 <code>headers</code>(정적 Bearer)/<code>headersHelper</code>(동적), Codex는 <code>bearer_token_env_var</code>/<code>http_headers</code>로 NERV 발급 PAT를 주입한다. D-08의 "토큰은 사용자별 발급, 프로젝트 스코프" 원칙은 두 경로 모두에서 지켜진다.</li>
+  </ul>
+
+  <p>스코프 설계는 D-08(권한 상속, 절대 비확대)을 따른다 — 에이전트 토큰은 위임한 사람의 권한을 넘을 수 없고, 403 step-up 챌린지로 부족한 권한을 사후 요구하는 흐름은 "사람에게 물어보라"는 신호로 사용한다.</p>
+
+  <h3 id="sec-2-4">2.4 Skills over MCP — 중기 관전 포인트</h3>
+
+  <p>Skills over MCP 워킹그룹(2026-02 IG 결성 → 2026-04-16 WG 전환)은 스킬을 MCP로 발견·배포·소비하는 표준화를 진행 중이며, 현재 방향은 <b>SEP-2640 Skills Extension(Resources 기반, Extensions Track, In Review)</b>이다. 성사되면 NERV는 플러그인 zip 배포 외에 <b>"MCP 서버가 스킬을 직접 서빙"</b>하는 경로를 갖게 된다. 지금 할 일은 하나다 — 스킬 저장소를 나중에 resources로도 노출할 수 있게 <b>DB에 스킬 본문을 두고 파일로 내보내는 구조</b>를 잡아두는 것.</p>
+
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/latest">MCP Specification (latest = 2026-07-28)</a> (확인일 2026-08-13): 프리미티브 3종 + elicitation, 옵션 확장 목록.</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">Transports / Streamable HTTP (2026-07-28)</a> (확인일 2026-08-13): 세션·GET 스트림·Last-Event-ID 제거와 하위호환 절차.</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization">Authorization (OAuth 2.1, 2026-07-28)</a> (확인일 2026-08-13): PRM 9728 필수, CIMD 권장·DCR 격하, 8707 resource 바인딩.</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/docs/learn/server-concepts">MCP server concepts</a> (확인일 2026-08-13): 프리미티브별 제어 주체 구분과 리소스 템플릿.</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/extensions/tasks/overview">MCP Tasks extension</a> (확인일 2026-08-13): <code>input_required</code> 상태와 폴링·취소 규약.</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/community/working-groups/skills-over-mcp">Skills over MCP Working Group</a> (확인일 2026-08-13): SEP-2640 Skills Extension(Extensions Track, In Review) 진행 상황.</p>
+
+  <h2 id="sec-3">3. Codex — 대칭 표면과 세 가지 결정적 격차</h2>
+
+  <h3 id="sec-3-1">3.1 설정: <code>config.toml</code></h3>
+
+  <p>Codex는 <code>~/.codex/config.toml</code>(전역) 또는 <b>신뢰된</b> 프로젝트의 <code>.codex/config.toml</code>에 <code>[mcp_servers.&lt;name&gt;]</code> 테이블로 MCP를 설정한다. stdio는 <code>command/args/env/cwd</code>, 원격은 <code>url</code> + <code>bearer_token_env_var</code>·<code>http_headers</code>(Streamable HTTP). CLI는 <code>codex mcp add/list/login</code>, OAuth 로그인은 <code>mcp_oauth_callback_port</code>로 콜백 포트를 고정할 수 있고, 툴 allow/deny 목록·승인 모드·타임아웃도 지원한다.</p>
+
+<pre><code># &lt;repo&gt;/.codex/config.toml  — 저장소 온보딩으로 배포
+[mcp_servers.nerv]
+url = "https://nerv.example.com/mcp"
+bearer_token_env_var = "NERV_TOKEN"
+http_headers = { "X-NERV-Project" = "clemvion" }
+
+# 턴 완료 알림을 NERV 웹훅으로 (agent-turn-complete 등)
+notify = ["/usr/local/bin/nerv-notify"]
+
+[otel]
+exporter = "otlp-http"
+environment = "prod"
+log_user_prompt = false</code></pre>
+
+  <h3 id="sec-3-2">3.2 hooks 11종 — 같은 계열, 좁은 표면</h3>
+
+  <p>Codex도 수명주기 훅을 지원한다(2026년 상반기 추가). 이벤트는 세션 수준 <code>SessionStart</code>/<code>SessionEnd</code>/<code>SubagentStart</code>, 턴 수준 <code>PreToolUse</code>/<code>PermissionRequest</code>/<code>PostToolUse</code>/<code>PreCompact</code>/<code>PostCompact</code>/<code>UserPromptSubmit</code>/<code>SubagentStop</code>/<code>Stop</code> — <b>총 11종</b>이다. 공통 페이로드는 <code>session_id</code>, <code>hook_event_name</code>, <code>transcript_path</code>, <code>cwd</code>, <code>model</code>이고 턴 스코프에서는 <code>turn_id</code>·<code>permission_mode</code>가 붙는다. 차단은 exit 2 + stderr 또는 JSON <code>{"decision":"block","reason":...}</code>이며 <b><code>PreToolUse</code>가 사실상 유일한 실질 차단 이벤트</b>다(PostToolUse는 결과 대체).</p>
+
+  <p>설정 위치는 <code>~/.codex/hooks.json</code>·<code>~/.codex/config.toml [hooks]</code>(유저), <code>&lt;repo&gt;/.codex/hooks.json</code>(프로젝트, 신뢰 필요), 플러그인 매니페스트, 관리형(MDM/<code>requirements.toml</code>)이며 <b>비관리형 훅은 <code>/hooks</code>로 검토·승인해야 활성화</b>된다. 문서상 Codex 훅 핸들러는 command 중심이므로 <code>type:"http"</code> 같은 직결 경로가 없다 — NERV는 얇은 포워더 스크립트를 온보딩에 동봉한다.</p>
+
+<pre><code>#!/usr/bin/env bash
+# .codex/hooks/nerv-forward.sh — Codex 훅 → NERV Ingest 포워더
+# Claude Code의 type:"http" 핸들러에 대응하는 최소 래퍼. 실패해도 세션을 막지 않는다(fail-open, D-14).
+set -uo pipefail
+payload="$(cat)"
+enriched="$(printf '%s' "$payload" | jq -c --arg host "$(hostname)" --arg agent "codex" \
+  '. + {hostname: $host, agent_kind: $agent}')"
+
+curl -sS -X POST "${NERV_INGEST_URL}/codex/hook" \
+  -H "Authorization: Bearer ${NERV_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --max-time 3 \
+  -d "$enriched" &gt;/dev/null || true   # 타임아웃/장애 시 통과 + 서버가 결측을 카운트
+exit 0</code></pre>
+
+  <h3 id="sec-3-3">3.3 notify와 OTel</h3>
+
+  <p><code>notify = ["program"]</code>은 지원 이벤트(예: <code>agent-turn-complete</code>) 발생 시 외부 프로그램을 호출하며 JSON으로 <code>type</code>, <code>thread-id</code>, <code>turn-id</code>, <code>cwd</code>, <code>input-messages</code>, <code>last-assistant-message</code>를 전달한다.</p>
+
+<pre><code>{
+  "type": "agent-turn-complete",
+  "thread-id": "01J9…",
+  "turn-id": "01J9…",
+  "cwd": "/Volumes/project/private/clemvion",
+  "input-messages": ["TASK-138 구현 계속"],
+  "last-assistant-message": "리뷰 제출 완료. 3건 warning."
+}</code></pre>
+
+  <p><code>[otel]</code> 섹션(<code>exporter = "otlp-http"|"otlp-grpc"|"none"</code>, <code>environment</code>, <code>log_user_prompt</code>)으로 <code>codex.conversation_starts</code>, <code>codex.api_request</code>, <code>codex.sse_event</code>, <code>codex.tool_decision</code>, <code>codex.tool_result</code> 등을 보낸다(모델·샌드박스 설정·토큰 수·승인 결과·실행 시간 포함). 즉 <b>Codex 수집은 hooks + notify + OTel 3종으로 Claude Code와 거의 대칭 구성이 가능</b>하다.</p>
+
+  <h3 id="sec-3-4">3.4 비대화형 실행과 SDK</h3>
+
+  <p><code>codex exec "task"</code>는 TUI 없이 단일 세션을 완주한다. <code>--json</code>은 <code>thread.started</code>/<code>turn.started</code>/<code>item.completed</code>/<code>turn.failed</code> 등 ThreadEvent JSONL 스트림을 주고, <code>--output-schema &lt;schema.json&gt;</code> 구조화 출력, <code>-o/--output-last-message</code>, <code>codex exec resume --last | &lt;SESSION_ID&gt;</code>로 다단계 파이프라인, <code>--sandbox workspace-write|danger-full-access</code>, <code>--ephemeral</code>을 지원한다. CI에서는 <code>CODEX_API_KEY</code>를 단일 호출 스코프로 주입하는 것이 권장된다.</p>
+
+  <p>SDK는 TypeScript <code>@openai/codex-sdk</code>(Node 18+)·Python <code>openai-codex</code>(3.10+)이며 <code>startThread()</code>/<code>resumeThread(threadId)</code>/<code>run(prompt)</code>, 이벤트 스트리밍, 구조화 출력, 샌드박스 프리셋을 제공한다. 특히 <b>exec 옵션으로 세션 스코프 <code>mcpServers</code>를 주입</b>할 수 있어 전역 등록 없이 NERV MCP를 붙일 수 있다 — 서버측 자동화를 듀얼 엔진으로 짜는 근거다.</p>
+
+  <h3 id="sec-3-5">3.5 AGENTS.md — 프로젝트 지침의 표준 타깃</h3>
+
+  <p>AGENTS.md는 "에이전트용 README" 오픈 포맷으로 순수 Markdown이며 필수 필드·frontmatter가 없다. 모노레포에서는 <b>편집 대상 파일에서 가장 가까운 AGENTS.md가 우선</b>하고 사용자 채팅 지시가 항상 최우선이다. Codex·Cursor·Copilot·Gemini CLI·Jules·Factory·Devin 등 30+ 도구가 네이티브 지원하고 6만+ 저장소가 채택했으며, 현재 Linux Foundation 산하 Agentic AI Foundation이 관리한다.</p>
+
+  <p>문제는 Claude Code가 <code>CLAUDE.md</code>를 읽고 AGENTS.md를 자동 인식하지 않는다는 점이다(이슈 #6235, 2026-05 기준 open). 공식 우회는 CLAUDE.md 안의 <code>@AGENTS.md</code> import 또는 심링크다.</p>
+
+<pre><code>&lt;!-- CLAUDE.md — NERV가 생성/갱신 --&gt;
+@AGENTS.md</code></pre>
+
+  <div class="callout note"><span class="ico">📌</span><div class="body">
+    <b class="title">NERV 규약</b>
+    <p>스펙에서 생성하는 프로젝트 지침의 <b>단일 소스는 AGENTS.md</b>로 두고, CLAUDE.md에는 <code>@AGENTS.md</code> 한 줄만 둔다. 지침 본문은 D-01에 따라 NERV DB에 있고 저장소에는 내보낸 미러가 놓인다.</p>
+  </div></div>
+
+  <h3 id="sec-3-6">3.6 Claude Code vs Codex 패리티 표</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>능력</th><th>Claude Code</th><th>Codex</th><th>NERV 대응</th></tr></thead>
+    <tbody>
+      <tr><td>MCP tools 소비</td><td><span class="badge approved">지원</span></td><td><span class="badge approved">지원</span></td><td><b>공통분모</b> — 핵심 기능 전부 tools로(D-05)</td></tr>
+      <tr><td>MCP <b>resources</b></td><td><span class="badge approved">지원</span> <code>@nerv:…</code> 멘션</td><td><span class="badge blocked">미지원</span></td><td>스펙 본문은 <code>nerv_spec_get</code> <b>툴</b>로도 반드시 제공</td></tr>
+      <tr><td>MCP <b>prompts</b></td><td><span class="badge approved">지원</span> <code>/mcp__nerv__…</code></td><td><span class="badge blocked">미지원</span></td><td>정형 워크플로는 SKILL.md로 이중 배포</td></tr>
+      <tr><td><b>elicitation</b></td><td><span class="badge approved">지원</span> form/URL 모드 + <code>Elicitation</code> 훅</td><td><span class="badge blocked">미지원</span></td><td>질문은 <code>nerv_question_create</code> + 폴링 툴로 대체(세션은 <code>awaiting_input</code>)</td></tr>
+      <tr><td><code>requiresUserInteraction</code> 승인 강제</td><td><span class="badge approved">지원</span> (v2.1.199+)</td><td><span class="badge blocked">미지원</span></td><td>Codex는 서버측 승인 게이트로만 강제 — 도구 호출을 대기 상태로 두고 사람 결재</td></tr>
+      <tr><td>channels(서버→세션 push)</td><td><span class="badge approved">지원</span> <code>claude/channel</code></td><td><span class="badge blocked">미지원</span></td><td>Codex는 폴링 주기(예: 하트비트 60s)에 승인 결과를 회수</td></tr>
+      <tr><td>훅 이벤트 수</td><td><b>31종</b></td><td><b>11종</b> (<code>TaskCreated</code>/<code>Notification</code>/<code>FileChanged</code> 등 없음)</td><td>공통 8~9종만으로 세션 상태 머신(D-13)이 성립하도록 설계</td></tr>
+      <tr><td>훅 핸들러</td><td>command / <b>http</b> / mcp_tool / prompt / agent</td><td>command 중심(문서상 http 핸들러 없음)</td><td>Codex는 포워더 스크립트 동봉</td></tr>
+      <tr><td>턴 완료 알림</td><td><code>Stop</code> 훅</td><td><code>Stop</code> 훅 + <b><code>notify</code></b>(agent-turn-complete)</td><td>양쪽 다 "턴 종료" 이벤트 확보</td></tr>
+      <tr><td>OTel export</td><td><span class="badge approved">지원</span> 메트릭 8종 + 이벤트 13종+</td><td><span class="badge approved">지원</span> <code>codex.*</code> 이벤트</td><td>같은 collector로 수집, 스키마만 어댑터</td></tr>
+      <tr><td>비대화형 실행</td><td><code>claude -p</code>, stream-json, <code>--resume</code></td><td><code>codex exec --json</code>, <code>resume</code></td><td>워커 기동 인터페이스 대칭</td></tr>
+      <tr><td>공식 SDK</td><td><code>@anthropic-ai/claude-agent-sdk</code> / <code>claude-agent-sdk</code></td><td><code>@openai/codex-sdk</code> / <code>openai-codex</code>(세션 스코프 <code>mcpServers</code> 주입)</td><td>서버측 자동화 듀얼 엔진</td></tr>
+      <tr><td>스킬(SKILL.md)</td><td><span class="badge approved">지원</span></td><td><span class="badge approved">지원</span> (agentskills.io 표준)</td><td><b>같은 파일 재사용</b></td></tr>
+      <tr><td>프로젝트 지침</td><td>CLAUDE.md (AGENTS.md 미인식, #6235)</td><td><b>AGENTS.md 네이티브</b></td><td>AGENTS.md 단일 소스 + <code>@AGENTS.md</code> import</td></tr>
+      <tr><td><b>일괄 배포</b></td><td><span class="badge approved">지원</span> 마켓플레이스 + 관리형 settings 강제 설치</td><td><span class="badge blocked">마켓플레이스 부재</span> (훅은 MDM/<code>requirements.toml</code>로 관리형 배포 가능)</td><td>Codex는 저장소 온보딩 스크립트(<code>.codex/config.toml</code>+<code>hooks.json</code>+AGENTS.md)</td></tr>
+      <tr><td>statusline 데이터 피드</td><td><span class="badge approved">지원</span></td><td><span class="badge blocked">미지원</span></td><td>역채널 표시는 Claude 전용 부가 기능</td></tr>
+      <tr><td>클라우드 실행</td><td>Claude Code on the web(<code>--cloud</code>/<code>--teleport</code>)</td><td>Codex cloud(웹·IDE·GitHub <code>@codex</code>·Slack·Linear 진입)</td><td>양쪽 다 로컬 훅 불가</td></tr>
+      <tr><td><b>클라우드 태스크 생성 API</b></td><td><code>claude --cloud</code> CLI 경로 존재</td><td><span class="badge blocked">공개 API/SDK 미문서화</span></td><td>Codex cloud는 GitHub PR/이슈 이벤트로 <b>간접 추적</b>만</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout danger"><span class="ico">🚧</span><div class="body">
+    <b class="title">Codex가 못 하는 세 가지가 설계를 하나씩 규정한다</b>
+    <p><b>① resources/prompts/elicitation 소비 불가</b> → API 설계를 tools-first로 강제. <b>② 마켓플레이스급 일괄 배포 부재</b> → 배포 전략을 저장소 온보딩으로. <b>③ cloud 태스크 생성 API 부재</b> → 관측 범위를 간접 추적으로 한정.</p>
+  </div></div>
+
+  <p class="src"><a href="https://learn.chatgpt.com/docs/extend/mcp?surface=cli">Codex MCP — learn.chatgpt.com</a> (확인일 2026-08-13, 원 URL <code>developers.openai.com/codex/mcp</code>): <code>[mcp_servers.*]</code> 설정과 "tools·server instructions만 소비" 한계.</p>
+  <p class="src"><a href="https://learn.chatgpt.com/docs/hooks">Codex hooks — learn.chatgpt.com</a> (확인일 2026-08-13): 11종 이벤트·페이로드·차단 규약·설정 위치.</p>
+  <p class="src"><a href="https://learn.chatgpt.com/docs/config-file/config-advanced">Codex 고급 설정(notify·OTel) — learn.chatgpt.com</a> (확인일 2026-08-13): <code>notify</code> JSON 필드와 <code>[otel]</code> 이벤트 목록.</p>
+  <p class="src"><a href="https://learn.chatgpt.com/docs/cloud">Codex cloud — learn.chatgpt.com</a> (확인일 2026-08-13): 진입 경로와 "태스크 생성용 공개 API 미문서화".</p>
+
+  <h2 id="sec-4">4. NERV 시사점</h2>
+
+  <h3 id="sec-4-1">4.1 tools-first 설계는 선택이 아니라 제약이다</h3>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-05 · 에이전트 연동 표면은 3층</b>
+    <p>(a) <b>원격 MCP 서버</b>(Streamable HTTP + OAuth 2.1/PAT) = 데이터 평면, <b>tools-first</b>. (b) <b>훅 텔레메트리 평면</b> — Claude Code <code>type:"http"</code> 훅 + Codex 훅/notify, 조직 관측은 OTel 병행. (c) <b>배포 평면</b> — Claude용 플러그인(사내 마켓플레이스 + 관리형 settings), Codex용 AGENTS.md + <code>.codex/config.toml</code> 온보딩. SKILL.md는 오픈 표준이라 양쪽 재사용.</p>
+  </div></div>
+
+  <p>세 표면 중 <b>어느 하나라도 Claude 전용 기능에 기대면 Codex 사용자는 그 기능을 통째로 잃는다.</b> 그래서 규칙은 단순하다.</p>
+  <ol>
+    <li><b>기능의 정의는 tool이다.</b> 스펙 조회도 <code>nerv_spec_get</code> 툴이 정본이고, resources는 같은 데이터의 Claude 전용 첨부 경로일 뿐이다.</li>
+    <li><b>UX 향상만 프리미티브로 얹는다.</b> prompts·elicitation·channels·<code>requiresUserInteraction</code>은 있으면 좋고 없어도 흐름이 끊기지 않아야 한다.</li>
+    <li><b>모든 Claude 전용 기능에는 tools 폴백이 명시된다.</b> elicitation ↔ <code>nerv_question_create</code> + 폴링, channels ↔ 하트비트 응답에 실린 알림.</li>
+  </ol>
+
+  <h3 id="sec-4-2">4.2 이중 수집 파이프라인 — 훅은 제어, OTel은 관측</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>축</th><th>훅 (Claude <code>type:"http"</code> / Codex 포워더)</th><th>OTel (OTLP)</th></tr></thead>
+    <tbody>
+      <tr><td>성격</td><td>동기 요청/응답 — <b>차단·주입 가능</b></td><td>단방향 export — 관측 전용</td></tr>
+      <tr><td>지연</td><td>즉시(세션 흐름에 개입)</td><td>배치·지연 허용</td></tr>
+      <tr><td>대상</td><td>AgentSession·Activity·게이트 판정(FR-07/08/10)</td><td>비용·토큰·툴 사용률·스킬/플러그인 적재(FR-16 이벤트 로그 · 로드맵 성공 기준)</td></tr>
+      <tr><td>실패 시</td><td>fail-open + 연속 카운터 격상(D-14)</td><td>손실 허용</td></tr>
+      <tr><td>조인 키</td><td><code>session_id</code>, <code>prompt_id</code>, (Codex) <code>turn_id</code>, hostname 헤더</td><td><code>session.id</code>, <code>prompt.id</code>, <code>user.email</code>, <code>organization.id</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 860 230" role="img" aria-label="훅 파이프라인과 OTel 파이프라인이 session_id와 prompt_id로 조인되어 AgentSession으로 합쳐지는 흐름도">
+      <defs>
+        <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/></marker>
+      </defs>
+      <rect x="20" y="26" width="210" height="58" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="125" y="49" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">훅 이벤트 (동기·차단 가능)</text>
+      <text x="125" y="68" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">session_id · prompt_id · turn_id</text>
+
+      <rect x="20" y="146" width="210" height="58" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="125" y="169" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">OTel 이벤트 (비동기·관측)</text>
+      <text x="125" y="188" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">session.id · prompt.id · user.email</text>
+
+      <line x1="230" y1="55" x2="330" y2="100" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#arr3)"/>
+      <line x1="230" y1="175" x2="330" y2="130" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#arr3)"/>
+
+      <rect x="330" y="86" width="230" height="58" rx="10" fill="var(--bg-sunken)" stroke="var(--accent)"/>
+      <text x="445" y="109" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">조인 키</text>
+      <text x="445" y="128" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="11.5">prompt_id ＝ prompt.id (동일 UUID)</text>
+
+      <line x1="560" y1="115" x2="640" y2="115" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#arr3)"/>
+
+      <rect x="640" y="70" width="200" height="90" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="740" y="96" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">AgentSession</text>
+      <text x="740" y="116" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">+ Activity 타임라인</text>
+      <text x="740" y="134" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">+ 비용·토큰 집계</text>
+      <text x="740" y="152" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">→ S5 세션 모니터</text>
+    </svg>
+    <div class="cap">그림 3. 두 파이프라인은 역할이 다르지만 <code>prompt_id</code> 하나로 결합된다 — Codex는 <code>session_id</code>+<code>turn_id</code>로 같은 결합을 만든다</div>
+  </div>
+
+  <p>수집이 만들어내는 최종 산출물은 결국 화면이다 — S5 세션 모니터의 모든 열은 위 표면에서 그대로 온다.</p>
+
+  <div class="wf">
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/sessions</div></div>
+    <div class="wf-body">
+      <div class="wf-side">
+        <div class="wf-nav-item">🏠 대시보드</div>
+        <div class="wf-nav-item">📄 스펙</div>
+        <div class="wf-nav-item">✅ 작업</div>
+        <div class="wf-nav-item on">🖥️ 세션</div>
+        <div class="wf-nav-item">🔍 리뷰</div>
+        <div class="wf-nav-item">📥 승인함</div>
+      </div>
+      <div class="wf-main">
+        <div class="wf-topbar"><span class="ttl">세션 모니터 <span class="marker">1</span></span>
+          <span class="wf-input">🔍 hostname · 에이전트 종류</span><span class="wf-btn">필터</span></div>
+        <div class="wf-panel">
+          <div class="wf-panel-hd">활성 세션 4 <span class="spacer"></span><span class="sub">SSE 실시간 (NFR-02: ≤5s)</span></div>
+          <div class="wf-row"><span class="wf-dot on"></span><span class="wf-avatar">김</span>
+            <span class="grow">김기획 · mbp-kim · claude-code <span class="marker">2</span></span>
+            <span class="badge impl">active</span><span class="sub">TASK-142</span></div>
+          <div class="wf-row sel"><span class="wf-dot idle"></span><span class="wf-avatar a2">박</span>
+            <span class="grow">박개발 · wks-park · claude-code</span>
+            <span class="badge review">awaiting_input <span class="marker">3</span></span><span class="sub">TASK-138</span></div>
+          <div class="wf-row"><span class="wf-dot on"></span><span class="wf-avatar a3">이</span>
+            <span class="grow">이QA · mbp-lee · codex <span class="marker">4</span></span>
+            <span class="badge impl">active</span><span class="sub">TASK-151</span></div>
+          <div class="wf-row"><span class="wf-dot off"></span><span class="wf-avatar bot">AI</span>
+            <span class="grow">정개발 · ci-runner-2 · claude-code</span>
+            <span class="badge blocked">stale 32분 <span class="marker">5</span></span><span class="sub">TASK-149 회수됨</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <ul class="wf-legend">
+    <li><span class="marker">1</span><span>S5 세션 모니터(미션 컨트롤). 이 화면의 모든 열은 이 문서의 표면에서 직접 온다 — 새로 만들 계측은 없다.</span></li>
+    <li><span class="marker">2</span><span>사용자·에이전트 종류는 <code>SessionStart</code> 훅 페이로드 + 토큰 주체에서, <b>hostname은 훅 헤더</b>(<code>X-NERV-Host</code>)에서 온다.</span></li>
+    <li><span class="marker">3</span><span><code>awaiting_input</code>은 <code>Elicitation</code> 훅 또는 <code>nerv_question_create</code> 호출로 전이된다(D-13).</span></li>
+    <li><span class="marker">4</span><span>Codex 세션도 같은 행에 들어온다 — 포워더 스크립트가 같은 Ingest API로 보내기 때문.</span></li>
+    <li><span class="marker">5</span><span>하트비트 무활동 임계(기본 30분) 초과 시 <code>stale</code> 자동 전이 + 클레임 자동 회수. 사람이 죽은 세션을 감시하지 않는다(D-13).</span></li>
+  </ul>
+
+  <h3 id="sec-4-3">4.3 배포 전략 — 강제할 수 있는 것과 부탁해야 하는 것</h3>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 클라이언트 강제만으로는 규약이 지켜지지 않는다 (clemvion 실측)</b>
+    <p>clemvion의 원칙은 "강제 없는 규약은 반드시 깨진다"이고 실측이 이를 뒷받침한다 — forced reviewer 미충족 <b>160/575 세션(28%)</b>, checker CRITICAL을 BLOCK: NO로 하향한 모순 <b>24/732(3.3%)</b>. 그런데 로컬 훅으로 만든 강제는 "이 머신의 훅"일 뿐이라 훅 미설치 클론 하나면 무효가 된다.</p>
+  </div></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>대상</th><th>강제 수단</th><th>강제력</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Code (사내 관리 기기)</td><td>관리형 settings — 마켓플레이스 등록 + <code>enabledPlugins</code> + OTel <code>env</code> + <code>allowedHttpHookUrls</code></td><td><b>강함</b> (사용자 조작 불필요·우회 불가)</td></tr>
+      <tr><td>Claude Code (비관리 기기)</td><td>저장소 <code>.claude/settings.json</code> + <code>.mcp.json</code> 커밋</td><td>중간 (승인 프롬프트 통과 필요)</td></tr>
+      <tr><td>Codex</td><td>저장소 <code>.codex/config.toml</code> + <code>.codex/hooks.json</code> + AGENTS.md 온보딩, 관리형은 MDM/<code>requirements.toml</code></td><td>중간 (비관리형 훅은 <code>/hooks</code> 승인 필요)</td></tr>
+      <tr><td><b>모든 경우의 최후 방어선</b></td><td><b>서버측 게이트 판정</b>(FR-10) — "해소된 리뷰가 없으면 Task는 <code>done</code>이 될 수 없다"</td><td><b>가장 강함</b></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>결론은 D-14와 같다. <b>클라이언트 강제는 편의이고, 진실은 서버 산출물이다.</b> 훅이 없는 세션은 관측이 저해상도일 뿐, 게이트를 우회하지는 못한다.</p>
+
+  <h3 id="sec-4-4">4.4 clemvion 로컬 하네스 7,600줄이 어디로 가는가 (D-12)</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>clemvion 로컬 구현</th><th>실측</th><th>NERV에서의 대체 표면</th></tr></thead>
+    <tbody>
+      <tr><td><code>clemvion:.claude/hooks/guard_review_before_push.py</code></td><td><b>1,005줄</b>(하네스 최대 훅), push 명령 정규식 파싱</td><td>서버 게이트 판정 API(FR-10) + git forge 웹훅. 클라이언트 훅은 판정 결과를 <b>표시만</b></td></tr>
+      <tr><td><code>clemvion:.claude/hooks/guard_review_before_stop.py</code></td><td>Stop 게이트, 세션·브랜치별 넛지 dedup 마커</td><td><code>Stop</code> <code>type:"http"</code> 훅 → 서버 응답 <code>{"decision":"block"}</code></td></tr>
+      <tr><td><code>clemvion:.claude/state/*</code> (gitignored 마커·카운터)</td><td>조율 상태 전부 로컬 파일 = <b>단일 호스트 갇힘</b></td><td>Event·AgentSession 테이블(FR-16), hostname 태그로 멀티호스트 식별</td></tr>
+      <tr><td><code>clemvion:.claude/state/push_guard_failopen.json</code></td><td>연속 fail-open 카운터(3회 연속 시 격상)</td><td>서버 카운터 + 대시보드 배너(D-14) — 개인 터미널이 아니라 팀이 본다</td></tr>
+      <tr><td><code>clemvion:.claude/tools/reap-merged-worktrees.sh</code></td><td>머지 이벤트 관측 불가 → <code>gh</code> 폴링, 타 세션 앵커 파괴 위험</td><td>git forge 웹훅 + 세션 레지스트리(FR-07)로 살아있는 앵커 판별</td></tr>
+      <tr><td><code>clemvion:review/</code> 산출물 커밋</td><td><b>md 13,777개·131MB</b>, 리뷰 blob이 <code>.git</code> packed blob의 <b>60%(60.7MB)</b></td><td>에이전트가 파일 대신 <code>nerv_review_submit</code> 툴 호출(D-01·D-07)</td></tr>
+      <tr><td>역할 스킬 5+1종</td><td>로컬 <code>.claude/skills/</code></td><td>플러그인 <code>skills/</code>로 배포, SKILL.md 그대로 Codex 재사용</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>즉 이 문서의 표면 목록은 <b>"clemvion이 로컬 파일과 정규식으로 구현한 것들이 각각 어떤 공식 표면으로 대체되는가"의 대조표</b>이기도 하다. 7,600줄의 상당 부분은 코드가 사라지는 것이 아니라 <b>서버의 SQL과 웹훅으로 이동</b>한다.</p>
+
+  <h3 id="sec-4-5">4.5 남는 공백과 리스크</h3>
+  <ol>
+    <li><b>클라우드 세션의 관측 공백</b> — Claude Code on the web과 Codex cloud는 로컬 훅이 없다. AgentSession에 <code>execution_env</code>(local/cloud) 필드를 두고 클라우드 세션은 저해상도(생성·PR·완료)로만 추적한다고 명시한다.</li>
+    <li><b>Codex cloud 태스크 생성 API 부재</b> — NERV가 Codex 클라우드 작업을 프로그래매틱하게 띄울 방법이 문서화되어 있지 않다. GitHub 이슈/PR <code>@codex</code> 멘션이 사실상의 API다.</li>
+    <li><b>훅 헤더의 토큰 주입 방식</b>과 <b><code>extraKnownMarketplaces</code> 값 스키마</b>는 문서에서 형태까지 확인하지 못했다 — Phase 0 PoC의 실측 항목.</li>
+    <li><b>MCP 리비전 전환기</b> — 클라이언트마다 협상 리비전이 다르므로 이중 서빙 기간이 필요하고, 이 기간의 버그는 "무설정 로그인"의 신뢰를 직접 깎는다.</li>
+    <li><b>벤더 API 변화</b> — 훅 이벤트 목록과 OTel 스키마는 버전마다 늘어난다. 어댑터 계층을 두고 미지 이벤트는 원본 JSON을 그대로 보존(schema-on-read)한다.</li>
+  </ol>
+
+  <h3 id="sec-4-6">4.6 다음 문서로</h3>
+  <p>이 문서는 <b>무엇이 가능한지</b>의 목록이고, <a href="agent-integration.html">3.4 에이전트 연동 설계</a>가 <b>무엇을 실제로 만들지</b>를 정한다 — <code>nerv_*</code> 도구 카탈로그(입력/출력/권한/호출 시점/멱등성), NERV 플러그인 구성과 <code>hooks.json</code> 실물, Codex 온보딩 템플릿, 세션 수명주기 시퀀스, 보안(스펙 본문 = 비신뢰 데이터). 저장·수집 컴포넌트 배치는 <a href="architecture.html">3.2 시스템 아키텍처</a>, 수집된 이벤트가 앉는 테이블은 <a href="data-model.html">3.3 데이터 모델</a>, 게이트가 걸리는 지점은 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>에 있다.</p>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3 id="ref-1">Claude Code 공식 문서 (확인일 2026-08-13)</h3>
+  <ul>
+    <li><a href="https://code.claude.com/docs/en/hooks">Hooks reference</a> — 31종 이벤트, 공통 페이로드(<code>session_id</code>/<code>prompt_id</code>/<code>transcript_path</code>/<code>cwd</code>), exit 2 차단 규약, 핸들러 5종(<code>command</code>/<code>http</code>/<code>mcp_tool</code>/<code>prompt</code>/<code>agent</code>).</li>
+    <li><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP</a> — 트랜스포트·스코프 3종·<code>.mcp.json</code> 변수 확장·OAuth(DCR/CIMD)·<code>headersHelper</code>·tool search·<code>requiresUserInteraction</code>·channels.</li>
+    <li><a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> — SKILL.md frontmatter 전 필드와 로딩 위치.</li>
+    <li><a href="https://code.claude.com/docs/en/sub-agents">Create custom subagents</a> — 서브에이전트 정의, 플러그인 배포 시 <code>hooks</code>/<code>mcpServers</code>/<code>permissionMode</code> 무시.</li>
+    <li><a href="https://code.claude.com/docs/en/plugins">Create plugins</a> — 플러그인 구성요소와 마켓플레이스 배포 절차.</li>
+    <li><a href="https://code.claude.com/docs/en/settings">Settings</a> — 설정 우선순위, <code>allowedHttpHookUrls</code>·<code>extraKnownMarketplaces</code>·<code>enabledPlugins</code>·<code>otelHeadersHelper</code>.</li>
+    <li><a href="https://code.claude.com/docs/en/headless">Run Claude Code programmatically (headless)</a> — stream-json <code>system/init</code> 메타데이터, <code>--resume</code>, SIGTERM 시 <code>SessionEnd</code> 실행.</li>
+    <li><a href="https://code.claude.com/docs/en/agent-sdk/overview">Agent SDK overview</a> — 라이브러리 기능과 API 키 인증 요건.</li>
+    <li><a href="https://code.claude.com/docs/en/monitoring-usage">Monitoring / OpenTelemetry</a> — 메트릭 8종·이벤트 13종+·표준 속성·마스킹 기본값.</li>
+    <li><a href="https://code.claude.com/docs/en/statusline">Status line</a> — 세션 JSON 필드(역채널 표시용).</li>
+    <li><a href="https://code.claude.com/docs/en/claude-code-on-the-web">Claude Code on the web</a> — 관리형 VM 세션과 로컬 훅 사각지대.</li>
+  </ul>
+
+  <h3 id="ref-2">OpenAI Codex 공식 문서 (확인일 2026-08-13)</h3>
+  <ul>
+    <li><a href="https://learn.chatgpt.com/docs/extend/mcp?surface=cli">Codex MCP</a> — <code>[mcp_servers.*]</code>, tools·server instructions만 소비(resources/prompts/elicitation 미지원).</li>
+    <li><a href="https://learn.chatgpt.com/docs/hooks">Codex hooks</a> — 11종 이벤트·페이로드·<code>/hooks</code> 승인.</li>
+    <li><a href="https://learn.chatgpt.com/docs/config-file/config-advanced">Codex 고급 설정</a> — <code>notify</code> 페이로드, <code>[otel]</code> 이벤트.</li>
+    <li><a href="https://learn.chatgpt.com/docs/non-interactive-mode">Codex 비대화형 실행</a> — <code>codex exec --json</code> ThreadEvent.</li>
+    <li><a href="https://learn.chatgpt.com/docs/codex-sdk">Codex SDK</a> — 세션 스코프 <code>mcpServers</code> 주입.</li>
+    <li><a href="https://learn.chatgpt.com/docs/cloud">Codex cloud</a> — 진입 경로, 태스크 생성 API 미문서화.</li>
+  </ul>
+
+  <h3 id="ref-3">표준·프로토콜</h3>
+  <ul>
+    <li><a href="https://modelcontextprotocol.io/specification/latest">MCP Specification (latest = 2026-07-28)</a> — 프리미티브와 옵션 확장.</li>
+    <li><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">Transports / Streamable HTTP (2026-07-28)</a> — 세션·GET 스트림·Last-Event-ID 제거, 헤더 요건, 하위호환.</li>
+    <li><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization">Authorization (OAuth 2.1, 2026-07-28)</a> — PRM(9728)·AS metadata(8414)·CIMD·resource(8707).</li>
+    <li><a href="https://modelcontextprotocol.io/docs/learn/server-concepts">MCP server concepts</a> — 제어 주체 구분과 리소스 템플릿.</li>
+    <li><a href="https://modelcontextprotocol.io/extensions/tasks/overview">MCP Tasks extension</a> — <code>input_required</code> 상태와 폴링/취소 규약.</li>
+    <li><a href="https://modelcontextprotocol.io/community/working-groups/skills-over-mcp">Skills over MCP Working Group</a> — SEP-2640 Skills Extension 진행 상황.</li>
+    <li><a href="https://agentskills.io/">Agent Skills 오픈 표준 (agentskills.io)</a> — SKILL.md 포맷의 40여 개 도구 지원.</li>
+    <li><a href="https://agents.md/">AGENTS.md</a> — 크로스 툴 지침 표준, Linux Foundation 관리.</li>
+    <li><a href="https://github.com/anthropics/claude-code/issues/6235">Claude Code의 AGENTS.md 미지원 이슈 #6235</a> — (2026-05 기준 open) <code>@AGENTS.md</code> import 우회.</li>
+  </ul>
+
+  <h3 id="ref-4">clemvion 실측 근거</h3>
+  <ul>
+    <li><code>clemvion:.claude/hooks/guard_review_before_push.py</code> — 1,005줄, 하네스 최대 훅(push 감지 정규식 게이트).</li>
+    <li><code>clemvion:.claude/hooks/guard_review_before_stop.py</code> — Stop 게이트(<code>{"decision":"block"}</code> 출력 패턴).</li>
+    <li><code>clemvion:.claude/state/push_guard_failopen.json</code> — fail-open 연속 카운터, 3회 연속 시 "게이트가 사실상 꺼짐" 격상.</li>
+    <li><code>clemvion:.claude/tools/reap-merged-worktrees.sh</code> — 머지 이벤트 관측 불가 → <code>gh</code> 폴링, 타 세션 앵커 파괴 위험.</li>
+    <li><code>clemvion:.claude/state/</code> · <code>.claude/worktrees/</code> — <code>.gitignore</code> 대상, 조율 상태 전부 비공유 로컬 파일(단일 호스트 갇힘).</li>
+    <li><code>clemvion:review/</code> — md 13,777개·131MB, 73일간 리뷰 세션 1,891개, 리뷰 blob이 <code>.git</code> packed blob의 60%(60.7MB).</li>
+    <li>하네스 코드 규모 약 7,600줄(훅 9종 + <code>_lib</code> + workflows), 역할 스킬 5+1종.</li>
+    <li>산문 규약 붕괴 실측 — forced reviewer 미충족 160/575 세션(28%), checker CRITICAL을 BLOCK: NO로 하향 24/732(3.3%).</li>
+  </ul>
+
+  <h3 id="ref-5">관련 문서</h3>
+  <p><a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a> · <a href="pain-points.html">1.2 문제 정의와 요구사항</a> · <a href="spec-driven-development.html">2.1 Spec-Driven Development</a> · <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a> · <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a> · <a href="vision.html">3.1 비전과 핵심 시나리오</a> · <a href="architecture.html">3.2 시스템 아키텍처</a> · <a href="data-model.html">3.3 데이터 모델</a> · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> · <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> · <a href="ui-wireframes.html">3.6 화면 설계</a> · <a href="roadmap.html">3.7 로드맵</a></p>
+
+  <footer class="page-footer">
+    <span>← <a href="collab-platforms.html">이전: 2.3 협업 플랫폼의 에이전트 통합</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="vision.html">다음: 3.1 비전과 핵심 시나리오</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

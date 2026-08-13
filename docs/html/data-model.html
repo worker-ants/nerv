@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3.3 데이터 모델 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html" class="active">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 3부 · 플랫폼 제안 / 3.3 데이터 모델</div>
+
+  <header class="page-header">
+    <h1>데이터 모델</h1>
+    <p class="lead">NERV가 Postgres에 담을 26개 엔티티의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-13)</span>
+      <span>원본: <code>docs/03-proposal/data-model.md</code></span>
+      <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
+    </div>
+  </header>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">엔티티</b><div class="big">26</div><p>Postgres 테이블. 테넌시 5 · 도메인 10 · 기록 11</p></div>
+    <div class="card"><b class="card-title">상태 축</b><div class="big">2축</div><p>문서 리뷰 축과 구현 축을 다른 테이블로 분리 (D-02)</p></div>
+    <div class="card"><b class="card-title">검증 질의</b><div class="big">8</div><p>P1~P8을 각각 겨냥한 SQL로 모델을 반증 시도</p></div>
+  </div>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">전체 ERD와 엔티티 지도</a></li>
+      <li><a href="#sec-2">엔티티 상세 (필드 표 · 상태 머신)</a></li>
+      <li><a href="#sec-3">clemvion frontmatter → NERV 필드 매핑</a></li>
+      <li><a href="#sec-4">대표 질의 8개로 모델 검증</a></li>
+      <li><a href="#sec-5">ID · 인덱스 · 보존 정책</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 전체 ERD와 엔티티 지도</h2>
+
+  <h3>1.1 이 모델을 읽는 법</h3>
+
+  <p>모델은 3층으로 나뉜다. 각 층은 <a href="pain-points.html">문제 정의와 요구사항</a>의 서로 다른 문제를 담당한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>층</th><th>엔티티</th><th>성격</th><th>해소하는 문제</th></tr></thead>
+    <tbody>
+      <tr><td><b>테넌시</b></td><td>Organization · User · Project · Membership · ApiToken</td><td>느리게 변하는 신원·권한</td><td>P8 n:n 구조 부재</td></tr>
+      <tr><td><b>도메인</b></td><td>Spec · SpecVersion · Requirement · RequirementVersion · SpecRelation · ChangeRequest · Task · TaskDependency · Claim · AgentSession</td><td>상태 머신을 가진 살아 있는 데이터</td><td>P1 스펙 충돌 · P2 중복 작업 · P3 버전 관리 · P4 상태 추적</td></tr>
+      <tr><td><b>기록</b></td><td>Activity · ReviewSession · ReviewerReport · Finding · FindingOccurrence · Resolution · Approval · Question · Evidence · Event · Notification</td><td>append-only에 가까운 불변 기록</td><td>P5 출처 추적 · P6 git 비대화 · P7 비개발자 참여</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>세 가지 규칙이 표 전체를 관통한다.</p>
+  <ol>
+    <li><b>모든 도메인 테이블은 <code>project_id</code>를 갖는다.</b> 질의가 거의 항상 단일 프로젝트 범위이기 때문이며, 블록 테이블을 workspace ID로 파티셔닝한 Notion의 선택과 같은 이유다. 인덱스는 예외 없이 <code>(project_id, …)</code> 복합으로 시작한다.</li>
+    <li><b>상호참조는 경로가 아니라 ID로 한다</b>(D-09). clemvion은 상대경로 + 헤딩 앵커로 문서를 엮어, <code>plan/</code>이 <code>in-progress/</code>에서 <code>complete/</code>로 이동하면 스펙 본문 링크가 깨지고 빌드가 실패했다(<code>clemvion:spec/conventions/spec-impl-evidence.md</code> §4.2). ID 참조에는 그 결합이 없다.</li>
+    <li><b>행위자는 항상 (사람, 세션) 쌍으로 남긴다.</b> 사람 <code>assignee</code>와 에이전트 <code>delegate</code>를 분리하는 D-08의 데이터 표현이며, Event에는 <code>is_agent</code> 플래그가 함께 남는다(FR-16).</li>
+  </ol>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-02 · 스펙 상태는 2축으로 분리한다</b>
+    <p>① 문서 리뷰 축: <code>spec_version.status</code> = <code>draft → in_review → approved → superseded / deprecated</code><br>
+       ② 구현 축: <code>requirement.impl_status</code> = <code>unimplemented → in_progress → implemented → verified</code></p>
+    <p>두 축은 서로 다른 테이블에 있고, 한 문서 안의 두 요구사항이 서로 다른 구현 상태를 가질 수 있다.</p>
+  </div></div>
+
+  <h3>1.2 전체 ERD</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 1200 600" role="img" aria-label="NERV 데이터 모델 전체 ERD — 26개 테이블과 관계">
+      <defs>
+        <marker id="one" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+          <path d="M1,1 L1,9" stroke="var(--border-strong)" stroke-width="1.6" fill="none"/>
+        </marker>
+        <marker id="many" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+          <path d="M1,1 L9,5 M1,9 L9,5 M1,5 L9,5" stroke="var(--accent)" stroke-width="1.3" fill="none"/>
+        </marker>
+      </defs>
+
+      <!-- 클러스터 프레임 -->
+      <rect x="12" y="34" width="196" height="356" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
+      <rect x="240" y="34" width="208" height="424" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
+      <rect x="476" y="34" width="200" height="290" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
+      <rect x="700" y="34" width="200" height="290" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
+      <rect x="924" y="34" width="216" height="494" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
+      <text x="20" y="52" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5" font-weight="700">① 테넌시</text>
+      <text x="248" y="52" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5" font-weight="700">② 스펙 · 요구사항</text>
+      <text x="484" y="52" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5" font-weight="700">③ 작업</text>
+      <text x="708" y="52" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5" font-weight="700">④ 세션 · 사람 개입</text>
+      <text x="932" y="52" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5" font-weight="700">⑤ 리뷰 · 기록</text>
+
+      <!-- 관계선 -->
+      <g fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)">
+        <path d="M112,104 V132"/>
+        <path d="M96,172 V200"/>
+        <path d="M140,268 V240"/>
+        <path d="M96,308 V336"/>
+        <path d="M200,152 H224 V84 H248"/>
+        <path d="M344,104 V132"/>
+        <path d="M320,172 V200"/>
+        <path d="M368,240 V268"/>
+        <path d="M248,152 H232 V288 H248"/>
+        <path d="M440,166 H472 V356 H440"/>
+        <path d="M248,94 H216 V424 H248"/>
+        <path d="M440,146 H454 V84 H488"/>
+        <path d="M440,212 H462 V96 H488"/>
+        <path d="M440,224 H468 V152 H488"/>
+        <path d="M576,104 V132"/>
+        <path d="M664,84 H688 V220 H664"/>
+        <path d="M664,94 H694 V288 H664"/>
+        <path d="M712,104 H698 V300 H664"/>
+        <path d="M800,104 V132"/>
+        <path d="M888,94 H910 V220 H888"/>
+        <path d="M800,240 V268"/>
+        <path d="M888,74 H936"/>
+        <path d="M1032,104 V132"/>
+        <path d="M1128,84 H1160 V288 H1128"/>
+        <path d="M1032,240 V268"/>
+        <path d="M936,220 H916 V356 H936"/>
+        <path d="M1032,444 V472"/>
+      </g>
+      <path d="M248,230 H212 V560 H906 V232 H936" fill="none" stroke="var(--accent)" stroke-width="1.2"
+            stroke-dasharray="5 4" marker-end="url(#many)"/>
+      <text x="560" y="552" fill="var(--accent)" font-family="var(--font)" font-size="11">출처(provenance) — finding.requirement_id</text>
+      <g fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#many)">
+        <path d="M420,132 V118 H444 V12 H1172 V210 H1128"/>
+        <path d="M576,64 V22 H1032 V64"/>
+        <path d="M248,356 H228 V146 H248"/>
+        <path d="M440,156 H480 V166 H488"/>
+      </g>
+
+      <!-- ① 테넌시 -->
+      <g fill="var(--bg-sunken)" stroke="var(--border-strong)">
+        <rect x="24" y="64" width="176" height="40" rx="8"/>
+        <rect x="24" y="132" width="176" height="40" rx="8"/>
+        <rect x="24" y="200" width="176" height="40" rx="8"/>
+        <rect x="24" y="268" width="176" height="40" rx="8"/>
+        <rect x="24" y="336" width="176" height="40" rx="8"/>
+      </g>
+      <g fill="var(--text)" font-family="var(--font)" font-size="12" text-anchor="middle">
+        <text x="112" y="89">organization</text>
+        <text x="112" y="157">project</text>
+        <text x="112" y="225">membership</text>
+        <text x="112" y="293">user</text>
+        <text x="112" y="361">api_token</text>
+      </g>
+
+      <!-- ② 스펙 -->
+      <g fill="var(--accent-soft)" stroke="var(--accent)">
+        <rect x="248" y="64" width="192" height="40" rx="8"/>
+        <rect x="248" y="132" width="192" height="40" rx="8"/>
+        <rect x="248" y="200" width="192" height="40" rx="8"/>
+        <rect x="248" y="268" width="192" height="40" rx="8"/>
+        <rect x="248" y="336" width="192" height="40" rx="8"/>
+        <rect x="248" y="404" width="192" height="40" rx="8"/>
+      </g>
+      <g fill="var(--text)" font-family="var(--font)" font-size="12" text-anchor="middle">
+        <text x="344" y="89">spec</text>
+        <text x="344" y="157">spec_version</text>
+        <text x="344" y="225">requirement</text>
+        <text x="344" y="293">requirement_version</text>
+        <text x="344" y="361">change_request</text>
+        <text x="344" y="429">spec_relation</text>
+      </g>
+
+      <!-- ③ 작업 -->
+      <g fill="var(--accent-soft)" stroke="var(--accent)">
+        <rect x="488" y="64" width="176" height="40" rx="8"/>
+        <rect x="488" y="132" width="176" height="40" rx="8"/>
+        <rect x="488" y="200" width="176" height="40" rx="8"/>
+        <rect x="488" y="268" width="176" height="40" rx="8"/>
+      </g>
+      <g fill="var(--text)" font-family="var(--font)" font-size="12" text-anchor="middle">
+        <text x="576" y="89">task</text>
+        <text x="576" y="157">evidence</text>
+        <text x="576" y="225">task_dependency</text>
+        <text x="576" y="293">claim</text>
+      </g>
+
+      <!-- ④ 세션 -->
+      <g fill="var(--accent-soft)" stroke="var(--accent)">
+        <rect x="712" y="64" width="176" height="40" rx="8"/>
+        <rect x="712" y="132" width="176" height="40" rx="8"/>
+        <rect x="712" y="200" width="176" height="40" rx="8"/>
+        <rect x="712" y="268" width="176" height="40" rx="8"/>
+      </g>
+      <g fill="var(--text)" font-family="var(--font)" font-size="12" text-anchor="middle">
+        <text x="800" y="89">agent_session</text>
+        <text x="800" y="157">activity</text>
+        <text x="800" y="225">question</text>
+        <text x="800" y="293">approval</text>
+      </g>
+
+      <!-- ⑤ 리뷰 · 기록 -->
+      <g fill="var(--bg-elev)" stroke="var(--border-strong)">
+        <rect x="936" y="64" width="192" height="40" rx="8"/>
+        <rect x="936" y="132" width="192" height="40" rx="8"/>
+        <rect x="936" y="200" width="192" height="40" rx="8"/>
+        <rect x="936" y="268" width="192" height="40" rx="8"/>
+        <rect x="936" y="336" width="192" height="40" rx="8"/>
+        <rect x="936" y="404" width="192" height="40" rx="8"/>
+        <rect x="936" y="472" width="192" height="40" rx="8"/>
+      </g>
+      <g fill="var(--text)" font-family="var(--font)" font-size="12" text-anchor="middle">
+        <text x="1032" y="89">review_session</text>
+        <text x="1032" y="157">reviewer_report</text>
+        <text x="1032" y="225">finding</text>
+        <text x="1032" y="293">finding_occurrence</text>
+        <text x="1032" y="361">resolution</text>
+        <text x="1032" y="429">event</text>
+        <text x="1032" y="497">notification</text>
+      </g>
+    </svg>
+    <div class="cap">그림 1. 전체 ERD. 선 끝의 <b>│</b>는 1 쪽, <b>≺</b>(까마귀발)은 N 쪽이다. 점선은 §2 필드 표에만 드러나던 보조 FK다 —
+      <code>finding.requirement_id</code>·<code>finding.spec_version_id</code>(출처), <code>evidence.spec_version_id</code>(증적),
+      <code>review_session.task_id</code>(검토 대상), <code>spec_version.change_request_id</code>(제안 버전).
+      지면상 생략한 관계: <code>organization→membership</code>(조직 전역 역할), <code>spec→requirement</code>(요구사항은 spec과 spec_version 양쪽에 FK를 갖는다),
+      <code>approval</code>의 다형 참조(spec_version·change_request·question·gate_bypass), <code>event</code>의 <code>project_id</code>(모든 도메인 테이블이 보유).</div>
+  </div>
+
+  <h3>1.3 엔티티 한 줄 요약</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>엔티티</th><th>테이블</th><th>한 줄 정의</th><th>관련 FR</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>조직</td><td><code>organization</code></td><td>최상위 테넌트. 프로젝트와 멤버를 보유</td><td>FR-14</td></tr>
+      <tr><td>2</td><td>사용자</td><td><code>user</code></td><td>사람 계정. 에이전트는 별도 계정을 갖지 않는다(D-08)</td><td>FR-14</td></tr>
+      <tr><td>3</td><td>프로젝트</td><td><code>project</code></td><td>하나의 제품/저장소 단위. 모든 도메인 데이터의 파티션 키</td><td>FR-14</td></tr>
+      <tr><td>4</td><td>멤버십</td><td><code>membership</code></td><td>사용자×(조직 또는 프로젝트) n:n + 역할 6종</td><td>FR-14</td></tr>
+      <tr><td>5</td><td>API 토큰</td><td><code>api_token</code></td><td>사용자별·프로젝트 스코프 에이전트 자격증명</td><td>FR-15 · NFR-03</td></tr>
+      <tr><td>6</td><td>스펙</td><td><code>spec</code></td><td>트리 노드. 타입 6종, 안정 ID 보유</td><td>FR-01</td></tr>
+      <tr><td>7</td><td>스펙 버전</td><td><code>spec_version</code></td><td>본문의 불변 스냅샷 + 문서 상태(D-02 문서 축)</td><td>FR-02</td></tr>
+      <tr><td>8</td><td>요구사항</td><td><code>requirement</code></td><td>세분 추적 단위. 안정 ID + 구현 상태(D-02 구현 축)</td><td>FR-03</td></tr>
+      <tr><td>9</td><td>요구사항 버전</td><td><code>requirement_version</code></td><td>버전×요구사항 델타(ADDED/MODIFIED/REMOVED)</td><td>FR-04</td></tr>
+      <tr><td>10</td><td>스펙 관계</td><td><code>spec_relation</code></td><td>스펙 간 참조·정제·중복 관계</td><td>FR-01</td></tr>
+      <tr><td>11</td><td>변경 요청</td><td><code>change_request</code></td><td>승인된 스펙에 대한 수정 제안(새 draft 버전 + 델타)</td><td>FR-04</td></tr>
+      <tr><td>12</td><td>작업</td><td><code>task</code></td><td>SpecVersion/Requirement에서 파생된 구현 단위</td><td>FR-05</td></tr>
+      <tr><td>13</td><td>작업 의존성</td><td><code>task_dependency</code></td><td>ready 판정을 만드는 선행 관계 그래프</td><td>FR-05</td></tr>
+      <tr><td>14</td><td>클레임</td><td><code>claim</code></td><td>원자적 선점 + scope 선언 + TTL 리스</td><td>FR-06</td></tr>
+      <tr><td>15</td><td>에이전트 세션</td><td><code>agent_session</code></td><td>사용자·hostname·에이전트 종류의 1회 실행</td><td>FR-07</td></tr>
+      <tr><td>16</td><td>활동</td><td><code>activity</code></td><td>세션이 남기는 타입드 불변 로그 5종</td><td>FR-08</td></tr>
+      <tr><td>17</td><td>리뷰 세션</td><td><code>review_session</code></td><td>검토 1회 실행 + 입력 커밋 스냅샷(필수)</td><td>FR-09</td></tr>
+      <tr><td>18</td><td>리뷰어 보고서</td><td><code>reviewer_report</code></td><td>세션×역할 개별 보고 + 커버리지 충족 여부</td><td>FR-09</td></tr>
+      <tr><td>19</td><td>발견사항</td><td><code>finding</code></td><td>라운드 불변 fingerprint를 가진 개별 지적</td><td>FR-09</td></tr>
+      <tr><td>20</td><td>발견 출현</td><td><code>finding_occurrence</code></td><td>어느 라운드에서 몇 번으로 보였는가(구 <code>SUMMARY#n</code>)</td><td>FR-09</td></tr>
+      <tr><td>21</td><td>해결</td><td><code>resolution</code></td><td>finding 처분: 수정·유예·기각·에스컬레이션</td><td>FR-09 · FR-10</td></tr>
+      <tr><td>22</td><td>승인</td><td><code>approval</code></td><td>사람의 결재 행위(스펙·CR·플랜·질문·면제)</td><td>FR-11</td></tr>
+      <tr><td>23</td><td>질문</td><td><code>question</code></td><td>에이전트→사람 에스컬레이션. 세션은 <code>awaiting_input</code></td><td>FR-11</td></tr>
+      <tr><td>24</td><td>증적</td><td><code>evidence</code></td><td>Requirement/SpecVersion ↔ 코드·테스트·PR·커밋 연결</td><td>FR-13</td></tr>
+      <tr><td>25</td><td>이벤트</td><td><code>event</code></td><td>append-only 상태 전이 로그(피드·알림·감사의 원천)</td><td>FR-16</td></tr>
+      <tr><td>26</td><td>알림</td><td><code>notification</code></td><td>이벤트에서 파생된 개인별 수신함 항목</td><td>FR-12</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 2축 분리가 필요한 이유</b>
+    <p>clemvion의 <code>status</code>는 5값(<code>backlog</code>/<code>spec-only</code>/<code>partial</code>/<code>implemented</code>/<code>archived</code>)이지만 <b>전부 구현 축</b>이고 <b>문서 단위</b>다.
+    그 결과 (a) 초안/검토중/승인이라는 문서 상태가 존재하지 않아 "이게 합의된 내용인가"를 물을 수 없었고,
+    (b) 1,750줄 문서(<code>clemvion:spec/5-system/4-execution-engine.md</code>)에 상태 값이 하나뿐이라 <code>code:</code> glob이 매치되면 통과해 요구사항 단위 미구현이 그대로 통과했다 —
+    실제 사고: "spec이 <code>필수</code>로 약속한 update dedup이 통째로 미구현"(CCH-SE-02).
+    요구사항별 상태를 대신하던 수동 ✅ 마크는 한 영역 <b>131개</b> 대 다른 영역 <b>0개</b>로 관행이 갈라져 이미 붕괴해 있었다.</p>
+  </div></div>
+
+  <h3>1.4 두 축의 상태 머신</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 740 300" role="img" aria-label="문서 축과 구현 축의 상태 머신">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+        <marker id="ar-cr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+      </defs>
+
+      <text x="24" y="26" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5" font-weight="700">문서 축 · spec_version.status — "무엇에 합의했나"</text>
+      <g fill="var(--accent-soft)" stroke="var(--accent)">
+        <rect x="30" y="44" width="110" height="38" rx="10"/>
+        <rect x="200" y="44" width="120" height="38" rx="10"/>
+        <rect x="380" y="44" width="110" height="38" rx="10"/>
+      </g>
+      <g fill="var(--bg-sunken)" stroke="var(--border-strong)">
+        <rect x="560" y="16" width="140" height="38" rx="10"/>
+        <rect x="560" y="72" width="140" height="38" rx="10"/>
+      </g>
+      <g fill="var(--text)" font-family="var(--font)" font-size="12.5" text-anchor="middle">
+        <text x="85" y="68">draft</text>
+        <text x="260" y="68">in_review</text>
+        <text x="435" y="68">approved</text>
+        <text x="630" y="40">superseded</text>
+        <text x="630" y="96">deprecated</text>
+      </g>
+      <g fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar)">
+        <path d="M140,63 H196"/>
+        <path d="M320,63 H376"/>
+        <path d="M490,63 H520 V35 H556"/>
+        <path d="M490,63 H520 V91 H556"/>
+        <path d="M255,82 V100 H100 V86"/>
+      </g>
+      <g fill="var(--text-mute)" font-family="var(--font)" font-size="10.5" text-anchor="middle">
+        <text x="168" y="57">검토 제출</text>
+        <text x="348" y="57">Approval approve</text>
+        <text x="177" y="114">거절 · 수정 요청</text>
+        <text x="630" y="128">후속 버전 승인 / 폐기 결정</text>
+      </g>
+
+      <text x="24" y="176" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5" font-weight="700">구현 축 · requirement.impl_status — "어디까지 됐나"</text>
+      <g fill="var(--accent-soft)" stroke="var(--accent)">
+        <rect x="30" y="194" width="130" height="38" rx="10"/>
+        <rect x="220" y="194" width="120" height="38" rx="10"/>
+        <rect x="400" y="194" width="120" height="38" rx="10"/>
+        <rect x="580" y="194" width="110" height="38" rx="10"/>
+      </g>
+      <g fill="var(--text)" font-family="var(--font)" font-size="12.5" text-anchor="middle">
+        <text x="95" y="218">unimplemented</text>
+        <text x="280" y="218">in_progress</text>
+        <text x="460" y="218">implemented</text>
+        <text x="635" y="218">verified</text>
+      </g>
+      <g fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar)">
+        <path d="M160,213 H216"/>
+        <path d="M340,213 H396"/>
+        <path d="M520,213 H576"/>
+        <path d="M455,232 V254 H100 V236"/>
+      </g>
+      <g fill="var(--text-mute)" font-family="var(--font)" font-size="10.5" text-anchor="middle">
+        <text x="188" y="207">Task claimed</text>
+        <text x="368" y="207">Evidence 연결</text>
+        <text x="548" y="207">테스트·리뷰 증적</text>
+        <text x="277" y="268">증적 stale 판정</text>
+      </g>
+      <g fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="5 4">
+        <path d="M635,194 V150 H330 V190" marker-end="url(#ar-cr)"/>
+        <path d="M460,194 V150"/>
+      </g>
+      <text x="486" y="144" fill="var(--accent)" font-family="var(--font)" font-size="10.5" text-anchor="middle">CR로 요구사항 modified</text>
+    </svg>
+    <div class="cap">그림 2. 두 축은 서로를 참조하지만 결합하지 않는다.</div>
+  </div>
+
+  <p>새 SpecVersion이 승인돼도 이미 <code>verified</code>인 Requirement는 그대로 이월되고(<code>requirement_version.change_kind = 'unchanged'</code>), <code>modified</code>로 표시된 것만 <code>in_progress</code>로 되돌아간다. 이 계산이 CR 승인 시 영향 분석의 전부다(FR-04).</p>
+
+  <h2 id="sec-2">2. 엔티티 상세</h2>
+
+  <p>타입은 Postgres 표기다(<code>uuid</code>, <code>text</code>, <code>timestamptz</code>, <code>jsonb</code>, <code>text[]</code>). 모든 테이블은 별도 표기가 없으면 <code>id uuid PK</code>(서버 발급 UUIDv7, §5.1)와 <code>created_at timestamptz NOT NULL DEFAULT now()</code>를 갖는다.</p>
+
+  <h3>2.1 테넌시 — organization · user · project · membership · api_token</h3>
+
+  <h4><code>organization</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td>조직 식별자</td></tr>
+      <tr><td><code>slug</code></td><td>text UNIQUE</td><td>URL 식별자</td></tr>
+      <tr><td><code>name</code></td><td>text</td><td>표시 이름</td></tr>
+      <tr><td><code>settings</code></td><td>jsonb</td><td>기본 게이트 정책·보존 기간 기본값(프로젝트가 덮어쓴다)</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>user</code></h4>
+  <p>사람 계정만 담는다. Linear는 에이전트를 <code>actor=app</code> 앱 유저로 승격시키지만, NERV는 에이전트 신원을 <code>agent_session</code> + <code>api_token</code>으로 표현한다(§2.5의 판단 근거 참조).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>email</code></td><td>citext UNIQUE</td><td>로그인 식별자</td></tr>
+      <tr><td><code>display_name</code></td><td>text</td><td>UI 표시 이름</td></tr>
+      <tr><td><code>avatar_url</code></td><td>text</td><td></td></tr>
+      <tr><td><code>state</code></td><td>enum</td><td><code>invited / active / disabled</code></td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>project</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td>전 도메인 테이블의 파티션 키</td></tr>
+      <tr><td><code>org_id</code></td><td>uuid FK → organization</td><td></td></tr>
+      <tr><td><code>key</code></td><td>text</td><td>사람이 읽는 짧은 키(예: <code>CLV</code>). 표시 ID 접두사</td></tr>
+      <tr><td><code>name</code> · <code>description</code></td><td>text</td><td></td></tr>
+      <tr><td><code>repo_url</code> · <code>default_branch</code></td><td>text</td><td>git forge 연동 대상</td></tr>
+      <tr><td><code>gate_policy</code></td><td>jsonb</td><td>위험도별 게이트 임계(D-06), fail-open 격상 임계(D-14)</td></tr>
+      <tr><td><code>retention</code></td><td>jsonb</td><td>Activity·프롬프트 페이로드 보존 기간(§5.4)</td></tr>
+      <tr><td><code>archived_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>membership</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>org_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK NULL</td><td>NULL = 조직 전역 역할</td></tr>
+      <tr><td><code>user_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>role</code></td><td>enum</td><td><code>admin / planner / designer / developer / qa / viewer</code></td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p>제약: <code>UNIQUE (user_id, coalesce(project_id, org_id))</code> 표현식 인덱스로 중복 배정을 막는다. 한 사용자가 여러 프로젝트에, 한 프로젝트가 여러 사용자에 속하는 n:n이 P8의 직접 해소다.</p>
+
+  <h4><code>api_token</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td>토큰은 항상 프로젝트 스코프</td></tr>
+      <tr><td><code>user_id</code></td><td>uuid FK</td><td>위임한 사람. 권한은 이 사용자의 부분집합을 넘지 못한다</td></tr>
+      <tr><td><code>name</code></td><td>text</td><td>"노트북 Claude Code" 같은 사람용 라벨</td></tr>
+      <tr><td><code>token_hash</code></td><td>bytea</td><td>원문 미저장</td></tr>
+      <tr><td><code>prefix</code></td><td>text</td><td>앞 8자(식별·감사용)</td></tr>
+      <tr><td><code>scopes</code></td><td>text[]</td><td><code>spec:read</code>, <code>spec:write</code>, <code>task:claim</code>, <code>review:write</code>, <code>session:write</code> …</td></tr>
+      <tr><td><code>expires_at</code> · <code>revoked_at</code> · <code>last_used_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p>권한 비확대는 스키마가 아니라 정책으로 강제하지만, <code>user_id</code>를 필수 FK로 두는 것이 그 정책의 데이터 기반이다 — Asana가 AI Teammate에 대해 "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다"고 명시한 원칙과 같다.</p>
+
+  <h3>2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation</h3>
+
+  <h4><code>spec</code> — 트리 노드. 본문은 여기 없다</h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td>안정 ID. 문서를 옮기거나 이름을 바꿔도 참조가 깨지지 않는다</td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>parent_id</code></td><td>uuid FK NULL</td><td>트리 부모. 권한·정렬 상속 경로</td></tr>
+      <tr><td><code>type</code></td><td>enum</td><td><code>vision / area / feature / design / convention / adr</code></td></tr>
+      <tr><td><code>key</code></td><td>text</td><td>프로젝트 내 사람이 읽는 slug. 변경 가능, 참조 키 아님</td></tr>
+      <tr><td><code>title</code></td><td>text</td><td></td></tr>
+      <tr><td><code>sort_key</code></td><td>text</td><td>형제 정렬(clemvion의 <code>0-</code>/<code>1-</code> 정수 접두 규약을 데이터로 흡수)</td></tr>
+      <tr><td><code>current_version_id</code></td><td>uuid FK NULL</td><td>최신 <code>approved</code> 버전(없으면 최신 <code>draft</code>)</td></tr>
+      <tr><td><code>owner_role</code></td><td>enum NULL</td><td>기본 리뷰어 자동 지정 힌트</td></tr>
+      <tr><td><code>archived_at</code></td><td>timestamptz</td><td>삭제 대신 아카이브(ADR 관행과 동일)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>spec_version</code> — 불변 스냅샷</h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>spec_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>version_no</code></td><td>int</td><td>스펙 내 1부터 증가. <code>UNIQUE (spec_id, version_no)</code></td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>draft / in_review / approved / superseded / deprecated</code></td></tr>
+      <tr><td><code>body_md</code></td><td>text</td><td>본문(markdown 우선, D-09)</td></tr>
+      <tr><td><code>content_hash</code></td><td>bytea</td><td><code>sha256(body_md)</code>. 무변경 저장 차단·중복 감지</td></tr>
+      <tr><td><code>base_version_id</code></td><td>uuid FK NULL</td><td>낙관적 동시성의 전제조건. 불일치 시 409</td></tr>
+      <tr><td><code>change_summary_md</code></td><td>text</td><td>이 버전이 무엇을 바꿨는가(사람이 읽는 요약)</td></tr>
+      <tr><td><code>author_user_id</code> · <code>author_session_id</code></td><td>uuid FK</td><td>사람과 에이전트를 함께 기록</td></tr>
+      <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td>CR에서 파생된 버전이면 그 CR</td></tr>
+      <tr><td><code>submitted_at</code> · <code>approved_at</code></td><td>timestamptz</td><td></td></tr>
+      <tr><td><code>approved_by_user_id</code></td><td>uuid FK NULL</td><td>결재자. <code>approval</code>에도 남지만 조회 편의로 비정규화</td></tr>
+      <tr><td><code>superseded_by_version_id</code></td><td>uuid FK NULL</td><td>후속 버전</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>무결성 규칙:</b> <code>status = 'approved'</code> 이후 <code>body_md</code>·<code>content_hash</code> UPDATE를 트리거로 금지한다. 과거 버전 복원은 편집이 아니라 <b>새 버전 생성</b>이다 — Confluence가 20년째 쓰는 인터페이스이고, 요구공학의 baseline 정의("합의·검토·승인된 요구사항 집합의 시점 스냅샷") 그대로다.</p>
+
+  <h4><code>requirement</code> — 구현 추적의 단위(D-03)</h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code> · <code>spec_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>ref</code></td><td>text</td><td>안정 표시 ID(예: <code>REQ-NAV-012</code>). <code>UNIQUE (project_id, ref)</code></td></tr>
+      <tr><td><code>statement_md</code></td><td>text</td><td>EARS 템플릿 권장</td></tr>
+      <tr><td><code>acceptance_md</code></td><td>text</td><td>수용 기준</td></tr>
+      <tr><td><code>priority</code></td><td>enum</td><td><code>must / should / could</code>(clemvion의 필수/권장 매핑)</td></tr>
+      <tr><td><code>impl_status</code></td><td>enum</td><td><code>unimplemented / in_progress / implemented / verified</code></td></tr>
+      <tr><td><code>introduced_in_version_id</code></td><td>uuid FK</td><td>이 요구사항이 처음 등장한 SpecVersion</td></tr>
+      <tr><td><code>current_version_id</code></td><td>uuid FK</td><td>최신 본문을 담은 SpecVersion</td></tr>
+      <tr><td><code>removed_in_version_id</code></td><td>uuid FK NULL</td><td>제거된 요구사항의 묘비(이력은 지우지 않는다)</td></tr>
+      <tr><td><code>verified_at</code></td><td>timestamptz NULL</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>requirement_version</code> — 버전×요구사항 델타</h4>
+  <p>CR 델타 뷰(FR-04)와 영향 분석이 전부 이 테이블에서 나온다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>requirement_id</code> · <code>spec_version_id</code></td><td>uuid FK</td><td>복합 PK</td></tr>
+      <tr><td><code>change_kind</code></td><td>enum</td><td><code>added / modified / removed / unchanged</code></td></tr>
+      <tr><td><code>statement_md</code></td><td>text</td><td>그 버전 시점의 본문(스냅샷)</td></tr>
+      <tr><td><code>ordinal</code></td><td>int</td><td>문서 내 표시 순서</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>spec_relation</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code> · <code>from_spec_id</code> · <code>to_spec_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>kind</code></td><td>enum</td><td><code>references / refines / depends_on / duplicates / supersedes</code></td></tr>
+      <tr><td><code>note</code></td><td>text</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p><code>duplicates</code>가 있는 이유는 clemvion의 실측 사고 때문이다 — "종결 이벤트 계약을 EIA §6 도입부 하나로 — <b>네 문서가 각자 필드를 열거하고 있었다</b>"(<code>9a4d3e32b</code>), "모방한 쪽이 맞고 원본이 틀렸다"(<code>c37a3732c</code>). 중복 서술은 drift의 근원이므로 단일 정의 + 관계 참조를 권장 규약으로 두고, 중복이 생기면 관계로 명시해 검사 대상으로 만든다(D-09).</p>
+
+  <h3>2.3 변경 요청 — change_request</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code> · <code>spec_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>base_version_id</code></td><td>uuid FK</td><td>어느 approved 버전에 대한 변경인가</td></tr>
+      <tr><td><code>proposed_version_id</code></td><td>uuid FK</td><td>제안 내용을 담은 draft SpecVersion</td></tr>
+      <tr><td><code>title</code> · <code>rationale_md</code></td><td>text</td><td>무엇을 왜 바꾸는가</td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>open / in_review / approved / rejected / withdrawn</code></td></tr>
+      <tr><td><code>risk</code></td><td>enum</td><td><code>low / normal / high</code> — 저위험은 자동 통과 경로(D-06)</td></tr>
+      <tr><td><code>origin</code></td><td>enum</td><td><code>human / agent / spec_drift</code> — 구현 중 발견된 스펙 개선의 역류 경로</td></tr>
+      <tr><td><code>created_by_user_id</code> · <code>created_by_session_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>decided_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p><code>origin = 'spec_drift'</code>는 clemvion에서 5개월 검증된 경로의 이식이다. 리뷰가 <code>[SPEC-DRIFT]</code> 태그를 달면 resolution-applier가 코드를 되돌리지 않고 <code>plan/in-progress/spec-update-&lt;area&gt;.md</code> 초안을 만들어 <code>ESCALATE=spec</code>으로 넘겼다. NERV에서는 그 초안이 CR 레코드가 되고, 태그 보존 의무("절대 일반 WARNING으로 뭉개지 말 것")는 <code>finding.tags</code>와 <code>change_request.origin</code>의 FK 관계로 대체된다.</p>
+
+  <h3>2.4 작업 — task · task_dependency · claim</h3>
+
+  <h4><code>task</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>key</code></td><td>text</td><td>표시 ID(예: <code>CLV-T-7QF3K2</code>). 서버 발급 해시(§5.1)</td></tr>
+      <tr><td><code>title</code> · <code>body_md</code></td><td>text</td><td></td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>backlog / ready / claimed / in_progress / in_review / done / blocked</code></td></tr>
+      <tr><td><code>priority</code></td><td>enum</td><td><code>P0 / P1 / P2 / P3</code></td></tr>
+      <tr><td><code>source_spec_version_id</code></td><td>uuid FK NULL</td><td>파생 출처 버전</td></tr>
+      <tr><td><code>source_requirement_id</code></td><td>uuid FK NULL</td><td>파생 출처 요구사항</td></tr>
+      <tr><td><code>assignee_user_id</code></td><td>uuid FK NULL</td><td><b>사람</b> 책임자</td></tr>
+      <tr><td><code>delegate_session_id</code></td><td>uuid FK NULL</td><td><b>에이전트</b> 수행 세션</td></tr>
+      <tr><td><code>goal_md</code></td><td>text</td><td>위임 명세 ①: 목표</td></tr>
+      <tr><td><code>output_format_md</code></td><td>text</td><td>위임 명세 ②: 산출물 형식</td></tr>
+      <tr><td><code>tools_sources_md</code></td><td>text</td><td>위임 명세 ③: 사용할 도구·출처</td></tr>
+      <tr><td><code>boundaries_md</code></td><td>text</td><td>위임 명세 ④: 경계(건드리면 안 되는 것)</td></tr>
+      <tr><td><code>spec_impact</code></td><td>jsonb NULL</td><td>완료 시 필수 선언: 영향 스펙 ID 목록 또는 <code>{"none": true}</code></td></tr>
+      <tr><td><code>blocked_reason</code></td><td>text NULL</td><td></td></tr>
+      <tr><td><code>done_at</code> · <code>updated_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>전이 규칙</b></p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>전이</th><th>조건</th><th>강제 지점</th></tr></thead>
+    <tbody>
+      <tr><td><code>backlog → ready</code></td><td>위임 명세 4요소가 모두 NOT NULL + 선행 의존성 없음/해소</td><td>API 검증(FR-05)</td></tr>
+      <tr><td><code>ready → claimed</code></td><td><code>nerv_task_claim</code> 트랜잭션 성공(scope 겹침 통과)</td><td>partial unique 인덱스(FR-06)</td></tr>
+      <tr><td><code>claimed → in_progress</code></td><td>세션의 첫 <code>action</code> Activity 또는 명시 전이</td><td>서버</td></tr>
+      <tr><td><code>in_progress → in_review</code></td><td>산출물(PR/커밋) Evidence 1건 이상</td><td>API 검증</td></tr>
+      <tr><td><code>in_review → done</code></td><td>게이트 통과(해소된 리뷰 존재) <b>AND</b> <code>spec_impact</code> NOT NULL</td><td>게이트 API(FR-10)</td></tr>
+      <tr><td><code>* → blocked</code></td><td>질문 미해결·의존성 역행</td><td>서버·수동</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>spec_impact</code>를 done 전제조건으로 둔 것은 clemvion의 Gate C(<code>spec-plan-completion.test.ts</code>) 이식이다. 그쪽은 완료 plan의 frontmatter에 영향 스펙 목록 또는 <code>none</code> sentinel을 요구했고, 이 게이트가 "작업 완료가 스펙 정합 결정을 강제 동반"하게 만든 좋은 패턴이었다.</p>
+
+  <h4><code>task_dependency</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>task_id</code> · <code>depends_on_task_id</code></td><td>uuid FK</td><td>복합 PK</td></tr>
+      <tr><td><code>kind</code></td><td>enum</td><td><code>blocks / relates</code> — <code>blocks</code>만 ready 판정에 영향</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>claim</code> — D-04의 실체</h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>task_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>agent_session_id</code></td><td>uuid FK NULL</td><td>사람이 직접 잡으면 NULL</td></tr>
+      <tr><td><code>user_id</code></td><td>uuid FK</td><td>책임자(세션 소유자)</td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>active / released / expired / revoked</code></td></tr>
+      <tr><td><code>scope_spec_ids</code></td><td>uuid[]</td><td>이 작업이 건드릴 스펙</td></tr>
+      <tr><td><code>scope_file_globs</code></td><td>text[]</td><td>이 작업이 건드릴 파일</td></tr>
+      <tr><td><code>acquired_at</code></td><td>timestamptz</td><td></td></tr>
+      <tr><td><code>lease_expires_at</code></td><td>timestamptz</td><td>TTL 리스. 하트비트로 연장</td></tr>
+      <tr><td><code>last_heartbeat_at</code></td><td>timestamptz</td><td></td></tr>
+      <tr><td><code>released_at</code> · <code>release_reason</code></td><td>timestamptz · enum</td><td><code>done / manual / expired / conflict</code></td></tr>
+    </tbody>
+  </table></div>
+  <p><b>제약:</b> <code>CREATE UNIQUE INDEX ON claim (task_id) WHERE status = 'active'</code> — 두 세션이 같은 작업을 잡는 것이 데이터베이스 수준에서 불가능해진다. 상태 전이와 assignee 설정이 한 트랜잭션이므로 경합은 하나만 통과하고 나머지는 충돌 응답을 받는다.</p>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 이 테이블이 복원하는 기능</b>
+    <p>clemvion은 스펙 동시수정 자동 검출을 <b>의도적으로 삭제</b>했다. <code>plan_coherence</code>의 worktree 경합 검출이 <code>3da85dc3b</code>(#576)에서 제거됐고 사유는 이렇다 —
+    "병렬 작업이 다른 머신·세션에서 진행되면 로컬에 반영되지도 않아 신뢰할 수 없고, 불필요한 git/gh 조회로 토큰만 소모하기 때문."
+    <code>worktree-policy.md</code> §3은 더 단호하다: "동일 <code>spec/</code> 파일·코드 영역을 두 worktree가 동시 수정 중이면 plan에 명시하고 직렬화한다. <b>자동 검출은 없다</b>."
+    서버가 모든 세션의 <code>scope_*</code> 선언을 보면 그 기능은 그대로 복원된다(§4.6 질의).</p>
+  </div></div>
+
+  <h3>2.5 세션 — agent_session · activity</h3>
+
+  <h4><code>agent_session</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code> · <code>user_id</code></td><td>uuid FK</td><td>소유자(권한 상속 원천)</td></tr>
+      <tr><td><code>agent_type</code></td><td>enum</td><td><code>claude-code / codex / web / other</code></td></tr>
+      <tr><td><code>agent_version</code></td><td>text</td><td>클라이언트 버전</td></tr>
+      <tr><td><code>hostname</code></td><td>text</td><td><b>누구의 어느 머신인가</b> — P8의 핵심 필드</td></tr>
+      <tr><td><code>cwd</code> · <code>worktree_path</code> · <code>branch</code></td><td>text</td><td>실행 컨텍스트</td></tr>
+      <tr><td><code>external_session_id</code></td><td>text</td><td>하네스가 발급한 세션 ID(훅 페이로드 조인 키)</td></tr>
+      <tr><td><code>state</code></td><td>enum</td><td><code>pending / active / awaiting_input / complete / error / stale</code></td></tr>
+      <tr><td><code>model</code></td><td>text</td><td></td></tr>
+      <tr><td><code>started_at</code> · <code>last_heartbeat_at</code> · <code>ended_at</code></td><td>timestamptz</td><td></td></tr>
+      <tr><td><code>end_reason</code></td><td>enum NULL</td><td><code>complete / error / stopped / stale</code></td></tr>
+      <tr><td><code>diff_added</code> · <code>diff_removed</code></td><td>int</td><td>세션 카드의 +N −M 표시</td></tr>
+      <tr><td><code>token_usage</code></td><td>jsonb</td><td>훅·OTel 수집치</td></tr>
+      <tr><td><code>current_task_id</code></td><td>uuid FK NULL</td><td>조회 편의 비정규화(진실은 <code>claim</code>)</td></tr>
+    </tbody>
+  </table></div>
+  <p>상태 전이는 D-13 그대로다: <code>pending → active ↔ awaiting_input → complete / error / stale</code>. <code>stale</code>은 사람이 아니라 워커가 만든다 — 무활동 임계(기본 30분) 초과 시 자동 전이하고 보유 클레임을 회수한다. 임계값은 Linear의 Agent Session 규약(무활동 30분 stale)과 같은 값이다.</p>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · clemvion이 스스로 요청한 테이블</b>
+    <p>worktree GC(reaper)는 merge된 PR의 worktree를 정리하지만 "동시에 열린 다른 세션이 앵커로 쓰는 worktree의 PR이 merge되면 <b>그 세션은 여전히 죽는다</b>"고 한계를 명시하며
+    "'살아있는 세션 앵커 레지스트리'가 필요해 과하다고 판단"했다(<code>clemvion:.claude/docs/worktree-policy.md</code> §7).
+    <code>agent_session</code>이 정확히 그 레지스트리다. 현재 세션 가시성은 statusline 2줄(자기 세션만)이 전부다.</p>
+  </div></div>
+
+  <div class="callout note"><span class="ico">💡</span><div class="body">
+    <b class="title">설계 판단 · 왜 에이전트에게 <code>user</code> 행을 주지 않는가</b>
+    <p>Linear는 <code>actor=app</code> 앱 유저를 만들어 assignee 메뉴에 팀원처럼 노출하고 과금 시트에서 뺀다. NERV는
+    (a) 에이전트가 <b>매번 다른 호스트에서 뜨는 일회성 실행</b>이고 (b) 권한이 위임한 사람의 부분집합이어야 하며(D-08)
+    (c) 감사에서 "누구의 위임인가"가 항상 필요하다는 세 조건 때문에 세션 자체를 액터로 둔다.
+    대신 UI 표기(<span class="badge agent">Agent</span> 배지)와 <code>event.is_agent</code> 플래그로 Linear·GitHub과 같은 가시성을 제공한다.</p>
+  </div></div>
+
+  <h4><code>activity</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>session_id</code> · <code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>seq</code></td><td>bigint</td><td>세션 내 단조 증가. <code>UNIQUE (session_id, seq)</code></td></tr>
+      <tr><td><code>type</code></td><td>enum</td><td><code>thought / action / elicitation / response / error</code></td></tr>
+      <tr><td><code>title</code> · <code>body_md</code></td><td>text</td><td></td></tr>
+      <tr><td><code>tool_name</code></td><td>text NULL</td><td><code>action</code>일 때 도구 이름</td></tr>
+      <tr><td><code>payload</code></td><td>jsonb</td><td>훅 원문에서 추출한 구조화 필드</td></tr>
+      <tr><td><code>ephemeral</code></td><td>bool</td><td>다음 활동이 오면 UI에서 접히는 진행 표시</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p>Activity는 <b>불변</b>이다. 편집 가능한 코멘트와 분리하라는 것은 Linear가 "대화 재구성은 수정될 수 있는 코멘트가 아니라 불변 Agent Activity로 하라"고 권고하는 바와 같다. 세션 타임라인(S5 상세)과 커밋→세션 역링크가 이 테이블 위에 선다.</p>
+
+  <h3>2.6 리뷰 — review_session · reviewer_report · finding · finding_occurrence · resolution</h3>
+
+  <h4><code>review_session</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>kind</code></td><td>enum</td><td><code>code / consistency / spec_coverage / merge</code></td></tr>
+      <tr><td><code>trigger</code></td><td>enum</td><td><code>auto / manual / gate</code></td></tr>
+      <tr><td><code>agent_session_id</code> · <code>task_id</code></td><td>uuid FK NULL</td><td>누가 언제 돌렸나</td></tr>
+      <tr><td><code>branch</code></td><td>text</td><td></td></tr>
+      <tr><td><code>head_sha</code></td><td>text</td><td><b>필수</b> 입력 스냅샷 — 검토한 커밋</td></tr>
+      <tr><td><code>base_sha</code></td><td>text</td><td><b>필수</b> diff 기준 커밋</td></tr>
+      <tr><td><code>changeset_hash</code></td><td>bytea</td><td>검토 대상 파일+내용 해시(라운드 동일성 판정)</td></tr>
+      <tr><td><code>file_count</code></td><td>int</td><td></td></tr>
+      <tr><td><code>round_no</code></td><td>int</td><td>같은 changeset의 몇 번째 라운드인가</td></tr>
+      <tr><td><code>previous_session_id</code></td><td>uuid FK NULL</td><td>라운드 체인</td></tr>
+      <tr><td><code>routing</code></td><td>jsonb</td><td>선별·제외 사유·강제 목록</td></tr>
+      <tr><td><code>forced_roles</code></td><td>text[]</td><td>제외 불가 리뷰어</td></tr>
+      <tr><td><code>forced_coverage_ok</code></td><td>bool</td><td>강제 리뷰어 전원 보고 여부</td></tr>
+      <tr><td><code>state</code></td><td>enum</td><td><code>running / complete / failed</code></td></tr>
+      <tr><td><code>risk</code></td><td>enum</td><td><code>none / low / medium / high / critical</code></td></tr>
+      <tr><td><code>block</code></td><td>bool</td><td>consistency의 <code>BLOCK: YES/NO</code> 계승</td></tr>
+      <tr><td><code>prompt_blob_uri</code> · <code>prompt_expires_at</code></td><td>text · timestamptz</td><td>재생성 가능 입력은 TTL(§5.4)</td></tr>
+      <tr><td><code>started_at</code> · <code>completed_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p><code>head_sha</code>·<code>base_sha</code>를 NOT NULL로 두는 것이 이 문서에서 가장 값싼 개선이다. clemvion의 code 리뷰 <code>meta.json</code>에는 <b>커밋 SHA·diff base·브랜치 필드 자체가 없고</b>(<code>timestamp/files/agents/route_mode/agents_explicit/agents_forced</code>뿐), 커밋 해시는 SUMMARY 산문에만 등장했다 — 표본 200개 중 47개. 브랜치는 <code>_retry_state.json</code>의 절대경로에 <b>우연히</b> 새어 있었고, PR 번호는 머지 커밋 제목의 <code>(#1167)</code>에만 있었다.</p>
+
+  <h4><code>reviewer_report</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>review_session_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>role</code></td><td>text</td><td><code>security</code>·<code>requirement</code>·<code>cross-spec</code> 등 역할 키</td></tr>
+      <tr><td><code>risk</code></td><td>enum</td><td><code>none / low / medium / high / critical</code></td></tr>
+      <tr><td><code>body_md</code></td><td>text</td><td></td></tr>
+      <tr><td><code>has_report</code> · <code>forced</code> · <code>recovered</code></td><td>bool</td><td>커버리지 무결성 판정용</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>finding</code> — 라운드를 넘어 하나로 유지되는 지적</h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>fingerprint</code></td><td>bytea</td><td>라운드 불변 dedup 키. <code>UNIQUE (project_id, fingerprint)</code>(§5.2)</td></tr>
+      <tr><td><code>severity</code></td><td>enum</td><td><code>critical / warning / info</code></td></tr>
+      <tr><td><code>tags</code></td><td>text[]</td><td><code>spec_drift</code> 등</td></tr>
+      <tr><td><code>category</code></td><td>text</td><td>리뷰어 역할에서 파생</td></tr>
+      <tr><td><code>title</code> · <code>detail_md</code> · <code>suggestion_md</code></td><td>text</td><td></td></tr>
+      <tr><td><code>file_path</code> · <code>line_start</code> · <code>symbol</code></td><td>text · int · text</td><td>코드 위치</td></tr>
+      <tr><td><code>spec_version_id</code> · <code>requirement_id</code></td><td>uuid FK NULL</td><td><b>출처</b>: 어느 스펙·요구사항 근거인가</td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>open / fixed / dismissed / wont_fix</code></td></tr>
+      <tr><td><code>first_session_id</code> · <code>last_session_id</code></td><td>uuid FK</td><td>처음·마지막으로 보인 리뷰 세션</td></tr>
+      <tr><td><code>occurrence_count</code></td><td>int</td><td>반복 재확인 횟수</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4><code>finding_occurrence</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>finding_id</code> · <code>review_session_id</code></td><td>uuid FK</td><td><code>UNIQUE (finding_id, review_session_id)</code></td></tr>
+      <tr><td><code>reviewer_report_id</code></td><td>uuid FK NULL</td><td></td></tr>
+      <tr><td><code>round_no</code></td><td>int</td><td></td></tr>
+      <tr><td><code>display_no</code></td><td>int</td><td>세션 내 표시 번호 = 구 <code>SUMMARY#&lt;n&gt;</code></td></tr>
+      <tr><td><code>raw_severity</code></td><td>enum</td><td>그 라운드에서 리뷰어가 매긴 원 severity</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p><code>raw_severity</code>를 따로 남기는 이유: clemvion에서 SUMMARY가 <code>BLOCK: NO</code>인데 checker 리포트엔 <code>[CRITICAL]</code>이 있는 <b>하향 모순이 커밋된 732 세션 중 24건(3.3%)</b> 실측됐다. "Critical 하향은 금지다"라는 산문 규칙이 있었지만 산문은 강제되지 않는다. 원 severity와 종합 판정을 다른 컬럼에 두면 불일치가 질의로 드러난다.</p>
+
+  <h4><code>resolution</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>finding_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>kind</code></td><td>enum</td><td><code>fixed / deferred / dismissed / escalated / spec_change</code></td></tr>
+      <tr><td><code>commit_sha</code></td><td>text NULL</td><td><code>fixed</code>일 때 필수</td></tr>
+      <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td><code>spec_change</code>일 때</td></tr>
+      <tr><td><code>escalate_reason</code></td><td>enum NULL</td><td><code>no / spec / user-decision / infra / e2e-fail-3x / sensitive-fix</code></td></tr>
+      <tr><td><code>rationale_md</code></td><td>text</td><td><b>유예 근거는 1급 데이터</b></td></tr>
+      <tr><td><code>actor_user_id</code> · <code>actor_session_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p>ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 이식한다. <code>rationale_md</code>가 중요한 이유도 실측이다 — <code>SNAPSHOT_CACHE_MAX_ENTRIES</code> 유예 건이 <code>14_01_46</code>/<code>17_15_21</code>/<code>18_19_33</code> 세 세션에서 반복 재확인되며 매번 새 표 행으로 재서술됐다. "새 근거 없이 재상정하지 않음" 규칙이 산문 인용으로만 유지되던 것을, finding 1건 + resolution 여러 건의 관계로 바꾼다.</p>
+
+  <h3>2.7 사람 개입 — approval · question</h3>
+
+  <h4><code>approval</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>subject_type</code></td><td>enum</td><td><code>spec_version / change_request / plan / question / gate_bypass</code></td></tr>
+      <tr><td><code>subject_id</code></td><td>uuid</td><td>대상 엔티티 ID(다형 참조)</td></tr>
+      <tr><td><code>requested_by_user_id</code> · <code>requested_by_session_id</code></td><td>uuid FK</td><td>지시자</td></tr>
+      <tr><td><code>assignee_user_id</code></td><td>uuid FK NULL</td><td>지정 승인자</td></tr>
+      <tr><td><code>assignee_role</code></td><td>enum NULL</td><td>역할 큐로 열어두는 경우</td></tr>
+      <tr><td><code>decision</code></td><td>enum NULL</td><td><code>approve / reject / comment</code>. NULL = 대기</td></tr>
+      <tr><td><code>comment_md</code></td><td>text</td><td></td></tr>
+      <tr><td><code>requested_at</code> · <code>due_at</code> · <code>decided_at</code></td><td>timestamptz</td><td>SLA·리마인더</td></tr>
+      <tr><td><code>is_bypass</code> · <code>bypass_reason</code></td><td>bool · text</td><td>게이트 면제도 결재 레코드로 남긴다(FR-10)</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>규칙: 지시자 ≠ 승인자</b>(D-06). <code>assignee_user_id = requested_by_user_id</code>인 결재는 거부한다 — GitHub이 Copilot PR에 대해 "작업을 지시한 사람의 승인은 필수 승인 수에 포함되지 않는다"로 규격화한 것과 같다. clemvion에는 이 축이 없었다: merge confirm 2회·e2e 면제·BLOCK 해소·stale grooming의 종착지가 전부 한 사람이었다.</p>
+
+  <h4><code>question</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code> · <code>agent_session_id</code> · <code>task_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>title</code> · <code>body_md</code></td><td>text</td><td></td></tr>
+      <tr><td><code>options</code></td><td>jsonb</td><td>선택지(있으면 원클릭 응답)</td></tr>
+      <tr><td><code>urgency</code></td><td>enum</td><td><code>blocking / normal</code></td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>open / answered / cancelled / expired</code></td></tr>
+      <tr><td><code>answer_key</code> · <code>answer_md</code></td><td>text</td><td></td></tr>
+      <tr><td><code>answered_by_user_id</code></td><td>uuid FK NULL</td><td></td></tr>
+      <tr><td><code>asked_at</code> · <code>answered_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p>Question이 생기면 세션은 <code>awaiting_input</code>으로 가고, 답이 들어오면 <code>active</code>로 복귀한다. 이 한 테이블이 P7의 핵심을 푼다 — clemvion에서 사람 개입 채널은 <code>AskUserQuestion</code>·confirm뿐이었고, 그건 <b>그 터미널 앞에 사람이 있어야만</b> 작동한다.</p>
+
+  <h3>2.8 증적 — evidence</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>requirement_id</code> · <code>spec_version_id</code> · <code>task_id</code></td><td>uuid FK NULL</td><td>셋 중 최소 1개 필수(CHECK)</td></tr>
+      <tr><td><code>kind</code></td><td>enum</td><td><code>code_path / test / pr / commit / review / user_guide</code></td></tr>
+      <tr><td><code>locator</code></td><td>text</td><td>경로 glob·PR URL·커밋 SHA·테스트 이름</td></tr>
+      <tr><td><code>repo</code></td><td>text</td><td>멀티 저장소 대비</td></tr>
+      <tr><td><code>source</code></td><td>enum</td><td><code>agent / human / ci</code></td></tr>
+      <tr><td><code>verified_at</code> · <code>verified_by</code></td><td>timestamptz · uuid</td><td>마지막 확인 시점</td></tr>
+      <tr><td><code>stale</code></td><td>bool</td><td>대상이 사라졌거나 오래된 증적</td></tr>
+    </tbody>
+  </table></div>
+  <p>clemvion의 <code>code:</code> glob이 남긴 교훈이 <code>stale</code> 컬럼에 들어 있다. 규약 스스로 인정한 약점: "stale 글로브(없어진 파일을 가리키는 glob이 다른 파일에 매칭돼서 통과)는 본 가드만으로 검출 불가"(R-1), 그리고 "<code>code:</code> 글로브 stale — backend 경로만 명시하고 frontend 경로 누락"이 반복 실패 목록에 올라 있다. 증적을 행으로 두면 주기적 재검증이 배치 작업이 되고, 실패는 값이 된다.</p>
+
+  <h3>2.9 이벤트 · 알림 — event · notification</h3>
+
+  <h4><code>event</code> — append-only(D-10)</h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid</td><td><code>PRIMARY KEY (id, occurred_at)</code> — 월 파티션</td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>occurred_at</code></td><td>timestamptz</td><td>파티션 키</td></tr>
+      <tr><td><code>type</code></td><td>text</td><td><code>spec.approved</code>, <code>task.claimed</code>, <code>session.stale</code>, <code>gate.failopen</code> …</td></tr>
+      <tr><td><code>actor_user_id</code> · <code>actor_session_id</code></td><td>uuid FK NULL</td><td></td></tr>
+      <tr><td><code>is_agent</code></td><td>bool</td><td>감사에서 사람/에이전트 구분(FR-16)</td></tr>
+      <tr><td><code>subject_type</code> · <code>subject_id</code></td><td>text · uuid</td><td>대상</td></tr>
+      <tr><td><code>from_state</code> · <code>to_state</code></td><td>text NULL</td><td>상태 전이 이벤트의 전후</td></tr>
+      <tr><td><code>payload</code></td><td>jsonb</td><td>타입별 부가 정보(개인정보는 넣지 않고 ID 참조만)</td></tr>
+      <tr><td><code>request_id</code></td><td>text</td><td>요청 단위 상관관계</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>is_agent</code>는 GitHub이 audit log에 <code>actor_is_agent</code> 식별자와 <code>agent_session.task</code> 이벤트를 추가한 것과 같은 축이다. 전면 이벤트 소싱은 하지 않는다 — Microsoft의 공식 패턴 문서가 "프로토타입·MVP에는 부적합하며 이득이 큰 부분에만 선택 적용하라"고 명시하고, D-10이 정확히 그 선택 적용이다.</p>
+
+  <h4><code>notification</code></h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code> · <code>user_id</code> · <code>event_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>importance</code></td><td>enum</td><td><code>immediate / digest</code> — 승인 요청은 즉시, 상태 변화는 묶음</td></tr>
+      <tr><td><code>channel</code></td><td>enum</td><td><code>inapp / slack / email</code></td></tr>
+      <tr><td><code>state</code></td><td>enum</td><td><code>unread / read / archived</code></td></tr>
+      <tr><td><code>digest_batch_id</code></td><td>uuid NULL</td><td>다이제스트 묶음</td></tr>
+      <tr><td><code>delivered_at</code> · <code>read_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-3">3. clemvion frontmatter → NERV 필드 매핑</h2>
+
+  <p>clemvion이 markdown frontmatter와 경로 규약으로 흉내내던 것을 어디로 옮기는지의 전수 표다. 이 표가 곧 임포터 명세(FR-17 · D-12)의 뼈대다.</p>
+
+  <h3>3.1 spec frontmatter (<code>spec/conventions/spec-impl-evidence.md</code>)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>clemvion 필드</th><th>값·규약</th><th>NERV 대응</th><th>무엇이 달라지나</th></tr></thead>
+    <tbody>
+      <tr><td><code>id:</code></td><td>kebab-case, basename 기반</td><td><code>spec.key</code> + <code>spec.id</code>(안정 UUID)</td><td>basename 충돌 시 영역 prefix를 붙이던 회피가 불필요</td></tr>
+      <tr><td><code>status:</code></td><td><code>backlog / spec-only / partial / implemented / archived</code></td><td><b>분해</b>: 문서 축 → <code>spec_version.status</code>, 구현 축 → <code>requirement.impl_status</code>, <code>archived</code> → <code>spec.archived_at</code></td><td>문서 단위 값 하나가 요구사항 단위 상태로 세분화(D-02)</td></tr>
+      <tr><td><code>code:</code></td><td>구현 경로 glob 목록</td><td><code>evidence(kind='code_path', locator=glob)</code> 다중 행</td><td>stale 판정이 <code>evidence.stale</code> 값이 되고 재검증이 배치 작업</td></tr>
+      <tr><td><code>pending_plans:</code></td><td><code>partial</code>일 때 의무. 미구현을 책임지는 plan 경로</td><td><code>task(source_requirement_id=…, status≠done)</code></td><td>"빈 약속" 차단이 문자열 매칭이 아니라 FK 존재 검사</td></tr>
+      <tr><td><code>user_guide:</code></td><td>선택, <b>가드 미적용</b>(R-10)</td><td><code>evidence(kind='user_guide')</code></td><td>다른 증적과 같은 검증 경로에 올라온다</td></tr>
+      <tr><td><code>spec-only</code> TTL 90일</td><td>초과 시 build fail</td><td><code>spec_version.status='approved'</code> + 파생 Task 0건을 스캔하는 워커 규칙</td><td>빌드가 아니라 서버가 알림으로 압박</td></tr>
+      <tr><td>요구사항 표 <code>NAV-WF-01</code></td><td><code>_product-overview.md</code> 안의 표 행</td><td><code>requirement.ref</code> + <code>requirement.statement_md</code></td><td>커밋·plan·리뷰가 이미 이 ID로 대화한다 — 1급 엔티티로 승격</td></tr>
+      <tr><td>요구사항 표 ✅ 마크</td><td>완전 수동, 가드 없음(131개 vs 0개)</td><td><code>requirement.impl_status</code> 파생 뷰</td><td>사람이 칠하는 표가 사라진다</td></tr>
+      <tr><td><code>## Overview</code> / 본문 / <code>## Rationale</code></td><td>3섹션 규약(Rationale 105개 파일)</td><td><code>spec_version.body_md</code> 내 규약 유지 + <code>spec.type</code>으로 <code>adr</code> 분리</td><td>폐기된 대안의 보존은 문화로 유지, 위치는 그대로</td></tr>
+      <tr><td><code>&gt; 관련 문서:</code> 상대링크</td><td>링크 무결성 빌드 가드</td><td><code>spec_relation</code> 행</td><td>문서 이동이 빌드를 깨지 않는다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.2 plan frontmatter (<code>.claude/docs/plan-lifecycle.md</code> §4)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>clemvion 필드</th><th>값·규약</th><th>NERV 대응</th><th>무엇이 달라지나</th></tr></thead>
+    <tbody>
+      <tr><td><code>worktree:</code></td><td>worktree 디렉토리명 또는 <code>(unstarted)</code> sentinel</td><td><code>claim.agent_session_id</code> → <code>agent_session.worktree_path</code></td><td><b>스칼라 1개</b>라 재착수·다중 worktree를 표현 못 하던 한계 해소. 실측 사고: 머지된 값을 남겨 두면 가드가 "연결된 plan 없음"으로 오판해 <b>무장 해제</b>됐다</td></tr>
+      <tr><td><code>started:</code></td><td>ISO 날짜</td><td><code>claim.acquired_at</code> / <code>task.created_at</code></td><td>수동 기입 → 전이 시각 자동 기록</td></tr>
+      <tr><td><code>owner:</code></td><td>자유 텍스트 역할 라벨</td><td><code>task.assignee_user_id</code>(사람) + <code>task.delegate_session_id</code>(에이전트)</td><td>실측 분포가 <code>developer</code> 17 / <code>project-planner</code> 8 / <code>planner</code> 5 / <code>developer (TBD)</code> 2 / <code>사용자 본인 / planner</code> 1 / <code>developer (다음 진입자)</code> 1(합 34) — 표기 요동과 무주공산이 계정 FK로 대체</td></tr>
+      <tr><td><code>priority:</code></td><td>15/34만 선언, 나머지는 본문 P0~P3 라벨</td><td><code>task.priority</code> enum</td><td>전역 정렬 가능한 메타데이터가 된다</td></tr>
+      <tr><td><code>status:</code> (완료 시)</td><td>종료값 4종만 허용</td><td><code>task.status='done'</code> + <code>done_at</code></td><td>빌드 가드가 아니라 상태 머신 제약</td></tr>
+      <tr><td><code>spec_impact:</code></td><td>Gate C — 스펙 경로 목록 또는 <code>none</code> sentinel</td><td><code>task.spec_impact</code> jsonb(done 전제조건)</td><td>선언 의무는 유지, 대상은 경로가 아니라 스펙 ID</td></tr>
+      <tr><td>plan 본문 체크박스</td><td>미체크 1개라도 있으면 <code>in-progress/</code></td><td><code>task_dependency</code> + 하위 <code>task</code></td><td>"체크박스 = 실제 상태" 규약이 상태 머신으로</td></tr>
+      <tr><td><code>plan/in-progress/</code> 자체</td><td>백로그 겸 진행 목록(34건 중 13건 미착수)</td><td><code>task.status</code> = <code>backlog</code>/<code>ready</code>/<code>claimed</code>…</td><td>인덱스 문서 부패(<code>0-unimplemented-overview.md</code>가 "미관리 stale"로 삭제)가 구조적으로 불가능</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.3 리뷰 산출물 (<code>review/**</code>)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>clemvion 구조</th><th>NERV 대응</th><th>무엇이 달라지나</th></tr></thead>
+    <tbody>
+      <tr><td>세션 디렉토리 경로 <code>YYYY/MM/DD/HH_MM_SS</code></td><td><code>review_session.id</code> + <code>started_at</code></td><td>경로 타임스탬프를 "게이트가 파싱하는 시계"로 쓰던 우회 공학이 사라진다</td></tr>
+      <tr><td><code>meta.json.files[]</code></td><td><code>review_session.file_count</code> + <code>changeset_hash</code></td><td>경로만 있던 목록에 커밋 스냅샷이 붙는다</td></tr>
+      <tr><td>(없음) 커밋 SHA·diff base·브랜치</td><td><code>review_session.head_sha</code> / <code>base_sha</code> / <code>branch</code> <b>NOT NULL</b></td><td>산문 47/200 → 100% 구조화</td></tr>
+      <tr><td><code>_retry_state.json</code></td><td><code>review_session.state</code> · <code>routing</code> · <code>forced_roles</code></td><td>lock 없는 read-modify-write의 전이 유실이 트랜잭션으로 해소</td></tr>
+      <tr><td><code>SUMMARY.md</code> 표의 행 번호 <code>#n</code></td><td><code>finding.id</code>(전역) + <code>finding_occurrence.display_no</code>(표시)</td><td>커밋 메시지 <code>SUMMARY#&lt;n&gt;</code> 규약은 표시 번호로 계속 쓰되 키는 전역 ID</td></tr>
+      <tr><td><code>&lt;role&gt;.md</code> 개별 보고서</td><td><code>reviewer_report</code></td><td><code>forced</code>·<code>has_report</code>가 커버리지 판정 컬럼이 된다</td></tr>
+      <tr><td><code>RESOLUTION.md</code> 조치 표</td><td><code>resolution</code> + <code>commit_sha</code> FK</td><td><code>_resolution_state.json.commits_made</code>의 구조를 정규화</td></tr>
+      <tr><td><code>BLOCK: YES/NO</code></td><td><code>review_session.block</code> + <code>risk</code></td><td>하향 모순 24/732(3.3%)이 질의로 드러난다</td></tr>
+      <tr><td><code>[SPEC-DRIFT]</code> 태그</td><td><code>finding.tags</code> + <code>change_request.origin='spec_drift'</code></td><td>태그 보존 의무가 FK 경로가 된다</td></tr>
+      <tr><td><code>ESCALATE=&lt;...&gt;</code> 1줄 프로토콜</td><td><code>resolution.escalate_reason</code> enum</td><td>어휘 그대로 이식</td></tr>
+      <tr><td><code>_prompts/</code>(gitignored, 전체의 ~70%)</td><td><code>review_session.prompt_blob_uri</code> + TTL</td><td>이미 검증된 "결론 영구·입력 휘발" 원칙의 계승</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="ico">💡</span><div class="body">
+    <b class="title">3.4 이 매핑이 만드는 차이 한 줄 요약</b>
+    <p>clemvion은 <b>문자열 매칭</b>으로 연결을 유지했다 — 세션 디렉토리 타임스탬프, plan frontmatter <code>worktree:</code> 자유 서식, <code>spec_impact</code> 경로 목록, <code>SUMMARY#&lt;n&gt;</code> 커밋 메시지.
+    문자열은 이름이 바뀌거나 파일이 움직이면 끊기고, 다른 호스트에서는 아예 조회할 수 없다. 위 표의 모든 행이 하는 일은 하나다: <b>문자열을 외래키로 바꾼다.</b></p>
+  </div></div>
+
+  <h2 id="sec-4">4. 대표 질의로 모델 검증</h2>
+
+  <p>각 질의는 <a href="pain-points.html">문제 정의와 요구사항</a>의 문제 하나를 겨냥한다. 문법은 Postgres 기준이다.</p>
+
+  <h3>4.1 "이 스펙, 어디까지 구현됐나" <span class="badge impl">P4 · FR-03 · FR-13</span></h3>
+<pre><code>SELECT r.impl_status,
+       count(DISTINCT r.id)                     AS reqs,
+       count(DISTINCT e.requirement_id)         AS with_evidence,
+       array_agg(DISTINCT r.ref ORDER BY r.ref) AS refs
+FROM spec s
+JOIN spec_version sv        ON sv.id = s.current_version_id AND sv.status = 'approved'
+JOIN requirement_version rv ON rv.spec_version_id = sv.id AND rv.change_kind &lt;&gt; 'removed'
+JOIN requirement r          ON r.id = rv.requirement_id
+LEFT JOIN evidence e        ON e.requirement_id = r.id AND NOT e.stale
+WHERE s.id = $1
+GROUP BY r.impl_status
+ORDER BY 1;</code></pre>
+  <p>수동 ✅ 마크가 사라지는 지점이다. 커버리지는 <b>관계에서 계산</b>되며(D-03), 프로젝트 전체로 올리려면 <code>WHERE s.project_id = $1</code>로 바꾸고 <code>spec_id</code>로 한 단계 더 그룹핑하면 S2의 커버리지 게이지가 된다.</p>
+
+  <h3>4.2 "지금 누가 뭐 하고 있나" <span class="badge impl">P8 · FR-07 · FR-08</span></h3>
+<pre><code>SELECT u.display_name, s.hostname, s.agent_type, s.state,
+       t.key AS task, t.title,
+       now() - s.last_heartbeat_at AS since_heartbeat,
+       c.lease_expires_at - now()  AS lease_left,
+       s.diff_added, s.diff_removed
+FROM agent_session s
+JOIN "user" u     ON u.id = s.user_id
+LEFT JOIN claim c ON c.agent_session_id = s.id AND c.status = 'active'
+LEFT JOIN task  t ON t.id = c.task_id
+WHERE s.project_id = $1
+  AND s.state IN ('pending', 'active', 'awaiting_input')
+ORDER BY s.state, s.last_heartbeat_at DESC;</code></pre>
+  <p>S5 세션 모니터 한 화면이 이 질의 하나다. clemvion에서는 원리적으로 불가능했다 — 조율 상태가 전량 gitignored 로컬 파일이고 가시성은 자기 세션 statusline 2줄이 전부였다.</p>
+
+  <h3>4.3 "이 발견사항은 어느 커밋·어느 스펙에서 왔나" <span class="badge impl">P5 · FR-09 · FR-13</span></h3>
+<pre><code>SELECT f.title, f.severity, f.status,
+       fo.round_no, fo.display_no, fo.raw_severity,
+       rs.kind, rs.branch, rs.head_sha, rs.base_sha, rs.started_at,
+       ses.hostname, ses.agent_type,
+       sp.key AS spec_key, sv.version_no, r.ref AS requirement,
+       res.kind AS resolution, res.commit_sha AS fix_commit
+FROM finding f
+JOIN finding_occurrence fo  ON fo.finding_id = f.id
+JOIN review_session rs      ON rs.id = fo.review_session_id
+LEFT JOIN agent_session ses ON ses.id = rs.agent_session_id
+LEFT JOIN spec_version sv   ON sv.id = f.spec_version_id
+LEFT JOIN spec sp           ON sp.id = sv.spec_id
+LEFT JOIN requirement r     ON r.id = f.requirement_id
+LEFT JOIN resolution res    ON res.finding_id = f.id
+WHERE f.id = $1
+ORDER BY fo.round_no;</code></pre>
+  <p>한 발견사항의 전 생애가 한 결과셋에 나온다: 어느 라운드에서 몇 번으로 보였고, 어느 커밋을 검토하다 나왔고, 어느 호스트의 어떤 세션이 만들었고, 어느 요구사항 근거이며, 어느 커밋으로 고쳐졌는가. <b>P5는 새 기능이 아니라 FK 몇 개다.</b></p>
+
+  <h3>4.4 "이 커밋 범위를 커버하는 해소된 리뷰가 있는가" <span class="badge impl">P5 · FR-10 · D-07</span></h3>
+<pre><code>WITH covering AS (
+  SELECT rs.*
+  FROM review_session rs
+  WHERE rs.project_id = $1
+    AND rs.kind  = 'code'
+    AND rs.state = 'complete'
+    AND rs.forced_coverage_ok
+    AND rs.head_sha = $2          -- 판정 대상 head SHA
+)
+SELECT c.id AS review_session_id, c.risk, c.completed_at
+FROM covering c
+LEFT JOIN finding_occurrence fo ON fo.review_session_id = c.id
+LEFT JOIN finding f             ON f.id = fo.finding_id
+GROUP BY c.id, c.risk, c.completed_at
+HAVING count(*) FILTER (
+         WHERE f.status = 'open' AND f.severity IN ('critical', 'warning')
+       ) = 0;</code></pre>
+  <p>결과가 0행이면 게이트 실패다. 이 20줄이 clemvion의 <b>1,005줄짜리 push 훅</b>을 대체한다. 그 훅은 <code>git push</code> 명령 텍스트를 정규식으로 blind-match하고(ReDoS 3회 수정 이력), 리뷰 신선도를 파일 mtime이 아니라 "세션 디렉토리 경로 타임스탬프 vs 커밋 author date"라는 rewrite-immune 시계로 비교해야 했다. 커밋 SHA가 컬럼이 되는 순간 그 전부가 불필요해진다. 판정 자체가 실패하면 fail-open + 연속 카운터 + 격상이다(D-14).</p>
+
+  <h3>4.5 "다음에 뭘 하면 되나" — ready 큐 <span class="badge impl">P2 · FR-05</span></h3>
+<pre><code>SELECT t.key, t.title, t.priority, r.ref AS requirement
+FROM task t
+LEFT JOIN requirement r ON r.id = t.source_requirement_id
+WHERE t.project_id = $1
+  AND t.status = 'ready'
+  AND t.goal_md IS NOT NULL AND t.output_format_md IS NOT NULL
+  AND t.tools_sources_md IS NOT NULL AND t.boundaries_md IS NOT NULL  -- 위임 명세 4요소
+  AND NOT EXISTS (
+        SELECT 1 FROM claim c
+        WHERE c.task_id = t.id AND c.status = 'active')
+  AND NOT EXISTS (
+        SELECT 1 FROM task_dependency d
+        JOIN task p ON p.id = d.depends_on_task_id
+        WHERE d.task_id = t.id AND d.kind = 'blocks' AND p.status &lt;&gt; 'done')
+ORDER BY t.priority, t.created_at
+LIMIT 20;</code></pre>
+  <p><code>nerv_task_next</code>의 본체다. clemvion에는 공식 백로그 큐가 없었다 — 신호 4종(로드맵 표, spec TTL, <code>plan/in-progress/</code>, audit 스크립트)과 사람의 수동 picking뿐이었고, 백로그 인덱스 문서는 "미관리 stale"로 삭제됐다(#426). 우선순위·정렬·기한은 문서가 아니라 질의 가능한 메타데이터여야 한다.</p>
+
+  <h3>4.6 "스펙 충돌 위험이 있나" — scope 겹침 <span class="badge impl">P1 · FR-06 · D-04</span></h3>
+<pre><code>WITH me AS (SELECT * FROM claim WHERE id = $1)
+SELECT c.id, u.display_name, coalesce(s.hostname, '(web)') AS hostname, t.key AS task,
+       c.scope_spec_ids &amp;&amp; me.scope_spec_ids AS spec_overlap,
+       ARRAY(SELECT a FROM unnest(c.scope_file_globs) a,
+                          unnest(me.scope_file_globs) b
+             WHERE nerv_glob_overlap(a, b))  AS glob_overlap
+FROM claim c
+CROSS JOIN me
+JOIN task t               ON t.id = c.task_id
+LEFT JOIN agent_session s ON s.id = c.agent_session_id
+JOIN "user" u             ON u.id = c.user_id
+WHERE c.status = 'active'
+  AND c.id &lt;&gt; me.id
+  AND ( c.scope_spec_ids &amp;&amp; me.scope_spec_ids
+     OR EXISTS (SELECT 1 FROM unnest(c.scope_file_globs) a,
+                              unnest(me.scope_file_globs) b
+                WHERE nerv_glob_overlap(a, b)) );</code></pre>
+  <p><code>nerv_glob_overlap(a, b)</code>의 MVP 구현은 와일드카드 앞 접두사 비교다(<code>codebase/backend/src/modules/chat-channel/**</code> vs <code>codebase/backend/**</code> → 겹침). 정확한 glob 교집합은 어렵지만 <b>과검출은 경고, 미검출은 사고</b>이므로 넉넉한 쪽으로 잡는다. 차단이냐 경고냐는 프로젝트 정책이다(D-06). 이 질의가 clemvion이 로컬 한계 때문에 삭제한 기능(#576)의 복원이라는 점은 §2.4에서 다뤘다.</p>
+
+  <h3>4.7 "내가 처리해야 할 결재" — 승인함 <span class="badge impl">P7 · FR-11 · FR-12</span></h3>
+<pre><code>SELECT a.id, a.subject_type, a.subject_id, a.requested_at, a.due_at,
+       coalesce(sp.title, cr.title, q.title) AS subject_title,
+       (a.due_at &lt; now())                    AS overdue
+FROM approval a
+LEFT JOIN spec_version sv   ON a.subject_type = 'spec_version'   AND sv.id = a.subject_id
+LEFT JOIN spec sp           ON sp.id = sv.spec_id
+LEFT JOIN change_request cr ON a.subject_type = 'change_request' AND cr.id = a.subject_id
+LEFT JOIN question q        ON a.subject_type = 'question'       AND q.id  = a.subject_id
+WHERE a.project_id = ANY($1)
+  AND a.decision IS NULL
+  AND (a.assignee_user_id = $2 OR a.assignee_role = ANY($3))
+  AND a.requested_by_user_id &lt;&gt; $2          -- 지시자 ≠ 승인자
+ORDER BY (a.subject_type = 'question') DESC, a.requested_at;</code></pre>
+  <p>S1 홈의 숫자 배지와 S7 승인함이 이 질의다. <code>question</code>을 맨 위로 올리는 이유는 그 세션이 <code>awaiting_input</code>으로 <b>멈춰 서 있기</b> 때문이다.</p>
+
+  <h3>4.8 "이 스펙에 무슨 일이 있었나" — 감사 타임라인 <span class="badge impl">P3 · FR-16</span></h3>
+<pre><code>SELECT e.occurred_at, e.type, e.from_state, e.to_state,
+       coalesce(u.display_name, '(system)') AS actor,
+       e.is_agent, s.hostname, s.agent_type
+FROM event e
+LEFT JOIN "user" u        ON u.id = e.actor_user_id
+LEFT JOIN agent_session s ON s.id = e.actor_session_id
+WHERE e.project_id = $1
+  AND e.occurred_at &gt;= $2
+  AND ( (e.subject_type = 'spec' AND e.subject_id = $3)
+     OR (e.subject_type = 'spec_version'
+         AND e.subject_id IN (SELECT id FROM spec_version WHERE spec_id = $3)) )
+ORDER BY e.occurred_at;</code></pre>
+  <p>clemvion에서 특정 시점의 스펙 상태를 재구성하려면 git 고고학이 필요했고, 승인 이력은 애초에 존재하지 않았다(사람 승인 단계 자체가 없었다). <code>occurred_at &gt;= $2</code>를 조건에 둔 것은 월 파티션 프루닝을 위해서다.</p>
+
+  <h2 id="sec-5">5. ID · 인덱스 · 보존 정책</h2>
+
+  <h3>5.1 ID 전략 — 서버 발급, 두 종류</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>종류</th><th>형식</th><th>용도</th><th>규칙</th></tr></thead>
+    <tbody>
+      <tr><td>내부 키</td><td><code>uuid</code> (UUIDv7)</td><td>모든 FK·API 파라미터</td><td>시간 정렬이라 B-tree 삽입 지역성이 좋다. 클라이언트 발급 금지</td></tr>
+      <tr><td>표시 키</td><td><code>&lt;project.key&gt;-&lt;타입&gt;-&lt;base32 6자&gt;</code> (예: <code>CLV-T-7QF3K2</code>)</td><td>사람·커밋 메시지·대화</td><td>UUID 앞부분의 해시를 base32(혼동 문자 제외)로 인코딩. 프로젝트 내 유일</td></tr>
+      <tr><td>요구사항 ref</td><td><code>REQ-&lt;영역&gt;-&lt;번호&gt;</code> 또는 임포트 원본(<code>NAV-WF-01</code>)</td><td>스펙 본문·리뷰·커밋</td><td><code>UNIQUE (project_id, ref)</code>. clemvion 어휘를 그대로 계승</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>ID는 서버가 발급한다</b>(D-04). 파일 기반 순번은 두 세션이 동시에 같은 번호를 잡는 순간 충돌하고, 이는 파일 기반 SDD 도구들이 멀티유저 요구를 "not planned"로 닫으며 남긴 미해결 문제이기도 하다. 해시 기반 발급에는 중앙 카운터도 락도 필요 없다.</p>
+
+  <h3>5.2 fingerprint 설계 — 라운드를 넘는 동일성</h3>
+<pre><code>fingerprint = sha256(
+    project_id           ||
+    category             ||   -- 리뷰어 역할에서 파생. severity는 넣지 않는다
+    normalize(file_path) ||   -- 저장소 루트 상대 경로, 대소문자·구분자 정규화
+    symbol_or_anchor     ||   -- 함수/클래스명 또는 스펙 heading 앵커
+    title_stem                -- 제목에서 숫자·경로·따옴표를 제거한 어간
+)</code></pre>
+  <p>세 가지 선택이 중요하다.</p>
+  <ol>
+    <li><b>줄 번호를 넣지 않는다.</b> 코드가 몇 줄 밀렸다고 새 발견이 되면 dedup은 무의미하다. 위치는 <code>finding.line_start</code>에 따로 두고 최신 출현으로 갱신한다.</li>
+    <li><b>severity를 넣지 않는다.</b> 넣으면 리뷰어가 severity를 낮추는 순간 새 finding이 생겨 하향이 감춰진다. <code>finding_occurrence.raw_severity</code>와 대조해야 하향을 감사할 수 있다(§2.6).</li>
+    <li><b>파일 이동은 rename map으로 보정한다.</b> 커밋의 rename 정보를 받아 <code>normalize(file_path)</code>를 이전 경로로 되돌려 계산한 값도 함께 조회한다.</li>
+  </ol>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 이 축이 없어서 벌어진 일</b>
+    <p>한 changeset이 <b>code 리뷰 5회 + consistency 3회 = 8라운드</b>를 돌았고, 라운드마다 같은 유예 항목이 새 표 행으로 재서술됐다.
+    게다가 산출물이 코드와 같은 브랜치에 커밋되니 마지막 라운드의 리뷰 프롬프트는 <b>94파일 중 86개가 이전 <code>review/**</code> 산출물</b>이었고, 정작 소스 diff가 컨텍스트 예산에서 밀려났다.
+    산출물을 DB로 옮기는 것(D-01)과 fingerprint를 두는 것이 이 루프를 끊는 두 손이다.</p>
+  </div></div>
+
+  <h3>5.3 인덱스와 파티션</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>대상</th><th>인덱스</th><th>이유</th></tr></thead>
+    <tbody>
+      <tr><td>전 도메인 테이블</td><td><code>(project_id, …)</code> 복합</td><td>질의가 항상 단일 프로젝트 범위</td></tr>
+      <tr><td><code>claim</code></td><td><code>UNIQUE (task_id) WHERE status='active'</code></td><td>중복 클레임을 DB가 막는다</td></tr>
+      <tr><td><code>claim</code></td><td>GIN <code>(scope_spec_ids)</code>, GIN <code>(scope_file_globs)</code></td><td>겹침 검사(§4.6)</td></tr>
+      <tr><td><code>spec_version</code></td><td><code>UNIQUE (spec_id, version_no)</code>, <code>(spec_id, status)</code></td><td>최신 approved 조회</td></tr>
+      <tr><td><code>requirement</code></td><td><code>UNIQUE (project_id, ref)</code>, <code>(spec_id, impl_status)</code></td><td>커버리지 집계(§4.1)</td></tr>
+      <tr><td><code>task</code></td><td><code>(project_id, status, priority)</code>, <code>UNIQUE (project_id, key)</code></td><td>ready 큐(§4.5)</td></tr>
+      <tr><td><code>agent_session</code></td><td><code>(project_id, state, last_heartbeat_at)</code></td><td>세션 보드(§4.2) + stale 스캔</td></tr>
+      <tr><td><code>review_session</code></td><td><code>(project_id, head_sha)</code>, <code>(changeset_hash, round_no)</code></td><td>게이트 판정(§4.4)</td></tr>
+      <tr><td><code>finding</code></td><td><code>UNIQUE (project_id, fingerprint)</code>, <code>(project_id, status, severity)</code></td><td>dedup + 리뷰 센터 큐</td></tr>
+      <tr><td><code>approval</code></td><td><code>(project_id, assignee_user_id) WHERE decision IS NULL</code></td><td>승인함(§4.7)</td></tr>
+      <tr><td><code>event</code></td><td><code>(project_id, occurred_at DESC)</code>, <code>(subject_type, subject_id, occurred_at)</code></td><td>피드·감사(§4.8)</td></tr>
+      <tr><td><code>spec_version</code></td><td>GIN tsvector(<code>title || body_md</code>)</td><td>스펙 전문 검색(FR-01)</td></tr>
+    </tbody>
+  </table></div>
+  <p>파티션은 두 곳이다. <code>event</code>와 <code>activity</code>는 월 파티션(키: <code>occurred_at</code> / <code>created_at</code>)으로 두고 오래된 파티션은 콜드 아카이브로 분리한다. 이 둘이 유일하게 선형 성장하는 테이블이다.</p>
+
+  <h3>5.4 보존 정책 — 결론은 영구, 입력은 TTL</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>데이터</th><th>보존</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td><code>spec_version</code> (approved)</td><td><b>영구·불변</b></td><td>승인 스냅샷 = baseline. 변조 불가가 존재 이유</td></tr>
+      <tr><td><code>spec_version</code> (draft 중간 저장)</td><td>프로젝트 설정(기본 90일) 후 압축</td><td>범용 SaaS는 리비전을 30일에 지우거나 요금제로 차등한다 — 정책은 명시적으로</td></tr>
+      <tr><td><code>requirement</code>, <code>evidence</code>, <code>approval</code>, <code>resolution</code></td><td>영구</td><td>결론·결재·증적</td></tr>
+      <tr><td><code>finding</code> + <code>finding_occurrence</code></td><td>영구</td><td>결론. 라운드 재서술이 아니라 출현 행만 늘어난다</td></tr>
+      <tr><td><code>reviewer_report.body_md</code></td><td>기본 365일 후 요약 압축</td><td>clemvion 실측 세션당 66KB × 월 ~434 세션</td></tr>
+      <tr><td><code>review_session.prompt_blob_uri</code></td><td><b>TTL 30일</b>(오브젝트 스토리지)</td><td>커밋 SHA + 스킬로 재생성 가능. clemvion도 같은 사유로 <code>_prompts/</code>(리뷰 전체의 ~70%)를 git에서 제외했다</td></tr>
+      <tr><td><code>activity</code></td><td>프로젝트 설정(기본 90일) 후 세션 요약으로 압축</td><td>최대 볼륨 축</td></tr>
+      <tr><td><code>event</code></td><td>영구(월 파티션, 12개월 후 콜드)</td><td>FR-16 감사</td></tr>
+      <tr><td><code>notification</code></td><td>180일</td><td>파생 데이터. 원천은 <code>event</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>개인정보는 <code>event.payload</code>에 직접 넣지 않고 사용자 ID 참조만 둔다 — 이벤트 로그와 삭제권의 충돌은 이벤트 소싱 패턴이 공식적으로 경고하는 지점이다.</p>
+
+  <h3>5.5 스키마가 강제하는 무결성 규칙</h3>
+  <p>산문 규약은 반드시 깨진다는 것이 clemvion의 실측 결론이다(강제 리뷰어 미충족 <b>160/575 세션 = 28%</b>, severity 하향 모순 <b>24/732 = 3.3%</b>). 그래서 아래는 문서가 아니라 제약으로 둔다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>규칙</th><th>구현</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>approved 버전 본문은 변하지 않는다</td><td>UPDATE 트리거로 <code>body_md</code>·<code>content_hash</code> 변경 거부</td></tr>
+      <tr><td>2</td><td>한 Task에 활성 클레임은 하나</td><td>partial unique 인덱스</td></tr>
+      <tr><td>3</td><td><code>ready</code> 전이는 위임 명세 4요소를 요구한다</td><td>CHECK 또는 전이 API 검증</td></tr>
+      <tr><td>4</td><td><code>done</code> 전이는 게이트 통과 + <code>spec_impact</code> 선언을 요구한다</td><td>전이 API(§4.4 질의)</td></tr>
+      <tr><td>5</td><td>지시자는 자기 요청을 승인할 수 없다</td><td><code>approval</code> 저장 시 검증 + 질의 필터(§4.7)</td></tr>
+      <tr><td>6</td><td>모든 상태 전이는 Event를 남긴다</td><td>도메인 서비스 계층에서 전이와 같은 트랜잭션</td></tr>
+      <tr><td>7</td><td>severity 변경은 감사 대상이다</td><td><code>finding.severity</code> 변경 시 <code>event</code> 필수, 원값은 <code>raw_severity</code>에 보존</td></tr>
+      <tr><td>8</td><td>모든 도메인 행은 <code>project_id</code>를 갖는다</td><td>NOT NULL + 저장소 계층의 스코프 자동 주입</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3>clemvion 실측 근거 (이 문서가 인용한 것)</h3>
+  <ul>
+    <li><code>clemvion:spec/conventions/spec-impl-evidence.md</code> — frontmatter 스키마(<code>id</code>/<code>status</code>/<code>code</code>/<code>pending_plans</code>/<code>user_guide</code>), status 5값 라이프사이클과 전이 가드, 자기 인정 약점 R-1(stale glob 미검출)·R-10(<code>user_guide</code> 가드 미적용) — §3.1</li>
+    <li><code>clemvion:spec/</code> — md 384개(순수 스펙 135 md·49,383줄), frontmatter 분포 <code>implemented</code> 117 / <code>partial</code> 17 / <code>backlog</code> 1(총 135 문서), <code>## Rationale</code> 보유 105개, 최대 문서 1,750줄 × 2, spec 터치 커밋 857개(그중 <code>docs(spec)</code> 211개) — §1.3 · §2.2</li>
+    <li><code>clemvion:spec/2-navigation/_product-overview.md</code> vs <code>spec/3-workflow-editor/_product-overview.md</code> — 요구사항 표의 수동 ✅ 마크가 131개 대 0개로 갈라진 실측 — §1.3 · §3.1</li>
+    <li>CCH-SE-02 (<code>2a698f360</code>) — "spec이 <code>필수</code>로 약속한 update dedup이 통째로 미구현" — 문서 단위 status의 사각 — §1.3</li>
+    <li><code>9a4d3e32b</code> / <code>c37a3732c</code> / <code>9dfa2818e</code> — 네 문서가 각자 필드를 열거하던 중복 서술, 모방본이 원본보다 맞았던 사례, 빈 포인터 — §2.2</li>
+    <li><code>clemvion:.claude/docs/plan-lifecycle.md</code> §4 — plan frontmatter 필수 3필드(<code>worktree</code>/<code>started</code>/<code>owner</code>)와 <code>(unstarted)</code> sentinel, 자유 확장 필드 — §3.2</li>
+    <li><code>clemvion:plan/in-progress/</code> 실측 — 34건 중 미착수 13건, <code>priority:</code> 선언 15/34, <code>owner:</code> 분포(<code>developer</code> 17 / <code>project-planner</code> 8 / <code>planner</code> 5 / <code>developer (TBD)</code> 2 / <code>사용자 본인 / planner</code> 1 / <code>developer (다음 진입자)</code> 1 = 합 34) — §3.2</li>
+    <li><code>clemvion:plan/in-progress/retry-turn-terminal-guard.md</code> — 머지된 worktree 값을 남겨 두면 가드가 "연결된 plan 없음"으로 오판해 무장 해제되는 스칼라 필드의 한계 — §3.2</li>
+    <li><code>65f3e526b</code> (#426) — 백로그 인덱스 <code>plan/in-progress/0-unimplemented-overview.md</code>가 "미관리 stale 문서"로 삭제된 사례 — §3.2 · §4.5</li>
+    <li><code>clemvion:.claude/docs/worktree-policy.md</code> §3 — "자동 검출은 없다", 동시수정 검출 제거(#576) / §7 — 살아있는 세션 앵커 레지스트리가 필요하다는 자기 진술 — §2.4 · §2.5</li>
+    <li><code>clemvion:review/</code> — md 13,777개·131MB(code 9,070 + consistency 4,697 + spec-coverage 10), 73일간 세션 1,891개(일평균 26개), 현 추세 월 ~7,000파일/~50MB 증가, code 세션 평균 10.7파일/66KB — §2.6 · §5.4</li>
+    <li><code>clemvion:review/code/**/meta.json</code> — 커밋 SHA·diff base·브랜치 <b>필드 부재</b>, 표본 SUMMARY 200개 중 47개만 산문에 해시 언급 — §2.6 · §3.3</li>
+    <li><code>clemvion:.claude/agents/resolution-applier.md</code> · <code>code-review-summary.md</code> — <code>SUMMARY#&lt;n&gt;</code> 커밋 규약, RESOLUTION 조치 표, <code>[SPEC-DRIFT]</code> 보존 의무, <code>ESCALATE=</code> 1줄 프로토콜 — §2.3 · §2.6 · §3.3</li>
+    <li><code>clemvion:.claude/hooks/_lib/review_guard.py</code> — 경로 타임스탬프를 게이트 시계로 쓰는 설계, BLOCK 하향 모순 24/732(3.3%) 실측 — §2.6 · §4.4</li>
+    <li><code>clemvion:.claude/hooks/guard_review_before_push.py</code> — 1,005줄 push 게이트(정규식 blind-match, ReDoS 3회 수정, rewrite-immune 시계) — §4.4</li>
+    <li><code>clemvion:.claude/skills/code-review-agents/SKILL.md</code> — 강제 리뷰어 미충족 160/575 세션(28%) 전수 조사 — §5.5</li>
+    <li>자기증식 루프 — 한 changeset이 8라운드(code 5 + consistency 3), 마지막 라운드 프롬프트 94파일 중 86개가 이전 <code>review/**</code> 산출물 — §5.2</li>
+    <li><code>_prompts/</code> gitignore — "리뷰 전체의 ~70%를 차지, 커밋 해시로 재생성 가능" — §3.3 · §5.4</li>
+    <li><code>clemvion:.claude/state/</code> — 조율 상태 전량이 gitignored 로컬 파일, 가시성은 statusline 2줄 — §4.2</li>
+  </ul>
+
+  <h3>외부 출처 (리서치 노트에서 접속 확인된 URL만)</h3>
+  <p class="src"><a href="https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content-versions/">Confluence Cloud REST API — Content versions</a> (2026-08-13 확인): 저장마다 정수 버전, 복원은 새 버전 생성, 이력 자체는 불변. <code>spec_version</code> 인터페이스의 표준 근거(§2.2).</p>
+  <p class="src"><a href="https://www.jamasoftware.com/requirements-management-guide/requirements-gathering-and-management-processes/defining-and-implementing-requirements-baselines/">Defining and Implementing Requirements Baselines — Jama Software</a> (2026-08-13 확인): baseline = 합의·검토·승인된 요구사항 집합의 시점 스냅샷. approved SpecVersion의 요구공학 근거(§2.2).</p>
+  <p class="src"><a href="https://www.notion.com/blog/data-model-behind-notion">The data model behind Notion's flexibility — Notion</a> (2021-05-18): 안정 ID와 parent 포인터가 코멘트 앵커·권한 상속의 단위가 된다는 DB 문서 모델의 원형(§1.1 · §2.2).</p>
+  <p class="src"><a href="https://www.notion.com/blog/sharding-postgres-at-notion">Herding elephants: sharding Postgres at Notion — Notion</a> (2021-10-06): workspace ID를 파티션 키로 잡은 이유. NERV의 <code>project_id</code> 규칙 근거(§1.1 · §5.3).</p>
+  <p class="src"><a href="https://linear.app/developers/agent-interaction">Developing the Agent Interaction — Linear Developers</a> (2026-08-13 확인): 세션 6상태와 <code>thought/action/elicitation/response/error</code> 타입드 activity. <code>agent_session</code>·<code>activity</code> 설계의 직접 출처(§2.5).</p>
+  <p class="src"><a href="https://linear.app/developers/agent-best-practices">Interaction Best Practices — Linear Developers</a> (2026-08-13 확인): 무활동 30분 stale, "대화 재구성은 편집 가능한 코멘트가 아니라 불변 activity로" 권고(§2.5).</p>
+  <p class="src"><a href="https://linear.app/now/our-approach-to-building-the-agent-interaction-sdk">Our approach to building the Agent Interaction SDK — Linear Blog</a> (2025-08-01): "에이전트는 책임을 질 수 없다" + 사람 assignee / 에이전트 delegate 분리(§2.4 · §2.5).</p>
+  <p class="src"><a href="https://linear.app/developers/agents">Getting Started — Linear Developers</a> (2026-08-13 확인): <code>actor=app</code> 앱 유저 모델. NERV가 다른 선택을 한 비교 대상(§2.5).</p>
+  <p class="src"><a href="https://docs.github.com/enterprise-cloud@latest/copilot/how-tos/agents/copilot-coding-agent/reviewing-a-pull-request-created-by-copilot">Reviewing a pull request created by GitHub Copilot — GitHub Docs</a> (2026-08-13 확인): "작업을 지시한 사람의 승인은 필수 승인 수에 포함되지 않는다". <code>approval</code>의 지시자≠승인자 규칙(§2.7 · §4.7).</p>
+  <p class="src"><a href="https://github.blog/changelog/2026-02-26-enterprise-ai-controls-agent-control-plane-now-generally-available/">Enterprise AI Controls &amp; agent control plane — GitHub Changelog</a> (2026-02-26): audit log의 <code>actor_is_agent</code> 식별자와 <code>agent_session.task</code> 이벤트. <code>event.is_agent</code>의 근거(§2.9).</p>
+  <p class="src"><a href="https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/tracking-copilots-sessions">Tracking GitHub Copilot's sessions — GitHub Docs</a> (2026-08-13 확인): 커밋 메시지에 세션 로그 링크를 박아 "왜 이 변경이 생겼는지"를 역추적하는 패턴(§2.5 · §4.3).</p>
+  <p class="src"><a href="https://asana.com/product/ai/ai-teammates">Asana AI Teammates</a> (2026-08-13 확인): "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다". <code>api_token.user_id</code> 필수 FK의 원칙적 근거(§2.1).</p>
+  <p class="src"><a href="https://www.notion.com/releases/2026-02-24">Notion 3.3: Custom Agents — Release Notes</a> (2026-02-24): "모든 실행이 로그로 남아 변경 사항이 가시적이고 되돌릴 수 있다". run 단위 기록의 참조 사례(§2.9).</p>
+  <p class="src"><a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing">Event Sourcing Pattern — Microsoft Azure Architecture Center</a> (2026-03-27 갱신): 전면 이벤트 소싱은 MVP에 부적합, 이득이 큰 부분에만 선택 적용 + 개인정보와 이벤트 로그의 충돌 경고. D-10과 §5.4의 근거.</p>
+  <p class="src"><a href="https://developers.google.com/workspace/drive/api/reference/rest/v3/revisions">Google Drive API — Revisions</a> (2026-08-13 확인): 리비전은 30일 후 자동 purge가 기본값. 보존 정책을 명시적으로 두어야 하는 근거(§5.4).</p>
+  <p class="src"><a href="https://www.notion.com/pricing">Notion 요금제</a> (2026-08-13 확인): 페이지 히스토리 보존이 요금제로 차등(Free 7일 ~ Enterprise 무제한). 이력 저장이 비용 요소라는 근거(§5.4).</p>
+  <p class="src"><a href="https://github.com/wzhudev/reverse-linear-sync-engine">reverse-linear-sync-engine</a> (2026-08-13 확인, Linear CTO 공인): 서버가 단일 진실이고 충돌은 중앙 전순서 기반 LWW. <code>base_version_id</code> 낙관적 동시성의 근거(§2.2).</p>
+  <p class="src"><a href="https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github">About large files on GitHub — GitHub Docs</a> (2026-08-13 확인): 기계 생성 산출물은 git 이력 밖에 두라는 크기 가이드(§5.4).</p>
+
+  <h3>이 문서와 연결되는 제안서 문서</h3>
+  <ul>
+    <li><a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a> — §3의 매핑이 대상으로 삼는 현행 규약의 전수 분석</li>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — 이 문서가 인용하는 P1~P8 · FR-01~17 · NFR-01~05의 정의</li>
+    <li><a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a> — §2.5·§2.7의 세션·승인 모델이 차용한 플랫폼 패턴의 원전</li>
+    <li><a href="spec-driven-development.html">2.1 Spec-Driven Development</a> — 요구사항 ID·EARS 템플릿과 파일 기반 도구의 멀티유저 공백</li>
+    <li><a href="architecture.html">3.2 시스템 아키텍처</a> — 이 스키마가 놓이는 컴포넌트 구성과 저장 전략(D-01)</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구가 읽고 쓰는 필드의 계약</li>
+    <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — §1.4 상태 머신의 전이 조건·권한·게이트 규칙</li>
+    <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — §4의 질의가 그리는 S1~S8 화면</li>
+    <li><a href="roadmap.html">3.7 로드맵</a> — §3 매핑을 실행하는 임포터와 clemvion 마이그레이션 계획(D-12)</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="architecture.html">이전: 3.2 시스템 아키텍처</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="agent-integration.html">다음: 3.4 에이전트 연동 설계</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>
