@@ -129,11 +129,11 @@
 
       <!-- Row B: 진입 계층 -->
       <rect x="24" y="156" width="250" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
-      <text x="149" y="180" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">웹앱 (Next.js)</text>
+      <text x="149" y="180" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">웹앱 (Vite + React SPA)</text>
       <text x="149" y="198" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S1~S8 화면 · SSE 구독</text>
 
       <rect x="300" y="156" width="270" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
-      <text x="435" y="180" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">API + MCP 게이트웨이 (Hono)</text>
+      <text x="435" y="180" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">API + MCP 게이트웨이 (NestJS)</text>
       <text x="435" y="198" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">REST · Streamable HTTP · OAuth 2.1 · 게이트 판정</text>
 
       <rect x="596" y="156" width="258" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
@@ -192,8 +192,8 @@
   <div class="table-wrap"><table>
     <thead><tr><th>컴포넌트</th><th>책임</th><th>하지 않는 일</th><th>관련 FR/NFR</th></tr></thead>
     <tbody>
-      <tr><td><b>웹앱</b> (Next.js)</td><td>S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, SSE 구독으로 보드 실시간 갱신</td><td>비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증</td><td>FR-08·11·13 / NFR-02</td></tr>
-      <tr><td><b>API + MCP 게이트웨이</b> (Hono)</td><td>REST/RPC와 Streamable HTTP MCP 엔드포인트를 <b>같은 도메인 서비스 위에</b> 노출. 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버</td><td>장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당)</td><td>FR-01~11·14·15 / NFR-03</td></tr>
+      <tr><td><b>웹앱</b> (Vite + React SPA)</td><td>S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, SSE 구독으로 보드 실시간 갱신</td><td>비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증</td><td>FR-08·11·13 / NFR-02</td></tr>
+      <tr><td><b>API + MCP 게이트웨이</b> (NestJS)</td><td>REST/RPC와 Streamable HTTP MCP 엔드포인트를 <b>같은 도메인 서비스 위에</b> 노출. 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버</td><td>장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당)</td><td>FR-01~11·14·15 / NFR-03</td></tr>
       <tr><td><b>훅 수집기</b> (ingest + OTLP)</td><td>Claude Code <code>type:"http"</code> 훅과 Codex hooks/notify를 토큰 인증으로 수신해 202로 즉시 응답하고 큐에 적재. OTLP는 정량 관측용 별도 경로</td><td>차단 <b>판정의 산출</b>(판정은 API가 하고 수집기는 응답을 중계한다). 단 <code>Stop</code> 훅만 동기 판정 경로다</td><td>FR-07·08·16 / NFR-02·04</td></tr>
       <tr><td><b>Postgres</b></td><td>스펙·요구사항·작업·클레임·세션·활동·리뷰·발견사항·승인·이벤트·알림의 단일 진실. 게이트 판정도 여기서 SQL로</td><td>대용량 blob 보관(오브젝트 스토리지로)</td><td>FR-01~17</td></tr>
       <tr><td><b>이벤트·알림 워커</b></td><td>Event 소비 → Notification 라우팅(인앱/Slack/메일), 만료 리스 회수, 무활동 세션 stale 전이, 다이제스트, markdown/git 미러 export, 보존 정책 집행</td><td>사용자 요청 경로의 동기 처리</td><td>FR-06·07·12·17 / NFR-01</td></tr>
@@ -454,12 +454,13 @@
   <h2 id="sec-4">4. 기술 스택 (D-11)과 대안 비교</h2>
 
   <h3>4.1 선택 요약</h3>
+  <div class="callout decision"><span class="ico">✅</span><div class="body"><b class="title">확정 · 웹앱 Vite · API NestJS</b><p>이 두 계층은 <b>확정된 결정</b>이다. 나머지 항목은 아직 제안이며 Phase 0 스파이크에서 검증한다.</p></div></div>
   <div class="table-wrap"><table>
     <thead><tr><th>계층</th><th>선택</th><th>한 줄 이유</th></tr></thead>
     <tbody>
       <tr><td>언어 · 저장소 구조</td><td>TypeScript 모노레포(pnpm)</td><td>웹 · API · MCP · 에이전트 SDK가 모두 TS 생태계. 스키마·타입을 패키지로 공유</td></tr>
-      <tr><td>웹앱</td><td>Next.js</td><td>서버 컴포넌트로 대형 스펙 문서 렌더 비용을 서버로 넘긴다</td></tr>
-      <tr><td>API · MCP 게이트웨이</td><td>Hono</td><td>표준 <code>Request/Response</code> 기반이라 Streamable HTTP MCP 구현이 자연스럽다</td></tr>
+      <tr><td>웹앱</td><td>Vite + React SPA</td><td>모든 화면이 로그인 뒤의 사용자별 실시간 뷰라 SSR 이득이 작다. 웹 티어에 런타임이 없어 정적 자산 배포로 끝난다</td></tr>
+      <tr><td>API · MCP 게이트웨이</td><td>NestJS</td><td>REST와 MCP가 <b>같은 도메인 서비스</b>를 쓰도록 DI·모듈 구조가 강제한다(D-05). 가드·인터셉터로 스코프 검사·감사 로그를 일원화</td></tr>
       <tr><td>DB</td><td>Postgres</td><td>트랜잭션 · 부분 인덱스 · JSONB · <code>LISTEN/NOTIFY</code> · 전문검색을 한 엔진에서</td></tr>
       <tr><td>쿼리 계층</td><td>Drizzle</td><td>게이트·커버리지 질의가 복잡 조인이라 SQL 제어권이 중요</td></tr>
       <tr><td>인증</td><td>better-auth</td><td>자가호스팅(NFR-01) 전제에서 조직·역할·토큰 모델을 직접 소유</td></tr>
@@ -474,8 +475,8 @@
   <div class="table-wrap"><table>
     <thead><tr><th>결정</th><th>선택</th><th>유력 대안</th><th>대안의 장점</th><th>선택 이유 (NERV 조건)</th><th>재검토 트리거</th></tr></thead>
     <tbody>
-      <tr><td>웹 프레임워크</td><td><b>Next.js</b></td><td>Remix/React Router, SvelteKit, Nuxt</td><td>단순한 데이터 로딩 모델, 얇은 런타임</td><td>스펙 문서·보드가 대형 트리 렌더라 서버 컴포넌트 이득이 크다</td><td>서버 렌더 비용이 SSE 스트리밍과 충돌할 때</td></tr>
-      <tr><td>API 프레임워크</td><td><b>Hono</b></td><td>Fastify/Express, NestJS</td><td>성숙한 미들웨어 생태계, DI 구조</td><td>MCP Streamable HTTP는 요청 단위 스트리밍 응답이 필요 — 웹 표준 <code>Response</code> 기반이 가장 잘 맞음</td><td>팀이 대규모 DI 구조를 요구할 때</td></tr>
+      <tr><td>웹 프레임워크</td><td><b>Vite + React SPA</b></td><td>Next.js, Remix/React Router, SvelteKit</td><td>SSR·서버 컴포넌트로 초기 렌더 비용을 서버로 이전, 파일 기반 라우팅 관례</td><td>전 화면이 인증 뒤의 사용자별 뷰이고 보드·세션은 SSE로 계속 갱신되는 라이브 뷰다 — SSR이 그린 첫 화면도 곧바로 클라이언트가 다시 그린다. 웹 티어를 정적 자산으로 만들면 docker-compose에서 컨테이너 하나가 사라진다</td><td>스펙 문서 공개 열람(비로그인 링크 공유·검색 노출) 요구가 생기면</td></tr>
+      <tr><td>API 프레임워크</td><td><b>NestJS</b>(Fastify 어댑터)</td><td>Hono, Fastify/Express 단독</td><td>웹 표준 <code>Request/Response</code> 기반이라 MCP Streamable HTTP 구현이 자연스럽고 런타임이 얇다</td><td>REST·MCP·워커가 한 도메인 규칙을 공유해야 한다(D-05). 표면마다 게이트 판정이 갈라지는 것이 이 플랫폼에서 가장 비싼 실패라, DI로 서비스 공유를 구조가 강제하는 쪽을 택했다. <code>@Sse()</code>·가드·인터셉터로 실시간·인가·감사가 1급</td><td>MCP 스트리밍 어댑터 계층이 유지보수 부담이 될 때</td></tr>
       <tr><td>데이터베이스</td><td><b>Postgres</b></td><td>MySQL, SQLite, MongoDB, Dolt</td><td>SQLite는 운영 단순, Dolt는 버전 관리 SQL(beads 채택)</td><td>클레임 원자성 · 게이트 조인 · 부분 인덱스 · <code>LISTEN/NOTIFY</code> · JSONB가 한 엔진에 필요. Notion이 블록 모델을 Postgres에서 초대형까지 실증</td><td>스펙 버전 diff를 DB 네이티브로 다뤄야 하면 Dolt 재평가</td></tr>
       <tr><td>쿼리 계층</td><td><b>Drizzle</b></td><td>Prisma, Kysely, 순수 SQL</td><td>Prisma는 마이그레이션·툴링 성숙, Kysely는 타입 안전 쿼리빌더(Docmost 사례)</td><td>게이트·커버리지 질의가 재귀·윈도우 함수를 쓰는 복잡 조인이라 SQL 제어권 우선</td><td>마이그레이션 운영 부담이 임계를 넘을 때</td></tr>
       <tr><td>인증</td><td><b>better-auth</b></td><td>Clerk/WorkOS, Auth.js, Keycloak</td><td>관리형은 SSO·MFA를 즉시 제공</td><td>자가호스팅 필수(NFR-01) + 프로젝트 스코프 PAT 발급을 직접 소유해야 함(D-08)</td><td>엔터프라이즈 SSO 요구가 들어오면 Keycloak 연동 검토</td></tr>
@@ -519,7 +520,7 @@
       <text x="126" y="159" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="10.5">TLS 종료 · Origin 검증</text>
 
       <rect x="284" y="52" width="196" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
-      <text x="382" y="77" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">nerv-web</text>
+      <text x="382" y="77" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">nerv-web (정적)</text>
       <rect x="284" y="104" width="196" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="382" y="129" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">nerv-api</text>
       <rect x="284" y="156" width="196" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
@@ -559,7 +560,7 @@
     <thead><tr><th>서비스</th><th>역할</th><th>비고</th></tr></thead>
     <tbody>
       <tr><td><code>reverse-proxy</code></td><td>TLS 종료, 경로 라우팅(<code>/</code>, <code>/api</code>, <code>/mcp</code>, <code>/ingest</code>)</td><td>MCP는 Origin 검증 필수</td></tr>
-      <tr><td><code>nerv-web</code></td><td>웹앱 SSR</td><td>내부 네트워크로만 API 호출</td></tr>
+      <tr><td><code>nerv-web</code></td><td>Vite 빌드 산출물(정적 자산)</td><td>별도 런타임 없이 <code>reverse-proxy</code>가 직접 서빙 — 컨테이너를 두지 않아도 된다</td></tr>
       <tr><td><code>nerv-api</code></td><td>REST + MCP + SSE + 게이트 판정</td><td>수평 확장 시 SSE 팬아웃은 <code>LISTEN/NOTIFY</code>로</td></tr>
       <tr><td><code>nerv-ingest</code></td><td>훅·웹훅 수신, 202 즉시 응답 후 큐 적재</td><td>에이전트 지연에 영향 주지 않도록 API와 분리</td></tr>
       <tr><td><code>nerv-worker</code></td><td>알림 · 리스 회수 · stale 전이 · export · 보존 정책</td><td>단일 인스턴스 가정, 잡 잠금은 DB advisory lock</td></tr>
@@ -568,6 +569,7 @@
       <tr><td><code>otel-collector</code></td><td>조직 정량 관측(선택)</td><td>Claude·Codex 공통 OTLP 수신</td></tr>
     </tbody>
   </table></div>
+  <p>SPA로 바뀌면서 웹 티어는 API를 호출하지 않는다 — 브라우저가 정적 자산을 받은 뒤 <code>reverse-proxy</code>를 거쳐 API를 직접 호출한다. 그래서 <code>nerv-web</code>은 프로세스가 아니라 빌드 산출물이고, <code>reverse-proxy</code>가 그 디렉터리를 그대로 서빙하면 컨테이너 목록에서 빠진다.</p>
   <p>최소 사양은 목표 규모(프로젝트 수십, 동시 세션 수십 — NFR-04) 기준 2 vCPU / 4GB RAM / 50GB 디스크에서 시작해 이벤트·Activity 볼륨을 보며 조정한다.</p>
 
   <h2 id="sec-5">5. 멀티테넌시 · 보안 · 성능 · 운영</h2>

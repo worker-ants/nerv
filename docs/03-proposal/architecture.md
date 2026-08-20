@@ -1,6 +1,6 @@
 # 시스템 아키텍처
 
-> **요약** — NERV(가칭)는 웹앱(Next.js), API + MCP 게이트웨이(Hono), 훅 수집기, Postgres, 이벤트·알림 워커의 다섯 덩어리와 git forge·Slack 연동으로 구성된다. 가장 중요한 결정은 저장 전략(D-01)이다: **스펙과 리뷰 산출물의 단일 진실은 플랫폼 DB**이고, git에는 사람이 읽고 grep할 수 있는 **read-only markdown 미러**와 포인터만 남기며, 에이전트는 markdown으로 읽되 **쓰기는 MCP/API 한 경로로만** 한다. 근거는 추정이 아니라 실측이다 — clemvion에서 리뷰 이력 blob 60.7MB가 `.git` packed blob 바이트의 60%를 차지했고(`review/` 산출물은 markdown 13,777개·131MB), 리뷰가 코드와 같은 브랜치에 커밋되어 다음 리뷰의 입력이 되는 자기증식 루프(한 changeset 8라운드, 마지막 라운드 프롬프트 94파일 중 86개가 이전 리뷰 산출물)가 관측됐다. 이 문서는 컴포넌트별 책임, 저장 전략, 핵심 데이터 흐름 4종(스펙 승인 · 작업 클레임 · 세션 하트비트/stale · 리뷰 수집→게이트 판정), 기술 스택(D-11) 대안 비교, 멀티테넌시·보안·성능·백업·로컬 폴백(NFR-05)까지를 구현 착수가 가능한 수준으로 기술한다.
+> **요약** — NERV(가칭)는 웹앱(Vite + React SPA), API + MCP 게이트웨이(NestJS), 훅 수집기, Postgres, 이벤트·알림 워커의 다섯 덩어리와 git forge·Slack 연동으로 구성된다. 가장 중요한 결정은 저장 전략(D-01)이다: **스펙과 리뷰 산출물의 단일 진실은 플랫폼 DB**이고, git에는 사람이 읽고 grep할 수 있는 **read-only markdown 미러**와 포인터만 남기며, 에이전트는 markdown으로 읽되 **쓰기는 MCP/API 한 경로로만** 한다. 근거는 추정이 아니라 실측이다 — clemvion에서 리뷰 이력 blob 60.7MB가 `.git` packed blob 바이트의 60%를 차지했고(`review/` 산출물은 markdown 13,777개·131MB), 리뷰가 코드와 같은 브랜치에 커밋되어 다음 리뷰의 입력이 되는 자기증식 루프(한 changeset 8라운드, 마지막 라운드 프롬프트 94파일 중 86개가 이전 리뷰 산출물)가 관측됐다. 이 문서는 컴포넌트별 책임, 저장 전략, 핵심 데이터 흐름 4종(스펙 승인 · 작업 클레임 · 세션 하트비트/stale · 리뷰 수집→게이트 판정), 기술 스택(D-11) 대안 비교, 멀티테넌시·보안·성능·백업·로컬 폴백(NFR-05)까지를 구현 착수가 가능한 수준으로 기술한다.
 >
 > 문서 버전 v0.1 · 2026-08-13 · HTML 판: [architecture.html](../html/architecture.html)
 
@@ -30,8 +30,8 @@ flowchart LR
   end
 
   subgraph NV["NERV 플랫폼 · docker-compose 자가호스팅"]
-    WEB["웹앱 Next.js<br/>S1~S8 화면 · SSE 구독"]
-    API["API + MCP 게이트웨이 Hono<br/>REST · nerv_* tools · OAuth 2.1"]
+    WEB["웹앱 Vite + React SPA<br/>S1~S8 화면 · SSE 구독"]
+    API["API + MCP 게이트웨이 NestJS<br/>REST · nerv_* tools · OAuth 2.1"]
     ING["훅 수집기<br/>HTTP ingest · OTLP collector"]
     WRK["이벤트 · 알림 워커<br/>리스 회수 · 다이제스트 · export"]
     PG[("Postgres<br/>스펙 · 작업 · 세션 · 리뷰 · 이벤트")]
@@ -66,8 +66,8 @@ flowchart LR
 
 | 컴포넌트 | 책임 | 하지 않는 일 | 관련 FR/NFR |
 | --- | --- | --- | --- |
-| **웹앱** (Next.js) | S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, SSE 구독으로 보드 실시간 갱신 | 비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증 | FR-08·11·13 / NFR-02 |
-| **API + MCP 게이트웨이** (Hono) | REST/RPC + Streamable HTTP MCP 엔드포인트를 **같은 도메인 서비스 위에** 노출. 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버 | 장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당) | FR-01~11·14·15 / NFR-03 |
+| **웹앱** (Vite + React SPA) | S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, SSE 구독으로 보드 실시간 갱신 | 비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증 | FR-08·11·13 / NFR-02 |
+| **API + MCP 게이트웨이** (NestJS) | REST/RPC + Streamable HTTP MCP 엔드포인트를 **같은 도메인 서비스 위에** 노출(같은 Nest 모듈의 provider를 두 컨트롤러가 주입받는다). 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버 | 장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당) | FR-01~11·14·15 / NFR-03 |
 | **훅 수집기** (HTTP ingest + OTLP) | Claude Code `type:"http"` 훅과 Codex hooks/notify를 토큰 인증으로 수신해 202로 즉시 응답하고 큐에 적재. OTLP는 정량 관측용 별도 경로 | 차단 **판정의 산출**(판정은 API가 하고 수집기는 응답을 중계한다). 단 `Stop` 훅만 동기 판정 경로다 | FR-07·08·16 / NFR-02·04 |
 | **Postgres** | 스펙·요구사항·작업·클레임·세션·활동·리뷰·발견사항·승인·이벤트·알림의 단일 진실. 게이트 판정도 여기서 SQL로 | 대용량 blob 보관(오브젝트 스토리지로) | FR-01~17 |
 | **이벤트·알림 워커** | Event 소비 → Notification 생성·라우팅(인앱/Slack/메일), 만료 리스 회수, 무활동 세션 stale 전이, 다이제스트, markdown/git 미러 export, 보존 정책 집행 | 사용자 요청 경로의 동기 처리 | FR-06·07·12·17 / NFR-01 |
@@ -303,11 +303,13 @@ Finding fingerprint는 라운드 간 동일성을 보장한다. clemvion에는 �
 
 ### 4.1 선택 요약
 
+**웹앱(Vite)과 API 프레임워크(NestJS)는 확정이다.** 나머지 항목은 아직 제안이며 Phase 0 스파이크에서 검증한다(§4.2의 재검토 트리거 참조).
+
 | 계층 | 선택 | 한 줄 이유 |
 | --- | --- | --- |
 | 언어·저장소 구조 | TypeScript 모노레포(pnpm) | 웹·API·MCP·에이전트 SDK가 모두 TS 생태계. 스키마·타입을 패키지로 공유 |
-| 웹앱 | Next.js | 서버 컴포넌트로 대형 스펙 문서 렌더 비용을 서버로 넘기고, 인증·라우팅 관례가 팀에 익숙 |
-| API·MCP 게이트웨이 | Hono | 표준 `Request/Response` 기반이라 Streamable HTTP MCP 엔드포인트 구현이 자연스럽고 런타임 이식성이 높음 |
+| 웹앱 | Vite + React SPA | 모든 화면이 로그인 뒤의 사용자별 실시간 뷰라 SSR 이득이 작다. 웹 티어에 런타임이 없어 정적 자산 배포로 끝난다 |
+| API·MCP 게이트웨이 | NestJS | REST와 MCP가 **같은 도메인 서비스**를 쓰도록 DI·모듈 구조가 강제한다(D-05). 가드·인터셉터로 스코프 검사와 감사 로그를 횡단 관심사로 일원화 |
 | DB | Postgres | 트랜잭션·부분 인덱스·JSONB·`LISTEN/NOTIFY`·전문검색을 한 엔진에서. 클레임 원자성과 게이트 SQL이 여기 의존 |
 | 쿼리 계층 | Drizzle | SQL에 가까운 표현력 — 게이트·커버리지 질의가 복잡 조인이라 ORM 추상화보다 SQL 제어권이 중요 |
 | 인증 | better-auth | 자가호스팅(NFR-01) 전제에서 SaaS 종속 없이 조직·역할·API 토큰 모델을 직접 소유 |
@@ -320,8 +322,8 @@ Finding fingerprint는 라운드 간 동일성을 보장한다. clemvion에는 �
 
 | 결정 | 선택 | 유력 대안 | 대안의 장점 | 선택 이유(NERV 조건) | 재검토 트리거 |
 | --- | --- | --- | --- | --- | --- |
-| 웹 프레임워크 | **Next.js** | Remix/React Router, SvelteKit, Nuxt | 단순한 데이터 로딩 모델, 얇은 런타임 | 스펙 문서·보드가 대형 트리 렌더라 서버 컴포넌트 이득이 크고, 사내 React 인력 가정 | 서버 렌더 비용이 SSE 스트리밍과 충돌할 때 |
-| API 프레임워크 | **Hono** | Fastify/Express, NestJS | 성숙한 미들웨어 생태계, DI 구조 | MCP Streamable HTTP는 요청 단위 스트리밍 응답이 필요 — 웹 표준 `Response` 기반이 가장 잘 맞음 | 팀이 대규모 DI 구조를 요구할 때 |
+| 웹 프레임워크 | **Vite + React SPA** | Next.js, Remix/React Router, SvelteKit | SSR·서버 컴포넌트로 초기 렌더 비용을 서버로 이전, 파일 기반 라우팅 관례 | 전 화면이 인증 뒤의 사용자별 뷰이고 보드·세션은 SSE로 계속 갱신되는 라이브 뷰다 — SSR이 그린 첫 화면도 곧바로 클라이언트가 다시 그린다. 웹 티어를 정적 자산으로 만들면 docker-compose에서 컨테이너 하나가 사라진다 | 스펙 문서 공개 열람(비로그인 링크 공유·검색 노출) 요구가 생기면 |
+| API 프레임워크 | **NestJS**(Fastify 어댑터) | Hono, Fastify/Express 단독 | 웹 표준 `Request/Response` 기반이라 MCP Streamable HTTP 구현이 자연스럽고 런타임이 얇다 | REST·MCP·워커가 한 도메인 규칙을 공유해야 한다(D-05). 표면마다 게이트 판정이 갈라지는 것이 이 플랫폼에서 가장 비싼 실패라, DI로 서비스 공유를 구조가 강제하는 쪽을 택했다. `@Sse()`·가드·인터셉터로 실시간·인가·감사가 1급 | MCP 스트리밍 어댑터 계층이 유지보수 부담이 될 때 |
 | 데이터베이스 | **Postgres** | MySQL, SQLite, MongoDB, Dolt | SQLite는 운영 단순, Dolt는 버전 관리 SQL(beads가 채택) | 클레임 원자성·게이트 조인·부분 인덱스·`LISTEN/NOTIFY`·JSONB가 한 엔진에 필요. Notion이 블록 모델을 Postgres에서 초대형까지 실증 | 스펙 버전 diff를 DB 네이티브로 다뤄야 할 요구가 커지면 Dolt 재평가 |
 | 쿼리 계층 | **Drizzle** | Prisma, Kysely, 순수 SQL | Prisma는 마이그레이션·툴링 성숙, Kysely는 타입 안전 쿼리빌더(Docmost 사례) | 게이트·커버리지 질의가 재귀·윈도우 함수를 쓰는 복잡 조인이라 SQL 제어권 우선 | 마이그레이션 운영 부담이 임계를 넘을 때 |
 | 인증 | **better-auth** | Clerk/WorkOS, Auth.js, Keycloak | 관리형은 SSO·MFA를 즉시 제공 | 자가호스팅 필수(NFR-01) + 프로젝트 스코프 PAT 발급을 직접 소유해야 함(D-08) | 엔터프라이즈 SSO 요구가 들어오면 Keycloak 연동 검토 |
@@ -329,7 +331,7 @@ Finding fingerprint는 라운드 간 동일성을 보장한다. clemvion에는 �
 | 실시간 협업 편집 | **미도입**(Phase 3) | Yjs + Hocuspocus, prosemirror-collab | 오프라인 병합·동시 타이핑 | 주 작성자가 에이전트(원자적 API 저장·버전 전제조건 가능)라 동시 타이핑 빈도가 낮다. MVP부터 CRDT를 넣으면 버전 스냅샷·감사·스키마 권위가 CRDT 상태와 얽힌다 | 사람 동시 편집 요청이 반복되면 |
 | 배포 | **docker-compose** | Kubernetes, 관리형 PaaS | 오토스케일·무중단 배포 | 목표 규모는 프로젝트 수십·동시 세션 수십(NFR-04). 단일 노드로 충분하고 도입 마찰이 최소 | 다중 테넌트 SaaS 전환 시 |
 
-> **주의.** 이 표의 프레임워크·라이브러리 비교는 리서치 노트에 1차 출처가 없어 URL 근거를 달지 않았다(D-11이 제안 단계임을 명시한 것과 같은 이유). 실증 근거가 있는 항목은 명시했다 — Yjs·Hocuspocus·TipTap 스택 실증([Docmost](https://github.com/docmost/docmost)), 서버 권위 LWW([Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/), [Linear](https://github.com/wzhudev/reverse-linear-sync-engine)), CRDT 반론([moment.dev](https://www.moment.dev/blog/lies-i-was-told-pt-2)), 버전 관리 SQL DB 채택([beads](https://github.com/steveyegge/beads)). Phase 0 착수 전 스택 스파이크로 검증할 것을 권한다.
+> **주의.** 웹 프레임워크(Vite)와 API 프레임워크(NestJS) 두 행은 **확정된 결정**이며, 표의 "유력 대안"과 "재검토 트리거"는 그 결정을 뒤집을 조건이 아니라 **어떤 트레이드오프를 감수했는지의 기록**이다. 나머지 행은 제안 단계다. 이 표의 프레임워크·라이브러리 비교는 리서치 노트에 1차 출처가 없어 URL 근거를 달지 않았다. 실증 근거가 있는 항목은 명시했다 — Yjs·Hocuspocus·TipTap 스택 실증([Docmost](https://github.com/docmost/docmost)), 서버 권위 LWW([Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/), [Linear](https://github.com/wzhudev/reverse-linear-sync-engine)), CRDT 반론([moment.dev](https://www.moment.dev/blog/lies-i-was-told-pt-2)), 버전 관리 SQL DB 채택([beads](https://github.com/steveyegge/beads)). Phase 0 착수 전 스택 스파이크로 검증할 것을 권한다.
 
 ### 4.3 MCP 서버 리비전 전략
 
@@ -346,18 +348,17 @@ MCP 최신 스펙(2026-07-28 리비전)은 Streamable HTTP에서 **프로토콜 
 flowchart TB
   subgraph HOST["단일 호스트 · docker-compose"]
     RP["reverse-proxy<br/>TLS 종료 · /mcp · /ingest · /"]
-    W1["nerv-web<br/>Next.js"]
-    A1["nerv-api<br/>Hono · REST + MCP + SSE"]
+    W1["nerv-web<br/>정적 자산 (Vite 빌드)"]
+    A1["nerv-api<br/>NestJS · REST + MCP + SSE"]
     I1["nerv-ingest<br/>훅 · 웹훅 수신"]
     K1["nerv-worker<br/>알림 · 리스 회수 · export"]
     P1[("postgres<br/>영속 볼륨")]
     S1[("minio 또는 로컬 볼륨<br/>TTL 오브젝트")]
     O1["otel-collector<br/>선택 사항"]
   end
-  RP --> W1
-  RP --> A1
-  RP --> I1
-  W1 --> A1
+  RP -->|"/ 정적 자산 서빙"| W1
+  RP -->|"/api · /mcp"| A1
+  RP -->|"/ingest"| I1
   A1 --> P1
   I1 --> P1
   K1 --> P1
@@ -369,13 +370,15 @@ flowchart TB
 | 서비스 | 역할 | 비고 |
 | --- | --- | --- |
 | `reverse-proxy` | TLS 종료, 경로 라우팅(`/`, `/api`, `/mcp`, `/ingest`) | MCP는 Origin 검증 필수 |
-| `nerv-web` | 웹앱 SSR | 내부 네트워크로만 API 호출 |
+| `nerv-web` | Vite 빌드 산출물(정적 자산) | 별도 런타임 없이 `reverse-proxy`가 직접 서빙 — 컨테이너를 두지 않아도 된다 |
 | `nerv-api` | REST + MCP + SSE + 게이트 판정 | 수평 확장 시 SSE 팬아웃은 `LISTEN/NOTIFY`로 |
 | `nerv-ingest` | 훅·웹훅 수신, 202 즉시 응답 후 큐 적재 | 에이전트 지연에 영향 주지 않도록 API와 분리 |
 | `nerv-worker` | 알림·리스 회수·stale 전이·export·보존 정책 | 단일 인스턴스 가정, 잡 잠금은 DB advisory lock |
 | `postgres` | 단일 진실 | 볼륨 백업 대상 1순위 |
 | 오브젝트 스토리지 | TTL 페이로드 | 소규모는 로컬 볼륨으로 시작 가능 |
 | `otel-collector` | 조직 정량 관측(선택) | Claude·Codex 공통 OTLP 수신 |
+
+SPA로 바뀌면서 웹 티어는 API를 호출하지 않는다 — 브라우저가 정적 자산을 받은 뒤 `reverse-proxy`를 거쳐 API를 직접 호출한다. 그래서 `nerv-web`은 프로세스가 아니라 빌드 산출물이고, `reverse-proxy`가 그 디렉터리를 그대로 서빙하면 컨테이너 목록에서 빠진다.
 
 최소 사양은 목표 규모(프로젝트 수십, 동시 세션 수십 — NFR-04) 기준 2 vCPU / 4GB RAM / 50GB 디스크에서 시작해 이벤트·Activity 볼륨을 보며 조정한다.
 

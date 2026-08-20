@@ -177,8 +177,8 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 
 ### 3.3 산출물
 
-1. 웹앱(Next.js) — S1·S2·S3·S4·S5·S7·S8(멤버·역할, 에이전트 토큰 탭).
-2. API + MCP 게이트웨이(Hono) — 도구 카탈로그 확장(`nerv_spec_draft_upsert` · `nerv_spec_submit_review` · `nerv_task_update` · `nerv_question_create` · `nerv_session_event`).
+1. 웹앱(Vite + React SPA) — S1·S2·S3·S4·S5·S7·S8(멤버·역할, 에이전트 토큰 탭).
+2. API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(`nerv_spec_draft_upsert` · `nerv_spec_submit_review` · `nerv_task_update` · `nerv_question_create` · `nerv_session_event`).
 3. **NERV 플러그인 v1**(Claude Code) — 스킬·서브에이전트·훅·`.mcp.json` 번들 + 관리형 settings 배포 가이드.
 4. 훅 수집기 — `type:"http"` 이벤트 수신 엔드포인트(세션 등록·활동 스트림 자동화).
 5. plan 임포터 + owner 자유 텍스트 → 사용자 계정 수동 매핑 테이블.
