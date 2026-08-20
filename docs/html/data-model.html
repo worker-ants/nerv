@@ -41,7 +41,7 @@
 
   <header class="page-header">
     <h1>데이터 모델</h1>
-    <p class="lead">NERV가 Postgres에 담을 26개 엔티티의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
+    <p class="lead">NERV가 Postgres에 담을 27개 엔티티의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
       <span>버전 v0.1 (2026-08-13)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
@@ -50,7 +50,7 @@
   </header>
 
   <div class="grid-3">
-    <div class="card"><b class="card-title">엔티티</b><div class="big">26</div><p>Postgres 테이블. 테넌시 5 · 도메인 10 · 기록 11</p></div>
+    <div class="card"><b class="card-title">엔티티</b><div class="big">27</div><p>Postgres 테이블. 테넌시 5 · 도메인 11 · 기록 11</p></div>
     <div class="card"><b class="card-title">상태 축</b><div class="big">2축</div><p>문서 리뷰 축과 구현 축을 다른 테이블로 분리 (D-02)</p></div>
     <div class="card"><b class="card-title">검증 질의</b><div class="big">8</div><p>P1~P8을 각각 겨냥한 SQL로 모델을 반증 시도</p></div>
   </div>
@@ -77,7 +77,7 @@
     <thead><tr><th>층</th><th>엔티티</th><th>성격</th><th>해소하는 문제</th></tr></thead>
     <tbody>
       <tr><td><b>테넌시</b></td><td>Organization · User · Project · Membership · ApiToken</td><td>느리게 변하는 신원·권한</td><td>P8 n:n 구조 부재</td></tr>
-      <tr><td><b>도메인</b></td><td>Spec · SpecVersion · Requirement · RequirementVersion · SpecRelation · ChangeRequest · Task · TaskDependency · Claim · AgentSession</td><td>상태 머신을 가진 살아 있는 데이터</td><td>P1 스펙 충돌 · P2 중복 작업 · P3 버전 관리 · P4 상태 추적</td></tr>
+      <tr><td><b>도메인</b></td><td>Spec · SpecVersion · Requirement · RequirementVersion · SpecRelation · ChangeRequest · Task · TaskDependency · Claim · AgentSession · SpecComment</td><td>상태 머신을 가진 살아 있는 데이터</td><td>P1 스펙 충돌 · P2 중복 작업 · P3 버전 관리 · P4 상태 추적</td></tr>
       <tr><td><b>기록</b></td><td>Activity · ReviewSession · ReviewerReport · Finding · FindingOccurrence · Resolution · Approval · Question · Evidence · Event · Notification</td><td>append-only에 가까운 불변 기록</td><td>P5 출처 추적 · P6 git 비대화 · P7 비개발자 참여</td></tr>
     </tbody>
   </table></div>
@@ -99,7 +99,7 @@
   <h3>1.2 전체 ERD</h3>
 
   <div class="diagram">
-    <svg viewBox="0 0 1200 600" role="img" aria-label="NERV 데이터 모델 전체 ERD — 26개 테이블과 관계">
+    <svg viewBox="0 0 1200 600" role="img" aria-label="NERV 데이터 모델 전체 ERD — 27개 테이블과 관계">
       <defs>
         <marker id="one" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="9" markerHeight="9" orient="auto">
           <path d="M1,1 L1,9" stroke="var(--border-strong)" stroke-width="1.6" fill="none"/>
@@ -111,7 +111,7 @@
 
       <!-- 클러스터 프레임 -->
       <rect x="12" y="34" width="196" height="356" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
-      <rect x="240" y="34" width="208" height="424" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
+      <rect x="240" y="34" width="208" height="492" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
       <rect x="476" y="34" width="200" height="290" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
       <rect x="700" y="34" width="200" height="290" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
       <rect x="924" y="34" width="216" height="494" rx="12" fill="none" stroke="var(--border)" stroke-dasharray="4 4"/>
@@ -132,6 +132,8 @@
         <path d="M320,172 V200"/>
         <path d="M368,240 V268"/>
         <path d="M248,152 H232 V288 H248"/>
+        <path d="M248,166 H236 V482 H248"/>
+        <path d="M200,288 H220 V492 H248"/>
         <path d="M440,166 H472 V356 H440"/>
         <path d="M248,94 H216 V424 H248"/>
         <path d="M440,146 H454 V84 H488"/>
@@ -185,6 +187,7 @@
         <rect x="248" y="268" width="192" height="40" rx="8"/>
         <rect x="248" y="336" width="192" height="40" rx="8"/>
         <rect x="248" y="404" width="192" height="40" rx="8"/>
+        <rect x="248" y="472" width="192" height="40" rx="8"/>
       </g>
       <g fill="var(--text)" font-family="var(--font)" font-size="12" text-anchor="middle">
         <text x="344" y="89">spec</text>
@@ -193,6 +196,7 @@
         <text x="344" y="293">requirement_version</text>
         <text x="344" y="361">change_request</text>
         <text x="344" y="429">spec_relation</text>
+        <text x="344" y="497">spec_comment</text>
       </g>
 
       <!-- ③ 작업 -->
@@ -281,6 +285,7 @@
       <tr><td>24</td><td>증적</td><td><code>evidence</code></td><td>Requirement/SpecVersion ↔ 코드·테스트·PR·커밋 연결</td><td>FR-13</td></tr>
       <tr><td>25</td><td>이벤트</td><td><code>event</code></td><td>append-only 상태 전이 로그(피드·알림·감사의 원천)</td><td>FR-16</td></tr>
       <tr><td>26</td><td>알림</td><td><code>notification</code></td><td>이벤트에서 파생된 개인별 수신함 항목</td><td>FR-12</td></tr>
+      <tr><td>27</td><td>스펙 코멘트</td><td><code>spec_comment</code></td><td>헤딩·요구사항 앵커에 달리는 스레드 코멘트(해소 추적)</td><td>FR-11</td></tr>
     </tbody>
   </table></div>
 
@@ -450,7 +455,7 @@
   </table></div>
   <p>권한 비확대는 스키마가 아니라 정책으로 강제하지만, <code>user_id</code>를 필수 FK로 두는 것이 그 정책의 데이터 기반이다 — Asana가 AI Teammate에 대해 "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다"고 명시한 원칙과 같다.</p>
 
-  <h3>2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation</h3>
+  <h3>2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment</h3>
 
   <h4><code>spec</code> — 트리 노드. 본문은 여기 없다</h4>
   <div class="table-wrap"><table>
@@ -486,6 +491,9 @@
       <tr><td><code>submitted_at</code> · <code>approved_at</code></td><td>timestamptz</td><td></td></tr>
       <tr><td><code>approved_by_user_id</code></td><td>uuid FK NULL</td><td>결재자. <code>approval</code>에도 남지만 조회 편의로 비정규화</td></tr>
       <tr><td><code>superseded_by_version_id</code></td><td>uuid FK NULL</td><td>후속 버전</td></tr>
+      <tr><td><code>edit_lease_user_id</code></td><td>uuid FK NULL</td><td>초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — <code>base_version_id</code> 409는 그대로 최후 방어선이다</td></tr>
+      <tr><td><code>edit_lease_session_id</code></td><td>uuid FK NULL</td><td>보유 표면. 에이전트 세션이면 그 세션, NULL = 웹</td></tr>
+      <tr><td><code>edit_lease_expires_at</code></td><td>timestamptz NULL</td><td>리스 만료. TTL 30분 — Task 클레임 리스·stale 임계와 같은 상수</td></tr>
     </tbody>
   </table></div>
   <p><b>무결성 규칙:</b> <code>status = 'approved'</code> 이후 <code>body_md</code>·<code>content_hash</code> UPDATE를 트리거로 금지한다. 과거 버전 복원은 편집이 아니라 <b>새 버전 생성</b>이다 — Confluence가 20년째 쓰는 인터페이스이고, 요구공학의 baseline 정의("합의·검토·승인된 요구사항 집합의 시점 스냅샷") 그대로다.</p>
@@ -531,6 +539,25 @@
     </tbody>
   </table></div>
   <p><code>duplicates</code>가 있는 이유는 clemvion의 실측 사고 때문이다 — "종결 이벤트 계약을 EIA §6 도입부 하나로 — <b>네 문서가 각자 필드를 열거하고 있었다</b>"(<code>9a4d3e32b</code>), "모방한 쪽이 맞고 원본이 틀렸다"(<code>c37a3732c</code>). 중복 서술은 drift의 근원이므로 단일 정의 + 관계 참조를 권장 규약으로 두고, 중복이 생기면 관계로 명시해 검사 대상으로 만든다(D-09).</p>
+
+  <p><b><code>spec_comment</code></b> — 헤딩·요구사항 앵커에 달리는 스레드 코멘트(FR-11). vision의 14:30 시나리오와 S3의 코멘트 스레드가 이미 쓰고 있었는데 스키마에 없던 테이블이다(기존 결함 보수).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code> · <code>spec_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>spec_version_id</code></td><td>uuid FK</td><td>코멘트가 달린 시점의 버전</td></tr>
+      <tr><td><code>anchor</code></td><td>text</td><td>헤딩 slug 또는 Requirement <code>ref</code>(예: <code>REQ-CWC-031</code>) — 블록 앵커(D-09)</td></tr>
+      <tr><td><code>author_user_id</code></td><td>uuid FK</td><td>사람 작성자</td></tr>
+      <tr><td><code>author_session_id</code></td><td>uuid FK NULL</td><td>에이전트가 대신 단 코멘트면 그 세션(D-08 쌍 기록)</td></tr>
+      <tr><td><code>body_md</code></td><td>text</td><td></td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>open / resolved</code></td></tr>
+      <tr><td><code>resolved_by_user_id</code></td><td>uuid FK NULL</td><td></td></tr>
+      <tr><td><code>resolved_in_version_id</code></td><td>uuid FK NULL</td><td>어느 draft 버전에서 반영됐나</td></tr>
+      <tr><td><code>created_at</code> · <code>resolved_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p>코멘트는 <b>편집·해소되는 협업 개체</b>이고(본문 편집 가능, <code>open → resolved</code> 상태 전이), Activity는 <b>불변 로그</b>다(§2.5). §2.5가 인용하는 Linear 권고 — "대화 재구성은 수정될 수 있는 코멘트가 아니라 불변 Agent Activity로 하라" — 가 전제하는 편집 가능한 코멘트의 자리가 바로 이 테이블이다. 해소는 삭제가 아니라 상태 전이이고, <code>resolved_in_version_id</code>가 어느 draft 버전에서 반영됐는지를 남겨 해소 추적이 질의가 된다.</p>
 
   <h3>2.3 변경 요청 — change_request</h3>
   <div class="table-wrap"><table>
@@ -1155,6 +1182,7 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td>6</td><td>모든 상태 전이는 Event를 남긴다</td><td>도메인 서비스 계층에서 전이와 같은 트랜잭션</td></tr>
       <tr><td>7</td><td>severity 변경은 감사 대상이다</td><td><code>finding.severity</code> 변경 시 <code>event</code> 필수, 원값은 <code>raw_severity</code>에 보존</td></tr>
       <tr><td>8</td><td>모든 도메인 행은 <code>project_id</code>를 갖는다</td><td>NOT NULL + 저장소 계층의 스코프 자동 주입</td></tr>
+      <tr><td>9</td><td>편집 리스는 draft 상태에서만 non-NULL이다</td><td><code>spec_version</code> 리스 3필드의 partial index <code>WHERE status='draft'</code> — draft가 아니면 전부 NULL</td></tr>
     </tbody>
   </table></div>
 

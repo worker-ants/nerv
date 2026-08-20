@@ -41,7 +41,7 @@
 
   <header class="page-header">
     <h1>에이전트 연동 설계</h1>
-    <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 15종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
+    <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 17종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
       <span>버전 v0.1 (2026-08-13)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
@@ -50,7 +50,7 @@
 
   <div class="callout note"><span class="ico">📌</span><div class="body">
     <b class="title">요약</b>
-    <p>NERV(가칭)와 에이전트를 잇는 표면은 세 층이다(<b>D-05</b>): 데이터 평면인 <b>원격 MCP 서버</b>(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 <b>훅 텔레메트리</b>(Claude <code>type:"http"</code> 훅 31종 · Codex 훅 11종+notify · OTel 병행), <b>배포 평면</b>(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·<code>.codex/config.toml</code>). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 도구 15종의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 권한 설계에 직접 반영하며, 세션 수명주기와 보안(토큰 스코프·프롬프트 인젝션 완화)까지 다룬다. 관통하는 원칙은 하나다 — <b>클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다</b>(D-14).</p>
+    <p>NERV(가칭)와 에이전트를 잇는 표면은 세 층이다(<b>D-05</b>): 데이터 평면인 <b>원격 MCP 서버</b>(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 <b>훅 텔레메트리</b>(Claude <code>type:"http"</code> 훅 31종 · Codex 훅 11종+notify · OTel 병행), <b>배포 평면</b>(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·<code>.codex/config.toml</code>). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 도구 17종의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 권한 설계에 직접 반영하며, 세션 수명주기와 보안(토큰 스코프·프롬프트 인젝션 완화)까지 다룬다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — <b>클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다</b>(D-14).</p>
   </div></div>
 
   <div class="toc">
@@ -98,7 +98,7 @@
       <!-- 평면 -->
       <rect x="212" y="66" width="422" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--accent)"/>
       <text x="228" y="88" fill="var(--text)" font-family="var(--font)" font-size="12.5">(a) 데이터 평면 — MCP tools-first</text>
-      <text x="228" y="106" fill="var(--text-mute)" font-family="var(--font)" font-size="11"><tspan font-family="var(--mono)">nerv_*</tspan> 15종 · 상태를 바꾸는 유일한 경로</text>
+      <text x="228" y="106" fill="var(--text-mute)" font-family="var(--font)" font-size="11"><tspan font-family="var(--mono)">nerv_*</tspan> 17종 · 상태를 바꾸는 유일한 경로</text>
 
       <rect x="212" y="128" width="422" height="72" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="228" y="150" fill="var(--text)" font-family="var(--font)" font-size="12.5">(b) 텔레메트리 평면 — 훅 + OTel</text>
@@ -196,8 +196,8 @@
   <div class="table-wrap"><table>
     <thead><tr><th>티어</th><th>성격</th><th>게이트</th><th>NERV 도구</th><th>클라이언트 표현</th></tr></thead>
     <tbody>
-      <tr><td><b>A1 Low</b></td><td>읽기·검색·후보 조회</td><td>없음(자동 실행)</td><td><code>nerv_bootstrap</code> <code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code> <code>nerv_task_next</code> <code>nerv_task_heartbeat</code> <code>nerv_session_event</code></td><td>승인 프롬프트 없음</td></tr>
-      <tr><td><b>A2 Medium</b></td><td>되돌릴 수 있는 상태 변경</td><td>실행 후 통지(soft) — Event + 알림, undo 경로 존재</td><td><code>nerv_spec_draft_upsert</code> <code>nerv_task_claim</code> <code>nerv_task_update</code> <code>nerv_task_release</code> <code>nerv_review_submit</code> <code>nerv_finding_resolve</code>(fixed) <code>nerv_question_create</code></td><td>기본 권한 규칙으로 허용</td></tr>
+      <tr><td><b>A1 Low</b></td><td>읽기·검색·후보 조회</td><td>없음(자동 실행)</td><td><code>nerv_bootstrap</code> <code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code> <code>nerv_spec_check</code> <code>nerv_task_next</code> <code>nerv_task_heartbeat</code> <code>nerv_session_event</code></td><td>승인 프롬프트 없음</td></tr>
+      <tr><td><b>A2 Medium</b></td><td>되돌릴 수 있는 상태 변경</td><td>실행 후 통지(soft) — Event + 알림, undo 경로 존재</td><td><code>nerv_spec_draft_upsert</code> <code>nerv_spec_comment_resolve</code> <code>nerv_task_claim</code> <code>nerv_task_update</code> <code>nerv_task_release</code> <code>nerv_review_submit</code> <code>nerv_finding_resolve</code>(fixed) <code>nerv_question_create</code></td><td>기본 권한 규칙으로 허용</td></tr>
       <tr><td><b>A3 High</b></td><td>사람의 시간·판단을 소비하거나 되돌리기 비싼 변경</td><td>실행 전 승인(hard)</td><td><code>nerv_spec_submit_review</code>, <code>nerv_finding_resolve</code>(critical → dismissed/wont_fix), 정책상 지정된 <code>nerv_task_update(status=done)</code></td><td>Claude: <code>_meta["anthropic/requiresUserInteraction"]</code> / Codex: 승인 정책 + 질문 폴링</td></tr>
       <tr><td><b>A4 Critical</b></td><td>삭제·배포·권한 변경·게이트 면제</td><td><b>도구 미제공</b> — 웹 UI에서 사람만</td><td>(없음)</td><td>요청 시 <code>NERV_HUMAN_ONLY</code> + 딥링크</td></tr>
     </tbody>
@@ -237,7 +237,7 @@
         <td><code>spec:read</code></td><td>A1</td><td>컨텍스트 수집·중복 확인</td><td>읽기 전용</td>
       </tr>
       <tr>
-        <td><code>nerv_spec_get</code></td><td><code>spec_id</code>, <code>version?</code>(기본 approved), <code>include[]</code></td>
+        <td><code>nerv_spec_get</code></td><td><code>spec_id</code>, <code>version?</code>(기본 approved), <code>include[]</code>(requirements/tasks/reviews/comments)</td>
         <td>본문 markdown(비신뢰 래핑) + 메타 + Requirement + 파생 Task</td>
         <td><code>spec:read</code></td><td>A1</td><td>구현 착수 전, 리뷰 전</td>
         <td>읽기 전용 — 버전 지정 시 불변 스냅샷이라 결과 고정</td>
@@ -245,15 +245,25 @@
       <tr>
         <td><code>nerv_spec_draft_upsert</code></td>
         <td><code>spec_id?</code>, <code>parent_id</code>, <code>type</code>, <code>title</code>, <code>body_markdown</code>, <code>base_version</code>, <code>change_summary</code></td>
-        <td><code>spec_version_id</code>, <code>version</code>, 델타 요약(ADDED/MODIFIED/REMOVED), 검증 경고</td>
+        <td><code>spec_version_id</code>, <code>version</code>, 델타 요약(ADDED/MODIFIED/REMOVED), 검증 경고, <code>web_url</code>(S3 딥링크)</td>
         <td><code>spec:draft</code></td><td>A2</td><td>스펙 초안 작성·CR 제안</td>
-        <td>조건부 — 같은 (spec_id, base_version, content_hash)면 같은 draft. 불일치는 <code>NERV_PRECONDITION</code></td>
+        <td>조건부 — 같은 (spec_id, base_version, content_hash)면 같은 draft. 불일치는 <code>NERV_PRECONDITION</code>. 초안 편집 리스 자동 획득·갱신, 타인 보유 시 <code>NERV_DRAFT_LEASED</code></td>
       </tr>
       <tr>
         <td><code>nerv_spec_submit_review</code></td><td><code>spec_version_id</code>, <code>reviewer_hint?</code>, <code>note</code></td>
-        <td><code>approval_id[]</code>, <span class="badge draft">draft</span> → <span class="badge review">in_review</span> 전이, 지정 리뷰어·SLA</td>
+        <td><code>approval_id[]</code>, <span class="badge draft">draft</span> → <span class="badge review">in_review</span> 전이, 지정 리뷰어·SLA, <code>web_url</code>(S3 딥링크)</td>
         <td><code>spec:draft</code>(+제출)</td><td><b>A3</b></td><td>초안 완료 후 사람 검토 요청</td>
         <td>멱등 — pending Approval 재사용(승인함 카드 중복 금지)</td>
+      </tr>
+      <tr>
+        <td><code>nerv_spec_check</code></td><td><code>spec_version_id</code></td>
+        <td>5검사기(cross-spec/rationale-continuity/convention-compliance/requirement-shape/task-coherence)별 결과 — warning/block + 앵커 위치</td>
+        <td><code>spec:read</code></td><td>A1</td><td>초안 저장 후·제출 전 아무 때나</td><td>읽기 전용</td>
+      </tr>
+      <tr>
+        <td><code>nerv_spec_comment_resolve</code></td><td><code>comment_id</code>, <code>resolution_note?</code>, <code>resolved_in_version_id?</code></td>
+        <td>코멘트 새 상태(open→resolved), 남은 open 코멘트 수</td>
+        <td><code>spec:draft</code></td><td>A2</td><td>코멘트 반영 직후</td><td>멱등 — (comment_id, resolved) 재호출은 no-op</td>
       </tr>
       <tr>
         <td><code>nerv_task_next</code></td><td><code>project</code>, <code>role?</code>, <code>spec_id?</code>, <code>capabilities?</code>, <code>limit</code></td>
@@ -371,6 +381,7 @@
       <tr><td><code>NERV_PRECONDITION</code></td><td><code>base_version</code> 불일치, 게이트 미충족</td><td>최신 버전 재조회 후 재작성, 게이트 사유를 사람에게 보고</td></tr>
       <tr><td><code>NERV_CONFLICT_SCOPE</code></td><td>클레임 scope 겹침</td><td>다음 후보로 이동하거나 <code>nerv_question_create</code></td></tr>
       <tr><td><code>NERV_LEASE_EXPIRED</code></td><td>리스 만료 후 쓰기 시도</td><td>재클레임 시도 → 실패 시 산출물만 제출하고 종료</td></tr>
+      <tr><td><code>NERV_DRAFT_LEASED</code></td><td>다른 사용자가 이 초안의 편집 리스 보유</td><td>보유자 정보를 사람에게 보고하고 인계 요청 또는 <code>nerv_question_create</code>. <b>같은 사용자의 리스면 자동 인계되므로 이 에러는 오지 않는다</b></td></tr>
       <tr><td><code>NERV_APPROVAL_REQUIRED</code></td><td>A3 도구가 승인 대기 진입</td><td><code>question_id</code>/<code>approval_id</code>로 폴링, 그동안 다른 작업 금지</td></tr>
       <tr><td><code>NERV_HUMAN_ONLY</code></td><td>A4 액션 요청</td><td>웹 딥링크를 사람에게 전달하고 대기</td></tr>
       <tr><td><code>NERV_RATE_LIMIT</code></td><td>쿼터 초과</td><td><code>retry_after_s</code> 준수. <b>임의 우회·병렬 재시도 금지</b></td></tr>
@@ -382,6 +393,8 @@
     <b class="title">리스 만료 규약</b>
     <p>하트비트 주기 <b>60초</b>, 리스 TTL 기본 <b>30분</b>(하트비트 30회분 여유 — stale 임계와 같은 값), 무활동 <b>30분</b> 초과 시 AgentSession <span class="badge blocked">stale</span> 자동 전이 + 클레임 자동 회수(D-13). 만료 후에도 <b><code>nerv_review_submit</code>은 받는다</b> — 리뷰는 커밋 SHA 기준의 사실이고 리스는 조정 장치일 뿐이기 때문이다. 반대로 <code>nerv_task_update(status=done)</code>은 유효한 리스가 없으면 거부한다.</p>
   </div></div>
+
+  <p><b>초안 편집 리스 — 클레임 리스의 스펙 문서 축 확장(D-04).</b> <code>draft</code> 상태 SpecVersion의 편집 리스는 전용 claim/release 도구 없이 <b>암묵적으로</b> 오간다 — 웹 에디터 열기·<code>nerv_spec_draft_upsert</code> 성공이 곧 획득·갱신이고, <code>nerv_spec_submit_review</code> 성공·에디터 닫기·<code>SessionEnd</code>·TTL 만료(30분, Task 클레임 리스·stale 임계와 같은 상수)가 곧 해제다. 같은 사용자가 웹과 터미널을 오가면 리스가 자동 인계되고(이전 표면에 알림), 다른 사용자의 upsert만 <code>NERV_DRAFT_LEASED</code>로 막힌다. 리스는 편집 낭비를 막는 1차 사전 조정이고 <code>base_version</code> 409(<code>NERV_PRECONDITION</code>)가 데이터 유실을 막는 최후 방어선이라 역할이 달라 둘 다 유지한다 — 상세 규약은 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> 참조.</p>
 
   <h3 id="sec-2-8">2.8 Claude 전용 향상과 tools 폴백</h3>
   <div class="table-wrap"><table>
@@ -430,7 +443,7 @@
     <thead><tr><th>스킬</th><th>트리거</th><th>하는 일</th><th>호출 도구</th></tr></thead>
     <tbody>
       <tr><td><code>/nerv:next</code></td><td>수동 또는 세션 시작</td><td>후보 조회 → 위임 명세 확인 → 클레임 → 브랜치 준비</td><td><code>nerv_task_next</code> → <code>nerv_task_claim</code></td></tr>
-      <tr><td><code>/nerv:spec</code></td><td>스펙 언급 시 자동(<code>paths</code> 매칭)</td><td>조회·초안·검토 요청. <b>본문을 비신뢰로 취급하는 규약 포함</b></td><td><code>nerv_spec_tree/search/get</code>, <code>nerv_spec_draft_upsert</code>, <code>nerv_spec_submit_review</code></td></tr>
+      <tr><td><code>/nerv:spec</code></td><td>수동(서브커맨드) 또는 스펙 언급 시 자동(<code>paths</code> 매칭)</td><td><b>기획자의 주 작성 경로</b> — 개발자가 구현 중 스펙 결함을 만났을 때만이 아니다. <code>new</code>(트리 위치·타입 확인 후 초안 생성) / <code>edit</code>(코멘트·검토 피드백 반영) / <code>check</code>(사전 검토 셀프서비스) / <code>comments</code>(open 코멘트 조회·해소) / <code>submit</code>(검토 요청 — A3 승인 유지). 저장·제출 응답의 <code>web_url</code>(S3 딥링크)은 터미널에 표시한다. <b>본문을 비신뢰로 취급하는 규약 포함</b></td><td><code>nerv_spec_tree/search/get(include=comments)</code>, <code>nerv_spec_draft_upsert</code>, <code>nerv_spec_check</code>, <code>nerv_spec_comment_resolve</code>, <code>nerv_spec_submit_review</code></td></tr>
       <tr><td><code>/nerv:impl</code></td><td>구현 착수</td><td>하트비트 60초 루프, 진행 보고, 증적 수집</td><td><code>nerv_task_heartbeat</code>, <code>nerv_task_update</code></td></tr>
       <tr><td><code>/nerv:review</code></td><td>구현 완료 후 강제 단계</td><td>리뷰 실행 후 <b>파일이 아니라 도구로 제출</b>, finding 해소 추적</td><td><code>nerv_review_submit</code>, <code>nerv_finding_resolve</code></td></tr>
       <tr><td><code>/nerv:question</code></td><td>판단 불가·경계 이탈</td><td>선택지를 만들어 에스컬레이션하고 답변 폴링</td><td><code>nerv_question_create</code></td></tr>
@@ -707,7 +720,7 @@ log_user_prompt = false</code></pre>
 
 ## 단일 진실
 - 제품 스펙의 단일 진실은 NERV다. `spec/**` 는 NERV가 내보낸 read-only 미러이므로 직접 편집하지 않는다.
-- 스펙을 바꿔야 하면 `nerv_spec_draft_upsert` 로 draft를 만들고 `nerv_spec_submit_review` 로 사람 검토를 요청한다.
+- 스펙을 바꿔야 하면 `nerv_spec_draft_upsert` 로 draft를 만들고, `nerv_spec_check` 로 사전 검토를 통과시킨 뒤 `nerv_spec_submit_review` 로 사람 검토를 요청한다.
 
 ## 세션 시작 시 반드시 (이 순서)
 1. `nerv_bootstrap` — 프로젝트·hostname·저장소 정보를 등록하고 규약·게이트 정책을 받는다.

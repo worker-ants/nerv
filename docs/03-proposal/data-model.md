@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 26개 엔티티의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
+> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 27개 엔티티의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
 > 문서 버전 v0.1 · 2026-08-13 · HTML 판: [data-model.html](../html/data-model.html)
 
@@ -15,7 +15,7 @@
 | 층 | 엔티티 | 성격 | 해소하는 문제 |
 | --- | --- | --- | --- |
 | **테넌시** | Organization · User · Project · Membership · ApiToken | 느리게 변하는 신원·권한 | P8 n:n 구조 부재 |
-| **도메인** | Spec · SpecVersion · Requirement · RequirementVersion · SpecRelation · ChangeRequest · Task · TaskDependency · Claim · AgentSession | 상태 머신을 가진 살아 있는 데이터 | P1 스펙 충돌 · P2 중복 작업 · P3 버전 관리 · P4 상태 추적 |
+| **도메인** | Spec · SpecVersion · Requirement · RequirementVersion · SpecRelation · ChangeRequest · Task · TaskDependency · Claim · AgentSession · SpecComment | 상태 머신을 가진 살아 있는 데이터 | P1 스펙 충돌 · P2 중복 작업 · P3 버전 관리 · P4 상태 추적 |
 | **기록** | Activity · ReviewSession · ReviewerReport · Finding · FindingOccurrence · Resolution · Approval · Question · Evidence · Event · Notification | append-only에 가까운 불변 기록 | P5 출처 추적 · P6 git 비대화 · P7 비개발자 참여 |
 
 세 가지 규칙이 표 전체를 관통한다.
@@ -44,6 +44,8 @@ erDiagram
   change_request ||--o{ spec_version : "제안 버전"
   spec_version ||--o{ requirement_version : "델타 수록"
   requirement ||--o{ requirement_version : "이력"
+  spec_version ||--o{ spec_comment : "코멘트 스레드"
+  user ||--o{ spec_comment : "작성"
   spec_version ||--o{ task : "파생"
   requirement ||--o{ task : "파생"
   task ||--o{ task_dependency : "선행 관계"
@@ -101,6 +103,7 @@ erDiagram
 | 24 | 증적 | `evidence` | Requirement/SpecVersion ↔ 코드·테스트·PR·커밋 연결 | FR-13 |
 | 25 | 이벤트 | `event` | append-only 상태 전이 로그(피드·알림·감사의 원천) | FR-16 |
 | 26 | 알림 | `notification` | 이벤트에서 파생된 개인별 수신함 항목 | FR-12 |
+| 27 | 스펙 코멘트 | `spec_comment` | 헤딩·요구사항 앵커에 달리는 스레드 코멘트(해소 추적) | FR-11 |
 
 > **근거 · 2축 분리가 필요한 이유.** clemvion의 `status`는 5값(`backlog`/`spec-only`/`partial`/`implemented`/`archived`)이지만 **전부 구현 축**이고 **문서 단위**다. 그 결과 (a) 초안/검토중/승인이라는 문서 상태가 존재하지 않아 "이게 합의된 내용인가"를 물을 수 없었고, (b) 1,750줄 문서(`clemvion:spec/5-system/4-execution-engine.md`)에 상태 값이 하나뿐이라 `code:` glob이 매치되면 통과해 요구사항 단위 미구현이 통과했다 — 실제 사고: "spec이 `필수`로 약속한 update dedup이 통째로 미구현"(CCH-SE-02). 요구사항별 상태를 대신하던 수동 ✅ 마크는 한 영역 131개 대 다른 영역 0개로 관행이 갈라져 이미 붕괴해 있었다.
 
@@ -200,7 +203,7 @@ stateDiagram-v2
 
 권한 비확대는 스키마가 아니라 정책으로 강제하지만, `user_id`를 필수 FK로 두는 것이 그 정책의 데이터 기반이다 — Asana가 AI Teammate에 대해 "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다"고 명시한 원칙과 같다.
 
-### 2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation
+### 2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment
 
 **`spec`** — 트리 노드. 본문은 여기 없다.
 
@@ -234,6 +237,9 @@ stateDiagram-v2
 | `submitted_at` · `approved_at` | timestamptz | |
 | `approved_by_user_id` | uuid FK NULL | 결재자. `approval`에도 남지만 조회 편의로 비정규화 |
 | `superseded_by_version_id` | uuid FK NULL | 후속 버전 |
+| `edit_lease_user_id` | uuid FK NULL | 초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — `base_version_id` 409는 그대로 최후 방어선이다 |
+| `edit_lease_session_id` | uuid FK NULL | 보유 표면. 에이전트 세션이면 그 세션, NULL = 웹 |
+| `edit_lease_expires_at` | timestamptz NULL | 리스 만료. TTL 30분 — Task 클레임 리스·stale 임계와 같은 상수 |
 
 무결성 규칙: `status = 'approved'` 이후 `body_md`·`content_hash` UPDATE를 트리거로 금지한다. 과거 버전 복원은 편집이 아니라 **새 버전 생성**이다 — Confluence가 20년째 쓰는 인터페이스이고, 요구공학의 baseline 정의("합의·검토·승인된 요구사항 집합의 시점 스냅샷") 그대로다.
 
@@ -272,6 +278,24 @@ stateDiagram-v2
 | `note` | text | |
 
 `duplicates`가 있는 이유는 clemvion의 실측 사고 때문이다 — "종결 이벤트 계약을 EIA §6 도입부 하나로 — **네 문서가 각자 필드를 열거하고 있었다**"(`9a4d3e32b`), "모방한 쪽이 맞고 원본이 틀렸다"(`c37a3732c`). 중복 서술은 drift의 근원이므로 단일 정의 + 관계 참조를 권장 규약으로 두고, 중복이 생기면 관계로 명시해 검사 대상으로 만든다(D-09).
+
+**`spec_comment`** — 헤딩·요구사항 앵커에 달리는 스레드 코멘트(FR-11). vision의 14:30 시나리오와 S3의 코멘트 스레드가 이미 쓰고 있었는데 스키마에 없던 테이블이다(기존 결함 보수).
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `id` | uuid PK | |
+| `project_id` · `spec_id` | uuid FK | |
+| `spec_version_id` | uuid FK | 코멘트가 달린 시점의 버전 |
+| `anchor` | text | 헤딩 slug 또는 Requirement `ref`(예: `REQ-CWC-031`) — 블록 앵커(D-09) |
+| `author_user_id` | uuid FK | 사람 작성자 |
+| `author_session_id` | uuid FK NULL | 에이전트가 대신 단 코멘트면 그 세션(D-08 쌍 기록) |
+| `body_md` | text | |
+| `status` | enum | `open / resolved` |
+| `resolved_by_user_id` | uuid FK NULL | |
+| `resolved_in_version_id` | uuid FK NULL | 어느 draft 버전에서 반영됐나 |
+| `created_at` · `resolved_at` | timestamptz | |
+
+코멘트는 **편집·해소되는 협업 개체**이고(본문 편집 가능, `open → resolved` 상태 전이), Activity는 **불변 로그**다(§2.5). §2.5가 인용하는 Linear 권고 — "대화 재구성은 수정될 수 있는 코멘트가 아니라 불변 Agent Activity로 하라" — 가 전제하는 편집 가능한 코멘트의 자리가 바로 이 테이블이다. 해소는 삭제가 아니라 상태 전이이고, `resolved_in_version_id`가 어느 draft 버전에서 반영됐는지를 남겨 해소 추적이 질의가 된다.
 
 ### 2.3 변경 요청 — change_request
 
@@ -883,6 +907,7 @@ fingerprint = sha256(
 | 6 | 모든 상태 전이는 Event를 남긴다 | 도메인 서비스 계층에서 전이와 같은 트랜잭션 |
 | 7 | severity 변경은 감사 대상이다 | `finding.severity` 변경 시 `event` 필수, 원값은 `raw_severity`에 보존 |
 | 8 | 모든 도메인 행은 `project_id`를 갖는다 | NOT NULL + 저장소 계층의 스코프 자동 주입 |
+| 9 | 편집 리스는 draft 상태에서만 non-NULL이다 | `spec_version` 리스 3필드의 partial index `WHERE status='draft'` — draft가 아니면 전부 NULL |
 
 ---
 

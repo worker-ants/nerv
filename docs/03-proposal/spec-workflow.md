@@ -48,6 +48,20 @@ SpecVersion은 **불변 스냅샷**이다. 가변인 구간은 `draft` 하나뿐
 
 에이전트는 `draft`까지만 만들 수 있다. `spec:approve`는 어떤 자율성 설정에서도 사람 전용이다 — MCP 사양이 "호스트는 어떤 도구든 호출 전 명시적 사용자 동의를 받아야 한다"고 요구하는 지점이고, OWASP ASI03(Identity & Privilege Abuse) 대응이기도 하다.
 
+**초안 편집 리스 — 두 개의 편집기가 아니라, 하나의 초안에 대한 두 개의 입력 장치.** 기획자는 같은 draft를 웹 에디터(S3)에서도, Claude Code/Codex 세션에서도 쓴다. 이때 두 표면 사이의 동시성은 새 개념이 아니라 D-04의 클레임+리스를 문서 축으로 확장해 푼다 — `draft` 상태의 SpecVersion 하나당 편집 리스는 최대 1개이고, 보유자는 **(사용자, 표면)** 쌍이다. 표면은 웹(세션 없음) 또는 에이전트 세션이다.
+
+| 규칙 | 내용 |
+| --- | --- |
+| 획득 | **암묵적** — 웹 에디터를 열거나 `nerv_spec_draft_upsert`가 성공하는 순간 자동 획득·갱신. 별도 claim/release 도구는 만들지 않는다 |
+| 갱신 | 저장·upsert마다 갱신. 웹은 에디터가 열려 있는 동안 주기 갱신 |
+| 인계 | 같은 사용자가 다른 표면에서 열면 **자동 인계** + 이전 표면에 알림 |
+| 타인 차단 | 다른 사용자의 에이전트 upsert는 `NERV_DRAFT_LEASED` 에러(하드 차단). 다른 사용자의 웹은 읽기 전용 + [인계 요청] 버튼(보유자에게 알림, 승인 시 이전) |
+| 만료 | TTL **30분** — Task 클레임 리스·stale 임계와 같은 상수를 쓴다(§4.5, 새 상수를 만들지 않는다) |
+| 해제 | `nerv_spec_submit_review` 성공 · 웹 에디터 닫기 · `SessionEnd` 훅 · TTL 만료 |
+| 최후 방어선 | **`base_version` 409는 그대로 유지한다.** 리스는 1차 사전 조정(작업 낭비 방지)이고, 409는 데이터 유실 방지다 — 역할이 다르므로 둘 다 필요하다 |
+
+부수 효과: 스펙을 쓰는 에이전트 세션도 S5 세션 보드에 뜬다(FR-07·08의 기존 메커니즘 그대로). 기획자의 작성 세션이라고 팀의 시야 밖에 있는 사각은 생기지 않는다.
+
 ### 1.3 구현 축 — Requirement 상태도
 
 ```mermaid
@@ -150,6 +164,8 @@ clemvion에서 `spec/` 쓰기 직전 `/consistency-check --spec`은 의무였고
 
 **severity 하향은 감사 대상이다.** clemvion 실측에서 SUMMARY는 `BLOCK: NO`인데 checker 리포트에는 `[CRITICAL]`이 있는 모순이 커밋된 732세션 중 24건(3.3%) 존재했다. NERV에서는 종합 verdict가 개별 검사기 severity보다 낮을 수 없다는 것이 스키마 제약이고, 예외를 두려면 BYPASS 레코드(§7)를 남겨야 한다.
 
+이 검사는 제출 게이트이면서 동시에 **셀프서비스**다. 에이전트는 `nerv_spec_check`(A1·읽기 전용)로 같은 검사 서비스를 초안 저장 후·제출 전 아무 때나 호출해, 5검사기별 warning/block 결과와 앵커 위치를 받아볼 수 있다. clemvion의 "spec 쓰기 직전 consistency-check 의무"(훅 강제)가 "수시 가능 + 제출 시 강제"로 바뀐 것이다.
+
 ### 2.2 리뷰어 자동 지정 (역할·영역 기반)
 
 리뷰어는 사람이 고르는 것이 아니라 규칙에서 산출된다. clemvion은 코드 리뷰어 14종 중 7종(`documentation/maintainability/requirement/scope/security/side_effect/testing`)을 강제 화이트리스트로 두었는데, 2026-07-17 전수 조사에서 **커밋된 575 세션 중 160건(28%)이 강제 리뷰어 미충족**이었고 그중 107건은 RESOLUTION.md를 갖고 게이트를 통과 중이었다. 산문 의무는 예외가 아니라 상시로 무너진다 — 그래서 지정은 서버가 하고, 충족 여부는 전이 조건이 된다.
@@ -172,16 +188,20 @@ GitHub는 Copilot이 만든 PR에 대해 "작업을 지시한 사람의 승인�
 ```
 승인 유효성 판정 (서버)
   reject IF actor_id == approval.requested_by            # 본인이 낸 요청을 본인이 승인
-  reject IF actor_id == spec_version.authored_by         # 초안 작성자 = 승인자
+  reject IF actor_id == spec_version.author_user_id      # 초안 작성자 = 승인자
   reject IF actor.is_agent                               # 에이전트는 영구 불가
   reject IF actor_id == agent_session.owner_user_id      # 에이전트를 지시한 사람 = 승인자
-         AND spec_version.authored_by_session IS NOT NULL
+         AND spec_version.author_session_id IS NOT NULL
   reject IF approval.target_content_hash != spec_version.content_hash   # stale 승인
 ```
 
 네 번째 규칙이 D-08의 귀결이다. 에이전트는 소유 사용자의 위임 권한으로 행동하므로, 에이전트가 쓴 초안을 그 소유자가 승인하면 실질적으로 자기 승인이 된다. UI는 이 경우 승인 버튼을 비활성화하고 "이 초안은 당신의 세션이 작성했습니다 — 다른 승인자가 필요합니다"를 표시한다.
 
 다섯 번째 규칙은 **승인의 유통기한**이다. 승인은 특정 content hash에 대한 결정이므로, 대상 본문이 바뀌면 무효화되고 재요청된다. 승인 감사 레코드에는 승인 ID·시각·요청자·승인자·대상 리소스·평가된 정책 버전·결정·실행 결과를 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하려면 정책 버전이 반드시 필요하다.
+
+**자기 승인 금지.** 위 판정 규칙을 정책 한 문장으로 못 박으면 이렇다 — **에이전트가 작성한 초안**(`spec_version.author_session_id`가 NOT NULL)은 그 세션을 소유한 사용자가 **단독으로 승인할 수 없고**, 다른 멤버 1인 이상의 승인이 필요하다. T0(자동 통과 티어)는 예외다 — 기존 규칙대로 자동 통과한다(§2.4). GitHub가 Copilot PR에 적용한 "지시자≠승인자" 규칙을 스펙 승인으로 확장한 것이며, 1차 출처는 [2.3 협업 플랫폼의 에이전트 통합](../02-research/collab-platforms.md)에 있다.
+
+**소규모 완화.** 프로젝트 멤버가 2인 미만이거나 승인 가능한 다른 역할이 없으면 이 정책은 **자동 완화**된다 — 차단 대신 승인 화면에 배너를 띄우고 감사 이벤트를 기록한다(D-14의 fail-open+관측+격상 패턴 재사용). clemvion 1인 마이그레이션(D-12)이 이 규칙에 막혀 죽지 않기 위한 조항이다. 정책은 S8 게이트 정책에 토글로 노출된다(기본 ON).
 
 ### 2.4 위험도 가변 게이트 (D-06)
 
@@ -424,6 +444,7 @@ FUNCTION severity_of(spec_hit, file_hit, t_new, c_old):
 | --- | --- | --- |
 | 하트비트 주기 | 60초 | 세션 보드 갱신 ≤5s(NFR-02)를 만족하면서 서버 부하가 낮은 지점 |
 | 리스 TTL | 30분 | 하트비트마다 갱신되므로 정상 세션은 만료되지 않음 |
+| 초안 편집 리스 TTL | 30분 | 문서 축의 초안 편집 리스(§1.2) — Task 클레임 리스와 **같은 상수**를 쓴다(별도 리스 상수를 만들지 않는다) |
 | stale 임계 | 무활동 30분 | Linear가 에이전트 세션에 채택한 값과 동일 |
 | 회수 동작 | `claimed`/`in_progress` → `ready`, 산출물·Activity는 보존 | 죽은 세션 정리를 사람이 감시하지 않게 |
 

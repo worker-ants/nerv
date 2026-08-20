@@ -209,17 +209,17 @@
   <div class="table-wrap"><table>
     <thead><tr><th>요구사항</th><th>P0</th><th>P1</th><th>P2</th><th>P3+</th><th>비고</th></tr></thead>
     <tbody>
-      <tr><td>FR-01 스펙 단일 진실 저장소</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 읽기·트리·안정 ID만</td></tr>
+      <tr><td>FR-01 스펙 단일 진실 저장소</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 읽기·트리·안정 ID만, P1 기획자 터미널 경로 포함</td></tr>
       <tr><td>FR-02 스펙 버전·문서 상태</td><td>○</td><td>●</td><td>●</td><td>●</td><td>승인은 P1</td></tr>
       <tr><td>FR-03 Requirement 단위 추적</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>구현 축 완성은 P2(커버리지와 함께)</td></tr>
       <tr><td>FR-04 CR·델타 리뷰</td><td>○</td><td>○</td><td>●</td><td>●</td><td></td></tr>
       <tr><td>FR-05 Task 관리·ready 큐</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 ready 판정 + 위임 명세 4요소 검증만</td></tr>
-      <tr><td>FR-06 원자적 클레임·리스</td><td>●</td><td>●</td><td>●</td><td>●</td><td><b>P0의 핵심 검증 대상</b></td></tr>
+      <tr><td>FR-06 원자적 클레임·리스</td><td>●</td><td>●</td><td>●</td><td>●</td><td><b>P0의 핵심 검증 대상</b>, P1 초안 편집 리스(문서 축, D-04 확장)</td></tr>
       <tr><td>FR-07 세션 레지스트리</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 등록·하트비트·상태 전이</td></tr>
       <tr><td>FR-08 활동 스트림·미션 컨트롤</td><td>○</td><td>●</td><td>●</td><td>●</td><td>steer/stop은 P1</td></tr>
       <tr><td>FR-09 리뷰 수집</td><td>○</td><td>○</td><td>●</td><td>●</td><td></td></tr>
       <tr><td>FR-10 게이트 판정 API</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 Task done 전이 조건만(리뷰 커버리지 제외)</td></tr>
-      <tr><td>FR-11 승인함(Inbox)</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 스펙 승인·플랜·질문 3유형, CR·에스컬레이션 카드는 P2</td></tr>
+      <tr><td>FR-11 승인함(Inbox)</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 스펙 승인·플랜·질문 3유형과 스펙 코멘트 왕복, CR·에스컬레이션 카드는 P2</td></tr>
       <tr><td>FR-12 알림</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1 인앱, P2 Slack·메일·다이제스트</td></tr>
       <tr><td>FR-13 증적·커버리지</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 PR 링크 수집, P2에 커버리지 계산</td></tr>
       <tr><td>FR-14 멀티테넌시</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 단일 조직·단일 프로젝트 고정</td></tr>
@@ -347,10 +347,12 @@
 
   <p>화면은 <b>S1 홈</b> · <b>S2 프로젝트 개요</b> · <b>S3 스펙 상세</b> · <b>S4 작업 보드</b> · <b>S5 세션 모니터</b> · <b>S7 승인함</b> · <b>S8 설정</b>(멤버·역할, 에이전트 토큰 탭 우선)을 구축한다(S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2). 이 순서는 <a href="ui-wireframes.html">3.6 화면 설계</a>의 안내와 일치한다.</p>
 
+  <p><b>기획자 터미널 경로</b> — 스펙 편집은 웹 에디터 단독 경로가 아니다. Phase 1은 기획자 터미널 경로(초안 편집 리스 · 코멘트 왕복 · 사전 검토 셀프서비스)를 포함한다 — 웹과 에이전트는 같은 draft SpecVersion을 번갈아 잡는 두 개의 입력 장치이며(초안 편집 리스 TTL 30분, D-04의 문서 축 확장), 별도 FR 추가 없이 FR-01·FR-06·FR-11의 기존 범위 안이다.</p>
+
   <h3>3.3 산출물</h3>
   <ol>
     <li>웹앱(Vite + React SPA) — S1·S2·S3·S4·S5·S7·S8(멤버·역할, 에이전트 토큰 탭).</li>
-    <li>API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(<code>nerv_spec_draft_upsert</code> · <code>nerv_spec_submit_review</code> · <code>nerv_task_update</code> · <code>nerv_question_create</code> · <code>nerv_session_event</code>).</li>
+    <li>API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(7종: <code>nerv_spec_draft_upsert</code> · <code>nerv_spec_check</code> · <code>nerv_spec_comment_resolve</code> · <code>nerv_spec_submit_review</code> · <code>nerv_task_update</code> · <code>nerv_question_create</code> · <code>nerv_session_event</code>).</li>
     <li><b>NERV 플러그인 v1</b>(Claude Code) — 스킬·서브에이전트·훅·<code>.mcp.json</code> 번들 + 관리형 settings 배포 가이드.</li>
     <li>훅 수집기 — <code>type:"http"</code> 이벤트 수신 엔드포인트(세션 등록·활동 스트림 자동화).</li>
     <li>plan 임포터 + owner 자유 텍스트 → 사용자 계정 수동 매핑 테이블.</li>
@@ -373,6 +375,7 @@
       <tr><td>1-8</td><td>감사 재구성</td><td>무작위 엔티티 20건의 전체 변경 이력 재구성</td><td>성공 <b>20/20</b></td><td>FR-16</td></tr>
       <tr><td>1-9</td><td>백업·복구</td><td>백업 → 신규 인스턴스 복원 왕복</td><td><b>1회 이상 성공</b>, 데이터 손실 0</td><td>NFR-01</td></tr>
       <tr><td>1-10</td><td>플러그인 배포</td><td>파일럿 참여 호스트의 플러그인 활성화율</td><td><b>100%</b>(관리형 settings 강제 활성화 확인)</td><td>FR-15</td></tr>
+      <tr><td>1-11</td><td>기획자 웹·터미널 왕복</td><td>기획자가 웹과 터미널(Claude Code/Codex)을 오가며 같은 초안을 완성 — 리스 인계·<code>base_version</code> 충돌을 Event 로그로 질의</td><td>같은 초안 완성, 리스 인계·base_version 충돌 <b>0</b> 실증</td><td>FR-01 · FR-06 · FR-11</td></tr>
     </tbody>
   </table></div>
 
@@ -409,7 +412,7 @@
 
   <h3>4.3 산출물</h3>
   <ol>
-    <li><code>nerv_review_submit</code> · <code>nerv_finding_resolve</code> 도구(카탈로그 15종 완성)와 fingerprint 알고리즘 명세 + <code>/nerv:review</code> 스킬 추가(플러그인 스킬 4종 → 5종).</li>
+    <li><code>nerv_review_submit</code> · <code>nerv_finding_resolve</code> 도구(카탈로그 17종 완성)와 fingerprint 알고리즘 명세 + <code>/nerv:review</code> 스킬 추가(플러그인 스킬 4종 → 5종).</li>
     <li>게이트 판정 API + git forge 머지 게이트 연동(훅 미설치 클론·타 호스트 push 구멍을 서버가 막는다).</li>
     <li>S6 리뷰 센터 · 커버리지 대시보드 · S8 연동·게이트 정책 탭.</li>
     <li>Codex 온보딩 번들(<code>AGENTS.md</code> · <code>.codex/config.toml</code> · <code>hooks.json</code>) — SKILL.md는 오픈 표준이라 양쪽 재사용.</li>

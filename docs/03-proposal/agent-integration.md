@@ -1,6 +1,6 @@
 # 에이전트 연동 설계
 
-> **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 15종의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
+> **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 17종의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
 > 문서 버전 v0.1 · 2026-08-13 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 
@@ -90,8 +90,8 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 | 티어 | 성격 | 게이트 | NERV 도구 | 클라이언트 표현 |
 | --- | --- | --- | --- | --- |
-| **A1 Low** | 읽기·검색·후보 조회 | 없음(자동 실행) | `nerv_bootstrap` `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get` `nerv_task_next` `nerv_task_heartbeat` `nerv_session_event` | 승인 프롬프트 없음 |
-| **A2 Medium** | 되돌릴 수 있는 상태 변경 | 실행 후 통지(soft) — Event + 알림, undo 경로 존재 | `nerv_spec_draft_upsert` `nerv_task_claim` `nerv_task_update` `nerv_task_release` `nerv_review_submit` `nerv_finding_resolve`(fixed) `nerv_question_create` | 기본 권한 규칙으로 허용 |
+| **A1 Low** | 읽기·검색·후보 조회 | 없음(자동 실행) | `nerv_bootstrap` `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get` `nerv_spec_check` `nerv_task_next` `nerv_task_heartbeat` `nerv_session_event` | 승인 프롬프트 없음 |
+| **A2 Medium** | 되돌릴 수 있는 상태 변경 | 실행 후 통지(soft) — Event + 알림, undo 경로 존재 | `nerv_spec_draft_upsert` `nerv_spec_comment_resolve` `nerv_task_claim` `nerv_task_update` `nerv_task_release` `nerv_review_submit` `nerv_finding_resolve`(fixed) `nerv_question_create` | 기본 권한 규칙으로 허용 |
 | **A3 High** | 사람의 시간·판단을 소비하거나 되돌리기 비싼 변경 | 실행 전 승인(hard) | `nerv_spec_submit_review`, `nerv_finding_resolve`(critical → dismissed/wont_fix), 정책상 지정된 `nerv_task_update(status=done)` | Claude: `_meta["anthropic/requiresUserInteraction"]: true` / Codex: 승인 정책 + 질문 폴링 |
 | **A4 Critical** | 삭제·배포·권한 변경·게이트 면제 | **도구 미제공** — 웹 UI에서 사람만 | (없음) | 요청 시 `NERV_HUMAN_ONLY` 에러와 딥링크 반환 |
 
@@ -110,9 +110,11 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `nerv_bootstrap` | `project`, `agent_type`, `hostname`, `cwd`, `repo{remote,branch}`, `resume_session_id?` | `session_id`, 규약 스펙(convention/vision) 요약, 내 활성 클레임, 게이트 정책·자율성 레벨, 컨텍스트 팩 ETag | `spec:read` + `agent-session:launch`(자기 세션) | A1 | 세션 시작 직후 **첫 도구 호출** | 멱등 — 같은 `session_id`/`resume_session_id`면 동일 스냅샷 반환 |
 | `nerv_spec_tree` | `project`, `root_spec_id?`, `depth?`, `status?` | 스펙 노드 트리(id·title·type·문서 상태·현재 버전) | `spec:read` | A1 | 스펙 탐색 시작 | 읽기 전용 |
 | `nerv_spec_search` | `query`, `type?`, `status?`, `requirement_id?`, `limit` | 매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫) | `spec:read` | A1 | 컨텍스트 수집·중복 확인 | 읽기 전용 |
-| `nerv_spec_get` | `spec_id`, `version?`(기본 approved), `include[]`(requirements/tasks/reviews) | 본문 markdown(비신뢰 래핑, §6.3) + 메타 + Requirement 목록 + 파생 Task | `spec:read` | A1 | 구현 착수 전, 리뷰 전 | 읽기 전용 — `version` 지정 시 불변 스냅샷이라 결과 고정 |
-| `nerv_spec_draft_upsert` | `spec_id?`, `parent_id`, `type`, `title`, `body_markdown`, `base_version`, `change_summary` | `spec_version_id`, `version`, 델타 요약(ADDED/MODIFIED/REMOVED), 검증 경고 | `spec:draft` | A2 | 스펙 초안 작성·CR 제안 | 조건부 — (spec_id, base_version, content_hash) 동일이면 같은 draft 반환. base_version 불일치는 `NERV_PRECONDITION` |
-| `nerv_spec_submit_review` | `spec_version_id`, `reviewer_hint?`, `note` | `approval_id[]`, `draft → in_review` 전이 결과, 지정 리뷰어·SLA | `spec:draft`(+제출) | **A3** | 초안 완료 후 사람 검토 요청 | 멱등 — 같은 `spec_version_id`의 pending Approval을 재사용(승인함 카드 중복 생성 금지) |
+| `nerv_spec_get` | `spec_id`, `version?`(기본 approved), `include[]`(requirements/tasks/reviews/comments) | 본문 markdown(비신뢰 래핑, §6.3) + 메타 + Requirement 목록 + 파생 Task | `spec:read` | A1 | 구현 착수 전, 리뷰 전 | 읽기 전용 — `version` 지정 시 불변 스냅샷이라 결과 고정 |
+| `nerv_spec_draft_upsert` | `spec_id?`, `parent_id`, `type`, `title`, `body_markdown`, `base_version`, `change_summary` | `spec_version_id`, `version`, 델타 요약(ADDED/MODIFIED/REMOVED), 검증 경고, `web_url`(S3 딥링크) | `spec:draft` | A2 | 스펙 초안 작성·CR 제안 | 조건부 — (spec_id, base_version, content_hash) 동일이면 같은 draft 반환. base_version 불일치는 `NERV_PRECONDITION`. 초안 편집 리스 자동 획득·갱신, 타인 보유 시 `NERV_DRAFT_LEASED` |
+| `nerv_spec_submit_review` | `spec_version_id`, `reviewer_hint?`, `note` | `approval_id[]`, `draft → in_review` 전이 결과, 지정 리뷰어·SLA, `web_url`(S3 딥링크) | `spec:draft`(+제출) | **A3** | 초안 완료 후 사람 검토 요청 | 멱등 — 같은 `spec_version_id`의 pending Approval을 재사용(승인함 카드 중복 생성 금지) |
+| `nerv_spec_check` | `spec_version_id` | 5검사기(cross-spec/rationale-continuity/convention-compliance/requirement-shape/task-coherence)별 결과 — warning/block + 앵커 위치 | `spec:read` | A1 | 초안 저장 후·제출 전 아무 때나 | 읽기 전용 |
+| `nerv_spec_comment_resolve` | `comment_id`, `resolution_note?`, `resolved_in_version_id?` | 코멘트 새 상태(open→resolved), 남은 open 코멘트 수 | `spec:draft` | A2 | 코멘트 반영 직후 | 멱등 — (comment_id, resolved) 재호출은 no-op |
 | `nerv_task_next` | `project`, `role?`, `spec_id?`, `capabilities?`, `limit` | ready Task 후보 + **위임 명세 4요소**(목표·산출물 형식·도구/출처·경계) + 권장 scope | `task:claim` | A1 | 클레임 직전 | 읽기 전용(후보 순서는 시점 의존) |
 | `nerv_task_claim` | `task_id`, `scope{spec_ids,file_globs}`, `branch?`, `worktree?`, `lease_seconds?` | `claim_id`, `lease_expires_at`, 겹침 경고 또는 `NERV_CONFLICT_SCOPE`(상대 세션·사용자·hostname·scope) | `task:claim` | A2 | 작업 착수 | 멱등 — 같은 세션 재호출은 기존 claim 반환(리스 연장 없음). 타 세션은 409 |
 | `nerv_task_heartbeat` | `claim_id`, `progress?`, `stats?{added,removed,files}` | 새 `lease_expires_at`, **pending 질문 답변·알림·steer/stop 지시** | `task:update` | A1 | **60초 주기** | 자연 멱등(LWW) |
@@ -181,12 +183,15 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `NERV_PRECONDITION` | `base_version` 불일치, 게이트 미충족 | 최신 버전 재조회 후 재작성, 게이트 사유를 사람에게 보고 |
 | `NERV_CONFLICT_SCOPE` | 클레임 scope 겹침 | 다음 후보로 이동하거나 `nerv_question_create` |
 | `NERV_LEASE_EXPIRED` | 리스 만료 후 쓰기 시도 | 재클레임 시도 → 실패 시 산출물만 제출하고 종료 |
+| `NERV_DRAFT_LEASED` | 다른 사용자가 이 초안의 편집 리스 보유 | 보유자 정보를 사람에게 보고하고 인계 요청 또는 `nerv_question_create`. **같은 사용자의 리스면 자동 인계되므로 이 에러는 오지 않는다** |
 | `NERV_APPROVAL_REQUIRED` | A3 도구가 승인 대기 진입 | `question_id`/`approval_id`로 폴링, 그동안 다른 작업 금지 |
 | `NERV_HUMAN_ONLY` | A4 액션 요청 | 웹 딥링크를 사람에게 전달하고 대기 |
 | `NERV_RATE_LIMIT` | 쿼터 초과 | `retry_after_s` 준수. **임의 우회·병렬 재시도 금지** |
 | `NERV_UNAVAILABLE` | 서버 장애 | 로컬 폴백(NFR-05) — 읽기는 캐시, 쓰기는 아웃박스 큐잉 |
 
 **리스 만료 규약.** 하트비트 주기 60초, 리스 TTL 기본 30분(하트비트 30회분 여유 — stale 임계와 같은 값), 무활동 30분 초과 시 AgentSession `stale` 자동 전이 + 클레임 자동 회수(D-13). 만료 후에도 **`nerv_review_submit`은 받는다** — 리뷰는 커밋 SHA 기준의 사실이고, 리스는 조정 장치일 뿐이기 때문이다. 반대로 `nerv_task_update(status=done)`은 유효한 리스가 없으면 거부한다. clemvion의 `RESET_HINT` + 로컬 재시도 상태 파일이 하던 일은 서버 쿼터·스케줄러로 이동한다.
+
+**초안 편집 리스 — 클레임 리스의 스펙 문서 축 확장(D-04).** `draft` 상태 SpecVersion의 편집 리스는 전용 claim/release 도구 없이 **암묵적으로** 오간다 — 웹 에디터 열기·`nerv_spec_draft_upsert` 성공이 곧 획득·갱신이고, `nerv_spec_submit_review` 성공·에디터 닫기·`SessionEnd`·TTL 만료(30분, Task 클레임 리스·stale 임계와 같은 상수)가 곧 해제다. 같은 사용자가 웹과 터미널을 오가면 리스가 자동 인계되고(이전 표면에 알림), 다른 사용자의 upsert만 `NERV_DRAFT_LEASED`로 막힌다. 리스는 편집 낭비를 막는 1차 사전 조정이고 `base_version` 409(`NERV_PRECONDITION`)가 데이터 유실을 막는 최후 방어선이라 역할이 달라 둘 다 유지한다 — 상세 규약은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) 참조.
 
 ### 2.8 Claude 전용 향상과 tools 폴백
 
@@ -238,7 +243,7 @@ nerv-plugin/
 | 스킬 | 트리거 | 하는 일 | 호출 도구 |
 | --- | --- | --- | --- |
 | `/nerv:next` | 수동 또는 세션 시작 | 후보 조회 → 위임 명세 확인 → 클레임 → 작업 브랜치 준비 | `nerv_task_next` → `nerv_task_claim` |
-| `/nerv:spec` | 스펙 언급 시 자동(`paths` 매칭) | 스펙 조회, 초안 작성, 검토 요청. **본문을 비신뢰로 취급하는 규약 포함** | `nerv_spec_tree/search/get`, `nerv_spec_draft_upsert`, `nerv_spec_submit_review` |
+| `/nerv:spec` | 수동(서브커맨드) 또는 스펙 언급 시 자동(`paths` 매칭) | **기획자의 주 작성 경로** — 개발자가 구현 중 스펙 결함을 만났을 때만이 아니다. `new`(트리 위치·타입 확인 후 초안 생성) / `edit`(코멘트·검토 피드백 반영) / `check`(사전 검토 셀프서비스) / `comments`(open 코멘트 조회·해소) / `submit`(검토 요청 — A3 승인 유지). 저장·제출 응답의 `web_url`(S3 딥링크)은 터미널에 표시한다. **본문을 비신뢰로 취급하는 규약 포함** | `nerv_spec_tree/search/get(include=comments)`, `nerv_spec_draft_upsert`, `nerv_spec_check`, `nerv_spec_comment_resolve`, `nerv_spec_submit_review` |
 | `/nerv:impl` | 구현 착수 | 하트비트 60초 루프, 진행 보고, 증적 수집(commit/PR/test) | `nerv_task_heartbeat`, `nerv_task_update` |
 | `/nerv:review` | 구현 완료 후 강제 단계 | 리뷰 실행 후 **파일이 아니라 도구로 제출**, finding 해소 추적 | `nerv_review_submit`, `nerv_finding_resolve` |
 | `/nerv:question` | 판단 불가·경계 이탈 | 선택지를 만들어 에스컬레이션하고 답변 폴링 | `nerv_question_create` |
@@ -474,7 +479,7 @@ AGENTS.md는 NERV가 스펙에서 **생성**하는 산출물이다(사람이 손
 
 ## 단일 진실
 - 제품 스펙의 단일 진실은 NERV다. `spec/**` 는 NERV가 내보낸 read-only 미러이므로 직접 편집하지 않는다.
-- 스펙을 바꿔야 하면 `nerv_spec_draft_upsert` 로 draft를 만들고 `nerv_spec_submit_review` 로 사람 검토를 요청한다.
+- 스펙을 바꿔야 하면 `nerv_spec_draft_upsert` 로 draft를 만들고, `nerv_spec_check` 로 사전 검토를 통과시킨 뒤 `nerv_spec_submit_review` 로 사람 검토를 요청한다.
 
 ## 세션 시작 시 반드시 (이 순서)
 1. `nerv_bootstrap` — 프로젝트·hostname·저장소 정보를 등록하고 규약·게이트 정책을 받는다.
