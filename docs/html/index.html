@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개요 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html" class="active">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <header class="page-header">
+    <h1>NERV — 스펙이 단일 진실이 되고, 에이전트가 조정되고, 사람이 게이트를 지키는 플랫폼</h1>
+    <p class="lead">기획자·디자이너·개발자·QA가 하나의 플랫폼에서 스펙 문서와 전체 상태를 관리하고, Claude Code·Codex 에이전트가 MCP·훅·스킬로 연동되어 스펙 작성→검토→구현→테스트를 수행하며, 사람은 승인/거절/코멘트하고 누구의 어떤 세션이 무엇을 하는지 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼 제안서.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-13)</span>
+      <span>원본: <code>docs/README.md</code> + 13편</span>
+      <span>근거: clemvion 실측 분석 4건 + 웹 딥리서치 7건</span>
+    </div>
+  </header>
+
+  <h2 id="why">1. 왜 지금 필요한가 — 실측이 말하는 문제</h2>
+  <p>현행 <code>clemvion</code> 저장소는 1인용 Claude Code 하네스(SDD+TDD 자동화)로는 업계 최고 수준의 완성도를 갖고 있다. 그러나 <b>여러 세션·여러 사람</b>으로 확장하는 순간, 로컬 파일과 git을 협업 데이터베이스로 쓰는 구조적 한계가 수치로 드러난다.</p>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">리뷰 산출물 누적</b><div class="big">13,777개</div><p>review/ 하위 markdown (131MB) — 전부 git 추적</p></div>
+    <div class="card"><b class="card-title">git 저장소 점유</b><div class="big">60%</div><p>packed blob 바이트 중 리뷰 이력 비중 (60.7MB / .git 148MB)</p></div>
+    <div class="card"><b class="card-title">리뷰 세션 페이스</b><div class="big">1,891개 / 73일</div><p>일평균 26개 — 커밋의 38%가 review/ 접촉</p></div>
+  </div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">자기증식 루프 실측</b>
+    <p>리뷰 산출물이 코드와 같은 브랜치에 커밋되어 <b>다음 리뷰의 diff에 이전 리뷰가 포함</b>된다 — 한 changeset이 8라운드 리뷰를 돌았고, 마지막 라운드 리뷰 프롬프트 94파일 중 86개가 이전 리뷰 산출물이었다. 소스 diff가 컨텍스트 예산에서 밀려나는 구조적 낭비.</p>
+  </div></div>
+
+  <div class="callout danger"><span class="ico">⚠️</span><div class="body">
+    <b class="title">조정(coordination)은 로컬의 구조적 상한에 막혔다</b>
+    <p>스펙 동시수정 자동 검출은 <b>"병렬 작업이 다른 머신·세션이면 로컬에서 보이지 않아 신뢰할 수 없다"</b>는 이유로 의도적으로 제거됐고(<code>clemvion:.claude/docs/worktree-policy.md</code>), worktree 정리 스크립트는 "살아있는 세션 앵커 레지스트리가 필요하다"고 스스로 명시한 채 타 세션을 볼 수 없다. <b>clemvion이 로컬 한계로 포기한 기능 목록이 곧 NERV의 핵심 기능 목록이다.</b></p>
+  </div></div>
+
+  <p>업계 데이터도 같은 방향을 가리킨다. AI 도입 상위 팀에서 <b>PR 리뷰 시간 중앙값 +441%, 무리뷰 머지 31%, 개발자당 버그 +54%</b>(Faros AI, 22,000명 계측 — <a href="agent-orchestration.html">2.2</a> 참조). 병렬 에이전트 시대의 병목은 코드 생성이 아니라 <b>검증과 조정</b>이며, 이것이 NERV가 파는 가치다.</p>
+
+  <h2 id="what">2. 무엇을 만드는가 — 3대 가치</h2>
+  <div class="grid-3">
+    <div class="card"><h4>📄 단일 진실 스펙</h4><p>스펙을 DB 기반 트리 + 불변 버전 + 2축 상태(문서 승인 축 × 요구사항 구현 축)로 관리. "무엇이 구현됐고 다음이 무엇인지"를 문서가 아니라 관계 데이터가 답한다.</p></div>
+    <div class="card"><h4>🤖 조정되는 에이전트</h4><p>작업은 원자적 클레임+리스(lease)로 선점하고 scope 겹침을 사전 감지. 모든 세션(사용자·hostname·상태·현재 작업)이 미션 컨트롤 보드에 실시간 표시된다.</p></div>
+    <div class="card"><h4>🚦 사람의 게이트</h4><p>스펙 승인·변경 요청·에이전트 질문·머지가 위험도 가변 게이트로 승인함(Inbox)에 모인다. 지시자≠승인자, 모든 행위는 감사 로그에 (사람/AI 구분되어) 남는다.</p></div>
+  </div>
+
+  <div class="callout decision"><span class="ico">🎯</span><div class="body">
+    <b class="title">포지셔닝 — "SDD 도구들의 Linear/GitHub"</b>
+    <p>2025년 폭발한 SDD 도구(Spec Kit 126.9k★·OpenSpec·Kiro·Tessl…)는 전부 <b>파일 기반 1인용</b>이며 멀티유저 요청이 공식적으로 기각된 상태다(<a href="spec-driven-development.html">2.1</a>). 이 도구들이 만든 문서 어휘(requirements/design/tasks·constitution·델타) 위에 <b>협업·상태·출처 추적 계층</b>을 제공하는 자리가 비어 있다. NERV는 그 자리를 차지하되, git forge·Slack·기존 도구와는 연동한다(<a href="vision.html">3.1 Build vs Buy</a>).</p>
+  </div></div>
+
+  <h2 id="how">3. 어떻게 동작하는가 — 한눈에 보는 구조</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 760 340" role="img" aria-label="NERV 아키텍처 개요">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+      <!-- 에이전트 측 -->
+      <rect x="16" y="30" width="180" height="120" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="106" y="52" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">에이전트 세션들</text>
+      <rect x="30" y="64" width="152" height="24" rx="6" fill="var(--purple-soft)" stroke="var(--purple)"/>
+      <text x="106" y="80" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">Claude Code · mac-A · 김</text>
+      <rect x="30" y="92" width="152" height="24" rx="6" fill="var(--purple-soft)" stroke="var(--purple)"/>
+      <text x="106" y="108" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">Claude Code · mac-B · 리</text>
+      <rect x="30" y="120" width="152" height="24" rx="6" fill="var(--purple-soft)" stroke="var(--purple)"/>
+      <text x="106" y="136" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">Codex · linux-C · 박</text>
+      <!-- 사람 측 -->
+      <rect x="16" y="200" width="180" height="110" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="106" y="222" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">사람 (웹 UI)</text>
+      <text x="106" y="246" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">기획 · 디자인 · 개발 · QA</text>
+      <text x="106" y="268" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">스펙 편집 · 승인함 · 코멘트</text>
+      <text x="106" y="290" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">세션 모니터 · 대시보드</text>
+      <!-- NERV 코어 -->
+      <rect x="300" y="60" width="220" height="220" rx="14" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="410" y="88" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="15" font-weight="800">NERV 서버</text>
+      <rect x="316" y="102" width="188" height="26" rx="6" fill="var(--bg-elev)" stroke="var(--border)"/>
+      <text x="410" y="119" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">MCP 게이트웨이 (nerv_* tools)</text>
+      <rect x="316" y="132" width="188" height="26" rx="6" fill="var(--bg-elev)" stroke="var(--border)"/>
+      <text x="410" y="149" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">훅 수집기 (세션·하트비트)</text>
+      <rect x="316" y="162" width="188" height="26" rx="6" fill="var(--bg-elev)" stroke="var(--border)"/>
+      <text x="410" y="179" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">스펙·작업·리뷰·승인 API</text>
+      <rect x="316" y="192" width="188" height="26" rx="6" fill="var(--bg-elev)" stroke="var(--border)"/>
+      <text x="410" y="209" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">이벤트 → 알림 (인앱·Slack)</text>
+      <rect x="316" y="222" width="188" height="26" rx="6" fill="var(--bg-elev)" stroke="var(--border)"/>
+      <text x="410" y="239" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">Postgres (단일 진실 + 감사)</text>
+      <!-- 외부 -->
+      <rect x="590" y="90" width="150" height="60" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="665" y="115" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">git forge</text>
+      <text x="665" y="134" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">PR·커밋·머지 웹훅</text>
+      <rect x="590" y="190" width="150" height="60" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="665" y="215" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">Slack / 메일</text>
+      <text x="665" y="234" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">알림 · 딥링크</text>
+      <!-- 연결선 -->
+      <line x1="196" y1="90" x2="300" y2="120" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="242" y="88" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">MCP</text>
+      <line x1="196" y1="130" x2="300" y2="150" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="240" y="128" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">hooks(http)</text>
+      <line x1="196" y1="250" x2="300" y2="220" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="244" y="252" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">웹 · SSE</text>
+      <line x1="520" y1="120" x2="590" y2="120" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)" marker-start="url(#arr)"/>
+      <line x1="520" y1="210" x2="590" y2="218" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+    </svg>
+    <div class="cap">그림 1. NERV 개요 — 에이전트는 MCP(데이터)와 훅(텔레메트리)으로, 사람은 웹으로, 코드는 git forge에 그대로. 상세: <a href="architecture.html">3.2 아키텍처</a></div>
+  </div>
+
+  <h2 id="problems">4. 문제 → 해법 매핑</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>문제 (P)</th><th>증상 요약</th><th>NERV 해법</th><th>상세 문서</th></tr></thead>
+    <tbody>
+      <tr><td><b>P1</b> 세션 간 스펙 충돌</td><td>동시수정 검출이 로컬 한계로 제거됨</td><td>클레임 시 scope 선언 → 서버가 겹침 사전 감지 (FR-06)</td><td><a href="spec-workflow.html">3.5</a></td></tr>
+      <tr><td><b>P2</b> 중복 작업</td><td>백로그·큐 부재, 수동 picking</td><td>ready 큐 + 원자적 클레임 + 위임 명세 4요소 (FR-05/06)</td><td><a href="spec-workflow.html">3.5</a></td></tr>
+      <tr><td><b>P3</b> 스펙 버전 관리 부재</td><td>latest-only, 이력은 git 고고학</td><td>불변 SpecVersion + 승인 축 상태 + CR 델타 리뷰 (FR-02/04)</td><td><a href="spec-workflow.html">3.5</a>, <a href="data-model.html">3.3</a></td></tr>
+      <tr><td><b>P4</b> 구현 상태 추적 곤란</td><td>문서 단위 status·수동 ✅의 사각</td><td>Requirement 단위 증적 그래프 + 커버리지 대시보드 (FR-03/13)</td><td><a href="data-model.html">3.3</a></td></tr>
+      <tr><td><b>P5</b> 리뷰 출처 단절</td><td>리뷰가 검토한 커밋 SHA 필드조차 없음</td><td>ReviewSession에 커밋 스냅샷 필수 + Finding FK 연결 (FR-09)</td><td><a href="data-model.html">3.3</a></td></tr>
+      <tr><td><b>P6</b> git 비대화</td><td>리뷰가 blob의 60%, 자기증식 루프</td><td>산출물은 DB, git엔 포인터 — 미러/내보내기 제공 (D-01)</td><td><a href="architecture.html">3.2</a></td></tr>
+      <tr><td><b>P7</b> 직군 장벽</td><td>비개발자가 git·CLI를 못 씀</td><td>웹 스펙 편집·코멘트·승인함 — md는 내부 포맷 (FR-01/11)</td><td><a href="vision.html">3.1</a>, <a href="ui-wireframes.html">3.6</a></td></tr>
+      <tr><td><b>P8</b> n:n 구조 부재</td><td>owner가 자유 텍스트, 신원 없음</td><td>Organization/Project/Member 역할 모델 + 사람 assignee·AI delegate (FR-14, D-08)</td><td><a href="data-model.html">3.3</a></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="decisions">5. 핵심 설계 결정 (요약)</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>번호</th><th>결정</th><th>근거 한 줄</th></tr></thead>
+    <tbody>
+      <tr><td><b>D-01</b></td><td>스펙·리뷰 산출물은 DB, 코드만 git</td><td>리뷰가 git blob의 60% + 자기증식 루프 실측</td></tr>
+      <tr><td><b>D-02</b></td><td>스펙 상태 2축 분리(문서 승인 × 요구사항 구현)</td><td>문서 단위 status의 사각(요구사항 통째 미구현) 실측</td></tr>
+      <tr><td><b>D-03</b></td><td>추적 단위는 Task·Requirement 관계 그래프</td><td>체크박스·수동 ✅는 영역 간 비일관 실측</td></tr>
+      <tr><td><b>D-04</b></td><td>원자적 클레임+리스+scope 겹침 감지</td><td>beads·agent teams 검증 패턴의 서버판</td></tr>
+      <tr><td><b>D-05</b></td><td>연동 3층: MCP(tools-first)·훅(http)·플러그인</td><td>Codex가 tools만 지원 — 최소공배수 설계</td></tr>
+      <tr><td><b>D-06</b></td><td>위험도 가변 승인 게이트 + 지시자≠승인자</td><td>워터폴 비판 반박 + GitHub 승인 무결성 규격</td></tr>
+      <tr><td><b>D-07</b></td><td>ReviewSession·Finding(fingerprint dedup) 엔티티화</td><td>8라운드 재리뷰 낭비·provenance 유실 실측</td></tr>
+      <tr><td><b>D-08</b></td><td>사람 assignee + 에이전트 delegate 분리</td><td>"에이전트는 책임질 수 없다"(Linear)</td></tr>
+      <tr><td><b>D-09</b></td><td>markdown 우선 편집기, CRDT는 Phase 3</td><td>주 작성자가 에이전트(원자적 API 저장)라 동시 타이핑 드묾</td></tr>
+      <tr><td><b>D-10</b></td><td>append-only Event + SSE(이벤트 소싱은 안 함)</td><td>감사·피드·알림의 단일 원천, 과설계 회피</td></tr>
+      <tr><td><b>D-11</b></td><td>TS 모노레포 + Vite(웹) + NestJS(API) + Postgres + MCP SDK</td><td>자가호스팅 우선, 대안 비교는 3.2</td></tr>
+      <tr><td><b>D-12</b></td><td>clemvion 점진 이관(임포터 + 병행 운영)</td><td>기계 산출물→spec→사람 워크플로 순서</td></tr>
+      <tr><td><b>D-13</b></td><td>세션 상태 머신+SLA(stale 자동 처리)</td><td>Linear Agent Session 6상태 모델</td></tr>
+      <tr><td><b>D-14</b></td><td>게이트 fail-open+격상, 서버 산출물만 진실</td><td>clemvion 운영 교훈 + METR 인식 격차</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="roadmap">6. 로드맵 한눈에</h2>
+  <div class="grid-2">
+    <div class="card"><h4>Phase 0 · PoC (2~3주)</h4><p>MCP 최소(spec read + claim/heartbeat) + 세션 보드 + clemvion 임포트. <b>검증: 두 호스트·세 세션 동시 작업에서 중복 클레임 0.</b></p></div>
+    <div class="card"><h4>Phase 1 · MVP (4~6주)</h4><p>스펙 CRUD+버전+승인 · 작업 보드 · 세션 모니터 · 승인함 · 인앱 알림 · GitHub PR 연동 · Claude Code 플러그인 v1.</p></div>
+    <div class="card"><h4>Phase 2 (4~6주)</h4><p>리뷰 센터(수집·dedup·게이트 API) · Slack 알림 · Codex 지원 · CR 델타 리뷰 · 커버리지 대시보드.</p></div>
+    <div class="card"><h4>Phase 3+</h4><p>실시간 공동 편집(CRDT) · 임베딩 기반 중복/충돌 감지 · 분석 · SSO/감사 고도화 · SaaS화.</p></div>
+  </div>
+  <p>상세 일정·성공 기준·리스크: <a href="roadmap.html">3.7 로드맵</a></p>
+
+  <h2 id="docs">7. 문서 안내</h2>
+  <div class="grid-3">
+    <div class="card"><h4>1부 · 현행 분석</h4><p><a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a><br><a href="pain-points.html">1.2 문제 정의와 요구사항(FR/NFR)</a></p></div>
+    <div class="card"><h4>2부 · 리서치</h4><p><a href="spec-driven-development.html">2.1 SDD 도구 생태계</a><br><a href="agent-orchestration.html">2.2 병렬 에이전트 운용</a><br><a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트</a><br><a href="integration-tech.html">2.4 연동 기술 표면</a></p></div>
+    <div class="card"><h4>3부 · 플랫폼 제안</h4><p><a href="vision.html">3.1 비전</a> · <a href="architecture.html">3.2 아키텍처</a> · <a href="data-model.html">3.3 데이터 모델</a><br><a href="agent-integration.html">3.4 에이전트 연동</a> · <a href="spec-workflow.html">3.5 워크플로우</a><br><a href="ui-wireframes.html">3.6 화면 설계</a> · <a href="roadmap.html">3.7 로드맵</a></p></div>
+  </div>
+
+  <div class="callout note"><span class="ico">📎</span><div class="body">
+    <b class="title">원본과 근거</b>
+    <p>이 HTML 세트는 <code>docs/*.md</code>(관리용 원본)의 파생본이다. 모든 주장에는 실측 수치(<code>clemvion:경로</code>) 또는 접속 확인된 외부 출처 링크가 달려 있으며, 각 문서 끝 "참고 자료"에 모아져 있다.</p>
+  </div></div>
+
+  <footer class="page-footer">
+    <span></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="clemvion-analysis.html">다음: 1.1 clemvion 하네스 분석</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

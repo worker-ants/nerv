@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3.1 비전과 핵심 시나리오 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html" class="active">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 3부 · 플랫폼 제안 / 3.1 비전과 핵심 시나리오</div>
+
+  <header class="page-header">
+    <h1>비전과 핵심 시나리오</h1>
+    <p class="lead">NERV(가칭)는 <b>스펙이 단일 진실이 되고, 에이전트가 조정되고, 사람이 게이트를 지키는</b> 협업 플랫폼이다. 파일 기반 SDD 도구들은 문서 어휘를 표준화했지만 멀티유저 조정은 공식적으로 포기했고(Spec Kit #497·#2116, OpenSpec #435 “closed as not planned”), clemvion은 그 상한을 7,600줄 훅과 <code>review/</code> 13,777개 md·131MB로 실증했다. 이 문서는 3대 가치, 4개 직군의 하루 시나리오, 핵심 여정 3개, Build vs Buy 판단, 그리고 계측 가능한 성공 지표를 정의한다.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-13)</span>
+      <span>원본: <code>docs/03-proposal/vision.md</code></span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">한 줄 정의와 포지셔닝</a></li>
+      <li><a href="#sec-2">페르소나 4종과 하루 시나리오</a></li>
+      <li><a href="#sec-3">핵심 여정 3개</a></li>
+      <li><a href="#sec-4">Build vs Buy</a></li>
+      <li><a href="#sec-5">Non-goals와 성공 지표</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 한 줄 정의와 포지셔닝</h2>
+
+  <h3>1.1 한 줄 정의</h3>
+
+  <blockquote><b>NERV는 스펙이 단일 진실이 되고, 에이전트가 조정되고, 사람이 게이트를 지키는 협업 플랫폼이다.</b></blockquote>
+
+  <p>세 개의 절이 각각 하나의 문제군에 대응한다. “스펙이 단일 진실”은 P1·P3(스펙 충돌·버전 관리 부재)에, “에이전트가 조정된다”는 P2·P4·P8(중복 작업·상태 추적·n:n 부재)에, “사람이 게이트를 지킨다”는 P5·P7(출처 추적·비개발 직군 참여)에 대응한다. 문제 번호의 정의와 실측 근거는 <a href="pain-points.html">1.2 문제 정의와 요구사항</a>에 있다.</p>
+
+  <h3>1.2 3대 가치</h3>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">① 단일 진실</b><p>스펙·요구사항·상태·리뷰가 파일이 아니라 <b>질의 가능한 레코드</b>로 한 곳에 있다.</p><p><code>D-01</code> <code>D-02</code> <code>D-03</code> · FR-01~04, FR-13</p></div>
+    <div class="card"><b class="card-title">② 조정</b><p>누가·어느 <b>hostname</b>의 어떤 세션이 무엇을 잡았는지 서버가 알고, 선점은 원자적 연산이다.</p><p><code>D-04</code> <code>D-13</code> · FR-05~08</p></div>
+    <div class="card"><b class="card-title">③ 거버넌스</b><p>승인·리뷰·면제가 전부 기록되고, 게이트 판정은 정규식이 아니라 <b>서버 질의</b>다.</p><p><code>D-06</code> <code>D-07</code> <code>D-14</code> · FR-09~12, FR-16</p></div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>가치</th><th>이것이 없으면 생기는 일</th><th>관련 결정·요구사항</th></tr></thead>
+    <tbody>
+      <tr><td><b>① 단일 진실</b></td><td>문서 네 개가 각자 필드를 열거하고, “구현됐나”는 사람이 문서를 읽어야 안다</td><td>D-01·D-02·D-03 / FR-01~FR-04, FR-13</td></tr>
+      <tr><td><b>② 조정</b></td><td>같은 스펙을 두 세션이 동시에 고치고, 충돌은 머지 시점에야 발견된다</td><td>D-04·D-13 / FR-05~FR-08</td></tr>
+      <tr><td><b>③ 거버넌스</b></td><td>리뷰 산출물이 git을 삼키고, 게이트는 조용히 꺼진다</td><td>D-06·D-07·D-14 / FR-09~FR-12, FR-16</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-01 · 스펙·리뷰 산출물은 git이 아니라 플랫폼 DB에 저장한다</b>
+    <p>코드는 지금처럼 git에 남는다. 근거는 리뷰 이력 blob이 <code>.git</code> packed blob 바이트의 <b>60%(60.7MB)</b>를 차지하고, 전체 커밋 2,464개 중 <b>937개(38%)</b>가 <code>review/</code>를 건드린다는 실측이다. git에는 read-only 미러와 포인터(ID/URL)만 남긴다.</p>
+  </div></div>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">리뷰 산출물</b><div class="big">13,777</div><p><code>clemvion:review/</code> 하위 md 파일 수 · 131MB · 전부 git 추적</p></div>
+    <div class="card"><b class="card-title">73일간 리뷰 세션</b><div class="big">1,891</div><p>일평균 26개 · 현 추세 월 ~7,000파일 / ~50MB 증가</p></div>
+    <div class="card"><b class="card-title">자기증식 루프</b><div class="big">86 / 94</div><p>8라운드째 리뷰 프롬프트 94파일 중 86개가 <b>이전 리뷰 산출물</b></p></div>
+  </div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · clemvion 실측 (2026-08-13)</b>
+    <p><code>clemvion:review/</code>에 md 13,777개·131MB(code 9,070 + consistency 4,697 + spec-coverage 10)가 전부 git 추적 상태로 누적됐다. 리뷰 산출물이 코드와 같은 브랜치에 커밋되므로 <b>다음 리뷰의 diff에 이전 리뷰가 들어가는</b> 자기증식 루프가 실측됐다 — 한 changeset이 8라운드를 도는 동안 마지막 라운드의 리뷰 프롬프트 94파일 중 86개가 이전 <code>review/**</code> 산출물이었고, 정작 소스 diff가 컨텍스트 예산에서 밀려났다.</p>
+  </div></div>
+
+  <h3>1.3 포지셔닝 — “SDD 도구들의 Linear/GitHub”</h3>
+
+  <p>2025년 하반기에 SDD 도구가 동시에 쏟아졌다. Kiro(2025-07 프리뷰), OpenSpec(2025-08), GitHub Spec Kit(2025-08~09), Tessl(2025-09). 1년 뒤 규모는 Spec Kit 126,932 stars, OpenSpec 64,751 stars(npm 주간 367,356 다운로드), BMAD 51,854 stars, Tessl $125M 펀딩이다(수치는 2026-08-13 API 확인). 이들이 만든 것은 <b>문서 어휘</b>다 — requirements(EARS)/design/tasks 3분할, constitution, ADDED/MODIFIED/REMOVED 델타, 자기완결 스토리 파일.</p>
+
+  <p>그런데 그 어휘 위에 있어야 할 <b>협업·상태·출처 계층이 통째로 비어 있다</b>. 이것은 추정이 아니라 1차 출처의 기록이다.</p>
+
+  <p class="src"><a href="https://github.com/github/spec-kit/discussions/497">What’s the best way to use spec-kit in a team? — Spec Kit Discussion #497</a> (2026-08-13 확인): 공통 베이스에서 분기하면 스펙 폴더 순차 번호가 “자연히 충돌”하고, 두 스펙 계약이 동시에 유효한지 검증할 방법도 “마스터 계약”도 없다. 공식 해법 없음.</p>
+  <p class="src"><a href="https://github.com/github/spec-kit/discussions/2116">What best practices exist for concurrent SpecKit development? — Discussion #2116</a> (2026-08-13 확인): 두 사람이 동시에 다음 스펙을 만들면 둘 다 <code>0004</code>를 잡는다. timestamp 네이밍 옵션은 완화일 뿐 조정(coordination)이 아니다.</p>
+  <p class="src"><a href="https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md">OpenSpec 공식 팀 워크플로 문서</a> (2026-08-13 확인): 충돌 방지책이 “One change, one owner” 규율과 일반 git 병합뿐임을 공식 문서가 자인한다.</p>
+  <p class="src"><a href="https://github.com/Fission-AI/OpenSpec/issues/435">OpenSpec Issue #435: Collaboration &amp; Orchestration</a> (2026-08-13 확인): 멀티유저 워크스페이스·RBAC·인라인 코멘트 요청이 <b>“closed as not planned”</b>로 종료. 시장이 요구했고 도구가 구조적으로 거부한 기능 목록이 곧 NERV의 기능 명세다.</p>
+
+  <p>그래서 NERV의 자리는 “또 하나의 SDD 도구”가 아니라 <b>SDD 도구들이 만든 어휘 위의 협업 플랫폼</b>이다. Linear가 이슈 어휘 위에, GitHub가 git 어휘 위에 협업·상태·출처 계층을 얹은 것과 같은 관계다. 기존 도구와는 경쟁이 아니라 <b>임포트·연동</b> 관계로 설정한다(§4.4).</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-label="NERV 포지셔닝 계층 다이어그램: 저장 계층·실행 계층·SDD 도구 계층 위에 비어 있던 협업 계층을 NERV가 채운다">
+      <defs>
+        <marker id="v-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <rect x="40" y="16" width="530" height="58" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+      <text x="60" y="40" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">NERV (제안)</text>
+      <text x="60" y="60" fill="var(--text)" font-family="var(--font)" font-size="12">조정 · 상태 · 출처 · 승인 · 알림 · 멀티테넌시</text>
+      <text x="586" y="41" fill="var(--accent)" font-family="var(--font)" font-size="11" font-weight="700">← 비어 있던</text>
+      <text x="586" y="57" fill="var(--accent)" font-family="var(--font)" font-size="11" font-weight="700">   계층</text>
+
+      <rect x="40" y="86" width="530" height="66" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="60" y="110" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">SDD 도구 계층 · Kiro · Spec Kit · OpenSpec · BMAD</text>
+      <text x="60" y="130" fill="var(--text-mute)" font-family="var(--font)" font-size="12">requirements(EARS)/design/tasks · constitution · 델타 · 스토리 파일</text>
+      <text x="586" y="118" fill="var(--text-mute)" font-family="var(--font)" font-size="11">← 이미 표준화됨</text>
+
+      <rect x="40" y="164" width="530" height="54" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="60" y="188" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">실행 계층 · Claude Code · Codex</text>
+      <text x="60" y="206" fill="var(--text-mute)" font-family="var(--font)" font-size="12">MCP · 훅 · 스킬 · 플러그인</text>
+      <text x="586" y="196" fill="var(--text-mute)" font-family="var(--font)" font-size="11">← 벤더가 제공</text>
+
+      <rect x="40" y="230" width="530" height="54" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="60" y="254" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">저장 계층 · git forge</text>
+      <text x="60" y="272" fill="var(--text-mute)" font-family="var(--font)" font-size="12">코드 · PR · CI · 머지 게이트</text>
+      <text x="586" y="262" fill="var(--text-mute)" font-family="var(--font)" font-size="11">← 그대로 사용</text>
+
+      <line x1="26" y1="284" x2="26" y2="20" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    </svg>
+    <div class="cap">그림 1. NERV는 새 SDD 어휘를 만들지 않는다 — 이미 표준화된 어휘 위의 비어 있던 협업 계층을 채운다.</div>
+  </div>
+
+  <h3>1.4 무엇을 파는 제품인가 — 가속기가 아니라 검증·조정 파이프라인</h3>
+
+  <p>병렬 에이전트 운용의 제1 실패 모드는 코드 생산량이 아니라 <b>리뷰 병목</b>이다. 이건 필드 계측으로 확인된다.</p>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">중앙값 PR 리뷰 시간</b><div class="big">+441%</div><p>AI 도입 상위 팀 계측(22,000명·4,000팀)</p></div>
+    <div class="card"><b class="card-title">무리뷰(0 review) 머지</b><div class="big">31%</div><p>정책이 아니라 <b>리뷰어가 못 따라가서</b> 발생</p></div>
+    <div class="card"><b class="card-title">실용 동시 에이전트</b><div class="big">3~5</div><p>초과 시 품질이 “아무도 모르게” 하락</p></div>
+  </div>
+
+  <p class="src"><a href="https://www.faros.ai/blog/lab-vs-reality-ai-productivity-study-findings">What METR’s Study Missed About AI Productivity in the Wild — Faros AI</a> (2026-03 데이터): PR 크기 +51%, 중앙값 리뷰 시간 +441%, 무리뷰 머지 31%, 개발자당 버그 +54%, PR당 인시던트 3배 — 저자는 이를 “Acceleration Whiplash”로 명명한다.</p>
+  <p class="src"><a href="https://codex.danielvaughan.com/2026/05/24/human-review-bottleneck-code-review-strategies-agent-output/">The Human Review Bottleneck — Codex Knowledge Base</a> (2026-05-24): PR 생성량 +98%에 리뷰 시간 +91%, AI 생성 PR은 리뷰어 배정까지 4.6배 대기, 리뷰 노력의 69%가 상위 위험 20% PR에 집중. <b>스펙 검증을 코드 생성 전으로 옮기는 상류 시프트</b>를 명시 권고하고, 생성·검토 에이전트의 훈련 분포가 같으면 상관된 실패가 나므로 AI 재검토만으로는 약한 보증이라고 경고한다.</p>
+  <p class="src"><a href="https://superset.sh/blog/roadmap-to-100-agents">Our plan for running 100 Parallel Coding Agents — Superset</a> (2026): 대규모 병렬의 전제는 사람 주의력 추가가 아니라 <b>자동 품질 게이트 + 구조화된 디스패치 + 완료 리뷰 워크플로</b>. 이 3요소가 정확히 NERV의 게이트(FR-10)·ready 큐(FR-05)·리뷰 수집(FR-09)이다.</p>
+
+  <div class="callout note"><span class="ico">💡</span><div class="body">
+    <b class="title">판매 명제</b>
+    <p>NERV는 “코드를 더 빨리 만든다”가 아니라 <b>“더 만들어진 코드를 조직이 감당할 수 있게 한다”</b>를 판다. §5.2의 성공 지표가 생산량이 아니라 리드타임·무리뷰 비율·재작업으로 구성되는 이유다.</p>
+  </div></div>
+
+  <h2 id="sec-2">2. 페르소나 4종과 하루 시나리오</h2>
+
+  <h3>2.1 읽는 법 — 태그 규약</h3>
+
+  <p>시나리오의 각 단계에는 <b>어느 화면</b>과 <b>어느 MCP 도구</b>가 개입하는지를 태그로 붙였다.</p>
+
+  <p><span class="badge human">S3 스펙 상세</span> = 사람이 보는 화면(S1 홈 대시보드 / S2 프로젝트 개요 / S3 스펙 상세 / S4 작업 보드 / S5 세션 모니터 / S6 리뷰 센터 / S7 승인함 / S8 설정·멤버) — 상세 와이어프레임은 <a href="ui-wireframes.html">3.6 화면 설계</a>.<br>
+  <span class="badge agent">nerv_task_claim</span> = 에이전트가 호출하는 MCP 도구 — 전체 카탈로그는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a>. 사람은 이 호출을 직접 하지 않지만 그 결과는 항상 화면과 이벤트로 드러난다.</p>
+
+  <h3>2.2 페르소나 요약</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>페르소나</th><th>역할(Role)</th><th>지금(clemvion) 겪는 것</th><th>NERV에서의 주 무대</th><th>문제</th></tr></thead>
+    <tbody>
+      <tr><td><b>지민</b> · 프로덕트 기획자</td><td><code>planner</code></td><td>스펙은 저장소 안 md, 승인은 git 커밋. 에이전트 질문은 남의 터미널에 뜨고 사라진다</td><td>S3 스펙 상세, S7 승인함, S2 프로젝트 개요</td><td>P3·P7</td></tr>
+      <tr><td><b>서연</b> · 프로덕트 디자이너</td><td><code>designer</code></td><td>참여 경로 자체가 없음. 디자인 결정은 개발자 구두 전달 뒤 스펙에 흡수</td><td>S3 스펙 상세(design 타입), S7 승인함</td><td>P7</td></tr>
+      <tr><td><b>도현</b> · 개발자</td><td><code>developer</code></td><td>worktree 격리는 최상급이나 조정은 공백 — “다른 머신·세션이면 로컬에 안 보여”</td><td>S4 작업 보드, S5 세션 모니터, 터미널(Claude Code)</td><td>P1·P2·P4</td></tr>
+      <tr><td><b>하나</b> · QA 엔지니어</td><td><code>qa</code></td><td>리뷰 결론이 13,777개 md 안에 있고 검토 커밋 SHA조차 필드로 없다</td><td>S6 리뷰 센터, S2 커버리지, S4 작업 보드</td><td>P4·P5</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 신원이라는 개념의 부재</b>
+    <p><code>clemvion:plan/in-progress/</code>의 <code>owner</code> 값은 신원이 아니라 자유 텍스트 역할 라벨로 요동한다 — developer 17 / project-planner 8 / planner 5 / “developer (다음 진입자)” 1. 계정·hostname 개념이 없어 모든 confirm과 에스컬레이션이 단일 사용자 터미널로 수렴한다. 비개발 직군이 들어올 문이 구조적으로 없다(P7).</p>
+  </div></div>
+
+  <h3>2.3 기획자 지민의 하루</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th style="white-space:nowrap">시각</th><th>개입 지점</th><th>일어나는 일</th></tr></thead>
+    <tbody>
+      <tr><td>09:10</td><td><span class="badge human">S1 홈 대시보드</span></td><td>로그인하면 숫자 배지 세 개 — 승인 대기 2건, 답변 대기 질문 1건, 내 프로젝트 카드에 “활성 세션 3”. 어젯밤 도현의 에이전트가 남긴 질문이 아직 열려 있다는 게 한눈에 보인다.</td></tr>
+      <tr><td>09:25</td><td><span class="badge human">S3 스펙 상세</span></td><td>새 기능 “웹챗 위젯 임베드 v2”를 쓴다. 좌측 트리에서 <code>7-channel-web-chat</code> 영역을 골라 <code>feature</code> 타입 스펙을 만들고, 우측 패널에서 요구사항 3개를 EARS 템플릿으로 등록한다 — <i>WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다</i>. 각각 서버 발급 안정 ID(<code>REQ-CWC-031</code>)를 받는다(FR-03).</td></tr>
+      <tr><td>09:50</td><td><span class="badge human">S3 스펙 상세</span></td><td>“검토 요청”. 자동 사전 검토가 돈다(clemvion의 consistency-check 5관점을 플랫폼 서비스로 이식). 경고 2건 — 타 문서와 문구 불일치, Rationale 누락. 첫 번째는 참조 링크로 바꾸고(중복 서술이 drift의 근원, D-09) 두 번째를 채운 뒤 재제출. 문서 상태 <span class="badge draft">draft</span> → <span class="badge review">in_review</span> (D-02).</td></tr>
+      <tr><td>10:05</td><td><span class="badge human">S7 승인함</span> <span class="badge agent">nerv_question_create</span></td><td>어제 열린 질문 카드: <i>“세션 복원을 localStorage로 할지 서버 세션으로 할지 — 스펙에 명시 없음. (A)/(B)/(C) 스펙에 남길 질문”</i>. (B)를 고르고 한 줄 코멘트. 즉시 “요청 세션 <code>mac-02/claude-code</code>에 전달됨” 표시 — 도현의 세션이 <code>awaiting_input</code>에서 풀렸다는 뜻이다(FR-11).</td></tr>
+      <tr><td>14:30</td><td><span class="badge human">S3 스펙 상세</span></td><td>헤딩 앵커 코멘트에 서연(“빈 상태 정의 없음”)과 도현(“복원 실패 폴백 필요”)의 지적. 새 draft 버전으로 반영 → 두 사람 승인 → <span class="badge approved">approved</span>. 본문이 불변 스냅샷으로 고정되고 이전 버전은 <code>superseded</code>가 된다(FR-02).</td></tr>
+      <tr><td>14:45</td><td><span class="badge human">S4 작업 보드</span></td><td>승인된 SpecVersion에서 Task를 파생한다. 위임 명세 4요소(목표/산출물 형식/도구·출처/경계)를 채워야 하고 하나라도 비면 <code>ready</code>로 전이하지 않는다(FR-05). “경계” 칸: <i>“프론트엔드 위젯 코드만. 서버 세션 API는 별도 Task.”</i></td></tr>
+      <tr><td>17:00</td><td><span class="badge human">S2 프로젝트 개요</span></td><td>커버리지 게이지 — 요구사항 41개 중 implemented 28 · verified 19. 이 숫자는 누가 문서에 ✅를 찍어서 나온 게 아니라 Requirement↔Task↔PR↔Review 관계에서 계산된 값이다(D-03·FR-13).</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">지금과 무엇이 다른가</b>
+    <p>clemvion에서 스펙 승인은 문서 리뷰 상태 없이 LLM consistency-check 통과 후 planner가 직접 커밋하는 방식이고, 구현 상태는 <b>문서 단위 <code>status</code> 값 하나</b>다. 그래서 1,750줄짜리 <code>clemvion:spec/5-system/4-execution-engine.md</code>가 <code>implemented</code>여도 그 안의 요구사항 하나(CCH-SE-02)가 통째로 미구현인 채 최근까지 발견되지 않았다. D-02(2축 분리)와 FR-03(요구사항 단위 추적)이 이 사각을 닫는다.</p>
+  </div></div>
+
+  <h3>2.4 디자이너 서연의 하루</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th style="white-space:nowrap">시각</th><th>개입 지점</th><th>일어나는 일</th></tr></thead>
+    <tbody>
+      <tr><td>09:40</td><td><span class="badge human">S1 홈 대시보드</span></td><td>알림: “지민이 검토 요청 — 리뷰어로 지정됨”. 서연은 저장소를 clone한 적이 없고 터미널을 열 필요도 없다(P7 해소).</td></tr>
+      <tr><td>10:00</td><td><span class="badge human">S3 스펙 상세</span></td><td>“위젯 최초 진입” 헤딩에 앵커 코멘트: <i>“빈 상태(empty state)와 오프라인 상태 정의가 없습니다. 두 케이스 모두 화면이 필요합니다.”</i> 코멘트는 스레드가 되고 답이 오면 알림으로 돌아온다.</td></tr>
+      <tr><td>11:20</td><td><span class="badge human">S3 스펙 상세</span></td><td><code>design</code> 타입 스펙 “웹챗 위젯 v2 — 상태별 화면”을 만들고 상위 feature 스펙과 관계를 건다. 상세 시안은 외부 디자인 도구 링크로. <b>디자인 결정이 처음으로 스펙 그래프의 노드가 된다</b> — 지금까지는 구두 전달 뒤 개발자가 요약해 스펙에 흡수하는 형태였다.</td></tr>
+      <tr><td>14:00</td><td><span class="badge human">S7 승인함</span></td><td>도현의 에이전트가 구현 중 발견해 올린 CR 제안(SPEC-DRIFT 역류 경로 — clemvion 검증 패턴의 플랫폼판). 델타 뷰가 <b>ADDED 2 / MODIFIED 1 / REMOVED 0</b>으로 표시되어 <b>변경분만</b> 읽는다. MODIFIED 한 건이 디자인 토큰 이름을 바꾸는 내용이라 코멘트를 달아 거절(FR-04·FR-11).</td></tr>
+      <tr><td>16:30</td><td><span class="badge human">S5 세션 모니터</span></td><td>구현 진행이 궁금해 세션 보드를 연다. <code>mac-02 / claude-code / 도현</code> 세션이 <span class="badge impl">active</span>, 현재 Task “위젯 상태별 렌더링”, diff <code>+218 −34</code>. Activity 타임라인에서 어떤 스펙을 읽고 무엇을 고쳤는지 시간순으로 보인다(FR-08). 아무것도 클릭하지 않고 닫는다 — <b>물어보지 않아도 안다</b>는 것이 이 화면의 값이다.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="ico">💡</span><div class="body">
+    <b class="title">차용한 패턴</b>
+    <p>디자이너가 “델타만 읽는” 경험은 OpenSpec의 ADDED/MODIFIED/REMOVED 델타 모델을 서버로 승격한 것이고, 검토 피로를 줄이는 이 UX가 “버그 하나에 16개 acceptance criteria” 비판에 대한 직접적인 답이다(D-06).</p>
+  </div></div>
+
+  <h3>2.5 개발자 도현의 하루</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th style="white-space:nowrap">시각</th><th>개입 지점</th><th>일어나는 일</th></tr></thead>
+    <tbody>
+      <tr><td>09:05</td><td><span class="badge agent">nerv_session_event</span> <span class="badge agent">nerv_bootstrap</span></td><td>Claude Code를 연다. NERV 플러그인이 SessionStart 훅으로 세션을 등록 — 사용자·hostname(<code>mac-02</code>)·에이전트 종류(<code>claude-code</code>)·브랜치가 서버에 뜬다. <code>pending → active</code> (D-13). bootstrap 응답에 규약·역할 권한·열린 질문 수가 담긴다.</td></tr>
+      <tr><td>09:07</td><td><span class="badge agent">nerv_task_next</span></td><td>“다음 할 일”을 묻는다. 서버가 의존성 그래프로 계산한 ready 큐가 우선순위 순으로 온다. clemvion에서 이 질문의 답은 로드맵 표 + spec status + in-progress 풀(34건 중 13건 미착수) + 감사 스크립트 2종을 <b>사람이 눈으로 훑어 고르는 것</b>이었다.</td></tr>
+      <tr><td>09:08</td><td><span class="badge agent">nerv_task_claim</span> <span class="badge human">S4 작업 보드</span></td><td>1순위 Task 클레임 — scope 선언 <code>spec_ids: [SPC-CWC-007]</code>, <code>file_globs: ["codebase/frontend/src/widget/**"]</code>. 서버가 <b>겹침을 감지</b>: <i>“세션 <code>linux-ci-01/codex/유나</code>가 같은 glob을 30분째 점유 중(리스 잔여 8분)”</i>. 2순위로 넘어간다. 이 한 번의 응답이 P1·P2를 동시에 막는다.</td></tr>
+      <tr><td>09:12</td><td><span class="badge agent">nerv_spec_get</span> <span class="badge agent">nerv_spec_tree</span></td><td>승인된 SpecVersion 본문과 연결 Requirement를 읽는다. <b>파일 경로가 아니라 안정 ID</b>로 읽으므로 문서를 옮기거나 이름을 바꿔도 참조가 깨지지 않는다(FR-01).</td></tr>
+      <tr><td>09:15~11:40</td><td><span class="badge agent">nerv_task_heartbeat</span></td><td>TDD로 구현이 돈다. 60초마다 하트비트. S4 카드에는 리스 잔여가 줄어들고, S5에는 diff 통계가 5초 이내로 갱신된다(NFR-02).</td></tr>
+      <tr><td>10:30</td><td><span class="badge agent">nerv_question_create</span> <span class="badge human">S7 승인함</span></td><td>세션 복원 방식이 스펙에 없다. 에이전트는 <b>추측하지 않고</b> 선택지 3개를 붙여 질문을 만든다. 세션 <code>active → awaiting_input</code>. 20분 뒤 답이 오면 자동 재개. “명확하면 자동, 모호하면 질문” 규약은 스킬에 명시되고 질문·응답은 감사 로그에 남는다(FR-16).</td></tr>
+      <tr><td>13:00</td><td><span class="badge human">S5 세션 모니터</span></td><td>점심 사이 유나의 세션이 절전으로 끊겼다. 하트비트가 30분간 없어 <code>stale</code> 자동 전이, 잡고 있던 Task는 <code>claimed → ready</code>로 자동 회수(D-13·FR-06). <b>아무도 이걸 정리하지 않았다</b> — clemvion에서는 6시간 주기 GC reaper를 기다렸고, 그 reaper조차 타 세션의 앵커를 죽일 수 있다는 한계를 스스로 적어 두었다.</td></tr>
+      <tr><td>15:20</td><td><span class="badge agent">nerv_review_submit</span> <span class="badge human">S6 리뷰 센터</span></td><td>리뷰를 돌린다. ReviewSession이 <b>입력 스냅샷(커밋 SHA·diff base·브랜치)</b>과 함께 제출된다. 세션 디렉토리 하나에 md가 평균 10.7개(66KB) 쌓이는 대신 Finding 6건이 fingerprint와 함께 등록된다(D-07·FR-09). <b>자기증식 루프가 여기서 끊긴다.</b></td></tr>
+      <tr><td>16:10</td><td><span class="badge agent">nerv_finding_resolve</span></td><td>critical 2건을 수정하고 커밋 FK와 함께 해소, warning 1건은 사유를 달아 <code>wont_fix</code>. 라운드가 바뀌어도 같은 지적은 fingerprint로 하나의 Finding에 합쳐지므로 “유예 항목을 세션마다 재서술”하는 낭비가 사라진다.</td></tr>
+      <tr><td>16:40</td><td><span class="badge agent">nerv_task_update</span> <span class="badge human">S4 작업 보드</span></td><td>Task를 <span class="badge done">done</span>으로. 서버가 게이트를 판정한다 — <i>“이 커밋 범위를 커버하는 해소된 리뷰가 있는가”</i>(FR-10). 통과. clemvion에서 이 판정은 1,005줄 push 훅이 정규식으로 <code>git push</code>를 감지하고 경로 타임스탬프를 rewrite-immune 시계로 파싱해 내리던 것이었다.</td></tr>
+      <tr><td>17:30</td><td><span class="badge agent">nerv_session_event</span></td><td>SessionEnd 훅이 세션을 <code>complete</code>로 닫는다. 보드에서 카드가 내려가고 오늘의 Activity·질문·리뷰·게이트 판정이 전부 이벤트로 남는다.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>도현이 13:00에 본 화면 (S5 세션 모니터 = 미션 컨트롤)</b></p>
+
+  <div class="wf">
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/sessions</div></div>
+    <div class="wf-body">
+      <div class="wf-side">
+        <div class="wf-nav-item">🏠 대시보드</div>
+        <div class="wf-nav-item">📄 스펙</div>
+        <div class="wf-nav-item">✅ 작업</div>
+        <div class="wf-nav-item on">🖥️ 세션</div>
+        <div class="wf-nav-item">🔍 리뷰</div>
+        <div class="wf-nav-item">📥 승인함</div>
+      </div>
+      <div class="wf-main">
+        <div class="wf-topbar"><span class="ttl">세션 모니터 <span class="marker">1</span></span>
+          <span class="wf-input">🔍 사용자·hostname 필터…</span><span class="wf-btn">자동 갱신 ≤5s</span></div>
+        <div class="wf-panel">
+          <div class="wf-panel-hd">활성 3 · 입력 대기 1 · stale 1 <span class="spacer"></span><span class="marker">2</span></div>
+          <div class="wf-row">
+            <span class="wf-dot on"></span>
+            <span class="grow">위젯 상태별 렌더링<span class="sub">도현 · mac-02 · claude-code · feature/widget-v2</span></span>
+            <span class="badge impl">active</span><span class="wf-btn ghost">+218 −34</span><span class="wf-avatar">도</span>
+          </div>
+          <div class="wf-row sel">
+            <span class="wf-dot idle"></span>
+            <span class="grow">세션 복원 방식 질문 대기<span class="sub">도현 · mac-02 · claude-code · 10:30부터 대기</span></span>
+            <span class="badge blocked">awaiting_input</span><span class="wf-btn primary">질문 응답</span><span class="wf-avatar bot">AI</span>
+          </div>
+          <div class="wf-row">
+            <span class="wf-dot on"></span>
+            <span class="grow">E2E 시나리오 보강<span class="sub">하나 · mac-07 · claude-code · 하트비트 0:41 전</span></span>
+            <span class="badge impl">active</span><span class="wf-btn ghost">+64 −5</span><span class="wf-avatar a2">하</span>
+          </div>
+          <div class="wf-row">
+            <span class="wf-dot off"></span>
+            <span class="grow">세션 복원 API<span class="sub">유나 · linux-ci-01 · codex · 하트비트 31:20 전 → 클레임 회수됨</span> <span class="marker">3</span></span>
+            <span class="badge blocked">stale</span><span class="wf-btn ghost">로그 보기</span><span class="wf-avatar a3">유</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <ul class="wf-legend">
+    <li><span class="marker">1</span><span>전역 세션 보드 — 사용자·hostname·에이전트 종류·상태·현재 Task·하트비트·diff 통계를 한 화면에(FR-07·FR-08). clemvion에서 이 정보는 statusline 한 줄이었고 타 호스트는 0%가 보였다.</span></li>
+    <li><span class="marker">2</span><span>상태 dot은 세션 상태 머신 6값(<code>pending / active / awaiting_input / complete / error / stale</code>)에 대응한다(D-13).</span></li>
+    <li><span class="marker">3</span><span>무활동 30분 초과 → <code>stale</code> 자동 전이 + 클레임 자동 회수. 사람이 죽은 세션을 감시하지 않는다(FR-06).</span></li>
+  </ul>
+
+  <h3>2.6 QA 하나의 하루</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th style="white-space:nowrap">시각</th><th>개입 지점</th><th>일어나는 일</th></tr></thead>
+    <tbody>
+      <tr><td>09:30</td><td><span class="badge human">S6 리뷰 센터</span></td><td>finding 큐를 severity로 필터 — 지난 24시간 critical 3 · warning 17 · info 42. 각 Finding은 코드 위치·검토 커밋·<b>유래한 스펙/Requirement</b>·해결 이력을 갖는다. 하나가 하는 일은 AI 리뷰를 다시 읽는 게 아니라 <b>위험 판단</b>이다 — 인증·결제·마이그레이션에 닿는 것을 골라 올린다.</td></tr>
+      <tr><td>10:15</td><td><span class="badge human">S6 리뷰 센터</span></td><td><code>spec_drift</code> 태그가 붙은 finding: 구현이 스펙보다 낫다고 판단된 케이스. 코드를 되돌리는 대신 CR 제안 경로로 라우팅한다(clemvion의 SPEC-DRIFT 규약 이식 — D-07).</td></tr>
+      <tr><td>11:00</td><td><span class="badge human">S2 프로젝트 개요</span></td><td>커버리지 게이지에서 <code>verified</code>가 낮은 영역을 드릴다운. <code>REQ-CWC-018</code>은 implemented지만 연결된 테스트 증적이 없다 → 검증 Task를 만든다(FR-13).</td></tr>
+      <tr><td>14:00</td><td><span class="badge human">S4 작업 보드</span></td><td>검증을 마친 요구사항을 <code>implemented → verified</code>로. 이 전이는 qa(및 admin) 역할만 가능하다(FR-14). 커버리지 숫자가 즉시 바뀐다.</td></tr>
+      <tr><td>15:30</td><td><span class="badge human">S6 리뷰 센터</span></td><td>게이트 현황: <code>feature/widget-v2</code> 커버됨, <code>hotfix/session-restore</code>에 <b>BYPASS 기록 1건</b> — 어제 밤 배포에서 게이트를 면제한 사람과 사유가 남아 있다. 그 커밋 범위에 사후 리뷰를 예약한다. <b>면제가 조용히 일어나지 않는다는 것 자체가 기능</b>이다(D-14·FR-10).</td></tr>
+      <tr><td>16:20</td><td><span class="badge human">S8 설정·멤버</span></td><td>게이트 정책 조정 — 저위험 변경(오탈자·주석)은 자동 통과, 인증·결제 경로 변경은 사람 승인 필수. 위험 분류(P0~P3)를 게이트 티어에 직결하는 설계는 필드 리포트의 권고를 정책 UI로 옮긴 것이다.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">AI 리뷰만으로는 부족하다</b>
+    <p>생성 에이전트와 검토 에이전트가 같은 훈련 분포를 공유하면 실패가 상관된다. NERV는 AI 리뷰(FR-09)를 1차 필터로, 사람 승인(FR-11)을 위험 판단으로 계층 분리한다. 하나의 하루가 “AI가 찾은 걸 다시 읽는 하루”가 아니라 <b>“무엇이 위험한지 고르는 하루”</b>인 이유다.</p>
+  </div></div>
+
+  <h3>2.7 네 시나리오가 공통으로 통과하는 지점</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>개입 지점</th><th>등장 인물</th><th>화면</th><th>요구사항</th></tr></thead>
+    <tbody>
+      <tr><td>① 스펙/CR 승인</td><td>지민·서연</td><td>S3, S7</td><td>FR-02·FR-04·FR-11</td></tr>
+      <tr><td>② 플랜 승인(대형 작업 착수 전)</td><td>지민</td><td>S7</td><td>FR-05·FR-11</td></tr>
+      <tr><td>③ 에이전트 질문(<code>awaiting_input</code>)</td><td>도현의 세션 → 지민</td><td>S7</td><td>FR-11·FR-12</td></tr>
+      <tr><td>④ PR 머지·CI 실행</td><td>도현·하나</td><td>git forge(연동)</td><td>FR-10·D-06</td></tr>
+      <tr><td>⑤ 게이트 면제(BYPASS)</td><td>하나</td><td>S6, S8</td><td>FR-10·FR-16·D-14</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>이 4+1 게이트가 D-06의 표준 게이트다. clemvion에는 이 지점들이 이미 전부 존재하지만(merge confirm 2회·conflict patch 승인·e2e 면제·BLOCK 해소·stale grooming) 전부 한 사람의 터미널 대화로 수렴한다. NERV는 같은 지점을 <b>수신함 항목</b>으로 바꿀 뿐이다.</p>
+
+  <h2 id="sec-3">3. 핵심 여정 3개</h2>
+
+  <h3>3.1 여정 A — 스펙 제안 → 검토 → 승인 → 작업 파생</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 250" role="img" aria-label="여정 A: 스펙 draft에서 자동 사전 검토, 검토 요청, 승인, Task 파생, ready 큐까지의 흐름">
+      <defs>
+        <marker id="a-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <rect x="14" y="40" width="116" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="72" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">스펙 draft</text>
+      <text x="72" y="80" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S3 · 기획자</text>
+
+      <line x1="130" y1="66" x2="166" y2="66" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+      <rect x="166" y="40" width="126" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="229" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">자동 사전 검토</text>
+      <text x="229" y="80" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">일관성 5관점</text>
+
+      <line x1="292" y1="66" x2="328" y2="66" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+      <rect x="328" y="40" width="126" height="52" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="391" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">in_review</text>
+      <text x="391" y="80" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S7 승인함 · 리뷰어</text>
+
+      <line x1="454" y1="66" x2="490" y2="66" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+      <rect x="490" y="40" width="126" height="52" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="553" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">approved</text>
+      <text x="553" y="80" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">불변 스냅샷 고정</text>
+
+      <path d="M391 92 L391 116 L229 116 L229 138" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a-arr)"/>
+      <text x="320" y="131" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">코멘트 → 새 draft 버전</text>
+
+      <rect x="166" y="138" width="126" height="48" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="229" y="167" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">수정 반영</text>
+
+      <path d="M292 162 L328 162 L328 92" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a-arr)"/>
+
+      <path d="M553 92 L553 138" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a-arr)"/>
+      <rect x="466" y="138" width="174" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="553" y="160" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">Requirement 추출 · Task 파생</text>
+      <text x="553" y="178" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">위임 명세 4요소 검사 (FR-05)</text>
+
+      <path d="M553 190 L553 214" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a-arr)"/>
+      <rect x="466" y="214" width="174" height="30" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="553" y="234" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">ready 큐 → nerv_task_next</text>
+
+      <text x="14" y="234" fill="var(--text-mute)" font-family="var(--font)" font-size="11">이전 버전은 superseded로 전이하고, 이후 변경은 반드시 CR을 거친다 (FR-04)</text>
+    </svg>
+    <div class="cap">그림 2. 여정 A — 승인이 git 커밋이 아니라 <b>결재 레코드</b>가 된다. approved 이후 본문은 불변이다.</div>
+  </div>
+
+  <p>핵심은 <b>승인이 결재 레코드가 된다</b>는 점이다. 지금은 승인의 흔적이 git 커밋과 PR 대화에 묻혀 있어 “누가 언제 무슨 근거로 이 스펙을 확정했는가”를 재구성하려면 git 고고학이 필요하다.</p>
+
+  <h3>3.2 여정 B — 에이전트 구현 세션의 전 과정</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 540" role="img" aria-label="여정 B: Claude Code 세션과 NERV 서버, 기획자 사이의 시퀀스 다이어그램">
+      <defs>
+        <marker id="b-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+        <marker id="b-arr-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+      </defs>
+
+      <rect x="20" y="14" width="180" height="34" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="110" y="36" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">Claude Code · mac-02</text>
+      <rect x="290" y="14" width="180" height="34" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="380" y="36" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">NERV (MCP · API)</text>
+      <rect x="560" y="14" width="140" height="34" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="630" y="36" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">기획자 (S7)</text>
+
+      <line x1="110" y1="48" x2="110" y2="516" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="3 4"/>
+      <line x1="380" y1="48" x2="380" y2="516" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="3 4"/>
+      <line x1="630" y1="48" x2="630" y2="516" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="3 4"/>
+
+      <text x="245" y="72" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">SessionStart 훅 → 세션 등록 (pending→active)</text>
+      <line x1="110" y1="80" x2="374" y2="80" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="102" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_bootstrap — 규약 · 권한 · 열린 질문</text>
+      <line x1="110" y1="110" x2="374" y2="110" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="132" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_task_next</text>
+      <line x1="110" y1="140" x2="374" y2="140" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="162" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">ready 큐 (의존성 그래프 계산)</text>
+      <line x1="380" y1="170" x2="116" y2="170" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="5 3" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="192" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_task_claim — scope: spec_ids + globs</text>
+      <line x1="110" y1="200" x2="374" y2="200" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="222" text-anchor="middle" fill="var(--accent)" font-family="var(--font)" font-size="11" font-weight="700">⚠ 겹침 경고 — 타 세션이 같은 glob 점유 중</text>
+      <line x1="380" y1="230" x2="116" y2="230" stroke="var(--accent)" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#b-arr-a)"/>
+
+      <text x="245" y="252" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_task_claim (차순위) → claimed + 리스 TTL</text>
+      <line x1="110" y1="260" x2="374" y2="260" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <path d="M110 282 L176 282 L176 300 L116 300" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+      <text x="186" y="296" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_task_heartbeat — 60초 주기로 리스 연장 (D-13)</text>
+
+      <text x="245" y="326" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_question_create → 세션 awaiting_input</text>
+      <line x1="110" y1="334" x2="374" y2="334" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="505" y="356" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">승인함 카드 + 알림</text>
+      <line x1="380" y1="364" x2="624" y2="364" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="505" y="386" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">선택지 (B) + 코멘트 — 원클릭</text>
+      <line x1="630" y1="394" x2="386" y2="394" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="416" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">응답 전달 → active 재개</text>
+      <line x1="380" y1="424" x2="116" y2="424" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="5 3" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="446" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_review_submit — 커밋 SHA · diff base · 브랜치</text>
+      <line x1="110" y1="454" x2="374" y2="454" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="476" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_finding_resolve · nerv_task_update(done)</text>
+      <line x1="110" y1="484" x2="374" y2="484" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
+
+      <text x="245" y="506" text-anchor="middle" fill="var(--accent)" font-family="var(--font)" font-size="11" font-weight="700">게이트 판정 통과 → done 전이 승인 (FR-10)</text>
+      <line x1="380" y1="514" x2="116" y2="514" stroke="var(--accent)" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#b-arr-a)"/>
+    </svg>
+    <div class="cap">그림 3. 여정 B — 클레임·하트비트·질문·리뷰·게이트가 전부 MCP 도구 호출과 서버 상태 전이로 표현된다.</div>
+  </div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-04 · 동시성 제어는 원자적 클레임 + 리스(lease)</b>
+    <p>ready 판정(의존성 그래프) → <code>nerv_task_claim</code>(assignee+상태 원자 전환) → TTL 리스 + 하트비트 → 만료 시 자동 회수. 클레임 시 scope(<code>spec_ids</code>·<code>file_globs</code>)를 선언해 겹침을 경고·차단하고, ID는 서버가 해시 기반으로 발급해 파일 기반 번호 충돌을 원천 제거한다.</p>
+  </div></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-14 · 게이트는 fail-open + 관측 + 격상, 진실은 서버 산출물</b>
+    <p>판정 불가 시 진행은 허용하되 배너와 연속 카운터를 남기고, 임계 초과 시 “게이트가 사실상 꺼짐”으로 격상한다. 에이전트의 자기보고(STATUS)와 실제 산출물 업로드는 분리 검증한다 — clemvion의 “디스크가 arbiter” 원칙의 서버 번역이다.</p>
+  </div></div>
+
+  <h3>3.3 여정 C — 리뷰 finding → 해결 → 커버리지 갱신</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 280" role="img" aria-label="여정 C: Finding 상태 머신과 해소가 촉발하는 세 가지 연쇄 갱신">
+      <defs>
+        <marker id="c-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <rect x="14" y="20" width="180" height="46" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="104" y="40" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">ReviewSession 제출</text>
+      <text x="104" y="57" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">커밋 SHA · diff base · 브랜치 필수</text>
+
+      <line x1="194" y1="43" x2="228" y2="43" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#c-arr)"/>
+
+      <rect x="228" y="20" width="120" height="46" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="288" y="40" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">Finding · open</text>
+      <text x="288" y="57" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">fingerprint dedup</text>
+
+      <path d="M348 32 L406 32" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#c-arr)"/>
+      <text x="377" y="24" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">수정 커밋 FK</text>
+      <rect x="406" y="16" width="104" height="30" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="458" y="36" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">fixed</text>
+
+      <path d="M348 48 L406 56" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#c-arr)"/>
+      <rect x="406" y="54" width="104" height="28" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="458" y="73" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">dismissed (사유)</text>
+
+      <path d="M348 62 L406 96" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#c-arr)"/>
+      <rect x="406" y="90" width="104" height="28" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="458" y="109" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">wont_fix (유예)</text>
+
+      <path d="M510 104 L560 104 L560 43 L348 43" fill="none" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#c-arr)"/>
+      <text x="572" y="80" fill="var(--text-mute)" font-family="var(--font)" font-size="10">새 근거로 재상정</text>
+
+      <path d="M288 66 L288 140" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#c-arr)"/>
+      <text x="278" y="118" text-anchor="end" fill="var(--accent)" font-family="var(--font)" font-size="11" font-weight="700">해소 시 3가지가 연쇄 갱신</text>
+
+      <rect x="14" y="150" width="222" height="66" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="125" y="174" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">① 게이트 판정</text>
+      <text x="125" y="193" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">“이 커밋 범위를 커버하는</text>
+      <text x="125" y="208" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">해소된 리뷰가 있는가” → done 전이</text>
+
+      <rect x="248" y="150" width="222" height="66" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="359" y="174" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">② 증적 그래프</text>
+      <text x="359" y="193" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">Requirement↔Task↔PR/커밋↔Review에</text>
+      <text x="359" y="208" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">간선 추가 (FR-13)</text>
+
+      <rect x="482" y="150" width="222" height="66" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="593" y="174" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">③ 커버리지 수치</text>
+      <text x="593" y="193" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S2 게이지 · S6 게이트 현황 재계산</text>
+      <text x="593" y="208" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">사람이 ✅를 찍는 단계 없음 (D-03)</text>
+
+      <rect x="14" y="234" width="690" height="34" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="359" y="256" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">게이트 판정이 1,005줄 정규식 훅에서 <tspan font-weight="700">서버 SQL 질의</tspan>로 바뀐다 — rewrite-immune 시계가 통째로 불필요해진다</text>
+    </svg>
+    <div class="cap">그림 4. 여정 C — Finding 하나의 해소가 게이트·증적·커버리지 세 곳을 동시에 갱신한다.</div>
+  </div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · provenance는 실제로 끊겨 있다</b>
+    <p>지금은 리뷰가 검토한 커밋 SHA·diff base·브랜치·PR 번호가 <code>meta.json</code>에 <b>필드 자체가 없어서</b>, 표본 SUMMARY 200개 중 해시를 언급한 것은 47개뿐이다. 나머지 provenance는 산문과 세션 디렉토리 절대경로의 부산물로만 남는다(P5). 게다가 산문 규약의 무결성은 실제로 무너졌다 — forced reviewer 미충족 <b>160/575 세션(28%)</b>, checker CRITICAL을 <code>BLOCK: NO</code>로 하향한 모순 <b>24/732(3.3%)</b>. 이런 불변식은 산문이 아니라 스키마 제약과 알림으로 강제해야 한다.</p>
+  </div></div>
+
+  <h2 id="sec-4">4. Build vs Buy</h2>
+
+  <h3>4.1 판단 기준 6축</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>축</th><th>무엇을 묻는가</th><th>대응 요구사항</th></tr></thead>
+    <tbody>
+      <tr><td><b>A. 스펙 도메인 모델</b></td><td>불변 SpecVersion·안정 ID·Requirement 2축 상태·CR 델타가 1급 개념인가</td><td>FR-01~FR-04</td></tr>
+      <tr><td><b>B. 에이전트 조정</b></td><td>원자적 클레임·scope 겹침 감지·리스 만료 회수·세션 레지스트리(사용자·hostname)를 제공하는가</td><td>FR-05~FR-08</td></tr>
+      <tr><td><b>C. 리뷰·게이트·출처</b></td><td>ReviewSession 커밋 스냅샷·Finding dedup·커버리지 게이트 판정 API가 있는가</td><td>FR-09·FR-10·FR-13</td></tr>
+      <tr><td><b>D. 직군 참여·승인</b></td><td>비개발 직군이 터미널·저장소 없이 승인/코멘트하는가</td><td>FR-11·FR-12·FR-14</td></tr>
+      <tr><td><b>E. 자가호스팅·라이선스</b></td><td>docker-compose 자가호스팅이 되는가, 코드 차용에 제약이 없는가</td><td>NFR-01·NFR-03</td></tr>
+      <tr><td><b>F. clemvion 이관</b></td><td>384 spec md·450 plan md·리뷰 이력을 흡수할 수 있는가</td><td>FR-17·D-12</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>4.2 후보별 비교표 (각 셀에 근거)</h3>
+
+  <p>범례: ◎ 충분 · ○ 부분 충족 · △ 흉내 가능하나 구조적 공백 · ✗ 없음</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr>
+      <th style="min-width:130px">후보</th>
+      <th style="min-width:200px">A. 스펙 도메인 모델</th>
+      <th style="min-width:200px">B. 에이전트 조정</th>
+      <th style="min-width:200px">C. 리뷰·게이트·출처</th>
+      <th style="min-width:170px">D. 직군 참여·승인</th>
+      <th style="min-width:150px">E. 자가호스팅·라이선스</th>
+      <th style="min-width:180px">NERV의 결론</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Linear</b><br>(+ Agents)</td>
+        <td><b>✗</b> 이슈·프로젝트·문서는 있으나 불변 SpecVersion·Requirement 안정 ID·EARS·ADDED/MODIFIED/REMOVED 델타 개념이 없다. 문서 승인 축(D-02)이 이슈 상태로 뭉개진다</td>
+        <td><b>△</b> 세션 모델은 업계 최고 수준(6상태 + webhook 5초·최초 activity 10초·무활동 30분 stale SLA)이지만 클레임 단위가 <b>이슈 할당</b>이라 <code>spec_ids·file_globs</code> scope 겹침 감지·리스 만료 회수가 없다</td>
+        <td><b>✗</b> 코딩 세션 diff를 Reviews 탭에서 보지만 ReviewSession 커밋 스냅샷·Finding fingerprint·“커밋 범위 커버리지” 판정 API가 없다</td>
+        <td><b>○</b> Inbox(Linear 자체 수신함) 알림·코멘트·delegate 표시가 성숙. 27+ 서드파티 에이전트 디렉토리로 생태계도 검증</td>
+        <td><b>✗</b> 상용 SaaS, 자가호스팅 불가 → NFR-01 위배</td>
+        <td><b>모델 차용 + 선택적 연동.</b> assignee/delegate 분리와 6상태+SLA를 D-08·D-13으로 이식. 이미 쓰는 조직에는 Task 미러</td>
+      </tr>
+      <tr>
+        <td><b>Jira + Rovo</b></td>
+        <td><b>✗</b> Confluence 문서에 버전은 있으나 Requirement 단위 추적·구현 2축·증적 그래프가 없다. 커스텀 필드로 흉내 내면 FR-13 커버리지가 다시 수동 집계로 회귀</td>
+        <td><b>△</b> 워크플로 엔진은 강력하고 트리거 표면이 4종(assignee·@멘션·상태 전환·보드 컬럼)이지만 원자적 클레임·하트비트 리스·hostname 세션 레지스트리 개념이 없다</td>
+        <td><b>△</b> 워크플로 조건 게이트는 있으나 “이 커밋 범위를 커버하는 해소된 리뷰”라는 판정이 아니다. Jira Coding Agent는 draft PR을 만들고 머지는 사람에게 넘긴다</td>
+        <td><b>◎</b> 전 직군이 이미 쓰는 표준. 에이전트 출력을 트리거한 사람만 먼저 보고 draft comment로 팀에 공개하는 단계 공개가 검증됨</td>
+        <td><b>△</b> 상용, Cloud 중심</td>
+        <td><b>연동 대상.</b> 이슈·워크플로는 Jira에, 스펙 도메인은 NERV에. 단계 공개 패턴은 차용</td>
+      </tr>
+      <tr>
+        <td><b>Notion</b></td>
+        <td><b>△</b> 문서·DB로 흉내는 가능하지만 불변 스냅샷·안정 ID·Requirement 2축은 결국 <b>사람의 규율</b>로 남는다 — clemvion이 이미 실패한 방식(산문 계약 붕괴 28%)</td>
+        <td><b>✗</b> 세션·클레임·리스 개념 없음. 커스텀 에이전트 트리거(스케줄·Slack·메일·DB 변경)는 자동화지 조정이 아니다</td>
+        <td><b>✗</b> 리뷰 엔티티·게이트 판정 없음</td>
+        <td><b>◎</b> 비개발 직군 접근성은 최상</td>
+        <td><b>✗</b> 상용 SaaS</td>
+        <td><b>UX·원칙 차용.</b> “모든 run은 로그로 남고 되돌릴 수 있다”(가역성)와 MCP를 Markdown 지향으로 재설계한 교훈을 NERV MCP 설계에 반영</td>
+      </tr>
+      <tr>
+        <td><b>GitHub Projects</b><br>(+ Agent HQ)</td>
+        <td><b>✗</b> 이슈·프로젝트 필드는 자유 텍스트. Spec Kit이 <code>taskstoissues</code>로 내보내는 것은 파일→이슈 변환이지 스펙 모델이 아니다</td>
+        <td><b>△</b> 이슈 assign 기반. mission control은 <b>자사 클라우드 세션</b>을 보여줄 뿐 사내 개발자 머신의 Claude Code/Codex 로컬 세션 레지스트리가 아니다(P8의 핵심). 원자적 클레임·scope 겹침 없음</td>
+        <td><b>○ / ✗</b> 코드 리뷰·CI·감사(<code>actor_is_agent</code>, <code>agent_session.task</code> 이벤트)·“지시자≠승인자”·“Approve and run workflows”는 그대로 쓸 값어치가 있다. 그러나 스펙 커버리지 게이트는 없고, 리뷰 산출물을 다시 git에 넣으면 P6가 재발한다</td>
+        <td><b>△</b> 기획·디자인 직군에 GitHub 계정과 개발자 UI를 요구한다</td>
+        <td><b>○</b> GHES로 자가호스팅 가능, 상용</td>
+        <td><b>연동 필수 · 대체 안 함(non-goal).</b> 코드·PR·CI·웹훅·머지 게이트는 git forge에 맡기고 NERV는 스펙↔PR 링크와 커버리지만 소유</td>
+      </tr>
+      <tr>
+        <td><b>spec-workflow-mcp</b><br>(GPL-3.0)</td>
+        <td><b>○ / ✗</b> requirements/design/tasks 3분할(Kiro 차용)과 <code>steering/</code> 문서까지 갖췄으나 전부 <b>로컬 파일</b>이라 버전·질의·안정 ID가 없다</td>
+        <td><b>✗</b> 계정·권한·원격 접근 개념 자체가 없는 단일 프로젝트 로컬 도구</td>
+        <td><b>△</b> 승인 라이프사이클(request→feedback→revision→approve)은 있지만 리뷰 수집·게이트 판정은 없다</td>
+        <td><b>✗</b> 로컬 웹 대시보드(포트 5000) — 원격 팀 협업이 아니라 “1인+에이전트 협업”</td>
+        <td><b>✗ GPL-3.0</b> — 개념 참조는 가능하나 코드 차용 불가. npm 주간 601 다운로드, 마지막 푸시 2026-07-03</td>
+        <td><b>개념 증명으로만 인용.</b> “MCP 연동 + 웹 승인 대시보드”가 이미 소규모로 검증됐다는 증거. NERV는 여기에 계정·RBAC·알림·멀티프로젝트·hostname 신원을 더한 형태</td>
+      </tr>
+      <tr>
+        <td><b>Kiro · Spec Kit</b><br>(파일 기반 SDD)</td>
+        <td><b>○ / ✗</b> 문서 어휘는 사실상 표준(EARS 3파일, constitution). 그러나 상태는 md 체크박스이고 크로스 스펙 질의가 불가능하다</td>
+        <td><b>✗</b> 순차 번호가 동시 작업에서 충돌(#497·#2116, timestamp 옵션은 완화일 뿐). OpenSpec은 “One change, one owner” 규율과 git 충돌 해결에 위임하고 멀티유저 요청(#435)을 not planned로 종료</td>
+        <td><b>✗</b> 진행 추적의 상한이 로컬 대시보드(Kiro 태스크 wave 실행, spec-workflow-mcp 진행 바). 리뷰→스펙→구현 체인을 관리하는 도구는 없다</td>
+        <td><b>✗</b> IDE·CLI 로컬 뷰. 승인은 “채팅에서 OK”</td>
+        <td><b>○ / ✗</b> Spec Kit MIT(126,932 stars)·OpenSpec MIT(64,751 stars), Kiro는 상용(2025-11 GA, Free~$200/월)</td>
+        <td><b>어휘 공급원이자 임포트 대상.</b> 경쟁이 아니다. 3분할·constitution·델타를 DB 엔티티로 승격하고(FR-01~05) 서버 발급 ID로 번호 충돌을 원천 제거(D-04)</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <h3>4.3 표를 한 문장으로 압축하면</h3>
+
+  <div class="callout note"><span class="ico">💡</span><div class="body">
+    <b class="title">비어 있는 칸</b>
+    <p><b>세션·승인 모델을 가진 도구(Linear·GitHub)는 스펙 도메인이 없고, 스펙 도메인을 가진 도구(Kiro·Spec Kit·OpenSpec)는 멀티유저 조정이 없다.</b> 두 축이 만나는 칸이 비어 있고, 그 칸을 채우는 것이 NERV다. 이 진단은 두 리서치 문서에서 독립적으로 도출된다 — <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>의 “멀티유저 공백”과 <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>의 “에이전트=팀원 패러다임”.</p>
+  </div></div>
+
+  <h3>4.4 결론 — 만드는 것과 연동하는 것</h3>
+
+  <div class="grid-2">
+    <div class="card">
+      <b class="card-title">자체 구축 (Build)</b>
+      <ul>
+        <li><b>Spec / SpecVersion / Requirement / SpecRelation + CR 델타</b> — 어떤 후보도 불변 스냅샷 + 요구사항 2축 상태를 제공하지 않는다(§4.2 A열 전부 ✗ 또는 △)</li>
+        <li><b>Task / Claim / Lease + scope 겹침 판정</b> — 클레임을 원자적 연산으로 제공하는 후보가 없다. clemvion이 “로컬에 안 보여서” 제거한 기능의 복원</li>
+        <li><b>AgentSession 레지스트리 + typed Activity</b> — 로컬 CLI 세션(사내 hostname)을 보여주는 후보가 없다</li>
+        <li><b>ReviewSession / Finding / Resolution + 게이트 판정 API</b> — 커밋 스냅샷 기반 커버리지 판정을 제공하는 후보가 없다(P5·P6의 직접 해법)</li>
+        <li><b>승인함(Inbox) + 알림 라우팅</b> — 다섯 유형을 한 수신함에 모으는 후보가 없다</li>
+        <li><b>증적·커버리지 그래프</b> — 수동 ✅ 없이 관계에서 계산되는 커버리지를 제공하는 후보가 없다</li>
+      </ul>
+    </div>
+    <div class="card">
+      <b class="card-title">연동·구매 (Buy / Integrate)</b>
+      <ul>
+        <li><b>git forge(GitHub 등)</b> — 코드·PR·CI·머지 게이트. 대체는 non-goal. “지시자≠승인자”와 “Approve and run workflows”는 검증된 안전 기준선이라 그대로 쓴다</li>
+        <li><b>에이전트 런타임(Claude Code·Codex)</b> — 우리가 만들지 않는다. MCP tools-first + 훅으로 연동(D-05). 로컬 오케스트레이터는 단명한다는 실증(Crystal 2026-02 종료, vibe-kanban sunsetting)이 있어 어댑터는 얇게</li>
+        <li><b>알림 채널(Slack·메일)</b> — 자체 메시징을 만들지 않고 이벤트를 라우팅만 한다(FR-12)</li>
+        <li><b>인증(OAuth 2.1 / SSO)</b> — 표준을 구현하고 IdP는 조직 것을 쓴다(NFR-03)</li>
+        <li><b>기존 PM(Jira·Linear)</b> — 이미 쓰는 조직에는 Task 양방향 미러. 스펙 도메인만 NERV가 소유한다</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 id="sec-5">5. Non-goals와 성공 지표</h2>
+
+  <h3>5.1 Non-goals — 이번에 만들지 않는 것</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>안 만드는 것</th><th>대신</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td><b>코드 호스팅·PR·CI 대체</b></td><td>git forge 연동</td><td>코드는 계속 git에 산다(D-01). PR 승인 규칙은 forge 것이 이미 안전하다</td></tr>
+      <tr><td><b>범용 PM·이슈 트래커 대체</b></td><td>스펙 파생 Task만 1급, 나머지는 기존 도구 미러</td><td>마케팅 캠페인·채용까지 흡수하면 스펙 도메인의 초점을 잃는다</td></tr>
+      <tr><td><b>에이전트 런타임·모델 실행</b></td><td>Claude Code·Codex를 MCP·훅으로 연동(D-05)</td><td>벤더 표면은 빠르게 변한다. 표준화 대상은 도구가 아니라 패턴(클레임 API·세션 레지스트리·게이트)</td></tr>
+      <tr><td><b>실시간 공동 편집(CRDT)</b></td><td>Phase 3으로 이월. MVP는 md 에디터 + 헤딩 앵커 코멘트(D-09)</td><td>스펙 편집의 병목은 동시 타이핑이 아니라 승인·조정이다</td></tr>
+      <tr><td><b>로컬 하네스 전면 흡수</b></td><td>worktree 격리·브랜치 가드·로컬 린트는 로컬에 남긴다(D-12)</td><td>레이턴시 0이 필요한 것과 상태·조정·보관·판정을 분리한다</td></tr>
+      <tr><td><b>“스펙만 있으면 품질이 보장된다”는 주장</b></td><td>AI 리뷰(FR-09) 1차 + 사람 위험 판단(FR-11) 2차</td><td>생성·검토 에이전트의 훈련 분포가 같으면 실패가 상관된다는 경고가 필드 리포트에 있다</td></tr>
+      <tr><td><b>SaaS 멀티테넌트 상용화</b></td><td>자가호스팅 우선(NFR-01), SaaS화는 Phase 3+</td><td>첫 사용자는 우리 팀이다. 배포 복잡도를 먼저 줄인다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.2 성공 지표 — 체감이 아니라 계측</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>지표</th><th>측정 방법</th><th>현재 기준선</th><th>목표</th><th>관련</th></tr></thead>
+    <tbody>
+      <tr><td><b>중복 클레임</b></td><td>같은 Task를 두 세션이 동시에 <code>in_progress</code>로 가진 사건 수(이벤트 로그 질의)</td><td>검출 불가 — 동시수정 자동 검출이 “다른 머신·세션이면 로컬에 안 보여”로 제거됨</td><td><b>0건</b> (Phase 0 검증: 두 호스트·세 세션 동시 작업)</td><td>FR-06</td></tr>
+      <tr><td><b>스펙 충돌 재작업</b></td><td>scope 겹침 경고 이후 강행 → 머지 충돌·재작업으로 이어진 건수</td><td>머지 시점까지 미발견(충돌 해소를 사용자 직렬화에 위임)</td><td>분기당 <b>0건</b></td><td>FR-01·FR-06</td></tr>
+      <tr><td><b>무리뷰 머지 비율</b></td><td>게이트 판정을 통과하지 못한 채 머지된 PR 비율</td><td>업계 필드 계측 <b>31%</b></td><td><b>0%</b> (면제는 BYPASS로 기록되어 별도 집계)</td><td>FR-10·D-14</td></tr>
+      <tr><td><b>리뷰 도달 시간</b></td><td>리뷰 제출 → 모든 critical finding 해소까지 p50/p90</td><td>업계 계측: 중앙값 리뷰 시간 <b>+441%</b>, AI 생성 PR 배정 대기 4.6배</td><td>팀이 p50 목표를 설정하고 <b>추세가 악화되지 않을 것</b></td><td>FR-09·FR-11</td></tr>
+      <tr><td><b>승인 리드타임</b></td><td>질문 생성 → 응답까지(세션 <code>awaiting_input</code> 체류 시간) p50/p90</td><td>측정 불가 — 터미널 대화라 기록이 없다</td><td>업무시간 기준 p50 <b>≤ 30분</b></td><td>FR-11·FR-12</td></tr>
+      <tr><td><b>git 리뷰 증가율</b></td><td>신규 리뷰 산출물이 git에 커밋된 파일 수·바이트(월)</td><td>월 ~7,000파일 / ~50MB, 리뷰 이력 blob이 packed blob의 60%</td><td>신규 리뷰 산출물의 git 커밋 <b>0</b></td><td>D-01·FR-09</td></tr>
+      <tr><td><b>커버리지 자동 계산율</b></td><td>수동 마크 없이 관계에서 계산된 Requirement 비율</td><td>문서 단위 status + 수동 ✅(영역 간 비일관: 131개 vs 0개)</td><td><b>100%</b></td><td>FR-13·D-03</td></tr>
+      <tr><td><b>리뷰 무결성 위반</b></td><td>필수 리뷰어 미충족 세션 / verdict 모순 건수</td><td>forced reviewer 미충족 <b>160/575(28%)</b>, CRITICAL→<code>BLOCK: NO</code> 하향 <b>24/732(3.3%)</b></td><td><b>0</b> (산문 규약이 아니라 스키마 제약)</td><td>FR-09·FR-16</td></tr>
+      <tr><td><b>세션 가시성</b></td><td>실행 중 세션 중 보드에 표시된 비율 / 보드 반영 지연</td><td>타 호스트 세션 <b>0%</b> (모든 조율 상태가 gitignored 로컬 파일)</td><td><b>100%</b> / <b>≤ 5초</b></td><td>FR-07·NFR-02</td></tr>
+      <tr><td><b>stale 자동 회수</b></td><td>무활동 30분 초과 세션이 사람 개입 없이 정리된 비율</td><td>reaper 6시간 주기 배치, 타 세션 앵커 파괴 위험을 스스로 명시</td><td><b>100%</b></td><td>D-13·FR-06</td></tr>
+      <tr><td><b>직군 참여</b></td><td>승인·코멘트 행위자 중 <code>planner</code>/<code>designer</code>/<code>qa</code> 역할 비율</td><td><b>0%</b> (참여 경로 부재)</td><td>스펙 승인의 <b>100%</b>가 비개발 직군을 포함한 승인 레코드 보유</td><td>FR-11·FR-14</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.3 반증 지표 — 실패를 먼저 알아채는 신호</h3>
+
+  <p>성공 지표만 보면 늦는다. 아래는 “이 제품이 실패하는 중”임을 먼저 알려 주는 신호이고, 전부 대시보드 1급 항목으로 노출한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>신호</th><th>무엇을 뜻하는가</th><th>대응</th></tr></thead>
+    <tbody>
+      <tr><td><b>BYPASS 비율 상승</b></td><td>게이트가 사실상 꺼지는 중</td><td>clemvion의 fail-open 연속 3회 격상 패턴 이식 — 배너 + 격상 알림(D-14)</td></tr>
+      <tr><td><b>게이트 판정 불가 연속 카운터</b></td><td>서버·연동 장애가 조용히 게이트를 무력화하는 중</td><td>진행은 허용하되 격상. “조용히 꺼진 게이트가 최악”이라는 운영 교훈</td></tr>
+      <tr><td><b>1인당 일 알림 수 / 무시율 상승</b></td><td>알림 피로 → 승인 품질 하락</td><td>중요도 라우팅 재조정, 상태 변화는 다이제스트로 강등(FR-12)</td></tr>
+      <tr><td><b>스펙 길이·AC 개수 중앙값 상승</b></td><td>워터폴 회귀 — “기능 하나에 8파일 1,300줄”, “버그 하나에 16 AC” 비판이 현실이 되는 중</td><td>위험도 가변 게이트로 저위험 경로를 넓힌다(D-06)</td></tr>
+      <tr><td><b>동시 활성 세션 수 &gt; 리뷰 처리량</b></td><td>필드 실증상 실용 한계는 동시 3~5 에이전트</td><td>조직·프로젝트별 동시 세션 한도를 정책으로 노출(FR-14)</td></tr>
+      <tr><td><b>자기보고 vs 산출물 불일치율</b></td><td>에이전트 STATUS는 성공인데 서버에 산출물이 없다</td><td>“서버에 업로드된 산출물만 진실”(D-14) — 불일치를 세션 품질 지표로 집계</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.4 측정 원칙 — 왜 설문을 쓰지 않는가</h3>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">사전 예측</b><div class="big">+24%</div><p>“AI로 이만큼 빨라질 것”</p></div>
+    <div class="card"><b class="card-title">사후 체감</b><div class="big">+20%</div><p>“이만큼 빨랐던 것 같다”</p></div>
+    <div class="card"><b class="card-title">실측(RCT)</b><div class="big">−19%</div><p>실제로는 <b>더 느렸다</b></p></div>
+  </div>
+
+  <p class="src"><a href="https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/">Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity — METR</a> (2025-07-10): 숙련 오픈소스 개발자 16명·실제 이슈 246개 RCT에서 AI 도구 사용 시 19% 더 느렸고, 인식과 실측의 부호가 반대였다.</p>
+
+  <p>그래서 NERV의 지표는 전부 <b>이벤트 로그(FR-16)에서 계산되는 값</b>이다. 만족도 설문이나 “빨라진 것 같다”는 회고는 채택 여부의 참고 자료일 뿐 성공 판정의 근거가 아니다. 이것은 clemvion이 코드로 이미 관철한 원칙 — “디스크가 arbiter, 파일 없는 자기보고 success는 가짜” — 의 조직 버전이기도 하다(D-14).</p>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3>SDD 도구 생태계와 멀티유저 공백</h3>
+  <p>상세는 <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>.</p>
+  <p class="src"><a href="https://github.com/github/spec-kit/discussions/497">What’s the best way to use spec-kit in a team? — Spec Kit Discussion #497</a> (2026-08-13 확인): 팀 사용 시 스펙 번호 충돌과 마스터 계약 부재가 공식 미해결 과제임을 보여준다.</p>
+  <p class="src"><a href="https://github.com/github/spec-kit/discussions/2116">What best practices exist for concurrent SpecKit development? — Discussion #2116</a> (2026-08-13 확인): 동시 작업 시 번호 충돌이 필연이며 timestamp 옵션은 완화책일 뿐이다.</p>
+  <p class="src"><a href="https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md">OpenSpec 공식 팀 워크플로 문서</a> (2026-08-13 확인): 충돌 방지책이 “One change, one owner” 규율과 git 병합뿐임을 공식 문서가 자인한다.</p>
+  <p class="src"><a href="https://github.com/Fission-AI/OpenSpec/issues/435">OpenSpec Issue #435: Collaboration &amp; Orchestration</a> (2026-08-13 확인): 멀티유저 워크스페이스·인라인 코멘트 요청이 “closed as not planned”로 종료됐다.</p>
+  <p class="src"><a href="https://github.com/github/spec-kit">github/spec-kit 리포지터리</a> (2026-08-13 확인): MIT·126,932 stars, constitution과 specify/plan/tasks 명령 체인 — NERV가 차용하는 문서 어휘의 출처.</p>
+  <p class="src"><a href="https://kiro.dev/docs/specs/">Kiro Specs 공식 문서</a> (2026-08-13 확인): requirements(EARS)/design/tasks 3파일과 태스크 의존성 wave 병렬 실행 — 진행 추적의 시장 상한선이 로컬 IDE 뷰임을 보여준다.</p>
+  <p class="src"><a href="https://github.com/Pimzino/spec-workflow-mcp">Pimzino/spec-workflow-mcp 리포지터리</a> (2026-08-13 확인): GPL-3.0, MCP 연동 + 웹 승인 대시보드의 소규모 개념 증명. 코드 차용 금지 근거.</p>
+  <p class="src"><a href="https://alistairmavin.com/ears/">EARS 공식 가이드 — Alistair Mavin</a> (2026-08-13 확인): FR-03 요구사항 템플릿의 근거.</p>
+  <p class="src"><a href="https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html">Understanding Spec-Driven-Development: Kiro, spec-kit, and Tessl — martinfowler.com</a> (2025-10-15): 작은 버그가 4 user story·16 acceptance criteria로 부푸는 관찰 — §5.3 반증 지표의 근거.</p>
+  <p class="src"><a href="https://marmelab.com/blog/2025/11/12/spec-driven-development-waterfall-strikes-back.html">Spec-Driven Development: The Waterfall Strikes Back — Marmelab</a> (2025-11-12): 기능 하나에 8파일·1,300줄 실측 — D-06이 답해야 하는 비판.</p>
+  <p class="src"><a href="https://yuvalyeret.com/blog/spec-driven-development-isnt-waterfall-unless-youre-using-it-that-way/">Spec-Driven Development Isn’t Waterfall Unless You’re Using It That Way — Yuval Yeret</a> (2026-05-18): 재생성 비용이 0에 수렴하면 경제학이 바뀐다는 반론 — 위험도 가변 게이트의 논거.</p>
+  <p class="src"><a href="https://tessl.io/blog/tessl-launches-spec-driven-framework-and-registry">Tessl launches spec-driven development tools</a> (2025-09-23): 스펙 레지스트리 모델과 시장 규모 근거.</p>
+
+  <h3>협업 플랫폼의 에이전트 통합 (Build vs Buy 근거)</h3>
+  <p>상세는 <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>.</p>
+  <p class="src"><a href="https://linear.app/developers/agent-interaction">Developing the Agent Interaction — Linear Developers</a> (2026-08-13 확인): Agent Session 6상태와 응답성 SLA(webhook 5초·최초 activity 10초·무활동 30분 stale), typed activity 5종 — D-13의 원형.</p>
+  <p class="src"><a href="https://linear.app/now/our-approach-to-building-the-agent-interaction-sdk">Our approach to building the Agent Interaction SDK — Linear Blog</a> (2025-08-01): “에이전트는 책임을 질 수 없다” 원칙과 assignee/delegate 분리 — D-08의 근거.</p>
+  <p class="src"><a href="https://linear.app/docs/agents-in-linear">AI Agents — Linear Docs</a> (2026-08-13 확인): 에이전트가 assignee 메뉴에 팀원처럼 노출되고 위임 후에도 사람이 책임을 유지하는 UX.</p>
+  <p class="src"><a href="https://linear.app/docs/coding-sessions">Coding sessions — Linear Docs</a> (2026-08-13 확인): 이슈 위임 → 샌드박스 세션 → diff·검증 아티팩트 인라인 → 플랫폼 내 리뷰. §4.2 A열 판정의 확인 근거.</p>
+  <p class="src"><a href="https://linear.app/integrations/agents">Agents Integrations — Linear</a> (2026-08-13 확인): 27+ 서드파티 에이전트 디렉토리 — 단일 상호작용 규약 위의 생태계가 성립함을 보여준다.</p>
+  <p class="src"><a href="https://linear.app/docs/mcp">MCP server — Linear Docs</a> (2026-08-13 확인): 호스티드 MCP + OAuth 2.1 + readonly 변형 — NERV MCP 접속 규격의 참조.</p>
+  <p class="src"><a href="https://docs.github.com/enterprise-cloud@latest/copilot/how-tos/agents/copilot-coding-agent/reviewing-a-pull-request-created-by-copilot">Reviewing a pull request created by GitHub Copilot — GitHub Docs</a> (2026-08-13 확인): 지시자의 승인은 무효이고 CI 실행에 “Approve and run workflows” 명시 승인이 필요하다 — D-06 게이트 ④의 기준선.</p>
+  <p class="src"><a href="https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/tracking-copilots-sessions">Tracking GitHub Copilot’s sessions — GitHub Docs</a> (2026-08-13 확인): 커밋 메시지의 세션 로그 역링크 — 산출물→세션 provenance의 검증된 해법.</p>
+  <p class="src"><a href="https://github.blog/news-insights/company-news/welcome-home-agents/">Introducing Agent HQ: Any agent, any way you work — GitHub Blog</a> (2025-10-28): mission control과 멀티 벤더 수용 — §4.2 GitHub 행의 근거.</p>
+  <p class="src"><a href="https://github.blog/changelog/2026-02-26-enterprise-ai-controls-agent-control-plane-now-generally-available/">Enterprise AI Controls &amp; agent control plane now generally available — GitHub Changelog</a> (2026-02-26): <code>actor_is_agent</code> 감사 플래그와 <code>agent_session.task</code> 이벤트 — FR-16의 참조 설계.</p>
+  <p class="src"><a href="https://support.atlassian.com/jira-software-cloud/docs/collaborate-on-work-items-with-ai-agents/">Collaborate on work items with AI agents — Jira Cloud Docs</a> (2026-08-13 확인): 트리거 4표면과 “개인 검토 → draft comment로 팀 공개” 단계 공개 모델.</p>
+  <p class="src"><a href="https://support.atlassian.com/rovo/docs/generate-code-from-a-work-item-in-jira/">Generate code from a work item in Jira — Rovo Docs</a> (2026-08-13 확인): draft PR을 에이전트가 직접 머지하지 않는 규칙.</p>
+  <p class="src"><a href="https://github.blog/changelog/2026-06-25-github-copilot-for-jira-is-now-generally-available/">GitHub Copilot for Jira is now generally available — GitHub Changelog</a> (2026-06-25): 트래커와 코드 호스트가 달라도 세션 진행을 스트리밍하는 크로스 플랫폼 패턴.</p>
+  <p class="src"><a href="https://www.notion.com/releases/2026-02-24">Notion 3.3: Custom Agents — Release Notes</a> (2026-02-24): “모든 run은 로그로 남아 변경이 가시적이고 되돌릴 수 있다” — 가역성 원칙의 출처.</p>
+  <p class="src"><a href="https://www.notion.com/blog/notions-hosted-mcp-server-an-inside-look">Notion’s hosted MCP server: an inside look — Notion Blog</a> (2025-07-15): REST를 그대로 노출하지 않고 Markdown 지향으로 재설계한 교훈.</p>
+  <p class="src"><a href="https://asana.com/product/ai/ai-teammates">Asana AI Teammates</a> (2026-08-13 확인): 권한 상속·비확대, 체크포인트 승인, 감사·가역성 3원칙 — D-08 권한 모델의 근거.</p>
+
+  <h3>병렬 에이전트 운용의 필드 데이터 (성공 지표·리스크 논거)</h3>
+  <p class="src"><a href="https://www.faros.ai/blog/lab-vs-reality-ai-productivity-study-findings">What METR’s Study Missed About AI Productivity in the Wild — Faros AI</a> (2026-03 데이터): 중앙값 리뷰 시간 +441%, 무리뷰 머지 31%, 개발자당 버그 +54% — §5.2 기준선.</p>
+  <p class="src"><a href="https://codex.danielvaughan.com/2026/05/24/human-review-bottleneck-code-review-strategies-agent-output/">The Human Review Bottleneck — Codex Knowledge Base</a> (2026-05-24): 위험 분류(P0~P3)와 상류 시프트 권고, AI 재검토의 상관된 실패 경고 — §2.6·§5.1의 근거.</p>
+  <p class="src"><a href="https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/">Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity — METR</a> (2025-07-10): 체감 +20% vs 실측 −19% — §5.4 측정 원칙의 근거.</p>
+  <p class="src"><a href="https://superset.sh/blog/parallel-coding-agents-guide">The Complete Guide to Running Parallel AI Coding Agents — Superset</a> (2026): 동시 3~5 에이전트가 실용 한계 — §5.3 반증 지표.</p>
+  <p class="src"><a href="https://superset.sh/blog/roadmap-to-100-agents">Our plan for running 100 Parallel Coding Agents — Superset</a> (2026): 자동 게이트 + 구조화 디스패치 + 완료 리뷰 워크플로 3요소.</p>
+  <p class="src"><a href="https://claude.com/blog/how-anthropic-teams-use-claude-code">How Anthropic teams use Claude Code — Claude 블로그</a> (2025-07-24): 비개발 직군의 실사용과 “자율 작업 → 최종 정제 전 사람 검토” 교훈 — 페르소나 설계의 방증.</p>
+  <p class="src"><a href="https://dev.to/aws-builders/what-i-learned-using-specification-driven-development-with-kiro-pdj">What I Learned Using Specification-Driven Development with Kiro — DEV</a> (확인): acceptance criteria가 스펙에서 가장 가치 있는 부분이라는 실사용 결론 — FR-03의 근거.</p>
+  <p class="src"><a href="https://www.youtube.com/watch?v=8rABwKRsec4">The New Code — Sean Grove, AI Engineer 2025</a> (2025): 코드는 스펙의 손실 있는 투영이라는 담론 — 포지셔닝의 배경.</p>
+  <p class="src"><a href="https://github.com/steveyegge/beads">steveyegge/beads — GitHub</a> (2026-08-13 확인): 원자적 클레임(<code>--claim</code>)·ready 판정·해시 ID와 “이슈는 DB, git엔 교환 포맷” 방향 — D-04·D-01의 선례.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/agent-teams">Orchestrate teams of Claude Code sessions (agent teams) — Claude Code Docs</a> (2026-08-13 확인): 파일 잠금 기반 self-claim과 팀메이트별 파일 소유권 분리 — scope 겹침 판정의 로컬 선례.</p>
+
+  <h3>clemvion 실측 근거 (2026-08-13, READ-ONLY 조사)</h3>
+  <ul>
+    <li><code>clemvion:review/</code> — md 13,777개·131MB(code 9,070 / consistency 4,697 / spec-coverage 10), 73일간 세션 1,891개(일평균 26), 월 ~7,000파일·~50MB 증가</li>
+    <li><code>clemvion:.git</code> — 148MB, 리뷰 이력 blob 60.7MB = packed blob 바이트의 60%, 커밋 2,464개 중 937개(38%)가 <code>review/</code> 접촉</li>
+    <li><code>clemvion:review/code/2026/08/13/19_08_48/</code> — 자기증식 루프 실측(8라운드, 최종 라운드 리뷰 프롬프트 94파일 중 86개가 이전 <code>review/**</code> 산출물)</li>
+    <li><code>clemvion:spec/</code> — 384 md(순수 스펙 135 md·49,383줄), 4.5개월간 spec 터치 커밋 857개(그중 순수 문서 정리 211개)</li>
+    <li><code>clemvion:spec/5-system/4-execution-engine.md</code> — 1,750줄 문서에 status 값 하나(요구사항 단위 미구현 CCH-SE-02를 놓친 구조적 원인)</li>
+    <li><code>clemvion:spec/conventions/spec-impl-evidence.md</code> — frontmatter 증적 규약(id/status/code glob/pending_plans)과 그 수동 영역</li>
+    <li><code>clemvion:plan/in-progress/</code> — 62 md, <code>owner</code>가 자유 텍스트 역할 라벨로 요동(developer 17 / project-planner 8 / planner 5 / “developer (다음 진입자)” 1)</li>
+    <li><code>clemvion:.claude/hooks/guard_review_before_push.py</code> — 1,005줄 push 게이트(정규식 blind-match + rewrite-immune 시계). 하네스 전체 약 7,600줄</li>
+    <li><code>clemvion:.claude/docs/worktree-policy.md</code> — “자동 검출은 없다”(동시수정 검출 의도적 제거, #576)</li>
+    <li><code>clemvion:.claude/tools/reap-merged-worktrees.sh</code> — “살아있는 세션 앵커 레지스트리 필요”를 스스로 명시한 GC reaper</li>
+    <li><code>clemvion:.claude/state/</code> — 모든 조율 상태가 gitignored 로컬 파일(session_id·tool_use_id 키, hostname 부재) → 단일 호스트 갇힘</li>
+    <li>산문 계약 붕괴 실측 — forced reviewer 미충족 160/575 세션(28%), checker CRITICAL을 <code>BLOCK: NO</code>로 하향한 모순 24/732(3.3%)</li>
+  </ul>
+
+  <h3>이 문서와 연결되는 문서</h3>
+  <ul>
+    <li><a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a> — 이 문서가 인용한 실측치의 원 조사</li>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — P1~P8과 FR-01~17 / NFR-01~05의 정의(재정의 금지)</li>
+    <li><a href="spec-driven-development.html">2.1 Spec-Driven Development</a> — §1.3 포지셔닝과 §4.2 Kiro·Spec Kit 행의 근거</li>
+    <li><a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a> — §3.2 클레임 수명주기와 §5.3 동시성 한계의 근거</li>
+    <li><a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a> — §4.2 Linear·GitHub·Jira·Notion 행의 근거</li>
+    <li><a href="architecture.html">3.2 시스템 아키텍처</a> — 여정 3개를 컴포넌트·데이터 흐름으로 전개</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — Spec/Task/AgentSession/Finding 엔티티 상세</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — 이 문서가 태그로만 언급한 <code>nerv_*</code> 도구의 전체 카탈로그</li>
+    <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 여정 A·C의 상태 전이 조건과 권한</li>
+    <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — S1~S8 화면의 와이어프레임</li>
+    <li><a href="roadmap.html">3.7 로드맵</a> — §5.2 지표를 Phase별 성공 기준으로 배치</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="integration-tech.html">이전: 2.4 Claude Code/Codex 연동 기술</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="architecture.html">다음: 3.2 시스템 아키텍처</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

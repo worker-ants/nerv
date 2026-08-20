@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1.1 clemvion 하네스 분석 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html" class="active">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 1부 · 현행 분석 / 1.1 clemvion 하네스 분석</div>
+
+  <header class="page-header">
+    <h1>clemvion 하네스 분석 — 1인용 SDD+TDD 하네스가 도달한 곳과 그 상한</h1>
+    <p class="lead">규약을 사람의 규율이 아니라 훅·빌드 가드로 기계 강제하는 1인용 Claude Code 하네스의 구성 요소를 전수 조사하고, 계승할 자산과 여러 세션·여러 사람으로 확장하는 순간 무너지는 구조적 한계를 전부 실측 근거로 분리한다.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-13)</span>
+      <span>원본: <code>docs/01-problem/clemvion-analysis.md</code></span>
+      <span>근거: <code>/Volumes/project/private/clemvion</code> READ-ONLY 실측 (2026-08-13)</span>
+    </div>
+  </header>
+
+  <div class="callout note"><span class="ico">📝</span><div class="body">
+    <b class="title">요약</b>
+    <p><code>clemvion</code>은 1인 개발자가 Claude Code 하네스로 SDD(스펙 주도 개발)+TDD를 자동화한 제품 모노레포이며, 훅 9종·판정 모듈 <code>_lib</code> 6종·공용 모듈 <code>_shared</code> 4종·워크플로 3종 합계 <b>약 7,600줄</b>이 "리뷰 없이 push 금지", "main 브랜치에서 작업 금지", "완료 plan은 스펙 영향 선언 의무" 같은 규칙을 실제로 차단한다. 그러나 조율에 쓰이는 상태가 전부 gitignored 로컬 파일이라 규칙의 강제력이 <b>호스트 경계에서 끝나고</b>, 스펙 동시수정 자동 검출은 "다른 머신·세션이면 로컬에 안 보인다"는 이유로 저장소 스스로 제거했다. 동시에 리뷰 산출물 <b>13,777개(131MB)</b>가 코드와 같은 브랜치에 커밋되면서 <code>.git</code> packed blob 바이트의 <b>60%</b>를 차지하고, 한 changeset이 8라운드를 도는 동안 마지막 라운드 리뷰 프롬프트 94파일 중 86개가 이전 리뷰 산출물이 되는 자기증식 루프가 실측됐다.</p>
+  </div></div>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">리뷰 산출물</b><div class="big">13,777개</div><p><code>review/</code> 하위 markdown · <b>131MB</b> — json 포함 17,329파일 전부 git 추적</p></div>
+    <div class="card"><b class="card-title">git 저장소 점유</b><div class="big">60%</div><p>review 이력 blob 23,533개 / 60.7MB packed = 전체 packed blob 바이트의 60% (<code>.git</code> 148MB의 ~41%)</p></div>
+    <div class="card"><b class="card-title">리뷰 세션 페이스</b><div class="big">1,891개 / 73일</div><p>2026-06-02~08-13, 일평균 26개 — 커밋 2,464개 중 <b>937개(38%)</b>가 <code>review/</code> 접촉</p></div>
+  </div>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">clemvion 개요 — 무엇을 만드는 저장소인가, 하네스의 철학</a></li>
+      <li><a href="#sec-2">하네스 구성 요소 전수 — 스킬·훅 9종·워크플로·worktree·로컬 상태</a></li>
+      <li><a href="#sec-3">문서 체계 — spec / plan / review</a></li>
+      <li><a href="#sec-4">잘 작동하는 것 — 계승 자산</a></li>
+      <li><a href="#sec-5">구조적 한계 — 전부 실측 인용</a></li>
+      <li><a href="#sec-6">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. clemvion 개요</h2>
+
+  <h3 id="sec-1-1">1.1 무엇을 만드는 저장소인가</h3>
+  <p><code>clemvion</code>은 워크플로우 에디터형 제품(노드 기반 자동화 · 웹챗 채널 · 실행 엔진)을 만드는 모노레포다. 최상위 구조는 다음과 같다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>디렉토리</th><th>역할</th><th>실측 규모</th></tr></thead>
+    <tbody>
+      <tr><td><code>spec/</code></td><td>제품 단일 진실(스펙 문서)</td><td>md 384개 · 9.3MB (API 카탈로그 제외 순수 스펙 <b>135 md · 49,383줄</b>)</td></tr>
+      <tr><td><code>plan/</code></td><td>작업 티켓 = markdown 파일</td><td>md 450개 · 5.2MB (in-progress 62 / complete 387 / research 1)</td></tr>
+      <tr><td><code>review/</code></td><td>AI 리뷰 산출물</td><td>md <b>13,777개 · 131MB</b> (code 9,070 · consistency 4,697 · spec-coverage 10)</td></tr>
+      <tr><td><code>codebase/</code></td><td>실제 제품 코드</td><td>frontend · backend · packages · channel-web-chat, 724MB</td></tr>
+      <tr><td><code>.claude/</code></td><td>하네스</td><td>agents 31 · commands 3 · skills 6 · hooks 9(+<code>_lib</code> 6) · workflows 3 · tools 7 · state · docs · config</td></tr>
+    </tbody>
+  </table></div>
+
+  <p class="src">근거: <code>clemvion:CLAUDE.md</code> · <code>clemvion:spec/0-overview.md</code> · <code>clemvion:.claude/docs/plan-lifecycle.md</code> · <code>clemvion:.gitignore</code>. <code>.git</code>은 148MB(<code>git count-objects</code> size-pack 118MiB · count 3,797)이며 그중 리뷰 이력이 대부분을 차지한다(§5.5).</p>
+
+  <p>핵심은 <b>하네스가 제품의 일부가 아니라 개발 방식 그 자체</b>라는 점이다. 스펙을 쓰는 주체, 코드를 쓰는 주체, 리뷰하는 주체가 스킬(역할)로 분리되어 있고, 각 역할의 경계는 프롬프트 규약이 아니라 훅과 빌드 테스트로 강제된다.</p>
+
+  <h3 id="sec-1-2">1.2 하네스의 철학: "강제 없는 규약은 반드시 깨진다"</h3>
+  <p>clemvion의 모든 게이트는 <b>문서로 시작해서 실패를 겪은 뒤 기계 강제로 승격됐다</b>. 이 패턴은 저장소가 스스로 기록해 둔 것이다.</p>
+  <ul>
+    <li><b>리뷰 의무(산문) → <code>review_guard</code> 하드 게이트</b>: 2026-07-17 전수 조사에서 "커밋된 575 세션 중 160건이 forced 리뷰어 미충족(그중 107건은 <code>RESOLUTION.md</code>를 갖고 게이트를 통과 중)"으로 드러났고, "산문 의무는 예외가 아니라 상시로 무너지고 있었다"는 결론과 함께 디스크 리포트 파일 기준 기계 강제로 승격됐다. <span class="src"><code>clemvion:.claude/skills/code-review-agents/SKILL.md</code></span></li>
+    <li><b>plan 갱신(산문) → <code>plan_guard</code> push 게이트</b>: 리뷰 게이트와의 비대칭을 해소하려고 신설. <span class="src"><code>clemvion:.claude/hooks/_lib/plan_guard.py</code></span></li>
+    <li><b>plan <code>status</code> 필드(산문) → 빌드 가드</b>: "이 저장소가 <b>두 번</b> 놓친 실패다(#1108·#1117) — 그때까지 이 필드는 어떤 게이트도 보지 않고 사람의 규율에만 기대고 있었다". <span class="src"><code>clemvion:.claude/docs/plan-lifecycle.md</code></span></li>
+  </ul>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-14 · 게이트는 fail-open + 관측 + 격상, 진실은 서버 산출물</b>
+    <p>clemvion의 판정 원칙은 "디스크가 arbiter"다. 자기보고 STATUS에 대응하는 파일이 없으면 그것은 가짜 성공이며, 계약은 그 가짜 성공을 없애려고 존재한다(<code>clemvion:.claude/docs/subagent-call-contract.md</code>). NERV는 이 원칙을 <b>"서버에 업로드된 산출물만 진실"</b>로 번역한다.</p>
+  </div></div>
+
+  <h3 id="sec-1-3">1.3 규모 한눈에 (실측, 2026-08-13)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>지표</th><th>값</th><th>출처</th></tr></thead>
+    <tbody>
+      <tr><td>리뷰 산출물</td><td>md <b>13,777개 / 131MB</b> (json 포함 17,329파일, 전부 git 추적)</td><td><code>clemvion:review/</code></td></tr>
+      <tr><td>리뷰 세션</td><td><b>1,891개 / 73일</b>(2026-06-02~08-13) ≈ 일평균 26개</td><td><code>clemvion:review/**</code> 경로 집계</td></tr>
+      <tr><td>git 점유</td><td>review 이력 blob <b>23,533개 / 60.7MB packed = 전체 blob 바이트의 60%</b>(<code>.git</code>의 ~41%)</td><td><code>git cat-file</code> 집계</td></tr>
+      <tr><td>커밋 오염도</td><td>전체 커밋 2,464개 중 <b>937개(38%)</b>가 <code>review/</code> 접촉</td><td><code>git log</code> 집계</td></tr>
+      <tr><td>증가 추세</td><td>현 페이스 유지 시 월 <b>~7,000파일 / ~50MB</b></td><td>월별 분포 집계</td></tr>
+      <tr><td>하네스 코드</td><td>훅+<code>_lib</code>+<code>_shared</code>+workflows 약 <b>7,600줄</b> (최대 단일 훅 1,005줄)</td><td><code>clemvion:.claude/hooks/</code> · <code>clemvion:.claude/workflows/</code></td></tr>
+      <tr><td>하네스 회귀 테스트</td><td><code>.claude/tests/</code> <b>57파일 · 1.2MB</b></td><td><code>clemvion:.claude/tests/</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-2">2. 하네스 구성 요소 전수</h2>
+
+  <h3 id="sec-2-1">2.1 역할 스킬 5+1종 = 경로별 쓰기 권한</h3>
+  <p><code>clemvion:CLAUDE.md</code> §Skill 체계는 역할을 <b>쓰기 가능한 경로</b>로 정의한다. 이것이 clemvion이 1인 개발 환경에서 직군 분리를 시뮬레이션하는 방식이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>역할</th><th>스킬</th><th>쓰기 권한</th><th>강제 수단</th></tr></thead>
+    <tbody>
+      <tr><td>기획자</td><td><code>project-planner</code></td><td><code>spec/**</code>, <code>plan/**</code></td><td>프롬프트 규약(SKILL.md) + 착수 전 <code>/consistency-check --spec</code> 의무</td></tr>
+      <tr><td>개발자</td><td><code>developer</code></td><td><code>codebase/**</code>, <code>plan/**</code>, <code>review/**/RESOLUTION.md</code> (<code>spec/</code> read-only)</td><td>프롬프트 규약 + push/Stop 게이트</td></tr>
+      <tr><td>일관성 검토자</td><td><code>consistency-checker</code></td><td><code>review/consistency/**</code></td><td><code>BLOCK: YES</code> 시 호출자 즉시 중단</td></tr>
+      <tr><td>코드 리뷰어</td><td><code>code-review-agents</code></td><td><code>review/code/**</code></td><td>push 게이트가 산출물 존재를 검사</td></tr>
+      <tr><td>통합 조율자</td><td><code>merge-coordinator</code></td><td><code>review/merge/**</code>, <code>.claude/worktrees/integrate-*/**</code></td><td>사용자 confirm 2회</td></tr>
+      <tr><td>(보조) 커버리지 감사</td><td><code>spec-coverage</code></td><td><code>review/spec-coverage/**</code></td><td>advisory — 차단 없음</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li>위임 규약: "구현 중 spec 변경 필요 시 <code>developer</code>는 멈추고 <code>project-planner</code>에 위임"(<code>clemvion:CLAUDE.md</code>), 반대로 planner는 "구현 금지 — 코딩·리팩토링·테스트 작성은 <code>developer</code> 위임"(<code>clemvion:.claude/skills/project-planner/SKILL.md</code>).</li>
+    <li>리뷰어는 sub-agent로 세분화된다: <code>clemvion:.claude/agents/</code> 31개(코드 리뷰어 14종 · 일관성 checker 5종 · merge 계열 6종 · <code>resolution-applier</code>·<code>review-router</code>·<code>user-guide-writer</code> 등).</li>
+  </ul>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">중요한 한계 · 역할 분리는 훅이 아니라 서술이다</b>
+    <p>이 역할 분리를 강제하는 것은 SKILL.md 서술이지 OS/권한 수준 장치가 아니다. 훅이 막는 것은 <b>"어디서(worktree)·무엇을 안 하고(리뷰·plan 갱신) push 하는가"</b>이지 <b>"누가"</b>가 아니다. planner 세션이 <code>codebase/</code>를 고치는 것을 막는 기계 장치는 없다.</p>
+  </div></div>
+
+  <h3 id="sec-2-2">2.2 훅 9종 전수표</h3>
+  <p><code>clemvion:.claude/hooks/</code> 아래 훅 스크립트 9개 + 판정 모듈 <code>_lib</code> 6개(공용 모듈 <code>_shared</code> 4개·워크플로 3종과 합쳐 약 7,600줄 — §1.3). <b>차단 조건</b>과 <b>우회 수단</b>을 함께 읽어야 이 하네스의 실제 강제력이 보인다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>훅 파일</th><th>이벤트</th><th>목적</th><th>차단 조건</th><th>우회 수단</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td><td><code>guard_default_branch_edit.py</code></td><td>PreToolUse(Write/Edit/MultiEdit/NotebookEdit)</td>
+        <td>main 워크트리 기본 브랜치 편집 차단</td>
+        <td><b>exit 2 하드 차단</b> — (최상위 <code>.git</code>이 디렉토리 = main worktree) AND (현재 브랜치 == origin 기본 브랜치). 판정은 <b>CWD 기준이며 target file_path 기준이 아님</b>(경로 위장 우회 봉쇄)</td>
+        <td><code>BYPASS_DEFAULT_BRANCH_GUARD=1</code> (단발)</td>
+      </tr>
+      <tr>
+        <td>2</td><td><code>guard_default_branch_prompt.py</code></td><td>UserPromptSubmit</td>
+        <td>작업 의도 프롬프트에 경고 주입</td>
+        <td>차단 없음. 한/영 정규식(<code>구현</code>, <code>수정</code>, <code>\bimplement\b</code> 등) 매칭 시 <code>&lt;system-reminder&gt;</code> 주입</td>
+        <td>해당 없음(비차단)</td>
+      </tr>
+      <tr>
+        <td>3</td><td><code>guard_default_branch_bash.py</code></td><td>PreToolUse(Bash)</td>
+        <td>mutating 명령 경고</td>
+        <td><b>절대 차단하지 않음</b> — "Bash 명령 분류는 오탐이 너무 쉽다". mutating 정규식 최초 1회만 reminder, 세션당 1회 dedup(<code>.claude/state/main_worktree_bash_warned/&lt;session_id&gt;</code>)</td>
+        <td>해당 없음(비차단)</td>
+      </tr>
+      <tr>
+        <td>4</td><td><code>guard_review_before_push.py</code> <b>(1,005줄)</b></td><td>PreToolUse(Bash) — <code>git push</code> 감지</td>
+        <td>리뷰·plan 이중 게이트</td>
+        <td><b>exit 2 하드 차단</b> — ① REVIEW: <code>codebase/**</code> 변경에 "fresh, resolved review" 부재 ② SPEC-CONSISTENCY: 스펙 <code>code:</code> glob 매칭 변경에 최신 <code>--impl-done</code> 리포트(<code>BLOCK: NO</code>) 부재 ③ PLAN: 연결된 in-progress plan 미갱신. 16KB 초과 명령은 분석 없이 차단</td>
+        <td><code>BYPASS_REVIEW_GUARD=1</code> / <code>BYPASS_PLAN_GUARD=1</code> · 게이트 모듈 예외 시 <b>fail-open</b>(허용+배너)</td>
+      </tr>
+      <tr>
+        <td>5</td><td><code>guard_review_before_stop.py</code></td><td>Stop</td>
+        <td>리뷰 미완 턴 종료 저지</td>
+        <td><b>소프트</b> — <code>{"decision":"block","reason":…}</code> JSON. (session_id, branch)당 1회 넛지, <code>stop_hook_active</code>면 즉시 허용(anti-wedge)</td>
+        <td>마커 존재 시 자동 통과 · in-flight 리뷰 30분 TTL 양보 · fail-open</td>
+      </tr>
+      <tr>
+        <td>6</td><td><code>mark_resolution_in_flight.py</code></td><td>PreToolUse(Agent)</td>
+        <td><code>resolution-applier</code> 디스패치 기록</td>
+        <td>차단 없음 — <code>.claude/state/resolution_in_flight/&lt;tool_use_id&gt;</code> 마커 기록</td>
+        <td>해당 없음(비차단)</td>
+      </tr>
+      <tr>
+        <td>7</td><td><code>clear_resolution_in_flight.py</code></td><td>SubagentStop</td>
+        <td>같은 마커 삭제</td>
+        <td>차단 없음</td>
+        <td>SubagentStop 미발화(크래시) 시 30분 TTL 백스톱</td>
+      </tr>
+      <tr>
+        <td>8</td><td><code>lint_mermaid_posttooluse.py</code></td><td>PostToolUse(Write/Edit/…)</td>
+        <td>md 내 mermaid 문법 검증</td>
+        <td><b>exit 2</b> — mermaid 블록 파싱 실패 시 모델에게 수정 지시</td>
+        <td>deps 미설치 · 20초 타임아웃 · tooling broken(exit 3) 전부 <b>fail-open</b></td>
+      </tr>
+      <tr>
+        <td>9</td><td><code>normalize_worktree_branch.py</code></td><td>UserPromptSubmit + PreToolUse(Bash)</td>
+        <td>브랜치명 컨벤션 사후 교정</td>
+        <td>차단 없음 — <code>worktree-&lt;name&gt;</code> → <code>claude/&lt;name&gt;</code> rename</td>
+        <td>linked worktree AND <code>worktree-</code> 접두 AND <b>upstream 미설정</b>일 때만 동작</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <p>부속 강제 지점(훅 파일은 아니지만 같은 계층에서 동작):</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>지점</th><th>시점</th><th>목적</th><th>차단 조건</th><th>우회 수단</th></tr></thead>
+    <tbody>
+      <tr><td><code>clemvion:.githooks/pre-commit</code></td><td><code>git commit</code> 직전</td><td>브랜치 가드 + mermaid 린트 재검사</td><td><code>branch_guard.py</code> exit 2 → commit exit 1</td><td><code>core.hooksPath</code> 미설정 클론이면 <b>아예 동작 안 함</b></td></tr>
+      <tr><td><code>clemvion:.claude/tools/bootstrap-session.sh</code></td><td>SessionStart</td><td>hooksPath 활성화 · mermaid deps · 마커 GC(30일) · reaper 호출</td><td>항상 exit 0 (차단 없음)</td><td>npm install 실패 시 30분 cooldown</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>판정 로직은 <code>clemvion:.claude/hooks/_lib/</code> 6개 모듈로 분리돼 있다: <code>branch_guard.py</code>(브랜치 판정 단일 SoT), <code>review_guard.py</code>(리뷰 신선도·커버리지), <code>plan_guard.py</code>(plan 연결 판정), <code>failopen_state.py</code>(연속 카운터), <code>branch_naming.py</code>, <code>mermaid_lint_ready.py</code>.</p>
+
+  <h3 id="sec-2-3">2.3 4-layer 브랜치 가드 — 같은 규칙을 네 지점에서</h3>
+  <p>SSOT는 <code>clemvion:.claude/docs/worktree-policy.md</code> §5이고 판정은 <code>clemvion:.claude/hooks/_lib/branch_guard.py</code> 한 곳이다.</p>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">차단 조건 원문</b>
+    <p>차단 조건 = (최상위 <code>.git</code>이 <b>디렉토리</b> = main worktree) <b>AND</b> (현재 브랜치 == origin 기본 브랜치). linked worktree(<code>.git</code>이 파일), detached HEAD, origin 부재는 모두 허용된다.</p>
+  </div></div>
+
+  <p>4개 레이어(A: 편집 차단 / B: 프롬프트 리마인더 / C: pre-commit / D: Bash 리마인더)는 <b>차단 강도가 의도적으로 다르다</b> — 오탐 비용이 큰 지점(Bash 명령 분류)은 아예 차단하지 않는다. 정식 진입 경로는 <code>clemvion:.claude/tools/ensure-worktree.sh &lt;task_name&gt;</code>이며, <code>.claude/worktrees/&lt;task&gt;-&lt;slug&gt;/</code> + 브랜치 <code>claude/&lt;task&gt;-&lt;slug&gt;</code>를 origin 기본 브랜치 기준으로 만든다. 스크립트는 "호출자의 CWD를 바꿀 수 없다 — 출력된 <code>cd</code> 명령을 호출자가 직접 실행해야 한다"고 명시한다.</p>
+
+  <h3 id="sec-2-4">2.4 push 이중 게이트 — 1,005줄이 하는 일</h3>
+  <p><code>clemvion:.claude/hooks/guard_review_before_push.py</code>는 하네스 최대 단일 훅이다. 분량 대부분은 <b>"이 Bash 명령이 push인가"를 텍스트로 판정</b>하는 데 쓰인다.</p>
+  <ul>
+    <li><b>설계</b>: "BLIND first pass + 열거된 릴리스 허용목록". shlex 파서로 재작성했다가 "리뷰 라운드마다 새로운 false-negative 유형이 발견돼" 되돌렸고, 대신 무지한 정규식으로 먼저 잡은 뒤 커밋 메시지(<code>-m '…'</code>)·heredoc 본문 같은 불활성 텍스트만 blank 처리해 재검사한다.</li>
+    <li><b>ReDoS 역사가 주석에 실측치로 박제</b>: "246바이트 명령에서 6.4초 측정", <code>A=v\n</code>×20000 입력이 30초 → 5ms로 수정. 16KB 초과 명령은 분석하지 않고 안전 방향(차단)으로 처리한다.</li>
+    <li><b>멀티 worktree 스코핑</b>: <code>cd &lt;다른 worktree&gt; &amp;&amp; git push</code>가 게이트를 통과하는 실측 우회(2026-07-23)가 발견되어, <code>git worktree list --porcelain</code>의 모든 브랜치·경로명이 명령 텍스트에 등장하면 그 worktree도 함께 평가하도록 확장됐다. 잔여 갭도 명시돼 있다 — "도구의 CWD가 이미 다른 worktree 안인 상태에서의 bare push는 훅 자신의 CWD만 평가된다".</li>
+    <li><b>freshness 시계</b>: 리뷰 시각은 파일 mtime이 아니라 <b>세션 디렉토리 경로의 타임스탬프</b>(<code>review/code/&lt;Y&gt;/&lt;m&gt;/&lt;d&gt;/&lt;H&gt;_&lt;M&gt;_&lt;S&gt;</code>), 코드 시각은 커밋 author date(clean)/mtime(dirty). checkout·rebase가 mtime과 committer date를 리셋해 오판하던 문제를 회피하려는 "rewrite-immune 시계" 공학이다.</li>
+  </ul>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">"fresh, resolved review"의 정의 — 세 조건의 논리곱</b>
+    <p>(a) <code>agents_forced</code> 리뷰어 <b>전원</b>의 리포트 존재 · (b) <code>RESOLUTION.md</code> 존재 <b>또는</b> <code>## 전체 위험도</code>가 NONE/LOW · (c) <b>최신 코드 변경보다 나중</b>. <span class="src"><code>clemvion:.claude/hooks/_lib/review_guard.py</code> docstring</span></p>
+  </div></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-07 · AI 리뷰는 플랫폼 엔티티다</b>
+    <p>게이트 판정은 서버 SQL로 내려간다. 위 세 조건은 리뷰가 <b>커밋 SHA와 연결되기만 하면</b> 단순 질의가 된다. 파일시스템 walk·경로 타임스탬프·author-date 시계·rebase 면역 설계는 전부 "커밋 링크 없음"을 보상하려는 우회 공학이다. NERV에서는 ReviewSession이 입력 커밋 스냅샷을 필수 필드로 갖고, 게이트 판정 API(<b>FR-10</b>)가 이를 대체한다.</p>
+  </div></div>
+
+  <h3 id="sec-2-5">2.5 Stop 소프트 게이트와 anti-wedge</h3>
+  <p><code>clemvion:.claude/hooks/guard_review_before_stop.py</code>는 push 게이트와 <b>같은 판정 함수</b>(<code>evaluate_review()</code> / <code>evaluate_plan()</code>)를 재사용하되 세 가지를 양보한다.</p>
+  <ol>
+    <li><code>stop_hook_active</code>면 즉시 허용 — 무한 루프 차단.</li>
+    <li>넛지는 (session_id, branch)당 1회 — 마커 <code>.claude/state/review_stop_nudged/&lt;sid&gt;__&lt;branch&gt;[__&lt;kind&gt;]</code>.</li>
+    <li><code>evaluate_review(in_flight_ok=True)</code> — 시작됐지만 SUMMARY 미작성인 리뷰 세션(30분 TTL)은 넛지 억제. <b>push 게이트는 이 양보를 받지 않는다</b>: "공유된 기본 활성 억제는 TTL 전체 구간 동안 push 게이트를 열어버렸을 것"이라는 실제 버그의 회귀 방지 주석이 남아 있다.</li>
+  </ol>
+  <p>여기에 재리뷰 경합 억제 마커 쌍(#6·#7 훅)이 붙는다. <code>resolution-applier</code>가 만든 fix 커밋은 리뷰 이후 시점의 코드 변경이므로 Stop 넛지를 재발화시켜 "때이른 중복 <code>/ai-review</code> — 토큰 낭비 + 경합"을 유발한다. 이 억제는 Stop 전용이며 push는 여전히 하드 게이트다.</p>
+
+  <h3 id="sec-2-6">2.6 fail-open + 연속 카운터 격상</h3>
+  <p>게이트 모듈 import 실패나 평가 예외가 나면 push는 <b>허용</b>되지만 침묵하지 않는다.</p>
+  <ul>
+    <li>명시적 배너 출력("이 push는 검사되지 않았습니다") + <code>.claude/state/push_guard_failopen.json</code>에 <b>연속 fail-open 횟수</b> 기록.</li>
+    <li><code>ESCALATE_AT = 3</code> — 3회 연속이면 <b>"이 게이트는 사실상 꺼져 있습니다"</b>로 격상(<code>clemvion:.claude/hooks/_lib/failopen_state.py</code>).</li>
+    <li>리셋은 <code>_ALL_GATES = {REVIEW, PLAN}</code> 전원이 답한 실행에서만.</li>
+  </ul>
+  <p>이 패턴은 NERV가 그대로 계승할 가치가 있다(§4). 다만 <b>관측자가 본인 터미널뿐</b>이라는 점이 한계다(§5.1).</p>
+
+  <h3 id="sec-2-7">2.7 워크플로 3종과 서브에이전트 호출 계약</h3>
+  <p><code>clemvion:.claude/workflows/</code>에 <code>ai-review.js</code>(325줄) · <code>consistency-check.js</code>(197줄) · <code>merge-coordinate.js</code>(202줄)가 있고, 공통 패턴은 4단계다.</p>
+  <ol>
+    <li>Python orchestrator <code>--prepare</code>(모델 호출 없음)가 diff 코퍼스를 수집해 <code>review/&lt;종류&gt;/&lt;ts&gt;/_prompts/&lt;agent&gt;.md</code> + <code>_retry_state.json</code> manifest 작성.</li>
+    <li>main 세션이 manifest를 읽어 워크플로 호출.</li>
+    <li><code>ai-review.js</code>는 Route → Review → Summary 3단. <b>Route 불신 규칙</b>: <code>review-router</code>가 forced 리뷰어를 제외하면 라우팅 결정을 폐기하고 전수 실행한다. 도입 계기는 2026-07-23 사고 — "14개 전부 false, '문서만 변경' 판정, 그런데 changeset에는 새 Python 모듈이 있었다".</li>
+    <li>Summary 단계는 전 리포트를 <b>인라인으로</b> 전달한다. 근거: "워크플로 스크립트에는 파일시스템 접근이 없다" + Write를 건너뛴 리뷰어의 Critical이 사라져 <b>"CRITICAL이 읽히지 않은 채 <code>BLOCK: NO</code>가 나온 사례가 한 작업에서 3회"</b> 실측.</li>
+  </ol>
+  <p>서브에이전트 호출 계약(<code>clemvion:.claude/docs/subagent-call-contract.md</code>)은 인자 2줄(<code>prompt_file=</code> / <code>output_file=</code>)과 반환 1줄(<code>STATUS=&lt;success|rate_limit|network|fatal&gt; ISSUES=&lt;n&gt; PATH=&lt;output_file&gt; RESET_HINT=&lt;sec&gt;</code>)로 고정돼 있고, "Write 실패 시 success 거짓 보고 절대 금지"를 명시한다. 하네스 자체 가드도 실측돼 있다 — <code>SUMMARY.md</code>/<code>summary.md</code>/<code>REPORT.md</code>/<code>findings.md</code> basename은 <b>어떤 sub-agent도 Write 불가</b>이며, 그래서 summary 계열은 전문을 반환하고 호출자(main)가 멱등 Write한다.</p>
+
+  <div class="callout danger"><span class="ico">🚨</span><div class="body">
+    <b class="title">알려진 결함 · lock 없는 read-modify-write</b>
+    <p>같은 에이전트에 대한 <code>--update</code> 호출이 겹치면 앞선 전이가 유실된다. 실측 기록(2026-08-07): "두 개의 겹친 update가 있었고, 먼저 쓴 쪽의 전이가 사라졌다". 그 전이가 <code>fatal</code>이었다면 sentinel까지 함께 지워져 <b>어떤 재조정으로도 복구되지 않는다</b>. <span class="src"><code>clemvion:.claude/docs/subagent-call-contract.md</code> §5</span></p>
+  </div></div>
+
+  <h3 id="sec-2-8">2.8 worktree 정책과 GC reaper</h3>
+  <ul>
+    <li>모든 신규 작업은 <code>.claude/worktrees/&lt;task&gt;-&lt;slug&gt;/</code> 안에서만 수행한다(<code>clemvion:.claude/docs/worktree-policy.md</code> §1). e2e 인프라도 자동 격리된다 — "<code>make e2e-*</code>는 worktree 디렉토리 basename으로 compose project name을 도출해 컨테이너·볼륨·network를 분리"(§3).</li>
+    <li>worktree 수명은 PR 단위. 정리는 <code>clemvion:.claude/tools/reap-merged-worktrees.sh</code>가 세션 시작마다 수행: <code>gh pr list --state all --limit 200</code> 1회 배치로 브랜치→상태 맵을 만들고, MERGED + clean인 worktree와 dangling <code>claude/*</code> 브랜치를 제거한다. LOCAL-ONLY(원격 ref 불변) · dirty 보존 · gh 부재 시 fail-safe · 6시간 throttle.</li>
+    <li>설계 근거가 곧 구조적 진단이다: <b>"merge는 대부분 GitHub 웹에서 일어나 로컬이 그 이벤트를 관측할 수 없다. 그래서 세션 시작마다 조회해 정리한다 — 멱등적"</b>(§7). 이벤트 소스(서버) 부재를 폴링으로 보상하는 전형이다.</li>
+  </ul>
+
+  <h3 id="sec-2-9">2.9 로컬 상태 파일 인벤토리</h3>
+  <p>조율에 쓰이는 상태는 예외 없이 로컬 파일시스템에 있고, <code>.gitignore</code>가 <code>.claude/state/</code>·<code>.claude/worktrees/</code>·<code>review/**/_prompts/</code>를 제외한다 — 즉 <b>조율용 상태는 전부 비공유</b>다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>상태</th><th>위치</th><th>형태</th><th>키</th></tr></thead>
+    <tbody>
+      <tr><td>Bash 경고 dedup</td><td><code>.claude/state/main_worktree_bash_warned/&lt;session_id&gt;</code></td><td>빈 touch 파일</td><td>하네스 <code>session_id</code></td></tr>
+      <tr><td>Stop 넛지 dedup</td><td><code>.claude/state/review_stop_nudged/&lt;sid&gt;__&lt;branch&gt;[__&lt;kind&gt;]</code></td><td>빈 touch 파일</td><td><code>session_id</code> + 브랜치명</td></tr>
+      <tr><td>resolution 진행 중</td><td><code>.claude/state/resolution_in_flight/&lt;tool_use_id&gt;</code></td><td>epoch 초 텍스트</td><td><code>tool_use_id</code></td></tr>
+      <tr><td>fail-open 연속 카운터</td><td><code>.claude/state/push_guard_failopen.json</code>, <code>stop_guard_failopen.json</code></td><td><code>{"streak":n,"gates":[…]}</code></td><td>없음(파일 단일)</td></tr>
+      <tr><td>reaper throttle</td><td><code>.claude/state/reap_last_run</code></td><td>빈 파일(mtime이 시계)</td><td>없음</td></tr>
+      <tr><td>mermaid 설치 마커/쿨다운</td><td><code>node_modules/.bootstrap-install-complete</code>, <code>.claude/state/mermaid_install_last_fail</code></td><td>lockfile sha256 / mtime</td><td>없음</td></tr>
+      <tr><td>리뷰 세션 상태 머신</td><td><code>review/&lt;종류&gt;/&lt;Y&gt;/&lt;m&gt;/&lt;d&gt;/&lt;H&gt;_&lt;M&gt;_&lt;S&gt;/_retry_state.json</code></td><td>JSON manifest</td><td>세션 디렉토리 경로</td></tr>
+      <tr><td>작업 추적</td><td><code>plan/in-progress/&lt;name&gt;.md</code> frontmatter</td><td>git 내 markdown</td><td><code>worktree:</code> 문자열</td></tr>
+      <tr><td>가시성</td><td><code>.claude/statusline.sh</code> (transcript JSONL 파싱)</td><td>터미널 2줄 렌더</td><td>자기 세션</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>statusline은 model·컨텍스트 %·누적 비용·git ahead/behind·<code>plan/in-progress/</code> 카운트를 보여준다. <b>가시성 대시보드가 로컬 터미널 두 줄에 갇혀 있는 형태</b>다.</p>
+
+  <h2 id="sec-3">3. 문서 체계</h2>
+
+  <div class="diagram">
+    <svg viewBox="0 0 940 320" role="img" aria-label="clemvion 작업 수명주기: plan 생성부터 worktree 착수, 구현, 리뷰, push 이중 게이트, 머지, reaper 정리까지">
+      <defs>
+        <marker id="d1arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+        <marker id="d1arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+      </defs>
+
+      <rect x="60" y="26" width="220" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="170" y="50" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">plan/in-progress/&lt;name&gt;.md</text>
+      <text x="170" y="70" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">worktree · started · owner</text>
+
+      <rect x="340" y="26" width="220" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="450" y="50" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">ensure-worktree.sh</text>
+      <text x="450" y="70" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">branch claude/&lt;task&gt;-&lt;slug&gt;</text>
+
+      <rect x="620" y="26" width="250" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="745" y="50" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">developer 0~9단계</text>
+      <text x="745" y="70" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">사전 일관성 검토 → TDD → 구현</text>
+
+      <line x1="280" y1="57" x2="336" y2="57" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d1arr)"/>
+      <line x1="560" y1="57" x2="616" y2="57" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d1arr)"/>
+
+      <path d="M745,88 L745,122 L125,122 L125,164" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d1arr)"/>
+
+      <rect x="25" y="166" width="200" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="125" y="190" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">/ai-review</text>
+      <text x="125" y="210" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">reviewer 최대 14 병렬</text>
+
+      <rect x="265" y="166" width="200" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="365" y="190" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">resolution-applier</text>
+      <text x="365" y="210" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">RESOLUTION.md + fix 커밋</text>
+
+      <rect x="505" y="160" width="200" height="74" rx="10" fill="var(--danger-soft)" stroke="var(--danger)"/>
+      <text x="605" y="184" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">push 이중 게이트</text>
+      <text x="605" y="202" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">REVIEW · SPEC-CONSISTENCY</text>
+      <text x="605" y="219" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">· PLAN (1,005줄 훅)</text>
+
+      <rect x="745" y="166" width="180" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="835" y="190" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">PR → GitHub 머지</text>
+      <text x="835" y="210" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">reaper가 gh 폴링으로 관측</text>
+
+      <line x1="225" y1="197" x2="261" y2="197" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d1arr)"/>
+      <line x1="465" y1="197" x2="501" y2="197" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d1arr)"/>
+      <line x1="705" y1="197" x2="741" y2="197" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d1arr)"/>
+      <text x="723" y="188" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">통과</text>
+
+      <path d="M605,234 L605,278 L125,278 L125,232" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#d1arrA)"/>
+      <text x="365" y="270" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="11">미충족 · exit 2 — 리뷰 라운드 반복</text>
+
+      <text x="60" y="308" fill="var(--text-faint)" font-family="var(--font)" font-size="10.5">모든 판정 근거는 이 머신의 파일시스템에만 존재한다 (§2.9 · §5.1)</text>
+    </svg>
+    <div class="cap">그림 1. 작업 수명주기와 강제 지점 — plan 티켓 생성부터 reaper 정리까지</div>
+  </div>
+
+  <h3 id="sec-3-1">3.1 spec/ — 계층·3섹션 규약·증적 frontmatter</h3>
+  <p><b>계층</b>: 루트 진입 문서(<code>0-overview.md</code> 제품 비전·구현 상태·문서맵, <code>1-data-model.md</code> 943줄 엔티티 SoT, <code>6-brand.md</code>) + 영역 폴더 7개(<code>2-navigation</code> 18 · <code>3-workflow-editor</code> 7 · <code>4-nodes</code> 44(하위 7 카테고리) · <code>5-system</code> 18 · <code>7-channel-web-chat</code> 7 · <code>conventions</code> 22+카탈로그 249 · <code>data-flow</code> 16). 최대 문서는 1,750줄이 2개(<code>clemvion:spec/5-system/4-execution-engine.md</code>, <code>clemvion:spec/2-navigation/4-integration.md</code>).</p>
+
+  <p><b>3섹션 포맷</b>(<code>clemvion:.claude/skills/project-planner/SKILL.md</code>): <code>## Overview (제품 정의)</code>(옛 PRD 자리) → 본문(데이터 모델·API·UI·상태 전이·에러 처리) → <code>## Rationale</code>(결정 배경·근거·<b>폐기된 대안</b>, 옛 ADR 자리). 실측 <b>105개 문서</b>가 Rationale을 보유한다. 본문은 "latest-only 사실"만 기술하고 이력은 git이 전담한다.</p>
+
+  <p><b>요구사항 ID</b>: <code>_product-overview.md</code> 안에서 <code>NAV-WF-01</code> · <code>ED-CV-01</code> · <code>ND-AG-24</code> · <code>CCH-SE-02</code> 형식(영역-화면-순번)으로 쓰이고, 커밋 메시지도 이 ID로 대화한다. 그러나 <b>구현 상태 ✅ 컬럼은 영역마다 비일관</b>하다 — <code>clemvion:spec/2-navigation/_product-overview.md</code>는 ✅ 마크 <b>131개</b>, <code>clemvion:spec/3-workflow-editor/_product-overview.md</code>와 <code>clemvion:spec/7-channel-web-chat/_product-overview.md</code>는 상태 컬럼 <b>자체가 없다(0개)</b>.</p>
+
+  <p><b>증적 frontmatter</b>(<code>clemvion:spec/conventions/spec-impl-evidence.md</code>):</p>
+  <pre><code>---
+id: chat-channel          # kebab-case, basename 기반
+status: implemented       # 5값 enum
+code:                     # 구현 경로 glob (레포 루트 상대)
+  - codebase/backend/src/modules/chat-channel/**
+pending_plans:            # status: partial 일 때 의무
+  - plan/in-progress/&lt;name&gt;.md
+user_guide:               # 선택, 가드 미적용 (R-10)
+---</code></pre>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th><code>status</code></th><th>의미</th><th>강제 사항</th><th>실측 분포</th></tr></thead>
+    <tbody>
+      <tr><td><code>backlog</code></td><td>장기 로드맵</td><td><code>id:</code>가 <code>spec/0-overview.md</code> 본문에 등장 의무</td><td>1</td></tr>
+      <tr><td><code>spec-only</code></td><td>구현 의도 결정됨</td><td><b>TTL 90일 — 초과 시 빌드 실패</b></td><td>0</td></tr>
+      <tr><td><code>partial</code></td><td>일부 구현</td><td><code>code:</code> ≥1 매치 + <code>pending_plans:</code> 의무</td><td>17</td></tr>
+      <tr><td><code>implemented</code></td><td>완료</td><td><code>code:</code> ≥1 매치 의무</td><td>117</td></tr>
+      <tr><td><code>archived</code></td><td>폐기</td><td>본문 끝 폐기 사유, 90일 후 삭제 권장</td><td>0</td></tr>
+    </tbody>
+  </table></div>
+  <p class="src">frontmatter 추적 대상 135개 문서의 실측 분포. 이 문서의 다른 수치는 2026-08-13 조사분이지만, 이 항목만은 조사 과정에서 집계값이 갈려 <b>2026-08-14에 재검증한 값</b>이다 — 그 이유는 다음과 같다. 단순 <code>grep '^status:'</code> 라인 집계는 118/18/1/1로 부풀려지는데, 규약 문서 <code>clemvion:spec/conventions/spec-impl-evidence.md</code>(5회)와 <code>swagger.md</code>(2회) 본문의 <b>예시 frontmatter 라인</b>이 함께 세어지기 때문이다 — 실제 문서 frontmatter만 파싱하면 117/17/1이고 합이 정확히 135가 된다.</p>
+
+  <div class="callout warn"><span class="ico">🔎</span><div class="body">
+    <b class="title">이 수치 자체가 P4의 사례다</b>
+    <p>같은 저장소를 두 방식으로 세면 다른 답이 나온다(118/18/1/1 vs 117/17/1). 문서 안에 흩어진 텍스트를 <code>grep</code>으로 집계하는 한 "무엇이 얼마나 구현됐나"는 <b>측정 방법에 따라 흔들리는 추정치</b>일 뿐이다. NERV가 상태를 DB 필드로 들고 <a href="data-model.html">관계 질의</a>로 답해야 하는 이유(<b>D-03</b>)를 이 한 줄이 보여준다.</p>
+  </div></div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">이 규약이 생긴 이유</b>
+    <p>기존 검사가 전부 change-triggered라 <b>"'스펙이 약속한 surface가 <i>지금</i> 구현됐는가'는 어떤 검사도 묻지 않았다"</b>. 기원 사례는 텔레그램 chat-channel UI 영구 누락 — 스펙이 plan을 가리키지 않아 <b>"어떤 plan도 책임지지 않는 빈 약속"</b>이 됐다. <span class="src"><code>clemvion:spec/conventions/spec-impl-evidence.md</code> §Overview, R-5</span></p>
+  </div></div>
+
+  <h3 id="sec-3-2">3.2 빌드 결합 가드 9종</h3>
+  <p>스펙 거버넌스 검증이 <b>프론트엔드 단위 테스트</b>로 구현돼 있다(<code>clemvion:codebase/frontend/src/lib/docs/__tests__/</code>). 빌드 실패 = 차단이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>가드</th><th>검사 대상</th></tr></thead>
+    <tbody>
+      <tr><td><code>spec-frontmatter.test.ts</code></td><td>필수 필드 존재</td></tr>
+      <tr><td><code>spec-code-paths.test.ts</code></td><td><code>code:</code> glob이 실제 파일 ≥1개와 매치</td></tr>
+      <tr><td><code>spec-status-lifecycle.test.ts</code></td><td><code>spec-only</code> TTL 90일, <code>partial</code>→<code>implemented</code> 승격 누락, <code>backlog</code> 로드맵 등재</td></tr>
+      <tr><td><code>spec-pending-plan-existence.test.ts</code></td><td><code>pending_plans:</code>가 가리키는 plan 실존</td></tr>
+      <tr><td><code>spec-link-integrity.test.ts</code></td><td>in-repo 상대링크 타깃 존재 + heading slug 앵커 대조</td></tr>
+      <tr><td><code>spec-area-index.test.ts</code></td><td>영역 폴더(≥2 sibling)에 index 문서 존재 + 전 sibling 링크</td></tr>
+      <tr><td><code>plan-frontmatter.test.ts</code></td><td>plan 필수 3필드</td></tr>
+      <tr><td><code>spec-plan-completion.test.ts</code> (<b>Gate C</b>)</td><td>완료 plan의 <code>spec_impact</code> 선언</td></tr>
+      <tr><td><code>/spec-coverage --mode reverse</code> (<b>Gate D</b>, advisory)</td><td>스펙 미참조 route·이벤트·env를 NLP 휴리스틱으로 탐지 — CI 비차단</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>역방향 증적(가이드→코드)은 별도 규약 <code>clemvion:spec/conventions/user-guide-evidence.md</code>가 담당한다 — MDX 본문에 <code>&lt;ImplAnchor kind file symbol describes&gt;</code>를 심고 3개 테스트가 파일 실존과 symbol grep을 강제한다.</p>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">규약이 스스로 인정하는 약점</b>
+    <p><b>R-1</b> "stale glob(없어진 파일을 가리키는 glob이 다른 파일에 매칭돼서 통과)은 본 가드만으로 검출 불가" · <b>R-10</b> "<code>user_guide:</code>는 빌드 가드 미적용". <code>clemvion:PROJECT.md</code> §자주 누락되는 항목은 "spec frontmatter <code>code:</code> glob stale — backend 경로만 명시하고 frontend 경로 누락"을 재현 패턴으로 기록해 두었다.</p>
+    <p>부작용 하나가 중요하다: <b>스펙 본문의 plan 링크도 링크 무결성 검사 대상</b>이라 plan이 <code>in-progress/</code>→<code>complete/</code>로 이동하면 스펙 링크를 함께 고쳐야 빌드가 통과한다. <b>문서 이동이 곧 빌드 리스크다.</b></p>
+  </div></div>
+
+  <h3 id="sec-3-3">3.3 plan/ — markdown 파일 하나가 티켓</h3>
+  <p>별도 이슈 트래커 없이 <code>plan/in-progress/&lt;name&gt;.md</code> 하나가 태스크 티켓이다(<code>clemvion:.claude/docs/plan-lifecycle.md</code> §1).</p>
+  <ul>
+    <li><b>분류 규칙</b>: 미체크 체크박스·TODO·"결정 필요"가 하나라도 있으면 <code>in-progress/</code>, 전부 끝나면 <code>complete/</code>. 작업이 아닌 조사 문서는 <code>plan/research/</code>로 제3의 축 분리 — "리서치 문서는 <code>in-progress/</code>에 영구 정체하며 실제 진행 중 작업 목록을 오염시킨다".</li>
+    <li><b>필수 3필드</b>: <code>worktree:</code>(살아있는 worktree 디렉토리명, 미착수는 sentinel <code>(unstarted)</code>) · <code>started:</code>(ISO 날짜) · <code>owner:</code>. placeholder(TBD 등)는 가드가 거부한다 — "어떤 worktree와도 매칭되지 않아 plan이 게이트에서 사라지므로".</li>
+    <li><b><code>worktree:</code>가 곧 소유권 클레임</b>: 이 값이 push 게이트의 "연결 판정" 키다(plan frontmatter <code>worktree:</code> basename ↔ 현재 worktree 디렉토리명 매칭).</li>
+    <li><b>Gate C</b>: <code>started &gt;= 2026-06-04</code>인 완료 plan은 frontmatter <code>spec_impact</code> 선언 의무(스펙 실존 경로 리스트 또는 sentinel <code>none</code>/<code>없음</code>/<code>n/a</code>/<code>na</code>). <code>status</code>를 선언했다면 종료값 4종(<code>complete</code>·<code>implemented</code>·<code>applied</code>·<code>superseded</code>)만 허용.</li>
+    <li><b>완료 이동 의식</b>: 모든 체크박스 <code>[x]</code> + follow-up 0건이 되는 <b>마지막 작업 PR 안에서</b> <code>git mv</code> + <code>chore(plan): mark &lt;name&gt; complete</code> 별도 커밋. "plan 이동만 담은 별 PR 분리 금지".</li>
+    <li>양방향 추적 구조가 완성돼 있다: plan→spec은 <code>spec_impact</code>(완료 시), spec→plan은 <code>pending_plans</code>(부분 구현 시). 둘 다 빌드 실패로 강제된다.</li>
+  </ul>
+
+  <div class="callout danger"><span class="ico">🚨</span><div class="body">
+    <b class="title">스키마의 취약점 — 실물 기록</b>
+    <p><code>clemvion:plan/in-progress/retry-turn-terminal-guard.md</code> frontmatter 주석: <b>"최초 worktree는 #1024로 머지됐다. 머지된 값을 두면 P1 코드 push 시 가드가 '연결된 plan 없음(ad-hoc)'으로 오판해 무장 해제된다."</b> <code>worktree:</code>는 스칼라 1개라 재착수·다중 worktree를 표현하지 못하고 수동 갱신에 의존한다.</p>
+  </div></div>
+
+  <h3 id="sec-3-4">3.4 review/ — 경로가 곧 데이터베이스 인덱스</h3>
+  <pre><code>review/
+├── code/          YYYY/MM/DD/HH_MM_SS/   ← /ai-review (reviewer 최대 14)
+├── consistency/   YYYY/MM/DD/HH_MM_SS/   ← /consistency-check (checker 5)
+└── spec-coverage/ YYYY/MM/DD/HH_MM_SS/   ← standing audit (단일 감사자)</code></pre>
+
+  <p><b>세션 1세트 파일 구성</b>(실례 <code>clemvion:review/code/2026/08/13/19_08_48/</code> — 11파일 약 85KB): <code>SUMMARY.md</code>(단일 진입점, main이 멱등 Write) · <code>meta.json</code>(대상 파일 목록·agents·route_mode·agents_forced) · <code>_retry_state.json</code>(세션 상태 머신) · <code>&lt;role&gt;.md</code>(역할별 리뷰어 리포트) · <code>RESOLUTION.md</code>(자동 fix 결과) · <code>_resolution_state.json</code>/<code>_resolution_log.md</code> · <code>_prompts/</code>(gitignored).</p>
+
+  <p><b>리뷰어 매트릭스</b> 기본 14종. 이 중 <b>7종은 코드 변경 시 강제 화이트리스트</b>(<code>agents_forced</code>)로 router도 제외할 수 없다.</p>
+  <p><span class="badge impl">forced 7종</span> <code>documentation</code> <code>maintainability</code> <code>requirement</code> <code>scope</code> <code>security</code> <code>side_effect</code> <code>testing</code><br>
+     <span class="badge">선택 7종</span> <code>performance</code> <code>architecture</code> <code>dependency</code> <code>database</code> <code>concurrency</code> <code>api_contract</code> <code>user_guide_sync</code></p>
+
+  <p><b>severity 어휘 3계층</b>:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>계층</th><th>어휘</th><th>위치</th></tr></thead>
+    <tbody>
+      <tr><td>발견사항</td><td><code>[CRITICAL]</code> / <code>[WARNING]</code> / <code>[INFO]</code> + 위치 <code>&lt;파일경로&gt;:&lt;줄번호&gt;</code></td><td>리뷰어 출력 형식(<code>clemvion:.claude/agents/security-reviewer.md</code>)</td></tr>
+      <tr><td>리뷰어·세션 위험도</td><td><code>NONE</code> / <code>LOW</code> / <code>MEDIUM</code> / <code>HIGH</code> / <code>CRITICAL</code></td><td>리포트 말미 <code>### 위험도</code>, SUMMARY <code>## 전체 위험도</code></td></tr>
+      <tr><td>특수 태그</td><td><code>[SPEC-DRIFT]</code> — "구현이 스펙을 의도적으로 개선해 스펙이 낡음"</td><td>통합 시 보존 의무: "절대 일반 WARNING으로 뭉개지 말 것"(<code>clemvion:.claude/agents/code-review-summary.md</code>)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>consistency는 여기에 SUMMARY 최상단 <b><code>BLOCK: YES/NO</code></b>를 추가한다 — "Critical = 차단: <code>BLOCK: YES</code>면 호출자 즉시 멈춤", <b>"Critical 하향은 금지다"</b>(<code>clemvion:.claude/skills/consistency-checker/SKILL.md</code>). spec-coverage는 별도 어휘를 쓴다(<code>[severe]</code>/<code>[major]</code> + confidence <code>high/medium/low</code>).</p>
+
+  <p><b>SUMMARY.md 스키마</b>는 고정돼 있다(<code>clemvion:.claude/agents/code-review-summary.md</code>): <code>## 전체 위험도</code> → <code>## Critical 발견사항</code> → <code>## 경고 (WARNING)</code> → <code>## 참고 (INFO)</code>(각각 <code>| # | 카테고리 | 발견사항 | 위치 | 제안 |</code> 표) → <code>## 에이전트별 위험도 요약</code> → <code>## 발견 없는 에이전트</code> → <code>## 권장 조치사항</code> → <code>## 라우터 결정</code>. <b>표의 행 번호(#)가 곧 finding ID</b>이며 커밋 메시지와 RESOLUTION이 <code>SUMMARY#&lt;n&gt;</code>으로 참조한다.</p>
+
+  <p><b>resolution-applier</b>(<code>clemvion:.claude/agents/resolution-applier.md</code>)는 <code>## 조치 항목</code>(분류 ∈ {코드, spec(draft 위임), SPEC-DRIFT}) · <code>## TEST 결과</code>(e2e는 "통과 / 면제 / 자동 흐름 환경 차단 / 3회 실패" 4형식만) · <code>## 보류·후속 항목</code> 구조를 강제하고, fix 커밋 메시지는 <code>fix(&lt;scope&gt;): SUMMARY#&lt;n&gt; &lt;한 줄 요약&gt;</code> — <b>"<code>SUMMARY#&lt;n&gt;</code> 인용 강제 — idempotency 복구에 필요"</b>. <code>_resolution_state.json</code>에 <code>commits_made: [{"sha","summary_id","scope"}]</code>로 <b>finding→commit이 구조화</b>돼 있다.</p>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">ESCALATE 매트릭스 — 사람 개입 지점의 어휘</b>
+    <p><code>STATUS=… ITEMS=&lt;r&gt;/&lt;t&gt; E2E=… ESCALATE=&lt;no|spec|user-decision|infra|e2e-fail-3x|sensitive-fix&gt; NEEDS_SPEC=… RESOLUTION=…</code></p>
+    <p>특히 <code>spec</code> 경로는 <b>SPEC-DRIFT 역류</b>를 정식화한다 — resolution-applier가 코드를 되돌리지 않고 <code>plan/in-progress/spec-update-&lt;area&gt;.md</code> draft를 만들고 <code>/consistency-check --spec</code>으로 스펙에 반영한다. 이 어휘는 NERV 승인함(FR-11)의 카드 유형으로 그대로 이식된다.</p>
+  </div></div>
+
+  <h2 id="sec-4">4. 잘 작동하는 것 — 계승 자산</h2>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>계승 자산</th><th>clemvion 근거</th><th>NERV 반영</th></tr></thead>
+    <tbody>
+      <tr><td><b>역할 = 경로별 쓰기 권한 분리</b></td><td>기획/개발/검토/통합 5+1 스킬, planner만 <code>spec/</code> 쓰기(<code>clemvion:CLAUDE.md</code>)</td><td>역할(admin·planner·designer·developer·qa·viewer) 기반 권한(<b>FR-14</b>), 사람 assignee + 에이전트 delegate 분리(<b>D-08</b>)</td></tr>
+      <tr><td><b>"미루기 금지" 게이트</b></td><td>"'PR에서' 미루는 것은 위반이며, hook으로 강제된다"(<code>clemvion:.claude/skills/developer/SKILL.md</code>)</td><td>Task <code>done</code> 전이 조건에 해소된 리뷰 필수(<b>FR-10</b>)</td></tr>
+      <tr><td><b>증적(evidence) 개념</b></td><td><code>code:</code> glob · <code>pending_plans:</code> · <code>spec_impact</code> · <code>&lt;ImplAnchor&gt;</code></td><td>Evidence 엔티티 — Requirement↔Task↔PR↔Review 관계 그래프(<b>D-03</b>, <b>FR-13</b>)</td></tr>
+      <tr><td><b>Rationale 문화(폐기된 대안 보존)</b></td><td>105개 문서의 <code>## Rationale</code> + <code>rationale-continuity-checker</code>(기각 결정 재도입 검출)</td><td>스펙 타입 <code>adr</code> + SpecVersion 불변 스냅샷(<b>FR-02</b>)</td></tr>
+      <tr><td><b>fail-open + 연속 카운터 격상</b></td><td><code>ESCALATE_AT = 3</code>, "이 게이트는 사실상 꺼져 있습니다"(<code>clemvion:.claude/hooks/_lib/failopen_state.py</code>)</td><td><b>D-14</b> — 판정 불가 시 진행 허용 + 배너 + 임계 초과 시 격상</td></tr>
+      <tr><td><b>rewrite-immune 시계 같은 공학</b></td><td>경로 타임스탬프 + author date 시계(<code>clemvion:.claude/hooks/_lib/review_guard.py</code>)</td><td>서버 발급 이벤트 시각으로 <b>자연 해소</b> — 이 공학 자체가 불필요해지는 것이 이득</td></tr>
+      <tr><td><b>디스크가 arbiter (자기보고 불신)</b></td><td>"파일이 뒷받침하지 않는 자기보고 STATUS는 이 계약이 없애려는 가짜 성공"(<code>clemvion:.claude/docs/subagent-call-contract.md</code>)</td><td><b>D-14</b> — 에이전트 자기보고와 산출물 업로드 분리 검증</td></tr>
+      <tr><td><b>라우터 불신 규칙</b></td><td>forced 리뷰어 누락 시 라우팅 결정 폐기·전수 실행(<code>clemvion:.claude/workflows/ai-review.js</code>)</td><td>리뷰 커버리지 무결성 판정(<b>FR-09</b>)</td></tr>
+      <tr><td><b>ESCALATE 어휘 + SPEC-DRIFT 역류 경로</b></td><td><code>no/spec/user-decision/infra/e2e-fail-3x/sensitive-fix</code>(<code>clemvion:.claude/agents/resolution-applier.md</code>)</td><td>승인함(<b>FR-11</b>) 카드 유형 + CR 흐름(<b>FR-04</b>)</td></tr>
+      <tr><td><b>완료 의식이 스펙 정합을 강제 동반</b></td><td>Gate C — 완료 plan의 <code>spec_impact</code> 선언 의무</td><td>Task 완료 API의 필수 필드로 승격(<b>FR-05</b>)</td></tr>
+      <tr><td><b>doc-sync-matrix 3중 구조</b></td><td>사람용 표(<code>clemvion:PROJECT.md</code>) + 기계용 JSON(<code>clemvion:.claude/config/doc-sync-matrix.json</code>) + 정합 테스트</td><td>규칙 엔진·체크리스트 자동화</td></tr>
+      <tr><td><b>쓰기 전 사전 일관성 검토</b></td><td>planner의 <code>/consistency-check --spec</code> 의무(5 관점 병렬)</td><td>스펙 제출 파이프라인의 자동 사전 검토 단계</td></tr>
+      <tr><td><b>규칙의 사후 승격 패턴</b></td><td>산문 → 실패 실측 → 기계 강제(#1108·#1117·575세션 조사)</td><td>처음부터 서버 정책 엔진으로 — 사후 보수 비용 소거</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="ico">📎</span><div class="body">
+    <b class="title">한 가지 더 — 차단 게이트의 공유 모듈화는 양날이다</b>
+    <p>push 게이트가 정규식을 의도적으로 중복 보유하는 이유는 <b>"공유 모듈 하나가 깨지면 차단 게이트가 통째로 사라지는"</b> 실패 모드를 피하기 위해서다(<code>clemvion:.claude/hooks/guard_review_before_push.py</code>). NERV의 서버 게이트 설계에도 동일한 격리 원칙이 필요하다.</p>
+  </div></div>
+
+  <h2 id="sec-5">5. 구조적 한계 — 전부 실측 인용</h2>
+
+  <h3 id="sec-5-1">5.1 로컬 상태 갇힘: 규칙의 강제력이 호스트 경계에서 끝난다</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 920 330" role="img" aria-label="호스트 A의 로컬 전용 상태는 다른 호스트와 공유되지 않고, git만이 유일한 공유 채널이다">
+      <defs>
+        <marker id="d3arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+        <marker id="d3arrD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--danger)"/>
+        </marker>
+      </defs>
+
+      <rect x="24" y="20" width="380" height="140" rx="12" fill="var(--danger-soft)" stroke="var(--danger)" stroke-dasharray="6 4"/>
+      <text x="44" y="44" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">호스트 A — 로컬 전용 (gitignored)</text>
+      <text x="44" y="68" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">· .claude/state/** 마커 · fail-open 카운터</text>
+      <text x="44" y="88" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">· .claude/worktrees/** 격리 단위</text>
+      <text x="44" y="108" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">· review/**/_retry_state.json 상태 머신</text>
+      <text x="44" y="128" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">· statusline — 자기 세션 2줄</text>
+      <text x="44" y="148" fill="var(--text-faint)" font-family="var(--font)" font-size="11">키: session_id · tool_use_id · 브랜치명 · 경로 타임스탬프</text>
+
+      <rect x="24" y="186" width="380" height="118" rx="12" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="44" y="210" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">git — 유일한 공유 채널</text>
+      <text x="44" y="234" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">· spec/ 384 md</text>
+      <text x="44" y="254" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">· plan/ 450 md</text>
+      <text x="44" y="274" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">· review/ 13,777 md · 131MB</text>
+      <text x="44" y="294" fill="var(--text-faint)" font-family="var(--font)" font-size="11">동기화 지연 = push/pull 주기</text>
+
+      <path d="M404,90 L616,132" fill="none" stroke="var(--danger)" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#d3arrD)"/>
+      <line x1="500" y1="100" x2="524" y2="124" stroke="var(--danger)" stroke-width="2"/>
+      <line x1="524" y1="100" x2="500" y2="124" stroke="var(--danger)" stroke-width="2"/>
+      <text x="512" y="76" text-anchor="middle" fill="var(--danger)" font-family="var(--font)" font-size="11.5" font-weight="700">공유 불가 · 관측 불가</text>
+
+      <path d="M404,245 L616,206" fill="none" stroke="var(--border-strong)" stroke-width="1.6" marker-end="url(#d3arr)"/>
+      <text x="512" y="266" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">push / pull 이후에만</text>
+
+      <rect x="620" y="120" width="270" height="96" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="755" y="152" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">호스트 B의 세션</text>
+      <text x="755" y="174" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">A의 게이트·마커·클레임을</text>
+      <text x="755" y="192" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5">볼 수도 공유할 수도 없다</text>
+
+      <text x="24" y="322" fill="var(--text-faint)" font-family="var(--font)" font-size="10.5">규칙의 강제력이 호스트 경계에서 끝난다 — 훅 미설치 클론에서의 push는 아예 게이트 밖이다</text>
+    </svg>
+    <div class="cap">그림 2. 상태의 소재 — 조율 상태는 로컬, 공유 채널은 git 하나뿐</div>
+  </div>
+
+  <p>갇히는 이유는 네 가지이며 모두 설계에 내장돼 있다.</p>
+  <ol>
+    <li><b>키가 로컬 하네스 식별자</b>: dedup 마커의 키는 <code>session_id</code>·<code>tool_use_id</code>·브랜치명이다. 다른 머신의 세션은 이 키 공간을 볼 수도 공유할 수도 없다.</li>
+    <li><b>시계가 로컬 파일시스템/경로</b>: freshness 판정이 세션 디렉토리 경로 타임스탬프·author date·mtime이라 한 checkout 안에서만 정합적이다.</li>
+    <li><b>게이트 스코프가 <code>git worktree list</code> 결과</b> = 이 머신의 checkout 목록. 다른 호스트의 브랜치는 push 게이트의 타깃 열거에 아예 등장하지 않는다.</li>
+    <li><b>훅 미설치 클론이면 규칙 전체가 무효</b>: 모든 게이트가 "이 머신의 훅"이고, 훅 등록조차 SessionStart 부트스트랩에 의존한다.</li>
+  </ol>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">동시성 제어는 전무하며 의도적으로 포기됐다</b>
+    <p><code>retry_state</code>의 atomic replace는 찢어진 읽기만 막고 <b>"동시 writer 간의 lost update는 남는다"</b>, fail-open streak도 <b>"read-increment-write에 lock이 없다"</b>("겹친 두 실행이 증가 하나를 잃고 격상을 한 번 늦출 수 있다"), 부트스트랩 npm install도 직접 만든 mkdir lock이 TOCTOU로 <b>"락이 막으려던 바로 그 경합"</b>을 재현해 제거됐다. 전부 "1인 저빈도 로컬" 전제에서 수용한 잔여 리스크이며, <b>n 세션에서는 상시 발생 조건</b>이 된다.</p>
+  </div></div>
+
+  <p>사람 개입 채널도 없다. 승인·거절·코멘트는 전부 "그 터미널의 그 세션" 안에서만 가능하고, <b>누가(hostname) 무엇을 돌리는지는 어디에도 기록되지 않는다</b>.</p>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-01 · 스펙·리뷰 산출물은 git이 아니라 플랫폼 DB에 저장한다</b>
+    <p>조율 상태가 gitignored 로컬 파일인 한 크로스머신 조율은 <b>원리적으로 불가능</b>하다. NERV는 상태 저장·조정·리뷰 보관·게이트 판정을 서버로 옮기고, git에는 코드와 read-only 미러·포인터(ID/URL)만 남긴다(<b>D-12</b>).</p>
+  </div></div>
+
+  <h3 id="sec-5-2">5.2 owner가 신원이 아니라 자유 텍스트 라벨</h3>
+  <p><code>plan/in-progress/</code> 34개 top-level plan의 <code>owner:</code> 실측 분포:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>값</th><th>건수</th></tr></thead>
+    <tbody>
+      <tr><td><code>developer</code></td><td>17</td></tr>
+      <tr><td><code>project-planner</code></td><td>8</td></tr>
+      <tr><td><code>planner</code></td><td>5</td></tr>
+      <tr><td><code>developer (TBD)</code></td><td>2</td></tr>
+      <tr><td><code>사용자 본인 / planner</code></td><td>1</td></tr>
+      <tr><td><code>developer (다음 진입자)</code></td><td>1</td></tr>
+    </tbody>
+  </table></div>
+  <p>같은 역할의 표기가 요동하고(<code>planner</code> vs <code>project-planner</code>), "다음 진입자" 같은 무주공산 표기가 존재한다. <b>실제 사람 배정(assignee)·계정·hostname 개념 자체가 없다.</b> 게다가 모든 승인 권한이 단일 "사용자"에게 수렴한다 — merge-coordinator의 2중 confirm, e2e 면제 승인, plan grooming, BLOCK 해소 결정의 종착지가 전부 한 명이며 역할별 승인자 분리(기획 승인 vs 코드 승인)가 없다.</p>
+
+  <h3 id="sec-5-3">5.3 백로그 부재와 인덱스 문서 부패</h3>
+  <p><b>공식 백로그 큐·정렬 장치는 없다.</b> 존재하는 것은 신호 4종과 사람의 수동 picking이다(<code>clemvion:.claude/docs/plan-lifecycle.md</code> §6).</p>
+  <div class="grid-3">
+    <div class="card"><b class="card-title">착수 대기</b><div class="big">13 / 34</div><p><code>(unstarted)</code> sentinel을 단 in-progress plan</p></div>
+    <div class="card"><b class="card-title">우선순위 선언</b><div class="big">15 / 34</div><p>frontmatter <code>priority</code> (P1 3 · P2 5 · P3 6 · 기타 1) — 나머지는 본문 라벨로 산재</p></div>
+    <div class="card"><b class="card-title">시간 압박 장치</b><div class="big">1가지</div><p><code>spec-only</code> TTL 90일이 유일 — 전역 정렬·기한·담당 배정 없음</p></div>
+  </div>
+  <ol>
+    <li>로드맵 표 — <code>clemvion:spec/0-overview.md</code> §6(6.1 완료 ✅ / 6.2 부분 🚧 / 6.3 미구현 ❌), 수동 유지.</li>
+    <li>스펙 frontmatter 라이프사이클 — <code>spec-only</code> TTL 90일이 <b>유일한 시간 압박 장치</b>.</li>
+    <li><code>plan/in-progress/</code> 자체가 백로그 풀.</li>
+    <li>audit 도구 2종은 보고만 하고 차단하지 않는다 — <code>clemvion:.claude/tools/plan-stale-audit.sh</code>(30일 stale·DONE?·ORPHAN? 플래그, <b>"fail 안 함 — 정보 출력만"</b>), <code>/spec-coverage</code>(NLP 휴리스틱, "보고만 산출, 사용자가 picking").</li>
+  </ol>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">부패의 실증 — 인덱스 문서는 유지비를 감당하지 못한다</b>
+    <p>과거 백로그 인덱스 <code>plan/in-progress/0-unimplemented-overview.md</code>는 커밋 <code>65f3e526b</code>(#426, 2026-06-03)에서 <b>"미관리 stale 문서"</b>로 삭제됐다. 그런데 <code>clemvion:plan/in-progress/marketplace-and-plugin-sdk.md</code>는 지금도 "상위 인덱스: <code>0-unimplemented-overview.md</code> §A"라는 dangling 참조를 보유한다 — inline code 표기라 상대링크 가드에 잡히지 않는다. 이후 백로그 조망은 사람의 머리와 audit 출력에 의존한다.</p>
+  </div></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-04 · 동시성 제어는 원자적 클레임+리스(lease)</b>
+    <p>우선순위·정렬·기한은 문서가 아니라 <b>질의 가능한 메타데이터</b>여야 한다. NERV는 의존성 그래프로 ready를 판정하고(<b>FR-05</b>), <code>nerv_task_claim</code>이 assignee와 상태를 원자적으로 전환하며 TTL 리스+하트비트로 만료를 자동 회수한다(<b>FR-06</b>).</p>
+  </div></div>
+
+  <h3 id="sec-5-4">5.4 스펙 동시수정 검출의 의도적 제거</h3>
+  <p>이것이 clemvion이 <b>스스로 명시한 최대 한계</b>다.</p>
+
+  <div class="callout danger"><span class="ico">🚨</span><div class="body">
+    <b class="title">원문 · clemvion:.claude/docs/worktree-policy.md §3</b>
+    <p>동일 <code>spec/</code> 파일·코드 영역을 두 worktree가 동시 수정 중이면 plan에 명시하고 직렬화한다. <b>자동 검출은 없다</b> — 사용자와 통합 단계(<code>/merge-coordinate</code>)의 책임이다.</p>
+  </div></div>
+
+  <p>제거 이력까지 남아 있다. <code>plan_coherence</code> checker가 worktree 경합을 검출했으나 <code>3da85dc3b</code>(#576)에서 제거됐고, 사유는 <b>"병렬 작업이 다른 머신·세션에서 진행되면 로컬에 반영되지도 않아 신뢰할 수 없고, 불필요한 git/gh 조회로 토큰만 소모하기 때문"</b>이다. 즉 로컬 파일시스템이 유일한 상태 저장소인 한 크로스머신 조율은 원리적으로 불가능하다는 결론을 저장소가 직접 내렸다.</p>
+
+  <p>같은 계열의 자백이 두 건 더 있다.</p>
+  <ul>
+    <li><b>세션 앵커 레지스트리 부재</b>: "자기 세션의 앵커만 알 수 있다. 동시에 열린 다른 세션이 앵커로 쓰는 worktree의 PR이 머지되면 <b>그 세션은 여전히 죽는다</b>('살아있는 세션 앵커 레지스트리'가 필요해 과하다고 판단)"(<code>clemvion:.claude/docs/worktree-policy.md</code> §7). 그 레지스트리가 곧 NERV의 AgentSession 프레즌스(<b>FR-07</b>)다.</li>
+    <li><b>머지 이벤트 관측 불가</b>: reaper가 <code>gh</code> 폴링으로 수렴하는 구조(§2.8)는 이벤트 소스 부재의 전형적 증상이다.</li>
+  </ul>
+
+  <p>조정이 <b>낙관적</b>이라는 것이 결론이다 — 격리(worktree)로 물리 충돌만 막고, 논리 충돌(같은 스펙 영역을 두 세션이 다르게 개정)은 사람의 직렬화 판단과 머지 시점 분석으로 미룬다.</p>
+
+  <h3 id="sec-5-5">5.5 리뷰 자기증식 루프와 git 비대화</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 900 300" role="img" aria-label="리뷰 산출물이 같은 브랜치에 커밋되어 다음 라운드 리뷰의 입력이 되는 자기증식 루프">
+      <defs>
+        <marker id="d2arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+        <marker id="d2arrW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--warn)"/>
+        </marker>
+      </defs>
+
+      <rect x="24" y="34" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="114" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">소스 변경</text>
+      <text x="114" y="78" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">#1167 · backend 8파일</text>
+
+      <rect x="284" y="34" width="200" height="64" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="384" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">리뷰 라운드 N</text>
+      <text x="384" y="78" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">세션당 10.7파일 / 66KB</text>
+
+      <rect x="564" y="34" width="220" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="674" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">같은 브랜치에 커밋</text>
+      <text x="674" y="78" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">review/** 가 다음 diff 에 포함</text>
+
+      <rect x="564" y="184" width="220" height="64" rx="10" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="674" y="208" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">라운드 N+1 프롬프트</text>
+      <text x="674" y="228" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">94파일 중 86개가 review/·plan/</text>
+
+      <rect x="284" y="184" width="200" height="64" rx="10" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="384" y="208" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5">컨텍스트 예산 잠식</text>
+      <text x="384" y="228" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">실제 소스 diff 가 생략됨</text>
+
+      <line x1="204" y1="66" x2="280" y2="66" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d2arr)"/>
+      <line x1="484" y1="66" x2="560" y2="66" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d2arr)"/>
+      <line x1="674" y1="98" x2="674" y2="180" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#d2arr)"/>
+      <line x1="560" y1="216" x2="488" y2="216" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#d2arrW)"/>
+      <path d="M284,216 L240,216 L240,66 L280,66" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#d2arrW)"/>
+      <text x="150" y="150" text-anchor="middle" fill="var(--warn)" font-family="var(--font)" font-size="11.5" font-weight="700">8라운드 반복</text>
+      <text x="150" y="170" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">code 5 + consistency 3</text>
+
+      <text x="24" y="286" fill="var(--text-faint)" font-family="var(--font)" font-size="10.5">산출물이 DB로 가면 다음 리뷰 diff에서 사라져 이 루프가 구조적으로 소멸한다 (D-01)</text>
+    </svg>
+    <div class="cap">그림 3. 리뷰 자기증식 루프 — 리뷰가 리뷰를 리뷰한다</div>
+  </div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">실측 인용 · clemvion:review/code/2026/08/13/19_08_48/requirement.md</b>
+    <p>prompt는 대부분(<b>94개 파일 중 86개</b>) 그 8라운드의 <code>review/**</code> 산출물… 실질 소스 변경은 backend 8파일… prompt 예산 초과로 여러 diff/전체 파일 컨텍스트가 생략됐으므로, 워크트리에서 직접 검증했다</p>
+  </div></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>항목</th><th>값</th></tr></thead>
+    <tbody>
+      <tr><td><code>review/</code> 총량</td><td>131MB / 17,329파일(md 13,777 + json 3,552), <b>전부 git 추적</b></td></tr>
+      <tr><td>워킹트리 내 위상</td><td><code>codebase/</code> 724MB 다음 <b>2위</b> — <code>spec/</code> 9.3MB·<code>plan/</code> 5.2MB의 10~25배</td></tr>
+      <tr><td><code>.git</code> 총 크기</td><td>148MB (전체 packed blob 43,097개 / 100.6MB)</td></tr>
+      <tr><td>review 이력 blob</td><td><b>23,533개 / 60.7MB packed = 전체 blob 바이트의 60%</b></td></tr>
+      <tr><td>review 접촉 커밋</td><td><b>937 / 2,464 (38%)</b> — 월별 03:5 → 04:86 → 05:284 → 06:303 → 07:204 → 08(13일):55</td></tr>
+      <tr><td>세션당 용량 추세</td><td>code 59KB → 62KB → <b>81KB</b> (라운드가 깊어지며 리포트가 길어짐)</td></tr>
+      <tr><td>현 추세</td><td>월 <b>~7,000파일 / ~50MB</b> 지속 증가</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>대응의 역사가 이미 한 바퀴 돌았다</b>(<code>clemvion:.gitignore</code> 및 git 고고학):</p>
+  <ol>
+    <li>2026-03-30 <code>8387260e7</code> 리뷰 체계 도입(초기 플랫 구조).</li>
+    <li>2026-05-17 <code>fc16810cf</code>/<code>541228a87</code> — <code>_prompts/</code> gitignore + untrack. 근거 원문: "diff + role checklist의 시점 직렬화본이라 commit hash + <code>.claude/skills/</code>로 항상 재생성 가능하고, 리뷰 결론은 별도 <code>&lt;role&gt;.md</code>/<code>SUMMARY.md</code>/<code>meta.json</code>에 남는다. <b>review/ 전체의 ~70%를 차지해 blob 누적이 빠르므로 git에 두지 않는다.</b>"</li>
+    <li>2026-05-30 <code>f7c56bf0a</code> — 과거 세션 대량 삭제 + <code>review/.gitignore</code>에 <code>*</code>(전체 미추적 시도).</li>
+    <li>2026-06-01 <code>770fbdc3d</code> — 전체 미추적을 <b>이틀 만에 롤백</b>(게이트와 plan 인용이 커밋된 산출물에 의존하기 때문).</li>
+  </ol>
+  <p>즉 "재생성 가능한 입력은 버리고 결론은 남긴다"는 절충이 이미 실행됐고, <b>그럼에도 결론만으로 60MB·60%를 차지하는 것이 현재</b>다. 게다가 5-30 삭제분 blob은 <code>.git</code> 이력에 영구 잔존한다.</p>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-07 · AI 리뷰는 플랫폼 엔티티다</b>
+    <p>리뷰를 git에서 빼는 것 자체가 루프 차단이다 — 산출물이 DB로 가면 다음 리뷰의 diff에서 사라져 자기증식(컨텍스트 예산 잠식 포함)이 구조적으로 소멸한다. 보존 정책은 clemvion이 이미 검증한 절충을 그대로 쓴다(<b>D-07</b>) — <b>결론(SUMMARY·Finding)은 영구, 재생성 가능한 입력(프롬프트 페이로드)은 TTL</b>.</p>
+  </div></div>
+
+  <h3 id="sec-5-6">5.6 provenance — 무엇이 끊겨 있나</h3>
+  <p>리뷰의 출처 추적은 일부만 구조화돼 있고 나머지는 산문이다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>연결</th><th>상태</th></tr></thead>
+    <tbody>
+      <tr><td>finding → fix commit</td><td><b>구조화됨</b> — <code>SUMMARY#&lt;n&gt;</code> 커밋 규약 + <code>_resolution_state.json.commits_made[{sha,summary_id}]</code></td></tr>
+      <tr><td>세션 → 리뷰 대상 파일</td><td>부분 — <code>meta.json.files[{file_path, change_type}]</code>, <b>경로만이며 커밋/해시 없음</b></td></tr>
+      <tr><td>세션 → 검토 커밋·diff base·브랜치</td><td><b>부재</b> — code 리뷰 <code>meta.json</code>에 해당 필드가 없다. SUMMARY 본문 산문에만 해시가 등장하며 <b>표본 200개 SUMMARY 중 47개만 해시를 언급</b>한다</td></tr>
+      <tr><td>세션 → 워크트리</td><td>우연 — <code>_retry_state.json</code>의 절대경로에 새어 있을 뿐(의도된 필드 아님). worktree가 reap되면 그 경로는 죽는다</td></tr>
+      <tr><td>세션 → PR</td><td><b>부재</b> — PR 번호는 머지 커밋 제목(<code>(#1167)</code>)에만 존재</td></tr>
+      <tr><td>세션 → 스펙/plan</td><td>산문 — finding의 스펙 근거는 인용문. 역방향은 plan 체크리스트가 담당하며 <b>plan md 450개 중 197개</b>가 리뷰 세션 경로를 인용, 반대로 스펙에서 리뷰를 참조하는 파일은 <b>2개뿐</b></td></tr>
+      <tr><td>라운드 체인</td><td>산문 — "이전 라운드(<code>18_38_10</code>) 이후…" 식 상호 인용. "changeset X의 N라운드"라는 구조화된 축이 없다</td></tr>
+      <tr><td>finding 동일성</td><td><b>부재</b> — 라운드를 넘는 같은 발견이 매번 새 표 행으로 재서술된다(동일 유예 건이 <code>14_01_46</code>/<code>17_15_21</code>/<code>18_19_33</code> 세 세션에서 반복 재확인). <b>dedup 키 없음</b></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>유예(deferral) 결정의 기억도 산문으로만 존재한다 — <code>clemvion:review/code/2026/08/13/17_15_21/RESOLUTION.md</code>는 INFO 항목을 번호별로 처분하며 "이전 라운드(<code>14_01_46</code>)가 이미 지적하고 의식적으로 유예한 항목의 재확인… 그대로 유지"라고 적는다. 이것이 Finding의 <code>fingerprint</code>와 Resolution 상태(<code>open → fixed / dismissed / wont_fix</code>)가 1급 데이터여야 하는 이유다(<b>D-07</b>, <b>FR-09</b>).</p>
+
+  <h3 id="sec-5-7">5.7 산문 계약 붕괴 — 숫자로 증명된 것</h3>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">forced 리뷰어 미충족</b><div class="big">160 / 575</div><p><b>28%</b> — 그중 107건은 <code>RESOLUTION.md</code>를 갖고 게이트를 통과 중이었다 (2026-07-17 전수 조사)</p></div>
+    <div class="card"><b class="card-title">BLOCK 하향 모순</b><div class="big">24 / 732</div><p><b>3.3%</b> — SUMMARY는 <code>BLOCK: NO</code>인데 checker 리포트엔 <code>[CRITICAL]</code></p></div>
+    <div class="card"><b class="card-title">문서 정리 커밋</b><div class="big">211 / 857</div><p>4.5개월간 스펙 터치 커밋 중 <code>docs(spec)</code> — 상당 부분이 사후 정합화</p></div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>실측</th><th>값</th><th>출처</th></tr></thead>
+    <tbody>
+      <tr><td>forced 리뷰어 미충족 세션</td><td><b>160 / 575 (28%)</b> — 그중 107건은 <code>RESOLUTION.md</code>를 갖고 게이트를 통과 중이었다</td><td><code>clemvion:.claude/skills/code-review-agents/SKILL.md</code> (2026-07-17)</td></tr>
+      <tr><td><code>BLOCK: NO</code>인데 checker에 <code>[CRITICAL]</code></td><td><b>24 / 732 (3.3%)</b></td><td><code>clemvion:.claude/hooks/_lib/review_guard.py</code></td></tr>
+      <tr><td>배치 분할 버그로 인한 거짓 PASS</td><td><code>agents_forced</code>가 마지막 배치만 보고 계산돼 <b>실측 7명 → 2명</b></td><td><code>clemvion:.claude/skills/code-review-agents/SKILL.md</code> (2026-08-10 이전)</td></tr>
+      <tr><td>라우터 오판 사고</td><td>리뷰어 14개 전부 false, "문서만 변경" 판정 — 실제로는 새 Python 모듈 포함</td><td><code>clemvion:.claude/workflows/ai-review.js</code> (2026-07-23)</td></tr>
+      <tr><td>문서 간 중복 서술 drift</td><td><code>9a4d3e32b</code> "종결 이벤트 계약을 한 곳으로 — <b>네 문서가 각자 필드를 열거하고 있었다</b>", <code>c37a3732c</code> "<b>모방한 쪽이 맞고 원본이 틀렸다</b>"</td><td><code>clemvion:spec/</code> git 이력</td></tr>
+      <tr><td>스펙 약속 vs 구현 갭</td><td><code>2a698f360</code> "spec이 <code>필수</code>로 약속한 update dedup이 통째로 미구현(CCH-SE-02)" — 문서 단위 status의 허점</td><td>동일</td></tr>
+      <tr><td>완료 plan의 깨진 링크</td><td><b>135건 용인</b>(complete/는 시점 기록이라 옛 경로 유지 허용)</td><td><code>clemvion:.claude/docs/plan-lifecycle.md</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>핵심은 <b>"규약이 지켜지지 않았다"가 아니라 "산문 규약은 규모가 커지면 반드시 무너진다"</b>이다. clemvion은 그때마다 기계 강제로 승격시켜 대응했고, <b>그 대응의 총량이 7,600줄</b>이다.</p>
+
+  <h3 id="sec-5-8">5.8 한계 → NERV 요구사항 매핑</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>clemvion 한계</th><th>실측 근거</th><th>NERV 대응</th></tr></thead>
+    <tbody>
+      <tr><td>조율 상태가 로컬·비공유</td><td><code>.gitignore</code>가 <code>.claude/state/</code> 제외, 키가 <code>session_id</code></td><td><b>FR-07</b> 세션 레지스트리 · <b>FR-16</b> 감사 로그 · <b>D-01</b></td></tr>
+      <tr><td>스펙 동시수정 검출 없음</td><td>#576에서 의도적 제거</td><td><b>FR-06</b> 원자적 클레임·scope 겹침 감지 · <b>D-04</b></td></tr>
+      <tr><td>owner가 자유 텍스트</td><td>34건 6가지 표기 요동</td><td><b>FR-14</b> 역할 기반 권한 · <b>D-08</b> assignee/delegate 분리</td></tr>
+      <tr><td>백로그·우선순위 부재</td><td><code>(unstarted)</code> 13/34, <code>priority</code> 15/34, 인덱스 문서 사망</td><td><b>FR-05</b> ready 큐·의존성 그래프</td></tr>
+      <tr><td>문서 단위 status</td><td>1,750줄 문서에 값 하나, CCH-SE-02 누락</td><td><b>FR-03</b> Requirement 단위 2축 추적 · <b>D-02</b></td></tr>
+      <tr><td>문서 리뷰 라이프사이클 부재</td><td>초안/검토중/승인 상태 없음, 승인 이력이 git PR에 묻힘</td><td><b>FR-02</b> SpecVersion <code>draft→in_review→approved</code> · <b>FR-11</b> 승인함</td></tr>
+      <tr><td>리뷰 provenance 단절</td><td>커밋 SHA 필드 부재(200 표본 중 47), PR 링크 없음</td><td><b>FR-09</b> ReviewSession 커밋 스냅샷 필수 · <b>FR-13</b> 증적 그래프</td></tr>
+      <tr><td>리뷰 자기증식·git 비대화</td><td>13,777 md·131MB, blob의 60%, 8라운드 86/94</td><td><b>D-01</b> DB 저장 · <b>D-07</b> fingerprint dedup</td></tr>
+      <tr><td>게이트 판정이 텍스트 휴리스틱</td><td>1,005줄 훅 + ReDoS 3회 수정</td><td><b>FR-10</b> 게이트 판정 API(서버 질의)</td></tr>
+      <tr><td>사람 개입이 터미널에 갇힘</td><td>승인·confirm이 그 세션 안에서만</td><td><b>FR-11</b> 승인함 · <b>FR-12</b> 알림 · <b>D-06</b> 위험도 가변 게이트</td></tr>
+      <tr><td>비개발자 참여 불가</td><td>모든 진입점이 CLI·md·git</td><td><b>FR-01</b> 스펙 저장소 웹 UI · <b>D-09</b> markdown 편집기</td></tr>
+      <tr><td>훅 미설치 클론이면 무효</td><td>게이트가 이 머신의 훅에만 존재</td><td><b>FR-15</b> 플러그인·관리형 settings 배포 · <b>D-05</b></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-12 · clemvion은 점진 이관한다</b>
+    <p>로컬 하네스는 <b>레이턴시 0이 필요한 것만</b> 남긴다(worktree 격리·브랜치 가드·로컬 린트·pre-commit). <b>상태 저장·조정·리뷰 보관·게이트 판정</b>은 플랫폼으로 옮기고, 임포터가 <code>spec/</code> 384 md → Spec/SpecVersion/Requirement, <code>plan/</code> 450 md → Task, <code>review/</code> → ReviewSession/Finding으로 매핑한다(<b>FR-17</b>). 병행 운영 후 컷오버.</p>
+  </div></div>
+
+  <h2 id="sec-6">참고 자료</h2>
+  <p>이 문서의 모든 수치와 인용은 2026-08-13 <code>/Volumes/project/private/clemvion</code> READ-ONLY 실측 조사에 근거한다. 외부 URL 인용은 없다.</p>
+
+  <h3 id="sec-6-1">하네스 — 훅·판정 모듈·도구</h3>
+  <ul>
+    <li><code>clemvion:CLAUDE.md</code> — 저장소 구조, Skill 체계 표, 정보 저장 위치, 외부 LLM 호출 정책</li>
+    <li><code>clemvion:.claude/hooks/guard_default_branch_edit.py</code> · <code>guard_default_branch_prompt.py</code> · <code>guard_default_branch_bash.py</code> — 4-layer 브랜치 가드 A·B·D</li>
+    <li><code>clemvion:.claude/hooks/guard_review_before_push.py</code> (1,005줄) · <code>guard_review_before_stop.py</code> — push 이중 게이트, Stop 소프트 게이트</li>
+    <li><code>clemvion:.claude/hooks/mark_resolution_in_flight.py</code> · <code>clear_resolution_in_flight.py</code> — 재리뷰 경합 억제 마커 쌍</li>
+    <li><code>clemvion:.claude/hooks/lint_mermaid_posttooluse.py</code> · <code>normalize_worktree_branch.py</code></li>
+    <li><code>clemvion:.claude/hooks/_lib/</code> — <code>branch_guard.py</code> · <code>review_guard.py</code> · <code>plan_guard.py</code> · <code>failopen_state.py</code> · <code>branch_naming.py</code> · <code>mermaid_lint_ready.py</code></li>
+    <li><code>clemvion:.githooks/pre-commit</code> — 브랜치 가드 + mermaid 린트 (Layer C)</li>
+    <li><code>clemvion:.claude/tools/</code> — <code>bootstrap-session.sh</code> · <code>ensure-worktree.sh</code> · <code>reap-merged-worktrees.sh</code> · <code>plan-stale-audit.sh</code> · <code>run-test.sh</code> · <code>cleanup-worktree.sh</code> · <code>mermaid-lint/</code></li>
+    <li><code>clemvion:.claude/statusline.sh</code> — 로컬 가시성</li>
+    <li><code>clemvion:.claude/workflows/ai-review.js</code> · <code>consistency-check.js</code> · <code>merge-coordinate.js</code></li>
+    <li><code>clemvion:.claude/docs/worktree-policy.md</code> · <code>plan-lifecycle.md</code> · <code>subagent-call-contract.md</code> · <code>orchestrator-workflow-migration.md</code></li>
+    <li><code>clemvion:.claude/config/doc-sync-matrix.json</code> · <code>clemvion:.claude.project.json</code> · <code>clemvion:.claude/tests/</code></li>
+  </ul>
+
+  <h3 id="sec-6-2">역할 스킬과 서브에이전트</h3>
+  <ul>
+    <li><code>clemvion:.claude/skills/project-planner/SKILL.md</code> · <code>developer/SKILL.md</code> · <code>consistency-checker/SKILL.md</code> · <code>code-review-agents/SKILL.md</code> · <code>merge-coordinator/SKILL.md</code> · <code>spec-coverage/SKILL.md</code></li>
+    <li><code>clemvion:.claude/agents/code-review-summary.md</code> · <code>resolution-applier.md</code> · <code>security-reviewer.md</code> (총 31개 중 3건)</li>
+    <li><code>clemvion:.claude/commands/ai-review.md</code></li>
+  </ul>
+
+  <h3 id="sec-6-3">스펙·plan 체계</h3>
+  <ul>
+    <li><code>clemvion:spec/0-overview.md</code> · <code>spec/1-data-model.md</code> · <code>spec/6-brand.md</code></li>
+    <li><code>clemvion:spec/conventions/spec-impl-evidence.md</code> · <code>spec/conventions/user-guide-evidence.md</code></li>
+    <li><code>clemvion:spec/2-navigation/_product-overview.md</code> · <code>spec/3-workflow-editor/_product-overview.md</code> · <code>spec/7-channel-web-chat/_product-overview.md</code></li>
+    <li><code>clemvion:spec/5-system/4-execution-engine.md</code> · <code>spec/2-navigation/4-integration.md</code> (각 1,750줄) · <code>spec/2-navigation/8-marketplace.md</code></li>
+    <li><code>clemvion:codebase/frontend/src/lib/docs/__tests__/</code> — 빌드 결합 가드 9종</li>
+    <li><code>clemvion:PROJECT.md</code> — 변경 유형→갱신 위치 매핑, 자주 누락되는 항목</li>
+    <li><code>clemvion:plan/in-progress/retry-turn-terminal-guard.md</code> · <code>plan/in-progress/marketplace-and-plugin-sdk.md</code> · <code>plan/complete/fix-spec-frontmatter-catalog.md</code></li>
+  </ul>
+
+  <h3 id="sec-6-4">리뷰 산출물 실례</h3>
+  <ul>
+    <li><code>clemvion:review/code/2026/08/13/19_08_48/</code> — SUMMARY.md · meta.json · <code>_retry_state.json</code> · requirement.md(자기증식 루프 실측 인용)</li>
+    <li><code>clemvion:review/code/2026/08/13/17_15_21/RESOLUTION.md</code> — 조치 표 · mutation testing · 유예 처분 기록</li>
+    <li><code>clemvion:review/consistency/2026/08/13/18_50_06/SUMMARY.md</code> — <code>BLOCK:</code> 헤더 · checker 5종</li>
+    <li><code>clemvion:review/spec-coverage/2026/06/10/12_32_46/SUMMARY.md</code> — <code>[severe]</code>/<code>[major]</code> 어휘</li>
+    <li><code>clemvion:.gitignore</code> — <code>_prompts/</code> 제외 근거 원문</li>
+    <li>비대화 대응 커밋: <code>8387260e7</code>(도입) · <code>fc16810cf</code>/<code>541228a87</code>(<code>_prompts</code> untrack) · <code>f7c56bf0a</code>(대량 삭제) · <code>770fbdc3d</code>(전체 ignore 롤백)</li>
+    <li>한계 근거 커밋: <code>3da85dc3b</code>(#576, 동시수정 검출 제거) · <code>65f3e526b</code>(#426, 백로그 인덱스 삭제) · <code>2a698f360</code>(CCH-SE-02) · <code>9a4d3e32b</code> · <code>c37a3732c</code> · <code>9dfa2818e</code> · <code>84dbcd4cf</code></li>
+  </ul>
+
+  <h3 id="sec-6-5">관련 문서</h3>
+  <ul>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — 이 문서의 한계 진단을 P1~P8과 FR-01~17 / NFR-01~05로 정식화</li>
+    <li><a href="architecture.html">3.2 시스템 아키텍처</a> — D-01 저장 전략과 게이트 판정 API 설계</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — clemvion frontmatter → NERV 엔티티 매핑</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — 로컬 하네스에 남길 것과 서버로 옮길 것</li>
+    <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 리뷰 파이프라인·게이트의 플랫폼 판</li>
+    <li><a href="roadmap.html">3.7 로드맵</a> — D-12 점진 이관 계획(FR-17 임포터)</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="index.html">이전: 개요 (Executive Summary)</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="pain-points.html">다음: 1.2 문제 정의와 요구사항</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

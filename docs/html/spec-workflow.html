@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3.5 스펙 워크플로우와 거버넌스 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html" class="active">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 3부 · 플랫폼 제안 / 3.5 스펙 워크플로우와 거버넌스</div>
+
+  <header class="page-header">
+    <h1>스펙 워크플로우와 거버넌스</h1>
+    <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·승인함 승격의 알림 설계다.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-13)</span>
+      <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
+      <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">세 개의 상태 축 (D-02 · D-03)</a></li>
+      <li><a href="#sec-2">승인 흐름</a></li>
+      <li><a href="#sec-3">변경 요청(CR) 흐름</a></li>
+      <li><a href="#sec-4">작업 흐름</a></li>
+      <li><a href="#sec-5">리뷰 파이프라인 (D-07)</a></li>
+      <li><a href="#sec-6">알림 설계</a></li>
+      <li><a href="#sec-7">게이트 카탈로그와 실패 모드</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <!-- ============================================================ 1 -->
+  <h2 id="sec-1">1. 세 개의 상태 축 (D-02 · D-03)</h2>
+
+  <h3>1.1 왜 축을 나누는가</h3>
+
+  <p>clemvion에는 상태 축이 <b>하나뿐</b>이다. 스펙 문서의 frontmatter <code>status</code>가 <code>backlog → spec-only → partial → implemented</code>(+<code>archived</code>) 5값을 갖는데, 이건 전부 <i>구현</i> 진행 축이고 문서 자체의 초안·검토·승인 상태가 아니다(<code>clemvion:spec/conventions/spec-impl-evidence.md</code> §3). 그 결과 두 가지 구조적 손실이 실측된다.</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <b class="card-title">① 승인 이력이 사라진다</b>
+      <p>문서 리뷰 라이프사이클이 없으니 "누가 언제 이 스펙을 승인했는가"는 git PR 어딘가에 묻힌다. 특정 시점의 스펙 상태를 재구성하려면 git 고고학이 유일한 수단이다 — 순수 스펙 <b>135 md · 49,383줄</b>, spec 터치 커밋 <b>857개</b>.</p>
+    </div>
+    <div class="card">
+      <b class="card-title">② 상태의 해상도가 문서 단위다</b>
+      <p><code>clemvion:spec/5-system/4-execution-engine.md</code>는 <b>1,750줄</b>인데 status 값은 하나다. <code>code:</code> 글로브가 하나라도 매치하면 <code>implemented</code>로 통과하므로 문서 안 개별 요구사항의 누락은 검출되지 않는다.</p>
+    </div>
+  </div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 문서 단위 status가 놓친 것</b>
+    <p>spec이 <code>필수</code>로 약속한 update dedup이 통째로 미구현이었던 사건(요구사항 ID <code>CCH-SE-02</code>, 커밋 <code>2a698f360</code>)은 evidence 가드가 도입된 <b>이후에</b> 발생했다. 요구사항 테이블의 수동 ✅ 마크도 영역별로 <b>131개 대 0개</b>로 갈라져 있다 — 관행은 유지되지 않는다.</p>
+  </div></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-02 · 스펙 상태는 2축으로 분리한다</b>
+    <p>① 문서 리뷰 축: SpecVersion <code>draft → in_review → approved → superseded / deprecated</code> ② 구현 축: Requirement 단위 <code>unimplemented → in_progress → implemented → verified</code>. 여기에 실행 단위인 Task 축(<code>backlog → ready → claimed → in_progress → in_review → done</code>, +<code>blocked</code>)이 얹혀 세 축이 된다.</p>
+  </div></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-03 · 구현 추적의 단위는 Task와 Requirement</b>
+    <p>"무엇이 구현됐나"는 문서 안 체크박스나 수동 ✅가 아니라 Requirement↔Task↔PR/커밋↔ReviewSession 관계 그래프로 <b>계산</b>한다.</p>
+  </div></div>
+
+  <h3>1.2 문서 축 — SpecVersion 상태도</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 860 226" role="img" aria-label="SpecVersion 문서 축 상태도: draft에서 in_review, approved를 거쳐 superseded 또는 deprecated로 전이">
+      <defs>
+        <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <circle cx="18" cy="106" r="7" fill="var(--text-mute)"/>
+      <line x1="27" y1="106" x2="40" y2="106" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+
+      <rect x="44" y="80" width="104" height="52" rx="10" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="96" y="101" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">draft</text>
+      <text x="96" y="118" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">본문 가변</text>
+
+      <path d="M68,80 C58,36 142,36 132,80" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <text x="100" y="34" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">초안 편집</text>
+
+      <line x1="148" y1="106" x2="242" y2="106" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <text x="196" y="94" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">제출 · 본문 동결</text>
+
+      <rect x="246" y="80" width="116" height="52" rx="10" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="304" y="101" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">in_review</text>
+      <text x="304" y="118" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">리뷰어 지정 · 사전 검토</text>
+
+      <line x1="362" y1="106" x2="456" y2="106" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <text x="409" y="94" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">approve</text>
+
+      <rect x="460" y="80" width="116" height="52" rx="10" fill="var(--ok-soft)" stroke="var(--ok)"/>
+      <text x="518" y="101" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">approved</text>
+      <text x="518" y="118" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">불변 스냅샷</text>
+
+      <line x1="578" y1="98" x2="670" y2="56" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <text x="622" y="66" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">후속 버전 승인</text>
+      <line x1="578" y1="116" x2="670" y2="156" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <text x="622" y="152" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">폐기 CR 승인</text>
+
+      <rect x="674" y="22" width="150" height="48" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="749" y="51" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="12.5" font-weight="700">superseded</text>
+
+      <rect x="674" y="140" width="150" height="48" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="749" y="169" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="12.5" font-weight="700">deprecated</text>
+
+      <path d="M304,132 C304,196 96,196 96,132" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar1)"/>
+      <text x="200" y="212" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">reject · 수정 요청</text>
+    </svg>
+    <div class="cap">그림 1. 문서 축 — SpecVersion 상태도(D-02 ①). 가변 구간은 <code>draft</code> 하나뿐이다.</div>
+  </div>
+
+  <p>SpecVersion은 <b>불변 스냅샷</b>이다. <code>in_review</code> 진입 시점에 본문이 동결되고 content hash가 확정된다. 승인된 버전을 고치는 유일한 경로는 변경 요청(CR)으로 새 draft 버전을 만드는 것이다(<a href="#sec-3">3장</a>). 이것이 clemvion의 "latest-only 본문 + 이력은 git" 사상을 계승하면서 사라졌던 승인 축을 되살리는 방법이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>전이</th><th>트리거</th><th>서버 가드(전이 조건)</th><th>실행 권한</th><th>발생 이벤트</th></tr></thead>
+    <tbody>
+      <tr><td><code>→ draft</code></td><td>스펙 생성, <code>nerv_spec_draft_upsert</code></td><td>상위 스펙 노드 존재, 타입(vision/area/feature/design/convention/adr) 유효</td><td>planner · designer · developer · admin · agent(위임)</td><td><code>spec.draft_created</code></td></tr>
+      <tr><td><code>draft → in_review</code></td><td>제출, <code>nerv_spec_submit_review</code></td><td>사전 검토 BLOCK 없음(§2.1), 요구사항 블록 파싱 성공, 필수 리뷰어 산출 가능</td><td>작성자 본인 또는 planner</td><td><code>spec.submitted</code></td></tr>
+      <tr><td><code>in_review → draft</code></td><td>reject / 수정 요청</td><td>리뷰어 1인 이상의 <code>reject</code> 결정</td><td>지정 리뷰어</td><td><code>spec.rejected</code></td></tr>
+      <tr><td><code>in_review → approved</code></td><td>approve</td><td>필수 리뷰어 <b>전원</b> 승인, 지시자≠승인자(§2.3), 게이트 티어 충족(§2.4)</td><td>지정 승인자(항상 사람)</td><td><code>spec.approved</code></td></tr>
+      <tr><td><code>approved → superseded</code></td><td>후속 버전 승인</td><td>같은 Spec 노드의 다른 버전이 approved로 전이</td><td>서버 자동</td><td><code>spec.superseded</code></td></tr>
+      <tr><td><code>approved → deprecated</code></td><td>폐기 CR 승인</td><td>참조 중인 미완료 Task 0건 또는 이관 계획 첨부</td><td>planner · admin</td><td><code>spec.deprecated</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>에이전트는 <span class="badge draft">draft</span>까지만 만들 수 있다. <code>spec:approve</code>는 어떤 자율성 설정에서도 사람 전용이다 — MCP 사양이 "호스트는 어떤 도구든 호출 전 명시적 사용자 동의를 받아야 한다"고 요구하는 지점이고, OWASP ASI03(Identity &amp; Privilege Abuse) 대응이기도 하다.</p>
+
+  <h3>1.3 구현 축 — Requirement 상태도</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 860 200" role="img" aria-label="Requirement 구현 축 상태도: unimplemented에서 in_progress, implemented, verified로 전이하며 CR MODIFIED 시 강등">
+      <defs>
+        <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <rect x="24" y="48" width="150" height="50" rx="10" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="99" y="79" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">unimplemented</text>
+
+      <line x1="174" y1="73" x2="242" y2="73" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <text x="208" y="38" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">파생 Task claimed</text>
+
+      <rect x="246" y="48" width="150" height="50" rx="10" fill="var(--info-soft)" stroke="var(--info)"/>
+      <text x="321" y="79" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">in_progress</text>
+
+      <line x1="396" y1="73" x2="464" y2="73" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <text x="430" y="38" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">Task done + Evidence</text>
+
+      <rect x="468" y="48" width="150" height="50" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="543" y="79" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">implemented</text>
+
+      <line x1="618" y1="73" x2="686" y2="73" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <text x="652" y="38" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">QA 검증 + 테스트 증적</text>
+
+      <rect x="690" y="48" width="146" height="50" rx="10" fill="var(--ok-soft)" stroke="var(--ok)"/>
+      <text x="763" y="79" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">verified</text>
+
+      <path d="M763,98 C763,138 543,138 543,98" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+      <text x="653" y="148" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">회귀 실패</text>
+
+      <path d="M543,98 C543,180 321,180 321,98" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+      <text x="432" y="190" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">CR MODIFIED 강등</text>
+    </svg>
+    <div class="cap">그림 2. 구현 축 — Requirement 상태도(D-02 ②). <code>verified</code>에서도 CR MODIFIED로 직접 강등된다.</div>
+  </div>
+
+  <p>이 축의 값은 <b>사람이 손으로 찍지 않는다.</b> 서버가 관계 그래프에서 파생한다(D-03).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Requirement 상태</th><th>파생 규칙</th></tr></thead>
+    <tbody>
+      <tr><td><code>unimplemented</code></td><td>연결된 Task가 없거나 전부 <code>backlog</code>/<code>ready</code></td></tr>
+      <tr><td><code>in_progress</code></td><td>파생 Task 중 하나 이상이 <code>claimed</code>/<code>in_progress</code>/<code>in_review</code></td></tr>
+      <tr><td><code>implemented</code></td><td>파생 Task 전부 <code>done</code> <b>그리고</b> Evidence(코드 경로·커밋·PR) 1건 이상 연결</td></tr>
+      <tr><td><code>verified</code></td><td><code>implemented</code> + QA 역할의 검증 Evidence 1건 이상, 해당 커밋 범위에 open <code>critical</code> finding 0</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>clemvion이 <code>CCH-SE-02</code>를 놓친 사각 — "문서는 implemented인데 그 안의 한 요구사항은 미구현" — 은 상태의 단위를 요구사항으로 내리는 것만으로 사라진다.</p>
+
+  <h3>1.4 Task 축 — 실행 상태도</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 278" role="img" aria-label="Task 실행 축 상태도: backlog, ready, claimed, in_progress, in_review, done과 blocked 예외 상태, 리스 만료 시 자동 회수">
+      <defs>
+        <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <circle cx="12" cy="109" r="6" fill="var(--text-mute)"/>
+      <line x1="20" y1="109" x2="30" y2="109" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar3)"/>
+
+      <rect x="34" y="84" width="104" height="50" rx="10" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="86" y="114" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">backlog</text>
+
+      <line x1="138" y1="109" x2="192" y2="109" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <text x="166" y="76" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">ready 판정</text>
+
+      <rect x="196" y="84" width="104" height="50" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="248" y="114" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">ready</text>
+
+      <line x1="300" y1="109" x2="354" y2="109" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <text x="328" y="76" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">claim (원자)</text>
+
+      <rect x="358" y="84" width="104" height="50" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="410" y="114" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">claimed</text>
+
+      <line x1="462" y1="109" x2="516" y2="109" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <text x="490" y="76" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">첫 산출물</text>
+
+      <rect x="520" y="84" width="124" height="50" rx="10" fill="var(--info-soft)" stroke="var(--info)"/>
+      <text x="582" y="114" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">in_progress</text>
+
+      <line x1="644" y1="109" x2="698" y2="109" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <text x="672" y="76" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">리뷰 제출</text>
+
+      <rect x="702" y="84" width="118" height="50" rx="10" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="761" y="114" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">in_review</text>
+
+      <!-- 회수 back edges -->
+      <path d="M410,84 C410,58 248,58 248,84" fill="none" stroke="var(--border-strong)" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar3)"/>
+      <path d="M582,84 C582,30 248,30 248,84" fill="none" stroke="var(--border-strong)" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar3)"/>
+      <text x="500" y="20" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">리스 만료 · 세션 stale · release → 자동 회수</text>
+
+      <!-- 재작업 -->
+      <path d="M730,134 C730,172 610,172 610,134" fill="none" stroke="var(--border-strong)" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar3)"/>
+      <text x="670" y="188" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">finding 재작업</text>
+
+      <!-- done -->
+      <line x1="761" y1="134" x2="761" y2="210" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <text x="772" y="176" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">게이트 통과</text>
+      <rect x="702" y="214" width="118" height="50" rx="10" fill="var(--teal-soft)" stroke="var(--teal)"/>
+      <text x="761" y="244" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">done</text>
+
+      <!-- blocked -->
+      <rect x="330" y="214" width="140" height="50" rx="10" fill="var(--danger-soft)" stroke="var(--danger)"/>
+      <text x="400" y="244" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">blocked</text>
+      <path d="M248,134 C248,182 290,206 326,216" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-start="url(#ar3)" marker-end="url(#ar3)"/>
+      <text x="196" y="196" text-anchor="end" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">차단 등록 ↔ 해소</text>
+      <path d="M552,134 C530,176 500,200 474,214" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-start="url(#ar3)" marker-end="url(#ar3)"/>
+    </svg>
+    <div class="cap">그림 3. Task 축 상태도. <code>blocked</code>는 별도 축이 아니라 어느 상태에서든 드나드는 예외 상태다.</div>
+  </div>
+
+  <p><code>blocked</code> 진입 시 사유 코드(<code>awaiting_answer</code> / <code>dependency_broken</code> / <code>spec_conflict</code> / <code>external</code>)와 해소 조건을 필수로 받는다 — clemvion의 <code>(unstarted)</code> sentinel이 "placeholder는 어떤 worktree와도 매칭되지 않아 plan이 게이트에서 사라진다"는 이유로 가드에 거부당한 것과 같은 원리다. 사유 없는 blocked는 백로그 부패의 씨앗이다.</p>
+
+  <h3>1.5 세 축이 만나는 지점</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>사건</th><th>문서 축</th><th>구현 축</th><th>Task 축</th></tr></thead>
+    <tbody>
+      <tr><td>스펙 승인</td><td><code>in_review → approved</code></td><td>새 Requirement가 <code>unimplemented</code>로 등록</td><td>파생 Task가 <code>backlog</code>로 생성</td></tr>
+      <tr><td>클레임</td><td>변화 없음</td><td><code>unimplemented → in_progress</code></td><td><code>ready → claimed</code></td></tr>
+      <tr><td>Task 완료</td><td>변화 없음</td><td><code>in_progress → implemented</code> (Evidence 조건)</td><td><code>in_review → done</code></td></tr>
+      <tr><td>QA 검증</td><td>변화 없음</td><td><code>implemented → verified</code></td><td>변화 없음</td></tr>
+      <tr><td>CR 승인(MODIFIED)</td><td>새 버전 <code>approved</code>, 이전 <code>superseded</code></td><td>해당 REQ <code>verified/implemented → in_progress</code></td><td>관련 Task 재개 또는 신설</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>이 표가 <b>P4</b>("구현 상태·다음 할 일 추적 곤란")의 답이다. clemvion에서는 세 축이 <code>spec/0-overview.md</code> §6의 수동 표, <code>_product-overview.md</code>의 수동 ✅, <code>plan/in-progress/</code> 디렉토리 위치라는 서로 다른 세 관행에 흩어져 있었고, 백로그 인덱스 문서는 "미관리 stale 문서"로 삭제됐다(#426). 상태가 질의 가능한 메타데이터가 되면 인덱스 문서를 유지할 필요 자체가 없다.</p>
+
+  <h3>1.6 역할별 권한 매트릭스</h3>
+
+  <p>역할은 <code>admin · planner · designer · developer · qa · viewer</code>이며(FR-14), 에이전트는 별도 principal 타입으로 소유 사용자의 권한을 <b>상속하되 절대 확대하지 않는다</b>(D-08).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>동작</th><th>admin</th><th>planner</th><th>designer</th><th>developer</th><th>qa</th><th>viewer</th><th>agent(위임)</th></tr></thead>
+    <tbody>
+      <tr><td>스펙 조회·코멘트</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
+      <tr><td>스펙 draft 작성·수정</td><td>●</td><td>●</td><td>○ design</td><td>○ convention/adr</td><td>○</td><td>—</td><td>●</td></tr>
+      <tr><td>in_review 제출</td><td>●</td><td>●</td><td>○</td><td>○</td><td>○</td><td>—</td><td>●</td></tr>
+      <tr><td><b>스펙/CR 승인·거절</b></td><td>●</td><td>●</td><td>○ design</td><td>○ convention/adr</td><td>○ feature</td><td>—</td><td><b>불가</b></td></tr>
+      <tr><td>CR 제안</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>●</td></tr>
+      <tr><td>Task 생성·분해</td><td>●</td><td>●</td><td>—</td><td>●</td><td>○</td><td>—</td><td>○ 제안만</td></tr>
+      <tr><td>Task 클레임·리스 갱신</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>●</td></tr>
+      <tr><td>리뷰 제출(ReviewSession)</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>●</td></tr>
+      <tr><td>finding 해결 판정</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>○ <code>fixed</code>만</td></tr>
+      <tr><td>Requirement <code>verified</code> 전이</td><td>●</td><td>—</td><td>—</td><td>—</td><td>●</td><td>—</td><td>—</td></tr>
+      <tr><td><b>게이트 면제(BYPASS)</b></td><td>●</td><td>○ 스펙 계열</td><td>—</td><td>○ 코드 계열</td><td>—</td><td>—</td><td><b>불가</b></td></tr>
+      <tr><td>게이트 정책·위험도 임계 편집</td><td>●</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>알림 구독 규칙 편집(본인)</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>●</b> 가능 · <b>○</b> 조건부(지정 시 또는 명시 범위) · <b>—</b> 불가</p>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 역할 분리는 계승, 강제 수단은 교체</b>
+    <p>clemvion은 역할을 <b>경로별 쓰기 권한</b>으로 구현했다(planner는 <code>spec/**</code>, developer는 <code>codebase/**</code>이고 <code>spec/</code>은 read-only). 분리 자체는 계승할 자산이지만 강제 수단은 SKILL.md 산문("절대 수행하지 않으며")이었다 — 훅이 막는 것은 "어디서·무엇을 안 하고 push하는가"이지 "누가"가 아니다. NERV에서는 같은 분리가 서버 인가로 강제된다.</p>
+  </div></div>
+
+  <!-- ============================================================ 2 -->
+  <h2 id="sec-2">2. 승인 흐름</h2>
+
+  <h3>2.1 제출 전 자동 사전 검토 — 일관성 검사의 서비스화</h3>
+
+  <p>clemvion에서 <code>spec/</code> 쓰기 직전 <code>/consistency-check --spec</code>은 의무였고, 5개 checker가 병렬로 돌아 <code>review/consistency/&lt;ISO시각&gt;/SUMMARY.md</code>에 <code>BLOCK: YES/NO</code>를 남겼다. <b>858개 세션·42MB</b>가 쌓였고 산출물은 전부 git에 커밋됐다. NERV는 이 검사를 <b>플랫폼 서비스</b>로 옮긴다 — <code>draft → in_review</code> 전이의 전제 조건이고, 산출물은 DB 레코드다(D-01).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>검사기</th><th>무엇을 보는가</th><th>NERV에서 가능해지는 것</th></tr></thead>
+    <tbody>
+      <tr><td><code>cross-spec</code></td><td>다른 스펙과의 모순·중복 서술</td><td>안정 ID 참조 그래프로 중복 정의를 기계 검출(clemvion: "네 문서가 각자 필드를 열거"하던 drift)</td></tr>
+      <tr><td><code>rationale-continuity</code></td><td>과거 기각한 대안의 무자각 재도입</td><td>Rationale을 Decision 레코드로 보관해 기각 이력 질의</td></tr>
+      <tr><td><code>convention-compliance</code></td><td>convention 타입 스펙 위배</td><td>규약을 스펙 노드로 두고 참조 관계로 검사</td></tr>
+      <tr><td><code>requirement-shape</code></td><td>EARS 템플릿·요구사항 ID 형식·중복 ID</td><td>요구사항이 1급 엔티티라 파싱이 아니라 스키마 검증</td></tr>
+      <tr><td><code>task-coherence</code></td><td>파생 Task와의 정합(고아 요구사항·빈 약속)</td><td>clemvion의 R-5 "어떤 plan도 책임지지 않는 빈 약속"을 FK 부재로 즉시 검출</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">severity 하향은 감사 대상이다</b>
+    <p>clemvion 실측에서 SUMMARY는 <code>BLOCK: NO</code>인데 checker 리포트에는 <code>[CRITICAL]</code>이 있는 모순이 커밋된 <b>732세션 중 24건(3.3%)</b> 존재했다. NERV에서는 종합 verdict가 개별 검사기 severity보다 낮을 수 없다는 것이 스키마 제약이고, 예외를 두려면 BYPASS 레코드(<a href="#sec-7">7장</a>)를 남겨야 한다.</p>
+  </div></div>
+
+  <h3>2.2 리뷰어 자동 지정 (역할·영역 기반)</h3>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 산문 의무는 상시로 무너진다</b>
+    <p>clemvion은 코드 리뷰어 14종 중 7종(<code>documentation/maintainability/requirement/scope/security/side_effect/testing</code>)을 강제 화이트리스트로 두었다. 2026-07-17 전수 조사 결과 <b>커밋된 575 세션 중 160건(28%)이 강제 리뷰어 미충족</b>이었고, 그중 <b>107건</b>은 RESOLUTION.md를 갖고 게이트를 통과 중이었다. 그래서 지정은 서버가 하고, 충족 여부는 전이 조건이 된다.</p>
+  </div></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>스펙 타입</th><th>필수 승인자</th><th>필수 검토자(코멘트 의무)</th><th>자동 추가 규칙</th></tr></thead>
+    <tbody>
+      <tr><td><code>vision</code></td><td>admin 1 + planner 1</td><td>designer, qa</td><td>프로젝트 전 영역 워처에게 통지</td></tr>
+      <tr><td><code>area</code></td><td>planner 1</td><td>해당 영역 오너, developer 1</td><td>영역 하위 스펙 담당자 전원 워처 등록</td></tr>
+      <tr><td><code>feature</code></td><td>planner 1 + (UI 영역이면 designer 1)</td><td>developer 1, qa 1</td><td>참조 Requirement의 기존 담당자</td></tr>
+      <tr><td><code>design</code></td><td>designer 1</td><td>planner 1</td><td>연결된 feature 스펙의 승인자</td></tr>
+      <tr><td><code>convention</code></td><td>developer 1 + admin 1</td><td>planner 1</td><td>해당 규약을 참조하는 스펙 소유자</td></tr>
+      <tr><td><code>adr</code></td><td>developer 1 + planner 1</td><td>admin</td><td>기각 대안이 있으면 원 결정의 승인자</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>지정 결과는 SpecVersion에 고정(pin)된다. 지정 이후 멤버십이 바뀌어도 진행 중인 리뷰의 필수 집합은 변하지 않으며, 변경하려면 승인 요청을 다시 만든다.</p>
+
+  <h3>2.3 지시자 ≠ 승인자</h3>
+
+  <p>GitHub는 Copilot이 만든 PR에 대해 "작업을 지시한 사람의 승인은 필수 승인 수에 포함되지 않는다"고 못 박고, 에이전트가 푸시한 변경의 CI는 사람이 diff를 확인하고 "Approve and run workflows"를 눌러야 돈다. NERV는 이 규칙을 스펙 승인까지 확장한다.</p>
+
+<pre><code>승인 유효성 판정 (서버)
+  reject IF actor_id == approval.requested_by            # 본인이 낸 요청을 본인이 승인
+  reject IF actor_id == spec_version.authored_by         # 초안 작성자 = 승인자
+  reject IF actor.is_agent                               # 에이전트는 영구 불가
+  reject IF actor_id == agent_session.owner_user_id      # 에이전트를 지시한 사람 = 승인자
+         AND spec_version.authored_by_session IS NOT NULL
+  reject IF approval.target_content_hash != spec_version.content_hash   # stale 승인
+</code></pre>
+
+  <p>네 번째 규칙이 D-08의 귀결이다. 에이전트는 소유 사용자의 위임 권한으로 행동하므로, 에이전트가 쓴 초안을 그 소유자가 승인하면 실질적으로 자기 승인이 된다. UI는 이 경우 승인 버튼을 비활성화하고 "이 초안은 당신의 세션이 작성했습니다 — 다른 승인자가 필요합니다"를 표시한다.</p>
+
+  <p>다섯 번째 규칙은 <b>승인의 유통기한</b>이다. 승인은 특정 content hash에 대한 결정이므로, 대상 본문이 바뀌면 무효화되고 재요청된다. 승인 감사 레코드에는 승인 ID·시각·요청자·승인자·대상 리소스·<b>평가된 정책 버전</b>·결정·실행 결과를 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하려면 정책 버전이 반드시 필요하다.</p>
+
+  <h3>2.4 위험도 가변 게이트 (D-06)</h3>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-06 · 사람 개입 게이트는 위험도 가변</b>
+    <p>표준 게이트 4+1: ① 스펙/CR 승인 ② 플랜 승인(대형 작업 착수 전) ③ 에이전트 질문(<code>awaiting_input</code>) ④ PR 머지·CI 실행("지시자≠승인자" 채택) + ⑤ 게이트 면제는 기록되는 BYPASS. 저위험 변경(오탈자 등)은 자동 통과 경로를 둬 "버그 하나에 16개 AC" 워터폴 비판을 제품으로 반박한다.</p>
+  </div></div>
+
+  <p>이 티어는 <b>스펙 변경 게이트 티어(T0~T3)</b>이며, <a href="agent-integration.html">3.4 에이전트 연동 설계</a>가 정의하는 <b>도구 호출 위험도(A1~A4)</b>와는 다른 축이다.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 224" role="img" aria-label="위험도 4축 점수 합산이 게이트 티어 T0에서 T3을 결정하고 각 티어의 처리 방식이 달라지는 구조">
+      <defs>
+        <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <text x="14" y="10" fill="var(--text-faint)" font-family="var(--font)" font-size="10.5">4축 점수 (각 0·1·2)</text>
+
+      <rect x="14" y="16" width="176" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="102" y="41" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">부작용</text>
+      <rect x="14" y="64" width="176" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="102" y="89" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">데이터 민감도</text>
+      <rect x="14" y="112" width="176" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="102" y="137" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">가역성</text>
+      <rect x="14" y="160" width="176" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="102" y="185" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">영향 범위</text>
+
+      <line x1="190" y1="36" x2="230" y2="98" stroke="var(--border)" stroke-width="1.3"/>
+      <line x1="190" y1="84" x2="230" y2="105" stroke="var(--border)" stroke-width="1.3"/>
+      <line x1="190" y1="132" x2="230" y2="116" stroke="var(--border)" stroke-width="1.3"/>
+      <line x1="190" y1="180" x2="230" y2="123" stroke="var(--border)" stroke-width="1.3"/>
+
+      <circle cx="262" cy="110" r="30" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="262" y="107" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="14" font-weight="800">Σ</text>
+      <text x="262" y="123" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">0~8</text>
+
+      <line x1="292" y1="110" x2="316" y2="110" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <line x1="316" y1="32" x2="316" y2="188" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <line x1="316" y1="32" x2="336" y2="32" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar4)"/>
+      <line x1="316" y1="84" x2="336" y2="84" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar4)"/>
+      <line x1="316" y1="136" x2="336" y2="136" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar4)"/>
+      <line x1="316" y1="188" x2="336" y2="188" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar4)"/>
+
+      <rect x="340" y="10" width="200" height="44" rx="8" fill="var(--ok-soft)" stroke="var(--ok)"/>
+      <text x="356" y="30" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">T0 · 0~1</text>
+      <text x="356" y="45" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">자동 통과</text>
+      <text x="556" y="37" fill="var(--text-mute)" font-family="var(--font)" font-size="11">승인 없이 approved · 다이제스트 통지만</text>
+
+      <rect x="340" y="62" width="200" height="44" rx="8" fill="var(--teal-soft)" stroke="var(--teal)"/>
+      <text x="356" y="82" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">T1 · 2~3</text>
+      <text x="356" y="97" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">소프트 게이트</text>
+      <text x="556" y="89" fill="var(--text-mute)" font-family="var(--font)" font-size="11">즉시 approved + 24시간 이의제기 창</text>
+
+      <rect x="340" y="114" width="200" height="44" rx="8" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="356" y="134" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">T2 · 4~5</text>
+      <text x="356" y="149" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">하드 게이트</text>
+      <text x="556" y="141" fill="var(--text-mute)" font-family="var(--font)" font-size="11">필수 승인자 1인 사전 승인</text>
+
+      <rect x="340" y="166" width="200" height="44" rx="8" fill="var(--danger-soft)" stroke="var(--danger)"/>
+      <text x="356" y="186" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">T3 · 6+</text>
+      <text x="356" y="201" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">강화 게이트</text>
+      <text x="556" y="193" fill="var(--text-mute)" font-family="var(--font)" font-size="11">2인(직군 교차) + QA + 영향 분석</text>
+    </svg>
+    <div class="cap">그림 4. 위험도 4축 점수 → 게이트 티어(D-06). 세션 실패율·재시도 초과는 티어를 +1 한다.</div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>축</th><th>0점</th><th>1점</th><th>2점</th></tr></thead>
+    <tbody>
+      <tr><td>부작용</td><td>서술 정정(오탈자·문구·링크)</td><td>기존 요구사항 수정</td><td>요구사항 추가/삭제, 규약·ADR 변경</td></tr>
+      <tr><td>민감도</td><td>내부 설명</td><td>외부 노출 사양(API·화면 계약)</td><td>보안·권한·과금·개인정보</td></tr>
+      <tr><td>가역성</td><td>되돌려도 파생 영향 없음</td><td>파생 Task 재계산 필요</td><td>이미 구현·배포된 요구사항을 무효화</td></tr>
+      <tr><td>영향 범위</td><td>참조 스펙 0~1</td><td>참조 스펙 2~5 또는 파생 Task 1~3</td><td>참조 스펙 6+ 또는 파생 Task 4+</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">동적 강화</b><p>같은 Task에서 재시도가 임계를 넘거나(e2e 3회 실패 — clemvion의 <code>ESCALATE=e2e-fail-3x</code> 어휘 계승), 최근 30일 내 해당 영역의 승인 후 롤백 이력이 있으면 티어를 <b>+1</b> 한다.</p></div>
+    <div class="card"><b class="card-title">자동 통과는 필수 기능</b><p>SDD에 대한 대표 비판은 "버그 하나에 16개 인수 기준"이라는 워터폴 회귀 지적이다. T0/T1 경로가 없으면 NERV는 그 비판을 실현하는 도구가 된다.</p></div>
+    <div class="card"><b class="card-title">반사적 승인 방지</b><p>모든 것을 묻는 설계는 consent fatigue를 낳고, 이것이 OWASP <b>ASI09</b>가 지목하는 취약점이다. 그래서 승인 카드는 요약문이 아니라 <b>실제 diff와 대상 리소스 원문</b>을 먼저 보여준다(§6.4).</p></div>
+  </div>
+
+  <h3>2.5 결정 어휘: approve / reject / comment</h3>
+
+  <p>Approval의 결정 값은 <code>approve · reject · comment</code> 세 가지다. HITL 프레임워크들이 쓰는 4종 결정은 NERV의 세 값에 아래처럼 흡수된다 — 새 상태값을 만들지 않는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>외부 어휘</th><th>NERV 표현</th></tr></thead>
+    <tbody>
+      <tr><td>approve</td><td><code>Approval.decision = approve</code></td></tr>
+      <tr><td>reject</td><td><code>Approval.decision = reject</code> → SpecVersion <code>in_review → draft</code></td></tr>
+      <tr><td>edit (인자 수정 후 실행)</td><td><code>comment</code> + 승인자가 직접 draft 편집 → 재제출. 본문이 바뀌면 기존 승인은 hash 불일치로 자동 무효(§2.3)</td></tr>
+      <tr><td>respond (인간 응답을 결과로 반환)</td><td>Question 엔티티에 대한 <code>Approval</code> — 세션은 <code>awaiting_input</code>에서 재개(§4.7)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.6 SLA · 리마인더 · 에스컬레이션</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>시점</th><th>동작</th><th>채널</th></tr></thead>
+    <tbody>
+      <tr><td>T+0</td><td>승인함 카드 생성 + 요청 세션에 "대기 중" 표시</td><td>인앱(즉시) + critical 티어 채널</td></tr>
+      <tr><td>T+4h</td><td>미결 리마인더 1회(같은 승인 건은 배칭되어 1건으로)</td><td>인앱</td></tr>
+      <tr><td>T+1d</td><td>리마인더 2회 + 대체 승인자 후보 표시</td><td>인앱 + 메일</td></tr>
+      <tr><td>T+2d</td><td>admin 에스컬레이션, 프로젝트 개요에 "지연 승인" 배지</td><td>인앱 + Slack</td></tr>
+      <tr><td>T+7d</td><td>요청 <b>만료</b> 처리, 대상은 draft로 복귀하고 요청자에게 통지</td><td>다이제스트</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><code>awaiting_input</code>으로 사람을 기다리는 에이전트 세션은 이 SLA와 별개로 하트비트를 유지한다(D-13). 승인이 며칠 걸려도 세션은 죽지 않아야 하며, 이는 "리뷰가 오래 걸리면 상태를 직렬화해 저장하고 나중에 재개하라 — 그것은 여전히 같은 run이다"라는 에이전트 승인 설계의 정석과 같다. 반대로 <b>에이전트가</b> 응답하지 않는 경우는 무활동 30분에 <code>stale</code>로 자동 전이하고 클레임을 회수한다(§4.5).</p>
+
+  <!-- ============================================================ 3 -->
+  <h2 id="sec-3">3. 변경 요청(CR) 흐름 <span class="badge human">FR-04</span></h2>
+
+  <h3>3.1 왜 CR인가</h3>
+
+  <p><span class="badge approved">approved</span> SpecVersion은 불변이다. 요구공학에서 승인된 요구사항 집합을 baseline으로 두고 이후 변경을 변경 통제로 다루는 것과 같은 이유 — 승인 시점의 약속이 나중에 조용히 바뀌면 승인 자체가 무의미해진다. clemvion은 이 계층이 없어 본문을 직접 고치고 이력을 git에 위임했고, 그 결과 "정정/어긋/틀렸/누락" 류의 사후 정합화 커밋이 상시 업무가 됐다(<code>docs(spec)</code> 커밋 <b>211개</b>).</p>
+
+  <h3>3.2 델타 뷰</h3>
+
+  <p>CR은 새 draft 버전 + 요구사항 단위 델타를 함께 제시한다. 리뷰어는 1,750줄 본문 전체가 아니라 델타만 본다.</p>
+
+<pre><code>CR-142 · 웹챗 위젯 임베드 (spec: 7-channel-web-chat/2-embed, v3 → v4)
+────────────────────────────────────────────────────────────
+[ADDED]    REQ-CCH-SE-07  위젯은 세션 재개 시 마지막 30건을 복원한다
+[MODIFIED] REQ-CCH-SE-02  update dedup: "권장" → "필수", 윈도우 5s → 3s
+[REMOVED]  REQ-CCH-UI-11  레거시 iframe 임베드 모드
+────────────────────────────────────────────────────────────
+영향: 파생 Task 3건 · 진행 중 클레임 1건(세션 S-8812, host mbp-kim) · 참조 스펙 2건
+게이트 티어: T3 (부작용 2 · 민감도 1 · 가역성 2 · 범위 1 = 6)
+</code></pre>
+
+  <p>이 델타 어휘(ADDED/MODIFIED/REMOVED)는 파일 기반 SDD 도구들이 델타 스펙으로 검증한 형태이고, NERV에서는 파일 diff가 아니라 <b>요구사항 ID 단위</b>로 계산된다는 점이 다르다.</p>
+
+  <h3>3.3 승인 시 영향 분석과 파생 Task 재계산</h3>
+
+  <p>CR 승인은 세 축을 동시에 움직인다. 서버가 아래 규칙으로 재계산하고, 결과를 승인 화면에 <b>미리보기로 먼저 보여준 뒤</b> 승인을 받는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>델타</th><th>문서 축</th><th>구현 축(Requirement)</th><th>Task 축</th><th>알림 티어</th></tr></thead>
+    <tbody>
+      <tr><td><b>ADDED</b></td><td>새 버전 approved, 이전 superseded</td><td>새 REQ <code>unimplemented</code></td><td>파생 Task <code>backlog</code> 자동 제안(위임 명세 초안 포함)</td><td>standard</td></tr>
+      <tr><td><b>MODIFIED</b></td><td>동일</td><td><code>implemented</code>/<code>verified</code> → <code>in_progress</code> 강등</td><td>완료 Task는 재검증 Task 신설, 진행 중 Task는 <b>재브리핑 필요</b> 플래그</td><td>high (클레임 보유 세션에는 critical)</td></tr>
+      <tr><td><b>REMOVED</b></td><td>동일</td><td>REQ <code>deprecated</code></td><td>미착수 파생 Task는 취소 제안, 진행 중이면 즉시 중단 확인 요청</td><td>critical</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 포기됐던 동시 수정 검출이 복원된다</b>
+    <p>진행 중인 클레임이 있는 요구사항을 MODIFIED/REMOVED 하는 CR은 그 세션에 즉시 알림을 보내고, 세션은 다음 하트비트에서 변경을 인지해 <code>blocked(spec_conflict)</code>로 스스로 전이할 수 있다. clemvion이 "동일 spec 파일을 두 worktree가 동시 수정 중이면 plan에 명시하고 직렬화한다. <b>자동 검출은 없다</b>"고 포기했던 지점(<code>clemvion:.claude/docs/worktree-policy.md</code> §3)이 여기서 복원된다 — 서버가 모든 세션의 scope 선언을 보기 때문이다.</p>
+  </div></div>
+
+  <h3>3.4 SPEC-DRIFT 역류 경로</h3>
+
+  <p>구현하다 보면 스펙이 틀렸다는 것이 드러난다. clemvion은 이 경우를 위해 정식 경로를 만들어 5개월 운영했다: 리뷰 finding에 <code>[SPEC-DRIFT]</code> 태그가 붙으면 <code>resolution-applier</code>가 <b>코드를 되돌리지 않고</b> <code>plan/in-progress/spec-update-&lt;area&gt;.md</code> 초안을 만든 뒤 <code>ESCALATE=spec</code>으로 격상하고, <code>/consistency-check --spec</code>을 거쳐 스펙에 반영한다. 요약 에이전트에는 "절대 일반 WARNING으로 뭉개지 말 것"이라는 지침이 명시돼 있다.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 190" role="img" aria-label="SPEC-DRIFT 역류 경로: spec_drift 태그가 붙은 finding이 CR 초안을 만들고 planner 승인함으로 가서 승인 또는 거절로 분기">
+      <defs>
+        <marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <rect x="14" y="62" width="190" height="58" rx="10" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="109" y="85" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">Finding</text>
+      <text x="109" y="103" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">tag = spec_drift</text>
+
+      <line x1="204" y1="91" x2="246" y2="91" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar5)"/>
+      <text x="225" y="50" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">코드 revert 금지</text>
+
+      <rect x="250" y="62" width="190" height="58" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="345" y="85" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">CR draft 자동 생성</text>
+      <text x="345" y="103" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">nerv_spec_draft_upsert</text>
+
+      <line x1="440" y1="91" x2="482" y2="91" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar5)"/>
+
+      <rect x="486" y="62" width="180" height="58" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="576" y="85" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">planner 승인함</text>
+      <text x="576" y="103" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">승인 카드</text>
+
+      <line x1="666" y1="80" x2="708" y2="44" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar5)"/>
+      <text x="672" y="52" fill="var(--ok)" font-family="var(--font)" font-size="10.5" font-weight="700">approve</text>
+      <line x1="666" y1="102" x2="708" y2="140" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar5)"/>
+      <text x="674" y="136" fill="var(--danger)" font-family="var(--font)" font-size="10.5" font-weight="700">reject</text>
+
+      <rect x="712" y="12" width="156" height="48" rx="10" fill="var(--ok-soft)" stroke="var(--ok)"/>
+      <text x="790" y="33" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5" font-weight="700">CR 승인 흐름</text>
+      <text x="790" y="49" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">요구사항 문구 갱신</text>
+
+      <rect x="712" y="122" width="156" height="48" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="790" y="143" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5" font-weight="700">Finding dismissed</text>
+      <text x="790" y="159" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">코드 되돌림 Task 생성</text>
+    </svg>
+    <div class="cap">그림 5. SPEC-DRIFT 역류 경로. 핵심은 <b>코드 revert가 기본값이 아니라는 것</b>이다.</div>
+  </div>
+
+  <p>스펙이 진실이라는 원칙과 "구현에서 배운 것이 스펙으로 역류한다"는 현실을 양립시키는 유일한 방법이고, <code>spec_drift</code>가 Finding의 1급 태그인 이유다.</p>
+
+  <h3>3.5 CR과 문서 축의 관계</h3>
+
+  <p>CR은 자체 수명 상태(<code>open / in_review / approved / rejected / withdrawn</code>)를 갖되, <b>승인 판정의 진실은 대상 SpecVersion의 문서 축 상태</b>다. CR 상태는 제안 자체의 진행(철회·반려 포함)을 표현하고, 무엇이 승인된 기준인지는 언제나 SpecVersion이 답한다. 두 값 중 어느 쪽이 진실인지 미리 못 박아 두지 않으면, 값이 갈라지는 순간 판단이 불가능해지기 때문이다 — clemvion에서 plan frontmatter <code>status</code>와 디렉토리 위치(<code>in-progress/</code> vs <code>complete/</code>)가 <b>두 번</b> 어긋난 실패(#1108·#1117)가 그 사례다.</p>
+
+  <!-- ============================================================ 4 -->
+  <h2 id="sec-4">4. 작업 흐름</h2>
+
+  <h3>4.1 Task 분해와 위임 명세 4요소 <span class="badge human">FR-05</span></h3>
+
+  <p>승인된 SpecVersion의 Requirement에서 Task를 파생한다. 모든 Task는 <b>위임 명세 4요소</b>를 갖춰야 하며, 하나라도 비면 서버가 <code>ready</code> 승격을 거부한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>요소</th><th>내용</th><th>미충족 시 벌어지는 일</th></tr></thead>
+    <tbody>
+      <tr><td><b>목표</b></td><td>어떤 Requirement를 충족시키는가(REQ ID 필수)</td><td>에이전트가 스펙을 재해석해 범위가 흔들림</td></tr>
+      <tr><td><b>산출물 형식</b></td><td>PR / 스펙 초안 / 리뷰 보고서 / 조사 노트 중 무엇인가</td><td>산출물이 어디로 가는지 몰라 로컬 파일로 남음</td></tr>
+      <tr><td><b>도구·출처</b></td><td>어떤 MCP 도구·저장소·문서를 근거로 쓰는가</td><td>근거 없는 구현, provenance 추적 불가(P5)</td></tr>
+      <tr><td><b>경계</b></td><td>건드리면 안 되는 것, 결정하면 안 되는 것</td><td>스코프 이탈. clemvion이 리뷰어 14종 중 <code>scope</code>를 강제 화이트리스트에 넣은 이유</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="ico">🚩</span><div class="body">
+    <b class="title">플랜 승인 게이트 (D-06 ②)</b>
+    <p>위임 명세가 갖춰져도, 파생 Task가 4건 이상이거나 T3 티어 스펙에서 나온 대형 작업은 착수 전 플랜 승인을 받는다. 코드 2,000줄이 쓰이기 전 설계 단계에서 문제를 잡는 shift-left 접근이 검증된 방향이고, clemvion의 <code>/merge-coordinate</code>가 Phase 2에서 사용자 confirm을 의무화한 것과 같은 위치의 게이트다.</p>
+  </div></div>
+
+  <h3>4.2 ready 판정</h3>
+
+<pre><code>ready(task) ⟺
+      task.status == 'backlog'
+  AND task.spec_version.status == 'approved'
+  AND 위임_명세_4요소_충족(task)
+  AND ∀ d ∈ TaskDependency(task): d.status == 'done'
+  AND (task.plan_approval_required ⇒ task.plan_approval.decision == 'approve')
+  AND task.blocked_reason IS NULL
+</code></pre>
+
+  <p>ready 큐는 우선순위·기한·담당 후보로 정렬된 <b>질의 결과</b>다. 문서가 아니다. clemvion에서 백로그 조망을 담당하던 인덱스 문서가 부패해 삭제된 뒤 "사람 머리 + audit 도구 출력"에 의존하게 된 것, 그리고 <b>34개 in-progress plan 중 15개만</b> <code>priority</code>를 선언했던 실측이 이 설계의 근거다.</p>
+
+  <h3>4.3 클레임과 리스 (D-04 · FR-06)</h3>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-04 · 동시성 제어는 원자적 클레임 + 리스(lease)</b>
+    <p>ready 판정(의존성 그래프) → <code>nerv_task_claim</code>(assignee+상태 원자 전환) → TTL 리스 + 하트비트 → 만료 시 자동 회수. 클레임 시 scope(<code>spec_ids</code>, <code>file_globs</code>)를 선언하고 겹침 시 경고/차단한다. ID는 서버 발급(해시 기반)으로 파일 기반 번호 충돌을 원천 제거한다.</p>
+  </div></div>
+
+  <p>클레임은 "누가 이 작업을 한다"의 선언이자 "내가 어디를 건드린다"의 선언이다. 후자가 <b>P1</b>(세션 간 스펙 충돌)·<b>P2</b>(중복 작업)를 푸는 열쇠다.</p>
+
+  <h3>4.4 scope 겹침 검사 알고리즘</h3>
+
+<pre><code># nerv_task_claim 서버측 처리 — 원자적 클레임 + scope 겹침 판정
+# 입력 : task_id, session_id, scope{spec_ids[], file_globs[]}, ttl
+# 출력 : {ok:true, lease_expires_at, warnings[]} | {ok:false, reason, overlaps[]}
+
+FUNCTION claim_task(task_id, session_id, scope, ttl):
+  BEGIN TRANSACTION
+
+    # 0) 대상 행 잠금 — 중복 클레임을 DB 레벨에서 차단
+    task := SELECT * FROM task WHERE id = task_id FOR UPDATE
+    IF task IS NULL OR task.status != 'ready':
+        ROLLBACK; RETURN {ok:false, reason:'not_ready', status:task.status}
+
+    # 1) 비교 대상은 "살아있는" 클레임만 (만료·죽은 세션은 먼저 회수)
+    reclaim_expired_leases(task.project_id)
+    active := SELECT c.*, s.hostname, s.user_id
+              FROM claim c JOIN agent_session s ON s.id = c.session_id
+              WHERE c.project_id = task.project_id
+                AND c.released_at IS NULL
+                AND c.lease_expires_at &gt; now()
+                AND s.status IN ('active', 'awaiting_input')
+                AND c.session_id != session_id
+
+    # 2) 두 축(스펙·파일)으로 겹침 계산
+    overlaps := []
+    FOR EACH c IN active:
+        # 2-a) 스펙 축 — 트리 폐포로 확장해 조상/자손 겹침까지 검출
+        spec_hit := closure(scope.spec_ids) ∩ closure(c.scope.spec_ids)
+
+        # 2-b) 파일 축 — 파일시스템을 읽지 않고 glob 패턴만으로 교차 가능성 판정
+        file_hit := []
+        FOR EACH g1 IN scope.file_globs:
+            FOR EACH g2 IN c.scope.file_globs:
+                IF globs_can_intersect(g1, g2): file_hit += (g1, g2)
+
+        IF spec_hit ≠ ∅ OR file_hit ≠ ∅:
+            overlaps += { session:c.session_id, host:c.hostname, user:c.user_id,
+                          task:c.task_id, specs:spec_hit, files:file_hit,
+                          severity:severity_of(spec_hit, file_hit, task, c) }
+
+    # 3) 정책 판정 — 차단은 좁게, 경고는 넓게
+    IF ∃ o ∈ overlaps WHERE o.severity == 'block':
+        ROLLBACK
+        emit_event('claim.conflict_blocked', task, overlaps)
+        RETURN {ok:false, reason:'scope_conflict', overlaps}
+
+    # 4) 조건부 UPDATE — 경쟁에서 진 세션은 affected_rows = 0 으로 즉시 판별
+    UPDATE task
+       SET status = 'claimed', assignee = session.user_id, delegate_session = session_id
+     WHERE id = task_id AND status = 'ready'
+    IF affected_rows == 0:
+        ROLLBACK; RETURN {ok:false, reason:'lost_race'}
+
+    INSERT INTO claim(task_id, session_id, scope, lease_expires_at = now() + ttl)
+    INSERT INTO event(type='task.claimed', actor=session, is_agent=true, targets=[task])
+
+  COMMIT
+
+  IF overlaps ≠ ∅:
+      notify(overlaps, tier='high')      # warn 은 통과시키되 양쪽 세션·담당자에게 알린다
+  RETURN {ok:true, lease_expires_at, warnings:overlaps}
+
+
+# glob 교차 가능성 — 두 패턴이 같은 파일을 가리킬 수 있는가 (보수적 판정)
+FUNCTION globs_can_intersect(g1, g2):
+    IF g1 == g2: RETURN true
+    p1 := split(g1, '/');  p2 := split(g2, '/')
+    i := 0
+    WHILE i &lt; len(p1) AND i &lt; len(p2):
+        a := p1[i];  b := p2[i]
+        IF a == '**' OR b == '**':        RETURN true    # 이후 임의 깊이 → 교차 가능
+        IF NOT segment_can_match(a, b):   RETURN false   # 리터럴 불일치 → 교차 불가
+        i := i + 1
+    RETURN true                                          # 접두 전부 호환 → 보수적으로 true
+
+# 위험도 — 차단은 "같은 스펙 문서를 두 세션이 동시에 개정"하는 경우로 한정
+FUNCTION severity_of(spec_hit, file_hit, t_new, c_old):
+    IF spec_hit ≠ ∅ AND both_tasks_mutate_spec(t_new, c_old):  RETURN 'block'
+    IF spec_hit ≠ ∅:                                           RETURN 'warn'
+    IF file_hit ≠ ∅ AND same_requirement(t_new, c_old):        RETURN 'warn'
+    IF file_hit ≠ ∅:                                           RETURN 'info'
+    RETURN 'info'
+</code></pre>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">① 차단은 좁게</b><p>파일 글로브가 겹친다는 이유로 막으면 대형 저장소에서는 아무도 일을 못 한다(clemvion <code>codebase/</code> 724MB). 진짜 되돌리기 어려운 충돌은 "같은 스펙 문서 동시 개정"뿐이므로 그것만 <code>block</code>이다. 나머지는 통과시키되 <b>양쪽 모두에게</b> 알린다 — 중복 작업(P2)은 차단이 아니라 인지로 풀린다.</p></div>
+    <div class="card"><b class="card-title">② glob은 FS를 읽지 않는다</b><p>서버는 대상 저장소의 워킹트리를 갖고 있지 않다. 패턴 대 패턴 판정이라 보수적으로 true를 반환하며, clemvion이 인정한 stale glob 문제("없어진 파일을 가리키는 glob이 다른 파일에 매칭돼 통과")를 회피한다.</p></div>
+    <div class="card"><b class="card-title">③ 경쟁은 조건부 UPDATE로</b><p><code>WHERE status='ready'</code>가 붙은 단일 UPDATE의 affected_rows가 승패를 결정한다. 파일 기반 번호 발급이 필요 없고, ID는 서버가 해시로 발급한다.</p></div>
+  </div>
+
+  <h3>4.5 하트비트 · 리스 만료 · stale (D-13)</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>값</th><th>기본값(설정 가능)</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td>하트비트 주기</td><td>60초</td><td>세션 보드 갱신 ≤5s(NFR-02)를 만족하면서 서버 부하가 낮은 지점</td></tr>
+      <tr><td>리스 TTL</td><td>30분</td><td>하트비트마다 갱신되므로 정상 세션은 만료되지 않음</td></tr>
+      <tr><td>stale 임계</td><td>무활동 30분</td><td>Linear가 에이전트 세션에 채택한 값과 동일</td></tr>
+      <tr><td>회수 동작</td><td><code>claimed</code>/<code>in_progress</code> → <code>ready</code>, 산출물·Activity는 보존</td><td>죽은 세션 정리를 사람이 감시하지 않게</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · "살아있는 세션 앵커 레지스트리가 필요하다"</b>
+    <p>clemvion의 GC reaper는 "merge는 대부분 GitHub 웹에서 일어나 로컬이 그 이벤트를 관측할 수 없다"는 이유로 세션 시작마다 <code>gh pr list</code>를 폴링했고, 그마저도 "동시에 열린 다른 세션이 앵커로 쓰는 worktree의 PR이 merge되면 그 세션은 여전히 죽는다"고 한계를 명시했다(<code>clemvion:.claude/docs/worktree-policy.md</code> §7). 세션 레지스트리(FR-07)가 서버에 있으면 그 한계는 존재하지 않는다.</p>
+  </div></div>
+
+  <h3>4.6 done 전이 조건 <span class="badge human">FR-10</span></h3>
+
+  <p><code>in_review → done</code>은 아래를 <b>전부</b> 만족할 때만 허용된다. 판정은 서버 질의 한 번이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>조건</th><th>clemvion 대응물</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>이 Task의 커밋 범위를 커버하는 <b>해소된 리뷰</b>가 존재</td><td><code>guard_review_before_push.py</code>의 3조건(커버리지·해소·신선도)</td></tr>
+      <tr><td>2</td><td>필수 리뷰어 전원의 ReviewerReport 존재</td><td><code>agents_forced</code> 화이트리스트(미충족 160/575 실측)</td></tr>
+      <tr><td>3</td><td>대상 커밋 범위에 open <code>critical</code> finding 0건</td><td><code>BLOCK: YES</code> 차단</td></tr>
+      <tr><td>4</td><td>Requirement ↔ 구현 Evidence 1건 이상 연결</td><td>spec frontmatter <code>code:</code> 글로브 ≥1 매치</td></tr>
+      <tr><td>5</td><td><b>스펙 영향 선언</b>(변경된 스펙 ID 목록 또는 <code>none</code>)</td><td>Gate C <code>spec_impact</code> — 없으면 build fail</td></tr>
+      <tr><td>6</td><td>테스트 증적 기록(lint/unit/build/e2e, e2e는 <code>통과·면제·환경차단·3회실패</code> 4상태)</td><td>RESOLUTION.md의 TEST 결과 규약</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-14 · 게이트는 fail-open + 관측 + 격상, 진실은 서버 산출물</b>
+    <p>판정 불가(예: git forge 웹훅 지연으로 커밋 범위를 모름) 시 진행을 허용하되 배너와 연속 카운터를 남기고, 임계 초과 시 "게이트가 사실상 꺼짐"으로 격상한다. 그리고 에이전트의 자기보고(STATUS 한 줄)와 실제 산출물 업로드를 분리 검증한다 — <b>서버에 업로드된 산출물만 진실이다.</b></p>
+  </div></div>
+
+  <p>조건 5는 clemvion에서 가장 잘 작동한 규칙의 이식이다. "작업 완료가 스펙 정합 결정을 강제 동반"하게 만들면 완료 시점에 아무도 스펙을 보지 않는 사태가 구조적으로 불가능해진다. <code>none</code> sentinel을 허용하되 <b>선언 자체는 필수</b>라는 점이 핵심이다.</p>
+
+  <h3>4.7 blocked와 질문(Question) 에스컬레이션</h3>
+
+<pre><code>세션 S-8812 (developer/mbp-kim, Task T-204)
+  └─ nerv_question_create(
+        question: "REQ-CCH-SE-02의 dedup 윈도우를 3s로 줄이면 기존 클라이언트가 깨집니다",
+        options: ["3s 강행 + 마이그레이션 공지", "5s 유지 + 스펙 정정 CR", "판단 보류"],
+        blocking: true, escalate: "user-decision")
+     → 세션 active → awaiting_input
+     → planner 승인함 카드(critical 티어, Slack DM 딥링크)
+     → 답변 시 Activity(response) 기록 + 세션 재개, Task는 blocked 해제
+</code></pre>
+
+  <p>에스컬레이션 사유 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 쓴다: <code>user-decision / spec / infra / e2e-fail-3x / sensitive-fix</code>. <code>spec</code>은 §3.4의 SPEC-DRIFT 경로로, <code>user-decision</code>은 승인함 질문 카드로 라우팅된다. 이 "질문 → 대기 → 답변 → 재개" 3단 구조는 Linear의 <code>elicitation</code> activity가 세션을 <code>awaitingInput</code>으로 멈추고 승인함 알림을 보내는 모델과 동형이며, 자율 에이전트 HITL의 세 패턴(Notify / Question / Review) 중 Question에 해당한다.</p>
+
+  <!-- ============================================================ 5 -->
+  <h2 id="sec-5">5. 리뷰 파이프라인 (D-07)</h2>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-07 · AI 리뷰는 플랫폼 엔티티다</b>
+    <p>ReviewSession(입력 커밋 스냅샷 필수) → ReviewerReport → Finding(fingerprint로 라운드 간 dedup) → Resolution(fixed/deferred/escalated, 커밋 FK). 게이트 판정은 서버 SQL로 한다 — clemvion의 <b>1,005줄</b> 정규식 push 훅과 rewrite-immune 시계가 전부 불필요해진다.</p>
+  </div></div>
+
+  <h3>5.1 수집 — 입력 스냅샷은 필수 필드</h3>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">커밋 SHA 언급</b><div class="big">47 / 200</div><p>SUMMARY 표본 중 커밋 해시가 산문으로라도 등장한 비율. <code>meta.json</code>에는 필드 자체가 없다.</p></div>
+    <div class="card"><b class="card-title">리뷰 세션</b><div class="big">1,891</div><p>73일간 누적(일평균 26). 각 세션이 무엇을 봤는지가 구조화돼 있지 않다.</p></div>
+    <div class="card"><b class="card-title">plan → 리뷰 인용</b><div class="big">197 / 450</div><p>plan md가 리뷰 세션 경로를 산문으로 인용한 수. 역방향(spec → 리뷰)은 단 2개.</p></div>
+  </div>
+
+  <p><code>nerv_review_submit</code>의 입력 스키마는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 도구 카탈로그가 정의한다. 아래는 그 필수 인자를 인용한 것이며, 하나라도 없으면 서버가 거부한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>값</th><th>없으면 불가능해지는 것</th></tr></thead>
+    <tbody>
+      <tr><td><code>repo</code> / <code>branch</code></td><td>저장소·브랜치</td><td>어느 라인에서 나온 리뷰인지</td></tr>
+      <tr><td><code>base_sha</code> / <code>head_sha</code></td><td>diff 구간</td><td>게이트의 커버리지 판정(§5.4)</td></tr>
+      <tr><td><code>changeset</code></td><td>파일 목록 + 내용 해시</td><td>라운드 간 동일 changeset 인식</td></tr>
+      <tr><td><code>kind</code></td><td><code>code</code> / <code>consistency</code> / <code>spec-coverage</code> / <code>merge</code></td><td>리뷰 종류별 게이트 규칙 적용</td></tr>
+      <tr><td><code>session_id</code></td><td>실행 주체(사용자·hostname·에이전트 종류)</td><td>"누가 돌린 리뷰인가"(P5)</td></tr>
+      <tr><td><code>round_of</code></td><td>같은 changeset의 이전 ReviewSession</td><td>라운드 체인 — clemvion에는 없는 축</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.2 fingerprint dedup</h3>
+
+  <p>clemvion에서 같은 발견이 라운드마다 새 표 행으로 재서술됐다. 한 유예 항목이 세 세션(<code>14_01_46</code> / <code>17_15_21</code> / <code>18_19_33</code>)에서 반복 재확인된 것이 실례이며, dedup 키가 없다는 것이 정보 모델의 최대 결손으로 지목됐다.</p>
+
+  <p><b>fingerprint 구성 요소는 <a href="data-model.html">3.3 데이터 모델</a> §5.2가 정의한다.</b> 이 문서는 그 정의를 재정의하지 않고 인용만 한다 — 요소 목록이 두 곳에 복제되면 라운드 간 dedup이 문서마다 다르게 동작한다.</p>
+
+  <p>구성 요소에서 줄 번호를 뺀 이유는 코드가 위아래로 밀려도 같은 발견이어야 하기 때문이다. 같은 fingerprint가 다시 들어오면 새 Finding을 만들지 않고 기존 Finding에 occurrence를 추가한다. 그러면 이런 질의가 가능해진다 — "3라운드 이상 반복 등장했는데 아직 <code>open</code>인 finding", "지난 30일간 dismissed 후 재등장한 finding".</p>
+
+  <h3>5.3 해결 추적 — 유예(<code>wont_fix</code>)는 1급 데이터</h3>
+
+  <p>Finding 상태는 <code>open → fixed / dismissed / wont_fix</code>다. 여기에 처분 근거를 붙인다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>처분</th><th>필수 부가 정보</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td><code>fixed</code></td><td>커밋 SHA(FK)</td><td>clemvion <code>fix(&lt;scope&gt;): SUMMARY#&lt;n&gt;</code> 커밋 규약 + <code>_resolution_state.json.commits_made[{sha,summary_id}]</code></td></tr>
+      <tr><td><code>dismissed</code>(오탐·기각)</td><td>사유 + 승인자(사람)</td><td>severity 하향과 동일 취급 — 감사 대상</td></tr>
+      <tr><td><code>wont_fix</code>(유예)</td><td>사유 + <b>재상정 조건</b></td><td>유예 결정이 산문으로만 존재해 세 세션에 걸쳐 반복 재확인된 실측</td></tr>
+      <tr><td><code>spec_drift</code> 태그</td><td>생성된 CR 링크</td><td>§3.4 역류 경로</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><code>wont_fix</code>는 "새 근거 없이 재상정하지 않는다"는 규칙과 함께 동작한다. 같은 fingerprint가 다시 들어와도 재상정 조건이 충족되지 않으면 리뷰어에게 "이미 유예된 항목"으로 표시되고 새 알림을 만들지 않는다 — 이것 하나로 리뷰 피로의 상당 부분이 사라진다.</p>
+
+  <h3>5.4 게이트 판정 — 훅 1,005줄이 질의 한 줄로</h3>
+
+  <p>clemvion의 push 게이트는 "이 브랜치의 최신 코드 변경보다 나중에 만들어진, 해소된 리뷰가 있는가"를 <b>파일시스템 walk + 디렉토리명 타임스탬프 파싱</b>으로 판정했다. checkout이 mtime을, rebase가 committer date를 오염시키므로 rewrite-immune 시계까지 따로 구현해야 했다.</p>
+
+<pre><code>-- "이 커밋 범위를 커버하는 해소된 리뷰가 있는가" (FR-10)
+SELECT EXISTS (
+  SELECT 1 FROM review_session rs
+  WHERE rs.project_id = :project
+    AND rs.branch     = :branch
+    AND rs.head_sha   = :head          -- 신선도: 경로 타임스탬프가 아니라 커밋 동일성
+    AND rs.forced_roles_satisfied      -- 커버리지: 필수 리뷰어 전원 산출물
+    AND NOT EXISTS (                   -- 해소: open critical 0건
+      SELECT 1 FROM finding f
+      WHERE f.review_session_id = rs.id
+        AND f.severity = 'critical' AND f.status = 'open')
+);
+</code></pre>
+
+  <p>커밋 SHA 연결 하나로 세 조건(커버리지·해소·신선도)이 단순 질의가 된다. 판정 불가 시의 동작은 D-14 그대로다 — 통과시키되 배너·카운터, 임계 초과 시 격상.</p>
+
+  <h3>5.5 커버리지 계산 — P4의 답</h3>
+
+<pre><code>구현 커버리지(spec) = |{r ∈ REQ(spec) : r.status ∈ (implemented, verified)}| / |REQ(spec)|
+검증 커버리지(spec) = |{r ∈ REQ(spec) : r.status = verified}|                  / |REQ(spec)|
+증적 결손(spec)     =  {r ∈ REQ(spec) : r.status = implemented ∧ Evidence(r) = ∅}
+빈 약속(spec)       =  {r ∈ REQ(spec) : r.status = unimplemented ∧ Task(r) = ∅}
+</code></pre>
+
+  <p>마지막 줄이 clemvion의 R-5 사례 — "spec이 plan을 가리키지 않아 <b>어떤 plan도 책임지지 않는 빈 약속</b>으로 영구 누락"된 텔레그램 chat-channel UI — 를 매일 자동 검출하는 질의다. clemvion은 이걸 NLP 휴리스틱(<code>/spec-coverage</code>, advisory·비차단)으로 근사해야 했다. 관계가 있으면 휴리스틱이 필요 없다.</p>
+
+  <h3>5.6 보존 정책</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>데이터</th><th>보존</th><th>저장 위치</th></tr></thead>
+    <tbody>
+      <tr><td>Finding · Resolution · verdict · 입력 스냅샷 메타</td><td>영구</td><td>Postgres</td></tr>
+      <tr><td>ReviewerReport 본문</td><td>영구(압축)</td><td>Postgres</td></tr>
+      <tr><td>리뷰 프롬프트 페이로드 · 중간 로그(<code>review_session.prompt_blob_uri</code>)</td><td>TTL 30일(설정)</td><td>오브젝트 스토리지</td></tr>
+      <tr><td>세션 Activity 원문</td><td>TTL 180일, 요약은 영구</td><td>혼합</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 자기증식 루프는 저장 위치를 바꾸면 소멸한다</b>
+    <p>clemvion은 <code>_prompts/</code>(리뷰 전체의 ~70%)를 "커밋 해시 + 스킬로 항상 재생성 가능"을 근거로 gitignore 처리했다. 그런데도 결론만으로 <b>60.7MB, packed blob 바이트의 60%</b>에 도달했다. 게다가 리뷰 산출물이 코드와 같은 브랜치에 커밋되어 다음 라운드의 입력이 되는 자기증식 루프가 관측됐다 — 한 changeset이 <b>8라운드</b>를 돌았고, 마지막 라운드 리뷰 프롬프트 <b>94파일 중 86개</b>가 이전 <code>review/**</code> 산출물이라 정작 소스 diff가 컨텍스트 예산 부족으로 생략됐다. 산출물이 git diff에서 사라지면 이 루프는 구조적으로 소멸한다.</p>
+  </div></div>
+
+  <!-- ============================================================ 6 -->
+  <h2 id="sec-6">6. 알림 설계 <span class="badge human">FR-12</span></h2>
+
+  <h3>6.1 이벤트 → 구독 → 라우팅</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 300" role="img" aria-label="알림 파이프라인: Event가 4종 구독 규칙에 매칭되어 중요도 티어를 산출하고, 승인함 승격·즉시 발송·배칭으로 라우팅되는 구조">
+      <defs>
+        <marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <rect x="290" y="8" width="300" height="46" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="440" y="28" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">Event (append-only, D-10)</text>
+      <text x="440" y="45" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">actor{is_agent} · action · targets[] · context · policy_version</text>
+
+      <line x1="440" y1="54" x2="440" y2="70" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <line x1="114" y1="70" x2="766" y2="70" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <line x1="114" y1="70" x2="114" y2="86" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar6)"/>
+      <line x1="328" y1="70" x2="328" y2="86" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar6)"/>
+      <line x1="542" y1="70" x2="542" y2="86" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar6)"/>
+      <line x1="756" y1="70" x2="756" y2="86" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar6)"/>
+
+      <rect x="14" y="90" width="200" height="44" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="114" y="109" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5" font-weight="700">① 역할 기반</text>
+      <text x="114" y="125" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">feature 승인 → planner 전원</text>
+
+      <rect x="228" y="90" width="200" height="44" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="328" y="109" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5" font-weight="700">② 워치</text>
+      <text x="328" y="125" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">스펙 노드 · 영역 · Task 구독</text>
+
+      <rect x="442" y="90" width="200" height="44" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="542" y="109" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5" font-weight="700">③ 관여</text>
+      <text x="542" y="125" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">작성 · 승인 · 클레임 · 코멘트</text>
+
+      <rect x="656" y="90" width="200" height="44" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="756" y="109" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5" font-weight="700">④ 지정</text>
+      <text x="756" y="125" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">리소스 레벨 그랜트(승인자)</text>
+
+      <line x1="114" y1="134" x2="114" y2="154" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="328" y1="134" x2="328" y2="154" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="542" y1="134" x2="542" y2="154" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="756" y1="134" x2="756" y2="154" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#ar6)"/>
+
+      <rect x="14" y="158" width="210" height="44" rx="8" fill="var(--danger-soft)" stroke="var(--danger)"/>
+      <text x="119" y="185" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">critical</text>
+      <rect x="228" y="158" width="210" height="44" rx="8" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="333" y="185" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">high</text>
+      <rect x="442" y="158" width="210" height="44" rx="8" fill="var(--info-soft)" stroke="var(--info)"/>
+      <text x="547" y="185" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">standard</text>
+      <rect x="656" y="158" width="210" height="44" rx="8" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="761" y="185" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="12" font-weight="700">low</text>
+
+      <line x1="119" y1="202" x2="152" y2="226" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="160" y1="202" x2="392" y2="226" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar6)"/>
+      <line x1="333" y1="202" x2="428" y2="226" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="547" y1="202" x2="690" y2="226" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="761" y1="202" x2="740" y2="226" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#ar6)"/>
+
+      <rect x="14" y="230" width="280" height="52" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="154" y="252" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">승인함 승격 (S7)</text>
+      <text x="154" y="269" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">승인 · 질문 · 리뷰 — 대기→결정→만료</text>
+
+      <rect x="300" y="230" width="280" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="440" y="252" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">즉시 발송</text>
+      <text x="440" y="269" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">인앱 · Slack DM · 메일 (딥링크만)</text>
+
+      <rect x="586" y="230" width="280" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="726" y="252" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">배칭 · 다이제스트</text>
+      <text x="726" y="269" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">인앱 5분 창 · 메일 일 1회</text>
+    </svg>
+    <div class="cap">그림 6. 알림 파이프라인. 이벤트 이름은 <code>&lt;리소스&gt;.&lt;동사&gt;</code> 규약이며, 감사 로그와 같은 Event 테이블을 원천으로 한다(D-10).</div>
+  </div>
+
+  <h3>6.2 중요도 티어와 채널 라우팅</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>티어</th><th>정의</th><th>채널</th><th>배칭</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge blocked">critical</span></td><td>내 결정이 없으면 누군가의 세션이 멈춰 있다</td><td>인앱 즉시 + Slack DM + 메일</td><td>없음(개별 발송)</td></tr>
+      <tr><td><span class="badge review">high</span></td><td>내 작업에 직접 영향, 오늘 안에 봐야 함</td><td>인앱 즉시 + Slack 채널</td><td>5분 창 배칭</td></tr>
+      <tr><td><span class="badge impl">standard</span></td><td>알아두면 좋음</td><td>인앱만</td><td>5분 창 배칭</td></tr>
+      <tr><td><span class="badge draft">low</span></td><td>배경 활동</td><td>인앱 피드(뱃지 없음)</td><td>일일 다이제스트</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>6.3 알림 카탈로그</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>이벤트</th><th>티어</th><th>수신자</th><th>batch key</th></tr></thead>
+    <tbody>
+      <tr><td><code>approval.requested</code> (스펙/CR/플랜)</td><td><span class="badge blocked">critical</span></td><td>필수 승인자</td><td>없음</td></tr>
+      <tr><td><code>question.created</code></td><td><span class="badge blocked">critical</span></td><td>대상 역할 또는 지정자</td><td>없음</td></tr>
+      <tr><td><code>claim.conflict_blocked</code></td><td><span class="badge blocked">critical</span></td><td>양쪽 세션 소유자</td><td>없음</td></tr>
+      <tr><td><code>finding.opened</code> (critical severity)</td><td><span class="badge blocked">critical</span></td><td>Task 담당자 + 리뷰 요청자</td><td>없음</td></tr>
+      <tr><td><code>cr.opened</code> (진행 중 클레임 영향)</td><td><span class="badge blocked">critical</span></td><td>클레임 보유 세션 소유자</td><td>없음</td></tr>
+      <tr><td><code>spec.rejected</code> / <code>spec.approved</code></td><td><span class="badge review">high</span></td><td>작성자 · 워처</td><td><code>spec:{id}:decisions</code></td></tr>
+      <tr><td><code>claim.conflict_warn</code></td><td><span class="badge review">high</span></td><td>양쪽 세션 소유자</td><td><code>task:{id}:conflicts</code></td></tr>
+      <tr><td><code>session.stale</code> (내 세션)</td><td><span class="badge review">high</span></td><td>세션 소유자</td><td><code>user:{id}:sessions</code></td></tr>
+      <tr><td><code>task.blocked</code></td><td><span class="badge review">high</span></td><td>담당자 + planner</td><td><code>task:{id}:state</code></td></tr>
+      <tr><td><code>gate.bypassed</code></td><td><span class="badge review">high</span></td><td>admin</td><td><code>project:{id}:bypass</code></td></tr>
+      <tr><td><code>spec.comment_added</code></td><td><span class="badge impl">standard</span></td><td>스레드 참여자 · 워처</td><td><code>spec:{id}:comments</code></td></tr>
+      <tr><td><code>task.ready</code> (내 영역)</td><td><span class="badge impl">standard</span></td><td>영역 워처</td><td><code>project:{id}:ready</code></td></tr>
+      <tr><td><code>finding.resolved</code></td><td><span class="badge impl">standard</span></td><td>리뷰 요청자</td><td><code>review:{id}:resolutions</code></td></tr>
+      <tr><td><code>session.started</code> / <code>session.complete</code></td><td><span class="badge draft">low</span></td><td>워처</td><td><code>session:{id}:lifecycle</code></td></tr>
+      <tr><td><code>task.claimed</code> / <code>task.done</code></td><td><span class="badge draft">low</span></td><td>워처</td><td><code>project:{id}:progress</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">에이전트 진행 이벤트는 알림을 만들지 않는다</b>
+    <p>도구 호출·파일 수정 같은 세션 진행 이벤트는 세션 모니터(S5)와 활동 피드에서 SSE로 흐를 뿐이다. 이걸 알림으로 만들면 동시 세션 수십 개(NFR-04) 환경에서 승인함이 즉시 파괴된다.</p>
+  </div></div>
+
+  <h3>6.4 승인함 승격 — 알림을 줄이는 궁극의 방법</h3>
+
+  <p><b>승인·질문·리뷰 요청은 알림이 아니라 작업 항목이다.</b> 흩어진 핑 대신 미결 액션을 한 곳에서 추적하는 Agent Inbox 패턴이며, NERV의 승인함(S7, FR-11)이 그 화면이다. 승인함 항목은 자체 상태 머신 <code>대기 → 결정 → 만료</code>(§2.6)를 갖고, Slack·메일은 <b>승인함으로 가는 딥링크만</b> 나른다. 승인함에서 이미 처리된 항목은 대기 중이던 메일 다이제스트에서 빠진다(크로스 채널 dedup).</p>
+
+  <div class="wf">
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/inbox</div></div>
+    <div class="wf-body">
+      <div class="wf-side">
+        <div class="wf-nav-item">🏠 대시보드</div>
+        <div class="wf-nav-item">📄 스펙</div>
+        <div class="wf-nav-item">✅ 작업</div>
+        <div class="wf-nav-item">🖥️ 세션</div>
+        <div class="wf-nav-item">🔎 리뷰</div>
+        <div class="wf-nav-item on">📥 승인함 <span class="badge blocked">3</span></div>
+      </div>
+      <div class="wf-main">
+        <div class="wf-topbar">
+          <span class="ttl">승인함 <span class="marker">1</span></span>
+          <span class="wf-tab on">대기 3</span><span class="wf-tab">결정함</span><span class="wf-tab">만료</span>
+        </div>
+
+        <div class="wf-panel">
+          <div class="wf-panel-hd">✅ 스펙 변경 요청 · CR-142 <span class="badge review">In Review</span>
+            <span class="spacer"></span><span class="badge blocked">T3 강화 게이트</span> <span class="marker">2</span></div>
+          <div class="wf-row"><span class="grow">7-channel-web-chat / 2-embed · v3 → v4</span><span class="sub">요청 김기획 · 12분 전</span></div>
+          <div class="wf-row"><span class="grow"><span class="badge approved">ADDED</span> REQ-CCH-SE-07 위젯은 세션 재개 시 마지막 30건을 복원한다</span></div>
+          <div class="wf-row"><span class="grow"><span class="badge review">MODIFIED</span> REQ-CCH-SE-02 update dedup: "권장" → "필수", 5s → 3s</span></div>
+          <div class="wf-row"><span class="grow"><span class="badge blocked">REMOVED</span> REQ-CCH-UI-11 레거시 iframe 임베드 모드</span></div>
+          <div class="wf-row"><span class="grow">영향: 파생 Task 3건 · <b>진행 중 클레임 1건</b> (S-8812 · mbp-kim) · 참조 스펙 2건 <span class="marker">3</span></span></div>
+          <div class="wf-row"><span class="grow"><span class="sub">지시자≠승인자 — 이 초안은 당신의 세션이 작성했습니다</span></span>
+            <span class="wf-btn ok">승인</span><span class="wf-btn danger">거절</span><span class="wf-btn ghost">코멘트</span> <span class="marker">4</span></div>
+        </div>
+
+        <div class="wf-panel">
+          <div class="wf-panel-hd">❓ 에이전트 질문 · S-8812 <span class="badge agent">Agent</span>
+            <span class="spacer"></span><span class="badge blocked">awaiting_input 8분</span> <span class="marker">5</span></div>
+          <div class="wf-row"><span class="grow">REQ-CCH-SE-02의 dedup 윈도우를 3s로 줄이면 기존 클라이언트가 깨집니다</span><span class="wf-avatar bot">AI</span></div>
+          <div class="wf-row"><span class="grow">① 3s 강행 + 마이그레이션 공지</span><span class="wf-btn">선택</span></div>
+          <div class="wf-row"><span class="grow">② 5s 유지 + 스펙 정정 CR</span><span class="wf-btn">선택</span></div>
+          <div class="wf-row"><span class="grow">③ 판단 보류</span><span class="wf-btn ghost">선택</span></div>
+        </div>
+
+        <div class="wf-panel">
+          <div class="wf-panel-hd">🔔 통지 · T1 소프트 게이트로 자동 승인됨 <span class="spacer"></span><span class="badge draft">23시간 남음</span> <span class="marker">6</span></div>
+          <div class="wf-row"><span class="grow">5-system / 12-webhook · 설명 문구 명확화 (부작용 1 · 민감도 0 · 가역성 1 · 범위 0 = 2)</span>
+            <span class="wf-btn ghost">되돌리기</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <ul class="wf-legend">
+    <li><span class="marker">1</span><span><b>승인함은 알림함이 아니다.</b> 배지 숫자는 "내 결정을 기다리는 것"만 센다. 진행 로그는 세션 모니터(S5)로 간다.</span></li>
+    <li><span class="marker">2</span><span>게이트 티어와 그 <b>산출 근거(4축 점수)</b>를 카드에 노출한다 — 왜 이게 강화 게이트인지 승인자가 알아야 한다(§2.4).</span></li>
+    <li><span class="marker">3</span><span>영향 분석은 승인 <b>전에</b> 미리보기로 보여준다. 진행 중 클레임이 걸려 있으면 그 세션에도 critical 알림이 나간다(§3.3).</span></li>
+    <li><span class="marker">4</span><span>카드는 에이전트 요약문이 아니라 <b>요구사항 단위 델타 원문</b>을 먼저 보여준다(OWASP ASI09 대응). 지시자≠승인자 위반 시 승인 버튼은 비활성이다(§2.3).</span></li>
+    <li><span class="marker">5</span><span>질문 카드는 대기 중인 세션의 사용자·hostname·경과를 함께 띄운다. 답변은 그대로 세션 재개 신호가 된다(§4.7).</span></li>
+    <li><span class="marker">6</span><span>T1 소프트 게이트는 이미 승인된 상태로 오되 24시간 <b>이의제기 창</b>과 원클릭 되돌리기를 함께 준다(§2.4).</span></li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>카드 유형</th><th>HITL 패턴</th><th>카드에 반드시 보이는 것</th></tr></thead>
+    <tbody>
+      <tr><td>승인(스펙/CR/플랜/게이트 면제)</td><td>Review</td><td>요구사항 단위 델타 원문, 영향 분석(파생 Task·진행 중 클레임), 게이트 티어와 산출 근거</td></tr>
+      <tr><td>질문</td><td>Question</td><td>질문 원문, 선택지, 대기 중인 세션(사용자·hostname·경과)</td></tr>
+      <tr><td>통지</td><td>Notify</td><td>무엇이 왜 바뀌었는지 + 되돌리기 링크(T1 이의제기 창)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>6.5 배칭 · 다이제스트</h3>
+
+  <p>인앱은 <b>batch-on-write</b>(이벤트 발생 시 수신자별 배치에 누적, 창이 닫힐 때 flush), 메일은 <b>batch-on-read</b>(일 1회 미열람 항목 수집)로 이원화한다.</p>
+
+  <div class="grid-2">
+    <div class="card"><b class="card-title">batch key</b><p>§6.3 표의 값. 같은 키의 이벤트는 한 알림으로 접힌다 — "스펙 3.2에 코멘트 4건".</p></div>
+    <div class="card"><b class="card-title">batch window</b><p>인앱 5분 / 메일 24시간(사용자별 조정 가능).</p></div>
+    <div class="card"><b class="card-title">조기 flush</b><p>배치 항목이 20건을 넘거나 상위 티어 이벤트가 같은 키로 들어오면 즉시 발송.</p></div>
+    <div class="card"><b class="card-title">idempotency</b><p>배치 flush는 1회 발송 보장 키로 중복을 막는다. 동시 이벤트가 두 배치를 만드는 경쟁도 같은 키로 방지한다.</p></div>
+  </div>
+
+  <h3>6.6 피로 방지 원칙 다섯</h3>
+
+  <ol>
+    <li><b>가치 위계를 먼저 정한다.</b> 티어가 채널과 배칭 규칙을 결정하지, 그 반대가 아니다.</li>
+    <li><b>선호 센터를 1차 출시 범위에 넣는다.</b> 카테고리 × 채널 × 빈도 × 방해금지 시간. 선호 센터를 둔 제품은 발송량을 줄이지 않고도 수신거부가 <b>최대 30% 감소</b>한다는 실측이 있다.</li>
+    <li><b>결정이 필요한 것만 승인함으로.</b> 나머지는 피드다. 승인함 배지 숫자는 "내 결정을 기다리는 것"만 센다.</li>
+    <li><b>중복은 채널을 넘어 제거한다.</b> 승인함에서 처리된 항목은 예약된 다이제스트·Slack 발송에서 취소한다.</li>
+    <li><b>에이전트 진행 상황은 알림이 아니라 화면이다.</b> 실시간이 필요한 것은 SSE로 밀고(NFR-02), 사람의 개입이 필요할 때만 승인함 항목이 생긴다.</li>
+  </ol>
+
+  <!-- ============================================================ 7 -->
+  <h2 id="sec-7">7. 게이트 카탈로그와 실패 모드</h2>
+
+  <p>D-06의 표준 게이트 4+1을 한 표로 정리하면 아래와 같다. 각 게이트는 판정 주체·차단 대상·fail-open 동작·관측 지표를 갖는다(D-14).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>게이트</th><th>판정</th><th>차단 대상</th><th>티어 가변</th><th>fail-open 시 동작</th><th>관측 지표</th></tr></thead>
+    <tbody>
+      <tr><td>G1</td><td>스펙/CR 승인</td><td>필수 승인자 + 지시자≠승인자 + hash 일치</td><td><code>in_review → approved</code></td><td>● T0~T3</td><td>해당 없음(승인은 사람이 없으면 진행 불가)</td><td>승인 리드타임, 만료율</td></tr>
+      <tr><td>G2</td><td>플랜 승인</td><td>파생 Task 4건+ 또는 T3 스펙</td><td><code>ready → claimed</code></td><td>●</td><td>정책 조회 실패 시 통과 + 배너</td><td>플랜 승인 건수, 착수 후 범위 이탈률</td></tr>
+      <tr><td>G3</td><td>에이전트 질문</td><td><code>blocking: true</code>인 Question</td><td>세션 <code>active</code> 재개</td><td>—</td><td>해당 없음</td><td>답변까지 걸린 시간, 미답변 만료</td></tr>
+      <tr><td>G4</td><td>리뷰 커버리지 · 머지/CI</td><td>§5.4 질의 + git forge 웹훅</td><td><code>in_review → done</code>, CI 실행</td><td>●</td><td>통과 + 배너 + 연속 카운터, 임계 초과 시 격상</td><td>fail-open 연속 횟수, 커버리지 미달률</td></tr>
+      <tr><td>G5</td><td>BYPASS(면제)</td><td>admin 또는 범위 한정 역할</td><td>— (통과시키는 장치)</td><td>—</td><td>해당 없음</td><td>면제 건수·사유 분포, 반복 면제 경로</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="ico">📝</span><div class="body">
+    <b class="title">BYPASS는 우회가 아니라 기록이다</b>
+    <p>clemvion에도 <code>BYPASS_DEFAULT_BRANCH_GUARD=1</code> 같은 환경변수 탈출구가 있었지만 <b>사용 사실이 어디에도 남지 않았다</b>. NERV의 BYPASS는 Approval 엔티티(대상: 게이트 면제)로 만들어지고, 사유·범위·유효 시간을 받으며, admin 알림과 감사 로그에 남는다. 같은 경로에서 면제가 반복되면 그것은 게이트 설계가 틀렸다는 신호이며 정책 조정 대상이 된다 — clemvion이 실패 이력에서 게이트를 사후에 키워 온 방식을 데이터로 앞당기는 장치다.</p>
+  </div></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>실패 모드</th><th>증상</th><th>설계상 대응</th></tr></thead>
+    <tbody>
+      <tr><td>승인 병목</td><td>승인자 1인에게 전부 몰림</td><td>필수 승인자 규칙을 역할·영역으로 분산(§2.2), T+1d에 대체 승인자 후보 표시</td></tr>
+      <tr><td>반사적 승인</td><td>내용을 안 보고 승인</td><td>T0/T1 자동 경로로 저위험을 걸러내고(§2.4), 카드에 원문 diff 우선 표시(§6.4)</td></tr>
+      <tr><td>게이트 상시 꺼짐</td><td>fail-open이 일상화</td><td>연속 카운터 임계 초과 시 격상 배너 + admin 알림(D-14)</td></tr>
+      <tr><td>클레임 교착</td><td>겹침 차단이 과도해 진행 불가</td><td><code>block</code>은 "같은 스펙 동시 개정"에만, 나머지는 경고(§4.4)</td></tr>
+      <tr><td>좀비 세션</td><td>죽은 세션이 작업을 붙잡음</td><td>하트비트 30분 → <code>stale</code> + 리스 자동 회수(§4.5)</td></tr>
+      <tr><td>리뷰 피로</td><td>같은 지적 반복</td><td>fingerprint dedup + 유예 재상정 조건(§5.2·§5.3)</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ============================================================ ref -->
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3>이 문서가 인용한 clemvion 실측 근거</h3>
+
+  <ul>
+    <li><code>clemvion:spec/conventions/spec-impl-evidence.md</code> — frontmatter status 5값, <code>spec-only</code> TTL 90일, <code>partial → implemented</code> 승격 가드. 문서 리뷰 축은 부재(§1.1·§1.2). R-1 stale glob 검출 불가, R-5 "빈 약속"(§4.4·§5.5)</li>
+    <li><code>clemvion:spec/5-system/4-execution-engine.md</code> — 1,750줄 문서에 status 값 하나. 요구사항 단위 상태 부재의 실물(§1.1)</li>
+    <li>요구사항 <code>CCH-SE-02</code> (커밋 <code>2a698f360</code>) — spec이 <code>필수</code>로 약속한 update dedup이 통째로 미구현. evidence 가드 도입 이후 발생(§1.1·§1.3)</li>
+    <li><code>clemvion:spec/2-navigation/_product-overview.md</code> 외 — 수동 ✅ 마크 131개 vs 다른 영역 0개(§1.1)</li>
+    <li><code>clemvion:.claude/skills/consistency-checker/SKILL.md</code> — checker 5종 병렬, <code>BLOCK: YES/NO</code>, "Critical 하향은 금지다". 세션 858개·42MB(§2.1)</li>
+    <li><code>clemvion:.claude/hooks/_lib/review_guard.py</code> — BLOCK 하향 모순 24/732 세션(3.3%), 게이트 3조건, 경로 타임스탬프 시계, 1,005줄 push 게이트(§2.1·§5.4)</li>
+    <li><code>clemvion:.claude/skills/code-review-agents/SKILL.md</code> — 강제 리뷰어 7종, 커밋된 575 세션 중 160건(28%) 미충족(그중 107건은 게이트 통과 중)(§2.2)</li>
+    <li><code>clemvion:.claude/docs/worktree-policy.md</code> §3 — "자동 검출은 없다"(제거 근거 #576) / §7 — 살아있는 세션 앵커 레지스트리 부재(§3.3·§4.5)</li>
+    <li><code>clemvion:.claude/docs/plan-lifecycle.md</code> — 필수 3필드, <code>(unstarted)</code> sentinel, Gate C <code>spec_impact</code>, 종료값 4종(#1108·#1117), 34개 중 15개만 <code>priority</code> 선언(§1.4·§3.5·§4.2·§4.6)</li>
+    <li><code>clemvion:plan/in-progress/0-unimplemented-overview.md</code> — 백로그 인덱스가 "미관리 stale 문서"로 삭제(#426, <code>65f3e526b</code>)(§1.5·§4.2)</li>
+    <li><code>clemvion:.claude/agents/resolution-applier.md</code> · <code>code-review-summary.md</code> — SPEC-DRIFT 라우팅, "절대 일반 WARNING으로 뭉개지 말 것", ESCALATE 어휘, <code>fix(&lt;scope&gt;): SUMMARY#&lt;n&gt;</code> 규약(§3.4·§4.7·§5.3)</li>
+    <li><code>clemvion:review/</code> — md 13,777개·131MB, 73일간 세션 1,891개(일평균 26), code 세션당 59KB→81KB, 월 ~7,000파일/~50MB 추세(§5.1·§5.6)</li>
+    <li><code>clemvion:.git</code> — review 이력 blob 60.7MB = packed blob 바이트의 60%, 커밋 2,464개 중 937개(38%)가 <code>review/</code> 접촉. <code>_prompts/</code>는 ~70%로 gitignore(§5.6)</li>
+    <li>자기증식 루프 — 한 changeset이 code 5 + consistency 3 = 8라운드, 마지막 라운드 프롬프트 94파일 중 86개가 이전 <code>review/**</code> 산출물(§5.6)</li>
+    <li>리뷰 세션 <code>meta.json</code> — 커밋 SHA·diff base·브랜치 필드 부재, SUMMARY 표본 200개 중 47개만 해시 언급, plan md 450개 중 197개가 리뷰 경로 인용(역방향은 2개)(§5.1·§5.2)</li>
+  </ul>
+
+  <h3>외부 출처 (전부 리서치 노트에서 접속 확인된 URL)</h3>
+
+  <p class="src"><a href="https://docs.github.com/enterprise-cloud@latest/copilot/how-tos/agents/copilot-coding-agent/reviewing-a-pull-request-created-by-copilot">Reviewing a pull request created by GitHub Copilot — GitHub Docs</a> (2026-08-13 확인): 지시자의 승인은 필수 승인 수에 포함되지 않으며, 에이전트발 변경의 CI는 "Approve and run workflows" 승인 후에만 실행된다(§2.3·§7 G4).</p>
+  <p class="src"><a href="https://linear.app/developers/agent-interaction">Developing the Agent Interaction — Linear Developers</a> (2026-08-13 확인): 세션 6상태와 typed activity 5종, <code>elicitation</code> → <code>awaitingInput</code> 모델(§1.4·§4.7).</p>
+  <p class="src"><a href="https://linear.app/developers/agent-best-practices">Interaction Best Practices — Linear Developers</a> (2026-08-13 확인): 10초 ACK·무활동 30분 stale의 응답성 SLA, 불변 activity 로그와 편집 가능한 코멘트의 분리(§4.5).</p>
+  <p class="src"><a href="https://linear.app/now/our-approach-to-building-the-agent-interaction-sdk">Our approach to building the Agent Interaction SDK — Linear Blog</a> (2025-08-01): "에이전트는 책임을 질 수 없다" 원칙과 사람 assignee + 에이전트 delegate 분리(§1.6·§2.3).</p>
+  <p class="src"><a href="https://support.atlassian.com/jira-software-cloud/docs/collaborate-on-work-items-with-ai-agents/">Collaborate on work items with AI agents — Jira Cloud Docs</a> (2026-08-13 확인): 에이전트 출력은 트리거한 사람의 개인 검토를 거쳐 draft로 팀에 공개된다(§2.4·§6.4).</p>
+  <p class="src"><a href="https://asana.com/product/ai/ai-teammates">Asana AI Teammates</a> (2026-08-13 확인): 체크포인트 승인 + 권한 상속·비확대 + 가역성의 3원칙(§1.6).</p>
+  <p class="src"><a href="https://www.notion.com/releases/2026-02-24">Notion 3.3: Custom Agents — Release Notes</a> (2026-02-24): "모든 실행이 로그로 남아 변경이 가시적이고 되돌릴 수 있다" — 가역성의 최소 단위(§2.4 T1 이의제기 창).</p>
+  <p class="src"><a href="https://github.blog/changelog/2026-02-26-enterprise-ai-controls-agent-control-plane-now-generally-available/">Enterprise AI Controls &amp; agent control plane — GitHub Changelog</a> (2026-02-26): <code>actor_is_agent</code> 감사 플래그와 세션 이벤트 전수 감사(§6.1).</p>
+  <p class="src"><a href="https://www.c-sharpcorner.com/article/designing-approval-gates-for-high-risk-ai-agent-actions/">Designing Approval Gates for High-Risk AI Agent Actions — C# Corner</a> (2026-08-13 확인): 부작용×민감도×가역성×범위 4축 위험 분류, 승인 만료 윈도우·스테일 승인 거부, 승인 감사 레코드 필수 항목(§2.3·§2.4·§2.6).</p>
+  <p class="src"><a href="https://developers.openai.com/api/docs/guides/agents/guardrails-approvals">Guardrails and human review — OpenAI API Docs</a> (2026-08-13 확인): 승인 대기 시 상태를 직렬화해 저장하고 재개하면 여전히 같은 run이다. 실패 임계 초과 시 에스컬레이션(§2.6·§4.7).</p>
+  <p class="src"><a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents — Anthropic</a> (2024-12 게시 / 2026-08-13 확인): 체크포인트와 블로커에서의 인간 피드백, 정지 조건을 공통 패턴으로 제시(§2.4·§4.7).</p>
+  <p class="src"><a href="https://docs.langchain.com/oss/python/langchain/human-in-the-loop">Human-in-the-loop — LangChain</a> (2026-08-13 확인): 인간 결정 4종(approve/edit/reject/respond)과 도구별 허용 결정 집합(§2.5).</p>
+  <p class="src"><a href="https://www.langchain.com/blog/introducing-ambient-agents">Introducing ambient agents — LangChain Blog</a> (2025-01-14): 인간 개입 3패턴(Notify/Question/Review)과 Agent Inbox — 흩어진 알림 대신 미결 액션을 한 곳에서(§6.4).</p>
+  <p class="src"><a href="https://www.humanlayer.dev/">HumanLayer</a> (2026-08-13 확인): 코드 2,000줄이 쓰이기 전 설계 단계 리뷰로 문제를 잡는 shift-left 승인(§4.1).</p>
+  <p class="src"><a href="https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/">OWASP Top 10 for Agentic Applications — OWASP GenAI Security Project</a> (2025-12-09): ASI09 Human-Agent Trust Exploitation, ASI03 Identity &amp; Privilege Abuse(§1.2·§2.4·§6.4).</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2025-11-25">MCP 사양 (2025-11-25) — Security and Trust &amp; Safety</a> (2026-08-13 확인): 호스트는 도구 호출 전 명시적 사용자 동의를 받아야 하며 구현자가 견고한 동의·인가 플로를 앱에 내장해야 한다(§1.2).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/agent-sdk/permissions">Configure permissions — Claude Agent SDK</a> (2026-08-13 확인): 6단계 권한 평가와 "조직이 ask로 지정한 도구는 bypass 모드에서도 사람에게 온다"는 강제 승인 레인(§2.4·§7).</p>
+  <p class="src"><a href="https://www.aigl.blog/levels-of-autonomy-for-ai-agents/">Levels of Autonomy for AI Agents</a> (2025-07-28, arXiv:2506.12469v2): L1 Operator ~ L5 Observer 자율성 5단계. 자율성 레벨이 게이트 밀도를 결정하는 단일 다이얼(§2.4).</p>
+  <p class="src"><a href="https://workos.com/docs/audit-logs">Audit Logs — WorkOS</a> (2026-08-13 확인): <code>&lt;리소스&gt;.&lt;동사&gt;</code> 액션 네이밍과 actor/targets[]/context 스키마(§6.1).</p>
+  <p class="src"><a href="https://workos.com/blog/how-to-design-multi-tenant-rbac-saas">How to design an RBAC model for multi-tenant SaaS — WorkOS</a> (2026-08-13 확인): org/project 2계층 역할 스코프와 리소스 레벨 그랜트의 분리(§1.6·§6.1).</p>
+  <p class="src"><a href="https://www.courier.com/blog/how-to-reduce-notification-fatigue-7-proven-product-strategies-for-saas">How to Reduce Notification Fatigue — Courier</a> (2026-08-13 확인): 우선순위 티어제, 선호 센터(수신거부 최대 30% 감소), 크로스 채널 중복 제거(§6.2·§6.6).</p>
+  <p class="src"><a href="https://knock.app/blog/building-a-batched-notification-engine">Building a batched notification engine — Knock</a> (2026-08-13 확인): batch key·batch window·batch-on-write vs batch-on-read, idempotency와 조기 flush(§6.5).</p>
+
+  <h3>이 문서와 연결되는 제안서 문서</h3>
+  <ul>
+    <li><a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a> — 이 문서가 인용한 하네스 게이트·규약의 전수 분석</li>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — P1~P8과 FR-01~17 / NFR-01~05의 정의(재정의 금지)</li>
+    <li><a href="spec-driven-development.html">2.1 Spec-Driven Development</a> — §2.4의 워터폴 회귀 비판과 델타 스펙 어휘의 근거</li>
+    <li><a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a> — §2.3 지시자≠승인자, §4.7 세션 상태 모델의 원 출처</li>
+    <li><a href="vision.html">3.1 비전과 핵심 시나리오</a> — 이 문서의 흐름이 실현하는 여정 (a)(b)(c)</li>
+    <li><a href="architecture.html">3.2 시스템 아키텍처</a> — §4.4·§5.4 판정을 수행하는 컴포넌트와 데이터 흐름 시퀀스</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — SpecVersion·Requirement·Task·Claim·Finding·Approval·Event 엔티티의 필드 상세</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_task_claim</code> 등 이 문서가 호출한 MCP 도구의 입출력·권한·멱등성</li>
+    <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — S3 스펙 상세 · S4 작업 보드 · S6 리뷰 센터 · S7 승인함의 화면</li>
+    <li><a href="roadmap.html">3.7 로드맵</a> — 이 워크플로를 Phase 0~3에 배치하는 순서와 clemvion 마이그레이션(D-12)</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="agent-integration.html">이전: 3.4 에이전트 연동 설계</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="ui-wireframes.html">다음: 3.6 화면 설계 (와이어프레임)</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

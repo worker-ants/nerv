@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3.2 시스템 아키텍처 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html" class="active">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 3부 · 플랫폼 제안 / 3.2 시스템 아키텍처</div>
+
+  <header class="page-header">
+    <h1>시스템 아키텍처</h1>
+    <p class="lead">웹앱 · API/MCP 게이트웨이 · 훅 수집기 · Postgres · 이벤트 워커의 다섯 덩어리로 구성된 NERV의 시스템 구조와, 가장 중요한 결정인 저장 전략(D-01) — <b>DB 단일 진실 + markdown 미러 + read-only git export</b> — 그리고 핵심 데이터 흐름 4종, 기술 스택 대안 비교, 보안·성능·운영 설계.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-13)</span>
+      <span>원본: <code>docs/03-proposal/architecture.md</code></span>
+      <span>주로 다루는 결정: D-01 · D-10 · D-11 · D-14</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">아키텍처 개요</a></li>
+      <li><a href="#sec-2">저장 전략 (D-01)</a></li>
+      <li><a href="#sec-3">데이터 흐름 시퀀스 4종</a></li>
+      <li><a href="#sec-4">기술 스택 (D-11)과 대안 비교</a></li>
+      <li><a href="#sec-5">멀티테넌시 · 보안 · 성능 · 운영</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 아키텍처 개요</h2>
+
+  <h3>1.1 설계 원칙 네 가지</h3>
+
+  <p>이 문서의 모든 구조 결정은 아래 네 원칙에서 파생된다. 앞의 셋은 <a href="pain-points.html">문제 정의(P1~P8)</a>에서, 넷째는 <a href="clemvion-analysis.html">clemvion 하네스 분석</a>이 검증한 운영 경험에서 나왔다.</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <b class="card-title">① 서버가 진실이다</b>
+      <p>조정에 필요한 모든 상태(스펙 버전 · 작업 클레임 · 세션 생존 · 리뷰 커버리지)는 서버 DB에 있다. clemvion의 조율 상태는 전량 gitignored 로컬 파일이라 스펙 동시수정 검출 기능이 <b>"다른 머신·세션이면 로컬에 안 보여 신뢰할 수 없다"</b>는 이유로 제거됐다(#576). 서버가 모든 세션의 선언을 보면 그 기능은 복원된다.</p>
+    </div>
+    <div class="card">
+      <b class="card-title">② tools 우선, 포맷은 markdown</b>
+      <p>Codex는 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 동작은 전부 tools로 제공한다(D-05). 본문은 블록 JSON이 아니라 markdown — 토큰 밀도 때문에 Notion이 호스티드 MCP에서 내린 것과 같은 결론이다.</p>
+    </div>
+    <div class="card">
+      <b class="card-title">③ 이벤트는 append-only, 실시간은 SSE</b>
+      <p>전면 이벤트 소싱은 하지 않는다(D-10). Event 테이블 하나가 활동 피드 · 알림 · 감사 로그의 단일 원천이 되고, 화면 갱신은 SSE로 밀어준다(NFR-02).</p>
+    </div>
+    <div class="card">
+      <b class="card-title">④ 게이트는 fail-open + 관측 + 격상</b>
+      <p>판정 불가 시 작업을 멈추지 않되 배너와 연속 카운터를 남기고, 임계 초과 시 "게이트가 사실상 꺼짐"으로 격상한다(D-14). clemvion이 3회 연속 임계로 5개월 검증한 패턴의 서버판.</p>
+    </div>
+  </div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">설계 결정 D-01 · 스펙·리뷰 산출물은 git이 아니라 플랫폼 DB에 저장한다</b>
+    <p>코드는 지금처럼 git에 둔다. git에는 read-only 미러/내보내기와 포인터(ID/URL)만 남긴다. 상세 설계와 근거는 <a href="#sec-2">2장</a>.</p>
+  </div></div>
+
+  <h3>1.2 전체 구성도</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 470" role="img" aria-label="NERV 시스템 구성도: 클라이언트, NERV 플랫폼(웹앱·API/MCP 게이트웨이·훅 수집기·Postgres·오브젝트 스토리지·워커), 외부 시스템">
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <!-- NERV 경계 -->
+      <rect x="14" y="128" width="852" height="216" rx="14" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.8"/>
+      <text x="24" y="30" fill="var(--text-faint)" font-family="var(--font)" font-size="11.5">클라이언트 (사람 · 에이전트)</text>
+      <text x="24" y="147" fill="var(--accent-text)" font-family="var(--font)" font-size="11.5" font-weight="700">NERV 플랫폼 · docker-compose 자가호스팅</text>
+      <text x="24" y="376" fill="var(--text-faint)" font-family="var(--font)" font-size="11.5">외부 시스템</text>
+
+      <!-- Row A: 클라이언트 -->
+      <rect x="24" y="40" width="250" height="58" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="149" y="64" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">웹 브라우저</text>
+      <text x="149" y="82" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">기획 · 디자인 · 개발 · QA</text>
+
+      <rect x="300" y="40" width="270" height="58" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="435" y="64" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">Claude Code 세션</text>
+      <text x="435" y="82" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">NERV 플러그인 (스킬 · 훅 · .mcp.json)</text>
+
+      <rect x="596" y="40" width="258" height="58" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="725" y="64" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">Codex 세션</text>
+      <text x="725" y="82" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">AGENTS.md · .codex/config.toml</text>
+
+      <!-- 클라이언트 버스 -->
+      <path d="M435,98 V124 M725,98 V124 M435,124 H725" fill="none" stroke="var(--border-strong)" stroke-width="1.3"/>
+      <path d="M470,124 L434,154" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)"/>
+      <path d="M690,124 L700,154" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)"/>
+      <text x="520" y="117" text-anchor="end" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">MCP tools (nerv_*)</text>
+      <text x="640" y="117" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">hooks · notify · OTLP</text>
+
+      <!-- Row B: 진입 계층 -->
+      <rect x="24" y="156" width="250" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="149" y="180" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">웹앱 (Vite + React SPA)</text>
+      <text x="149" y="198" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S1~S8 화면 · SSE 구독</text>
+
+      <rect x="300" y="156" width="270" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="435" y="180" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">API + MCP 게이트웨이 (NestJS)</text>
+      <text x="435" y="198" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">REST · Streamable HTTP · OAuth 2.1 · 게이트 판정</text>
+
+      <rect x="596" y="156" width="258" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="725" y="180" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">훅 수집기</text>
+      <text x="725" y="198" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">HTTP ingest · 웹훅 · OTLP</text>
+
+      <path d="M274,187 H298" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)" marker-start="url(#a1)"/>
+      <text x="287" y="238" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">REST · SSE</text>
+
+      <!-- Row C: 처리 · 저장 -->
+      <rect x="24" y="262" width="250" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="149" y="286" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">오브젝트 스토리지</text>
+      <text x="149" y="304" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">재생성 가능 페이로드 (TTL)</text>
+
+      <rect x="300" y="262" width="270" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="435" y="286" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">Postgres — 단일 진실</text>
+      <text x="435" y="304" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">스펙 · 작업 · 세션 · 리뷰 · 이벤트</text>
+
+      <rect x="596" y="262" width="258" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="725" y="286" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">이벤트 · 알림 워커</text>
+      <text x="725" y="304" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">리스 회수 · stale · export</text>
+
+      <path d="M400,218 V258" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)"/>
+      <path d="M680,218 L562,258" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)"/>
+      <path d="M330,218 L232,258" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)"/>
+      <path d="M594,293 H574" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)" marker-start="url(#a1)"/>
+      <text x="640" y="246" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">이벤트 적재</text>
+      <text x="240" y="252" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">TTL 페이로드</text>
+
+      <!-- Row D: 외부 -->
+      <rect x="24" y="386" width="250" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="149" y="410" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">read-only git 미러</text>
+      <text x="149" y="428" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">specs/*.md · llms.txt · 요약</text>
+
+      <rect x="300" y="386" width="270" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="435" y="410" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">Slack · 메일</text>
+      <text x="435" y="428" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">승인 요청 즉시 · 상태 변화 다이제스트</text>
+
+      <rect x="596" y="386" width="258" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="725" y="410" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">git forge</text>
+      <text x="725" y="428" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">코드 · PR · CI (대체하지 않음)</text>
+
+      <path d="M660,324 L502,382" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)"/>
+      <path d="M612,324 L202,382" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)"/>
+      <text x="592" y="362" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">알림 라우팅</text>
+      <text x="330" y="352" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">md export · llms.txt</text>
+
+      <path d="M836,386 V362 H872 V187 H870" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)" marker-start="url(#a1)"/>
+      <text x="826" y="356" text-anchor="end" fill="var(--text-mute)" font-family="var(--font)" font-size="10">웹훅 수신 · 게이트 상태 체크</text>
+    </svg>
+    <div class="cap">그림 1. 클라이언트는 MCP(데이터 평면)와 훅(텔레메트리 평면) 두 경로로 NERV에 붙는다. 쓰기는 API/MCP 게이트웨이 한 곳으로만 들어오고, 모든 조정 상태는 Postgres에 있다.</div>
+  </div>
+
+  <h3>1.3 컴포넌트별 책임</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>컴포넌트</th><th>책임</th><th>하지 않는 일</th><th>관련 FR/NFR</th></tr></thead>
+    <tbody>
+      <tr><td><b>웹앱</b> (Vite + React SPA)</td><td>S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, SSE 구독으로 보드 실시간 갱신</td><td>비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증</td><td>FR-08·11·13 / NFR-02</td></tr>
+      <tr><td><b>API + MCP 게이트웨이</b> (NestJS)</td><td>REST/RPC와 Streamable HTTP MCP 엔드포인트를 <b>같은 도메인 서비스 위에</b> 노출. 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버</td><td>장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당)</td><td>FR-01~11·14·15 / NFR-03</td></tr>
+      <tr><td><b>훅 수집기</b> (ingest + OTLP)</td><td>Claude Code <code>type:"http"</code> 훅과 Codex hooks/notify를 토큰 인증으로 수신해 202로 즉시 응답하고 큐에 적재. OTLP는 정량 관측용 별도 경로</td><td>차단 <b>판정의 산출</b>(판정은 API가 하고 수집기는 응답을 중계한다). 단 <code>Stop</code> 훅만 동기 판정 경로다</td><td>FR-07·08·16 / NFR-02·04</td></tr>
+      <tr><td><b>Postgres</b></td><td>스펙·요구사항·작업·클레임·세션·활동·리뷰·발견사항·승인·이벤트·알림의 단일 진실. 게이트 판정도 여기서 SQL로</td><td>대용량 blob 보관(오브젝트 스토리지로)</td><td>FR-01~17</td></tr>
+      <tr><td><b>이벤트·알림 워커</b></td><td>Event 소비 → Notification 라우팅(인앱/Slack/메일), 만료 리스 회수, 무활동 세션 stale 전이, 다이제스트, markdown/git 미러 export, 보존 정책 집행</td><td>사용자 요청 경로의 동기 처리</td><td>FR-06·07·12·17 / NFR-01</td></tr>
+      <tr><td><b>오브젝트 스토리지</b></td><td>리뷰 프롬프트 페이로드·대용량 첨부처럼 <b>커밋 SHA로 재생성 가능한 입력</b>을 TTL로 보관</td><td>결론(SUMMARY·Finding·Resolution) 보관 — 이건 DB 영구</td><td>FR-09</td></tr>
+      <tr><td><b>git forge 연동</b></td><td>push·PR·merge 웹훅 수신으로 Task/Evidence 상태 자동 전이, 서버 게이트 판정을 PR 상태 체크로 반환</td><td>코드 호스팅·CI 실행 자체를 대체하지 않음</td><td>FR-10·13·16</td></tr>
+      <tr><td><b>로컬 하네스</b> (클라이언트)</td><td>worktree 격리, CWD/branch 즉시 차단, 로컬 린트·테스트, 비상 BYPASS</td><td>조정 상태 보관·게이트 최종 판정(서버로 이동, D-12)</td><td>NFR-05</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.4 경계 — NERV가 대체하지 않는 것</h3>
+  <ul>
+    <li><b>코드 호스팅과 CI를 대체하지 않는다.</b> 코드·PR·파이프라인은 git forge에 그대로 둔다. NERV는 웹훅으로 관측하고 상태 체크로 게이트를 되돌려 준다.</li>
+    <li><b>모델 호출과 과금을 대신하지 않는다.</b> 에이전트 실행은 각자의 하네스(Claude Code·Codex) 경로를 쓴다. NERV는 산출물 업로드와 상태 보고만 받는다 — clemvion이 "plan-metered 하네스 경로만 허용, SDK 직접 호출 금지"로 정한 원칙과 같은 이유다.</li>
+    <li><b>실시간 공동 편집은 MVP에 넣지 않는다</b>(D-09, Phase 3). 근거는 <a href="#sec-4">4.2</a>의 에디터 항목.</li>
+  </ul>
+
+  <h2 id="sec-2">2. 저장 전략 (D-01)</h2>
+
+  <h3>2.1 무엇을 어디에 두는가</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>데이터</th><th>저장소</th><th>이유</th></tr></thead>
+    <tbody>
+      <tr><td>코드 · 테스트 · 설정</td><td><b>git forge</b></td><td>코드는 원래 git의 것. 브랜치·diff·머지가 그대로 필요하다</td></tr>
+      <tr><td>스펙 본문 · SpecVersion · Requirement</td><td><b>Postgres</b> (+ md 미러)</td><td>구조화 질의, 승인 워크플로, 비개발자 접근, 안정 ID 참조</td></tr>
+      <tr><td>Task · 의존성 · Claim/Lease</td><td><b>Postgres</b></td><td>원자적 전이와 겹침 검사에 트랜잭션이 필수(D-04)</td></tr>
+      <tr><td>AgentSession · Activity</td><td><b>Postgres</b></td><td>크로스 호스트 가시성이 존재 이유. 파일로는 원리적으로 불가</td></tr>
+      <tr><td>ReviewSession · Finding · Resolution</td><td><b>Postgres</b></td><td>git 비대화의 주범이자 append-only 성격. fingerprint dedup은 DB 인덱스의 일</td></tr>
+      <tr><td>리뷰 프롬프트 페이로드 · 대용량 첨부</td><td><b>오브젝트 스토리지 (TTL)</b></td><td>커밋 SHA로 재생성 가능한 입력. clemvion도 <code>_prompts/</code>(리뷰 전체의 ~70%)를 같은 이유로 git에서 제외했다</td></tr>
+      <tr><td>Event · Notification</td><td><b>Postgres</b> (append-only, 월 파티션)</td><td>감사·피드·알림의 단일 원천(D-10)</td></tr>
+      <tr><td>사람이 읽는 스냅샷</td><td><b>read-only git 미러</b></td><td>감사 · 백업 · grep · 오프라인. 쓰기 경로 아님</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.2 근거 ① — clemvion 실측</h3>
+
+  <div class="grid-3">
+    <div class="card"><b class="card-title">리뷰 산출물</b><div class="big">13,777</div><p>markdown 파일 · 131MB (code 9,070 + consistency 4,697 + spec-coverage 10)</p></div>
+    <div class="card"><b class="card-title">git 점유율</b><div class="big">60%</div><p>review 이력 blob 60.7MB = <code>.git</code> packed blob 바이트의 60%</p></div>
+    <div class="card"><b class="card-title">리뷰 세션</b><div class="big">1,891</div><p>73일간, 일평균 26개. 현 추세 월 ~7,000파일 / ~50MB 증가</p></div>
+  </div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 자기증식 루프가 실측됐다</b>
+    <p>산출물이 코드와 같은 브랜치에 커밋되니 한 changeset이 <b>8라운드</b>를 돌았고, 마지막 라운드 리뷰 프롬프트 <b>94파일 중 86개가 이전 <code>review/**</code> 산출물</b>이라 정작 소스 diff가 컨텍스트 예산에서 밀려났다. 전체 커밋 2,464개 중 <b>937개(38%)</b>가 <code>review/</code>를 건드렸다.</p>
+  </div></div>
+
+  <p>운영자는 이미 세 번 대응했다. <code>_prompts/</code> gitignore(리뷰 전체의 ~70% 제거), 2026-05-30 과거 세션 대량 삭제, 그리고 <code>review/</code> 전체 gitignore 시도 후 <b>2일 만에 롤백</b>(게이트와 plan이 커밋된 산출물에 의존). 세 번째 실패가 핵심을 드러낸다 — 게이트가 파일 존재에 의존하는 한 산출물은 git을 떠날 수 없다. <b>게이트 판정을 서버 SQL로 옮기는 것과 산출물을 DB로 옮기는 것은 같은 작업이다.</b></p>
+
+  <p>부수 효과도 실측됐다. <code>_retry_state.json</code>이 삭제될 worktree의 절대경로를 담고 있어 정리 시 경로가 죽고, 리뷰가 검토한 커밋 SHA·diff base·브랜치는 <code>meta.json</code>에 <b>필드 자체가 없어</b> 산문과 경로 부산물로만 남았다(표본 SUMMARY 200개 중 47개만 해시 언급). 출처 추적(P5)이 무너지는 지점이다.</p>
+
+  <h3>2.3 근거 ② — 협업 문서 도구의 수렴 진화</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>사례</th><th>확인된 사실</th><th>NERV가 가져오는 것</th></tr></thead>
+    <tbody>
+      <tr><td>Notion</td><td>모든 콘텐츠를 UUID·type·properties·parent를 가진 블록 행으로 두고, workspace ID를 파티션 키로 480 논리 샤드에 분산</td><td>문서 = DB 행 모델의 초대형 규모 실증. 프로젝트 ID가 NERV의 자연 파티션 키</td></tr>
+      <tr><td>Confluence</td><td>저장마다 정수 버전, 복원은 <b>새 버전 생성</b>, 이력 자체는 불변</td><td>SpecVersion 인터페이스의 사실상 표준</td></tr>
+      <tr><td>Jama (요구공학)</td><td>baseline = 합의·검토·<b>승인</b>된 요구사항의 시점 스냅샷, 이후 변경은 변경 통제</td><td>approved SpecVersion = baseline, CR = 변경 통제(D-02·FR-04)</td></tr>
+      <tr><td>Linear</td><td>서버가 단일 진실, 단조 증가 sync id 델타 방송, 충돌은 중앙 전순서 LWW</td><td>CRDT 없이 실시간 협업이 성립함의 증명(§4.2)</td></tr>
+      <tr><td>beads</td><td>에이전트용 이슈 트래커가 상태를 버전 관리 SQL DB에 두고 git에는 교환 포맷만 얹음</td><td>"산출물은 DB, git엔 참조"가 에이전트 도구 쪽의 답이기도 하다</td></tr>
+      <tr><td>GitHub 크기 가이드</td><td>저장소는 이상적으로 1GB 미만 권장</td><td>기계 생성 산출물은 코드가 아니라 앱 데이터 — git 이력 밖으로</td></tr>
+      <tr><td>docs-as-code 비판</td><td>git 학습곡선 · 원시 마크업 PR 리뷰 · 강제되지 않는 프로세스가 비개발자 병목</td><td>목표 사용자(기획·디자인·QA)와 정면 충돌하는 지점(P7)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p class="src"><a href="https://www.notion.com/blog/data-model-behind-notion">The data model behind Notion's flexibility — Notion</a> (2021-05-18) · <a href="https://www.notion.com/blog/sharding-postgres-at-notion">Herding elephants: sharding Postgres at Notion</a> (2021-10-06): 블록 기반 DB 문서 모델과 workspace 파티셔닝.</p>
+  <p class="src"><a href="https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content-versions/">Confluence Cloud REST API — Content versions</a> (2026-08-13 확인): 정수 버전 · 복원은 새 버전 생성 · 이력 불변.</p>
+  <p class="src"><a href="https://www.jamasoftware.com/requirements-management-guide/requirements-gathering-and-management-processes/defining-and-implementing-requirements-baselines/">Defining and Implementing Requirements Baselines — Jama Software</a> (2026-08-13 확인): 승인된 요구사항 baseline과 변경 통제의 표준 정의.</p>
+  <p class="src"><a href="https://github.com/wzhudev/reverse-linear-sync-engine">reverse-linear-sync-engine (Linear CTO 공인)</a> (2026-08-13 확인): 서버 단일 진실 + sync id + LWW.</p>
+  <p class="src"><a href="https://github.com/steveyegge/beads">steveyegge/beads</a> (2026-08-13 확인): 이슈·상태는 버전 관리 SQL DB, git에는 교환 포맷만.</p>
+  <p class="src"><a href="https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github">About large files on GitHub — GitHub Docs</a> (2026-08-13 확인): 저장소 크기 권장치와 기계 생성 산출물의 제자리.</p>
+  <p class="src"><a href="https://thisisimportant.net/posts/docs-as-code-broken-promise/">Docs as code is a broken promise — thisisimportant.net</a> (2024-04-10): 비개발자 참여 시 git 문서가 병목이 되는 실무 관찰.</p>
+
+  <p>반대 논거도 분명하다. 에이전트 SDD 생태계의 주류는 여전히 git 속 markdown이고(<a href="https://github.com/github/spec-kit">GitHub Spec Kit</a>, <a href="https://adr.github.io/">ADR</a>), 코드와 스펙 변경이 한 커밋에 묶이는 원자성·오프라인·도구 무의존이 그 장점이다. 그래서 결론은 "DB냐 git이냐"가 아니라 <b>하이브리드 미러</b>다.</p>
+
+  <h3>2.4 하이브리드 미러 설계</h3>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">결론 · DB 단일 진실 + markdown 미러 + read-only git export</b>
+    <p>① <b>DB가 단일 진실</b>이고 쓰기 경로는 MCP/API 하나뿐이다. ② 읽기는 <b>markdown 미러</b>로 제공한다 — 문서별 <code>GET /api/specs/{id}.md</code>와 프로젝트 루트 <code>llms.txt</code> 인덱스. ③ 프로젝트 단위 <b>read-only git export</b>가 감사·백업·grep·오프라인을 흡수한다. ④ 양방향 동기화는 실증돼 있으나(GitBook Git Sync) 구축 비용이 커 Phase 3로 미룬다.</p>
+  </div></div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 780 330" role="img" aria-label="하이브리드 미러: 사람과 에이전트의 쓰기는 API/MCP 게이트웨이 한 경로로 Postgres에 들어가고, git 미러와 md 미러는 단방향 읽기 전용 출력이다">
+      <defs>
+        <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <rect x="30" y="20" width="155" height="46" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="107" y="48" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">사람 · 웹 (S1~S8)</text>
+
+      <rect x="205" y="20" width="175" height="46" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="292" y="48" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">에이전트 · MCP tools</text>
+
+      <rect x="30" y="98" width="350" height="48" rx="9" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="205" y="127" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">API / MCP 게이트웨이 — 유일한 쓰기 경로</text>
+
+      <rect x="30" y="178" width="350" height="56" rx="9" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="205" y="202" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">Postgres — 단일 진실</text>
+      <text x="205" y="220" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">스펙 · 버전 · 요구사항 · 작업 · 리뷰 · 이벤트</text>
+
+      <rect x="30" y="264" width="350" height="46" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="205" y="284" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">오브젝트 스토리지 (TTL 30일)</text>
+      <text x="205" y="301" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">커밋 SHA로 재생성 가능한 입력</text>
+
+      <rect x="440" y="20" width="310" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="595" y="42" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">git forge — 코드 · PR · CI</text>
+      <text x="595" y="60" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">변경 없음. 코드는 계속 git에</text>
+
+      <rect x="440" y="104" width="310" height="56" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="595" y="126" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">read-only git 미러</text>
+      <text x="595" y="144" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">specs/ · llms.txt · manifest.json · 요약</text>
+
+      <rect x="440" y="186" width="310" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="595" y="208" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">GET …/{id}.md</text>
+      <text x="595" y="226" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">에이전트 읽기 경로 (토큰 밀도)</text>
+
+      <path d="M107,66 V94" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a2)"/>
+      <path d="M292,66 V94" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a2)"/>
+      <path d="M205,146 V174" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a2)"/>
+      <path d="M205,234 V260" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a2)"/>
+      <path d="M380,192 L436,136" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a2)"/>
+      <path d="M380,212 L436,212" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a2)"/>
+      <text x="410" y="152" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">export</text>
+      <text x="410" y="205" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">미러</text>
+
+      <text x="595" y="272" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5" font-weight="700">리뷰 본문은 미러에 넣지 않는다</text>
+      <text x="595" y="290" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">— 자기증식 루프를 다시 만드는 유일한 길</text>
+    </svg>
+    <div class="cap">그림 2. 쓰기는 한 경로, 읽기는 여러 경로. 미러는 언제나 단방향 출력이며 사람이 손으로 커밋하지 않는다.</div>
+  </div>
+
+  <h4>(a) markdown 미러 — 에이전트·사람 공용 읽기 경로</h4>
+  <p>에이전트에게 블록 JSON이 아니라 markdown을 주는 것은 Notion이 호스티드 MCP를 만들며 내린 공식 결론이다 — 계층형 JSON은 다중 호출과 과다 토큰을 유발하는 반면 markdown은 LLM 토큰당 콘텐츠 밀도가 높다. URL에 <code>.md</code>를 붙인 클린 마크다운 미러와 루트 인덱스는 이미 표준(llms.txt v2)이며 Anthropic·OpenAI·Google이 자사 개발자 문서에 적용하고 있다.</p>
+  <ul>
+    <li><code>GET /api/projects/{p}/specs/{id}.md?version=approved</code> — 기본은 최신 <span class="badge approved">Approved</span> SpecVersion, <code>?version=42</code>로 특정 스냅샷</li>
+    <li>응답 frontmatter에 안정 ID·버전·문서 상태·승인자·요구사항 ID 목록을 실어 에이전트가 인용할 수 있게 한다. 경로·앵커가 아니라 <b>안정 ID로 상호참조</b>한다(D-09)</li>
+    <li><code>GET /api/projects/{p}/llms.txt</code> — 스펙 트리 인덱스(제목 + <code>.md</code> 링크 + 한 줄 설명)</li>
+  </ul>
+  <p class="src"><a href="https://www.notion.com/blog/notions-hosted-mcp-server-an-inside-look">Notion's hosted MCP server: an inside look — Notion</a> (2025-07-15): 에이전트용 포맷을 블록 JSON에서 markdown으로 전환한 이유.</p>
+  <p class="src"><a href="https://llmstxt.org/">The /llms.txt file, v2 — llmstxt.org</a> (v2 개정 2026-08-10): URL + <code>.md</code> 미러와 루트 인덱스 표준.</p>
+
+  <h4>(b) read-only git export — 감사 · 백업 · 오프라인</h4>
+  <p>워커가 SpecVersion 승인 · CR 병합 · 야간 배치 시점에 미러 저장소로 강제 push한다. 사람이 손으로 커밋하지 않으며, 미러 브랜치는 보호 설정으로 직접 쓰기를 막는다.</p>
+<pre><code>nerv-export/                      # read-only · 플랫폼만 push
+  llms.txt                        # 스펙 트리 인덱스 (llms.txt v2 형식)
+  manifest.json                   # {spec_id: {version, status, approved_at, sha}} 전량
+  specs/
+    2-navigation/
+      4-integration.md            # frontmatter: nerv_id · version · status · requirements[]
+  requirements.tsv                # REQ ID · 스펙 · 구현 상태 · 증적 링크 (grep·diff용)
+  tasks/
+    open.md                       # ready/claimed/in_progress 스냅샷 (누가 · 어느 호스트)
+  reviews/
+    findings-open.md              # 미해결 finding 요약 (본문 아님, 링크만)</code></pre>
+  <p>커밋 메시지는 <code>export(spec): &lt;spec_id&gt;@v&lt;n&gt; approved by &lt;user&gt;</code> 형태로 출처를 남긴다. <b>리뷰 본문은 미러에 넣지 않는다</b> — 그게 §2.2의 자기증식 루프를 다시 만드는 유일한 길이기 때문이다.</p>
+  <p class="src"><a href="https://gitbook.com/docs/docs-as-code/git-sync.md">GitHub &amp; GitLab Sync — GitBook</a> (2026-08-13 확인): DB 편집기 ↔ git markdown 양방향 동기화의 상용 실증. NERV는 1단계 read-only export로 시작한다.</p>
+
+  <h4>(c) 에이전트 오프라인 컨텍스트 팩</h4>
+  <p><code>nerv_bootstrap</code> 응답을 로컬 <code>.nerv/cache/</code>에 캐시해 플랫폼이 죽어도 세션이 계속 읽을 수 있게 한다(NFR-05). 팩 구성: 내가 클레임한 Task와 위임 명세 4요소, 그 Task가 참조하는 승인된 SpecVersion 본문 md, 관련 Requirement 목록, 현재 게이트 정책, 미해결 Finding 요약. 쓰기는 <code>.nerv/outbox/</code>에 멱등 키와 함께 큐잉했다가 복구 후 재전송한다. 상세 규약은 <a href="agent-integration.html">에이전트 연동 설계</a>, 폴백 동작은 <a href="#sec-5">5.6</a>.</p>
+
+  <h3>2.5 보존 정책 — 결론은 영구, 입력은 TTL</h3>
+  <p>clemvion에서 검증된 2층 구조를 그대로 채택한다(D-07). <b>결론</b>(SpecVersion, Finding, Resolution, Approval, Event)은 영구 보존한다. <b>재생성 가능한 입력</b>(리뷰 프롬프트 페이로드, 대형 첨부, 원시 훅 페이로드)은 오브젝트 스토리지에 TTL(기본 30일)로 두고 커밋 SHA로 언제든 재생성한다. 이 분리만으로 clemvion 기준 리뷰 저장량의 ~70%가 영구 저장에서 빠진다.</p>
+  <p>Activity(세션 활동 스트림)는 볼륨이 가장 큰 축이므로 프로젝트별 보존 기간을 설정값으로 두고, 만료 시 세션 단위 요약으로 압축한다. 개인정보는 이벤트 본문에 직접 넣지 않고 사용자 ID 참조로만 둔다.</p>
+  <p class="src"><a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing">Event Sourcing Pattern — Microsoft Azure Architecture Center</a> (2026-03-27 갱신): 전면 이벤트 소싱은 MVP에 부적합하며 이득이 큰 부분에만 선택 적용하라는 공식 권고. D-10의 근거.</p>
+  <p class="src"><a href="https://developers.google.com/workspace/drive/api/reference/rest/v3/revisions">Google Drive API — Revisions</a> (2026-08-13 확인): 범용 SaaS의 리비전은 30일 후 자동 삭제가 기본값. 승인 스냅샷을 명시적 불변 개념으로 둬야 하는 근거.</p>
+
+  <h2 id="sec-3">3. 데이터 흐름 시퀀스 4종</h2>
+  <p>각 흐름의 상태값과 번호는 <a href="data-model.html">데이터 모델</a>·<a href="spec-workflow.html">스펙 워크플로우와 거버넌스</a>와 동일 어휘를 쓴다.</p>
+
+  <h3>3.1 스펙 승인 <span class="badge draft">draft</span> → <span class="badge review">in_review</span> → <span class="badge approved">approved</span></h3>
+  <p class="src">관련: FR-02 · FR-11 · D-02</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>주체 → 대상</th><th>동작</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>기획자 → 웹앱</td><td>스펙 초안을 markdown으로 편집</td></tr>
+      <tr><td>2</td><td>웹앱 → API</td><td>초안 저장 — <code>base_version</code>을 전제조건으로 전달</td></tr>
+      <tr><td>3</td><td>API → Postgres</td><td>SpecVersion <span class="badge draft">draft</span> upsert + Event. <b>버전 불일치면 409</b> → 서버 rebase 후 재시도</td></tr>
+      <tr><td>4</td><td>기획자 → API</td><td>검토 요청 제출</td></tr>
+      <tr><td>5</td><td>API → Postgres</td><td><span class="badge draft">draft</span> → <span class="badge review">in_review</span>, 역할·영역 기반 리뷰어 자동 지정, Approval 생성</td></tr>
+      <tr><td>6</td><td>API → 워커</td><td>자동 사전 검토(일관성 검사) 큐잉 + <code>spec.submitted</code> 이벤트</td></tr>
+      <tr><td>7</td><td>워커 → 리뷰어</td><td>Notification — 인앱 · Slack (승인 요청은 즉시 채널)</td></tr>
+      <tr><td>8</td><td>리뷰어 → 웹앱</td><td>승인함(S7)에서 델타(ADDED/MODIFIED/REMOVED) 확인 후 승인</td></tr>
+      <tr><td>9</td><td>API → Postgres</td><td><span class="badge review">in_review</span> → <span class="badge approved">approved</span> — <b>불변 스냅샷 발행</b>, 이전 approved는 superseded</td></tr>
+      <tr><td>10</td><td>API → Postgres</td><td>Requirement 델타 계산 → Task <span class="badge draft">backlog</span>/<span class="badge impl">ready</span> 자동 파생</td></tr>
+      <tr><td>11</td><td>API → 웹앱 · 세션</td><td>SSE <code>spec.approved</code> 방송, 대기 중이던 에이전트 세션에 승인 결과 전달</td></tr>
+      <tr><td>12</td><td>워커 → git 미러</td><td>markdown 미러 갱신 + git export push</td></tr>
+    </tbody>
+  </table></div>
+  <p>핵심은 셋이다. <b>불변 스냅샷</b> — 승인은 새 버전을 발행하고 이전 approved는 superseded가 된다(복원도 새 버전 생성, Confluence 모델). <b>낙관적 동시성</b> — 저장 요청은 <code>base_version</code>을 전제조건으로 받고 불일치 시 409로 재시도하게 한다. <b>파생 계산</b> — 승인 순간 Task가 자동 생성되므로 "승인했는데 아무도 몰라서 아무 일도 안 일어나는" 공백이 사라진다.</p>
+
+  <h3>3.2 작업 클레임과 겹침 검사</h3>
+  <p class="src">관련: FR-05 · FR-06 · D-04</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>주체 → 대상</th><th>동작</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>세션 → MCP</td><td><code>nerv_task_next</code> — 프로젝트 · 역할 전달</td></tr>
+      <tr><td>2</td><td>MCP → Postgres</td><td>ready 큐 조회 — 의존성 미해결 · 이미 클레임된 Task 제외</td></tr>
+      <tr><td>3</td><td>MCP → 세션</td><td>후보 목록 + <b>위임 명세 4요소</b>(목표 · 산출물 형식 · 도구/출처 · 경계)</td></tr>
+      <tr><td>4</td><td>세션 → MCP</td><td><code>nerv_task_claim</code> — <code>scope = spec_ids + file_globs</code> 선언</td></tr>
+      <tr><td>5</td><td>MCP → Postgres</td><td>트랜잭션 시작 · 대상 행 잠금 → 활성 Claim 중 scope 겹침 검사</td></tr>
+      <tr><td>6a</td><td colspan="2"><b>겹침 없음</b> — <span class="badge impl">ready</span> → <span class="badge impl">claimed</span>, 사람 assignee + 에이전트 delegate 설정, Lease TTL 발급, <code>task.claimed</code> 이벤트(<span class="badge agent">is_agent</span>), 보드에 SSE 갱신(카드에 hostname · 리스 잔여)</td></tr>
+      <tr><td>6b</td><td colspan="2"><b>겹침 있음</b> — <span class="badge blocked">conflict</span> 반환(겹치는 클레임의 소유자 · hostname · scope), <code>task.claim_conflict</code> 이벤트. 에이전트는 다음 후보로 이동하거나 사람에게 질문</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">근거 · 이것은 삭제됐던 기능의 복원이다</b>
+    <p>clemvion의 스펙 동시수정 검출(<code>plan_coherence</code>)은 <b>"병렬 작업이 다른 머신·세션이면 로컬에 안 보여 신뢰할 수 없다"</b>는 이유로 #576에서 제거됐다. 서버는 모든 세션의 선언을 보므로 같은 기능이 성립한다. 또한 ID는 서버가 발급하는 해시 기반이라 파일 기반 순번 충돌(Spec Kit 디스커션 #497·#2116이 미해결로 남긴 문제)이 원천 소멸한다.</p>
+  </div></div>
+
+  <h3>3.3 세션 하트비트와 stale 처리</h3>
+  <p class="src">관련: FR-07 · D-13</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>주체 → 대상</th><th>동작</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>세션 → 훅 수집기</td><td><code>SessionStart</code> 훅 — 사용자 · <b>hostname</b> · 에이전트 종류 · cwd</td></tr>
+      <tr><td>2</td><td>수집기 → Postgres</td><td>AgentSession <code>pending</code> → <code>active</code> + Event</td></tr>
+      <tr><td>3</td><td>세션 → MCP <i>(60초 주기 반복)</i></td><td><code>nerv_task_heartbeat</code> — lease 연장 + <code>last_heartbeat_at</code> 갱신</td></tr>
+      <tr><td>4</td><td>세션 → 훅 수집기</td><td><code>PostToolUse</code> · <code>Stop</code> 훅 → Activity 적재(thought / action / response)</td></tr>
+      <tr><td>5</td><td>세션 → MCP</td><td><code>nerv_question_create</code> — 세션은 <code>awaiting_input</code>으로 대기</td></tr>
+      <tr><td>6</td><td>워커 → 사람</td><td>승인함 카드로 Notification 전달</td></tr>
+      <tr><td>7</td><td>사람 → MCP</td><td>승인 / 거절 / 코멘트 → 세션 <code>awaiting_input</code> → <code>active</code></td></tr>
+      <tr><td>8</td><td colspan="2"><b>세션이 죽으면 하트비트가 끊긴다</b> — 워커가 무활동 30분(설정값) 초과 세션을 스캔</td></tr>
+      <tr><td>9</td><td>워커 → Postgres</td><td>AgentSession → <code>stale</code> + Claim 자동 회수(<span class="badge impl">claimed</span> → <span class="badge impl">ready</span>)</td></tr>
+      <tr><td>10</td><td>워커 → 사람</td><td>Notification — 세션 stale · 작업이 큐로 반환됨</td></tr>
+    </tbody>
+  </table></div>
+  <p>죽은 세션을 사람이 감시하지 않는 것이 핵심이다. clemvion은 정확히 반대였다 — worktree GC가 "동시에 열린 다른 세션이 앵커로 쓰는 worktree의 PR이 merge되면 그 세션은 여전히 죽는다"며 <b>살아있는 세션 앵커 레지스트리의 필요성을 스스로 언급하고 포기</b>했다. AgentSession 테이블이 바로 그 레지스트리다.</p>
+  <p class="src"><a href="https://linear.app/developers/agent-interaction">Developing the Agent Interaction — Linear Developers</a> (2026-08-13 확인): 세션 6상태 + 응답성 SLA(무활동 30분 stale), 사람 assignee와 에이전트 delegate 분리.</p>
+
+  <h3>3.4 리뷰 수집과 게이트 판정</h3>
+  <p class="src">관련: FR-09 · FR-10 · D-07 · D-14</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>주체 → 대상</th><th>동작</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>리뷰 세션 → MCP</td><td><code>nerv_review_submit</code> — <b>base_sha · head_sha · branch · changeset</b> + findings</td></tr>
+      <tr><td>2</td><td>MCP → 오브젝트 스토리지</td><td>프롬프트 페이로드 저장 (TTL 30일)</td></tr>
+      <tr><td>3</td><td>MCP → Postgres</td><td>ReviewSession + ReviewerReport + Finding 저장 (severity: critical / warning / info)</td></tr>
+      <tr><td>4</td><td>MCP → Postgres</td><td>fingerprint 대조 — 기존 finding이면 라운드만 추가(재서술 금지)</td></tr>
+      <tr><td>5</td><td>MCP → 세션</td><td>신규 finding + 이월된 미해결 목록 반환</td></tr>
+      <tr><td>6</td><td>세션 → MCP</td><td><code>nerv_finding_resolve</code> → Resolution 기록 + Finding <code>open</code> → <code>fixed</code></td></tr>
+      <tr><td>7</td><td>git forge → MCP</td><td>PR 웹훅(head_sha) 수신</td></tr>
+      <tr><td>8</td><td>MCP → Postgres</td><td>게이트 질의 — "이 커밋 범위를 커버하는 해소된 리뷰가 있는가"</td></tr>
+      <tr><td>9a</td><td colspan="2"><b>커버됨</b> — PR 상태 체크 성공</td></tr>
+      <tr><td>9b</td><td colspan="2"><b>미커버</b> — 상태 체크 실패 + 필요한 리뷰 안내</td></tr>
+      <tr><td>9c</td><td colspan="2"><b>판정 불가</b> — 통과 허용 + 배너, <code>gate.failopen</code> 연속 카운터 증가, 임계 초과 시 <span class="badge blocked">게이트가 사실상 꺼짐</span>으로 격상(D-14)</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout note"><span class="ico">💡</span><div class="body">
+    <b class="title">이 한 장이 1,005줄짜리 push 훅을 대체한다</b>
+    <p>clemvion의 push 게이트는 <code>git push</code> 명령 텍스트를 정규식으로 blind-match하고(ReDoS 3회 수정 이력), 리뷰 신선도를 파일 mtime이 아닌 "세션 디렉토리 경로 타임스탬프 vs 커밋 author date"라는 rewrite-immune 시계로 비교해야 했다. <b>커밋 SHA와 ReviewSession 사이에 FK 하나만 있으면 그 전부가 단순 SQL이 된다.</b> 게다가 훅은 그 머신의 Bash 호출에만 걸리므로 훅 미설치 클론이나 다른 호스트에서의 push는 규칙 밖이었다 — 서버 게이트는 그 구멍을 막는다.</p>
+  </div></div>
+  <p>Finding fingerprint는 라운드 간 동일성을 보장한다. clemvion에는 이 축이 없어 8라운드 재리뷰에서 같은 유예 항목이 매번 재서술됐다. 자기보고와 산출물은 분리 검증한다 — <b>"서버에 업로드된 산출물만 진실"</b>(D-14)이며, 이는 clemvion의 "디스크가 arbiter, 파일 없는 자기보고 success는 가짜" 원칙의 서버 번역이다.</p>
+
+  <h2 id="sec-4">4. 기술 스택 (D-11)과 대안 비교</h2>
+
+  <h3>4.1 선택 요약</h3>
+  <div class="callout decision"><span class="ico">✅</span><div class="body"><b class="title">확정 · 웹앱 Vite · API NestJS</b><p>이 두 계층은 <b>확정된 결정</b>이다. 나머지 항목은 아직 제안이며 Phase 0 스파이크에서 검증한다.</p></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>계층</th><th>선택</th><th>한 줄 이유</th></tr></thead>
+    <tbody>
+      <tr><td>언어 · 저장소 구조</td><td>TypeScript 모노레포(pnpm)</td><td>웹 · API · MCP · 에이전트 SDK가 모두 TS 생태계. 스키마·타입을 패키지로 공유</td></tr>
+      <tr><td>웹앱</td><td>Vite + React SPA</td><td>모든 화면이 로그인 뒤의 사용자별 실시간 뷰라 SSR 이득이 작다. 웹 티어에 런타임이 없어 정적 자산 배포로 끝난다</td></tr>
+      <tr><td>API · MCP 게이트웨이</td><td>NestJS</td><td>REST와 MCP가 <b>같은 도메인 서비스</b>를 쓰도록 DI·모듈 구조가 강제한다(D-05). 가드·인터셉터로 스코프 검사·감사 로그를 일원화</td></tr>
+      <tr><td>DB</td><td>Postgres</td><td>트랜잭션 · 부분 인덱스 · JSONB · <code>LISTEN/NOTIFY</code> · 전문검색을 한 엔진에서</td></tr>
+      <tr><td>쿼리 계층</td><td>Drizzle</td><td>게이트·커버리지 질의가 복잡 조인이라 SQL 제어권이 중요</td></tr>
+      <tr><td>인증</td><td>better-auth</td><td>자가호스팅(NFR-01) 전제에서 조직·역할·토큰 모델을 직접 소유</td></tr>
+      <tr><td>실시간</td><td>SSE</td><td>단방향 브로드캐스트가 전부. 프록시·재연결 친화적</td></tr>
+      <tr><td>MCP</td><td>MCP TypeScript SDK</td><td>2026-07-28 리비전 기준 + 구 리비전 병행 서빙(§4.3)</td></tr>
+      <tr><td>에디터</td><td>ProseMirror/TipTap 계열</td><td>markdown 우선(D-09) + 이후 실시간 편집 확장 경로 확보</td></tr>
+      <tr><td>배포</td><td>docker-compose 자가호스팅</td><td>스펙은 조직의 가장 민감한 자산. 외부 SaaS 의존 없이 굴러가야 한다(NFR-01)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>4.2 대안 비교</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>결정</th><th>선택</th><th>유력 대안</th><th>대안의 장점</th><th>선택 이유 (NERV 조건)</th><th>재검토 트리거</th></tr></thead>
+    <tbody>
+      <tr><td>웹 프레임워크</td><td><b>Vite + React SPA</b></td><td>Next.js, Remix/React Router, SvelteKit</td><td>SSR·서버 컴포넌트로 초기 렌더 비용을 서버로 이전, 파일 기반 라우팅 관례</td><td>전 화면이 인증 뒤의 사용자별 뷰이고 보드·세션은 SSE로 계속 갱신되는 라이브 뷰다 — SSR이 그린 첫 화면도 곧바로 클라이언트가 다시 그린다. 웹 티어를 정적 자산으로 만들면 docker-compose에서 컨테이너 하나가 사라진다</td><td>스펙 문서 공개 열람(비로그인 링크 공유·검색 노출) 요구가 생기면</td></tr>
+      <tr><td>API 프레임워크</td><td><b>NestJS</b>(Fastify 어댑터)</td><td>Hono, Fastify/Express 단독</td><td>웹 표준 <code>Request/Response</code> 기반이라 MCP Streamable HTTP 구현이 자연스럽고 런타임이 얇다</td><td>REST·MCP·워커가 한 도메인 규칙을 공유해야 한다(D-05). 표면마다 게이트 판정이 갈라지는 것이 이 플랫폼에서 가장 비싼 실패라, DI로 서비스 공유를 구조가 강제하는 쪽을 택했다. <code>@Sse()</code>·가드·인터셉터로 실시간·인가·감사가 1급</td><td>MCP 스트리밍 어댑터 계층이 유지보수 부담이 될 때</td></tr>
+      <tr><td>데이터베이스</td><td><b>Postgres</b></td><td>MySQL, SQLite, MongoDB, Dolt</td><td>SQLite는 운영 단순, Dolt는 버전 관리 SQL(beads 채택)</td><td>클레임 원자성 · 게이트 조인 · 부분 인덱스 · <code>LISTEN/NOTIFY</code> · JSONB가 한 엔진에 필요. Notion이 블록 모델을 Postgres에서 초대형까지 실증</td><td>스펙 버전 diff를 DB 네이티브로 다뤄야 하면 Dolt 재평가</td></tr>
+      <tr><td>쿼리 계층</td><td><b>Drizzle</b></td><td>Prisma, Kysely, 순수 SQL</td><td>Prisma는 마이그레이션·툴링 성숙, Kysely는 타입 안전 쿼리빌더(Docmost 사례)</td><td>게이트·커버리지 질의가 재귀·윈도우 함수를 쓰는 복잡 조인이라 SQL 제어권 우선</td><td>마이그레이션 운영 부담이 임계를 넘을 때</td></tr>
+      <tr><td>인증</td><td><b>better-auth</b></td><td>Clerk/WorkOS, Auth.js, Keycloak</td><td>관리형은 SSO·MFA를 즉시 제공</td><td>자가호스팅 필수(NFR-01) + 프로젝트 스코프 PAT 발급을 직접 소유해야 함(D-08)</td><td>엔터프라이즈 SSO 요구가 들어오면 Keycloak 연동 검토</td></tr>
+      <tr><td>실시간</td><td><b>SSE</b></td><td>WebSocket, 롱폴링</td><td>WebSocket은 양방향·저지연</td><td>서버→클라이언트 단방향 브로드캐스트만 필요. 세션 보드 갱신 ≤5s(NFR-02)에 충분하고 프록시 통과가 쉬움</td><td>웹에서 에이전트를 직접 조종하는 양방향 UX가 생기면</td></tr>
+      <tr><td>실시간 협업 편집</td><td><b>미도입</b> (Phase 3)</td><td>Yjs + Hocuspocus, prosemirror-collab</td><td>오프라인 병합 · 동시 타이핑</td><td>주 작성자가 에이전트(원자적 API 저장 · 버전 전제조건 가능)라 동시 타이핑 빈도가 낮다. MVP부터 CRDT를 넣으면 버전 스냅샷·감사·스키마 권위가 CRDT 상태와 얽힌다</td><td>사람 동시 편집 요청이 반복되면</td></tr>
+      <tr><td>배포</td><td><b>docker-compose</b></td><td>Kubernetes, 관리형 PaaS</td><td>오토스케일 · 무중단 배포</td><td>목표 규모는 프로젝트 수십 · 동시 세션 수십(NFR-04). 단일 노드로 충분하고 도입 마찰이 최소</td><td>다중 테넌트 SaaS 전환 시</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">주의 · 프레임워크 비교에는 1차 출처 URL이 없다</b>
+    <p>이 표의 프레임워크·라이브러리 비교는 리서치 노트에 1차 출처가 없어 URL 근거를 달지 않았다(D-11이 <b>제안</b> 단계임을 명시한 것과 같은 이유). 실증 근거가 있는 항목만 링크했다 — <a href="https://github.com/docmost/docmost">Docmost</a>(Postgres + TipTap/Yjs 스택 실증), <a href="https://www.figma.com/blog/how-figmas-multiplayer-technology-works/">Figma</a>·<a href="https://github.com/wzhudev/reverse-linear-sync-engine">Linear</a>(서버 권위 LWW), <a href="https://www.moment.dev/blog/lies-i-was-told-pt-2">moment.dev</a>(CRDT 반론), <a href="https://github.com/steveyegge/beads">beads</a>(버전 관리 SQL DB), <a href="https://github.com/yjs/yjs">Yjs</a>·<a href="https://github.com/ueberdosis/hocuspocus">Hocuspocus</a>(확장 경로), <a href="https://github.com/outline/outline">Outline</a>(DB 기반 + markdown 호환). Phase 0 착수 전 스택 스파이크로 검증할 것을 권한다.</p>
+  </div></div>
+
+  <h3>4.3 MCP 서버 리비전 전략</h3>
+  <p>MCP 최신 스펙(2026-07-28 리비전)은 Streamable HTTP에서 <b>프로토콜 세션(<code>Mcp-Session-Id</code>) · GET 스트림 · <code>Last-Event-ID</code> 재개를 제거</b>하고, 모든 POST에 <code>MCP-Protocol-Version</code> 헤더와 <code>Mcp-Method</code>/<code>Mcp-Name</code> 미러 헤더를 요구한다(불일치 시 400). 서버→클라이언트 상호작용은 MRTR의 <code>InputRequiredResult</code>→재시도로, 변경 알림은 <code>subscriptions/listen</code> 응답 스트림으로 처리한다.</p>
+  <ul>
+    <li>신규 리비전을 기준으로 구현하되 <b>2025-03-26~2025-11-25 구 리비전(세션 ID 시대)도 병행 서빙</b>한다. 현재 배포된 Claude Code·Codex 클라이언트가 그 리비전을 협상하기 때문이다.</li>
+    <li><b>세션 상태를 MCP 프로토콜에 결부시키지 않는다.</b> NERV의 AgentSession은 OAuth 토큰과 DB 레코드에 묶이므로 프로토콜 리비전 변화의 영향을 받지 않는다 — 이 분리가 병행 서빙을 가능하게 하는 설계 포인트다.</li>
+    <li>인증은 OAuth 2.1 + RFC 9728 PRM(필수) + RFC 8414 AS metadata + CIMD(DCR은 deprecated) + RFC 8707 audience 바인딩. MVP 저비용 대안으로 Claude는 <code>headersHelper</code>, Codex는 <code>bearer_token_env_var</code>로 NERV 발급 PAT를 주입할 수 있다.</li>
+    <li>도구 카탈로그 · 권한 · 멱등성 규약은 <a href="agent-integration.html">에이전트 연동 설계</a>에서 다룬다.</li>
+  </ul>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">MCP Streamable HTTP transport (2026-07-28)</a> (2026-08-13 확인): 세션·GET 스트림 제거, 필수 헤더 체계, 구 리비전 하위호환 절차.</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization">MCP Authorization (OAuth 2.1, 2026-07-28)</a> (2026-08-13 확인): RFC 9728 PRM 필수, CIMD 권장·DCR deprecated, RFC 8707 audience 바인딩.</p>
+  <p class="src"><a href="https://learn.chatgpt.com/docs/extend/mcp?surface=cli">Codex MCP — learn.chatgpt.com</a> (2026-08-13 확인): Codex는 MCP tools와 server instructions만 소비 — tools-first 설계의 직접 근거.</p>
+
+  <h3>4.4 docker-compose 자가호스팅 구성 (NFR-01)</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 760 330" role="img" aria-label="docker-compose 서비스 구성: reverse-proxy 뒤에 nerv-web, nerv-api, nerv-ingest, nerv-worker가 있고 postgres와 오브젝트 스토리지 볼륨을 공유한다">
+      <defs>
+        <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+      <rect x="14" y="14" width="732" height="300" rx="14" fill="none" stroke="var(--border-strong)" stroke-width="1.4" stroke-dasharray="6 4"/>
+      <text x="28" y="34" fill="var(--text-faint)" font-family="var(--font)" font-size="11.5">단일 호스트 · docker-compose</text>
+
+      <rect x="36" y="120" width="180" height="52" rx="9" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="126" y="142" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12" font-weight="700">reverse-proxy</text>
+      <text x="126" y="159" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="10.5">TLS 종료 · Origin 검증</text>
+
+      <rect x="284" y="52" width="196" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="382" y="77" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">nerv-web (정적)</text>
+      <rect x="284" y="104" width="196" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="382" y="129" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">nerv-api</text>
+      <rect x="284" y="156" width="196" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="382" y="181" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">nerv-ingest</text>
+      <rect x="284" y="208" width="196" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="382" y="233" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">nerv-worker</text>
+      <rect x="284" y="260" width="196" height="40" rx="8" fill="var(--bg-elev)" stroke="var(--border)" stroke-dasharray="4 3"/>
+      <text x="382" y="285" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="12">otel-collector (선택)</text>
+
+      <rect x="548" y="98" width="176" height="52" rx="9" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="636" y="120" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12" font-weight="700">postgres</text>
+      <text x="636" y="137" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="10.5">영속 볼륨 · 백업 1순위</text>
+
+      <rect x="548" y="196" width="176" height="52" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="636" y="218" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">object store</text>
+      <text x="636" y="235" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">TTL 페이로드 볼륨</text>
+
+      <path d="M216,138 L280,74" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#a3)"/>
+      <path d="M216,144 L280,124" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#a3)"/>
+      <path d="M216,152 L280,176" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#a3)"/>
+      <text x="250" y="66" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="9.5">/</text>
+      <text x="250" y="110" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="9.5">/api · /mcp</text>
+      <text x="248" y="192" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="9.5">/ingest</text>
+
+      <path d="M480,124 L544,124" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#a3)"/>
+      <path d="M480,176 L544,136" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#a3)"/>
+      <path d="M480,224 L544,144" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#a3)"/>
+      <path d="M480,232 L544,224" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#a3)"/>
+      <path d="M480,116 L544,208" fill="none" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#a3)"/>
+      <path d="M480,280 L544,150" fill="none" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#a3)"/>
+      <path d="M382,92 V100" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#a3)" marker-start="url(#a3)"/>
+    </svg>
+    <div class="cap">그림 3. 최소 구성. <code>nerv-ingest</code>를 API와 분리한 이유는 훅 폭주가 사용자 요청 경로의 지연이 되지 않게 하기 위해서다.</div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>서비스</th><th>역할</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>reverse-proxy</code></td><td>TLS 종료, 경로 라우팅(<code>/</code>, <code>/api</code>, <code>/mcp</code>, <code>/ingest</code>)</td><td>MCP는 Origin 검증 필수</td></tr>
+      <tr><td><code>nerv-web</code></td><td>Vite 빌드 산출물(정적 자산)</td><td>별도 런타임 없이 <code>reverse-proxy</code>가 직접 서빙 — 컨테이너를 두지 않아도 된다</td></tr>
+      <tr><td><code>nerv-api</code></td><td>REST + MCP + SSE + 게이트 판정</td><td>수평 확장 시 SSE 팬아웃은 <code>LISTEN/NOTIFY</code>로</td></tr>
+      <tr><td><code>nerv-ingest</code></td><td>훅·웹훅 수신, 202 즉시 응답 후 큐 적재</td><td>에이전트 지연에 영향 주지 않도록 API와 분리</td></tr>
+      <tr><td><code>nerv-worker</code></td><td>알림 · 리스 회수 · stale 전이 · export · 보존 정책</td><td>단일 인스턴스 가정, 잡 잠금은 DB advisory lock</td></tr>
+      <tr><td><code>postgres</code></td><td>단일 진실</td><td>볼륨 백업 대상 1순위</td></tr>
+      <tr><td>오브젝트 스토리지</td><td>TTL 페이로드</td><td>소규모는 로컬 볼륨으로 시작 가능</td></tr>
+      <tr><td><code>otel-collector</code></td><td>조직 정량 관측(선택)</td><td>Claude·Codex 공통 OTLP 수신</td></tr>
+    </tbody>
+  </table></div>
+  <p>SPA로 바뀌면서 웹 티어는 API를 호출하지 않는다 — 브라우저가 정적 자산을 받은 뒤 <code>reverse-proxy</code>를 거쳐 API를 직접 호출한다. 그래서 <code>nerv-web</code>은 프로세스가 아니라 빌드 산출물이고, <code>reverse-proxy</code>가 그 디렉터리를 그대로 서빙하면 컨테이너 목록에서 빠진다.</p>
+  <p>최소 사양은 목표 규모(프로젝트 수십, 동시 세션 수십 — NFR-04) 기준 2 vCPU / 4GB RAM / 50GB 디스크에서 시작해 이벤트·Activity 볼륨을 보며 조정한다.</p>
+
+  <h2 id="sec-5">5. 멀티테넌시 · 보안 · 성능 · 운영</h2>
+
+  <h3>5.1 테넌시 모델 (FR-14)</h3>
+  <p>Organization &gt; Project &gt; Membership 3계층이고 사용자와 프로젝트는 n:n이다(P8의 직접 해소). 모든 도메인 테이블은 <code>project_id</code>를 갖고 조회 인덱스는 <code>(project_id, …)</code> 복합으로 시작한다 — 블록 테이블을 workspace ID로 파티셔닝한 Notion의 선택과 같은 이유로, 질의가 대부분 단일 프로젝트 범위이기 때문이다.</p>
+  <p>격리는 <b>앱 레벨 강제를 1차 방어선</b>으로 삼는다. 저장소 계층이 요청 컨텍스트의 프로젝트 스코프를 자동 주입하고, 스코프 없는 질의는 타입 레벨에서 컴파일되지 않게 한다. Postgres RLS는 <b>2차 방어선</b>으로 선택 도입한다(운영 복잡도가 올라가므로 조직 요구가 있을 때). 역할은 admin · planner · designer · developer · qa · viewer 6종이며 권한 표는 <a href="spec-workflow.html">스펙 워크플로우와 거버넌스</a>에 있다.</p>
+
+  <h3>5.2 인증 · 인가와 에이전트 권한 (NFR-03 · D-08)</h3>
+  <ul>
+    <li><b>사람</b>은 웹 세션으로, <b>에이전트</b>는 사용자별 발급 PAT 또는 OAuth 2.1 토큰으로 인증한다. 토큰은 항상 (사용자, 프로젝트, 역할, 스코프) 튜플에 묶인다.</li>
+    <li><b>권한 비확대 원칙</b>: <span class="badge agent">AgentSession</span>은 소유 사용자 권한의 부분집합으로만 행동한다. 위임으로 권한이 늘어나는 경로를 만들지 않는다.</li>
+    <li><b>행위자 분리</b>: 사람 <span class="badge human">assignee</span>와 에이전트 <span class="badge agent">delegate</span>를 별도 필드로 둔다. "에이전트는 책임을 질 수 없다"는 Linear의 원칙을 데이터 모델로 고정한 것이고, 모든 Event에 <code>is_agent</code> 플래그를 남긴다(FR-16).</li>
+    <li><b>지시자 ≠ 승인자</b>: 작업을 지시한 사람이 그 결과를 단독 승인할 수 없다(D-06). GitHub이 Copilot PR에 적용한 규격과 같다.</li>
+    <li><b>BYPASS 기록</b>: 로컬 비상구는 유지하되 사용 사실을 서버 감사 로그로 보고한다. clemvion에서 <code>BYPASS_*</code>는 관측자가 본인뿐이었다.</li>
+  </ul>
+
+  <h3>5.3 프롬프트 인젝션 완화 (NFR-03)</h3>
+  <p>스펙 본문은 여러 사람과 에이전트가 쓰는 <b>비신뢰 데이터</b>다. 세 가지로 방어한다.</p>
+  <ol>
+    <li><b>출처 래핑</b> — MCP 도구 응답에서 스펙 본문을 명시적 경계(예: <code>&lt;nerv:spec id="…" trust="untrusted"&gt;</code>)로 감싸고, 본문 내 지시문을 명령으로 취급하지 않는 규약을 NERV 스킬에 못 박는다.</li>
+    <li><b>승인 강제 도구 지정</b> — 파괴적·되돌리기 어려운 도구는 Claude Code의 <code>_meta["anthropic/requiresUserInteraction"]</code>으로 매 호출 사람 승인을 강제한다. Codex는 이 어노테이션이 없으므로 승인 정책 + 질문 폴링으로 대체한다.</li>
+    <li><b>수집 경로 고정</b> — ingest 엔드포인트는 토큰 필수이며, 클라이언트 측에서는 <code>allowedHttpHookUrls</code>로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다.</li>
+  </ol>
+  <p class="src"><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP — Claude Code Docs</a> (2026-08-13 확인): <code>requiresUserInteraction</code> 승인 강제와 <code>headersHelper</code> 토큰 주입.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/hooks">Hooks reference — Claude Code Docs</a> (2026-08-13 확인): 31종 훅 이벤트, <code>type:"http"</code> 핸들러, <code>allowedHttpHookUrls</code> 통제.</p>
+
+  <h3>5.4 성능 (NFR-02 · NFR-04)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>부하 축</th><th>추정</th><th>설계 대응</th></tr></thead>
+    <tbody>
+      <tr><td>하트비트</td><td>동시 세션 50개 × 60초 주기 ≈ <b>0.83 req/s</b></td><td>단일 UPDATE. 부하가 아니라 무시 가능한 수준</td></tr>
+      <tr><td>훅 이벤트</td><td><code>PostToolUse</code>가 최대 볼륨. 세션당 분당 수십 건 가능</td><td>ingest가 202 즉시 응답 후 큐 적재, 프로젝트별 이벤트 타입 샘플링·배치 옵션</td></tr>
+      <tr><td>SSE 팬아웃</td><td>사용자 수십 × 열린 탭 = 수백 연결</td><td>사용자당 1 연결 + 프로젝트 채널 구독. 인스턴스 간 팬아웃은 Postgres <code>LISTEN/NOTIFY</code></td></tr>
+      <tr><td>보드 갱신 지연</td><td>목표 ≤5s(NFR-02), 실질 1s 이내</td><td>이벤트 커밋 직후 NOTIFY, 클라이언트는 재연결 시 마지막 이벤트 ID로 델타 재요청</td></tr>
+      <tr><td>리뷰 저장</td><td>clemvion 추세 월 ~7,000파일 / ~50MB</td><td>결론만 영구 저장하면 행 단위 수 MB/월. 입력 페이로드는 TTL 오브젝트</td></tr>
+      <tr><td>이벤트 테이블</td><td>최대 성장 테이블</td><td>월 파티션 + 오래된 파티션 아카이브. 피드 질의는 <code>(project_id, created_at desc)</code> 인덱스</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.5 백업 · 복구와 감사</h3>
+  <ul>
+    <li><b>Postgres</b>: 일 1회 논리 백업 + WAL 아카이브로 PITR. 초기 목표는 RPO 15분 / RTO 2시간으로 잡고 운영 데이터를 보며 조정한다.</li>
+    <li><b>오브젝트 스토리지</b>: TTL 페이로드는 손실 허용(커밋 SHA로 재생성 가능). 첨부 파일만 백업 대상.</li>
+    <li><b>git 미러</b>: 사람이 읽을 수 있는 형태의 3차 사본이자 최악의 경우 스펙 자산의 생존 경로. "플랫폼에 갇힌다"는 도입 반론에 대한 실물 답변이기도 하다.</li>
+    <li><b>감사</b>: 모든 상태 전이가 Event로 남고 <code>is_agent</code>로 행위자 종류를 구분한다. 게이트 면제(BYPASS)와 fail-open도 이벤트다.</li>
+  </ul>
+
+  <h3>5.6 로컬 폴백 (NFR-05)</h3>
+  <p>플랫폼이 죽어도 개발이 멈추면 안 된다. 다만 <b>조정이 필요한 행위는 낙관적으로 진행하지 않는다.</b></p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>상황</th><th>읽기</th><th>쓰기</th><th>조정 행위</th></tr></thead>
+    <tbody>
+      <tr><td>정상</td><td>API/MCP</td><td>API/MCP</td><td>서버 판정</td></tr>
+      <tr><td>플랫폼 다운</td><td><code>.nerv/cache/</code> 컨텍스트 팩</td><td><code>.nerv/outbox/</code>에 멱등 키로 큐잉</td><td><b>신규 클레임 발급 불가</b>. 보유한 리스는 유예 기간 동안 유효</td></tr>
+      <tr><td>복구 후</td><td>캐시 무효화 후 재동기화</td><td>outbox 재전송(멱등)</td><td>유예 중 만료된 리스는 재확인 요청</td></tr>
+    </tbody>
+  </table></div>
+  <p>게이트는 이때 fail-open으로 동작하되 배너와 연속 카운터를 남기고, 임계 초과 시 격상한다(D-14). 로컬에 남기는 것과 서버로 옮기는 것의 경계는 <a href="clemvion-analysis.html">clemvion 하네스 분석</a>과 <a href="roadmap.html">로드맵</a>의 마이그레이션 계획(D-12)을 따른다 — 요약하면 <b>레이턴시 0이 필요한 즉시 차단 · 격리 · 린트는 로컬, 상태 저장 · 조정 · 리뷰 보관 · 게이트 판정은 서버</b>다.</p>
+
+  <h3>5.7 관측</h3>
+  <p>수집은 이중 파이프라인이다. <b>훅</b>(Claude Code <code>type:"http"</code>, Codex hooks/notify)이 실시간 제어·세션 추적을 담당하고, <b>OTLP</b>가 조직 단위 정량 관측(세션 수·토큰·비용·툴 결정)을 담당한다. 두 파이프라인은 <code>session_id</code>와 <code>prompt_id</code>(Codex는 <code>turn_id</code>) + hostname 태그로 조인된다 — Claude Code 훅의 <code>prompt_id</code>와 OTel 이벤트의 <code>prompt.id</code>가 동일 UUID이기 때문이다. 표면별 상세는 <a href="integration-tech.html">Claude Code/Codex 연동 기술</a>에 있다.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/monitoring-usage">Monitoring (OpenTelemetry) — Claude Code Docs</a> (2026-08-13 확인): 메트릭 8종 · 이벤트 13+종과 <code>prompt.id</code> 조인 키.</p>
+  <p class="src"><a href="https://learn.chatgpt.com/docs/hooks">Codex hooks — learn.chatgpt.com</a> (2026-08-13 확인) · <a href="https://learn.chatgpt.com/docs/config-file/config-advanced">Codex notify · OTel 설정</a> (2026-08-13 확인): Claude Code와 대칭 수집 구성이 가능하다.</p>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3>이 문서가 인용한 clemvion 실측 근거</h3>
+  <ul>
+    <li><code>clemvion:review/</code> — markdown 13,777개·131MB(code 9,070 + consistency 4,697 + spec-coverage 10), 73일간 세션 1,891개(일평균 26개), 현 추세 월 ~7,000파일/~50MB 증가</li>
+    <li><code>clemvion:.git</code> — 148MB, review 이력 blob 60.7MB = packed blob 바이트의 60%, 전체 커밋 2,464개 중 937개(38%)가 <code>review/</code> 접촉</li>
+    <li><code>clemvion:.claude/hooks/guard_review_before_push.py</code> — 1,005줄 push 게이트, 정규식 blind-match + rewrite-immune 시계, ReDoS 3회 수정 이력</li>
+    <li><code>clemvion:.claude/docs/worktree-policy.md</code> §3 — "자동 검출은 없다", 스펙 동시수정 검출 제거 사유(#576) / §7 — 살아있는 세션 앵커 레지스트리 부재</li>
+    <li><code>clemvion:.claude/state/</code> — 조율 상태 전량이 gitignored 로컬 파일(세션·툴 호출 ID 키, lock 없는 JSON), 하네스 코드 약 7,600줄</li>
+    <li>자기증식 루프 — 한 changeset 8라운드, 마지막 라운드 리뷰 프롬프트 94파일 중 86개가 이전 <code>review/**</code> 산출물</li>
+    <li>보존 정책 근거 — <code>_prompts/</code>가 리뷰 전체의 ~70%, "커밋 해시로 재생성 가능"을 사유로 gitignore</li>
+  </ul>
+
+  <h3>외부 출처</h3>
+  <p class="src"><a href="https://www.notion.com/blog/data-model-behind-notion">The data model behind Notion's flexibility — Notion</a> (2021-05-18): 문서를 블록 행으로 모델링하고 권한을 parent 포인터로 상속하는 DB 문서 모델의 원형(§2.3).</p>
+  <p class="src"><a href="https://www.notion.com/blog/sharding-postgres-at-notion">Herding elephants: sharding Postgres at Notion — Notion</a> (2021-10-06): workspace ID 파티션 키 샤딩. 프로젝트 ID 파티셔닝의 근거(§2.3·§5.1).</p>
+  <p class="src"><a href="https://www.notion.com/blog/notions-hosted-mcp-server-an-inside-look">Notion's hosted MCP server: an inside look — Notion</a> (2025-07-15): 에이전트에게는 markdown이 토큰 밀도상 유리하다는 공식 결론(§2.4a).</p>
+  <p class="src"><a href="https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content-versions/">Confluence Cloud REST API — Content versions</a> (2026-08-13 확인): 정수 버전 · 복원은 새 버전 생성 · 이력 불변(§2.3·§3.1).</p>
+  <p class="src"><a href="https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html">Confluence Storage Format — Atlassian</a> (2026-08-13 확인): 위키 원조도 본문을 파일이 아닌 DB 레코드로 저장한다(§2.3).</p>
+  <p class="src"><a href="https://developers.google.com/workspace/drive/api/reference/rest/v3/revisions">Google Drive API — Revisions</a> (2026-08-13 확인): 리비전 30일 자동 삭제가 기본값. 명시적 불변 스냅샷이 필요한 근거(§2.5).</p>
+  <p class="src"><a href="https://www.jamasoftware.com/requirements-management-guide/requirements-gathering-and-management-processes/defining-and-implementing-requirements-baselines/">Defining and Implementing Requirements Baselines — Jama Software</a> (2026-08-13 확인): 승인된 요구사항 baseline과 변경 통제(§2.3).</p>
+  <p class="src"><a href="https://github.com/wzhudev/reverse-linear-sync-engine">reverse-linear-sync-engine (Linear CTO 공인)</a> (2026-08-13 확인): 서버 단일 진실 + sync id + LWW로 CRDT 없이 실시간 협업 성립(§2.3·§4.2).</p>
+  <p class="src"><a href="https://linear.app/now/scaling-the-linear-sync-engine">Scaling the Linear Sync Engine — Linear</a> (2023-06-29): 동기화 엔진을 제품 경쟁력으로 공식화한 사례(§2.3).</p>
+  <p class="src"><a href="https://www.figma.com/blog/how-figmas-multiplayer-technology-works/">How Figma's multiplayer technology works — Figma</a> (2019-10-16): 중앙 서버가 있으면 서버 권위 LWW가 정석이라는 실증(§4.2).</p>
+  <p class="src"><a href="https://www.moment.dev/blog/lies-i-was-told-pt-2">Lies I was Told About Collaborative Editing, Part 2 — moment.dev</a> (2026-08-13 확인): 서버 권위 rebase가 CRDT보다 단순하고 감사 추적에 유리하다는 반론(§4.2).</p>
+  <p class="src"><a href="https://github.com/yjs/yjs">Yjs</a> · <a href="https://github.com/ueberdosis/hocuspocus">Hocuspocus</a> (2026-08-13 확인): 실시간 편집이 필요해질 때의 성숙한 MIT 확장 경로(§4.2, Phase 3).</p>
+  <p class="src"><a href="https://github.com/docmost/docmost">Docmost</a> · <a href="https://github.com/outline/outline">Outline</a> (2026-08-13 확인): "Postgres에 문서+이력+코멘트, TipTap 기반 편집"이 오픈소스로 이미 동작함을 보여주는 레퍼런스(§4.1·§4.2).</p>
+  <p class="src"><a href="https://github.com/steveyegge/beads">steveyegge/beads</a> (2026-08-13 확인): 에이전트용 이슈 트래커의 "산출물은 DB, git엔 참조" 패턴(§2.3·§4.2).</p>
+  <p class="src"><a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing">Event Sourcing Pattern — Microsoft Azure Architecture Center</a> (2026-03-27 갱신): 전면 이벤트 소싱은 MVP에 부적합. D-10의 근거(§2.5).</p>
+  <p class="src"><a href="https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github">About large files on GitHub — GitHub Docs</a> (2026-08-13 확인): 기계 생성 산출물은 git 이력 밖에 두라는 크기 가이드(§2.3).</p>
+  <p class="src"><a href="https://thisisimportant.net/posts/docs-as-code-broken-promise/">Docs as code is a broken promise — thisisimportant.net</a> (2024-04-10): 비개발자 참여 시 git 문서가 병목이 되는 실무 관찰. P7의 외부 근거(§2.3).</p>
+  <p class="src"><a href="https://github.com/github/spec-kit">GitHub Spec Kit</a> · <a href="https://adr.github.io/">ADR — adr.github.io</a> (2026-08-13 확인): git-native 스펙/결정 기록의 대표 사례이자 하이브리드 미러가 흡수해야 할 반대 논거(§2.3).</p>
+  <p class="src"><a href="https://gitbook.com/docs/docs-as-code/git-sync.md">GitHub &amp; GitLab Sync — GitBook</a> (2026-08-13 확인): DB 편집기 ↔ git markdown 양방향 동기화의 상용 실증(§2.4).</p>
+  <p class="src"><a href="https://llmstxt.org/">The /llms.txt file, v2 — llmstxt.org</a> (v2 개정 2026-08-10): URL + <code>.md</code> 미러와 루트 인덱스 표준(§2.4a).</p>
+  <p class="src"><a href="https://linear.app/docs/mcp">MCP server — Linear Docs</a> (2026-08-13 확인): DB 기반 도구가 에이전트와 만나는 표준 접점은 권한 스코프가 분리된 호스티드 MCP(§2.4·§4.3).</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">MCP Streamable HTTP transport (2026-07-28)</a> (2026-08-13 확인): 세션·GET 스트림 제거, 필수 헤더, 하위호환 절차(§4.3).</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization">MCP Authorization (OAuth 2.1, 2026-07-28)</a> (2026-08-13 확인): PRM 필수, CIMD 권장, audience 바인딩(§4.3·§5.2).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/hooks">Hooks reference — Claude Code Docs</a> (2026-08-13 확인): 31종 훅, <code>type:"http"</code>, <code>allowedHttpHookUrls</code>(§1.3·§5.3·§5.7).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/monitoring-usage">Monitoring (OpenTelemetry) — Claude Code Docs</a> (2026-08-13 확인): 메트릭·이벤트와 <code>prompt.id</code> 조인 키(§5.7).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP — Claude Code Docs</a> (2026-08-13 확인): <code>.mcp.json</code> 배포, <code>headersHelper</code>, 승인 강제(§4.3·§5.3).</p>
+  <p class="src"><a href="https://learn.chatgpt.com/docs/extend/mcp?surface=cli">Codex MCP — learn.chatgpt.com</a> (2026-08-13 확인): Codex는 tools와 server instructions만 소비(§1.1·§4.3).</p>
+  <p class="src"><a href="https://learn.chatgpt.com/docs/hooks">Codex hooks</a> · <a href="https://learn.chatgpt.com/docs/config-file/config-advanced">Codex notify · OTel</a> (2026-08-13 확인): Claude Code와 대칭 수집 구성(§5.7).</p>
+  <p class="src"><a href="https://linear.app/developers/agent-interaction">Developing the Agent Interaction — Linear Developers</a> (2026-08-13 확인): 세션 6상태 + SLA, assignee/delegate 분리(§3.3·§5.2).</p>
+
+  <h3>이 문서와 연결되는 제안서 문서</h3>
+  <ul>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — 이 문서가 인용하는 FR-01~17 · NFR-01~05의 정의</li>
+    <li><a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a> — §2.2·§3.4가 인용한 하네스 구성 요소의 전수 분석</li>
+    <li><a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a> — §4.3·§5.7이 요약한 연동 표면 카탈로그의 상세</li>
+    <li><a href="vision.html">3.1 비전과 핵심 시나리오</a> — 이 아키텍처가 실현하는 사용자 여정과 Build vs Buy 판단</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — §3의 상태 전이가 다루는 엔티티·필드·질의의 상세</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — §4.3의 MCP 도구 카탈로그와 인증·배포 상세</li>
+    <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — §3의 흐름을 역할·권한·게이트 규칙으로 확장</li>
+    <li><a href="ui-wireframes.html">3.6 화면 설계</a> — §1.3의 웹앱이 렌더링하는 S1~S8 화면</li>
+    <li><a href="roadmap.html">3.7 로드맵</a> — 이 아키텍처의 단계별 구축 순서와 clemvion 마이그레이션(D-12)</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="vision.html">이전: 3.1 비전과 핵심 시나리오</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="data-model.html">다음: 3.3 데이터 모델</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>
