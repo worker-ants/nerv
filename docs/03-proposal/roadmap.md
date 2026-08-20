@@ -104,7 +104,7 @@
 | Task·ready 큐 | FR-05 ◐ | 의존성 그래프 기반 ready 판정, 위임 명세 4요소 미비 시 `ready` 전이 거부 |
 | 원자적 클레임·리스 | **FR-06 ●** | assignee+상태 원자 전환, TTL 리스, 하트비트 연장, 만료 자동 회수, scope(spec_ids·file_globs) 선언과 겹침 감지 |
 | 세션 레지스트리 | FR-07 ◐ | 사용자·hostname·에이전트 종류·상태 머신(`pending→active↔awaiting_input→complete/error/stale`)·하트비트 |
-| 읽기 전용 세션 보드 | FR-08 ○ / NFR-02 ◐ | SSE 갱신. steer/stop 없음 |
+| 읽기 전용 세션 보드 | FR-08 ○ / NFR-02 ◐ | WebSocket 갱신. steer/stop 없음 |
 | clemvion spec 임포터 v0 | FR-17 ◐ | `spec/` 384 md → Spec/SpecVersion/Requirement(§7.3) |
 | 자가호스팅 | NFR-01 ◐ | docker-compose 단일 파일 기동(web·api·postgres) |
 | 감사 이벤트 | FR-16 ◐ | append-only Event 테이블에 전 상태 전이 적재(`is_agent` 포함). 조회 UI 없음 |

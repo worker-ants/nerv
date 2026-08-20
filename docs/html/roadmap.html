@@ -31,6 +31,15 @@
   <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
   <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
   <a href="roadmap.html" class="active">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
 </nav>
 
 <div class="content">
@@ -263,7 +272,7 @@
       <tr><td>Task·ready 큐</td><td>FR-05 ◐</td><td>의존성 그래프 기반 ready 판정, 위임 명세 4요소 미비 시 <code>ready</code> 전이 거부</td></tr>
       <tr><td>원자적 클레임·리스</td><td><b>FR-06 ●</b></td><td>assignee+상태 원자 전환, TTL 리스, 하트비트 연장, 만료 자동 회수, scope(spec_ids·file_globs) 선언과 겹침 감지</td></tr>
       <tr><td>세션 레지스트리</td><td>FR-07 ◐</td><td>사용자·hostname·에이전트 종류·상태 머신(<code>pending→active↔awaiting_input→complete/error/stale</code>)·하트비트</td></tr>
-      <tr><td>읽기 전용 세션 보드</td><td>FR-08 ○ / NFR-02 ◐</td><td>SSE 갱신. steer/stop 없음</td></tr>
+      <tr><td>읽기 전용 세션 보드</td><td>FR-08 ○ / NFR-02 ◐</td><td>WebSocket 갱신. steer/stop 없음</td></tr>
       <tr><td>clemvion spec 임포터 v0</td><td>FR-17 ◐</td><td><code>spec/</code> 384 md → Spec/SpecVersion/Requirement(<a href="#sec-7">§7.3</a>)</td></tr>
       <tr><td>자가호스팅</td><td>NFR-01 ◐</td><td>docker-compose 단일 파일 기동(web·api·postgres)</td></tr>
       <tr><td>감사 이벤트</td><td>FR-16 ◐</td><td>append-only Event 테이블에 전 상태 전이 적재(<code>is_agent</code> 포함). 조회 UI 없음</td></tr>
@@ -759,7 +768,7 @@
   <footer class="page-footer">
     <span>← <a href="ui-wireframes.html">이전: 3.6 화면 설계 (와이어프레임)</a></span>
     <span><a href="index.html">목차</a></span>
-    <span><a href="index.html">개요로 돌아가기</a> →</span>
+    <span><a href="scope.html">다음: 4.1 MVP 범위와 스택 확정</a> →</span>
   </footer>
 
 </main>

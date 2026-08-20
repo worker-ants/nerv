@@ -475,7 +475,7 @@ AGENTS.md는 "에이전트용 README" 오픈 포맷으로 순수 Markdown이며 
 수집이 만들어내는 최종 산출물은 결국 화면이다 — S5 세션 모니터의 모든 열은 위 표면에서 그대로 온다.
 
 ```text
-┌─ S5 세션 모니터 (미션 컨트롤) ①─────── 활성 4 · SSE 실시간(NFR-02 ≤5s) ─┐
+┌─ S5 세션 모니터 (미션 컨트롤) ①─────── 활성 4 · 실시간 갱신(NFR-02 ≤5s) ─┐
 │ 사용자   호스트       종류          상태               현재 Task        │
 │ 김기획   mbp-kim      claude-code ② ● active           TASK-142         │
 │ 박개발   wks-park     claude-code   ◐ awaiting_input ③ TASK-138         │

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4.4 API 명세 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html" class="active">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 4부 · MVP 구체화 / 4.4 API 명세</div>
+
+  <header class="page-header">
+    <h1>API 명세</h1>
+    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>) 세 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, WebSocket 계약, MCP 15종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-20)</span>
+      <span>원본: <code>docs/04-mvp/api.md</code></span>
+      <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">공통 규약</a></li>
+      <li><a href="#sec-2">리소스별 엔드포인트 전표</a></li>
+      <li><a href="#sec-3">WebSocket 계약</a></li>
+      <li><a href="#sec-4">MCP 15종 ↔ 내부 서비스 ↔ REST 대응</a></li>
+      <li><a href="#sec-5">수용 기준 (REQ-API-*)</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 공통 규약</h2>
+
+  <h3>1.1 하나의 서비스, 세 개의 표면 (D-05)</h3>
+
+  <p>NERV API는 표면이 셋이고 판정 코드는 한 벌이다. NestJS(Fastify 어댑터)의 REST 컨트롤러·MCP 게이트웨이·WebSocket 게이트웨이가 <b>같은 도메인 서비스</b>(SpecService·TaskService·SessionService·ApprovalService·QuestionService·EventService)를 주입받는다. 게이트 판정(스펙 승인 조건, 클레임 겹침, done 전이 조건)이 표면마다 갈라지는 것이 최악의 실패이며, 이 문서의 <a href="#sec-4">§4 대응 표</a>가 그 단일화의 증명이다. 모듈 배치의 실물은 <a href="codebase.html">4.2 코드베이스와 배포</a> §2가 정의한다.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 860 330" role="img" aria-label="표면 4종(REST·MCP·훅 ingest·WebSocket)이 같은 도메인 서비스를 주입받고, WebSocket은 Postgres NOTIFY에서 팬아웃되는 구조">
+      <defs>
+        <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <text x="24" y="26" fill="var(--text-faint)" font-family="var(--font)" font-size="11.5">표면 — 인증·직렬화만 담당</text>
+
+      <rect x="24" y="38" width="230" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="139" y="60" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">REST 컨트롤러</text>
+      <text x="139" y="78" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/api/v1 · 웹 SPA</text>
+
+      <rect x="24" y="102" width="230" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="139" y="124" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">MCP 게이트웨이</text>
+      <text x="139" y="142" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/mcp · 에이전트</text>
+
+      <rect x="24" y="166" width="230" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="139" y="188" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">훅 수집기 ingest</text>
+      <text x="139" y="206" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/ingest/hooks/* · 텔레메트리</text>
+
+      <rect x="24" y="252" width="230" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--accent)"/>
+      <text x="139" y="274" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">WS 게이트웨이</text>
+      <text x="139" y="292" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/ws · 읽기 전용 push</text>
+
+      <rect x="330" y="38" width="240" height="196" rx="12" fill="var(--bg-elev)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="450" y="62" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">도메인 서비스 (DI 공유)</text>
+      <text x="450" y="86" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5">SpecService · TaskService</text>
+      <text x="450" y="106" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5">SessionService · ApprovalService</text>
+      <text x="450" y="126" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5">QuestionService · EventService</text>
+      <text x="450" y="156" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">게이트 판정·상태 전이는</text>
+      <text x="450" y="172" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">여기서만 — 표면 무관 단일 코드</text>
+      <text x="450" y="200" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="10.5">전이와 같은 트랜잭션으로 event 기록</text>
+
+      <rect x="650" y="100" width="186" height="72" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="743" y="130" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">Postgres</text>
+      <text x="743" y="150" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">단일 진실 (D-01)</text>
+
+      <line x1="254" y1="64" x2="330" y2="90" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <line x1="254" y1="128" x2="330" y2="128" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <line x1="254" y1="192" x2="330" y2="166" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <line x1="570" y1="136" x2="650" y2="136" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+
+      <path d="M 700 172 C 640 280 340 300 258 284" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#ar1)"/>
+      <text x="500" y="308" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="11">NOTIFY nerv_events → 파드별 리스너 → 자기 소켓 룸에만 emit</text>
+    </svg>
+    <div class="cap">세 표면 + 훅 수집기가 같은 서비스를 주입받고, WS 팬아웃의 원천은 PG NOTIFY 하나다</div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>표면</th><th>경로</th><th>쓰기</th><th>주 사용자</th><th>이 문서에서</th></tr></thead>
+    <tbody>
+      <tr><td>REST</td><td><code>/api/v1/**</code></td><td>있음</td><td>웹 SPA(S1~S8), 외부 연동</td><td><a href="#sec-2">§2 전표</a></td></tr>
+      <tr><td>MCP</td><td><code>/mcp</code> (Streamable HTTP 단일 엔드포인트)</td><td>있음</td><td>Claude Code · Codex 세션</td><td><a href="#sec-4">§4 대응 표</a> — 정의는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2</td></tr>
+      <tr><td>WebSocket</td><td><code>/ws</code></td><td><b>없음</b> (join 외 클라이언트 emit 없음)</td><td>웹 SPA 실시간 갱신</td><td><a href="#sec-3">§3 계약</a></td></tr>
+      <tr><td>훅 ingest</td><td><code>/ingest/hooks/*</code></td><td>Activity·세션 전이만</td><td>Claude/Codex 훅</td><td><a href="#ep-ing">§2.9</a> — 정본은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.2 base path와 버전</h3>
+
+  <ul>
+    <li>REST base path는 <b><code>/api/v1</code></b> 이다. 파괴적 변경은 <code>/api/v1</code>을 유지한 채 <code>/api/v2</code>를 병행 서빙하는 방식으로만 한다.</li>
+    <li>MCP는 <code>/mcp</code> 단일 엔드포인트이며 프로토콜 리비전 병행 서빙 규약은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.6을 따른다(이 문서는 재정의하지 않는다).</li>
+    <li>markdown 미러(<code>/api/projects/{p}/specs/{id}.md</code> · <code>/api/projects/{p}/llms.txt</code>)는 <a href="architecture.html">3.2 시스템 아키텍처</a> §2.4의 경로 문자열을 <b>그대로, 버전 프리픽스 없이</b> 유지한다 — <code>llms.txt</code> 인덱스와 에이전트 로컬 캐시(<code>.nerv/cache/</code>)에 링크가 박제되는 경로라 v2 전환에도 불변이어야 한다(<a href="#ep-mir">§2.8</a>).</li>
+    <li>경로 파라미터: <code>{proj}</code> = <code>project.slug</code>(예: <code>clemvion</code>) — URL·MCP <code>project</code> 인자용 소문자 kebab 식별자로 <code>UNIQUE (org_id, slug)</code>, 표시 접두 <code>key</code>(예: <code>CLV</code>)와는 <b>별개 필드</b>다(<a href="data-model.html">3.3 데이터 모델</a> §2.1). <code>{spec}</code>·<code>{task}</code>·<code>{sid}</code> = 표시 키 또는 내부 uuid 모두 허용, <code>{ver}</code> = SpecVersion uuid, <code>{no}</code> = <code>version_no</code> 정수. 표시 키 발급 규칙(<code>&lt;project.key&gt;-&lt;타입&gt;-&lt;base32 6자&gt;</code>)은 <a href="data-model.html">3.3 데이터 모델</a> §5.1 정본이고, 본문 예시는 기존 문서의 표기 예시(<code>SPC-CWC-007</code>·<code>TSK-a3f8</code> 등, <a href="ui-wireframes.html">3.6 화면 설계</a> §1.4)를 그대로 쓴다.</li>
+  </ul>
+
+  <h3>1.3 인증 — 2경로</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>경로</th><th>자격증명</th><th>대상</th><th>규약</th></tr></thead>
+    <tbody>
+      <tr><td><b>웹 세션</b></td><td>better-auth 세션 쿠키(HttpOnly·SameSite=Lax)</td><td>브라우저 SPA</td><td>로그인·세션 관리는 better-auth 핸들러(<code>/api/auth/*</code>)에 위임한다. <code>/api/v1</code>·<code>/ws</code>는 이 쿠키를 검증만 한다. 조직·멤버십은 better-auth organization 플러그인, 역할 6종(<code>admin·planner·designer·developer·qa·viewer</code>)은 <code>membership.role</code>이 정본(<a href="data-model.html">3.3 데이터 모델</a> §2.1)</td></tr>
+      <tr><td><b>PAT</b></td><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>에이전트(MCP)·CI·외부 연동·md 미러</td><td>better-auth api-key 플러그인 기반. 토큰은 <b>(사용자, 프로젝트, 역할, 스코프)</b> 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을 넘지 못한다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §6.1, D-08). Bearer 헤더 필수, <b>쿼리스트링 전달 금지</b>(MCP Authorization 규약 재인용)</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li>PAT 원문 형식: <code>nerv_</code> 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(<code>api_token.token_hash</code>), 식별·감사용으로 앞 8자를 <code>api_token.prefix</code>에 남긴다(<a href="data-model.html">3.3 데이터 모델</a> §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 <b>한 번만</b> 반환된다.</li>
+    <li>스코프 어휘는 <code>resource:action</code> 표기로 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3 도구 표의 "필요 권한" 열과 1:1이다(<code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code> …). <code>spec:approve</code>와 <code>approval:decide</code>는 <b>토큰에 부여 자체가 불가능한 사람 전용 스코프</b>다 — 정책이 아니라 시스템 불변식(같은 문서 §6.1 ④).</li>
+    <li>REST 엔드포인트의 인가는 역할 매트릭스(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6)가 정본이다. §2 전표의 "권한" 열은 그 매트릭스의 인용이며, PAT 요청은 역할 판정에 <b>스코프 검사가 AND로</b> 추가된다.</li>
+  </ul>
+
+  <h3>1.4 에러 포맷과 HTTP 상태 매핑</h3>
+
+  <p>에러 본문은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.7의 구조화된 도구 결과와 <b>같은 봉투</b>를 쓴다. 코드 체계도 같은 문서의 <code>NERV_*</code> 10종을 재사용하며 REST 전용 코드를 신설하지 않는다.</p>
+
+  <pre><code>{
+  "ok": false,
+  "code": "NERV_CONFLICT_SCOPE",
+  "message": "TSK-3f77의 scope가 다른 활성 클레임과 겹칩니다.",
+  "details": {
+    "conflicting_claim_id": "clm_9c41…",
+    "owner": "유나",
+    "hostname": "linux-ci-01",
+    "overlap": { "spec_ids": ["SPC-CWC-007"], "file_globs": ["codebase/frontend/src/widget/**"] }
+  },
+  "retry_after_s": null,
+  "next_actions": []
+}</code></pre>
+
+  <p><code>next_actions</code>는 MCP 표면에서 채워지는 필드이며 REST 응답에서는 빈 배열을 허용한다. HTTP 상태 매핑:</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th><code>code</code></th><th>HTTP</th><th>REST에서의 대표 상황</th></tr></thead>
+    <tbody>
+      <tr><td><code>NERV_UNAUTHENTICATED</code></td><td>401</td><td>세션 쿠키 없음·만료, PAT 폐기·만료</td></tr>
+      <tr><td><code>NERV_FORBIDDEN</code></td><td>403</td><td>역할 미충족, PAT 스코프 부족, 지시자≠승인자 위반</td></tr>
+      <tr><td><code>NERV_PRECONDITION</code></td><td>400 / 409</td><td>400: zod 스키마 위반(<code>details.issues</code>) · 409: <code>base_version</code> 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치</td></tr>
+      <tr><td><code>NERV_CONFLICT_SCOPE</code></td><td>409</td><td>클레임 scope 겹침 <code>block</code> 판정</td></tr>
+      <tr><td><code>NERV_LEASE_EXPIRED</code></td><td>409</td><td>리스 만료 후 상태 변경 시도</td></tr>
+      <tr><td><code>NERV_DRAFT_LEASED</code></td><td>409</td><td>다른 사용자가 초안 편집 리스 보유</td></tr>
+      <tr><td><code>NERV_APPROVAL_REQUIRED</code></td><td>202</td><td>A3 액션이 pending Approval을 만들고 대기 진입(<code>details.approval_id</code>)</td></tr>
+      <tr><td><code>NERV_HUMAN_ONLY</code></td><td>403</td><td>A4 액션 요청 — <code>details.web_url</code> 딥링크 포함</td></tr>
+      <tr><td><code>NERV_RATE_LIMIT</code></td><td>429</td><td>쿼터 초과 — <code>retry_after_s</code> + <code>Retry-After</code> 헤더 병행</td></tr>
+      <tr><td><code>NERV_UNAVAILABLE</code></td><td>503</td><td>의존 구성요소 장애</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.5 멱등 키 — <code>Idempotency-Key</code> 헤더</h3>
+
+  <p>상태를 바꾸는 모든 REST 요청(POST·PUT·PATCH·DELETE)은 <code>Idempotency-Key</code> 헤더를 받는다. MCP의 A2 이상 도구가 받는 <code>idempotency_key</code> 입력(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.1 원칙 4)과 <b>같은 저장소</b>를 쓴다 — 오프라인 아웃박스가 큐잉한 쓰기가 MCP로 재전송되든 REST로 재전송되든 한 번만 실행된다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>규칙</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td>저장</td><td>(키, 요청 본문 content hash, 최초 응답)을 <b>24시간</b> 보관</td></tr>
+      <tr><td>같은 키 + 같은 본문</td><td>최초 응답을 그대로 재생하고 응답 헤더 <code>Idempotency-Replayed: true</code>를 단다</td></tr>
+      <tr><td>같은 키 + 다른 본문</td><td>409 <code>NERV_PRECONDITION</code>(<code>details.kind = "idempotency_mismatch"</code>)</td></tr>
+      <tr><td>헤더 생략</td><td>허용하되 재시도 안전성은 클라이언트 책임. 웹 SPA는 폼 제출·클레임·결정 요청에 항상 부여한다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.6 커서 페이지네이션</h3>
+
+  <p>목록 응답은 전부 커서 방식이다. 오프셋 페이지네이션은 제공하지 않는다.</p>
+  <ul>
+    <li>요청: <code>?cursor=&lt;opaque&gt;&amp;limit=&lt;n&gt;</code> — <code>limit</code> 기본 30·최대 100.</li>
+    <li>응답 봉투: <code>{ "items": [...], "next_cursor": "&lt;opaque&gt;" | null }</code>.</li>
+    <li>커서는 (정렬 키, id)를 인코딩한 불투명 문자열이며 클라이언트는 해석하지 않는다. 정렬 기준은 엔드포인트별로 §2 전표에 명시한다(기본: 생성 역순, 이벤트 피드는 <code>occurred_at DESC</code>).</li>
+  </ul>
+
+  <h3>1.7 요청/응답 표기와 엔드포인트 ID</h3>
+
+  <ul>
+    <li>§2 전표의 요청·응답 열은 <b>zod 스키마 이름</b>이다. 스키마는 <code>packages/schema</code>가 export하는 이름과 1:1이며(공유 규칙은 <a href="codebase.html">4.2 코드베이스와 배포</a> §3), 서버(NestJS 파이프)와 웹(react-hook-form + zod)이 같은 스키마로 검증한다.</li>
+    <li>목록 응답의 <code>Page&lt;X&gt;</code>는 §1.6 봉투에 <code>items: X[]</code>를 담는 제네릭 표기다.</li>
+    <li>엔드포인트는 안정 ID <b><code>EP-&lt;영역&gt;-&lt;번호&gt;</code></b>를 갖는다. <a href="screens.html">4.5 화면 명세</a> 등 다른 문서는 경로 문자열이 아니라 이 ID로 인용한다 — 경로가 바뀌어도 참조가 깨지지 않게 하기 위해서다(D-09와 같은 원리).</li>
+    <li>이벤트 열에서 <b>★ 표시는 이 문서가 신설하는 이벤트 이름</b>이다 — <code>&lt;리소스&gt;.&lt;동사&gt;</code> 규약(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §6.1)을 따르되 같은 문서 §6.3 알림 카탈로그에 없는 이름으로, 전부 알림을 만들지 않는 low/무티어 기록용이다. 무표시 이름은 전부 정본 인용이다.</li>
+  </ul>
+
+  <h2 id="sec-2">2. 리소스별 엔드포인트 전표</h2>
+
+  <h3 id="ep-auth">2.1 인증·조직·프로젝트·멤버·토큰 (S8)</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
+    <tbody>
+      <tr><td>EP-AUTH-01</td><td><code>GET /api/v1/me</code></td><td>로그인 사용자</td><td>—</td><td><code>MeResult</code>(프로필 + 멤버십·역할 목록)</td><td>—</td></tr>
+      <tr><td>EP-ORG-01</td><td><code>GET /api/v1/orgs</code></td><td>로그인 사용자</td><td>—</td><td><code>Page&lt;OrgSummary&gt;</code></td><td>—</td></tr>
+      <tr><td>EP-ORG-02</td><td><code>GET /api/v1/orgs/{org}</code></td><td>조직 멤버</td><td>—</td><td><code>OrgResult</code></td><td>—</td></tr>
+      <tr><td>EP-PRJ-01</td><td><code>GET /api/v1/orgs/{org}/projects</code></td><td>조직 멤버</td><td>—</td><td><code>Page&lt;ProjectSummary&gt;</code></td><td>—</td></tr>
+      <tr><td>EP-PRJ-02</td><td><code>POST /api/v1/orgs/{org}/projects</code></td><td>admin</td><td><code>ProjectCreateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.created</code></td></tr>
+      <tr><td>EP-PRJ-03</td><td><code>GET /api/v1/projects/{proj}</code></td><td>프로젝트 멤버</td><td>—</td><td><code>ProjectResult</code>(게이트 정책 <code>gate_policy</code>·보존 <code>retention</code>·활성 세션/승인 대기 카운트 포함)</td><td>—</td></tr>
+      <tr><td>EP-PRJ-04</td><td><code>PATCH /api/v1/projects/{proj}</code></td><td>admin (게이트 정책·위험도 임계는 admin 전용 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6 매트릭스)</td><td><code>ProjectUpdateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.updated</code></td></tr>
+      <tr><td>EP-MBR-01</td><td><code>GET /api/v1/orgs/{org}/members</code></td><td>조직 멤버</td><td>—</td><td><code>Page&lt;MemberResult&gt;</code></td><td>—</td></tr>
+      <tr><td>EP-MBR-02</td><td><code>POST /api/v1/orgs/{org}/members</code></td><td>admin</td><td><code>MemberAddInput</code>(user + org/project 스코프 + <code>role</code>)</td><td><code>MemberResult</code></td><td>★<code>member.added</code></td></tr>
+      <tr><td>EP-MBR-03</td><td><code>PATCH /api/v1/memberships/{id}</code></td><td>admin</td><td><code>MemberUpdateInput</code>(role 변경)</td><td><code>MemberResult</code></td><td>★<code>member.updated</code></td></tr>
+      <tr><td>EP-MBR-04</td><td><code>DELETE /api/v1/memberships/{id}</code></td><td>admin</td><td>—</td><td><code>{ok:true}</code></td><td>★<code>member.removed</code></td></tr>
+      <tr><td>EP-TOK-01</td><td><code>GET /api/v1/me/tokens</code></td><td>본인</td><td>—</td><td><code>Page&lt;TokenSummary&gt;</code>(prefix·scopes·last_used_at, 원문 없음)</td><td>—</td></tr>
+      <tr><td>EP-TOK-02</td><td><code>POST /api/v1/me/tokens</code></td><td>본인(역할이 허용하는 스코프의 부분집합만)</td><td><code>TokenCreateInput</code>(project, name, scopes[], expires)</td><td><code>TokenCreateResult</code>(<b>원문 1회 반환</b>)</td><td>★<code>token.created</code></td></tr>
+      <tr><td>EP-TOK-03</td><td><code>DELETE /api/v1/me/tokens/{id}</code></td><td>본인 또는 admin</td><td>—</td><td><code>{ok:true}</code>(즉시 폐기, <code>revoked_at</code> 기록)</td><td>★<code>token.revoked</code></td></tr>
+      <tr><td>EP-TOK-04</td><td><code>GET /api/v1/orgs/{org}/tokens</code></td><td>admin</td><td><code>TokenAdminListQuery</code>(project, user, cursor)</td><td><code>Page&lt;TokenAdminSummary&gt;</code>(소유자·prefix·scopes·last_used_at, 원문 없음) — S8 admin의 조직 전체 토큰 표(<a href="ui-wireframes.html">3.6 화면 설계</a> §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>멤버 초대 메일 발송은 Phase 2 알림 채널(메일)과 함께 온다 — MVP의 EP-MBR-02는 기존 사용자 배정만 담당한다(<a href="roadmap.html">3.7 로드맵</a> FR-12 배정과 정합).</p>
+
+  <h3 id="ep-spec">2.2 스펙·버전·코멘트 (S3)</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
+    <tbody>
+      <tr><td>EP-SPEC-01</td><td><code>GET /api/v1/projects/{proj}/specs/tree</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecTreeQuery</code>(root, depth, status)</td><td><code>SpecTreeResult</code>(id·title·type·문서 상태·현재 버전)</td><td>—</td></tr>
+      <tr><td>EP-SPEC-02</td><td><code>GET /api/v1/projects/{proj}/specs/search</code></td><td>전 역할</td><td><code>SpecSearchQuery</code>(query, type, status, requirement_id, limit)</td><td><code>SpecSearchResult</code>(안정 ID + 앵커 + 스니펫)</td><td>—</td></tr>
+      <tr><td>EP-SPEC-03</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}</code></td><td>전 역할</td><td><code>SpecGetQuery</code>(<code>version</code> 기본 approved, <code>include[]</code>: requirements/tasks/comments)</td><td><code>SpecGetResult</code></td><td>—</td></tr>
+      <tr><td>EP-SPEC-04</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions</code></td><td>전 역할</td><td>—</td><td><code>Page&lt;SpecVersionSummary&gt;</code></td><td>—</td></tr>
+      <tr><td>EP-SPEC-05</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}</code></td><td>전 역할</td><td>—</td><td><code>SpecVersionResult</code>(불변 스냅샷 — 같은 <code>{no}</code>는 영원히 같은 응답)</td><td>—</td></tr>
+      <tr><td>EP-SPEC-06</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/diff</code></td><td>전 역할</td><td><code>SpecDiffQuery</code>(from, to)</td><td><code>SpecDiffResult</code>(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff)</td><td>—</td></tr>
+      <tr><td>EP-SPEC-07</td><td><code>POST /api/v1/projects/{proj}/specs</code></td><td>planner·admin ●, designer(design)·developer(convention/adr)·qa ○</td><td><code>SpecCreateInput</code>(parent_id, type, title, body_markdown)</td><td><code>SpecDraftResult</code>(spec + draft v1)</td><td><code>spec.draft_created</code></td></tr>
+      <tr><td>EP-SPEC-08</td><td><code>PUT /api/v1/projects/{proj}/specs/{spec}/draft</code></td><td>EP-SPEC-07과 동일(<code>spec:draft</code>)</td><td><code>SpecDraftUpsertInput</code>(body_markdown, <b>base_version</b>, change_summary)</td><td><code>SpecDraftResult</code>(version, 델타 요약, 검증 경고, <code>web_url</code>)</td><td>새 draft 버전 생성 시 <code>spec.draft_created</code>, 같은 draft 재저장은 이벤트 없음(리스 갱신만)</td></tr>
+      <tr><td>EP-SPEC-09</td><td><code>GET /api/v1/projects/{proj}/spec-versions/{ver}/check</code></td><td>전 역할(읽기 전용 셀프서비스)</td><td>—</td><td><code>SpecCheckResult</code>(5검사기별 warning/block + 앵커 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §2.1)</td><td>—</td></tr>
+      <tr><td>EP-SPEC-10</td><td><code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td>작성자 본인 또는 planner</td><td><code>SpecSubmitInput</code>(reviewer_hint, note)</td><td><code>SpecSubmitResult</code>(approval_id[], 지정 리뷰어·SLA)</td><td><code>spec.submitted</code> + <code>approval.requested</code></td></tr>
+      <tr><td>EP-CMT-01</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/comments</code></td><td>전 역할</td><td><code>CommentListQuery</code>(status: open/resolved)</td><td><code>Page&lt;CommentResult&gt;</code></td><td>—</td></tr>
+      <tr><td>EP-CMT-02</td><td><code>POST /api/v1/projects/{proj}/spec-versions/{ver}/comments</code></td><td>전 역할(viewer 포함 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6 "스펙 조회·코멘트")</td><td><code>CommentCreateInput</code>(anchor: 헤딩 slug 또는 REQ ref, body_md)</td><td><code>CommentResult</code></td><td><code>spec.comment_added</code></td></tr>
+      <tr><td>EP-CMT-03</td><td><code>PATCH /api/v1/projects/{proj}/comments/{id}</code></td><td>작성자 본인</td><td><code>CommentUpdateInput</code>(body_md)</td><td><code>CommentResult</code></td><td>—</td></tr>
+      <tr><td>EP-CMT-04</td><td><code>POST /api/v1/projects/{proj}/comments/{id}/resolve</code></td><td><code>spec:draft</code> 보유 역할</td><td><code>CommentResolveInput</code>(resolution_note, resolved_in_version_id)</td><td><code>CommentResult</code>(open→resolved, 남은 open 수)</td><td>★<code>comment.resolved</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="ico">ℹ️</span><div class="body">
+    <b class="title">스펙 승인·거절 엔드포인트는 이 절에 없다</b>
+    <p><code>in_review → approved/rejected</code> 전이는 승인함의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 <code>nerv_spec_approve</code>가 존재하지 않는 것(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.</p>
+  </div></div>
+
+  <p>초안 편집 리스는 EP-SPEC-08 성공 시 자동 획득·갱신되고(웹 표면), 타 사용자 보유 시 409 <code>NERV_DRAFT_LEASED</code>를 반환한다. TTL 30분·자동 인계·해제 조건은 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.2 정본을 따른다.</p>
+
+  <h3 id="ep-req">2.3 요구사항 (Requirement)</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
+    <tbody>
+      <tr><td>EP-REQ-01</td><td><code>GET /api/v1/projects/{proj}/requirements</code></td><td>전 역할</td><td><code>RequirementListQuery</code>(spec, impl_status, cursor)</td><td><code>Page&lt;RequirementResult&gt;</code>(<code>ref</code>·<code>statement_md</code>·<code>impl_status</code>·연결 Task/Evidence 수)</td><td>—</td></tr>
+      <tr><td>EP-REQ-02</td><td><code>GET /api/v1/projects/{proj}/requirements/{ref}</code></td><td>전 역할</td><td>—</td><td><code>RequirementDetailResult</code>(버전 이력 + 파생 Task + Evidence)</td><td>—</td></tr>
+      <tr><td>EP-REQ-03</td><td><code>POST /api/v1/projects/{proj}/requirements/{ref}/evidence</code></td><td>developer·qa·admin (CI는 PAT)</td><td><code>EvidenceCreateInput</code>(kind: code_path/test/pr/commit, locator, repo)</td><td><code>EvidenceResult</code></td><td>★<code>evidence.added</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><code>impl_status</code>는 파생 값이라 <b>직접 쓰는 엔드포인트가 없다</b> — <code>verified</code> 전이도 QA의 검증 Evidence 등록(EP-REQ-03, kind=test)이 파생 규칙(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.3)을 통해 만든다. MVP(P1)의 Evidence는 PR 링크 수집까지이고 커버리지 계산은 P2다(<a href="roadmap.html">3.7 로드맵</a> FR-13).</p>
+
+  <h3 id="ep-task">2.4 Task·클레임 (S4)</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
+    <tbody>
+      <tr><td>EP-TASK-01</td><td><code>GET /api/v1/projects/{proj}/tasks</code></td><td>전 역할</td><td><code>TaskListQuery</code>(status[], assignee, spec, priority, cursor)</td><td><code>Page&lt;TaskSummary&gt;</code>(보드 컬럼용)</td><td>—</td></tr>
+      <tr><td>EP-TASK-02</td><td><code>GET /api/v1/projects/{proj}/tasks/next</code></td><td>task:claim 보유 역할</td><td><code>TaskNextQuery</code>(role, spec_id, limit)</td><td><code>TaskNextResult</code>(ready 후보 + <b>위임 명세 4요소</b> + 권장 scope)</td><td>—</td></tr>
+      <tr><td>EP-TASK-03</td><td><code>POST /api/v1/projects/{proj}/tasks</code></td><td>planner·developer·admin ●, qa ○</td><td><code>TaskCreateInput</code>(title, body_md, source_spec_version_id, source_requirement_id, 위임 명세 4필드, priority)</td><td><code>TaskResult</code>(status=backlog)</td><td>★<code>task.created</code></td></tr>
+      <tr><td>EP-TASK-04</td><td><code>GET /api/v1/projects/{proj}/tasks/{task}</code></td><td>전 역할</td><td>—</td><td><code>TaskDetailResult</code>(위임 명세·활성 클레임·의존·Evidence)</td><td>—</td></tr>
+      <tr><td>EP-TASK-05</td><td><code>PATCH /api/v1/projects/{proj}/tasks/{task}</code></td><td>planner·developer·admin</td><td><code>TaskUpdateInput</code>(위임 명세·priority·의존)</td><td><code>TaskResult</code> — 위임 명세 4요소 충족 + 의존 해소 시 서버가 <code>ready</code> 승격</td><td><code>task.ready</code>(승격 시)</td></tr>
+      <tr><td>EP-TASK-06</td><td><code>POST /api/v1/projects/{proj}/tasks/{task}/claim</code></td><td>viewer 제외 전 역할(<code>task:claim</code>)</td><td><code>TaskClaimInput</code>(scope{spec_ids, file_globs}, branch, worktree, lease_seconds)</td><td><code>TaskClaimResult</code>(claim_id, lease_expires_at, warnings[]) — 겹침 <code>block</code>이면 409 <code>NERV_CONFLICT_SCOPE</code></td><td><code>task.claimed</code> / <code>claim.conflict_warn</code> / <code>claim.conflict_blocked</code></td></tr>
+      <tr><td>EP-TASK-07</td><td><code>POST /api/v1/projects/{proj}/claims/{claim}/heartbeat</code></td><td>클레임 보유자</td><td><code>HeartbeatInput</code>(progress, stats{added, removed, files})</td><td><code>HeartbeatResult</code>(새 lease_expires_at + pending 질문 답변·steer/stop 지시)</td><td>— (이벤트 없음 — <code>last_heartbeat_at</code> 갱신만)</td></tr>
+      <tr><td>EP-TASK-08</td><td><code>POST /api/v1/projects/{proj}/claims/{claim}/release</code></td><td>클레임 보유자 또는 admin</td><td><code>ClaimReleaseInput</code>(reason: done/handoff/abandon, state_note)</td><td><code>ClaimReleaseResult</code>(Task 최종 상태 — <code>claimed → ready</code> 회수 또는 유지)</td><td>★<code>claim.released</code> + <code>task.ready</code>(회수 시)</td></tr>
+      <tr><td>EP-TASK-09</td><td><code>POST /api/v1/projects/{proj}/tasks/{task}/transition</code></td><td>담당자·planner·admin(<code>task:update</code>)</td><td><code>TaskTransitionInput</code>(status, note, evidence{commit_sha, pr_url, test_ids}, blocked_reason)</td><td><code>TaskResult</code> 또는 409(게이트 거부 사유 — FR-10)</td><td><code>task.blocked</code> · <code>task.done</code> · 기타 전이는 ★<code>task.updated</code>(payload에 from/to)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>클레임의 원자성·겹침 판정 알고리즘·<code>severity_of</code> 규칙은 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §4.4가 정본이다. <code>done</code> 전이는 같은 문서 §4.6의 6조건 판정이며, <b>MVP(P1)에서는 리뷰 커버리지 조건(1~3)을 제외한 조건(4 Evidence·5 <code>spec_impact</code> 선언·6 테스트 증적)만 검사</b>한다(<a href="roadmap.html">3.7 로드맵</a> FR-10 — 리뷰 커버리지는 P2). 리스 상수는 TTL 30분·하트비트 60초(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §4.5).</p>
+
+  <p>클레임 요청/응답 예시(예시 데이터는 기존 문서와 동일한 한 벌):</p>
+
+  <pre><code>// POST /api/v1/projects/clemvion/tasks/TSK-a3f8/claim   (도현 · mac-02)
+{
+  "scope": { "spec_ids": ["SPC-CWC-007"], "file_globs": ["codebase/frontend/src/widget/**"] },
+  "branch": "claude/widget-render",
+  "lease_seconds": 1800
+}
+// 200 — 겹침 warn 통과 (양쪽 세션에 claim.conflict_warn 알림)
+{
+  "ok": true,
+  "claim_id": "clm_2e9d…",
+  "lease_expires_at": "2026-08-20T05:42:11Z",
+  "warnings": [
+    { "session": "S-2d04", "user": "유나", "hostname": "linux-ci-01",
+      "task": "TSK-b904", "specs": ["SPC-CWC-007"], "files": [], "severity": "warn" }
+  ]
+}</code></pre>
+
+  <h3 id="ep-ses">2.5 세션·Activity (S5)</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
+    <tbody>
+      <tr><td>EP-SES-01</td><td><code>GET /api/v1/projects/{proj}/sessions</code></td><td>전 역할</td><td><code>SessionListQuery</code>(state[], user, cursor)</td><td><code>Page&lt;SessionSummary&gt;</code>(user·hostname·agent_type·state·현재 Task·diff·last_heartbeat — <a href="data-model.html">3.3 데이터 모델</a> §4.2 질의)</td><td>—</td></tr>
+      <tr><td>EP-SES-02</td><td><code>GET /api/v1/projects/{proj}/sessions/{sid}</code></td><td>전 역할</td><td>—</td><td><code>SessionDetailResult</code>(실행 컨텍스트·클레임 이력·토큰 사용량)</td><td>—</td></tr>
+      <tr><td>EP-SES-03</td><td><code>GET /api/v1/projects/{proj}/sessions/{sid}/activities</code></td><td>전 역할</td><td><code>ActivityListQuery</code>(cursor, type[])</td><td><code>Page&lt;ActivityResult&gt;</code>(seq 순 타임라인, <code>thought/action/elicitation/response/error</code>)</td><td>—</td></tr>
+      <tr><td>EP-SES-04</td><td><code>POST /api/v1/projects/{proj}/sessions/{sid}/steer</code></td><td>세션 소유자·admin</td><td><code>SessionSteerInput</code>(kind: steer/stop, message)</td><td><code>{ok:true}</code> — steer: 지시는 다음 하트비트 응답의 <code>pending</code>으로 전달(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.4 역채널). stop: 지시 전달과 별개로 서버가 <b>즉시</b> 활성 클레임을 회수하고 Task를 <code>claimed/in_progress → ready</code>로 되돌린다(<a href="ui-wireframes.html">3.6 화면 설계</a> §4.2)</td><td>★<code>session.steered</code> · stop 시 ★<code>claim.released</code> + <code>task.ready</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>세션의 생성·상태 전이는 REST가 아니라 훅 ingest(<a href="#ep-ing">§2.9</a>)와 MCP <code>nerv_bootstrap</code>이 만든다. REST 표면은 조회와 steer만 갖는다 — 세션은 에이전트의 실행 사실이지 웹에서 만드는 리소스가 아니기 때문이다.</p>
+
+  <h3 id="ep-apr">2.6 승인함·질문 (S7)</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
+    <tbody>
+      <tr><td>EP-APR-01</td><td><code>GET /api/v1/approvals</code></td><td>로그인 사용자(본인 관련만)</td><td><code>ApprovalListQuery</code>(state: pending/decided/expired, project, subject_type, subject_id, cursor)</td><td><code>Page&lt;ApprovalCard&gt;</code>(대상 원문 델타·영향 분석 포함 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §6.4 카드 3유형)</td><td>—</td></tr>
+      <tr><td>EP-APR-02</td><td><code>GET /api/v1/approvals/{id}</code></td><td>관련자</td><td>—</td><td><code>ApprovalDetailResult</code></td><td>—</td></tr>
+      <tr><td>EP-APR-03</td><td><code>POST /api/v1/approvals/{id}/decision</code></td><td>지정 승인자·해당 역할 큐 — <b>사람 전용</b>, 지시자≠승인자 판정(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §2.3 5규칙)</td><td><code>ApprovalDecisionInput</code>(decision: approve/reject/comment, comment_md)</td><td><code>ApprovalResult</code></td><td>대상이 spec_version이면 <code>spec.approved</code>(+이전 버전 <code>spec.superseded</code>) / <code>spec.rejected</code> · 대상이 question이면 ★<code>question.answered</code></td></tr>
+      <tr><td>EP-APR-04</td><td><code>POST /api/v1/projects/{proj}/gates/bypass</code></td><td>admin ●, planner(스펙 계열)·developer(코드 계열) ○</td><td><code>GateBypassInput</code>(대상, 사유, 유효 시간)</td><td><code>ApprovalResult</code>(is_bypass=true)</td><td><code>gate.bypassed</code></td></tr>
+      <tr><td>EP-QST-01</td><td><code>GET /api/v1/projects/{proj}/questions</code></td><td>전 역할</td><td><code>QuestionListQuery</code>(status: open/answered, cursor)</td><td><code>Page&lt;QuestionResult&gt;</code>(선택지·대기 세션·경과)</td><td>—</td></tr>
+      <tr><td>EP-QST-02</td><td><code>POST /api/v1/projects/{proj}/questions/{id}/answer</code></td><td>대상 역할 또는 지정자 — 사람 전용</td><td><code>QuestionAnswerInput</code>(answer_key 또는 answer_md)</td><td><code>QuestionResult</code>(status=answered) — 내부적으로 ApprovalService.decide(subject=question) 한 경로</td><td>★<code>question.answered</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>승인 유효성 판정(자기 승인 거부·에이전트 영구 불가·content hash 불일치 = stale 승인 거부)과 SLA·리마인더·만료는 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §2.3·§2.6 정본을 서버가 그대로 집행한다. MVP 승인함 카드는 스펙 승인·플랜·질문 3유형이고 CR·에스컬레이션 카드는 P2다(<a href="roadmap.html">3.7 로드맵</a> FR-11).</p>
+
+  <h3 id="ep-evt">2.7 이벤트 피드·알림·커버리지</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
+    <tbody>
+      <tr><td>EP-EVT-01</td><td><code>GET /api/v1/projects/{proj}/events</code></td><td>전 역할(<code>audit:read</code>는 조직 전역 감사 조회에만 요구)</td><td><code>EventListQuery</code>(since, type[], subject_type, subject_id, cursor) — <code>occurred_at DESC</code></td><td><code>Page&lt;EventResult&gt;</code>(actor{user, session, is_agent}·from/to state·payload — <a href="data-model.html">3.3 데이터 모델</a> §2.9)</td><td>—</td></tr>
+      <tr><td>EP-NTF-01</td><td><code>GET /api/v1/me/notifications</code></td><td>본인</td><td><code>NotificationListQuery</code>(state: unread/read, cursor)</td><td><code>Page&lt;NotificationResult&gt;</code></td><td>—</td></tr>
+      <tr><td>EP-NTF-02</td><td><code>POST /api/v1/me/notifications/{id}/read</code></td><td>본인</td><td>—</td><td><code>{ok:true}</code></td><td>—</td></tr>
+      <tr><td>EP-COV-01</td><td><code>GET /api/v1/projects/{proj}/coverage</code></td><td>전 역할</td><td><code>CoverageQuery</code>(spec)</td><td><code>CoverageResult</code>(스펙별 구현/검증 커버리지·증적 결손·빈 약속 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §5.5 산식)</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>EP-COV-01은 <b>계약 선점</b>이다 — 커버리지 계산은 P2(<a href="roadmap.html">3.7 로드맵</a> FR-13)이므로 MVP 응답에서는 커버리지 수치 필드가 <code>null</code>일 수 있고, Requirement·Evidence 개수 같은 원자료 필드만 채워진다. S2가 게이지를 그릴 때 <code>null</code>은 "집계 준비 중"으로 렌더한다.</p>
+
+  <h3 id="ep-mir">2.8 markdown 미러 (아키텍처 §2.4 인용)</h3>
+
+  <p>경로·응답 형태는 <a href="architecture.html">3.2 시스템 아키텍처</a> §2.4(a)가 정본이다. 버전 프리픽스를 붙이지 않는 이유는 §1.2에 있다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>응답</th></tr></thead>
+    <tbody>
+      <tr><td>EP-MIR-01</td><td><code>GET /api/projects/{p}/specs/{id}.md?version=approved</code></td><td><code>spec:read</code>(PAT 허용 — 에이전트 공용 읽기 경로)</td><td><code>text/markdown</code> — 기본은 최신 approved SpecVersion, <code>?version=42</code>로 특정 스냅샷. frontmatter에 안정 ID·버전·문서 상태·승인자·요구사항 ID 목록</td></tr>
+      <tr><td>EP-MIR-02</td><td><code>GET /api/projects/{p}/llms.txt</code></td><td><code>spec:read</code></td><td><code>text/plain</code> — 스펙 트리 인덱스(제목 + <code>.md</code> 링크 + 한 줄 설명, llms.txt v2 형식)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>응답 frontmatter 예시(필드 의미는 아키텍처 §2.4 그대로):</p>
+
+  <pre><code>---
+nerv_id: SPC-CWC-007
+version: 4
+status: approved
+approved_by: 지민
+requirements: [REQ-CWC-031, REQ-CWC-032]
+---
+# 임베드 위젯
+…</code></pre>
+
+  <h3 id="ep-ing">2.9 훅 ingest (참조)</h3>
+
+  <p>훅 수집 엔드포인트 5종(<code>POST /ingest/hooks/session</code> · <code>/tool</code> · <code>/subagent</code> · <code>/stop</code> · <code>/session-end</code>)의 경로·헤더(<code>Authorization</code> Bearer, <code>X-NERV-Project</code>, <code>X-NERV-Host</code>)·응답 의미론(<code>additionalContext</code> 주입, <code>{"decision":"block"}</code> 종료 차단)은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3이 정본이고, 훅 페이로드 실물은 <a href="plugin.html">4.6 플러그인과 온보딩</a>이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 <b>인증 필수</b>다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 <code>SessionService</code>를 주입받아 세션 전이·Activity 적재를 수행한다(<a href="#sec-4">§4 표</a>).</p>
+
+  <h2 id="sec-3">3. WebSocket 계약</h2>
+
+  <h3>3.1 핸드셰이크와 인증</h3>
+
+  <ul>
+    <li>엔드포인트: <code>wss://&lt;host&gt;/ws</code> — NestJS <code>@WebSocketGateway</code>(socket.io 어댑터).</li>
+    <li><b>전송은 websocket만 활성</b>한다(폴링 폴백 off). 폴백이 없으므로 k8s 스티키 세션이 필요 없다 — 스택 확정 사항(<a href="scope.html">4.1 MVP 범위와 스택 확정</a> §2).</li>
+    <li>인증은 핸드셰이크 시점의 better-auth 세션 쿠키 검증이다. 웹 SPA 전용 표면이며 PAT 접속은 지원하지 않는다 — 에이전트의 서버→세션 채널은 하트비트 응답이 정본이다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.4).</li>
+    <li>인증 실패 시 socket.io <code>connect_error</code>에 <code>{code: "NERV_UNAUTHENTICATED"}</code>를 실어 즉시 끊는다.</li>
+  </ul>
+
+  <h3>3.2 룸 join 규약</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>룸</th><th>join</th><th>검사</th><th>용도</th></tr></thead>
+    <tbody>
+      <tr><td><code>user:{id}</code></td><td>연결 성공 시 서버가 <b>자동 join</b></td><td>본인 여부</td><td>승인 요청·질문·알림 배지 등 개인 대상 이벤트</td></tr>
+      <tr><td><code>project:{id}</code></td><td>클라이언트가 <code>join</code> emit: <code>{room: "project:{id}"}</code></td><td><b>멤버십 검사</b> — 비멤버는 ack <code>{ok:false, code:"NERV_FORBIDDEN"}</code></td><td>프로젝트 화면(S2~S5·S7)의 실시간 갱신</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li>클라이언트 emit은 <code>join</code>·<code>leave</code> 두 개뿐이다. 상태를 바꾸는 emit은 존재하지 않는다 — 쓰기는 REST/MCP로만.</li>
+    <li>프로젝트 화면을 떠나면 <code>leave</code>를 보낸다. 서버는 연결당 join 가능한 project 룸을 8개로 제한한다(초과 시 <code>{ok:false, code:"NERV_RATE_LIMIT"}</code>).</li>
+  </ul>
+
+  <h3>3.3 서버 → 클라이언트 이벤트</h3>
+
+  <p>팬아웃 경로는 단일하다: 도메인 서비스가 상태 전이와 같은 트랜잭션으로 <code>event</code> 행을 남기면, Postgres <code>NOTIFY</code>(채널 <code>nerv_events</code> — 페이로드 규약은 <a href="database.html">4.3 데이터베이스 스키마</a> §3 정본)가 각 파드의 리스너를 깨우고, 파드는 자기에게 붙은 소켓의 해당 룸에만 emit한다. 크로스파드 어댑터는 없다 — 모든 emit의 원천이 PG NOTIFY이기 때문이다.</p>
+
+  <p>이벤트 이름은 socket.io 이벤트 이름으로 <b>Event <code>type</code> 문자열을 그대로</b> 쓴다 — <code>&lt;리소스&gt;.&lt;동사&gt;</code> 규약과 카탈로그는 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §6이 정본이다. 페이로드는 최소 봉투이며 본문 데이터를 싣지 않는다(수신 즉시 해당 Query를 재조회한다 — §3.4).</p>
+
+  <pre><code>// socket.on("spec.approved", handler) 로 수신
+{
+  "id": "01991f2a-…",
+  "type": "spec.approved",
+  "project_id": "…",
+  "subject_type": "spec_version",
+  "subject_id": "…",
+  "subject_key": "SPC-CWC-007",
+  "occurred_at": "2026-08-20T05:30:00Z"
+}</code></pre>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>이벤트(정본)</th><th>발생 지점</th><th>룸</th><th>MVP</th></tr></thead>
+    <tbody>
+      <tr><td><code>spec.draft_created</code> · <code>spec.submitted</code> · <code>spec.rejected</code> · <code>spec.approved</code> · <code>spec.superseded</code> · <code>spec.deprecated</code></td><td>문서 축 전이(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.2)</td><td><code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>spec.comment_added</code></td><td>EP-CMT-02</td><td><code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td>★<code>comment.resolved</code></td><td>EP-CMT-04</td><td><code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>task.ready</code> · <code>task.claimed</code> · <code>task.blocked</code> · <code>task.done</code></td><td>Task 축 전이(§1.4·§6.3)</td><td><code>project:{id}</code></td><td>P0~P1</td></tr>
+      <tr><td>★<code>task.created</code> · ★<code>task.updated</code></td><td>EP-TASK-03·09</td><td><code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>claim.conflict_warn</code> · <code>claim.conflict_blocked</code></td><td>클레임 겹침 판정(§4.4)</td><td><code>project:{id}</code> + 양쪽 세션 소유자 <code>user:{id}</code></td><td>P0</td></tr>
+      <tr><td>★<code>claim.released</code></td><td>EP-TASK-08·EP-SES-04(stop)·리스 만료 회수</td><td><code>project:{id}</code></td><td>P0</td></tr>
+      <tr><td><code>session.started</code> · <code>session.stale</code> · <code>session.complete</code></td><td>세션 수명주기(§6.3, D-13)</td><td><code>project:{id}</code> + 소유자 <code>user:{id}</code>(stale)</td><td>P0</td></tr>
+      <tr><td>★<code>session.steered</code></td><td>EP-SES-04</td><td><code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>approval.requested</code></td><td>EP-SPEC-10·플랜 승인·BYPASS 요청</td><td>지정 승인자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>question.created</code></td><td>MCP <code>nerv_question_create</code></td><td>대상 역할/지정자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td>★<code>question.answered</code></td><td>EP-APR-03·EP-QST-02</td><td>요청 세션 소유자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>gate.bypassed</code></td><td>EP-APR-04</td><td>admin <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>gate.failopen</code></td><td>게이트 판정 불가(D-14, <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §1.3)</td><td><code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td>★<code>notification.created</code></td><td>알림 파생(배지 카운트 갱신용)</td><td><code>user:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>finding.opened</code> · <code>finding.resolved</code> · <code>cr.opened</code></td><td>리뷰·CR — <b>Phase 2</b>(S6·review 도구 2종과 함께)</td><td><code>project:{id}</code></td><td>P2</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.4 재연결·무효화·keep-alive</h3>
+
+  <ul>
+    <li><b>이벤트 재전송(replay)은 없다.</b> 끊겼다 재연결한 클라이언트는 밀린 이벤트를 받지 못하며, 받으려 해서도 안 된다 — 재연결 성공 시 클라이언트는 <b>화면의 활성 Query를 전부 재조회</b>한다(TanStack Query invalidate). 이벤트 유실은 허용되고 진실은 DB다(D-14).</li>
+    <li>정상 수신 시의 이벤트→Query 무효화 매핑(어떤 이벤트가 어떤 화면 Query 키를 무효화하는가)은 <a href="screens.html">4.5 화면 명세</a>가 화면별로 정의한다. 이 문서의 계약은 "봉투에는 재조회에 필요한 식별자만 있다"까지다.</li>
+    <li>keep-alive는 socket.io 기본 ping(주기 25초·타임아웃 20초)을 그대로 쓴다. <b>에이전트 하트비트 60초와는 무관하다</b> — 그것은 MCP 클레임 리스 규약이다.</li>
+    <li>서버 재기동·배포 시 클라이언트는 socket.io 기본 백오프로 재접속하고, 위 재조회 규칙이 정합성을 복구한다. 연결 상태는 앱 셸의 실시간 연결 배너가 표시한다(<a href="screens.html">4.5 화면 명세</a>).</li>
+  </ul>
+
+  <h2 id="sec-4">4. MCP 15종 ↔ 내부 서비스 ↔ REST 대응</h2>
+
+  <p>MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 <code>nerv_review_submit</code>·<code>nerv_finding_resolve</code> 2종은 P2(<a href="scope.html">4.1 MVP 범위와 스택 확정</a>). 각 도구의 입력·출력·티어·멱등성은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3이 정본이고, 이 표는 <b>같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점</b>만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>MCP 도구</th><th>티어</th><th>내부 서비스 메서드</th><th>REST 대응</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>nerv_bootstrap</code></td><td>A1</td><td><code>SessionService.bootstrap</code></td><td>— (MCP 전용. 부분 대응: EP-SES-02 + EP-PRJ-03)</td><td>세션 등록 + 컨텍스트 팩. 훅 ingest와 같은 서비스가 세션 상태를 관리</td></tr>
+      <tr><td><code>nerv_spec_tree</code></td><td>A1</td><td><code>SpecService.tree</code></td><td>EP-SPEC-01</td><td></td></tr>
+      <tr><td><code>nerv_spec_search</code></td><td>A1</td><td><code>SpecService.search</code></td><td>EP-SPEC-02</td><td></td></tr>
+      <tr><td><code>nerv_spec_get</code></td><td>A1</td><td><code>SpecService.get</code></td><td>EP-SPEC-03</td><td>본문은 비신뢰 래핑(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §6.3) — MCP 표면에서만</td></tr>
+      <tr><td><code>nerv_task_next</code></td><td>A1</td><td><code>TaskService.next</code></td><td>EP-TASK-02</td><td>ready 큐 질의는 <a href="data-model.html">3.3 데이터 모델</a> §4.5</td></tr>
+      <tr><td><code>nerv_task_claim</code></td><td>A2</td><td><code>TaskService.claim</code></td><td>EP-TASK-06</td><td>겹침 판정·원자 전환이 이 메서드 안 — 표면 무관 동일</td></tr>
+      <tr><td><code>nerv_task_heartbeat</code></td><td>A1</td><td><code>TaskService.heartbeat</code></td><td>EP-TASK-07</td><td>응답의 <code>pending</code> 역채널 포함</td></tr>
+      <tr><td><code>nerv_task_release</code></td><td>A2</td><td><code>TaskService.release</code></td><td>EP-TASK-08</td><td></td></tr>
+      <tr><td><code>nerv_spec_draft_upsert</code></td><td>A2</td><td><code>SpecService.draftUpsert</code></td><td>EP-SPEC-07·08</td><td><code>base_version</code> 409·초안 편집 리스가 이 메서드 안</td></tr>
+      <tr><td><code>nerv_spec_submit_review</code></td><td><b>A3</b></td><td><code>SpecService.submitReview</code> → <code>ApprovalService.request</code></td><td>EP-SPEC-10</td><td>pending Approval 재사용(카드 중복 금지) — 표면 무관</td></tr>
+      <tr><td><code>nerv_spec_check</code></td><td>A1</td><td><code>SpecService.check</code></td><td>EP-SPEC-09</td><td>5검사기 서비스 호출</td></tr>
+      <tr><td><code>nerv_spec_comment_resolve</code></td><td>A2</td><td><code>SpecService.resolveComment</code></td><td>EP-CMT-04</td><td></td></tr>
+      <tr><td><code>nerv_task_update</code></td><td>A2(정책상 done은 A3)</td><td><code>TaskService.transition</code></td><td>EP-TASK-09</td><td>done 게이트 판정 단일 지점</td></tr>
+      <tr><td><code>nerv_question_create</code></td><td>A2</td><td><code>QuestionService.create</code></td><td>— (질문 생성은 에이전트 전용. 사람의 답변이 EP-QST-02)</td><td>멱등 재호출 = 폴링 규약은 MCP 표면 정의</td></tr>
+      <tr><td><code>nerv_session_event</code></td><td>A1</td><td><code>SessionService.appendActivity</code></td><td>— (훅 ingest §2.9와 같은 메서드)</td><td>훅 없는 실행 환경 폴백</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">사람 전용 액션은 어느 표면에도 도구가 없다</b>
+    <p><code>spec:approve</code>·<code>approval:decide</code>는 REST에서도 승인함 결정(EP-APR-03) 하나뿐이고 MCP 카탈로그에는 처음부터 존재하지 않는다. A4 액션을 MCP로 요청하면 <code>NERV_HUMAN_ONLY</code>와 웹 딥링크가 돌아온다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.2).</p>
+  </div></div>
+
+  <h2 id="sec-5">5. 수용 기준 (REQ-API-*)</h2>
+
+  <p>행동 요구는 EARS로 쓴다. 각 항목은 통합 테스트 1개 이상으로 검증한다(테스트 배치는 <a href="codebase.html">4.2 코드베이스와 배포</a> §4).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준 (EARS)</th><th>검증</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-API-001</td><td>WHEN 자격증명이 없거나 만료된 요청이 오면 THE SYSTEM SHALL HTTP 401과 <code>code: "NERV_UNAUTHENTICATED"</code> 봉투를 반환한다</td><td>쿠키 없음·만료 PAT·폐기 PAT 3케이스</td></tr>
+      <tr><td>REQ-API-002</td><td>WHEN 인증은 유효하나 역할 또는 PAT 스코프가 부족하면 THE SYSTEM SHALL HTTP 403과 <code>code: "NERV_FORBIDDEN"</code>을 반환하고, 부족한 스코프 이름을 <code>details</code>에 명시하되 권한 확대 경로는 제공하지 않는다</td><td>viewer의 draft 쓰기, <code>spec:draft</code> 없는 PAT의 EP-SPEC-08</td></tr>
+      <tr><td>REQ-API-003</td><td>WHEN 같은 <code>Idempotency-Key</code>와 같은 본문으로 24시간 내 재호출되면 THE SYSTEM SHALL 부작용 없이 최초 응답을 재생하고 <code>Idempotency-Replayed: true</code> 헤더를 단다</td><td>EP-TASK-06 이중 제출 → 클레임 1건</td></tr>
+      <tr><td>REQ-API-004</td><td>WHEN 같은 <code>Idempotency-Key</code>에 다른 본문이 오면 THE SYSTEM SHALL HTTP 409 <code>NERV_PRECONDITION</code>(<code>details.kind = "idempotency_mismatch"</code>)을 반환한다</td><td>본문 변조 재호출</td></tr>
+      <tr><td>REQ-API-005</td><td>WHEN 리스가 만료된 클레임으로 상태 변경(EP-TASK-09 등)이 시도되면 THE SYSTEM SHALL HTTP 409 <code>NERV_LEASE_EXPIRED</code>를 반환하고, 재클레임 가능 여부를 <code>details</code>에 싣는다</td><td>리스 만료 후 done 전이 거부(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.7 리스 규약)</td></tr>
+      <tr><td>REQ-API-006</td><td>WHEN <code>base_version</code>이 현재 draft와 불일치하는 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 <code>NERV_PRECONDITION</code>과 최신 버전 번호를 반환하고 본문을 저장하지 않는다</td><td>웹·터미널 동시 편집 경합</td></tr>
+      <tr><td>REQ-API-007</td><td>WHEN 다른 사용자가 편집 리스를 보유한 draft에 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 <code>NERV_DRAFT_LEASED</code>와 보유자(사용자·표면)를 반환한다. WHEN 같은 사용자가 다른 표면에서 요청하면 THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알림을 만든다</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.2 표 재현</td></tr>
+      <tr><td>REQ-API-008</td><td>WHEN 승인 요청자 본인·초안 작성 세션의 소유자가 EP-APR-03으로 승인을 시도하면 THE SYSTEM SHALL HTTP 403 <code>NERV_FORBIDDEN</code>(<code>details.rule = "requester-neq-approver"</code>)을 반환한다. WHEN 대상 content hash가 변해 있으면 THE SYSTEM SHALL 같은 코드로 stale 승인을 거부한다</td><td>§2.3 판정 5규칙 각각 1케이스</td></tr>
+      <tr><td>REQ-API-009</td><td>WHEN 미인증 소켓이 <code>/ws</code>에 연결을 시도하면 THE SYSTEM SHALL <code>connect_error</code>(<code>NERV_UNAUTHENTICATED</code>)로 끊고, WHEN 비멤버가 <code>project:{id}</code> join을 시도하면 THE SYSTEM SHALL ack <code>{ok:false, code:"NERV_FORBIDDEN"}</code>을 반환하며 룸에 넣지 않는다</td><td>비멤버 join 후 이벤트 미수신 확인</td></tr>
+      <tr><td>REQ-API-010</td><td>WHEN WebSocket 클라이언트가 재연결에 성공하면 THE SYSTEM SHALL 밀린 이벤트를 재전송하지 않는다(재조회는 클라이언트 책임 — D-14)</td><td>단절 구간 이벤트 발생 후 재연결, 수신 0건 확인</td></tr>
+      <tr><td>REQ-API-011</td><td>WHEN 상태 전이가 커밋되면 THE SYSTEM SHALL 같은 트랜잭션의 <code>event</code> 행과, 그로부터 파생된 WS emit이 §3.3 표의 룸으로 5초 이내(NFR-02) 도달하게 한다</td><td>전이→보드 반영 p95 측정</td></tr>
+      <tr><td>REQ-API-012</td><td>WHEN 쿼터를 초과한 요청이 오면 THE SYSTEM SHALL HTTP 429 <code>NERV_RATE_LIMIT</code>과 <code>retry_after_s</code>·<code>Retry-After</code> 헤더를 함께 반환한다</td><td>버스트 요청</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3>이 문서가 인용한 정본</h3>
+  <ul>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — §2 도구 17종의 입력·출력·권한·티어·멱등성, §2.7 에러 코드 10종과 봉투, §2.5·§6.1 PAT 튜플·스코프, §3.3 훅 ingest 경로 — <b>이 문서의 §1.4·§2.9·§4가 인용</b> (재정의 금지)</li>
+    <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — §1 세 상태 축과 전이·§1.6 권한 매트릭스·§2.3 지시자≠승인자·§4.4 겹침 알고리즘·§4.6 done 게이트·§6 이벤트 이름 규약과 카탈로그 — <b>§2 전표의 권한 열과 §3.3 이벤트 목록의 정본</b></li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 27종 필드(응답 필드명은 이 문서와 1:1)·§4 대표 질의·§5.1 ID 체계</li>
+    <li><a href="architecture.html">3.2 시스템 아키텍처</a> — §2.4 markdown 미러·<code>llms.txt</code> 경로(§2.8이 문자열 그대로 인용), §1.2 전체 구성도</li>
+    <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — §1.2 라우팅·§1.4 URL 규약(표시 ID 예시 표기)</li>
+    <li><a href="roadmap.html">3.7 로드맵</a> — FR별 P0/P1/P2 배정(§2.3·§2.6·§2.7·§3.3의 Phase 표기 근거)</li>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — FR-01~17 · NFR-01~05 번호 정의</li>
+  </ul>
+
+  <h3>4부 형제 문서</h3>
+  <ul>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 확정 스택(NestJS·socket.io·better-auth)과 MVP 도구 15종 범위</li>
+    <li><a href="codebase.html">4.2 코드베이스와 배포</a> — §2 모듈 맵(표면↔서비스 주입 구조의 실물)·§3 <code>packages/schema</code> zod 공유 규칙</li>
+    <li><a href="database.html">4.3 데이터베이스 스키마</a> — §3 <code>NOTIFY</code> 채널(<code>nerv_events</code>)과 페이로드 규약</li>
+    <li><a href="screens.html">4.5 화면 명세</a> — 엔드포인트 ID 인용처, 이벤트→Query 무효화 매핑</li>
+    <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — 훅 페이로드 실물과 PAT 발급 온보딩 절차</li>
+  </ul>
+
+  <h3>외부 출처 (기존 13편에서 이미 인용된 URL만 재인용)</h3>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization">MCP Authorization (OAuth 2.1, 2026-07-28)</a> (2026-08-13 확인): Bearer 헤더 필수·쿼리스트링 금지 — §1.3 PAT 전달 규약의 근거.</p>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">MCP Streamable HTTP transport (2026-07-28)</a> (2026-08-13 확인): <code>/mcp</code> 단일 엔드포인트·리비전 병행 서빙(§1.2).</p>
+  <p class="src"><a href="https://llmstxt.org/">The /llms.txt file, v2 — llmstxt.org</a> (v2 개정 2026-08-10): <code>.md</code> 미러 + 루트 인덱스 표준 — §2.8의 형식 근거.</p>
+
+  <footer class="page-footer">
+    <span>← <a href="database.html">이전: 4.3 데이터베이스 스키마</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="screens.html">다음: 4.5 화면 명세</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

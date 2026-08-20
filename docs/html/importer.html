@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4.7 clemvion 임포터 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html" class="active">4.7 clemvion 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 4부 · MVP 구체화 / 4.7 clemvion 임포터</div>
+
+  <header class="page-header">
+    <h1>clemvion 임포터</h1>
+    <p class="lead"><code>clemvion:spec/</code>(순수 스펙 135 md — implemented 117 / partial 17 / backlog 1)과 <code>clemvion:plan/</code>(450 md)을 Spec/SpecVersion/Requirement/Task로 옮기는 임포터(FR-17)의 구현 착수 가능한 확정판. CLI <code>nerv import</code>(dry-run 기본), 멱등 키 = 파일 경로+frontmatter id, 재실행은 변경분만. 수용 기준은 REQ-IMP-001~010 — 135 md 전수 계정, 원문 바이트 보존, 연속 2회 실행 시 신규 생성 0. <code>review/</code> 소급은 Phase 2로 범위 밖이며, 마지막 절은 이 문서 세트 자체의 도그푸딩 임포트다.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-20)</span>
+      <span>원본: <code>docs/04-mvp/importer.md</code></span>
+      <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~010</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">대상과 목표</a></li>
+      <li><a href="#sec-2">파싱 규칙</a></li>
+      <li><a href="#sec-3">실행 모델</a></li>
+      <li><a href="#sec-4">실패 리포트와 수용 기준</a></li>
+      <li><a href="#sec-5">도그푸딩 — 이 문서 세트가 첫 임포트 대상이다</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 대상과 목표</h2>
+
+  <h3>1.1 무엇을, 언제 옮기나</h3>
+
+  <p>FR-17의 수용 기준은 한 문장이다 — "<code>spec/</code> 384 md와 <code>plan/</code> 450 md를 Spec/SpecVersion/Requirement·Task로 변환하는 임포터가 멱등적으로 재실행되고, 변환 실패·수동 확인 필요 항목이 목록으로 보고된다"(<a href="pain-points.html">1.2 문제 정의</a> FR-17). Phase 배정은 <a href="roadmap.html">로드맵</a> §3 표의 "spec P0 → plan P1 → review P2"를 그대로 따른다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>대상</th><th>규모(실측 2026-08-13)</th><th>변환 결과</th><th>Phase</th><th>이 문서에서</th></tr></thead>
+    <tbody>
+      <tr><td><code>clemvion:spec/</code></td><td>384 md · 9.3MB — 기계생성 API 카탈로그 249 md·4.6MB 제외 시 <b>순수 135 md · 49,383줄</b></td><td>Spec / SpecVersion / Requirement / SpecRelation / Evidence</td><td><b>P0</b></td><td>§2.1~2.5</td></tr>
+      <tr><td><code>clemvion:plan/</code></td><td>450 md · 5.2MB (in-progress 62 = 최상위 34 + 클러스터 28 / complete 387 / research 1)</td><td>Task / TaskDependency / Evidence</td><td><b>P1</b></td><td>§2.6</td></tr>
+      <tr><td><code>clemvion:review/</code></td><td>13,777 md · 131MB (code 9,070 + consistency 4,697 + spec-coverage 10)</td><td>ReviewSession / Finding / Resolution</td><td><b>P2 — 범위 밖</b></td><td>§2.7 경계만</td></tr>
+      <tr><td><code>docs/</code>(NERV 제안서 자체)</td><td>md 13편 + 4부 8편</td><td>Spec / SpecVersion / Requirement (+ backlog 스토리 → Task)</td><td>P1(도그푸딩)</td><td>§5</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>순수 135 md의 frontmatter <code>status</code> 분포는 <b>implemented 117 / partial 17 / backlog 1</b>(<code>spec-only</code>·<code>archived</code> 0)이다. 이 수치는 <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a> §3.1이 2026-08-14에 재검증한 정본이며, 세는 방법 자체가 함정이라는 점이 §2.1의 파싱 규칙으로 이어진다.</p>
+
+  <h3>1.2 임포트는 복제다 — 컷오버와 구분</h3>
+
+  <p>이 임포터는 D-12(clemvion 점진 이관)의 실행 도구다. 로드맵 §7.2의 구분을 그대로 계승한다.</p>
+  <ul>
+    <li><b>임포트(복제)</b> — NERV가 git의 사본을 읽어 들이는 것. <b>SoT(단일 진실)는 여전히 git</b>이다. Phase 0(spec)·Phase 1(plan)에서 수행하며, 이 문서가 다루는 전부다.</li>
+    <li><b>컷오버(쓰기 경로 전환)</b> — SoT가 NERV로 넘어가는 것(M1~M4). 사전 조건·검증·롤백은 로드맵 §7.4~7.6이 정본이며, 그 사전 조건 중 두 가지 — "임포터가 멱등 재실행 검증을 통과했다(신규 생성 0)", "정합 검사 — 원본 파일 수 ↔ 레코드 수, 샘플 30건의 본문 해시 일치" — 를 이 임포터가 공급한다.</li>
+  </ul>
+  <p>임포트 기간에 NERV는 미러이므로, 원본이 갱신되면 임포터를 재실행해 따라잡는다(§3.4 변경분만 규칙). 양방향 동기화는 만들지 않는다 — 그것은 M4(Phase 3+)의 착수 조건부 항목이다.</p>
+
+  <h3>1.3 목표와 비목표</h3>
+
+  <p><b>목표</b> (수용 기준은 §4.2 REQ-IMP-*):</p>
+  <div class="grid-2">
+    <div class="card"><b class="card-title">① 전수 계정(accounting)</b><p>스캔한 384 md 전부가 "적재 / 제외(카탈로그) / 실패 / 수동 확인" 중 정확히 하나로 분류되어 리포트에 남는다. 조용히 사라지는 파일이 0이다.</p></div>
+    <div class="card"><b class="card-title">② 정보 손실 0</b><p>본문은 바이트 그대로 보존한다. frontmatter는 필드로 흡수하되 원문 해시를 매니페스트에 남긴다.</p></div>
+    <div class="card"><b class="card-title">③ 멱등 재실행</b><p>같은 입력으로 몇 번을 돌려도 결과가 같다(로드맵 Phase 0 종료 조건 0-7).</p></div>
+    <div class="card"><b class="card-title">④ 추정 금지</b><p>자동으로 알 수 없는 것(owner의 신원, 요구사항 단위 구현 상태, 우선순위 미표기)은 추정해 채우지 않고 수동 확인 큐로 보낸다.</p></div>
+  </div>
+
+  <p><b>비목표</b>:</p>
+  <ul>
+    <li><code>review/</code> 소급 임포트 — P2(§2.7).</li>
+    <li>과거 실행 이력의 위조 — Claim·AgentSession은 실행의 기록이므로 임포터가 소급 생성하지 않는다(§2.6).</li>
+    <li>위임 명세 4요소의 소급 생성 — "옛 Task를 다시 착수할 때 명세를 채워야 <code>ready</code>로 전이한다"(로드맵 §7.3(2), FR-05).</li>
+    <li>git 이력(과거 커밋)의 버전 이력 재구성 — 임포트 시점 스냅샷 1개 버전만 만든다. 과거 이력은 git이 계속 보관한다(D-01의 역할 분담).</li>
+  </ul>
+
+  <h2 id="sec-2">2. 파싱 규칙</h2>
+
+  <h3>2.1 스캔 대상·제외·집계 대조 — clemvion 프로파일</h3>
+
+  <p>임포터는 <b>소스 프로파일(profile)</b> 단위로 스캔 글롭·제외 글롭·매핑 규칙·기대 집계를 고정한다. <code>clemvion</code> 프로파일:</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>항목</th><th>값</th></tr></thead>
+    <tbody>
+      <tr><td>스캔 루트</td><td><code>--root</code>로 받은 clemvion 체크아웃(READ-ONLY — 임포터는 원본에 어떤 쓰기도 하지 않는다)</td></tr>
+      <tr><td>spec 스캔</td><td><code>spec/**/*.md</code> — 384 md</td></tr>
+      <tr><td>spec 제외</td><td>기계생성 API 카탈로그 249 md(제외 글롭은 프로파일에 명시 고정) — 커밋 해시로 재생성 가능한 기계 산출물은 옮기지 않는다. <code>_prompts/</code>를 git에서 뺀 clemvion 자신의 판단, 그리고 "결론 영구·입력 휘발"(D-07)과 같은 원칙</td></tr>
+      <tr><td>plan 스캔</td><td><code>plan/{in-progress,complete,research}/**/*.md</code> — 450 md</td></tr>
+      <tr><td>기대 집계</td><td>적재 대상 총수 <b>135</b> — 불일치 시 <b>중단(abort)</b>. status 분포 <b>117/17/1</b> — 불일치 시 경고(warn)</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout evidence"><span class="ico">📊</span><div class="body">
+    <b class="title">파싱 규칙 · frontmatter는 문서 선두 블록만 센다</b>
+    <p>단순 <code>grep '^status:'</code> 라인 집계는 <b>118/18/1/1(합 138)</b>로 부풀려진다 — 규약 문서 <code>clemvion:spec/conventions/spec-impl-evidence.md</code>(5회)와 <code>clemvion:spec/conventions/swagger.md</code>(2회)가 <b>본문에 예시 frontmatter를 담고 있기 때문</b>이다. 임포터의 파서는 파일 첫 줄이 <code>---</code>일 때 그 블록 하나만 frontmatter로 취급하고, 본문 중간의 코드펜스·인용 예시는 절대 세지 않는다. 올바르게 파싱하면 117/17/1이고 합이 정확히 135로 맞는다(<a href="clemvion-analysis.html">1.1 분석</a> §3.1). 기대 집계를 프로파일에 선언해 두는 이유가 이것이다 — <b>측정 방법이 흔들리는 수치(P4)를 임포터가 재생산하면 안 된다.</b></p>
+  </div></div>
+
+  <h3>2.2 디렉터리 계층 → 스펙 트리</h3>
+
+  <p><a href="roadmap.html">로드맵</a> §7.3(1)의 매핑을 규칙으로 확정한다. clemvion <code>spec/</code>의 실측 계층은 루트 진입 문서 3건 + 영역 폴더 7개(2-navigation 18 · 3-workflow-editor 7 · 4-nodes 44(하위 7 카테고리) · 5-system 18 · 7-channel-web-chat 7 · conventions 22+카탈로그 249 · data-flow 16)다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>원본</th><th>Spec 노드</th><th><code>spec.type</code></th><th>규칙</th></tr></thead>
+    <tbody>
+      <tr><td>영역 디렉터리(예: <code>spec/2-navigation/</code>)</td><td>트리 중간 노드</td><td><code>area</code></td><td>디렉터리당 노드 1개. 자체 <code>_product-overview.md</code>가 있으면 그 본문이 이 노드의 SpecVersion. 없으면 본문 없는 노드로 만들고 리포트에 표기(Spec은 트리 노드일 뿐 본문을 갖지 않는다 — 데이터 모델 §2.2)</td></tr>
+      <tr><td><code>N-name.md</code> 개별 문서</td><td>리프 노드</td><td><code>feature</code></td><td>부모 = 소속 디렉터리의 area 노드</td></tr>
+      <tr><td><code>conventions/**</code>(카탈로그 제외)</td><td>리프 노드</td><td><code>convention</code></td><td></td></tr>
+      <tr><td>루트 진입 문서 3건</td><td>리프 노드</td><td>프로파일 예외 표로 고정: <code>0-overview.md</code> → <code>vision</code>, <code>1-data-model.md</code>·<code>6-brand.md</code> → <code>design</code></td><td>자동 판정하지 않는다</td></tr>
+      <tr><td><code>## Rationale</code>만으로 결정을 담은 문서</td><td>리프 노드</td><td><code>adr</code> <b>후보</b> — 자동 전환하지 않고 수동 확인 큐</td><td>로드맵 §7.3(1) "Rationale 단독 결정→<code>adr</code> 후보"</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>필드 채움 규칙:</p>
+  <ul>
+    <li><code>spec.key</code> ← frontmatter <code>id</code>(kebab-case). 옛 id는 이렇게 <b>별칭으로 보존</b>되어 기존 인용이 살아남는다(로드맵 §7.3(1)). 같은 프로젝트에서 key가 충돌하면 <b>중단</b> — clemvion은 "basename 충돌 시 영역 prefix" 관행으로 id 유일성을 유지해 왔으므로 충돌은 원본 결함이고, 임포터가 임의로 개명하지 않는다.</li>
+    <li><code>spec.sort_key</code> ← 파일·디렉터리명의 정수 접두(<code>0-</code>/<code>1-</code>/<code>5-</code> …). "정수 접두 규약을 데이터로 흡수"하는 자리가 정확히 이 필드다(데이터 모델 §2.2).</li>
+    <li><code>spec.title</code> ← 본문 첫 <code># </code> 헤딩. 없으면 파일명(리포트 warn).</li>
+    <li><code>spec.archived_at</code> ← <code>status: archived</code>일 때 임포트 실행 시각(현재 실측 0건).</li>
+    <li><code>spec.current_version_id</code> ← 이번 실행이 만든 SpecVersion.</li>
+  </ul>
+
+  <h3>2.3 spec frontmatter → 필드 매핑</h3>
+
+  <p>의미 정본인 <a href="data-model.html">데이터 모델</a> §3.1을 실행 규칙으로 옮긴 표다. 컬럼명·값은 전부 그 문서와 1:1이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>clemvion 필드</th><th>NERV 대응</th><th>임포터 규칙</th></tr></thead>
+    <tbody>
+      <tr><td><code>id:</code> (kebab-case, basename 기반)</td><td><code>spec.key</code> + <code>spec.id</code>(서버 발급 UUID)</td><td>§2.2. UUID가 정본, 옛 id는 별칭</td></tr>
+      <tr><td><code>status:</code> 5값</td><td><b>2축 분해</b> — 문서 축 <code>spec_version.status</code> + 구현 축 <code>requirement.impl_status</code></td><td>아래 분해 표</td></tr>
+      <tr><td><code>code:</code> glob 목록</td><td><code>evidence(kind='code_path', locator=glob)</code> 다중 행</td><td>glob당 1행. <code>source='human'</code>(실행자 위임), <code>stale=false</code>로 적재 후 <b>경로 실존 검사</b>를 돌려 미매치 glob은 <code>stale=true</code> + 수동 확인 큐 — "stale glob은 본 가드만으로 검출 불가"(R-1)라던 자기 인정 약점을 임포트 직후 값으로 드러낸다</td></tr>
+      <tr><td><code>pending_plans:</code></td><td><code>task(source_requirement_id=…, status≠done)</code> 링크</td><td>P0 시점에는 Task가 없으므로 경로를 매니페스트의 미해소 목록에 적어 두고, <b>P1 plan 임포트가 해소</b>한다. 요구사항 단위 지정이 불가능한 항목은 Task의 <code>source_spec_version_id</code>만 세팅하고 수동 확인 큐로</td></tr>
+      <tr><td><code>user_guide:</code></td><td><code>evidence(kind='user_guide')</code></td><td>가드 미적용(R-10)이던 필드가 다른 증적과 같은 검증 경로에 올라온다</td></tr>
+      <tr><td>요구사항 표(<code>NAV-WF-01</code> 등)</td><td><code>requirement</code> 행</td><td>§2.5</td></tr>
+      <tr><td>요구사항 표 ✅ 마크</td><td><b>폐기</b></td><td>커버리지는 관계에서 계산한다(D-03). 131개 대 0개로 이미 갈라진 수동 표기를 데이터로 승격하지 않는다</td></tr>
+      <tr><td><code>## Overview</code> / 본문 / <code>## Rationale</code></td><td><code>spec_version.body_md</code> 안에 그대로</td><td>§2.4 — 3섹션 규약은 본문 규약으로 유지, 위치 불변</td></tr>
+      <tr><td><code>&gt; 관련 문서:</code> 상대링크</td><td><code>spec_relation</code> 행</td><td>§2.4 — 관계 종류는 전부 <code>references</code>(종류 추정 금지)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>status 분해 표</b> — 로드맵 §7.3(1)이 열어 둔 선택지("문서 <code>draft</code> 또는 <code>approved</code>")를 다음처럼 확정한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>clemvion <code>status</code></th><th>실측</th><th>문서 축 <code>spec_version.status</code></th><th>구현 축 <code>requirement.impl_status</code> 초기값</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td><code>backlog</code></td><td>1</td><td><span class="badge draft">draft</span></td><td><code>unimplemented</code></td><td>clemvion 라이프사이클에서 backlog는 "id가 <code>0-overview.md</code> 본문에 등장 의무"만 있는 약속 전 단계 — 문서 합의가 없다</td></tr>
+      <tr><td><code>spec-only</code></td><td>0</td><td><span class="badge approved">approved</span></td><td><code>unimplemented</code></td><td>스펙 본문은 완성·합의됐고 구현만 없는 상태. TTL 90일 빌드 실패 규약은 "approved + 파생 Task 0건" 워커 스캔으로 대체(데이터 모델 §3.1)</td></tr>
+      <tr><td><code>partial</code></td><td>17</td><td><span class="badge approved">approved</span></td><td><code>in_progress</code></td><td>로드맵 "partial→approved + Requirement 일부 in_progress"</td></tr>
+      <tr><td><code>implemented</code></td><td>117</td><td><span class="badge approved">approved</span></td><td><code>implemented</code></td><td></td></tr>
+      <tr><td><code>archived</code></td><td>0</td><td><span class="badge blocked">deprecated</span></td><td>유지(변경 없음)</td><td>+ <code>spec.archived_at</code> 세팅</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">손실 주의 — 구현 축 초기값은 문서 status의 복사본이다</b>
+    <p>문서 단위 값 하나를 요구사항 단위로 자동 분해할 수는 없다(로드맵 §7.3(1) 손실 주의). 1,750줄 문서에 status 값이 하나뿐이어서 <code>CCH-SE-02</code>("spec이 <code>필수</code>로 약속한 update dedup이 통째로 미구현")가 통과한 것이 D-02의 기원 사고다. 그래서 <code>partial</code> 문서에서 나온 모든 Requirement 행은 <b>수동 확인 큐</b>(리포트의 manual 분류, §4.1)에 올라가고, 사람이 요구사항 단위로 확정한다. 임포터는 이 확정을 대신하지 않는다.</p>
+  </div></div>
+
+  <p>approved 버전의 결재 메타는 위조하지 않는다: <code>spec_version.approved_at</code> = 임포트 실행 시각(플랫폼 관점의 적재 시점), <code>approved_by_user_id</code> = NULL(소급 결재자 없음), <code>author_user_id</code> = CLI <code>--as-user</code> 실행자, <code>author_session_id</code> = NULL. 이후의 편집은 임포트가 아니라 정상 워크플로(draft → in_review → approved, <a href="spec-workflow.html">3.5 스펙 워크플로우</a> 정본)를 탄다.</p>
+
+  <h3>2.4 본문 처리 — 원문 보존이 제1규칙</h3>
+
+  <ol>
+    <li><b>바이트 보존</b> — <code>spec_version.body_md</code>는 frontmatter 블록(선두 <code>---</code> … <code>---</code>)을 제외한 본문과 바이트 동일하다. <code>content_hash = sha256(body_md)</code>(데이터 모델 §2.2의 정의 그대로)가 대조 키다. 요구사항 추출(§2.5)·링크 해소는 <b>파생 데이터를 만들 뿐 본문을 수정하지 않는다</b>.</li>
+    <li><b><code>## Rationale</code> 유지</b> — 3섹션 규약(<code>## Overview</code> → 본문 → <code>## Rationale</code>, Rationale 실측 105개 문서)은 본문 안에 그대로 남는다. "폐기된 대안 보존은 문화로 유지, 위치는 그대로"(데이터 모델 §3.1). Rationale만으로 구성된 결정 문서는 <code>adr</code> 후보로 수동 확인 큐에 올린다(§2.2).</li>
+    <li><b>상호참조 링크 → <code>spec_relation</code></b> — 본문의 in-repo 상대링크(스펙→스펙)를 해소해 <code>spec_relation(kind='references')</code> 행을 만든다. 해소 실패 링크는 행을 만들지 않고 리포트로 남긴다(로드맵 §7.3(1) "변환 실패 링크는 리포트로"). 본문 자체의 링크 재작성은 기본 <b>off</b>다 — 켜려면 <code>--rewrite-links</code>(§3.1)를 쓰며, 이때도 원문 버전(v1)을 남기고 재작성본을 후속 버전(v2)으로 얹어 정보 손실 0을 유지한다.</li>
+  </ol>
+
+  <h3>2.5 요구사항 추출 — <code>[A-Z]+-[A-Z]+-\d+</code> 휴리스틱</h3>
+
+  <p>clemvion의 요구사항 ID는 <code>NAV-WF-01</code> · <code>ED-CV-01</code> · <code>ND-AG-24</code> · <code>CCH-SE-02</code> 형식(영역-화면-순번)으로 <code>_product-overview.md</code>의 표 안에서 정의되고, 커밋 메시지가 이 ID로 대화한다(<a href="clemvion-analysis.html">1.1 분석</a> §3.1). 추출 규칙:</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>규칙</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><b>정의 위치</b> — <code>_product-overview.md</code> 본문 표의 행 중 정규식 <code>[A-Z]+-[A-Z]+-\d+</code>에 매칭되는 ID 토큰을 가진 행만 정의로 취급한다. 본문 다른 곳의 등장은 참조일 뿐이며 행을 만들지 않는다</td></tr>
+      <tr><td>2</td><td><b>필드</b> — <code>requirement.ref</code> ← ID 원문(임포트 원본 어휘 계승 — 데이터 모델 §5.1 "요구사항 ref: <code>REQ-&lt;영역&gt;-&lt;번호&gt;</code> 또는 임포트 원본(<code>NAV-WF-01</code>)"). <code>statement_md</code> ← 행의 설명 셀 원문. <code>acceptance_md</code> ← 수용 기준 셀이 있으면 그 원문 — <b>EARS 정규화는 자동으로 하지 않는다</b>(사람 확인, 로드맵 §7.3(1))</td></tr>
+      <tr><td>3</td><td><b>소속</b> — <code>requirement.spec_id</code> = 그 <code>_product-overview.md</code>를 본문으로 갖는 area 노드. feature 단위 재배치가 필요해 보이는 행은 수동 확인 큐로</td></tr>
+      <tr><td>4</td><td><b>우선순위</b> — 필수→<code>must</code>, 권장→<code>should</code>(데이터 모델 §2.2의 매핑). 미표기는 NULL로 두고 추정하지 않는다 — plan <code>priority</code> 미선언을 null로 두는 로드맵 §7.3(2)와 같은 원칙</td></tr>
+      <tr><td>5</td><td><b>구현 상태</b> — <code>impl_status</code> 초기값은 소속 문서의 status 복사(§2.3 분해 표), <code>partial</code> 유래는 전건 수동 확인 큐</td></tr>
+      <tr><td>6</td><td><b>중복 ref</b> — <code>UNIQUE (project_id, ref)</code> 위반이 되는 두 번째 정의 행은 건너뛰고(첫 행 적재) 수동 확인 큐로</td></tr>
+      <tr><td>7</td><td><b>버전 델타</b> — <code>requirement.introduced_in_version_id</code> = <code>current_version_id</code> = 이번 임포트 버전. <code>requirement_version</code> 행은 <code>change_kind='added'</code>, <code>ordinal</code> = 표 내 순서, <code>statement_md</code> = 시점 스냅샷</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>✅ 마크는 읽지 않는다(§2.3 — 폐기). 상태 컬럼이 아예 없는 영역(<code>3-workflow-editor</code>·<code>7-channel-web-chat</code>)과 131개가 칠해진 영역(<code>2-navigation</code>)이 공존하는 표기를 신뢰할 수 없기 때문이며, 커버리지는 이후 관계에서 계산된다(D-03, FR-13).</p>
+
+  <h3>2.6 plan frontmatter → Task 매핑 (P1)</h3>
+
+  <p>의미 정본은 <a href="data-model.html">데이터 모델</a> §3.2, 규칙 정본은 <a href="roadmap.html">로드맵</a> §7.3(2)다. plan 필수 3필드는 <code>worktree:</code>(미착수 sentinel <code>(unstarted)</code>) · <code>started:</code>(ISO 날짜) · <code>owner:</code>다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>clemvion</th><th>NERV</th><th>임포터 규칙</th></tr></thead>
+    <tbody>
+      <tr><td>md 파일 1건</td><td><code>task</code> 1행</td><td><code>plan/research/</code>(1건)는 Task를 만들지 않고 리포트에 "참고 문서" 분류만 남긴다(로드맵 §7.3(2)). 클러스터(하위 디렉터리 28건)의 묶음 정보는 매니페스트에 기록하되 Task 간 관계는 만들지 않는다 — 관계 추정 금지</td></tr>
+      <tr><td>디렉터리 + <code>worktree:</code></td><td><code>task.status</code></td><td><code>complete/</code> → <code>done</code>(+<code>done_at</code>=임포트 시각), <code>in-progress/</code> + <code>worktree: (unstarted)</code>(13/34) → <code>backlog</code>, <code>in-progress/</code> + worktree 값 있음 → <code>in_progress</code>. <b><code>ready</code>로는 절대 적재하지 않는다</b> — 위임 명세 4요소를 소급 생성하지 않으므로(FR-05) <code>backlog → ready</code> 전이 조건을 만족할 수 없다</td></tr>
+      <tr><td><code>started:</code></td><td><code>task.created_at</code></td><td>데이터 모델 §3.2의 매핑. 값 없음·placeholder면 파일의 git 최초 커밋 시각이 아니라 <b>NULL 계열로 두지 않고</b> 임포트 시각 + 리포트 warn(시각 추정 금지)</td></tr>
+      <tr><td><code>owner:</code>(자유 텍스트)</td><td><code>task.assignee_user_id</code></td><td><b>owner는 신원이 아니다</b> — 최상위 34건의 실측 분포: <code>developer</code> 17 / <code>project-planner</code> 8 / <code>planner</code> 5 / <code>developer (TBD)</code> 2 / <code>사용자 본인 / planner</code> 1 / <code>developer (다음 진입자)</code> 1. CLI <code>--owner-map</code>(라벨→이메일 수동 매핑 테이블)으로만 배정하고, <b>매핑 불가 항목은 assignee NULL(unassigned)로 적재 후 사람이 배정한다</b>(로드맵 §7.3(2))</td></tr>
+      <tr><td><code>priority:</code>(P1~P3, 15/34만 선언)</td><td><code>task.priority</code></td><td>선언된 것만. "미선언은 null로 두고 추정하지 않는다"(로드맵 §7.3(2))</td></tr>
+      <tr><td><code>spec_impact:</code>(Gate C — 완료 plan)</td><td><code>task.spec_impact</code> jsonb</td><td>스펙 경로 목록 → 매니페스트로 스펙 UUID 변환, sentinel(<code>none</code>/<code>없음</code>/<code>n/a</code>/<code>na</code> — Gate C 어휘 4종) → <code>{"none": true}</code>(데이터 모델 §2.4). 경로 해소 실패는 수동 확인 큐</td></tr>
+      <tr><td>plan 본문 체크박스</td><td>Task 체크리스트(본문 유지)</td><td>하위 Task 분해는 임포트 옵션(<code>--split-checkboxes</code>, 기본 off — 로드맵 "분해 기준은 임포트 옵션"). 기본값에서 본문은 <code>task.body_md</code>에 바이트 보존</td></tr>
+      <tr><td>본문</td><td><code>task.title</code> · <code>task.body_md</code></td><td>title ← 첫 <code># </code> 헤딩(없으면 파일명), body ← frontmatter 제외 본문 원문</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">소급 위조 금지</b>
+    <p>임포터는 <code>claim</code>·<code>agent_session</code> 행을 만들지 않는다. 둘은 실행의 기록이지 문서의 번역이 아니다. <code>worktree:</code> 값(살아있는 worktree 디렉토리명)은 매니페스트에 보존만 하고, 그 디렉터리가 현재 실존하지 않으면 리포트 warn으로 남긴다 — "머지된 값을 두면 가드가 '연결된 plan 없음'으로 오판해 무장 해제된다"던 스칼라 필드의 한계(<a href="clemvion-analysis.html">1.1 분석</a> §3.3)는 NERV에서 claim 테이블이 대체하며, 그 claim은 재착수 시점에 실제 세션이 만든다.</p>
+  </div></div>
+
+  <h3>2.7 review 소급은 P2 — 경계만 명시</h3>
+
+  <p><code>review/</code> 13,777 md의 소급은 Phase 2다(로드맵 §3 "review P2" · §7.3(3)). MVP 임포터는 이 경로를 구현하지 않는다. P2 착수 시의 정본 규칙만 재인용해 둔다: 결론(SUMMARY·RESOLUTION)만 소급하고 <code>_prompts/</code>(리뷰 전체의 ~70%, 이미 gitignored)는 이관하지 않는다 · 커밋 SHA가 <code>meta.json</code>에 필드 자체가 없으므로(표본 200개 SUMMARY 중 47개만 산문에 해시 언급) NULL + <code>provenance_incomplete</code> 플래그를 세우고 게이트 판정 입력으로 쓰지 않는다 · 멱등 키는 <code>(source_path, content_hash)</code>다.</p>
+
+  <h2 id="sec-3">3. 실행 모델</h2>
+
+  <h3>3.1 CLI — <code>nerv import</code></h3>
+
+  <p>임포터는 CLI다. <b>dry-run이 기본</b>이고, DB에 쓰려면 <code>--apply</code>를 명시해야 한다.</p>
+
+<pre><code>nerv import spec  --profile clemvion --root &lt;clemvion 체크아웃 경로&gt; --project &lt;프로젝트 slug&gt;
+                  [--apply] [--map &lt;매니페스트 경로&gt;] [--report-dir &lt;디렉터리&gt;]
+                  [--rewrite-links] [--as-user &lt;이메일&gt;]
+
+nerv import plan  --profile clemvion --root &lt;경로&gt; --project &lt;slug&gt;
+                  [--apply] [--map …] [--report-dir …] [--owner-map &lt;owners.yaml&gt;] [--split-checkboxes]
+
+nerv import docs  --profile nerv-docs --root docs/ --project &lt;slug&gt; [--apply] …   # §5 도그푸딩
+
+nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;slug&gt; --map &lt;출력 경로&gt;</code></pre>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>옵션</th><th>의미</th><th>기본값</th></tr></thead>
+    <tbody>
+      <tr><td><code>--apply</code></td><td>실제 적재. 없으면 dry-run — DB 쓰기 0, 리포트·매니페스트 초안만 산출</td><td>off</td></tr>
+      <tr><td><code>--map</code></td><td>멱등 매니페스트 파일(§3.3)</td><td><code>./nerv-import.map.json</code></td></tr>
+      <tr><td><code>--report-dir</code></td><td>리포트 출력 위치(§4.1 — <code>report.md</code> + <code>report.jsonl</code>)</td><td><code>./nerv-import-report/</code></td></tr>
+      <tr><td><code>--owner-map</code></td><td>plan <code>owner:</code> 라벨 → 사용자 이메일 수동 매핑(yaml). 없으면 전건 unassigned</td><td>없음</td></tr>
+      <tr><td><code>--as-user</code></td><td>적재 레코드의 <code>author_user_id</code>가 될 실행자 계정</td><td>필수</td></tr>
+      <tr><td><code>--rewrite-links</code></td><td>원문 버전 위에 링크 재작성 버전을 추가(§2.4)</td><td>off</td></tr>
+      <tr><td><code>--split-checkboxes</code></td><td>plan 체크박스를 하위 Task로 분해</td><td>off</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>종료 코드: <code>0</code> = 실패 0건 완료 · <code>1</code> = 완료했으나 실패·수동 확인 항목 존재(리포트 확인) · <code>2</code> = 중단(abort — §4.1).</p>
+
+  <h3>3.2 실행 컨텍스트 — 같은 코드베이스, 도메인 서비스 직결</h3>
+
+  <p>임포터는 별도 서비스가 아니라 API와 <b>같은 코드베이스의 CLI 엔트리</b>다(빌드·배치는 <a href="codebase.html">4.2 코드베이스와 배포</a> 소관). REST·MCP·WS가 같은 도메인 서비스를 DI로 공유하는 것(D-05)과 같은 구조로, 임포터도 그 저장 계층을 주입받아 실행한다. 단 두 가지가 다르다:</p>
+
+  <ol>
+    <li><b>워크플로 전이 검사는 우회한다.</b> 소급 적재는 상태 전이가 아니라 초기 적재다 — <code>approved</code> 버전을 승인 절차 없이 만들고, <code>done</code> Task를 게이트 판정 없이 만든다. "모든 상태 전이는 Event를 남긴다"(데이터 모델 §5.5-6)와 충돌하지 않는다: 전이가 없으므로 전이 이벤트도 없다. 임포트 이후의 첫 편집부터는 정상 워크플로와 이벤트가 흐른다.</li>
+    <li><b>무결성 제약은 그대로 받는다.</b> approved 본문 불변 트리거, <code>UNIQUE (project_id, ref)</code>, partial unique 등 스키마 제약(<a href="database.html">4.3 데이터베이스 스키마</a>)은 임포터에게도 예외가 없다. 제약 위반은 그 파일 트랜잭션의 실패로 리포트에 남는다.</li>
+  </ol>
+
+  <p>DB 접속은 서버와 같은 <code>DATABASE_URL</code>을 쓰며, 로컬 compose에서는 api 컨테이너 안에서, 운영 k8s에서는 일회성 Job으로 실행한다(배포 형태는 codebase.md 정본).</p>
+
+  <h3>3.3 멱등 키와 매니페스트</h3>
+
+  <p>멱등의 단위는 <b>(프로파일, 소스 경로, frontmatter id)</b> 다. 실행 결과는 매니페스트(JSON)에 기록되고, 재실행은 매니페스트를 먼저 읽는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>매니페스트 필드</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td><code>profile</code> · <code>project</code> · <code>root_commit</code></td><td>프로파일, 대상 프로젝트, 스캔 시점 원본의 git HEAD SHA</td></tr>
+      <tr><td><code>items[]</code></td><td>항목별: <code>source_path</code>, <code>kind</code>(spec/plan), 원본 frontmatter <code>id</code>, 생성된 <code>spec.id</code>/<code>task.id</code>(UUID), 최신 <code>spec_version.id</code>, <code>content_hash</code>, 추출된 <code>requirement.ref</code> → UUID 맵</td></tr>
+      <tr><td><code>unresolved</code></td><td>미해소 <code>pending_plans</code> 경로 목록(P1에서 해소), 해소 실패 링크</td></tr>
+      <tr><td><code>aliases</code></td><td>원본 경로·id → NERV UUID 별칭 표 — 이후 링크 재작성·plan <code>spec_impact</code> 경로 변환이 이 표를 쓴다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>서버가 진실이고 매니페스트는 캐시다.</b> 매니페스트를 잃어버려도 중복 적재로 이어지지 않는다 — <code>--apply</code> 시 임포터는 자연 키(<code>(project, spec.key)</code>, <code>(project_id, requirement.ref)</code>)로 서버를 먼저 조회하고, 매니페스트 없이 동일 키가 이미 존재하면 <b>중단</b>하며 <code>nerv import rebuild-map</code>을 안내한다. <code>rebuild-map</code>은 자연 키 대조로 매니페스트를 서버에서 재구성한다(Task는 자연 키가 없어 제목 매칭으로 후보를 제시하고, 모호 항목은 수동 확인 큐로).</p>
+
+  <h3>3.4 재실행 규칙 — 변경분만</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>재실행 시점의 원본 상태</th><th>동작</th></tr></thead>
+    <tbody>
+      <tr><td><code>content_hash</code> 동일(무변경)</td><td><b>건드리지 않는다</b> — 신규 레코드 0(로드맵 0-7의 정의 그대로)</td></tr>
+      <tr><td>본문 변경</td><td>그 스펙에 새 SpecVersion을 추가하고 <code>current_version_id</code> 갱신. 요구사항 표 델타는 <code>requirement_version.change_kind</code>(<code>added</code>/<code>modified</code>/<code>removed</code>/<code>unchanged</code>)로 기록</td></tr>
+      <tr><td>파일 이동(경로 변경, id 동일)</td><td>매니페스트의 id 매칭으로 같은 Spec으로 인식, <code>source_path</code>만 갱신(트리 위치 변경은 수동 확인 큐 — 부모 추정 금지)</td></tr>
+      <tr><td>파일 삭제</td><td>Spec을 삭제하지 않는다 — 리포트에 "원본 소멸" 표기만. 아카이브 여부는 사람이 결정</td></tr>
+      <tr><td>plan <code>in-progress/</code> → <code>complete/</code> 이동</td><td>같은 Task의 <code>status</code>를 <code>done</code>으로 갱신(basename 동일 + 매니페스트 매칭)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.5 트랜잭션 단위와 실행 패스</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 300" role="img" aria-label="임포터 실행 패스: 스캔, 파싱, 검증 후 dry-run이면 리포트만, --apply면 구조·문서·링크 패스를 거쳐 리포트와 매니페스트 확정">
+      <defs>
+        <marker id="imp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <!-- Row 1 -->
+      <rect x="24" y="36" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="114" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">① 스캔</text>
+      <text x="114" y="82" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">글롭 · 제외 · 기대 집계 대조</text>
+
+      <rect x="244" y="36" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="334" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">② 파싱</text>
+      <text x="334" y="82" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">frontmatter · 본문 · REQ 추출</text>
+
+      <rect x="464" y="36" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="554" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">③ 검증</text>
+      <text x="554" y="82" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">규칙 판정 · 리포트 행 축적</text>
+
+      <rect x="684" y="36" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)" stroke-dasharray="5 3"/>
+      <text x="774" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">리포트 + 매니페스트 초안</text>
+      <text x="774" y="82" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">DB 쓰기 0</text>
+
+      <line x1="204" y1="68" x2="240" y2="68" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#imp-arrow)"/>
+      <line x1="424" y1="68" x2="460" y2="68" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#imp-arrow)"/>
+      <line x1="644" y1="68" x2="680" y2="68" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#imp-arrow)"/>
+      <text x="662" y="28" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">dry-run (기본)</text>
+
+      <!-- Branch: --apply -->
+      <path d="M554,100 L554,140 L114,140 L114,176" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#imp-arrow)"/>
+      <text x="334" y="132" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="11" font-weight="700">--apply</text>
+
+      <!-- Row 2 -->
+      <rect x="24" y="180" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--accent)"/>
+      <text x="114" y="206" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">④ 구조 패스</text>
+      <text x="114" y="226" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">스펙 트리 upsert · 트랜잭션 1건</text>
+
+      <rect x="244" y="180" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--accent)"/>
+      <text x="334" y="206" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">⑤ 문서 패스</text>
+      <text x="334" y="226" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">파일 1건 = 트랜잭션 1건</text>
+
+      <rect x="464" y="180" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--accent)"/>
+      <text x="554" y="206" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">⑥ 링크 패스</text>
+      <text x="554" y="226" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">spec_relation · pending_plans 해소</text>
+
+      <rect x="684" y="180" width="180" height="64" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="774" y="206" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">⑦ 확정</text>
+      <text x="774" y="226" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">리포트 + 매니페스트 기록</text>
+
+      <line x1="204" y1="212" x2="240" y2="212" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#imp-arrow)"/>
+      <line x1="424" y1="212" x2="460" y2="212" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#imp-arrow)"/>
+      <line x1="644" y1="212" x2="680" y2="212" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#imp-arrow)"/>
+    </svg>
+    <div class="cap">임포터 실행 패스 — dry-run이 기본이고, <code>--apply</code>일 때만 구조→문서→링크 3패스가 DB에 쓴다</div>
+  </div>
+
+  <ul>
+    <li><b>문서 패스의 트랜잭션 단위는 파일 1건</b>이다 — 한 spec 파일이 만드는 <code>spec_version</code> + <code>requirement</code> + <code>requirement_version</code> + <code>evidence</code> 행 전부가 한 트랜잭션이고, 실패하면 그 파일만 롤백하고 다음 파일을 계속한다(리포트 skip).</li>
+    <li>구조 패스(트리 노드 upsert)와 링크 패스는 각각 트랜잭션 1건이다. 링크 해소 실패는 트랜잭션을 깨지 않고 행 생성만 건너뛴다.</li>
+    <li>중단(abort) 발생 시 이미 커밋된 파일 트랜잭션은 남는다 — 멱등 재실행이 이어서 처리하는 것이 복구 절차다.</li>
+  </ul>
+
+  <h2 id="sec-4">4. 실패 리포트와 수용 기준</h2>
+
+  <h3>4.1 리포트 형식</h3>
+
+  <p>리포트는 두 판으로 나온다 — 사람용 <code>report.md</code>(분류별 표)와 기계용 <code>report.jsonl</code>(행 단위 JSON). 행 스키마:</p>
+
+<pre><code>{"file": "spec/….md", "line": 12, "rule": "req-id-duplicate",
+ "class": "manual", "detail": "…", "hint": "…"}</code></pre>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>의미</th></tr></thead>
+    <tbody>
+      <tr><td><code>file</code> · <code>line</code></td><td>원본 파일 경로(루트 상대)와 줄 번호(파일 단위 문제는 line null)</td></tr>
+      <tr><td><code>rule</code></td><td>규칙 슬러그(아래 표)</td></tr>
+      <tr><td><code>class</code></td><td><b><code>abort</code>(중단)</b> / <b><code>skip</code>(건너뜀)</b> / <b><code>manual</code>(수동 확인)</b> / <b><code>warn</code>(경고)</b> 4분류. abort는 실행 전체를 멈추고, skip은 그 항목만 제외하고 계속하며, manual은 적재는 하되 사람 확정이 필요한 큐, warn은 정보성이다</td></tr>
+      <tr><td><code>detail</code> · <code>hint</code></td><td>사유와 권장 조치</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>규칙 전표:</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>규칙 슬러그</th><th>class</th><th>조건</th></tr></thead>
+    <tbody>
+      <tr><td><code>count-mismatch</code></td><td><span class="badge blocked">abort</span></td><td>적재 대상 총수 ≠ 기대치 135(§2.1)</td></tr>
+      <tr><td><code>map-conflict</code></td><td><span class="badge blocked">abort</span></td><td>매니페스트 없이 서버에 동일 자연 키 실존(§3.3)</td></tr>
+      <tr><td><code>id-collision</code></td><td><span class="badge blocked">abort</span></td><td>같은 프로젝트에서 frontmatter <code>id</code> 충돌(§2.2)</td></tr>
+      <tr><td><code>dist-mismatch</code></td><td><span class="badge review">warn</span></td><td>status 분포 ≠ 117/17/1</td></tr>
+      <tr><td><code>frontmatter-missing</code> / <code>frontmatter-unparsable</code></td><td><span class="badge draft">skip</span></td><td>제외 글롭 밖 파일에 선두 frontmatter 블록이 없거나 YAML 파싱 실패</td></tr>
+      <tr><td><code>status-unknown</code></td><td><span class="badge draft">skip</span></td><td>5값(<code>backlog</code>/<code>spec-only</code>/<code>partial</code>/<code>implemented</code>/<code>archived</code>) 외의 값</td></tr>
+      <tr><td><code>impl-status-doc-copied</code></td><td><span class="badge impl">manual</span></td><td><code>partial</code> 문서 유래 Requirement 전건 — 문서 status 복사값의 요구사항 단위 확정 필요(§2.3)</td></tr>
+      <tr><td><code>req-id-duplicate</code></td><td><span class="badge impl">manual</span></td><td><code>UNIQUE (project_id, ref)</code> 충돌 — 첫 정의만 적재(§2.5)</td></tr>
+      <tr><td><code>req-priority-missing</code></td><td><span class="badge impl">manual</span></td><td>우선순위 미표기 — NULL 적재(§2.5)</td></tr>
+      <tr><td><code>req-ears-nonconforming</code></td><td><span class="badge impl">manual</span></td><td>EARS 정규화 후보 — 자동 변환 금지(§2.5)</td></tr>
+      <tr><td><code>adr-candidate</code></td><td><span class="badge impl">manual</span></td><td>Rationale 단독 결정 문서(§2.2)</td></tr>
+      <tr><td><code>link-unresolved</code></td><td><span class="badge impl">manual</span></td><td>상대링크 해소 실패(§2.4)</td></tr>
+      <tr><td><code>code-glob-no-match</code></td><td><span class="badge impl">manual</span></td><td><code>code:</code> glob 실존 검사 미매치 — <code>evidence.stale=true</code>(§2.3)</td></tr>
+      <tr><td><code>pending-plan-unresolved</code></td><td><span class="badge impl">manual</span></td><td><code>pending_plans</code> 경로가 아직 Task로 해소되지 않음(P0에서는 전건 발생, P1에서 해소)</td></tr>
+      <tr><td><code>owner-unmapped</code></td><td><span class="badge impl">manual</span></td><td><code>--owner-map</code>에 없는 owner 라벨 — assignee NULL 적재(§2.6)</td></tr>
+      <tr><td><code>worktree-dead</code></td><td><span class="badge review">warn</span></td><td>plan <code>worktree:</code> 디렉터리가 현재 실존하지 않음(§2.6)</td></tr>
+      <tr><td><code>source-deleted</code></td><td><span class="badge review">warn</span></td><td>재실행 시 원본 파일 소멸(§3.4)</td></tr>
+      <tr><td><code>research-doc</code></td><td><span class="badge review">warn</span></td><td><code>plan/research/</code> — Task 미생성, 참고 문서 분류(§2.6)</td></tr>
+      <tr><td><code>title-missing</code></td><td><span class="badge review">warn</span></td><td>첫 <code># </code> 헤딩 없음 — 파일명으로 대체(§2.2)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>이 슬러그들은 임포터 리포트 어휘이며, REST의 <code>NERV_*</code> 에러 코드 체계(<a href="api.html">4.4 API 명세</a> 정본)와는 다른 층이다 — 리포트는 실행 산출물이지 API 응답이 아니다.</p>
+
+  <h3>4.2 수용 기준 (REQ-IMP-*)</h3>
+
+  <p>행동 요구는 EARS로 쓴다. 검증 방법이 명시되지 않은 항목은 통합 테스트가 clemvion 체크아웃 사본(또는 §5의 docs/ 트리)을 입력으로 실행해 확인한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준 (EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-IMP-001</b></td><td>WHEN clemvion 프로파일의 spec 임포트가 완료되면, THE SYSTEM SHALL 스캔한 384 md 각각을 적재·제외(카탈로그 249)·실패·수동 확인 중 정확히 하나로 분류해 리포트에 남기고, 적재+실패+수동 확인의 합을 135로 계정한다</td></tr>
+      <tr><td><b>REQ-IMP-002</b></td><td>WHEN spec md 1건이 적재되면, THE SYSTEM SHALL frontmatter 블록을 제외한 본문을 바이트 동일하게 <code>spec_version.body_md</code>에 저장하고 <code>content_hash = sha256(body_md)</code>를 만족시킨다</td></tr>
+      <tr><td><b>REQ-IMP-003</b></td><td>WHEN 파서가 spec 스캔을 마치면, THE SYSTEM SHALL 문서 선두 frontmatter 블록만 집계해 기대 총수 135와 대조하고, 불일치 시 적재를 중단(abort)한다. 분포(117/17/1) 불일치는 경고로 남긴다</td></tr>
+      <tr><td><b>REQ-IMP-004</b></td><td>WHEN 동일 입력으로 임포터를 연속 2회 실행하면, THE SYSTEM SHALL 두 번째 실행에서 신규 레코드를 0건 생성한다(로드맵 Phase 0 종료 조건 0-7과 동일 문구)</td></tr>
+      <tr><td><b>REQ-IMP-005</b></td><td>WHEN 재실행 시점에 원본 파일의 content_hash가 매니페스트 기록과 다르면, THE SYSTEM SHALL 해당 스펙에만 새 SpecVersion을 추가하고 무변경 파일의 기존 레코드를 수정하지 않는다</td></tr>
+      <tr><td><b>REQ-IMP-006</b></td><td>WHEN <code>--apply</code> 없이 실행되면, THE SYSTEM SHALL DB 쓰기 0건으로 리포트와 매니페스트 초안만 산출한다</td></tr>
+      <tr><td><b>REQ-IMP-007</b></td><td>WHEN 항목 1건이 자동 변환에 실패하면, THE SYSTEM SHALL 파일·줄·규칙·분류(abort/skip/manual/warn)를 리포트에 남기고, skip이면 다음 항목 처리를 계속한다</td></tr>
+      <tr><td><b>REQ-IMP-008</b></td><td>WHEN plan의 <code>owner:</code> 라벨이 <code>--owner-map</code>에 없으면, THE SYSTEM SHALL <code>assignee_user_id</code>를 NULL로 적재하고 추정 배정하지 않는다</td></tr>
+      <tr><td><b>REQ-IMP-009</b></td><td>WHEN 과거 plan을 Task로 적재하면, THE SYSTEM SHALL <code>claim</code>·<code>agent_session</code> 레코드를 생성하지 않고 <code>ready</code> 상태로 적재하지 않는다</td></tr>
+      <tr><td><b>REQ-IMP-010</b></td><td>WHEN nerv-docs 프로파일로 <code>docs/</code>를 임포트하면, THE SYSTEM SHALL 4부 8편을 frontmatter <code>status: draft</code> 그대로 draft SpecVersion으로 적재하고, 본문에 정의된 <code>REQ-*</code> ID를 requirement로 추출한다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>4.3 Phase 0 종료 조건과의 관계</h3>
+
+  <p>로드맵 §2.4의 종료 조건 두 개가 이 임포터를 직접 측정한다 — <b>0-6</b> "<code>spec/</code> frontmatter 추적 대상 135개 문서 변환 — ≥ 95% 자동 변환, 실패 항목 전건 목록화", <b>0-7</b> "임포터 2회 연속 실행 — 두 번째 실행의 신규 생성 레코드 0". 관계를 명확히 하면: Phase 0 게이트는 <b>자동 변환 ≥95%</b>로 통과하고, 나머지(≤5%의 실패·수동 확인 항목)는 리포트 큐를 사람이 처리해 최종적으로 <b>135 전수 적재</b>(REQ-IMP-001의 계정 완결)에 도달한다. 즉 0-6은 착수 게이트, REQ-IMP-001은 완료 정의다 — 둘은 모순이 아니라 시점이 다르다.</p>
+
+  <h2 id="sec-5">5. 도그푸딩 — 이 문서 세트가 첫 임포트 대상이다</h2>
+
+  <h3>5.1 nerv-docs 프로파일</h3>
+
+  <p>NERV의 제안서·MVP 문서(<code>docs/</code>)는 NERV가 가동되면 <b>첫 번째로 임포트될 스펙</b>이다. clemvion 프로파일과 같은 엔진에 매핑 표만 다른 <code>nerv-docs</code> 프로파일을 둔다:</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>항목</th><th>규칙</th></tr></thead>
+    <tbody>
+      <tr><td>스캔</td><td><code>docs/**/*.md</code>(html 판은 파생본이므로 제외 — md가 관리 원본)</td></tr>
+      <tr><td>트리</td><td>디렉터리 구조 그대로 — <code>01-problem/</code>·<code>02-research/</code>·<code>03-proposal/</code>·<code>04-mvp/</code> → <code>area</code> 노드 4개, <code>README.md</code> → <code>vision</code>, 각 문서 → <code>design</code></td></tr>
+      <tr><td>frontmatter</td><td>4부 공통 규격 <code>id</code>(<code>SPC-MVP-&lt;SLUG&gt;</code>) / <code>status</code> / <code>updated</code> — <code>id</code> → <code>spec.key</code>, <code>status: draft</code> → <code>spec_version.status='draft'</code>, <code>updated</code> → 매니페스트 보존(서버 시각을 위조하지 않는다)</td></tr>
+      <tr><td>frontmatter 없는 기존 13편</td><td><code>frontmatter-missing</code>을 skip이 아니라 <b>warn</b>으로 낮추고 문서 버전 줄(<code>문서 버전 v0.1 · …</code>)에서 메타를 읽는 보조 규칙 적용, <code>status</code>는 <code>approved</code>(합의 완료된 제안서)</td></tr>
+      <tr><td>요구사항</td><td>§2.5와 같은 휴리스틱 — <code>REQ-CB-###</code>·<code>REQ-DB-###</code>·<code>REQ-API-###</code>·<code>REQ-WEB-###</code>·<code>REQ-PLG-###</code>·<code>REQ-IMP-###</code>가 전부 <code>[A-Z]+-[A-Z]+-\d+</code>에 매칭된다. 이 문서의 REQ-IMP-001~010도 자기 자신에 의해 추출된다</td></tr>
+      <tr><td>상호 링크</td><td>상대링크 → <code>spec_relation(kind='references')</code> — 아직 없는 형제 문서 링크는 <code>link-unresolved</code>로 리포트에 남고, 문서 세트가 완성되면 재실행이 해소한다</td></tr>
+      <tr><td>backlog</td><td><a href="backlog.html">4.8 백로그</a>의 스토리(<code>E01-S01</code> 형식)는 Task 적재 후보다 — 스토리 블록 파싱 규칙은 백로그 문서의 형식 정의를 따르고, P1 plan 임포터와 같은 경로로 적재한다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.2 frontmatter가 이 규격인 이유</h3>
+
+  <p>4부 문서 머리의 <code>id: SPC-MVP-&lt;SLUG&gt;</code> / <code>status: draft</code> / <code>updated:</code> 세 필드는 장식이 아니라 <b>임포터 입력 규격</b>이다. clemvion frontmatter(<code>id</code>/<code>status</code>/<code>code</code>/<code>pending_plans</code>)가 그 하네스의 기계 강제 대상이었듯, 이 문서 세트의 frontmatter는 nerv-docs 프로파일의 파싱 대상이다. 문서를 쓰는 순간 임포트 가능성이 확보되고, 임포트 후에는 이 문서들의 개정이 NERV의 정상 워크플로(draft → in_review → approved)를 타게 된다 — 스펙 플랫폼의 스펙이 스펙 플랫폼 안에서 관리되는 상태가 도그푸딩의 완성이다.</p>
+
+  <h3>5.3 매니페스트 실물 예시 (nerv-docs)</h3>
+
+<pre><code>{
+  "profile": "nerv-docs",
+  "project": "nerv",
+  "root_commit": "&lt;git HEAD sha&gt;",
+  "items": [
+    {
+      "source_path": "docs/04-mvp/importer.md",
+      "kind": "spec",
+      "source_id": "SPC-MVP-IMPORTER",
+      "spec_id": "&lt;서버 발급 UUID&gt;",
+      "spec_version_id": "&lt;UUID&gt;",
+      "content_hash": "sha256:&lt;본문 해시&gt;",
+      "requirements": { "REQ-IMP-001": "&lt;UUID&gt;", "REQ-IMP-010": "&lt;UUID&gt;" }
+    }
+  ],
+  "unresolved": { "links": [], "pending_plans": [] },
+  "aliases": { "docs/04-mvp/importer.md": "&lt;spec UUID&gt;" }
+}</code></pre>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <p>이 문서는 clemvion 저장소를 직접 조사하지 않았다 — 모든 실측 수치·규약 인용은 <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>의 2026-08-13 READ-ONLY 실측(135 분포는 2026-08-14 재검증)과 <a href="roadmap.html">3.7 로드맵</a> §7의 재인용이다. 외부 URL 인용은 없다.</p>
+
+  <h3>정본 (이 문서가 인용만 하는 것)</h3>
+  <ul>
+    <li><a href="data-model.html">3.3 데이터 모델</a> §3 — clemvion frontmatter → NERV 필드 매핑의 의미 정본. §3.1 spec, §3.2 plan, §3.3 review. 엔티티 27종 필드 정의(§2)와 ID 전략(§5.1)</li>
+    <li><a href="roadmap.html">3.7 로드맵</a> §7 — 이관 대상 실측(§7.1), 임포트/컷오버 구분과 M1~M4(§7.2), 임포터 상세(§7.3), 병행 운영·컷오버 체크리스트(§7.4~7.5), Phase 0 종료 조건 0-6·0-7(§2.4)</li>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — FR-17(임포터), FR-03(Requirement 2축), FR-05(위임 명세 4요소와 ready), FR-13(관계 기반 커버리지)</li>
+    <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 임포트 이후 문서가 타게 되는 상태 머신·게이트의 정본</li>
+  </ul>
+
+  <h3>clemvion 실측 근거 (1.1 분석의 재인용)</h3>
+  <ul>
+    <li><code>clemvion:spec/</code> 384 md·9.3MB, 순수 스펙 135 md·49,383줄, status 분포 117/17/1, Rationale 105개, 최대 문서 1,750줄 × 2 — §1.1·§2.1</li>
+    <li><code>clemvion:spec/conventions/spec-impl-evidence.md</code> — frontmatter 스키마(<code>id</code>/<code>status</code>/<code>code</code>/<code>pending_plans</code>/<code>user_guide</code>), 5값 라이프사이클, 본문 예시 frontmatter가 grep 집계를 부풀리는 함정(5회), 자기 인정 약점 R-1·R-10 — §2.1·§2.3</li>
+    <li><code>clemvion:spec/conventions/swagger.md</code> — 본문 예시 frontmatter 2회(같은 함정) — §2.1</li>
+    <li><code>clemvion:spec/2-navigation/_product-overview.md</code> 외 — 요구사항 ID(<code>NAV-WF-01</code>·<code>ED-CV-01</code>·<code>ND-AG-24</code>·<code>CCH-SE-02</code>) 표기와 ✅ 마크 131개 vs 상태 컬럼 부재 — §2.5</li>
+    <li><code>clemvion:.claude/docs/plan-lifecycle.md</code> — plan 필수 3필드(<code>worktree</code>/<code>started</code>/<code>owner</code>), sentinel <code>(unstarted)</code>, Gate C <code>spec_impact</code>와 sentinel 어휘(<code>none</code>/<code>없음</code>/<code>n/a</code>/<code>na</code>), 종료값 4종 — §2.6</li>
+    <li><code>clemvion:plan/in-progress/</code> — owner 자유 텍스트 분포(최상위 34건: developer 17 / project-planner 8 / planner 5 / developer (TBD) 2 / 사용자 본인 / planner 1 / developer (다음 진입자) 1), 미착수 13/34, priority 15/34 — §2.6</li>
+    <li><code>clemvion:plan/in-progress/retry-turn-terminal-guard.md</code> — worktree 스칼라 필드의 무장 해제 사고 — §2.6</li>
+    <li><code>clemvion:review/**</code> — 13,777 md·131MB, <code>_prompts/</code> ~70%, <code>meta.json</code>의 커밋 필드 부재(표본 200개 중 47개만 산문 해시) — §2.7</li>
+  </ul>
+
+  <h3>4부 형제 문서</h3>
+  <ul>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 이 임포터가 속한 MVP 범위(FR-17 P0·P1 배정)</li>
+    <li><a href="codebase.html">4.2 코드베이스와 배포</a> — CLI 엔트리의 모노레포 배치·빌드·실행 형태</li>
+    <li><a href="database.html">4.3 데이터베이스 스키마</a> — 임포터가 그대로 받는 DDL 제약(트리거·유니크)과 개발 시드</li>
+    <li><a href="api.html">4.4 API 명세</a> — <code>NERV_*</code> 에러 코드 체계(리포트 어휘와 다른 층임을 §4.1이 명시)</li>
+    <li><a href="backlog.html">4.8 백로그</a> — 임포터 스토리 분해와 E2E 수용 시나리오(135 md 전수), 스토리 자체가 임포트 대상(§5.1)</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="plugin.html">이전: 4.6 플러그인과 온보딩</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="backlog.html">다음: 4.8 백로그</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

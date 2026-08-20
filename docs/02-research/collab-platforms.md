@@ -263,7 +263,7 @@ Slack의 AI 앱(에이전트)은 상단 바에서 열리는 **스플릿 뷰 컨�
 | `assistant.threads.setStatus` | "thinking…" 로딩 상태 표시 | Activity `thought`(ephemeral) → 세션 카드 상태 라인 |
 | `assistant.threads.setTitle` | 스레드 제목 설정 | 세션 요약 한 줄(현재 Task) |
 | `assistant.threads.setSuggestedPrompts` | 추천 프롬프트 제시 | 승인함 카드의 선택지(Question options) |
-| `chat.startStream` / `appendStream` / `stopStream` | 응답 스트리밍 | SSE 기반 Activity 스트림(NFR-02) |
+| `chat.startStream` / `appendStream` / `stopStream` | 응답 스트리밍 | WebSocket 기반 Activity 스트림(NFR-02) |
 | plan/task 디스플레이 모드 | 멀티스텝 추론 진행 표시 | 위임 명세·플랜 승인 뷰(FR-05, D-06) |
 
 디자인 가이드라인도 규범적이다 — LLM 생성물 고지 footer, 썸업/다운 피드백, **출처 인용**, "Slack 데이터를 저장하지 말고 메타데이터만 저장". 2026-02의 Slack MCP 서버와 Real-time Search API는 **"벌크 익스포트 금지, 실시간 질의·권한 필터링·무저장"** 원칙을 채택했고, 권한은 단일 스코프 대신 공개 채널(`search:read.public`)과 비공개 채널·DM(동의 기반)으로 세분화됐다. 내장 Slackbot은 "사용자가 이미 볼 수 있는 정보만" 쓰는 개인 에이전트로 동작하며 서드파티 에이전트와의 공존을 예고한다.
@@ -335,7 +335,7 @@ sequenceDiagram
 | --- | --- | --- | --- | --- | --- |
 | **① 위임(Delegate)** | 이슈 할당 또는 @멘션 → Agent Session 자동 생성. `app:assignable`/`app:mentionable` 스코프 | 이슈 assignee로 Copilot, @copilot 멘션, `/task`, automations | assignee·@멘션·**워크플로 전환·보드 컬럼** 4표면 | Notion: 스케줄·Slack·메일·캘린더·DB 변경 트리거 / Asana: 태스크 할당·AI Studio 스텝 / Slack: DM·멘션 | Task **delegate** 지정 또는 ready 큐 self-claim(`nerv_task_claim`). 위임 명세 4요소(목표/산출물 형식/도구·출처/경계) 필수 — **FR-05, FR-06, D-04, D-08** |
 | **② ACK(접수 신호)** | **10초 내 `thought`** 미방출 시 UI에 무응답 표시 | 👀 리액션·세션 생성으로 접수 표시 | Agents 섹션에 실행 표시 | Slack `setStatus`("thinking…") | 세션 등록(`pending`) 후 첫 Activity로 `active` 전이, 지연은 보드에 노출 — **FR-07, D-13** |
-| **③ 진행 스레드(Progress)** | `thought`/`action` activity 스트림(ephemeral) | 세션 로그(내부 추론·도구·토큰 사용량), mission control 통합 뷰, **실행 중 steer** | Agents 섹션 + 실시간 코드 뷰 + 채팅 패널 | Notion: run 로그 / Slack: 스트리밍·plan·task 모드 | Activity 타임라인(`thought/action`) + 세션 모니터(S5) SSE 갱신 ≤5s, steer/stop 액션 — **FR-08, NFR-02** |
+| **③ 진행 스레드(Progress)** | `thought`/`action` activity 스트림(ephemeral) | 세션 로그(내부 추론·도구·토큰 사용량), mission control 통합 뷰, **실행 중 steer** | Agents 섹션 + 실시간 코드 뷰 + 채팅 패널 | Notion: run 로그 / Slack: 스트리밍·plan·task 모드 | Activity 타임라인(`thought/action`) + 세션 모니터(S5) 실시간 갱신 ≤5s, steer/stop 액션 — **FR-08, NFR-02** |
 | **④ 개입 요청(Elicitation)** | `elicitation` → `awaitingInput` + 자동 코멘트 + Inbox 알림 | PR 코멘트·리뷰 요청, "모호하면 질문" 정책 | "필요한 입력을 채운 뒤 공유" | Asana 체크포인트 / AI Studio "Human input" 스텝 | **Question 엔티티**(선택지 포함) → 세션 `awaiting_input` → 승인함(S7) 카드 + 알림. 응답 시 즉시 세션 해제 — **FR-11, FR-12, D-06, D-13** |
 | **⑤ draft 산출물(Draft)** | 코딩 세션 diff + 검증 아티팩트 → Reviews 탭 | **draft PR**, 제출 전 1차 자동 리뷰 | draft comment(개인 검토 후 공개), draft PR(머지 금지) | Notion: 페이지 변경 + run 로그(가역) | SpecVersion `draft` / ReviewSession·Finding / PR 링크. **서버에 업로드된 산출물만 진실** — **FR-02, FR-09, D-14** |
 | **⑥ 완료 보고(Completion)** | `response` → `complete` + 코멘트 자동 생성 | 리뷰어 지정, **지시자 승인 무효**, "Approve and run workflows" | 사람이 PR 생성·머지, work item key 자동 링크 | Notion 가역 run / Asana 감사·가역 | `complete` 전이 + 게이트 판정(해소된 리뷰 커버리지) 통과 시 Task `done`, 증적·커버리지 갱신, Event 기록 — **FR-10, FR-13, FR-16, D-14** |
@@ -439,7 +439,7 @@ clemvion과의 대비가 이 결정의 실효를 보여준다. clemvion은 조�
 - MCP 도구 카탈로그·인증·세션 규약(ACK·하트비트·질문 에스컬레이션) → [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md)
 - 승인 흐름·게이트·알림 라우팅 → [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md)
 - 세션 모니터(S5)·승인함(S7)·스펙 상세(S3) 인라인 스레드 → [3.6 화면 설계](../03-proposal/ui-wireframes.md)
-- SSE·이벤트·감사 축의 시스템 구성 → [3.2 시스템 아키텍처](../03-proposal/architecture.md)
+- 실시간·이벤트·감사 축의 시스템 구성 → [3.2 시스템 아키텍처](../03-proposal/architecture.md)
 - Build vs Buy와 포지셔닝 → [3.1 비전과 핵심 시나리오](../03-proposal/vision.md)
 - 단계별 도입(자율 트리거·allowlist의 시점) → [3.7 로드맵](../03-proposal/roadmap.md)
 

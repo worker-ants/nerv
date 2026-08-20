@@ -168,6 +168,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | `id` | uuid PK | 전 도메인 테이블의 파티션 키 |
 | `org_id` | uuid FK → organization | |
+| `slug` | text | URL·MCP `project` 인자용 식별자(소문자 kebab, 예: `clemvion`). `UNIQUE (org_id, slug)`. 표시 접두 `key`와 별개 |
 | `key` | text | 사람이 읽는 짧은 키(예: `CLV`). 표시 ID 접두사로 쓰인다 |
 | `name` · `description` | text | |
 | `repo_url` · `default_branch` | text | git forge 연동 대상 |

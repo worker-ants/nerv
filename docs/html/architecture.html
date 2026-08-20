@@ -31,6 +31,15 @@
   <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
   <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
   <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
 </nav>
 
 <div class="content">
@@ -77,8 +86,8 @@
       <p>Codex는 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 동작은 전부 tools로 제공한다(D-05). 본문은 블록 JSON이 아니라 markdown — 토큰 밀도 때문에 Notion이 호스티드 MCP에서 내린 것과 같은 결론이다.</p>
     </div>
     <div class="card">
-      <b class="card-title">③ 이벤트는 append-only, 실시간은 SSE</b>
-      <p>전면 이벤트 소싱은 하지 않는다(D-10). Event 테이블 하나가 활동 피드 · 알림 · 감사 로그의 단일 원천이 되고, 화면 갱신은 SSE로 밀어준다(NFR-02).</p>
+      <b class="card-title">③ 이벤트는 append-only, 실시간은 WebSocket</b>
+      <p>전면 이벤트 소싱은 하지 않는다(D-10). Event 테이블 하나가 활동 피드 · 알림 · 감사 로그의 단일 원천이 되고, 화면 갱신은 WebSocket으로 밀어준다(NFR-02).</p>
     </div>
     <div class="card">
       <b class="card-title">④ 게이트는 fail-open + 관측 + 격상</b>
@@ -130,7 +139,7 @@
       <!-- Row B: 진입 계층 -->
       <rect x="24" y="156" width="250" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="149" y="180" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">웹앱 (Vite + React SPA)</text>
-      <text x="149" y="198" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S1~S8 화면 · SSE 구독</text>
+      <text x="149" y="198" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S1~S8 화면 · WebSocket 구독</text>
 
       <rect x="300" y="156" width="270" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
       <text x="435" y="180" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">API + MCP 게이트웨이 (NestJS)</text>
@@ -141,7 +150,7 @@
       <text x="725" y="198" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">HTTP ingest · 웹훅 · OTLP</text>
 
       <path d="M274,187 H298" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a1)" marker-start="url(#a1)"/>
-      <text x="287" y="238" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">REST · SSE</text>
+      <text x="287" y="238" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10">REST · WebSocket</text>
 
       <!-- Row C: 처리 · 저장 -->
       <rect x="24" y="262" width="250" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
@@ -192,7 +201,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>컴포넌트</th><th>책임</th><th>하지 않는 일</th><th>관련 FR/NFR</th></tr></thead>
     <tbody>
-      <tr><td><b>웹앱</b> (Vite + React SPA)</td><td>S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, SSE 구독으로 보드 실시간 갱신</td><td>비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증</td><td>FR-08·11·13 / NFR-02</td></tr>
+      <tr><td><b>웹앱</b> (Vite + React SPA)</td><td>S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, WebSocket 구독으로 보드 실시간 갱신</td><td>비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증</td><td>FR-08·11·13 / NFR-02</td></tr>
       <tr><td><b>API + MCP 게이트웨이</b> (NestJS)</td><td>REST/RPC와 Streamable HTTP MCP 엔드포인트를 <b>같은 도메인 서비스 위에</b> 노출. 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버</td><td>장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당)</td><td>FR-01~11·14·15 / NFR-03</td></tr>
       <tr><td><b>훅 수집기</b> (ingest + OTLP)</td><td>Claude Code <code>type:"http"</code> 훅과 Codex hooks/notify를 토큰 인증으로 수신해 202로 즉시 응답하고 큐에 적재. OTLP는 정량 관측용 별도 경로</td><td>차단 <b>판정의 산출</b>(판정은 API가 하고 수집기는 응답을 중계한다). 단 <code>Stop</code> 훅만 동기 판정 경로다</td><td>FR-07·08·16 / NFR-02·04</td></tr>
       <tr><td><b>Postgres</b></td><td>스펙·요구사항·작업·클레임·세션·활동·리뷰·발견사항·승인·이벤트·알림의 단일 진실. 게이트 판정도 여기서 SQL로</td><td>대용량 blob 보관(오브젝트 스토리지로)</td><td>FR-01~17</td></tr>
@@ -382,7 +391,7 @@
       <tr><td>8</td><td>리뷰어 → 웹앱</td><td>승인함(S7)에서 델타(ADDED/MODIFIED/REMOVED) 확인 후 승인</td></tr>
       <tr><td>9</td><td>API → Postgres</td><td><span class="badge review">in_review</span> → <span class="badge approved">approved</span> — <b>불변 스냅샷 발행</b>, 이전 approved는 superseded</td></tr>
       <tr><td>10</td><td>API → Postgres</td><td>Requirement 델타 계산 → Task <span class="badge draft">backlog</span>/<span class="badge impl">ready</span> 자동 파생</td></tr>
-      <tr><td>11</td><td>API → 웹앱 · 세션</td><td>SSE <code>spec.approved</code> 방송, 대기 중이던 에이전트 세션에 승인 결과 전달</td></tr>
+      <tr><td>11</td><td>API → 웹앱 · 세션</td><td>WebSocket <code>spec.approved</code> 방송, 대기 중이던 에이전트 세션에 승인 결과 전달</td></tr>
       <tr><td>12</td><td>워커 → git 미러</td><td>markdown 미러 갱신 + git export push</td></tr>
     </tbody>
   </table></div>
@@ -398,7 +407,7 @@
       <tr><td>3</td><td>MCP → 세션</td><td>후보 목록 + <b>위임 명세 4요소</b>(목표 · 산출물 형식 · 도구/출처 · 경계)</td></tr>
       <tr><td>4</td><td>세션 → MCP</td><td><code>nerv_task_claim</code> — <code>scope = spec_ids + file_globs</code> 선언</td></tr>
       <tr><td>5</td><td>MCP → Postgres</td><td>트랜잭션 시작 · 대상 행 잠금 → 활성 Claim 중 scope 겹침 검사</td></tr>
-      <tr><td>6a</td><td colspan="2"><b>겹침 없음</b> — <span class="badge impl">ready</span> → <span class="badge impl">claimed</span>, 사람 assignee + 에이전트 delegate 설정, Lease TTL 발급, <code>task.claimed</code> 이벤트(<span class="badge agent">is_agent</span>), 보드에 SSE 갱신(카드에 hostname · 리스 잔여)</td></tr>
+      <tr><td>6a</td><td colspan="2"><b>겹침 없음</b> — <span class="badge impl">ready</span> → <span class="badge impl">claimed</span>, 사람 assignee + 에이전트 delegate 설정, Lease TTL 발급, <code>task.claimed</code> 이벤트(<span class="badge agent">is_agent</span>), 보드에 WebSocket 갱신(카드에 hostname · 리스 잔여)</td></tr>
       <tr><td>6b</td><td colspan="2"><b>겹침 있음</b> — <span class="badge blocked">conflict</span> 반환(겹치는 클레임의 소유자 · hostname · scope), <code>task.claim_conflict</code> 이벤트. 에이전트는 다음 후보로 이동하거나 사람에게 질문</td></tr>
     </tbody>
   </table></div>
@@ -454,7 +463,7 @@
   <h2 id="sec-4">4. 기술 스택 (D-11)과 대안 비교</h2>
 
   <h3>4.1 선택 요약</h3>
-  <div class="callout decision"><span class="ico">✅</span><div class="body"><b class="title">확정 · 웹앱 Vite · API NestJS</b><p>이 두 계층은 <b>확정된 결정</b>이다. 나머지 항목은 아직 제안이며 Phase 0 스파이크에서 검증한다.</p></div></div>
+  <div class="callout decision"><span class="ico">✅</span><div class="body"><b class="title">전 계층 확정</b><p>웹앱(Vite)·API(NestJS)는 2026-08-14에, 쿼리(Drizzle)·인증(better-auth)·실시간(WebSocket)·에디터(TipTap)·배포(로컬 compose/운영 k8s)는 2026-08-20에 확정했다. Phase 0 스파이크는 "결정 검증" 태스크로 백로그에 남는다.</p></div></div>
   <div class="table-wrap"><table>
     <thead><tr><th>계층</th><th>선택</th><th>한 줄 이유</th></tr></thead>
     <tbody>
@@ -464,10 +473,11 @@
       <tr><td>DB</td><td>Postgres</td><td>트랜잭션 · 부분 인덱스 · JSONB · <code>LISTEN/NOTIFY</code> · 전문검색을 한 엔진에서</td></tr>
       <tr><td>쿼리 계층</td><td>Drizzle</td><td>게이트·커버리지 질의가 복잡 조인이라 SQL 제어권이 중요</td></tr>
       <tr><td>인증</td><td>better-auth</td><td>자가호스팅(NFR-01) 전제에서 조직·역할·토큰 모델을 직접 소유</td></tr>
-      <tr><td>실시간</td><td>SSE</td><td>단방향 브로드캐스트가 전부. 프록시·재연결 친화적</td></tr>
+      <tr><td>실시간</td><td>WebSocket(socket.io, websocket 전송만)</td><td>보드 갱신에 더해 웹→세션 양방향(질문 즉답·세션 제어)을 처음부터 연다. 룸 브로드캐스트·재연결·하트비트를 어댑터로 확보</td></tr>
       <tr><td>MCP</td><td>MCP TypeScript SDK</td><td>2026-07-28 리비전 기준 + 구 리비전 병행 서빙(§4.3)</td></tr>
-      <tr><td>에디터</td><td>ProseMirror/TipTap 계열</td><td>markdown 우선(D-09) + 이후 실시간 편집 확장 경로 확보</td></tr>
-      <tr><td>배포</td><td>docker-compose 자가호스팅</td><td>스펙은 조직의 가장 민감한 자산. 외부 SaaS 의존 없이 굴러가야 한다(NFR-01)</td></tr>
+      <tr><td>프론트 세부</td><td>TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod</td><td>타입 안전 라우트 파라미터(스펙 ID·버전), WebSocket 이벤트 → 쿼리 무효화 패턴, zod 스키마는 <code>packages/schema</code>로 API·MCP와 공유</td></tr>
+      <tr><td>에디터</td><td>TipTap(markdown 직렬화)</td><td>비개발자 WYSIWYG(P7). 지원 노드를 md 표현 가능 집합으로 제한하는 규율을 전제로 저장 포맷은 md 유지(D-09), Phase 3 CRDT(y-prosemirror) 직결</td></tr>
+      <tr><td>배포</td><td>로컬 docker-compose · 운영 k8s(kustomize)</td><td>자가호스팅 전제(NFR-01)는 동일. 개발·소규모는 compose 한 파일, 운영은 조직 표준 k8s — clemvion이 이미 kustomize(base/overlays)를 쓴다</td></tr>
     </tbody>
   </table></div>
 
@@ -475,20 +485,20 @@
   <div class="table-wrap"><table>
     <thead><tr><th>결정</th><th>선택</th><th>유력 대안</th><th>대안의 장점</th><th>선택 이유 (NERV 조건)</th><th>재검토 트리거</th></tr></thead>
     <tbody>
-      <tr><td>웹 프레임워크</td><td><b>Vite + React SPA</b></td><td>Next.js, Remix/React Router, SvelteKit</td><td>SSR·서버 컴포넌트로 초기 렌더 비용을 서버로 이전, 파일 기반 라우팅 관례</td><td>전 화면이 인증 뒤의 사용자별 뷰이고 보드·세션은 SSE로 계속 갱신되는 라이브 뷰다 — SSR이 그린 첫 화면도 곧바로 클라이언트가 다시 그린다. 웹 티어를 정적 자산으로 만들면 docker-compose에서 컨테이너 하나가 사라진다</td><td>스펙 문서 공개 열람(비로그인 링크 공유·검색 노출) 요구가 생기면</td></tr>
+      <tr><td>웹 프레임워크</td><td><b>Vite + React SPA</b></td><td>Next.js, Remix/React Router, SvelteKit</td><td>SSR·서버 컴포넌트로 초기 렌더 비용을 서버로 이전, 파일 기반 라우팅 관례</td><td>전 화면이 인증 뒤의 사용자별 뷰이고 보드·세션은 WebSocket으로 계속 갱신되는 라이브 뷰다 — SSR이 그린 첫 화면도 곧바로 클라이언트가 다시 그린다. 웹 티어를 정적 자산으로 만들면 docker-compose에서 컨테이너 하나가 사라진다</td><td>스펙 문서 공개 열람(비로그인 링크 공유·검색 노출) 요구가 생기면</td></tr>
       <tr><td>API 프레임워크</td><td><b>NestJS</b>(Fastify 어댑터)</td><td>Hono, Fastify/Express 단독</td><td>웹 표준 <code>Request/Response</code> 기반이라 MCP Streamable HTTP 구현이 자연스럽고 런타임이 얇다</td><td>REST·MCP·워커가 한 도메인 규칙을 공유해야 한다(D-05). 표면마다 게이트 판정이 갈라지는 것이 이 플랫폼에서 가장 비싼 실패라, DI로 서비스 공유를 구조가 강제하는 쪽을 택했다. <code>@Sse()</code>·가드·인터셉터로 실시간·인가·감사가 1급</td><td>MCP 스트리밍 어댑터 계층이 유지보수 부담이 될 때</td></tr>
       <tr><td>데이터베이스</td><td><b>Postgres</b></td><td>MySQL, SQLite, MongoDB, Dolt</td><td>SQLite는 운영 단순, Dolt는 버전 관리 SQL(beads 채택)</td><td>클레임 원자성 · 게이트 조인 · 부분 인덱스 · <code>LISTEN/NOTIFY</code> · JSONB가 한 엔진에 필요. Notion이 블록 모델을 Postgres에서 초대형까지 실증</td><td>스펙 버전 diff를 DB 네이티브로 다뤄야 하면 Dolt 재평가</td></tr>
       <tr><td>쿼리 계층</td><td><b>Drizzle</b></td><td>Prisma, Kysely, 순수 SQL</td><td>Prisma는 마이그레이션·툴링 성숙, Kysely는 타입 안전 쿼리빌더(Docmost 사례)</td><td>게이트·커버리지 질의가 재귀·윈도우 함수를 쓰는 복잡 조인이라 SQL 제어권 우선</td><td>마이그레이션 운영 부담이 임계를 넘을 때</td></tr>
       <tr><td>인증</td><td><b>better-auth</b></td><td>Clerk/WorkOS, Auth.js, Keycloak</td><td>관리형은 SSO·MFA를 즉시 제공</td><td>자가호스팅 필수(NFR-01) + 프로젝트 스코프 PAT 발급을 직접 소유해야 함(D-08)</td><td>엔터프라이즈 SSO 요구가 들어오면 Keycloak 연동 검토</td></tr>
-      <tr><td>실시간</td><td><b>SSE</b></td><td>WebSocket, 롱폴링</td><td>WebSocket은 양방향·저지연</td><td>서버→클라이언트 단방향 브로드캐스트만 필요. 세션 보드 갱신 ≤5s(NFR-02)에 충분하고 프록시 통과가 쉬움</td><td>웹에서 에이전트를 직접 조종하는 양방향 UX가 생기면</td></tr>
+      <tr><td>실시간</td><td><b>WebSocket</b>(socket.io, websocket 전송만)</td><td>SSE, 롱폴링</td><td>SSE는 HTTP 하나로 끝나 프록시·재연결 친화적이고 인증 재사용이 쉬움</td><td>보드 갱신(NFR-02)만 보면 SSE로 충분하지만, 웹에서 에이전트 세션에 지시·답변을 보내는 양방향 UX(질문 즉답, Phase 2 steer)를 로드맵에 두고 있어 채널 교체 비용을 피해 처음부터 양방향 채널을 깐다. websocket 전송만 활성화해 k8s 스티키 세션을 피하고, 팬아웃은 파드별 <code>LISTEN/NOTIFY</code>라 크로스파드 어댑터가 필요 없다</td><td>브라우저 밖 소비자(CLI 등)가 실시간 구독을 원하면 SSE 병행 재검토</td></tr>
       <tr><td>실시간 협업 편집</td><td><b>미도입</b> (Phase 3)</td><td>Yjs + Hocuspocus, prosemirror-collab</td><td>오프라인 병합 · 동시 타이핑</td><td>주 작성자가 에이전트(원자적 API 저장 · 버전 전제조건 가능)라 동시 타이핑 빈도가 낮다. MVP부터 CRDT를 넣으면 버전 스냅샷·감사·스키마 권위가 CRDT 상태와 얽힌다</td><td>사람 동시 편집 요청이 반복되면</td></tr>
-      <tr><td>배포</td><td><b>docker-compose</b></td><td>Kubernetes, 관리형 PaaS</td><td>오토스케일 · 무중단 배포</td><td>목표 규모는 프로젝트 수십 · 동시 세션 수십(NFR-04). 단일 노드로 충분하고 도입 마찰이 최소</td><td>다중 테넌트 SaaS 전환 시</td></tr>
+      <tr><td>배포</td><td><b>로컬 docker-compose / 운영 k8s(kustomize)</b></td><td>단일 타깃(compose 또는 k8s만), 관리형 PaaS</td><td>타깃이 하나면 배포 산출물 유지보수가 절반</td><td>온보딩·PoC·소규모 자가호스팅은 compose 한 파일이 최저 마찰이고, 운영은 조직 인프라 표준이 k8s다(clemvion <code>k8s/base</code>+<code>overlays</code> kustomize 관례). API는 무상태라 이중 타깃 비용이 낮고, 워커 replica 1·마이그레이션 Job 같은 규칙만 고정하면 된다</td><td>운영 규모가 단일 노드로 충분하면 k8s 생략 가능(NFR-04)</td></tr>
     </tbody>
   </table></div>
 
   <div class="callout warn"><span class="ico">⚠️</span><div class="body">
     <b class="title">주의 · 프레임워크 비교에는 1차 출처 URL이 없다</b>
-    <p>이 표의 프레임워크·라이브러리 비교는 리서치 노트에 1차 출처가 없어 URL 근거를 달지 않았다(D-11이 <b>제안</b> 단계임을 명시한 것과 같은 이유). 실증 근거가 있는 항목만 링크했다 — <a href="https://github.com/docmost/docmost">Docmost</a>(Postgres + TipTap/Yjs 스택 실증), <a href="https://www.figma.com/blog/how-figmas-multiplayer-technology-works/">Figma</a>·<a href="https://github.com/wzhudev/reverse-linear-sync-engine">Linear</a>(서버 권위 LWW), <a href="https://www.moment.dev/blog/lies-i-was-told-pt-2">moment.dev</a>(CRDT 반론), <a href="https://github.com/steveyegge/beads">beads</a>(버전 관리 SQL DB), <a href="https://github.com/yjs/yjs">Yjs</a>·<a href="https://github.com/ueberdosis/hocuspocus">Hocuspocus</a>(확장 경로), <a href="https://github.com/outline/outline">Outline</a>(DB 기반 + markdown 호환). Phase 0 착수 전 스택 스파이크로 검증할 것을 권한다.</p>
+    <p>이 표의 전 행은 <b>확정된 결정</b>이다(웹·API는 2026-08-14, 나머지는 2026-08-20 — 실시간은 SSE 제안을 뒤집어 WebSocket으로 확정했고 SSE는 대안 열로 옮겼다). "유력 대안"과 "재검토 트리거"는 결정을 뒤집을 조건이 아니라 감수한 트레이드오프의 기록이다. 프레임워크·라이브러리 비교는 리서치 노트에 1차 출처가 없어 URL 근거를 달지 않았다. 실증 근거가 있는 항목만 링크했다 — <a href="https://github.com/docmost/docmost">Docmost</a>(Postgres + TipTap/Yjs 스택 실증), <a href="https://www.figma.com/blog/how-figmas-multiplayer-technology-works/">Figma</a>·<a href="https://github.com/wzhudev/reverse-linear-sync-engine">Linear</a>(서버 권위 LWW), <a href="https://www.moment.dev/blog/lies-i-was-told-pt-2">moment.dev</a>(CRDT 반론), <a href="https://github.com/steveyegge/beads">beads</a>(버전 관리 SQL DB), <a href="https://github.com/yjs/yjs">Yjs</a>·<a href="https://github.com/ueberdosis/hocuspocus">Hocuspocus</a>(확장 경로), <a href="https://github.com/outline/outline">Outline</a>(DB 기반 + markdown 호환). Phase 0 착수 전 스택 스파이크로 검증할 것을 권한다.</p>
   </div></div>
 
   <h3>4.3 MCP 서버 리비전 전략</h3>
@@ -504,6 +514,7 @@
   <p class="src"><a href="https://learn.chatgpt.com/docs/extend/mcp?surface=cli">Codex MCP — learn.chatgpt.com</a> (2026-08-13 확인): Codex는 MCP tools와 server instructions만 소비 — tools-first 설계의 직접 근거.</p>
 
   <h3>4.4 docker-compose 자가호스팅 구성 (NFR-01)</h3>
+  <p>배포 타깃은 둘이다 — <b>로컬·소규모 자가호스팅은 docker-compose</b>(이 절), <b>운영은 k8s(kustomize base/overlays, clemvion 관례)</b>. 같은 이미지 3종(<code>nerv-api</code>·<code>nerv-worker</code>·<code>nerv-web</code> 정적 자산)을 두 타깃이 공유하며, k8s 상세(마이그레이션 Job, Ingress WebSocket 업그레이드·타임아웃, 워커 replica 1, 운영 Postgres 위치)는 MVP 구체화 문서에서 확정한다.</p>
 
   <div class="diagram">
     <svg viewBox="0 0 760 330" role="img" aria-label="docker-compose 서비스 구성: reverse-proxy 뒤에 nerv-web, nerv-api, nerv-ingest, nerv-worker가 있고 postgres와 오브젝트 스토리지 볼륨을 공유한다">
@@ -561,7 +572,7 @@
     <tbody>
       <tr><td><code>reverse-proxy</code></td><td>TLS 종료, 경로 라우팅(<code>/</code>, <code>/api</code>, <code>/mcp</code>, <code>/ingest</code>)</td><td>MCP는 Origin 검증 필수</td></tr>
       <tr><td><code>nerv-web</code></td><td>Vite 빌드 산출물(정적 자산)</td><td>별도 런타임 없이 <code>reverse-proxy</code>가 직접 서빙 — 컨테이너를 두지 않아도 된다</td></tr>
-      <tr><td><code>nerv-api</code></td><td>REST + MCP + SSE + 게이트 판정</td><td>수평 확장 시 SSE 팬아웃은 <code>LISTEN/NOTIFY</code>로</td></tr>
+      <tr><td><code>nerv-api</code></td><td>REST + MCP + WebSocket + 게이트 판정</td><td>수평 확장 가능 — 모든 브로드캐스트의 원천이 PG NOTIFY라 파드별 <code>LISTEN</code>으로 크로스파드 어댑터 없이 팬아웃</td></tr>
       <tr><td><code>nerv-ingest</code></td><td>훅·웹훅 수신, 202 즉시 응답 후 큐 적재</td><td>에이전트 지연에 영향 주지 않도록 API와 분리</td></tr>
       <tr><td><code>nerv-worker</code></td><td>알림 · 리스 회수 · stale 전이 · export · 보존 정책</td><td>단일 인스턴스 가정, 잡 잠금은 DB advisory lock</td></tr>
       <tr><td><code>postgres</code></td><td>단일 진실</td><td>볼륨 백업 대상 1순위</td></tr>
@@ -603,7 +614,7 @@
     <tbody>
       <tr><td>하트비트</td><td>동시 세션 50개 × 60초 주기 ≈ <b>0.83 req/s</b></td><td>단일 UPDATE. 부하가 아니라 무시 가능한 수준</td></tr>
       <tr><td>훅 이벤트</td><td><code>PostToolUse</code>가 최대 볼륨. 세션당 분당 수십 건 가능</td><td>ingest가 202 즉시 응답 후 큐 적재, 프로젝트별 이벤트 타입 샘플링·배치 옵션</td></tr>
-      <tr><td>SSE 팬아웃</td><td>사용자 수십 × 열린 탭 = 수백 연결</td><td>사용자당 1 연결 + 프로젝트 채널 구독. 인스턴스 간 팬아웃은 Postgres <code>LISTEN/NOTIFY</code></td></tr>
+      <tr><td>WebSocket 팬아웃</td><td>사용자 수십 × 열린 탭 = 수백 연결</td><td>탭당 1 연결 + 프로젝트 룸 구독(멤버십 검사 후 join). 인스턴스 간 팬아웃은 Postgres <code>LISTEN/NOTIFY</code></td></tr>
       <tr><td>보드 갱신 지연</td><td>목표 ≤5s(NFR-02), 실질 1s 이내</td><td>이벤트 커밋 직후 NOTIFY, 클라이언트는 재연결 시 마지막 이벤트 ID로 델타 재요청</td></tr>
       <tr><td>리뷰 저장</td><td>clemvion 추세 월 ~7,000파일 / ~50MB</td><td>결론만 영구 저장하면 행 단위 수 MB/월. 입력 페이로드는 TTL 오브젝트</td></tr>
       <tr><td>이벤트 테이블</td><td>최대 성장 테이블</td><td>월 파티션 + 오래된 파티션 아카이브. 피드 질의는 <code>(project_id, created_at desc)</code> 인덱스</td></tr>

@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4.2 코드베이스와 배포 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html" class="active">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 4부 · MVP 구체화 / 4.2 코드베이스와 배포</div>
+
+  <header class="page-header">
+    <h1>코드베이스와 배포</h1>
+    <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·ingest 네 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-20)</span>
+      <span>원본: <code>docs/04-mvp/codebase.md</code></span>
+      <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~014</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">모노레포 구조</a></li>
+      <li><a href="#sec-2">apps/api — 표면 4종이 같은 도메인 서비스를 공유한다 (D-05)</a></li>
+      <li><a href="#sec-3">packages/schema — 타입·상수의 단일 정본</a></li>
+      <li><a href="#sec-4">컨벤션</a></li>
+      <li><a href="#sec-5">개발 환경</a></li>
+      <li><a href="#sec-6">운영 배포 — k8s (kustomize)</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 모노레포 구조</h2>
+
+  <h3>1.1 확정 트리 전문</h3>
+
+  <p>언어·저장소 구조는 TypeScript + pnpm workspace로 확정됐다(<a href="architecture.html">3.2 시스템 아키텍처</a> §4.1, 스택 확정 전문은 <a href="scope.html">4.1 MVP 범위와 스택 확정</a>). Turborepo는 빌드 시간이 아플 때 도입한다 — 트리거만 기록하고 지금은 넣지 않는다.</p>
+
+<pre><code>nerv/
+  package.json                  # 루트 — 워크스페이스 스크립트 허브 (§5.1 명령 표)
+  pnpm-workspace.yaml           # packages: ["apps/*", "packages/*"]
+  pnpm-lock.yaml
+  .nvmrc                        # Node LTS 핀 — 로컬·CI·이미지가 같은 값을 쓴다 (REQ-CB-002)
+  tsconfig.base.json            # strict 공통 옵션 (§4.1)
+  eslint.config.js              # lint + import 경계 규칙 (§4.2)
+  .prettierrc
+  .env.example                  # §5.2 전표의 실물 — 값 없는 키 목록 + 주석
+  apps/
+    web/                        # @nerv/web — Vite + React SPA (화면 명세는 4.5)
+      index.html
+      vite.config.ts            # dev proxy: /api·/mcp·/ingest·/socket.io → :8080 (§5.1)
+      src/
+        routes/                 # TanStack Router 파일 라우트
+        features/               # 화면 단위 모듈 (spec-editor · task-board · session-monitor …)
+        components/             # 공용 UI — Tailwind + shadcn/ui 파생
+        lib/                    # API 클라이언트 · WS 클라이언트 · 이벤트→쿼리 무효화 매핑
+    api/                        # @nerv/api — NestJS(Fastify). REST·MCP·WS·ingest + 워커 엔트리 (§2)
+      src/                      # 상세 트리는 §2.2
+  packages/
+    schema/                     # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
+  deploy/
+    compose/
+      docker-compose.yml        # §5.3 전문 — 로컬·소규모 자가호스팅 정본
+    docker/
+      Dockerfile.server         # nerv-api · nerv-worker 이미지 (§6.1)
+      Dockerfile.web            # nerv-web 이미지 (§6.1)
+      nginx/
+        default.conf.template   # §5.4 전문 — reverse-proxy · WebSocket 업그레이드 · /mcp Origin 1차 검증
+    k8s/
+      base/                     # §6.2 트리 — Deployment · Service · Job · Ingress
+      overlays/
+        dev/
+        prod/
+  docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 clemvion 임포터 §5)</code></pre>
+
+  <h3>1.2 패키지 책임</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>워크스페이스</th><th>패키지 이름</th><th>책임</th><th>하지 않는 일</th></tr></thead>
+    <tbody>
+      <tr><td><code>apps/web</code></td><td><code>@nerv/web</code></td><td>S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화</td><td>비즈니스 규칙 판정(전부 API에 위임 — <a href="architecture.html">3.2</a> §1.3)</td></tr>
+      <tr><td><code>apps/api</code></td><td><code>@nerv/api</code></td><td>REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리)</td><td>스키마·타입 선언(<code>@nerv/schema</code>에서만 import)</td></tr>
+      <tr><td><code>packages/schema</code></td><td><code>@nerv/schema</code></td><td>drizzle 테이블 선언, zod 스키마, 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일</td><td>런타임 로직(순수 선언 + 마이그레이터만)</td></tr>
+      <tr><td><code>deploy/*</code></td><td>—</td><td>compose·Dockerfile·kustomize 산출물. 이 문서가 정본</td><td>애플리케이션 코드</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>의존 방향은 한쪽뿐이다: <code>apps/* → packages/schema</code>. <code>apps/web ↔ apps/api</code> 간 직접 import는 금지하며, 둘의 공유 계약(zod 스키마·타입·상수)은 전부 <code>@nerv/schema</code>를 거친다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-CB-001</b></td><td>WHEN <code>apps/*</code>의 코드가 다른 워크스페이스를 import할 때, THE SYSTEM SHALL <code>packages/*</code>만 허용하고 <code>apps/*</code> 간 import는 lint 에러로 차단한다(<code>eslint.config.js</code>의 <code>no-restricted-imports</code>).</td></tr>
+      <tr><td><b>REQ-CB-002</b></td><td>WHEN 로컬·CI·컨테이너 이미지가 Node/pnpm을 결정할 때, THE SYSTEM SHALL <code>.nvmrc</code>(Node LTS)와 루트 <code>package.json</code>의 <code>packageManager</code> 필드를 단일 정본으로 사용한다 — 버전이 세 곳에서 달라지는 순간이 결함이다.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><code>pnpm-workspace.yaml</code> 전문:</p>
+
+<pre><code>packages:
+  - "apps/*"
+  - "packages/*"</code></pre>
+
+  <h2 id="sec-2">2. apps/api — 표면 4종이 같은 도메인 서비스를 공유한다 (D-05)</h2>
+
+  <h3>2.1 원칙 — 게이트 판정이 표면마다 갈라지는 것이 최악의 실패</h3>
+
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">D-05의 실물 · 표면은 번역만, 규칙은 도메인 서비스 한 곳에만</b>
+    <p>REST·MCP·WebSocket이 <b>같은 도메인 서비스를 DI로 공유</b>한다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §1). NestJS를 택한 이유가 이 구조의 강제였다(<a href="architecture.html">3.2</a> §4.2). 표면(컨트롤러·게이트웨이)은 인증 컨텍스트 추출 · zod 입력 검증 · 도메인 서비스 호출 · 응답 포맷 변환만 한다. 상태 전이 규칙·게이트 판정·겹침 검사는 도메인 서비스 한 곳에만 있다.</p>
+  </div></div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 470" role="img" aria-label="apps/api 모듈 맵: 표면 4종(REST·MCP·ingest·WS)이 같은 도메인 서비스를 주입받고, 이벤트는 Postgres NOTIFY를 거쳐 파드별 리스너가 자기 소켓에 팬아웃한다">
+      <defs>
+        <marker id="cb1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <!-- 표면 경계 -->
+      <rect x="14" y="28" width="852" height="86" rx="12" fill="none" stroke="var(--border-strong)" stroke-dasharray="6 4" opacity="0.7"/>
+      <text x="24" y="22" fill="var(--text-faint)" font-family="var(--font)" font-size="11.5">표면 4종 — 번역만, 규칙 없음</text>
+
+      <rect x="26" y="44" width="180" height="56" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="116" y="67" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">REST 컨트롤러</text>
+      <text x="116" y="85" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/api/v1/*</text>
+
+      <rect x="220" y="44" width="216" height="56" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="328" y="67" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">MCP 게이트웨이</text>
+      <text x="328" y="85" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">POST /mcp · nerv_* 15종</text>
+
+      <rect x="450" y="44" width="194" height="56" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="547" y="67" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">ingest 컨트롤러</text>
+      <text x="547" y="85" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/ingest/hooks/* 5종</text>
+
+      <rect x="658" y="44" width="196" height="56" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="756" y="67" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">WS 게이트웨이</text>
+      <text x="756" y="85" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/socket.io · 룸 join</text>
+
+      <!-- 도메인 경계 -->
+      <rect x="14" y="152" width="852" height="150" rx="12" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.8"/>
+      <text x="24" y="146" fill="var(--accent-text)" font-family="var(--font)" font-size="11.5" font-weight="700">도메인 모듈 — 상태 전이·게이트 판정의 단일 구현</text>
+
+      <rect x="30" y="168" width="180" height="50" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="120" y="197" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">SpecService</text>
+
+      <rect x="226" y="168" width="196" height="50" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="324" y="190" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">TaskService</text>
+      <text x="324" y="207" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">ClaimService</text>
+
+      <rect x="438" y="168" width="200" height="50" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="538" y="190" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">SessionService</text>
+      <text x="538" y="207" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">ActivityService</text>
+
+      <rect x="654" y="168" width="196" height="50" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="752" y="190" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">ApprovalService</text>
+      <text x="752" y="207" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">QuestionService</text>
+
+      <rect x="330" y="240" width="220" height="46" rx="9" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="440" y="260" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">EventService</text>
+      <text x="440" y="277" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="10.5">같은 트랜잭션에 event 행 삽입</text>
+
+      <!-- 표면 → 도메인 -->
+      <path d="M116,100 V150" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#cb1)"/>
+      <path d="M328,100 V150" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#cb1)"/>
+      <path d="M547,100 V150" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#cb1)"/>
+      <text x="640" y="132" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">같은 서비스 주입 (DI)</text>
+
+      <!-- 서비스 → EventService -->
+      <path d="M120,218 L332,252" fill="none" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#cb1)"/>
+      <path d="M324,218 L400,238" fill="none" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#cb1)"/>
+      <path d="M538,218 L480,238" fill="none" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#cb1)"/>
+      <path d="M752,218 L552,254" fill="none" stroke="var(--border-strong)" stroke-width="1.2" marker-end="url(#cb1)"/>
+
+      <!-- 하단: PG · 리스너 -->
+      <rect x="120" y="360" width="270" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="255" y="385" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">Postgres</text>
+      <text x="255" y="403" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">스키마 정본: packages/schema</text>
+
+      <rect x="510" y="360" width="250" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="635" y="385" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">PgListenerService</text>
+      <text x="635" y="403" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">파드별 LISTEN nerv_events</text>
+
+      <path d="M400,286 L290,356" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#cb1)"/>
+      <text x="255" y="330" text-anchor="end" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">커밋 후 NOTIFY nerv_events</text>
+
+      <path d="M392,391 H506" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#cb1)"/>
+      <text x="449" y="383" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">NOTIFY</text>
+
+      <path d="M700,358 L760,104" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#cb1)"/>
+      <text x="742" y="330" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">자기 파드 소켓 emit</text>
+    </svg>
+    <div class="cap">그림 1. 표면 4종은 번역만 하고, 규칙은 도메인 서비스 한 곳에만 있다(D-05). 모든 브로드캐스트의 원천이 PG NOTIFY라 파드별 LISTEN으로 크로스파드 어댑터 없이 팬아웃된다.</div>
+  </div>
+
+  <p>팬아웃 경로가 곧 무상태 수평 확장의 근거다: <b>모든 emit의 원천이 PG NOTIFY</b>이므로 파드마다 <code>LISTEN</code>을 걸면 크로스파드 어댑터 없이 각 파드가 자기 소켓에 밀어줄 수 있고, socket.io는 websocket 전송만 활성화해(폴링 폴백 off) k8s 스티키 세션이 필요 없다. 재연결 시 클라이언트는 화면 데이터를 재조회한다 — 이벤트 유실은 허용하고 진실은 DB다(D-14). NOTIFY 채널 이름(<code>nerv_events</code>)과 페이로드 규약의 정본은 <a href="database.html">4.3 데이터베이스 스키마</a> §3이다.</p>
+
+  <h3>2.2 apps/api/src 트리 전문</h3>
+
+<pre><code>apps/api/src/
+  main.ts                        # HTTP 엔트리 — Nest(Fastify) 부트스트랩: REST + MCP + WS + ingest
+  worker.ts                      # 워커 엔트리 — 같은 AppModule 조립에서 HTTP 표면 제외, 잡 러너만 (REQ-CB-005)
+  migrate.ts                     # drizzle 마이그레이션 적용 후 종료 — compose 기동·k8s Job 공용 엔트리 (§5.3·§6.3)
+  app.module.ts
+  common/                        # 횡단 관심사 — 가드 · 인터셉터 · 필터
+    auth.guard.ts                # 세션 쿠키(better-auth) / PAT Bearer 2경로 판별
+    project-scope.interceptor.ts # 요청 컨텍스트의 project_id 자동 주입 — 스코프 없는 질의 컴파일 불가 원칙
+    mcp-origin.guard.ts          # /mcp Origin 검증의 최종 강제 지점 (REQ-CB-013)
+    nerv-exception.filter.ts     # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
+  modules/
+    auth/                        # AuthModule
+      auth.module.ts
+      auth.service.ts            # better-auth(organization·api-key 플러그인) 래핑, 멤버십·역할 조회
+      auth.controller.ts         # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
+    spec/                        # SpecModule
+      spec.module.ts
+      spec.service.ts            # 초안 upsert · base_version 전제조건 · 편집 리스 · 전이 · 사전 검토
+      spec-comment.service.ts
+      spec.controller.ts         # REST — tree · get · 버전 · draft · check · submit · 코멘트
+      spec.tools.ts              # MCP — nerv_spec_* 7종 (§2.3 표)
+    task/                        # TaskModule
+      task.module.ts
+      task.service.ts            # 상태 전이 · 위임 명세 · 증적(evidence)
+      claim.service.ts           # 원자적 클레임 · scope 겹침 검사 · 리스 연장 (D-04)
+      task.controller.ts
+      task.tools.ts              # MCP — nerv_task_* 5종
+    session/                     # SessionModule
+      session.module.ts
+      session.service.ts         # AgentSession 수명주기 (pending→active→…)
+      activity.service.ts        # Activity 적재
+      session.controller.ts      # REST — 보드 · 상세 · activity
+      session.tools.ts           # MCP — nerv_bootstrap · nerv_session_event
+      ingest.controller.ts       # POST /ingest/hooks/{session,tool,subagent,stop,session-end}
+    approval/                    # ApprovalModule
+      approval.module.ts
+      approval.service.ts        # 승인함 — 결정 · 지시자≠승인자 검사
+      question.service.ts        # 질문 생성 · 폴링 · awaiting_input 전이
+      approval.controller.ts
+      question.tools.ts          # MCP — nerv_question_create
+    review/                      # ReviewModule — 테이블·서비스 골격은 MVP 스키마에 포함, 도구 2종은 P2
+      review.module.ts
+      review.service.ts
+    event/                       # EventModule
+      event.module.ts
+      event.service.ts           # event 행 삽입(도메인 트랜잭션 안) + 커밋 후 NOTIFY (REQ-CB-004)
+      notification.service.ts
+      event.controller.ts        # REST — 이벤트 피드 · 알림
+      ws.gateway.ts              # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
+      pg-listener.service.ts     # 파드별 LISTEN nerv_events → 자기 소켓 emit
+  mcp/
+    mcp.controller.ts            # POST /mcp — Streamable HTTP, 신·구 리비전 병행 협상
+    tool-registry.ts             # modules/**/*.tools.ts 수집 · zod 입력 검증 · idempotency_key 공통 처리
+  worker/
+    worker.module.ts
+    advisory-lock.ts             # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)
+    jobs/
+      lease-reaper.job.ts        # 만료 리스 회수 — claimed → ready
+      session-stale.job.ts       # 무활동 30분(STALE) 세션 전이 + 클레임 회수 (D-13)
+      notification.job.ts        # event → notification 라우팅 (인앱, Slack·메일은 P2)
+      export.job.ts              # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
+      retention.job.ts           # blob TTL 30일 · Activity 보존 정책 집행</code></pre>
+
+  <div class="callout"><span class="ico">📌</span><div class="body">
+    <b class="title">ingest는 별도 프로세스가 아니라 컨트롤러다</b>
+    <p><a href="architecture.html">3.2</a> §4.4의 compose 그림은 <code>nerv-ingest</code>를 별도 서비스로 뒀지만, MVP 배포 단위는 이미지 3종(<code>nerv-api</code>·<code>nerv-worker</code>·<code>nerv-web</code>)으로 확정한다(<a href="scope.html">4.1 MVP 범위와 스택 확정</a>). ingest는 <code>SessionModule</code>의 컨트롤러로 <code>nerv-api</code>에 실리되 모듈 경계가 분리돼 있으므로, 훅 볼륨이 API 지연에 영향을 주는 시점(재검토 트리거)에 같은 이미지의 별도 Deployment로 뗀다 — 코드 변경 없이 라우팅만 바뀐다.</p>
+  </div></div>
+
+  <h3>2.3 모듈 ↔ 테이블 ↔ 도구 ↔ 표면 대응표</h3>
+
+  <p>테이블 이름의 의미 정본은 <a href="data-model.html">3.3 데이터 모델</a>, DDL 정본은 <a href="database.html">4.3 데이터베이스 스키마</a>, 도구 정의 정본은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2, REST 경로 정본은 <a href="api.html">4.4 API 명세</a>다. 이 표는 배치만 확정한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Nest 모듈</th><th>소유 테이블 (27종 전수 배정)</th><th>MCP 도구 (Phase)</th><th>REST 프리픽스</th></tr></thead>
+    <tbody>
+      <tr><td><code>AuthModule</code></td><td><code>organization</code> <code>user</code> <code>project</code> <code>membership</code> <code>api_token</code></td><td>—</td><td><code>/api/v1/auth</code> · <code>/api/v1/orgs</code> · <code>/api/v1/projects</code></td></tr>
+      <tr><td><code>SpecModule</code></td><td><code>spec</code> <code>spec_version</code> <code>requirement</code> <code>requirement_version</code> <code>spec_relation</code> <code>spec_comment</code> <code>change_request</code></td><td><code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code>(P0) · <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code>(P1)</td><td><code>…/projects/{p}/specs</code></td></tr>
+      <tr><td><code>TaskModule</code></td><td><code>task</code> <code>task_dependency</code> <code>claim</code> <code>evidence</code></td><td><code>nerv_task_next</code> <code>nerv_task_claim</code> <code>nerv_task_heartbeat</code> <code>nerv_task_release</code>(P0) · <code>nerv_task_update</code>(P1)</td><td><code>…/projects/{p}/tasks</code></td></tr>
+      <tr><td><code>SessionModule</code></td><td><code>agent_session</code> <code>activity</code></td><td><code>nerv_bootstrap</code>(P0) · <code>nerv_session_event</code>(P1)</td><td><code>…/projects/{p}/sessions</code> + <code>/ingest/hooks/*</code></td></tr>
+      <tr><td><code>ApprovalModule</code></td><td><code>approval</code> <code>question</code></td><td><code>nerv_question_create</code>(P1)</td><td><code>…/projects/{p}/approvals</code> · <code>…/questions</code></td></tr>
+      <tr><td><code>ReviewModule</code></td><td><code>review_session</code> <code>reviewer_report</code> <code>finding</code> <code>finding_occurrence</code> <code>resolution</code></td><td>(P2 — <code>nerv_review_submit</code> <code>nerv_finding_resolve</code>)</td><td>(P2)</td></tr>
+      <tr><td><code>EventModule</code></td><td><code>event</code> <code>notification</code></td><td>—</td><td><code>…/projects/{p}/events</code> + WebSocket</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>합계 검산: MVP 도구 = P0 8종 + P1 7종 = <b>15종</b>, 리뷰 2종은 P2(카탈로그 총 17종 — <a href="agent-integration.html">3.4</a> §2.3). 테이블 5+7+4+2+2+5+2 = <b>27종</b>.</p>
+
+  <h3>2.4 표면별 규약</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>표면</th><th>진입점</th><th>인증</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>REST</td><td><code>/api/v1/*</code></td><td>better-auth 세션 쿠키(웹) 또는 PAT Bearer</td><td>계약 전표는 <a href="api.html">4.4 API 명세</a></td></tr>
+      <tr><td>MCP</td><td><code>POST /mcp</code></td><td>PAT Bearer(MVP) — OAuth 2.1은 Phase 2</td><td>Streamable HTTP, 2026-07-28 리비전 + 구 리비전 병행(<a href="architecture.html">3.2</a> §4.3). Origin 검증은 <code>mcp-origin.guard.ts</code>가 최종 강제(REQ-CB-013) — 전단 nginx는 1차 차단일 뿐이다</td></tr>
+      <tr><td>WebSocket</td><td><code>/socket.io</code></td><td>핸드셰이크에서 세션 쿠키 검증</td><td>websocket 전송만. 룸 <code>project:{id}</code>·<code>user:{id}</code>, join 시 멤버십 검사</td></tr>
+      <tr><td>ingest</td><td><code>POST /ingest/hooks/*</code></td><td>PAT Bearer(<code>Authorization</code> 헤더) — 토큰 없는 이벤트는 버린다</td><td>202 즉시 응답 후 적재. <code>Stop</code> 훅만 동기 판정 경로(<a href="architecture.html">3.2</a> §1.3)</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-CB-003</b></td><td>WHEN 같은 상태 전이(예: draft 저장, 클레임, done 시도)가 REST와 MCP 어느 표면에서 호출되든, THE SYSTEM SHALL 동일한 도메인 서비스 메서드 하나를 실행한다 — 표면 코드에 조건 분기·게이트 규칙이 들어가면 결함이다.</td></tr>
+      <tr><td><b>REQ-CB-004</b></td><td>WHEN 도메인 서비스가 상태 전이 트랜잭션을 커밋할 때, THE SYSTEM SHALL 같은 트랜잭션 안에서 <code>event</code> 행을 삽입하고 커밋 후에 NOTIFY를 발행한다(채널·페이로드 정본: <a href="database.html">4.3</a> §3).</td></tr>
+      <tr><td><b>REQ-CB-005</b></td><td>WHEN <code>worker.ts</code> 엔트리로 기동되면, THE SYSTEM SHALL HTTP 리스너를 열지 않고 잡 러너만 구동한다 — 워커가 트래픽을 받는 순간 replica 1 규칙(§6.3)이 무의미해진다.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-3">3. packages/schema — 타입·상수의 단일 정본</h2>
+
+  <h3>3.1 구조</h3>
+
+<pre><code>packages/schema/
+  package.json                   # @nerv/schema — sideEffects: false
+  drizzle.config.ts              # drizzle-kit 설정 — out: ./drizzle
+  drizzle/                       # 생성된 SQL 마이그레이션 (0001 스냅샷부터, 정본: 4.3 §1)
+  src/
+    index.ts
+    enums.ts                     # pgEnum 선언 — 문서 상태 · Task 상태 · 세션 상태 · severity … (정본: 3.3)
+    tables/                      # 27개 테이블 drizzle 선언 — §2.3 모듈 소유와 같은 분할
+      tenancy.ts                 #   organization · user · project · membership · api_token
+      spec.ts                    #   spec · spec_version · requirement · requirement_version · spec_relation · spec_comment · change_request
+      task.ts                    #   task · task_dependency · claim · evidence
+      session.ts                 #   agent_session · activity
+      review.ts                  #   review_session · reviewer_report · finding · finding_occurrence · resolution
+      approval.ts                #   approval · question
+      event.ts                   #   event · notification
+    zod/                         # 요청·응답·도구 입력 zod 스키마 — REST(4.4)와 MCP가 같은 것을 쓴다
+    constants.ts                 # §3.2 상수 전표
+    events.ts                    # 이벤트 이름 리터럴 유니온 — &lt;리소스&gt;.&lt;동사&gt; (정본: 3.5 §6)
+    errors.ts                    # NERV_* 에러 코드 리터럴 유니온 (정본: 3.4 §2.7)
+    migrate.ts                   # drizzle 마이그레이터 — apps/api/src/migrate.ts 가 호출</code></pre>
+
+  <p>파생 타입 공유 규칙: 테이블 행 타입은 drizzle 선언에서(<code>InferSelectModel</code>), API·도구 입출력 타입은 zod 스키마에서(<code>z.infer</code>) 파생한다. <b>손으로 쓴 중복 인터페이스는 금지</b>다 — 웹 폼(react-hook-form + zod)·REST 컨트롤러·MCP 도구 레지스트리가 전부 <code>@nerv/schema</code>의 같은 zod 객체를 import하므로, 검증 규칙이 표면마다 갈라질 수 없다.</p>
+
+  <h3>3.2 상수 전표 (constants.ts)</h3>
+
+  <p>수치의 정본은 각 열의 문서다. 코드에서는 이 파일 외의 하드코딩을 금지한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>상수</th><th>값</th><th>근거 정본</th></tr></thead>
+    <tbody>
+      <tr><td><code>LEASE_TTL_SECONDS</code></td><td><code>1800</code> (30분)</td><td>Task 클레임·초안 편집 리스 동일 상수 — <a href="agent-integration.html">3.4</a> §2.7</td></tr>
+      <tr><td><code>HEARTBEAT_INTERVAL_SECONDS</code></td><td><code>60</code></td><td><a href="agent-integration.html">3.4</a> §2.3 <code>nerv_task_heartbeat</code></td></tr>
+      <tr><td><code>SESSION_STALE_SECONDS</code></td><td><code>1800</code> (30분)</td><td>리스 TTL과 같은 값으로 묶는 이유는 <a href="agent-integration.html">3.4</a> §5.2</td></tr>
+      <tr><td><code>REVIEW_PROMPT_BLOB_TTL_DAYS</code></td><td><code>30</code></td><td><a href="architecture.html">3.2</a> §2.5</td></tr>
+      <tr><td><code>PG_NOTIFY_CHANNEL</code></td><td><code>'nerv_events'</code></td><td><a href="database.html">4.3 데이터베이스 스키마</a> §3</td></tr>
+      <tr><td><code>WORKER_ADVISORY_LOCK_KEY</code></td><td>프로젝트 전역 단일 키(bigint 리터럴 1개)</td><td>§6.3 — 워커 단일 실행</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-CB-006</b></td><td>WHEN 도메인 상수·이벤트 이름·에러 코드·검증 스키마가 코드에서 필요할 때, THE SYSTEM SHALL <code>@nerv/schema</code>의 선언만 import한다 — <code>apps/*</code> 안에서의 재선언·하드코딩은 lint로 차단한다.</td></tr>
+      <tr><td><b>REQ-CB-007</b></td><td>WHEN <code>src/tables/*</code> 선언이 변경된 PR이 열리면, THE SYSTEM SHALL 같은 PR에 <code>drizzle-kit generate</code> 산출물(<code>drizzle/*.sql</code>)을 포함하며, CI가 "스키마 변경 있음 + 마이그레이션 없음"을 실패로 판정한다.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-4">4. 컨벤션</h2>
+
+  <h3>4.1 TypeScript</h3>
+  <p><code>tsconfig.base.json</code>은 전 워크스페이스가 extends한다. 핵심 옵션: <code>"strict": true</code>, <code>"noUncheckedIndexedAccess": true</code>, <code>"exactOptionalPropertyTypes": true</code>, <code>"verbatimModuleSyntax": true</code>. 완화는 파일 단위 주석이 아니라 워크스페이스 tsconfig에서만, 사유 주석과 함께 한다.</p>
+
+  <h3>4.2 lint · format</h3>
+  <ul>
+    <li>ESLint(flat config) + Prettier. 규칙 조정은 루트 한 곳에서만.</li>
+    <li>경계 규칙 2종을 lint로 강제한다: ① <code>apps/*</code> 간 import 금지(REQ-CB-001) ② <code>apps/*</code> 안에서 도메인 상수·이벤트 이름 리터럴 하드코딩 금지(REQ-CB-006 — <code>no-restricted-syntax</code>로 <code>NERV_</code>·이벤트 이름 패턴 검사).</li>
+    <li>표면 파일(<code>*.controller.ts</code>·<code>*.tools.ts</code>·<code>*.gateway.ts</code>)에서 drizzle 객체 직접 import 금지 — 표면은 서비스만 호출한다(REQ-CB-003의 lint 표현).</li>
+  </ul>
+
+  <h3>4.3 테스트 3계층</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>계층</th><th>위치</th><th>대상</th><th>실행</th></tr></thead>
+    <tbody>
+      <tr><td>L1 단위</td><td>소스 옆 <code>*.spec.ts</code></td><td>순수 로직 — zod 스키마, 델타 계산, fingerprint</td><td><code>pnpm test</code> (매 PR)</td></tr>
+      <tr><td>L2 통합</td><td><code>apps/api/test/integration/</code></td><td>도메인 서비스 + 실제 Postgres(compose의 <code>postgres</code> 사용) — <b>클레임 원자성 동시 호출, scope 겹침, base_version 409, 리스 만료</b></td><td><code>pnpm test:integration</code> (매 PR)</td></tr>
+      <tr><td>L3 계약/E2E</td><td><code>apps/api/test/e2e/</code> + <code>apps/web/test/e2e/</code></td><td>compose 스택 기동 후 REST·MCP·WS 시나리오 — <a href="backlog.html">4.8 백로그</a> §5의 E2E 수용 시나리오가 케이스 정본</td><td><code>pnpm test:e2e</code> (머지 전·야간)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시 클레임·게이트 판정)는 mock으로 검증되지 않는다 — 트랜잭션·행 잠금·부분 인덱스가 실제로 동작하는 DB를 상대로만 의미가 있다.</p>
+
+  <h3>4.4 커밋·브랜치</h3>
+  <ul>
+    <li>커밋: Conventional Commits — <code>feat|fix|docs|refactor|test|chore(scope)</code>, scope는 워크스페이스 이름(<code>api</code>·<code>web</code>·<code>schema</code>·<code>deploy</code>). 현행 저장소 관례(<code>docs: …</code>)와 연속.</li>
+    <li>브랜치: <code>feat/…</code>·<code>fix/…</code>·<code>docs/…</code>. <code>main</code> 직접 push 금지, PR 필수.</li>
+    <li>PR 본문에 관련 Task ID(<code>TSK-…</code>)와 스펙 안정 ID(<code>SPC-…</code>·<code>REQ-…</code>)를 남긴다 — NERV 가동 후 evidence 연결의 원료다(FR-13).</li>
+  </ul>
+
+  <h2 id="sec-5">5. 개발 환경</h2>
+
+  <h3>5.1 부트스트랩 절차 — 신규 장비에서 로그인 화면까지</h3>
+
+<pre><code>git clone &lt;forge&gt;/nerv &amp;&amp; cd nerv
+corepack enable                 # .nvmrc 의 Node LTS + package.json 의 pnpm 버전 사용
+cp .env.example .env            # §5.2 전표 — 필수 3개(POSTGRES_PASSWORD·MINIO_ROOT_PASSWORD·NERV_AUTH_SECRET)만 채우면 기동된다
+pnpm install
+pnpm compose:up                 # postgres → minio → migrate → api·worker → web 순서로 기동 (§5.3)
+open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 생성은 4.6 온보딩 절차</code></pre>
+
+  <p>개발 루프(HMR)가 필요하면 인프라만 compose로 띄우고 앱은 로컬 프로세스로 돈다:</p>
+
+<pre><code>pnpm compose:infra              # postgres · minio 만 기동
+pnpm db:migrate                 # drizzle 마이그레이션 적용 (= node apps/api/dist/migrate.js 의 dev 판)
+pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api·/mcp·/ingest·/socket.io 프록시) 병렬</code></pre>
+
+  <p>루트 <code>package.json</code> 스크립트 표:</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>명령</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td><code>pnpm dev</code></td><td><code>pnpm --parallel -r dev</code> — api(:8080) + web(:5173)</td></tr>
+      <tr><td><code>pnpm build</code> / <code>pnpm test</code> / <code>pnpm lint</code></td><td>전 워크스페이스 일괄</td></tr>
+      <tr><td><code>pnpm db:generate</code></td><td><code>@nerv/schema</code>에서 <code>drizzle-kit generate</code> — 마이그레이션 SQL 생성</td></tr>
+      <tr><td><code>pnpm db:migrate</code></td><td>마이그레이션 적용(<code>migrate.ts</code>) — compose·k8s와 같은 코드 경로</td></tr>
+      <tr><td><code>pnpm db:seed</code></td><td>개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등(<a href="database.html">4.3 데이터베이스 스키마</a> §4, REQ-DB-002)</td></tr>
+      <tr><td><code>pnpm compose:up</code></td><td><code>docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build</code></td></tr>
+      <tr><td><code>pnpm compose:infra</code></td><td>위 명령 + <code>postgres minio</code> 서비스만</td></tr>
+      <tr><td><code>pnpm compose:down</code></td><td>스택 정지(볼륨 유지)</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-CB-008</b></td><td>WHEN compose 스택이 기동될 때, THE SYSTEM SHALL <code>migrate</code> 서비스가 성공 종료(<code>service_completed_successfully</code>)하기 전에는 <code>api</code>·<code>worker</code>를 시작하지 않는다.</td></tr>
+      <tr><td><b>REQ-CB-009</b></td><td>WHEN 신규 장비에서 §5.1의 명령 6개만 순서대로 실행하면, THE SYSTEM SHALL 추가 질문·수동 설정 없이 로그인 화면 응답(HTTP 200)과 <code>nerv_bootstrap</code> 도구 호출 성공까지 도달한다 — 이 문서의 1차 수용 기준이다.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.2 .env 변수 전표</h3>
+
+  <p><code>.env.example</code>이 이 표의 실물이다. 필수 3개 외에는 전부 기본값으로 동작한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>변수</th><th>필수</th><th>기본값(개발)</th><th>소비자</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>POSTGRES_USER</code></td><td></td><td><code>nerv</code></td><td>compose <code>postgres</code> · <code>DATABASE_URL</code> 조립</td><td></td></tr>
+      <tr><td><code>POSTGRES_PASSWORD</code></td><td><b>필수</b></td><td>—</td><td>compose <code>postgres</code> · <code>DATABASE_URL</code> 조립</td><td></td></tr>
+      <tr><td><code>POSTGRES_DB</code></td><td></td><td><code>nerv</code></td><td>compose <code>postgres</code></td><td></td></tr>
+      <tr><td><code>POSTGRES_PORT</code></td><td></td><td><code>5432</code></td><td>compose 포트 노출(127.0.0.1 한정)</td><td>개발 루프(<code>pnpm dev</code>)의 DB 접근</td></tr>
+      <tr><td><code>DATABASE_URL</code></td><td>dev 루프 시</td><td><code>postgres://nerv:&lt;pw&gt;@localhost:5432/nerv</code></td><td>api · worker · migrate · drizzle-kit</td><td>compose 내부에서는 <code>postgres</code> 호스트로 자동 조립</td></tr>
+      <tr><td><code>NERV_API_PORT</code></td><td></td><td><code>8080</code></td><td>api</td><td></td></tr>
+      <tr><td><code>NERV_PUBLIC_URL</code></td><td></td><td><code>http://localhost:8080</code></td><td>api(세션 쿠키·CORS 기준) · web(<code>/mcp</code> Origin 1차 검증)</td><td>경로 없는 오리진만</td></tr>
+      <tr><td><code>NERV_AUTH_SECRET</code></td><td><b>필수</b></td><td>—</td><td>api(better-auth 서명)</td><td><code>openssl rand -base64 32</code></td></tr>
+      <tr><td><code>MINIO_ROOT_USER</code></td><td></td><td><code>nerv</code></td><td>compose <code>minio</code> · S3 자격증명</td><td></td></tr>
+      <tr><td><code>MINIO_ROOT_PASSWORD</code></td><td><b>필수</b></td><td>—</td><td>compose <code>minio</code> · S3 자격증명</td><td></td></tr>
+      <tr><td><code>MINIO_PORT</code></td><td></td><td><code>9000</code></td><td>compose 포트 노출(127.0.0.1 한정)</td><td>개발 루프(<code>pnpm dev</code>)의 S3 접근</td></tr>
+      <tr><td><code>MINIO_CONSOLE_PORT</code></td><td></td><td><code>9001</code></td><td>compose 포트 노출(127.0.0.1 한정)</td><td>minio 웹 콘솔</td></tr>
+      <tr><td><code>NERV_S3_ENDPOINT</code></td><td></td><td><code>http://localhost:9000</code></td><td>api · worker</td><td>compose 내부는 <code>http://minio:9000</code></td></tr>
+      <tr><td><code>NERV_S3_BUCKET</code></td><td></td><td><code>nerv-blobs</code></td><td>api · worker</td><td>api가 기동 시 없으면 생성</td></tr>
+      <tr><td><code>NERV_S3_FORCE_PATH_STYLE</code></td><td></td><td><code>true</code></td><td>api · worker</td><td>minio 호환</td></tr>
+      <tr><td><code>NERV_HTTP_PORT</code></td><td></td><td><code>8080</code></td><td>compose <code>web</code> 공개 포트</td><td></td></tr>
+      <tr><td><code>NERV_TAG</code></td><td></td><td><code>dev</code></td><td>compose 이미지 태그</td><td>운영 태깅은 §6.4</td></tr>
+      <tr><td><code>NERV_LOG_LEVEL</code></td><td></td><td><code>info</code></td><td>api · worker</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>에이전트 장비 쪽 변수는 이 전표가 아니다.</b> <code>NERV_TOKEN</code>(PAT)·<code>NERV_PROJECT</code>·<code>NERV_HOSTNAME</code>은 세션이 도는 개발자 장비의 환경이며, 정본은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3·§4.1, 발급·설치 절차는 <a href="plugin.html">4.6 플러그인과 온보딩</a>이다.</p>
+
+  <h3>5.3 docker-compose.yml 전문</h3>
+
+<pre><code># deploy/compose/docker-compose.yml
+# NERV 로컬 개발 · 소규모 자가호스팅 정본 (NFR-01).
+# 실행: 저장소 루트에서
+#   docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build
+# (래퍼: pnpm compose:up — docs/04-mvp/codebase.md §5.1)
+# 운영 k8s 는 deploy/k8s (§6). 같은 이미지 3종(nerv-api·nerv-worker·nerv-web)을 두 타깃이 공유한다.
+name: nerv
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nerv}
+      POSTGRES_USER: ${POSTGRES_USER:-nerv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"   # 개발 루프용 — 운영 배포에서는 제거
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-nerv} -d $${POSTGRES_DB:-nerv}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: minio/minio:latest        # 운영은 RELEASE 태그·다이제스트로 고정할 것
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-nerv}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"      # 개발 루프용 S3 엔드포인트
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  migrate:                           # 기동 시 마이그레이션 — k8s 의 nerv-migrate Job 과 같은 엔트리 (§6.3)
+    image: nerv-api:${NERV_TAG:-dev}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.server
+      target: api
+    command: ["node", "dist/migrate.js"]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:                               # nerv-api — REST + MCP + WebSocket + ingest (§2)
+    image: nerv-api:${NERV_TAG:-dev}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.server
+      target: api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NERV_API_PORT: "8080"
+      NERV_PUBLIC_URL: ${NERV_PUBLIC_URL:-http://localhost:8080}
+      NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
+      NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
+      NERV_S3_ENDPOINT: http://minio:9000
+      NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
+      NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
+      NERV_S3_FORCE_PATH_STYLE: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=&gt;process.exit(r.ok?0:1),()=&gt;process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  worker:                            # nerv-worker — 같은 코드베이스, 엔트리 분리. replica 1 고정 (§6.3)
+    image: nerv-worker:${NERV_TAG:-dev}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.server
+      target: worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
+      NERV_S3_ENDPOINT: http://minio:9000
+      NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
+      NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
+      NERV_S3_FORCE_PATH_STYLE: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+
+  web:                               # nerv-web — Vite 산출물 + nginx reverse-proxy (§5.4)
+    image: nerv-web:${NERV_TAG:-dev}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.web
+    restart: unless-stopped
+    environment:
+      NERV_API_UPSTREAM: api:8080
+      NERV_PUBLIC_ORIGIN: ${NERV_PUBLIC_URL:-http://localhost:8080}
+    ports:
+      - "${NERV_HTTP_PORT:-8080}:80"   # TLS 는 호스트 앞단(조직 LB·프록시)에서 종료
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  miniodata:</code></pre>
+
+  <p>otel-collector(조직 정량 관측)는 선택 사항이라 MVP compose 정본에서 뺐다 — 필요 조직은 <a href="architecture.html">3.2</a> §4.4 구성을 별도 오버레이 파일(<code>docker-compose.otel.yml</code>)로 얹는다.</p>
+
+  <h3>5.4 nginx 템플릿 전문 (deploy/docker/nginx/default.conf.template)</h3>
+
+  <p>nginx 공식 이미지의 envsubst 템플릿 기능을 쓴다 — 기동 시 <code>${NERV_API_UPSTREAM}</code>·<code>${NERV_PUBLIC_ORIGIN}</code>이 치환된 뒤 로드되므로, compose(<code>api:8080</code>)와 k8s(<code>nerv-api:8080</code>)가 같은 이미지를 쓴다.</p>
+
+<pre><code># deploy/docker/nginx/default.conf.template
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ""      close;
+}
+
+# /mcp Origin 1차 검증 — 비브라우저 클라이언트(Origin 없음)와 자기 오리진만 허용.
+# 최종 강제는 앱의 mcp-origin.guard.ts (REQ-CB-013).
+map $http_origin $nerv_mcp_origin_ok {
+  default                 0;
+  ""                      1;
+  "${NERV_PUBLIC_ORIGIN}" 1;
+}
+
+upstream nerv_api {
+  server ${NERV_API_UPSTREAM};
+}
+
+server {
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+
+  # SPA — 정적 자산, 나머지 경로는 index.html
+  location / {
+    try_files $uri /index.html;
+  }
+  location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  location /api/ {
+    proxy_pass http://nerv_api;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location /mcp {
+    if ($nerv_mcp_origin_ok = 0) { return 403; }
+    proxy_pass http://nerv_api;
+    proxy_http_version 1.1;
+    proxy_buffering off;               # Streamable HTTP 응답 스트림
+    proxy_read_timeout 300s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location /ingest/ {
+    client_max_body_size 5m;           # 훅 페이로드 상한
+    proxy_pass http://nerv_api;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # WebSocket — socket.io 경로, websocket 전송만(폴링 폴백 off)
+  location /socket.io/ {
+    proxy_pass http://nerv_api;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location = /healthz {
+    proxy_pass http://nerv_api;
+  }
+}</code></pre>
+
+  <p><code>/healthz</code>는 인프라 전용(무인증 liveness)이며 <a href="api.html">4.4 API 명세</a>의 계약 전표 밖이다.</p>
+
+  <h2 id="sec-6">6. 운영 배포 — k8s (kustomize base/overlays)</h2>
+
+  <p>운영 표준은 조직 관례대로 k8s + kustomize다(clemvion이 이미 <code>clemvion:k8s/</code> base+overlays 관례를 쓴다 — <a href="architecture.html">3.2</a> §4.2). 운영 Postgres 위치(클러스터 외부 권장 vs CloudNativePG)는 이 문서가 정하지 않는다 — <a href="backlog.html">4.8 백로그</a>의 확인 태스크다.</p>
+
+  <h3>6.1 Dockerfile 2종 요지</h3>
+
+  <p><b><code>deploy/docker/Dockerfile.server</code></b> — 멀티스테이지 하나에서 <code>api</code>·<code>worker</code> 두 타깃을 뽑는다(이미지 3종 중 2종).</p>
+
+<pre><code># deploy/docker/Dockerfile.server — nerv-api · nerv-worker 공용 정의
+FROM node:24-bookworm-slim AS build          # .nvmrc 의 Node LTS 와 동일 메이저 (REQ-CB-002)
+WORKDIR /app
+RUN corepack enable
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/api/package.json apps/api/
+COPY packages/schema/package.json packages/schema/
+RUN pnpm fetch
+COPY . .
+RUN pnpm install --frozen-lockfile --offline \
+ &amp;&amp; pnpm --filter @nerv/api build \
+ &amp;&amp; pnpm --filter @nerv/api deploy --prod /out   # 실행 파일 + prod 의존성만 추출
+
+FROM node:24-bookworm-slim AS runtime
+ENV NODE_ENV=production
+USER node
+WORKDIR /app
+COPY --from=build --chown=node:node /out .
+
+FROM runtime AS api                          # → nerv-api  (migrate.js 도 이 이미지에 포함)
+EXPOSE 8080
+CMD ["node", "dist/main.js"]
+
+FROM runtime AS worker                       # → nerv-worker
+CMD ["node", "dist/worker.js"]</code></pre>
+
+  <p><b><code>deploy/docker/Dockerfile.web</code></b> — Vite 빌드 산출물 + nginx(§5.4 템플릿).</p>
+
+<pre><code># deploy/docker/Dockerfile.web — nerv-web
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+RUN corepack enable
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/web/package.json apps/web/
+COPY packages/schema/package.json packages/schema/
+RUN pnpm fetch
+COPY . .
+RUN pnpm install --frozen-lockfile --offline &amp;&amp; pnpm --filter @nerv/web build
+
+FROM nginx:1.27-alpine
+COPY deploy/docker/nginx/default.conf.template /etc/nginx/templates/
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+ENV NERV_API_UPSTREAM=api:8080 \
+    NERV_PUBLIC_ORIGIN=http://localhost:8080</code></pre>
+
+  <h3>6.2 kustomize 트리</h3>
+
+<pre><code>deploy/k8s/
+  base/
+    kustomization.yaml
+    namespace.yaml               # Namespace nerv
+    configmap.yaml               # 비밀 아닌 설정 — NERV_PUBLIC_URL · NERV_S3_BUCKET …
+    api/
+      deployment.yaml            # §6.3 전문
+      service.yaml               # nerv-api :8080 (name: http)
+    worker/
+      deployment.yaml            # §6.3 전문 — replicas 1 · Recreate
+    web/
+      deployment.yaml            # nginx · NERV_API_UPSTREAM=nerv-api:8080
+      service.yaml               # nerv-web :80 (name: http)
+    migrate/
+      job.yaml                   # §6.3 전문
+    ingress.yaml                 # §6.3 전문 — WS 업그레이드 · 타임아웃
+  overlays/
+    dev/
+      kustomization.yaml         # 이미지 태그 · host(dev) · replica 1 패치
+      ingress-host.yaml
+    prod/
+      kustomization.yaml         # §6.4 — images: 로 git SHA 고정
+      ingress-host.yaml
+      api-replicas.yaml
+      resources.yaml</code></pre>
+
+  <p><code>base/kustomization.yaml</code> 전문:</p>
+
+<pre><code>apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nerv
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - worker/deployment.yaml
+  - web/deployment.yaml
+  - web/service.yaml
+  - migrate/job.yaml
+  - ingress.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: nerv</code></pre>
+
+  <p>Secret(<code>nerv-secrets</code>: <code>DATABASE_URL</code>·<code>NERV_AUTH_SECRET</code>·<code>NERV_S3_ACCESS_KEY</code>·<code>NERV_S3_SECRET_KEY</code>)은 base가 만들지 않는다 — 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 이름만 계약한다.</p>
+
+  <h3>6.3 Deployment · Job · Ingress 스켈레톤</h3>
+
+  <p><code>base/api/deployment.yaml</code>:</p>
+
+<pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-api
+  labels: { app: nerv-api }
+spec:
+  replicas: 2                      # 무상태 — 팬아웃은 파드별 PG LISTEN(§2.1)이라 스티키 불필요
+  selector:
+    matchLabels: { app: nerv-api }
+  template:
+    metadata:
+      labels: { app: nerv-api }
+    spec:
+      containers:
+        - name: api
+          image: nerv-api          # 태그는 overlay images: 로 고정 (§6.4)
+          ports:
+            - { containerPort: 8080, name: http }
+          envFrom:
+            - configMapRef: { name: nerv-config }
+            - secretRef: { name: nerv-secrets }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 1Gi }</code></pre>
+
+  <p><code>base/worker/deployment.yaml</code>:</p>
+
+<pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-worker
+  labels: { app: nerv-worker }
+spec:
+  replicas: 1                      # 고정 — HPA 대상 제외 (REQ-CB-011)
+  strategy:
+    type: Recreate                 # 롤링 중 2개 동시 실행 창 제거
+  selector:
+    matchLabels: { app: nerv-worker }
+  template:
+    metadata:
+      labels: { app: nerv-worker }
+    spec:
+      containers:
+        - name: worker
+          image: nerv-worker
+          envFrom:
+            - configMapRef: { name: nerv-config }
+            - secretRef: { name: nerv-secrets }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+      # HTTP 포트·프로브 없음 — 잡 루프 실패는 프로세스 종료 → 재시작으로 처리</code></pre>
+
+  <p><code>base/migrate/job.yaml</code>:</p>
+
+<pre><code>apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nerv-migrate
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: nerv-api                      # 같은 이미지 — compose migrate 서비스와 동일 엔트리
+          command: ["node", "dist/migrate.js"]
+          envFrom:
+            - secretRef: { name: nerv-secrets }</code></pre>
+
+  <p><code>base/ingress.yaml</code>:</p>
+
+<pre><code>apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nerv
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"   # WebSocket 유휴 연결 유지
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "5m"        # 훅 페이로드 상한(§5.4 와 동일)
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [nerv.example.com]
+      secretName: nerv-tls
+  rules:
+    - host: nerv.example.com
+      http:
+        paths:
+          - { path: /api,       pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
+          - { path: /mcp,       pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
+          - { path: /ingest,    pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
+          - { path: /socket.io, pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
+          - { path: /,          pathType: Prefix, backend: { service: { name: nerv-web, port: { name: http } } } }</code></pre>
+
+  <p>k8s 경로에서 <code>/mcp</code> Origin 검증의 최종 강제는 앱 가드(<code>mcp-origin.guard.ts</code>)다 — Ingress 컨트롤러의 스니펫 주입은 조직 보안 정책상 비활성인 클러스터가 많아 <b>의존하지 않는다</b>(REQ-CB-013).</p>
+
+  <p>배포 절차(마이그레이션 Job 선행 — Job은 불변 리소스라 재적용 전 삭제):</p>
+
+<pre><code>kubectl -n nerv delete job nerv-migrate --ignore-not-found                        # (1) Job 은 불변 리소스 — 재적용 전 삭제
+kustomize build deploy/k8s/overlays/prod | kubectl apply -f -                     # (2) 적용 — migrate Job 이 함께 생성된다
+kubectl -n nerv wait --for=condition=complete --timeout=300s job/nerv-migrate     # (3) 마이그레이션 완료 대기
+kubectl -n nerv rollout status deploy/nerv-api &amp;&amp; \
+kubectl -n nerv rollout status deploy/nerv-worker &amp;&amp; \
+kubectl -n nerv rollout status deploy/nerv-web                                    # (4) 롤아웃 확인</code></pre>
+
+  <p>마이그레이션은 <b>expand-contract</b>(하위호환 additive 우선)를 원칙으로 한다 — (2)~(3) 사이 구버전 파드가 새 스키마 위에서 잠시 돌 수 있어야 한다. 파괴적 변경(컬럼 삭제·rename)은 2회 릴리스로 나눈다. 규칙 상세는 <a href="database.html">4.3 데이터베이스 스키마</a> §1.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-CB-010</b></td><td>WHEN 새 이미지가 k8s에 배포될 때, THE SYSTEM SHALL <code>nerv-migrate</code> Job의 성공 완료를 확인한 뒤에만 Deployment 롤아웃을 완료 판정한다(위 절차 (3)→(4) 순서 고정).</td></tr>
+      <tr><td><b>REQ-CB-011</b></td><td>WHEN <code>nerv-worker</code> 인스턴스가 어떤 이유로든 2개 이상 동시에 떠 있을 때, THE SYSTEM SHALL <code>pg_advisory_lock(WORKER_ADVISORY_LOCK_KEY)</code>을 보유한 1개만 잡 루프를 실행한다 — replica 1은 배포 규칙이고, lock이 최종 방어선이다.</td></tr>
+      <tr><td><b>REQ-CB-012</b></td><td>WHEN 이미지가 빌드되면, THE SYSTEM SHALL <code>nerv-api</code>·<code>nerv-worker</code>·<code>nerv-web</code> 3종에 같은 git SHA 태그를 붙이고 그 태그를 재사용(overwrite)하지 않는다.</td></tr>
+      <tr><td><b>REQ-CB-013</b></td><td>WHEN <code>POST /mcp</code> 요청의 <code>Origin</code> 헤더가 존재하고 <code>NERV_PUBLIC_URL</code>의 오리진과 다를 때, THE SYSTEM SHALL 앱 가드에서 403을 반환한다 — 전단(nginx·Ingress)의 차단 여부와 무관하게.</td></tr>
+      <tr><td><b>REQ-CB-014</b></td><td>WHEN 웹 클라이언트가 WebSocket을 연결할 때, THE SYSTEM SHALL websocket 전송만 협상하며(폴링 폴백 없음), 모든 프록시 계층(§5.4·§6.3)은 업그레이드 헤더와 read/send 타임아웃 3600초를 유지한다.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>6.4 이미지 태깅과 overlay</h3>
+
+  <ul>
+    <li>태그 체계: <code>nerv-api:&lt;git-sha&gt;</code>(불변, CI가 매 머지 빌드) + 릴리스에 <code>vX.Y.Z</code> 별칭. <code>latest</code>·<code>dev</code>는 로컬 compose 전용이다(REQ-CB-012).</li>
+    <li>overlay가 배포 버전을 고정한다. <code>overlays/prod/kustomization.yaml</code> 전문:</li>
+  </ul>
+
+<pre><code>apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: nerv-api
+    newName: registry.example.com/nerv/nerv-api
+    newTag: "&lt;git-sha&gt;"        # CI 가 배포 시점에 치환 — 3종 동일 SHA (REQ-CB-012)
+  - name: nerv-worker
+    newName: registry.example.com/nerv/nerv-worker
+    newTag: "&lt;git-sha&gt;"
+  - name: nerv-web
+    newName: registry.example.com/nerv/nerv-web
+    newTag: "&lt;git-sha&gt;"
+patches:
+  - path: ingress-host.yaml
+  - path: api-replicas.yaml
+  - path: resources.yaml</code></pre>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3>이 문서가 따르는 결정·정본</h3>
+  <ul>
+    <li>D-05(REST·MCP·WS의 도메인 서비스 공유) · D-13(하트비트·stale) · D-14(fail-open, 진실은 서버 산출물) — <a href="agent-integration.html">3.4 에이전트 연동 설계</a></li>
+    <li>확정 스택 전문과 결정일·재검토 트리거 — <a href="architecture.html">3.2 시스템 아키텍처</a> §4, <a href="scope.html">4.1 MVP 범위와 스택 확정</a></li>
+    <li>상수 정본 — 리스 TTL 30분 · 하트비트 60초 · 세션 stale 30분 · blob TTL 30일(<a href="agent-integration.html">3.4</a> §2.7·§5.2, <a href="architecture.html">3.2</a> §2.5)</li>
+    <li>테이블 27종의 의미 — <a href="data-model.html">3.3 데이터 모델</a> §1.3 / DDL·NOTIFY 규약 — <a href="database.html">4.3 데이터베이스 스키마</a></li>
+    <li>ingest 엔드포인트 5종(<code>/ingest/hooks/session</code>·<code>tool</code>·<code>subagent</code>·<code>stop</code>·<code>session-end</code>)과 클라이언트 환경변수 — <a href="agent-integration.html">3.4</a> §3.3</li>
+    <li>clemvion 관례 — <code>clemvion:k8s/</code> base+overlays kustomize 구조(<a href="architecture.html">3.2</a> §4.2 배포 행)</li>
+  </ul>
+
+  <h3>외부 출처 (기존 제안서에서 이미 인용된 URL만 재인용)</h3>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">MCP Streamable HTTP transport (2026-07-28)</a> (2026-08-13 확인): <code>/mcp</code> 프록시가 스트리밍 응답을 버퍼링하지 않아야 하는 근거와 Origin 검증 요구(§5.4·REQ-CB-013).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/hooks">Hooks reference — Claude Code Docs</a> (2026-08-13 확인): <code>type:"http"</code> 훅이 POST하는 ingest 경로·헤더 규약의 클라이언트 측 정본(§2.4).</p>
+
+  <h3>이 문서와 연결되는 제안서 문서</h3>
+  <ul>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 이 문서가 전제하는 스택·범위의 확정본</li>
+    <li><a href="database.html">4.3 데이터베이스 스키마</a> — <code>packages/schema</code>가 선언하는 DDL·NOTIFY 규약의 정본</li>
+    <li><a href="api.html">4.4 API 명세</a> — §2 표면들이 노출하는 REST·WS 계약의 전표</li>
+    <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — 에이전트 장비 쪽 설치·환경변수 절차</li>
+    <li><a href="backlog.html">4.8 백로그</a> — E01 저장소 부트스트랩 에픽과 운영 Postgres 위치 확인 태스크</li>
+    <li><a href="architecture.html">3.2 시스템 아키텍처</a> — 컴포넌트 책임·배포 원형(§4.4)</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — MCP 도구 17종·훅·ingest의 정본</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 27종 필드 의미의 정본</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="scope.html">이전: 4.1 MVP 범위와 스택 확정</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="database.html">다음: 4.3 데이터베이스 스키마</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

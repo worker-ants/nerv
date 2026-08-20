@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4.5 화면 명세 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html" class="active">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 4부 · MVP 구체화 / 4.5 화면 명세</div>
+
+  <header class="page-header">
+    <h1>화면 명세</h1>
+    <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. 와이어프레임 그림의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이며 이 문서는 재작성하지 않고 인용한다.</p>
+    <div class="meta-line">
+      <span>SPC-MVP-SCREENS · status: draft</span>
+      <span>버전 v0.1 (2026-08-20)</span>
+      <span>원본: <code>docs/04-mvp/screens.md</code></span>
+      <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">라우팅 맵과 앱 셸</a></li>
+      <li><a href="#sec-2">화면별 명세</a></li>
+      <li><a href="#sec-3">에디터 상세 (S3)</a></li>
+      <li><a href="#sec-4">디자인 토큰</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 라우팅 맵과 앱 셸</h2>
+
+  <h3>1.1 이 문서의 정본 관계와 범위</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>무엇</th><th>정본</th><th>이 문서는</th></tr></thead>
+    <tbody>
+      <tr><td>화면 레이아웃·와이어프레임·인터랙션 원칙</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S1~S8</td><td>그림 재작성 금지 — 각 절에서 해당 §를 링크 인용</td></tr>
+      <tr><td>REST·WebSocket 계약</td><td><a href="api.html">4.4 API 명세</a></td><td>엔드포인트를 <b>ID(EP-*)와 메서드·경로</b>로 인용(권한·스키마·발생 이벤트는 api.md가 확정)</td></tr>
+      <tr><td>엔티티 필드·상태 값</td><td><a href="data-model.html">3.3 데이터 모델</a></td><td>테이블·컬럼·enum 문자열을 그대로 사용</td></tr>
+      <tr><td>상태 전이·권한·이벤트 이름</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a></td><td><code>&lt;리소스&gt;.&lt;동사&gt;</code> 이벤트 이름을 그대로 사용</td></tr>
+      <tr><td>MCP 도구 이름·인자</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2</td><td><code>nerv_*</code> 도구명을 그대로 사용</td></tr>
+      <tr><td>MVP 범위·스택</td><td><a href="scope.html">4.1 MVP 범위와 스택 확정</a> · <a href="roadmap.html">3.7 로드맵</a></td><td>화면 범위 S1~S5·S7·S8 + 로그인/온보딩. S6·CR 델타 UI·커버리지 드릴다운·Slack/메일 알림은 Phase 2</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>예시 데이터는 기존 문서와 같은 한 벌을 쓴다 — 프로젝트 <b>clemvion</b>, 스펙 <code>SPC-CWC-007</code> · 요구사항 <code>REQ-CWC-031</code>, Task <code>TSK-3f77</code>(하나/mac-07) · <code>TSK-a3f8</code>(도현/mac-02) · <code>TSK-b904</code>(유나/linux-ci-01/codex), 세션 <code>S-b7e9</code> 등. 이 표기용 ID의 실제 발급 규칙(서버 발급 해시, <code>CLV-T-7QF3K2</code> 형식)은 <a href="data-model.html">데이터 모델</a> §5.1이 정의한다.</p>
+
+  <h3>1.2 라우트 표 (TanStack Router)</h3>
+
+  <p>파일 기반 라우팅을 쓴다. 전역(조직) 화면과 프로젝트 화면은 최상위 트리가 분리된다 — 이 분리는 ui-wireframes §1.2 IA 트리("전역은 S1·S7·알림·S8, 프로젝트 단위는 S2~S6")의 라우팅 표현이다. 프로젝트 스코프는 URL 두 번째 세그먼트다(ui-wireframes §1.4 URL 규약).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>경로</th><th>화면</th><th>가드</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>/login</code></td><td>로그인</td><td>비인증 전용</td><td>인증 상태면 <code>/</code>로</td></tr>
+      <tr><td><code>/onboarding</code></td><td>온보딩</td><td>인증 필요</td><td>소속 조직 0개일 때만 진입</td></tr>
+      <tr><td><code>/</code></td><td>S1 홈 대시보드</td><td>인증 필요</td><td>활성 조직 컨텍스트</td></tr>
+      <tr><td><code>/o/:org</code></td><td>조직 전환</td><td>인증 필요</td><td>컨텍스트 전환 후 <code>/</code>로 리다이렉트(멀티 조직)</td></tr>
+      <tr><td><code>/inbox</code></td><td>S7 승인함</td><td>인증 필요</td><td>조직 전역 — 승인함은 하나(FR-14)</td></tr>
+      <tr><td><code>/notifications</code></td><td>알림 센터(인앱 피드)</td><td>인증 필요</td><td>MVP는 인앱만 — Slack·메일·다이제스트는 Phase 2(로드맵 §1.3 FR-12)</td></tr>
+      <tr><td><code>/settings</code></td><td>S8 설정</td><td>인증 필요</td><td>index는 멤버·역할 탭으로</td></tr>
+      <tr><td><code>/settings/members</code></td><td>S8 멤버·역할</td><td>admin 외 읽기 전용</td><td></td></tr>
+      <tr><td><code>/settings/tokens</code></td><td>S8 에이전트 토큰</td><td>인증 필요</td><td>본인 토큰 + admin은 전체</td></tr>
+      <tr><td><code>/settings/gates</code></td><td>S8 게이트 정책</td><td><code>policy:edit</code>은 admin 전용</td><td></td></tr>
+      <tr><td><code>/p/:proj</code></td><td>S2 프로젝트 개요</td><td>프로젝트 멤버십</td><td></td></tr>
+      <tr><td><code>/p/:proj/specs</code></td><td>스펙 트리(목록)</td><td>멤버십</td><td>스펙 0건이면 빈 상태 + [+ 새 스펙]</td></tr>
+      <tr><td><code>/p/:proj/specs/:spec</code></td><td>S3 스펙 상세</td><td>멤버십</td><td>쿼리: <code>?v=&lt;version_no&gt;</code> <code>?diff=v3..v4</code></td></tr>
+      <tr><td><code>/p/:proj/tasks</code></td><td>S4 작업 보드</td><td>멤버십</td><td>쿼리: <code>?spec=</code> <code>?assignee=</code> <code>?ai=1</code></td></tr>
+      <tr><td><code>/p/:proj/tasks/:task</code></td><td>작업 상세(오버레이 패널)</td><td>멤버십</td><td>보드 위 패널 — URL 공유 가능</td></tr>
+      <tr><td><code>/p/:proj/sessions</code></td><td>S5 세션 모니터</td><td>멤버십</td><td></td></tr>
+      <tr><td><code>/p/:proj/sessions/:session</code></td><td>세션 상세(Activity 타임라인)</td><td>멤버십</td><td></td></tr>
+      <tr><td><code>/p/:proj/coverage</code></td><td>커버리지 드릴다운</td><td>—</td><td><b>Phase 2</b> — 라우트만 예약(로드맵 §3 비범위)</td></tr>
+      <tr><td><code>/p/:proj/reviews</code> · <code>/p/:proj/crs/:cr</code></td><td>S6 리뷰 센터 · CR 델타</td><td>—</td><td><b>Phase 2</b> — 라우트만 예약</td></tr>
+    </tbody>
+  </table></div>
+
+<pre><code>apps/web/src/routes/
+  __root.tsx                 앱 셸: 전역 헤더 · 연결 상태 배너 · 토스트 아웃렛
+  login.tsx                  /login
+  onboarding.tsx             /onboarding
+  index.tsx                  /            → S1
+  o.$org.tsx                 /o/:org      → 조직 전환 리다이렉트
+  inbox.tsx                  /inbox       → S7
+  notifications.tsx          /notifications
+  settings/route.tsx         /settings    셸(탭 내비게이션)
+  settings/index.tsx           → members로 리다이렉트
+  settings/members.tsx
+  settings/tokens.tsx
+  settings/gates.tsx
+  p.$proj/route.tsx          /p/:proj     프로젝트 셸(멤버십 가드 · 프로젝트 탭)
+  p.$proj/index.tsx            → S2
+  p.$proj/specs.index.tsx      스펙 트리
+  p.$proj/specs.$spec.tsx      S3
+  p.$proj/tasks.index.tsx      S4
+  p.$proj/tasks.$task.tsx      작업 상세 패널
+  p.$proj/sessions.index.tsx   S5
+  p.$proj/sessions.$session.tsx</code></pre>
+
+  <p>리소스 지목은 항상 안정 ID다(<code>/p/clemvion/specs/SPC-CWC-007</code>) — 경로·제목이 바뀌어도 링크가 깨지지 않는다(FR-01 · D-09). 뷰 상태는 쿼리 문자열로 둬 알림 딥링크에 그대로 붙는다(ui-wireframes §1.4).</p>
+
+  <h3>1.3 앱 셸 레이아웃</h3>
+
+<pre><code>┌────────────────────────────────────────────────────────────────┐
+│ 전역 헤더  ⬢ NERV · [조직 ▾] · 홈 | 승인함 (2) | 알림 (5)      │ ← WS 배지
+│           🔍 전역 검색                        [사용자 메뉴 ▾]  │
+├────────────────────────────────────────────────────────────────┤
+│ ⚠ 연결 상태 배너 (WS 끊김 · 오프라인 · 게이트 fail-open)      │ ← 조건부
+├──────────────┬─────────────────────────────────────────────────┤
+│ 프로젝트     │                                                 │
+│ 사이드바     │              화면 콘텐츠 (라우트 아웃렛)        │
+│ (S2~S5 탭 · │                                                 │
+│  스펙 트리)  │                                                 │
+├──────────────┴─────────────────────────────────────────────────┤
+│ 토스트 스택 (겹침 경고 · 처리됨 트레일 · 되돌리기 링크)        │
+└────────────────────────────────────────────────────────────────┘</code></pre>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>셸 요소</th><th>명세</th></tr></thead>
+    <tbody>
+      <tr><td>전역 헤더</td><td>조직 스코프. 승인함·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 승인함 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
+      <tr><td>프로젝트 사이드바</td><td><code>/p/:proj/*</code>에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 — 비활성 + 툴팁). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1))</td></tr>
+      <tr><td>연결 상태 배너</td><td>2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
+      <tr><td>토스트 스택</td><td><code>claim.conflict_warn</code> 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.4 실시간 계약 — 구독 룸과 쿼리 무효화</h3>
+
+  <p>WebSocket은 NestJS <code>@WebSocketGateway</code>(socket.io 어댑터, websocket 전송만)이고, 핸드셰이크 인증·룸 join 규약·이벤트 전체 목록의 정본은 <a href="api.html">api.md</a> §3이다. 클라이언트 계약은 세 줄이다.</p>
+
+  <ol>
+    <li><b>룸 2종</b> — <code>user:{id}</code>는 연결 성공 시 서버가 자동 join, <code>project:{id}</code>는 프로젝트 화면 진입 시 클라이언트가 join emit(서버가 멤버십 검사, 이탈 시 leave — api.md §3.2).</li>
+    <li><b>이벤트는 무효화 신호다.</b> 이벤트 봉투에는 식별자만 있고 본문이 없다 — 수신하면 해당 TanStack Query 키를 invalidate하고 재조회한다(진실은 DB, D-14).</li>
+    <li><b>재연결 = 전체 재조회.</b> 끊겼다 붙으면 활성 화면의 쿼리를 전부 무효화한다. 이벤트 재전송(replay)은 없다(api.md §3.4).</li>
+  </ol>
+
+  <p>쿼리 키 규약과 이벤트 매핑 — 이벤트 이름은 <a href="spec-workflow.html">spec-workflow</a> §6.3 정본 + <a href="api.html">api.md</a> §3.3에서 추가 확정된 이벤트(★)를 그대로 쓴다. api.md §3.4가 위임한 "이벤트 → 화면 Query 무효화" 매핑의 정의가 이 표다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>이벤트(<code>&lt;리소스&gt;.&lt;동사&gt;</code>)</th><th>무효화하는 쿼리 키</th><th>수신 룸</th></tr></thead>
+    <tbody>
+      <tr><td><code>spec.draft_created</code> <code>spec.submitted</code> <code>spec.rejected</code> <code>spec.approved</code> <code>spec.superseded</code> <code>spec.deprecated</code></td><td><code>['spec', specId]</code> · <code>['spec', specId, 'versions']</code> · <code>['project', projId, 'specTree']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td><code>spec.comment_added</code> · ★<code>comment.resolved</code></td><td><code>['spec', specId, 'comments']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td><code>task.ready</code> <code>task.claimed</code> <code>task.blocked</code> <code>task.done</code> · ★<code>task.created</code> ★<code>task.updated</code></td><td><code>['project', projId, 'tasks']</code> · <code>['task', taskId]</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td><code>claim.conflict_warn</code> <code>claim.conflict_blocked</code></td><td><code>['project', projId, 'sessions']</code> + 경고 토스트</td><td><code>project:{id}</code> + 양쪽 세션 소유자 <code>user:{id}</code></td></tr>
+      <tr><td>★<code>claim.released</code></td><td><code>['project', projId, 'tasks']</code> · <code>['project', projId, 'sessions']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td><code>session.started</code> <code>session.stale</code> <code>session.complete</code> · ★<code>session.steered</code></td><td><code>['project', projId, 'sessions']</code> · <code>['session', sessionId]</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td><code>approval.requested</code> <code>question.created</code></td><td><code>['inbox']</code> + 헤더 배지</td><td><code>user:{id}</code> + <code>project:{id}</code></td></tr>
+      <tr><td>★<code>question.answered</code></td><td><code>['inbox']</code> · <code>['project', projId, 'sessions']</code>(세션 재개 반영)</td><td><code>user:{id}</code> + <code>project:{id}</code></td></tr>
+      <tr><td>★<code>notification.created</code></td><td><code>['me', 'notifications']</code> + 헤더 알림 배지</td><td><code>user:{id}</code></td></tr>
+      <tr><td><code>gate.bypassed</code> · <code>gate.failopen</code></td><td><code>['project', projId, 'events']</code> + 게이트 배너/카운터</td><td><code>project:{id}</code>(bypassed는 admin <code>user:{id}</code>에도)</td></tr>
+      <tr><td><code>finding.opened</code> <code>finding.resolved</code> <code>cr.opened</code></td><td>— Phase 2(S6·CR)</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>세션 상세의 Activity 스트림과 하트비트·diff 갱신은 알림을 만들지 않고 <code>project:{id}</code> 룸으로만 흐른다(spec-workflow §6.3 말미). 리스 잔여·경과 시간 카운트다운은 서버 push가 아니라 응답의 <code>lease_expires_at</code>·<code>started_at</code>을 기준으로 한 클라이언트 시계 렌더링이다.</p>
+
+  <h3>1.5 공통 상태·에러 규약</h3>
+
+  <p><b>상태 3종 공통 규칙</b> — 모든 화면은 로딩/빈/에러를 다음 기본값으로 처리하고, 각 화면 절에는 특이사항만 적는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>상태</th><th>기본 처리</th></tr></thead>
+    <tbody>
+      <tr><td>로딩</td><td>화면 골격(skeleton) — 스피너 단독 금지. 목록은 행 3개 골격, 카드는 카드 골격</td></tr>
+      <tr><td>빈</td><td>"막다른 길 금지"(ui-wireframes §3.4) — 빈 문구 + 다음 행동 링크 1개 이상</td></tr>
+      <tr><td>에러</td><td>인라인 에러 카드 + [다시 시도]. 전역 토스트로 중복 알리지 않는다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>NERV_* 에러 코드 → UI 매핑.</b> REST 에러 포맷은 MCP와 같은 코드 체계를 재사용한다(<a href="api.html">api.md</a> §1 · <a href="agent-integration.html">agent-integration</a> §2.7).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>코드</th><th>UI 동작</th></tr></thead>
+    <tbody>
+      <tr><td><code>NERV_UNAUTHENTICATED</code></td><td><code>/login</code>으로 리다이렉트(원래 경로 보존)</td></tr>
+      <tr><td><code>NERV_FORBIDDEN</code></td><td>버튼 비활성 + 사유 툴팁(숨기지 않는다 — ui-wireframes §1.5)</td></tr>
+      <tr><td><code>NERV_PRECONDITION</code></td><td><code>base_version</code> 불일치 409 — S3 저장 충돌 다이얼로그(§3.4)</td></tr>
+      <tr><td><code>NERV_CONFLICT_SCOPE</code></td><td>클레임 겹침 모달 — 상대 세션의 사용자·hostname·scope 표시</td></tr>
+      <tr><td><code>NERV_LEASE_EXPIRED</code></td><td>리스 만료 배너 + 재클레임 안내</td></tr>
+      <tr><td><code>NERV_DRAFT_LEASED</code></td><td>S3 읽기 전용 전환 + 보유자 배지 + [인계 요청] 버튼(§3.4)</td></tr>
+      <tr><td><code>NERV_APPROVAL_REQUIRED</code></td><td>"승인 대기 항목이 생성됨" 안내 + 승인함 딥링크</td></tr>
+      <tr><td><code>NERV_HUMAN_ONLY</code></td><td>(에이전트 전용 코드 — 웹에서는 도달하지 않음. 도달 시 일반 에러 카드)</td></tr>
+      <tr><td><code>NERV_RATE_LIMIT</code></td><td>재시도 대기 안내(Retry-After 존중)</td></tr>
+      <tr><td><code>NERV_UNAVAILABLE</code></td><td>연결 상태 배너 격상 + 폴백 폴링</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>셸 수용 기준</b></p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-001</td><td>WHEN 비인증 사용자가 <code>/login</code> 외 경로에 접근하면 THE SYSTEM SHALL <code>/login</code>으로 리다이렉트하고 로그인 성공 시 원래 경로로 복귀시킨다</td></tr>
+      <tr><td>REQ-WEB-002</td><td>WHEN WebSocket 연결이 끊기면 THE SYSTEM SHALL 3초 이내에 연결 상태 배너를 표시하고 폴백 폴링으로 전환하며, 재연결 시 활성 화면의 쿼리를 전부 무효화한다</td></tr>
+      <tr><td>REQ-WEB-003</td><td>WHEN 사용자에게 권한이 없는 동작 버튼이 렌더링되면 THE SYSTEM SHALL 버튼을 숨기지 않고 비활성화하며 필요 역할을 툴팁으로 표기한다 (예: "이 전이는 <code>qa</code>(및 <code>admin</code>) 역할만 가능")</td></tr>
+      <tr><td>REQ-WEB-004</td><td>WHEN <code>project:{id}</code> 룸에서 화면 관련 이벤트를 수신하면 THE SYSTEM SHALL 5초 이내에 해당 쿼리를 재조회해 화면에 반영한다(NFR-02)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-2">2. 화면별 명세</h2>
+
+  <p>각 절의 형식: <b>데이터 소스</b>(api.md 리소스+동사 인용) → <b>실시간</b> → <b>핵심 컴포넌트</b> → <b>폼·검증</b>(zod, <code>packages/schema</code> 공유) → <b>상태·수용 기준</b>. 와이어프레임 그림은 <a href="ui-wireframes.html">ui-wireframes.md</a>의 해당 §를 본다.</p>
+
+  <h3>2.1 로그인 · 온보딩</h3>
+
+  <p>인증은 better-auth 세션 쿠키다(웹 경로 — <a href="api.html">api.md</a> §1 인증 2경로). OAuth 2.1 리소스 서버는 Phase 2(<a href="scope.html">scope.md</a> §2 확정 스택).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th></tr></thead>
+    <tbody>
+      <tr><td>로그인 폼</td><td><code>POST /api/auth/*</code> (better-auth 핸들러 — 이메일+비밀번호)</td></tr>
+      <tr><td>로그인 사용자·역할 확인</td><td>EP-AUTH-01 <code>GET /api/v1/me</code> · EP-ORG-01 <code>GET /api/v1/orgs</code></td></tr>
+      <tr><td>온보딩(조직 0개)</td><td>better-auth organization 플러그인 경로(<code>/api/auth/*</code> — 조직 생성·초대 수락) 후 EP-ORG-01로 재확인</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>컴포넌트</b>: <code>LoginForm</code> · <code>InviteAcceptCard</code> · <code>OrgCreateForm</code>. 폼은 react-hook-form + zod(<code>LoginInput</code>: email 형식, password min 8).</li>
+    <li>온보딩 마지막 단계는 역할 확인과 "다음 행동" 안내다 — planner/designer는 승인함, developer는 작업 보드, qa는 (MVP에서는) 커버리지가 아니라 작업 보드로 안내한다(ui-wireframes §1.5 역할별 첫 화면 — S6은 Phase 2이므로 qa 착지만 조정). 에이전트 연결 온보딩(PAT 발급→플러그인 설치)은 <a href="plugin.html">plugin.md</a> §4가 정의하고, 이 화면은 S8 토큰 탭으로 가는 링크만 둔다.</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-005</td><td>WHEN 로그인에 실패하면 THE SYSTEM SHALL 실패 사유를 폼 인라인으로 표시하고 비밀번호 필드만 초기화한다</td></tr>
+      <tr><td>REQ-WEB-006</td><td>WHEN 로그인한 사용자의 소속 조직이 0개이면 THE SYSTEM SHALL <code>/onboarding</code>으로 보내고, 1개 이상이면 역할별 첫 화면 규칙에 따라 착지시킨다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.2 S1 홈 대시보드 — <a href="ui-wireframes.html">ui-wireframes §2.1</a></h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>오늘 할 일 숫자</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending — 승인함 목록)</td><td>MVP는 승인 대기·답변 대기 질문 2숫자. 와이어프레임의 "내가 만든 CR" 칩은 Phase 2(CR)</td></tr>
+      <tr><td>내 승인 대기 카드</td><td>위와 동일 목록의 상위 N건</td><td>카드 위 승인/거절/코멘트 — S7과 같은 <code>ApprovalCard</code> 재사용</td></tr>
+      <tr><td>내 질문 큐</td><td>승인함 목록 중 <code>subject_type = question</code></td><td>세션 신원 3요소(사용자·hostname·에이전트 종류)와 대기 시간 필수 표기</td></tr>
+      <tr><td>내 프로젝트 카드</td><td>EP-PRJ-01 <code>GET /api/v1/orgs/{org}/projects</code> + EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code>(활성 세션/승인 대기 카운트 포함)</td><td>승인률·커버리지 게이지 고도화는 Phase 2 — MVP는 상태별 카운트 표시</td></tr>
+      <tr><td>최근 알림</td><td>EP-NTF-01 <code>GET /api/v1/me/notifications</code> · 읽음 처리 EP-NTF-02</td><td>인앱 피드. <code>notification</code> 파생·읽음 상태는 <a href="data-model.html">data-model</a> §2.9</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>실시간</b>: <code>user:{id}</code> 룸 — <code>approval.requested</code> · <code>question.created</code> → <code>['inbox']</code> + 배지, <code>notification.created</code> → 알림 피드. 프로젝트 카드는 화면 재진입 시 재조회(홈에서 <code>project:{id}</code> 룸은 join하지 않는다).</li>
+    <li><b>컴포넌트</b>: <code>TodayStrip</code> · <code>ApprovalCard</code> · <code>QuestionCard</code> · <code>ProjectCard</code> · <code>EventFeed</code>.</li>
+    <li><b>빈 상태</b>: 승인 대기 0건 — "지금 당신을 기다리는 항목이 없습니다" + 최근 처리 3건(ui-wireframes §3.4).</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-007</td><td>WHEN <code>approval.requested</code> 또는 <code>question.created</code> 이벤트를 수신하면 THE SYSTEM SHALL 5초 이내에 헤더 배지와 오늘 할 일 숫자를 갱신한다(NFR-02)</td></tr>
+      <tr><td>REQ-WEB-008</td><td>WHEN 질문 카드를 렌더링하면 THE SYSTEM SHALL 요청 세션의 사용자·hostname·에이전트 종류와 대기 경과 시간을 함께 표기한다(FR-07 · D-13)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.3 S2 프로젝트 개요 — <a href="ui-wireframes.html">ui-wireframes §2.2</a></h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>스펙 트리 + 상태 배지</td><td>EP-SPEC-01 <code>GET /api/v1/projects/{proj}/specs/tree</code></td><td>노드: id·title·type(6종)·현재 버전 문서 상태 — <code>nerv_spec_tree</code>와 같은 서비스(D-05)</td></tr>
+      <tr><td>구현 현황 카드</td><td>EP-COV-01 <code>GET /api/v1/projects/{proj}/coverage</code> (requirement <code>impl_status</code> 집계)</td><td>MVP는 전체·영역별 카운트(<code>unimplemented / in_progress / implemented / verified</code>). Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위)</td></tr>
+      <tr><td>활성 세션 스트립</td><td>EP-SES-01 <code>GET /api/v1/projects/{proj}/sessions</code> (state 필터)</td><td>미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3))</td></tr>
+      <tr><td>최근 이벤트</td><td>EP-EVT-01 <code>GET /api/v1/projects/{proj}/events</code> (커서 페이지네이션)</td><td>항목마다 <code>is_agent</code> 아이콘 구분(D-08)</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → 트리, <code>session.*</code> → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회.</li>
+    <li><b>컴포넌트</b>: <code>SpecTree</code>(사이드바와 공유) · <code>ImplStatusCard</code> · <code>SessionStrip</code> · <code>EventFeed</code> · <code>NewSpecButton</code>(권한: 역할 매트릭스 — spec-workflow §1.6).</li>
+    <li><b>빈 상태</b>: 스펙 0건 — "첫 스펙을 만드세요" + [+ 새 스펙] + <a href="importer.html">clemvion 임포트 안내 ▸</a>.</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-009</td><td>WHEN 스펙 트리를 렌더링하면 THE SYSTEM SHALL 각 노드에 타입과 문서 상태 배지를 표기하고, <code>spec.approved</code> 등 문서 축 이벤트 수신 시 5초 이내 배지를 갱신한다</td></tr>
+      <tr><td>REQ-WEB-010</td><td>WHEN 이벤트 피드 항목을 렌더링하면 THE SYSTEM SHALL <code>event.is_agent</code> 값에 따라 사람/에이전트 아이콘을 구분 표기한다(FR-16 · D-08)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.4 S3 스펙 상세 — <a href="ui-wireframes.html">ui-wireframes §2.3</a></h3>
+
+  <p>3열 레이아웃(좌 트리 · 중앙 본문 · 우 상태 패널). 에디터 상세 규약은 <a href="#sec-3">§3</a>에 있다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>본문 + 메타</td><td>EP-SPEC-03 <code>GET /api/v1/projects/{proj}/specs/{spec}</code> (<code>include[]</code>: requirements·tasks·comments)</td><td>기본 버전은 최신 <code>approved</code> — draft는 명시 선택(<code>?v=</code>)</td></tr>
+      <tr><td>버전 목록·diff</td><td>EP-SPEC-04 <code>GET /api/v1/projects/{proj}/specs/{spec}/versions</code> · EP-SPEC-06 <code>GET .../specs/{spec}/diff</code></td><td><code>?diff=v3..v4</code> 뷰 상태 → EP-SPEC-06(from, to)으로 조회. 표기는 ui-wireframes §4.3</td></tr>
+      <tr><td>초안 저장</td><td>EP-SPEC-08 <code>PUT /api/v1/projects/{proj}/specs/{spec}/draft</code> (draft upsert — <code>base_version</code> 전제조건)</td><td><code>nerv_spec_draft_upsert</code>와 같은 서비스·같은 zod 스키마(D-05)</td></tr>
+      <tr><td>사전 검토</td><td>EP-SPEC-09 <code>GET /api/v1/projects/{proj}/spec-versions/{ver}/check</code></td><td>5검사기 결과(warning/block + 앵커) — <code>nerv_spec_check</code>와 동일</td></tr>
+      <tr><td>검토 요청</td><td>EP-SPEC-10 <code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td><code>draft → in_review</code> — 성공 시 승인함 카드 생성(FR-11)</td></tr>
+      <tr><td>코멘트</td><td>EP-CMT-01 <code>GET .../specs/{spec}/comments</code> · EP-CMT-02 <code>POST .../spec-versions/{ver}/comments</code> · EP-CMT-04 <code>POST .../comments/{id}/resolve</code></td><td>앵커: 헤딩 slug 또는 Requirement <code>ref</code>(§3.3)</td></tr>
+      <tr><td>우측 패널</td><td>include 응답의 requirement 목록(<code>ref</code>·<code>statement_md</code>·<code>impl_status</code>) · 파생 task 목록</td><td>"관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → <code>['spec', specId]</code>, <code>spec.comment_added</code>·<code>comment.resolved</code> → <code>['spec', specId, 'comments']</code>, <code>task.*</code> → 파생 Task 패널.</li>
+    <li><b>컴포넌트</b>: <code>SpecTree</code> · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>SpecEditor</code>(TipTap — §3) · <code>SourceViewToggle</code>(read-only md) · <code>CommentThread</code> · <code>EditLeaseBadge</code> · <code>RequirementPanel</code> · <code>DerivedTaskPanel</code> · <code>StatusPanel</code> · <code>SubmitReviewButton</code> · <code>TerminalHandoffCard</code>.</li>
+    <li><b>버튼 상태</b>: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 승인함 카드에서 한다(S7).</li>
+    <li><b>터미널 이어쓰기</b>: 복사용 명령 <code>claude "/nerv:spec edit SPC-CWC-007"</code> 카드(ui-wireframes §2.3 (12)). 반대 방향은 <code>nerv_spec_draft_upsert</code> 응답의 <code>web_url</code> 딥링크가 이 화면으로 온다.</li>
+    <li><b>폼·검증</b>: <code>SpecDraftUpsertInput</code>(zod — <code>packages/schema</code>, MCP 도구 인자와 공유): <code>body_markdown</code>·<code>base_version</code>·<code>change_summary</code>(min 1), 새 스펙 생성은 <code>SpecCreateInput</code>(<code>parent_id</code>·<code>type</code> 6종 enum·<code>title</code> min 1·<code>body_markdown</code>). 코멘트 <code>CommentCreateInput</code>: <code>anchor</code>(min 1)·<code>body_md</code>(min 1).</li>
+    <li><b>빈 상태</b>: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크.</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-011</td><td>WHEN 스펙 상세를 열면 THE SYSTEM SHALL 최신 <code>approved</code> 버전을 기본 표시하고, draft 열람은 명시적 버전 선택으로만 허용한다(D-02)</td></tr>
+      <tr><td>REQ-WEB-012</td><td>WHEN 다른 사용자가 편집 리스를 보유한 draft를 열면 THE SYSTEM SHALL 에디터를 읽기 전용으로 전환하고 보유자(사용자·표면·최신 갱신)와 [인계 요청] 버튼을 표시한다(<code>NERV_DRAFT_LEASED</code>)</td></tr>
+      <tr><td>REQ-WEB-013</td><td>WHEN 저장 요청이 <code>NERV_PRECONDITION</code>(base_version 불일치 409)으로 실패하면 THE SYSTEM SHALL 로컬 본문을 버리지 않은 채 충돌 다이얼로그(서버 최신 보기·내 본문 복사)를 표시한다</td></tr>
+      <tr><td>REQ-WEB-014</td><td>WHEN 사전 검토 결과에 block이 1건 이상이면 THE SYSTEM SHALL [검토 요청] 버튼을 비활성화하고 검사기별 결과와 앵커 위치를 인라인 표시한다</td></tr>
+      <tr><td>REQ-WEB-015</td><td>WHEN 본문이 새 버전으로 바뀌어도 THE SYSTEM SHALL 헤딩 slug·Requirement <code>ref</code> 앵커의 코멘트 스레드를 유지 표시한다(D-09)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.5 S4 작업 보드 — <a href="ui-wireframes.html">ui-wireframes §2.4</a></h3>
+
+  <p>칸반 레인: <code>ready / claimed / in_progress / in_review / done(7d)</code> + 하단 <code>blocked</code> 접이식 레인. <code>backlog</code>는 필터로 노출.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>보드 목록</td><td>EP-TASK-01 <code>GET /api/v1/projects/{proj}/tasks</code> (status·spec·assignee 필터)</td><td>카드: 제목·출처 스펙·👤 assignee·🤖 delegate(hostname)·리스 잔여·diff</td></tr>
+      <tr><td>Task 파생·생성</td><td>EP-TASK-03 <code>POST /api/v1/projects/{proj}/tasks</code></td><td>승인된 SpecVersion에서만 파생 — 버튼은 approved 아닌 스펙에서 비활성(D-02)</td></tr>
+      <tr><td>위임 명세 편집</td><td>EP-TASK-05 <code>PATCH /api/v1/projects/{proj}/tasks/{task}</code></td><td>4요소: <code>goal_md</code>·<code>output_format_md</code>·<code>tools_sources_md</code>·<code>boundaries_md</code>(data-model §2.4). 충족 시 서버가 <code>ready</code> 승격</td></tr>
+      <tr><td>사람 클레임</td><td>EP-TASK-06 <code>POST /api/v1/projects/{proj}/tasks/{task}/claim</code></td><td><code>claim.agent_session_id</code> NULL — <code>nerv_task_claim</code>과 같은 서비스·같은 겹침 판정</td></tr>
+      <tr><td>상태 전이</td><td>EP-TASK-09 <code>POST /api/v1/projects/{proj}/tasks/{task}/transition</code></td><td>서버 가드 거부 시 사유를 그대로 카드 툴팁으로</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>task.ready</code> <code>task.claimed</code> <code>task.blocked</code> <code>task.done</code> <code>task.created</code> <code>task.updated</code> <code>claim.released</code> → 보드 재조회. 리스 카운트다운은 클라이언트 시계.</li>
+    <li><b>컴포넌트</b>: <code>TaskBoard</code> · <code>TaskCard</code>(위임 명세 체크 표시·리스 카운트다운·세션 상태 dot → S5 딥링크) · <code>TaskDetailPanel</code> · <code>TaskCreateDialog</code> · <code>BlockedLane</code>.</li>
+  </ul>
+
+  <p><b>폼·검증</b> — 위임 명세 4요소는 zod로도 강제한다(서버 검증의 프론트 미러):</p>
+
+<pre><code>// packages/schema — TaskCreateInput (발췌)
+export const TaskCreateInput = z.object({
+  title: z.string().min(1),
+  body_md: z.string().optional(),
+  source_spec_version_id: z.string().uuid(),
+  source_requirement_id: z.string().uuid().optional(),
+  priority: z.enum(['P0', 'P1', 'P2', 'P3']),
+  goal_md: z.string().min(1, '목표(REQ ID 포함)는 필수'),
+  output_format_md: z.string().min(1, '산출물 형식은 필수'),
+  tools_sources_md: z.string().min(1, '도구·출처는 필수'),
+  boundaries_md: z.string().min(1, '경계는 필수'),
+});</code></pre>
+
+  <ul>
+    <li><b>done 전이</b>: MVP의 서버 게이트는 <code>spec_impact</code> 선언 + Evidence 연결이다. 리뷰 커버리지 판정(FR-10 게이트 전체)은 Phase 2(로드맵 §3 비범위) — 카드의 "리뷰 n/n" 표시는 Phase 2에 함께 온다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다.</li>
+    <li><b>빈 상태</b>: ready 0건 — "ready인 Task가 없습니다 — blocked N건의 의존성 보기 ▸"(ui-wireframes §3.4).</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-016</td><td>WHEN 위임 명세 4요소 중 하나라도 비어 있으면 THE SYSTEM SHALL Task 카드에 <code>ready</code> 전이 불가 사유를 인라인 표기하고 전이 버튼을 비활성화한다(FR-05)</td></tr>
+      <tr><td>REQ-WEB-017</td><td>WHEN <code>claimed</code>/<code>in_progress</code> 카드를 렌더링하면 THE SYSTEM SHALL <code>lease_expires_at</code> 기준 리스 잔여를 카운트다운으로 표시하고, 잔여 2분 미만이면 호박색으로 전환한다(D-04)</td></tr>
+      <tr><td>REQ-WEB-018</td><td>WHEN 서버가 상태 전이를 거부하면 THE SYSTEM SHALL 카드를 원 위치로 되돌리고 거부 사유를 툴팁으로 표시한다(FR-10)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.6 S5 세션 모니터 — <a href="ui-wireframes.html">ui-wireframes §2.5</a></h3>
+
+  <p>세션 카드 필수 표기는 와이어프레임 규약 그대로다 — 신원 3요소(사용자·hostname·에이전트 종류) · 클레임한 Task와 유래 스펙 · 하트비트/리스 잔여/경과 · 브랜치/diff 통계 · 선언 scope · 액션.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>세션 보드</td><td>EP-SES-01 <code>GET /api/v1/projects/{proj}/sessions</code> (state 필터: <code>pending / active / awaiting_input / complete / error / stale</code>)</td><td>요약 스트립 = 상태별 집계</td></tr>
+      <tr><td>세션 상세</td><td>EP-SES-02 <code>GET /api/v1/projects/{proj}/sessions/{sid}</code></td><td><code>agent_session</code> 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id</td></tr>
+      <tr><td>Activity 타임라인</td><td>EP-SES-03 <code>GET /api/v1/projects/{proj}/sessions/{sid}/activities</code> (커서)</td><td><code>thought / action / elicitation / response / error</code> 5종 — 불변 레코드(D-10)</td></tr>
+      <tr><td>steer / stop</td><td>EP-SES-04 <code>POST /api/v1/projects/{proj}/sessions/{sid}/steer</code> (<code>kind</code>: steer/stop)</td><td>지시는 다음 <code>nerv_task_heartbeat</code> 응답의 <code>pending</code>에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>session.started</code> <code>session.stale</code> <code>session.complete</code> <code>session.steered</code> → 보드, Activity 스트림·하트비트/diff 갱신도 같은 룸으로 흐른다(알림 아님 — spec-workflow §6.3). 하트비트 표기는 상대 시각만(ui-wireframes §3.3).</li>
+    <li><b>컴포넌트</b>: <code>SessionBoard</code> · <code>SessionCard</code> · <code>SessionSummaryStrip</code> · <code>ActivityTimeline</code> · <code>ScopeChips</code>(spec_ids + file_globs) · <code>SteerDialog</code> · <code>StopDialog</code>(사유 필수) · <code>FailOpenBanner</code>(게이트 판정 실패 카운터 — 판정 자체는 Phase 2, 배너 컴포넌트는 자리 확보).</li>
+    <li><b>액션 4종</b>: 로그 보기 · attach ↗(세션 상세 딥링크) · steer(중단 없이 지시 큐잉) · stop(확인 + 사유, 클레임 즉시 회수 → Task <code>ready</code>). <code>awaiting_input</code> 카드는 [질문 열기 ↗]로 승인함 딥링크.</li>
+    <li><b>폼·검증</b>: <code>SessionSteerInput</code>(<code>kind</code>: steer/stop, <code>message</code> min 1 — stop의 message가 곧 사유). 스티어 메시지는 승인이 아니다(ui-wireframes §4.2 보안 불변식).</li>
+    <li><b>빈 상태</b>: 활성 세션 0 — "실행 중인 세션이 없습니다" + 플러그인 온보딩 링크(<a href="plugin.html">plugin.md</a> §4).</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-019</td><td>WHEN 세션 카드를 렌더링하면 THE SYSTEM SHALL 사용자·hostname·에이전트 종류·하트비트 상대 시각·리스 잔여·diff 통계를 표기하며, hostname이 없는 세션은 렌더링하지 않는다(ui-wireframes §3.3)</td></tr>
+      <tr><td>REQ-WEB-020</td><td>WHEN 세션이 <code>stale</code>로 전이되면 THE SYSTEM SHALL 카드에 회수된 Task ID와 "무활동 임계 30:00 초과 → 자동 전이"를 표시한다(D-13)</td></tr>
+      <tr><td>REQ-WEB-021</td><td>WHEN 사용자가 stop을 실행하면 THE SYSTEM SHALL 확인 다이얼로그에서 사유를 필수로 받고, 처리 후 해당 Task가 <code>ready</code>로 회수된 것을 보드에 반영한다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.7 S7 승인함 — <a href="ui-wireframes.html">ui-wireframes §2.7</a></h3>
+
+  <p>MVP 카드 유형은 3종이다 — <b>스펙 승인 · 플랜 승인 · 질문</b>(로드맵 §3: CR·에스컬레이션 유형은 Phase 2). 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>대기 목록</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending · 유형/프로젝트 필터 — 승인함 목록)</td><td><code>approval.subject_type</code>: <code>spec_version / plan / question</code>(MVP) — data-model §2.7</td></tr>
+      <tr><td>결정</td><td>EP-APR-03 <code>POST /api/v1/approvals/{id}/decision</code></td><td><code>decision</code>: <code>approve / reject / comment</code>(spec-workflow §2.5)</td></tr>
+      <tr><td>질문 답변</td><td>EP-QST-02 <code>POST /api/v1/projects/{proj}/questions/{id}/answer</code></td><td><code>answer_key</code>(선택지) 또는 <code>answer_md</code> — 내부적으로 승인 결정과 한 경로(api.md §2.6)</td></tr>
+      <tr><td>카드 본문</td><td>EP-APR-01 응답 <code>ApprovalCard</code>에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지)</td><td>요약문이 아니라 <b>원문 우선</b>(spec-workflow §6.4 — OWASP ASI09 방어)</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>실시간</b>: <code>user:{id}</code> 룸 — <code>approval.requested</code> <code>question.created</code> → <code>['inbox']</code> + 배지, <code>question.answered</code> → 카드의 "요청 세션에 전달됨" 반영.</li>
+    <li><b>컴포넌트</b>: <code>InboxFilterRail</code> · <code>ApprovalCard</code>(S1과 공유) · <code>SpecApprovalCard</code>(변경분 미리보기 + 자동 사전 검토 결과 인라인) · <code>PlanApprovalCard</code>(승인/수정 요청/거절 3분기) · <code>QuestionCard</code>(라디오 선택지 + 코멘트 필드 + "처리 시 요청 세션에 즉시 전달" 고지) · <code>ProcessedTrail</code> · <code>SlaBadge</code>(24h 초과 경고 — spec-workflow §2.6).</li>
+    <li><b>결정 규칙의 UI 반영</b>: 지시자≠승인자 — 요청자와 승인자가 같으면 승인 버튼 비활성 + 툴팁, 에이전트 작성 초안은 세션 소유자 단독 승인 불가 배너(spec-workflow §2.3). 소규모 완화 시 차단 대신 배너 + 감사 이벤트.</li>
+    <li><b>키보드</b>: <span class="kbd">j</span>/<span class="kbd">k</span> 이동 · <span class="kbd">a</span> 승인 · <span class="kbd">r</span> 거절 · <span class="kbd">c</span> 코멘트(ui-wireframes §4.6).</li>
+  </ul>
+
+  <p><b>폼·검증</b>:</p>
+
+<pre><code>// packages/schema — ApprovalDecisionInput (발췌)
+export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
+  z.object({ decision: z.literal('approve'), comment_md: z.string().optional() }),
+  z.object({ decision: z.literal('reject'),  comment_md: z.string().min(1, '거절 사유는 필수') }),
+  z.object({ decision: z.literal('comment'), comment_md: z.string().min(1) }),
+]);</code></pre>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-022</td><td>WHEN 사용자가 거절을 선택하면 THE SYSTEM SHALL 사유 입력을 필수로 요구하고, 사유는 요청자 알림과 감사 로그 양쪽에 남긴다(FR-16)</td></tr>
+      <tr><td>REQ-WEB-023</td><td>WHEN 요청자와 열람자가 같거나 대상 초안을 열람자의 세션이 작성했으면 THE SYSTEM SHALL 승인 버튼을 비활성화하고 사유를 표시한다(지시자≠승인자 — D-06)</td></tr>
+      <tr><td>REQ-WEB-024</td><td>WHEN 질문 처리에 성공하면 THE SYSTEM SHALL 카드에 "요청 세션 <code>&lt;hostname&gt;/&lt;agent_type&gt;</code>에 전달됨"을 표시하고 처리됨 트레일에 3분간 유지한다</td></tr>
+      <tr><td>REQ-WEB-025</td><td>WHEN 승인함이 포커스를 가지면 THE SYSTEM SHALL <code>j/k/a/r/c</code> 키보드만으로 카드 이동과 결정을 지원한다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.8 S8 설정 — <a href="ui-wireframes.html">ui-wireframes §2.8</a></h3>
+
+  <p>MVP 탭: <b>멤버·역할 / 에이전트 토큰 / 게이트 정책</b>. 연동(GitHub·Slack) 탭은 Phase 2(로드맵 §3.2 — "S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2") — 탭 자리만 비활성 표기. 게이트 정책 탭 중 스펙 게이트(T0~T3) 부분의 MVP 앞당김은 <a href="scope.html">scope.md</a> §4.1의 supersession 콜아웃이 확정한다(근거: 로드맵 §3.5 저위험 자동 통과 첫날부터).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>멤버 매트릭스</td><td>EP-MBR-01 <code>GET /api/v1/orgs/{org}/members</code> · EP-MBR-02 <code>POST</code>(기존 사용자 배정 — 초대 메일 발송은 Phase 2, api.md §2.1) · EP-MBR-03 <code>PATCH /api/v1/memberships/{id}</code>(역할)</td><td><code>membership.role</code> 6종: <code>admin / planner / designer / developer / qa / viewer</code>. 사람 × 프로젝트 n:n(FR-14)</td></tr>
+      <tr><td>토큰 목록·발급·폐기</td><td>EP-TOK-01 <code>GET /api/v1/me/tokens</code> · EP-TOK-02 <code>POST /api/v1/me/tokens</code> · EP-TOK-03 <code>DELETE /api/v1/me/tokens/{id}</code> · EP-TOK-04 <code>GET /api/v1/orgs/{org}/tokens</code>(admin 조직 전체)</td><td><code>api_token</code>: 라벨·소유자·프로젝트 스코프·<code>prefix</code>·<code>last_used_at</code>(hostname 포함 표기). admin은 조직 전체 목록 열람</td></tr>
+      <tr><td>게이트 정책</td><td>EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code> · EP-PRJ-04 <code>PATCH /api/v1/projects/{proj}</code> (<code>gate_policy</code> 필드 — data-model §2.1)</td><td>MVP 편집 항목: stale 임계(기본 30분)·게이트 티어 임계(T0~T3)·자기 승인 금지 토글(기본 ON). 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>토큰 발급 흐름</b>: 발급 다이얼로그(<code>TokenCreateInput</code>: <code>project</code>·<code>name</code>·<code>scopes[]</code>·<code>expires</code>) → 성공 시 <b>원문 1회 표시</b>(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 <code>prefix</code>만. 스코프 체크박스는 <a href="agent-integration.html">agent-integration §6.1</a>의 <code>resource:action</code> 목록을 그대로 쓰고, <code>spec:approve</code>·<code>approval:decide</code>는 <b>체크박스 비활성</b>(사람 전용 — 시스템 불변식).</li>
+    <li><b>컴포넌트</b>: <code>SettingsTabs</code> · <code>MemberMatrix</code> · <code>MemberAddDialog</code> · <code>TokenTable</code> · <code>TokenIssueDialog</code> · <code>TokenRevealOnce</code> · <code>GatePolicyForm</code> · 권한 비확대 고지문("토큰은 사용자 권한을 상속하며 절대 확대하지 않는다" — NFR-03 · D-08).</li>
+    <li><b>빈 상태</b>: 토큰 0개 — 플러그인 온보딩 절차 링크(<a href="plugin.html">plugin.md</a> §4).</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-026</td><td>WHEN 토큰 발급에 성공하면 THE SYSTEM SHALL 토큰 원문을 1회만 표시하고 이후 목록에는 <code>prefix</code>와 마지막 사용(시각·hostname)만 노출한다(NFR-03)</td></tr>
+      <tr><td>REQ-WEB-027</td><td>WHEN 토큰 스코프 선택 UI를 렌더링하면 THE SYSTEM SHALL <code>spec:approve</code>·<code>approval:decide</code> 체크박스를 항상 비활성으로 표시한다(사람 전용)</td></tr>
+      <tr><td>REQ-WEB-028</td><td>WHEN admin이 아닌 사용자가 멤버·역할 탭을 열면 THE SYSTEM SHALL 매트릭스를 읽기 전용으로 표시하고 편집 컨트롤을 비활성화한다(FR-14)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-3">3. 에디터 상세 (S3)</h2>
+
+  <h3>3.1 TipTap 노드 화이트리스트</h3>
+
+  <p>지원 노드는 markdown 표현 가능 집합으로 제한한다(<a href="scope.html">scope.md</a> §2 확정 스택 — 왕복 손실 실측 시 Milkdown 재검토 트리거).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화이트리스트(스택 확정)</th><th>TipTap 구현 매핑</th><th>markdown 직렬화</th></tr></thead>
+    <tbody>
+      <tr><td>heading</td><td><code>Heading</code> (level 1~6)</td><td><code>#</code>~<code>######</code></td></tr>
+      <tr><td>paragraph</td><td><code>Paragraph</code></td><td>빈 줄 구분 문단</td></tr>
+      <tr><td>list</td><td><code>BulletList</code> · <code>OrderedList</code> · <code>ListItem</code></td><td><code>-</code> · <code>1.</code></td></tr>
+      <tr><td>table</td><td><code>Table</code> · <code>TableRow</code> · <code>TableHeader</code> · <code>TableCell</code></td><td>GFM 파이프 표</td></tr>
+      <tr><td>code</td><td><code>CodeBlock</code>(펜스) + 인라인 <code>Code</code> 마크</td><td>``` 펜스 · 백틱</td></tr>
+      <tr><td>blockquote</td><td><code>Blockquote</code></td><td><code>&gt;</code></td></tr>
+      <tr><td>link</td><td><code>Link</code> 마크</td><td><code>[텍스트](url)</code></td></tr>
+      <tr><td>hr</td><td><code>HorizontalRule</code></td><td><code>---</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li>텍스트 마크는 md 표현 가능한 것만: bold(<code>**</code>) · italic(<code>*</code>) · strike(<code>~~</code>) · inline code. 그 외(색·밑줄·이미지 업로드 등)는 확장하지 않는다.</li>
+    <li>화이트리스트 밖 콘텐츠 붙여넣기(리치 HTML 등)는 지원 노드로 강등하거나 일반 텍스트로 받는다 — 조용히 비표현 노드를 만드는 것이 금지 사항이다.</li>
+    <li>소스 보기는 read-only 토글이다. 소스를 직접 고치는 경로는 MVP에 없다 — 터미널 경로(<code>/nerv:spec</code>)가 그 역할이다.</li>
+  </ul>
+
+  <h3>3.2 md 직렬화 왕복 규칙</h3>
+
+  <p>저장 포맷은 markdown이고 메타는 DB 컬럼이다(D-09). 왕복 계약:</p>
+
+  <ol>
+    <li><b>저장 경로</b>: 에디터 문서 → serialize(md) → <code>PUT .../draft</code>(<code>body_markdown</code>). 서버는 <code>content_hash = sha256(body_md)</code>로 무변경 저장을 차단한다(data-model §2.2 <code>spec_version</code>).</li>
+    <li><b>왕복 검증</b>: 저장 전 클라이언트가 <code>serialize(parse(serialize(doc)))</code>와 <code>serialize(doc)</code>의 일치를 확인한다. 불일치(직렬화 비안정)면 저장을 막고 소스 보기 + 오류 리포트를 안내한다 — 이 실측이 Milkdown 재검토 트리거의 입력이다.</li>
+    <li><b>정규화는 serializer가 결정한다</b>: 리스트 마커·표 정렬·공백 정규화 규칙은 단일 serializer 구현에 고정하고, 웹과 터미널이 같은 draft를 오가도 정규화 차이만으로 diff가 생기지 않게 한다.</li>
+    <li><b>파싱 실패 허용</b>: 터미널에서 저장된 md에 화이트리스트 밖 구문이 있으면 에디터는 해당 블록을 <b>원문 보존 read-only 블록</b>으로 렌더링한다. 본문을 임의로 재작성하지 않는다(정보 손실 0 원칙 — <a href="importer.html">importer.md</a>와 동일).</li>
+  </ol>
+
+  <h3>3.3 코멘트 앵커</h3>
+
+  <p><code>spec_comment.anchor</code>는 헤딩 slug 또는 Requirement <code>ref</code>다(data-model §2.2). 줄 번호 앵커는 만들지 않는다 — 다음 버전에서 고아가 되기 때문이다(ui-wireframes §4.3).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>앵커 종류</th><th>값</th><th>생존 규칙</th></tr></thead>
+    <tbody>
+      <tr><td>헤딩 slug</td><td>헤딩 텍스트에서 서버가 발급(정규화 + 충돌 시 <code>-n</code> 접미)</td><td>새 버전에서 같은 slug의 헤딩이 있으면 스레드 유지, 없으면 "앵커 유실" 상태로 문서 상단에 모아 표시</td></tr>
+      <tr><td>Requirement ref</td><td><code>REQ-CWC-031</code> 형식의 안정 ID</td><td>Requirement가 존속하는 한 버전과 무관하게 유지</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>해소는 삭제가 아니라 <code>open → resolved</code> 전이이고 <code>resolved_in_version_id</code>가 반영 버전을 남긴다. 웹의 [해결됨으로 표시]와 터미널의 <code>nerv_spec_comment_resolve</code>는 같은 서비스다(D-05).</p>
+
+  <h3>3.4 초안 편집 리스 UX</h3>
+
+  <p>규약의 정본은 <a href="spec-workflow.html">spec-workflow §1.2</a>다(TTL 30분 — Task 클레임 리스와 같은 상수, 별도 claim/release 없음). 웹 UX로의 번역:</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>순간</th><th>UI</th></tr></thead>
+    <tbody>
+      <tr><td>획득</td><td>draft 에디터를 여는 순간 자동 획득 — 별도 버튼 없음. 상단에 <code>✏️ 편집 중 — &lt;사용자&gt; · 웹 · 방금</code> 배지</td></tr>
+      <tr><td>갱신</td><td>저장 시 + 에디터가 열려 있는 동안 60초 주기 갱신(하트비트 상수 재사용). 리스 잔여 2분 미만이면 배지를 호박색으로 전환(S4 리스 표시 임계와 동일)</td></tr>
+      <tr><td>같은 사용자, 다른 표면</td><td>터미널에서 열면 자동 인계 — 웹 에디터는 읽기 전용으로 전환되고 "터미널 세션 <code>&lt;hostname&gt;/&lt;agent_type&gt;</code>이 이어쓰는 중" 배지 + 이전 표면 알림</td></tr>
+      <tr><td>다른 사용자</td><td>읽기 전용 + 보유자 배지 + [인계 요청](보유자 알림, 승인 시 이전). 에이전트 upsert는 <code>NERV_DRAFT_LEASED</code> 하드 차단</td></tr>
+      <tr><td>해제</td><td>검토 요청 성공 · 에디터 닫기 · TTL 만료</td></tr>
+      <tr><td>최후 방어선</td><td>리스와 무관하게 저장은 <code>base_version</code> 전제조건을 갖는다 — 409는 §1.5의 <code>NERV_PRECONDITION</code> 다이얼로그</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>터미널 이어쓰기 카드(S3 하단)는 복사용 명령 한 줄이다: <code>claude "/nerv:spec edit SPC-CWC-007"</code>. 스펙을 쓰는 에이전트 세션도 S5 세션 보드에 뜬다 — 기획자의 작성 세션이 팀 시야 밖에 있는 사각은 없다(spec-workflow §1.2).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-029</td><td>WHEN 사용자가 draft 에디터를 열면 THE SYSTEM SHALL 편집 리스를 자동 획득·주기 갱신하고, 보유 사실을 상단 배지로 표시한다</td></tr>
+      <tr><td>REQ-WEB-030</td><td>WHEN 화이트리스트 밖 노드가 포함된 md를 열면 THE SYSTEM SHALL 해당 블록을 원문 보존 read-only 블록으로 렌더링하고 본문을 재작성하지 않는다</td></tr>
+      <tr><td>REQ-WEB-031</td><td>WHEN 직렬화 왕복 검증이 실패하면 THE SYSTEM SHALL 저장을 차단하고 소스 보기와 함께 실패 리포트를 표시한다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-4">4. 디자인 토큰</h2>
+
+  <h3>4.1 색 토큰 — 제안서 팔레트의 Tailwind 이식</h3>
+
+  <p>원본은 제안서 HTML 공통 팔레트(<code>docs/html/assets/style.css</code>의 CSS 변수)다. Tailwind 테마 토큰으로 1:1 이식하고, 라이트/다크는 CSS 변수 값 교체로 처리한다(<code>data-theme</code> 아님 — <code>prefers-color-scheme</code>, 제안서 사이트와 동일).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Tailwind 토큰</th><th>원본 변수</th><th>라이트</th><th>다크</th><th>행동 축 의미(ui-wireframes §3.1)</th></tr></thead>
+    <tbody>
+      <tr><td><code>status.idle</code></td><td><code>--gray-soft</code> 계열</td><td><code>#eceef2</code> (텍스트 <code>#5b667a</code>)</td><td><code>#232837</code> (<code>#a3adc2</code>)</td><td>회색 — 아직 아무 일도 없음</td></tr>
+      <tr><td><code>status.action</code></td><td><code>--accent</code></td><td><code>#4f46e5</code></td><td><code>#818cf8</code></td><td>남색 — 사람의 행동 대기</td></tr>
+      <tr><td><code>status.waiting</code></td><td><code>--warn</code></td><td><code>#b45309</code></td><td><code>#fbbf24</code></td><td>호박 — 검토·응답 대기</td></tr>
+      <tr><td><code>status.agent</code></td><td><code>--purple</code></td><td><code>#7c3aed</code></td><td><code>#c4b5fd</code></td><td>보라 — 에이전트 점유·수행 중</td></tr>
+      <tr><td><code>status.progress</code></td><td><code>--info</code></td><td><code>#1d4ed8</code></td><td><code>#60a5fa</code></td><td>파랑 — 진행 중</td></tr>
+      <tr><td><code>status.ok</code></td><td><code>--ok</code></td><td><code>#16803c</code></td><td><code>#4ade80</code></td><td>초록 — 승인·검증 완료</td></tr>
+      <tr><td><code>status.done</code></td><td><code>--teal</code></td><td><code>#0f766e</code></td><td><code>#5eead4</code></td><td>청록 — 종료</td></tr>
+      <tr><td><code>status.danger</code></td><td><code>--danger</code></td><td><code>#b91c1c</code></td><td><code>#f87171</code></td><td>적색 — 차단·실패</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>각 색은 <code>-soft</code> 배경 짝(<code>#e6f4ea</code>/<code>#12291a</code> 등 — style.css의 <code>--*-soft</code> 값)을 함께 이식해 배지 배경으로 쓴다. shadcn/ui 시맨틱 토큰(<code>primary</code>=accent, <code>destructive</code>=danger, <code>muted</code>=gray)은 이 표에서 파생한다.</p>
+
+  <h3>4.2 상태 → 토큰 매핑</h3>
+
+  <p>엔티티별 색 배정은 ui-wireframes §3.1 표를 토큰 이름으로 옮긴 것이다 — 엔티티마다 색을 새로 정하지 않는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>토큰</th><th>SpecVersion</th><th>Requirement</th><th>Task</th><th>AgentSession</th><th>severity</th></tr></thead>
+    <tbody>
+      <tr><td><code>status.idle</code></td><td><code>draft</code> <code>superseded</code></td><td><code>unimplemented</code></td><td><code>backlog</code></td><td><code>pending</code></td><td>—</td></tr>
+      <tr><td><code>status.action</code></td><td>—</td><td>—</td><td><code>ready</code></td><td>—</td><td><code>spec_drift</code> 태그</td></tr>
+      <tr><td><code>status.waiting</code></td><td><code>in_review</code></td><td>—</td><td><code>in_review</code></td><td><code>awaiting_input</code></td><td><code>warning</code></td></tr>
+      <tr><td><code>status.agent</code></td><td>—</td><td>—</td><td><code>claimed</code></td><td>—</td><td>—</td></tr>
+      <tr><td><code>status.progress</code></td><td>—</td><td><code>in_progress</code></td><td><code>in_progress</code></td><td>—</td><td><code>info</code></td></tr>
+      <tr><td><code>status.ok</code></td><td><code>approved</code></td><td><code>verified</code></td><td>—</td><td><code>active</code></td><td>—</td></tr>
+      <tr><td><code>status.done</code></td><td>—</td><td><code>implemented</code></td><td><code>done</code></td><td><code>complete</code></td><td>—</td></tr>
+      <tr><td><code>status.danger</code></td><td><code>deprecated</code></td><td>—</td><td><code>blocked</code></td><td><code>error</code> <code>stale</code></td><td><code>critical</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>4.3 배지·표기 규약</h3>
+
+  <ul>
+    <li><b>색만으로 구분하지 않는다</b> — 모든 상태 dot에 텍스트 라벨 병기(<code>● active</code>, <code>○ stale</code>), 색+텍스트+아이콘 3중 인코딩(ui-wireframes §3.1·§4.6).</li>
+    <li><b>사람/에이전트 구분</b> — Task 카드는 <code>👤 assignee</code> + <code>🤖 delegate(hostname)</code> 병기, 피드는 <code>is_agent</code> 아이콘, 에이전트 작성물은 <span class="badge agent">AI</span> 배지 + 위임자 괄호 표기(<code>mac-02/claude-code (도현 위임)</code>) — ui-wireframes §3.2.</li>
+    <li><b>신원·시간 표기</b> — 신원 3요소 <code>도현 · mac-02 · claude-code</code>(좁은 화면은 <code>mac-02/claude-code</code> 축약, hostname은 고정폭). 하트비트는 상대 시각만, diff는 <code>+218 −34 · 파일 7</code> — ui-wireframes §3.3.</li>
+    <li><b>컴포넌트 기반</b> — Tailwind + shadcn/ui. 배지·카드·표·탭은 shadcn 프리미티브 위에 위 토큰만 사용한다. 임의 hex 직접 사용은 lint로 금지(REQ-WEB-032).</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-032</td><td>WHEN 상태 색을 렌더링하면 THE SYSTEM SHALL §4.2 매핑의 토큰만 사용하며, 컴포넌트 코드의 임의 hex 색 사용은 lint 규칙으로 차단된다</td></tr>
+      <tr><td>REQ-WEB-033</td><td>WHEN 상태를 색으로 표현하면 THE SYSTEM SHALL 항상 텍스트 라벨을 병기한다(색 단독 인코딩 금지)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3>이 문서가 인용한 정본 문서</h3>
+  <ul>
+    <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — S1~S8 와이어프레임·상태 표현 규칙·인터랙션 규약의 정본. 이 문서의 모든 화면 절이 § 단위로 인용</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 27종 필드·enum 값·ID 발급 규칙(§5.1)·<code>spec_comment</code> 앵커(§2.2)</li>
+    <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 상태 축 3종·권한 매트릭스(§1.6)·초안 편집 리스(§1.2)·지시자≠승인자(§2.3)·이벤트 이름과 알림 카탈로그(§6.3)</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구 17종(§2.3)·하트비트 역채널(§2.4)·토큰 스코프(§6.1)</li>
+    <li><a href="roadmap.html">3.7 로드맵</a> — Phase 1 화면 범위(S1~S5·S7·S8)와 비범위(S6·CR 델타·커버리지 대시보드·Slack), FR-12 P1 인앱</li>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — 이 문서가 번호로 인용한 FR-01~17 · NFR-01~05</li>
+    <li><a href="architecture.html">3.2 시스템 아키텍처</a> — 웹앱·WebSocket·이벤트 흐름의 시스템 배경</li>
+  </ul>
+
+  <h3>4부 형제 문서</h3>
+  <ul>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 화면 범위·확정 스택(TipTap 화이트리스트·Milkdown 재검토 트리거)의 정본</li>
+    <li><a href="api.html">4.4 API 명세</a> — 이 문서가 리소스+동사 수준으로 인용한 REST·WebSocket 계약의 정본</li>
+    <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — S8 토큰 발급에서 이어지는 에이전트 온보딩 절차</li>
+    <li><a href="importer.html">4.7 clemvion 임포터</a> — S2 빈 상태에서 안내하는 임포트 경로</li>
+    <li><a href="backlog.html">4.8 백로그</a> — 이 문서의 REQ-WEB-*를 근거로 하는 화면 구현 스토리</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="api.html">이전: 4.4 API 명세</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="plugin.html">다음: 4.6 플러그인과 온보딩</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

@@ -6,8 +6,9 @@
 
 ## 읽는 순서
 
-처음이라면 **[html/index.html](html/index.html)** (개요)에서 시작해 1부→3부 순서로 읽는 것을 권장한다.
+처음이라면 **[html/index.html](html/index.html)** (개요)에서 시작해 1부→4부 순서로 읽는 것을 권장한다.
 빠르게 결론만 보려면: [문제 정의](01-problem/pain-points.md) → [비전](03-proposal/vision.md) → [로드맵](03-proposal/roadmap.md).
+구현에 바로 착수하려면 4부만 읽어도 되도록 쓰였다: [MVP 범위와 스택 확정](04-mvp/scope.md)부터 시작한다.
 
 ## 문서 목차
 
@@ -38,6 +39,19 @@
 | [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
 | [3.6 화면 설계](03-proposal/ui-wireframes.md) | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·승인함·설정) — HTML 판은 실제 렌더링 목업 |
 | [3.7 로드맵](03-proposal/roadmap.md) | Phase 0 PoC(조정 검증) → 1 MVP → 2 리뷰·연동 확장 → 3 고도화, 각 단계 성공 기준·리스크·clemvion 마이그레이션 계획 |
+
+### 4부 · MVP 구체화 (구현 착수 가능한 명세)
+
+| 문서 | 내용 |
+| --- | --- |
+| [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(15종)·스킬(4종) 범위와 non-goals |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | 모노레포 트리 전문(`apps/web`·`apps/api`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.3 데이터베이스 스키마](04-mvp/database.md) | 27개 테이블 전체 DDL(FK·CHECK·인덱스·트리거·파티션), NOTIFY 규약, 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
+| [4.4 API 명세](04-mvp/api.md) | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, WebSocket 계약(룸·이벤트), MCP 15종 ↔ REST 대응 표 |
+| [4.5 화면 명세](04-mvp/screens.md) | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰 — 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md) 참조 |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | 스킬 4종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`), hooks.json·`.mcp.json` 전문, 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
+| [4.7 clemvion 임포터](04-mvp/importer.md) | `clemvion:spec/`(135md)·`plan/`(450md) → Spec/Requirement/Task 파싱 규칙, CLI(`nerv import`)·dry-run·멱등 재실행, 실패 리포트 형식과 수용 기준 |
+| [4.8 백로그](04-mvp/backlog.md) | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

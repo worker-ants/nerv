@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4.8 백로그 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="backlog.html" class="active">4.8 백로그</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 4부 · MVP 구체화 / 4.8 백로그</div>
+
+  <header class="page-header">
+    <h1>백로그</h1>
+    <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 60개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 clemvion spec 임포터 v0(E07)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 4종(WS 게이트웨이 PoC · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
+    <div class="meta-line">
+      <span>버전 v0.1 (2026-08-20)</span>
+      <span>원본: <code>docs/04-mvp/backlog.md</code></span>
+      <span>에픽 14 · 스토리 60 · E2E 시나리오 5</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-1">읽는 법</a></li>
+      <li><a href="#sec-2">Phase 0 에픽 — 조정이 되는가 (W1~W3)</a></li>
+      <li><a href="#sec-3">Phase 1 에픽 — 스펙과 사람이 들어온다 (W4~W9)</a></li>
+      <li><a href="#sec-4">의존 그래프와 착수 순서</a></li>
+      <li><a href="#sec-5">E2E 수용 시나리오</a></li>
+      <li><a href="#sec-ref">참고 자료</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-1">1. 읽는 법</h2>
+
+  <h3>1.1 ID·상태·표기 규약</h3>
+  <ul>
+    <li><b>에픽/스토리 ID</b> — <code>E01-S01</code> 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.</li>
+    <li><b>상태 어휘</b> — 스토리는 Task 축 상태 머신(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.4)의 어휘를 그대로 쓴다: <code>backlog → ready → claimed → in_progress → in_review → done</code>, 예외 상태 <code>blocked</code>(사유 코드 필수). 이 문서의 모든 스토리는 현재 <code>backlog</code>다.</li>
+    <li><b>근거</b> — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호(<a href="pain-points.html">1.2 문제 정의와 요구사항</a> §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.</li>
+    <li><b>EARS 수용 기준</b> — 행동 요구는 <code>WHEN … THE SYSTEM SHALL …</code> 형식으로 쓴다. 스토리당 1~3개.</li>
+    <li><b>의존</b> — 의존 스토리 ID를 표기한다. 의존이 <code>done</code>이 아니면 해당 스토리는 <code>ready</code>로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).</li>
+  </ul>
+
+  <h3>1.2 도그푸딩 — 이 문서가 첫 임포트 대상이다</h3>
+  <p>이 백로그는 NERV 가동 후 <b>첫 임포트 대상</b>이다. 도그푸딩 임포트는 P1이다(<a href="importer.html">4.7 clemvion 임포터</a> §1.1) — <code>docs/04-mvp/*.md</code> 문서 세트의 Spec 적재는 nerv-docs 프로파일(importer §5.1)로, 이 문서의 에픽·스토리 → Task 적재는 P1 plan 임포터와 같은 경로(E11 시점)로 수행한다. 문서 머리의 frontmatter(<code>id: SPC-MVP-BACKLOG</code>)가 <a href="importer.html">4.7 clemvion 임포터</a> §5의 임포트 규격을 따르는 이유다. 임포트 이후 이 md는 read-only 미러가 되고 SoT는 서버다(D-01 · <a href="roadmap.html">3.7 로드맵</a> §7.4).</p>
+
+  <h3>1.3 범위 경계</h3>
+  <p>이 백로그는 MVP = Phase 0 + Phase 1만 다룬다(<a href="scope.html">4.1 MVP 범위와 스택 확정</a> §3). Phase 2 항목(리뷰 수집·게이트 판정 완성·S6 리뷰 센터·<code>nerv_review_submit</code>/<code>nerv_finding_resolve</code>·<code>/nerv:review</code>·Codex 완전 지원·review 임포터)은 로드맵 §4가 정본이며 여기 스토리로 분해하지 않는다.</p>
+
+  <h2 id="sec-2">2. Phase 0 에픽 — 조정이 되는가 (W1~W3)</h2>
+
+  <p>Phase 0의 유일한 목표는 로드맵 §2.1 그대로다 — "서버가 모든 세션의 선언을 보면 clemvion이 로컬 한계로 제거했던 동시수정 사전 검출이 복원되는가"를 실물로 확인한다. 종료 게이트는 §5.1~§5.3의 E2E 시나리오(성공 기준 0-1~0-8)다.</p>
+
+  <h3>2.1 E01 — 저장소 부트스트랩</h3>
+  <p>모노레포·API/웹 골격·로컬 compose·CI. 모든 에픽의 공통 선행.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E01-S01</code></td><td>pnpm 모노레포 골격 — <code>apps/web</code> <code>apps/api</code> <code>packages/schema</code> <code>deploy/compose</code> <code>deploy/k8s</code> <code>docs</code> 트리와 패키지 책임 경계</td><td><a href="codebase.html">4.2 코드베이스와 배포</a> §1 · <a href="scope.html">4.1 범위·스택</a> §2</td><td>WHEN 신규 클론에서 <code>pnpm install</code>을 실행하면, THE SYSTEM SHALL lockfile 기준으로 워크스페이스 전 패키지를 한 번에 설치한다</td><td>—</td></tr>
+      <tr><td><code>E01-S02</code></td><td>NestJS(Fastify 어댑터) API 골격 — 도메인 모듈 자리와 REST·MCP·WS 표면이 같은 서비스를 DI로 주입받는 배선</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §1(D-05) · <a href="codebase.html">4.2 코드베이스와 배포</a> §2</td><td>WHEN REST 컨트롤러와 MCP 게이트웨이가 같은 도메인 동작을 호출하면, THE SYSTEM SHALL 동일 서비스 인스턴스를 거쳐 게이트 판정을 단일화한다</td><td>E01-S01</td></tr>
+      <tr><td><code>E01-S03</code></td><td>Vite + React SPA 골격 — TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod 셋업</td><td><a href="scope.html">4.1 범위·스택</a> §2 · <a href="screens.html">4.5 화면 명세</a> §1</td><td>WHEN <code>pnpm dev</code>로 웹을 기동하면, THE SYSTEM SHALL 라우팅 맵의 기본 경로와 앱 셸을 렌더링한다</td><td>E01-S01</td></tr>
+      <tr><td><code>E01-S04</code></td><td>docker-compose 로컬 기동 — postgres·minio·api·worker·web 단일 파일</td><td><a href="codebase.html">4.2 코드베이스와 배포</a> §5 · NFR-01 · <a href="roadmap.html">3.7 로드맵</a> §2.2</td><td>WHEN <code>docker compose up</code>을 실행하면, THE SYSTEM SHALL 단일 명령으로 전 서비스를 기동한다(마이그레이션 연결은 E02-S02)</td><td>E01-S01</td></tr>
+      <tr><td><code>E01-S05</code></td><td>CI 파이프라인 — TS strict·lint·typecheck·테스트 3계층 배치</td><td><a href="codebase.html">4.2 코드베이스와 배포</a> §4</td><td>WHEN PR이 열리면, THE SYSTEM SHALL lint·typecheck·unit 테스트를 실행하고 실패 시 머지를 차단한다</td><td>E01-S01</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.2 E02 — 스키마·마이그레이션</h3>
+  <p>Postgres + Drizzle. <code>packages/schema</code>가 테이블·zod·파생 타입의 단일 원천이 된다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E02-S01</code></td><td>drizzle 테이블 27종 선언 — <code>organization</code>부터 <code>spec_comment</code>까지, zod 스키마·파생 타입 공유</td><td><a href="data-model.html">3.3 데이터 모델</a> §1.3 · <a href="database.html">4.3 데이터베이스 스키마</a> §2</td><td>WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL data-model.md의 27개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다</td><td>E01-S01 · E06-S03</td></tr>
+      <tr><td><code>E02-S02</code></td><td>0001 스냅샷 마이그레이션 + 왕복 멱등 — compose는 기동 시, k8s는 Job으로 적용</td><td><a href="database.html">4.3 데이터베이스 스키마</a> §1·§5</td><td>WHEN 같은 마이그레이션을 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행을 스키마 변경 0으로 종료한다</td><td>E02-S01</td></tr>
+      <tr><td><code>E02-S03</code></td><td>NOTIFY 발행 규약 — 채널 <code>nerv_events</code>, 페이로드 JSON(event id·type·project_id)</td><td><a href="database.html">4.3 데이터베이스 스키마</a> §3 · <a href="architecture.html">3.2 시스템 아키텍처</a> §1(D-10)</td><td>WHEN <code>event</code> 테이블에 행이 삽입되면, THE SYSTEM SHALL <code>nerv_events</code> 채널로 event id·type·project_id를 NOTIFY한다</td><td>E02-S01</td></tr>
+      <tr><td><code>E02-S04</code></td><td>개발 시드 한 벌 — 프로젝트 clemvion, <code>SPC-CWC-007</code>·<code>REQ-CWC-031</code>, TSK-3f77(하나/mac-07)·TSK-a3f8(도현/mac-02)·TSK-b904(유나/linux-ci-01/codex), 세션 S-b7e9</td><td><a href="database.html">4.3 데이터베이스 스키마</a> §4</td><td>WHEN 시드 스크립트를 실행하면, THE SYSTEM SHALL 예시 데이터 한 벌을 멱등하게 적재한다(재실행 시 신규 레코드 0)</td><td>E02-S02</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.3 E03 — MCP 최소 서버 + PAT</h3>
+  <p>Streamable HTTP 게이트웨이와 P0 도구 8종. tools-only 완주(성공 기준 0-8)가 이 에픽의 판정이다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E03-S01</code></td><td>Streamable HTTP MCP 게이트웨이 — tools-first, <code>/mcp</code> Origin 검증</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.1·§2.6 · <a href="api.html">4.4 API 명세</a> §4</td><td>WHEN Claude Code 또는 Codex 클라이언트가 접속하면, THE SYSTEM SHALL resources·prompts·elicitation 없이 tools만으로 카탈로그를 노출한다</td><td>E01-S02 · E06-S04</td></tr>
+      <tr><td><code>E03-S02</code></td><td>PAT 발급·검증 — better-auth api-key 플러그인, 해시 저장·프로젝트 스코프, 발급 CLI</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.5·§6.1 · <a href="scope.html">4.1 범위·스택</a> §2</td><td>WHEN 폐기된 PAT 또는 스코프 밖 프로젝트로 호출하면, THE SYSTEM SHALL <code>NERV_UNAUTHENTICATED</code> 또는 <code>NERV_FORBIDDEN</code>으로 거부한다</td><td>E02-S01</td></tr>
+      <tr><td><code>E03-S03</code></td><td>P0 도구 8종 — <code>nerv_bootstrap</code> <code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code> <code>nerv_task_next</code> <code>nerv_task_claim</code> <code>nerv_task_heartbeat</code> <code>nerv_task_release</code></td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3 · <a href="roadmap.html">3.7 로드맵</a> §2.2</td><td>WHEN 세션이 <code>nerv_bootstrap</code>을 첫 도구 호출로 실행하면, THE SYSTEM SHALL session_id·규약 요약·활성 클레임·게이트 정책을 반환한다<br>WHEN 같은 <code>session_id</code>로 재호출하면, THE SYSTEM SHALL 동일 스냅샷을 반환한다(멱등)</td><td>E03-S01 · E03-S02 · E04-S01 · E04-S03</td></tr>
+      <tr><td><code>E03-S04</code></td><td>에러 규약 — <code>NERV_*</code> 코드 체계와 next_actions를 담은 구조화 에러, REST HTTP 상태 매핑 재사용</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.7 · <a href="api.html">4.4 API 명세</a> §1</td><td>WHEN 도구 호출이 실패하면, THE SYSTEM SHALL <code>NERV_*</code> 코드·사유·next_actions를 담은 구조화 에러를 반환한다</td><td>E03-S01</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.4 E04 — 클레임·리스 엔진</h3>
+  <p>Phase 0의 핵심 검증 대상(FR-06 ●). clemvion이 #576에서 제거한 동시수정 사전 검출의 복원이다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E04-S01</code></td><td>원자적 클레임 트랜잭션 — <code>ready → claimed</code> 단일 트랜잭션 전환(FOR UPDATE)</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §4.3~4.4 · FR-06 · D-04</td><td>WHEN 3세션이 같은 ready Task를 동시에 클레임하면, THE SYSTEM SHALL 정확히 1건만 성공시키고 나머지에 409 충돌 응답을 반환한다</td><td>E02-S01</td></tr>
+      <tr><td><code>E04-S02</code></td><td>scope 겹침 판정 — <code>spec_ids</code>·<code>file_globs</code> 교집합 계산, 경고/차단 2단계, <code>NERV_CONFLICT_SCOPE</code>에 상대 세션·사용자·hostname·scope 반환</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §4.4 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.4</td><td>WHEN 활성 클레임과 scope가 겹치는 클레임이 오면, THE SYSTEM SHALL 상대 정보를 담은 경고를 반환한다<br>WHEN 같은 스펙 문서를 두 세션이 동시 개정하려 하면, THE SYSTEM SHALL <code>NERV_CONFLICT_SCOPE</code>로 차단한다</td><td>E04-S01</td></tr>
+      <tr><td><code>E04-S03</code></td><td>하트비트·리스 연장 — 60초 주기, 리스 TTL 30분, 응답 역채널(pending 질문 답변·steer/stop)</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.4·§2.7</td><td>WHEN 유효한 claim_id로 하트비트가 도착하면, THE SYSTEM SHALL 새 lease_expires_at을 반환하고 pending 지시를 응답에 싣는다<br>WHEN 만료된 리스로 하트비트가 오면, THE SYSTEM SHALL <code>NERV_LEASE_EXPIRED</code>를 반환한다</td><td>E04-S01</td></tr>
+      <tr><td><code>E04-S04</code></td><td>만료 자동 회수 워커 — advisory lock 단일 워커(replica 1), <code>stale</code> 전이 + 클레임 회수</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §4.5 · D-13 · <a href="codebase.html">4.2 코드베이스와 배포</a> §6</td><td>WHEN 하트비트가 TTL(30분)을 초과해 끊기면, THE SYSTEM SHALL 세션을 <code>stale</code>로 전이하고 클레임을 회수해 Task를 <code>ready</code>로 복귀시킨다(사람 개입 0회)</td><td>E04-S03</td></tr>
+      <tr><td><code>E04-S05</code></td><td>ready 판정 + 위임 명세 4요소 강제 — 의존성 그래프 기반, 4요소(목표·산출물 형식·도구/출처·경계) 미비 시 전이 거부</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §4.1~4.2 · FR-05</td><td>WHEN 위임 명세 4요소 중 하나라도 빈 Task가 <code>ready</code> 전이를 시도하면, THE SYSTEM SHALL 전이를 거부하고 누락 요소를 명시한다</td><td>E02-S01</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.5 E05 — 세션 보드 최소</h3>
+  <p>세션 레지스트리(FR-07 ◐)와 읽기 전용 보드(FR-08 ○, S5 축소판). NFR-02(p95 ≤ 5초)의 첫 실측 지점.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E05-S01</code></td><td>세션 레지스트리 — <code>agent_session</code> 등록, 상태 머신 <code>pending→active↔awaiting_input→complete/error/stale</code>, 하트비트</td><td><a href="data-model.html">3.3 데이터 모델</a> §2.5 · FR-07 · <a href="roadmap.html">3.7 로드맵</a> §2.2</td><td>WHEN <code>nerv_bootstrap</code>이 성공하면, THE SYSTEM SHALL <code>agent_session</code> 행을 생성하고 <code>session.started</code> 이벤트를 적재한다</td><td>E02-S01 · E03-S01</td></tr>
+      <tr><td><code>E05-S02</code></td><td>WS 게이트웨이 + PG LISTEN 팬아웃 — 룸 <code>project:{id}</code>·<code>user:{id}</code>, join 시 멤버십 검사, websocket 전송만(폴링 폴백 off)</td><td><a href="scope.html">4.1 범위·스택</a> §2 · <a href="api.html">4.4 API 명세</a> §3 · NFR-02</td><td>WHEN 이벤트가 NOTIFY되면, THE SYSTEM SHALL 각 파드가 자기 소켓의 해당 룸으로 emit하고 상태 전이→보드 반영 지연 p95 ≤ 5초를 유지한다</td><td>E02-S03 · E06-S01</td></tr>
+      <tr><td><code>E05-S03</code></td><td>읽기 전용 세션 보드 화면 — hostname·에이전트 종류·상태·현재 Task·리스 잔여 표기(S5 축소판, steer/stop 없음)</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S5 · <a href="roadmap.html">3.7 로드맵</a> §2.3</td><td>WHEN 세션 상태가 전이되면, THE SYSTEM SHALL 새로고침 없이 보드 카드를 5초 내 갱신한다<br>WHEN WebSocket이 끊겼다 재연결되면, THE SYSTEM SHALL 화면 데이터를 재조회한다(이벤트 유실 허용, 진실은 DB — D-14)</td><td>E01-S03 · E05-S02</td></tr>
+      <tr><td><code>E05-S04</code></td><td>Event 적재 표준화 — 전 상태 전이를 <code>event</code> 테이블에 <code>is_agent</code> 포함 append-only 적재</td><td><a href="data-model.html">3.3 데이터 모델</a> §2.9 · FR-16 · D-10</td><td>WHEN 도메인 상태 전이가 커밋되면, THE SYSTEM SHALL 같은 트랜잭션에서 <code>event</code> 행을 적재한다(전이·이벤트의 원자성)</td><td>E02-S01</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.6 E06 — 스파이크 4종 + 확인 태스크</h3>
+  <p>각 스파이크는 <b>타임박스 1주</b>, 산출물은 검증 리포트와 go/no-go 판정이다. 실패 시 대안 경로(각 행의 재검토 트리거)가 이미 정의되어 있으므로 일정이 아니라 선택지가 바뀐다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E06-S01</code></td><td>스파이크: WS 게이트웨이 PoC — NestJS <code>@WebSocketGateway</code>(socket.io 어댑터), websocket 전송 단독, 파드 2개에서 크로스파드 어댑터 없이 PG LISTEN 팬아웃</td><td><a href="scope.html">4.1 범위·스택</a> §2 · NFR-02</td><td>WHEN 파드 2개 뒤에 클라이언트를 분산 접속시키고 PG NOTIFY를 발생시키면, THE SYSTEM SHALL 크로스파드 어댑터 없이 전 클라이언트에 이벤트를 전달한다</td><td>E01-S02</td></tr>
+      <tr><td><code>E06-S02</code></td><td>스파이크: TipTap md 왕복 검증 — 지원 노드 화이트리스트(heading·paragraph·list·table·code·blockquote·link·hr)로 실측 문서 왕복. 손실 실측 시 Milkdown 재검토 트리거 발동</td><td><a href="scope.html">4.1 범위·스택</a> §2 · <a href="screens.html">4.5 화면 명세</a> §3</td><td>WHEN <code>clemvion:spec/</code> 표본 30문서를 md→TipTap→md로 왕복하면, THE SYSTEM SHALL 지원 노드 집합 안에서 손실 0을 보이고, 손실 발생 항목은 파일·위치·유형 리포트로 남긴다</td><td>E01-S03</td></tr>
+      <tr><td><code>E06-S03</code></td><td>스파이크: drizzle 마이그레이션 파이프라인 — compose 기동 시 적용 vs k8s Job, 롤백 절차 포함 후보 비교</td><td><a href="scope.html">4.1 범위·스택</a> §2 · <a href="codebase.html">4.2 코드베이스와 배포</a> §5~6 · <a href="database.html">4.3 데이터베이스 스키마</a> §1</td><td>WHEN 파이프라인 후보 2안을 각각 실행하면, THE SYSTEM SHALL 신규 DB·기존 DB 양쪽에서 왕복 멱등을 통과하는 안을 선정 근거와 함께 리포트로 남긴다</td><td>E01-S01</td></tr>
+      <tr><td><code>E06-S04</code></td><td>스파이크: MCP 리비전 병행 서빙 — 최신 리비전 + 구 리비전 병행(D-11), Claude Code·Codex 클라이언트 협상 실측</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.6 · <a href="roadmap.html">3.7 로드맵</a> §6.1(R5)</td><td>WHEN 구 리비전 클라이언트와 최신 리비전 클라이언트가 같은 엔드포인트에 접속하면, THE SYSTEM SHALL 협상된 리비전으로 각각 tools 호출을 완주시킨다</td><td>E01-S02</td></tr>
+      <tr><td><code>E06-S05</code></td><td>확인 태스크: 운영 Postgres 위치 — 클러스터 외부(권장) vs CloudNativePG. 백업·복구(NFR-01)·운영 부담·k8s 의존성 3기준 비교 후 결정 기록</td><td><a href="scope.html">4.1 범위·스택</a> §2(배포 행) · <a href="codebase.html">4.2 코드베이스와 배포</a> §6</td><td>WHEN 확인 태스크가 종료되면, THE SYSTEM SHALL 3기준 비교표·결정·재검토 트리거를 <a href="codebase.html">4.2 코드베이스와 배포</a> §6에 반영한다</td><td>—</td></tr>
+      <tr><td><code>E06-S06</code></td><td>실측: 훅 headers <code>${NERV_TOKEN}</code> 환경변수 확장(Claude Code hooks <code>type:"http"</code>) — 불가로 판명되면 <code>bin/nerv-hook-forward</code> 래퍼(<code>type:"command"</code>) 변형 hooks.json으로 폴백 확정</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §3.1</td><td>WHEN 실측에서 훅 <code>headers</code>의 <code>${NERV_TOKEN}</code> 확장이 불가로 판명되면, THE SYSTEM SHALL <code>type:"http"</code> 훅을 <code>type:"command"</code> + <code>bin/nerv-hook-forward</code>로 바꾼 변형 hooks.json을 배포판으로 확정하고 판정 리포트를 남긴다</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.7 E07 — clemvion spec 임포터 v0</h3>
+  <p><code>clemvion:spec/</code> 순수 135 md(implemented 117 / partial 17 / backlog 1) → Spec/SpecVersion/Requirement. 성공 기준 0-6·0-7의 대상.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E07-S01</code></td><td>파싱·매핑 구현 — 디렉터리 계층→스펙 트리, frontmatter(id/status/code/pending_plans) 매핑, status 2축 분해, 요구사항 ID 휴리스틱(<code>[A-Z]+-[A-Z]+-\d+</code>)</td><td><a href="importer.html">4.7 clemvion 임포터</a> §2 · <a href="roadmap.html">3.7 로드맵</a> §7.3(1)</td><td>WHEN <code>clemvion:spec/</code> 순수 135 md를 입력하면, THE SYSTEM SHALL ≥95%를 자동 변환하고 실패 전건을 파일·줄·사유와 함께 목록화한다(0-6)</td><td>E02-S02</td></tr>
+      <tr><td><code>E07-S02</code></td><td>dry-run 기본·멱등 재실행 — 멱등 키(파일 경로+id), 재실행은 변경분만</td><td><a href="importer.html">4.7 clemvion 임포터</a> §3 · <a href="roadmap.html">3.7 로드맵</a> §2.4(0-7)</td><td>WHEN 임포터를 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행의 신규 생성 레코드 0을 보인다</td><td>E07-S01</td></tr>
+      <tr><td><code>E07-S03</code></td><td>실패 리포트·수동 확인 큐 — 건너뜀/중단 구분, 원문 보존(정보 손실 0)</td><td><a href="importer.html">4.7 clemvion 임포터</a> §4</td><td>WHEN 변환 실패 또는 수동 확인 항목이 발생하면, THE SYSTEM SHALL 파일·줄·사유·건너뜀/중단 구분이 있는 리포트를 산출하고 원문을 보존한다</td><td>E07-S01</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-3">3. Phase 1 에픽 — 스펙과 사람이 들어온다 (W4~W9)</h2>
+
+  <p>Phase 1의 목표는 로드맵 §3.1 그대로다 — 스펙이 플랫폼 안에서 쓰이고 승인되며, 비개발 직군이 터미널 없이 참여한다. 종료 게이트는 성공 기준 1-1~1-11이며, 그중 1-11(기획자 웹↔터미널 왕복)은 §5.4의 E2E 시나리오로 재현한다.</p>
+
+  <h3>3.1 E08 — 웹 화면 (S1~S5·S7·S8 + 로그인)</h3>
+  <p>MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터는 Phase 2 — <a href="scope.html">4.1 범위·스택</a> §4). 그림 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>, 데이터·상태·컴포넌트 명세는 <a href="screens.html">4.5 화면 명세</a> §2가 정본이다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E08-S01</code></td><td>로그인·온보딩 + 앱 셸 — better-auth 세션 쿠키, organization 플러그인(조직·멤버십), 전역 헤더·사이드바·실시간 연결 상태 배너</td><td><a href="screens.html">4.5 화면 명세</a> §1~2 · <a href="scope.html">4.1 범위·스택</a> §2</td><td>WHEN 미인증 사용자가 보호 경로에 접근하면, THE SYSTEM SHALL <code>/login</code>으로 보내고 로그인 후 원래 경로로 복귀시킨다</td><td>E01-S03 · E03-S02</td></tr>
+      <tr><td><code>E08-S02</code></td><td>S1 홈 대시보드 — 소속 프로젝트·내 승인 대기·활성 세션 요약</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S1 · <a href="screens.html">4.5 화면 명세</a> §2</td><td>WHEN 사용자가 로그인하면, THE SYSTEM SHALL 조직 단위 요약(프로젝트·승인 대기·세션)을 한 화면에 표시한다</td><td>E08-S01</td></tr>
+      <tr><td><code>E08-S03</code></td><td>S2 프로젝트 개요 — 스펙 트리·진행 요약·세션 스트립</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S2 · <a href="screens.html">4.5 화면 명세</a> §2</td><td>WHEN 프로젝트에 진입하면, THE SYSTEM SHALL 스펙 트리와 진행 요약을 표시하고 WS 룸 <code>project:{id}</code>에 join한다</td><td>E08-S01 · E05-S02</td></tr>
+      <tr><td><code>E08-S04</code></td><td>S3 스펙 상세 — TipTap 에디터(+md 소스 read-only 토글)·버전·diff·코멘트·승인 패널·편집 리스 UI·터미널 이어쓰기 안내</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S3 · <a href="screens.html">4.5 화면 명세</a> §2~3 · D-09</td><td>WHEN 편집 중 같은 사용자의 다른 표면이 리스를 인계받으면, THE SYSTEM SHALL 리스 인계 배너를 표시하고 에디터를 read-only로 전환한다</td><td>E08-S01 · E06-S02 · E09-S01 · E10-S01</td></tr>
+      <tr><td><code>E08-S05</code></td><td>S4 작업 보드 — 칸반, 승인된 SpecVersion에서 Task 파생, 위임 명세 4요소 폼(zod 검증)</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S4 · <a href="screens.html">4.5 화면 명세</a> §2 · FR-05</td><td>WHEN 위임 명세 4요소가 미완성인 채 <code>ready</code> 전이를 시도하면, THE SYSTEM SHALL 누락 필드를 폼 검증으로 표시하고 전이를 막는다</td><td>E08-S01 · E04-S05</td></tr>
+      <tr><td><code>E08-S06</code></td><td>S5 세션 모니터 승격 — 읽기 전용 보드에 steer/stop 추가, activity 타임라인</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S5 · FR-08 · <a href="roadmap.html">3.7 로드맵</a> §3.2</td><td>WHEN 사람이 세션 카드에서 stop을 누르면, THE SYSTEM SHALL 지시를 하트비트 역채널에 실어 세션에 전달한다</td><td>E05-S03 · E04-S03</td></tr>
+      <tr><td><code>E08-S07</code></td><td>S7 승인함 — 스펙 승인·플랜·질문 3유형 카드, 원클릭 승인/거절/코멘트</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S7 · FR-11 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6.4</td><td>WHEN 카드에서 결정을 처리하면, THE SYSTEM SHALL 요청 세션을 <code>awaiting_input</code>에서 즉시 해제한다</td><td>E08-S01 · E13-S01</td></tr>
+      <tr><td><code>E08-S08</code></td><td>S8 설정 — 멤버·역할(6종)·에이전트 토큰 발급/폐기·게이트 정책</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S8 · FR-14 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §1.6</td><td>WHEN admin이 아닌 역할이 게이트 정책 편집에 접근하면, THE SYSTEM SHALL API와 UI 양쪽에서 거부한다</td><td>E08-S01 · E03-S02</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.2 E09 — 스펙 워크플로·승인 게이트</h3>
+  <p>문서 축 상태 머신과 승인 흐름(FR-01·FR-02 ●). 성공 기준 1-6(스냅샷 불변)·1-2(직군 참여)의 기반.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E09-S01</code></td><td>문서 축 상태 머신 + 불변 스냅샷 — <code>draft→in_review→approved→superseded/deprecated</code>, approved 본문 불변은 DB 트리거로 강제</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §1.2 · <a href="database.html">4.3 데이터베이스 스키마</a> §2 · FR-02</td><td>WHEN <code>approved</code> SpecVersion 본문 수정이 시도되면, THE SYSTEM SHALL DB 계층에서 거부한다(1-6: 거부율 100%)</td><td>E02-S01</td></tr>
+      <tr><td><code>E09-S02</code></td><td>제출 전 사전 검토 5검사기 — cross-spec/rationale-continuity/convention-compliance/requirement-shape/task-coherence, warning/block + 앵커 위치</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §2.1 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3(<code>nerv_spec_check</code>)</td><td>WHEN 초안에 BLOCK 검사 결과가 있으면, THE SYSTEM SHALL <code>in_review</code> 제출을 거부하고 앵커 위치를 반환한다</td><td>E09-S01</td></tr>
+      <tr><td><code>E09-S03</code></td><td>리뷰어 자동 지정 + 지시자≠승인자 — 역할·영역 기반 지정, 본인 요청 승인·지시자 승인 차단</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §2.2~2.3</td><td>WHEN 에이전트를 지시한 사람이 그 산출물의 승인을 시도하면, THE SYSTEM SHALL 거부하고 대체 승인자를 제안한다</td><td>E09-S01</td></tr>
+      <tr><td><code>E09-S04</code></td><td>위험도 가변 게이트 — 스펙 변경 게이트 티어 T0~T3, 저위험(T0) 자동 통과 + 통과 사실 이벤트 기록. 첫날부터 켠다</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §2.4 · D-06 · <a href="roadmap.html">3.7 로드맵</a> §3.5</td><td>WHEN T0(오탈자·문구) 변경이 제출되면, THE SYSTEM SHALL 승인 없이 통과시키되 통과 사실을 event로 남긴다</td><td>E09-S01</td></tr>
+      <tr><td><code>E09-S05</code></td><td>Task done 게이트(P1 범위) — evidence 조건 검사, 리뷰 커버리지 조건은 Phase 2로 제외(FR-10 ◐)</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §4.6 · <a href="roadmap.html">3.7 로드맵</a> §1.3(FR-10)</td><td>WHEN 유효한 리스 없이 <code>nerv_task_update(status=done)</code>이 호출되면, THE SYSTEM SHALL 거부한다</td><td>E04-S03 · E10-S02</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.3 E10 — 기획자 터미널 경로 (초안 리스·코멘트 왕복)</h3>
+  <p>웹과 터미널은 같은 draft SpecVersion을 번갈아 잡는 두 개의 입력 장치다(<a href="roadmap.html">3.7 로드맵</a> §3.2 "기획자 터미널 경로"). 성공 기준 1-11의 구현 대상.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E10-S01</code></td><td>초안 편집 리스 — TTL 30분(클레임 리스와 동일 상수), 암묵 획득/해제, 같은 사용자 표면 간 자동 인계 + 이전 표면 알림</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.7 · D-04 · <a href="roadmap.html">3.7 로드맵</a> §3.2</td><td>WHEN 같은 사용자가 웹 편집 중 터미널에서 <code>nerv_spec_draft_upsert</code>를 호출하면, THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알린다<br>WHEN 다른 사용자가 리스 보유 초안에 upsert하면, THE SYSTEM SHALL <code>NERV_DRAFT_LEASED</code>로 거부하고 보유자 정보를 반환한다</td><td>E09-S01</td></tr>
+      <tr><td><code>E10-S02</code></td><td>MCP P1 도구 7종 — <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code> <code>nerv_task_update</code> <code>nerv_question_create</code> <code>nerv_session_event</code> (카탈로그 MVP 15종 완성)</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3 · <a href="roadmap.html">3.7 로드맵</a> §3.3 · <a href="scope.html">4.1 범위·스택</a> §4</td><td>WHEN <code>base_version</code>이 현재 버전과 불일치하는 upsert가 오면, THE SYSTEM SHALL <code>NERV_PRECONDITION</code>을 반환하고 데이터를 덮어쓰지 않는다</td><td>E03-S03 · E09-S01</td></tr>
+      <tr><td><code>E10-S03</code></td><td>코멘트 왕복 — 헤딩 slug·REQ ref 앵커(<code>spec_comment</code>), open→resolved 추적, 남은 open 수 반환</td><td><a href="data-model.html">3.3 데이터 모델</a> §2.2 · D-09 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3(<code>nerv_spec_comment_resolve</code>)</td><td>WHEN 코멘트가 달리면, THE SYSTEM SHALL <code>spec.comment_added</code> 이벤트를 적재하고 스레드 참여자에게 알림을 라우팅한다</td><td>E09-S01 · E13-S03</td></tr>
+      <tr><td><code>E10-S04</code></td><td>제출·승인 왕복 완성 — <code>nerv_spec_submit_review</code> 멱등(pending Approval 재사용), 저장·제출 응답의 <code>web_url</code> 딥링크</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3</td><td>WHEN 같은 <code>spec_version_id</code>로 제출을 재호출하면, THE SYSTEM SHALL 승인함 카드를 중복 생성하지 않고 기존 pending Approval을 반환한다</td><td>E10-S02 · E13-S01</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.4 E11 — plan 임포터</h3>
+  <p><code>clemvion:plan/</code> 450 md → Task. 임포트(복제)이며 SoT는 여전히 git이다(컷오버는 M2 — <a href="roadmap.html">3.7 로드맵</a> §7.2).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E11-S01</code></td><td>plan 파싱·Task 매핑 — worktree/started/owner 매핑, <code>complete/</code>(387)→<code>done</code>, <code>in-progress/</code>+<code>worktree: (unstarted)</code>(13)→<code>backlog</code>, <code>in-progress/</code>+worktree 값 있음→<code>in_progress</code>, <code>research</code>(1)→참고 문서. <code>ready</code>로는 적재하지 않는다(<a href="importer.html">4.7 clemvion 임포터</a> §2.6 · REQ-IMP-009)</td><td><a href="importer.html">4.7 clemvion 임포터</a> §2 · <a href="roadmap.html">3.7 로드맵</a> §7.3(2)</td><td>WHEN <code>clemvion:plan/</code> 450 md를 임포트하면, THE SYSTEM SHALL 상태 매핑 규칙대로 Task를 생성하고 위임 명세 4요소를 소급 생성하지 않는다</td><td>E07-S02</td></tr>
+      <tr><td><code>E11-S02</code></td><td>owner 수동 매핑 테이블 — 자유 텍스트 역할 라벨→사용자 계정, 매핑 불가는 <code>unassigned</code></td><td><a href="roadmap.html">3.7 로드맵</a> §3.3·§7.3(2)</td><td>WHEN owner 텍스트가 매핑 테이블에 없으면, THE SYSTEM SHALL <code>unassigned</code>로 임포트하고 수동 배정 큐에 올린다</td><td>E11-S01</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.5 E12 — 플러그인 v1 + 훅 수집기</h3>
+  <p>Claude Code 배포 평면. 스킬 4종(<code>/nerv:review</code>는 Phase 2)·훅·<code>.mcp.json</code> 번들과 사내 마켓플레이스 배포(성공 기준 1-10).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E12-S01</code></td><td>스킬 4종 SKILL.md — <code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code>. bootstrap→claim→하트비트 60초→질문 에스컬레이션 프로토콜과 스펙 본문 비신뢰 규약 포함, A3 도구는 allowed-tools 제외</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §2 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.2</td><td>WHEN 신규 세션이 문서 없이 스킬 안내만으로 진행하면, THE SYSTEM SHALL <code>nerv_bootstrap</code>→<code>nerv_task_next</code>→<code>nerv_task_claim</code> 첫 클레임까지 도달시킨다</td><td>E10-S02</td></tr>
+      <tr><td><code>E12-S02</code></td><td>hooks.json + ingest 엔드포인트 — <code>type:"http"</code> 훅(SessionStart/PostToolUse/Stop/SessionEnd) 수신, 세션 등록·activity 적재 자동화</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §3 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3 · <a href="roadmap.html">3.7 로드맵</a> §3.3</td><td>WHEN 훅 이벤트가 도착하면, THE SYSTEM SHALL 세션 등록·activity 적재에 반영하고 미인증 이벤트를 거부한다</td><td>E05-S01</td></tr>
+      <tr><td><code>E12-S03</code></td><td><code>.mcp.json</code> + statusline + 마켓플레이스 배포 — 관리형 settings 강제 활성화</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.4~3.5 · <a href="roadmap.html">3.7 로드맵</a> §3.4(1-10)</td><td>WHEN 관리형 settings로 플러그인이 배포되면, THE SYSTEM SHALL 파일럿 참여 호스트의 활성화 여부를 서버에서 확인 가능하게 한다(목표 100%)</td><td>E12-S01 · E12-S02</td></tr>
+      <tr><td><code>E12-S04</code></td><td>사람 온보딩 절차 — PAT 발급(S8)→플러그인 설치→<code>nerv_bootstrap</code> 확인, 단계별 명령 문서화</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §4</td><td>WHEN 신규 참여자가 온보딩 절차를 따르면, THE SYSTEM SHALL 단계별 명령만으로 첫 <code>nerv_bootstrap</code> 성공까지 도달시킨다</td><td>E08-S08 · E12-S03</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.6 E13 — 승인함 백엔드·질문·알림</h3>
+  <p>FR-11 ◐(3유형) + FR-12 ◐(인앱). 성공 기준 1-1(플랫폼 밖 승인 0)·1-3·1-4의 기반.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E13-S01</code></td><td>Approval 3유형 + 결정 API — 스펙 승인·플랜 승인·질문(CR·에스컬레이션 카드는 Phase 2), content_hash 기반 stale 승인 차단</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §2.5·§6.4 · <a href="data-model.html">3.3 데이터 모델</a> §2.7 · FR-11</td><td>WHEN 결재 대상의 content_hash가 현재와 불일치하면, THE SYSTEM SHALL stale 승인으로 거부한다</td><td>E09-S01</td></tr>
+      <tr><td><code>E13-S02</code></td><td>질문 에스컬레이션·폴링 — <code>nerv_question_create</code> 멱등 재호출=폴링, <code>blocking</code> 기본 true, 답변은 하트비트 역채널에도 적재</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3·§5.3 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §4.7</td><td>WHEN 질문이 생성되면, THE SYSTEM SHALL <code>question.created</code>를 critical 티어로 라우팅한다<br>WHEN 답변이 등록되면, THE SYSTEM SHALL 요청 세션의 다음 하트비트 또는 폴링 응답에 답변을 싣는다</td><td>E13-S01 · E04-S03</td></tr>
+      <tr><td><code>E13-S03</code></td><td>인앱 알림 — 중요도 티어(critical/high/standard/low) 라우팅, <code>notification</code> 수신함, low 티어는 즉시 알림 미생성</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6.2~6.3 · FR-12</td><td>WHEN 이벤트가 적재되면, THE SYSTEM SHALL 구독 규칙에 따라 <code>notification</code>을 생성하되 low 티어는 즉시 알림을 만들지 않는다</td><td>E05-S04</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.7 E14 — 운영·연동</h3>
+  <p>운영 k8s 배포·백업 복구(NFR-01 ●)·GitHub 연동(FR-13 ◐).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
+    <tbody>
+      <tr><td><code>E14-S01</code></td><td>k8s 배포 — kustomize base/overlays, 이미지 3종(<code>nerv-api</code>·<code>nerv-worker</code>·<code>nerv-web</code>), 마이그레이션 Job, Ingress WebSocket 업그레이드·타임아웃 상향, 워커 replica 1</td><td><a href="codebase.html">4.2 코드베이스와 배포</a> §6 · <a href="scope.html">4.1 범위·스택</a> §2</td><td>WHEN overlay를 적용하면, THE SYSTEM SHALL 마이그레이션 Job 완료 후에만 신규 버전 파드를 승격한다</td><td>E01-S04 · E06-S03 · E06-S05</td></tr>
+      <tr><td><code>E14-S02</code></td><td>백업·복구 왕복 검증 — 절차서 + 왕복 로그</td><td>NFR-01 · <a href="roadmap.html">3.7 로드맵</a> §3.4(1-9)</td><td>WHEN 백업본으로 신규 인스턴스를 복원하면, THE SYSTEM SHALL 데이터 손실 0으로 왕복을 1회 이상 성공시킨다</td><td>E14-S01</td></tr>
+      <tr><td><code>E14-S03</code></td><td>GitHub 웹훅·Task↔PR 링크 — PR·커밋 웹훅 수신, evidence 수집(리뷰 커버리지 판정은 Phase 2)</td><td><a href="roadmap.html">3.7 로드맵</a> §3.2 · FR-13 · <a href="data-model.html">3.3 데이터 모델</a> §2.8</td><td>WHEN PR 웹훅이 도착하면, THE SYSTEM SHALL Task에 PR 링크를 <code>evidence</code>로 수집한다</td><td>E05-S04</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-4">4. 의존 그래프와 착수 순서</h2>
+
+  <h3>4.1 에픽 의존 그래프</h3>
+
+  <div class="diagram">
+    <svg viewBox="0 0 880 480" role="img" aria-label="에픽 14개의 의존 그래프: Phase 0(E01~E07)과 Phase 1(E08~E14), 임계 경로는 E01→E02→E04→E03">
+      <defs>
+        <marker id="bk-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
+        </marker>
+      </defs>
+
+      <!-- Phase 경계 -->
+      <rect x="14" y="14" width="400" height="452" rx="12" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.7"/>
+      <rect x="460" y="14" width="406" height="452" rx="12" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.7"/>
+      <text x="26" y="34" fill="var(--accent-text)" font-family="var(--font)" font-size="11.5" font-weight="700">Phase 0 (W1~W3)</text>
+      <text x="472" y="34" fill="var(--accent-text)" font-family="var(--font)" font-size="11.5" font-weight="700">Phase 1 (W4~W9)</text>
+
+      <!-- Phase 0 노드 -->
+      <rect x="40" y="40" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="115" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E01 저장소</text>
+      <text x="115" y="74" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">부트스트랩</text>
+
+      <rect x="230" y="40" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="305" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E06 스파이크</text>
+      <text x="305" y="74" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">4종+확인</text>
+
+      <rect x="40" y="124" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="115" y="142" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E02 스키마·</text>
+      <text x="115" y="158" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">마이그레이션</text>
+
+      <rect x="40" y="208" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="115" y="226" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E03 MCP 최소</text>
+      <text x="115" y="242" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">서버+PAT</text>
+
+      <rect x="40" y="292" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="115" y="310" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E04 클레임·</text>
+      <text x="115" y="326" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">리스 엔진</text>
+
+      <rect x="40" y="376" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="115" y="394" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E05 세션 보드</text>
+      <text x="115" y="410" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">최소</text>
+
+      <rect x="230" y="292" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="305" y="310" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E07 spec</text>
+      <text x="305" y="326" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">임포터 v0</text>
+
+      <!-- Phase 1 노드 -->
+      <rect x="490" y="40" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="565" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E09 스펙 워크플로·</text>
+      <text x="565" y="74" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">승인 게이트</text>
+
+      <rect x="680" y="40" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="755" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E13 승인함·</text>
+      <text x="755" y="74" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">질문·알림</text>
+
+      <rect x="490" y="124" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="565" y="142" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E10 기획자</text>
+      <text x="565" y="158" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">터미널 경로</text>
+
+      <rect x="680" y="124" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="755" y="142" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E12 플러그인 v1</text>
+      <text x="755" y="158" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">+훅 수집기</text>
+
+      <rect x="680" y="208" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="755" y="226" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E11 plan</text>
+      <text x="755" y="242" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">임포터</text>
+
+      <rect x="490" y="292" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="565" y="310" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E08 웹 화면</text>
+      <text x="565" y="326" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S1~S5·S7·S8</text>
+
+      <rect x="680" y="292" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="755" y="310" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E14 운영·연동</text>
+      <text x="755" y="326" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">k8s·백업·GitHub</text>
+
+      <!-- 임계 경로: E01→E02→E04→E03(-S03) · E04→E05 -->
+      <line x1="115" y1="84" x2="115" y2="124" stroke="var(--border-strong)" stroke-width="1.6" marker-end="url(#bk-ar)"/>
+      <line x1="115" y1="168" x2="115" y2="208" stroke="var(--border-strong)" stroke-width="1.6" marker-end="url(#bk-ar)"/>
+      <!-- E02→E04 (좌측 우회) -->
+      <polyline points="40,160 28,160 28,314 40,314" fill="none" stroke="var(--border-strong)" stroke-width="1.6" marker-end="url(#bk-ar)"/>
+      <!-- E04→E03: S01 클레임·S03 하트비트 → E03-S03 도구 8종 -->
+      <line x1="115" y1="292" x2="115" y2="252" stroke="var(--border-strong)" stroke-width="1.6" marker-end="url(#bk-ar)"/>
+      <text x="121" y="269" fill="var(--text-faint)" font-family="var(--font)" font-size="10">S01·S03 →</text>
+      <text x="121" y="281" fill="var(--text-faint)" font-family="var(--font)" font-size="10">E03-S03</text>
+      <line x1="115" y1="336" x2="115" y2="376" stroke="var(--border-strong)" stroke-width="1.6" marker-end="url(#bk-ar)"/>
+
+      <!-- E01→E06 -->
+      <line x1="190" y1="48" x2="230" y2="48" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E06 좌측 버스: E02(S03)·E03(S04)·E05(S01) -->
+      <polyline points="230,76 214,76 214,146 190,146" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+      <polyline points="214,146 214,230 190,230" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+      <polyline points="214,230 214,398 190,398" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+      <text x="198" y="140" text-anchor="end" fill="var(--text-faint)" font-family="var(--font)" font-size="10">S03</text>
+      <text x="198" y="224" text-anchor="end" fill="var(--text-faint)" font-family="var(--font)" font-size="10">S04</text>
+      <text x="198" y="392" text-anchor="end" fill="var(--text-faint)" font-family="var(--font)" font-size="10">S01</text>
+
+      <!-- E02→E07 -->
+      <polyline points="190,160 202,160 202,314 230,314" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E06→E08 (S02) -->
+      <polyline points="380,54 437,54 437,302 490,302" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+      <text x="440" y="98" fill="var(--text-faint)" font-family="var(--font)" font-size="10">S02</text>
+
+      <!-- E06→E14 (S05) 상단 경유 -->
+      <polyline points="305,40 305,26 763,26 763,292" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+      <text x="530" y="23" fill="var(--text-faint)" font-family="var(--font)" font-size="10">S05 Postgres 위치</text>
+
+      <!-- E01→E14 상단 경유 -->
+      <polyline points="100,40 100,18 747,18 747,292" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E02→E09 -->
+      <polyline points="190,132 451,132 451,62 490,62" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E03→E10 -->
+      <polyline points="190,216 468,216 468,154 490,154" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E05→E08 -->
+      <polyline points="190,390 470,390 470,326 490,326" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E07→E11 -->
+      <polyline points="380,314 455,314 455,230 680,230" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E09→E10 · E09→E13 -->
+      <line x1="565" y1="84" x2="565" y2="124" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+      <line x1="640" y1="62" x2="680" y2="62" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E10→E09 (스토리 역방향: E10-S02 도구 → E09-S05) -->
+      <line x1="600" y1="124" x2="600" y2="84" stroke="var(--border-strong)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#bk-ar)"/>
+      <text x="606" y="103" fill="var(--text-faint)" font-family="var(--font)" font-size="10">S02 →</text>
+      <text x="606" y="115" fill="var(--text-faint)" font-family="var(--font)" font-size="10">E09-S05</text>
+
+      <!-- E13→E08 -->
+      <polyline points="680,70 660,70 660,320 640,320" fill="none" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+
+      <!-- E10→E12 -->
+      <line x1="640" y1="146" x2="680" y2="146" stroke="var(--border-strong)" stroke-width="1.3" marker-end="url(#bk-ar)"/>
+    </svg>
+    <div class="cap">에픽 의존 그래프 — E06 스파이크의 결과(S01~S05)가 각 에픽의 선행 조건으로 흘러 들어간다. 굵은 사슬 E01→E02→E04→E03(-S03)이 임계 경로다(점선은 스토리 수준 역방향 의존 E10-S02→E09-S05).</div>
+  </div>
+
+  <p>경로의 임계는 <b>E01 → E02 → E04 → E03(-S03)</b>다(E03-S03 도구 8종이 E04-S01 클레임 트랜잭션·E04-S03 하트비트에 의존한다). 클레임·리스 엔진(E04)이 Phase 0 종료 게이트(0-1~0-4)의 직접 대상이므로, 이 사슬이 지연되면 로드맵 §1.4 규칙 2에 따라 기간이 아니라 다른 에픽(E05 화면 범위·E07)의 범위를 줄인다.</p>
+
+  <h3>4.2 첫 2주 권장 경로</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>주</th><th>트랙 A (백엔드)</th><th>트랙 B (프론트·스파이크)</th><th>종료 시 확인</th></tr></thead>
+    <tbody>
+      <tr><td>W1</td><td>E01-S01·S02·S04 → E06-S03(마이그레이션 스파이크) 착수</td><td>E01-S03·S05 · E06-S01(WS PoC) · E06-S05(Postgres 위치 확인) 착수</td><td>compose 기동, CI 녹색, 스파이크 중간 판정</td></tr>
+      <tr><td>W2</td><td>E02 전체 → E03-S01·S02 착수</td><td>E06-S02(TipTap 왕복) · E06-S04(MCP 리비전) · E05-S04</td><td>27테이블 마이그레이션 왕복 멱등, 시드 적재, 스파이크 4종 go/no-go</td></tr>
+    </tbody>
+  </table></div>
+  <p>W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(§5.1~§5.3)를 실행한다. 스파이크가 no-go를 내면(예: TipTap 왕복 손실) 해당 재검토 트리거(Milkdown 재검토 등, <a href="scope.html">4.1 범위·스택</a> §2)를 W3 계획에 반영한다.</p>
+
+  <h2 id="sec-5">5. E2E 수용 시나리오</h2>
+
+  <p>로드맵의 수치 성공 기준을 <b>재현 절차</b>로 바꾼 것이다. 판정은 설문이 아니라 Event 로그 질의와 자동 테스트로만 한다(<a href="roadmap.html">3.7 로드맵</a> §1.4). 시나리오의 등장 데이터는 개발 시드 한 벌(E02-S04)이다.</p>
+
+  <h3>5.1 시나리오 A — 동시 클레임 충돌 0 (성공 기준 0-1·0-2)</h3>
+  <p><b>대상 스토리</b>: E04-S01 · E03-S03. <b>환경</b>: 호스트 2대(mac-07·mac-02)·세션 3개, 90분 — 로드맵 §2.5의 시나리오 구성 그대로.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>단계</th><th>행위</th><th>판정(Event 로그 질의)</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>하나(mac-07) 세션이 <code>nerv_task_next</code> → TSK-3f77 클레임</td><td><code>task.claimed</code> 1건, claim 소유자 1명</td></tr>
+      <tr><td>2</td><td>도현(mac-02) 세션이 같은 TSK-3f77 클레임 시도</td><td>409 충돌 응답, <code>task.claimed</code> 추가 0건</td></tr>
+      <tr><td>3</td><td>3세션 동시 클레임 요청 100회 부하 시험</td><td>요청묶음당 성공 정확히 1, 나머지 100% 충돌 응답</td></tr>
+      <tr><td>4</td><td>90분 로그 전수 질의 — 같은 Task가 두 세션에서 동시에 <code>in_progress</code>인 구간</td><td><b>0건</b></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.2 시나리오 B — scope 겹침 경고 (성공 기준 0-3)</h3>
+  <p><b>대상 스토리</b>: E04-S02. <b>핵심</b>: clemvion이 #576에서 제거한 검출의 복원 실증.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>단계</th><th>행위</th><th>판정</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>도현 세션이 TSK-a3f8을 TSK-3f77과 겹치는 scope(<code>spec_ids</code>에 <code>SPC-CWC-007</code> 포함)로 클레임</td><td>두 세션 모두에 겹침 경고, 경고에 상대 사용자·hostname·scope 포함</td></tr>
+      <tr><td>2</td><td>의도적으로 겹치는 클레임 10회 시도</td><td><b>10/10 경고 검출</b></td></tr>
+      <tr><td>3</td><td>겹치지 않는 클레임 20회 시도</td><td><b>오탐 0</b></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.3 시나리오 C — 리스 만료 자동 회수 (성공 기준 0-4)</h3>
+  <p><b>대상 스토리</b>: E04-S03 · E04-S04 · E05-S02.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>단계</th><th>행위</th><th>판정</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>유나(linux-ci-01, codex) 세션이 TSK-b904 클레임 후 프로세스 강제 종료</td><td><code>task.claimed</code> 기록, 이후 하트비트 없음</td></tr>
+      <tr><td>2</td><td>TTL(30분) 초과까지 방치</td><td>세션 <code>session.stale</code> 전이 + 클레임 회수 <b>100%</b>, 사람 개입 0회</td></tr>
+      <tr><td>3</td><td>다른 세션이 TSK-b904 재클레임</td><td>소유자 항상 1명(중복 없음), 보드 반영 p95 ≤ 5초(0-5)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.4 시나리오 D — 기획자 웹↔터미널 왕복 (성공 기준 1-11)</h3>
+  <p><b>대상 스토리</b>: E10-S01~S04 · E08-S04 · E13-S01. <b>등장</b>: 기획자가 <code>SPC-CWC-007</code> 초안(요구사항 <code>REQ-CWC-031</code> 포함)을 웹과 터미널(세션 S-b7e9)에서 번갈아 완성한다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>단계</th><th>행위</th><th>판정</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>웹 에디터(S3)에서 초안 편집 — 편집 리스 획득</td><td>리스 보유자 표시</td></tr>
+      <tr><td>2</td><td>같은 사용자가 터미널에서 <code>/nerv:spec</code> → <code>nerv_spec_draft_upsert</code></td><td>리스 자동 인계, 웹 에디터에 인계 배너 + read-only 전환, <code>NERV_DRAFT_LEASED</code> 발생 0</td></tr>
+      <tr><td>3</td><td>터미널에서 <code>nerv_spec_check</code> → 지적 반영 → 웹으로 복귀해 마무리</td><td><code>base_version</code> 충돌(<code>NERV_PRECONDITION</code>) 0 — Event 로그로 실증</td></tr>
+      <tr><td>4</td><td><code>nerv_spec_submit_review</code> → 다른 검토자가 S7에서 코멘트 → <code>nerv_spec_comment_resolve</code> → 승인</td><td>같은 초안 완성, <code>spec.approved</code> 기록, 승인은 전부 플랫폼 안(1-1)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>5.5 시나리오 E — 임포터 135 md 전수 (성공 기준 0-6·0-7)</h3>
+  <p><b>대상 스토리</b>: E07-S01~S03. <b>대상</b>: <code>clemvion:spec/</code> 순수 135 md(기계생성 API 카탈로그 249 md 제외).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>단계</th><th>행위</th><th>판정</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>dry-run 실행</td><td>변환 계획·실패 예상 항목 리포트, DB 변경 0</td></tr>
+      <tr><td>2</td><td>본 실행</td><td>자동 변환 <b>≥ 95%</b>(0-6), 실패 항목 전건 목록화(파일·줄·사유)</td></tr>
+      <tr><td>3</td><td>실패 항목 수동 확인 큐 처리 후 재실행</td><td>135 md <b>전수 임포트</b> 도달, 원문 보존(정보 손실 0 — <a href="importer.html">4.7 clemvion 임포터</a> §4)</td></tr>
+      <tr><td>4</td><td>2회 연속 재실행</td><td>두 번째 실행의 신규 생성 레코드 <b>0</b>(0-7)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-ref">참고 자료</h2>
+
+  <h3>이 문서가 인용한 외부 출처 (기존 13편에서 재인용)</h3>
+  <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">MCP Streamable HTTP transport (2026-07-28 revision)</a> — (2026-08-13 확인) 리비전 변화와 하위호환 절차 — E06-S04 스파이크의 대상.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/plugins">Claude Code Plugins</a> — (2026-08-13 확인) 스킬·훅·<code>.mcp.json</code> 번들과 마켓플레이스·관리형 settings — E12의 배포 근거.</p>
+  <p class="src"><a href="https://github.com/steveyegge/beads">steveyegge/beads</a> — (2026-08-13 확인) 원자적 <code>--claim</code> + 의존성 기반 ready 판정 — E04 설계의 원형.</p>
+
+  <h3>이 문서와 연결되는 제안서 문서</h3>
+  <ul>
+    <li><a href="roadmap.html">3.7 로드맵</a> — Phase 배분·성공 기준(0-1~0-8, 1-1~1-11)·임포터 상세(§7.3)의 정본. 이 백로그의 상위 문서.</li>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — 스토리가 인용하는 FR-01~17 · NFR-01~05의 정의.</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — MCP 도구 17종 카탈로그(§2.3)·에러/리스 규약(§2.7)·플러그인 구성(§3).</li>
+    <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 상태 머신·권한 매트릭스·클레임 알고리즘·이벤트 이름의 정본.</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 27종 필드 의미의 정본(E02의 대상).</li>
+    <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — E08 화면 스토리의 그림 정본.</li>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> · <a href="codebase.html">4.2 코드베이스와 배포</a> · <a href="database.html">4.3 데이터베이스 스키마</a> · <a href="api.html">4.4 API 명세</a> · <a href="screens.html">4.5 화면 명세</a> · <a href="plugin.html">4.6 플러그인과 온보딩</a> · <a href="importer.html">4.7 clemvion 임포터</a> — 4부 형제 문서. 각 스토리의 구현 명세 정본.</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="importer.html">이전: 4.7 clemvion 임포터</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="index.html">개요로 돌아가기</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

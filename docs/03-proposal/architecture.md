@@ -14,7 +14,7 @@
 
 1. **서버가 진실이다.** 조정에 필요한 모든 상태(스펙 버전, 작업 클레임, 세션 생존, 리뷰 커버리지)는 서버 DB에 있다. clemvion의 조율 상태는 전량 gitignored 로컬 파일이라 다른 호스트에서 보이지 않았고, 그래서 스펙 동시수정 자동 검출 기능이 "다른 머신·세션이면 로컬에 안 보여 신뢰할 수 없다"는 이유로 제거됐다(`clemvion:.claude/docs/worktree-policy.md` §3, #576). 서버가 모든 세션의 선언을 보면 그 기능은 복원된다.
 2. **에이전트 인터페이스는 tools 우선, 포맷은 markdown.** Codex는 MCP의 resources·prompts·elicitation을 소비하지 못하므로 스펙 조회·작업 클레임·리뷰 제출 같은 핵심 동작은 전부 tools로 제공한다(D-05). 본문 포맷은 블록 JSON이 아니라 markdown이다 — 토큰 밀도 때문에 Notion이 호스티드 MCP에서 내린 것과 같은 결론이다.
-3. **이벤트는 append-only, 실시간은 SSE.** 전면 이벤트 소싱은 하지 않는다(D-10). Event 테이블 하나가 활동 피드·알림·감사 로그의 단일 원천이 되고, 화면 갱신은 SSE로 밀어준다(NFR-02).
+3. **이벤트는 append-only, 실시간은 WebSocket.** 전면 이벤트 소싱은 하지 않는다(D-10). Event 테이블 하나가 활동 피드·알림·감사 로그의 단일 원천이 되고, 화면 갱신은 WebSocket으로 밀어준다(NFR-02).
 4. **게이트는 fail-open + 관측 + 격상.** 판정 불가 시 작업을 멈추지 않되 배너와 연속 카운터를 남기고, 임계 초과 시 "게이트가 사실상 꺼짐"으로 격상한다(D-14). clemvion이 `_lib/failopen_state.py`의 3회 연속 임계로 5개월 검증한 패턴을 서버로 옮긴 것이다.
 
 > **D-01 — 스펙·리뷰 산출물은 git이 아니라 플랫폼 DB에 저장한다.** 코드는 지금처럼 git에 둔다. git에는 read-only 미러/내보내기와 포인터(ID/URL)만 남긴다. 상세 설계와 근거는 §2.
@@ -30,7 +30,7 @@ flowchart LR
   end
 
   subgraph NV["NERV 플랫폼 · docker-compose 자가호스팅"]
-    WEB["웹앱 Vite + React SPA<br/>S1~S8 화면 · SSE 구독"]
+    WEB["웹앱 Vite + React SPA<br/>S1~S8 화면 · WebSocket 구독"]
     API["API + MCP 게이트웨이 NestJS<br/>REST · nerv_* tools · OAuth 2.1"]
     ING["훅 수집기<br/>HTTP ingest · OTLP collector"]
     WRK["이벤트 · 알림 워커<br/>리스 회수 · 다이제스트 · export"]
@@ -56,7 +56,7 @@ flowchart LR
   WRK --> PG
   API --> OBJ
   WRK --> OBJ
-  API -->|"SSE 이벤트 스트림"| WEB
+  API -->|"WebSocket 이벤트 스트림"| WEB
   API -->|"게이트 판정 상태 체크"| FORGE
   WRK --> CHAN
   WRK --> MIR
@@ -66,7 +66,7 @@ flowchart LR
 
 | 컴포넌트 | 책임 | 하지 않는 일 | 관련 FR/NFR |
 | --- | --- | --- | --- |
-| **웹앱** (Vite + React SPA) | S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, SSE 구독으로 보드 실시간 갱신 | 비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증 | FR-08·11·13 / NFR-02 |
+| **웹앱** (Vite + React SPA) | S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, WebSocket 구독으로 보드 실시간 갱신 | 비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증 | FR-08·11·13 / NFR-02 |
 | **API + MCP 게이트웨이** (NestJS) | REST/RPC + Streamable HTTP MCP 엔드포인트를 **같은 도메인 서비스 위에** 노출(같은 Nest 모듈의 provider를 두 컨트롤러가 주입받는다). 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버 | 장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당) | FR-01~11·14·15 / NFR-03 |
 | **훅 수집기** (HTTP ingest + OTLP) | Claude Code `type:"http"` 훅과 Codex hooks/notify를 토큰 인증으로 수신해 202로 즉시 응답하고 큐에 적재. OTLP는 정량 관측용 별도 경로 | 차단 **판정의 산출**(판정은 API가 하고 수집기는 응답을 중계한다). 단 `Stop` 훅만 동기 판정 경로다 | FR-07·08·16 / NFR-02·04 |
 | **Postgres** | 스펙·요구사항·작업·클레임·세션·활동·리뷰·발견사항·승인·이벤트·알림의 단일 진실. 게이트 판정도 여기서 SQL로 | 대용량 blob 보관(오브젝트 스토리지로) | FR-01~17 |
@@ -194,7 +194,7 @@ sequenceDiagram
   A->>DB: in_review → approved - 불변 스냅샷 발행
   A->>DB: Requirement 델타 계산 → Task backlog/ready 파생
   A->>DB: 이전 approved 버전 → superseded
-  A-->>W: SSE spec.approved
+  A-->>W: WebSocket spec.approved
   K->>MIR: markdown 미러 · git export push
   K->>P: Notification - 대기 중 세션에 승인 결과 전달
 ```
@@ -221,7 +221,7 @@ sequenceDiagram
     M->>DB: ready → claimed + assignee 사람 + delegate 세션 + Lease TTL
     M->>DB: Event task.claimed - is_agent true
     M-->>S: 성공 - lease_expires_at 반환
-    DB-->>B: SSE 보드 갱신 - 카드에 hostname · 리스 잔여
+    DB-->>B: WebSocket 보드 갱신 - 카드에 hostname · 리스 잔여
   else 겹침 있음
     M->>DB: Event task.claim_conflict
     M-->>S: 충돌 - 겹치는 클레임 소유자 · hostname · scope 반환
@@ -303,7 +303,7 @@ Finding fingerprint는 라운드 간 동일성을 보장한다. clemvion에는 �
 
 ### 4.1 선택 요약
 
-**웹앱(Vite)과 API 프레임워크(NestJS)는 확정이다.** 나머지 항목은 아직 제안이며 Phase 0 스파이크에서 검증한다(§4.2의 재검토 트리거 참조).
+**전 계층 확정.** 웹앱(Vite)·API(NestJS)는 2026-08-14에, 쿼리(Drizzle)·인증(better-auth)·실시간(WebSocket)·에디터(TipTap)·배포(로컬 compose/운영 k8s)는 2026-08-20에 확정했다. Phase 0 스파이크는 '결정 검증' 태스크로 백로그에 남는다.
 
 | 계층 | 선택 | 한 줄 이유 |
 | --- | --- | --- |
@@ -313,25 +313,26 @@ Finding fingerprint는 라운드 간 동일성을 보장한다. clemvion에는 �
 | DB | Postgres | 트랜잭션·부분 인덱스·JSONB·`LISTEN/NOTIFY`·전문검색을 한 엔진에서. 클레임 원자성과 게이트 SQL이 여기 의존 |
 | 쿼리 계층 | Drizzle | SQL에 가까운 표현력 — 게이트·커버리지 질의가 복잡 조인이라 ORM 추상화보다 SQL 제어권이 중요 |
 | 인증 | better-auth | 자가호스팅(NFR-01) 전제에서 SaaS 종속 없이 조직·역할·API 토큰 모델을 직접 소유 |
-| 실시간 | SSE | 단방향 브로드캐스트가 전부. 프록시·재연결 친화적이고 HTTP 하나로 끝난다 |
+| 실시간 | WebSocket(socket.io, websocket 전송만) | 보드 갱신에 더해 웹→세션 양방향(질문 즉답·세션 제어)을 처음부터 연다. 룸 단위 브로드캐스트·재연결·하트비트를 어댑터로 확보 |
 | MCP | MCP TypeScript SDK | 2026-07-28 리비전 기준 구현 + 구 리비전 병행 서빙(§4.3) |
-| 에디터 | ProseMirror/TipTap 계열 | markdown 우선(D-09) + 이후 실시간 편집 확장 경로 확보 |
-| 배포 | docker-compose 자가호스팅 | 스펙은 조직의 가장 민감한 자산. 외부 SaaS 의존 없이 굴러가야 한다(NFR-01) |
+| 프론트 세부 | TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod | 타입 안전 라우트 파라미터(스펙 ID·버전), WebSocket 이벤트 → 쿼리 무효화 패턴, zod 스키마는 `packages/schema`로 API·MCP와 공유 |
+| 에디터 | TipTap(markdown 직렬화) | 비개발자 WYSIWYG(P7). 지원 노드를 md 표현 가능 집합으로 제한하는 규율을 전제로 저장 포맷은 md 유지(D-09), Phase 3 CRDT(y-prosemirror) 직결 |
+| 배포 | 로컬 docker-compose · 운영 k8s(kustomize) | 자가호스팅 전제(NFR-01)는 동일. 개발·소규모는 compose 한 파일, 운영은 조직 표준 k8s — clemvion이 이미 kustomize(base/overlays)를 쓴다 |
 
 ### 4.2 대안 비교
 
 | 결정 | 선택 | 유력 대안 | 대안의 장점 | 선택 이유(NERV 조건) | 재검토 트리거 |
 | --- | --- | --- | --- | --- | --- |
-| 웹 프레임워크 | **Vite + React SPA** | Next.js, Remix/React Router, SvelteKit | SSR·서버 컴포넌트로 초기 렌더 비용을 서버로 이전, 파일 기반 라우팅 관례 | 전 화면이 인증 뒤의 사용자별 뷰이고 보드·세션은 SSE로 계속 갱신되는 라이브 뷰다 — SSR이 그린 첫 화면도 곧바로 클라이언트가 다시 그린다. 웹 티어를 정적 자산으로 만들면 docker-compose에서 컨테이너 하나가 사라진다 | 스펙 문서 공개 열람(비로그인 링크 공유·검색 노출) 요구가 생기면 |
+| 웹 프레임워크 | **Vite + React SPA** | Next.js, Remix/React Router, SvelteKit | SSR·서버 컴포넌트로 초기 렌더 비용을 서버로 이전, 파일 기반 라우팅 관례 | 전 화면이 인증 뒤의 사용자별 뷰이고 보드·세션은 WebSocket으로 계속 갱신되는 라이브 뷰다 — SSR이 그린 첫 화면도 곧바로 클라이언트가 다시 그린다. 웹 티어를 정적 자산으로 만들면 docker-compose에서 컨테이너 하나가 사라진다 | 스펙 문서 공개 열람(비로그인 링크 공유·검색 노출) 요구가 생기면 |
 | API 프레임워크 | **NestJS**(Fastify 어댑터) | Hono, Fastify/Express 단독 | 웹 표준 `Request/Response` 기반이라 MCP Streamable HTTP 구현이 자연스럽고 런타임이 얇다 | REST·MCP·워커가 한 도메인 규칙을 공유해야 한다(D-05). 표면마다 게이트 판정이 갈라지는 것이 이 플랫폼에서 가장 비싼 실패라, DI로 서비스 공유를 구조가 강제하는 쪽을 택했다. `@Sse()`·가드·인터셉터로 실시간·인가·감사가 1급 | MCP 스트리밍 어댑터 계층이 유지보수 부담이 될 때 |
 | 데이터베이스 | **Postgres** | MySQL, SQLite, MongoDB, Dolt | SQLite는 운영 단순, Dolt는 버전 관리 SQL(beads가 채택) | 클레임 원자성·게이트 조인·부분 인덱스·`LISTEN/NOTIFY`·JSONB가 한 엔진에 필요. Notion이 블록 모델을 Postgres에서 초대형까지 실증 | 스펙 버전 diff를 DB 네이티브로 다뤄야 할 요구가 커지면 Dolt 재평가 |
 | 쿼리 계층 | **Drizzle** | Prisma, Kysely, 순수 SQL | Prisma는 마이그레이션·툴링 성숙, Kysely는 타입 안전 쿼리빌더(Docmost 사례) | 게이트·커버리지 질의가 재귀·윈도우 함수를 쓰는 복잡 조인이라 SQL 제어권 우선 | 마이그레이션 운영 부담이 임계를 넘을 때 |
 | 인증 | **better-auth** | Clerk/WorkOS, Auth.js, Keycloak | 관리형은 SSO·MFA를 즉시 제공 | 자가호스팅 필수(NFR-01) + 프로젝트 스코프 PAT 발급을 직접 소유해야 함(D-08) | 엔터프라이즈 SSO 요구가 들어오면 Keycloak 연동 검토 |
-| 실시간 | **SSE** | WebSocket, 롱폴링 | WebSocket은 양방향·저지연 | 서버→클라이언트 단방향 브로드캐스트만 필요. 세션 보드 갱신 ≤5s(NFR-02)에 충분하고 프록시 통과가 쉬움 | 웹에서 에이전트를 직접 조종하는 양방향 UX가 생기면 |
+| 실시간 | **WebSocket**(socket.io, websocket 전송만) | SSE, 롱폴링 | SSE는 HTTP 하나로 끝나 프록시·재연결 친화적이고 인증 재사용이 쉬움 | 보드 갱신(NFR-02)만 보면 SSE로 충분하지만, 웹에서 에이전트 세션에 지시·답변을 보내는 양방향 UX(질문 즉답, Phase 2 steer)를 로드맵에 두고 있어 채널 교체 비용을 피해 처음부터 양방향 채널을 깐다. websocket 전송만 활성화해 k8s 스티키 세션을 피하고, 팬아웃은 파드별 `LISTEN/NOTIFY`라 크로스파드 어댑터가 필요 없다 | 브라우저 밖 소비자(CLI 등)가 실시간 구독을 원하면 SSE 병행 재검토 |
 | 실시간 협업 편집 | **미도입**(Phase 3) | Yjs + Hocuspocus, prosemirror-collab | 오프라인 병합·동시 타이핑 | 주 작성자가 에이전트(원자적 API 저장·버전 전제조건 가능)라 동시 타이핑 빈도가 낮다. MVP부터 CRDT를 넣으면 버전 스냅샷·감사·스키마 권위가 CRDT 상태와 얽힌다 | 사람 동시 편집 요청이 반복되면 |
-| 배포 | **docker-compose** | Kubernetes, 관리형 PaaS | 오토스케일·무중단 배포 | 목표 규모는 프로젝트 수십·동시 세션 수십(NFR-04). 단일 노드로 충분하고 도입 마찰이 최소 | 다중 테넌트 SaaS 전환 시 |
+| 배포 | **로컬 docker-compose / 운영 k8s(kustomize)** | 단일 타깃(compose 또는 k8s만), 관리형 PaaS | 타깃이 하나면 배포 산출물 유지보수가 절반 | 온보딩·PoC·소규모 자가호스팅은 compose 한 파일이 최저 마찰이고, 운영은 조직 인프라 표준이 k8s다(clemvion `k8s/base`+`overlays` kustomize 관례). API는 무상태라 이중 타깃 비용이 낮고, 워커 replica 1·마이그레이션 Job 같은 규칙만 고정하면 된다 | 운영 규모가 단일 노드로 충분하면 k8s 생략 가능(NFR-04) |
 
-> **주의.** 웹 프레임워크(Vite)와 API 프레임워크(NestJS) 두 행은 **확정된 결정**이며, 표의 "유력 대안"과 "재검토 트리거"는 그 결정을 뒤집을 조건이 아니라 **어떤 트레이드오프를 감수했는지의 기록**이다. 나머지 행은 제안 단계다. 이 표의 프레임워크·라이브러리 비교는 리서치 노트에 1차 출처가 없어 URL 근거를 달지 않았다. 실증 근거가 있는 항목은 명시했다 — Yjs·Hocuspocus·TipTap 스택 실증([Docmost](https://github.com/docmost/docmost)), 서버 권위 LWW([Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/), [Linear](https://github.com/wzhudev/reverse-linear-sync-engine)), CRDT 반론([moment.dev](https://www.moment.dev/blog/lies-i-was-told-pt-2)), 버전 관리 SQL DB 채택([beads](https://github.com/steveyegge/beads)). Phase 0 착수 전 스택 스파이크로 검증할 것을 권한다.
+> **주의.** 이 표의 전 행은 **확정된 결정**이다(웹·API는 2026-08-14, 나머지는 2026-08-20 — 실시간은 SSE 제안을 뒤집어 WebSocket으로 확정했고 SSE는 대안 열로 옮겼다). "유력 대안"과 "재검토 트리거"는 결정을 뒤집을 조건이 아니라 **어떤 트레이드오프를 감수했는지의 기록**이다. 이 표의 프레임워크·라이브러리 비교는 리서치 노트에 1차 출처가 없어 URL 근거를 달지 않았다. 실증 근거가 있는 항목은 명시했다 — Yjs·Hocuspocus·TipTap 스택 실증([Docmost](https://github.com/docmost/docmost)), 서버 권위 LWW([Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/), [Linear](https://github.com/wzhudev/reverse-linear-sync-engine)), CRDT 반론([moment.dev](https://www.moment.dev/blog/lies-i-was-told-pt-2)), 버전 관리 SQL DB 채택([beads](https://github.com/steveyegge/beads)). Phase 0 착수 전 스택 스파이크로 검증할 것을 권한다.
 
 ### 4.3 MCP 서버 리비전 전략
 
@@ -344,12 +345,14 @@ MCP 최신 스펙(2026-07-28 리비전)은 Streamable HTTP에서 **프로토콜 
 
 ### 4.4 docker-compose 자가호스팅 구성 (NFR-01)
 
+배포 타깃은 둘이다 — **로컬·소규모 자가호스팅은 docker-compose**(이 절), **운영은 k8s(kustomize base/overlays, clemvion 관례)**. 같은 이미지 3종(`nerv-api`·`nerv-worker`·`nerv-web` 정적 자산)을 두 타깃이 공유하며, k8s 상세(마이그레이션 Job, Ingress WebSocket 업그레이드·타임아웃, 워커 replica 1, 운영 Postgres 위치)는 MVP 구체화 문서에서 확정한다.
+
 ```mermaid
 flowchart TB
   subgraph HOST["단일 호스트 · docker-compose"]
     RP["reverse-proxy<br/>TLS 종료 · /mcp · /ingest · /"]
     W1["nerv-web<br/>정적 자산 (Vite 빌드)"]
-    A1["nerv-api<br/>NestJS · REST + MCP + SSE"]
+    A1["nerv-api<br/>NestJS · REST + MCP + WebSocket"]
     I1["nerv-ingest<br/>훅 · 웹훅 수신"]
     K1["nerv-worker<br/>알림 · 리스 회수 · export"]
     P1[("postgres<br/>영속 볼륨")]
@@ -371,7 +374,7 @@ flowchart TB
 | --- | --- | --- |
 | `reverse-proxy` | TLS 종료, 경로 라우팅(`/`, `/api`, `/mcp`, `/ingest`) | MCP는 Origin 검증 필수 |
 | `nerv-web` | Vite 빌드 산출물(정적 자산) | 별도 런타임 없이 `reverse-proxy`가 직접 서빙 — 컨테이너를 두지 않아도 된다 |
-| `nerv-api` | REST + MCP + SSE + 게이트 판정 | 수평 확장 시 SSE 팬아웃은 `LISTEN/NOTIFY`로 |
+| `nerv-api` | REST + MCP + WebSocket + 게이트 판정 | 수평 확장 가능 — 모든 브로드캐스트의 원천이 PG NOTIFY라 파드별 `LISTEN`으로 크로스파드 어댑터 없이 팬아웃 |
 | `nerv-ingest` | 훅·웹훅 수신, 202 즉시 응답 후 큐 적재 | 에이전트 지연에 영향 주지 않도록 API와 분리 |
 | `nerv-worker` | 알림·리스 회수·stale 전이·export·보존 정책 | 단일 인스턴스 가정, 잡 잠금은 DB advisory lock |
 | `postgres` | 단일 진실 | 볼륨 백업 대상 1순위 |
@@ -414,7 +417,7 @@ Organization > Project > Membership 3계층이고 사용자와 프로젝트는 n
 | --- | --- | --- |
 | 하트비트 | 동시 세션 50개 × 60초 주기 ≈ **0.83 req/s** | 단일 UPDATE. 부하가 아니라 무시 가능한 수준 |
 | 훅 이벤트 | `PostToolUse`가 최대 볼륨. 세션당 분당 수십 건 가능 | ingest가 202 즉시 응답 후 큐 적재, 프로젝트별 이벤트 타입 샘플링·배치 옵션 |
-| SSE 팬아웃 | 사용자 수십 × 열린 탭 = 수백 연결 | 사용자당 1 연결 + 프로젝트 채널 구독. 앱 인스턴스 간 팬아웃은 Postgres `LISTEN/NOTIFY` |
+| WebSocket 팬아웃 | 사용자 수십 × 열린 탭 = 수백 연결 | 탭당 1 연결 + 프로젝트 룸 구독(멤버십 검사 후 join). 앱 인스턴스 간 팬아웃은 Postgres `LISTEN/NOTIFY` |
 | 보드 갱신 지연 | 목표 ≤5s(NFR-02), 실질 1s 이내 | 이벤트 커밋 직후 NOTIFY, 클라이언트는 재연결 시 마지막 이벤트 ID로 델타 재요청 |
 | 리뷰 저장 | clemvion 추세 월 ~7,000파일/~50MB | 결론만 영구 저장하면 행 단위 수 MB/월. 입력 페이로드는 TTL 오브젝트 |
 | 이벤트 테이블 | 최대 성장 테이블 | 월 파티션 + 오래된 파티션 아카이브. 피드 질의는 `(project_id, created_at desc)` 인덱스 |

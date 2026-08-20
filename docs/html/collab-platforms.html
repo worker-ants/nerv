@@ -31,6 +31,15 @@
   <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
   <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
   <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
 </nav>
 
 <div class="content">
@@ -418,7 +427,7 @@
       <tr><td><code>assistant.threads.setStatus</code></td><td>"thinking…" 로딩 상태 표시</td><td>Activity <code>thought</code>(ephemeral) → 세션 카드 상태 라인</td></tr>
       <tr><td><code>assistant.threads.setTitle</code></td><td>스레드 제목 설정</td><td>세션 요약 한 줄(현재 Task)</td></tr>
       <tr><td><code>assistant.threads.setSuggestedPrompts</code></td><td>추천 프롬프트 제시</td><td>승인함 카드의 선택지(Question options)</td></tr>
-      <tr><td><code>chat.startStream</code> / <code>appendStream</code> / <code>stopStream</code></td><td>응답 스트리밍</td><td>SSE 기반 Activity 스트림(NFR-02)</td></tr>
+      <tr><td><code>chat.startStream</code> / <code>appendStream</code> / <code>stopStream</code></td><td>응답 스트리밍</td><td>WebSocket 기반 Activity 스트림(NFR-02)</td></tr>
       <tr><td>plan / task 디스플레이 모드</td><td>멀티스텝 추론 진행 표시</td><td>위임 명세·플랜 승인 뷰(FR-05, D-06)</td></tr>
     </tbody>
   </table></div>
@@ -487,7 +496,7 @@
       <line x1="740" y1="122" x2="436" y2="122" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#sqArr)"/>
       <text x="588" y="115" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">② ACK — thought (10초 내)</text>
       <line x1="430" y1="148" x2="116" y2="148" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#sqArr)"/>
-      <text x="273" y="141" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">세션 보드에 active 표시 (SSE ≤5s)</text>
+      <text x="273" y="141" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">세션 보드에 active 표시 (실시간 ≤5s)</text>
 
       <rect x="86" y="164" width="700" height="72" rx="8" fill="none" stroke="var(--border)" stroke-dasharray="4 3"/>
       <text x="96" y="180" text-anchor="start" fill="var(--text-mute)" font-family="var(--font)" font-size="11" font-weight="700">loop ③ 진행 스레드</text>
@@ -545,7 +554,7 @@
         <td>세션 로그(내부 추론·도구·토큰 사용량), mission control 통합 뷰, <b>실행 중 steer</b></td>
         <td>Agents 섹션 + 실시간 코드 뷰 + 채팅 패널</td>
         <td>Notion: run 로그 / Slack: 스트리밍·plan·task 모드</td>
-        <td>Activity 타임라인 + 세션 모니터(S5) SSE 갱신 ≤5s, steer/stop 액션 — <b>FR-08, NFR-02</b></td>
+        <td>Activity 타임라인 + 세션 모니터(S5) 실시간 갱신 ≤5s, steer/stop 액션 — <b>FR-08, NFR-02</b></td>
       </tr>
       <tr>
         <td><b>④ 개입 요청<br>(Elicitation)</b></td>
@@ -714,7 +723,7 @@
     <div class="card"><h4>연동</h4><p>MCP 도구 카탈로그·인증·세션 규약(ACK·하트비트·질문 에스컬레이션) → <a href="agent-integration.html">3.4 에이전트 연동 설계</a></p></div>
     <div class="card"><h4>거버넌스</h4><p>승인 흐름·게이트·알림 라우팅 → <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a></p></div>
     <div class="card"><h4>화면</h4><p>세션 모니터(S5)·승인함(S7)·스펙 상세(S3) 인라인 스레드 → <a href="ui-wireframes.html">3.6 화면 설계</a></p></div>
-    <div class="card"><h4>아키텍처</h4><p>SSE·이벤트·감사 축의 시스템 구성 → <a href="architecture.html">3.2 시스템 아키텍처</a></p></div>
+    <div class="card"><h4>아키텍처</h4><p>실시간·이벤트·감사 축의 시스템 구성 → <a href="architecture.html">3.2 시스템 아키텍처</a></p></div>
     <div class="card"><h4>포지셔닝 · 단계</h4><p>Build vs Buy → <a href="vision.html">3.1 비전</a> · 자율 트리거와 allowlist의 도입 시점 → <a href="roadmap.html">3.7 로드맵</a></p></div>
   </div>
 

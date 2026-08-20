@@ -31,6 +31,15 @@
   <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
   <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
   <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
 </nav>
 
 <div class="content">
@@ -416,6 +425,7 @@
     <tbody>
       <tr><td><code>id</code></td><td>uuid PK</td><td>전 도메인 테이블의 파티션 키</td></tr>
       <tr><td><code>org_id</code></td><td>uuid FK → organization</td><td></td></tr>
+      <tr><td><code>slug</code></td><td>text</td><td>URL·MCP <code>project</code> 인자용 식별자(소문자 kebab, 예: <code>clemvion</code>). <code>UNIQUE (org_id, slug)</code>. 표시 접두 <code>key</code>와 별개</td></tr>
       <tr><td><code>key</code></td><td>text</td><td>사람이 읽는 짧은 키(예: <code>CLV</code>). 표시 ID 접두사</td></tr>
       <tr><td><code>name</code> · <code>description</code></td><td>text</td><td></td></tr>
       <tr><td><code>repo_url</code> · <code>default_branch</code></td><td>text</td><td>git forge 연동 대상</td></tr>

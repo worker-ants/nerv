@@ -1,0 +1,340 @@
+---
+id: SPC-MVP-BACKLOG
+status: draft
+updated: 2026-08-20
+---
+# 백로그
+
+> **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 60개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 clemvion spec 임포터 v0(E07)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 4종(WS 게이트웨이 PoC · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
+>
+> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [backlog.html](../html/backlog.html)
+
+---
+
+## 1. 읽는 법
+
+### 1.1 ID·상태·표기 규약
+
+- **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). 이 문서의 모든 스토리는 현재 `backlog`다.
+- **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
+- **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
+- **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
+
+### 1.2 도그푸딩 — 이 문서가 첫 임포트 대상이다
+
+이 백로그는 NERV 가동 후 **첫 임포트 대상**이다. 도그푸딩 임포트는 P1이다([4.7 clemvion 임포터](importer.md) §1.1) — `docs/04-mvp/*.md` 문서 세트의 Spec 적재는 nerv-docs 프로파일(importer §5.1)로, 이 문서의 에픽·스토리 → Task 적재는 P1 plan 임포터와 같은 경로(E11 시점)로 수행한다. 문서 머리의 frontmatter(`id: SPC-MVP-BACKLOG`)가 [4.7 clemvion 임포터](importer.md) §5의 임포트 규격을 따르는 이유다. 임포트 이후 이 md는 read-only 미러가 되고 SoT는 서버다(D-01 · [3.7 로드맵](../03-proposal/roadmap.md) §7.4).
+
+### 1.3 범위 경계
+
+이 백로그는 MVP = Phase 0 + Phase 1만 다룬다([4.1 MVP 범위와 스택 확정](scope.md) §3). Phase 2 항목(리뷰 수집·게이트 판정 완성·S6 리뷰 센터·`nerv_review_submit`/`nerv_finding_resolve`·`/nerv:review`·Codex 완전 지원·review 임포터)은 로드맵 §4가 정본이며 여기 스토리로 분해하지 않는다.
+
+---
+
+## 2. Phase 0 에픽 — 조정이 되는가 (W1~W3)
+
+Phase 0의 유일한 목표는 로드맵 §2.1 그대로다 — "서버가 모든 세션의 선언을 보면 clemvion이 로컬 한계로 제거했던 동시수정 사전 검출이 복원되는가"를 실물로 확인한다. 종료 게이트는 §5.1~§5.3의 E2E 시나리오(성공 기준 0-1~0-8)다.
+
+### 2.1 E01 — 저장소 부트스트랩
+
+모노레포·API/웹 골격·로컬 compose·CI. 모든 에픽의 공통 선행.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E01-S01 | pnpm 모노레포 골격 — `apps/web` `apps/api` `packages/schema` `deploy/compose` `deploy/k8s` `docs` 트리와 패키지 책임 경계 | [4.2 코드베이스와 배포](codebase.md) §1 · [4.1 범위·스택](scope.md) §2 | WHEN 신규 클론에서 `pnpm install`을 실행하면, THE SYSTEM SHALL lockfile 기준으로 워크스페이스 전 패키지를 한 번에 설치한다 | — |
+| E01-S02 | NestJS(Fastify 어댑터) API 골격 — 도메인 모듈 자리와 REST·MCP·WS 표면이 같은 서비스를 DI로 주입받는 배선 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1(D-05) · [4.2 코드베이스와 배포](codebase.md) §2 | WHEN REST 컨트롤러와 MCP 게이트웨이가 같은 도메인 동작을 호출하면, THE SYSTEM SHALL 동일 서비스 인스턴스를 거쳐 게이트 판정을 단일화한다 | E01-S01 |
+| E01-S03 | Vite + React SPA 골격 — TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod 셋업 | [4.1 범위·스택](scope.md) §2 · [4.5 화면 명세](screens.md) §1 | WHEN `pnpm dev`로 웹을 기동하면, THE SYSTEM SHALL 라우팅 맵의 기본 경로와 앱 셸을 렌더링한다 | E01-S01 |
+| E01-S04 | docker-compose 로컬 기동 — postgres·minio·api·worker·web 단일 파일 | [4.2 코드베이스와 배포](codebase.md) §5 · NFR-01 · [3.7 로드맵](../03-proposal/roadmap.md) §2.2 | WHEN `docker compose up`을 실행하면, THE SYSTEM SHALL 단일 명령으로 전 서비스를 기동한다(마이그레이션 연결은 E02-S02) | E01-S01 |
+| E01-S05 | CI 파이프라인 — TS strict·lint·typecheck·테스트 3계층 배치 | [4.2 코드베이스와 배포](codebase.md) §4 | WHEN PR이 열리면, THE SYSTEM SHALL lint·typecheck·unit 테스트를 실행하고 실패 시 머지를 차단한다 | E01-S01 |
+
+### 2.2 E02 — 스키마·마이그레이션
+
+Postgres + Drizzle. `packages/schema`가 테이블·zod·파생 타입의 단일 원천이 된다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E02-S01 | drizzle 테이블 27종 선언 — `organization`부터 `spec_comment`까지, zod 스키마·파생 타입 공유 | [3.3 데이터 모델](../03-proposal/data-model.md) §1.3 · [4.3 데이터베이스 스키마](database.md) §2 | WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL data-model.md의 27개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다 | E01-S01 · E06-S03 |
+| E02-S02 | 0001 스냅샷 마이그레이션 + 왕복 멱등 — compose는 기동 시, k8s는 Job으로 적용 | [4.3 데이터베이스 스키마](database.md) §1·§5 | WHEN 같은 마이그레이션을 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행을 스키마 변경 0으로 종료한다 | E02-S01 |
+| E02-S03 | NOTIFY 발행 규약 — 채널 `nerv_events`, 페이로드 JSON(event id·type·project_id) | [4.3 데이터베이스 스키마](database.md) §3 · [3.2 시스템 아키텍처](../03-proposal/architecture.md) §1(D-10) | WHEN `event` 테이블에 행이 삽입되면, THE SYSTEM SHALL `nerv_events` 채널로 event id·type·project_id를 NOTIFY한다 | E02-S01 |
+| E02-S04 | 개발 시드 한 벌 — 프로젝트 clemvion, `SPC-CWC-007`·`REQ-CWC-031`, TSK-3f77(하나/mac-07)·TSK-a3f8(도현/mac-02)·TSK-b904(유나/linux-ci-01/codex), 세션 S-b7e9 | [4.3 데이터베이스 스키마](database.md) §4 | WHEN 시드 스크립트를 실행하면, THE SYSTEM SHALL 예시 데이터 한 벌을 멱등하게 적재한다(재실행 시 신규 레코드 0) | E02-S02 |
+
+### 2.3 E03 — MCP 최소 서버 + PAT
+
+Streamable HTTP 게이트웨이와 P0 도구 8종. tools-only 완주(성공 기준 0-8)가 이 에픽의 판정이다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E03-S01 | Streamable HTTP MCP 게이트웨이 — tools-first, `/mcp` Origin 검증 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1·§2.6 · [4.4 API 명세](api.md) §4 | WHEN Claude Code 또는 Codex 클라이언트가 접속하면, THE SYSTEM SHALL resources·prompts·elicitation 없이 tools만으로 카탈로그를 노출한다 | E01-S02 · E06-S04 |
+| E03-S02 | PAT 발급·검증 — better-auth api-key 플러그인, 해시 저장·프로젝트 스코프, 발급 CLI | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5·§6.1 · [4.1 범위·스택](scope.md) §2 | WHEN 폐기된 PAT 또는 스코프 밖 프로젝트로 호출하면, THE SYSTEM SHALL `NERV_UNAUTHENTICATED` 또는 `NERV_FORBIDDEN`으로 거부한다 | E02-S01 |
+| E03-S03 | P0 도구 8종 — `nerv_bootstrap` `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get` `nerv_task_next` `nerv_task_claim` `nerv_task_heartbeat` `nerv_task_release` | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 · [3.7 로드맵](../03-proposal/roadmap.md) §2.2 | WHEN 세션이 `nerv_bootstrap`을 첫 도구 호출로 실행하면, THE SYSTEM SHALL session_id·규약 요약·활성 클레임·게이트 정책을 반환한다<br>WHEN 같은 `session_id`로 재호출하면, THE SYSTEM SHALL 동일 스냅샷을 반환한다(멱등) | E03-S01 · E03-S02 · E04-S01 · E04-S03 |
+| E03-S04 | 에러 규약 — `NERV_*` 코드 체계와 next_actions를 담은 구조화 에러, REST HTTP 상태 매핑 재사용 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.7 · [4.4 API 명세](api.md) §1 | WHEN 도구 호출이 실패하면, THE SYSTEM SHALL `NERV_*` 코드·사유·next_actions를 담은 구조화 에러를 반환한다 | E03-S01 |
+
+### 2.4 E04 — 클레임·리스 엔진
+
+Phase 0의 핵심 검증 대상(FR-06 ●). clemvion이 #576에서 제거한 동시수정 사전 검출의 복원이다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E04-S01 | 원자적 클레임 트랜잭션 — `ready → claimed` 단일 트랜잭션 전환(FOR UPDATE) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.3~4.4 · FR-06 · D-04 | WHEN 3세션이 같은 ready Task를 동시에 클레임하면, THE SYSTEM SHALL 정확히 1건만 성공시키고 나머지에 409 충돌 응답을 반환한다 | E02-S01 |
+| E04-S02 | scope 겹침 판정 — `spec_ids`·`file_globs` 교집합 계산, 경고/차단 2단계, `NERV_CONFLICT_SCOPE`에 상대 세션·사용자·hostname·scope 반환 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.4 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4 | WHEN 활성 클레임과 scope가 겹치는 클레임이 오면, THE SYSTEM SHALL 상대 정보를 담은 경고를 반환한다<br>WHEN 같은 스펙 문서를 두 세션이 동시 개정하려 하면, THE SYSTEM SHALL `NERV_CONFLICT_SCOPE`로 차단한다 | E04-S01 |
+| E04-S03 | 하트비트·리스 연장 — 60초 주기, 리스 TTL 30분, 응답 역채널(pending 질문 답변·steer/stop) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4·§2.7 | WHEN 유효한 claim_id로 하트비트가 도착하면, THE SYSTEM SHALL 새 lease_expires_at을 반환하고 pending 지시를 응답에 싣는다<br>WHEN 만료된 리스로 하트비트가 오면, THE SYSTEM SHALL `NERV_LEASE_EXPIRED`를 반환한다 | E04-S01 |
+| E04-S04 | 만료 자동 회수 워커 — advisory lock 단일 워커(replica 1), `stale` 전이 + 클레임 회수 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.5 · D-13 · [4.2 코드베이스와 배포](codebase.md) §6 | WHEN 하트비트가 TTL(30분)을 초과해 끊기면, THE SYSTEM SHALL 세션을 `stale`로 전이하고 클레임을 회수해 Task를 `ready`로 복귀시킨다(사람 개입 0회) | E04-S03 |
+| E04-S05 | ready 판정 + 위임 명세 4요소 강제 — 의존성 그래프 기반, 4요소(목표·산출물 형식·도구/출처·경계) 미비 시 전이 거부 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.1~4.2 · FR-05 | WHEN 위임 명세 4요소 중 하나라도 빈 Task가 `ready` 전이를 시도하면, THE SYSTEM SHALL 전이를 거부하고 누락 요소를 명시한다 | E02-S01 |
+
+### 2.5 E05 — 세션 보드 최소
+
+세션 레지스트리(FR-07 ◐)와 읽기 전용 보드(FR-08 ○, S5 축소판). NFR-02(p95 ≤ 5초)의 첫 실측 지점.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E05-S01 | 세션 레지스트리 — `agent_session` 등록, 상태 머신 `pending→active↔awaiting_input→complete/error/stale`, 하트비트 | [3.3 데이터 모델](../03-proposal/data-model.md) §2.5 · FR-07 · [3.7 로드맵](../03-proposal/roadmap.md) §2.2 | WHEN `nerv_bootstrap`이 성공하면, THE SYSTEM SHALL `agent_session` 행을 생성하고 `session.started` 이벤트를 적재한다 | E02-S01 · E03-S01 |
+| E05-S02 | WS 게이트웨이 + PG LISTEN 팬아웃 — 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사, websocket 전송만(폴링 폴백 off) | [4.1 범위·스택](scope.md) §2 · [4.4 API 명세](api.md) §3 · NFR-02 | WHEN 이벤트가 NOTIFY되면, THE SYSTEM SHALL 각 파드가 자기 소켓의 해당 룸으로 emit하고 상태 전이→보드 반영 지연 p95 ≤ 5초를 유지한다 | E02-S03 · E06-S01 |
+| E05-S03 | 읽기 전용 세션 보드 화면 — hostname·에이전트 종류·상태·현재 Task·리스 잔여 표기(S5 축소판, steer/stop 없음) | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S5 · [3.7 로드맵](../03-proposal/roadmap.md) §2.3 | WHEN 세션 상태가 전이되면, THE SYSTEM SHALL 새로고침 없이 보드 카드를 5초 내 갱신한다<br>WHEN WebSocket이 끊겼다 재연결되면, THE SYSTEM SHALL 화면 데이터를 재조회한다(이벤트 유실 허용, 진실은 DB — D-14) | E01-S03 · E05-S02 |
+| E05-S04 | Event 적재 표준화 — 전 상태 전이를 `event` 테이블에 `is_agent` 포함 append-only 적재 | [3.3 데이터 모델](../03-proposal/data-model.md) §2.9 · FR-16 · D-10 | WHEN 도메인 상태 전이가 커밋되면, THE SYSTEM SHALL 같은 트랜잭션에서 `event` 행을 적재한다(전이·이벤트의 원자성) | E02-S01 |
+
+### 2.6 E06 — 스파이크 4종 + 확인 태스크
+
+각 스파이크는 **타임박스 1주**, 산출물은 검증 리포트와 go/no-go 판정이다. 실패 시 대안 경로(각 행의 재검토 트리거)가 이미 정의되어 있으므로 일정이 아니라 선택지가 바뀐다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E06-S01 | 스파이크: WS 게이트웨이 PoC — NestJS `@WebSocketGateway`(socket.io 어댑터), websocket 전송 단독, 파드 2개에서 크로스파드 어댑터 없이 PG LISTEN 팬아웃 | [4.1 범위·스택](scope.md) §2 · NFR-02 | WHEN 파드 2개 뒤에 클라이언트를 분산 접속시키고 PG NOTIFY를 발생시키면, THE SYSTEM SHALL 크로스파드 어댑터 없이 전 클라이언트에 이벤트를 전달한다 | E01-S02 |
+| E06-S02 | 스파이크: TipTap md 왕복 검증 — 지원 노드 화이트리스트(heading·paragraph·list·table·code·blockquote·link·hr)로 실측 문서 왕복. 손실 실측 시 Milkdown 재검토 트리거 발동 | [4.1 범위·스택](scope.md) §2 · [4.5 화면 명세](screens.md) §3 | WHEN `clemvion:spec/` 표본 30문서를 md→TipTap→md로 왕복하면, THE SYSTEM SHALL 지원 노드 집합 안에서 손실 0을 보이고, 손실 발생 항목은 파일·위치·유형 리포트로 남긴다 | E01-S03 |
+| E06-S03 | 스파이크: drizzle 마이그레이션 파이프라인 — compose 기동 시 적용 vs k8s Job, 롤백 절차 포함 후보 비교 | [4.1 범위·스택](scope.md) §2 · [4.2 코드베이스와 배포](codebase.md) §5~6 · [4.3 데이터베이스 스키마](database.md) §1 | WHEN 파이프라인 후보 2안을 각각 실행하면, THE SYSTEM SHALL 신규 DB·기존 DB 양쪽에서 왕복 멱등을 통과하는 안을 선정 근거와 함께 리포트로 남긴다 | E01-S01 |
+| E06-S04 | 스파이크: MCP 리비전 병행 서빙 — 최신 리비전 + 구 리비전 병행(D-11), Claude Code·Codex 클라이언트 협상 실측 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6 · [3.7 로드맵](../03-proposal/roadmap.md) §6.1(R5) | WHEN 구 리비전 클라이언트와 최신 리비전 클라이언트가 같은 엔드포인트에 접속하면, THE SYSTEM SHALL 협상된 리비전으로 각각 tools 호출을 완주시킨다 | E01-S02 |
+| E06-S05 | 확인 태스크: 운영 Postgres 위치 — 클러스터 외부(권장) vs CloudNativePG. 백업·복구(NFR-01)·운영 부담·k8s 의존성 3기준 비교 후 결정 기록 | [4.1 범위·스택](scope.md) §2(배포 행) · [4.2 코드베이스와 배포](codebase.md) §6 | WHEN 확인 태스크가 종료되면, THE SYSTEM SHALL 3기준 비교표·결정·재검토 트리거를 [4.2 코드베이스와 배포](codebase.md) §6에 반영한다 | — |
+| E06-S06 | 실측: 훅 headers `${NERV_TOKEN}` 환경변수 확장(Claude Code hooks `type:"http"`) — 불가로 판명되면 `bin/nerv-hook-forward` 래퍼(`type:"command"`) 변형 hooks.json으로 폴백 확정 | [4.6 플러그인과 온보딩](plugin.md) §3.1 | WHEN 실측에서 훅 `headers`의 `${NERV_TOKEN}` 확장이 불가로 판명되면, THE SYSTEM SHALL `type:"http"` 훅을 `type:"command"` + `bin/nerv-hook-forward`로 바꾼 변형 hooks.json을 배포판으로 확정하고 판정 리포트를 남긴다 | — |
+
+### 2.7 E07 — clemvion spec 임포터 v0
+
+`clemvion:spec/` 순수 135 md(implemented 117 / partial 17 / backlog 1) → Spec/SpecVersion/Requirement. 성공 기준 0-6·0-7의 대상.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E07-S01 | 파싱·매핑 구현 — 디렉터리 계층→스펙 트리, frontmatter(id/status/code/pending_plans) 매핑, status 2축 분해, 요구사항 ID 휴리스틱(`[A-Z]+-[A-Z]+-\d+`) | [4.7 clemvion 임포터](importer.md) §2 · [3.7 로드맵](../03-proposal/roadmap.md) §7.3(1) | WHEN `clemvion:spec/` 순수 135 md를 입력하면, THE SYSTEM SHALL ≥95%를 자동 변환하고 실패 전건을 파일·줄·사유와 함께 목록화한다(0-6) | E02-S02 |
+| E07-S02 | dry-run 기본·멱등 재실행 — 멱등 키(파일 경로+id), 재실행은 변경분만 | [4.7 clemvion 임포터](importer.md) §3 · [3.7 로드맵](../03-proposal/roadmap.md) §2.4(0-7) | WHEN 임포터를 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행의 신규 생성 레코드 0을 보인다 | E07-S01 |
+| E07-S03 | 실패 리포트·수동 확인 큐 — 건너뜀/중단 구분, 원문 보존(정보 손실 0) | [4.7 clemvion 임포터](importer.md) §4 | WHEN 변환 실패 또는 수동 확인 항목이 발생하면, THE SYSTEM SHALL 파일·줄·사유·건너뜀/중단 구분이 있는 리포트를 산출하고 원문을 보존한다 | E07-S01 |
+
+---
+
+## 3. Phase 1 에픽 — 스펙과 사람이 들어온다 (W4~W9)
+
+Phase 1의 목표는 로드맵 §3.1 그대로다 — 스펙이 플랫폼 안에서 쓰이고 승인되며, 비개발 직군이 터미널 없이 참여한다. 종료 게이트는 성공 기준 1-1~1-11이며, 그중 1-11(기획자 웹↔터미널 왕복)은 §5.4의 E2E 시나리오로 재현한다.
+
+### 3.1 E08 — 웹 화면 (S1~S5·S7·S8 + 로그인)
+
+MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터는 Phase 2 — [4.1 범위·스택](scope.md) §4). 그림 정본은 [3.6 화면 설계](../03-proposal/ui-wireframes.md), 데이터·상태·컴포넌트 명세는 [4.5 화면 명세](screens.md) §2가 정본이다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E08-S01 | 로그인·온보딩 + 앱 셸 — better-auth 세션 쿠키, organization 플러그인(조직·멤버십), 전역 헤더·사이드바·실시간 연결 상태 배너 | [4.5 화면 명세](screens.md) §1~2 · [4.1 범위·스택](scope.md) §2 | WHEN 미인증 사용자가 보호 경로에 접근하면, THE SYSTEM SHALL `/login`으로 보내고 로그인 후 원래 경로로 복귀시킨다 | E01-S03 · E03-S02 |
+| E08-S02 | S1 홈 대시보드 — 소속 프로젝트·내 승인 대기·활성 세션 요약 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S1 · [4.5 화면 명세](screens.md) §2 | WHEN 사용자가 로그인하면, THE SYSTEM SHALL 조직 단위 요약(프로젝트·승인 대기·세션)을 한 화면에 표시한다 | E08-S01 |
+| E08-S03 | S2 프로젝트 개요 — 스펙 트리·진행 요약·세션 스트립 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S2 · [4.5 화면 명세](screens.md) §2 | WHEN 프로젝트에 진입하면, THE SYSTEM SHALL 스펙 트리와 진행 요약을 표시하고 WS 룸 `project:{id}`에 join한다 | E08-S01 · E05-S02 |
+| E08-S04 | S3 스펙 상세 — TipTap 에디터(+md 소스 read-only 토글)·버전·diff·코멘트·승인 패널·편집 리스 UI·터미널 이어쓰기 안내 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S3 · [4.5 화면 명세](screens.md) §2~3 · D-09 | WHEN 편집 중 같은 사용자의 다른 표면이 리스를 인계받으면, THE SYSTEM SHALL 리스 인계 배너를 표시하고 에디터를 read-only로 전환한다 | E08-S01 · E06-S02 · E09-S01 · E10-S01 |
+| E08-S05 | S4 작업 보드 — 칸반, 승인된 SpecVersion에서 Task 파생, 위임 명세 4요소 폼(zod 검증) | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S4 · [4.5 화면 명세](screens.md) §2 · FR-05 | WHEN 위임 명세 4요소가 미완성인 채 `ready` 전이를 시도하면, THE SYSTEM SHALL 누락 필드를 폼 검증으로 표시하고 전이를 막는다 | E08-S01 · E04-S05 |
+| E08-S06 | S5 세션 모니터 승격 — 읽기 전용 보드에 steer/stop 추가, activity 타임라인 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S5 · FR-08 · [3.7 로드맵](../03-proposal/roadmap.md) §3.2 | WHEN 사람이 세션 카드에서 stop을 누르면, THE SYSTEM SHALL 지시를 하트비트 역채널에 실어 세션에 전달한다 | E05-S03 · E04-S03 |
+| E08-S07 | S7 승인함 — 스펙 승인·플랜·질문 3유형 카드, 원클릭 승인/거절/코멘트 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S7 · FR-11 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.4 | WHEN 카드에서 결정을 처리하면, THE SYSTEM SHALL 요청 세션을 `awaiting_input`에서 즉시 해제한다 | E08-S01 · E13-S01 |
+| E08-S08 | S8 설정 — 멤버·역할(6종)·에이전트 토큰 발급/폐기·게이트 정책 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S8 · FR-14 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.6 | WHEN admin이 아닌 역할이 게이트 정책 편집에 접근하면, THE SYSTEM SHALL API와 UI 양쪽에서 거부한다 | E08-S01 · E03-S02 |
+
+### 3.2 E09 — 스펙 워크플로·승인 게이트
+
+문서 축 상태 머신과 승인 흐름(FR-01·FR-02 ●). 성공 기준 1-6(스냅샷 불변)·1-2(직군 참여)의 기반.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E09-S01 | 문서 축 상태 머신 + 불변 스냅샷 — `draft→in_review→approved→superseded/deprecated`, approved 본문 불변은 DB 트리거로 강제 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.2 · [4.3 데이터베이스 스키마](database.md) §2 · FR-02 | WHEN `approved` SpecVersion 본문 수정이 시도되면, THE SYSTEM SHALL DB 계층에서 거부한다(1-6: 거부율 100%) | E02-S01 |
+| E09-S02 | 제출 전 사전 검토 5검사기 — cross-spec/rationale-continuity/convention-compliance/requirement-shape/task-coherence, warning/block + 앵커 위치 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.1 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3(`nerv_spec_check`) | WHEN 초안에 BLOCK 검사 결과가 있으면, THE SYSTEM SHALL `in_review` 제출을 거부하고 앵커 위치를 반환한다 | E09-S01 |
+| E09-S03 | 리뷰어 자동 지정 + 지시자≠승인자 — 역할·영역 기반 지정, 본인 요청 승인·지시자 승인 차단 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.2~2.3 | WHEN 에이전트를 지시한 사람이 그 산출물의 승인을 시도하면, THE SYSTEM SHALL 거부하고 대체 승인자를 제안한다 | E09-S01 |
+| E09-S04 | 위험도 가변 게이트 — 스펙 변경 게이트 티어 T0~T3, 저위험(T0) 자동 통과 + 통과 사실 이벤트 기록. 첫날부터 켠다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.4 · D-06 · [3.7 로드맵](../03-proposal/roadmap.md) §3.5 | WHEN T0(오탈자·문구) 변경이 제출되면, THE SYSTEM SHALL 승인 없이 통과시키되 통과 사실을 event로 남긴다 | E09-S01 |
+| E09-S05 | Task done 게이트(P1 범위) — evidence 조건 검사, 리뷰 커버리지 조건은 Phase 2로 제외(FR-10 ◐) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.6 · [3.7 로드맵](../03-proposal/roadmap.md) §1.3(FR-10) | WHEN 유효한 리스 없이 `nerv_task_update(status=done)`이 호출되면, THE SYSTEM SHALL 거부한다 | E04-S03 · E10-S02 |
+
+### 3.3 E10 — 기획자 터미널 경로 (초안 리스·코멘트 왕복)
+
+웹과 터미널은 같은 draft SpecVersion을 번갈아 잡는 두 개의 입력 장치다([3.7 로드맵](../03-proposal/roadmap.md) §3.2 "기획자 터미널 경로"). 성공 기준 1-11의 구현 대상.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E10-S01 | 초안 편집 리스 — TTL 30분(클레임 리스와 동일 상수), 암묵 획득/해제, 같은 사용자 표면 간 자동 인계 + 이전 표면 알림 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.7 · D-04 · [3.7 로드맵](../03-proposal/roadmap.md) §3.2 | WHEN 같은 사용자가 웹 편집 중 터미널에서 `nerv_spec_draft_upsert`를 호출하면, THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알린다<br>WHEN 다른 사용자가 리스 보유 초안에 upsert하면, THE SYSTEM SHALL `NERV_DRAFT_LEASED`로 거부하고 보유자 정보를 반환한다 | E09-S01 |
+| E10-S02 | MCP P1 도구 7종 — `nerv_spec_draft_upsert` `nerv_spec_submit_review` `nerv_spec_check` `nerv_spec_comment_resolve` `nerv_task_update` `nerv_question_create` `nerv_session_event` (카탈로그 MVP 15종 완성) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 · [3.7 로드맵](../03-proposal/roadmap.md) §3.3 · [4.1 범위·스택](scope.md) §4 | WHEN `base_version`이 현재 버전과 불일치하는 upsert가 오면, THE SYSTEM SHALL `NERV_PRECONDITION`을 반환하고 데이터를 덮어쓰지 않는다 | E03-S03 · E09-S01 |
+| E10-S03 | 코멘트 왕복 — 헤딩 slug·REQ ref 앵커(`spec_comment`), open→resolved 추적, 남은 open 수 반환 | [3.3 데이터 모델](../03-proposal/data-model.md) §2.2 · D-09 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3(`nerv_spec_comment_resolve`) | WHEN 코멘트가 달리면, THE SYSTEM SHALL `spec.comment_added` 이벤트를 적재하고 스레드 참여자에게 알림을 라우팅한다 | E09-S01 · E13-S03 |
+| E10-S04 | 제출·승인 왕복 완성 — `nerv_spec_submit_review` 멱등(pending Approval 재사용), 저장·제출 응답의 `web_url` 딥링크 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 | WHEN 같은 `spec_version_id`로 제출을 재호출하면, THE SYSTEM SHALL 승인함 카드를 중복 생성하지 않고 기존 pending Approval을 반환한다 | E10-S02 · E13-S01 |
+
+### 3.4 E11 — plan 임포터
+
+`clemvion:plan/` 450 md → Task. 임포트(복제)이며 SoT는 여전히 git이다(컷오버는 M2 — [3.7 로드맵](../03-proposal/roadmap.md) §7.2).
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E11-S01 | plan 파싱·Task 매핑 — worktree/started/owner 매핑, `complete/`(387)→`done`, `in-progress/`+`worktree: (unstarted)`(13)→`backlog`, `in-progress/`+worktree 값 있음→`in_progress`, `research`(1)→참고 문서. `ready`로는 적재하지 않는다([4.7 clemvion 임포터](importer.md) §2.6 · REQ-IMP-009) | [4.7 clemvion 임포터](importer.md) §2 · [3.7 로드맵](../03-proposal/roadmap.md) §7.3(2) | WHEN `clemvion:plan/` 450 md를 임포트하면, THE SYSTEM SHALL 상태 매핑 규칙대로 Task를 생성하고 위임 명세 4요소를 소급 생성하지 않는다 | E07-S02 |
+| E11-S02 | owner 수동 매핑 테이블 — 자유 텍스트 역할 라벨→사용자 계정, 매핑 불가는 `unassigned` | [3.7 로드맵](../03-proposal/roadmap.md) §3.3·§7.3(2) | WHEN owner 텍스트가 매핑 테이블에 없으면, THE SYSTEM SHALL `unassigned`로 임포트하고 수동 배정 큐에 올린다 | E11-S01 |
+
+### 3.5 E12 — 플러그인 v1 + 훅 수집기
+
+Claude Code 배포 평면. 스킬 4종(`/nerv:review`는 Phase 2)·훅·`.mcp.json` 번들과 사내 마켓플레이스 배포(성공 기준 1-10).
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E12-S01 | 스킬 4종 SKILL.md — `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question`. bootstrap→claim→하트비트 60초→질문 에스컬레이션 프로토콜과 스펙 본문 비신뢰 규약 포함, A3 도구는 allowed-tools 제외 | [4.6 플러그인과 온보딩](plugin.md) §2 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.2 | WHEN 신규 세션이 문서 없이 스킬 안내만으로 진행하면, THE SYSTEM SHALL `nerv_bootstrap`→`nerv_task_next`→`nerv_task_claim` 첫 클레임까지 도달시킨다 | E10-S02 |
+| E12-S02 | hooks.json + ingest 엔드포인트 — `type:"http"` 훅(SessionStart/PostToolUse/Stop/SessionEnd) 수신, 세션 등록·activity 적재 자동화 | [4.6 플러그인과 온보딩](plugin.md) §3 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3 · [3.7 로드맵](../03-proposal/roadmap.md) §3.3 | WHEN 훅 이벤트가 도착하면, THE SYSTEM SHALL 세션 등록·activity 적재에 반영하고 미인증 이벤트를 거부한다 | E05-S01 |
+| E12-S03 | `.mcp.json` + statusline + 마켓플레이스 배포 — 관리형 settings 강제 활성화 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.4~3.5 · [3.7 로드맵](../03-proposal/roadmap.md) §3.4(1-10) | WHEN 관리형 settings로 플러그인이 배포되면, THE SYSTEM SHALL 파일럿 참여 호스트의 활성화 여부를 서버에서 확인 가능하게 한다(목표 100%) | E12-S01 · E12-S02 |
+| E12-S04 | 사람 온보딩 절차 — PAT 발급(S8)→플러그인 설치→`nerv_bootstrap` 확인, 단계별 명령 문서화 | [4.6 플러그인과 온보딩](plugin.md) §4 | WHEN 신규 참여자가 온보딩 절차를 따르면, THE SYSTEM SHALL 단계별 명령만으로 첫 `nerv_bootstrap` 성공까지 도달시킨다 | E08-S08 · E12-S03 |
+
+### 3.6 E13 — 승인함 백엔드·질문·알림
+
+FR-11 ◐(3유형) + FR-12 ◐(인앱). 성공 기준 1-1(플랫폼 밖 승인 0)·1-3·1-4의 기반.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E13-S01 | Approval 3유형 + 결정 API — 스펙 승인·플랜 승인·질문(CR·에스컬레이션 카드는 Phase 2), content_hash 기반 stale 승인 차단 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.5·§6.4 · [3.3 데이터 모델](../03-proposal/data-model.md) §2.7 · FR-11 | WHEN 결재 대상의 content_hash가 현재와 불일치하면, THE SYSTEM SHALL stale 승인으로 거부한다 | E09-S01 |
+| E13-S02 | 질문 에스컬레이션·폴링 — `nerv_question_create` 멱등 재호출=폴링, `blocking` 기본 true, 답변은 하트비트 역채널에도 적재 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3·§5.3 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.7 | WHEN 질문이 생성되면, THE SYSTEM SHALL `question.created`를 critical 티어로 라우팅한다<br>WHEN 답변이 등록되면, THE SYSTEM SHALL 요청 세션의 다음 하트비트 또는 폴링 응답에 답변을 싣는다 | E13-S01 · E04-S03 |
+| E13-S03 | 인앱 알림 — 중요도 티어(critical/high/standard/low) 라우팅, `notification` 수신함, low 티어는 즉시 알림 미생성 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.2~6.3 · FR-12 | WHEN 이벤트가 적재되면, THE SYSTEM SHALL 구독 규칙에 따라 `notification`을 생성하되 low 티어는 즉시 알림을 만들지 않는다 | E05-S04 |
+
+### 3.7 E14 — 운영·연동
+
+운영 k8s 배포·백업 복구(NFR-01 ●)·GitHub 연동(FR-13 ◐).
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E14-S01 | k8s 배포 — kustomize base/overlays, 이미지 3종(`nerv-api`·`nerv-worker`·`nerv-web`), 마이그레이션 Job, Ingress WebSocket 업그레이드·타임아웃 상향, 워커 replica 1 | [4.2 코드베이스와 배포](codebase.md) §6 · [4.1 범위·스택](scope.md) §2 | WHEN overlay를 적용하면, THE SYSTEM SHALL 마이그레이션 Job 완료 후에만 신규 버전 파드를 승격한다 | E01-S04 · E06-S03 · E06-S05 |
+| E14-S02 | 백업·복구 왕복 검증 — 절차서 + 왕복 로그 | NFR-01 · [3.7 로드맵](../03-proposal/roadmap.md) §3.4(1-9) | WHEN 백업본으로 신규 인스턴스를 복원하면, THE SYSTEM SHALL 데이터 손실 0으로 왕복을 1회 이상 성공시킨다 | E14-S01 |
+| E14-S03 | GitHub 웹훅·Task↔PR 링크 — PR·커밋 웹훅 수신, evidence 수집(리뷰 커버리지 판정은 Phase 2) | [3.7 로드맵](../03-proposal/roadmap.md) §3.2 · FR-13 · [3.3 데이터 모델](../03-proposal/data-model.md) §2.8 | WHEN PR 웹훅이 도착하면, THE SYSTEM SHALL Task에 PR 링크를 `evidence`로 수집한다 | E05-S04 |
+
+---
+
+## 4. 의존 그래프와 착수 순서
+
+### 4.1 에픽 의존 그래프
+
+```mermaid
+flowchart LR
+  subgraph P0["Phase 0 (W1~W3)"]
+    E01["E01 저장소<br/>부트스트랩"]
+    E02["E02 스키마·<br/>마이그레이션"]
+    E03["E03 MCP 최소<br/>서버+PAT"]
+    E04["E04 클레임·<br/>리스 엔진"]
+    E05["E05 세션 보드<br/>최소"]
+    E06["E06 스파이크<br/>4종+확인"]
+    E07["E07 spec<br/>임포터 v0"]
+  end
+  subgraph P1["Phase 1 (W4~W9)"]
+    E08["E08 웹 화면<br/>S1~S5·S7·S8"]
+    E09["E09 스펙 워크플로·<br/>승인 게이트"]
+    E10["E10 기획자<br/>터미널 경로"]
+    E11["E11 plan<br/>임포터"]
+    E12["E12 플러그인 v1<br/>+훅 수집기"]
+    E13["E13 승인함·<br/>질문·알림"]
+    E14["E14 운영·연동"]
+  end
+  E01 --> E02
+  E01 --> E06
+  E06 -->|"S03 마이그레이션"| E02
+  E06 -->|"S04 리비전"| E03
+  E06 -->|"S01 WS PoC"| E05
+  E06 -->|"S02 TipTap"| E08
+  E06 -->|"S05 Postgres 위치"| E14
+  E02 --> E03
+  E02 --> E04
+  E02 --> E07
+  E04 -->|"S01·S03 → E03-S03 도구"| E03
+  E04 --> E05
+  E02 --> E09
+  E05 --> E08
+  E09 --> E10
+  E03 --> E10
+  E10 -.->|"S02 도구 → E09-S05"| E09
+  E09 --> E13
+  E13 --> E08
+  E07 --> E11
+  E10 --> E12
+  E01 --> E14
+```
+
+경로의 임계는 **E01 → E02 → E04 → E03(-S03)**다(E03-S03 도구 8종이 E04-S01 클레임 트랜잭션·E04-S03 하트비트에 의존한다). 클레임·리스 엔진(E04)이 Phase 0 종료 게이트(0-1~0-4)의 직접 대상이므로, 이 사슬이 지연되면 로드맵 §1.4 규칙 2에 따라 기간이 아니라 다른 에픽(E05 화면 범위·E07)의 범위를 줄인다.
+
+### 4.2 첫 2주 권장 경로
+
+| 주 | 트랙 A (백엔드) | 트랙 B (프론트·스파이크) | 종료 시 확인 |
+| --- | --- | --- | --- |
+| W1 | E01-S01·S02·S04 → E06-S03(마이그레이션 스파이크) 착수 | E01-S03·S05 · E06-S01(WS PoC) · E06-S05(Postgres 위치 확인) 착수 | compose 기동, CI 녹색, 스파이크 중간 판정 |
+| W2 | E02 전체 → E03-S01·S02 착수 | E06-S02(TipTap 왕복) · E06-S04(MCP 리비전) · E05-S04 | 27테이블 마이그레이션 왕복 멱등, 시드 적재, 스파이크 4종 go/no-go |
+
+W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(§5.1~§5.3)를 실행한다. 스파이크가 no-go를 내면(예: TipTap 왕복 손실) 해당 재검토 트리거(Milkdown 재검토 등, [4.1 범위·스택](scope.md) §2)를 W3 계획에 반영한다.
+
+---
+
+## 5. E2E 수용 시나리오
+
+로드맵의 수치 성공 기준을 **재현 절차**로 바꾼 것이다. 판정은 설문이 아니라 Event 로그 질의와 자동 테스트로만 한다([3.7 로드맵](../03-proposal/roadmap.md) §1.4). 시나리오의 등장 데이터는 개발 시드 한 벌(E02-S04)이다.
+
+### 5.1 시나리오 A — 동시 클레임 충돌 0 (성공 기준 0-1·0-2)
+
+- **대상 스토리**: E04-S01 · E03-S03. **환경**: 호스트 2대(mac-07·mac-02)·세션 3개, 90분 — 로드맵 §2.5의 시나리오 구성 그대로.
+
+| 단계 | 행위 | 판정(Event 로그 질의) |
+| --- | --- | --- |
+| 1 | 하나(mac-07) 세션이 `nerv_task_next` → TSK-3f77 클레임 | `task.claimed` 1건, claim 소유자 1명 |
+| 2 | 도현(mac-02) 세션이 같은 TSK-3f77 클레임 시도 | 409 충돌 응답, `task.claimed` 추가 0건 |
+| 3 | 3세션 동시 클레임 요청 100회 부하 시험 | 요청묶음당 성공 정확히 1, 나머지 100% 충돌 응답 |
+| 4 | 90분 로그 전수 질의 — 같은 Task가 두 세션에서 동시에 `in_progress`인 구간 | **0건** |
+
+### 5.2 시나리오 B — scope 겹침 경고 (성공 기준 0-3)
+
+- **대상 스토리**: E04-S02. **핵심**: clemvion이 #576에서 제거한 검출의 복원 실증.
+
+| 단계 | 행위 | 판정 |
+| --- | --- | --- |
+| 1 | 도현 세션이 TSK-a3f8을 TSK-3f77과 겹치는 scope(`spec_ids`에 `SPC-CWC-007` 포함)로 클레임 | 두 세션 모두에 겹침 경고, 경고에 상대 사용자·hostname·scope 포함 |
+| 2 | 의도적으로 겹치는 클레임 10회 시도 | **10/10 경고 검출** |
+| 3 | 겹치지 않는 클레임 20회 시도 | **오탐 0** |
+
+### 5.3 시나리오 C — 리스 만료 자동 회수 (성공 기준 0-4)
+
+- **대상 스토리**: E04-S03 · E04-S04 · E05-S02.
+
+| 단계 | 행위 | 판정 |
+| --- | --- | --- |
+| 1 | 유나(linux-ci-01, codex) 세션이 TSK-b904 클레임 후 프로세스 강제 종료 | `task.claimed` 기록, 이후 하트비트 없음 |
+| 2 | TTL(30분) 초과까지 방치 | 세션 `session.stale` 전이 + 클레임 회수 **100%**, 사람 개입 0회 |
+| 3 | 다른 세션이 TSK-b904 재클레임 | 소유자 항상 1명(중복 없음), 보드 반영 p95 ≤ 5초(0-5) |
+
+### 5.4 시나리오 D — 기획자 웹↔터미널 왕복 (성공 기준 1-11)
+
+- **대상 스토리**: E10-S01~S04 · E08-S04 · E13-S01. **등장**: 기획자가 `SPC-CWC-007` 초안(요구사항 `REQ-CWC-031` 포함)을 웹과 터미널(세션 S-b7e9)에서 번갈아 완성한다.
+
+| 단계 | 행위 | 판정 |
+| --- | --- | --- |
+| 1 | 웹 에디터(S3)에서 초안 편집 — 편집 리스 획득 | 리스 보유자 표시 |
+| 2 | 같은 사용자가 터미널에서 `/nerv:spec` → `nerv_spec_draft_upsert` | 리스 자동 인계, 웹 에디터에 인계 배너 + read-only 전환, `NERV_DRAFT_LEASED` 발생 0 |
+| 3 | 터미널에서 `nerv_spec_check` → 지적 반영 → 웹으로 복귀해 마무리 | `base_version` 충돌(`NERV_PRECONDITION`) 0 — Event 로그로 실증 |
+| 4 | `nerv_spec_submit_review` → 다른 검토자가 S7에서 코멘트 → `nerv_spec_comment_resolve` → 승인 | 같은 초안 완성, `spec.approved` 기록, 승인은 전부 플랫폼 안(1-1) |
+
+### 5.5 시나리오 E — 임포터 135 md 전수 (성공 기준 0-6·0-7)
+
+- **대상 스토리**: E07-S01~S03. **대상**: `clemvion:spec/` 순수 135 md(기계생성 API 카탈로그 249 md 제외).
+
+| 단계 | 행위 | 판정 |
+| --- | --- | --- |
+| 1 | dry-run 실행 | 변환 계획·실패 예상 항목 리포트, DB 변경 0 |
+| 2 | 본 실행 | 자동 변환 **≥ 95%**(0-6), 실패 항목 전건 목록화(파일·줄·사유) |
+| 3 | 실패 항목 수동 확인 큐 처리 후 재실행 | 135 md **전수 임포트** 도달, 원문 보존(정보 손실 0 — [4.7 clemvion 임포터](importer.md) §4) |
+| 4 | 2회 연속 재실행 | 두 번째 실행의 신규 생성 레코드 **0**(0-7) |
+
+---
+
+## 참고 자료
+
+### 이 문서가 인용한 외부 출처 (기존 13편에서 재인용)
+
+- [MCP Streamable HTTP transport (2026-07-28 revision)](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) — (2026-08-13 확인) 리비전 변화와 하위호환 절차 — E06-S04 스파이크의 대상.
+- [Claude Code Plugins](https://code.claude.com/docs/en/plugins) — (2026-08-13 확인) 스킬·훅·`.mcp.json` 번들과 마켓플레이스·관리형 settings — E12의 배포 근거.
+- [steveyegge/beads](https://github.com/steveyegge/beads) — (2026-08-13 확인) 원자적 `--claim` + 의존성 기반 ready 판정 — E04 설계의 원형.
+
+### 이 문서와 연결되는 제안서 문서
+
+- [3.7 로드맵](../03-proposal/roadmap.md) — Phase 배분·성공 기준(0-1~0-8, 1-1~1-11)·임포터 상세(§7.3)의 정본. 이 백로그의 상위 문서.
+- [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) — 스토리가 인용하는 FR-01~17 · NFR-01~05의 정의.
+- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 17종 카탈로그(§2.3)·에러/리스 규약(§2.7)·플러그인 구성(§3).
+- [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 상태 머신·권한 매트릭스·클레임 알고리즘·이벤트 이름의 정본.
+- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 27종 필드 의미의 정본(E02의 대상).
+- [3.6 화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md) — E08 화면 스토리의 그림 정본.
+- [4.1 MVP 범위와 스택 확정](scope.md) · [4.2 코드베이스와 배포](codebase.md) · [4.3 데이터베이스 스키마](database.md) · [4.4 API 명세](api.md) · [4.5 화면 명세](screens.md) · [4.6 플러그인과 온보딩](plugin.md) · [4.7 clemvion 임포터](importer.md) — 4부 형제 문서. 각 스토리의 구현 명세 정본.
