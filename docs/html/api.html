@@ -50,9 +50,9 @@
 
   <header class="page-header">
     <h1>API 명세</h1>
-    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>) 세 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, WebSocket 계약, MCP 15종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
+    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 15종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.1 (2026-08-20)</span>
+      <span>버전 v0.2 (2026-08-21)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -63,7 +63,7 @@
     <ol>
       <li><a href="#sec-1">공통 규약</a></li>
       <li><a href="#sec-2">리소스별 엔드포인트 전표</a></li>
-      <li><a href="#sec-3">WebSocket 계약</a></li>
+      <li><a href="#sec-3">실시간 채널 계약 — WebSocket + SSE</a></li>
       <li><a href="#sec-4">MCP 15종 ↔ 내부 서비스 ↔ REST 대응</a></li>
       <li><a href="#sec-5">수용 기준 (REQ-API-*)</a></li>
       <li><a href="#sec-ref">참고 자료</a></li>
@@ -72,12 +72,12 @@
 
   <h2 id="sec-1">1. 공통 규약</h2>
 
-  <h3>1.1 하나의 서비스, 세 개의 표면 (D-05)</h3>
+  <h3>1.1 하나의 서비스, 네 개의 표면 (D-05)</h3>
 
-  <p>NERV API는 표면이 셋이고 판정 코드는 한 벌이다. NestJS(Fastify 어댑터)의 REST 컨트롤러·MCP 게이트웨이·WebSocket 게이트웨이가 <b>같은 도메인 서비스</b>(SpecService·TaskService·SessionService·ApprovalService·QuestionService·EventService)를 주입받는다. 게이트 판정(스펙 승인 조건, 클레임 겹침, done 전이 조건)이 표면마다 갈라지는 것이 최악의 실패이며, 이 문서의 <a href="#sec-4">§4 대응 표</a>가 그 단일화의 증명이다. 모듈 배치의 실물은 <a href="codebase.html">4.2 코드베이스와 배포</a> §2가 정의한다.</p>
+  <p>NERV API는 표면이 넷이고 판정 코드는 한 벌이다. NestJS(Fastify 어댑터)의 REST 컨트롤러·MCP 게이트웨이·WebSocket 게이트웨이·SSE 컨트롤러가 <b>같은 도메인 서비스</b>(SpecService·TaskService·SessionService·ApprovalService·QuestionService·EventService)를 주입받는다. 게이트 판정(스펙 승인 조건, 클레임 겹침, done 전이 조건)이 표면마다 갈라지는 것이 최악의 실패이며, 이 문서의 <a href="#sec-4">§4 대응 표</a>가 그 단일화의 증명이다. 모듈 배치의 실물은 <a href="codebase.html">4.2 코드베이스와 배포</a> §2가 정의한다.</p>
 
   <div class="diagram">
-    <svg viewBox="0 0 860 330" role="img" aria-label="표면 4종(REST·MCP·훅 ingest·WebSocket)이 같은 도메인 서비스를 주입받고, WebSocket은 Postgres NOTIFY에서 팬아웃되는 구조">
+    <svg viewBox="0 0 860 380" role="img" aria-label="표면 5종(REST·MCP·훅 ingest·WebSocket·SSE)이 같은 도메인 서비스를 주입받고, 이벤트는 커밋 후 Valkey nerv_events로 방송되어 WS·SSE로 팬아웃되는 구조">
       <defs>
         <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
@@ -86,21 +86,25 @@
 
       <text x="24" y="26" fill="var(--text-faint)" font-family="var(--font)" font-size="11.5">표면 — 인증·직렬화만 담당</text>
 
-      <rect x="24" y="38" width="230" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
-      <text x="139" y="60" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">REST 컨트롤러</text>
-      <text x="139" y="78" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/api/v1 · 웹 SPA</text>
+      <rect x="24" y="38" width="230" height="44" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="139" y="56" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">REST 컨트롤러</text>
+      <text x="139" y="73" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/api/v1 · 웹 SPA</text>
 
-      <rect x="24" y="102" width="230" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
-      <text x="139" y="124" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">MCP 게이트웨이</text>
-      <text x="139" y="142" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/mcp · 에이전트</text>
+      <rect x="24" y="92" width="230" height="44" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="139" y="110" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">MCP 게이트웨이</text>
+      <text x="139" y="127" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/mcp · 에이전트</text>
 
-      <rect x="24" y="166" width="230" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
-      <text x="139" y="188" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">훅 수집기 ingest</text>
-      <text x="139" y="206" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/ingest/hooks/* · 텔레메트리</text>
+      <rect x="24" y="146" width="230" height="44" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="139" y="164" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">훅 수집기 ingest</text>
+      <text x="139" y="181" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/ingest/hooks/* · 텔레메트리</text>
 
-      <rect x="24" y="252" width="230" height="52" rx="10" fill="var(--bg-elev)" stroke="var(--accent)"/>
-      <text x="139" y="274" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">WS 게이트웨이</text>
-      <text x="139" y="292" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/ws · 읽기 전용 push</text>
+      <rect x="24" y="204" width="230" height="44" rx="10" fill="var(--bg-elev)" stroke="var(--accent)"/>
+      <text x="139" y="222" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">WS 게이트웨이</text>
+      <text x="139" y="239" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/ws · 읽기 전용 push</text>
+
+      <rect x="24" y="258" width="230" height="44" rx="10" fill="var(--bg-elev)" stroke="var(--accent)"/>
+      <text x="139" y="276" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">SSE 스트림</text>
+      <text x="139" y="293" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/sse · 읽기 전용 push</text>
 
       <rect x="330" y="38" width="240" height="196" rx="12" fill="var(--bg-elev)" stroke="var(--accent)" stroke-width="1.5"/>
       <text x="450" y="62" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">도메인 서비스 (DI 공유)</text>
@@ -111,19 +115,27 @@
       <text x="450" y="172" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">여기서만 — 표면 무관 단일 코드</text>
       <text x="450" y="200" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="10.5">전이와 같은 트랜잭션으로 event 기록</text>
 
-      <rect x="650" y="100" width="186" height="72" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
-      <text x="743" y="130" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">Postgres</text>
-      <text x="743" y="150" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">단일 진실 (D-01)</text>
+      <rect x="650" y="70" width="186" height="66" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
+      <text x="743" y="98" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">Postgres</text>
+      <text x="743" y="117" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">단일 진실 (D-01)</text>
 
-      <line x1="254" y1="64" x2="330" y2="90" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
-      <line x1="254" y1="128" x2="330" y2="128" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
-      <line x1="254" y1="192" x2="330" y2="166" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
-      <line x1="570" y1="136" x2="650" y2="136" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <rect x="650" y="196" width="186" height="66" rx="12" fill="var(--bg-elev)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="743" y="224" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">Valkey</text>
+      <text x="743" y="243" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">nerv_events pub/sub MQ</text>
 
-      <path d="M 700 172 C 640 280 340 300 258 284" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#ar1)"/>
-      <text x="500" y="308" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="11">NOTIFY nerv_events → 파드별 리스너 → 자기 소켓 룸에만 emit</text>
+      <line x1="254" y1="60" x2="330" y2="86" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <line x1="254" y1="114" x2="330" y2="122" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <line x1="254" y1="168" x2="330" y2="158" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <line x1="570" y1="104" x2="650" y2="104" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar1)"/>
+
+      <line x1="570" y1="200" x2="650" y2="222" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#ar1)"/>
+      <text x="608" y="192" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="10.5">커밋 후 PUBLISH</text>
+
+      <path d="M 700 262 C 640 330 340 300 258 240" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#ar1)"/>
+      <path d="M 700 262 C 620 340 400 330 258 292" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#ar1)"/>
+      <text x="480" y="358" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="11">SUBSCRIBE nerv_events → 파드별 구독자 → 자기 소켓 룸·SSE 스트림에만 emit</text>
     </svg>
-    <div class="cap">세 표면 + 훅 수집기가 같은 서비스를 주입받고, WS 팬아웃의 원천은 PG NOTIFY 하나다</div>
+    <div class="cap">네 표면 + 훅 수집기가 같은 서비스를 주입받고, WS·SSE 팬아웃의 원천은 Valkey <code>nerv_events</code> 방송 하나다</div>
   </div>
 
   <div class="table-wrap"><table>
@@ -132,6 +144,7 @@
       <tr><td>REST</td><td><code>/api/v1/**</code></td><td>있음</td><td>웹 SPA(S1~S8), 외부 연동</td><td><a href="#sec-2">§2 전표</a></td></tr>
       <tr><td>MCP</td><td><code>/mcp</code> (Streamable HTTP 단일 엔드포인트)</td><td>있음</td><td>Claude Code · Codex 세션</td><td><a href="#sec-4">§4 대응 표</a> — 정의는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2</td></tr>
       <tr><td>WebSocket</td><td><code>/ws</code></td><td><b>없음</b> (join 외 클라이언트 emit 없음)</td><td>웹 SPA 실시간 갱신</td><td><a href="#sec-3">§3 계약</a></td></tr>
+      <tr><td>SSE</td><td><code>/sse/**</code></td><td><b>없음</b> (단방향 스트림)</td><td>브라우저 밖 소비자(CLI·외부 도구) 실시간 구독</td><td><a href="#sec-3">§3.5 계약</a></td></tr>
       <tr><td>훅 ingest</td><td><code>/ingest/hooks/*</code></td><td>Activity·세션 전이만</td><td>Claude/Codex 훅</td><td><a href="#ep-ing">§2.9</a> — 정본은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3</td></tr>
     </tbody>
   </table></div>
@@ -140,6 +153,7 @@
 
   <ul>
     <li>REST base path는 <b><code>/api/v1</code></b> 이다. 파괴적 변경은 <code>/api/v1</code>을 유지한 채 <code>/api/v2</code>를 병행 서빙하는 방식으로만 한다.</li>
+    <li>SSE는 <b><code>/sse</code></b> 프리픽스를 <code>/api/v1</code>과 분리해 쓴다 — 프록시 계층(nginx·Ingress)이 버퍼링 해제·장수명 타임아웃을 경로 단위로 걸어야 하기 때문이다(<a href="codebase.html">4.2 코드베이스와 배포</a> §5.4·§6.3). 파괴적 변경 시 <code>/sse/v2</code>를 병행 서빙한다.</li>
     <li>MCP는 <code>/mcp</code> 단일 엔드포인트이며 프로토콜 리비전 병행 서빙 규약은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.6을 따른다(이 문서는 재정의하지 않는다).</li>
     <li>markdown 미러(<code>/api/projects/{p}/specs/{id}.md</code> · <code>/api/projects/{p}/llms.txt</code>)는 <a href="architecture.html">3.2 시스템 아키텍처</a> §2.4의 경로 문자열을 <b>그대로, 버전 프리픽스 없이</b> 유지한다 — <code>llms.txt</code> 인덱스와 에이전트 로컬 캐시(<code>.nerv/cache/</code>)에 링크가 박제되는 경로라 v2 전환에도 불변이어야 한다(<a href="#ep-mir">§2.8</a>).</li>
     <li>경로 파라미터: <code>{proj}</code> = <code>project.slug</code>(예: <code>clemvion</code>) — URL·MCP <code>project</code> 인자용 소문자 kebab 식별자로 <code>UNIQUE (org_id, slug)</code>, 표시 접두 <code>key</code>(예: <code>CLV</code>)와는 <b>별개 필드</b>다(<a href="data-model.html">3.3 데이터 모델</a> §2.1). <code>{spec}</code>·<code>{task}</code>·<code>{sid}</code> = 표시 키 또는 내부 uuid 모두 허용, <code>{ver}</code> = SpecVersion uuid, <code>{no}</code> = <code>version_no</code> 정수. 표시 키 발급 규칙(<code>&lt;project.key&gt;-&lt;타입&gt;-&lt;base32 6자&gt;</code>)은 <a href="data-model.html">3.3 데이터 모델</a> §5.1 정본이고, 본문 예시는 기존 문서의 표기 예시(<code>SPC-CWC-007</code>·<code>TSK-a3f8</code> 등, <a href="ui-wireframes.html">3.6 화면 설계</a> §1.4)를 그대로 쓴다.</li>
@@ -408,14 +422,24 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
   <p>훅 수집 엔드포인트 5종(<code>POST /ingest/hooks/session</code> · <code>/tool</code> · <code>/subagent</code> · <code>/stop</code> · <code>/session-end</code>)의 경로·헤더(<code>Authorization</code> Bearer, <code>X-NERV-Project</code>, <code>X-NERV-Host</code>)·응답 의미론(<code>additionalContext</code> 주입, <code>{"decision":"block"}</code> 종료 차단)은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3이 정본이고, 훅 페이로드 실물은 <a href="plugin.html">4.6 플러그인과 온보딩</a>이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 <b>인증 필수</b>다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 <code>SessionService</code>를 주입받아 세션 전이·Activity 적재를 수행한다(<a href="#sec-4">§4 표</a>).</p>
 
-  <h2 id="sec-3">3. WebSocket 계약</h2>
+  <h2 id="sec-3">3. 실시간 채널 계약 — WebSocket + SSE</h2>
 
-  <h3>3.1 핸드셰이크와 인증</h3>
+  <p>실시간 채널은 <b>다중 채널</b>이다(2026-08-21 확정 — <a href="scope.html">4.1 MVP 범위와 스택 확정</a> §2). 두 채널은 같은 이벤트 봉투(§3.3)를 같은 방송 버스(Valkey <code>nerv_events</code>)에서 받아 흘린다 — 차이는 대상·방향·인증뿐이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>채널</th><th>경로</th><th>대상</th><th>방향</th><th>인증</th></tr></thead>
+    <tbody>
+      <tr><td>WebSocket</td><td><code>/ws</code></td><td>웹 SPA</td><td>양방향(단, 클라이언트 emit은 <code>join</code>·<code>leave</code>뿐)</td><td>better-auth 세션 쿠키</td></tr>
+      <tr><td>SSE</td><td><code>/sse/**</code></td><td>브라우저 밖 소비자 — CLI·외부 도구·연동 스크립트</td><td>단방향(서버→클라이언트)</td><td>세션 쿠키 <b>또는</b> PAT Bearer</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.1 WebSocket — 핸드셰이크와 인증</h3>
 
   <ul>
     <li>엔드포인트: <code>wss://&lt;host&gt;/ws</code> — NestJS <code>@WebSocketGateway</code>(socket.io 어댑터).</li>
     <li><b>전송은 websocket만 활성</b>한다(폴링 폴백 off). 폴백이 없으므로 k8s 스티키 세션이 필요 없다 — 스택 확정 사항(<a href="scope.html">4.1 MVP 범위와 스택 확정</a> §2).</li>
-    <li>인증은 핸드셰이크 시점의 better-auth 세션 쿠키 검증이다. 웹 SPA 전용 표면이며 PAT 접속은 지원하지 않는다 — 에이전트의 서버→세션 채널은 하트비트 응답이 정본이다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.4).</li>
+    <li>인증은 핸드셰이크 시점의 better-auth 세션 쿠키 검증이다. 웹 SPA 전용 표면이며 PAT 접속은 지원하지 않는다 — 브라우저 밖 소비자는 SSE 채널(§3.5)을 쓴다. 에이전트의 서버→세션 지시 채널은 여전히 하트비트 응답이 정본이다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.4).</li>
     <li>인증 실패 시 socket.io <code>connect_error</code>에 <code>{code: "NERV_UNAUTHENTICATED"}</code>를 실어 즉시 끊는다.</li>
   </ul>
 
@@ -436,9 +460,9 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
   <h3>3.3 서버 → 클라이언트 이벤트</h3>
 
-  <p>팬아웃 경로는 단일하다: 도메인 서비스가 상태 전이와 같은 트랜잭션으로 <code>event</code> 행을 남기면, Postgres <code>NOTIFY</code>(채널 <code>nerv_events</code> — 페이로드 규약은 <a href="database.html">4.3 데이터베이스 스키마</a> §3 정본)가 각 파드의 리스너를 깨우고, 파드는 자기에게 붙은 소켓의 해당 룸에만 emit한다. 크로스파드 어댑터는 없다 — 모든 emit의 원천이 PG NOTIFY이기 때문이다.</p>
+  <p>팬아웃 경로는 단일하다: 도메인 서비스가 상태 전이와 같은 트랜잭션으로 <code>event</code> 행을 남기면, EventService가 커밋 직후 Valkey <code>nerv_events</code> 채널로 PUBLISH하고(채널·페이로드 규약은 <a href="database.html">4.3 데이터베이스 스키마</a> §3 정본), 각 파드는 SUBSCRIBE로 받은 봉투를 자기에게 붙은 소켓의 해당 룸과 SSE 스트림에만 emit한다. 크로스파드 socket.io 어댑터는 없다 — 모든 emit의 원천이 Valkey 방송이기 때문이다.</p>
 
-  <p>이벤트 이름은 socket.io 이벤트 이름으로 <b>Event <code>type</code> 문자열을 그대로</b> 쓴다 — <code>&lt;리소스&gt;.&lt;동사&gt;</code> 규약과 카탈로그는 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §6이 정본이다. 페이로드는 최소 봉투이며 본문 데이터를 싣지 않는다(수신 즉시 해당 Query를 재조회한다 — §3.4).</p>
+  <p>이벤트 이름은 socket.io 이벤트 이름으로 <b>Event <code>type</code> 문자열을 그대로</b> 쓴다 — <code>&lt;리소스&gt;.&lt;동사&gt;</code> 규약과 카탈로그는 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §6이 정본이다. 페이로드는 최소 봉투이며 본문 데이터를 싣지 않는다(수신 즉시 해당 Query를 재조회한다 — §3.4). 아래 표의 <b>룸 열은 SSE에 그대로 대응</b>된다 — <code>project:{id}</code> 룸 = <code>GET /sse/projects/{proj}</code>, <code>user:{id}</code> 룸 = <code>GET /sse/me</code>(§3.5).</p>
 
   <pre><code>// socket.on("spec.approved", handler) 로 수신
 {
@@ -473,13 +497,33 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
     </tbody>
   </table></div>
 
-  <h3>3.4 재연결·무효화·keep-alive</h3>
+  <h3>3.4 재연결·무효화·keep-alive (WS·SSE 공통)</h3>
 
   <ul>
-    <li><b>이벤트 재전송(replay)은 없다.</b> 끊겼다 재연결한 클라이언트는 밀린 이벤트를 받지 못하며, 받으려 해서도 안 된다 — 재연결 성공 시 클라이언트는 <b>화면의 활성 Query를 전부 재조회</b>한다(TanStack Query invalidate). 이벤트 유실은 허용되고 진실은 DB다(D-14).</li>
+    <li><b>이벤트 재전송(replay)은 없다.</b> 끊겼다 재연결한 클라이언트는 밀린 이벤트를 받지 못하며, 받으려 해서도 안 된다 — 재연결 성공 시 클라이언트는 <b>화면의 활성 Query를 전부 재조회</b>한다(웹 SPA는 TanStack Query invalidate). SSE의 <code>Last-Event-ID</code> 재개도 같은 이유로 지원하지 않는다(§3.5). 이벤트 유실은 허용되고 진실은 DB다(D-14).</li>
     <li>정상 수신 시의 이벤트→Query 무효화 매핑(어떤 이벤트가 어떤 화면 Query 키를 무효화하는가)은 <a href="screens.html">4.5 화면 명세</a>가 화면별로 정의한다. 이 문서의 계약은 "봉투에는 재조회에 필요한 식별자만 있다"까지다.</li>
-    <li>keep-alive는 socket.io 기본 ping(주기 25초·타임아웃 20초)을 그대로 쓴다. <b>에이전트 하트비트 60초와는 무관하다</b> — 그것은 MCP 클레임 리스 규약이다.</li>
-    <li>서버 재기동·배포 시 클라이언트는 socket.io 기본 백오프로 재접속하고, 위 재조회 규칙이 정합성을 복구한다. 연결 상태는 앱 셸의 실시간 연결 배너가 표시한다(<a href="screens.html">4.5 화면 명세</a>).</li>
+    <li>keep-alive — WS는 socket.io 기본 ping(주기 25초·타임아웃 20초)을 그대로 쓰고, SSE는 25초 주기의 코멘트 라인(<code>: ping</code>)을 송신한다. <b>에이전트 하트비트 60초와는 무관하다</b> — 그것은 MCP 클레임 리스 규약이다.</li>
+    <li>서버 재기동·배포 시 클라이언트는 재접속하고(WS는 socket.io 기본 백오프, SSE는 <code>EventSource</code> 기본 재시도 또는 클라이언트 백오프), 위 재조회 규칙이 정합성을 복구한다. 연결 상태는 앱 셸의 실시간 연결 배너가 표시한다(<a href="screens.html">4.5 화면 명세</a>).</li>
+  </ul>
+
+  <h3>3.5 SSE 계약</h3>
+
+  <p>브라우저 밖 소비자를 위한 단방향 구독 채널이다(2026-08-21 확정 — WebSocket 단일 채널의 재검토 트리거 "브라우저 밖 소비자가 실시간 구독을 원할 때"가 점화됐다). 표면은 EventModule의 <code>sse.controller.ts</code>가 소유한다(<a href="codebase.html">4.2 코드베이스와 배포</a> §2.2).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>응답</th></tr></thead>
+    <tbody>
+      <tr><td>EP-SSE-01</td><td><code>GET /sse/projects/{proj}</code></td><td>프로젝트 멤버(세션 쿠키) 또는 해당 프로젝트에 바인딩된 PAT</td><td><code>text/event-stream</code> — <code>project:{id}</code> 룸과 동일한 이벤트 흐름(§3.3 표)</td></tr>
+      <tr><td>EP-SSE-02</td><td><code>GET /sse/me</code></td><td>본인(세션 쿠키) 또는 PAT(소유 사용자 기준)</td><td><code>text/event-stream</code> — <code>user:{id}</code> 룸과 동일한 이벤트 흐름</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>이벤트 형식</b>: 메시지마다 <code>event:</code> = Event <code>type</code>(예: <code>spec.approved</code>), <code>id:</code> = event id, <code>data:</code> = §3.3의 최소 봉투 JSON. 본문 데이터는 싣지 않는다 — 상세는 수신자가 자기 권한으로 REST/MCP 재조회한다.</li>
+    <li><b>PAT 검사</b>: 프로젝트 바인딩만 검사한다 — 봉투에는 식별자만 흐르므로 스코프별 필터링은 두지 않고, 상세 조회 시점의 권한 검사가 최종 방어선이다. 타 프로젝트 PAT는 403(<code>NERV_FORBIDDEN</code>)으로 스트림을 열지 않는다.</li>
+    <li><b>replay 없음</b>: <code>Last-Event-ID</code> 헤더는 무시한다(D-14 — §3.4). <code>id:</code> 필드는 클라이언트 측 중복 제거용 참조일 뿐이다.</li>
+    <li><b>keep-alive</b>: 25초 주기 코멘트 라인(<code>: ping</code>). 프록시 계층의 버퍼링 해제·타임아웃은 <a href="codebase.html">4.2 코드베이스와 배포</a> §5.4(nginx)·§6.3(Ingress)이 정본이다.</li>
+    <li><b>연결 상한</b>: 사용자당 동시 SSE 연결 8개(WS의 project 룸 8개 제한과 같은 값). 초과 시 429 <code>NERV_RATE_LIMIT</code>.</li>
   </ul>
 
   <h2 id="sec-4">4. MCP 15종 ↔ 내부 서비스 ↔ REST 대응</h2>
@@ -528,9 +572,11 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td>REQ-API-007</td><td>WHEN 다른 사용자가 편집 리스를 보유한 draft에 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 <code>NERV_DRAFT_LEASED</code>와 보유자(사용자·표면)를 반환한다. WHEN 같은 사용자가 다른 표면에서 요청하면 THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알림을 만든다</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.2 표 재현</td></tr>
       <tr><td>REQ-API-008</td><td>WHEN 승인 요청자 본인·초안 작성 세션의 소유자가 EP-APR-03으로 승인을 시도하면 THE SYSTEM SHALL HTTP 403 <code>NERV_FORBIDDEN</code>(<code>details.rule = "requester-neq-approver"</code>)을 반환한다. WHEN 대상 content hash가 변해 있으면 THE SYSTEM SHALL 같은 코드로 stale 승인을 거부한다</td><td>§2.3 판정 5규칙 각각 1케이스</td></tr>
       <tr><td>REQ-API-009</td><td>WHEN 미인증 소켓이 <code>/ws</code>에 연결을 시도하면 THE SYSTEM SHALL <code>connect_error</code>(<code>NERV_UNAUTHENTICATED</code>)로 끊고, WHEN 비멤버가 <code>project:{id}</code> join을 시도하면 THE SYSTEM SHALL ack <code>{ok:false, code:"NERV_FORBIDDEN"}</code>을 반환하며 룸에 넣지 않는다</td><td>비멤버 join 후 이벤트 미수신 확인</td></tr>
-      <tr><td>REQ-API-010</td><td>WHEN WebSocket 클라이언트가 재연결에 성공하면 THE SYSTEM SHALL 밀린 이벤트를 재전송하지 않는다(재조회는 클라이언트 책임 — D-14)</td><td>단절 구간 이벤트 발생 후 재연결, 수신 0건 확인</td></tr>
-      <tr><td>REQ-API-011</td><td>WHEN 상태 전이가 커밋되면 THE SYSTEM SHALL 같은 트랜잭션의 <code>event</code> 행과, 그로부터 파생된 WS emit이 §3.3 표의 룸으로 5초 이내(NFR-02) 도달하게 한다</td><td>전이→보드 반영 p95 측정</td></tr>
+      <tr><td>REQ-API-010</td><td>WHEN WebSocket 또는 SSE 클라이언트가 재연결에 성공하면 THE SYSTEM SHALL 밀린 이벤트를 재전송하지 않는다(재조회는 클라이언트 책임 — D-14). SSE의 <code>Last-Event-ID</code> 헤더는 무시한다</td><td>단절 구간 이벤트 발생 후 재연결, 수신 0건 확인(WS·SSE 각 1건)</td></tr>
+      <tr><td>REQ-API-011</td><td>WHEN 상태 전이가 커밋되면 THE SYSTEM SHALL 같은 트랜잭션의 <code>event</code> 행과, 그로부터 파생된 WS emit·SSE 송신이 §3.3 표의 룸/스트림으로 5초 이내(NFR-02) 도달하게 한다</td><td>전이→보드 반영 p95 측정(WS) + SSE 수신 지연 측정</td></tr>
       <tr><td>REQ-API-012</td><td>WHEN 쿼터를 초과한 요청이 오면 THE SYSTEM SHALL HTTP 429 <code>NERV_RATE_LIMIT</code>과 <code>retry_after_s</code>·<code>Retry-After</code> 헤더를 함께 반환한다</td><td>버스트 요청</td></tr>
+      <tr><td>REQ-API-013</td><td>WHEN 미인증 요청이 <code>/sse/*</code>에 오면 THE SYSTEM SHALL HTTP 401 <code>NERV_UNAUTHENTICATED</code>로 거부하고, WHEN 비멤버 사용자 또는 타 프로젝트 PAT가 EP-SSE-01을 요청하면 THE SYSTEM SHALL HTTP 403 <code>NERV_FORBIDDEN</code>으로 스트림을 열지 않는다</td><td>쿠키 없음·타 프로젝트 PAT 각 1케이스</td></tr>
+      <tr><td>REQ-API-014</td><td>WHILE SSE 스트림이 열려 있는 동안, THE SYSTEM SHALL 25초 주기의 코멘트 라인(<code>: ping</code>)을 송신해 프록시 유휴 타임아웃을 방지한다</td><td>60초 무이벤트 구간에서 keep-alive 2회 이상 수신</td></tr>
     </tbody>
   </table></div>
 
@@ -549,9 +595,9 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
   <h3>4부 형제 문서</h3>
   <ul>
-    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 확정 스택(NestJS·socket.io·better-auth)과 MVP 도구 15종 범위</li>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 확정 스택(NestJS·socket.io·better-auth·실시간 WebSocket + SSE·방송 MQ Valkey)과 MVP 도구 15종 범위</li>
     <li><a href="codebase.html">4.2 코드베이스와 배포</a> — §2 모듈 맵(표면↔서비스 주입 구조의 실물)·§3 <code>packages/schema</code> zod 공유 규칙</li>
-    <li><a href="database.html">4.3 데이터베이스 스키마</a> — §3 <code>NOTIFY</code> 채널(<code>nerv_events</code>)과 페이로드 규약</li>
+    <li><a href="database.html">4.3 데이터베이스 스키마</a> — §3 이벤트 방송 규약(Valkey <code>nerv_events</code> 채널·페이로드)</li>
     <li><a href="screens.html">4.5 화면 명세</a> — 엔드포인트 ID 인용처, 이벤트→Query 무효화 매핑</li>
     <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — 훅 페이로드 실물과 PAT 발급 온보딩 절차</li>
   </ul>

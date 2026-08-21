@@ -1,13 +1,13 @@
 ---
 id: SPC-MVP-BACKLOG
 status: draft
-updated: 2026-08-20
+updated: 2026-08-21
 ---
 # 백로그
 
-> **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 60개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 clemvion spec 임포터 v0(E07)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 4종(WS 게이트웨이 PoC · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
+> **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 60개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 clemvion spec 임포터 v0(E07)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 4종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [backlog.html](../html/backlog.html)
 
 ---
 
@@ -41,10 +41,10 @@ Phase 0의 유일한 목표는 로드맵 §2.1 그대로다 — "서버가 모�
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
-| E01-S01 | pnpm 모노레포 골격 — `apps/web` `apps/api` `packages/schema` `deploy/compose` `deploy/k8s` `docs` 트리와 패키지 책임 경계 | [4.2 코드베이스와 배포](codebase.md) §1 · [4.1 범위·스택](scope.md) §2 | WHEN 신규 클론에서 `pnpm install`을 실행하면, THE SYSTEM SHALL lockfile 기준으로 워크스페이스 전 패키지를 한 번에 설치한다 | — |
+| E01-S01 | pnpm 모노레포 골격 — 저장소 `codebase/` 하위에 `apps/web` `apps/api` `packages/schema` `deploy/compose` `deploy/k8s` 트리와 패키지 책임 경계(REQ-CB-015 — 구현 코드는 `codebase/` 밖에 두지 않는다) | [4.2 코드베이스와 배포](codebase.md) §1 · [4.1 범위·스택](scope.md) §2 | WHEN 신규 클론의 `codebase/`에서 `pnpm install`을 실행하면, THE SYSTEM SHALL lockfile 기준으로 워크스페이스 전 패키지를 한 번에 설치한다 | — |
 | E01-S02 | NestJS(Fastify 어댑터) API 골격 — 도메인 모듈 자리와 REST·MCP·WS 표면이 같은 서비스를 DI로 주입받는 배선 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1(D-05) · [4.2 코드베이스와 배포](codebase.md) §2 | WHEN REST 컨트롤러와 MCP 게이트웨이가 같은 도메인 동작을 호출하면, THE SYSTEM SHALL 동일 서비스 인스턴스를 거쳐 게이트 판정을 단일화한다 | E01-S01 |
 | E01-S03 | Vite + React SPA 골격 — TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod 셋업 | [4.1 범위·스택](scope.md) §2 · [4.5 화면 명세](screens.md) §1 | WHEN `pnpm dev`로 웹을 기동하면, THE SYSTEM SHALL 라우팅 맵의 기본 경로와 앱 셸을 렌더링한다 | E01-S01 |
-| E01-S04 | docker-compose 로컬 기동 — postgres·minio·api·worker·web 단일 파일 | [4.2 코드베이스와 배포](codebase.md) §5 · NFR-01 · [3.7 로드맵](../03-proposal/roadmap.md) §2.2 | WHEN `docker compose up`을 실행하면, THE SYSTEM SHALL 단일 명령으로 전 서비스를 기동한다(마이그레이션 연결은 E02-S02) | E01-S01 |
+| E01-S04 | docker-compose 로컬 기동 — postgres·minio·valkey·api·worker·web 단일 파일 | [4.2 코드베이스와 배포](codebase.md) §5 · NFR-01 · [3.7 로드맵](../03-proposal/roadmap.md) §2.2 | WHEN `docker compose up`을 실행하면, THE SYSTEM SHALL 단일 명령으로 전 서비스를 기동한다(마이그레이션 연결은 E02-S02) | E01-S01 |
 | E01-S05 | CI 파이프라인 — TS strict·lint·typecheck·테스트 3계층 배치 | [4.2 코드베이스와 배포](codebase.md) §4 | WHEN PR이 열리면, THE SYSTEM SHALL lint·typecheck·unit 테스트를 실행하고 실패 시 머지를 차단한다 | E01-S01 |
 
 ### 2.2 E02 — 스키마·마이그레이션
@@ -55,7 +55,7 @@ Postgres + Drizzle. `packages/schema`가 테이블·zod·파생 타입의 단일
 | --- | --- | --- | --- | --- |
 | E02-S01 | drizzle 테이블 27종 선언 — `organization`부터 `spec_comment`까지, zod 스키마·파생 타입 공유 | [3.3 데이터 모델](../03-proposal/data-model.md) §1.3 · [4.3 데이터베이스 스키마](database.md) §2 | WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL data-model.md의 27개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다 | E01-S01 · E06-S03 |
 | E02-S02 | 0001 스냅샷 마이그레이션 + 왕복 멱등 — compose는 기동 시, k8s는 Job으로 적용 | [4.3 데이터베이스 스키마](database.md) §1·§5 | WHEN 같은 마이그레이션을 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행을 스키마 변경 0으로 종료한다 | E02-S01 |
-| E02-S03 | NOTIFY 발행 규약 — 채널 `nerv_events`, 페이로드 JSON(event id·type·project_id) | [4.3 데이터베이스 스키마](database.md) §3 · [3.2 시스템 아키텍처](../03-proposal/architecture.md) §1(D-10) | WHEN `event` 테이블에 행이 삽입되면, THE SYSTEM SHALL `nerv_events` 채널로 event id·type·project_id를 NOTIFY한다 | E02-S01 |
+| E02-S03 | 이벤트 방송 규약 — Valkey pub/sub 채널 `nerv_events`, 페이로드 JSON(event id·type·project_id), EventService 커밋 후 발행 | [4.3 데이터베이스 스키마](database.md) §3 · [3.2 시스템 아키텍처](../03-proposal/architecture.md) §1(D-10) | WHEN `event` 테이블에 행이 삽입되고 트랜잭션이 커밋되면, THE SYSTEM SHALL Valkey `nerv_events` 채널로 event id·type·project_id를 PUBLISH한다(롤백 시 발행 없음) | E02-S01 |
 | E02-S04 | 개발 시드 한 벌 — 프로젝트 clemvion, `SPC-CWC-007`·`REQ-CWC-031`, TSK-3f77(하나/mac-07)·TSK-a3f8(도현/mac-02)·TSK-b904(유나/linux-ci-01/codex), 세션 S-b7e9 | [4.3 데이터베이스 스키마](database.md) §4 | WHEN 시드 스크립트를 실행하면, THE SYSTEM SHALL 예시 데이터 한 벌을 멱등하게 적재한다(재실행 시 신규 레코드 0) | E02-S02 |
 
 ### 2.3 E03 — MCP 최소 서버 + PAT
@@ -88,7 +88,7 @@ Phase 0의 핵심 검증 대상(FR-06 ●). clemvion이 #576에서 제거한 동
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
 | E05-S01 | 세션 레지스트리 — `agent_session` 등록, 상태 머신 `pending→active↔awaiting_input→complete/error/stale`, 하트비트 | [3.3 데이터 모델](../03-proposal/data-model.md) §2.5 · FR-07 · [3.7 로드맵](../03-proposal/roadmap.md) §2.2 | WHEN `nerv_bootstrap`이 성공하면, THE SYSTEM SHALL `agent_session` 행을 생성하고 `session.started` 이벤트를 적재한다 | E02-S01 · E03-S01 |
-| E05-S02 | WS 게이트웨이 + PG LISTEN 팬아웃 — 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사, websocket 전송만(폴링 폴백 off) | [4.1 범위·스택](scope.md) §2 · [4.4 API 명세](api.md) §3 · NFR-02 | WHEN 이벤트가 NOTIFY되면, THE SYSTEM SHALL 각 파드가 자기 소켓의 해당 룸으로 emit하고 상태 전이→보드 반영 지연 p95 ≤ 5초를 유지한다 | E02-S03 · E06-S01 |
+| E05-S02 | WS·SSE 게이트웨이 + Valkey 구독 팬아웃 — WS 룸 `project:{id}`·`user:{id}`(join 시 멤버십 검사, websocket 전송만·폴링 폴백 off) + SSE 스트림 `/sse/projects/{p}`·`/sse/me`(쿠키 또는 PAT) | [4.1 범위·스택](scope.md) §2 · [4.4 API 명세](api.md) §3 · NFR-02 | WHEN 이벤트가 `nerv_events`에 PUBLISH되면, THE SYSTEM SHALL 각 파드가 자기 소켓의 해당 룸과 SSE 스트림으로 emit하고 상태 전이→보드 반영 지연 p95 ≤ 5초를 유지한다 | E02-S03 · E06-S01 |
 | E05-S03 | 읽기 전용 세션 보드 화면 — hostname·에이전트 종류·상태·현재 Task·리스 잔여 표기(S5 축소판, steer/stop 없음) | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S5 · [3.7 로드맵](../03-proposal/roadmap.md) §2.3 | WHEN 세션 상태가 전이되면, THE SYSTEM SHALL 새로고침 없이 보드 카드를 5초 내 갱신한다<br>WHEN WebSocket이 끊겼다 재연결되면, THE SYSTEM SHALL 화면 데이터를 재조회한다(이벤트 유실 허용, 진실은 DB — D-14) | E01-S03 · E05-S02 |
 | E05-S04 | Event 적재 표준화 — 전 상태 전이를 `event` 테이블에 `is_agent` 포함 append-only 적재 | [3.3 데이터 모델](../03-proposal/data-model.md) §2.9 · FR-16 · D-10 | WHEN 도메인 상태 전이가 커밋되면, THE SYSTEM SHALL 같은 트랜잭션에서 `event` 행을 적재한다(전이·이벤트의 원자성) | E02-S01 |
 
@@ -98,7 +98,7 @@ Phase 0의 핵심 검증 대상(FR-06 ●). clemvion이 #576에서 제거한 동
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
-| E06-S01 | 스파이크: WS 게이트웨이 PoC — NestJS `@WebSocketGateway`(socket.io 어댑터), websocket 전송 단독, 파드 2개에서 크로스파드 어댑터 없이 PG LISTEN 팬아웃 | [4.1 범위·스택](scope.md) §2 · NFR-02 | WHEN 파드 2개 뒤에 클라이언트를 분산 접속시키고 PG NOTIFY를 발생시키면, THE SYSTEM SHALL 크로스파드 어댑터 없이 전 클라이언트에 이벤트를 전달한다 | E01-S02 |
+| E06-S01 | 스파이크: 실시간 게이트웨이 PoC — NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송 단독) + SSE 스트림, 파드 2개에서 크로스파드 어댑터 없이 Valkey pub/sub 팬아웃 | [4.1 범위·스택](scope.md) §2 · NFR-02 | WHEN 파드 2개 뒤에 WS·SSE 클라이언트를 분산 접속시키고 `nerv_events`에 PUBLISH하면, THE SYSTEM SHALL 크로스파드 어댑터 없이 전 클라이언트에 이벤트를 전달한다 | E01-S02 |
 | E06-S02 | 스파이크: TipTap md 왕복 검증 — 지원 노드 화이트리스트(heading·paragraph·list·table·code·blockquote·link·hr)로 실측 문서 왕복. 손실 실측 시 Milkdown 재검토 트리거 발동 | [4.1 범위·스택](scope.md) §2 · [4.5 화면 명세](screens.md) §3 | WHEN `clemvion:spec/` 표본 30문서를 md→TipTap→md로 왕복하면, THE SYSTEM SHALL 지원 노드 집합 안에서 손실 0을 보이고, 손실 발생 항목은 파일·위치·유형 리포트로 남긴다 | E01-S03 |
 | E06-S03 | 스파이크: drizzle 마이그레이션 파이프라인 — compose 기동 시 적용 vs k8s Job, 롤백 절차 포함 후보 비교 | [4.1 범위·스택](scope.md) §2 · [4.2 코드베이스와 배포](codebase.md) §5~6 · [4.3 데이터베이스 스키마](database.md) §1 | WHEN 파이프라인 후보 2안을 각각 실행하면, THE SYSTEM SHALL 신규 DB·기존 DB 양쪽에서 왕복 멱등을 통과하는 안을 선정 근거와 함께 리포트로 남긴다 | E01-S01 |
 | E06-S04 | 스파이크: MCP 리비전 병행 서빙 — 최신 리비전 + 구 리비전 병행(D-11), Claude Code·Codex 클라이언트 협상 실측 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6 · [3.7 로드맵](../03-proposal/roadmap.md) §6.1(R5) | WHEN 구 리비전 클라이언트와 최신 리비전 클라이언트가 같은 엔드포인트에 접속하면, THE SYSTEM SHALL 협상된 리비전으로 각각 tools 호출을 완주시킨다 | E01-S02 |
@@ -195,7 +195,7 @@ FR-11 ◐(3유형) + FR-12 ◐(인앱). 성공 기준 1-1(플랫폼 밖 승인 0
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
-| E14-S01 | k8s 배포 — kustomize base/overlays, 이미지 3종(`nerv-api`·`nerv-worker`·`nerv-web`), 마이그레이션 Job, Ingress WebSocket 업그레이드·타임아웃 상향, 워커 replica 1 | [4.2 코드베이스와 배포](codebase.md) §6 · [4.1 범위·스택](scope.md) §2 | WHEN overlay를 적용하면, THE SYSTEM SHALL 마이그레이션 Job 완료 후에만 신규 버전 파드를 승격한다 | E01-S04 · E06-S03 · E06-S05 |
+| E14-S01 | k8s 배포 — kustomize base/overlays, 이미지 3종(`nerv-api`·`nerv-worker`·`nerv-web`) + Valkey Deployment, 마이그레이션 Job, Ingress WebSocket 업그레이드·SSE 버퍼링 해제·타임아웃 상향, 워커 replica 1 | [4.2 코드베이스와 배포](codebase.md) §6 · [4.1 범위·스택](scope.md) §2 | WHEN overlay를 적용하면, THE SYSTEM SHALL 마이그레이션 Job 완료 후에만 신규 버전 파드를 승격한다 | E01-S04 · E06-S03 · E06-S05 |
 | E14-S02 | 백업·복구 왕복 검증 — 절차서 + 왕복 로그 | NFR-01 · [3.7 로드맵](../03-proposal/roadmap.md) §3.4(1-9) | WHEN 백업본으로 신규 인스턴스를 복원하면, THE SYSTEM SHALL 데이터 손실 0으로 왕복을 1회 이상 성공시킨다 | E14-S01 |
 | E14-S03 | GitHub 웹훅·Task↔PR 링크 — PR·커밋 웹훅 수신, evidence 수집(리뷰 커버리지 판정은 Phase 2) | [3.7 로드맵](../03-proposal/roadmap.md) §3.2 · FR-13 · [3.3 데이터 모델](../03-proposal/data-model.md) §2.8 | WHEN PR 웹훅이 도착하면, THE SYSTEM SHALL Task에 PR 링크를 `evidence`로 수집한다 | E05-S04 |
 
@@ -229,7 +229,7 @@ flowchart LR
   E01 --> E06
   E06 -->|"S03 마이그레이션"| E02
   E06 -->|"S04 리비전"| E03
-  E06 -->|"S01 WS PoC"| E05
+  E06 -->|"S01 실시간 PoC"| E05
   E06 -->|"S02 TipTap"| E08
   E06 -->|"S05 Postgres 위치"| E14
   E02 --> E03
@@ -255,7 +255,7 @@ flowchart LR
 
 | 주 | 트랙 A (백엔드) | 트랙 B (프론트·스파이크) | 종료 시 확인 |
 | --- | --- | --- | --- |
-| W1 | E01-S01·S02·S04 → E06-S03(마이그레이션 스파이크) 착수 | E01-S03·S05 · E06-S01(WS PoC) · E06-S05(Postgres 위치 확인) 착수 | compose 기동, CI 녹색, 스파이크 중간 판정 |
+| W1 | E01-S01·S02·S04 → E06-S03(마이그레이션 스파이크) 착수 | E01-S03·S05 · E06-S01(실시간 PoC) · E06-S05(Postgres 위치 확인) 착수 | compose 기동, CI 녹색, 스파이크 중간 판정 |
 | W2 | E02 전체 → E03-S01·S02 착수 | E06-S02(TipTap 왕복) · E06-S04(MCP 리비전) · E05-S04 | 27테이블 마이그레이션 왕복 멱등, 시드 적재, 스파이크 4종 go/no-go |
 
 W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(§5.1~§5.3)를 실행한다. 스파이크가 no-go를 내면(예: TipTap 왕복 손실) 해당 재검토 트리거(Milkdown 재검토 등, [4.1 범위·스택](scope.md) §2)를 W3 계획에 반영한다.

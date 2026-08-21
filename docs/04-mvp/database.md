@@ -1,13 +1,13 @@
 ---
 id: SPC-MVP-DATABASE
 status: draft
-updated: 2026-08-20
+updated: 2026-08-21
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 27개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 27개 `CREATE TABLE`(FK·CHECK·partial unique 포함) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` NOTIFY 규약, 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 27개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 27개 `CREATE TABLE`(FK·CHECK·partial unique 포함) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [database.html](../html/database.html)
 
 ---
 
@@ -54,7 +54,7 @@ updated: 2026-08-20
 
 ## 2. 전체 DDL
 
-서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 27종 → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(NOTIFY 트리거만 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
+서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 27종 → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
 ### 2.1 확장과 enum 38종
 
@@ -771,47 +771,34 @@ SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);
 
 ---
 
-## 3. NOTIFY 규약
+## 3. 이벤트 방송 규약 — Valkey `nerv_events`
 
-### 3.1 택1 — 트리거 방식을 쓴다
+### 3.1 원천은 event 행, 방송 버스는 Valkey pub/sub
 
-실시간 팬아웃의 원천은 PG NOTIFY다(확정 스택 — 파드마다 `LISTEN` 후 자기 소켓에 emit, 크로스파드 어댑터 불필요). NOTIFY를 쏘는 주체는 둘 중 하나다.
+실시간 팬아웃의 **원천은 `event` 행**(도메인 트랜잭션 안 INSERT — 규칙 6)이고, **방송 버스는 Valkey pub/sub 채널 `nerv_events`**다(확정 스택 — [4.1 MVP 범위와 스택 확정](scope.md) §2, 2026-08-21). 발행 주체는 `EventService` 하나다 — 도메인 트랜잭션이 커밋된 직후 봉투를 PUBLISH한다([4.2 코드베이스와 배포](codebase.md) REQ-CB-004). 각 `nerv-api` 파드는 SUBSCRIBE 후 자기에게 붙은 WS 룸·SSE 스트림에만 emit하므로 크로스파드 어댑터가 필요 없다.
 
-| 방식 | 장점 | 단점 |
-| --- | --- | --- |
-| **앱 레벨** (`event` INSERT 후 서비스 코드가 `pg_notify` 호출) | 코드에서 명시적으로 보임, 단위 테스트 쉬움 | INSERT 경로가 하나라도 호출을 빼먹으면 그 이벤트는 화면에 안 뜬다 — 진입점이 REST·MCP·WS·ingest·워커로 다섯이다 |
-| **트리거** (`event` AFTER INSERT 트리거가 `pg_notify`) | **경로 무관 보장** — event 행이 생기면 반드시 NOTIFY. 규칙 6("모든 상태 전이는 Event를 남긴다")과 합치면 "모든 전이는 반드시 방송된다"가 된다 | DB 안에 로직이 숨는다(이 문서가 그 로직의 정본이 됨으로써 상쇄) |
-
-**트리거를 택한다.** 근거는 D-14와 같은 결이다 — 산문 규약과 코드 관례는 반드시 깨지므로, 진입점 수와 무관하게 성립하는 지점(스키마)에 강제를 둔다. NOTIFY는 트랜잭션 커밋 시점에만 발송되므로 롤백된 전이가 방송되는 일도 없다.
+> **결정 이력.** v0.1(2026-08-20)은 `event` AFTER INSERT 트리거의 `pg_notify`("경로 무관 보장")를 택했다. 2026-08-21 실시간 채널 확정(WebSocket + SSE 다중 채널)과 함께 방송 버스를 Valkey로 옮기며 트리거 방식은 폐기한다 — PG NOTIFY는 페이로드 8000B 한도, 파드·워커마다의 `LISTEN` 전용 커넥션 점유, 트랜잭션 풀러(PgBouncer 류) 비호환, 재연결 구간 유실이라는 운영 제약을 안고 있었고, 채널이 2종(WS·SSE)으로 늘면서 방송 부하를 DB 밖으로 격리하는 쪽이 확장에 유리하다. 트리거가 주던 "경로 무관 보장"은 세 겹으로 대체한다: ① `event` INSERT 경로가 `EventService` 하나뿐이라는 구조 강제(표면의 drizzle 직접 import 금지 — REQ-CB-003의 lint 표현) ② 커밋 후 PUBLISH를 같은 메서드에 묶는 REQ-CB-004 ③ 워커의 폴링 폴백(§3.3).
 
 ### 3.2 채널·페이로드
 
-```sql
--- 채널: nerv_events (단일 채널 — 필터링은 수신측 몫)
--- 페이로드: 참조만 담는다. 상세는 수신자가 재조회한다(8000B 한도와 무관해짐 + 개인정보 금지 유지)
-CREATE OR REPLACE FUNCTION nerv_event_notify() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-  PERFORM pg_notify('nerv_events', json_build_object(
-    'id',         NEW.id,
-    'type',       NEW.type,
-    'project_id', NEW.project_id
-  )::text);
-  RETURN NULL;
-END $$;
+```text
+채널:    nerv_events            (단일 채널 — 필터링은 수신측 몫. 상수 정본: @nerv/schema EVENTS_CHANNEL)
+발행:    EventService — event 행 INSERT를 담은 트랜잭션 커밋 직후 PUBLISH.
+         롤백된 트랜잭션은 발행 지점에 도달하지 않으므로 방송되지 않는다.
+페이로드: JSON — 참조만 담는다. 상세는 수신자가 재조회한다(개인정보 금지 유지).
+```
 
-CREATE TRIGGER event_notify
-  AFTER INSERT ON event
-  FOR EACH ROW EXECUTE FUNCTION nerv_event_notify();
+```json
+{ "id": "01991f2a-…", "type": "spec.approved", "project_id": "…" }
 ```
 
 ### 3.3 수신자 계약
 
 | 수신자 | 동작 |
 | --- | --- |
-| `nerv-api` 각 파드 | 기동 시 `LISTEN nerv_events` → 페이로드의 `project_id`로 자기 파드에 붙은 `project:{id}` 룸을 찾아 WS 이벤트 emit. 이벤트 이름·본문 계약은 [4.4 API 명세](api.md) WS 절 |
-| `nerv-worker` | 같은 채널 `LISTEN` → 알림 파생(notification INSERT)·다이제스트 배칭 트리거. 유실 대비 폴백은 `event_project_time` 인덱스 폴링(마지막 처리 `occurred_at` 이후) |
-| 재연결 클라이언트 | NOTIFY는 유실 허용이다(D-14 — 진실은 DB). 끊겼던 클라이언트는 화면 데이터를 재조회하고, 워커는 폴링 폴백으로 따라잡는다 |
+| `nerv-api` 각 파드 | 기동 시 `SUBSCRIBE nerv_events` → 페이로드의 `project_id`로 자기 파드에 붙은 `project:{id}` 룸·`/sse/projects/{p}` 스트림을 찾아 emit. 이벤트 이름·본문 계약은 [4.4 API 명세](api.md) §3 |
+| `nerv-worker` | 같은 채널 `SUBSCRIBE` → 알림 파생(notification INSERT)·다이제스트 배칭 트리거. 유실 대비 폴백은 `event_project_time` 인덱스 폴링(마지막 처리 `occurred_at` 이후) |
+| 재연결 클라이언트 | 방송은 유실 허용이다(D-14 — 진실은 DB). 끊겼던 클라이언트는 화면 데이터를 재조회하고(WS·SSE 공통, replay 없음), 워커는 폴링 폴백으로 따라잡는다 |
 
 ---
 
@@ -971,7 +958,7 @@ INSERT INTO question (id, project_id, agent_session_id, task_id, title, body_md,
    '임베드 위젯의 세션 복원을 localStorage로 할지 서버 세션으로 할지 — 스펙에 명시 없음',
    '["localStorage", "서버 세션", "스펙에 남길 질문"]', 'blocking', 'open');
 
--- 이벤트 (커밋 시 §3 트리거가 nerv_events로 NOTIFY) ------------------------
+-- 이벤트 (커밋 후 EventService가 §3 규약으로 nerv_events에 PUBLISH) ---------
 INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, actor_session_id,
                    is_agent, subject_type, subject_id, from_state, to_state) VALUES
   ('01990a66-0000-7000-8000-0000000000b1', '01990a66-0000-7000-8000-000000000021',
@@ -1011,7 +998,7 @@ COMMIT;
 | REQ-DB-002 | WHEN 스키마 적용 후 `pnpm db:seed`를 2회 실행하면 THE SYSTEM SHALL 두 번 모두 성공하고 §4의 동일한 데이터 상태를 재현한다 | 시드 2회 후 행 수·키 스냅샷 비교 |
 | REQ-DB-003 | WHEN `status <> 'draft'`인 `spec_version`의 `body_md` 또는 `content_hash`를 UPDATE하면 THE SYSTEM SHALL 예외를 발생시키고 변경을 거부한다 | 트리거 테스트(approved·in_review·superseded 각 1건) |
 | REQ-DB-004 | WHEN 한 `task`에 `status='active'`인 `claim`이 있는 상태에서 두 번째 active claim을 INSERT하면 THE SYSTEM SHALL unique 위반으로 거부한다 | 동시 INSERT 2건 경쟁 테스트 — 정확히 1건 성공 |
-| REQ-DB-005 | WHEN `event`에 행이 INSERT되고 트랜잭션이 커밋되면 THE SYSTEM SHALL `nerv_events` 채널로 `{id, type, project_id}` JSON을 NOTIFY하고, 롤백 시 NOTIFY하지 않는다 | LISTEN 세션 붙인 통합 테스트(커밋/롤백 각 1건) |
+| REQ-DB-005 | WHEN `event`에 행이 INSERT되고 트랜잭션이 커밋되면 THE SYSTEM SHALL Valkey `nerv_events` 채널로 `{id, type, project_id}` JSON을 PUBLISH하고, 롤백 시 발행하지 않는다(§3) | SUBSCRIBE 클라이언트 붙인 통합 테스트(커밋/롤백 각 1건) |
 | REQ-DB-006 | WHEN 위임 명세 4요소 중 하나라도 NULL인 `task`를 `backlog`·`blocked` 밖의 상태로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 4요소 각각 NULL로 4케이스 |
 | REQ-DB-007 | WHEN `spec_impact IS NULL`인 `task`를 `done`으로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + `{"none": true}` 통과 1건 |
 | REQ-DB-008 | WHEN `requirement_id`·`spec_version_id`·`task_id`가 전부 NULL인 `evidence`를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + 각 앵커 단독 통과 3건 |
@@ -1046,7 +1033,7 @@ data-model §5.5의 9규칙이 어디서 강제되는지의 최종 답이다. "�
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 27종 필드 의미·상태 머신·인덱스 §5.3·무결성 규칙 §5.5·보존 정책 §5.4. **이 문서의 모든 테이블·컬럼 이름의 원천**
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 이벤트 이름 정본(§6), 클레임 의사코드(§4.4), 초안 편집 리스 규약(§1.2), 소규모 완화(§2.3)
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — DDL 주석이 인용한 `nerv_*` 도구 계약(§2)과 ingest 멱등 키
-- [3.2 시스템 아키텍처](../03-proposal/architecture.md) — LISTEN/NOTIFY 팬아웃 구조(§4.4), 저장 전략 D-01, 보존 2층 구조(§2.5)
+- [3.2 시스템 아키텍처](../03-proposal/architecture.md) — Valkey pub/sub 팬아웃 구조(§4.4), 저장 전략 D-01, 보존 2층 구조(§2.5)
 - [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) — FR·NFR·P 번호의 정의
 
 ### 4부 형제 문서

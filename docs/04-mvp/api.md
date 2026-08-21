@@ -1,21 +1,21 @@
 ---
 id: SPC-MVP-API
 status: draft
-updated: 2026-08-20
+updated: 2026-08-21
 ---
 # API 명세
 
-> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`) 세 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), WebSocket 계약(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용), MCP MVP 15종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
+> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 15종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [api.html](../html/api.html)
 
 ---
 
 ## 1. 공통 규약
 
-### 1.1 하나의 서비스, 세 개의 표면 (D-05)
+### 1.1 하나의 서비스, 네 개의 표면 (D-05)
 
-NERV API는 표면이 셋이고 판정 코드는 한 벌이다. NestJS(Fastify 어댑터)의 REST 컨트롤러·MCP 게이트웨이·WebSocket 게이트웨이가 **같은 도메인 서비스**(SpecService·TaskService·SessionService·ApprovalService·QuestionService·EventService)를 주입받는다. 게이트 판정(스펙 승인 조건, 클레임 겹침, done 전이 조건)이 표면마다 갈라지는 것이 최악의 실패이며, 이 문서의 §4 대응 표가 그 단일화의 증명이다. 모듈 배치의 실물은 [4.2 코드베이스와 배포](codebase.md) §2가 정의한다.
+NERV API는 표면이 넷이고 판정 코드는 한 벌이다. NestJS(Fastify 어댑터)의 REST 컨트롤러·MCP 게이트웨이·WebSocket 게이트웨이·SSE 컨트롤러가 **같은 도메인 서비스**(SpecService·TaskService·SessionService·ApprovalService·QuestionService·EventService)를 주입받는다. 게이트 판정(스펙 승인 조건, 클레임 겹침, done 전이 조건)이 표면마다 갈라지는 것이 최악의 실패이며, 이 문서의 §4 대응 표가 그 단일화의 증명이다. 모듈 배치의 실물은 [4.2 코드베이스와 배포](codebase.md) §2가 정의한다.
 
 ```mermaid
 flowchart LR
@@ -23,6 +23,7 @@ flowchart LR
     R["REST 컨트롤러<br/>/api/v1 · 웹 SPA"]
     M["MCP 게이트웨이<br/>/mcp · 에이전트"]
     W["WS 게이트웨이<br/>/ws · 읽기 전용 push"]
+    E["SSE 스트림<br/>/sse · 읽기 전용 push"]
     G["훅 수집기<br/>/ingest · 텔레메트리"]
   end
   subgraph SVC["도메인 서비스 (판정·전이는 여기서만)"]
@@ -37,7 +38,9 @@ flowchart LR
   M --> SVC
   G --> S3
   SVC --> DB[("Postgres")]
-  DB -->|"NOTIFY nerv_events"| W
+  S6 -->|"커밋 후 PUBLISH"| VK[("Valkey<br/>nerv_events")]
+  VK -->|"파드별 SUBSCRIBE"| W
+  VK -->|"파드별 SUBSCRIBE"| E
 ```
 
 | 표면 | 경로 | 쓰기 | 주 사용자 | 이 문서에서 |
@@ -45,11 +48,13 @@ flowchart LR
 | REST | `/api/v1/**` | 있음 | 웹 SPA(S1~S8), 외부 연동 | §2 전표 |
 | MCP | `/mcp` (Streamable HTTP 단일 엔드포인트) | 있음 | Claude Code · Codex 세션 | §4 대응 표 — 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2 |
 | WebSocket | `/ws` | **없음** (join 외 클라이언트 emit 없음) | 웹 SPA 실시간 갱신 | §3 계약 |
+| SSE | `/sse/**` | **없음** (단방향 스트림) | 브라우저 밖 소비자(CLI·외부 도구) 실시간 구독 | §3.5 계약 |
 | 훅 ingest | `/ingest/hooks/*` | Activity·세션 전이만 | Claude/Codex 훅 | §2.9 — 정본은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3 |
 
 ### 1.2 base path와 버전
 
 - REST base path는 **`/api/v1`** 이다. 파괴적 변경은 `/api/v1`을 유지한 채 `/api/v2`를 병행 서빙하는 방식으로만 한다.
+- SSE는 **`/sse`** 프리픽스를 `/api/v1`과 분리해 쓴다 — 프록시 계층(nginx·Ingress)이 버퍼링 해제·장수명 타임아웃을 경로 단위로 걸어야 하기 때문이다([4.2 코드베이스와 배포](codebase.md) §5.4·§6.3). 파괴적 변경 시 `/sse/v2`를 병행 서빙한다.
 - MCP는 `/mcp` 단일 엔드포인트이며 프로토콜 리비전 병행 서빙 규약은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6을 따른다(이 문서는 재정의하지 않는다).
 - markdown 미러(`/api/projects/{p}/specs/{id}.md` · `/api/projects/{p}/llms.txt`)는 [시스템 아키텍처](../03-proposal/architecture.md) §2.4의 경로 문자열을 **그대로, 버전 프리픽스 없이** 유지한다 — `llms.txt` 인덱스와 에이전트 로컬 캐시(`.nerv/cache/`)에 링크가 박제되는 경로라 v2 전환에도 불변이어야 한다(§2.8).
 - 경로 파라미터: `{proj}` = `project.slug`(예: `clemvion`) — URL·MCP `project` 인자용 소문자 kebab 식별자로 `UNIQUE (org_id, slug)`, 표시 접두 `key`(예: `CLV`)와는 **별개 필드**다([데이터 모델](../03-proposal/data-model.md) §2.1). `{spec}`·`{task}`·`{sid}` = 표시 키 또는 내부 uuid 모두 허용, `{ver}` = SpecVersion uuid, `{no}` = `version_no` 정수. 표시 키 발급 규칙(`<project.key>-<타입>-<base32 6자>`)은 [데이터 모델](../03-proposal/data-model.md) §5.1 정본이고, 본문 예시는 기존 문서의 표기 예시(`SPC-CWC-007`·`TSK-a3f8` 등, [화면 설계](../03-proposal/ui-wireframes.md) §1.4)를 그대로 쓴다.
@@ -286,13 +291,20 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
 ---
 
-## 3. WebSocket 계약
+## 3. 실시간 채널 계약 — WebSocket + SSE
 
-### 3.1 핸드셰이크와 인증
+실시간 채널은 **다중 채널**이다(2026-08-21 확정 — [4.1 MVP 범위와 스택 확정](scope.md) §2). 두 채널은 같은 이벤트 봉투(§3.3)를 같은 방송 버스(Valkey `nerv_events`)에서 받아 흘린다 — 차이는 대상·방향·인증뿐이다.
+
+| 채널 | 경로 | 대상 | 방향 | 인증 |
+| --- | --- | --- | --- | --- |
+| WebSocket | `/ws` | 웹 SPA | 양방향(단, 클라이언트 emit은 `join`·`leave`뿐) | better-auth 세션 쿠키 |
+| SSE | `/sse/**` | 브라우저 밖 소비자 — CLI·외부 도구·연동 스크립트 | 단방향(서버→클라이언트) | 세션 쿠키 **또는** PAT Bearer |
+
+### 3.1 WebSocket — 핸드셰이크와 인증
 
 - 엔드포인트: `wss://<host>/ws` — NestJS `@WebSocketGateway`(socket.io 어댑터).
 - **전송은 websocket만 활성**한다(폴링 폴백 off). 폴백이 없으므로 k8s 스티키 세션이 필요 없다 — 스택 확정 사항([4.1 MVP 범위와 스택 확정](scope.md) §2).
-- 인증은 핸드셰이크 시점의 better-auth 세션 쿠키 검증이다. 웹 SPA 전용 표면이며 PAT 접속은 지원하지 않는다 — 에이전트의 서버→세션 채널은 하트비트 응답이 정본이다([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4).
+- 인증은 핸드셰이크 시점의 better-auth 세션 쿠키 검증이다. 웹 SPA 전용 표면이며 PAT 접속은 지원하지 않는다 — 브라우저 밖 소비자는 SSE 채널(§3.5)을 쓴다. 에이전트의 서버→세션 지시 채널은 여전히 하트비트 응답이 정본이다([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4).
 - 인증 실패 시 socket.io `connect_error`에 `{code: "NERV_UNAUTHENTICATED"}`를 실어 즉시 끊는다.
 
 ### 3.2 룸 join 규약
@@ -307,9 +319,9 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
 ### 3.3 서버 → 클라이언트 이벤트
 
-팬아웃 경로는 단일하다: 도메인 서비스가 상태 전이와 같은 트랜잭션으로 `event` 행을 남기면, Postgres `NOTIFY`(채널 `nerv_events` — 페이로드 규약은 [4.3 데이터베이스 스키마](database.md) §3 정본)가 각 파드의 리스너를 깨우고, 파드는 자기에게 붙은 소켓의 해당 룸에만 emit한다. 크로스파드 어댑터는 없다 — 모든 emit의 원천이 PG NOTIFY이기 때문이다.
+팬아웃 경로는 단일하다: 도메인 서비스가 상태 전이와 같은 트랜잭션으로 `event` 행을 남기면, EventService가 커밋 직후 Valkey `nerv_events` 채널로 PUBLISH하고(채널·페이로드 규약은 [4.3 데이터베이스 스키마](database.md) §3 정본), 각 파드는 SUBSCRIBE로 받은 봉투를 자기에게 붙은 소켓의 해당 룸과 SSE 스트림에만 emit한다. 크로스파드 socket.io 어댑터는 없다 — 모든 emit의 원천이 Valkey 방송이기 때문이다.
 
-이벤트 이름은 socket.io 이벤트 이름으로 **Event `type` 문자열을 그대로** 쓴다 — `<리소스>.<동사>` 규약과 카탈로그는 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6이 정본이다. 페이로드는 최소 봉투이며 본문 데이터를 싣지 않는다(수신 즉시 해당 Query를 재조회한다 — §3.4).
+이벤트 이름은 socket.io 이벤트 이름으로 **Event `type` 문자열을 그대로** 쓴다 — `<리소스>.<동사>` 규약과 카탈로그는 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6이 정본이다. 페이로드는 최소 봉투이며 본문 데이터를 싣지 않는다(수신 즉시 해당 Query를 재조회한다 — §3.4). 아래 표의 **룸 열은 SSE에 그대로 대응**된다 — `project:{id}` 룸 = `GET /sse/projects/{proj}`, `user:{id}` 룸 = `GET /sse/me`(§3.5).
 
 ```json
 // socket.on("spec.approved", handler) 로 수신
@@ -343,12 +355,27 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 | ★`notification.created` | 알림 파생(배지 카운트 갱신용) | `user:{id}` | P1 |
 | `finding.opened` · `finding.resolved` · `cr.opened` | 리뷰·CR — **Phase 2**(S6·review 도구 2종과 함께) | `project:{id}` | P2 |
 
-### 3.4 재연결·무효화·keep-alive
+### 3.4 재연결·무효화·keep-alive (WS·SSE 공통)
 
-- **이벤트 재전송(replay)은 없다.** 끊겼다 재연결한 클라이언트는 밀린 이벤트를 받지 못하며, 받으려 해서도 안 된다 — 재연결 성공 시 클라이언트는 **화면의 활성 Query를 전부 재조회**한다(TanStack Query invalidate). 이벤트 유실은 허용되고 진실은 DB다(D-14).
+- **이벤트 재전송(replay)은 없다.** 끊겼다 재연결한 클라이언트는 밀린 이벤트를 받지 못하며, 받으려 해서도 안 된다 — 재연결 성공 시 클라이언트는 **화면의 활성 Query를 전부 재조회**한다(웹 SPA는 TanStack Query invalidate). SSE의 `Last-Event-ID` 재개도 같은 이유로 지원하지 않는다(§3.5). 이벤트 유실은 허용되고 진실은 DB다(D-14).
 - 정상 수신 시의 이벤트→Query 무효화 매핑(어떤 이벤트가 어떤 화면 Query 키를 무효화하는가)은 [4.5 화면 명세](screens.md)가 화면별로 정의한다. 이 문서의 계약은 "봉투에는 재조회에 필요한 식별자만 있다"까지다.
-- keep-alive는 socket.io 기본 ping(주기 25초·타임아웃 20초)을 그대로 쓴다. **에이전트 하트비트 60초와는 무관하다** — 그것은 MCP 클레임 리스 규약이다.
-- 서버 재기동·배포 시 클라이언트는 socket.io 기본 백오프로 재접속하고, 위 재조회 규칙이 정합성을 복구한다. 연결 상태는 앱 셸의 실시간 연결 배너가 표시한다([4.5 화면 명세](screens.md)).
+- keep-alive — WS는 socket.io 기본 ping(주기 25초·타임아웃 20초)을 그대로 쓰고, SSE는 25초 주기의 코멘트 라인(`: ping`)을 송신한다. **에이전트 하트비트 60초와는 무관하다** — 그것은 MCP 클레임 리스 규약이다.
+- 서버 재기동·배포 시 클라이언트는 재접속하고(WS는 socket.io 기본 백오프, SSE는 `EventSource` 기본 재시도 또는 클라이언트 백오프), 위 재조회 규칙이 정합성을 복구한다. 연결 상태는 앱 셸의 실시간 연결 배너가 표시한다([4.5 화면 명세](screens.md)).
+
+### 3.5 SSE 계약
+
+브라우저 밖 소비자를 위한 단방향 구독 채널이다(2026-08-21 확정 — WebSocket 단일 채널의 재검토 트리거 "브라우저 밖 소비자가 실시간 구독을 원할 때"가 점화됐다). 표면은 EventModule의 `sse.controller.ts`가 소유한다([4.2 코드베이스와 배포](codebase.md) §2.2).
+
+| ID | 메서드 · 경로 | 권한 | 응답 |
+| --- | --- | --- | --- |
+| EP-SSE-01 | `GET /sse/projects/{proj}` | 프로젝트 멤버(세션 쿠키) 또는 해당 프로젝트에 바인딩된 PAT | `text/event-stream` — `project:{id}` 룸과 동일한 이벤트 흐름(§3.3 표) |
+| EP-SSE-02 | `GET /sse/me` | 본인(세션 쿠키) 또는 PAT(소유 사용자 기준) | `text/event-stream` — `user:{id}` 룸과 동일한 이벤트 흐름 |
+
+- **이벤트 형식**: 메시지마다 `event:` = Event `type`(예: `spec.approved`), `id:` = event id, `data:` = §3.3의 최소 봉투 JSON. 본문 데이터는 싣지 않는다 — 상세는 수신자가 자기 권한으로 REST/MCP 재조회한다.
+- **PAT 검사**: 프로젝트 바인딩만 검사한다 — 봉투에는 식별자만 흐르므로 스코프별 필터링은 두지 않고, 상세 조회 시점의 권한 검사가 최종 방어선이다. 타 프로젝트 PAT는 403(`NERV_FORBIDDEN`)으로 스트림을 열지 않는다.
+- **replay 없음**: `Last-Event-ID` 헤더는 무시한다(D-14 — §3.4). `id:` 필드는 클라이언트 측 중복 제거용 참조일 뿐이다.
+- **keep-alive**: 25초 주기 코멘트 라인(`: ping`). 프록시 계층의 버퍼링 해제·타임아웃은 [4.2 코드베이스와 배포](codebase.md) §5.4(nginx)·§6.3(Ingress)이 정본이다.
+- **연결 상한**: 사용자당 동시 SSE 연결 8개(WS의 project 룸 8개 제한과 같은 값). 초과 시 429 `NERV_RATE_LIMIT`.
 
 ---
 
@@ -393,9 +420,11 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | REQ-API-007 | WHEN 다른 사용자가 편집 리스를 보유한 draft에 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 `NERV_DRAFT_LEASED`와 보유자(사용자·표면)를 반환한다. WHEN 같은 사용자가 다른 표면에서 요청하면 THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알림을 만든다 | [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2 표 재현 |
 | REQ-API-008 | WHEN 승인 요청자 본인·초안 작성 세션의 소유자가 EP-APR-03으로 승인을 시도하면 THE SYSTEM SHALL HTTP 403 `NERV_FORBIDDEN`(`details.rule = "requester-neq-approver"`)을 반환한다. WHEN 대상 content hash가 변해 있으면 THE SYSTEM SHALL 같은 코드로 stale 승인을 거부한다 | §2.3 판정 5규칙 각각 1케이스 |
 | REQ-API-009 | WHEN 미인증 소켓이 `/ws`에 연결을 시도하면 THE SYSTEM SHALL `connect_error`(`NERV_UNAUTHENTICATED`)로 끊고, WHEN 비멤버가 `project:{id}` join을 시도하면 THE SYSTEM SHALL ack `{ok:false, code:"NERV_FORBIDDEN"}`을 반환하며 룸에 넣지 않는다 | 비멤버 join 후 이벤트 미수신 확인 |
-| REQ-API-010 | WHEN WebSocket 클라이언트가 재연결에 성공하면 THE SYSTEM SHALL 밀린 이벤트를 재전송하지 않는다(재조회는 클라이언트 책임 — D-14) | 단절 구간 이벤트 발생 후 재연결, 수신 0건 확인 |
-| REQ-API-011 | WHEN 상태 전이가 커밋되면 THE SYSTEM SHALL 같은 트랜잭션의 `event` 행과, 그로부터 파생된 WS emit이 §3.3 표의 룸으로 5초 이내(NFR-02) 도달하게 한다 | 전이→보드 반영 p95 측정 |
+| REQ-API-010 | WHEN WebSocket 또는 SSE 클라이언트가 재연결에 성공하면 THE SYSTEM SHALL 밀린 이벤트를 재전송하지 않는다(재조회는 클라이언트 책임 — D-14). SSE의 `Last-Event-ID` 헤더는 무시한다 | 단절 구간 이벤트 발생 후 재연결, 수신 0건 확인(WS·SSE 각 1건) |
+| REQ-API-011 | WHEN 상태 전이가 커밋되면 THE SYSTEM SHALL 같은 트랜잭션의 `event` 행과, 그로부터 파생된 WS emit·SSE 송신이 §3.3 표의 룸/스트림으로 5초 이내(NFR-02) 도달하게 한다 | 전이→보드 반영 p95 측정(WS) + SSE 수신 지연 측정 |
 | REQ-API-012 | WHEN 쿼터를 초과한 요청이 오면 THE SYSTEM SHALL HTTP 429 `NERV_RATE_LIMIT`과 `retry_after_s`·`Retry-After` 헤더를 함께 반환한다 | 버스트 요청 |
+| REQ-API-013 | WHEN 미인증 요청이 `/sse/*`에 오면 THE SYSTEM SHALL HTTP 401 `NERV_UNAUTHENTICATED`로 거부하고, WHEN 비멤버 사용자 또는 타 프로젝트 PAT가 EP-SSE-01을 요청하면 THE SYSTEM SHALL HTTP 403 `NERV_FORBIDDEN`으로 스트림을 열지 않는다 | 쿠키 없음·타 프로젝트 PAT 각 1케이스 |
+| REQ-API-014 | WHILE SSE 스트림이 열려 있는 동안, THE SYSTEM SHALL 25초 주기의 코멘트 라인(`: ping`)을 송신해 프록시 유휴 타임아웃을 방지한다 | 60초 무이벤트 구간에서 keep-alive 2회 이상 수신 |
 
 ---
 
@@ -413,9 +442,9 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 확정 스택(NestJS·socket.io·better-auth)과 MVP 도구 15종 범위
-- [4.2 코드베이스와 배포](codebase.md) — §2 모듈 맵(표면↔서비스 주입 구조의 실물)·§3 `packages/schema` zod 공유 규칙
-- [4.3 데이터베이스 스키마](database.md) — §3 `NOTIFY` 채널(`nerv_events`)과 페이로드 규약
+- [4.1 MVP 범위와 스택 확정](scope.md) — 확정 스택(NestJS·socket.io·better-auth·실시간 WebSocket + SSE·방송 MQ Valkey)과 MVP 도구 15종 범위
+- [4.2 코드베이스와 배포](codebase.md) — §2 모듈 맵(표면↔서비스 주입 구조의 실물)·§3 `packages/schema` zod 공유 규칙·§5.4/§6.3 SSE 프록시 규약
+- [4.3 데이터베이스 스키마](database.md) — §3 이벤트 방송 규약(Valkey `nerv_events` 채널·페이로드)
 - [4.5 화면 명세](screens.md) — 엔드포인트 ID 인용처, 이벤트→Query 무효화 매핑
 - [4.6 플러그인과 온보딩](plugin.md) — 훅 페이로드 실물과 PAT 발급 온보딩 절차
 

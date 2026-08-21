@@ -1,13 +1,13 @@
 ---
 id: SPC-MVP-CODEBASE
 status: draft
-updated: 2026-08-20
+updated: 2026-08-21
 ---
 # 코드베이스와 배포
 
-> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. pnpm 모노레포(`apps/web` · `apps/api` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·ingest 네 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 행동 요구는 REQ-CB-001~014로 번호를 부여했다.
+> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **구현 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 행동 요구는 REQ-CB-001~015로 번호를 부여했다.
 >
-> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [codebase.html](../html/codebase.html)
 
 ---
 
@@ -17,43 +17,48 @@ updated: 2026-08-20
 
 언어·저장소 구조는 TypeScript + pnpm workspace로 확정됐다([3.2 시스템 아키텍처](../03-proposal/architecture.md) §4.1, 스택 확정 전문은 [4.1 MVP 범위와 스택 확정](scope.md)). Turborepo는 빌드 시간이 아플 때 도입한다 — 트리거만 기록하고 지금은 넣지 않는다.
 
+**구현 코드는 저장소 루트가 아니라 `codebase/` 하위에 쓴다**(REQ-CB-015). 저장소 루트는 문서(`docs/`)·에이전트 규약(`AGENTS.md`·`CLAUDE.md`)·구현(`codebase/`)의 세 구역으로 나뉘고, 모노레포 루트는 `codebase/`다. 이 문서를 포함한 전 문서에서 `apps/*`·`packages/*`·`deploy/*` 경로 표기는 **`codebase/` 기준 상대 경로**이며, `pnpm`·`docker compose` 명령은 `codebase/`에서 실행한다(§5.1).
+
 ```text
-nerv/
-  package.json                  # 루트 — 워크스페이스 스크립트 허브 (§5.1 명령 표)
-  pnpm-workspace.yaml           # packages: ["apps/*", "packages/*"]
-  pnpm-lock.yaml
-  .nvmrc                        # Node LTS 핀 — 로컬·CI·이미지가 같은 값을 쓴다 (REQ-CB-002)
-  tsconfig.base.json            # strict 공통 옵션 (§4.1)
-  eslint.config.js              # lint + import 경계 규칙 (§4.2)
-  .prettierrc
-  .env.example                  # §5.2 전표의 실물 — 값 없는 키 목록 + 주석
-  apps/
-    web/                        # @nerv/web — Vite + React SPA (화면 명세는 4.5)
-      index.html
-      vite.config.ts            # dev proxy: /api·/mcp·/ingest·/socket.io → :8080 (§5.1)
-      src/
-        routes/                 # TanStack Router 파일 라우트
-        features/               # 화면 단위 모듈 (spec-editor · task-board · session-monitor …)
-        components/             # 공용 UI — Tailwind + shadcn/ui 파생
-        lib/                    # API 클라이언트 · WS 클라이언트 · 이벤트→쿼리 무효화 매핑
-    api/                        # @nerv/api — NestJS(Fastify). REST·MCP·WS·ingest + 워커 엔트리 (§2)
-      src/                      # 상세 트리는 §2.2
-  packages/
-    schema/                     # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
-  deploy/
-    compose/
-      docker-compose.yml        # §5.3 전문 — 로컬·소규모 자가호스팅 정본
-    docker/
-      Dockerfile.server         # nerv-api · nerv-worker 이미지 (§6.1)
-      Dockerfile.web            # nerv-web 이미지 (§6.1)
-      nginx/
-        default.conf.template   # §5.4 전문 — reverse-proxy · WebSocket 업그레이드 · /mcp Origin 1차 검증
-    k8s/
-      base/                     # §6.2 트리 — Deployment · Service · Job · Ingress
-      overlays/
-        dev/
-        prod/
+nerv/                           # 저장소 루트 — 구현 코드 없음
+  AGENTS.md                     # 에이전트 공통 작업 규약 (Codex·Claude Code 공용)
+  CLAUDE.md                     # Claude Code 진입점 — @AGENTS.md import만 한다
   docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 clemvion 임포터 §5)
+  codebase/                     # ★ 구현 코드 전체 = 모노레포 루트 (REQ-CB-015)
+    package.json                # 워크스페이스 스크립트 허브 (§5.1 명령 표)
+    pnpm-workspace.yaml         # packages: ["apps/*", "packages/*"]
+    pnpm-lock.yaml
+    .nvmrc                      # Node LTS 핀 — 로컬·CI·이미지가 같은 값을 쓴다 (REQ-CB-002)
+    tsconfig.base.json          # strict 공통 옵션 (§4.1)
+    eslint.config.js            # lint + import 경계 규칙 (§4.2)
+    .prettierrc
+    .env.example                # §5.2 전표의 실물 — 값 없는 키 목록 + 주석
+    apps/
+      web/                      # @nerv/web — Vite + React SPA (화면 명세는 4.5)
+        index.html
+        vite.config.ts          # dev proxy: /api·/mcp·/ingest·/socket.io·/sse → :8080 (§5.1)
+        src/
+          routes/               # TanStack Router 파일 라우트
+          features/             # 화면 단위 모듈 (spec-editor · task-board · session-monitor …)
+          components/           # 공용 UI — Tailwind + shadcn/ui 파생
+          lib/                  # API 클라이언트 · WS 클라이언트 · 이벤트→쿼리 무효화 매핑
+      api/                      # @nerv/api — NestJS(Fastify). REST·MCP·WS·SSE·ingest + 워커 엔트리 (§2)
+        src/                    # 상세 트리는 §2.2
+    packages/
+      schema/                   # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
+    deploy/
+      compose/
+        docker-compose.yml      # §5.3 전문 — 로컬·소규모 자가호스팅 정본
+      docker/
+        Dockerfile.server       # nerv-api · nerv-worker 이미지 (§6.1)
+        Dockerfile.web          # nerv-web 이미지 (§6.1)
+        nginx/
+          default.conf.template # §5.4 전문 — reverse-proxy · WebSocket 업그레이드 · SSE 버퍼링 해제 · /mcp Origin 1차 검증
+      k8s/
+        base/                   # §6.2 트리 — Deployment · Service · Job · Ingress
+        overlays/
+          dev/
+          prod/
 ```
 
 ### 1.2 패키지 책임
@@ -71,6 +76,7 @@ nerv/
 | --- | --- |
 | **REQ-CB-001** | WHEN `apps/*`의 코드가 다른 워크스페이스를 import할 때, THE SYSTEM SHALL `packages/*`만 허용하고 `apps/*` 간 import는 lint 에러로 차단한다(`eslint.config.js`의 `no-restricted-imports`). |
 | **REQ-CB-002** | WHEN 로컬·CI·컨테이너 이미지가 Node/pnpm을 결정할 때, THE SYSTEM SHALL `.nvmrc`(Node LTS)와 루트 `package.json`의 `packageManager` 필드를 단일 정본으로 사용한다 — 버전이 세 곳에서 달라지는 순간이 결함이다. |
+| **REQ-CB-015** | WHEN 구현 코드(애플리케이션·패키지·배포 산출물·스크립트)가 저장소에 추가될 때, THE SYSTEM SHALL 저장소 루트의 `codebase/` 하위에만 배치한다 — `docs/`에는 문서와 그 파생물(html)만, 저장소 루트에는 에이전트 규약 파일(`AGENTS.md`·`CLAUDE.md`)과 저장소 메타 파일만 둔다. |
 
 `pnpm-workspace.yaml` 전문:
 
@@ -82,18 +88,19 @@ packages:
 
 ---
 
-## 2. `apps/api` — 표면 4종이 같은 도메인 서비스를 공유한다 (D-05)
+## 2. `apps/api` — 표면 5종이 같은 도메인 서비스를 공유한다 (D-05)
 
 ### 2.1 원칙 — 게이트 판정이 표면마다 갈라지는 것이 최악의 실패
 
-REST·MCP·WebSocket이 **같은 도메인 서비스를 DI로 공유**한다(D-05, [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1). NestJS를 택한 이유가 이 구조의 강제였다([3.2](../03-proposal/architecture.md) §4.2). 표면(컨트롤러·게이트웨이)은 **번역만** 한다 — 인증 컨텍스트 추출, 입력의 zod 검증, 도메인 서비스 호출, 응답 포맷 변환. 상태 전이 규칙·게이트 판정·겹침 검사는 도메인 서비스 한 곳에만 있다.
+REST·MCP·WebSocket·SSE가 **같은 도메인 서비스를 DI로 공유**한다(D-05, [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1). NestJS를 택한 이유가 이 구조의 강제였다([3.2](../03-proposal/architecture.md) §4.2). 표면(컨트롤러·게이트웨이)은 **번역만** 한다 — 인증 컨텍스트 추출, 입력의 zod 검증, 도메인 서비스 호출, 응답 포맷 변환. 상태 전이 규칙·게이트 판정·겹침 검사는 도메인 서비스 한 곳에만 있다.
 
 ```mermaid
 flowchart TB
-  subgraph SURF["표면 4종 — 번역만, 규칙 없음"]
+  subgraph SURF["표면 5종 — 번역만, 규칙 없음"]
     REST["REST 컨트롤러<br/>/api/v1/*"]
     MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 15종"]
     WS["WS 게이트웨이<br/>/socket.io · 룸 join"]
+    SSE["SSE 스트림<br/>GET /sse/* · 단방향"]
     ING["ingest 컨트롤러<br/>/ingest/hooks/* 5종"]
   end
   subgraph DOM["도메인 모듈 — 상태 전이·게이트 판정의 단일 구현"]
@@ -104,7 +111,8 @@ flowchart TB
     EV["EventService"]
   end
   PG[("Postgres<br/>스키마 정본: packages/schema")]
-  LSN["PgListenerService<br/>LISTEN nerv_events"]
+  VK[("Valkey<br/>nerv_events pub/sub")]
+  SUB["EventSubscriberService<br/>파드별 SUBSCRIBE nerv_events"]
 
   REST --> SS
   REST --> TS
@@ -120,18 +128,20 @@ flowchart TB
   TS --> EV
   SES --> EV
   AP --> EV
-  EV -->|"같은 트랜잭션에 event 행 + 커밋 후 NOTIFY"| PG
-  PG -->|"NOTIFY nerv_events"| LSN
-  LSN -->|"자기 파드의 소켓에만 emit"| WS
+  EV -->|"같은 트랜잭션에 event 행"| PG
+  EV -->|"커밋 후 PUBLISH"| VK
+  VK -->|"파드별 구독"| SUB
+  SUB -->|"자기 파드의 소켓에만 emit"| WS
+  SUB -->|"자기 파드의 스트림에만 송신"| SSE
 ```
 
-팬아웃 경로가 곧 무상태 수평 확장의 근거다: **모든 emit의 원천이 PG NOTIFY**이므로 파드마다 `LISTEN`을 걸면 크로스파드 어댑터 없이 각 파드가 자기 소켓에 밀어줄 수 있고, socket.io는 websocket 전송만 활성화해(폴링 폴백 off) k8s 스티키 세션이 필요 없다. 재연결 시 클라이언트는 화면 데이터를 재조회한다 — 이벤트 유실은 허용하고 진실은 DB다(D-14). NOTIFY 채널 이름(`nerv_events`)과 페이로드 규약의 정본은 [4.3 데이터베이스 스키마](database.md) §3이다.
+팬아웃 경로가 곧 무상태 수평 확장의 근거다: **모든 emit의 원천이 Valkey `nerv_events` 방송**이므로(MQ — 확정 스택, [4.1 MVP 범위와 스택 확정](scope.md) §2) 파드마다 `SUBSCRIBE`를 걸면 크로스파드 socket.io 어댑터 없이 각 파드가 자기에게 붙은 WS 소켓·SSE 스트림에 밀어줄 수 있고, socket.io는 websocket 전송만 활성화해(폴링 폴백 off) k8s 스티키 세션이 필요 없다. 재연결 시 클라이언트는 화면 데이터를 재조회한다 — 이벤트 유실은 허용하고 진실은 DB다(D-14). 방송 채널 이름(`nerv_events`)과 페이로드 규약의 정본은 [4.3 데이터베이스 스키마](database.md) §3이다.
 
 ### 2.2 `apps/api/src` 트리 전문
 
 ```text
 apps/api/src/
-  main.ts                        # HTTP 엔트리 — Nest(Fastify) 부트스트랩: REST + MCP + WS + ingest
+  main.ts                        # HTTP 엔트리 — Nest(Fastify) 부트스트랩: REST + MCP + WS + SSE + ingest
   worker.ts                      # 워커 엔트리 — 같은 AppModule 조립에서 HTTP 표면 제외, 잡 러너만 (REQ-CB-005)
   migrate.ts                     # drizzle 마이그레이션 적용 후 종료 — compose 기동·k8s Job 공용 엔트리 (§5.3·§6.3)
   app.module.ts
@@ -175,11 +185,13 @@ apps/api/src/
       review.service.ts
     event/                       # EventModule
       event.module.ts
-      event.service.ts           # event 행 삽입(도메인 트랜잭션 안) + 커밋 후 NOTIFY (REQ-CB-004)
+      event.service.ts           # event 행 삽입(도메인 트랜잭션 안) + 커밋 후 Valkey PUBLISH (REQ-CB-004)
       notification.service.ts
       event.controller.ts        # REST — 이벤트 피드 · 알림
       ws.gateway.ts              # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
-      pg-listener.service.ts     # 파드별 LISTEN nerv_events → 자기 소켓 emit
+      sse.controller.ts          # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
+      valkey.service.ts          # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리
+      event-subscriber.service.ts # 파드별 SUBSCRIBE nerv_events → 자기 소켓·SSE 스트림 emit
   mcp/
     mcp.controller.ts            # POST /mcp — Streamable HTTP, 신·구 리비전 병행 협상
     tool-registry.ts             # modules/**/*.tools.ts 수집 · zod 입력 검증 · idempotency_key 공통 처리
@@ -208,7 +220,7 @@ apps/api/src/
 | `SessionModule` | `agent_session` `activity` | `nerv_bootstrap`(P0) · `nerv_session_event`(P1) | `…/projects/{p}/sessions` + `/ingest/hooks/*` |
 | `ApprovalModule` | `approval` `question` | `nerv_question_create`(P1) | `…/projects/{p}/approvals` · `…/questions` |
 | `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` | (P2 — `nerv_review_submit` `nerv_finding_resolve`) | (P2) |
-| `EventModule` | `event` `notification` | — | `…/projects/{p}/events` + WebSocket |
+| `EventModule` | `event` `notification` | — | `…/projects/{p}/events` + WebSocket · SSE(`/sse/*`) |
 
 합계 검산: MVP 도구 = P0 8종 + P1 7종 = **15종**, 리뷰 2종은 P2(카탈로그 총 17종 — [3.4](../03-proposal/agent-integration.md) §2.3). 테이블 5+7+4+2+2+5+2 = **27종**.
 
@@ -218,13 +230,14 @@ apps/api/src/
 | --- | --- | --- | --- |
 | REST | `/api/v1/*` | better-auth 세션 쿠키(웹) 또는 PAT Bearer | 계약 전표는 [4.4 API 명세](api.md) |
 | MCP | `POST /mcp` | PAT Bearer(MVP) — OAuth 2.1은 Phase 2 | Streamable HTTP, 2026-07-28 리비전 + 구 리비전 병행([3.2](../03-proposal/architecture.md) §4.3). Origin 검증은 `mcp-origin.guard.ts`가 최종 강제(REQ-CB-013) — 전단 nginx는 1차 차단일 뿐이다 |
-| WebSocket | `/socket.io` | 핸드셰이크에서 세션 쿠키 검증 | websocket 전송만. 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사 |
+| WebSocket | `/socket.io` | 핸드셰이크에서 세션 쿠키 검증 | websocket 전송만. 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. 웹 SPA 전용 |
+| SSE | `GET /sse/projects/{p}` · `GET /sse/me` | 세션 쿠키 또는 PAT Bearer | 단방향 `text/event-stream` — 브라우저 밖 소비자(CLI·외부 도구)용 구독 채널. replay 없음(D-14), 계약 정본은 [4.4 API 명세](api.md) §3.5 |
 | ingest | `POST /ingest/hooks/*` | PAT Bearer(`Authorization` 헤더) — 토큰 없는 이벤트는 버린다 | 202 즉시 응답 후 적재. `Stop` 훅만 동기 판정 경로([3.2](../03-proposal/architecture.md) §1.3) |
 
 | ID | 요구(EARS) |
 | --- | --- |
 | **REQ-CB-003** | WHEN 같은 상태 전이(예: draft 저장, 클레임, done 시도)가 REST와 MCP 어느 표면에서 호출되든, THE SYSTEM SHALL 동일한 도메인 서비스 메서드 하나를 실행한다 — 표면 코드에 조건 분기·게이트 규칙이 들어가면 결함이다. |
-| **REQ-CB-004** | WHEN 도메인 서비스가 상태 전이 트랜잭션을 커밋할 때, THE SYSTEM SHALL 같은 트랜잭션 안에서 `event` 행을 삽입하고 커밋 후에 NOTIFY를 발행한다(채널·페이로드 정본: [4.3](database.md) §3). |
+| **REQ-CB-004** | WHEN 도메인 서비스가 상태 전이 트랜잭션을 커밋할 때, THE SYSTEM SHALL 같은 트랜잭션 안에서 `event` 행을 삽입하고 커밋 후에 Valkey `nerv_events` 채널로 PUBLISH한다(채널·페이로드 정본: [4.3](database.md) §3). |
 | **REQ-CB-005** | WHEN `worker.ts` 엔트리로 기동되면, THE SYSTEM SHALL HTTP 리스너를 열지 않고 잡 러너만 구동한다 — 워커가 트래픽을 받는 순간 replica 1 규칙(§6.3)이 무의미해진다. |
 
 ---
@@ -268,7 +281,7 @@ packages/schema/
 | `HEARTBEAT_INTERVAL_SECONDS` | `60` | [3.4](../03-proposal/agent-integration.md) §2.3 `nerv_task_heartbeat` |
 | `SESSION_STALE_SECONDS` | `1800` (30분) | 리스 TTL과 같은 값으로 묶는 이유는 [3.4](../03-proposal/agent-integration.md) §5.2 |
 | `REVIEW_PROMPT_BLOB_TTL_DAYS` | `30` | [3.2](../03-proposal/architecture.md) §2.5 |
-| `PG_NOTIFY_CHANNEL` | `'nerv_events'` | [4.3 데이터베이스 스키마](database.md) §3 |
+| `EVENTS_CHANNEL` | `'nerv_events'` | Valkey pub/sub 방송 채널 — [4.3 데이터베이스 스키마](database.md) §3 |
 | `WORKER_ADVISORY_LOCK_KEY` | 프로젝트 전역 단일 키(bigint 리터럴 1개) | §6.3 — 워커 단일 실행 |
 
 | ID | 요구(EARS) |
@@ -313,20 +326,20 @@ L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시
 ### 5.1 부트스트랩 절차 — 신규 장비에서 로그인 화면까지
 
 ```bash
-git clone <forge>/nerv && cd nerv
+git clone <forge>/nerv && cd nerv/codebase   # 모노레포 루트는 codebase/ (REQ-CB-015)
 corepack enable                 # .nvmrc 의 Node LTS + package.json 의 pnpm 버전 사용
 cp .env.example .env            # §5.2 전표 — 필수 3개(POSTGRES_PASSWORD·MINIO_ROOT_PASSWORD·NERV_AUTH_SECRET)만 채우면 기동된다
 pnpm install
-pnpm compose:up                 # postgres → minio → migrate → api·worker → web 순서로 기동 (§5.3)
+pnpm compose:up                 # postgres·minio·valkey → migrate → api·worker → web 순서로 기동 (§5.3)
 open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 생성은 4.6 온보딩 절차
 ```
 
 개발 루프(HMR)가 필요하면 인프라만 compose로 띄우고 앱은 로컬 프로세스로 돈다:
 
 ```bash
-pnpm compose:infra              # postgres · minio 만 기동
+pnpm compose:infra              # postgres · minio · valkey 만 기동
 pnpm db:migrate                 # drizzle 마이그레이션 적용 (= node apps/api/dist/migrate.js 의 dev 판)
-pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api·/mcp·/ingest·/socket.io 프록시) 병렬
+pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api·/mcp·/ingest·/socket.io·/sse 프록시) 병렬
 ```
 
 루트 `package.json` 스크립트 표:
@@ -339,7 +352,7 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 | `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로 |
 | `pnpm db:seed` | 개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등([4.3 데이터베이스 스키마](database.md) §4, REQ-DB-002) |
 | `pnpm compose:up` | `docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build` |
-| `pnpm compose:infra` | 위 명령 + `postgres minio` 서비스만 |
+| `pnpm compose:infra` | 위 명령 + `postgres minio valkey` 서비스만 |
 | `pnpm compose:down` | 스택 정지(볼륨 유지) |
 
 | ID | 요구(EARS) |
@@ -361,6 +374,8 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 | `NERV_API_PORT` | | `8080` | api | |
 | `NERV_PUBLIC_URL` | | `http://localhost:8080` | api(세션 쿠키·CORS 기준) · web(`/mcp` Origin 1차 검증) | 경로 없는 오리진만 |
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
+| `VALKEY_PORT` | | `6379` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 Valkey 접근 |
+| `NERV_VALKEY_URL` | dev 루프 시 | `redis://localhost:6379` | api · worker | 실시간 방송 MQ(§2.1). compose 내부에서는 `redis://valkey:6379`로 자동 조립(Valkey는 RESP 프로토콜 — `redis://` 스킴) |
 | `MINIO_ROOT_USER` | | `nerv` | compose `minio` · S3 자격증명 | |
 | `MINIO_ROOT_PASSWORD` | **필수** | — | compose `minio` · S3 자격증명 | |
 | `MINIO_PORT` | | `9000` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 S3 접근 |
@@ -379,7 +394,7 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 ```yaml
 # deploy/compose/docker-compose.yml
 # NERV 로컬 개발 · 소규모 자가호스팅 정본 (NFR-01).
-# 실행: 저장소 루트에서
+# 실행: 모노레포 루트(codebase/)에서
 #   docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build
 # (래퍼: pnpm compose:up — docs/04-mvp/codebase.md §5.1)
 # 운영 k8s 는 deploy/k8s (§6). 같은 이미지 3종(nerv-api·nerv-worker·nerv-web)을 두 타깃이 공유한다.
@@ -402,6 +417,18 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+
+  valkey:                            # 실시간 방송 MQ — nerv_events pub/sub (§2.1, 4.3 §3)
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]   # pub/sub 전용 — 무영속(유실 허용, 진실은 DB — D-14)
+    ports:
+      - "127.0.0.1:${VALKEY_PORT:-6379}:6379"    # 개발 루프용 — 운영 배포에서는 제거
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
 
   minio:
     image: minio/minio:latest        # 운영은 RELEASE 태그·다이제스트로 고정할 것
@@ -435,7 +462,7 @@ services:
       postgres:
         condition: service_healthy
 
-  api:                               # nerv-api — REST + MCP + WebSocket + ingest (§2)
+  api:                               # nerv-api — REST + MCP + WebSocket + SSE + ingest (§2)
     image: nerv-api:${NERV_TAG:-dev}
     build:
       context: ../..
@@ -449,6 +476,7 @@ services:
       NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
+      NERV_VALKEY_URL: redis://valkey:6379
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -458,6 +486,8 @@ services:
       migrate:
         condition: service_completed_successfully
       minio:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
@@ -476,6 +506,7 @@ services:
       NODE_ENV: production
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
+      NERV_VALKEY_URL: redis://valkey:6379
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -485,6 +516,8 @@ services:
       migrate:
         condition: service_completed_successfully
       minio:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
 
   web:                               # nerv-web — Vite 산출물 + nginx reverse-proxy (§5.4)
@@ -565,6 +598,19 @@ server {
   location /ingest/ {
     client_max_body_size 5m;           # 훅 페이로드 상한
     proxy_pass http://nerv_api;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # SSE — 단방향 이벤트 스트림, 버퍼링 금지 (REQ-CB-014)
+  location /sse/ {
+    proxy_pass http://nerv_api;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 3600s;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -657,12 +703,15 @@ deploy/k8s/
   base/
     kustomization.yaml
     namespace.yaml               # Namespace nerv
-    configmap.yaml               # 비밀 아닌 설정 — NERV_PUBLIC_URL · NERV_S3_BUCKET …
+    configmap.yaml               # 비밀 아닌 설정 — NERV_PUBLIC_URL · NERV_S3_BUCKET · NERV_VALKEY_URL(redis://nerv-valkey:6379) …
     api/
       deployment.yaml            # §6.3 전문
       service.yaml               # nerv-api :8080 (name: http)
     worker/
       deployment.yaml            # §6.3 전문 — replicas 1 · Recreate
+    valkey/
+      deployment.yaml            # §6.3 전문 — replicas 1 · 무영속 pub/sub 전용
+      service.yaml               # nerv-valkey :6379 (name: redis)
     web/
       deployment.yaml            # nginx · NERV_API_UPSTREAM=nerv-api:8080
       service.yaml               # nerv-web :80 (name: http)
@@ -692,6 +741,8 @@ resources:
   - api/deployment.yaml
   - api/service.yaml
   - worker/deployment.yaml
+  - valkey/deployment.yaml
+  - valkey/service.yaml
   - web/deployment.yaml
   - web/service.yaml
   - migrate/job.yaml
@@ -714,7 +765,7 @@ metadata:
   name: nerv-api
   labels: { app: nerv-api }
 spec:
-  replicas: 2                      # 무상태 — 팬아웃은 파드별 PG LISTEN(§2.1)이라 스티키 불필요
+  replicas: 2                      # 무상태 — 팬아웃은 파드별 Valkey SUBSCRIBE(§2.1)라 스티키 불필요
   selector:
     matchLabels: { app: nerv-api }
   template:
@@ -772,6 +823,41 @@ spec:
       # HTTP 포트·프로브 없음 — 잡 루프 실패는 프로세스 종료 → 재시작으로 처리
 ```
 
+`base/valkey/deployment.yaml` — 방송 MQ는 pub/sub 전용이라 무영속·단일 replica로 시작한다. 재기동 구간의 이벤트 유실은 허용된다(D-14 — 클라이언트 재조회·워커 폴링 폴백). HA(센티널·관리형 서비스)는 유실 재조회 비용이 실측 임계를 넘을 때의 재검토 항목이다([4.1 MVP 범위와 스택 확정](scope.md) §2.2).
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-valkey
+  labels: { app: nerv-valkey }
+spec:
+  replicas: 1                      # pub/sub 전용 — 무영속, 재기동 시 유실 허용(D-14)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: nerv-valkey }
+  template:
+    metadata:
+      labels: { app: nerv-valkey }
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8-alpine
+          args: ["valkey-server", "--save", "", "--appendonly", "no"]
+          ports:
+            - { containerPort: 6379, name: redis }
+          readinessProbe:
+            exec: { command: ["valkey-cli", "ping"] }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+```
+
+`base/valkey/service.yaml`은 `nerv-valkey` 이름으로 6379(name: redis)를 노출한다 — configmap의 `NERV_VALKEY_URL=redis://nerv-valkey:6379`가 이 이름을 계약한다.
+
 `base/migrate/job.yaml`:
 
 ```yaml
@@ -801,8 +887,9 @@ kind: Ingress
 metadata:
   name: nerv
   annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"   # WebSocket 유휴 연결 유지
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"   # WebSocket · SSE 유휴 연결 유지
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"       # SSE 스트림 버퍼링 금지 (REQ-CB-014)
     nginx.ingress.kubernetes.io/proxy-body-size: "5m"        # 훅 페이로드 상한(§5.4 와 동일)
 spec:
   ingressClassName: nginx
@@ -817,6 +904,7 @@ spec:
           - { path: /mcp,       pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
           - { path: /ingest,    pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
           - { path: /socket.io, pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
+          - { path: /sse,       pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
           - { path: /,          pathType: Prefix, backend: { service: { name: nerv-web, port: { name: http } } } }
 ```
 
@@ -841,7 +929,7 @@ kubectl -n nerv rollout status deploy/nerv-web                                  
 | **REQ-CB-011** | WHEN `nerv-worker` 인스턴스가 어떤 이유로든 2개 이상 동시에 떠 있을 때, THE SYSTEM SHALL `pg_advisory_lock(WORKER_ADVISORY_LOCK_KEY)`을 보유한 1개만 잡 루프를 실행한다 — replica 1은 배포 규칙이고, lock이 최종 방어선이다. |
 | **REQ-CB-012** | WHEN 이미지가 빌드되면, THE SYSTEM SHALL `nerv-api`·`nerv-worker`·`nerv-web` 3종에 같은 git SHA 태그를 붙이고 그 태그를 재사용(overwrite)하지 않는다. |
 | **REQ-CB-013** | WHEN `POST /mcp` 요청의 `Origin` 헤더가 존재하고 `NERV_PUBLIC_URL`의 오리진과 다를 때, THE SYSTEM SHALL 앱 가드에서 403을 반환한다 — 전단(nginx·Ingress)의 차단 여부와 무관하게. |
-| **REQ-CB-014** | WHEN 웹 클라이언트가 WebSocket을 연결할 때, THE SYSTEM SHALL websocket 전송만 협상하며(폴링 폴백 없음), 모든 프록시 계층(§5.4·§6.3)은 업그레이드 헤더와 read/send 타임아웃 3600초를 유지한다. |
+| **REQ-CB-014** | WHEN 웹 클라이언트가 WebSocket을 연결할 때, THE SYSTEM SHALL websocket 전송만 협상하며(폴링 폴백 없음), 모든 프록시 계층(§5.4·§6.3)은 업그레이드 헤더와 read/send 타임아웃 3600초를 유지한다. WHEN 클라이언트가 `/sse/*` 스트림을 연결할 때, THE SYSTEM SHALL 모든 프록시 계층에서 응답 버퍼링을 끄고 read 타임아웃 3600초를 유지한다. |
 
 ### 6.4 이미지 태깅과 overlay
 
@@ -875,10 +963,10 @@ patches:
 
 ### 이 문서가 따르는 결정·정본
 
-- D-05(REST·MCP·WS의 도메인 서비스 공유) · D-13(하트비트·stale) · D-14(fail-open, 진실은 서버 산출물) — [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md)
-- 확정 스택 전문과 결정일·재검토 트리거 — [3.2 시스템 아키텍처](../03-proposal/architecture.md) §4, [4.1 MVP 범위와 스택 확정](scope.md)
+- D-05(REST·MCP·WS·SSE의 도메인 서비스 공유) · D-13(하트비트·stale) · D-14(fail-open, 진실은 서버 산출물) — [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md)
+- 확정 스택 전문과 결정일·재검토 트리거 — [3.2 시스템 아키텍처](../03-proposal/architecture.md) §4, [4.1 MVP 범위와 스택 확정](scope.md). 실시간 채널(WebSocket + SSE)·방송 MQ(Valkey) 확정은 2026-08-21
 - 상수 정본 — 리스 TTL 30분 · 하트비트 60초 · 세션 stale 30분 · blob TTL 30일([3.4](../03-proposal/agent-integration.md) §2.7·§5.2, [3.2](../03-proposal/architecture.md) §2.5)
-- 테이블 27종의 의미 — [3.3 데이터 모델](../03-proposal/data-model.md) §1.3 / DDL·NOTIFY 규약 — [4.3 데이터베이스 스키마](database.md)
+- 테이블 27종의 의미 — [3.3 데이터 모델](../03-proposal/data-model.md) §1.3 / DDL·이벤트 방송 규약 — [4.3 데이터베이스 스키마](database.md)
 - ingest 엔드포인트 5종(`/ingest/hooks/session`·`tool`·`subagent`·`stop`·`session-end`)과 클라이언트 환경변수 — [3.4](../03-proposal/agent-integration.md) §3.3
 - clemvion 관례 — `clemvion:k8s/` base+overlays kustomize 구조([3.2](../03-proposal/architecture.md) §4.2 배포 행)
 

@@ -1,13 +1,13 @@
 ---
 id: SPC-MVP-SCOPE
 status: draft
-updated: 2026-08-20
+updated: 2026-08-21
 ---
 # MVP 범위와 스택 확정
 
-> **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 15종으로, 플러그인 스킬은 4종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
+> **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 15종으로, 플러그인 스킬은 4종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [scope.html](../html/scope.html)
+> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [scope.html](../html/scope.html)
 
 ---
 
@@ -39,9 +39,9 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 
 | 실물 | 어디에 | 형태 |
 | --- | --- | --- |
-| 모노레포 트리 · docker-compose 전문 · k8s 스켈레톤 | [4.2 코드베이스와 배포](codebase.md) | 디렉터리 트리 전문, 설정 파일 전문, `.env` 변수 전표 |
+| 모노레포 트리(`codebase/` 하위) · docker-compose 전문 · k8s 스켈레톤 | [4.2 코드베이스와 배포](codebase.md) | 디렉터리 트리 전문, 설정 파일 전문, `.env` 변수 전표 |
 | 전체 DDL(27 테이블·인덱스·트리거·파티션) | [4.3 데이터베이스 스키마](database.md) | `CREATE TABLE` 전문 + 개발 시드 |
-| REST·WebSocket·MCP 대응 전표 | [4.4 API 명세](api.md) | 엔드포인트별 메서드·경로·권한·요청·응답·이벤트 |
+| REST·WebSocket/SSE·MCP 대응 전표 | [4.4 API 명세](api.md) | 엔드포인트별 메서드·경로·권한·요청·응답·이벤트 |
 | 화면별 데이터 소스·상태·컴포넌트 명세 | [4.5 화면 명세](screens.md) | 라우팅 표 + 화면별 EARS 수용 기준 |
 | SKILL.md 4종 전문 · hooks.json 전문 | [4.6 플러그인과 온보딩](plugin.md) | 실제 파일 내용 |
 | 임포터 파싱 규칙·실패 리포트 형식 | [4.7 clemvion 임포터](importer.md) | 필드 매핑 표 + 수용 기준 |
@@ -74,20 +74,20 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 
 ### 2.1 스택 표 — 전 계층 확정, 재논의 금지
 
-[시스템 아키텍처](../03-proposal/architecture.md) §4.1·§4.2와 정합한다. 웹앱(Vite)·API(NestJS)는 **2026-08-14**에, 쿼리(Drizzle)·인증(better-auth)·실시간(WebSocket)·에디터(TipTap)·배포(로컬 compose/운영 k8s)는 **2026-08-20**에 확정했다. 언어·DB·프론트 세부·MCP SDK는 3부 원안(v0.1 · 2026-08-13)에서 확정된 뒤 변경이 없다.
+[시스템 아키텍처](../03-proposal/architecture.md) §4.1·§4.2와 정합한다. 웹앱(Vite)·API(NestJS)는 **2026-08-14**에, 쿼리(Drizzle)·인증(better-auth)·실시간(WebSocket)·에디터(TipTap)·배포(로컬 compose/운영 k8s)는 **2026-08-20**에 확정했다. **2026-08-21**에 실시간 채널을 WebSocket 단일에서 **WebSocket + SSE 다중 채널**로 확장하고 팬아웃 **방송 MQ를 Valkey**로 확정했다(§2.2의 재검토 트리거 "브라우저 밖 소비자" 점화). 언어·DB·프론트 세부·MCP SDK는 3부 원안(v0.1 · 2026-08-13)에서 확정된 뒤 변경이 없다.
 
 | 계층 | 확정 | 결정일 | 핵심 규약 |
 | --- | --- | --- | --- |
-| 언어/모노레포 | TypeScript + pnpm workspace | 2026-08-13 (3부 원안) | Turborepo는 빌드 시간이 아플 때 도입(트리거만 기록) |
+| 언어/모노레포 | TypeScript + pnpm workspace — **구현 코드는 전부 저장소 `codebase/` 하위** | 2026-08-13 (3부 원안) · 코드 위치 2026-08-21 | Turborepo는 빌드 시간이 아플 때 도입(트리거만 기록). 모노레포 루트 = `codebase/`([4.2 코드베이스와 배포](codebase.md) §1, REQ-CB-015) |
 | 웹 | **Vite + React SPA** | 2026-08-14 | 정적 자산 배포. SSR 없음 |
 | API | **NestJS(Fastify 어댑터)** | 2026-08-14 | REST·MCP·WebSocket이 **같은 도메인 서비스를 DI로 공유**(D-05). 게이트 판정이 표면마다 갈라지는 것이 최악의 실패 |
 | DB | **Postgres** + **Drizzle** | Postgres 2026-08-13 · Drizzle 2026-08-20 | 스키마는 `packages/schema`에 TS로 선언, drizzle-kit 마이그레이션. 복잡 질의는 raw `sql` 1급 |
 | 인증 | **better-auth** | 2026-08-20 | organization 플러그인(조직·멤버십), api-key 플러그인 기반 PAT(해시 저장·프로젝트 스코프). OAuth 2.1 리소스 서버는 Phase 2 |
-| 실시간 | **WebSocket** (NestJS `@WebSocketGateway`, socket.io 어댑터) | 2026-08-20 | **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요). 룸: `project:{id}`·`user:{id}`, join 시 멤버십 검사. 팬아웃: 파드마다 PG `LISTEN` → 자기 소켓에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 PG NOTIFY). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
+| 실시간 | **WebSocket + SSE 다중 채널**, 방송 MQ **Valkey pub/sub** (NestJS `@WebSocketGateway` socket.io + `@Sse()` 스트림) | WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21 | WS(`/ws`)는 웹 SPA 전용 — **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요), 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. SSE(`/sse/*`)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증([4.4 API 명세](api.md) §3.5). 팬아웃: EventService가 커밋 후 Valkey `nerv_events`에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
 | 에디터 | **TipTap + markdown 직렬화** | 2026-08-20 | 지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글 |
 | MCP | MCP TypeScript SDK | 2026-08-13 (3부 원안) | 2026-07-28 리비전 기준 구현 + 구 리비전(2025-03-26~2025-11-25) 병행 서빙(D-11) |
 | 프론트 세부 | TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod | 2026-08-13 (3부 원안) | zod 스키마는 `packages/schema` 공유. WebSocket 이벤트 → Query 무효화 |
-| 배포 | **로컬 docker-compose / 운영 k8s(kustomize base+overlays)** | 2026-08-20 | 같은 이미지 3종: `nerv-api`(REST+MCP+WS), `nerv-worker`(같은 코드베이스, 엔트리 분리), `nerv-web`(Vite 산출물+nginx). 마이그레이션: compose는 기동 시, k8s는 Job. 워커 replica 1 + advisory lock(HPA 제외). Ingress: WebSocket 업그레이드·타임아웃 상향, `/mcp` Origin 검증 |
+| 배포 | **로컬 docker-compose / 운영 k8s(kustomize base+overlays)** | 2026-08-20 | 같은 이미지 3종: `nerv-api`(REST+MCP+WS+SSE), `nerv-worker`(같은 코드베이스, 엔트리 분리), `nerv-web`(Vite 산출물+nginx). 인프라 서비스는 Postgres·MinIO·Valkey. 마이그레이션: compose는 기동 시, k8s는 Job. 워커 replica 1 + advisory lock(HPA 제외). Ingress: WebSocket 업그레이드·SSE 버퍼링 해제·타임아웃 상향, `/mcp` Origin 검증 |
 
 > **인증 확정이 로드맵 표기 하나를 대체한다.** [로드맵](../03-proposal/roadmap.md) §3.2(v0.1 · 2026-08-13)는 Phase 1 인증을 "OAuth 2.1로 승격"으로 적었다. 2026-08-20 인증 스택 확정(better-auth)에서 **OAuth 2.1 리소스 서버는 Phase 2로 이동**했고, MVP의 에이전트 인증은 PAT(해시 저장 · 사용자·프로젝트·역할·스코프 튜플 바인딩)로 확정한다. NFR-03의 수용 기준(토큰 프로젝트 스코프·권한 비확대·본문 비신뢰 — [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4.3)은 PAT로 충족되므로 Phase 배분표의 NFR-03 ● 판정은 유지된다. OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다.
 
@@ -103,10 +103,12 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | Postgres | 스펙 버전 diff를 DB 네이티브로 다뤄야 할 요구 증가 | Dolt 재평가 |
 | Drizzle | 마이그레이션 운영 부담이 임계를 넘을 때 | Prisma/Kysely 재평가 |
 | better-auth | 엔터프라이즈 SSO 요구 유입 | Keycloak 연동 검토 |
-| WebSocket 단일 채널 | 브라우저 밖 소비자(CLI 등)가 실시간 구독을 원할 때 | SSE 병행 재검토 |
+| Valkey pub/sub(무영속 단일 인스턴스) | 방송 유실로 인한 재조회 비용이 실측 임계를 넘거나 이벤트 재전송(replay) 요구가 생길 때 | Valkey Streams(적재형)·HA(센티널/관리형) 재검토 |
 | TipTap | md 직렬화 왕복 손실 실측 발생 | Milkdown 재검토 |
 | 실시간 공동 편집 미도입 | 버전 충돌(409 재시도) 주 20건 이상 또는 동시 편집 요구 반복(로드맵 §5.1) | Yjs + Hocuspocus |
 | 이중 배포 타깃(compose+k8s) | 운영 규모가 단일 노드로 충분(NFR-04) | k8s 생략 |
+
+> **점화 기록.** v0.1의 "WebSocket 단일 채널 → 브라우저 밖 소비자(CLI 등)가 실시간 구독을 원할 때 SSE 병행 재검토" 트리거는 **2026-08-21 점화**되어 SSE 병행이 확정됐다(§2.1 실시간 행). 그 행은 위 표에서 Valkey 방송 MQ의 재검토 트리거로 대체됐다.
 
 운영 Postgres의 위치(클러스터 외부 권장 vs CloudNativePG)는 확정이 아니라 **백로그 확인 태스크**다 — [4.8 백로그](backlog.md)에 스토리로 등재한다.
 
@@ -155,7 +157,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | NFR | 이름(정본 인용) | MVP | P0 | P1 | MVP에서 되는 것 | MVP에서 안 되는 것(Phase 2+) |
 | --- | --- | :-: | :-: | :-: | --- | --- |
 | NFR-01 | 자가호스팅 | ● | ◐ | ● | compose 단일 파일 기동(P0), 백업·복구 왕복 검증(P1) | — |
-| NFR-02 | 실시간성(≤5s) | ● | ◐ | ● | WebSocket 푸시, 보드 반영 p95 ≤ 5초 | — |
+| NFR-02 | 실시간성(≤5s) | ● | ◐ | ● | WebSocket·SSE 푸시, 보드 반영 p95 ≤ 5초 | — |
 | NFR-03 | 보안 | ● | ◐ | ● | PAT 프로젝트 스코프(P0), 권한 비확대·스펙 본문 비신뢰(P1). 인증 수단은 better-auth 세션(웹)+PAT(에이전트) — §2.1 인용 | OAuth 2.1 리소스 서버는 Phase 2, SSO는 Phase 3+ |
 | NFR-04 | 규모 | ◐ | ○ | ◐ | 목표 규모 설계(프로젝트 수십·동시 세션 수십) | 부하 시험은 Phase 2 |
 | NFR-05 | 로컬 폴백 | ◐ | ○ | ◐ | 에이전트 오프라인 읽기 캐시 | 복구 후 자동 동기화는 Phase 2 |
@@ -258,7 +260,7 @@ SKILL.md 4종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 | # | 전제/제약 | 내용 |
 | --- | --- | --- |
 | 1 | 런타임 | Node.js LTS. 패키지 매니저 pnpm(모노레포 workspace) |
-| 2 | 배포 이중 타깃 | 로컬·소규모 = docker-compose 단일 파일, 운영 = k8s(kustomize base+overlays). 같은 이미지 3종 공유(§2.1). 상세 실물은 [4.2 코드베이스와 배포](codebase.md) |
+| 2 | 배포 이중 타깃 | 로컬·소규모 = docker-compose 단일 파일, 운영 = k8s(kustomize base+overlays). 같은 이미지 3종 공유(§2.1). 인프라 서비스는 Postgres·MinIO·**Valkey**(방송 MQ — pub/sub 전용·무영속) 3종. 상세 실물은 [4.2 코드베이스와 배포](codebase.md) |
 | 3 | 워커 단일 인스턴스 | `nerv-worker` replica 1 + Postgres advisory lock, HPA 제외 |
 | 4 | 마이그레이션 실행 위치 | compose는 기동 시, k8s는 Job — [4.2 코드베이스와 배포](codebase.md) §6 |
 | 5 | SoT 경계 | MVP 기간 중 clemvion `spec/`·`plan/`의 SoT는 git이다. 임포트는 복제이고 컷오버(M1~)는 Phase 2부터(로드맵 §7.2·§7.4) |
@@ -272,7 +274,7 @@ SKILL.md 4종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 
 | 스파이크 | 검증 대상 | 통과 기준(요약) |
 | --- | --- | --- |
-| WS 게이트웨이 PoC | NestJS `@WebSocketGateway` + websocket 전송만 + PG LISTEN 팬아웃 | 2개 API 인스턴스에서 룸 브로드캐스트 수신, 재연결 시 재조회로 화면 정합 |
+| 실시간 게이트웨이 PoC | NestJS `@WebSocketGateway`(websocket 전송만) + SSE 스트림 + Valkey pub/sub 팬아웃 | 2개 API 인스턴스에서 WS·SSE 클라이언트 각각 룸/스트림 브로드캐스트 수신, 재연결 시 재조회로 화면 정합 |
 | TipTap md 왕복 검증 | 지원 노드 화이트리스트의 md 직렬화 왕복 | 노드 8종 각각 md→에디터→md 왕복 손실 0 |
 | drizzle 마이그레이션 파이프라인 | `packages/schema` 선언 → drizzle-kit 생성 → compose 기동/k8s Job 적용 | 신규 DB에서 0001 스냅샷 적용·재실행 멱등 |
 | MCP 리비전 병행 서빙 | 2026-07-28 리비전 + 구 리비전(세션 ID 시대) 동시 서빙 | Claude Code·Codex 현행 클라이언트 각각 `nerv_bootstrap` 호출 성공 |
