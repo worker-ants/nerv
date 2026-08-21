@@ -1,13 +1,13 @@
 ---
 id: SPC-MVP-SCREENS
 status: draft
-updated: 2026-08-20
+updated: 2026-08-21
 ---
 # 화면 명세
 
-> **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 승인함 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세하고, TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다. 와이어프레임 그림 자체는 재작성하지 않는다 — 레이아웃·정보 우선순위의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고 이 문서는 그 화면들의 데이터·상태·컴포넌트 명세다.
+> **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 승인함 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [screens.html](../html/screens.html)
 
 ---
 
@@ -17,7 +17,8 @@ updated: 2026-08-20
 
 | 무엇 | 정본 | 이 문서는 |
 | --- | --- | --- |
-| 화면 레이아웃·와이어프레임·인터랙션 원칙 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S1~S8 | 그림 재작성 금지 — 각 절에서 해당 §를 링크 인용 |
+| 화면 레이아웃·와이어프레임·인터랙션 원칙 — **S1~S8** | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S1~S8 | 그림 재작성 금지 — 각 절에서 해당 §를 링크 인용 |
+| 와이어프레임 — **S 번호가 없는 MVP 화면**(앱 셸·로그인·온보딩·알림 센터)과 **하위 뷰**(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종) | **이 문서**(§1.3·§2) | 3.6에 대응 그림이 없어 여기서 신규 작성한다. 상위 화면의 레이아웃 규약(3열 구성·상태 표기·인터랙션 원칙)은 3.6을 따르며 어기지 않는다 |
 | REST·WebSocket 계약 | [4.4 API 명세](api.md) | 엔드포인트를 **ID(EP-*)와 메서드·경로**로 인용(권한·스키마·발생 이벤트는 api.md가 확정) |
 | 엔티티 필드·상태 값 | [3.3 데이터 모델](../03-proposal/data-model.md) | 테이블·컬럼·enum 문자열을 그대로 사용 |
 | 상태 전이·권한·이벤트 이름 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) | `<리소스>.<동사>` 이벤트 이름을 그대로 사용 |
@@ -103,6 +104,8 @@ apps/web/src/routes/
 | 연결 상태 배너 | 2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = `NERV_UNAVAILABLE`): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14) |
 | 토스트 스택 | `claim.conflict_warn` 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1) |
 
+이 아스키 그림은 md 원본용 표기다 — **HTML 판(screens.html §1.3)은 ui-wireframes.html과 같은 방식의 렌더링 목업**으로 제공한다(관례: md는 아스키, html은 실제 UI 근사 렌더링 — ui-wireframes.md 서두와 동일).
+
 ### 1.4 실시간 계약 — 구독 룸과 쿼리 무효화
 
 WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만)이고, 핸드셰이크 인증·룸 join 규약·이벤트 전체 목록의 정본은 [api.md](api.md) §3이다. 클라이언트 계약은 세 줄이다.
@@ -163,11 +166,34 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | REQ-WEB-003 | WHEN 사용자에게 권한이 없는 동작 버튼이 렌더링되면 THE SYSTEM SHALL 버튼을 숨기지 않고 비활성화하며 필요 역할을 툴팁으로 표기한다 (예: "이 전이는 `qa`(및 `admin`) 역할만 가능") |
 | REQ-WEB-004 | WHEN `project:{id}` 룸에서 화면 관련 이벤트를 수신하면 THE SYSTEM SHALL 5초 이내에 해당 쿼리를 재조회해 화면에 반영한다(NFR-02) |
 
+### 1.6 와이어프레임 커버리지 — 전 라우트의 그림 소재
+
+**MVP 라우트는 전부 와이어프레임을 갖는다**(2026-08-21 확정). S1~S8은 [ui-wireframes](../03-proposal/ui-wireframes.md)가 정본이고, S 번호가 없는 MVP 신설 화면과 하위 뷰는 이 문서(§1.3·§2)가 그림을 소유한다. 이 표에 "없음"이 생기면 결함이다.
+
+| 라우트(§1.2) | 화면 | 와이어프레임 소재 |
+| --- | --- | --- |
+| (전 라우트 공통) | 앱 셸 | **이 문서 §1.3** (html 판은 렌더링 목업) |
+| `/login` | 로그인 | **이 문서 §2.1** |
+| `/onboarding` | 온보딩 | **이 문서 §2.1** |
+| `/` | S1 홈 대시보드 | ui-wireframes §2.1 |
+| `/o/:org` | 조직 전환 | 화면 없음(컨텍스트 전환 후 즉시 리다이렉트) — 그림 비대상 |
+| `/inbox` | S7 승인함 | ui-wireframes §2.7 (고충실도) |
+| `/notifications` | 알림 센터 | **이 문서 §2.9** |
+| `/settings/members` · `/tokens` · `/gates` | S8 설정 3탭 | ui-wireframes §2.8 (멤버·토큰·게이트 정책 3탭 합성 — 연동 탭은 Phase 2 비활성) |
+| `/p/:proj` | S2 프로젝트 개요 | ui-wireframes §2.2 |
+| `/p/:proj/specs` | 스펙 목록(트리 전체 화면) | **이 문서 §2.4** |
+| `/p/:proj/specs/:spec` | S3 스펙 상세 | ui-wireframes §2.3 (고충실도) |
+| `/p/:proj/tasks` | S4 작업 보드 | ui-wireframes §2.4 |
+| `/p/:proj/tasks/:task` | 작업 상세 패널(오버레이) | **이 문서 §2.5** |
+| `/p/:proj/sessions` | S5 세션 모니터 | ui-wireframes §2.5 (고충실도) |
+| `/p/:proj/sessions/:session` | 세션 상세(Activity 타임라인) | ui-wireframes §2.5 둘째 그림(`S-8f31` 상세 — 탭·타임라인·산출물 역링크) |
+| `/p/:proj/coverage` · `/reviews` · `/crs/:cr` | Phase 2(라우트만 예약) | S6은 ui-wireframes §2.6, 커버리지·CR 델타는 Phase 2 착수 시 작성 |
+
 ---
 
 ## 2. 화면별 명세
 
-각 절의 형식: **데이터 소스**(api.md 리소스+동사 인용) → **실시간** → **핵심 컴포넌트** → **폼·검증**(zod, `packages/schema` 공유) → **상태·수용 기준**. 와이어프레임 그림은 [ui-wireframes.md](../03-proposal/ui-wireframes.md)의 해당 §를 본다.
+각 절의 형식: **데이터 소스**(api.md 리소스+동사 인용) → **실시간** → **핵심 컴포넌트** → **폼·검증**(zod, `packages/schema` 공유) → **상태·수용 기준**. S1~S8 와이어프레임 그림은 [ui-wireframes.md](../03-proposal/ui-wireframes.md)의 해당 §를 보고, 그 문서에 없는 화면·하위 뷰의 그림은 각 절 안에 둔다(§1.6 표).
 
 ### 2.1 로그인 · 온보딩
 
@@ -178,6 +204,53 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 로그인 폼 | `POST /api/auth/*` (better-auth 핸들러 — 이메일+비밀번호) |
 | 로그인 사용자·역할 확인 | EP-AUTH-01 `GET /api/v1/me` · EP-ORG-01 `GET /api/v1/orgs` |
 | 온보딩(조직 0개) | better-auth organization 플러그인 경로(`/api/auth/*` — 조직 생성·초대 수락) 후 EP-ORG-01로 재확인 |
+
+```text
+로그인 — nerv.example.com/login
+┌──────────────────────────────────────────────────┐
+│                                                  │
+│                    ⬢ NERV                        │
+│         스펙 단일 진실 · 에이전트 협업           │
+│                                                  │
+│   이메일     [ jimin@example.com             ]   │
+│   비밀번호   [ ••••••••                      ]   │
+│   ⚠ 이메일 또는 비밀번호가 올바르지            │
+│     않습니다 (인라인 · 비밀번호만 초기화)   (1)  │
+│                                                  │
+│   [              로그인              ]      (2)  │
+│                                                  │
+│   초대 링크로 오셨나요? 로그인하면 초대가        │
+│   자동으로 수락됩니다.                      (3)  │
+└──────────────────────────────────────────────────┘
+```
+
+1. **인라인 실패 사유** — 전역 토스트가 아니라 폼 안. 비밀번호 필드만 초기화한다. `REQ-WEB-005`
+2. **로그인** — better-auth 세션 쿠키 발급 후 역할별 첫 화면으로 착지(§1.2 가드). `REQ-WEB-006`
+3. **초대 수락 경로** — 초대 링크 진입 시 로그인 후 `InviteAcceptCard`로 이어진다(온보딩 ① 대체).
+
+```text
+온보딩 — nerv.example.com/onboarding          (소속 조직 0개일 때만 진입)
+┌──────────────────────────────────────────────────────────────┐
+│  ● ① 조직 만들기 ──── ○ ② 역할 확인 ──── ○ ③ 다음 행동      │
+├──────────────────────────────────────────────────────────────┤
+│  새 조직 만들기                          (1)                 │
+│   조직 이름   [ 아크메                    ]                  │
+│   첫 프로젝트 [ acme-console              ]                  │
+│   [ 만들기 ]                                                 │
+│  ── 또는 ──                                                  │
+│  📨 받은 초대                             (2)                │
+│   아크메 · planner 로 초대됨 — 지민       [수락]             │
+├──────────────────────────────────────────────────────────────┤
+│  ② 당신의 역할: planner — 스펙 승인·플랜 검토가 옵니다  (3)  │
+│  ③ 다음 행동: 승인함으로 이동 ▸                         (4)  │
+│     에이전트를 연결하려면: 설정 › 에이전트 토큰 ▸            │
+└──────────────────────────────────────────────────────────────┘
+```
+
+1. **조직 생성**(`OrgCreateForm`) — better-auth organization 플러그인 경로. 첫 프로젝트를 같이 만든다.
+2. **초대 수락**(`InviteAcceptCard`) — 조직 생성과 배타적 분기. MVP 초대는 기존 사용자 배정이다(메일 발송은 Phase 2 — api.md §2.1).
+3. **역할 확인** — `membership.role` 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.
+4. **다음 행동** — 역할별 첫 화면 규칙(ui-wireframes §1.5, qa는 MVP에서 작업 보드로)대로 착지 링크. 에이전트 연결(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4로 링크만 둔다.
 
 - **컴포넌트**: `LoginForm` · `InviteAcceptCard` · `OrgCreateForm`. 폼은 react-hook-form + zod(`LoginInput`: email 형식, password min 8).
 - 온보딩 마지막 단계는 역할 확인과 "다음 행동" 안내다 — planner/designer는 승인함, developer는 작업 보드, qa는 (MVP에서는) 커버리지가 아니라 작업 보드로 안내한다(ui-wireframes §1.5 역할별 첫 화면 — S6은 Phase 2이므로 qa 착지만 조정). 에이전트 연결 온보딩(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4가 정의하고, 이 화면은 S8 토큰 탭으로 가는 링크만 둔다.
@@ -228,6 +301,29 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 
 3열 레이아웃(좌 트리 · 중앙 본문 · 우 상태 패널). 에디터 상세 규약은 §3에 있다.
 
+**하위 뷰: 스펙 목록** (`/p/:proj/specs`) — 사이드바 트리(`SpecTree`)의 전체 화면 판이다. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
+
+```text
+스펙 목록 — nerv.example.com/p/clemvion/specs
+┌──────────────────────────────────────────────────────────────────────┐
+│ 스펙   [🔍 검색…]  [타입 ▾] [상태 ▾]                  [+ 새 스펙](1) │
+├──────────────────────────────────────────────────────────────────────┤
+│ ▾ 1-product-vision                                                   │
+│    비전                vision    ✅ approved  v3   2주 전       💬 0 │
+│ ▾ 7-channel-web-chat                                            (2)  │
+│    1-widget            feature   ✅ approved  v7   4일 전       💬 1 │
+│    2-embed-v2          feature   🕐 in_review v4   2시간 전     💬 3 │
+│    3-states            design    📝 draft     v1   1시간 전     💬 0 │
+│ ▸ 5-system (12)                                                      │
+├──────────────────────────────────────────────────────────────────────┤
+│ 표시 24 / 전체 38 · 필터: 전체                                  (3)  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+1. **생성 진입점** — 권한은 역할 매트릭스(spec-workflow §1.6). 행 클릭은 S3 상세로.
+2. **행 = 트리 노드 + 메타** — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 `SpecTree` 공유다(D-05의 프론트 판).
+3. **필터 결과 카운트** — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약).
+
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
 | 본문 + 메타 | EP-SPEC-03 `GET /api/v1/projects/{proj}/specs/{spec}` (`include[]`: requirements·tasks·comments) | 기본 버전은 최신 `approved` — draft는 명시 선택(`?v=`) |
@@ -260,10 +356,43 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
 | 보드 목록 | EP-TASK-01 `GET /api/v1/projects/{proj}/tasks` (status·spec·assignee 필터) | 카드: 제목·출처 스펙·👤 assignee·🤖 delegate(hostname)·리스 잔여·diff |
+| 작업 상세 패널 | EP-TASK-04 `GET /api/v1/projects/{proj}/tasks/{task}` | 위임 명세·활성 클레임·의존·Evidence — 보드 위 오버레이(`/p/:proj/tasks/:task`, URL 공유 가능). 그림은 아래(§1.6) |
 | Task 파생·생성 | EP-TASK-03 `POST /api/v1/projects/{proj}/tasks` | 승인된 SpecVersion에서만 파생 — 버튼은 approved 아닌 스펙에서 비활성(D-02) |
 | 위임 명세 편집 | EP-TASK-05 `PATCH /api/v1/projects/{proj}/tasks/{task}` | 4요소: `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`(data-model §2.4). 충족 시 서버가 `ready` 승격 |
 | 사람 클레임 | EP-TASK-06 `POST /api/v1/projects/{proj}/tasks/{task}/claim` | `claim.agent_session_id` NULL — `nerv_task_claim`과 같은 서비스·같은 겹침 판정 |
 | 상태 전이 | EP-TASK-09 `POST /api/v1/projects/{proj}/tasks/{task}/transition` | 서버 가드 거부 시 사유를 그대로 카드 툴팁으로 |
+
+**하위 뷰: 작업 상세 패널** (`/p/:proj/tasks/:task`) — 보드 위 오버레이. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
+
+```text
+작업 상세 패널 — nerv.example.com/p/clemvion/tasks/TSK-a3f8   (보드 위 오버레이)
+┌──────────────────────────────────────────────── [닫기 ✕] ──┐
+│ TSK-a3f8 · 위젯 상태별 렌더링          🕐 in_progress  (1) │
+│ 출처: SPC-CWC-007 @v4 ▸ · REQ-CWC-031 ▸               (2) │
+├────────────────────────────────────────────────────────────┤
+│ 위임 명세 (4요소 — 전부 충족 시 ready)                (3)  │
+│  ✅ 목표        REQ-CWC-031 위젯 5상태 렌더링 구현         │
+│  ✅ 산출물 형식 React 컴포넌트 + 스토리 + 단위 테스트      │
+│  ✅ 도구·출처   SPC-CWC-007 §4 · 디자인 토큰               │
+│  ✅ 경계        codebase/apps/web/src/widget/** 밖 수정 금지│
+├────────────────────────────────────────────────────────────┤
+│ 활성 클레임                                           (4)  │
+│  👤 도현 · 🤖 mac-02/claude-code · 리스 22:41 · scope:     │
+│  SPC-CWC-007 + widget/**            [세션 보기 ▸]          │
+│ 의존: TSK-3f77(done ✅) → 이 작업                     (5)  │
+│ Evidence: PR #481 ▸ · 커밋 4 ▸                        (6)  │
+├────────────────────────────────────────────────────────────┤
+│ [in_review로 전이]  [blocked 표시]  [클레임 해제]     (7)  │
+└────────────────────────────────────────────────────────────┘
+```
+
+1. **상태 + 표시 키** — URL로 공유 가능(안정 ID — D-09).
+2. **출처 역링크** — 유래 SpecVersion(불변 스냅샷)과 Requirement로. "왜 이 작업인가"가 한 클릭. `FR-05 · D-03`
+3. **위임 명세 4요소** — `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`. 미충족 요소는 ❌ + 인라인 편집(EP-TASK-05). `FR-05 · REQ-WEB-016`
+4. **활성 클레임** — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. `FR-06`
+5. **의존 그래프** — 미해소 의존은 ready 불가 사유로 표기. `FR-05`
+6. **Evidence** — PR·커밋 링크(FR-13). 리뷰 커버리지 표시는 Phase 2.
+7. **전이 버튼** — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003).
 
 - **실시간**: `project:{id}` 룸 — `task.ready` `task.claimed` `task.blocked` `task.done` `task.created` `task.updated` `claim.released` → 보드 재조회. 리스 카운트다운은 클라이언트 시계.
 - **컴포넌트**: `TaskBoard` · `TaskCard`(위임 명세 체크 표시·리스 카운트다운·세션 상태 dot → S5 딥링크) · `TaskDetailPanel` · `TaskCreateDialog` · `BlockedLane`.
@@ -368,6 +497,44 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 | REQ-WEB-026 | WHEN 토큰 발급에 성공하면 THE SYSTEM SHALL 토큰 원문을 1회만 표시하고 이후 목록에는 `prefix`와 마지막 사용(시각·hostname)만 노출한다(NFR-03) |
 | REQ-WEB-027 | WHEN 토큰 스코프 선택 UI를 렌더링하면 THE SYSTEM SHALL `spec:approve`·`approval:decide` 체크박스를 항상 비활성으로 표시한다(사람 전용) |
 | REQ-WEB-028 | WHEN admin이 아닌 사용자가 멤버·역할 탭을 열면 THE SYSTEM SHALL 매트릭스를 읽기 전용으로 표시하고 편집 컨트롤을 비활성화한다(FR-14) |
+
+### 2.9 알림 센터 (`/notifications`)
+
+인앱 알림 피드다(FR-12 ◐ — Slack·메일·다이제스트는 Phase 2). 승인함과 역할이 다르다 — **승인함은 "내 결정을 기다리는 것", 알림은 "내가 알아야 하는 것"**(spec-workflow §6.6 원칙 3). 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
+
+```text
+알림 센터 — nerv.example.com/notifications
+┌──────────────────────────────────────────────────────────────────┐
+│ 알림   [전체 | 안읽음 (5)]                                  (1)  │
+├──────────────────────────────────────────────────────────────────┤
+│ ● ✅ SPC-CWC-007 v4가 승인됨 — 승인 지민            2분 전  (2)  │
+│ ● ⚠️ 세션 S-2d04 stale — TSK-b904가 ready로 회수됨  30분 전      │
+│ ● 💬 서연이 embed-v2 §4에 코멘트                    1시간 전     │
+│ ● 🤖 mac-02/claude-code가 질문에 답변을 받음        2시간 전     │
+│ ○ 📥 플랜 승인 요청 — TSK-3f77 (처리됨)             어제    (3)  │
+│ ○ ✅ REQ-CWC-018 → verified                         어제         │
+├──────────────────────────────────────────────────────────────────┤
+│ 더 보기 ▾ (커서 페이지네이션)                                    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+1. **필터 2종만** — 전체/안읽음. 헤더 배지 수 = 안읽음 수(정합 — REQ-WEB-035).
+2. **행 = 이벤트 요약 + 딥링크** — 클릭 시 읽음 처리 후 대상으로 이동(뷰 상태 쿼리 포함 — ui-wireframes §1.4). ●/○는 읽음 여부.
+3. **승인함 항목의 그림자** — 승인 요청 알림은 여기에도 남지만 행동은 승인함에서 한다(카드 중복 금지).
+
+| 화면 요소 | 데이터 소스 | 비고 |
+| --- | --- | --- |
+| 알림 피드 | EP-NTF-01 `GET /api/v1/me/notifications` (state: unread/read, 커서) | `notification` 파생 규칙·읽음 상태는 [data-model](../03-proposal/data-model.md) §2.9 |
+| 읽음 처리 | EP-NTF-02 `POST /api/v1/me/notifications/{id}/read` | 단건 — 행 클릭 시 자동 호출 |
+
+- **실시간**: `user:{id}` 룸 — `notification.created` → `['me', 'notifications']` + 헤더 배지(§1.4 표와 동일).
+- **컴포넌트**: `NotificationFeed` · `NotificationRow`(아이콘·본문·딥링크·상대 시각·읽음 dot).
+- **빈 상태**: "새 알림이 없습니다" + 승인함 링크(막다른 길 금지 — ui-wireframes §3.4).
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-WEB-034 | WHEN 알림 행을 클릭하면 THE SYSTEM SHALL 해당 알림을 읽음 처리(EP-NTF-02)한 뒤 대상 딥링크로 이동한다 |
+| REQ-WEB-035 | WHEN `notification.created`를 수신하거나 읽음 처리가 완료되면 THE SYSTEM SHALL 5초 이내에 헤더 알림 배지 수를 안읽음 목록 수와 일치시킨다(NFR-02) |
 
 ---
 

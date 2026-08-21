@@ -50,7 +50,7 @@
 | [4.2 코드베이스와 배포](04-mvp/codebase.md) | 저장소 구역(`docs/`·`codebase/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | 27개 테이블 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), MCP 15종 ↔ REST 대응 표 |
-| [4.5 화면 명세](04-mvp/screens.md) | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰 — 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md) 참조 |
+| [4.5 화면 명세](04-mvp/screens.md) | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | 스킬 4종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`), hooks.json·`.mcp.json` 전문, 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
 | [4.7 clemvion 임포터](04-mvp/importer.md) | `clemvion:spec/`(135md)·`plan/`(450md) → Spec/Requirement/Task 파싱 규칙, CLI(`nerv import`)·dry-run·멱등 재실행, 실패 리포트 형식과 수용 기준 |
 | [4.8 백로그](04-mvp/backlog.md) | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
