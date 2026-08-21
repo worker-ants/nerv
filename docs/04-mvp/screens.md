@@ -7,7 +7,7 @@ updated: 2026-08-21
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 승인함 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [screens.html](../html/screens.html)
 
 ---
 
@@ -121,6 +121,9 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `spec.draft_created` `spec.submitted` `spec.rejected` `spec.approved` `spec.superseded` `spec.deprecated` | `['spec', specId]` · `['spec', specId, 'versions']` · `['project', projId, 'specTree']` | `project:{id}` |
 | `spec.comment_added` · ★`comment.resolved` | `['spec', specId, 'comments']` | `project:{id}` |
 | `task.ready` `task.claimed` `task.blocked` `task.done` · ★`task.created` ★`task.updated` | `['project', projId, 'tasks']` · `['task', taskId]` | `project:{id}` |
+| `task.rebrief_required` | `['project', projId, 'tasks']` · `['task', taskId]` + S4 재브리핑 배지 | `project:{id}` + 담당자·클레임 세션 소유자 `user:{id}` |
+| `spec.recheck_requested` | `['spec', specId]` + S3 참조 갱신 배지 | `project:{id}` + 대상 문서 owner `user:{id}` |
+| ★`baseline.created` | `['project', projId, 'baselines']` | `project:{id}` |
 | `claim.conflict_warn` `claim.conflict_blocked` | `['project', projId, 'sessions']` + 경고 토스트 | `project:{id}` + 양쪽 세션 소유자 `user:{id}` |
 | ★`claim.released` | `['project', projId, 'tasks']` · `['project', projId, 'sessions']` | `project:{id}` |
 | `session.started` `session.stale` `session.complete` · ★`session.steered` | `['project', projId, 'sessions']` · `['session', sessionId]` | `project:{id}` |
@@ -306,7 +309,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 ```text
 스펙 목록 — nerv.example.com/p/clemvion/specs
 ┌──────────────────────────────────────────────────────────────────────┐
-│ 스펙   [🔍 검색…]  [타입 ▾] [상태 ▾]                  [+ 새 스펙](1) │
+│ 스펙   [🔍 검색…]  [타입 ▾] [상태 ▾] [베이스라인 ▾](4)  [+ 새 스펙](1) │
 ├──────────────────────────────────────────────────────────────────────┤
 │ ▾ 1-product-vision                                                   │
 │    비전                vision    ✅ approved  v3   2주 전       💬 0 │
@@ -323,6 +326,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 1. **생성 진입점** — 권한은 역할 매트릭스(spec-workflow §1.6). 행 클릭은 S3 상세로.
 2. **행 = 트리 노드 + 메타** — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 `SpecTree` 공유다(D-05의 프론트 판).
 3. **필터 결과 카운트** — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약).
+4. **베이스라인 선택기** — EP-SPEC-11 목록 + [현재 세트로 동결…](planner·admin — EP-SPEC-12 다이얼로그). 베이스라인을 고르면 `?baseline=` 쿼리로 목록이 그 세트에 핀된 버전 기준으로 렌더된다(spec-workflow §3.6). 새 라우트 없음 — 뷰 상태 쿼리다.
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
@@ -332,7 +336,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 사전 검토 | EP-SPEC-09 `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 5검사기 결과(warning/block + 앵커) — `nerv_spec_check`와 동일 |
 | 검토 요청 | EP-SPEC-10 `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | `draft → in_review` — 성공 시 승인함 카드 생성(FR-11) |
 | 코멘트 | EP-CMT-01 `GET .../specs/{spec}/comments` · EP-CMT-02 `POST .../spec-versions/{ver}/comments` · EP-CMT-04 `POST .../comments/{id}/resolve` | 앵커: 헤딩 slug 또는 Requirement `ref`(§3.3) |
-| 우측 패널 | include 응답의 requirement 목록(`ref`·`statement_md`·`impl_status`) · 파생 task 목록 | "관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시 |
+| 우측 패널 | include 응답의 requirement 목록(`ref`·`statement_md`·`impl_status`) · 파생 task 목록 | "관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시. **참조 갱신 배지**: `spec.recheck_requested` 수신 시 "참조 스펙에 앞선 버전 존재" 표시(spec-workflow §3.3 참조 문서 전파) |
+| 베이스라인 조회 | EP-SPEC-11 `GET .../baselines` · EP-SPEC-13 `GET .../baselines/{bl}` | 버전 피커(`VersionPicker`)에 베이스라인 항목 — 선택 시 그 세트에 핀된 버전을 표시(`?baseline=` 쿼리, spec-workflow §3.6) |
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → `['spec', specId]`, `spec.comment_added`·`comment.resolved` → `['spec', specId, 'comments']`, `task.*` → 파생 Task 패널.
 - **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `SourceViewToggle`(read-only md) · `CommentThread` · `EditLeaseBadge` · `RequirementPanel` · `DerivedTaskPanel` · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
@@ -348,6 +353,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | REQ-WEB-013 | WHEN 저장 요청이 `NERV_PRECONDITION`(base_version 불일치 409)으로 실패하면 THE SYSTEM SHALL 로컬 본문을 버리지 않은 채 충돌 다이얼로그(서버 최신 보기·내 본문 복사)를 표시한다 |
 | REQ-WEB-014 | WHEN 사전 검토 결과에 block이 1건 이상이면 THE SYSTEM SHALL [검토 요청] 버튼을 비활성화하고 검사기별 결과와 앵커 위치를 인라인 표시한다 |
 | REQ-WEB-015 | WHEN 본문이 새 버전으로 바뀌어도 THE SYSTEM SHALL 헤딩 slug·Requirement `ref` 앵커의 코멘트 스레드를 유지 표시한다(D-09) |
+| REQ-WEB-037 | WHEN `spec.recheck_requested`를 수신하거나 대상 문서의 참조 스펙에 앞선 approved 버전이 존재하면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지(참조 스펙·핀 시점 버전·최신 버전)를 표시한다 |
 
 ### 2.5 S4 작업 보드 — [ui-wireframes §2.4](../03-proposal/ui-wireframes.md)
 
@@ -389,7 +395,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 1. **상태 + 표시 키** — URL로 공유 가능(안정 ID — D-09).
 2. **출처 역링크** — 유래 SpecVersion(불변 스냅샷)과 Requirement로. "왜 이 작업인가"가 한 클릭. `FR-05 · D-03`
 3. **위임 명세 4요소** — `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`. 미충족 요소는 ❌ + 인라인 편집(EP-TASK-05). `FR-05 · REQ-WEB-016`
-4. **활성 클레임** — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. `FR-06`
+4. **활성 클레임** — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. `FR-06`. 출처 줄의 기준 버전(`@v4`)이 superseded면 **재브리핑 배지**(⟳ 기준 버전 v4 → 최신 v5)가 뜬다 — `rebrief_required_at`·spec-workflow §3.3. `REQ-WEB-036`
 5. **의존 그래프** — 미해소 의존은 ready 불가 사유로 표기. `FR-05`
 6. **Evidence** — PR·커밋 링크(FR-13). 리뷰 커버리지 표시는 Phase 2.
 7. **전이 버튼** — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003).
@@ -421,6 +427,7 @@ export const TaskCreateInput = z.object({
 | REQ-WEB-016 | WHEN 위임 명세 4요소 중 하나라도 비어 있으면 THE SYSTEM SHALL Task 카드에 `ready` 전이 불가 사유를 인라인 표기하고 전이 버튼을 비활성화한다(FR-05) |
 | REQ-WEB-017 | WHEN `claimed`/`in_progress` 카드를 렌더링하면 THE SYSTEM SHALL `lease_expires_at` 기준 리스 잔여를 카운트다운으로 표시하고, 잔여 2분 미만이면 호박색으로 전환한다(D-04) |
 | REQ-WEB-018 | WHEN 서버가 상태 전이를 거부하면 THE SYSTEM SHALL 카드를 원 위치로 되돌리고 거부 사유를 툴팁으로 표시한다(FR-10) |
+| REQ-WEB-036 | WHEN `rebrief_required_at`이 세팅된 Task를 렌더링하면 THE SYSTEM SHALL 보드 카드와 상세 패널에 재브리핑 배지(기준 버전 → 최신 approved 버전)를 표시하고, 위임 명세 재확인·기준 버전 갱신(EP-TASK-05) 경로를 제공한다 |
 
 ### 2.6 S5 세션 모니터 — [ui-wireframes §2.5](../03-proposal/ui-wireframes.md)
 
@@ -655,7 +662,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 ### 이 문서가 인용한 정본 문서
 
 - [3.6 화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md) — S1~S8 와이어프레임·상태 표현 규칙·인터랙션 규약의 정본. 이 문서의 모든 화면 절이 § 단위로 인용
-- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 27종 필드·enum 값·ID 발급 규칙(§5.1)·`spec_comment` 앵커(§2.2)
+- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드·enum 값·ID 발급 규칙(§5.1)·`spec_comment` 앵커(§2.2)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 상태 축 3종·권한 매트릭스(§1.6)·초안 편집 리스(§1.2)·지시자≠승인자(§2.3)·이벤트 이름과 알림 카탈로그(§6.3)
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — `nerv_*` 도구 17종(§2.3)·하트비트 역채널(§2.4)·토큰 스코프(§6.1)
 - [3.7 로드맵](../03-proposal/roadmap.md) — Phase 1 화면 범위(S1~S5·S7·S8)와 비범위(S6·CR 델타·커버리지 대시보드·Slack), FR-12 P1 인앱

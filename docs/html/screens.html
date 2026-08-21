@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.2 (2026-08-21)</span>
+      <span>버전 v0.3 (2026-08-21)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -222,6 +222,9 @@
       <tr><td><code>spec.draft_created</code> <code>spec.submitted</code> <code>spec.rejected</code> <code>spec.approved</code> <code>spec.superseded</code> <code>spec.deprecated</code></td><td><code>['spec', specId]</code> · <code>['spec', specId, 'versions']</code> · <code>['project', projId, 'specTree']</code></td><td><code>project:{id}</code></td></tr>
       <tr><td><code>spec.comment_added</code> · ★<code>comment.resolved</code></td><td><code>['spec', specId, 'comments']</code></td><td><code>project:{id}</code></td></tr>
       <tr><td><code>task.ready</code> <code>task.claimed</code> <code>task.blocked</code> <code>task.done</code> · ★<code>task.created</code> ★<code>task.updated</code></td><td><code>['project', projId, 'tasks']</code> · <code>['task', taskId]</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td><code>task.rebrief_required</code></td><td><code>['project', projId, 'tasks']</code> · <code>['task', taskId]</code> + S4 재브리핑 배지</td><td><code>project:{id}</code> + 담당자·클레임 세션 소유자 <code>user:{id}</code></td></tr>
+      <tr><td><code>spec.recheck_requested</code></td><td><code>['spec', specId]</code> + S3 참조 갱신 배지</td><td><code>project:{id}</code> + 대상 문서 owner <code>user:{id}</code></td></tr>
+      <tr><td>★<code>baseline.created</code></td><td><code>['project', projId, 'baselines']</code></td><td><code>project:{id}</code></td></tr>
       <tr><td><code>claim.conflict_warn</code> <code>claim.conflict_blocked</code></td><td><code>['project', projId, 'sessions']</code> + 경고 토스트</td><td><code>project:{id}</code> + 양쪽 세션 소유자 <code>user:{id}</code></td></tr>
       <tr><td>★<code>claim.released</code></td><td><code>['project', projId, 'tasks']</code> · <code>['project', projId, 'sessions']</code></td><td><code>project:{id}</code></td></tr>
       <tr><td><code>session.started</code> <code>session.stale</code> <code>session.complete</code> · ★<code>session.steered</code></td><td><code>['project', projId, 'sessions']</code> · <code>['session', sessionId]</code></td><td><code>project:{id}</code></td></tr>
@@ -465,7 +468,7 @@
         <div class="wf-topbar">
           <span class="ttl">스펙</span>
           <span class="wf-input">🔍 검색…</span>
-          <span class="wf-btn ghost">타입 ▾</span><span class="wf-btn ghost">상태 ▾</span>
+          <span class="wf-btn ghost">타입 ▾</span><span class="wf-btn ghost">상태 ▾</span><span class="wf-btn ghost">베이스라인 ▾</span><span class="marker">4</span>
           <span class="wf-btn primary">+ 새 스펙</span><span class="marker">1</span>
         </div>
         <div class="wf-panel">
@@ -486,6 +489,7 @@
     <li><span class="marker">1</span><span><b>생성 진입점</b> — 권한은 역할 매트릭스(spec-workflow §1.6). 행 클릭은 S3 상세로.</span></li>
     <li><span class="marker">2</span><span><b>행 = 트리 노드 + 메타</b> — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 <code>SpecTree</code> 공유다(D-05의 프론트 판).</span></li>
     <li><span class="marker">3</span><span><b>필터 결과 카운트</b> — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약).</span></li>
+    <li><span class="marker">4</span><span><b>베이스라인 선택기</b> — EP-SPEC-11 목록 + [현재 세트로 동결…](planner·admin — EP-SPEC-12 다이얼로그). 베이스라인을 고르면 <code>?baseline=</code> 쿼리로 목록이 그 세트에 핀된 버전 기준으로 렌더된다(spec-workflow §3.6). 새 라우트 없음 — 뷰 상태 쿼리다.</span></li>
   </ul>
 
   <div class="table-wrap"><table>
@@ -497,7 +501,8 @@
       <tr><td>사전 검토</td><td>EP-SPEC-09 <code>GET /api/v1/projects/{proj}/spec-versions/{ver}/check</code></td><td>5검사기 결과(warning/block + 앵커) — <code>nerv_spec_check</code>와 동일</td></tr>
       <tr><td>검토 요청</td><td>EP-SPEC-10 <code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td><code>draft → in_review</code> — 성공 시 승인함 카드 생성(FR-11)</td></tr>
       <tr><td>코멘트</td><td>EP-CMT-01 <code>GET .../specs/{spec}/comments</code> · EP-CMT-02 <code>POST .../spec-versions/{ver}/comments</code> · EP-CMT-04 <code>POST .../comments/{id}/resolve</code></td><td>앵커: 헤딩 slug 또는 Requirement <code>ref</code>(§3.3)</td></tr>
-      <tr><td>우측 패널</td><td>include 응답의 requirement 목록(<code>ref</code>·<code>statement_md</code>·<code>impl_status</code>) · 파생 task 목록</td><td>"관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시</td></tr>
+      <tr><td>우측 패널</td><td>include 응답의 requirement 목록(<code>ref</code>·<code>statement_md</code>·<code>impl_status</code>) · 파생 task 목록</td><td>"관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시. <b>참조 갱신 배지</b>: <code>spec.recheck_requested</code> 수신 시 "참조 스펙에 앞선 버전 존재" 표시(spec-workflow §3.3 참조 문서 전파)</td></tr>
+      <tr><td>베이스라인 조회</td><td>EP-SPEC-11 <code>GET .../baselines</code> · EP-SPEC-13 <code>GET .../baselines/{bl}</code></td><td>버전 피커(<code>VersionPicker</code>)에 베이스라인 항목 — 선택 시 그 세트에 핀된 버전을 표시(<code>?baseline=</code> 쿼리, spec-workflow §3.6)</td></tr>
     </tbody>
   </table></div>
 
@@ -518,6 +523,7 @@
       <tr><td>REQ-WEB-013</td><td>WHEN 저장 요청이 <code>NERV_PRECONDITION</code>(base_version 불일치 409)으로 실패하면 THE SYSTEM SHALL 로컬 본문을 버리지 않은 채 충돌 다이얼로그(서버 최신 보기·내 본문 복사)를 표시한다</td></tr>
       <tr><td>REQ-WEB-014</td><td>WHEN 사전 검토 결과에 block이 1건 이상이면 THE SYSTEM SHALL [검토 요청] 버튼을 비활성화하고 검사기별 결과와 앵커 위치를 인라인 표시한다</td></tr>
       <tr><td>REQ-WEB-015</td><td>WHEN 본문이 새 버전으로 바뀌어도 THE SYSTEM SHALL 헤딩 slug·Requirement <code>ref</code> 앵커의 코멘트 스레드를 유지 표시한다(D-09)</td></tr>
+      <tr><td>REQ-WEB-037</td><td>WHEN <code>spec.recheck_requested</code>를 수신하거나 대상 문서의 참조 스펙에 앞선 approved 버전이 존재하면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지(참조 스펙·핀 시점 버전·최신 버전)를 표시한다</td></tr>
     </tbody>
   </table></div>
 
@@ -575,7 +581,7 @@
     <li><span class="marker">1</span><span><b>상태 + 표시 키</b> — URL로 공유 가능(안정 ID — D-09).</span></li>
     <li><span class="marker">2</span><span><b>출처 역링크</b> — 유래 SpecVersion(불변 스냅샷)과 Requirement로. "왜 이 작업인가"가 한 클릭. <code>FR-05 · D-03</code></span></li>
     <li><span class="marker">3</span><span><b>위임 명세 4요소</b> — <code>goal_md</code>·<code>output_format_md</code>·<code>tools_sources_md</code>·<code>boundaries_md</code>. 미충족 요소는 ❌ + 인라인 편집(EP-TASK-05). <code>FR-05 · REQ-WEB-016</code></span></li>
-    <li><span class="marker">4</span><span><b>활성 클레임</b> — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. <code>FR-06</code></span></li>
+    <li><span class="marker">4</span><span><b>활성 클레임</b> — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. <code>FR-06</code>. 출처 줄의 기준 버전(<code>@v4</code>)이 superseded면 <b>재브리핑 배지</b>(⟳ 기준 버전 v4 → 최신 v5)가 뜬다 — <code>rebrief_required_at</code>·spec-workflow §3.3. <code>REQ-WEB-036</code></span></li>
     <li><span class="marker">5</span><span><b>의존 그래프</b> — 미해소 의존은 ready 불가 사유로 표기. <code>FR-05</code></span></li>
     <li><span class="marker">6</span><span><b>Evidence</b> — PR·커밋 링크(FR-13). 리뷰 커버리지 표시는 Phase 2.</span></li>
     <li><span class="marker">7</span><span><b>전이 버튼</b> — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003).</span></li>
@@ -612,6 +618,7 @@ export const TaskCreateInput = z.object({
       <tr><td>REQ-WEB-016</td><td>WHEN 위임 명세 4요소 중 하나라도 비어 있으면 THE SYSTEM SHALL Task 카드에 <code>ready</code> 전이 불가 사유를 인라인 표기하고 전이 버튼을 비활성화한다(FR-05)</td></tr>
       <tr><td>REQ-WEB-017</td><td>WHEN <code>claimed</code>/<code>in_progress</code> 카드를 렌더링하면 THE SYSTEM SHALL <code>lease_expires_at</code> 기준 리스 잔여를 카운트다운으로 표시하고, 잔여 2분 미만이면 호박색으로 전환한다(D-04)</td></tr>
       <tr><td>REQ-WEB-018</td><td>WHEN 서버가 상태 전이를 거부하면 THE SYSTEM SHALL 카드를 원 위치로 되돌리고 거부 사유를 툴팁으로 표시한다(FR-10)</td></tr>
+      <tr><td>REQ-WEB-036</td><td>WHEN <code>rebrief_required_at</code>이 세팅된 Task를 렌더링하면 THE SYSTEM SHALL 보드 카드와 상세 패널에 재브리핑 배지(기준 버전 → 최신 approved 버전)를 표시하고, 위임 명세 재확인·기준 버전 갱신(EP-TASK-05) 경로를 제공한다</td></tr>
     </tbody>
   </table></div>
 
@@ -907,7 +914,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <h3>이 문서가 인용한 정본 문서</h3>
   <ul>
     <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — S1~S8 와이어프레임·상태 표현 규칙·인터랙션 규약의 정본. 이 문서의 모든 화면 절이 § 단위로 인용</li>
-    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 27종 필드·enum 값·ID 발급 규칙(§5.1)·<code>spec_comment</code> 앵커(§2.2)</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 29종 필드·enum 값·ID 발급 규칙(§5.1)·<code>spec_comment</code> 앵커(§2.2)</li>
     <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 상태 축 3종·권한 매트릭스(§1.6)·초안 편집 리스(§1.2)·지시자≠승인자(§2.3)·이벤트 이름과 알림 카탈로그(§6.3)</li>
     <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구 17종(§2.3)·하트비트 역채널(§2.4)·토큰 스코프(§6.1)</li>
     <li><a href="roadmap.html">3.7 로드맵</a> — Phase 1 화면 범위(S1~S5·S7·S8)와 비범위(S6·CR 델타·커버리지 대시보드·Slack), FR-12 P1 인앱</li>

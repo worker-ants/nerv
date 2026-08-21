@@ -7,7 +7,7 @@ updated: 2026-08-20
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 4종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [plugin.html](../html/plugin.html)
 
 ---
 
@@ -109,7 +109,7 @@ allowed-tools:
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
 3. **후보 조회.** `nerv_task_next` — 입력: `project`, `role`, 필요 시 `spec_id`·`capabilities`,
    `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
-   권장 scope가 실려 있다.
+   **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·베이스라인, 권장 scope가 실려 있다.
    - 4요소 중 하나라도 비어 있으면 그 Task는 클레임하지 않는다. `nerv_question_create`로
      빈 요소를 지목해 에스컬레이션한다(/nerv:question 규약).
 4. **클레임.** `nerv_task_claim` — 입력: `task_id`, `scope{spec_ids,file_globs}`(응답의 권장
@@ -120,7 +120,12 @@ allowed-tools:
      계속할지 확인받는다.
    - `NERV_CONFLICT_SCOPE`: 클레임 실패다. 응답 details의 상대 정보를 보고하고
      다음 후보로 이동한다. 후보가 없으면 `nerv_question_create`.
-6. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
+6. **기준 버전으로 컨텍스트 로드.** 구현 컨텍스트의 스펙 읽기는 항상
+   `nerv_spec_get`(`spec_id`, `version=<후보의 기준 버전>`)으로 한다 — 기본값(최신 approved)에
+   의존하지 않는다. Task에 베이스라인이 있으면 주변 문서도 `baseline` 인자로 그 세트를 읽는다.
+   응답에 `basis_superseded`가 있으면 그 사실을 사람에게 보고한다(기준 버전 규약 —
+   agent-integration §2.4).
+7. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
    없으면 저장소 규약대로 새 브랜치를 만든다. 이후 /nerv:impl 규약으로 구현을 시작한다
    (하트비트 60초 주기 — 첫 하트비트는 클레임 직후 바로 보낸다).
 
@@ -257,6 +262,10 @@ allowed-tools:
   - steer 지시 → 지시를 다음 행동에 즉시 반영.
   - stop 지시 → 현재 편집을 안전 지점까지 마무리하고
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.
+  - `basis_superseded`(기준 버전 변경 알림) → **임의로 최신 버전으로 갈아타지 않는다.**
+    내 Requirement가 MODIFIED/REMOVED면 `nerv_task_update`(`status=blocked`,
+    `blocked_reason=spec_conflict`) 또는 /nerv:question 으로 확인을 구하고, 아니면
+    기준 버전대로 계속 진행하며 사람의 재브리핑을 기다린다(agent-integration §2.4).
 - 응답 요약(task_id · status · lease_expires_at · scope 겹침 수 · 미해소 finding 수)을
   `.nerv/cache/claim.json`에 기록한다 — statusline이 이 파일만 읽는다.
 - 리스 TTL은 30분(하트비트 30회분 여유)이다. 일시적 네트워크 실패로 하트비트가 몇 번

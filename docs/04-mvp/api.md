@@ -7,7 +7,7 @@ updated: 2026-08-21
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 15종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [api.html](../html/api.html)
 
 ---
 
@@ -163,7 +163,7 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- |
 | EP-SPEC-01 | `GET /api/v1/projects/{proj}/specs/tree` | 전 역할(`spec:read`) | `SpecTreeQuery`(root, depth, status) | `SpecTreeResult`(id·title·type·문서 상태·현재 버전) | — |
 | EP-SPEC-02 | `GET /api/v1/projects/{proj}/specs/search` | 전 역할 | `SpecSearchQuery`(query, type, status, requirement_id, limit) | `SpecSearchResult`(안정 ID + 앵커 + 스니펫) | — |
-| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved, `include[]`: requirements/tasks/comments) | `SpecGetResult` | — |
+| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `baseline` 이름으로 세트 조회 가능(`version`과 배타), `include[]`: requirements/tasks/comments) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시) | — |
 | EP-SPEC-04 | `GET /api/v1/projects/{proj}/specs/{spec}/versions` | 전 역할 | — | `Page<SpecVersionSummary>` | — |
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |
@@ -175,6 +175,10 @@ flowchart LR
 | EP-CMT-02 | `POST /api/v1/projects/{proj}/spec-versions/{ver}/comments` | 전 역할(viewer 포함 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6 "스펙 조회·코멘트") | `CommentCreateInput`(anchor: 헤딩 slug 또는 REQ ref, body_md) | `CommentResult` | `spec.comment_added` |
 | EP-CMT-03 | `PATCH /api/v1/projects/{proj}/comments/{id}` | 작성자 본인 | `CommentUpdateInput`(body_md) | `CommentResult` | — |
 | EP-CMT-04 | `POST /api/v1/projects/{proj}/comments/{id}/resolve` | `spec:draft` 보유 역할 | `CommentResolveInput`(resolution_note, resolved_in_version_id) | `CommentResult`(open→resolved, 남은 open 수) | ★`comment.resolved` |
+| EP-SPEC-11 | `GET /api/v1/projects/{proj}/baselines` | 전 역할(`spec:read`) | `BaselineListQuery`(cursor) | `Page<BaselineSummary>`(name·note·항목 수·created_by·created_at) | — |
+| EP-SPEC-12 | `POST /api/v1/projects/{proj}/baselines` | planner·admin — **사람 전용**(PAT 불가, 베이스라인 동결은 거버넌스 행위 — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.6) | `BaselineCreateInput`(name, note_md, items[]? — 생략 시 스펙별 최신 approved 전체) | `BaselineResult` — approved 아닌 항목 포함 시 409 `NERV_PRECONDITION` | ★`baseline.created` |
+| EP-SPEC-13 | `GET /api/v1/projects/{proj}/baselines/{bl}` | 전 역할 | — | `BaselineDetailResult`(항목 전량: spec_id·key·title·핀 버전·현재 최신 approved와의 차이 표시) — 불변, 같은 `{bl}`은 영원히 같은 세트 | — |
+| EP-SPEC-14 | `GET /api/v1/projects/{proj}/specs/manifest` | 전 역할(`spec:read`, PAT 허용) | `ManifestQuery`(`as_of?` timestamptz 또는 `baseline?` 이름 — 둘 다 생략 시 현재) | `SpecManifestResult`(spec_id→{version_no, status, approved_at} 전량 — git export `manifest.json`의 API 판, [아키텍처](../03-proposal/architecture.md) §2.4b) | — |
 
 스펙 **승인·거절 엔드포인트는 이 절에 없다.** `in_review → approved/rejected` 전이는 승인함의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 `nerv_spec_approve`가 존재하지 않는 것([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.
 
@@ -342,7 +346,10 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 | `spec.comment_added` | EP-CMT-02 | `project:{id}` | P1 |
 | ★`comment.resolved` | EP-CMT-04 | `project:{id}` | P1 |
 | `task.ready` · `task.claimed` · `task.blocked` · `task.done` | Task 축 전이(§1.4·§6.3) | `project:{id}` | P0~P1 |
+| `task.rebrief_required` | 기준 SpecVersion superseded — 재브리핑 플래그 세팅([스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3) | `project:{id}` + 담당자·클레임 세션 소유자 `user:{id}` | P1 |
+| `spec.recheck_requested` | 참조 문서 전파 — 참조하는 스펙의 새 버전 승인(같은 문서 §3.3) | `project:{id}` + 대상 문서 owner `user:{id}` | P1 |
 | ★`task.created` · ★`task.updated` | EP-TASK-03·09 | `project:{id}` | P1 |
+| ★`baseline.created` | EP-SPEC-12 | `project:{id}` | P1 |
 | `claim.conflict_warn` · `claim.conflict_blocked` | 클레임 겹침 판정(§4.4) | `project:{id}` + 양쪽 세션 소유자 `user:{id}` | P0 |
 | ★`claim.released` | EP-TASK-08·EP-SES-04(stop)·리스 만료 회수 | `project:{id}` | P0 |
 | `session.started` · `session.stale` · `session.complete` | 세션 수명주기(§6.3, D-13) | `project:{id}` + 소유자 `user:{id}`(stale) | P0 |
@@ -388,8 +395,8 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | `nerv_bootstrap` | A1 | `SessionService.bootstrap` | — (MCP 전용. 부분 대응: EP-SES-02 + EP-PRJ-03) | 세션 등록 + 컨텍스트 팩. 훅 ingest와 같은 서비스가 세션 상태를 관리 |
 | `nerv_spec_tree` | A1 | `SpecService.tree` | EP-SPEC-01 | |
 | `nerv_spec_search` | A1 | `SpecService.search` | EP-SPEC-02 | |
-| `nerv_spec_get` | A1 | `SpecService.get` | EP-SPEC-03 | 본문은 비신뢰 래핑([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.3) — MCP 표면에서만 |
-| `nerv_task_next` | A1 | `TaskService.next` | EP-TASK-02 | ready 큐 질의는 [데이터 모델](../03-proposal/data-model.md) §4.5 |
+| `nerv_spec_get` | A1 | `SpecService.get` | EP-SPEC-03 | 본문은 비신뢰 래핑([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.3) — MCP 표면에서만. `version`/`baseline` 인자와 `basis_superseded` 표시는 두 표면 동일(기준 버전 규약 — 같은 문서 §2.4) |
+| `nerv_task_next` | A1 | `TaskService.next` | EP-TASK-02 | ready 큐 질의는 [데이터 모델](../03-proposal/data-model.md) §4.5. 응답에 기준 SpecVersion·베이스라인 포함(기준 버전 규약) |
 | `nerv_task_claim` | A2 | `TaskService.claim` | EP-TASK-06 | 겹침 판정·원자 전환이 이 메서드 안 — 표면 무관 동일 |
 | `nerv_task_heartbeat` | A1 | `TaskService.heartbeat` | EP-TASK-07 | 응답의 `pending` 역채널 포함 |
 | `nerv_task_release` | A2 | `TaskService.release` | EP-TASK-08 | |
@@ -425,6 +432,8 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | REQ-API-012 | WHEN 쿼터를 초과한 요청이 오면 THE SYSTEM SHALL HTTP 429 `NERV_RATE_LIMIT`과 `retry_after_s`·`Retry-After` 헤더를 함께 반환한다 | 버스트 요청 |
 | REQ-API-013 | WHEN 미인증 요청이 `/sse/*`에 오면 THE SYSTEM SHALL HTTP 401 `NERV_UNAUTHENTICATED`로 거부하고, WHEN 비멤버 사용자 또는 타 프로젝트 PAT가 EP-SSE-01을 요청하면 THE SYSTEM SHALL HTTP 403 `NERV_FORBIDDEN`으로 스트림을 열지 않는다 | 쿠키 없음·타 프로젝트 PAT 각 1케이스 |
 | REQ-API-014 | WHILE SSE 스트림이 열려 있는 동안, THE SYSTEM SHALL 25초 주기의 코멘트 라인(`: ping`)을 송신해 프록시 유휴 타임아웃을 방지한다 | 60초 무이벤트 구간에서 keep-alive 2회 이상 수신 |
+| REQ-API-015 | WHEN 베이스라인 생성 요청(EP-SPEC-12)에 `approved`가 아닌 SpecVersion 항목이 포함되면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`으로 전체를 거부하고, 생성된 베이스라인의 항목 집합 변경 요청은 제공하지 않는다(세트 변경 = 새 베이스라인 — REQ-DB-008) | draft 항목 포함 생성 거부 + 핀 대상 superseded 후 EP-SPEC-13 결과 불변 확인 |
+| REQ-API-016 | WHEN Task의 기준 SpecVersion(`source_spec_version_id`)이 `superseded`로 전이되면 THE SYSTEM SHALL 그 Task의 조회(EP-TASK-04)·`nerv_task_next`·`nerv_spec_get`(기준 버전 지정)·하트비트 응답에 `basis_superseded`와 최신 approved 버전 번호를 표시하고, `task.rebrief_required` 이벤트를 발행한다 | 기준 버전 supersede 후 4개 표면 응답 각 1건 + 이벤트 수신 확인 |
 
 ---
 
@@ -434,7 +443,7 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — §2 도구 17종의 입력·출력·권한·티어·멱등성, §2.7 에러 코드 10종과 봉투, §2.5·§6.1 PAT 튜플·스코프, §3.3 훅 ingest 경로 — **이 문서의 §1.4·§2.9·§4가 인용** (재정의 금지)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — §1 세 상태 축과 전이·§1.6 권한 매트릭스·§2.3 지시자≠승인자·§4.4 겹침 알고리즘·§4.6 done 게이트·§6 이벤트 이름 규약과 카탈로그 — **§2 전표의 권한 열과 §3.3 이벤트 목록의 정본**
-- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 27종 필드(응답 필드명은 이 문서와 1:1)·§4 대표 질의·§5.1 ID 체계
+- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드(응답 필드명은 이 문서와 1:1)·§4 대표 질의·§5.1 ID 체계
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — §2.4 markdown 미러·`llms.txt` 경로(§2.8이 문자열 그대로 인용), §1.2 전체 구성도
 - [3.6 화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md) — §1.2 라우팅·§1.4 URL 규약(표시 ID 예시 표기)
 - [3.7 로드맵](../03-proposal/roadmap.md) — FR별 P0/P1/P2 배정(§2.3·§2.6·§2.7·§3.3의 Phase 표기 근거)

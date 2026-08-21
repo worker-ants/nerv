@@ -1,8 +1,8 @@
 # 데이터 모델
 
-> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 27개 엔티티의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
+> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 29개 엔티티의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 판: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [data-model.html](../html/data-model.html)
 
 ---
 
@@ -46,6 +46,10 @@ erDiagram
   requirement ||--o{ requirement_version : "이력"
   spec_version ||--o{ spec_comment : "코멘트 스레드"
   user ||--o{ spec_comment : "작성"
+  project ||--o{ spec_baseline : "승인 스냅샷 세트"
+  spec_baseline ||--o{ spec_baseline_item : "구성"
+  spec_version ||--o{ spec_baseline_item : "핀"
+  spec_baseline ||--o{ task : "기준 세트"
   spec_version ||--o{ task : "파생"
   requirement ||--o{ task : "파생"
   task ||--o{ task_dependency : "선행 관계"
@@ -104,6 +108,8 @@ erDiagram
 | 25 | 이벤트 | `event` | append-only 상태 전이 로그(피드·알림·감사의 원천) | FR-16 |
 | 26 | 알림 | `notification` | 이벤트에서 파생된 개인별 수신함 항목 | FR-12 |
 | 27 | 스펙 코멘트 | `spec_comment` | 헤딩·요구사항 앵커에 달리는 스레드 코멘트(해소 추적) | FR-11 |
+| 28 | 스펙 베이스라인 | `spec_baseline` | 프로젝트의 approved 버전 집합을 이름 붙여 동결한 스냅샷 세트 | FR-02 |
+| 29 | 베이스라인 항목 | `spec_baseline_item` | 베이스라인×스펙 — 어느 approved 버전이 핀됐는가(스펙당 1개) | FR-02 |
 
 > **근거 · 2축 분리가 필요한 이유.** clemvion의 `status`는 5값(`backlog`/`spec-only`/`partial`/`implemented`/`archived`)이지만 **전부 구현 축**이고 **문서 단위**다. 그 결과 (a) 초안/검토중/승인이라는 문서 상태가 존재하지 않아 "이게 합의된 내용인가"를 물을 수 없었고, (b) 1,750줄 문서(`clemvion:spec/5-system/4-execution-engine.md`)에 상태 값이 하나뿐이라 `code:` glob이 매치되면 통과해 요구사항 단위 미구현이 통과했다 — 실제 사고: "spec이 `필수`로 약속한 update dedup이 통째로 미구현"(CCH-SE-02). 요구사항별 상태를 대신하던 수동 ✅ 마크는 한 영역 131개 대 다른 영역 0개로 관행이 갈라져 이미 붕괴해 있었다.
 
@@ -204,7 +210,7 @@ stateDiagram-v2
 
 권한 비확대는 스키마가 아니라 정책으로 강제하지만, `user_id`를 필수 FK로 두는 것이 그 정책의 데이터 기반이다 — Asana가 AI Teammate에 대해 "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다"고 명시한 원칙과 같다.
 
-### 2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment
+### 2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment · spec_baseline
 
 **`spec`** — 트리 노드. 본문은 여기 없다.
 
@@ -298,6 +304,28 @@ stateDiagram-v2
 
 코멘트는 **편집·해소되는 협업 개체**이고(본문 편집 가능, `open → resolved` 상태 전이), Activity는 **불변 로그**다(§2.5). §2.5가 인용하는 Linear 권고 — "대화 재구성은 수정될 수 있는 코멘트가 아니라 불변 Agent Activity로 하라" — 가 전제하는 편집 가능한 코멘트의 자리가 바로 이 테이블이다. 해소는 삭제가 아니라 상태 전이이고, `resolved_in_version_id`가 어느 draft 버전에서 반영됐는지를 남겨 해소 추적이 질의가 된다.
 
+**`spec_baseline`** — 프로젝트 단위 승인 스냅샷 세트(FR-02 범위 확장, 2026-08-21 MVP 포함 확정).
+
+스펙은 구현보다 앞서간다 — draft→approved가 빈번히 도는 동안 구현은 특정 시점의 approved **세트**를 기준으로 진행된다. SpecVersion 하나의 불변성은 문서 1건의 기준만 고정할 뿐, "그때 함께 정합이던 문서들의 조합"은 표현하지 못한다. 요구공학의 baseline 정의("합의·검토·승인된 요구사항 **집합**의 시점 스냅샷" — Jama)를 문서 1건이 아니라 프로젝트 세트에 적용한 것이 이 엔티티다. 워크플로우 규약은 [스펙 워크플로우와 거버넌스](spec-workflow.md) §3.6이 정본이다.
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `id` | uuid PK | |
+| `project_id` | uuid FK | |
+| `name` | text | 사람이 붙이는 이름(예: `R1`, `2026-09-릴리스`). `UNIQUE (project_id, name)` |
+| `note_md` | text | 무엇을 위한 동결인가 |
+| `created_by_user_id` | uuid FK | **사람 전용** — 베이스라인 동결은 거버넌스 행위라 에이전트 생성 경로(MCP 도구)가 없다. 에이전트는 읽기만 한다(`nerv_spec_get`의 `baseline` 인자) |
+| `created_at` | timestamptz | |
+
+**`spec_baseline_item`** — 베이스라인×스펙 junction. 스펙당 approved 버전 1개를 핀한다.
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `baseline_id` · `spec_id` | uuid FK | 복합 PK — 스펙당 1개 |
+| `spec_version_id` | uuid FK | 핀된 버전. **approved 상태만 허용**(생성 시 서버 검증) |
+
+무결성 규칙: 베이스라인은 **생성 후 불변**이다 — 항목 집합의 추가·교체·삭제는 없고, 세트를 바꾸려면 새 베이스라인을 만든다(approved SpecVersion 불변과 같은 원리). 핀 대상이 나중에 `superseded`가 되어도 항목은 그대로다 — 그것이 "그때의 세트"를 재현하는 존재 이유다. 참고로 특정 **시각**의 approved 집합은 베이스라인 없이도 `approved_at`으로 파생 가능하다(as-of 질의 — [4.4 API 명세](../04-mvp/api.md)의 manifest 엔드포인트) — 베이스라인은 시각 절단이 아니라 **큐레이션된 이름 있는 동결**이라는 점이 다르다.
+
 ### 2.3 변경 요청 — change_request
 
 | 필드 | 타입 | 설명 |
@@ -327,8 +355,10 @@ stateDiagram-v2
 | `title` · `body_md` | text | |
 | `status` | enum | `backlog / ready / claimed / in_progress / in_review / done / blocked` |
 | `priority` | enum | `P0 / P1 / P2 / P3` |
-| `source_spec_version_id` | uuid FK NULL | 파생 출처 버전 |
+| `source_spec_version_id` | uuid FK NULL | 파생 출처 버전 = **이 Task의 기준 버전**(구현 컨텍스트는 이 불변 스냅샷을 읽는다 — [에이전트 연동 설계](agent-integration.md) §2.4 기준 버전 규약). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)은 필수다 |
 | `source_requirement_id` | uuid FK NULL | 파생 출처 요구사항 |
+| `baseline_id` | uuid FK NULL | 기준 베이스라인(§2.2) — 이 Task가 어느 승인 세트의 맥락에서 파생됐는가. 주변 문서까지 그 세트로 읽는다 |
+| `rebrief_required_at` | timestamptz NULL | 기준 버전이 `superseded`로 전이될 때 서버가 세팅 — **재브리핑 필요** 플래그의 실물([스펙 워크플로우](spec-workflow.md) §3.3). 사람이 위임 명세를 재확인하고 기준 버전을 갱신하면 해제 |
 | `assignee_user_id` | uuid FK NULL | **사람** 책임자 |
 | `delegate_session_id` | uuid FK NULL | **에이전트** 수행 세션 |
 | `goal_md` | text | 위임 명세 ①: 목표 |
@@ -909,6 +939,7 @@ fingerprint = sha256(
 | 7 | severity 변경은 감사 대상이다 | `finding.severity` 변경 시 `event` 필수, 원값은 `raw_severity`에 보존 |
 | 8 | 모든 도메인 행은 `project_id`를 갖는다 | NOT NULL + 저장소 계층의 스코프 자동 주입 |
 | 9 | 편집 리스는 draft 상태에서만 non-NULL이다 | `spec_version` 리스 3필드의 partial index `WHERE status='draft'` — draft가 아니면 전부 NULL |
+| 10 | 베이스라인은 approved 버전만 담고, 생성 후 불변이다 | 생성 트랜잭션에서 항목 전건의 `status='approved'` 검증 + 항목 UPDATE/DELETE 경로 미제공(변경 = 새 베이스라인 생성) |
 
 ---
 

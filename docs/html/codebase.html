@@ -52,7 +52,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>구현 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v0.2 (2026-08-21)</span>
+      <span>버전 v0.3 (2026-08-21)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~015</span>
     </div>
@@ -277,7 +277,8 @@
       spec.module.ts
       spec.service.ts            # 초안 upsert · base_version 전제조건 · 편집 리스 · 전이 · 사전 검토
       spec-comment.service.ts
-      spec.controller.ts         # REST — tree · get · 버전 · draft · check · submit · 코멘트
+      baseline.service.ts        # 베이스라인 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
+      spec.controller.ts         # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest
       spec.tools.ts              # MCP — nerv_spec_* 7종 (§2.3 표)
     task/                        # TaskModule
       task.module.ts
@@ -333,10 +334,10 @@
   <p>테이블 이름의 의미 정본은 <a href="data-model.html">3.3 데이터 모델</a>, DDL 정본은 <a href="database.html">4.3 데이터베이스 스키마</a>, 도구 정의 정본은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2, REST 경로 정본은 <a href="api.html">4.4 API 명세</a>다. 이 표는 배치만 확정한다.</p>
 
   <div class="table-wrap"><table>
-    <thead><tr><th>Nest 모듈</th><th>소유 테이블 (27종 전수 배정)</th><th>MCP 도구 (Phase)</th><th>REST 프리픽스</th></tr></thead>
+    <thead><tr><th>Nest 모듈</th><th>소유 테이블 (29종 전수 배정)</th><th>MCP 도구 (Phase)</th><th>REST 프리픽스</th></tr></thead>
     <tbody>
       <tr><td><code>AuthModule</code></td><td><code>organization</code> <code>user</code> <code>project</code> <code>membership</code> <code>api_token</code></td><td>—</td><td><code>/api/v1/auth</code> · <code>/api/v1/orgs</code> · <code>/api/v1/projects</code></td></tr>
-      <tr><td><code>SpecModule</code></td><td><code>spec</code> <code>spec_version</code> <code>requirement</code> <code>requirement_version</code> <code>spec_relation</code> <code>spec_comment</code> <code>change_request</code></td><td><code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code>(P0) · <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code>(P1)</td><td><code>…/projects/{p}/specs</code></td></tr>
+      <tr><td><code>SpecModule</code></td><td><code>spec</code> <code>spec_version</code> <code>requirement</code> <code>requirement_version</code> <code>spec_relation</code> <code>spec_comment</code> <code>change_request</code> <code>spec_baseline</code> <code>spec_baseline_item</code></td><td><code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code>(P0) · <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code>(P1)</td><td><code>…/projects/{p}/specs</code> · <code>…/projects/{p}/baselines</code></td></tr>
       <tr><td><code>TaskModule</code></td><td><code>task</code> <code>task_dependency</code> <code>claim</code> <code>evidence</code></td><td><code>nerv_task_next</code> <code>nerv_task_claim</code> <code>nerv_task_heartbeat</code> <code>nerv_task_release</code>(P0) · <code>nerv_task_update</code>(P1)</td><td><code>…/projects/{p}/tasks</code></td></tr>
       <tr><td><code>SessionModule</code></td><td><code>agent_session</code> <code>activity</code></td><td><code>nerv_bootstrap</code>(P0) · <code>nerv_session_event</code>(P1)</td><td><code>…/projects/{p}/sessions</code> + <code>/ingest/hooks/*</code></td></tr>
       <tr><td><code>ApprovalModule</code></td><td><code>approval</code> <code>question</code></td><td><code>nerv_question_create</code>(P1)</td><td><code>…/projects/{p}/approvals</code> · <code>…/questions</code></td></tr>
@@ -345,7 +346,7 @@
     </tbody>
   </table></div>
 
-  <p>합계 검산: MVP 도구 = P0 8종 + P1 7종 = <b>15종</b>, 리뷰 2종은 P2(카탈로그 총 17종 — <a href="agent-integration.html">3.4</a> §2.3). 테이블 5+7+4+2+2+5+2 = <b>27종</b>.</p>
+  <p>합계 검산: MVP 도구 = P0 8종 + P1 7종 = <b>15종</b>, 리뷰 2종은 P2(카탈로그 총 17종 — <a href="agent-integration.html">3.4</a> §2.3). 베이스라인은 새 도구 없이 기존 도구의 입력 확장(<code>nerv_spec_get</code>의 <code>baseline</code>)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = <b>29종</b>.</p>
 
   <h3>2.4 표면별 규약</h3>
 
@@ -380,9 +381,9 @@
   src/
     index.ts
     enums.ts                     # pgEnum 선언 — 문서 상태 · Task 상태 · 세션 상태 · severity … (정본: 3.3)
-    tables/                      # 27개 테이블 drizzle 선언 — §2.3 모듈 소유와 같은 분할
+    tables/                      # 29개 테이블 drizzle 선언 — §2.3 모듈 소유와 같은 분할
       tenancy.ts                 #   organization · user · project · membership · api_token
-      spec.ts                    #   spec · spec_version · requirement · requirement_version · spec_relation · spec_comment · change_request
+      spec.ts                    #   spec · spec_version · requirement · requirement_version · spec_relation · spec_comment · change_request · spec_baseline · spec_baseline_item
       task.ts                    #   task · task_dependency · claim · evidence
       session.ts                 #   agent_session · activity
       review.ts                  #   review_session · reviewer_report · finding · finding_occurrence · resolution
@@ -1077,7 +1078,7 @@ patches:
     <li>D-05(REST·MCP·WS·SSE의 도메인 서비스 공유) · D-13(하트비트·stale) · D-14(fail-open, 진실은 서버 산출물) — <a href="agent-integration.html">3.4 에이전트 연동 설계</a>. 실시간 채널(WebSocket + SSE)·방송 MQ(Valkey) 확정은 2026-08-21(<a href="scope.html">4.1</a> §2)</li>
     <li>확정 스택 전문과 결정일·재검토 트리거 — <a href="architecture.html">3.2 시스템 아키텍처</a> §4, <a href="scope.html">4.1 MVP 범위와 스택 확정</a></li>
     <li>상수 정본 — 리스 TTL 30분 · 하트비트 60초 · 세션 stale 30분 · blob TTL 30일(<a href="agent-integration.html">3.4</a> §2.7·§5.2, <a href="architecture.html">3.2</a> §2.5)</li>
-    <li>테이블 27종의 의미 — <a href="data-model.html">3.3 데이터 모델</a> §1.3 / DDL·이벤트 방송 규약 — <a href="database.html">4.3 데이터베이스 스키마</a></li>
+    <li>테이블 29종의 의미 — <a href="data-model.html">3.3 데이터 모델</a> §1.3 / DDL·이벤트 방송 규약 — <a href="database.html">4.3 데이터베이스 스키마</a></li>
     <li>ingest 엔드포인트 5종(<code>/ingest/hooks/session</code>·<code>tool</code>·<code>subagent</code>·<code>stop</code>·<code>session-end</code>)과 클라이언트 환경변수 — <a href="agent-integration.html">3.4</a> §3.3</li>
     <li>clemvion 관례 — <code>clemvion:k8s/</code> base+overlays kustomize 구조(<a href="architecture.html">3.2</a> §4.2 배포 행)</li>
   </ul>
@@ -1095,7 +1096,7 @@ patches:
     <li><a href="backlog.html">4.8 백로그</a> — E01 저장소 부트스트랩 에픽과 운영 Postgres 위치 확인 태스크</li>
     <li><a href="architecture.html">3.2 시스템 아키텍처</a> — 컴포넌트 책임·배포 원형(§4.4)</li>
     <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — MCP 도구 17종·훅·ingest의 정본</li>
-    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 27종 필드 의미의 정본</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 29종 필드 의미의 정본</li>
   </ul>
 
   <footer class="page-footer">

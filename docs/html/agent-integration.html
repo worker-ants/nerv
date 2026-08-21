@@ -52,7 +52,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 17종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.1 (2026-08-13)</span>
+      <span>버전 v0.3 (2026-08-21)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -230,7 +230,7 @@
       <tr>
         <td><code>nerv_bootstrap</code></td>
         <td><code>project</code>, <code>agent_type</code>, <code>hostname</code>, <code>cwd</code>, <code>repo{remote,branch}</code>, <code>resume_session_id?</code></td>
-        <td><code>session_id</code>, 규약 스펙 요약, 내 활성 클레임, 게이트 정책·자율성 레벨, 컨텍스트 팩 ETag</td>
+        <td><code>session_id</code>, 규약 스펙 요약, 내 활성 클레임(<b>Task 기준 버전·베이스라인 포함</b>), 게이트 정책·자율성 레벨, 컨텍스트 팩 ETag</td>
         <td><code>spec:read</code> + <code>agent-session:launch</code></td><td>A1</td>
         <td>세션 시작 직후 <b>첫 도구 호출</b></td>
         <td>멱등 — 같은 세션이면 동일 스냅샷</td>
@@ -246,10 +246,10 @@
         <td><code>spec:read</code></td><td>A1</td><td>컨텍스트 수집·중복 확인</td><td>읽기 전용</td>
       </tr>
       <tr>
-        <td><code>nerv_spec_get</code></td><td><code>spec_id</code>, <code>version?</code>(기본 approved), <code>include[]</code>(requirements/tasks/reviews/comments)</td>
-        <td>본문 markdown(비신뢰 래핑) + 메타 + Requirement + 파생 Task</td>
+        <td><code>nerv_spec_get</code></td><td><code>spec_id</code>, <code>version?</code>(기본 approved 최신 — <b>Task 컨텍스트에서는 기준 버전을 지정한다</b>, §2.4), <code>baseline?</code>(베이스라인 이름 — 그 세트에 핀된 버전을 읽는다, <code>version</code>과 배타), <code>include[]</code>(requirements/tasks/reviews/comments)</td>
+        <td>본문 markdown(비신뢰 래핑) + 메타 + Requirement + 파생 Task + <b><code>basis_superseded?</code></b>(요청 버전이 superseded면 최신 approved 버전 번호와 함께 표시)</td>
         <td><code>spec:read</code></td><td>A1</td><td>구현 착수 전, 리뷰 전</td>
-        <td>읽기 전용 — 버전 지정 시 불변 스냅샷이라 결과 고정</td>
+        <td>읽기 전용 — <code>version</code>/<code>baseline</code> 지정 시 불변 스냅샷이라 결과 고정</td>
       </tr>
       <tr>
         <td><code>nerv_spec_draft_upsert</code></td>
@@ -276,7 +276,7 @@
       </tr>
       <tr>
         <td><code>nerv_task_next</code></td><td><code>project</code>, <code>role?</code>, <code>spec_id?</code>, <code>capabilities?</code>, <code>limit</code></td>
-        <td>ready Task 후보 + <b>위임 명세 4요소</b>(목표·산출물 형식·도구/출처·경계) + 권장 scope</td>
+        <td>ready Task 후보 + <b>위임 명세 4요소</b>(목표·산출물 형식·도구/출처·경계) + <b>기준 SpecVersion(id·version_no)·베이스라인</b> + 권장 scope</td>
         <td><code>task:claim</code></td><td>A1</td><td>클레임 직전</td><td>읽기 전용(후보 순서는 시점 의존)</td>
       </tr>
       <tr>
@@ -287,7 +287,7 @@
       </tr>
       <tr>
         <td><code>nerv_task_heartbeat</code></td><td><code>claim_id</code>, <code>progress?</code>, <code>stats?{added,removed,files}</code></td>
-        <td>새 <code>lease_expires_at</code>, <b>pending 질문 답변·알림·steer/stop 지시</b></td>
+        <td>새 <code>lease_expires_at</code>, <b>pending 질문 답변·알림·steer/stop 지시·기준 버전 변경 알림(<code>basis_superseded</code> — 재브리핑 대기)</b></td>
         <td><code>task:update</code></td><td>A1</td><td><b>60초 주기</b></td><td>자연 멱등(LWW)</td>
       </tr>
       <tr>
@@ -347,6 +347,16 @@
   <p><b><code>nerv_finding_resolve</code> — 하향 조정이 A3인 이유.</b> 에이전트가 자기 리뷰의 심각도를 스스로 낮출 수 있으면 게이트는 형식이 된다. 그래서 <code>critical</code> finding을 <code>dismissed</code>/<code>wont_fix</code>로 옮기는 호출만 A3로 올려 사람 승인 큐를 거치게 한다. <code>fixed</code> + <code>commit_sha</code>는 검증 가능한 사실이므로 A2다.</p>
 
   <p><b><code>nerv_task_heartbeat</code> — 역채널.</b> 하트비트 응답은 리스 연장만이 아니라 <b>서버 → 세션 방향의 유일한 보장된 채널</b>이다. 질문 답변, 사람의 stop/steer 지시, 겹침 발생 알림이 여기 실린다. Claude Code의 <code>claude/channel</code>(서버 push)은 Codex에 없으므로 채널은 향상이고 하트비트가 정본이다.</p>
+
+  <div class="callout decision"><span class="ico">📌</span><div class="body">
+    <b class="title">기준 버전 규약 — Task 컨텍스트의 스펙 읽기 (2026-08-21 확정)</b>
+    <p>스펙은 구현보다 앞서가므로, Task 진행 중에 같은 스펙의 새 버전이 승인되는 일은 정상 상황이다. 그때 세션이 무엇을 읽어야 하는지를 한 곳에서 못 박는다.</p>
+    <ol>
+      <li><b>기준은 Task에 핀된 버전이다.</b> 구현 컨텍스트의 스펙 읽기는 <code>nerv_spec_get(spec_id, version=&lt;Task의 기준 버전&gt;)</code>으로 한다 — 기본값(최신 approved)에 의존하지 않는다. 기준 버전은 <code>nerv_task_next</code>·<code>nerv_bootstrap</code> 응답과 컨텍스트 팩에 실려 온다. Task가 베이스라인 맥락이면 주변 문서도 <code>baseline</code> 인자로 그 세트를 읽는다(<a href="spec-workflow.html">스펙 워크플로우</a> §3.6).</li>
+      <li><b>기준이 낡으면 서버가 말한다.</b> 기준 버전이 <code>superseded</code>가 되면 서버는 <code>nerv_spec_get</code>·<code>nerv_task_next</code>·하트비트 응답에 <code>basis_superseded</code>(+ 최신 approved 버전 번호)를 표시하고 Task에 재브리핑 플래그를 세운다(<a href="spec-workflow.html">스펙 워크플로우</a> §3.3).</li>
+      <li><b>갈아타는 것은 사람이다.</b> <code>basis_superseded</code>를 받아도 세션은 임의로 최신 버전으로 갈아타지 않는다 — 내 Requirement가 MODIFIED/REMOVED면 <code>blocked(spec_conflict)</code> 전이 또는 <code>nerv_question_create</code>로 확인을 구하고, 아니면 기준 버전으로 계속 진행하며 사람의 재브리핑(위임 명세 재확인 + 기준 버전 갱신)을 기다린다. 서버가 조용히 최신 본문을 먹이는 일은 없다 — 승인이 content hash에 대한 결정이듯, 위임도 특정 버전에 대한 결정이기 때문이다.</li>
+    </ol>
+  </div></div>
 
   <h3 id="sec-2-5">2.5 인증</h3>
   <div class="table-wrap"><table>

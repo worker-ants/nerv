@@ -2,7 +2,7 @@
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·승인함 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 판: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [spec-workflow.html](../html/spec-workflow.html)
 
 ---
 
@@ -284,10 +284,14 @@ CR 승인은 세 축을 동시에 움직인다. 서버가 아래 규칙으로 �
 | 델타 | 문서 축 | 구현 축(Requirement) | Task 축 | 알림 티어 |
 | --- | --- | --- | --- | --- |
 | ADDED | 새 버전 approved, 이전 superseded | 새 REQ `unimplemented` | 파생 Task `backlog` 자동 제안(위임 명세 초안 포함) | standard |
-| MODIFIED | 동일 | `implemented`/`verified` → `in_progress` 강등 | 완료 Task는 재검증 Task 신설, 진행 중 Task는 **재브리핑 필요** 플래그 | high (클레임 보유 세션에는 critical) |
+| MODIFIED | 동일 | `implemented`/`verified` → `in_progress` 강등 | 완료 Task는 재검증 Task 신설, 진행 중 Task는 **재브리핑 필요** 플래그(`task.rebrief_required_at` 세팅 + `task.rebrief_required` 이벤트 — 실물은 [데이터 모델](data-model.md) §2.4) | high (클레임 보유 세션에는 critical) |
 | REMOVED | 동일 | REQ `deprecated` | 파생 Task 중 미착수분은 취소 제안, 진행 중이면 즉시 중단 확인 요청 | critical |
 
 진행 중인 클레임이 있는 요구사항을 MODIFIED/REMOVED 하는 CR은 **그 세션에 즉시 알림을 보내고**(§6), 세션은 다음 하트비트에서 변경을 인지해 `blocked(spec_conflict)`로 스스로 전이할 수 있다. clemvion이 "동일 spec 파일을 두 worktree가 동시 수정 중이면 plan에 명시하고 직렬화한다. **자동 검출은 없다**"고 포기했던 지점(`clemvion:.claude/docs/worktree-policy.md` §3)이 여기서 복원된다 — 서버가 모든 세션의 scope 선언을 보기 때문이다.
+
+**재브리핑 플래그의 수명.** 서버가 세운 `rebrief_required_at`은 자동으로 사라지지 않는다 — 사람이 위임 명세 4요소를 새 버전 기준으로 재확인하고 Task의 기준 버전(`source_spec_version_id`)을 최신 approved로 갱신하는 순간 해제된다. 재브리핑 전까지 세션의 구현 컨텍스트는 **기존 기준 버전**이다 — 서버가 조용히 최신 버전을 먹이는 일은 없다([에이전트 연동 설계](agent-integration.md) §2.4 기준 버전 규약). S4 카드에는 재브리핑 배지가 뜬다([4.5 화면 명세](../04-mvp/screens.md)).
+
+**참조 문서 전파(문서 간 영향).** 위 표는 같은 문서 안의 Requirement·Task까지만 움직인다. 문서 A의 새 버전이 승인되면 서버는 `spec_relation`의 **역방향** — A를 `references`/`depends_on`/`duplicates`로 참조하는 문서들 — 을 재검토 후보로 산출해 `spec.recheck_requested` 이벤트를 만들고(§6.3, 대상 문서 `owner_role`에게 standard 알림), 그 문서의 S3 상태 패널에 "참조 스펙에 앞선 버전 존재" 배지를 세운다. clemvion의 "네 문서가 각자 필드를 열거"·"모방한 쪽이 맞고 원본이 틀렸다" 사고의 재발 방지 장치다. 승인 트리거로 cross-spec 검사기(§2.1)를 그 문서들에 비동기 실행하는 것은 Phase 2다 — MVP는 배지 + 알림까지.
 
 ### 3.4 SPEC-DRIFT 역류 경로
 
@@ -309,13 +313,27 @@ Finding(tag=spec_drift, severity=warning)
 
 CR은 자체 수명 상태(`open / in_review / approved / rejected / withdrawn`)를 갖되, **승인 판정의 진실은 대상 SpecVersion의 문서 축 상태**다. CR 상태는 제안 자체의 진행(철회·반려 포함)을 표현하고, 무엇이 승인된 기준인지는 언제나 SpecVersion이 답한다. 두 값 중 어느 쪽이 진실인지 미리 못 박아 두지 않으면, 값이 갈라지는 순간 판단이 불가능해지기 때문이다 — clemvion에서 plan frontmatter `status`와 디렉토리 위치(`in-progress/` vs `complete/`)가 두 번이나 어긋난 실패(#1108·#1117)가 그 사례다.
 
+### 3.6 베이스라인 — 프로젝트 단위 승인 스냅샷 (FR-02 확장, 2026-08-21 MVP 포함 확정)
+
+스펙은 구현보다 앞서간다. 문서마다 draft→approved가 도는 동안, 구현은 "그때 함께 정합이던 approved 세트"를 기준으로 진행돼야 한다 — 문서 1건의 버전 핀(`task.source_spec_version_id`)만으로는 그 문서가 **참조하는 주변 문서들**의 기준이 흔들린다. 베이스라인은 그 세트를 이름 붙여 동결하는 1급 개념이다(엔티티 정본: [데이터 모델](data-model.md) §2.2, API: [4.4](../04-mvp/api.md)).
+
+| 규칙 | 내용 |
+| --- | --- |
+| 생성 | **사람 전용**(planner·admin) — 동결은 거버넌스 행위라 에이전트 생성 도구가 없다. 기본값은 "생성 시점의 스펙별 최신 approved 전체"이고, 항목을 큐레이션해 줄일 수 있다 |
+| 구성 | 스펙당 approved SpecVersion 1개 핀. draft·in_review는 담을 수 없다(생성 시 서버 검증) |
+| 불변 | 생성 후 항목 집합은 바뀌지 않는다. 세트를 바꾸려면 새 베이스라인 — approved 스냅샷 불변과 같은 원리다 |
+| 소비 | Task 파생 시 `task.baseline_id`로 맥락을 고정할 수 있고, 에이전트·웹은 `nerv_spec_get(baseline=…)`·`?baseline=` 조회로 그 세트 그대로 읽는다. 핀 대상이 나중에 superseded 되어도 베이스라인 조회 결과는 변하지 않는다 |
+| 시각 절단과의 관계 | 특정 시각의 approved 집합은 `approved_at`으로 파생 가능하다(as-of manifest — [4.4](../04-mvp/api.md)). 베이스라인은 시각 절단이 아니라 **큐레이션된 이름 있는 동결**이다 |
+
+베이스라인은 문서 축 상태 머신을 건드리지 않는다 — superseded 전이·CR 흐름은 그대로 돌고, 베이스라인은 그 위에 얹힌 읽기 기준일 뿐이다. 요구공학의 baseline("합의·검토·승인된 요구사항 집합의 시점 스냅샷")을 문서 1건이 아니라 프로젝트 세트에 적용한 것이며, §2.5 "승인의 유통기한"(content hash 기준 결정)과 함께 "무엇을 기준으로 만들었나"라는 질문을 어느 축에서든 답할 수 있게 한다.
+
 ---
 
 ## 4. 작업 흐름
 
 ### 4.1 Task 분해와 위임 명세 4요소 (FR-05)
 
-승인된 SpecVersion의 Requirement에서 Task를 파생한다. 모든 Task는 **위임 명세 4요소**를 갖춰야 하며, 하나라도 비면 서버가 `ready` 승격을 거부한다.
+승인된 SpecVersion의 Requirement에서 Task를 파생한다. 파생 시점의 SpecVersion이 그 Task의 **기준 버전**(`source_spec_version_id`)으로 고정되고, 베이스라인 맥락에서 파생됐으면 `baseline_id`도 함께 고정된다 — 구현 컨텍스트는 이후 새 버전이 승인돼도 재브리핑(§3.3) 전까지 이 기준을 읽는다([에이전트 연동 설계](agent-integration.md) §2.4). 모든 Task는 **위임 명세 4요소**를 갖춰야 하며, 하나라도 비면 서버가 `ready` 승격을 거부한다.
 
 | 요소 | 내용 | 미충족 시 벌어지는 일 |
 | --- | --- | --- |
@@ -616,8 +634,10 @@ Event (append-only, D-10)
 | `claim.conflict_warn` | high | 양쪽 세션 소유자 | `task:{id}:conflicts` |
 | `session.stale`(내 세션) | high | 세션 소유자 | `user:{id}:sessions` |
 | `task.blocked` | high | 담당자 + planner | `task:{id}:state` |
+| `task.rebrief_required` | high | 담당자 + 클레임 보유 세션 소유자 | `task:{id}:state` |
 | `gate.bypassed` | high | admin | `project:{id}:bypass` |
 | `spec.comment_added` | standard | 스레드 참여자 · 워처 | `spec:{id}:comments` |
+| `spec.recheck_requested`(참조 문서 전파 — §3.3) | standard | 대상 문서 `owner_role` | `spec:{id}:recheck` |
 | `task.ready`(내 영역) | standard | 영역 워처 | `project:{id}:ready` |
 | `finding.resolved` | standard | 리뷰 요청자 | `review:{id}:resolutions` |
 | `session.started` / `session.complete` | low | 워처 | `session:{id}:lifecycle` |

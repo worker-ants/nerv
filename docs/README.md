@@ -2,9 +2,11 @@
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v0.2 · 2026-08-21 · 사람이 읽기 좋은 HTML 판: [html/index.html](html/index.html)
+> 문서 버전 v0.3 · 2026-08-21 · 사람이 읽기 좋은 HTML 판: [html/index.html](html/index.html)
 >
 > v0.2 변경: ① 구현 코드 위치를 저장소 `codebase/` 하위로 확정(4.2 §1, REQ-CB-015) ② 실시간 채널을 WebSocket 단일에서 **WebSocket + SSE 다중 채널**로 확장하고 팬아웃 **방송 MQ를 Valkey pub/sub**로 확정(4.1 §2 · 4.4 §3 · 4.3 §3) ③ 에이전트 작업 규약 [AGENTS.md](../AGENTS.md) 신설(CLAUDE.md가 import).
+>
+> v0.3 변경(FR-02 범위 확장 — 스펙이 구현보다 앞서갈 때의 기준 관리): ① **베이스라인**(프로젝트 승인 세트의 이름 있는 동결)을 MVP 핵심으로 포함 — 테이블 29종(+`spec_baseline`·`spec_baseline_item`), EP-SPEC-11~14, as-of manifest(3.5 §3.6 · 3.3 §2.2) ② **기준 버전 규약** — Task 컨텍스트는 파생 버전(`source_spec_version_id`)의 불변 스냅샷을 읽고, superseded 시 서버가 `basis_superseded` 표시 + 재브리핑 플래그(3.4 §2.4 · 3.5 §3.3) ③ **참조 문서 전파** — 승인 시 `spec_relation` 역방향 재검토 신호(`spec.recheck_requested`).
 
 ## 읽는 순서
 
@@ -48,7 +50,7 @@
 | --- | --- |
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(15종)·스킬(4종) 범위와 non-goals |
 | [4.2 코드베이스와 배포](04-mvp/codebase.md) | 저장소 구역(`docs/`·`codebase/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
-| [4.3 데이터베이스 스키마](04-mvp/database.md) | 27개 테이블 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
+| [4.3 데이터베이스 스키마](04-mvp/database.md) | 29개 테이블 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), MCP 15종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | 스킬 4종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`), hooks.json·`.mcp.json` 전문, 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |

@@ -50,9 +50,9 @@
 
   <header class="page-header">
     <h1>데이터 모델</h1>
-    <p class="lead">NERV가 Postgres에 담을 27개 엔티티의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
+    <p class="lead">NERV가 Postgres에 담을 29개 엔티티의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.1 (2026-08-13)</span>
+      <span>버전 v0.3 (2026-08-21)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
     </div>
@@ -108,7 +108,7 @@
   <h3>1.2 전체 ERD</h3>
 
   <div class="diagram">
-    <svg viewBox="0 0 1200 600" role="img" aria-label="NERV 데이터 모델 전체 ERD — 27개 테이블과 관계">
+    <svg viewBox="0 0 1200 600" role="img" aria-label="NERV 데이터 모델 전체 ERD — 29개 테이블과 관계">
       <defs>
         <marker id="one" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="9" markerHeight="9" orient="auto">
           <path d="M1,1 L1,9" stroke="var(--border-strong)" stroke-width="1.6" fill="none"/>
@@ -256,7 +256,7 @@
         <text x="1032" y="497">notification</text>
       </g>
     </svg>
-    <div class="cap">그림 1. 전체 ERD. 선 끝의 <b>│</b>는 1 쪽, <b>≺</b>(까마귀발)은 N 쪽이다. 점선은 §2 필드 표에만 드러나던 보조 FK다 —
+    <div class="cap">그림 1. 전체 ERD. 선 끝의 <b>│</b>는 1 쪽, <b>≺</b>(까마귀발)은 N 쪽이다. v0.3에서 추가된 <code>spec_baseline</code>·<code>spec_baseline_item</code>(§2.2 — project→baseline→item→spec_version, task.baseline_id)은 지면상 그림에서 생략했다. 점선은 §2 필드 표에만 드러나던 보조 FK다 —
       <code>finding.requirement_id</code>·<code>finding.spec_version_id</code>(출처), <code>evidence.spec_version_id</code>(증적),
       <code>review_session.task_id</code>(검토 대상), <code>spec_version.change_request_id</code>(제안 버전).
       지면상 생략한 관계: <code>organization→membership</code>(조직 전역 역할), <code>spec→requirement</code>(요구사항은 spec과 spec_version 양쪽에 FK를 갖는다),
@@ -295,6 +295,8 @@
       <tr><td>25</td><td>이벤트</td><td><code>event</code></td><td>append-only 상태 전이 로그(피드·알림·감사의 원천)</td><td>FR-16</td></tr>
       <tr><td>26</td><td>알림</td><td><code>notification</code></td><td>이벤트에서 파생된 개인별 수신함 항목</td><td>FR-12</td></tr>
       <tr><td>27</td><td>스펙 코멘트</td><td><code>spec_comment</code></td><td>헤딩·요구사항 앵커에 달리는 스레드 코멘트(해소 추적)</td><td>FR-11</td></tr>
+      <tr><td>28</td><td>스펙 베이스라인</td><td><code>spec_baseline</code></td><td>프로젝트의 approved 버전 집합을 이름 붙여 동결한 스냅샷 세트</td><td>FR-02</td></tr>
+      <tr><td>29</td><td>베이스라인 항목</td><td><code>spec_baseline_item</code></td><td>베이스라인×스펙 — 어느 approved 버전이 핀됐는가(스펙당 1개)</td><td>FR-02</td></tr>
     </tbody>
   </table></div>
 
@@ -465,7 +467,7 @@
   </table></div>
   <p>권한 비확대는 스키마가 아니라 정책으로 강제하지만, <code>user_id</code>를 필수 FK로 두는 것이 그 정책의 데이터 기반이다 — Asana가 AI Teammate에 대해 "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다"고 명시한 원칙과 같다.</p>
 
-  <h3>2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment</h3>
+  <h3>2.2 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment · spec_baseline</h3>
 
   <h4><code>spec</code> — 트리 노드. 본문은 여기 없다</h4>
   <div class="table-wrap"><table>
@@ -569,6 +571,34 @@
   </table></div>
   <p>코멘트는 <b>편집·해소되는 협업 개체</b>이고(본문 편집 가능, <code>open → resolved</code> 상태 전이), Activity는 <b>불변 로그</b>다(§2.5). §2.5가 인용하는 Linear 권고 — "대화 재구성은 수정될 수 있는 코멘트가 아니라 불변 Agent Activity로 하라" — 가 전제하는 편집 가능한 코멘트의 자리가 바로 이 테이블이다. 해소는 삭제가 아니라 상태 전이이고, <code>resolved_in_version_id</code>가 어느 draft 버전에서 반영됐는지를 남겨 해소 추적이 질의가 된다.</p>
 
+  <p><b><code>spec_baseline</code></b> — 프로젝트 단위 승인 스냅샷 세트(FR-02 범위 확장, 2026-08-21 MVP 포함 확정).</p>
+
+  <p>스펙은 구현보다 앞서간다 — draft→approved가 빈번히 도는 동안 구현은 특정 시점의 approved <b>세트</b>를 기준으로 진행된다. SpecVersion 하나의 불변성은 문서 1건의 기준만 고정할 뿐, "그때 함께 정합이던 문서들의 조합"은 표현하지 못한다. 요구공학의 baseline 정의("합의·검토·승인된 요구사항 <b>집합</b>의 시점 스냅샷" — Jama)를 문서 1건이 아니라 프로젝트 세트에 적용한 것이 이 엔티티다. 워크플로우 규약은 <a href="spec-workflow.html">스펙 워크플로우와 거버넌스</a> §3.6이 정본이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>name</code></td><td>text</td><td>사람이 붙이는 이름(예: <code>R1</code>, <code>2026-09-릴리스</code>). <code>UNIQUE (project_id, name)</code></td></tr>
+      <tr><td><code>note_md</code></td><td>text</td><td>무엇을 위한 동결인가</td></tr>
+      <tr><td><code>created_by_user_id</code></td><td>uuid FK</td><td><b>사람 전용</b> — 베이스라인 동결은 거버넌스 행위라 에이전트 생성 경로(MCP 도구)가 없다. 에이전트는 읽기만 한다(<code>nerv_spec_get</code>의 <code>baseline</code> 인자)</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b><code>spec_baseline_item</code></b> — 베이스라인×스펙 junction. 스펙당 approved 버전 1개를 핀한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>baseline_id</code> · <code>spec_id</code></td><td>uuid FK</td><td>복합 PK — 스펙당 1개</td></tr>
+      <tr><td><code>spec_version_id</code></td><td>uuid FK</td><td>핀된 버전. <b>approved 상태만 허용</b>(생성 시 서버 검증)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>무결성 규칙: 베이스라인은 <b>생성 후 불변</b>이다 — 항목 집합의 추가·교체·삭제는 없고, 세트를 바꾸려면 새 베이스라인을 만든다(approved SpecVersion 불변과 같은 원리). 핀 대상이 나중에 <code>superseded</code>가 되어도 항목은 그대로다 — 그것이 "그때의 세트"를 재현하는 존재 이유다. 참고로 특정 <b>시각</b>의 approved 집합은 베이스라인 없이도 <code>approved_at</code>으로 파생 가능하다(as-of 질의 — <a href="api.html">4.4 API 명세</a>의 manifest 엔드포인트) — 베이스라인은 시각 절단이 아니라 <b>큐레이션된 이름 있는 동결</b>이라는 점이 다르다.</p>
+
   <h3>2.3 변경 요청 — change_request</h3>
   <div class="table-wrap"><table>
     <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
@@ -599,8 +629,10 @@
       <tr><td><code>title</code> · <code>body_md</code></td><td>text</td><td></td></tr>
       <tr><td><code>status</code></td><td>enum</td><td><code>backlog / ready / claimed / in_progress / in_review / done / blocked</code></td></tr>
       <tr><td><code>priority</code></td><td>enum</td><td><code>P0 / P1 / P2 / P3</code></td></tr>
-      <tr><td><code>source_spec_version_id</code></td><td>uuid FK NULL</td><td>파생 출처 버전</td></tr>
+      <tr><td><code>source_spec_version_id</code></td><td>uuid FK NULL</td><td>파생 출처 버전 = <b>이 Task의 기준 버전</b>(구현 컨텍스트는 이 불변 스냅샷을 읽는다 — <a href="agent-integration.html">에이전트 연동 설계</a> §2.4 기준 버전 규약). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)은 필수다</td></tr>
       <tr><td><code>source_requirement_id</code></td><td>uuid FK NULL</td><td>파생 출처 요구사항</td></tr>
+      <tr><td><code>baseline_id</code></td><td>uuid FK NULL</td><td>기준 베이스라인(§2.2) — 이 Task가 어느 승인 세트의 맥락에서 파생됐는가. 주변 문서까지 그 세트로 읽는다</td></tr>
+      <tr><td><code>rebrief_required_at</code></td><td>timestamptz NULL</td><td>기준 버전이 <code>superseded</code>로 전이될 때 서버가 세팅 — <b>재브리핑 필요</b> 플래그의 실물(<a href="spec-workflow.html">스펙 워크플로우</a> §3.3). 사람이 위임 명세를 재확인하고 기준 버전을 갱신하면 해제</td></tr>
       <tr><td><code>assignee_user_id</code></td><td>uuid FK NULL</td><td><b>사람</b> 책임자</td></tr>
       <tr><td><code>delegate_session_id</code></td><td>uuid FK NULL</td><td><b>에이전트</b> 수행 세션</td></tr>
       <tr><td><code>goal_md</code></td><td>text</td><td>위임 명세 ①: 목표</td></tr>
@@ -1193,6 +1225,7 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td>7</td><td>severity 변경은 감사 대상이다</td><td><code>finding.severity</code> 변경 시 <code>event</code> 필수, 원값은 <code>raw_severity</code>에 보존</td></tr>
       <tr><td>8</td><td>모든 도메인 행은 <code>project_id</code>를 갖는다</td><td>NOT NULL + 저장소 계층의 스코프 자동 주입</td></tr>
       <tr><td>9</td><td>편집 리스는 draft 상태에서만 non-NULL이다</td><td><code>spec_version</code> 리스 3필드의 partial index <code>WHERE status='draft'</code> — draft가 아니면 전부 NULL</td></tr>
+      <tr><td>10</td><td>베이스라인은 approved 버전만 담고, 생성 후 불변이다</td><td>생성 트랜잭션에서 항목 전건의 <code>status='approved'</code> 검증 + 항목 UPDATE/DELETE 경로 미제공(변경 = 새 베이스라인 생성)</td></tr>
     </tbody>
   </table></div>
 

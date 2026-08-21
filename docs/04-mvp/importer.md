@@ -364,7 +364,7 @@ NERV의 제안서·MVP 문서(`docs/`)는 NERV가 가동되면 **첫 번째로 �
 
 ### 정본 (이 문서가 인용만 하는 것)
 
-- [3.3 데이터 모델](../03-proposal/data-model.md) §3 — clemvion frontmatter → NERV 필드 매핑의 의미 정본. §3.1 spec, §3.2 plan, §3.3 review. 엔티티 27종 필드 정의(§2)와 ID 전략(§5.1)
+- [3.3 데이터 모델](../03-proposal/data-model.md) §3 — clemvion frontmatter → NERV 필드 매핑의 의미 정본. §3.1 spec, §3.2 plan, §3.3 review. 엔티티 29종 필드 정의(§2)와 ID 전략(§5.1)
 - [3.7 로드맵](../03-proposal/roadmap.md) §7 — 이관 대상 실측(§7.1), 임포트/컷오버 구분과 M1~M4(§7.2), 임포터 상세(§7.3), 병행 운영·컷오버 체크리스트(§7.4~7.5), Phase 0 종료 조건 0-6·0-7(§2.4)
 - [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) — FR-17(임포터), FR-03(Requirement 2축), FR-05(위임 명세 4요소와 ready), FR-13(관계 기반 커버리지)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 임포트 이후 문서가 타게 되는 상태 머신·게이트의 정본

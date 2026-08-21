@@ -5,9 +5,9 @@ updated: 2026-08-21
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 27개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 27개 `CREATE TABLE`(FK·CHECK·partial unique 포함) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [database.html](../html/database.html)
 
 ---
 
@@ -17,7 +17,7 @@ updated: 2026-08-21
 
 | 무엇 | 정본 | 이 문서의 역할 |
 | --- | --- | --- |
-| 엔티티 27종 필드의 **의미**·상태 머신·관계 | [3.3 데이터 모델](../03-proposal/data-model.md) | 재서술하지 않는다. 각 절에 원문 § 링크만 남긴다 |
+| 엔티티 29종 필드의 **의미**·상태 머신·관계 | [3.3 데이터 모델](../03-proposal/data-model.md) | 재서술하지 않는다. 각 절에 원문 § 링크만 남긴다 |
 | 테이블·컬럼·타입·제약의 **DDL 표현** | **이 문서** | §2 전문. 컬럼명은 data-model 필드 표와 1:1 — 예: `review_session`은 `head_sha`/`base_sha`, `spec_version`은 `edit_lease_user_id`/`edit_lease_session_id`/`edit_lease_expires_at` 3필드와 `author_session_id` |
 | 이벤트 이름(`<리소스>.<동사>`) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6 | `event.type` 값으로 인용만 한다(`spec.approved` · `task.claimed` · `session.stale` …) |
 | `nerv_*` 도구가 읽고 쓰는 계약 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2 | DDL 주석에서 도구 이름을 인용만 한다 |
@@ -26,7 +26,7 @@ updated: 2026-08-21
 두 가지 예외만 이 문서가 추가한다. 어느 쪽도 data-model 필드의 이름·의미를 바꾸지 않는다.
 
 1. **`claim.project_id`** — data-model §2.4 필드 표에는 없지만, §1.1 규칙 1("모든 도메인 테이블은 `project_id`를 갖는다")과 §5.5 규칙 8, 그리고 spec-workflow §4.4 클레임 의사코드(`WHERE c.project_id = task.project_id`)가 요구한다. 겹침 검사가 `task` 조인 없이 프로젝트 범위의 활성 클레임을 훑어야 하기 때문이다.
-2. **junction 테이블의 `project_id` 생략** — `requirement_version` · `task_dependency` · `finding_occurrence` · `reviewer_report` · `resolution`은 data-model 필드 표 그대로 부모 FK를 통해 프로젝트가 결정되므로 `project_id`를 갖지 않는다(규칙 8의 문서화된 예외).
+2. **junction 테이블의 `project_id` 생략** — `requirement_version` · `task_dependency` · `finding_occurrence` · `reviewer_report` · `resolution` · `spec_baseline_item`은 data-model 필드 표 그대로 부모 FK를 통해 프로젝트가 결정되므로 `project_id`를 갖지 않는다(규칙 8의 문서화된 예외).
 
 ### 1.2 마이그레이션 전략 — drizzle-kit, 0001 스냅샷
 
@@ -54,7 +54,7 @@ updated: 2026-08-21
 
 ## 2. 전체 DDL
 
-서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 27종 → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
+서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 29종 → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
 ### 2.1 확장과 enum 38종
 
@@ -170,7 +170,7 @@ CREATE TABLE api_token (
 );
 ```
 
-### 2.3 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment
+### 2.3 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment · spec_baseline
 
 근거: data-model §2.2. `spec_version.author_session_id`·`edit_lease_session_id` 등이 `agent_session`을 참조한다 — §2 첫머리의 전진 배치 예외가 여기서 필요해진다.
 
@@ -272,6 +272,25 @@ CREATE TABLE spec_comment (                  -- 앵커 스레드 코멘트(FR-11
   created_at             timestamptz NOT NULL DEFAULT now(),
   resolved_at            timestamptz
 );
+
+-- 베이스라인 — 프로젝트 단위 승인 스냅샷 세트(FR-02 확장, 2026-08-21 MVP 포함.
+-- 규약 정본: spec-workflow §3.6). 생성 후 불변 — 항목 UPDATE/DELETE 경로를 만들지 않는다.
+CREATE TABLE spec_baseline (
+  id                 uuid PRIMARY KEY,
+  project_id         uuid NOT NULL REFERENCES project(id),
+  name               text NOT NULL,          -- 예: 'R1', '2026-09-릴리스'
+  note_md            text,
+  created_by_user_id uuid NOT NULL REFERENCES "user"(id),  -- 사람 전용 — 에이전트 생성 도구 없음
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT spec_baseline_name_uq UNIQUE (project_id, name)
+);
+
+CREATE TABLE spec_baseline_item (            -- junction — project_id 생략 예외(§1.1)
+  baseline_id     uuid NOT NULL REFERENCES spec_baseline(id),
+  spec_id         uuid NOT NULL REFERENCES spec(id),
+  spec_version_id uuid NOT NULL REFERENCES spec_version(id), -- approved만 — 생성 트랜잭션에서 검증(REQ-DB-008)
+  PRIMARY KEY (baseline_id, spec_id)         -- 스펙당 1개 핀
+);
 ```
 
 ### 2.4 변경 요청 — change_request
@@ -310,8 +329,10 @@ CREATE TABLE task (
   body_md                text,
   status                 task_status NOT NULL DEFAULT 'backlog',
   priority               task_priority NOT NULL DEFAULT 'P2',
-  source_spec_version_id uuid REFERENCES spec_version(id),
+  source_spec_version_id uuid REFERENCES spec_version(id),  -- 기준 버전(agent-integration §2.4). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)의 zod는 필수
   source_requirement_id  uuid REFERENCES requirement(id),
+  baseline_id            uuid REFERENCES spec_baseline(id), -- 기준 베이스라인(§2.3) — 주변 문서를 읽는 세트
+  rebrief_required_at    timestamptz,        -- 기준 버전 superseded 시 서버 세팅, 재브리핑(기준 갱신) 시 해제 — spec-workflow §3.3
   assignee_user_id       uuid REFERENCES "user"(id),        -- 사람 책임자(D-08)
   delegate_session_id    uuid REFERENCES agent_session(id), -- 에이전트 수행 세션
   goal_md                text,               -- 위임 명세 ① 목표
@@ -1001,6 +1022,7 @@ COMMIT;
 | REQ-DB-005 | WHEN `event`에 행이 INSERT되고 트랜잭션이 커밋되면 THE SYSTEM SHALL Valkey `nerv_events` 채널로 `{id, type, project_id}` JSON을 PUBLISH하고, 롤백 시 발행하지 않는다(§3) | SUBSCRIBE 클라이언트 붙인 통합 테스트(커밋/롤백 각 1건) |
 | REQ-DB-006 | WHEN 위임 명세 4요소 중 하나라도 NULL인 `task`를 `backlog`·`blocked` 밖의 상태로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 4요소 각각 NULL로 4케이스 |
 | REQ-DB-007 | WHEN `spec_impact IS NULL`인 `task`를 `done`으로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + `{"none": true}` 통과 1건 |
+| REQ-DB-008 | WHEN 베이스라인 생성 트랜잭션에 `approved`가 아닌 `spec_version` 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 베이스라인의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 베이스라인 생성으로만 한다 | draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건 |
 | REQ-DB-008 | WHEN `requirement_id`·`spec_version_id`·`task_id`가 전부 NULL인 `evidence`를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + 각 앵커 단독 통과 3건 |
 | REQ-DB-009 | WHEN `nerv_ensure_month_partitions(대상 월)`을 호출하면 THE SYSTEM SHALL `event`·`activity`의 해당 월 파티션과 activity 파티션별 `(session_id, seq)` unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다 | 함수 2회 호출 후 카탈로그 조회 |
 | REQ-DB-010 | WHEN 같은 사용자를 같은 스코프(`coalesce(project_id, org_id)` 동일)에 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 | 프로젝트 중복·조직 전역 중복 각 1건 |
@@ -1030,7 +1052,7 @@ data-model §5.5의 9규칙이 어디서 강제되는지의 최종 답이다. "�
 
 ### 정본 문서 (이 문서가 인용만 하는 것)
 
-- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 27종 필드 의미·상태 머신·인덱스 §5.3·무결성 규칙 §5.5·보존 정책 §5.4. **이 문서의 모든 테이블·컬럼 이름의 원천**
+- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드 의미·상태 머신·인덱스 §5.3·무결성 규칙 §5.5·보존 정책 §5.4. **이 문서의 모든 테이블·컬럼 이름의 원천**
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 이벤트 이름 정본(§6), 클레임 의사코드(§4.4), 초안 편집 리스 규약(§1.2), 소규모 완화(§2.3)
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — DDL 주석이 인용한 `nerv_*` 도구 계약(§2)과 ingest 멱등 키
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — Valkey pub/sub 팬아웃 구조(§4.4), 저장 전략 D-01, 보존 2층 구조(§2.5)

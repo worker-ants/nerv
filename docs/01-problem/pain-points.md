@@ -280,7 +280,7 @@ flowchart LR
 | 번호 | 요구사항 | 수용 기준 (acceptance) |
 | --- | --- | --- |
 | **FR-01** | 스펙 단일 진실 저장소(트리·타입·검색·안정 ID) | 프로젝트의 모든 스펙을 트리로 조회할 수 있고, 타입(`vision`/`area`/`feature`/`design`/`convention`/`adr`)과 안정 ID로 단건 조회·전문 검색이 되며, 문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다 |
-| **FR-02** | 스펙 버전·문서 상태 관리(불변 스냅샷, draft→in_review→approved, 버전 diff) | `approved` 된 SpecVersion 본문은 이후 편집으로 변하지 않고, 임의의 두 버전 간 diff와 상태 전이 이력(행위자·시각·사유)을 UI에서 확인할 수 있다 |
+| **FR-02** | 스펙 버전·문서 상태 관리(불변 스냅샷, draft→in_review→approved, 버전 diff, **프로젝트 베이스라인**) | `approved` 된 SpecVersion 본문은 이후 편집으로 변하지 않고, 임의의 두 버전 간 diff와 상태 전이 이력(행위자·시각·사유)을 UI에서 확인할 수 있다. 프로젝트의 approved 버전 **집합**을 이름 붙은 베이스라인으로 동결하고, 임의 시점에 그 세트 그대로 재현·조회할 수 있다(범위 확장 2026-08-21 — 요구공학의 baseline은 문서 1건이 아니라 "합의·검토·승인된 요구사항 집합의 시점 스냅샷"이다. 스펙이 구현보다 앞서갈 때 구현의 기준 세트를 고정하기 위해 필요) |
 | **FR-03** | 요구사항(Requirement) 단위 추적(안정 ID, EARS 템플릿, 구현 상태 2축) | 한 SpecVersion에서 추출된 각 Requirement가 안정 ID와 수용 기준을 갖고, 문서 축과 독립적으로 `unimplemented→in_progress→implemented→verified` 값을 가진다(같은 문서 안의 두 요구사항이 서로 다른 상태일 수 있다) |
 | **FR-04** | 변경 요청(CR)과 델타 리뷰(ADDED/MODIFIED/REMOVED) | 승인된 스펙에 대한 CR이 ADDED/MODIFIED/REMOVED로 분류된 델타 뷰로 표시되고, 승인 시 새 버전이 `approved`, 이전 버전이 `superseded`로 전이한다 |
 | **FR-05** | 작업(Task) 관리: 스펙 파생, 의존성 그래프, ready 큐, 우선순위, 위임 명세 4요소(목표/산출물 형식/도구·출처/경계) | 승인된 SpecVersion/Requirement에서 Task를 파생할 수 있고, 의존성 그래프로 계산된 ready 큐가 우선순위 순으로 제공되며, 위임 명세 4요소가 하나라도 비어 있으면 `ready`로 전이하지 않는다 |

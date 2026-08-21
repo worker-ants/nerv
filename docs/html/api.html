@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 15종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.2 (2026-08-21)</span>
+      <span>버전 v0.3 (2026-08-21)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -277,7 +277,7 @@
     <tbody>
       <tr><td>EP-SPEC-01</td><td><code>GET /api/v1/projects/{proj}/specs/tree</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecTreeQuery</code>(root, depth, status)</td><td><code>SpecTreeResult</code>(id·title·type·문서 상태·현재 버전)</td><td>—</td></tr>
       <tr><td>EP-SPEC-02</td><td><code>GET /api/v1/projects/{proj}/specs/search</code></td><td>전 역할</td><td><code>SpecSearchQuery</code>(query, type, status, requirement_id, limit)</td><td><code>SpecSearchResult</code>(안정 ID + 앵커 + 스니펫)</td><td>—</td></tr>
-      <tr><td>EP-SPEC-03</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}</code></td><td>전 역할</td><td><code>SpecGetQuery</code>(<code>version</code> 기본 approved, <code>include[]</code>: requirements/tasks/comments)</td><td><code>SpecGetResult</code></td><td>—</td></tr>
+      <tr><td>EP-SPEC-03</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}</code></td><td>전 역할</td><td><code>SpecGetQuery</code>(<code>version</code> 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, <code>baseline</code> 이름으로 세트 조회 가능(<code>version</code>과 배타), <code>include[]</code>: requirements/tasks/comments)</td><td><code>SpecGetResult</code>(+<code>basis_superseded?</code> — 요청 버전이 superseded면 최신 approved 번호와 함께 표시)</td><td>—</td></tr>
       <tr><td>EP-SPEC-04</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions</code></td><td>전 역할</td><td>—</td><td><code>Page&lt;SpecVersionSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-SPEC-05</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}</code></td><td>전 역할</td><td>—</td><td><code>SpecVersionResult</code>(불변 스냅샷 — 같은 <code>{no}</code>는 영원히 같은 응답)</td><td>—</td></tr>
       <tr><td>EP-SPEC-06</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/diff</code></td><td>전 역할</td><td><code>SpecDiffQuery</code>(from, to)</td><td><code>SpecDiffResult</code>(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff)</td><td>—</td></tr>
@@ -289,6 +289,10 @@
       <tr><td>EP-CMT-02</td><td><code>POST /api/v1/projects/{proj}/spec-versions/{ver}/comments</code></td><td>전 역할(viewer 포함 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6 "스펙 조회·코멘트")</td><td><code>CommentCreateInput</code>(anchor: 헤딩 slug 또는 REQ ref, body_md)</td><td><code>CommentResult</code></td><td><code>spec.comment_added</code></td></tr>
       <tr><td>EP-CMT-03</td><td><code>PATCH /api/v1/projects/{proj}/comments/{id}</code></td><td>작성자 본인</td><td><code>CommentUpdateInput</code>(body_md)</td><td><code>CommentResult</code></td><td>—</td></tr>
       <tr><td>EP-CMT-04</td><td><code>POST /api/v1/projects/{proj}/comments/{id}/resolve</code></td><td><code>spec:draft</code> 보유 역할</td><td><code>CommentResolveInput</code>(resolution_note, resolved_in_version_id)</td><td><code>CommentResult</code>(open→resolved, 남은 open 수)</td><td>★<code>comment.resolved</code></td></tr>
+      <tr><td>EP-SPEC-11</td><td><code>GET /api/v1/projects/{proj}/baselines</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>BaselineListQuery</code>(cursor)</td><td><code>Page&lt;BaselineSummary&gt;</code>(name·note·항목 수·created_by·created_at)</td><td>—</td></tr>
+      <tr><td>EP-SPEC-12</td><td><code>POST /api/v1/projects/{proj}/baselines</code></td><td>planner·admin — <b>사람 전용</b>(PAT 불가, 베이스라인 동결은 거버넌스 행위 — <a href="spec-workflow.html">스펙 워크플로우</a> §3.6)</td><td><code>BaselineCreateInput</code>(name, note_md, items[]? — 생략 시 스펙별 최신 approved 전체)</td><td><code>BaselineResult</code> — approved 아닌 항목 포함 시 409 <code>NERV_PRECONDITION</code></td><td>★<code>baseline.created</code></td></tr>
+      <tr><td>EP-SPEC-13</td><td><code>GET /api/v1/projects/{proj}/baselines/{bl}</code></td><td>전 역할</td><td>—</td><td><code>BaselineDetailResult</code>(항목 전량: spec_id·key·title·핀 버전·현재 최신 approved와의 차이 표시) — 불변, 같은 <code>{bl}</code>은 영원히 같은 세트</td><td>—</td></tr>
+      <tr><td>EP-SPEC-14</td><td><code>GET /api/v1/projects/{proj}/specs/manifest</code></td><td>전 역할(<code>spec:read</code>, PAT 허용)</td><td><code>ManifestQuery</code>(<code>as_of?</code> timestamptz 또는 <code>baseline?</code> 이름 — 둘 다 생략 시 현재)</td><td><code>SpecManifestResult</code>(spec_id→{version_no, status, approved_at} 전량 — git export <code>manifest.json</code>의 API 판, <a href="architecture.html">아키텍처</a> §2.4b)</td><td>—</td></tr>
     </tbody>
   </table></div>
 
@@ -482,7 +486,10 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td><code>spec.comment_added</code></td><td>EP-CMT-02</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td>★<code>comment.resolved</code></td><td>EP-CMT-04</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>task.ready</code> · <code>task.claimed</code> · <code>task.blocked</code> · <code>task.done</code></td><td>Task 축 전이(§1.4·§6.3)</td><td><code>project:{id}</code></td><td>P0~P1</td></tr>
+      <tr><td><code>task.rebrief_required</code></td><td>기준 SpecVersion superseded — 재브리핑 플래그 세팅(<a href="spec-workflow.html">스펙 워크플로우</a> §3.3)</td><td><code>project:{id}</code> + 담당자·클레임 세션 소유자 <code>user:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>spec.recheck_requested</code></td><td>참조 문서 전파 — 참조하는 스펙의 새 버전 승인(같은 문서 §3.3)</td><td><code>project:{id}</code> + 대상 문서 owner <code>user:{id}</code></td><td>P1</td></tr>
       <tr><td>★<code>task.created</code> · ★<code>task.updated</code></td><td>EP-TASK-03·09</td><td><code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td>★<code>baseline.created</code></td><td>EP-SPEC-12</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>claim.conflict_warn</code> · <code>claim.conflict_blocked</code></td><td>클레임 겹침 판정(§4.4)</td><td><code>project:{id}</code> + 양쪽 세션 소유자 <code>user:{id}</code></td><td>P0</td></tr>
       <tr><td>★<code>claim.released</code></td><td>EP-TASK-08·EP-SES-04(stop)·리스 만료 회수</td><td><code>project:{id}</code></td><td>P0</td></tr>
       <tr><td><code>session.started</code> · <code>session.stale</code> · <code>session.complete</code></td><td>세션 수명주기(§6.3, D-13)</td><td><code>project:{id}</code> + 소유자 <code>user:{id}</code>(stale)</td><td>P0</td></tr>
@@ -536,8 +543,8 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td><code>nerv_bootstrap</code></td><td>A1</td><td><code>SessionService.bootstrap</code></td><td>— (MCP 전용. 부분 대응: EP-SES-02 + EP-PRJ-03)</td><td>세션 등록 + 컨텍스트 팩. 훅 ingest와 같은 서비스가 세션 상태를 관리</td></tr>
       <tr><td><code>nerv_spec_tree</code></td><td>A1</td><td><code>SpecService.tree</code></td><td>EP-SPEC-01</td><td></td></tr>
       <tr><td><code>nerv_spec_search</code></td><td>A1</td><td><code>SpecService.search</code></td><td>EP-SPEC-02</td><td></td></tr>
-      <tr><td><code>nerv_spec_get</code></td><td>A1</td><td><code>SpecService.get</code></td><td>EP-SPEC-03</td><td>본문은 비신뢰 래핑(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §6.3) — MCP 표면에서만</td></tr>
-      <tr><td><code>nerv_task_next</code></td><td>A1</td><td><code>TaskService.next</code></td><td>EP-TASK-02</td><td>ready 큐 질의는 <a href="data-model.html">3.3 데이터 모델</a> §4.5</td></tr>
+      <tr><td><code>nerv_spec_get</code></td><td>A1</td><td><code>SpecService.get</code></td><td>EP-SPEC-03</td><td>본문은 비신뢰 래핑(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §6.3) — MCP 표면에서만. <code>version</code>/<code>baseline</code> 인자와 <code>basis_superseded</code> 표시는 두 표면 동일(기준 버전 규약 — 같은 문서 §2.4)</td></tr>
+      <tr><td><code>nerv_task_next</code></td><td>A1</td><td><code>TaskService.next</code></td><td>EP-TASK-02</td><td>ready 큐 질의는 <a href="data-model.html">3.3 데이터 모델</a> §4.5. 응답에 기준 SpecVersion·베이스라인 포함(기준 버전 규약)</td></tr>
       <tr><td><code>nerv_task_claim</code></td><td>A2</td><td><code>TaskService.claim</code></td><td>EP-TASK-06</td><td>겹침 판정·원자 전환이 이 메서드 안 — 표면 무관 동일</td></tr>
       <tr><td><code>nerv_task_heartbeat</code></td><td>A1</td><td><code>TaskService.heartbeat</code></td><td>EP-TASK-07</td><td>응답의 <code>pending</code> 역채널 포함</td></tr>
       <tr><td><code>nerv_task_release</code></td><td>A2</td><td><code>TaskService.release</code></td><td>EP-TASK-08</td><td></td></tr>
@@ -577,6 +584,8 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td>REQ-API-012</td><td>WHEN 쿼터를 초과한 요청이 오면 THE SYSTEM SHALL HTTP 429 <code>NERV_RATE_LIMIT</code>과 <code>retry_after_s</code>·<code>Retry-After</code> 헤더를 함께 반환한다</td><td>버스트 요청</td></tr>
       <tr><td>REQ-API-013</td><td>WHEN 미인증 요청이 <code>/sse/*</code>에 오면 THE SYSTEM SHALL HTTP 401 <code>NERV_UNAUTHENTICATED</code>로 거부하고, WHEN 비멤버 사용자 또는 타 프로젝트 PAT가 EP-SSE-01을 요청하면 THE SYSTEM SHALL HTTP 403 <code>NERV_FORBIDDEN</code>으로 스트림을 열지 않는다</td><td>쿠키 없음·타 프로젝트 PAT 각 1케이스</td></tr>
       <tr><td>REQ-API-014</td><td>WHILE SSE 스트림이 열려 있는 동안, THE SYSTEM SHALL 25초 주기의 코멘트 라인(<code>: ping</code>)을 송신해 프록시 유휴 타임아웃을 방지한다</td><td>60초 무이벤트 구간에서 keep-alive 2회 이상 수신</td></tr>
+      <tr><td>REQ-API-015</td><td>WHEN 베이스라인 생성 요청(EP-SPEC-12)에 <code>approved</code>가 아닌 SpecVersion 항목이 포함되면 THE SYSTEM SHALL 409 <code>NERV_PRECONDITION</code>으로 전체를 거부하고, 생성된 베이스라인의 항목 집합 변경 요청은 제공하지 않는다(세트 변경 = 새 베이스라인 — REQ-DB-008)</td><td>draft 항목 포함 생성 거부 + 핀 대상 superseded 후 EP-SPEC-13 결과 불변 확인</td></tr>
+      <tr><td>REQ-API-016</td><td>WHEN Task의 기준 SpecVersion(<code>source_spec_version_id</code>)이 <code>superseded</code>로 전이되면 THE SYSTEM SHALL 그 Task의 조회(EP-TASK-04)·<code>nerv_task_next</code>·<code>nerv_spec_get</code>(기준 버전 지정)·하트비트 응답에 <code>basis_superseded</code>와 최신 approved 버전 번호를 표시하고, <code>task.rebrief_required</code> 이벤트를 발행한다</td><td>기준 버전 supersede 후 4개 표면 응답 각 1건 + 이벤트 수신 확인</td></tr>
     </tbody>
   </table></div>
 
@@ -586,7 +595,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
   <ul>
     <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — §2 도구 17종의 입력·출력·권한·티어·멱등성, §2.7 에러 코드 10종과 봉투, §2.5·§6.1 PAT 튜플·스코프, §3.3 훅 ingest 경로 — <b>이 문서의 §1.4·§2.9·§4가 인용</b> (재정의 금지)</li>
     <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — §1 세 상태 축과 전이·§1.6 권한 매트릭스·§2.3 지시자≠승인자·§4.4 겹침 알고리즘·§4.6 done 게이트·§6 이벤트 이름 규약과 카탈로그 — <b>§2 전표의 권한 열과 §3.3 이벤트 목록의 정본</b></li>
-    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 27종 필드(응답 필드명은 이 문서와 1:1)·§4 대표 질의·§5.1 ID 체계</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 29종 필드(응답 필드명은 이 문서와 1:1)·§4 대표 질의·§5.1 ID 체계</li>
     <li><a href="architecture.html">3.2 시스템 아키텍처</a> — §2.4 markdown 미러·<code>llms.txt</code> 경로(§2.8이 문자열 그대로 인용), §1.2 전체 구성도</li>
     <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — §1.2 라우팅·§1.4 URL 규약(표시 ID 예시 표기)</li>
     <li><a href="roadmap.html">3.7 로드맵</a> — FR별 P0/P1/P2 배정(§2.3·§2.6·§2.7·§3.3의 Phase 표기 근거)</li>

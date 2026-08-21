@@ -7,7 +7,7 @@ updated: 2026-08-21
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 15종으로, 플러그인 스킬은 4종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [scope.html](../html/scope.html)
+> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [scope.html](../html/scope.html)
 
 ---
 
@@ -40,7 +40,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 실물 | 어디에 | 형태 |
 | --- | --- | --- |
 | 모노레포 트리(`codebase/` 하위) · docker-compose 전문 · k8s 스켈레톤 | [4.2 코드베이스와 배포](codebase.md) | 디렉터리 트리 전문, 설정 파일 전문, `.env` 변수 전표 |
-| 전체 DDL(27 테이블·인덱스·트리거·파티션) | [4.3 데이터베이스 스키마](database.md) | `CREATE TABLE` 전문 + 개발 시드 |
+| 전체 DDL(29 테이블·인덱스·트리거·파티션) | [4.3 데이터베이스 스키마](database.md) | `CREATE TABLE` 전문 + 개발 시드 |
 | REST·WebSocket/SSE·MCP 대응 전표 | [4.4 API 명세](api.md) | 엔드포인트별 메서드·경로·권한·요청·응답·이벤트 |
 | 화면별 데이터 소스·상태·컴포넌트 명세 | [4.5 화면 명세](screens.md) | 라우팅 표 + 화면별 EARS 수용 기준 |
 | SKILL.md 4종 전문 · hooks.json 전문 | [4.6 플러그인과 온보딩](plugin.md) | 실제 파일 내용 |
@@ -127,7 +127,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | FR | 이름(정본 인용) | MVP | P0 | P1 | MVP에서 되는 것 | MVP에서 안 되는 것(Phase 2+) |
 | --- | --- | :-: | :-: | :-: | --- | --- |
 | FR-01 | 스펙 단일 진실 저장소 | ● | ◐ | ● | 트리·타입·안정 ID·전문 검색(P0는 임포트 적재 읽기 전용), P1부터 편집 — 웹 에디터와 기획자 터미널 경로 양쪽(§3.3) | — |
-| FR-02 | 스펙 버전·문서 상태 | ● | ○ | ● | 불변 SpecVersion 스냅샷, `draft→in_review→approved→superseded/deprecated`, 버전 diff, 승인 레코드 | — |
+| FR-02 | 스펙 버전·문서 상태 | ● | ○ | ● | 불변 SpecVersion 스냅샷, `draft→in_review→approved→superseded/deprecated`, 버전 diff, 승인 레코드, **베이스라인**(프로젝트 승인 세트 동결·재현 + as-of manifest — 2026-08-21 FR-02 범위 확장을 MVP 핵심으로 포함 확정) + **기준 버전 규약·재브리핑**(Task는 파생 버전으로 컨텍스트 고정, superseded 시 서버가 재브리핑 플래그 — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3·§3.6) | — |
 | FR-03 | Requirement 단위 추적 | ◐ | ○ | ◐ | EARS 템플릿, 안정 ID 발급, 구현 축 초기값 설정 | 구현 축 2축 완성(자동 계산·커버리지 연동)은 Phase 2 |
 | FR-04 | CR·델타 리뷰 | ○ | ○ | ○ | — | ADDED/MODIFIED/REMOVED 델타 뷰, 영향 분석 전부 Phase 2 |
 | FR-05 | Task 관리·ready 큐 | ● | ◐ | ● | 의존성 그래프 ready 판정 + 위임 명세 4요소 검증(P0), 스펙에서 Task 파생·칸반(P1) | — |
