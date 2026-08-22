@@ -127,6 +127,38 @@ export default tseslint.config(
     },
   },
 
+  // ── apps/web — 브라우저 전역 + 디자인 토큰 강제 (REQ-WEB-032) ─────────────
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser } },
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...NO_HARDCODED_CONTRACT_LITERALS,
+        {
+          // 색은 screens.md §4.2 매핑의 토큰으로만 고른다 — 임의 hex 는 팔레트를 조용히 갈라놓는다.
+          selector: 'Literal[value=/#[0-9a-fA-F]{3,8}\\b/]',
+          message:
+            'REQ-WEB-032: 임의 hex 색 금지. src/styles/tokens.css 의 상태 토큰(§4.1·§4.2)을 쓴다.',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/#[0-9a-fA-F]{6}\\b/]',
+          message:
+            'REQ-WEB-032: 임의 hex 색 금지. src/styles/tokens.css 의 상태 토큰(§4.1·§4.2)을 쓴다.',
+        },
+      ],
+    },
+  },
+
+  // ── 생성물 — 라우트 트리는 @tanstack/router-plugin 산출물이라 손대지 않는다 ──
+  {
+    files: ['apps/web/src/routeTree.gen.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
+    },
+  },
+
   // ── packages/schema — 순수 선언 + 마이그레이터만 (§1.2 "하지 않는 일") ──────
   {
     files: ['packages/schema/**/*.ts'],

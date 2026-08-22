@@ -5,19 +5,7 @@
 // 나간다(롤백 시 발행 없음). 이 순서가 D-10(감사·알림의 단일 원천)의 실행 규칙이다.
 
 import { Injectable } from '@nestjs/common';
-import type { NervEventName } from '@nerv/schema';
 import { NotImplementedYetError } from '../../common/nerv-exception.filter.js';
-
-/** WS·SSE 로 흐르는 최소 봉투 — 본문 데이터를 싣지 않는다(api.md §3.3). */
-export interface NervEventEnvelope {
-  id: string;
-  type: NervEventName;
-  project_id: string;
-  subject_type: string;
-  subject_id: string;
-  subject_key: string | null;
-  occurred_at: string;
-}
 
 @Injectable()
 export class EventService {

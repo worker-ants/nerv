@@ -88,3 +88,20 @@ export const NERV_EVENT_PHASE2 = {
   FINDING_RESOLVED: 'finding.resolved',
   CR_OPENED: 'cr.opened',
 } as const;
+
+/**
+ * WS·SSE 로 흐르는 최소 봉투 — 정본: docs/04-mvp/api.md §3.3
+ *
+ * 본문 데이터를 싣지 않는다. 수신자는 이 식별자로 자기 권한으로 재조회한다(D-14).
+ * 서버(apps/api)와 웹(apps/web)이 같은 타입을 봐야 하므로 여기가 그 자리다(REQ-CB-006).
+ */
+export interface NervEventEnvelope {
+  id: string;
+  type: NervEventName;
+  project_id: string;
+  subject_type: string;
+  subject_id: string;
+  subject_key: string | null;
+  /** ISO 8601 */
+  occurred_at: string;
+}

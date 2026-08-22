@@ -1,0 +1,104 @@
+/* NERV 디자인 토큰 — 정본: docs/04-mvp/screens.md §4.1
+ *
+ * 원본은 제안서 HTML 공통 팔레트(docs/html/assets/style.css)의 CSS 변수다. 1:1 이식하고
+ * 라이트/다크는 값 교체로 처리한다(data-theme 이 아니라 prefers-color-scheme — 제안서 사이트와 동일).
+ *
+ * 행동 축 의미(ui-wireframes §3.1):
+ *   idle 회색 = 아직 아무 일도 없음 · action 남색 = 사람의 행동 대기 · waiting 호박 = 검토·응답 대기
+ *   agent 보라 = 에이전트 점유 · progress 파랑 = 진행 중 · ok 초록 = 승인·검증 완료
+ *   done 청록 = 종료 · danger 적색 = 차단·실패
+ *
+ * 컴포넌트는 이 토큰만 쓴다 — 임의 hex 직접 사용은 lint 로 금지한다(REQ-WEB-032).
+ * 그리고 색만으로 상태를 구분하지 않는다 — 항상 텍스트 라벨을 병기한다(REQ-WEB-033).
+ */
+
+@import 'tailwindcss';
+
+@theme {
+  /* ── 표면·텍스트 ─────────────────────────────────────────────────────── */
+  --color-bg: #f7f8fa;
+  --color-bg-elev: #ffffff;
+  --color-bg-sunken: #eef0f4;
+  --color-text: #1c2333;
+  --color-text-mute: #5b667a;
+  --color-text-faint: #8b94a7;
+  --color-border: #dde2ea;
+  --color-border-strong: #c3cad6;
+  --color-link: #3b5bdb;
+  --color-code-bg: #f1f3f7;
+  --color-code-text: #343d52;
+
+  /* ── 상태 토큰 8종 (screens.md §4.1) ──────────────────────────────────── */
+  --color-status-idle: #eceef2;
+  --color-status-idle-text: #5b667a;
+  --color-status-action: #4f46e5;
+  --color-status-action-soft: #eef2ff;
+  --color-status-waiting: #b45309;
+  --color-status-waiting-soft: #fdf3e2;
+  --color-status-agent: #7c3aed;
+  --color-status-agent-soft: #f1eafd;
+  --color-status-progress: #1d4ed8;
+  --color-status-progress-soft: #e8effd;
+  --color-status-ok: #16803c;
+  --color-status-ok-soft: #e6f4ea;
+  --color-status-done: #0f766e;
+  --color-status-done-soft: #e2f5f3;
+  --color-status-danger: #b91c1c;
+  --color-status-danger-soft: #fdecec;
+
+  /* ── shadcn/ui 시맨틱 토큰은 위 표에서 파생한다 (screens.md §4.1 말미) ─── */
+  --color-primary: var(--color-status-action);
+  --color-primary-foreground: #ffffff;
+  --color-destructive: var(--color-status-danger);
+  --color-muted: var(--color-status-idle);
+  --color-muted-foreground: var(--color-status-idle-text);
+
+  --radius-nerv: 10px;
+  --font-sans:
+    'Pretendard', 'Pretendard Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-bg: #0f1219;
+    --color-bg-elev: #171b26;
+    --color-bg-sunken: #0b0e14;
+    --color-text: #e6e9f0;
+    --color-text-mute: #a3adc2;
+    --color-text-faint: #6b7488;
+    --color-border: #2a3040;
+    --color-border-strong: #3a4256;
+    --color-link: #8ba7ff;
+    --color-code-bg: #1e2330;
+    --color-code-text: #d4d9e6;
+
+    --color-status-idle: #232837;
+    --color-status-idle-text: #a3adc2;
+    --color-status-action: #818cf8;
+    --color-status-action-soft: #232a45;
+    --color-status-waiting: #fbbf24;
+    --color-status-waiting-soft: #2e2410;
+    --color-status-agent: #c4b5fd;
+    --color-status-agent-soft: #241a3a;
+    --color-status-progress: #60a5fa;
+    --color-status-progress-soft: #14203a;
+    --color-status-ok: #4ade80;
+    --color-status-ok-soft: #12291a;
+    --color-status-done: #5eead4;
+    --color-status-done-soft: #0e2724;
+    --color-status-danger: #f87171;
+    --color-status-danger-soft: #321616;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}

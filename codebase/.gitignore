@@ -2,6 +2,7 @@
 node_modules/
 dist/
 .tsbuild/
+.tsbuild-spec/
 *.tsbuildinfo
 
 # 로컬 환경 — .env.example 만 커밋한다 (docs/04-mvp/codebase.md §5.2)

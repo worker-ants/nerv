@@ -5,3 +5,6 @@ coverage
 *.tsbuildinfo
 pnpm-lock.yaml
 packages/schema/drizzle
+
+# @tanstack/router-plugin 생성물
+apps/web/src/routeTree.gen.ts
