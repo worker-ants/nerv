@@ -15,7 +15,8 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "drizzle"
+    "drizzle",
+    "seed"
   ],
   "scripts": {
     "build": "tsc -b",

@@ -12,4 +12,6 @@ export * from './zod/index.js';
 
 // 마이그레이터 — 순수 선언은 아니지만 §1.2 가 허용한 예외다("순수 선언 + 마이그레이터만").
 export { runMigrations, migrationsFolder } from './migrate.js';
+export { runSeed, seedSqlPath } from './seed.js';
+export type { SeedResult } from './seed.js';
 export type { MigrateResult } from './migrate.js';
