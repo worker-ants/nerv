@@ -293,7 +293,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → 트리, `session.*` → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회.
 - **컴포넌트**: `SpecTree`(사이드바와 공유) · `ImplStatusCard` · `SessionStrip` · `EventFeed` · `NewSpecButton`(권한: 역할 매트릭스 — spec-workflow §1.6).
-- **빈 상태**: 스펙 0건 — "첫 스펙을 만드세요" + [+ 새 스펙] + [clemvion 임포트 안내 ▸](importer.md).
+- **빈 상태**: 스펙 0건 — "첫 스펙을 만드세요" + [+ 새 스펙] + [스펙 임포트 안내 ▸](importer.md).
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
@@ -674,5 +674,5 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 - [4.1 MVP 범위와 스택 확정](scope.md) — 화면 범위·확정 스택(TipTap 화이트리스트·Milkdown 재검토 트리거)의 정본
 - [4.4 API 명세](api.md) — 이 문서가 리소스+동사 수준으로 인용한 REST·WebSocket 계약의 정본
 - [4.6 플러그인과 온보딩](plugin.md) — S8 토큰 발급에서 이어지는 에이전트 온보딩 절차
-- [4.7 clemvion 임포터](importer.md) — S2 빈 상태에서 안내하는 임포트 경로
+- [4.7 스펙 임포터](importer.md) — S2 빈 상태에서 안내하는 임포트 경로
 - [4.8 백로그](backlog.md) — 이 문서의 REQ-WEB-*를 근거로 하는 화면 구현 스토리

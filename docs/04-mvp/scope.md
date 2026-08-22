@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-SCOPE
 status: draft
-updated: 2026-08-21
+updated: 2026-08-22
 ---
 # MVP 범위와 스택 확정
 
-> **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 15종으로, 플러그인 스킬은 4종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
+> **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 15종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [scope.html](../html/scope.html)
+> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
+>
+> v0.4 변경(2026-08-22 — 임포터 실행 모델 확정에 따른 범위 조정): ① 모노레포 워크스페이스에 **`apps/cli`** 추가(§2.1) ② 임포터를 **프로파일 기반 범용 도구**로 확정하고 실행 모델을 API 클라이언트로 전환(§3.2 FR-17 행 · [4.7 스펙 임포터](importer.md)) ③ 플러그인 스킬 **4종 → 5종**(`/nerv:import` 포함 — §4.3) ④ MCP 도구는 **15종 유지**(임포트 도구를 만들지 않는다 — §4.2).
 
 ---
 
@@ -44,7 +46,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | REST·WebSocket/SSE·MCP 대응 전표 | [4.4 API 명세](api.md) | 엔드포인트별 메서드·경로·권한·요청·응답·이벤트 |
 | 화면별 데이터 소스·상태·컴포넌트 명세 | [4.5 화면 명세](screens.md) | 라우팅 표 + 화면별 EARS 수용 기준 |
 | SKILL.md 4종 전문 · hooks.json 전문 | [4.6 플러그인과 온보딩](plugin.md) | 실제 파일 내용 |
-| 임포터 파싱 규칙·실패 리포트 형식 | [4.7 clemvion 임포터](importer.md) | 필드 매핑 표 + 수용 기준 |
+| 임포터 파싱 규칙·실패 리포트 형식 | [4.7 스펙 임포터](importer.md) | 필드 매핑 표 + 수용 기준 |
 | 에픽·스토리 분해와 착수 순서 | [4.8 백로그](backlog.md) | `E01-S01` 스토리 + EARS 수용 기준 + 의존 그래프 |
 
 ### 1.3 MVP = Phase 0 + Phase 1
@@ -78,7 +80,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 
 | 계층 | 확정 | 결정일 | 핵심 규약 |
 | --- | --- | --- | --- |
-| 언어/모노레포 | TypeScript + pnpm workspace — **구현 코드는 전부 저장소 `codebase/` 하위** | 2026-08-13 (3부 원안) · 코드 위치 2026-08-21 | Turborepo는 빌드 시간이 아플 때 도입(트리거만 기록). 모노레포 루트 = `codebase/`([4.2 코드베이스와 배포](codebase.md) §1, REQ-CB-015) |
+| 언어/모노레포 | TypeScript + pnpm workspace — **구현 코드는 전부 저장소 `codebase/` 하위**. 워크스페이스 4종: `apps/web` · `apps/api` · `apps/cli` · `packages/schema` | 2026-08-13 (3부 원안) · 코드 위치 2026-08-21 · `apps/cli` 2026-08-22 | Turborepo는 빌드 시간이 아플 때 도입(트리거만 기록). 모노레포 루트 = `codebase/`([4.2 코드베이스와 배포](codebase.md) §1, REQ-CB-015). `apps/cli`(`@nerv/cli` — 임포터)는 컨테이너가 아니라 **원본 체크아웃이 있는 장비에 설치되는 클라이언트**다(codebase.md §1.3, REQ-CB-016·017) |
 | 웹 | **Vite + React SPA** | 2026-08-14 | 정적 자산 배포. SSR 없음 |
 | API | **NestJS(Fastify 어댑터)** | 2026-08-14 | REST·MCP·WebSocket이 **같은 도메인 서비스를 DI로 공유**(D-05). 게이트 판정이 표면마다 갈라지는 것이 최악의 실패 |
 | DB | **Postgres** + **Drizzle** | Postgres 2026-08-13 · Drizzle 2026-08-20 | 스키마는 `packages/schema`에 TS로 선언, drizzle-kit 마이그레이션. 복잡 질의는 raw `sql` 1급 |
@@ -140,9 +142,9 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | FR-12 | 알림 | ◐ | ○ | ◐ | 인앱 알림 | Slack·메일·다이제스트는 Phase 2 |
 | FR-13 | 증적·커버리지 | ◐ | ○ | ◐ | PR·커밋 웹훅 수신, Task↔PR 링크 | 커버리지 계산·대시보드는 Phase 2 |
 | FR-14 | 멀티테넌시 | ● | ◐ | ● | Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정) | — |
-| FR-15 | 에이전트 연동 | ◐ | ◐ | ◐ | MCP tools P0 8종 + P1 7종 = **15종**(§4.2) + PAT, Claude Code 플러그인 v1(스킬 4종 + hooks + `.mcp.json`), 훅 수집기 | Codex 완전 지원·`AGENTS.md` 배포·OAuth 2.1은 Phase 2(§5) |
+| FR-15 | 에이전트 연동 | ◐ | ◐ | ◐ | MCP tools P0 8종 + P1 7종 = **15종**(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + `.mcp.json`), 훅 수집기 | Codex 완전 지원·`AGENTS.md` 배포·OAuth 2.1은 Phase 2(§5) |
 | FR-16 | 감사 로그 | ● | ◐ | ● | append-only Event 전 상태 전이 + `is_agent` 액터 구분(P0), 엔티티별 이력 재구성 뷰(P1) | — |
-| FR-17 | clemvion 임포트 | ◐ | ◐ | ◐ | spec 임포터(P0: `spec/` 384 md 중 순수 135 md) → plan 임포터(P1: `plan/` 450 md). 멱등 재실행 | review 소급 임포트는 Phase 2. SoT는 MVP 기간 내내 git(컷오버는 Phase 2 M1부터 — 로드맵 §7.2) |
+| FR-17 | clemvion 임포트 | ◐ | ◐ | ◐ | spec 임포터(P0: `spec/` 384 md 중 순수 135 md) → plan 임포터(P1: `plan/` 450 md). 멱등 재실행. 도구는 **프로파일 기반 범용 임포터**이고 clemvion은 그 내장 프로파일이다 — 실행은 원본 체크아웃 장비의 CLI(`@nerv/cli`)가 임포트 API(EP-IMP-01~05)를 호출하는 형태([4.7 스펙 임포터](importer.md) §1.4·§3.2) + 래퍼 스킬 `/nerv:import`(§4.3) | review 소급 임포트는 Phase 2. SoT는 MVP 기간 내내 git(컷오버는 Phase 2 M1부터 — 로드맵 §7.2). 양방향 동기화·서버 주도 원격 저장소 clone은 하지 않는다(§5) |
 
 ### 3.3 기획자 터미널 경로 — 명시적 포함
 
@@ -218,9 +220,11 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | P1 | `nerv_session_event` | A1 | 훅 없는 실행 환경의 폴백 |
 | ~~P2~~ | `nerv_review_submit` · `nerv_finding_resolve` | — | **MVP 제외**(§5) — Phase 2에서 카탈로그 17종 완성 |
 
+임포트에는 **MCP 도구를 만들지 않는다.** 전수 계정·바이트 보존·멱등 재실행(REQ-IMP-001~004)이 재현돼야 하는 결정적 ETL이라 LLM이 매개하는 도구 호출로 쪼개지 않는다 — 에이전트가 관여하는 지점은 CLI를 감싸는 스킬 `/nerv:import`뿐이다([4.7 스펙 임포터](importer.md) §3.6). 그래서 MVP 도구 수는 15종 그대로다.
+
 티어 표기는 도구 위험 티어 **A1~A4**다. 스펙 변경 게이트 티어 **T0~T3**([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.4)와는 **다른 축**이므로 혼용하지 않는다. MCP 15종 ↔ 내부 서비스 ↔ REST 대응 표는 [4.4 API 명세](api.md) §4가 소유한다.
 
-### 4.3 플러그인 스킬 범위 — 4종
+### 4.3 플러그인 스킬 범위 — 5종
 
 | 스킬 | MVP | 책임([에이전트 연동 설계](../03-proposal/agent-integration.md) §3.2 인용) |
 | --- | :-: | --- |
@@ -228,9 +232,12 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | `/nerv:spec` | ● | 스펙 초안·CR 작성 경로 |
 | `/nerv:impl` | ● | 클레임한 Task의 구현 절차 |
 | `/nerv:question` | ● | 질문 에스컬레이션·폴링 |
-| `/nerv:review` | ○ | **Phase 2** — 리뷰 도구 2종과 함께(스킬 4종 → 5종) |
+| `/nerv:import` | ● | **2026-08-22 추가** — 임포터 CLI 래퍼: 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → `--apply` → 멱등 재실행 검증. 대상 저장소를 가리지 않는다(프로파일만 바뀐다 — [4.7 스펙 임포터](importer.md) §3.6) |
+| `/nerv:review` | ○ | **Phase 2** — 리뷰 도구 2종과 함께(스킬 5종 → 6종) |
 
-SKILL.md 4종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.6 플러그인과 온보딩](plugin.md)이 소유한다.
+SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.6 플러그인과 온보딩](plugin.md)이 소유한다.
+
+> **스킬이 5종인데 도구가 15종인 이유.** 스킬은 도구와 1:1이 아니다 — `/nerv:import`는 MCP 도구가 아니라 로컬 CLI를 실행하는 절차 스킬이다(§4.2). 플러그인이 배포하는 것은 "무엇을 어떤 순서로 하느냐"이고, 서버 권한은 여전히 PAT 스코프가 정한다.
 
 ---
 
@@ -247,6 +254,8 @@ SKILL.md 4종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 | CR 델타 UI 고도화 | Phase 2 | FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지 |
 | 실시간 공동 편집(CRDT) | Phase 3+ (착수 조건: 409 재시도 주 20건 이상) | 서버 권위 + `base_version` 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2) |
 | OAuth 2.1 리소스 서버 | Phase 2 | 2026-08-20 인증 확정(better-auth)으로 이동 — §2.1 콜아웃 참조. MVP 에이전트 인증은 PAT |
+| 임포트 양방향 동기화 · 서버 주도 저장소 clone | Phase 3+ (착수 조건부) | 임포트는 복제이고 SoT는 git이다(§6.1-5). 서버는 대상 저장소에 접근하지 않는다 — 파일을 읽는 쪽이 파일 있는 장비라는 것이 임포터 구조의 전제다([4.7 스펙 임포터](importer.md) §3.2) |
+| 임포트 MCP 도구 | — (계획 없음) | 결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. 에이전트 경로는 스킬 `/nerv:import`뿐(§4.2·§4.3) |
 | git 미러 export | Phase 2 말(M2 컷오버 시점) | MVP 기간에는 spec/plan의 SoT가 git이라 export할 것이 없다(로드맵 §7.4). **HTTP md 미러(`GET …/specs/{id}.md` · `llms.txt`)는 별개로 MVP 포함** — [4.4 API 명세](api.md) §2 |
 
 이 표는 3부 non-goals([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §5 — 코드 호스팅·CI·범용 PM·에이전트 런타임 비대체, 로컬 하네스 전면 흡수 금지)를 대체하지 않고 그 위에 얹힌다.
@@ -264,6 +273,7 @@ SKILL.md 4종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 | 3 | 워커 단일 인스턴스 | `nerv-worker` replica 1 + Postgres advisory lock, HPA 제외 |
 | 4 | 마이그레이션 실행 위치 | compose는 기동 시, k8s는 Job — [4.2 코드베이스와 배포](codebase.md) §6 |
 | 5 | SoT 경계 | MVP 기간 중 clemvion `spec/`·`plan/`의 SoT는 git이다. 임포트는 복제이고 컷오버(M1~)는 Phase 2부터(로드맵 §7.2·§7.4) |
+| 5b | 임포트 실행 위치 | 서버는 임포트 대상 저장소의 체크아웃에 접근할 수 없다는 전제다 — 임포터 CLI는 원본이 있는 장비에서 돌고 서버에는 `import:write` PAT로만 붙는다([4.7 스펙 임포터](importer.md) §3.2 · [4.2 코드베이스와 배포](codebase.md) §1.3) |
 | 6 | 파일럿 구성 | 프로젝트 2개 — 신규 1 + clemvion 미러(읽기 전용) 1. 동시 세션 상한 프로젝트당 3에서 시작(로드맵 §3.5) |
 | 7 | 저위험 자동 통과 | T0 자동 통과 경로를 파일럿 첫날부터 켠다(로드맵 §3.5, D-06) |
 | 8 | 운영 Postgres 위치 | 미확정 — 클러스터 외부 권장 vs CloudNativePG. 백로그 확인 태스크([4.8 백로그](backlog.md)) |
@@ -299,6 +309,6 @@ SKILL.md 4종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 - [4.3 데이터베이스 스키마](database.md) — 확정 스택(Postgres+Drizzle)의 DDL 실물
 - [4.4 API 명세](api.md) — 도구 15종 ↔ REST 대응, HTTP md 미러
 - [4.5 화면 명세](screens.md) — §4.1 화면 범위의 데이터·상태·컴포넌트 명세
-- [4.6 플러그인과 온보딩](plugin.md) — §4.3 스킬 4종 전문과 Codex 경계
-- [4.7 clemvion 임포터](importer.md) — FR-17 ◐ 범위의 파싱·멱등 규칙
+- [4.6 플러그인과 온보딩](plugin.md) — §4.3 스킬 5종 전문과 Codex 경계
+- [4.7 스펙 임포터](importer.md) — FR-17 ◐ 범위의 파싱·멱등 규칙
 - [4.8 백로그](backlog.md) — §6.2 스파이크 E06과 운영 Postgres 확인 태스크

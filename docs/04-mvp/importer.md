@@ -1,19 +1,23 @@
 ---
 id: SPC-MVP-IMPORTER
 status: draft
-updated: 2026-08-20
+updated: 2026-08-22
 ---
-# clemvion 임포터
+# 스펙 임포터
 
-> **요약** — 이 문서는 `clemvion:spec/`(순수 스펙 135 md — status 분포 implemented 117 / partial 17 / backlog 1)과 `clemvion:plan/`(450 md)을 Spec/SpecVersion/Requirement/Task로 옮기는 임포터(FR-17)를 구현 착수 가능한 수준으로 확정한다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 실행 모델은 CLI `nerv import`(dry-run 기본, `--apply`로 적재)이며, 멱등 키는 파일 경로+frontmatter id, 재실행은 변경분만 처리한다. 수용 기준은 REQ-IMP-001~010 — 135 md 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
+> **요약** — 이 문서는 기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 **프로파일 기반 임포터**를 구현 착수 가능한 수준으로 확정한다. 임포터는 특정 저장소 전용이 아니다 — 스캔 글롭·제외 규칙·frontmatter 매핑·트리 규칙·기대 집계를 선언한 **프로파일**(§1.4)이 대상별 차이를 흡수하고, 엔진은 프로파일만 해석한다. 내장 프로파일은 `clemvion`(FR-17의 대상 — 순수 스펙 135 md + plan 450 md)과 `nerv-docs`(도그푸딩 — §5) 2종이며, 다른 저장소는 프로파일 파일을 얹어 같은 엔진을 재사용한다. 실행 모델은 **읽기는 클라이언트, 쓰기는 API**다(2026-08-22 확정 — §3.2): 원본 체크아웃이 있는 장비에서 `nerv import` CLI가 스캔·파싱·검증·리포트·매니페스트를 만들고(dry-run은 서버 없이 완결), `--apply`만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. **서버가 원본 파일에 접근할 수 있다는 전제를 두지 않는 것**이 이 구조의 이유다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 수용 기준은 REQ-IMP-001~017 — 프로파일 기대 집계에 대한 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
 >
-> 문서 버전 v0.1 · 2026-08-20 · HTML 판: [importer.html](../html/importer.html)
+> 문서 버전 v0.2 · 2026-08-22 · HTML 판: [importer.html](../html/importer.html)
+>
+> **v0.2 변경(2026-08-22 — 결정일 명기)**: ① 실행 모델을 DB 직결에서 **API 클라이언트 CLI**로 확정(§3.2) — 운영 환경에서 서버가 원본 체크아웃에 접근할 수 없다는 사실이 근거다. v0.1의 "api 컨테이너 안 / k8s 일회성 Job 실행" 서술은 폐기된다 ② 임포트 REST 표면 **EP-IMP-01~05** 신설([4.4 API 명세](api.md) §2.10) ③ **프로파일을 1급 개념으로 승격**해 clemvion 전용 도구에서 범용 임포터로 확장(§1.4) ④ 래퍼 스킬 **`/nerv:import`를 MVP에 포함**(§3.6 · [4.6 플러그인과 온보딩](plugin.md) §2.5 — 스킬 4종 → 5종) ⑤ 수용 기준 REQ-IMP-011~017 추가.
 
 ---
 
 ## 1. 대상과 목표
 
 ### 1.1 무엇을, 언제 옮기나
+
+임포터의 엔진은 범용이고(§1.4), 대상별 차이는 프로파일이 흡수한다. 아래 표는 **`clemvion` 프로파일**의 대상과 Phase 배정이다 — FR-17이 요구하는 이관이 그대로 이 프로파일의 적용이다.
 
 FR-17의 수용 기준은 한 문장이다 — "`spec/` 384 md와 `plan/` 450 md를 Spec/SpecVersion/Requirement·Task로 변환하는 임포터가 멱등적으로 재실행되고, 변환 실패·수동 확인 필요 항목이 목록으로 보고된다"([1.2 문제 정의](../01-problem/pain-points.md) FR-17). Phase 배정은 [로드맵](../03-proposal/roadmap.md) §3 표의 "spec P0 → plan P1 → review P2"를 그대로 따른다.
 
@@ -50,6 +54,56 @@ FR-17의 수용 기준은 한 문장이다 — "`spec/` 384 md와 `plan/` 450 md
 - 과거 실행 이력의 위조 — Claim·AgentSession은 실행의 기록이므로 임포터가 소급 생성하지 않는다(§2.6).
 - 위임 명세 4요소의 소급 생성 — "옛 Task를 다시 착수할 때 명세를 채워야 `ready`로 전이한다"(로드맵 §7.3(2), FR-05).
 - git 이력(과거 커밋)의 버전 이력 재구성 — 임포트 시점 스냅샷 1개 버전만 만든다. 과거 이력은 git이 계속 보관한다(D-01의 역할 분담).
+
+### 1.4 프로파일 — 임포터의 범용성 축
+
+**임포터는 clemvion 전용 도구가 아니다.** 엔진(스캔 → 파싱 → 검증 → 적재 → 리포트)은 저장소 이름을 모르고, 저장소마다 다른 것은 전부 **프로파일** 한 파일에 선언된다. clemvion은 그 프로파일 중 하나이며, FR-17은 "`clemvion` 프로파일이 존재하고 그 기대 집계를 통과한다"로 충족된다.
+
+| 프로파일 | 종류 | 용도 |
+| --- | --- | --- |
+| `clemvion` | 내장(CLI 동봉) | FR-17의 이관 대상 — §2가 이 프로파일의 규칙 전문 |
+| `nerv-docs` | 내장(CLI 동봉) | 도그푸딩 — `docs/` 문서 세트 적재(§5) |
+| 사용자 정의 | `--profile-file <path.yaml>` | 다른 md 스펙 저장소. 엔진·리포트 규칙·멱등 규칙은 그대로 재사용된다 |
+
+프로파일 스키마(요지 — 전 필드는 `@nerv/schema`의 zod 스키마가 정본이 된다):
+
+```yaml
+profile: clemvion            # 이름 — 매니페스트·리포트·감사 이벤트에 그대로 기록된다
+version: 1
+scan:
+  spec:    ["spec/**/*.md"]
+  plan:    ["plan/{in-progress,complete,research}/**/*.md"]
+  exclude: ["spec/**/<기계생성 카탈로그 글롭>"]     # 재생성 가능한 산출물은 옮기지 않는다(D-07)
+expect:                      # 기대 집계 — 선언한 경우에만 대조한다(REQ-IMP-016)
+  spec_total: 135            # 불일치 시 abort
+  status_distribution: { implemented: 117, partial: 17, backlog: 1 }   # 불일치 시 warn
+tree:                        # 디렉터리 → 스펙 트리 (§2.2)
+  area_from_directory: true
+  area_body_file: "_product-overview.md"
+  leaf_type: feature
+  overrides: { "conventions/**": convention }
+frontmatter:                 # 원본 필드 → NERV 필드 (§2.3)
+  id: spec.key
+  status_map:                # 문서 축 × 구현 축 2축 분해 — 값 목록도 프로파일이 선언한다
+    implemented: { doc: approved,   impl: implemented }
+    partial:     { doc: approved,   impl: in_progress }
+    backlog:     { doc: draft,      impl: unimplemented }
+    spec-only:   { doc: approved,   impl: unimplemented }
+    archived:    { doc: deprecated, impl: unimplemented }
+  code: evidence.code_path
+  pending_plans: requirement.pending_task_links
+requirement:
+  id_pattern: "[A-Z]+-[A-Z]+-\d+"        # §2.5 휴리스틱
+task:                        # plan 프로파일(P1) — §2.6
+  status_map: { "complete/**": done, "research/**": reference }
+  unstarted_sentinel: "(unstarted)"
+```
+
+세 가지가 프로파일의 경계다:
+
+1. **프로파일은 클라이언트 것이다.** 서버는 프로파일을 해석하지 않고 이름만 기록한다 — 서버가 원본 파일도 파싱 규칙도 알 필요가 없다는 것이 §3.2 구조의 전제다.
+2. **기대 집계는 선택이다.** clemvion처럼 실측 정본이 있는 대상은 `expect`를 선언해 측정 방법이 흔들리는 수치(P4)를 방어하고(§2.1), 그런 정본이 없는 신규 대상은 선언 없이 스캔 결과를 리포트에 계정만 한다(REQ-IMP-016).
+3. **매핑 의미는 프로파일이 바꾸지 못한다.** 어떤 프로파일이든 도착지는 [3.3 데이터 모델](../03-proposal/data-model.md) §3의 같은 엔티티·같은 제약이다. 프로파일이 정하는 것은 "원본의 무엇이 그 필드에 대응하는가"뿐이다.
 
 ---
 
@@ -117,7 +171,7 @@ FR-17의 수용 기준은 한 문장이다 — "`spec/` 384 md와 `plan/` 450 md
 
 > **손실 주의 — 구현 축 초기값은 문서 status의 복사본이다.** 문서 단위 값 하나를 요구사항 단위로 자동 분해할 수는 없다(로드맵 §7.3(1) 손실 주의). 1,750줄 문서에 status 값이 하나뿐이어서 `CCH-SE-02`("spec이 `필수`로 약속한 update dedup이 통째로 미구현")가 통과한 것이 D-02의 기원 사고다. 그래서 `partial` 문서에서 나온 모든 Requirement 행은 **수동 확인 큐**(리포트의 manual 분류, §4.1)에 올라가고, 사람이 요구사항 단위로 확정한다. 임포터는 이 확정을 대신하지 않는다.
 
-approved 버전의 결재 메타는 위조하지 않는다: `spec_version.approved_at` = 임포트 실행 시각(플랫폼 관점의 적재 시점), `approved_by_user_id` = NULL(소급 결재자 없음), `author_user_id` = CLI `--as-user` 실행자, `author_session_id` = NULL. 이후의 편집은 임포트가 아니라 정상 워크플로(draft → in_review → approved, [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) 정본)를 탄다.
+approved 버전의 결재 메타는 위조하지 않는다: `spec_version.approved_at` = 임포트 실행 시각(플랫폼 관점의 적재 시점), `approved_by_user_id` = NULL(소급 결재자 없음), `author_user_id` = 적재에 사용한 PAT의 소유자(§3.2 — CLI가 실행자를 자칭하지 않는다), `author_session_id` = NULL. 이후의 편집은 임포트가 아니라 정상 워크플로(draft → in_review → approved, [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) 정본)를 탄다.
 
 ### 2.4 본문 처리 — 원문 보존이 제1규칙
 
@@ -168,41 +222,60 @@ clemvion의 요구사항 ID는 `NAV-WF-01` · `ED-CV-01` · `ND-AG-24` · `CCH-S
 
 ### 3.1 CLI — `nerv import`
 
-임포터는 CLI다. **dry-run이 기본**이고, DB에 쓰려면 `--apply`를 명시해야 한다.
+임포터는 **원본 체크아웃이 있는 장비에서 실행하는 CLI**(`@nerv/cli` — 배치는 [4.2 코드베이스와 배포](codebase.md) §1.1)다. **dry-run이 기본**이고, 서버에 쓰려면 `--apply`를 명시해야 한다.
 
 ```text
-nerv import spec  --profile clemvion --root <clemvion 체크아웃 경로> --project <프로젝트 slug>
+nerv import spec  --profile clemvion --root <체크아웃 경로> --project <프로젝트 slug>
+                  [--server <base URL>] [--token <PAT>]        # --apply 시 필수, env NERV_SERVER/NERV_TOKEN 가능
                   [--apply] [--map <매니페스트 경로>] [--report-dir <디렉터리>]
-                  [--rewrite-links] [--as-user <이메일>]
+                  [--rewrite-links] [--batch-size <n>]
 
 nerv import plan  --profile clemvion --root <경로> --project <slug>
                   [--apply] [--map …] [--report-dir …] [--owner-map <owners.yaml>] [--split-checkboxes]
 
 nerv import docs  --profile nerv-docs --root docs/ --project <slug> [--apply] …   # §5 도그푸딩
 
+nerv import spec  --profile-file ./my-repo.profile.yaml --root <경로> --project <slug> …   # 사용자 정의(§1.4)
+
 nerv import rebuild-map --profile <p> --root <경로> --project <slug> --map <출력 경로>
 ```
 
 | 옵션 | 의미 | 기본값 |
 | --- | --- | --- |
-| `--apply` | 실제 적재. 없으면 dry-run — DB 쓰기 0, 리포트·매니페스트 초안만 산출 | off |
+| `--apply` | 실제 적재. 없으면 dry-run — 서버 쓰기 0, 리포트·매니페스트 초안만 산출 | off |
+| `--server` | NERV API base URL. `--apply` 시 필수, dry-run에서는 있으면 preflight(§3.5)까지 수행 | env `NERV_SERVER` |
+| `--token` | `import:write` 스코프 PAT. 적재 레코드의 작성자는 이 토큰의 소유자다 | env `NERV_TOKEN` |
+| `--profile-file` | 사용자 정의 프로파일 yaml(§1.4). `--profile`(내장 이름)과 배타 | 없음 |
 | `--map` | 멱등 매니페스트 파일(§3.3) | `./nerv-import.map.json` |
 | `--report-dir` | 리포트 출력 위치(§4.1 — `report.md` + `report.jsonl`) | `./nerv-import-report/` |
 | `--owner-map` | plan `owner:` 라벨 → 사용자 이메일 수동 매핑(yaml). 없으면 전건 unassigned | 없음 |
-| `--as-user` | 적재 레코드의 `author_user_id`가 될 실행자 계정 | 필수 |
 | `--rewrite-links` | 원문 버전 위에 링크 재작성 버전을 추가(§2.4) | off |
 | `--split-checkboxes` | plan 체크박스를 하위 Task로 분해 | off |
+| `--batch-size` | EP-IMP-02/03 한 배치의 파일 수(§3.5) | 50 |
 
 종료 코드: `0` = 실패 0건 완료 · `1` = 완료했으나 실패·수동 확인 항목 존재(리포트 확인) · `2` = 중단(abort — §4.1).
 
-### 3.2 실행 컨텍스트 — 같은 코드베이스, 도메인 서비스 직결
+`--as-user`는 두지 않는다. 실행자는 PAT 소유자로 서버가 판정하며, CLI가 다른 사람을 자칭할 수 있는 경로를 만들지 않는다(§2.3의 결재 메타 규칙과 짝).
 
-임포터는 별도 서비스가 아니라 API와 **같은 코드베이스의 CLI 엔트리**다(빌드·배치는 [4.2 코드베이스와 배포](codebase.md) 소관). REST·MCP·WS가 같은 도메인 서비스를 DI로 공유하는 것(D-05)과 같은 구조로, 임포터도 그 저장 계층을 주입받아 실행한다. 단 두 가지가 다르다:
+### 3.2 실행 컨텍스트 — 읽기는 클라이언트, 쓰기는 API (2026-08-22 확정)
 
-1. **워크플로 전이 검사는 우회한다.** 소급 적재는 상태 전이가 아니라 초기 적재다 — `approved` 버전을 승인 절차 없이 만들고, `done` Task를 게이트 판정 없이 만든다. "모든 상태 전이는 Event를 남긴다"(데이터 모델 §5.5-6)와 충돌하지 않는다: 전이가 없으므로 전이 이벤트도 없다. 임포트 이후의 첫 편집부터는 정상 워크플로와 이벤트가 흐른다.
-2. **무결성 제약은 그대로 받는다.** approved 본문 불변 트리거, `UNIQUE (project_id, ref)`, partial unique 등 스키마 제약([4.3 데이터베이스 스키마](database.md))은 임포터에게도 예외가 없다. 제약 위반은 그 파일 트랜잭션의 실패로 리포트에 남는다.
+**전제**: 운영 환경의 NERV 서버는 임포트 대상 저장소의 체크아웃에 접근할 수 없다. 대상은 다른 네트워크·다른 조직의 사설 저장소일 수 있고, 클러스터에 마운트되지도 clone되지도 않는다. 그러므로 **파일을 읽는 쪽은 파일이 있는 장비**여야 하고, 서버는 파일이 아니라 이미 파싱된 결과를 받는다. 임포터가 `DATABASE_URL`을 직접 쥐는 v0.1 모델은 이 전제에서 성립하지 않으므로 폐기한다(개발 장비에 DB 자격증명을 내보내는 것 자체가 "DB는 api·worker만 만진다"는 배포 모델과 PAT 스코프 권한 모델(D-08)의 우회이기도 하다).
 
-DB 접속은 서버와 같은 `DATABASE_URL`을 쓰며, 로컬 compose에서는 api 컨테이너 안에서, 운영 k8s에서는 일회성 Job으로 실행한다(배포 형태는 codebase.md 정본).
+| | 어디서 도는가 | 무엇을 하는가 | 무엇을 하지 않는가 |
+| --- | --- | --- | --- |
+| **`@nerv/cli`** (`nerv import`) | 체크아웃이 있는 장비 — 개발자 노트북·이관 담당자 워크스테이션·CI 러너 | 스캔·파싱·규칙 판정·리포트(§4.1)·매니페스트(§3.3)·배치 조립·전송 | DB 접속(`DATABASE_URL` 미사용), 도메인 판정(`ready` 승격·게이트 판정은 전부 서버) |
+| **`ImportModule`** (`apps/api`) | 서버 | EP-IMP-01~05 수신 → 도메인 서비스·저장 계층으로 upsert, 자연 키 조회, 트랜잭션·제약 강제, 감사 이벤트 | 원본 파일 접근, 프로파일 해석, 리포트 생성 |
+
+인증·권한은 기존 체계를 그대로 쓴다 — PAT Bearer + **`import:write` 스코프**, 역할은 admin([4.4 API 명세](api.md) §1.3·§2.10). 토큰 소유자가 곧 적재 레코드의 작성자다.
+
+서버 쪽 두 성질은 v0.1과 동일하게 유지된다:
+
+1. **워크플로 전이 검사는 우회한다.** 소급 적재는 상태 전이가 아니라 초기 적재다 — `approved` 버전을 승인 절차 없이 만들고, `done` Task를 게이트 판정 없이 만든다. "모든 상태 전이는 Event를 남긴다"(데이터 모델 §5.5-6)와 충돌하지 않는다: 전이가 없으므로 전이 이벤트도 없다. 다만 우회가 **임포트 경로에서만** 열린다는 점이 v0.1과 다르다 — 일반 REST·MCP 표면에는 이 경로가 없고, EP-IMP-*는 admin + `import:write`로만 열린다. 임포트 이후의 첫 편집부터는 정상 워크플로와 이벤트가 흐른다.
+2. **무결성 제약은 그대로 받는다.** approved 본문 불변 트리거, `UNIQUE (project_id, ref)`, partial unique 등 스키마 제약([4.3 데이터베이스 스키마](database.md))은 임포터에게도 예외가 없다 — API 경유이므로 오히려 우회 불가능하다. 제약 위반은 그 파일 트랜잭션의 실패로 응답에 담기고 리포트에 남는다.
+
+**감사**: 적재 배치마다 `event` 행 1건(`type='import.applied'`, `is_agent=false`, actor = PAT 소유자, payload에 프로파일 이름·`root_commit`·건수)을 남긴다. 전이 이벤트는 만들지 않는다(위 1). 이 이벤트는 `project:{id}` 룸으로 방송되지만 알림은 만들지 않는다([4.4 API 명세](api.md) §3.3).
+
+**로컬 개발도 같은 경로다.** compose로 띄운 서버에 `--server http://localhost:8080`으로 붙는다 — 쓰기 경로를 로컬용/운영용으로 이원화하지 않는다(이원화하면 검증해야 할 불변식이 두 벌이 된다).
 
 ### 3.3 멱등 키와 매니페스트
 
@@ -215,7 +288,7 @@ DB 접속은 서버와 같은 `DATABASE_URL`을 쓰며, 로컬 compose에서는 
 | `unresolved` | 미해소 `pending_plans` 경로 목록(P1에서 해소), 해소 실패 링크 |
 | `aliases` | 원본 경로·id → NERV UUID 별칭 표 — 이후 링크 재작성·plan `spec_impact` 경로 변환이 이 표를 쓴다 |
 
-**서버가 진실이고 매니페스트는 캐시다.** 매니페스트를 잃어버려도 중복 적재로 이어지지 않는다 — `--apply` 시 임포터는 자연 키(`(project, spec.key)`, `(project_id, requirement.ref)`)로 서버를 먼저 조회하고, 매니페스트 없이 동일 키가 이미 존재하면 **중단**하며 `nerv import rebuild-map`을 안내한다. `rebuild-map`은 자연 키 대조로 매니페스트를 서버에서 재구성한다(Task는 자연 키가 없어 제목 매칭으로 후보를 제시하고, 모호 항목은 수동 확인 큐로).
+**서버가 진실이고 매니페스트는 캐시다.** 매니페스트를 잃어버려도 중복 적재로 이어지지 않는다 — `--apply` 시 임포터는 자연 키(`(project, spec.key)`, `(project_id, requirement.ref)`)를 **EP-IMP-01 preflight**로 서버에 먼저 대조하고, 매니페스트 없이 동일 키가 이미 존재하면 **중단**하며 `nerv import rebuild-map`을 안내한다. `rebuild-map`은 **EP-IMP-05**(자연 키 → UUID 대조표)로 매니페스트를 서버에서 재구성한다(Task는 자연 키가 없어 제목 매칭으로 후보를 제시하고, 모호 항목은 수동 확인 큐로).
 
 ### 3.4 재실행 규칙 — 변경분만
 
@@ -233,16 +306,36 @@ DB 접속은 서버와 같은 `DATABASE_URL`을 쓰며, 로컬 compose에서는 
 flowchart LR
   A["① 스캔<br/>글롭·제외·기대 집계 대조"] --> B["② 파싱<br/>frontmatter · 본문 · REQ 추출"]
   B --> C["③ 검증<br/>규칙 판정 · 리포트 행 축적"]
-  C -->|"dry-run (기본)"| R1["리포트 + 매니페스트 초안<br/>DB 쓰기 0"]
+  C -->|"dry-run (기본)"| R1["리포트 + 매니페스트 초안<br/>서버 쓰기 0 · 서버 없이도 완주"]
   C -->|"--apply"| D["④ 구조 패스<br/>스펙 트리 upsert · 트랜잭션 1건"]
   D --> E["⑤ 문서 패스<br/>파일 1건 = 트랜잭션 1건"]
   E --> F["⑥ 링크 패스<br/>spec_relation · pending_plans 해소"]
   F --> R2["⑦ 리포트 + 매니페스트 확정"]
 ```
 
-- **문서 패스의 트랜잭션 단위는 파일 1건**이다 — 한 spec 파일이 만드는 `spec_version` + `requirement` + `requirement_version` + `evidence` 행 전부가 한 트랜잭션이고, 실패하면 그 파일만 롤백하고 다음 파일을 계속한다(리포트 skip).
+①~③은 클라이언트 단독이다 — **dry-run은 서버 없이 완주한다**(REQ-IMP-011). ④부터가 API 호출이며, 패스와 엔드포인트는 1:1로 대응한다([4.4 API 명세](api.md) §2.10):
+
+| 패스 | 엔드포인트 | 서버 측 트랜잭션 단위 |
+| --- | --- | --- |
+| ③ 검증의 서버 대조(자연 키 충돌·기존 버전 해시) | **EP-IMP-01** `POST …/import/preflight` | 없음(읽기 전용) |
+| ④ 구조 패스 — 스펙 트리 노드 upsert | **EP-IMP-02** `POST …/import/specs`(`kind=structure`) | 배치 1건 |
+| ⑤ 문서 패스 — SpecVersion·Requirement·Evidence | **EP-IMP-02** `POST …/import/specs`(`kind=document`) | **파일 1건** |
+| ⑤′ plan 패스(P1) — Task·TaskDependency | **EP-IMP-03** `POST …/import/tasks` | Task 1건 |
+| ⑥ 링크 패스 — `spec_relation`·`pending_plans` 해소 | **EP-IMP-04** `POST …/import/links` | 배치 1건 |
+| — 매니페스트 재구성 | **EP-IMP-05** `GET …/import/map` | 없음(읽기 전용) |
+
+- **문서 패스의 트랜잭션 단위는 파일 1건**이다 — 한 spec 파일이 만드는 `spec_version` + `requirement` + `requirement_version` + `evidence` 행 전부가 한 트랜잭션이고, 실패하면 그 파일만 롤백하고 다음 파일을 계속한다(리포트 skip). 배치(기본 50파일)는 전송 단위일 뿐 트랜잭션 단위가 아니며, 응답은 항목별 결과 배열이다.
 - 구조 패스(트리 노드 upsert)와 링크 패스는 각각 트랜잭션 1건이다. 링크 해소 실패는 트랜잭션을 깨지 않고 행 생성만 건너뛴다.
 - 중단(abort) 발생 시 이미 커밋된 파일 트랜잭션은 남는다 — 멱등 재실행이 이어서 처리하는 것이 복구 절차다.
+- **전송 실패는 중복 적재를 만들지 않는다.** 배치마다 `Idempotency-Key`(매니페스트 항목 해시 기반)를 붙이므로 타임아웃 후 재전송은 최초 응답의 재생이다([4.4 API 명세](api.md) §1.5, REQ-IMP-013).
+
+### 3.6 래퍼 스킬 — `/nerv:import`
+
+CLI가 엔진이고, 스킬은 그 위의 사람 UX다. **결정적 ETL을 LLM이 대신 수행하지 않는다** — 스킬은 CLI를 실행하고, 리포트를 사람이 읽을 수 있게 요약하며, `manual` 큐(§4.1의 15종 규칙)를 사람에게 넘기는 절차만 담당한다. 그래서 이 스킬은 임포트 대상을 가리지 않는다 — 프로파일 이름만 바뀐다.
+
+절차는 고정이다: **① 프로파일 선택 → ② dry-run 실행 → ③ 리포트 요약 제시(abort/skip/manual/warn 건수와 상위 사유) → ④ 사람 확인 → ⑤ `--apply` → ⑥ 재실행으로 멱등 검증(신규 0)**. `--apply`는 사람의 명시적 승인 없이 실행하지 않는다(REQ-IMP-017) — 적재는 A3 성격의 행위다. 리포트 수치는 CLI 산출물을 그대로 인용하고 스킬이 재계산·요약 왜곡을 하지 않는다.
+
+SKILL.md 전문은 [4.6 플러그인과 온보딩](plugin.md) §2.5가 소유한다. MCP 도구는 추가하지 않는다 — 임포트는 도구 호출 단위로 쪼개면 전수 계정·멱등 검증이 재현되지 않기 때문이며, MVP 도구 15종은 그대로다([4.1 MVP 범위와 스택 확정](scope.md) §4.2).
 
 ---
 
@@ -268,8 +361,11 @@ flowchart LR
 
 | 규칙 슬러그 | class | 조건 |
 | --- | --- | --- |
-| `count-mismatch` | abort | 적재 대상 총수 ≠ 기대치 135(§2.1) |
-| `map-conflict` | abort | 매니페스트 없이 서버에 동일 자연 키 실존(§3.3) |
+| `profile-invalid` | abort | 프로파일 파일이 스키마 검증에 실패(§1.4) |
+| `count-mismatch` | abort | 적재 대상 총수 ≠ 프로파일 `expect.spec_total`(clemvion은 135 — §2.1). 미선언 프로파일에서는 발생하지 않는다 |
+| `map-conflict` | abort | 매니페스트 없이 서버에 동일 자연 키 실존 — EP-IMP-01 preflight 판정(§3.3) |
+| `server-unauthorized` | abort | 토큰 없음·만료 또는 `import:write` 스코프 부족(401/403 — §3.2). 권한 확대를 시도하지 않는다 |
+| `server-rejected` | skip | 서버가 그 항목을 제약 위반으로 거부(응답의 `NERV_*` 코드와 함께 기록 — §3.2(2)). 배치의 나머지 항목은 계속된다 |
 | `id-collision` | abort | 같은 프로젝트에서 frontmatter `id` 충돌(§2.2) |
 | `dist-mismatch` | warn | status 분포 ≠ 117/17/1 |
 | `frontmatter-missing` / `frontmatter-unparsable` | skip | 제외 글롭 밖 파일에 선두 frontmatter 블록이 없거나 YAML 파싱 실패 |
@@ -298,14 +394,21 @@ flowchart LR
 | --- | --- |
 | **REQ-IMP-001** | WHEN clemvion 프로파일의 spec 임포트가 완료되면, THE SYSTEM SHALL 스캔한 384 md 각각을 적재·제외(카탈로그 249)·실패·수동 확인 중 정확히 하나로 분류해 리포트에 남기고, 적재+실패+수동 확인의 합을 135로 계정한다 |
 | **REQ-IMP-002** | WHEN spec md 1건이 적재되면, THE SYSTEM SHALL frontmatter 블록을 제외한 본문을 바이트 동일하게 `spec_version.body_md`에 저장하고 `content_hash = sha256(body_md)`를 만족시킨다 |
-| **REQ-IMP-003** | WHEN 파서가 spec 스캔을 마치면, THE SYSTEM SHALL 문서 선두 frontmatter 블록만 집계해 기대 총수 135와 대조하고, 불일치 시 적재를 중단(abort)한다. 분포(117/17/1) 불일치는 경고로 남긴다 |
+| **REQ-IMP-003** | WHEN 파서가 spec 스캔을 마치면, THE SYSTEM SHALL 문서 선두 frontmatter 블록만 집계해 프로파일이 선언한 기대 총수(clemvion은 135)와 대조하고, 불일치 시 적재를 중단(abort)한다. 분포(117/17/1) 불일치는 경고로 남긴다 |
 | **REQ-IMP-004** | WHEN 동일 입력으로 임포터를 연속 2회 실행하면, THE SYSTEM SHALL 두 번째 실행에서 신규 레코드를 0건 생성한다(로드맵 Phase 0 종료 조건 0-7과 동일 문구) |
 | **REQ-IMP-005** | WHEN 재실행 시점에 원본 파일의 content_hash가 매니페스트 기록과 다르면, THE SYSTEM SHALL 해당 스펙에만 새 SpecVersion을 추가하고 무변경 파일의 기존 레코드를 수정하지 않는다 |
-| **REQ-IMP-006** | WHEN `--apply` 없이 실행되면, THE SYSTEM SHALL DB 쓰기 0건으로 리포트와 매니페스트 초안만 산출한다 |
+| **REQ-IMP-006** | WHEN `--apply` 없이 실행되면, THE SYSTEM SHALL 서버 쓰기 0건으로 리포트와 매니페스트 초안만 산출한다 |
 | **REQ-IMP-007** | WHEN 항목 1건이 자동 변환에 실패하면, THE SYSTEM SHALL 파일·줄·규칙·분류(abort/skip/manual/warn)를 리포트에 남기고, skip이면 다음 항목 처리를 계속한다 |
 | **REQ-IMP-008** | WHEN plan의 `owner:` 라벨이 `--owner-map`에 없으면, THE SYSTEM SHALL `assignee_user_id`를 NULL로 적재하고 추정 배정하지 않는다 |
 | **REQ-IMP-009** | WHEN 과거 plan을 Task로 적재하면, THE SYSTEM SHALL `claim`·`agent_session` 레코드를 생성하지 않고 `ready` 상태로 적재하지 않는다 |
 | **REQ-IMP-010** | WHEN nerv-docs 프로파일로 `docs/`를 임포트하면, THE SYSTEM SHALL 4부 8편을 frontmatter `status: draft` 그대로 draft SpecVersion으로 적재하고, 본문에 정의된 `REQ-*` ID를 requirement로 추출한다 |
+| **REQ-IMP-011** | WHILE `--apply`가 지정되지 않은 동안, THE SYSTEM SHALL `--server` 없이도 스캔·파싱·검증·리포트·매니페스트 초안을 완주한다 — dry-run은 네트워크·서버·DB 어느 것에도 의존하지 않는다 |
+| **REQ-IMP-012** | WHEN 임포터가 적재를 수행할 때, THE SYSTEM SHALL `DATABASE_URL`을 사용하지 않고 `import:write` 스코프 PAT로 EP-IMP-01~05만 호출한다 — CLI는 DB 드라이버를 의존성으로 갖지 않는다 |
+| **REQ-IMP-013** | WHEN 배치 전송이 타임아웃·네트워크 오류로 재시도되면, THE SYSTEM SHALL 같은 `Idempotency-Key`로 재전송해 중복 레코드를 0건 생성한다 |
+| **REQ-IMP-014** | WHEN `import:write` 스코프가 없는 토큰 또는 admin이 아닌 역할이 EP-IMP-*를 호출하면, THE SYSTEM SHALL 403 `NERV_FORBIDDEN`으로 거부하고 어떤 레코드도 만들지 않는다 |
+| **REQ-IMP-015** | WHEN `--profile-file`로 사용자 정의 프로파일이 주어지면, THE SYSTEM SHALL 프로파일 스키마를 검증한 뒤 내장 프로파일과 동일한 엔진·리포트 규칙·멱등 규칙을 적용한다 — 대상 저장소별 분기 코드를 두지 않는다 |
+| **REQ-IMP-016** | WHEN 프로파일이 `expect.spec_total`을 선언하지 않으면, THE SYSTEM SHALL `count-mismatch` 중단을 적용하지 않고 스캔 총수와 분류별 집계를 리포트에 계정한다(전수 계정 자체는 REQ-IMP-001과 동일하게 유지된다) |
+| **REQ-IMP-017** | WHEN `/nerv:import` 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 `--apply`를 실행하고, 사람의 명시적 승인 없이 적재하지 않는다 |
 
 ### 4.3 Phase 0 종료 조건과의 관계
 
@@ -317,7 +420,7 @@ flowchart LR
 
 ### 5.1 nerv-docs 프로파일
 
-NERV의 제안서·MVP 문서(`docs/`)는 NERV가 가동되면 **첫 번째로 임포트될 스펙**이다. clemvion 프로파일과 같은 엔진에 매핑 표만 다른 `nerv-docs` 프로파일을 둔다:
+NERV의 제안서·MVP 문서(`docs/`)는 NERV가 가동되면 **첫 번째로 임포트될 스펙**이다. 그리고 이 프로파일이 §1.4 범용성의 증거다 — clemvion과 대상·계층·frontmatter 규격이 전부 다른데 엔진은 한 줄도 다르지 않고, 바뀐 것은 프로파일 선언뿐이다:
 
 | 항목 | 규칙 |
 | --- | --- |
@@ -383,7 +486,8 @@ NERV의 제안서·MVP 문서(`docs/`)는 NERV가 가동되면 **첫 번째로 �
 ### 4부 형제 문서
 
 - [4.1 MVP 범위와 스택 확정](scope.md) — 이 임포터가 속한 MVP 범위(FR-17 P0·P1 배정)
-- [4.2 코드베이스와 배포](codebase.md) — CLI 엔트리의 모노레포 배치·빌드·실행 형태
+- [4.2 코드베이스와 배포](codebase.md) — `apps/cli`(`@nerv/cli`)의 모노레포 배치·빌드·배포 형태와 `apps/api`의 `ImportModule`
 - [4.3 데이터베이스 스키마](database.md) — 임포터가 그대로 받는 DDL 제약(트리거·유니크)과 개발 시드
-- [4.4 API 명세](api.md) — `NERV_*` 에러 코드 체계(리포트 어휘와 다른 층임을 §4.1이 명시)
+- [4.4 API 명세](api.md) — 임포트 REST 표면 EP-IMP-01~05(§2.10)의 계약 정본, `import:write` 스코프, `NERV_*` 에러 코드 체계(리포트 어휘와 다른 층임을 §4.1이 명시)
+- [4.6 플러그인과 온보딩](plugin.md) — 래퍼 스킬 `/nerv:import`의 SKILL.md 전문(§2.5)
 - [4.8 백로그](backlog.md) — 임포터 스토리 분해와 E2E 수용 시나리오(135 md 전수), 스토리 자체가 임포트 대상(§5.1)

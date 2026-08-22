@@ -1063,7 +1063,7 @@ data-model §5.5의 9규칙이 어디서 강제되는지의 최종 답이다. "�
 - [4.1 MVP 범위와 스택 확정](scope.md) — Postgres + Drizzle 스택 확정과 재검토 트리거
 - [4.2 코드베이스와 배포](codebase.md) — `packages/schema` 배치, 마이그레이션 실행 시점(compose 기동 시 / k8s Job), 워커 잡·advisory lock 규약
 - [4.4 API 명세](api.md) — 이 스키마의 컬럼명을 그대로 쓰는 REST·WS 계약
-- [4.7 clemvion 임포터](importer.md) — §4 시드가 아닌 실데이터 적재 경로(frontmatter → 필드 매핑)
+- [4.7 스펙 임포터](importer.md) — §4 시드가 아닌 실데이터 적재 경로(frontmatter → 필드 매핑)
 
 ### 외부 출처 (기존 문서에서 접속 확인된 URL의 재인용)
 

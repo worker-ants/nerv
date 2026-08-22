@@ -38,7 +38,7 @@
   <a href="api.html">4.4 API 명세</a>
   <a href="screens.html">4.5 화면 명세</a>
   <a href="plugin.html">4.6 플러그인과 온보딩</a>
-  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="importer.html">4.7 스펙 임포터</a>
   <a href="backlog.html">4.8 백로그</a>
 </nav>
 
@@ -50,11 +50,11 @@
 
   <header class="page-header">
     <h1>코드베이스와 배포</h1>
-    <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>구현 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
+    <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>구현 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-08-21)</span>
+      <span>버전 v0.4 (2026-08-22)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
-      <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~015</span>
+      <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~017</span>
     </div>
   </header>
 
@@ -82,7 +82,7 @@
 <pre><code>nerv/                           # 저장소 루트 — 구현 코드 없음
   AGENTS.md                     # 에이전트 공통 작업 규약 (Codex·Claude Code 공용)
   CLAUDE.md                     # Claude Code 진입점 — @AGENTS.md import만 한다
-  docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 clemvion 임포터 §5)
+  docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 스펙 임포터 §5)
   codebase/                     # ★ 구현 코드 전체 = 모노레포 루트 (REQ-CB-015)
     package.json                # 워크스페이스 스크립트 허브 (§5.1 명령 표)
     pnpm-workspace.yaml         # packages: ["apps/*", "packages/*"]
@@ -103,8 +103,16 @@
           lib/                  # API 클라이언트 · WS 클라이언트 · 이벤트→쿼리 무효화 매핑
       api/                      # @nerv/api — NestJS(Fastify). REST·MCP·WS·SSE·ingest + 워커 엔트리 (§2)
         src/                    # 상세 트리는 §2.2
+      cli/                      # @nerv/cli — 임포터 CLI. 원본 체크아웃이 있는 장비에서 실행 (§1.3)
+        src/
+          index.ts              # nerv import spec|plan|docs|rebuild-map 엔트리
+          profiles/             # 내장 프로파일 — clemvion.yaml · nerv-docs.yaml (4.7 §1.4)
+          parse/                # 스캔 · frontmatter · 요구사항 추출 · 링크 해소 (4.7 §2)
+          report/               # report.md · report.jsonl · 매니페스트 (4.7 §3.3·§4.1)
+          client/               # EP-IMP-01~05 HTTP 클라이언트 — PAT · Idempotency-Key 재시도
     packages/
       schema/                   # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
+                                #   임포트 배치 · 프로파일 zod 스키마도 여기가 정본 (apps/api ↔ apps/cli 공유 계약)
     deploy/
       compose/
         docker-compose.yml      # §5.3 전문 — 로컬·소규모 자가호스팅 정본
@@ -126,12 +134,13 @@
     <tbody>
       <tr><td><code>apps/web</code></td><td><code>@nerv/web</code></td><td>S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화</td><td>비즈니스 규칙 판정(전부 API에 위임 — <a href="architecture.html">3.2</a> §1.3)</td></tr>
       <tr><td><code>apps/api</code></td><td><code>@nerv/api</code></td><td>REST + MCP + WebSocket + SSE + ingest 다섯 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리)</td><td>스키마·타입 선언(<code>@nerv/schema</code>에서만 import)</td></tr>
-      <tr><td><code>packages/schema</code></td><td><code>@nerv/schema</code></td><td>drizzle 테이블 선언, zod 스키마, 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일</td><td>런타임 로직(순수 선언 + 마이그레이터만)</td></tr>
+      <tr><td><code>apps/cli</code></td><td><code>@nerv/cli</code></td><td>임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~05 호출(<a href="importer.html">4.7 스펙 임포터</a> §3)</td><td>DB 접속(<code>DATABASE_URL</code> 미사용·DB 드라이버 미의존), 도메인 판정</td></tr>
+      <tr><td><code>packages/schema</code></td><td><code>@nerv/schema</code></td><td>drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일</td><td>런타임 로직(순수 선언 + 마이그레이터만)</td></tr>
       <tr><td><code>deploy/*</code></td><td>—</td><td>compose·Dockerfile·kustomize 산출물. 이 문서가 정본</td><td>애플리케이션 코드</td></tr>
     </tbody>
   </table></div>
 
-  <p>의존 방향은 한쪽뿐이다: <code>apps/* → packages/schema</code>. <code>apps/web ↔ apps/api</code> 간 직접 import는 금지하며, 둘의 공유 계약(zod 스키마·타입·상수)은 전부 <code>@nerv/schema</code>를 거친다.</p>
+  <p>의존 방향은 한쪽뿐이다: <code>apps/* → packages/schema</code>. <code>apps/web ↔ apps/api ↔ apps/cli</code> 간 직접 import는 금지하며, 공유 계약(zod 스키마·타입·상수)은 전부 <code>@nerv/schema</code>를 거친다. <code>apps/cli</code>가 <code>apps/api</code>의 서비스를 import하지 않는다는 것이 REQ-CB-001의 적용례다 — CLI는 API의 클라이언트일 뿐 같은 프로세스가 아니다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
@@ -147,6 +156,29 @@
 <pre><code>packages:
   - "apps/*"
   - "packages/*"</code></pre>
+
+  <h3>1.3 <code>apps/cli</code> — 컨테이너가 아니라 배포되는 클라이언트</h3>
+
+  <p>임포터는 서버 옆이 아니라 <b>원본 파일 옆</b>에서 돈다. 운영 환경의 서버는 임포트 대상 저장소의 체크아웃에 접근할 수 없으므로(근거·전문은 <a href="importer.html">4.7 스펙 임포터</a> §3.2), CLI는 이미지·Job이 아니라 실행 장비에 설치되는 산출물이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>항목</th><th>확정</th></tr></thead>
+    <tbody>
+      <tr><td>배포 형태</td><td><code>pnpm --filter @nerv/cli build</code> 산출물을 사내 npm 레지스트리에 게시(<code>npm i -g @nerv/cli</code>) 또는 tarball 직접 설치. 컨테이너 이미지·k8s Job으로 만들지 않는다</td></tr>
+      <tr><td>실행 위치</td><td>원본 체크아웃이 있는 장비 — 이관 담당자 워크스테이션·CI 러너</td></tr>
+      <tr><td>서버 접속</td><td><code>--server</code> + <code>import:write</code> 스코프 PAT(<code>--token</code>/env <code>NERV_TOKEN</code>). <code>DATABASE_URL</code>은 쓰지 않는다</td></tr>
+      <tr><td>원본 접근</td><td>READ-ONLY. 임포터는 대상 저장소에 어떤 쓰기도 하지 않는다</td></tr>
+      <tr><td>dry-run</td><td>서버·네트워크 없이 완주(REQ-IMP-011) — CI에서 스펙 저장소 PR 검사로도 쓸 수 있다</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-CB-016</b></td><td>WHEN <code>apps/cli</code>가 빌드될 때, THE SYSTEM SHALL DB 드라이버(<code>pg</code>·drizzle 런타임)와 <code>apps/api</code> 코드를 의존성에서 제외하고 <code>@nerv/schema</code>의 타입·zod 스키마만 참조한다 — 임포터가 DB에 직접 붙는 경로를 컴파일 단계에서 없앤다.</td></tr>
+      <tr><td><b>REQ-CB-017</b></td><td>WHEN 운영 배포 산출물을 만들 때, THE SYSTEM SHALL 컨테이너 이미지를 <code>nerv-api</code>·<code>nerv-worker</code>·<code>nerv-web</code> 3종으로 유지하고 임포터용 이미지·k8s Job을 만들지 않는다.</td></tr>
+    </tbody>
+  </table></div>
 
   <h2 id="sec-2">2. apps/api — 표면 5종이 같은 도메인 서비스를 공유한다 (D-05)</h2>
 
@@ -299,6 +331,10 @@
       question.service.ts        # 질문 생성 · 폴링 · awaiting_input 전이
       approval.controller.ts
       question.tools.ts          # MCP — nerv_question_create
+    import/                      # ImportModule — EP-IMP-01~05 (4.4 §2.10). 소급 적재 전용 경로
+      import.module.ts
+      import.service.ts          # 자연 키 대조 · 배치 upsert · 전이 검사 우회(이 모듈에서만) · import.applied 이벤트
+      import.controller.ts       # REST — preflight · specs · tasks · links · map
     review/                      # ReviewModule — 테이블·서비스 골격은 MVP 스키마에 포함, 도구 2종은 P2
       review.module.ts
       review.service.ts
@@ -343,6 +379,7 @@
       <tr><td><code>ApprovalModule</code></td><td><code>approval</code> <code>question</code></td><td><code>nerv_question_create</code>(P1)</td><td><code>…/projects/{p}/approvals</code> · <code>…/questions</code></td></tr>
       <tr><td><code>ReviewModule</code></td><td><code>review_session</code> <code>reviewer_report</code> <code>finding</code> <code>finding_occurrence</code> <code>resolution</code></td><td>(P2 — <code>nerv_review_submit</code> <code>nerv_finding_resolve</code>)</td><td>(P2)</td></tr>
       <tr><td><code>EventModule</code></td><td><code>event</code> <code>notification</code></td><td>—</td><td><code>…/projects/{p}/events</code> + WebSocket · SSE(<code>/sse/*</code>)</td></tr>
+      <tr><td><code>ImportModule</code></td><td>(소유 테이블 없음 — Spec·Task 계열에 소급 적재)</td><td>— (도구 없음 — <a href="importer.html">4.7 스펙 임포터</a> §3.6)</td><td><code>…/projects/{p}/import/*</code></td></tr>
     </tbody>
   </table></div>
 
@@ -483,6 +520,8 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
       <tr><td><code>pnpm compose:up</code></td><td><code>docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build</code></td></tr>
       <tr><td><code>pnpm compose:infra</code></td><td>위 명령 + <code>postgres minio valkey</code> 서비스만</td></tr>
       <tr><td><code>pnpm compose:down</code></td><td>스택 정지(볼륨 유지)</td></tr>
+      <tr><td><code>pnpm --filter @nerv/cli build</code></td><td>임포터 CLI 빌드 — 산출물은 이미지가 아니라 설치형 패키지(§1.3)</td></tr>
+      <tr><td><code>nerv import …</code></td><td>임포터 실행. <b><code>codebase/</code>가 아니라 원본 체크아웃에서 실행한다</b>(<a href="importer.html">4.7 스펙 임포터</a> §3.1)</td></tr>
     </tbody>
   </table></div>
 

@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-CODEBASE
 status: draft
-updated: 2026-08-21
+updated: 2026-08-22
 ---
 # 코드베이스와 배포
 
-> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **구현 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 행동 요구는 REQ-CB-001~015로 번호를 부여했다.
+> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **구현 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~017로 번호를 부여했다.
 >
-> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+>
+> v0.4 변경(2026-08-22): **`apps/cli`(`@nerv/cli`) 워크스페이스 신설**(§1.1·§1.3)과 `apps/api`의 `ImportModule`(§2.2·§2.3) — 임포터 실행 모델이 DB 직결에서 API 클라이언트로 확정된 데 따른 배치 확정([4.7 스펙 임포터](importer.md) §3.2). REQ-CB-016~018 추가.
 
 ---
 
@@ -23,7 +25,7 @@ updated: 2026-08-21
 nerv/                           # 저장소 루트 — 구현 코드 없음
   AGENTS.md                     # 에이전트 공통 작업 규약 (Codex·Claude Code 공용)
   CLAUDE.md                     # Claude Code 진입점 — @AGENTS.md import만 한다
-  docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 clemvion 임포터 §5)
+  docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 스펙 임포터 §5)
   codebase/                     # ★ 구현 코드 전체 = 모노레포 루트 (REQ-CB-015)
     package.json                # 워크스페이스 스크립트 허브 (§5.1 명령 표)
     pnpm-workspace.yaml         # packages: ["apps/*", "packages/*"]
@@ -44,8 +46,16 @@ nerv/                           # 저장소 루트 — 구현 코드 없음
           lib/                  # API 클라이언트 · WS 클라이언트 · 이벤트→쿼리 무효화 매핑
       api/                      # @nerv/api — NestJS(Fastify). REST·MCP·WS·SSE·ingest + 워커 엔트리 (§2)
         src/                    # 상세 트리는 §2.2
+      cli/                      # @nerv/cli — 임포터 CLI. 원본 체크아웃이 있는 장비에서 실행 (§1.3)
+        src/
+          index.ts              # nerv import spec|plan|docs|rebuild-map 엔트리
+          profiles/             # 내장 프로파일 — clemvion.yaml · nerv-docs.yaml (4.7 §1.4)
+          parse/                # 스캔 · frontmatter · 요구사항 추출 · 링크 해소 (4.7 §2)
+          report/               # report.md · report.jsonl · 매니페스트 (4.7 §3.3·§4.1)
+          client/               # EP-IMP-01~05 HTTP 클라이언트 — PAT · Idempotency-Key 재시도
     packages/
       schema/                   # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
+                                #   임포트 배치 · 프로파일 zod 스키마도 여기가 정본 (apps/api ↔ apps/cli 공유 계약)
     deploy/
       compose/
         docker-compose.yml      # §5.3 전문 — 로컬·소규모 자가호스팅 정본
@@ -67,10 +77,11 @@ nerv/                           # 저장소 루트 — 구현 코드 없음
 | --- | --- | --- | --- |
 | `apps/web` | `@nerv/web` | S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화 | 비즈니스 규칙 판정(전부 API에 위임 — [3.2](../03-proposal/architecture.md) §1.3) |
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
-| `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마, 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터만) |
+| `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~05 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
+| `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터만) |
 | `deploy/*` | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
-의존 방향은 한쪽뿐이다: `apps/* → packages/schema`. `apps/web ↔ apps/api` 간 직접 import는 금지하며 둘의 공유 계약(zod 스키마·타입·상수)은 전부 `@nerv/schema`를 거친다.
+의존 방향은 한쪽뿐이다: `apps/* → packages/schema`. `apps/web ↔ apps/api ↔ apps/cli` 간 직접 import는 금지하며 공유 계약(zod 스키마·타입·상수)은 전부 `@nerv/schema`를 거친다. `apps/cli`가 `apps/api`의 서비스를 import하지 않는다는 것이 REQ-CB-001의 적용례다 — CLI는 API의 클라이언트일 뿐 같은 프로세스가 아니다.
 
 | ID | 요구(EARS) |
 | --- | --- |
@@ -85,6 +96,23 @@ packages:
   - "apps/*"
   - "packages/*"
 ```
+
+### 1.3 `apps/cli` — 컨테이너가 아니라 배포되는 클라이언트
+
+임포터는 서버 옆이 아니라 **원본 파일 옆**에서 돈다. 운영 환경의 서버는 임포트 대상 저장소의 체크아웃에 접근할 수 없으므로(근거·전문은 [4.7 스펙 임포터](importer.md) §3.2), CLI는 이미지·Job이 아니라 실행 장비에 설치되는 산출물이다.
+
+| 항목 | 확정 |
+| --- | --- |
+| 배포 형태 | `pnpm --filter @nerv/cli build` 산출물을 사내 npm 레지스트리에 게시(`npm i -g @nerv/cli`) 또는 tarball 직접 설치. 컨테이너 이미지·k8s Job으로 만들지 않는다 |
+| 실행 위치 | 원본 체크아웃이 있는 장비 — 이관 담당자 워크스테이션·CI 러너 |
+| 서버 접속 | `--server` + `import:write` 스코프 PAT(`--token`/env `NERV_TOKEN`). `DATABASE_URL`은 쓰지 않는다 |
+| 원본 접근 | READ-ONLY. 임포터는 대상 저장소에 어떤 쓰기도 하지 않는다 |
+| dry-run | 서버·네트워크 없이 완주(REQ-IMP-011) — CI에서 스펙 저장소 PR 검사로도 쓸 수 있다 |
+
+| ID | 요구(EARS) |
+| --- | --- |
+| **REQ-CB-016** | WHEN `apps/cli`가 빌드될 때, THE SYSTEM SHALL DB 드라이버(`pg`·drizzle 런타임)와 `apps/api` 코드를 의존성에서 제외하고 `@nerv/schema`의 타입·zod 스키마만 참조한다 — 임포터가 DB에 직접 붙는 경로를 컴파일 단계에서 없앤다. |
+| **REQ-CB-017** | WHEN 운영 배포 산출물을 만들 때, THE SYSTEM SHALL 컨테이너 이미지를 `nerv-api`·`nerv-worker`·`nerv-web` 3종으로 유지하고 임포터용 이미지·k8s Job을 만들지 않는다. |
 
 ---
 
@@ -181,6 +209,10 @@ apps/api/src/
       question.service.ts        # 질문 생성 · 폴링 · awaiting_input 전이
       approval.controller.ts
       question.tools.ts          # MCP — nerv_question_create
+    import/                      # ImportModule — EP-IMP-01~05 (4.4 §2.10). 소급 적재 전용 경로
+      import.module.ts
+      import.service.ts          # 자연 키 대조 · 배치 upsert · 전이 검사 우회(이 모듈에서만) · import.applied 이벤트
+      import.controller.ts       # REST — preflight · specs · tasks · links · map
     review/                      # ReviewModule — 테이블·서비스 골격은 MVP 스키마에 포함, 도구 2종은 P2
       review.module.ts
       review.service.ts
@@ -222,6 +254,9 @@ apps/api/src/
 | `ApprovalModule` | `approval` `question` | `nerv_question_create`(P1) | `…/projects/{p}/approvals` · `…/questions` |
 | `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` | (P2 — `nerv_review_submit` `nerv_finding_resolve`) | (P2) |
 | `EventModule` | `event` `notification` | — | `…/projects/{p}/events` + WebSocket · SSE(`/sse/*`) |
+| `ImportModule` | (소유 테이블 없음 — Spec·Task 계열에 소급 적재) | — (도구 없음 — [4.7 스펙 임포터](importer.md) §3.6) | `…/projects/{p}/import/*` |
+
+`ImportModule`은 테이블을 소유하지 않고 `SpecModule`·`TaskModule`의 저장 계층에 소급 적재만 한다 — 그래서 29종 배정은 변하지 않는다. 워크플로 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 스코프가 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
 
 합계 검산: MVP 도구 = P0 8종 + P1 7종 = **15종**, 리뷰 2종은 P2(카탈로그 총 17종 — [3.4](../03-proposal/agent-integration.md) §2.3). 베이스라인은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
 
@@ -355,6 +390,8 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 | `pnpm compose:up` | `docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build` |
 | `pnpm compose:infra` | 위 명령 + `postgres minio valkey` 서비스만 |
 | `pnpm compose:down` | 스택 정지(볼륨 유지) |
+| `pnpm --filter @nerv/cli build` | 임포터 CLI 빌드 — 산출물은 이미지가 아니라 설치형 패키지(§1.3) |
+| `nerv import …` | 임포터 실행. **`codebase/`가 아니라 원본 체크아웃에서 실행한다**([4.7 스펙 임포터](importer.md) §3.1) |
 
 | ID | 요구(EARS) |
 | --- | --- |

@@ -38,7 +38,7 @@
   <a href="api.html">4.4 API 명세</a>
   <a href="screens.html">4.5 화면 명세</a>
   <a href="plugin.html">4.6 플러그인과 온보딩</a>
-  <a href="importer.html">4.7 clemvion 임포터</a>
+  <a href="importer.html">4.7 스펙 임포터</a>
   <a href="backlog.html" class="active">4.8 백로그</a>
 </nav>
 
@@ -50,9 +50,9 @@
 
   <header class="page-header">
     <h1>백로그</h1>
-    <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 62개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 clemvion spec 임포터 v0(E07)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 4종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
+    <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 65개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 4종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-08-21)</span>
+      <span>버전 v0.4 (2026-08-22)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 14 · 스토리 62 · E2E 시나리오 5</span>
     </div>
@@ -82,7 +82,7 @@
   </ul>
 
   <h3>1.2 도그푸딩 — 이 문서가 첫 임포트 대상이다</h3>
-  <p>이 백로그는 NERV 가동 후 <b>첫 임포트 대상</b>이다. 도그푸딩 임포트는 P1이다(<a href="importer.html">4.7 clemvion 임포터</a> §1.1) — <code>docs/04-mvp/*.md</code> 문서 세트의 Spec 적재는 nerv-docs 프로파일(importer §5.1)로, 이 문서의 에픽·스토리 → Task 적재는 P1 plan 임포터와 같은 경로(E11 시점)로 수행한다. 문서 머리의 frontmatter(<code>id: SPC-MVP-BACKLOG</code>)가 <a href="importer.html">4.7 clemvion 임포터</a> §5의 임포트 규격을 따르는 이유다. 임포트 이후 이 md는 read-only 미러가 되고 SoT는 서버다(D-01 · <a href="roadmap.html">3.7 로드맵</a> §7.4).</p>
+  <p>이 백로그는 NERV 가동 후 <b>첫 임포트 대상</b>이다. 도그푸딩 임포트는 P1이다(<a href="importer.html">4.7 스펙 임포터</a> §1.1) — <code>docs/04-mvp/*.md</code> 문서 세트의 Spec 적재는 nerv-docs 프로파일(importer §5.1)로, 이 문서의 에픽·스토리 → Task 적재는 P1 plan 임포터와 같은 경로(E11 시점)로 수행한다. 문서 머리의 frontmatter(<code>id: SPC-MVP-BACKLOG</code>)가 <a href="importer.html">4.7 스펙 임포터</a> §5의 임포트 규격을 따르는 이유다. 임포트 이후 이 md는 read-only 미러가 되고 SoT는 서버다(D-01 · <a href="roadmap.html">3.7 로드맵</a> §7.4).</p>
 
   <h3>1.3 범위 경계</h3>
   <p>이 백로그는 MVP = Phase 0 + Phase 1만 다룬다(<a href="scope.html">4.1 MVP 범위와 스택 확정</a> §3). Phase 2 항목(리뷰 수집·게이트 판정 완성·S6 리뷰 센터·<code>nerv_review_submit</code>/<code>nerv_finding_resolve</code>·<code>/nerv:review</code>·Codex 완전 지원·review 임포터)은 로드맵 §4가 정본이며 여기 스토리로 분해하지 않는다.</p>
@@ -96,7 +96,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
     <tbody>
-      <tr><td><code>E01-S01</code></td><td>pnpm 모노레포 골격 — 저장소 <code>codebase/</code> 하위에 <code>apps/web</code> <code>apps/api</code> <code>packages/schema</code> <code>deploy/compose</code> <code>deploy/k8s</code> 트리와 패키지 책임 경계(REQ-CB-015 — 구현 코드는 <code>codebase/</code> 밖에 두지 않는다)</td><td><a href="codebase.html">4.2 코드베이스와 배포</a> §1 · <a href="scope.html">4.1 범위·스택</a> §2</td><td>WHEN 신규 클론의 <code>codebase/</code>에서 <code>pnpm install</code>을 실행하면, THE SYSTEM SHALL lockfile 기준으로 워크스페이스 전 패키지를 한 번에 설치한다</td><td>—</td></tr>
+      <tr><td><code>E01-S01</code></td><td>pnpm 모노레포 골격 — 저장소 <code>codebase/</code> 하위에 <code>apps/web</code> <code>apps/api</code> <code>apps/cli</code> <code>packages/schema</code> <code>deploy/compose</code> <code>deploy/k8s</code> 트리와 패키지 책임 경계(REQ-CB-015 — 구현 코드는 <code>codebase/</code> 밖에 두지 않는다)</td><td><a href="codebase.html">4.2 코드베이스와 배포</a> §1 · <a href="scope.html">4.1 범위·스택</a> §2</td><td>WHEN 신규 클론의 <code>codebase/</code>에서 <code>pnpm install</code>을 실행하면, THE SYSTEM SHALL lockfile 기준으로 워크스페이스 전 패키지를 한 번에 설치한다</td><td>—</td></tr>
       <tr><td><code>E01-S02</code></td><td>NestJS(Fastify 어댑터) API 골격 — 도메인 모듈 자리와 REST·MCP·WS 표면이 같은 서비스를 DI로 주입받는 배선</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §1(D-05) · <a href="codebase.html">4.2 코드베이스와 배포</a> §2</td><td>WHEN REST 컨트롤러와 MCP 게이트웨이가 같은 도메인 동작을 호출하면, THE SYSTEM SHALL 동일 서비스 인스턴스를 거쳐 게이트 판정을 단일화한다</td><td>E01-S01</td></tr>
       <tr><td><code>E01-S03</code></td><td>Vite + React SPA 골격 — TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod 셋업</td><td><a href="scope.html">4.1 범위·스택</a> §2 · <a href="screens.html">4.5 화면 명세</a> §1</td><td>WHEN <code>pnpm dev</code>로 웹을 기동하면, THE SYSTEM SHALL 라우팅 맵의 기본 경로와 앱 셸을 렌더링한다</td><td>E01-S01</td></tr>
       <tr><td><code>E01-S04</code></td><td>docker-compose 로컬 기동 — postgres·minio·valkey·api·worker·web 단일 파일</td><td><a href="codebase.html">4.2 코드베이스와 배포</a> §5 · NFR-01 · <a href="roadmap.html">3.7 로드맵</a> §2.2</td><td>WHEN <code>docker compose up</code>을 실행하면, THE SYSTEM SHALL 단일 명령으로 전 서비스를 기동한다(마이그레이션 연결은 E02-S02)</td><td>E01-S01</td></tr>
@@ -167,14 +167,16 @@
     </tbody>
   </table></div>
 
-  <h3>2.7 E07 — clemvion spec 임포터 v0</h3>
-  <p><code>clemvion:spec/</code> 순수 135 md(implemented 117 / partial 17 / backlog 1) → Spec/SpecVersion/Requirement. 성공 기준 0-6·0-7의 대상.</p>
+  <h3>2.7 E07 — spec 임포터 v0 (clemvion 프로파일)</h3>
+  <p><code>clemvion:spec/</code> 순수 135 md(implemented 117 / partial 17 / backlog 1) → Spec/SpecVersion/Requirement. 성공 기준 0-6·0-7의 대상. 도구는 <b>프로파일 기반 범용 임포터</b>이고 clemvion은 그 첫 프로파일이다 — 실행은 원본 체크아웃 장비의 CLI(<code>@nerv/cli</code>)가 임포트 API를 호출하는 형태다(<a href="importer.html">4.7 스펙 임포터</a> §1.4·§3.2).</p>
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
     <tbody>
-      <tr><td><code>E07-S01</code></td><td>파싱·매핑 구현 — 디렉터리 계층→스펙 트리, frontmatter(id/status/code/pending_plans) 매핑, status 2축 분해, 요구사항 ID 휴리스틱(<code>[A-Z]+-[A-Z]+-\d+</code>)</td><td><a href="importer.html">4.7 clemvion 임포터</a> §2 · <a href="roadmap.html">3.7 로드맵</a> §7.3(1)</td><td>WHEN <code>clemvion:spec/</code> 순수 135 md를 입력하면, THE SYSTEM SHALL ≥95%를 자동 변환하고 실패 전건을 파일·줄·사유와 함께 목록화한다(0-6)</td><td>E02-S02</td></tr>
-      <tr><td><code>E07-S02</code></td><td>dry-run 기본·멱등 재실행 — 멱등 키(파일 경로+id), 재실행은 변경분만</td><td><a href="importer.html">4.7 clemvion 임포터</a> §3 · <a href="roadmap.html">3.7 로드맵</a> §2.4(0-7)</td><td>WHEN 임포터를 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행의 신규 생성 레코드 0을 보인다</td><td>E07-S01</td></tr>
-      <tr><td><code>E07-S03</code></td><td>실패 리포트·수동 확인 큐 — 건너뜀/중단 구분, 원문 보존(정보 손실 0)</td><td><a href="importer.html">4.7 clemvion 임포터</a> §4</td><td>WHEN 변환 실패 또는 수동 확인 항목이 발생하면, THE SYSTEM SHALL 파일·줄·사유·건너뜀/중단 구분이 있는 리포트를 산출하고 원문을 보존한다</td><td>E07-S01</td></tr>
+      <tr><td><code>E07-S01</code></td><td>파싱·매핑 구현 — <b>프로파일 로더</b>(내장 clemvion·nerv-docs + <code>--profile-file</code> 스키마 검증) 위에 디렉터리 계층→스펙 트리, frontmatter(id/status/code/pending_plans) 매핑, status 2축 분해, 요구사항 ID 휴리스틱(<code>[A-Z]+-[A-Z]+-\d+</code>)</td><td><a href="importer.html">4.7 스펙 임포터</a> §1.4·§2 · <a href="roadmap.html">3.7 로드맵</a> §7.3(1)</td><td>WHEN <code>clemvion:spec/</code> 순수 135 md를 입력하면, THE SYSTEM SHALL ≥95%를 자동 변환하고 실패 전건을 파일·줄·사유와 함께 목록화한다(0-6)</td><td>E02-S02</td></tr>
+      <tr><td><code>E07-S02</code></td><td>dry-run 기본·멱등 재실행 — 멱등 키(파일 경로+id), 매니페스트, 재실행은 변경분만. <b>dry-run은 서버 없이 완주</b>(REQ-IMP-011)</td><td><a href="importer.html">4.7 스펙 임포터</a> §3 · <a href="roadmap.html">3.7 로드맵</a> §2.4(0-7)</td><td>WHEN 임포터를 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행의 신규 생성 레코드 0을 보인다<br>WHEN <code>--apply</code>가 없으면, THE SYSTEM SHALL <code>--server</code> 없이도 리포트·매니페스트 초안을 산출한다</td><td>E07-S01</td></tr>
+      <tr><td><code>E07-S03</code></td><td>실패 리포트·수동 확인 큐 — 건너뜀/중단 구분, 원문 보존(정보 손실 0)</td><td><a href="importer.html">4.7 스펙 임포터</a> §4</td><td>WHEN 변환 실패 또는 수동 확인 항목이 발생하면, THE SYSTEM SHALL 파일·줄·사유·건너뜀/중단 구분이 있는 리포트를 산출하고 원문을 보존한다</td><td>E07-S01</td></tr>
+      <tr><td><code>E07-S04</code></td><td><b>임포트 REST 표면</b> — <code>ImportModule</code> + EP-IMP-01~05(preflight·specs·tasks·links·map), admin <b>AND</b> <code>import:write</code> 스코프, 배치 <code>Idempotency-Key</code>, 항목 단위 트랜잭션, <code>import.applied</code> 이벤트</td><td><a href="api.html">4.4 API 명세</a> §2.10 · <a href="codebase.html">4.2 코드베이스와 배포</a> §2.2 · <a href="importer.html">4.7 스펙 임포터</a> §3.2</td><td>WHEN 스코프·역할이 부족한 주체가 EP-IMP-*를 호출하면, THE SYSTEM SHALL 403으로 거부하고 레코드를 만들지 않는다(REQ-API-017)<br>WHEN 배치 일부 항목이 제약을 위반하면, THE SYSTEM SHALL 그 항목만 롤백하고 나머지를 커밋한다(REQ-API-018)</td><td>E02-S02 · E03-S02</td></tr>
+      <tr><td><code>E07-S05</code></td><td><b><code>apps/cli</code> 워크스페이스</b> — <code>nerv import</code> 엔트리, 내장 프로파일 동봉, <code>--server</code>/<code>--token</code> API 클라이언트(재시도 시 같은 <code>Idempotency-Key</code>), DB 드라이버 미의존</td><td><a href="codebase.html">4.2 코드베이스와 배포</a> §1.3(REQ-CB-016·017) · <a href="importer.html">4.7 스펙 임포터</a> §3.1</td><td>WHEN CLI가 적재를 수행하면, THE SYSTEM SHALL <code>DATABASE_URL</code> 없이 PAT로 EP-IMP-*만 호출한다(REQ-IMP-012)<br>WHEN 배치 전송이 재시도되면, THE SYSTEM SHALL 중복 레코드를 0건 생성한다(REQ-IMP-013)</td><td>E07-S01 · E07-S04</td></tr>
     </tbody>
   </table></div>
 
@@ -230,20 +232,21 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
     <tbody>
-      <tr><td><code>E11-S01</code></td><td>plan 파싱·Task 매핑 — worktree/started/owner 매핑, <code>complete/</code>(387)→<code>done</code>, <code>in-progress/</code>+<code>worktree: (unstarted)</code>(13)→<code>backlog</code>, <code>in-progress/</code>+worktree 값 있음→<code>in_progress</code>, <code>research</code>(1)→참고 문서. <code>ready</code>로는 적재하지 않는다(<a href="importer.html">4.7 clemvion 임포터</a> §2.6 · REQ-IMP-009)</td><td><a href="importer.html">4.7 clemvion 임포터</a> §2 · <a href="roadmap.html">3.7 로드맵</a> §7.3(2)</td><td>WHEN <code>clemvion:plan/</code> 450 md를 임포트하면, THE SYSTEM SHALL 상태 매핑 규칙대로 Task를 생성하고 위임 명세 4요소를 소급 생성하지 않는다</td><td>E07-S02</td></tr>
+      <tr><td><code>E11-S01</code></td><td>plan 파싱·Task 매핑 — worktree/started/owner 매핑, <code>complete/</code>(387)→<code>done</code>, <code>in-progress/</code>+<code>worktree: (unstarted)</code>(13)→<code>backlog</code>, <code>in-progress/</code>+worktree 값 있음→<code>in_progress</code>, <code>research</code>(1)→참고 문서. <code>ready</code>로는 적재하지 않는다(<a href="importer.html">4.7 스펙 임포터</a> §2.6 · REQ-IMP-009)</td><td><a href="importer.html">4.7 스펙 임포터</a> §2 · <a href="roadmap.html">3.7 로드맵</a> §7.3(2)</td><td>WHEN <code>clemvion:plan/</code> 450 md를 임포트하면, THE SYSTEM SHALL 상태 매핑 규칙대로 Task를 생성하고 위임 명세 4요소를 소급 생성하지 않는다</td><td>E07-S02</td></tr>
       <tr><td><code>E11-S02</code></td><td>owner 수동 매핑 테이블 — 자유 텍스트 역할 라벨→사용자 계정, 매핑 불가는 <code>unassigned</code></td><td><a href="roadmap.html">3.7 로드맵</a> §3.3·§7.3(2)</td><td>WHEN owner 텍스트가 매핑 테이블에 없으면, THE SYSTEM SHALL <code>unassigned</code>로 임포트하고 수동 배정 큐에 올린다</td><td>E11-S01</td></tr>
     </tbody>
   </table></div>
 
   <h3>3.5 E12 — 플러그인 v1 + 훅 수집기</h3>
-  <p>Claude Code 배포 평면. 스킬 4종(<code>/nerv:review</code>는 Phase 2)·훅·<code>.mcp.json</code> 번들과 사내 마켓플레이스 배포(성공 기준 1-10).</p>
+  <p>Claude Code 배포 평면. 스킬 5종(<code>/nerv:review</code>는 Phase 2)·훅·<code>.mcp.json</code> 번들과 사내 마켓플레이스 배포(성공 기준 1-10).</p>
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
     <tbody>
-      <tr><td><code>E12-S01</code></td><td>스킬 4종 SKILL.md — <code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code>. bootstrap→claim→하트비트 60초→질문 에스컬레이션 프로토콜과 스펙 본문 비신뢰 규약 포함, A3 도구는 allowed-tools 제외</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §2 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.2</td><td>WHEN 신규 세션이 문서 없이 스킬 안내만으로 진행하면, THE SYSTEM SHALL <code>nerv_bootstrap</code>→<code>nerv_task_next</code>→<code>nerv_task_claim</code> 첫 클레임까지 도달시킨다</td><td>E10-S02</td></tr>
+      <tr><td><code>E12-S01</code></td><td>스킬 4종 SKILL.md — <code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code>(임포터 스킬은 E12-S05). bootstrap→claim→하트비트 60초→질문 에스컬레이션 프로토콜과 스펙 본문 비신뢰 규약 포함, A3 도구는 allowed-tools 제외</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §2 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.2</td><td>WHEN 신규 세션이 문서 없이 스킬 안내만으로 진행하면, THE SYSTEM SHALL <code>nerv_bootstrap</code>→<code>nerv_task_next</code>→<code>nerv_task_claim</code> 첫 클레임까지 도달시킨다</td><td>E10-S02</td></tr>
       <tr><td><code>E12-S02</code></td><td>hooks.json + ingest 엔드포인트 — <code>type:"http"</code> 훅(SessionStart/PostToolUse/Stop/SessionEnd) 수신, 세션 등록·activity 적재 자동화</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §3 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3 · <a href="roadmap.html">3.7 로드맵</a> §3.3</td><td>WHEN 훅 이벤트가 도착하면, THE SYSTEM SHALL 세션 등록·activity 적재에 반영하고 미인증 이벤트를 거부한다</td><td>E05-S01</td></tr>
       <tr><td><code>E12-S03</code></td><td><code>.mcp.json</code> + statusline + 마켓플레이스 배포 — 관리형 settings 강제 활성화</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.4~3.5 · <a href="roadmap.html">3.7 로드맵</a> §3.4(1-10)</td><td>WHEN 관리형 settings로 플러그인이 배포되면, THE SYSTEM SHALL 파일럿 참여 호스트의 활성화 여부를 서버에서 확인 가능하게 한다(목표 100%)</td><td>E12-S01 · E12-S02</td></tr>
       <tr><td><code>E12-S04</code></td><td>사람 온보딩 절차 — PAT 발급(S8)→플러그인 설치→<code>nerv_bootstrap</code> 확인, 단계별 명령 문서화</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §4</td><td>WHEN 신규 참여자가 온보딩 절차를 따르면, THE SYSTEM SHALL 단계별 명령만으로 첫 <code>nerv_bootstrap</code> 성공까지 도달시킨다</td><td>E08-S08 · E12-S03</td></tr>
+      <tr><td><code>E12-S05</code></td><td><b><code>/nerv:import</code> 스킬</b> — 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → <code>--apply</code> → 멱등 재실행 검증. MCP 도구가 아니라 로컬 CLI를 실행한다(도구 15종 불변)</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §2.5 · <a href="importer.html">4.7 스펙 임포터</a> §3.6</td><td>WHEN 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 <code>--apply</code>를 실행한다(REQ-IMP-017)</td><td>E07-S05 · E12-S01</td></tr>
     </tbody>
   </table></div>
 
@@ -474,14 +477,17 @@
   </table></div>
 
   <h3>5.5 시나리오 E — 임포터 135 md 전수 (성공 기준 0-6·0-7)</h3>
-  <p><b>대상 스토리</b>: E07-S01~S03. <b>대상</b>: <code>clemvion:spec/</code> 순수 135 md(기계생성 API 카탈로그 249 md 제외).</p>
+  <p><b>대상 스토리</b>: E07-S01~S05(+ E12-S05). <b>대상</b>: <code>clemvion:spec/</code> 순수 135 md(기계생성 API 카탈로그 249 md 제외). <b>환경</b>: 원본 체크아웃이 있는 장비에서 CLI 실행, 서버는 <code>import:write</code> PAT로만 접근한다.</p>
   <div class="table-wrap"><table>
     <thead><tr><th>단계</th><th>행위</th><th>판정</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>dry-run 실행</td><td>변환 계획·실패 예상 항목 리포트, DB 변경 0</td></tr>
-      <tr><td>2</td><td>본 실행</td><td>자동 변환 <b>≥ 95%</b>(0-6), 실패 항목 전건 목록화(파일·줄·사유)</td></tr>
-      <tr><td>3</td><td>실패 항목 수동 확인 큐 처리 후 재실행</td><td>135 md <b>전수 임포트</b> 도달, 원문 보존(정보 손실 0 — <a href="importer.html">4.7 clemvion 임포터</a> §4)</td></tr>
+      <tr><td>0</td><td><code>--server</code> 없이 dry-run 실행(네트워크 차단 상태)</td><td>완주하고 리포트·매니페스트 초안 산출 — 서버 의존 0(REQ-IMP-011)</td></tr>
+      <tr><td>1</td><td><code>--server</code> 지정 dry-run(preflight 포함)</td><td>변환 계획·실패 예상 항목 + 자연 키 충돌 사전 판정 리포트, 서버 쓰기 0</td></tr>
+      <tr><td>2</td><td>사람 승인 후 <code>--apply</code> 본 실행</td><td>자동 변환 <b>≥ 95%</b>(0-6), 실패 항목 전건 목록화(파일·줄·사유), <code>import.applied</code> 이벤트 배치당 1건</td></tr>
+      <tr><td>3</td><td>실패 항목 수동 확인 큐 처리 후 재실행</td><td>135 md <b>전수 임포트</b> 도달, 원문 보존(정보 손실 0 — <a href="importer.html">4.7 스펙 임포터</a> §4)</td></tr>
       <tr><td>4</td><td>2회 연속 재실행</td><td>두 번째 실행의 신규 생성 레코드 <b>0</b>(0-7)</td></tr>
+      <tr><td>5</td><td>배치 전송 중 강제 타임아웃 후 같은 명령 재실행</td><td>같은 <code>Idempotency-Key</code> 재전송으로 중복 레코드 <b>0</b>(REQ-IMP-013)</td></tr>
+      <tr><td>6</td><td><code>import:write</code> 없는 PAT로 <code>--apply</code></td><td>403 거부, 레코드 생성 0(REQ-API-017)</td></tr>
     </tbody>
   </table></div>
 
@@ -500,11 +506,11 @@
     <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 상태 머신·권한 매트릭스·클레임 알고리즘·이벤트 이름의 정본.</li>
     <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 29종 필드 의미의 정본(E02의 대상).</li>
     <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — E08 화면 스토리의 그림 정본.</li>
-    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> · <a href="codebase.html">4.2 코드베이스와 배포</a> · <a href="database.html">4.3 데이터베이스 스키마</a> · <a href="api.html">4.4 API 명세</a> · <a href="screens.html">4.5 화면 명세</a> · <a href="plugin.html">4.6 플러그인과 온보딩</a> · <a href="importer.html">4.7 clemvion 임포터</a> — 4부 형제 문서. 각 스토리의 구현 명세 정본.</li>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> · <a href="codebase.html">4.2 코드베이스와 배포</a> · <a href="database.html">4.3 데이터베이스 스키마</a> · <a href="api.html">4.4 API 명세</a> · <a href="screens.html">4.5 화면 명세</a> · <a href="plugin.html">4.6 플러그인과 온보딩</a> · <a href="importer.html">4.7 스펙 임포터</a> — 4부 형제 문서. 각 스토리의 구현 명세 정본.</li>
   </ul>
 
   <footer class="page-footer">
-    <span>← <a href="importer.html">이전: 4.7 clemvion 임포터</a></span>
+    <span>← <a href="importer.html">이전: 4.7 스펙 임포터</a></span>
     <span><a href="index.html">목차</a></span>
     <span><a href="index.html">개요로 돌아가기</a> →</span>
   </footer>
