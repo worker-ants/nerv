@@ -8,7 +8,7 @@
 // "룸 밖으로는 안 나간다"도 검증되지 않는다.
 
 import { request as httpRequest } from 'node:http';
-import { NERV_ERROR, NERV_EVENT, newId, runMigrations } from '@nerv/schema';
+import { WS_ERROR_EVENT, NERV_ERROR, NERV_EVENT, newId, runMigrations } from '@nerv/schema';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -375,10 +375,13 @@ describe('WS 룸 join (api.md §3.2)', () => {
     } as never);
 
     expect(disconnected).toBe(true);
+    // 예약어(`connect_error`)를 쓰지 않는다 — 서버가 emit 하면 socket.io 가 예외를 던지고
+    // 연결 핸들러의 예외는 프로세스를 죽인다(실측: 미인증 탭 하나가 API 를 크래시 루프에 넣었다)
     expect(emitted[0]).toMatchObject({
-      event: 'connect_error',
+      event: WS_ERROR_EVENT,
       payload: { code: NERV_ERROR.UNAUTHENTICATED },
     });
+    expect(emitted[0]?.event).not.toBe('connect_error');
   });
 
   it('인증 전 join 은 거절한다', async () => {

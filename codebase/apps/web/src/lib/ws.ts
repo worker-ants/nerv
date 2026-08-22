@@ -9,6 +9,7 @@
 
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { WS_ERROR_EVENT } from '@nerv/schema';
 import type { NervEventEnvelope } from '@nerv/schema';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
@@ -30,7 +31,13 @@ export function connectNervSocket(handlers: NervSocketHandlers): Socket {
 
   socket.on('connect', () => handlers.onStateChange('connected'));
   socket.on('disconnect', () => handlers.onStateChange('disconnected'));
-  socket.onAny((_name: string, payload: NervEventEnvelope) => handlers.onEvent(payload));
+  // 서버의 거절 사유. socket.io 의 connect_error 는 예약어라 서버가 쓸 수 없어
+  // 별도 이름으로 온다(@nerv/schema WS_ERROR_EVENT).
+  socket.on(WS_ERROR_EVENT, () => handlers.onStateChange('disconnected'));
+  socket.onAny((name: string, payload: NervEventEnvelope) => {
+    if (name === WS_ERROR_EVENT) return;
+    handlers.onEvent(payload);
+  });
 
   return socket;
 }

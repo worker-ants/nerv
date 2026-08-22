@@ -433,3 +433,75 @@ async function seed(): Promise<void> {
     );
   }
 }
+
+describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
+  it('같은 버전을 두 번 제출해도 승인함 카드는 하나다', async () => {
+    const draft = await specs.draftUpsert({
+      projectId,
+      key: 'SPC-IDEM',
+      title: '멱등 제출',
+      type: 'feature',
+      // T2 이상이 되도록 본문을 크게 — 자동 통과하면 승인 카드가 아예 안 생긴다
+      bodyMd: `# 멱등 제출\n\n${'본문 문장. '.repeat(200)}`,
+      userId: planner,
+    });
+    const versionId = draft['spec_version_id'] as string;
+
+    const first = await specs.submitReview({
+      projectId,
+      specVersionId: versionId,
+      userId: planner,
+    });
+    if (first.status !== 'in_review') return; // 게이트가 자동 통과시켰다면 이 케이스 대상이 아니다
+
+    const { rows: before } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM approval WHERE subject_id = $1 AND decision IS NULL`,
+      [versionId],
+    );
+    expect(before[0]?.n).toBe(1);
+
+    const second = await specs.submitReview({
+      projectId,
+      specVersionId: versionId,
+      userId: planner,
+    });
+    expect(second.approval_id).toBe(first.approval_id);
+
+    const { rows: after } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM approval WHERE subject_id = $1 AND decision IS NULL`,
+      [versionId],
+    );
+    expect(after[0]?.n).toBe(1);
+  });
+
+  it('저장 응답에 문서 딥링크가 실린다 — 에이전트가 대화에 붙일 링크다', async () => {
+    const result = await specs.draftUpsert({
+      projectId,
+      key: 'SPC-LINK',
+      title: '딥링크',
+      type: 'feature',
+      bodyMd: '# 딥링크\n\n본문',
+      userId: planner,
+    });
+    expect(result['web_url']).toBe('/p/clemvion/specs/SPC-LINK');
+  });
+
+  it('제출 응답의 딥링크는 승인 대기면 승인함을 가리킨다 — 다음 행동이 있는 곳으로 보낸다', async () => {
+    const draft = await specs.draftUpsert({
+      projectId,
+      key: 'SPC-LINK2',
+      title: '딥링크2',
+      type: 'feature',
+      bodyMd: `# 딥링크2\n\n${'본문 문장. '.repeat(200)}`,
+      userId: planner,
+    });
+    const result = await specs.submitReview({
+      projectId,
+      specVersionId: draft['spec_version_id'] as string,
+      userId: planner,
+    });
+    expect(result.web_url).toBe(
+      result.status === 'in_review' ? '/inbox' : '/p/clemvion/specs/SPC-LINK2',
+    );
+  });
+});

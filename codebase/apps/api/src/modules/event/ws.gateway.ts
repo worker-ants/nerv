@@ -16,7 +16,7 @@ import {
   WebSocketGateway,
 } from '@nestjs/websockets';
 import type { OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
-import { NERV_ERROR } from '@nerv/schema';
+import { NERV_ERROR, WS_ERROR_EVENT } from '@nerv/schema';
 import { AuthService } from '../auth/auth.service.js';
 import type { Principal } from '../auth/auth.service.js';
 import { FanoutService, MAX_PROJECT_ROOMS } from './fanout.service.js';
@@ -51,14 +51,16 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /**
    * 핸드셰이크 인증 — better-auth 세션 쿠키다. **PAT 접속은 지원하지 않는다**(§3.1):
-   * 브라우저 밖 소비자는 SSE 를 쓴다. 실패하면 connect_error 에 코드를 실어 즉시 끊는다.
+   * 브라우저 밖 소비자는 SSE 를 쓴다. 실패하면 거절 코드를 실어 보내고 즉시 끊는다.
    *
-   * 세션 쿠키 검증기는 E08-S01 이 AuthService 에 붙인다 — 그전까지 이 표면은 연결을 거절한다.
+   * **거절 이벤트 이름을 상수에서 가져오는 이유**: socket.io 의 `connect_error` 는 예약어라
+   * 서버가 emit 하면 예외를 던지고, 연결 핸들러에서 던진 예외는 프로세스를 죽인다 —
+   * 미인증 브라우저 탭 하나가 API 를 크래시 루프에 빠뜨렸다(실측).
    */
   async handleConnection(socket: NervSocket): Promise<void> {
     const cookie = socket.handshake.headers['cookie'];
     if (cookie === undefined || !cookie.includes('better-auth.session_token=')) {
-      socket.emit('connect_error', { code: NERV_ERROR.UNAUTHENTICATED });
+      socket.emit(WS_ERROR_EVENT, { code: NERV_ERROR.UNAUTHENTICATED });
       socket.disconnect(true);
       return;
     }
@@ -74,7 +76,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         deliver: (envelope) => socket.emit(envelope.type, envelope),
       });
     } catch (error) {
-      socket.emit('connect_error', {
+      socket.emit(WS_ERROR_EVENT, {
         code: error instanceof Error && 'code' in error ? error.code : NERV_ERROR.UNAUTHENTICATED,
       });
       socket.disconnect(true);

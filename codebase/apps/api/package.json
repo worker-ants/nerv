@@ -11,7 +11,8 @@
     "dev": "node --watch dist/main.js",
     "db:migrate": "node dist/migrate.js",
     "db:seed": "node dist/seed.js",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@nerv/schema": "workspace:*",
@@ -23,6 +24,7 @@
     "better-auth": "^1.7.1",
     "drizzle-orm": "^0.45.2",
     "ioredis": "^6.0.0",
+    "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
@@ -31,7 +33,6 @@
     "@swc/core": "^1.16.1",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.23.1",
-    "pg": "^8.23.0",
     "typescript": "~6.0.3",
     "unplugin-swc": "^1.5.11",
     "vitest": "^4.1.11"

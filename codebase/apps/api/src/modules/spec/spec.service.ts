@@ -186,6 +186,7 @@ export class SpecService {
           version_no: draft.version_no,
           created: false,
           relations,
+          web_url: await this.webUrl(tx, input.projectId, specId),
         };
       }
 
@@ -228,6 +229,7 @@ export class SpecService {
         version_no: versionNo,
         created: true,
         relations,
+        web_url: await this.webUrl(tx, input.projectId, specId),
       };
     });
   }
@@ -244,7 +246,13 @@ export class SpecService {
     specVersionId: string;
     userId: string;
     sessionId?: string | null;
-  }): Promise<{ status: string; gate: GateDecision; approval_id: string | null }> {
+  }): Promise<{
+    status: string;
+    gate: GateDecision;
+    approval_id: string | null;
+    /** 사람이 이어서 볼 곳 — 에이전트가 대화에 붙일 딥링크다(E10-S04) */
+    web_url: string;
+  }> {
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         id: string;
@@ -314,7 +322,12 @@ export class SpecService {
           approverUserId: null,
           gate,
         });
-        return { status: 'approved', gate, approval_id: null };
+        return {
+          status: 'approved',
+          gate,
+          approval_id: null,
+          web_url: await this.webUrl(tx, input.projectId, version.spec_id),
+        };
       }
 
       // T2·T3 — 승인 대기. pending Approval 을 재사용해 카드 중복을 막는다(§2.5)
@@ -335,7 +348,8 @@ export class SpecService {
         payload: { gate_tier: gate.tier, required_approvers: gate.requiredApprovers },
       });
 
-      return { status: 'in_review', gate, approval_id: approvalId };
+      // T2·T3 은 승인함이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다
+      return { status: 'in_review', gate, approval_id: approvalId, web_url: '/inbox' };
     });
   }
 
@@ -821,6 +835,24 @@ export class SpecService {
   }
 
   // ── 내부 ─────────────────────────────────────────────────────────────────
+
+  /**
+   * 웹 딥링크 — E10-S04.
+   *
+   * 에이전트가 초안을 저장하고 "확인해주세요"라고만 말하면 사람은 그 문서를 찾아 들어가야
+   * 한다. 링크 하나가 그 왕복을 없앤다 — 터미널과 웹이 같은 초안을 오가는 D-09 의 실물이다.
+   * 절대 URL 은 `NERV_PUBLIC_URL` 이 있을 때만 만든다(환경마다 호스트가 다르다).
+   */
+  private async webUrl(tx: Tx, projectId: string, specId: string): Promise<string> {
+    const { rows } = await tx.execute<{ slug: string; key: string }>(sql`
+      SELECT p.slug, s.key FROM spec s JOIN project p ON p.id = s.project_id
+       WHERE s.id = ${specId} AND p.id = ${projectId}
+    `);
+    const row = rows[0];
+    const path = row === undefined ? '/' : `/p/${row.slug}/specs/${row.key}`;
+    const base = process.env['NERV_PUBLIC_URL'];
+    return base === undefined || base === '' ? path : `${base.replace(/\/$/, '')}${path}`;
+  }
 
   /**
    * REQ-API-024 — 저장 커밋과 **같은 트랜잭션**에서 참조 관계를 동기화한다(E09-S09).

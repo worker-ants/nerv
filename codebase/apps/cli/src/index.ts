@@ -104,5 +104,9 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 if (process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`) {
-  process.exitCode = await main(process.argv.slice(2));
+  const code = await main(process.argv.slice(2));
+  // **명시적으로 끝낸다.** `process.exitCode` 만 세우면 이벤트 루프가 빌 때까지 기다리는데,
+  // fetch(undici)의 keep-alive 소켓이 살아 있어 서버 모드 실행이 수십 초를 매달려 있었다(실측).
+  // 임포터는 단발 명령이라 매달릴 이유가 없다 — stdout 이 비워진 뒤 즉시 종료한다.
+  process.stdout.write('', () => process.exit(code));
 }

@@ -17,9 +17,11 @@ map $http_origin $nerv_mcp_origin_ok {
   "${NERV_PUBLIC_ORIGIN}" 1;
 }
 
-upstream nerv_api {
-  server ${NERV_API_UPSTREAM};
-}
+# 업스트림 DNS 를 **재해소**한다. upstream 블록은 기동 시 한 번만 이름을 풀어 IP 를 고정하는데,
+# 컨테이너가 재시작하면 IP 가 바뀌어 nginx 가 죽은 주소로 계속 붙는다(실측: api 재기동 후
+# 전 요청 502). 변수로 proxy_pass 하면 요청마다 resolver 를 거친다.
+#   127.0.0.11 = Docker 내장 DNS. k8s 에서는 클러스터 DNS 가 같은 자리를 대신한다.
+resolver 127.0.0.11 ipv6=off valid=10s;
 
 server {
   listen 80;
@@ -35,7 +37,8 @@ server {
   }
 
   location /api/ {
-    proxy_pass http://nerv_api;
+    set $nerv_api ${NERV_API_UPSTREAM};
+    proxy_pass http://$nerv_api;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -43,7 +46,8 @@ server {
 
   location /mcp {
     if ($nerv_mcp_origin_ok = 0) { return 403; }
-    proxy_pass http://nerv_api;
+    set $nerv_api ${NERV_API_UPSTREAM};
+    proxy_pass http://$nerv_api;
     proxy_http_version 1.1;
     proxy_buffering off;               # Streamable HTTP 응답 스트림
     proxy_read_timeout 300s;
@@ -54,7 +58,8 @@ server {
 
   location /ingest/ {
     client_max_body_size 5m;           # 훅 페이로드 상한
-    proxy_pass http://nerv_api;
+    set $nerv_api ${NERV_API_UPSTREAM};
+    proxy_pass http://$nerv_api;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -62,7 +67,8 @@ server {
 
   # SSE — 단방향 이벤트 스트림, 버퍼링 금지 (REQ-CB-014)
   location /sse/ {
-    proxy_pass http://nerv_api;
+    set $nerv_api ${NERV_API_UPSTREAM};
+    proxy_pass http://$nerv_api;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
     proxy_buffering off;
@@ -75,7 +81,8 @@ server {
 
   # WebSocket — socket.io 어댑터의 path 설정값(/ws · 4.4 §3.1), websocket 전송만(폴링 폴백 off)
   location /ws/ {
-    proxy_pass http://nerv_api;
+    set $nerv_api ${NERV_API_UPSTREAM};
+    proxy_pass http://$nerv_api;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $connection_upgrade;
@@ -87,6 +94,7 @@ server {
   }
 
   location = /healthz {
-    proxy_pass http://nerv_api;
+    set $nerv_api ${NERV_API_UPSTREAM};
+    proxy_pass http://$nerv_api;
   }
 }

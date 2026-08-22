@@ -58,3 +58,12 @@ export const RATE_LIMIT_WEB_PER_MIN = 600;
 
 /** 쿼터 — 세션당 분당 `/ingest/hooks/*` 요청 수. 정본: docs/04-mvp/api.md §1.8 */
 export const RATE_LIMIT_INGEST_PER_MIN = 120;
+
+/**
+ * WS 연결 거절을 알리는 이벤트 이름.
+ *
+ * socket.io 의 `connect_error` 를 **서버가 emit 할 수 없다** — 예약된 이름이라 예외를 던지고,
+ * 그 예외가 연결 핸들러에서 나면 프로세스가 죽는다(실측: 미인증 브라우저 하나가 API 를
+ * 크래시 루프에 빠뜨렸다). 거절 사유는 이 이름으로 보내고 곧바로 끊는다.
+ */
+export const WS_ERROR_EVENT = 'nerv:error';

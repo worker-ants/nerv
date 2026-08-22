@@ -10,7 +10,11 @@ COPY codebase/apps/web/package.json apps/web/
 COPY codebase/packages/schema/package.json packages/schema/
 RUN pnpm fetch
 COPY codebase/ .
-RUN pnpm install --frozen-lockfile --offline && pnpm --filter @nerv/web build
+# schema 를 먼저 빌드한다 — @nerv/schema 는 dist/index.js 를 노출하므로 vite 가 소스를
+# 해소하지 못한다. api 이미지는 tsc -b 의 프로젝트 참조가 이 순서를 대신 지켜준다.
+RUN pnpm install --frozen-lockfile --offline \
+ && pnpm --filter @nerv/schema build \
+ && pnpm --filter @nerv/web build
 
 FROM nginx:1.27-alpine
 COPY deploy/docker/nginx/default.conf.template /etc/nginx/templates/

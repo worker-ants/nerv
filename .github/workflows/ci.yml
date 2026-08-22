@@ -117,7 +117,16 @@ jobs:
           sed -i 's/^MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=ciminiopassword/' .env
           sed -i "s|^NERV_AUTH_SECRET=.*|NERV_AUTH_SECRET=$(openssl rand -base64 32)|" .env
           docker compose -f ../deploy/compose/docker-compose.yml --env-file .env up -d --build
-      - run: pnpm test:e2e
+      - name: 브라우저 설치
+        # L3 웹은 실제 브라우저다 — 없으면 시나리오 D 의 절반이 조용히 건너뛰어진다
+        run: pnpm --filter @nerv/web exec playwright install --with-deps chromium
+      - name: E2E (API 시나리오 A~E + 웹 브라우저)
+        # API 스위트는 시나리오마다 스크래치 DB 를 만든다 — 관리 URL 이 필요하다.
+        # 웹 스위트는 compose 스택(:8080)을 그대로 본다(§4.3).
+        env:
+          DATABASE_URL: postgres://nerv:ci@localhost:5432/nerv
+          NERV_E2E_BASE_URL: http://localhost:8080
+        run: pnpm test:e2e
       - name: compose logs (실패 시)
         if: failure()
         run: docker compose -f ../deploy/compose/docker-compose.yml --env-file .env logs --tail 200
