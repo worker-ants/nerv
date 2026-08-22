@@ -6,11 +6,17 @@
 
 import { Injectable } from '@nestjs/common';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
+import { SearchService } from './search.service.js';
+import { SpecCommentService } from './spec-comment.service.js';
 import { SpecService } from './spec.service.js';
 
 @Injectable()
 export class SpecTools implements NervToolProvider {
-  constructor(private readonly specs: SpecService) {}
+  constructor(
+    private readonly specs: SpecService,
+    private readonly searches: SearchService,
+    private readonly comments: SpecCommentService,
+  ) {}
 
   readonly tools: readonly NervToolDefinition[] = [
     {
@@ -39,10 +45,21 @@ export class SpecTools implements NervToolProvider {
       scope: 'spec:read',
       inputSchema: {
         type: 'object',
-        properties: { q: { type: 'string' }, limit: { type: 'integer' } },
+        properties: {
+          q: { type: 'string' },
+          limit: { type: 'integer' },
+          references: { type: 'string' },
+        },
         required: ['q'],
       },
-      handler: async () => this.specs.search(),
+      // 검색 방식은 서버 내부 판정이다 — MCP 도 REST 와 같은 파이프라인·같은 순위다(§2.2b).
+      handler: async (input, ctx) =>
+        this.searches.search({
+          projectId: ctx.projectId,
+          query: String(input['q'] ?? ''),
+          ...(typeof input['limit'] === 'number' ? { limit: input['limit'] } : {}),
+          ...(typeof input['references'] === 'string' ? { references: input['references'] } : {}),
+        }),
     },
     {
       name: 'nerv_spec_get',
@@ -145,7 +162,15 @@ export class SpecTools implements NervToolProvider {
         },
         required: ['comment_id'],
       },
-      handler: async () => this.specs.resolveComment(),
+      handler: async (input, ctx) =>
+        this.comments.resolve({
+          projectId: ctx.projectId,
+          commentId: String(input['comment_id'] ?? ''),
+          userId: ctx.principal.userId,
+          sessionId: ctx.sessionId ?? null,
+          resolutionNote:
+            typeof input['resolution_note'] === 'string' ? input['resolution_note'] : null,
+        }),
     },
   ];
 }

@@ -13,6 +13,7 @@ import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
+import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
@@ -39,7 +40,7 @@ beforeAll(async () => {
   const drizzleDb = drizzle(pool);
   const events = new EventService(drizzleDb, silent);
   checks = new SpecCheckService(drizzleDb);
-  specs = new SpecService(events, checks, drizzleDb);
+  specs = new SpecService(events, checks, new SpecRelationService(drizzleDb), drizzleDb);
   tasks = new TaskService(
     new ClaimService(),
     events,
@@ -207,7 +208,7 @@ describe('E09-S05 done 게이트 (FR-10 · §4.6)', () => {
 
   it('스펙 영향 선언이 없으면 done 으로 갈 수 없다 — 조건 5', async () => {
     const taskId = await readyTask();
-    const error = await tasks
+    const error = (await tasks
       .transition({
         projectId,
         taskId,
@@ -215,13 +216,13 @@ describe('E09-S05 done 게이트 (FR-10 · §4.6)', () => {
         userId: planner,
         evidence: [{ kind: 'pr', locator: 'https://pr/1' }],
       })
-      .catch((e: unknown) => e as { details: Record<string, unknown> });
+      .catch((e: unknown) => e)) as { details: Record<string, unknown> };
     expect((error.details['missing'] as string[]).join()).toContain('spec_impact');
   });
 
   it('증적이 없으면 done 으로 갈 수 없다 — 조건 4', async () => {
     const taskId = await readyTask();
-    const error = await tasks
+    const error = (await tasks
       .transition({
         projectId,
         taskId,
@@ -229,7 +230,7 @@ describe('E09-S05 done 게이트 (FR-10 · §4.6)', () => {
         userId: planner,
         specImpact: { none: true },
       })
-      .catch((e: unknown) => e as { details: Record<string, unknown> });
+      .catch((e: unknown) => e)) as { details: Record<string, unknown> };
     expect((error.details['missing'] as string[]).join()).toContain('evidence');
   });
 

@@ -13,12 +13,14 @@ import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
-import { NervError, NotImplementedYetError } from '../../common/nerv-exception.filter.js';
+import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
 import { decideGate, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
 import type { CheckResult } from './spec-check.service.js';
+import { SpecRelationService } from './spec-relation.service.js';
+import type { RelationSyncResult } from './spec-relation.service.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 
@@ -59,6 +61,7 @@ export class SpecService {
   constructor(
     private readonly events: EventService,
     private readonly checks: SpecCheckService,
+    private readonly relationService: SpecRelationService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -176,11 +179,13 @@ export class SpecService {
                  edit_lease_expires_at = ${leaseExpires.toISOString()}
            WHERE id = ${draft.id}
         `);
+        const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
         return {
           spec_id: specId,
           spec_version_id: draft.id,
           version_no: draft.version_no,
           created: false,
+          relations,
         };
       }
 
@@ -216,7 +221,14 @@ export class SpecService {
         toState: 'draft',
       });
 
-      return { spec_id: specId, spec_version_id: versionId, version_no: versionNo, created: true };
+      const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
+      return {
+        spec_id: specId,
+        spec_version_id: versionId,
+        version_no: versionNo,
+        created: true,
+        relations,
+      };
     });
   }
 
@@ -402,11 +414,6 @@ export class SpecService {
     });
   }
 
-  /** nerv_spec_search · EP-SPEC-02 — 하이브리드 파이프라인은 E09-S10 */
-  search(): never {
-    throw new NotImplementedYetError('E09-S10', '하이브리드 검색');
-  }
-
   /**
    * nerv_spec_check · EP-SPEC-09 — 사전 검토 5검사기.
    * 제출 게이트이면서 **셀프서비스**다: 초안 저장 후·제출 전 아무 때나 부를 수 있다(§2.1).
@@ -415,19 +422,307 @@ export class SpecService {
     return this.checks.check(input);
   }
 
-  resolveComment(): never {
-    throw new NotImplementedYetError('E10-S03', '코멘트 해소');
+  /**
+   * EP-SPEC-15 — 메타 편집(제목·부모 이동·정렬·owner_role). E09-S08.
+   *
+   * **이동은 버전·관계·코멘트를 하나도 건드리지 않는다**(FR-01). 트리 위치는 표시 축이고
+   * 내용의 정체성은 spec_id 에 있다 — 그 둘을 섞으면 문서를 옮길 때마다 이력이 끊긴다.
+   * 자기 자신·자기 하위로의 이동은 트리를 사이클로 만들므로 409 다.
+   */
+  async updateMeta(input: {
+    projectId: string;
+    specKey: string;
+    title?: string | null;
+    parentKey?: string | null;
+    /** 부모를 루트로 올리는 명시적 의사 표시 — parentKey 미지정(undefined)과 구분한다 */
+    detachParent?: boolean;
+    sortKey?: string | null;
+    ownerRole?: string | null;
+    userId: string;
+  }): Promise<Record<string, unknown>> {
+    return this.events.transact(async (tx, emit) => {
+      const spec = await this.requireSpec(tx, input.projectId, input.specKey);
+
+      const changed: string[] = [];
+      if (input.title != null && input.title !== spec.title) {
+        await tx.execute(sql`UPDATE spec SET title = ${input.title} WHERE id = ${spec.id}`);
+        changed.push('title');
+      }
+      if (input.sortKey != null) {
+        await tx.execute(sql`UPDATE spec SET sort_key = ${input.sortKey} WHERE id = ${spec.id}`);
+        changed.push('sort_key');
+      }
+      if (input.ownerRole != null) {
+        await tx.execute(
+          sql`UPDATE spec SET owner_role = ${input.ownerRole}::membership_role WHERE id = ${spec.id}`,
+        );
+        changed.push('owner_role');
+      }
+
+      if (input.detachParent === true) {
+        await tx.execute(sql`UPDATE spec SET parent_id = NULL WHERE id = ${spec.id}`);
+        changed.push('parent_id');
+      } else if (input.parentKey != null) {
+        const parent = await this.requireSpec(tx, input.projectId, input.parentKey);
+        if (await this.isDescendant(tx, spec.id, parent.id)) {
+          throw new NervError(NERV_ERROR.PRECONDITION, '자기 하위로는 이동할 수 없습니다.', {
+            kind: 'tree_cycle',
+            spec: input.specKey,
+            parent: input.parentKey,
+          });
+        }
+        await tx.execute(sql`UPDATE spec SET parent_id = ${parent.id} WHERE id = ${spec.id}`);
+        changed.push('parent_id');
+      }
+
+      if (changed.length === 0) {
+        throw new NervError(NERV_ERROR.PRECONDITION, '변경할 필드가 없습니다.', {
+          kind: 'no_fields',
+        });
+      }
+
+      await emit({
+        type: NERV_EVENT.SPEC_META_UPDATED,
+        projectId: input.projectId,
+        subjectType: 'spec',
+        subjectId: spec.id,
+        actorUserId: input.userId,
+        isAgent: false,
+        payload: { fields: changed },
+      });
+
+      return { spec_id: spec.id, key: input.specKey, changed };
+    });
   }
 
-  updateMeta(): never {
-    throw new NotImplementedYetError('E09-S08', '스펙 메타 수정');
+  /**
+   * EP-SPEC-16 — 아카이브. **삭제가 아니다**: 링크·이력은 그대로 남고 기본 조회에서만 빠진다.
+   *
+   * 두 가지가 있으면 막는다 — ① 살아 있는 하위 노드(부모만 감추면 자식이 고아가 된다)
+   * ② 활성 클레임이 걸린 파생 Task(누군가 지금 그 스펙을 근거로 일하고 있다).
+   * 둘 다 "차단 사유 목록"으로 돌려준다. 무엇을 정리해야 하는지 모르는 거부는 벽일 뿐이다.
+   */
+  async archive(input: {
+    projectId: string;
+    specKey: string;
+    userId: string;
+  }): Promise<Record<string, unknown>> {
+    return this.events.transact(async (tx, emit) => {
+      const spec = await this.requireSpec(tx, input.projectId, input.specKey);
+
+      const { rows: children } = await tx.execute<{ key: string }>(sql`
+        SELECT key FROM spec WHERE parent_id = ${spec.id} AND archived_at IS NULL
+      `);
+      const { rows: claimed } = await tx.execute<{ key: string }>(sql`
+        SELECT t.key FROM task t
+          JOIN spec_version sv ON sv.id = t.source_spec_version_id
+          JOIN claim c ON c.task_id = t.id AND c.released_at IS NULL
+         WHERE sv.spec_id = ${spec.id}
+      `);
+
+      const blockers = [
+        ...children.map((c) => ({ kind: 'child_spec', key: c.key })),
+        ...claimed.map((t) => ({ kind: 'active_claim', key: t.key })),
+      ];
+      if (blockers.length > 0) {
+        throw new NervError(NERV_ERROR.PRECONDITION, '아카이브할 수 없습니다.', {
+          kind: 'archive_blocked',
+          blockers,
+        });
+      }
+
+      await tx.execute(sql`UPDATE spec SET archived_at = now() WHERE id = ${spec.id}`);
+      await emit({
+        type: NERV_EVENT.SPEC_ARCHIVED,
+        projectId: input.projectId,
+        subjectType: 'spec',
+        subjectId: spec.id,
+        actorUserId: input.userId,
+        isAgent: false,
+      });
+      return { spec_id: spec.id, key: input.specKey, archived: true };
+    });
   }
 
-  relations(): never {
-    throw new NotImplementedYetError('E09-S12', '관계 조회');
+  /** EP-SPEC-17 — 복원. 부모가 아카이브 상태면 거부한다(복원해도 보이지 않는다). */
+  async restore(input: {
+    projectId: string;
+    specKey: string;
+    userId: string;
+  }): Promise<Record<string, unknown>> {
+    return this.events.transact(async (tx, emit) => {
+      const spec = await this.requireSpec(tx, input.projectId, input.specKey);
+      if (spec.parent_id !== null) {
+        const { rows } = await tx.execute<{ archived_at: unknown; key: string }>(
+          sql`SELECT archived_at, key FROM spec WHERE id = ${spec.parent_id}`,
+        );
+        if (rows[0]?.archived_at != null) {
+          throw new NervError(NERV_ERROR.PRECONDITION, '부모가 아카이브 상태입니다.', {
+            kind: 'parent_archived',
+            parent: rows[0].key,
+          });
+        }
+      }
+
+      await tx.execute(sql`UPDATE spec SET archived_at = NULL WHERE id = ${spec.id}`);
+      await emit({
+        type: NERV_EVENT.SPEC_RESTORED,
+        projectId: input.projectId,
+        subjectType: 'spec',
+        subjectId: spec.id,
+        actorUserId: input.userId,
+        isAgent: false,
+      });
+      return { spec_id: spec.id, key: input.specKey, archived: false };
+    });
+  }
+
+  /** EP-SPEC-04 — 버전 목록. 불변 스냅샷의 목록이므로 캐시해도 안전하다. */
+  async versions(input: {
+    projectId: string;
+    specKey: string;
+  }): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT sv.id, sv.version_no, sv.status::text AS status, sv.change_summary_md,
+             sv.author_user_id, sv.approved_by_user_id, sv.submitted_at, sv.approved_at,
+             sv.created_at
+        FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+       WHERE s.project_id = ${input.projectId} AND s.key = ${input.specKey}
+       ORDER BY sv.version_no DESC
+    `);
+    return rows;
+  }
+
+  /**
+   * EP-SPEC-06 — 버전 간 델타.
+   *
+   * **요구사항 델타가 본문 diff 보다 앞에 온다.** 사람이 리뷰에서 실제로 묻는 것은
+   * "문구가 어떻게 바뀌었나"가 아니라 "약속이 늘었나 줄었나 달라졌나"이기 때문이다.
+   * requirement_version 이 그 답을 이미 들고 있으므로 계산이 아니라 조회다.
+   */
+  async diff(input: {
+    projectId: string;
+    specKey: string;
+    fromVersionNo?: number | null;
+    toVersionNo?: number | null;
+  }): Promise<Record<string, unknown>> {
+    const versions = await this.versions(input);
+    if (versions.length === 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '스펙을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        spec: input.specKey,
+      });
+    }
+    const pick = (
+      no: number | null | undefined,
+      fallbackIndex: number,
+    ): Record<string, unknown> => {
+      const found =
+        no == null ? versions[fallbackIndex] : versions.find((v) => v['version_no'] === no);
+      if (found === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, '요청한 버전이 없습니다.', {
+          kind: 'not_found',
+          version: no,
+        });
+      }
+      return found;
+    };
+    const to = pick(input.toVersionNo, 0);
+    const from = pick(input.fromVersionNo, Math.min(1, versions.length - 1));
+
+    const { rows: requirements } = await this.db.execute<Record<string, unknown>>(sql`
+      WITH from_v AS (
+        SELECT requirement_id, statement_md FROM requirement_version
+         WHERE spec_version_id = ${from['id'] as string}
+      ), to_v AS (
+        SELECT requirement_id, statement_md, change_kind::text AS change_kind
+          FROM requirement_version WHERE spec_version_id = ${to['id'] as string}
+      )
+      SELECT r.ref,
+             coalesce(t.statement_md, f.statement_md) AS statement_md,
+             CASE
+               WHEN f.requirement_id IS NULL AND t.requirement_id IS NOT NULL THEN 'added'
+               WHEN t.requirement_id IS NULL AND f.requirement_id IS NOT NULL THEN 'removed'
+               WHEN f.statement_md IS DISTINCT FROM t.statement_md THEN 'modified'
+               ELSE 'unchanged'
+             END AS delta
+        FROM requirement r
+   LEFT JOIN from_v f ON f.requirement_id = r.id
+   LEFT JOIN to_v t ON t.requirement_id = r.id
+       WHERE (f.requirement_id IS NOT NULL OR t.requirement_id IS NOT NULL)
+       ORDER BY r.ref
+    `);
+
+    const { rows: bodies } = await this.db.execute<{ id: string; body_md: string }>(sql`
+      SELECT id, body_md FROM spec_version
+       WHERE id IN (${from['id'] as string}, ${to['id'] as string})
+    `);
+    const bodyOf = (id: string): string => bodies.find((b) => b.id === id)?.body_md ?? '';
+
+    return {
+      from: { version_no: from['version_no'], status: from['status'] },
+      to: { version_no: to['version_no'], status: to['status'] },
+      requirements,
+      body_diff: lineDiff(bodyOf(from['id'] as string), bodyOf(to['id'] as string)),
+    };
   }
 
   // ── 내부 ─────────────────────────────────────────────────────────────────
+
+  /**
+   * REQ-API-024 — 저장 커밋과 **같은 트랜잭션**에서 참조 관계를 동기화한다(E09-S09).
+   *
+   * 같은 트랜잭션이어야 하는 이유: 본문과 관계가 갈라지면 역참조 조회가 거짓말을 하고,
+   * 거짓말하는 역참조는 없느니만 못하다(수정 전 영향 확인의 근거이기 때문이다).
+   */
+  private async syncRelations(
+    tx: Tx,
+    projectId: string,
+    specId: string,
+    bodyMd: string,
+  ): Promise<RelationSyncResult> {
+    const { rows } = await tx.execute<{ key: string }>(
+      sql`SELECT key FROM spec WHERE id = ${specId}`,
+    );
+    return this.relationService.syncFromBody(tx, {
+      projectId,
+      specId,
+      specKey: rows[0]?.key ?? '',
+      bodyMd,
+    });
+  }
+
+  private async requireSpec(
+    tx: Tx,
+    projectId: string,
+    key: string,
+  ): Promise<{ id: string; title: string; parent_id: string | null }> {
+    const { rows } = await tx.execute<{ id: string; title: string; parent_id: string | null }>(
+      sql`SELECT id, title, parent_id FROM spec WHERE project_id = ${projectId} AND key = ${key}`,
+    );
+    const spec = rows[0];
+    if (spec === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '스펙을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        spec: key,
+      });
+    }
+    return spec;
+  }
+
+  /** candidate 가 root 의 자손이거나 root 자신인가 — 트리 사이클 판정(EP-SPEC-15). */
+  private async isDescendant(tx: Tx, rootId: string, candidateId: string): Promise<boolean> {
+    if (rootId === candidateId) return true;
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      WITH RECURSIVE down AS (
+        SELECT id FROM spec WHERE id = ${rootId}
+        UNION
+        SELECT c.id FROM spec c JOIN down ON c.parent_id = down.id
+      )
+      SELECT id FROM down WHERE id = ${candidateId}
+    `);
+    return rows.length > 0;
+  }
 
   private async currentDraft(
     tx: Tx,
@@ -645,4 +940,43 @@ export class SpecService {
     `);
     return approvalId;
   }
+}
+
+/**
+ * 줄 단위 diff — LCS 기반. 라이브러리를 넣지 않는 이유는 본문 diff 가 이 파일에서
+ * **부차적**이기 때문이다(리뷰의 주 신호는 요구사항 델타다). 필요가 커지면 그때 교체한다.
+ */
+function lineDiff(before: string, after: string): { op: string; text: string }[] {
+  const a = before.split('\n');
+  const b = after.split('\n');
+  const lcs: number[][] = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  );
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      const row = lcs[i];
+      const next = lcs[i + 1];
+      if (row === undefined || next === undefined) continue;
+      row[j] = a[i] === b[j] ? (next[j + 1] ?? 0) + 1 : Math.max(next[j] ?? 0, row[j + 1] ?? 0);
+    }
+  }
+  const out: { op: string; text: string }[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      out.push({ op: 'same', text: a[i] ?? '' });
+      i += 1;
+      j += 1;
+    } else if ((lcs[i + 1]?.[j] ?? 0) >= (lcs[i]?.[j + 1] ?? 0)) {
+      out.push({ op: 'del', text: a[i] ?? '' });
+      i += 1;
+    } else {
+      out.push({ op: 'add', text: b[j] ?? '' });
+      j += 1;
+    }
+  }
+  while (i < a.length) out.push({ op: 'del', text: a[(i += 1) - 1] ?? '' });
+  while (j < b.length) out.push({ op: 'add', text: b[(j += 1) - 1] ?? '' });
+  return out;
 }

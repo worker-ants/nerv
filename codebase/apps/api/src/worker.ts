@@ -2,13 +2,14 @@
 //
 // 워커가 트래픽을 받는 순간 replica 1 규칙(codebase.md §6.3)이 무의미해진다. 그래서
 // createApplicationContext 를 쓴다 — HTTP 리스너가 아예 만들어지지 않는다.
-// 잡 루프 스케줄과 advisory lock 획득은 E04-S04 가 연결한다.
+// 잡 루프 스케줄과 advisory lock 은 JobRunner 가 쥔다(E04-S04).
 
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplicationContext } from '@nestjs/common';
 import { WorkerAppModule } from './app.module.js';
+import { JobRunner } from './worker/job-runner.js';
 
 export async function createWorker(): Promise<INestApplicationContext> {
   return NestFactory.createApplicationContext(WorkerAppModule);
@@ -19,20 +20,29 @@ export async function createWorker(): Promise<INestApplicationContext> {
  *
  * **이 타이머가 워커 프로세스를 살아 있게 한다.** 시그널 리스너만으로는 이벤트 루프가
  * 유지되지 않아 컨테이너가 즉시 종료되고 재시작 루프에 빠진다(실측: Node exit 13
- * "unsettled top-level await"). 워커의 본체는 원래 주기 루프이므로 그 자리를 미리 만든다.
+ * "unsettled top-level await"). 워커의 본체는 원래 주기 루프이므로 그 자리를 그대로 쓴다.
  *
- * E04-S04 가 여기서 advisory lock(REQ-CB-011)을 확인하고 잡 6종을 실행한다 —
- * lease-reaper · session-stale · notification · export · retention · embedding.
- * 주기 값도 그때 확정한다.
+ * 틱마다 JobRunner 가 advisory lock(REQ-CB-011)을 확인하고, 보유 시에만 각 잡을
+ * 자기 주기에 따라 실행한다. 틱 간격이 곧 스케줄 해상도다.
  */
-const JOB_TICK_MS = 60_000;
+const JOB_TICK_MS = 10_000;
 
 async function bootstrap(): Promise<void> {
   const worker = await createWorker();
   worker.enableShutdownHooks();
 
+  const runner = worker.get(JobRunner);
+  let ticking = false;
   const ticker = setInterval(() => {
-    // E04-S04: pg_advisory_lock 보유 시에만 잡 루프를 돈다(replica 1 은 배포 규칙, lock 이 최종 방어선)
+    // 앞 틱이 아직 안 끝났으면 건너뛴다 — 겹쳐 돌면 같은 잡이 동시 실행된다.
+    if (ticking) return;
+    ticking = true;
+    void runner
+      .tick()
+      .catch((error: unknown) => Logger.warn(`잡 루프 틱 실패: ${String(error)}`, 'Worker'))
+      .finally(() => {
+        ticking = false;
+      });
   }, JOB_TICK_MS);
   Logger.log('nerv-worker started (HTTP 리스너 없음 — REQ-CB-005)', 'Worker');
 

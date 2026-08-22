@@ -8,6 +8,9 @@ import { BaselineService } from './baseline.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import { SpecController } from './spec.controller.js';
 import { SpecCheckService } from './spec-check.service.js';
+import { SpecRelationService } from './spec-relation.service.js';
+import { SearchService } from './search.service.js';
+import { EmbeddingService } from './embedding.service.js';
 import { SpecService } from './spec.service.js';
 import { SpecTools } from './spec.tools.js';
 
@@ -17,11 +20,21 @@ import { SpecTools } from './spec.tools.js';
   providers: [
     SpecService,
     SpecCheckService,
+    SpecRelationService,
+    SearchService,
+    EmbeddingService,
     SpecCommentService,
     BaselineService,
     SpecTools,
     ProjectAccessGuard,
   ],
-  exports: [SpecService],
+  exports: [
+    SpecService,
+    SpecCommentService,
+    SpecRelationService,
+    SearchService,
+    EmbeddingService,
+    BaselineService,
+  ],
 })
 export class SpecModule {}

@@ -3,13 +3,26 @@
 // 표면은 번역만 한다(REQ-CB-003). 프로젝트 해소·멤버십은 가드가 끝내고 온다.
 // **승인·거절은 사람 전용이다** — MCP 카탈로그에 대응 도구가 없고 여기만 열려 있다.
 
-import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { BaselineService } from './baseline.service.js';
+import { SearchService } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
+import { SpecRelationService } from './spec-relation.service.js';
 import { SpecService } from './spec.service.js';
 import type { SpecTreeNode } from './spec.service.js';
 
@@ -20,6 +33,8 @@ export class SpecController {
     private readonly specs: SpecService,
     private readonly comments: SpecCommentService,
     private readonly baselines: BaselineService,
+    private readonly searches: SearchService,
+    private readonly relations: SpecRelationService,
   ) {}
 
   /** EP-SPEC-01 */
@@ -34,10 +49,48 @@ export class SpecController {
     });
   }
 
-  /** EP-SPEC-02 */
+  /** EP-SPEC-02 — 하이브리드. 모드 선택 파라미터가 없는 것이 의도다(§2.2b) */
   @Get('specs/search')
-  search(): never {
-    return this.specs.search();
+  search(
+    @Req() req: ProjectRequest,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+    @Query('references') references?: string,
+    @Query('include_archived') includeArchived?: string,
+  ): Promise<unknown> {
+    return this.searches.search({
+      projectId: projectOf(req),
+      query: q ?? '',
+      includeArchived: includeArchived === 'true',
+      ...(limit === undefined ? {} : { limit: Number(limit) }),
+      ...(references === undefined ? {} : { references }),
+    });
+  }
+
+  /** EP-SPEC-11 */
+  @Get('baselines')
+  listBaselines(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.baselines.list(projectOf(req));
+  }
+
+  /** EP-SPEC-14 — baseline 이름 또는 as_of 시각 중 하나(배타) */
+  @Get('specs/manifest')
+  manifest(
+    @Req() req: ProjectRequest,
+    @Query('baseline') baseline?: string,
+    @Query('as_of') asOf?: string,
+  ): Promise<unknown> {
+    return this.baselines.manifest({
+      projectId: projectOf(req),
+      baselineName: baseline ?? null,
+      asOf: asOf ?? null,
+    });
+  }
+
+  /** EP-SPEC-13 */
+  @Get('baselines/:name')
+  getBaseline(@Req() req: ProjectRequest, @Param('name') name: string): Promise<unknown> {
+    return this.baselines.get({ projectId: projectOf(req), name });
   }
 
   /** EP-SPEC-03 — 기준 버전 지정 조회(`?v=`)를 지원한다 */
@@ -113,10 +166,106 @@ export class SpecController {
     });
   }
 
-  /** EP-SPEC-12 */
+  /** EP-SPEC-04 */
+  @Get('specs/:spec/versions')
+  versions(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+    return this.specs.versions({ projectId: projectOf(req), specKey: spec });
+  }
+
+  /** EP-SPEC-06 */
+  @Get('specs/:spec/diff')
+  diff(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ): Promise<unknown> {
+    return this.specs.diff({
+      projectId: projectOf(req),
+      specKey: spec,
+      fromVersionNo: from === undefined ? null : Number(from),
+      toVersionNo: to === undefined ? null : Number(to),
+    });
+  }
+
+  /** EP-SPEC-18 — 역참조가 1급이다: 수정 전 "누가 나를 참조하나"의 조회 경로 */
+  @Get('specs/:spec/relations')
+  specRelations(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    @Query('direction') direction?: string,
+    @Query('kind') kind?: string,
+  ): Promise<unknown> {
+    return this.relations.list({
+      projectId: projectOf(req),
+      specKey: spec,
+      direction: direction === 'out' || direction === 'in' ? direction : 'both',
+      kind: kind ?? null,
+    });
+  }
+
+  /** EP-SPEC-09 — 셀프서비스 사전 검토(읽기 전용) */
+  @Get('spec-versions/:ver/check')
+  check(@Req() req: ProjectRequest, @Param('ver') ver: string): Promise<unknown> {
+    return this.specs.check({ projectId: projectOf(req), specVersionId: ver });
+  }
+
+  /** EP-SPEC-15 — 메타 편집. 이동해도 버전·관계·코멘트는 그대로다(FR-01) */
+  @Patch('specs/:spec')
+  updateMeta(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = requireHuman(req);
+    return this.specs.updateMeta({
+      projectId: projectOf(req),
+      specKey: spec,
+      userId: principal.userId,
+      title: typeof body['title'] === 'string' ? body['title'] : null,
+      parentKey: typeof body['parent_key'] === 'string' ? body['parent_key'] : null,
+      detachParent: body['parent_key'] === null,
+      sortKey: typeof body['sort_key'] === 'string' ? body['sort_key'] : null,
+      ownerRole: typeof body['owner_role'] === 'string' ? body['owner_role'] : null,
+    });
+  }
+
+  /** EP-SPEC-16 */
+  @Post('specs/:spec/archive')
+  archive(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+    const principal = requireHuman(req);
+    return this.specs.archive({
+      projectId: projectOf(req),
+      specKey: spec,
+      userId: principal.userId,
+    });
+  }
+
+  /** EP-SPEC-17 */
+  @Post('specs/:spec/restore')
+  restore(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+    const principal = requireHuman(req);
+    return this.specs.restore({
+      projectId: projectOf(req),
+      specKey: spec,
+      userId: principal.userId,
+    });
+  }
+
+  /** EP-SPEC-12 — **사람 전용**. 동결은 거버넌스 행위다 */
   @Post('baselines')
-  createBaseline(): never {
-    return this.baselines.create();
+  createBaseline(
+    @Req() req: ProjectRequest,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = requireHuman(req);
+    return this.baselines.create({
+      projectId: projectOf(req),
+      name: String(body['name'] ?? ''),
+      noteMd: typeof body['note_md'] === 'string' ? body['note_md'] : null,
+      specVersionIds: Array.isArray(body['items']) ? (body['items'] as string[]) : null,
+      userId: principal.userId,
+    });
   }
 }
 

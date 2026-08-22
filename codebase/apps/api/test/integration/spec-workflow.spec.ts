@@ -13,6 +13,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
+import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -37,6 +38,7 @@ beforeAll(async () => {
   specs = new SpecService(
     new EventService(drizzleDb, silentValkey),
     new SpecCheckService(drizzleDb),
+    new SpecRelationService(drizzleDb),
     drizzleDb,
   );
   await seed();
