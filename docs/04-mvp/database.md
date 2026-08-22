@@ -5,11 +5,11 @@ updated: 2026-08-22
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
 > 문서 버전 v0.4 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
 >
-> v0.4 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1 MVP 범위와 스택 확정](scope.md) §2.1): ① 확장 2종 추가 — `pg_trgm`(한국어·부분 일치)·`vector`(pgvector) ② **검색 인덱스 테이블 `spec_chunk_embedding` 신설**(§2.15) — 도메인 엔티티가 아니라 재생성 가능한 파생 데이터라 **엔티티 29종 카운트에 들지 않는다** ③ trigram GIN 인덱스·HNSW 인덱스·검색 랭킹 규정(§2.12a) ④ REQ-DB-014~017. 검색 파이프라인 정본은 [4.4 API 명세](api.md) §2.2b.
+> v0.4 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1 MVP 범위와 스택 확정](scope.md) §2.1): ① 확장 2종 추가 — `pg_trgm`(한국어·부분 일치)·`vector`(pgvector) ② **검색 인덱스 테이블 `spec_chunk_embedding` 신설**(§2.15) — 도메인 엔티티가 아니라 재생성 가능한 파생 데이터라 **엔티티 29종 카운트에 들지 않는다** ③ trigram GIN 인덱스(§2.12)·HNSW 인덱스(§2.15) — 병합 랭킹(RRF)은 [4.4 API 명세](api.md) §2.2b 소관 ④ REQ-DB-014~017. 검색 파이프라인 정본은 [4.4 API 명세](api.md) §2.2b.
 
 ---
 

@@ -482,7 +482,7 @@
     <thead><tr><th>계층</th><th>러너</th><th>위치</th><th>대상</th><th>실행</th></tr></thead>
     <tbody>
       <tr><td>L1 단위</td><td>Vitest</td><td>소스 옆 <code>*.spec.ts</code></td><td>순수 로직 — zod 스키마, 델타 계산, fingerprint</td><td><code>pnpm test</code> (매 PR)</td></tr>
-      <tr><td>L2 통합</td><td>Vitest</td><td><code>apps/api/test/integration/</code></td><td>도메인 서비스 + 실제 Postgres(compose의 <code>postgres</code> 사용) — <b>클레임 원자성 동시 호출, scope 겹침, base_version 409, 리스 만료</b></td><td><code>pnpm test:integration</code> (매 PR)</td></tr>
+      <tr><td>L2 통합</td><td>Vitest</td><td><code>apps/api/test/integration/</code></td><td>도메인 서비스 + 실제 Postgres(compose의 <code>postgres</code> 사용) — <b>클레임 원자성 동시 호출, scope 겹침, base_version 409, 리스 만료</b>. 임베딩은 결정적 <b>OpenAI 호환 스텁 서버</b>(테스트 픽스처 — 단일 계약(REQ-CB-020)이라 스텁도 같은 표면이다)로 검증하고 실모델 품질은 E06-S06·스테이징 소관</td><td><code>pnpm test:integration</code> (매 PR)</td></tr>
       <tr><td>L3 계약/E2E</td><td>Vitest(API·MCP·WS) + Playwright(웹)</td><td><code>apps/api/test/e2e/</code> + <code>apps/web/test/e2e/</code></td><td>compose 스택 기동 후 REST·MCP·WS·브라우저 시나리오 — <a href="backlog.html">4.8 백로그</a> §5의 E2E 수용 시나리오가 케이스 정본</td><td><code>pnpm test:e2e</code> (머지 전·야간)</td></tr>
     </tbody>
   </table></div>
@@ -534,7 +534,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable &amp;&amp; pnpm install --frozen-lockfile
-      - run: cp .env.example .env &amp;&amp; pnpm compose:up
+      - run: cp .env.example .env &amp;&amp; docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build
+        # local-embed 프로필 없이 기동 — CI 에서 모델 가중치(수 GB) 다운로드 금지.
+        # 검색 E2E 는 렉시컬 degrade 경로(REQ-API-026)로 검증하고, 벡터 품질은 E06-S06 스파이크·스테이징 소관
       - run: pnpm test:e2e</code></pre>
 
   <div class="table-wrap"><table>
@@ -554,7 +556,7 @@ jobs:
 corepack enable                 # .nvmrc 의 Node LTS + package.json 의 pnpm 버전 사용
 cp .env.example .env            # §5.2 전표 — 필수 3개(POSTGRES_PASSWORD·MINIO_ROOT_PASSWORD·NERV_AUTH_SECRET)만 채우면 기동된다
 pnpm install
-pnpm compose:up                 # postgres·minio·valkey → migrate → api·worker → web 순서로 기동 (§5.3)
+pnpm compose:up                 # postgres·minio·valkey(+embed는 local-embed 프로필 시 병렬) → migrate → api·worker → web (§5.3)
 open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 생성은 4.6 온보딩 절차</code></pre>
 
   <p>개발 루프(HMR)가 필요하면 인프라만 compose로 띄우고 앱은 로컬 프로세스로 돈다:</p>
