@@ -124,7 +124,11 @@ export class SpecTools implements NervToolProvider {
         properties: { spec_version_id: { type: 'string' } },
         required: ['spec_version_id'],
       },
-      handler: async () => this.specs.check(),
+      handler: async (input, ctx) =>
+        this.specs.check({
+          projectId: ctx.projectId,
+          specVersionId: String(input['spec_version_id'] ?? ''),
+        }),
     },
     {
       name: 'nerv_spec_comment_resolve',

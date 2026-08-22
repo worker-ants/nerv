@@ -17,6 +17,8 @@ import { NervError, NotImplementedYetError } from '../../common/nerv-exception.f
 import { EventService } from '../event/event.service.js';
 import { decideGate, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
+import { SpecCheckService } from './spec-check.service.js';
+import type { CheckResult } from './spec-check.service.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 
@@ -56,6 +58,7 @@ export class SpecService {
 
   constructor(
     private readonly events: EventService,
+    private readonly checks: SpecCheckService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -255,6 +258,19 @@ export class SpecService {
         });
       }
 
+      // 사전 검토 — block 이 있으면 제출 자체가 막힌다(§1.2 전이 가드).
+      // clemvion 의 "쓰기 직전 consistency-check 의무"가 여기로 옮겨 온 것이다.
+      const check = await this.checks.check({
+        projectId: input.projectId,
+        specVersionId: input.specVersionId,
+      });
+      if (check.verdict === 'block') {
+        throw new NervError(NERV_ERROR.PRECONDITION, '사전 검토에서 차단 항목이 발견됐습니다.', {
+          kind: 'precheck_blocked',
+          findings: check.findings.filter((f) => f.severity === 'block'),
+        });
+      }
+
       const gate = await this.assessGate(tx, version.spec_id, version.spec_type);
 
       // 제출 = 본문 동결. 트리거가 이후 UPDATE 를 막는다(4.3 §2.13)
@@ -391,9 +407,12 @@ export class SpecService {
     throw new NotImplementedYetError('E09-S10', '하이브리드 검색');
   }
 
-  /** nerv_spec_check · EP-SPEC-09 — 사전 검토 5검사기는 E09-S02 */
-  check(): never {
-    throw new NotImplementedYetError('E09-S02', '사전 검토 5검사기');
+  /**
+   * nerv_spec_check · EP-SPEC-09 — 사전 검토 5검사기.
+   * 제출 게이트이면서 **셀프서비스**다: 초안 저장 후·제출 전 아무 때나 부를 수 있다(§2.1).
+   */
+  check(input: { projectId: string; specVersionId: string }): Promise<CheckResult> {
+    return this.checks.check(input);
   }
 
   resolveComment(): never {

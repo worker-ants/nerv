@@ -2,7 +2,6 @@
 // 클레임 엔진은 E04 에서 구현됐고 L2 가 지킨다 — 여기는 번역만 한다(REQ-CB-003).
 
 import { Injectable } from '@nestjs/common';
-import { NotImplementedYetError } from '../../common/nerv-exception.filter.js';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { requireSession } from '../session/session.tools.js';
 import { TaskService } from './task.service.js';
@@ -134,9 +133,21 @@ export class TaskTools implements NervToolProvider {
         },
         required: ['task_id', 'status'],
       },
-      handler: async () => {
-        throw new NotImplementedYetError('E09-S05', 'Task 전이·done 게이트');
-      },
+      handler: async (input, ctx) =>
+        this.tasks.transition({
+          projectId: ctx.projectId,
+          taskId: String(input['task_id'] ?? ''),
+          status: String(input['status'] ?? ''),
+          userId: ctx.principal.userId,
+          sessionId: ctx.sessionId,
+          specImpact: (input['spec_impact'] as Record<string, unknown> | undefined) ?? null,
+          ...(typeof input['blocked_reason'] === 'string'
+            ? { blockedReason: input['blocked_reason'] }
+            : {}),
+          ...(Array.isArray(input['evidence'])
+            ? { evidence: input['evidence'] as { kind: string; locator: string }[] }
+            : {}),
+        }),
     },
   ];
 }

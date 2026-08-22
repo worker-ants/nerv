@@ -38,9 +38,9 @@ export class TaskController {
     throw new NotImplementedYetError('E03-S02', '해제 REST 표면 — 인증 컨텍스트 배선 대기');
   }
 
-  /** EP-TASK-09 */
+  /** EP-TASK-09 — done 게이트 판정의 단일 지점. REST 배선은 E08-S05 */
   @Patch(':task')
   update(): never {
-    return this.tasks.transition();
+    throw new NotImplementedYetError('E08-S05', 'Task 전이 REST 표면 — 인증 컨텍스트 배선 대기');
   }
 }

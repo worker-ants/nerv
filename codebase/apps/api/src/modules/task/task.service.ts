@@ -3,11 +3,11 @@
 // REST 컨트롤러와 MCP 도구가 이 클래스의 같은 인스턴스를 거친다(D-05) — 판정은 여기 한 곳이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
-import { NervError, NotImplementedYetError } from '../../common/nerv-exception.filter.js';
+import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
 import { ClaimService } from './claim.service.js';
@@ -350,9 +350,128 @@ export class TaskService {
     });
   }
 
-  /** nerv_task_update · EP-TASK-09 — done 게이트 판정의 단일 지점 */
-  transition(): never {
-    throw new NotImplementedYetError('E09-S05', 'Task 상태 전이·done 게이트');
+  /**
+   * nerv_task_update · EP-TASK-09 — **done 게이트 판정의 단일 지점**이다.
+   *
+   * MVP 범위는 조건 4·5·6(증적·스펙 영향 선언·테스트 증적)이다 — 리뷰 커버리지 조건(1~3)은
+   * FR-09 가 Phase 2 라 판정할 데이터가 없다(scope.md §3.2 FR-10 ◐).
+   *
+   * 조건 5(스펙 영향 선언)가 clemvion 에서 가장 잘 작동한 규칙의 이식이다: "작업 완료가 스펙
+   * 정합 결정을 강제 동반"하게 만들면 완료 시점에 아무도 스펙을 보지 않는 사태가 구조적으로
+   * 불가능해진다. `none` sentinel 을 허용하되 **선언 자체는 필수**라는 점이 핵심이다.
+   */
+  async transition(input: {
+    projectId: string;
+    taskId: string;
+    status: string;
+    userId: string;
+    sessionId?: string | null;
+    specImpact?: Record<string, unknown> | null;
+    blockedReason?: string | null;
+    evidence?: { kind: string; locator: string }[];
+  }): Promise<{ status: string; gate?: { ok: boolean; missing: string[] } }> {
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{ status: string; project_id: string }>(
+        sql`SELECT status::text AS status, project_id FROM task WHERE id = ${input.taskId} FOR UPDATE`,
+      );
+      const task = rows[0];
+      if (task === undefined || task.project_id !== input.projectId) {
+        throw new NervError(NERV_ERROR.PRECONDITION, 'Task 를 찾을 수 없습니다.', {
+          kind: 'not_found',
+        });
+      }
+      if (task.status === input.status) {
+        // 같은 목표 상태로의 재호출은 no-op 성공이다(멱등 — agent-integration §2.3)
+        return { status: task.status };
+      }
+
+      for (const item of input.evidence ?? []) {
+        await tx.execute(sql`
+          INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+          VALUES (${newId()}, ${input.projectId}, ${input.taskId}, ${item.kind}::evidence_kind,
+                  ${item.locator}, ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
+        `);
+      }
+
+      if (input.status === 'done') {
+        const gate = await this.assertDoneGate(tx, input);
+        if (!gate.ok) {
+          throw new NervError(NERV_ERROR.PRECONDITION, 'done 게이트를 충족하지 못했습니다.', {
+            kind: 'done_gate',
+            missing: gate.missing,
+          });
+        }
+        await tx.execute(sql`
+          UPDATE task SET status = 'done', done_at = now(),
+                          spec_impact = ${JSON.stringify(input.specImpact ?? {})}::jsonb
+           WHERE id = ${input.taskId}
+        `);
+        await emit({
+          type: NERV_EVENT.TASK_DONE,
+          projectId: input.projectId,
+          subjectType: 'task',
+          subjectId: input.taskId,
+          actorUserId: input.userId,
+          actorSessionId: input.sessionId ?? null,
+          isAgent: input.sessionId != null,
+          fromState: task.status,
+          toState: 'done',
+        });
+        return { status: 'done', gate };
+      }
+
+      if (input.status === 'blocked' && (input.blockedReason ?? '').trim() === '') {
+        // 사유 없는 blocked 는 백로그 부패의 씨앗이다(§1.4) — CHECK 도 막지만 사유를 알려준다
+        throw new NervError(NERV_ERROR.PRECONDITION, 'blocked 에는 사유가 필요합니다.', {
+          kind: 'blocked_reason_required',
+        });
+      }
+
+      await tx.execute(sql`
+        UPDATE task SET status = ${input.status}::task_status,
+                        blocked_reason = ${input.blockedReason ?? null}
+         WHERE id = ${input.taskId}
+      `);
+      await emit({
+        type: input.status === 'blocked' ? NERV_EVENT.TASK_BLOCKED : NERV_EVENT.TASK_UPDATED,
+        projectId: input.projectId,
+        subjectType: 'task',
+        subjectId: input.taskId,
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId ?? null,
+        isAgent: input.sessionId != null,
+        fromState: task.status,
+        toState: input.status,
+      });
+      return { status: input.status };
+    });
+  }
+
+  /**
+   * done 전이 조건 — MVP 범위(§4.6 조건 4·5·6).
+   * 판정 불가는 실패가 아니라 fail-open + 관측이다(D-14) — 여기서는 판정에 필요한 데이터가
+   * 전부 서버에 있으므로 그 경로가 열리지 않는다.
+   */
+  private async assertDoneGate(
+    tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
+    input: { projectId: string; taskId: string; specImpact?: Record<string, unknown> | null },
+  ): Promise<{ ok: boolean; missing: string[] }> {
+    const missing: string[] = [];
+
+    // 조건 5 — 스펙 영향 선언. none sentinel 을 허용하되 선언 자체는 필수다
+    const impact = input.specImpact;
+    if (impact === null || impact === undefined || Object.keys(impact).length === 0) {
+      missing.push('spec_impact (변경된 스펙 ID 목록 또는 {"none": true})');
+    }
+
+    // 조건 4 — Requirement ↔ 구현 Evidence 1건 이상
+    const { rows } = await tx.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM evidence WHERE task_id = ${input.taskId}`,
+    );
+    if ((rows[0]?.n ?? 0) === 0) missing.push('evidence (구현 증적 1건 이상)');
+
+    // 조건 1~3(리뷰 커버리지)은 FR-09 가 Phase 2 라 판정 대상이 아니다 — 없는 것을 요구하지 않는다
+    return { ok: missing.length === 0, missing };
   }
 
   private async findOwnActiveClaim(

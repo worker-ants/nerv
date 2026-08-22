@@ -7,13 +7,21 @@ import { EventModule } from '../event/event.module.js';
 import { BaselineService } from './baseline.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import { SpecController } from './spec.controller.js';
+import { SpecCheckService } from './spec-check.service.js';
 import { SpecService } from './spec.service.js';
 import { SpecTools } from './spec.tools.js';
 
 @Module({
   imports: [EventModule, AuthModule],
   controllers: [SpecController],
-  providers: [SpecService, SpecCommentService, BaselineService, SpecTools, ProjectAccessGuard],
+  providers: [
+    SpecService,
+    SpecCheckService,
+    SpecCommentService,
+    BaselineService,
+    SpecTools,
+    ProjectAccessGuard,
+  ],
   exports: [SpecService],
 })
 export class SpecModule {}

@@ -12,6 +12,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { EventService } from '../../src/modules/event/event.service.js';
+import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -33,7 +34,11 @@ beforeAll(async () => {
     subscribe: async () => undefined,
   } as unknown as ValkeyService;
   const drizzleDb = drizzle(pool);
-  specs = new SpecService(new EventService(drizzleDb, silentValkey), drizzleDb);
+  specs = new SpecService(
+    new EventService(drizzleDb, silentValkey),
+    new SpecCheckService(drizzleDb),
+    drizzleDb,
+  );
   await seed();
 });
 
