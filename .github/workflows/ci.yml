@@ -62,6 +62,15 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 12
+      valkey:
+        # L2 는 방송 규약(REQ-CB-004)도 검증한다 — 커밋 후 PUBLISH 순서는 mock 으로 확인되지 않는다
+        image: valkey/valkey:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 6
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,9 +78,12 @@ jobs:
           node-version-file: codebase/.nvmrc
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      # migrate 는 빌드 산출물(dist/migrate.js)을 쓴다 — compose·k8s 와 같은 코드 경로다
+      - run: pnpm build
       - run: pnpm db:migrate && pnpm test:integration
         env:
           DATABASE_URL: postgres://postgres:ci@localhost:5432/postgres
+          NERV_VALKEY_URL: redis://localhost:6379
 
   e2e:
     name: e2e (L3 · compose 스택)

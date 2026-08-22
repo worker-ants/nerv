@@ -8,6 +8,7 @@
 
 import { Module } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
+import { DatabaseModule } from './common/database.module.js';
 import { McpOriginGuard } from './common/mcp-origin.guard.js';
 import { McpController } from './mcp/mcp.controller.js';
 import { ToolRegistry } from './mcp/tool-registry.js';
@@ -23,12 +24,13 @@ import { WorkerModule } from './worker/worker.module.js';
 
 /** HTTP 표면 없이 잡 러너만 조립하는 워커용 루트(REQ-CB-005). worker.ts 가 쓴다. */
 @Module({
-  imports: [WorkerModule],
+  imports: [DatabaseModule, WorkerModule],
 })
 export class WorkerAppModule {}
 
 @Module({
   imports: [
+    DatabaseModule,
     DiscoveryModule,
     AuthModule,
     EventModule,

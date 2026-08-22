@@ -7,6 +7,12 @@
 // 본다(toBe). 표면이 늘어날 때(E03·E05) 이 테스트가 그대로 회귀 방어선이 된다.
 
 import { Test } from '@nestjs/testing';
+
+// DatabaseModule 은 기동 시 DATABASE_URL 을 요구한다(오설정으로 뜨는 것보다 안 뜨는 게 낫다).
+// 이 스위트는 모듈 그래프와 라우팅만 보고 **질의를 한 번도 하지 않으므로** 더미 값으로 충분하다 —
+// pg.Pool 은 첫 질의 전까지 접속하지 않는다. 실제 DB 검증은 L2 소관이다(codebase.md §4.3).
+process.env['DATABASE_URL'] ??= 'postgres://nerv:nerv@127.0.0.1:5432/nerv_l1_no_connect';
+
 import type { TestingModule } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule, WorkerAppModule } from './app.module.js';

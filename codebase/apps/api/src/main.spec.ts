@@ -2,6 +2,12 @@
 // (네트워크 리슨 없이 app.inject() 로 도는 L1 범위)
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+// DatabaseModule 은 기동 시 DATABASE_URL 을 요구한다(오설정으로 뜨는 것보다 안 뜨는 게 낫다).
+// 이 스위트는 모듈 그래프와 라우팅만 보고 **질의를 한 번도 하지 않으므로** 더미 값으로 충분하다 —
+// pg.Pool 은 첫 질의 전까지 접속하지 않는다. 실제 DB 검증은 L2 소관이다(codebase.md §4.3).
+process.env['DATABASE_URL'] ??= 'postgres://nerv:nerv@127.0.0.1:5432/nerv_l1_no_connect';
+
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { NERV_ERROR } from '@nerv/schema';
 import { createApp } from './main.js';
