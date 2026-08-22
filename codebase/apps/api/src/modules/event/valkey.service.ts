@@ -13,6 +13,12 @@ import { Redis } from 'ioredis';
 
 export type ValkeyMessageHandler = (channel: string, payload: string) => void;
 
+/**
+ * 방송 시한. 커밋 후 방송은 응답 경로 위에 있으므로(EventService.transact) Valkey 가
+ * 느리거나 죽었을 때 API 지연으로 번지면 안 된다 — 시한을 넘기면 유실로 처리한다(D-14).
+ */
+const PUBLISH_TIMEOUT_MS = 1000;
+
 @Injectable()
 export class ValkeyService implements OnApplicationShutdown {
   private readonly logger = new Logger(ValkeyService.name);
@@ -24,8 +30,14 @@ export class ValkeyService implements OnApplicationShutdown {
   /** 발행 실패 누적 — 운영에서 "조용한 유실"을 눈에 보이게 한다. */
   private publishFailures = 0;
 
+  /** 접속 불가 로그가 초당 수십 줄로 쌓이는 것을 막는다 — 첫 실패만 자세히 남긴다. */
+  private warnedOnce = false;
+
   private client(): Redis {
-    this.publisher ??= new Redis(this.url, { lazyConnect: false, maxRetriesPerRequest: 1 });
+    this.publisher ??= new Redis(this.url, {
+      lazyConnect: false,
+      maxRetriesPerRequest: 1,
+    });
     return this.publisher;
   }
 
@@ -35,13 +47,19 @@ export class ValkeyService implements OnApplicationShutdown {
    */
   async publish(channel: string, payload: string): Promise<boolean> {
     try {
-      await this.client().publish(channel, payload);
+      const sent = this.client().publish(channel, payload);
+      // 시한을 넘긴 뒤에도 큐에 남은 명령이 나중에 실패할 수 있다 — unhandled rejection 방지
+      sent.catch(() => undefined);
+      await withTimeout(sent, PUBLISH_TIMEOUT_MS);
       return true;
     } catch (error) {
       this.publishFailures += 1;
-      this.logger.warn(
-        `방송 실패(누적 ${this.publishFailures}) — 유실은 허용된다(D-14). ${String(error)}`,
-      );
+      if (!this.warnedOnce) {
+        this.warnedOnce = true;
+        this.logger.warn(`방송 실패 — 유실은 허용된다(D-14). ${String(error)}`);
+      } else if (this.publishFailures % 100 === 0) {
+        this.logger.warn(`방송 실패 누적 ${this.publishFailures}건`);
+      }
       return false;
     }
   }
@@ -60,5 +78,20 @@ export class ValkeyService implements OnApplicationShutdown {
 
   async onApplicationShutdown(): Promise<void> {
     await Promise.allSettled([this.publisher?.quit(), this.subscriber?.quit()]);
+  }
+}
+
+/** 시한 초과를 실패로 바꾼다. */
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`방송 시한 ${ms}ms 초과`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }

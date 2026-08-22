@@ -15,7 +15,21 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-export type NervDb = NodePgDatabase<Record<string, never>>;
+export type NervDb = NodePgDatabase<Record<string, unknown>>;
+
+/**
+ * 드라이버 경계 정규화 — raw `execute()` 의 timestamptz 는 **문자열로 온다**.
+ *
+ * drizzle 의 node-postgres 드라이버가 pg 의 타입 파서를 덮어써서, 테이블 선언을 거친
+ * 질의는 Date 를 주지만 raw sql 질의는 문자열을 준다(실측). 서비스가 Date 를 반환한다고
+ * 타입에 적어두면 그 타입은 거짓말이 되고, 호출부의 .toISOString() 이 런타임에 터진다.
+ * 경계에서 한 번 정규화한다.
+ */
+export function toDate(value: unknown): Date {
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') return new Date(value);
+  throw new TypeError(`시각으로 해석할 수 없는 값: ${String(value)}`);
+}
 
 export const NERV_DB = Symbol('NERV_DB');
 export const NERV_PG_POOL = Symbol('NERV_PG_POOL');
