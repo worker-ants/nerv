@@ -117,16 +117,14 @@ describe('스파이크: 크로스파드 팬아웃 (E06-S01)', () => {
       deliver: (e) => b.push(e.id),
     });
 
-    const envelope = await podA
-      .get(EventService)
-      .transact(async (_tx, emit) =>
-        emit({
-          type: NERV_EVENT.SPEC_APPROVED,
-          projectId,
-          subjectType: 'spec_version',
-          subjectId: newId(),
-        }),
-      );
+    const envelope = await podA.get(EventService).transact(async (_tx, emit) =>
+      emit({
+        type: NERV_EVENT.SPEC_APPROVED,
+        projectId,
+        subjectType: 'spec_version',
+        subjectId: newId(),
+      }),
+    );
 
     await waitFor(() => a.length > 0 && b.length > 0);
     // 중복 전달이 없다 — 파드마다 자기 연결에만 밀어준다
