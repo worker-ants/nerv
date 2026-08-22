@@ -1,0 +1,92 @@
+# deploy/docker/nginx/default.conf.template
+# 정본: docs/04-mvp/codebase.md §5.4
+#
+# nginx 공식 이미지의 envsubst 템플릿 기능을 쓴다 — 기동 시 ${NERV_API_UPSTREAM}·
+# ${NERV_PUBLIC_ORIGIN} 이 치환된 뒤 로드되므로, compose(api:8080)와 k8s(nerv-api:8080)가
+# 같은 이미지를 쓴다.
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ""      close;
+}
+
+# /mcp Origin 1차 검증 — 비브라우저 클라이언트(Origin 없음)와 자기 오리진만 허용.
+# 최종 강제는 앱의 mcp-origin.guard.ts (REQ-CB-013).
+map $http_origin $nerv_mcp_origin_ok {
+  default                 0;
+  ""                      1;
+  "${NERV_PUBLIC_ORIGIN}" 1;
+}
+
+upstream nerv_api {
+  server ${NERV_API_UPSTREAM};
+}
+
+server {
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+
+  # SPA — 정적 자산, 나머지 경로는 index.html
+  location / {
+    try_files $uri /index.html;
+  }
+  location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  location /api/ {
+    proxy_pass http://nerv_api;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location /mcp {
+    if ($nerv_mcp_origin_ok = 0) { return 403; }
+    proxy_pass http://nerv_api;
+    proxy_http_version 1.1;
+    proxy_buffering off;               # Streamable HTTP 응답 스트림
+    proxy_read_timeout 300s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location /ingest/ {
+    client_max_body_size 5m;           # 훅 페이로드 상한
+    proxy_pass http://nerv_api;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # SSE — 단방향 이벤트 스트림, 버퍼링 금지 (REQ-CB-014)
+  location /sse/ {
+    proxy_pass http://nerv_api;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 3600s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # WebSocket — socket.io 어댑터의 path 설정값(/ws · 4.4 §3.1), websocket 전송만(폴링 폴백 off)
+  location /ws/ {
+    proxy_pass http://nerv_api;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location = /healthz {
+    proxy_pass http://nerv_api;
+  }
+}

@@ -8,7 +8,9 @@
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run",
-    "dev": "node --watch dist/main.js"
+    "dev": "node --watch dist/main.js",
+    "db:migrate": "node dist/migrate.js",
+    "db:seed": "node dist/seed.js"
   },
   "dependencies": {
     "@nerv/schema": "workspace:*",

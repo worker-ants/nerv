@@ -801,7 +801,10 @@ server {
 ```dockerfile
 # deploy/docker/Dockerfile.server — nerv-api · nerv-worker 공용 정의
 # 빌드 컨텍스트는 저장소 루트라 소스 경로에 codebase/ 접두가 붙는다 (REQ-CB-015, §5.3).
-FROM node:24-bookworm-slim AS build          # .nvmrc 의 Node LTS 와 동일 메이저 (REQ-CB-002)
+# 주의: Dockerfile 은 인라인 주석을 허용하지 않는다 — 주석은 항상 줄머리에 둔다.
+
+# .nvmrc 의 Node LTS 와 동일 메이저 (REQ-CB-002)
+FROM node:24-bookworm-slim AS build
 WORKDIR /app
 RUN corepack enable
 COPY codebase/pnpm-lock.yaml codebase/pnpm-workspace.yaml codebase/package.json ./
@@ -809,9 +812,13 @@ COPY codebase/apps/api/package.json apps/api/
 COPY codebase/packages/schema/package.json packages/schema/
 RUN pnpm fetch
 COPY codebase/ .
+# deploy --prod 가 실행 파일 + prod 의존성만 /out 으로 추출한다.
+# --legacy: pnpm v10 부터 deploy 는 inject-workspace-packages=true 를 요구하는데, 주입을 켜면
+# 워크스페이스 의존이 심링크가 아니라 복사본이 되어 개발 루프(schema 수정 → api 즉시 반영)가
+# 깨진다. 배포 산출물 추출은 이미지 빌드에서만 필요하므로 여기서만 legacy 경로를 쓴다.
 RUN pnpm install --frozen-lockfile --offline \
  && pnpm --filter @nerv/api build \
- && pnpm --filter @nerv/api deploy --prod /out   # 실행 파일 + prod 의존성만 추출
+ && pnpm --filter @nerv/api deploy --legacy --prod /out
 
 FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production
@@ -819,11 +826,13 @@ USER node
 WORKDIR /app
 COPY --from=build --chown=node:node /out .
 
-FROM runtime AS api                          # → nerv-api  (migrate.js 도 이 이미지에 포함)
+# → nerv-api  (migrate.js 도 이 이미지에 포함)
+FROM runtime AS api
 EXPOSE 8080
 CMD ["node", "dist/main.js"]
 
-FROM runtime AS worker                       # → nerv-worker
+# → nerv-worker
+FROM runtime AS worker
 CMD ["node", "dist/worker.js"]
 ```
 

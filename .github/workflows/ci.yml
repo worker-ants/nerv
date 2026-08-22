@@ -1,0 +1,104 @@
+# NERV CI — 정본: docs/04-mvp/codebase.md §4.5 (REQ-CB-007 · REQ-CB-018)
+#
+# 워크플로 파일은 GitHub Actions 규약상 저장소 루트 .github/workflows/ 에 둔다 —
+# REQ-CB-015 의 "저장소 메타 파일"에 해당하며 codebase/ 배치 원칙의 예외가 아니라 그 정의 안이다.
+#
+# 잡 3종은 테스트 3계층(§4.3)과 1:1 이다.
+#   check       매 PR — lint · typecheck · L1 + 스키마 드리프트 검사
+#   integration 매 PR — L2(실제 Postgres). 이 코드베이스의 무게중심이다
+#   e2e         merge_group + 야간 — L3(compose 스택 상대)
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  schedule:
+    # 야간 E2E (UTC 18:00 = KST 03:00)
+    - cron: '0 18 * * *'
+
+# 명령은 모노레포 루트(codebase/)에서 실행한다 — deploy/ 만 저장소 루트 기준이다(§1.1).
+defaults:
+  run:
+    working-directory: codebase
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (lint · typecheck · L1)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Node 버전의 단일 정본은 .nvmrc 다 (REQ-CB-002)
+          node-version-file: codebase/.nvmrc
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm exec tsc -b
+      - run: pnpm test
+      - name: schema drift
+        # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제.
+        # 선언만 바꾸고 drizzle/*.sql 을 빠뜨린 PR 은 여기서 멈춘다.
+        run: pnpm db:generate && git diff --exit-code -- packages/schema/drizzle
+
+  integration:
+    name: integration (L2 · 실제 Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # compose 와 동일 이미지 (§5.3) — vector 확장이 마이그레이션에 필요하다
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: codebase/.nvmrc
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate && pnpm test:integration
+        env:
+          DATABASE_URL: postgres://postgres:ci@localhost:5432/postgres
+
+  e2e:
+    name: e2e (L3 · compose 스택)
+    # PR 마다 돌리지 않는다 — merge_group 과 야간 스케줄에서만(§4.3)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: codebase/.nvmrc
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: compose up
+        # local-embed 프로필 없이 기동 — CI 에서 모델 가중치(수 GB) 다운로드 금지.
+        # 검색 E2E 는 렉시컬 degrade 경로(REQ-API-026)로 검증하고, 벡터 품질은
+        # E06-S06 스파이크·스테이징 소관이다.
+        run: |
+          cp .env.example .env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci/' .env
+          sed -i 's/^MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=ciminiopassword/' .env
+          sed -i "s|^NERV_AUTH_SECRET=.*|NERV_AUTH_SECRET=$(openssl rand -base64 32)|" .env
+          docker compose -f ../deploy/compose/docker-compose.yml --env-file .env up -d --build
+      - run: pnpm test:e2e
+      - name: compose logs (실패 시)
+        if: failure()
+        run: docker compose -f ../deploy/compose/docker-compose.yml --env-file .env logs --tail 200
+      - name: compose down
+        if: always()
+        run: docker compose -f ../deploy/compose/docker-compose.yml --env-file .env down -v

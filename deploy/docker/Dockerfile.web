@@ -1,0 +1,19 @@
+# deploy/docker/Dockerfile.web — nerv-web
+# 정본: docs/04-mvp/codebase.md §6.1
+#
+# 빌드 컨텍스트는 저장소 루트 — 소스는 codebase/, nginx 템플릿은 deploy/docker/nginx/ 다.
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+RUN corepack enable
+COPY codebase/pnpm-lock.yaml codebase/pnpm-workspace.yaml codebase/package.json ./
+COPY codebase/apps/web/package.json apps/web/
+COPY codebase/packages/schema/package.json packages/schema/
+RUN pnpm fetch
+COPY codebase/ .
+RUN pnpm install --frozen-lockfile --offline && pnpm --filter @nerv/web build
+
+FROM nginx:1.27-alpine
+COPY deploy/docker/nginx/default.conf.template /etc/nginx/templates/
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+ENV NERV_API_UPSTREAM=api:8080 \
+    NERV_PUBLIC_ORIGIN=http://localhost:8080
