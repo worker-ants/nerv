@@ -6,6 +6,7 @@ import { AuthModule } from '../auth/auth.module.js';
 import { EventModule } from '../event/event.module.js';
 import { BaselineService } from './baseline.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
+import { MirrorController } from './mirror.controller.js';
 import { SpecController } from './spec.controller.js';
 import { SpecCheckService } from './spec-check.service.js';
 import { SpecRelationService } from './spec-relation.service.js';
@@ -16,7 +17,7 @@ import { SpecTools } from './spec.tools.js';
 
 @Module({
   imports: [EventModule, AuthModule],
-  controllers: [SpecController],
+  controllers: [SpecController, MirrorController],
   providers: [
     SpecService,
     SpecCheckService,

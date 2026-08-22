@@ -157,6 +157,118 @@ export class SessionService {
     return { accepted: rows.length > 0 };
   }
 
+  /** 훅이 세션 신원을 조인하는 키 — 하네스가 발급한 external_session_id 다(§3.3). */
+  async findByExternalId(projectId: string, externalSessionId: string): Promise<string | null> {
+    const { rows } = await this.db.execute<{ id: string }>(sql`
+      SELECT id FROM agent_session
+       WHERE project_id = ${projectId} AND external_session_id = ${externalSessionId}
+       ORDER BY started_at DESC LIMIT 1
+    `);
+    return rows[0]?.id ?? null;
+  }
+
+  /** SessionStart 훅의 additionalContext 재료 — "너는 지금 무엇을 쥐고 있나". */
+  async activeClaimSummary(
+    sessionId: string,
+  ): Promise<{ task_key: string; status: string; lease_expires_at: unknown }[]> {
+    const { rows } = await this.db.execute<{
+      task_key: string;
+      status: string;
+      lease_expires_at: unknown;
+    }>(sql`
+      SELECT t.key AS task_key, t.status::text AS status, c.lease_expires_at
+        FROM claim c JOIN task t ON t.id = c.task_id
+       WHERE c.agent_session_id = ${sessionId} AND c.status = 'active'
+       ORDER BY c.acquired_at
+    `);
+    return rows;
+  }
+
+  /**
+   * 훅이 적재하는 Activity — seq 를 서버가 매긴다.
+   *
+   * MCP `nerv_session_event` 는 에이전트가 seq 를 들고 오지만(멱등 축), 훅은 그렇지 않다.
+   * 순서만 지키면 되므로 현재 최대 + 1 을 쓴다 — 훅이 유실돼도 타임라인은 이어진다.
+   */
+  async appendHookActivity(input: {
+    sessionId: string;
+    projectId: string;
+    type: 'thought' | 'action' | 'elicitation' | 'response' | 'error';
+    title: string | null;
+    toolName: string | null;
+    payload?: Record<string, unknown>;
+  }): Promise<{ accepted: boolean }> {
+    const { rows } = await this.db.execute<{ next: string }>(
+      sql`SELECT coalesce(max(seq), 0) + 1 AS next FROM activity WHERE session_id = ${input.sessionId}`,
+    );
+    return this.appendActivity({
+      sessionId: input.sessionId,
+      projectId: input.projectId,
+      seq: BigInt(rows[0]?.next ?? '1'),
+      type: input.type,
+      title: input.title,
+      toolName: input.toolName,
+      ...(input.payload === undefined ? {} : { payload: input.payload }),
+    });
+  }
+
+  /**
+   * SessionEnd — 종료 전이 + **미해제 클레임 회수**.
+   *
+   * 회수가 이 메서드의 핵심이다: 세션이 끝났는데 클레임이 남으면 그 Task 는 리스 TTL(30분)
+   * 동안 아무도 못 잡는다. 끝난 것을 아는 순간 돌려놓는 것이 D-13 의 취지다.
+   */
+  async finish(input: {
+    sessionId: string;
+    projectId: string;
+    reason: 'complete' | 'error';
+    userId: string;
+  }): Promise<{ state: string; reclaimed: number }> {
+    return this.events.transact(async (tx, emit) => {
+      await tx.execute(sql`
+        UPDATE agent_session
+           SET state = ${input.reason}::session_state, ended_at = now(),
+               end_reason = ${input.reason}::session_end_reason
+         WHERE id = ${input.sessionId} AND project_id = ${input.projectId}
+      `);
+
+      const { rows: released } = await tx.execute<{ id: string; task_id: string }>(sql`
+        UPDATE claim SET status = 'released', released_at = now(), release_reason = 'manual'
+         WHERE agent_session_id = ${input.sessionId} AND status = 'active'
+        RETURNING id, task_id
+      `);
+      for (const claim of released) {
+        await tx.execute(sql`
+          UPDATE task SET status = 'ready', delegate_session_id = NULL, updated_at = now()
+           WHERE id = ${claim.task_id} AND status IN ('claimed', 'in_progress')
+        `);
+        await emit({
+          type: NERV_EVENT.CLAIM_RELEASED,
+          projectId: input.projectId,
+          subjectType: 'claim',
+          subjectId: claim.id,
+          actorUserId: input.userId,
+          actorSessionId: input.sessionId,
+          isAgent: true,
+          payload: { reason: 'session_end' },
+        });
+      }
+
+      await emit({
+        type: input.reason === 'error' ? NERV_EVENT.SESSION_COMPLETE : NERV_EVENT.SESSION_COMPLETE,
+        projectId: input.projectId,
+        subjectType: 'agent_session',
+        subjectId: input.sessionId,
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId,
+        isAgent: true,
+        toState: input.reason,
+      });
+
+      return { state: input.reason, reclaimed: released.length };
+    });
+  }
+
   /**
    * EP-SES-04 — steer/stop. **사람이 달리는 세션에 개입하는 유일한 경로**다(FR-08).
    *

@@ -834,6 +834,59 @@ export class SpecService {
     return { evidence_id: evidenceId, ref: input.ref, kind: input.kind, locator: input.locator };
   }
 
+  /**
+   * EP-MIR-01 — md 미러. **DB 가 진실이고 md 는 그 표현이다**(D-09).
+   *
+   * 이 표면이 있는 이유는 에이전트·CI·사람이 "그냥 문서를 읽고 싶을 때" REST 봉투를 벗기지
+   * 않아도 되게 하기 위해서다. frontmatter 에 안정 ID·버전·상태·승인자를 실어, 파일로
+   * 저장해도 출처를 잃지 않게 한다.
+   */
+  async mirrorMarkdown(input: {
+    projectId: string;
+    specKey: string;
+    versionNo?: number | null;
+  }): Promise<string> {
+    const spec = await this.get(input);
+    const requirements = (spec['requirements'] ?? []) as Record<string, unknown>[];
+    const frontmatter = [
+      '---',
+      `id: ${String(spec['key'])}`,
+      `title: ${String(spec['title'])}`,
+      `type: ${String(spec['type'])}`,
+      `version: ${String(spec['version_no'])}`,
+      `status: ${String(spec['doc_status'])}`,
+      `requirements: [${requirements.map((r) => String(r['ref'])).join(', ')}]`,
+      // 이 파일이 어느 시점의 스냅샷인지 — 버전 지정 조회의 근거가 된다
+      `basis_superseded: ${String(spec['basis_superseded'] === true)}`,
+      '---',
+      '',
+    ].join('\n');
+    return `${frontmatter}${String(spec['body_md'] ?? '')}`;
+  }
+
+  /**
+   * EP-MIR-02 — `llms.txt`. 스펙 트리의 색인이다(llms.txt v2 형식).
+   *
+   * 에이전트가 처음 붙었을 때 "이 프로젝트에 무엇이 있나"를 한 파일로 answer 한다 —
+   * 트리 API 를 부르지 못하는 소비자(웹 크롤러·다른 도구)도 같은 지도를 본다.
+   */
+  async llmsTxt(input: { projectId: string; projectName: string }): Promise<string> {
+    const nodes = await this.tree({ projectId: input.projectId });
+    const lines = [
+      `# ${input.projectName}`,
+      '',
+      '> NERV 스펙 트리 색인. 각 항목은 승인된 최신 버전의 md 미러를 가리킨다.',
+      '',
+      '## 스펙',
+      '',
+    ];
+    for (const node of nodes) {
+      const status = node.doc_status === null ? 'draft' : node.doc_status;
+      lines.push(`- [${node.title}](./specs/${node.key}.md): ${node.type} · ${status}`);
+    }
+    return `${lines.join('\n')}\n`;
+  }
+
   // ── 내부 ─────────────────────────────────────────────────────────────────
 
   /**

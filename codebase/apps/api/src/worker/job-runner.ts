@@ -12,7 +12,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HEARTBEAT_INTERVAL_SECONDS } from '@nerv/schema';
 import { AdvisoryLock } from './advisory-lock.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
+import { ExportJob } from './jobs/export.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
+import { RetentionJob } from './jobs/retention.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
 import { SessionStaleJob } from './jobs/session-stale.job.js';
 
@@ -35,6 +37,8 @@ export class JobRunner {
     sessionStale: SessionStaleJob,
     notification: NotificationJob,
     embedding: EmbeddingJob,
+    retention: RetentionJob,
+    exporter: ExportJob,
   ) {
     const heartbeat = HEARTBEAT_INTERVAL_SECONDS * 1000;
     this.schedule = [
@@ -56,6 +60,15 @@ export class JobRunner {
       // 임베딩은 비싸고 급하지 않다. 저장 직후 수 초간 벡터 결과에 새 본문이 빠지는
       // 비대칭은 문서가 이미 수용했다(api.md §2.2b "인덱싱 시점").
       { name: embedding.name, everyMs: heartbeat * 5, run: () => embedding.run(), lastRunAt: null },
+      // 보존 정책·미러는 하루 단위 작업이다 — 자주 돌 이유가 없고, 자주 돌면 삭제가
+      // 사용자의 작업 시간과 겹친다. 1시간 주기로 두고 잡 내부가 날짜로 판정한다.
+      {
+        name: retention.name,
+        everyMs: heartbeat * 60,
+        run: () => retention.run(),
+        lastRunAt: null,
+      },
+      { name: exporter.name, everyMs: heartbeat * 60, run: () => exporter.run(), lastRunAt: null },
     ];
   }
 

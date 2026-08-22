@@ -20,6 +20,11 @@ import { SessionService } from '../../src/modules/session/session.service.js';
 import { SessionStaleJob } from '../../src/worker/jobs/session-stale.job.js';
 import { EmbeddingJob } from '../../src/worker/jobs/embedding.job.js';
 import { EmbeddingService } from '../../src/modules/spec/embedding.service.js';
+import { ExportJob } from '../../src/worker/jobs/export.job.js';
+import { RetentionJob } from '../../src/worker/jobs/retention.job.js';
+import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
+import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
+import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -55,6 +60,16 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
     new SessionStaleJob(new SessionService(new EventService(drizzleDb, silent), drizzleDb)),
     new NotificationJob(new NotificationService(drizzleDb)),
     new EmbeddingJob(new EmbeddingService(drizzleDb)),
+    new RetentionJob(drizzleDb),
+    new ExportJob(
+      new SpecService(
+        new EventService(drizzleDb, silent),
+        new SpecCheckService(drizzleDb),
+        new SpecRelationService(drizzleDb),
+        drizzleDb,
+      ),
+      drizzleDb,
+    ),
   );
   return { runner, lock };
 }
