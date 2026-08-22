@@ -8,7 +8,9 @@ import { AuthModule } from '../auth/auth.module.js';
 import { EventController } from './event.controller.js';
 import { EventService } from './event.service.js';
 import { EventSubscriberService } from './event-subscriber.service.js';
+import { FanoutService } from './fanout.service.js';
 import { NotificationService } from './notification.service.js';
+import { SseAccessGuard } from './sse-access.guard.js';
 import { SseController } from './sse.controller.js';
 import { ValkeyService } from './valkey.service.js';
 import { WsGateway } from './ws.gateway.js';
@@ -16,7 +18,21 @@ import { WsGateway } from './ws.gateway.js';
 @Module({
   imports: [AuthModule],
   controllers: [EventController, SseController],
-  providers: [EventService, NotificationService, ValkeyService, EventSubscriberService, WsGateway],
-  exports: [EventService, ValkeyService, NotificationService],
+  providers: [
+    EventService,
+    NotificationService,
+    ValkeyService,
+    EventSubscriberService,
+    FanoutService,
+    SseAccessGuard,
+    WsGateway,
+  ],
+  exports: [
+    EventService,
+    ValkeyService,
+    NotificationService,
+    FanoutService,
+    EventSubscriberService,
+  ],
 })
 export class EventModule {}

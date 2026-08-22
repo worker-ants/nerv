@@ -30,6 +30,8 @@ import { TaskTools } from './modules/task/task.tools.js';
 import { WsGateway } from './modules/event/ws.gateway.js';
 import { SseController } from './modules/event/sse.controller.js';
 import { EventService } from './modules/event/event.service.js';
+import { FanoutService } from './modules/event/fanout.service.js';
+import { AuthService } from './modules/auth/auth.service.js';
 import { LeaseReaperJob } from './worker/jobs/lease-reaper.job.js';
 import { SessionStaleJob } from './worker/jobs/session-stale.job.js';
 import { McpController } from './mcp/mcp.controller.js';
@@ -68,10 +70,23 @@ describe('AppModule — D-05 표면 5종의 도메인 서비스 공유', () => {
     expect(injected(app.get(IngestController), 'sessions')).toBe(service);
   });
 
-  it('WS 게이트웨이와 SSE 컨트롤러가 같은 EventService 인스턴스를 받는다', () => {
-    const service = app.get(EventService);
-    expect(injected(app.get(SseController), 'events')).toBe(service);
-    expect(injected(app.get(WsGateway), 'events')).toBe(service);
+  it('WS 게이트웨이와 SSE 컨트롤러가 같은 FanoutService 를 받는다 — 룸 계산이 한 곳이다', () => {
+    // 두 실시간 표면이 같은 팬아웃을 쓴다는 것이 D-05 의 실시간 축이다. 각자 구독을 만들면
+    // 룸 계산·상한 판정이 표면마다 갈라지고, 그때부터 "WS 로는 오는데 SSE 로는 안 오는" 버그가 생긴다.
+    const fanout = app.get(FanoutService);
+    expect(injected(app.get(SseController), 'fanout')).toBe(fanout);
+    expect(injected(app.get(WsGateway), 'fanout')).toBe(fanout);
+  });
+
+  it('WS 게이트웨이는 멤버십 판정을 AuthService 에 묻는다 — 표면이 직접 판정하지 않는다', () => {
+    expect(injected(app.get(WsGateway), 'auth')).toBe(app.get(AuthService));
+  });
+
+  it('도메인 서비스 전부가 같은 EventService 를 받는다 — 이벤트 적재가 한 경로다', () => {
+    const events = app.get(EventService);
+    expect(injected(app.get(SpecService), 'events')).toBe(events);
+    expect(injected(app.get(TaskService), 'events')).toBe(events);
+    expect(injected(app.get(SessionService), 'events')).toBe(events);
   });
 });
 
