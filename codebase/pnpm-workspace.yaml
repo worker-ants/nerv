@@ -1,0 +1,8 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# 빌드 스크립트 실행을 허용하는 의존성 화이트리스트(pnpm 10) —
+# 승인하지 않으면 esbuild 바이너리가 설치되지 않아 vitest·vite 가 동작하지 않는다.
+onlyBuiltDependencies:
+  - esbuild

@@ -1,0 +1,35 @@
+{
+  "name": "@nerv/schema",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "NERV 타입·상수의 단일 정본 — drizzle 테이블 · zod · 도메인 상수 · 이벤트 이름 · 에러 코드 (docs/04-mvp/codebase.md §3)",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "drizzle"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "zod": "^4.4.3"
+  }
+}

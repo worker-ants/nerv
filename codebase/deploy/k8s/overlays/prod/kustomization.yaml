@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: nerv-api
+    newName: registry.example.com/nerv/nerv-api
+    newTag: '<git-sha>' # CI 가 배포 시점에 치환 — 3종 동일 SHA (REQ-CB-012)
+  - name: nerv-worker
+    newName: registry.example.com/nerv/nerv-worker
+    newTag: '<git-sha>'
+  - name: nerv-web
+    newName: registry.example.com/nerv/nerv-web
+    newTag: '<git-sha>'
+patches:
+  - path: ingress-host.yaml
+  - path: api-replicas.yaml
+  - path: resources.yaml

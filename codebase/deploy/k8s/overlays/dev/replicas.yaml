@@ -1,0 +1,14 @@
+# dev 는 단일 파드 — 크로스파드 팬아웃 검증은 E06-S01 스파이크가 별도로 한다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-api
+spec:
+  replicas: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-web
+spec:
+  replicas: 1

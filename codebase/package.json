@@ -1,0 +1,39 @@
+{
+  "name": "nerv",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NERV — AI 에이전트 협업 개발 플랫폼 (모노레포 루트, docs/04-mvp/codebase.md §1)",
+  "packageManager": "pnpm@10.23.0",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:integration": "pnpm -r test:integration",
+    "test:e2e": "pnpm -r test:e2e",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -b",
+    "db:generate": "pnpm --filter @nerv/schema db:generate",
+    "db:migrate": "pnpm --filter @nerv/api db:migrate",
+    "db:seed": "pnpm --filter @nerv/api db:seed",
+    "compose:up": "docker compose -f deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build",
+    "compose:infra": "docker compose -f deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d postgres minio valkey embed",
+    "compose:down": "docker compose -f deploy/compose/docker-compose.yml --env-file .env down"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.3",
+    "eslint": "^10.9.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.11"
+  }
+}

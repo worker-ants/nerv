@@ -1,0 +1,10 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nerv
+spec:
+  tls:
+    - hosts: [nerv.dev.example.com]
+      secretName: nerv-tls
+  rules:
+    - host: nerv.dev.example.com

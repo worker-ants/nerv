@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+.tsbuild
+*.tsbuildinfo
+pnpm-lock.yaml
+packages/schema/drizzle

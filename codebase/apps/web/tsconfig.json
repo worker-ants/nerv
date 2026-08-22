@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "_comment": "브라우저 번들 대상이라 module/moduleResolution 을 base 의 nodenext 에서 bundler 로 완화한다(docs/04-mvp/codebase.md §4.1 — 워크스페이스 tsconfig 에서만, 사유와 함께). 방출은 Vite 가 하고 tsc 는 타입 검사만 하므로 선언만 .tsbuild 로 낸다.",
+  "compilerOptions": {
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": [],
+    "rootDir": "./src",
+    "outDir": "./.tsbuild",
+    "emitDeclarationOnly": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["dist", ".tsbuild", "test"],
+  "references": [{ "path": "../../packages/schema" }]
+}

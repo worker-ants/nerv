@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-web
+  labels: { app: nerv-web }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: nerv-web }
+  template:
+    metadata:
+      labels: { app: nerv-web }
+    spec:
+      containers:
+        - name: web
+          image: nerv-web # nginx + Vite 산출물 (§6.1 Dockerfile.web)
+          ports:
+            - { containerPort: 80, name: http }
+          env:
+            - { name: NERV_API_UPSTREAM, value: 'nerv-api:8080' }
+            - name: NERV_PUBLIC_ORIGIN # /mcp Origin 1차 검증 기준 — 최종 강제는 앱 가드(REQ-CB-013)
+              valueFrom:
+                configMapKeyRef: { name: nerv-config, key: NERV_PUBLIC_URL }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }

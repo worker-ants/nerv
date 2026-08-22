@@ -1,0 +1,31 @@
+# 방송 MQ — pub/sub 전용이라 무영속·단일 replica 로 시작한다.
+# 재기동 구간의 이벤트 유실은 허용된다(D-14 — 클라이언트 재조회·워커 폴링 폴백).
+# HA(센티널·관리형)는 유실 재조회 비용이 실측 임계를 넘을 때의 재검토 항목이다(4.1 §2.2).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-valkey
+  labels: { app: nerv-valkey }
+spec:
+  replicas: 1 # pub/sub 전용 — 무영속, 재기동 시 유실 허용(D-14)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: nerv-valkey }
+  template:
+    metadata:
+      labels: { app: nerv-valkey }
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8-alpine
+          args: ['valkey-server', '--save', '', '--appendonly', 'no']
+          ports:
+            - { containerPort: 6379, name: redis }
+          readinessProbe:
+            exec: { command: ['valkey-cli', 'ping'] }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }

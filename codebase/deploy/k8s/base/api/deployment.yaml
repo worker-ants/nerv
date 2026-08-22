@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-api
+  labels: { app: nerv-api }
+spec:
+  replicas: 2 # 무상태 — 팬아웃은 파드별 Valkey SUBSCRIBE(§2.1)라 스티키 불필요
+  selector:
+    matchLabels: { app: nerv-api }
+  template:
+    metadata:
+      labels: { app: nerv-api }
+    spec:
+      containers:
+        - name: api
+          image: nerv-api # 태그는 overlay images: 로 고정 (§6.4)
+          ports:
+            - { containerPort: 8080, name: http }
+          envFrom:
+            - configMapRef: { name: nerv-config }
+            - secretRef: { name: nerv-secrets }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 1Gi }

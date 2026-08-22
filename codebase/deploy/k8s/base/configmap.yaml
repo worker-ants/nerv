@@ -1,0 +1,16 @@
+# 비밀이 아닌 설정 — 비밀은 nerv-secrets(별도 주입, §6.2)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nerv-config
+data:
+  NERV_API_PORT: '8080'
+  NERV_PUBLIC_URL: 'https://nerv.example.com'
+  NERV_LOG_LEVEL: 'info'
+  NERV_VALKEY_URL: 'redis://nerv-valkey:6379'
+  NERV_S3_BUCKET: 'nerv-blobs'
+  NERV_S3_FORCE_PATH_STYLE: 'true'
+  # 임베딩 제공자 프로필(§5.2a) — 자가호스팅이면 http://nerv-embed/v1,
+  # 외부 제공자면 그 base URL 로 바꾸고 base/embed/ 를 오버레이에서 제외한다.
+  NERV_EMBED_URL: 'http://nerv-embed/v1'
+  NERV_EMBED_MODEL: 'BAAI/bge-m3'

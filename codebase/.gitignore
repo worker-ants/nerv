@@ -1,0 +1,18 @@
+# 의존성·빌드 산출물
+node_modules/
+dist/
+.tsbuild/
+*.tsbuildinfo
+
+# 로컬 환경 — .env.example 만 커밋한다 (docs/04-mvp/codebase.md §5.2)
+.env
+.env.local
+
+# 테스트 산출물
+coverage/
+playwright-report/
+test-results/
+
+# 도구 캐시
+.vite/
+.eslintcache

@@ -1,0 +1,20 @@
+{
+  "name": "@nerv/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NERV API — REST · MCP · WebSocket · SSE · ingest 다섯 표면과 도메인 서비스, 워커 잡 (docs/04-mvp/codebase.md §2)",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@nerv/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

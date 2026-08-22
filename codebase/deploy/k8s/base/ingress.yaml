@@ -1,0 +1,51 @@
+# WebSocket 은 /ws (socket.io 어댑터의 path 설정값 — 계약 정본 docs/04-mvp/api.md §3.1).
+# /mcp Origin 검증의 최종 강제는 앱 가드(mcp-origin.guard.ts)다 — Ingress 스니펫 주입은
+# 조직 보안 정책상 비활성인 클러스터가 많아 의존하지 않는다(REQ-CB-013).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nerv
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600' # WebSocket · SSE 유휴 연결 유지
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-buffering: 'off' # SSE 스트림 버퍼링 금지 (REQ-CB-014)
+    nginx.ingress.kubernetes.io/proxy-body-size: '5m' # 훅 페이로드 상한(§5.4 와 동일)
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [nerv.example.com]
+      secretName: nerv-tls
+  rules:
+    - host: nerv.example.com
+      http:
+        paths:
+          - {
+              path: /api,
+              pathType: Prefix,
+              backend: { service: { name: nerv-api, port: { name: http } } },
+            }
+          - {
+              path: /mcp,
+              pathType: Prefix,
+              backend: { service: { name: nerv-api, port: { name: http } } },
+            }
+          - {
+              path: /ingest,
+              pathType: Prefix,
+              backend: { service: { name: nerv-api, port: { name: http } } },
+            }
+          - {
+              path: /ws,
+              pathType: Prefix,
+              backend: { service: { name: nerv-api, port: { name: http } } },
+            }
+          - {
+              path: /sse,
+              pathType: Prefix,
+              backend: { service: { name: nerv-api, port: { name: http } } },
+            }
+          - {
+              path: /,
+              pathType: Prefix,
+              backend: { service: { name: nerv-web, port: { name: http } } },
+            }

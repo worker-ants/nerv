@@ -1,0 +1,17 @@
+{
+  "name": "@nerv/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NERV 웹 SPA — Vite + React, S1~S5·S7·S8 + 로그인 (docs/04-mvp/screens.md)",
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@nerv/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

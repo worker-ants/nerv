@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-worker
+  labels: { app: nerv-worker }
+spec:
+  replicas: 1 # 고정 — HPA 대상 제외 (REQ-CB-011)
+  strategy:
+    type: Recreate # 롤링 중 2개 동시 실행 창 제거
+  selector:
+    matchLabels: { app: nerv-worker }
+  template:
+    metadata:
+      labels: { app: nerv-worker }
+    spec:
+      containers:
+        - name: worker
+          image: nerv-worker
+          envFrom:
+            - configMapRef: { name: nerv-config }
+            - secretRef: { name: nerv-secrets }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+      # HTTP 포트·프로브 없음 — 잡 루프 실패는 프로세스 종료 → 재시작으로 처리

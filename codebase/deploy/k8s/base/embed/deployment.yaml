@@ -1,0 +1,36 @@
+# 로컬(자가호스팅) 임베딩 프로필 전용 — 정본: docs/04-mvp/codebase.md §5.2a · §6.2
+#
+# base/kustomization.yaml 의 resources 에 없다. 자가호스팅으로 운영하는 오버레이만
+# 이 디렉터리를 resources 에 추가하고 configmap 의 NERV_EMBED_URL 을 http://nerv-embed/v1 로 둔다.
+# 외부 제공자(LM Studio·OpenAI) 프로필은 이 리소스를 배포하지 않고 URL 만 외부로 바꾼다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-embed
+  labels: { app: nerv-embed }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: nerv-embed }
+  template:
+    metadata:
+      labels: { app: nerv-embed }
+    spec:
+      containers:
+        - name: embed
+          image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest # 운영은 버전 태그 고정
+          args: ['--model-id', 'BAAI/bge-m3'] # 1024 차원 (REQ-CB-021)
+          ports:
+            - { containerPort: 80, name: http }
+          volumeMounts:
+            - { name: models, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 500m, memory: 2Gi }
+            limits: { memory: 4Gi }
+      volumes:
+        - name: models
+          emptyDir: {} # 모델 가중치 캐시 — 재다운로드 가능하므로 백업 대상이 아니다(§6.5)
