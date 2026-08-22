@@ -68,6 +68,10 @@ export const NERV_EVENT = {
   /** 게이트 판정 불가 — fail-open (D-14) */
   GATE_FAILOPEN: 'gate.failopen',
 
+  // ── 증적 (P1) ────────────────────────────────────────────────────────────
+  /** ★ EP-REQ-03 · GitHub 웹훅 수집 — 증적이 붙어도 impl_status 는 자동으로 오르지 않는다 */
+  EVIDENCE_ADDED: 'evidence.added',
+
   // ── 임포트·알림 ──────────────────────────────────────────────────────────
   /** ★ EP-IMP-02·03·04 배치 적재 (P0) */
   IMPORT_APPLIED: 'import.applied',

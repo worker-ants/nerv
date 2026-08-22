@@ -21,6 +21,7 @@ describe('이벤트 이름 카탈로그', () => {
       'baseline',
       'claim',
       'comment',
+      'evidence',
       'gate',
       'import',
       'notification',

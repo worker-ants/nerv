@@ -14,7 +14,11 @@ import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
 
 export async function createApp(): Promise<NestFastifyApplication> {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
+  // rawBody 를 켠다 — GitHub 웹훅의 HMAC 은 **원문 바이트**로 계산되므로 파싱 후
+  // 재직렬화한 문자열로는 검증할 수 없다(키 순서·공백이 달라진다).
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
+    rawBody: true,
+  });
 
   app.useGlobalFilters(new NervExceptionFilter());
   app.useGlobalInterceptors(new ProjectScopeInterceptor());

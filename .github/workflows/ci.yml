@@ -42,6 +42,16 @@ jobs:
       - run: pnpm lint
       - run: pnpm exec tsc -b
       - run: pnpm test
+      - name: 배포 산출물 정합
+        # ① 백업 스크립트 사본(k8s configMapGenerator 용)이 정본과 갈라지지 않는지
+        #    — 갈라지면 운영에서 도는 절차와 문서가 달라진다
+        # ② kustomize 오버레이 2종이 실제로 빌드되는지(REQ-CB-010 의 전제)
+        working-directory: .
+        run: |
+          diff deploy/scripts/nerv-backup.sh deploy/k8s/base/backup/nerv-backup.sh
+          kubectl kustomize deploy/k8s/overlays/dev > /dev/null
+          kubectl kustomize deploy/k8s/overlays/prod > /dev/null
+
       - name: schema drift
         # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제.
         # 선언만 바꾸고 drizzle/*.sql 을 빠뜨린 PR 은 여기서 멈춘다.

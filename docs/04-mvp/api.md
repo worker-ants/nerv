@@ -13,6 +13,8 @@ updated: 2026-08-22
 >
 > v0.6 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1](scope.md) §2.1): ① **검색 파이프라인 §2.2b 신설** — ID 직행 → 렉시컬(FTS+trgm) + 벡터(pgvector) RRF 병합 → 관계 확장(graph RAG). EP-SPEC-02와 `nerv_spec_search`는 같은 서비스이므로 두 표면이 동시에 이 품질을 얻는다 ② **EP-SPEC-18 관계 조회 신설**(양방향·backlink) + EP-SPEC-03 `include[]`에 `relations` 추가 ③ REQ-API-025~027.
 >
+> v0.6 변경(2026-08-22 — 구현 착수 중 발견): **GitHub 웹훅 표면 EP-WHK-01 신설**(§2.9a). [4.8 백로그](backlog.md) E14-S03이 요구하는 "PR 웹훅 → Task evidence 수집"(FR-13)의 경로·인증(HMAC)·멱등 규칙이 어느 문서에도 없어 구현이 막혀 있었다. 인증이 다른 유일한 표면이며(GitHub은 우리 토큰을 들고 있지 않다), **판정하지 않는다**는 경계를 함께 못 박는다 — 증적 수집이 상태 전이나 커버리지 판정으로 번지면 Phase 2 범위를 조용히 당겨오게 된다. `evidence.added` 이벤트를 카탈로그에 추가(EP-REQ-03이 이미 참조하고 있었으나 이벤트 목록에 없던 누락 정정).
+>
 > v0.5 변경(2026-08-22 — 구현 착수 검토에서 발견된 공백 보완): ① **스펙 메타 표면 EP-SPEC-15~17 신설**(메타 수정·아카이브·복원 — §2.2). FR-01 "이동·개명에도 ID 불변"의 실행 경로가 없던 결함 해소, MCP `nerv_spec_draft_upsert`와의 메타 필드 계약 정합 규칙 포함 ② **`gate_policy`·`retention` 키 스키마 확정**(§2.1a) ③ **쿼터 시작값 확정**(§1.8) ④ **`spec_relation` 자동 추출 규칙**(§2.2 — 참조 전파(FR-02)가 임포트 없는 프로젝트에서도 동작하기 위한 전제) ⑤ REQ-API-020~024.
 >
 > v0.4 변경(2026-08-22): **임포트 표면 EP-IMP-01~05 신설**(§2.10) + `import:write` 스코프(§1.3) + `import.applied` 이벤트(§3.3) + REQ-API-017~019 — 임포터 실행 모델이 DB 직결에서 API 클라이언트로 확정된 데 따른 계약 추가([4.7 스펙 임포터](importer.md) §3.2).
@@ -367,6 +369,17 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 ### 2.9 훅 ingest (참조)
 
 훅 수집 엔드포인트 5종(`POST /ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)의 경로·헤더(`Authorization` Bearer, `X-NERV-Project`, `X-NERV-Host`)·응답 의미론(`additionalContext` 주입, `{"decision":"block"}` 종료 차단)은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3이 정본이고, 훅 페이로드 실물은 [4.6 플러그인과 온보딩](plugin.md)이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 **인증 필수**다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 `SessionService`를 주입받아 세션 전이·Activity 적재를 수행한다(§4 표).
+
+### 2.9a GitHub 웹훅 ingest — Task ↔ PR 링크 (FR-13)
+
+| ID | 메서드 · 경로 | 인증 | 요청 | 응답 | 발생 이벤트 |
+| --- | --- | --- | --- | --- | --- |
+| EP-WHK-01 | `POST /ingest/webhooks/github/{proj}` | **HMAC 서명**(`X-Hub-Signature-256`, 시크릿 `NERV_GITHUB_WEBHOOK_SECRET`) — PAT 아님 | GitHub `pull_request`·`push` 페이로드 원문 | `{ok, event, matched_task, evidence_id, skipped_reason}` | ★`evidence.added`(수집 시) |
+
+- **인증이 다른 이유**: GitHub은 우리 토큰을 들고 있지 않다. 그래서 이 라우트만 세션·PAT 가드 밖이고, 대신 서명 검증을 통과하지 못하면 아무것도 하지 않는다. 시크릿이 설정돼 있지 않으면 **거부**한다 — 검증 없는 웹훅은 누구나 증적을 만들 수 있는 문이고, 증적은 done 게이트의 입력이다(FR-10). 서명은 **원문 바이트**로 계산하므로 API는 rawBody를 보존한다.
+- **연결 축은 Task 키**다. 브랜치·PR 제목·본문·커밋 메시지 어디에 있든 `TSK-…`를 찾으면 그 Task에 붙인다 — 커밋 메시지 규약을 새로 만들지 않는 이유는, 규약이 늘수록 지켜지지 않기 때문이다.
+- **판정하지 않는다.** PR이 열렸다는 사실을 `evidence`(kind=`pr`/`commit`, source=`ci`)로 남길 뿐 Task 상태를 옮기거나 커버리지를 올리지 않는다 — 리뷰 커버리지 판정은 Phase 2(FR-09)이고, "무엇이 완료됐나"는 사람·게이트의 판단이다.
+- **재전송이 정상이다.** 같은 (task, kind, locator) 증적은 한 번만 만들고, 두 번째부터는 `skipped_reason`에 멱등 사실을 담아 200으로 답한다. Task를 못 찾은 경우도 200 + 사유다 — GitHub 배달 로그가 곧 디버깅 경로이고, 4xx로 답하면 GitHub이 무의미한 재전송을 반복한다.
 
 ### 2.10 임포트 (EP-IMP — [4.7 스펙 임포터](importer.md) §3.2)
 

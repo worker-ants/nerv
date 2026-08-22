@@ -1,0 +1,52 @@
+# 일 1회 Postgres 백업 — codebase.md §6.5 (REQ-CB-019)
+#
+# 유일한 SoT 가 Postgres 라서 이것 하나가 백업의 전부다. RPO 24h 는 파일럿 규모의 시작값이고
+# (NFR-04 에서 수용), 실측 후 조정한다.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nerv-backup
+spec:
+  schedule: '17 18 * * *' # UTC — 한국 새벽 3시 17분. 정각을 피해 다른 잡과 겹치지 않게
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: backup
+              # postgres 클라이언트만 필요하다 — 애플리케이션 이미지를 쓰지 않는 이유는
+              # 백업이 앱 배포 주기에 묶이면 안 되기 때문이다.
+              image: postgres:17-alpine
+              command: ['/bin/sh', '/scripts/nerv-backup.sh']
+              envFrom:
+                - secretRef: { name: nerv-secrets }
+              env:
+                - name: NERV_BACKUP_DIR
+                  value: /backups
+              volumeMounts:
+                - { name: scripts, mountPath: /scripts }
+                - { name: backups, mountPath: /backups }
+          volumes:
+            - name: scripts
+              configMap:
+                name: nerv-backup-scripts
+                defaultMode: 0555
+            - name: backups
+              persistentVolumeClaim:
+                claimName: nerv-backups
+---
+# 백업 볼륨 — 오브젝트 스토리지 업로드로 대체하는 환경에서는 오버레이에서 제거한다.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nerv-backups
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi

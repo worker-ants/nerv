@@ -60,6 +60,14 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
 
   [E.BASELINE_CREATED]: (e) => [queryKeys.projectBaselines(e.project_id)],
 
+  // 증적은 Task 상세와 커버리지 두 곳에 나타난다 — GitHub 웹훅이 붙인 PR 링크가
+  // 작업 화면에 뜨지 않으면 "수집됐는지" 확인할 방법이 사람에게 없다(FR-13).
+  [E.EVIDENCE_ADDED]: (e) => [
+    queryKeys.task(e.subject_id),
+    queryKeys.projectTasks(e.project_id),
+    [...queryKeys.project(e.project_id), 'coverage'],
+  ],
+
   // 겹침 경고는 무효화 + 경고 토스트다(토스트는 UI 계층 — E08-S01)
   [E.CLAIM_CONFLICT_WARN]: (e) => [queryKeys.projectSessions(e.project_id)],
   [E.CLAIM_CONFLICT_BLOCKED]: (e) => [queryKeys.projectSessions(e.project_id)],

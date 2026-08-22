@@ -1280,6 +1280,8 @@ patches:
     </tbody>
   </table></div>
 
+  <p>절차의 실물은 <code>deploy/scripts/nerv-backup.sh</code>(①)·<code>deploy/scripts/nerv-restore.sh</code>(①+⑤ 검증)이고, k8s 에서는 <code>base/backup/cronjob.yaml</code>(CronJob <code>nerv-backup</code> — 일 1회)이 같은 스크립트를 configMap 으로 마운트해 돈다. <b>검증이 절차의 일부다</b>: 복원 스크립트는 복원 후 원본과의 <b>실제 행 수</b>를 대조하고(통계 뷰 <code>n_live_tup</code> 이 아니다 — 복원 직후에는 통계가 비어 있어 "손실 0"과 "아직 세지 않았다"를 구분할 수 없다), 불일치면 비영 종료한다. 왕복 자체는 L2 테스트(<code>restore-roundtrip.spec.ts</code>)가 매 PR 에 재현한다.</p>
+
   <p>복구 순서(왕복 검증도 같은 순서로 실행한다):</p>
 
 <pre><code># ① 신규 Postgres에 복원 — 스키마 포함 custom format

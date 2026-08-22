@@ -500,6 +500,20 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
   <p>훅 수집 엔드포인트 5종(<code>POST /ingest/hooks/session</code> · <code>/tool</code> · <code>/subagent</code> · <code>/stop</code> · <code>/session-end</code>)의 경로·헤더(<code>Authorization</code> Bearer, <code>X-NERV-Project</code>, <code>X-NERV-Host</code>)·응답 의미론(<code>additionalContext</code> 주입, <code>{"decision":"block"}</code> 종료 차단)은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3이 정본이고, 훅 페이로드 실물은 <a href="plugin.html">4.6 플러그인과 온보딩</a>이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 <b>인증 필수</b>다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 <code>SessionService</code>를 주입받아 세션 전이·Activity 적재를 수행한다(<a href="#sec-4">§4 표</a>).</p>
 
+  <h3 id="ep-whk">2.9a GitHub 웹훅 ingest — Task ↔ PR 링크 (FR-13)</h3>
+
+  <div class="table-wrap"><table>
+    <tr><th>ID</th><th>메서드 · 경로</th><th>인증</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr>
+    <tr><td><code>EP-WHK-01</code></td><td><code>POST /ingest/webhooks/github/{proj}</code></td><td><b>HMAC 서명</b>(<code>X-Hub-Signature-256</code>, 시크릿 <code>NERV_GITHUB_WEBHOOK_SECRET</code>) — PAT 아님</td><td>GitHub <code>pull_request</code>·<code>push</code> 페이로드 원문</td><td><code>{ok, event, matched_task, evidence_id, skipped_reason}</code></td><td>★<code>evidence.added</code>(수집 시)</td></tr>
+  </table></div>
+
+  <ul>
+    <li><b>인증이 다른 이유</b>: GitHub은 우리 토큰을 들고 있지 않다. 그래서 이 라우트만 세션·PAT 가드 밖이고, 대신 서명 검증을 통과하지 못하면 아무것도 하지 않는다. 시크릿이 설정돼 있지 않으면 <b>거부</b>한다 — 검증 없는 웹훅은 누구나 증적을 만들 수 있는 문이고, 증적은 done 게이트의 입력이다(FR-10). 서명은 <b>원문 바이트</b>로 계산하므로 API는 rawBody를 보존한다.</li>
+    <li><b>연결 축은 Task 키</b>다. 브랜치·PR 제목·본문·커밋 메시지 어디에 있든 <code>TSK-…</code>를 찾으면 그 Task에 붙인다 — 커밋 메시지 규약을 새로 만들지 않는 이유는, 규약이 늘수록 지켜지지 않기 때문이다.</li>
+    <li><b>판정하지 않는다.</b> PR이 열렸다는 사실을 <code>evidence</code>(kind=<code>pr</code>/<code>commit</code>, source=<code>ci</code>)로 남길 뿐 Task 상태를 옮기거나 커버리지를 올리지 않는다 — 리뷰 커버리지 판정은 Phase 2(FR-09)이고, "무엇이 완료됐나"는 사람·게이트의 판단이다.</li>
+    <li><b>재전송이 정상이다.</b> 같은 (task, kind, locator) 증적은 한 번만 만들고, 두 번째부터는 <code>skipped_reason</code>에 멱등 사실을 담아 200으로 답한다. Task를 못 찾은 경우도 200 + 사유다 — GitHub 배달 로그가 곧 디버깅 경로이고, 4xx로 답하면 GitHub이 무의미한 재전송을 반복한다.</li>
+  </ul>
+
   <h3 id="ep-imp">2.10 임포트 (EP-IMP — <a href="importer.html">4.7 스펙 임포터</a> §3.2)</h3>
 
   <div class="callout decision"><span class="ico">🔒</span><div class="body">

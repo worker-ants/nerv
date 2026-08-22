@@ -20,7 +20,21 @@ resources:
   - web/deployment.yaml
   - web/service.yaml
   - migrate/job.yaml
+  - backup/cronjob.yaml
   - ingress.yaml
 labels:
   - pairs:
       app.kubernetes.io/part-of: nerv
+
+# 백업 스크립트는 이미지에 굽지 않고 configMap 으로 넣는다 — 절차가 바뀌어도 이미지를
+# 다시 빌드하지 않기 위해서다(백업은 앱 배포 주기에 묶이면 안 된다).
+#
+# backup/nerv-backup.sh 는 deploy/scripts/nerv-backup.sh 의 **바이트 사본**이다 —
+# kustomize 의 file source 가 kustomization.yaml 상위로 나갈 수 없어 어쩔 수 없이 둘이고,
+# CI 가 `diff` 로 동일성을 강제한다(갈라지면 운영 절차와 문서가 달라진다).
+configMapGenerator:
+  - name: nerv-backup-scripts
+    files:
+      - backup/nerv-backup.sh
+    options:
+      disableNameSuffixHash: true
