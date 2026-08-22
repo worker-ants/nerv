@@ -8,7 +8,9 @@ import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
   dialect: 'postgresql',
-  schema: './src/tables/index.ts',
+  // enums.ts 를 함께 넘긴다 — 테이블 배럴만 주면 drizzle-kit 이 pgEnum 선언을 보지 못해
+  // CREATE TYPE 이 마이그레이션에서 통째로 빠진다(§2.1 enum 38종).
+  schema: ['./src/tables/index.ts', './src/enums.ts'],
   out: './drizzle',
   casing: 'snake_case',
   dbCredentials: {

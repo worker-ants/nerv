@@ -299,7 +299,7 @@ SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 | --- | --- | --- |
 | 실시간 게이트웨이 PoC | NestJS `@WebSocketGateway`(websocket 전송만) + SSE 스트림 + Valkey pub/sub 팬아웃 | 2개 API 인스턴스에서 WS·SSE 클라이언트 각각 룸/스트림 브로드캐스트 수신, 재연결 시 재조회로 화면 정합 |
 | TipTap md 왕복 검증 | 지원 노드 화이트리스트의 md 직렬화 왕복 | 노드 8종 각각 md→에디터→md 왕복 손실 0 |
-| drizzle 마이그레이션 파이프라인 | `packages/schema` 선언 → drizzle-kit 생성 → compose 기동/k8s Job 적용 | 신규 DB에서 0001 스냅샷 적용·재실행 멱등 |
+| drizzle 마이그레이션 파이프라인 | `packages/schema` 선언 → drizzle-kit 생성 → compose 기동/k8s Job 적용 | 신규 DB에서 초기 스냅샷 적용·재실행 멱등 |
 | MCP 리비전 병행 서빙 | 2026-07-28 리비전 + 구 리비전(세션 ID 시대) 동시 서빙 | Claude Code·Codex 현행 클라이언트 각각 `nerv_bootstrap` 호출 성공 |
 | 임베딩 제공자·하이브리드 검색 | OpenAI 호환 클라이언트 3프로필 스모크(로컬 TEI CPU p95 · LM Studio · OpenAI `dimensions=1024`) + FTS/trgm/하이브리드(RRF) 한국어 품질 비교([4.8 백로그](backlog.md) E06-S06) | 프로필별 지연·차원 검증 통과, 하이브리드가 렉시컬 단독 대비 품질 우위 확인 |
 

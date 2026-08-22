@@ -30,13 +30,13 @@ updated: 2026-08-22
 1. **`claim.project_id`** — data-model §2.4 필드 표에는 없지만, §1.1 규칙 1("모든 도메인 테이블은 `project_id`를 갖는다")과 §5.5 규칙 8, 그리고 spec-workflow §4.4 클레임 의사코드(`WHERE c.project_id = task.project_id`)가 요구한다. 겹침 검사가 `task` 조인 없이 프로젝트 범위의 활성 클레임을 훑어야 하기 때문이다.
 2. **junction 테이블의 `project_id` 생략** — `requirement_version` · `task_dependency` · `finding_occurrence` · `reviewer_report` · `resolution` · `spec_baseline_item`은 data-model 필드 표 그대로 부모 FK를 통해 프로젝트가 결정되므로 `project_id`를 갖지 않는다(규칙 8의 문서화된 예외).
 
-### 1.2 마이그레이션 전략 — drizzle-kit, 0001 스냅샷
+### 1.2 마이그레이션 전략 — drizzle-kit, 초기 스냅샷
 
 스키마는 `packages/schema`에 TypeScript(Drizzle)로 선언하고 drizzle-kit이 SQL 마이그레이션을 생성한다(확정 스택 — [4.1 MVP 범위와 스택 확정](scope.md), 모노레포 배치는 [4.2 코드베이스와 배포](codebase.md)).
 
 | 규칙 | 내용 |
 | --- | --- |
-| **0001 스냅샷** | 첫 마이그레이션 `0001_init.sql` = 이 문서 §2~§3의 DDL 전문. drizzle-kit `generate`가 만든 테이블 DDL에, drizzle가 표현하지 못하는 것(트리거·plpgsql 함수·표현식 unique·파티션 함수)을 raw SQL로 동봉한다 |
+| **초기 스냅샷** | 첫 마이그레이션 `0000_init.sql` = 이 문서 §2~§3의 DDL 전문(drizzle-kit의 `index` 접두는 **0000부터** 시작한다 — 2026-08-22 실측 정정). drizzle-kit `generate`가 만든 테이블 DDL에, drizzle가 표현하지 못하는 것(확장 생성·트리거·plpgsql 함수·파티션)을 raw SQL로 동봉한다. 표현식 unique·부분 unique·GIN 표현식 인덱스는 drizzle 선언으로 표현된다(실측) |
 | **스냅샷 불변** | 적용된 마이그레이션 파일은 수정하지 않는다. 이후 변경은 항상 새 `NNNN_*.sql` — approved SpecVersion을 고치지 않고 새 버전을 만드는 것과 같은 원리다 |
 | **실행 시점** | 로컬 compose는 기동 시 1회, 운영 k8s는 배포 파이프라인의 마이그레이션 Job([4.2 코드베이스와 배포](codebase.md)) |
 | **왕복 멱등** | 적용 이력 테이블(drizzle 기본) 기준으로 이미 적용된 파일은 건너뛴다 — 같은 명령을 두 번 실행해도 변경 0건(REQ-DB-001) |
@@ -61,7 +61,7 @@ updated: 2026-08-22
 ### 2.1 확장과 enum 38종
 
 ```sql
--- 0001_init.sql · §1 — 확장
+-- 0000_init.sql · §1 — 확장
 CREATE EXTENSION IF NOT EXISTS citext;    -- user.email 대소문자 무시 유니크
 CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- 시드·테스트의 digest(sha256)
 CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- 한국어·부분 문자열 검색(trigram — 4.4 §2.2b). 표준 contrib
@@ -679,7 +679,7 @@ CREATE INDEX spec_title_fts        ON spec         USING gin (to_tsvector('simpl
 --    "위젯"≠"위젯을"이 된다 — trigram이 이 갭을 막는다(REQ-DB-016). 형태소 분석기는 도입하지 않는다.
 CREATE INDEX spec_version_body_trgm ON spec_version USING gin (body_md gin_trgm_ops);
 CREATE INDEX spec_title_trgm        ON spec         USING gin (title gin_trgm_ops);
-CREATE INDEX requirement_text_trgm  ON requirement  USING gin (text gin_trgm_ops);   -- EARS 문장 검색(4.4 §2.2b)
+CREATE INDEX requirement_statement_trgm ON requirement USING gin (statement_md gin_trgm_ops); -- EARS 문장 검색(4.4 §2.2b)
 
 -- 작업·클레임
 CREATE INDEX task_ready_queue ON task (project_id, status, priority);              -- ready 큐(§4.5)
@@ -1050,7 +1050,7 @@ COMMIT;
 
 | ID | 수용 기준 (EARS) | 검증 방법 |
 | --- | --- | --- |
-| REQ-DB-001 | WHEN 빈 데이터베이스에 마이그레이션을 실행하면 THE SYSTEM SHALL 오류 없이 0001 스냅샷을 적용하고, 직후 같은 명령을 재실행하면 변경 0건으로 종료한다 | CI 잡: 새 컨테이너에 `migrate` 2회 실행, 두 번째 출력에 적용 파일 0 확인 |
+| REQ-DB-001 | WHEN 빈 데이터베이스에 마이그레이션을 실행하면 THE SYSTEM SHALL 오류 없이 초기 스냅샷을 적용하고, 직후 같은 명령을 재실행하면 변경 0건으로 종료한다 | CI 잡: 새 컨테이너에 `migrate` 2회 실행, 두 번째 출력에 적용 파일 0 확인 |
 | REQ-DB-002 | WHEN 스키마 적용 후 `pnpm db:seed`를 2회 실행하면 THE SYSTEM SHALL 두 번 모두 성공하고 §4의 동일한 데이터 상태를 재현한다 | 시드 2회 후 행 수·키 스냅샷 비교 |
 | REQ-DB-003 | WHEN `status <> 'draft'`인 `spec_version`의 `body_md` 또는 `content_hash`를 UPDATE하면 THE SYSTEM SHALL 예외를 발생시키고 변경을 거부한다 | 트리거 테스트(approved·in_review·superseded 각 1건) |
 | REQ-DB-004 | WHEN 한 `task`에 `status='active'`인 `claim`이 있는 상태에서 두 번째 active claim을 INSERT하면 THE SYSTEM SHALL unique 위반으로 거부한다 | 동시 INSERT 2건 경쟁 테스트 — 정확히 1건 성공 |

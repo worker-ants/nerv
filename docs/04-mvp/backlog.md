@@ -64,7 +64,7 @@ Postgres + Drizzle. `packages/schema`가 테이블·zod·파생 타입의 단일
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
 | E02-S01 | drizzle 테이블 29종 선언 — `organization`부터 `spec_baseline_item`까지, zod 스키마·파생 타입 공유 | [3.3 데이터 모델](../03-proposal/data-model.md) §1.3 · [4.3 데이터베이스 스키마](database.md) §2 | WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL data-model.md의 29개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다 | E01-S01 · E06-S03 |
-| E02-S02 | 0001 스냅샷 마이그레이션 + 왕복 멱등 — compose는 기동 시, k8s는 Job으로 적용 | [4.3 데이터베이스 스키마](database.md) §1·§5 | WHEN 같은 마이그레이션을 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행을 스키마 변경 0으로 종료한다 | E02-S01 |
+| E02-S02 | 초기 스냅샷 마이그레이션 + 왕복 멱등 — compose는 기동 시, k8s는 Job으로 적용 | [4.3 데이터베이스 스키마](database.md) §1·§5 | WHEN 같은 마이그레이션을 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행을 스키마 변경 0으로 종료한다 | E02-S01 |
 | E02-S03 | 이벤트 방송 규약 — Valkey pub/sub 채널 `nerv_events`, 페이로드 JSON(event id·type·project_id), EventService 커밋 후 발행 | [4.3 데이터베이스 스키마](database.md) §3 · [3.2 시스템 아키텍처](../03-proposal/architecture.md) §1(D-10) | WHEN `event` 테이블에 행이 삽입되고 트랜잭션이 커밋되면, THE SYSTEM SHALL Valkey `nerv_events` 채널로 event id·type·project_id를 PUBLISH한다(롤백 시 발행 없음) | E02-S01 |
 | E02-S04 | 개발 시드 한 벌 — 프로젝트 clemvion, `SPC-CWC-007`·`REQ-CWC-031`, TSK-3f77(하나/mac-07)·TSK-a3f8(도현/mac-02)·TSK-b904(유나/linux-ci-01/codex), 세션 S-b7e9 | [4.3 데이터베이스 스키마](database.md) §4 | WHEN 시드 스크립트를 실행하면, THE SYSTEM SHALL 예시 데이터 한 벌을 멱등하게 적재한다(재실행 시 신규 레코드 0) | E02-S02 |
 
