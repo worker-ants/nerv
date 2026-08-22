@@ -27,7 +27,9 @@ export class SpecTools implements NervToolProvider {
           depth: { type: 'integer' },
         },
       },
-      handler: async () => this.specs.tree(),
+      handler: async (_input, ctx) => ({
+        nodes: await this.specs.tree({ projectId: ctx.projectId }),
+      }),
     },
     {
       name: 'nerv_spec_search',
@@ -57,7 +59,12 @@ export class SpecTools implements NervToolProvider {
         },
         required: ['spec_id'],
       },
-      handler: async () => this.specs.get(),
+      handler: async (input, ctx) =>
+        this.specs.get({
+          projectId: ctx.projectId,
+          specKey: String(input['spec_id'] ?? ''),
+          versionNo: typeof input['version'] === 'number' ? input['version'] : null,
+        }),
     },
     {
       name: 'nerv_spec_draft_upsert',
@@ -75,7 +82,17 @@ export class SpecTools implements NervToolProvider {
         },
         required: ['body_md'],
       },
-      handler: async () => this.specs.draftUpsert(),
+      handler: async (input, ctx) =>
+        this.specs.draftUpsert({
+          projectId: ctx.projectId,
+          userId: ctx.principal.userId,
+          sessionId: ctx.sessionId,
+          bodyMd: String(input['body_md'] ?? ''),
+          ...(typeof input['spec_id'] === 'string' ? { specId: input['spec_id'] } : {}),
+          ...(typeof input['base_version'] === 'string'
+            ? { baseVersionId: input['base_version'] }
+            : {}),
+        }),
     },
     {
       name: 'nerv_spec_submit_review',
@@ -88,7 +105,13 @@ export class SpecTools implements NervToolProvider {
         properties: { spec_version_id: { type: 'string' }, idempotency_key: { type: 'string' } },
         required: ['spec_version_id'],
       },
-      handler: async () => this.specs.submitReview(),
+      handler: async (input, ctx) =>
+        this.specs.submitReview({
+          projectId: ctx.projectId,
+          specVersionId: String(input['spec_version_id'] ?? ''),
+          userId: ctx.principal.userId,
+          sessionId: ctx.sessionId,
+        }),
     },
     {
       name: 'nerv_spec_check',
