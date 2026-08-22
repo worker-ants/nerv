@@ -44,7 +44,7 @@ nerv/                           # 저장소 루트 — 구현 코드 없음
     apps/
       web/                      # @nerv/web — Vite + React SPA (화면 명세는 4.5)
         index.html
-        vite.config.ts          # dev proxy: /api·/mcp·/ingest·/socket.io·/sse → :8080 (§5.1)
+        vite.config.ts          # dev proxy: /api·/mcp·/ingest·/ws·/sse → :8080 (§5.1)
         src/
           routes/               # TanStack Router 파일 라우트
           features/             # 화면 단위 모듈 (spec-editor · task-board · session-monitor …)
@@ -133,7 +133,7 @@ flowchart TB
   subgraph SURF["표면 5종 — 번역만, 규칙 없음"]
     REST["REST 컨트롤러<br/>/api/v1/*"]
     MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 15종"]
-    WS["WS 게이트웨이<br/>/socket.io · 룸 join"]
+    WS["WS 게이트웨이<br/>/ws · 룸 join"]
     SSE["SSE 스트림<br/>GET /sse/* · 단방향"]
     ING["ingest 컨트롤러<br/>/ingest/hooks/* 5종"]
   end
@@ -273,7 +273,7 @@ apps/api/src/
 | --- | --- | --- | --- |
 | REST | `/api/v1/*` | better-auth 세션 쿠키(웹) 또는 PAT Bearer | 계약 전표는 [4.4 API 명세](api.md) |
 | MCP | `POST /mcp` | PAT Bearer(MVP) — OAuth 2.1은 Phase 2 | Streamable HTTP, 2026-07-28 리비전 + 구 리비전 병행([3.2](../03-proposal/architecture.md) §4.3). Origin 검증은 `mcp-origin.guard.ts`가 최종 강제(REQ-CB-013) — 전단 nginx는 1차 차단일 뿐이다 |
-| WebSocket | `/socket.io` | 핸드셰이크에서 세션 쿠키 검증 | websocket 전송만. 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. 웹 SPA 전용 |
+| WebSocket | `/ws` | 핸드셰이크에서 세션 쿠키 검증 | socket.io 어댑터를 `path: "/ws"`로 설정한다(계약 정본 [4.4 API 명세](api.md) §3.1 — 어댑터 기본 경로 `/socket.io`를 쓰지 않는다). websocket 전송만. 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. 웹 SPA 전용 |
 | SSE | `GET /sse/projects/{p}` · `GET /sse/me` | 세션 쿠키 또는 PAT Bearer | 단방향 `text/event-stream` — 브라우저 밖 소비자(CLI·외부 도구)용 구독 채널. replay 없음(D-14), 계약 정본은 [4.4 API 명세](api.md) §3.5 |
 | ingest | `POST /ingest/hooks/*` | PAT Bearer(`Authorization` 헤더) — 토큰 없는 이벤트는 버린다 | 202 즉시 응답 후 적재. `Stop` 훅만 동기 판정 경로([3.2](../03-proposal/architecture.md) §1.3) |
 
@@ -438,7 +438,7 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
 ```bash
 pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
 pnpm db:migrate                 # drizzle 마이그레이션 적용 (= node apps/api/dist/migrate.js 의 dev 판)
-pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api·/mcp·/ingest·/socket.io·/sse 프록시) 병렬
+pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api·/mcp·/ingest·/ws·/sse 프록시) 병렬
 ```
 
 루트 `package.json` 스크립트 표:
@@ -758,8 +758,8 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 
-  # WebSocket — socket.io 경로, websocket 전송만(폴링 폴백 off)
-  location /socket.io/ {
+  # WebSocket — socket.io 어댑터의 path 설정값(/ws · 4.4 §3.1), websocket 전송만(폴링 폴백 off)
+  location /ws/ {
     proxy_pass http://nerv_api;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
@@ -1048,7 +1048,7 @@ spec:
           - { path: /api,       pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
           - { path: /mcp,       pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
           - { path: /ingest,    pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
-          - { path: /socket.io, pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
+          - { path: /ws,       pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
           - { path: /sse,       pathType: Prefix, backend: { service: { name: nerv-api, port: { name: http } } } }
           - { path: /,          pathType: Prefix, backend: { service: { name: nerv-web, port: { name: http } } } }
 ```
