@@ -9,7 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StatusBadge } from '../../components/status-badge.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
-import { apiFetch } from '../../lib/api.js';
+import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rows, useProject, useTask } from '../../lib/queries.js';
@@ -29,6 +29,8 @@ function TaskDetail(): React.JSX.Element {
   const [evidenceKind, setEvidenceKind] = useState('pr');
   const [evidenceLocator, setEvidenceLocator] = useState('');
   const [blockedReason, setBlockedReason] = useState('');
+  /** 서버가 거부한 사유 — 카드 옆에 남긴다. 토스트는 사라지고 사람은 이유를 잊는다 */
+  const [rejection, setRejection] = useState<{ message: string; missing: string[] } | null>(null);
 
   const data = detail.data ?? {};
   const status = String(data['status'] ?? '');
@@ -61,8 +63,18 @@ function TaskDetail(): React.JSX.Element {
         void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId) });
       }
       pushToast({ tone: 'ok', message: `상태를 ${String(result['status'])} 로 바꿨습니다.` });
+      setRejection(null);
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: (error: Error) => {
+      // 거부는 **화면에 남는다**(REQ-WEB-018). 상태는 그대로이고(낙관적 갱신을 하지 않으므로
+      // 되돌릴 것도 없다) 무엇이 빠졌는지가 버튼 옆에 붙는다.
+      const missing =
+        error instanceof NervApiError && Array.isArray(error.body.details['missing'])
+          ? (error.body.details['missing'] as string[])
+          : [];
+      setRejection({ message: error.message, missing });
+      pushToast({ tone: 'warn', message: error.message });
+    },
   });
 
   return (
@@ -140,11 +152,22 @@ function TaskDetail(): React.JSX.Element {
               className="min-w-0 flex-1 rounded border border-border bg-bg px-2 py-1"
             />
           </div>
+          {rejection !== null && (
+            <p
+              role="alert"
+              data-testid="transition-rejected"
+              className="text-sm text-status-danger"
+            >
+              전이 거부 — {rejection.message}
+              {rejection.missing.length > 0 && ` (누락: ${rejection.missing.join(', ')})`}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               disabled={status === 'done' || transition.isPending}
               onClick={() => transition.mutate('done')}
+              title={rejection === null ? undefined : `직전 거부: ${rejection.message}`}
               className="rounded bg-status-done px-2 py-1 text-white disabled:opacity-50"
             >
               완료로 전이

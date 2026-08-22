@@ -62,7 +62,8 @@ function InboxScreen(): React.JSX.Element {
       </header>
 
       <p className="mb-2 text-xs text-text-faint">
-        키보드: <kbd>j</kbd>/<kbd>k</kbd> 이동 · 카드 안에서 승인·거절·코멘트
+        키보드: <kbd>j</kbd>/<kbd>k</kbd> 이동 · <kbd>a</kbd> 승인 · <kbd>r</kbd> 거절 ·{' '}
+        <kbd>c</kbd> 코멘트
       </p>
 
       {inbox.isLoading && (
@@ -86,7 +87,7 @@ function InboxScreen(): React.JSX.Element {
             data-active={index === cursor}
             className="rounded-md data-[active=true]:ring-2 data-[active=true]:ring-status-action"
           >
-            <ApprovalCard card={card} />
+            <ApprovalCard card={card} active={index === cursor} />
           </li>
         ))}
       </ul>

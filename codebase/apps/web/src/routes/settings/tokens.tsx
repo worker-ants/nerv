@@ -9,7 +9,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { AGENT_SCOPES } from '@nerv/schema';
+import { AGENT_SCOPES, HUMAN_ONLY_SCOPES } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useTokens } from '../../lib/queries.js';
 import { primaryMembership } from '../../lib/session.js';
@@ -85,6 +85,21 @@ function TokensTab(): React.JSX.Element {
               <code>{scope}</code>
             </label>
           ))}
+          {/* 사람 전용 스코프는 **숨기지 않고 비활성으로 보인다**(REQ-WEB-027 · D-08).
+              목록에서 빼버리면 "왜 승인 권한을 토큰에 못 주지?"라는 질문이 화면 밖에 남고,
+              그 답이 어디에도 없다. 보이되 고를 수 없는 것이 규칙을 가르친다. */}
+          {HUMAN_ONLY_SCOPES.map((scope) => (
+            <label
+              key={scope}
+              data-testid="human-only-scope"
+              title="사람 전용 스코프 — 토큰에 부여할 수 없습니다(D-08)"
+              className="flex cursor-not-allowed items-center gap-1 opacity-50"
+            >
+              <input type="checkbox" disabled checked={false} readOnly />
+              <code>{scope}</code>
+              <span className="text-text-faint">사람 전용</span>
+            </label>
+          ))}
         </fieldset>
         {issued !== null && (
           <div
@@ -117,6 +132,7 @@ function TokensTab(): React.JSX.Element {
               <th>prefix</th>
               <th>스코프</th>
               <th>마지막 사용</th>
+              <th>마지막 호스트</th>
               <th />
             </tr>
           </thead>
@@ -130,6 +146,12 @@ function TokensTab(): React.JSX.Element {
                 </td>
                 <td className="text-xs text-text-mute">
                   {t['last_used_at'] === null ? '미사용' : String(t['last_used_at']).slice(0, 10)}
+                </td>
+                {/* 어느 머신이 이 토큰을 쓰는가 — 유출 판단의 첫 단서다(NFR-03) */}
+                <td className="font-mono text-xs text-text-mute">
+                  {t['last_used_hostname'] === null || t['last_used_hostname'] === undefined
+                    ? '—'
+                    : String(t['last_used_hostname'])}
                 </td>
                 <td>
                   {t['revoked_at'] === null ? (

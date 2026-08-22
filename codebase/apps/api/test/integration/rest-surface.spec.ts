@@ -76,7 +76,7 @@ interface Res {
 }
 
 async function call(
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   url: string,
   options: { token?: string; payload?: unknown } = {},
 ): Promise<Res> {
@@ -436,3 +436,125 @@ async function seed(): Promise<void> {
     [newId(), orgId, projectId, adminId, newId(), viewerId],
   );
 }
+
+describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야 한다', () => {
+  it('EP-SPEC-07·08 — 생성과 이어쓰기가 갈라져 있다', async () => {
+    const created = await call('POST', '/api/v1/projects/clemvion/specs', {
+      payload: { key: 'SPC-PATHS', title: '경로 정합', type: 'feature', body_markdown: '# 본문' },
+    });
+    expect(created.status).toBe(201);
+
+    // 이어쓰기는 경로에 스펙 키가 있다 — 본문에 spec_id 를 싣지 않는다
+    const updated = await call('PUT', '/api/v1/projects/clemvion/specs/SPC-PATHS/draft', {
+      payload: {
+        body_markdown: '# 본문\n\n이어서',
+        base_version: (created.body as Record<string, unknown>)['spec_version_id'],
+      },
+    });
+    expect(updated.status).toBe(200);
+  });
+
+  it('EP-SPEC-05 — 버전 스냅샷은 같은 번호에 같은 응답이다', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS/versions/1');
+    expect(res.status).toBe(200);
+    expect((res.body as Record<string, unknown>)['version_no']).toBe(1);
+  });
+
+  it('EP-ORG-02 — 멤버가 아니면 조직의 존재도 알려주지 않는다', async () => {
+    const mine = await call('GET', '/api/v1/orgs/nerv');
+    expect(mine.status).toBe(200);
+    expect((mine.body as Record<string, unknown>)['member_count']).toBeGreaterThan(0);
+
+    const other = await call('GET', '/api/v1/orgs/nobody');
+    expect(other.status).toBe(409);
+  });
+
+  it('EP-PRJ-02 — 프로젝트를 만들면 만든 사람이 admin 멤버가 된다', async () => {
+    const res = await call('POST', '/api/v1/orgs/nerv/projects', {
+      payload: { slug: 'new-proj', key: 'NEW', name: '새 프로젝트' },
+    });
+    expect(res.status).toBe(201);
+
+    const { rows } = await pool.query<{ role: string }>(
+      `SELECT m.role::text AS role FROM membership m JOIN project p ON p.id = m.project_id
+        WHERE p.slug = 'new-proj' AND m.user_id = $1`,
+      [adminId],
+    );
+    expect(rows[0]?.role).toBe('admin');
+  });
+
+  it('EP-MBR-02 — 없는 사용자는 만들지 않고 거절한다(MVP 초대는 기존 사용자 배정)', async () => {
+    const res = await call('POST', '/api/v1/orgs/nerv/members', {
+      payload: { email: 'ghost@example.com', role: 'developer' },
+    });
+    expect(res.status).toBe(409);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'user_not_found',
+    });
+
+    const ok = await call('POST', '/api/v1/orgs/nerv/members', {
+      payload: { email: 'viewer@example.com', role: 'qa', project: 'new-proj' },
+    });
+    expect(ok.status).toBe(201);
+  });
+
+  it('EP-MBR-03 — 멤버십 경로에 프로젝트가 없어도 admin 을 확인한다', async () => {
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM membership WHERE user_id = $1 AND project_id IS NOT NULL LIMIT 1`,
+      [viewerId],
+    );
+    const membershipId = rows[0]?.id ?? '';
+
+    const denied = await call('PATCH', `/api/v1/memberships/${membershipId}`, {
+      token: viewerToken,
+      payload: { role: 'admin' },
+    });
+    expect(denied.status).toBe(403);
+
+    const allowed = await call('PATCH', `/api/v1/memberships/${membershipId}`, {
+      payload: { role: 'designer' },
+    });
+    expect(allowed.status).toBe(200);
+  });
+
+  it('EP-TOK-04 — 조직 전체 토큰 표에도 원문은 없다', async () => {
+    const res = await call('GET', '/api/v1/orgs/nerv/tokens');
+    expect(res.status).toBe(200);
+    for (const token of res.body as Record<string, unknown>[]) {
+      expect(Object.keys(token)).not.toContain('token');
+      expect(token).toHaveProperty('owner');
+    }
+  });
+
+  it('EP-CMT-03 — 남의 코멘트는 고칠 수 없다', async () => {
+    const specVersionId = await seedSpecVersion();
+    const { SpecCommentService } = await import('../../src/modules/spec/spec-comment.service.js');
+    const comment = await app.get(SpecCommentService).add({
+      projectId,
+      specVersionId,
+      anchor: 'REQ-X-1',
+      bodyMd: '원문',
+      userId: viewerId,
+    });
+
+    const res = await call('PATCH', `/api/v1/projects/clemvion/comments/${comment.comment_id}`, {
+      payload: { body_md: '남이 고친 본문' },
+    });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({ kind: 'not_author' });
+  });
+
+  it('토큰 목록에 마지막 사용 호스트가 실린다 (REQ-WEB-026)', async () => {
+    await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/clemvion/specs/tree',
+      headers: { authorization: `Bearer ${adminToken}`, 'x-nerv-host': 'mac-07' },
+    });
+    // last_used 갱신은 요청을 막지 않는 비동기라 잠깐 기다린다
+    await new Promise((r) => setTimeout(r, 150));
+
+    const res = await call('GET', '/api/v1/me/tokens');
+    const tokens = res.body as Record<string, unknown>[];
+    expect(tokens.some((t) => t['last_used_hostname'] === 'mac-07')).toBe(true);
+  });
+});

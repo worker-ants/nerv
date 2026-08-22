@@ -5,6 +5,7 @@
 // 번들·라우터 초기화·nginx 폴백에서 깨지는 일이 있고, 그건 사용자가 첫 화면에서 만난다.
 
 import { expect, test } from '@playwright/test';
+import { STORAGE_STATE } from './global-setup.js';
 
 const EMAIL = `e2e-${Date.now()}@example.com`;
 const PASSWORD = 'nerv-e2e-password';
@@ -63,9 +64,55 @@ test('로그아웃하면 세션이 끊기고 보호 경로가 다시 막힌다',
   await page.getByRole('button', { name: /로그인/ }).click();
   await expect(page.getByText('⬢ NERV')).toBeVisible();
 
+  // 로그아웃은 사용자 메뉴 안에 있다(§1.3 "[사용자 메뉴 ▾]") — 헤더에 평문 버튼으로
+  // 늘어놓지 않는 이유는 자주 쓰지 않는 항목이 자주 쓰는 항목의 자리를 먹기 때문이다.
+  await page.getByTestId('user-menu').click();
   await page.getByRole('button', { name: '로그아웃' }).click();
   await page.waitForURL(/\/login/);
 
   await page.goto('/inbox');
   await page.waitForURL(/\/login/);
+});
+
+test.describe('시드 세션', () => {
+  // 저장된 세션을 쓴다 — 조직 스위처는 소속이 있어야 뜨므로 멤버십 있는 계정이어야 하고,
+  // 매 테스트 로그인하면 스위트가 자기 인증 쿼터를 먹는다(§1.8).
+  test.use({ storageState: STORAGE_STATE });
+
+  test('헤더에 조직 스위처와 사용자 메뉴가 있다 (§1.3 레이아웃)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('⬢ NERV')).toBeVisible();
+
+    // 헤더는 **조직 스코프**다 — 어느 조직을 보고 있는지가 화면에 없으면 다중 조직에서 길을 잃는다
+    await expect(page.getByTestId('org-switcher')).toBeVisible();
+
+    await page.getByTestId('user-menu').click();
+    await expect(page.getByRole('link', { name: '설정' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible();
+
+    // 바깥을 누르면 닫힌다 — 열린 채로 남으면 다음 클릭이 먹히지 않는다
+    await page.mouse.click(400, 400);
+    await expect(page.getByRole('button', { name: '로그아웃' })).toHaveCount(0);
+  });
+
+  test('프로젝트 사이드바는 /p/:proj/* 에서만 나온다 (§1.3)', async ({ page }) => {
+    // 승인함은 조직 스코프 화면이라 사이드바가 없는 것이 맞다
+    await page.goto('/inbox');
+    await expect(page.getByText('⬢ NERV')).toBeVisible();
+    await expect(page.locator('aside')).toHaveCount(0);
+
+    // 프로젝트에 들어가면 탭과 스펙 트리가 함께 선다
+    await page.goto('/p/clemvion');
+    await expect(page.locator('aside')).toHaveCount(1);
+    await expect(page.getByTestId('spec-tree')).toHaveCount(1);
+
+    // S3 도 마찬가지다 — 좌측 트리는 셸이 소유하므로 중복 렌더가 없어야 한다(대조에서 발견)
+    await page.goto('/p/clemvion/specs/SPC-CWC-007');
+    await expect(page.getByTestId('spec-tree')).toHaveCount(1);
+
+    // 예외는 스펙 목록 하나다 — 그 화면은 "사이드바 트리의 전체 화면 판"이라고
+    // 문서가 규정한다(§2.4). 그래서 여기서만 둘이고, 그건 의도다.
+    await page.goto('/p/clemvion/specs');
+    await expect(page.getByTestId('spec-tree')).toHaveCount(2);
+  });
 });

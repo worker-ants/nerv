@@ -25,8 +25,9 @@ afterAll(async () => {
 });
 
 describe('초기 스냅샷 적용 (database.md §2)', () => {
-  // 마이그레이션 2벌: 0000_init(도메인 전량) · 0001_auth(인증 인프라 — 4.3 §2.16)
-  const MIGRATIONS = 2;
+  // 마이그레이션 3벌: 0000_init(도메인 전량) · 0001_auth(인증 인프라 — 4.3 §2.16)
+  // · 0002_token_host(api_token.last_used_hostname — REQ-WEB-026 의 데이터 소스)
+  const MIGRATIONS = 3;
 
   it('빈 DB 에 오류 없이 적용된다', async () => {
     const first = await runMigrations(db.url);

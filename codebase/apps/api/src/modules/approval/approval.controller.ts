@@ -39,7 +39,7 @@ export class ApprovalController {
   }
 
   /** EP-APR-04 — 게이트 면제. 면제도 결재 레코드다(FR-10) */
-  @Post('approvals/bypass')
+  @Post('gates/bypass')
   bypass(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const { projectId, userId } = human(req);
     return this.approvals.bypass({

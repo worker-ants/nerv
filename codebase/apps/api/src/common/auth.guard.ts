@@ -25,8 +25,10 @@ export type CredentialKind = 'session' | 'pat';
 
 export interface AuthContext {
   kind: CredentialKind;
-  /** 원문 자격증명. 검증은 E03-S02 의 AuthService 가 한다 — 여기서 신뢰하지 않는다. */
+  /** 원문 자격증명. 검증은 AuthService 가 한다 — 여기서 신뢰하지 않는다. */
   credential: string;
+  /** `X-NERV-Host` — **표시용**이다. 헤더는 신뢰할 수 없으므로 권한 판정에 쓰지 않는다 */
+  hostname?: string | undefined;
 }
 
 /** 요청에서 자격증명의 형태만 뽑는다. 검증하지 않는다. */
@@ -34,7 +36,10 @@ export function extractCredential(headers: Record<string, string | undefined>): 
   const authorization = headers['authorization'];
   if (authorization !== undefined && authorization.startsWith('Bearer ')) {
     const credential = authorization.slice('Bearer '.length).trim();
-    if (credential !== '') return { kind: 'pat', credential };
+    if (credential !== '') {
+      const host = headers['x-nerv-host'];
+      return { kind: 'pat', credential, ...(host === undefined ? {} : { hostname: host }) };
+    }
   }
   const cookie = headers['cookie'];
   if (cookie !== undefined && cookie.includes('better-auth.session_token=')) {

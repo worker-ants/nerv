@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
+>
+> v0.6 변경(2026-08-22 — 화면 대조에서 발견): `api_token.last_used_hostname` 추가(§2.2 · 마이그레이션 `0002_token_host`). REQ-WEB-026이 S8 토큰 목록에 "마지막 사용(시각·**hostname**)"을 요구하는데 데이터 소스가 없었다 — 헤더 값이라 신뢰하지 않으며 권한 판정이 아니라 표시 전용이다.
 >
 > v0.5 변경(2026-08-22 — 구현 착수 중 발견): **인증 인프라 테이블 3종 신설**(§2.16 — `auth_session`·`auth_account`·`auth_verification` + `"user"` 2컬럼). 확정 스택(better-auth)이 요구하는 물리 테이블인데 §2 DDL 전문에 빠져 있어 웹 세션 인증을 구현할 수 없었다 — 도메인 엔티티가 아니므로 **29종 카운트는 그대로**다. 같은 절에서 organization 플러그인 미사용을 확정한다(조직·멤버십의 정본이 도메인 테이블이라 이중 저장이 된다). REQ-DB-018·019 추가.
 >
@@ -172,6 +174,8 @@ CREATE TABLE api_token (
   expires_at   timestamptz,
   revoked_at   timestamptz,
   last_used_at timestamptz,
+  last_used_hostname text,               -- 마지막 사용 머신(X-NERV-Host) — 유출 판단의 첫 단서(NFR-03 · REQ-WEB-026).
+                                         --   헤더 값이라 신뢰하지 않는다: 권한 판정에 쓰지 않고 S8 목록 표시 전용이다
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 ```

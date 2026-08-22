@@ -1,0 +1,1 @@
+ALTER TABLE "api_token" ADD COLUMN "last_used_hostname" text;

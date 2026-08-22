@@ -6,7 +6,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
-import { SpecTree } from '../../components/spec-tree.js';
 import { rows, useCoverage, useEvents, useProject, useSessions } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
 import type { SessionCard as Card } from '../../features/session-monitor/types.js';
@@ -81,27 +80,23 @@ function ProjectOverview(): React.JSX.Element {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <div>
-          <h2 className="mb-2 text-sm font-semibold text-text-mute">스펙 트리</h2>
-          <SpecTree projectSlug={proj} />
-        </div>
-        <div>
-          <h2 className="mb-2 text-sm font-semibold text-text-mute">최근 이벤트</h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {rows(events.data).map((e) => (
-              <li key={String(e['id'])} className="flex gap-2">
-                {/* 사람/에이전트 구분은 감사의 첫 질문이다(FR-16 · D-08) */}
-                <span title={e['is_agent'] === true ? '에이전트' : '사람'}>
-                  {e['is_agent'] === true ? '🤖' : '👤'}
-                </span>
-                <span className="font-mono text-xs text-text-faint">{String(e['type'])}</span>
-                <span className="truncate text-text-mute">{String(e['actor_name'] ?? '')}</span>
-              </li>
-            ))}
-            {rows(events.data).length === 0 && <li className="text-text-mute">아직 없습니다.</li>}
-          </ul>
-        </div>
+      {/* 트리는 **셸 사이드바가 소유한다**(§1.3) — 와이어프레임 §2.2 의 좌측 열이 그것이다.
+          여기서 또 그리면 같은 트리가 나란히 두 개 뜬다(문서 대조에서 발견). */}
+      <section>
+        <h2 className="mb-2 text-sm font-semibold text-text-mute">최근 이벤트</h2>
+        <ul className="flex flex-col gap-1 text-sm">
+          {rows(events.data).map((e) => (
+            <li key={String(e['id'])} className="flex gap-2">
+              {/* 사람/에이전트 구분은 감사의 첫 질문이다(FR-16 · D-08) */}
+              <span title={e['is_agent'] === true ? '에이전트' : '사람'}>
+                {e['is_agent'] === true ? '🤖' : '👤'}
+              </span>
+              <span className="font-mono text-xs text-text-faint">{String(e['type'])}</span>
+              <span className="truncate text-text-mute">{String(e['actor_name'] ?? '')}</span>
+            </li>
+          ))}
+          {rows(events.data).length === 0 && <li className="text-text-mute">아직 없습니다.</li>}
+        </ul>
       </section>
     </div>
   );

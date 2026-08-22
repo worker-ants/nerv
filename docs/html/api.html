@@ -254,6 +254,7 @@
       <tr><td>PAT 토큰당</td><td><b>300 req/min</b></td><td><code>/api/v1</code> + <code>/mcp</code>(같은 풀 — 토큰이 주체이므로 표면을 나누지 않는다)</td><td>하트비트 60초 주기·조회 포함 여유값. 초과 시 <code>retry_after_s</code> 준수는 스킬 규약(<a href="plugin.html">4.6</a> §2)</td></tr>
       <tr><td>웹 세션 사용자당</td><td><b>600 req/min</b></td><td><code>/api/v1</code></td><td>쿼리 무효화 재조회 버스트(<a href="screens.html">4.5 화면 명세</a> §1.4) 흡수</td></tr>
       <tr><td>세션당 ingest</td><td><b>120 req/min</b></td><td><code>/ingest/hooks/*</code></td><td>훅 폭주(도구 호출 다발) 상한. 초과분은 429 — 훅 수집은 손실 허용(진실은 서버 산출물, D-14)</td></tr>
+    <tr><td><b>IP당 인증</b></td><td><b>30 req/min</b>(로그인·가입은 <b>10 req/min</b>)</td><td><code>/api/auth/*</code></td><td>주체가 다르다 — 로그인 전에는 토큰도 세션도 없으므로 IP로 센다. 목적도 다르다: 위 셋은 과부하 방어이고 이것은 <b>무차별 대입 방어</b>다. 로그인·가입은 무차별 대입의 표적이라 더 좁다 — 다만 사람이 오타 몇 번에 잠기지 않을 만큼은 남긴다. 초과 응답 문구는 화면이 우리 말로 옮기고, 재시도 시각은 <code>Retry-After</code>·<code>x-retry-after</code> 중 있는 것을 쓴다(§1.5 · REQ-WEB-005)</td></tr>
     </tbody>
   </table></div>
 

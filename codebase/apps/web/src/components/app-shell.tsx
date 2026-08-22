@@ -9,7 +9,7 @@
 // 세면 배지는 곧 무시되고, 무시되는 배지는 없는 배지다.
 
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { signOut } from '../lib/session.js';
 import { useInbox, useMe, useUnreadCount } from '../lib/queries.js';
@@ -29,6 +29,17 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
   const inbox = useInbox();
   const unread = useUnreadCount();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState<'org' | 'user' | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 조직 스코프 — 헤더가 조직 단위라는 것을 화면이 말해야 한다(§1.3 "전역 헤더 · 조직 스코프").
+  // 멤버십에서 조직을 뽑는다: 사용자가 속한 곳만 고를 수 있다는 사실이 목록 자체로 드러난다.
+  const orgs = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of me.data?.memberships ?? []) seen.set(m.org_slug, m.org_name);
+    return [...seen].map(([slug, name]) => ({ slug, name }));
+  }, [me.data]);
+  const currentOrg = orgs[0] ?? null;
 
   // ⌘K / Ctrl+K — 전 라우트 공통(REQ-WEB-040)
   useEffect(() => {
@@ -42,6 +53,17 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // 바깥을 누르면 닫는다 — 드롭다운이 열린 채로 남으면 다음 클릭이 먹히지 않는다
+  useEffect(() => {
+    if (menuOpen === null) return;
+    const onClick = (e: MouseEvent): void => {
+      if (menuRef.current !== null && !menuRef.current.contains(e.target as Node))
+        setMenuOpen(null);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [menuOpen]);
+
   const banner = connectionBanner(state, offline);
   const pending = inbox.data?.length ?? 0;
   const unreadCount = unread.data?.count ?? 0;
@@ -53,6 +75,37 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
           <Link to="/" className="flex items-center gap-2 font-semibold">
             <span aria-hidden="true">⬢</span> NERV
           </Link>
+          {currentOrg !== null && (
+            <div className="relative">
+              <button
+                type="button"
+                data-testid="org-switcher"
+                onClick={() => setMenuOpen((open) => (open === 'org' ? null : 'org'))}
+                className="rounded border border-border px-2 py-0.5 text-sm text-text-mute hover:text-text"
+              >
+                {currentOrg.name} <span aria-hidden="true">▾</span>
+              </button>
+              {menuOpen === 'org' && (
+                <ul className="absolute left-0 z-40 mt-1 min-w-40 rounded-md border border-border bg-bg-elev py-1 shadow">
+                  {orgs.map((org) => (
+                    <li key={org.slug}>
+                      <Link
+                        to="/o/$org"
+                        params={{ org: org.slug }}
+                        onClick={() => setMenuOpen(null)}
+                        className="block px-3 py-1 text-sm hover:bg-bg-sunken"
+                      >
+                        {org.name}
+                      </Link>
+                    </li>
+                  ))}
+                  {orgs.length === 1 && (
+                    <li className="px-3 py-1 text-xs text-text-faint">다른 조직 없음</li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
           <Link to="/" className="text-sm text-text-mute hover:text-text">
             홈
           </Link>
@@ -87,21 +140,45 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
           >
             🔍 검색 <kbd className="ml-1 text-xs text-text-faint">⌘K</kbd>
           </button>
-          <Link to="/settings" className="text-sm text-text-mute hover:text-text">
-            설정
-          </Link>
+          {/* 설정은 사용자 메뉴 안에 있다 — 와이어프레임 헤더(§2.1)는
+              `⬢ NERV 홈 승인함 알림 🔍검색 [지민 ▾]` 여섯 자리뿐이고, 자주 쓰지 않는 항목이
+              자주 쓰는 항목의 자리를 먹으면 헤더는 금세 도구모음이 된다. */}
           {me.data !== undefined && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-text-mute">{me.data.display_name}</span>
+            <div className="relative" ref={menuRef}>
               <button
                 type="button"
-                className="text-text-faint hover:text-text"
-                onClick={() => {
-                  void signOut().then(() => navigate({ to: '/login' }));
-                }}
+                data-testid="user-menu"
+                onClick={() => setMenuOpen((open) => (open === 'user' ? null : 'user'))}
+                className="rounded border border-border px-2 py-0.5 text-sm text-text-mute hover:text-text"
               >
-                로그아웃
+                {me.data.display_name} <span aria-hidden="true">▾</span>
               </button>
+              {menuOpen === 'user' && (
+                <ul className="absolute right-0 z-40 mt-1 min-w-36 rounded-md border border-border bg-bg-elev py-1 shadow">
+                  <li className="px-3 py-1 text-xs text-text-faint">{me.data.email}</li>
+                  <li>
+                    <Link
+                      to="/settings"
+                      onClick={() => setMenuOpen(null)}
+                      className="block px-3 py-1 text-sm hover:bg-bg-sunken"
+                    >
+                      설정
+                    </Link>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="block w-full px-3 py-1 text-left text-sm hover:bg-bg-sunken"
+                      onClick={() => {
+                        setMenuOpen(null);
+                        void signOut().then(() => navigate({ to: '/login' }));
+                      }}
+                    >
+                      로그아웃
+                    </button>
+                  </li>
+                </ul>
+              )}
             </div>
           )}
         </div>

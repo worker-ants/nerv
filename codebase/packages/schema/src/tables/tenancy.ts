@@ -118,6 +118,12 @@ export const apiToken = pgTable(
     expiresAt: ts('expires_at'),
     revokedAt: ts('revoked_at'),
     lastUsedAt: ts('last_used_at'),
+    /**
+     * 이 토큰을 마지막으로 쓴 머신(`X-NERV-Host`). **유출 판단의 첫 단서**다(NFR-03) —
+     * "내 토큰이 모르는 호스트에서 쓰이고 있다"를 S8 목록에서 바로 보게 한다(REQ-WEB-026).
+     * 헤더가 없으면 NULL 이고, 그 자체가 "호스트를 밝히지 않은 호출"이라는 정보다.
+     */
+    lastUsedHostname: text('last_used_hostname'),
     createdAt: createdAt(),
   },
   (t) => [index('api_token_project_user').on(t.projectId, t.userId)],

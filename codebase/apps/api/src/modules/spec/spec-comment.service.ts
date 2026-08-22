@@ -110,6 +110,55 @@ export class SpecCommentService {
     return rows;
   }
 
+  /**
+   * EP-CMT-03 — 본문 수정. **작성자 본인만** 고친다.
+   *
+   * 남의 지적을 고칠 수 있으면 지적이 기록이 아니게 된다 — 해소는 `resolve` 로 하고
+   * 그 권한은 다른 역할(`spec:draft`)에 있다. 두 동작을 나눈 이유가 그것이다.
+   */
+  async update(input: {
+    projectId: string;
+    commentId: string;
+    bodyMd: string;
+    userId: string;
+  }): Promise<CommentResult> {
+    if (input.bodyMd.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, '본문이 필요합니다.', { kind: 'missing_body' });
+    }
+    const { rows } = await this.db.execute<{
+      id: string;
+      spec_id: string;
+      anchor: string;
+      status: string;
+      author_user_id: string;
+    }>(sql`
+      SELECT id, spec_id, anchor, status::text AS status, author_user_id
+        FROM spec_comment WHERE id = ${input.commentId} AND project_id = ${input.projectId}
+    `);
+    const comment = rows[0];
+    if (comment === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '코멘트를 찾을 수 없습니다.', {
+        kind: 'not_found',
+        comment_id: input.commentId,
+      });
+    }
+    if (comment.author_user_id !== input.userId) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, '작성자만 수정할 수 있습니다.', {
+        kind: 'not_author',
+      });
+    }
+
+    await this.db.execute(
+      sql`UPDATE spec_comment SET body_md = ${input.bodyMd} WHERE id = ${input.commentId}`,
+    );
+    return {
+      comment_id: comment.id,
+      anchor: comment.anchor,
+      status: comment.status,
+      open_count: await this.openCount(this.db, comment.spec_id),
+    };
+  }
+
   /** 미해소 코멘트 수 — 제출 전 사전 검토와 S3 배지가 같은 값을 본다. */
   async openCountFor(specId: string): Promise<number> {
     return this.openCount(this.db, specId);

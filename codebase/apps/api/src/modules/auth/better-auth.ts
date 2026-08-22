@@ -8,7 +8,7 @@
 // 사용자 행은 도메인 `user` 테이블을 그대로 쓴다 — 인증용 사본을 만들면 같은 사람이 두 개의
 // id 를 갖게 되고, event.actor_user_id 가 어느 쪽을 가리키는지 매번 물어야 한다.
 
-import { newId } from '@nerv/schema';
+import { RATE_LIMIT_AUTH_PER_MIN, RATE_LIMIT_SIGN_IN_PER_MIN, newId } from '@nerv/schema';
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
 
@@ -28,6 +28,19 @@ export function createBetterAuth(pool: pg.Pool) {
     database: pool,
     // id 는 UUIDv7 이다 — 도메인 전체가 그것을 쓰고(REQ-DB-003), user.id 는 uuid 컬럼이다.
     advanced: { database: { generateId: (): string => newId() } },
+    // 한도를 코드에 적어 둔다 — 기본값에 맡기면 값이 어디에도 없고 문구도 우리 것이 아니다.
+    // 주체가 IP 인 이유는 로그인 전에는 토큰도 세션도 없기 때문이다(api.md §1.8).
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: RATE_LIMIT_AUTH_PER_MIN,
+      // 로그인·가입은 따로 센다 — 무차별 대입의 표적이기 때문이다. 기본값(10초당 3회)에
+      // 맡기지 않는 이유는 사람이 오타 세 번에 잠기고, 그 한도가 어느 문서에도 없기 때문이다.
+      customRules: {
+        '/sign-in/email': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
+        '/sign-up/email': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       // MVP 초대는 기존 사용자 배정이라 메일 발송 경로가 없다(screens.md §2.1) —

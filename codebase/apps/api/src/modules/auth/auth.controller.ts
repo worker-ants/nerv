@@ -27,6 +27,78 @@ export class AuthController {
     return this.auth.orgs(principalOf(req).userId);
   }
 
+  /** EP-ORG-02 */
+  @Get('orgs/:org')
+  org(@Req() req: ProjectRequest, @Param('org') org: string): Promise<unknown> {
+    return this.auth.org({ userId: principalOf(req).userId, orgSlug: org });
+  }
+
+  /** EP-PRJ-02 — admin. 만든 사람이 자동으로 admin 멤버가 된다 */
+  @Post('orgs/:org/projects')
+  createProject(
+    @Req() req: ProjectRequest,
+    @Param('org') org: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.auth.createProject({
+      userId: principalOf(req).userId,
+      orgSlug: org,
+      slug: String(body['slug'] ?? ''),
+      key: String(body['key'] ?? ''),
+      name: String(body['name'] ?? ''),
+      description: str(body['description']),
+    });
+  }
+
+  /** EP-MBR-02 — 기존 사용자 배정(메일 발송은 Phase 2) */
+  @Post('orgs/:org/members')
+  addMember(
+    @Req() req: ProjectRequest,
+    @Param('org') org: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.auth.addMember({
+      actorUserId: principalOf(req).userId,
+      orgSlug: org,
+      email: String(body['email'] ?? ''),
+      role: String(body['role'] ?? 'viewer'),
+      projectSlug: str(body['project']),
+    });
+  }
+
+  /** EP-TOK-04 — admin 의 조직 전체 토큰 표 */
+  @Get('orgs/:org/tokens')
+  orgTokens(@Req() req: ProjectRequest, @Param('org') org: string): Promise<unknown> {
+    return this.auth.orgTokensBySlug({ actorUserId: principalOf(req).userId, orgSlug: org });
+  }
+
+  /** EP-MBR-03 — 역할 변경. 경로에 프로젝트가 없어 멤버십에서 조직을 되짚는다 */
+  @Patch('memberships/:id')
+  async updateMembership(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = principalOf(req);
+    await this.auth.assertAdminOfMembership(id, principal.userId);
+    return this.auth.updateMembership({
+      membershipId: id,
+      role: String(body['role'] ?? ''),
+      actorRole: 'admin',
+    });
+  }
+
+  /** EP-MBR-04 */
+  @Delete('memberships/:id')
+  async removeMembership(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+  ): Promise<{ ok: true }> {
+    const principal = principalOf(req);
+    await this.auth.assertAdminOfMembership(id, principal.userId);
+    return this.auth.removeMembership({ membershipId: id, actorRole: 'admin' });
+  }
+
   /** EP-PRJ-01 */
   @Get('orgs/:org/projects')
   projects(@Req() req: ProjectRequest, @Param('org') org: string): Promise<unknown> {
@@ -109,26 +181,6 @@ export class ProjectController {
       gatePolicy: (body['gate_policy'] ?? null) as Record<string, unknown> | null,
       retention: (body['retention'] ?? null) as Record<string, unknown> | null,
     });
-  }
-
-  /** EP-MBR-03 */
-  @Patch('memberships/:id')
-  updateMembership(
-    @Req() req: ProjectRequest,
-    @Param('id') id: string,
-    @Body() body: Record<string, unknown>,
-  ): Promise<unknown> {
-    return this.auth.updateMembership({
-      membershipId: id,
-      role: String(body['role'] ?? ''),
-      actorRole: roleOf(req),
-    });
-  }
-
-  /** EP-MBR-04 */
-  @Delete('memberships/:id')
-  removeMembership(@Req() req: ProjectRequest, @Param('id') id: string): Promise<{ ok: true }> {
-    return this.auth.removeMembership({ membershipId: id, actorRole: roleOf(req) });
   }
 }
 

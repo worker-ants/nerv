@@ -85,9 +85,16 @@ export class SpecService {
     specKey: string;
     versionNo?: number | null;
   }): Promise<Record<string, unknown>> {
+    // **기본은 최신 approved 다**(EP-SPEC-03 · REQ-WEB-011). current_version_id 를 그냥 주면
+    // 초안이 기본 화면에 뜨고, 그러면 "승인된 것"과 "쓰는 중인 것"의 구분이 화면에서 사라진다
+    // — 문서 축 분리(D-02)의 요점이 거기다. 승인본이 아직 없는 새 스펙만 draft 로 떨어진다.
     const pick =
       input.versionNo == null
-        ? sql`sv.id = s.current_version_id`
+        ? sql`sv.id = coalesce(
+                (SELECT a.id FROM spec_version a
+                  WHERE a.spec_id = s.id AND a.status = 'approved'
+                  ORDER BY a.version_no DESC LIMIT 1),
+                s.current_version_id)`
         : sql`sv.spec_id = s.id AND sv.version_no = ${input.versionNo}`;
 
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
@@ -231,6 +238,40 @@ export class SpecService {
         relations,
         web_url: await this.webUrl(tx, input.projectId, specId),
       };
+    });
+  }
+
+  /**
+   * EP-SPEC-08 — 키로 지정한 스펙의 초안을 이어쓴다.
+   *
+   * `draftUpsert` 는 UUID 를 받는다(도구·내부 경로). REST 는 사람이 읽는 키를 쓰므로
+   * 여기서 한 번 해소한다 — URL 에 UUID 가 박히면 링크를 사람이 못 읽는다.
+   */
+  async draftUpsertByKey(input: {
+    projectId: string;
+    specKey: string;
+    bodyMd: string;
+    baseVersionId?: string | null;
+    userId: string;
+    sessionId?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<{ id: string }>(
+      sql`SELECT id FROM spec WHERE project_id = ${input.projectId} AND key = ${input.specKey}`,
+    );
+    const specId = rows[0]?.id;
+    if (specId === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '스펙을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        spec: input.specKey,
+      });
+    }
+    return this.draftUpsert({
+      projectId: input.projectId,
+      specId,
+      bodyMd: input.bodyMd,
+      userId: input.userId,
+      ...(input.baseVersionId == null ? {} : { baseVersionId: input.baseVersionId }),
+      ...(input.sessionId == null ? {} : { sessionId: input.sessionId }),
     });
   }
 

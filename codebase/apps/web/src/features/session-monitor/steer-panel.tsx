@@ -21,17 +21,21 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const [message, setMessage] = useState('');
+  // stop 은 남의 작업을 끊는 행위다 — 확인 단계와 사유를 함께 요구한다(REQ-WEB-021).
+  // 사유가 없으면 상대 세션의 사람은 "왜 끊겼는지" 모른 채 다시 시작하게 된다.
+  const [confirming, setConfirming] = useState(false);
   const finished = ['complete', 'error'].includes(state);
 
   const send = useMutation({
     mutationFn: (kind: 'steer' | 'stop') =>
       apiFetch<{ reclaimed: number }>(`/projects/${projectSlug}/sessions/${sessionId}/steer`, {
         method: 'POST',
-        body: { kind, message: kind === 'stop' && message.trim() === '' ? '중단 요청' : message },
+        body: { kind, message },
         idempotencyKey: `steer-${sessionId}-${kind}-${message.slice(0, 16)}`,
       }),
     onSuccess: (result, kind) => {
       setMessage('');
+      setConfirming(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectSessions(projectSlug) });
       pushToast({
         tone: 'ok',
@@ -67,7 +71,7 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
           type="button"
           data-testid="stop-button"
           disabled={finished || send.isPending}
-          onClick={() => send.mutate('stop')}
+          onClick={() => setConfirming(true)}
           className="rounded border border-status-danger px-2 py-1 text-sm text-status-danger disabled:opacity-50"
           title="즉시 클레임을 회수하고 작업을 ready 로 되돌립니다"
         >
@@ -75,6 +79,46 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
         </button>
         {finished && <span className="text-xs text-text-faint">종료된 세션입니다</span>}
       </div>
+
+      {confirming && (
+        <div
+          role="dialog"
+          aria-label="세션 중단 확인"
+          data-testid="stop-confirm"
+          className="rounded border border-status-danger bg-status-danger-soft p-2 text-sm"
+        >
+          <p className="font-medium text-status-danger">이 세션을 중단합니다</p>
+          <p className="mt-1 text-xs text-text-mute">
+            활성 클레임이 즉시 회수되고 작업은 ready 로 돌아갑니다. 사유는 세션 타임라인에 남아
+            상대가 무엇 때문에 끊겼는지 알 수 있습니다.
+          </p>
+          <input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="중단 사유 (필수)"
+            data-testid="stop-reason"
+            className="mt-2 w-full rounded border border-border bg-bg px-2 py-1"
+          />
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              data-testid="stop-confirm-button"
+              disabled={message.trim() === '' || send.isPending}
+              onClick={() => send.mutate('stop')}
+              className="rounded bg-status-danger px-2 py-1 text-white disabled:opacity-50"
+            >
+              중단 실행
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded border border-border px-2 py-1"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

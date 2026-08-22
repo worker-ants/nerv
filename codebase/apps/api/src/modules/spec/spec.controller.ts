@@ -107,9 +107,13 @@ export class SpecController {
     });
   }
 
-  /** EP-SPEC-07·08 */
-  @Put('specs/draft')
-  draft(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+  /**
+   * EP-SPEC-07 — **새 스펙 생성**. 생성과 이어쓰기를 문서가 나눈 이유가 있다:
+   * 생성은 key·type·title 이 필요하고 이어쓰기는 base_version 이 필요하다 —
+   * 한 경로에 섞으면 어느 쪽 필수 필드가 빠졌는지 오류가 흐려진다.
+   */
+  @Post('specs')
+  create(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
       throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
@@ -117,25 +121,44 @@ export class SpecController {
     return this.specs.draftUpsert({
       projectId: projectOf(req),
       userId: principal.userId,
-      bodyMd: String(body['body_md'] ?? ''),
-      ...(typeof body['spec_id'] === 'string' ? { specId: body['spec_id'] } : {}),
-      ...(typeof body['key'] === 'string' ? { key: body['key'] } : {}),
-      ...(typeof body['title'] === 'string' ? { title: body['title'] } : {}),
-      ...(typeof body['type'] === 'string' ? { type: body['type'] } : {}),
+      bodyMd: String(body['body_markdown'] ?? body['body_md'] ?? ''),
+      key: String(body['key'] ?? ''),
+      title: String(body['title'] ?? ''),
+      type: String(body['type'] ?? 'feature'),
+      ...(typeof body['parent_id'] === 'string' ? { parentId: body['parent_id'] } : {}),
+    });
+  }
+
+  /** EP-SPEC-08 — 초안 이어쓰기. `{spec}` 이 경로에 있으므로 본문에 spec_id 를 받지 않는다 */
+  @Put('specs/:spec/draft')
+  draft(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = req.nervPrincipal;
+    if (principal === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    }
+    return this.specs.draftUpsertByKey({
+      projectId: projectOf(req),
+      specKey: spec,
+      userId: principal.userId,
+      bodyMd: String(body['body_markdown'] ?? body['body_md'] ?? ''),
       ...(typeof body['base_version'] === 'string' ? { baseVersionId: body['base_version'] } : {}),
     });
   }
 
   /** EP-SPEC-10 — A3. 게이트 티어에 따라 자동 통과 또는 승인 대기 */
-  @Post('specs/submit')
-  submit(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+  @Post('spec-versions/:ver/submit')
+  submit(@Req() req: ProjectRequest, @Param('ver') ver: string): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
       throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
     }
     return this.specs.submitReview({
       projectId: projectOf(req),
-      specVersionId: String(body['spec_version_id'] ?? ''),
+      specVersionId: ver,
       userId: principal.userId,
     });
   }
@@ -247,6 +270,25 @@ export class SpecController {
     });
   }
 
+  /** EP-CMT-03 — 작성자 본인만 */
+  @Patch('comments/:id')
+  updateComment(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = req.nervPrincipal;
+    if (principal === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    }
+    return this.comments.update({
+      projectId: projectOf(req),
+      commentId: id,
+      bodyMd: String(body['body_md'] ?? ''),
+      userId: principal.userId,
+    });
+  }
+
   /** EP-CMT-04 */
   @Post('comments/:id/resolve')
   resolveComment(
@@ -272,6 +314,16 @@ export class SpecController {
   @Get('specs/:spec/versions')
   versions(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
     return this.specs.versions({ projectId: projectOf(req), specKey: spec });
+  }
+
+  /** EP-SPEC-05 — 불변 스냅샷. 같은 `{no}` 는 영원히 같은 응답이다 */
+  @Get('specs/:spec/versions/:no')
+  version(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    @Param('no') no: string,
+  ): Promise<unknown> {
+    return this.specs.get({ projectId: projectOf(req), specKey: spec, versionNo: Number(no) });
   }
 
   /** EP-SPEC-06 */

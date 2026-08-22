@@ -13,6 +13,8 @@ const BASE_URL = process.env['NERV_E2E_BASE_URL'] ?? 'http://localhost:8080';
 
 export default defineConfig({
   testDir: './test/e2e',
+  // 로그인은 전역 준비에서 한 번만 한다 — 스위트가 자기 쿼터를 먹지 않게(§1.8)
+  globalSetup: './test/e2e/global-setup.ts',
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,

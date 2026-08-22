@@ -7,6 +7,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { DelegationForm } from '../../features/task-board/delegation-form.js';
+import { leaseRemaining } from '../../features/session-monitor/format.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
 import { rows, useProject, useTasks } from '../../lib/queries.js';
@@ -15,6 +16,11 @@ import type { StatusToken } from '../../components/status-badge.js';
 export const Route = createFileRoute('/p/$proj/tasks/')({ component: TaskBoard });
 
 const COLUMNS = ['backlog', 'ready', 'claimed', 'in_progress', 'done', 'blocked'] as const;
+
+/** 만료까지 남은 초 — 음수면 이미 만료다(회수는 워커가 한다). */
+function leaseSeconds(expiresAt: string): number {
+  return Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
+}
 const COLUMN_LABEL: Record<string, string> = {
   backlog: '백로그',
   ready: '준비됨',
@@ -91,19 +97,57 @@ function TaskBoard(): React.JSX.Element {
                         )}
                         {task['rebrief_required_at'] !== null &&
                           task['rebrief_required_at'] !== undefined && (
-                            <span data-testid="rebrief-badge" className="text-status-waiting">
-                              재브리핑 필요
-                            </span>
+                            // 036 — 기준 버전이 지나갔다는 사실과 어디로 가야 하는지를 함께 준다
+                            <Link
+                              to="/p/$proj/tasks/$task"
+                              params={{ proj, task: String(task['key']) }}
+                              data-testid="rebrief-badge"
+                              className="text-status-waiting underline"
+                            >
+                              재브리핑 필요 — v{String(task['basis_version_no'] ?? '?')} → 최신
+                            </Link>
                           )}
+                        {/* 리스 잔여는 서버 시각 기준으로 클라이언트가 센다(§1.4).
+                            2분 미만은 호박색 — 곧 회수된다는 뜻이고, 그때 화면이 조용하면
+                            사람은 작업이 사라진 이유를 모른다(REQ-WEB-017 · D-04) */}
+                        {typeof task['lease_expires_at'] === 'string' && (
+                          <span
+                            data-testid="lease-countdown"
+                            className={
+                              leaseSeconds(task['lease_expires_at']) < 120
+                                ? 'text-status-waiting'
+                                : 'text-text-mute'
+                            }
+                          >
+                            리스 {leaseRemaining(leaseSeconds(task['lease_expires_at']))}
+                          </span>
+                        )}
                       </div>
                       {column === 'backlog' && task['delegation_complete'] === false && (
-                        <button
-                          type="button"
-                          onClick={() => setEditing(String(task['key']))}
-                          className="mt-1 text-xs text-link underline"
-                        >
-                          위임 명세 채우기 ▸
-                        </button>
+                        <div className="mt-1">
+                          {/* **무엇이 비었는지**를 카드가 말한다(REQ-WEB-016). "채우세요"만
+                              있으면 사람은 폼을 열고서야 무엇이 빠졌는지 알게 된다 */}
+                          <p data-testid="ready-blocked" className="text-xs text-status-waiting">
+                            ready 불가 — 위임 명세 4요소 미완성
+                          </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled
+                              title="위임 명세 4요소(목표·산출물·도구/출처·경계)가 채워져야 ready 로 갑니다"
+                              className="cursor-not-allowed rounded border border-border px-1.5 py-0.5 text-xs opacity-50"
+                            >
+                              ready 전이
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditing(String(task['key']))}
+                              className="text-xs text-link underline"
+                            >
+                              위임 명세 채우기 ▸
+                            </button>
+                          </div>
+                        </div>
                       )}
                       {column === 'blocked' && (
                         <p className="mt-1 text-xs text-status-danger">

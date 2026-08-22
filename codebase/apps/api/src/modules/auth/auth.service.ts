@@ -115,6 +115,180 @@ export class AuthService {
     return rows;
   }
 
+  /** EP-ORG-02 — 조직 상세. 멤버가 아니면 존재 자체를 알려주지 않는다. */
+  async org(input: { userId: string; orgSlug: string }): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT o.id, o.slug, o.name, o.settings, o.created_at,
+             (SELECT count(*) FROM project p WHERE p.org_id = o.id)::int AS project_count,
+             (SELECT count(DISTINCT m2.user_id) FROM membership m2 WHERE m2.org_id = o.id)::int
+               AS member_count
+        FROM organization o
+       WHERE o.slug = ${input.orgSlug}
+         AND EXISTS (SELECT 1 FROM membership m WHERE m.org_id = o.id AND m.user_id = ${input.userId})
+    `);
+    const org = rows[0];
+    if (org === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '조직을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        org: input.orgSlug,
+      });
+    }
+    return org;
+  }
+
+  /**
+   * EP-PRJ-02 — 프로젝트 생성(admin). 만든 사람을 자동으로 admin 멤버로 넣는다 —
+   * 넣지 않으면 만든 즉시 자기가 못 들어가는 프로젝트가 생긴다.
+   */
+  async createProject(input: {
+    userId: string;
+    orgSlug: string;
+    slug: string;
+    key: string;
+    name: string;
+    description?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const { rows: orgRows } = await this.db.execute<{ id: string; role: string }>(sql`
+      SELECT o.id, m.role::text AS role FROM organization o
+        JOIN membership m ON m.org_id = o.id AND m.user_id = ${input.userId}
+       WHERE o.slug = ${input.orgSlug}
+       ORDER BY (m.role = 'admin') DESC LIMIT 1
+    `);
+    const org = orgRows[0];
+    if (org === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '조직을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        org: input.orgSlug,
+      });
+    }
+    this.assertAdmin(org.role as MembershipRole);
+    if (input.slug.trim() === '' || input.key.trim() === '' || input.name.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, 'slug·key·name 이 필요합니다.', {
+        kind: 'missing_fields',
+      });
+    }
+
+    const projectId = newId();
+    await this.db.execute(sql`
+      INSERT INTO project (id, org_id, slug, key, name, description)
+      VALUES (${projectId}, ${org.id}, ${input.slug}, ${input.key}, ${input.name},
+              ${input.description ?? null})
+    `);
+    await this.db.execute(sql`
+      INSERT INTO membership (id, org_id, project_id, user_id, role)
+      VALUES (${newId()}, ${org.id}, ${projectId}, ${input.userId}, 'admin')
+    `);
+    return this.project(projectId);
+  }
+
+  /**
+   * EP-MBR-02 — 멤버 배정. **MVP 초대는 기존 사용자 배정이다**(메일 발송은 Phase 2) —
+   * 그래서 없는 이메일이면 만들지 않고 거절한다. 조용히 계정을 만들면 그 계정은
+   * 비밀번호가 없어 아무도 못 쓰는 유령이 된다.
+   */
+  async addMember(input: {
+    actorUserId: string;
+    orgSlug: string;
+    email: string;
+    role: string;
+    projectSlug?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const { rows: orgRows } = await this.db.execute<{ id: string; role: string }>(sql`
+      SELECT o.id, m.role::text AS role FROM organization o
+        JOIN membership m ON m.org_id = o.id AND m.user_id = ${input.actorUserId}
+       WHERE o.slug = ${input.orgSlug}
+       ORDER BY (m.role = 'admin') DESC LIMIT 1
+    `);
+    const org = orgRows[0];
+    if (org === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '조직을 찾을 수 없습니다.', {
+        kind: 'not_found',
+      });
+    }
+    this.assertAdmin(org.role as MembershipRole);
+
+    const { rows: userRows } = await this.db.execute<{ id: string }>(
+      sql`SELECT id FROM "user" WHERE email = ${input.email}`,
+    );
+    const userId = userRows[0]?.id;
+    if (userId === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '가입한 사용자가 아닙니다.', {
+        kind: 'user_not_found',
+        email: input.email,
+        hint: 'MVP 초대는 기존 사용자 배정입니다 — 먼저 가입해야 합니다.',
+      });
+    }
+
+    let projectId: string | null = null;
+    if (input.projectSlug != null && input.projectSlug !== '') {
+      const { rows } = await this.db.execute<{ id: string }>(
+        sql`SELECT id FROM project WHERE org_id = ${org.id} AND slug = ${input.projectSlug}`,
+      );
+      projectId = rows[0]?.id ?? null;
+      if (projectId === null) {
+        throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+          kind: 'not_found',
+          project: input.projectSlug,
+        });
+      }
+    }
+
+    const membershipId = newId();
+    const { rows: inserted } = await this.db.execute<Record<string, unknown>>(sql`
+      INSERT INTO membership (id, org_id, project_id, user_id, role)
+      VALUES (${membershipId}, ${org.id}, ${projectId}, ${userId}, ${input.role}::member_role)
+      ON CONFLICT DO NOTHING
+      RETURNING id, role::text AS role, user_id, project_id
+    `);
+    if (inserted[0] === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '이미 같은 스코프의 멤버입니다.', {
+        kind: 'duplicate_membership',
+      });
+    }
+    return inserted[0];
+  }
+
+  /** EP-TOK-04 — admin 의 조직 전체 토큰 표. 여기에도 원문은 없다. */
+  async orgTokensBySlug(input: {
+    actorUserId: string;
+    orgSlug: string;
+  }): Promise<Record<string, unknown>[]> {
+    const { rows: orgRows } = await this.db.execute<{ role: string }>(sql`
+      SELECT m.role::text AS role FROM organization o
+        JOIN membership m ON m.org_id = o.id AND m.user_id = ${input.actorUserId}
+       WHERE o.slug = ${input.orgSlug}
+       ORDER BY (m.role = 'admin') DESC LIMIT 1
+    `);
+    const role = orgRows[0]?.role;
+    if (role === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '조직을 찾을 수 없습니다.', {
+        kind: 'not_found',
+      });
+    }
+    return this.orgTokens({ orgSlug: input.orgSlug, actorRole: role as MembershipRole });
+  }
+
+  /**
+   * 멤버십 하나의 조직 안에서 호출자가 admin 인지 — EP-MBR-03·04 의 경로에는
+   * 프로젝트가 없어서(문서 경로가 `/memberships/{id}`) 여기서 되짚는다.
+   */
+  async assertAdminOfMembership(membershipId: string, actorUserId: string): Promise<void> {
+    const { rows } = await this.db.execute<{ role: string | null }>(sql`
+      SELECT actor.role::text AS role
+        FROM membership target
+   LEFT JOIN membership actor ON actor.org_id = target.org_id AND actor.user_id = ${actorUserId}
+       WHERE target.id = ${membershipId}
+       ORDER BY (actor.role = 'admin') DESC
+       LIMIT 1
+    `);
+    if (rows[0] === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '멤버십을 찾을 수 없습니다.', {
+        kind: 'not_found',
+      });
+    }
+    this.assertAdmin((rows[0].role ?? 'viewer') as MembershipRole);
+  }
+
   /** EP-PRJ-01 — 조직 멤버가 볼 수 있는 프로젝트. 조직 멤버십은 프로젝트 전체를 덮는다. */
   async projects(input: { userId: string; orgSlug: string }): Promise<Record<string, unknown>[]> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
@@ -252,6 +426,7 @@ export class AuthService {
   async tokens(userId: string): Promise<Record<string, unknown>[]> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.id, t.name, t.prefix, t.scopes, t.expires_at, t.revoked_at, t.last_used_at,
+             t.last_used_hostname,
              t.created_at, p.slug AS project_slug, p.name AS project_name
         FROM api_token t JOIN project p ON p.id = t.project_id
        WHERE t.user_id = ${userId}
@@ -268,6 +443,7 @@ export class AuthService {
     this.assertAdmin(input.actorRole);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.id, t.name, t.prefix, t.scopes, t.expires_at, t.revoked_at, t.last_used_at,
+             t.last_used_hostname,
              u.display_name AS owner, p.slug AS project_slug
         FROM api_token t
         JOIN project p ON p.id = t.project_id
@@ -351,7 +527,7 @@ export class AuthService {
    */
   async verify(auth: AuthContext): Promise<Principal> {
     if (auth.kind === 'session') return this.verifySession(auth.credential);
-    return this.verifyPat(auth.credential);
+    return this.verifyPat(auth.credential, auth.hostname ?? null);
   }
 
   /**
@@ -388,7 +564,7 @@ export class AuthService {
     };
   }
 
-  async verifyPat(raw: string): Promise<Principal> {
+  async verifyPat(raw: string, hostname: string | null = null): Promise<Principal> {
     if (!raw.startsWith(TOKEN_PREFIX)) {
       throw unauthenticated('토큰 형식이 아닙니다.');
     }
@@ -438,9 +614,16 @@ export class AuthService {
       });
     }
 
-    // last_used_at 갱신은 감사용이라 실패해도 요청을 막지 않는다
+    // last_used 갱신은 감사용이라 실패해도 요청을 막지 않는다.
+    // 호스트는 헤더가 준 값이라 신뢰할 수 없다 — 그래서 권한 판정에 쓰지 않고 **표시만** 한다.
+    // 그래도 값어치가 있다: 유출된 토큰이 모르는 이름을 남기기 시작하면 사람이 알아본다.
     void this.db
-      .execute(sql`UPDATE api_token SET last_used_at = now() WHERE id = ${token.id}`)
+      .execute(
+        sql`UPDATE api_token
+               SET last_used_at = now(),
+                   last_used_hostname = coalesce(${hostname}, last_used_hostname)
+             WHERE id = ${token.id}`,
+      )
       .catch(() => undefined);
 
     return {

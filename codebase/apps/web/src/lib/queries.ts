@@ -113,6 +113,15 @@ export function useSpecComments(slug: string, specKey: string): UseQueryResult<R
   });
 }
 
+/** EP-SPEC-09 — 사전 검토(읽기 전용 셀프서비스). 제출 게이트의 근거를 화면에 미리 보인다. */
+export function useSpecCheck(slug: string, versionId: string | null): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: ['spec-version', versionId, 'check'],
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/spec-versions/${versionId ?? ''}/check`),
+    enabled: versionId !== null && versionId !== '',
+  });
+}
+
 export function useSpecRelations(slug: string, specKey: string): UseQueryResult<{ items: Row[] }> {
   return useQuery({
     queryKey: [...queryKeys.spec(specKey), 'relations'],

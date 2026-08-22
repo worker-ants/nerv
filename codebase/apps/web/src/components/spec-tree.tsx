@@ -29,6 +29,16 @@ export interface SpecTreeProps {
   activeKey?: string | undefined;
 }
 
+/**
+ * 가상 스크롤 임계 — 이 수를 넘으면 보이는 만큼만 그린다(REQ-WEB-044).
+ *
+ * 트리는 대규모에서 먼저 무너진다. 다만 **접힌 트리에서는 대개 필요해지지 않는다** —
+ * depth=1 로 접어두면 보이는 노드가 수십 개다. 그래서 가상 스크롤은 "펼친 상태에서
+ * 여전히 많을 때"의 안전망이고, 기본 경로는 접기다.
+ */
+const VIRTUAL_THRESHOLD = 200;
+const ROW_HEIGHT = 24;
+
 /** 평면 목록 → 부모별 자식 맵. 서버는 정렬만 하고 계층 조립은 화면 몫이다. */
 export function groupByParent(nodes: TreeNode[]): Map<string | null, TreeNode[]> {
   const map = new Map<string | null, TreeNode[]>();
@@ -49,6 +59,8 @@ export function SpecTree({
   const tree = useSpecTree(projectSlug, projectId);
   const [filter, setFilter] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(600);
 
   // 목록 응답을 믿고 크래시하지 않는다 — 트리 하나 때문에 셸 전체가 흰 화면이 된다.
   const nodes = rows(tree.data) as unknown as TreeNode[];
@@ -86,6 +98,25 @@ export function SpecTree({
       </div>
     );
   }
+
+  // 보이는 노드만 평탄화한다 — 접힌 가지는 리스트에 아예 들어오지 않는다.
+  const visible: { node: TreeNode; depth: number }[] = [];
+  const collect = (parentId: string | null, depth: number): void => {
+    for (const node of byParent.get(parentId) ?? []) {
+      if (matches !== null && !matches.has(node.id) && !byParent.has(node.id)) continue;
+      visible.push({ node, depth });
+      const isOpen = expanded.has(node.id) || matches !== null || depth === 0;
+      if (isOpen) collect(node.id, depth + 1);
+    }
+  };
+  collect(null, 0);
+
+  // 200 노드를 넘으면 창 밖은 그리지 않는다 — 최초 페인트가 전체 트리를 요구하지 않게.
+  const virtualized = visible.length > VIRTUAL_THRESHOLD;
+  const startIndex = virtualized ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 10) : 0;
+  const endIndex = virtualized
+    ? Math.min(visible.length, startIndex + Math.ceil(viewportHeight / ROW_HEIGHT) + 20)
+    : visible.length;
 
   const renderLevel = (parentId: string | null, depth: number): React.JSX.Element[] =>
     (byParent.get(parentId) ?? [])
@@ -138,7 +169,7 @@ export function SpecTree({
       });
 
   return (
-    <div data-testid="spec-tree">
+    <div data-testid="spec-tree" data-virtualized={virtualized}>
       {!(compact ?? false) && (
         <input
           value={filter}
@@ -147,7 +178,46 @@ export function SpecTree({
           className="mb-2 w-full rounded border border-border bg-bg px-2 py-1 text-sm"
         />
       )}
-      <ul>{renderLevel(null, 0)}</ul>
+      {virtualized ? (
+        <div
+          data-testid="tree-viewport"
+          className="max-h-[70vh] overflow-y-auto"
+          ref={(el) => {
+            if (el !== null && el.clientHeight !== viewportHeight)
+              setViewportHeight(el.clientHeight);
+          }}
+          onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        >
+          {/* 스크롤 높이는 전체 노드 수로 잡고 내용만 창 크기로 그린다 */}
+          <div style={{ height: visible.length * ROW_HEIGHT, position: 'relative' }}>
+            <ul style={{ position: 'absolute', top: startIndex * ROW_HEIGHT, left: 0, right: 0 }}>
+              {visible.slice(startIndex, endIndex).map(({ node, depth }) => (
+                <li key={node.id} style={{ paddingLeft: depth * 12, height: ROW_HEIGHT }}>
+                  <Link
+                    to="/p/$proj/specs/$spec"
+                    params={{ proj: projectSlug, spec: node.key }}
+                    data-active={node.key === activeKey}
+                    className="flex items-center gap-1 truncate text-sm data-[active=true]:font-semibold"
+                  >
+                    <span className="truncate">{node.title}</span>
+                    {node.doc_status !== null && (
+                      <StatusBadge
+                        token={
+                          (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
+                            'idle') as StatusToken
+                        }
+                        label={node.doc_status}
+                      />
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : (
+        <ul>{renderLevel(null, 0)}</ul>
+      )}
     </div>
   );
 }

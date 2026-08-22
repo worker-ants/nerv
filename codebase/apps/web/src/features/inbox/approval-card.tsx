@@ -7,7 +7,7 @@
 // "어느 머신의 누구를 멈춰 세우고 있나"가 답변 우선순위를 정하기 때문이다.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -25,19 +25,29 @@ export function waitedLabel(seconds: number): string {
 export interface ApprovalCardProps {
   card: Record<string, unknown>;
   compact?: boolean;
-  autoFocus?: boolean;
+  /** 승인함이 포커스한 카드 — j/k 로 옮겨온 카드에 a/r/c 가 꽂힌다(REQ-WEB-025) */
+  active?: boolean;
 }
 
-export function ApprovalCard({ card, compact }: ApprovalCardProps): React.JSX.Element {
+export function ApprovalCard({ card, compact, active }: ApprovalCardProps): React.JSX.Element {
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const [comment, setComment] = useState('');
+  const [reasonRequired, setReasonRequired] = useState(false);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
   const isQuestion = card['subject_type'] === 'question';
   const id = String(card['id']);
   const projectSlug = String(card['project_slug'] ?? '');
 
   const decide = useMutation({
     mutationFn: async (decision: Decision) => {
+      // **거절에는 사유가 필수다**(REQ-WEB-022). 사유 없는 거절은 요청자에게 "다시 해보라"는
+      // 말만 남기고, 그 왕복이 승인 병목(P4)을 만든다. 사유는 알림과 감사 로그 양쪽에 남는다.
+      if (decision === 'reject' && comment.trim() === '') {
+        setReasonRequired(true);
+        throw new Error('거절 사유를 적어주세요.');
+      }
+      setReasonRequired(false);
       if (isQuestion) {
         return apiFetch(`/projects/${projectSlug}/questions/${id}/answer`, {
           method: 'POST',
@@ -61,11 +71,29 @@ export function ApprovalCard({ card, compact }: ApprovalCardProps): React.JSX.El
       // 처리됨 트레일 — 3분 유지(ui-wireframes §4.1)
       pushToast({
         tone: 'ok',
-        message: isQuestion ? '답변을 보냈습니다.' : `${decisionLabel(decision)} 처리됐습니다.`,
+        message: isQuestion
+          ? `요청 세션 ${String(card['hostname'] ?? '?')}/${String(card['agent_type'] ?? '?')} 에 전달됨`
+          : `${decisionLabel(decision)} 처리됐습니다.`,
       });
     },
     onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
   });
+
+  useEffect(() => {
+    if (active !== true) return;
+    const onKey = (e: KeyboardEvent): void => {
+      const target = e.target as HTMLElement | null;
+      if (target !== null && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+      if (e.key === 'a' && !isQuestion && card['self_requested'] !== true) decide.mutate('approve');
+      if (e.key === 'r' && !isQuestion) decide.mutate('reject');
+      if (e.key === 'c') {
+        e.preventDefault();
+        commentRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active, card, decide, isQuestion]);
 
   return (
     <article
@@ -105,12 +133,19 @@ export function ApprovalCard({ card, compact }: ApprovalCardProps): React.JSX.El
             {String(card['body_md'] ?? '')}
           </p>
           <textarea
+            ref={commentRef}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder={isQuestion ? '답변' : '코멘트(선택)'}
+            placeholder={isQuestion ? '답변' : '코멘트 — 거절에는 필수'}
+            data-testid="decision-comment"
             className="mt-2 w-full rounded border border-border bg-bg px-2 py-1 text-sm"
             rows={2}
           />
+          {reasonRequired && (
+            <p role="alert" data-testid="reason-required" className="text-xs text-status-danger">
+              거절에는 사유가 필요합니다 — 요청자 알림과 감사 로그에 남습니다.
+            </p>
+          )}
         </>
       )}
 
