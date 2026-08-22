@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 15종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [api.html](../html/api.html)
+>
+> v0.5 변경(2026-08-22 — 구현 착수 검토에서 발견된 공백 보완): ① **스펙 메타 표면 EP-SPEC-15~17 신설**(메타 수정·아카이브·복원 — §2.2). FR-01 "이동·개명에도 ID 불변"의 실행 경로가 없던 결함 해소, MCP `nerv_spec_draft_upsert`와의 메타 필드 계약 정합 규칙 포함 ② **`gate_policy`·`retention` 키 스키마 확정**(§2.1a) ③ **쿼터 시작값 확정**(§1.8) ④ **`spec_relation` 자동 추출 규칙**(§2.2 — 참조 전파(FR-02)가 임포트 없는 프로젝트에서도 동작하기 위한 전제) ⑤ REQ-API-020~024.
 >
 > v0.4 변경(2026-08-22): **임포트 표면 EP-IMP-01~05 신설**(§2.10) + `import:write` 스코프(§1.3) + `import.applied` 이벤트(§3.3) + REQ-API-017~019 — 임포터 실행 모델이 DB 직결에서 API 클라이언트로 확정된 데 따른 계약 추가([4.7 스펙 임포터](importer.md) §3.2).
 
@@ -69,7 +71,7 @@ flowchart LR
 | **PAT** | `Authorization: Bearer <token>` | 에이전트(MCP)·CI·외부 연동·md 미러 | better-auth api-key 플러그인 기반. 토큰은 **(사용자, 프로젝트, 역할, 스코프)** 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을 넘지 못한다([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1, D-08). Bearer 헤더 필수, **쿼리스트링 전달 금지**(MCP Authorization 규약 재인용) |
 
 - PAT 원문 형식: `nerv_` 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(`api_token.token_hash`), 식별·감사용으로 앞 8자를 `api_token.prefix`에 남긴다([데이터 모델](../03-proposal/data-model.md) §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 **한 번만** 반환된다.
-- 스코프 어휘는 `resource:action` 표기로 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 도구 표의 "필요 권한" 열과 1:1이다(`spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch` …). `spec:approve`와 `approval:decide`는 **토큰에 부여 자체가 불가능한 사람 전용 스코프**다 — 정책이 아니라 시스템 불변식(같은 문서 §6.1 ④).
+- 스코프 어휘는 `resource:action` 표기로 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 도구 표의 "필요 권한" 열과 1:1이다(`spec:read` `spec:draft` `spec:meta` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch` …). `spec:approve`와 `approval:decide`는 **토큰에 부여 자체가 불가능한 사람 전용 스코프**다 — 정책이 아니라 시스템 불변식(같은 문서 §6.1 ④).
 - **`import:write`는 도구 대응이 없는 유일한 REST 전용 스코프**다(§2.10). MCP 도구 카탈로그에 임포트 도구가 없기 때문이며, admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사된다. 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
 - REST 엔드포인트의 인가는 역할 매트릭스([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6)가 정본이다. §2 전표의 "권한" 열은 그 매트릭스의 인용이며, PAT 요청은 역할 판정에 **스코프 검사가 AND로** 추가된다.
 
@@ -133,6 +135,18 @@ flowchart LR
 - 목록 응답의 `Page<X>`는 §1.6 봉투에 `items: X[]`를 담는 제네릭 표기다.
 - 엔드포인트는 안정 ID **`EP-<영역>-<번호>`** 를 갖는다. [4.5 화면 명세](screens.md) 등 다른 문서는 경로 문자열이 아니라 이 ID로 인용한다 — 경로가 바뀌어도 참조가 깨지지 않게 하기 위해서다(D-09와 같은 원리).
 - 이벤트 열에서 **★ 표시는 이 문서가 신설하는 이벤트 이름**이다 — `<리소스>.<동사>` 규약([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6.1)을 따르되 같은 문서 §6.3 알림 카탈로그에 없는 이름으로, 전부 알림을 만들지 않는 low/무티어 기록용이다. 무표시 이름은 전부 정본 인용이다.
+### 1.8 쿼터 — `NERV_RATE_LIMIT`의 실제 한도
+
+REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema` `constants.ts`가 정본으로 export하고([4.2 코드베이스와 배포](codebase.md) §3.2), 여기 표는 그 인용이다. **전부 시작값이다** — 파일럿 실측(정상 트래픽에서 429 발생)이 재검토 트리거이며, 조정은 상수 변경 한 곳으로 끝난다.
+
+| 주체 | 한도 | 적용 표면 | 비고 |
+| --- | --- | --- | --- |
+| PAT 토큰당 | **300 req/min** | `/api/v1` + `/mcp`(같은 풀 — 토큰이 주체이므로 표면을 나누지 않는다) | 하트비트 60초 주기·조회 포함 여유값. 초과 시 `retry_after_s` 준수는 스킬 규약([4.6](plugin.md) §2) |
+| 웹 세션 사용자당 | **600 req/min** | `/api/v1` | 쿼리 무효화 재조회 버스트([4.5 화면 명세](screens.md) §1.4) 흡수 |
+| 세션당 ingest | **120 req/min** | `/ingest/hooks/*` | 훅 폭주(도구 호출 다발) 상한. 초과분은 429 — 훅 수집은 손실 허용(진실은 서버 산출물, D-14) |
+
+- 한도 계산은 고정 창(1분) 기준이며, 응답 헤더 `Retry-After`(초)와 봉투 `details.retry_after_s`를 함께 싣는다(§1.4).
+- WS·SSE **연결 수**는 쿼터 대상이 아니다 — 연결 후 이벤트는 서버 발신이므로. 연결 시도 폭주는 인프라 계층(nginx/Ingress) 소관.
 
 ---
 
@@ -158,6 +172,36 @@ flowchart LR
 | EP-TOK-03 | `DELETE /api/v1/me/tokens/{id}` | 본인 또는 admin | — | `{ok:true}`(즉시 폐기, `revoked_at` 기록) | ★`token.revoked` |
 | EP-TOK-04 | `GET /api/v1/orgs/{org}/tokens` | admin | `TokenAdminListQuery`(project, user, cursor) | `Page<TokenAdminSummary>`(소유자·prefix·scopes·last_used_at, 원문 없음) — S8 admin의 조직 전체 토큰 표([화면 설계](../03-proposal/ui-wireframes.md) §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝 | — |
 
+#### 2.1a `gate_policy` · `retention` 키 스키마
+
+EP-PRJ-03 응답·EP-PRJ-04 입력의 두 jsonb 필드는 웹 폼(S8 게이트 정책 탭)·API 검증·워커 잡이 **같은 zod 스키마**(`GatePolicySchema` · `RetentionSchema`, `@nerv/schema`)를 쓴다(REQ-CB-006). 의미 정본은 티어 산정이 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.4(D-06), fail-open 격상이 [에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3(D-14)이고, 여기서는 **키 이름·타입·기본값**을 확정한다. 알 수 없는 키는 400 `NERV_PRECONDITION`으로 거부한다(관대한 수용은 오타 정책을 조용히 무시하게 된다).
+
+```jsonc
+// gate_policy — 전 키 선택(생략 시 기본값). version은 스키마 마이그레이션용
+{
+  "version": 1,
+  "spec_gate": {
+    "tier_boundaries": [2, 4, 6],      // 4축 합산 점수의 T1/T2/T3 진입 경계(§2.4 기본: 0~1=T0 · 2~3=T1 · 4~5=T2 · 6+=T3)
+    "t1_objection_hours": 24,          // T1 소프트 게이트 이의제기 창
+    "dynamic_escalation": true         // 재시도 임계·롤백 이력에 의한 티어 +1 (spec-workflow §2.4 "동적 강화")
+  },
+  "failopen": {
+    "escalate_count": 3,               // 연속 fail-open 판정 격상 임계(D-14)
+    "window_hours": 24
+  }
+}
+```
+
+```jsonc
+// retention — 워커 retention.job이 읽는다(4.2 §2.2)
+{
+  "activity_days": 90,                 // Activity 세션 요약 압축 후 파티션 드랍(4.3 §2.14)
+  "prompt_blob_ttl_days": 30           // 리뷰 프롬프트 blob TTL — 상수 REVIEW_PROMPT_BLOB_TTL_DAYS의 프로젝트 오버라이드
+}
+```
+
+S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화면 명세](screens.md) §2.8) — `failopen`·`retention`은 표시만 하고 편집은 admin의 API 직접 호출로 남긴다(편집 UI는 Phase 2).
+
 멤버 초대 메일 발송은 Phase 2 알림 채널(메일)과 함께 온다 — MVP의 EP-MBR-02는 기존 사용자 배정만 담당한다([로드맵](../03-proposal/roadmap.md) FR-12 배정과 정합).
 
 ### 2.2 스펙·버전·코멘트 (S3)
@@ -182,8 +226,15 @@ flowchart LR
 | EP-SPEC-12 | `POST /api/v1/projects/{proj}/baselines` | planner·admin — **사람 전용**(PAT 불가, 베이스라인 동결은 거버넌스 행위 — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.6) | `BaselineCreateInput`(name, note_md, items[]? — 생략 시 스펙별 최신 approved 전체) | `BaselineResult` — approved 아닌 항목 포함 시 409 `NERV_PRECONDITION` | ★`baseline.created` |
 | EP-SPEC-13 | `GET /api/v1/projects/{proj}/baselines/{bl}` | 전 역할 | — | `BaselineDetailResult`(항목 전량: spec_id·key·title·핀 버전·현재 최신 approved와의 차이 표시) — 불변, 같은 `{bl}`은 영원히 같은 세트 | — |
 | EP-SPEC-14 | `GET /api/v1/projects/{proj}/specs/manifest` | 전 역할(`spec:read`, PAT 허용) | `ManifestQuery`(`as_of?` timestamptz 또는 `baseline?` 이름 — 둘 다 생략 시 현재) | `SpecManifestResult`(spec_id→{version_no, status, approved_at} 전량 — git export `manifest.json`의 API 판, [아키텍처](../03-proposal/architecture.md) §2.4b) | — |
+| EP-SPEC-15 | `PATCH /api/v1/projects/{proj}/specs/{spec}` | planner·admin (`spec:meta`) | `SpecMetaUpdateInput`(title?, parent_id?, sort_key?, owner_role? — 전 필드 선택, 최소 1개) | `SpecResult` — parent_id 이동은 사이클(자기 자신·자기 하위로 이동) 시 409 `NERV_PRECONDITION`(`details.kind="tree_cycle"`) | ★`spec.meta_updated`(payload에 변경 필드 목록) |
+| EP-SPEC-16 | `POST /api/v1/projects/{proj}/specs/{spec}/archive` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409 `NERV_PRECONDITION`(`details.kind="archive_blocked"`, 차단 사유 목록) | ★`spec.archived` |
+| EP-SPEC-17 | `POST /api/v1/projects/{proj}/specs/{spec}/restore` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` NULL) — 부모가 아카이브 상태면 409(`details.kind="parent_archived"`) | ★`spec.restored` |
 
 스펙 **승인·거절 엔드포인트는 이 절에 없다.** `in_review → approved/rejected` 전이는 승인함의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 `nerv_spec_approve`가 존재하지 않는 것([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.
+
+**메타(트리)와 본문(버전)은 다른 축이다.** `spec` 행의 메타(title·parent_id·sort_key·owner_role)는 버전 이력을 만들지 않고 EP-SPEC-15로만 바뀐다 — FR-01 "문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다"의 실행 경로이며, 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 수단이다. 스코프 `spec:meta`는 PAT에 부여 가능하지만 대응 MCP 도구는 없다(도구 15종 불변) — 트리 구조는 거버넌스 대상이라 웹(S3 메타 다이얼로그 — [4.5 화면 명세](screens.md) §2.4)이 기본 경로다. 이에 따라 MCP `nerv_spec_draft_upsert`의 `parent_id`·`type`·`title` 입력은 **생성(spec_id 없음)에서만 소비**된다: 기존 spec_id 지정 호출에 현재 값과 다른 메타가 오면 무시하지 않고 409 `NERV_PRECONDITION`(`details.kind="meta_change_not_allowed"`, EP-SPEC-15 안내)을 반환하고, 같은 값이면 통과한다(멱등 재호출 보호). 아카이브(EP-SPEC-16)는 삭제가 아니다 — 행과 버전·관계·이벤트는 전부 남고, 트리(EP-SPEC-01)·검색(EP-SPEC-02)·목록 기본 결과에서 빠질 뿐이다(`?include_archived=true`로 포함).
+
+**`spec_relation`은 본문에서 자동 유도된다(MVP).** draft 저장(EP-SPEC-08 = `nerv_spec_draft_upsert`)이 커밋될 때, 서버는 본문에서 **실존하는 스펙 안정 ID**(`SPC-` 접두 표기 및 NERV 내부 스펙 URL)를 추출해 `spec_relation(kind='references', from=이 spec)` 행 집합을 그 저장 본문 기준으로 동기화한다(추가·제거 모두 — 규칙은 임포터 링크 패스 [4.7](importer.md) §2.4와 동일 코드). `references` 외의 kind(refines·depends_on 등)는 MVP에 편집 경로가 없다 — 임포터 산출 또는 Phase 2. approved 본문은 불변이므로 승인 이후 관계도 안정적이고, 참조 문서 전파(`spec.recheck_requested` — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3)는 이 행들의 역방향 조회로 동작한다. **임포트 없는 신규 프로젝트에서도 전파가 살아 있게 하는 것**이 이 규칙의 이유다.
 
 초안 편집 리스는 EP-SPEC-08 성공 시 자동 획득·갱신되고(웹 표면), 타 사용자 보유 시 409 `NERV_DRAFT_LEASED`를 반환한다. TTL 30분·자동 인계·해제 조건은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2 정본을 따른다.
 
@@ -368,6 +419,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 | --- | --- | --- | --- |
 | `spec.draft_created` · `spec.submitted` · `spec.rejected` · `spec.approved` · `spec.superseded` · `spec.deprecated` | 문서 축 전이([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2) | `project:{id}` | P1 |
 | `spec.comment_added` | EP-CMT-02 | `project:{id}` | P1 |
+| ★`spec.meta_updated` · ★`spec.archived` · ★`spec.restored` | EP-SPEC-15~17(§2.2) | `project:{id}` | P1 |
 | ★`comment.resolved` | EP-CMT-04 | `project:{id}` | P1 |
 | `task.ready` · `task.claimed` · `task.blocked` · `task.done` | Task 축 전이(§1.4·§6.3) | `project:{id}` | P0~P1 |
 | `task.rebrief_required` | 기준 SpecVersion superseded — 재브리핑 플래그 세팅([스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3) | `project:{id}` + 담당자·클레임 세션 소유자 `user:{id}` | P1 |
@@ -427,7 +479,7 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | `nerv_task_claim` | A2 | `TaskService.claim` | EP-TASK-06 | 겹침 판정·원자 전환이 이 메서드 안 — 표면 무관 동일 |
 | `nerv_task_heartbeat` | A1 | `TaskService.heartbeat` | EP-TASK-07 | 응답의 `pending` 역채널 포함 |
 | `nerv_task_release` | A2 | `TaskService.release` | EP-TASK-08 | |
-| `nerv_spec_draft_upsert` | A2 | `SpecService.draftUpsert` | EP-SPEC-07·08 | `base_version` 409·초안 편집 리스가 이 메서드 안 |
+| `nerv_spec_draft_upsert` | A2 | `SpecService.draftUpsert` | EP-SPEC-07·08 | `base_version` 409·초안 편집 리스가 이 메서드 안. 메타 필드(parent_id·type·title)는 생성에서만 소비 — 기존 spec에 다른 값이 오면 409(§2.2). 메타 수정은 EP-SPEC-15 전용(도구 없음) |
 | `nerv_spec_submit_review` | **A3** | `SpecService.submitReview` → `ApprovalService.request` | EP-SPEC-10 | pending Approval 재사용(카드 중복 금지) — 표면 무관 |
 | `nerv_spec_check` | A1 | `SpecService.check` | EP-SPEC-09 | 5검사기 서비스 호출 |
 | `nerv_spec_comment_resolve` | A2 | `SpecService.resolveComment` | EP-CMT-04 | |
@@ -464,6 +516,11 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | REQ-API-017 | WHEN admin이 아니거나 `import:write` 스코프가 없는 주체가 EP-IMP-01~05를 호출하면 THE SYSTEM SHALL 403 `NERV_FORBIDDEN`으로 거부하고 어떤 레코드도 생성하지 않는다 | developer PAT·스코프 없는 admin PAT 각 1케이스 |
 | REQ-API-018 | WHEN EP-IMP-02(`kind=document`) 배치의 일부 항목이 스키마 제약을 위반하면 THE SYSTEM SHALL 그 항목만 롤백해 `error`로 표시하고 나머지 항목의 적재는 커밋한다 — 배치 전체를 되돌리지 않는다 | 중복 `requirement.ref` 1건을 섞은 50건 배치 |
 | REQ-API-019 | WHEN 같은 `Idempotency-Key`로 EP-IMP-02~04가 재전송되면 THE SYSTEM SHALL 최초 응답을 재생하고 신규 레코드를 0건 생성한다(§1.5) | 배치 전송 후 동일 키 재전송, 레코드 수 불변 확인 |
+| REQ-API-020 | WHEN EP-SPEC-15로 `parent_id`를 자기 자신 또는 자기 하위 노드로 바꾸려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`details.kind="tree_cycle"`)으로 거부하고, 유효한 이동·개명은 spec.id와 기존 버전·관계·코멘트 참조를 전부 보존한다(FR-01) | 사이클 이동 1케이스 + 이동 후 EP-SPEC-03/코멘트 조회로 참조 불변 확인 |
+| REQ-API-021 | WHEN 기존 `spec_id`를 지정한 `nerv_spec_draft_upsert`에 현재 값과 다른 `parent_id`/`type`/`title`이 오면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`details.kind="meta_change_not_allowed"`)을 반환하고 본문도 저장하지 않는다. WHEN 같은 값이 오면 THE SYSTEM SHALL 정상 처리한다 | 다른 title 1케이스 + 동일 메타 재호출 1케이스 |
+| REQ-API-022 | WHEN 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task가 있는 스펙에 EP-SPEC-16이 오면 THE SYSTEM SHALL 409(`details.kind="archive_blocked"`)로 거부하고, 아카이브된 스펙은 `include_archived` 없는 EP-SPEC-01·02 결과에서 제외하되 EP-SPEC-03 단건 조회는 계속 응답한다 | 하위 노드 보유 스펙 아카이브 시도 + 아카이브 후 트리/단건 조회 각 1건 |
+| REQ-API-023 | WHEN EP-PRJ-04의 `gate_policy`·`retention`이 §2.1a 스키마를 위반하거나 알 수 없는 키를 포함하면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`details.issues`)으로 전체를 거부하고 부분 적용하지 않는다 | 오타 키 1케이스 + 경계값 위반 1케이스 |
+| REQ-API-024 | WHEN draft 저장이 커밋되면 THE SYSTEM SHALL 본문에서 실존 스펙 안정 ID를 추출해 그 spec의 `kind='references'` 관계 집합을 저장 본문과 일치하게 동기화한다(추가·제거 포함) — 미실존 ID는 행을 만들지 않고 응답 경고로만 반환한다 | 링크 추가·제거 저장 후 spec_relation 조회 + 미실존 ID 경고 확인 |
 
 ---
 

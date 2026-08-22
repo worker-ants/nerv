@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 15종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
+> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
+>
+> v0.5 변경(2026-08-22): **테스트 러너 확정** — Vitest(L1·L2·L3 API) + Playwright(L3 웹). §2.1 스택 표에 행 추가, 3계층 배치 정본은 [4.2 코드베이스와 배포](codebase.md) §4.3.
 >
 > v0.4 변경(2026-08-22 — 임포터 실행 모델 확정에 따른 범위 조정): ① 모노레포 워크스페이스에 **`apps/cli`** 추가(§2.1) ② 임포터를 **프로파일 기반 범용 도구**로 확정하고 실행 모델을 API 클라이언트로 전환(§3.2 FR-17 행 · [4.7 스펙 임포터](importer.md)) ③ 플러그인 스킬 **4종 → 5종**(`/nerv:import` 포함 — §4.3) ④ MCP 도구는 **15종 유지**(임포트 도구를 만들지 않는다 — §4.2).
 
@@ -89,6 +91,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 에디터 | **TipTap + markdown 직렬화** | 2026-08-20 | 지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글 |
 | MCP | MCP TypeScript SDK | 2026-08-13 (3부 원안) | 2026-07-28 리비전 기준 구현 + 구 리비전(2025-03-26~2025-11-25) 병행 서빙(D-11) |
 | 프론트 세부 | TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod | 2026-08-13 (3부 원안) | zod 스키마는 `packages/schema` 공유. WebSocket 이벤트 → Query 무효화 |
+| 테스트 | **Vitest**(L1 단위·L2 통합·L3 API E2E) + **Playwright**(L3 웹 E2E) | 2026-08-22 | 3계층 배치·명령·무게중심(L2)은 [4.2 코드베이스와 배포](codebase.md) §4.3 정본. L2는 mock 없이 실제 Postgres 상대(동시성 검증은 mock 금지 — AGENTS.md 규약과 동일). Playwright는 웹 E2E에만 — API 시나리오는 Vitest가 compose 스택 상대로 돈다 |
 | 배포 | **로컬 docker-compose / 운영 k8s(kustomize base+overlays)** | 2026-08-20 | 같은 이미지 3종: `nerv-api`(REST+MCP+WS+SSE), `nerv-worker`(같은 코드베이스, 엔트리 분리), `nerv-web`(Vite 산출물+nginx). 인프라 서비스는 Postgres·MinIO·Valkey. 마이그레이션: compose는 기동 시, k8s는 Job. 워커 replica 1 + advisory lock(HPA 제외). Ingress: WebSocket 업그레이드·SSE 버퍼링 해제·타임아웃 상향, `/mcp` Origin 검증 |
 
 > **인증 확정이 로드맵 표기 하나를 대체한다.** [로드맵](../03-proposal/roadmap.md) §3.2(v0.1 · 2026-08-13)는 Phase 1 인증을 "OAuth 2.1로 승격"으로 적었다. 2026-08-20 인증 스택 확정(better-auth)에서 **OAuth 2.1 리소스 서버는 Phase 2로 이동**했고, MVP의 에이전트 인증은 PAT(해시 저장 · 사용자·프로젝트·역할·스코프 튜플 바인딩)로 확정한다. NFR-03의 수용 기준(토큰 프로젝트 스코프·권한 비확대·본문 비신뢰 — [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4.3)은 PAT로 충족되므로 Phase 배분표의 NFR-03 ● 판정은 유지된다. OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다.
@@ -107,6 +110,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | better-auth | 엔터프라이즈 SSO 요구 유입 | Keycloak 연동 검토 |
 | Valkey pub/sub(무영속 단일 인스턴스) | 방송 유실로 인한 재조회 비용이 실측 임계를 넘거나 이벤트 재전송(replay) 요구가 생길 때 | Valkey Streams(적재형)·HA(센티널/관리형) 재검토 |
 | TipTap | md 직렬화 왕복 손실 실측 발생 | Milkdown 재검토 |
+| Vitest + Playwright | L3 유지 비용이 개발 흐름을 끊는 수준으로 증가 | E2E 범위 축소(시나리오 5종 고정) 또는 러너 통합 재검토 |
 | 실시간 공동 편집 미도입 | 버전 충돌(409 재시도) 주 20건 이상 또는 동시 편집 요구 반복(로드맵 §5.1) | Yjs + Hocuspocus |
 | 이중 배포 타깃(compose+k8s) | 운영 규모가 단일 노드로 충분(NFR-04) | k8s 생략 |
 

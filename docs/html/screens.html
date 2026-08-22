@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.3 (2026-08-21)</span>
+      <span>버전 v0.4 (2026-08-22)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -508,9 +508,10 @@
 
   <ul>
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → <code>['spec', specId]</code>, <code>spec.comment_added</code>·<code>comment.resolved</code> → <code>['spec', specId, 'comments']</code>, <code>task.*</code> → 파생 Task 패널.</li>
-    <li><b>컴포넌트</b>: <code>SpecTree</code> · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>SpecEditor</code>(TipTap — §3) · <code>SourceViewToggle</code>(read-only md) · <code>CommentThread</code> · <code>EditLeaseBadge</code> · <code>RequirementPanel</code> · <code>DerivedTaskPanel</code> · <code>StatusPanel</code> · <code>SubmitReviewButton</code> · <code>TerminalHandoffCard</code>.</li>
+    <li><b>컴포넌트</b>: <code>SpecTree</code> · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>SpecEditor</code>(TipTap — §3) · <code>SourceViewToggle</code>(read-only md) · <code>CommentThread</code> · <code>EditLeaseBadge</code> · <code>RequirementPanel</code> · <code>DerivedTaskPanel</code> · <code>SpecMetaDialog</code> · <code>ArchiveConfirmDialog</code> · <code>StatusPanel</code> · <code>SubmitReviewButton</code> · <code>TerminalHandoffCard</code>.</li>
     <li><b>버튼 상태</b>: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 승인함 카드에서 한다(S7).</li>
     <li><b>터미널 이어쓰기</b>: 복사용 명령 <code>claude "/nerv:spec edit SPC-CWC-007"</code> 카드(ui-wireframes §2.3 (12)). 반대 방향은 <code>nerv_spec_draft_upsert</code> 응답의 <code>web_url</code> 딥링크가 이 화면으로 온다.</li>
+    <li><b>메타 편집·아카이브</b>(planner·admin — <code>spec:meta</code>): 상단 ⋯ 메뉴 → 메타 다이얼로그(<code>SpecMetaDialog</code>: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(<code>archive_blocked</code>) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = <code>?include_archived=true</code>), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"(<a href="importer.html">4.7 스펙 임포터</a> §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.</li>
     <li><b>폼·검증</b>: <code>SpecDraftUpsertInput</code>(zod — <code>packages/schema</code>, MCP 도구 인자와 공유): <code>body_markdown</code>·<code>base_version</code>·<code>change_summary</code>(min 1), 새 스펙 생성은 <code>SpecCreateInput</code>(<code>parent_id</code>·<code>type</code> 6종 enum·<code>title</code> min 1·<code>body_markdown</code>). 코멘트 <code>CommentCreateInput</code>: <code>anchor</code>(min 1)·<code>body_md</code>(min 1).</li>
     <li><b>빈 상태</b>: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크.</li>
   </ul>
@@ -524,6 +525,8 @@
       <tr><td>REQ-WEB-014</td><td>WHEN 사전 검토 결과에 block이 1건 이상이면 THE SYSTEM SHALL [검토 요청] 버튼을 비활성화하고 검사기별 결과와 앵커 위치를 인라인 표시한다</td></tr>
       <tr><td>REQ-WEB-015</td><td>WHEN 본문이 새 버전으로 바뀌어도 THE SYSTEM SHALL 헤딩 slug·Requirement <code>ref</code> 앵커의 코멘트 스레드를 유지 표시한다(D-09)</td></tr>
       <tr><td>REQ-WEB-037</td><td>WHEN <code>spec.recheck_requested</code>를 수신하거나 대상 문서의 참조 스펙에 앞선 approved 버전이 존재하면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지(참조 스펙·핀 시점 버전·최신 버전)를 표시한다</td></tr>
+      <tr><td>REQ-WEB-038</td><td>WHEN planner·admin이 메타 다이얼로그에서 부모 이동을 저장하면 THE SYSTEM SHALL EP-SPEC-15로 반영하고, 409 <code>tree_cycle</code> 수신 시 어느 하위 노드로의 이동이 차단됐는지 인라인 표시한다. WHEN 그 외 역할이 열람하면 THE SYSTEM SHALL ⋯ 메뉴의 메타·아카이브 항목을 비활성화한다</td></tr>
+      <tr><td>REQ-WEB-039</td><td>WHEN 아카이브 요청이 409 <code>archive_blocked</code>로 실패하면 THE SYSTEM SHALL 차단 사유(미아카이브 하위 노드·활성 클레임 Task) 목록을 다이얼로그에 표시하고 재시도 경로를 안내한다</td></tr>
     </tbody>
   </table></div>
 
@@ -702,7 +705,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     <tbody>
       <tr><td>멤버 매트릭스</td><td>EP-MBR-01 <code>GET /api/v1/orgs/{org}/members</code> · EP-MBR-02 <code>POST</code>(기존 사용자 배정 — 초대 메일 발송은 Phase 2, api.md §2.1) · EP-MBR-03 <code>PATCH /api/v1/memberships/{id}</code>(역할)</td><td><code>membership.role</code> 6종: <code>admin / planner / designer / developer / qa / viewer</code>. 사람 × 프로젝트 n:n(FR-14)</td></tr>
       <tr><td>토큰 목록·발급·폐기</td><td>EP-TOK-01 <code>GET /api/v1/me/tokens</code> · EP-TOK-02 <code>POST /api/v1/me/tokens</code> · EP-TOK-03 <code>DELETE /api/v1/me/tokens/{id}</code> · EP-TOK-04 <code>GET /api/v1/orgs/{org}/tokens</code>(admin 조직 전체)</td><td><code>api_token</code>: 라벨·소유자·프로젝트 스코프·<code>prefix</code>·<code>last_used_at</code>(hostname 포함 표기). admin은 조직 전체 목록 열람</td></tr>
-      <tr><td>게이트 정책</td><td>EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code> · EP-PRJ-04 <code>PATCH /api/v1/projects/{proj}</code> (<code>gate_policy</code> 필드 — data-model §2.1)</td><td>MVP 편집 항목: stale 임계(기본 30분)·게이트 티어 임계(T0~T3)·자기 승인 금지 토글(기본 ON). 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화</td></tr>
+      <tr><td>게이트 정책</td><td>EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code> · EP-PRJ-04 <code>PATCH /api/v1/projects/{proj}</code> (<code>gate_policy</code> — 키 스키마 정본: <a href="api.html">4.4 API 명세</a> §2.1a)</td><td>MVP 편집 항목 = <code>spec_gate.*</code> 3키: 티어 경계(<code>tier_boundaries</code>)·T1 이의제기 창(<code>t1_objection_hours</code>)·동적 강화(<code>dynamic_escalation</code>). <code>failopen</code>·<code>retention</code>은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수(<a href="codebase.html">4.2</a> §3.2 <code>SESSION_STALE_SECONDS</code>), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화</td></tr>
     </tbody>
   </table></div>
 

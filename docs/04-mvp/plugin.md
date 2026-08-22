@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [plugin.html](../html/plugin.html)
+>
+> v0.5 변경(2026-08-22): **오프라인 폴백 실물 확정**(§3.4 — `.nerv/cache/`·`.nerv/outbox/` 레이아웃·파일 형식·flush 규칙, REQ-PLG-011~013). 스킬 5종 전부가 참조하던 경로의 규격 공백을 닫는다(NFR-05 ◐의 실행 실물).
 >
 > v0.4 변경(2026-08-22): **스킬 4종 → 5종** — 임포터 래퍼 `/nerv:import` 추가(§2.5). 이 스킬만 MCP 도구가 아니라 로컬 CLI(`@nerv/cli`)를 실행한다([4.7 스펙 임포터](importer.md) §3.6 · [4.1 MVP 범위와 스택 확정](scope.md) §4.3).
 
@@ -592,6 +594,43 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 
 ---
 
+### 3.4 오프라인 폴백 실물 — `.nerv/cache/` · `.nerv/outbox/`
+
+스킬 5종의 에러 대응 표가 참조하는 `NERV_UNAVAILABLE` 폴백(NFR-05, [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §5.4 정책 정본)의 파일 실물이다. 위치는 **작업 저장소 루트의 `.nerv/`**(오버라이드: `NERV_CACHE_DIR` — §3.3 전표)이며, 플러그인 설치가 `.gitignore`에 `.nerv/`를 추가한다 — 캐시·큐가 커밋되면 그 자체가 clemvion식 git 비대화(P6)다.
+
+```text
+.nerv/
+  cache/                          # 읽기 폴백 — 전부 서버 응답의 스냅샷, 언제 지워도 안전
+    context-pack.json             # nerv_bootstrap 응답 + ETag — 재접속 시 If-None-Match 재검증
+    claim.json                    # 하트비트 응답의 투영 (§3.2 statusline 스키마 정본)
+    specs/<SPC-ID>@v<no>.md       # nerv_spec_get 응답 본문 — 버전 명시 스냅샷만 캐시(불변이므로 TTL 불요)
+  outbox/                         # 쓰기 큐 — NERV_UNAVAILABLE 시에만 생성
+    <queued_at>-<idempotency_key>.json
+```
+
+outbox 항목 형식(1파일 = 1호출):
+
+```json
+{
+  "tool": "nerv_task_update",
+  "input": { "...": "도구 입력 원본 그대로" },
+  "idempotency_key": "01991f2a-…",
+  "session_id": "S-b7e9",
+  "queued_at": "2026-08-22T05:30:00Z",
+  "attempts": 1
+}
+```
+
+규칙 다섯:
+
+1. **큐잉 조건은 `NERV_UNAVAILABLE`뿐이다.** 4xx(권한·검증·충돌)는 큐잉하지 않는다 — 재전송해도 같은 실패이고, 충돌 계열은 시간이 지나면 의미가 바뀐다.
+2. **flush는 oldest-first, 다음 성공 호출 전에.** 서버가 복구된 뒤 스킬이 새 도구 호출을 하기 전에 outbox를 `queued_at` 순으로 재전송한다. 각 항목은 원래의 `idempotency_key`를 그대로 쓰므로 중복 실행이 없다(멱등 저장소 — [4.4 API 명세](api.md) §1.5). 성공한 항목은 즉시 삭제한다.
+3. **flush 중 4xx를 만나면 그 항목만 `outbox/failed/`로 옮기고 계속한다.** 사람에게 보고할 목록이지 재시도 대상이 아니다.
+4. **SessionEnd 시 잔량을 보고한다.** outbox에 항목이 남아 있으면 세션 종료 메시지에 건수·가장 오래된 항목을 표시한다 — 조용히 사라지는 쓰기가 0이어야 한다(임포터 전수 계정과 같은 원칙).
+5. **큐는 위임 판단을 대신하지 않는다.** 오프라인 동안 신규 클레임 발급·`ready` 전이 시도는 금지 그대로다(agent-integration §5.4 — "조정 행위는 낙관적으로 진행하지 않는다"). 큐잉 가능한 것은 이미 쥔 클레임 위의 상태 보고·질문·증적뿐이다.
+
+복구 후 **자동** 동기화(백그라운드 데몬)는 Phase 2다(NFR-05 ◐ — [4.1 MVP 범위와 스택 확정](scope.md) §3.4). MVP의 flush 주체는 다음 스킬 턴이다.
+
 ## 4. 사람 온보딩 절차
 
 목표: 신규 팀원이 아래 5단계로 **첫 `nerv_bootstrap` 성공**까지 도달한다. 관리 기기는 3단계(플러그인 설치)가 관리형 settings로 자동이므로 1·2·4·5만 수행한다.
@@ -712,6 +751,9 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-008 | WHEN statusline이 렌더될 때 THE SYSTEM SHALL 네트워크 왕복 없이 stdin 세션 JSON과 `.nerv/cache/claim.json`만 읽는다 | 스크립트 정적 검사(curl/wget/nc 부재) + 네트워크 차단 상태에서 렌더 성공 |
 | REQ-PLG-009 | WHEN `nerv_bootstrap` 응답의 정책 버전이 플러그인이 가정한 규약과 불일치하면 THE SYSTEM SHALL 진행을 허용하되 사용자에게 재설치를 안내한다(서버는 `policy.stale` 이벤트를 남긴다) | 구버전 플러그인으로 접속해 안내 문구·이벤트 발생 확인 |
 | REQ-PLG-010 | WHEN Codex 세션이 저장소의 `.codex/config.toml`·AGENTS.md 초안으로 접속하면 THE SYSTEM SHALL tools만으로 `bootstrap→next→claim→heartbeat→release` 완주를 지원한다 | 로드맵 Phase 0 검증 0-8과 동일 절차 — Codex 1세션 실측(resources·prompts·elicitation 미사용) |
+| REQ-PLG-011 | WHEN 쓰기 도구가 `NERV_UNAVAILABLE`을 반환하면 THE SYSTEM SHALL 호출 입력·`idempotency_key`·`queued_at`을 §3.4 형식으로 `.nerv/outbox/`에 기록하고, 4xx 실패는 큐잉하지 않는다 | 서버 차단 상태에서 쓰기 시도 → outbox 파일 형식 검사 + 403 시 큐잉 0건 |
+| REQ-PLG-012 | WHEN 서버 복구 후 첫 도구 호출 전이면 THE SYSTEM SHALL outbox를 oldest-first로 원래 멱등 키 그대로 재전송하고, 성공 항목 삭제·4xx 항목 `outbox/failed/` 이동 후 서버 레코드 중복 0을 유지한다 | 큐 3건(성공 2·403 1) flush 실측 — 레코드 수·failed/ 이동 확인 |
+| REQ-PLG-013 | WHEN 플러그인이 설치되면 THE SYSTEM SHALL `.gitignore`에 `.nerv/`를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다 | 설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측 |
 
 ---
 

@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-SCREENS
 status: draft
-updated: 2026-08-21
+updated: 2026-08-22
 ---
 # 화면 명세
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 승인함 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [screens.html](../html/screens.html)
+>
+> v0.4 변경(2026-08-22): ① S3에 **스펙 메타 편집·아카이브 UI**(EP-SPEC-15~17 — [4.4 API 명세](api.md) §2.2 신설 표면의 화면 판, REQ-WEB-038·039) ② S8 게이트 정책 탭 편집 항목을 `gate_policy` 키 스키마(api.md §2.1a)와 정합 — v0.3의 "stale 임계·자기 승인 금지 토글"은 각각 공통 상수([4.2](codebase.md) §3.2)와 시스템 불변식(지시자≠승인자 — D-06)이라 프로젝트 정책 편집 대상이 아니었다.
 
 ---
 
@@ -340,9 +342,10 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 베이스라인 조회 | EP-SPEC-11 `GET .../baselines` · EP-SPEC-13 `GET .../baselines/{bl}` | 버전 피커(`VersionPicker`)에 베이스라인 항목 — 선택 시 그 세트에 핀된 버전을 표시(`?baseline=` 쿼리, spec-workflow §3.6) |
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → `['spec', specId]`, `spec.comment_added`·`comment.resolved` → `['spec', specId, 'comments']`, `task.*` → 파생 Task 패널.
-- **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `SourceViewToggle`(read-only md) · `CommentThread` · `EditLeaseBadge` · `RequirementPanel` · `DerivedTaskPanel` · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
+- **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `SourceViewToggle`(read-only md) · `CommentThread` · `EditLeaseBadge` · `RequirementPanel` · `DerivedTaskPanel` · `SpecMetaDialog` · `ArchiveConfirmDialog` · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
 - **버튼 상태**: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 승인함 카드에서 한다(S7).
 - **터미널 이어쓰기**: 복사용 명령 `claude "/nerv:spec edit SPC-CWC-007"` 카드(ui-wireframes §2.3 (12)). 반대 방향은 `nerv_spec_draft_upsert` 응답의 `web_url` 딥링크가 이 화면으로 온다.
+- **메타 편집·아카이브**(planner·admin — `spec:meta`): 상단 ⋯ 메뉴 → 메타 다이얼로그(`SpecMetaDialog`: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(`archive_blocked`) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = `?include_archived=true`), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.
 - **폼·검증**: `SpecDraftUpsertInput`(zod — `packages/schema`, MCP 도구 인자와 공유): `body_markdown`·`base_version`·`change_summary`(min 1), 새 스펙 생성은 `SpecCreateInput`(`parent_id`·`type` 6종 enum·`title` min 1·`body_markdown`). 코멘트 `CommentCreateInput`: `anchor`(min 1)·`body_md`(min 1).
 - **빈 상태**: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크.
 
@@ -354,6 +357,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | REQ-WEB-014 | WHEN 사전 검토 결과에 block이 1건 이상이면 THE SYSTEM SHALL [검토 요청] 버튼을 비활성화하고 검사기별 결과와 앵커 위치를 인라인 표시한다 |
 | REQ-WEB-015 | WHEN 본문이 새 버전으로 바뀌어도 THE SYSTEM SHALL 헤딩 slug·Requirement `ref` 앵커의 코멘트 스레드를 유지 표시한다(D-09) |
 | REQ-WEB-037 | WHEN `spec.recheck_requested`를 수신하거나 대상 문서의 참조 스펙에 앞선 approved 버전이 존재하면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지(참조 스펙·핀 시점 버전·최신 버전)를 표시한다 |
+| REQ-WEB-038 | WHEN planner·admin이 메타 다이얼로그에서 부모 이동을 저장하면 THE SYSTEM SHALL EP-SPEC-15로 반영하고, 409 `tree_cycle` 수신 시 어느 하위 노드로의 이동이 차단됐는지 인라인 표시한다. WHEN 그 외 역할이 열람하면 THE SYSTEM SHALL ⋯ 메뉴의 메타·아카이브 항목을 비활성화한다 |
+| REQ-WEB-039 | WHEN 아카이브 요청이 409 `archive_blocked`로 실패하면 THE SYSTEM SHALL 차단 사유(미아카이브 하위 노드·활성 클레임 Task) 목록을 다이얼로그에 표시하고 재시도 경로를 안내한다 |
 
 ### 2.5 S4 작업 보드 — [ui-wireframes §2.4](../03-proposal/ui-wireframes.md)
 
@@ -493,7 +498,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 | --- | --- | --- |
 | 멤버 매트릭스 | EP-MBR-01 `GET /api/v1/orgs/{org}/members` · EP-MBR-02 `POST`(기존 사용자 배정 — 초대 메일 발송은 Phase 2, api.md §2.1) · EP-MBR-03 `PATCH /api/v1/memberships/{id}`(역할) | `membership.role` 6종: `admin / planner / designer / developer / qa / viewer`. 사람 × 프로젝트 n:n(FR-14) |
 | 토큰 목록·발급·폐기 | EP-TOK-01 `GET /api/v1/me/tokens` · EP-TOK-02 `POST /api/v1/me/tokens` · EP-TOK-03 `DELETE /api/v1/me/tokens/{id}` · EP-TOK-04 `GET /api/v1/orgs/{org}/tokens`(admin 조직 전체) | `api_token`: 라벨·소유자·프로젝트 스코프·`prefix`·`last_used_at`(hostname 포함 표기). admin은 조직 전체 목록 열람 |
-| 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` 필드 — data-model §2.1) | MVP 편집 항목: stale 임계(기본 30분)·게이트 티어 임계(T0~T3)·자기 승인 금지 토글(기본 ON). 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화 |
+| 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` — 키 스키마 정본: [4.4 API 명세](api.md) §2.1a) | MVP 편집 항목 = `spec_gate.*` 3키: 티어 경계(`tier_boundaries`)·T1 이의제기 창(`t1_objection_hours`)·동적 강화(`dynamic_escalation`). `failopen`·`retention`은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수([4.2](codebase.md) §3.2 `SESSION_STALE_SECONDS`), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화 |
 
 - **토큰 발급 흐름**: 발급 다이얼로그(`TokenCreateInput`: `project`·`name`·`scopes[]`·`expires`) → 성공 시 **원문 1회 표시**(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 `prefix`만. 스코프 체크박스는 [agent-integration §6.1](../03-proposal/agent-integration.md)의 `resource:action` 목록을 그대로 쓰고, `spec:approve`·`approval:decide`는 **체크박스 비활성**(사람 전용 — 시스템 불변식).
 - **컴포넌트**: `SettingsTabs` · `MemberMatrix` · `MemberAddDialog` · `TokenTable` · `TokenIssueDialog` · `TokenRevealOnce` · `GatePolicyForm` · 권한 비확대 고지문("토큰은 사용자 권한을 상속하며 절대 확대하지 않는다" — NFR-03 · D-08).

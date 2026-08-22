@@ -5,9 +5,11 @@ updated: 2026-08-22
 ---
 # 코드베이스와 배포
 
-> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **구현 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~017로 번호를 부여했다.
+> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **구현 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~019로 번호를 부여했다.
 >
-> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+>
+> v0.5 변경(2026-08-22): ① 테스트 러너 확정 반영(§4.3 — Vitest + Playwright, 결정 정본은 [4.1](scope.md) §2.1) ② **CI 파이프라인 전문 신설**(§4.5 — REQ-CB-007 스키마 드리프트 검사의 실행 실물, REQ-CB-018) ③ **백업·복구 절차 신설**(§6.5 — NFR-01·성공 기준 1-9의 실행 실물, REQ-CB-019) ④ 쿼터 상수 3종 추가(§3.2 — [4.4 API 명세](api.md) §1.8과 짝).
 >
 > v0.4 변경(2026-08-22): **`apps/cli`(`@nerv/cli`) 워크스페이스 신설**(§1.1·§1.3)과 `apps/api`의 `ImportModule`(§2.2·§2.3) — 임포터 실행 모델이 DB 직결에서 API 클라이언트로 확정된 데 따른 배치 확정([4.7 스펙 임포터](importer.md) §3.2). REQ-CB-016~018 추가.
 
@@ -319,6 +321,9 @@ packages/schema/
 | `REVIEW_PROMPT_BLOB_TTL_DAYS` | `30` | [3.2](../03-proposal/architecture.md) §2.5 |
 | `EVENTS_CHANNEL` | `'nerv_events'` | Valkey pub/sub 방송 채널 — [4.3 데이터베이스 스키마](database.md) §3 |
 | `WORKER_ADVISORY_LOCK_KEY` | 프로젝트 전역 단일 키(bigint 리터럴 1개) | §6.3 — 워커 단일 실행 |
+| `RATE_LIMIT_PAT_PER_MIN` | `300` | [4.4 API 명세](api.md) §1.8 — PAT 토큰당, `/api/v1` + `/mcp` 공용 풀 |
+| `RATE_LIMIT_WEB_PER_MIN` | `600` | 같은 곳 — 웹 세션 사용자당 |
+| `RATE_LIMIT_INGEST_PER_MIN` | `120` | 같은 곳 — 세션당 `/ingest/hooks/*`. 셋 다 시작값 — 파일럿 실측(정상 트래픽 429)이 재검토 트리거 |
 
 | ID | 요구(EARS) |
 | --- | --- |
@@ -341,11 +346,13 @@ packages/schema/
 
 ### 4.3 테스트 3계층
 
-| 계층 | 위치 | 대상 | 실행 |
-| --- | --- | --- | --- |
-| L1 단위 | 소스 옆 `*.spec.ts` | 순수 로직 — zod 스키마, 델타 계산, fingerprint | `pnpm test` (매 PR) |
-| L2 통합 | `apps/api/test/integration/` | 도메인 서비스 + 실제 Postgres(compose의 `postgres` 사용) — **클레임 원자성 동시 호출, scope 겹침, base_version 409, 리스 만료** | `pnpm test:integration` (매 PR) |
-| L3 계약/E2E | `apps/api/test/e2e/` + `apps/web/test/e2e/` | compose 스택 기동 후 REST·MCP·WS 시나리오 — [4.8 백로그](backlog.md) §5의 E2E 수용 시나리오가 케이스 정본 | `pnpm test:e2e` (머지 전·야간) |
+러너는 **Vitest**(L1·L2·L3 API)와 **Playwright**(L3 웹)로 확정한다(2026-08-22 — 스택 표 정본은 [4.1 MVP 범위와 스택 확정](scope.md) §2.1).
+
+| 계층 | 러너 | 위치 | 대상 | 실행 |
+| --- | --- | --- | --- | --- |
+| L1 단위 | Vitest | 소스 옆 `*.spec.ts` | 순수 로직 — zod 스키마, 델타 계산, fingerprint | `pnpm test` (매 PR) |
+| L2 통합 | Vitest | `apps/api/test/integration/` | 도메인 서비스 + 실제 Postgres(compose의 `postgres` 사용) — **클레임 원자성 동시 호출, scope 겹침, base_version 409, 리스 만료** | `pnpm test:integration` (매 PR) |
+| L3 계약/E2E | Vitest(API·MCP·WS) + Playwright(웹) | `apps/api/test/e2e/` + `apps/web/test/e2e/` | compose 스택 기동 후 REST·MCP·WS·브라우저 시나리오 — [4.8 백로그](backlog.md) §5의 E2E 수용 시나리오가 케이스 정본 | `pnpm test:e2e` (머지 전·야간) |
 
 L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시 클레임·게이트 판정)는 mock으로 검증되지 않는다 — 트랜잭션·행 잠금·부분 인덱스가 실제로 동작하는 DB를 상대로만 의미가 있다.
 
@@ -356,6 +363,55 @@ L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시
 - PR 본문에 관련 Task ID(`TSK-…`)와 스펙 안정 ID(`SPC-…`·`REQ-…`)를 남긴다 — NERV 가동 후 evidence 연결의 원료다(FR-13).
 
 ---
+
+### 4.5 CI 파이프라인 — `.github/workflows/ci.yml`
+
+REQ-CB-007(스키마 변경 ↔ 마이그레이션 산출물 동반)과 §4.3 계층 실행의 실물이다. 워크플로 파일은 GitHub Actions 규약상 **저장소 루트** `.github/workflows/`에 둔다 — REQ-CB-015의 "저장소 메타 파일"에 해당하며 `codebase/` 배치 원칙의 예외가 아니라 그 정의 안이다(이 문단이 그 판정의 기록이다).
+
+```yaml
+# .github/workflows/ci.yml — 요지 스켈레톤 (defaults.run.working-directory: codebase)
+name: ci
+on:
+  pull_request:
+  push: { branches: [main] }
+defaults: { run: { working-directory: codebase } }
+jobs:
+  check:                       # 매 PR — L1까지
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - run: pnpm lint && pnpm exec tsc -b
+      - run: pnpm test
+      - name: schema drift     # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제
+        run: pnpm db:generate && git diff --exit-code -- packages/schema/drizzle
+  integration:                 # 매 PR — L2 (무게중심)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17     # compose와 동일 메이저 (§5.3)
+        env: { POSTGRES_PASSWORD: ci }
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - run: pnpm db:migrate && pnpm test:integration
+        env: { DATABASE_URL: "postgres://postgres:ci@localhost:5432/postgres" }
+  e2e:                         # merge_group + 야간 — L3
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - run: cp .env.example .env && pnpm compose:up
+      - run: pnpm test:e2e
+```
+
+| ID | 요구(EARS) |
+| --- | --- |
+| **REQ-CB-018** | WHEN PR의 변경에 `packages/schema/src/tables/**`가 포함되고 `pnpm db:generate` 재실행이 `packages/schema/drizzle/`에 diff를 만들면, THE SYSTEM SHALL CI를 실패시킨다 — 선언만 바꾸고 마이그레이션을 빠뜨린 PR은 머지되지 않는다(REQ-CB-007의 실행 실물). |
+
+배포 파이프라인(이미지 빌드·태깅·kustomize 적용)은 §6.4의 CI 치환 지점을 따르며, MVP에서는 수동 트리거(`workflow_dispatch`)로 시작한다 — 자동 배포는 운영 안정 후.
 
 ## 5. 개발 환경
 
@@ -994,6 +1050,34 @@ patches:
   - path: api-replicas.yaml
   - path: resources.yaml
 ```
+
+### 6.5 백업·복구 — NFR-01의 실행 절차
+
+성공 기준 1-9(백업본 복원 왕복 1회 이상, 데이터 손실 0 — 로드맵 §3.4)와 [4.8 백로그](backlog.md) E14-S02가 검증하는 절차의 정본이다. **운영 Postgres 위치(E06-S05)가 관리형으로 확정되면 ①은 관리형 스냅샷 + PITR로 대체**되고 ②~⑤는 그대로다.
+
+| 대상 | 방법 | 주기(시작값) | 근거 |
+| --- | --- | --- | --- |
+| **Postgres** | `pg_dump -Fc`(custom format) → 오브젝트 스토리지 업로드. cron Job(`nerv-backup`) | 일 1회 · 보존 14일 | 유일한 SoT — 스펙·Task·이벤트 전부. RPO = 24h 시작값(파일럿 규모 NFR-04에서 수용, 실측 후 조정) |
+| **MinIO** | 버킷 미러(`mc mirror`) | 선택 — 주 1회 | 내용물이 리뷰 프롬프트 blob(TTL 30일·재생성 가능 — D-07)뿐이라 유실 허용. 절차만 두고 기본 off |
+| **Valkey** | 백업하지 않는다 | — | 무영속 방송 버스 — 유실 시 클라이언트 재조회로 복구(D-14, [4.4](api.md) §3.4) |
+
+복구 순서(왕복 검증도 같은 순서로 실행한다):
+
+```bash
+# ① 신규 Postgres에 복원 — 스키마 포함 custom format
+pg_restore -d "$DATABASE_URL" --clean --if-exists nerv-<date>.dump
+# ② 마이그레이션 정합 — 백업 이후 릴리스가 있었으면 여기서 따라잡는다 (멱등)
+kubectl -n nerv delete job nerv-migrate --ignore-not-found && kustomize build deploy/k8s/overlays/prod | kubectl apply -f -
+kubectl -n nerv wait --for=condition=complete --timeout=300s job/nerv-migrate
+# ③ (선택) MinIO 버킷 복원 — mc mirror 역방향
+# ④ api·worker 롤아웃 재시작 — Valkey는 빈 채로 시작해도 무방
+kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
+# ⑤ 정합 검증 — 테이블별 행 수 대조 + 최신 event.occurred_at이 백업 시각 이내인지 확인
+```
+
+| ID | 요구(EARS) |
+| --- | --- |
+| **REQ-CB-019** | WHEN 백업본으로 §6.5 절차 ①~⑤를 실행하면, THE SYSTEM SHALL 추가 수동 개입 없이 로그인·스펙 조회·클레임이 동작하는 인스턴스에 도달하고, 백업 시각 이전 커밋 데이터의 손실 0을 행 수 대조로 검증 가능하게 한다(성공 기준 1-9). |
 
 ---
 
