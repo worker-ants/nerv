@@ -1,11 +1,11 @@
 // drizzle 마이그레이션 적용 후 종료 — compose 기동 서비스와 k8s Job 의 공용 엔트리
 // (docs/04-mvp/codebase.md §5.3 · §6.3)
 //
-// **적용기는 E02-S02 소관이다.** 여기서는 @nerv/schema 의 마이그레이터를 호출만 하고,
-// 마이그레이션 파일이 아직 없는 지금은 적용할 것이 0건이라 정상 종료한다 —
-// compose 의 depends_on: service_completed_successfully 체인(REQ-CB-008)이 그때까지도 성립하도록.
+// 적용기 본체는 @nerv/schema 의 runMigrations 다 — 이 엔트리는 env 를 읽어 넘기고 종료한다.
+// 왕복 멱등은 drizzle 적용 이력이 보장하므로 이 프로세스를 두 번 돌려도 변경 0건이다(REQ-DB-001).
 
 import { Logger } from '@nestjs/common';
+import { runMigrations } from '@nerv/schema';
 
 async function main(): Promise<void> {
   const url = process.env['DATABASE_URL'];
@@ -15,8 +15,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  // E02-S02 가 여기서 @nerv/schema 의 runMigrations(url) 을 호출한다.
-  Logger.log('적용할 마이그레이션 0건 — 스냅샷은 E02-S02 에서 들어온다', 'Migrate');
+  const { applied } = await runMigrations(url);
+  Logger.log(`마이그레이션 적용 완료 — 이력 ${applied}건`, 'Migrate');
 }
 
 await main();

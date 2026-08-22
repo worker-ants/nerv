@@ -10,7 +10,8 @@
     "test": "vitest run",
     "dev": "node --watch dist/main.js",
     "db:migrate": "node dist/migrate.js",
-    "db:seed": "node dist/seed.js"
+    "db:seed": "node dist/seed.js",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@nerv/schema": "workspace:*",
@@ -26,6 +27,8 @@
     "@nestjs/testing": "^11.2.1",
     "@swc/core": "^1.16.1",
     "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
     "typescript": "~6.0.3",
     "unplugin-swc": "^1.5.11",
     "vitest": "^4.1.11"

@@ -1,3 +1,21 @@
+-- 0000_init.sql — NERV 초기 스냅샷
+-- 정본: docs/04-mvp/database.md §2~§3
+--
+-- ★ 이 파일은 drizzle-kit generate 산출물에 **손으로 raw SQL 을 동봉한** 것이다(database.md §1.2).
+--   drizzle 선언으로 표현할 수 없는 네 가지가 여기 들어 있다:
+--     ① 확장 생성(citext·pgcrypto·pg_trgm·vector) — 컬럼 타입보다 먼저 있어야 한다
+--     ② event·activity 의 PARTITION BY RANGE (§2.14)
+--     ③ 순환 참조 FK 3쌍 (§2.11)
+--     ④ plpgsql 함수·트리거 (§2.13)
+--   적용된 마이그레이션 파일은 수정하지 않는다(§1.2 스냅샷 불변) — 이후 변경은 항상 새 NNNN 파일이다.
+--   db:generate 재실행은 meta 스냅샷과 TS 선언만 비교하므로 이 손질을 덮어쓰지 않는다.
+--   동봉 내용의 존재는 L2 통합 테스트(migrate.spec.ts)가 지킨다.
+
+-- ── ① 확장 (§2.1) ───────────────────────────────────────────────────────────
+CREATE EXTENSION IF NOT EXISTS citext;--> statement-breakpoint
+CREATE EXTENSION IF NOT EXISTS pgcrypto;--> statement-breakpoint
+CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint
+CREATE EXTENSION IF NOT EXISTS vector;--> statement-breakpoint
 CREATE TYPE "public"."activity_type" AS ENUM('thought', 'action', 'elicitation', 'response', 'error');--> statement-breakpoint
 CREATE TYPE "public"."agent_type" AS ENUM('claude-code', 'codex', 'web', 'other');--> statement-breakpoint
 CREATE TYPE "public"."approval_decision" AS ENUM('approve', 'reject', 'comment');--> statement-breakpoint
@@ -107,7 +125,7 @@ CREATE TABLE "activity" (
 	"ephemeral" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "activity_pkey" PRIMARY KEY("id","created_at")
-);
+) PARTITION BY RANGE ("created_at");
 --> statement-breakpoint
 CREATE TABLE "agent_session" (
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -469,7 +487,7 @@ CREATE TABLE "event" (
 	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"request_id" text,
 	CONSTRAINT "event_pkey" PRIMARY KEY("id","occurred_at")
-);
+) PARTITION BY RANGE ("occurred_at");
 --> statement-breakpoint
 CREATE TABLE "notification" (
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -482,6 +500,16 @@ CREATE TABLE "notification" (
 	"digest_batch_id" uuid,
 	"delivered_at" timestamp with time zone,
 	"read_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "spec_chunk_embedding" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"spec_version_id" uuid NOT NULL,
+	"anchor" text NOT NULL,
+	"chunk_hash" "bytea" NOT NULL,
+	"embedding" vector(1024) NOT NULL,
+	"model" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -576,6 +604,7 @@ ALTER TABLE "event" ADD CONSTRAINT "event_actor_user_id_user_id_fk" FOREIGN KEY 
 ALTER TABLE "event" ADD CONSTRAINT "event_actor_session_id_agent_session_id_fk" FOREIGN KEY ("actor_session_id") REFERENCES "public"."agent_session"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification" ADD CONSTRAINT "notification_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification" ADD CONSTRAINT "notification_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "spec_chunk_embedding" ADD CONSTRAINT "spec_chunk_embedding_spec_version_id_spec_version_id_fk" FOREIGN KEY ("spec_version_id") REFERENCES "public"."spec_version"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "api_token_project_user" ON "api_token" USING btree ("project_id","user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "membership_user_scope_uq" ON "membership" USING btree ("user_id",coalesce("project_id", "org_id"));--> statement-breakpoint
 CREATE UNIQUE INDEX "project_org_key_uq" ON "project" USING btree ("org_id","key");--> statement-breakpoint
@@ -614,4 +643,99 @@ CREATE INDEX "approval_inbox" ON "approval" USING btree ("project_id","assignee_
 CREATE INDEX "question_open" ON "question" USING btree ("project_id","status");--> statement-breakpoint
 CREATE INDEX "event_project_time" ON "event" USING btree ("project_id","occurred_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "event_subject" ON "event" USING btree ("subject_type","subject_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "notification_inbox" ON "notification" USING btree ("user_id","state","created_at" DESC NULLS LAST);
+CREATE INDEX "notification_inbox" ON "notification" USING btree ("user_id","state","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE UNIQUE INDEX "chunk_embedding_uq" ON "spec_chunk_embedding" USING btree ("spec_version_id","anchor","model");--> statement-breakpoint
+CREATE INDEX "spec_chunk_embedding_hnsw" ON "spec_chunk_embedding" USING hnsw ("embedding" vector_cosine_ops);--> statement-breakpoint
+-- ── ③ 순환 참조 FK (§2.11) ─────────────────────────────────────────────────
+-- 세 쌍이 서로를 가리키므로 테이블 생성 뒤 ALTER 로 건다.
+ALTER TABLE "spec"
+  ADD CONSTRAINT "spec_current_version_fk"
+  FOREIGN KEY ("current_version_id") REFERENCES "spec_version"("id");--> statement-breakpoint
+ALTER TABLE "spec_version"
+  ADD CONSTRAINT "spec_version_change_request_fk"
+  FOREIGN KEY ("change_request_id") REFERENCES "change_request"("id");--> statement-breakpoint
+ALTER TABLE "spec_version"
+  ADD CONSTRAINT "spec_version_base_version_fk"
+  FOREIGN KEY ("base_version_id") REFERENCES "spec_version"("id");--> statement-breakpoint
+ALTER TABLE "spec_version"
+  ADD CONSTRAINT "spec_version_superseded_by_fk"
+  FOREIGN KEY ("superseded_by_version_id") REFERENCES "spec_version"("id");--> statement-breakpoint
+ALTER TABLE "spec"
+  ADD CONSTRAINT "spec_parent_fk"
+  FOREIGN KEY ("parent_id") REFERENCES "spec"("id");--> statement-breakpoint
+ALTER TABLE "review_session"
+  ADD CONSTRAINT "review_session_previous_fk"
+  FOREIGN KEY ("previous_session_id") REFERENCES "review_session"("id");--> statement-breakpoint
+ALTER TABLE "agent_session"
+  ADD CONSTRAINT "agent_session_current_task_fk"
+  FOREIGN KEY ("current_task_id") REFERENCES "task"("id");--> statement-breakpoint
+-- ── ④ 함수·트리거 (§2.13) ──────────────────────────────────────────────────
+-- 규칙 1 — approved 본문 불변. 실제 동결 시점은 in_review 진입(spec-workflow §1.2:
+-- "가변 구간은 draft 하나뿐")이므로 draft 가 아니면 본문·해시 UPDATE 를 거부한다(상위 집합 강제).
+CREATE OR REPLACE FUNCTION nerv_spec_version_freeze() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.status <> 'draft'
+     AND (NEW.body_md IS DISTINCT FROM OLD.body_md
+          OR NEW.content_hash IS DISTINCT FROM OLD.content_hash) THEN
+    RAISE EXCEPTION 'spec_version % is frozen (status=%): body_md/content_hash are immutable',
+      OLD.id, OLD.status USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;--> statement-breakpoint
+CREATE TRIGGER spec_version_freeze
+  BEFORE UPDATE ON spec_version
+  FOR EACH ROW EXECUTE FUNCTION nerv_spec_version_freeze();--> statement-breakpoint
+-- updated_at 자동 갱신 (updated_at 컬럼을 가진 테이블은 task 하나)
+CREATE OR REPLACE FUNCTION nerv_touch_updated_at() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END $$;--> statement-breakpoint
+CREATE TRIGGER task_touch_updated_at
+  BEFORE UPDATE ON task
+  FOR EACH ROW EXECUTE FUNCTION nerv_touch_updated_at();--> statement-breakpoint
+-- scope 겹침 검사의 glob 교차 판정 — spec-workflow §4.4 globs_can_intersect 의사코드의 직역.
+-- 보수적 판정이다: 과검출은 경고로 끝나지만 미검출은 사고다.
+CREATE OR REPLACE FUNCTION nerv_glob_overlap(g1 text, g2 text) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+  p1 text[] := string_to_array(g1, '/');
+  p2 text[] := string_to_array(g2, '/');
+  n  int    := least(array_length(p1, 1), array_length(p2, 1));
+  a  text;  b text;
+BEGIN
+  IF g1 = g2 THEN RETURN true; END IF;
+  FOR i IN 1..n LOOP
+    a := p1[i];  b := p2[i];
+    IF a = '**' OR b = '**' THEN RETURN true; END IF;
+    IF position('*' in a) = 0 AND position('*' in b) = 0 AND a <> b THEN
+      RETURN false;
+    END IF;
+  END LOOP;
+  RETURN true;
+END $$;--> statement-breakpoint
+-- ── ⑤ 월 파티션 (§2.14) ────────────────────────────────────────────────────
+-- 대상 월과 다음 달 파티션을 보장한다. 초기 스냅샷이 현재+다음 달을 만들고,
+-- 이후는 nerv-worker 가 매일 1회 호출한다(advisory lock 하에 — codebase.md 워커 잡 규약).
+CREATE OR REPLACE FUNCTION nerv_ensure_month_partitions(target_month date) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  m_start date := date_trunc('month', target_month)::date;
+  m_end   date := (m_start + interval '1 month')::date;
+  suffix  text := to_char(m_start, '"y"YYYY"m"MM');
+BEGIN
+  EXECUTE format(
+    'CREATE TABLE IF NOT EXISTS event_%s PARTITION OF event FOR VALUES FROM (%L) TO (%L)',
+    suffix, m_start, m_end);
+  EXECUTE format(
+    'CREATE TABLE IF NOT EXISTS activity_%s PARTITION OF activity FOR VALUES FROM (%L) TO (%L)',
+    suffix, m_start, m_end);
+  -- §2.6 — activity 의 세션 내 seq 유일성은 파티션 단위 unique 로 강제한다
+  EXECUTE format(
+    'CREATE UNIQUE INDEX IF NOT EXISTS activity_%s_session_seq_uq ON activity_%s (session_id, seq)',
+    suffix, suffix);
+END $$;--> statement-breakpoint
+SELECT nerv_ensure_month_partitions(current_date);--> statement-breakpoint
+SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);

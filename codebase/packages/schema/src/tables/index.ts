@@ -18,3 +18,7 @@ export * from './review.js'; // review_session · reviewer_report · finding
 //                              · finding_occurrence · resolution
 export * from './approval.js'; // approval · question
 export * from './event.js'; // event · notification
+
+// 도메인 엔티티가 아니다 — 재생성 가능한 검색 인덱스의 물리 테이블(database.md §2.15).
+// 29종 카운트에 들지 않지만 마이그레이션에는 포함돼야 하므로 배럴에서 재수출한다.
+export * from './search.js'; // spec_chunk_embedding

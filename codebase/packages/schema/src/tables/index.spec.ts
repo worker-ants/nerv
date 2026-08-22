@@ -11,7 +11,16 @@ import { describe, expect, it } from 'vitest';
 import * as enums from '../enums.js';
 import * as tables from './index.js';
 
-const declaredTables = Object.values(tables).filter((t) => is(t, PgTable)) as PgTable[];
+const allTables = Object.values(tables).filter((t) => is(t, PgTable)) as PgTable[];
+
+/**
+ * 검색 인덱스 테이블은 도메인 엔티티가 아니다 — 원문에서 재생성 가능한 파생 데이터라
+ * 29종 카운트와 ERD 에 들지 않는다(database.md §2.15). 마이그레이션에는 포함되므로
+ * 배럴에는 있지만 이 카운트에서는 뺀다.
+ */
+const NON_ENTITY_TABLES = new Set(['spec_chunk_embedding']);
+
+const declaredTables = allTables.filter((t) => !NON_ENTITY_TABLES.has(getTableName(t)));
 const tableNames = declaredTables.map((t) => getTableName(t)).sort();
 
 describe('테이블 선언 (database.md §2)', () => {
@@ -57,6 +66,13 @@ describe('테이블 선언 (database.md §2)', () => {
     for (const name of tableNames) {
       expect(name).toMatch(/^[a-z][a-z0-9_]*$/);
     }
+  });
+
+  it('검색 인덱스 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15)', () => {
+    const all = allTables.map((t) => getTableName(t));
+    expect(all).toContain('spec_chunk_embedding');
+    expect(all).toHaveLength(30);
+    expect(tableNames).not.toContain('spec_chunk_embedding');
   });
 });
 
