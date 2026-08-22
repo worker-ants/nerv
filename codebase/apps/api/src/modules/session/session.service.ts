@@ -40,6 +40,28 @@ export interface ActiveClaimSummary extends Record<string, unknown> {
   baseline_id: string | null;
 }
 
+/** S5 카드 한 장 — 신원 3요소 + 클레임 + 리스 잔여 + diff (ui-wireframes §3.3) */
+export interface SessionCard extends Record<string, unknown> {
+  id: string;
+  user_name: string;
+  hostname: string;
+  agent_type: string;
+  state: string;
+  branch: string | null;
+  diff_added: number;
+  diff_removed: number;
+  last_heartbeat_at: string | null;
+  started_at: string;
+  task_id: string | null;
+  task_key: string | null;
+  task_title: string | null;
+  claim_id: string | null;
+  /** 남은 초 — 카운트다운은 클라이언트 시계가 한다(screens.md §1.4) */
+  lease_remaining_seconds: number | null;
+  scope_spec_ids: string[];
+  scope_file_globs: string[];
+}
+
 export interface BootstrapResult {
   session_id: string;
   /** 재호출이면 기존 스냅샷을 그대로 돌려줬다는 표시(멱등) */
@@ -164,6 +186,53 @@ export class SessionService {
       }
       return rows.length;
     });
+  }
+
+  /**
+   * S5 세션 보드 — EP-SES-01. **읽기 전용 축소판**이 Phase 0 범위다(steer/stop 은 E08-S06).
+   *
+   * 카드가 반드시 실어야 하는 것은 신원 3요소(사용자·hostname·에이전트 종류)와
+   * 하트비트·리스 잔여·diff 다(ui-wireframes §3.3). 그중 hostname 이 P8("누구의 어느 머신인가")의
+   * 핵심 필드라 NOT NULL 이고, 없는 세션은 화면이 렌더링하지 않는다(REQ-WEB-019).
+   *
+   * 리스 잔여는 서버가 남은 초를 주고 카운트다운은 클라이언트 시계가 한다(screens.md §1.4) —
+   * 매초 서버에 묻지 않기 위해서다.
+   */
+  async board(input: { projectId: string; states?: string[] }): Promise<SessionCard[]> {
+    const stateFilter =
+      input.states === undefined || input.states.length === 0
+        ? sql``
+        : sql` AND s.state = ANY(${sql.raw(`ARRAY[${input.states.map((v) => `'${v}'`).join(',')}]::session_state[]`)})`;
+
+    const { rows } = await this.db.execute<SessionCard>(sql`
+      SELECT s.id, u.display_name AS user_name, s.hostname,
+             s.agent_type::text AS agent_type, s.state::text AS state,
+             s.branch, s.diff_added, s.diff_removed,
+             s.last_heartbeat_at::text AS last_heartbeat_at,
+             s.started_at::text AS started_at,
+             t.id AS task_id, t.key AS task_key, t.title AS task_title,
+             c.id AS claim_id,
+             GREATEST(0, EXTRACT(EPOCH FROM (c.lease_expires_at - now()))::int) AS lease_remaining_seconds,
+             coalesce(c.scope_spec_ids, '{}')::text[]  AS scope_spec_ids,
+             coalesce(c.scope_file_globs, '{}')::text[] AS scope_file_globs
+        FROM agent_session s
+        JOIN "user" u ON u.id = s.user_id
+   LEFT JOIN claim c ON c.agent_session_id = s.id AND c.status = 'active'
+   LEFT JOIN task t ON t.id = c.task_id
+       WHERE s.project_id = ${input.projectId}${stateFilter}
+       ORDER BY s.last_heartbeat_at DESC NULLS LAST, s.started_at DESC
+       LIMIT 200
+    `);
+    return rows;
+  }
+
+  /** 요약 스트립 — 상태별 집계(screens.md §2.6) */
+  async boardSummary(projectId: string): Promise<Record<string, number>> {
+    const { rows } = await this.db.execute<{ state: string; n: number }>(sql`
+      SELECT state::text AS state, count(*)::int AS n
+        FROM agent_session WHERE project_id = ${projectId} GROUP BY state
+    `);
+    return Object.fromEntries(rows.map((r) => [r.state, r.n]));
   }
 
   async requireSession(sessionId: string, projectId: string): Promise<void> {

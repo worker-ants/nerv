@@ -16,6 +16,8 @@ import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { FanoutService } from '../../src/modules/event/fanout.service.js';
+import { SessionService } from '../../src/modules/session/session.service.js';
+import { TaskService } from '../../src/modules/task/task.service.js';
 import { WsGateway } from '../../src/modules/event/ws.gateway.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -285,6 +287,75 @@ describe('SSE 계약 (EP-SSE-01·02 · api.md §3.5)', () => {
     // 헤더가 있어도 그냥 새 스트림을 연다 — 재개하지 않는다
     expect(res.status).toBe(200);
     res.close();
+  });
+});
+
+describe('E05-S03 세션 보드 (EP-SES-01)', () => {
+  it('카드에 신원 3요소·클레임·리스 잔여·scope 가 실린다', async () => {
+    const sessions = app.get(SessionService);
+    const boot = await sessions.bootstrap({
+      projectId,
+      userId,
+      agentType: 'claude-code',
+      hostname: 'mac-07',
+      branch: 'fix/loader-cache',
+      externalSessionId: 'S-board',
+    });
+
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-board','보드','ready','목표','PR','도구','경계')`,
+      [taskId, projectId],
+    );
+    await app.get(TaskService).claim({
+      projectId,
+      taskId,
+      sessionId: boot.session_id,
+      userId,
+      scope: { specIds: [], fileGlobs: ['codebase/loader/**'] },
+    });
+
+    const cards = await sessions.board({ projectId });
+    const card = cards.find((c) => c.id === boot.session_id);
+
+    expect(card).toMatchObject({
+      user_name: '하나',
+      hostname: 'mac-07',
+      agent_type: 'claude-code',
+      state: 'active',
+      task_key: 'TSK-board',
+      branch: 'fix/loader-cache',
+    });
+    // 리스 잔여는 남은 초로 준다 — 카운트다운은 클라이언트 시계가 한다
+    expect(card?.lease_remaining_seconds).toBeGreaterThan(0);
+    expect(card?.scope_file_globs).toEqual(['codebase/loader/**']);
+  });
+
+  it('상태 필터와 요약 집계가 맞는다', async () => {
+    const sessions = app.get(SessionService);
+    const summary = await sessions.boardSummary(projectId);
+    expect(summary['active']).toBeGreaterThan(0);
+
+    const onlyStale = await sessions.board({ projectId, states: ['stale'] });
+    expect(onlyStale.every((c) => c.state === 'stale')).toBe(true);
+  });
+
+  it('REST 표면이 프로젝트 스코프를 판정한다 — 타 프로젝트 토큰은 403', async () => {
+    const ok = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/clemvion/sessions',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect((ok.json() as { items: unknown[] }).items.length).toBeGreaterThan(0);
+
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/clemvion/sessions',
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+    expect(denied.statusCode).toBe(403);
   });
 });
 
