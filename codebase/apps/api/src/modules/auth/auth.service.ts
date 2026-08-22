@@ -14,7 +14,14 @@
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_ERROR, isAgentScope, isHumanOnlyScope, newId } from '@nerv/schema';
+import {
+  GatePolicySchema,
+  NERV_ERROR,
+  RetentionSchema,
+  isAgentScope,
+  isHumanOnlyScope,
+  newId,
+} from '@nerv/schema';
 import type { AgentScope } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { Inject } from '@nestjs/common';
@@ -174,14 +181,23 @@ export class AuthService {
         actual: input.role,
       });
     }
+    // 정책 jsonb 는 저장 전에 검증한다 — 웹 폼·API·워커가 같은 스키마를 본다(REQ-CB-006).
+    // 알 수 없는 키를 관대하게 받으면 오타 정책이 조용히 무시되고 게이트가 꺼진 줄 모르게 된다.
+    const gatePolicy =
+      input.gatePolicy == null
+        ? null
+        : parsePolicy(GatePolicySchema, input.gatePolicy, 'gate_policy');
+    const retention =
+      input.retention == null ? null : parsePolicy(RetentionSchema, input.retention, 'retention');
+
     await this.db.execute(sql`
       UPDATE project
          SET name = coalesce(${input.name ?? null}, name),
              description = coalesce(${input.description ?? null}, description),
              repo_url = coalesce(${input.repoUrl ?? null}, repo_url),
              default_branch = coalesce(${input.defaultBranch ?? null}, default_branch),
-             gate_policy = coalesce(${input.gatePolicy == null ? null : JSON.stringify(input.gatePolicy)}::jsonb, gate_policy),
-             retention = coalesce(${input.retention == null ? null : JSON.stringify(input.retention)}::jsonb, retention)
+             gate_policy = coalesce(${gatePolicy == null ? null : JSON.stringify(gatePolicy)}::jsonb, gate_policy),
+             retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention)
        WHERE id = ${input.projectId}
     `);
     return this.project(input.projectId);
@@ -496,4 +512,23 @@ function unauthenticated(message: string): NervError {
     kind: 'invalid_credential',
     reason: message,
   });
+}
+
+/** 정책 파싱 실패는 400 이다 — 무엇이 틀렸는지 키 경로와 함께 돌려준다. */
+function parsePolicy<T>(
+  schema: { safeParse: (value: unknown) => { success: boolean; data?: T; error?: unknown } },
+  value: unknown,
+  field: string,
+): T {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success || parsed.data === undefined) {
+    const issues = (parsed.error as { issues?: { path: (string | number)[]; message: string }[] })
+      ?.issues;
+    throw new NervError(NERV_ERROR.PRECONDITION, `${field} 형식이 올바르지 않습니다.`, {
+      kind: 'invalid_policy',
+      field,
+      issues: (issues ?? []).map((i) => ({ path: i.path.join('.'), message: i.message })),
+    });
+  }
+  return parsed.data;
 }

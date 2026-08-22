@@ -7,6 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { RealtimeProvider } from './lib/realtime.js';
 import { createQueryClient } from './lib/query-client.js';
 import { routeTree } from './routeTree.gen';
 import './styles/tokens.css';
@@ -26,7 +27,10 @@ if (rootElement === null) throw new Error('#root 를 찾지 못했습니다.');
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      {/* 실시간은 쿼리 캐시 위에 얹힌다 — 이벤트는 무효화 신호일 뿐이다(§1.4) */}
+      <RealtimeProvider>
+        <RouterProvider router={router} />
+      </RealtimeProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

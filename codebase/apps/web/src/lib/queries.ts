@@ -1,0 +1,203 @@
+// 화면이 쓰는 조회 훅 모음 — 키 규약은 query-keys.ts, 무효화는 event-invalidation.ts 가 쥔다.
+//
+// 훅을 한 곳에 모으는 이유는 **폴백 폴링**(REQ-WEB-002) 때문이다. WS 가 끊긴 동안에는 화면이
+// 스스로 갱신해야 하는데, 그 판단이 화면마다 흩어지면 어떤 화면은 조용히 멈춘 채로 남는다.
+
+import { useQuery } from '@tanstack/react-query';
+import type { UseQueryResult } from '@tanstack/react-query';
+import { apiFetch } from './api.js';
+import { queryKeys } from './query-keys.js';
+import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
+import { fetchMe } from './session.js';
+import type { Me } from './session.js';
+
+type Row = Record<string, unknown>;
+
+/**
+ * 목록 응답을 배열로 좁힌다. 서버가 배열을 주는 계약이지만, 화면이 그 계약을 **믿고 크래시하는**
+ * 것과 빈 목록으로 버티는 것은 다르다 — 목록 하나 때문에 흰 화면이 되면 사용자는 무엇이
+ * 잘못됐는지조차 볼 수 없다(§1.5 에러는 인라인 카드로).
+ */
+export function rows(value: unknown): Row[] {
+  return Array.isArray(value) ? (value as Row[]) : [];
+}
+
+/** WS 가 끊겨 있으면 폴링으로 갱신한다 — 붙어 있으면 이벤트가 무효화를 대신한다. */
+function useLivePolling(): number | false {
+  const { state, offline } = useRealtime();
+  return state === 'connected' && !offline ? false : FALLBACK_POLL_MS;
+}
+
+export function useMe(): UseQueryResult<Me> {
+  return useQuery({ queryKey: queryKeys.me(), queryFn: fetchMe, retry: false });
+}
+
+export function useProjects(orgSlug: string | null): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: ['org', orgSlug, 'projects'],
+    queryFn: () => apiFetch<Row[]>(`/orgs/${orgSlug ?? ''}/projects`),
+    enabled: orgSlug !== null,
+  });
+}
+
+export function useProject(slug: string): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: queryKeys.project(slug),
+    queryFn: () => apiFetch<Row>(`/projects/${slug}`),
+  });
+}
+
+export function useInbox(state: 'pending' | 'decided' = 'pending'): UseQueryResult<Row[]> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.inbox(), state],
+    queryFn: () => apiFetch<Row[]>(`/approvals?state=${state}`),
+    refetchInterval,
+  });
+}
+
+export function useNotifications(): UseQueryResult<Row[]> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: queryKeys.myNotifications(),
+    queryFn: () => apiFetch<Row[]>('/me/notifications'),
+    refetchInterval,
+  });
+}
+
+export function useUnreadCount(): UseQueryResult<{ count: number }> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.myNotifications(), 'unread'],
+    queryFn: () => apiFetch<{ count: number }>('/me/notifications/unread-count'),
+    refetchInterval,
+  });
+}
+
+export function useSpecTree(
+  slug: string,
+  projectId?: string,
+  includeArchived = false,
+): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: [...queryKeys.projectSpecTree(projectId ?? slug), includeArchived],
+    queryFn: () =>
+      apiFetch<Row[]>(`/projects/${slug}/specs/tree?include_archived=${String(includeArchived)}`),
+  });
+}
+
+/**
+ * 스펙 상세. **키는 안정 키(SPC-…)이고 이벤트 봉투는 UUID 를 싣는다** — 그래서 이 쿼리는
+ * 이벤트로 직접 무효화되지 않고, 같은 이벤트가 함께 무효화하는 트리(projectSpecTree)의
+ * 재조회와 화면 재진입으로 갱신된다. 두 축을 억지로 잇지 않는 편이 낫다: 봉투에 key 를
+ * 실으면 이름 변경이 이벤트 계약을 깨고, 화면이 UUID 를 쓰면 URL 이 사람이 못 읽는 것이 된다.
+ */
+export function useSpec(slug: string, specKey: string): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: queryKeys.spec(specKey),
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}`),
+  });
+}
+
+export function useSpecVersions(slug: string, specKey: string): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: queryKeys.specVersions(specKey),
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/specs/${specKey}/versions`),
+  });
+}
+
+export function useSpecComments(slug: string, specKey: string): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: queryKeys.specComments(specKey),
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/specs/${specKey}/comments`),
+  });
+}
+
+export function useSpecRelations(slug: string, specKey: string): UseQueryResult<{ items: Row[] }> {
+  return useQuery({
+    queryKey: [...queryKeys.spec(specKey), 'relations'],
+    queryFn: () => apiFetch<{ items: Row[] }>(`/projects/${slug}/specs/${specKey}/relations`),
+  });
+}
+
+export function useTasks(slug: string, projectId?: string): UseQueryResult<Row[]> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: queryKeys.projectTasks(projectId ?? slug),
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/tasks`),
+    refetchInterval,
+  });
+}
+
+export function useTask(slug: string, taskKey: string): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: queryKeys.task(taskKey),
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/tasks/${taskKey}`),
+  });
+}
+
+export interface SessionBoardResponse {
+  items: Row[];
+  summary: Record<string, number>;
+}
+
+/**
+ * 세션 보드 데이터. **키는 projectId 로 잡는다** — 이벤트 봉투가 project_id 를 싣고
+ * 무효화 매핑이 그 값으로 키를 만들기 때문이다(event-invalidation.ts). slug 로 잡으면
+ * 이벤트가 와도 이 쿼리는 갱신되지 않는다.
+ */
+export function useSessions(
+  slug: string,
+  projectId?: string,
+): UseQueryResult<SessionBoardResponse> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: queryKeys.projectSessions(projectId ?? slug),
+    queryFn: () => apiFetch<SessionBoardResponse>(`/projects/${slug}/sessions`),
+    refetchInterval,
+  });
+}
+
+export function useSessionDetail(slug: string, sessionId: string): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: queryKeys.session(sessionId),
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/sessions/${sessionId}`),
+  });
+}
+
+export function useSessionTimeline(slug: string, sessionId: string): UseQueryResult<Row[]> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.session(sessionId), 'activities'],
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/sessions/${sessionId}/activities`),
+    refetchInterval,
+  });
+}
+
+export function useCoverage(slug: string, projectId?: string): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: [...queryKeys.project(projectId ?? slug), 'coverage'],
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/coverage`),
+  });
+}
+
+export function useEvents(slug: string, projectId?: string): UseQueryResult<Row[]> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: queryKeys.projectEvents(projectId ?? slug),
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/events?limit=30`),
+    refetchInterval,
+  });
+}
+
+export function useMembers(orgSlug: string | null): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: ['org', orgSlug, 'members'],
+    queryFn: () => apiFetch<Row[]>(`/orgs/${orgSlug ?? ''}/members`),
+    enabled: orgSlug !== null,
+  });
+}
+
+export function useTokens(): UseQueryResult<Row[]> {
+  return useQuery({ queryKey: ['me', 'tokens'], queryFn: () => apiFetch<Row[]>('/me/tokens') });
+}

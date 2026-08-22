@@ -5,3 +5,4 @@
 // 스키마 이름은 docs/04-mvp/api.md §2 전표의 "요청·응답" 열과 1:1 이다(§1.7).
 
 export * from './import.js';
+export * from './policy.js';
