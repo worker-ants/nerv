@@ -52,7 +52,7 @@
     <h1>로드맵</h1>
     <p class="lead">NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 <b>조정 → 가시성 → 거버넌스 → 고도화</b>로 고정하고, 각 Phase에 기간·범위(FR 번호)·산출물과 함께 <b>수치로 된 종료 조건</b>을 붙인다. 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.1 (2026-08-13)</span>
+      <span>버전 v0.2 (2026-08-22)</span>
       <span>원본: <code>docs/03-proposal/roadmap.md</code></span>
       <span>주로 다루는 결정: D-12 · D-06 · D-14</span>
     </div>
@@ -268,7 +268,7 @@
     <thead><tr><th>범위 항목</th><th>FR/NFR</th><th>내용</th></tr></thead>
     <tbody>
       <tr><td>nerv-mcp 최소 서버</td><td>FR-15 ◐</td><td>Streamable HTTP + PAT. tools 8종만: <code>nerv_bootstrap</code> · <code>nerv_spec_tree</code> · <code>nerv_spec_search</code> · <code>nerv_spec_get</code> · <code>nerv_task_next</code> · <code>nerv_task_claim</code> · <code>nerv_task_heartbeat</code> · <code>nerv_task_release</code></td></tr>
-      <tr><td>스펙 읽기</td><td>FR-01 ◐</td><td>트리·타입·안정 ID·전문 검색. 편집 없음(임포트로만 적재)</td></tr>
+      <tr><td>스펙 읽기</td><td>FR-01 ◐</td><td>트리·타입·안정 ID·검색(P0는 렉시컬 — FTS+pg_trgm). 편집 없음(임포트로만 적재)</td></tr>
       <tr><td>Task·ready 큐</td><td>FR-05 ◐</td><td>의존성 그래프 기반 ready 판정, 위임 명세 4요소 미비 시 <code>ready</code> 전이 거부</td></tr>
       <tr><td>원자적 클레임·리스</td><td><b>FR-06 ●</b></td><td>assignee+상태 원자 전환, TTL 리스, 하트비트 연장, 만료 자동 회수, scope(spec_ids·file_globs) 선언과 겹침 감지</td></tr>
       <tr><td>세션 레지스트리</td><td>FR-07 ◐</td><td>사용자·hostname·에이전트 종류·상태 머신(<code>pending→active↔awaiting_input→complete/error/stale</code>)·하트비트</td></tr>
@@ -339,6 +339,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>범위 항목</th><th>FR/NFR</th><th>내용</th></tr></thead>
     <tbody>
+      <tr><td>하이브리드 검색·탐색 UI</td><td>FR-01 ● (완성)</td><td>렉시컬+벡터(pgvector·임베딩 env 프로필)+RRF 병합+관계 확장(graph RAG), 퀵 스위처(⌘K)·관계 패널·트리 스케일 — 정본 <a href="api.html">4.4 API 명세</a> §2.2b · <a href="screens.html">4.5 화면 명세</a></td></tr>
       <tr><td>스펙 CRUD·버전·승인</td><td><b>FR-01 · FR-02 ●</b></td><td>markdown 편집기+프리뷰+헤딩 앵커 코멘트(D-09), 불변 SpecVersion 스냅샷, <code>draft→in_review→approved→superseded/deprecated</code>, 버전 diff</td></tr>
       <tr><td>Requirement 추출</td><td>FR-03 ◐</td><td>EARS 템플릿, 안정 ID 발급, 구현 축 초기값 설정(자동 계산은 Phase 2)</td></tr>
       <tr><td>작업 보드</td><td><b>FR-05 ●</b></td><td>승인된 SpecVersion에서 Task 파생, 칸반(S4), 위임 명세 4요소 강제</td></tr>

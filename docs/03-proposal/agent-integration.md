@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 17종의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.4 변경(2026-08-22): `nerv_spec_search` 정의 갱신 — 출력에 `related[]`(관계 확장)·`degraded?` 추가(하이브리드 검색 MVP 확정), 입력에 `references?` 필터 추가(REST EP-SPEC-02와 정합). `nerv_spec_get` `include[]`에 relations 요약 추가. 파이프라인 정본은 [4.4 API 명세](../04-mvp/api.md) §2.2b.
 
 ---
 
@@ -109,7 +111,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | --- | --- | --- | --- | --- | --- | --- |
 | `nerv_bootstrap` | `project`, `agent_type`, `hostname`, `cwd`, `repo{remote,branch}`, `resume_session_id?` | `session_id`, 규약 스펙(convention/vision) 요약, 내 활성 클레임(**Task 기준 버전·베이스라인 포함**), 게이트 정책·자율성 레벨, 컨텍스트 팩 ETag | `spec:read` + `agent-session:launch`(자기 세션) | A1 | 세션 시작 직후 **첫 도구 호출** | 멱등 — 같은 `session_id`/`resume_session_id`면 동일 스냅샷 반환 |
 | `nerv_spec_tree` | `project`, `root_spec_id?`, `depth?`, `status?` | 스펙 노드 트리(id·title·type·문서 상태·현재 버전) | `spec:read` | A1 | 스펙 탐색 시작 | 읽기 전용 |
-| `nerv_spec_search` | `query`, `type?`, `status?`, `requirement_id?`, `limit` | 매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫 + 관련도) + **`related[]`**(상위 결과의 `spec_relation` 1-hop — 질의에 없지만 걸려 있는 스펙) + `degraded?`(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 [4.4 API 명세](../04-mvp/api.md) §2.2b) | `spec:read` | A1 | 컨텍스트 수집·중복 확인 — **`related[]`가 중복 확인의 핵심 입력**이다(언급 안 된 인접 스펙) | 읽기 전용 |
+| `nerv_spec_search` | `query`, `type?`, `status?`, `requirement_id?`, `references?`(이 스펙을 참조하는 문서만 — REST EP-SPEC-02와 동일 필터), `limit` | 매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫 + 관련도) + **`related[]`**(상위 결과의 `spec_relation` 1-hop — 질의에 없지만 걸려 있는 스펙) + `degraded?`(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 [4.4 API 명세](../04-mvp/api.md) §2.2b) | `spec:read` | A1 | 컨텍스트 수집·중복 확인 — **`related[]`가 중복 확인의 핵심 입력**이다(언급 안 된 인접 스펙) | 읽기 전용 |
 | `nerv_spec_get` | `spec_id`, `version?`(기본 approved 최신 — **Task 컨텍스트에서는 기준 버전을 지정한다**, §2.4), `baseline?`(베이스라인 이름 — 그 세트에 핀된 버전을 읽는다, `version`과 배타), `include[]`(requirements/tasks/reviews/comments/relations — relations는 양방향 요약: 총계+상위 20, 전량은 REST EP-SPEC-18) | 본문 markdown(비신뢰 래핑, §6.3) + 메타 + Requirement 목록 + 파생 Task + **`basis_superseded?`**(요청 버전이 superseded면 최신 approved 버전 번호와 함께 표시) | `spec:read` | A1 | 구현 착수 전, 리뷰 전 | 읽기 전용 — `version`/`baseline` 지정 시 불변 스냅샷이라 결과 고정 |
 | `nerv_spec_draft_upsert` | `spec_id?`, `parent_id`, `type`, `title`, `body_markdown`, `base_version`, `change_summary` | `spec_version_id`, `version`, 델타 요약(ADDED/MODIFIED/REMOVED), 검증 경고, `web_url`(S3 딥링크) | `spec:draft` | A2 | 스펙 초안 작성·CR 제안 | 조건부 — (spec_id, base_version, content_hash) 동일이면 같은 draft 반환. base_version 불일치는 `NERV_PRECONDITION`. 초안 편집 리스 자동 획득·갱신, 타인 보유 시 `NERV_DRAFT_LEASED` |
 | `nerv_spec_submit_review` | `spec_version_id`, `reviewer_hint?`, `note` | `approval_id[]`, `draft → in_review` 전이 결과, 지정 리뷰어·SLA, `web_url`(S3 딥링크) | `spec:draft`(+제출) | **A3** | 초안 완료 후 사람 검토 요청 | 멱등 — 같은 `spec_version_id`의 pending Approval을 재사용(승인함 카드 중복 생성 금지) |

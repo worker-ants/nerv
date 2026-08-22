@@ -191,7 +191,7 @@
       <tr><td>Valkey pub/sub(무영속 단일 인스턴스)</td><td>방송 유실로 인한 재조회 비용이 실측 임계를 넘거나 이벤트 재전송(replay) 요구가 생길 때</td><td>Valkey Streams(적재형)·HA(센티널/관리형) 재검토</td></tr>
       <tr><td>TipTap</td><td>md 직렬화 왕복 손실 실측 발생</td><td>Milkdown 재검토</td></tr>
       <tr><td>Vitest + Playwright</td><td>L3 유지 비용이 개발 흐름을 끊는 수준으로 증가</td><td>E2E 범위 축소(시나리오 5종 고정) 또는 러너 통합 재검토</td></tr>
-      <tr><td>임베딩 제공자 프로필(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI)</td><td>질의 임베딩 p95가 검색 응답 목표를 잠식, 검색 만족도 실측 미달, 또는 운영 API 비용·정책 변화</td><td>제공자·모델은 env 교체 + 재임베딩으로 해소(코드 불변 — OpenAI 호환 단일 계약). 그래도 부족하면 전용 검색엔진 재검토(그 전에는 재론 금지)</td></tr>
+      <tr><td>임베딩 제공자 프로필(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI)</td><td>질의 임베딩 p95가 검색 응답 목표(보류 — E06-S06 실측 후 확정, <a href="api.html">4.4</a> §2.2b)를 잠식, 검색 만족도 실측 미달, 또는 운영 API 비용·정책 변화</td><td>제공자·모델은 env 교체 + 재임베딩으로 해소(코드 불변 — OpenAI 호환 단일 계약). 그래도 부족하면 전용 검색엔진 재검토(그 전에는 재론 금지)</td></tr>
       <tr><td>실시간 공동 편집 미도입</td><td>버전 충돌(409 재시도) 주 20건 이상 또는 동시 편집 요구 반복(로드맵 §5.1)</td><td>Yjs + Hocuspocus</td></tr>
       <tr><td>이중 배포 타깃(compose+k8s)</td><td>운영 규모가 단일 노드로 충분(NFR-04)</td><td>k8s 생략</td></tr>
     </tbody>

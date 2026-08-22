@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 **조정(충돌 제거) → 가시성(세션·커버리지) → 거버넌스(승인·게이트) → 고도화**로 고정하고, Phase 0 PoC(2~3주) · Phase 1 MVP(4~6주) · Phase 2(4~6주) · Phase 3+(착수 조건 기반)로 나눈다. 각 Phase는 기간·범위(FR 번호)·산출물과 함께 **수치로 된 종료 조건**을 갖고, 그 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다(예: Phase 0은 두 호스트·세 세션 동시 작업에서 중복 클레임 0건). clemvion 이관은 D-12에 따라 **기계 산출물 먼저 → 스펙 → 사람 워크플로 → 실시간**의 순서로 진행하며, 대상 규모는 `spec/` 384 md · `plan/` 450 md · `review/` 13,777 md(131MB)다. 마지막으로 도입 실패·규약 미준수·플랫폼 다운·리뷰 피로·벤더 API 변화 다섯 가지 리스크에 각각 계측 신호와 완화 수단을 붙였다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 판: [roadmap.html](../html/roadmap.html)
+> 문서 버전 v0.2 · 2026-08-22 · HTML 판: [roadmap.html](../html/roadmap.html)
+>
+> v0.2 변경(2026-08-22): 4부 확정을 역반영 — Phase 0·1 범위 표에 **하이브리드 검색**(FTS+pg_trgm → 벡터·RRF·관계 확장 완성, 임베딩 제공자는 env 프로필)과 **탐색 UI**(퀵 스위처·관계 패널) 표기를 추가했다. 상세 정본은 [4.1 MVP 범위와 스택 확정](../04-mvp/scope.md) §2.1 · [4.4 API 명세](../04-mvp/api.md) §2.2b. FR 판정(●◐○)과 Phase 배분은 변경 없다 — 표기 보완이다. (인증 표기는 4.1 §2.1 콜아웃이 이미 대체: OAuth 2.1은 Phase 2, MVP는 PAT.)
 
 ---
 
@@ -100,7 +102,7 @@
 | 범위 항목 | FR/NFR | 내용 |
 | --- | --- | --- |
 | nerv-mcp 최소 서버 | FR-15 ◐ | Streamable HTTP + PAT. tools 8종만: `nerv_bootstrap` · `nerv_spec_tree` · `nerv_spec_search` · `nerv_spec_get` · `nerv_task_next` · `nerv_task_claim` · `nerv_task_heartbeat` · `nerv_task_release` |
-| 스펙 읽기 | FR-01 ◐ | 트리·타입·안정 ID·전문 검색. 편집 없음(임포트로만 적재) |
+| 스펙 읽기 | FR-01 ◐ | 트리·타입·안정 ID·검색(P0는 렉시컬 — FTS+pg_trgm). 편집 없음(임포트로만 적재) |
 | Task·ready 큐 | FR-05 ◐ | 의존성 그래프 기반 ready 판정, 위임 명세 4요소 미비 시 `ready` 전이 거부 |
 | 원자적 클레임·리스 | **FR-06 ●** | assignee+상태 원자 전환, TTL 리스, 하트비트 연장, 만료 자동 회수, scope(spec_ids·file_globs) 선언과 겹침 감지 |
 | 세션 레지스트리 | FR-07 ◐ | 사용자·hostname·에이전트 종류·상태 머신(`pending→active↔awaiting_input→complete/error/stale`)·하트비트 |
@@ -160,6 +162,7 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 
 | 범위 항목 | FR/NFR | 내용 |
 | --- | --- | --- |
+| 하이브리드 검색·탐색 UI | FR-01 ● (완성) | 렉시컬+벡터(pgvector·임베딩 env 프로필)+RRF 병합+관계 확장(graph RAG), 퀵 스위처(⌘K)·관계 패널·트리 스케일 — 정본 [4.4 API 명세](../04-mvp/api.md) §2.2b · [4.5 화면 명세](../04-mvp/screens.md) |
 | 스펙 CRUD·버전·승인 | **FR-01 · FR-02 ●** | markdown 편집기+프리뷰+헤딩 앵커 코멘트(D-09), 불변 SpecVersion 스냅샷, `draft→in_review→approved→superseded/deprecated`, 버전 diff |
 | Requirement 추출 | FR-03 ◐ | EARS 템플릿, 안정 ID 발급, 구현 축 초기값 설정(자동 계산은 Phase 2) |
 | 작업 보드 | **FR-05 ●** | 승인된 SpecVersion에서 Task 파생, 칸반(S4), 위임 명세 4요소 강제 |
