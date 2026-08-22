@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "_comment": "L1 스펙의 타입 검사 전용(codebase.md §4.3).",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./.tsbuild",
+    "emitDeclarationOnly": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.spec.ts"],
+  "references": [{ "path": "./tsconfig.json" }, { "path": "../../packages/schema" }]
+}

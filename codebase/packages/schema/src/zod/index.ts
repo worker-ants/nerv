@@ -4,4 +4,4 @@
 // **같은 zod 객체**를 import 한다 — 그래서 검증 규칙이 표면마다 갈라질 수 없다.
 // 스키마 이름은 docs/04-mvp/api.md §2 전표의 "요청·응답" 열과 1:1 이다(§1.7).
 
-export {};
+export * from './import.js';

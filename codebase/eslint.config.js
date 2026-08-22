@@ -55,8 +55,12 @@ const NO_HARDCODED_CONTRACT_LITERALS = [
   },
   {
     // 이벤트 이름 <리소스>.<동사> — 정본 docs/03-proposal/spec-workflow.md §6 + docs/04-mvp/api.md §3.3
+    //
+    // 동사 집합을 **열거한다**. `<리소스>.<아무거나>` 로 두면 `spec.key`(프로파일 필드 매핑)
+    // 같은 무관한 문자열까지 잡는다 — 실측으로 오탐이 나서 좁혔다. 카탈로그에 동사가 늘면
+    // 여기도 함께 늘린다(그 수고가 곧 "이벤트 이름은 정본이 있다"의 값이다).
     selector:
-      'Literal[value=/^(spec|task|claim|session|approval|question|gate|comment|baseline|import|notification|finding|cr)\\.[a-z][a-z_]*$/]',
+      'Literal[value=/^(spec|task|claim|session|approval|question|gate|comment|baseline|import|notification|finding|cr)\\.(draft_created|submitted|rejected|approved|superseded|deprecated|comment_added|meta_updated|archived|restored|recheck_requested|resolved|created|ready|claimed|blocked|done|rebrief_required|updated|conflict_warn|conflict_blocked|released|started|stale|complete|steered|requested|answered|bypassed|failopen|applied|opened)$/]',
     message:
       'REQ-CB-006: 이벤트 이름은 @nerv/schema 의 NERV_EVENT 에서 import 한다 (하드코딩 금지).',
   },

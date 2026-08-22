@@ -6,6 +6,6 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["dist"],
+  "exclude": ["dist", "src/**/*.spec.ts"],
   "references": [{ "path": "../../packages/schema" }]
 }

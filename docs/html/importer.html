@@ -52,7 +52,7 @@
     <h1>스펙 임포터</h1>
     <p class="lead">기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 <b>프로파일 기반 범용 임포터</b>의 확정판. 대상별 차이는 프로파일(§1.4)이 흡수하고 엔진은 하나다 — 내장 프로파일은 <code>clemvion</code>(FR-17 대상: 순수 스펙 135 md + plan 450 md)과 <code>nerv-docs</code>(도그푸딩) 2종이며, 다른 저장소는 프로파일 파일을 얹는다. 실행 모델은 <b>읽기는 클라이언트, 쓰기는 API</b>(2026-08-22 확정) — 원본 체크아웃이 있는 장비의 CLI가 파싱·리포트를 만들고(dry-run은 서버 없이 완결), <code>--apply</code>만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. 수용 기준은 REQ-IMP-001~017.</p>
     <div class="meta-line">
-      <span>버전 v0.2 (2026-08-22)</span>
+      <span>버전 v0.3 (2026-08-22)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
     </div>
@@ -281,6 +281,15 @@ task:                        # plan 프로파일(P1) — §2.6
 
   <p>✅ 마크는 읽지 않는다(§2.3 — 폐기). 상태 컬럼이 아예 없는 영역(<code>3-workflow-editor</code>·<code>7-channel-web-chat</code>)과 131개가 칠해진 영역(<code>2-navigation</code>)이 공존하는 표기를 신뢰할 수 없기 때문이며, 커버리지는 이후 관계에서 계산된다(D-03, FR-13).</p>
 
+  <h3>2.6a 임포트한 Task 의 위임 명세 — 출처를 적는다 (2026-08-22 구현 중 확정)</h3>
+  <p>DDL 의 <code>task_delegation_spec_ck</code>(4.3 §2.5)는 <code>backlog</code>·<code>blocked</code> <b>밖의 모든 상태</b>에 위임 명세 4요소를 요구한다. 그런데 임포트한 Task 에는 그 근거가 없다 — 원본 <code>plan/</code> 에는 위임 명세라는 개념 자체가 없고, <code>complete/</code> 387건은 <code>done</code> 으로 적재된다(§2.6). 그대로 두면 387건이 전부 CHECK 위반으로 실패한다(구현 중 실측).</p>
+  <p><b>해법: 지어내지 않고 출처를 적는다.</b> 4요소 자리에 고정 문자열 <code>(임포트 — 원본에 위임 명세 없음)</code> 을 넣는다.</p>
+  <ul>
+    <li>목표·산출물을 그럴듯하게 지어내면 그 Task 는 "근거가 있는 것처럼" 보인다 — provenance 추적(P5)이 무너지는 지점이다. 사실을 적으면 그 자리가 비어 있었다는 것 자체가 데이터로 남는다.</li>
+    <li>고정 문자열이라 전수 식별·일괄 보정이 가능하다.</li>
+    <li>판정에 쓰이지 않는다 — <code>ready</code> 승격은 임포트 경로로 오지 않으므로(REQ-IMP-009) 이 값이 게이트를 통과시키는 일은 없다.</li>
+    <li>CHECK 를 완화하지 않는다. 살아 있는 워크플로에서 4요소는 여전히 강제다(spec-workflow §4.1).</li>
+  </ul>
   <h3>2.6 plan frontmatter → Task 매핑 (P1)</h3>
 
   <p>의미 정본은 <a href="data-model.html">데이터 모델</a> §3.2, 규칙 정본은 <a href="roadmap.html">로드맵</a> §7.3(2)다. plan 필수 3필드는 <code>worktree:</code>(미착수 sentinel <code>(unstarted)</code>) · <code>started:</code>(ISO 날짜) · <code>owner:</code>다.</p>
