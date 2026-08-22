@@ -2,7 +2,9 @@
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v0.8 · 2026-08-22 · 사람이 읽기 좋은 HTML 판: [html/index.html](html/index.html)
+> 문서 버전 v0.9 · 2026-08-22 · 사람이 읽기 좋은 HTML 판: [html/index.html](html/index.html)
+>
+> v0.9 변경(2026-08-22 — 구현 착수 중 발생): **배포 산출물 위치 개정(REQ-CB-015)** — 배포 트리를 `codebase/deploy/`에서 **저장소 루트 `deploy/`**로 옮기고, 저장소 구역을 문서·규약·코드(`codebase/`)·배포(`deploy/`) 넷으로 정리했다. 이미지 빌드 컨텍스트는 저장소 루트로 통일(4.2 §5.3·§6.1). 다른 결정·요구는 불변.
 >
 > v0.2 변경: ① 구현 코드 위치를 저장소 `codebase/` 하위로 확정(4.2 §1, REQ-CB-015) ② 실시간 채널을 WebSocket 단일에서 **WebSocket + SSE 다중 채널**로 확장하고 팬아웃 **방송 MQ를 Valkey pub/sub**로 확정(4.1 §2 · 4.4 §3 · 4.3 §3) ③ 에이전트 작업 규약 [AGENTS.md](../AGENTS.md) 신설(CLAUDE.md가 import).
 >
@@ -59,7 +61,7 @@
 | 문서 | 내용 |
 | --- | --- |
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(15종)·스킬(5종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | 저장소 구역(`docs/`·`codebase/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | 29개 테이블 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~05), MCP 15종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
@@ -77,7 +79,7 @@
 ## 이 문서 세트의 관리 규약 (유지보수용)
 
 - **md가 원본**이고 html은 사람 열람용 파생본이다. 내용 수정 시 둘 다 갱신한다(구조는 `html/`의 사이드바 순서를 따른다).
-- **구현 코드는 저장소 `codebase/` 하위에만** 둔다([4.2 코드베이스와 배포](04-mvp/codebase.md) §1, REQ-CB-015). `docs/`에는 문서와 html 파생본만 들어간다.
+- **애플리케이션·패키지 코드는 저장소 `codebase/` 하위에, 배포 산출물은 저장소 루트 `deploy/` 하위에** 둔다([4.2 코드베이스와 배포](04-mvp/codebase.md) §1, REQ-CB-015 — 2026-08-22 개정). `docs/`에는 문서와 html 파생본만 들어간다.
 - 에이전트(Claude Code·Codex) 작업 규약의 정본은 저장소 루트의 [AGENTS.md](../AGENTS.md)다. `CLAUDE.md`는 그것을 import만 한다 — 어느 머신·세션에서 작업해도 같은 규약이 적용되게 하기 위해서다.
 - 용어·상태값·결정 번호(D-01~D-14)·요구사항 번호(FR/NFR)는 [pain-points.md](01-problem/pain-points.md)의 정의를 단일 기준으로 한다.
 - 근거 URL은 실제 접속 확인된 것만 싣는다. clemvion 근거는 `clemvion:경로` 표기.

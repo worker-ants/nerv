@@ -75,7 +75,6 @@ export default tseslint.config(
       '**/.tsbuild/**',
       '**/coverage/**',
       'packages/schema/drizzle/**',
-      'deploy/**',
     ],
   },
 

@@ -10,17 +10,18 @@ NERV(가칭)는 **AI 에이전트 협업 개발 플랫폼**이다 — 스펙 문
 - **현 단계**: 제안서·MVP 명세 완결([docs/README.md](docs/README.md)가 목차), 구현 착수 전.
 - 문서·커밋 메시지 언어는 **한국어**다.
 
-## 저장소 구조 — 세 구역
+## 저장소 구조 — 네 구역
 
 ```text
 nerv/
   AGENTS.md      # 이 파일 — 에이전트 규약 정본
   CLAUDE.md      # Claude Code 진입점 — @AGENTS.md import만 한다
   docs/          # 제안서·명세 (md 원본 + html/ 파생본)
-  codebase/      # 구현 코드 전체 (pnpm 모노레포 루트)
+  codebase/      # 애플리케이션·패키지 코드 (pnpm 모노레포 루트)
+  deploy/        # 배포 산출물 (compose · Dockerfile · kustomize)
 ```
 
-**구현 코드는 반드시 `codebase/` 하위에만 작성한다**(REQ-CB-015). `docs/`에는 문서와 html 파생본만, 저장소 루트에는 규약·메타 파일만 둔다. 모노레포 트리·배치의 정본은 [docs/04-mvp/codebase.md](docs/04-mvp/codebase.md) §1이다.
+**애플리케이션·패키지 코드는 반드시 `codebase/` 하위에, 배포 산출물(compose·Dockerfile·kustomize)은 저장소 루트 `deploy/` 하위에 쓴다**(REQ-CB-015 — 2026-08-22 개정). `docs/`에는 문서와 html 파생본만, 저장소 루트에는 이 세 구역과 규약·메타 파일만 둔다. 트리·배치의 정본은 [docs/04-mvp/codebase.md](docs/04-mvp/codebase.md) §1이다.
 
 ## 문서 작업 규약
 

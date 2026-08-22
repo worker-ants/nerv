@@ -5,9 +5,11 @@ updated: 2026-08-22
 ---
 # 코드베이스와 배포
 
-> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **구현 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
+> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v0.7 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v0.8 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+>
+> v0.8 변경(2026-08-22 — **배포 산출물 위치 개정, REQ-CB-015 변경**): 배포 트리를 `codebase/deploy/`에서 **저장소 루트 `deploy/`**로 옮긴다. 근거: 배포 산출물은 pnpm 워크스페이스가 아니고(`pnpm-workspace.yaml` glob 밖) 저장소 전체의 운영 자산이라 "모노레포 루트 = `codebase/`"라는 한 가지 뜻과 섞이지 않는 편이 낫다. ① REQ-CB-015를 2구역 규칙으로 개정(코드 = `codebase/`, 배포 산출물 = `deploy/`) ② 경로 표기 기준 분리 — `apps/*`·`packages/*`는 `codebase/` 기준, `deploy/*`는 저장소 루트 기준(§1.1) ③ **이미지 빌드 컨텍스트를 저장소 루트로 통일**(§5.3 `context: ../..`) — 웹 이미지가 `codebase/` 소스와 `deploy/docker/nginx/` 템플릿을 함께 봐야 하기 때문. Dockerfile `COPY`에 `codebase/` 접두, 저장소 루트 `.dockerignore` 신설(§6.1) ④ compose 실행은 `codebase/`에서 `-f ../deploy/compose/...`(§5.1·§4.5), kustomize는 저장소 루트에서(§6.3). 다른 결정·요구는 불변.
 >
 > v0.7 변경(2026-08-22 — 임베딩 제공자 추상화, [4.1](scope.md) v0.7과 짝): 임베딩 호출을 **OpenAI 호환 `/v1/embeddings` 단일 계약**으로 전환 — 환경 프로필 §5.2a 신설(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI), `NERV_EMBED_API_KEY` 추가, compose `embed`는 **로컬 프로필 전용**(profiles로 선택 기동), k8s `base/embed/`는 외부 제공자 오버레이에서 제외. REQ-CB-020 개정("자가호스팅만" 폐기 → 단일 계약 + env 결정), REQ-CB-021(1024차원 강제) 추가.
 >
@@ -25,11 +27,14 @@ updated: 2026-08-22
 
 언어·저장소 구조는 TypeScript + pnpm workspace로 확정됐다([3.2 시스템 아키텍처](../03-proposal/architecture.md) §4.1, 스택 확정 전문은 [4.1 MVP 범위와 스택 확정](scope.md)). Turborepo는 빌드 시간이 아플 때 도입한다 — 트리거만 기록하고 지금은 넣지 않는다.
 
-**구현 코드는 저장소 루트가 아니라 `codebase/` 하위에 쓴다**(REQ-CB-015). 저장소 루트는 문서(`docs/`)·에이전트 규약(`AGENTS.md`·`CLAUDE.md`)·구현(`codebase/`)의 세 구역으로 나뉘고, 모노레포 루트는 `codebase/`다. 이 문서를 포함한 전 문서에서 `apps/*`·`packages/*`·`deploy/*` 경로 표기는 **`codebase/` 기준 상대 경로**이며, `pnpm`·`docker compose` 명령은 `codebase/`에서 실행한다(§5.1).
+**애플리케이션·패키지 코드는 저장소 루트가 아니라 `codebase/` 하위에 쓰고, 배포 산출물은 저장소 루트의 `deploy/`에 쓴다**(REQ-CB-015 — 2026-08-22 개정). 저장소 루트는 문서(`docs/`)·에이전트 규약(`AGENTS.md`·`CLAUDE.md`)·구현(`codebase/`)·배포(`deploy/`)의 네 구역으로 나뉘고, 모노레포 루트는 `codebase/`다.
+
+경로 표기의 기준이 구역마다 다르다 — 이 문서를 포함한 전 문서에서 **`apps/*`·`packages/*`는 `codebase/` 기준 상대 경로**이고 **`deploy/*`는 저장소 루트 기준 상대 경로**다. `pnpm` 명령은 `codebase/`에서 실행하고(§5.1), `docker compose`는 `pnpm compose:*` 래퍼가 `-f ../deploy/compose/docker-compose.yml`로 가리키므로 역시 `codebase/`에서 실행한다. `kustomize`·`kubectl` 명령만 저장소 루트에서 실행한다(§6.3).
 
 ```text
-nerv/                           # 저장소 루트 — 구현 코드 없음
+nerv/                           # 저장소 루트 — 애플리케이션 코드 없음
   AGENTS.md                     # 에이전트 공통 작업 규약 (Codex·Claude Code 공용)
+  .dockerignore                 # 이미지 빌드 컨텍스트(= 저장소 루트) 제외 목록 (§5.3·§6.1)
   CLAUDE.md                     # Claude Code 진입점 — @AGENTS.md import만 한다
   docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 스펙 임포터 §5)
   codebase/                     # ★ 구현 코드 전체 = 모노레포 루트 (REQ-CB-015)
@@ -62,20 +67,22 @@ nerv/                           # 저장소 루트 — 구현 코드 없음
     packages/
       schema/                   # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
                                 #   임포트 배치 · 프로파일 zod 스키마도 여기가 정본 (apps/api ↔ apps/cli 공유 계약)
-    deploy/
-      compose/
-        docker-compose.yml      # §5.3 전문 — 로컬·소규모 자가호스팅 정본
-      docker/
-        Dockerfile.server       # nerv-api · nerv-worker 이미지 (§6.1)
-        Dockerfile.web          # nerv-web 이미지 (§6.1)
-        nginx/
-          default.conf.template # §5.4 전문 — reverse-proxy · WebSocket 업그레이드 · SSE 버퍼링 해제 · /mcp Origin 1차 검증
-      k8s/
-        base/                   # §6.2 트리 — Deployment · Service · Job · Ingress
-        overlays/
-          dev/
-          prod/
+  deploy/                         # ★ 배포 산출물 — 저장소 루트 (REQ-CB-015, 2026-08-22 개정)
+    compose/
+      docker-compose.yml        # §5.3 전문 — 로컬·소규모 자가호스팅 정본
+    docker/
+      Dockerfile.server         # nerv-api · nerv-worker 이미지 (§6.1)
+      Dockerfile.web            # nerv-web 이미지 (§6.1)
+      nginx/
+        default.conf.template   # §5.4 전문 — reverse-proxy · WebSocket 업그레이드 · SSE 버퍼링 해제 · /mcp Origin 1차 검증
+    k8s/
+      base/                     # §6.2 트리 — Deployment · Service · Job · Ingress
+      overlays/
+        dev/
+        prod/
 ```
+
+> **`deploy/`가 `codebase/` 밖인 이유**(2026-08-22 결정 — v0.1~v0.7의 `codebase/deploy/` 배치를 개정). 배포 산출물은 pnpm 워크스페이스가 아니다(`pnpm-workspace.yaml`의 glob `apps/*`·`packages/*` 밖). `codebase/`는 "모노레포 루트 = 노드 패키지들의 루트"라는 한 가지 뜻을 갖고, 저장소 전체를 어떻게 굴리느냐(compose·이미지·k8s)는 그 옆의 `deploy/`가 갖는다. 이미지 빌드 컨텍스트는 **저장소 루트**다(§5.3 `context: ../..`) — 세 이미지 모두 `codebase/`(소스)와 `deploy/docker/nginx/`(웹 이미지의 nginx 템플릿) 양쪽을 필요로 하므로 둘의 공통 조상이 유일한 일관 규칙이다. 그래서 Dockerfile 의 `COPY` 경로는 `codebase/` 접두를 갖고(§6.1), 컨텍스트 비대화는 저장소 루트 `.dockerignore` 가 막는다(`docs/`·`.git/`·`node_modules`·빌드 산출물 제외). 이 개정은 REQ-CB-015 한 줄과 경로 표기 기준·빌드 컨텍스트를 바꾸며, 다른 결정·요구는 건드리지 않는다.
 
 ### 1.2 패키지 책임
 
@@ -85,7 +92,7 @@ nerv/                           # 저장소 루트 — 구현 코드 없음
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
 | `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~05 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
 | `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터만) |
-| `deploy/*` | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
+| `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
 의존 방향은 한쪽뿐이다: `apps/* → packages/schema`. `apps/web ↔ apps/api ↔ apps/cli` 간 직접 import는 금지하며 공유 계약(zod 스키마·타입·상수)은 전부 `@nerv/schema`를 거친다. `apps/cli`가 `apps/api`의 서비스를 import하지 않는다는 것이 REQ-CB-001의 적용례다 — CLI는 API의 클라이언트일 뿐 같은 프로세스가 아니다.
 
@@ -93,7 +100,7 @@ nerv/                           # 저장소 루트 — 구현 코드 없음
 | --- | --- |
 | **REQ-CB-001** | WHEN `apps/*`의 코드가 다른 워크스페이스를 import할 때, THE SYSTEM SHALL `packages/*`만 허용하고 `apps/*` 간 import는 lint 에러로 차단한다(`eslint.config.js`의 `no-restricted-imports`). |
 | **REQ-CB-002** | WHEN 로컬·CI·컨테이너 이미지가 Node/pnpm을 결정할 때, THE SYSTEM SHALL `.nvmrc`(Node LTS)와 루트 `package.json`의 `packageManager` 필드를 단일 정본으로 사용한다 — 버전이 세 곳에서 달라지는 순간이 결함이다. |
-| **REQ-CB-015** | WHEN 구현 코드(애플리케이션·패키지·배포 산출물·스크립트)가 저장소에 추가될 때, THE SYSTEM SHALL 저장소 루트의 `codebase/` 하위에만 배치한다 — `docs/`에는 문서와 그 파생물(html)만, 저장소 루트에는 에이전트 규약 파일(`AGENTS.md`·`CLAUDE.md`)과 저장소 메타 파일만 둔다. |
+| **REQ-CB-015** | (2026-08-22 개정) WHEN 애플리케이션·패키지 코드와 그 스크립트가 저장소에 추가될 때, THE SYSTEM SHALL 저장소 루트의 `codebase/` 하위에만 배치한다. WHEN 배포 산출물(compose·Dockerfile·nginx 템플릿·kustomize)이 추가될 때, THE SYSTEM SHALL 저장소 루트의 `deploy/` 하위에 배치한다 — `docs/`에는 문서와 그 파생물(html)만, 저장소 루트에는 이 두 구역과 에이전트 규약 파일(`AGENTS.md`·`CLAUDE.md`)·저장소 메타 파일만 둔다. |
 
 `pnpm-workspace.yaml` 전문:
 
@@ -408,7 +415,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable && pnpm install --frozen-lockfile
-      - run: cp .env.example .env && docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build
+      - run: cp .env.example .env && docker compose -f ../deploy/compose/docker-compose.yml --env-file .env up -d --build
         # local-embed 프로필 없이 기동 — CI 에서 모델 가중치(수 GB) 다운로드 금지.
         # 검색 E2E 는 렉시컬 degrade 경로(REQ-API-026)로 검증하고, 벡터 품질은 E06-S06 스파이크·스테이징 소관
       - run: pnpm test:e2e
@@ -450,7 +457,7 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 | `pnpm db:generate` | `@nerv/schema`에서 `drizzle-kit generate` — 마이그레이션 SQL 생성 |
 | `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로 |
 | `pnpm db:seed` | 개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등([4.3 데이터베이스 스키마](database.md) §4, REQ-DB-002) |
-| `pnpm compose:up` | `docker compose -f deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build` — 외부 임베딩 제공자 사용 시 `--profile local-embed` 생략(§5.2a) |
+| `pnpm compose:up` | `docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build` — 외부 임베딩 제공자 사용 시 `--profile local-embed` 생략(§5.2a) |
 | `pnpm compose:infra` | 위 명령 + `postgres minio valkey embed` 서비스만(`embed`는 local-embed 프로필일 때) |
 | `pnpm compose:down` | 스택 정지(볼륨 유지) |
 | `pnpm --filter @nerv/cli build` | 임포터 CLI 빌드 — 산출물은 이미지가 아니라 설치형 패키지(§1.3) |
@@ -511,11 +518,13 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 ### 5.3 `docker-compose.yml` 전문
 
 ```yaml
-# deploy/compose/docker-compose.yml
+# deploy/compose/docker-compose.yml   ← 저장소 루트 기준 (REQ-CB-015, 2026-08-22 개정)
 # NERV 로컬 개발 · 소규모 자가호스팅 정본 (NFR-01).
-# 실행: 모노레포 루트(codebase/)에서
-#   docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build
+# 실행: 모노레포 루트(codebase/)에서 — .env 가 거기 있고 pnpm 래퍼도 거기서 돈다
+#   docker compose -f ../deploy/compose/docker-compose.yml --env-file .env up -d --build
 # (래퍼: pnpm compose:up — docs/04-mvp/codebase.md §5.1)
+# 빌드 컨텍스트는 저장소 루트다 — 이 파일 기준 ../.. (codebase/ 소스와 deploy/docker/nginx/
+# 템플릿을 한 컨텍스트에서 본다). 제외는 저장소 루트 .dockerignore.
 # 운영 k8s 는 deploy/k8s (§6). 같은 이미지 3종(nerv-api·nerv-worker·nerv-web)을 두 타깃이 공유한다.
 name: nerv
 
@@ -791,14 +800,15 @@ server {
 
 ```dockerfile
 # deploy/docker/Dockerfile.server — nerv-api · nerv-worker 공용 정의
+# 빌드 컨텍스트는 저장소 루트라 소스 경로에 codebase/ 접두가 붙는다 (REQ-CB-015, §5.3).
 FROM node:24-bookworm-slim AS build          # .nvmrc 의 Node LTS 와 동일 메이저 (REQ-CB-002)
 WORKDIR /app
 RUN corepack enable
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY apps/api/package.json apps/api/
-COPY packages/schema/package.json packages/schema/
+COPY codebase/pnpm-lock.yaml codebase/pnpm-workspace.yaml codebase/package.json ./
+COPY codebase/apps/api/package.json apps/api/
+COPY codebase/packages/schema/package.json packages/schema/
 RUN pnpm fetch
-COPY . .
+COPY codebase/ .
 RUN pnpm install --frozen-lockfile --offline \
  && pnpm --filter @nerv/api build \
  && pnpm --filter @nerv/api deploy --prod /out   # 실행 파일 + prod 의존성만 추출
@@ -821,14 +831,15 @@ CMD ["node", "dist/worker.js"]
 
 ```dockerfile
 # deploy/docker/Dockerfile.web — nerv-web
+# 빌드 컨텍스트는 저장소 루트 — 소스는 codebase/, nginx 템플릿은 deploy/docker/nginx/ 다.
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 RUN corepack enable
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY apps/web/package.json apps/web/
-COPY packages/schema/package.json packages/schema/
+COPY codebase/pnpm-lock.yaml codebase/pnpm-workspace.yaml codebase/package.json ./
+COPY codebase/apps/web/package.json apps/web/
+COPY codebase/packages/schema/package.json packages/schema/
 RUN pnpm fetch
-COPY . .
+COPY codebase/ .
 RUN pnpm install --frozen-lockfile --offline && pnpm --filter @nerv/web build
 
 FROM nginx:1.27-alpine
@@ -1055,7 +1066,7 @@ spec:
 
 k8s 경로에서 `/mcp` Origin 검증의 최종 강제는 앱 가드(`mcp-origin.guard.ts`)다 — Ingress 컨트롤러의 스니펫 주입은 조직 보안 정책상 비활성인 클러스터가 많아 **의존하지 않는다**(REQ-CB-013).
 
-배포 절차(마이그레이션 Job 선행 — Job은 불변 리소스라 재적용 전 삭제):
+배포 절차(마이그레이션 Job 선행 — Job은 불변 리소스라 재적용 전 삭제). **저장소 루트에서 실행한다** — `deploy/k8s`가 저장소 루트 기준이기 때문이다(REQ-CB-015, §1.1):
 
 ```bash
 kubectl -n nerv delete job nerv-migrate --ignore-not-found                        # (1) Job 은 불변 리소스 — 재적용 전 삭제
