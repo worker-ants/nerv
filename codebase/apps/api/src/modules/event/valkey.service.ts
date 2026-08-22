@@ -34,11 +34,28 @@ export class ValkeyService implements OnApplicationShutdown {
   private warnedOnce = false;
 
   private client(): Redis {
-    this.publisher ??= new Redis(this.url, {
-      lazyConnect: false,
-      maxRetriesPerRequest: 1,
-    });
+    this.publisher ??= this.connect('publisher', { maxRetriesPerRequest: 1 });
     return this.publisher;
+  }
+
+  /**
+   * 커넥션 하나를 만든다.
+   *
+   * **'error' 리스너를 반드시 단다.** ioredis 는 접속 실패마다 error 이벤트를 내는데,
+   * EventEmitter 에 리스너가 없으면 Node 가 그것을 unhandled error 로 던진다 — 방송 버스가
+   * 잠깐 죽었다는 이유로 API 프로세스가 내려간다. 유실은 허용되지만 프로세스 종료는 아니다(D-14).
+   */
+  private connect(role: string, options: Record<string, unknown>): Redis {
+    const client = new Redis(this.url, { lazyConnect: false, ...options });
+    client.on('error', (error: Error) => {
+      if (!this.warnedOnce) {
+        this.warnedOnce = true;
+        this.logger.warn(
+          `Valkey ${role} 접속 실패 — 실시간 방송 없이 계속한다(D-14). ${error.message}`,
+        );
+      }
+    });
+    return client;
   }
 
   /**
@@ -66,7 +83,7 @@ export class ValkeyService implements OnApplicationShutdown {
 
   /** 파드별 구독. 구독 전용 커넥션을 따로 연다. */
   async subscribe(channel: string, handler: ValkeyMessageHandler): Promise<void> {
-    this.subscriber ??= new Redis(this.url, { lazyConnect: false, maxRetriesPerRequest: null });
+    this.subscriber ??= this.connect('subscriber', { maxRetriesPerRequest: null });
     this.subscriber.on('message', handler);
     await this.subscriber.subscribe(channel);
     this.logger.log(`SUBSCRIBE ${channel}`);

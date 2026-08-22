@@ -13,6 +13,17 @@ export class QuestionTools implements NervToolProvider {
       tier: 'A2',
       phase: 'P1',
       summary: '판단 불가·경계 이탈·게이트 필요',
+      scope: 'task:update',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          question: { type: 'string' },
+          options: { type: 'array', items: { type: 'string' } },
+          urgency: { type: 'string', enum: ['blocking', 'normal'] },
+          idempotency_key: { type: 'string' },
+        },
+        required: ['question'],
+      },
       handler: async () => this.questions.create(),
     },
   ];

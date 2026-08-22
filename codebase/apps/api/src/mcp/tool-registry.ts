@@ -8,6 +8,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 import { DiscoveryService } from '@nestjs/core';
+import type { AgentScope } from '@nerv/schema';
+import type { ToolContext } from './tool-context.js';
 
 /** 도구 위험 티어 A1~A4 — 스펙 게이트 티어 T0~T3 과는 다른 축이다(scope.md §4.2). */
 export type ToolTier = 'A1' | 'A2' | 'A3' | 'A4';
@@ -19,7 +21,11 @@ export interface NervToolDefinition {
   readonly phase: 'P0' | 'P1';
   /** 한 줄 설명(카탈로그의 호출 시점) */
   readonly summary: string;
-  readonly handler: (input: unknown) => Promise<unknown>;
+  /** 필요 권한 — agent-integration §2.3 "필요 권한" 열과 1:1. 게이트웨이가 호출 전에 검사한다 */
+  readonly scope: AgentScope;
+  /** 입력 JSON Schema — MCP tools/list 가 그대로 노출한다 */
+  readonly inputSchema: Record<string, unknown>;
+  readonly handler: (input: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
 }
 
 /** `*.tools.ts` 가 구현하는 계약. 레지스트리는 이 모양만 보고 수집한다. */

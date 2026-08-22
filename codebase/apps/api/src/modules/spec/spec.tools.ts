@@ -18,6 +18,15 @@ export class SpecTools implements NervToolProvider {
       tier: 'A1',
       phase: 'P0',
       summary: '스펙 탐색 시작',
+      scope: 'spec:read',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          root: { type: 'string' },
+          depth: { type: 'integer' },
+        },
+      },
       handler: async () => this.specs.tree(),
     },
     {
@@ -25,6 +34,12 @@ export class SpecTools implements NervToolProvider {
       tier: 'A1',
       phase: 'P0',
       summary: '컨텍스트 수집·중복 확인',
+      scope: 'spec:read',
+      inputSchema: {
+        type: 'object',
+        properties: { q: { type: 'string' }, limit: { type: 'integer' } },
+        required: ['q'],
+      },
       handler: async () => this.specs.search(),
     },
     {
@@ -32,6 +47,16 @@ export class SpecTools implements NervToolProvider {
       tier: 'A1',
       phase: 'P0',
       summary: '구현 착수 전, 리뷰 전',
+      scope: 'spec:read',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          spec_id: { type: 'string' },
+          version: { type: 'integer' },
+          baseline: { type: 'string' },
+        },
+        required: ['spec_id'],
+      },
       handler: async () => this.specs.get(),
     },
     {
@@ -39,6 +64,17 @@ export class SpecTools implements NervToolProvider {
       tier: 'A2',
       phase: 'P1',
       summary: '스펙 초안 작성·CR 제안',
+      scope: 'spec:draft',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          spec_id: { type: 'string' },
+          body_md: { type: 'string' },
+          base_version: { type: 'string' },
+          idempotency_key: { type: 'string' },
+        },
+        required: ['body_md'],
+      },
       handler: async () => this.specs.draftUpsert(),
     },
     {
@@ -46,6 +82,12 @@ export class SpecTools implements NervToolProvider {
       tier: 'A3',
       phase: 'P1',
       summary: '초안 완료 후 사람 검토 요청',
+      scope: 'spec:draft',
+      inputSchema: {
+        type: 'object',
+        properties: { spec_version_id: { type: 'string' }, idempotency_key: { type: 'string' } },
+        required: ['spec_version_id'],
+      },
       handler: async () => this.specs.submitReview(),
     },
     {
@@ -53,6 +95,12 @@ export class SpecTools implements NervToolProvider {
       tier: 'A1',
       phase: 'P1',
       summary: '초안 저장 후·제출 전 아무 때나',
+      scope: 'spec:read',
+      inputSchema: {
+        type: 'object',
+        properties: { spec_version_id: { type: 'string' } },
+        required: ['spec_version_id'],
+      },
       handler: async () => this.specs.check(),
     },
     {
@@ -60,6 +108,16 @@ export class SpecTools implements NervToolProvider {
       tier: 'A2',
       phase: 'P1',
       summary: '코멘트 반영 직후',
+      scope: 'spec:draft',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          comment_id: { type: 'string' },
+          resolution_note: { type: 'string' },
+          idempotency_key: { type: 'string' },
+        },
+        required: ['comment_id'],
+      },
       handler: async () => this.specs.resolveComment(),
     },
   ];

@@ -8,6 +8,7 @@ import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module.js';
 import { AuthGuard } from './common/auth.guard.js';
+import { AuthService } from './modules/auth/auth.service.js';
 import { McpOriginGuard } from './common/mcp-origin.guard.js';
 import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
@@ -18,8 +19,11 @@ export async function createApp(): Promise<NestFastifyApplication> {
   app.useGlobalFilters(new NervExceptionFilter());
   app.useGlobalInterceptors(new ProjectScopeInterceptor());
   // 가드 순서가 규약이다 — Origin 검증(어디서)이 인증(누가)보다 먼저다(REQ-CB-013).
-  // 자격증명 검증기는 E03-S02 가 AuthGuard 에 연결한다. 그전까지 보호 라우트는 401 로 닫혀 있다.
-  app.useGlobalGuards(new McpOriginGuard(), new AuthGuard(app.get(Reflector)));
+  // AuthGuard 는 AuthService 를 주입받으므로 컨테이너에서 꺼낸다.
+  app.useGlobalGuards(
+    new McpOriginGuard(),
+    new AuthGuard(app.get(Reflector), app.get(AuthService)),
+  );
 
   // /healthz 는 인프라 전용(무인증 liveness)이며 api.md 의 계약 전표 밖이다(codebase.md §5.4).
   // Nest 라우트가 아니라 Fastify 인스턴스에 직접 단다 — 전역 가드·인터셉터를 타지 않는다.

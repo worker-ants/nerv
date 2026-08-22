@@ -12,6 +12,8 @@ import { Injectable, SetMetadata } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { NERV_ERROR } from '@nerv/schema';
+import { AuthService } from '../modules/auth/auth.service.js';
+import type { Principal } from '../modules/auth/auth.service.js';
 import { NervError } from './nerv-exception.filter.js';
 
 export const IS_PUBLIC_KEY = 'nerv:public';
@@ -43,9 +45,12 @@ export function extractCredential(headers: Record<string, string | undefined>): 
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly auth: AuthService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -55,18 +60,14 @@ export class AuthGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<{
       headers: Record<string, string | undefined>;
       nervAuth?: AuthContext;
+      nervPrincipal?: Principal;
     }>();
     const auth = extractCredential(req.headers);
     if (auth === null) {
       throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
     }
     req.nervAuth = auth;
-
-    // E03-S02 가 AuthService.verify(auth) 를 여기에 연결한다. 그때까지는 통과시키지 않는다.
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명 검증이 아직 배선되지 않았습니다.', {
-      kind: 'verifier_not_wired',
-      story: 'E03-S02',
-      credential_kind: auth.kind,
-    });
+    req.nervPrincipal = await this.auth.verify(auth);
+    return true;
   }
 }
