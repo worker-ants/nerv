@@ -1,10 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "_comment": "솔루션 파일 — CI 의 `pnpm exec tsc -b` 진입점(docs/04-mvp/codebase.md §4.5). 코드는 없고 참조만 갖는다.",
+  "_comment": "솔루션 파일 — CI 의 `pnpm exec tsc -b` 진입점(docs/04-mvp/codebase.md §4.5). 코드는 없고 참조만 갖는다. *.spec.json 은 테스트 코드의 타입 검사 전용 프로젝트다(§4.3).",
   "files": [],
   "references": [
     { "path": "./packages/schema" },
+    { "path": "./packages/schema/tsconfig.spec.json" },
     { "path": "./apps/api" },
+    { "path": "./apps/api/tsconfig.spec.json" },
     { "path": "./apps/cli" },
     { "path": "./apps/web" }
   ]

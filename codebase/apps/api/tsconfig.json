@@ -1,5 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
+  "_comment": "빌드 대상. *.spec.ts 는 emit 하지 않는다 — dist 는 컨테이너 이미지가 되는 산출물이고(§6.1) 테스트 코드가 거기 섞이면 vitest 가 원본과 컴파일본을 둘 다 돌린다. 스펙의 타입 검사는 tsconfig.spec.json 이 맡는다.",
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
@@ -8,6 +9,6 @@
     "emitDecoratorMetadata": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["dist", "test"],
+  "exclude": ["dist", "test", "src/**/*.spec.ts"],
   "references": [{ "path": "../../packages/schema" }]
 }

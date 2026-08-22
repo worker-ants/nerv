@@ -1,0 +1,142 @@
+// NERV_* 에러 코드 ↔ HTTP 상태 매핑 — 정본: docs/04-mvp/api.md §1.4
+//
+// 에러 본문은 MCP 표면과 **같은 봉투**를 쓴다(agent-integration §2.7). REST 전용 코드를
+// 신설하지 않는다. `next_actions` 는 MCP 표면에서 채워지는 필드이고 REST 는 빈 배열이다.
+// 구조화 에러의 MCP 쪽 완성(next_actions 산출)은 E03-S04 소관이다.
+
+import { Catch, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
+import { NERV_ERROR } from '@nerv/schema';
+import type { NervErrorCode } from '@nerv/schema';
+
+/** 도메인·표면이 던지는 NERV 에러. code 가 곧 HTTP 상태를 정한다(아래 매핑). */
+export class NervError extends Error {
+  constructor(
+    readonly code: NervErrorCode,
+    message: string,
+    readonly details: Record<string, unknown> = {},
+    readonly retryAfterSeconds: number | null = null,
+  ) {
+    super(message);
+    this.name = 'NervError';
+  }
+}
+
+/**
+ * 아직 담당 스토리가 채우지 않은 자리.
+ * 골격(E01-S02)이 남기는 표시이며, 각 스토리가 구현으로 대체하면 사라진다.
+ * NERV_* 코드가 아니다 — 계약(api.md §1.4)에 없는 상태라 501 로 내보내고 봉투에 코드를 싣지 않는다.
+ */
+export class NotImplementedYetError extends Error {
+  constructor(
+    readonly story: string,
+    what: string,
+  ) {
+    super(`${what} — ${story} 에서 구현한다`);
+    this.name = 'NotImplementedYetError';
+  }
+}
+
+/** api.md §1.4 매핑표. NERV_PRECONDITION 은 400/409 두 갈래라 details.kind 로 가른다. */
+const STATUS: Record<NervErrorCode, number> = {
+  [NERV_ERROR.UNAUTHENTICATED]: HttpStatus.UNAUTHORIZED,
+  [NERV_ERROR.FORBIDDEN]: HttpStatus.FORBIDDEN,
+  [NERV_ERROR.PRECONDITION]: HttpStatus.CONFLICT,
+  [NERV_ERROR.CONFLICT_SCOPE]: HttpStatus.CONFLICT,
+  [NERV_ERROR.LEASE_EXPIRED]: HttpStatus.CONFLICT,
+  [NERV_ERROR.DRAFT_LEASED]: HttpStatus.CONFLICT,
+  [NERV_ERROR.APPROVAL_REQUIRED]: HttpStatus.ACCEPTED,
+  [NERV_ERROR.HUMAN_ONLY]: HttpStatus.FORBIDDEN,
+  [NERV_ERROR.RATE_LIMIT]: HttpStatus.TOO_MANY_REQUESTS,
+  [NERV_ERROR.UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
+};
+
+/** zod 스키마 위반만 400 — 그 밖의 전제조건 위반은 409(api.md §1.4). */
+export function statusFor(code: NervErrorCode, details: Record<string, unknown>): number {
+  if (code === NERV_ERROR.PRECONDITION && 'issues' in details) return HttpStatus.BAD_REQUEST;
+  return STATUS[code];
+}
+
+export interface NervErrorBody {
+  ok: false;
+  code: NervErrorCode | null;
+  message: string;
+  details: Record<string, unknown>;
+  retry_after_s: number | null;
+  next_actions: string[];
+}
+
+@Catch()
+export class NervExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(NervExceptionFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const { status, body } = this.translate(exception);
+    const res = host.switchToHttp().getResponse<{
+      status(code: number): { send(payload: unknown): void };
+      header(name: string, value: string): void;
+    }>();
+    if (body.retry_after_s !== null) res.header('Retry-After', String(body.retry_after_s));
+    res.status(status).send(body);
+  }
+
+  private translate(exception: unknown): { status: number; body: NervErrorBody } {
+    if (exception instanceof NervError) {
+      return {
+        status: statusFor(exception.code, exception.details),
+        body: {
+          ok: false,
+          code: exception.code,
+          message: exception.message,
+          details: exception.details,
+          retry_after_s: exception.retryAfterSeconds,
+          next_actions: [],
+        },
+      };
+    }
+
+    if (exception instanceof NotImplementedYetError) {
+      return {
+        status: HttpStatus.NOT_IMPLEMENTED,
+        body: {
+          ok: false,
+          code: null,
+          message: exception.message,
+          details: { story: exception.story },
+          retry_after_s: null,
+          next_actions: [],
+        },
+      };
+    }
+
+    if (exception instanceof HttpException) {
+      return {
+        status: exception.getStatus(),
+        body: {
+          ok: false,
+          code: null,
+          message: exception.message,
+          details: {},
+          retry_after_s: null,
+          next_actions: [],
+        },
+      };
+    }
+
+    this.logger.error(
+      '처리되지 않은 예외',
+      exception instanceof Error ? exception.stack : exception,
+    );
+    return {
+      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      body: {
+        ok: false,
+        code: null,
+        message: 'internal error',
+        details: {},
+        retry_after_s: null,
+        next_actions: [],
+      },
+    };
+  }
+}

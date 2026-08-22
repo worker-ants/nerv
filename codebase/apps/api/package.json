@@ -7,14 +7,25 @@
   "main": "./dist/main.js",
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run",
+    "dev": "node --watch dist/main.js"
   },
   "dependencies": {
-    "@nerv/schema": "workspace:*"
+    "@nerv/schema": "workspace:*",
+    "@nestjs/common": "^11.2.1",
+    "@nestjs/core": "^11.2.1",
+    "@nestjs/platform-fastify": "^11.2.1",
+    "@nestjs/platform-socket.io": "^11.2.1",
+    "@nestjs/websockets": "^11.2.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
+    "@nestjs/testing": "^11.2.1",
+    "@swc/core": "^1.16.1",
     "@types/node": "^24.13.3",
     "typescript": "~6.0.3",
+    "unplugin-swc": "^1.5.11",
     "vitest": "^4.1.11"
   }
 }

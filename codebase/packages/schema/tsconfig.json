@@ -1,10 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
+  "_comment": "빌드 대상. *.spec.ts 는 emit 하지 않는다 — 이유는 apps/api/tsconfig.json 참조.",
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["dist", "drizzle"]
+  "exclude": ["dist", "drizzle", "src/**/*.spec.ts"]
 }

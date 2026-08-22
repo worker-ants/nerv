@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "_comment": "L1 스펙의 타입 검사 전용(codebase.md §4.3). 선언만 .tsbuild 로 흘려보내고 dist 에는 남기지 않는다.",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./.tsbuild",
+    "emitDeclarationOnly": true,
+    "types": ["node"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src/**/*.spec.ts"],
+  "references": [{ "path": "./tsconfig.json" }, { "path": "../../packages/schema" }]
+}

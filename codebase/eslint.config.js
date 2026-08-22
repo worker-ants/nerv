@@ -82,6 +82,17 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
 
   {
+    rules: {
+      // 밑줄 접두는 "의도적으로 쓰지 않는 값" 표시다 — 표면의 라우트 파라미터처럼
+      // 시그니처에는 있어야 하지만 아직 소비되지 않는 인자가 여기 해당한다.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
+  },
+
+  {
     languageOptions: {
       globals: { ...globals.node },
       parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
