@@ -24,10 +24,27 @@ export interface E2EStack {
   close: () => Promise<void>;
 }
 
+/** 개발 Postgres 의 기본 포트 — 여기에 시나리오를 돌리면 사람이 쓰던 DB 옆에 임시 DB 가 쌓인다. */
+const DEV_PG_PORT = '5432';
+
 function adminUrl(): string {
   const url = process.env['DATABASE_URL'];
   if (url === undefined || url === '') {
-    throw new Error('L3 E2E 에는 DATABASE_URL 이 필요하다 (compose 스택 기동 후 실행)');
+    throw new Error(
+      'L3 E2E 에는 DATABASE_URL 이 필요하다 — `pnpm e2e:up` 후 `pnpm test:e2e` 로 실행하세요',
+    );
+  }
+  // **개발 스택을 향해 돌지 않는다.** E2E 는 스크래치 DB 를 만들고 지운다. 의도적으로
+  // 개발 DB 를 쓰려면 명시해야 한다 — 그 사고가 E2E 스택 분리의 계기였다.
+  const port = new URL(url).port;
+  if (process.env['NERV_E2E_ALLOW_DEV_STACK'] !== '1' && (port === DEV_PG_PORT || port === '')) {
+    throw new Error(
+      [
+        `E2E 대상이 개발 Postgres(${url}) 입니다 — 개발 데이터를 건드립니다.`,
+        'E2E 전용 스택을 쓰세요:  pnpm e2e:up  (기본 포트 55432)',
+        '정말 개발 DB 를 쓰려면 NERV_E2E_ALLOW_DEV_STACK=1 을 명시하세요.',
+      ].join('\n'),
+    );
   }
   return url;
 }
@@ -43,13 +60,17 @@ export function stackAvailable(): boolean {
 }
 
 export async function startStack(prefix: string): Promise<E2EStack> {
-  const admin = new pg.Client({ connectionString: adminUrl() });
+  // **관리 URL 을 먼저 붙잡는다.** 아래에서 process.env.DATABASE_URL 을 스크래치 DB 로
+  // 덮어쓰기 때문이다(앱이 그것을 읽는다). 정리 시점에 adminUrl() 을 다시 부르면 스크래치
+  // DB 에 붙은 채로 자기 자신을 DROP 하려 든다 — "cannot drop the currently open database".
+  const adminConnection = adminUrl();
+  const admin = new pg.Client({ connectionString: adminConnection });
   await admin.connect();
   const name = `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 10)}`;
   await admin.query(`CREATE DATABASE "${name}"`);
   await admin.end();
 
-  const url = new URL(adminUrl());
+  const url = new URL(adminConnection);
   url.pathname = `/${name}`;
   const dbUrl = url.toString();
   await runMigrations(dbUrl);
@@ -87,7 +108,7 @@ export async function startStack(prefix: string): Promise<E2EStack> {
       // 강제 종료하는 순간 살아 있는 풀이 "Connection terminated" 를 던진다.
       await app.close();
       await pool.end();
-      const cleanup = new pg.Client({ connectionString: adminUrl() });
+      const cleanup = new pg.Client({ connectionString: adminConnection });
       await cleanup.connect();
       await cleanup.query(
         `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,

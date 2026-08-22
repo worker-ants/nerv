@@ -13,12 +13,38 @@ export const SEEDED_EMAIL = 'jimin@example.com';
 export const SEEDED_PASSWORD = 'nerv-dev-1234';
 export const STORAGE_STATE = 'test-results/.auth/seeded.json';
 
+/**
+ * **개발 스택을 향해 돌지 않는다.** E2E 는 가입·로그인·스펙 수정을 실제로 하므로, 개발
+ * 스택을 가리킨 채 돌면 사람이 쓰던 데이터가 조용히 바뀐다(그 사고가 이 분리의 계기였다).
+ * 의도적으로 그렇게 하려면 `NERV_E2E_ALLOW_DEV_STACK=1` 을 명시해야 한다.
+ */
+const DEV_STACK_PORT = '8080';
+
+function assertNotDevStack(baseURL: string): void {
+  if (process.env['NERV_E2E_ALLOW_DEV_STACK'] === '1') return;
+  if (new URL(baseURL).port !== DEV_STACK_PORT) return;
+  throw new Error(
+    [
+      `E2E 대상이 개발 스택(${baseURL})입니다 — 테스트가 개발 데이터를 고칩니다.`,
+      'E2E 전용 스택을 쓰세요:  pnpm e2e:up  (기본 http://localhost:8090)',
+      '정말 개발 스택을 쓰려면 NERV_E2E_ALLOW_DEV_STACK=1 을 명시하세요.',
+    ].join('\n'),
+  );
+}
+
 export default async function globalSetup(config: FullConfig): Promise<void> {
-  const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:8080';
+  const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:8090';
+  assertNotDevStack(baseURL);
   const browser = await chromium.launch();
   const page = await browser.newPage({ baseURL });
 
-  await page.goto('/login');
+  // 스택이 안 떠 있으면 여기서 바로 알려준다 — 12개 테스트가 각자 타임아웃으로 죽는 것보다 낫다
+  try {
+    await page.goto('/login', { timeout: 15_000 });
+  } catch {
+    await browser.close();
+    throw new Error(`E2E 스택에 연결할 수 없습니다(${baseURL}). 먼저 기동하세요:  pnpm e2e:up`);
+  }
   await page.getByLabel('이메일').fill(SEEDED_EMAIL);
   await page.getByLabel('비밀번호').fill(SEEDED_PASSWORD);
   await page.getByRole('button', { name: /로그인/ }).click();

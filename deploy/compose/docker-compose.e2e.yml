@@ -1,0 +1,163 @@
+# deploy/compose/docker-compose.e2e.yml   ← L3 E2E 전용 스택 (codebase.md §4.3)
+#
+# **개발 스택과 완전히 분리한다.** 같은 스택을 쓰면 두 가지가 깨진다:
+#   ① 테스트가 개발 DB 를 고친다 — 가입 계정·수정한 스펙·소비한 쿼터가 남는다
+#   ② 실행 간에 상태가 쌓인다 — 앞 실행이 만든 데이터가 다음 실행의 전제를 바꾼다
+# 분리의 실물은 셋이다: **다른 프로젝트 이름**(컨테이너·네트워크·볼륨이 갈린다) ·
+# **다른 포트**(개발 스택과 동시에 떠 있어도 부딪히지 않는다) · **tmpfs 저장소**
+# (`down` 하면 흔적이 남지 않고, `up` 은 언제나 빈 DB 에서 시작한다).
+#
+# 실행: 모노레포 루트(codebase/)에서
+#   pnpm e2e:up      # 기동 + 마이그레이션 + 시드까지 끝나고 나온다
+#   pnpm test:e2e    # API 시나리오 + 브라우저
+#   pnpm e2e:down    # 컨테이너·볼륨 전부 제거
+#
+# 자격증명이 파일에 박혀 있는 것은 의도다 — 이 스택은 127.0.0.1 에만 열리고 매 실행 폐기된다.
+# `.env` 를 요구하면 "테스트를 돌리려면 개발 환경 설정을 먼저 맞춰라"가 되고, 그 순간
+# CI 와 로컬이 다른 것을 돌리기 시작한다.
+name: nerv-e2e
+
+x-e2e-db: &e2e-db
+  postgres://nerv:e2e@postgres:5432/nerv
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: nerv
+      POSTGRES_USER: nerv
+      POSTGRES_PASSWORD: e2e
+      # fsync 를 끈다 — 테스트 DB 는 크래시 복구가 필요 없고, 이 한 줄이 스위트를 눈에 띄게 줄인다
+      POSTGRES_INITDB_ARGS: '--nosync'
+    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
+    tmpfs:
+      - /var/lib/postgresql/data       # 영속 없음 — 매 기동이 빈 DB 다
+    ports:
+      - "127.0.0.1:${NERV_E2E_PG_PORT:-55432}:5432"   # API 시나리오가 스크래치 DB 를 만든다
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nerv -d nerv"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:${NERV_E2E_VALKEY_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: nerv
+      MINIO_ROOT_PASSWORD: e2epassword
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: nerv-api:${NERV_TAG:-e2e}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.server
+      target: api
+    command: ["node", "dist/migrate.js"]
+    restart: "no"
+    environment:
+      DATABASE_URL: *e2e-db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # **시드까지가 기동이다.** 테스트가 스스로 픽스처를 만들면 실행 순서에 따라 결과가 달라진다 —
+  # 매 실행이 같은 한 벌에서 출발하는 것이 E2E 재현성의 전부다(개발 시드 = database.md §4).
+  seed:
+    image: nerv-api:${NERV_TAG:-e2e}
+    command: ["node", "dist/seed.js", "--force"]
+    restart: "no"
+    environment:
+      # 시드 엔트리는 production 에서 실행을 거부한다 — 여기서만 명시적으로 낮춘다
+      NODE_ENV: development
+      DATABASE_URL: *e2e-db
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    image: nerv-api:${NERV_TAG:-e2e}
+    environment:
+      NODE_ENV: production          # 운영과 같은 조립을 검증한다 — 테스트라고 느슨하게 두지 않는다
+      NERV_API_PORT: "8080"
+      NERV_PUBLIC_URL: http://localhost:${NERV_E2E_HTTP_PORT:-8090}
+      NERV_AUTH_SECRET: e2e-only-secret-not-for-any-real-deployment
+      NERV_LOG_LEVEL: warn          # 실패 로그만 보이게 — 통과한 실행의 로그는 잡음이다
+      DATABASE_URL: *e2e-db
+      NERV_VALKEY_URL: redis://valkey:6379
+      # 임베딩 제공자는 띄우지 않는다 — 검색은 렉시컬로 degrade 하고(REQ-API-026) 그 경로가
+      # E2E 의 검증 대상이다. 모델 가중치 수 GB 를 CI 가 내려받을 이유가 없다.
+      NERV_EMBED_URL: http://127.0.0.1:9/v1
+      NERV_S3_ENDPOINT: http://minio:9000
+      NERV_S3_ACCESS_KEY: nerv
+      NERV_S3_SECRET_KEY: e2epassword
+      NERV_S3_BUCKET: nerv-blobs
+      NERV_S3_FORCE_PATH_STYLE: "true"
+      NERV_GITHUB_WEBHOOK_SECRET: e2e-webhook-secret
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    image: nerv-worker:${NERV_TAG:-e2e}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.server
+      target: worker
+    environment:
+      NODE_ENV: production
+      NERV_LOG_LEVEL: warn
+      DATABASE_URL: *e2e-db
+      NERV_VALKEY_URL: redis://valkey:6379
+      NERV_EMBED_URL: http://127.0.0.1:9/v1
+      NERV_S3_ENDPOINT: http://minio:9000
+      NERV_S3_ACCESS_KEY: nerv
+      NERV_S3_SECRET_KEY: e2epassword
+      NERV_S3_BUCKET: nerv-blobs
+      NERV_S3_FORCE_PATH_STYLE: "true"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+
+  web:
+    image: nerv-web:${NERV_TAG:-e2e}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.web
+    environment:
+      NERV_API_UPSTREAM: api:8080
+      NERV_PUBLIC_ORIGIN: http://localhost:${NERV_E2E_HTTP_PORT:-8090}
+    ports:
+      - "127.0.0.1:${NERV_E2E_HTTP_PORT:-8090}:80"
+    depends_on:
+      api:
+        condition: service_healthy

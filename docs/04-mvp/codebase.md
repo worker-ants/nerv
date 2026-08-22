@@ -7,9 +7,11 @@ updated: 2026-08-22
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v0.9 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.0 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
 >
 > v0.9 변경(2026-08-22 — 구현 중 확인 태스크 착지): **운영 Postgres 위치를 클러스터 외부로 확정**(§6.0 신설 — E06-S05). 근거는 NFR-01의 compose 자가호스팅과 운영 k8s가 같은 접속 모델을 써야 한다는 것이다. §6.5 백업 절차의 "관리형이면 ①을 스냅샷+PITR로 대체" 조건이 이 판정으로 확정됐다.
+>
+> v1.0 변경(2026-08-23 — 실행 중 발견): **L3 E2E 전용 compose 스택 분리**(§4.3 · §5.1 — `deploy/compose/docker-compose.e2e.yml`). 개발 스택을 공유하니 테스트가 개발 DB를 고치고(계정 15건 축적 실측) 실행 간 상태가 쌓였다. 다른 프로젝트 이름·다른 포트·tmpfs·시드 자동 적재로 분리하고, 개발 스택을 향해 돌면 거부하는 가드를 양쪽(웹·API)에 뒀다.
 >
 > v0.9 변경(2026-08-22 — 구현 착수 중 발견): **플러그인 패키지 배치 확정**(§1.1·§1.2 — `codebase/plugin/`). [4.6 플러그인과 온보딩](plugin.md) §1.1이 `nerv-plugin/` 트리를 정의하면서도 저장소 어느 구역에 두는지는 어느 문서도 말하지 않아 구현이 막혔다. REQ-CB-015의 2구역 규칙(코드 = `codebase/`, 배포 산출물 = `deploy/`)에서 플러그인은 **코드 구역**이다 — 에이전트 호스트에서 실행되는 규약·스크립트이지 이 시스템의 배포 산출물이 아니다. pnpm 워크스페이스로 등록하되 빌드는 없고, 문서 전문 대조 테스트(REQ-PLG-001)를 `pnpm test`에 태우는 것이 워크스페이스로 두는 유일한 이유다. 다른 결정·요구는 불변.
 >
@@ -372,13 +374,33 @@ packages/schema/
 
 ### 4.3 테스트 3계층
 
+#### L3은 전용 스택에서 돈다 (2026-08-23 분리)
+
+E2E는 개발 스택과 **완전히 분리된 compose 파일**(`deploy/compose/docker-compose.e2e.yml`)에서 실행한다. 처음에는 개발 스택을 그대로 썼는데 두 가지가 깨졌다 — 실측이다.
+
+| 증상 | 원인 |
+| --- | --- |
+| 개발 DB에 테스트 계정 15건이 쌓였다 | E2E가 실제로 가입·로그인·수정을 한다. 대상이 개발 스택이면 사람이 쓰던 데이터가 조용히 바뀐다 |
+| 실행 간에 결과가 달라졌다 | 앞 실행이 만든 계정·소비한 인증 쿼터(§1.8)가 다음 실행의 전제를 바꾼다 |
+
+분리의 실물은 넷이다.
+
+1. **다른 프로젝트 이름**(`name: nerv-e2e`) — 컨테이너·네트워크·볼륨이 갈린다. 개발 스택과 **동시에** 떠 있어도 서로를 모른다.
+2. **다른 포트** — 웹 `:8090`, Postgres `:55432`, Valkey `:6380`(전부 127.0.0.1 한정).
+3. **tmpfs 저장소** — 영속이 없다. `pnpm e2e:down`이 곧 초기화이고, `up`은 언제나 빈 DB에서 시작한다. `fsync=off`도 함께 켠다(테스트 DB는 크래시 복구가 필요 없다).
+4. **시드까지가 기동이다** — `migrate → seed → api` 순서를 compose가 강제하고 `--wait`가 완료를 기다린다. 테스트가 스스로 픽스처를 만들면 실행 순서에 따라 결과가 달라진다.
+
+**개발 스택을 향해 돌지 않도록 양쪽에 가드가 있다.** 웹은 baseURL 포트가 `8080`이면, API는 `DATABASE_URL` 포트가 `5432`면 거부하고 `pnpm e2e:up`을 안내한다. 의도적으로 개발 스택을 쓰려면 `NERV_E2E_ALLOW_DEV_STACK=1`을 명시해야 한다 — 사고는 대개 "그럴 의도가 없었는데" 일어난다.
+
+자격증명이 compose 파일에 박혀 있는 것은 의도다: 이 스택은 127.0.0.1에만 열리고 매 실행 폐기된다. `.env`를 요구하면 "테스트를 돌리려면 개발 환경 설정을 먼저 맞춰라"가 되고, 그 순간 CI와 로컬이 다른 것을 돌리기 시작한다. 임베딩 제공자도 띄우지 않는다 — 검색은 렉시컬 degrade 경로(REQ-API-026)로 검증하며, 모델 가중치 수 GB를 CI가 내려받을 이유가 없다.
+
 러너는 **Vitest**(L1·L2·L3 API)와 **Playwright**(L3 웹)로 확정한다(2026-08-22 — 스택 표 정본은 [4.1 MVP 범위와 스택 확정](scope.md) §2.1).
 
 | 계층 | 러너 | 위치 | 대상 | 실행 |
 | --- | --- | --- | --- | --- |
 | L1 단위 | Vitest | 소스 옆 `*.spec.ts` | 순수 로직 — zod 스키마, 델타 계산, fingerprint | `pnpm test` (매 PR) |
 | L2 통합 | Vitest | `apps/api/test/integration/` | 도메인 서비스 + 실제 Postgres(compose의 `postgres` 사용) — **클레임 원자성 동시 호출, scope 겹침, base_version 409, 리스 만료**. 임베딩은 결정적 **OpenAI 호환 스텁 서버**(테스트 픽스처 — 단일 계약(REQ-CB-020)이라 스텁도 같은 표면이다)로 검증하고 실모델 품질은 E06-S06·스테이징 소관 | `pnpm test:integration` (매 PR) |
-| L3 계약/E2E | Vitest(API·MCP·WS) + Playwright(웹) | `apps/api/test/e2e/` + `apps/web/test/e2e/` | compose 스택 기동 후 REST·MCP·WS·브라우저 시나리오 — [4.8 백로그](backlog.md) §5의 E2E 수용 시나리오가 케이스 정본 | `pnpm test:e2e` (머지 전·야간) |
+| L3 계약/E2E | Vitest(API·MCP·WS) + Playwright(웹) | `apps/api/test/e2e/` + `apps/web/test/e2e/` | **E2E 전용 compose 스택**(`deploy/compose/docker-compose.e2e.yml`) 기동 후 REST·MCP·WS·브라우저 시나리오 — [4.8 백로그](backlog.md) §5의 E2E 수용 시나리오가 케이스 정본 | `pnpm e2e:up && pnpm test:e2e` (머지 전·야간) |
 
 L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시 클레임·게이트 판정)는 mock으로 검증되지 않는다 — 트랜잭션·행 잠금·부분 인덱스가 실제로 동작하는 DB를 상대로만 의미가 있다.
 
@@ -470,6 +492,10 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 | `pnpm build` / `pnpm test` / `pnpm lint` | 전 워크스페이스 일괄 |
 | `pnpm db:generate` | `@nerv/schema`에서 `drizzle-kit generate` — 마이그레이션 SQL 생성 |
 | `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로 |
+| `pnpm e2e:up` | `docker compose -f ../deploy/compose/docker-compose.e2e.yml up -d --build --wait` — **E2E 전용 스택**(웹 :8090 · PG :55432). 마이그레이션·시드까지 끝나고 나온다 |
+| `pnpm e2e:down` | 같은 파일에 `down -v` — tmpfs라 흔적이 남지 않는다 |
+| `pnpm e2e:reset` | `e2e:down && e2e:up` — 실행 간 상태를 비운다 |
+| `pnpm test:e2e` | L3 전량(API 시나리오 A~E + 브라우저). 대상 주소를 E2E 스택으로 고정해서 넘긴다 |
 | `pnpm db:seed` | 개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등([4.3 데이터베이스 스키마](database.md) §4, REQ-DB-002). **로그인 자격증명도 함께 심는다**: 시드 사용자 5명(`jimin`·`seoyeon`·`dohyun`·`yuna`·`hana`@example.com)의 비밀번호는 `nerv-dev-1234`이고 `NERV_SEED_PASSWORD`로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 `apps/api`의 시드 엔트리가 심고 `@nerv/schema`는 도메인만 심는다 |
 | `pnpm compose:up` | `docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build` — 외부 임베딩 제공자 사용 시 `--profile local-embed` 생략(§5.2a) |
 | `pnpm compose:infra` | 위 명령 + `postgres minio valkey embed` 서비스만(`embed`는 local-embed 프로필일 때) |

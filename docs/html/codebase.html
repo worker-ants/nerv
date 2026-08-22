@@ -52,7 +52,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v0.9 (2026-08-22)</span>
+      <span>버전 v1.0 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -494,6 +494,27 @@
 
   <h3>4.3 테스트 3계층</h3>
 
+  <h4>L3은 전용 스택에서 돈다 (2026-08-23 분리)</h4>
+
+  <p>E2E는 개발 스택과 <b>완전히 분리된 compose 파일</b>(<code>deploy/compose/docker-compose.e2e.yml</code>)에서 실행한다. 처음에는 개발 스택을 그대로 썼는데 두 가지가 깨졌다 — 실측이다.</p>
+
+  <div class="table-wrap"><table>
+    <tr><th>증상</th><th>원인</th></tr>
+    <tr><td>개발 DB에 테스트 계정 15건이 쌓였다</td><td>E2E가 실제로 가입·로그인·수정을 한다. 대상이 개발 스택이면 사람이 쓰던 데이터가 조용히 바뀐다</td></tr>
+    <tr><td>실행 간에 결과가 달라졌다</td><td>앞 실행이 만든 계정·소비한 인증 쿼터(§1.8)가 다음 실행의 전제를 바꾼다</td></tr>
+  </table></div>
+
+  <ol>
+    <li><b>다른 프로젝트 이름</b>(<code>name: nerv-e2e</code>) — 컨테이너·네트워크·볼륨이 갈린다. 개발 스택과 <b>동시에</b> 떠 있어도 서로를 모른다.</li>
+    <li><b>다른 포트</b> — 웹 <code>:8090</code>, Postgres <code>:55432</code>, Valkey <code>:6380</code>(전부 127.0.0.1 한정).</li>
+    <li><b>tmpfs 저장소</b> — 영속이 없다. <code>pnpm e2e:down</code>이 곧 초기화이고, <code>up</code>은 언제나 빈 DB에서 시작한다. <code>fsync=off</code>도 함께 켠다.</li>
+    <li><b>시드까지가 기동이다</b> — <code>migrate → seed → api</code> 순서를 compose가 강제하고 <code>--wait</code>가 완료를 기다린다. 테스트가 스스로 픽스처를 만들면 실행 순서에 따라 결과가 달라진다.</li>
+  </ol>
+
+  <p><b>개발 스택을 향해 돌지 않도록 양쪽에 가드가 있다.</b> 웹은 baseURL 포트가 <code>8080</code>이면, API는 <code>DATABASE_URL</code> 포트가 <code>5432</code>면 거부하고 <code>pnpm e2e:up</code>을 안내한다. 의도적으로 개발 스택을 쓰려면 <code>NERV_E2E_ALLOW_DEV_STACK=1</code>을 명시해야 한다 — 사고는 대개 "그럴 의도가 없었는데" 일어난다.</p>
+
+  <p>자격증명이 compose 파일에 박혀 있는 것은 의도다: 이 스택은 127.0.0.1에만 열리고 매 실행 폐기된다. <code>.env</code>를 요구하면 "테스트를 돌리려면 개발 환경 설정을 먼저 맞춰라"가 되고, 그 순간 CI와 로컬이 다른 것을 돌리기 시작한다. 임베딩 제공자도 띄우지 않는다 — 검색은 렉시컬 degrade 경로(REQ-API-026)로 검증한다.</p>
+
   <p>러너는 <b>Vitest</b>(L1·L2·L3 API)와 <b>Playwright</b>(L3 웹)로 확정한다(2026-08-22 — 스택 표 정본은 <a href="scope.html">4.1 MVP 범위와 스택 확정</a> §2.1).</p>
 
   <div class="table-wrap"><table>
@@ -501,7 +522,7 @@
     <tbody>
       <tr><td>L1 단위</td><td>Vitest</td><td>소스 옆 <code>*.spec.ts</code></td><td>순수 로직 — zod 스키마, 델타 계산, fingerprint</td><td><code>pnpm test</code> (매 PR)</td></tr>
       <tr><td>L2 통합</td><td>Vitest</td><td><code>apps/api/test/integration/</code></td><td>도메인 서비스 + 실제 Postgres(compose의 <code>postgres</code> 사용) — <b>클레임 원자성 동시 호출, scope 겹침, base_version 409, 리스 만료</b>. 임베딩은 결정적 <b>OpenAI 호환 스텁 서버</b>(테스트 픽스처 — 단일 계약(REQ-CB-020)이라 스텁도 같은 표면이다)로 검증하고 실모델 품질은 E06-S06·스테이징 소관</td><td><code>pnpm test:integration</code> (매 PR)</td></tr>
-      <tr><td>L3 계약/E2E</td><td>Vitest(API·MCP·WS) + Playwright(웹)</td><td><code>apps/api/test/e2e/</code> + <code>apps/web/test/e2e/</code></td><td>compose 스택 기동 후 REST·MCP·WS·브라우저 시나리오 — <a href="backlog.html">4.8 백로그</a> §5의 E2E 수용 시나리오가 케이스 정본</td><td><code>pnpm test:e2e</code> (머지 전·야간)</td></tr>
+      <tr><td>L3 계약/E2E</td><td>Vitest(API·MCP·WS) + Playwright(웹)</td><td><code>apps/api/test/e2e/</code> + <code>apps/web/test/e2e/</code></td><td><b>E2E 전용 compose 스택</b>(<code>deploy/compose/docker-compose.e2e.yml</code>) 기동 후 REST·MCP·WS·브라우저 시나리오 — <a href="backlog.html">4.8 백로그</a> §5의 E2E 수용 시나리오가 케이스 정본</td><td><code>pnpm e2e:up &amp;&amp; pnpm test:e2e</code> (머지 전·야간)</td></tr>
     </tbody>
   </table></div>
 
@@ -592,7 +613,11 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
       <tr><td><code>pnpm build</code> / <code>pnpm test</code> / <code>pnpm lint</code></td><td>전 워크스페이스 일괄</td></tr>
       <tr><td><code>pnpm db:generate</code></td><td><code>@nerv/schema</code>에서 <code>drizzle-kit generate</code> — 마이그레이션 SQL 생성</td></tr>
       <tr><td><code>pnpm db:migrate</code></td><td>마이그레이션 적용(<code>migrate.ts</code>) — compose·k8s와 같은 코드 경로</td></tr>
-      <tr><td><code>pnpm db:seed</code></td><td>개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등(<a href="database.html">4.3 데이터베이스 스키마</a> §4, REQ-DB-002). <b>로그인 자격증명도 함께 심는다</b>: 시드 사용자 5명(<code>jimin</code>·<code>seoyeon</code>·<code>dohyun</code>·<code>yuna</code>·<code>hana</code>@example.com)의 비밀번호는 <code>nerv-dev-1234</code>이고 <code>NERV_SEED_PASSWORD</code>로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 <code>apps/api</code>의 시드 엔트리가 심고 <code>@nerv/schema</code>는 도메인만 심는다</td></tr>
+      <tr><td><code>pnpm e2e:up</code></td><td><b>E2E 전용 스택</b> 기동(웹 :8090 · PG :55432) — 마이그레이션·시드까지 끝나고 나온다</td></tr>
+    <tr><td><code>pnpm e2e:down</code></td><td>같은 파일에 <code>down -v</code> — tmpfs라 흔적이 남지 않는다</td></tr>
+    <tr><td><code>pnpm e2e:reset</code></td><td><code>e2e:down &amp;&amp; e2e:up</code> — 실행 간 상태를 비운다</td></tr>
+    <tr><td><code>pnpm test:e2e</code></td><td>L3 전량(API 시나리오 A~E + 브라우저). 대상 주소를 E2E 스택으로 고정해서 넘긴다</td></tr>
+    <tr><td><code>pnpm db:seed</code></td><td>개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등(<a href="database.html">4.3 데이터베이스 스키마</a> §4, REQ-DB-002). <b>로그인 자격증명도 함께 심는다</b>: 시드 사용자 5명(<code>jimin</code>·<code>seoyeon</code>·<code>dohyun</code>·<code>yuna</code>·<code>hana</code>@example.com)의 비밀번호는 <code>nerv-dev-1234</code>이고 <code>NERV_SEED_PASSWORD</code>로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 <code>apps/api</code>의 시드 엔트리가 심고 <code>@nerv/schema</code>는 도메인만 심는다</td></tr>
       <tr><td><code>pnpm compose:up</code></td><td><code>docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build</code> — 외부 임베딩 제공자 사용 시 <code>--profile local-embed</code> 생략(§5.2a)</td></tr>
       <tr><td><code>pnpm compose:infra</code></td><td>위 명령 + <code>postgres minio valkey embed</code> 서비스만(<code>embed</code>는 local-embed 프로필일 때)</td></tr>
       <tr><td><code>pnpm compose:down</code></td><td>스택 정지(볼륨 유지)</td></tr>
