@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v0.8 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v0.9 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+>
+> v0.9 변경(2026-08-22 — 구현 중 확인 태스크 착지): **운영 Postgres 위치를 클러스터 외부로 확정**(§6.0 신설 — E06-S05). 근거는 NFR-01의 compose 자가호스팅과 운영 k8s가 같은 접속 모델을 써야 한다는 것이다. §6.5 백업 절차의 "관리형이면 ①을 스냅샷+PITR로 대체" 조건이 이 판정으로 확정됐다.
 >
 > v0.8 변경(2026-08-22 — **배포 산출물 위치 개정, REQ-CB-015 변경**): 배포 트리를 `codebase/deploy/`에서 **저장소 루트 `deploy/`**로 옮긴다. 근거: 배포 산출물은 pnpm 워크스페이스가 아니고(`pnpm-workspace.yaml` glob 밖) 저장소 전체의 운영 자산이라 "모노레포 루트 = `codebase/`"라는 한 가지 뜻과 섞이지 않는 편이 낫다. ① REQ-CB-015를 2구역 규칙으로 개정(코드 = `codebase/`, 배포 산출물 = `deploy/`) ② 경로 표기 기준 분리 — `apps/*`·`packages/*`는 `codebase/` 기준, `deploy/*`는 저장소 루트 기준(§1.1) ③ **이미지 빌드 컨텍스트를 저장소 루트로 통일**(§5.3 `context: ../..`) — 웹 이미지가 `codebase/` 소스와 `deploy/docker/nginx/` 템플릿을 함께 봐야 하기 때문. Dockerfile `COPY`에 `codebase/` 접두, 저장소 루트 `.dockerignore` 신설(§6.1) ④ compose 실행은 `codebase/`에서 `-f ../deploy/compose/...`(§5.1·§4.5), kustomize는 저장소 루트에서(§6.3). 다른 결정·요구는 불변.
 >
@@ -792,7 +794,26 @@ server {
 
 ## 6. 운영 배포 — k8s (kustomize base/overlays)
 
-운영 표준은 조직 관례대로 k8s + kustomize다(clemvion이 이미 `clemvion:k8s/` base+overlays 관례를 쓴다 — [3.2](../03-proposal/architecture.md) §4.2). 운영 Postgres 위치(클러스터 외부 권장 vs CloudNativePG)는 이 문서가 정하지 않는다 — [4.8 백로그](backlog.md)의 확인 태스크다.
+운영 표준은 조직 관례대로 k8s + kustomize다(clemvion이 이미 `clemvion:k8s/` base+overlays 관례를 쓴다 — [3.2](../03-proposal/architecture.md) §4.2).
+
+### 6.0 운영 Postgres 위치 — 클러스터 외부 (2026-08-22 확정)
+
+E06-S05 확인 태스크의 결과다. 세 기준으로 비교했다.
+
+| 기준 | 클러스터 외부(관리형/전용 인스턴스) | CloudNativePG(클러스터 내부) |
+| --- | --- | --- |
+| 백업·복구(NFR-01) | 관리형 스냅샷 + PITR을 그대로 쓴다. §6.5 절차 ①이 스냅샷 복원으로 대체되고 나머지는 불변 | 백업 CR·오브젝트 스토리지 연동을 직접 운영. 복구 리허설도 직접 |
+| 운영 부담 | DB 운영이 클러스터 밖에 있어 앱 배포와 분리된다. 파일럿 규모(NFR-04)에서 추가 인력 0 | operator 버전·PG 메이저 업그레이드·스토리지 클래스까지 팀이 진다 |
+| k8s 의존성 | 없음 — compose 단일 노드 자가호스팅(NFR-01)과 같은 접속 모델이라 두 타깃이 갈라지지 않는다 | 클러스터가 곧 DB의 가용성 경계가 된다. 단일 노드 자가호스팅에서는 쓸 수 없다 |
+
+**판정: 클러스터 외부.** 결정적인 것은 세 번째다 — NFR-01이 요구하는 compose 자가호스팅과
+운영 k8s가 **같은 접속 모델**(`DATABASE_URL` 하나)을 쓰려면 DB가 클러스터 안에 있으면 안 된다.
+CloudNativePG를 쓰면 자가호스팅 경로와 운영 경로가 다른 물건이 되고, §6.5 백업 절차도 둘로 갈린다.
+
+- `base/`에 Postgres 리소스를 두지 않는다(현행 트리 그대로 — §6.2에 postgres가 없는 이유다).
+- 접속 정보는 `nerv-secrets`의 `DATABASE_URL` 하나다.
+- **재검토 트리거**: 관리형 Postgres를 쓸 수 없는 설치 환경(폐쇄망 등) 요구가 실제로 들어오거나,
+  외부 DB의 네트워크 지연이 L2 실측 임계를 넘을 때. 그때 CloudNativePG를 다시 본다.
 
 ### 6.1 Dockerfile 2종 요지
 
