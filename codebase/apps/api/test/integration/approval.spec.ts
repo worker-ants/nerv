@@ -1,0 +1,467 @@
+// E13-S01·S02 — 승인함 · 질문 에스컬레이션.
+//
+// **Phase 1 종료 게이트의 직접 대상이다**: 파일럿 2주간 플랫폼 밖에서 처리된 승인 0건.
+// 그러려면 승인이 여기서 되는 것만으로 부족하고 **여기서만** 되어야 한다 —
+// 그 성질을 검증하는 것이 이 스위트의 절반이다.
+
+import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ApprovalService } from '../../src/modules/approval/approval.service.js';
+import { QuestionService } from '../../src/modules/approval/question.service.js';
+import { EventService } from '../../src/modules/event/event.service.js';
+import { NotificationService } from '../../src/modules/event/notification.service.js';
+import { ValkeyService } from '../../src/modules/event/valkey.service.js';
+import { createScratchDb } from './helpers.js';
+import type { ScratchDb } from './helpers.js';
+
+let db: ScratchDb;
+let pool: pg.Pool;
+let approvals: ApprovalService;
+let questions: QuestionService;
+let projectId: string;
+let planner: string;
+let reviewer: string;
+let sessionId: string;
+
+beforeAll(async () => {
+  db = await createScratchDb('nerv_approval');
+  await runMigrations(db.url);
+  pool = new pg.Pool({ connectionString: db.url });
+  const silent = {
+    publish: async () => false,
+    subscribe: async () => undefined,
+  } as unknown as ValkeyService;
+  const drizzleDb = drizzle(pool);
+  const events = new EventService(drizzleDb, silent);
+  approvals = new ApprovalService(events, drizzleDb);
+  questions = new QuestionService(events, drizzleDb);
+  await seed();
+});
+
+afterAll(async () => {
+  await pool.end();
+  await db.drop();
+});
+
+beforeEach(async () => {
+  await pool.query('DELETE FROM approval');
+  await pool.query('DELETE FROM question');
+  // notification.event_id 는 **논리 FK** 라(4.3 §2.10) event 를 지워도 따라 지워지지 않는다.
+  // 남겨두면 다음 테스트가 앞 테스트의 알림을 자기 것으로 본다.
+  await pool.query('DELETE FROM notification');
+  await pool.query('DELETE FROM event');
+  await pool.query(`UPDATE agent_session SET state = 'active'`);
+});
+
+describe('E13-S01 승인함 — 내 결정을 기다리는 것만 (§6.6 원칙 3)', () => {
+  it('결정되지 않은 카드만 온다 — 처리한 것은 사라진다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(1);
+
+    await approvals.decide({
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(0);
+  });
+
+  it('지정 승인자가 있으면 그 사람에게만 보인다', async () => {
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+      assigneeUserId: reviewer,
+    });
+    expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(1);
+    expect(await approvals.inbox({ projectId, userId: planner })).toHaveLength(0);
+  });
+
+  it('카드가 self_requested 를 표시한다 — 내가 올린 것을 내가 승인할 수 없음을 UI 가 안다', async () => {
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    const [card] = await approvals.inbox({ projectId, userId: planner });
+    expect(card?.self_requested).toBe(true);
+  });
+
+  it('같은 대상의 요청은 재사용된다 — 카드가 중복되면 승인함이 즉시 무너진다', async () => {
+    const subjectId = newId();
+    const first = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId,
+      requestedByUserId: planner,
+    });
+    const second = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId,
+      requestedByUserId: planner,
+    });
+
+    expect(second.approval_id).toBe(first.approval_id);
+    expect(second.reused).toBe(true);
+    expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(1);
+  });
+});
+
+describe('E13-S01 결정 — stale 승인 차단', () => {
+  it('카드를 연 뒤 내용이 바뀌면 결정을 거부한다 — 사람이 본 것과 승인되는 것이 달라지면 안 된다', async () => {
+    // draft 대상이라 본문이 아직 가변이다(in_review 부터는 트리거가 동결한다)
+    const versionId = await makeSpecVersion('# 원본 본문');
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: planner,
+    });
+
+    const [card] = await approvals.inbox({ projectId, userId: reviewer });
+    const seen = card?.content_hash as string;
+
+    // 사람이 카드를 보는 동안 초안이 바뀐다
+    await pool.query(
+      `UPDATE spec_version SET body_md = '# 바뀐 본문', content_hash = digest('# 바뀐 본문','sha256') WHERE id = $1`,
+      [versionId],
+    );
+
+    await expect(
+      approvals.decide({
+        projectId,
+        approvalId: approval_id,
+        userId: reviewer,
+        decision: 'approve',
+        seenContentHash: seen,
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+
+  it('내용이 그대로면 통과한다', async () => {
+    const versionId = await makeSpecVersion('# 안 바뀐 본문', 'in_review');
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: planner,
+    });
+    const [card] = await approvals.inbox({ projectId, userId: reviewer });
+
+    await expect(
+      approvals.decide({
+        projectId,
+        approvalId: approval_id,
+        userId: reviewer,
+        decision: 'approve',
+        seenContentHash: card?.content_hash as string,
+      }),
+    ).resolves.toMatchObject({ decision: 'approve' });
+  });
+
+  it('이미 결정된 항목은 다시 결정할 수 없다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await approvals.decide({
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    await expect(
+      approvals.decide({
+        projectId,
+        approvalId: approval_id,
+        userId: reviewer,
+        decision: 'reject',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+
+  it('요청자는 자기 요청을 승인할 수 없다 — 거절·코멘트는 할 수 있다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await expect(
+      approvals.decide({
+        projectId,
+        approvalId: approval_id,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
+
+    await expect(
+      approvals.decide({
+        projectId,
+        approvalId: approval_id,
+        userId: planner,
+        decision: 'comment',
+      }),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe('E13-S01 게이트 면제 — 면제도 결재 레코드다 (FR-10)', () => {
+  it('사유 없는 면제는 거부한다', async () => {
+    await expect(
+      approvals.bypass({
+        projectId,
+        subjectType: 'gate_bypass',
+        subjectId: newId(),
+        userId: planner,
+        reason: '  ',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+
+  it('면제는 레코드와 이벤트를 남긴다 — 기록되지 않는 면제는 구멍이다', async () => {
+    await approvals.bypass({
+      projectId,
+      subjectType: 'gate_bypass',
+      subjectId: newId(),
+      userId: planner,
+      reason: '릴리스 임박 — 팀장 구두 승인',
+    });
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM approval WHERE is_bypass AND bypass_reason IS NOT NULL`,
+    );
+    expect(rows[0]?.n).toBe(1);
+    const events = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM event WHERE type = 'gate.bypassed'`,
+    );
+    expect(events.rows[0]?.n).toBe(1);
+  });
+});
+
+describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
+  it('blocking 질문은 세션을 awaiting_input 으로 세운다 (P7)', async () => {
+    await questions.create({
+      projectId,
+      sessionId,
+      title: '스토리지 선택',
+      options: ['localStorage', '서버 세션'],
+      urgency: 'blocking',
+    });
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(rows[0]?.state).toBe('awaiting_input');
+  });
+
+  it('같은 질문 재호출은 새 카드를 만들지 않고 현재 상태를 준다', async () => {
+    const first = await questions.create({ projectId, sessionId, title: '같은 질문' });
+    const poll = await questions.create({ projectId, sessionId, title: '같은 질문' });
+
+    expect(poll.question_id).toBe(first.question_id);
+    expect(poll.created).toBe(false);
+    const { rows } = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM question`);
+    expect(rows[0]?.n).toBe(1);
+  });
+
+  it('답변이 들어오면 세션이 깨어나고 폴링이 답을 본다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '답변 받을 질문' });
+    await questions.answer({
+      projectId,
+      questionId: created.question_id,
+      userId: planner,
+      answerKey: 'localStorage',
+      answerMd: 'localStorage 로 간다',
+    });
+
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(rows[0]?.state).toBe('active');
+
+    const poll = await questions.create({ projectId, sessionId, title: '답변 받을 질문' });
+    expect(poll).toMatchObject({ status: 'answered', answer_key: 'localStorage' });
+  });
+
+  it('답변은 하트비트 역채널에 실린다 — 서버→세션의 유일한 보장 채널이다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '역채널 질문' });
+    expect(await questions.pendingFor(sessionId)).toHaveLength(0);
+
+    await questions.answer({
+      projectId,
+      questionId: created.question_id,
+      userId: planner,
+      answerKey: 'yes',
+    });
+    const pending = await questions.pendingFor(sessionId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({ kind: 'question_answered', answer_key: 'yes' });
+  });
+
+  it('이미 답변된 질문은 다시 답변할 수 없다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '중복 답변' });
+    await questions.answer({
+      projectId,
+      questionId: created.question_id,
+      userId: planner,
+      answerKey: 'a',
+    });
+    await expect(
+      questions.answer({
+        projectId,
+        questionId: created.question_id,
+        userId: planner,
+        answerKey: 'b',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+
+  it('normal 질문은 세션을 세우지 않는다 — blocking 만 멈춘다', async () => {
+    await questions.create({ projectId, sessionId, title: '급하지 않은 질문', urgency: 'normal' });
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(rows[0]?.state).toBe('active');
+  });
+});
+
+/**
+ * 승인 대상 버전을 만든다.
+ *
+ * 기본이 draft 인 이유가 있다 — in_review 이상은 **본문이 동결돼 있어서**(트리거가 막는다)
+ * 애초에 stale 이 생길 수 없다. 그것 자체가 좋은 성질이고, stale 검증은 아직 가변인
+ * 대상(draft·plan)에서만 의미가 있다.
+ */
+describe('E13-S03 인앱 알림 — 결정이 필요한 것만 (§6.2·§6.6)', () => {
+  it('critical·high 는 알림을 만들고 low 는 만들지 않는다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+
+    // low — 배경 활동. 배지가 이것으로 덮이면 승인함이 두 번째 받은편지함이 된다
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'task.claimed',$3,true,'task',$4)`,
+      [newId(), projectId, reviewer, newId()],
+    );
+    expect(await notifications.route()).toBe(0);
+
+    // critical — 누군가의 세션이 내 결정을 기다린다
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'question.created',$3,true,'question',$4)`,
+      [newId(), projectId, reviewer, newId()],
+    );
+    expect(await notifications.route()).toBeGreaterThan(0);
+  });
+
+  it('카탈로그에 없는 이벤트는 알림을 만들지 않는다 — 기본값이 "안 만든다"다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'import.applied',$3,false,'project',$2)`,
+      [newId(), projectId, planner],
+    );
+    expect(await notifications.route()).toBe(0);
+  });
+
+  it('행위자 자신에게는 보내지 않는다 — 자기가 한 일의 알림은 소음이다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'spec.approved',$3,false,'spec_version',$4)`,
+      [newId(), projectId, planner, newId()],
+    );
+    await notifications.route();
+
+    const { rows } = await pool.query<{ user_id: string }>(`SELECT user_id FROM notification`);
+    expect(rows.map((r) => r.user_id)).not.toContain(planner);
+    expect(rows.map((r) => r.user_id)).toContain(reviewer);
+  });
+
+  it('같은 이벤트를 두 번 라우팅해도 알림이 늘지 않는다 — 워커 재실행 안전', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'approval.requested',$3,false,'approval',$4)`,
+      [newId(), projectId, planner, newId()],
+    );
+    const first = await notifications.route();
+    const second = await notifications.route();
+    expect(first).toBeGreaterThan(0);
+    expect(second).toBe(0);
+  });
+
+  it('읽지 않은 수를 센다 — 헤더 배지가 쓰는 값', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'question.created',$3,true,'question',$4)`,
+      [newId(), projectId, reviewer, newId()],
+    );
+    await notifications.route();
+    expect(await notifications.unreadCount(planner)).toBeGreaterThan(0);
+  });
+});
+
+async function makeSpecVersion(body: string, status = 'draft'): Promise<string> {
+  const specId = newId();
+  const versionId = newId();
+  await pool.query(
+    `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
+    [specId, projectId, `SPC-${specId.slice(0, 6)}`],
+  );
+  await pool.query(
+    `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+     VALUES ($1,$2,1,$5::spec_version_status,$3, digest($3,'sha256'), $4)`,
+    [versionId, specId, body, planner, status],
+  );
+  return versionId;
+}
+
+async function seed(): Promise<void> {
+  const orgId = newId();
+  projectId = newId();
+  planner = newId();
+  reviewer = newId();
+  sessionId = newId();
+  await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'nerv','NERV')`, [orgId]);
+  for (const [id, email, name] of [
+    [planner, 'jimin@example.com', '지민'],
+    [reviewer, 'seoyeon@example.com', '서연'],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,$3,'active')`,
+      [id, email, name],
+    );
+  }
+  await pool.query(
+    `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'clemvion','CLV','clemvion')`,
+    [projectId, orgId],
+  );
+  for (const user of [planner, reviewer]) {
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
+      [newId(), orgId, projectId, user],
+    );
+  }
+  await pool.query(
+    `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+     VALUES ($1,$2,$3,'claude-code','mac-07','active')`,
+    [sessionId, projectId, planner],
+  );
+}

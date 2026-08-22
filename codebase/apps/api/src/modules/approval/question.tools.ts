@@ -1,6 +1,7 @@
 // MCP — nerv_question_create. 사람의 답변(EP-QST-02)은 REST 전용이다(api.md §4).
 import { Injectable } from '@nestjs/common';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
+import { requireSession } from '../session/session.tools.js';
 import { QuestionService } from './question.service.js';
 
 @Injectable()
@@ -24,7 +25,15 @@ export class QuestionTools implements NervToolProvider {
         },
         required: ['question'],
       },
-      handler: async () => this.questions.create(),
+      handler: async (input, ctx) =>
+        this.questions.create({
+          projectId: ctx.projectId,
+          sessionId: requireSession(ctx),
+          title: String(input['question'] ?? ''),
+          options: Array.isArray(input['options']) ? (input['options'] as string[]) : [],
+          urgency: input['urgency'] === 'normal' ? 'normal' : 'blocking',
+          idempotencyKey: ctx.idempotencyKey,
+        }),
     },
   ];
 }

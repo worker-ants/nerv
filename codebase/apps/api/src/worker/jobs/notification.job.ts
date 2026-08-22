@@ -7,7 +7,7 @@ export class NotificationJob {
   readonly name = 'notification';
   constructor(private readonly notifications: NotificationService) {}
 
-  run(): never {
+  async run(): Promise<number> {
     return this.notifications.route();
   }
 }

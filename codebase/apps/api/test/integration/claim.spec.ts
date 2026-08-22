@@ -13,6 +13,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
+import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -53,7 +54,8 @@ beforeAll(async () => {
   const events = new EventService(drizzleDb, silentValkey);
 
   claims = new ClaimService();
-  tasks = new TaskService(claims, events, drizzleDb);
+  // 하트비트 역채널은 이 스위트의 관심사가 아니다 — 질문이 없으면 빈 목록이다.
+  tasks = new TaskService(claims, events, new QuestionService(events, drizzleDb), drizzleDb);
 
   await seed();
 });

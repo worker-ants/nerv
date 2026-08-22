@@ -9,6 +9,7 @@ import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError, NotImplementedYetError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
+import { QuestionService } from '../approval/question.service.js';
 import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
 
@@ -51,6 +52,7 @@ export class TaskService {
   constructor(
     private readonly claims: ClaimService,
     private readonly events: EventService,
+    private readonly questions: QuestionService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -281,11 +283,19 @@ export class TaskService {
     claimId: string;
     leaseSeconds?: number;
   }): Promise<{ leaseExpiresAt: Date; pending: unknown[] }> {
-    return this.db.transaction(async (tx) => {
-      const leaseExpiresAt = await this.claims.renewLease(tx, input.claimId, input.leaseSeconds);
-      // pending 역채널(질문 답변·steer/stop)은 E13-S02 가 채운다.
-      return { leaseExpiresAt, pending: [] };
-    });
+    const leaseExpiresAt = await this.db.transaction(async (tx) =>
+      this.claims.renewLease(tx, input.claimId, input.leaseSeconds),
+    );
+
+    // 역채널 — 답변된 질문을 여기 싣는다. Claude 의 channel capability 는 향상이고
+    // 하트비트가 정본이다(Codex 에는 채널이 없다). 여기 실리지 않으면 에이전트는 모른다.
+    const { rows } = await this.db.execute<{ agent_session_id: string | null }>(
+      sql`SELECT agent_session_id FROM claim WHERE id = ${input.claimId}`,
+    );
+    const sessionId = rows[0]?.agent_session_id ?? null;
+    const pending = sessionId === null ? [] : await this.questions.pendingFor(sessionId);
+
+    return { leaseExpiresAt, pending };
   }
 
   /** 클레임 해제 — reason 에 따라 Task 를 ready 로 회수하거나 그대로 둔다. */
