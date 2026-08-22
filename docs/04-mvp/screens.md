@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 승인함 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [screens.html](../html/screens.html)
+>
+> v0.5 변경(2026-08-22 — 대규모 스펙 열람·검색 대응, [4.1](scope.md) §2.1 하이브리드 검색 확정): ① **전역 퀵 스위처(⌘K)** — 안정 ID 직행·최근 방문·키보드 완결(§1.3a, REQ-WEB-040) ② 스펙 목록 검색 모드 — 하이브리드 결과(관련도·`related` 그룹·degraded 표시, REQ-WEB-041) ③ **S3 관계 패널** — 양방향(참조함/참조됨) + 영향 미리보기(REQ-WEB-042·043) ④ 트리 스케일 규정 — 지연 로드·가상 스크롤·트리 필터(REQ-WEB-044).
 >
 > v0.4 변경(2026-08-22): ① S3에 **스펙 메타 편집·아카이브 UI**(EP-SPEC-15~17 — [4.4 API 명세](api.md) §2.2 신설 표면의 화면 판, REQ-WEB-038·039) ② S8 게이트 정책 탭 편집 항목을 `gate_policy` 키 스키마(api.md §2.1a)와 정합 — v0.3의 "stale 임계·자기 승인 금지 토글"은 각각 공통 상수([4.2](codebase.md) §3.2)와 시스템 불변식(지시자≠승인자 — D-06)이라 프로젝트 정책 편집 대상이 아니었다.
 
@@ -107,6 +109,15 @@ apps/web/src/routes/
 | 토스트 스택 | `claim.conflict_warn` 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1) |
 
 이 아스키 그림은 md 원본용 표기다 — **HTML 판(screens.html §1.3)은 ui-wireframes.html과 같은 방식의 렌더링 목업**으로 제공한다(관례: md는 아스키, html은 실제 UI 근사 렌더링 — ui-wireframes.md 서두와 동일).
+
+### 1.3a 전역 퀵 스위처 — ⌘K (`QuickSwitcher`)
+
+전역 헤더의 "🔍 전역 검색"의 실체이자 대규모 프로젝트의 기본 이동 수단이다. 트리 스크롤 대신 **타이핑 → Enter**로 어디서든 어디로든 간다.
+
+- **호출**: `⌘K`(mac) / `Ctrl+K` — 전 라우트 공통. 모달, `Esc` 닫기, `↑↓` 이동, `Enter` 이동, 전부 키보드 완결(승인함 `j/k/a/r/c`와 같은 규약).
+- **동작**: 입력 디바운스 후 EP-SPEC-02(하이브리드 — [4.4](api.md) §2.2b). 안정 ID 패턴(`SPC-`·`REQ-`·`TSK-`)은 서버 ID 직행과 짝으로 최상위 1건 즉시 표시. 빈 입력 상태에서는 **최근 방문**(localStorage, 최대 20)과 핀 목록을 보여준다.
+- **결과 행**: 타입 아이콘 · 제목 · 안정 ID · 문서 상태 배지 · 매칭 앵커(선택 시 해당 헤딩으로 스크롤). Task·Requirement 결과는 각각 S4 패널·S3 요구사항 앵커로 딥링크.
+- **최근·핀**: 클라이언트 로컬(localStorage — 뷰 상태 규약(ui-wireframes §1.4)과 같은 등급, 서버 동기화·watch 테이블은 Phase 2). 핀은 스펙 목록·트리에도 ★로 표기.
 
 ### 1.4 실시간 계약 — 구독 룸과 쿼리 무효화
 
@@ -329,6 +340,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 2. **행 = 트리 노드 + 메타** — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 `SpecTree` 공유다(D-05의 프론트 판).
 3. **필터 결과 카운트** — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약).
 4. **베이스라인 선택기** — EP-SPEC-11 목록 + [현재 세트로 동결…](planner·admin — EP-SPEC-12 다이얼로그). 베이스라인을 고르면 `?baseline=` 쿼리로 목록이 그 세트에 핀된 버전 기준으로 렌더된다(spec-workflow §3.6). 새 라우트 없음 — 뷰 상태 쿼리다.
+5. **검색 모드** — 검색어 입력 시 트리 뷰가 결과 목록으로 전환된다(`?q=` 뷰 상태). 하이브리드 결과([4.4](api.md) §2.2b)를 **관련도 순 + 스펙 단위 그룹핑 + 매칭 앵커 스니펫**으로 표시하고, `related[]`(관계 확장 — 질의 일치가 아니라 상위 결과의 1-hop 이웃)는 **"관련 스펙" 별도 섹션**으로 구분해 섞지 않는다. `degraded: "lexical-only"` 수신 시 "의미 검색 일시 중단 — 키워드 결과만" 배너 1줄. 트리 자체를 거르는 **트리 필터**(클라이언트, 매칭 경로만 펼침)는 `/` 키로 전환 — 서버 검색과 다른 축이다.
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
@@ -342,9 +354,11 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 베이스라인 조회 | EP-SPEC-11 `GET .../baselines` · EP-SPEC-13 `GET .../baselines/{bl}` | 버전 피커(`VersionPicker`)에 베이스라인 항목 — 선택 시 그 세트에 핀된 버전을 표시(`?baseline=` 쿼리, spec-workflow §3.6) |
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → `['spec', specId]`, `spec.comment_added`·`comment.resolved` → `['spec', specId, 'comments']`, `task.*` → 파생 Task 패널.
-- **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `SourceViewToggle`(read-only md) · `CommentThread` · `EditLeaseBadge` · `RequirementPanel` · `DerivedTaskPanel` · `SpecMetaDialog` · `ArchiveConfirmDialog` · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
+- **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `SourceViewToggle`(read-only md) · `CommentThread` · `EditLeaseBadge` · `RequirementPanel` · `DerivedTaskPanel` · `SpecMetaDialog` · `ArchiveConfirmDialog` · `RelationPanel` · `ImpactPreview` · `QuickSwitcher`(§1.3a) · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
 - **버튼 상태**: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 승인함 카드에서 한다(S7).
 - **터미널 이어쓰기**: 복사용 명령 `claude "/nerv:spec edit SPC-CWC-007"` 카드(ui-wireframes §2.3 (12)). 반대 방향은 `nerv_spec_draft_upsert` 응답의 `web_url` 딥링크가 이 화면으로 온다.
+- **관계 패널**(상태 패널 내 섹션): EP-SPEC-18(direction=both) — **참조함 N / 참조됨 N**(backlink)을 kind 배지와 함께 목록으로, 클릭 시 해당 스펙으로 이동. 20건 초과는 [전체 보기]로 커서 페이지네이션 확장. 참조 갱신 배지(REQ-WEB-037)는 이 섹션 머리에 흡수된다 — "무엇이 낡았나"가 배지가 아니라 목록으로 보인다. 관계 데이터는 저장 시 자동 추출(REQ-API-024)이라 사람이 관리하지 않는다.
+- **영향 미리보기**: [검토 요청] 확인 다이얼로그에 "이 문서를 참조하는 문서 N건 · 파생 Task M건에 영향" 1줄 + 목록 펼침(EP-SPEC-18 역참조 + 파생 Task 카운트). 승인 후 `spec.recheck_requested` 전파의 사전 뷰다.
 - **메타 편집·아카이브**(planner·admin — `spec:meta`): 상단 ⋯ 메뉴 → 메타 다이얼로그(`SpecMetaDialog`: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(`archive_blocked`) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = `?include_archived=true`), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.
 - **폼·검증**: `SpecDraftUpsertInput`(zod — `packages/schema`, MCP 도구 인자와 공유): `body_markdown`·`base_version`·`change_summary`(min 1), 새 스펙 생성은 `SpecCreateInput`(`parent_id`·`type` 6종 enum·`title` min 1·`body_markdown`). 코멘트 `CommentCreateInput`: `anchor`(min 1)·`body_md`(min 1).
 - **빈 상태**: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크.
@@ -359,6 +373,11 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | REQ-WEB-037 | WHEN `spec.recheck_requested`를 수신하거나 대상 문서의 참조 스펙에 앞선 approved 버전이 존재하면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지(참조 스펙·핀 시점 버전·최신 버전)를 표시한다 |
 | REQ-WEB-038 | WHEN planner·admin이 메타 다이얼로그에서 부모 이동을 저장하면 THE SYSTEM SHALL EP-SPEC-15로 반영하고, 409 `tree_cycle` 수신 시 어느 하위 노드로의 이동이 차단됐는지 인라인 표시한다. WHEN 그 외 역할이 열람하면 THE SYSTEM SHALL ⋯ 메뉴의 메타·아카이브 항목을 비활성화한다 |
 | REQ-WEB-039 | WHEN 아카이브 요청이 409 `archive_blocked`로 실패하면 THE SYSTEM SHALL 차단 사유(미아카이브 하위 노드·활성 클레임 Task) 목록을 다이얼로그에 표시하고 재시도 경로를 안내한다 |
+| REQ-WEB-040 | WHEN 어느 라우트에서든 `⌘K`/`Ctrl+K`를 누르면 THE SYSTEM SHALL 퀵 스위처를 열고, 안정 ID 입력은 최상위 1건 직행·빈 입력은 최근 방문·핀 목록을 표시하며, 마우스 없이 이동을 완결시킨다(§1.3a) |
+| REQ-WEB-041 | WHEN 검색 결과를 표시하면 THE SYSTEM SHALL 관련도 순 본 결과와 `related[]`(관계 확장)를 시각적으로 구분된 섹션으로 렌더하고, `degraded` 수신 시 의미 검색 중단 배너를 1줄 표시한다 |
+| REQ-WEB-042 | WHEN S3 상태 패널을 렌더하면 THE SYSTEM SHALL 관계 섹션에 참조함/참조됨(backlink)을 kind와 함께 표시하고, 항목 클릭으로 해당 스펙에 이동시킨다(EP-SPEC-18) |
+| REQ-WEB-043 | WHEN [검토 요청]을 누르면 THE SYSTEM SHALL 제출 전에 역참조 문서 수·파생 Task 수의 영향 미리보기를 표시한다 |
+| REQ-WEB-044 | WHEN 스펙 트리 노드가 200개를 넘으면 THE SYSTEM SHALL 폴더 단위 지연 로드(EP-SPEC-01 `depth=1`)와 가상 스크롤로 렌더하고, 최초 페인트에 전체 트리 로드를 요구하지 않는다 |
 
 ### 2.5 S4 작업 보드 — [ui-wireframes §2.4](../03-proposal/ui-wireframes.md)
 

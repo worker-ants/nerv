@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-DATABASE
 status: draft
-updated: 2026-08-21
+updated: 2026-08-22
 ---
 # 데이터베이스 스키마
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
+>
+> v0.4 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1 MVP 범위와 스택 확정](scope.md) §2.1): ① 확장 2종 추가 — `pg_trgm`(한국어·부분 일치)·`vector`(pgvector) ② **검색 인덱스 테이블 `spec_chunk_embedding` 신설**(§2.15) — 도메인 엔티티가 아니라 재생성 가능한 파생 데이터라 **엔티티 29종 카운트에 들지 않는다** ③ trigram GIN 인덱스·HNSW 인덱스·검색 랭킹 규정(§2.12a) ④ REQ-DB-014~017. 검색 파이프라인 정본은 [4.4 API 명세](api.md) §2.2b.
 
 ---
 
@@ -62,6 +64,8 @@ updated: 2026-08-21
 -- 0001_init.sql · §1 — 확장
 CREATE EXTENSION IF NOT EXISTS citext;    -- user.email 대소문자 무시 유니크
 CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- 시드·테스트의 digest(sha256)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- 한국어·부분 문자열 검색(trigram — 4.4 §2.2b). 표준 contrib
+CREATE EXTENSION IF NOT EXISTS vector;    -- pgvector — 임베딩 HNSW (§2.15). 이미지 요건: 4.2 §5.3
 
 -- enum — 값 문자열은 data-model.md §2 필드 표와 1:1
 CREATE TYPE user_state              AS ENUM ('invited', 'active', 'disabled');
@@ -667,10 +671,15 @@ CREATE INDEX spec_version_spec_status ON spec_version (spec_id, status);        
 CREATE INDEX requirement_spec_impl ON requirement (spec_id, impl_status);          -- 커버리지 집계(§4.1)
 CREATE INDEX spec_comment_open ON spec_comment (spec_id, status);                  -- 보조: open 코멘트 수
 
--- 전문 검색 — data-model §5.3 "GIN tsvector(title || body_md)"의 실현.
--- title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
+-- 검색 — data-model §5.3(하이브리드)의 렉시컬 축. 파이프라인 정본은 4.4 §2.2b.
+-- ① FTS: 영문·안정 ID 토큰. title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
 CREATE INDEX spec_version_body_fts ON spec_version USING gin (to_tsvector('simple', body_md));
 CREATE INDEX spec_title_fts        ON spec         USING gin (to_tsvector('simple', title));
+-- ② trigram: 한국어 조사 변형·부분 문자열. 'simple' 토크나이저는 공백 분리라 한국어에서
+--    "위젯"≠"위젯을"이 된다 — trigram이 이 갭을 막는다(REQ-DB-016). 형태소 분석기는 도입하지 않는다.
+CREATE INDEX spec_version_body_trgm ON spec_version USING gin (body_md gin_trgm_ops);
+CREATE INDEX spec_title_trgm        ON spec         USING gin (title gin_trgm_ops);
+CREATE INDEX requirement_text_trgm  ON requirement  USING gin (text gin_trgm_ops);   -- EARS 문장 검색(4.4 §2.2b)
 
 -- 작업·클레임
 CREATE INDEX task_ready_queue ON task (project_id, status, priority);              -- ready 큐(§4.5)
@@ -791,6 +800,32 @@ SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);
 보존 정책(data-model §5.4)과의 연결: `event`는 영구 보존하되 12개월 지난 파티션을 `DETACH PARTITION` 후 콜드 스토리지로 내리고, `activity`는 프로젝트 설정(기본 90일)에 따라 워커가 세션 요약으로 압축한 뒤 파티션을 드랍한다. 두 동작 모두 워커 잡이며 이 문서의 범위는 "파티션이 존재하고 분리 가능하다"까지다.
 
 ---
+
+### 2.15 검색 인덱스 테이블 — `spec_chunk_embedding` (도메인 엔티티 아님)
+
+**이 테이블은 데이터 모델의 엔티티가 아니다.** 원문(`spec_version.body_md`)에서 언제든 재생성 가능한 **검색 인덱스의 물리 테이블**이며(D-07 "결론 영구·입력 휘발"과 같은 축 — 이쪽은 "원본 영구·인덱스 파생"), 엔티티 29종 카운트·[3.3 데이터 모델](../03-proposal/data-model.md)의 ERD에 들지 않는다. 백업 대상에서도 제외 가능하다([4.2](codebase.md) §6.5 — 유실 시 재임베딩).
+
+```sql
+CREATE TABLE spec_chunk_embedding (
+  id               uuid PRIMARY KEY,
+  spec_version_id  uuid NOT NULL REFERENCES spec_version(id) ON DELETE CASCADE,
+  anchor           text NOT NULL,            -- 헤딩 slug — 코멘트 앵커와 동일 규약(D-09). 청크 = 헤딩 단위
+  chunk_hash       bytea NOT NULL,           -- sha256(청크 본문) — 무변경 재임베딩 차단
+  embedding        vector(1024) NOT NULL,    -- BGE-m3 1024차원(모델 정본: 4.1 §2.1)
+  model            text NOT NULL,            -- 모델 식별자 — 교체 시 재임베딩 관리 축
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chunk_embedding_uq UNIQUE (spec_version_id, anchor, model)
+);
+
+CREATE INDEX spec_chunk_embedding_hnsw
+  ON spec_chunk_embedding USING hnsw (embedding vector_cosine_ops);
+```
+
+운영 규칙(집행 주체는 워커 `embedding.job` — [4.2](codebase.md) §2.2):
+
+1. **인덱싱 대상은 최신 판만** — 스펙별 최신 approved 버전 + 현재 draft 버전. supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 판 검색은 렉시컬로 충분).
+2. **갱신 트리거** — draft 저장 커밋·승인·임포트 배치 후 이벤트를 워커가 소비해 청크 해시 비교 후 변경분만 임베딩한다. approved 본문은 불변이므로 버전당 최대 1회다.
+3. **모델 교체** — `model` 컬럼이 다른 행을 새로 쓰고, 전량 재임베딩 완료 후 구 모델 행을 드랍한다(검색은 단일 모델만 질의).
 
 ## 3. 이벤트 방송 규약 — Valkey `nerv_events`
 
@@ -1029,6 +1064,10 @@ COMMIT;
 | REQ-DB-011 | WHEN `status <> 'draft'`인 `spec_version`에 `edit_lease_user_id`·`edit_lease_session_id`·`edit_lease_expires_at` 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 3필드 각각 1건 |
 | REQ-DB-012 | WHEN `commit_sha` 없이 `kind='fixed'`인 `resolution`을 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + `spec_change`에 `change_request_id` 누락 1건 |
 | REQ-DB-013 | WHEN `nerv_glob_overlap`에 두 glob을 넘기면 THE SYSTEM SHALL 보수적 교차 판정을 반환한다 — 최소: (`a/**`, `a/b/c`)=true, (`a/b/**`, `a/c/**`)=false, (`a/*/c`, `a/x/c`)=true | 함수 단위 테스트(위 3케이스 + 동일 문자열 케이스) |
+| REQ-DB-014 | WHEN 마이그레이션이 완료되면 THE SYSTEM SHALL `pg_trgm`·`vector` 확장과 §2.12의 trigram GIN 3종·§2.15의 HNSW 인덱스를 카탈로그에서 조회 가능하게 한다 | 마이그레이션 후 `pg_extension`·`pg_indexes` 조회 |
+| REQ-DB-015 | WHEN 같은 (spec_version_id, anchor, model)로 임베딩이 재기록되면 THE SYSTEM SHALL 유니크 제약으로 중복 행을 차단하고, `spec_version` 삭제 시 임베딩 행을 CASCADE로 제거한다 | 중복 INSERT 1건 + 버전 삭제 후 잔존 행 0 확인 |
+| REQ-DB-016 | WHEN 한국어 질의(예: "위젯")로 trigram 검색을 실행하면 THE SYSTEM SHALL 조사 변형 본문("위젯을 처음 열면")을 포함한 행을 반환한다 — `simple` FTS 단독으로는 매칭되지 않는 케이스가 통과 기준이다 | 조사 변형 3케이스 질의 |
+| REQ-DB-017 | WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 판의 `spec_chunk_embedding` 행을 제거해 스펙당 인덱싱 판을 최신 approved + 현재 draft 2개 이하로 유지한다 | supersede 후 행 수 확인 |
 
 ### 5.2 무결성 규칙 ↔ 구현 위치 전수 대조
 

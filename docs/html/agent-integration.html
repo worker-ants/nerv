@@ -242,11 +242,11 @@
       </tr>
       <tr>
         <td><code>nerv_spec_search</code></td><td><code>query</code>, <code>type?</code>, <code>status?</code>, <code>requirement_id?</code>, <code>limit</code></td>
-        <td>매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫)</td>
-        <td><code>spec:read</code></td><td>A1</td><td>컨텍스트 수집·중복 확인</td><td>읽기 전용</td>
+        <td>매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫 + 관련도) + <b><code>related[]</code></b>(상위 결과의 <code>spec_relation</code> 1-hop — 질의에 없지만 걸려 있는 스펙) + <code>degraded?</code>(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 <a href="api.html">4.4 API 명세</a> §2.2b)</td>
+        <td><code>spec:read</code></td><td>A1</td><td>컨텍스트 수집·중복 확인 — <b><code>related[]</code>가 중복 확인의 핵심 입력</b>이다(언급 안 된 인접 스펙)</td><td>읽기 전용</td>
       </tr>
       <tr>
-        <td><code>nerv_spec_get</code></td><td><code>spec_id</code>, <code>version?</code>(기본 approved 최신 — <b>Task 컨텍스트에서는 기준 버전을 지정한다</b>, §2.4), <code>baseline?</code>(베이스라인 이름 — 그 세트에 핀된 버전을 읽는다, <code>version</code>과 배타), <code>include[]</code>(requirements/tasks/reviews/comments)</td>
+        <td><code>nerv_spec_get</code></td><td><code>spec_id</code>, <code>version?</code>(기본 approved 최신 — <b>Task 컨텍스트에서는 기준 버전을 지정한다</b>, §2.4), <code>baseline?</code>(베이스라인 이름 — 그 세트에 핀된 버전을 읽는다, <code>version</code>과 배타), <code>include[]</code>(requirements/tasks/reviews/comments/relations — relations는 양방향 요약: 총계+상위 20, 전량은 REST EP-SPEC-18)</td>
         <td>본문 markdown(비신뢰 래핑) + 메타 + Requirement + 파생 Task + <b><code>basis_superseded?</code></b>(요청 버전이 superseded면 최신 approved 버전 번호와 함께 표시)</td>
         <td><code>spec:read</code></td><td>A1</td><td>구현 착수 전, 리뷰 전</td>
         <td>읽기 전용 — <code>version</code>/<code>baseline</code> 지정 시 불변 스냅샷이라 결과 고정</td>

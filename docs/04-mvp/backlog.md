@@ -5,9 +5,11 @@ updated: 2026-08-22
 ---
 # 백로그
 
-> **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 68개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 4종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
+> **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [backlog.html](../html/backlog.html)
+>
+> v0.6 변경(2026-08-22 — 하이브리드 검색·탐색 UI MVP 확정, [4.1](scope.md) §2.1): **E06-S06**(임베딩 서빙·하이브리드 검색 스파이크) · **E09-S10·S11·S12**(하이브리드 검색 백엔드·임베딩 파이프라인·관계 API) · **E08-S09·S10**(퀵 스위처·트리 스케일+관계 패널) 추가. 스토리 68 → 74. 스파이크 4종 → 5종.
 >
 > v0.5 변경(2026-08-22 — 구현 착수 검토의 공백 보완 반영): **E09-S08**(스펙 메타 편집·아카이브 — EP-SPEC-15~17) · **E09-S09**(`spec_relation` 자동 추출) · **E12-S06**(오프라인 폴백 실물) 추가, E01-S05(CI — codebase §4.5)·E14-S02(백업 — codebase §6.5) 근거를 신설 절로 갱신. 스토리 65 → 68.
 >
@@ -107,6 +109,7 @@ Phase 0의 핵심 검증 대상(FR-06 ●). clemvion이 #576에서 제거한 동
 | E06-S03 | 스파이크: drizzle 마이그레이션 파이프라인 — compose 기동 시 적용 vs k8s Job, 롤백 절차 포함 후보 비교 | [4.1 범위·스택](scope.md) §2 · [4.2 코드베이스와 배포](codebase.md) §5~6 · [4.3 데이터베이스 스키마](database.md) §1 | WHEN 파이프라인 후보 2안을 각각 실행하면, THE SYSTEM SHALL 신규 DB·기존 DB 양쪽에서 왕복 멱등을 통과하는 안을 선정 근거와 함께 리포트로 남긴다 | E01-S01 |
 | E06-S04 | 스파이크: MCP 리비전 병행 서빙 — 최신 리비전 + 구 리비전 병행(D-11), Claude Code·Codex 클라이언트 협상 실측 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6 · [3.7 로드맵](../03-proposal/roadmap.md) §6.1(R5) | WHEN 구 리비전 클라이언트와 최신 리비전 클라이언트가 같은 엔드포인트에 접속하면, THE SYSTEM SHALL 협상된 리비전으로 각각 tools 호출을 완주시킨다 | E01-S02 |
 | E06-S05 | 확인 태스크: 운영 Postgres 위치 — 클러스터 외부(권장) vs CloudNativePG. 백업·복구(NFR-01)·운영 부담·k8s 의존성 3기준 비교 후 결정 기록 | [4.1 범위·스택](scope.md) §2(배포 행) · [4.2 코드베이스와 배포](codebase.md) §6 | WHEN 확인 태스크가 종료되면, THE SYSTEM SHALL 3기준 비교표·결정·재검토 트리거를 [4.2 코드베이스와 배포](codebase.md) §6에 반영한다 | — |
+| E06-S06 | 스파이크: 임베딩 서빙·하이브리드 검색 — TEI + BGE-m3 CPU 서빙 기동, 질의 임베딩 p95 실측, 한국어 질의 3종(조사 변형·부분 문자열·의미 유사)에서 FTS 단독 vs trgm vs 하이브리드(RRF) 품질 비교 | [4.1 범위·스택](scope.md) §2.1(검색 행) · [4.4 API 명세](api.md) §2.2b | WHEN 스파이크가 종료되면, THE SYSTEM SHALL CPU 서빙 p95·하이브리드 품질 비교표와 go/no-go 판정을 산출한다(no-go 시 §2.2 트리거 조기 점화 — 경량 모델 교체) | E01-S04 |
 | E06-S06 | 실측: 훅 headers `${NERV_TOKEN}` 환경변수 확장(Claude Code hooks `type:"http"`) — 불가로 판명되면 `bin/nerv-hook-forward` 래퍼(`type:"command"`) 변형 hooks.json으로 폴백 확정 | [4.6 플러그인과 온보딩](plugin.md) §3.1 | WHEN 실측에서 훅 `headers`의 `${NERV_TOKEN}` 확장이 불가로 판명되면, THE SYSTEM SHALL `type:"http"` 훅을 `type:"command"` + `bin/nerv-hook-forward`로 바꾼 변형 hooks.json을 배포판으로 확정하고 판정 리포트를 남긴다 | — |
 
 ### 2.7 E07 — spec 임포터 v0 (clemvion 프로파일)
@@ -141,6 +144,8 @@ MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터�
 | E08-S06 | S5 세션 모니터 승격 — 읽기 전용 보드에 steer/stop 추가, activity 타임라인 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S5 · FR-08 · [3.7 로드맵](../03-proposal/roadmap.md) §3.2 | WHEN 사람이 세션 카드에서 stop을 누르면, THE SYSTEM SHALL 지시를 하트비트 역채널에 실어 세션에 전달한다 | E05-S03 · E04-S03 |
 | E08-S07 | S7 승인함 — 스펙 승인·플랜·질문 3유형 카드, 원클릭 승인/거절/코멘트 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S7 · FR-11 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.4 | WHEN 카드에서 결정을 처리하면, THE SYSTEM SHALL 요청 세션을 `awaiting_input`에서 즉시 해제한다 | E08-S01 · E13-S01 |
 | E08-S08 | S8 설정 — 멤버·역할(6종)·에이전트 토큰 발급/폐기·게이트 정책 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S8 · FR-14 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.6 | WHEN admin이 아닌 역할이 게이트 정책 편집에 접근하면, THE SYSTEM SHALL API와 UI 양쪽에서 거부한다 | E08-S01 · E03-S02 |
+| E08-S09 | 전역 퀵 스위처(⌘K) — 안정 ID 직행·최근 방문·핀(localStorage)·키보드 완결 | [4.5 화면 명세](screens.md) §1.3a(REQ-WEB-040) | WHEN 어느 라우트에서든 ⌘K를 누르면, THE SYSTEM SHALL 마우스 없이 검색·이동을 완결시킨다 | E08-S01 · E09-S10 |
+| E08-S10 | 트리 스케일 + 관계 UI — 지연 로드(depth=1)·가상 스크롤·트리 필터, 검색 결과 뷰(관련도·related 구분·degraded 배너), S3 관계 패널·영향 미리보기 | [4.5 화면 명세](screens.md) §2.4(REQ-WEB-041~044) | WHEN 트리 노드 200개 초과 프로젝트를 열면, THE SYSTEM SHALL 최초 페인트에 전체 트리 로드 없이 렌더한다<br>WHEN 검토 요청을 누르면, THE SYSTEM SHALL 역참조·파생 Task 영향 미리보기를 표시한다 | E08-S04 · E09-S12 |
 
 ### 3.2 E09 — 스펙 워크플로·승인 게이트
 
@@ -157,6 +162,9 @@ MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터�
 | E09-S07 | 기준 버전 규약·재브리핑·참조 전파 — `nerv_task_next`/`nerv_bootstrap`에 기준 버전 포함, `basis_superseded` 표시(4개 표면), `rebrief_required_at` 세팅·해제, `spec.recheck_requested` 역참조 산출 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4(기준 버전 규약) · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3 · [4.4 API 명세](api.md) REQ-API-016 | WHEN Task의 기준 SpecVersion이 `superseded`로 전이되면, THE SYSTEM SHALL 재브리핑 플래그를 세우고 `task.rebrief_required`를 발행하며, 이후 기준 버전 지정 조회 응답에 `basis_superseded`를 표시한다<br>WHEN 새 버전이 승인되면, THE SYSTEM SHALL `spec_relation` 역방향 참조 문서에 `spec.recheck_requested`를 발행한다 | E09-S01 · E04-S03 |
 | E09-S08 | 스펙 메타 편집·아카이브 — EP-SPEC-15(제목·부모 이동·정렬·owner_role, 사이클 거부)·EP-SPEC-16/17(아카이브·복원) + S3 메타 다이얼로그, `spec:meta` 스코프 | [4.4 API 명세](api.md) §2.2(REQ-API-020~022) · [4.5 화면 명세](screens.md) §2.4(REQ-WEB-038·039) | WHEN 스펙을 이동·개명하면, THE SYSTEM SHALL 기존 버전·관계·코멘트 참조를 전부 보존한다(FR-01)<br>WHEN 자기 하위로의 이동이 시도되면, THE SYSTEM SHALL 409로 거부한다 | E09-S01 |
 | E09-S09 | `spec_relation` 자동 추출 — draft 저장 커밋 시 본문의 실존 스펙 안정 ID → `references` 관계 집합 동기화(임포터 링크 패스와 동일 코드), 참조 전파(E09-S07)의 데이터 전제 | [4.4 API 명세](api.md) §2.2(REQ-API-024) · [4.7 스펙 임포터](importer.md) §2.4 | WHEN draft 저장이 커밋되면, THE SYSTEM SHALL 본문 기준으로 `references` 관계를 추가·제거 동기화하고 미실존 ID는 경고로만 반환한다 | E09-S01 |
+| E09-S10 | 하이브리드 검색 백엔드 — ID 직행·렉시컬(FTS+trgm)·벡터(HNSW)·RRF 병합·상태 부스트·`related[]` 관계 확장·degrade | [4.4 API 명세](api.md) §2.2b(REQ-API-025·026) · [4.3 데이터베이스 스키마](database.md) §2.12(REQ-DB-016) | WHEN 안정 ID·한국어·의미 질의를 실행하면, THE SYSTEM SHALL REST와 MCP 두 표면에서 동일한 순위와 `related[]`를 반환한다<br>WHEN 임베딩 서비스가 무응답이면, THE SYSTEM SHALL 렉시컬만으로 200 + `degraded`를 반환한다 | E02-S02 · E09-S11 |
+| E09-S11 | 임베딩 파이프라인 — `spec_chunk_embedding`(헤딩 청크·HNSW)·워커 `embedding.job`(변경분만·최신 판만·모델 교체 재임베딩)·`nerv-embed` 서비스 기동 | [4.3 데이터베이스 스키마](database.md) §2.15(REQ-DB-014·015·017) · [4.2 코드베이스와 배포](codebase.md) §5.3(REQ-CB-020) | WHEN draft 저장·승인·임포트가 커밋되면, THE SYSTEM SHALL 변경 청크만 재임베딩하고 스펙당 인덱싱 판을 최신 approved + 현재 draft 이하로 유지한다 | E02-S02 · E06-S06 |
+| E09-S12 | 관계 조회 API — EP-SPEC-18(양방향·backlink·커서) + EP-SPEC-03 `include=relations` 요약 | [4.4 API 명세](api.md) §2.2(REQ-API-027) | WHEN direction=both로 호출하면, THE SYSTEM SHALL 나가는 관계와 역참조를 kind·방향과 함께 페이지네이션으로 반환한다 | E09-S09 |
 
 ### 3.3 E10 — 기획자 터미널 경로 (초안 리스·코멘트 왕복)
 

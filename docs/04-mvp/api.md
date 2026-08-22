@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 15종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [api.html](../html/api.html)
+>
+> v0.6 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1](scope.md) §2.1): ① **검색 파이프라인 §2.2b 신설** — ID 직행 → 렉시컬(FTS+trgm) + 벡터(pgvector) RRF 병합 → 관계 확장(graph RAG). EP-SPEC-02와 `nerv_spec_search`는 같은 서비스이므로 두 표면이 동시에 이 품질을 얻는다 ② **EP-SPEC-18 관계 조회 신설**(양방향·backlink) + EP-SPEC-03 `include[]`에 `relations` 추가 ③ REQ-API-025~027.
 >
 > v0.5 변경(2026-08-22 — 구현 착수 검토에서 발견된 공백 보완): ① **스펙 메타 표면 EP-SPEC-15~17 신설**(메타 수정·아카이브·복원 — §2.2). FR-01 "이동·개명에도 ID 불변"의 실행 경로가 없던 결함 해소, MCP `nerv_spec_draft_upsert`와의 메타 필드 계약 정합 규칙 포함 ② **`gate_policy`·`retention` 키 스키마 확정**(§2.1a) ③ **쿼터 시작값 확정**(§1.8) ④ **`spec_relation` 자동 추출 규칙**(§2.2 — 참조 전파(FR-02)가 임포트 없는 프로젝트에서도 동작하기 위한 전제) ⑤ REQ-API-020~024.
 >
@@ -209,8 +211,8 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
 | EP-SPEC-01 | `GET /api/v1/projects/{proj}/specs/tree` | 전 역할(`spec:read`) | `SpecTreeQuery`(root, depth, status) | `SpecTreeResult`(id·title·type·문서 상태·현재 버전) | — |
-| EP-SPEC-02 | `GET /api/v1/projects/{proj}/specs/search` | 전 역할 | `SpecSearchQuery`(query, type, status, requirement_id, limit) | `SpecSearchResult`(안정 ID + 앵커 + 스니펫) | — |
-| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `baseline` 이름으로 세트 조회 가능(`version`과 배타), `include[]`: requirements/tasks/comments) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시) | — |
+| EP-SPEC-02 | `GET /api/v1/projects/{proj}/specs/search` | 전 역할 | `SpecSearchQuery`(query, type, status, requirement_id, **references**(이 스펙을 참조하는 문서만), limit) | `SpecSearchResult`(안정 ID + 앵커 + 스니펫 + 관련도, **`related[]`** 1-hop 관계 확장 그룹, **`degraded?`** — 파이프라인은 §2.2b) | — |
+| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `baseline` 이름으로 세트 조회 가능(`version`과 배타), `include[]`: requirements/tasks/comments/**relations**(양방향 요약 — 총계 + 상위 20, 전량·커서는 EP-SPEC-18)) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시) | — |
 | EP-SPEC-04 | `GET /api/v1/projects/{proj}/specs/{spec}/versions` | 전 역할 | — | `Page<SpecVersionSummary>` | — |
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |
@@ -229,12 +231,28 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-15 | `PATCH /api/v1/projects/{proj}/specs/{spec}` | planner·admin (`spec:meta`) | `SpecMetaUpdateInput`(title?, parent_id?, sort_key?, owner_role? — 전 필드 선택, 최소 1개) | `SpecResult` — parent_id 이동은 사이클(자기 자신·자기 하위로 이동) 시 409 `NERV_PRECONDITION`(`details.kind="tree_cycle"`) | ★`spec.meta_updated`(payload에 변경 필드 목록) |
 | EP-SPEC-16 | `POST /api/v1/projects/{proj}/specs/{spec}/archive` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409 `NERV_PRECONDITION`(`details.kind="archive_blocked"`, 차단 사유 목록) | ★`spec.archived` |
 | EP-SPEC-17 | `POST /api/v1/projects/{proj}/specs/{spec}/restore` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` NULL) — 부모가 아카이브 상태면 409(`details.kind="parent_archived"`) | ★`spec.restored` |
+| EP-SPEC-18 | `GET /api/v1/projects/{proj}/specs/{spec}/relations` | 전 역할(`spec:read`) | `SpecRelationQuery`(direction: out/in/both 기본 both, kind?, cursor) | `Page<SpecRelationEntry>`(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — **역참조(backlink)가 1급이다**: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널([4.5 화면 명세](screens.md) §2.4)과 영향 미리보기의 데이터 소스 | — |
 
 스펙 **승인·거절 엔드포인트는 이 절에 없다.** `in_review → approved/rejected` 전이는 승인함의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 `nerv_spec_approve`가 존재하지 않는 것([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.
 
 **메타(트리)와 본문(버전)은 다른 축이다.** `spec` 행의 메타(title·parent_id·sort_key·owner_role)는 버전 이력을 만들지 않고 EP-SPEC-15로만 바뀐다 — FR-01 "문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다"의 실행 경로이며, 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 수단이다. 스코프 `spec:meta`는 PAT에 부여 가능하지만 대응 MCP 도구는 없다(도구 15종 불변) — 트리 구조는 거버넌스 대상이라 웹(S3 메타 다이얼로그 — [4.5 화면 명세](screens.md) §2.4)이 기본 경로다. 이에 따라 MCP `nerv_spec_draft_upsert`의 `parent_id`·`type`·`title` 입력은 **생성(spec_id 없음)에서만 소비**된다: 기존 spec_id 지정 호출에 현재 값과 다른 메타가 오면 무시하지 않고 409 `NERV_PRECONDITION`(`details.kind="meta_change_not_allowed"`, EP-SPEC-15 안내)을 반환하고, 같은 값이면 통과한다(멱등 재호출 보호). 아카이브(EP-SPEC-16)는 삭제가 아니다 — 행과 버전·관계·이벤트는 전부 남고, 트리(EP-SPEC-01)·검색(EP-SPEC-02)·목록 기본 결과에서 빠질 뿐이다(`?include_archived=true`로 포함).
 
 **`spec_relation`은 본문에서 자동 유도된다(MVP).** draft 저장(EP-SPEC-08 = `nerv_spec_draft_upsert`)이 커밋될 때, 서버는 본문에서 **실존하는 스펙 안정 ID**(`SPC-` 접두 표기 및 NERV 내부 스펙 URL)를 추출해 `spec_relation(kind='references', from=이 spec)` 행 집합을 그 저장 본문 기준으로 동기화한다(추가·제거 모두 — 규칙은 임포터 링크 패스 [4.7](importer.md) §2.4와 동일 코드). `references` 외의 kind(refines·depends_on 등)는 MVP에 편집 경로가 없다 — 임포터 산출 또는 Phase 2. approved 본문은 불변이므로 승인 이후 관계도 안정적이고, 참조 문서 전파(`spec.recheck_requested` — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3)는 이 행들의 역방향 조회로 동작한다. **임포트 없는 신규 프로젝트에서도 전파가 살아 있게 하는 것**이 이 규칙의 이유다.
+
+#### 2.2b 검색 파이프라인 — 하이브리드 + 관계 확장 (EP-SPEC-02 = `nerv_spec_search`)
+
+검색의 주 소비자는 사람만이 아니다 — `nerv_spec_search`는 P0 도구 8종에 포함되고 호출 시점이 "컨텍스트 수집·중복 확인"이다. 이 파이프라인의 품질이 곧 에이전트의 스펙 이해·중복 방지(FR-01) 품질이므로 MVP부터 하이브리드로 확정한다(2026-08-22 — [4.1](scope.md) §2.1). 검색 방식은 **서버 내부 판정**이며 표면 계약에 모드 선택 파라미터를 두지 않는다 — 두 표면 어디서 불러도 같은 코드가 같은 순서로 돈다(D-05).
+
+| 단계 | 동작 | 구현 축 |
+| --- | --- | --- |
+| ① ID 직행 | 질의가 안정 ID 패턴(`SPC-`·`REQ-`·`TSK-` prefix)에 매칭되면 해당 리소스를 최상위 반환 — 전문 검색을 거치지 않는다 | 정확 일치 + prefix |
+| ② 렉시컬 | FTS(`simple` — 영문·ID 토큰) + **pg_trgm**(한국어 조사 변형·부분 문자열) 병행. 대상: 제목·본문·requirement EARS 문장 | [4.3](database.md) §2.12 인덱스 |
+| ③ 벡터 | 질의를 `nerv-embed`(자가호스팅 — [4.2](codebase.md) §5.3)로 1회 임베딩 → `spec_chunk_embedding` HNSW cosine top-K. 청크 = 헤딩 앵커 단위라 결과가 곧 앵커 스니펫이다 | [4.3](database.md) §2.15 |
+| ④ 병합 랭킹 | ②·③을 **RRF**(Reciprocal Rank Fusion)로 병합 — 점수 정규화 없이 순위만 쓰는 결정적 병합. 문서 상태 부스트(approved > in_review > draft) 후 스펙 단위 그룹핑 | 서비스 계층 |
+| ⑤ 관계 확장 (graph RAG) | 상위 결과의 `spec_relation` 1-hop(`references`·`depends_on` 양방향)을 **`related[]` 별도 그룹**으로 병기 — 본 랭킹에 섞지 않는다(관계는 관련성의 근거이지 질의 일치가 아니다). 에이전트는 이 그룹으로 "언급되지 않았지만 걸려 있는 스펙"을 컨텍스트에 넣는다 | `spec_relation`(REQ-API-024가 채운다) |
+
+- **degrade 규칙**: `nerv-embed` 무응답 시 ③을 건너뛰고 ②만으로 응답하되 `degraded: "lexical-only"`를 표기한다(REQ-API-026). 검색은 조정 경로가 아니므로 fail-open이 맞다(D-14의 정신 — 판정 불가 시 진행 + 관측).
+- **인덱싱 시점**: 검색 인덱스 갱신은 워커 `embedding.job` 비동기다 — 저장 직후 수 초간 벡터 결과에 새 본문이 빠질 수 있고, 렉시컬은 트랜잭션 내 인덱스라 즉시 반영된다. 이 비대칭은 수용한다(스펙 검색은 실시간 조정이 아니다).
 
 초안 편집 리스는 EP-SPEC-08 성공 시 자동 획득·갱신되고(웹 표면), 타 사용자 보유 시 409 `NERV_DRAFT_LEASED`를 반환한다. TTL 30분·자동 인계·해제 조건은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2 정본을 따른다.
 
@@ -473,7 +491,7 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | --- | --- | --- | --- | --- |
 | `nerv_bootstrap` | A1 | `SessionService.bootstrap` | — (MCP 전용. 부분 대응: EP-SES-02 + EP-PRJ-03) | 세션 등록 + 컨텍스트 팩. 훅 ingest와 같은 서비스가 세션 상태를 관리 |
 | `nerv_spec_tree` | A1 | `SpecService.tree` | EP-SPEC-01 | |
-| `nerv_spec_search` | A1 | `SpecService.search` | EP-SPEC-02 | |
+| `nerv_spec_search` | A1 | `SpecService.search` | EP-SPEC-02 | 하이브리드 파이프라인 §2.2b — 두 표면 동일. `related[]`(관계 확장)·`degraded` 표기 포함(정의 정본 [3.4](../03-proposal/agent-integration.md) §2.3, 2026-08-22 갱신) |
 | `nerv_spec_get` | A1 | `SpecService.get` | EP-SPEC-03 | 본문은 비신뢰 래핑([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.3) — MCP 표면에서만. `version`/`baseline` 인자와 `basis_superseded` 표시는 두 표면 동일(기준 버전 규약 — 같은 문서 §2.4) |
 | `nerv_task_next` | A1 | `TaskService.next` | EP-TASK-02 | ready 큐 질의는 [데이터 모델](../03-proposal/data-model.md) §4.5. 응답에 기준 SpecVersion·베이스라인 포함(기준 버전 규약) |
 | `nerv_task_claim` | A2 | `TaskService.claim` | EP-TASK-06 | 겹침 판정·원자 전환이 이 메서드 안 — 표면 무관 동일 |
@@ -521,6 +539,9 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | REQ-API-022 | WHEN 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task가 있는 스펙에 EP-SPEC-16이 오면 THE SYSTEM SHALL 409(`details.kind="archive_blocked"`)로 거부하고, 아카이브된 스펙은 `include_archived` 없는 EP-SPEC-01·02 결과에서 제외하되 EP-SPEC-03 단건 조회는 계속 응답한다 | 하위 노드 보유 스펙 아카이브 시도 + 아카이브 후 트리/단건 조회 각 1건 |
 | REQ-API-023 | WHEN EP-PRJ-04의 `gate_policy`·`retention`이 §2.1a 스키마를 위반하거나 알 수 없는 키를 포함하면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`details.issues`)으로 전체를 거부하고 부분 적용하지 않는다 | 오타 키 1케이스 + 경계값 위반 1케이스 |
 | REQ-API-024 | WHEN draft 저장이 커밋되면 THE SYSTEM SHALL 본문에서 실존 스펙 안정 ID를 추출해 그 spec의 `kind='references'` 관계 집합을 저장 본문과 일치하게 동기화한다(추가·제거 포함) — 미실존 ID는 행을 만들지 않고 응답 경고로만 반환한다 | 링크 추가·제거 저장 후 spec_relation 조회 + 미실존 ID 경고 확인 |
+| REQ-API-025 | WHEN 검색 질의가 안정 ID 패턴이면 THE SYSTEM SHALL 해당 리소스를 최상위로 직행 반환하고, 그 외 질의는 렉시컬+벡터 RRF 병합 순위와 `related[]` 분리 그룹으로 응답한다(§2.2b) — REST와 MCP 두 표면의 결과가 동일하다 | ID 질의·한국어 질의·의미 질의 각 1건을 두 표면에서 실행해 대조 |
+| REQ-API-026 | WHEN 임베딩 서비스가 무응답이면 THE SYSTEM SHALL 렉시컬 결과만으로 200을 반환하고 `degraded: "lexical-only"`를 표기한다 — 검색 실패를 5xx로 전파하지 않는다 | nerv-embed 차단 상태에서 검색 1건 |
+| REQ-API-027 | WHEN EP-SPEC-18을 direction=both로 호출하면 THE SYSTEM SHALL 나가는 관계와 **역참조**를 kind·방향 표기와 함께 커서 페이지네이션으로 반환한다 | 역참조 30건 스펙에서 2페이지 조회 |
 
 ---
 

@@ -1189,7 +1189,7 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td><code>finding</code></td><td><code>UNIQUE (project_id, fingerprint)</code>, <code>(project_id, status, severity)</code></td><td>dedup + 리뷰 센터 큐</td></tr>
       <tr><td><code>approval</code></td><td><code>(project_id, assignee_user_id) WHERE decision IS NULL</code></td><td>승인함(§4.7)</td></tr>
       <tr><td><code>event</code></td><td><code>(project_id, occurred_at DESC)</code>, <code>(subject_type, subject_id, occurred_at)</code></td><td>피드·감사(§4.8)</td></tr>
-      <tr><td><code>spec_version</code></td><td>GIN tsvector(<code>title || body_md</code>)</td><td>스펙 전문 검색(FR-01)</td></tr>
+      <tr><td><code>spec_version</code></td><td><b>하이브리드 검색</b>(2026-08-22 MVP 확정 — <a href="scope.html">4.1 MVP 범위와 스택 확정</a> §2.1): GIN tsvector + pg_trgm(한국어·부분 일치) + pgvector HNSW(헤딩 청크 임베딩 — 인덱스 테이블 <code>spec_chunk_embedding</code>은 재생성 가능한 파생 데이터로 <b>엔티티 29종에 들지 않는다</b>, DDL 정본 <a href="database.html">4.3</a> §2.15) + <code>spec_relation</code> 1-hop 관계 확장</td><td>스펙 검색(FR-01) — 파이프라인 정본 <a href="api.html">4.4</a> §2.2b</td></tr>
     </tbody>
   </table></div>
   <p>파티션은 두 곳이다. <code>event</code>와 <code>activity</code>는 월 파티션(키: <code>occurred_at</code> / <code>created_at</code>)으로 두고 오래된 파티션은 콜드 아카이브로 분리한다. 이 둘이 유일하게 선형 성장하는 테이블이다.</p>

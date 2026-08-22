@@ -904,7 +904,7 @@ fingerprint = sha256(
 | `finding` | `UNIQUE (project_id, fingerprint)`, `(project_id, status, severity)` | dedup + 리뷰 센터 큐 |
 | `approval` | `(project_id, assignee_user_id) WHERE decision IS NULL` | 승인함(§4.7) |
 | `event` | `(project_id, occurred_at DESC)`, `(subject_type, subject_id, occurred_at)` | 피드·감사(§4.8) |
-| `spec_version` | GIN tsvector(`title || body_md`) | 스펙 전문 검색(FR-01) |
+| `spec_version` | **하이브리드 검색**(2026-08-22 MVP 확정 — [4.1 MVP 범위와 스택 확정](../04-mvp/scope.md) §2.1): GIN tsvector + pg_trgm(한국어·부분 일치) + pgvector HNSW(헤딩 청크 임베딩 — 인덱스 테이블 `spec_chunk_embedding`은 재생성 가능한 파생 데이터로 **엔티티 29종에 들지 않는다**, DDL 정본 [4.3](../04-mvp/database.md) §2.15) + `spec_relation` 1-hop 관계 확장 | 스펙 검색(FR-01) — 파이프라인 정본 [4.4](../04-mvp/api.md) §2.2b |
 
 파티션은 두 곳이다. `event`와 `activity`는 월 파티션(키: `occurred_at` / `created_at`)으로 두고 오래된 파티션은 콜드 아카이브로 분리한다. 이 둘이 유일하게 선형 성장하는 테이블이다.
 
