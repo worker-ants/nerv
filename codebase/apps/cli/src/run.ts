@@ -9,8 +9,9 @@
 // 수행해 자연 키 충돌을 미리 본다(REQ-IMP-011).
 
 import { basename, dirname } from 'node:path';
-import type { ImportProfile, ImportSpecItem } from '@nerv/schema';
+import type { ImportProfile, ImportSpecItem, ImportTaskItem } from '@nerv/schema';
 import { ImportClient } from './client/index.js';
+import { classifyPlan } from './parse/plan.js';
 import { parseFrontmatter, splitStatus } from './parse/frontmatter.js';
 import { extractRequirements } from './parse/requirements.js';
 import { scan } from './parse/scan.js';
@@ -24,6 +25,9 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
     options.profileFile !== undefined
       ? loadProfileFile(options.profileFile)
       : loadBuiltin(options.profile ?? 'clemvion');
+
+  // plan 패스는 스펙과 다른 트리를 읽고 다른 표면에 쓴다(EP-IMP-03) — 여기서 갈린다.
+  if (options.command === 'plan') return runPlanImport(options, profile);
 
   const files = scan(options.root, profile.scan.spec, profile.scan.exclude);
   const entries: ReportEntry[] = [];
@@ -83,6 +87,122 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
   }
 
   return report;
+}
+
+/**
+ * plan 임포트 — E11-S01·S02.
+ *
+ * 스펙 패스와 결정적으로 다른 점: **`ready` 가 없다.** 상태 매핑이 backlog·in_progress·done
+ * 셋뿐이고, research/ 는 Task 를 만들지 않는다. 그 결과 임포트 직후의 ready 큐는 비어 있고,
+ * 에이전트는 사람이 위임 명세를 채운 작업만 집어간다 — 그것이 FR-05 의 실물이다.
+ */
+async function runPlanImport(options: CliOptions, profile: ImportProfile): Promise<ImportReport> {
+  const patterns = profile.scan.plan ?? [];
+  const files = patterns.length === 0 ? [] : scan(options.root, patterns, profile.scan.exclude);
+  const entries: ReportEntry[] = [];
+  const items: ImportTaskItem[] = [];
+  const statusCounts: Record<string, number> = {};
+  const importedAt = new Date().toISOString();
+
+  for (const file of files) {
+    const { frontmatter, body } = parseFrontmatter(file.content);
+    const classified = classifyPlan(
+      { path: file.path, frontmatter, body },
+      {
+        unstartedSentinel: profile.task?.unstarted_sentinel ?? '(unstarted)',
+        importedAt,
+        ...(options.ownerMap === undefined ? {} : { ownerMap: options.ownerMap }),
+      },
+    );
+
+    if (classified.kind === 'reference' || classified.task === null) {
+      entries.push({
+        file: file.path,
+        line: null,
+        reason: classified.note ?? '참고 문서',
+        disposition: 'skipped',
+      });
+      statusCounts['reference'] = (statusCounts['reference'] ?? 0) + 1;
+      continue;
+    }
+
+    const task = classified.task;
+    statusCounts[task.status] = (statusCounts[task.status] ?? 0) + 1;
+    for (const warning of task.warnings) {
+      entries.push({ file: file.path, line: null, reason: warning, disposition: 'manual' });
+    }
+    if (task.assignee_user_id === null && task.owner_label !== null) {
+      statusCounts['unassigned'] = (statusCounts['unassigned'] ?? 0) + 1;
+    }
+
+    items.push({
+      source_path: task.source_path,
+      title: task.title,
+      body_md: task.body_md,
+      status: task.status,
+      assignee_user_id: task.assignee_user_id,
+      depends_on: [],
+    });
+  }
+
+  const report: ImportReport = {
+    profile: profile.profile,
+    root: options.root,
+    rootCommit: null,
+    scanned: files.length,
+    converted: items.length,
+    entries,
+    expectation: checkPlanExpectations(profile, files.length, statusCounts, entries),
+  };
+
+  if (options.server !== undefined && options.token !== undefined && options.apply) {
+    const client = new ImportClient({
+      server: options.server,
+      token: options.token,
+      project: options.project,
+    });
+    const applied = await client.tasks({ profile: profile.profile, items });
+    for (const item of applied.items) {
+      if (item.status === 'error') {
+        entries.push({
+          file: item.source_path,
+          line: null,
+          reason: item.detail ?? '적재 실패',
+          disposition: 'manual',
+        });
+      }
+    }
+  }
+
+  return report;
+}
+
+/** plan 기대 집계 — 선언된 경우에만 대조한다(REQ-IMP-016). */
+function checkPlanExpectations(
+  profile: ImportProfile,
+  scanned: number,
+  statusCounts: Record<string, number>,
+  entries: ReportEntry[],
+): ImportReport['expectation'] {
+  const results: ImportReport['expectation'] = [];
+  const expect = profile.expect;
+  if (expect?.plan_total !== undefined) {
+    const ok = expect.plan_total === scanned;
+    results.push({ field: 'plan_total', expected: expect.plan_total, actual: scanned, ok });
+    if (!ok) {
+      entries.push({
+        file: '(집계)',
+        line: null,
+        reason: `plan_total 불일치 — 기대 ${expect.plan_total} · 실제 ${scanned}`,
+        disposition: 'aborted',
+      });
+    }
+  }
+  for (const [status, expected] of Object.entries(expect?.plan_status_distribution ?? {})) {
+    const actual = statusCounts[status] ?? 0;
+    results.push({ field: `plan:${status}`, expected, actual, ok: expected === actual });
+  }
+  return results;
 }
 
 /** 한 파일을 스펙 항목으로. 실패는 조용히 버리지 않고 리포트에 올린다(§4.1). */

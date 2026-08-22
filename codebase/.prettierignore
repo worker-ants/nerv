@@ -8,3 +8,11 @@ packages/schema/drizzle
 
 # @tanstack/router-plugin 생성물
 apps/web/src/routeTree.gen.ts
+
+# 플러그인 패키지는 docs/04-mvp/plugin.md 전문의 **바이트 사본**이다(REQ-PLG-001).
+# 포매터가 손대면 문서 대조 테스트가 깨지고, 그 순간 "문서가 정본"이 거짓이 된다.
+plugin/skills/
+plugin/hooks/
+plugin/.mcp.json
+plugin/.claude-plugin/plugin.json
+plugin/statusline/

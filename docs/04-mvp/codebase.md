@@ -11,6 +11,8 @@ updated: 2026-08-22
 >
 > v0.9 변경(2026-08-22 — 구현 중 확인 태스크 착지): **운영 Postgres 위치를 클러스터 외부로 확정**(§6.0 신설 — E06-S05). 근거는 NFR-01의 compose 자가호스팅과 운영 k8s가 같은 접속 모델을 써야 한다는 것이다. §6.5 백업 절차의 "관리형이면 ①을 스냅샷+PITR로 대체" 조건이 이 판정으로 확정됐다.
 >
+> v0.9 변경(2026-08-22 — 구현 착수 중 발견): **플러그인 패키지 배치 확정**(§1.1·§1.2 — `codebase/plugin/`). [4.6 플러그인과 온보딩](plugin.md) §1.1이 `nerv-plugin/` 트리를 정의하면서도 저장소 어느 구역에 두는지는 어느 문서도 말하지 않아 구현이 막혔다. REQ-CB-015의 2구역 규칙(코드 = `codebase/`, 배포 산출물 = `deploy/`)에서 플러그인은 **코드 구역**이다 — 에이전트 호스트에서 실행되는 규약·스크립트이지 이 시스템의 배포 산출물이 아니다. pnpm 워크스페이스로 등록하되 빌드는 없고, 문서 전문 대조 테스트(REQ-PLG-001)를 `pnpm test`에 태우는 것이 워크스페이스로 두는 유일한 이유다. 다른 결정·요구는 불변.
+>
 > v0.8 변경(2026-08-22 — **배포 산출물 위치 개정, REQ-CB-015 변경**): 배포 트리를 `codebase/deploy/`에서 **저장소 루트 `deploy/`**로 옮긴다. 근거: 배포 산출물은 pnpm 워크스페이스가 아니고(`pnpm-workspace.yaml` glob 밖) 저장소 전체의 운영 자산이라 "모노레포 루트 = `codebase/`"라는 한 가지 뜻과 섞이지 않는 편이 낫다. ① REQ-CB-015를 2구역 규칙으로 개정(코드 = `codebase/`, 배포 산출물 = `deploy/`) ② 경로 표기 기준 분리 — `apps/*`·`packages/*`는 `codebase/` 기준, `deploy/*`는 저장소 루트 기준(§1.1) ③ **이미지 빌드 컨텍스트를 저장소 루트로 통일**(§5.3 `context: ../..`) — 웹 이미지가 `codebase/` 소스와 `deploy/docker/nginx/` 템플릿을 함께 봐야 하기 때문. Dockerfile `COPY`에 `codebase/` 접두, 저장소 루트 `.dockerignore` 신설(§6.1) ④ compose 실행은 `codebase/`에서 `-f ../deploy/compose/...`(§5.1·§4.5), kustomize는 저장소 루트에서(§6.3). 다른 결정·요구는 불변.
 >
 > v0.7 변경(2026-08-22 — 임베딩 제공자 추상화, [4.1](scope.md) v0.7과 짝): 임베딩 호출을 **OpenAI 호환 `/v1/embeddings` 단일 계약**으로 전환 — 환경 프로필 §5.2a 신설(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI), `NERV_EMBED_API_KEY` 추가, compose `embed`는 **로컬 프로필 전용**(profiles로 선택 기동), k8s `base/embed/`는 외부 제공자 오버레이에서 제외. REQ-CB-020 개정("자가호스팅만" 폐기 → 단일 계약 + env 결정), REQ-CB-021(1024차원 강제) 추가.
@@ -41,7 +43,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
   docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 스펙 임포터 §5)
   codebase/                     # ★ 구현 코드 전체 = 모노레포 루트 (REQ-CB-015)
     package.json                # 워크스페이스 스크립트 허브 (§5.1 명령 표)
-    pnpm-workspace.yaml         # packages: ["apps/*", "packages/*"]
+    pnpm-workspace.yaml         # packages: ["plugin", "apps/*", "packages/*"]
     pnpm-lock.yaml
     .nvmrc                      # Node LTS 핀 — 로컬·CI·이미지가 같은 값을 쓴다 (REQ-CB-002)
     tsconfig.base.json          # strict 공통 옵션 (§4.1)
@@ -69,6 +71,15 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
     packages/
       schema/                   # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
                                 #   임포트 배치 · 프로파일 zod 스키마도 여기가 정본 (apps/api ↔ apps/cli 공유 계약)
+    plugin/                     # @nerv/plugin — Claude Code 플러그인 패키지 (4.6 §1.1 전문의 실물)
+      .claude-plugin/           #   plugin.json · marketplace.json
+      .mcp.json                 #   MCP 서버 1개 (4.6 §3.3)
+      hooks/hooks.json          #   훅 6종 — 텔레메트리 평면 (4.6 §3.1)
+      skills/                   #   next · spec · impl · question · import (4.6 §2)
+      agents/                   #   nerv-spec-writer — 코드 쓰기 도구 미보유
+      bin/                      #   nerv-hook-forward(토큰 주입 폴백) · nerv-outbox(오프라인 큐)
+      statusline/               #   nerv-statusline.sh — 네트워크 왕복 없음 (4.6 §3.2)
+      plugin-package.spec.ts    #   문서 전문 대조 테스트 (REQ-PLG-001·003·006·008)
   deploy/                         # ★ 배포 산출물 — 저장소 루트 (REQ-CB-015, 2026-08-22 개정)
     compose/
       docker-compose.yml        # §5.3 전문 — 로컬·소규모 자가호스팅 정본
@@ -94,6 +105,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
 | `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~05 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
 | `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터만) |
+| `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 5종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
 의존 방향은 한쪽뿐이다: `apps/* → packages/schema`. `apps/web ↔ apps/api ↔ apps/cli` 간 직접 import는 금지하며 공유 계약(zod 스키마·타입·상수)은 전부 `@nerv/schema`를 거친다. `apps/cli`가 `apps/api`의 서비스를 import하지 않는다는 것이 REQ-CB-001의 적용례다 — CLI는 API의 클라이언트일 뿐 같은 프로세스가 아니다.

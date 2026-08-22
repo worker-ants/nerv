@@ -24,6 +24,9 @@ export const importProfileSchema = z.object({
     .object({
       spec_total: z.number().int().positive().optional(),
       status_distribution: z.record(z.string(), z.number().int()).optional(),
+      /** plan 패스의 기대 집계 — clemvion 은 450건·complete 387 이 실측 정본이다(importer.md §2.6) */
+      plan_total: z.number().int().positive().optional(),
+      plan_status_distribution: z.record(z.string(), z.number().int()).optional(),
     })
     .optional(),
   tree: z
@@ -187,6 +190,7 @@ export type ImportPreflightInput = z.infer<typeof importPreflightInputSchema>;
 export type ImportPreflightResult = z.infer<typeof importPreflightResultSchema>;
 export type ImportSpecBatchInput = z.infer<typeof importSpecBatchInputSchema>;
 export type ImportSpecItem = z.infer<typeof importSpecItemSchema>;
+export type ImportTaskItem = z.infer<typeof importTaskItemSchema>;
 export type ImportTaskBatchInput = z.infer<typeof importTaskBatchInputSchema>;
 export type ImportLinkBatchInput = z.infer<typeof importLinkBatchInputSchema>;
 export type ImportBatchResult = z.infer<typeof importBatchResultSchema>;

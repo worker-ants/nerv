@@ -1,0 +1,29 @@
+{
+  "$comment": "관리 기기용 관리형 settings 예시 — 정본: docs/03-proposal/agent-integration.md §3.4. 배포 경로는 OS별 관리형 설정 위치이며, 우선순위는 관리형 > CLI > 프로젝트 > 유저다.",
+  "extraKnownMarketplaces": {
+    "nerv-internal": {
+      "source": {
+        "source": "git",
+        "url": "https://git.example.com/nerv/nerv-plugin.git"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "nerv@nerv-internal": true
+  },
+  "env": {
+    "NERV_SERVER": "https://nerv.example.com",
+    "NERV_PROJECT": "clemvion"
+  },
+  "allowedHttpHookUrls": [
+    "https://nerv.example.com/ingest/hooks/session",
+    "https://nerv.example.com/ingest/hooks/tool",
+    "https://nerv.example.com/ingest/hooks/subagent",
+    "https://nerv.example.com/ingest/hooks/stop",
+    "https://nerv.example.com/ingest/hooks/session-end"
+  ],
+  "statusLine": {
+    "type": "command",
+    "command": "${CLAUDE_PLUGIN_ROOT}/statusline/nerv-statusline.sh"
+  }
+}

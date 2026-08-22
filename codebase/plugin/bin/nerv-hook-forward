@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# nerv-hook-forward — 훅 이벤트 포워더 (plugin.md §3.1 주의 · Codex 공용)
+#
+# 존재 이유는 하나다: 훅 `headers` 에서 `${NERV_TOKEN}` 확장이 되지 않는 호스트가 있을 때
+# `type:"http"` 를 `type:"command"` 로 바꿔 **같은 요청을 같은 엔드포인트에** 보내기 위해서다.
+# 토큰 주입만 이 스크립트가 하고, 나머지는 http 훅과 동일하다 — 훅은 텔레메트리 평면이라
+# 끊겨도 세션은 진행되고 게이트는 서버가 유지한다.
+#
+# 사용: hooks.json 에서
+#   { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward session" }
+# stdin 으로 들어온 훅 페이로드를 그대로 전달한다.
+set -uo pipefail
+
+endpoint="${1:?사용법: nerv-hook-forward <session|tool|subagent|stop|session-end>}"
+base="${NERV_SERVER:-https://nerv.example.com}"
+payload="$(cat)"
+
+# 실패해도 0 으로 끝낸다 — 훅의 실패가 세션을 멈추면 텔레메트리가 조정 경로가 되어버린다.
+curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" \
+  --request POST "${base}/ingest/hooks/${endpoint}" \
+  --header "content-type: application/json" \
+  --header "Authorization: Bearer ${NERV_TOKEN:-}" \
+  --header "X-NERV-Project: ${NERV_PROJECT:-}" \
+  --header "X-NERV-Host: ${NERV_HOSTNAME:-$(hostname -s 2>/dev/null || echo unknown)}" \
+  --data "${payload}" >/dev/null 2>&1 || true
+
+exit 0

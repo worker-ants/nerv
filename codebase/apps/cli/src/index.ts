@@ -7,8 +7,9 @@
 // **dry-run 이 기본이다.** 서버에 쓰려면 `--apply` 를 명시해야 하고, dry-run 은 `--server`
 // 없이도 완주한다(REQ-IMP-011) — CI 에서 스펙 저장소 PR 검사로도 쓸 수 있다.
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseOwnerMap } from './parse/plan.js';
 import { runImport } from './run.js';
 import { exitCode, renderJsonl, renderMarkdown } from './report/index.js';
 
@@ -23,6 +24,8 @@ export interface CliOptions {
   apply: boolean;
   reportDir: string;
   mapPath: string;
+  /** owner 라벨 → 사용자 id (E11-S02). 매핑 없는 라벨은 unassigned 로 적재된다 */
+  ownerMap?: Record<string, string>;
 }
 
 export function parseArgs(argv: string[]): CliOptions {
@@ -55,6 +58,12 @@ export function parseArgs(argv: string[]): CliOptions {
     reportDir: flags.get('report-dir') ?? './nerv-import-report',
     mapPath: flags.get('map') ?? './nerv-import.map.json',
   };
+  const ownerMapPath = flags.get('owner-map');
+  if (ownerMapPath !== undefined && ownerMapPath !== '') {
+    // 파일이 없으면 조용히 넘어가지 않는다 — 매핑을 주려던 사람이 전원 unassigned 를 받는다
+    options.ownerMap = parseOwnerMap(readFileSync(ownerMapPath, 'utf8'));
+  }
+
   const profile = flags.get('profile');
   const profileFile = flags.get('profile-file');
   const server = flags.get('server') ?? process.env['NERV_SERVER'];

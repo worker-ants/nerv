@@ -1,0 +1,56 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/session",
+            "headers": {
+              "Authorization": "Bearer ${NERV_TOKEN}",
+              "X-NERV-Project": "${NERV_PROJECT}",
+              "X-NERV-Host": "${NERV_HOSTNAME}"
+            },
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/tool",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "async": true,
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
+    ],
+    "SubagentStop": [
+      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/stop",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/session-end" } ] }
+    ]
+  }
+}

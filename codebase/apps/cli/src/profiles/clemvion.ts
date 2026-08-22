@@ -19,6 +19,9 @@ export const clemvionProfile: ImportProfile = {
   expect: {
     spec_total: 135,
     status_distribution: { implemented: 117, partial: 17, backlog: 1 },
+    // plan 실측(importer.md §2.6 · 로드맵 §7.3(2)): 450건 · complete 387 · research 1
+    plan_total: 450,
+    plan_status_distribution: { done: 387, reference: 1 },
   },
   tree: {
     area_from_directory: true,

@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# nerv-outbox — 오프라인 쓰기 큐 (plugin.md §3.4 · REQ-PLG-011~013)
+#
+# 규칙 다섯 중 이 스크립트가 집행하는 것:
+#   ① 큐잉 조건은 NERV_UNAVAILABLE 뿐이다 — 4xx 는 큐잉하지 않는다(재전송해도 같은 실패이고,
+#      충돌 계열은 시간이 지나면 의미가 달라진다)
+#   ② flush 는 oldest-first, **원래 멱등 키 그대로** — 그래서 중복 실행이 없다
+#   ③ flush 중 4xx 는 그 항목만 outbox/failed/ 로 옮기고 계속한다(보고 대상이지 재시도 대상이 아니다)
+#   ④ 잔량 보고 — 조용히 사라지는 쓰기가 0이어야 한다
+#
+# 사용:
+#   nerv-outbox enqueue <tool> <idempotency_key> <session_id>   # stdin = 도구 입력 JSON
+#   nerv-outbox flush                                            # 서버 복구 후 재전송
+#   nerv-outbox status                                           # 잔량 보고(SessionEnd)
+set -uo pipefail
+
+dir="${NERV_CACHE_DIR:-.nerv}"
+outbox="${dir%/cache}/outbox"
+outbox="${outbox/#.nerv\/outbox/.nerv/outbox}"
+mkdir -p "$outbox"
+
+cmd="${1:-status}"
+
+case "$cmd" in
+  enqueue)
+    tool="${2:?tool}"; key="${3:?idempotency_key}"; session="${4:-}"
+    queued_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf '{"tool":%s,"input":%s,"idempotency_key":%s,"session_id":%s,"queued_at":%s,"attempts":1}\n' \
+      "\"$tool\"" "$(cat)" "\"$key\"" "\"$session\"" "\"$queued_at\"" \
+      > "$outbox/${queued_at//:/-}-${key}.json"
+    echo "queued: $tool ($key)"
+    ;;
+
+  flush)
+    base="${NERV_SERVER:-https://nerv.example.com}"
+    mkdir -p "$outbox/failed"
+    sent=0; failed=0
+    # oldest-first — 파일명이 queued_at 으로 시작하므로 사전순이 곧 시간순이다
+    for file in $(ls "$outbox"/*.json 2>/dev/null | sort); do
+      key="$(jq -r '.idempotency_key' "$file")"
+      body="$(jq -c '{jsonrpc:"2.0",id:1,method:"tools/call",params:{name:.tool,arguments:(.input + {idempotency_key:.idempotency_key})}}' "$file")"
+      code="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --request POST "${base}/mcp" \
+        --header "content-type: application/json" \
+        --header "Authorization: Bearer ${NERV_TOKEN:-}" \
+        --header "mcp-protocol-version: 2026-07-28" \
+        --data "$body" 2>/dev/null || echo 000)"
+      if [[ "$code" == "200" ]]; then
+        rm -f "$file"; sent=$((sent + 1))
+      elif [[ "$code" =~ ^4 ]]; then
+        mv "$file" "$outbox/failed/"; failed=$((failed + 1))
+      else
+        # 여전히 서버가 없다 — 남겨두고 멈춘다. 순서를 지키기 위해서다.
+        break
+      fi
+      unset key
+    done
+    echo "flush: 성공 ${sent} · 4xx ${failed} · 잔량 $(ls "$outbox"/*.json 2>/dev/null | wc -l | tr -d ' ')"
+    ;;
+
+  status)
+    count="$(ls "$outbox"/*.json 2>/dev/null | wc -l | tr -d ' ')"
+    if [[ "$count" == "0" ]]; then
+      echo "outbox 비어 있음"
+    else
+      oldest="$(ls "$outbox"/*.json 2>/dev/null | sort | head -1)"
+      echo "outbox 잔량 ${count}건 · 최고령 $(basename "$oldest")"
+    fi
+    ;;
+
+  *)
+    echo "사용법: nerv-outbox <enqueue|flush|status>" >&2
+    exit 64
+    ;;
+esac

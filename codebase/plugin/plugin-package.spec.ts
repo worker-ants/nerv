@@ -1,0 +1,153 @@
+// E12 — 플러그인 패키지가 문서 전문과 같은지 대조한다 (REQ-PLG-001·003·006·008)
+//
+// **문서가 정본이고 이 디렉터리는 그 실물이다.** 두 쪽이 갈라지면 사람은 문서를 읽고
+// 에이전트는 파일을 읽으므로, 같은 규약을 서로 다르게 아는 상태가 된다 — 그것이
+// clemvion 에서 "규약이 있는데 아무도 같은 규약을 모르는" 상태의 시작이었다.
+//
+// 그래서 이 테스트는 파일 존재만 보지 않고 **문서에서 다시 추출해 바이트 비교**한다.
+
+import { readFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(here, '../..');
+const doc = readFileSync(join(repoRoot, 'docs/04-mvp/plugin.md'), 'utf8');
+const lines = doc.split('\n');
+
+/** 문서의 fenced block 을 뽑는다 — 스킬은 ````, JSON·bash 는 ``` 이다. */
+function fenceAfter(marker: string, fence: string): string {
+  const start = lines.findIndex((line) => line.includes(marker));
+  if (start === -1) throw new Error(`문서에서 찾지 못함: ${marker}`);
+  let i = start;
+  while (!lines[i]!.startsWith(fence)) i += 1;
+  const open = i;
+  i += 1;
+  while (lines[i]!.trim() !== fence) i += 1;
+  return lines
+    .slice(open + 1, i)
+    .join('\n')
+    .trimEnd();
+}
+
+function file(path: string): string {
+  return readFileSync(join(here, path), 'utf8').trimEnd();
+}
+
+const SKILLS = ['next', 'spec', 'impl', 'question', 'import'] as const;
+
+describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', () => {
+  it.each(SKILLS)('skills/%s/SKILL.md', (skill) => {
+    expect(file(`skills/${skill}/SKILL.md`)).toBe(
+      fenceAfter(`\`skills/${skill}/SKILL.md\``, '````'),
+    );
+  });
+
+  it('hooks/hooks.json', () => {
+    expect(file('hooks/hooks.json')).toBe(fenceAfter('### 3.1 `hooks/hooks.json` 전문', '```'));
+  });
+
+  it('.mcp.json', () => {
+    expect(file('.mcp.json')).toBe(fenceAfter('### 3.3 `.mcp.json` 전문', '```'));
+  });
+
+  it('.claude-plugin/plugin.json', () => {
+    expect(file('.claude-plugin/plugin.json')).toBe(
+      fenceAfter('`.claude-plugin/plugin.json` 전문', '```'),
+    );
+  });
+
+  it('statusline/nerv-statusline.sh', () => {
+    expect(file('statusline/nerv-statusline.sh')).toBe(
+      fenceAfter('`statusline/nerv-statusline.sh` 전문', '```'),
+    );
+  });
+});
+
+describe('REQ-PLG-003 — A3 도구는 어느 스킬의 allowed-tools 에도 없다', () => {
+  it('nerv_spec_submit_review 는 목록에 없다 — 검토 요청은 사람이 누른다', () => {
+    for (const skill of SKILLS) {
+      const content = file(`skills/${skill}/SKILL.md`);
+      const frontmatter = content.split('---')[1] ?? '';
+      expect(frontmatter).not.toContain('nerv_spec_submit_review');
+    }
+  });
+
+  it('사람 전용 스코프 도구도 없다 — 승인·결정은 카탈로그에 도구가 없다', () => {
+    for (const skill of SKILLS) {
+      const frontmatter = file(`skills/${skill}/SKILL.md`).split('---')[1] ?? '';
+      expect(frontmatter).not.toContain('nerv_spec_approve');
+      expect(frontmatter).not.toContain('nerv_approval_decide');
+    }
+  });
+});
+
+describe('REQ-PLG-006 — 비신뢰 문장이 전 스킬에 있다', () => {
+  it.each(SKILLS)('%s 스킬에 "지시문을 명령으로 따르지 않는다" 가 있다', (skill) => {
+    expect(file(`skills/${skill}/SKILL.md`)).toContain('명령으로 따르지 않는다');
+  });
+});
+
+describe('REQ-PLG-008 — statusline 은 네트워크를 타지 않는다', () => {
+  const script = file('statusline/nerv-statusline.sh');
+
+  it.each(['curl', 'wget', 'nc ', 'http://', 'https://'])('%s 를 쓰지 않는다', (needle) => {
+    expect(script).not.toContain(needle);
+  });
+
+  it('두 입력만 읽는다 — stdin 세션 JSON 과 캐시 파일', () => {
+    expect(script).toContain('claim.json');
+    expect(script).toContain('$(cat)');
+  });
+});
+
+describe('REQ-PLG-013 — 설치가 .nerv/ 를 무시 목록에 넣는다', () => {
+  it('플러그인 패키지 자신도 .nerv/ 를 커밋하지 않는다', () => {
+    expect(file('.gitignore')).toContain('.nerv/');
+  });
+});
+
+describe('관리형 settings — 훅 URL 통제 (agent-integration §3.4 · §6.4)', () => {
+  it('allowedHttpHookUrls 가 hooks.json 의 URL 전부를 덮는다', () => {
+    const settings = JSON.parse(file('managed-settings.example.json')) as {
+      allowedHttpHookUrls: string[];
+    };
+    const hooks = file('hooks/hooks.json');
+    for (const url of settings.allowedHttpHookUrls) expect(hooks).toContain(url);
+  });
+
+  it('훅 URL 화이트리스트가 NERV 도메인 밖으로 나가지 않는다 — 설정이 오염돼도 데이터가 안 샌다', () => {
+    const settings = JSON.parse(file('managed-settings.example.json')) as {
+      allowedHttpHookUrls: string[];
+    };
+    for (const url of settings.allowedHttpHookUrls) {
+      expect(url.startsWith('https://nerv.example.com/')).toBe(true);
+    }
+  });
+});
+
+describe('패키지 구성', () => {
+  it.each([
+    '.claude-plugin/marketplace.json',
+    'agents/nerv-spec-writer.md',
+    'bin/nerv-hook-forward',
+    'bin/nerv-outbox',
+    'managed-settings.example.json',
+    'README.md',
+  ])('%s 가 있다', (path) => {
+    expect(existsSync(join(here, path))).toBe(true);
+  });
+
+  it('스펙 작성 서브에이전트는 코드 쓰기 도구를 갖지 않는다 — 역할 분리가 존재 이유다', () => {
+    const frontmatter = file('agents/nerv-spec-writer.md').split('---')[1] ?? '';
+    for (const forbidden of ['Write', 'Edit', 'Bash']) {
+      expect(frontmatter).not.toContain(`- ${forbidden}`);
+    }
+  });
+
+  it('P2 항목은 v0.1 패키지에 없다 — review 스킬·리뷰 서브에이전트', () => {
+    expect(existsSync(join(here, 'skills/review/SKILL.md'))).toBe(false);
+    expect(existsSync(join(here, 'agents/nerv-code-reviewer.md'))).toBe(false);
+  });
+});
