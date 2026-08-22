@@ -4,7 +4,7 @@
 // 그러려면 승인이 여기서 되는 것만으로는 부족하고, 여기서 **되어야만** 해야 한다 —
 // 그래서 결정은 사람 전용이고 에이전트는 도구로도 도달할 수 없다.
 
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
@@ -21,30 +21,20 @@ export class ApprovalController {
     private readonly questions: QuestionService,
   ) {}
 
-  /** EP-APR-01 — 승인함. 내 결정을 기다리는 것만 온다 */
+  /** 프로젝트 스코프 승인함 — S2·S4 의 사이드 패널용. 전역 승인함은 EP-APR-01 이다 */
   @Get('inbox')
   inbox(@Req() req: ProjectRequest): Promise<InboxCard[]> {
     const { projectId, userId } = human(req);
     return this.approvals.inbox({ projectId, userId });
   }
 
-  /** EP-APR-03 — 결정. 사람 전용 */
-  @Post('approvals/:id/decide')
-  decide(
-    @Req() req: ProjectRequest,
-    @Param('id') id: string,
-    @Body() body: Record<string, unknown>,
-  ): Promise<unknown> {
-    const { projectId, userId } = human(req);
-    return this.approvals.decide({
+  /** EP-QST-01 — 열린 질문 목록 */
+  @Get('questions')
+  questionList(@Req() req: ProjectRequest, @Query('status') status?: string): Promise<unknown> {
+    const { projectId } = human(req);
+    return this.approvals.questions({
       projectId,
-      approvalId: id,
-      userId,
-      decision: (body['decision'] as ApprovalDecision | undefined) ?? 'comment',
-      ...(typeof body['comment'] === 'string' ? { comment: body['comment'] } : {}),
-      ...(typeof body['seen_content_hash'] === 'string'
-        ? { seenContentHash: body['seen_content_hash'] }
-        : {}),
+      status: status === 'answered' ? 'answered' : 'open',
     });
   }
 
@@ -96,4 +86,73 @@ function human(req: ProjectRequest): { projectId: string; userId: string } {
     });
   }
   return { projectId, userId: principal.userId };
+}
+
+/**
+ * 전역 승인함 — EP-APR-01·02·03. 경로에 프로젝트가 없다.
+ *
+ * **사람의 하루는 프로젝트로 나뉘어 있지 않다.** 승인이 프로젝트별로 흩어져 있으면
+ * "내가 지금 막고 있는 것"을 세는 곳이 없어지고, 그 순간 승인은 조용히 늦어진다(P4).
+ * 그래서 이 표면이 승인함의 정본이고, 프로젝트 스코프 inbox 는 화면 안의 부분 뷰다.
+ */
+@Controller('api/v1/approvals')
+export class ApprovalInboxController {
+  constructor(private readonly approvals: ApprovalService) {}
+
+  /** EP-APR-01 */
+  @Get()
+  list(
+    @Req() req: ProjectRequest,
+    @Query('state') state?: string,
+    @Query('project') project?: string,
+  ): Promise<unknown> {
+    return this.approvals.inboxGlobal({
+      userId: humanUser(req),
+      state: state === 'decided' ? 'decided' : 'pending',
+      projectSlug: project ?? null,
+    });
+  }
+
+  /** EP-APR-02 */
+  @Get(':id')
+  detail(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    return this.approvals.detail({ approvalId: id, userId: humanUser(req) });
+  }
+
+  /** EP-APR-03 — 결정. **사람 전용**이고, 지시자≠승인자 판정은 서비스 안에 있다 */
+  @Post(':id/decision')
+  async decide(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const userId = humanUser(req);
+    // 전역 경로라 프로젝트를 승인 행에서 되찾는다 — 멤버십 검사는 detail 이 이미 한다.
+    await this.approvals.detail({ approvalId: id, userId });
+    const projectId = await this.approvals.projectOfApproval(id);
+    return this.approvals.decide({
+      projectId,
+      approvalId: id,
+      userId,
+      decision: (body['decision'] as ApprovalDecision | undefined) ?? 'comment',
+      ...(typeof body['comment'] === 'string' ? { comment: body['comment'] } : {}),
+      ...(typeof body['seen_content_hash'] === 'string'
+        ? { seenContentHash: body['seen_content_hash'] }
+        : {}),
+    });
+  }
+}
+
+function humanUser(req: ProjectRequest): string {
+  const principal = req.nervPrincipal;
+  if (principal === undefined) {
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+  }
+  if (principal.isAgent) {
+    throw new NervError(NERV_ERROR.HUMAN_ONLY, '승인함은 사람 전용입니다.', {
+      kind: 'human_only',
+      web_url: '/inbox',
+    });
+  }
+  return principal.userId;
 }

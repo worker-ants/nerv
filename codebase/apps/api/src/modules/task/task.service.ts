@@ -94,6 +94,243 @@ export class TaskService {
     return rows;
   }
 
+  /** EP-TASK-01 — S4 보드 컬럼용. 상태별로 나누는 것은 화면 몫이고 여기는 목록만 준다. */
+  async list(input: {
+    projectId: string;
+    statuses?: string[] | null;
+    assigneeUserId?: string | null;
+    specId?: string | null;
+  }): Promise<Record<string, unknown>[]> {
+    const statuses = input.statuses ?? null;
+    const statusFilter =
+      statuses === null || statuses.length === 0
+        ? sql``
+        : sql` AND t.status IN (${sql.join(
+            statuses.map((st) => sql`${st}::task_status`),
+            sql`, `,
+          )})`;
+    const assignee =
+      input.assigneeUserId == null ? sql`` : sql` AND t.assignee_user_id = ${input.assigneeUserId}`;
+    const spec = input.specId == null ? sql`` : sql` AND sv.spec_id = ${input.specId}`;
+
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT t.id, t.key, t.title, t.status::text AS status, t.priority::text AS priority,
+             t.assignee_user_id, t.rebrief_required_at, t.blocked_reason, t.updated_at,
+             s.key AS spec_key, sv.version_no AS basis_version_no,
+             (sv.status = 'superseded') AS basis_superseded,
+             c.id AS claim_id, c.agent_session_id AS claim_session_id, c.lease_expires_at,
+             (t.goal_md IS NOT NULL AND t.output_format_md IS NOT NULL
+              AND t.tools_sources_md IS NOT NULL AND t.boundaries_md IS NOT NULL) AS delegation_complete
+        FROM task t
+   LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
+   LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN claim c ON c.task_id = t.id AND c.status = 'active'
+       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${spec}
+       ORDER BY t.priority, t.updated_at DESC
+    `);
+    return rows;
+  }
+
+  /** EP-TASK-04 — 위임 명세·활성 클레임·의존·Evidence 전량. */
+  async get(input: { projectId: string; taskKey: string }): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT t.*, t.status::text AS status, t.priority::text AS priority,
+             s.key AS spec_key, sv.version_no AS basis_version_no,
+             (sv.status = 'superseded') AS basis_superseded
+        FROM task t
+   LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
+   LEFT JOIN spec s ON s.id = sv.spec_id
+       WHERE t.project_id = ${input.projectId} AND t.key = ${input.taskKey}
+    `);
+    const task = rows[0];
+    if (task === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '작업을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        task: input.taskKey,
+      });
+    }
+
+    const taskId = task['id'] as string;
+    const { rows: claims } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT c.id, c.agent_session_id, c.status::text AS status, c.lease_expires_at, c.acquired_at,
+             se.external_session_id, se.hostname, se.agent_type::text AS agent_type, c.user_id
+        FROM claim c LEFT JOIN agent_session se ON se.id = c.agent_session_id
+       WHERE c.task_id = ${taskId} ORDER BY c.acquired_at DESC LIMIT 10
+    `);
+    const { rows: deps } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT d.depends_on_task_id, dt.key, dt.title, dt.status::text AS status
+        FROM task_dependency d JOIN task dt ON dt.id = d.depends_on_task_id
+       WHERE d.task_id = ${taskId}
+    `);
+    const { rows: evidence } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT id, kind::text AS kind, locator, source::text AS source, created_at
+        FROM evidence WHERE task_id = ${taskId} ORDER BY created_at
+    `);
+
+    return { ...task, claims, dependencies: deps, evidence };
+  }
+
+  /**
+   * EP-TASK-03 — 생성은 언제나 `backlog` 다.
+   *
+   * `ready` 로 직접 만들 수 없다는 것이 FR-05 의 핵심이다: 위임 명세 4요소가 채워졌는지
+   * 서버가 확인한 뒤에만 승격한다. 클레임 가능한 작업 = 지시가 완결된 작업이라는 등식이
+   * 깨지면 에이전트는 "무엇을 어디까지 하는지 모르는 채" 일을 시작하게 된다.
+   */
+  async create(input: {
+    projectId: string;
+    title: string;
+    bodyMd?: string | null;
+    sourceSpecVersionId?: string | null;
+    sourceRequirementId?: string | null;
+    priority?: string | null;
+    goalMd?: string | null;
+    outputFormatMd?: string | null;
+    toolsSourcesMd?: string | null;
+    boundariesMd?: string | null;
+    userId: string;
+  }): Promise<Record<string, unknown>> {
+    if (input.title.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, '제목이 필요합니다.', { kind: 'missing_title' });
+    }
+    return this.events.transact(async (tx, emit) => {
+      const taskId = newId();
+      const key = `TSK-${taskId.slice(-4)}`;
+      await tx.execute(sql`
+        INSERT INTO task (id, project_id, key, title, body_md, status, priority,
+                          source_spec_version_id, source_requirement_id,
+                          goal_md, output_format_md, tools_sources_md, boundaries_md)
+        VALUES (${taskId}, ${input.projectId}, ${key}, ${input.title}, ${input.bodyMd ?? null},
+                'backlog', ${input.priority ?? 'P2'}::task_priority,
+                ${input.sourceSpecVersionId ?? null}, ${input.sourceRequirementId ?? null},
+                ${input.goalMd ?? null}, ${input.outputFormatMd ?? null},
+                ${input.toolsSourcesMd ?? null}, ${input.boundariesMd ?? null})
+      `);
+      await emit({
+        type: NERV_EVENT.TASK_CREATED,
+        projectId: input.projectId,
+        subjectType: 'task',
+        subjectId: taskId,
+        actorUserId: input.userId,
+        isAgent: false,
+        toState: 'backlog',
+      });
+      return { task_id: taskId, key, status: 'backlog' };
+    });
+  }
+
+  /**
+   * EP-TASK-05 — 위임 명세·우선순위·의존 수정. **4요소가 채워지고 의존이 해소되면 서버가
+   * `ready` 로 승격한다** — 사람이 상태를 직접 올리는 경로를 두지 않는 것이 요점이다.
+   */
+  async update(input: {
+    projectId: string;
+    taskKey: string;
+    title?: string | null;
+    bodyMd?: string | null;
+    priority?: string | null;
+    goalMd?: string | null;
+    outputFormatMd?: string | null;
+    toolsSourcesMd?: string | null;
+    boundariesMd?: string | null;
+    assigneeUserId?: string | null;
+    dependsOnKeys?: string[] | null;
+    userId: string;
+  }): Promise<Record<string, unknown>> {
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{
+        id: string;
+        status: string;
+        goal_md: string | null;
+        output_format_md: string | null;
+        tools_sources_md: string | null;
+        boundaries_md: string | null;
+      }>(sql`
+        SELECT id, status::text AS status, goal_md, output_format_md, tools_sources_md, boundaries_md
+          FROM task WHERE project_id = ${input.projectId} AND key = ${input.taskKey} FOR UPDATE
+      `);
+      const task = rows[0];
+      if (task === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, '작업을 찾을 수 없습니다.', {
+          kind: 'not_found',
+          task: input.taskKey,
+        });
+      }
+
+      const merged = {
+        goal_md: input.goalMd ?? task.goal_md,
+        output_format_md: input.outputFormatMd ?? task.output_format_md,
+        tools_sources_md: input.toolsSourcesMd ?? task.tools_sources_md,
+        boundaries_md: input.boundariesMd ?? task.boundaries_md,
+      };
+
+      await tx.execute(sql`
+        UPDATE task
+           SET title = coalesce(${input.title ?? null}, title),
+               body_md = coalesce(${input.bodyMd ?? null}, body_md),
+               priority = coalesce(${input.priority ?? null}::task_priority, priority),
+               goal_md = ${merged.goal_md}, output_format_md = ${merged.output_format_md},
+               tools_sources_md = ${merged.tools_sources_md}, boundaries_md = ${merged.boundaries_md},
+               assignee_user_id = coalesce(${input.assigneeUserId ?? null}, assignee_user_id),
+               updated_at = now()
+         WHERE id = ${task.id}
+      `);
+
+      if (input.dependsOnKeys != null) {
+        await tx.execute(sql`DELETE FROM task_dependency WHERE task_id = ${task.id}`);
+        for (const key of input.dependsOnKeys) {
+          await tx.execute(sql`
+            INSERT INTO task_dependency (task_id, depends_on_task_id)
+            SELECT ${task.id}, id FROM task WHERE project_id = ${input.projectId} AND key = ${key}
+            ON CONFLICT DO NOTHING
+          `);
+        }
+      }
+
+      // 승격 판정 — backlog 에서만 올라간다. 이미 진행 중인 작업의 상태를 여기서 되돌리지 않는다.
+      let promoted = false;
+      const complete = Object.values(merged).every((v) => v !== null && v.trim() !== '');
+      if (task.status === 'backlog' && complete) {
+        const { rows: blocking } = await tx.execute<{ key: string }>(sql`
+          SELECT dt.key FROM task_dependency d JOIN task dt ON dt.id = d.depends_on_task_id
+           WHERE d.task_id = ${task.id} AND dt.status <> 'done'
+        `);
+        if (blocking.length === 0) {
+          await tx.execute(sql`UPDATE task SET status = 'ready' WHERE id = ${task.id}`);
+          promoted = true;
+          await emit({
+            type: NERV_EVENT.TASK_READY,
+            projectId: input.projectId,
+            subjectType: 'task',
+            subjectId: task.id,
+            actorUserId: input.userId,
+            isAgent: false,
+            fromState: 'backlog',
+            toState: 'ready',
+          });
+        }
+      }
+
+      if (!promoted) {
+        await emit({
+          type: NERV_EVENT.TASK_UPDATED,
+          projectId: input.projectId,
+          subjectType: 'task',
+          subjectId: task.id,
+          actorUserId: input.userId,
+          isAgent: false,
+        });
+      }
+
+      return {
+        task_id: task.id,
+        key: input.taskKey,
+        status: promoted ? 'ready' : task.status,
+        delegation_complete: complete,
+      };
+    });
+  }
+
   /**
    * 위임 명세 4요소 검증 — backlog·blocked 밖으로 나가려면 전부 채워져야 한다(§4.1).
    * CHECK 제약이 DB 에서 막지만, 거부 사유를 **누락 요소 이름으로** 돌려주는 것은 여기 몫이다.

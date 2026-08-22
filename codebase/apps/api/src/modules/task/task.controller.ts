@@ -1,46 +1,182 @@
 // REST — Task · 클레임 (docs/04-mvp/api.md §2.4)
 //
-// 표면은 번역만 한다(REQ-CB-003). 그런데 번역할 것이 아직 없다 — TaskService 의 클레임 엔진은
-// 구현됐지만(E04), 이 컨트롤러가 넘겨야 할 **인증 컨텍스트**(principal · project_id 해소 ·
-// session_id)가 E03-S02 에서 온다. 그때까지 표면은 열지 않는다: 주체를 모르는 채 클레임을
-// 만들면 "누가 이 작업을 한다"는 선언 자체가 성립하지 않는다.
-// 엔진의 동작은 그동안 L2 통합 테스트가 실제 DB 상대로 지킨다(codebase.md §4.3).
+// 표면은 번역만 한다(REQ-CB-003). 프로젝트 해소·멤버십은 가드가 끝내고 오고, 판정은 전부
+// TaskService 한 곳에 있다 — 클레임 원자성·done 게이트가 REST 와 MCP 에서 갈라질 수 없는 이유다(D-05).
 
-import { Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { NotImplementedYetError } from '../../common/nerv-exception.filter.js';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { NERV_ERROR } from '@nerv/schema';
+import { NervError } from '../../common/nerv-exception.filter.js';
+import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { TaskService } from './task.service.js';
 
-@Controller('api/v1/projects/:proj/tasks')
+@Controller('api/v1/projects/:proj')
+@UseGuards(ProjectAccessGuard)
 export class TaskController {
   constructor(private readonly tasks: TaskService) {}
 
+  /** EP-TASK-01 — S4 보드 */
+  @Get('tasks')
+  list(
+    @Req() req: ProjectRequest,
+    @Query('status') status?: string,
+    @Query('assignee') assignee?: string,
+    @Query('spec') spec?: string,
+  ): Promise<unknown> {
+    return this.tasks.list({
+      projectId: projectOf(req),
+      statuses: status === undefined || status === '' ? null : status.split(','),
+      assigneeUserId: assignee ?? null,
+      specId: spec ?? null,
+    });
+  }
+
   /** EP-TASK-02 */
-  @Get('next')
-  next(@Param('proj') _proj: string): never {
-    throw new NotImplementedYetError('E03-S02', 'ready 큐 REST 표면 — 인증 컨텍스트 배선 대기');
+  @Get('tasks/next')
+  next(@Req() req: ProjectRequest, @Query('limit') limit?: string): Promise<unknown> {
+    return this.tasks.next({
+      projectId: projectOf(req),
+      ...(limit === undefined ? {} : { limit: Number(limit) }),
+    });
+  }
+
+  /** EP-TASK-04 */
+  @Get('tasks/:task')
+  get(@Req() req: ProjectRequest, @Param('task') task: string): Promise<unknown> {
+    return this.tasks.get({ projectId: projectOf(req), taskKey: task });
+  }
+
+  /** EP-TASK-03 — 생성은 언제나 backlog 다. ready 승격은 서버 판정(FR-05) */
+  @Post('tasks')
+  create(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+    return this.tasks.create({
+      projectId: projectOf(req),
+      userId: principalOf(req).userId,
+      title: String(body['title'] ?? ''),
+      bodyMd: str(body['body_md']),
+      sourceSpecVersionId: str(body['source_spec_version_id']),
+      sourceRequirementId: str(body['source_requirement_id']),
+      priority: str(body['priority']),
+      goalMd: str(body['goal_md']),
+      outputFormatMd: str(body['output_format_md']),
+      toolsSourcesMd: str(body['tools_sources_md']),
+      boundariesMd: str(body['boundaries_md']),
+    });
+  }
+
+  /** EP-TASK-05 */
+  @Patch('tasks/:task')
+  update(
+    @Req() req: ProjectRequest,
+    @Param('task') task: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.tasks.update({
+      projectId: projectOf(req),
+      taskKey: task,
+      userId: principalOf(req).userId,
+      title: str(body['title']),
+      bodyMd: str(body['body_md']),
+      priority: str(body['priority']),
+      goalMd: str(body['goal_md']),
+      outputFormatMd: str(body['output_format_md']),
+      toolsSourcesMd: str(body['tools_sources_md']),
+      boundariesMd: str(body['boundaries_md']),
+      assigneeUserId: str(body['assignee_user_id']),
+      dependsOnKeys: Array.isArray(body['depends_on']) ? (body['depends_on'] as string[]) : null,
+    });
+  }
+
+  /** EP-TASK-09 — done 게이트 판정의 단일 지점(FR-10) */
+  @Post('tasks/:task/transition')
+  transition(
+    @Req() req: ProjectRequest,
+    @Param('task') task: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.tasks.transition({
+      projectId: projectOf(req),
+      taskId: task,
+      status: String(body['status'] ?? ''),
+      userId: principalOf(req).userId,
+      blockedReason: str(body['blocked_reason']),
+      specImpact: (body['spec_impact'] ?? null) as Record<string, unknown> | null,
+      ...(Array.isArray(body['evidence'])
+        ? { evidence: body['evidence'] as { kind: string; locator: string }[] }
+        : {}),
+    });
   }
 
   /** EP-TASK-06 */
-  @Post(':task/claim')
-  claim(): never {
-    throw new NotImplementedYetError('E03-S02', '클레임 REST 표면 — 인증 컨텍스트 배선 대기');
+  @Post('tasks/:task/claim')
+  claim(
+    @Req() req: ProjectRequest,
+    @Param('task') task: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const scope = (body['scope'] ?? {}) as Record<string, unknown>;
+    return this.tasks.claim({
+      projectId: projectOf(req),
+      taskId: task,
+      userId: principalOf(req).userId,
+      sessionId: str(body['session_id']),
+      // branch·worktree 는 클레임이 아니라 세션의 속성이다(agent_session) — 부트스트랩이 싣는다.
+      scope: {
+        specIds: Array.isArray(scope['spec_ids']) ? (scope['spec_ids'] as string[]) : [],
+        fileGlobs: Array.isArray(scope['file_globs']) ? (scope['file_globs'] as string[]) : [],
+      },
+      ...(typeof body['lease_seconds'] === 'number' ? { leaseSeconds: body['lease_seconds'] } : {}),
+    });
   }
 
   /** EP-TASK-07 */
-  @Post(':task/heartbeat')
-  heartbeat(): never {
-    throw new NotImplementedYetError('E03-S02', '하트비트 REST 표면 — 인증 컨텍스트 배선 대기');
+  @Post('claims/:claim/heartbeat')
+  heartbeat(
+    @Req() req: ProjectRequest,
+    @Param('claim') claim: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    // 프로젝트 소속 확인은 가드가 끝냈다 — 여기서는 클레임 ID 만 넘긴다.
+    projectOf(req);
+    void body;
+    return this.tasks.heartbeat({ claimId: claim });
   }
 
   /** EP-TASK-08 */
-  @Post(':task/release')
-  release(): never {
-    throw new NotImplementedYetError('E03-S02', '해제 REST 표면 — 인증 컨텍스트 배선 대기');
+  @Post('claims/:claim/release')
+  release(
+    @Req() req: ProjectRequest,
+    @Param('claim') claim: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    projectOf(req);
+    const reason = body['reason'];
+    return this.tasks.release({
+      claimId: claim,
+      userId: principalOf(req).userId,
+      reason: reason === 'done' || reason === 'abandon' ? reason : 'handoff',
+    });
   }
+}
 
-  /** EP-TASK-09 — done 게이트 판정의 단일 지점. REST 배선은 E08-S05 */
-  @Patch(':task')
-  update(): never {
-    throw new NotImplementedYetError('E08-S05', 'Task 전이 REST 표면 — 인증 컨텍스트 배선 대기');
+function str(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function projectOf(req: ProjectRequest): string {
+  const projectId = req.nervProjectId;
+  if (projectId === undefined) {
+    throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트가 해소되지 않았습니다.', {
+      kind: 'unresolved_project',
+    });
   }
+  return projectId;
+}
+
+function principalOf(req: ProjectRequest): { userId: string } {
+  const principal = req.nervPrincipal;
+  if (principal === undefined) {
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+  }
+  return principal;
 }

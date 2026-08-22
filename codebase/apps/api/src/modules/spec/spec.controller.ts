@@ -166,6 +166,108 @@ export class SpecController {
     });
   }
 
+  /** EP-COV-01 — 관계 그래프 집계다(§5.5). 문서 안의 ✅ 가 아니다 */
+  @Get('coverage')
+  coverage(@Req() req: ProjectRequest, @Query('spec') spec?: string): Promise<unknown> {
+    return this.specs.coverage({ projectId: projectOf(req), specKey: spec ?? null });
+  }
+
+  /** EP-REQ-01 */
+  @Get('requirements')
+  requirements(
+    @Req() req: ProjectRequest,
+    @Query('spec') spec?: string,
+    @Query('impl_status') implStatus?: string,
+  ): Promise<unknown> {
+    return this.specs.requirements({
+      projectId: projectOf(req),
+      specKey: spec ?? null,
+      implStatus: implStatus ?? null,
+    });
+  }
+
+  /** EP-REQ-02 */
+  @Get('requirements/:ref')
+  requirement(@Req() req: ProjectRequest, @Param('ref') ref: string): Promise<unknown> {
+    return this.specs.requirement({ projectId: projectOf(req), ref });
+  }
+
+  /** EP-REQ-03 — CI 가 PAT 로 부르는 경로이기도 하다 */
+  @Post('requirements/:ref/evidence')
+  addEvidence(
+    @Req() req: ProjectRequest,
+    @Param('ref') ref: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = req.nervPrincipal;
+    if (principal === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    }
+    return this.specs.addEvidence({
+      projectId: projectOf(req),
+      ref,
+      kind: String(body['kind'] ?? 'pr'),
+      locator: String(body['locator'] ?? ''),
+      repo: typeof body['repo'] === 'string' ? body['repo'] : null,
+      userId: principal.userId,
+    });
+  }
+
+  /** EP-CMT-01 */
+  @Get('specs/:spec/comments')
+  commentList(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    @Query('status') status?: string,
+  ): Promise<unknown> {
+    return this.comments.list({
+      projectId: projectOf(req),
+      specKey: spec,
+      status: status === 'resolved' ? 'resolved' : status === 'open' ? 'open' : null,
+    });
+  }
+
+  /** EP-CMT-02 — viewer 도 쓴다. 지적은 권한이 아니라 참여다 */
+  @Post('spec-versions/:ver/comments')
+  addComment(
+    @Req() req: ProjectRequest,
+    @Param('ver') ver: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = req.nervPrincipal;
+    if (principal === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    }
+    return this.comments.add({
+      projectId: projectOf(req),
+      specVersionId: ver,
+      anchor: String(body['anchor'] ?? ''),
+      bodyMd: String(body['body_md'] ?? ''),
+      userId: principal.userId,
+    });
+  }
+
+  /** EP-CMT-04 */
+  @Post('comments/:id/resolve')
+  resolveComment(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = req.nervPrincipal;
+    if (principal === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    }
+    return this.comments.resolve({
+      projectId: projectOf(req),
+      commentId: id,
+      userId: principal.userId,
+      resolutionNote: typeof body['resolution_note'] === 'string' ? body['resolution_note'] : null,
+      resolvedInVersionId:
+        typeof body['resolved_in_version_id'] === 'string' ? body['resolved_in_version_id'] : null,
+    });
+  }
+
   /** EP-SPEC-04 */
   @Get('specs/:spec/versions')
   versions(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {

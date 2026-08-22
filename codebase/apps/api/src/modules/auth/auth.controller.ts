@@ -1,7 +1,15 @@
 // REST — 조직 · 프로젝트 · 멤버 · 토큰 (S8) — docs/04-mvp/api.md §2.1
-import { Controller, Get, Post } from '@nestjs/common';
-import { NotImplementedYetError } from '../../common/nerv-exception.filter.js';
+//
+// 표면은 번역만 한다(REQ-CB-003). 역할 판정은 AuthService 안에 있다 — 화면의 비활성 버튼과
+// 여기의 403 이 **같은 규칙의 두 표현**이어야 하고, 규칙이 두 벌이면 그중 하나는 반드시 틀린다.
+
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { NERV_ERROR } from '@nerv/schema';
+import { NervError } from '../../common/nerv-exception.filter.js';
+import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { AuthService } from './auth.service.js';
+import type { MembershipRole, Principal } from './auth.service.js';
 
 @Controller('api/v1')
 export class AuthController {
@@ -9,19 +17,137 @@ export class AuthController {
 
   /** EP-AUTH-01 */
   @Get('me')
-  me(): never {
-    throw new NotImplementedYetError('E03-S02', 'GET /api/v1/me');
+  me(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.auth.me(principalOf(req).userId);
   }
 
   /** EP-ORG-01 */
   @Get('orgs')
-  orgs(): never {
-    throw new NotImplementedYetError('E03-S02', 'GET /api/v1/orgs');
+  orgs(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.auth.orgs(principalOf(req).userId);
   }
 
-  /** EP-TOK-02 — 원문은 이 응답에서 한 번만 나간다 */
-  @Post('me/tokens')
-  issueToken(): never {
-    throw new NotImplementedYetError('E03-S02', 'PAT 발급 엔드포인트');
+  /** EP-PRJ-01 */
+  @Get('orgs/:org/projects')
+  projects(@Req() req: ProjectRequest, @Param('org') org: string): Promise<unknown> {
+    return this.auth.projects({ userId: principalOf(req).userId, orgSlug: org });
   }
+
+  /** EP-MBR-01 */
+  @Get('orgs/:org/members')
+  members(@Param('org') org: string): Promise<unknown> {
+    return this.auth.members(org);
+  }
+
+  /** EP-TOK-01 — 원문 없음 */
+  @Get('me/tokens')
+  tokens(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.auth.tokens(principalOf(req).userId);
+  }
+
+  /** EP-TOK-02 — **원문은 이 응답에서 한 번만 나간다** */
+  @Post('me/tokens')
+  async issueToken(
+    @Req() req: ProjectRequest,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = principalOf(req);
+    // PAT 가 PAT 를 발급하는 경로는 막는다 — 스코프 상속의 사슬이 사람에서 시작해야 한다(D-08).
+    if (principal.isAgent) {
+      throw new NervError(NERV_ERROR.HUMAN_ONLY, '토큰 발급은 사람만 할 수 있습니다.', {
+        kind: 'human_only',
+        web_url: '/settings/tokens',
+      });
+    }
+    const project = await this.auth.resolveProject(String(body['project'] ?? ''));
+    if (project === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+        kind: 'not_found',
+        project: body['project'],
+      });
+    }
+    await this.auth.assertMembership(principal.userId, project.id);
+    return this.auth.issueToken({
+      projectId: project.id,
+      userId: principal.userId,
+      name: String(body['name'] ?? 'agent'),
+      scopes: Array.isArray(body['scopes']) ? (body['scopes'] as string[]) : [],
+      expiresAt: typeof body['expires_at'] === 'string' ? new Date(body['expires_at']) : null,
+    });
+  }
+
+  /** EP-TOK-03 — 즉시 폐기 */
+  @Delete('me/tokens/:id')
+  async revokeToken(@Req() req: ProjectRequest, @Param('id') id: string): Promise<{ ok: true }> {
+    await this.auth.revokeToken(id, principalOf(req).userId);
+    return { ok: true };
+  }
+}
+
+/** 프로젝트 스코프가 필요한 조직 설정 표면 — 가드가 역할을 실어 온다. */
+@Controller('api/v1/projects/:proj')
+@UseGuards(ProjectAccessGuard)
+export class ProjectController {
+  constructor(private readonly auth: AuthService) {}
+
+  /** EP-PRJ-03 */
+  @Get()
+  project(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.auth.project(req.nervProjectId ?? '');
+  }
+
+  /** EP-PRJ-04 — 게이트 정책·위험도 임계는 admin 전용 */
+  @Patch()
+  update(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+    return this.auth.updateProject({
+      projectId: req.nervProjectId ?? '',
+      role: roleOf(req),
+      name: str(body['name']),
+      description: str(body['description']),
+      repoUrl: str(body['repo_url']),
+      defaultBranch: str(body['default_branch']),
+      gatePolicy: (body['gate_policy'] ?? null) as Record<string, unknown> | null,
+      retention: (body['retention'] ?? null) as Record<string, unknown> | null,
+    });
+  }
+
+  /** EP-MBR-03 */
+  @Patch('memberships/:id')
+  updateMembership(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.auth.updateMembership({
+      membershipId: id,
+      role: String(body['role'] ?? ''),
+      actorRole: roleOf(req),
+    });
+  }
+
+  /** EP-MBR-04 */
+  @Delete('memberships/:id')
+  removeMembership(@Req() req: ProjectRequest, @Param('id') id: string): Promise<{ ok: true }> {
+    return this.auth.removeMembership({ membershipId: id, actorRole: roleOf(req) });
+  }
+}
+
+function str(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function principalOf(req: ProjectRequest): Principal {
+  const principal = req.nervPrincipal;
+  if (principal === undefined) {
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+  }
+  return principal;
+}
+
+function roleOf(req: ProjectRequest): MembershipRole {
+  const role = req.nervRole;
+  if (role === undefined) {
+    throw new NervError(NERV_ERROR.FORBIDDEN, '역할이 확인되지 않았습니다.', { kind: 'no_role' });
+  }
+  return role;
 }

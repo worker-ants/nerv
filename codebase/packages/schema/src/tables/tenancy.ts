@@ -4,7 +4,16 @@
 // AuthModule 이 소유한다(codebase.md §2.3). project.id 는 전 도메인 테이블의 파티션 키다.
 
 import { sql } from 'drizzle-orm';
-import { index, jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { memberRole, userState } from '../enums.js';
 import { bytea, citext, createdAt, idPk, ts } from './_columns.js';
 
@@ -24,6 +33,10 @@ export const user = pgTable('user', {
   displayName: text('display_name').notNull(),
   avatarUrl: text('avatar_url'),
   state: userState('state').notNull().default('invited'),
+  // ↓ 인증 스택(better-auth) 요구 2컬럼. 도메인 필드가 아니라 인증 인프라의 요구다 —
+  //   tables/auth.ts 머리말과 같은 등급(4.3 §2.16). 도메인 코드는 이 둘을 읽지 않는다.
+  emailVerified: boolean('email_verified').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: createdAt(),
 });
 

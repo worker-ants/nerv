@@ -10,6 +10,7 @@
 // **커밋된 뒤에만** 방송되고, 롤백되면 한 건도 나가지 않는다. 손으로 순서를 맞출 여지를 없앤다.
 
 import { Injectable, Logger } from '@nestjs/common';
+import { sql } from 'drizzle-orm';
 import { EVENTS_CHANNEL, newId } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { event } from '@nerv/schema';
@@ -108,6 +109,44 @@ export class EventService {
    * 커밋 후 Valkey `nerv_events` 로 방송한다.
    * 페이로드는 **참조만** 담는다 — 상세는 수신자가 자기 권한으로 재조회한다(database.md §3.2).
    */
+  /**
+   * EP-EVT-01 — 이벤트 피드. 항목마다 `is_agent` 로 사람/에이전트를 구분한다(FR-16 · D-08).
+   * 그 구분이 없으면 "누가 이걸 했나"라는 감사의 첫 질문에 답할 수 없다.
+   */
+  async feed(input: {
+    projectId: string;
+    types?: string[] | null;
+    subjectId?: string | null;
+    limit?: number;
+    before?: string | null;
+  }): Promise<Record<string, unknown>[]> {
+    const types = input.types ?? null;
+    const typeFilter =
+      types === null || types.length === 0
+        ? sql``
+        : sql` AND e.type IN (${sql.join(
+            types.map((t) => sql`${t}`),
+            sql`, `,
+          )})`;
+    const subject = input.subjectId == null ? sql`` : sql` AND e.subject_id = ${input.subjectId}`;
+    const before =
+      input.before == null ? sql`` : sql` AND e.occurred_at < ${input.before}::timestamptz`;
+
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT e.id, e.type, e.subject_type::text AS subject_type, e.subject_id,
+             e.from_state, e.to_state, e.payload, e.is_agent, e.occurred_at,
+             u.display_name AS actor_name, se.hostname, se.agent_type::text AS agent_type,
+             se.external_session_id
+        FROM event e
+   LEFT JOIN "user" u ON u.id = e.actor_user_id
+   LEFT JOIN agent_session se ON se.id = e.actor_session_id
+       WHERE e.project_id = ${input.projectId}${typeFilter}${subject}${before}
+       ORDER BY e.occurred_at DESC
+       LIMIT ${Math.min(input.limit ?? 50, 200)}
+    `);
+    return rows;
+  }
+
   async broadcast(envelope: NervEventEnvelope): Promise<boolean> {
     const wire = JSON.stringify({
       id: envelope.id,

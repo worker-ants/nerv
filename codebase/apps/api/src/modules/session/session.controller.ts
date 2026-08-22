@@ -3,21 +3,18 @@
 // 표면은 번역만 한다(REQ-CB-003). 프로젝트 해소·멤버십 판정은 가드가 끝내고 온다 —
 // SSE 와 같은 이유이고 같은 판정기를 쓴다(D-05).
 
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
-import { NotImplementedYetError } from '../../common/nerv-exception.filter.js';
-import { ActivityService } from './activity.service.js';
+import { NERV_ERROR } from '@nerv/schema';
+import { NervError } from '../../common/nerv-exception.filter.js';
 import { SessionService } from './session.service.js';
 import type { SessionCard } from './session.service.js';
 
 @Controller('api/v1/projects/:proj/sessions')
 @UseGuards(ProjectAccessGuard)
 export class SessionController {
-  constructor(
-    private readonly sessions: SessionService,
-    private readonly activities: ActivityService,
-  ) {}
+  constructor(private readonly sessions: SessionService) {}
 
   /** EP-SES-01 — S5 세션 보드. Phase 0 은 읽기 전용 축소판이다(steer/stop 은 E08-S06). */
   @Get()
@@ -35,15 +32,53 @@ export class SessionController {
     return { items, summary, next_cursor: null };
   }
 
-  /** EP-SES-03 */
+  /** EP-SES-03 — seq 순 타임라인 */
   @Get(':sid/activities')
-  timeline(): never {
-    return this.activities.timeline();
+  timeline(
+    @Req() req: ProjectRequest,
+    @Param('sid') sid: string,
+    @Query('limit') limit?: string,
+  ): Promise<unknown> {
+    return this.sessions.timeline({
+      projectId: req.nervProjectId ?? '',
+      sessionId: sid,
+      ...(limit === undefined ? {} : { limit: Number(limit) }),
+    });
   }
 
-  /** EP-SES-04 — steer/stop 은 Phase 1 승격 범위다(FR-08) */
+  /** EP-SES-02 */
   @Get(':sid')
-  detail(): never {
-    throw new NotImplementedYetError('E08-S06', '세션 상세');
+  detail(@Req() req: ProjectRequest, @Param('sid') sid: string): Promise<unknown> {
+    return this.sessions.detail({ projectId: req.nervProjectId ?? '', sessionId: sid });
+  }
+
+  /**
+   * EP-SES-04 — steer/stop. **사람 전용**이다: 에이전트가 다른 에이전트를 멈추게 하는 경로를
+   * 열면 "사람이 개입하는 유일한 지점"이라는 FR-08 의 전제가 사라진다.
+   */
+  @Post(':sid/steer')
+  steer(
+    @Req() req: ProjectRequest,
+    @Param('sid') sid: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = req.nervPrincipal;
+    if (principal === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    }
+    if (principal.isAgent) {
+      throw new NervError(NERV_ERROR.HUMAN_ONLY, 'steer/stop 은 사람만 할 수 있습니다.', {
+        kind: 'human_only',
+        web_url: `/p/${String(req.params?.['proj'] ?? '')}/sessions`,
+      });
+    }
+    const kind = body['kind'] === 'stop' ? 'stop' : 'steer';
+    return this.sessions.steer({
+      projectId: req.nervProjectId ?? '',
+      sessionId: sid,
+      kind,
+      message: String(body['message'] ?? ''),
+      userId: principal.userId,
+    });
   }
 }

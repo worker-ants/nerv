@@ -667,6 +667,159 @@ export class SpecService {
     };
   }
 
+  /**
+   * EP-COV-01 — 커버리지. **문서 안의 ✅ 가 아니라 관계 그래프 집계다**(spec-workflow §5.5).
+   *
+   * 마지막 두 줄이 이 질의의 존재 이유다:
+   *   증적 결손 = implemented 라고 선언됐지만 Evidence 가 없는 요구사항
+   *   빈 약속   = 아무 Task 도 책임지지 않는 미구현 요구사항 (clemvion R-5 의 자동 검출)
+   * clemvion 은 이것을 NLP 휴리스틱으로 근사해야 했다. 관계가 있으면 휴리스틱이 필요 없다.
+   */
+  async coverage(input: {
+    projectId: string;
+    specKey?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const specFilter = input.specKey == null ? sql`` : sql` AND s.key = ${input.specKey}`;
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT s.id AS spec_id, s.key, s.title,
+             count(r.id)::int AS total,
+             count(*) FILTER (WHERE r.impl_status IN ('implemented', 'verified'))::int AS implemented,
+             count(*) FILTER (WHERE r.impl_status = 'verified')::int AS verified,
+             count(*) FILTER (WHERE r.impl_status = 'in_progress')::int AS in_progress,
+             count(*) FILTER (
+               WHERE r.impl_status = 'implemented'
+                 AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.requirement_id = r.id)
+             )::int AS evidence_missing,
+             count(*) FILTER (
+               WHERE r.impl_status = 'unimplemented'
+                 AND NOT EXISTS (SELECT 1 FROM task t WHERE t.source_requirement_id = r.id)
+             )::int AS empty_promises
+        FROM spec s
+   LEFT JOIN requirement r ON r.spec_id = s.id AND r.removed_in_version_id IS NULL
+       WHERE s.project_id = ${input.projectId} AND s.archived_at IS NULL${specFilter}
+       GROUP BY s.id, s.key, s.title
+       ORDER BY s.key
+    `);
+
+    interface CoverageTotals {
+      total: number;
+      implemented: number;
+      verified: number;
+      in_progress: number;
+      evidence_missing: number;
+      empty_promises: number;
+    }
+    const totals = rows.reduce<CoverageTotals>(
+      (acc, row) => ({
+        total: acc.total + Number(row['total'] ?? 0),
+        implemented: acc.implemented + Number(row['implemented'] ?? 0),
+        verified: acc.verified + Number(row['verified'] ?? 0),
+        in_progress: acc.in_progress + Number(row['in_progress'] ?? 0),
+        evidence_missing: acc.evidence_missing + Number(row['evidence_missing'] ?? 0),
+        empty_promises: acc.empty_promises + Number(row['empty_promises'] ?? 0),
+      }),
+      {
+        total: 0,
+        implemented: 0,
+        verified: 0,
+        in_progress: 0,
+        evidence_missing: 0,
+        empty_promises: 0,
+      },
+    );
+
+    return {
+      totals: {
+        ...totals,
+        unimplemented: totals.total - totals.implemented - totals.in_progress,
+        impl_ratio: totals.total === 0 ? null : totals.implemented / totals.total,
+        verified_ratio: totals.total === 0 ? null : totals.verified / totals.total,
+      },
+      specs: rows,
+    };
+  }
+
+  /** EP-REQ-01 */
+  async requirements(input: {
+    projectId: string;
+    specKey?: string | null;
+    implStatus?: string | null;
+  }): Promise<Record<string, unknown>[]> {
+    const specFilter = input.specKey == null ? sql`` : sql` AND s.key = ${input.specKey}`;
+    const statusFilter =
+      input.implStatus == null ? sql`` : sql` AND r.impl_status = ${input.implStatus}::impl_status`;
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT r.id, r.ref, r.statement_md, r.priority::text AS priority,
+             r.impl_status::text AS impl_status, r.verified_at,
+             s.key AS spec_key, s.title AS spec_title,
+             (SELECT count(*) FROM task t WHERE t.source_requirement_id = r.id)::int AS task_count,
+             (SELECT count(*) FROM evidence e WHERE e.requirement_id = r.id)::int AS evidence_count
+        FROM requirement r JOIN spec s ON s.id = r.spec_id
+       WHERE r.project_id = ${input.projectId}
+         AND r.removed_in_version_id IS NULL${specFilter}${statusFilter}
+       ORDER BY r.ref
+    `);
+    return rows;
+  }
+
+  /** EP-REQ-02 — 버전 이력 + 파생 Task + Evidence */
+  async requirement(input: { projectId: string; ref: string }): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT r.id, r.ref, r.statement_md, r.acceptance_md, r.priority::text AS priority,
+             r.impl_status::text AS impl_status, r.verified_at, s.key AS spec_key
+        FROM requirement r JOIN spec s ON s.id = r.spec_id
+       WHERE r.project_id = ${input.projectId} AND r.ref = ${input.ref}
+         AND r.removed_in_version_id IS NULL
+    `);
+    const requirement = rows[0];
+    if (requirement === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '요구사항을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        ref: input.ref,
+      });
+    }
+    const id = requirement['id'] as string;
+    const { rows: history } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT rv.spec_version_id, sv.version_no, rv.change_kind::text AS change_kind,
+             rv.statement_md, rv.created_at
+        FROM requirement_version rv JOIN spec_version sv ON sv.id = rv.spec_version_id
+       WHERE rv.requirement_id = ${id} ORDER BY sv.version_no
+    `);
+    const { rows: tasks } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT id, key, title, status::text AS status FROM task WHERE source_requirement_id = ${id}
+    `);
+    const { rows: evidence } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT id, kind::text AS kind, locator, source::text AS source, created_at
+        FROM evidence WHERE requirement_id = ${id} ORDER BY created_at
+    `);
+    return { ...requirement, history, tasks, evidence };
+  }
+
+  /**
+   * EP-REQ-03 — 증적 등록. CI 가 PAT 로 부르는 경로이기도 하다.
+   * 증적이 붙으면 impl_status 를 자동으로 올리지 **않는다** — 무엇이 구현됐다는 판단은
+   * 사람·게이트의 몫이고, 증적은 그 판단의 재료다(§5.5 "증적 결손"이 그래서 의미를 갖는다).
+   */
+  async addEvidence(input: {
+    projectId: string;
+    ref: string;
+    kind: string;
+    locator: string;
+    repo?: string | null;
+    userId: string;
+    sessionId?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const requirement = await this.requirement({ projectId: input.projectId, ref: input.ref });
+    const evidenceId = newId();
+    await this.db.execute(sql`
+      INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source)
+      VALUES (${evidenceId}, ${input.projectId}, ${requirement['id'] as string},
+              ${input.kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
+              ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
+    `);
+    return { evidence_id: evidenceId, ref: input.ref, kind: input.kind, locator: input.locator };
+  }
+
   // ── 내부 ─────────────────────────────────────────────────────────────────
 
   /**

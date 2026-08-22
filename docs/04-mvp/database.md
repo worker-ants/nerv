@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.4 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
+>
+> v0.5 변경(2026-08-22 — 구현 착수 중 발견): **인증 인프라 테이블 3종 신설**(§2.16 — `auth_session`·`auth_account`·`auth_verification` + `"user"` 2컬럼). 확정 스택(better-auth)이 요구하는 물리 테이블인데 §2 DDL 전문에 빠져 있어 웹 세션 인증을 구현할 수 없었다 — 도메인 엔티티가 아니므로 **29종 카운트는 그대로**다. 같은 절에서 organization 플러그인 미사용을 확정한다(조직·멤버십의 정본이 도메인 테이블이라 이중 저장이 된다). REQ-DB-018·019 추가.
 >
 > v0.4 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1 MVP 범위와 스택 확정](scope.md) §2.1): ① 확장 2종 추가 — `pg_trgm`(한국어·부분 일치)·`vector`(pgvector) ② **검색 인덱스 테이블 `spec_chunk_embedding` 신설**(§2.15) — 도메인 엔티티가 아니라 재생성 가능한 파생 데이터라 **엔티티 29종 카운트에 들지 않는다** ③ trigram GIN 인덱스(§2.12)·HNSW 인덱스(§2.15) — 병합 랭킹(RRF)은 [4.4 API 명세](api.md) §2.2b 소관 ④ REQ-DB-014~017. 검색 파이프라인 정본은 [4.4 API 명세](api.md) §2.2b.
 
@@ -826,6 +828,59 @@ CREATE INDEX spec_chunk_embedding_hnsw
 1. **인덱싱 대상은 최신 판만** — 스펙별 최신 approved 버전 + 현재 draft 버전. supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 판 검색은 렉시컬로 충분).
 2. **갱신 트리거** — draft 저장 커밋·승인·임포트 배치 후 이벤트를 워커가 소비해 청크 해시 비교 후 변경분만 임베딩한다. approved 본문은 불변이므로 버전당 최대 1회다.
 3. **모델 교체** — `model` 컬럼이 다른 행을 새로 쓰고, 전량 재임베딩 완료 후 구 모델 행을 드랍한다(검색은 단일 모델만 질의).
+
+### 2.16 인증 인프라 테이블 — better-auth 소유 (도메인 엔티티 아님)
+
+`spec_chunk_embedding`(§2.15)과 같은 등급이다 — **확정 스택([4.1](scope.md) §2.1의 better-auth)이 자기 동작을 위해 요구하는 물리 테이블**이며 엔티티 29종 카운트·[3.3 데이터 모델](../03-proposal/data-model.md)의 ERD에 들지 않는다. 세션 행을 전부 지워도 사람은 다시 로그인하면 되고 도메인 데이터는 하나도 잃지 않는다.
+
+```sql
+CREATE TABLE auth_session (                  -- 웹 세션 쿠키의 실체 (api.md §1.3 인증 ①)
+  id         uuid PRIMARY KEY,
+  user_id    uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  token      text NOT NULL UNIQUE,
+  expires_at timestamptz NOT NULL,
+  ip_address text,
+  user_agent text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE auth_account (                  -- 로그인 수단. MVP는 이메일+비밀번호 하나뿐
+  id          uuid PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  account_id  text NOT NULL,
+  provider_id text NOT NULL,
+  password    text,                          -- 해시. 원문은 어디에도 저장되지 않는다
+  issuer      text, access_token text, refresh_token text, id_token text,
+  access_token_expires_at timestamptz, refresh_token_expires_at timestamptz, scope text,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE auth_verification (             -- 이메일 검증·비밀번호 재설정 토큰 (메일 발송은 Phase 2)
+  id         uuid PRIMARY KEY,
+  identifier text NOT NULL,
+  value      text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- 인증 스택이 요구하는 "user" 2컬럼. 도메인 필드가 아니며 도메인 코드는 읽지 않는다.
+ALTER TABLE "user" ADD COLUMN email_verified boolean NOT NULL DEFAULT false;
+ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
+```
+
+**사용자 행은 도메인 `user` 테이블을 그대로 쓴다** — 인증용 사본을 만들면 같은 사람이 두 개의 id를 갖게 되고 `event.actor_user_id`가 어느 쪽을 가리키는지 매번 물어야 한다(D-10의 감사 추적이 성립하지 않는다).
+
+**organization 플러그인은 쓰지 않는다**(2026-08-22 구현 확정). [4.4 API 명세](api.md) §1.3과 [4.1](scope.md) §2.1은 "조직·멤버십은 better-auth organization 플러그인"으로 적었지만, 조직·멤버십·역할 6종은 이미 도메인 테이블이 소유하고([3.3 데이터 모델](../03-proposal/data-model.md) §2.1이 정본이며 `membership.role`이 역할의 단일 기준이다) 플러그인을 켜면 같은 사실이 두 곳에 저장된다. 그 순간 "역할의 정본이 어디인가"에 답이 둘이 되고, D-08(에이전트 권한 ⊆ 소유 사람의 권한)의 판정 기반이 갈라진다. **better-auth는 인증(신원 확인·세션)만 맡고 인가(역할·멤버십)는 도메인이 쥔다** — 조직 생성·멤버 배정은 EP-ORG·EP-MBR(§[4.4](api.md) §2.1)이 담당한다. MVP 초대가 "기존 사용자 배정"이라 초대 메일 흐름이 없다는 점([4.5 화면 명세](screens.md) §2.1)도 플러그인 필요를 없앤다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-DB-018 | WHEN 세션 쿠키로 API가 호출되면 THE SYSTEM SHALL `auth_session`을 검증해 도메인 `user.id`를 주체로 해소하고, 역할은 `membership`에서만 읽는다 |
+| REQ-DB-019 | WHILE 인증 인프라 테이블이 비어 있어도 THE SYSTEM SHALL 도메인 데이터 조회·백업 복구를 정상 수행한다(인증 테이블은 백업 대상에서 제외 가능) |
+
+---
 
 ## 3. 이벤트 방송 규약 — Valkey `nerv_events`
 

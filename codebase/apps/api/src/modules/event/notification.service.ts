@@ -114,6 +114,51 @@ export class NotificationService {
   }
 
   /** 읽지 않은 알림 수 — 헤더 배지가 쓰는 값(FR-12) */
+  /**
+   * EP-NTF-01 — 인앱 피드.
+   *
+   * `notification` 행에는 제목도 본문도 없다 — 참조(event_id)만 있다. 알림 문구를 행에 굳혀
+   * 저장하면 같은 사실이 두 곳에 남고 이벤트가 정정돼도 알림은 옛 문구를 계속 말한다.
+   * 그래서 표시 내용은 **조회 시점에 event 에서 만든다**(D-10 — 진실은 event 한 곳).
+   */
+  async list(input: {
+    userId: string;
+    state?: 'unread' | 'read' | null;
+    limit?: number;
+  }): Promise<Record<string, unknown>[]> {
+    const stateFilter =
+      input.state == null ? sql`` : sql` AND n.state = ${input.state}::notification_state`;
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT n.id, n.state::text AS state, n.importance::text AS importance,
+             n.channel::text AS channel, n.created_at, n.read_at, n.event_id,
+             e.type AS event_type, e.subject_type::text AS subject_type, e.subject_id,
+             e.to_state, e.is_agent, e.occurred_at,
+             u.display_name AS actor_name,
+             p.slug AS project_slug, p.name AS project_name,
+             s.key AS spec_key, s.title AS spec_title, t.key AS task_key, t.title AS task_title
+        FROM notification n
+        JOIN project p ON p.id = n.project_id
+   LEFT JOIN event e ON e.id = n.event_id
+   LEFT JOIN "user" u ON u.id = e.actor_user_id
+   LEFT JOIN spec_version sv ON sv.id = e.subject_id AND e.subject_type = 'spec_version'
+   LEFT JOIN spec s ON s.id = coalesce(sv.spec_id, CASE WHEN e.subject_type = 'spec' THEN e.subject_id END)
+   LEFT JOIN task t ON t.id = e.subject_id AND e.subject_type = 'task'
+       WHERE n.user_id = ${input.userId}${stateFilter}
+       ORDER BY n.created_at DESC
+       LIMIT ${Math.min(input.limit ?? 50, 200)}
+    `);
+    return rows;
+  }
+
+  /** EP-NTF-02 — 읽음 처리. 남의 알림을 읽음 처리할 수 없게 user_id 를 조건에 둔다. */
+  async markRead(input: { userId: string; notificationId: string }): Promise<{ ok: true }> {
+    await this.db.execute(sql`
+      UPDATE notification SET state = 'read', read_at = now()
+       WHERE id = ${input.notificationId} AND user_id = ${input.userId} AND state = 'unread'
+    `);
+    return { ok: true };
+  }
+
   async unreadCount(userId: string): Promise<number> {
     const { rows } = await this.db.execute<{ n: number }>(
       sql`SELECT count(*)::int AS n FROM notification WHERE user_id = ${userId} AND state = 'unread'`,

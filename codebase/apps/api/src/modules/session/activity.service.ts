@@ -1,15 +1,33 @@
-// Activity 적재 — 세션 모니터(S5)·활동 피드로 흐르는 typed 타임라인.
-// 에이전트 진행 이벤트는 알림을 만들지 않는다(spec-workflow §6.3 말미).
+// Activity 적재·조회 — 세션 타임라인 (codebase.md §2.2)
+//
+// 적재 경로(훅 ingest · nerv_session_event)와 조회 경로(S5 타임라인)가 **같은 구현**을 쓰도록
+// SessionService 에 위임한다. 여기에 두 번째 구현을 두면 seq 멱등 규칙이 두 벌이 되고,
+// 그 순간 훅 재전송이 타임라인을 중복으로 채운다.
 import { Injectable } from '@nestjs/common';
-import { NotImplementedYetError } from '../../common/nerv-exception.filter.js';
+import { SessionService } from './session.service.js';
 
 @Injectable()
 export class ActivityService {
-  append(): never {
-    throw new NotImplementedYetError('E05-S01', 'Activity 행 적재');
+  constructor(private readonly sessions: SessionService) {}
+
+  append(input: {
+    sessionId: string;
+    projectId: string;
+    seq: bigint;
+    type: 'thought' | 'action' | 'elicitation' | 'response' | 'error';
+    title?: string | null;
+    bodyMd?: string | null;
+    toolName?: string | null;
+    payload?: Record<string, unknown>;
+  }): Promise<{ accepted: boolean }> {
+    return this.sessions.appendActivity(input);
   }
 
-  timeline(): never {
-    throw new NotImplementedYetError('E05-S01', '세션 Activity 타임라인');
+  timeline(input: {
+    projectId: string;
+    sessionId: string;
+    limit?: number;
+  }): Promise<Record<string, unknown>[]> {
+    return this.sessions.timeline(input);
   }
 }

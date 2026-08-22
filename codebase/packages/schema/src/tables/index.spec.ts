@@ -14,11 +14,18 @@ import * as tables from './index.js';
 const allTables = Object.values(tables).filter((t) => is(t, PgTable)) as PgTable[];
 
 /**
- * 검색 인덱스 테이블은 도메인 엔티티가 아니다 — 원문에서 재생성 가능한 파생 데이터라
- * 29종 카운트와 ERD 에 들지 않는다(database.md §2.15). 마이그레이션에는 포함되므로
- * 배럴에는 있지만 이 카운트에서는 뺀다.
+ * 인프라 테이블은 도메인 엔티티가 아니다 — 29종 카운트와 ERD 에 들지 않는다.
+ *   · spec_chunk_embedding : 원문에서 재생성 가능한 검색 인덱스(database.md §2.15)
+ *   · auth_*               : 확정 스택(better-auth)이 요구하는 인증 인프라(§2.16).
+ *                            전부 지워도 사람은 다시 로그인하면 되고 도메인 데이터는 그대로다.
+ * 마이그레이션에는 포함되므로 배럴에는 있지만 이 카운트에서는 뺀다.
  */
-const NON_ENTITY_TABLES = new Set(['spec_chunk_embedding']);
+const NON_ENTITY_TABLES = new Set([
+  'spec_chunk_embedding',
+  'auth_session',
+  'auth_account',
+  'auth_verification',
+]);
 
 const declaredTables = allTables.filter((t) => !NON_ENTITY_TABLES.has(getTableName(t)));
 const tableNames = declaredTables.map((t) => getTableName(t)).sort();
@@ -68,11 +75,14 @@ describe('테이블 선언 (database.md §2)', () => {
     }
   });
 
-  it('검색 인덱스 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15)', () => {
+  it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16)', () => {
     const all = allTables.map((t) => getTableName(t));
-    expect(all).toContain('spec_chunk_embedding');
-    expect(all).toHaveLength(30);
-    expect(tableNames).not.toContain('spec_chunk_embedding');
+    // 29 엔티티 + 인프라 4종(검색 인덱스 1 + 인증 3)
+    expect(all).toHaveLength(33);
+    for (const infra of NON_ENTITY_TABLES) {
+      expect(all).toContain(infra);
+      expect(tableNames).not.toContain(infra);
+    }
   });
 });
 

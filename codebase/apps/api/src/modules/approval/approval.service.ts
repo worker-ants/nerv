@@ -71,6 +71,149 @@ export class ApprovalService {
   }
 
   /**
+   * EP-APR-01 전역 승인함 — **내 결정을 기다리는 것만** 센다(spec-workflow §6.6 원칙 3).
+   *
+   * 프로젝트를 가로지르는 이유는 사람의 하루가 프로젝트로 나뉘어 있지 않기 때문이다.
+   * 승인 3유형(스펙 승인·플랜·질문)이 한 줄에 섞여 나오고, 각 카드는 **얼마나 기다렸는지**를
+   * 들고 온다 — 대기 시간이 보이지 않으면 승인은 조용히 늦어진다(P4).
+   */
+  async inboxGlobal(input: {
+    userId: string;
+    state?: 'pending' | 'decided' | null;
+    projectSlug?: string | null;
+  }): Promise<Record<string, unknown>[]> {
+    const decided = input.state === 'decided';
+    const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
+    const projectFilter =
+      input.projectSlug == null ? sql`` : sql` AND p.slug = ${input.projectSlug}`;
+
+    const { rows: approvals } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
+             a.decision::text AS decision, a.requested_at, a.decided_at, a.is_bypass,
+             p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
+             u.display_name AS requested_by,
+             (a.requested_by_user_id = ${input.userId}) AS self_requested,
+             s.key AS spec_key, s.title AS spec_title, sv.version_no,
+             encode(sv.content_hash, 'hex') AS content_hash,
+             extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
+        FROM approval a
+        JOIN project p ON p.id = a.project_id
+        JOIN "user" u ON u.id = a.requested_by_user_id
+   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+   LEFT JOIN spec s ON s.id = sv.spec_id
+       WHERE ${stateFilter}${projectFilter}
+         AND (a.assignee_user_id IS NULL OR a.assignee_user_id = ${input.userId})
+         AND EXISTS (
+           SELECT 1 FROM membership m
+            WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
+              AND (m.project_id IS NULL OR m.project_id = p.id)
+         )
+       ORDER BY a.requested_at DESC
+       LIMIT 100
+    `);
+
+    if (decided) return approvals;
+
+    // 질문 카드 — 승인과 같은 줄에 선다. 에이전트가 답을 기다리며 멈춰 있고(awaiting_input),
+    // 세션 신원 3요소와 경과 시간이 카드의 필수 표기다(REQ-WEB-008).
+    const { rows: questions } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT q.id, 'question' AS subject_type, q.id AS subject_id, NULL::text AS decision,
+             q.asked_at AS requested_at, q.title, q.body_md, q.options, q.urgency::text AS urgency,
+             p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
+             u.display_name AS requested_by,
+             se.hostname, se.agent_type::text AS agent_type, se.external_session_id,
+             t.key AS task_key,
+             extract(epoch FROM (now() - q.asked_at))::int AS waiting_seconds
+        FROM question q
+        JOIN project p ON p.id = q.project_id
+        JOIN agent_session se ON se.id = q.agent_session_id
+        JOIN "user" u ON u.id = se.user_id
+   LEFT JOIN task t ON t.id = q.task_id
+       WHERE q.status = 'open'${projectFilter}
+         AND EXISTS (
+           SELECT 1 FROM membership m
+            WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
+              AND (m.project_id IS NULL OR m.project_id = p.id)
+         )
+       ORDER BY q.asked_at DESC
+       LIMIT 100
+    `);
+
+    return [...approvals, ...questions].sort(
+      (a, b) => Number(b['waiting_seconds'] ?? 0) - Number(a['waiting_seconds'] ?? 0),
+    );
+  }
+
+  /** EP-APR-02 — 카드 하나의 전량(대상 원문 포함). 결정 화면이 이걸로 렌더한다. */
+  async detail(input: { approvalId: string; userId: string }): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT a.id, a.project_id, a.subject_type::text AS subject_type, a.subject_id,
+             a.decision::text AS decision, a.comment_md, a.requested_at, a.decided_at,
+             a.is_bypass, a.bypass_reason,
+             p.slug AS project_slug, u.display_name AS requested_by,
+             (a.requested_by_user_id = ${input.userId}) AS self_requested,
+             s.key AS spec_key, s.title AS spec_title, sv.version_no, sv.body_md,
+             sv.change_summary_md, encode(sv.content_hash, 'hex') AS content_hash
+        FROM approval a
+        JOIN project p ON p.id = a.project_id
+        JOIN "user" u ON u.id = a.requested_by_user_id
+   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+   LEFT JOIN spec s ON s.id = sv.spec_id
+       WHERE a.id = ${input.approvalId}
+         AND EXISTS (
+           SELECT 1 FROM membership m
+            WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
+              AND (m.project_id IS NULL OR m.project_id = p.id)
+         )
+    `);
+    const approval = rows[0];
+    if (approval === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '승인 항목을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        approval_id: input.approvalId,
+      });
+    }
+    return approval;
+  }
+
+  /** 결정 경로가 프로젝트를 스스로 찾을 수 있게 — 전역 라우트는 경로에 프로젝트가 없다. */
+  async projectOfApproval(approvalId: string): Promise<string> {
+    const { rows } = await this.db.execute<{ project_id: string }>(
+      sql`SELECT project_id FROM approval WHERE id = ${approvalId}`,
+    );
+    const projectId = rows[0]?.project_id;
+    if (projectId === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '승인 항목을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        approval_id: approvalId,
+      });
+    }
+    return projectId;
+  }
+
+  /** EP-QST-01 — 열린 질문 목록(프로젝트 스코프). */
+  async questions(input: {
+    projectId: string;
+    status?: 'open' | 'answered' | null;
+  }): Promise<Record<string, unknown>[]> {
+    const status = input.status ?? 'open';
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT q.id, q.title, q.body_md, q.options, q.urgency::text AS urgency,
+             q.status::text AS status, q.answer_key, q.answer_md, q.asked_at, q.answered_at,
+             se.hostname, se.agent_type::text AS agent_type, se.external_session_id,
+             u.display_name AS asked_by, t.key AS task_key,
+             extract(epoch FROM (now() - q.asked_at))::int AS waiting_seconds
+        FROM question q
+        JOIN agent_session se ON se.id = q.agent_session_id
+        JOIN "user" u ON u.id = se.user_id
+   LEFT JOIN task t ON t.id = q.task_id
+       WHERE q.project_id = ${input.projectId} AND q.status = ${status}::question_status
+       ORDER BY q.asked_at DESC
+    `);
+    return rows;
+  }
+
+  /**
    * EP-APR-03 결정 — **사람 전용**이다.
    *
    * stale 승인 차단이 여기 있다: 카드를 연 시점의 content_hash 를 함께 받아 결정 시점의 것과

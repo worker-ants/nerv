@@ -17,7 +17,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { NERV_ERROR, isAgentScope, isHumanOnlyScope, newId } from '@nerv/schema';
 import type { AgentScope } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
-import { InjectDb } from '../../common/database.module.js';
+import { Inject } from '@nestjs/common';
+import type pg from 'pg';
+import { InjectDb, NERV_PG_POOL } from '../../common/database.module.js';
+import { createBetterAuth } from './better-auth.js';
+import type { NervAuth } from './better-auth.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import type { AuthContext } from '../../common/auth.guard.js';
@@ -51,12 +55,224 @@ export function hashToken(raw: string): Buffer {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(@InjectDb() private readonly db: NervDb) {}
+  /** better-auth 인스턴스. 풀 주입이 없는 테스트 컨텍스트에서는 null 이다. */
+  private betterAuth: NervAuth | null = null;
+
+  constructor(
+    @InjectDb() private readonly db: NervDb,
+    @Inject(NERV_PG_POOL) pool?: pg.Pool,
+  ) {
+    if (pool !== undefined) this.betterAuth = createBetterAuth(pool);
+  }
+
+  /** better-auth 핸들러(`/api/auth/*`)를 마운트하는 컨트롤러가 쓴다. */
+  get handler(): NervAuth | null {
+    return this.betterAuth;
+  }
 
   /**
    * PAT 발급. 원문은 **이 응답에서 한 번만** 나간다 — 서버는 해시만 보관한다.
    * 사람 전용 스코프는 요청에 섞여도 부여하지 않는다(불변식 — api.md §1.3).
    */
+  /** EP-AUTH-01 — 프로필 + 멤버십·역할 목록. 웹 셸의 첫 질문("나는 누구이고 무엇을 볼 수 있나")의 답이다. */
+  async me(userId: string): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT id, email, display_name, avatar_url, state::text AS state, created_at
+        FROM "user" WHERE id = ${userId}
+    `);
+    const user = rows[0];
+    if (user === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '사용자를 찾을 수 없습니다.', {
+        kind: 'not_found',
+      });
+    }
+    const { rows: memberships } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT m.id, m.role::text AS role, o.id AS org_id, o.slug AS org_slug, o.name AS org_name,
+             p.id AS project_id, p.slug AS project_slug, p.name AS project_name
+        FROM membership m
+        JOIN organization o ON o.id = m.org_id
+   LEFT JOIN project p ON p.id = m.project_id
+       WHERE m.user_id = ${userId}
+       ORDER BY o.slug, p.slug NULLS FIRST
+    `);
+    return { ...user, memberships };
+  }
+
+  /** EP-ORG-01 */
+  async orgs(userId: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT DISTINCT o.id, o.slug, o.name, o.created_at
+        FROM organization o JOIN membership m ON m.org_id = o.id
+       WHERE m.user_id = ${userId} ORDER BY o.slug
+    `);
+    return rows;
+  }
+
+  /** EP-PRJ-01 — 조직 멤버가 볼 수 있는 프로젝트. 조직 멤버십은 프로젝트 전체를 덮는다. */
+  async projects(input: { userId: string; orgSlug: string }): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT p.id, p.slug, p.key, p.name, p.description, p.archived_at,
+             (SELECT count(*) FROM agent_session se
+               WHERE se.project_id = p.id AND se.state IN ('pending','active','awaiting_input'))::int
+               AS active_sessions,
+             (SELECT count(*) FROM approval a
+               WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals
+        FROM project p
+        JOIN organization o ON o.id = p.org_id
+       WHERE o.slug = ${input.orgSlug}
+         AND EXISTS (
+           SELECT 1 FROM membership m
+            WHERE m.user_id = ${input.userId} AND m.org_id = o.id
+              AND (m.project_id IS NULL OR m.project_id = p.id)
+         )
+       ORDER BY p.slug
+    `);
+    return rows;
+  }
+
+  /** EP-PRJ-03 — 게이트 정책·보존·카운트 포함 */
+  async project(projectId: string): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT p.id, p.slug, p.key, p.name, p.description, p.repo_url, p.default_branch,
+             p.gate_policy, p.retention, p.archived_at, o.slug AS org_slug, o.name AS org_name,
+             (SELECT count(*) FROM agent_session se
+               WHERE se.project_id = p.id AND se.state IN ('pending','active','awaiting_input'))::int
+               AS active_sessions,
+             (SELECT count(*) FROM approval a
+               WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals
+        FROM project p JOIN organization o ON o.id = p.org_id
+       WHERE p.id = ${projectId}
+    `);
+    const project = rows[0];
+    if (project === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+        kind: 'not_found',
+      });
+    }
+    return project;
+  }
+
+  /**
+   * EP-PRJ-04 — **게이트 정책 편집은 admin 전용**이다(spec-workflow §1.6 매트릭스).
+   * 이 검사가 API 쪽 절반이고, 나머지 절반은 화면의 비활성 버튼이다(REQ-WEB-003) —
+   * 둘 중 하나만 있으면 게이트가 우회 가능해지거나, 사용자가 이유 없이 막힌다.
+   */
+  async updateProject(input: {
+    projectId: string;
+    role: MembershipRole;
+    name?: string | null;
+    description?: string | null;
+    repoUrl?: string | null;
+    defaultBranch?: string | null;
+    gatePolicy?: Record<string, unknown> | null;
+    retention?: Record<string, unknown> | null;
+  }): Promise<Record<string, unknown>> {
+    if ((input.gatePolicy != null || input.retention != null) && input.role !== 'admin') {
+      throw new NervError(NERV_ERROR.FORBIDDEN, '게이트 정책·보존 설정은 admin 만 바꿉니다.', {
+        kind: 'role_required',
+        required: ['admin'],
+        actual: input.role,
+      });
+    }
+    await this.db.execute(sql`
+      UPDATE project
+         SET name = coalesce(${input.name ?? null}, name),
+             description = coalesce(${input.description ?? null}, description),
+             repo_url = coalesce(${input.repoUrl ?? null}, repo_url),
+             default_branch = coalesce(${input.defaultBranch ?? null}, default_branch),
+             gate_policy = coalesce(${input.gatePolicy == null ? null : JSON.stringify(input.gatePolicy)}::jsonb, gate_policy),
+             retention = coalesce(${input.retention == null ? null : JSON.stringify(input.retention)}::jsonb, retention)
+       WHERE id = ${input.projectId}
+    `);
+    return this.project(input.projectId);
+  }
+
+  /** EP-MBR-01 */
+  async members(orgSlug: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT m.id, m.role::text AS role, m.created_at, u.id AS user_id, u.email,
+             u.display_name, u.state::text AS user_state, p.slug AS project_slug
+        FROM membership m
+        JOIN organization o ON o.id = m.org_id
+        JOIN "user" u ON u.id = m.user_id
+   LEFT JOIN project p ON p.id = m.project_id
+       WHERE o.slug = ${orgSlug}
+       ORDER BY u.display_name, p.slug NULLS FIRST
+    `);
+    return rows;
+  }
+
+  /** EP-MBR-03 — 역할 변경. 6종 밖의 값은 enum 이 DB 에서 막는다. */
+  async updateMembership(input: {
+    membershipId: string;
+    role: string;
+    actorRole: MembershipRole;
+  }): Promise<Record<string, unknown>> {
+    this.assertAdmin(input.actorRole);
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      UPDATE membership SET role = ${input.role}::member_role WHERE id = ${input.membershipId}
+      RETURNING id, role::text AS role, user_id
+    `);
+    const updated = rows[0];
+    if (updated === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '멤버십을 찾을 수 없습니다.', {
+        kind: 'not_found',
+      });
+    }
+    return updated;
+  }
+
+  /** EP-MBR-04 */
+  async removeMembership(input: {
+    membershipId: string;
+    actorRole: MembershipRole;
+  }): Promise<{ ok: true }> {
+    this.assertAdmin(input.actorRole);
+    await this.db.execute(sql`DELETE FROM membership WHERE id = ${input.membershipId}`);
+    return { ok: true };
+  }
+
+  /** EP-TOK-01 — **원문은 없다.** 발급 응답에서 한 번 보여준 뒤로는 어디에도 남지 않는다. */
+  async tokens(userId: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT t.id, t.name, t.prefix, t.scopes, t.expires_at, t.revoked_at, t.last_used_at,
+             t.created_at, p.slug AS project_slug, p.name AS project_name
+        FROM api_token t JOIN project p ON p.id = t.project_id
+       WHERE t.user_id = ${userId}
+       ORDER BY t.created_at DESC
+    `);
+    return rows;
+  }
+
+  /** EP-TOK-04 — admin 의 조직 전체 토큰 표(S8). 여기에도 원문은 없다. */
+  async orgTokens(input: {
+    orgSlug: string;
+    actorRole: MembershipRole;
+  }): Promise<Record<string, unknown>[]> {
+    this.assertAdmin(input.actorRole);
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT t.id, t.name, t.prefix, t.scopes, t.expires_at, t.revoked_at, t.last_used_at,
+             u.display_name AS owner, p.slug AS project_slug
+        FROM api_token t
+        JOIN project p ON p.id = t.project_id
+        JOIN organization o ON o.id = p.org_id
+        JOIN "user" u ON u.id = t.user_id
+       WHERE o.slug = ${input.orgSlug}
+       ORDER BY t.created_at DESC
+    `);
+    return rows;
+  }
+
+  private assertAdmin(role: MembershipRole): void {
+    if (role !== 'admin') {
+      throw new NervError(NERV_ERROR.FORBIDDEN, 'admin 만 할 수 있습니다.', {
+        kind: 'role_required',
+        required: ['admin'],
+        actual: role,
+      });
+    }
+  }
+
   async issueToken(input: {
     projectId: string;
     userId: string;
@@ -118,14 +334,42 @@ export class AuthService {
    * 검증 실패는 전부 NERV_UNAUTHENTICATED 다 — 만료·폐기·오타를 구분해 알려주지 않는다.
    */
   async verify(auth: AuthContext): Promise<Principal> {
-    if (auth.kind === 'session') {
-      // better-auth 세션 검증은 E08-S01 소관이다.
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '세션 인증이 아직 배선되지 않았습니다.', {
-        kind: 'session_not_wired',
-        story: 'E08-S01',
+    if (auth.kind === 'session') return this.verifySession(auth.credential);
+    return this.verifyPat(auth.credential);
+  }
+
+  /**
+   * 웹 세션 검증 — better-auth 가 쿠키를 해독하고 세션 행을 확인한다(E08-S01).
+   *
+   * **사람의 principal 에는 스코프가 없다.** 스코프는 PAT 를 좁히기 위한 장치이고(D-08),
+   * 사람의 권한은 `membership.role` 이 정한다 — 여기서 스코프를 만들어 붙이면 역할과
+   * 스코프라는 두 개의 권한 축이 생기고 둘이 어긋나는 날이 온다.
+   */
+  async verifySession(cookieHeader: string): Promise<Principal> {
+    const auth = this.betterAuth;
+    if (auth === null) {
+      throw new NervError(NERV_ERROR.UNAVAILABLE, '인증 서비스가 준비되지 않았습니다.', {
+        kind: 'auth_unavailable',
       });
     }
-    return this.verifyPat(auth.credential);
+    const session = await auth.api.getSession({
+      headers: new Headers({ cookie: cookieHeader }),
+    });
+    const userId = session?.user?.id;
+    if (session === null || userId === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '세션이 유효하지 않습니다.', {
+        kind: 'invalid_session',
+      });
+    }
+    return {
+      userId,
+      displayName: session.user.name ?? session.user.email,
+      isAgent: false,
+      projectId: null,
+      scopes: [],
+      role: null,
+      tokenId: null,
+    };
   }
 
   async verifyPat(raw: string): Promise<Principal> {

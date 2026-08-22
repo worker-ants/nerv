@@ -8,6 +8,7 @@
 // spec_chunk_embedding(§2.15)은 도메인 엔티티가 아니라 재생성 가능한 파생 데이터라
 // 이 카운트에 들지 않는다 — E02 후속에서 별도로 선언한다.
 
+export * from './auth.js';
 export * from './tenancy.js'; // organization · user · project · membership · api_token
 export * from './session.js'; // agent_session · activity
 export * from './spec.js'; // spec · spec_version · requirement · requirement_version

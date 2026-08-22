@@ -25,6 +25,34 @@ export async function createApp(): Promise<NestFastifyApplication> {
     new AuthGuard(app.get(Reflector), app.get(AuthService)),
   );
 
+  // better-auth 핸들러 마운트 — `/api/auth/*` 는 로그인·로그아웃·세션 조회의 표면이다.
+  // Nest 라우트가 아니라 Fastify 에 직접 단다: 전역 AuthGuard 를 타면 "로그인하려면 먼저
+  // 로그인해야 하는" 고리가 생긴다. 인증 이전의 표면이므로 인증 가드 밖에 있어야 한다.
+  const auth = app.get(AuthService).handler;
+  if (auth !== null) {
+    const fastify = app.getHttpAdapter().getInstance();
+    fastify.all('/api/auth/*', async (request, reply) => {
+      const url = new URL(request.url, process.env['NERV_PUBLIC_URL'] ?? 'http://localhost:8080');
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(request.headers)) {
+        if (typeof value === 'string') headers.append(key, value);
+        else if (Array.isArray(value)) for (const v of value) headers.append(key, v);
+      }
+      const response = await auth.handler(
+        new Request(url, {
+          method: request.method,
+          headers,
+          ...(request.method === 'GET' || request.method === 'HEAD'
+            ? {}
+            : { body: JSON.stringify(request.body ?? {}) }),
+        }),
+      );
+      reply.status(response.status);
+      for (const [key, value] of response.headers.entries()) reply.header(key, value);
+      return reply.send(response.body === null ? null : await response.text());
+    });
+  }
+
   // /healthz 는 인프라 전용(무인증 liveness)이며 api.md 의 계약 전표 밖이다(codebase.md §5.4).
   // Nest 라우트가 아니라 Fastify 인스턴스에 직접 단다 — 전역 가드·인터셉터를 타지 않는다.
   app

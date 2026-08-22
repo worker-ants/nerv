@@ -158,6 +158,157 @@ export class SessionService {
   }
 
   /**
+   * EP-SES-04 — steer/stop. **사람이 달리는 세션에 개입하는 유일한 경로**다(FR-08).
+   *
+   * 지시는 `activity`(type=elicitation)에 적재한다 — 새 테이블을 만들지 않는 이유는 지시가
+   * 곧 세션 타임라인의 사건이기 때문이다. S5 의 Activity 타임라인에 사람의 개입이
+   * 에이전트의 행동과 같은 줄에 섞여 보이는 것이 맞다(ui-wireframes §2.5).
+   * 전달은 하트비트 역채널이다(agent-integration §2.4) — 서버가 세션에 push 할 경로가 없고,
+   * 있더라도 에이전트가 도구 호출 사이에서만 지시를 받을 수 있다.
+   *
+   * **stop 은 전달을 기다리지 않는다.** 지시가 도달하든 말든 서버가 즉시 클레임을 회수하고
+   * Task 를 ready 로 되돌린다 — 세션이 이미 죽어 있어서 하트비트를 못 치는 경우가
+   * stop 을 누르는 가장 흔한 이유이기 때문이다(ui-wireframes §4.2).
+   */
+  async steer(input: {
+    projectId: string;
+    sessionId: string;
+    kind: 'steer' | 'stop';
+    message: string;
+    userId: string;
+  }): Promise<{ ok: true; kind: string; reclaimed: number }> {
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{ id: string; user_id: string; state: string }>(sql`
+        SELECT id, user_id, state::text AS state FROM agent_session
+         WHERE id = ${input.sessionId} AND project_id = ${input.projectId}
+      `);
+      const session = rows[0];
+      if (session === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, '세션을 찾을 수 없습니다.', {
+          kind: 'not_found',
+          session_id: input.sessionId,
+        });
+      }
+
+      const { rows: seqRow } = await tx.execute<{ next: string }>(
+        sql`SELECT coalesce(max(seq), 0) + 1 AS next FROM activity WHERE session_id = ${session.id}`,
+      );
+      await tx.execute(sql`
+        INSERT INTO activity (id, session_id, project_id, seq, type, title, body_md, payload)
+        VALUES (${newId()}, ${session.id}, ${input.projectId}, ${seqRow[0]?.next ?? '1'},
+                'elicitation', ${input.kind}, ${input.message},
+                ${JSON.stringify({ kind: input.kind, delivered: false, by: input.userId })}::jsonb)
+      `);
+
+      let reclaimed = 0;
+      if (input.kind === 'stop') {
+        const { rows: released } = await tx.execute<{ id: string; task_id: string }>(sql`
+          UPDATE claim SET status = 'released', released_at = now(), release_reason = 'manual'
+           WHERE agent_session_id = ${session.id} AND status = 'active'
+          RETURNING id, task_id
+        `);
+        for (const claim of released) {
+          await tx.execute(sql`
+            UPDATE task SET status = 'ready', updated_at = now()
+             WHERE id = ${claim.task_id} AND status IN ('claimed', 'in_progress')
+          `);
+          await emit({
+            type: NERV_EVENT.CLAIM_RELEASED,
+            projectId: input.projectId,
+            subjectType: 'claim',
+            subjectId: claim.id,
+            actorUserId: input.userId,
+            isAgent: false,
+            payload: { reason: 'stopped_by_human' },
+          });
+          await emit({
+            type: NERV_EVENT.TASK_READY,
+            projectId: input.projectId,
+            subjectType: 'task',
+            subjectId: claim.task_id,
+            actorUserId: input.userId,
+            isAgent: false,
+            toState: 'ready',
+          });
+        }
+        reclaimed = released.length;
+      }
+
+      await emit({
+        type: NERV_EVENT.SESSION_STEERED,
+        projectId: input.projectId,
+        subjectType: 'agent_session',
+        subjectId: session.id,
+        actorUserId: input.userId,
+        isAgent: false,
+        payload: { kind: input.kind, reclaimed },
+      });
+
+      return { ok: true, kind: input.kind, reclaimed };
+    });
+  }
+
+  /**
+   * 하트비트 역채널에 실을 미전달 지시 — 실은 즉시 전달 표시를 남긴다.
+   * 두 번 전달하면 에이전트가 같은 지시를 두 번 따른다.
+   */
+  async takePendingInstructions(sessionId: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      UPDATE activity SET payload = jsonb_set(payload, '{delivered}', 'true')
+       WHERE session_id = ${sessionId} AND type = 'elicitation'
+         AND payload->>'delivered' = 'false'
+      RETURNING payload->>'kind' AS kind, title, body_md AS message
+    `);
+    return rows;
+  }
+
+  /** EP-SES-02 — 실행 컨텍스트·클레임 이력·토큰 사용량. */
+  async detail(input: { projectId: string; sessionId: string }): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT se.*, se.state::text AS state, se.agent_type::text AS agent_type,
+             u.display_name AS user_display_name, t.key AS current_task_key
+        FROM agent_session se
+        JOIN "user" u ON u.id = se.user_id
+   LEFT JOIN task t ON t.id = se.current_task_id
+       WHERE se.project_id = ${input.projectId}
+         AND (se.id::text = ${input.sessionId} OR se.external_session_id = ${input.sessionId})
+    `);
+    const session = rows[0];
+    if (session === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, '세션을 찾을 수 없습니다.', {
+        kind: 'not_found',
+        session_id: input.sessionId,
+      });
+    }
+    const { rows: claims } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT c.id, c.status::text AS status, c.acquired_at, c.released_at,
+             c.release_reason::text AS release_reason, t.key AS task_key, t.title AS task_title
+        FROM claim c JOIN task t ON t.id = c.task_id
+       WHERE c.agent_session_id = ${session['id'] as string}
+       ORDER BY c.acquired_at DESC
+    `);
+    return { ...session, claims };
+  }
+
+  /** EP-SES-03 — seq 순 타임라인. */
+  async timeline(input: {
+    projectId: string;
+    sessionId: string;
+    limit?: number;
+  }): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT a.id, a.seq, a.type::text AS type, a.title, a.body_md, a.tool_name, a.payload,
+             a.created_at
+        FROM activity a JOIN agent_session se ON se.id = a.session_id
+       WHERE se.project_id = ${input.projectId}
+         AND (se.id::text = ${input.sessionId} OR se.external_session_id = ${input.sessionId})
+       ORDER BY a.seq DESC
+       LIMIT ${Math.min(input.limit ?? 200, 500)}
+    `);
+    return rows.reverse();
+  }
+
+  /**
    * 무활동 세션의 stale 전이 + 클레임 회수 — 워커의 session-stale 잡이 부른다(D-13).
    * "죽은 세션 정리를 사람이 감시하지 않게" 하는 것이 이 잡의 목적이다.
    */

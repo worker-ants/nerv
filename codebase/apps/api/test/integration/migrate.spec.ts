@@ -25,9 +25,12 @@ afterAll(async () => {
 });
 
 describe('초기 스냅샷 적용 (database.md §2)', () => {
+  // 마이그레이션 2벌: 0000_init(도메인 전량) · 0001_auth(인증 인프라 — 4.3 §2.16)
+  const MIGRATIONS = 2;
+
   it('빈 DB 에 오류 없이 적용된다', async () => {
     const first = await runMigrations(db.url);
-    expect(first.applied).toBe(1);
+    expect(first.applied).toBe(MIGRATIONS);
   });
 
   it('2회 연속 실행해도 변경 0건이다 — 왕복 멱등 (REQ-DB-001)', async () => {
@@ -35,7 +38,7 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     const second = await runMigrations(db.url);
     const after = await snapshotSchema();
 
-    expect(second.applied).toBe(1); // 이력이 늘지 않는다 = 재적용하지 않았다
+    expect(second.applied).toBe(MIGRATIONS); // 이력이 늘지 않는다 = 재적용하지 않았다
     expect(after).toEqual(before);
   });
 
@@ -49,9 +52,13 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
       );
       return rows.map((r) => r.table_name);
     });
-    // 29 도메인 엔티티 + spec_chunk_embedding(엔티티 아님 — §2.15)
-    expect(names).toHaveLength(30);
+    // 29 도메인 엔티티 + 인프라 4종(엔티티 아님):
+    //   spec_chunk_embedding(§2.15) · auth_session·auth_account·auth_verification(§2.16)
+    expect(names).toHaveLength(33);
     expect(names).toContain('spec_chunk_embedding');
+    expect(names).toEqual(
+      expect.arrayContaining(['auth_session', 'auth_account', 'auth_verification']),
+    );
   });
 
   it('enum 38종이 생성된다 (§2.1)', async () => {

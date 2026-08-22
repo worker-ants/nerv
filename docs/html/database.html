@@ -52,7 +52,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.4 (2026-08-22)</span>
+      <span>버전 v0.5 (2026-08-22)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -856,6 +856,59 @@ CREATE INDEX spec_chunk_embedding_hnsw
     <li><b>갱신 트리거</b> — draft 저장 커밋·승인·임포트 배치 후 이벤트를 워커가 소비해 청크 해시 비교 후 변경분만 임베딩한다. approved 본문은 불변이므로 버전당 최대 1회다.</li>
     <li><b>모델 교체</b> — <code>model</code> 컬럼이 다른 행을 새로 쓰고, 전량 재임베딩 완료 후 구 모델 행을 드랍한다(검색은 단일 모델만 질의).</li>
   </ol>
+
+  <h3>2.16 인증 인프라 테이블 — better-auth 소유 (도메인 엔티티 아님)</h3>
+
+  <p><code>spec_chunk_embedding</code>(§2.15)과 같은 등급이다 — <b>확정 스택(<a href="scope.html">4.1</a> §2.1의 better-auth)이 자기 동작을 위해 요구하는 물리 테이블</b>이며 엔티티 29종 카운트·<a href="data-model.html">3.3 데이터 모델</a>의 ERD에 들지 않는다. 세션 행을 전부 지워도 사람은 다시 로그인하면 되고 도메인 데이터는 하나도 잃지 않는다.</p>
+
+<pre><code>CREATE TABLE auth_session (                  -- 웹 세션 쿠키의 실체 (api.md §1.3 인증 ①)
+  id         uuid PRIMARY KEY,
+  user_id    uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  token      text NOT NULL UNIQUE,
+  expires_at timestamptz NOT NULL,
+  ip_address text,
+  user_agent text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE auth_account (                  -- 로그인 수단. MVP는 이메일+비밀번호 하나뿐
+  id          uuid PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  account_id  text NOT NULL,
+  provider_id text NOT NULL,
+  password    text,                          -- 해시. 원문은 어디에도 저장되지 않는다
+  issuer      text, access_token text, refresh_token text, id_token text,
+  access_token_expires_at timestamptz, refresh_token_expires_at timestamptz, scope text,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE auth_verification (             -- 이메일 검증·비밀번호 재설정 토큰 (메일 발송은 Phase 2)
+  id         uuid PRIMARY KEY,
+  identifier text NOT NULL,
+  value      text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- 인증 스택이 요구하는 "user" 2컬럼. 도메인 필드가 아니며 도메인 코드는 읽지 않는다.
+ALTER TABLE "user" ADD COLUMN email_verified boolean NOT NULL DEFAULT false;
+ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();</code></pre>
+
+  <p><b>사용자 행은 도메인 <code>user</code> 테이블을 그대로 쓴다</b> — 인증용 사본을 만들면 같은 사람이 두 개의 id를 갖게 되고 <code>event.actor_user_id</code>가 어느 쪽을 가리키는지 매번 물어야 한다(D-10의 감사 추적이 성립하지 않는다).</p>
+
+  <div class="callout"><span class="ico">⚖️</span><div class="body">
+    <b class="title">organization 플러그인은 쓰지 않는다 (2026-08-22 구현 확정)</b>
+    <p><a href="api.html">4.4 API 명세</a> §1.3과 <a href="scope.html">4.1</a> §2.1은 "조직·멤버십은 better-auth organization 플러그인"으로 적었지만, 조직·멤버십·역할 6종은 이미 도메인 테이블이 소유하고(<a href="data-model.html">3.3 데이터 모델</a> §2.1이 정본이며 <code>membership.role</code>이 역할의 단일 기준이다) 플러그인을 켜면 같은 사실이 두 곳에 저장된다. 그 순간 "역할의 정본이 어디인가"에 답이 둘이 되고, D-08(에이전트 권한 ⊆ 소유 사람의 권한)의 판정 기반이 갈라진다. <b>better-auth는 인증(신원 확인·세션)만 맡고 인가(역할·멤버십)는 도메인이 쥔다</b> — 조직 생성·멤버 배정은 EP-ORG·EP-MBR(<a href="api.html">4.4</a> §2.1)이 담당한다. MVP 초대가 "기존 사용자 배정"이라 초대 메일 흐름이 없다는 점(<a href="screens.html">4.5 화면 명세</a> §2.1)도 플러그인 필요를 없앤다.</p>
+  </div></div>
+
+  <div class="table-wrap"><table>
+    <tr><th>ID</th><th>수용 기준(EARS)</th></tr>
+    <tr><td><code>REQ-DB-018</code></td><td>WHEN 세션 쿠키로 API가 호출되면 THE SYSTEM SHALL <code>auth_session</code>을 검증해 도메인 <code>user.id</code>를 주체로 해소하고, 역할은 <code>membership</code>에서만 읽는다</td></tr>
+    <tr><td><code>REQ-DB-019</code></td><td>WHILE 인증 인프라 테이블이 비어 있어도 THE SYSTEM SHALL 도메인 데이터 조회·백업 복구를 정상 수행한다(인증 테이블은 백업 대상에서 제외 가능)</td></tr>
+  </table></div>
 
   <h2 id="sec-3">3. 이벤트 방송 규약 — Valkey nerv_events</h2>
 

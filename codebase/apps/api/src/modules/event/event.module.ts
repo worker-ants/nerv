@@ -7,6 +7,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { EventController } from './event.controller.js';
 import { EventService } from './event.service.js';
+import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { EventSubscriberService } from './event-subscriber.service.js';
 import { FanoutService } from './fanout.service.js';
 import { NotificationService } from './notification.service.js';
@@ -19,6 +20,7 @@ import { WsGateway } from './ws.gateway.js';
   imports: [AuthModule],
   controllers: [EventController, SseController],
   providers: [
+    ProjectAccessGuard,
     EventService,
     NotificationService,
     ValkeyService,
