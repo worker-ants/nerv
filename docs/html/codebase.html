@@ -592,7 +592,7 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
       <tr><td><code>pnpm build</code> / <code>pnpm test</code> / <code>pnpm lint</code></td><td>전 워크스페이스 일괄</td></tr>
       <tr><td><code>pnpm db:generate</code></td><td><code>@nerv/schema</code>에서 <code>drizzle-kit generate</code> — 마이그레이션 SQL 생성</td></tr>
       <tr><td><code>pnpm db:migrate</code></td><td>마이그레이션 적용(<code>migrate.ts</code>) — compose·k8s와 같은 코드 경로</td></tr>
-      <tr><td><code>pnpm db:seed</code></td><td>개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등(<a href="database.html">4.3 데이터베이스 스키마</a> §4, REQ-DB-002)</td></tr>
+      <tr><td><code>pnpm db:seed</code></td><td>개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등(<a href="database.html">4.3 데이터베이스 스키마</a> §4, REQ-DB-002). <b>로그인 자격증명도 함께 심는다</b>: 시드 사용자 5명(<code>jimin</code>·<code>seoyeon</code>·<code>dohyun</code>·<code>yuna</code>·<code>hana</code>@example.com)의 비밀번호는 <code>nerv-dev-1234</code>이고 <code>NERV_SEED_PASSWORD</code>로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 <code>apps/api</code>의 시드 엔트리가 심고 <code>@nerv/schema</code>는 도메인만 심는다</td></tr>
       <tr><td><code>pnpm compose:up</code></td><td><code>docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build</code> — 외부 임베딩 제공자 사용 시 <code>--profile local-embed</code> 생략(§5.2a)</td></tr>
       <tr><td><code>pnpm compose:infra</code></td><td>위 명령 + <code>postgres minio valkey embed</code> 서비스만(<code>embed</code>는 local-embed 프로필일 때)</td></tr>
       <tr><td><code>pnpm compose:down</code></td><td>스택 정지(볼륨 유지)</td></tr>
