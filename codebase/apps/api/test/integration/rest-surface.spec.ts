@@ -118,18 +118,35 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
   });
 
   it('게이트 정책 편집은 admin 만 — API 와 UI 양쪽에서 막는다는 규칙의 API 쪽 절반', async () => {
+    const policy = { spec_gate: { tier_boundaries: [2, 4, 7] } };
+
     const denied = await call('PATCH', '/api/v1/projects/clemvion', {
       token: viewerToken,
-      payload: { gate_policy: { spec_change: 'T3' } },
+      payload: { gate_policy: policy },
     });
     expect(denied.status).toBe(403);
     expect((denied.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.FORBIDDEN);
 
     const allowed = await call('PATCH', '/api/v1/projects/clemvion', {
-      payload: { gate_policy: { spec_change: 'T3' } },
+      payload: { gate_policy: policy },
     });
     expect(allowed.status).toBe(200);
-    expect((allowed.body as Record<string, unknown>)['gate_policy']).toEqual({ spec_change: 'T3' });
+    const saved = (allowed.body as Record<string, unknown>)['gate_policy'] as Record<
+      string,
+      unknown
+    >;
+    expect((saved['spec_gate'] as Record<string, unknown>)['tier_boundaries']).toEqual([2, 4, 7]);
+  });
+
+  it('알 수 없는 정책 키는 거부한다 — 오타를 삼키면 게이트가 꺼진 줄 모르게 된다 (§2.1a)', async () => {
+    const res = await call('PATCH', '/api/v1/projects/clemvion', {
+      payload: { gate_policy: { spec_gate: { tier_boundries: [1, 2, 3] } } },
+    });
+    // NERV_PRECONDITION 은 상황에 따라 400/409 로 사상된다(api.md §1.4) — 코드로 확인한다
+    expect((res.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'invalid_policy',
+    });
   });
 
   it('토큰 목록에 원문이 없다 — 발급 응답에서 한 번 보여준 뒤로는 어디에도 남지 않는다', async () => {
