@@ -17,3 +17,6 @@ test-results/
 # 도구 캐시
 .vite/
 .eslintcache
+
+# 스파이크 산출물 — 리포트는 실행 때마다 갱신된다(측정값은 문서에 기록한다)
+apps/web/.spike/

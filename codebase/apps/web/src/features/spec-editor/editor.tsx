@@ -10,7 +10,6 @@
 
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Link from '@tiptap/extension-link';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
@@ -20,8 +19,9 @@ import { useEffect, useState } from 'react';
 
 /** 화이트리스트 — md 로 표현 가능한 것만(§3.1). 색·밑줄·이미지 업로드는 확장하지 않는다. */
 export const EDITOR_EXTENSIONS = [
-  StarterKit,
-  Link.configure({ openOnClick: false }),
+  // StarterKit 이 link 를 포함한다 — 따로 추가하면 확장 이름이 중복돼 경고가 나고
+  // 마크 처리 순서가 흔들린다(실측: 왕복 스파이크에서 경고로 드러났다).
+  StarterKit.configure({ link: { openOnClick: false } }),
   Table.configure({ resizable: false }),
   TableRow,
   TableHeader,

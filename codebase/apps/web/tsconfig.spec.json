@@ -6,7 +6,7 @@
     "moduleResolution": "bundler",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "rootDir": "./src",
     "outDir": "./.tsbuild-spec",
     "emitDeclarationOnly": true
