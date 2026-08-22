@@ -811,7 +811,7 @@ CREATE TABLE spec_chunk_embedding (
   spec_version_id  uuid NOT NULL REFERENCES spec_version(id) ON DELETE CASCADE,
   anchor           text NOT NULL,            -- 헤딩 slug — 코멘트 앵커와 동일 규약(D-09). 청크 = 헤딩 단위
   chunk_hash       bytea NOT NULL,           -- sha256(청크 본문) — 무변경 재임베딩 차단
-  embedding        vector(1024) NOT NULL,    -- BGE-m3 1024차원(모델 정본: 4.1 §2.1)
+  embedding        vector(1024) NOT NULL,    -- 전 제공자 1024차원 고정(프로필 정본: 4.2 §5.2a, REQ-CB-021)
   model            text NOT NULL,            -- 모델 식별자 — 교체 시 재임베딩 관리 축
   created_at       timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT chunk_embedding_uq UNIQUE (spec_version_id, anchor, model)

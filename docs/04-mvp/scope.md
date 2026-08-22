@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 15종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
+> 문서 버전 v0.7 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
+>
+> v0.7 변경(2026-08-22 — **임베딩 제공자 추상화, v0.6 "자가호스팅만" 결정의 당일 번복**): 임베딩 호출을 **OpenAI 호환 `/v1/embeddings` 단일 계약**으로 추상화하고 제공자는 env 프로필로 결정한다 — 로컬 = TEI(CPU·compose 동봉), 스테이징 = LM Studio, **운영 = OpenAI**(`dimensions=1024` 절단). v0.6의 외부 임베딩 API 금지(구 REQ-CB-020)는 폐기하고, 외부 전송은 **운영 주체가 env로 명시 선택**하는 것으로 전환한다(기본값은 자가호스팅 — REQ-CB-020 개정). 차원은 전 제공자 1024 고정(REQ-CB-021). 환경 프로필 정본은 [4.2 코드베이스와 배포](codebase.md) §5.2a.
 >
 > v0.6 변경(2026-08-22 — 스펙 열람·검색 대규모 대응 확정): ① **하이브리드 검색을 MVP로 확정** — Postgres FTS + pg_trgm(한국어 부분 일치) + **pgvector**(HNSW) + **자가호스팅 임베딩**(`nerv-embed` — TEI + BGE-m3) + **관계 확장(graph RAG)**. 근거: `nerv_spec_search`가 P0 도구 8종에 포함 — 에이전트가 MVP 첫날부터 검색의 주 소비자이고, 컨텍스트 수집·중복 확인(FR-01) 품질이 곧 에이전트 작업 품질이다. 검색 파이프라인 정본은 [4.4 API 명세](api.md) §2.2b ② 인프라 서비스 3종 → **4종**(+`nerv-embed`) ③ 탐색·관계 UI 패키지(퀵 스위처·관계 패널·영향 미리보기·트리 스케일 — [4.5 화면 명세](screens.md)) ④ non-goals에 외부 검색엔진·외부 임베딩 API 금지 명시.
 >
@@ -88,14 +90,14 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 웹 | **Vite + React SPA** | 2026-08-14 | 정적 자산 배포. SSR 없음 |
 | API | **NestJS(Fastify 어댑터)** | 2026-08-14 | REST·MCP·WebSocket이 **같은 도메인 서비스를 DI로 공유**(D-05). 게이트 판정이 표면마다 갈라지는 것이 최악의 실패 |
 | DB | **Postgres** + **Drizzle** | Postgres 2026-08-13 · Drizzle 2026-08-20 | 스키마는 `packages/schema`에 TS로 선언, drizzle-kit 마이그레이션. 복잡 질의는 raw `sql` 1급 |
-| 검색 | **하이브리드** — Postgres FTS(`simple`) + **pg_trgm**(한국어·부분 일치) + **pgvector**(HNSW·cosine) + 자가호스팅 임베딩 **TEI + BGE-m3**(1024차원, `nerv-embed` 인프라 서비스) + **관계 확장(graph RAG)** | 2026-08-22 | 파이프라인(ID 직행 → 렉시컬+벡터 RRF 병합 → 1-hop 관계 확장)은 [4.4 API 명세](api.md) §2.2b 정본. **임베딩은 자가호스팅만** — 스펙 본문의 외부 전송 금지(NFR-03, REQ-CB-020). 임베딩 서비스 다운 시 렉시컬만으로 degrade(REQ-API-026). 모델은 env 교체 가능, CPU 서빙으로 시작 |
+| 검색 | **하이브리드** — Postgres FTS(`simple`) + **pg_trgm**(한국어·부분 일치) + **pgvector**(HNSW·cosine) + 임베딩(**OpenAI 호환 `/v1/embeddings` 단일 계약**, 1024차원 고정) + **관계 확장(graph RAG)** | 2026-08-22 (제공자 추상화 같은 날 개정) | 파이프라인(ID 직행 → 렉시컬+벡터 RRF 병합 → 1-hop 관계 확장)은 [4.4 API 명세](api.md) §2.2b 정본. **임베딩 제공자는 env 프로필** — 로컬 TEI(CPU·compose `embed`) / 스테이징 LM Studio / 운영 OpenAI(`text-embedding-3-small`, `dimensions=1024`). 프로필 정본 [4.2](codebase.md) §5.2a. 기본값은 자가호스팅이고 외부 전송은 운영 주체의 env 명시 선택(REQ-CB-020). 제공자 무응답 시 렉시컬 degrade(REQ-API-026) |
 | 인증 | **better-auth** | 2026-08-20 | organization 플러그인(조직·멤버십), api-key 플러그인 기반 PAT(해시 저장·프로젝트 스코프). OAuth 2.1 리소스 서버는 Phase 2 |
 | 실시간 | **WebSocket + SSE 다중 채널**, 방송 MQ **Valkey pub/sub** (NestJS `@WebSocketGateway` socket.io + `@Sse()` 스트림) | WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21 | WS(`/ws`)는 웹 SPA 전용 — **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요), 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. SSE(`/sse/*`)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증([4.4 API 명세](api.md) §3.5). 팬아웃: EventService가 커밋 후 Valkey `nerv_events`에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
 | 에디터 | **TipTap + markdown 직렬화** | 2026-08-20 | 지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글 |
 | MCP | MCP TypeScript SDK | 2026-08-13 (3부 원안) | 2026-07-28 리비전 기준 구현 + 구 리비전(2025-03-26~2025-11-25) 병행 서빙(D-11) |
 | 프론트 세부 | TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod | 2026-08-13 (3부 원안) | zod 스키마는 `packages/schema` 공유. WebSocket 이벤트 → Query 무효화 |
 | 테스트 | **Vitest**(L1 단위·L2 통합·L3 API E2E) + **Playwright**(L3 웹 E2E) | 2026-08-22 | 3계층 배치·명령·무게중심(L2)은 [4.2 코드베이스와 배포](codebase.md) §4.3 정본. L2는 mock 없이 실제 Postgres 상대(동시성 검증은 mock 금지 — AGENTS.md 규약과 동일). Playwright는 웹 E2E에만 — API 시나리오는 Vitest가 compose 스택 상대로 돈다 |
-| 배포 | **로컬 docker-compose / 운영 k8s(kustomize base+overlays)** | 2026-08-20 | 같은 이미지 3종: `nerv-api`(REST+MCP+WS+SSE), `nerv-worker`(같은 코드베이스, 엔트리 분리), `nerv-web`(Vite 산출물+nginx). 인프라 서비스는 Postgres(+pgvector·pg_trgm)·MinIO·Valkey·**nerv-embed**(TEI) 4종. 마이그레이션: compose는 기동 시, k8s는 Job. 워커 replica 1 + advisory lock(HPA 제외). Ingress: WebSocket 업그레이드·SSE 버퍼링 해제·타임아웃 상향, `/mcp` Origin 검증 |
+| 배포 | **로컬 docker-compose / 운영 k8s(kustomize base+overlays)** | 2026-08-20 | 같은 이미지 3종: `nerv-api`(REST+MCP+WS+SSE), `nerv-worker`(같은 코드베이스, 엔트리 분리), `nerv-web`(Vite 산출물+nginx). 인프라 서비스는 Postgres(+pgvector·pg_trgm)·MinIO·Valkey + **`embed`(로컬 프로필 전용 — TEI. 외부 제공자 프로필에서는 띄우지 않는다)**. 마이그레이션: compose는 기동 시, k8s는 Job. 워커 replica 1 + advisory lock(HPA 제외). Ingress: WebSocket 업그레이드·SSE 버퍼링 해제·타임아웃 상향, `/mcp` Origin 검증 |
 
 > **인증 확정이 로드맵 표기 하나를 대체한다.** [로드맵](../03-proposal/roadmap.md) §3.2(v0.1 · 2026-08-13)는 Phase 1 인증을 "OAuth 2.1로 승격"으로 적었다. 2026-08-20 인증 스택 확정(better-auth)에서 **OAuth 2.1 리소스 서버는 Phase 2로 이동**했고, MVP의 에이전트 인증은 PAT(해시 저장 · 사용자·프로젝트·역할·스코프 튜플 바인딩)로 확정한다. NFR-03의 수용 기준(토큰 프로젝트 스코프·권한 비확대·본문 비신뢰 — [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4.3)은 PAT로 충족되므로 Phase 배분표의 NFR-03 ● 판정은 유지된다. OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다.
 
@@ -114,7 +116,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | Valkey pub/sub(무영속 단일 인스턴스) | 방송 유실로 인한 재조회 비용이 실측 임계를 넘거나 이벤트 재전송(replay) 요구가 생길 때 | Valkey Streams(적재형)·HA(센티널/관리형) 재검토 |
 | TipTap | md 직렬화 왕복 손실 실측 발생 | Milkdown 재검토 |
 | Vitest + Playwright | L3 유지 비용이 개발 흐름을 끊는 수준으로 증가 | E2E 범위 축소(시나리오 5종 고정) 또는 러너 통합 재검토 |
-| 임베딩 CPU 서빙(TEI + BGE-m3) | 질의 임베딩 p95가 검색 응답 목표를 잠식하거나 검색 만족도 실측 미달 | GPU 서빙 · 경량 모델(multilingual-e5 계열) 교체 · 그때도 부족하면 전용 검색엔진 재검토(그 전에는 재론 금지) |
+| 임베딩 제공자 프로필(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI) | 질의 임베딩 p95가 검색 응답 목표를 잠식, 검색 만족도 실측 미달, 또는 운영 API 비용·정책 변화 | 제공자·모델은 env 교체 + 재임베딩으로 해소(코드 불변 — OpenAI 호환 단일 계약). 그래도 부족하면 전용 검색엔진 재검토(그 전에는 재론 금지) |
 | 실시간 공동 편집 미도입 | 버전 충돌(409 재시도) 주 20건 이상 또는 동시 편집 요구 반복(로드맵 §5.1) | Yjs + Hocuspocus |
 | 이중 배포 타깃(compose+k8s) | 운영 규모가 단일 노드로 충분(NFR-04) | k8s 생략 |
 
@@ -265,7 +267,7 @@ SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 | 임포트 양방향 동기화 · 서버 주도 저장소 clone | Phase 3+ (착수 조건부) | 임포트는 복제이고 SoT는 git이다(§6.1-5). 서버는 대상 저장소에 접근하지 않는다 — 파일을 읽는 쪽이 파일 있는 장비라는 것이 임포터 구조의 전제다([4.7 스펙 임포터](importer.md) §3.2) |
 | 임포트 MCP 도구 | — (계획 없음) | 결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. 에이전트 경로는 스킬 `/nerv:import`뿐(§4.2·§4.3) |
 | 외부 검색엔진(Elasticsearch 등) | — (계획 없음, §2.2 트리거로만) | Postgres 하이브리드(FTS+trgm+pgvector)로 목표 규모(NFR-04) 충분. 운영 컴포넌트 +1의 비용이 이득을 넘는다 |
-| 외부 임베딩 API(OpenAI·Voyage 등) | — (계획 없음) | 스펙 본문의 외부 전송 금지(NFR-03·비신뢰 경계). 임베딩은 자가호스팅만(REQ-CB-020) |
+| OpenAI 호환이 아닌 임베딩 SDK 직결(Voyage 전용 SDK 등) | — (계획 없음) | 제공자는 OpenAI 호환 `/v1/embeddings` 단일 계약만(REQ-CB-020) — 제공자별 분기 코드를 만들지 않는다. ※ 외부 제공자 사용 시 스펙 본문이 그 제공자에 전송된다 — 기밀 등급이 높은 프로젝트는 자가호스팅 프로필을 쓰는 것이 운영 권고다 |
 | 전역 관계 그래프 뷰·서버 watch 테이블 | Phase 2 | S3 관계 패널(양방향 목록)로 MVP 충족. 그래프 시각화·워치 서버 동기화는 알림 확장과 함께([4.5](screens.md) §2.4) |
 | git 미러 export | Phase 2 말(M2 컷오버 시점) | MVP 기간에는 spec/plan의 SoT가 git이라 export할 것이 없다(로드맵 §7.4). **HTTP md 미러(`GET …/specs/{id}.md` · `llms.txt`)는 별개로 MVP 포함** — [4.4 API 명세](api.md) §2 |
 
@@ -280,7 +282,7 @@ SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 | # | 전제/제약 | 내용 |
 | --- | --- | --- |
 | 1 | 런타임 | Node.js LTS. 패키지 매니저 pnpm(모노레포 workspace) |
-| 2 | 배포 이중 타깃 | 로컬·소규모 = docker-compose 단일 파일, 운영 = k8s(kustomize base+overlays). 같은 이미지 3종 공유(§2.1). 인프라 서비스는 Postgres(+pgvector·pg_trgm)·MinIO·**Valkey**(방송 MQ — pub/sub 전용·무영속)·**nerv-embed**(자가호스팅 임베딩 서빙) 4종. 상세 실물은 [4.2 코드베이스와 배포](codebase.md) |
+| 2 | 배포 이중 타깃 | 로컬·소규모 = docker-compose 단일 파일, 운영 = k8s(kustomize base+overlays). 같은 이미지 3종 공유(§2.1). 인프라 서비스는 Postgres(+pgvector·pg_trgm)·MinIO·**Valkey**(방송 MQ — pub/sub 전용·무영속) + **`embed`**(로컬 프로필 전용 — 외부 제공자 사용 시 미기동, [4.2](codebase.md) §5.2a). 상세 실물은 [4.2 코드베이스와 배포](codebase.md) |
 | 3 | 워커 단일 인스턴스 | `nerv-worker` replica 1 + Postgres advisory lock, HPA 제외 |
 | 4 | 마이그레이션 실행 위치 | compose는 기동 시, k8s는 Job — [4.2 코드베이스와 배포](codebase.md) §6 |
 | 5 | SoT 경계 | MVP 기간 중 clemvion `spec/`·`plan/`의 SoT는 git이다. 임포트는 복제이고 컷오버(M1~)는 Phase 2부터(로드맵 §7.2·§7.4) |

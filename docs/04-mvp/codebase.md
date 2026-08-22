@@ -5,9 +5,11 @@ updated: 2026-08-22
 ---
 # 코드베이스와 배포
 
-> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **구현 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~020으로 번호를 부여했다.
+> **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **구현 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 배포 트리(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v0.7 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+>
+> v0.7 변경(2026-08-22 — 임베딩 제공자 추상화, [4.1](scope.md) v0.7과 짝): 임베딩 호출을 **OpenAI 호환 `/v1/embeddings` 단일 계약**으로 전환 — 환경 프로필 §5.2a 신설(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI), `NERV_EMBED_API_KEY` 추가, compose `embed`는 **로컬 프로필 전용**(profiles로 선택 기동), k8s `base/embed/`는 외부 제공자 오버레이에서 제외. REQ-CB-020 개정("자가호스팅만" 폐기 → 단일 계약 + env 결정), REQ-CB-021(1024차원 강제) 추가.
 >
 > v0.6 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1](scope.md) §2.1): ① 인프라 서비스 4종 — **`embed`(TEI + BGE-m3, 자가호스팅 임베딩 서빙)** 추가, postgres 이미지를 pgvector 동봉판(`pgvector/pgvector:pg17`)으로 교체 ② 워커 잡 `embedding.job.ts` 추가(§2.2) ③ `.env`에 `NERV_EMBED_URL`·`NERV_EMBED_MODEL`(§5.2) ④ k8s `base/embed/`(§6.2) ⑤ REQ-CB-020. **REQ-CB-017(빌드 이미지 3종)과 충돌 없음** — embed는 빌드 산출물이 아니라 postgres·valkey와 같은 기성 인프라 이미지다.
 >
@@ -446,8 +448,8 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 | `pnpm db:generate` | `@nerv/schema`에서 `drizzle-kit generate` — 마이그레이션 SQL 생성 |
 | `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로 |
 | `pnpm db:seed` | 개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등([4.3 데이터베이스 스키마](database.md) §4, REQ-DB-002) |
-| `pnpm compose:up` | `docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build` |
-| `pnpm compose:infra` | 위 명령 + `postgres minio valkey embed` 서비스만 |
+| `pnpm compose:up` | `docker compose -f deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build` — 외부 임베딩 제공자 사용 시 `--profile local-embed` 생략(§5.2a) |
+| `pnpm compose:infra` | 위 명령 + `postgres minio valkey embed` 서비스만(`embed`는 local-embed 프로필일 때) |
 | `pnpm compose:down` | 스택 정지(볼륨 유지) |
 | `pnpm --filter @nerv/cli build` | 임포터 CLI 빌드 — 산출물은 이미지가 아니라 설치형 패키지(§1.3) |
 | `nerv import …` | 임포터 실행. **`codebase/`가 아니라 원본 체크아웃에서 실행한다**([4.7 스펙 임포터](importer.md) §3.1) |
@@ -473,9 +475,10 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
 | `VALKEY_PORT` | | `6379` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 Valkey 접근 |
 | `NERV_VALKEY_URL` | dev 루프 시 | `redis://localhost:6379` | api · worker | 실시간 방송 MQ(§2.1). compose 내부에서는 `redis://valkey:6379`로 자동 조립(Valkey는 RESP 프로토콜 — `redis://` 스킴) |
-| `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090` | api(질의 임베딩) · worker(`embedding.job`) | compose 내부에서는 `http://embed:80` 자동 조립. 무응답 시 검색은 렉시컬 degrade(REQ-API-026) |
-| `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | compose `embed` · 재임베딩 관리(`spec_chunk_embedding.model` — 4.3 §2.15) | 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
-| `NERV_EMBED_PORT` | | `8090` | compose 포트 노출(127.0.0.1 한정) | 개발 루프용 |
+| `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090/v1` | api(질의 임베딩) · worker(`embedding.job`) | **OpenAI 호환 base URL(`/v1`까지)** — 프로필 §5.2a. compose 내부 기본은 `http://embed:80/v1`. 무응답 시 검색은 렉시컬 degrade(REQ-API-026) |
+| `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | `/v1/embeddings`의 `model` 인자 · 재임베딩 관리(`spec_chunk_embedding.model` — 4.3 §2.15) | 제공자·모델 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
+| `NERV_EMBED_API_KEY` | 외부 제공자 시 | — | `Authorization: Bearer` 헤더 | **secret** — 로컬 TEI는 불요. k8s는 `nerv-secrets`(§6.2) |
+| `NERV_EMBED_PORT` | | `8090` | compose 포트 노출(127.0.0.1 한정) | 로컬 프로필 전용 |
 | `MINIO_ROOT_USER` | | `nerv` | compose `minio` · S3 자격증명 | |
 | `MINIO_ROOT_PASSWORD` | **필수** | — | compose `minio` · S3 자격증명 | |
 | `MINIO_PORT` | | `9000` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 S3 접근 |
@@ -488,6 +491,20 @@ pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api�
 | `NERV_LOG_LEVEL` | | `info` | api · worker | |
 
 **에이전트 장비 쪽 변수는 이 전표가 아니다.** `NERV_TOKEN`(PAT)·`NERV_PROJECT`·`NERV_HOSTNAME`은 세션이 도는 개발자 장비의 환경이며, 정본은 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3·§4.1, 발급·설치 절차는 [4.6 플러그인과 온보딩](plugin.md)이다.
+
+### 5.2a 임베딩 제공자 프로필 — OpenAI 호환 단일 계약
+
+NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_EMBED_URL}/embeddings`**(`model`·`input[]`, 선택 `dimensions`) 하나만 호출하고(REQ-CB-020), 제공자는 env 3키로 결정된다. 제공자별 분기 코드·전용 SDK는 두지 않는다.
+
+| 환경 | 제공자 | `NERV_EMBED_URL` | `NERV_EMBED_MODEL` | 비고 |
+| --- | --- | --- | --- | --- |
+| **로컬**(기본값) | TEI — compose `embed` 서비스(CPU) | `http://embed:80/v1` | `BAAI/bge-m3` | 네이티브 1024차원. API 키 불요. 외부 전송 0 |
+| **스테이징** | LM Studio(OpenAI 호환 서버) | `http://<lmstudio-host>:1234/v1` | bge-m3 계열(GGUF) | 1024차원 확인 후 사용. `embed` 서비스 미기동 |
+| **운영** | OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | **`dimensions: 1024` 필수**(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021). `NERV_EMBED_API_KEY` 필수 |
+
+- **차원은 전 프로필 1024 고정**이다 — `spec_chunk_embedding.embedding vector(1024)`(4.3 §2.15)와 HNSW 인덱스가 차원에 묶이므로, 1024를 내지 못하는 제공자·모델은 프로필로 쓸 수 없다(REQ-CB-021이 적재 시 검증).
+- **환경 간 벡터는 호환되지 않는다** — 모델이 다르면 벡터 공간이 다르다. 각 환경의 인덱스는 자기 `model` 값에 묶이고(4.3 §2.15 규칙 3), 프로필 전환은 전량 재임베딩이다. DB를 환경 간 복사하는 경우(스테이징 복제 등)에도 임베딩 행은 버리고 재생성한다.
+- **외부 제공자 = 스펙 본문 외부 전송**이다. 이는 운영 주체가 env로 명시 선택하는 사항이며(2026-08-22 — v0.6 "자가호스팅만"의 번복), 기밀 등급이 높은 프로젝트는 자가호스팅 프로필이 운영 권고다([4.1](scope.md) §5).
 
 ### 5.3 `docker-compose.yml` 전문
 
@@ -530,8 +547,9 @@ services:
       timeout: 3s
       retries: 6
 
-  embed:                             # 자가호스팅 임베딩 서빙 — 하이브리드 검색의 벡터 축 (4.4 §2.2b)
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest   # 운영은 버전 태그 고정
+  embed:                             # 로컬 프로필 전용 임베딩 서빙(TEI — OpenAI 호환 /v1/embeddings 노출).
+    profiles: ["local-embed"]        #   외부 제공자(LM Studio·OpenAI) 프로필에서는 기동하지 않는다 (§5.2a)
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest   # 버전 태그 고정 권장
     restart: unless-stopped
     command: ["--model-id", "${NERV_EMBED_MODEL:-BAAI/bge-m3}"]
     volumes:
@@ -592,6 +610,9 @@ services:
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
+      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:80/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
+      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-BAAI/bge-m3}
+      NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -622,6 +643,9 @@ services:
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
+      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:80/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
+      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-BAAI/bge-m3}
+      NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -828,9 +852,9 @@ deploy/k8s/
     valkey/
       deployment.yaml            # §6.3 전문 — replicas 1 · 무영속 pub/sub 전용
       service.yaml               # nerv-valkey :6379 (name: redis)
-    embed/
-      deployment.yaml            # TEI + BGE-m3 — replicas 1 · CPU 시작(재검토 트리거: 4.1 §2.2) · 모델 캐시 PVC
-      service.yaml               # nerv-embed :80 (name: http) — configmap NERV_EMBED_URL=http://nerv-embed
+    embed/                       # ★ 로컬(자가호스팅) 프로필 전용 — 외부 제공자(LM Studio·OpenAI) 오버레이는
+      deployment.yaml            #   이 리소스를 제외하고 configmap NERV_EMBED_URL만 외부로 바꾼다 (§5.2a)
+      service.yaml               # nerv-embed :80 (name: http) — 자가호스팅 시 NERV_EMBED_URL=http://nerv-embed/v1
     web/
       deployment.yaml            # nginx · NERV_API_UPSTREAM=nerv-api:8080
       service.yaml               # nerv-web :80 (name: http)
@@ -1085,7 +1109,7 @@ patches:
 | **Postgres** | `pg_dump -Fc`(custom format) → 오브젝트 스토리지 업로드. cron Job(`nerv-backup`) | 일 1회 · 보존 14일 | 유일한 SoT — 스펙·Task·이벤트 전부. RPO = 24h 시작값(파일럿 규모 NFR-04에서 수용, 실측 후 조정) |
 | **MinIO** | 버킷 미러(`mc mirror`) | 선택 — 주 1회 | 내용물이 리뷰 프롬프트 blob(TTL 30일·재생성 가능 — D-07)뿐이라 유실 허용. 절차만 두고 기본 off |
 | **Valkey** | 백업하지 않는다 | — | 무영속 방송 버스 — 유실 시 클라이언트 재조회로 복구(D-14, [4.4](api.md) §3.4) |
-| **embed 모델 캐시** | 백업하지 않는다 | — | 모델 가중치는 재다운로드, `spec_chunk_embedding`은 재임베딩으로 재생성(4.3 §2.15) |
+| **embed 모델 캐시**(로컬 프로필 시) | 백업하지 않는다 | — | 모델 가중치는 재다운로드, `spec_chunk_embedding`은 재임베딩으로 재생성(4.3 §2.15). 외부 제공자 프로필은 해당 없음 |
 
 복구 순서(왕복 검증도 같은 순서로 실행한다):
 
@@ -1104,7 +1128,8 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 | ID | 요구(EARS) |
 | --- | --- |
 | **REQ-CB-019** | WHEN 백업본으로 §6.5 절차 ①~⑤를 실행하면, THE SYSTEM SHALL 추가 수동 개입 없이 로그인·스펙 조회·클레임이 동작하는 인스턴스에 도달하고, 백업 시각 이전 커밋 데이터의 손실 0을 행 수 대조로 검증 가능하게 한다(성공 기준 1-9). `spec_chunk_embedding`은 복원 대상이 아니어도 무방하다 — 재임베딩으로 재생성한다(4.3 §2.15). |
-| **REQ-CB-020** | WHEN 임베딩(질의·인덱싱)이 수행될 때, THE SYSTEM SHALL `NERV_EMBED_URL`의 자가호스팅 서빙만 호출하고 외부 임베딩 API로 스펙 본문을 전송하지 않는다 — 외부 전송 경로는 코드에 존재하지 않아야 한다(NFR-03, [4.1](scope.md) §5). |
+| **REQ-CB-020** | WHEN 임베딩(질의·인덱싱)이 수행될 때, THE SYSTEM SHALL `NERV_EMBED_URL`에 대한 **OpenAI 호환 `/v1/embeddings` 단일 클라이언트**만 사용하고 제공자별 분기·전용 SDK를 두지 않는다 — 제공자(자가호스팅/LM Studio/OpenAI)는 env 3키로만 결정되며 코드 기본값은 자가호스팅이다(§5.2a — 2026-08-22 개정: "자가호스팅만" 조항은 같은 날 폐기, 외부 전송은 운영 주체의 env 명시 선택). |
+| **REQ-CB-021** | WHEN 임베딩 응답의 벡터 차원이 1024가 아니면, THE SYSTEM SHALL 해당 배치를 적재하지 않고 오류로 기록한다 — OpenAI 프로필은 요청에 `dimensions: 1024`를 항상 포함한다(§5.2a). |
 
 ---
 

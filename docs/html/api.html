@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 15종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-08-22)</span>
+      <span>버전 v0.7 (2026-08-22)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -363,14 +363,14 @@
     <tbody>
       <tr><td>① ID 직행</td><td>질의가 안정 ID 패턴(<code>SPC-</code>·<code>REQ-</code>·<code>TSK-</code> prefix)에 매칭되면 해당 리소스를 최상위 반환 — 전문 검색을 거치지 않는다</td><td>정확 일치 + prefix</td></tr>
       <tr><td>② 렉시컬</td><td>FTS(<code>simple</code> — 영문·ID 토큰) + <b>pg_trgm</b>(한국어 조사 변형·부분 문자열) 병행. 대상: 제목·본문·requirement EARS 문장</td><td><a href="database.html">4.3</a> §2.12 인덱스</td></tr>
-      <tr><td>③ 벡터</td><td>질의를 <code>nerv-embed</code>(자가호스팅 — <a href="codebase.html">4.2</a> §5.3)로 1회 임베딩 → <code>spec_chunk_embedding</code> HNSW cosine top-K. 청크 = 헤딩 앵커 단위라 결과가 곧 앵커 스니펫이다</td><td><a href="database.html">4.3</a> §2.15</td></tr>
+      <tr><td>③ 벡터</td><td>질의를 임베딩 제공자(<b>OpenAI 호환 <code>/v1/embeddings</code></b> — env 프로필: 로컬 TEI / 스테이징 LM Studio / 운영 OpenAI, <a href="codebase.html">4.2</a> §5.2a)로 1회 임베딩 → <code>spec_chunk_embedding</code> HNSW cosine top-K(전 프로필 1024차원 고정 — REQ-CB-021). 청크 = 헤딩 앵커 단위라 결과가 곧 앵커 스니펫이다</td><td><a href="database.html">4.3</a> §2.15</td></tr>
       <tr><td>④ 병합 랭킹</td><td>②·③을 <b>RRF</b>(Reciprocal Rank Fusion)로 병합 — 점수 정규화 없이 순위만 쓰는 결정적 병합. 문서 상태 부스트(approved &gt; in_review &gt; draft) 후 스펙 단위 그룹핑</td><td>서비스 계층</td></tr>
       <tr><td>⑤ 관계 확장 (graph RAG)</td><td>상위 결과의 <code>spec_relation</code> 1-hop(<code>references</code>·<code>depends_on</code> 양방향)을 <b><code>related[]</code> 별도 그룹</b>으로 병기 — 본 랭킹에 섞지 않는다(관계는 관련성의 근거이지 질의 일치가 아니다). 에이전트는 이 그룹으로 "언급되지 않았지만 걸려 있는 스펙"을 컨텍스트에 넣는다</td><td><code>spec_relation</code>(REQ-API-024가 채운다)</td></tr>
     </tbody>
   </table></div>
 
   <ul>
-    <li><b>degrade 규칙</b>: <code>nerv-embed</code> 무응답 시 ③을 건너뛰고 ②만으로 응답하되 <code>degraded: "lexical-only"</code>를 표기한다(REQ-API-026). 검색은 조정 경로가 아니므로 fail-open이 맞다(D-14의 정신 — 판정 불가 시 진행 + 관측).</li>
+    <li><b>degrade 규칙</b>: 임베딩 제공자 무응답 시 ③을 건너뛰고 ②만으로 응답하되 <code>degraded: "lexical-only"</code>를 표기한다(REQ-API-026). 검색은 조정 경로가 아니므로 fail-open이 맞다(D-14의 정신 — 판정 불가 시 진행 + 관측).</li>
     <li><b>인덱싱 시점</b>: 검색 인덱스 갱신은 워커 <code>embedding.job</code> 비동기다 — 저장 직후 수 초간 벡터 결과에 새 본문이 빠질 수 있고, 렉시컬은 트랜잭션 내 인덱스라 즉시 반영된다. 이 비대칭은 수용한다(스펙 검색은 실시간 조정이 아니다).</li>
   </ul>
 
@@ -704,7 +704,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td>REQ-API-023</td><td>WHEN EP-PRJ-04의 <code>gate_policy</code>·<code>retention</code>이 §2.1a 스키마를 위반하거나 알 수 없는 키를 포함하면 THE SYSTEM SHALL 400 <code>NERV_PRECONDITION</code>(<code>details.issues</code>)으로 전체를 거부하고 부분 적용하지 않는다</td><td>오타 키 1케이스 + 경계값 위반 1케이스</td></tr>
       <tr><td>REQ-API-024</td><td>WHEN draft 저장이 커밋되면 THE SYSTEM SHALL 본문에서 실존 스펙 안정 ID를 추출해 그 spec의 <code>kind='references'</code> 관계 집합을 저장 본문과 일치하게 동기화한다(추가·제거 포함) — 미실존 ID는 행을 만들지 않고 응답 경고로만 반환한다</td><td>링크 추가·제거 저장 후 spec_relation 조회 + 미실존 ID 경고 확인</td></tr>
       <tr><td>REQ-API-025</td><td>WHEN 검색 질의가 안정 ID 패턴이면 THE SYSTEM SHALL 해당 리소스를 최상위로 직행 반환하고, 그 외 질의는 렉시컬+벡터 RRF 병합 순위와 <code>related[]</code> 분리 그룹으로 응답한다(§2.2b) — REST와 MCP 두 표면의 결과가 동일하다</td><td>ID 질의·한국어 질의·의미 질의 각 1건을 두 표면에서 실행해 대조</td></tr>
-      <tr><td>REQ-API-026</td><td>WHEN 임베딩 서비스가 무응답이면 THE SYSTEM SHALL 렉시컬 결과만으로 200을 반환하고 <code>degraded: "lexical-only"</code>를 표기한다 — 검색 실패를 5xx로 전파하지 않는다</td><td>nerv-embed 차단 상태에서 검색 1건</td></tr>
+      <tr><td>REQ-API-026</td><td>WHEN 임베딩 제공자가 무응답이면 THE SYSTEM SHALL 렉시컬 결과만으로 200을 반환하고 <code>degraded: "lexical-only"</code>를 표기한다 — 검색 실패를 5xx로 전파하지 않는다(어느 프로필이든 동일)</td><td>제공자 차단 상태에서 검색 1건</td></tr>
       <tr><td>REQ-API-027</td><td>WHEN EP-SPEC-18을 direction=both로 호출하면 THE SYSTEM SHALL 나가는 관계와 <b>역참조</b>를 kind·방향 표기와 함께 커서 페이지네이션으로 반환한다</td><td>역참조 30건 스펙에서 2페이지 조회</td></tr>
     </tbody>
   </table></div>

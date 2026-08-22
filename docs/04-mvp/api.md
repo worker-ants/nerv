@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 15종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.7 · 2026-08-22 · HTML 판: [api.html](../html/api.html)
+>
+> v0.7 변경(2026-08-22): §2.2b ③의 임베딩 호출을 **OpenAI 호환 `/v1/embeddings` 제공자 추상화**로 개정 — 제공자는 env 프로필(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI, 정본 [4.2](codebase.md) §5.2a). 파이프라인·degrade 규칙은 불변.
 >
 > v0.6 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1](scope.md) §2.1): ① **검색 파이프라인 §2.2b 신설** — ID 직행 → 렉시컬(FTS+trgm) + 벡터(pgvector) RRF 병합 → 관계 확장(graph RAG). EP-SPEC-02와 `nerv_spec_search`는 같은 서비스이므로 두 표면이 동시에 이 품질을 얻는다 ② **EP-SPEC-18 관계 조회 신설**(양방향·backlink) + EP-SPEC-03 `include[]`에 `relations` 추가 ③ REQ-API-025~027.
 >
@@ -247,11 +249,11 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | --- | --- | --- |
 | ① ID 직행 | 질의가 안정 ID 패턴(`SPC-`·`REQ-`·`TSK-` prefix)에 매칭되면 해당 리소스를 최상위 반환 — 전문 검색을 거치지 않는다 | 정확 일치 + prefix |
 | ② 렉시컬 | FTS(`simple` — 영문·ID 토큰) + **pg_trgm**(한국어 조사 변형·부분 문자열) 병행. 대상: 제목·본문·requirement EARS 문장 | [4.3](database.md) §2.12 인덱스 |
-| ③ 벡터 | 질의를 `nerv-embed`(자가호스팅 — [4.2](codebase.md) §5.3)로 1회 임베딩 → `spec_chunk_embedding` HNSW cosine top-K. 청크 = 헤딩 앵커 단위라 결과가 곧 앵커 스니펫이다 | [4.3](database.md) §2.15 |
+| ③ 벡터 | 질의를 임베딩 제공자(**OpenAI 호환 `/v1/embeddings`** — env 프로필: 로컬 TEI / 스테이징 LM Studio / 운영 OpenAI, [4.2](codebase.md) §5.2a)로 1회 임베딩 → `spec_chunk_embedding` HNSW cosine top-K(전 프로필 1024차원 고정 — REQ-CB-021). 청크 = 헤딩 앵커 단위라 결과가 곧 앵커 스니펫이다 | [4.3](database.md) §2.15 |
 | ④ 병합 랭킹 | ②·③을 **RRF**(Reciprocal Rank Fusion)로 병합 — 점수 정규화 없이 순위만 쓰는 결정적 병합. 문서 상태 부스트(approved > in_review > draft) 후 스펙 단위 그룹핑 | 서비스 계층 |
 | ⑤ 관계 확장 (graph RAG) | 상위 결과의 `spec_relation` 1-hop(`references`·`depends_on` 양방향)을 **`related[]` 별도 그룹**으로 병기 — 본 랭킹에 섞지 않는다(관계는 관련성의 근거이지 질의 일치가 아니다). 에이전트는 이 그룹으로 "언급되지 않았지만 걸려 있는 스펙"을 컨텍스트에 넣는다 | `spec_relation`(REQ-API-024가 채운다) |
 
-- **degrade 규칙**: `nerv-embed` 무응답 시 ③을 건너뛰고 ②만으로 응답하되 `degraded: "lexical-only"`를 표기한다(REQ-API-026). 검색은 조정 경로가 아니므로 fail-open이 맞다(D-14의 정신 — 판정 불가 시 진행 + 관측).
+- **degrade 규칙**: 임베딩 제공자 무응답 시 ③을 건너뛰고 ②만으로 응답하되 `degraded: "lexical-only"`를 표기한다(REQ-API-026). 검색은 조정 경로가 아니므로 fail-open이 맞다(D-14의 정신 — 판정 불가 시 진행 + 관측).
 - **인덱싱 시점**: 검색 인덱스 갱신은 워커 `embedding.job` 비동기다 — 저장 직후 수 초간 벡터 결과에 새 본문이 빠질 수 있고, 렉시컬은 트랜잭션 내 인덱스라 즉시 반영된다. 이 비대칭은 수용한다(스펙 검색은 실시간 조정이 아니다).
 
 초안 편집 리스는 EP-SPEC-08 성공 시 자동 획득·갱신되고(웹 표면), 타 사용자 보유 시 409 `NERV_DRAFT_LEASED`를 반환한다. TTL 30분·자동 인계·해제 조건은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2 정본을 따른다.
@@ -540,7 +542,7 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | REQ-API-023 | WHEN EP-PRJ-04의 `gate_policy`·`retention`이 §2.1a 스키마를 위반하거나 알 수 없는 키를 포함하면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`details.issues`)으로 전체를 거부하고 부분 적용하지 않는다 | 오타 키 1케이스 + 경계값 위반 1케이스 |
 | REQ-API-024 | WHEN draft 저장이 커밋되면 THE SYSTEM SHALL 본문에서 실존 스펙 안정 ID를 추출해 그 spec의 `kind='references'` 관계 집합을 저장 본문과 일치하게 동기화한다(추가·제거 포함) — 미실존 ID는 행을 만들지 않고 응답 경고로만 반환한다 | 링크 추가·제거 저장 후 spec_relation 조회 + 미실존 ID 경고 확인 |
 | REQ-API-025 | WHEN 검색 질의가 안정 ID 패턴이면 THE SYSTEM SHALL 해당 리소스를 최상위로 직행 반환하고, 그 외 질의는 렉시컬+벡터 RRF 병합 순위와 `related[]` 분리 그룹으로 응답한다(§2.2b) — REST와 MCP 두 표면의 결과가 동일하다 | ID 질의·한국어 질의·의미 질의 각 1건을 두 표면에서 실행해 대조 |
-| REQ-API-026 | WHEN 임베딩 서비스가 무응답이면 THE SYSTEM SHALL 렉시컬 결과만으로 200을 반환하고 `degraded: "lexical-only"`를 표기한다 — 검색 실패를 5xx로 전파하지 않는다 | nerv-embed 차단 상태에서 검색 1건 |
+| REQ-API-026 | WHEN 임베딩 제공자가 무응답이면 THE SYSTEM SHALL 렉시컬 결과만으로 200을 반환하고 `degraded: "lexical-only"`를 표기한다 — 검색 실패를 5xx로 전파하지 않는다(어느 프로필이든 동일) | 제공자 차단 상태에서 검색 1건 |
 | REQ-API-027 | WHEN EP-SPEC-18을 direction=both로 호출하면 THE SYSTEM SHALL 나가는 관계와 **역참조**를 kind·방향 표기와 함께 커서 페이지네이션으로 반환한다 | 역참조 30건 스펙에서 2페이지 조회 |
 
 ---
