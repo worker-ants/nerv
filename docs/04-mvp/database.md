@@ -921,6 +921,8 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
 예시 데이터 한 벌은 기존 문서 세트와 동일하다(vision §2·ui-wireframes §S4/S5) — 프로젝트 clemvion, 스펙 `SPC-CWC-007`(웹챗 위젯 임베드)·`SPC-CWC-012`(세션 복원 API), `REQ-CWC-031`, `TSK-3f77`=하나/mac-07, `TSK-a3f8`=도현/mac-02, `TSK-b904`=유나/linux-ci-01/codex, 세션 `S-b7e9` 등. 표시 문자열은 각 테이블의 `key`(spec·task) · `ref`(requirement) · `external_session_id`(agent_session)로 심는다. 시드는 **개발 전용**이며 `pnpm db:seed`가 TRUNCATE 후 재삽입하므로 몇 번을 실행해도 같은 상태다(REQ-DB-002). UUID는 가독성을 위한 고정값(UUIDv7 형식)이다.
 
+**관리자 계정은 등장인물과 분리한다**(2026-08-23 추가). 위 다섯(지민·서연·도현·유나·하나)은 각 화면이 비어 보이지 않게 하는 **온보딩용 인물**이고, `admin@example.com`은 조직을 세우는 계정이다. 겸하게 두면 두 가지가 어긋난다 — ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin이 모든 자리에 앉아 있게 되고 ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다. 그래서 이 계정만 **조직 스코프**(`project_id NULL`) 멤버십을 갖는다 — 프로젝트가 늘어도 한 행이 조직 전체를 관리한다. 이 계정이 없으면 임포트(admin 전용)·게이트 정책·멤버 역할 화면을 시드만으로 시연할 수 없다(실측: clemvion 임포트가 여기서 막혔다).
+
 ```sql
 BEGIN;
 TRUNCATE organization, "user" CASCADE;   -- FK 연쇄로 전 도메인 테이블 초기화
@@ -932,7 +934,14 @@ SELECT nerv_ensure_month_partitions((current_date - interval '1 month')::date);
 INSERT INTO organization (id, slug, name) VALUES
   ('01990a66-0000-7000-8000-000000000001', 'nerv', 'NERV');
 
+-- **관리자는 온보딩 인물과 분리한다.** 아래 다섯은 화면을 채우기 위한 등장인물이고
+-- (기획자·디자이너·개발자 — 각 화면이 비어 보이지 않게 하는 것이 목적이다),
+-- admin 은 조직을 세우는 사람이다. 둘을 겸하게 두면 두 가지가 어긋난다:
+--   ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin 이 모든 자리에 앉아 있게 된다
+--   ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다
+-- 그래서 조직 스코프(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
 INSERT INTO "user" (id, email, display_name, state) VALUES
+  ('01990a66-0000-7000-8000-000000000010', 'admin@example.com',  '관리자', 'active'),
   ('01990a66-0000-7000-8000-000000000011', 'jimin@example.com',  '지민', 'active'),
   ('01990a66-0000-7000-8000-000000000012', 'seoyeon@example.com','서연', 'active'),
   ('01990a66-0000-7000-8000-000000000013', 'dohyun@example.com', '도현', 'active'),
@@ -944,6 +953,8 @@ INSERT INTO project (id, org_id, slug, key, name, repo_url, default_branch) VALU
    'clemvion', 'CLV', 'clemvion', 'https://git.example.com/nerv/clemvion.git', 'main');
 
 INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES
+  -- 조직 스코프(project_id NULL) — 프로젝트가 늘어도 이 한 행이 조직 전체를 관리한다
+  ('01990a66-0000-7000-8000-000000000030', '01990a66-0000-7000-8000-000000000001', NULL, '01990a66-0000-7000-8000-000000000010', 'admin'),
   ('01990a66-0000-7000-8000-000000000031', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000011', 'planner'),
   ('01990a66-0000-7000-8000-000000000032', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000012', 'designer'),
   ('01990a66-0000-7000-8000-000000000033', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000013', 'developer'),

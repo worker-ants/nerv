@@ -582,6 +582,7 @@ export const en = {
   'cli.err.unknown_profile': 'Unknown built-in profile: {name} (available: {available})',
   'cli.mode.apply': 'Apply',
   'cli.mode.dry_run': 'Dry run',
+  'cli.reason.area_without_body': 'No {file} in this area — created as a body-less tree node',
   'cli.reason.duplicate_key':
     'Duplicate key — {count} files share "{key}"; later ones overwrite earlier ones',
   'cli.reason.load_failed': 'Load failed',

@@ -29,7 +29,14 @@ export const clemvionProfile: ImportProfile = {
     area_from_directory: true,
     area_body_file: '_product-overview.md',
     leaf_type: 'feature',
-    overrides: { 'conventions/**': 'convention' },
+    // 경로는 **스캔 뿌리(spec/) 기준 상대**다. 루트 진입 문서 3건은 자동 판정하지 않고
+    // 예외표로 고정한다(§2.2 표 — "루트 진입 문서 3건").
+    overrides: {
+      'conventions/**': 'convention',
+      '0-overview.md': 'vision',
+      '1-data-model.md': 'design',
+      '6-brand.md': 'design',
+    },
   },
   frontmatter: {
     id: 'spec.key',

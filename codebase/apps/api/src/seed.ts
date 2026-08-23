@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   );
   Logger.log(
     `로그인 계정 ${credentials}건 생성 — 비밀번호 "${DEV_PASSWORD}" ` +
-      '(예: jimin@example.com = planner · dohyun@example.com = developer)',
+      '(관리: admin@example.com = admin · 온보딩: jimin@example.com = planner 외 4)',
     'Seed',
   );
 }

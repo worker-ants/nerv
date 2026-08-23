@@ -574,6 +574,7 @@ export const ko = {
   'cli.err.unknown_profile': '알 수 없는 내장 프로파일: {name} (사용 가능: {available})',
   'cli.mode.apply': '적재',
   'cli.mode.dry_run': 'dry-run',
+  'cli.reason.area_without_body': '영역에 {file} 이 없다 — 본문 없는 트리 노드로 만든다',
   'cli.reason.duplicate_key':
     '키 중복 — "{key}" 를 {count}건이 함께 쓴다. 나중 것이 앞선 것을 덮어쓴다',
   'cli.reason.load_failed': '적재 실패',

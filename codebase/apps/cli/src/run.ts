@@ -9,7 +9,7 @@
 // 수행해 자연 키 충돌을 미리 본다(REQ-IMP-011).
 
 import { t } from './i18n.js';
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 import type {
   ImportBatchResult,
   ImportProfile,
@@ -45,7 +45,9 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
     if (converted !== null) items.push(converted);
   }
 
-  const loadable = withoutDuplicateKeys(items, entries);
+  const sourcePaths = new Set(files.map((f) => f.path));
+  const withTree = buildAreaTree(items, profile, entries);
+  const loadable = withoutDuplicateKeys(withTree, entries);
 
   const expectation = checkExpectations(profile, files.length, statusCounts, entries);
   const report: ImportReport = {
@@ -53,7 +55,8 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
     root: options.root,
     rootCommit: null,
     scanned: files.length,
-    converted: loadable.length,
+    // 합성된 area 노드는 원본 파일이 아니다 — 변환율의 분자에 넣으면 100% 를 넘는다
+    converted: loadable.filter((item) => sourcePaths.has(item.source_path)).length,
     entries,
     expectation,
   };
@@ -237,7 +240,10 @@ function convert(
   // **폴백은 경로다.** 파일명만 쓰면 디렉터리가 다른 동명 파일이 같은 키를 갖고, upsert 가
   // 서로를 덮어쓴다 — clemvion 은 `_product-overview.md` 7건 · `0-common.md` 7건이라
   // 136건이 127노드로 줄고 9건이 조용히 사라졌다(실측 2026-08-23). 경로는 유일하다.
-  const key = typeof rawId === 'string' && rawId !== '' ? rawId : keyFromPath(file.path);
+  const key =
+    typeof rawId === 'string' && rawId !== ''
+      ? rawId
+      : keyFromPath(relativeToScanRoot(file.path, profile));
 
   const rawStatus = typeof frontmatter['status'] === 'string' ? frontmatter['status'] : undefined;
   if (rawStatus !== undefined) statusCounts[rawStatus] = (statusCounts[rawStatus] ?? 0) + 1;
@@ -289,9 +295,16 @@ function parentOf(path: string): string | null {
   return dir.split('/').at(-1) ?? null;
 }
 
+/**
+ * 타입 판정 — `tree.overrides` 는 **스캔 뿌리 기준 상대 경로**로 쓴다(importer.md §2.2).
+ *
+ * 저장소 기준 절대 경로로 대조하면 `conventions/**` 가 `spec/conventions/x.md` 를 놓친다 —
+ * clemvion 의 convention 22편이 전부 feature 로 들어가 있었다(실측 2026-08-23).
+ */
 function resolveType(path: string, profile: ImportProfile): string {
+  const rel = relativeToScanRoot(path, profile);
   for (const [pattern, type] of Object.entries(profile.tree.overrides)) {
-    if (new RegExp(`^${pattern.replaceAll('**', '.*').replaceAll('*', '[^/]*')}$`).test(path)) {
+    if (new RegExp(`^${pattern.replaceAll('**', '.*').replaceAll('*', '[^/]*')}$`).test(rel)) {
       return type;
     }
   }
@@ -433,4 +446,132 @@ function withoutDuplicateKeys(
   // **적재에서 뺀다.** 그대로 보내면 서버는 정상 upsert 로 받아들이고 나중 것이 앞선 것을
   // 덮어쓴다 — 문서가 사라지는데 오류는 나지 않는다. 빼면 사라지되 리포트에 이름이 남는다.
   return items.filter((item) => !conflicted.has(item.key));
+}
+
+/**
+ * 스캔 글롭의 리터럴 접두 — 트리의 뿌리다. `spec/**` + `/*.md` → `spec`.
+ *
+ * 뿌리 자체는 노드가 되지 않는다. 그 바로 아래 디렉터리부터 area 다(§2.2 표의 "영역 디렉터리").
+ */
+function scanRoot(profile: ImportProfile): string {
+  const first = profile.scan.spec[0] ?? '';
+  const segments: string[] = [];
+  for (const segment of first.split('/')) {
+    if (segment.includes('*') || segment.includes('{')) break;
+    segments.push(segment);
+  }
+  return segments.join('/');
+}
+
+function relativeToScanRoot(path: string, profile: ImportProfile): string {
+  const root = scanRoot(profile);
+  if (root === '') return path;
+  return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+}
+
+/**
+ * 디렉터리 계층 → 스펙 트리 (importer.md §2.2 · `tree.area_from_directory`).
+ *
+ * 규칙 셋을 그대로 옮긴다.
+ *   ① 디렉터리당 area 노드 1개
+ *   ② 그 디렉터리에 `area_body_file`(예: `_product-overview.md`)이 있으면 **그 문서가 곧
+ *      area 노드다** — 별도 리프로 만들지 않는다. 키·제목·본문·요구사항을 그대로 승계하므로
+ *      원본의 안정 ID 가 트리 중간 노드에 살아남는다(FR-01)
+ *   ③ 없으면 본문 없는 노드를 만들고 **리포트에 표기한다**(Spec 은 트리 노드일 뿐 본문을
+ *      갖지 않는다 — data-model §2.2)
+ *
+ * 이것이 없으면 모든 문서가 최상위에 평탄하게 붙는다 — 트리가 이 제품의 주 항해 수단인데
+ * 130편이 한 층에 늘어서면 아무것도 찾을 수 없다(실측 2026-08-23).
+ */
+/** 테스트가 트리 규칙만 따로 확인할 수 있게 내보낸다 */
+export const buildTreeForTesting = buildAreaTree;
+
+function buildAreaTree(
+  items: readonly ImportSpecItem[],
+  profile: ImportProfile,
+  entries: ReportEntry[],
+): ImportSpecItem[] {
+  if (!profile.tree.area_from_directory) return [...items];
+
+  const bodyFile = profile.tree.area_body_file;
+  const dirOf = (item: ImportSpecItem): string => {
+    const rel = relativeToScanRoot(item.source_path, profile);
+    const dir = dirname(rel);
+    return dir === '.' ? '' : dir;
+  };
+
+  // ② 디렉터리를 대표하는 문서 — 있으면 그것이 area 노드다
+  const areaByDir = new Map<string, ImportSpecItem>();
+  const leaves: ImportSpecItem[] = [];
+  for (const item of items) {
+    const isBody = bodyFile !== undefined && basename(item.source_path) === bodyFile;
+    const dir = dirOf(item);
+    if (isBody && dir !== '') areaByDir.set(dir, item);
+    else leaves.push(item);
+  }
+
+  // ③ 문서가 있는 모든 디렉터리 — 조상까지 포함해야 중간이 끊기지 않는다
+  const dirs = new Set<string>();
+  for (const item of items) {
+    let dir = dirOf(item);
+    while (dir !== '') {
+      dirs.add(dir);
+      dir = dirname(dir) === '.' ? '' : dirname(dir);
+    }
+  }
+
+  const keyOfDir = new Map<string, string>();
+  for (const dir of dirs) {
+    const body = areaByDir.get(dir);
+    // 대표 문서가 frontmatter `id` 를 선언했으면 그 안정 ID 를 area 가 승계한다(FR-01).
+    // 선언하지 않아 경로에서 만든 키였다면 **디렉터리 키**가 낫다 —
+    // `4-nodes-_product-overview` 는 사람이 부를 이름이 아니다.
+    const declared =
+      body !== undefined && body.key !== keyFromPath(relativeToScanRoot(body.source_path, profile));
+    keyOfDir.set(dir, declared && body !== undefined ? body.key : keyFromPath(dir));
+  }
+  const parentKeyOf = (dir: string): string | null => {
+    const parent = dirname(dir) === '.' ? '' : dirname(dir);
+    return parent === '' ? null : (keyOfDir.get(parent) ?? null);
+  };
+
+  const areas: ImportSpecItem[] = [];
+  for (const dir of [...dirs].sort()) {
+    const existing = areaByDir.get(dir);
+    if (existing !== undefined) {
+      areas.push({
+        ...existing,
+        key: keyOfDir.get(dir) ?? existing.key,
+        type: 'area',
+        parent_key: parentKeyOf(dir),
+      });
+      continue;
+    }
+    entries.push({
+      file: dir,
+      line: null,
+      reason: t()('cli.reason.area_without_body', { file: bodyFile ?? '' }),
+      disposition: 'manual',
+    });
+    areas.push({
+      source_path: dir,
+      key: keyOfDir.get(dir) ?? keyFromPath(dir),
+      parent_key: parentKeyOf(dir),
+      type: 'area',
+      title: basename(dir),
+      // 본문 없는 트리 노드다 — 원문이 없는데 지어내지 않는다
+      body_md: '',
+      doc_status: 'approved',
+      requirements: [],
+      evidence: [],
+    });
+  }
+
+  return [
+    ...areas,
+    ...leaves.map((item) => {
+      const dir = dirOf(item);
+      return { ...item, parent_key: dir === '' ? null : (keyOfDir.get(dir) ?? null) };
+    }),
+  ];
 }

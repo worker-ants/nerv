@@ -208,7 +208,9 @@ task:                        # plan 프로파일(P1) — §2.6
 
   <p>필드 채움 규칙:</p>
   <ul>
-    <li><code>spec.key</code> ← frontmatter <code>id</code>(kebab-case). 옛 id는 이렇게 <b>별칭으로 보존</b>되어 기존 인용이 살아남는다(로드맵 §7.3(1)). 같은 프로젝트에서 key가 충돌하면 <b>중단</b> — clemvion은 "basename 충돌 시 영역 prefix" 관행으로 id 유일성을 유지해 왔으므로 충돌은 원본 결함이고, 임포터가 임의로 개명하지 않는다.</li>
+    <li><b><code>tree.overrides</code> 의 경로는 스캔 뿌리 기준 상대</b>다(2026-08-23 명시). <code>spec/**/*.md</code> 의 뿌리는 <code>spec</code> 이므로 <code>conventions/**</code> 는 <code>spec/conventions/x.md</code> 를 가리킨다. 저장소 기준 절대 경로로 대조하면 이 패턴이 아무것도 잡지 못한다 — clemvion 의 convention 22편이 전부 <code>feature</code> 로 들어가 있었다(실측).</li>
+    <li><b>frontmatter <code>id</code> 가 없으면 키는 경로에서 만든다</b>(뿌리 기준 상대 경로의 <code>/</code> → <code>-</code>, 2026-08-23 명시). 파일명만 쓰면 디렉터리가 다른 동명 파일이 한 키를 두고 다투고, 그 다툼은 upsert 가 조용히 덮어쓰는 것으로 끝난다 — <code>_product-overview.md</code> 7건·<code>0-common.md</code> 7건이 그랬다(실측: 136건이 127노드가 되고 9건이 사라졌는데 리포트는 "실패 0"이었다). <code>area_body_file</code> 이 area 노드가 될 때는 <b>디렉터리 키</b>를 쓰되, 그 문서가 <code>id</code> 를 선언했다면 그 안정 ID 를 승계한다(FR-01).</li>
+    <li><code>spec.key</code> ← frontmatter <code>id</code>(kebab-case). 옛 id는 이렇게 <b>별칭으로 보존</b>되어 기존 인용이 살아남는다(로드맵 §7.3(1)). 같은 프로젝트에서 key가 충돌하면 <b>중단</b> — clemvion은 "basename 충돌 시 영역 prefix" 관행으로 id 유일성을 유지해 왔으므로 충돌은 원본 결함이고, 임포터가 임의로 개명하지 않는다. 구현은 충돌한 항목을 <b>적재에서 빼고 파일 이름을 리포트에 남긴다</b>(2026-08-23) — 지우는 것보다 나쁜 것은 아무도 말해 주지 않는 것이다.</li>
     <li><code>spec.sort_key</code> ← 파일·디렉터리명의 정수 접두(<code>0-</code>/<code>1-</code>/<code>5-</code> …). "정수 접두 규약을 데이터로 흡수"하는 자리가 정확히 이 필드다(데이터 모델 §2.2).</li>
     <li><code>spec.title</code> ← 본문 첫 <code># </code> 헤딩. 없으면 파일명(리포트 warn).</li>
     <li><code>spec.archived_at</code> ← <code>status: archived</code>일 때 임포트 실행 시각(현재 실측 0건).</li>
