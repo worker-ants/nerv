@@ -24,7 +24,7 @@ import { SearchService } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import { SpecService } from './spec.service.js';
-import type { SpecTreeNode } from './spec.service.js';
+import type { SpecGraphEdge, SpecTreeNode } from './spec.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
@@ -44,6 +44,21 @@ export class SpecController {
     @Query('include_archived') includeArchived?: string,
   ): Promise<SpecTreeNode[]> {
     return this.specs.tree({
+      projectId: projectOf(req),
+      includeArchived: includeArchived === 'true',
+    });
+  }
+
+  /**
+   * EP-SPEC-19 — 전역 그래프. 노드와 간선을 한 응답으로 준다(§2.2).
+   * 트리와 관계를 따로 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다.
+   */
+  @Get('specs/graph')
+  graph(
+    @Req() req: ProjectRequest,
+    @Query('include_archived') includeArchived?: string,
+  ): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
+    return this.specs.graph({
       projectId: projectOf(req),
       includeArchived: includeArchived === 'true',
     });

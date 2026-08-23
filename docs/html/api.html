@@ -347,6 +347,7 @@
       <tr><td>EP-SPEC-16</td><td><code>POST /api/v1/projects/{proj}/specs/{spec}/archive</code></td><td>planner·admin (<code>spec:meta</code>)</td><td>—</td><td><code>SpecResult</code>(<code>archived_at</code> 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409(<code>details.kind="archive_blocked"</code>, 차단 사유 목록)</td><td>★<code>spec.archived</code></td></tr>
       <tr><td>EP-SPEC-17</td><td><code>POST /api/v1/projects/{proj}/specs/{spec}/restore</code></td><td>planner·admin (<code>spec:meta</code>)</td><td>—</td><td><code>SpecResult</code>(<code>archived_at</code> NULL) — 부모가 아카이브 상태면 409(<code>details.kind="parent_archived"</code>)</td><td>★<code>spec.restored</code></td></tr>
       <tr><td>EP-SPEC-18</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/relations</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecRelationQuery</code>(direction: out/in/both 기본 both, kind?, cursor)</td><td><code>Page&lt;SpecRelationEntry&gt;</code>(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — <b>역참조(backlink)가 1급이다</b>: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널(<a href="screens.html">4.5 화면 명세</a> §2.4)과 영향 미리보기의 데이터 소스</td><td>—</td></tr>
+      <tr><td>EP-SPEC-19</td><td><code>GET /api/v1/projects/{proj}/specs/graph</code></td><td><code>spec:read</code></td><td>A1</td><td>전역 관계 그래프 — 노드(트리와 같은 모양) + 간선을 <b>한 응답</b>으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 <a href="screens.html">4.5</a> §2.4a</td></tr>
     </tbody>
   </table></div>
 

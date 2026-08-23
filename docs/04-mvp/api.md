@@ -245,6 +245,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-16 | `POST /api/v1/projects/{proj}/specs/{spec}/archive` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409 `NERV_PRECONDITION`(`details.kind="archive_blocked"`, 차단 사유 목록) | ★`spec.archived` |
 | EP-SPEC-17 | `POST /api/v1/projects/{proj}/specs/{spec}/restore` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` NULL) — 부모가 아카이브 상태면 409(`details.kind="parent_archived"`) | ★`spec.restored` |
 | EP-SPEC-18 | `GET /api/v1/projects/{proj}/specs/{spec}/relations` | 전 역할(`spec:read`) | `SpecRelationQuery`(direction: out/in/both 기본 both, kind?, cursor) | `Page<SpecRelationEntry>`(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — **역참조(backlink)가 1급이다**: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널([4.5 화면 명세](screens.md) §2.4)과 영향 미리보기의 데이터 소스 | — |
+| EP-SPEC-19 | `GET /api/v1/projects/{proj}/specs/graph` | `spec:read` | A1 | 전역 관계 그래프 — 노드(트리와 같은 모양) + 간선을 **한 응답**으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 [4.5](screens.md) §2.4a |
 
 스펙 **승인·거절 엔드포인트는 이 절에 없다.** `in_review → approved/rejected` 전이는 승인함의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 `nerv_spec_approve`가 존재하지 않는 것([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.
 

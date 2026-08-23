@@ -98,11 +98,11 @@ describe('ToolRegistry — modules/**/*.tools.ts 수집', () => {
     await app.init();
   });
 
-  it('MVP 도구 15종을 수집한다 (P0 8 + P1 7 — scope.md §4.2)', () => {
+  it('MVP 도구 16종을 수집한다 (P0 8 + P1 8 — scope.md §4.2)', () => {
     const registry = app.get(ToolRegistry);
-    expect(registry.size).toBe(15);
+    expect(registry.size).toBe(16);
     expect(registry.list().filter((t) => t.phase === 'P0')).toHaveLength(8);
-    expect(registry.list().filter((t) => t.phase === 'P1')).toHaveLength(7);
+    expect(registry.list().filter((t) => t.phase === 'P1')).toHaveLength(8);
   });
 
   it('P0 8종의 이름이 카탈로그와 일치한다', () => {

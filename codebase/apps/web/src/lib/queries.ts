@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { apiFetch } from './api.js';
+import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
 import { queryKeys } from './query-keys.js';
 import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
@@ -97,6 +98,23 @@ export function useSpec(slug: string, specKey: string): UseQueryResult<Row> {
     queryKey: queryKeys.spec(specKey),
     queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}`),
   });
+}
+
+/** EP-SPEC-19 — 전역 그래프. 노드·간선을 한 번에 받는다(끝점 없는 간선을 만들지 않는다) */
+export function useSpecGraph(
+  slug: string,
+  projectId: string | undefined,
+): UseQueryResult<SpecGraph> {
+  return useQuery({
+    queryKey: ['project', projectId ?? slug, 'specGraph'],
+    queryFn: () => apiFetch<SpecGraph>(`/projects/${slug}/specs/graph`),
+    enabled: projectId !== undefined,
+  });
+}
+
+export interface SpecGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
 
 export function useSpecVersions(slug: string, specKey: string): UseQueryResult<Row[]> {

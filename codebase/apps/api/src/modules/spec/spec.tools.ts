@@ -9,6 +9,8 @@ import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-regist
 import { SearchService } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import { SpecService } from './spec.service.js';
+import { SpecRelationService } from './spec-relation.service.js';
+import type { SpecGraphEdge, SpecTreeNode } from './spec.service.js';
 
 @Injectable()
 export class SpecTools implements NervToolProvider {
@@ -16,6 +18,7 @@ export class SpecTools implements NervToolProvider {
     private readonly specs: SpecService,
     private readonly searches: SearchService,
     private readonly comments: SpecCommentService,
+    private readonly relations: SpecRelationService,
   ) {}
 
   readonly tools: readonly NervToolDefinition[] = [
@@ -31,11 +34,54 @@ export class SpecTools implements NervToolProvider {
           project: { type: 'string' },
           root: { type: 'string' },
           depth: { type: 'integer' },
+          // 관계까지 필요하면 여기서 함께 받는다 — 별도 도구를 만들지 않는 이유는
+          // "구조를 달라"는 한 가지 요청이기 때문이다(도구 15종 고정 — scope.md §4.2)
+          include_relations: { type: 'boolean', default: false },
+          around: { type: 'string', description: 'spec key — 주면 이 문서 주변만' },
+          hops: { type: 'integer', minimum: 1, maximum: 3, default: 1 },
         },
       },
-      handler: async (_input, ctx) => ({
-        nodes: await this.specs.tree({ projectId: ctx.projectId }),
-      }),
+      handler: async (input, ctx) => {
+        if (input['include_relations'] !== true) {
+          return { nodes: await this.specs.tree({ projectId: ctx.projectId }) };
+        }
+        const graph = await this.specs.graph({ projectId: ctx.projectId });
+        const around = typeof input['around'] === 'string' ? input['around'] : null;
+        // 전역 그래프는 141노드·1,253간선이다 — 매번 통째로 실어 보내면 에이전트의
+        // 컨텍스트 예산이 그것으로 찬다. 중심을 주면 그 주변만 돌려준다.
+        if (around === null) return graph;
+        const hops = typeof input['hops'] === 'number' ? input['hops'] : 1;
+        return neighborhood(graph, around, hops);
+      },
+    },
+    {
+      name: 'nerv_spec_relate',
+      tier: 'A2',
+      // 쓰기 도구다 — 초안 저장(nerv_spec_draft_upsert)과 같은 P1 등급이다
+      phase: 'P1',
+      summaryKey: 'mcp.tool.declare_relation',
+      // 본문을 고치는 것과 같은 등급이다 — 관계는 그래프의 사실이고, 틀리면 영향 분석이 틀린다
+      scope: 'spec:draft',
+      inputSchema: {
+        type: 'object',
+        required: ['from', 'to', 'kind'],
+        properties: {
+          project: { type: 'string' },
+          from: { type: 'string', description: 'spec key' },
+          to: { type: 'string', description: 'spec key' },
+          kind: { type: 'string', enum: ['refines', 'depends_on', 'duplicates', 'supersedes'] },
+          // 되돌리는 경로를 같은 도구에 둔다 — 잘못 넣은 관계를 지울 수 없으면 아무도 안 넣는다
+          remove: { type: 'boolean', default: false },
+        },
+      },
+      handler: async (input, ctx) =>
+        this.relations.declare({
+          projectId: ctx.projectId,
+          fromKey: String(input['from']),
+          toKey: String(input['to']),
+          kind: String(input['kind']),
+          remove: input['remove'] === true,
+        }),
     },
     {
       name: 'nerv_spec_search',
@@ -173,4 +219,31 @@ export class SpecTools implements NervToolProvider {
         }),
     },
   ];
+}
+
+/**
+ * 중심에서 hop 이내의 부분 그래프 — 에이전트에게 전역을 통째로 주지 않기 위한 것이다.
+ * 141노드·1,253간선을 매번 실어 보내면 컨텍스트 예산이 그것으로 찬다.
+ */
+function neighborhood(
+  graph: { nodes: SpecTreeNode[]; edges: SpecGraphEdge[] },
+  aroundKey: string,
+  hops: number,
+): { nodes: SpecTreeNode[]; edges: SpecGraphEdge[] } {
+  const start = graph.nodes.find((n) => n.key === aroundKey);
+  if (start === undefined) return { nodes: [], edges: [] };
+  const near = new Set([start.id]);
+  for (let i = 0; i < hops; i += 1) {
+    const next: string[] = [];
+    for (const edge of graph.edges) {
+      if (near.has(edge.from_id) && !near.has(edge.to_id)) next.push(edge.to_id);
+      if (near.has(edge.to_id) && !near.has(edge.from_id)) next.push(edge.from_id);
+    }
+    if (next.length === 0) break;
+    for (const id of next) near.add(id);
+  }
+  return {
+    nodes: graph.nodes.filter((n) => near.has(n.id)),
+    edges: graph.edges.filter((e) => near.has(e.from_id) && near.has(e.to_id)),
+  };
 }

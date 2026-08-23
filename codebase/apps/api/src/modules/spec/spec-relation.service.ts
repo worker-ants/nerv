@@ -41,6 +41,62 @@ export interface RelationEntry extends Record<string, unknown> {
 export class SpecRelationService {
   constructor(@InjectDb() private readonly db: NervDb) {}
 
+  /**
+   * 사람·에이전트가 **명시적으로** 선언하는 관계 — `refines`·`depends_on` 등.
+   *
+   * `references` 는 여기서 다루지 않는다. 그것은 본문에서 자동으로 동기화되므로(syncFromBody)
+   * 손으로 넣으면 다음 저장에 지워진다 — 두 주인을 가진 데이터를 만들지 않는다.
+   */
+  async declare(input: {
+    projectId: string;
+    fromKey: string;
+    toKey: string;
+    kind: string;
+    remove: boolean;
+  }): Promise<{ ok: true; from: string; to: string; kind: string; removed: boolean }> {
+    if (input.kind === 'references') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.auto_kind'), {
+        kind: 'auto_managed',
+      });
+    }
+    if (input.fromKey === input.toKey) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.self'), { kind: 'self' });
+    }
+    const { rows } = await this.db.execute<{ id: string; key: string }>(sql`
+      SELECT id, key FROM spec
+       WHERE project_id = ${input.projectId} AND key IN (${input.fromKey}, ${input.toKey})
+    `);
+    const byKey = new Map(rows.map((r) => [r.key, r.id]));
+    const fromId = byKey.get(input.fromKey);
+    const toId = byKey.get(input.toKey);
+    if (fromId === undefined || toId === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+        kind: 'unknown_key',
+        missing: [input.fromKey, input.toKey].filter((k) => !byKey.has(k)),
+      });
+    }
+    if (input.remove) {
+      await this.db.execute(sql`
+        DELETE FROM spec_relation
+         WHERE project_id = ${input.projectId} AND from_spec_id = ${fromId}
+           AND to_spec_id = ${toId} AND kind = ${input.kind}::spec_relation_kind
+      `);
+    } else {
+      await this.db.execute(sql`
+        INSERT INTO spec_relation (id, project_id, from_spec_id, to_spec_id, kind)
+        VALUES (${newId()}, ${input.projectId}, ${fromId}, ${toId}, ${input.kind}::spec_relation_kind)
+        ON CONFLICT DO NOTHING
+      `);
+    }
+    return {
+      ok: true,
+      from: input.fromKey,
+      to: input.toKey,
+      kind: input.kind,
+      removed: input.remove,
+    };
+  }
+
   /** 본문에서 참조 후보 키를 뽑는다 — 자기 자신은 참조가 아니다. */
   extractKeys(bodyMd: string, selfKey?: string | null): string[] {
     const found = new Set(bodyMd.match(SPEC_KEY_RE) ?? []);

@@ -51,6 +51,12 @@ export interface DraftUpsertInput {
   sessionId?: string | null;
 }
 
+export interface SpecGraphEdge extends Record<string, unknown> {
+  from_id: string;
+  to_id: string;
+  kind: string;
+}
+
 @Injectable()
 export class SpecService {
   private readonly logger = new Logger(SpecService.name);
@@ -77,6 +83,29 @@ export class SpecService {
        ORDER BY s.sort_key, s.key
     `);
     return rows;
+  }
+
+  /**
+   * EP-SPEC-19 — 프로젝트 전역 그래프(노드 + 간선)를 **한 번에** 준다.
+   *
+   * 트리와 관계를 두 번에 나눠 받으면 그 사이에 문서가 생기거나 사라졌을 때 **끝점이 없는
+   * 간선**이 화면에 남는다. 그래프는 한 시점의 스냅샷이어야 읽을 수 있다.
+   *
+   * 노드는 트리와 같은 모양이다 — 화면이 계층(부모)과 참조(간선)를 같은 좌표계에 그린다.
+   */
+  async graph(input: {
+    projectId: string;
+    includeArchived?: boolean;
+  }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
+    const nodes = await this.tree(input);
+    const visible = new Set(nodes.map((node) => node.id));
+    const { rows } = await this.db.execute<SpecGraphEdge>(sql`
+      SELECT r.from_spec_id AS from_id, r.to_spec_id AS to_id, r.kind::text AS kind
+        FROM spec_relation r
+       WHERE r.project_id = ${input.projectId}
+    `);
+    // 아카이브 등으로 노드에서 빠진 끝점은 간선도 함께 뺀다 — 허공을 가리키는 선을 만들지 않는다
+    return { nodes, edges: rows.filter((e) => visible.has(e.from_id) && visible.has(e.to_id)) };
   }
 
   /** nerv_spec_get · EP-SPEC-03 — 기준 버전 지정 조회를 지원한다(agent-integration §2.4) */

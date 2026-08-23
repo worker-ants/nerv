@@ -96,6 +96,13 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
             .items,
         );
       }
+      // 관계 — 문서가 서로를 가리키는 선. **문서 적재 뒤에 보낸다**: 양끝이 다 있어야
+      // 해소된다. 이것이 없으면 그래프는 노드만 있고 선이 없는 화면이 된다.
+      const relations = extractRelations(files, loadable);
+      for (const chunk of chunked(relations, options.batchSize)) {
+        await client.links({ profile: profile.profile, relations: chunk, pending: [] });
+      }
+
       for (const item of applied) {
         if (item.status === 'error') {
           entries.push({
@@ -574,4 +581,51 @@ function buildAreaTree(
       return { ...item, parent_key: dir === '' ? null : (keyOfDir.get(dir) ?? null) };
     }),
   ];
+}
+
+/**
+ * 본문의 상대경로 링크 → `references` 관계 (importer.md §2.4 · REQ-API-024).
+ *
+ * **경로 해소는 클라이언트만 할 수 있다.** 서버는 원본 체크아웃을 보지 못하므로(§3.2)
+ * `[텍스트](../5-system/x.md)` 가 어느 스펙을 가리키는지 알 방법이 없다. 안정 ID 로 쓰인
+ * 참조는 서버가 저장 시점에 동기화하고(SpecRelationService), 경로로 쓰인 참조는 여기서
+ * 키로 바꿔 보낸다 — 둘이 같은 `references` kind 로 합류한다.
+ *
+ * 없는 파일을 가리키는 링크는 **버린다**. 원본의 깨진 링크를 관계로 만들면 그래프가
+ * 있지도 않은 문서를 가리키게 된다.
+ */
+function extractRelations(
+  files: readonly ScannedFile[],
+  items: readonly ImportSpecItem[],
+): { from_key: string; to_key: string; kind: 'references' }[] {
+  const keyByPath = new Map(items.map((item) => [item.source_path, item.key]));
+  const known = new Set(items.map((item) => item.key));
+  const seen = new Set<string>();
+  const out: { from_key: string; to_key: string; kind: 'references' }[] = [];
+
+  for (const file of files) {
+    const from = keyByPath.get(file.path);
+    if (from === undefined) continue;
+    for (const match of file.content.matchAll(/\]\((\.{1,2}\/[^)\s#]+\.md)/g)) {
+      const to = keyByPath.get(joinPosix(dirname(file.path), match[1] ?? ''));
+      // 자기 참조는 관계가 아니고, 적재되지 않은 문서(중복 키로 빠진 것)도 끝점이 못 된다
+      if (to === undefined || to === from || !known.has(to)) continue;
+      const edge = `${from} ${to}`;
+      if (seen.has(edge)) continue;
+      seen.add(edge);
+      out.push({ from_key: from, to_key: to, kind: 'references' });
+    }
+  }
+  return out;
+}
+
+/** `a/b` + `../c/d.md` → `a/c/d.md`. 스캔 경로는 posix 라 이 정도면 충분하다 */
+function joinPosix(base: string, relative: string): string {
+  const segments = base === '.' ? [] : base.split('/');
+  for (const part of relative.split('/')) {
+    if (part === '.' || part === '') continue;
+    if (part === '..') segments.pop();
+    else segments.push(part);
+  }
+  return segments.join('/');
 }

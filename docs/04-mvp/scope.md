@@ -5,7 +5,7 @@ updated: 2026-08-22
 ---
 # MVP 범위와 스택 확정
 
-> **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 15종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
+> **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 16종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
 > 문서 버전 v0.8 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
 >
@@ -75,7 +75,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 기능(FR-01~17) | 포함 ● 8 · 부분 ◐ 7 · 제외 ○ 2 | §3.2 |
 | 비기능(NFR-01~05) | 포함 ● 3 · 부분 ◐ 2 | §3.4 |
 | 화면 | S1~S5·S7·S8 + 로그인/온보딩 = 8 | §4.1 |
-| MCP 도구 | 15종 = P0 8종 + P1 7종 | §4.2 |
+| MCP 도구 | 16종 = P0 8종 + P1 8종 | §4.2 |
 | 플러그인 스킬 | 4종 | §4.3 |
 
 ---
@@ -96,6 +96,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 인증 | **better-auth** | 2026-08-20 | organization 플러그인(조직·멤버십), api-key 플러그인 기반 PAT(해시 저장·프로젝트 스코프). OAuth 2.1 리소스 서버는 Phase 2 |
 | 실시간 | **WebSocket + SSE 다중 채널**, 방송 MQ **Valkey pub/sub** (NestJS `@WebSocketGateway` socket.io + `@Sse()` 스트림) | WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21 | WS(`/ws`)는 웹 SPA 전용 — **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요), 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. SSE(`/sse/*`)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증([4.4 API 명세](api.md) §3.5). 팬아웃: EventService가 커밋 후 Valkey `nerv_events`에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
 | 에디터 | **TipTap + markdown 직렬화** | 2026-08-20 | 지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글 |
+| 그래프 시각화 | **Cytoscape.js + fcose** — 스펙 관계 그래프(4.5 §2.4a) | 2026-08-23 | compound(영역 묶음) 레이아웃이 도입 이유다 — 자체 구현하면 그것이 곧 레이아웃 엔진을 쓰는 일이 된다. MIT · 코어 의존 0. gzip 172KB라 **탭 진입 시 지연 로드**한다(목록 청크 552KB → 5KB 실측). 재검토 트리거: 노드 1,000을 넘어 canvas 렌더가 버거워지면 WebGL(sigma)로 옮긴다 |
 | MCP | MCP TypeScript SDK | 2026-08-13 (3부 원안) | 2026-07-28 리비전 기준 구현 + 구 리비전(2025-03-26~2025-11-25) 병행 서빙(D-11) |
 | 프론트 세부 | TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod | 2026-08-13 (3부 원안) | zod 스키마는 `packages/schema` 공유. WebSocket 이벤트 → Query 무효화 |
 | 테스트 | **Vitest**(L1 단위·L2 통합·L3 API E2E) + **Playwright**(L3 웹 E2E) | 2026-08-22 | 3계층 배치·명령·무게중심(L2)은 [4.2 코드베이스와 배포](codebase.md) §4.3 정본. L2는 mock 없이 실제 Postgres 상대(동시성 검증은 mock 금지 — AGENTS.md 규약과 동일). Playwright는 웹 E2E에만 — API 시나리오는 Vitest가 compose 스택 상대로 돈다 |
@@ -220,9 +221,11 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 
 > **S8 게이트 정책 탭 확정이 로드맵 표기 하나를 대체한다.** [로드맵](../03-proposal/roadmap.md) §3.2(v0.1 · 2026-08-13)는 "S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2"로 적었다. 이 중 **S8 게이트 정책 탭의 스펙 게이트(T0~T3 티어 매핑) 부분을 MVP로 앞당긴다**(2026-08-21, 로드맵 §3.2 표기 대체. 근거: 로드맵 §3.5 '저위험 자동 통과 경로를 첫날부터 켠다'). git 연동·리뷰 게이트 정책 탭은 로드맵대로 Phase 2다.
 
-### 4.2 MCP 도구 범위 — 15종 (P0 8종 + P1 7종)
+### 4.2 MCP 도구 범위 — 16종 (P0 8종 + P1 8종)
 
-도구 정의(입력·출력·권한·멱등성)는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 카탈로그(17종)가 정본이며, 여기서는 이름·티어·Phase 배정만 인용한다. **MVP = 15종, 카탈로그 완성(17종)은 Phase 2.**
+도구 정의(입력·출력·권한·멱등성)는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 카탈로그(17종)가 정본이며, 여기서는 이름·티어·Phase 배정만 인용한다. **MVP = 16종, 카탈로그 완성은 Phase 2.**
+
+**15종 → 16종 (2026-08-23)**: `nerv_spec_relate` 1종을 더한다. 근거는 관계의 성질이다 — 본문이 이미 가리키는 참조(`references`)는 저장 시 자동 동기화되지만(REQ-API-024), "이 스펙이 저것을 정제한다(`refines`)"·"선행 의존이다(`depends_on`)"는 **문서를 읽어야 아는 판단**이다. 그 판단을 사람이 UI로 수백 편에 손으로 넣는 것은 현실적이지 않고(clemvion 130편·간선 1,253이 실측), 에이전트가 문서를 읽으며 채우는 것이 맞다. 읽기(전역 그래프·이웃 조회)는 새 도구를 만들지 않고 `nerv_spec_tree`의 `include_relations`·`around`·`hops` 옵션으로 접었다 — "구조를 달라"는 한 가지 요청이기 때문이다.
 
 | Phase | 도구 | 티어 | 한 줄(카탈로그 호출 시점 인용) |
 | --- | --- | :-: | --- |
@@ -238,6 +241,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | P1 | `nerv_spec_submit_review` | A3 | 초안 완료 후 사람 검토 요청 |
 | P1 | `nerv_spec_check` | A1 | 초안 저장 후·제출 전 아무 때나 |
 | P1 | `nerv_spec_comment_resolve` | A2 | 코멘트 반영 직후 |
+| P1 | `nerv_spec_relate` | A2 | 문서를 읽고 관계를 선언할 때(2026-08-23 신설) |
 | P1 | `nerv_task_update` | A2 | 상태 변화 시점(`done` 시도는 서버 게이트) |
 | P1 | `nerv_question_create` | A2 | 판단 불가·경계 이탈·게이트 필요 |
 | P1 | `nerv_session_event` | A1 | 훅 없는 실행 환경의 폴백 |

@@ -6,14 +6,22 @@
 
 import { statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { lazy, Suspense, useState } from 'react';
+
+// 그래프 라이브러리는 **탭을 누를 때** 받는다 — gzip 173KB 다. 대부분의 방문은 트리만 쓰는데
+// 그 비용을 목록 화면 전체가 미리 치를 이유가 없다.
+const SpecGraph = lazy(async () => ({
+  default: (await import('../../features/spec-graph/graph.js')).SpecGraph,
+}));
 import { useQuery } from '@tanstack/react-query';
 import { SpecTree } from '../../components/spec-tree.js';
+
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
 import { apiFetch } from '../../lib/api.js';
-import { useProject } from '../../lib/queries.js';
+import { cn } from '../../lib/utils.js';
+import { useProject, useSpecGraph } from '../../lib/queries.js';
 import {
   Button,
   Card,
@@ -38,9 +46,13 @@ interface SearchResult {
 function SpecListScreen(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
+  const navigate = useNavigate();
   const project = useProject(proj);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
+  // 트리와 그래프는 **같은 질문의 두 답**이다 — 계층으로 찾을 때와 관계로 찾을 때.
+  // 다른 라우트로 가르면 둘을 오가며 비교할 수 없다.
+  const [view, setView] = useState<'tree' | 'graph'>('tree');
 
   const search = useQuery({
     queryKey: ['project', proj, 'search', submitted],
@@ -50,6 +62,7 @@ function SpecListScreen(): React.JSX.Element {
   });
 
   const projectId = project.data?.['id'];
+  const graph = useSpecGraph(proj, typeof projectId === 'string' ? projectId : undefined);
 
   return (
     <PageBody wide>
@@ -98,12 +111,46 @@ function SpecListScreen(): React.JSX.Element {
       )}
 
       {submitted.trim() === '' ? (
-        <Card padded={false} className="p-3">
-          <SpecTree
-            projectSlug={proj}
-            projectId={typeof projectId === 'string' ? projectId : undefined}
-          />
-        </Card>
+        <>
+          <nav className="mb-3 flex rounded-nerv-sm border border-border p-0.5 text-xs">
+            {(['tree', 'graph'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                data-testid={`view-${mode}`}
+                onClick={() => setView(mode)}
+                className={cn(
+                  'rounded-nerv-sm px-3 py-1',
+                  view === mode ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
+                )}
+              >
+                {t(mode === 'tree' ? 'graph.tab.tree' : 'graph.tab.graph')}
+              </button>
+            ))}
+          </nav>
+          {view === 'tree' ? (
+            <Card padded={false} className="p-3">
+              <SpecTree
+                projectSlug={proj}
+                projectId={typeof projectId === 'string' ? projectId : undefined}
+              />
+            </Card>
+          ) : graph.data === undefined ? (
+            <Skeleton rows={6} />
+          ) : graph.data.edges.length === 0 ? (
+            <EmptyState icon="◎" title={t('graph.empty')} hint={t('graph.empty_hint')} />
+          ) : (
+            <Suspense fallback={<Skeleton rows={6} />}>
+              <SpecGraph
+                nodes={graph.data.nodes}
+                edges={graph.data.edges}
+                onOpen={(key) =>
+                  void navigate({ to: '/p/$proj/specs/$spec', params: { proj, spec: key } })
+                }
+              />
+            </Suspense>
+          )}
+        </>
       ) : (
         <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
           <section>
