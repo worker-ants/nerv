@@ -6,10 +6,13 @@
 
 import { defineConfig, devices } from '@playwright/test';
 
-// 대상은 **E2E 전용 compose 스택**이다(codebase.md §4.3 — `pnpm e2e:up`, 기본 :8090).
-// 개발 스택(:8080)과 분리한 이유는 하나다: 테스트가 개발 DB 를 고치고 실행 간 상태가 쌓인다.
-// 브라우저가 보는 것이 운영과 같은 조립이어야 프록시·SPA 폴백·쿠키 경로까지 함께 검증된다.
-const BASE_URL = process.env['NERV_E2E_BASE_URL'] ?? 'http://localhost:8090';
+// 대상은 **E2E 전용 compose 스택**이다(codebase.md §4.3). 개발 스택과 분리한 이유는 하나다:
+// 테스트가 개발 DB 를 고치고 실행 간 상태가 쌓인다. 브라우저가 보는 것이 운영과 같은
+// 조립이어야 프록시·SPA 폴백·쿠키 경로까지 함께 검증된다.
+//
+// 포트는 **세션마다 다르다** — `pnpm e2e:up` 이 잡아서 `NERV_E2E_BASE_URL` 로 넘긴다.
+// 아래 기본값은 그 스크립트를 거치지 않고 playwright 를 직접 부를 때의 값이다.
+const BASE_URL = process.env['NERV_E2E_BASE_URL'] ?? 'http://localhost:19000';
 
 export default defineConfig({
   testDir: './test/e2e',

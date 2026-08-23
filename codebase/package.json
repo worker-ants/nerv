@@ -14,7 +14,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
-    "test:e2e": "NERV_E2E_BASE_URL=${NERV_E2E_BASE_URL:-http://localhost:8090} DATABASE_URL=${NERV_E2E_DATABASE_URL:-postgres://nerv:e2e@localhost:55432/nerv} pnpm -r test:e2e",
+    "test:e2e": "node scripts/e2e-stack.mjs run pnpm -r test:e2e",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -25,10 +25,11 @@
     "compose:up": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build",
     "compose:infra": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d postgres minio valkey embed",
     "compose:down": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env down",
-    "e2e:up": "docker compose -f ../deploy/compose/docker-compose.e2e.yml up -d --build --wait",
-    "e2e:down": "docker compose -f ../deploy/compose/docker-compose.e2e.yml down -v --remove-orphans",
-    "e2e:logs": "docker compose -f ../deploy/compose/docker-compose.e2e.yml logs --tail 200",
-    "e2e:reset": "pnpm e2e:down && pnpm e2e:up"
+    "e2e:up": "node scripts/e2e-stack.mjs up",
+    "e2e:down": "node scripts/e2e-stack.mjs down",
+    "e2e:logs": "node scripts/e2e-stack.mjs logs",
+    "e2e:reset": "pnpm e2e:down && pnpm e2e:up",
+    "e2e:env": "node scripts/e2e-stack.mjs env"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

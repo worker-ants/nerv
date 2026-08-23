@@ -193,6 +193,10 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
    * execFileSync 로 자식을 기다리면 이벤트 루프가 막혀 서버가 요청에 답하지 못한다 —
    * CLI 와 API 가 서로를 기다리는 교착이 된다(실측: 60초 타임아웃까지 매달렸다).
    * `pnpm exec` 대신 tsx 바이너리를 직접 부르는 것도 같은 이유(출력 파이프 지연)다.
+   *
+   * **로케일을 못박는다.** CLI 는 `NERV_LANG`/`LANG` 으로 출력 언어를 정하는데(importer.md
+   * §3.5a), 그대로 두면 이 검사가 실행 기계의 LANG 을 따라간다 — 개발자 기계에서 통과하고
+   * CI 에서 깨지거나 그 반대가 된다. 이 시나리오는 한국어 출력을 검사한다.
    */
   async function runCli(args: string[], env: Record<string, string> = {}): Promise<string> {
     const tsx = join(import.meta.dirname, '../../../../node_modules/.bin/tsx');
@@ -201,7 +205,7 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
         cwd: cliDir,
         encoding: 'utf8',
         timeout: 60_000,
-        env: { ...process.env, ...env },
+        env: { ...process.env, NERV_LANG: 'ko', ...env },
       });
       return stdout;
     } catch (error) {

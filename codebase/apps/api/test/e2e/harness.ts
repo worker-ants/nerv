@@ -41,7 +41,7 @@ function adminUrl(): string {
     throw new Error(
       [
         `E2E 대상이 개발 Postgres(${url}) 입니다 — 개발 데이터를 건드립니다.`,
-        'E2E 전용 스택을 쓰세요:  pnpm e2e:up  (기본 포트 55432)',
+        'E2E 전용 스택을 쓰세요:  pnpm e2e:up  (포트는 세션마다 할당된다)',
         '정말 개발 DB 를 쓰려면 NERV_E2E_ALLOW_DEV_STACK=1 을 명시하세요.',
       ].join('\n'),
     );

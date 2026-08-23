@@ -10,6 +10,8 @@ dist/
 .env.local
 
 # 테스트 산출물
+# E2E 스택의 세션별 포트·프로젝트 이름 (scripts/e2e-stack.mjs)
+.e2e/
 coverage/
 playwright-report/
 test-results/

@@ -26,14 +26,14 @@ function assertNotDevStack(baseURL: string): void {
   throw new Error(
     [
       `E2E 대상이 개발 스택(${baseURL})입니다 — 테스트가 개발 데이터를 고칩니다.`,
-      'E2E 전용 스택을 쓰세요:  pnpm e2e:up  (기본 http://localhost:8090)',
+      'E2E 전용 스택을 쓰세요:  pnpm e2e:up  (포트는 세션마다 할당된다)',
       '정말 개발 스택을 쓰려면 NERV_E2E_ALLOW_DEV_STACK=1 을 명시하세요.',
     ].join('\n'),
   );
 }
 
 export default async function globalSetup(config: FullConfig): Promise<void> {
-  const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:8090';
+  const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:19000';
   assertNotDevStack(baseURL);
   const browser = await chromium.launch();
   // 로그인 폼의 라벨이 화면 언어를 따른다 — 준비 절차는 한국어로 못 박는다.
