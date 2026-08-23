@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 16종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.9 (2026-08-23)</span>
+      <span>버전 v0.10 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -401,7 +401,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
     <tbody>
-      <tr><td>EP-TASK-01</td><td><code>GET /api/v1/projects/{proj}/tasks</code></td><td>전 역할</td><td><code>TaskListQuery</code>(status[], assignee, spec, priority, cursor)</td><td><code>Page&lt;TaskSummary&gt;</code>(보드 컬럼용)</td><td>—</td></tr>
+      <tr><td>EP-TASK-01</td><td><code>GET /api/v1/projects/{proj}/tasks</code></td><td>전 역할</td><td><code>TaskListQuery</code>(status[], assignee, spec, priority, <b>include_archived</b>(기본 false — <code>done_at</code> 이 <code>TASK_DONE_WINDOW_DAYS</code> 를 지난 done 을 포함, <a href="screens.html">4.5</a> §2.5), cursor, limit)</td><td><code>Page&lt;TaskSummary&gt;</code>(보드 레인용 — 정렬 <code>priority ASC, updated_at DESC, id ASC</code>)</td><td>—</td></tr>
       <tr><td>EP-TASK-02</td><td><code>GET /api/v1/projects/{proj}/tasks/next</code></td><td>task:claim 보유 역할</td><td><code>TaskNextQuery</code>(role, spec_id, limit)</td><td><code>TaskNextResult</code>(ready 후보 + <b>위임 명세 4요소</b> + 권장 scope)</td><td>—</td></tr>
       <tr><td>EP-TASK-03</td><td><code>POST /api/v1/projects/{proj}/tasks</code></td><td>planner·developer·admin ●, qa ○</td><td><code>TaskCreateInput</code>(title, body_md, source_spec_version_id, source_requirement_id, 위임 명세 4필드, priority)</td><td><code>TaskResult</code>(status=backlog)</td><td>★<code>task.created</code></td></tr>
       <tr><td>EP-TASK-04</td><td><code>GET /api/v1/projects/{proj}/tasks/{task}</code></td><td>전 역할</td><td>—</td><td><code>TaskDetailResult</code>(위임 명세·활성 클레임·의존·Evidence)</td><td>—</td></tr>

@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.9 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.10 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
 >
 > v0.8 변경(2026-08-23): §1.4 에 **`Accept-Language` 협상** 규약 추가 — 봉투의 `message` 는 요청 로케일로 만들고 `code`·`details` 는 로케일과 무관하다. MCP 표면(도구 설명·구조화 에러)도 같은 규칙을 따른다. 신설 요구 REQ-API-030. 카탈로그 정본은 [4.2](codebase.md) §3.4. 다른 계약은 불변.
 >
@@ -285,7 +285,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-TASK-01 | `GET /api/v1/projects/{proj}/tasks` | 전 역할 | `TaskListQuery`(status[], assignee, spec, priority, cursor) | `Page<TaskSummary>`(보드 컬럼용) | — |
+| EP-TASK-01 | `GET /api/v1/projects/{proj}/tasks` | 전 역할 | `TaskListQuery`(status[], assignee, spec, priority, **include_archived**(기본 false — `done_at` 이 `TASK_DONE_WINDOW_DAYS` 를 지난 done 을 포함, [4.5 화면 명세](screens.md) §2.5), cursor, limit) | `Page<TaskSummary>`(보드 레인용 — 정렬 `priority ASC, updated_at DESC, id ASC`) | — |
 | EP-TASK-02 | `GET /api/v1/projects/{proj}/tasks/next` | task:claim 보유 역할 | `TaskNextQuery`(role, spec_id, limit) | `TaskNextResult`(ready 후보 + **위임 명세 4요소** + 권장 scope) | — |
 | EP-TASK-03 | `POST /api/v1/projects/{proj}/tasks` | planner·developer·admin ●, qa ○ | `TaskCreateInput`(title, body_md, source_spec_version_id, source_requirement_id, 위임 명세 4필드, priority) | `TaskResult`(status=backlog) | ★`task.created` |
 | EP-TASK-04 | `GET /api/v1/projects/{proj}/tasks/{task}` | 전 역할 | — | `TaskDetailResult`(위임 명세·활성 클레임·의존·Evidence) | — |

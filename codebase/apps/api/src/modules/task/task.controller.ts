@@ -22,12 +22,19 @@ export class TaskController {
     @Query('status') status?: string,
     @Query('assignee') assignee?: string,
     @Query('spec') spec?: string,
+    @Query('include_archived') includeArchived?: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ): Promise<unknown> {
     return this.tasks.list({
       projectId: projectOf(req),
       statuses: status === undefined || status === '' ? null : status.split(','),
       assigneeUserId: assignee ?? null,
       specId: spec ?? null,
+      // 기본은 **닫혀 있다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
+      includeArchived: includeArchived === 'true',
+      ...(limit === undefined ? {} : { limit: Number(limit) }),
+      ...(cursor === undefined ? {} : { cursor }),
     });
   }
 

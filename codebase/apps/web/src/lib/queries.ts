@@ -147,11 +147,36 @@ export function useSpecRelations(slug: string, specKey: string): UseQueryResult<
   });
 }
 
-export function useTasks(slug: string, projectId?: string): UseQueryResult<Row[]> {
+/**
+ * S4 보드의 **레인 하나**. 레인마다 따로 부르는 이유가 있다.
+ *
+ * 전에는 한 번 불러 전량을 받아 화면에서 갈랐다 — clemvion 실측 487건 · 229 KB 였고 그
+ * 중 done 이 86% 였다(2026-08-23). 한 목록을 잘라 쓰면 자를 수가 없다: 우선순위 순으로
+ * 30건을 받으면 전부 done 이고 ready 는 한 건도 없는 페이지가 나온다. 레인이 각자
+ * 자기 창을 갖는 편이 맞다.
+ *
+ * 키가 `projectTasks` 를 앞에 두므로 기존 이벤트 무효화(접두 일치)가 그대로 듣는다.
+ */
+export function useTaskLane(
+  slug: string,
+  projectId: string | undefined,
+  lane: string,
+  options?: { includeArchived?: boolean },
+): UseQueryResult<{ items: Row[]; next_cursor: string | null }> {
   const refetchInterval = useLivePolling();
+  const archived = options?.includeArchived === true;
   return useQuery({
-    queryKey: queryKeys.projectTasks(projectId ?? slug),
-    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/tasks`),
+    // **slug 로 대신 잡지 않는다.** projectId 는 프로젝트 조회가 끝나야 오는데, 그때
+    // 키가 slug → id 로 바뀌면 새 쿼리가 되어 레인이 빈 채로 한 번 더 그려진다 —
+    // 화면에서는 목록이 나타났다 사라졌다 다시 나타나는 깜빡임이다(실측 2026-08-23).
+    // 무효화가 project_id 로 키를 만드므로(event-invalidation.ts) id 축이 정답이고,
+    // 오기 전까지는 아예 부르지 않는다.
+    queryKey: [...queryKeys.projectTasks(projectId ?? ''), lane, archived],
+    queryFn: () =>
+      apiFetch<{ items: Row[]; next_cursor: string | null }>(
+        `/projects/${slug}/tasks?status=${lane}${archived ? '&include_archived=true' : ''}`,
+      ),
+    enabled: projectId !== undefined,
     refetchInterval,
   });
 }

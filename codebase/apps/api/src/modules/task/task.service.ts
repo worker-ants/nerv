@@ -3,7 +3,15 @@
 // REST 컨트롤러와 MCP 도구가 이 클래스의 같은 인스턴스를 거친다(D-05) — 판정은 여기 한 곳이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import {
+  msg,
+  newId,
+  LEASE_TTL_SECONDS,
+  NERV_ERROR,
+  NERV_EVENT,
+  TASK_DONE_WINDOW_DAYS,
+} from '@nerv/schema';
+import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
 import { displayKey } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
@@ -95,13 +103,25 @@ export class TaskService {
     return rows;
   }
 
-  /** EP-TASK-01 — S4 보드 컬럼용. 상태별로 나누는 것은 화면 몫이고 여기는 목록만 준다. */
+  /**
+   * EP-TASK-01 — S4 보드 레인용. **커서 페이지네이션이다**(§1.6).
+   *
+   * 전량을 주던 때가 있었다: clemvion 실측 487건 · 229 KB 였고, 그 중 done 이 419건
+   * (86%)이었다(2026-08-23). 보드는 레인마다 이 목록을 부르므로 한 레인이 커져도
+   * 나머지가 함께 무거워지지 않는다.
+   *
+   * `includeArchived` 는 **done 레인의 창**을 연다(screens.md §2.5 `done(7d)`).
+   * 아카이브를 상태값으로 두지 않은 이유는 상수 `TASK_DONE_WINDOW_DAYS` 에 적어 두었다.
+   */
   async list(input: {
     projectId: string;
     statuses?: string[] | null;
     assigneeUserId?: string | null;
     specId?: string | null;
-  }): Promise<Record<string, unknown>[]> {
+    includeArchived?: boolean;
+    limit?: number;
+    cursor?: string | undefined;
+  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
     const statuses = input.statuses ?? null;
     const statusFilter =
       statuses === null || statuses.length === 0
@@ -113,6 +133,34 @@ export class TaskService {
     const assignee =
       input.assigneeUserId == null ? sql`` : sql` AND t.assignee_user_id = ${input.assigneeUserId}`;
     const spec = input.specId == null ? sql`` : sql` AND sv.spec_id = ${input.specId}`;
+
+    // done 은 시간이 지나면 배경이 된다 — 창 밖의 것은 기본 결과에서 빠진다.
+    //
+    // `done_at IS NOT NULL` 은 **중복 방어**다: `task_done_at_ck` 가 done → done_at 을
+    // 이미 보장하므로 지금은 항상 참이다. 그래도 두는 이유는 NULL 의 성질이다 — 이 절이
+    // 없으면 done_at 이 NULL 인 순간 비교가 NULL 이 되고 `NOT (true AND NULL)` 도 NULL 이라
+    // **행이 조용히 사라진다**. 제약이 바뀌는 날 감춰지는 쪽으로 틀어지지 않게 한다.
+    const archived =
+      input.includeArchived === true
+        ? sql``
+        : sql` AND NOT (t.status = 'done' AND t.done_at IS NOT NULL
+                        AND t.done_at < now() - ${`${TASK_DONE_WINDOW_DAYS} days`}::interval)`;
+
+    // 커서는 정렬 키와 **같은 순서**를 따라야 한다 — (priority ASC, updated_at DESC, id ASC).
+    // id 를 마지막에 두는 이유는 동률 때문이다: priority·updated_at 이 같은 두 행이 있으면
+    // 커서가 어느 쪽을 가리키는지 정해지지 않아 한 건이 영영 안 나오거나 두 번 나온다.
+    // priority 는 **enum 으로 견준다** — `ORDER BY` 가 보는 것이 열거 순서이므로,
+    // 텍스트로 견주면 값 이름이 바뀌는 날 정렬과 커서가 조용히 갈라진다.
+    const after = decodeCursor(input.cursor);
+    const seek =
+      after === null
+        ? sql``
+        : sql` AND (t.priority > ${String(after[0])}::task_priority
+                OR (t.priority = ${String(after[0])}::task_priority
+                    AND (t.updated_at < ${String(after[1])}::timestamptz
+                     OR (t.updated_at = ${String(after[1])}::timestamptz
+                         AND t.id > ${String(after[2])}::uuid))))`;
+    const limit = pageLimit(input.limit);
 
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.id, t.key, t.title, t.status::text AS status, t.priority::text AS priority,
@@ -126,10 +174,22 @@ export class TaskService {
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN claim c ON c.task_id = t.id AND c.status = 'active'
-       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${spec}
-       ORDER BY t.priority, t.updated_at DESC
+       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${spec}${archived}${seek}
+       ORDER BY t.priority, t.updated_at DESC, t.id
+       LIMIT ${limit + 1}
     `);
-    return rows;
+    // 한 건 더 받아 "다음이 있나"를 판정한다 — 별도 count 질의를 하지 않으려는 것이다.
+    const items = rows.slice(0, limit);
+    const last = items[items.length - 1];
+    const next =
+      rows.length > limit && last !== undefined
+        ? encodeCursor([
+            String(last['priority']),
+            new Date(String(last['updated_at'])).toISOString(),
+            String(last['id']),
+          ])
+        : null;
+    return { items, next_cursor: next };
   }
 
   /** EP-TASK-04 — 위임 명세·활성 클레임·의존·Evidence 전량. */

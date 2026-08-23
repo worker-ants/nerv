@@ -103,3 +103,26 @@ export const RATE_LIMIT_SIGN_IN_PER_MIN = 10;
  * 크래시 루프에 빠뜨렸다). 거절 사유는 이 이름으로 보내고 곧바로 끊는다.
  */
 export const WS_ERROR_EVENT = 'nerv:error';
+
+/**
+ * 커서 페이지네이션 기본·최대 (api.md §1.6). 오프셋 방식은 제공하지 않는다.
+ *
+ * 상수로 두는 이유는 두 곳이 같은 값을 봐야 하기 때문이다 — 서버가 자르는 값과 화면이
+ * "더 있다"를 판단하는 값이 다르면 마지막 페이지에서 어긋난다(REQ-CB-006).
+ */
+export const PAGE_LIMIT_DEFAULT = 30;
+export const PAGE_LIMIT_MAX = 100;
+
+/**
+ * S4 작업 보드의 `done` 레인이 기본으로 보여 주는 기간 — screens.md §2.5 의 `done(7d)`.
+ *
+ * **끝난 일은 시간이 지나면 배경이 된다.** clemvion 실측에서 Task 487건 중 done 이 419건
+ * (86%)이었고, 보드가 전량을 한 응답으로 받아 229 KB 였다(2026-08-23). 레인이 아니라
+ * **창**인 이유는 그 너머를 못 보게 하려는 게 아니라 기본을 정하려는 것이다 —
+ * `include_archived` 로 창을 전체로 넓힌다.
+ *
+ * 별도 상태값(`archived`)을 만들지 않은 것은 의도다: 종단 상태가 늘면 "왜 끝났는가"
+ * (done 인가 blocked 인가)를 잃고 전이 규칙 표 전체가 바뀐다. `done_at` 에서 파생하면
+ * 마이그레이션도 잡도 필요 없고 언제나 정확하다.
+ */
+export const TASK_DONE_WINDOW_DAYS = 7;

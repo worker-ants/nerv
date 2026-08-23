@@ -214,8 +214,79 @@ describe('Task 표면 (EP-TASK-01·03·04·05·09)', () => {
   it('보드 목록은 위임 명세 완결 여부를 행마다 표시한다 (S4 칼럼)', async () => {
     await call('POST', '/api/v1/projects/clemvion/tasks', { payload: { title: '미완' } });
     const res = await call('GET', '/api/v1/projects/clemvion/tasks?status=backlog');
-    const items = res.body as Record<string, unknown>[];
-    expect(items[0]?.['delegation_complete']).toBe(false);
+    // 목록은 커서 봉투다(§1.6) — `{ items, next_cursor }`
+    const page = res.body as { items: Record<string, unknown>[]; next_cursor: string | null };
+    expect(page.items[0]?.['delegation_complete']).toBe(false);
+    expect(page).toHaveProperty('next_cursor');
+  });
+
+  it('done 레인은 창 밖의 것을 기본으로 감추고, 토글이 그 창을 연다 (screens.md §2.5)', async () => {
+    // 끝난 일은 시간이 지나면 배경이 된다. clemvion 실측에서 done 이 419/487(86%)이었고
+    // 보드가 전량을 한 응답으로 받아 229 KB 였다(2026-08-23).
+    // done 은 위임 명세 4요소와 spec_impact 를 요구한다(`task_delegation_spec_ck` ·
+    // `task_done_spec_impact_ck`) — 상태만 바꿔 넣을 수 없다. 만들 때부터 채운다.
+    const made = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      payload: {
+        title: '오래된 완료',
+        goal_md: '목표',
+        output_format_md: 'PR',
+        tools_sources_md: '도구',
+        boundaries_md: '경계',
+      },
+    });
+    const key = (made.body as Record<string, unknown>)['key'] as string;
+    await pool.query(
+      `UPDATE task SET status = 'done', done_at = now() - interval '30 days',
+              spec_impact = '{"none": true}'::jsonb
+        WHERE key = $1`,
+      [key],
+    );
+
+    const closed = await call('GET', '/api/v1/projects/clemvion/tasks?status=done');
+    const open = await call('GET', '/api/v1/projects/clemvion/tasks?status=done&include_archived=true');
+    const keys = (r: typeof closed): unknown[] =>
+      (r.body as { items: Record<string, unknown>[] }).items.map((x) => x['key']);
+    expect(keys(closed)).not.toContain(key);
+    expect(keys(open)).toContain(key);
+  });
+
+  it('done 은 언제나 done_at 을 갖는다 — 창 계산이 기댈 수 있는 근거다', async () => {
+    // 창은 `done_at` 으로 잰다. 그 값이 없을 수 있다면 판정이 NULL 이 되어 행이 조용히
+    // 사라지는데, 그 일이 없는 이유는 코드가 아니라 **제약**이다(`task_done_at_ck`).
+    // 근거가 DB 에 있으므로 검사도 DB 에 대고 한다.
+    const { rows } = await pool.query<{ def: string }>(
+      `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+        WHERE conrelid = 'task'::regclass AND conname = 'task_done_at_ck'`,
+    );
+    expect(rows[0]?.def).toContain('done_at IS NOT NULL');
+  });
+
+  it('커서로 전량을 정확히 한 번씩 훑는다 (§1.6)', async () => {
+    // 오프셋이 아니라 커서인 이유가 이것이다 — 경계에서 건너뛰거나 두 번 나오면 안 된다.
+    for (let i = 0; i < 7; i += 1) {
+      await call('POST', '/api/v1/projects/clemvion/tasks', { payload: { title: `커서 ${i}` } });
+    }
+    const seen: unknown[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 20; page += 1) {
+      const q = `/api/v1/projects/clemvion/tasks?limit=2${cursor === null ? '' : `&cursor=${cursor}`}`;
+      const res: Awaited<ReturnType<typeof call>> = await call('GET', q);
+      const body = res.body as { items: Record<string, unknown>[]; next_cursor: string | null };
+      expect(body.items.length).toBeLessThanOrEqual(2);
+      seen.push(...body.items.map((x) => x['key']));
+      cursor = body.next_cursor;
+      if (cursor === null) break;
+    }
+    expect(cursor).toBeNull(); // 끝까지 갔다
+    expect(new Set(seen).size).toBe(seen.length); // 두 번 나온 것이 없다
+
+    const all = await call('GET', '/api/v1/projects/clemvion/tasks?limit=100');
+    expect(seen.length).toBe((all.body as { items: unknown[] }).items.length); // 빠진 것도 없다
+  });
+
+  it('limit 은 상한을 넘지 않는다 — 사람이 큰 값을 줘도 그렇다 (§1.6)', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/tasks?limit=9999');
+    expect((res.body as { items: unknown[] }).items.length).toBeLessThanOrEqual(100);
   });
 
   it('done 전이는 게이트를 통과해야 한다 — REST 도 같은 판정을 쓴다 (D-05)', async () => {
