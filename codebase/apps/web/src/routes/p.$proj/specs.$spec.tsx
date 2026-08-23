@@ -54,6 +54,21 @@ function SpecDetail(): React.JSX.Element {
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
 
+  // **스펙이 바뀌면 이 화면의 상태는 전부 남의 것이 된다.** 라우트 파라미터만 바뀌면
+  // 리액트는 같은 컴포넌트를 재사용하므로 `draft`·리스 보유자·충돌이 그대로 살아남는다.
+  // 화면으로는 앞 문서의 본문이 계속 보였고(실측 2026-08-23 — 트리로 이동하면 제목만
+  // 바뀌고 본문은 앞 문서였다), 더 나쁜 것은 **저장이다**: 앞 문서의 draft 를 들고 있는
+  // 채로 저장하면 남의 본문을 이 문서에 덮어쓴다.
+  useEffect(() => {
+    setDraft(null);
+    setRoundTrip(null);
+    setLeaseHolder(null);
+    setConflict(null);
+    setHandoffRequested(false);
+    setShowImpact(false);
+    setMetaOpen(false);
+  }, [spec]);
+
   const body = String(detail.data?.['body_md'] ?? '');
   const docStatus = String(detail.data?.['doc_status'] ?? 'draft');
   const versionId = String(detail.data?.['version_id'] ?? '');
@@ -136,7 +151,7 @@ function SpecDetail(): React.JSX.Element {
           70~80자로, 긴 글을 읽는 표준 폭이다. 화면은 넓게 쓰되 글은 좁게 흐른다. */}
       <main className="mx-auto min-w-0 max-w-[44rem]">
         <header className="mb-4 flex flex-wrap items-center gap-2">
-          {/* 제목은 문서의 것이다 — UI 제목보다 한 단 크고 자간을 더 좁힌다 */}
+          {/* 크기·굵기는 `PageHeader` 와 같은 값이다 — 여기서 따로 정하면 갈라진다 */}
           <h1 className="text-2xl font-bold tracking-[-0.022em]">
             {String(detail.data?.['title'] ?? spec)}
           </h1>
@@ -300,7 +315,12 @@ function SpecDetail(): React.JSX.Element {
           </section>
         )}
 
+        {/* **문서마다 새 편집기다.** 본문이 앞 문서로 남던 결함을 고치는 것은 위의 상태
+            초기화이고(실측으로 갈라 확인했다), 이 `key` 가 막는 것은 다른 것이다:
+            TipTap 인스턴스가 살아남으면 **되돌리기 이력도 살아남아** 문서 B 에서 ⌘Z 를
+            누르면 문서 A 의 글이 돌아온다. 이력은 문서에 속한다. */}
         <SpecEditor
+          key={spec}
           value={draft ?? body}
           readOnly={!editable}
           onChange={(markdown, result) => {

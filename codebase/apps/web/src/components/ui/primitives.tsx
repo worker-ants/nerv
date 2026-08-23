@@ -48,13 +48,19 @@ export function PageHeader({
   meta?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{title}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* **화면 제목은 한 단 크다**(시안 27px · 정정 2026-08-23). 20px/600 은 본문
+              14px 와 너무 가까워, 제목이 "조금 굵은 문장"으로 읽히고 화면에 시작점이
+              생기지 않는다 — 그것이 "텍스트 나열"의 첫 번째 원인이었다.
+              프리미티브 한 곳에서 정하므로 열세 화면이 함께 바뀐다. */}
+          <h1 className="truncate text-2xl font-bold tracking-[-0.022em]">{title}</h1>
           {meta}
         </div>
-        {description !== undefined && <p className="mt-1 text-sm text-text-mute">{description}</p>}
+        {description !== undefined && (
+          <p className="mt-1.5 text-sm leading-relaxed text-text-mute">{description}</p>
+        )}
       </div>
       {actions !== undefined && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </header>

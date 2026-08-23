@@ -107,10 +107,14 @@ function MembersTab(): React.JSX.Element {
         <Table
           head={
             <>
-              <Th>{t('settings.members.name')}</Th>
+              {/* **역할 칸이 가장 넓어야 한다**(정정 2026-08-23). 겸직이 되면서 칸 하나에
+                  칩 여섯이 들어가는데 `w-32` 로 두어 네 줄로 접혔고 행 높이가 117px 가
+                  됐다 — 표가 아니라 문단처럼 보인다. 이메일은 남는 폭을 다 먹고 있었다:
+                  넓어서 좋을 것이 없는 열이다. */}
+              <Th className="w-28">{t('settings.members.name')}</Th>
               <Th>{t('settings.members.email')}</Th>
-              <Th>{t('settings.members.scope')}</Th>
-              <Th className="w-32">{t('settings.members.role')}</Th>
+              <Th className="w-32">{t('settings.members.scope')}</Th>
+              <Th className="w-[23rem]">{t('settings.members.role')}</Th>
             </>
           }
         >

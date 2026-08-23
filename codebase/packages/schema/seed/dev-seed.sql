@@ -123,6 +123,9 @@ INSERT INTO requirement_version (requirement_id, spec_version_id, change_kind, s
    'WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다', 1);
 
 -- 작업 + 클레임 (S4 보드 한 벌) ------------------------------------------
+-- `blocked_reason` 은 **사람이 읽는 문장**이다(자유 텍스트). 코드처럼 생긴 값을 넣으면
+-- 화면에 그대로 찍혀 "awaiting_answer" 가 사용자에게 보인다(실측 2026-08-23) —
+-- 막힌 이유를 읽으려는 사람에게 그 토큰은 아무것도 말해 주지 않는다.
 INSERT INTO task (id, project_id, key, title, status, priority,
                   source_spec_version_id, source_requirement_id,
                   assignee_user_id, delegate_session_id,
@@ -139,7 +142,7 @@ INSERT INTO task (id, project_id, key, title, status, priority,
    '01990a66-0000-7000-8000-000000000053', NULL,
    '01990a66-0000-7000-8000-000000000014', '01990a66-0000-7000-8000-000000000082',
    'SPC-CWC-012 v1의 세션 복원 API 구현', 'PR 1건 + 통합 테스트',
-   'nerv_spec_get으로 SPC-CWC-012 v1 로드', '백엔드 세션 복원 경로만.', 'awaiting_answer'),
+   'nerv_spec_get으로 SPC-CWC-012 v1 로드', '백엔드 세션 복원 경로만.', '유나의 질문(스토리지 선택)에 답이 오기 전에는 계약을 못 정한다'),
   ('01990a66-0000-7000-8000-000000000073', '01990a66-0000-7000-8000-000000000021',
    'CLV-T-0CFQC2', '스니펫 로더 캐시 헤더', 'in_progress', 'P2',
    '01990a66-0000-7000-8000-000000000052', NULL,
