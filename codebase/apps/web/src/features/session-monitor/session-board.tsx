@@ -9,11 +9,9 @@ import { useT } from '../../lib/i18n.js';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
-import { StatusBadge } from '../../components/status-badge.js';
-import { SESSION_TOKEN } from '../../components/status-token.js';
 import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
-import { Button, EmptyState, Skeleton } from '../../components/ui/primitives.js';
+import { Button, EmptyState, Skeleton , SummaryStrip } from '../../components/ui/primitives.js';
 
 export interface SessionBoardProps {
   projectSlug: string;
@@ -73,7 +71,8 @@ export function SessionBoard({ projectSlug, projectId }: SessionBoardProps): Rea
   return (
     <div className="flex flex-col gap-3">
       <SessionSummaryStrip summary={result?.summary ?? {}} />
-      <div className="grid gap-2 md:grid-cols-2">
+      {/* 줄이 되었으니 격자가 아니라 목록이다 — 2열로 쪼개면 세로 훑기가 끊긴다 */}
+      <div className="flex flex-col rounded-nerv border border-border">
         {items.map((card) => (
           <SessionCard key={card.id} card={card} />
         ))}
@@ -91,18 +90,27 @@ export function SessionSummaryStrip({
   const t = useT();
   const entries = Object.entries(summary).filter(([, n]) => n > 0);
   return (
-    <div className="flex flex-wrap gap-2" data-testid="session-summary">
-      {entries.length === 0 ? (
-        <span className="text-xs text-text-faint">{t('sessions.no_sessions')}</span>
-      ) : (
-        entries.map(([state, n]) => (
-          <StatusBadge
-            key={state}
-            token={SESSION_TOKEN[state as keyof typeof SESSION_TOKEN] ?? 'idle'}
-            label={`${t(statusLabelKey('session', state))} ${n}`}
-          />
-        ))
-      )}
-    </div>
+    // **배지 나열이 아니라 스트립이다**(2026-08-23 재검토). 상태 배지를 늘어놓으면
+    // 숫자가 라벨 뒤에 붙어 작게 읽히고, "지금 몇 개가 도나"는 배지를 하나씩 훑어야
+    // 답이 나온다. 큰 숫자 몇 개가 먼저 오는 편이 이 화면의 첫 물음에 맞다.
+    entries.length === 0 ? (
+      <div className="text-xs text-text-faint" data-testid="session-summary">
+        {t('sessions.no_sessions')}
+      </div>
+    ) : (
+      <SummaryStrip
+        data-testid="session-summary"
+        metrics={entries.map(([state, n]) => ({
+          label: t(statusLabelKey('session', state)),
+          value: n,
+          tone:
+            state === 'active'
+              ? ('done' as const)
+              : state === 'awaiting_input'
+                ? ('waiting' as const)
+                : ('default' as const),
+        }))}
+      />
+    )
   );
 }

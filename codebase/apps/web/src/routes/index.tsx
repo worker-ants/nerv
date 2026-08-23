@@ -13,7 +13,6 @@ import { ApprovalCard } from '../features/inbox/approval-card.js';
 import { relativeTime } from '../lib/format.js';
 import { rows, useInbox, useMe, useNotifications, useProjects } from '../lib/queries.js';
 import { primaryMembership } from '../lib/session.js';
-import { cn } from '../lib/utils.js';
 import {
   Card,
   EmptyState,
@@ -22,6 +21,8 @@ import {
   PageHeader,
   SectionTitle,
   Skeleton,
+
+  SummaryStrip,
 } from '../components/ui/primitives.js';
 
 export const Route = createFileRoute('/')({ component: HomeScreen });
@@ -50,28 +51,28 @@ function HomeScreen(): React.JSX.Element {
         description={t('home.lead')}
       />
 
-      <section data-testid="today-strip" className="mb-8 grid gap-3 sm:grid-cols-3">
-        <Stat
-          label={t('home.stat.approvals')}
-          value={approvals.length}
-          tone="action"
-          to="/inbox"
-          hint={t('home.stat.approvals_hint')}
-        />
-        <Stat
-          label={t('home.stat.questions')}
-          value={questions.length}
-          tone="waiting"
-          to="/inbox"
-          hint={t('home.stat.questions_hint')}
-        />
-        <Stat
-          label={t('home.stat.projects')}
-          value={projectRows.length}
-          tone="idle"
-          hint={t('home.stat.projects_hint')}
-        />
-      </section>
+      {/* **한 줄이다**(2026-08-23 재검토). 상자 셋으로 두면 셋 다 같은 무게로 읽히고,
+          정작 "지금 나를 기다리는 게 몇 건인가"는 세 상자를 다 본 뒤에야 답이 나온다.
+          숫자는 누를 수 있다 — 보고 갈 데가 없으면 그냥 표시일 뿐이다(§1.5) */}
+      <SummaryStrip
+        data-testid="today-strip"
+        className="mb-8"
+        metrics={[
+          {
+            label: t('home.stat.approvals'),
+            value: approvals.length,
+            tone: 'default',
+            href: '/inbox',
+          },
+          {
+            label: t('home.stat.questions'),
+            value: questions.length,
+            tone: questions.length > 0 ? 'waiting' : 'default',
+            href: '/inbox',
+          },
+          { label: t('home.stat.projects'), value: projectRows.length },
+        ]}
+      />
 
       <section className="mb-8">
         <SectionTitle
@@ -177,48 +178,3 @@ function HomeScreen(): React.JSX.Element {
   );
 }
 
-/**
- * 오늘 할 일 숫자. 링크가 있으면 카드 전체가 눌린다 — 숫자를 본 사람의 다음 동작은
- * 언제나 "그래서 그게 뭔데"이고, 그 길이 카드 안에 있어야 한다.
- */
-function Stat({
-  label,
-  value,
-  tone,
-  hint,
-  to,
-}: {
-  label: string;
-  value: number;
-  tone: 'action' | 'waiting' | 'idle';
-  hint: string;
-  to?: '/inbox';
-}): React.JSX.Element {
-  const toneClass =
-    tone === 'action'
-      ? 'text-status-action'
-      : tone === 'waiting'
-        ? 'text-status-waiting'
-        : 'text-text';
-  const body = (
-    <Card interactive={to !== undefined} padded={false} className="px-4 py-3">
-      <div className="text-xs font-medium text-text-mute">{label}</div>
-      <div
-        className={cn(
-          'mt-0.5 text-2xl font-semibold tabular-nums',
-          value === 0 ? 'text-text-faint' : toneClass,
-        )}
-      >
-        {value}
-      </div>
-      <div className="mt-0.5 text-2xs text-text-faint">{hint}</div>
-    </Card>
-  );
-  return to === undefined ? (
-    body
-  ) : (
-    <Link to={to} className="block">
-      {body}
-    </Link>
-  );
-}

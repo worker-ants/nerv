@@ -200,8 +200,12 @@ body {
  * 편집기 안이라 여백은 조금 좁다: 문단 사이가 넓으면 커서를 옮기는 거리가 길어진다.
  */
 .prose-nerv {
-  font-size: var(--text-base);
-  line-height: 1.75;
+  /* **UI 글자와 문서 글자는 다른 크기다**(2026-08-23 재검토). 표·목록을 빽빽이 담아야 하는
+   * UI 는 14px 이 맞지만, 긴 글을 읽는 본문에서 14px 는 눈을 피로하게 하고 문단을 회색
+   * 덩어리로 만든다. 이 한 단(15px)이 "문서를 읽는 화면"과 "표를 보는 화면"을 가른다. */
+  font-size: 0.9375rem;
+  line-height: 1.78;
+  letter-spacing: -0.003em;
 }
 .prose-nerv > :first-child {
   margin-top: 0;

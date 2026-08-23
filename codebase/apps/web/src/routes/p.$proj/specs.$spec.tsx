@@ -131,9 +131,13 @@ function SpecDetail(): React.JSX.Element {
     // 3열 중 **좌측 트리는 셸 사이드바가 소유한다**(§1.3 — "S3 좌측 트리와 같은 컴포넌트").
     // 여기서 또 그리면 같은 트리가 두 개 뜨고 스크롤 위치도 갈라진다.
     <div className="mx-auto grid w-full max-w-[80rem] gap-6 px-6 py-6 lg:grid-cols-[1fr_17rem]">
-      <main className="min-w-0">
+      {/* **본문 폭을 읽는 폭으로 좁힌다**(2026-08-23 재검토). 1008px 짜리 줄은 눈이
+          다음 줄 머리를 못 찾아 문서가 평문 덩어리로 읽힌다 — 44rem(704px)이 한 줄에
+          70~80자로, 긴 글을 읽는 표준 폭이다. 화면은 넓게 쓰되 글은 좁게 흐른다. */}
+      <main className="mx-auto min-w-0 max-w-[44rem]">
         <header className="mb-4 flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold tracking-tight">
+          {/* 제목은 문서의 것이다 — UI 제목보다 한 단 크고 자간을 더 좁힌다 */}
+          <h1 className="text-2xl font-bold tracking-[-0.022em]">
             {String(detail.data?.['title'] ?? spec)}
           </h1>
           <Mono>{spec}</Mono>

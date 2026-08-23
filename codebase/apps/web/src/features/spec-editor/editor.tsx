@@ -17,6 +17,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { Markdown } from 'tiptap-markdown';
 import { useEffect, useRef, useState } from 'react';
+import { cn } from '../../lib/utils.js';
 
 /** 화이트리스트 — md 로 표현 가능한 것만(§3.1). 색·밑줄·이미지 업로드는 확장하지 않는다. */
 export const EDITOR_EXTENSIONS = [
@@ -116,10 +117,18 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
           {value}
         </pre>
       ) : (
+        // **읽을 때는 상자에 넣지 않는다**(2026-08-23 재검토). 테두리는 "여기가 고칠 수
+        // 있는 면"이라는 표시라 편집 가능할 때만 뜻이 있다. 승인된 문서를 상자에 넣으면
+        // 페이지 안에 페이지가 있는 꼴이 되고, 그것이 문서를 텍스트 덩어리로 만든다.
         <EditorContent
           editor={editor}
           data-testid="editor-content"
-          className="prose-nerv min-h-[40vh] rounded-nerv border border-border bg-bg-elev px-5 py-4 [&_.ProseMirror]:outline-none"
+          className={cn(
+            'prose-nerv min-h-[40vh] [&_.ProseMirror]:outline-none',
+            !readOnly
+              ? 'rounded-nerv border border-border bg-bg-elev px-5 py-4'
+              : 'px-0 py-1',
+          )}
         />
       )}
     </div>

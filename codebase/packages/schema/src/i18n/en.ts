@@ -486,6 +486,9 @@ export const en = {
     'All four brief elements (goal, output, tools/sources, boundaries) must be filled to go ready',
   'tasks.ready_transition': 'Move to ready',
   'tasks.rebrief': 'Re-brief needed — v{version} → latest',
+  'tasks.summary.in_progress': 'In progress',
+  'tasks.summary.ready': 'Ready',
+  'tasks.summary.blocked': 'Blocked',
   'tasks.title': 'Task board',
   // ── S5 세션 모니터 (screens.md §2.6) ─────────────────────────────────────────
   'session.activity': 'Activity',
@@ -501,6 +504,7 @@ export const en = {
   'session.meta.tokens': 'Tokens',
   'session.meta.worktree': 'Worktree',
   'session.no_activity': 'No activity yet.',
+  'session.no_task': 'No claimed task',
   'session.scope': 'Declared scope',
   'session.stale_note':
     'Idle past the 30:00 threshold → moved automatically. The claim was reclaimed.',

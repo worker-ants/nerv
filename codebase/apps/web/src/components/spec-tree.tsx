@@ -10,6 +10,7 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { rows, useSpecTree } from '../lib/queries.js';
 import { StatusBadge } from './status-badge.js';
+import { cn } from '../lib/utils.js';
 import { Input } from './ui/primitives.js';
 import { SPEC_VERSION_TOKEN } from './status-token.js';
 import type { StatusToken } from './status-badge.js';
@@ -236,15 +237,36 @@ export function SpecTree({
                     {children.length}
                   </span>
                 )}
-                {node.doc_status !== null && (
-                  <StatusBadge
-                    token={
-                      (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
-                        'idle') as StatusToken
-                    }
-                    label={t(statusLabelKey('spec', node.doc_status))}
-                  />
-                )}
+                {/* **다 같으면 그건 신호가 아니다**(2026-08-23 재검토). 141편 중 128편이
+                    `approved` 라 배지를 모든 줄에 달면 초록색이 줄마다 반복되고,
+                    정작 눈에 띄어야 할 초안·폐기가 그 반복 속에 묻힌다.
+                    좁은 사이드바에서는 **평소와 다른 것만** 말한다 — 승인됨은 침묵이다.
+                    전체 화면 트리(`compact` 아님)는 폭이 있으니 배지를 그대로 단다. */}
+                {node.doc_status !== null &&
+                  (compact ? (
+                    node.doc_status !== 'approved' && (
+                      <span
+                        aria-label={t(statusLabelKey('spec', node.doc_status))}
+                        title={t(statusLabelKey('spec', node.doc_status))}
+                        className={cn(
+                          'size-1.5 shrink-0 rounded-full',
+                          node.doc_status === 'draft'
+                            ? 'bg-status-waiting'
+                            : node.doc_status === 'in_review'
+                              ? 'bg-status-progress'
+                              : 'bg-status-idle-text',
+                        )}
+                      />
+                    )
+                  ) : (
+                    <StatusBadge
+                      token={
+                        (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
+                          'idle') as StatusToken
+                      }
+                      label={t(statusLabelKey('spec', node.doc_status))}
+                    />
+                  ))}
               </Link>
             </div>
             {isOpen && children.length > 0 && <ul>{renderLevel(node.id, depth + 1)}</ul>}

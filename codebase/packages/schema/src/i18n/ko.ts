@@ -480,6 +480,9 @@ export const ko = {
     '위임 명세 4요소(목표·산출물·도구/출처·경계)가 채워져야 ready 로 갑니다',
   'tasks.ready_transition': 'ready 전이',
   'tasks.rebrief': '재브리핑 필요 — v{version} → 최신',
+  'tasks.summary.in_progress': '진행 중',
+  'tasks.summary.ready': '준비됨',
+  'tasks.summary.blocked': '막힘',
   'tasks.title': '작업 보드',
   // ── S5 세션 모니터 (screens.md §2.6) ─────────────────────────────────────────
   'session.activity': 'Activity',
@@ -495,6 +498,7 @@ export const ko = {
   'session.meta.tokens': '토큰',
   'session.meta.worktree': '워크트리',
   'session.no_activity': '아직 활동이 없습니다.',
+  'session.no_task': '클레임한 작업 없음',
   'session.scope': '선언 scope',
   'session.stale_note': '무활동 임계 30:00 초과 → 자동 전이. 클레임은 회수됐다.',
   'sessions.intervene': '개입',

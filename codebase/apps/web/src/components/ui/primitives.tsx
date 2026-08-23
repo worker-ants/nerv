@@ -7,6 +7,7 @@
 // 디자인 방향은 평평함이다: 층은 그림자가 아니라 선과 여백으로 만든다. 그림자는 떠 있는 것
 // (드롭다운·모달)에만 쓴다.
 
+import { Link } from '@tanstack/react-router';
 import { cn } from '../../lib/utils.js';
 
 // ── 페이지 골격 ────────────────────────────────────────────────────────────
@@ -379,5 +380,153 @@ export function MenuItem({
       )}
       {...rest}
     />
+  );
+}
+
+/**
+ * 대문자 소제목 — 화면 안의 구역을 **크기가 아니라 성질로** 나눈다.
+ *
+ * 제목을 키워서 구역을 나누면 화면이 소란스러워진다(§4 "제목은 크기보다 굵기와 여백으로").
+ * 작고 흐린 대문자 라벨은 눈에 먼저 들어오지 않으면서 자리를 정확히 알려 준다.
+ */
+export function SectionLabel({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <div
+      className={cn(
+        'text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** 아바타 색 — **새 색을 만들지 않는다.** 상태 토큰의 soft 배경을 사람에게 재사용한다. */
+const AVATAR_TONE = [
+  'bg-status-progress-soft text-status-progress',
+  'bg-status-agent-soft text-status-agent',
+  'bg-status-done-soft text-status-done',
+  'bg-status-waiting-soft text-status-waiting',
+  'bg-status-action-soft text-status-action',
+] as const;
+
+/**
+ * 사람 표식 — 이름 첫 글자.
+ *
+ * 목록에서 "누구 것인가"를 **읽지 않고 알아보게** 하는 장치다. 이름을 글자로만 늘어놓으면
+ * 줄마다 같은 굵기의 텍스트가 하나 더 늘 뿐이고, 그것이 이 화면들이 텍스트 나열로 읽히던
+ * 이유 중 하나였다(2026-08-23 재검토).
+ *
+ * 색은 이름에서 **결정적으로** 고른다 — 같은 사람은 어느 화면에서나 같은 색이다.
+ */
+export function Avatar({
+  name,
+  size = 'md',
+  className,
+}: {
+  name: string;
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+}): React.JSX.Element {
+  const initial = name.trim().slice(0, 1) || '?';
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)!) >>> 0;
+  const box = { sm: 'h-[18px] w-[18px] text-2xs', md: 'h-6 w-6 text-2xs', lg: 'h-7.5 w-7.5 text-xs' };
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-full font-semibold',
+        box[size],
+        AVATAR_TONE[hash % AVATAR_TONE.length],
+        className,
+      )}
+    >
+      {initial}
+    </span>
+  );
+}
+
+export interface SummaryMetric {
+  label: string;
+  value: number | string;
+  /** 강조가 필요한 값만 색을 준다 — 전부 색이면 아무것도 강조되지 않는다 */
+  tone?: 'default' | 'progress' | 'waiting' | 'danger' | 'done';
+  /** 숫자를 보고 **갈 데가 있어야 한다**(§1.5) — 없으면 그냥 표시다 */
+  href?: string;
+}
+
+/**
+ * 요약 스트립 — **이 줄만 보고 "지금 몇 개가 도나"에 답한다.**
+ *
+ * 화면 맨 위에 큰 숫자 몇 개를 두는 이유는 스캔 순서다. 목록부터 그리면 사람은 항목을
+ * 세면서 전체를 짐작해야 하고, 그 짐작이 화면을 볼 때마다 반복된다.
+ */
+export function SummaryStrip({
+  metrics,
+  actions,
+  className,
+  ...rest
+}: {
+  metrics: readonly SummaryMetric[];
+  actions?: React.ReactNode;
+  className?: string;
+} & React.HTMLAttributes<HTMLDivElement>): React.JSX.Element {
+  const tone = {
+    default: 'text-text',
+    progress: 'text-status-progress',
+    waiting: 'text-status-waiting',
+    danger: 'text-status-danger',
+    done: 'text-status-done',
+  };
+  return (
+    <div
+      className={cn('flex items-center gap-0 border-y border-border py-3', className)}
+      {...rest}
+    >
+      {metrics.map((m, i) => {
+        const body = (
+          <>
+            <span className="text-2xs font-semibold tracking-[0.06em] text-text-mute uppercase">
+              {m.label}
+            </span>
+            <span
+              className={cn(
+                'text-xl leading-none font-semibold tabular-nums',
+                tone[m.tone ?? 'default'],
+              )}
+            >
+              {m.value}
+            </span>
+          </>
+        );
+        const shell = cn(
+          'flex flex-col gap-0.5 pr-8',
+          i < metrics.length - 1 && 'mr-8 border-r border-border',
+        );
+        return m.href === undefined ? (
+          <div key={m.label} className={shell}>
+            {body}
+          </div>
+        ) : (
+          <Link key={m.label} to={m.href} className={cn(shell, 'group')}>
+            <span className="contents group-hover:[&>span:last-child]:text-link">{body}</span>
+          </Link>
+        );
+      })}
+      {actions !== undefined && (
+        <>
+          <div className="flex-1" />
+          {actions}
+        </>
+      )}
+    </div>
   );
 }

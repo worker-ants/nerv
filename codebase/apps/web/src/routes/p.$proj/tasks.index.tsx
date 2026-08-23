@@ -14,7 +14,15 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
 import { useProject, useTaskLane } from '../../lib/queries.js';
 import { cn } from '../../lib/utils.js';
-import { Button, PageBody, PageHeader, Skeleton } from '../../components/ui/primitives.js';
+import {
+  Avatar,
+  Button,
+  PageBody,
+  PageHeader,
+  Skeleton,
+  SummaryStrip,
+} from '../../components/ui/primitives.js';
+import type { SummaryMetric } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/tasks/')({ component: TaskBoard });
@@ -46,6 +54,22 @@ function TaskBoard(): React.JSX.Element {
 
   const lanes = [...(showBacklog ? (['backlog'] as const) : []), ...LANES];
 
+  // 요약 숫자 — **레인과 같은 쿼리 키를 쓴다.** React Query 가 같은 키를 합쳐 주므로
+  // 레인이 이미 부른 것을 다시 부르지 않는다. 한 페이지를 채웠으면 `+` 를 붙인다:
+  // 그냥 30 이라고 적으면 사람은 그것이 전부라고 읽는다.
+  const inProgress = useTaskLane(proj, id, 'in_progress');
+  const ready = useTaskLane(proj, id, 'ready');
+  const blocked = useTaskLane(proj, id, 'blocked');
+  const count = (q: ReturnType<typeof useTaskLane>): string => {
+    const items = q.data?.items ?? [];
+    return `${items.length}${q.data?.next_cursor != null ? '+' : ''}`;
+  };
+  const summary: SummaryMetric[] = [
+    { label: t('tasks.summary.in_progress'), value: count(inProgress), tone: 'progress' },
+    { label: t('tasks.summary.ready'), value: count(ready) },
+    { label: t('tasks.summary.blocked'), value: count(blocked), tone: 'danger' },
+  ];
+
   return (
     <PageBody wide>
       <PageHeader
@@ -73,23 +97,32 @@ function TaskBoard(): React.JSX.Element {
         </div>
       )}
 
-      {/* 필터는 보드 위에 둔다 — 레인 머리에 붙이면 어느 레인의 설정인지 헷갈리고,
-          `보관 보기`는 done 레인만 바꾸지만 `백로그 보기`는 레인 자체를 늘린다 */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <FilterToggle
-          testId="filter-backlog"
-          on={showBacklog}
-          onClick={() => setShowBacklog(!showBacklog)}
-          label={t('tasks.filter.backlog')}
-        />
-        <FilterToggle
-          testId="filter-archived"
-          on={showArchived}
-          onClick={() => setShowArchived(!showArchived)}
-          label={t('tasks.filter.archived')}
-          title={t('tasks.filter.archived_title', { days: TASK_DONE_WINDOW_DAYS })}
-        />
-      </div>
+      {/* **요약이 먼저다**(2026-08-23 재검토). 목록부터 그리면 사람은 카드를 세면서
+          전체를 짐작해야 하고, 그 짐작이 화면을 볼 때마다 반복된다. 필터는 그 줄
+          오른쪽에 붙는다 — 보드 위에 두는 이유는 레인 머리에 붙이면 어느 레인의
+          설정인지 헷갈리기 때문이고, `보관 보기`는 done 만 바꾸지만 `백로그 보기`는
+          레인 자체를 늘린다 */}
+      <SummaryStrip
+        className="mb-5"
+        metrics={summary}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterToggle
+              testId="filter-backlog"
+              on={showBacklog}
+              onClick={() => setShowBacklog(!showBacklog)}
+              label={t('tasks.filter.backlog')}
+            />
+            <FilterToggle
+              testId="filter-archived"
+              on={showArchived}
+              onClick={() => setShowArchived(!showArchived)}
+              label={t('tasks.filter.archived')}
+              title={t('tasks.filter.archived_title', { days: TASK_DONE_WINDOW_DAYS })}
+            />
+          </div>
+        }
+      />
 
       {/* 레인을 화면 폭에 욱여넣지 않는다 — 좁으면 가로로 민다. 억지로 접으면 순서
           (ready → … → done)가 깨지고, 그 순서가 이 보드의 의미 전부다 */}
@@ -266,25 +299,47 @@ function TaskCard({
   onEdit: (key: string) => void;
 }): React.JSX.Element {
   const t = useT();
+  // 주의가 필요한 것 = 기준 버전이 지나갔거나 재브리핑이 걸렸거나 막힌 것
+  const needsAttention =
+    task['basis_superseded'] === true ||
+    (task['rebrief_required_at'] !== null && task['rebrief_required_at'] !== undefined) ||
+    lane === 'blocked';
   return (
-    <article className="rounded-nerv-sm border border-border bg-bg-elev px-2.5 py-2 text-sm transition-colors hover:border-border-strong">
+    // **테두리를 걷어냈다**(2026-08-23 재검토). 칸마다 같은 상자가 스무 개 서면 화면이
+    // 표가 되고, 그때 눈은 어느 것도 붙잡지 못한다. 평소에는 배경 없이 두고 hover 로
+    // 만져지는 것만 알린다 — 주의가 필요한 카드만 왼쪽 2px 룰로 스스로 튄다.
+    <article
+      className={cn(
+        'group rounded-nerv-sm border-l-2 px-2.5 py-2 text-sm transition-colors hover:bg-bg-hover',
+        needsAttention ? 'border-l-status-waiting' : 'border-l-transparent',
+      )}
+    >
       {/* 칸이 이미 상태를 말한다 — 카드마다 같은 배지를 또 붙이면
           칸 하나에 같은 배지 열 개가 세로로 늘어선다 */}
       <Link
         to="/p/$proj/tasks/$task"
         params={{ proj, task: String(task['key']) }}
-        className="block font-medium hover:text-link"
+        className="block leading-snug font-medium hover:text-link"
       >
         {String(task['title'])}
       </Link>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-text-faint">
+      {task['basis_superseded'] === true && (
+        // 기준 버전이 지나갔다 — 재브리핑 신호(agent-integration §2.4).
+        // 메타 줄에 섞어 두면 흐린 글자 사이에 묻힌다 — 제 줄을 준다.
+        <div className="mt-1.5 inline-flex items-center gap-1 rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 text-2xs font-medium text-status-waiting">
+          <span aria-hidden="true">↑</span>
+          {t('tasks.basis_superseded')}
+        </div>
+      )}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-text-faint">
+        {/* **누구 것인가를 읽지 않고 알아보게 한다** — 이름을 글자로 늘어놓으면
+            줄마다 같은 굵기의 텍스트가 하나 더 늘 뿐이다 */}
+        {typeof task['assignee_name'] === 'string' && (
+          <Avatar name={task['assignee_name']} size="sm" />
+        )}
         <span className="font-mono">{String(task['key'])}</span>
         {task['spec_key'] !== null && task['spec_key'] !== undefined && (
           <span className="font-mono">{String(task['spec_key'])}</span>
-        )}
-        {task['basis_superseded'] === true && (
-          // 기준 버전이 지나갔다 — 재브리핑 신호(agent-integration §2.4)
-          <span className="text-status-waiting">{t('tasks.basis_superseded')}</span>
         )}
         {/* 리스 잔여는 서버 시각 기준으로 클라이언트가 센다(§1.4).
             2분 미만은 호박색 — 곧 회수된다는 뜻이고, 그때 화면이 조용하면

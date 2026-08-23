@@ -7,7 +7,7 @@
 
 import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { cleanup, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionBoard } from './session-board.js';
 import { SessionCard } from './session-card.js';
@@ -122,8 +122,11 @@ describe('SessionBoard — 상태 3종 (screens.md §1.5)', () => {
     renderBoard();
 
     await waitFor(() => expect(screen.getByTestId('session-card')).toBeDefined());
-    expect(screen.getByTestId('session-summary')).toBeDefined();
-    expect(screen.getByText('활동 중 1')).toBeDefined();
+    // 스트립은 라벨과 숫자를 **따로** 그린다 — 숫자가 커야 먼저 읽히기 때문이다.
+    // 배지 시절의 `'활동 중 1'` 한 덩어리가 아니다(2026-08-23 재검토).
+    const strip = within(screen.getByTestId('session-summary'));
+    expect(strip.getByText('활동 중')).toBeDefined();
+    expect(strip.getByText('1')).toBeDefined();
     vi.unstubAllGlobals();
   });
 
