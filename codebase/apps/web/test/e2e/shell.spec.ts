@@ -51,7 +51,10 @@ test('가입 → 로그인 → 셸 진입 · ⌘K 퀵 스위처 (REQ-WEB-006 · 
 
   // 조직 0개 → 온보딩으로 착지한다(REQ-WEB-006)
   await page.waitForURL(/\/onboarding|\/inbox|\/$/);
-  await expect(page.getByText('⬢ NERV')).toBeVisible();
+  // 셸이 떴다는 것만 본다 — 로고 **글리프**를 문자로 못 박으면 조형을 바꿀 때마다
+  // 깨진다(실측 2026-08-23: 글리프를 사각형 마크로 바꾸며 깨졌다). 이 테스트가 지키려는
+  // 것은 브랜드 표기가 아니라 "가입 뒤 셸에 착지한다"이다.
+  await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
 
   // ⌘K — 전 라우트 공통. 마우스 없이 열고 닫힌다
   await page.keyboard.press('Meta+k');
@@ -82,7 +85,7 @@ test('로그아웃하면 세션이 끊기고 보호 경로가 다시 막힌다',
   await page.getByLabel('이메일').fill(EMAIL);
   await page.getByLabel('비밀번호').fill(PASSWORD);
   await page.getByRole('button', { name: /로그인/ }).click();
-  await expect(page.getByText('⬢ NERV')).toBeVisible();
+  await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
 
   // 로그아웃은 사용자 메뉴 안에 있다(§1.3 "[사용자 메뉴 ▾]") — 헤더에 평문 버튼으로
   // 늘어놓지 않는 이유는 자주 쓰지 않는 항목이 자주 쓰는 항목의 자리를 먹기 때문이다.
@@ -101,7 +104,7 @@ test.describe('시드 세션', () => {
 
   test('헤더에 조직 스위처와 사용자 메뉴가 있다 (§1.3 레이아웃)', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('⬢ NERV')).toBeVisible();
+    await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
 
     // 헤더는 **조직 스코프**다 — 어느 조직을 보고 있는지가 화면에 없으면 다중 조직에서 길을 잃는다
     await expect(page.getByTestId('org-switcher')).toBeVisible();
@@ -118,7 +121,7 @@ test.describe('시드 세션', () => {
   test('프로젝트 사이드바는 /p/:proj/* 에서만 나온다 (§1.3)', async ({ page }) => {
     // 승인함은 조직 스코프 화면이라 사이드바가 없는 것이 맞다
     await page.goto('/inbox');
-    await expect(page.getByText('⬢ NERV')).toBeVisible();
+    await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
     await expect(page.locator('aside')).toHaveCount(0);
 
     // 프로젝트에 들어가면 탭과 스펙 트리가 함께 선다

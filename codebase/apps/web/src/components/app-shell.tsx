@@ -16,7 +16,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { signOut } from '../lib/session.js';
-import { useInbox, useMe, useUnreadCount } from '../lib/queries.js';
+import { useInbox, useMe, useUnreadCount , useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { SpecTree } from './spec-tree.js';
@@ -35,8 +35,10 @@ const HEADER_LINK =
   'rounded-nerv-sm px-2 py-1 text-sm text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
 
 /** 사이드바 항목 — 활성 표시는 배경 + 굵기다. 색만으로 구분하지 않는다(REQ-WEB-033) */
+// 시안의 nav 는 29px 줄에 13.5px 글자다 — 손가락이 아니라 눈으로 고르는 목록이라
+// 빽빽해도 되고, 빽빽해야 트리와 한 덩어리로 읽힌다(시안 대조 2026-08-23).
 const NAV_ITEM =
-  'flex items-center gap-2 rounded-nerv-sm px-2 py-1 text-sm text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
+  'flex h-[29px] items-center gap-2 rounded-nerv-sm px-2 text-sm text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
 const NAV_ACTIVE = 'bg-bg-active font-medium text-text';
 
 function CountBadge({
@@ -45,16 +47,20 @@ function CountBadge({
   testId,
 }: {
   count: number;
-  tone: 'action' | 'waiting';
-  testId: string;
+  tone: 'action' | 'waiting' | 'agent';
+  testId?: string;
 }): React.JSX.Element | null {
   if (count === 0) return null;
   return (
     <span
-      data-testid={testId}
+      {...(testId === undefined ? {} : { 'data-testid': testId })}
       className={cn(
         'ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white',
-        tone === 'action' ? 'bg-status-action' : 'bg-status-waiting',
+        tone === 'action'
+          ? 'bg-status-action'
+          : tone === 'agent'
+            ? 'bg-status-agent'
+            : 'bg-status-waiting',
       )}
     >
       {count > 99 ? '99+' : count}
@@ -70,6 +76,9 @@ export function AppShell({
   const t = useT();
   const { locale, setLocale } = useLocale();
   const navigate = useNavigate();
+  // 활성 세션 수는 프로젝트 조회가 함께 준다(EP-PRJ-03) — 세션 목록을 또 부르지 않는다
+  const shellProject = useProject(projectSlug ?? '');
+  const activeSessions = Number(shellProject.data?.['active_sessions'] ?? 0);
   const { state, offline, toasts, dismissToast } = useRealtime();
   const me = useMe();
   const inbox = useInbox();
@@ -118,10 +127,18 @@ export function AppShell({
     <div className="min-h-screen bg-bg text-text">
       <header className="sticky top-0 z-30 flex h-header items-center justify-between gap-4 border-b border-border bg-bg px-3">
         <nav className="flex min-w-0 items-center gap-1">
-          <Link to="/" className="mr-1 flex items-center gap-1.5 px-1 text-sm font-semibold">
-            <span aria-hidden="true" className="text-status-action">
-              ⬢
-            </span>{' '}
+          {/* 시안의 로고는 글리프가 아니라 **채운 사각형**이다 — 글리프는 주변 글자와
+              같은 무게라 화면에 정박점이 되지 못한다(시안 대조 2026-08-23) */}
+          <Link
+            to="/"
+            className="mr-1 flex items-center gap-[7px] px-1 text-sm font-semibold tracking-[-0.01em]"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-flex size-[15px] items-center justify-center rounded-[4px] bg-status-action text-[9px] font-bold text-white"
+            >
+              N
+            </span>
             NERV
           </Link>
           {currentOrg !== null && (
@@ -283,13 +300,27 @@ export function AppShell({
       )}
 
       <div className="flex">
+        {/* 시안의 사이드바는 본문보다 **아주 조금만** 가라앉는다. `bg-bg-sunken` 은
+            대비가 커서 사이드바가 하나의 패널로 떠 보이는데, 이 화면들에서 사이드바는
+            패널이 아니라 여백에 가깝다(시안 대조 2026-08-23) */}
         {projectSlug !== undefined && (
-          <aside className="sticky top-header hidden h-[calc(100vh-var(--spacing-header))] w-sidebar shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-sunken px-2 py-3 md:flex">
-            <div className="px-2">
-              <p className="text-2xs font-semibold tracking-wide text-text-faint uppercase">
+          <aside className="sticky top-header hidden h-[calc(100vh-var(--spacing-header))] w-sidebar shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-sunken/40 px-2 py-3 md:flex">
+            <div className="px-2 pb-2.5">
+              <p className="text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase">
                 {t('common.project')}
               </p>
-              <p className="mt-0.5 truncate font-medium">{projectSlug}</p>
+              {/* 프로젝트에도 표식을 준다 — 이름만 있으면 어느 프로젝트인지 **읽어야** 안다 */}
+              <p className="mt-1 flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-status-done text-[9px] font-bold text-white uppercase"
+                >
+                  {projectSlug.slice(0, 1)}
+                </span>
+                <span className="truncate text-base font-semibold tracking-[-0.01em]">
+                  {projectSlug}
+                </span>
+              </p>
             </div>
             <nav className="mt-3 flex flex-col gap-0.5">
               <Link
@@ -323,7 +354,11 @@ export function AppShell({
                 className={NAV_ITEM}
                 activeProps={{ className: NAV_ACTIVE }}
               >
-                <span aria-hidden="true">◉</span> {t('shell.nav.sessions')}
+                <span aria-hidden="true">◉</span>
+                <span className="flex-1">{t('shell.nav.sessions')}</span>
+                {/* **지금 몇 개가 돌고 있나**를 사이드바가 말한다 — 세션 화면에 들어가야
+                    아는 숫자면 그 화면을 열기 전에는 아무도 모른다(시안 대조) */}
+                <CountBadge count={activeSessions} tone="agent" />
               </Link>
               {/* 리뷰 탭은 Phase 2 — 숨기지 않고 비활성 + 사유를 보인다(§1.3) */}
               <span
