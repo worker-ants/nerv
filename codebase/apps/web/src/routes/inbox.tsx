@@ -3,6 +3,7 @@
 // **키보드로 완결한다**(j/k 이동 · a 승인 · r 거절 · c 코멘트). 승인함은 매일 여러 번 여는
 // 화면이라 마우스 왕복이 그대로 지연이 된다 — 그 지연이 P4(승인 병목)의 실체다.
 
+import { useT } from '../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ApprovalCard } from '../features/inbox/approval-card.js';
@@ -18,6 +19,7 @@ export const Route = createFileRoute('/inbox')({
 });
 
 function InboxScreen(): React.JSX.Element {
+  const t = useT();
   const { state = 'pending' } = Route.useSearch();
   const inbox = useInbox(state);
   const [cursor, setCursor] = useState(0);
@@ -44,8 +46,8 @@ function InboxScreen(): React.JSX.Element {
   return (
     <PageBody>
       <PageHeader
-        title="승인함"
-        description="키보드로 끝낼 수 있습니다 — 마우스 왕복이 그대로 승인 지연이 됩니다."
+        title={t('inbox.title')}
+        description={t('inbox.lead')}
         actions={
           // 탭은 두 개뿐이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 두 링크로 읽힌다
           <nav className="flex rounded-nerv-sm border border-border p-0.5 text-xs">
@@ -56,7 +58,7 @@ function InboxScreen(): React.JSX.Element {
                 state === 'pending' ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
               )}
             >
-              대기
+              {t('inbox.tab.pending')}
             </a>
             <a
               href="/inbox?state=decided"
@@ -65,29 +67,32 @@ function InboxScreen(): React.JSX.Element {
                 state === 'decided' ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
               )}
             >
-              처리됨
+              {t('inbox.tab.decided')}
             </a>
           </nav>
         }
         meta={
           <span className="rounded-full bg-bg-sunken px-2 py-0.5 text-xs text-text-mute">
-            {state === 'pending' ? '대기' : '처리됨'} {cards.length}건
+            {state === 'pending'
+              ? t('inbox.count_pending', { count: cards.length })
+              : t('inbox.count_decided', { count: cards.length })}
           </span>
         }
       />
 
       <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-text-faint">
+        {/* 키 이름은 번역하지 않는다 — 키보드에 새겨진 글자다. 그 옆의 말만 번역한다 */}
         <span>
-          <Key>j</Key> <Key>k</Key> 이동
+          <Key>j</Key> <Key>k</Key> {t('inbox.key.move')}
         </span>
         <span>
-          <Key>a</Key> 승인
+          <Key>a</Key> {t('inbox.key.approve')}
         </span>
         <span>
-          <Key>r</Key> 거절
+          <Key>r</Key> {t('inbox.key.reject')}
         </span>
         <span>
-          <Key>c</Key> 코멘트
+          <Key>c</Key> {t('inbox.key.comment')}
         </span>
       </p>
 
@@ -96,12 +101,8 @@ function InboxScreen(): React.JSX.Element {
       {!inbox.isLoading && cards.length === 0 && (
         <EmptyState
           icon="✓"
-          title="지금 당신을 기다리는 항목이 없습니다."
-          hint={
-            state === 'pending'
-              ? '에이전트가 승인을 요청하면 여기에 먼저 도착합니다.'
-              : '아직 처리한 항목이 없습니다.'
-          }
+          title={t('home.nothing_waiting')}
+          hint={state === 'pending' ? t('inbox.empty_pending_hint') : t('inbox.empty_decided_hint')}
         />
       )}
 

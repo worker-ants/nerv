@@ -10,7 +10,7 @@
 // 자기 산출물의 기준선을 스스로 그을 수 있으면 기준선이라는 말이 성립하지 않는다.
 
 import { Injectable } from '@nestjs/common';
-import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -59,7 +59,7 @@ export class BaselineService {
     userId: string;
   }): Promise<Record<string, unknown>> {
     if (input.name.trim() === '') {
-      throw new NervError(NERV_ERROR.PRECONDITION, '베이스라인 이름이 필요합니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.baseline.name_required'), {
         kind: 'missing_name',
       });
     }
@@ -69,7 +69,7 @@ export class BaselineService {
         sql`SELECT id FROM spec_baseline WHERE project_id = ${input.projectId} AND name = ${input.name}`,
       );
       if (dup[0] !== undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '같은 이름의 베이스라인이 있습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.baseline.duplicate'), {
           kind: 'duplicate_name',
           name: input.name,
         });
@@ -101,17 +101,13 @@ export class BaselineService {
 
       const notApproved = items.filter((i) => i.status !== 'approved');
       if (notApproved.length > 0) {
-        throw new NervError(
-          NERV_ERROR.PRECONDITION,
-          'approved 가 아닌 버전이 포함돼 있습니다 — 전체를 거부합니다.',
-          {
-            kind: 'not_approved',
-            items: notApproved.map((i) => ({ spec: i.key, status: i.status })),
-          },
-        );
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.baseline.not_approved'), {
+          kind: 'not_approved',
+          items: notApproved.map((i) => ({ spec: i.key, status: i.status })),
+        });
       }
       if (items.length === 0) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '담을 approved 버전이 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.baseline.empty'), {
           kind: 'empty',
         });
       }
@@ -177,7 +173,7 @@ export class BaselineService {
     asOf?: string | null;
   }): Promise<Record<string, unknown>> {
     if (input.baselineName != null && input.asOf != null) {
-      throw new NervError(NERV_ERROR.PRECONDITION, 'baseline 과 as_of 는 함께 쓸 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.baseline.conflicting_args'), {
         kind: 'exclusive_params',
       });
     }
@@ -233,7 +229,7 @@ export class BaselineService {
     );
     const baseline = rows[0];
     if (baseline === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '베이스라인을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.baseline.not_found'), {
         kind: 'not_found',
         baseline: name,
       });

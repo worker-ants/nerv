@@ -6,7 +6,7 @@
 // 표면은 번역만 한다: 렌더링은 SpecService 가 하고 여기서는 content-type 만 정한다.
 
 import { Controller, Get, Header, Param, Query, Req, UseGuards } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -46,7 +46,7 @@ export class MirrorController {
 function projectOf(req: ProjectRequest): string {
   const projectId = req.nervProjectId;
   if (projectId === undefined) {
-    throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트가 해소되지 않았습니다.', {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.unresolved'), {
       kind: 'unresolved_project',
     });
   }

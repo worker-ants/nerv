@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.0 · 2026-08-22 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.1 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
+>
+> v1.1 변경(2026-08-23): **문구 카탈로그와 로케일 §3.4 신설** — 웹·API·CLI 가 `@nerv/schema` 의 한 벌을 쓴다(ko 기본 · en). §1.2 의 "런타임 로직 없음"에 번역기 예외를 마이그레이터와 같은 등급으로 기록. 신설 요구 REQ-CB-022~024. 다른 결정·요구는 불변.
 >
 > v0.9 변경(2026-08-22 — 구현 중 확인 태스크 착지): **운영 Postgres 위치를 클러스터 외부로 확정**(§6.0 신설 — E06-S05). 근거는 NFR-01의 compose 자가호스팅과 운영 k8s가 같은 접속 모델을 써야 한다는 것이다. §6.5 백업 절차의 "관리형이면 ①을 스냅샷+PITR로 대체" 조건이 이 판정으로 확정됐다.
 >
@@ -106,7 +108,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | `apps/web` | `@nerv/web` | S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화 | 비즈니스 규칙 판정(전부 API에 위임 — [3.2](../03-proposal/architecture.md) §1.3) |
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
 | `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~05 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
-| `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터만) |
+| `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터 + 번역기만 — §3.4가 근거) |
 | `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 5종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
@@ -332,6 +334,11 @@ packages/schema/
     constants.ts                 # §3.2 상수 전표
     events.ts                    # 이벤트 이름 리터럴 유니온 — `<리소스>.<동사>` (정본: 3.5 §6)
     errors.ts                    # NERV_* 에러 코드 리터럴 유니온 (정본: 3.4 §2.7)
+    i18n/                        # §3.4 문구 카탈로그 — 웹·API·CLI 공용
+      ko.ts                      #   원본(키 집합의 정본) · en.ts 는 같은 키를 타입으로 강제받는다
+      translator.ts              #   자리표시자 치환 + 타입 (순수 함수)
+      locale.ts                  #   Accept-Language 협상
+      domain.ts                  #   이벤트·상태값 → 문구 키 파생
     migrate.ts                   # drizzle 마이그레이터 — apps/api/src/migrate.ts 가 호출
 ```
 
@@ -357,6 +364,45 @@ packages/schema/
 | --- | --- |
 | **REQ-CB-006** | WHEN 도메인 상수·이벤트 이름·에러 코드·검증 스키마가 코드에서 필요할 때, THE SYSTEM SHALL `@nerv/schema`의 선언만 import한다 — `apps/*` 안에서의 재선언·하드코딩은 lint로 차단한다. |
 | **REQ-CB-007** | WHEN `src/tables/*` 선언이 변경된 PR이 열리면, THE SYSTEM SHALL 같은 PR에 `drizzle-kit generate` 산출물(`drizzle/*.sql`)을 포함하며, CI가 "스키마 변경 있음 + 마이그레이션 없음"을 실패로 판정한다. |
+
+### 3.4 문구 카탈로그와 로케일 (2026-08-23 신설)
+
+**표면 셋이 한 벌의 카탈로그를 쓴다.** 웹·API·CLI 가 각자 문구를 들고 있으면 같은 사건이
+표면마다 다르게 불리고(에러 봉투의 `message` 와 화면의 토스트가 다른 말을 한다), 번역도 세 번
+해야 한다. 그래서 카탈로그는 `packages/schema/src/i18n/` 에 있다.
+
+§1.2 가 이 패키지에 "런타임 로직 없음"을 못박았는데, 번역기는 그 예외다 — 마이그레이터와 같은
+등급으로 기록한다. 근거: 자리표시자 치환뿐인 순수 함수이고(I/O·상태 없음), 카탈로그 자체는
+순수 선언이며, **그 둘이 붙어 있어야 키가 실재하는지 타입이 검사할 수 있다**.
+
+| 지원 로케일 | 기본값 | 비고 |
+| --- | --- | --- |
+| `ko` · `en` | `ko` | `ko` 가 문구의 원본이자 키 집합의 정본. `en` 은 `Catalog<typeof ko>` 로 같은 키를 강제받는다 |
+
+**로케일은 표면마다 다르게 정해진다.** 셋 다 같은 협상 함수(`negotiateLocale`)를 쓴다.
+
+| 표면 | 어디서 오나 |
+| --- | --- |
+| 웹 | 사용자가 고른 값(`localStorage`) → `navigator.languages` → 기본값. 고른 값이 브라우저 언어를 이긴다 |
+| API · MCP | 요청의 `Accept-Language`(q 값 존중, `ko-KR` → `ko`). 없거나 모르는 언어면 기본값 |
+| CLI | `NERV_LANG` → `LC_ALL` → `LC_MESSAGES` → `LANG`. 서버 없이도 도는 명령이라 헤더가 없다 |
+
+**번역하지 않는 것 셋.** ① 식별자(`spec.approved`·`ready`·`NERV_FORBIDDEN`) — 데이터이고 로그이고
+API 값이라 로케일마다 달라지면 화면과 기록이 갈라진다. 번역되는 것은 그 옆의 라벨이다.
+② 운영자용 로그·설정 오류 — 저장소 언어(한국어)로 고정한다. ③ DB 에 저장되는 콘텐츠 —
+쓰는 시점의 로케일이 데이터에 굳는다.
+
+**로케일을 모르는 자리는 키를 들고 있는다.** 도메인 서비스가 에러를 던지는 순간에는 요청
+로케일을 모른다. 알아야 한다면 판정과 표현이 한 서비스에 섞이고, 그것이 D-05 가 금지하는
+것이다. 그래서 `NervError` 는 문장이 아니라 `Message`(키 + 값)를 들고, 문장은 로케일을 아는
+표면(HTTP 예외 필터·화면)이 마지막에 만든다. 같은 이유로 MCP 도구 정의는 `summaryKey` 를,
+zod 스키마의 검증 메시지는 키를 담는다.
+
+| ID | 요구(EARS) |
+| --- | --- |
+| **REQ-CB-022** | WHEN 사용자·에이전트에게 보이는 문구가 코드에서 필요할 때, THE SYSTEM SHALL `@nerv/schema` 카탈로그의 키로만 참조한다 — 표면 코드의 문장 하드코딩을 금지한다(예외: 운영자용 로그·설정 오류). |
+| **REQ-CB-023** | WHEN 카탈로그에 키가 추가되면, THE SYSTEM SHALL 모든 로케일이 같은 키 집합과 같은 자리표시자를 갖도록 강제한다 — 키 집합은 타입으로, 자리표시자는 테스트로 검사한다. |
+| **REQ-CB-024** | WHEN 요청이 `Accept-Language` 를 실어 오면, THE SYSTEM SHALL 응답 봉투의 `message` 와 MCP 도구 설명을 그 로케일로 만든다. 협상에 실패하면 기본 로케일로 떨어지며, 그 실패가 오류가 되지 않는다. |
 
 ---
 

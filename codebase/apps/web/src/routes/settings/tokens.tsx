@@ -6,6 +6,7 @@
 // 스코프는 **사람 권한의 부분집합**을 넘지 못한다(D-08). 사람 전용 스코프(`spec:approve` 등)는
 // 목록에 아예 없다 — 고를 수 있게 두고 서버가 거절하는 것보다, 고를 수 없게 하는 편이 낫다.
 
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -30,13 +31,14 @@ import {
 export const Route = createFileRoute('/settings/tokens')({ component: TokensTab });
 
 function TokensTab(): React.JSX.Element {
+  const t = useT();
   const me = useMe();
   const tokens = useTokens();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const membership = me.data === undefined ? null : primaryMembership(me.data);
 
-  const [name, setName] = useState('내 에이전트');
+  const [name, setName] = useState(t('settings.tokens.default_name'));
   const [scopes, setScopes] = useState<string[]>(['spec:read', 'task:claim']);
   const [issued, setIssued] = useState<string | null>(null);
 
@@ -57,35 +59,32 @@ function TokensTab(): React.JSX.Element {
     mutationFn: (id: string) => apiFetch(`/me/tokens/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['me', 'tokens'] });
-      pushToast({ tone: 'ok', message: '토큰을 폐기했습니다 — 즉시 무효입니다.' });
+      pushToast({ tone: 'ok', message: t('settings.tokens.revoke_done') });
     },
   });
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="에이전트 토큰"
-        description="원문은 발급 직후 한 번만 보입니다 — 목록에는 prefix 만 남습니다."
-      />
+      <PageHeader title={t('settings.tab.tokens')} description={t('settings.tokens.lead')} />
       <Card>
-        <SectionTitle>새 토큰 발급</SectionTitle>
+        <SectionTitle>{t('settings.tokens.new')}</SectionTitle>
         <div className="flex flex-wrap items-center gap-2">
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-56"
-            aria-label="토큰 이름"
+            aria-label={t('settings.tokens.name')}
           />
           <Button
             variant="primary"
             disabled={issue.isPending || membership?.project_slug == null}
             onClick={() => issue.mutate()}
           >
-            발급
+            {t('settings.tokens.issue')}
           </Button>
         </div>
         <fieldset className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
-          <legend className="sr-only">스코프</legend>
+          <legend className="sr-only">{t('settings.members.scope')}</legend>
           {AGENT_SCOPES.map((scope) => (
             <label key={scope} className="flex cursor-pointer items-center gap-1.5">
               <input
@@ -107,12 +106,12 @@ function TokensTab(): React.JSX.Element {
             <label
               key={scope}
               data-testid="human-only-scope"
-              title="사람 전용 스코프 — 토큰에 부여할 수 없습니다(D-08)"
+              title={t('settings.tokens.human_only_title')}
               className="flex cursor-not-allowed items-center gap-1.5 opacity-50"
             >
               <input type="checkbox" disabled checked={false} readOnly />
               <code className="font-mono">{scope}</code>
-              <span className="text-text-faint">사람 전용</span>
+              <span className="text-text-faint">{t('settings.tokens.human_only')}</span>
             </label>
           ))}
         </fieldset>
@@ -121,67 +120,67 @@ function TokensTab(): React.JSX.Element {
             data-testid="issued-token"
             className="mt-3 rounded-nerv border border-status-ok bg-status-ok-soft p-3"
           >
-            <p className="text-sm font-medium text-status-ok">
-              이 값은 다시 볼 수 없습니다 — 지금 복사하세요.
-            </p>
+            <p className="text-sm font-medium text-status-ok">{t('settings.tokens.copy_now')}</p>
             <code className="mt-2 block rounded-nerv-sm bg-code-bg p-2 font-mono text-xs break-all text-code-text">
               {issued}
             </code>
             <Button size="sm" variant="ghost" className="mt-1" onClick={() => setIssued(null)}>
-              닫기
+              {t('common.close')}
             </Button>
           </div>
         )}
       </Card>
 
       <div>
-        <SectionTitle>발급된 토큰</SectionTitle>
+        <SectionTitle>{t('settings.tokens.issued')}</SectionTitle>
         {rows(tokens.data).length === 0 ? (
           <EmptyState
             icon="🔑"
-            title="아직 토큰이 없습니다."
-            hint="발급 후 플러그인 설치로 이어집니다."
+            title={t('settings.tokens.empty')}
+            hint={t('settings.tokens.empty_hint')}
           />
         ) : (
           <Table
             head={
               <>
-                <Th>이름</Th>
+                <Th>{t('settings.members.name')}</Th>
                 <Th>prefix</Th>
-                <Th>스코프</Th>
-                <Th>마지막 사용</Th>
-                <Th>마지막 호스트</Th>
+                <Th>{t('settings.members.scope')}</Th>
+                <Th>{t('settings.tokens.last_used')}</Th>
+                <Th>{t('settings.tokens.last_host')}</Th>
                 <Th />
               </>
             }
           >
-            {rows(tokens.data).map((t) => (
-              <Tr key={String(t['id'])}>
-                <Td className="font-medium">{String(t['name'])}</Td>
-                <Td className="font-mono text-xs">{String(t['prefix'])}…</Td>
+            {rows(tokens.data).map((token) => (
+              <Tr key={String(token['id'])}>
+                <Td className="font-medium">{String(token['name'])}</Td>
+                <Td className="font-mono text-xs">{String(token['prefix'])}…</Td>
                 <Td className="text-xs text-text-mute">
-                  {(t['scopes'] as string[] | undefined)?.join(' · ')}
+                  {(token['scopes'] as string[] | undefined)?.join(' · ')}
                 </Td>
                 <Td className="text-xs text-text-mute">
-                  {t['last_used_at'] === null ? '미사용' : String(t['last_used_at']).slice(0, 10)}
+                  {token['last_used_at'] === null
+                    ? t('settings.tokens.unused')
+                    : String(token['last_used_at']).slice(0, 10)}
                 </Td>
                 {/* 어느 머신이 이 토큰을 쓰는가 — 유출 판단의 첫 단서다(NFR-03) */}
                 <Td className="font-mono text-xs text-text-mute">
-                  {t['last_used_hostname'] === null || t['last_used_hostname'] === undefined
+                  {token['last_used_hostname'] === null || token['last_used_hostname'] === undefined
                     ? '—'
-                    : String(t['last_used_hostname'])}
+                    : String(token['last_used_hostname'])}
                 </Td>
                 <Td className="text-right">
-                  {t['revoked_at'] === null ? (
+                  {token['revoked_at'] === null ? (
                     <Button
                       size="sm"
                       variant="danger"
-                      onClick={() => revoke.mutate(String(t['id']))}
+                      onClick={() => revoke.mutate(String(token['id']))}
                     >
-                      폐기
+                      {t('settings.tokens.revoke')}
                     </Button>
                   ) : (
-                    <span className="text-xs text-text-faint">폐기됨</span>
+                    <span className="text-xs text-text-faint">{t('settings.tokens.revoked')}</span>
                   )}
                 </Td>
               </Tr>

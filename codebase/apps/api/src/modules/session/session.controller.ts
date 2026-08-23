@@ -6,7 +6,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { SessionService } from './session.service.js';
 import type { SessionCard } from './session.service.js';
@@ -64,10 +64,12 @@ export class SessionController {
   ): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     if (principal.isAgent) {
-      throw new NervError(NERV_ERROR.HUMAN_ONLY, 'steer/stop 은 사람만 할 수 있습니다.', {
+      throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.steer'), {
         kind: 'human_only',
         web_url: `/p/${String(req.params?.['proj'] ?? '')}/sessions`,
       });

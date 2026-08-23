@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.6 (2026-08-23)</span>
+      <span>버전 v0.7 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -315,6 +315,25 @@
       <tr><td><code>/p/:proj/sessions</code></td><td>S5 세션 모니터</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.5 (고충실도)</td></tr>
       <tr><td><code>/p/:proj/sessions/:session</code></td><td>세션 상세(Activity 타임라인)</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.5 둘째 그림(<code>S-8f31</code> 상세 — 탭·타임라인·산출물 역링크)</td></tr>
       <tr><td><code>/p/:proj/coverage</code> · <code>/reviews</code> · <code>/crs/:cr</code></td><td>Phase 2(라우트만 예약)</td><td>S6은 <a href="ui-wireframes.html">ui-wireframes</a> §2.6, 커버리지·CR 델타는 Phase 2 착수 시 작성</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.7 언어 전환 (2026-08-23 신설)</h3>
+
+  <p>화면 문구의 정본은 <code>@nerv/schema</code> 카탈로그다(<a href="codebase.html">4.2</a> §3.4). 화면이 정하는 것은 <b>어떤 언어로 보이나</b>와 <b>어디서 바꾸나</b> 둘뿐이다.</p>
+
+  <ul>
+    <li><b>고르는 순서</b>: 사용자가 고른 값(<code>localStorage</code>) → <code>navigator.languages</code> → 기본값 <code>ko</code>. <b>고른 값이 브라우저 언어를 이긴다</b> — 브라우저 설정이 바뀌었다고 화면 언어가 저 혼자 바뀌면, 고른 적 있다는 사실이 배신당한다.</li>
+    <li><b>바꾸는 자리</b>: 사용자 메뉴(§1.3 <code>[지민 ▾]</code>) 안. 자주 바꾸는 것이 아니고 계정에 붙은 설정이라 헤더에 자리를 내주지 않는다. 언어 이름은 <b>그 언어로</b> 적는다(<code>한국어</code> · <code>English</code>) — 읽을 수 없는 말로 적힌 선택지는 고를 수 없다.</li>
+    <li><b>서버에도 같은 언어를 알린다</b>: 모든 API 호출에 <code>Accept-Language</code> 를 싣는다(<a href="api.html">4.4</a> §1.4). 버튼은 영어인데 에러 토스트만 한국어인 상태가 절반만 된 i18n 이다.</li>
+    <li><b><code>&lt;html lang&gt;</code> 을 맞춘다</b>: 스크린리더의 발음과 브라우저의 줄바꿈 규칙이 이 속성을 읽는다.</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-048</td><td>WHEN 사용자가 언어를 고르면 THE SYSTEM SHALL 그 선택을 브라우저에 남기고, 이후 방문에서 브라우저 언어보다 우선 적용한다</td></tr>
+      <tr><td>REQ-WEB-049</td><td>WHILE 화면이 특정 로케일로 그려지는 동안 THE SYSTEM SHALL 모든 API 요청에 같은 로케일의 <code>Accept-Language</code> 를 실어 화면과 응답의 언어를 일치시킨다</td></tr>
     </tbody>
   </table></div>
 
@@ -919,7 +938,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <h3>4.3 배지·표기 규약</h3>
 
   <ul>
-    <li><b>색만으로 구분하지 않는다</b> — 모든 상태 dot에 텍스트 라벨 병기(<code>● active</code>, <code>○ stale</code>), 색+텍스트+아이콘 3중 인코딩(ui-wireframes §3.1·§4.6).</li>
+    <li><b>색만으로 구분하지 않는다</b> — 모든 상태 dot에 텍스트 라벨 병기, 색+텍스트+아이콘 3중 인코딩(ui-wireframes §3.1·§4.6). 라벨은 <b>사용자 언어로 옮긴 말</b>이다(<code>● 활동 중</code> / <code>● Active</code>) — 상태 <b>식별자</b>(<code>active</code>·<code>stale</code>)는 데이터·로그·API 값이라 번역하지 않는다(2026-08-23 개정 — 정본 <a href="codebase.html">4.2</a> §3.4). 키는 식별자에서 기계적으로 얻으므로 라벨 표를 두 벌 관리하지 않는다.</li>
     <li><b>사람/에이전트 구분</b> — Task 카드는 <code>👤 assignee</code> + <code>🤖 delegate(hostname)</code> 병기, 피드는 <code>is_agent</code> 아이콘, 에이전트 작성물은 <span class="badge agent">AI</span> 배지 + 위임자 괄호 표기(<code>mac-02/claude-code (도현 위임)</code>) — ui-wireframes §3.2.</li>
     <li><b>신원·시간 표기</b> — 신원 3요소 <code>도현 · mac-02 · claude-code</code>(좁은 화면은 <code>mac-02/claude-code</code> 축약, hostname은 고정폭). 하트비트는 상대 시각만, diff는 <code>+218 −34 · 파일 7</code> — ui-wireframes §3.3.</li>
     <li><b>컴포넌트 기반</b> — Tailwind + shadcn/ui. 배지·카드·표·탭은 shadcn 프리미티브 위에 위 토큰만 사용한다. 임의 hex 직접 사용은 lint로 금지(REQ-WEB-032).</li>

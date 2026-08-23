@@ -7,7 +7,7 @@
 // 그래서 이 라우트만 @Public() 이고, 대신 서명 검증을 통과하지 못하면 아무것도 하지 않는다.
 
 import { Body, Controller, Headers, Param, Post, Req } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { Public } from '../../common/auth.guard.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { AuthService } from '../auth/auth.service.js';
@@ -42,7 +42,7 @@ export class WebhookController {
 
     const project = await this.auth.resolveProject(proj);
     if (project === null) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',
         project: proj,
       });

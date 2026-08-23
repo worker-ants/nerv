@@ -10,7 +10,7 @@
 // OWASP ASI09 가 명명한 공격 표면이고, 원문 우선 표시가 그에 대한 구조적 방어다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
@@ -168,7 +168,7 @@ export class ApprovalService {
     `);
     const approval = rows[0];
     if (approval === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '승인 항목을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.not_found'), {
         kind: 'not_found',
         approval_id: input.approvalId,
       });
@@ -183,7 +183,7 @@ export class ApprovalService {
     );
     const projectId = rows[0]?.project_id;
     if (projectId === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '승인 항목을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.not_found'), {
         kind: 'not_found',
         approval_id: approvalId,
       });
@@ -248,12 +248,12 @@ export class ApprovalService {
       `);
       const approval = rows[0];
       if (approval === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '승인 항목을 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.not_found'), {
           kind: 'not_found',
         });
       }
       if (approval.decision !== null) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '이미 결정된 항목입니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.already_decided'), {
           kind: 'already_decided',
           decision: approval.decision,
         });
@@ -265,7 +265,7 @@ export class ApprovalService {
         approval.content_hash !== null &&
         input.seenContentHash !== approval.content_hash
       ) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '카드를 연 뒤 내용이 바뀌었습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.content_changed'), {
           kind: 'stale_approval',
           seen: input.seenContentHash,
           current: approval.content_hash,
@@ -316,7 +316,7 @@ export class ApprovalService {
     reason: string;
   }): Promise<{ approval_id: string }> {
     if (input.reason.trim() === '') {
-      throw new NervError(NERV_ERROR.PRECONDITION, '면제에는 사유가 필요합니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.waiver_reason_required'), {
         kind: 'bypass_reason_required',
       });
     }
@@ -394,7 +394,7 @@ export class ApprovalService {
       this.logger.warn(`소규모 완화 — 자기 승인을 허용한다(감사 기록됨) user=${userId}`);
       return;
     }
-    throw new NervError(NERV_ERROR.FORBIDDEN, '요청자는 자기 요청을 승인할 수 없습니다.', {
+    throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.self_approve'), {
       kind: 'self_approval',
     });
   }

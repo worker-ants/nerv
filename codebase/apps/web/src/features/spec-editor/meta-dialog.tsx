@@ -7,6 +7,7 @@
 //   `tree_cycle`     — 어느 하위로의 이동이 막혔는지 지목한다(막연한 거부는 벽이다)
 //   `archive_blocked` — 무엇을 먼저 정리해야 하는지 목록으로 준다
 
+import { useT } from '../../lib/i18n.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { NERV_ERROR } from '@nerv/schema';
@@ -38,6 +39,7 @@ export function MetaDialog({
   canEdit,
   onClose,
 }: MetaDialogProps): React.JSX.Element {
+  const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const [newTitle, setNewTitle] = useState(title);
@@ -64,13 +66,16 @@ export function MetaDialog({
     onSuccess: () => {
       setCycleError(null);
       invalidate();
-      pushToast({ tone: 'ok', message: '메타를 저장했습니다 — 버전·관계·코멘트는 그대로입니다.' });
+      pushToast({ tone: 'ok', message: t('spec.meta.saved') });
       onClose();
     },
     onError: (error: Error) => {
       if (error instanceof NervApiError && error.body.details['kind'] === 'tree_cycle') {
         setCycleError(
-          `${String(error.body.details['parent'])} 은(는) ${specKey} 의 하위입니다 — 자기 아래로는 옮길 수 없습니다.`,
+          t('spec.meta.cycle', {
+            parent: String(error.body.details['parent']),
+            key: specKey,
+          }),
         );
         return;
       }
@@ -86,7 +91,7 @@ export function MetaDialog({
       invalidate();
       pushToast({
         tone: 'ok',
-        message: '아카이브했습니다 — 삭제가 아니라 기본 조회에서만 빠집니다.',
+        message: t('spec.meta.archived'),
       });
       onClose();
     },
@@ -106,7 +111,7 @@ export function MetaDialog({
   return (
     <div
       role="dialog"
-      aria-label="스펙 메타"
+      aria-label={t('spec.meta.dialog')}
       data-testid="meta-dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-text/20 p-4 backdrop-blur-[2px]"
       onClick={onClose}
@@ -115,27 +120,28 @@ export function MetaDialog({
         className="w-full max-w-md rounded-nerv-lg border border-border bg-bg-elev p-5 shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-1 text-lg font-semibold tracking-tight">스펙 메타 — {specKey}</h2>
-        <p className="mb-3 text-xs text-text-mute">
-          이동·개명해도 버전·관계·코멘트는 그대로 유지됩니다(FR-01).
-        </p>
+        <h2 className="mb-1 text-lg font-semibold tracking-tight">
+          {t('spec.meta.title', { key: specKey })}
+        </h2>
+        <p className="mb-3 text-xs text-text-mute">{t('spec.meta.lead')}</p>
 
         {!canEdit && (
           <p className="mb-3 rounded-nerv-sm bg-status-waiting-soft px-2 py-1.5 text-sm text-status-waiting">
-            메타 편집은 <code className="font-mono">planner</code>·
-            <code className="font-mono">admin</code> 만 가능합니다 — 아래는 읽기 전용입니다.
+            {t('spec.meta.role_note_pre')} <code className="font-mono">planner</code>·
+            <code className="font-mono">admin</code> {t('spec.meta.role_note_post')}{' '}
+            {t('common.read_only_suffix')}
           </p>
         )}
 
         <div className="mb-3 flex flex-col gap-3">
-          <Field label="제목">
+          <Field label={t('spec.meta.title_field')}>
             <Input
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               disabled={!canEdit}
             />
           </Field>
-          <Field label="부모 스펙 키" hint="비우면 현재 위치를 유지합니다">
+          <Field label={t('spec.meta.parent_field')} hint={t('spec.meta.parent_hint')}>
             <Input
               value={parentKey}
               onChange={(e) => setParentKey(e.target.value)}
@@ -157,13 +163,14 @@ export function MetaDialog({
             data-testid="archive-blocked"
             className="mb-3 rounded-nerv border border-status-danger bg-status-danger-soft p-2.5 text-sm"
           >
-            <p className="font-medium text-status-danger">
-              아카이브할 수 없습니다 — 먼저 정리하세요
-            </p>
+            <p className="font-medium text-status-danger">{t('spec.meta.archive_blocked')}</p>
             <ul className="mt-1 text-xs text-text-mute">
               {blockers.map((b) => (
                 <li key={`${b.kind}-${b.key}`}>
-                  {b.kind === 'child_spec' ? '하위 스펙' : '활성 클레임 Task'} · {b.key}
+                  {b.kind === 'child_spec'
+                    ? t('spec.meta.blocker.child')
+                    : t('spec.meta.blocker.claim')}{' '}
+                  · {b.key}
                 </li>
               ))}
             </ul>
@@ -177,19 +184,19 @@ export function MetaDialog({
             disabled={!canEdit || save.isPending}
             onClick={() => save.mutate()}
           >
-            저장
+            {t('common.save')}
           </Button>
           <Button
             variant="danger"
             data-testid="meta-archive"
             disabled={!canEdit || archive.isPending}
             onClick={() => archive.mutate()}
-            title="삭제가 아닙니다 — 기본 조회에서만 빠지고 링크·이력은 남습니다"
+            title={t('spec.meta.archive_title')}
           >
-            아카이브
+            {t('spec.meta.archive')}
           </Button>
           <Button variant="ghost" className="ml-auto" onClick={onClose}>
-            닫기
+            {t('common.close')}
           </Button>
         </div>
       </div>

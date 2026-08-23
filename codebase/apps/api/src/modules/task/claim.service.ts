@@ -11,7 +11,7 @@
 // 안 보여 신뢰할 수 없다"는 이유로 제거됐다(#576). 서버는 모든 세션의 선언을 본다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { LEASE_TTL_SECONDS, NERV_ERROR, newId } from '@nerv/schema';
+import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { toDate } from '../../common/database.module.js';
@@ -230,7 +230,7 @@ export class ClaimService {
     `);
     const row = rows[0];
     if (row === undefined) {
-      throw new NervError(NERV_ERROR.LEASE_EXPIRED, '리스가 만료되었거나 활성 클레임이 아닙니다.', {
+      throw new NervError(NERV_ERROR.LEASE_EXPIRED, msg('error.claim.lease_expired'), {
         claim_id: claimId,
       });
     }

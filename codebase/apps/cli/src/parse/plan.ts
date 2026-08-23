@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 // plan frontmatter → Task 매핑 (E11-S01 · importer.md §2.6)
 //
 // **소급 위조 금지**가 이 파일의 제1규칙이다. 임포터는 없는 것을 만들어내지 않는다:
@@ -64,7 +65,7 @@ export function classifyPlan(
 
   if (segments.includes('research')) {
     // 클러스터 묶음 정보는 매니페스트에만 남기고 Task 간 관계는 만들지 않는다 — 관계 추정 금지
-    return { kind: 'reference', task: null, note: 'research/ — 참고 문서로 분류(Task 미생성)' };
+    return { kind: 'reference', task: null, note: t()('cli.reason.research_dir') };
   }
 
   const worktreeRaw = input.frontmatter['worktree'];
@@ -75,7 +76,7 @@ export function classifyPlan(
     status = 'done';
   } else if (worktree === null || worktree === options.unstartedSentinel) {
     status = 'backlog';
-    if (worktree === null) warnings.push('worktree 미선언 — backlog 로 적재');
+    if (worktree === null) warnings.push(t()('cli.reason.no_worktree'));
   } else {
     status = 'in_progress';
   }
@@ -84,7 +85,7 @@ export function classifyPlan(
   const started = typeof startedRaw === 'string' && startedRaw !== '' ? startedRaw : null;
   if (started === null) {
     // 시각 추정 금지 — 파일의 git 최초 커밋 시각으로 메우지 않는다(§2.6)
-    warnings.push('started 미선언 — 임포트 시각으로 적재');
+    warnings.push(t()('cli.reason.no_started'));
   }
 
   const ownerRaw = input.frontmatter['owner'];
@@ -92,7 +93,7 @@ export function classifyPlan(
   const assignee = ownerLabel === null ? null : (options.ownerMap?.[ownerLabel] ?? null);
   if (ownerLabel !== null && assignee === null) {
     // owner 는 신원이 아니다 — 자유 텍스트를 계정으로 추정하지 않는다(§2.6)
-    warnings.push(`owner 매핑 없음: "${ownerLabel}" — unassigned 로 적재 후 수동 배정`);
+    warnings.push(t()('cli.reason.owner_unmapped', { label: ownerLabel }));
   }
 
   const priorityRaw = input.frontmatter['priority'];
@@ -136,7 +137,7 @@ export function mapSpecImpact(value: unknown, warnings: string[]): Record<string
 
   const paths = cleaned.filter((v) => !NONE_SENTINELS.has(v.toLowerCase()));
   // 경로 → 스펙 UUID 해소는 매니페스트가 한다(적재 시점). 여기서는 원문을 보존한다.
-  warnings.push(`spec_impact 경로 ${paths.length}건 — 해소 실패 시 수동 확인 큐로 간다`);
+  warnings.push(t()('cli.reason.spec_impact_paths', { count: paths.length }));
   return { paths };
 }
 
@@ -156,12 +157,12 @@ function fileStem(path: string): string {
 export function parseOwnerMap(raw: string): Record<string, string> {
   const parsed = JSON.parse(raw) as unknown;
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('owner-map 은 { "라벨": "사용자 id" } 형태의 JSON 이어야 합니다.');
+    throw new Error(t()('cli.err.owner_map_shape'));
   }
   const map: Record<string, string> = {};
   for (const [label, id] of Object.entries(parsed as Record<string, unknown>)) {
     if (typeof id !== 'string' || id === '') {
-      throw new Error(`owner-map 항목 "${label}" 의 값이 사용자 id 문자열이 아닙니다.`);
+      throw new Error(t()('cli.err.owner_map_value', { label }));
     }
     map[label] = id;
   }

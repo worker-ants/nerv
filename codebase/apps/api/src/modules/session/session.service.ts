@@ -7,7 +7,7 @@
 // 서버가 모든 세션의 선언을 보면 그 한계는 존재하지 않는다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_ERROR, NERV_EVENT, SESSION_STALE_SECONDS, newId } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT, SESSION_STALE_SECONDS } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -296,7 +296,7 @@ export class SessionService {
       `);
       const session = rows[0];
       if (session === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '세션을 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.not_found'), {
           kind: 'not_found',
           session_id: input.sessionId,
         });
@@ -387,7 +387,7 @@ export class SessionService {
     `);
     const session = rows[0];
     if (session === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '세션을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.not_found'), {
         kind: 'not_found',
         session_id: input.sessionId,
       });
@@ -503,7 +503,7 @@ export class SessionService {
       sql`SELECT id FROM agent_session WHERE id = ${sessionId} AND project_id = ${projectId}`,
     );
     if (rows.length === 0) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '세션을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.not_found'), {
         kind: 'not_found',
         session_id: sessionId,
       });
@@ -517,7 +517,7 @@ export class SessionService {
       );
       const id = rows[0]?.id;
       if (id === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '재개할 세션을 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.resume_not_found'), {
           kind: 'not_found',
           session_id: input.resumeSessionId,
         });
@@ -548,7 +548,7 @@ export class SessionService {
     }>(sql`SELECT id, key, slug, gate_policy FROM project WHERE id = ${projectId}`);
     const project = projectRows[0];
     if (project === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',
       });
     }

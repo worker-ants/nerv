@@ -11,6 +11,7 @@
 // 헤더와 사이드바는 **고정**이다(sticky). 스펙 트리가 수백 줄이어도 조직 전환·승인함은
 // 늘 같은 자리에 있어야 한다 — 위로 스크롤해서 찾아야 하는 내비게이션은 내비게이션이 아니다.
 
+import { LOCALE_LABEL, LOCALES, useLocale, useT } from '../lib/i18n.js';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
@@ -60,6 +61,8 @@ function CountBadge({
 }
 
 export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.Element {
+  const t = useT();
+  const { locale, setLocale } = useLocale();
   const navigate = useNavigate();
   const { state, offline, toasts, dismissToast } = useRealtime();
   const me = useMe();
@@ -101,7 +104,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
     return () => document.removeEventListener('mousedown', onClick);
   }, [menuOpen]);
 
-  const banner = connectionBanner(state, offline);
+  const banner = connectionBanner(t, state, offline);
   const pending = inbox.data?.length ?? 0;
   const unreadCount = unread.data?.count ?? 0;
 
@@ -142,7 +145,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                     </Link>
                   ))}
                   {orgs.length === 1 && (
-                    <p className="px-3 py-1.5 text-xs text-text-faint">다른 조직 없음</p>
+                    <p className="px-3 py-1.5 text-xs text-text-faint">{t('shell.no_other_org')}</p>
                   )}
                 </Popover>
               )}
@@ -155,14 +158,14 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
             activeProps={{ className: 'bg-bg-active text-text' }}
             activeOptions={{ exact: true }}
           >
-            홈
+            {t('shell.home')}
           </Link>
           <Link
             to="/inbox"
             className={HEADER_LINK}
             activeProps={{ className: 'bg-bg-active text-text' }}
           >
-            승인함
+            {t('shell.inbox')}
             <CountBadge count={pending} tone="action" testId="inbox-badge" />
           </Link>
           <Link
@@ -170,7 +173,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
             className={HEADER_LINK}
             activeProps={{ className: 'bg-bg-active text-text' }}
           >
-            알림
+            {t('shell.notifications')}
             <CountBadge count={unreadCount} tone="waiting" testId="notification-badge" />
           </Link>
         </nav>
@@ -183,7 +186,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
             className="flex h-7 w-56 items-center gap-2 rounded-nerv-sm border border-border bg-bg-sunken px-2 text-sm text-text-faint transition-colors hover:border-border-strong"
           >
             <span aria-hidden="true">🔍</span>
-            <span className="flex-1 text-left">검색</span>
+            <span className="flex-1 text-left">{t('common.search')}</span>
             <kbd className="rounded-nerv-sm border border-border px-1 text-2xs">⌘K</kbd>
           </button>
           {/* 설정은 사용자 메뉴 안에 있다 — 와이어프레임 헤더(§2.1)는
@@ -218,15 +221,40 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                     onClick={() => setMenuOpen(null)}
                     className="mt-1 block px-3 py-1.5 text-sm hover:bg-bg-hover"
                   >
-                    설정
+                    {t('shell.settings')}
                   </Link>
+                  {/* 언어 전환은 사용자 메뉴에 둔다 — 자주 바꾸는 것이 아니고, 계정에 붙은
+                      설정이라 사용자 이름 아래가 사람들이 먼저 찾아보는 자리다 */}
+                  <div className="mt-1 border-t border-border px-3 pt-1.5 pb-1">
+                    <p className="mb-1 text-2xs text-text-faint">{t('shell.language')}</p>
+                    <div className="flex gap-1">
+                      {LOCALES.map((code) => (
+                        <button
+                          key={code}
+                          type="button"
+                          data-testid={`locale-${code}`}
+                          aria-pressed={locale === code}
+                          onClick={() => setLocale(code)}
+                          className={cn(
+                            'rounded-nerv-sm px-2 py-0.5 text-xs',
+                            locale === code
+                              ? 'bg-bg-active font-medium'
+                              : 'text-text-mute hover:bg-bg-hover',
+                          )}
+                        >
+                          {/* 언어 이름은 그 언어로 적는다 — 읽을 수 없는 말로 적힌 선택지는 고를 수 없다 */}
+                          {LOCALE_LABEL[code]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <MenuItem
                     onClick={() => {
                       setMenuOpen(null);
                       void signOut().then(() => navigate({ to: '/login' }));
                     }}
                   >
-                    로그아웃
+                    {t('shell.sign_out')}
                   </MenuItem>
                 </Popover>
               )}
@@ -253,7 +281,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
           <aside className="sticky top-header hidden h-[calc(100vh-var(--spacing-header))] w-sidebar shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-sunken px-2 py-3 md:flex">
             <div className="px-2">
               <p className="text-2xs font-semibold tracking-wide text-text-faint uppercase">
-                프로젝트
+                {t('common.project')}
               </p>
               <p className="mt-0.5 truncate font-medium">{projectSlug}</p>
             </div>
@@ -265,7 +293,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                 activeProps={{ className: NAV_ACTIVE }}
                 activeOptions={{ exact: true }}
               >
-                <span aria-hidden="true">◇</span> 개요
+                <span aria-hidden="true">◇</span> {t('shell.nav.overview')}
               </Link>
               <Link
                 to="/p/$proj/specs"
@@ -273,7 +301,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                 className={NAV_ITEM}
                 activeProps={{ className: NAV_ACTIVE }}
               >
-                <span aria-hidden="true">▤</span> 스펙
+                <span aria-hidden="true">▤</span> {t('shell.nav.specs')}
               </Link>
               <Link
                 to="/p/$proj/tasks"
@@ -281,7 +309,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                 className={NAV_ITEM}
                 activeProps={{ className: NAV_ACTIVE }}
               >
-                <span aria-hidden="true">◫</span> 작업
+                <span aria-hidden="true">◫</span> {t('shell.nav.tasks')}
               </Link>
               <Link
                 to="/p/$proj/sessions"
@@ -289,7 +317,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                 className={NAV_ITEM}
                 activeProps={{ className: NAV_ACTIVE }}
               >
-                <span aria-hidden="true">◉</span> 세션
+                <span aria-hidden="true">◉</span> {t('shell.nav.sessions')}
               </Link>
               {/* 리뷰 탭은 Phase 2 — 숨기지 않고 비활성 + 사유를 보인다(§1.3) */}
               <span
@@ -300,7 +328,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                 title="Phase 2"
               >
                 <span className="flex items-center gap-2">
-                  <span aria-hidden="true">◈</span> 리뷰
+                  <span aria-hidden="true">◈</span> {t('shell.nav.review')}
                 </span>
                 <StatusBadge token="idle" label="Phase 2" />
               </span>
@@ -308,7 +336,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
             {/* 트리는 S3 좌측 트리와 같은 컴포넌트다 — 스크롤 위치를 공유한다(§1.3) */}
             <div className="mt-4 border-t border-border pt-3">
               <p className="mb-1 px-2 text-2xs font-semibold tracking-wide text-text-faint uppercase">
-                스펙 트리
+                {t('shell.spec_tree')}
               </p>
               <SpecTree projectSlug={projectSlug} compact />
             </div>
@@ -328,12 +356,12 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
             <span>{toast.message}</span>
             {toast.href !== undefined && (
               <a href={toast.href} className="text-link underline">
-                {toast.hrefLabel ?? '되돌리기'}
+                {toast.hrefLabel ?? t('shell.toast.undo')}
               </a>
             )}
             <button
               type="button"
-              aria-label="닫기"
+              aria-label={t('shell.dismiss')}
               className="text-text-faint hover:text-text"
               onClick={() => dismissToast(toast.id)}
             >

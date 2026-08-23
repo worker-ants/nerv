@@ -4,6 +4,8 @@
 // 것이 요점 — 관계는 관련성의 근거이지 질의 일치가 아니다. 섞으면 사람은 왜 이게 나왔는지
 // 알 수 없고, 그러면 검색을 믿지 않게 된다.
 
+import { statusLabelKey } from '@nerv/schema';
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -34,6 +36,7 @@ interface SearchResult {
 }
 
 function SpecListScreen(): React.JSX.Element {
+  const t = useT();
   const { proj } = Route.useParams();
   const project = useProject(proj);
   const [query, setQuery] = useState('');
@@ -51,8 +54,8 @@ function SpecListScreen(): React.JSX.Element {
   return (
     <PageBody wide>
       <PageHeader
-        title="스펙"
-        description="한국어로 물어도, 안정 ID로 물어도 찾습니다."
+        title={t('specs.title')}
+        description={t('specs.lead')}
         actions={
           <form
             className="flex gap-2"
@@ -64,10 +67,10 @@ function SpecListScreen(): React.JSX.Element {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="검색 (한국어·안정 ID 모두)"
+              placeholder={t('specs.search_placeholder')}
               className="w-64"
             />
-            <Button type="submit">검색</Button>
+            <Button type="submit">{t('common.search')}</Button>
             {submitted !== '' && (
               <Button
                 variant="ghost"
@@ -76,7 +79,7 @@ function SpecListScreen(): React.JSX.Element {
                   setSubmitted('');
                 }}
               >
-                전체 트리로
+                {t('specs.back_to_tree')}
               </Button>
             )}
           </form>
@@ -90,7 +93,7 @@ function SpecListScreen(): React.JSX.Element {
           className="mb-3 flex items-center gap-2 rounded-nerv border border-border bg-status-waiting-soft px-3 py-2 text-sm text-status-waiting"
         >
           <span aria-hidden="true">●</span>
-          의미 검색이 잠시 꺼져 있어 키워드 검색 결과만 보여줍니다.
+          {t('specs.degraded')}
         </div>
       )}
 
@@ -104,7 +107,9 @@ function SpecListScreen(): React.JSX.Element {
       ) : (
         <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
           <section>
-            <SectionTitle>결과 {search.data?.items.length ?? 0}건</SectionTitle>
+            <SectionTitle>
+              {t('specs.results', { count: search.data?.items.length ?? 0 })}
+            </SectionTitle>
             {search.isFetching && <Skeleton rows={3} />}
             <ul className="flex flex-col gap-2">
               {(search.data?.items ?? []).map((hit) => (
@@ -127,7 +132,7 @@ function SpecListScreen(): React.JSX.Element {
                                 String(hit['doc_status']) as keyof typeof SPEC_VERSION_TOKEN
                               ] ?? 'idle') as StatusToken
                             }
-                            label={String(hit['doc_status'])}
+                            label={t(statusLabelKey('spec', String(hit['doc_status'])))}
                           />
                         )}
                       </div>
@@ -150,8 +155,8 @@ function SpecListScreen(): React.JSX.Element {
                 <li>
                   <EmptyState
                     icon="🔍"
-                    title="결과가 없습니다."
-                    hint="안정 ID(SPC-…·REQ-…)로도 찾을 수 있습니다."
+                    title={t('specs.no_results')}
+                    hint={t('specs.no_results_hint')}
                   />
                 </li>
               )}
@@ -159,10 +164,8 @@ function SpecListScreen(): React.JSX.Element {
           </section>
 
           <section>
-            <SectionTitle>관계로 걸린 문서</SectionTitle>
-            <p className="mb-2 text-2xs text-text-faint">
-              질의에 없지만 연결된 것 — 관련성의 근거이지 질의 일치가 아닙니다.
-            </p>
+            <SectionTitle>{t('specs.related')}</SectionTitle>
+            <p className="mb-2 text-2xs text-text-faint">{t('specs.related_hint')}</p>
             <ul className="flex flex-col">
               {(search.data?.related ?? []).map((r) => (
                 <li
@@ -180,7 +183,7 @@ function SpecListScreen(): React.JSX.Element {
                 </li>
               ))}
               {(search.data?.related ?? []).length === 0 && (
-                <li className="py-1.5 text-sm text-text-faint">없습니다.</li>
+                <li className="py-1.5 text-sm text-text-faint">{t('common.none')}</li>
               )}
             </ul>
           </section>

@@ -9,7 +9,7 @@
 // 닫는 것이 맞고, 지적한 사람이 스스로 닫으면 반영 여부를 아무도 확인하지 않게 된다.
 
 import { Injectable } from '@nestjs/common';
-import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -40,12 +40,14 @@ export class SpecCommentService {
     sessionId?: string | null;
   }): Promise<CommentResult> {
     if (input.anchor.trim() === '') {
-      throw new NervError(NERV_ERROR.PRECONDITION, '앵커가 필요합니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.comment.anchor_required'), {
         kind: 'missing_anchor',
       });
     }
     if (input.bodyMd.trim() === '') {
-      throw new NervError(NERV_ERROR.PRECONDITION, '본문이 필요합니다.', { kind: 'missing_body' });
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.comment.body_required'), {
+        kind: 'missing_body',
+      });
     }
 
     return this.events.transact(async (tx, emit) => {
@@ -55,7 +57,7 @@ export class SpecCommentService {
       `);
       const specId = rows[0]?.spec_id;
       if (specId === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '버전을 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_not_found'), {
           kind: 'not_found',
           spec_version_id: input.specVersionId,
         });
@@ -123,7 +125,9 @@ export class SpecCommentService {
     userId: string;
   }): Promise<CommentResult> {
     if (input.bodyMd.trim() === '') {
-      throw new NervError(NERV_ERROR.PRECONDITION, '본문이 필요합니다.', { kind: 'missing_body' });
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.comment.body_required'), {
+        kind: 'missing_body',
+      });
     }
     const { rows } = await this.db.execute<{
       id: string;
@@ -137,13 +141,13 @@ export class SpecCommentService {
     `);
     const comment = rows[0];
     if (comment === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '코멘트를 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.comment.not_found'), {
         kind: 'not_found',
         comment_id: input.commentId,
       });
     }
     if (comment.author_user_id !== input.userId) {
-      throw new NervError(NERV_ERROR.FORBIDDEN, '작성자만 수정할 수 있습니다.', {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.author_only'), {
         kind: 'not_author',
       });
     }
@@ -190,7 +194,7 @@ export class SpecCommentService {
       `);
       const comment = rows[0];
       if (comment === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '코멘트를 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.comment.not_found'), {
           kind: 'not_found',
           comment_id: input.commentId,
         });

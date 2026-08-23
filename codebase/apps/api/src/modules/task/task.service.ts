@@ -3,7 +3,7 @@
 // REST 컨트롤러와 MCP 도구가 이 클래스의 같은 인스턴스를 거친다(D-05) — 판정은 여기 한 곳이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -144,7 +144,7 @@ export class TaskService {
     `);
     const task = rows[0];
     if (task === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '작업을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
         kind: 'not_found',
         task: input.taskKey,
       });
@@ -191,7 +191,9 @@ export class TaskService {
     userId: string;
   }): Promise<Record<string, unknown>> {
     if (input.title.trim() === '') {
-      throw new NervError(NERV_ERROR.PRECONDITION, '제목이 필요합니다.', { kind: 'missing_title' });
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.title_required'), {
+        kind: 'missing_title',
+      });
     }
     return this.events.transact(async (tx, emit) => {
       const taskId = newId();
@@ -251,7 +253,7 @@ export class TaskService {
       `);
       const task = rows[0];
       if (task === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '작업을 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
           kind: 'not_found',
           task: input.taskKey,
         });
@@ -358,7 +360,9 @@ export class TaskService {
     if (missing.length > 0) {
       throw new NervError(
         NERV_ERROR.PRECONDITION,
-        `위임 명세 4요소가 비어 있습니다: ${missing.map((m) => m.label).join(', ')}`,
+        msg('error.task.delegation_incomplete', {
+          missing: missing.map((m) => m.label).join(', '),
+        }),
         { kind: 'delegation_spec_incomplete', missing },
       );
     }
@@ -394,7 +398,7 @@ export class TaskService {
 
       const task = taskRows[0];
       if (task === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, 'Task 를 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
           kind: 'not_found',
           task_id: input.taskId,
         });
@@ -425,7 +429,7 @@ export class TaskService {
       );
       const status = fresh[0]?.status ?? task.status;
       if (status !== 'ready') {
-        throw new NervError(NERV_ERROR.PRECONDITION, `Task 가 ready 가 아닙니다(${status}).`, {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_ready', { status }), {
           kind: 'not_ready',
           status,
         });
@@ -445,11 +449,10 @@ export class TaskService {
       if (blocking.length > 0) {
         // 차단도 사실이므로 기록한다. 롤백되므로 이 이벤트는 별도 트랜잭션에서 남긴다.
         this.logger.warn(`클레임 차단 — task=${input.taskId} 겹침 ${blocking.length}건`);
-        throw new NervError(
-          NERV_ERROR.CONFLICT_SCOPE,
-          '같은 스펙 문서를 다른 세션이 이미 잡고 있습니다.',
-          { kind: 'scope_conflict', overlaps: blocking.map(toDetail) },
-        );
+        throw new NervError(NERV_ERROR.CONFLICT_SCOPE, msg('error.claim.scope_conflict'), {
+          kind: 'scope_conflict',
+          overlaps: blocking.map(toDetail),
+        });
       }
 
       // 4) 조건부 전이 — 경쟁에서 진 세션은 여기서 0행으로 판별된다
@@ -462,7 +465,7 @@ export class TaskService {
         RETURNING id
       `);
       if (updated.length === 0) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '다른 세션이 먼저 클레임했습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.claim.taken'), {
           kind: 'lost_race',
         });
       }
@@ -555,7 +558,7 @@ export class TaskService {
       `);
       const claim = rows[0];
       if (claim === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '활성 클레임이 아닙니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.claim.not_active'), {
           kind: 'not_active',
           claim_id: input.claimId,
         });
@@ -613,7 +616,7 @@ export class TaskService {
       );
       const task = rows[0];
       if (task === undefined || task.project_id !== input.projectId) {
-        throw new NervError(NERV_ERROR.PRECONDITION, 'Task 를 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
           kind: 'not_found',
         });
       }
@@ -633,7 +636,7 @@ export class TaskService {
       if (input.status === 'done') {
         const gate = await this.assertDoneGate(tx, input);
         if (!gate.ok) {
-          throw new NervError(NERV_ERROR.PRECONDITION, 'done 게이트를 충족하지 못했습니다.', {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.done_gate'), {
             kind: 'done_gate',
             missing: gate.missing,
           });
@@ -659,7 +662,7 @@ export class TaskService {
 
       if (input.status === 'blocked' && (input.blockedReason ?? '').trim() === '') {
         // 사유 없는 blocked 는 백로그 부패의 씨앗이다(§1.4) — CHECK 도 막지만 사유를 알려준다
-        throw new NervError(NERV_ERROR.PRECONDITION, 'blocked 에는 사유가 필요합니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.blocked_reason_required'), {
           kind: 'blocked_reason_required',
         });
       }

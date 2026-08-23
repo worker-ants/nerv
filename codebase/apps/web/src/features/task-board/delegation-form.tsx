@@ -8,6 +8,7 @@
 // "경계"가 빠진 지시가 clemvion 에서 가장 비싼 실수였다 — 에이전트가 어디까지 건드려도 되는지
 // 모르면 리뷰가 그 판단을 대신하게 되고, 그때는 이미 코드가 쓰인 뒤다.
 
+import { useT } from '../../lib/i18n.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,15 +17,18 @@ import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { useTask } from '../../lib/queries.js';
+import type { MessageKey, Translator } from '@nerv/schema';
 import { Button, Field, Input, Select, Textarea } from '../../components/ui/primitives.js';
 
 /** 4요소는 공백만으로 채워질 수 없다 — 형식적 충족을 막는 최소선이다. */
 export const delegationSchema = z.object({
-  title: z.string().min(1, '제목이 필요합니다.'),
-  goal_md: z.string().trim().min(1, '목표를 적어주세요.'),
-  output_format_md: z.string().trim().min(1, '산출물 형식을 적어주세요(예: PR).'),
-  tools_sources_md: z.string().trim().min(1, '쓸 도구·참고할 출처를 적어주세요.'),
-  boundaries_md: z.string().trim().min(1, '건드리면 안 되는 범위를 적어주세요.'),
+  // 메시지 자리에 **키**를 담는다 — 이 스키마는 모듈 로드 시점에 만들어지고
+  // 그때는 사용자의 로케일을 모른다. 문장은 아래 fieldError() 가 만든다.
+  title: z.string().min(1, 'task.form.err.title'),
+  goal_md: z.string().trim().min(1, 'task.form.err.goal'),
+  output_format_md: z.string().trim().min(1, 'task.form.err.output'),
+  tools_sources_md: z.string().trim().min(1, 'task.form.err.tools'),
+  boundaries_md: z.string().trim().min(1, 'task.form.err.boundaries'),
   priority: z.enum(['P0', 'P1', 'P2', 'P3']),
 });
 
@@ -41,6 +45,7 @@ export function DelegationForm({
   taskKey,
   onDone,
 }: DelegationFormProps): React.JSX.Element {
+  const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const existing = useTask(projectSlug, taskKey ?? '');
@@ -91,9 +96,7 @@ export function DelegationForm({
       pushToast({
         tone: 'ok',
         message:
-          result['status'] === 'ready'
-            ? '위임 명세가 완결돼 ready 로 승격했습니다.'
-            : '저장했습니다 — 아직 backlog 입니다.',
+          result['status'] === 'ready' ? t('task.form.promoted') : t('task.form.saved_backlog'),
       });
       onDone();
     },
@@ -107,30 +110,45 @@ export function DelegationForm({
       className="flex flex-col gap-3 rounded-nerv border border-border bg-bg-elev p-4"
     >
       <h2 className="text-sm font-semibold">
-        {taskKey === null ? '새 작업' : `작업 수정 — ${taskKey}`}
+        {taskKey === null ? t('task.form.new') : t('task.form.edit', { key: taskKey })}
       </h2>
       {/* 4요소가 왜 필수인지 폼이 먼저 말한다 — 저장을 눌러야 알게 되면 늦다 */}
       <p className="-mt-2 text-xs text-text-mute">
-        ①~④ 가 모두 차야 <code className="font-mono">ready</code> 로 승격합니다. 비면 backlog 에
-        남습니다.
+        {t('task.form.lead_pre')} <code className="font-mono">ready</code>
+        {t('task.form.lead_post')}
       </p>
-      <Field label="제목" error={form.formState.errors.title?.message}>
+      <Field
+        label={t('task.form.title')}
+        error={fieldError(t, form.formState.errors.title?.message)}
+      >
         <Input {...form.register('title')} />
       </Field>
-      <Field label="① 목표" error={form.formState.errors.goal_md?.message}>
+      <Field
+        label={t('task.brief.goal')}
+        error={fieldError(t, form.formState.errors.goal_md?.message)}
+      >
         <Textarea {...form.register('goal_md')} rows={2} />
       </Field>
-      <Field label="② 산출물 형식" error={form.formState.errors.output_format_md?.message}>
+      <Field
+        label={t('task.brief.output')}
+        error={fieldError(t, form.formState.errors.output_format_md?.message)}
+      >
         <Input {...form.register('output_format_md')} />
       </Field>
-      <Field label="③ 도구·출처" error={form.formState.errors.tools_sources_md?.message}>
+      <Field
+        label={t('task.brief.tools')}
+        error={fieldError(t, form.formState.errors.tools_sources_md?.message)}
+      >
         <Textarea {...form.register('tools_sources_md')} rows={2} />
       </Field>
-      <Field label="④ 경계" error={form.formState.errors.boundaries_md?.message}>
+      <Field
+        label={t('task.brief.boundaries')}
+        error={fieldError(t, form.formState.errors.boundaries_md?.message)}
+      >
         <Textarea {...form.register('boundaries_md')} rows={2} />
       </Field>
       <div className="flex items-center gap-2 border-t border-border pt-3">
-        <Select {...form.register('priority')} aria-label="우선순위">
+        <Select {...form.register('priority')} aria-label={t('task.form.priority')}>
           {['P0', 'P1', 'P2', 'P3'].map((p) => (
             <option key={p} value={p}>
               {p}
@@ -138,10 +156,21 @@ export function DelegationForm({
           ))}
         </Select>
         <Button type="submit" variant="primary" disabled={save.isPending}>
-          저장
+          {t('common.save')}
         </Button>
-        <Button onClick={onDone}>취소</Button>
+        <Button onClick={onDone}>{t('common.cancel')}</Button>
       </div>
     </form>
   );
+}
+
+/**
+ * zod 가 담아 둔 키를 문장으로. 키가 아닌 문자열(라이브러리 기본 메시지)이 오면 그대로 보인다 —
+ * 번역이 없다고 오류를 감추면 사용자는 왜 저장이 안 되는지 모른다.
+ */
+function fieldError(t: Translator, message: string | undefined): string | undefined {
+  if (message === undefined) return undefined;
+  return message.startsWith('task.form.err.')
+    ? t(message as MessageKey & `task.form.err.${string}`)
+    : message;
 }

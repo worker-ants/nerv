@@ -12,7 +12,7 @@
 
 import { Controller, Req, Sse, UseGuards } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { Observable } from 'rxjs';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { SseAccessGuard } from './sse-access.guard.js';
@@ -48,7 +48,7 @@ export class SseController {
   project(@Req() req: SseRequest): Observable<SseMessage> {
     const projectId = req.nervSseProjectId;
     if (projectId === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트가 해소되지 않았습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.unresolved'), {
         kind: 'unresolved_project',
       });
     }
@@ -91,7 +91,7 @@ export class SseController {
 function requirePrincipal(req: SseRequest): Principal {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   return principal;
 }

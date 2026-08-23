@@ -4,7 +4,8 @@
 // 임포트 직후의 보드는 "아무도 책임지지 않는 작업"으로 가득 차고, 그것이 clemvion 이
 // 이미 겪은 상태다(빈 약속 · 무장 해제된 가드).
 
-import { describe, expect, it } from 'vitest';
+import { setLocaleForTesting } from '../i18n.js';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { classifyPlan, mapSpecImpact, parseOwnerMap } from './plan.js';
 
 const OPTIONS = { unstartedSentinel: '(unstarted)', importedAt: '2026-08-22T00:00:00.000Z' };
@@ -12,6 +13,9 @@ const OPTIONS = { unstartedSentinel: '(unstarted)', importedAt: '2026-08-22T00:0
 function classify(path: string, frontmatter: Record<string, unknown>, body = '# 제목\n본문') {
   return classifyPlan({ path, frontmatter, body }, OPTIONS);
 }
+
+// 출력 검사는 한국어 화면 기준이다 — 기계의 LANG 에 따라 검사 대상이 바뀌면 안 된다
+beforeAll(() => setLocaleForTesting('ko'));
 
 describe('상태 매핑 — ready 는 절대 나오지 않는다 (REQ-IMP-009)', () => {
   it('complete/ 는 done 이다', () => {

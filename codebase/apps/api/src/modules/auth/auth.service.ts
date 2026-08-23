@@ -15,12 +15,13 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  isAgentScope,
+  isHumanOnlyScope,
+  msg,
+  newId,
   GatePolicySchema,
   NERV_ERROR,
   RetentionSchema,
-  isAgentScope,
-  isHumanOnlyScope,
-  newId,
 } from '@nerv/schema';
 import type { AgentScope } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
@@ -89,7 +90,7 @@ export class AuthService {
     `);
     const user = rows[0];
     if (user === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '사용자를 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.user_not_found'), {
         kind: 'not_found',
       });
     }
@@ -128,7 +129,7 @@ export class AuthService {
     `);
     const org = rows[0];
     if (org === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '조직을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
         kind: 'not_found',
         org: input.orgSlug,
       });
@@ -156,14 +157,14 @@ export class AuthService {
     `);
     const org = orgRows[0];
     if (org === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '조직을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
         kind: 'not_found',
         org: input.orgSlug,
       });
     }
     this.assertAdmin(org.role as MembershipRole);
     if (input.slug.trim() === '' || input.key.trim() === '' || input.name.trim() === '') {
-      throw new NervError(NERV_ERROR.PRECONDITION, 'slug·key·name 이 필요합니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.missing_fields'), {
         kind: 'missing_fields',
       });
     }
@@ -201,7 +202,7 @@ export class AuthService {
     `);
     const org = orgRows[0];
     if (org === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '조직을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
         kind: 'not_found',
       });
     }
@@ -212,10 +213,11 @@ export class AuthService {
     );
     const userId = userRows[0]?.id;
     if (userId === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '가입한 사용자가 아닙니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.not_registered'), {
         kind: 'user_not_found',
         email: input.email,
-        hint: 'MVP 초대는 기존 사용자 배정입니다 — 먼저 가입해야 합니다.',
+        // 힌트도 응답에 실린다 — 사용자가 읽는 문장이므로 키로 남기고 표면이 문장을 만든다
+        hint_key: 'error.auth.not_registered_hint',
       });
     }
 
@@ -226,7 +228,7 @@ export class AuthService {
       );
       projectId = rows[0]?.id ?? null;
       if (projectId === null) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
           kind: 'not_found',
           project: input.projectSlug,
         });
@@ -241,7 +243,7 @@ export class AuthService {
       RETURNING id, role::text AS role, user_id, project_id
     `);
     if (inserted[0] === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '이미 같은 스코프의 멤버입니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.duplicate'), {
         kind: 'duplicate_membership',
       });
     }
@@ -261,7 +263,7 @@ export class AuthService {
     `);
     const role = orgRows[0]?.role;
     if (role === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '조직을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
         kind: 'not_found',
       });
     }
@@ -282,7 +284,7 @@ export class AuthService {
        LIMIT 1
     `);
     if (rows[0] === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '멤버십을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.not_found'), {
         kind: 'not_found',
       });
     }
@@ -326,7 +328,7 @@ export class AuthService {
     `);
     const project = rows[0];
     if (project === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',
       });
     }
@@ -349,7 +351,7 @@ export class AuthService {
     retention?: Record<string, unknown> | null;
   }): Promise<Record<string, unknown>> {
     if ((input.gatePolicy != null || input.retention != null) && input.role !== 'admin') {
-      throw new NervError(NERV_ERROR.FORBIDDEN, '게이트 정책·보존 설정은 admin 만 바꿉니다.', {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only_policy'), {
         kind: 'role_required',
         required: ['admin'],
         actual: input.role,
@@ -405,7 +407,7 @@ export class AuthService {
     `);
     const updated = rows[0];
     if (updated === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '멤버십을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.not_found'), {
         kind: 'not_found',
       });
     }
@@ -457,7 +459,7 @@ export class AuthService {
 
   private assertAdmin(role: MembershipRole): void {
     if (role !== 'admin') {
-      throw new NervError(NERV_ERROR.FORBIDDEN, 'admin 만 할 수 있습니다.', {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only'), {
         kind: 'role_required',
         required: ['admin'],
         actual: role,
@@ -474,14 +476,14 @@ export class AuthService {
   }): Promise<{ tokenId: string; token: string; prefix: string; scopes: AgentScope[] }> {
     const humanOnly = input.scopes.filter(isHumanOnlyScope);
     if (humanOnly.length > 0) {
-      throw new NervError(NERV_ERROR.FORBIDDEN, '사람 전용 스코프는 토큰에 부여할 수 없습니다.', {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.human_only_scope'), {
         kind: 'human_only_scope',
         scopes: humanOnly,
       });
     }
     const unknown = input.scopes.filter((s) => !isAgentScope(s));
     if (unknown.length > 0) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '알 수 없는 스코프입니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.unknown_scope'), {
         kind: 'unknown_scope',
         scopes: unknown,
       });
@@ -514,7 +516,7 @@ export class AuthService {
       RETURNING id
     `);
     if (rows.length === 0) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '폐기할 토큰이 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.token_not_found'), {
         kind: 'not_found',
         token_id: tokenId,
       });
@@ -540,7 +542,7 @@ export class AuthService {
   async verifySession(cookieHeader: string): Promise<Principal> {
     const auth = this.betterAuth;
     if (auth === null) {
-      throw new NervError(NERV_ERROR.UNAVAILABLE, '인증 서비스가 준비되지 않았습니다.', {
+      throw new NervError(NERV_ERROR.UNAVAILABLE, msg('error.auth.unavailable'), {
         kind: 'auth_unavailable',
       });
     }
@@ -549,7 +551,7 @@ export class AuthService {
     });
     const userId = session?.user?.id;
     if (session === null || userId === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '세션이 유효하지 않습니다.', {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.session_invalid'), {
         kind: 'invalid_session',
       });
     }
@@ -608,7 +610,7 @@ export class AuthService {
     }
     if (token.role === null) {
       // 토큰은 살아 있는데 멤버십이 사라진 경우 — 권한은 사용자의 부분집합이므로 0이다
-      throw new NervError(NERV_ERROR.FORBIDDEN, '프로젝트 멤버가 아닙니다.', {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.not_member'), {
         kind: 'no_membership',
         project_id: token.project_id,
       });
@@ -649,7 +651,7 @@ export class AuthService {
     `);
     const role = rows[0]?.role;
     if (role === undefined) {
-      throw new NervError(NERV_ERROR.FORBIDDEN, '프로젝트 멤버가 아닙니다.', {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.not_member'), {
         kind: 'no_membership',
         project_id: projectId,
       });
@@ -661,18 +663,22 @@ export class AuthService {
   assertScope(principal: Principal, required: AgentScope): void {
     if (!principal.isAgent) return; // 세션 사용자는 역할 매트릭스가 판정한다
     if (!principal.scopes.includes(required)) {
-      throw new NervError(NERV_ERROR.FORBIDDEN, `스코프가 부족합니다: ${required}`, {
-        kind: 'missing_scope',
-        required,
-        granted: principal.scopes,
-      });
+      throw new NervError(
+        NERV_ERROR.FORBIDDEN,
+        msg('error.auth.scope_missing', { scope: required }),
+        {
+          kind: 'missing_scope',
+          required,
+          granted: principal.scopes,
+        },
+      );
     }
   }
 
   /** 토큰이 붙은 프로젝트 밖을 건드리려 할 때 — 스코프 밖 프로젝트는 거부다. */
   assertProjectScope(principal: Principal, projectId: string): void {
     if (principal.projectId !== null && principal.projectId !== projectId) {
-      throw new NervError(NERV_ERROR.FORBIDDEN, '토큰의 프로젝트 스코프 밖입니다.', {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.project_out_of_scope'), {
         kind: 'project_scope',
         token_project_id: principal.projectId,
         requested_project_id: projectId,
@@ -691,7 +697,7 @@ export class AuthService {
 
 function unauthenticated(message: string): NervError {
   // 사유는 로그에만 남기고 응답에는 싣지 않는다 — 유효한 토큰 탐색의 단서가 된다
-  return new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 유효하지 않습니다.', {
+  return new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.invalid'), {
     kind: 'invalid_credential',
     reason: message,
   });
@@ -707,7 +713,7 @@ function parsePolicy<T>(
   if (!parsed.success || parsed.data === undefined) {
     const issues = (parsed.error as { issues?: { path: (string | number)[]; message: string }[] })
       ?.issues;
-    throw new NervError(NERV_ERROR.PRECONDITION, `${field} 형식이 올바르지 않습니다.`, {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.request.bad_field', { field }), {
       kind: 'invalid_policy',
       field,
       issues: (issues ?? []).map((i) => ({ path: i.path.join('.'), message: i.message })),

@@ -4,6 +4,8 @@
 // 그리면 최초 페인트가 늦어진다. 그래서 ① 기본은 depth=1 로 접어 두고 ② 필터로 좁힌다.
 // 가상 스크롤은 그 다음 단계이고, 접힌 트리에서는 대개 필요해지지 않는다.
 
+import { statusLabelKey } from '@nerv/schema';
+import { useT } from '../lib/i18n.js';
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { rows, useSpecTree } from '../lib/queries.js';
@@ -57,6 +59,7 @@ export function SpecTree({
   compact,
   activeKey,
 }: SpecTreeProps): React.JSX.Element {
+  const t = useT();
   const tree = useSpecTree(projectSlug, projectId);
   const [filter, setFilter] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -92,9 +95,9 @@ export function SpecTree({
     // 막다른 길 금지 — 빈 상태에도 다음 행동이 있다(§1.5)
     return (
       <div className="text-sm text-text-mute">
-        아직 스펙이 없습니다.{' '}
+        {t('specs.empty')}{' '}
         <Link to="/p/$proj/specs" params={{ proj: projectSlug }} className="text-link underline">
-          첫 스펙 만들기
+          {t('specs.create_first')}
         </Link>
       </div>
     );
@@ -135,7 +138,7 @@ export function SpecTree({
               {children.length > 0 && (
                 <button
                   type="button"
-                  aria-label={isOpen ? '접기' : '펼치기'}
+                  aria-label={isOpen ? t('specs.collapse') : t('specs.expand')}
                   className="w-4 shrink-0 text-2xs text-text-faint hover:text-text"
                   onClick={() =>
                     setExpanded((prev) => {
@@ -162,7 +165,7 @@ export function SpecTree({
                       (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
                         'idle') as StatusToken
                     }
-                    label={node.doc_status}
+                    label={t(statusLabelKey('spec', node.doc_status))}
                   />
                 )}
               </Link>
@@ -178,7 +181,7 @@ export function SpecTree({
         <Input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="트리 필터"
+          placeholder={t('specs.tree_filter')}
           className="mb-2"
         />
       )}
@@ -210,7 +213,7 @@ export function SpecTree({
                           (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
                             'idle') as StatusToken
                         }
-                        label={node.doc_status}
+                        label={t(statusLabelKey('spec', node.doc_status))}
                       />
                     )}
                   </Link>

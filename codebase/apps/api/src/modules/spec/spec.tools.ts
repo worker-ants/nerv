@@ -23,7 +23,7 @@ export class SpecTools implements NervToolProvider {
       name: 'nerv_spec_tree',
       tier: 'A1',
       phase: 'P0',
-      summary: '스펙 탐색 시작',
+      summaryKey: 'mcp.tool.spec_explore',
       scope: 'spec:read',
       inputSchema: {
         type: 'object',
@@ -41,7 +41,7 @@ export class SpecTools implements NervToolProvider {
       name: 'nerv_spec_search',
       tier: 'A1',
       phase: 'P0',
-      summary: '컨텍스트 수집·중복 확인',
+      summaryKey: 'mcp.tool.gather_context',
       scope: 'spec:read',
       inputSchema: {
         type: 'object',
@@ -65,7 +65,7 @@ export class SpecTools implements NervToolProvider {
       name: 'nerv_spec_get',
       tier: 'A1',
       phase: 'P0',
-      summary: '구현 착수 전, 리뷰 전',
+      summaryKey: 'mcp.tool.before_impl',
       scope: 'spec:read',
       inputSchema: {
         type: 'object',
@@ -87,7 +87,7 @@ export class SpecTools implements NervToolProvider {
       name: 'nerv_spec_draft_upsert',
       tier: 'A2',
       phase: 'P1',
-      summary: '스펙 초안 작성·CR 제안',
+      summaryKey: 'mcp.tool.draft_spec',
       scope: 'spec:draft',
       inputSchema: {
         type: 'object',
@@ -115,7 +115,7 @@ export class SpecTools implements NervToolProvider {
       name: 'nerv_spec_submit_review',
       tier: 'A3',
       phase: 'P1',
-      summary: '초안 완료 후 사람 검토 요청',
+      summaryKey: 'mcp.tool.request_review',
       scope: 'spec:draft',
       inputSchema: {
         type: 'object',
@@ -134,7 +134,7 @@ export class SpecTools implements NervToolProvider {
       name: 'nerv_spec_check',
       tier: 'A1',
       phase: 'P1',
-      summary: '초안 저장 후·제출 전 아무 때나',
+      summaryKey: 'mcp.tool.after_draft',
       scope: 'spec:read',
       inputSchema: {
         type: 'object',
@@ -151,7 +151,7 @@ export class SpecTools implements NervToolProvider {
       name: 'nerv_spec_comment_resolve',
       tier: 'A2',
       phase: 'P1',
-      summary: '코멘트 반영 직후',
+      summaryKey: 'mcp.tool.after_comment',
       scope: 'spec:draft',
       inputSchema: {
         type: 'object',

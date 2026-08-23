@@ -1,5 +1,6 @@
 // E08-S09 — 전역 퀵 스위처 ⌘K (screens.md §1.3a · REQ-WEB-040)
 
+import { LocaleProvider } from '../lib/i18n.js';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
@@ -76,11 +77,13 @@ describe('⌘K 로 열리고 Esc 로 닫힌다 — 전 라우트 공통', () => 
       history: createMemoryHistory({ initialEntries: ['/p/clemvion/tasks'] }),
     });
     render(
-      <QueryClientProvider client={client}>
-        <RealtimeProvider>
-          <RouterProvider router={router} />
-        </RealtimeProvider>
-      </QueryClientProvider>,
+      <LocaleProvider locale="ko">
+        <QueryClientProvider client={client}>
+          <RealtimeProvider>
+            <RouterProvider router={router} />
+          </RealtimeProvider>
+        </QueryClientProvider>
+      </LocaleProvider>,
     );
   }
 

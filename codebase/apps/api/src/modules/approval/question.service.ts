@@ -9,7 +9,7 @@
 // 대신 멈추는 것이 이 기능의 값이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -136,7 +136,7 @@ export class QuestionService {
       `);
       const question = rows[0];
       if (question === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '열린 질문이 아닙니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.question.not_open'), {
           kind: 'not_open',
         });
       }

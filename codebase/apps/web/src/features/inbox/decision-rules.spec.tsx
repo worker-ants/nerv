@@ -3,6 +3,7 @@
 // 셋 다 "막는 것"이 아니라 **말하게 하는 것**이 요점이다: 거절에는 사유가 남아야 하고,
 // 질문 처리는 어느 세션에 전달됐는지 보여야 하며, 키보드만으로 끝나야 한다.
 
+import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -48,12 +49,14 @@ afterEach(() => {
 function renderCard(card: Record<string, unknown>, active = false): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <QueryClientProvider client={client}>
-      <RealtimeProvider>
-        <ApprovalCard card={card} active={active} />
-        <ToastProbe />
-      </RealtimeProvider>
-    </QueryClientProvider>,
+    <LocaleProvider locale="ko">
+      <QueryClientProvider client={client}>
+        <RealtimeProvider>
+          <ApprovalCard card={card} active={active} />
+          <ToastProbe />
+        </RealtimeProvider>
+      </QueryClientProvider>
+    </LocaleProvider>,
   );
 }
 

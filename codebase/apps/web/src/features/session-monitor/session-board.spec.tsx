@@ -5,8 +5,9 @@
 //   REQ-WEB-020  stale 카드는 "무활동 임계 30:00 초과 → 자동 전이"를 표시한다
 //   screens.md §1.5  로딩은 골격, 빈 상태는 막다른 길 금지
 
+import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionBoard } from './session-board.js';
 import { SessionCard } from './session-card.js';
@@ -35,6 +36,11 @@ const base: Card = {
 };
 
 const NOW = new Date('2026-08-22T12:00:00Z').getTime();
+
+/** 카드도 로케일 안에서 산다 — 상태 배지·하트비트 문구가 카탈로그에서 온다 */
+function render(ui: React.ReactElement): ReturnType<typeof rtlRender> {
+  return rtlRender(<LocaleProvider locale="ko">{ui}</LocaleProvider>);
+}
 
 describe('SessionCard — REQ-WEB-019 필수 표기', () => {
   it('신원 3요소를 전부 적는다 — 누구의 어느 머신인가가 이 화면의 존재 이유다', () => {
@@ -66,7 +72,7 @@ describe('SessionCard — REQ-WEB-019 필수 표기', () => {
     render(<SessionCard card={{ ...base, state: 'stale' }} now={NOW} />);
     expect(screen.getByText(/무활동 임계 30:00 초과/)).toBeDefined();
     // 상태는 색만이 아니라 라벨로도 나온다(REQ-WEB-033)
-    expect(screen.getByText('stale')).toBeDefined();
+    expect(screen.getByText('무응답')).toBeDefined();
   });
 
   it('상태마다 §4.2 매핑의 토큰을 쓴다 — 엔티티마다 색을 새로 정하지 않는다', () => {
@@ -86,9 +92,11 @@ describe('SessionBoard — 상태 3종 (screens.md §1.5)', () => {
 
   function renderBoard(): void {
     render(
-      <QueryClientProvider client={client}>
-        <SessionBoard projectSlug="clemvion" projectId="p-1" />
-      </QueryClientProvider>,
+      <LocaleProvider locale="ko">
+        <QueryClientProvider client={client}>
+          <SessionBoard projectSlug="clemvion" projectId="p-1" />
+        </QueryClientProvider>
+      </LocaleProvider>,
     );
   }
 
@@ -115,7 +123,7 @@ describe('SessionBoard — 상태 3종 (screens.md §1.5)', () => {
 
     await waitFor(() => expect(screen.getByTestId('session-card')).toBeDefined());
     expect(screen.getByTestId('session-summary')).toBeDefined();
-    expect(screen.getByText('active 1')).toBeDefined();
+    expect(screen.getByText('활동 중 1')).toBeDefined();
     vi.unstubAllGlobals();
   });
 

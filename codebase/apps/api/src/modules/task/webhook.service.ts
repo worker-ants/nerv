@@ -8,7 +8,7 @@
 // 붙인다 — 커밋 메시지 규약을 새로 만들지 않는 이유는, 규약이 늘수록 지켜지지 않기 때문이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
@@ -46,12 +46,12 @@ export class WebhookService {
   verifySignature(rawBody: string, signature: string | undefined): void {
     const secret = process.env['NERV_GITHUB_WEBHOOK_SECRET'] ?? '';
     if (secret === '') {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '웹훅 시크릿이 설정되지 않았습니다.', {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.webhook.no_secret'), {
         kind: 'webhook_secret_missing',
       });
     }
     if (signature === undefined || !signature.startsWith('sha256=')) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '서명이 없습니다.', {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.webhook.no_signature'), {
         kind: 'signature_missing',
       });
     }
@@ -61,7 +61,7 @@ export class WebhookService {
     // 길이가 다르면 timingSafeEqual 이 던진다 — 길이 비교부터 상수 시간으로 다루지 않으면
     // 비교 자체가 정보를 흘린다.
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '서명이 일치하지 않습니다.', {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.webhook.bad_signature'), {
         kind: 'signature_mismatch',
       });
     }

@@ -15,7 +15,7 @@ export class TaskTools implements NervToolProvider {
       name: 'nerv_task_next',
       tier: 'A1',
       phase: 'P0',
-      summary: '클레임 직전',
+      summaryKey: 'mcp.tool.before_claim',
       scope: 'task:claim',
       inputSchema: {
         type: 'object',
@@ -36,7 +36,7 @@ export class TaskTools implements NervToolProvider {
       name: 'nerv_task_claim',
       tier: 'A2',
       phase: 'P0',
-      summary: '작업 착수',
+      summaryKey: 'mcp.tool.start_work',
       scope: 'task:claim',
       inputSchema: {
         type: 'object',
@@ -80,7 +80,7 @@ export class TaskTools implements NervToolProvider {
       name: 'nerv_task_heartbeat',
       tier: 'A1',
       phase: 'P0',
-      summary: '60초 주기',
+      summaryKey: 'mcp.tool.every_60s',
       scope: 'task:update',
       inputSchema: {
         type: 'object',
@@ -100,7 +100,7 @@ export class TaskTools implements NervToolProvider {
       name: 'nerv_task_release',
       tier: 'A2',
       phase: 'P0',
-      summary: '세션 종료·작업 전환·중단',
+      summaryKey: 'mcp.tool.session_end',
       scope: 'task:update',
       inputSchema: {
         type: 'object',
@@ -122,7 +122,7 @@ export class TaskTools implements NervToolProvider {
       name: 'nerv_task_update',
       tier: 'A2',
       phase: 'P1',
-      summary: '상태 변화 시점(done 시도는 서버 게이트)',
+      summaryKey: 'mcp.tool.on_transition',
       scope: 'task:update',
       inputSchema: {
         type: 'object',

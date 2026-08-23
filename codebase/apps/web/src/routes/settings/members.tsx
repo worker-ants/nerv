@@ -4,6 +4,7 @@
 // **권한 없는 버튼은 숨기지 않고 비활성 + 사유를 붙인다**(REQ-WEB-003) — 숨기면 사용자는
 // 기능이 없다고 생각하고, 그 오해는 관리자에게 문의로 돌아온다.
 
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
@@ -25,6 +26,7 @@ export const Route = createFileRoute('/settings/members')({ component: MembersTa
 const ROLES = ['admin', 'planner', 'designer', 'developer', 'qa', 'viewer'] as const;
 
 function MembersTab(): React.JSX.Element {
+  const t = useT();
   const me = useMe();
   const membership = me.data === undefined ? null : primaryMembership(me.data);
   const orgSlug = membership?.org_slug ?? null;
@@ -42,30 +44,30 @@ function MembersTab(): React.JSX.Element {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'members'] });
-      pushToast({ tone: 'ok', message: '역할을 바꿨습니다.' });
+      pushToast({ tone: 'ok', message: t('settings.members.role_changed') });
     },
     onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
   });
 
   return (
     <section>
-      <PageHeader title="멤버·역할" description="역할 6종이 플랫폼 전체 권한의 정본입니다." />
+      <PageHeader title={t('settings.tab.members')} description={t('settings.members.lead')} />
       {!isAdmin && (
         <p className="mb-3 rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute">
-          역할 변경은 <code className="font-mono">admin</code> 만 할 수 있습니다 — 아래 목록은 읽기
-          전용입니다.
+          {t('settings.members.admin_only_pre')} <code className="font-mono">admin</code>{' '}
+          {t('settings.members.admin_only_post')}
         </p>
       )}
       {rows(members.data).length === 0 ? (
-        <EmptyState icon="👥" title="멤버가 없습니다." />
+        <EmptyState icon="👥" title={t('settings.members.empty')} />
       ) : (
         <Table
           head={
             <>
-              <Th>이름</Th>
-              <Th>이메일</Th>
-              <Th>스코프</Th>
-              <Th className="w-32">역할</Th>
+              <Th>{t('settings.members.name')}</Th>
+              <Th>{t('settings.members.email')}</Th>
+              <Th>{t('settings.members.scope')}</Th>
+              <Th className="w-32">{t('settings.members.role')}</Th>
             </>
           }
         >
@@ -73,12 +75,14 @@ function MembersTab(): React.JSX.Element {
             <Tr key={String(m['id'])}>
               <Td className="font-medium">{String(m['display_name'])}</Td>
               <Td className="text-text-mute">{String(m['email'])}</Td>
-              <Td className="text-text-mute">{String(m['project_slug'] ?? '조직 전체')}</Td>
+              <Td className="text-text-mute">
+                {String(m['project_slug'] ?? t('settings.members.org_wide'))}
+              </Td>
               <Td>
                 <Select
                   value={String(m['role'])}
                   disabled={!isAdmin || changeRole.isPending}
-                  title={isAdmin ? undefined : '이 변경은 admin 역할만 가능합니다'}
+                  title={isAdmin ? undefined : t('settings.members.role_admin_only')}
                   onChange={(e) => changeRole.mutate({ id: String(m['id']), role: e.target.value })}
                   className="w-full"
                 >

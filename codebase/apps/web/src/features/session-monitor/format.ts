@@ -8,11 +8,13 @@
 // 상대 시각은 세션 카드만 쓰는 규약이 아니다(알림·작업 목록도 같은 표기를 쓴다) —
 // 정의는 lib/format 에 있고 여기서는 이 모듈의 소비자를 위해 다시 내보낸다.
 export { relativeTime } from '../../lib/format.js';
+import { DASH } from '../../lib/format.js';
+import type { Translator } from '@nerv/schema';
 
-/** 리스 잔여 "mm:ss" — 만료면 "만료" */
-export function leaseRemaining(seconds: number | null): string {
-  if (seconds === null) return '—';
-  if (seconds <= 0) return '만료';
+/** 리스 잔여 "mm:ss" — 만료면 그렇게 적는다 */
+export function leaseRemaining(t: Translator, seconds: number | null): string {
+  if (seconds === null) return DASH;
+  if (seconds <= 0) return t('time.lease_expired');
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;

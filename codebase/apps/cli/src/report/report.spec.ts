@@ -1,7 +1,8 @@
 // 리포트 형식 — 정본: docs/04-mvp/importer.md §4.1
 // 규칙 하나: 파일·줄·사유·건너뜀/중단 구분이 있어야 하고 원문은 보존한다(정보 손실 0).
 
-import { describe, expect, it } from 'vitest';
+import { setLocaleForTesting } from '../i18n.js';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { conversionRate, exitCode, renderJsonl, renderMarkdown } from './index.js';
 import type { ImportReport } from './index.js';
 
@@ -14,6 +15,9 @@ const base: ImportReport = {
   entries: [],
   expectation: [],
 };
+
+// 출력 검사는 한국어 화면 기준이다 — 기계의 LANG 에 따라 검사 대상이 바뀌면 안 된다
+beforeAll(() => setLocaleForTesting('ko'));
 
 describe('리포트', () => {
   it('자동 변환율을 계산한다 — 성공 기준 0-6 의 판정값(≥95%)', () => {

@@ -5,7 +5,7 @@
 // nerv_session_event 는 훅 ingest 와 같은 SessionService.appendActivity 를 쓴다(api.md §4).
 
 import { Injectable } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import type { ToolContext } from '../../mcp/tool-context.js';
@@ -21,7 +21,7 @@ export class SessionTools implements NervToolProvider {
       name: 'nerv_bootstrap',
       tier: 'A1',
       phase: 'P0',
-      summary: '세션 시작 직후 첫 도구 호출',
+      summaryKey: 'mcp.tool.first_call',
       scope: 'agent-session:launch',
       inputSchema: {
         type: 'object',
@@ -59,7 +59,7 @@ export class SessionTools implements NervToolProvider {
       name: 'nerv_session_event',
       tier: 'A1',
       phase: 'P1',
-      summary: '훅 없는 실행 환경의 폴백',
+      summaryKey: 'mcp.tool.hookless_fallback',
       scope: 'agent-session:launch',
       inputSchema: {
         type: 'object',
@@ -104,11 +104,9 @@ function str(value: unknown): string | null {
  */
 export function requireSession(ctx: ToolContext): string {
   if (ctx.sessionId === null) {
-    throw new NervError(
-      NERV_ERROR.PRECONDITION,
-      '세션이 없습니다 — 먼저 nerv_bootstrap 을 호출하세요.',
-      { kind: 'session_required' },
-    );
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.no_session'), {
+      kind: 'session_required',
+    });
   }
   return ctx.sessionId;
 }

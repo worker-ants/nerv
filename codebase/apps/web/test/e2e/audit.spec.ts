@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { STORAGE_STATE } from './global-setup.js';
 
 // 저장된 세션을 쓴다 — 이 스위트의 목적은 화면 구조 관측이지 로그인 검증이 아니다.
-test.use({ storageState: STORAGE_STATE });
+test.use({ storageState: STORAGE_STATE, locale: 'ko-KR' });
 
 const ROUTES = [
   '/',

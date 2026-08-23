@@ -11,7 +11,7 @@
 import { Injectable, SetMetadata } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { AuthService } from '../modules/auth/auth.service.js';
 import type { Principal } from '../modules/auth/auth.service.js';
 import { NervError } from './nerv-exception.filter.js';
@@ -69,7 +69,9 @@ export class AuthGuard implements CanActivate {
     }>();
     const auth = extractCredential(req.headers);
     if (auth === null) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     req.nervAuth = auth;
     req.nervPrincipal = await this.auth.verify(auth);

@@ -6,8 +6,10 @@
 // 질문 카드는 세션 신원 3요소(사용자·hostname·에이전트 종류)를 함께 싣는다(REQ-WEB-008) —
 // "어느 머신의 누구를 멈춰 세우고 있나"가 답변 우선순위를 정하기 때문이다.
 
+import { useT } from '../../lib/i18n.js';
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Translator } from '@nerv/schema';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
@@ -18,11 +20,11 @@ import { Button, Mono, Textarea } from '../../components/ui/primitives.js';
 
 export type Decision = 'approve' | 'reject' | 'comment';
 
-export function waitedLabel(seconds: number): string {
-  if (seconds < 60) return '방금';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}분 대기`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}시간 대기`;
-  return `${Math.floor(seconds / 86400)}일 대기`;
+export function waitedLabel(t: Translator, seconds: number): string {
+  if (seconds < 60) return t('inbox.waited.just_now');
+  if (seconds < 3600) return t('inbox.waited.minutes', { n: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('inbox.waited.hours', { n: Math.floor(seconds / 3600) });
+  return t('inbox.waited.days', { n: Math.floor(seconds / 86400) });
 }
 
 export interface ApprovalCardProps {
@@ -33,6 +35,7 @@ export interface ApprovalCardProps {
 }
 
 export function ApprovalCard({ card, compact, active }: ApprovalCardProps): React.JSX.Element {
+  const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const [comment, setComment] = useState('');
@@ -48,7 +51,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
       // 말만 남기고, 그 왕복이 승인 병목(P4)을 만든다. 사유는 알림과 감사 로그 양쪽에 남는다.
       if (decision === 'reject' && comment.trim() === '') {
         setReasonRequired(true);
-        throw new Error('거절 사유를 적어주세요.');
+        throw new Error(t('inbox.card.reason_missing'));
       }
       setReasonRequired(false);
       if (isQuestion) {
@@ -75,8 +78,11 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
       pushToast({
         tone: 'ok',
         message: isQuestion
-          ? `요청 세션 ${String(card['hostname'] ?? '?')}/${String(card['agent_type'] ?? '?')} 에 전달됨`
-          : `${decisionLabel(decision)} 처리됐습니다.`,
+          ? t('inbox.card.delivered', {
+              host: String(card['hostname'] ?? '?'),
+              agent: String(card['agent_type'] ?? '?'),
+            })
+          : t('inbox.card.decided', { decision: decisionLabel(t, decision) }),
       });
     },
     onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
@@ -112,11 +118,11 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
       <header className="flex flex-wrap items-center gap-2 text-sm">
         <StatusBadge
           token={isQuestion ? 'waiting' : 'action'}
-          label={isQuestion ? '질문' : '승인'}
+          label={isQuestion ? t('inbox.card.question') : t('inbox.key.approve')}
         />
         <Mono>{String(card['spec_key'] ?? card['task_key'] ?? '')}</Mono>
         <span className="min-w-0 flex-1 truncate font-medium">
-          {String(card['title'] ?? card['spec_title'] ?? '(제목 없음)')}
+          {String(card['title'] ?? card['spec_title'] ?? t('inbox.card.untitled'))}
         </span>
         <span className="shrink-0 text-xs text-text-mute">
           {String(card['project_slug'] ?? '')}
@@ -132,7 +138,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
               : 'text-text-faint',
           )}
         >
-          {waitedLabel(Number(card['waiting_seconds'] ?? 0))}
+          {waitedLabel(t, Number(card['waiting_seconds'] ?? 0))}
         </span>
       </header>
 
@@ -154,7 +160,9 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
             ref={commentRef}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder={isQuestion ? '답변' : '코멘트 — 거절에는 필수'}
+            placeholder={
+              isQuestion ? t('inbox.card.answer_placeholder') : t('inbox.card.comment_placeholder')
+            }
             data-testid="decision-comment"
             className="mt-2"
             rows={2}
@@ -165,7 +173,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
               data-testid="reason-required"
               className="mt-1 text-xs text-status-danger"
             >
-              거절에는 사유가 필요합니다 — 요청자 알림과 감사 로그에 남습니다.
+              {t('inbox.card.reason_required')}
             </p>
           )}
         </>
@@ -174,7 +182,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
       {card['self_requested'] === true && !isQuestion && (
         // 지시자≠승인자 — 서버가 최종 판정하지만, 누를 수 없는 버튼의 이유는 미리 보여준다
         <p className="mt-2 rounded-nerv-sm bg-status-waiting-soft px-2 py-1 text-xs text-status-waiting">
-          내가 요청한 항목입니다 — 다른 승인자가 처리해야 합니다.
+          {t('inbox.card.self_requested')}
         </p>
       )}
 
@@ -182,7 +190,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
           없다) 결정할 수 있는 곳으로 보낸다. 막다른 길을 만들지 않는다(§1.5) */}
       {(compact ?? false) && (
         <Link to="/inbox" className="mt-1.5 inline-block text-xs text-link hover:underline">
-          승인함에서 처리 ▸
+          {t('inbox.card.handle_in_inbox')}
         </Link>
       )}
 
@@ -195,7 +203,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
               disabled={decide.isPending || comment.trim() === ''}
               onClick={() => decide.mutate('approve')}
             >
-              답변 보내기
+              {t('inbox.card.send_answer')}
             </Button>
           ) : (
             <>
@@ -205,12 +213,10 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
                 disabled={decide.isPending || card['self_requested'] === true}
                 onClick={() => decide.mutate('approve')}
                 title={
-                  card['self_requested'] === true
-                    ? '지시자는 자기 산출물을 승인할 수 없습니다'
-                    : undefined
+                  card['self_requested'] === true ? t('inbox.card.self_requested_title') : undefined
                 }
               >
-                승인
+                {t('inbox.key.approve')}
               </Button>
               <Button
                 variant="danger"
@@ -218,19 +224,17 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
                 disabled={decide.isPending || card['self_requested'] === true}
                 onClick={() => decide.mutate('reject')}
               >
-                거절
+                {t('inbox.key.reject')}
               </Button>
               <Button
                 size="sm"
                 disabled={decide.isPending}
                 onClick={() => decide.mutate('comment')}
               >
-                코멘트
+                {t('inbox.key.comment')}
               </Button>
               {active === true && (
-                <span className="ml-auto text-2xs text-text-faint">
-                  <kbd>a</kbd> 승인 · <kbd>r</kbd> 거절 · <kbd>c</kbd> 코멘트
-                </span>
+                <span className="ml-auto text-2xs text-text-faint">{t('inbox.card.keys')}</span>
               )}
             </>
           )}
@@ -240,6 +244,8 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
   );
 }
 
-function decisionLabel(decision: Decision): string {
-  return decision === 'approve' ? '승인' : decision === 'reject' ? '거절' : '코멘트';
+function decisionLabel(t: Translator, decision: Decision): string {
+  if (decision === 'approve') return t('inbox.decision.approve');
+  if (decision === 'reject') return t('inbox.decision.reject');
+  return t('inbox.decision.comment');
 }

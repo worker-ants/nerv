@@ -1,6 +1,10 @@
 // 표기 규약은 화면의 계약이다 — ui-wireframes §3.3 이 못박은 것들을 고정한다.
+import { createTranslator } from '@nerv/schema';
 import { describe, expect, it } from 'vitest';
 import { diffStat, identity, leaseRemaining, relativeTime } from './format.js';
+
+// 테스트는 한국어 화면을 검사한다 — 로케일이 고정돼야 검사 대상이 기계마다 달라지지 않는다
+const ko = createTranslator('ko');
 
 describe('상대 시각 (§3.3 — 하트비트는 상대 시각만)', () => {
   const now = new Date('2026-08-22T12:00:00Z').getTime();
@@ -10,31 +14,31 @@ describe('상대 시각 (§3.3 — 하트비트는 상대 시각만)', () => {
     ['2026-08-22T10:00:00Z', '2시간 전'],
     ['2026-08-20T12:00:00Z', '2일 전'],
   ])('%s → %s', (iso, expected) => {
-    expect(relativeTime(iso, now)).toBe(expected);
+    expect(relativeTime(ko, iso, now)).toBe(expected);
   });
 
   it('하트비트가 없으면 시각 대신 사실을 적는다', () => {
-    expect(relativeTime(null, now)).toBe('기록 없음');
+    expect(relativeTime(ko, null, now)).toBe('기록 없음');
   });
 
   it('미래 시각도 음수로 새지 않는다 — 시계 오차 방어', () => {
-    expect(relativeTime('2026-08-22T12:00:30Z', now)).toBe('0초 전');
+    expect(relativeTime(ko, '2026-08-22T12:00:30Z', now)).toBe('0초 전');
   });
 });
 
 describe('리스 잔여', () => {
   it('mm:ss 로 쓴다', () => {
-    expect(leaseRemaining(1800)).toBe('30:00');
-    expect(leaseRemaining(65)).toBe('01:05');
+    expect(leaseRemaining(ko, 1800)).toBe('30:00');
+    expect(leaseRemaining(ko, 65)).toBe('01:05');
   });
 
   it('만료를 숫자로 흘리지 않는다', () => {
-    expect(leaseRemaining(0)).toBe('만료');
-    expect(leaseRemaining(-5)).toBe('만료');
+    expect(leaseRemaining(ko, 0)).toBe('만료');
+    expect(leaseRemaining(ko, -5)).toBe('만료');
   });
 
   it('클레임이 없으면 대시', () => {
-    expect(leaseRemaining(null)).toBe('—');
+    expect(leaseRemaining(ko, null)).toBe('—');
   });
 });
 

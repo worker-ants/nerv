@@ -4,6 +4,8 @@
 // elicitation 으로 적재된다). 그게 이 화면의 값어치다 — "왜 이 세션이 방향을 틀었나"의 답이
 // 다른 화면에 있으면 아무도 찾아보지 않는다.
 
+import { statusLabelKey } from '@nerv/schema';
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { SteerPanel } from '../../features/session-monitor/steer-panel.js';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -30,6 +32,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 function SessionDetail(): React.JSX.Element {
+  const t = useT();
   const { proj, session } = Route.useParams();
   const detail = useSessionDetail(proj, session);
   const timeline = useSessionTimeline(proj, session);
@@ -45,7 +48,7 @@ function SessionDetail(): React.JSX.Element {
         params={{ proj }}
         className="mb-2 inline-block text-xs text-text-mute hover:text-text"
       >
-        ← 세션 보드
+        {t('session.back_to_board')}
       </Link>
       <PageHeader
         title={
@@ -60,7 +63,7 @@ function SessionDetail(): React.JSX.Element {
           <>
             <StatusBadge
               token={(SESSION_TOKEN[state as keyof typeof SESSION_TOKEN] ?? 'idle') as StatusToken}
-              label={state}
+              label={t(statusLabelKey('session', state))}
             />
             <span className="text-xs text-text-mute">{String(data['agent_type'] ?? '')}</span>
           </>
@@ -70,19 +73,21 @@ function SessionDetail(): React.JSX.Element {
       <div className="flex flex-col gap-4">
         <Card>
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-            <Meta label="브랜치">{String(data['branch'] ?? '—')}</Meta>
-            <Meta label="워크트리">{String(data['worktree_path'] ?? '—')}</Meta>
-            <Meta label="현재 작업">{String(data['current_task_key'] ?? '—')}</Meta>
+            <Meta label={t('session.branch')}>{String(data['branch'] ?? '—')}</Meta>
+            <Meta label={t('session.meta.worktree')}>{String(data['worktree_path'] ?? '—')}</Meta>
+            <Meta label={t('session.meta.current_task')}>
+              {String(data['current_task_key'] ?? '—')}
+            </Meta>
             <Meta label="diff">
               +{String(data['diff_added'] ?? 0)} / -{String(data['diff_removed'] ?? 0)}
             </Meta>
-            <Meta label="모델">{String(data['model'] ?? '—')}</Meta>
-            <Meta label="토큰">{String(usage['total'] ?? '—')}</Meta>
+            <Meta label={t('session.meta.model')}>{String(data['model'] ?? '—')}</Meta>
+            <Meta label={t('session.meta.tokens')}>{String(usage['total'] ?? '—')}</Meta>
           </dl>
         </Card>
 
         <Card>
-          <SectionTitle>개입</SectionTitle>
+          <SectionTitle>{t('sessions.intervene')}</SectionTitle>
           <SteerPanel projectSlug={proj} sessionId={session} state={state} />
         </Card>
 
@@ -116,12 +121,12 @@ function SessionDetail(): React.JSX.Element {
             ))}
           </ol>
           {rows(timeline.data).length === 0 && (
-            <EmptyState icon="·" title="아직 활동이 없습니다." />
+            <EmptyState icon="·" title={t('session.no_activity')} />
           )}
         </section>
 
         <section>
-          <SectionTitle>클레임 이력</SectionTitle>
+          <SectionTitle>{t('session.claim_history')}</SectionTitle>
           <ul className="flex flex-col">
             {rows(data['claims']).map((claim) => (
               <li
@@ -134,7 +139,7 @@ function SessionDetail(): React.JSX.Element {
               </li>
             ))}
             {rows(data['claims']).length === 0 && (
-              <li className="py-1.5 text-sm text-text-faint">없습니다.</li>
+              <li className="py-1.5 text-sm text-text-faint">{t('common.none')}</li>
             )}
           </ul>
         </section>

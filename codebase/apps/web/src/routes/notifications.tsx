@@ -3,10 +3,11 @@
 // 알림은 event 참조다 — 문구를 행에 굳혀 저장하지 않고 조회 시점에 만든다(D-10).
 // 여기서는 "무엇이 · 어디서 · 언제"만 보이면 되고, 자세한 것은 딥링크가 데려간다.
 
+import { eventLabelKey } from '@nerv/schema';
+import { useT } from '../lib/i18n.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api.js';
-import { eventLabel } from '../lib/event-label.js';
 import { relativeTime } from '../lib/format.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { rows, useNotifications } from '../lib/queries.js';
@@ -43,6 +44,7 @@ export function deepLinkFor(n: Record<string, unknown>): string {
 }
 
 function NotificationScreen(): React.JSX.Element {
+  const t = useT();
   const notifications = useNotifications();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -58,19 +60,17 @@ function NotificationScreen(): React.JSX.Element {
   return (
     <PageBody>
       <PageHeader
-        title="알림"
-        description="여기 있는 것은 이미 일어난 일이다 — 내 결정을 기다리는 것은 승인함에 있다."
+        title={t('notif.title')}
+        description={t('notif.lead')}
         meta={
-          unread > 0 ? <StatusBadge token="waiting" label={`읽지 않음 ${unread}`} /> : undefined
+          unread > 0 ? (
+            <StatusBadge token="waiting" label={t('notif.unread_badge', { count: unread })} />
+          ) : undefined
         }
       />
       {notifications.isLoading && <Skeleton rows={5} />}
       {!notifications.isLoading && items.length === 0 && (
-        <EmptyState
-          icon="○"
-          title="알림이 없습니다."
-          hint="스펙 승인·작업 완료·에이전트 질문이 생기면 여기에 쌓입니다."
-        />
+        <EmptyState icon="○" title={t('notif.empty')} hint={t('notif.empty_hint')} />
       )}
       <ul className="flex flex-col">
         {items.map((n) => {
@@ -92,14 +92,14 @@ function NotificationScreen(): React.JSX.Element {
               {/* 읽지 않음은 점 하나로 — 행 전체를 굵게 하면 목록이 소란스러워진다.
                   점만으로 구분하지 않도록 aria-label 을 붙인다(REQ-WEB-033) */}
               <span
-                aria-label={n['state'] === 'unread' ? '읽지 않음' : '읽음'}
+                aria-label={n['state'] === 'unread' ? t('notif.unread') : t('notif.read')}
                 className={cn(
                   'h-1.5 w-1.5 shrink-0 rounded-full',
                   n['state'] === 'unread' ? 'bg-status-action' : 'bg-transparent',
                 )}
               />
               <span className="min-w-0 flex-1 truncate">
-                <span className="font-medium text-text">{eventLabel(type)}</span>
+                <span className="font-medium text-text">{t(eventLabelKey(type))}</span>
                 {key !== '' && <Mono className="ml-2">{key}</Mono>}
               </span>
               <span className="hidden shrink-0 text-xs text-text-mute sm:inline">
@@ -110,7 +110,7 @@ function NotificationScreen(): React.JSX.Element {
                 {n['is_agent'] === true ? ' 🤖' : ''}
               </span>
               <span className="w-16 shrink-0 text-right text-xs text-text-faint">
-                {relativeTime(typeof n['occurred_at'] === 'string' ? n['occurred_at'] : null)}
+                {relativeTime(t, typeof n['occurred_at'] === 'string' ? n['occurred_at'] : null)}
               </span>
               {n['state'] === 'unread' && (
                 <Button
@@ -122,7 +122,7 @@ function NotificationScreen(): React.JSX.Element {
                     markRead.mutate(String(n['id']));
                   }}
                 >
-                  읽음
+                  {t('notif.read')}
                 </Button>
               )}
             </li>

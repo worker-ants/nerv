@@ -4,6 +4,8 @@
 // 증적. 조건 5(스펙 영향)가 clemvion 에서 가장 잘 작동한 규칙의 이식이라, "없음"도 명시적으로
 // 고르게 만든다. 빈 선언을 허용하면 규칙이 사라진다.
 
+import { statusLabelKey } from '@nerv/schema';
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -29,6 +31,7 @@ import type { StatusToken } from '../../components/status-badge.js';
 export const Route = createFileRoute('/p/$proj/tasks/$task')({ component: TaskDetail });
 
 function TaskDetail(): React.JSX.Element {
+  const t = useT();
   const { proj, task } = Route.useParams();
   const detail = useTask(proj, task);
   const project = useProject(proj);
@@ -73,7 +76,10 @@ function TaskDetail(): React.JSX.Element {
       if (typeof projectId === 'string') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId) });
       }
-      pushToast({ tone: 'ok', message: `상태를 ${String(result['status'])} 로 바꿨습니다.` });
+      pushToast({
+        tone: 'ok',
+        message: t('task.status_changed', { status: String(result['status']) }),
+      });
       setRejection(null);
     },
     onError: (error: Error) => {
@@ -95,7 +101,7 @@ function TaskDetail(): React.JSX.Element {
         params={{ proj }}
         className="mb-2 inline-block text-xs text-text-mute hover:text-text"
       >
-        ← 보드
+        {t('task.back_to_board')}
       </Link>
       <PageHeader
         title={String(data['title'] ?? task)}
@@ -104,7 +110,7 @@ function TaskDetail(): React.JSX.Element {
             <Mono>{task}</Mono>
             <StatusBadge
               token={(TASK_TOKEN[status as keyof typeof TASK_TOKEN] ?? 'idle') as StatusToken}
-              label={status}
+              label={t(statusLabelKey('task', status))}
             />
           </>
         }
@@ -112,34 +118,42 @@ function TaskDetail(): React.JSX.Element {
 
       <div className="flex flex-col gap-4">
         <Card>
-          <SectionTitle>위임 명세 4요소</SectionTitle>
+          <SectionTitle>{t('task.brief')}</SectionTitle>
           <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
-            <Element label="① 목표">{String(data['goal_md'] ?? '—')}</Element>
-            <Element label="② 산출물 형식">{String(data['output_format_md'] ?? '—')}</Element>
-            <Element label="③ 도구·출처">{String(data['tools_sources_md'] ?? '—')}</Element>
-            <Element label="④ 경계">{String(data['boundaries_md'] ?? '—')}</Element>
+            <Element label={t('task.brief.goal')}>{String(data['goal_md'] ?? '—')}</Element>
+            <Element label={t('task.brief.output')}>
+              {String(data['output_format_md'] ?? '—')}
+            </Element>
+            <Element label={t('task.brief.tools')}>
+              {String(data['tools_sources_md'] ?? '—')}
+            </Element>
+            <Element label={t('task.brief.boundaries')}>
+              {String(data['boundaries_md'] ?? '—')}
+            </Element>
           </div>
         </Card>
 
         <Card>
-          <SectionTitle>활성 클레임</SectionTitle>
+          <SectionTitle>{t('task.claims')}</SectionTitle>
           <ul className="flex flex-col gap-1">
             {rows(data['claims']).map((claim) => (
               <li key={String(claim['id'])} className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="font-medium">{String(claim['status'])}</span>
-                <span className="font-mono">{String(claim['hostname'] ?? '사람')}</span>
+                <span className="font-mono">
+                  {String(claim['hostname'] ?? t('task.claim_human'))}
+                </span>
                 <span className="text-text-mute">{String(claim['agent_type'] ?? '')}</span>
                 <Mono>{String(claim['external_session_id'] ?? '')}</Mono>
               </li>
             ))}
             {rows(data['claims']).length === 0 && (
-              <li className="text-sm text-text-faint">없습니다.</li>
+              <li className="text-sm text-text-faint">{t('common.none')}</li>
             )}
           </ul>
         </Card>
 
         <Card>
-          <SectionTitle>완료 처리 · done 게이트</SectionTitle>
+          <SectionTitle>{t('task.done_gate')}</SectionTitle>
           <div className="flex flex-col gap-3">
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -147,16 +161,14 @@ function TaskDetail(): React.JSX.Element {
                 checked={specImpactNone}
                 onChange={(e) => setSpecImpactNone(e.target.checked)}
               />
-              스펙 영향 없음
-              <span className="text-xs text-text-faint">
-                — &quot;없음&quot;도 명시적으로 고릅니다. 빈 선언을 허용하면 규칙이 사라집니다
-              </span>
+              {t('task.spec_impact_none')}
+              <span className="text-xs text-text-faint">— {t('task.spec_impact_note')}</span>
             </label>
             {!specImpactNone && (
               <Textarea
                 value={specImpactNote}
                 onChange={(e) => setSpecImpactNote(e.target.value)}
-                placeholder="어떤 스펙이 어떻게 바뀌어야 하는지"
+                placeholder={t('task.spec_impact_placeholder')}
                 rows={2}
               />
             )}
@@ -171,7 +183,7 @@ function TaskDetail(): React.JSX.Element {
               <Input
                 value={evidenceLocator}
                 onChange={(e) => setEvidenceLocator(e.target.value)}
-                placeholder="증적 위치 (PR URL · 커밋 SHA · 테스트 ID)"
+                placeholder={t('task.evidence_placeholder')}
                 className="min-w-0 flex-1"
               />
             </div>
@@ -181,8 +193,9 @@ function TaskDetail(): React.JSX.Element {
                 data-testid="transition-rejected"
                 className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
               >
-                전이 거부 — {rejection.message}
-                {rejection.missing.length > 0 && ` (누락: ${rejection.missing.join(', ')})`}
+                {t('task.transition_rejected', { message: rejection.message })}
+                {rejection.missing.length > 0 &&
+                  t('task.transition_missing', { missing: rejection.missing.join(', ') })}
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
@@ -190,31 +203,35 @@ function TaskDetail(): React.JSX.Element {
                 variant="primary"
                 disabled={status === 'done' || transition.isPending}
                 onClick={() => transition.mutate('done')}
-                title={rejection === null ? undefined : `직전 거부: ${rejection.message}`}
+                title={
+                  rejection === null
+                    ? undefined
+                    : t('task.last_rejection', { message: rejection.message })
+                }
               >
-                완료로 전이
+                {t('task.to_done')}
               </Button>
               <span aria-hidden="true" className="h-5 w-px bg-border" />
               <Input
                 value={blockedReason}
                 onChange={(e) => setBlockedReason(e.target.value)}
-                placeholder="막힌 사유"
+                placeholder={t('task.blocked_reason')}
                 className="w-56"
               />
               <Button
                 variant="danger"
                 disabled={blockedReason.trim() === '' || transition.isPending}
                 onClick={() => transition.mutate('blocked')}
-                title="사유 없는 blocked 는 백로그 부패의 씨앗이다"
+                title={t('task.blocked_reason_title')}
               >
-                막힘으로 전이
+                {t('task.to_blocked')}
               </Button>
             </div>
           </div>
         </Card>
 
         <Card>
-          <SectionTitle>증적</SectionTitle>
+          <SectionTitle>{t('task.evidence')}</SectionTitle>
           <ul className="flex flex-col">
             {rows(data['evidence']).map((e) => (
               <li
@@ -226,7 +243,7 @@ function TaskDetail(): React.JSX.Element {
               </li>
             ))}
             {rows(data['evidence']).length === 0 && (
-              <li className="text-sm text-text-faint">아직 없습니다.</li>
+              <li className="text-sm text-text-faint">{t('common.not_yet')}</li>
             )}
           </ul>
         </Card>

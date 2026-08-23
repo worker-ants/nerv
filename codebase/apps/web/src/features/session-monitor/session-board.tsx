@@ -4,6 +4,8 @@
 // 실시간: project:{id} 룸의 session.* 이벤트가 이 화면의 쿼리를 무효화한다(screens.md §1.4).
 // 재연결하면 전부 재조회한다 — replay 는 없다(D-14).
 
+import { statusLabelKey } from '@nerv/schema';
+import { useT } from '../../lib/i18n.js';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
@@ -19,6 +21,7 @@ export interface SessionBoardProps {
 }
 
 export function SessionBoard({ projectSlug, projectId }: SessionBoardProps): React.JSX.Element {
+  const t = useT();
   const query = useQuery({
     queryKey: queryKeys.projectSessions(projectId),
     queryFn: () => apiFetch<SessionBoardResult>(`/projects/${projectSlug}/sessions`),
@@ -37,10 +40,10 @@ export function SessionBoard({ projectSlug, projectId }: SessionBoardProps): Rea
     return (
       <EmptyState
         icon="⚠"
-        title="세션을 불러오지 못했습니다."
+        title={t('sessions.load_failed')}
         action={
           <Button size="sm" onClick={() => void query.refetch()}>
-            다시 시도
+            {t('common.retry')}
           </Button>
         }
       />
@@ -55,11 +58,12 @@ export function SessionBoard({ projectSlug, projectId }: SessionBoardProps): Rea
     return (
       <EmptyState
         icon="◉"
-        title="실행 중인 세션이 없습니다."
+        title={t('sessions.none_running')}
         hint={
           <>
-            플러그인을 설치하고 <code className="font-mono text-text-mute">nerv_bootstrap</code> 을
-            호출하면 여기 나타납니다.
+            {t('sessions.none_hint_pre')}{' '}
+            <code className="font-mono text-text-mute">nerv_bootstrap</code>
+            {t('sessions.none_hint_post')}
           </>
         }
       />
@@ -84,17 +88,18 @@ export function SessionSummaryStrip({
 }: {
   summary: Record<string, number>;
 }): React.JSX.Element {
+  const t = useT();
   const entries = Object.entries(summary).filter(([, n]) => n > 0);
   return (
     <div className="flex flex-wrap gap-2" data-testid="session-summary">
       {entries.length === 0 ? (
-        <span className="text-xs text-text-faint">세션 없음</span>
+        <span className="text-xs text-text-faint">{t('sessions.no_sessions')}</span>
       ) : (
         entries.map(([state, n]) => (
           <StatusBadge
             key={state}
             token={SESSION_TOKEN[state as keyof typeof SESSION_TOKEN] ?? 'idle'}
-            label={`${state} ${n}`}
+            label={`${t(statusLabelKey('session', state))} ${n}`}
           />
         ))
       )}

@@ -7,6 +7,9 @@
 import { expect, test } from '@playwright/test';
 import { STORAGE_STATE } from './global-setup.js';
 
+// 이 스펙은 한국어 화면을 검사한다 — 기계의 locale 에 따라 대상이 바뀌지 않게 못 박는다
+test.use({ locale: 'ko-KR' });
+
 const EMAIL = `e2e-${Date.now()}@example.com`;
 const PASSWORD = 'nerv-e2e-password';
 

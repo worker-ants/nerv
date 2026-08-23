@@ -4,7 +4,7 @@
 // TaskService 한 곳에 있다 — 클레임 원자성·done 게이트가 REST 와 MCP 에서 갈라질 수 없는 이유다(D-05).
 
 import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -166,7 +166,7 @@ function str(value: unknown): string | null {
 function projectOf(req: ProjectRequest): string {
   const projectId = req.nervProjectId;
   if (projectId === undefined) {
-    throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트가 해소되지 않았습니다.', {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.unresolved'), {
       kind: 'unresolved_project',
     });
   }
@@ -176,7 +176,7 @@ function projectOf(req: ProjectRequest): string {
 function principalOf(req: ProjectRequest): { userId: string } {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   return principal;
 }

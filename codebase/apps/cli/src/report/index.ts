@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 // 실패 리포트 — 정본: docs/04-mvp/importer.md §4.1
 //
 // 리포트의 규칙은 하나다: **파일·줄·사유·건너뜀/중단 구분이 있어야 한다.** 그리고 원문은
@@ -40,32 +41,40 @@ export function exitCode(report: ImportReport): 0 | 1 | 2 {
 /** 사람이 읽는 판 — report.md */
 export function renderMarkdown(report: ImportReport): string {
   const lines: string[] = [
-    `# 임포트 리포트 — ${report.profile}`,
+    t()('cli.report.title', { profile: report.profile }),
     '',
-    `- 원본: \`${report.root}\`${report.rootCommit === null ? '' : ` (\`${report.rootCommit}\`)`}`,
+    t()('cli.report.source', { root: report.root }) +
+      (report.rootCommit === null ? '' : ` (\`${report.rootCommit}\`)`),
     `- 스캔 ${report.scanned}건 · 변환 ${report.converted}건 · 자동 변환율 ${(conversionRate(report) * 100).toFixed(1)}%`,
     '',
   ];
 
   if (report.expectation.length > 0) {
     lines.push(
-      '## 기대 집계 대조',
+      t()('cli.report.expectations'),
       '',
-      '| 항목 | 기대 | 실제 | 판정 |',
+      `| ${t()('cli.report.col_item')} | ${t()('cli.report.col_expected')} | ${t()('cli.report.col_actual')} | ${t()('cli.report.col_verdict')} |`,
       '| --- | --- | --- | --- |',
     );
     for (const e of report.expectation) {
-      lines.push(`| ${e.field} | ${e.expected} | ${e.actual} | ${e.ok ? '일치' : '**불일치**'} |`);
+      lines.push(
+        `| ${e.field} | ${e.expected} | ${e.actual} | ${t()(e.ok ? 'cli.report.match' : 'cli.report.mismatch')} |`,
+      );
     }
     lines.push('');
   }
 
   if (report.entries.length === 0) {
-    lines.push('## 실패·수동 확인', '', '없음.');
+    lines.push(t()('cli.report.failures'), '', t()('cli.report.none'));
     return lines.join('\n');
   }
 
-  lines.push('## 실패·수동 확인', '', '| 파일 | 줄 | 처리 | 사유 |', '| --- | --- | --- | --- |');
+  lines.push(
+    t()('cli.report.failures'),
+    '',
+    `| ${t()('cli.report.col_file')} | ${t()('cli.report.col_line')} | ${t()('cli.report.col_action')} | ${t()('cli.report.col_reason')} |`,
+    '| --- | --- | --- | --- |',
+  );
   for (const entry of report.entries) {
     lines.push(
       `| \`${entry.file}\` | ${entry.line ?? '—'} | ${label(entry.disposition)} | ${entry.reason} |`,
@@ -82,10 +91,10 @@ export function renderJsonl(report: ImportReport): string {
 function label(disposition: Disposition): string {
   switch (disposition) {
     case 'skipped':
-      return '건너뜀';
+      return t()('cli.report.action.skipped');
     case 'aborted':
-      return '**중단**';
+      return t()('cli.report.action.aborted');
     case 'manual':
-      return '수동 확인';
+      return t()('cli.report.action.manual');
   }
 }

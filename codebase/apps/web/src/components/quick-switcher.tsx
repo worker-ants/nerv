@@ -6,6 +6,8 @@
 //
 // 최근 방문·핀은 localStorage 다 — 뷰 상태 등급이고 서버 동기화는 Phase 2(§1.3a).
 
+import { statusLabelKey } from '@nerv/schema';
+import { useT } from '../lib/i18n.js';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api.js';
@@ -71,6 +73,7 @@ export function QuickSwitcher({
   open,
   onClose,
 }: QuickSwitcherProps): React.JSX.Element | null {
+  const t = useT();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<SwitcherHit[]>([]);
@@ -127,7 +130,7 @@ export function QuickSwitcher({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="빠른 이동"
+      aria-label={t('switcher.label')}
       data-testid="quick-switcher"
       className="fixed inset-0 z-50 flex items-start justify-center bg-text/20 pt-[15vh] backdrop-blur-[2px]"
       onClick={onClose}
@@ -153,15 +156,13 @@ export function QuickSwitcher({
               if (hit !== undefined) go(hit);
             }
           }}
-          placeholder="스펙·작업 검색 또는 안정 ID (SPC-… · TSK-…)"
+          placeholder={t('switcher.placeholder')}
           className="w-full border-b border-border bg-transparent px-4 py-3 text-base outline-none placeholder:text-text-faint"
         />
         <ul className="max-h-80 overflow-y-auto py-1">
           {rows.length === 0 && (
             <li className="px-4 py-8 text-center text-sm text-text-faint">
-              {query.trim() === ''
-                ? '최근 방문한 문서가 여기 쌓입니다.'
-                : '결과가 없습니다 — 다른 표현으로 찾아보세요.'}
+              {query.trim() === '' ? t('switcher.recent') : t('switcher.no_results')}
             </li>
           )}
           {rows.map((hit, index) => (
@@ -180,7 +181,7 @@ export function QuickSwitcher({
                       (SPEC_VERSION_TOKEN[hit.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
                         'idle') as StatusToken
                     }
-                    label={hit.doc_status}
+                    label={t(statusLabelKey('spec', hit.doc_status))}
                   />
                 )}
               </button>
@@ -189,9 +190,9 @@ export function QuickSwitcher({
         </ul>
         {/* 이 상자 안에서 이동이 끝난다는 것을 바닥이 말해준다 */}
         <p className="flex gap-3 border-t border-border px-4 py-1.5 text-2xs text-text-faint">
-          <span>↑↓ 이동</span>
-          <span>↵ 열기</span>
-          <span>esc 닫기</span>
+          <span>{t('switcher.key_move')}</span>
+          <span>{t('switcher.key_open')}</span>
+          <span>{t('switcher.key_close')}</span>
         </p>
       </div>
     </div>

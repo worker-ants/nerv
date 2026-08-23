@@ -4,11 +4,25 @@
 // 첫 렌더의 value 는 빈 문자열이다(쿼리가 아직 안 끝났다). 그때 만들어진 빈 문서가
 // 그대로 남으면 스펙 상세 화면은 영영 백지다 — 실제로 그랬고, 그래서 이 테스트가 있다.
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LocaleProvider } from '../../lib/i18n.js';
 import { SpecEditor } from './editor.js';
 
 afterEach(cleanup);
+
+/**
+ * 편집기도 로케일 안에서 산다 — 소스 보기 토글의 문구가 카탈로그에서 온다.
+ * rerender 도 같은 껍질을 다시 씌운다: 벗기면 Provider 가 사라져 두 번째 렌더가 터진다.
+ */
+function render(ui: React.ReactElement) {
+  const result = rtlRender(<LocaleProvider locale="ko">{ui}</LocaleProvider>);
+  return {
+    ...result,
+    rerender: (next: React.ReactElement) =>
+      result.rerender(<LocaleProvider locale="ko">{next}</LocaleProvider>),
+  };
+}
 
 describe('SpecEditor 본문 동기화', () => {
   it('빈 값으로 만들어진 뒤 본문이 도착하면 화면에 뜬다', async () => {

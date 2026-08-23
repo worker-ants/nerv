@@ -4,6 +4,7 @@
 // **어느 탭에 있는지 화면이 말해야 한다.** 링크 세 개를 나란히 두고 활성 표시가 없으면
 // 사람은 매번 주소창을 본다.
 
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { PageBody } from '../../components/ui/primitives.js';
 
@@ -20,19 +21,22 @@ const TAB =
   'data-[status=active]:border-status-action data-[status=active]:font-medium data-[status=active]:text-text';
 
 function SettingsShell(): React.JSX.Element {
+  const t = useT();
   return (
     <PageBody>
       {/* 제목(h1)은 각 탭이 갖는다 — 여기서 "설정"을 h1 으로 쓰면 화면마다 h1 이 둘이 된다 */}
-      <p className="mb-2 text-2xs font-semibold tracking-wide text-text-faint uppercase">설정</p>
+      <p className="mb-2 text-2xs font-semibold tracking-wide text-text-faint uppercase">
+        {t('settings.title')}
+      </p>
       <nav className="mb-5 flex gap-4 border-b border-border">
         <Link to="/settings/members" className={TAB}>
-          멤버·역할
+          {t('settings.tab.members')}
         </Link>
         <Link to="/settings/tokens" className={TAB}>
-          에이전트 토큰
+          {t('settings.tab.tokens')}
         </Link>
         <Link to="/settings/gates" className={TAB}>
-          게이트 정책
+          {t('settings.tab.gates')}
         </Link>
       </nav>
       <Outlet />

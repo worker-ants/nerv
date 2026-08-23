@@ -1,6 +1,6 @@
 // REST — 이벤트 피드 · 알림 (docs/04-mvp/api.md §2.7)
 import { Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -58,7 +58,7 @@ export class EventController {
 function userOf(req: ProjectRequest): string {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   return principal.userId;
 }

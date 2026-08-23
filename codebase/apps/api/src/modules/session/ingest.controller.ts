@@ -10,7 +10,7 @@
 // 훅 하나로 남의 세션을 조작할 수 있다.
 
 import { Body, Controller, Headers, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { AuthService } from '../auth/auth.service.js';
 import { SessionService } from './session.service.js';
@@ -175,7 +175,9 @@ export class IngestController {
 function requireAgent(req: HookRequest): Principal {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '훅 자격증명이 없습니다.', { kind: 'missing' });
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.hook_missing'), {
+      kind: 'missing',
+    });
   }
   return principal;
 }

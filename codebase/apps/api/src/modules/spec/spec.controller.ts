@@ -15,7 +15,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -116,7 +116,9 @@ export class SpecController {
   create(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     return this.specs.draftUpsert({
       projectId: projectOf(req),
@@ -138,7 +140,9 @@ export class SpecController {
   ): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     return this.specs.draftUpsertByKey({
       projectId: projectOf(req),
@@ -154,7 +158,9 @@ export class SpecController {
   submit(@Req() req: ProjectRequest, @Param('ver') ver: string): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     return this.specs.submitReview({
       projectId: projectOf(req),
@@ -224,7 +230,9 @@ export class SpecController {
   ): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     return this.specs.addEvidence({
       projectId: projectOf(req),
@@ -259,7 +267,9 @@ export class SpecController {
   ): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     return this.comments.add({
       projectId: projectOf(req),
@@ -279,7 +289,9 @@ export class SpecController {
   ): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     return this.comments.update({
       projectId: projectOf(req),
@@ -298,7 +310,9 @@ export class SpecController {
   ): Promise<unknown> {
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     return this.comments.resolve({
       projectId: projectOf(req),
@@ -426,7 +440,7 @@ export class SpecController {
 function projectOf(req: ProjectRequest): string {
   const projectId = req.nervProjectId;
   if (projectId === undefined) {
-    throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트가 해소되지 않았습니다.', {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.unresolved'), {
       kind: 'unresolved_project',
     });
   }
@@ -437,10 +451,10 @@ function projectOf(req: ProjectRequest): string {
 function requireHuman(req: ProjectRequest): { userId: string } {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   if (principal.isAgent) {
-    throw new NervError(NERV_ERROR.HUMAN_ONLY, '승인은 사람만 할 수 있습니다.', {
+    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.approve'), {
       kind: 'human_only',
       web_url: '/inbox',
     });

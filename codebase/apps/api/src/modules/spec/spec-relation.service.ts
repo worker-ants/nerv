@@ -9,7 +9,7 @@
 // 미실존 ID 는 오류가 아니라 경고다 — 아직 안 쓴 문서를 미리 참조하는 것은 정상적인 집필 순서다.
 
 import { Injectable } from '@nestjs/common';
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { msg, newId, NERV_ERROR } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -172,7 +172,7 @@ export class SpecRelationService {
     );
     const id = rows[0]?.id;
     if (id === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '스펙을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
         kind: 'not_found',
         spec: key,
       });

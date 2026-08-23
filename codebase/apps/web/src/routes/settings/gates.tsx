@@ -4,6 +4,7 @@
 // **admin 아닌 역할에는 API 와 UI 양쪽이 거부한다**: 여기서는 비활성 + 사유, 서버에서는 403.
 // 둘 중 하나만 있으면 게이트가 우회 가능해지거나 사용자가 이유 없이 막힌다.
 
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -25,6 +26,7 @@ import {
 export const Route = createFileRoute('/settings/gates')({ component: GatesTab });
 
 function GatesTab(): React.JSX.Element {
+  const t = useT();
   const me = useMe();
   const membership = me.data === undefined ? null : primaryMembership(me.data);
   const projectSlug = membership?.project_slug ?? '';
@@ -59,36 +61,30 @@ function GatesTab(): React.JSX.Element {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectSlug) });
-      pushToast({ tone: 'ok', message: '게이트 정책을 저장했습니다.' });
+      pushToast({ tone: 'ok', message: t('settings.gates.saved') });
     },
     onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
   });
 
   return (
     <section className="flex max-w-2xl flex-col gap-5">
-      <PageHeader
-        title="게이트 정책"
-        description="MVP 편집 항목은 spec_gate 3키입니다 — 나머지는 표시 전용입니다."
-      />
+      <PageHeader title={t('settings.tab.gates')} description={t('settings.gates.lead')} />
       {!isAdmin && (
         <p className="rounded-nerv border border-border bg-status-waiting-soft px-3 py-2 text-sm text-status-waiting">
-          게이트 정책 편집은 <code className="font-mono">admin</code> 역할만 가능합니다 — 아래는
-          현재 값입니다.
+          {t('settings.gates.admin_only_pre')} <code className="font-mono">admin</code>{' '}
+          {t('settings.gates.admin_only_post')}
         </p>
       )}
 
       <Card className="flex flex-col gap-4">
-        <Field
-          label="티어 경계 (T1/T2/T3 진입 점수)"
-          hint="4축 합산: 부수효과 · 민감도 · 되돌림 · 폭발 반경"
-        >
+        <Field label={t('settings.gates.boundaries')} hint={t('settings.gates.boundaries_hint')}>
           <Input
             value={boundaries ?? policy.spec_gate.tier_boundaries.join(', ')}
             onChange={(e) => setBoundaries(e.target.value)}
             disabled={!isAdmin}
           />
         </Field>
-        <Field label="T1 이의제기 창(시간)">
+        <Field label={t('settings.gates.objection_hours')}>
           <Input
             type="number"
             value={objectionHours ?? String(policy.spec_gate.t1_objection_hours)}
@@ -106,10 +102,8 @@ function GatesTab(): React.JSX.Element {
             className="mt-1"
           />
           <span>
-            동적 강화
-            <span className="block text-xs text-text-mute">
-              재시도·롤백 이력이 있으면 티어를 한 단계 올린다
-            </span>
+            {t('settings.gates.dynamic')}
+            <span className="block text-xs text-text-mute">{t('settings.gates.dynamic_hint')}</span>
           </span>
         </label>
         <Button
@@ -117,17 +111,19 @@ function GatesTab(): React.JSX.Element {
           className="self-start"
           disabled={!isAdmin || save.isPending}
           onClick={() => save.mutate()}
-          title={isAdmin ? undefined : '이 편집은 admin 역할만 가능합니다'}
+          title={isAdmin ? undefined : t('settings.gates.admin_only_title')}
         >
-          저장
+          {t('common.save')}
         </Button>
       </Card>
 
       <Card>
-        <SectionTitle>fail-open 관측 · 표시 전용</SectionTitle>
+        <SectionTitle>{t('settings.gates.failopen')}</SectionTitle>
         <p className="text-sm text-text-mute">
-          연속 {policy.failopen.escalate_count}회 · {policy.failopen.window_hours}시간 창에서
-          격상합니다. 판정 불가일 때 막지 않고 진행하되 기록하고, 반복되면 올린다(D-14).
+          {t('settings.gates.failopen_body', {
+            count: policy.failopen.escalate_count,
+            hours: policy.failopen.window_hours,
+          })}
         </p>
       </Card>
     </section>

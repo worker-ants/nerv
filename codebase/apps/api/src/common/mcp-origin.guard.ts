@@ -7,7 +7,7 @@
 
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from './nerv-exception.filter.js';
 
 /** URL 에서 스킴+호스트+포트만 남긴다. 파싱 불가면 null. */
@@ -54,7 +54,7 @@ export class McpOriginGuard implements CanActivate {
     const actual = originOf(originHeader);
     if (allowed !== null && actual === allowed) return true;
 
-    throw new NervError(NERV_ERROR.FORBIDDEN, '허용되지 않은 Origin 입니다.', {
+    throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.mcp.bad_origin'), {
       kind: 'mcp_origin',
       origin: originHeader,
       expected: allowed,

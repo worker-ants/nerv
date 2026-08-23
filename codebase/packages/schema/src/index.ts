@@ -11,6 +11,10 @@ export * from './events.js';
 export * from './tables/index.js';
 export * from './zod/index.js';
 
+// i18n — 카탈로그는 순수 선언이고, 번역기는 자리표시자 치환뿐인 순수 함수다(§1.2 예외).
+// 웹·API·CLI 가 같은 문구를 쓰게 하려면 정본이 여기 있어야 한다.
+export * from './i18n/index.js';
+
 // 마이그레이터 — 순수 선언은 아니지만 §1.2 가 허용한 예외다("순수 선언 + 마이그레이터만").
 export { runMigrations, migrationsFolder } from './migrate.js';
 export { runSeed, seedSqlPath } from './seed.js';

@@ -4,6 +4,7 @@
 // stop 은 "지시를 전달한다"가 아니라 "지금 회수한다"이다 — 세션이 이미 죽어 하트비트를 못
 // 치는 것이 stop 을 누르는 가장 흔한 상황이라, 전달을 기다리면 아무 일도 일어나지 않는다.
 
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { SessionBoard } from '../../features/session-monitor/session-board.js';
@@ -16,6 +17,7 @@ import type { SessionCard } from '../../features/session-monitor/types.js';
 export const Route = createFileRoute('/p/$proj/sessions/')({ component: SessionMonitor });
 
 function SessionMonitor(): React.JSX.Element {
+  const t = useT();
   const { proj } = Route.useParams();
   const project = useProject(proj);
   const sessions = useSessions(proj, projectIdOf(project.data));
@@ -31,10 +33,7 @@ function SessionMonitor(): React.JSX.Element {
 
   return (
     <PageBody wide>
-      <PageHeader
-        title="세션 모니터"
-        description="누구의 어느 머신이 무엇을 하고 있는지 — 그리고 멈춰 있다면 왜인지."
-      />
+      <PageHeader title={t('sessions.title')} description={t('sessions.lead')} />
 
       <div className="mb-6">
         <SessionBoard
@@ -45,7 +44,7 @@ function SessionMonitor(): React.JSX.Element {
 
       {cards.length > 0 && (
         <section>
-          <SectionTitle>개입</SectionTitle>
+          <SectionTitle>{t('sessions.intervene')}</SectionTitle>
           <ul className="grid gap-3 md:grid-cols-2">
             {cards.map((card) => (
               <li key={card.id}>

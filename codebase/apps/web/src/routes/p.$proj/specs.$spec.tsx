@@ -4,6 +4,7 @@
 // **버전 · 관계(역참조) · 코멘트 · 승인**이기 때문이다 — "이 문서를 고치면 무엇이 흔들리는가"에
 // 답하지 못하는 편집기는 문서를 고치게 만들지 말아야 한다.
 
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -11,7 +12,7 @@ import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
-import { NERV_ERROR } from '@nerv/schema';
+import { NERV_ERROR, statusLabelKey } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -34,6 +35,7 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({ component: SpecDe
 const LEASE_REFRESH_MS = 60_000;
 
 function SpecDetail(): React.JSX.Element {
+  const t = useT();
   const { proj, spec } = Route.useParams();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
@@ -77,8 +79,8 @@ function SpecDetail(): React.JSX.Element {
         tone: 'ok',
         message:
           unknownRefs.length === 0
-            ? '초안을 저장했습니다.'
-            : `초안 저장 — 아직 없는 참조: ${unknownRefs.join(', ')}`,
+            ? t('spec.saved')
+            : t('spec.saved_unknown_refs', { refs: unknownRefs.join(', ') }),
       });
     },
     onError: (error: Error) => {
@@ -87,7 +89,7 @@ function SpecDetail(): React.JSX.Element {
         return;
       }
       if (error instanceof NervApiError && error.code === NERV_ERROR.DRAFT_LEASED) {
-        setLeaseHolder(String(error.body.details['holder'] ?? '다른 사용자'));
+        setLeaseHolder(String(error.body.details['holder'] ?? t('spec.lease_other_default')));
         return;
       }
       pushToast({ tone: 'warn', message: error.message });
@@ -108,8 +110,8 @@ function SpecDetail(): React.JSX.Element {
         tone: 'ok',
         message:
           result['status'] === 'approved'
-            ? `${gate?.tier ?? 'T0'} — 승인 없이 통과했습니다(이벤트로 기록됨).`
-            : '검토를 요청했습니다.',
+            ? t('spec.gate_passed', { tier: gate?.tier ?? 'T0' })
+            : t('spec.submit_done'),
       });
     },
     onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
@@ -140,20 +142,20 @@ function SpecDetail(): React.JSX.Element {
               (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
                 'idle') as StatusToken
             }
-            label={docStatus}
+            label={t(statusLabelKey('spec', docStatus))}
           />
           <span className="text-xs text-text-mute">
             v{String(detail.data?.['version_no'] ?? '')}
           </span>
           {detail.data?.['basis_superseded'] === true && (
-            <StatusBadge token="waiting" label="이미 지나간 판" />
+            <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
           )}
           {/* 참조 갱신 배지(REQ-WEB-037) — 내가 참조하는 문서가 나보다 앞서 갔다는 신호.
               이게 없으면 낡은 근거 위에서 계속 쓰게 된다 */}
           {relationItems.some((r) => r['direction'] === 'out' && r['doc_status'] === 'approved') &&
             detail.data?.['doc_status'] === 'draft' && (
               <span data-testid="recheck-badge">
-                <StatusBadge token="waiting" label="참조 문서 갱신됨 — 근거를 재확인하세요" />
+                <StatusBadge token="waiting" label={t('spec.recheck')} />
               </span>
             )}
           <Button
@@ -163,7 +165,7 @@ function SpecDetail(): React.JSX.Element {
             onClick={() => setMetaOpen(true)}
             className="ml-auto"
           >
-            ⋯ 메타
+            {t('spec.meta_button')}
           </Button>
         </header>
 
@@ -174,7 +176,7 @@ function SpecDetail(): React.JSX.Element {
             data-testid="lease-badge"
             className="mb-2 rounded-nerv bg-status-action-soft px-3 py-1.5 text-sm text-status-action"
           >
-            ✏️ 편집 중 — {me.data?.display_name ?? '나'} · 웹 · 자동 갱신(30분)
+            {t('spec.lease_mine', { name: me.data?.display_name ?? t('spec.lease_mine_anon') })}
           </div>
         )}
 
@@ -183,7 +185,7 @@ function SpecDetail(): React.JSX.Element {
             data-testid="lease-banner"
             className="mb-2 flex flex-wrap items-center gap-2 rounded-nerv bg-status-waiting-soft px-3 py-1.5 text-sm text-status-waiting"
           >
-            <span>✏️ {leaseHolder} 이(가) 편집 중입니다 — 읽기 전용으로 전환했습니다.</span>
+            <span>{t('spec.lease_other', { name: leaseHolder })}</span>
             <button
               type="button"
               data-testid="handoff-request"
@@ -194,12 +196,12 @@ function SpecDetail(): React.JSX.Element {
                 setHandoffRequested(true);
                 pushToast({
                   tone: 'ok',
-                  message: `${leaseHolder} 에게 인계를 요청했습니다 — 보유자가 놓으면 이어서 쓸 수 있습니다.`,
+                  message: t('spec.handoff_sent', { name: leaseHolder }),
                 });
               }}
               className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 disabled:opacity-50"
             >
-              {handoffRequested ? '요청함' : '인계 요청'}
+              {handoffRequested ? t('spec.handoff_requested') : t('spec.handoff_request')}
             </button>
           </div>
         )}
@@ -209,10 +211,10 @@ function SpecDetail(): React.JSX.Element {
             data-testid="conflict-dialog"
             className="mb-2 rounded-nerv border border-status-danger bg-status-danger-soft px-3 py-2.5 text-sm"
           >
-            <p className="font-medium text-status-danger">저장 충돌 — 기준 버전이 달라졌습니다.</p>
+            <p className="font-medium text-status-danger">{t('spec.conflict_title')}</p>
             <p className="text-text-mute">
-              다른 표면에서 먼저 저장된 내용이 있습니다. 덮어쓰지 않았고,{' '}
-              <b>지금 쓰던 본문도 그대로 남아 있습니다</b> — 아래에서 고르세요.
+              {t('spec.conflict_body_pre')} <b>{t('spec.conflict_body_strong')}</b>
+              {t('spec.conflict_body_post')}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
@@ -226,7 +228,7 @@ function SpecDetail(): React.JSX.Element {
                   void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
                 }}
               >
-                서버 최신 보기(내 편집 버림)
+                {t('spec.conflict_reload')}
               </button>
               <button
                 type="button"
@@ -235,10 +237,10 @@ function SpecDetail(): React.JSX.Element {
                 onClick={() => {
                   // 클립보드가 막힌 환경도 있다 — 실패해도 본문은 화면에 그대로 있다
                   void navigator.clipboard?.writeText(draft ?? body).catch(() => undefined);
-                  pushToast({ tone: 'ok', message: '내 본문을 클립보드에 복사했습니다.' });
+                  pushToast({ tone: 'ok', message: t('spec.conflict_copied') });
                 }}
               >
-                내 본문 복사
+                {t('spec.conflict_copy')}
               </button>
             </div>
           </div>
@@ -253,7 +255,7 @@ function SpecDetail(): React.JSX.Element {
             data-testid="roundtrip-error"
             className="mb-2 rounded-nerv border border-status-danger bg-status-danger-soft px-3 py-2 text-sm text-status-danger"
           >
-            직렬화 왕복이 불안정합니다 — 저장을 막았습니다. 소스 보기로 확인하세요.
+            {t('spec.roundtrip_unstable')}
           </div>
         )}
 
@@ -263,7 +265,7 @@ function SpecDetail(): React.JSX.Element {
             className="mb-3 rounded-nerv border border-border bg-bg-elev p-3 text-sm"
           >
             <h2 className="mb-1.5 text-xs font-semibold tracking-wide text-text-mute uppercase">
-              사전 검토 —{' '}
+              {t('spec.check_title')}{' '}
               <span
                 className={
                   check.data['verdict'] === 'block' ? 'text-status-danger' : 'text-status-waiting'
@@ -314,37 +316,31 @@ function SpecDetail(): React.JSX.Element {
             }
             onClick={() => draft !== null && save.mutate(draft)}
           >
-            저장
+            {t('common.save')}
           </Button>
           <Button
             data-testid="submit-review"
             disabled={
               docStatus !== 'draft' || submit.isPending || check.data?.['verdict'] === 'block'
             }
-            title={
-              check.data?.['verdict'] === 'block'
-                ? '사전 검토에 block 이 있습니다 — 앵커가 가리키는 곳을 먼저 고치세요'
-                : undefined
-            }
+            title={check.data?.['verdict'] === 'block' ? t('spec.submit_blocked') : undefined}
             onClick={() => setShowImpact(true)}
           >
-            검토 요청
+            {t('spec.submit_review')}
           </Button>
           {showImpact && (
             <div
               role="dialog"
-              aria-label="검토 요청 영향"
+              aria-label={t('spec.impact_dialog')}
               data-testid="impact-preview"
               className="w-full rounded-nerv border border-border bg-bg-elev p-3 text-sm"
             >
-              <p className="font-medium">이 변경이 흔드는 것</p>
+              <p className="font-medium">{t('spec.impact_title')}</p>
               <ul className="mt-1 flex flex-col gap-0.5 text-text-mute">
                 {/* 승인 전에 "무엇이 흔들리나"를 보이는 것이 이 화면의 요점이다 —
                     승인하고 나서 알게 되면 되돌리는 비용이 훨씬 크다 */}
-                <li>역참조 문서 {backlinks.length}건 — 승인 시 재확인 요청이 간다</li>
-                <li>
-                  파생 Task {rows(detail.data?.['tasks']).length}건 — 기준 버전이 바뀌면 재브리핑
-                </li>
+                <li>{t('spec.impact_backlinks', { count: backlinks.length })}</li>
+                <li>{t('spec.impact_tasks', { count: rows(detail.data?.['tasks']).length })}</li>
               </ul>
               <div className="mt-2 flex gap-2">
                 <Button
@@ -357,10 +353,10 @@ function SpecDetail(): React.JSX.Element {
                     submit.mutate();
                   }}
                 >
-                  검토 요청 보내기
+                  {t('spec.impact_send')}
                 </Button>
                 <Button size="sm" onClick={() => setShowImpact(false)}>
-                  취소
+                  {t('common.cancel')}
                 </Button>
               </div>
             </div>
@@ -393,7 +389,7 @@ function SpecDetail(): React.JSX.Element {
           본문과 나란히 볼 수 있다 */}
       <aside className="flex flex-col gap-5 text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:self-start">
         <section>
-          <SectionTitle>버전</SectionTitle>
+          <SectionTitle>{t('spec.versions')}</SectionTitle>
           <ul className="flex flex-col gap-1">
             {rows(versions.data)
               .slice(0, 8)
@@ -407,7 +403,7 @@ function SpecDetail(): React.JSX.Element {
                       (SPEC_VERSION_TOKEN[String(v['status']) as keyof typeof SPEC_VERSION_TOKEN] ??
                         'idle') as StatusToken
                     }
-                    label={String(v['status'])}
+                    label={t(statusLabelKey('spec', String(v['status'])))}
                   />
                 </li>
               ))}
@@ -415,8 +411,8 @@ function SpecDetail(): React.JSX.Element {
         </section>
 
         <section>
-          <SectionTitle>역참조 {backlinks.length}건</SectionTitle>
-          <p className="mb-1.5 text-2xs text-text-faint">고치면 흔들리는 문서</p>
+          <SectionTitle>{t('spec.backlinks', { count: backlinks.length })}</SectionTitle>
+          <p className="mb-1.5 text-2xs text-text-faint">{t('spec.backlinks_hint')}</p>
           <ul className="flex flex-col gap-1">
             {backlinks.map((r) => (
               <li key={String(r['spec_id'])}>
@@ -429,12 +425,12 @@ function SpecDetail(): React.JSX.Element {
                 </Link>
               </li>
             ))}
-            {backlinks.length === 0 && <li className="text-text-faint">아직 없습니다.</li>}
+            {backlinks.length === 0 && <li className="text-text-faint">{t('common.not_yet')}</li>}
           </ul>
         </section>
 
         <section>
-          <SectionTitle>코멘트</SectionTitle>
+          <SectionTitle>{t('spec.comments')}</SectionTitle>
           <CommentList
             projectSlug={proj}
             specKey={spec}
@@ -444,7 +440,7 @@ function SpecDetail(): React.JSX.Element {
         </section>
 
         <section className="border-t border-border pt-3 text-2xs text-text-faint">
-          {me.data !== undefined && `보는 사람: ${me.data.display_name}`}
+          {me.data !== undefined && t('spec.viewer', { name: me.data.display_name })}
         </section>
       </aside>
     </div>
@@ -462,6 +458,7 @@ function CommentList({
   versionId: string;
   comments: Record<string, unknown>[];
 }): React.JSX.Element {
+  const t = useT();
   const queryClient = useQueryClient();
   const [anchor, setAnchor] = useState('');
   const [body, setBody] = useState('');
@@ -499,25 +496,27 @@ function CommentList({
               className="mt-1 text-xs text-link hover:underline"
               onClick={() => resolve.mutate(String(c['id']))}
             >
-              해소
+              {t('spec.comment_resolve')}
             </button>
           </li>
         ))}
-        {open.length === 0 && <li className="text-xs text-text-faint">열린 코멘트가 없습니다.</li>}
+        {open.length === 0 && (
+          <li className="text-xs text-text-faint">{t('spec.no_open_comments')}</li>
+        )}
       </ul>
       <div className="mt-1 flex flex-col gap-1.5 border-t border-border pt-2">
         <Input
           value={anchor}
           onChange={(e) => setAnchor(e.target.value)}
-          placeholder="앵커 (헤딩 slug 또는 REQ-…)"
-          aria-label="앵커"
+          placeholder={t('spec.comment_anchor')}
+          aria-label={t('spec.comment_anchor_label')}
           className="h-7 text-xs"
         />
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="코멘트"
-          aria-label="코멘트"
+          placeholder={t('spec.comments')}
+          aria-label={t('spec.comments')}
           rows={2}
           className="text-xs"
         />
@@ -527,7 +526,7 @@ function CommentList({
           onClick={() => add.mutate()}
           className="self-start"
         >
-          코멘트 달기
+          {t('spec.comment_add')}
         </Button>
       </div>
     </div>

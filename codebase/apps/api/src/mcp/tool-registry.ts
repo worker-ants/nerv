@@ -5,6 +5,7 @@
 // 거친다(D-05 · REQ-CB-003). zod 입력 검증·idempotency_key 공통 처리와 Streamable HTTP
 // 프로토콜은 E03-S01·E03-S04 가 이 레지스트리 위에 얹는다.
 
+import type { MessageKey } from '@nerv/schema';
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 import { DiscoveryService } from '@nestjs/core';
@@ -20,7 +21,16 @@ export interface NervToolDefinition {
   readonly tier: ToolTier;
   readonly phase: 'P0' | 'P1';
   /** 한 줄 설명(카탈로그의 호출 시점) */
-  readonly summary: string;
+  /**
+   * 언제 이 도구를 쓰는가 — MCP `tools/list` 의 description 이 된다.
+   *
+   * 문장이 아니라 **키**인 이유는 이 정의가 정적 객체이기 때문이다. 문장을 박아 두면
+   * 요청 로케일이 무엇이든 같은 말이 나간다 — 문장은 로케일을 아는 컨트롤러가 만든다.
+   *
+   * 네임스페이스로 좁히는 이유: 이 자리의 문구에는 자리표시자가 없어야 한다(도구 설명은
+   * 값을 받지 않는다). `mcp.tool.*` 로 제한하면 그 사실이 타입으로 지켜진다.
+   */
+  readonly summaryKey: MessageKey & `mcp.tool.${string}`;
   /** 필요 권한 — agent-integration §2.3 "필요 권한" 열과 1:1. 게이트웨이가 호출 전에 검사한다 */
   readonly scope: AgentScope;
   /** 입력 JSON Schema — MCP tools/list 가 그대로 노출한다 */

@@ -13,7 +13,7 @@ export class QuestionTools implements NervToolProvider {
       name: 'nerv_question_create',
       tier: 'A2',
       phase: 'P1',
-      summary: '판단 불가·경계 이탈·게이트 필요',
+      summaryKey: 'mcp.tool.escalate',
       scope: 'task:update',
       inputSchema: {
         type: 'object',

@@ -6,6 +6,7 @@
 // 메모리 히스토리로 같은 라우트 트리를 태워 확인한다. 화면 실물은 E08 이 채우지만,
 // **경로·가드·셸**이 먼저 서 있어야 딥링크와 사이드바 조건 렌더가 검증 가능하다.
 
+import { LocaleProvider } from '../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
@@ -33,11 +34,13 @@ function renderAt(path: string) {
   return {
     router,
     ...render(
-      <QueryClientProvider client={client}>
-        <RealtimeProvider>
-          <RouterProvider router={router} />
-        </RealtimeProvider>
-      </QueryClientProvider>,
+      <LocaleProvider locale="ko">
+        <QueryClientProvider client={client}>
+          <RealtimeProvider>
+            <RouterProvider router={router} />
+          </RealtimeProvider>
+        </QueryClientProvider>
+      </LocaleProvider>,
     ),
   };
 }

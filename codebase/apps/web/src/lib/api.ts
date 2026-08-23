@@ -4,6 +4,7 @@
 // 화면이 `code` 로 분기할 수 있게 한다 — 화면별 UI 매핑은 screens.md §1.5 표가 정본이다.
 // 인증은 세션 쿠키라 credentials: 'include' 면 충분하다(웹은 PAT 를 쓰지 않는다).
 
+import { acceptLanguageHeader } from './i18n.js';
 import type { NervErrorCode } from '@nerv/schema';
 
 export interface NervErrorBody {
@@ -42,7 +43,11 @@ const BASE = '/api/v1';
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, idempotencyKey, signal } = options;
 
-  const headers: Record<string, string> = { accept: 'application/json' };
+  // 화면과 응답이 같은 언어여야 한다 — 봉투의 message 는 서버가 이 헤더를 보고 만든다
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    'accept-language': acceptLanguageHeader(),
+  };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (idempotencyKey !== undefined) headers['Idempotency-Key'] = idempotencyKey;
 

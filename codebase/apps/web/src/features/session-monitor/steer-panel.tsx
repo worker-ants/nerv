@@ -5,6 +5,7 @@
 //   stop  — 전달과 **무관하게** 서버가 즉시 클레임을 회수한다. 그래서 죽은 세션에도 듣는다
 // 이 구분을 숨기면 사람은 steer 를 누르고 즉시 멈추길 기대하다 다시 누르게 된다.
 
+import { useT } from '../../lib/i18n.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
@@ -19,6 +20,7 @@ export interface SteerPanelProps {
 }
 
 export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): React.JSX.Element {
+  const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const [message, setMessage] = useState('');
@@ -41,9 +43,7 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
       pushToast({
         tone: 'ok',
         message:
-          kind === 'stop'
-            ? `중단 요청 — 클레임 ${result.reclaimed}건을 회수했습니다.`
-            : '지시를 보냈습니다. 다음 하트비트에 전달됩니다.',
+          kind === 'stop' ? t('steer.stopped', { count: result.reclaimed }) : t('steer.sent'),
       });
     },
     onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
@@ -54,18 +54,18 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
       <Input
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        placeholder="지시 (예: 스펙 SPC-CWC-007 을 먼저 확인하세요)"
+        placeholder={t('steer.placeholder')}
         disabled={finished}
-        aria-label="지시"
+        aria-label={t('steer.label')}
       />
       <div className="flex items-center gap-2">
         <Button
           size="sm"
           disabled={finished || send.isPending || message.trim() === ''}
           onClick={() => send.mutate('steer')}
-          title="다음 하트비트에 실려 전달됩니다"
+          title={t('steer.send_title')}
         >
-          지시 보내기
+          {t('steer.send')}
         </Button>
         <Button
           size="sm"
@@ -73,31 +73,28 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
           data-testid="stop-button"
           disabled={finished || send.isPending}
           onClick={() => setConfirming(true)}
-          title="즉시 클레임을 회수하고 작업을 ready 로 되돌립니다"
+          title={t('steer.stop_title')}
         >
-          중단
+          {t('steer.stop')}
         </Button>
-        {finished && <span className="text-xs text-text-faint">종료된 세션입니다</span>}
+        {finished && <span className="text-xs text-text-faint">{t('steer.finished')}</span>}
       </div>
 
       {confirming && (
         <div
           role="dialog"
-          aria-label="세션 중단 확인"
+          aria-label={t('steer.confirm_dialog')}
           data-testid="stop-confirm"
           className="rounded-nerv border border-status-danger bg-status-danger-soft p-3 text-sm"
         >
-          <p className="font-medium text-status-danger">이 세션을 중단합니다</p>
-          <p className="mt-1 text-xs text-text-mute">
-            활성 클레임이 즉시 회수되고 작업은 ready 로 돌아갑니다. 사유는 세션 타임라인에 남아
-            상대가 무엇 때문에 끊겼는지 알 수 있습니다.
-          </p>
+          <p className="font-medium text-status-danger">{t('steer.confirm_title')}</p>
+          <p className="mt-1 text-xs text-text-mute">{t('steer.confirm_body')}</p>
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="중단 사유 (필수)"
+            placeholder={t('steer.reason')}
             data-testid="stop-reason"
-            aria-label="중단 사유"
+            aria-label={t('steer.reason_label')}
             className="mt-2"
           />
           <div className="mt-2 flex gap-2">
@@ -108,10 +105,10 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
               onClick={() => send.mutate('stop')}
               className="border-transparent bg-status-danger text-white hover:opacity-90"
             >
-              중단 실행
+              {t('steer.confirm_stop')}
             </Button>
             <Button size="sm" onClick={() => setConfirming(false)}>
-              취소
+              {t('common.cancel')}
             </Button>
           </div>
         </div>

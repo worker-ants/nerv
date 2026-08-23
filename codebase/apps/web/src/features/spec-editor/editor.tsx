@@ -8,6 +8,7 @@
 // 초안을 오갈 때마다 정규화 차이만으로 diff 가 생기고, 그러면 버전 이력이 거짓말을 시작한다.
 // 이 실측이 Milkdown 재검토 트리거의 입력이기도 하다(scope.md §2).
 
+import { useT } from '../../lib/i18n.js';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
@@ -42,6 +43,7 @@ export interface SpecEditorProps {
 }
 
 export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): React.JSX.Element {
+  const t = useT();
   const [showSource, setShowSource] = useState(false);
   /**
    * 바깥에서 마지막으로 밀어 넣은 본문. 두 가지를 이걸로 가른다:
@@ -95,10 +97,10 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
           onClick={() => setShowSource((s) => !s)}
           className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 hover:bg-bg-hover"
         >
-          {showSource ? '편집 보기' : '소스 보기'}
+          {showSource ? t('spec.editor.rich') : t('spec.editor.source')}
         </button>
         {/* 소스는 read-only 토글이다 — 소스를 직접 고치는 경로는 MVP 에 없다(§3.1) */}
-        {showSource && <span className="text-text-faint">읽기 전용 — 편집은 터미널 경로로</span>}
+        {showSource && <span className="text-text-faint">{t('spec.editor.source_readonly')}</span>}
       </div>
 
       {showSource ? (

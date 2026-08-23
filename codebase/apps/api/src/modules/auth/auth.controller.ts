@@ -4,7 +4,7 @@
 // 여기의 403 이 **같은 규칙의 두 표현**이어야 하고, 규칙이 두 벌이면 그중 하나는 반드시 틀린다.
 
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -126,14 +126,14 @@ export class AuthController {
     const principal = principalOf(req);
     // PAT 가 PAT 를 발급하는 경로는 막는다 — 스코프 상속의 사슬이 사람에서 시작해야 한다(D-08).
     if (principal.isAgent) {
-      throw new NervError(NERV_ERROR.HUMAN_ONLY, '토큰 발급은 사람만 할 수 있습니다.', {
+      throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.token_issue'), {
         kind: 'human_only',
         web_url: '/settings/tokens',
       });
     }
     const project = await this.auth.resolveProject(String(body['project'] ?? ''));
     if (project === null) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',
         project: body['project'],
       });
@@ -191,7 +191,7 @@ function str(value: unknown): string | null {
 function principalOf(req: ProjectRequest): Principal {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   return principal;
 }
@@ -199,7 +199,7 @@ function principalOf(req: ProjectRequest): Principal {
 function roleOf(req: ProjectRequest): MembershipRole {
   const role = req.nervRole;
   if (role === undefined) {
-    throw new NervError(NERV_ERROR.FORBIDDEN, '역할이 확인되지 않았습니다.', { kind: 'no_role' });
+    throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.no_role'), { kind: 'no_role' });
   }
   return role;
 }

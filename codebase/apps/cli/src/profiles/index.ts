@@ -3,6 +3,7 @@
 // 프로파일은 **클라이언트 것이다**(importer.md §1.4 경계 1). 서버는 해석하지 않고 이름만
 // 기록한다 — 서버가 원본 파일도 파싱 규칙도 알 필요가 없다는 것이 §3.2 구조의 전제다.
 
+import { t } from '../i18n.js';
 import { readFileSync } from 'node:fs';
 import { importProfileSchema } from '@nerv/schema';
 import type { ImportProfile } from '@nerv/schema';
@@ -18,7 +19,10 @@ export function loadBuiltin(name: string): ImportProfile {
   const profile = BUILTIN_PROFILES[name];
   if (profile === undefined) {
     throw new Error(
-      `알 수 없는 내장 프로파일: ${name} (사용 가능: ${Object.keys(BUILTIN_PROFILES).join(', ')})`,
+      t()('cli.err.unknown_profile', {
+        name,
+        available: Object.keys(BUILTIN_PROFILES).join(', '),
+      }),
     );
   }
   return profile;
@@ -33,7 +37,9 @@ export function loadProfileFile(path: string): ImportProfile {
   const parsed: unknown = path.endsWith('.json') ? JSON.parse(raw) : parseSimpleYaml(raw);
   const result = importProfileSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(`프로파일 스키마 위반 (${path}): ${JSON.stringify(result.error.issues)}`);
+    throw new Error(
+      t()('cli.err.profile_schema', { path, issues: JSON.stringify(result.error.issues) }),
+    );
   }
   return result.data;
 }
@@ -57,7 +63,7 @@ export function parseSimpleYaml(text: string): unknown {
     const parent = stack.at(-1)?.node ?? root;
 
     const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(content);
-    if (match === null) throw new Error(`프로파일 YAML 을 해석하지 못했습니다: ${content}`);
+    if (match === null) throw new Error(t()('cli.err.profile_yaml', { content }));
 
     const [, key, value] = match;
     if (key === undefined) continue;

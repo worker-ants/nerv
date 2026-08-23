@@ -52,7 +52,7 @@
     <h1>스펙 임포터</h1>
     <p class="lead">기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 <b>프로파일 기반 범용 임포터</b>의 확정판. 대상별 차이는 프로파일(§1.4)이 흡수하고 엔진은 하나다 — 내장 프로파일은 <code>clemvion</code>(FR-17 대상: 순수 스펙 135 md + plan 450 md)과 <code>nerv-docs</code>(도그푸딩) 2종이며, 다른 저장소는 프로파일 파일을 얹는다. 실행 모델은 <b>읽기는 클라이언트, 쓰기는 API</b>(2026-08-22 확정) — 원본 체크아웃이 있는 장비의 CLI가 파싱·리포트를 만들고(dry-run은 서버 없이 완결), <code>--apply</code>만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. 수용 기준은 REQ-IMP-001~017.</p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-08-22)</span>
+      <span>버전 v0.4 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
     </div>
@@ -494,6 +494,17 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
     <li>중단(abort) 발생 시 이미 커밋된 파일 트랜잭션은 남는다 — 멱등 재실행이 이어서 처리하는 것이 복구 절차다.</li>
     <li><b>전송 실패는 중복 적재를 만들지 않는다.</b> 배치마다 <code>Idempotency-Key</code>(매니페스트 항목 해시 기반)를 붙이므로 타임아웃 후 재전송은 최초 응답의 재생이다(<a href="api.html">4.4 API 명세</a> §1.5, REQ-IMP-013).</li>
   </ul>
+
+  <h3>3.5a 출력 언어 (2026-08-23 신설)</h3>
+
+  <p>CLI 는 <b>서버 없이도 돈다</b>(dry-run 은 <code>--server</code> 없이 완주한다 — REQ-IMP-011). 그래서 로케일을 실어 올 <code>Accept-Language</code> 가 없고, 환경변수를 본다: <code>NERV_LANG</code> → <code>LC_ALL</code> → <code>LC_MESSAGES</code> → <code>LANG</code>. 모르는 값이면 기본값 <code>ko</code>다. 문구 카탈로그의 정본은 <a href="codebase.html">4.2 코드베이스와 배포</a> §3.4이며, stdout 한 줄과 <b>리포트 본문</b>(<code>report.md</code> 의 제목·표 머리·판정·사유)이 같은 로케일을 따른다.</p>
+
+  <p><code>NERV_LANG</code> 이 POSIX 변수를 이기는 이유는 하나다 — 시스템 전체는 한국어로 쓰면서 이 도구의 리포트만 영어로 받고 싶을 수 있다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody><tr><td>REQ-IMP-018</td><td>WHEN CLI 가 출력·리포트를 만들 때 THE SYSTEM SHALL 환경변수로 정한 로케일의 문구를 쓰고, 미지원 값이면 기본 로케일로 떨어진다</td></tr></tbody>
+  </table></div>
 
   <h3>3.6 래퍼 스킬 — <code>/nerv:import</code></h3>
 

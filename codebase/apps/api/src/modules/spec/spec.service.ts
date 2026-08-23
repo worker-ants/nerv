@@ -8,7 +8,7 @@
 // 카탈로그에 대응 도구가 처음부터 없다(agent-integration §2.1 원칙 3).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
@@ -106,7 +106,7 @@ export class SpecService {
     `);
     const spec = rows[0];
     if (spec === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '스펙을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
         kind: 'not_found',
         spec: input.specKey,
       });
@@ -140,13 +140,9 @@ export class SpecService {
 
       if (specId === null) {
         if (input.key === undefined || input.title === undefined || input.type === undefined) {
-          throw new NervError(
-            NERV_ERROR.PRECONDITION,
-            '새 스펙에는 key·title·type 이 필요합니다.',
-            {
-              kind: 'missing_meta',
-            },
-          );
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.missing_fields'), {
+            kind: 'missing_meta',
+          });
         }
         specId = newId();
         await tx.execute(sql`
@@ -166,7 +162,7 @@ export class SpecService {
 
       // base_version 전제조건 — 불일치는 409. 리스가 뚫려도 여기서 막힌다
       if (input.baseVersionId != null && draft !== null && draft.id !== input.baseVersionId) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '기준 버전이 현재 초안과 다릅니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.base_version_stale'), {
           kind: 'base_version',
           expected: draft.id,
           received: input.baseVersionId,
@@ -260,7 +256,7 @@ export class SpecService {
     );
     const specId = rows[0]?.id;
     if (specId === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '스펙을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
         kind: 'not_found',
         spec: input.specKey,
       });
@@ -308,15 +304,19 @@ export class SpecService {
       `);
       const version = rows[0];
       if (version === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '초안을 찾을 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.draft_not_found'), {
           kind: 'not_found',
         });
       }
       if (version.status !== 'draft') {
-        throw new NervError(NERV_ERROR.PRECONDITION, `draft 가 아닙니다(${version.status}).`, {
-          kind: 'not_draft',
-          status: version.status,
-        });
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.spec.not_draft', { status: version.status }),
+          {
+            kind: 'not_draft',
+            status: version.status,
+          },
+        );
       }
 
       // 사전 검토 — block 이 있으면 제출 자체가 막힌다(§1.2 전이 가드).
@@ -326,7 +326,7 @@ export class SpecService {
         specVersionId: input.specVersionId,
       });
       if (check.verdict === 'block') {
-        throw new NervError(NERV_ERROR.PRECONDITION, '사전 검토에서 차단 항목이 발견됐습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.check_blocked'), {
           kind: 'precheck_blocked',
           findings: check.findings.filter((f) => f.severity === 'block'),
         });
@@ -417,7 +417,7 @@ export class SpecService {
       `);
       const version = rows[0];
       if (version === undefined || version.status !== 'in_review') {
-        throw new NervError(NERV_ERROR.PRECONDITION, 'in_review 상태가 아닙니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_in_review'), {
           kind: 'not_in_review',
           status: version?.status ?? null,
         });
@@ -451,7 +451,7 @@ export class SpecService {
         RETURNING id
       `);
       if (rows.length === 0) {
-        throw new NervError(NERV_ERROR.PRECONDITION, 'in_review 상태가 아닙니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_in_review'), {
           kind: 'not_in_review',
         });
       }
@@ -520,7 +520,7 @@ export class SpecService {
       } else if (input.parentKey != null) {
         const parent = await this.requireSpec(tx, input.projectId, input.parentKey);
         if (await this.isDescendant(tx, spec.id, parent.id)) {
-          throw new NervError(NERV_ERROR.PRECONDITION, '자기 하위로는 이동할 수 없습니다.', {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.cycle'), {
             kind: 'tree_cycle',
             spec: input.specKey,
             parent: input.parentKey,
@@ -531,7 +531,7 @@ export class SpecService {
       }
 
       if (changed.length === 0) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '변경할 필드가 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.no_changes'), {
           kind: 'no_fields',
         });
       }
@@ -580,7 +580,7 @@ export class SpecService {
         ...claimed.map((t) => ({ kind: 'active_claim', key: t.key })),
       ];
       if (blockers.length > 0) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '아카이브할 수 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.archive_blocked'), {
           kind: 'archive_blocked',
           blockers,
         });
@@ -612,7 +612,7 @@ export class SpecService {
           sql`SELECT archived_at, key FROM spec WHERE id = ${spec.parent_id}`,
         );
         if (rows[0]?.archived_at != null) {
-          throw new NervError(NERV_ERROR.PRECONDITION, '부모가 아카이브 상태입니다.', {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.parent_archived'), {
             kind: 'parent_archived',
             parent: rows[0].key,
           });
@@ -663,7 +663,7 @@ export class SpecService {
   }): Promise<Record<string, unknown>> {
     const versions = await this.versions(input);
     if (versions.length === 0) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '스펙을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
         kind: 'not_found',
         spec: input.specKey,
       });
@@ -675,7 +675,7 @@ export class SpecService {
       const found =
         no == null ? versions[fallbackIndex] : versions.find((v) => v['version_no'] === no);
       if (found === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, '요청한 버전이 없습니다.', {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_missing'), {
           kind: 'not_found',
           version: no,
         });
@@ -828,7 +828,7 @@ export class SpecService {
     `);
     const requirement = rows[0];
     if (requirement === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '요구사항을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.requirement.not_found'), {
         kind: 'not_found',
         ref: input.ref,
       });
@@ -981,7 +981,7 @@ export class SpecService {
     );
     const spec = rows[0];
     if (spec === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '스펙을 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
         kind: 'not_found',
         spec: key,
       });
@@ -1040,7 +1040,7 @@ export class SpecService {
     if (expires !== null && expires.getTime() <= Date.now()) return; // 만료 — 비어 있다
     if (holder === userId) return; // 같은 사용자 — 표면 간 자동 인계
 
-    throw new NervError(NERV_ERROR.DRAFT_LEASED, '다른 사용자가 이 초안을 편집 중입니다.', {
+    throw new NervError(NERV_ERROR.DRAFT_LEASED, msg('error.spec.draft_leased'), {
       kind: 'draft_leased',
       holder_user_id: holder,
       expires_at: expires?.toISOString() ?? null,
@@ -1186,7 +1186,7 @@ export class SpecService {
       this.logger.warn(`소규모 완화 — 멤버 ${members}인이라 자기 승인을 허용한다(감사 기록됨)`);
       return;
     }
-    throw new NervError(NERV_ERROR.FORBIDDEN, '작성자는 자기 스펙을 승인할 수 없습니다.', {
+    throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.self_approve_spec'), {
       kind: 'self_approval',
       author_user_id: authorUserId,
     });

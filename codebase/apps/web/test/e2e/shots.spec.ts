@@ -9,6 +9,7 @@ const SCHEME = process.env['NERV_SHOT_SCHEME'] === 'dark' ? 'dark' : 'light';
 test.use({
   storageState: STORAGE_STATE,
   viewport: { width: 1440, height: 900 },
+  locale: 'ko-KR',
   colorScheme: SCHEME,
 });
 

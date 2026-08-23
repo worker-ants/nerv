@@ -8,6 +8,7 @@
 // dry-run 은 ①~③ 을 전부 계산하되 서버를 부르지 않는다. `--server` 가 있으면 preflight 까지
 // 수행해 자연 키 충돌을 미리 본다(REQ-IMP-011).
 
+import { t } from './i18n.js';
 import { basename, dirname } from 'node:path';
 import type { ImportProfile, ImportSpecItem, ImportTaskItem } from '@nerv/schema';
 import { ImportClient } from './client/index.js';
@@ -78,7 +79,7 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
           entries.push({
             file: item.source_path,
             line: null,
-            reason: item.detail ?? '적재 실패',
+            reason: item.detail ?? t()('cli.reason.load_failed'),
             disposition: 'manual',
           });
         }
@@ -119,7 +120,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       entries.push({
         file: file.path,
         line: null,
-        reason: classified.note ?? '참고 문서',
+        reason: classified.note ?? t()('cli.reason.reference_doc'),
         disposition: 'skipped',
       });
       statusCounts['reference'] = (statusCounts['reference'] ?? 0) + 1;
@@ -167,7 +168,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
         entries.push({
           file: item.source_path,
           line: null,
-          reason: item.detail ?? '적재 실패',
+          reason: item.detail ?? t()('cli.reason.load_failed'),
           disposition: 'manual',
         });
       }
@@ -191,9 +192,9 @@ function checkPlanExpectations(
     results.push({ field: 'plan_total', expected: expect.plan_total, actual: scanned, ok });
     if (!ok) {
       entries.push({
-        file: '(집계)',
+        file: t()('cli.report.aggregate'),
         line: null,
-        reason: `plan_total 불일치 — 기대 ${expect.plan_total} · 실제 ${scanned}`,
+        reason: t()('cli.reason.plan_total', { expected: expect.plan_total, actual: scanned }),
         disposition: 'aborted',
       });
     }
@@ -225,7 +226,7 @@ function convert(
     entries.push({
       file: file.path,
       line: null,
-      reason: `status_map 에 없는 값: ${rawStatus}`,
+      reason: t()('cli.reason.unknown_status', { value: rawStatus }),
       disposition: 'manual',
     });
     return null;
@@ -302,9 +303,9 @@ function checkExpectations(
     results.push({ field: 'spec_total', expected: expect.spec_total, actual: scanned, ok });
     if (!ok) {
       entries.push({
-        file: '(집계)',
+        file: t()('cli.report.aggregate'),
         line: null,
-        reason: `spec_total 불일치 — 기대 ${expect.spec_total} · 실제 ${scanned}`,
+        reason: t()('cli.reason.spec_total', { expected: expect.spec_total, actual: scanned }),
         disposition: 'aborted',
       });
     }
@@ -317,9 +318,9 @@ function checkExpectations(
     if (!ok) {
       // 분포 불일치는 warn 이다 — 중단시키지 않는다
       entries.push({
-        file: '(집계)',
+        file: t()('cli.report.aggregate'),
         line: null,
-        reason: `status 분포 불일치 — ${status} 기대 ${expected} · 실제 ${actual}`,
+        reason: t()('cli.reason.status_dist', { status, expected, actual }),
         disposition: 'skipped',
       });
     }

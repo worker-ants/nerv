@@ -6,18 +6,28 @@
 
 import { Catch, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
-import type { NervErrorCode } from '@nerv/schema';
+import { DEFAULT_LOCALE, NERV_ERROR, negotiateLocale, renderMessage } from '@nerv/schema';
+import type { Locale, Message, NervErrorCode } from '@nerv/schema';
 
-/** 도메인·표면이 던지는 NERV 에러. code 가 곧 HTTP 상태를 정한다(아래 매핑). */
+/**
+ * 도메인·표면이 던지는 NERV 에러. code 가 곧 HTTP 상태를 정한다(아래 매핑).
+ *
+ * 두 번째 인자가 문장이 아니라 **`Message`(키 + 값)** 인 것이 i18n 의 요점이다. 에러를 던지는
+ * 곳은 도메인 서비스이고 거기서는 요청 로케일을 모른다 — 알아야 한다면 판정과 표현이 한
+ * 서비스에 섞이고, 그건 D-05 가 금지하는 것이다. 로케일을 아는 것은 HTTP 표면(아래 필터)뿐이라
+ * 문장은 거기서 만든다.
+ *
+ * `Error.message` 에는 기본 로케일(ko) 렌더링을 담는다 — 로그·스택트레이스가 키만 남으면
+ * 사람이 못 읽는다.
+ */
 export class NervError extends Error {
   constructor(
     readonly code: NervErrorCode,
-    message: string,
+    readonly descriptor: Message,
     readonly details: Record<string, unknown> = {},
     readonly retryAfterSeconds: number | null = null,
   ) {
-    super(message);
+    super(renderMessage(descriptor, DEFAULT_LOCALE));
     this.name = 'NervError';
   }
 }
@@ -71,7 +81,10 @@ export class NervExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(NervExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    const { status, body } = this.translate(exception);
+    // 로케일은 요청에서 온다 — 서비스는 몰랐고, 여기서만 안다
+    const req = host.switchToHttp().getRequest<{ headers?: Record<string, unknown> }>();
+    const locale = negotiateLocale(headerOf(req?.headers, 'accept-language'));
+    const { status, body } = this.translate(exception, locale);
     const res = host.switchToHttp().getResponse<{
       status(code: number): { send(payload: unknown): void };
       header(name: string, value: string): void;
@@ -80,14 +93,14 @@ export class NervExceptionFilter implements ExceptionFilter {
     res.status(status).send(body);
   }
 
-  private translate(exception: unknown): { status: number; body: NervErrorBody } {
+  private translate(exception: unknown, locale: Locale): { status: number; body: NervErrorBody } {
     if (exception instanceof NervError) {
       return {
         status: statusFor(exception.code, exception.details),
         body: {
           ok: false,
           code: exception.code,
-          message: exception.message,
+          message: renderMessage(exception.descriptor, locale),
           details: exception.details,
           retry_after_s: exception.retryAfterSeconds,
           next_actions: [],
@@ -139,4 +152,12 @@ export class NervExceptionFilter implements ExceptionFilter {
       },
     };
   }
+}
+
+/** 헤더 한 개를 문자열로 — Fastify 는 중복 헤더를 배열로 준다 */
+function headerOf(headers: Record<string, unknown> | undefined, name: string): string | null {
+  const raw = headers?.[name];
+  if (typeof raw === 'string') return raw;
+  if (Array.isArray(raw) && typeof raw[0] === 'string') return raw[0];
+  return null;
 }

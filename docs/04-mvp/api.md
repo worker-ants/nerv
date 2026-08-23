@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 15종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.7 · 2026-08-22 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.8 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
+>
+> v0.8 변경(2026-08-23): §1.4 에 **`Accept-Language` 협상** 규약 추가 — 봉투의 `message` 는 요청 로케일로 만들고 `code`·`details` 는 로케일과 무관하다. MCP 표면(도구 설명·구조화 에러)도 같은 규칙을 따른다. 신설 요구 REQ-API-030. 카탈로그 정본은 [4.2](codebase.md) §3.4. 다른 계약은 불변.
 >
 > v0.7 변경(2026-08-22): §2.2b ③의 임베딩 호출을 **OpenAI 호환 `/v1/embeddings` 제공자 추상화**로 개정 — 제공자는 env 프로필(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI, 정본 [4.2](codebase.md) §5.2a). 파이프라인·degrade 규칙은 불변.
 >
@@ -103,7 +105,11 @@ flowchart LR
 }
 ```
 
-`next_actions`는 MCP 표면에서 채워지는 필드이며 REST 응답에서는 빈 배열을 허용한다. HTTP 상태 매핑:
+`next_actions`는 MCP 표면에서 채워지는 필드이며 REST 응답에서는 빈 배열을 허용한다.
+
+**`message`는 요청 로케일로 만든다**(2026-08-23 — 정본: [4.2 코드베이스와 배포](codebase.md) §3.4). 요청의 `Accept-Language`를 협상해 지원 로케일(`ko`·`en`)로 떨어뜨리고, 없거나 모르는 언어면 기본값 `ko`다. **`code`와 `details`는 로케일과 무관하다** — 기계가 읽는 값이라 번역하면 클라이언트의 분기가 깨진다. 같은 규칙이 MCP 표면에도 적용된다(도구 설명·구조화 에러). 협상 실패가 오류가 되지 않는다는 것이 규약이다.
+
+HTTP 상태 매핑:
 
 | `code` | HTTP | REST에서의 대표 상황 |
 | --- | --- | --- |
@@ -535,6 +541,7 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | ID | 수용 기준 (EARS) | 검증 |
 | --- | --- | --- |
 | REQ-API-001 | WHEN 자격증명이 없거나 만료된 요청이 오면 THE SYSTEM SHALL HTTP 401과 `code: "NERV_UNAUTHENTICATED"` 봉투를 반환한다 | 쿠키 없음·만료 PAT·폐기 PAT 3케이스 |
+| REQ-API-030 | WHEN 요청이 `Accept-Language`를 실어 오면 THE SYSTEM SHALL 봉투의 `message`를 그 로케일로 만들고 `code`·`details`는 로케일과 무관하게 유지한다(§1.4) | `ko`·`en`·미지원 언어·헤더 없음 4케이스 |
 | REQ-API-002 | WHEN 인증은 유효하나 역할 또는 PAT 스코프가 부족하면 THE SYSTEM SHALL HTTP 403과 `code: "NERV_FORBIDDEN"`을 반환하고, 부족한 스코프 이름을 `details`에 명시하되 권한 확대 경로는 제공하지 않는다 | viewer의 draft 쓰기, `spec:draft` 없는 PAT의 EP-SPEC-08 |
 | REQ-API-003 | WHEN 같은 `Idempotency-Key`와 같은 본문으로 24시간 내 재호출되면 THE SYSTEM SHALL 부작용 없이 최초 응답을 재생하고 `Idempotency-Replayed: true` 헤더를 단다 | EP-TASK-06 이중 제출 → 클레임 1건 |
 | REQ-API-004 | WHEN 같은 `Idempotency-Key`에 다른 본문이 오면 THE SYSTEM SHALL HTTP 409 `NERV_PRECONDITION`(`details.kind = "idempotency_mismatch"`)을 반환한다 | 본문 변조 재호출 |

@@ -9,7 +9,7 @@
 // 그래서 파일 업로드도 git 자격증명도 없다 — 서버는 이미 판정된 입력만 받는다.
 
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import {
   importLinkBatchInputSchema,
   importPreflightInputSchema,
@@ -76,10 +76,12 @@ export class ImportController {
     const principal = req.nervPrincipal;
     const projectId = req.nervProjectId;
     if (principal === undefined || projectId === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
     if (req.nervRole !== 'admin') {
-      throw new NervError(NERV_ERROR.FORBIDDEN, '임포트는 admin 만 가능합니다.', {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only_import'), {
         kind: 'role_required',
         required: 'admin',
         granted: req.nervRole ?? null,
@@ -97,7 +99,7 @@ function parse<T>(
 ): T {
   const result = schema.safeParse(body);
   if (!result.success || result.data === undefined) {
-    throw new NervError(NERV_ERROR.PRECONDITION, '요청 본문이 스키마를 위반했습니다.', {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.request.schema'), {
       issues: result.error,
     });
   }

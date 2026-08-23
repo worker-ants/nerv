@@ -9,6 +9,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { t } from './i18n.js';
 import { parseOwnerMap } from './parse/plan.js';
 import { runImport } from './run.js';
 import { exitCode, renderJsonl, renderMarkdown } from './report/index.js';
@@ -31,9 +32,7 @@ export interface CliOptions {
 export function parseArgs(argv: string[]): CliOptions {
   const [command, ...rest] = argv;
   if (command !== 'spec' && command !== 'plan' && command !== 'docs' && command !== 'rebuild-map') {
-    throw new Error(
-      '사용법: nerv import <spec|plan|docs|rebuild-map> --root <경로> --project <slug> [--apply]',
-    );
+    throw new Error(t()('cli.usage'));
   }
 
   const flags = new Map<string, string>();
@@ -77,12 +76,10 @@ export function parseArgs(argv: string[]): CliOptions {
     options.profile = command === 'docs' ? 'nerv-docs' : 'clemvion';
   }
   if (options.profile !== undefined && options.profileFile !== undefined) {
-    throw new Error('--profile 과 --profile-file 은 함께 쓸 수 없습니다.');
+    throw new Error(t()('cli.err.profile_conflict'));
   }
   if (options.apply && (options.server === undefined || options.token === undefined)) {
-    throw new Error(
-      '--apply 에는 --server 와 --token(또는 env NERV_SERVER/NERV_TOKEN)이 필요합니다.',
-    );
+    throw new Error(t()('cli.err.apply_needs_server'));
   }
   return options;
 }
@@ -97,8 +94,13 @@ export async function main(argv: string[]): Promise<number> {
 
   const rate = report.scanned === 0 ? 1 : report.converted / report.scanned;
   process.stdout.write(
-    `${options.apply ? '적재' : 'dry-run'} 완료 — 스캔 ${report.scanned} · 변환 ${report.converted}` +
-      ` (${(rate * 100).toFixed(1)}%) · 리포트 ${options.reportDir}\n`,
+    `${t()('cli.done', {
+      mode: t()(options.apply ? 'cli.mode.apply' : 'cli.mode.dry_run'),
+      scanned: report.scanned,
+      converted: report.converted,
+      rate: (rate * 100).toFixed(1),
+      dir: options.reportDir,
+    })}\n`,
   );
   return exitCode(report);
 }

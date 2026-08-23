@@ -3,10 +3,11 @@
 // 실패 사유는 **폼 안**에 있고 비밀번호만 초기화한다. 전역 토스트로 알리면 사용자는 방금 친
 // 값과 오류를 동시에 볼 수 없고, 이메일까지 지우면 다시 타이핑하게 만든다.
 
+import { useT } from '../lib/i18n.js';
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { landingFor, primaryMembership, signIn } from '../lib/session.js';
+import { authFailureText, landingFor, primaryMembership, signIn } from '../lib/session.js';
 import { fetchMe } from '../lib/session.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { Button, Field, Input } from '../components/ui/primitives.js';
@@ -19,6 +20,7 @@ export const Route = createFileRoute('/login')({
 });
 
 function LoginScreen(): React.JSX.Element {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const search = useSearch({ from: '/login' });
@@ -33,7 +35,7 @@ function LoginScreen(): React.JSX.Element {
     setError(null);
     const failure = await signIn({ email, password });
     if (failure !== null) {
-      setError(failure.message);
+      setError(authFailureText(t, failure));
       setPassword(''); // 비밀번호 필드만 초기화한다(REQ-WEB-005)
       setBusy(false);
       return;
@@ -64,13 +66,13 @@ function LoginScreen(): React.JSX.Element {
             </span>{' '}
             NERV
           </div>
-          <p className="mt-1 text-sm text-text-mute">스펙 단일 진실 · 에이전트 협업</p>
+          <p className="mt-1 text-sm text-text-mute">{t('login.tagline')}</p>
         </div>
         <form
           onSubmit={(e) => void submit(e)}
           className="flex flex-col gap-3 rounded-nerv-lg border border-border bg-bg-elev p-6"
         >
-          <Field label="이메일">
+          <Field label={t('login.email')}>
             <Input
               type="email"
               required
@@ -80,7 +82,7 @@ function LoginScreen(): React.JSX.Element {
               className="h-9"
             />
           </Field>
-          <Field label="비밀번호">
+          <Field label={t('login.password')}>
             <Input
               type="password"
               required
@@ -101,12 +103,10 @@ function LoginScreen(): React.JSX.Element {
             </p>
           )}
           <Button type="submit" variant="primary" disabled={busy} className="mt-1 h-9 w-full">
-            {busy ? '확인 중…' : '로그인'}
+            {busy ? t('login.submitting') : t('login.submit')}
           </Button>
         </form>
-        <p className="mt-4 text-center text-xs text-text-faint">
-          초대 링크로 오셨나요? 로그인하면 초대가 자동으로 수락됩니다.
-        </p>
+        <p className="mt-4 text-center text-xs text-text-faint">{t('login.invite_note')}</p>
       </div>
     </div>
   );

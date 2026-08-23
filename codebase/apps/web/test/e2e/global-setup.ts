@@ -36,7 +36,9 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:8090';
   assertNotDevStack(baseURL);
   const browser = await chromium.launch();
-  const page = await browser.newPage({ baseURL });
+  // 로그인 폼의 라벨이 화면 언어를 따른다 — 준비 절차는 한국어로 못 박는다.
+  // 그러지 않으면 이 스크립트가 실행 기계의 locale 에 따라 다른 화면을 찾게 된다.
+  const page = await browser.newPage({ baseURL, locale: 'ko-KR' });
 
   // 스택이 안 떠 있으면 여기서 바로 알려준다 — 12개 테스트가 각자 타임아웃으로 죽는 것보다 낫다
   try {

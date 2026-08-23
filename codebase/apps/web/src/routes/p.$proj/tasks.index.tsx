@@ -4,6 +4,8 @@
 // 채우는 폼이 곧 승격 버튼이고, 미완성 항목은 backlog 칸에 "무엇이 비었는지"와 함께 남는다 —
 // 클레임 가능한 작업 = 지시가 완결된 작업이라는 등식이 여기서 눈에 보여야 한다.
 
+import { statusLabelKey } from '@nerv/schema';
+import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { DelegationForm } from '../../features/task-board/delegation-form.js';
@@ -23,16 +25,9 @@ const COLUMNS = ['backlog', 'ready', 'claimed', 'in_progress', 'done', 'blocked'
 function leaseSeconds(expiresAt: string): number {
   return Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
 }
-const COLUMN_LABEL: Record<string, string> = {
-  backlog: '백로그',
-  ready: '준비됨',
-  claimed: '클레임',
-  in_progress: '진행 중',
-  done: '완료',
-  blocked: '막힘',
-};
 
 function TaskBoard(): React.JSX.Element {
+  const t = useT();
   const { proj } = Route.useParams();
   const project = useProject(proj);
   const projectId = project.data?.['id'];
@@ -44,16 +39,16 @@ function TaskBoard(): React.JSX.Element {
   return (
     <PageBody wide>
       <PageHeader
-        title="작업 보드"
+        title={t('tasks.title')}
         description={
           <>
-            클레임 가능한 작업 = 지시가 완결된 작업입니다 —{' '}
-            <code className="font-mono text-text">ready</code> 로 직접 만들 수 없습니다.
+            {t('tasks.lead_pre')} <code className="font-mono text-text">ready</code>
+            {t('tasks.lead_post')}
           </>
         }
         actions={
           <Button variant="primary" onClick={() => setEditing('new')}>
-            + 새 작업
+            {t('tasks.new')}
           </Button>
         }
       />
@@ -84,7 +79,7 @@ function TaskBoard(): React.JSX.Element {
               <h2 className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold text-text-mute">
                 <StatusBadge
                   token={(TASK_TOKEN[column] ?? 'idle') as StatusToken}
-                  label={COLUMN_LABEL[column] ?? column}
+                  label={statusLabelKey('task', column)}
                 />
                 <span className="tabular-nums text-text-faint">{columnTasks.length}</span>
               </h2>
@@ -108,7 +103,7 @@ function TaskBoard(): React.JSX.Element {
                         )}
                         {task['basis_superseded'] === true && (
                           // 기준 버전이 지나갔다 — 재브리핑 신호(agent-integration §2.4)
-                          <span className="text-status-waiting">기준 버전 갱신됨</span>
+                          <span className="text-status-waiting">{t('tasks.basis_superseded')}</span>
                         )}
                         {/* 리스 잔여는 서버 시각 기준으로 클라이언트가 센다(§1.4).
                             2분 미만은 호박색 — 곧 회수된다는 뜻이고, 그때 화면이 조용하면
@@ -123,7 +118,9 @@ function TaskBoard(): React.JSX.Element {
                                 : 'text-text-faint',
                             )}
                           >
-                            리스 {leaseRemaining(leaseSeconds(task['lease_expires_at']))}
+                            {t('tasks.lease', {
+                              remaining: leaseRemaining(t, leaseSeconds(task['lease_expires_at'])),
+                            })}
                           </span>
                         )}
                       </div>
@@ -136,7 +133,9 @@ function TaskBoard(): React.JSX.Element {
                             data-testid="rebrief-badge"
                             className="mt-1.5 block rounded-nerv-sm bg-status-waiting-soft px-1.5 py-1 text-2xs text-status-waiting hover:underline"
                           >
-                            재브리핑 필요 — v{String(task['basis_version_no'] ?? '?')} → 최신
+                            {t('tasks.rebrief', {
+                              version: String(task['basis_version_no'] ?? '?'),
+                            })}
                           </Link>
                         )}
                       {column === 'backlog' && task['delegation_complete'] === false && (
@@ -144,22 +143,18 @@ function TaskBoard(): React.JSX.Element {
                           {/* **무엇이 비었는지**를 카드가 말한다(REQ-WEB-016). "채우세요"만
                               있으면 사람은 폼을 열고서야 무엇이 빠졌는지 알게 된다 */}
                           <p data-testid="ready-blocked" className="text-2xs text-status-waiting">
-                            ready 불가 — 위임 명세 4요소 미완성
+                            {t('tasks.ready_blocked')}
                           </p>
                           <div className="mt-1 flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              disabled
-                              title="위임 명세 4요소(목표·산출물·도구/출처·경계)가 채워져야 ready 로 갑니다"
-                            >
-                              ready 전이
+                            <Button size="sm" disabled title={t('tasks.ready_blocked_title')}>
+                              {t('tasks.ready_transition')}
                             </Button>
                             <button
                               type="button"
                               onClick={() => setEditing(String(task['key']))}
                               className="text-2xs text-link hover:underline"
                             >
-                              채우기 ▸
+                              {t('tasks.fill_brief')}
                             </button>
                           </div>
                         </div>
@@ -173,7 +168,7 @@ function TaskBoard(): React.JSX.Element {
                   </li>
                 ))}
                 {columnTasks.length === 0 && (
-                  <li className="px-1 py-2 text-2xs text-text-faint">비어 있음</li>
+                  <li className="px-1 py-2 text-2xs text-text-faint">{t('tasks.empty_column')}</li>
                 )}
               </ul>
             </section>

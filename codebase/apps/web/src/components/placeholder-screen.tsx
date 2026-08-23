@@ -2,6 +2,7 @@
 // 라우팅 맵(screens.md §1.2)이 먼저 서 있어야 딥링크·가드·셸이 검증 가능하기 때문에
 // E01-S03 은 경로와 셸까지를 세운다.
 
+import { useT } from '../lib/i18n.js';
 import { StatusBadge } from './status-badge.js';
 import { PageBody, PageHeader } from './ui/primitives.js';
 
@@ -18,12 +19,13 @@ export function PlaceholderScreen({
   story,
   spec,
 }: PlaceholderScreenProps): React.JSX.Element {
+  const t = useT();
   return (
     <PageBody>
       <PageHeader
         title={title}
-        description={`명세: ${spec}`}
-        meta={<StatusBadge token="idle" label={`${story} 대기`} />}
+        description={t('placeholder.spec', { spec })}
+        meta={<StatusBadge token="idle" label={t('placeholder.pending', { story })} />}
       />
     </PageBody>
   );

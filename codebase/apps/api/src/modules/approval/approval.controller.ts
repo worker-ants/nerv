@@ -5,7 +5,7 @@
 // 그래서 결정은 사람 전용이고 에이전트는 도구로도 도달할 수 없다.
 
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -77,10 +77,10 @@ function human(req: ProjectRequest): { projectId: string; userId: string } {
   const principal = req.nervPrincipal;
   const projectId = req.nervProjectId;
   if (principal === undefined || projectId === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   if (principal.isAgent) {
-    throw new NervError(NERV_ERROR.HUMAN_ONLY, '승인함 결정은 사람만 할 수 있습니다.', {
+    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.inbox_decide'), {
       kind: 'human_only',
       web_url: '/inbox',
     });
@@ -146,10 +146,10 @@ export class ApprovalInboxController {
 function humanUser(req: ProjectRequest): string {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   if (principal.isAgent) {
-    throw new NervError(NERV_ERROR.HUMAN_ONLY, '승인함은 사람 전용입니다.', {
+    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.inbox'), {
       kind: 'human_only',
       web_url: '/inbox',
     });

@@ -9,7 +9,7 @@
 
 import { Injectable } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
-import { NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR } from '@nerv/schema';
 import { AuthService } from '../modules/auth/auth.service.js';
 import type { MembershipRole, Principal } from '../modules/auth/auth.service.js';
 import { NervError } from './nerv-exception.filter.js';
@@ -30,7 +30,9 @@ export class ProjectAccessGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<ProjectRequest>();
     const principal = req.nervPrincipal;
     if (principal === undefined) {
-      throw new NervError(NERV_ERROR.UNAUTHENTICATED, '자격증명이 없습니다.', { kind: 'missing' });
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
     }
 
     const slug = req.params?.['proj'];
@@ -38,7 +40,7 @@ export class ProjectAccessGuard implements CanActivate {
 
     const project = await this.auth.resolveProject(slug);
     if (project === null) {
-      throw new NervError(NERV_ERROR.PRECONDITION, '프로젝트를 찾을 수 없습니다.', {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',
         slug,
       });

@@ -4,6 +4,8 @@
 // 그래서 이 파일은 어떤 상태도 이벤트 본문으로 갱신하지 않는다 — 봉투에는 식별자만 있고
 // 진실은 DB 다(D-14). 이 규칙 하나가 "화면과 DB 가 다른" 종류의 버그를 통째로 없앤다.
 
+import type { Translator } from '@nerv/schema';
+import { useT } from '../lib/i18n.js';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
@@ -54,6 +56,7 @@ export function useRealtime(): RealtimeValue {
 export const FALLBACK_POLL_MS = 15_000;
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const t = useT();
   const queryClient = useQueryClient();
   const [state, setState] = useState<ConnectionState>('connecting');
   const [offline, setOffline] = useState(false);
@@ -80,10 +83,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
       }
       // 겹침 경고는 무효화만으로 충분하지 않다 — 사람이 **지금** 알아야 하는 사실이다.
       if (event.type === NERV_EVENT.CLAIM_CONFLICT_WARN) {
-        pushToast({ tone: 'warn', message: '같은 범위를 다른 세션이 이미 잡고 있습니다.' });
+        pushToast({ tone: 'warn', message: t('realtime.conflict_warn') });
       }
       if (event.type === NERV_EVENT.CLAIM_CONFLICT_BLOCKED) {
-        pushToast({ tone: 'warn', message: '범위 겹침으로 클레임이 차단됐습니다.' });
+        pushToast({ tone: 'warn', message: t('realtime.conflict_blocked') });
       }
     },
     [pushToast, queryClient],
@@ -128,8 +131,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
  *   ① WS 끊김(REST 정상): 폴백 폴링으로 계속 돈다
  *   ② 플랫폼 끊김(REST 실패): 캐시된 읽기 전용으로 격상 — 쓰기를 막는 것은 화면의 몫이다
  */
-export function connectionBanner(state: ConnectionState, offline: boolean): string | null {
-  if (offline) return '오프라인 — 캐시된 읽기 전용입니다. 복구되면 자동으로 동기화합니다.';
-  if (state === 'disconnected') return '실시간 갱신 중단 — 폴링으로 갱신 중입니다.';
+export function connectionBanner(
+  t: Translator,
+  state: ConnectionState,
+  offline: boolean,
+): string | null {
+  if (offline) return t('realtime.offline');
+  if (state === 'disconnected') return t('realtime.ws_down');
   return null;
 }

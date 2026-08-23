@@ -7,6 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { LocaleProvider } from './lib/i18n.js';
 import { RealtimeProvider } from './lib/realtime.js';
 import { createQueryClient } from './lib/query-client.js';
 import { routeTree } from './routeTree.gen';
@@ -22,15 +23,18 @@ declare module '@tanstack/react-router' {
 }
 
 const rootElement = document.getElementById('root');
-if (rootElement === null) throw new Error('#root 를 찾지 못했습니다.');
+if (rootElement === null) throw new Error('#root not found');
 
 createRoot(rootElement).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      {/* 실시간은 쿼리 캐시 위에 얹힌다 — 이벤트는 무효화 신호일 뿐이다(§1.4) */}
-      <RealtimeProvider>
-        <RouterProvider router={router} />
-      </RealtimeProvider>
-    </QueryClientProvider>
+    {/* 로케일이 가장 바깥이다 — 실시간 토스트도 번역된 문구를 쓴다 */}
+    <LocaleProvider>
+      <QueryClientProvider client={queryClient}>
+        {/* 실시간은 쿼리 캐시 위에 얹힌다 — 이벤트는 무효화 신호일 뿐이다(§1.4) */}
+        <RealtimeProvider>
+          <RouterProvider router={router} />
+        </RealtimeProvider>
+      </QueryClientProvider>
+    </LocaleProvider>
   </StrictMode>,
 );

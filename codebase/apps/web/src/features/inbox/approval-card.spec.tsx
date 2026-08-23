@@ -1,5 +1,7 @@
 // E08-S07 — 승인 카드 (ui-wireframes §2.7 · REQ-WEB-008)
 
+import { createTranslator } from '@nerv/schema';
+import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -20,13 +22,18 @@ afterEach(cleanup);
 function renderCard(card: Record<string, unknown>): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <QueryClientProvider client={client}>
-      <RealtimeProvider>
-        <ApprovalCard card={card} />
-      </RealtimeProvider>
-    </QueryClientProvider>,
+    <LocaleProvider locale="ko">
+      <QueryClientProvider client={client}>
+        <RealtimeProvider>
+          <ApprovalCard card={card} />
+        </RealtimeProvider>
+      </QueryClientProvider>
+    </LocaleProvider>,
   );
 }
+
+// 테스트는 한국어 화면을 검사한다 — 로케일이 고정돼야 검사 대상이 기계마다 달라지지 않는다
+const ko = createTranslator('ko');
 
 describe('대기 시간 표기 — 오래된 요청이 묻히지 않게', () => {
   it.each([
@@ -35,7 +42,7 @@ describe('대기 시간 표기 — 오래된 요청이 묻히지 않게', () => 
     [7200, '2시간 대기'],
     [172_800, '2일 대기'],
   ])('%s초 → %s', (seconds, label) => {
-    expect(waitedLabel(seconds)).toBe(label);
+    expect(waitedLabel(ko, seconds)).toBe(label);
   });
 });
 
