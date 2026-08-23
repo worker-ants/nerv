@@ -6,12 +6,15 @@
 // 질문 카드는 세션 신원 3요소(사용자·hostname·에이전트 종류)를 함께 싣는다(REQ-WEB-008) —
 // "어느 머신의 누구를 멈춰 세우고 있나"가 답변 우선순위를 정하기 때문이다.
 
+import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
+import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
+import { Button, Mono, Textarea } from '../../components/ui/primitives.js';
 
 export type Decision = 'approve' | 'reject' | 'comment';
 
@@ -99,28 +102,43 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
     <article
       data-testid="approval-card"
       data-kind={isQuestion ? 'question' : 'approval'}
-      className="rounded-md border border-border bg-bg-elev p-3"
+      className={cn(
+        'rounded-nerv border bg-bg-elev px-3 py-2.5 transition-colors',
+        // 포커스된 카드는 **왼쪽 띠**로 표시한다 — 링을 두르면 카드가 떠 보이고,
+        // 목록을 j/k 로 훑을 때 카드가 하나씩 튀어오르는 것처럼 읽힌다
+        active === true ? 'border-border-strong' : 'border-border',
+      )}
     >
       <header className="flex flex-wrap items-center gap-2 text-sm">
         <StatusBadge
           token={isQuestion ? 'waiting' : 'action'}
           label={isQuestion ? '질문' : '승인'}
         />
-        <span className="font-mono text-xs text-text-faint">
-          {String(card['spec_key'] ?? card['task_key'] ?? '')}
-        </span>
+        <Mono>{String(card['spec_key'] ?? card['task_key'] ?? '')}</Mono>
         <span className="min-w-0 flex-1 truncate font-medium">
           {String(card['title'] ?? card['spec_title'] ?? '(제목 없음)')}
         </span>
-        <span className="text-xs text-text-mute">{String(card['project_slug'] ?? '')}</span>
-        <span data-testid="waited" className="text-xs text-text-mute">
+        <span className="shrink-0 text-xs text-text-mute">
+          {String(card['project_slug'] ?? '')}
+        </span>
+        {/* 기다린 시간은 **오래될수록 눈에 띄어야 한다** — 한 시간 넘게 묵은 요청이
+            방금 온 요청과 같은 회색이면 목록의 순서만으로는 묻힌다 */}
+        <span
+          data-testid="waited"
+          className={cn(
+            'shrink-0 text-xs',
+            Number(card['waiting_seconds'] ?? 0) >= 3600
+              ? 'font-medium text-status-waiting'
+              : 'text-text-faint',
+          )}
+        >
           {waitedLabel(Number(card['waiting_seconds'] ?? 0))}
         </span>
       </header>
 
       {isQuestion && (
         // 세션 신원 3요소 — 누구의 어느 머신이 멈춰 있는지(REQ-WEB-008 · D-13)
-        <p data-testid="question-identity" className="mt-1 text-xs text-text-mute">
+        <p data-testid="question-identity" className="mt-1.5 text-xs text-text-mute">
           {String(card['requested_by'] ?? '')} ·{' '}
           <span className="font-mono">{String(card['hostname'] ?? '')}</span> ·{' '}
           {String(card['agent_type'] ?? '')}
@@ -129,20 +147,24 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
 
       {!(compact ?? false) && (
         <>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-text-mute">
+          <p className="mt-2 max-h-40 overflow-y-auto rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-sm whitespace-pre-wrap text-text-mute">
             {String(card['body_md'] ?? '')}
           </p>
-          <textarea
+          <Textarea
             ref={commentRef}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder={isQuestion ? '답변' : '코멘트 — 거절에는 필수'}
             data-testid="decision-comment"
-            className="mt-2 w-full rounded border border-border bg-bg px-2 py-1 text-sm"
+            className="mt-2"
             rows={2}
           />
           {reasonRequired && (
-            <p role="alert" data-testid="reason-required" className="text-xs text-status-danger">
+            <p
+              role="alert"
+              data-testid="reason-required"
+              className="mt-1 text-xs text-status-danger"
+            >
               거절에는 사유가 필요합니다 — 요청자 알림과 감사 로그에 남습니다.
             </p>
           )}
@@ -151,55 +173,69 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
 
       {card['self_requested'] === true && !isQuestion && (
         // 지시자≠승인자 — 서버가 최종 판정하지만, 누를 수 없는 버튼의 이유는 미리 보여준다
-        <p className="mt-2 text-xs text-status-waiting">
+        <p className="mt-2 rounded-nerv-sm bg-status-waiting-soft px-2 py-1 text-xs text-status-waiting">
           내가 요청한 항목입니다 — 다른 승인자가 처리해야 합니다.
         </p>
       )}
 
-      <footer className="mt-2 flex gap-2">
-        {isQuestion ? (
-          <button
-            type="button"
-            disabled={decide.isPending || comment.trim() === ''}
-            onClick={() => decide.mutate('approve')}
-            className="rounded bg-status-action px-2 py-1 text-sm text-white disabled:opacity-50"
-          >
-            답변 보내기
-          </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              disabled={decide.isPending || card['self_requested'] === true}
+      {/* 요약 카드도 **다음 걸음을 준다** — 여기서는 결정할 수 없으니(본문도 코멘트 칸도
+          없다) 결정할 수 있는 곳으로 보낸다. 막다른 길을 만들지 않는다(§1.5) */}
+      {(compact ?? false) && (
+        <Link to="/inbox" className="mt-1.5 inline-block text-xs text-link hover:underline">
+          승인함에서 처리 ▸
+        </Link>
+      )}
+
+      {!(compact ?? false) && (
+        <footer className="mt-2.5 flex items-center gap-2">
+          {isQuestion ? (
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={decide.isPending || comment.trim() === ''}
               onClick={() => decide.mutate('approve')}
-              className="rounded bg-status-ok px-2 py-1 text-sm text-white disabled:opacity-50"
-              title={
-                card['self_requested'] === true
-                  ? '지시자는 자기 산출물을 승인할 수 없습니다'
-                  : undefined
-              }
             >
-              승인
-            </button>
-            <button
-              type="button"
-              disabled={decide.isPending || card['self_requested'] === true}
-              onClick={() => decide.mutate('reject')}
-              className="rounded border border-status-danger px-2 py-1 text-sm text-status-danger disabled:opacity-50"
-            >
-              거절
-            </button>
-            <button
-              type="button"
-              disabled={decide.isPending}
-              onClick={() => decide.mutate('comment')}
-              className="rounded border border-border px-2 py-1 text-sm disabled:opacity-50"
-            >
-              코멘트
-            </button>
-          </>
-        )}
-      </footer>
+              답변 보내기
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={decide.isPending || card['self_requested'] === true}
+                onClick={() => decide.mutate('approve')}
+                title={
+                  card['self_requested'] === true
+                    ? '지시자는 자기 산출물을 승인할 수 없습니다'
+                    : undefined
+                }
+              >
+                승인
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={decide.isPending || card['self_requested'] === true}
+                onClick={() => decide.mutate('reject')}
+              >
+                거절
+              </Button>
+              <Button
+                size="sm"
+                disabled={decide.isPending}
+                onClick={() => decide.mutate('comment')}
+              >
+                코멘트
+              </Button>
+              {active === true && (
+                <span className="ml-auto text-2xs text-text-faint">
+                  <kbd>a</kbd> 승인 · <kbd>r</kbd> 거절 · <kbd>c</kbd> 코멘트
+                </span>
+              )}
+            </>
+          )}
+        </footer>
+      )}
     </article>
   );
 }

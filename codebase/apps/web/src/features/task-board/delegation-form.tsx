@@ -16,6 +16,7 @@ import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { useTask } from '../../lib/queries.js';
+import { Button, Field, Input, Select, Textarea } from '../../components/ui/primitives.js';
 
 /** 4요소는 공백만으로 채워질 수 없다 — 형식적 충족을 막는 최소선이다. */
 export const delegationSchema = z.object({
@@ -103,92 +104,44 @@ export function DelegationForm({
     <form
       data-testid="delegation-form"
       onSubmit={(e) => void form.handleSubmit((input) => save.mutate(input as DelegationInput))(e)}
-      className="flex flex-col gap-2 rounded-md border border-border bg-bg-elev p-3"
+      className="flex flex-col gap-3 rounded-nerv border border-border bg-bg-elev p-4"
     >
       <h2 className="text-sm font-semibold">
         {taskKey === null ? '새 작업' : `작업 수정 — ${taskKey}`}
       </h2>
+      {/* 4요소가 왜 필수인지 폼이 먼저 말한다 — 저장을 눌러야 알게 되면 늦다 */}
+      <p className="-mt-2 text-xs text-text-mute">
+        ①~④ 가 모두 차야 <code className="font-mono">ready</code> 로 승격합니다. 비면 backlog 에
+        남습니다.
+      </p>
       <Field label="제목" error={form.formState.errors.title?.message}>
-        <input
-          {...form.register('title')}
-          className="w-full rounded border border-border bg-bg px-2 py-1 text-sm"
-        />
+        <Input {...form.register('title')} />
       </Field>
       <Field label="① 목표" error={form.formState.errors.goal_md?.message}>
-        <textarea
-          {...form.register('goal_md')}
-          rows={2}
-          className="w-full rounded border border-border bg-bg px-2 py-1 text-sm"
-        />
+        <Textarea {...form.register('goal_md')} rows={2} />
       </Field>
       <Field label="② 산출물 형식" error={form.formState.errors.output_format_md?.message}>
-        <input
-          {...form.register('output_format_md')}
-          className="w-full rounded border border-border bg-bg px-2 py-1 text-sm"
-        />
+        <Input {...form.register('output_format_md')} />
       </Field>
       <Field label="③ 도구·출처" error={form.formState.errors.tools_sources_md?.message}>
-        <textarea
-          {...form.register('tools_sources_md')}
-          rows={2}
-          className="w-full rounded border border-border bg-bg px-2 py-1 text-sm"
-        />
+        <Textarea {...form.register('tools_sources_md')} rows={2} />
       </Field>
       <Field label="④ 경계" error={form.formState.errors.boundaries_md?.message}>
-        <textarea
-          {...form.register('boundaries_md')}
-          rows={2}
-          className="w-full rounded border border-border bg-bg px-2 py-1 text-sm"
-        />
+        <Textarea {...form.register('boundaries_md')} rows={2} />
       </Field>
-      <div className="flex items-center gap-2">
-        <select
-          {...form.register('priority')}
-          className="rounded border border-border bg-bg px-2 py-1 text-sm"
-        >
+      <div className="flex items-center gap-2 border-t border-border pt-3">
+        <Select {...form.register('priority')} aria-label="우선순위">
           {['P0', 'P1', 'P2', 'P3'].map((p) => (
             <option key={p} value={p}>
               {p}
             </option>
           ))}
-        </select>
-        <button
-          type="submit"
-          disabled={save.isPending}
-          className="rounded bg-status-action px-2 py-1 text-sm text-white disabled:opacity-50"
-        >
+        </Select>
+        <Button type="submit" variant="primary" disabled={save.isPending}>
           저장
-        </button>
-        <button
-          type="button"
-          onClick={onDone}
-          className="rounded border border-border px-2 py-1 text-sm"
-        >
-          취소
-        </button>
+        </Button>
+        <Button onClick={onDone}>취소</Button>
       </div>
     </form>
-  );
-}
-
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string | undefined;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-text-mute">{label}</span>
-      {children}
-      {error !== undefined && (
-        <span role="alert" className="text-xs text-status-danger">
-          {error}
-        </span>
-      )}
-    </label>
   );
 }

@@ -15,7 +15,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { Markdown } from 'tiptap-markdown';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** 화이트리스트 — md 로 표현 가능한 것만(§3.1). 색·밑줄·이미지 업로드는 확장하지 않는다. */
 export const EDITOR_EXTENSIONS = [
@@ -43,12 +43,23 @@ export interface SpecEditorProps {
 
 export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): React.JSX.Element {
   const [showSource, setShowSource] = useState(false);
+  /**
+   * 바깥에서 마지막으로 밀어 넣은 본문. 두 가지를 이걸로 가른다:
+   *   ① 아직 한 번도 동기화하지 않았다 = 편집기가 만들어지는 중이다 → 그때의 갱신은 편집이 아니다
+   *   ② 같은 내용이 다시 흘러들어왔다 → 문서를 갈아끼우지 않는다(커서가 앞으로 튄다)
+   */
+  const synced = useRef<string | null>(null);
 
   const editor = useEditor({
     extensions: EDITOR_EXTENSIONS,
     content: value,
     editable: !readOnly,
     onUpdate: ({ editor: instance }) => {
+      // **사람이 치지 않은 갱신은 편집이 아니다.** 편집기를 만드는 과정에서 빈 문서로 한 번
+      // 울리는데(실측), 그걸 그대로 올리면 부모의 draft 가 빈 문자열로 굳는다 —
+      // 그러면 `draft ?? body` 가 영영 빈 값이라 **스펙 본문이 화면에 뜨지 않는다**.
+      // 읽기 전용 편집기에는 애초에 사람의 입력이 도달할 수 없다.
+      if (!instance.isEditable || synced.current === null) return;
       const storage = instance.storage as { markdown?: { getMarkdown: () => string } };
       const serialized = storage.markdown?.getMarkdown() ?? '';
       onChange(serialized, roundTrip(instance, serialized));
@@ -60,13 +71,29 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
     editor.setEditable(!readOnly);
   }, [editor, readOnly]);
 
+  // **본문은 나중에 도착한다.** `content: value` 는 에디터를 만들 때 한 번만 읽히는데,
+  // 첫 렌더에서 value 는 아직 빈 문자열이다(쿼리가 안 끝났다). 이 동기화가 없으면
+  // 스펙 본문이 영영 화면에 뜨지 않는다 — 실측으로 잡은 결함이다.
+  //
+  // 사용자가 타이핑한 결과가 value 로 되돌아오는 경로도 있어서(부모가 draft 를 들고 있다)
+  // **지금 문서와 같은 내용이면 손대지 않는다** — 그러지 않으면 한 글자마다 커서가 앞으로
+  // 튄다. emitUpdate:false 로 onChange 도 울리지 않는다: 바깥에서 온 값은 편집이 아니다.
+  useEffect(() => {
+    if (editor === null) return;
+    const storage = editor.storage as { markdown?: { getMarkdown: () => string } };
+    const current = storage.markdown?.getMarkdown() ?? '';
+    synced.current = value;
+    if (normalize(current) === normalize(value)) return;
+    editor.commands.setContent(value, { emitUpdate: false });
+  }, [editor, value]);
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 text-xs">
         <button
           type="button"
           onClick={() => setShowSource((s) => !s)}
-          className="rounded border border-border px-2 py-0.5"
+          className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 hover:bg-bg-hover"
         >
           {showSource ? '편집 보기' : '소스 보기'}
         </button>
@@ -77,7 +104,7 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
       {showSource ? (
         <pre
           data-testid="editor-source"
-          className="max-h-[60vh] overflow-auto rounded border border-border bg-code-bg p-3 text-xs text-code-text"
+          className="max-h-[60vh] overflow-auto rounded-nerv border border-border bg-code-bg p-4 font-mono text-xs whitespace-pre-wrap text-code-text"
         >
           {value}
         </pre>
@@ -85,7 +112,7 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
         <EditorContent
           editor={editor}
           data-testid="editor-content"
-          className="prose-nerv min-h-[40vh] rounded border border-border bg-bg-elev p-3"
+          className="prose-nerv min-h-[40vh] rounded-nerv border border-border bg-bg-elev px-5 py-4 [&_.ProseMirror]:outline-none"
         />
       )}
     </div>

@@ -129,11 +129,11 @@ export function QuickSwitcher({
       aria-modal="true"
       aria-label="빠른 이동"
       data-testid="quick-switcher"
-      className="fixed inset-0 z-50 flex items-start justify-center bg-bg-sunken/70 pt-24"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-text/20 pt-[15vh] backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-lg border border-border bg-bg-elev shadow-lg"
+        className="w-full max-w-xl overflow-hidden rounded-nerv-lg border border-border bg-bg-elev shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <input
@@ -154,11 +154,11 @@ export function QuickSwitcher({
             }
           }}
           placeholder="스펙·작업 검색 또는 안정 ID (SPC-… · TSK-…)"
-          className="w-full border-b border-border bg-transparent px-4 py-3 outline-none"
+          className="w-full border-b border-border bg-transparent px-4 py-3 text-base outline-none placeholder:text-text-faint"
         />
-        <ul className="max-h-80 overflow-y-auto">
+        <ul className="max-h-80 overflow-y-auto py-1">
           {rows.length === 0 && (
-            <li className="px-4 py-6 text-sm text-text-mute">
+            <li className="px-4 py-8 text-center text-sm text-text-faint">
               {query.trim() === ''
                 ? '최근 방문한 문서가 여기 쌓입니다.'
                 : '결과가 없습니다 — 다른 표현으로 찾아보세요.'}
@@ -170,7 +170,7 @@ export function QuickSwitcher({
                 type="button"
                 onClick={() => go(hit)}
                 data-active={index === cursor}
-                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm data-[active=true]:bg-bg-sunken"
+                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-bg-hover data-[active=true]:bg-bg-active"
               >
                 <span className="font-mono text-xs text-text-faint">{hit.key}</span>
                 <span className="min-w-0 flex-1 truncate">{hit.title}</span>
@@ -187,6 +187,12 @@ export function QuickSwitcher({
             </li>
           ))}
         </ul>
+        {/* 이 상자 안에서 이동이 끝난다는 것을 바닥이 말해준다 */}
+        <p className="flex gap-3 border-t border-border px-4 py-1.5 text-2xs text-text-faint">
+          <span>↑↓ 이동</span>
+          <span>↵ 열기</span>
+          <span>esc 닫기</span>
+        </p>
       </div>
     </div>
   );

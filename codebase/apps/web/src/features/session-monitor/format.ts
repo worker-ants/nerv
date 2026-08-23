@@ -5,15 +5,9 @@
 //   ② 리스 잔여 카운트다운은 **클라이언트 시계**가 한다 — 서버는 남은 초를 한 번 주고,
 //      매초 묻지 않는다(screens.md §1.4 말미)
 
-/** "12초 전" · "3분 전" · "2시간 전" — 상대 시각(§3.3) */
-export function relativeTime(iso: string | null, now = Date.now()): string {
-  if (iso === null) return '기록 없음';
-  const elapsed = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
-  if (elapsed < 60) return `${elapsed}초 전`;
-  if (elapsed < 3600) return `${Math.floor(elapsed / 60)}분 전`;
-  if (elapsed < 86_400) return `${Math.floor(elapsed / 3600)}시간 전`;
-  return `${Math.floor(elapsed / 86_400)}일 전`;
-}
+// 상대 시각은 세션 카드만 쓰는 규약이 아니다(알림·작업 목록도 같은 표기를 쓴다) —
+// 정의는 lib/format 에 있고 여기서는 이 모듈의 소비자를 위해 다시 내보낸다.
+export { relativeTime } from '../../lib/format.js';
 
 /** 리스 잔여 "mm:ss" — 만료면 "만료" */
 export function leaseRemaining(seconds: number | null): string {

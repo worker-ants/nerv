@@ -32,12 +32,17 @@ export function StatusBadge({ token, label, className }: StatusBadgeProps): Reac
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
+        // 평평하게: 채도 낮은 배경 + 같은 계열의 글자. 테두리도 그림자도 없다.
+        // 점(●)은 작게 — 배지 안에서 점이 글자만큼 크면 색이 먼저 읽히고,
+        // 이 화면들은 색이 아니라 **글자**가 먼저 읽혀야 한다(REQ-WEB-033)
+        'inline-flex shrink-0 items-center gap-1 rounded-nerv-sm px-1.5 py-0.5 text-2xs font-medium whitespace-nowrap',
         TOKEN_CLASS[token],
         className,
       )}
     >
-      <span aria-hidden="true">●</span>
+      <span aria-hidden="true" className="text-[0.6em] leading-none">
+        ●
+      </span>
       {label}
     </span>
   );

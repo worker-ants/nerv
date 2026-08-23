@@ -11,6 +11,7 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
 import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
+import { Button, EmptyState, Skeleton } from '../../components/ui/primitives.js';
 
 export interface SessionBoardProps {
   projectSlug: string;
@@ -26,22 +27,23 @@ export function SessionBoard({ projectSlug, projectId }: SessionBoardProps): Rea
   if (query.isLoading) {
     // 로딩은 화면 골격으로 — 스피너 단독 금지(screens.md §1.5)
     return (
-      <div className="flex flex-col gap-2" data-testid="session-board-skeleton">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-24 animate-pulse rounded-md bg-bg-sunken" />
-        ))}
+      <div data-testid="session-board-skeleton">
+        <Skeleton rows={3} className="[&>div]:h-24" />
       </div>
     );
   }
 
   if (query.isError) {
     return (
-      <div className="rounded-md border border-border p-4">
-        <p className="text-sm">세션을 불러오지 못했습니다.</p>
-        <button type="button" onClick={() => void query.refetch()} className="text-sm underline">
-          다시 시도
-        </button>
-      </div>
+      <EmptyState
+        icon="⚠"
+        title="세션을 불러오지 못했습니다."
+        action={
+          <Button size="sm" onClick={() => void query.refetch()}>
+            다시 시도
+          </Button>
+        }
+      />
     );
   }
 
@@ -51,13 +53,16 @@ export function SessionBoard({ projectSlug, projectId }: SessionBoardProps): Rea
   if (items.length === 0) {
     // 빈 상태에 막다른 길을 두지 않는다 — 다음 행동 링크를 준다(screens.md §1.5)
     return (
-      <div className="rounded-md border border-border p-6 text-center">
-        <p className="text-sm">실행 중인 세션이 없습니다.</p>
-        <p className="mt-1 text-xs text-text-mute">
-          플러그인을 설치하고 <code className="font-mono">nerv_bootstrap</code> 을 호출하면 여기
-          나타납니다.
-        </p>
-      </div>
+      <EmptyState
+        icon="◉"
+        title="실행 중인 세션이 없습니다."
+        hint={
+          <>
+            플러그인을 설치하고 <code className="font-mono text-text-mute">nerv_bootstrap</code> 을
+            호출하면 여기 나타납니다.
+          </>
+        }
+      />
     );
   }
 

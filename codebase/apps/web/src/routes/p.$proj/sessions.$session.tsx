@@ -9,6 +9,14 @@ import { SteerPanel } from '../../features/session-monitor/steer-panel.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
 import { rows, useSessionDetail, useSessionTimeline } from '../../lib/queries.js';
+import {
+  Card,
+  EmptyState,
+  Mono,
+  PageBody,
+  PageHeader,
+  SectionTitle,
+} from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/sessions/$session')({ component: SessionDetail });
@@ -31,80 +39,107 @@ function SessionDetail(): React.JSX.Element {
   const usage = (data['token_usage'] ?? {}) as Record<string, unknown>;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <header className="flex flex-wrap items-center gap-2">
-        <Link to="/p/$proj/sessions" params={{ proj }} className="text-sm text-link underline">
-          ← 세션 보드
-        </Link>
-        <h1 className="text-lg font-semibold">
-          {String(data['user_display_name'] ?? '')} ·{' '}
-          <span className="font-mono">{String(data['hostname'] ?? '')}</span>
-        </h1>
-        <StatusBadge
-          token={(SESSION_TOKEN[state as keyof typeof SESSION_TOKEN] ?? 'idle') as StatusToken}
-          label={state}
-        />
-        <span className="text-xs text-text-mute">{String(data['agent_type'] ?? '')}</span>
-      </header>
+    <PageBody>
+      <Link
+        to="/p/$proj/sessions"
+        params={{ proj }}
+        className="mb-2 inline-block text-xs text-text-mute hover:text-text"
+      >
+        ← 세션 보드
+      </Link>
+      <PageHeader
+        title={
+          <>
+            {String(data['user_display_name'] ?? '')}{' '}
+            <span className="font-mono text-lg text-text-mute">
+              {String(data['hostname'] ?? '')}
+            </span>
+          </>
+        }
+        meta={
+          <>
+            <StatusBadge
+              token={(SESSION_TOKEN[state as keyof typeof SESSION_TOKEN] ?? 'idle') as StatusToken}
+              label={state}
+            />
+            <span className="text-xs text-text-mute">{String(data['agent_type'] ?? '')}</span>
+          </>
+        }
+      />
 
-      <section className="grid gap-2 rounded-md border border-border bg-bg-elev p-3 text-sm md:grid-cols-3">
-        <Meta label="브랜치">{String(data['branch'] ?? '—')}</Meta>
-        <Meta label="워크트리">{String(data['worktree_path'] ?? '—')}</Meta>
-        <Meta label="현재 작업">{String(data['current_task_key'] ?? '—')}</Meta>
-        <Meta label="diff">
-          +{String(data['diff_added'] ?? 0)} / -{String(data['diff_removed'] ?? 0)}
-        </Meta>
-        <Meta label="모델">{String(data['model'] ?? '—')}</Meta>
-        <Meta label="토큰">{String(usage['total'] ?? '—')}</Meta>
-      </section>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+            <Meta label="브랜치">{String(data['branch'] ?? '—')}</Meta>
+            <Meta label="워크트리">{String(data['worktree_path'] ?? '—')}</Meta>
+            <Meta label="현재 작업">{String(data['current_task_key'] ?? '—')}</Meta>
+            <Meta label="diff">
+              +{String(data['diff_added'] ?? 0)} / -{String(data['diff_removed'] ?? 0)}
+            </Meta>
+            <Meta label="모델">{String(data['model'] ?? '—')}</Meta>
+            <Meta label="토큰">{String(usage['total'] ?? '—')}</Meta>
+          </dl>
+        </Card>
 
-      <section className="rounded-md border border-border bg-bg-elev p-3">
-        <h2 className="mb-2 text-sm font-semibold text-text-mute">개입</h2>
-        <SteerPanel projectSlug={proj} sessionId={session} state={state} />
-      </section>
+        <Card>
+          <SectionTitle>개입</SectionTitle>
+          <SteerPanel projectSlug={proj} sessionId={session} state={state} />
+        </Card>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-mute">Activity</h2>
-        <ol className="flex flex-col gap-1">
-          {rows(timeline.data).map((item) => (
-            <li
-              key={String(item['id'])}
-              className="flex gap-2 rounded border border-border bg-bg-elev px-2 py-1 text-sm"
-            >
-              <span aria-hidden="true">{TYPE_ICON[String(item['type'])] ?? '·'}</span>
-              <span className="font-mono text-xs text-text-faint">#{String(item['seq'])}</span>
-              <span className="min-w-0 flex-1">
-                <span className="font-medium">{String(item['title'] ?? item['type'])}</span>
-                {item['body_md'] !== null && item['body_md'] !== undefined && (
-                  <span className="ml-1 text-text-mute">{String(item['body_md'])}</span>
-                )}
-              </span>
-              {item['tool_name'] !== null && item['tool_name'] !== undefined && (
-                <span className="font-mono text-xs text-text-faint">
-                  {String(item['tool_name'])}
+        <section>
+          {/* 사람의 개입이 에이전트의 행동과 **같은 줄에** 섞인다 — 세로선 하나로 묶어야
+              "왜 방향을 틀었나"가 위아래로 읽힌다 */}
+          <SectionTitle>Activity</SectionTitle>
+          <ol className="flex flex-col border-l border-border pl-3">
+            {rows(timeline.data).map((item) => (
+              <li key={String(item['id'])} className="relative py-1.5 text-sm">
+                <span
+                  aria-hidden="true"
+                  className="absolute -left-[1.05rem] text-xs"
+                  style={{ top: '0.4rem' }}
+                >
+                  {TYPE_ICON[String(item['type'])] ?? '·'}
                 </span>
-              )}
-            </li>
-          ))}
+                <div className="flex items-baseline gap-2">
+                  <Mono>#{String(item['seq'])}</Mono>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium">{String(item['title'] ?? item['type'])}</span>
+                    {item['body_md'] !== null && item['body_md'] !== undefined && (
+                      <span className="ml-1 text-text-mute">{String(item['body_md'])}</span>
+                    )}
+                  </span>
+                  {item['tool_name'] !== null && item['tool_name'] !== undefined && (
+                    <Mono>{String(item['tool_name'])}</Mono>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
           {rows(timeline.data).length === 0 && (
-            <li className="text-sm text-text-mute">아직 활동이 없습니다.</li>
+            <EmptyState icon="·" title="아직 활동이 없습니다." />
           )}
-        </ol>
-      </section>
+        </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-mute">클레임 이력</h2>
-        <ul className="flex flex-col gap-1 text-xs">
-          {rows(data['claims']).map((claim) => (
-            <li key={String(claim['id'])} className="flex gap-2">
-              <span className="font-mono">{String(claim['task_key'])}</span>
-              <span>{String(claim['task_title'])}</span>
-              <span className="ml-auto text-text-faint">{String(claim['status'])}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
+        <section>
+          <SectionTitle>클레임 이력</SectionTitle>
+          <ul className="flex flex-col">
+            {rows(data['claims']).map((claim) => (
+              <li
+                key={String(claim['id'])}
+                className="flex gap-2 border-b border-border py-1.5 text-xs last:border-0"
+              >
+                <span className="font-mono">{String(claim['task_key'])}</span>
+                <span className="truncate">{String(claim['task_title'])}</span>
+                <span className="ml-auto shrink-0 text-text-faint">{String(claim['status'])}</span>
+              </li>
+            ))}
+            {rows(data['claims']).length === 0 && (
+              <li className="py-1.5 text-sm text-text-faint">없습니다.</li>
+            )}
+          </ul>
+        </section>
+      </div>
+    </PageBody>
   );
 }
 
@@ -117,8 +152,10 @@ function Meta({
 }): React.JSX.Element {
   return (
     <div>
-      <div className="text-xs text-text-faint">{label}</div>
-      <div>{children}</div>
+      <dt className="mb-0.5 text-2xs font-medium tracking-wide text-text-faint uppercase">
+        {label}
+      </dt>
+      <dd className="truncate">{children}</dd>
     </div>
   );
 }

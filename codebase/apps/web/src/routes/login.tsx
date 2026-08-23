@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { landingFor, primaryMembership, signIn } from '../lib/session.js';
 import { fetchMe } from '../lib/session.js';
 import { queryKeys } from '../lib/query-keys.js';
+import { Button, Field, Input } from '../components/ui/primitives.js';
 
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -53,49 +54,60 @@ function LoginScreen(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-sm flex-col justify-center">
-      <div className="mb-6 text-center">
-        <div className="text-2xl font-semibold">⬢ NERV</div>
-        <p className="text-sm text-text-mute">스펙 단일 진실 · 에이전트 협업</p>
-      </div>
-      <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          이메일
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded border border-border bg-bg-elev px-2 py-1"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          비밀번호
-          <input
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="rounded border border-border bg-bg-elev px-2 py-1"
-          />
-        </label>
-        {error !== null && (
-          <p data-testid="login-error" role="alert" className="text-sm text-status-danger">
-            ⚠ {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded bg-status-action px-3 py-2 text-sm text-white disabled:opacity-60"
+    // 로그인은 셸 밖이라 화면 전체가 이 폼 하나다 — 가운데에 두고 나머지는 비운다
+    <div className="flex min-h-screen items-center justify-center bg-bg-sunken px-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <div className="text-2xl font-semibold tracking-tight">
+            <span aria-hidden="true" className="text-status-action">
+              ⬢
+            </span>{' '}
+            NERV
+          </div>
+          <p className="mt-1 text-sm text-text-mute">스펙 단일 진실 · 에이전트 협업</p>
+        </div>
+        <form
+          onSubmit={(e) => void submit(e)}
+          className="flex flex-col gap-3 rounded-nerv-lg border border-border bg-bg-elev p-6"
         >
-          {busy ? '확인 중…' : '로그인'}
-        </button>
-      </form>
-      <p className="mt-4 text-sm text-text-mute">
-        초대 링크로 오셨나요? 로그인하면 초대가 자동으로 수락됩니다.
-      </p>
+          <Field label="이메일">
+            <Input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="h-9"
+            />
+          </Field>
+          <Field label="비밀번호">
+            <Input
+              type="password"
+              required
+              minLength={8}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-9"
+            />
+          </Field>
+          {error !== null && (
+            <p
+              data-testid="login-error"
+              role="alert"
+              className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
+            >
+              ⚠ {error}
+            </p>
+          )}
+          <Button type="submit" variant="primary" disabled={busy} className="mt-1 h-9 w-full">
+            {busy ? '확인 중…' : '로그인'}
+          </Button>
+        </form>
+        <p className="mt-4 text-center text-xs text-text-faint">
+          초대 링크로 오셨나요? 로그인하면 초대가 자동으로 수락됩니다.
+        </p>
+      </div>
     </div>
   );
 }

@@ -25,6 +25,7 @@ import {
   useSpecVersions,
 } from '../../lib/queries.js';
 import type { RoundTripResult } from '../../features/spec-editor/editor.js';
+import { Button, Input, Mono, SectionTitle, Textarea } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/specs/$spec')({ component: SpecDetail });
@@ -127,11 +128,13 @@ function SpecDetail(): React.JSX.Element {
   return (
     // 3열 중 **좌측 트리는 셸 사이드바가 소유한다**(§1.3 — "S3 좌측 트리와 같은 컴포넌트").
     // 여기서 또 그리면 같은 트리가 두 개 뜨고 스크롤 위치도 갈라진다.
-    <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
+    <div className="mx-auto grid w-full max-w-[80rem] gap-6 px-6 py-6 lg:grid-cols-[1fr_17rem]">
       <main className="min-w-0">
-        <header className="mb-3 flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold">{String(detail.data?.['title'] ?? spec)}</h1>
-          <span className="font-mono text-xs text-text-faint">{spec}</span>
+        <header className="mb-4 flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight">
+            {String(detail.data?.['title'] ?? spec)}
+          </h1>
+          <Mono>{spec}</Mono>
           <StatusBadge
             token={
               (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
@@ -143,24 +146,25 @@ function SpecDetail(): React.JSX.Element {
             v{String(detail.data?.['version_no'] ?? '')}
           </span>
           {detail.data?.['basis_superseded'] === true && (
-            <span className="text-xs text-status-waiting">이 버전은 이미 지나간 판입니다</span>
+            <StatusBadge token="waiting" label="이미 지나간 판" />
           )}
           {/* 참조 갱신 배지(REQ-WEB-037) — 내가 참조하는 문서가 나보다 앞서 갔다는 신호.
               이게 없으면 낡은 근거 위에서 계속 쓰게 된다 */}
           {relationItems.some((r) => r['direction'] === 'out' && r['doc_status'] === 'approved') &&
             detail.data?.['doc_status'] === 'draft' && (
-              <span data-testid="recheck-badge" className="text-xs text-status-waiting">
-                참조 문서 갱신됨 — 근거를 재확인하세요
+              <span data-testid="recheck-badge">
+                <StatusBadge token="waiting" label="참조 문서 갱신됨 — 근거를 재확인하세요" />
               </span>
             )}
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="ghost"
             data-testid="meta-open"
             onClick={() => setMetaOpen(true)}
-            className="ml-auto rounded border border-border px-2 py-0.5 text-xs text-text-mute"
+            className="ml-auto"
           >
             ⋯ 메타
-          </button>
+          </Button>
         </header>
 
         {/* 내가 리스를 쥐고 있다는 사실을 보인다(REQ-WEB-029) — 안 보이면 사람은 자기가
@@ -168,7 +172,7 @@ function SpecDetail(): React.JSX.Element {
         {leaseHolder === null && editable && draft !== null && (
           <div
             data-testid="lease-badge"
-            className="mb-2 rounded border border-border bg-status-action-soft px-3 py-1 text-sm text-status-action"
+            className="mb-2 rounded-nerv bg-status-action-soft px-3 py-1.5 text-sm text-status-action"
           >
             ✏️ 편집 중 — {me.data?.display_name ?? '나'} · 웹 · 자동 갱신(30분)
           </div>
@@ -177,7 +181,7 @@ function SpecDetail(): React.JSX.Element {
         {leaseHolder !== null && (
           <div
             data-testid="lease-banner"
-            className="mb-2 flex flex-wrap items-center gap-2 rounded border border-border bg-status-waiting-soft px-3 py-1 text-sm text-status-waiting"
+            className="mb-2 flex flex-wrap items-center gap-2 rounded-nerv bg-status-waiting-soft px-3 py-1.5 text-sm text-status-waiting"
           >
             <span>✏️ {leaseHolder} 이(가) 편집 중입니다 — 읽기 전용으로 전환했습니다.</span>
             <button
@@ -193,7 +197,7 @@ function SpecDetail(): React.JSX.Element {
                   message: `${leaseHolder} 에게 인계를 요청했습니다 — 보유자가 놓으면 이어서 쓸 수 있습니다.`,
                 });
               }}
-              className="rounded border border-border px-2 py-0.5 disabled:opacity-50"
+              className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 disabled:opacity-50"
             >
               {handoffRequested ? '요청함' : '인계 요청'}
             </button>
@@ -203,7 +207,7 @@ function SpecDetail(): React.JSX.Element {
         {conflict !== null && (
           <div
             data-testid="conflict-dialog"
-            className="mb-2 rounded border border-status-danger px-3 py-2 text-sm"
+            className="mb-2 rounded-nerv border border-status-danger bg-status-danger-soft px-3 py-2.5 text-sm"
           >
             <p className="font-medium text-status-danger">저장 충돌 — 기준 버전이 달라졌습니다.</p>
             <p className="text-text-mute">
@@ -214,7 +218,7 @@ function SpecDetail(): React.JSX.Element {
               <button
                 type="button"
                 data-testid="conflict-reload"
-                className="rounded border border-border px-2 py-1"
+                className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-1"
                 onClick={() => {
                   // 내 편집분을 버리고 서버 최신으로 간다 — 명시적으로 고른 경우에만
                   setConflict(null);
@@ -227,7 +231,7 @@ function SpecDetail(): React.JSX.Element {
               <button
                 type="button"
                 data-testid="conflict-copy"
-                className="rounded border border-border px-2 py-1"
+                className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-1"
                 onClick={() => {
                   // 클립보드가 막힌 환경도 있다 — 실패해도 본문은 화면에 그대로 있다
                   void navigator.clipboard?.writeText(draft ?? body).catch(() => undefined);
@@ -247,7 +251,7 @@ function SpecDetail(): React.JSX.Element {
           // §3.2 규칙 2 — 직렬화가 불안정하면 저장을 막는다
           <div
             data-testid="roundtrip-error"
-            className="mb-2 rounded border border-status-danger px-3 py-2 text-sm text-status-danger"
+            className="mb-2 rounded-nerv border border-status-danger bg-status-danger-soft px-3 py-2 text-sm text-status-danger"
           >
             직렬화 왕복이 불안정합니다 — 저장을 막았습니다. 소스 보기로 확인하세요.
           </div>
@@ -256,9 +260,9 @@ function SpecDetail(): React.JSX.Element {
         {check.data !== undefined && rows(check.data['findings']).length > 0 && (
           <section
             data-testid="check-findings"
-            className="mb-2 rounded border border-border bg-bg-elev p-2 text-sm"
+            className="mb-3 rounded-nerv border border-border bg-bg-elev p-3 text-sm"
           >
-            <h2 className="mb-1 font-medium">
+            <h2 className="mb-1.5 text-xs font-semibold tracking-wide text-text-mute uppercase">
               사전 검토 —{' '}
               <span
                 className={
@@ -299,9 +303,9 @@ function SpecDetail(): React.JSX.Element {
           }}
         />
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <Button
+            variant="primary"
             disabled={
               !editable ||
               draft === null ||
@@ -309,12 +313,10 @@ function SpecDetail(): React.JSX.Element {
               (roundTrip !== null && !roundTrip.stable)
             }
             onClick={() => draft !== null && save.mutate(draft)}
-            className="rounded bg-status-action px-3 py-1 text-sm text-white disabled:opacity-50"
           >
             저장
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
             data-testid="submit-review"
             disabled={
               docStatus !== 'draft' || submit.isPending || check.data?.['verdict'] === 'block'
@@ -325,16 +327,15 @@ function SpecDetail(): React.JSX.Element {
                 : undefined
             }
             onClick={() => setShowImpact(true)}
-            className="rounded border border-border px-3 py-1 text-sm disabled:opacity-50"
           >
             검토 요청
-          </button>
+          </Button>
           {showImpact && (
             <div
               role="dialog"
               aria-label="검토 요청 영향"
               data-testid="impact-preview"
-              className="w-full rounded border border-border bg-bg-elev p-3 text-sm"
+              className="w-full rounded-nerv border border-border bg-bg-elev p-3 text-sm"
             >
               <p className="font-medium">이 변경이 흔드는 것</p>
               <ul className="mt-1 flex flex-col gap-0.5 text-text-mute">
@@ -346,31 +347,27 @@ function SpecDetail(): React.JSX.Element {
                 </li>
               </ul>
               <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant="primary"
                   data-testid="impact-confirm"
                   disabled={submit.isPending}
                   onClick={() => {
                     setShowImpact(false);
                     submit.mutate();
                   }}
-                  className="rounded bg-status-action px-2 py-1 text-white disabled:opacity-50"
                 >
                   검토 요청 보내기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowImpact(false)}
-                  className="rounded border border-border px-2 py-1"
-                >
+                </Button>
+                <Button size="sm" onClick={() => setShowImpact(false)}>
                   취소
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           {/* 터미널 이어쓰기 — 복사용 명령 한 줄(§3.4) */}
-          <code className="ml-auto rounded bg-code-bg px-2 py-1 text-xs text-code-text">
+          <code className="ml-auto rounded-nerv-sm bg-code-bg px-2 py-1 font-mono text-xs text-code-text">
             claude &quot;/nerv:spec edit {spec}&quot;
           </code>
         </div>
@@ -392,15 +389,19 @@ function SpecDetail(): React.JSX.Element {
         />
       )}
 
-      <aside className="flex flex-col gap-4 text-sm">
+      {/* 우측이 이 화면의 무게중심이다 — 화면을 내려도 따라와야 "무엇이 흔들리나"를
+          본문과 나란히 볼 수 있다 */}
+      <aside className="flex flex-col gap-5 text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:self-start">
         <section>
-          <h2 className="mb-1 font-semibold text-text-mute">버전</h2>
+          <SectionTitle>버전</SectionTitle>
           <ul className="flex flex-col gap-1">
             {rows(versions.data)
               .slice(0, 8)
               .map((v) => (
                 <li key={String(v['id'])} className="flex items-center gap-2">
-                  <span className="font-mono text-xs">v{String(v['version_no'])}</span>
+                  <span className="w-8 shrink-0 font-mono text-xs text-text-faint">
+                    v{String(v['version_no'])}
+                  </span>
                   <StatusBadge
                     token={
                       (SPEC_VERSION_TOKEN[String(v['status']) as keyof typeof SPEC_VERSION_TOKEN] ??
@@ -414,17 +415,15 @@ function SpecDetail(): React.JSX.Element {
         </section>
 
         <section>
-          <h2 className="mb-1 font-semibold text-text-mute">
-            역참조 {backlinks.length}건{' '}
-            <span className="font-normal text-text-faint">— 고치면 흔들리는 문서</span>
-          </h2>
+          <SectionTitle>역참조 {backlinks.length}건</SectionTitle>
+          <p className="mb-1.5 text-2xs text-text-faint">고치면 흔들리는 문서</p>
           <ul className="flex flex-col gap-1">
             {backlinks.map((r) => (
               <li key={String(r['spec_id'])}>
                 <Link
                   to="/p/$proj/specs/$spec"
                   params={{ proj, spec: String(r['key']) }}
-                  className="text-link underline"
+                  className="text-link hover:underline"
                 >
                   {String(r['title'])}
                 </Link>
@@ -435,7 +434,7 @@ function SpecDetail(): React.JSX.Element {
         </section>
 
         <section>
-          <h2 className="mb-1 font-semibold text-text-mute">코멘트</h2>
+          <SectionTitle>코멘트</SectionTitle>
           <CommentList
             projectSlug={proj}
             specKey={spec}
@@ -444,7 +443,7 @@ function SpecDetail(): React.JSX.Element {
           />
         </section>
 
-        <section className="text-xs text-text-faint">
+        <section className="border-t border-border pt-3 text-2xs text-text-faint">
           {me.data !== undefined && `보는 사람: ${me.data.display_name}`}
         </section>
       </aside>
@@ -491,42 +490,46 @@ function CommentList({
     <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-1">
         {open.map((c) => (
-          <li key={String(c['id'])} className="rounded border border-border p-2">
+          <li key={String(c['id'])} className="rounded-nerv border border-border p-2">
             {/* 앵커가 코멘트의 전부다 — 위치 없는 지적은 고칠 수 없다(D-09) */}
-            <div className="font-mono text-xs text-text-faint">{String(c['anchor'])}</div>
-            <div className="text-sm">{String(c['body_md'])}</div>
+            <Mono>{String(c['anchor'])}</Mono>
+            <div className="mt-0.5 text-sm">{String(c['body_md'])}</div>
             <button
               type="button"
-              className="mt-1 text-xs text-link underline"
+              className="mt-1 text-xs text-link hover:underline"
               onClick={() => resolve.mutate(String(c['id']))}
             >
               해소
             </button>
           </li>
         ))}
-        {open.length === 0 && <li className="text-text-faint">열린 코멘트가 없습니다.</li>}
+        {open.length === 0 && <li className="text-xs text-text-faint">열린 코멘트가 없습니다.</li>}
       </ul>
-      <input
-        value={anchor}
-        onChange={(e) => setAnchor(e.target.value)}
-        placeholder="앵커 (헤딩 slug 또는 REQ-…)"
-        className="rounded border border-border bg-bg px-2 py-1 text-xs"
-      />
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="코멘트"
-        rows={2}
-        className="rounded border border-border bg-bg px-2 py-1 text-xs"
-      />
-      <button
-        type="button"
-        disabled={anchor.trim() === '' || body.trim() === '' || add.isPending}
-        onClick={() => add.mutate()}
-        className="rounded border border-border px-2 py-1 text-xs disabled:opacity-50"
-      >
-        코멘트 달기
-      </button>
+      <div className="mt-1 flex flex-col gap-1.5 border-t border-border pt-2">
+        <Input
+          value={anchor}
+          onChange={(e) => setAnchor(e.target.value)}
+          placeholder="앵커 (헤딩 slug 또는 REQ-…)"
+          aria-label="앵커"
+          className="h-7 text-xs"
+        />
+        <Textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="코멘트"
+          aria-label="코멘트"
+          rows={2}
+          className="text-xs"
+        />
+        <Button
+          size="sm"
+          disabled={anchor.trim() === '' || body.trim() === '' || add.isPending}
+          onClick={() => add.mutate()}
+          className="self-start"
+        >
+          코멘트 달기
+        </Button>
+      </div>
     </div>
   );
 }

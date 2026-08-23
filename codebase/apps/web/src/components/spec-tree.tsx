@@ -8,6 +8,7 @@ import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { rows, useSpecTree } from '../lib/queries.js';
 import { StatusBadge } from './status-badge.js';
+import { Input } from './ui/primitives.js';
 import { SPEC_VERSION_TOKEN } from './status-token.js';
 import type { StatusToken } from './status-badge.js';
 
@@ -127,12 +128,15 @@ export function SpecTree({
         const isOpen = expanded.has(node.id) || matches !== null || depth === 0;
         return (
           <li key={node.id} style={{ paddingLeft: depth === 0 ? 0 : 12 }}>
-            <div className="flex items-center gap-1">
+            <div className="group flex items-center rounded-nerv-sm hover:bg-bg-hover">
+              {/* 자식이 없어도 자리를 비운다 — 삼각형 유무로 들여쓰기가 어긋나면
+                  트리가 계단처럼 보인다 */}
+              {children.length === 0 && <span aria-hidden="true" className="w-4 shrink-0" />}
               {children.length > 0 && (
                 <button
                   type="button"
                   aria-label={isOpen ? '접기' : '펼치기'}
-                  className="w-4 text-xs text-text-faint"
+                  className="w-4 shrink-0 text-2xs text-text-faint hover:text-text"
                   onClick={() =>
                     setExpanded((prev) => {
                       const next = new Set(prev);
@@ -149,7 +153,7 @@ export function SpecTree({
                 to="/p/$proj/specs/$spec"
                 params={{ proj: projectSlug, spec: node.key }}
                 data-active={node.key === activeKey}
-                className="flex min-w-0 flex-1 items-center gap-1 truncate py-0.5 text-sm data-[active=true]:font-semibold"
+                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-nerv-sm py-1 pr-1 text-sm text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text"
               >
                 <span className="truncate">{node.title}</span>
                 {node.doc_status !== null && (
@@ -171,11 +175,11 @@ export function SpecTree({
   return (
     <div data-testid="spec-tree" data-virtualized={virtualized}>
       {!(compact ?? false) && (
-        <input
+        <Input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="트리 필터"
-          className="mb-2 w-full rounded border border-border bg-bg px-2 py-1 text-sm"
+          className="mb-2"
         />
       )}
       {virtualized ? (
@@ -197,7 +201,7 @@ export function SpecTree({
                     to="/p/$proj/specs/$spec"
                     params={{ proj: projectSlug, spec: node.key }}
                     data-active={node.key === activeKey}
-                    className="flex items-center gap-1 truncate text-sm data-[active=true]:font-semibold"
+                    className="flex items-center gap-1.5 truncate rounded-nerv-sm px-1 text-sm text-text-mute hover:bg-bg-hover data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text"
                   >
                     <span className="truncate">{node.title}</span>
                     {node.doc_status !== null && (

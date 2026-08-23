@@ -14,6 +14,18 @@ import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useTokens } from '../../lib/queries.js';
 import { primaryMembership } from '../../lib/session.js';
 import { useRealtime } from '../../lib/realtime.js';
+import {
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  PageHeader,
+  SectionTitle,
+  Table,
+  Td,
+  Th,
+  Tr,
+} from '../../components/ui/primitives.js';
 
 export const Route = createFileRoute('/settings/tokens')({ component: TokensTab });
 
@@ -50,29 +62,32 @@ function TokensTab(): React.JSX.Element {
   });
 
   return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold">에이전트 토큰</h1>
-
-      <div className="rounded-md border border-border bg-bg-elev p-3">
-        <h2 className="mb-2 text-sm font-semibold text-text-mute">새 토큰 발급</h2>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="에이전트 토큰"
+        description="원문은 발급 직후 한 번만 보입니다 — 목록에는 prefix 만 남습니다."
+      />
+      <Card>
+        <SectionTitle>새 토큰 발급</SectionTitle>
         <div className="flex flex-wrap items-center gap-2">
-          <input
+          <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="rounded border border-border bg-bg px-2 py-1 text-sm"
+            className="w-56"
+            aria-label="토큰 이름"
           />
-          <button
-            type="button"
+          <Button
+            variant="primary"
             disabled={issue.isPending || membership?.project_slug == null}
             onClick={() => issue.mutate()}
-            className="rounded bg-status-action px-2 py-1 text-sm text-white disabled:opacity-50"
           >
             발급
-          </button>
+          </Button>
         </div>
-        <fieldset className="mt-2 flex flex-wrap gap-2 text-xs">
+        <fieldset className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
+          <legend className="sr-only">스코프</legend>
           {AGENT_SCOPES.map((scope) => (
-            <label key={scope} className="flex items-center gap-1">
+            <label key={scope} className="flex cursor-pointer items-center gap-1.5">
               <input
                 type="checkbox"
                 checked={scopes.includes(scope)}
@@ -82,7 +97,7 @@ function TokensTab(): React.JSX.Element {
                   )
                 }
               />
-              <code>{scope}</code>
+              <code className="font-mono">{scope}</code>
             </label>
           ))}
           {/* 사람 전용 스코프는 **숨기지 않고 비활성으로 보인다**(REQ-WEB-027 · D-08).
@@ -93,10 +108,10 @@ function TokensTab(): React.JSX.Element {
               key={scope}
               data-testid="human-only-scope"
               title="사람 전용 스코프 — 토큰에 부여할 수 없습니다(D-08)"
-              className="flex cursor-not-allowed items-center gap-1 opacity-50"
+              className="flex cursor-not-allowed items-center gap-1.5 opacity-50"
             >
               <input type="checkbox" disabled checked={false} readOnly />
-              <code>{scope}</code>
+              <code className="font-mono">{scope}</code>
               <span className="text-text-faint">사람 전용</span>
             </label>
           ))}
@@ -104,78 +119,76 @@ function TokensTab(): React.JSX.Element {
         {issued !== null && (
           <div
             data-testid="issued-token"
-            className="mt-2 rounded border border-status-ok p-2 text-sm"
+            className="mt-3 rounded-nerv border border-status-ok bg-status-ok-soft p-3"
           >
-            <p className="font-medium text-status-ok">
+            <p className="text-sm font-medium text-status-ok">
               이 값은 다시 볼 수 없습니다 — 지금 복사하세요.
             </p>
-            <code className="mt-1 block break-all rounded bg-code-bg p-2 text-xs text-code-text">
+            <code className="mt-2 block rounded-nerv-sm bg-code-bg p-2 font-mono text-xs break-all text-code-text">
               {issued}
             </code>
-            <button
-              type="button"
-              className="mt-1 text-xs text-link underline"
-              onClick={() => setIssued(null)}
-            >
+            <Button size="sm" variant="ghost" className="mt-1" onClick={() => setIssued(null)}>
               닫기
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-text-mute">발급된 토큰</h2>
-        <table className="w-full text-sm">
-          <thead className="text-left text-text-mute">
-            <tr>
-              <th className="py-1">이름</th>
-              <th>prefix</th>
-              <th>스코프</th>
-              <th>마지막 사용</th>
-              <th>마지막 호스트</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
+        <SectionTitle>발급된 토큰</SectionTitle>
+        {rows(tokens.data).length === 0 ? (
+          <EmptyState
+            icon="🔑"
+            title="아직 토큰이 없습니다."
+            hint="발급 후 플러그인 설치로 이어집니다."
+          />
+        ) : (
+          <Table
+            head={
+              <>
+                <Th>이름</Th>
+                <Th>prefix</Th>
+                <Th>스코프</Th>
+                <Th>마지막 사용</Th>
+                <Th>마지막 호스트</Th>
+                <Th />
+              </>
+            }
+          >
             {rows(tokens.data).map((t) => (
-              <tr key={String(t['id'])} className="border-t border-border">
-                <td className="py-1">{String(t['name'])}</td>
-                <td className="font-mono text-xs">{String(t['prefix'])}…</td>
-                <td className="text-xs text-text-mute">
+              <Tr key={String(t['id'])}>
+                <Td className="font-medium">{String(t['name'])}</Td>
+                <Td className="font-mono text-xs">{String(t['prefix'])}…</Td>
+                <Td className="text-xs text-text-mute">
                   {(t['scopes'] as string[] | undefined)?.join(' · ')}
-                </td>
-                <td className="text-xs text-text-mute">
+                </Td>
+                <Td className="text-xs text-text-mute">
                   {t['last_used_at'] === null ? '미사용' : String(t['last_used_at']).slice(0, 10)}
-                </td>
+                </Td>
                 {/* 어느 머신이 이 토큰을 쓰는가 — 유출 판단의 첫 단서다(NFR-03) */}
-                <td className="font-mono text-xs text-text-mute">
+                <Td className="font-mono text-xs text-text-mute">
                   {t['last_used_hostname'] === null || t['last_used_hostname'] === undefined
                     ? '—'
                     : String(t['last_used_hostname'])}
-                </td>
-                <td>
+                </Td>
+                <Td className="text-right">
                   {t['revoked_at'] === null ? (
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
+                      variant="danger"
                       onClick={() => revoke.mutate(String(t['id']))}
-                      className="text-xs text-status-danger underline"
                     >
                       폐기
-                    </button>
+                    </Button>
                   ) : (
                     <span className="text-xs text-text-faint">폐기됨</span>
                   )}
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
-          </tbody>
-        </table>
-        {rows(tokens.data).length === 0 && (
-          <p className="mt-2 text-sm text-text-mute">
-            아직 토큰이 없습니다. 발급 후 플러그인 설치로 이어집니다.
-          </p>
+          </Table>
         )}
       </div>
-    </section>
+    </div>
   );
 }

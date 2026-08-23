@@ -7,6 +7,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ApprovalCard } from '../features/inbox/approval-card.js';
 import { rows, useInbox } from '../lib/queries.js';
+import { cn } from '../lib/utils.js';
+import { EmptyState, PageBody, PageHeader, Skeleton } from '../components/ui/primitives.js';
 
 export const Route = createFileRoute('/inbox')({
   validateSearch: (search: Record<string, unknown>): { state?: 'pending' | 'decided' } => ({
@@ -40,57 +42,91 @@ function InboxScreen(): React.JSX.Element {
   }, [cursor]);
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <header className="mb-3 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">
-          승인함{' '}
-          <span className="text-sm font-normal text-text-mute">
+    <PageBody>
+      <PageHeader
+        title="승인함"
+        description="키보드로 끝낼 수 있습니다 — 마우스 왕복이 그대로 승인 지연이 됩니다."
+        actions={
+          // 탭은 두 개뿐이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 두 링크로 읽힌다
+          <nav className="flex rounded-nerv-sm border border-border p-0.5 text-xs">
+            <a
+              href="/inbox"
+              className={cn(
+                'rounded-nerv-sm px-2.5 py-1',
+                state === 'pending' ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
+              )}
+            >
+              대기
+            </a>
+            <a
+              href="/inbox?state=decided"
+              className={cn(
+                'rounded-nerv-sm px-2.5 py-1',
+                state === 'decided' ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
+              )}
+            >
+              처리됨
+            </a>
+          </nav>
+        }
+        meta={
+          <span className="rounded-full bg-bg-sunken px-2 py-0.5 text-xs text-text-mute">
             {state === 'pending' ? '대기' : '처리됨'} {cards.length}건
           </span>
-        </h1>
-        <nav className="flex gap-2 text-sm">
-          <a href="/inbox" className={state === 'pending' ? 'font-semibold' : 'text-text-mute'}>
-            대기
-          </a>
-          <a
-            href="/inbox?state=decided"
-            className={state === 'decided' ? 'font-semibold' : 'text-text-mute'}
-          >
-            처리됨
-          </a>
-        </nav>
-      </header>
+        }
+      />
 
-      <p className="mb-2 text-xs text-text-faint">
-        키보드: <kbd>j</kbd>/<kbd>k</kbd> 이동 · <kbd>a</kbd> 승인 · <kbd>r</kbd> 거절 ·{' '}
-        <kbd>c</kbd> 코멘트
+      <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-text-faint">
+        <span>
+          <Key>j</Key> <Key>k</Key> 이동
+        </span>
+        <span>
+          <Key>a</Key> 승인
+        </span>
+        <span>
+          <Key>r</Key> 거절
+        </span>
+        <span>
+          <Key>c</Key> 코멘트
+        </span>
       </p>
 
-      {inbox.isLoading && (
-        <div className="flex flex-col gap-2">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-24 rounded bg-bg-sunken" />
-          ))}
-        </div>
-      )}
+      {inbox.isLoading && <Skeleton rows={3} className="[&>div]:h-24" />}
 
       {!inbox.isLoading && cards.length === 0 && (
-        <div className="rounded-md border border-border bg-bg-elev p-6 text-center text-sm text-text-mute">
-          지금 당신을 기다리는 항목이 없습니다.
-        </div>
+        <EmptyState
+          icon="✓"
+          title="지금 당신을 기다리는 항목이 없습니다."
+          hint={
+            state === 'pending'
+              ? '에이전트가 승인을 요청하면 여기에 먼저 도착합니다.'
+              : '아직 처리한 항목이 없습니다.'
+          }
+        />
       )}
 
-      <ul ref={listRef} className="flex flex-col gap-3">
+      <ul ref={listRef} className="flex flex-col gap-2">
         {cards.map((card, index) => (
           <li
             key={String(card['id'])}
             data-active={index === cursor}
-            className="rounded-md data-[active=true]:ring-2 data-[active=true]:ring-status-action"
+            // 포커스는 **왼쪽 띠**다. 링을 두르면 카드가 떠 보이고, j/k 로 훑을 때
+            // 카드가 하나씩 튀어오르는 것처럼 읽힌다
+            className="rounded-nerv border-l-2 border-transparent pl-1 transition-colors data-[active=true]:border-status-action"
           >
             <ApprovalCard card={card} active={index === cursor} />
           </li>
         ))}
       </ul>
-    </div>
+    </PageBody>
+  );
+}
+
+/** 단축키 표기 — 본문 글자와 구분되게, 그러나 조용하게 */
+function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <kbd className="rounded-nerv-sm border border-border bg-bg-sunken px-1 font-mono text-text-mute">
+      {children}
+    </kbd>
   );
 }

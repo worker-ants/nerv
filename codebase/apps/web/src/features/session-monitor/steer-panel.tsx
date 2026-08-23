@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
+import { Button, Input } from '../../components/ui/primitives.js';
 
 export interface SteerPanelProps {
   projectSlug: string;
@@ -50,33 +51,32 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
 
   return (
     <div className="flex flex-col gap-2">
-      <input
+      <Input
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="지시 (예: 스펙 SPC-CWC-007 을 먼저 확인하세요)"
         disabled={finished}
-        className="rounded border border-border bg-bg px-2 py-1 text-sm disabled:opacity-50"
+        aria-label="지시"
       />
       <div className="flex items-center gap-2">
-        <button
-          type="button"
+        <Button
+          size="sm"
           disabled={finished || send.isPending || message.trim() === ''}
           onClick={() => send.mutate('steer')}
-          className="rounded border border-border px-2 py-1 text-sm disabled:opacity-50"
           title="다음 하트비트에 실려 전달됩니다"
         >
           지시 보내기
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
           data-testid="stop-button"
           disabled={finished || send.isPending}
           onClick={() => setConfirming(true)}
-          className="rounded border border-status-danger px-2 py-1 text-sm text-status-danger disabled:opacity-50"
           title="즉시 클레임을 회수하고 작업을 ready 로 되돌립니다"
         >
           중단
-        </button>
+        </Button>
         {finished && <span className="text-xs text-text-faint">종료된 세션입니다</span>}
       </div>
 
@@ -85,37 +85,34 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
           role="dialog"
           aria-label="세션 중단 확인"
           data-testid="stop-confirm"
-          className="rounded border border-status-danger bg-status-danger-soft p-2 text-sm"
+          className="rounded-nerv border border-status-danger bg-status-danger-soft p-3 text-sm"
         >
           <p className="font-medium text-status-danger">이 세션을 중단합니다</p>
           <p className="mt-1 text-xs text-text-mute">
             활성 클레임이 즉시 회수되고 작업은 ready 로 돌아갑니다. 사유는 세션 타임라인에 남아
             상대가 무엇 때문에 끊겼는지 알 수 있습니다.
           </p>
-          <input
+          <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="중단 사유 (필수)"
             data-testid="stop-reason"
-            className="mt-2 w-full rounded border border-border bg-bg px-2 py-1"
+            aria-label="중단 사유"
+            className="mt-2"
           />
           <div className="mt-2 flex gap-2">
-            <button
-              type="button"
+            <Button
+              size="sm"
               data-testid="stop-confirm-button"
               disabled={message.trim() === '' || send.isPending}
               onClick={() => send.mutate('stop')}
-              className="rounded bg-status-danger px-2 py-1 text-white disabled:opacity-50"
+              className="border-transparent bg-status-danger text-white hover:opacity-90"
             >
               중단 실행
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className="rounded border border-border px-2 py-1"
-            >
+            </Button>
+            <Button size="sm" onClick={() => setConfirming(false)}>
               취소
-            </button>
+            </Button>
           </div>
         </div>
       )}

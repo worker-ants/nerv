@@ -10,6 +10,7 @@ import { SessionBoard } from '../../features/session-monitor/session-board.js';
 import { SteerPanel } from '../../features/session-monitor/steer-panel.js';
 import { useProject, useSessions } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
+import { Card, PageBody, PageHeader, SectionTitle } from '../../components/ui/primitives.js';
 import type { SessionCard } from '../../features/session-monitor/types.js';
 
 export const Route = createFileRoute('/p/$proj/sessions/')({ component: SessionMonitor });
@@ -29,30 +30,44 @@ function SessionMonitor(): React.JSX.Element {
   const cards = (sessions.data?.items ?? []) as unknown as SessionCard[];
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold">세션 모니터</h1>
-      <SessionBoard
-        projectSlug={proj}
-        projectId={typeof projectId === 'string' ? projectId : proj}
+    <PageBody wide>
+      <PageHeader
+        title="세션 모니터"
+        description="누구의 어느 머신이 무엇을 하고 있는지 — 그리고 멈춰 있다면 왜인지."
       />
-      <ul className="grid gap-3 md:grid-cols-2">
-        {cards.map((card) => (
-          <li key={card.id} className="rounded-md border border-border bg-bg-elev p-3">
-            <div className="mb-2 flex items-center justify-between gap-2 text-sm">
-              <Link
-                to="/p/$proj/sessions/$session"
-                params={{ proj, session: card.id }}
-                className="font-medium text-link underline"
-              >
-                {card.user_name} · {card.hostname}
-              </Link>
-              <span className="text-xs text-text-mute">{card.agent_type}</span>
-            </div>
-            <SteerPanel projectSlug={proj} sessionId={card.id} state={card.state} />
-          </li>
-        ))}
-      </ul>
-    </div>
+
+      <div className="mb-6">
+        <SessionBoard
+          projectSlug={proj}
+          projectId={typeof projectId === 'string' ? projectId : proj}
+        />
+      </div>
+
+      {cards.length > 0 && (
+        <section>
+          <SectionTitle>개입</SectionTitle>
+          <ul className="grid gap-3 md:grid-cols-2">
+            {cards.map((card) => (
+              <li key={card.id}>
+                <Card>
+                  <div className="mb-2 flex items-center justify-between gap-2 text-sm">
+                    <Link
+                      to="/p/$proj/sessions/$session"
+                      params={{ proj, session: card.id }}
+                      className="min-w-0 truncate font-medium hover:text-link"
+                    >
+                      {card.user_name} · <span className="font-mono text-xs">{card.hostname}</span>
+                    </Link>
+                    <span className="shrink-0 text-xs text-text-mute">{card.agent_type}</span>
+                  </div>
+                  <SteerPanel projectSlug={proj} sessionId={card.id} state={card.state} />
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </PageBody>
   );
 }
 

@@ -3,6 +3,7 @@
 // E01-S03 은 경로와 셸까지를 세운다.
 
 import { StatusBadge } from './status-badge.js';
+import { PageBody, PageHeader } from './ui/primitives.js';
 
 export interface PlaceholderScreenProps {
   title: string;
@@ -18,12 +19,12 @@ export function PlaceholderScreen({
   spec,
 }: PlaceholderScreenProps): React.JSX.Element {
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h1 className="text-lg font-semibold">{title}</h1>
-        <StatusBadge token="idle" label={`${story} 대기`} />
-      </div>
-      <p className="text-sm text-text-mute">명세: {spec}</p>
-    </section>
+    <PageBody>
+      <PageHeader
+        title={title}
+        description={`명세: ${spec}`}
+        meta={<StatusBadge token="idle" label={`${story} 대기`} />}
+      />
+    </PageBody>
   );
 }

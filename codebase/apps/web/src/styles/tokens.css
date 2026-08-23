@@ -1,12 +1,13 @@
-/* NERV 디자인 토큰 — 정본: docs/04-mvp/screens.md §4.1
+/* NERV 디자인 토큰 — 정본: docs/04-mvp/screens.md §4
  *
- * 원본은 제안서 HTML 공통 팔레트(docs/html/assets/style.css)의 CSS 변수다. 1:1 이식하고
- * 라이트/다크는 값 교체로 처리한다(data-theme 이 아니라 prefers-color-scheme — 제안서 사이트와 동일).
+ * **상태 토큰 8종의 의미와 매핑은 문서 정본이다**(§4.1·§4.2) — 여기서 바꾸지 않는다.
+ * 이 파일이 정하는 것은 그 위에 얹히는 표면·타이포·간격·라운드이고, 그 결정의 방향은 하나다:
+ * **평평하게.** 그림자로 층을 만들지 않고 선과 여백으로 만든다. 그림자는 떠 있는 것
+ * (드롭다운·모달)에만, 그것도 거의 안 보이게 쓴다.
  *
- * 행동 축 의미(ui-wireframes §3.1):
- *   idle 회색 = 아직 아무 일도 없음 · action 남색 = 사람의 행동 대기 · waiting 호박 = 검토·응답 대기
- *   agent 보라 = 에이전트 점유 · progress 파랑 = 진행 중 · ok 초록 = 승인·검증 완료
- *   done 청록 = 종료 · danger 적색 = 차단·실패
+ * 중립 램프가 파란빛(#f7f8fa·#1c2333)에서 따뜻한 회색(#f7f7f5·#37352f)으로 바뀐 이유:
+ * 화면 대부분이 텍스트라 중립색이 차가우면 글이 파랗게 뜬다. 상태색 8종은 그대로라 대비가
+ * 오히려 또렷해진다(#37352f 위의 상태색이 #1c2333 위에서보다 잘 보인다).
  *
  * 컴포넌트는 이 토큰만 쓴다 — 임의 hex 직접 사용은 lint 로 금지한다(REQ-WEB-032).
  * 그리고 색만으로 상태를 구분하지 않는다 — 항상 텍스트 라벨을 병기한다(REQ-WEB-033).
@@ -15,22 +16,31 @@
 @import 'tailwindcss';
 
 @theme {
-  /* ── 표면·텍스트 ─────────────────────────────────────────────────────── */
-  --color-bg: #f7f8fa;
+  /* ── 표면·텍스트 ─────────────────────────────────────────────────────────
+   * 4단계뿐이다: 바탕(bg) · 얹힌 면(elev) · 가라앉은 면(sunken) · 스치는 면(hover).
+   * 더 늘리면 어느 단계를 써야 할지 매번 고민하게 되고, 그 고민이 화면마다 다른 답을 낳는다.
+   */
+  --color-bg: #ffffff;
   --color-bg-elev: #ffffff;
-  --color-bg-sunken: #eef0f4;
-  --color-text: #1c2333;
-  --color-text-mute: #5b667a;
-  --color-text-faint: #8b94a7;
-  --color-border: #dde2ea;
-  --color-border-strong: #c3cad6;
-  --color-link: #3b5bdb;
-  --color-code-bg: #f1f3f7;
-  --color-code-text: #343d52;
+  --color-bg-sunken: #f7f7f5;
+  --color-bg-hover: #f1f1ef;
+  --color-bg-active: #eaeae8;
 
-  /* ── 상태 토큰 8종 (screens.md §4.1) ──────────────────────────────────── */
-  --color-status-idle: #eceef2;
-  --color-status-idle-text: #5b667a;
+  --color-text: #37352f;
+  --color-text-mute: #787774;
+  --color-text-faint: #9b9a97;
+
+  /* 경계선은 **거의 안 보여야 한다.** 보이는 선이 많으면 화면이 표처럼 딱딱해진다 */
+  --color-border: #ebebea;
+  --color-border-strong: #dcdcda;
+
+  --color-link: #2383e2;
+  --color-code-bg: #f7f6f3;
+  --color-code-text: #eb5757;
+
+  /* ── 상태 토큰 8종 (screens.md §4.1·§4.2 — 의미·매핑 불변) ──────────────── */
+  --color-status-idle: #f1f1ef;
+  --color-status-idle-text: #787774;
   --color-status-action: #4f46e5;
   --color-status-action-soft: #eef2ff;
   --color-status-waiting: #b45309;
@@ -53,29 +63,86 @@
   --color-muted: var(--color-status-idle);
   --color-muted-foreground: var(--color-status-idle-text);
 
-  --radius-nerv: 10px;
+  /* ── 라운드 ───────────────────────────────────────────────────────────────
+   * 작다. 큰 라운드는 요소를 카드처럼 띄우는데, 이 화면들은 문서에 가깝다.
+   */
+  --radius-nerv-sm: 4px;
+  --radius-nerv: 6px;
+  --radius-nerv-lg: 10px;
+
+  /* ── 타이포 ───────────────────────────────────────────────────────────────
+   * 본문 14px. 화면이 표·목록 위주라 16px 는 한 줄에 들어가는 정보를 줄인다.
+   * 제목은 크기보다 **굵기와 여백**으로 구분한다 — 크기만 키우면 화면이 소란스러워진다.
+   */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.45;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.6;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.65;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 1.625rem;
+  --text-2xl--line-height: 1.25;
+
   --font-sans:
     'Pretendard', 'Pretendard Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system,
     BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  /* ── 레이아웃 상수 ───────────────────────────────────────────────────────── */
+  --spacing-sidebar: 15rem;
+  --spacing-header: 2.75rem;
+  --spacing-content: 60rem;
+}
+
+/* 다크 — **`@theme` 을 미디어 쿼리 안에 넣지 않는다.**
+ * Tailwind v4 는 중첩된 `@theme` 을 밖으로 끌어올려 미디어 조건을 지운다. 그래서 이 블록이
+ * `@theme` 이던 동안 앱은 **언제나 다크였다**(라이트 팔레트는 죽은 코드였다 — 실측).
+ * 토큰은 이미 `:root` 의 CSS 변수라, 여기서는 평범한 CSS 로 그 변수만 다시 정의한다.
+ */
+/* ── 그림자 — 떠 있는 것에만 ───────────────────────────────────────────────
+ * `@theme` 의 `--shadow-*` 로 두면 Tailwind 가 **빌드 시점에 값을 박아 넣어서**
+ * 다크에서 변수를 바꿔도 그림자는 라이트 값 그대로다(라이트 그림자는 어두운 배경 위에서
+ * 보이지 않는다). 그래서 변수와 클래스를 직접 쓴다.
+ */
+:root {
+  --shadow-popover: 0 1px 2px rgb(15 15 15 / 6%), 0 8px 24px rgb(15 15 15 / 10%);
+  --shadow-modal: 0 2px 4px rgb(15 15 15 / 8%), 0 16px 48px rgb(15 15 15 / 16%);
+}
+
+.shadow-popover {
+  box-shadow: var(--shadow-popover);
+}
+.shadow-modal {
+  box-shadow: var(--shadow-modal);
 }
 
 @media (prefers-color-scheme: dark) {
-  @theme {
-    --color-bg: #0f1219;
-    --color-bg-elev: #171b26;
-    --color-bg-sunken: #0b0e14;
-    --color-text: #e6e9f0;
-    --color-text-mute: #a3adc2;
-    --color-text-faint: #6b7488;
-    --color-border: #2a3040;
-    --color-border-strong: #3a4256;
-    --color-link: #8ba7ff;
-    --color-code-bg: #1e2330;
-    --color-code-text: #d4d9e6;
+  :root {
+    --color-bg: #191919;
+    --color-bg-elev: #202020;
+    --color-bg-sunken: #1e1e1e;
+    --color-bg-hover: #2a2a2a;
+    --color-bg-active: #313131;
 
-    --color-status-idle: #232837;
-    --color-status-idle-text: #a3adc2;
+    --color-text: #e9e9e7;
+    --color-text-mute: #9b9a97;
+    --color-text-faint: #6f6f6c;
+
+    --color-border: #2c2c2c;
+    --color-border-strong: #3d3d3d;
+
+    --color-link: #529cca;
+    --color-code-bg: #252525;
+    --color-code-text: #ff7369;
+
+    --color-status-idle: #2a2a2a;
+    --color-status-idle-text: #9b9a97;
     --color-status-action: #818cf8;
     --color-status-action-soft: #232a45;
     --color-status-waiting: #fbbf24;
@@ -90,15 +157,184 @@
     --color-status-done-soft: #0e2724;
     --color-status-danger: #f87171;
     --color-status-danger-soft: #321616;
+
+    --shadow-popover: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 40%);
+    --shadow-modal: 0 2px 4px rgb(0 0 0 / 50%), 0 16px 48px rgb(0 0 0 / 50%);
   }
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
+  font-size: var(--text-base);
   background: var(--color-bg);
   color: var(--color-text);
-  line-height: 1.7;
+  /* 1.7 은 문서용 행간이다 — 목록·표가 많은 화면에서는 줄이 떠 보인다 */
+  line-height: 1.55;
   word-break: keep-all;
   overflow-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 포커스는 **항상 보인다.** 키보드로 승인함을 도는 것이 규약인데(REQ-WEB-025)
+   포커스가 안 보이면 그 규약은 쓸 수 없다. */
+:focus-visible {
+  outline: 2px solid var(--color-link);
+  outline-offset: 2px;
+  border-radius: var(--radius-nerv-sm);
+}
+
+/* 스크롤바 — 필요할 때만 보인다(Notion 과 같은 처리) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+/* ── 문서 본문(prose-nerv) ─────────────────────────────────────────────────
+ * 스펙 편집기(TipTap)와 미리보기가 쓰는 유일한 본문 스타일이다.
+ *
+ * Tailwind 의 preflight 가 h1~h6·ul·ol 의 기본 스타일을 전부 지운다. 그래서 이 클래스가
+ * 없으면 **스펙 문서가 한 덩어리 평문으로 보인다** — 제목도 목록도 본문과 같은 크기로.
+ * 스펙을 읽고 고치는 것이 이 제품의 중심 행위라, 여기가 비면 제품이 비는 것과 같다.
+ *
+ * 편집기 안이라 여백은 조금 좁다: 문단 사이가 넓으면 커서를 옮기는 거리가 길어진다.
+ */
+.prose-nerv {
+  font-size: var(--text-base);
+  line-height: 1.75;
+}
+.prose-nerv > :first-child {
+  margin-top: 0;
+}
+.prose-nerv > :last-child {
+  margin-bottom: 0;
+}
+
+.prose-nerv h1,
+.prose-nerv h2,
+.prose-nerv h3,
+.prose-nerv h4 {
+  margin: 1.5em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.prose-nerv h1 {
+  font-size: 1.6em;
+}
+.prose-nerv h2 {
+  font-size: 1.3em;
+  /* h2 는 문서의 뼈대다 — 옅은 선 하나로 구역이 시작된다는 것을 보인다 */
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--color-border);
+}
+.prose-nerv h3 {
+  font-size: 1.1em;
+}
+.prose-nerv h4 {
+  font-size: 1em;
+  color: var(--color-text-mute);
+}
+
+.prose-nerv p {
+  margin: 0.6em 0;
+}
+
+.prose-nerv ul,
+.prose-nerv ol {
+  margin: 0.6em 0;
+  padding-left: 1.4em;
+}
+.prose-nerv ul {
+  list-style: disc;
+}
+.prose-nerv ol {
+  list-style: decimal;
+}
+.prose-nerv li {
+  margin: 0.2em 0;
+}
+.prose-nerv li > ul,
+.prose-nerv li > ol {
+  margin: 0.2em 0;
+}
+
+.prose-nerv a {
+  color: var(--color-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose-nerv strong {
+  font-weight: 600;
+}
+.prose-nerv em {
+  font-style: italic;
+}
+
+.prose-nerv code {
+  padding: 0.15em 0.35em;
+  border-radius: var(--radius-nerv-sm);
+  background: var(--color-code-bg);
+  color: var(--color-code-text);
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+.prose-nerv pre {
+  margin: 0.8em 0;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+  border-radius: var(--radius-nerv);
+  background: var(--color-code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+.prose-nerv pre code {
+  padding: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: inherit;
+}
+
+.prose-nerv blockquote {
+  margin: 0.8em 0;
+  padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid var(--color-border-strong);
+  color: var(--color-text-mute);
+}
+
+.prose-nerv hr {
+  margin: 1.5em 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* 표는 스펙에서 요구사항·매핑을 싣는 자리다 — 폭이 넘치면 표만 가로로 민다 */
+.prose-nerv table {
+  display: block;
+  overflow-x: auto;
+  margin: 0.8em 0;
+  border-collapse: collapse;
+  font-size: 0.925em;
+}
+.prose-nerv th,
+.prose-nerv td {
+  padding: 0.4em 0.7em;
+  border: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+.prose-nerv th {
+  background: var(--color-bg-sunken);
+  font-weight: 600;
+}
+
+/* 빈 문단에 안내를 띄운다 — 빈 편집기는 고장난 편집기처럼 보인다 */
+.prose-nerv p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--color-text-faint);
+  pointer-events: none;
 }

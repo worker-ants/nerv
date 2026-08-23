@@ -10,6 +10,15 @@ import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useMembers } from '../../lib/queries.js';
 import { primaryMembership } from '../../lib/session.js';
 import { useRealtime } from '../../lib/realtime.js';
+import {
+  EmptyState,
+  PageHeader,
+  Select,
+  Table,
+  Td,
+  Th,
+  Tr,
+} from '../../components/ui/primitives.js';
 
 export const Route = createFileRoute('/settings/members')({ component: MembersTab });
 
@@ -40,48 +49,49 @@ function MembersTab(): React.JSX.Element {
 
   return (
     <section>
-      <h1 className="mb-3 text-lg font-semibold">멤버·역할</h1>
+      <PageHeader title="멤버·역할" description="역할 6종이 플랫폼 전체 권한의 정본입니다." />
       {!isAdmin && (
-        <p className="mb-2 text-sm text-text-mute">
-          역할 변경은 <code>admin</code> 만 할 수 있습니다 — 아래 목록은 읽기 전용입니다.
+        <p className="mb-3 rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute">
+          역할 변경은 <code className="font-mono">admin</code> 만 할 수 있습니다 — 아래 목록은 읽기
+          전용입니다.
         </p>
       )}
-      <table className="w-full text-sm">
-        <thead className="text-left text-text-mute">
-          <tr>
-            <th className="py-1">이름</th>
-            <th>이메일</th>
-            <th>스코프</th>
-            <th>역할</th>
-          </tr>
-        </thead>
-        <tbody>
+      {rows(members.data).length === 0 ? (
+        <EmptyState icon="👥" title="멤버가 없습니다." />
+      ) : (
+        <Table
+          head={
+            <>
+              <Th>이름</Th>
+              <Th>이메일</Th>
+              <Th>스코프</Th>
+              <Th className="w-32">역할</Th>
+            </>
+          }
+        >
           {rows(members.data).map((m) => (
-            <tr key={String(m['id'])} className="border-t border-border">
-              <td className="py-1">{String(m['display_name'])}</td>
-              <td className="text-text-mute">{String(m['email'])}</td>
-              <td className="text-text-mute">{String(m['project_slug'] ?? '조직 전체')}</td>
-              <td>
-                <select
+            <Tr key={String(m['id'])}>
+              <Td className="font-medium">{String(m['display_name'])}</Td>
+              <Td className="text-text-mute">{String(m['email'])}</Td>
+              <Td className="text-text-mute">{String(m['project_slug'] ?? '조직 전체')}</Td>
+              <Td>
+                <Select
                   value={String(m['role'])}
                   disabled={!isAdmin || changeRole.isPending}
                   title={isAdmin ? undefined : '이 변경은 admin 역할만 가능합니다'}
                   onChange={(e) => changeRole.mutate({ id: String(m['id']), role: e.target.value })}
-                  className="rounded border border-border bg-bg px-1 py-0.5 disabled:opacity-60"
+                  className="w-full"
                 >
                   {ROLES.map((role) => (
                     <option key={role} value={role}>
                       {role}
                     </option>
                   ))}
-                </select>
-              </td>
-            </tr>
+                </Select>
+              </Td>
+            </Tr>
           ))}
-        </tbody>
-      </table>
-      {rows(members.data).length === 0 && (
-        <p className="mt-2 text-sm text-text-mute">멤버가 없습니다.</p>
+        </Table>
       )}
     </section>
   );

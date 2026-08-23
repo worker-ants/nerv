@@ -6,6 +6,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMe } from '../lib/queries.js';
 import { landingFor, primaryMembership } from '../lib/session.js';
+import { Card, PageBody, PageHeader } from '../components/ui/primitives.js';
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingScreen });
 
@@ -23,47 +24,50 @@ function OnboardingScreen(): React.JSX.Element {
   const membership = me.data === undefined ? null : primaryMembership(me.data);
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="mb-4 text-xl font-semibold">시작하기</h1>
+    <PageBody>
+      <PageHeader title="시작하기" description="세 단계면 끝납니다 — 참여 · 역할 확인 · 첫 화면." />
 
       {membership === null ? (
-        <section className="rounded-md border border-border bg-bg-elev p-4">
-          <h2 className="mb-2 font-medium">① 조직에 참여하기</h2>
+        <Card>
+          <h2 className="mb-1.5 font-medium">① 조직에 참여하기</h2>
           <p className="text-sm text-text-mute">
             아직 소속된 조직이 없습니다. MVP 에서 조직 참여는 기존 사용자 배정이라, 관리자가 당신을
             멤버로 추가하면 이 화면이 다음 단계로 넘어갑니다.
           </p>
           <p className="mt-2 text-sm text-text-mute">
-            관리자에게 이 이메일을 알려주세요: <code>{me.data?.email ?? ''}</code>
+            관리자에게 이 이메일을 알려주세요:{' '}
+            <code className="rounded-nerv-sm bg-code-bg px-1.5 py-0.5 font-mono text-code-text">
+              {me.data?.email ?? ''}
+            </code>
           </p>
-        </section>
+        </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          <section className="rounded-md border border-border bg-bg-elev p-4">
+          <Card>
             <h2 className="mb-1 font-medium">② 당신의 역할: {membership.role}</h2>
             <p className="text-sm text-text-mute">
               {ROLE_NOTE[membership.role] ?? '프로젝트를 둘러보세요.'}
             </p>
-          </section>
-          <section className="rounded-md border border-border bg-bg-elev p-4">
-            <h2 className="mb-2 font-medium">③ 다음 행동</h2>
+          </Card>
+          <Card>
+            <h2 className="mb-1.5 font-medium">③ 다음 행동</h2>
             <Link
               to={landingFor(membership.role, membership.project_slug)}
-              className="text-link underline"
+              className="text-sm text-link hover:underline"
             >
               {membership.role === 'developer' || membership.role === 'qa'
                 ? '작업 보드로 이동 ▸'
                 : '승인함으로 이동 ▸'}
             </Link>
-            <div className="mt-2 text-sm text-text-mute">
+            <p className="mt-2 text-sm text-text-mute">
               에이전트를 연결하려면{' '}
-              <Link to="/settings/tokens" className="text-link underline">
+              <Link to="/settings/tokens" className="text-link hover:underline">
                 설정 › 에이전트 토큰 ▸
               </Link>
-            </div>
-          </section>
+            </p>
+          </Card>
         </div>
       )}
-    </div>
+    </PageBody>
   );
 }

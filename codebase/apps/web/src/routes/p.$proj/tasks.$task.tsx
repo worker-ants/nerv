@@ -13,6 +13,17 @@ import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rows, useProject, useTask } from '../../lib/queries.js';
+import {
+  Button,
+  Card,
+  Input,
+  Mono,
+  PageBody,
+  PageHeader,
+  SectionTitle,
+  Select,
+  Textarea,
+} from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/tasks/$task')({ component: TaskDetail });
@@ -78,138 +89,154 @@ function TaskDetail(): React.JSX.Element {
   });
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <header className="flex flex-wrap items-center gap-2">
-        <Link to="/p/$proj/tasks" params={{ proj }} className="text-sm text-link underline">
-          ← 보드
-        </Link>
-        <h1 className="text-lg font-semibold">{String(data['title'] ?? task)}</h1>
-        <span className="font-mono text-xs text-text-faint">{task}</span>
-        <StatusBadge
-          token={(TASK_TOKEN[status as keyof typeof TASK_TOKEN] ?? 'idle') as StatusToken}
-          label={status}
-        />
-      </header>
-
-      <section className="grid gap-2 rounded-md border border-border bg-bg-elev p-3 text-sm md:grid-cols-2">
-        <Field label="① 목표">{String(data['goal_md'] ?? '—')}</Field>
-        <Field label="② 산출물 형식">{String(data['output_format_md'] ?? '—')}</Field>
-        <Field label="③ 도구·출처">{String(data['tools_sources_md'] ?? '—')}</Field>
-        <Field label="④ 경계">{String(data['boundaries_md'] ?? '—')}</Field>
-      </section>
-
-      <section className="rounded-md border border-border bg-bg-elev p-3 text-sm">
-        <h2 className="mb-2 font-semibold text-text-mute">활성 클레임</h2>
-        <ul className="flex flex-col gap-1">
-          {rows(data['claims']).map((claim) => (
-            <li key={String(claim['id'])} className="flex flex-wrap gap-2 text-xs">
-              <span>{String(claim['status'])}</span>
-              <span className="font-mono">{String(claim['hostname'] ?? '사람')}</span>
-              <span>{String(claim['agent_type'] ?? '')}</span>
-              <span className="text-text-faint">{String(claim['external_session_id'] ?? '')}</span>
-            </li>
-          ))}
-          {rows(data['claims']).length === 0 && <li className="text-text-faint">없습니다.</li>}
-        </ul>
-      </section>
-
-      <section className="rounded-md border border-border bg-bg-elev p-3 text-sm">
-        <h2 className="mb-2 font-semibold text-text-mute">완료 처리 (done 게이트)</h2>
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={specImpactNone}
-              onChange={(e) => setSpecImpactNone(e.target.checked)}
+    <PageBody>
+      <Link
+        to="/p/$proj/tasks"
+        params={{ proj }}
+        className="mb-2 inline-block text-xs text-text-mute hover:text-text"
+      >
+        ← 보드
+      </Link>
+      <PageHeader
+        title={String(data['title'] ?? task)}
+        meta={
+          <>
+            <Mono>{task}</Mono>
+            <StatusBadge
+              token={(TASK_TOKEN[status as keyof typeof TASK_TOKEN] ?? 'idle') as StatusToken}
+              label={status}
             />
-            스펙 영향 없음
-          </label>
-          {!specImpactNone && (
-            <textarea
-              value={specImpactNote}
-              onChange={(e) => setSpecImpactNote(e.target.value)}
-              placeholder="어떤 스펙이 어떻게 바뀌어야 하는지"
-              rows={2}
-              className="rounded border border-border bg-bg px-2 py-1"
-            />
-          )}
-          <div className="flex gap-2">
-            <select
-              value={evidenceKind}
-              onChange={(e) => setEvidenceKind(e.target.value)}
-              className="rounded border border-border bg-bg px-2 py-1"
-            >
-              {['pr', 'commit', 'test', 'code_path'].map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
-            <input
-              value={evidenceLocator}
-              onChange={(e) => setEvidenceLocator(e.target.value)}
-              placeholder="증적 위치 (PR URL · 커밋 SHA · 테스트 ID)"
-              className="min-w-0 flex-1 rounded border border-border bg-bg px-2 py-1"
-            />
+          </>
+        }
+      />
+
+      <div className="flex flex-col gap-4">
+        <Card>
+          <SectionTitle>위임 명세 4요소</SectionTitle>
+          <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
+            <Element label="① 목표">{String(data['goal_md'] ?? '—')}</Element>
+            <Element label="② 산출물 형식">{String(data['output_format_md'] ?? '—')}</Element>
+            <Element label="③ 도구·출처">{String(data['tools_sources_md'] ?? '—')}</Element>
+            <Element label="④ 경계">{String(data['boundaries_md'] ?? '—')}</Element>
           </div>
-          {rejection !== null && (
-            <p
-              role="alert"
-              data-testid="transition-rejected"
-              className="text-sm text-status-danger"
-            >
-              전이 거부 — {rejection.message}
-              {rejection.missing.length > 0 && ` (누락: ${rejection.missing.join(', ')})`}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={status === 'done' || transition.isPending}
-              onClick={() => transition.mutate('done')}
-              title={rejection === null ? undefined : `직전 거부: ${rejection.message}`}
-              className="rounded bg-status-done px-2 py-1 text-white disabled:opacity-50"
-            >
-              완료로 전이
-            </button>
-            <input
-              value={blockedReason}
-              onChange={(e) => setBlockedReason(e.target.value)}
-              placeholder="막힌 사유"
-              className="rounded border border-border bg-bg px-2 py-1"
-            />
-            <button
-              type="button"
-              disabled={blockedReason.trim() === '' || transition.isPending}
-              onClick={() => transition.mutate('blocked')}
-              className="rounded border border-status-danger px-2 py-1 text-status-danger disabled:opacity-50"
-              title="사유 없는 blocked 는 백로그 부패의 씨앗이다"
-            >
-              막힘으로 전이
-            </button>
-          </div>
-        </div>
-      </section>
+        </Card>
 
-      <section className="rounded-md border border-border bg-bg-elev p-3 text-sm">
-        <h2 className="mb-2 font-semibold text-text-mute">증적</h2>
-        <ul className="flex flex-col gap-1 text-xs">
-          {rows(data['evidence']).map((e) => (
-            <li key={String(e['id'])} className="flex gap-2">
-              <span className="font-mono">{String(e['kind'])}</span>
-              <span className="truncate">{String(e['locator'])}</span>
-            </li>
-          ))}
-          {rows(data['evidence']).length === 0 && (
-            <li className="text-text-faint">아직 없습니다.</li>
-          )}
-        </ul>
-      </section>
-    </div>
+        <Card>
+          <SectionTitle>활성 클레임</SectionTitle>
+          <ul className="flex flex-col gap-1">
+            {rows(data['claims']).map((claim) => (
+              <li key={String(claim['id'])} className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-medium">{String(claim['status'])}</span>
+                <span className="font-mono">{String(claim['hostname'] ?? '사람')}</span>
+                <span className="text-text-mute">{String(claim['agent_type'] ?? '')}</span>
+                <Mono>{String(claim['external_session_id'] ?? '')}</Mono>
+              </li>
+            ))}
+            {rows(data['claims']).length === 0 && (
+              <li className="text-sm text-text-faint">없습니다.</li>
+            )}
+          </ul>
+        </Card>
+
+        <Card>
+          <SectionTitle>완료 처리 · done 게이트</SectionTitle>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={specImpactNone}
+                onChange={(e) => setSpecImpactNone(e.target.checked)}
+              />
+              스펙 영향 없음
+              <span className="text-xs text-text-faint">
+                — &quot;없음&quot;도 명시적으로 고릅니다. 빈 선언을 허용하면 규칙이 사라집니다
+              </span>
+            </label>
+            {!specImpactNone && (
+              <Textarea
+                value={specImpactNote}
+                onChange={(e) => setSpecImpactNote(e.target.value)}
+                placeholder="어떤 스펙이 어떻게 바뀌어야 하는지"
+                rows={2}
+              />
+            )}
+            <div className="flex gap-2">
+              <Select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}>
+                {['pr', 'commit', 'test', 'code_path'].map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                value={evidenceLocator}
+                onChange={(e) => setEvidenceLocator(e.target.value)}
+                placeholder="증적 위치 (PR URL · 커밋 SHA · 테스트 ID)"
+                className="min-w-0 flex-1"
+              />
+            </div>
+            {rejection !== null && (
+              <p
+                role="alert"
+                data-testid="transition-rejected"
+                className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
+              >
+                전이 거부 — {rejection.message}
+                {rejection.missing.length > 0 && ` (누락: ${rejection.missing.join(', ')})`}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+              <Button
+                variant="primary"
+                disabled={status === 'done' || transition.isPending}
+                onClick={() => transition.mutate('done')}
+                title={rejection === null ? undefined : `직전 거부: ${rejection.message}`}
+              >
+                완료로 전이
+              </Button>
+              <span aria-hidden="true" className="h-5 w-px bg-border" />
+              <Input
+                value={blockedReason}
+                onChange={(e) => setBlockedReason(e.target.value)}
+                placeholder="막힌 사유"
+                className="w-56"
+              />
+              <Button
+                variant="danger"
+                disabled={blockedReason.trim() === '' || transition.isPending}
+                onClick={() => transition.mutate('blocked')}
+                title="사유 없는 blocked 는 백로그 부패의 씨앗이다"
+              >
+                막힘으로 전이
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle>증적</SectionTitle>
+          <ul className="flex flex-col">
+            {rows(data['evidence']).map((e) => (
+              <li
+                key={String(e['id'])}
+                className="flex gap-2 border-b border-border py-1.5 text-xs last:border-0"
+              >
+                <span className="w-20 shrink-0 font-mono text-text-faint">{String(e['kind'])}</span>
+                <span className="truncate">{String(e['locator'])}</span>
+              </li>
+            ))}
+            {rows(data['evidence']).length === 0 && (
+              <li className="text-sm text-text-faint">아직 없습니다.</li>
+            )}
+          </ul>
+        </Card>
+      </div>
+    </PageBody>
   );
 }
 
-function Field({
+/** 위임 명세 한 요소 — 라벨은 작게, 본문은 그대로. 4요소가 나란히 보여야 빈 칸이 눈에 띈다 */
+function Element({
   label,
   children,
 }: {
@@ -218,7 +245,9 @@ function Field({
 }): React.JSX.Element {
   return (
     <div>
-      <div className="text-xs text-text-faint">{label}</div>
+      <div className="mb-0.5 text-2xs font-medium tracking-wide text-text-faint uppercase">
+        {label}
+      </div>
       <div className="whitespace-pre-wrap">{children}</div>
     </div>
   );

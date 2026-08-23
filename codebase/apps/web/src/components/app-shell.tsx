@@ -7,19 +7,56 @@
 //
 // **승인함 배지는 내 결정을 기다리는 것만 센다**(spec-workflow §6.6 원칙 3). 배경 활동까지
 // 세면 배지는 곧 무시되고, 무시되는 배지는 없는 배지다.
+//
+// 헤더와 사이드바는 **고정**이다(sticky). 스펙 트리가 수백 줄이어도 조직 전환·승인함은
+// 늘 같은 자리에 있어야 한다 — 위로 스크롤해서 찾아야 하는 내비게이션은 내비게이션이 아니다.
 
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { signOut } from '../lib/session.js';
 import { useInbox, useMe, useUnreadCount } from '../lib/queries.js';
+import { cn } from '../lib/utils.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { SpecTree } from './spec-tree.js';
 import { StatusBadge } from './status-badge.js';
+import { MenuItem, Popover } from './ui/primitives.js';
 
 export interface AppShellProps {
   children: React.ReactNode;
   projectSlug?: string | undefined;
+}
+
+/** 헤더 링크 — 눌리는 영역이 글자보다 커야 손이 빗나가지 않는다 */
+const HEADER_LINK =
+  'rounded-nerv-sm px-2 py-1 text-sm text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
+
+/** 사이드바 항목 — 활성 표시는 배경 + 굵기다. 색만으로 구분하지 않는다(REQ-WEB-033) */
+const NAV_ITEM =
+  'flex items-center gap-2 rounded-nerv-sm px-2 py-1 text-sm text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
+const NAV_ACTIVE = 'bg-bg-active font-medium text-text';
+
+function CountBadge({
+  count,
+  tone,
+  testId,
+}: {
+  count: number;
+  tone: 'action' | 'waiting';
+  testId: string;
+}): React.JSX.Element | null {
+  if (count === 0) return null;
+  return (
+    <span
+      data-testid={testId}
+      className={cn(
+        'ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white',
+        tone === 'action' ? 'bg-status-action' : 'bg-status-waiting',
+      )}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
 }
 
 export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.Element {
@@ -70,10 +107,13 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <header className="flex items-center justify-between gap-4 border-b border-border bg-bg-elev px-4 py-2">
-        <nav className="flex items-center gap-4">
-          <Link to="/" className="flex items-center gap-2 font-semibold">
-            <span aria-hidden="true">⬢</span> NERV
+      <header className="sticky top-0 z-30 flex h-header items-center justify-between gap-4 border-b border-border bg-bg px-3">
+        <nav className="flex min-w-0 items-center gap-1">
+          <Link to="/" className="mr-1 flex items-center gap-1.5 px-1 text-sm font-semibold">
+            <span aria-hidden="true" className="text-status-action">
+              ⬢
+            </span>{' '}
+            NERV
           </Link>
           {currentOrg !== null && (
             <div className="relative">
@@ -81,64 +121,70 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                 type="button"
                 data-testid="org-switcher"
                 onClick={() => setMenuOpen((open) => (open === 'org' ? null : 'org'))}
-                className="rounded border border-border px-2 py-0.5 text-sm text-text-mute hover:text-text"
+                className={cn(HEADER_LINK, 'flex max-w-40 items-center gap-1')}
               >
-                {currentOrg.name} <span aria-hidden="true">▾</span>
+                <span className="truncate">{currentOrg.name}</span>
+                <span aria-hidden="true" className="text-text-faint">
+                  ▾
+                </span>
               </button>
               {menuOpen === 'org' && (
-                <ul className="absolute left-0 z-40 mt-1 min-w-40 rounded-md border border-border bg-bg-elev py-1 shadow">
+                <Popover>
                   {orgs.map((org) => (
-                    <li key={org.slug}>
-                      <Link
-                        to="/o/$org"
-                        params={{ org: org.slug }}
-                        onClick={() => setMenuOpen(null)}
-                        className="block px-3 py-1 text-sm hover:bg-bg-sunken"
-                      >
-                        {org.name}
-                      </Link>
-                    </li>
+                    <Link
+                      key={org.slug}
+                      to="/o/$org"
+                      params={{ org: org.slug }}
+                      onClick={() => setMenuOpen(null)}
+                      className="block px-3 py-1.5 text-sm hover:bg-bg-hover"
+                    >
+                      {org.name}
+                    </Link>
                   ))}
                   {orgs.length === 1 && (
-                    <li className="px-3 py-1 text-xs text-text-faint">다른 조직 없음</li>
+                    <p className="px-3 py-1.5 text-xs text-text-faint">다른 조직 없음</p>
                   )}
-                </ul>
+                </Popover>
               )}
             </div>
           )}
-          <Link to="/" className="text-sm text-text-mute hover:text-text">
+          <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
+          <Link
+            to="/"
+            className={HEADER_LINK}
+            activeProps={{ className: 'bg-bg-active text-text' }}
+            activeOptions={{ exact: true }}
+          >
             홈
           </Link>
-          <Link to="/inbox" className="text-sm text-text-mute hover:text-text">
+          <Link
+            to="/inbox"
+            className={HEADER_LINK}
+            activeProps={{ className: 'bg-bg-active text-text' }}
+          >
             승인함
-            {pending > 0 && (
-              <span
-                data-testid="inbox-badge"
-                className="ml-1 rounded-full bg-status-action px-1.5 text-xs text-white"
-              >
-                {pending}
-              </span>
-            )}
+            <CountBadge count={pending} tone="action" testId="inbox-badge" />
           </Link>
-          <Link to="/notifications" className="text-sm text-text-mute hover:text-text">
+          <Link
+            to="/notifications"
+            className={HEADER_LINK}
+            activeProps={{ className: 'bg-bg-active text-text' }}
+          >
             알림
-            {unreadCount > 0 && (
-              <span
-                data-testid="notification-badge"
-                className="ml-1 rounded-full bg-status-waiting px-1.5 text-xs text-white"
-              >
-                {unreadCount}
-              </span>
-            )}
+            <CountBadge count={unreadCount} tone="waiting" testId="notification-badge" />
           </Link>
         </nav>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
+          {/* 검색은 버튼이지만 **입력창처럼 보인다** — 여기에 타이핑하면 된다는 것이
+              모양으로 읽혀야 ⌘K 를 모르는 사람도 찾는다 */}
           <button
             type="button"
             onClick={() => setSwitcherOpen(true)}
-            className="rounded-md border border-border px-2 py-1 text-sm text-text-mute hover:text-text"
+            className="flex h-7 w-56 items-center gap-2 rounded-nerv-sm border border-border bg-bg-sunken px-2 text-sm text-text-faint transition-colors hover:border-border-strong"
           >
-            🔍 검색 <kbd className="ml-1 text-xs text-text-faint">⌘K</kbd>
+            <span aria-hidden="true">🔍</span>
+            <span className="flex-1 text-left">검색</span>
+            <kbd className="rounded-nerv-sm border border-border px-1 text-2xs">⌘K</kbd>
           </button>
           {/* 설정은 사용자 메뉴 안에 있다 — 와이어프레임 헤더(§2.1)는
               `⬢ NERV 홈 승인함 알림 🔍검색 [지민 ▾]` 여섯 자리뿐이고, 자주 쓰지 않는 항목이
@@ -149,35 +195,40 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
                 type="button"
                 data-testid="user-menu"
                 onClick={() => setMenuOpen((open) => (open === 'user' ? null : 'user'))}
-                className="rounded border border-border px-2 py-0.5 text-sm text-text-mute hover:text-text"
+                className={cn(HEADER_LINK, 'flex items-center gap-1.5')}
               >
-                {me.data.display_name} <span aria-hidden="true">▾</span>
+                <span
+                  aria-hidden="true"
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-status-action-soft text-2xs font-semibold text-status-action"
+                >
+                  {(me.data.display_name ?? '?').slice(0, 1)}
+                </span>
+                {me.data.display_name}
+                <span aria-hidden="true" className="text-text-faint">
+                  ▾
+                </span>
               </button>
               {menuOpen === 'user' && (
-                <ul className="absolute right-0 z-40 mt-1 min-w-36 rounded-md border border-border bg-bg-elev py-1 shadow">
-                  <li className="px-3 py-1 text-xs text-text-faint">{me.data.email}</li>
-                  <li>
-                    <Link
-                      to="/settings"
-                      onClick={() => setMenuOpen(null)}
-                      className="block px-3 py-1 text-sm hover:bg-bg-sunken"
-                    >
-                      설정
-                    </Link>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      className="block w-full px-3 py-1 text-left text-sm hover:bg-bg-sunken"
-                      onClick={() => {
-                        setMenuOpen(null);
-                        void signOut().then(() => navigate({ to: '/login' }));
-                      }}
-                    >
-                      로그아웃
-                    </button>
-                  </li>
-                </ul>
+                <Popover align="right">
+                  <p className="border-b border-border px-3 pb-1.5 text-xs text-text-faint">
+                    {me.data.email}
+                  </p>
+                  <Link
+                    to="/settings"
+                    onClick={() => setMenuOpen(null)}
+                    className="mt-1 block px-3 py-1.5 text-sm hover:bg-bg-hover"
+                  >
+                    설정
+                  </Link>
+                  <MenuItem
+                    onClick={() => {
+                      setMenuOpen(null);
+                      void signOut().then(() => navigate({ to: '/login' }));
+                    }}
+                  >
+                    로그아웃
+                  </MenuItem>
+                </Popover>
               )}
             </div>
           )}
@@ -190,65 +241,89 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
           aria-live="polite"
           data-testid="connection-banner"
           data-level={offline ? 'offline' : 'ws'}
-          className="border-b border-border bg-status-waiting-soft px-4 py-1 text-sm text-status-waiting"
+          className="flex items-center gap-2 border-b border-border bg-status-waiting-soft px-4 py-1.5 text-xs text-status-waiting"
         >
+          <span aria-hidden="true">●</span>
           {banner}
         </div>
       )}
 
       <div className="flex">
         {projectSlug !== undefined && (
-          <aside className="w-64 shrink-0 border-r border-border bg-bg-elev p-3">
-            <div className="mb-2 text-xs text-text-faint">프로젝트</div>
-            <div className="mb-3 font-medium">{projectSlug}</div>
-            <nav className="mb-4 flex flex-col gap-1 text-sm">
+          <aside className="sticky top-header hidden h-[calc(100vh-var(--spacing-header))] w-sidebar shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-sunken px-2 py-3 md:flex">
+            <div className="px-2">
+              <p className="text-2xs font-semibold tracking-wide text-text-faint uppercase">
+                프로젝트
+              </p>
+              <p className="mt-0.5 truncate font-medium">{projectSlug}</p>
+            </div>
+            <nav className="mt-3 flex flex-col gap-0.5">
               <Link
                 to="/p/$proj"
                 params={{ proj: projectSlug }}
-                className="hover:text-status-action"
+                className={NAV_ITEM}
+                activeProps={{ className: NAV_ACTIVE }}
+                activeOptions={{ exact: true }}
               >
-                개요
+                <span aria-hidden="true">◇</span> 개요
               </Link>
               <Link
                 to="/p/$proj/specs"
                 params={{ proj: projectSlug }}
-                className="hover:text-status-action"
+                className={NAV_ITEM}
+                activeProps={{ className: NAV_ACTIVE }}
               >
-                스펙
+                <span aria-hidden="true">▤</span> 스펙
               </Link>
               <Link
                 to="/p/$proj/tasks"
                 params={{ proj: projectSlug }}
-                className="hover:text-status-action"
+                className={NAV_ITEM}
+                activeProps={{ className: NAV_ACTIVE }}
               >
-                작업
+                <span aria-hidden="true">◫</span> 작업
               </Link>
               <Link
                 to="/p/$proj/sessions"
                 params={{ proj: projectSlug }}
-                className="hover:text-status-action"
+                className={NAV_ITEM}
+                activeProps={{ className: NAV_ACTIVE }}
               >
-                세션
+                <span aria-hidden="true">◉</span> 세션
               </Link>
               {/* 리뷰 탭은 Phase 2 — 숨기지 않고 비활성 + 사유를 보인다(§1.3) */}
-              <span className="cursor-not-allowed text-text-faint" title="Phase 2">
-                리뷰 <StatusBadge token="idle" label="Phase 2" />
+              <span
+                className={cn(
+                  NAV_ITEM,
+                  'cursor-not-allowed justify-between hover:bg-transparent hover:text-text-mute',
+                )}
+                title="Phase 2"
+              >
+                <span className="flex items-center gap-2">
+                  <span aria-hidden="true">◈</span> 리뷰
+                </span>
+                <StatusBadge token="idle" label="Phase 2" />
               </span>
             </nav>
             {/* 트리는 S3 좌측 트리와 같은 컴포넌트다 — 스크롤 위치를 공유한다(§1.3) */}
-            <SpecTree projectSlug={projectSlug} compact />
+            <div className="mt-4 border-t border-border pt-3">
+              <p className="mb-1 px-2 text-2xs font-semibold tracking-wide text-text-faint uppercase">
+                스펙 트리
+              </p>
+              <SpecTree projectSlug={projectSlug} compact />
+            </div>
           </aside>
         )}
-        <main className="min-w-0 flex-1 p-4">{children}</main>
+        <main className="min-w-0 flex-1">{children}</main>
       </div>
 
-      <div data-testid="toast-outlet" className="fixed bottom-4 right-4 flex flex-col gap-2">
+      <div data-testid="toast-outlet" className="fixed right-4 bottom-4 z-50 flex flex-col gap-2">
         {toasts.map((toast) => (
           <div
             key={toast.id}
             data-testid="toast"
             data-tone={toast.tone}
-            className="flex items-center gap-3 rounded-md border border-border bg-bg-elev px-3 py-2 text-sm shadow"
+            className="flex items-center gap-3 rounded-nerv border border-border bg-bg-elev px-3 py-2 text-sm shadow-popover"
           >
             <span>{toast.message}</span>
             {toast.href !== undefined && (
@@ -258,7 +333,8 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
             )}
             <button
               type="button"
-              className="text-text-faint"
+              aria-label="닫기"
+              className="text-text-faint hover:text-text"
               onClick={() => dismissToast(toast.id)}
             >
               ✕

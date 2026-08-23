@@ -27,22 +27,27 @@ export function SessionCard({
   return (
     <article
       data-testid="session-card"
-      className="flex flex-col gap-2 rounded-md border border-border bg-bg-elev p-3"
+      className="flex flex-col gap-2 rounded-nerv border border-border bg-bg-elev px-3 py-2.5 transition-colors hover:border-border-strong"
     >
       <header className="flex items-center justify-between gap-2">
-        <span className="text-sm">
-          {card.user_name} · <span className="font-mono">{card.hostname}</span> · {card.agent_type}
+        <span className="min-w-0 truncate text-sm">
+          <span className="font-medium">{card.user_name}</span>
+          <span className="text-text-faint"> · </span>
+          <span className="font-mono text-xs">{card.hostname}</span>
+          <span className="text-text-faint"> · </span>
+          <span className="text-text-mute">{card.agent_type}</span>
         </span>
         <StatusBadge token={token} label={card.state} />
       </header>
 
       {card.task_key !== null && (
-        <div className="text-sm text-text-mute">
-          <span className="font-mono">{card.task_key}</span> {card.task_title}
+        <div className="truncate text-sm">
+          <span className="font-mono text-xs text-text-faint">{card.task_key}</span>{' '}
+          <span className="text-text-mute">{card.task_title}</span>
         </div>
       )}
 
-      <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-mute">
+      <dl className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-faint">
         <div>
           <dt className="inline">하트비트 </dt>
           <dd className="inline">{relativeTime(card.last_heartbeat_at, now)}</dd>
@@ -69,7 +74,7 @@ export function SessionCard({
           {card.scope_file_globs.map((glob) => (
             <li
               key={glob}
-              className="rounded bg-bg-sunken px-1.5 py-0.5 font-mono text-xs text-text-mute"
+              className="rounded-nerv-sm bg-bg-sunken px-1.5 py-0.5 font-mono text-2xs text-text-mute"
             >
               {glob}
             </li>
@@ -79,7 +84,7 @@ export function SessionCard({
 
       {/* stale 은 왜 그렇게 됐는지까지 적는다(REQ-WEB-020 · D-13) */}
       {card.state === 'stale' && (
-        <p className="text-xs text-status-danger">
+        <p className="rounded-nerv-sm bg-status-danger-soft px-2 py-1 text-xs text-status-danger">
           무활동 임계 30:00 초과 → 자동 전이. 클레임은 회수됐다.
         </p>
       )}

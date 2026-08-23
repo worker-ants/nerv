@@ -6,9 +6,20 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
+import { eventLabel } from '../../lib/event-label.js';
+import { relativeTime } from '../../lib/format.js';
 import { rows, useCoverage, useEvents, useProject, useSessions } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
-import type { SessionCard as Card } from '../../features/session-monitor/types.js';
+import { cn } from '../../lib/utils.js';
+import {
+  Card,
+  EmptyState,
+  PageBody,
+  PageHeader,
+  SectionTitle,
+  Skeleton,
+} from '../../components/ui/primitives.js';
+import type { SessionCard as SessionCardData } from '../../features/session-monitor/types.js';
 
 export const Route = createFileRoute('/p/$proj/')({ component: ProjectOverview });
 
@@ -27,77 +38,146 @@ function ProjectOverview(): React.JSX.Element {
   }, [joinProject, projectId]);
 
   const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
-  const active = (sessions.data?.items ?? []) as unknown as Card[];
+  const active = (sessions.data?.items ?? []) as unknown as SessionCardData[];
+
+  const total = Number(totals['total'] ?? 0);
+  const implemented = Number(totals['implemented'] ?? 0);
+  const verified = Number(totals['verified'] ?? 0);
+  const missing = Number(totals['evidence_missing'] ?? 0);
+  const empty = Number(totals['empty_promises'] ?? 0);
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex items-baseline gap-3">
-        <h1 className="text-lg font-semibold">{String(project.data?.['name'] ?? proj)}</h1>
-        <span className="text-sm text-text-mute">
-          {String(project.data?.['description'] ?? '')}
-        </span>
-      </header>
+    <PageBody wide>
+      <PageHeader
+        title={String(project.data?.['name'] ?? proj)}
+        description={String(project.data?.['description'] ?? '')}
+      />
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-md border border-border bg-bg-elev p-3">
-          <h2 className="mb-2 text-sm font-semibold text-text-mute">구현 현황</h2>
-          <dl className="grid grid-cols-2 gap-1 text-sm">
-            <dt className="text-text-mute">요구사항</dt>
-            <dd>{totals['total'] ?? 0}</dd>
-            <dt className="text-text-mute">구현</dt>
-            <dd>{totals['implemented'] ?? 0}</dd>
-            <dt className="text-text-mute">검증</dt>
-            <dd>{totals['verified'] ?? 0}</dd>
+      <section className="mb-8 grid gap-4 lg:grid-cols-3">
+        <Card className="self-start lg:col-span-1">
+          <SectionTitle>구현 현황</SectionTitle>
+          {/* 막대 하나 — 요구사항이 어디까지 왔는지는 다섯 줄의 숫자보다 폭으로 먼저 읽힌다.
+              폭만으로 구분하지 않도록 아래에 숫자를 그대로 남긴다(REQ-WEB-033) */}
+          <div
+            className="flex h-1.5 overflow-hidden rounded-full bg-bg-sunken"
+            role="img"
+            aria-label={`요구사항 ${total}건 중 검증 ${verified}건 · 구현 ${implemented}건`}
+          >
+            <span className="bg-status-ok" style={{ width: `${pct(verified, total)}%` }} />
+            <span
+              className="bg-status-done"
+              style={{ width: `${pct(Math.max(0, implemented - verified), total)}%` }}
+            />
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
+            <Metric label="요구사항" value={total} />
+            <Metric label="구현" value={implemented} />
+            <Metric label="검증" value={verified} tone={verified > 0 ? 'ok' : undefined} />
             {/* 두 숫자가 이 카드의 존재 이유다 — 관계 그래프가 아니면 셀 수 없다(§5.5) */}
-            <dt className="text-text-mute">증적 결손</dt>
-            <dd
-              className={Number(totals['evidence_missing'] ?? 0) > 0 ? 'text-status-waiting' : ''}
-            >
-              {totals['evidence_missing'] ?? 0}
-            </dd>
-            <dt className="text-text-mute">빈 약속</dt>
-            <dd className={Number(totals['empty_promises'] ?? 0) > 0 ? 'text-status-danger' : ''}>
-              {totals['empty_promises'] ?? 0}
-            </dd>
+            <Metric label="증적 결손" value={missing} tone={missing > 0 ? 'waiting' : undefined} />
+            <Metric label="빈 약속" value={empty} tone={empty > 0 ? 'danger' : undefined} />
           </dl>
-        </div>
+        </Card>
 
-        <div className="rounded-md border border-border bg-bg-elev p-3 md:col-span-2">
-          <h2 className="mb-2 text-sm font-semibold text-text-mute">
-            활성 세션 {active.length}개{' '}
-            <Link to="/p/$proj/sessions" params={{ proj }} className="text-link underline">
-              전체 ▸
-            </Link>
-          </h2>
+        <Card className="lg:col-span-2">
+          <SectionTitle
+            action={
+              <Link
+                to="/p/$proj/sessions"
+                params={{ proj }}
+                className="text-xs text-link hover:underline"
+              >
+                전체 ▸
+              </Link>
+            }
+          >
+            활성 세션 {active.length}개
+          </SectionTitle>
           <div className="grid gap-2 sm:grid-cols-2">
             {active.slice(0, 4).map((card) => (
               <SessionCard key={card.id} card={card} />
             ))}
-            {active.length === 0 && (
-              <p className="text-sm text-text-mute">지금 도는 세션이 없습니다.</p>
-            )}
           </div>
-        </div>
+          {active.length === 0 && (
+            <EmptyState
+              icon="◉"
+              title="지금 도는 세션이 없습니다."
+              hint={
+                <>
+                  에이전트가 <code className="font-mono text-text-mute">/nerv:next</code> 로 작업을
+                  잡으면 여기에 나타납니다.
+                </>
+              }
+            />
+          )}
+        </Card>
       </section>
 
       {/* 트리는 **셸 사이드바가 소유한다**(§1.3) — 와이어프레임 §2.2 의 좌측 열이 그것이다.
           여기서 또 그리면 같은 트리가 나란히 두 개 뜬다(문서 대조에서 발견). */}
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-text-mute">최근 이벤트</h2>
-        <ul className="flex flex-col gap-1 text-sm">
+      <section className="max-w-content">
+        <SectionTitle>최근 이벤트</SectionTitle>
+        {events.isLoading && <Skeleton rows={4} />}
+        <ul className="flex flex-col">
           {rows(events.data).map((e) => (
-            <li key={String(e['id'])} className="flex gap-2">
+            <li
+              key={String(e['id'])}
+              className="flex items-center gap-2 border-b border-border py-1.5 text-sm last:border-0"
+            >
               {/* 사람/에이전트 구분은 감사의 첫 질문이다(FR-16 · D-08) */}
-              <span title={e['is_agent'] === true ? '에이전트' : '사람'}>
+              <span
+                aria-label={e['is_agent'] === true ? '에이전트' : '사람'}
+                title={e['is_agent'] === true ? '에이전트' : '사람'}
+                className="shrink-0 text-xs"
+              >
                 {e['is_agent'] === true ? '🤖' : '👤'}
               </span>
-              <span className="font-mono text-xs text-text-faint">{String(e['type'])}</span>
-              <span className="truncate text-text-mute">{String(e['actor_name'] ?? '')}</span>
+              <span className="min-w-0 flex-1 truncate">{eventLabel(String(e['type']))}</span>
+              <span className="shrink-0 text-xs text-text-mute">
+                {String(e['actor_name'] ?? '')}
+              </span>
+              <span className="w-16 shrink-0 text-right text-xs text-text-faint">
+                {relativeTime(typeof e['occurred_at'] === 'string' ? e['occurred_at'] : null)}
+              </span>
             </li>
           ))}
-          {rows(events.data).length === 0 && <li className="text-text-mute">아직 없습니다.</li>}
         </ul>
+        {!events.isLoading && rows(events.data).length === 0 && (
+          <EmptyState icon="·" title="아직 기록된 활동이 없습니다." />
+        )}
       </section>
+    </PageBody>
+  );
+}
+
+function pct(part: number, whole: number): number {
+  return whole <= 0 ? 0 : Math.round((part / whole) * 100);
+}
+
+/** 숫자 하나 — 0 은 흐리게 둔다. 0 이 눈에 띄면 매번 "뭐가 문제지"를 확인하게 된다 */
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: 'ok' | 'waiting' | 'danger' | undefined;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <dt className="text-xs text-text-mute">{label}</dt>
+      <dd
+        className={cn(
+          'font-medium tabular-nums',
+          value === 0 && tone === undefined ? 'text-text-faint' : undefined,
+          tone === 'ok' ? 'text-status-ok' : undefined,
+          tone === 'waiting' ? 'text-status-waiting' : undefined,
+          tone === 'danger' ? 'text-status-danger' : undefined,
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

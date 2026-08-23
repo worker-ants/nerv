@@ -4,27 +4,24 @@
 // 여기서는 "무엇이 · 어디서 · 언제"만 보이면 되고, 자세한 것은 딥링크가 데려간다.
 
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { NERV_EVENT } from '@nerv/schema';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api.js';
+import { eventLabel } from '../lib/event-label.js';
+import { relativeTime } from '../lib/format.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { rows, useNotifications } from '../lib/queries.js';
+import { cn } from '../lib/utils.js';
+import { StatusBadge } from '../components/status-badge.js';
+import {
+  Button,
+  EmptyState,
+  Mono,
+  PageBody,
+  PageHeader,
+  Skeleton,
+} from '../components/ui/primitives.js';
 
 export const Route = createFileRoute('/notifications')({ component: NotificationScreen });
-
-// 이벤트 이름은 하드코딩하지 않는다 — 카탈로그가 정본이고 이름이 바뀌면 여기가 먼저 깨진다(REQ-CB-006).
-const EVENT_LABEL: Record<string, string> = {
-  [NERV_EVENT.SPEC_SUBMITTED]: '스펙 검토 요청',
-  [NERV_EVENT.SPEC_APPROVED]: '스펙 승인됨',
-  [NERV_EVENT.SPEC_REJECTED]: '스펙 거절됨',
-  [NERV_EVENT.SPEC_RECHECK_REQUESTED]: '참조 문서 재확인 요청',
-  [NERV_EVENT.TASK_REBRIEF_REQUIRED]: '기준 버전이 바뀌어 재브리핑 필요',
-  [NERV_EVENT.TASK_BLOCKED]: '작업이 막힘',
-  [NERV_EVENT.TASK_DONE]: '작업 완료',
-  [NERV_EVENT.APPROVAL_REQUESTED]: '승인 요청',
-  [NERV_EVENT.QUESTION_CREATED]: '에이전트 질문',
-  [NERV_EVENT.CLAIM_CONFLICT_WARN]: '범위 겹침 경고',
-};
 
 /**
  * 알림 → 대상 경로. 알림은 event 참조라 **여기서 링크를 만든다**(행에 굳혀 저장하지 않는다).
@@ -56,18 +53,29 @@ function NotificationScreen(): React.JSX.Element {
   });
 
   const items = rows(notifications.data);
+  const unread = items.filter((n) => n['state'] === 'unread').length;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="mb-3 text-lg font-semibold">알림</h1>
-      {items.length === 0 && (
-        <div className="rounded-md border border-border bg-bg-elev p-6 text-center text-sm text-text-mute">
-          알림이 없습니다.
-        </div>
+    <PageBody>
+      <PageHeader
+        title="알림"
+        description="여기 있는 것은 이미 일어난 일이다 — 내 결정을 기다리는 것은 승인함에 있다."
+        meta={
+          unread > 0 ? <StatusBadge token="waiting" label={`읽지 않음 ${unread}`} /> : undefined
+        }
+      />
+      {notifications.isLoading && <Skeleton rows={5} />}
+      {!notifications.isLoading && items.length === 0 && (
+        <EmptyState
+          icon="○"
+          title="알림이 없습니다."
+          hint="스펙 승인·작업 완료·에이전트 질문이 생기면 여기에 쌓입니다."
+        />
       )}
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col">
         {items.map((n) => {
           const type = String(n['event_type'] ?? '');
+          const key = String(n['spec_key'] ?? n['task_key'] ?? '');
           return (
             <li
               key={String(n['id'])}
@@ -79,33 +87,48 @@ function NotificationScreen(): React.JSX.Element {
                 if (n['state'] === 'unread') markRead.mutate(String(n['id']));
                 void navigate({ to: deepLinkFor(n) });
               }}
-              className="flex cursor-pointer items-center gap-2 rounded border border-border bg-bg-elev px-3 py-2 text-sm hover:border-border-strong data-[state=read]:opacity-60"
+              className="group flex cursor-pointer items-center gap-3 border-b border-border px-2 py-2.5 text-sm last:border-0 hover:bg-bg-hover data-[state=read]:text-text-mute"
             >
-              <span className="font-medium">{EVENT_LABEL[type] ?? type}</span>
-              <span className="font-mono text-xs text-text-faint">
-                {String(n['spec_key'] ?? n['task_key'] ?? '')}
+              {/* 읽지 않음은 점 하나로 — 행 전체를 굵게 하면 목록이 소란스러워진다.
+                  점만으로 구분하지 않도록 aria-label 을 붙인다(REQ-WEB-033) */}
+              <span
+                aria-label={n['state'] === 'unread' ? '읽지 않음' : '읽음'}
+                className={cn(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  n['state'] === 'unread' ? 'bg-status-action' : 'bg-transparent',
+                )}
+              />
+              <span className="min-w-0 flex-1 truncate">
+                <span className="font-medium text-text">{eventLabel(type)}</span>
+                {key !== '' && <Mono className="ml-2">{key}</Mono>}
               </span>
-              <span className="text-xs text-text-mute">{String(n['project_slug'] ?? '')}</span>
-              <span className="ml-auto text-xs text-text-faint">
+              <span className="hidden shrink-0 text-xs text-text-mute sm:inline">
+                {String(n['project_slug'] ?? '')}
+              </span>
+              <span className="hidden w-28 shrink-0 truncate text-right text-xs text-text-faint md:inline">
                 {String(n['actor_name'] ?? '')}
                 {n['is_agent'] === true ? ' 🤖' : ''}
               </span>
+              <span className="w-16 shrink-0 text-right text-xs text-text-faint">
+                {relativeTime(typeof n['occurred_at'] === 'string' ? n['occurred_at'] : null)}
+              </span>
               {n['state'] === 'unread' && (
-                <button
-                  type="button"
-                  className="text-xs text-link underline"
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="opacity-0 group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation(); // 이동 없이 읽음만 처리하는 경로도 남긴다
                     markRead.mutate(String(n['id']));
                   }}
                 >
                   읽음
-                </button>
+                </Button>
               )}
             </li>
           );
         })}
       </ul>
-    </div>
+    </PageBody>
   );
 }
