@@ -59,8 +59,18 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     expect(missing).toEqual([]);
   });
 
+  it('발견이 열리면 큐와 게이트 현황이 함께 갱신된다 (REQ-WEB-066)', () => {
+    // **같은 사실의 두 얼굴**이라 함께 무효화한다. 큐만 갱신하면 "열린 것 0건"인데
+    // 판정은 `pending` 인 화면이 남는다.
+    const opened = NERV_EVENT_PHASE2.FINDING_OPENED as unknown as NervEventName;
+    expect(invalidationKeysFor(envelope(opened))).toEqual([
+      queryKeys.projectFindings('prj-1'),
+      queryKeys.projectGateCoverage('prj-1'),
+    ]);
+  });
+
   it('화면 없는 이벤트는 빈 배열을 준다 — 모르는 이벤트로 화면을 흔들지 않는다', () => {
-    const p2 = NERV_EVENT_PHASE2.FINDING_OPENED as unknown as NervEventName;
+    const p2 = NERV_EVENT_PHASE2.CR_OPENED as unknown as NervEventName;
     expect(invalidationKeysFor(envelope(p2))).toEqual([]);
     // 예외는 **의도한 공백**이다: 매핑을 가진 채로 목록에 있으면 둘 중 하나가 낡은 것이다
     const mapped = new Set(mappedEventNames());

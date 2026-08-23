@@ -13,6 +13,7 @@ import { queryKeys } from './query-keys.js';
 import type { NervQueryKey } from './query-keys.js';
 
 const E = NERV_EVENT;
+const P2 = NERV_EVENT_PHASE2;
 
 /** subject_id 를 그 이벤트의 주체 키로 해석하는 규칙(§1.4 표의 두 번째 열). */
 type KeyBuilder = (e: NervEventEnvelope) => NervQueryKey[];
@@ -94,16 +95,27 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
     queryKeys.projectSpecTree(e.project_id),
     queryKeys.projectTasks(e.project_id),
   ],
+
+  // S6 리뷰 센터(2026-08-23) — 큐와 게이트 현황은 같은 사실의 두 얼굴이라 함께 무효화한다.
+  // 큐만 갱신하면 "열린 것 0건"인데 판정은 `pending` 인 화면이 남는다(REQ-WEB-066).
+  [P2.FINDING_OPENED]: (e) => [
+    queryKeys.projectFindings(e.project_id),
+    queryKeys.projectGateCoverage(e.project_id),
+  ],
+  [P2.FINDING_RESOLVED]: (e) => [
+    queryKeys.projectFindings(e.project_id),
+    queryKeys.projectGateCoverage(e.project_id),
+  ],
 };
 
 /**
  * **아직 화면이 없는 이벤트.** 매핑이 빠진 것과 구분하려고 이름을 적어 둔다.
  *
- * 리뷰 수집(FR-09)은 서버에 들어왔지만 S6 리뷰 센터는 아직 없다 — 무효화할 쿼리가
- * 없으니 빈 배열이 맞다. 화면이 생기는 날 이 목록에서 빠지고 `MAP` 으로 옮겨간다.
  * 목록으로 두는 이유는 하나다: **잊어서 빈 것과 알고 비운 것은 다르다.**
+ * `finding.*` 는 2026-08-23 S6 리뷰 센터가 생기면서 여기서 빠지고 `MAP` 으로 옮겨갔다 —
+ * 남은 것은 `cr.opened` 뿐이고, CR 델타 화면(FR-04)은 Phase 2 의 다른 조각이다.
  */
-export const NO_SCREEN_YET: readonly NervEventName[] = Object.values(NERV_EVENT_PHASE2);
+export const NO_SCREEN_YET: readonly NervEventName[] = [P2.CR_OPENED];
 
 /** 이 이벤트를 받으면 어떤 쿼리를 다시 읽어야 하는가. 모르는 이벤트면 빈 배열이다. */
 export function invalidationKeysFor(event: NervEventEnvelope): NervQueryKey[] {

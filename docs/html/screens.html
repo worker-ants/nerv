@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.15 (2026-08-23)</span>
+      <span>버전 v0.16 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -114,7 +114,8 @@
       <tr><td><code>/p/:proj/sessions</code></td><td>S5 세션 모니터</td><td>멤버십</td><td></td></tr>
       <tr><td><code>/p/:proj/sessions/:session</code></td><td>세션 상세(Activity 타임라인)</td><td>멤버십</td><td></td></tr>
       <tr><td><code>/p/:proj/coverage</code></td><td>커버리지 드릴다운</td><td>—</td><td><b>Phase 2</b> — 라우트만 예약(로드맵 §3 비범위)</td></tr>
-      <tr><td><code>/p/:proj/reviews</code> · <code>/p/:proj/crs/:cr</code></td><td>S6 리뷰 센터 · CR 델타</td><td>—</td><td><b>Phase 2</b> — 라우트만 예약</td></tr>
+      <tr><td><code>/p/:proj/reviews</code></td><td>S6 리뷰 센터</td><td>멤버십</td><td><b>Phase 2</b> — 2026-08-23 구현(§2.6a). 처분은 <code>review:resolve</code> 보유 역할</td></tr>
+      <tr><td><code>/p/:proj/crs/:cr</code></td><td>CR 델타</td><td>—</td><td><b>Phase 2</b> — 라우트만 예약(FR-04)</td></tr>
     </tbody>
   </table></div>
 
@@ -323,7 +324,8 @@
       <tr><td><code>/p/:proj/tasks/:task</code></td><td>작업 상세 패널(오버레이)</td><td><b>이 문서 §2.5</b></td></tr>
       <tr><td><code>/p/:proj/sessions</code></td><td>S5 세션 모니터</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.5 (고충실도)</td></tr>
       <tr><td><code>/p/:proj/sessions/:session</code></td><td>세션 상세(Activity 타임라인)</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.5 둘째 그림(<code>S-8f31</code> 상세 — 탭·타임라인·산출물 역링크)</td></tr>
-      <tr><td><code>/p/:proj/coverage</code> · <code>/reviews</code> · <code>/crs/:cr</code></td><td>Phase 2(라우트만 예약)</td><td>S6은 <a href="ui-wireframes.html">ui-wireframes</a> §2.6, 커버리지·CR 델타는 Phase 2 착수 시 작성</td></tr>
+      <tr><td><code>/p/:proj/reviews</code></td><td><b>§2.6a</b>(2026-08-23 신설)</td><td>그림의 정본은 <a href="ui-wireframes.html">ui-wireframes</a> §2.6이고, 라우트·데이터 소스·수용 기준은 §2.6a가 소유한다</td></tr>
+      <tr><td><code>/p/:proj/coverage</code> · <code>/crs/:cr</code></td><td>Phase 2(라우트만 예약)</td><td>커버리지·CR 델타는 Phase 2 착수 시 작성</td></tr>
     </tbody>
   </table></div>
 
@@ -839,6 +841,46 @@ export const TaskCreateInput = z.object({
       <tr><td>REQ-WEB-019</td><td>WHEN 세션 카드를 렌더링하면 THE SYSTEM SHALL 사용자·hostname·에이전트 종류·하트비트 상대 시각·리스 잔여·diff 통계를 표기하며, hostname이 없는 세션은 렌더링하지 않는다(ui-wireframes §3.3)</td></tr>
       <tr><td>REQ-WEB-020</td><td>WHEN 세션이 <code>stale</code>로 전이되면 THE SYSTEM SHALL 카드에 회수된 Task ID와 "무활동 임계 30:00 초과 → 자동 전이"를 표시한다(D-13)</td></tr>
       <tr><td>REQ-WEB-021</td><td>WHEN 사용자가 stop을 실행하면 THE SYSTEM SHALL 확인 다이얼로그에서 사유를 필수로 받고, 처리 후 해당 Task가 <code>ready</code>로 회수된 것을 보드에 반영한다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.6a S6 리뷰 센터 — <a href="ui-wireframes.html">ui-wireframes §2.6</a> (<b>Phase 2</b>, 2026-08-23 신설)</h3>
+
+  <p>리뷰 수집(FR-09)의 서버가 들어오면서 이 화면이 보여줄 것이 생겼다(<a href="scope.html">4.1 범위</a> §5 착수 기록). <b>QA의 하루는 "AI가 찾은 것을 다시 읽는" 것이 아니라 무엇이 위험한지 고르는 것</b>이라는 와이어프레임의 전제가 이 화면의 설계 전부다 — 그래서 첫 화면이 원시 diff가 아니라 <b>정리된 finding 큐</b>이고, 필터가 왼쪽 첫 칸에 온다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>finding 큐</td><td>EP-REV-03 <code>GET /api/v1/projects/{proj}/findings</code> (<code>severity[]</code>·<code>status[]</code>·<code>tag[]</code>·<code>cursor</code>)</td><td>응답에 <b>facet 건수</b>가 함께 온다 — 필터 칸의 숫자가 별도 요청이 아니다</td></tr>
+      <tr><td>provenance 3종</td><td>같은 응답 — 코드 위치(<code>file_path:line_start</code>) · 검토 커밋(<code>head_sha</code>·<code>branch</code>·<code>round_no</code>) · 유래 스펙/Requirement</td><td>셋이 다 있어야 P5(리뷰 출처 추적 곤란)가 닫힌다</td></tr>
+      <tr><td>해소 액션</td><td>EP-REV-02 <code>POST …/findings/{id}/resolve</code></td><td><code>fixed</code>는 커밋 SHA 필수. <b>에이전트가 아니라 사람이 부르는 경로</b>라 critical 하향에 A3 게이트가 걸리지 않는다(<a href="api.html">4.4</a> §2.6a)</td></tr>
+      <tr><td>게이트 현황</td><td>EP-REV-04 <code>GET /api/v1/projects/{proj}/gates/reviews</code></td><td>브랜치별 커버 리뷰·해소 비율·판정·면제. <b>판정을 표시할 뿐 집행하지 않는다</b> — 집행(Task <code>done</code> 차단)은 FR-10의 Phase 2 몫이다</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>finding.opened</code> · <code>finding.resolved</code> → 큐와 facet 재조회. 두 이름은 MVP 무효화 표(§1.4)에 없던 것이라 구현의 <code>NO_SCREEN_YET</code> 예외 목록에서 빠지고 매핑을 갖는다 — 화면이 생겼으니 더는 "의도한 공백"이 아니다.</li>
+    <li><b>컴포넌트</b>: <code>FindingQueue</code> · <code>FindingCard</code>(severity 룰 + provenance 3줄 + 액션) · <code>FindingFilters</code>(facet 건수) · <code>ResolveDialog</code>(사유 필수 · <code>fixed</code>는 커밋 SHA) · <code>GateCoverageTable</code>.</li>
+    <li><b>빈 상태</b>: 열린 발견 0 — "열린 발견이 없습니다" + <code>nerv_review_submit</code> 안내(막다른 길 금지 — §1.5).</li>
+  </ul>
+
+  <p><b>와이어프레임과 다른 세 곳</b>, 그리고 그 이유.</p>
+
+  <ol>
+    <li><b>finding·리뷰 세션에 표시 키를 만들지 않는다.</b> 와이어프레임의 <code>FND-4a19</code>·<code>RVS-5e72</code>는 예시 표기이고, 표시 키 정본(<a href="data-model.html">3.3 데이터 모델</a> §5.1)의 타입 문자는 <code>T</code>(Task)·<code>S</code>(Spec) 둘뿐이며 <code>finding</code>·<code>review_session</code> 테이블에는 <code>key</code> 열 자체가 없다(<a href="database.html">4.3</a> §2.7). 타입 문자를 늘리는 것은 새 결정이라 사람 확인 없이 하지 않는다 — 화면은 <b>UUID 뒤 8자를 "짧은 id"로 명시해</b> 보여주고, 사람이 옮겨 적는 식별자는 <code>file:line</code>과 severity다. <b>뒤쪽인 이유</b>: UUIDv7의 앞 48비트는 생성 시각이라 같은 리뷰에서 나온 발견들이 앞자리를 통째로 공유한다(실측 2026-08-23 — 시드 화면에서 세 발견이 전부 <code>01990a66</code>이었다). 구별되는 것은 난수 쪽뿐이다.</li>
+    <li><b>리뷰가 없는 브랜치의 면제는 이 표에 뜨지 않는다.</b> 면제(<code>approval.is_bypass</code>)는 리뷰 세션을 주체로 붙는데 <code>approval.subject_id</code>는 uuid이고 브랜치는 문자열이라(<a href="database.html">4.3</a> §2.8), 세션이 없으면 면제를 그 줄에 실을 길이 없다 — 와이어프레임 §2.6 ⑧의 <code>미커버 + BYPASS 1</code> 줄이 여기 해당한다. 담으려면 <b>결재에 브랜치를 적을 자리</b>가 필요한데 그것은 스키마 결정이라 사람 확인 전까지 하지 않는다.</li>
+    <li><b>spec_drift의 CR 라우팅 버튼이 없다.</b> CR 생성(FR-04)이 Phase 2의 다른 조각이라 보낼 곳이 아직 없다. 대신 <code>spec_drift</code> 태그와 <b>유래 스펙 링크</b>를 준다 — 눌러서 아무 일도 안 일어나는 버튼보다 낫다.</li>
+  </ol>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-WEB-061</b></td><td>WHEN 리뷰 센터를 열면 THE SYSTEM SHALL 열린 발견을 severity 내림차순으로 보여주고, 필터 칸의 건수를 같은 응답의 facet 값으로 표시한다</td></tr>
+      <tr><td><b>REQ-WEB-062</b></td><td>WHEN finding을 렌더링하면 THE SYSTEM SHALL 코드 위치·검토 커밋·유래 스펙 세 출처를 함께 표기하고, 없는 출처는 빈칸이 아니라 "없음"으로 밝힌다</td></tr>
+      <tr><td><b>REQ-WEB-063</b></td><td>WHEN 같은 지적이 여러 라운드에서 관측되면 THE SYSTEM SHALL 카드 하나로 합치고 관측 횟수와 최신 라운드를 표기한다(fingerprint dedup — FR-09)</td></tr>
+      <tr><td><b>REQ-WEB-064</b></td><td>WHEN 사용자가 발견을 처분하면 THE SYSTEM SHALL 근거를 필수로 받고, <code>fixed</code> 처분에는 커밋 SHA를 함께 요구한다</td></tr>
+      <tr><td><b>REQ-WEB-065</b></td><td>WHEN 게이트 현황을 표시하면 THE SYSTEM SHALL 브랜치마다 커버 리뷰·해소 비율·판정을 적고, 면제가 있으면 <b>면제한 사람·시각·사유</b>를 같은 줄에 펼친다(FR-10 · FR-16 — 면제가 조용히 일어나지 않는 것 자체가 기능이다)</td></tr>
+      <tr><td><b>REQ-WEB-066</b></td><td>WHILE 리뷰 센터가 열려 있으면 THE SYSTEM SHALL <code>finding.opened</code>·<code>finding.resolved</code>를 받아 큐와 facet을 다시 읽는다</td></tr>
     </tbody>
   </table></div>
 

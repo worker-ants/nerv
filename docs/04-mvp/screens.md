@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 승인함 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.15 · 2026-08-23 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.16 · 2026-08-23 · HTML 판: [screens.html](../html/screens.html)
+>
+> v0.16 변경(2026-08-23 — **S6 리뷰 센터 신설**): §2.6a 신설(REQ-WEB-061~066). 발견 큐 + facet 필터(건수가 **같은 응답**에서 온다 — 따로 받으면 목록과 숫자가 어긋나는 순간이 생긴다) · provenance 3종 · 처분(근거 필수, `fixed` 는 커밋까지) · 게이트 현황(면제를 **같은 줄에** 펼친다). 와이어프레임과 다른 세 곳을 이유와 함께 적었다 — **표시 키를 만들지 않고**(타입 문자를 늘리는 것은 새 결정이다), 리뷰 없는 브랜치의 면제는 담지 못하며(결재가 브랜치를 가리킬 자리가 없다), `spec_drift` → CR 라우팅은 보낼 곳이 아직 없다.
 >
 > v0.9 변경(2026-08-23): ① **§2.4b 트리 조작 정정** — 최상위가 접히지 않던 결함(`isOpen` 의 `depth === 0` 강제)을 고치고 자식 수·조상 자동 펼침·상태 보존·전체 펼치기를 더한다(REQ-WEB-052·053). 트리의 깊이 제한은 원래 없었다 ② **§2.4c 스펙 표 신설** — 정렬 가능한 열로 "어디가 비었나"에 답한다.
 >
@@ -63,7 +65,8 @@ updated: 2026-08-22
 | `/p/:proj/sessions` | S5 세션 모니터 | 멤버십 | |
 | `/p/:proj/sessions/:session` | 세션 상세(Activity 타임라인) | 멤버십 | |
 | `/p/:proj/coverage` | 커버리지 드릴다운 | — | **Phase 2** — 라우트만 예약(로드맵 §3 비범위) |
-| `/p/:proj/reviews` · `/p/:proj/crs/:cr` | S6 리뷰 센터 · CR 델타 | — | **Phase 2** — 라우트만 예약 |
+| `/p/:proj/reviews` | S6 리뷰 센터 | 멤버십 | **Phase 2** — 2026-08-23 구현(§2.6a). 처분은 `review:resolve` 보유 역할 |
+| `/p/:proj/crs/:cr` | CR 델타 | — | **Phase 2** — 라우트만 예약(FR-04) |
 
 ```text
 apps/web/src/routes/
@@ -220,7 +223,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `/p/:proj/tasks/:task` | 작업 상세 패널(오버레이) | **이 문서 §2.5** |
 | `/p/:proj/sessions` | S5 세션 모니터 | ui-wireframes §2.5 (고충실도) |
 | `/p/:proj/sessions/:session` | 세션 상세(Activity 타임라인) | ui-wireframes §2.5 둘째 그림(`S-8f31` 상세 — 탭·타임라인·산출물 역링크) |
-| `/p/:proj/coverage` · `/reviews` · `/crs/:cr` | Phase 2(라우트만 예약) | S6은 ui-wireframes §2.6, 커버리지·CR 델타는 Phase 2 착수 시 작성 |
+| `/p/:proj/reviews` | **§2.6a**(2026-08-23 신설) | 그림의 정본은 ui-wireframes §2.6이고, 라우트·데이터 소스·수용 기준은 §2.6a가 소유한다 |
+| `/p/:proj/coverage` · `/crs/:cr` | Phase 2(라우트만 예약) | 커버리지·CR 델타는 Phase 2 착수 시 작성 |
 
 ### 1.7 언어 전환 (2026-08-23 신설)
 
@@ -620,6 +624,36 @@ export const TaskCreateInput = z.object({
 | REQ-WEB-019 | WHEN 세션 카드를 렌더링하면 THE SYSTEM SHALL 사용자·hostname·에이전트 종류·하트비트 상대 시각·리스 잔여·diff 통계를 표기하며, hostname이 없는 세션은 렌더링하지 않는다(ui-wireframes §3.3) |
 | REQ-WEB-020 | WHEN 세션이 `stale`로 전이되면 THE SYSTEM SHALL 카드에 회수된 Task ID와 "무활동 임계 30:00 초과 → 자동 전이"를 표시한다(D-13) |
 | REQ-WEB-021 | WHEN 사용자가 stop을 실행하면 THE SYSTEM SHALL 확인 다이얼로그에서 사유를 필수로 받고, 처리 후 해당 Task가 `ready`로 회수된 것을 보드에 반영한다 |
+
+### 2.6a S6 리뷰 센터 — [ui-wireframes §2.6](../03-proposal/ui-wireframes.md) (**Phase 2**, 2026-08-23 신설)
+
+리뷰 수집(FR-09)의 서버가 들어오면서 이 화면이 보여줄 것이 생겼다([4.1 범위](scope.md) §5 착수 기록). **QA의 하루는 "AI가 찾은 것을 다시 읽는" 것이 아니라 무엇이 위험한지 고르는 것**이라는 와이어프레임의 전제가 이 화면의 설계 전부다 — 그래서 첫 화면이 원시 diff 가 아니라 **정리된 finding 큐**이고, 필터가 왼쪽 첫 칸에 온다.
+
+| 화면 요소 | 데이터 소스 | 비고 |
+| --- | --- | --- |
+| finding 큐 | EP-REV-03 `GET /api/v1/projects/{proj}/findings` (`severity[]`·`status[]`·`tag[]`·`cursor`) | 응답에 **facet 건수**가 함께 온다 — 필터 칸의 숫자가 별도 요청이 아니다 |
+| provenance 3종 | 같은 응답 — 코드 위치(`file_path:line_start`) · 검토 커밋(`head_sha`·`branch`·`round_no`) · 유래 스펙/Requirement | 셋이 다 있어야 P5(리뷰 출처 추적 곤란)가 닫힌다 |
+| 해소 액션 | EP-REV-02 `POST …/findings/{id}/resolve` | `fixed`는 커밋 SHA 필수. **에이전트가 아니라 사람이 부르는 경로**라 critical 하향에 A3 게이트가 걸리지 않는다([4.4](api.md) §2.6a) |
+| 게이트 현황 | EP-REV-04 `GET /api/v1/projects/{proj}/gates/reviews` | 브랜치별 커버 리뷰·해소 비율·판정·면제. **판정을 표시할 뿐 집행하지 않는다** — 집행(Task `done` 차단)은 FR-10의 Phase 2 몫이다 |
+
+- **실시간**: `project:{id}` 룸 — `finding.opened` · `finding.resolved` → 큐와 facet 재조회. 두 이름은 MVP 무효화 표(§1.4)에 없던 것이라 구현의 `NO_SCREEN_YET` 예외 목록에서 빠지고 매핑을 갖는다 — 화면이 생겼으니 더는 "의도한 공백"이 아니다.
+- **컴포넌트**: `FindingQueue` · `FindingCard`(severity 룰 + provenance 3줄 + 액션) · `FindingFilters`(facet 건수) · `ResolveDialog`(사유 필수 · `fixed`는 커밋 SHA) · `GateCoverageTable`.
+- **빈 상태**: 열린 발견 0 — "열린 발견이 없습니다" + `nerv_review_submit` 안내(막다른 길 금지 — §1.5).
+
+**와이어프레임과 다른 두 곳**, 그리고 그 이유.
+
+1. **finding·리뷰 세션에 표시 키를 만들지 않는다.** 와이어프레임의 `FND-4a19`·`RVS-5e72`는 예시 표기이고, 표시 키 정본([data-model](../03-proposal/data-model.md) §5.1)의 타입 문자는 `T`(Task)·`S`(Spec) 둘뿐이며 `finding`·`review_session` 테이블에는 `key` 열 자체가 없다([4.3](database.md) §2.7). 타입 문자를 늘리는 것은 새 결정이라 사람 확인 없이 하지 않는다 — 화면은 **UUID 뒤 8자를 "짧은 id"로 명시해** 보여주고, 사람이 옮겨 적는 식별자는 `file:line`과 severity다. **뒤쪽인 이유**: UUIDv7 의 앞 48비트는 생성 시각이라 같은 리뷰에서 나온 발견들이 앞자리를 통째로 공유한다(실측 2026-08-23 — 시드 화면에서 세 발견이 전부 `01990a66`이었다). 구별되는 것은 난수 쪽뿐이다.
+2. **리뷰가 없는 브랜치의 면제는 이 표에 뜨지 않는다.** 면제(`approval.is_bypass`)는 리뷰 세션을 주체로 붙는데 `approval.subject_id`는 uuid 이고 브랜치는 문자열이라([4.3](database.md) §2.8), 세션이 없으면 면제를 그 줄에 실을 길이 없다 — 와이어프레임 §2.6 ⑧의 `미커버 + BYPASS 1` 줄이 여기 해당한다. 담으려면 **결재에 브랜치를 적을 자리**가 필요한데 그것은 스키마 결정이라 사람 확인 전까지 하지 않는다. 지금은 리뷰가 있는 브랜치의 면제만 정확히 보인다.
+3. **spec_drift의 CR 라우팅 버튼이 없다.** CR 생성(FR-04)이 Phase 2의 다른 조각이라 보낼 곳이 아직 없다. 대신 `spec_drift` 태그와 **유래 스펙 링크**를 준다 — 눌러서 아무 일도 안 일어나는 버튼보다 낫다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-WEB-061 | WHEN 리뷰 센터를 열면 THE SYSTEM SHALL 열린 발견을 severity 내림차순으로 보여주고, 필터 칸의 건수를 같은 응답의 facet 값으로 표시한다 |
+| REQ-WEB-062 | WHEN finding 을 렌더링하면 THE SYSTEM SHALL 코드 위치·검토 커밋·유래 스펙 세 출처를 함께 표기하고, 없는 출처는 빈칸이 아니라 "없음"으로 밝힌다 |
+| REQ-WEB-063 | WHEN 같은 지적이 여러 라운드에서 관측되면 THE SYSTEM SHALL 카드 하나로 합치고 관측 횟수와 최신 라운드를 표기한다(fingerprint dedup — FR-09) |
+| REQ-WEB-064 | WHEN 사용자가 발견을 처분하면 THE SYSTEM SHALL 근거를 필수로 받고, `fixed` 처분에는 커밋 SHA 를 함께 요구한다 |
+| REQ-WEB-065 | WHEN 게이트 현황을 표시하면 THE SYSTEM SHALL 브랜치마다 커버 리뷰·해소 비율·판정을 적고, 면제가 있으면 **면제한 사람·시각·사유**를 같은 줄에 펼친다(FR-10 · FR-16 — 면제가 조용히 일어나지 않는 것 자체가 기능이다) |
+| REQ-WEB-066 | WHILE 리뷰 센터가 열려 있으면 THE SYSTEM SHALL `finding.opened`·`finding.resolved` 를 받아 큐와 facet 을 다시 읽는다 |
 
 ### 2.7 S7 승인함 — [ui-wireframes §2.7](../03-proposal/ui-wireframes.md)
 

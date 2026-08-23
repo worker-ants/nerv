@@ -44,19 +44,31 @@ export class ReviewController {
     });
   }
 
-  /** EP-REV-03 — 발견 목록. S6 리뷰 센터가 읽는 곳 */
+  /** EP-REV-03 — 발견 큐. S6 리뷰 센터가 읽는 곳. facet 은 같은 응답에 실린다 */
   @Get('findings')
   findings(
     @Req() req: ProjectRequest,
     @Query('status') status?: string,
+    @Query('severity') severity?: string,
+    @Query('tag') tag?: string,
     @Query('limit') limit?: string,
   ): Promise<unknown> {
     assertScope(principalOf(req), 'spec:read');
     return this.reviews.findings({
       projectId: req.nervProjectId!,
-      status: status ?? 'open',
+      // 기본은 **열린 것만**이다 — 처분한 것까지 함께 보이면 큐가 큐이기를 그만둔다
+      status: csv(status) ?? ['open'],
+      ...(csv(severity) === undefined ? {} : { severity: csv(severity)! }),
+      ...(csv(tag) === undefined ? {} : { tag: csv(tag)! }),
       ...(limit === undefined ? {} : { limit: Number(limit) }),
     });
+  }
+
+  /** EP-REV-04 — 브랜치별 게이트 현황. 표시일 뿐 집행이 아니다 */
+  @Get('gates/reviews')
+  gateCoverage(@Req() req: ProjectRequest): Promise<unknown> {
+    assertScope(principalOf(req), 'spec:read');
+    return this.reviews.gateCoverage(req.nervProjectId!);
   }
 
   /**
@@ -90,4 +102,14 @@ export class ReviewController {
         typeof body['change_request_id'] === 'string' ? body['change_request_id'] : null,
     });
   }
+}
+
+/** `?status=open,fixed` — 쉼표 목록을 배열로. 빈 값은 "필터 없음"이지 "0건"이 아니다. */
+function csv(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  const parts = value
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v !== '');
+  return parts.length === 0 ? undefined : parts;
 }

@@ -6,7 +6,8 @@
 --
 -- 이 한 벌로 S1 홈(질문 배지 1) · S3 스펙 상세(SPC-CWC-007 v4 + REQ-CWC-031) ·
 -- S4 작업 보드(in_progress 2 · blocked 1) · S5 세션 모니터(active 2 · awaiting_input 1) ·
--- S7 승인함(질문 카드 1)이 전부 비어 있지 않게 뜬다.
+-- S6 리뷰 센터(열린 발견 3 · 브랜치 2 · 면제 1) · S7 승인함(질문 카드 1)이
+-- 전부 비어 있지 않게 뜬다.
 
 BEGIN;
 TRUNCATE organization, "user" CASCADE;   -- FK 연쇄로 전 도메인 테이블 초기화
@@ -233,6 +234,113 @@ SELECT v.id::uuid, v.session_id::uuid, '01990a66-0000-7000-8000-000000000021'::u
     ('01990a66-0000-7000-8000-0000000000e3', '01990a66-0000-7000-8000-000000000083', 3,
      'thought', 'max-age 와 stale-while-revalidate 를 나눠 둔다', NULL, NULL, 40)
   ) AS v(id, session_id, seq, type, title, body_md, tool_name, ago_min);
+
+-- 리뷰 (S6 리뷰 센터 — screens.md §2.6a) -----------------------------------
+--
+-- **화면마다 데이터 있음 경로가 뜬다**는 검사에 S6 이 새로 들어왔다. 비워 두면
+-- 리뷰 센터가 개발 환경에서 늘 빈 목록이고, 그 화면의 값어치가 "원시 diff 대신
+-- 정리된 finding" 인데 정리된 것이 없으면 만들다 만 껍데기로 보인다.
+--
+-- 한 벌의 모양: 브랜치 둘 × 라운드 체인(1→2) — 통과 하나와 대기 하나를 함께 보여
+-- 게이트 판정 3종 중 둘이 화면에 뜨게 한다. 발견 3건은 severity 3종을 채우고,
+-- 그중 하나는 **2라운드에서 다시 관측된 같은 지적**이다(fingerprint dedup 표기).
+INSERT INTO review_session (id, project_id, kind, "trigger", agent_session_id, task_id,
+                            branch, head_sha, base_sha, changeset_hash, file_count, round_no,
+                            previous_session_id, state, risk, block, started_at, completed_at)
+VALUES
+  ('01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-000000000021',
+   'code', 'auto', '01990a66-0000-7000-8000-000000000081',
+   '01990a66-0000-7000-8000-000000000071',
+   'feature/widget-v2', '9a41c2f0e1', '3d90f1aabb', decode(repeat('a1', 32), 'hex'), 4, 1,
+   NULL, 'complete', 'high', true, now() - interval '5 hours', now() - interval '5 hours'),
+  ('01990a66-0000-7000-8000-0000000000f2', '01990a66-0000-7000-8000-000000000021',
+   'code', 'auto', '01990a66-0000-7000-8000-000000000081',
+   '01990a66-0000-7000-8000-000000000071',
+   'feature/widget-v2', '7b22ce90aa', '9a41c2f0e1', decode(repeat('a2', 32), 'hex'), 2, 2,
+   '01990a66-0000-7000-8000-0000000000f1', 'complete', 'medium', true,
+   now() - interval '90 minutes', now() - interval '88 minutes'),
+  ('01990a66-0000-7000-8000-0000000000f3', '01990a66-0000-7000-8000-000000000021',
+   'consistency', 'manual', NULL, NULL,
+   'feat/session-restore', '5c31aa7b02', '3d90f1aabb', decode(repeat('a3', 32), 'hex'), 3, 1,
+   NULL, 'complete', 'low', false, now() - interval '2 days', now() - interval '2 days');
+
+INSERT INTO reviewer_report (id, review_session_id, role, risk, body_md, has_report) VALUES
+  ('01990a66-0000-7000-8000-0000000000f4', '01990a66-0000-7000-8000-0000000000f1',
+   'security', 'high', '세션 복원 경로의 저장 매체를 봤다. 토큰이 평문으로 남는다.', true),
+  ('01990a66-0000-7000-8000-0000000000f5', '01990a66-0000-7000-8000-0000000000f1',
+   'requirement', 'medium', 'REQ-CWC-031 의 오프라인 배너 문구가 구현과 다르다.', true),
+  ('01990a66-0000-7000-8000-0000000000f6', '01990a66-0000-7000-8000-0000000000f2',
+   'security', 'medium', '토큰 저장은 그대로다. 캐시 헤더가 새로 걸린다.', true),
+  ('01990a66-0000-7000-8000-0000000000f7', '01990a66-0000-7000-8000-0000000000f3',
+   'cross-spec', 'low', '스펙 간 모순 없음.', true);
+
+-- fingerprint 는 실제 알고리즘의 산출이 아니라 **고정값**이다(시드는 재현이 목적이다).
+-- 실물 값은 @nerv/schema/keys 의 findingFingerprint 가 만든다.
+INSERT INTO finding (id, project_id, fingerprint, severity, tags, category, title, detail_md,
+                     suggestion_md, file_path, line_start, symbol, spec_version_id,
+                     requirement_id, status, first_session_id, last_session_id,
+                     occurrence_count, created_at) VALUES
+  ('01990a66-0000-7000-8000-0000000000f8', '01990a66-0000-7000-8000-000000000021',
+   decode(repeat('b1', 32), 'hex'), 'critical', '{}', 'security',
+   '세션 토큰이 localStorage 에 평문 저장',
+   'XSS 한 번이면 그대로 새어 나간다. 서버 세션 쿠키로 옮겨야 한다.',
+   'httpOnly 쿠키 + 서버 세션으로 전환',
+   'codebase/frontend/src/widget/session.ts', 88, 'restoreSession',
+   '01990a66-0000-7000-8000-000000000052', '01990a66-0000-7000-8000-000000000061',
+   'open', '01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-0000000000f2',
+   2, now() - interval '5 hours'),
+  ('01990a66-0000-7000-8000-0000000000f9', '01990a66-0000-7000-8000-000000000021',
+   decode(repeat('b2', 32), 'hex'), 'warning', '{spec_drift}', 'requirement',
+   '오프라인 재시도 배너 문구가 스펙과 다르다',
+   '구현이 더 정확하다 — 스펙 쪽을 CR 로 보정하는 편이 맞다.',
+   NULL, 'codebase/frontend/src/widget/offline-banner.tsx', 24, NULL,
+   '01990a66-0000-7000-8000-000000000052', '01990a66-0000-7000-8000-000000000061',
+   'open', '01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-0000000000f1',
+   1, now() - interval '5 hours'),
+  ('01990a66-0000-7000-8000-0000000000fa', '01990a66-0000-7000-8000-000000000021',
+   decode(repeat('b3', 32), 'hex'), 'info', '{}', 'convention',
+   '로더 캐시 헤더 TTL 미지정',
+   NULL, 'max-age 와 stale-while-revalidate 를 나눠 적는다',
+   'codebase/frontend/src/widget/loader.ts', 12, NULL, NULL, NULL,
+   'open', '01990a66-0000-7000-8000-0000000000f2', '01990a66-0000-7000-8000-0000000000f2',
+   1, now() - interval '90 minutes'),
+  ('01990a66-0000-7000-8000-0000000000fb', '01990a66-0000-7000-8000-000000000021',
+   decode(repeat('b4', 32), 'hex'), 'warning', '{}', 'cross-spec',
+   '복원 실패 시 재시도 횟수가 스펙에 없다',
+   NULL, NULL, 'codebase/frontend/src/widget/session.ts', 141, NULL,
+   NULL, NULL,
+   'fixed', '01990a66-0000-7000-8000-0000000000f3', '01990a66-0000-7000-8000-0000000000f3',
+   1, now() - interval '2 days');
+
+-- 출현 — 같은 지적이 2라운드에 다시 보인 것이 dedup 표기의 근거다(occurrence_count 2)
+INSERT INTO finding_occurrence (id, finding_id, review_session_id, reviewer_report_id,
+                                round_no, display_no, raw_severity) VALUES
+  ('01990a66-0000-7000-8000-0000000000fc', '01990a66-0000-7000-8000-0000000000f8',
+   '01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-0000000000f4', 1, 1, 'critical'),
+  ('01990a66-0000-7000-8000-0000000000fd', '01990a66-0000-7000-8000-0000000000f8',
+   '01990a66-0000-7000-8000-0000000000f2', '01990a66-0000-7000-8000-0000000000f6', 2, 1, 'warning'),
+  ('01990a66-0000-7000-8000-0000000000fe', '01990a66-0000-7000-8000-0000000000f9',
+   '01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-0000000000f5', 1, 2, 'warning'),
+  ('01990a66-0000-7000-8000-0000000000ff', '01990a66-0000-7000-8000-0000000000fa',
+   '01990a66-0000-7000-8000-0000000000f2', '01990a66-0000-7000-8000-0000000000f6', 2, 2, 'info'),
+  ('01990a66-0000-7000-8000-000000000f01', '01990a66-0000-7000-8000-0000000000fb',
+   '01990a66-0000-7000-8000-0000000000f3', '01990a66-0000-7000-8000-0000000000f7', 1, 1, 'warning');
+
+-- 2라운드에서 critical 이 warning 으로 내려왔다(raw_severity 대조로 감사한다).
+-- finding.severity 는 처음 값을 지킨다 — 리뷰어가 자기 지적을 조용히 낮추지 못한다.
+
+INSERT INTO resolution (id, finding_id, kind, commit_sha, rationale_md, actor_user_id) VALUES
+  ('01990a66-0000-7000-8000-000000000f02', '01990a66-0000-7000-8000-0000000000fb',
+   'fixed', 'e91ba7c2', '재시도 3회 + 지수 백오프로 구현하고 스펙에 절을 추가했다.',
+   '01990a66-0000-7000-8000-000000000015');
+
+-- 게이트 면제 — **면제도 결재 레코드다**(FR-10). 리뷰 세션을 주체로 붙는다
+INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                      decision, decided_at, is_bypass, bypass_reason) VALUES
+  ('01990a66-0000-7000-8000-000000000f03', '01990a66-0000-7000-8000-000000000021',
+   'gate_bypass', '01990a66-0000-7000-8000-0000000000f3',
+   '01990a66-0000-7000-8000-000000000015', 'approve', now() - interval '1 day', true,
+   '핫픽스 배포, 사후 리뷰 예약');
 
 -- 이벤트 (커밋 후 EventService가 §3 규약으로 nerv_events에 PUBLISH) ---------
 INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, actor_session_id,

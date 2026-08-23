@@ -35,7 +35,9 @@ function file(path: string): string {
   return readFileSync(join(here, path), 'utf8').trimEnd();
 }
 
-const SKILLS = ['next', 'spec', 'impl', 'question', 'import'] as const;
+// `review` 는 P2 스킬이고 2026-08-23 에 패키지에 들어왔다(4.6 §2.6).
+// **MVP 약속은 여전히 5종**이다 — 6번째는 Phase 2 가 위에 얹힌 것이다.
+const SKILLS = ['next', 'spec', 'impl', 'question', 'import', 'review'] as const;
 
 describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', () => {
   it.each(SKILLS)('skills/%s/SKILL.md', (skill) => {
@@ -146,9 +148,12 @@ describe('패키지 구성', () => {
     }
   });
 
-  it('P2 항목은 v0.1 패키지에 없다 — review 스킬·리뷰 서브에이전트', () => {
-    expect(existsSync(join(here, 'skills/review/SKILL.md'))).toBe(false);
+  it('리뷰 서브에이전트는 아직 없다 — 스킬만 들어왔다', () => {
+    // `/nerv:review` 는 절차이고, 서브에이전트는 **역할 분리**다. 리뷰를 전담하는
+    // 에이전트를 두는 것은 라우팅·커버리지 판정(FR-10 둘째 단)과 한 몸이라 아직 이르다.
+    expect(existsSync(join(here, 'skills/review/SKILL.md'))).toBe(true);
     expect(existsSync(join(here, 'agents/nerv-code-reviewer.md'))).toBe(false);
+    expect(existsSync(join(here, 'agents/nerv-consistency-checker.md'))).toBe(false);
   });
 });
 
@@ -172,7 +177,12 @@ describe('Codex 초안 2종 (REQ-PLG-010)', () => {
 
   it('AGENTS.md 초안이 세션 시작 순서와 금지 사항을 담는다', () => {
     const md = readShipped('codex/AGENTS.md');
-    for (const tool of ['nerv_bootstrap', 'nerv_task_next', 'nerv_task_claim', 'nerv_task_heartbeat']) {
+    for (const tool of [
+      'nerv_bootstrap',
+      'nerv_task_next',
+      'nerv_task_claim',
+      'nerv_task_heartbeat',
+    ]) {
       expect(md).toContain(tool);
     }
     // 비신뢰 본문의 지시문을 따르지 않는다(REQ-PLG-006 과 같은 규율)

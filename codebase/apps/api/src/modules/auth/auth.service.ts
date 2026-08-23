@@ -339,7 +339,13 @@ export class AuthService {
                WHERE se.project_id = p.id AND se.state IN ('pending','active','awaiting_input'))::int
                AS active_sessions,
              (SELECT count(*) FROM approval a
-               WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals
+               WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals,
+             -- 사이드바가 **무엇이 위험한지**를 화면에 들어가기 전에 말한다(S6 배지).
+             -- 세션 건수와 같은 이유의 같은 처방이다: 들어가야 아는 숫자면 그 화면을
+             -- 열기 전에는 아무도 모른다.
+             (SELECT count(*) FROM finding f
+               WHERE f.project_id = p.id AND f.status = 'open'
+                 AND f.severity = 'critical')::int AS open_critical_findings
         FROM project p JOIN organization o ON o.id = p.org_id
        WHERE p.id = ${projectId}
     `);
@@ -692,7 +698,6 @@ export class AuthService {
   assertScope(principal: Principal, required: RoleScope): void {
     assertScopeOf(principal, required);
   }
-
 
   /** 토큰이 붙은 프로젝트 밖을 건드리려 할 때 — 스코프 밖 프로젝트는 거부다. */
   assertProjectScope(principal: Principal, projectId: string): void {

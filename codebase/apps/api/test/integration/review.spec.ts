@@ -395,6 +395,115 @@ describe('FR-09 처분 — 하향은 사람의 승인을 거친다(A3)', () => {
   });
 });
 
+describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)', () => {
+  beforeEach(async () => {
+    await reviews.submit(
+      submitInput({
+        findings: [
+          CRITICAL,
+          { severity: 'warning', title: '캐시 헤더 TTL 미지정', file: 'src/loader.ts', line: 9 },
+          { severity: 'info', title: '주석 오타', file: 'src/loader.ts' },
+        ],
+      }),
+    );
+  });
+
+  it('facet 은 "이것을 켜면 몇 건인가"다 — 자기 선택은 세지 않는다', async () => {
+    const all = await reviews.findings({ projectId, status: ['open'] });
+    expect(all.items).toHaveLength(3);
+    expect(all.facets.severity).toEqual({ critical: 1, warning: 1, info: 1 });
+
+    // critical 만 켠 상태에서도 warning·info 의 숫자는 그대로여야 한다 —
+    // 자기 선택까지 반영하면 켜져 있는 것만 남아 필터가 스스로를 가둔다
+    const narrowed = await reviews.findings({
+      projectId,
+      status: ['open'],
+      severity: ['critical'],
+    });
+    expect(narrowed.items).toHaveLength(1);
+    expect(narrowed.facets.severity).toEqual({ critical: 1, warning: 1, info: 1 });
+    // 반대로 status facet 은 severity 선택을 반영한다(다른 차원이므로)
+    expect(narrowed.facets.status).toEqual({ open: 1 });
+  });
+
+  it('처분하면 큐에서 빠지고 facet 이 따라 움직인다', async () => {
+    const open = await reviews.findings({ projectId, status: ['open'] });
+    const info = open.items.find((i) => i['severity'] === 'info')!;
+    await reviews.resolve({
+      projectId,
+      findingId: String(info['id']),
+      userId,
+      isAgent: false,
+      kind: 'dismissed',
+      status: 'dismissed',
+      rationale: '오타는 리뷰 대상이 아니다',
+    });
+
+    const after = await reviews.findings({ projectId, status: ['open'] });
+    expect(after.items).toHaveLength(2);
+    expect(after.facets.status).toEqual({ open: 2, dismissed: 1 });
+  });
+
+  it('provenance 세 출처를 함께 준다 — 없으면 null 로 밝힌다 (REQ-WEB-062)', async () => {
+    const { items } = await reviews.findings({ projectId, status: ['open'] });
+    const first = items[0]!;
+    expect(first['file_path']).toBe('src/widget.ts');
+    expect(first['head_sha']).toBe('bbbb222');
+    expect(first['round_no']).toBe(1);
+    // 이 발견에는 유래 스펙이 없다 — 화면이 "없음"이라고 적을 수 있어야 한다
+    expect(first['spec_key']).toBeNull();
+  });
+
+  it('모르는 필터 값은 조용히 버린다 — enum 캐스트가 터지지 않는다', async () => {
+    const { items } = await reviews.findings({ projectId, severity: ['bogus'], status: ['open'] });
+    expect(items).toHaveLength(3);
+  });
+
+  it('게이트 현황은 브랜치마다 판정을 준다 — 열린 것이 남으면 pending', async () => {
+    const rows = await reviews.gateCoverage(projectId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ branch: 'feat/widget', verdict: 'pending', total: 3 });
+    expect(rows[0]!['bypasses']).toEqual([]);
+  });
+
+  it('전부 처분되면 passed 다', async () => {
+    const { items } = await reviews.findings({ projectId, status: ['open'] });
+    for (const item of items) {
+      await reviews.resolve({
+        projectId,
+        findingId: String(item['id']),
+        userId,
+        isAgent: false,
+        kind: 'fixed',
+        status: 'fixed',
+        rationale: '고쳤다',
+        commitSha: 'dddd444',
+      });
+    }
+    const rows = await reviews.gateCoverage(projectId);
+    expect(rows[0]).toMatchObject({ verdict: 'passed', resolved: 3, total: 3 });
+  });
+
+  it('면제는 같은 줄에 사람·시각·사유로 펼쳐진다 (REQ-WEB-065)', async () => {
+    // 면제는 **리뷰 세션을 주체로** 붙는다 — `approval.subject_id` 가 uuid 라 브랜치
+    // 문자열을 직접 가리킬 수 없다. 브랜치는 그 세션에서 나온다.
+    const { rows: session } = await pool.query('SELECT id FROM review_session LIMIT 1');
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                             decision, decided_at, is_bypass, bypass_reason)
+       VALUES ($1,$2,'gate_bypass',$3,$4,'approve',now(),true,$5)`,
+      [newId(), projectId, session[0].id, userId, '핫픽스 배포, 사후 리뷰 예약'],
+    );
+    const rows = await reviews.gateCoverage(projectId);
+    const bypasses = rows[0]!['bypasses'] as Record<string, unknown>[];
+    expect(bypasses).toHaveLength(1);
+    expect(bypasses[0]).toMatchObject({
+      bypass_reason: '핫픽스 배포, 사후 리뷰 예약',
+      display_name: '규아',
+    });
+  });
+});
+
 async function seed(): Promise<void> {
   const orgId = newId();
   projectId = newId();

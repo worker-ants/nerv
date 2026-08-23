@@ -20,6 +20,7 @@ const SHOTS: [string, string][] = [
   ['/p/clemvion/specs/SPC-CWC-007', 'spec'],
   ['/p/clemvion/tasks', 'tasks'],
   ['/p/clemvion/sessions', 'sessions'],
+  ['/p/clemvion/reviews', 'reviews'],
   ['/settings/tokens', 'settings'],
 ];
 

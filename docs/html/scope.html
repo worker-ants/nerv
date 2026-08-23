@@ -52,7 +52,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 16종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.10 (2026-08-23)</span>
+      <span>버전 v0.11 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: draft</span>
     </div>
@@ -358,7 +358,7 @@
       <tr><td><code>/nerv:impl</code></td><td>●</td><td>클레임한 Task의 구현 절차</td></tr>
       <tr><td><code>/nerv:question</code></td><td>●</td><td>질문 에스컬레이션·폴링</td></tr>
       <tr><td><code>/nerv:import</code></td><td>●</td><td><b>2026-08-22 추가</b> — 임포터 CLI 래퍼: 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → <code>--apply</code> → 멱등 재실행 검증. 대상 저장소를 가리지 않는다(프로파일만 바뀐다 — <a href="importer.html">4.7 스펙 임포터</a> §3.6)</td></tr>
-      <tr><td><code>/nerv:review</code></td><td>○</td><td><b>Phase 2</b> — 리뷰 도구 2종과 함께(스킬 5종 → 6종)</td></tr>
+      <tr><td><code>/nerv:review</code></td><td>○</td><td><b>Phase 2 · 2026-08-23 배포</b>(<a href="plugin.html">4.6 플러그인</a> §2.6) — 리뷰 제출과 발견 처분. <b>MVP 약속은 5종 그대로</b>이고 패키지가 6종이 된 것이다</td></tr>
     </tbody>
   </table></div>
 
@@ -371,9 +371,9 @@
   <div class="table-wrap"><table>
     <thead><tr><th>하지 않는 것</th><th>언제 하나</th><th>왜 MVP가 아닌가</th></tr></thead>
     <tbody>
-      <tr><td>리뷰 센터 S6</td><td>Phase 2 (<b>남음</b>)</td><td>데이터는 2026-08-23부터 있다(아래 착수 기록). 화면이 아직 없다 — 라우트만 예약된 상태다(<a href="screens.html">4.5</a> §1.6)</td></tr>
+      <tr><td>리뷰 센터 S6</td><td><b>Phase 2 · 2026-08-23 구현 완료</b></td><td><a href="screens.html">4.5 화면 명세</a> §2.6a. 남은 것은 spec_drift → CR 라우팅(FR-04 의존)과 게이트 <b>집행</b>(FR-10 둘째 단) — 화면은 판정을 표시할 뿐 아직 막지 않는다</td></tr>
       <tr><td>리뷰 도구 2종 <code>nerv_review_submit</code> · <code>nerv_finding_resolve</code></td><td><b>Phase 2 · 2026-08-23 착수 완료</b></td><td>아래 착수 기록. MVP 도구 <b>16종은 그대로</b>이고 카탈로그가 18종이 된 것이다 — 두 수를 섞지 않는다</td></tr>
-      <tr><td><code>/nerv:review</code> 스킬</td><td>Phase 2 (<b>남음</b>)</td><td>의존하던 도구 2종은 생겼다. 스킬 본문은 <a href="plugin.html">4.6 플러그인</a>이 소유한다</td></tr>
+      <tr><td><code>/nerv:review</code> 스킬</td><td><b>Phase 2 · 2026-08-23 배포 완료</b></td><td><a href="plugin.html">4.6 플러그인</a> §2.6. MVP 약속은 스킬 5종 그대로다</td></tr>
       <tr><td>Codex 완전 지원</td><td>Phase 2</td><td>P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·<code>AGENTS.md</code> 배포는 Phase 2. MVP는 <code>config.toml</code>·<code>AGENTS.md</code> <b>초안 제공</b>까지 — 경계는 <a href="plugin.html">4.6 플러그인과 온보딩</a> §5</td></tr>
       <tr><td>CR 델타 UI 고도화</td><td>Phase 2</td><td>FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지</td></tr>
       <tr><td>실시간 공동 편집(CRDT)</td><td>Phase 3+ (착수 조건: 409 재시도 주 20건 이상)</td><td>서버 권위 + <code>base_version</code> 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2)</td></tr>
@@ -389,7 +389,7 @@
 
   <div class="callout note"><span class="ico">💡</span><div class="body">
     <b class="title">착수 기록 — FR-09 리뷰 수집 (2026-08-23, 사람 지시)</b>
-    <p>Phase 2 항목 중 <b>리뷰 수집의 서버·도구</b>를 앞당겨 구현했다. 들어온 것: <code>ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution</code> 적재, MCP 도구 2종(<code>nerv_review_submit</code> A2 · <code>nerv_finding_resolve</code> A2 / critical→dismissed·wont_fix는 A3), REST 3종(EP-REV-01~03 — <a href="api.html">4.4 API 명세</a> §2.6a). 남은 것: <b>S6 리뷰 센터 화면</b>과 <b><code>/nerv:review</code> 스킬</b>, 그리고 게이트 둘째 단(리뷰 커버리지 조건 — FR-10의 Phase 2 몫).</p>
+    <p>Phase 2 항목 중 <b>리뷰 수집의 서버·도구</b>를 앞당겨 구현했다. 들어온 것: <code>ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution</code> 적재, MCP 도구 2종(<code>nerv_review_submit</code> A2 · <code>nerv_finding_resolve</code> A2 / critical→dismissed·wont_fix는 A3), REST 3종(EP-REV-01~03 — <a href="api.html">4.4 API 명세</a> §2.6a). 같은 날 이어서 <b>S6 리뷰 센터 화면</b>(<a href="screens.html">4.5</a> §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 <b><code>/nerv:review</code> 스킬</b>(<a href="plugin.html">4.6</a> §2.6)까지 들어왔다. 남은 것: 게이트 둘째 단의 <b>집행</b>(리뷰 커버리지가 Task <code>done</code>을 막는 것 — FR-10의 Phase 2 몫. 지금은 판정을 <b>표시</b>만 한다), <code>spec_drift</code> → CR 라우팅(FR-04 의존), 리뷰 서브에이전트 2종.</p>
     <p><b>MVP 범위 표(§3.2·§4.2)는 바꾸지 않았다.</b> FR-09는 여전히 MVP가 아니고 MVP 도구도 16종 그대로다 — 카탈로그가 18종이 된 것은 Phase 2가 그 위에 얹혔기 때문이다. 두 수를 하나로 합치면 "MVP에서 무엇을 약속했는가"를 다시 셀 수 없게 된다(도구 정의의 <code>phase</code> 필드가 그 구분을 나른다).</p>
     <p>이 결정이 스키마 하나를 건드렸다: <code>approval_subject_type</code>에 <b><code>finding</code></b>을 더했다(<a href="database.html">4.3</a> §2.1 · <code>0004_finding_approval</code>). A3는 "막는다"가 아니라 <b>사람의 승인함을 거친다</b>는 뜻인데, 승인 카드가 붙을 자리가 열거에 없었다.</p>
   </div></div>

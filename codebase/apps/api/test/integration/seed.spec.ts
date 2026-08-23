@@ -97,6 +97,35 @@ describe('개발 시드 (database.md §4)', () => {
     // S3 스펙 상세 — SPC-CWC-007 은 v3 superseded → v4 approved (diff 재료)
     expect(await count('spec_version', `WHERE status = 'approved'`)).toBe(2);
     expect(await count('spec_version', `WHERE status = 'superseded'`)).toBe(1);
+    // S6 리뷰 센터(2026-08-23) — 열린 발견 3(severity 3종) · 브랜치 2 · 면제 1.
+    // 세션 상세와 같은 이유로 여기 넣는다: 비어 있으면 "정리된 finding" 이라는 이
+    // 화면의 값어치가 개발 환경에서 한 번도 보이지 않는다.
+    expect(await count('finding', `WHERE status = 'open'`)).toBe(3);
+    expect(await count('finding', `WHERE status = 'open' AND severity = 'critical'`)).toBe(1);
+    expect(await count('approval', `WHERE is_bypass`)).toBe(1);
+    const { rows: branches } = await pool.query<{ n: string }>(
+      `SELECT count(DISTINCT branch)::text AS n FROM review_session`,
+    );
+    expect(branches[0]?.n).toBe('2');
+  });
+
+  it('같은 지적이 두 라운드에 걸쳐 하나로 남는다 — 화면의 dedup 표기가 시드에서 보인다', async () => {
+    // 라운드 체인(1→2)과 occurrence_count 2 가 함께 있어야 "3회 관측" 같은 표기가
+    // 개발 환경에서 실제로 뜬다. 한 라운드만 심으면 그 표기는 코드에만 있는 것이 된다.
+    const { rows } = await pool.query<{ occurrence_count: number; severity: string }>(
+      `SELECT occurrence_count, severity::text AS severity FROM finding WHERE occurrence_count > 1`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.occurrence_count).toBe(2);
+    // **원값 대조가 감사의 근거다** — 2라운드에서 warning 으로 내려왔지만 finding 은
+    // critical 을 지킨다. 이 어긋남이 시드에 있어야 감사 화면이 만들 것이 생긴다.
+    expect(rows[0]?.severity).toBe('critical');
+    const { rows: raw } = await pool.query<{ raw_severity: string }>(
+      `SELECT raw_severity::text AS raw_severity FROM finding_occurrence o
+        JOIN finding f ON f.id = o.finding_id
+       WHERE f.occurrence_count > 1 ORDER BY o.round_no`,
+    );
+    expect(raw.map((r) => r.raw_severity)).toEqual(['critical', 'warning']);
   });
 
   it('Activity 타임라인이 5종 어휘를 전부 보여 준다 — 화면이 무엇을 그리는지 시드가 증명한다', async () => {

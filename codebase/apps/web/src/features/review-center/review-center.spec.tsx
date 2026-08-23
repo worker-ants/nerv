@@ -1,0 +1,266 @@
+// S6 리뷰 센터 — screens.md §2.6a
+//
+//   REQ-WEB-061  필터 칸의 건수는 같은 응답의 facet 값이다
+//   REQ-WEB-062  코드·검토 커밋·유래 스펙 세 출처를 함께 적고, 없는 것은 "없음"으로 밝힌다
+//   REQ-WEB-063  같은 지적은 카드 하나 + 관측 횟수
+//   REQ-WEB-064  처분은 근거 필수, `fixed` 는 커밋까지
+//   REQ-WEB-065  면제는 같은 줄에 사람·시각·사유로 펼친다
+//
+// **라우트째로 그린다.** 카드 하나만 떼어 그리면 `<Link>` 가 라우터를 못 찾아 터지고,
+// 그것을 피하려고 링크를 걷어내면 정작 검사해야 할 provenance 링크가 테스트에서 사라진다.
+
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LocaleProvider } from '../../lib/i18n.js';
+import { RealtimeProvider } from '../../lib/realtime.js';
+import { routeTree } from '../../routeTree.gen';
+
+vi.mock('socket.io-client', () => ({
+  io: () => ({
+    on: () => undefined,
+    onAny: () => undefined,
+    emit: () => undefined,
+    close: () => undefined,
+  }),
+}));
+
+const FINDING = {
+  id: '0f3a91c2-7d10-4b55-9a3e-1c2d3e4f5a6b',
+  severity: 'critical',
+  status: 'open',
+  category: 'security',
+  title: '세션 토큰이 localStorage 에 평문 저장',
+  tags: ['spec_drift'],
+  file_path: 'src/widget/session.ts',
+  line_start: 88,
+  occurrence_count: 3,
+  head_sha: '9a41c2ffee11',
+  branch: 'feature/widget-v2',
+  round_no: 3,
+  spec_key: 'SPC-CWC-007',
+  requirement_ref: 'REQ-CWC-031',
+};
+
+const BARE = {
+  ...FINDING,
+  id: '11112222-3333-4444-5555-666677778888',
+  severity: 'warning',
+  title: '로더 캐시 헤더 TTL 미지정',
+  tags: [],
+  file_path: null,
+  line_start: null,
+  spec_key: null,
+  requirement_ref: null,
+  occurrence_count: 1,
+};
+
+const GATE = [
+  {
+    branch: 'hotfix/session-restore',
+    head_sha: '3d90f1aabb',
+    round_no: 2,
+    resolved: 4,
+    total: 5,
+    verdict: 'pending',
+    bypasses: [
+      {
+        display_name: '하나',
+        decided_at: new Date(Date.now() - 3_600_000).toISOString(),
+        bypass_reason: '핫픽스 배포, 사후 리뷰 예약',
+      },
+    ],
+  },
+];
+
+/** 처분 호출을 잡아 두는 곳 — 무엇을 보냈는지가 검사 대상이다 */
+let posted: { url: string; body: unknown }[] = [];
+
+beforeEach(() => {
+  localStorage.clear();
+  posted = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
+      const path = String(url);
+      if (init?.method === 'POST') {
+        posted.push({ url: path, body: JSON.parse(init.body ?? '{}') });
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      }
+      const json = path.includes('/findings')
+        ? {
+            items: [FINDING, BARE],
+            facets: {
+              severity: { critical: 1, warning: 1, info: 42 },
+              status: { open: 2, dismissed: 7 },
+              tag: { spec_drift: 1 },
+            },
+          }
+        : path.includes('/gates/reviews')
+          ? GATE
+          : path.includes('/me')
+            ? {
+                id: 'u-1',
+                display_name: '규아',
+                memberships: [
+                  { org_slug: 'nerv', project_slug: 'clemvion', roles: ['qa'], project_id: 'p-1' },
+                ],
+              }
+            : path.includes('/projects/clemvion')
+              ? { id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', org_slug: 'nerv' }
+              : { items: [], memberships: [], count: 0, summary: {} };
+      return { ok: true, status: 200, json: async () => json };
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  cleanup();
+});
+
+async function renderCenter(): Promise<void> {
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: ['/p/clemvion/reviews'] }),
+  });
+  render(
+    <LocaleProvider locale="ko">
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <RealtimeProvider>
+          <RouterProvider router={router as never} />
+        </RealtimeProvider>
+      </QueryClientProvider>
+    </LocaleProvider>,
+  );
+  await waitFor(() => expect(screen.getAllByTestId('finding-card').length).toBe(2));
+}
+
+describe('S6 발견 큐 — provenance 와 dedup (REQ-WEB-062·063)', () => {
+  it('코드 위치·검토 커밋·유래 스펙을 함께 적는다', async () => {
+    await renderCenter();
+    const card = within(screen.getAllByTestId('finding-card')[0]!);
+    expect(card.getByText('src/widget/session.ts:88')).toBeDefined();
+    expect(card.getByText('feature/widget-v2 @ 9a41c2f')).toBeDefined();
+    expect(card.getByText('SPC-CWC-007 / REQ-CWC-031')).toBeDefined();
+  });
+
+  it('없는 출처는 빈칸이 아니라 "없음"이다 — 빈칸은 "아직 안 불러왔나"로 읽힌다', async () => {
+    await renderCenter();
+    const bare = within(screen.getAllByTestId('finding-card')[1]!);
+    expect(bare.getAllByText('없음')).toHaveLength(2);
+  });
+
+  it('같은 지적은 카드 하나 + 관측 횟수다 (fingerprint dedup)', async () => {
+    await renderCenter();
+    expect(screen.getByTestId('finding-occurrences').textContent).toContain('3회 관측');
+  });
+
+  it('표시 키를 만들지 않는다 — "짧은 id" 라고 밝히고 **뒤** 8자를 준다', async () => {
+    await renderCenter();
+    // 밝히지 않으면 사람은 그것을 전체 id 로 오해하고 어딘가에 붙여 넣는다.
+    // 앞자리가 아닌 이유: UUIDv7 의 앞 48비트는 시각이라 같은 리뷰에서 나온 발견들이
+    // 전부 같은 앞자리를 갖는다(실측 — 시드 화면에서 세 발견이 모두 `01990a66` 이었다).
+    expect(screen.getByText('짧은 id 3e4f5a6b')).toBeDefined();
+    // 두 발견의 짧은 id 는 서로 달라야 한다 — 같으면 손잡이가 아니다
+    expect(screen.getByText('짧은 id 77778888')).toBeDefined();
+  });
+
+  it('심각도는 색만이 아니라 라벨로도 나온다 (REQ-WEB-033)', async () => {
+    await renderCenter();
+    const card = within(screen.getAllByTestId('finding-card')[0]!);
+    expect(card.getByText('critical')).toBeDefined();
+  });
+});
+
+describe('S6 필터 — facet 은 같은 응답에서 온다 (REQ-WEB-061)', () => {
+  it('필터 칸의 숫자가 facet 값이다 — 따로 세지 않는다', async () => {
+    await renderCenter();
+    const info = screen.getByTestId('facet-info');
+    expect(info.textContent).toContain('42');
+    expect(screen.getByTestId('facet-critical').textContent).toContain('1');
+  });
+
+  it('태그 facet 은 서버가 준 것만 그린다 — 없는 태그 칸을 만들지 않는다', async () => {
+    await renderCenter();
+    expect(screen.getByTestId('facet-spec_drift')).toBeDefined();
+  });
+
+  it('켜짐을 색만으로 알리지 않는다 (REQ-WEB-033)', async () => {
+    await renderCenter();
+    // 기본은 열린 것만이다 — 큐가 큐이기를 그만두지 않게
+    expect(screen.getByTestId('facet-open').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('facet-open').textContent).toContain('☑');
+    expect(screen.getByTestId('facet-fixed').textContent).toContain('☐');
+  });
+
+  it('필터를 켜면 서버에 그 필터로 다시 묻는다', async () => {
+    await renderCenter();
+    fireEvent.click(screen.getByTestId('facet-critical'));
+    await waitFor(() => {
+      const calls = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+      expect(calls.some((c) => String(c[0]).includes('severity=critical'))).toBe(true);
+    });
+  });
+});
+
+describe('S6 처분 — 근거 없는 처분은 없다 (REQ-WEB-064)', () => {
+  it('근거가 비면 보낼 수 없고, 채우면 보낼 수 있다', async () => {
+    await renderCenter();
+    fireEvent.click(screen.getAllByTestId('resolve-dismissed')[0]!);
+    const dialog = within(screen.getByTestId('resolve-dialog'));
+    const submit = dialog.getByText('처분').closest('button') as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+
+    fireEvent.change(dialog.getByTestId('resolve-rationale'), { target: { value: '오탐이다' } });
+    expect(submit.disabled).toBe(false);
+    fireEvent.click(submit);
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]!.body).toMatchObject({ resolution: 'dismissed', rationale: '오탐이다' });
+  });
+
+  it('fixed 는 커밋까지 있어야 한다 — 검증 가능한 사실만 통과한다', async () => {
+    await renderCenter();
+    fireEvent.click(screen.getAllByTestId('resolve-fixed')[0]!);
+    const dialog = within(screen.getByTestId('resolve-dialog'));
+    fireEvent.change(dialog.getByTestId('resolve-rationale'), { target: { value: '고쳤다' } });
+    const submit = dialog.getByText('처분').closest('button') as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+
+    fireEvent.change(dialog.getByTestId('resolve-commit'), { target: { value: 'dddd444' } });
+    expect(submit.disabled).toBe(false);
+  });
+
+  it('dismissed 에는 커밋 칸이 없다 — 요구하지 않는 것을 묻지 않는다', async () => {
+    await renderCenter();
+    fireEvent.click(screen.getAllByTestId('resolve-dismissed')[0]!);
+    expect(within(screen.getByTestId('resolve-dialog')).queryByTestId('resolve-commit')).toBeNull();
+  });
+});
+
+describe('S6 게이트 현황 — 면제가 조용히 일어나지 않는다 (REQ-WEB-065)', () => {
+  it('브랜치마다 커버 리뷰·해소·판정을 적는다', async () => {
+    await renderCenter();
+    const table = within(screen.getByTestId('gate-coverage'));
+    expect(table.getByText('hotfix/session-restore')).toBeDefined();
+    expect(table.getByText('3d90f1a · 2R')).toBeDefined();
+    expect(table.getByText('4/5')).toBeDefined();
+    expect(table.getByText('대기')).toBeDefined();
+  });
+
+  it('면제한 사람·시각·사유가 같은 줄에 펼쳐진다', async () => {
+    await renderCenter();
+    const bypass = screen.getByTestId('gate-bypass').textContent ?? '';
+    expect(bypass).toContain('하나');
+    expect(bypass).toContain('핫픽스 배포, 사후 리뷰 예약');
+    expect(bypass).toContain('1시간 전');
+  });
+
+  it('막지는 않는다고 화면이 말한다 — 표시와 집행을 섞지 않는다', async () => {
+    await renderCenter();
+    expect(screen.getByText(/아직 막지는 않는다/)).toBeDefined();
+  });
+});

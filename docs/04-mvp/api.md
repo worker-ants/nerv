@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.12 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.13 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
+>
+> v0.13 변경(2026-08-23 — S6 가 읽을 것): **EP-REV-03 확장**(`severity[]`·`status[]`·`tag[]` 필터 + **facet 건수를 같은 응답에**)과 **EP-REV-04 신설**(브랜치별 게이트 현황). facet 을 따로 받게 하면 목록과 숫자가 어긋나는 순간이 생긴다. EP-REV-04 는 **표시일 뿐 집행이 아니다** — Task `done` 을 막는 것은 FR-10 의 Phase 2 몫이다.
 >
 > v0.12 변경(2026-08-23 — 리뷰 표면 신설): **§2.6a 리뷰·발견 전표 신설**(EP-REV-01~03). Phase 2 리뷰 수집(FR-09) 착수에 따른 것이고([4.1 범위](scope.md) §5 착수 기록) MVP 전표는 불변이다. 세 계약을 절 안에 못 박았다 — 입력 스냅샷(`head_sha`) 필수, 라운드는 `changeset_hash` 로 서버가 셈, **에이전트의 critical 하향은 A3**(승인 카드 `subject_type=finding` → 202 `NERV_APPROVAL_REQUIRED`).
 >
@@ -365,13 +367,15 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | --- | --- | --- | --- | --- | --- |
 | EP-REV-01 | `POST /api/v1/projects/{proj}/reviews` | `review:submit` | `ReviewSubmitInput`(branch, base_sha, head_sha, changeset[], kind, task_id?, reviewer{role, risk}, summary, findings[]{severity, title, body, suggestion, category, file, line, symbol, requirement_id?, spec_version_id?}, payload_ref?) | `ReviewSubmitResult`(review_session_id, round_no, merged_into_existing_session, findings_new[], findings_merged[], carried_over[], block) | 새로 열린 발견마다 `finding.opened` |
 | EP-REV-02 | `POST /api/v1/projects/{proj}/findings/{id}/resolve` | `review:resolve` | `FindingResolveInput`(resolution: fixed/dismissed/wont_fix, commit_sha?, change_request_id?, rationale) | `FindingResolveResult`(finding_id, status, resolution_id, open_remaining) | `finding.resolved` · 에이전트의 critical 하향이면 먼저 `approval.requested` |
-| EP-REV-03 | `GET /api/v1/projects/{proj}/findings` | `spec:read` | `FindingListQuery`(status: open/fixed/dismissed/wont_fix, limit) | `FindingResult[]`(severity·category·위치·occurrence_count + 마지막 세션의 head_sha·branch·round_no) | — |
+| EP-REV-03 | `GET /api/v1/projects/{proj}/findings` | `spec:read` | `FindingListQuery`(`severity[]`·`status[]`·`tag[]`·`limit`) | `FindingListResult`(`items[]` — severity·category·위치·occurrence_count + 마지막 세션의 head_sha·branch·round_no + 유래 스펙/Requirement, `facets{severity,status,tag}`) | — |
+| EP-REV-04 | `GET /api/v1/projects/{proj}/gates/reviews` | `spec:read` | — | `GateCoverageResult[]`(branch, 커버 리뷰(head_sha·round_no·완료 시각), 해소 `resolved/total`, 판정 `passed`/`pending`/`uncovered`, 면제(`is_bypass` 결재의 사람·시각·사유)) | — |
 
 세 가지가 이 표면의 계약이다.
 
 1. **입력 스냅샷은 필수다.** `head_sha`·`base_sha` 없는 제출은 `NERV_PRECONDITION` 이다 — 나중에 "무엇을 봤는가"에 답할 수 없는 리뷰는 게이트의 근거가 되지 못한다(clemvion 실측: 표본 SUMMARY 200개 중 47개만 산문에 해시를 남겼다).
 2. **라운드는 서버가 센다.** 같은 커밋·같은 파일 집합의 재제출은 `changeset_hash` 로 같은 세션에 합쳐지고(`merged_into_existing_session=true`), 라운드는 늘지 않는다. 리뷰어 여럿이 같은 changeset 을 보면 한 세션의 `reviewer_report` 여럿이 된다.
-3. **하향은 A3다.** `critical` 발견을 `dismissed`/`wont_fix` 로 옮기는 **에이전트의** 호출은 `NERV_APPROVAL_REQUIRED`(202)로 되돌아가고 승인 카드(`approval.subject_type='finding'`)가 승인함에 뜬다. 사람이 승인한 뒤 같은 호출을 다시 하면 통과한다. 사람이 직접 부르는 경로에는 이 게이트가 없다 — 막는 것은 에이전트가 **자기 리뷰의 심각도를 스스로 낮추는 것**이다([에이전트 연동](../03-proposal/agent-integration.md) §2.3 — 실측 732건 중 24건).
+3. **게이트 현황은 표시일 뿐 집행이 아니다.** EP-REV-04 는 "이 브랜치를 커버하는 해소된 리뷰가 있는가"를 SQL 한 번으로 답한다. 그 판정이 Task `done` 전이를 **막는** 것은 FR-10 의 Phase 2 몫이라 아직 없다 — 보여 주는 것과 막는 것을 한 번에 넣지 않는다.
+4. **하향은 A3다.** `critical` 발견을 `dismissed`/`wont_fix` 로 옮기는 **에이전트의** 호출은 `NERV_APPROVAL_REQUIRED`(202)로 되돌아가고 승인 카드(`approval.subject_type='finding'`)가 승인함에 뜬다. 사람이 승인한 뒤 같은 호출을 다시 하면 통과한다. 사람이 직접 부르는 경로에는 이 게이트가 없다 — 막는 것은 에이전트가 **자기 리뷰의 심각도를 스스로 낮추는 것**이다([에이전트 연동](../03-proposal/agent-integration.md) §2.3 — 실측 732건 중 24건).
 
 ### 2.7 이벤트 피드·알림·커버리지
 

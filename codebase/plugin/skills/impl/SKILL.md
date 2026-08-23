@@ -48,11 +48,11 @@ allowed-tools:
 - 작업을 끝냈거나 세션을 접으면 `nerv_task_release`(`claim_id`,
   `reason=done|handoff|abandon`, `state_note`에 인수인계 노트).
 
-## 리뷰 (MVP 경계)
+## 리뷰
 
-`/nerv:review`와 `nerv_review_submit`·`nerv_finding_resolve`는 Phase 2 도구다.
-MVP에서는 저장소의 기존 리뷰 절차(PR 리뷰)를 따르되, **리뷰 산출물을 저장소에
-markdown 파일로 커밋하지 않는다** — 그 경로는 Phase 2에서 도구 제출로 대체된다.
+구현이 끝나면 `/nerv:review`로 넘긴다 — 리뷰 결과는 `nerv_review_submit`으로 서버에
+올라가고, **리뷰 산출물을 저장소에 markdown 파일로 커밋하지 않는다.** 서버가 내려가
+있어도 마찬가지다: 큐잉하고 기다린다.
 
 ## 에러 대응
 

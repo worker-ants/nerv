@@ -100,8 +100,10 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
     const { unmount } = renderAt('/p/clemvion/tasks');
     await waitFor(() => expect(screen.getByText('작업 보드')).toBeDefined());
     expect(screen.getByText('clemvion')).toBeDefined();
-    // 리뷰 탭은 Phase 2 — 비활성 표기가 보인다(scope.md §4.1)
-    expect(screen.getByText('Phase 2')).toBeDefined();
+    // 리뷰 탭은 2026-08-23 에 열렸다 — 비활성 표기 대신 실제 링크다(screens.md §2.6a)
+    expect(screen.getByRole('link', { name: /리뷰/ }).getAttribute('href')).toBe(
+      '/p/clemvion/reviews',
+    );
     unmount();
 
     renderAt('/inbox');

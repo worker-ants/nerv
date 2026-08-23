@@ -506,23 +506,183 @@ export class ReviewService {
     });
   }
 
-  /** EP-REV-03 — 열린 발견 목록. S6 리뷰 센터와 게이트 판정이 같은 것을 읽는다. */
+  /**
+   * EP-REV-03 — 발견 큐. **facet 을 같은 응답에 싣는다**(REQ-WEB-061).
+   *
+   * 필터 칸의 숫자를 따로 받게 하면 목록과 숫자가 어긋나는 순간이 생기고(두 요청 사이에
+   * 새 발견이 들어온다), QA 는 "3건이라더니 4건"을 보게 된다. 한 번에 답하면 그 틈이 없다.
+   *
+   * facet 의 뜻은 **"이것을 켜면 몇 건이 보이는가"** 다 — 그래서 각 차원은 자기 자신의
+   * 선택을 무시하고 나머지 필터만 적용해서 센다. 자기 선택까지 반영하면 켜져 있는 것만
+   * 숫자가 남아 필터가 스스로를 가둔다.
+   */
   async findings(input: {
     projectId: string;
-    status?: string;
+    severity?: readonly string[];
+    status?: readonly string[];
+    tag?: readonly string[];
     limit?: number;
-  }): Promise<Record<string, unknown>[]> {
-    const status = input.status ?? 'open';
-    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+  }): Promise<{ items: Record<string, unknown>[]; facets: FindingFacets }> {
+    const severity = normalizeFilter(input.severity, FINDING_SEVERITIES);
+    const status = normalizeFilter(input.status, FINDING_STATUSES);
+    const tags = (input.tag ?? []).filter((t) => t.trim() !== '');
+
+    const { rows: items } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT f.id, f.severity::text AS severity, f.status::text AS status, f.category, f.title,
-             f.file_path, f.line_start, f.symbol, f.occurrence_count, f.created_at,
-             rs.head_sha, rs.branch, rs.round_no
+             f.detail_md, f.suggestion_md, f.tags, f.file_path, f.line_start, f.symbol,
+             f.occurrence_count, f.created_at,
+             rs.head_sha, rs.branch, rs.round_no, rs.completed_at AS reviewed_at,
+             s.key AS spec_key, s.title AS spec_title, r.ref AS requirement_ref
         FROM finding f
         JOIN review_session rs ON rs.id = f.last_session_id
-       WHERE f.project_id = ${input.projectId} AND f.status = ${status}::finding_status
+        LEFT JOIN spec_version sv ON sv.id = f.spec_version_id
+        LEFT JOIN spec s ON s.id = sv.spec_id
+        LEFT JOIN requirement r ON r.id = f.requirement_id
+       WHERE f.project_id = ${input.projectId}
+         ${this.filter('f.severity', severity, 'finding_severity')}
+         ${this.filter('f.status', status, 'finding_status')}
+         ${tags.length === 0 ? sql`` : sql`AND f.tags && ${sql.raw(pgTextArray(tags))}`}
        ORDER BY f.severity, f.created_at DESC
-       LIMIT ${Math.min(input.limit ?? 50, 200)}
+       LIMIT ${Math.min(input.limit ?? 100, 200)}
     `);
-    return rows;
+
+    return {
+      items,
+      facets: {
+        // 각 차원은 **자기 선택을 뺀** 나머지 필터로 센다
+        severity: await this.facet(input.projectId, 'severity', {
+          status,
+          tags,
+          severity: [],
+        }),
+        status: await this.facet(input.projectId, 'status', { severity, tags, status: [] }),
+        tag: await this.facetTags(input.projectId, severity, status),
+      },
+    };
   }
+
+  /** `IN (...)` 를 만들되 빈 목록이면 조건 자체를 내지 않는다 — 빈 IN 은 전량 배제다. */
+  private filter(column: string, values: readonly string[], enumType: string) {
+    if (values.length === 0) return sql``;
+    const list = sql.join(
+      values.map((v) => sql`${v}::${sql.raw(enumType)}`),
+      sql`, `,
+    );
+    return sql`AND ${sql.raw(column)} IN (${list})`;
+  }
+
+  private async facet(
+    projectId: string,
+    dimension: 'severity' | 'status',
+    filters: { severity: readonly string[]; status: readonly string[]; tags: readonly string[] },
+  ): Promise<Record<string, number>> {
+    const { rows } = await this.db.execute<{ k: string; n: number }>(sql`
+      SELECT ${sql.raw(`f.${dimension}`)}::text AS k, count(*)::int AS n
+        FROM finding f
+       WHERE f.project_id = ${projectId}
+         ${this.filter('f.severity', filters.severity, 'finding_severity')}
+         ${this.filter('f.status', filters.status, 'finding_status')}
+         ${filters.tags.length === 0 ? sql`` : sql`AND f.tags && ${sql.raw(pgTextArray(filters.tags))}`}
+       GROUP BY 1
+    `);
+    return Object.fromEntries(rows.map((r) => [r.k, r.n]));
+  }
+
+  private async facetTags(
+    projectId: string,
+    severity: readonly string[],
+    status: readonly string[],
+  ): Promise<Record<string, number>> {
+    const { rows } = await this.db.execute<{ k: string; n: number }>(sql`
+      SELECT tag AS k, count(*)::int AS n
+        FROM finding f, unnest(f.tags) AS tag
+       WHERE f.project_id = ${projectId}
+         ${this.filter('f.severity', severity, 'finding_severity')}
+         ${this.filter('f.status', status, 'finding_status')}
+       GROUP BY 1
+    `);
+    return Object.fromEntries(rows.map((r) => [r.k, r.n]));
+  }
+
+  /**
+   * EP-REV-04 — 브랜치별 게이트 현황. **표시일 뿐 집행이 아니다**(api.md §2.6a).
+   *
+   * "이 브랜치를 커버하는 해소된 리뷰가 있는가"를 한 번에 답한다. 판정 3종:
+   *   uncovered  리뷰 세션이 없다 — 아무도 보지 않았다
+   *   pending    봤지만 열린 발견이 남았다
+   *   passed     봤고 남은 것이 없다
+   *
+   * 면제는 **같은 줄에 펼친다**(REQ-WEB-065). 면제한 사람·시각·사유가 목록 어딘가가 아니라
+   * 그 브랜치 옆에 있어야 한다 — 면제가 조용히 일어나지 않는 것 자체가 기능이다(FR-10·FR-16).
+   */
+  async gateCoverage(projectId: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      WITH latest AS (
+        SELECT DISTINCT ON (branch) branch, id, head_sha, round_no, completed_at
+          FROM review_session
+         WHERE project_id = ${projectId}
+         ORDER BY branch, round_no DESC, created_at DESC
+      ),
+      counts AS (
+        SELECT rs.branch,
+               count(DISTINCT f.id)::int AS total,
+               count(DISTINCT f.id) FILTER (WHERE f.status <> 'open')::int AS resolved
+          FROM review_session rs
+          JOIN finding f ON f.last_session_id = rs.id
+         WHERE rs.project_id = ${projectId}
+         GROUP BY rs.branch
+      )
+      SELECT l.branch, l.head_sha, l.round_no, l.completed_at,
+             coalesce(c.total, 0) AS total, coalesce(c.resolved, 0) AS resolved,
+             CASE WHEN coalesce(c.total, 0) = coalesce(c.resolved, 0) THEN 'passed'
+                  ELSE 'pending' END AS verdict
+        FROM latest l LEFT JOIN counts c ON c.branch = l.branch
+       ORDER BY l.completed_at DESC NULLS LAST
+    `);
+
+    // 면제는 **결재 레코드**다(FR-10) — `approval.is_bypass` 가 정본이고 여기서 붙인다.
+    //
+    // **리뷰 세션을 통해서만 붙는다.** `approval.subject_id` 는 uuid 이고 브랜치는 문자열이라
+    // 면제가 브랜치를 직접 가리킬 길이 없다(database.md §2.8). 그래서 리뷰 세션을 면제한
+    // 결재만 그 세션의 브랜치 줄에 실린다 — **리뷰가 아예 없는 브랜치의 면제는 여기 뜨지
+    // 않는다**(와이어프레임 §2.6 ⑧의 `미커버 + BYPASS 1` 줄). 그 경우를 담으려면 결재에
+    // 브랜치를 적을 자리가 필요한데, 그것은 스키마 결정이라 사람 확인 없이 하지 않는다.
+    const { rows: bypasses } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT rs.branch, a.bypass_reason, a.decided_at, u.display_name
+        FROM approval a
+        JOIN review_session rs ON rs.id = a.subject_id
+        JOIN "user" u ON u.id = a.requested_by_user_id
+       WHERE a.project_id = ${projectId} AND a.is_bypass
+       ORDER BY a.decided_at DESC
+    `);
+    const byBranch = new Map<string, Record<string, unknown>[]>();
+    for (const b of bypasses) {
+      const key = String(b['branch']);
+      byBranch.set(key, [...(byBranch.get(key) ?? []), b]);
+    }
+    return rows.map((r) => ({ ...r, bypasses: byBranch.get(String(r['branch'])) ?? [] }));
+  }
+}
+
+export interface FindingFacets {
+  severity: Record<string, number>;
+  status: Record<string, number>;
+  tag: Record<string, number>;
+}
+
+const FINDING_SEVERITIES = ['critical', 'warning', 'info'] as const;
+const FINDING_STATUSES = ['open', 'fixed', 'dismissed', 'wont_fix'] as const;
+
+/** 모르는 값은 조용히 버린다 — 표면이 보낸 오타로 enum 캐스트가 터지지 않게. */
+function normalizeFilter(
+  values: readonly string[] | undefined,
+  allowed: readonly string[],
+): string[] {
+  return (values ?? []).filter((v) => allowed.includes(v));
+}
+
+/** `ARRAY['a','b']::text[]` — 태그는 자유 문자열이라 리터럴을 직접 만든다(작은따옴표 이스케이프). */
+function pgTextArray(values: readonly string[]): string {
+  const quoted = values.map((v) => `'${v.replaceAll("'", "''")}'`).join(', ');
+  return `ARRAY[${quoted}]::text[]`;
 }

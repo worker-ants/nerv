@@ -1115,7 +1115,7 @@ INSERT INTO notification (id, project_id, user_id, event_id, importance, channel
 COMMIT;
 ```
 
-이 한 벌로 S1 홈(질문 배지 1), S3 스펙 상세(SPC-CWC-007 v4 approved + REQ-CWC-031), S4 작업 보드(in_progress 2 · blocked 1), S5 세션 모니터(active 2 · awaiting_input 1), S7 승인함(질문 카드 1)이 전부 비어 있지 않게 뜬다 — 화면 개발([4.5 화면 명세](screens.md))의 로딩/빈/에러 3상태 중 "데이터 있음" 경로를 즉시 확인할 수 있다.
+이 한 벌로 S1 홈(질문 배지 1), S3 스펙 상세(SPC-CWC-007 v4 approved + REQ-CWC-031), S4 작업 보드(in_progress 2 · blocked 1), S5 세션 모니터(active 2 · awaiting_input 1), **S6 리뷰 센터(열린 발견 3 — severity 3종 · 브랜치 2 · 면제 1 · 라운드 체인 1→2로 dedup 표기 1건)**, S7 승인함(질문 카드 1)이 전부 비어 있지 않게 뜬다 — 화면 개발([4.5 화면 명세](screens.md))의 로딩/빈/에러 3상태 중 "데이터 있음" 경로를 즉시 확인할 수 있다.
 
 ---
 

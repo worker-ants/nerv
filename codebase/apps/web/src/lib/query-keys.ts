@@ -14,6 +14,9 @@ export const queryKeys = {
   projectSessions: (projId: string) => ['project', projId, 'sessions'] as const,
   projectBaselines: (projId: string) => ['project', projId, 'baselines'] as const,
   projectEvents: (projId: string) => ['project', projId, 'events'] as const,
+  /** S6 리뷰 센터 — 큐와 게이트 현황이 같은 축(발견의 변화)으로 갱신된다 */
+  projectFindings: (projId: string) => ['project', projId, 'findings'] as const,
+  projectGateCoverage: (projId: string) => ['project', projId, 'gateCoverage'] as const,
 
   spec: (specId: string) => ['spec', specId] as const,
   specVersions: (specId: string) => ['spec', specId, 'versions'] as const,

@@ -12,7 +12,7 @@ import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
 import type { Me } from './session.js';
 
-type Row = Record<string, unknown>;
+export type Row = Record<string, unknown>;
 
 /**
  * 목록 응답을 배열로 좁힌다. 서버가 배열을 주는 계약이지만, 화면이 그 계약을 **믿고 크래시하는**
@@ -241,6 +241,45 @@ export function useEvents(slug: string, projectId?: string): UseQueryResult<Row[
   return useQuery({
     queryKey: queryKeys.projectEvents(projectId ?? slug),
     queryFn: () => apiFetch<Row[]>(`/projects/${slug}/events?limit=30`),
+    refetchInterval,
+  });
+}
+
+export interface FindingQueueResponse {
+  items: Row[];
+  facets: {
+    severity: Record<string, number>;
+    status: Record<string, number>;
+    tag: Record<string, number>;
+  };
+}
+
+/**
+ * 발견 큐(S6). **필터는 키의 일부다** — 필터를 바꾸면 다른 질문이라 다른 캐시다.
+ * facet 이 같은 응답에 오므로 필터 칸의 숫자에 따로 요청하지 않는다(REQ-WEB-061).
+ */
+export function useFindings(
+  slug: string,
+  filters: { severity: readonly string[]; status: readonly string[]; tag: readonly string[] },
+  projectId?: string,
+): UseQueryResult<FindingQueueResponse> {
+  const refetchInterval = useLivePolling();
+  const query = new URLSearchParams();
+  if (filters.severity.length > 0) query.set('severity', filters.severity.join(','));
+  if (filters.status.length > 0) query.set('status', filters.status.join(','));
+  if (filters.tag.length > 0) query.set('tag', filters.tag.join(','));
+  return useQuery({
+    queryKey: [...queryKeys.projectFindings(projectId ?? slug), filters],
+    queryFn: () => apiFetch<FindingQueueResponse>(`/projects/${slug}/findings?${query.toString()}`),
+    refetchInterval,
+  });
+}
+
+export function useGateCoverage(slug: string, projectId?: string): UseQueryResult<Row[]> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: queryKeys.projectGateCoverage(projectId ?? slug),
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/gates/reviews`),
     refetchInterval,
   });
 }

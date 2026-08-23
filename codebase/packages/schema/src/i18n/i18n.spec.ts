@@ -9,7 +9,14 @@ import { describe, expect, it } from 'vitest';
 import { en } from './en.js';
 import { ko } from './ko.js';
 import { NERV_EVENT_NAMES } from '../events.js';
-import { implStatus, sessionState, specVersionStatus, taskStatus } from '../enums.js';
+import {
+  findingSeverity,
+  findingStatus,
+  implStatus,
+  sessionState,
+  specVersionStatus,
+  taskStatus,
+} from '../enums.js';
 import { eventLabelKey, statusLabelKey } from './domain.js';
 import { LOCALES, negotiateLocale } from './locale.js';
 import { createTranslator, msg, renderMessage } from './index.js';
@@ -114,9 +121,17 @@ describe('도메인 값 전수 커버', () => {
     ['requirement', implStatus.enumValues],
     ['task', taskStatus.enumValues],
     ['session', sessionState.enumValues],
+    ['finding', findingStatus.enumValues],
   ] as const)('%s 상태값 전부에 라벨이 있다', (entity, values) => {
     const missing = values.filter(
       (value) => ko[statusLabelKey(entity, value) as keyof typeof ko] === undefined,
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it('심각도 전부에 라벨이 있다 — 색만으로 구분하지 않는다(REQ-WEB-033)', () => {
+    const missing = findingSeverity.enumValues.filter(
+      (value) => ko[`severity.${value}` as keyof typeof ko] === undefined,
     );
     expect(missing).toEqual([]);
   });
