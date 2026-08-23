@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.2 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.3 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
 >
 > v1.1 변경(2026-08-23): ① **문구 카탈로그와 로케일 §3.4 신설** — 웹·API·CLI 가 `@nerv/schema` 의 한 벌을 쓴다(ko 기본 · en). §1.2 의 "런타임 로직 없음"에 번역기 예외를 마이그레이터와 같은 등급으로 기록. 신설 요구 REQ-CB-022~024. ② **로컬 임베딩 프로필 이미지 교체**(§5.2a — TEI → ollama). TEI 가 arm64 이미지를 내지 않아 Apple Silicon 에서 기동되지 않는다(실측·점화 기록 §5.2a). 계약·모델·차원·외부 전송 0 은 그대로이고 바뀐 것은 개발자 기계에서 도는가뿐이다. 다른 결정·요구는 불변.
 >
@@ -881,6 +881,7 @@ server {
   }
 
   location /api/ {
+    client_max_body_size 16m;          # 서버 선언(MAX_REQUEST_BODY_BYTES)과 같은 값 — 아래 주의
     proxy_pass http://nerv_api;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -888,6 +889,7 @@ server {
   }
 
   location /mcp {
+    client_max_body_size 16m;          # MCP 도 스펙 본문을 실어 나른다
     if ($nerv_mcp_origin_ok = 0) { return 403; }
     proxy_pass http://nerv_api;
     proxy_http_version 1.1;
@@ -937,6 +939,9 @@ server {
   }
 }
 ```
+
+**앞문이 서버보다 좁으면 서버의 상한은 선언일 뿐이다(2026-08-23 정정).** `location /api/` 에 `client_max_body_size` 가 없어 nginx **기본값 1 MiB** 가 걸려 있었다 — API 는 `MAX_REQUEST_BODY_BYTES`(16 MiB)를 선언하는데도 임포트의 문서 기본 배치(50건 = clemvion 실측 1.39 MB)가 그 자리에서 413 이었다. API 로 직접 보내면 통과하고 프록시를 거치면 막히니, 개발 중에는 보이지 않는다. `/ingest/` 의 5m 은 훅 페이로드용으로 **일부러 좁힌 값**이라 그대로 둔다.
+
 
 `/healthz`는 인프라 전용(무인증 liveness)이며 [4.4 API 명세](api.md)의 계약 전표 밖이다.
 
@@ -1230,7 +1235,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"   # WebSocket · SSE 유휴 연결 유지
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"       # SSE 스트림 버퍼링 금지 (REQ-CB-014)
-    nginx.ingress.kubernetes.io/proxy-body-size: "5m"        # 훅 페이로드 상한(§5.4 와 동일)
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"       # 서버 선언과 같은 값(§5.4 주의 참조)
 spec:
   ingressClassName: nginx
   tls:

@@ -11,7 +11,7 @@
 //     실패로 응답에 담기고 배치 전체를 되돌리지 않는다(REQ-API-018).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_EVENT, importDisplayKey, newId } from '@nerv/schema';
+import { NERV_EVENT, displayKey, newId } from '@nerv/schema';
 import type {
   ImportBatchResult,
   ImportItemResult,
@@ -127,12 +127,18 @@ export class ImportService {
   /** EP-IMP-03 — Task 배치. `ready` 는 스키마가 이미 거부한다(REQ-IMP-009). */
   async applyTasks(actor: Actor, input: ImportTaskBatchInput): Promise<ImportBatchResult> {
     const results: ImportItemResult[] = [];
+    // 표시 키의 접두는 프로젝트 것이다(§5.1). 배치당 한 번만 읽는다 — 항목마다 읽을 이유가 없다.
+    const { rows: project } = await this.db.execute<{ key: string }>(
+      sql`SELECT key FROM project WHERE id = ${actor.projectId}`,
+    );
+    const projectKey = project[0]?.key ?? '';
 
     for (const item of input.items) {
       try {
         const result = await this.db.transaction(async (tx) => {
           const taskId = newId();
-          const key = importDisplayKey('TSK', item.source_path);
+          // 형식은 §5.1 정본이고 씨앗만 다르다 — 경로에서 만들어야 재실행이 같은 키를 낸다(멱등).
+          const key = displayKey(projectKey, 'T', item.source_path);
 
           const { rows: existing } = await tx.execute<{ id: string }>(
             sql`SELECT id FROM task WHERE project_id = ${actor.projectId} AND key = ${key}`,

@@ -3,7 +3,7 @@
 // REST 컨트롤러와 MCP 도구가 이 클래스의 같은 인스턴스를 거친다(D-05) — 판정은 여기 한 곳이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { displayKey, msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -197,7 +197,9 @@ export class TaskService {
     }
     return this.events.transact(async (tx, emit) => {
       const taskId = newId();
-      const key = `TSK-${taskId.slice(-4)}`;
+      // 표시 키는 데이터 모델 §5.1 형식이다(`CLV-T-7QF3K2`). 이전 표기(`TSK-` + 16진 4자)는
+      // 키 공간이 65,536뿐이라 프로젝트가 커지면 `task_key_uq` 에 걸려 원인 모를 오류가 났다.
+      const key = displayKey(await this.projectKeyOf(tx, input.projectId), 'T', taskId);
       await tx.execute(sql`
         INSERT INTO task (id, project_id, key, title, body_md, status, priority,
                           source_spec_version_id, source_requirement_id,
@@ -729,6 +731,19 @@ export class TaskService {
     return row === undefined
       ? null
       : { claim_id: row.claim_id, lease_expires_at: toDate(row.lease_expires_at) };
+  }
+
+  /** 표시 키의 접두는 프로젝트 것이다(§5.1). 트랜잭션 안에서 읽어 같은 스냅샷을 본다. */
+  private async projectKeyOf(
+    tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
+    projectId: string,
+  ): Promise<string> {
+    const { rows } = await tx.execute<{ key: string }>(
+      sql`SELECT key FROM project WHERE id = ${projectId}`,
+    );
+    const key = rows[0]?.key;
+    if (key === undefined) throw new Error('프로젝트를 찾지 못했습니다');
+    return key;
   }
 }
 

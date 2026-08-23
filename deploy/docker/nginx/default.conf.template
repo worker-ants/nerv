@@ -37,6 +37,11 @@ server {
   }
 
   location /api/ {
+    # **API 는 서버가 선언한 상한을 그대로 통과시켜야 한다** — `MAX_REQUEST_BODY_BYTES`
+    # (16 MiB, packages/schema/src/constants.ts). 여기에 값이 없으면 nginx 기본값 1 MiB 가
+    # 걸리는데, 임포터의 문서 기본 배치(50건)는 clemvion 실측 1.39 MB 라 그 자리에서 413 이다
+    # (실측 2026-08-23). 앞문이 서버보다 좁으면 서버의 상한은 선언일 뿐이다.
+    client_max_body_size 16m;
     set $nerv_api ${NERV_API_UPSTREAM};
     proxy_pass http://$nerv_api;
     proxy_set_header Host $host;
@@ -45,6 +50,8 @@ server {
   }
 
   location /mcp {
+    # MCP 도 스펙 본문을 실어 나른다(`nerv_spec_draft_upsert`) — 같은 상한이다.
+    client_max_body_size 16m;
     if ($nerv_mcp_origin_ok = 0) { return 403; }
     set $nerv_api ${NERV_API_UPSTREAM};
     proxy_pass http://$nerv_api;

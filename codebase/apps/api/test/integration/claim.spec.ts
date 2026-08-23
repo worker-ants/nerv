@@ -81,7 +81,7 @@ beforeEach(async () => {
 
 describe('E04-S01 원자적 클레임 (성공 기준 0-1·0-2)', () => {
   it('세 세션이 같은 ready Task 를 동시에 잡으면 정확히 1건만 성공한다', async () => {
-    const taskId = await makeTask('TSK-3f77');
+    const taskId = await makeTask('CLV-T-0CFQC2');
 
     const results = await Promise.allSettled([
       tasks.claim(claimInput(taskId, sessionHana, hana)),
@@ -318,7 +318,7 @@ describe('E04-S03 하트비트·리스 연장', () => {
 
 describe('E04-S04 만료 자동 회수 (성공 기준 0-4)', () => {
   it('TTL 을 넘긴 클레임을 회수하고 Task 를 ready 로 되돌린다 — 사람 개입 0회', async () => {
-    const taskId = await makeTask('TSK-b904');
+    const taskId = await makeTask('CLV-T-TRA25N');
     const claim = await tasks.claim(claimInput(taskId, sessionYuna, yuna));
     await pool.query(
       `UPDATE claim SET lease_expires_at = now() - interval '1 second' WHERE id=$1`,

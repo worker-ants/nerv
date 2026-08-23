@@ -87,7 +87,7 @@
     </tbody>
   </table></div>
 
-  <p>예시 데이터는 기존 문서와 같은 한 벌을 쓴다 — 프로젝트 <b>clemvion</b>, 스펙 <code>SPC-CWC-007</code> · 요구사항 <code>REQ-CWC-031</code>, Task <code>TSK-3f77</code>(하나/mac-07) · <code>TSK-a3f8</code>(도현/mac-02) · <code>TSK-b904</code>(유나/linux-ci-01/codex), 세션 <code>S-b7e9</code> 등. 이 표기용 ID의 실제 발급 규칙(서버 발급 해시, <code>CLV-T-7QF3K2</code> 형식)은 <a href="data-model.html">데이터 모델</a> §5.1이 정의한다.</p>
+  <p>예시 데이터는 기존 문서와 같은 한 벌을 쓴다 — 프로젝트 <b>clemvion</b>, 스펙 <code>SPC-CWC-007</code> · 요구사항 <code>REQ-CWC-031</code>, Task <code>CLV-T-0CFQC2</code>(하나/mac-07) · <code>CLV-T-1KTDCK</code>(도현/mac-02) · <code>CLV-T-TRA25N</code>(유나/linux-ci-01/codex), 세션 <code>S-b7e9</code> 등. 이 표기용 ID의 실제 발급 규칙(서버 발급 해시, <code>CLV-T-7QF3K2</code> 형식)은 <a href="data-model.html">데이터 모델</a> §5.1이 정의한다.</p>
 
   <h3>1.2 라우트 표 (TanStack Router)</h3>
 
@@ -641,11 +641,11 @@
   <p><b>하위 뷰: 작업 상세 패널</b> (<code>/p/:proj/tasks/:task</code>) — 보드 위 오버레이. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).</p>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/tasks/TSK-a3f8</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/tasks/CLV-T-1KTDCK</div></div>
     <div class="wf-body" style="background:color-mix(in srgb, var(--bg-sunken) 60%, transparent);padding:20px">
       <div class="wf-main" style="max-width:560px;margin:0 auto;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:12px;box-shadow:var(--shadow)">
         <div class="wf-topbar">
-          <span class="ttl"><code>TSK-a3f8</code> · 위젯 상태별 렌더링</span>
+          <span class="ttl"><code>CLV-T-1KTDCK</code> · 위젯 상태별 렌더링</span>
           <span class="badge impl">in_progress</span><span class="marker">1</span>
           <span class="wf-btn ghost">✕</span>
         </div>
@@ -663,7 +663,7 @@
           <div class="wf-panel-hd">활성 클레임 <span class="marker">4</span></div>
           <div class="wf-row"><span class="wf-avatar a2">도</span><span class="grow">도현 · <span class="badge agent">mac-02/claude-code</span> · 리스 <b>22:41</b></span><span class="wf-btn ghost">세션 보기 ▸</span></div>
           <div class="wf-row"><span class="grow sub">scope: <code>SPC-CWC-007</code> + <code>widget/**</code></span></div>
-          <div class="wf-row"><span class="grow">의존: <code>TSK-3f77</code> <span class="badge done">done</span> → 이 작업</span><span class="marker">5</span></div>
+          <div class="wf-row"><span class="grow">의존: <code>CLV-T-0CFQC2</code> <span class="badge done">done</span> → 이 작업</span><span class="marker">5</span></div>
           <div class="wf-row"><span class="grow">Evidence: <span class="wf-btn ghost">PR #481 ▸</span> <span class="wf-btn ghost">커밋 4 ▸</span></span><span class="marker">6</span></div>
         </div>
 
@@ -830,10 +830,10 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
         </div>
         <div class="wf-panel">
           <div class="wf-row"><span class="wf-dot on"></span><span>✅</span><span class="grow"><code>SPC-CWC-007</code> v4가 승인됨 — 승인 지민</span><span class="sub">2분 전</span><span class="marker">2</span></div>
-          <div class="wf-row"><span class="wf-dot on"></span><span>⚠️</span><span class="grow">세션 <code>S-2d04</code> stale — <code>TSK-b904</code>가 ready로 회수됨</span><span class="sub">30분 전</span></div>
+          <div class="wf-row"><span class="wf-dot on"></span><span>⚠️</span><span class="grow">세션 <code>S-2d04</code> stale — <code>CLV-T-TRA25N</code>가 ready로 회수됨</span><span class="sub">30분 전</span></div>
           <div class="wf-row"><span class="wf-dot on"></span><span>💬</span><span class="grow">서연이 embed-v2 §4에 코멘트</span><span class="sub">1시간 전</span></div>
           <div class="wf-row"><span class="wf-dot on"></span><span class="wf-avatar bot">AI</span><span class="grow"><code>mac-02/claude-code</code>가 질문에 답변을 받음</span><span class="sub">2시간 전</span></div>
-          <div class="wf-row" style="opacity:.55"><span class="wf-dot off"></span><span>📥</span><span class="grow">플랜 승인 요청 — <code>TSK-3f77</code> (처리됨)</span><span class="sub">어제</span><span class="marker">3</span></div>
+          <div class="wf-row" style="opacity:.55"><span class="wf-dot off"></span><span>📥</span><span class="grow">플랜 승인 요청 — <code>CLV-T-0CFQC2</code> (처리됨)</span><span class="sub">어제</span><span class="marker">3</span></div>
           <div class="wf-row" style="opacity:.55"><span class="wf-dot off"></span><span>✅</span><span class="grow"><code>REQ-CWC-018</code> → <span class="badge approved">verified</span></span><span class="sub">어제</span></div>
         </div>
         <div class="wf-row"><span class="wf-btn ghost">더 보기 ▾</span><span class="sub">커서 페이지네이션</span></div>

@@ -52,7 +52,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.2 (2026-08-23)</span>
+      <span>버전 v1.3 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -1013,6 +1013,7 @@ server {
   }
 
   location /api/ {
+    client_max_body_size 16m;          # 서버 선언(MAX_REQUEST_BODY_BYTES)과 같은 값 — 아래 주의
     proxy_pass http://nerv_api;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1020,6 +1021,7 @@ server {
   }
 
   location /mcp {
+    client_max_body_size 16m;          # MCP 도 스펙 본문을 실어 나른다
     if ($nerv_mcp_origin_ok = 0) { return 403; }
     proxy_pass http://nerv_api;
     proxy_http_version 1.1;
@@ -1085,6 +1087,11 @@ server {
       <tr><td>k8s 의존성</td><td>없음 — compose 단일 노드 자가호스팅(NFR-01)과 같은 접속 모델이라 두 타깃이 갈라지지 않는다</td><td>클러스터가 곧 DB의 가용성 경계가 된다. 단일 노드 자가호스팅에서는 쓸 수 없다</td></tr>
     </tbody>
   </table></div>
+
+  <div class="callout note"><span class="ico">⚠️</span><div class="body">
+    <p><b>앞문이 서버보다 좁으면 서버의 상한은 선언일 뿐이다(2026-08-23 정정).</b> <code>location /api/</code> 에 <code>client_max_body_size</code> 가 없어 nginx <b>기본값 1 MiB</b> 가 걸려 있었다 — API 는 <code>MAX_REQUEST_BODY_BYTES</code>(16 MiB)를 선언하는데도 임포트의 문서 기본 배치(50건 = clemvion 실측 1.39 MB)가 그 자리에서 413 이었다. API 로 직접 보내면 통과하고 프록시를 거치면 막히니, 개발 중에는 보이지 않는다. <code>/ingest/</code> 의 5m 은 훅 페이로드용으로 <b>일부러 좁힌 값</b>이라 그대로 둔다.</p>
+  </div></div>
+
   <p><b>판정: 클러스터 외부.</b> 결정적인 것은 세 번째다 — NFR-01이 요구하는 compose 자가호스팅과 운영 k8s가 <b>같은 접속 모델</b>(<code>DATABASE_URL</code> 하나)을 쓰려면 DB가 클러스터 안에 있으면 안 된다. CloudNativePG를 쓰면 자가호스팅 경로와 운영 경로가 다른 물건이 되고, §6.5 백업 절차도 둘로 갈린다.</p>
   <ul>
     <li><code>base/</code>에 Postgres 리소스를 두지 않는다(현행 트리 그대로 — §6.2에 postgres가 없는 이유다).</li>
@@ -1341,7 +1348,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"   # WebSocket · SSE 유휴 연결 유지
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"       # SSE 스트림 버퍼링 금지 (REQ-CB-014)
-    nginx.ingress.kubernetes.io/proxy-body-size: "5m"        # 훅 페이로드 상한(§5.4 와 동일)
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"       # 서버 선언과 같은 값(§5.4 주의 참조)
 spec:
   ingressClassName: nginx
   tls:

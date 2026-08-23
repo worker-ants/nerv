@@ -88,7 +88,7 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
     ['/p/clemvion/specs', /^스펙$/],
     ['/p/clemvion/specs/SPC-CWC-007', 'SPC-CWC-007'],
     ['/p/clemvion/tasks', '작업 보드'],
-    ['/p/clemvion/tasks/TSK-3f77', 'TSK-3f77'],
+    ['/p/clemvion/tasks/CLV-T-0CFQC2', 'CLV-T-0CFQC2'],
     ['/p/clemvion/sessions', '세션 모니터'],
     ['/p/clemvion/sessions/S-b7e9', 'Activity'],
   ])('프로젝트 경로 %s 가 렌더된다', async (path, title) => {

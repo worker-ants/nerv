@@ -62,7 +62,7 @@ describe('개발 시드 (database.md §4)', () => {
     expect(specKeys).toEqual(['SPC-CWC-007', 'SPC-CWC-012', 'channel-web-chat']);
 
     const taskKeys = (await rows<{ key: string }>(`SELECT key FROM task`)).map((r) => r.key).sort();
-    expect(taskKeys).toEqual(['TSK-3f77', 'TSK-a3f8', 'TSK-b904']);
+    expect(taskKeys).toEqual(['CLV-T-0CFQC2', 'CLV-T-1KTDCK', 'CLV-T-TRA25N']);
 
     const sessions = (
       await rows<{ external_session_id: string }>(`SELECT external_session_id FROM agent_session`)

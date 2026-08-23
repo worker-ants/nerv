@@ -57,7 +57,7 @@ async function bootstrap(token: string, hostname: string, agent: string): Promis
 
 describe.skipIf(!AVAILABLE)('시나리오 A — 동시 클레임 충돌 0 (성공 기준 0-1·0-2)', () => {
   it('1·2단계 — 두 호스트가 같은 Task 를 잡으면 하나만 성공한다', async () => {
-    const taskId = await createTask(stack, 'TSK-3f77');
+    const taskId = await createTask(stack, 'CLV-T-0CFQC2');
     const s1 = await bootstrap(hana, 'mac-07', 'claude-code');
     const s2 = await bootstrap(dohyun, 'mac-02', 'claude-code');
 
@@ -177,7 +177,7 @@ describe.skipIf(!AVAILABLE)('시나리오 B — scope 겹침 경고 (성공 기�
 
 describe.skipIf(!AVAILABLE)('시나리오 C — 리스 만료 자동 회수 (성공 기준 0-4)', () => {
   it('죽은 세션의 클레임을 사람 개입 0으로 회수하고 재클레임이 가능해진다', async () => {
-    const taskId = await createTask(stack, 'TSK-b904');
+    const taskId = await createTask(stack, 'CLV-T-TRA25N');
     const session = await bootstrap(yuna, 'linux-ci-01', 'codex');
 
     const claimed = await callTool(stack, yuna, 'nerv_task_claim', {

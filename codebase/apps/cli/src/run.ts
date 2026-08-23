@@ -8,7 +8,7 @@
 // dry-run 은 ①~③ 을 전부 계산하되 서버를 부르지 않는다. `--server` 가 있으면 preflight 까지
 // 수행해 자연 키 충돌을 미리 본다(REQ-IMP-011).
 
-import { IMPORT_BATCH_MAX, importDisplayKey } from '@nerv/schema';
+import { IMPORT_BATCH_MAX, displayKeySuffix } from '@nerv/schema';
 import { t } from './i18n.js';
 import { basename, dirname } from 'node:path';
 import type {
@@ -462,7 +462,8 @@ function keyFromPath(path: string): string {
  * task 판(判) — `withoutDuplicateKeys` 와 같은 이유, 다른 키다.
  *
  * spec 은 키가 frontmatter·경로에서 오지만 task 의 표시 ID 는 **서버가 원본 경로를 해싱해**
- * 만든다. 그래서 CLI 는 같은 함수(`importDisplayKey`)로 미리 계산해야 충돌을 볼 수 있다.
+ * 만든다. CLI 는 `project.key` 를 모르므로 **변하는 부분만** 견준다 — 한 프로젝트 안에서
+ * 접두는 상수라 충돌은 거기서만 일어난다(`displayKeySuffix`).
  */
 function withoutDuplicateTaskKeys(
   items: readonly ImportTaskItem[],
@@ -470,7 +471,7 @@ function withoutDuplicateTaskKeys(
 ): ImportTaskItem[] {
   const byKey = new Map<string, string[]>();
   for (const item of items) {
-    const key = importDisplayKey('TSK', item.source_path);
+    const key = displayKeySuffix(item.source_path);
     byKey.set(key, [...(byKey.get(key) ?? []), item.source_path]);
   }
   const conflicted = new Set<string>();
@@ -486,7 +487,7 @@ function withoutDuplicateTaskKeys(
       });
     }
   }
-  return items.filter((item) => !conflicted.has(importDisplayKey('TSK', item.source_path)));
+  return items.filter((item) => !conflicted.has(displayKeySuffix(item.source_path)));
 }
 
 /**

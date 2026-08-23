@@ -37,7 +37,7 @@ updated: 2026-08-22
 | MCP 도구 이름·인자 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2 | `nerv_*` 도구명을 그대로 사용 |
 | MVP 범위·스택 | [4.1 MVP 범위와 스택 확정](scope.md) · [3.7 로드맵](../03-proposal/roadmap.md) | 화면 범위 S1~S5·S7·S8 + 로그인/온보딩. S6·CR 델타 UI·커버리지 드릴다운·Slack/메일 알림은 Phase 2 |
 
-예시 데이터는 기존 문서와 같은 한 벌을 쓴다 — 프로젝트 **clemvion**, 스펙 `SPC-CWC-007` · 요구사항 `REQ-CWC-031`, Task `TSK-3f77`(하나/mac-07) · `TSK-a3f8`(도현/mac-02) · `TSK-b904`(유나/linux-ci-01/codex), 세션 `S-b7e9` 등. 이 표기용 ID의 실제 발급 규칙(서버 발급 해시, `CLV-T-7QF3K2` 형식)은 [데이터 모델](../03-proposal/data-model.md) §5.1이 정의한다.
+예시 데이터는 기존 문서와 같은 한 벌을 쓴다 — 프로젝트 **clemvion**, 스펙 `SPC-CWC-007` · 요구사항 `REQ-CWC-031`, Task `CLV-T-0CFQC2`(하나/mac-07) · `CLV-T-1KTDCK`(도현/mac-02) · `CLV-T-TRA25N`(유나/linux-ci-01/codex), 세션 `S-b7e9` 등. 이 표기용 ID의 실제 발급 규칙(서버 발급 해시, `CLV-T-7QF3K2` 형식)은 [데이터 모델](../03-proposal/data-model.md) §5.1이 정의한다.
 
 ### 1.2 라우트 표 (TanStack Router)
 
@@ -464,9 +464,9 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 **하위 뷰: 작업 상세 패널** (`/p/:proj/tasks/:task`) — 보드 위 오버레이. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 
 ```text
-작업 상세 패널 — nerv.example.com/p/clemvion/tasks/TSK-a3f8   (보드 위 오버레이)
+작업 상세 패널 — nerv.example.com/p/clemvion/tasks/CLV-T-1KTDCK   (보드 위 오버레이)
 ┌──────────────────────────────────────────────── [닫기 ✕] ──┐
-│ TSK-a3f8 · 위젯 상태별 렌더링          🕐 in_progress  (1) │
+│ CLV-T-1KTDCK · 위젯 상태별 렌더링      🕐 in_progress  (1) │
 │ 출처: SPC-CWC-007 @v4 ▸ · REQ-CWC-031 ▸               (2) │
 ├────────────────────────────────────────────────────────────┤
 │ 위임 명세 (4요소 — 전부 충족 시 ready)                (3)  │
@@ -478,7 +478,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 │ 활성 클레임                                           (4)  │
 │  👤 도현 · 🤖 mac-02/claude-code · 리스 22:41 · scope:     │
 │  SPC-CWC-007 + widget/**            [세션 보기 ▸]          │
-│ 의존: TSK-3f77(done ✅) → 이 작업                     (5)  │
+│ 의존: CLV-T-0CFQC2(done ✅) → 이 작업                 (5)  │
 │ Evidence: PR #481 ▸ · 커밋 4 ▸                        (6)  │
 ├────────────────────────────────────────────────────────────┤
 │ [in_review로 전이]  [blocked 표시]  [클레임 해제]     (7)  │
@@ -608,10 +608,10 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 │ 알림   [전체 | 안읽음 (5)]                                  (1)  │
 ├──────────────────────────────────────────────────────────────────┤
 │ ● ✅ SPC-CWC-007 v4가 승인됨 — 승인 지민            2분 전  (2)  │
-│ ● ⚠️ 세션 S-2d04 stale — TSK-b904가 ready로 회수됨  30분 전      │
+│ ● ⚠️ 세션 S-2d04 stale — CLV-T-TRA25N가 ready로 회수됨  30분 전  │
 │ ● 💬 서연이 embed-v2 §4에 코멘트                    1시간 전     │
 │ ● 🤖 mac-02/claude-code가 질문에 답변을 받음        2시간 전     │
-│ ○ 📥 플랜 승인 요청 — TSK-3f77 (처리됨)             어제    (3)  │
+│ ○ 📥 플랜 승인 요청 — CLV-T-0CFQC2 (처리됨)         어제    (3)  │
 │ ○ ✅ REQ-CWC-018 → verified                         어제         │
 ├──────────────────────────────────────────────────────────────────┤
 │ 더 보기 ▾ (커서 페이지네이션)                                    │

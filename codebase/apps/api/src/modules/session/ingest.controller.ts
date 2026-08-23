@@ -43,7 +43,7 @@ export class IngestController {
   /**
    * SessionStart — AgentSession 등록. 응답의 `additionalContext` 로 현재 클레임을 주입한다.
    *
-   * 이 주입이 훅의 값어치다: 세션이 시작하자마자 "너는 지금 TSK-a3f8 을 쥐고 있다"를
+   * 이 주입이 훅의 값어치다: 세션이 시작하자마자 "너는 지금 CLV-T-1KTDCK 을 쥐고 있다"를
    * 알려주면, 에이전트가 그것을 다시 물어보거나(왕복) 잊고 새 작업을 잡는 일이 줄어든다.
    */
   @Post('session')

@@ -75,6 +75,10 @@
     <p>S1~S8 전 화면을 실제 UI처럼 렌더링했다. 각 화면의 <span class="marker">n</span> 마커는 바로 아래 legend와 대응하고, legend 끝에는 관련 <b>FR/D 번호</b>가 붙는다. <b>S3 스펙 상세 · S5 세션 모니터 · S7 승인함</b>은 고충실도로 그렸다. 같은 내용의 아스키 아트 판은 <code>docs/03-proposal/ui-wireframes.md</code>에 있다.</p>
   </div></div>
 
+  <div class="callout note"><span class="ico">ℹ️</span><div class="body">
+    <p><b>표시 키 표기 주의(2026-08-23).</b> 아래 목업의 <code>TSK-xxxx</code> 는 <b>옛 표기</b>다. 표시 키 정본은 <a href="data-model.html">데이터 모델</a> §5.1 의 <code>&lt;project.key&gt;-&lt;타입&gt;-&lt;base32 6자&gt;</code>(예: <code>CLV-T-1KTDCK</code>)이며 구현이 그것을 따른다. 목업을 고치지 않은 이유는 고정폭 ASCII 라서다 — 12자 키는 8자를 상정해 그린 열에 들어가지 않아 상자를 전부 다시 그려야 하고, 여기서 키 문자열은 배치 연구의 장식이다. <b>문자열이 아니라 형식을 보라.</b></p>
+  </div></div>
+
   <h2 id="sec-1">1. 정보 구조(IA)와 내비게이션</h2>
 
   <h3>1.1 화면 설계 5원칙</h3>

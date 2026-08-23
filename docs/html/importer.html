@@ -52,7 +52,7 @@
     <h1>스펙 임포터</h1>
     <p class="lead">기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 <b>프로파일 기반 범용 임포터</b>의 확정판. 대상별 차이는 프로파일(§1.4)이 흡수하고 엔진은 하나다 — 내장 프로파일은 <code>clemvion</code>(FR-17 대상: 순수 스펙 135 md + plan 450 md)과 <code>nerv-docs</code>(도그푸딩) 2종이며, 다른 저장소는 프로파일 파일을 얹는다. 실행 모델은 <b>읽기는 클라이언트, 쓰기는 API</b>(2026-08-22 확정) — 원본 체크아웃이 있는 장비의 CLI가 파싱·리포트를 만들고(dry-run은 서버 없이 완결), <code>--apply</code>만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. 수용 기준은 REQ-IMP-001~017.</p>
     <div class="meta-line">
-      <span>버전 v0.7 (2026-08-23)</span>
+      <span>버전 v0.8 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
     </div>
@@ -332,7 +332,14 @@ task:                        # plan 프로파일(P1) — §2.6
     <li><b>CLI 가 먼저 거른다.</b> spec 과 같은 규율로, 같은 키를 받는 파일들은 적재에서 빼고 리포트에 <code>aborted</code> 로 남긴다 — 사라지되 이름은 남는다(전수 계정 — REQ-IMP-016).</li>
   </ul>
 
-  <p>형식은 미결이다: <a href="data-model.html">데이터 모델</a> §5.1 의 표시 키 정본은 <code>&lt;project.key&gt;-&lt;타입&gt;-&lt;base32 6자&gt;</code>(예: <code>CLV-T-7QF3K2</code>)인데 임포터는 <code>TSK-&lt;hex&gt;</code> 를 쓴다. 정합에는 시드·웹 라우트·문서가 함께 걸리므로 <b>별도 결정이 필요하다(2026-08-23 미결)</b>.</p>
+  <p><b>형식도 정본에 맞췄다(2026-08-23 — 미결 해소).</b> 표시 키는 <a href="data-model.html">데이터 모델</a> §5.1 의 <code>&lt;project.key&gt;-&lt;타입&gt;-&lt;base32 6자&gt;</code>(예: <code>CLV-T-1KTDCK</code>)다. 재보니 파급이 작았다 — 형식에 의존하는 프로덕션 코드는 <b>없고</b>(웹 라우트는 <code>task.key</code> 를 그대로 넘긴다) 나머지는 전부 예시 문자열이었다.</p>
+
+  <ul>
+    <li><b>생성기가 둘이었다.</b> 임포트 경로만 보고 있었는데 일반 Task 생성(<code>TaskService.create</code>)도 <code>TSK-</code> + 16진 4자였다. 이쪽은 <code>task_key_uq</code> 가 있어 조용히 먹지는 않지만 대신 원인 모를 오류가 난다 — Task 484건 시점에서 다음 생성의 충돌 확률이 0.74% 였다. 둘을 한 함수(<code>displayKey</code>)로 합쳤다.</li>
+    <li><b>알파벳은 혼동 문자를 뺀 base32</b>(Crockford — <code>I</code>·<code>L</code>·<code>O</code>·<code>U</code> 없음)다. 사람이 옮겨 적는 것이 용도라 <code>0/O</code>·<code>1/I/L</code> 을 가르는 부담을 지우지 않는다. 32^6 ≈ 10.7억.</li>
+    <li><b>씨앗은 용도가 정한다.</b> 일반 생성은 Task 의 UUID, 임포트는 원본 경로다 — 재실행이 같은 키를 내야 멱등이 성립한다(§3.4). 형식은 하나다.</li>
+    <li><a href="ui-wireframes.html">3.6 화면 설계</a>의 ASCII 목업은 옛 표기(<code>TSK-xxxx</code>)로 남겼다. 12자 키가 8자를 상정해 그린 열에 들어가지 않아 상자를 전부 다시 그려야 하는데, 거기서 키 문자열은 배치 연구의 장식이다 — 그 문서 머리에 주의를 달았다.</li>
+  </ul>
 
   <h3>2.6c 배치 상한은 계약이 정한다 (2026-08-23 정정)</h3>
 
@@ -557,6 +564,7 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
       <tr><td>REQ-IMP-019</td><td>WHEN 원본 파일·디렉터리 이름이 정수 접두를 가지면 THE SYSTEM SHALL 폭을 고정한 <code>sort_key</code> 를 계약에 실어 형제 순서를 원본과 같게 만든다(§2.2)</td></tr>
       <tr><td>REQ-IMP-020</td><td>WHEN 서로 다른 원본 파일이 같은 표시 ID 를 받으면 THE SYSTEM SHALL 그 항목들을 적재에서 빼고 리포트에 <code>aborted</code> 로 남긴다 — 덮어쓰지 않는다(§2.6b)</td></tr>
       <tr><td>REQ-IMP-021</td><td>WHEN 배치 항목 수가 계약 상한을 넘으면 THE SYSTEM SHALL 상한 이하로 나눠 보낸다 — 요청받은 크기가 더 커도 그렇다(§2.6c)</td></tr>
+      <tr><td>REQ-IMP-022</td><td>WHEN 서버가 표시 키를 발급하면 THE SYSTEM SHALL 데이터 모델 §5.1 형식(<code>&lt;project.key&gt;-&lt;타입&gt;-&lt;base32 6자&gt;</code>)을 쓴다 — 생성 경로가 달라도 같다(§2.6b)</td></tr>
       <tr><td><code>rule</code></td><td>규칙 슬러그(아래 표)</td></tr>
       <tr><td><code>class</code></td><td><b><code>abort</code>(중단)</b> / <b><code>skip</code>(건너뜀)</b> / <b><code>manual</code>(수동 확인)</b> / <b><code>warn</code>(경고)</b> 4분류. abort는 실행 전체를 멈추고, skip은 그 항목만 제외하고 계속하며, manual은 적재는 하되 사람 확정이 필요한 큐, warn은 정보성이다</td></tr>
       <tr><td><code>detail</code> · <code>hint</code></td><td>사유와 권장 조치</td></tr>

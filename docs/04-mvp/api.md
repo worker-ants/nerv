@@ -71,7 +71,7 @@ flowchart LR
 - SSE는 **`/sse`** 프리픽스를 `/api/v1`과 분리해 쓴다 — 프록시 계층(nginx·Ingress)이 버퍼링 해제·장수명 타임아웃을 경로 단위로 걸어야 하기 때문이다([4.2 코드베이스와 배포](codebase.md) §5.4·§6.3). 파괴적 변경 시 `/sse/v2`를 병행 서빙한다.
 - MCP는 `/mcp` 단일 엔드포인트이며 프로토콜 리비전 병행 서빙 규약은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6을 따른다(이 문서는 재정의하지 않는다).
 - markdown 미러(`/api/projects/{p}/specs/{id}.md` · `/api/projects/{p}/llms.txt`)는 [시스템 아키텍처](../03-proposal/architecture.md) §2.4의 경로 문자열을 **그대로, 버전 프리픽스 없이** 유지한다 — `llms.txt` 인덱스와 에이전트 로컬 캐시(`.nerv/cache/`)에 링크가 박제되는 경로라 v2 전환에도 불변이어야 한다(§2.8).
-- 경로 파라미터: `{proj}` = `project.slug`(예: `clemvion`) — URL·MCP `project` 인자용 소문자 kebab 식별자로 `UNIQUE (org_id, slug)`, 표시 접두 `key`(예: `CLV`)와는 **별개 필드**다([데이터 모델](../03-proposal/data-model.md) §2.1). `{spec}`·`{task}`·`{sid}` = 표시 키 또는 내부 uuid 모두 허용, `{ver}` = SpecVersion uuid, `{no}` = `version_no` 정수. 표시 키 발급 규칙(`<project.key>-<타입>-<base32 6자>`)은 [데이터 모델](../03-proposal/data-model.md) §5.1 정본이고, 본문 예시는 기존 문서의 표기 예시(`SPC-CWC-007`·`TSK-a3f8` 등, [화면 설계](../03-proposal/ui-wireframes.md) §1.4)를 그대로 쓴다.
+- 경로 파라미터: `{proj}` = `project.slug`(예: `clemvion`) — URL·MCP `project` 인자용 소문자 kebab 식별자로 `UNIQUE (org_id, slug)`, 표시 접두 `key`(예: `CLV`)와는 **별개 필드**다([데이터 모델](../03-proposal/data-model.md) §2.1). `{spec}`·`{task}`·`{sid}` = 표시 키 또는 내부 uuid 모두 허용, `{ver}` = SpecVersion uuid, `{no}` = `version_no` 정수. 표시 키 발급 규칙(`<project.key>-<타입>-<base32 6자>`)은 [데이터 모델](../03-proposal/data-model.md) §5.1 정본이고, 본문 예시는 기존 문서의 표기 예시(`SPC-CWC-007`·`CLV-T-1KTDCK` 등, [화면 설계](../03-proposal/ui-wireframes.md) §1.4)를 그대로 쓴다.
 
 ### 1.3 인증 — 2경로
 
@@ -93,7 +93,7 @@ flowchart LR
 {
   "ok": false,
   "code": "NERV_CONFLICT_SCOPE",
-  "message": "TSK-3f77의 scope가 다른 활성 클레임과 겹칩니다.",
+  "message": "CLV-T-0CFQC2의 scope가 다른 활성 클레임과 겹칩니다.",
   "details": {
     "conflicting_claim_id": "clm_9c41…",
     "owner": "유나",
@@ -300,7 +300,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 클레임 요청/응답 예시(예시 데이터는 기존 문서와 동일한 한 벌):
 
 ```json
-// POST /api/v1/projects/clemvion/tasks/TSK-a3f8/claim   (도현 · mac-02)
+// POST /api/v1/projects/clemvion/tasks/CLV-T-1KTDCK/claim   (도현 · mac-02)
 {
   "scope": { "spec_ids": ["SPC-CWC-007"], "file_globs": ["codebase/frontend/src/widget/**"] },
   "branch": "claude/widget-render",
@@ -313,7 +313,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
   "lease_expires_at": "2026-08-20T05:42:11Z",
   "warnings": [
     { "session": "S-2d04", "user": "유나", "hostname": "linux-ci-01",
-      "task": "TSK-b904", "specs": ["SPC-CWC-007"], "files": [], "severity": "warn" }
+      "task": "CLV-T-TRA25N", "specs": ["SPC-CWC-007"], "files": [], "severity": "warn" }
   ]
 }
 ```

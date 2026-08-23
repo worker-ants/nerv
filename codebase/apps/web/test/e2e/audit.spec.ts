@@ -16,7 +16,7 @@ const ROUTES = [
   '/p/clemvion/specs',
   '/p/clemvion/specs/SPC-CWC-007',
   '/p/clemvion/tasks',
-  '/p/clemvion/tasks/TSK-3f77',
+  '/p/clemvion/tasks/CLV-T-0CFQC2',
   '/p/clemvion/sessions',
 ];
 

@@ -943,7 +943,7 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
   <h2 id="sec-4">4. 개발 시드</h2>
 
-  <p>예시 데이터 한 벌은 기존 문서 세트와 동일하다(vision §2·ui-wireframes §S4/S5) — 프로젝트 clemvion, 스펙 <code>SPC-CWC-007</code>(웹챗 위젯 임베드)·<code>SPC-CWC-012</code>(세션 복원 API), <code>REQ-CWC-031</code>, <code>TSK-3f77</code>=하나/mac-07, <code>TSK-a3f8</code>=도현/mac-02, <code>TSK-b904</code>=유나/linux-ci-01/codex, 세션 <code>S-b7e9</code> 등. 표시 문자열은 각 테이블의 <code>key</code>(spec·task) · <code>ref</code>(requirement) · <code>external_session_id</code>(agent_session)로 심는다. 시드는 <b>개발 전용</b>이며 <code>pnpm db:seed</code>가 TRUNCATE 후 재삽입하므로 몇 번을 실행해도 같은 상태다(REQ-DB-002). UUID는 가독성을 위한 고정값(UUIDv7 형식)이다.</p>
+  <p>예시 데이터 한 벌은 기존 문서 세트와 동일하다(vision §2·ui-wireframes §S4/S5) — 프로젝트 clemvion, 스펙 <code>SPC-CWC-007</code>(웹챗 위젯 임베드)·<code>SPC-CWC-012</code>(세션 복원 API), <code>REQ-CWC-031</code>, <code>CLV-T-0CFQC2</code>=하나/mac-07, <code>CLV-T-1KTDCK</code>=도현/mac-02, <code>CLV-T-TRA25N</code>=유나/linux-ci-01/codex, 세션 <code>S-b7e9</code> 등. 표시 문자열은 각 테이블의 <code>key</code>(spec·task) · <code>ref</code>(requirement) · <code>external_session_id</code>(agent_session)로 심는다. 시드는 <b>개발 전용</b>이며 <code>pnpm db:seed</code>가 TRUNCATE 후 재삽입하므로 몇 번을 실행해도 같은 상태다(REQ-DB-002). UUID는 가독성을 위한 고정값(UUIDv7 형식)이다.</p>
 
   <p><b>관리자 계정은 등장인물과 분리한다</b>(2026-08-23 추가). 위 다섯(지민·서연·도현·유나·하나)은 각 화면이 비어 보이지 않게 하는 <b>온보딩용 인물</b>이고, <code>admin@example.com</code>은 조직을 세우는 계정이다. 겸하게 두면 두 가지가 어긋난다 — ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin이 모든 자리에 앉아 있게 되고 ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다. 그래서 이 계정만 <b>조직 스코프</b>(<code>project_id NULL</code>) 멤버십을 갖는다 — 프로젝트가 늘어도 한 행이 조직 전체를 관리한다. 이 계정이 없으면 임포트(admin 전용)·게이트 정책·멤버 역할 화면을 시드만으로 시연할 수 없다(실측: clemvion 임포트가 여기서 막혔다).</p>
 
@@ -1057,20 +1057,20 @@ INSERT INTO task (id, project_id, key, title, status, priority,
                   assignee_user_id, delegate_session_id,
                   goal_md, output_format_md, tools_sources_md, boundaries_md, blocked_reason) VALUES
   ('01990a66-0000-7000-8000-000000000071', '01990a66-0000-7000-8000-000000000021',
-   'TSK-a3f8', '위젯 상태별 렌더링', 'in_progress', 'P1',
+   'CLV-T-1KTDCK', '위젯 상태별 렌더링', 'in_progress', 'P1',
    '01990a66-0000-7000-8000-000000000052', '01990a66-0000-7000-8000-000000000061',
    '01990a66-0000-7000-8000-000000000013', '01990a66-0000-7000-8000-000000000081',
    'SPC-CWC-007 v4의 위젯 상태별(로딩·빈·오프라인) 렌더링 구현 — REQ-CWC-031 연계',
    'PR 1건 + 상태별 스냅샷 테스트', 'nerv_spec_get으로 SPC-CWC-007 v4 본문·REQ 로드',
    '프론트엔드 위젯 코드만. 서버 세션 API는 별도 Task.', NULL),
   ('01990a66-0000-7000-8000-000000000072', '01990a66-0000-7000-8000-000000000021',
-   'TSK-b904', '세션 복원 API', 'blocked', 'P1',
+   'CLV-T-TRA25N', '세션 복원 API', 'blocked', 'P1',
    '01990a66-0000-7000-8000-000000000053', NULL,
    '01990a66-0000-7000-8000-000000000014', '01990a66-0000-7000-8000-000000000082',
    'SPC-CWC-012 v1의 세션 복원 API 구현', 'PR 1건 + 통합 테스트',
    'nerv_spec_get으로 SPC-CWC-012 v1 로드', '백엔드 세션 복원 경로만.', 'awaiting_answer'),
   ('01990a66-0000-7000-8000-000000000073', '01990a66-0000-7000-8000-000000000021',
-   'TSK-3f77', '스니펫 로더 캐시 헤더', 'in_progress', 'P2',
+   'CLV-T-0CFQC2', '스니펫 로더 캐시 헤더', 'in_progress', 'P2',
    '01990a66-0000-7000-8000-000000000052', NULL,
    '01990a66-0000-7000-8000-000000000015', '01990a66-0000-7000-8000-000000000083',
    'SPC-CWC-007 위젯 스니펫 로더의 캐시 헤더 정정', 'PR 1건',

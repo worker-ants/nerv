@@ -66,7 +66,7 @@ Postgres + Drizzle. `packages/schema`가 테이블·zod·파생 타입의 단일
 | E02-S01 | drizzle 테이블 29종 선언 — `organization`부터 `spec_baseline_item`까지, zod 스키마·파생 타입 공유 | [3.3 데이터 모델](../03-proposal/data-model.md) §1.3 · [4.3 데이터베이스 스키마](database.md) §2 | WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL data-model.md의 29개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다 | E01-S01 · E06-S03 |
 | E02-S02 | 초기 스냅샷 마이그레이션 + 왕복 멱등 — compose는 기동 시, k8s는 Job으로 적용 | [4.3 데이터베이스 스키마](database.md) §1·§5 | WHEN 같은 마이그레이션을 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행을 스키마 변경 0으로 종료한다 | E02-S01 |
 | E02-S03 | 이벤트 방송 규약 — Valkey pub/sub 채널 `nerv_events`, 페이로드 JSON(event id·type·project_id), EventService 커밋 후 발행 | [4.3 데이터베이스 스키마](database.md) §3 · [3.2 시스템 아키텍처](../03-proposal/architecture.md) §1(D-10) | WHEN `event` 테이블에 행이 삽입되고 트랜잭션이 커밋되면, THE SYSTEM SHALL Valkey `nerv_events` 채널로 event id·type·project_id를 PUBLISH한다(롤백 시 발행 없음) | E02-S01 |
-| E02-S04 | 개발 시드 한 벌 — 프로젝트 clemvion, `SPC-CWC-007`·`REQ-CWC-031`, TSK-3f77(하나/mac-07)·TSK-a3f8(도현/mac-02)·TSK-b904(유나/linux-ci-01/codex), 세션 S-b7e9 | [4.3 데이터베이스 스키마](database.md) §4 | WHEN 시드 스크립트를 실행하면, THE SYSTEM SHALL 예시 데이터 한 벌을 멱등하게 적재한다(재실행 시 신규 레코드 0) | E02-S02 |
+| E02-S04 | 개발 시드 한 벌 — 프로젝트 clemvion, `SPC-CWC-007`·`REQ-CWC-031`, CLV-T-0CFQC2(하나/mac-07)·CLV-T-1KTDCK(도현/mac-02)·CLV-T-TRA25N(유나/linux-ci-01/codex), 세션 S-b7e9 | [4.3 데이터베이스 스키마](database.md) §4 | WHEN 시드 스크립트를 실행하면, THE SYSTEM SHALL 예시 데이터 한 벌을 멱등하게 적재한다(재실행 시 신규 레코드 0) | E02-S02 |
 
 ### 2.3 E03 — MCP 최소 서버 + PAT
 
@@ -296,8 +296,8 @@ W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(
 
 | 단계 | 행위 | 판정(Event 로그 질의) |
 | --- | --- | --- |
-| 1 | 하나(mac-07) 세션이 `nerv_task_next` → TSK-3f77 클레임 | `task.claimed` 1건, claim 소유자 1명 |
-| 2 | 도현(mac-02) 세션이 같은 TSK-3f77 클레임 시도 | 409 충돌 응답, `task.claimed` 추가 0건 |
+| 1 | 하나(mac-07) 세션이 `nerv_task_next` → CLV-T-0CFQC2 클레임 | `task.claimed` 1건, claim 소유자 1명 |
+| 2 | 도현(mac-02) 세션이 같은 CLV-T-0CFQC2 클레임 시도 | 409 충돌 응답, `task.claimed` 추가 0건 |
 | 3 | 3세션 동시 클레임 요청 100회 부하 시험 | 요청묶음당 성공 정확히 1, 나머지 100% 충돌 응답 |
 | 4 | 90분 로그 전수 질의 — 같은 Task가 두 세션에서 동시에 `in_progress`인 구간 | **0건** |
 
@@ -307,7 +307,7 @@ W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(
 
 | 단계 | 행위 | 판정 |
 | --- | --- | --- |
-| 1 | 도현 세션이 TSK-a3f8을 TSK-3f77과 겹치는 scope(`spec_ids`에 `SPC-CWC-007` 포함)로 클레임 | 두 세션 모두에 겹침 경고, 경고에 상대 사용자·hostname·scope 포함 |
+| 1 | 도현 세션이 CLV-T-1KTDCK을 CLV-T-0CFQC2과 겹치는 scope(`spec_ids`에 `SPC-CWC-007` 포함)로 클레임 | 두 세션 모두에 겹침 경고, 경고에 상대 사용자·hostname·scope 포함 |
 | 2 | 의도적으로 겹치는 클레임 10회 시도 | **10/10 경고 검출** |
 | 3 | 겹치지 않는 클레임 20회 시도 | **오탐 0** |
 
@@ -317,9 +317,9 @@ W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(
 
 | 단계 | 행위 | 판정 |
 | --- | --- | --- |
-| 1 | 유나(linux-ci-01, codex) 세션이 TSK-b904 클레임 후 프로세스 강제 종료 | `task.claimed` 기록, 이후 하트비트 없음 |
+| 1 | 유나(linux-ci-01, codex) 세션이 CLV-T-TRA25N 클레임 후 프로세스 강제 종료 | `task.claimed` 기록, 이후 하트비트 없음 |
 | 2 | TTL(30분) 초과까지 방치 | 세션 `session.stale` 전이 + 클레임 회수 **100%**, 사람 개입 0회 |
-| 3 | 다른 세션이 TSK-b904 재클레임 | 소유자 항상 1명(중복 없음), 보드 반영 p95 ≤ 5초(0-5) |
+| 3 | 다른 세션이 CLV-T-TRA25N 재클레임 | 소유자 항상 1명(중복 없음), 보드 반영 p95 ≤ 5초(0-5) |
 
 ### 5.4 시나리오 D — 기획자 웹↔터미널 왕복 (성공 기준 1-11)
 

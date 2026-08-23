@@ -505,7 +505,7 @@ statusline은 **수집이 아니라 표시**다. 네트워크 왕복 없이 두 
 
 | 필드 | 타입 | 값의 출처 |
 | --- | --- | --- |
-| `task_id` | string | 클레임한 Task ID (예: `TSK-a3f8`) |
+| `task_id` | string | 클레임한 Task ID (예: `CLV-T-1KTDCK`) |
 | `claim_id` | string | `nerv_task_claim` 응답 |
 | `status` | string | 마지막 `nerv_task_update`의 상태 |
 | `lease_expires_at` | string(ISO 8601) | 마지막 하트비트 응답 |
@@ -562,7 +562,7 @@ printf '  %s · ctx %s%%%s · 미해소 finding %s\n' \
 렌더 예(예시 데이터 한 벌 — 도현/mac-02 세션):
 
 ```text
-◆ NERV clemvion · TSK-a3f8 in_progress · 리스 12:40 남음 · scope 겹침 0
+◆ NERV clemvion · CLV-T-1KTDCK in_progress · 리스 12:40 남음 · scope 겹침 0
   opus · ctx 38% · $2.14 · 미해소 finding 0
 ```
 

@@ -9,7 +9,11 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: '3600' # WebSocket · SSE 유휴 연결 유지
     nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
     nginx.ingress.kubernetes.io/proxy-buffering: 'off' # SSE 스트림 버퍼링 금지 (REQ-CB-014)
-    nginx.ingress.kubernetes.io/proxy-body-size: '5m' # 훅 페이로드 상한(§5.4 와 동일)
+    # 서버가 선언한 상한(`MAX_REQUEST_BODY_BYTES` = 16 MiB)과 맞춘다. 5m 이던 값은
+    # 훅 페이로드를 기준으로 잡은 것인데 이 애노테이션은 Ingress 전체에 걸려
+    # 임포트 배치(clemvion 실측 1.39 MB, 최악 15 MB)까지 함께 막았다(2026-08-23).
+    # 훅만 더 좁히려면 별도 Ingress 가 필요하다 — 앱이 자기 상한을 따로 지킨다.
+    nginx.ingress.kubernetes.io/proxy-body-size: '16m'
 spec:
   ingressClassName: nginx
   tls:

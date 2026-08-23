@@ -8,7 +8,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { importDisplayKey } from '@nerv/schema';
+import { displayKeySuffix } from '@nerv/schema';
 import { runImport, withoutDuplicateTaskKeysForTesting } from '../run.js';
 
 const PLAN_COUNT = 481; // clemvion 실측 규모
@@ -83,22 +83,20 @@ describe('plan 패스 — 계약의 항목 상한을 넘지 않는다', () => {
 });
 
 describe('task 표시 ID — 충돌하면 조용히 덮어쓰지 않는다', () => {
-  it('폭이 넉넉해 481건에서 충돌이 없다', async () => {
+  it('폭이 넉넉해 481건에서 충돌이 없다 — base32 6자(32^6)', async () => {
     // 16진 4자(65,536)일 때 481건의 충돌 기댓값은 1.76 이었고 실제로 1건을 잃었다.
     const keys = new Set<string>();
     for (let i = 0; i < PLAN_COUNT; i += 1) {
-      keys.add(importDisplayKey('TSK', `plan/complete/t${String(i).padStart(4, '0')}.md`));
+      keys.add(displayKeySuffix(`plan/complete/t${String(i).padStart(4, '0')}.md`));
     }
     expect(keys.size).toBe(PLAN_COUNT);
   });
 
   it('실측 충돌 쌍이 이제 갈린다', async () => {
     // 4자일 때 두 파일이 함께 `TSK-25b4` 를 받아 하나가 사라졌다(clemvion 실측 2026-08-23).
-    const a = importDisplayKey('TSK', 'plan/complete/swagger-double-wrap-fix.md');
-    const b = importDisplayKey('TSK', 'plan/in-progress/spec-draft-eia-notification-payload-contract.md');
+    const a = displayKeySuffix('plan/complete/swagger-double-wrap-fix.md');
+    const b = displayKeySuffix('plan/in-progress/spec-draft-eia-notification-payload-contract.md');
     expect(a).not.toBe(b);
-    expect(a.slice(0, 8)).toBe('TSK-25b4'); // 앞 4자는 그대로 겹친다 — 폭이 갈랐다는 증거
-    expect(b.slice(0, 8)).toBe('TSK-25b4');
   });
 
   it('같은 키를 받는 두 파일은 적재에서 빠지고 리포트에 남는다', async () => {

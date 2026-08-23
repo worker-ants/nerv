@@ -27,7 +27,7 @@ const base: Card = {
   last_heartbeat_at: '2026-08-22T11:59:48Z',
   started_at: '2026-08-22T09:29:00Z',
   task_id: 't-1',
-  task_key: 'TSK-a3f8',
+  task_key: 'CLV-T-1KTDCK',
   task_title: '위젯 상태별 렌더링',
   claim_id: 'c-1',
   lease_remaining_seconds: 480,
@@ -59,7 +59,7 @@ describe('SessionCard — REQ-WEB-019 필수 표기', () => {
 
   it('클레임한 Task 와 선언 scope 를 보여준다 — 겹침 경고를 읽으려면 필요하다', () => {
     render(<SessionCard card={base} now={NOW} />);
-    expect(screen.getByText('TSK-a3f8')).toBeDefined();
+    expect(screen.getByText('CLV-T-1KTDCK')).toBeDefined();
     expect(screen.getByText('codebase/frontend/src/widget/**')).toBeDefined();
   });
 
