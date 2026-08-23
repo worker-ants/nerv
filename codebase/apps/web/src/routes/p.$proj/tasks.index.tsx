@@ -9,10 +9,9 @@ import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { DelegationForm } from '../../features/task-board/delegation-form.js';
-import { leaseRemaining } from '../../features/session-monitor/format.js';
-import { StatusBadge } from '../../components/status-badge.js';
+import { leaseRemaining, relativeTime } from '../../features/session-monitor/format.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
-import { useProject, useTaskLane } from '../../lib/queries.js';
+import { useMe, useProject, useTaskLane } from '../../lib/queries.js';
 import { cn } from '../../lib/utils.js';
 import {
   Avatar,
@@ -23,7 +22,6 @@ import {
   SummaryStrip,
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
-import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/tasks/')({ component: TaskBoard });
 
@@ -42,6 +40,20 @@ const LANES = ['blocked', 'ready', 'claimed', 'in_progress', 'in_review', 'done'
 /** 레인 이름은 `task_status` 어휘다 — 토큰·라벨 표를 그대로 색인한다 */
 type Lane = keyof typeof TASK_TOKEN;
 
+/**
+ * 레인 점 색 — **§4.2 상태 토큰의 진한 쪽**을 그대로 쓴다(새 색을 만들지 않는다).
+ * 배지는 soft 배경 + 같은 계열 글자였는데, 맨 점은 배경이 없으니 진한 값이 필요하다.
+ */
+const LANE_DOT: Record<Lane, string> = {
+  backlog: 'bg-status-idle-text',
+  ready: 'bg-status-action',
+  claimed: 'bg-status-agent',
+  in_progress: 'bg-status-progress',
+  in_review: 'bg-status-waiting',
+  done: 'bg-status-done',
+  blocked: 'bg-status-danger',
+};
+
 /** 만료까지 남은 초 — 음수면 이미 만료다(회수는 워커가 한다). */
 function leaseSeconds(expiresAt: string): number {
   return Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
@@ -51,6 +63,7 @@ function TaskBoard(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const project = useProject(proj);
+  const me = useMe();
   const projectId = project.data?.['id'];
   const [editing, setEditing] = useState<string | null>(null);
   // 백로그와 보관은 **끄고 시작한다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
@@ -66,6 +79,12 @@ function TaskBoard(): React.JSX.Element {
   const inProgress = useTaskLane(proj, id, 'in_progress');
   const ready = useTaskLane(proj, id, 'ready');
   const blocked = useTaskLane(proj, id, 'blocked');
+  // **"내 담당"이 없으면 이 줄은 절반만 답한다** — 조직 전체가 몇 개를 돌리는지는
+  // 알려 주는데 "그중 내가 쥔 것"은 카드를 뒤져야 나온다(시안 대조 2026-08-23).
+  const meId = typeof me.data?.id === 'string' ? me.data.id : undefined;
+  const mine = useTaskLane(proj, meId === undefined ? undefined : id, 'in_progress', {
+    ...(meId === undefined ? {} : { assignee: meId }),
+  });
   const count = (q: ReturnType<typeof useTaskLane>): string => {
     const items = q.data?.items ?? [];
     return `${items.length}${q.data?.next_cursor != null ? '+' : ''}`;
@@ -74,6 +93,7 @@ function TaskBoard(): React.JSX.Element {
     { label: t('tasks.summary.in_progress'), value: count(inProgress), tone: 'progress' },
     { label: t('tasks.summary.ready'), value: count(ready) },
     { label: t('tasks.summary.blocked'), value: count(blocked), tone: 'danger' },
+    { label: t('tasks.summary.mine'), value: count(mine) },
   ];
 
   return (
@@ -207,24 +227,34 @@ function Lane({
   const items = query.data?.items ?? [];
   const more = query.data?.next_cursor !== null && query.data?.next_cursor !== undefined;
 
+  // **레인에 배경을 두지 않는다**(시안 대조 2026-08-23). 가라앉은 상자를 다섯 개
+  // 세우면 화면이 다시 격자가 되고, 카드에서 걷어낸 테두리가 레인 단위로 되살아난
+  // 꼴이 된다. 카드는 페이지 위에 뜬다 — 레인을 나누는 것은 상자가 아니라 **간격과
+  // 머리글**이다. 막힘만 예외다: 성질이 다른 레인이라 바탕을 아주 옅게 깐다.
   return (
             <section
               data-testid={`column-${lane}`}
               className={cn(
-                'flex w-64 shrink-0 flex-col rounded-nerv p-2',
-                halted ? 'bg-status-danger-soft/40' : 'bg-bg-sunken',
+                'flex w-64 shrink-0 flex-col',
+                halted && 'rounded-nerv bg-status-danger-soft/30 p-2',
               )}
             >
-              <h2 className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold text-text-mute">
+              {/* **알약이 아니라 맨 점이다**(시안 대조 2026-08-23). 배지는 배경을 깔아
+                  그 자체가 하나의 요소가 되는데, 레인 머리는 요소가 아니라 이름표다.
+                  점은 색만 나르고 이름은 글자가 나른다 — REQ-WEB-033 은 그대로다. */}
+              <h2 className="mb-2.5 flex items-center gap-[7px] px-1">
+                <span
+                  aria-hidden="true"
+                  className={cn('size-1.5 shrink-0 rounded-full', LANE_DOT[lane])}
+                />
                 {/* `statusLabelKey` 는 **키**를 준다 — 번역을 거치지 않으면 화면에
                     `status.task.ready` 가 그대로 찍힌다(실측 2026-08-23) */}
-                <StatusBadge
-                  token={TASK_TOKEN[lane] as StatusToken}
-                  label={t(statusLabelKey('task', lane))}
-                />
+                <span className="text-xs font-semibold tracking-[-0.005em] text-text">
+                  {t(statusLabelKey('task', lane))}
+                </span>
                 {/* 한 페이지를 채웠으면 **뒤에 더 있다**는 뜻이다 — 그냥 30 이라고
                     적으면 사람은 그것이 전부라고 읽는다 */}
-                <span className="tabular-nums text-text-faint">
+                <span className="text-2xs tabular-nums text-text-faint">
                   {items.length}
                   {more ? '+' : ''}
                 </span>
@@ -284,13 +314,22 @@ function TaskCard({
     >
       {/* 칸이 이미 상태를 말한다 — 카드마다 같은 배지를 또 붙이면
           칸 하나에 같은 배지 열 개가 세로로 늘어선다 */}
-      <Link
-        to="/p/$proj/tasks/$task"
-        params={{ proj, task: String(task['key']) }}
-        className="block leading-snug font-medium hover:text-link"
-      >
-        {String(task['title'])}
-      </Link>
+      <div className="flex items-start gap-2">
+        <Link
+          to="/p/$proj/tasks/$task"
+          params={{ proj, task: String(task['key']) }}
+          className="min-w-0 flex-1 leading-snug font-medium hover:text-link"
+        >
+          {String(task['title'])}
+        </Link>
+        {/* 만져지는 카드라는 표시 — 평소에는 없다가 hover 에서만 뜬다 */}
+        <span
+          aria-hidden="true"
+          className="shrink-0 leading-none text-text-faint opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          ⋯
+        </span>
+      </div>
       {task['basis_superseded'] === true && (
         // 기준 버전이 지나갔다 — 재브리핑 신호(agent-integration §2.4).
         // 메타 줄에 섞어 두면 흐린 글자 사이에 묻힌다 — 제 줄을 준다.
@@ -309,6 +348,12 @@ function TaskCard({
         {task['spec_key'] !== null && task['spec_key'] !== undefined && (
           <span className="font-mono">{String(task['spec_key'])}</span>
         )}
+        {/* **경과 시간은 오른쪽 끝에 붙는다**(시안 대조 2026-08-23). 카드가 스무 장
+            늘어선 칸에서 "얼마나 묵었나"는 세로로 훑히는 값이라 열이 맞아야 읽힌다 —
+            메타 줄 가운데에 섞어 두면 카드마다 위치가 달라 매번 찾아야 한다. */}
+        <span className="ml-auto shrink-0 tabular-nums">
+          {relativeTime(t, String(task['updated_at'] ?? ''))}
+        </span>
         {/* 리스 잔여는 서버 시각 기준으로 클라이언트가 센다(§1.4).
             2분 미만은 호박색 — 곧 회수된다는 뜻이고, 그때 화면이 조용하면
             사람은 작업이 사라진 이유를 모른다(REQ-WEB-017 · D-04) */}

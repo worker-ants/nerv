@@ -481,6 +481,7 @@ export const ko = {
   'tasks.ready_transition': 'ready 전이',
   'tasks.rebrief': '재브리핑 필요 — v{version} → 최신',
   'tasks.summary.in_progress': '진행 중',
+  'tasks.summary.mine': '내 담당',
   'tasks.summary.ready': '준비됨',
   'tasks.summary.blocked': '막힘',
   'tasks.title': '작업 보드',

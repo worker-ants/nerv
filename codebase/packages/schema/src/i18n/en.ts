@@ -487,6 +487,7 @@ export const en = {
   'tasks.ready_transition': 'Move to ready',
   'tasks.rebrief': 'Re-brief needed — v{version} → latest',
   'tasks.summary.in_progress': 'In progress',
+  'tasks.summary.mine': 'Mine',
   'tasks.summary.ready': 'Ready',
   'tasks.summary.blocked': 'Blocked',
   'tasks.title': 'Task board',

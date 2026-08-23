@@ -161,20 +161,23 @@ export function useTaskLane(
   slug: string,
   projectId: string | undefined,
   lane: string,
-  options?: { includeArchived?: boolean },
+  options?: { includeArchived?: boolean; assignee?: string },
 ): UseQueryResult<{ items: Row[]; next_cursor: string | null }> {
   const refetchInterval = useLivePolling();
   const archived = options?.includeArchived === true;
+  const assignee = options?.assignee ?? '';
   return useQuery({
     // **slug 로 대신 잡지 않는다.** projectId 는 프로젝트 조회가 끝나야 오는데, 그때
     // 키가 slug → id 로 바뀌면 새 쿼리가 되어 레인이 빈 채로 한 번 더 그려진다 —
     // 화면에서는 목록이 나타났다 사라졌다 다시 나타나는 깜빡임이다(실측 2026-08-23).
     // 무효화가 project_id 로 키를 만드므로(event-invalidation.ts) id 축이 정답이고,
     // 오기 전까지는 아예 부르지 않는다.
-    queryKey: [...queryKeys.projectTasks(projectId ?? ''), lane, archived],
+    queryKey: [...queryKeys.projectTasks(projectId ?? ''), lane, archived, assignee],
     queryFn: () =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(
-        `/projects/${slug}/tasks?status=${lane}${archived ? '&include_archived=true' : ''}`,
+        `/projects/${slug}/tasks?status=${lane}` +
+          (archived ? '&include_archived=true' : '') +
+          (assignee === '' ? '' : `&assignee=${encodeURIComponent(assignee)}`),
       ),
     enabled: projectId !== undefined,
     refetchInterval,
