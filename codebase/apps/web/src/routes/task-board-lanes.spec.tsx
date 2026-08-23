@@ -114,19 +114,22 @@ describe('레인 구성 (§2.5)', () => {
     await waitFor(() => expect(done.textContent).toContain('2+'));
   });
 
-  it('blocked 는 하단 접이식이고 접힌 채로도 건수가 보인다', async () => {
+  it('blocked 는 **가로줄의 한 레인**이다 — 아래에 두면 스크롤해야 닿는다', async () => {
     await renderBoard();
-    // 레인 자체는 가로줄에 없다 — 하단에 따로 있다
-    expect(screen.queryByTestId('column-blocked')).toBeNull();
-    const toggle = await screen.findByTestId('blocked-toggle');
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    // 접힌 채로도 건수가 보여야 한다 — 감춰 두면 막힌 일을 아무도 안 본다
-    expect(toggle.textContent).toContain('1');
-    // **매번 다시 찾는다** — 폴백 폴링이 재조회하면 DOM 노드가 갈리므로 붙잡아 둔
-    // 참조를 누르면 아무 일도 일어나지 않는다(실측: 여기서 한 번 헛짚었다)
-    fireEvent.click(screen.getByTestId('blocked-toggle'));
-    await waitFor(() =>
-      expect(screen.getByTestId('blocked-toggle').getAttribute('aria-expanded')).toBe('true'),
-    );
+    // 정본은 원래 "하단 blocked 접이식 레인"이었는데 뒤집었다(2026-08-23, 사람 판단):
+    // 막힌 일은 보드를 다 지나 스크롤해야 보이는 각주가 아니라 가장 먼저 보여야 하는 것이다.
+    expect(screen.getByTestId('column-blocked')).toBeTruthy();
+    expect(screen.queryByTestId('lane-blocked')).toBeNull();
+    expect(screen.queryByTestId('blocked-toggle')).toBeNull();
   });
+
+  it('막힘이 맨 앞이다 — 흐름보다 먼저 풀어야 할 것이기 때문', async () => {
+    await renderBoard();
+    // 흐름 끝(6번째)에 두면 1440px 화면에서도 잘려 "있긴 한데 안 보인다"가 된다.
+    const order = screen
+      .getAllByTestId(/^column-/)
+      .map((n) => n.dataset['testid']?.replace('column-', ''));
+    expect(order).toEqual(['blocked', 'ready', 'claimed', 'in_progress', 'in_review', 'done']);
+  });
+
 });

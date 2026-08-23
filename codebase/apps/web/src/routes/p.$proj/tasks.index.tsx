@@ -28,10 +28,16 @@ import type { StatusToken } from '../../components/status-badge.js';
 export const Route = createFileRoute('/p/$proj/tasks/')({ component: TaskBoard });
 
 /**
- * 레인 — screens.md §2.5 정본. `backlog` 는 레인이 아니라 **필터**이고 `blocked` 는
- * 하단 접이식이다. 둘 다 "지금 흐르고 있는 일"이 아니라서 가로줄을 차지하면 안 된다.
+ * 레인 — screens.md §2.5.
+ *
+ * `blocked` 는 원래 **하단 접이식**이었는데 가로줄 **맨 앞**으로 옮겼다(2026-08-23, 사람 판단).
+ * 아래에 두면 보드를 다 지나 스크롤해야 닿고, 흐름 끝에 두면 여섯 번째 칸이라 1440px
+ * 화면에서도 잘린다 — 둘 다 "있긴 한데 안 보인다"이다. 막힌 일은 **가장 먼저 보여야
+ * 하는 것**이지 각주가 아니라서 흐름(ready→done) 앞에 세운다: "이것부터 풀고 나머지를
+ * 보라"가 이 보드가 할 말이다. `backlog` 는 여전히 필터다 — 아직 시작되지 않은 일은
+ * "지금 흐르고 있는 것"이 아니다.
  */
-const LANES = ['ready', 'claimed', 'in_progress', 'in_review', 'done'] as const;
+const LANES = ['blocked', 'ready', 'claimed', 'in_progress', 'in_review', 'done'] as const;
 
 /** 레인 이름은 `task_status` 어휘다 — 토큰·라벨 표를 그대로 색인한다 */
 type Lane = keyof typeof TASK_TOKEN;
@@ -139,9 +145,6 @@ function TaskBoard(): React.JSX.Element {
         ))}
       </div>
 
-      {/* `blocked` 는 하단 접이식이다(§2.5) — 흐르고 있는 일이 아니라서 가로줄을
-          차지하면 안 되지만, 감춰 두면 막힌 일을 아무도 안 본다 */}
-      <BlockedLane proj={proj} projectId={id} onEdit={setEditing} />
     </PageBody>
   );
 }
@@ -180,46 +183,6 @@ function FilterToggle({
   );
 }
 
-/** 막힘 레인 — 접이식. 건수는 접힌 채로도 보인다. */
-function BlockedLane({
-  proj,
-  projectId,
-  onEdit,
-}: {
-  proj: string;
-  projectId: string | undefined;
-  onEdit: (key: string) => void;
-}): React.JSX.Element | null {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const query = useTaskLane(proj, projectId, 'blocked');
-  const items = query.data?.items ?? [];
-  if (items.length === 0) return null;
-  return (
-    <section className="mt-4" data-testid="lane-blocked">
-      <button
-        type="button"
-        data-testid="blocked-toggle"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-xs font-semibold text-status-danger"
-      >
-        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
-        {t('tasks.blocked_lane', { count: items.length })}
-      </button>
-      {open && (
-        <ul className="mt-2 grid gap-1.5 md:grid-cols-3">
-          {items.map((task) => (
-            <li key={String(task['id'])}>
-              <TaskCard proj={proj} task={task} lane="blocked" onEdit={onEdit} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 /** 레인 하나 — **자기 질의를 자기가 갖는다**(queries.ts `useTaskLane` 주석) */
 function Lane({
   proj,
@@ -239,13 +202,18 @@ function Lane({
   const query = useTaskLane(proj, projectId, lane, {
     includeArchived: lane === 'done' && includeArchived,
   });
+  // 막힘은 **흐르지 않는 일**이다 — 같은 가로줄에 있되 레인 자체가 그렇게 보여야 한다
+  const halted = lane === 'blocked';
   const items = query.data?.items ?? [];
   const more = query.data?.next_cursor !== null && query.data?.next_cursor !== undefined;
 
   return (
             <section
               data-testid={`column-${lane}`}
-              className="flex w-64 shrink-0 flex-col rounded-nerv bg-bg-sunken p-2"
+              className={cn(
+                'flex w-64 shrink-0 flex-col rounded-nerv p-2',
+                halted ? 'bg-status-danger-soft/40' : 'bg-bg-sunken',
+              )}
             >
               <h2 className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold text-text-mute">
                 {/* `statusLabelKey` 는 **키**를 준다 — 번역을 거치지 않으면 화면에

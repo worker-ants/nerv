@@ -35,12 +35,15 @@ export function SessionCard({
     // 한 줄에 고정 폭으로 늘어놓으면 세로로 훑는 것만으로 비교가 된다.
     <article
       data-testid="session-card"
-      className="group flex items-center gap-3 border-b border-border px-2.5 py-3 transition-colors last:border-b-0 hover:bg-bg-hover"
+      // **`@container` 로 자기 폭을 본다.** 뷰포트 미디어 쿼리는 여기서 거짓말을 한다 —
+      // 화면은 1440px 인데 이 줄이 놓인 칸은 350px 일 수 있고(대시보드 2열 격자), 그때
+      // 고정 폭 열들이 넘쳐 가운데 칸이 한 글자 폭으로 찌그러진다(실측 2026-08-23).
+      className="@container group flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-2.5 py-3 transition-colors last:border-b-0 hover:bg-bg-hover"
     >
       <Avatar name={card.user_name} size="lg" />
 
       {/* 신원 3요소는 **한 덩어리**다 — 흩어 놓으면 매번 다시 모아 읽어야 한다(REQ-WEB-019) */}
-      <div className="w-40 shrink-0">
+      <div className="min-w-32 flex-1 @2xl:w-40 @2xl:flex-none">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-sm font-medium">{card.user_name}</span>
           <span className="truncate font-mono text-2xs text-text-mute">{card.hostname}</span>
@@ -48,11 +51,12 @@ export function SessionCard({
         <div className="mt-0.5 text-2xs text-text-faint">{card.agent_type}</div>
       </div>
 
-      <div className="w-[5.5rem] shrink-0">
+      <div className="shrink-0 @2xl:w-[5.5rem]">
         <StatusBadge token={token} label={t(statusLabelKey('session', card.state))} />
       </div>
 
-      <div className="min-w-0 flex-1">
+      {/* 좁으면 **제 줄로 내려간다** — 옆으로 찌그러뜨리는 것보다 낫다 */}
+      <div className="order-last min-w-0 w-full @2xl:order-none @2xl:w-auto @2xl:flex-1">
         {card.task_key === null ? (
           <span className="text-sm text-text-faint">{t('session.no_task')}</span>
         ) : (
@@ -79,7 +83,7 @@ export function SessionCard({
         )}
       </div>
 
-      <div className="w-24 shrink-0 text-right">
+      <div className="ml-auto shrink-0 text-right @2xl:ml-0 @2xl:w-24">
         <div className="font-mono text-2xs tabular-nums">
           {diffStat(card.diff_added, card.diff_removed)}
         </div>
@@ -94,7 +98,7 @@ export function SessionCard({
           겹침을 읽어야 할 때는 hover 로 드러난다(REQ-WEB-019 는 표기 여부만 요구한다) */}
       {card.scope_file_globs.length > 0 && (
         <div
-          className="hidden w-40 shrink-0 truncate font-mono text-2xs text-text-faint opacity-0 transition-opacity group-hover:opacity-100 xl:block"
+          className="hidden w-40 shrink-0 truncate font-mono text-2xs text-text-faint opacity-0 transition-opacity group-hover:opacity-100 @5xl:block"
           title={card.scope_file_globs.join('\n')}
           aria-label={t('session.scope')}
         >
@@ -107,7 +111,8 @@ export function SessionCard({
           채운 빨강 덩어리가 줄마다 서면 그 자체가 소음이 되고, 그때는 진짜 위험한 줄이
           어느 것인지 알 수 없다. 사유는 남기되 배경을 걷는다(2026-08-23 재검토). */}
       {card.state === 'stale' && (
-        <span className="w-40 shrink-0 text-2xs leading-snug text-text-mute">
+        // 사유는 **감추지 않는다**(REQ-WEB-020) — 좁으면 제 줄로 내려간다
+        <span className="order-last w-full shrink-0 text-2xs leading-snug text-text-mute @2xl:order-none @2xl:w-40">
           {t('session.stale_note')}
         </span>
       )}

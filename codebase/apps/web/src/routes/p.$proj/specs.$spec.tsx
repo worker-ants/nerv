@@ -391,7 +391,10 @@ function SpecDetail(): React.JSX.Element {
 
       {/* 우측이 이 화면의 무게중심이다 — 화면을 내려도 따라와야 "무엇이 흔들리나"를
           본문과 나란히 볼 수 있다 */}
-      <aside className="flex flex-col gap-5 text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:self-start">
+      {/* **레일도 스스로 스크롤한다.** `sticky` 로 붙여만 두면 내용이 화면보다 길 때
+          아래쪽이 영영 닿지 않는다 — 역참조 18건이면 이미 그렇다(실측 2026-08-23).
+          높이를 뷰포트에 묶고 넘치면 레일 안에서 흐르게 한다. */}
+      <aside className="flex flex-col gap-5 text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:max-h-[calc(100vh-var(--spacing-header)-3rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
         <section>
           <SectionTitle>{t('spec.versions')}</SectionTitle>
           <ul className="flex flex-col gap-1">

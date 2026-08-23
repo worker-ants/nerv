@@ -107,7 +107,9 @@ function ProjectOverview(): React.JSX.Element {
           >
             {t('project.active_sessions', { count: active.length })}
           </SectionTitle>
-          <div className="grid gap-2 sm:grid-cols-2">
+          {/* 카드가 아니라 줄이다 — 2열로 쪼개면 한 칸이 줄 폭의 절반이라
+              고정 폭 열들이 넘쳐 화면이 깨진다(실측 2026-08-23) */}
+          <div className="flex flex-col">
             {active.slice(0, 4).map((card) => (
               <SessionCard key={card.id} card={card} />
             ))}

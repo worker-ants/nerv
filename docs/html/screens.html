@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.11 (2026-08-23)</span>
+      <span>버전 v0.12 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -649,7 +649,24 @@
 
 <h3>2.5 S4 작업 보드 — <a href="ui-wireframes.html">ui-wireframes §2.4</a></h3>
 
-  <p>칸반 레인: <code>ready / claimed / in_progress / in_review / done(7d)</code> + 하단 <code>blocked</code> 접이식 레인. <code>backlog</code>는 필터로 노출.</p>
+  <p>칸반 레인: <b><code>blocked</code> / <code>ready</code> / <code>claimed</code> / <code>in_progress</code> / <code>in_review</code> / <code>done(7d)</code></b> — 전부 가로줄이다. <code>backlog</code>는 필터로 노출.</p>
+  <p><b><code>blocked</code> 를 하단 접이식에서 가로줄 맨 앞으로 옮겼다(2026-08-23 — 사람 판단).</b> 하단에 두면 보드를 다 지나 스크롤해야 닿고, 흐름 끝에 두면 여섯 번째 칸이라 1440px 화면에서도 잘린다 — 둘 다 "있긴 한데 안 보인다"이다. 막힌 일은 각주가 아니라 <b>먼저 풀어야 할 것</b>이라 흐름 앞에 세운다. 레인 바탕도 위험색 계열로 옅게 깔아 같은 가로줄에 있어도 성질이 다름을 보인다.</p>
+
+  <p><b>패널은 가로로만 배치한다(2026-08-23).</b> 세로로 쌓인 패널은 스크롤 없이 안 보이고, 그 순간 "지금 무엇이 흐르고 있나"라는 이 화면의 물음에 답하지 못한다.</p>
+
+  <p><b>폭이 좁은 자리에 놓이는 목록은 컨테이너 폭을 본다.</b> 뷰포트 미디어 쿼리는 여기서 거짓말을 한다 — 화면은 1440px 인데 세션 줄이 놓인 칸은 350px 일 수 있고(대시보드), 그때 고정 폭 열이 넘쳐 가운데 칸이 한 글자 폭으로 찌그러진다(실측 2026-08-23). <code>@container</code> 로 자기 폭을 보고 좁으면 작업 줄과 사유가 제 줄로 내려간다.</p>
+
+  <p><b>긴 레일은 스스로 스크롤한다.</b> <code>sticky</code> 로 붙여만 두면 내용이 화면보다 길 때 아래쪽이 영영 닿지 않는다 — 역참조 18건이면 이미 그렇다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-058</td><td>WHEN 목록 항목이 좁은 칸에 놓이면 THE SYSTEM SHALL 컨테이너 폭을 기준으로 배치를 바꿔 어떤 열도 읽을 수 없는 폭으로 찌그러지지 않게 한다</td></tr>
+      <tr><td>REQ-WEB-059</td><td>WHILE 곁레일 내용이 뷰포트보다 길면 THE SYSTEM SHALL 레일 안에서 스크롤해 모든 항목에 닿게 한다</td></tr>
+    </tbody>
+  </table></div>
+
+
 
   <p><b><code>done(7d)</code>는 감춤이 아니라 기본 창이다(2026-08-23 구현·보강).</b> 끝난 일은 시간이 지나면 배경이 된다 — clemvion 실측에서 Task 487건 중 done 이 419건(86%)이었다. 그 너머는 <b>보관 보기</b> 토글이 연다.</p>
 
