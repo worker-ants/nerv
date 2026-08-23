@@ -11,7 +11,7 @@
 //     실패로 응답에 담기고 배치 전체를 되돌리지 않는다(REQ-API-018).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_EVENT, newId } from '@nerv/schema';
+import { NERV_EVENT, importDisplayKey, newId } from '@nerv/schema';
 import type {
   ImportBatchResult,
   ImportItemResult,
@@ -132,7 +132,7 @@ export class ImportService {
       try {
         const result = await this.db.transaction(async (tx) => {
           const taskId = newId();
-          const key = displayKey('TSK', item.source_path);
+          const key = importDisplayKey('TSK', item.source_path);
 
           const { rows: existing } = await tx.execute<{ id: string }>(
             sql`SELECT id FROM task WHERE project_id = ${actor.projectId} AND key = ${key}`,
@@ -401,7 +401,3 @@ function toError(sourcePath: string, error: unknown): ImportItemResult {
 }
 
 /** 표시 키 — 자연 키(파일 경로)의 해시 앞자리. 파일 기반 번호 충돌을 원천 제거한다(D-04 말미). */
-function displayKey(prefix: string, sourcePath: string): string {
-  const hash = createHash('sha256').update(sourcePath, 'utf8').digest('hex').slice(0, 4);
-  return `${prefix}-${hash}`;
-}

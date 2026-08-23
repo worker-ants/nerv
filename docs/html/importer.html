@@ -52,7 +52,7 @@
     <h1>스펙 임포터</h1>
     <p class="lead">기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 <b>프로파일 기반 범용 임포터</b>의 확정판. 대상별 차이는 프로파일(§1.4)이 흡수하고 엔진은 하나다 — 내장 프로파일은 <code>clemvion</code>(FR-17 대상: 순수 스펙 135 md + plan 450 md)과 <code>nerv-docs</code>(도그푸딩) 2종이며, 다른 저장소는 프로파일 파일을 얹는다. 실행 모델은 <b>읽기는 클라이언트, 쓰기는 API</b>(2026-08-22 확정) — 원본 체크아웃이 있는 장비의 CLI가 파싱·리포트를 만들고(dry-run은 서버 없이 완결), <code>--apply</code>만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. 수용 기준은 REQ-IMP-001~017.</p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-08-23)</span>
+      <span>버전 v0.7 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
     </div>
@@ -320,6 +320,26 @@ task:                        # plan 프로파일(P1) — §2.6
     <p>임포터는 <code>claim</code>·<code>agent_session</code> 행을 만들지 않는다. 둘은 실행의 기록이지 문서의 번역이 아니다. <code>worktree:</code> 값(살아있는 worktree 디렉토리명)은 매니페스트에 보존만 하고, 그 디렉터리가 현재 실존하지 않으면 리포트 warn으로 남긴다 — "머지된 값을 두면 가드가 '연결된 plan 없음'으로 오판해 무장 해제된다"던 스칼라 필드의 한계(<a href="clemvion-analysis.html">1.1 분석</a> §3.3)는 NERV에서 claim 테이블이 대체하며, 그 claim은 재착수 시점에 실제 세션이 만든다.</p>
   </div></div>
 
+  <h3>2.6b 표시 ID 의 폭 — 짧은 해시는 문서를 먹는다 (2026-08-23 정정)</h3>
+
+  <p>임포트한 Task 의 표시 ID 는 <b>원본 경로의 해시</b>다(<code>TSK-&lt;hex&gt;</code>) — 재실행이 같은 키를 내야 멱등이 성립하기 때문이다(§3.4). 문제는 폭이었다.</p>
+
+  <p>16진 <b>4자</b>는 키 공간이 65,536이다. clemvion plan 481건에서 충돌 기댓값은 <code>481²/(2·65536) ≈ 1.76</code>이고, 실제로 <b>1건을 잃었다</b>(실측 2026-08-23 — <code>plan/complete/swagger-double-wrap-fix.md</code> 와 <code>plan/in-progress/spec-draft-eia-notification-payload-contract.md</code> 가 함께 <code>TSK-25b4</code> 를 받았다). 상태가 서로 다른 두 티켓이 하나가 됐는데, 그 덮어쓰기는 서버에서 <b>정상 upsert</b> 라 오류가 나지 않는다 — 리포트는 "변환 481 · 실패 0"이었다. §2.2 의 spec 키 충돌과 같은 실패 방식이다.</p>
+
+  <ul>
+    <li><b>폭을 12자(2^48)로 넓힌다.</b> 같은 규모에서 충돌 기댓값이 4e-10 이다.</li>
+    <li><b>알고리즘은 계약 패키지가 소유한다</b>(<code>importDisplayKey</code> — <code>@nerv/schema</code>). 서버는 이 키로 upsert 를 판정하고 CLI 는 보내기 전에 충돌을 걸러야 하므로, 두 곳이 같은 답을 내야 한다. 따로 적으면 그 순간 조용히 갈라진다(REQ-CB-006 의 정신).</li>
+    <li><b>CLI 가 먼저 거른다.</b> spec 과 같은 규율로, 같은 키를 받는 파일들은 적재에서 빼고 리포트에 <code>aborted</code> 로 남긴다 — 사라지되 이름은 남는다(전수 계정 — REQ-IMP-016).</li>
+  </ul>
+
+  <p>형식은 미결이다: <a href="data-model.html">데이터 모델</a> §5.1 의 표시 키 정본은 <code>&lt;project.key&gt;-&lt;타입&gt;-&lt;base32 6자&gt;</code>(예: <code>CLV-T-7QF3K2</code>)인데 임포터는 <code>TSK-&lt;hex&gt;</code> 를 쓴다. 정합에는 시드·웹 라우트·문서가 함께 걸리므로 <b>별도 결정이 필요하다(2026-08-23 미결)</b>.</p>
+
+  <h3>2.6c 배치 상한은 계약이 정한다 (2026-08-23 정정)</h3>
+
+  <p>한 요청의 항목 상한은 200이다(<code>IMPORT_BATCH_MAX</code> — EP-IMP-02·03 계약). spec 패스는 나눠 보내는데 <b>plan 패스만 이 처리가 빠져 있어</b> clemvion 481건이 한 요청으로 나갔고 서버가 스키마 위반으로 거절했다(실측). 벽은 본문 크기가 아니라 항목 수다.</p>
+
+  <p>보증은 <b>보내는 자리 한 곳</b>(<code>chunked</code>)에 둔다. <code>--batch-size</code> 는 사람에게서 오고 보내는 자리는 넷(structure·document·links·tasks)이라, 각자 지키게 하면 한 곳이 빠졌을 때 드러나지 않는다 — 실제로 tasks 가 그랬다. 사람이 상한보다 큰 값을 줘도 조용히 400 을 받지 않고 깎인다.</p>
+
   <h3>2.7 review 소급은 P2 — 경계만 명시</h3>
 
   <p><code>review/</code> 13,777 md의 소급은 Phase 2다(로드맵 §3 "review P2" · §7.3(3)). MVP 임포터는 이 경로를 구현하지 않는다. P2 착수 시의 정본 규칙만 재인용해 둔다: 결론(SUMMARY·RESOLUTION)만 소급하고 <code>_prompts/</code>(리뷰 전체의 ~70%, 이미 gitignored)는 이관하지 않는다 · 커밋 SHA가 <code>meta.json</code>에 필드 자체가 없으므로(표본 200개 SUMMARY 중 47개만 산문에 해시 언급) NULL + <code>provenance_incomplete</code> 플래그를 세우고 게이트 판정 입력으로 쓰지 않는다 · 멱등 키는 <code>(source_path, content_hash)</code>다.</p>
@@ -535,6 +555,8 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
     <tbody>
       <tr><td><code>file</code> · <code>line</code></td><td>원본 파일 경로(루트 상대)와 줄 번호(파일 단위 문제는 line null)</td></tr>
       <tr><td>REQ-IMP-019</td><td>WHEN 원본 파일·디렉터리 이름이 정수 접두를 가지면 THE SYSTEM SHALL 폭을 고정한 <code>sort_key</code> 를 계약에 실어 형제 순서를 원본과 같게 만든다(§2.2)</td></tr>
+      <tr><td>REQ-IMP-020</td><td>WHEN 서로 다른 원본 파일이 같은 표시 ID 를 받으면 THE SYSTEM SHALL 그 항목들을 적재에서 빼고 리포트에 <code>aborted</code> 로 남긴다 — 덮어쓰지 않는다(§2.6b)</td></tr>
+      <tr><td>REQ-IMP-021</td><td>WHEN 배치 항목 수가 계약 상한을 넘으면 THE SYSTEM SHALL 상한 이하로 나눠 보낸다 — 요청받은 크기가 더 커도 그렇다(§2.6c)</td></tr>
       <tr><td><code>rule</code></td><td>규칙 슬러그(아래 표)</td></tr>
       <tr><td><code>class</code></td><td><b><code>abort</code>(중단)</b> / <b><code>skip</code>(건너뜀)</b> / <b><code>manual</code>(수동 확인)</b> / <b><code>warn</code>(경고)</b> 4분류. abort는 실행 전체를 멈추고, skip은 그 항목만 제외하고 계속하며, manual은 적재는 하되 사람 확정이 필요한 큐, warn은 정보성이다</td></tr>
       <tr><td><code>detail</code> · <code>hint</code></td><td>사유와 권장 조치</td></tr>

@@ -4,6 +4,7 @@
 // 돌고 서버는 그 파일을 볼 수 없으므로(importer.md §3.2), 둘 사이를 잇는 것은 **이 타입뿐**이다.
 // 서버는 프로파일도 파싱 규칙도 모른다 — 이미 판정된 결과만 받는다.
 
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 /** 프로파일 — **클라이언트 것이다.** 서버는 이름만 기록한다(importer.md §1.4 경계 1). */
@@ -88,6 +89,34 @@ export const importPreflightResultSchema = z.object({
   ),
 });
 
+/**
+ * 임포트한 항목의 **표시 ID**. 원본 경로의 해시라 재실행이 같은 키를 낸다(멱등의 축).
+ *
+ * 알고리즘이 계약 패키지에 있는 이유는 **양쪽이 같은 답을 내야 하기 때문**이다. 서버는
+ * 이 키로 upsert 를 판정하고, CLI 는 보내기 전에 키 충돌을 걸러야 한다(전수 계정 —
+ * REQ-IMP-016). 두 곳에 따로 적으면 그 순간 조용히 갈라진다.
+ *
+ * **폭은 넉넉해야 한다.** 짧은 해시는 서로 다른 파일에 같은 키를 주고, 그 충돌은 서버에서
+ * 정상 upsert 로 보여 오류가 나지 않는다 — 문서가 사라지는데 리포트는 "실패 0"이다.
+ * 16진 4자(65,536)로는 481건에서 충돌 기댓값이 1.76 이었고 실제로 1건을 잃었다(실측
+ * 2026-08-23). 12자(2^48)면 같은 규모에서 기댓값이 4e-10 이다.
+ *
+ * 형식(`TSK-<hex>`)은 데이터 모델 §5.1 의 정본(`<project.key>-T-<base32 6자>`)과 다르다 —
+ * **미결**: 형식 정합은 시드·웹 라우트·문서를 함께 건드리므로 별도 결정이 필요하다.
+ */
+export function importDisplayKey(prefix: string, sourcePath: string): string {
+  return `${prefix}-${createHash('sha256').update(sourcePath, 'utf8').digest('hex').slice(0, 12)}`;
+}
+
+/**
+ * 한 배치의 항목 상한 — **계약이 정하고 클라이언트가 지킨다.**
+ *
+ * 상수로 내보내는 이유는 CLI 가 `--batch-size` 를 사람에게서 받기 때문이다. 값을 그대로
+ * 믿으면 큰 수가 왔을 때 서버가 스키마 위반으로 거절하고, 사람은 "왜 거절당했는지"를
+ * 계약 문서를 열어야 안다. 숫자를 양쪽에 따로 적으면 그 순간 두 벌이 된다(REQ-CB-006 의 정신).
+ */
+export const IMPORT_BATCH_MAX = 200;
+
 // ── EP-IMP-02 specs ────────────────────────────────────────────────────────
 
 export const importRequirementSchema = z.object({
@@ -126,7 +155,7 @@ export const importSpecBatchInputSchema = z.object({
   root_commit: z.string().optional(),
   /** structure = 트리 골격(배치 1 트랜잭션) · document = 본문(파일 1건 = 트랜잭션 1건) */
   kind: z.enum(['structure', 'document']),
-  items: z.array(importSpecItemSchema).max(200),
+  items: z.array(importSpecItemSchema).max(IMPORT_BATCH_MAX),
 });
 
 // ── EP-IMP-03 tasks ────────────────────────────────────────────────────────
@@ -150,7 +179,7 @@ export const importTaskItemSchema = z.object({
 export const importTaskBatchInputSchema = z.object({
   profile: z.string().min(1),
   root_commit: z.string().optional(),
-  items: z.array(importTaskItemSchema).max(200),
+  items: z.array(importTaskItemSchema).max(IMPORT_BATCH_MAX),
 });
 
 // ── EP-IMP-04 links ────────────────────────────────────────────────────────

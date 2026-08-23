@@ -8,6 +8,7 @@
 // dry-run 은 ①~③ 을 전부 계산하되 서버를 부르지 않는다. `--server` 가 있으면 preflight 까지
 // 수행해 자연 키 충돌을 미리 본다(REQ-IMP-011).
 
+import { IMPORT_BATCH_MAX, importDisplayKey } from '@nerv/schema';
 import { t } from './i18n.js';
 import { basename, dirname } from 'node:path';
 import type {
@@ -175,12 +176,17 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
     });
   }
 
+  // spec 과 같은 규율이다 — 서버가 만들 표시 ID 를 미리 계산해 충돌을 거른다.
+  // 겹친 채로 보내면 서버는 정상 upsert 로 받아들이고 나중 것이 앞선 것을 덮어쓴다:
+  // 상태가 다른 두 티켓이 하나가 되는데 리포트는 "실패 0"이다(실측 2026-08-23).
+  const loadable = withoutDuplicateTaskKeys(items, entries);
+
   const report: ImportReport = {
     profile: profile.profile,
     root: options.root,
     rootCommit: null,
     scanned: files.length,
-    converted: items.length,
+    converted: loadable.length,
     entries,
     expectation: checkPlanExpectations(profile, files.length, statusCounts, entries),
   };
@@ -191,8 +197,14 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       token: options.token,
       project: options.project,
     });
-    const applied = await client.tasks({ profile: profile.profile, items });
-    for (const item of applied.items) {
+    // **나눠 보낸다** — spec 패스와 같은 이유이자 같은 한도다(계약 `max(200)`).
+    // plan 패스만 이 처리가 빠져 있어 clemvion 481건이 한 요청으로 나갔고 서버가
+    // 스키마 위반으로 거절했다(실측 2026-08-23). 본문 크기가 아니라 항목 수의 벽이다.
+    const applied: ImportBatchResult['items'] = [];
+    for (const chunk of chunked(loadable, options.batchSize)) {
+      applied.push(...(await client.tasks({ profile: profile.profile, items: chunk })).items);
+    }
+    for (const item of applied) {
       if (item.status === 'error') {
         entries.push({
           file: item.source_path,
@@ -372,7 +384,15 @@ function checkExpectations(
 }
 
 /** n 개씩 끊는다 — 배치는 전송 단위일 뿐이다(api.md §2.10) */
-function chunked<T>(items: readonly T[], size: number): T[][] {
+/**
+ * 배치 분할. **상한은 계약이 정한다**(`IMPORT_BATCH_MAX`) — 호출부가 준 값이 더 크면 깎는다.
+ *
+ * 보증을 호출부가 아니라 여기에 두는 이유: `--batch-size` 는 사람에게서 오고, 보내는 자리는
+ * 네 곳(structure·document·links·tasks)이다. 각자 지키게 하면 한 곳이 빠졌을 때 드러나지
+ * 않는다 — 실제로 tasks 가 그랬다(실측 2026-08-23).
+ */
+function chunked<T>(items: readonly T[], requested: number): T[][] {
+  const size = Math.min(IMPORT_BATCH_MAX, Math.max(1, requested));
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
@@ -436,6 +456,37 @@ function keyFromPath(path: string): string {
     .split('/')
     .filter((segment) => segment !== '')
     .join('-');
+}
+
+/**
+ * task 판(判) — `withoutDuplicateKeys` 와 같은 이유, 다른 키다.
+ *
+ * spec 은 키가 frontmatter·경로에서 오지만 task 의 표시 ID 는 **서버가 원본 경로를 해싱해**
+ * 만든다. 그래서 CLI 는 같은 함수(`importDisplayKey`)로 미리 계산해야 충돌을 볼 수 있다.
+ */
+function withoutDuplicateTaskKeys(
+  items: readonly ImportTaskItem[],
+  entries: ReportEntry[],
+): ImportTaskItem[] {
+  const byKey = new Map<string, string[]>();
+  for (const item of items) {
+    const key = importDisplayKey('TSK', item.source_path);
+    byKey.set(key, [...(byKey.get(key) ?? []), item.source_path]);
+  }
+  const conflicted = new Set<string>();
+  for (const [key, paths] of byKey) {
+    if (paths.length < 2) continue;
+    conflicted.add(key);
+    for (const path of paths) {
+      entries.push({
+        file: path,
+        line: null,
+        reason: t()('cli.reason.duplicate_key', { key, count: paths.length }),
+        disposition: 'aborted',
+      });
+    }
+  }
+  return items.filter((item) => !conflicted.has(importDisplayKey('TSK', item.source_path)));
 }
 
 /**
@@ -508,6 +559,7 @@ function relativeToScanRoot(path: string, profile: ImportProfile): string {
  */
 /** 테스트가 트리 규칙만 따로 확인할 수 있게 내보낸다 */
 export const buildTreeForTesting = buildAreaTree;
+export const withoutDuplicateTaskKeysForTesting = withoutDuplicateTaskKeys;
 
 function buildAreaTree(
   items: readonly ImportSpecItem[],

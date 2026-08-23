@@ -66,14 +66,17 @@ INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, branch
    'S-b7e9', 'active', now() - interval '48 minutes', now() - interval '41 seconds', 12, 0);
 
 -- 스펙 트리 ------------------------------------------------------------
+-- sort_key 는 **폭을 고정한다**(4.7 §2.2 — `0` + 6자리 zero-pad, 접두 없으면 `1`).
+-- 임포터가 만드는 값과 같은 규약이어야 한 트리 안에서 섞이지 않는다: 옛 표기 '7' 은
+-- 텍스트 정렬에서 임포트한 '0000007' 보다 뒤로 가 노드 하나가 엉뚱한 자리에 선다(실측).
 INSERT INTO spec (id, project_id, parent_id, type, key, title, sort_key) VALUES
   ('01990a66-0000-7000-8000-000000000041', '01990a66-0000-7000-8000-000000000021', NULL,
-   'area', 'channel-web-chat', '채널 · 웹챗', '7'),
+   'area', 'channel-web-chat', '채널 · 웹챗', '0000007'),
   -- 표시 ID(SPC-*)를 key로 심는다 — 웹 라우트 /p/clemvion/specs/SPC-CWC-007 정합
   ('01990a66-0000-7000-8000-000000000042', '01990a66-0000-7000-8000-000000000021',
-   '01990a66-0000-7000-8000-000000000041', 'feature', 'SPC-CWC-007', '웹챗 위젯 임베드 v2', '2'),
+   '01990a66-0000-7000-8000-000000000041', 'feature', 'SPC-CWC-007', '웹챗 위젯 임베드 v2', '0000002'),
   ('01990a66-0000-7000-8000-000000000043', '01990a66-0000-7000-8000-000000000021',
-   '01990a66-0000-7000-8000-000000000041', 'feature', 'SPC-CWC-012', '세션 복원 API', '3');
+   '01990a66-0000-7000-8000-000000000041', 'feature', 'SPC-CWC-012', '세션 복원 API', '0000003');
 
 INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
                           author_user_id, approved_at, approved_by_user_id,

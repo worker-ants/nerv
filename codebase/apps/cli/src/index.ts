@@ -56,7 +56,9 @@ export function parseArgs(argv: string[]): CliOptions {
     root: flags.get('root') ?? process.cwd(),
     project: flags.get('project') ?? '',
     apply,
-    // 기본 50 — 한 번에 보내면 본문 크기가 서버의 한도를 넘는다(importer.md §3.1)
+    // 기본 50 — 한 번에 보내면 본문 크기가 서버의 한도를 넘는다(importer.md §3.1).
+    // 계약 상한(IMPORT_BATCH_MAX)은 보내는 자리에서 지킨다(run.ts `chunked`) — 사람이
+    // 큰 값을 줘도 조용히 400 을 받지 않는다.
     batchSize: Math.max(1, Number.parseInt(flags.get('batch-size') ?? '50', 10) || 50),
     reportDir: flags.get('report-dir') ?? './nerv-import-report',
     mapPath: flags.get('map') ?? './nerv-import.map.json',
