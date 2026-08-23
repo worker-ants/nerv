@@ -44,7 +44,7 @@ export class TaskTools implements NervToolProvider {
           task_id: { type: 'string' },
           scope: {
             type: 'object',
-            description: '이 작업이 건드릴 스펙·파일. 겹침 판정의 입력이다',
+            description: 'mcp.arg.scope',
             properties: {
               spec_ids: { type: 'array', items: { type: 'string' } },
               file_globs: { type: 'array', items: { type: 'string' } },

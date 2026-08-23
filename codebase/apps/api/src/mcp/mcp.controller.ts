@@ -109,7 +109,9 @@ export class McpController {
           tools: this.registry.list().map((tool) => ({
             name: tool.name,
             description: t(tool.summaryKey),
-            inputSchema: tool.inputSchema,
+            // 인자 설명도 로케일을 탄다(REQ-CB-024) — 도구 설명만 번역하고 인자는
+            // 한국어로 두면 영어 클라이언트가 반쪽짜리 스키마를 받는다.
+            inputSchema: localizeSchema(tool.inputSchema, t),
             // 위험도 티어를 메타로 실어 클라이언트가 승인 UX 를 정할 수 있게 한다
             _meta: { 'nerv/tier': tool.tier, 'nerv/scope': tool.scope },
           })),
@@ -226,6 +228,7 @@ export class McpController {
         nextActionsFor(error),
       );
     }
+    // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
     this.logger.error('도구 실행 실패', error instanceof Error ? error.stack : String(error));
     return toolError(NERV_ERROR.UNAVAILABLE, t('mcp.error.tool_failed'), {
       kind: 'internal',
@@ -294,4 +297,24 @@ function jsonRpc(id: string | number | null, result: unknown): unknown {
 
 function jsonRpcError(id: string | number | null, code: number, message: string): unknown {
   return { jsonrpc: '2.0', id, error: { code, message } };
+}
+
+/**
+ * JSON Schema 안의 `description` 을 카탈로그 키로 보고 번역한다(REQ-CB-024).
+ *
+ * 키가 아닌 값(예: `'spec key'`)은 그대로 둔다 — 번역기가 모르는 키를 받으면 키를
+ * 그대로 돌려주므로, 카탈로그에 없는 설명은 원문이 남는다. 그 성질에 기대는 것이
+ * 안전하다: 새 인자에 설명을 적는 사람이 키를 잊어도 스키마가 비지 않는다.
+ */
+function localizeSchema(schema: unknown, t: (key: never) => string): unknown {
+  if (Array.isArray(schema)) return schema.map((item) => localizeSchema(item, t));
+  if (schema === null || typeof schema !== 'object') return schema;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema)) {
+    out[key] =
+      key === 'description' && typeof value === 'string'
+        ? t(value as never)
+        : localizeSchema(value, t);
+  }
+  return out;
 }

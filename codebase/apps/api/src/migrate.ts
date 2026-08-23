@@ -10,6 +10,7 @@ import { runMigrations } from '@nerv/schema/migrate';
 async function main(): Promise<void> {
   const url = process.env['DATABASE_URL'];
   if (url === undefined || url === '') {
+    // eslint-disable-next-line no-restricted-syntax -- 설정 오류(REQ-CB-022)
     Logger.error('DATABASE_URL 이 없습니다.', 'Migrate');
     process.exitCode = 1;
     return;

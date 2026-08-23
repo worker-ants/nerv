@@ -38,6 +38,7 @@ export interface PlanClassification {
 }
 
 /** Gate C 의 sentinel 어휘 4종 — 이 밖의 값은 스펙 경로로 해석한다(§2.6). */
+// eslint-disable-next-line no-restricted-syntax -- 원본을 읽는 어휘 — 출력이 아니다(REQ-CB-022)
 const NONE_SENTINELS = new Set(['none', '없음', 'n/a', 'na']);
 
 export interface PlanMappingOptions {

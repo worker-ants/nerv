@@ -1,3 +1,4 @@
+import { text } from '@nerv/schema';
 // 스펙 변경 게이트 티어 T0~T3 — 정본: docs/03-proposal/spec-workflow.md §2.4 (D-06)
 //
 // **자동 통과 경로는 필수 기능이다.** SDD 에 대한 대표적 비판이 "버그 하나 고치는 데 16개
@@ -67,11 +68,11 @@ export function decideGate(axes: GateAxes, signals: EscalationSignals = {}): Gat
   const reasons: string[] = [`4축 합계 ${score}점`];
   if (signals.repeatedFailures === true) {
     tier = escalate(tier);
-    reasons.push('재시도 임계 초과 → 티어 +1');
+    reasons.push(text('gate.reason.retry_threshold'));
   }
   if (signals.recentRollback === true) {
     tier = escalate(tier);
-    reasons.push('최근 30일 롤백 이력 → 티어 +1');
+    reasons.push(text('gate.reason.recent_rollback'));
   }
 
   return {

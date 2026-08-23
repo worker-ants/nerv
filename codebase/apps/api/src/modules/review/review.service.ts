@@ -7,6 +7,7 @@ import { NotImplementedYetError } from '../../common/nerv-exception.filter.js';
 @Injectable()
 export class ReviewService {
   submit(): never {
+    // eslint-disable-next-line no-restricted-syntax -- Phase 2 표지 — 미구현 경계(REQ-CB-022)
     throw new NotImplementedYetError('Phase 2', '리뷰 제출(FR-09)');
   }
 }

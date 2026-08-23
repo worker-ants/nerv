@@ -11,7 +11,7 @@
 //     실패로 응답에 담기고 배치 전체를 되돌리지 않는다(REQ-API-018).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_EVENT, newId } from '@nerv/schema';
+import { NERV_EVENT, newId, text } from '@nerv/schema';
 import { displayKey } from '@nerv/schema/keys';
 import type {
   ImportBatchResult,
@@ -41,7 +41,7 @@ interface Actor {
  * 지어낸 목표·산출물을 넣는 대신 "원본에 없었다"는 사실을 적는다. 고정 문자열이라
  * 나중에 전수 식별·일괄 보정이 가능하다.
  */
-export const IMPORTED_DELEGATION = '(임포트 — 원본에 위임 명세 없음)';
+export const IMPORTED_DELEGATION = text('import.delegation_missing');
 
 @Injectable()
 export class ImportService {
@@ -206,7 +206,7 @@ export class ImportService {
         const label = `${relation.from_key} → ${relation.to_key}`;
 
         if (from === null || to === null || from === to) {
-          results.push({ source_path: label, status: 'skipped', detail: '대상 스펙 없음' });
+          results.push({ source_path: label, status: 'skipped', detail: text('import.spec_not_found') });
           continue;
         }
         await tx.execute(sql`
@@ -267,6 +267,7 @@ export class ImportService {
       const node = await this.upsertSpecNode(tx, actor, item);
       specId = node.spec_id ?? null;
     }
+    // eslint-disable-next-line no-restricted-syntax -- 내부 불변식 — 사람에게 보이지 않는다(REQ-CB-022)
     if (specId === null) throw new Error('스펙 노드를 만들지 못했습니다');
 
     const hash = createHash('sha256').update(item.body_md, 'utf8').digest('hex');

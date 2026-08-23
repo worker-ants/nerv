@@ -8,7 +8,15 @@
 // 카탈로그에 대응 도구가 처음부터 없다(agent-integration §2.1 원칙 3).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { canCreateSpecType, msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import {
+  canCreateSpecType,
+  msg,
+  newId,
+  text,
+  LEASE_TTL_SECONDS,
+  NERV_ERROR,
+  NERV_EVENT,
+} from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
@@ -968,9 +976,9 @@ export class SpecService {
     const lines = [
       `# ${input.projectName}`,
       '',
-      '> NERV 스펙 트리 색인. 각 항목은 승인된 최신 버전의 md 미러를 가리킨다.',
+      text('export.index_lead'),
       '',
-      '## 스펙',
+      text('export.index_specs'),
       '',
     ];
     for (const node of nodes) {

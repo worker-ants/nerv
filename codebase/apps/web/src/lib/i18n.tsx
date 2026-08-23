@@ -101,6 +101,7 @@ function useLocaleContext(): LocaleContextValue {
   const ctx = useContext(LocaleContext);
   // Provider 밖에서 부르면 조용히 기본 로케일로 넘어가지 않는다 — 그러면 화면 일부만
   // 언어 전환을 따르지 않는 버그가 되고, 그건 눈으로 찾기 어렵다
+  // eslint-disable-next-line no-restricted-syntax -- 개발자 오류 — 화면에 뜨지 않는다(REQ-CB-022)
   if (ctx === null) throw new Error('LocaleProvider 안에서만 쓸 수 있습니다.');
   return ctx;
 }
@@ -116,6 +117,7 @@ export function useLocale(): { locale: Locale; setLocale: (next: Locale) => void
 }
 
 /** 언어 이름은 **그 언어로** 적는다 — 읽을 수 없는 언어로 적힌 선택지는 고를 수 없다 */
+// eslint-disable-next-line no-restricted-syntax -- 언어 이름은 그 언어로 적는다 — 번역 대상이 아니다(REQ-CB-022)
 export const LOCALE_LABEL: Record<Locale, string> = { ko: '한국어', en: 'English' };
 
 export { LOCALES };

@@ -49,6 +49,21 @@ export function msg<K extends MessageKey>(key: K, ...args: ArgsFor<(typeof ko)[K
   return values === undefined ? { key } : { key, values };
 }
 
+/**
+ * **카탈로그의 문구를 지금 문자열로 만든다**(기본 로케일).
+ *
+ * `msg()` 는 로케일을 모르는 기술자를 내고 표면이 렌더한다 — 에러 봉투가 그 경로다.
+ * 그런데 응답 **본문에 박히는** 문구(예: `skipped_reason`·md 미러 본문)는 값 자체가
+ * 문자열이라 기술자를 실을 수 없다. 그 자리를 위한 짝이다.
+ *
+ * 요청 로케일을 따르지 않는 것은 의도다: REQ-CB-024 가 로케일을 요구하는 범위는
+ * **봉투의 `message` 와 MCP 도구 설명**이고, 본문 필드는 그 밖이다. 여기서 지키는 것은
+ * REQ-CB-022 — 문구가 코드가 아니라 카탈로그 한 곳에 있다는 것이다.
+ */
+export function text<K extends MessageKey>(key: K, ...args: ArgsFor<(typeof ko)[K]>): string {
+  return renderMessage(msg(key, ...args));
+}
+
 /** 로케일을 정한 뒤 문장으로 만든다 */
 export function renderMessage(message: Message, locale: Locale = DEFAULT_LOCALE): string {
   const catalog = CATALOGS[locale];

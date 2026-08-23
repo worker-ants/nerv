@@ -44,6 +44,7 @@ async function bootstrap(): Promise<void> {
         ticking = false;
       });
   }, JOB_TICK_MS);
+  // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
   Logger.log('nerv-worker started (HTTP 리스너 없음 — REQ-CB-005)', 'Worker');
 
   const signal = await new Promise<NodeJS.Signals>((resolve) => {

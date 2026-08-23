@@ -64,13 +64,14 @@ afterAll(async () => {
 async function rpc(
   method: string,
   params: Record<string, unknown> = {},
-  opts: { token?: string | null; revision?: string | null } = {},
+  opts: { token?: string | null; revision?: string | null; lang?: string } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   const bearer = opts.token === undefined ? token : opts.token;
   if (bearer !== null) headers['authorization'] = `Bearer ${bearer}`;
   const revision = opts.revision === undefined ? '2026-07-28' : opts.revision;
   if (revision !== null) headers['mcp-protocol-version'] = revision;
+  if (opts.lang !== undefined) headers['accept-language'] = opts.lang;
 
   const res = await app.inject({
     method: 'POST',
@@ -182,6 +183,25 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect((result.structuredContent?.['details'] as Record<string, unknown>)?.['kind']).toBe(
       'spec_type_not_allowed',
     );
+  });
+
+  it('인자 설명도 요청 로케일을 탄다 (REQ-CB-024)', async () => {
+    // 도구 설명만 번역하고 인자를 한국어로 두면 영어 클라이언트가 반쪽짜리 스키마를 받는다.
+    const ko = await rpc('tools/list', {}, { lang: 'ko' });
+    const en = await rpc('tools/list', {}, { lang: 'en' });
+    const argOf = (body: Record<string, unknown>, tool: string, arg: string): string => {
+      const tools = (body['result'] as { tools: { name: string; inputSchema: Record<string, unknown> }[] }).tools;
+      const schema = tools.find((x) => x.name === tool)?.inputSchema ?? {};
+      const props = (schema['properties'] ?? {}) as Record<string, { description?: string }>;
+      return props[arg]?.description ?? '';
+    };
+    const k = argOf(ko.body, 'nerv_bootstrap', 'hostname');
+    const e = argOf(en.body, 'nerv_bootstrap', 'hostname');
+    expect(k).not.toBe(e);
+    expect(k).toContain('머신');
+    expect(e).toContain('machine');
+    // **키가 그대로 새어 나가지 않는다** — 번역기는 모르는 키를 키 그대로 돌려준다
+    expect(k).not.toContain('mcp.arg');
   });
 
   it('리비전을 병행 서빙한다 — 구 클라이언트도 협상된다 (D-11)', async () => {

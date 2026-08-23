@@ -40,6 +40,7 @@ export const InjectDb = (): ParameterDecorator => Inject(NERV_DB);
 function connectionString(): string {
   const url = process.env['DATABASE_URL'];
   if (url === undefined || url === '') {
+    // eslint-disable-next-line no-restricted-syntax -- 설정 오류(REQ-CB-022)
     throw new Error('DATABASE_URL 이 없습니다 (.env 전표 — codebase.md §5.2)');
   }
   return url;
@@ -67,6 +68,7 @@ export class DatabaseModule implements OnApplicationShutdown {
 
   async onApplicationShutdown(): Promise<void> {
     await this.pool.end();
+    // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
     this.logger.log('Postgres 풀을 닫았습니다');
   }
 }

@@ -137,6 +137,7 @@ export class NervExceptionFilter implements ExceptionFilter {
     }
 
     this.logger.error(
+      // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       '처리되지 않은 예외',
       exception instanceof Error ? exception.stack : exception,
     );

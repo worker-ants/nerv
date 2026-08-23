@@ -36,6 +36,7 @@ export class ExportJob {
     // 경로가 없으면 **아무것도 하지 않는다.** 임의의 위치에 파일을 흩뿌리는 것이
     // 이 잡이 할 수 있는 최악이다 — 운영이 명시적으로 켠 경우에만 돈다.
     if (root === undefined || root === '') {
+      // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       return { root: null, projects: 0, files: 0, skipped: 'NERV_EXPORT_DIR 미설정' };
     }
 

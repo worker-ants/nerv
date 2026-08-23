@@ -49,6 +49,7 @@ const RealtimeContext = createContext<RealtimeValue | null>(null);
 
 export function useRealtime(): RealtimeValue {
   const value = useContext(RealtimeContext);
+  // eslint-disable-next-line no-restricted-syntax -- 개발자 오류 — 화면에 뜨지 않는다(REQ-CB-022)
   if (value === null) throw new Error('RealtimeProvider 밖에서 useRealtime 을 불렀습니다.');
   return value;
 }

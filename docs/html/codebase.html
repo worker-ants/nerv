@@ -52,7 +52,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.4 (2026-08-23)</span>
+      <span>버전 v1.5 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -512,7 +512,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
     <tbody>
-      <tr><td><b>REQ-CB-022</b></td><td>WHEN 사용자·에이전트에게 보이는 문구가 코드에서 필요할 때, THE SYSTEM SHALL <code>@nerv/schema</code> 카탈로그의 키로만 참조한다 — 표면 코드의 문장 하드코딩을 금지한다(예외: 운영자용 로그·설정 오류).</td></tr>
+      <tr><td><b>REQ-CB-022</b></td><td>WHEN 사용자·에이전트에게 보이는 문구가 코드에서 필요할 때, THE SYSTEM SHALL <code>@nerv/schema</code> 카탈로그의 키로만 참조한다 — 표면 코드의 문장 하드코딩을 금지한다(예외: 운영자용 로그·설정 오류) <b>lint 로 강제한다</b>(2026-08-23 — §4.2a).</td></tr>
       <tr><td><b>REQ-CB-023</b></td><td>WHEN 카탈로그에 키가 추가되면, THE SYSTEM SHALL 모든 로케일이 같은 키 집합과 같은 자리표시자를 갖도록 강제한다 — 키 집합은 타입으로, 자리표시자는 테스트로 검사한다.</td></tr>
       <tr><td><b>REQ-CB-024</b></td><td>WHEN 요청이 <code>Accept-Language</code> 를 실어 오면, THE SYSTEM SHALL 응답 봉투의 <code>message</code> 와 MCP 도구 설명을 그 로케일로 만든다. 협상에 실패하면 기본 로케일로 떨어지며, 그 실패가 오류가 되지 않는다.</td></tr>
     </tbody>
@@ -530,7 +530,26 @@
     <li>표면 파일(<code>*.controller.ts</code>·<code>*.tools.ts</code>·<code>*.gateway.ts</code>)에서 drizzle 객체 직접 import 금지 — 표면은 서비스만 호출한다(REQ-CB-003의 lint 표현).</li>
   </ul>
 
-  <h3>4.3 테스트 3계층</h3>
+    <h3>4.2a 문구 하드코딩 금지의 강제 (2026-08-23 신설)</h3>
+
+  <p>REQ-CB-022 는 관례로만 지켜지고 있었고, 그 사이에 실제로 새어 나갔다 — 표면 코드에서 카탈로그를 거치지 않은 문구 50건을 찾았다(작업 보드 레인 라벨이 i18n <b>키 원문</b>으로 찍히던 것도 같은 뿌리다).</p>
+
+  <p><b>한글 문자열 리터럴</b>을 신호로 쓴다. 완벽하지 않다(영어 문장은 못 잡는다) — 이 저장소의 기본 로케일이 한국어라 새는 문구가 거의 전부 한글이라는 실측에 기댄다. AST 규칙이라 주석·JSX 텍스트는 애초에 걸리지 않는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>선택</th><th>왜</th></tr></thead>
+    <tbody>
+      <tr><td>템플릿 리터럴은 <b>보지 않는다</b></td><td><code>sql</code> 태그 안의 한글 <b>주석</b>이 걸려 오탐이 신호를 덮었다(1218건 중 대부분). 오탐이 섞인 규칙은 결국 통째로 꺼진다 — 잡는 범위를 좁히고 남는 경고를 전부 진짜로 만든다. 대가는 보간이 섞인 문구를 못 잡는 것이다</td></tr>
+      <tr><td>테스트는 <b>제외</b></td><td>테스트의 한글은 검사 대상이지 사용자에게 보이는 문구가 아니다(실측 1013건)</td></tr>
+      <tr><td>예외는 <b>줄마다 사유와 함께</b></td><td><code>// eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)</code>. 운영자용 로그·설정 오류·내부 불변식·개발자 오류가 여기 해당한다 — 그 자리는 화면이 아니라 터미널이고, 카탈로그를 거치면 원인이 흐려진다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>MCP 인자 설명도 로케일을 탄다</b>(REQ-CB-024). 도구 설명만 번역하고 인자를 한국어로 두면 영어 클라이언트가 반쪽짜리 스키마를 받는다 — <code>tools/list</code> 가 스키마를 훑어 <code>description</code> 을 카탈로그 키로 보고 번역한다. 키가 아닌 값은 그대로 두므로 새 인자에 설명을 적는 사람이 키를 잊어도 스키마가 비지 않는다.</p>
+
+  <p><b>본문에 박히는 문구</b>(<code>skipped_reason</code>·md 미러 본문)는 <code>text()</code> 로 기본 로케일 렌더한다. <code>msg()</code> 는 로케일을 모르는 기술자를 내고 표면이 렌더하지만, 값 자체가 문자열인 자리에는 기술자를 실을 수 없다.</p>
+
+<h3>4.3 테스트 3계층</h3>
 
   <h4>L3은 전용 스택에서 돈다 (2026-08-23 분리)</h4>
 

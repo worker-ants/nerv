@@ -10,6 +10,7 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   TASK_DONE_WINDOW_DAYS,
+  text,
 } from '@nerv/schema';
 import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
 import { displayKey } from '@nerv/schema/keys';
@@ -408,10 +409,10 @@ export class TaskService {
   }): void {
     const missing = (
       [
-        ['goal_md', '목표'],
-        ['output_format_md', '산출물 형식'],
-        ['tools_sources_md', '도구·출처'],
-        ['boundaries_md', '경계'],
+        ['goal_md', text('task.field.goal')],
+        ['output_format_md', text('task.field.output_format')],
+        ['tools_sources_md', text('task.field.tools_sources')],
+        ['boundaries_md', text('task.field.boundaries')],
       ] as const
     )
       .filter(([field]) => {
@@ -764,14 +765,14 @@ export class TaskService {
     // 조건 5 — 스펙 영향 선언. none sentinel 을 허용하되 선언 자체는 필수다
     const impact = input.specImpact;
     if (impact === null || impact === undefined || Object.keys(impact).length === 0) {
-      missing.push('spec_impact (변경된 스펙 ID 목록 또는 {"none": true})');
+      missing.push(text('task.missing.spec_impact'));
     }
 
     // 조건 4 — Requirement ↔ 구현 Evidence 1건 이상
     const { rows } = await tx.execute<{ n: number }>(
       sql`SELECT count(*)::int AS n FROM evidence WHERE task_id = ${input.taskId}`,
     );
-    if ((rows[0]?.n ?? 0) === 0) missing.push('evidence (구현 증적 1건 이상)');
+    if ((rows[0]?.n ?? 0) === 0) missing.push(text('task.missing.evidence'));
 
     // 조건 1~3(리뷰 커버리지)은 FR-09 가 Phase 2 라 판정 대상이 아니다 — 없는 것을 요구하지 않는다
     return { ok: missing.length === 0, missing };
@@ -803,6 +804,7 @@ export class TaskService {
       sql`SELECT key FROM project WHERE id = ${projectId}`,
     );
     const key = rows[0]?.key;
+    // eslint-disable-next-line no-restricted-syntax -- 내부 불변식 — 사람에게 보이지 않는다(REQ-CB-022)
     if (key === undefined) throw new Error('프로젝트를 찾지 못했습니다');
     return key;
   }

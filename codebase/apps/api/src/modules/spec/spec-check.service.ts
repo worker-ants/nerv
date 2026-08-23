@@ -1,3 +1,4 @@
+import { text } from '@nerv/schema';
 // 제출 전 자동 사전 검토 — 5검사기 (E09-S02)
 // 정본: docs/03-proposal/spec-workflow.md §2.1
 //
@@ -70,7 +71,7 @@ export class SpecCheckService {
           {
             checker: 'cross-spec',
             severity: 'block',
-            message: '버전을 찾을 수 없습니다.',
+            message: text('check.version_not_found'),
             anchor: null,
           },
         ],

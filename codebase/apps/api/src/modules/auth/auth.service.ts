@@ -588,6 +588,7 @@ export class AuthService {
 
   async verifyPat(raw: string, hostname: string | null = null): Promise<Principal> {
     if (!raw.startsWith(TOKEN_PREFIX)) {
+      // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       throw unauthenticated('토큰 형식이 아닙니다.');
     }
 
@@ -615,6 +616,7 @@ export class AuthService {
     `);
 
     const token = rows[0];
+    // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
     if (token === undefined) throw unauthenticated('알 수 없는 토큰입니다.');
 
     // 해시 조회로 이미 찾았지만 상수 시간 비교를 한 번 더 한다 — 저장값 손상 방어
@@ -622,11 +624,14 @@ export class AuthService {
       ? token.token_hash
       : Buffer.from(String(token.token_hash).replace(/^\\x/, ''), 'hex');
     if (stored.length !== digest.length || !timingSafeEqual(stored, digest)) {
+      // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       throw unauthenticated('토큰이 일치하지 않습니다.');
     }
 
+    // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
     if (token.revoked_at !== null) throw unauthenticated('폐기된 토큰입니다.');
     if (token.expires_at !== null && new Date(token.expires_at).getTime() <= Date.now()) {
+      // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       throw unauthenticated('만료된 토큰입니다.');
     }
     if (token.roles === null || token.roles.length === 0) {

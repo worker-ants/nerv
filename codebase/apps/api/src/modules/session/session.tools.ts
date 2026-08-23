@@ -26,17 +26,17 @@ export class SessionTools implements NervToolProvider {
       inputSchema: {
         type: 'object',
         properties: {
-          project: { type: 'string', description: '프로젝트 slug (토큰 스코프와 일치해야 한다)' },
+          project: { type: 'string', description: 'mcp.arg.project' },
           agent_type: { type: 'string', enum: ['claude-code', 'codex', 'web', 'other'] },
           hostname: {
             type: 'string',
-            description: '누구의 어느 머신인가 — 세션 보드의 신원 3요소',
+            description: 'mcp.arg.hostname',
           },
           cwd: { type: 'string' },
           branch: { type: 'string' },
           worktree_path: { type: 'string' },
           model: { type: 'string' },
-          external_session_id: { type: 'string', description: '하네스 세션 ID — 재호출 멱등 키' },
+          external_session_id: { type: 'string', description: 'mcp.arg.external_session_id' },
           resume_session_id: { type: 'string' },
         },
         required: ['agent_type', 'hostname'],
@@ -64,7 +64,7 @@ export class SessionTools implements NervToolProvider {
       inputSchema: {
         type: 'object',
         properties: {
-          event_seq: { type: 'integer', description: '세션 내 단조 증가 — 재전송 멱등 키' },
+          event_seq: { type: 'integer', description: 'mcp.arg.event_seq' },
           type: {
             type: 'string',
             enum: ['thought', 'action', 'elicitation', 'response', 'error'],

@@ -8,7 +8,7 @@
 // 붙인다 — 커밋 메시지 규약을 새로 만들지 않는 이유는, 규약이 늘수록 지켜지지 않기 때문이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT, text } from '@nerv/schema';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
@@ -116,7 +116,7 @@ export class WebhookService {
         event,
         matched_task: null,
         evidence_id: null,
-        skipped_reason: 'Task 키(TSK-…)를 브랜치·제목·본문에서 찾지 못했습니다.',
+        skipped_reason: text('webhook.skip.no_task_key'),
       };
     }
 
@@ -143,7 +143,7 @@ export class WebhookService {
         event,
         matched_task: taskKey,
         evidence_id: null,
-        skipped_reason: '증적으로 남길 URL·SHA 가 없습니다.',
+        skipped_reason: text('webhook.skip.no_locator'),
       };
     }
 
@@ -160,7 +160,7 @@ export class WebhookService {
           event,
           matched_task: taskKey,
           evidence_id: already,
-          skipped_reason: '이미 수집된 증적입니다(멱등).',
+          skipped_reason: text('webhook.skip.duplicate'),
         };
       }
 

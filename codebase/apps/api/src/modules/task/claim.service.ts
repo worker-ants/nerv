@@ -270,6 +270,7 @@ export class ClaimService {
       RETURNING lease_expires_at
     `);
     const row = rows[0];
+    // eslint-disable-next-line no-restricted-syntax -- 내부 불변식 — 사람에게 보이지 않는다(REQ-CB-022)
     if (row === undefined) throw new Error('클레임 삽입이 행을 돌려주지 않았습니다');
     return { claimId, leaseExpiresAt: toDate(row.lease_expires_at) };
   }

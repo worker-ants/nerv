@@ -44,6 +44,7 @@ export class AdvisoryLock {
     if (!this.held) return;
     await this.db.execute(sql`SELECT pg_advisory_unlock(${this.key.toString()}::bigint)`);
     this.held = false;
+    // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
     this.logger.log('잡 루프 lock 해제');
   }
 }

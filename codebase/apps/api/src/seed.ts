@@ -55,11 +55,13 @@ async function seedCredentials(url: string): Promise<number> {
 async function main(): Promise<void> {
   const url = process.env['DATABASE_URL'];
   if (url === undefined || url === '') {
+    // eslint-disable-next-line no-restricted-syntax -- 설정 오류(REQ-CB-022)
     Logger.error('DATABASE_URL 이 없습니다.', 'Seed');
     process.exitCode = 1;
     return;
   }
   if (process.env['NODE_ENV'] === 'production') {
+    // eslint-disable-next-line no-restricted-syntax -- 설정 오류(REQ-CB-022)
     Logger.error('개발 시드는 production 에서 실행하지 않습니다.', 'Seed');
     process.exitCode = 1;
     return;
@@ -75,6 +77,7 @@ async function main(): Promise<void> {
   );
   Logger.log(
     `로그인 계정 ${credentials}건 생성 — 비밀번호 "${DEV_PASSWORD}" ` +
+      // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       '(관리: admin@example.com = admin · 온보딩: jimin@example.com = planner 외 4)',
     'Seed',
   );

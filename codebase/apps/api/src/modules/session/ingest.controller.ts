@@ -10,7 +10,7 @@
 // 훅 하나로 남의 세션을 조작할 수 있다.
 
 import { Body, Controller, Headers, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
-import { msg, NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR, text } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { AuthService } from '../auth/auth.service.js';
 import { SessionService } from './session.service.js';
@@ -69,9 +69,9 @@ export class IngestController {
       session_id: result.session_id,
       additionalContext:
         claims.length === 0
-          ? 'NERV: 활성 클레임 없음 — /nerv:next 로 시작하세요.'
+          ? text('agent.no_claim')
           : `NERV: 활성 클레임 ${claims.map((c) => `${c.task_key}(${c.status})`).join(', ')}. ` +
-            '새로 클레임하지 말고 이어서 진행하세요.',
+            text('agent.resume_claim'),
     };
   }
 
@@ -140,7 +140,7 @@ export class IngestController {
       decision: 'block',
       reason:
         `아직 정리하지 않은 클레임이 있습니다: ${unfinished.map((c) => c.task_key).join(', ')}. ` +
-        'nerv_task_update 로 상태를 남기고 nerv_task_release 로 내려놓은 뒤 끝내세요.',
+        text('agent.release_before_exit'),
     };
   }
 

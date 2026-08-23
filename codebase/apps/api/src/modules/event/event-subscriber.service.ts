@@ -54,6 +54,7 @@ export class EventSubscriberService implements OnApplicationBootstrap {
     try {
       envelope = JSON.parse(payload) as BroadcastEnvelope;
     } catch {
+      // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       this.logger.warn('방송 페이로드를 해석하지 못했습니다');
       return;
     }
