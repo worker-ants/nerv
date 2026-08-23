@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 16종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.9 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
+> 문서 버전 v0.10 · 2026-08-23 · HTML 판: [scope.html](../html/scope.html)
+>
+> v0.10 변경(2026-08-23 — **Phase 2 리뷰 수집(FR-09) 착수**, 사람 지시): §5 non-goals 표의 리뷰 3행을 갈랐다 — 도구 2종은 **착수 완료**, S6 화면과 `/nerv:review` 스킬은 남음. MVP 범위 표(§3.2·§4.2)는 **불변**이고 MVP 도구도 16종 그대로다(카탈로그가 18종이 된 것은 Phase 2 가 위에 얹힌 것이다 — 도구 정의의 `phase` 필드가 그 구분을 나른다). 곁가지로 §5 의 낡은 행 하나를 정정했다: **전역 관계 그래프 뷰는 2026-08-23 v1.8 에서 MVP 로 들어왔는데** 그 행이 "Phase 2" 인 채 남아 있었다.
 >
 > v0.8 변경(2026-08-22 — E06-S02 스파이크 종료): **TipTap 왕복 손실 트리거 점화 기록**(§2.2 점화 기록 ②). 실측 19/22·손실 유형 2종을 남기고 **판정은 보류**한다 — 저장 게이트가 손실의 커밋을 막으므로 MVP는 TipTap으로 진행하며, Milkdown 교체는 사람의 결정 사항이다. 확정 스택 표는 불변.
 >
@@ -160,7 +162,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | FR-06 | 원자적 클레임·리스 | ● | ● | ● | **P0의 핵심 검증 대상.** 원자 클레임, scope(spec_ids·file_globs) 겹침 감지, 리스 TTL 30분·하트비트 60초·만료 자동 회수. P1에서 초안 편집 리스(문서 축, D-04 확장, 같은 TTL 30분) | — |
 | FR-07 | 세션 레지스트리 | ● | ◐ | ● | 등록·하트비트·상태 머신(`pending→active↔awaiting_input→complete/error/stale`, stale 임계 30분)(P0), 사용자·hostname·에이전트 종류 전체 뷰(P1) | — |
 | FR-08 | 활동 스트림·미션 컨트롤 | ● | ○ | ● | typed Activity 타임라인, 전역 보드, steer/stop(P1) | — |
-| FR-09 | 리뷰 수집 | ○ | ○ | ○ | — | ReviewSession→Finding→Resolution 전부 Phase 2 |
+| FR-09 | 리뷰 수집 | ○ | ○ | ○ | — | ReviewSession→Finding→Resolution 전부 Phase 2. **서버·도구는 2026-08-23 착수 완료**(§5 착수 기록) — S6 화면과 `/nerv:review` 스킬은 남아 있다 |
 | FR-10 | 게이트 판정 API | ◐ | ○ | ◐ | Task `done` 전이 조건 판정 | 리뷰 커버리지 조건·커밋 범위 판정은 Phase 2 |
 | FR-11 | 승인함(Inbox) | ◐ | ○ | ◐ | 스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트 | CR·에스컬레이션 카드(5유형 완성)는 Phase 2 |
 | FR-12 | 알림 | ◐ | ○ | ◐ | 인앱 알림 | Slack·메일·다이제스트는 Phase 2 |
@@ -223,7 +225,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 
 ### 4.2 MCP 도구 범위 — 16종 (P0 8종 + P1 8종)
 
-도구 정의(입력·출력·권한·멱등성)는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 카탈로그(17종)가 정본이며, 여기서는 이름·티어·Phase 배정만 인용한다. **MVP = 16종, 카탈로그 완성은 Phase 2.**
+도구 정의(입력·출력·권한·멱등성)는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 카탈로그(18종)가 정본이며, 여기서는 이름·티어·Phase 배정만 인용한다. **MVP = 16종, 카탈로그 완성은 Phase 2.**
 
 **15종 → 16종 (2026-08-23 확정 — 사람 확인)**: `nerv_spec_relate` 1종을 더한다. 근거는 관계의 성질이다 — 본문이 이미 가리키는 참조(`references`)는 저장 시 자동 동기화되지만(REQ-API-024), "이 스펙이 저것을 정제한다(`refines`)"·"선행 의존이다(`depends_on`)"는 **문서를 읽어야 아는 판단**이다. 그 판단을 사람이 UI로 수백 편에 손으로 넣는 것은 현실적이지 않고(clemvion 130편·간선 1,253이 실측), 에이전트가 문서를 읽으며 채우는 것이 맞다. 읽기(전역 그래프·이웃 조회)는 새 도구를 만들지 않고 `nerv_spec_tree`의 `include_relations`·`around`·`hops` 옵션으로 접었다 — "구조를 달라"는 한 가지 요청이기 때문이다.
 
@@ -245,7 +247,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | P1 | `nerv_task_update` | A2 | 상태 변화 시점(`done` 시도는 서버 게이트) |
 | P1 | `nerv_question_create` | A2 | 판단 불가·경계 이탈·게이트 필요 |
 | P1 | `nerv_session_event` | A1 | 훅 없는 실행 환경의 폴백 |
-| ~~P2~~ | `nerv_review_submit` · `nerv_finding_resolve` | — | **MVP 제외**(§5) — Phase 2에서 카탈로그 17종 완성 |
+| P2 | `nerv_review_submit` · `nerv_finding_resolve` | A2 / A2·**A3**(critical 하향) | **MVP 제외**(§5) — 2026-08-23 착수 완료. 카탈로그가 18종이 됐지만 **MVP는 여전히 16종**이다(도구 정의의 `phase` 필드가 그 구분을 나른다) |
 
 임포트에는 **MCP 도구를 만들지 않는다.** 전수 계정·바이트 보존·멱등 재실행(REQ-IMP-001~004)이 재현돼야 하는 결정적 ETL이라 LLM이 매개하는 도구 호출로 쪼개지 않는다 — 에이전트가 관여하는 지점은 CLI를 감싸는 스킬 `/nerv:import`뿐이다([4.7 스펙 임포터](importer.md) §3.6). 임포트가 도구 수를 늘리지 않는 이유가 이것이다.
 
@@ -274,9 +276,9 @@ SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 
 | 하지 않는 것 | 언제 하나 | 왜 MVP가 아닌가 |
 | --- | --- | --- |
-| 리뷰 센터 S6 | Phase 2 | FR-09(리뷰 수집)가 Phase 2라 표시할 데이터가 없다 |
-| 리뷰 도구 2종 `nerv_review_submit` · `nerv_finding_resolve` | Phase 2 | 게이트 둘째 단(리뷰·커버리지)과 한 몸 — MVP 도구 16종에 들어가지 않는다 |
-| `/nerv:review` 스킬 | Phase 2 | 위 도구 2종에 의존 |
+| 리뷰 센터 S6 | Phase 2 (**남음**) | 데이터는 2026-08-23부터 있다(아래 착수 기록). 화면이 아직 없다 — 라우트만 예약된 상태다([4.5](screens.md) §1.6) |
+| 리뷰 도구 2종 `nerv_review_submit` · `nerv_finding_resolve` | **Phase 2 · 2026-08-23 착수 완료** | 아래 착수 기록. MVP 도구 **16종은 그대로**이고 카탈로그가 18종이 된 것이다 — 두 수를 섞지 않는다 |
+| `/nerv:review` 스킬 | Phase 2 (**남음**) | 의존하던 도구 2종은 생겼다. 스킬 본문은 [4.6 플러그인](plugin.md)이 소유한다 |
 | Codex 완전 지원 | Phase 2 | P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·`AGENTS.md` 배포는 Phase 2. MVP는 `config.toml`·`AGENTS.md` **초안 제공**까지 — 경계는 [4.6 플러그인과 온보딩](plugin.md) §5 |
 | CR 델타 UI 고도화 | Phase 2 | FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지 |
 | 실시간 공동 편집(CRDT) | Phase 3+ (착수 조건: 409 재시도 주 20건 이상) | 서버 권위 + `base_version` 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2) |
@@ -285,8 +287,14 @@ SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 | 임포트 MCP 도구 | — (계획 없음) | 결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. 에이전트 경로는 스킬 `/nerv:import`뿐(§4.2·§4.3) |
 | 외부 검색엔진(Elasticsearch 등) | — (계획 없음, §2.2 트리거로만) | Postgres 하이브리드(FTS+trgm+pgvector)로 목표 규모(NFR-04) 충분. 운영 컴포넌트 +1의 비용이 이득을 넘는다 |
 | OpenAI 호환이 아닌 임베딩 SDK 직결(Voyage 전용 SDK 등) | — (계획 없음) | 제공자는 OpenAI 호환 `/v1/embeddings` 단일 계약만(REQ-CB-020) — 제공자별 분기 코드를 만들지 않는다. ※ 외부 제공자 사용 시 스펙 본문이 그 제공자에 전송된다 — 기밀 등급이 높은 프로젝트는 자가호스팅 프로필을 쓰는 것이 운영 권고다 |
-| 전역 관계 그래프 뷰·서버 watch 테이블 | Phase 2 | S3 관계 패널(양방향 목록)로 MVP 충족. 그래프 시각화·워치 서버 동기화는 알림 확장과 함께([4.5](screens.md) §2.4) |
+| 서버 watch 테이블 | Phase 2 | 워치 서버 동기화는 알림 확장과 함께. ※ **전역 관계 그래프 뷰는 이 행에서 빠졌다**(2026-08-23 정정) — 2026-08-23 v1.8 에서 MVP 로 들어왔는데(§2.4a 신설 · REQ-WEB-050·051) 이 행이 낡은 채 남아 있었다 |
 | git 미러 export | Phase 2 말(M2 컷오버 시점) | MVP 기간에는 spec/plan의 SoT가 git이라 export할 것이 없다(로드맵 §7.4). **HTTP md 미러(`GET …/specs/{id}.md` · `llms.txt`)는 별개로 MVP 포함** — [4.4 API 명세](api.md) §2 |
+
+> **착수 기록 — FR-09 리뷰 수집(2026-08-23, 사람 지시).** Phase 2 항목 중 **리뷰 수집의 서버·도구**를 앞당겨 구현했다. 들어온 것: `ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution` 적재, MCP 도구 2종(`nerv_review_submit` A2 · `nerv_finding_resolve` A2 / critical→dismissed·wont_fix 는 A3), REST 3종(EP-REV-01~03 — [4.4 API 명세](api.md) §2.6a). 남은 것: **S6 리뷰 센터 화면**과 **`/nerv:review` 스킬**, 그리고 게이트 둘째 단(리뷰 커버리지 조건 — FR-10 의 Phase 2 몫).
+>
+> **MVP 범위 표(§3.2·§4.2)는 바꾸지 않았다.** FR-09 는 여전히 MVP 가 아니고 MVP 도구도 16종 그대로다 — 카탈로그가 18종이 된 것은 Phase 2 가 그 위에 얹혔기 때문이다. 두 수를 하나로 합치면 "MVP 에서 무엇을 약속했는가"를 다시 셀 수 없게 된다(도구 정의의 `phase` 필드가 그 구분을 나른다).
+>
+> 이 결정이 스키마 하나를 건드렸다: `approval_subject_type` 에 **`finding`** 을 더했다([4.3](database.md) §2.1 · `0004_finding_approval`). A3 는 "막는다"가 아니라 **사람의 승인함을 거친다**는 뜻인데, 승인 카드가 붙을 자리가 열거에 없었다.
 
 이 표는 3부 non-goals([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §5 — 코드 호스팅·CI·범용 PM·에이전트 런타임 비대체, 로컬 하네스 전면 흡수 금지)를 대체하지 않고 그 위에 얹힌다.
 
@@ -329,7 +337,7 @@ SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 - [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) — FR-01~17 · NFR-01~05 · P1~P8의 정의와 수용 기준 전문(§4), non-goals(§5)
 - [3.7 로드맵](../03-proposal/roadmap.md) — Phase 구분·종료 게이트·FR×Phase 배분표(§1.3)·성공 기준(§2.4·§3.4)·파일럿 규칙(§3.5)·마이그레이션 순서(§7)
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — 기술 스택 선택 요약·대안 비교·재검토 트리거(§4), docker-compose 구성(§4.4)
-- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 카탈로그 17종(§2.3)·에러 규약과 리스 상수(§2.7)·플러그인 구성(§3)
+- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 카탈로그 18종(§2.3)·에러 규약과 리스 상수(§2.7)·플러그인 구성(§3)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 게이트 티어 T0~T3(§2.4)·권한 매트릭스
 - [3.6 화면 설계](../03-proposal/ui-wireframes.md) — S1~S8 와이어프레임 정본
 - [3.1 비전과 핵심 시나리오](../03-proposal/vision.md) — 3대 가치·성공 지표(§5.2)

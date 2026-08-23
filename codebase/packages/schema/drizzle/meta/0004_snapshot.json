@@ -1,6 +1,6 @@
 {
-  "id": "1f6839f1-37a0-4d7c-8f6e-436ef8bc3f79",
-  "prevId": "8aa9b5ba-8b94-4f76-a803-573a11d5d824",
+  "id": "1ee8efe0-8262-43ce-80f2-e15aee0acb0d",
+  "prevId": "1f6839f1-37a0-4d7c-8f6e-436ef8bc3f79",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5135,7 +5135,8 @@
         "change_request",
         "plan",
         "question",
-        "gate_bypass"
+        "gate_bypass",
+        "finding"
       ]
     },
     "public.change_kind": {

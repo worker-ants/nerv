@@ -21,7 +21,9 @@ describe('이벤트 이름 카탈로그', () => {
       'baseline',
       'claim',
       'comment',
+      'cr',
       'evidence',
+      'finding',
       'gate',
       'import',
       'notification',
@@ -40,10 +42,14 @@ describe('이벤트 이름 카탈로그', () => {
     expect(NERV_EVENT.IMPORT_APPLIED).toBe('import.applied');
   });
 
-  it('Phase 2 이벤트는 MVP 유니온에 섞이지 않는다 (scope.md §5)', () => {
-    const mvp = new Set<string>(NERV_EVENT_NAMES);
-    for (const name of Object.values(NERV_EVENT_PHASE2)) {
-      expect(mvp.has(name)).toBe(false);
+  it('Phase 2 이름은 상수로는 갈라져 있고 유니온에는 들어 있다 (2026-08-23 FR-09 착수)', () => {
+    // **상수를 계속 나눠 두는 이유**는 "언제 들어온 이름인가"를 읽을 수 있게 하려는
+    // 것이다. 유니온을 나눠 둘 이유는 없어졌다 — 리뷰 수집이 들어온 지금 이 이름들은
+    // 실제로 emit 되고, 카탈로그(spec-workflow §6)는 처음부터 이것을 싣고 있었다.
+    const all = new Set<string>(NERV_EVENT_NAMES);
+    for (const name of Object.values(NERV_EVENT_PHASE2)) expect(all.has(name)).toBe(true);
+    for (const name of Object.values(NERV_EVENT)) {
+      expect(Object.values(NERV_EVENT_PHASE2 as Record<string, string>)).not.toContain(name);
     }
   });
 

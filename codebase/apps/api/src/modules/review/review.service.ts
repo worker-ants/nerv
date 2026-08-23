@@ -1,13 +1,528 @@
-// 리뷰 수집(FR-09) — **Phase 2**.
-// 테이블·서비스 골격은 MVP 스키마에 포함되지만 도구 2종(nerv_review_submit ·
-// nerv_finding_resolve)과 S6 리뷰 센터는 MVP 범위 밖이다(scope.md §5).
+// 리뷰 수집(FR-09) — **리뷰를 파일이 아니라 레코드로.**
+//
+// clemvion 에서 리뷰 산출물은 `review/**` 에 markdown 으로 커밋됐다. 그 결과가 실측이다:
+// md 13,777개 · 131MB, 리뷰 이력 blob 이 `.git` packed blob 바이트의 60%(60.7MB).
+// 더 나쁜 것은 **자기증식 루프**다 — 리뷰가 코드와 같은 브랜치에 커밋되어 다음 리뷰의
+// 입력이 되고, 한 changeset 이 8라운드를 도는 동안 마지막 라운드의 프롬프트는 94파일 중
+// 86개가 앞선 리뷰 산출물이었다.
+//
+// 이 서비스가 그 고리를 끊는다: 리뷰는 저장소가 아니라 여기로 들어오고, 같은 지적은
+// fingerprint 로 하나의 Finding 에 합쳐진다(data-model §5.2).
+//
+// **레코드 3층의 소유 관계**(database.md §2.7):
+//   review_session   changeset 하나 = 세션 하나. 여러 리뷰어가 같은 세션에 들어간다.
+//   reviewer_report  그 세션 안의 역할 하나. `(session, role)` 이 UNIQUE 다.
+//   finding          라운드를 넘어 하나로 유지되는 지적. `(project, fingerprint)` 가 UNIQUE.
+
 import { Injectable } from '@nestjs/common';
-import { NotImplementedYetError } from '../../common/nerv-exception.filter.js';
+import { msg, newId, NERV_ERROR, NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/schema';
+import { changesetHash, findingFingerprint } from '@nerv/schema/keys';
+import { sql } from 'drizzle-orm';
+import { EventService } from '../event/event.service.js';
+import { NervError } from '../../common/nerv-exception.filter.js';
+import { InjectDb } from '../../common/database.module.js';
+import type { NervDb } from '../../common/database.module.js';
+
+type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
+
+/** 리뷰어가 보내는 발견 하나 — 계약은 agent-integration §2.3 이 정본이다. */
+export interface SubmitFinding {
+  severity: 'critical' | 'warning' | 'info';
+  title: string;
+  body_md?: string | null;
+  suggestion_md?: string | null;
+  category?: string | null;
+  file?: string | null;
+  line?: number | null;
+  symbol?: string | null;
+  requirement_id?: string | null;
+  spec_version_id?: string | null;
+}
+
+export interface SubmitInput {
+  projectId: string;
+  userId: string;
+  /** 에이전트 세션 — 감사 FK. REST 로 들어오면 없다 */
+  sessionId?: string | null;
+  /** PAT 로 들어온 호출인가(FR-16 감사의 축). 세션 유무와는 다른 축이다 */
+  isAgent?: boolean;
+  branch: string;
+  baseSha: string;
+  headSha: string;
+  /** 검토 대상 파일 목록 — changeset 해시의 재료다(라운드 동일성) */
+  changeset?: readonly string[];
+  kind: 'code' | 'consistency' | 'spec_coverage' | 'merge';
+  taskId?: string | null;
+  reviewer: { role: string; risk?: 'low' | 'medium' | 'high' | null };
+  summaryMd?: string | null;
+  findings: readonly SubmitFinding[];
+  /** 재생성 가능한 프롬프트 페이로드의 TTL 오브젝트 스토리지 위치(D-01·D-07) */
+  payloadRef?: string | null;
+}
+
+export interface SubmitResult {
+  review_session_id: string;
+  round_no: number;
+  merged_into_existing_session: boolean;
+  findings_new: readonly string[];
+  findings_merged: readonly string[];
+  /** 이월된 미해결 — 이 리뷰가 아니라 **이 프로젝트**의 열린 발견이다 */
+  carried_over: readonly { id: string; severity: string; title: string }[];
+  block: boolean;
+}
+
+export type ResolutionKind = 'fixed' | 'deferred' | 'dismissed' | 'escalated' | 'spec_change';
+
+export interface ResolveInput {
+  projectId: string;
+  findingId: string;
+  userId: string;
+  sessionId?: string | null;
+  /**
+   * **A3 게이트가 보는 축.** 막는 것은 "에이전트가 자기 리뷰의 심각도를 스스로 낮추는
+   * 것"이지 사람의 판단이 아니다(agent-integration §2.3). 세션 유무가 아니라 주체가
+   * 에이전트인지가 기준이다 — PAT 는 에이전트 세션 없이도 온다.
+   */
+  isAgent?: boolean;
+  /** 도구 계약의 `resolution` 값(fixed·dismissed·wont_fix)은 표면이 여기로 번역한다 */
+  kind: ResolutionKind;
+  status: 'fixed' | 'dismissed' | 'wont_fix';
+  rationale: string;
+  commitSha?: string | null;
+  changeRequestId?: string | null;
+}
+
+export interface ResolveResult {
+  finding_id: string;
+  status: string;
+  resolution_id: string;
+  open_remaining: number;
+}
+
+/** 리뷰어 위험도 → 세션 위험도. 가장 높은 것이 세션의 값이다. */
+const RISK_ORDER = ['low', 'medium', 'high'] as const;
 
 @Injectable()
 export class ReviewService {
-  submit(): never {
-    // eslint-disable-next-line no-restricted-syntax -- Phase 2 표지 — 미구현 경계(REQ-CB-022)
-    throw new NotImplementedYetError('Phase 2', '리뷰 제출(FR-09)');
+  constructor(
+    private readonly events: EventService,
+    @InjectDb() private readonly db: NervDb,
+  ) {}
+
+  /**
+   * EP-REV-01 · `nerv_review_submit` — 한 리뷰어의 한 라운드를 통째로 받는다.
+   *
+   * **한 트랜잭션이다.** 세션·리포트·발견이 따로 커밋되면 중간 실패가 "리포트는 있는데
+   * 발견이 없는 라운드"를 남기고, 그 라운드는 게이트 판정에서 통과로 읽힌다.
+   */
+  async submit(input: SubmitInput): Promise<SubmitResult> {
+    if (input.headSha.trim() === '' || input.baseSha.trim() === '') {
+      // 입력 스냅샷이 없는 리뷰는 나중에 "무엇을 봤는지" 답할 수 없다(FR-09 필수 조건).
+      // clemvion meta.json 에는 이 필드 자체가 없어 표본 SUMMARY 200개 중 47개만
+      // 산문에 해시를 남겼다 — 스키마의 NOT NULL 이 가장 값싼 개선인 이유다.
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.head_required'), {
+        kind: 'missing_head_sha',
+      });
+    }
+    if (input.reviewer.role.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.role_required'), {
+        kind: 'missing_reviewer_role',
+      });
+    }
+
+    const hash = changesetHash({
+      baseSha: input.baseSha,
+      headSha: input.headSha,
+      changeset: input.changeset ?? [],
+    }).toString('hex');
+
+    return this.events.transact(async (tx, emit) => {
+      const session = await this.sessionFor(tx, input, hash);
+      const reportId = await this.upsertReport(tx, session.id, input);
+
+      const created: string[] = [];
+      const mergedIds: string[] = [];
+      for (const [index, finding] of input.findings.entries()) {
+        const opened = await this.upsertFinding(tx, input, finding, {
+          sessionId: session.id,
+          reportId,
+          roundNo: session.roundNo,
+          displayNo: index + 1,
+        });
+        if (opened.created) created.push(opened.findingId);
+        else mergedIds.push(opened.findingId);
+      }
+
+      // BLOCK 은 **열린 critical 이 있는가**로 정한다 — consistency 리뷰의 `BLOCK: YES/NO`
+      // 를 계승한 필드이고(database.md §2.7), 판정은 리뷰어의 주장이 아니라 데이터다.
+      const carried = await this.openFindings(tx, input.projectId);
+      const block = carried.some((f) => f.severity === 'critical');
+      await tx.execute(sql`
+        UPDATE review_session
+           SET state = 'complete', completed_at = now(),
+               risk = ${await this.sessionRisk(tx, session.id)}::review_risk,
+               block = ${block},
+               file_count = ${(input.changeset ?? []).length}
+         WHERE id = ${session.id}
+      `);
+
+      for (const findingId of created) {
+        // **이벤트는 새로 열린 발견에만.** 같은 지적이 라운드마다 다시 울리면 알림이
+        // 소음이 되고, 그 소음 때문에 사람이 알림을 끈다 — dedup 이 여기서도 값을 한다.
+        // 이름은 카탈로그가 정본이다(spec-workflow §6.3): `review.submitted` 는 없다.
+        await emit({
+          type: NERV_EVENT_PHASE2.FINDING_OPENED,
+          projectId: input.projectId,
+          actorUserId: input.userId,
+          actorSessionId: input.sessionId ?? null,
+          isAgent: input.isAgent ?? input.sessionId != null,
+          subjectType: 'finding',
+          subjectId: findingId,
+        });
+      }
+
+      return {
+        review_session_id: session.id,
+        round_no: session.roundNo,
+        merged_into_existing_session: !session.fresh,
+        findings_new: created,
+        findings_merged: mergedIds,
+        carried_over: carried,
+        block,
+      };
+    });
+  }
+
+  /**
+   * changeset 하나에 세션 하나. **같은 커밋·같은 파일 집합의 재제출은 라운드를 늘리지
+   * 않는다**(agent-integration §2.3 멱등 열). 두 리뷰어가 같은 changeset 을 보면 같은
+   * 세션의 서로 다른 `reviewer_report` 가 된다 — 그래야 "이 라운드의 커버리지"를 물을 수 있다.
+   *
+   * 라운드는 **브랜치 위에서 센다.** 코드가 나아가면 changeset 이 바뀌고, 그때가 다음
+   * 라운드다. 리뷰어가 보내는 번호를 믿으면 같은 커밋의 두 리뷰어가 서로 다른 번호를
+   * 주장하고, 그때 "몇 바퀴 돌았나"는 아무도 답할 수 없다.
+   */
+  private async sessionFor(
+    tx: Tx,
+    input: SubmitInput,
+    hash: string,
+  ): Promise<{ id: string; roundNo: number; fresh: boolean }> {
+    const { rows: same } = await tx.execute<{ id: string; round_no: number }>(sql`
+      SELECT id, round_no FROM review_session
+       WHERE project_id = ${input.projectId} AND changeset_hash = decode(${hash}, 'hex')
+         AND kind = ${input.kind}::review_kind
+       ORDER BY round_no DESC LIMIT 1
+    `);
+    const existing = same[0];
+    if (existing !== undefined) {
+      return { id: existing.id, roundNo: existing.round_no, fresh: false };
+    }
+
+    const { rows: prior } = await tx.execute<{ id: string; round_no: number }>(sql`
+      SELECT id, round_no FROM review_session
+       WHERE project_id = ${input.projectId} AND branch = ${input.branch}
+         AND kind = ${input.kind}::review_kind
+       ORDER BY round_no DESC, created_at DESC LIMIT 1
+    `);
+    const previous = prior[0];
+    const sessionId = newId();
+    const roundNo = (previous?.round_no ?? 0) + 1;
+    await tx.execute(sql`
+      INSERT INTO review_session (id, project_id, kind, "trigger", agent_session_id, task_id,
+                                  branch, head_sha, base_sha, changeset_hash, round_no,
+                                  previous_session_id, state, prompt_blob_uri, prompt_expires_at,
+                                  started_at)
+      VALUES (${sessionId}, ${input.projectId}, ${input.kind}::review_kind,
+              ${input.sessionId != null ? 'auto' : 'manual'}::review_trigger,
+              ${input.sessionId ?? null}, ${input.taskId ?? null},
+              ${input.branch}, ${input.headSha}, ${input.baseSha}, decode(${hash}, 'hex'),
+              ${roundNo}, ${previous?.id ?? null}, 'running'::review_state,
+              ${input.payloadRef ?? null},
+              ${input.payloadRef == null ? null : sql`now() + interval '30 days'`},
+              now())
+    `);
+    return { id: sessionId, roundNo, fresh: true };
+  }
+
+  /**
+   * 역할 하나에 리포트 하나(`reviewer_report_role_uq`). 같은 역할이 다시 제출하면 **덮어쓴다** —
+   * 리뷰어가 자기 소견을 고쳐 보내는 것이지 새 리뷰어가 온 것이 아니다.
+   */
+  private async upsertReport(tx: Tx, sessionId: string, input: SubmitInput): Promise<string> {
+    const risk = input.reviewer.risk ?? 'low';
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      INSERT INTO reviewer_report (id, review_session_id, role, risk, body_md, has_report)
+      VALUES (${newId()}, ${sessionId}, ${input.reviewer.role}, ${risk}::review_risk,
+              ${input.summaryMd ?? null}, true)
+      ON CONFLICT (review_session_id, role) DO UPDATE
+         SET risk = EXCLUDED.risk, body_md = EXCLUDED.body_md, has_report = true,
+             recovered = true
+      RETURNING id
+    `);
+    return rows[0]!.id;
+  }
+
+  /** 세션 위험도 = 리포트 중 가장 높은 것. 한 리뷰어의 low 가 다른 리뷰어의 high 를 지우지 않는다. */
+  private async sessionRisk(tx: Tx, sessionId: string): Promise<string> {
+    const { rows } = await tx.execute<{ risk: string }>(sql`
+      SELECT risk::text AS risk FROM reviewer_report WHERE review_session_id = ${sessionId}
+    `);
+    let worst = 0;
+    for (const row of rows) worst = Math.max(worst, RISK_ORDER.indexOf(row.risk as 'low'));
+    return RISK_ORDER[worst] ?? 'low';
+  }
+
+  private async openFindings(
+    tx: Tx,
+    projectId: string,
+  ): Promise<{ id: string; severity: string; title: string }[]> {
+    const { rows } = await tx.execute<{ id: string; severity: string; title: string }>(sql`
+      SELECT id, severity::text AS severity, title FROM finding
+       WHERE project_id = ${projectId} AND status = 'open'
+       ORDER BY severity, created_at
+    `);
+    return rows;
+  }
+
+  /** 새로 열었는가(created), 그리고 그 finding id. */
+  private async upsertFinding(
+    tx: Tx,
+    input: SubmitInput,
+    finding: SubmitFinding,
+    round: { sessionId: string; reportId: string; roundNo: number; displayNo: number },
+  ): Promise<{ findingId: string; created: boolean }> {
+    const category = finding.category ?? input.reviewer.role;
+    const hex = findingFingerprint({
+      projectId: input.projectId,
+      category,
+      filePath: finding.file ?? null,
+      symbol: finding.symbol ?? null,
+      title: finding.title,
+    }).toString('hex');
+
+    const { rows: existing } = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM finding
+       WHERE project_id = ${input.projectId} AND fingerprint = decode(${hex}, 'hex')
+       FOR UPDATE
+    `);
+    const hit = existing[0];
+    let findingId: string;
+
+    if (hit === undefined) {
+      findingId = newId();
+      await tx.execute(sql`
+        INSERT INTO finding (id, project_id, fingerprint, severity, category, title, detail_md,
+                             suggestion_md, file_path, line_start, symbol, spec_version_id,
+                             requirement_id, status, first_session_id, last_session_id,
+                             occurrence_count)
+        VALUES (${findingId}, ${input.projectId}, decode(${hex}, 'hex'),
+                ${finding.severity}::finding_severity, ${category}, ${finding.title},
+                ${finding.body_md ?? null}, ${finding.suggestion_md ?? null},
+                ${finding.file ?? null}, ${finding.line ?? null}, ${finding.symbol ?? null},
+                ${finding.spec_version_id ?? null}, ${finding.requirement_id ?? null},
+                'open'::finding_status, ${round.sessionId}, ${round.sessionId}, 1)
+      `);
+    } else {
+      findingId = hit.id;
+      // **위치만 갱신한다.** 줄이 밀린 것은 새 사실이 아니라 같은 사실의 최신 좌표다.
+      // 처분(status)은 건드리지 않는다 — 다시 지적됐다고 fixed 가 open 으로 돌아가면
+      // 사람이 내린 판단을 리뷰어가 덮는 것이 된다.
+      await tx.execute(sql`
+        UPDATE finding
+           SET line_start = coalesce(${finding.line ?? null}, line_start),
+               last_session_id = ${round.sessionId},
+               occurrence_count = occurrence_count + 1
+         WHERE id = ${findingId}
+      `);
+    }
+
+    // **원래 심각도를 그대로 남긴다**(§2.7 raw_severity). finding.severity 와 이 값이
+    // 갈리는 순간이 곧 하향이고, 그 대조가 감사의 유일한 근거다(clemvion 실측 24/732).
+    //
+    // 같은 세션에 같은 발견이 두 번 오면(같은 리뷰어의 재제출) 출현은 하나다 —
+    // `finding_occurrence_uq` 가 그것을 강제하고, 여기서는 최신 값으로 덮는다.
+    await tx.execute(sql`
+      INSERT INTO finding_occurrence (id, finding_id, review_session_id, reviewer_report_id,
+                                      round_no, display_no, raw_severity)
+      VALUES (${newId()}, ${findingId}, ${round.sessionId}, ${round.reportId},
+              ${round.roundNo}, ${round.displayNo}, ${finding.severity}::finding_severity)
+      ON CONFLICT (finding_id, review_session_id) DO UPDATE
+         SET display_no = EXCLUDED.display_no, raw_severity = EXCLUDED.raw_severity,
+             reviewer_report_id = EXCLUDED.reviewer_report_id
+    `);
+    return { findingId, created: hit === undefined };
+  }
+
+  /**
+   * EP-REV-02 · `nerv_finding_resolve` — 발견 하나를 처분한다.
+   *
+   * **하향 조정이 A3 인 이유**(agent-integration §2.3): clemvion 실측에서 checker 의
+   * CRITICAL 을 `BLOCK: NO` 로 하향한 모순이 732건 중 24건(3.3%) 관측됐다. 에이전트가
+   * 자기 리뷰의 심각도를 스스로 낮출 수 있으면 게이트는 형식이 된다. 그래서 `critical`
+   * 을 `dismissed`/`wont_fix` 로 옮기는 **에이전트의** 호출만 승인 큐를 거친다.
+   * `fixed` + `commit_sha` 는 검증 가능한 사실이라 A2 다.
+   */
+  async resolve(input: ResolveInput): Promise<ResolveResult> {
+    if (input.rationale.trim() === '') {
+      // 유예 근거는 1급 데이터다(database.md §2.7 `rationale_md` NOT NULL).
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.rationale_required'), {
+        kind: 'missing_rationale',
+      });
+    }
+    if (input.kind === 'fixed' && (input.commitSha ?? '').trim() === '') {
+      // CHECK 가 어차피 막지만, 여기서 막아야 **무엇이 잘못됐는지**가 응답에 남는다.
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.commit_required'), {
+        kind: 'missing_commit_sha',
+      });
+    }
+
+    // **게이트는 트랜잭션 밖이다.** 승인 카드를 만들고 같은 트랜잭션에서 막으면 그 카드도
+    // 함께 롤백된다 — 사람의 승인함에는 아무것도 뜨지 않고 에이전트만 재시도한다(실측).
+    const preflight = await this.loadFinding(input);
+    const downgrade =
+      preflight.severity === 'critical' &&
+      (input.status === 'dismissed' || input.status === 'wont_fix');
+    if (downgrade && (input.isAgent ?? input.sessionId != null)) {
+      await this.requireDowngradeApproval(input);
+    }
+
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{ severity: string; status: string }>(sql`
+        SELECT severity::text AS severity, status::text AS status FROM finding
+         WHERE id = ${input.findingId} AND project_id = ${input.projectId}
+         FOR UPDATE
+      `);
+      const finding = rows[0]!;
+
+      // **멱등은 같은 처분에만.** 이미 fixed 인 것을 다시 fixed 로 부르면 그대로 통과하고,
+      // 다른 처분으로 부르면 막는다 — 처분을 뒤집는 것은 재호출이 아니라 새 판단이다.
+      if (finding.status !== 'open' && finding.status !== input.status) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.already_resolved'), {
+          kind: 'already_resolved',
+          status: finding.status,
+        });
+      }
+
+      const resolutionId = newId();
+      await tx.execute(sql`
+        INSERT INTO resolution (id, finding_id, kind, commit_sha, change_request_id,
+                                rationale_md, actor_user_id, actor_session_id)
+        VALUES (${resolutionId}, ${input.findingId}, ${input.kind}::resolution_kind,
+                ${input.commitSha ?? null}, ${input.changeRequestId ?? null},
+                ${input.rationale}, ${input.userId}, ${input.sessionId ?? null})
+      `);
+      await tx.execute(sql`
+        UPDATE finding SET status = ${input.status}::finding_status WHERE id = ${input.findingId}
+      `);
+
+      await emit({
+        type: NERV_EVENT_PHASE2.FINDING_RESOLVED,
+        projectId: input.projectId,
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId ?? null,
+        isAgent: input.isAgent ?? input.sessionId != null,
+        subjectType: 'finding',
+        subjectId: input.findingId,
+        fromState: finding.status,
+        toState: input.status,
+        payload: { kind: input.kind, severity: finding.severity, downgrade },
+      });
+
+      const { rows: remaining } = await tx.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM finding
+         WHERE project_id = ${input.projectId} AND status = 'open'
+      `);
+      return {
+        finding_id: input.findingId,
+        status: input.status,
+        resolution_id: resolutionId,
+        open_remaining: remaining[0]?.n ?? 0,
+      };
+    });
+  }
+
+  /** 처분 전 확인 — 없는 발견에 처분을 남기지 않는다. */
+  private async loadFinding(input: ResolveInput): Promise<{ severity: string; status: string }> {
+    const { rows } = await this.db.execute<{ severity: string; status: string }>(sql`
+      SELECT severity::text AS severity, status::text AS status FROM finding
+       WHERE id = ${input.findingId} AND project_id = ${input.projectId}
+    `);
+    const finding = rows[0];
+    if (finding === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.finding_not_found'), {
+        kind: 'not_found',
+        finding_id: input.findingId,
+      });
+    }
+    return finding;
+  }
+
+  /**
+   * A3 게이트 — 승인된 카드가 있으면 돌아오고, 없으면 **카드를 만들고 막는다**.
+   *
+   * 카드를 만들어 두는 것이 핵심이다: 막기만 하면 에이전트는 사람에게 무엇을 부탁해야
+   * 하는지 모른 채 재시도만 하고, 사람의 승인함에는 아무것도 뜨지 않는다.
+   */
+  private async requireDowngradeApproval(input: ResolveInput): Promise<void> {
+    const card = await this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{ id: string; decision: string | null }>(sql`
+        SELECT id, decision::text AS decision FROM approval
+         WHERE project_id = ${input.projectId} AND subject_type = 'finding'
+           AND subject_id = ${input.findingId}
+         ORDER BY requested_at DESC LIMIT 1
+      `);
+      const existing = rows[0];
+      if (existing?.decision === 'approve') return { approved: true, id: existing.id };
+      // 이미 대기 중인 카드가 있으면 그것을 가리킨다 — 재호출이 카드를 늘리지 않는다(§2.5)
+      if (existing !== undefined && existing.decision === null) {
+        return { approved: false, id: existing.id };
+      }
+
+      const approvalId = newId();
+      await tx.execute(sql`
+        INSERT INTO approval (id, project_id, subject_type, subject_id,
+                              requested_by_user_id, requested_by_session_id)
+        VALUES (${approvalId}, ${input.projectId}, 'finding'::approval_subject_type,
+                ${input.findingId}, ${input.userId}, ${input.sessionId ?? null})
+      `);
+      await emit({
+        type: NERV_EVENT.APPROVAL_REQUESTED,
+        projectId: input.projectId,
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId ?? null,
+        isAgent: true,
+        subjectType: 'approval',
+        subjectId: approvalId,
+        payload: { subject_type: 'finding', reason: 'critical_downgrade' },
+      });
+      return { approved: false, id: approvalId };
+    });
+
+    if (card.approved) return;
+    throw new NervError(NERV_ERROR.APPROVAL_REQUIRED, msg('error.review.downgrade_needs_human'), {
+      kind: 'critical_downgrade',
+      approval_id: card.id,
+      finding_id: input.findingId,
+    });
+  }
+
+  /** EP-REV-03 — 열린 발견 목록. S6 리뷰 센터와 게이트 판정이 같은 것을 읽는다. */
+  async findings(input: {
+    projectId: string;
+    status?: string;
+    limit?: number;
+  }): Promise<Record<string, unknown>[]> {
+    const status = input.status ?? 'open';
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT f.id, f.severity::text AS severity, f.status::text AS status, f.category, f.title,
+             f.file_path, f.line_start, f.symbol, f.occurrence_count, f.created_at,
+             rs.head_sha, rs.branch, rs.round_no
+        FROM finding f
+        JOIN review_session rs ON rs.id = f.last_session_id
+       WHERE f.project_id = ${input.projectId} AND f.status = ${status}::finding_status
+       ORDER BY f.severity, f.created_at DESC
+       LIMIT ${Math.min(input.limit ?? 50, 200)}
+    `);
+    return rows;
   }
 }

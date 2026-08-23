@@ -24,6 +24,9 @@ let pool: pg.Pool;
 let app: NestFastifyApplication;
 let token: string;
 let readOnlyToken: string;
+let reviewToken: string;
+let qaToken: string;
+let qaUserId: string;
 let projectId: string;
 let userId: string;
 
@@ -53,6 +56,26 @@ beforeAll(async () => {
   ).token;
   readOnlyToken = (await auth.issueToken({ projectId, userId, name: 'ro', scopes: ['spec:read'] }))
     .token;
+  // 리뷰 도구(P2)용. **`review:resolve` 는 일부러 넣지 않는다** — 이 세션의 주체는
+  // developer 이고 그 역할에는 처분 권한이 없다(ROLE_SCOPES). 토큰이 역할보다 넓을 수
+  // 없다는 것을 도구 경로에서도 보려는 것이다.
+  reviewToken = (
+    await auth.issueToken({
+      projectId,
+      userId,
+      name: 'review',
+      scopes: ['spec:read', 'review:submit', 'review:resolve'],
+    })
+  ).token;
+  // 처분까지 가려면 역할이 그것을 허용해야 한다 — qa 가 리뷰의 주인이다(ROLE_SCOPES)
+  qaToken = (
+    await auth.issueToken({
+      projectId,
+      userId: qaUserId,
+      name: 'qa',
+      scopes: ['spec:read', 'review:submit', 'review:resolve'],
+    })
+  ).token;
 });
 
 afterAll(async () => {
@@ -102,14 +125,16 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(String(result['instructions']).length).toBeLessThan(2048);
   });
 
-  it('tools/list 가 MVP 16종을 노출한다 (P0 8 + P1 8)', async () => {
+  it('tools/list 가 18종을 노출한다 — MVP 16(P0 8 + P1 8) + 리뷰 2(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
-    expect(tools).toHaveLength(16);
+    // **MVP 는 여전히 16종이다.** 카탈로그가 18인 것은 리뷰 수집(FR-09)이 Phase 2 에서
+    // 들어왔기 때문이다(2026-08-23 — scope.md §5 착수 기록). 두 수를 섞지 않는다.
+    expect(tools).toHaveLength(18);
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_relate');
-    // 리뷰 도구 2종은 Phase 2 — 카탈로그에 없다(scope.md §5)
-    expect(tools.map((t) => t.name)).not.toContain('nerv_review_submit');
+    expect(tools.map((t) => t.name)).toContain('nerv_review_submit');
+    expect(tools.map((t) => t.name)).toContain('nerv_finding_resolve');
     for (const tool of tools) expect(tool.inputSchema).toBeTruthy();
   });
 
@@ -149,7 +174,8 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
       },
     });
     const specId = String(
-      ((made.body['result'] as { structuredContent?: Record<string, unknown> }).structuredContent ?? {})['spec_id'],
+      ((made.body['result'] as { structuredContent?: Record<string, unknown> }).structuredContent ??
+        {})['spec_id'],
     );
 
     // 같은 값이면 통과한다 — 멱등 재호출이 여기서 걸리면 안 된다
@@ -164,7 +190,10 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
       name: 'nerv_spec_draft_upsert',
       arguments: { spec_id: specId, title: '바뀐 제목', body_md: '# 바뀐 제목\n\n본문' },
     });
-    const err = changed.body['result'] as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    const err = changed.body['result'] as {
+      isError?: boolean;
+      structuredContent?: Record<string, unknown>;
+    };
     expect(err.isError).toBe(true);
     expect((err.structuredContent?.['details'] as Record<string, unknown>)?.['kind']).toBe(
       'meta_change_not_allowed',
@@ -178,7 +207,10 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
       name: 'nerv_spec_draft_upsert',
       arguments: { key: 'SPC-NOPE', title: '기능', type: 'feature', body_md: '# 기능\n\n본문' },
     });
-    const result = body['result'] as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    const result = body['result'] as {
+      isError?: boolean;
+      structuredContent?: Record<string, unknown>;
+    };
     expect(result.isError).toBe(true);
     expect((result.structuredContent?.['details'] as Record<string, unknown>)?.['kind']).toBe(
       'spec_type_not_allowed',
@@ -190,7 +222,9 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     const ko = await rpc('tools/list', {}, { lang: 'ko' });
     const en = await rpc('tools/list', {}, { lang: 'en' });
     const argOf = (body: Record<string, unknown>, tool: string, arg: string): string => {
-      const tools = (body['result'] as { tools: { name: string; inputSchema: Record<string, unknown> }[] }).tools;
+      const tools = (
+        body['result'] as { tools: { name: string; inputSchema: Record<string, unknown> }[] }
+      ).tools;
       const schema = tools.find((x) => x.name === tool)?.inputSchema ?? {};
       const props = (schema['properties'] ?? {}) as Record<string, { description?: string }>;
       return props[arg]?.description ?? '';
@@ -362,6 +396,70 @@ describe('E03-S03 P0 도구 — 작업 흐름', () => {
   });
 });
 
+describe('P2 리뷰 도구 2종 — 카탈로그에 들어온 표면 (FR-09, 2026-08-23)', () => {
+  it('리뷰를 제출하면 세션·발견이 레코드로 남는다 — 파일 커밋 대신', async () => {
+    const result = await callTool(
+      'nerv_review_submit',
+      {
+        branch: 'feat/mcp-review',
+        base_sha: 'base111',
+        head_sha: 'head222',
+        changeset: ['src/gateway.ts'],
+        kind: 'code',
+        reviewer: { role: 'security', risk: 'high' },
+        summary: '게이트웨이 인증 경로를 봤다.',
+        findings: [
+          { severity: 'critical', title: '토큰이 로그에 남는다', file: 'src/gateway.ts', line: 12 },
+        ],
+      },
+      { token: reviewToken },
+    );
+    expect(result['ok']).not.toBe(false);
+    expect(result['round_no']).toBe(1);
+    expect(result['findings_new']).toHaveLength(1);
+    // 열린 critical 이 있으면 BLOCK 이고, 다음 행동은 처분이다(§2.1 원칙 5)
+    expect(result['block']).toBe(true);
+    expect(result['next_actions']).toEqual(['nerv_finding_resolve']);
+  });
+
+  it('critical 하향은 승인 큐로 보낸다 — 자기 리뷰의 심각도를 스스로 낮추지 못한다(A3)', async () => {
+    const submitted = await callTool(
+      'nerv_review_submit',
+      {
+        branch: 'feat/mcp-review',
+        base_sha: 'base111',
+        head_sha: 'head333',
+        changeset: ['src/gateway.ts'],
+        reviewer: { role: 'security' },
+        findings: [{ severity: 'critical', title: '리스 만료 검사가 없다', file: 'src/lease.ts' }],
+      },
+      { token: reviewToken },
+    );
+    const findingId = (submitted['findings_new'] as string[])[0];
+
+    const denied = await callTool(
+      'nerv_finding_resolve',
+      { finding_id: findingId, resolution: 'wont_fix', rationale: '다음 스프린트' },
+      { token: qaToken },
+    );
+    expect(denied).toMatchObject({ ok: false, code: NERV_ERROR.APPROVAL_REQUIRED });
+    expect(denied['details']).toMatchObject({ kind: 'critical_downgrade' });
+    expect(denied['details']).toHaveProperty('approval_id');
+  });
+
+  it('토큰은 역할보다 넓을 수 없다 — developer 에게는 `review:resolve` 가 없다', async () => {
+    // 토큰에는 실어 발급했지만(위 setup) 유효 권한은 역할 ∩ 토큰이다(api.md §1.3).
+    // 그 교집합이 도구 경로에서도 같은 판정을 내는지 본다.
+    const result = await callTool(
+      'nerv_finding_resolve',
+      { finding_id: newId(), resolution: 'fixed', rationale: '고쳤다', commit_sha: 'abc' },
+      { token: reviewToken },
+    );
+    expect(result).toMatchObject({ ok: false, code: NERV_ERROR.FORBIDDEN });
+    expect(result['details']).toMatchObject({ kind: 'missing_scope', required: 'review:resolve' });
+  });
+});
+
 describe('E03-S04 에러 규약 — 구조화 결과', () => {
   it('스코프가 부족하면 호출 전에 막고 NERV_FORBIDDEN 을 구조화 결과로 준다', async () => {
     const result = await callTool(
@@ -465,6 +563,15 @@ async function seed(): Promise<void> {
   await pool.query(
     `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'developer')`,
     [newId(), orgId, projectId, userId],
+  );
+  qaUserId = newId();
+  await pool.query(
+    `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'qa@example.com','규아','active')`,
+    [qaUserId],
+  );
+  await pool.query(
+    `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'qa')`,
+    [newId(), orgId, projectId, qaUserId],
   );
   // 규약 스펙 — bootstrap 컨텍스트 팩에 실린다
   await pool.query(

@@ -48,3 +48,87 @@ export function displayKeySuffix(seed: string): string {
 
 /** Crockford base32 — 숫자 10 + 문자 22(`I`·`L`·`O`·`U` 제외) */
 const BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+/**
+ * Finding fingerprint — **라운드를 넘는 동일성**(data-model §5.2 · FR-09).
+ *
+ * ```
+ * sha256(project_id || category || normalize(file_path) || symbol_or_anchor || title_stem)
+ * ```
+ *
+ * 무엇을 **넣지 않는가**가 이 설계의 전부다.
+ *
+ * - **줄 번호를 넣지 않는다.** 코드가 몇 줄 밀렸다고 새 발견이 되면 dedup 이 무의미하다.
+ *   위치는 `finding.line_start` 에 따로 두고 최신 출현으로 갱신한다.
+ * - **severity 를 넣지 않는다.** 넣으면 리뷰어가 severity 를 낮추는 순간 **새 finding 이
+ *   생겨 하향이 감춰진다.** 하향은 감사 대상이지 새 사실이 아니다 — 원래 심각도는
+ *   `finding_occurrence.raw_severity` 에 남고, 그 대조가 감사의 근거가 된다.
+ *
+ * 근거는 실측이다: clemvion 에서 한 changeset 이 8라운드를 도는 동안 같은 유예 항목이
+ * 라운드마다 새 표 행으로 재서술됐다. 같은 지적을 같은 것으로 볼 축이 없었기 때문이다.
+ */
+export function findingFingerprint(input: {
+  projectId: string;
+  category: string;
+  filePath?: string | null;
+  symbol?: string | null;
+  title: string;
+}): Buffer {
+  const parts = [
+    input.projectId,
+    input.category.trim().toLowerCase(),
+    normalizePath(input.filePath),
+    (input.symbol ?? '').trim().toLowerCase(),
+    titleStem(input.title),
+  ];
+  return createHash('sha256').update(parts.join(' '), 'utf8').digest();
+}
+
+/** 저장소 루트 상대 경로로 — 대소문자·구분자·선행 `./` 를 정규화한다(§5.2). */
+function normalizePath(path: string | null | undefined): string {
+  if (path == null || path === '') return '';
+  return path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '').toLowerCase();
+}
+
+/**
+ * 제목의 어간 — **숫자·경로·따옴표를 지운다**(§5.2).
+ *
+ * 같은 지적이 라운드마다 "3곳에서" -> "5곳에서" 처럼 수치만 바뀌어 재서술되기 때문이다.
+ * 수치가 바뀌었다고 다른 발견으로 세면 dedup 이 하는 일이 없어진다.
+ */
+function titleStem(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(QUOTES, '')
+    .replace(/[a-z0-9_.\-/]*\/[a-z0-9_.\-/]*/g, ' ')
+    .replace(/\d+/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+/** 곧은 따옴표와 굽은 따옴표를 함께 지운다 — 리뷰어마다 표기가 다르다. */
+const QUOTES = new RegExp('[`\'"\u201C\u201D\u2018\u2019]', 'g');
+
+/**
+ * changeset 해시 — **라운드 동일성 판정**(database.md §2.7 · data-model §2.6 필드 표).
+ *
+ * ```
+ * sha256(base_sha || head_sha || sorted(changeset).join)
+ * ```
+ *
+ * "무엇을 봤는가"가 같으면 같은 changeset 이다. 내용은 `head_sha` 가 못박는다 — 커밋이
+ * 같으면 파일 내용도 같으므로 경로 목록과 두 커밋만으로 내용까지 결정된다.
+ *
+ * **정렬한다.** 리뷰어가 파일을 어떤 순서로 열거했는지는 changeset 의 성질이 아니다.
+ * 같은 커밋·같은 파일 집합을 두 리뷰어가 다른 순서로 보내면 같은 세션에 들어가야 한다
+ * (agent-integration §2.3 — "같은 커밋·리뷰어 재제출은 라운드 추가 없이 병합").
+ */
+export function changesetHash(input: {
+  baseSha: string;
+  headSha: string;
+  changeset: readonly string[];
+}): Buffer {
+  const files = [...input.changeset].map((f) => normalizePath(f)).sort();
+  const parts = [input.baseSha.trim(), input.headSha.trim(), ...files];
+  return createHash('sha256').update(parts.join('\n'), 'utf8').digest();
+}

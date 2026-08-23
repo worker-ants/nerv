@@ -5,9 +5,11 @@ updated: 2026-08-22
 ---
 # API 명세
 
-> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
+> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.11 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.12 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
+>
+> v0.12 변경(2026-08-23 — 리뷰 표면 신설): **§2.6a 리뷰·발견 전표 신설**(EP-REV-01~03). Phase 2 리뷰 수집(FR-09) 착수에 따른 것이고([4.1 범위](scope.md) §5 착수 기록) MVP 전표는 불변이다. 세 계약을 절 안에 못 박았다 — 입력 스냅샷(`head_sha`) 필수, 라운드는 `changeset_hash` 로 서버가 셈, **에이전트의 critical 하향은 A3**(승인 카드 `subject_type=finding` → 202 `NERV_APPROVAL_REQUIRED`).
 >
 > v0.8 변경(2026-08-23): §1.4 에 **`Accept-Language` 협상** 규약 추가 — 봉투의 `message` 는 요청 로케일로 만들고 `code`·`details` 는 로케일과 무관하다. MCP 표면(도구 설명·구조화 에러)도 같은 규칙을 따른다. 신설 요구 REQ-API-030. 카탈로그 정본은 [4.2](codebase.md) §3.4. 다른 계약은 불변.
 >
@@ -355,6 +357,22 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 승인 유효성 판정(자기 승인 거부·에이전트 영구 불가·content hash 불일치 = stale 승인 거부)과 SLA·리마인더·만료는 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.3·§2.6 정본을 서버가 그대로 집행한다. MVP 승인함 카드는 스펙 승인·플랜·질문 3유형이고 CR·에스컬레이션 카드는 P2다([로드맵](../03-proposal/roadmap.md) FR-11).
 
+### 2.6a 리뷰·발견 (S6 — **Phase 2**, 2026-08-23 착수)
+
+리뷰 수집(FR-09)은 MVP 범위가 아니다([4.1 범위](scope.md) §5 착수 기록). 서버·도구가 먼저 들어왔고 S6 화면은 아직 없다 — 이 전표는 **도구 2종과 같은 서비스**를 가리키는 REST 표면이다(D-05).
+
+| ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
+| --- | --- | --- | --- | --- | --- |
+| EP-REV-01 | `POST /api/v1/projects/{proj}/reviews` | `review:submit` | `ReviewSubmitInput`(branch, base_sha, head_sha, changeset[], kind, task_id?, reviewer{role, risk}, summary, findings[]{severity, title, body, suggestion, category, file, line, symbol, requirement_id?, spec_version_id?}, payload_ref?) | `ReviewSubmitResult`(review_session_id, round_no, merged_into_existing_session, findings_new[], findings_merged[], carried_over[], block) | 새로 열린 발견마다 `finding.opened` |
+| EP-REV-02 | `POST /api/v1/projects/{proj}/findings/{id}/resolve` | `review:resolve` | `FindingResolveInput`(resolution: fixed/dismissed/wont_fix, commit_sha?, change_request_id?, rationale) | `FindingResolveResult`(finding_id, status, resolution_id, open_remaining) | `finding.resolved` · 에이전트의 critical 하향이면 먼저 `approval.requested` |
+| EP-REV-03 | `GET /api/v1/projects/{proj}/findings` | `spec:read` | `FindingListQuery`(status: open/fixed/dismissed/wont_fix, limit) | `FindingResult[]`(severity·category·위치·occurrence_count + 마지막 세션의 head_sha·branch·round_no) | — |
+
+세 가지가 이 표면의 계약이다.
+
+1. **입력 스냅샷은 필수다.** `head_sha`·`base_sha` 없는 제출은 `NERV_PRECONDITION` 이다 — 나중에 "무엇을 봤는가"에 답할 수 없는 리뷰는 게이트의 근거가 되지 못한다(clemvion 실측: 표본 SUMMARY 200개 중 47개만 산문에 해시를 남겼다).
+2. **라운드는 서버가 센다.** 같은 커밋·같은 파일 집합의 재제출은 `changeset_hash` 로 같은 세션에 합쳐지고(`merged_into_existing_session=true`), 라운드는 늘지 않는다. 리뷰어 여럿이 같은 changeset 을 보면 한 세션의 `reviewer_report` 여럿이 된다.
+3. **하향은 A3다.** `critical` 발견을 `dismissed`/`wont_fix` 로 옮기는 **에이전트의** 호출은 `NERV_APPROVAL_REQUIRED`(202)로 되돌아가고 승인 카드(`approval.subject_type='finding'`)가 승인함에 뜬다. 사람이 승인한 뒤 같은 호출을 다시 하면 통과한다. 사람이 직접 부르는 경로에는 이 게이트가 없다 — 막는 것은 에이전트가 **자기 리뷰의 심각도를 스스로 낮추는 것**이다([에이전트 연동](../03-proposal/agent-integration.md) §2.3 — 실측 732건 중 24건).
+
 ### 2.7 이벤트 피드·알림·커버리지
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
@@ -522,7 +540,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
 ## 4. MCP 16종 ↔ 내부 서비스 ↔ REST 대응
 
-MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 17종 중 `nerv_review_submit`·`nerv_finding_resolve` 2종은 P2([4.1 MVP 범위와 스택 확정](scope.md)). 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
+MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_review_submit`·`nerv_finding_resolve` 2종은 P2([4.1 MVP 범위와 스택 확정](scope.md)). 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
 
 임포트 표면(§2.10)은 이 표에 없다 — **대응하는 MCP 도구가 없기 때문**이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다([4.7 스펙 임포터](importer.md) §3.6). 에이전트가 관여하는 지점은 도구가 아니라 CLI를 감싸는 스킬 `/nerv:import`다.
 
@@ -590,7 +608,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 17종 중 `nerv_re
 
 ### 이 문서가 인용한 정본
 
-- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — §2 도구 17종의 입력·출력·권한·티어·멱등성, §2.7 에러 코드 10종과 봉투, §2.5·§6.1 PAT 튜플·스코프, §3.3 훅 ingest 경로 — **이 문서의 §1.4·§2.9·§4가 인용** (재정의 금지)
+- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — §2 도구 18종의 입력·출력·권한·티어·멱등성, §2.7 에러 코드 10종과 봉투, §2.5·§6.1 PAT 튜플·스코프, §3.3 훅 ingest 경로 — **이 문서의 §1.4·§2.9·§4가 인용** (재정의 금지)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — §1 세 상태 축과 전이·§1.6 권한 매트릭스·§2.3 지시자≠승인자·§4.4 겹침 알고리즘·§4.6 done 게이트·§6 이벤트 이름 규약과 카탈로그 — **§2 전표의 권한 열과 §3.3 이벤트 목록의 정본**
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드(응답 필드명은 이 문서와 1:1)·§4 대표 질의·§5.1 ID 체계
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — §2.4 markdown 미러·`llms.txt` 경로(§2.8이 문자열 그대로 인용), §1.2 전체 구성도

@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { NERV_EVENT, NERV_EVENT_NAMES, NERV_EVENT_PHASE2 } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
-import { invalidationKeysFor, mappedEventNames } from './event-invalidation.js';
+import { invalidationKeysFor, mappedEventNames, NO_SCREEN_YET } from './event-invalidation.js';
 import { queryKeys } from './query-keys.js';
 
 function envelope(type: NervEventName, over: Partial<NervEventEnvelope> = {}): NervEventEnvelope {
@@ -53,14 +53,17 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     ]);
   });
 
-  it('MVP 이벤트는 전부 매핑을 갖는다 — 빠지면 그 화면만 낡는다', () => {
-    const mapped = new Set(mappedEventNames());
+  it('이벤트는 전부 매핑이나 예외 목록 중 하나에 있다 — 빠지면 그 화면만 낡는다', () => {
+    const mapped = new Set([...mappedEventNames(), ...NO_SCREEN_YET]);
     const missing = NERV_EVENT_NAMES.filter((n) => !mapped.has(n));
     expect(missing).toEqual([]);
   });
 
-  it('Phase 2 이벤트는 빈 배열을 준다 — 모르는 이벤트로 화면을 흔들지 않는다', () => {
+  it('화면 없는 이벤트는 빈 배열을 준다 — 모르는 이벤트로 화면을 흔들지 않는다', () => {
     const p2 = NERV_EVENT_PHASE2.FINDING_OPENED as unknown as NervEventName;
     expect(invalidationKeysFor(envelope(p2))).toEqual([]);
+    // 예외는 **의도한 공백**이다: 매핑을 가진 채로 목록에 있으면 둘 중 하나가 낡은 것이다
+    const mapped = new Set(mappedEventNames());
+    for (const name of NO_SCREEN_YET) expect(mapped.has(name)).toBe(false);
   });
 });

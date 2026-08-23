@@ -238,7 +238,7 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 
 ### 4.3 산출물
 
-1. `nerv_review_submit` · `nerv_finding_resolve` 도구(카탈로그 17종 완성)와 fingerprint 알고리즘 명세 + `/nerv:review` 스킬 추가(플러그인 스킬 4종 → 5종).
+1. `nerv_review_submit` · `nerv_finding_resolve` 도구(카탈로그 18종 완성)와 fingerprint 알고리즘 명세 + `/nerv:review` 스킬 추가(플러그인 스킬 4종 → 5종).
 2. 게이트 판정 API + git forge 머지 게이트 연동(훅 미설치 클론·타 호스트 push 구멍을 서버가 막는다).
 3. S6 리뷰 센터 · 커버리지 대시보드 · S8 연동·게이트 정책 탭.
 4. Codex 온보딩 번들(`AGENTS.md` · `.codex/config.toml` · `hooks.json`) — SKILL.md는 오픈 표준이라 양쪽 재사용.

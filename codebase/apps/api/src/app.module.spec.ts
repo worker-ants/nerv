@@ -98,11 +98,14 @@ describe('ToolRegistry — modules/**/*.tools.ts 수집', () => {
     await app.init();
   });
 
-  it('MVP 도구 16종을 수집한다 (P0 8 + P1 8 — scope.md §4.2)', () => {
+  it('MVP 16종 + 리뷰 2종을 수집한다 (P0 8 · P1 8 · P2 2)', () => {
     const registry = app.get(ToolRegistry);
-    expect(registry.size).toBe(16);
+    // **Phase 별로 센다.** 총계만 보면 "MVP 가 16종"이라는 사실이 수 안에서 사라지고,
+    // 다음에 Phase 3 도구가 들어올 때 무엇이 늘었는지 이 테스트가 답하지 못한다.
     expect(registry.list().filter((t) => t.phase === 'P0')).toHaveLength(8);
     expect(registry.list().filter((t) => t.phase === 'P1')).toHaveLength(8);
+    expect(registry.list().filter((t) => t.phase === 'P2')).toHaveLength(2);
+    expect(registry.size).toBe(18);
   });
 
   it('P0 8종의 이름이 카탈로그와 일치한다', () => {
@@ -124,10 +127,13 @@ describe('ToolRegistry — modules/**/*.tools.ts 수집', () => {
     ]);
   });
 
-  it('리뷰 도구 2종은 MVP 카탈로그에 없다 (Phase 2 — scope.md §5)', () => {
+  it('리뷰 도구 2종은 P2 로 표시된다 (2026-08-23 착수 — scope.md §5)', () => {
     const registry = app.get(ToolRegistry);
-    expect(registry.get('nerv_review_submit')).toBeUndefined();
-    expect(registry.get('nerv_finding_resolve')).toBeUndefined();
+    // 카탈로그에 들어왔다는 것과 MVP 라는 것은 다르다 — phase 가 그 구분을 나른다.
+    expect(registry.get('nerv_review_submit')?.phase).toBe('P2');
+    expect(registry.get('nerv_finding_resolve')?.phase).toBe('P2');
+    expect(registry.get('nerv_review_submit')?.scope).toBe('review:submit');
+    expect(registry.get('nerv_finding_resolve')?.scope).toBe('review:resolve');
   });
 });
 

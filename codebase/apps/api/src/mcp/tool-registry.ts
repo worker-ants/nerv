@@ -19,7 +19,7 @@ export interface NervToolDefinition {
   /** 카탈로그 이름 — 정본: docs/03-proposal/agent-integration.md §2.3 */
   readonly name: string;
   readonly tier: ToolTier;
-  readonly phase: 'P0' | 'P1';
+  readonly phase: 'P0' | 'P1' | 'P2';
   /** 한 줄 설명(카탈로그의 호출 시점) */
   /**
    * 언제 이 도구를 쓰는가 — MCP `tools/list` 의 description 이 된다.

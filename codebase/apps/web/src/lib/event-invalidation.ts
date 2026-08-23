@@ -7,7 +7,7 @@
 //
 // 그래서 이 파일은 "무엇을 다시 읽을 것인가"만 정하고 어떤 상태도 직접 바꾸지 않는다.
 
-import { NERV_EVENT } from '@nerv/schema';
+import { NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { queryKeys } from './query-keys.js';
 import type { NervQueryKey } from './query-keys.js';
@@ -95,6 +95,15 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
     queryKeys.projectTasks(e.project_id),
   ],
 };
+
+/**
+ * **아직 화면이 없는 이벤트.** 매핑이 빠진 것과 구분하려고 이름을 적어 둔다.
+ *
+ * 리뷰 수집(FR-09)은 서버에 들어왔지만 S6 리뷰 센터는 아직 없다 — 무효화할 쿼리가
+ * 없으니 빈 배열이 맞다. 화면이 생기는 날 이 목록에서 빠지고 `MAP` 으로 옮겨간다.
+ * 목록으로 두는 이유는 하나다: **잊어서 빈 것과 알고 비운 것은 다르다.**
+ */
+export const NO_SCREEN_YET: readonly NervEventName[] = Object.values(NERV_EVENT_PHASE2);
 
 /** 이 이벤트를 받으면 어떤 쿼리를 다시 읽어야 하는가. 모르는 이벤트면 빈 배열이다. */
 export function invalidationKeysFor(event: NervEventEnvelope): NervQueryKey[] {

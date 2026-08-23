@@ -290,7 +290,7 @@ apps/api/src/
 
 `ImportModule`은 테이블을 소유하지 않고 `SpecModule`·`TaskModule`의 저장 계층에 소급 적재만 한다 — 그래서 29종 배정은 변하지 않는다. 워크플로 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 스코프가 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
 
-합계 검산: MVP 도구 = P0 8종 + P1 8종 = **16종**, 리뷰 2종은 P2(카탈로그 총 17종 — [3.4](../03-proposal/agent-integration.md) §2.3). 베이스라인은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
+합계 검산: MVP 도구 = P0 8종 + P1 8종 = **16종**, 리뷰 2종은 P2(카탈로그 총 18종 — [3.4](../03-proposal/agent-integration.md) §2.3). 베이스라인은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
 
 ### 2.4 표면별 규약
 
@@ -1386,5 +1386,5 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 - [4.6 플러그인과 온보딩](plugin.md) — 에이전트 장비 쪽 설치·환경변수 절차
 - [4.8 백로그](backlog.md) — E01 저장소 부트스트랩 에픽과 운영 Postgres 위치 확인 태스크
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — 컴포넌트 책임·배포 원형(§4.4)
-- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 17종·훅·ingest의 정본
+- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 18종·훅·ingest의 정본
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드 의미의 정본

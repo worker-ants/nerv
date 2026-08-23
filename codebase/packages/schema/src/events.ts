@@ -79,10 +79,6 @@ export const NERV_EVENT = {
   NOTIFICATION_CREATED: 'notification.created',
 } as const;
 
-export type NervEventName = (typeof NERV_EVENT)[keyof typeof NERV_EVENT];
-
-export const NERV_EVENT_NAMES = Object.values(NERV_EVENT) as readonly NervEventName[];
-
 /**
  * Phase 2 이벤트 — 리뷰 수집(FR-09)·CR 델타(FR-04)와 함께 들어온다.
  * MVP 범위가 아니므로 위 유니온과 분리해 둔다(docs/04-mvp/scope.md §5).
@@ -92,6 +88,23 @@ export const NERV_EVENT_PHASE2 = {
   FINDING_RESOLVED: 'finding.resolved',
   CR_OPENED: 'cr.opened',
 } as const;
+
+/**
+ * 이벤트 이름 — **MVP 와 Phase 2 를 한 유니온으로 본다**(2026-08-23, FR-09 착수).
+ *
+ * 둘을 갈라 둔 것은 "아직 구현하지 않았다"는 표시였지 다른 종류라는 뜻이 아니다.
+ * 카탈로그(spec-workflow §6)는 처음부터 `finding.opened` 를 알림 라우팅과 함께 싣고
+ * 있었고, 리뷰 수집이 들어온 지금 그 이름이 실제로 쓰인다. 상수는 Phase 별로 나눠 둔
+ * 채로 두어 **언제 들어온 이름인지**는 계속 읽히게 한다.
+ */
+export type NervEventName =
+  | (typeof NERV_EVENT)[keyof typeof NERV_EVENT]
+  | (typeof NERV_EVENT_PHASE2)[keyof typeof NERV_EVENT_PHASE2];
+
+export const NERV_EVENT_NAMES = [
+  ...Object.values(NERV_EVENT),
+  ...Object.values(NERV_EVENT_PHASE2),
+] as readonly NervEventName[];
 
 /**
  * WS·SSE 로 흐르는 최소 봉투 — 정본: docs/04-mvp/api.md §3.3

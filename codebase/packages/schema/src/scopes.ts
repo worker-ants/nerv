@@ -102,8 +102,9 @@ export const ROLE_SCOPES: Readonly<Record<string, readonly RoleScope[]>> = {
  * `null` 은 제한 없음, `[]` 는 **하나도 못 만든다**는 뜻이다.
  *
  * `qa` 가 `[]` 인 이유(2026-08-23 확정 — 사람 확인): **qa 가 만드는 것은 리뷰이지 스펙이
- * 아니다.** 리뷰 표면은 Phase 2 라(`nerv_review_submit`·`nerv_finding_resolve` — scope.md §5)
- * 현 단계의 qa 에게는 만들 것이 없다. `spec:draft` 는 남긴다 — 생성이 아니라 코멘트 해소
+ * 아니다.** 그 리뷰 표면은 같은 날 들어왔다(`nerv_review_submit`·`nerv_finding_resolve` —
+ * scope.md §5 FR-09 착수 기록) — 이제 qa 에게 만들 것이 있고, 그것이 스펙이 아니라 리뷰라는
+ * 판정은 그대로다. `spec:draft` 는 남긴다 — 생성이 아니라 코멘트 해소
  * (EP-CMT-04 는 `spec:draft` 보유 역할)와 초안 편집의 몫이다.
  */
 export const SPEC_CREATE_TYPES: Readonly<Record<string, readonly string[] | null>> = {

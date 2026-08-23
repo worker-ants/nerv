@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.8 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.9 · 2026-08-23 · HTML 판: [database.html](../html/database.html)
+>
+> v0.9 변경(2026-08-23 — 리뷰 수집 착수): `approval_subject_type` 에 **`finding`** 추가(§2.1 · 마이그레이션 `0004_finding_approval`). `nerv_finding_resolve(critical → dismissed/wont_fix)` 는 A3라 사람의 승인함을 거치는데 카드가 붙을 자리가 열거에 없었다 — 리뷰 표면이 Phase 2 라 빠져 있던 것이다. 테이블·엔티티 수는 불변(29종). 곁가지로 **drizzle 스냅샷 체인의 파손을 고쳤다**: `0003_multi_role` 이 손으로 쓰인 마이그레이션이라 `meta/0003_snapshot.json` 이 0002 의 복사본(같은 `id`·`prevId`)으로 들어가 있었고, 그 때문에 `pnpm db:generate` 가 **collision 으로 죽어 CI 의 "생성물 정합" 잡이 이미 빨간 상태였다**. 0003·0004 스냅샷을 다시 세웠고 이제 `db:generate` 는 변경 0건으로 끝난다.
 >
 > v0.6 변경(2026-08-22 — 화면 대조에서 발견): `api_token.last_used_hostname` 추가(§2.2 · 마이그레이션 `0002_token_host`). REQ-WEB-026이 S8 토큰 목록에 "마지막 사용(시각·**hostname**)"을 요구하는데 데이터 소스가 없었다 — 헤더 값이라 신뢰하지 않으며 권한 판정이 아니라 표시 전용이다.
 >
@@ -101,7 +103,10 @@ CREATE TYPE finding_severity        AS ENUM ('critical', 'warning', 'info');
 CREATE TYPE finding_status          AS ENUM ('open', 'fixed', 'dismissed', 'wont_fix');
 CREATE TYPE resolution_kind         AS ENUM ('fixed', 'deferred', 'dismissed', 'escalated', 'spec_change');
 CREATE TYPE escalate_reason         AS ENUM ('no', 'spec', 'user-decision', 'infra', 'e2e-fail-3x', 'sensitive-fix');
-CREATE TYPE approval_subject_type   AS ENUM ('spec_version', 'change_request', 'plan', 'question', 'gate_bypass');
+CREATE TYPE approval_subject_type   AS ENUM ('spec_version', 'change_request', 'plan', 'question', 'gate_bypass', 'finding');
+-- 'finding' 추가 2026-08-23(마이그레이션 0004) — `nerv_finding_resolve(critical → dismissed/wont_fix)`는
+-- A3라 사람의 승인함을 거치는데(agent-integration §2.3), 그 카드가 붙을 자리가 열거에 없었다.
+-- 리뷰 표면이 Phase 2라 빠져 있던 것이고, FR-09 착수(scope.md §5)로 필요해졌다.
 CREATE TYPE approval_decision       AS ENUM ('approve', 'reject', 'comment');
 CREATE TYPE question_urgency        AS ENUM ('blocking', 'normal');
 CREATE TYPE question_status         AS ENUM ('open', 'answered', 'cancelled', 'expired');

@@ -1,7 +1,8 @@
 // 리뷰 — review_session · reviewer_report · finding · finding_occurrence · resolution
 // DDL 정본: docs/04-mvp/database.md §2.7 · 필드 의미: data-model §2.6
 //
-// **표면(도구 2종·S6 리뷰 센터)은 Phase 2 다**(scope.md §5). 테이블은 MVP 스키마에 포함된다.
+// 테이블은 MVP 스키마에 포함되고 **표면은 Phase 2 다**(scope.md §5). 그 중 도구 2종과 REST
+// 3종은 2026-08-23 에 들어왔고(FR-09 착수 기록), S6 리뷰 센터 화면은 아직 없다.
 // head_sha·base_sha·branch 의 NOT NULL 이 이 스키마에서 가장 값싼 개선이다 —
 // clemvion meta.json 에는 이 필드 자체가 없어 표본 SUMMARY 200개 중 47개만 산문에 해시를 남겼다.
 

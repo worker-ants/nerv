@@ -136,6 +136,8 @@ export const approvalSubjectType = pgEnum('approval_subject_type', [
   'plan',
   'question',
   'gate_bypass',
+  /** 리뷰 발견 — critical 하향(A3)의 승인 카드가 붙는 곳(FR-09, 2026-08-23 추가) */
+  'finding',
 ]);
 export const approvalDecision = pgEnum('approval_decision', ['approve', 'reject', 'comment']);
 export const questionUrgency = pgEnum('question_urgency', ['blocking', 'normal']);
