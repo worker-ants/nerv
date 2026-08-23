@@ -52,7 +52,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.3 (2026-08-23)</span>
+      <span>버전 v1.4 (2026-08-23)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -562,7 +562,12 @@
     <li><b>할당값은 파일에 남는다</b>(<code>codebase/.e2e/&lt;id&gt;.json</code>, git 무시). <code>up</code>·<code>test:e2e</code>·<code>logs</code>·<code>down</code>이 같은 파일을 읽으므로 명령이 나뉘어도 같은 스택을 가리킨다. 포트를 사람이 옮겨 적는 자리를 만들지 않는다.</li>
   </ul>
 
-  <div class="table-wrap"><table>
+    <div class="callout note"><span class="ico">ℹ️</span><div class="body">
+    <p><b>구성요소를 따로 띄울 때도 <code>dev.mjs</code> 를 거친다(2026-08-23 신설).</b> 워크스페이스의 <code>dev</code> 를 직접 부르면(<code>pnpm --filter @nerv/api dev</code>) 빌드 감시가 없어 <code>dist</code> 만 보므로 <b>소스를 고쳐도 아무 일이 일어나지 않는다</b> — 위 두 함정 중 첫째에 그대로 걸린다. 그래서 <code>dev:api</code>·<code>dev:worker</code> 는 별칭이 아니라 <code>--only</code> 선택이고, 빌드 감시를 함께 띄운다. <code>dev:web</code> 만 빌드 감시가 없는데 Vite 가 소스를 직접 읽기 때문이며, 같은 이유로 <b><code>.env</code> 도 요구하지 않는다</b>(웹만 보려는 사람을 설정으로 막지 않는다).</p>
+    <p><code>dev:worker</code> 는 예전에 "전부 + 워커"였다(2026-08-23 이전). 구성요소 이름과 뜻이 어긋나 있어 <b>"워커만"으로 바꾸고</b>, 예전 뜻은 <code>dev:all</code> 이 받는다.</p>
+  </div></div>
+
+<div class="table-wrap"><table>
     <thead><tr><th>명령</th><th>하는 일</th></tr></thead>
     <tbody>
       <tr><td><code>pnpm e2e:up</code></td><td>슬롯 할당 → 기동 → 마이그레이션·시드까지 기다린 뒤 배정된 주소를 출력한다</td></tr>
@@ -663,7 +668,7 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
 
 <pre><code class="language-bash">pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
 pnpm db:migrate                 # drizzle 마이그레이션 적용
-pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:worker
+pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:all
 </code></pre>
 
   <p><b><code>pnpm dev</code> 는 <code>codebase/scripts/dev.mjs</code> 가 세 프로세스를 묶어 띄운다</b>(2026-08-23). 워크스페이스별 <code>dev</code> 스크립트를 <code>--parallel -r</code> 로 늘어놓는 방식은 두 군데서 조용히 어긋났다 — 둘 다 실측이다.</p>
@@ -684,7 +689,10 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
     <thead><tr><th>명령</th><th>내용</th></tr></thead>
     <tbody>
       <tr><td><code>pnpm dev</code></td><td>개발 루프 — 빌드 감시 + api(:8080) + web(:5173). <code>.env</code> 를 스스로 읽는다(§5.1)</td></tr>
-      <tr><td><code>pnpm dev:worker</code></td><td>위 + 워커(잡 루프 — 임베딩·알림·리스 회수)</td></tr>
+      <tr><td><code>pnpm dev:all</code></td><td>위 + 워커(잡 루프 — 임베딩·알림·리스 회수)</td></tr>
+      <tr><td><code>pnpm dev:api</code></td><td><b>API 만</b> — 빌드 감시 + api(:8080)</td></tr>
+      <tr><td><code>pnpm dev:web</code></td><td><b>웹 만</b> — Vite(:5173). API 는 프록시 건너편에 있으면 된다(컨테이너든 다른 터미널이든)</td></tr>
+      <tr><td><code>pnpm dev:worker</code></td><td><b>워커 만</b> — 빌드 감시 + 워커</td></tr>
       <tr><td><code>pnpm build</code> / <code>pnpm test</code> / <code>pnpm lint</code></td><td>전 워크스페이스 일괄</td></tr>
       <tr><td><code>pnpm db:generate</code></td><td><code>@nerv/schema</code>에서 <code>drizzle-kit generate</code> — 마이그레이션 SQL 생성</td></tr>
       <tr><td><code>pnpm db:migrate</code></td><td>마이그레이션 적용(<code>migrate.ts</code>) — compose·k8s와 같은 코드 경로</td></tr>

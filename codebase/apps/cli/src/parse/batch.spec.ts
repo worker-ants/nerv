@@ -8,7 +8,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { displayKeySuffix } from '@nerv/schema';
+import { displayKeySuffix } from '@nerv/schema/keys';
 import { runImport, withoutDuplicateTaskKeysForTesting } from '../run.js';
 
 const PLAN_COUNT = 481; // clemvion 실측 규모

@@ -5,7 +5,7 @@
 // 2026-08-23). 형식은 눈에 보이지만 폭은 안 보인다 — 그래서 여기서 지킨다.
 
 import { describe, expect, it } from 'vitest';
-import { displayKey, displayKeySuffix } from './ids.js';
+import { displayKey, displayKeySuffix } from './keys.js';
 
 describe('displayKey — §5.1 형식', () => {
   it('정본 예시와 같은 모양이다', () => {

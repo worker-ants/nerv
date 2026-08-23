@@ -13,6 +13,10 @@
     "./migrate": {
       "types": "./dist/migrate-entry.d.ts",
       "default": "./dist/migrate-entry.js"
+    },
+    "./keys": {
+      "types": "./dist/keys-entry.d.ts",
+      "default": "./dist/keys-entry.js"
     }
   },
   "main": "./dist/index.js",

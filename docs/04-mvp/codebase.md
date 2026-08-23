@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.3 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.4 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
 >
 > v1.1 변경(2026-08-23): ① **문구 카탈로그와 로케일 §3.4 신설** — 웹·API·CLI 가 `@nerv/schema` 의 한 벌을 쓴다(ko 기본 · en). §1.2 의 "런타임 로직 없음"에 번역기 예외를 마이그레이터와 같은 등급으로 기록. 신설 요구 REQ-CB-022~024. ② **로컬 임베딩 프로필 이미지 교체**(§5.2a — TEI → ollama). TEI 가 arm64 이미지를 내지 않아 Apple Silicon 에서 기동되지 않는다(실측·점화 기록 §5.2a). 계약·모델·차원·외부 전송 0 은 그대로이고 바뀐 것은 개발자 기계에서 도는가뿐이다. 다른 결정·요구는 불변.
 >
@@ -548,7 +548,7 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
 ```bash
 pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
 pnpm db:migrate                 # drizzle 마이그레이션 적용
-pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:worker
+pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:all
 ```
 
 **`pnpm dev` 는 `codebase/scripts/dev.mjs` 가 세 프로세스를 묶어 띄운다**(2026-08-23). 워크스페이스별 `dev` 스크립트를 `--parallel -r` 로 늘어놓는 방식은 두 군데서 조용히 어긋났다 — 둘 다 실측이다.
@@ -558,6 +558,11 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `DATABASE_URL 이 없습니다` 로 API 가 즉시 죽는다 | compose 는 env 를 넣어 주지만 로컬 프로세스에는 넣어 주는 사람이 없다. `.env` 를 읽는 책임이 프로세스 자신에게 있어야 한다(`node --env-file-if-exists`) |
 | **소스를 고쳐도 반영되지 않는다** | `tsc -b --watch` 는 의존을 따라 올라가지 소비자를 따라 내려가지 않는다. `packages/schema` 감시로는 `apps/api` 가 다시 빌드되지 않아 `dist` 가 그대로고, `node --watch` 는 아무것도 못 본다 |
 
+**구성요소를 따로 띄울 때도 `dev.mjs` 를 거친다(2026-08-23 신설).** 워크스페이스의 `dev` 를 직접 부르면(`pnpm --filter @nerv/api dev`) 빌드 감시가 없어 `dist` 만 보므로 **소스를 고쳐도 아무 일이 일어나지 않는다** — 위 두 함정 중 첫째에 그대로 걸린다. 그래서 `dev:api`·`dev:worker` 는 별칭이 아니라 `--only` 선택이고, 빌드 감시를 함께 띄운다. `dev:web` 만 빌드 감시가 없는데 Vite 가 소스를 직접 읽기 때문이며, 같은 이유로 **`.env` 도 요구하지 않는다**(웹만 보려는 사람을 설정으로 막지 않는다).
+
+`dev:worker` 는 예전에 "전부 + 워커"였다(2026-08-23 이전). 구성요소 이름과 뜻이 어긋나 있어 **"워커만"으로 바꾸고**, 예전 뜻은 `dev:all` 이 받는다.
+
+
 런처가 하는 일 넷: ① `.env` 가 없으면 **먼저 멈추고 안내한다**(없는 것과 안 읽은 것은 다른 문제인데 에러 메시지가 같아진다) ② 저장소 루트에서 `tsc -b --watch` 를 돌려 참조 전체(schema → api → cli)를 빌드한다 ③ `dist/main.js` 가 **생긴 뒤에** API 를 띄운다(빈 체크아웃의 첫 실행이 실패하지 않게) ④ 하나가 죽으면 전부 내린다 — 반쯤 살아 있는 루프가 가장 헷갈린다.
 
 루트 `package.json` 스크립트 표:
@@ -565,7 +570,10 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | 명령 | 내용 |
 | --- | --- |
 | `pnpm dev` | 개발 루프 — 빌드 감시 + api(:8080) + web(:5173). `.env` 를 스스로 읽는다(§5.1) |
-| `pnpm dev:worker` | 위 + 워커(잡 루프 — 임베딩·알림·리스 회수) |
+| `pnpm dev:all` | 위 + 워커(잡 루프 — 임베딩·알림·리스 회수) |
+| `pnpm dev:api` | **API 만** — 빌드 감시 + api(:8080) |
+| `pnpm dev:web` | **웹 만** — Vite(:5173). API 는 프록시 건너편에 있으면 된다(컨테이너든 다른 터미널이든) |
+| `pnpm dev:worker` | **워커 만** — 빌드 감시 + 워커 |
 | `pnpm build` / `pnpm test` / `pnpm lint` | 전 워크스페이스 일괄 |
 | `pnpm db:generate` | `@nerv/schema`에서 `drizzle-kit generate` — 마이그레이션 SQL 생성 |
 | `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로 |

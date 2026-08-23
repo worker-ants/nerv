@@ -3,7 +3,8 @@
 // REST 컨트롤러와 MCP 도구가 이 클래스의 같은 인스턴스를 거친다(D-05) — 판정은 여기 한 곳이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { displayKey, msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { displayKey } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';

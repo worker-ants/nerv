@@ -8,7 +8,8 @@
 // dry-run 은 ①~③ 을 전부 계산하되 서버를 부르지 않는다. `--server` 가 있으면 preflight 까지
 // 수행해 자연 키 충돌을 미리 본다(REQ-IMP-011).
 
-import { IMPORT_BATCH_MAX, displayKeySuffix } from '@nerv/schema';
+import { IMPORT_BATCH_MAX } from '@nerv/schema';
+import { displayKeySuffix } from '@nerv/schema/keys';
 import { t } from './i18n.js';
 import { basename, dirname } from 'node:path';
 import type {

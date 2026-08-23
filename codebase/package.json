@@ -11,6 +11,10 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:api": "node scripts/dev.mjs --only api",
+    "dev:web": "node scripts/dev.mjs --only web",
+    "dev:worker": "node scripts/dev.mjs --only worker",
+    "dev:all": "node scripts/dev.mjs --only api,web,worker",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
@@ -29,8 +33,7 @@
     "e2e:down": "node scripts/e2e-stack.mjs down",
     "e2e:logs": "node scripts/e2e-stack.mjs logs",
     "e2e:reset": "pnpm e2e:down && pnpm e2e:up",
-    "e2e:env": "node scripts/e2e-stack.mjs env",
-    "dev:worker": "node scripts/dev.mjs --worker"
+    "e2e:env": "node scripts/e2e-stack.mjs env"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

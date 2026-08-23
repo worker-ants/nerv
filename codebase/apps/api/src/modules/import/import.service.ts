@@ -11,7 +11,8 @@
 //     실패로 응답에 담기고 배치 전체를 되돌리지 않는다(REQ-API-018).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_EVENT, displayKey, newId } from '@nerv/schema';
+import { NERV_EVENT, newId } from '@nerv/schema';
+import { displayKey } from '@nerv/schema/keys';
 import type {
   ImportBatchResult,
   ImportItemResult,
