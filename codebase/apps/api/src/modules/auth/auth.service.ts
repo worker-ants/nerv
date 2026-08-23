@@ -24,6 +24,9 @@ import {
   RetentionSchema,
 } from '@nerv/schema';
 import type { AgentScope } from '@nerv/schema';
+import { scopesForRoles } from '@nerv/schema';
+import type { RoleScope } from '@nerv/schema';
+import { assertScope as assertScopeOf } from '../../common/scope-check.js';
 import { sql } from 'drizzle-orm';
 import { Inject } from '@nestjs/common';
 import type pg from 'pg';
@@ -44,8 +47,13 @@ export interface Principal {
   isAgent: boolean;
   /** PAT 는 항상 프로젝트 스코프다. 세션 쿠키는 프로젝트가 없다(요청 경로가 정한다) */
   projectId: string | null;
-  role: MembershipRole | null;
-  scopes: readonly string[];
+  /**
+   * **겸직은 합집합이다.** 하나를 고르면 planner+developer 중 하나가 사라진다.
+   * 세션 주체는 비어 있다가 ProjectAccessGuard 가 채운다 — 프로젝트를 알아야 정해진다.
+   */
+  roles: MembershipRole[];
+  /** 역할이 허용하는 스코프 ∩ (PAT 이면) 토큰 스코프 — 유효 권한 */
+  scopes: string[];
   tokenId: string | null;
 }
 
@@ -95,12 +103,16 @@ export class AuthService {
       });
     }
     const { rows: memberships } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT m.id, m.role::text AS role, o.id AS org_id, o.slug AS org_slug, o.name AS org_name,
+      -- 겸직은 **행 여럿**이다(0003_multi_role). 스코프 단위로 묶어 역할을 배열로 준다 —
+      -- 화면이 "하나 고르기"를 하면 planner+developer 중 하나가 조용히 사라진다.
+      SELECT min(m.id::text) AS id, array_agg(DISTINCT m.role::text ORDER BY m.role::text) AS roles,
+             o.id AS org_id, o.slug AS org_slug, o.name AS org_name,
              p.id AS project_id, p.slug AS project_slug, p.name AS project_name
         FROM membership m
         JOIN organization o ON o.id = m.org_id
    LEFT JOIN project p ON p.id = m.project_id
        WHERE m.user_id = ${userId}
+       GROUP BY o.id, o.slug, o.name, p.id, p.slug, p.name
        ORDER BY o.slug, p.slug NULLS FIRST
     `);
     return { ...user, memberships };
@@ -149,11 +161,13 @@ export class AuthService {
     name: string;
     description?: string | null;
   }): Promise<Record<string, unknown>> {
-    const { rows: orgRows } = await this.db.execute<{ id: string; role: string }>(sql`
-      SELECT o.id, m.role::text AS role FROM organization o
+    const { rows: orgRows } = await this.db.execute<{ id: string; roles: string[] }>(sql`
+      -- **고르지 않고 합친다.** 예전의 "admin 우선 1건" 정렬은 겸직에서 역할 하나만
+      -- 남겨 planner+developer 의 절반을 잃는다(0003_multi_role).
+      SELECT o.id, array_agg(DISTINCT m.role::text) AS roles FROM organization o
         JOIN membership m ON m.org_id = o.id AND m.user_id = ${input.userId}
        WHERE o.slug = ${input.orgSlug}
-       ORDER BY (m.role = 'admin') DESC LIMIT 1
+       GROUP BY o.id
     `);
     const org = orgRows[0];
     if (org === undefined) {
@@ -162,7 +176,7 @@ export class AuthService {
         org: input.orgSlug,
       });
     }
-    this.assertAdmin(org.role as MembershipRole);
+    this.assertAdmin(org.roles as MembershipRole[]);
     if (input.slug.trim() === '' || input.key.trim() === '' || input.name.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.missing_fields'), {
         kind: 'missing_fields',
@@ -194,11 +208,13 @@ export class AuthService {
     role: string;
     projectSlug?: string | null;
   }): Promise<Record<string, unknown>> {
-    const { rows: orgRows } = await this.db.execute<{ id: string; role: string }>(sql`
-      SELECT o.id, m.role::text AS role FROM organization o
+    const { rows: orgRows } = await this.db.execute<{ id: string; roles: string[] }>(sql`
+      -- **고르지 않고 합친다.** 예전의 "admin 우선 1건" 정렬은 겸직에서 역할 하나만
+      -- 남겨 planner+developer 의 절반을 잃는다(0003_multi_role).
+      SELECT o.id, array_agg(DISTINCT m.role::text) AS roles FROM organization o
         JOIN membership m ON m.org_id = o.id AND m.user_id = ${input.actorUserId}
        WHERE o.slug = ${input.orgSlug}
-       ORDER BY (m.role = 'admin') DESC LIMIT 1
+       GROUP BY o.id
     `);
     const org = orgRows[0];
     if (org === undefined) {
@@ -206,7 +222,7 @@ export class AuthService {
         kind: 'not_found',
       });
     }
-    this.assertAdmin(org.role as MembershipRole);
+    this.assertAdmin(org.roles as MembershipRole[]);
 
     const { rows: userRows } = await this.db.execute<{ id: string }>(
       sql`SELECT id FROM "user" WHERE email = ${input.email}`,
@@ -255,19 +271,19 @@ export class AuthService {
     actorUserId: string;
     orgSlug: string;
   }): Promise<Record<string, unknown>[]> {
-    const { rows: orgRows } = await this.db.execute<{ role: string }>(sql`
-      SELECT m.role::text AS role FROM organization o
+    const { rows: orgRows } = await this.db.execute<{ roles: string[] }>(sql`
+      SELECT array_agg(DISTINCT m.role::text) AS roles FROM organization o
         JOIN membership m ON m.org_id = o.id AND m.user_id = ${input.actorUserId}
        WHERE o.slug = ${input.orgSlug}
-       ORDER BY (m.role = 'admin') DESC LIMIT 1
+       GROUP BY o.id
     `);
-    const role = orgRows[0]?.role;
-    if (role === undefined) {
+    const roles = orgRows[0]?.roles;
+    if (roles === undefined) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
         kind: 'not_found',
       });
     }
-    return this.orgTokens({ orgSlug: input.orgSlug, actorRole: role as MembershipRole });
+    return this.orgTokens({ orgSlug: input.orgSlug, actorRoles: roles as MembershipRole[] });
   }
 
   /**
@@ -275,20 +291,21 @@ export class AuthService {
    * 프로젝트가 없어서(문서 경로가 `/memberships/{id}`) 여기서 되짚는다.
    */
   async assertAdminOfMembership(membershipId: string, actorUserId: string): Promise<void> {
-    const { rows } = await this.db.execute<{ role: string | null }>(sql`
-      SELECT actor.role::text AS role
+    const { rows } = await this.db.execute<{ roles: string[] | null }>(sql`
+      -- 행위자의 역할 **전부**. "admin 우선 1건" 정렬은 겸직에서 절반을 잃는다.
+      SELECT array_remove(array_agg(DISTINCT actor.role::text), NULL) AS roles
         FROM membership target
    LEFT JOIN membership actor ON actor.org_id = target.org_id AND actor.user_id = ${actorUserId}
        WHERE target.id = ${membershipId}
-       ORDER BY (actor.role = 'admin') DESC
-       LIMIT 1
+       GROUP BY target.id
     `);
     if (rows[0] === undefined) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.not_found'), {
         kind: 'not_found',
       });
     }
-    this.assertAdmin((rows[0].role ?? 'viewer') as MembershipRole);
+    // 행이 없으면 위에서 걸렸다. 여기서 빈 배열은 "대상은 있는데 행위자는 남이다"다.
+    this.assertAdmin((rows[0].roles ?? []) as MembershipRole[]);
   }
 
   /** EP-PRJ-01 — 조직 멤버가 볼 수 있는 프로젝트. 조직 멤버십은 프로젝트 전체를 덮는다. */
@@ -342,7 +359,7 @@ export class AuthService {
    */
   async updateProject(input: {
     projectId: string;
-    role: MembershipRole;
+    roles: readonly MembershipRole[];
     name?: string | null;
     description?: string | null;
     repoUrl?: string | null;
@@ -350,11 +367,11 @@ export class AuthService {
     gatePolicy?: Record<string, unknown> | null;
     retention?: Record<string, unknown> | null;
   }): Promise<Record<string, unknown>> {
-    if ((input.gatePolicy != null || input.retention != null) && input.role !== 'admin') {
+    if ((input.gatePolicy != null || input.retention != null) && !input.roles.includes('admin')) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only_policy'), {
         kind: 'role_required',
         required: ['admin'],
-        actual: input.role,
+        actual: input.roles,
       });
     }
     // 정책 jsonb 는 저장 전에 검증한다 — 웹 폼·API·워커가 같은 스키마를 본다(REQ-CB-006).
@@ -398,9 +415,9 @@ export class AuthService {
   async updateMembership(input: {
     membershipId: string;
     role: string;
-    actorRole: MembershipRole;
+    actorRoles: readonly MembershipRole[];
   }): Promise<Record<string, unknown>> {
-    this.assertAdmin(input.actorRole);
+    this.assertAdmin(input.actorRoles);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       UPDATE membership SET role = ${input.role}::member_role WHERE id = ${input.membershipId}
       RETURNING id, role::text AS role, user_id
@@ -417,9 +434,9 @@ export class AuthService {
   /** EP-MBR-04 */
   async removeMembership(input: {
     membershipId: string;
-    actorRole: MembershipRole;
+    actorRoles: readonly MembershipRole[];
   }): Promise<{ ok: true }> {
-    this.assertAdmin(input.actorRole);
+    this.assertAdmin(input.actorRoles);
     await this.db.execute(sql`DELETE FROM membership WHERE id = ${input.membershipId}`);
     return { ok: true };
   }
@@ -440,9 +457,9 @@ export class AuthService {
   /** EP-TOK-04 — admin 의 조직 전체 토큰 표(S8). 여기에도 원문은 없다. */
   async orgTokens(input: {
     orgSlug: string;
-    actorRole: MembershipRole;
+    actorRoles: readonly MembershipRole[];
   }): Promise<Record<string, unknown>[]> {
-    this.assertAdmin(input.actorRole);
+    this.assertAdmin(input.actorRoles);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.id, t.name, t.prefix, t.scopes, t.expires_at, t.revoked_at, t.last_used_at,
              t.last_used_hostname,
@@ -457,12 +474,13 @@ export class AuthService {
     return rows;
   }
 
-  private assertAdmin(role: MembershipRole): void {
-    if (role !== 'admin') {
+  /** 겸직이면 **하나라도** admin 이면 통과다 — 역할은 합집합이다(0003_multi_role). */
+  private assertAdmin(roles: readonly MembershipRole[]): void {
+    if (!roles.includes('admin')) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only'), {
         kind: 'role_required',
         required: ['admin'],
-        actual: role,
+        actual: roles,
       });
     }
   }
@@ -560,8 +578,10 @@ export class AuthService {
       displayName: session.user.name ?? session.user.email,
       isAgent: false,
       projectId: null,
+      // 세션은 요청 경로가 프로젝트를 정하므로 여기서는 비어 있다 —
+      // ProjectAccessGuard 가 멤버십을 읽어 역할·스코프를 채운다.
+      roles: [],
       scopes: [],
-      role: null,
       tokenId: null,
     };
   }
@@ -581,14 +601,15 @@ export class AuthService {
       scopes: string[];
       expires_at: string | null;
       revoked_at: string | null;
-      role: MembershipRole | null;
+      roles: MembershipRole[] | null;
     }>(sql`
       SELECT t.id, t.project_id, t.user_id, u.display_name, t.token_hash, t.scopes,
              t.expires_at, t.revoked_at,
-             (SELECT m.role FROM membership m
+             -- 토큰 주체의 역할 **전부**. 하나만 뽑던 자리다 — 겸직이면 절반을 잃고,
+             -- 그 절반에 admin 이 있으면 조용히 권한이 사라진다(0003_multi_role).
+             (SELECT array_agg(DISTINCT m.role::text) FROM membership m
                WHERE m.user_id = t.user_id
-                 AND (m.project_id = t.project_id OR m.project_id IS NULL)
-               ORDER BY m.project_id NULLS LAST LIMIT 1) AS role
+                 AND (m.project_id = t.project_id OR m.project_id IS NULL)) AS roles
         FROM api_token t JOIN "user" u ON u.id = t.user_id
        WHERE t.token_hash = decode(${digest.toString('hex')}, 'hex')
     `);
@@ -608,7 +629,7 @@ export class AuthService {
     if (token.expires_at !== null && new Date(token.expires_at).getTime() <= Date.now()) {
       throw unauthenticated('만료된 토큰입니다.');
     }
-    if (token.role === null) {
+    if (token.roles === null || token.roles.length === 0) {
       // 토큰은 살아 있는데 멤버십이 사라진 경우 — 권한은 사용자의 부분집합이므로 0이다
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.not_member'), {
         kind: 'no_membership',
@@ -633,8 +654,10 @@ export class AuthService {
       displayName: token.display_name,
       isAgent: true,
       projectId: token.project_id,
-      role: token.role,
-      scopes: token.scopes ?? [],
+      roles: token.roles ?? [],
+      // **토큰이 역할보다 넓을 수 없다.** 발급 뒤 역할이 낮아졌다면 낮아진 쪽을 따른다 —
+      // 토큰에 박힌 스코프만 보면 강등이 반영되지 않는다.
+      scopes: (token.scopes ?? []).filter((s) => scopesForRoles(token.roles ?? []).has(s as never)),
       tokenId: token.id,
     };
   }
@@ -643,37 +666,28 @@ export class AuthService {
    * 프로젝트 멤버십 검사 — REST·WS join·SSE 가 **같은 판정을 쓴다**(D-05).
    * 표면마다 따로 구현하면 어딘가는 느슨해진다.
    */
-  async assertMembership(userId: string, projectId: string): Promise<MembershipRole> {
+  async assertMembership(userId: string, projectId: string): Promise<MembershipRole[]> {
+    // **하나만 고르지 않는다.** 프로젝트 스코프와 조직 스코프 양쪽의 역할을 합친다 —
+    // 조직 admin 이면서 프로젝트 developer 인 사람은 둘 다여야 맞다.
     const { rows } = await this.db.execute<{ role: MembershipRole }>(sql`
-      SELECT role FROM membership
+      SELECT DISTINCT role FROM membership
        WHERE user_id = ${userId} AND (project_id = ${projectId} OR project_id IS NULL)
-       ORDER BY project_id NULLS LAST LIMIT 1
     `);
-    const role = rows[0]?.role;
-    if (role === undefined) {
+    const roles = rows.map((r) => r.role);
+    if (roles.length === 0) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.not_member'), {
         kind: 'no_membership',
         project_id: projectId,
       });
     }
-    return role;
+    return roles;
   }
 
-  /** 스코프 검사 — PAT 요청은 역할 판정에 **AND 로** 추가된다(api.md §1.3). */
-  assertScope(principal: Principal, required: AgentScope): void {
-    if (!principal.isAgent) return; // 세션 사용자는 역할 매트릭스가 판정한다
-    if (!principal.scopes.includes(required)) {
-      throw new NervError(
-        NERV_ERROR.FORBIDDEN,
-        msg('error.auth.scope_missing', { scope: required }),
-        {
-          kind: 'missing_scope',
-          required,
-          granted: principal.scopes,
-        },
-      );
-    }
+  /** 판정 정본은 `common/scope-check.ts` 다 — 여기서는 위임만 한다(D-05). */
+  assertScope(principal: Principal, required: RoleScope): void {
+    assertScopeOf(principal, required);
   }
+
 
   /** 토큰이 붙은 프로젝트 밖을 건드리려 할 때 — 스코프 밖 프로젝트는 거부다. */
   assertProjectScope(principal: Principal, projectId: string): void {

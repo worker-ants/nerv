@@ -517,6 +517,7 @@ export const ko = {
   'settings.members.name': '이름',
   'settings.members.org_wide': '조직 전체',
   'settings.members.role': '역할',
+  'settings.members.last_role': '마지막 역할은 뗄 수 없습니다 — 멤버십이 사라집니다',
   'settings.members.role_admin_only': '이 변경은 admin 역할만 가능합니다',
   'settings.members.role_changed': '역할을 바꿨습니다.',
   'settings.members.scope': '스코프',

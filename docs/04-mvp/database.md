@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.7 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.8 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
 >
 > v0.6 변경(2026-08-22 — 화면 대조에서 발견): `api_token.last_used_hostname` 추가(§2.2 · 마이그레이션 `0002_token_host`). REQ-WEB-026이 S8 토큰 목록에 "마지막 사용(시각·**hostname**)"을 요구하는데 데이터 소스가 없었다 — 헤더 값이라 신뢰하지 않으며 권한 판정이 아니라 표시 전용이다.
 >
@@ -1132,7 +1132,7 @@ COMMIT;
 | REQ-DB-008 | WHEN 베이스라인 생성 트랜잭션에 `approved`가 아닌 `spec_version` 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 베이스라인의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 베이스라인 생성으로만 한다 | draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건 |
 | REQ-DB-008 | WHEN `requirement_id`·`spec_version_id`·`task_id`가 전부 NULL인 `evidence`를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + 각 앵커 단독 통과 3건 |
 | REQ-DB-009 | WHEN `nerv_ensure_month_partitions(대상 월)`을 호출하면 THE SYSTEM SHALL `event`·`activity`의 해당 월 파티션과 activity 파티션별 `(session_id, seq)` unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다 | 함수 2회 호출 후 카탈로그 조회 |
-| REQ-DB-010 | WHEN 같은 사용자를 같은 스코프(`coalesce(project_id, org_id)` 동일)에 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 | 프로젝트 중복·조직 전역 중복 각 1건 |
+| REQ-DB-010 | WHEN 같은 사용자에게 같은 스코프의 **같은 역할**을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · `membership_user_scope_role_uq`) | 같은 역할 중복 1건 · 다른 역할 추가 1건 |
 | REQ-DB-011 | WHEN `status <> 'draft'`인 `spec_version`에 `edit_lease_user_id`·`edit_lease_session_id`·`edit_lease_expires_at` 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 3필드 각각 1건 |
 | REQ-DB-012 | WHEN `commit_sha` 없이 `kind='fixed'`인 `resolution`을 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + `spec_change`에 `change_request_id` 누락 1건 |
 | REQ-DB-013 | WHEN `nerv_glob_overlap`에 두 glob을 넘기면 THE SYSTEM SHALL 보수적 교차 판정을 반환한다 — 최소: (`a/**`, `a/b/c`)=true, (`a/b/**`, `a/c/**`)=false, (`a/*/c`, `a/x/c`)=true | 함수 단위 테스트(위 3케이스 + 동일 문자열 케이스) |
@@ -1140,6 +1140,13 @@ COMMIT;
 | REQ-DB-015 | WHEN 같은 (spec_version_id, anchor, model)로 임베딩이 재기록되면 THE SYSTEM SHALL 유니크 제약으로 중복 행을 차단하고, `spec_version` 삭제 시 임베딩 행을 CASCADE로 제거한다 | 중복 INSERT 1건 + 버전 삭제 후 잔존 행 0 확인 |
 | REQ-DB-016 | WHEN 한국어 질의(예: "위젯")로 trigram 검색을 실행하면 THE SYSTEM SHALL 조사 변형 본문("위젯을 처음 열면")을 포함한 행을 반환한다 — `simple` FTS 단독으로는 매칭되지 않는 케이스가 통과 기준이다 | 조사 변형 3케이스 질의 |
 | REQ-DB-017 | WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 판의 `spec_chunk_embedding` 행을 제거해 스펙당 인덱싱 판을 최신 approved + 현재 draft 2개 이하로 유지한다 | supersede 후 행 수 확인 |
+
+**한 사람이 한 스코프에서 역할을 여럿 가진다(2026-08-23 — `0003_multi_role`).** 근거는 실측이다: clemvion 의 `owner:` 라벨에 `planner/developer`·`project-planner + developer` 같은 복합 표기가 20건 있다. 겸직이 예외가 아니라 흔한 형태인데 모델이 담지 못해 임포트에서 배정 87건이 미결로 갔다.
+
+- **배열이 아니라 행이다.** `roles member_role[]` 한 칸으로 두면 조인은 줄지만 "누가 언제 무슨 역할을 받았는가"가 사라진다. 부여마다 행이면 `created_at` 이 살아 있고 회수도 행 삭제다 — 마이그레이션은 유일 인덱스 교체뿐이다.
+- **판정은 합집합이다.** 코드 곳곳에 있던 "admin 우선 1건" 정렬은 겸직에서 역할 절반을 잃는다 — 그 절반에 admin 이 있으면 권한이 조용히 사라진다. 고르는 자리를 전부 합치는 자리로 바꿨다([4.4 API 명세](api.md) §1.6a).
+- **D-06(지시자≠승인자)은 그대로다.** 그 판정은 역할이 아니라 `requested_by_user_id` 라 겸직과 무관하다 — 오히려 겸직이 흔할수록 사람 기준인 것이 중요해진다.
+
 
 ### 5.2 무결성 규칙 ↔ 구현 위치 전수 대조
 

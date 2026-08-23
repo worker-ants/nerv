@@ -49,7 +49,7 @@ function LoginScreen(): React.JSX.Element {
       (me.memberships.length === 0
         ? '/onboarding'
         : landingFor(
-            primaryMembership(me)?.role ?? 'viewer',
+            primaryMembership(me)?.roles ?? ['viewer'],
             primaryMembership(me)?.project_slug ?? null,
           ));
     void navigate({ to: target });

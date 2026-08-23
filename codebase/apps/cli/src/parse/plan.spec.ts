@@ -123,3 +123,28 @@ describe('spec_impact — Gate C 어휘', () => {
     expect(mapSpecImpact('', [])).toBeNull();
   });
 });
+
+describe('복합 owner 라벨 — 매핑은 사람이 준다 (0003_multi_role)', () => {
+  // clemvion 실측에서 `planner/developer` 류가 20건이다. 겸직이 흔한 형태라는 신호를
+  // 데이터가 먼저 보내고 있었고, 그래서 멤버십이 다중 역할을 담게 됐다.
+  //
+  // 다만 **임포터는 여전히 추정하지 않는다.** 쪼개서 첫 조각을 쓰면 `developer (다음
+  // 진입자)`(=사람이 아직 없다)까지 특정인에게 붙는다. 복합 라벨은 owner-map 에 그대로
+  // 적는 것이 답이고, 그것은 코드가 아니라 운영자의 판단이다.
+  const owner = (label: string, map: Record<string, string>): string | null =>
+    classifyPlan(
+      { path: 'plan/in-progress/x.md', frontmatter: { owner: label, worktree: 'wt' }, body: '# x' },
+      { unstartedSentinel: '(unstarted)', ownerMap: map, importedAt: '2026-08-23T00:00:00Z' },
+    ).task?.assignee_user_id ?? null;
+
+  it('복합 라벨을 키로 적으면 배정된다', () => {
+    expect(owner('planner/developer', { 'planner/developer': 'u-jimin' })).toBe('u-jimin');
+    expect(owner('project-planner + developer', { 'project-planner + developer': 'u-jimin' })).toBe(
+      'u-jimin',
+    );
+  });
+
+  it('적지 않으면 미배정이다 — 조각을 보고 추정하지 않는다', () => {
+    expect(owner('planner/developer', { planner: 'u-plan', developer: 'u-dev' })).toBeNull();
+  });
+});

@@ -8,18 +8,54 @@ import { useT } from '../../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
+import { cn } from '../../lib/utils.js';
 import { rows, useMe, useMembers } from '../../lib/queries.js';
 import { primaryMembership } from '../../lib/session.js';
 import { useRealtime } from '../../lib/realtime.js';
 import {
   EmptyState,
   PageHeader,
-  Select,
   Table,
   Td,
   Th,
   Tr,
 } from '../../components/ui/primitives.js';
+
+/**
+ * 같은 사람·같은 스코프의 멤버십을 **한 줄로 묶는다**. 서버는 부여마다 행을 주므로
+ * (0003_multi_role) 그대로 그리면 겸직인 사람이 표에 두 번 나온다.
+ * `idByRole` 을 함께 만드는 이유는 역할을 끌 때 **그 역할의 행**을 지워야 하기 때문이다.
+ */
+interface MemberRow {
+  key: string;
+  display_name: string;
+  email: string;
+  project_slug: string | null;
+  roles: string[];
+  idByRole: Record<string, string>;
+}
+
+function groupByMember(raw: Record<string, unknown>[]): MemberRow[] {
+  const out = new Map<string, MemberRow>();
+  for (const r of raw) {
+    const email = String(r['email']);
+    const scope = String(r['project_slug'] ?? '');
+    const key = `${email}@${scope}`;
+    const row = out.get(key) ?? {
+      key,
+      display_name: String(r['display_name']),
+      email,
+      project_slug: (r['project_slug'] as string | null) ?? null,
+      roles: [],
+      idByRole: {},
+    };
+    const role = String(r['role']);
+    if (!row.roles.includes(role)) row.roles.push(role);
+    row.idByRole[role] = String(r['id']);
+    out.set(key, row);
+  }
+  return [...out.values()];
+}
 
 export const Route = createFileRoute('/settings/members')({ component: MembersTab });
 
@@ -34,14 +70,21 @@ function MembersTab(): React.JSX.Element {
   const members = useMembers(orgSlug);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
-  const isAdmin = membership?.role === 'admin';
+  // **하나를 고르지 않는다.** 겸직이면 planner+developer 중 하나가 사라진다(0003_multi_role)
+  const isAdmin = (membership?.roles ?? []).includes('admin');
 
-  const changeRole = useMutation({
-    mutationFn: (input: { id: string; role: string }) =>
-      apiFetch(`/projects/${projectSlug ?? ''}/memberships/${input.id}`, {
-        method: 'PATCH',
-        body: { role: input.role },
-      }),
+  /**
+   * 역할 하나를 켜고 끈다. **부여마다 행**이므로 켜기는 추가, 끄기는 삭제다 —
+   * 한 행의 값을 바꾸던 예전 방식(PATCH)은 겸직에서 표현할 수가 없다.
+   */
+  const toggleRole = useMutation({
+    mutationFn: (input: { userEmail: string; role: string; on: boolean; id: string | undefined }) =>
+      input.on
+        ? apiFetch(`/memberships/${input.id ?? ''}`, { method: 'DELETE' })
+        : apiFetch(`/orgs/${orgSlug ?? ''}/members`, {
+            method: 'POST',
+            body: { email: input.userEmail, role: input.role, project: projectSlug },
+          }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'members'] });
       pushToast({ tone: 'ok', message: t('settings.members.role_changed') });
@@ -71,27 +114,48 @@ function MembersTab(): React.JSX.Element {
             </>
           }
         >
-          {rows(members.data).map((m) => (
-            <Tr key={String(m['id'])}>
-              <Td className="font-medium">{String(m['display_name'])}</Td>
-              <Td className="text-text-mute">{String(m['email'])}</Td>
+          {groupByMember(rows(members.data)).map((m) => (
+            <Tr key={m.key}>
+              <Td className="font-medium">{m.display_name}</Td>
+              <Td className="text-text-mute">{m.email}</Td>
               <Td className="text-text-mute">
-                {String(m['project_slug'] ?? t('settings.members.org_wide'))}
+                {m.project_slug ?? t('settings.members.org_wide')}
               </Td>
               <Td>
-                <Select
-                  value={String(m['role'])}
-                  disabled={!isAdmin || changeRole.isPending}
-                  title={isAdmin ? undefined : t('settings.members.role_admin_only')}
-                  onChange={(e) => changeRole.mutate({ id: String(m['id']), role: e.target.value })}
-                  className="w-full"
-                >
-                  {ROLES.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </Select>
+                {/* **체크박스다.** 하나를 고르는 자리가 아니다 — 겸직이 흔한 형태라는 것이
+                    clemvion 실측(복합 라벨 20건)이고, 데이터도 이제 그것을 담는다.
+                    켜기는 멤버십 행 추가, 끄기는 그 행 삭제다 — 부여마다 행이라 이력이 남는다. */}
+                <div className="flex flex-wrap gap-1">
+                  {ROLES.map((role) => {
+                    const on = m.roles.includes(role);
+                    const last = on && m.roles.length === 1;
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        data-testid={`role-${role}`}
+                        aria-pressed={on}
+                        disabled={!isAdmin || last || toggleRole.isPending}
+                        title={t(
+                          last ? 'settings.members.last_role' : 'settings.members.role_admin_only',
+                        )}
+                        onClick={() =>
+                          toggleRole.mutate({ userEmail: m.email, role, on, id: m.idByRole[role] })
+                        }
+                        className={cn(
+                          'rounded-nerv-sm border px-1.5 py-0.5 text-2xs transition-colors',
+                          on
+                            ? 'border-border-strong bg-bg-elev font-medium text-text'
+                            : 'border-border text-text-faint hover:text-text',
+                          !isAdmin || last ? 'cursor-not-allowed opacity-60' : '',
+                        )}
+                      >
+                        {on ? '✓ ' : ''}
+                        {role}
+                      </button>
+                    );
+                  })}
+                </div>
               </Td>
             </Tr>
           ))}

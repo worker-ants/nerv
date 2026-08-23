@@ -84,7 +84,8 @@ export class AuthController {
     return this.auth.updateMembership({
       membershipId: id,
       role: String(body['role'] ?? ''),
-      actorRole: 'admin',
+      // 앞의 assertAdminOfMembership 이 이미 admin 임을 확인했다
+      actorRoles: ['admin'],
     });
   }
 
@@ -96,7 +97,7 @@ export class AuthController {
   ): Promise<{ ok: true }> {
     const principal = principalOf(req);
     await this.auth.assertAdminOfMembership(id, principal.userId);
-    return this.auth.removeMembership({ membershipId: id, actorRole: 'admin' });
+    return this.auth.removeMembership({ membershipId: id, actorRoles: ['admin'] });
   }
 
   /** EP-PRJ-01 */
@@ -173,7 +174,7 @@ export class ProjectController {
   update(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     return this.auth.updateProject({
       projectId: req.nervProjectId ?? '',
-      role: roleOf(req),
+      roles: rolesOf(req),
       name: str(body['name']),
       description: str(body['description']),
       repoUrl: str(body['repo_url']),
@@ -196,9 +197,9 @@ function principalOf(req: ProjectRequest): Principal {
   return principal;
 }
 
-function roleOf(req: ProjectRequest): MembershipRole {
-  const role = req.nervRole;
-  if (role === undefined) {
+function rolesOf(req: ProjectRequest): readonly MembershipRole[] {
+  const role = req.nervRoles;
+  if (role === undefined || role.length === 0) {
     throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.no_role'), { kind: 'no_role' });
   }
   return role;

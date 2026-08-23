@@ -8,7 +8,8 @@ import { apiFetch } from './api.js';
 
 export interface Membership extends Record<string, unknown> {
   id: string;
-  role: string;
+  /** 겸직은 **집합**이다 — 하나를 고르면 절반이 사라진다(0003_multi_role) */
+  roles: string[];
   org_id: string;
   org_slug: string;
   org_name: string;
@@ -94,18 +95,27 @@ export function authFailureText(t: Translator, value: AuthFailure): string {
  * 역할별 첫 화면 — ui-wireframes §1.5. qa 는 MVP 에서 커버리지(S6, Phase 2)가 아니라
  * 작업 보드로 보낸다(screens.md §2.1 각주 4).
  */
-export function landingFor(role: string, projectSlug: string | null): string {
+export function landingFor(roles: readonly string[], projectSlug: string | null): string {
   if (projectSlug === null) return '/inbox';
-  switch (role) {
-    case 'planner':
-    case 'designer':
-    case 'admin':
-      return '/inbox';
-    case 'developer':
-    case 'qa':
-      return `/p/${projectSlug}/tasks`;
-    default:
-      return `/p/${projectSlug}`;
+  // **겸직이면 앞선 역할을 따른다.** planner+developer 는 승인함으로 보낸다 — 사람이
+  // 기다리는 결정이 있는 쪽이 먼저다. 아래 switch 의 순서가 그 우선순위다.
+  for (const role of ['admin', 'planner', 'designer', 'qa', 'developer', 'viewer']) {
+    if (roles.includes(role)) return landingForOne(role);
+  }
+  return landingForOne('viewer');
+
+  function landingForOne(role: string): string {
+    switch (role) {
+      case 'planner':
+      case 'designer':
+      case 'admin':
+        return '/inbox';
+      case 'developer':
+      case 'qa':
+        return `/p/${projectSlug}/tasks`;
+      default:
+        return `/p/${projectSlug}`;
+    }
   }
 }
 

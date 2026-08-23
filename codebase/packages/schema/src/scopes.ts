@@ -44,3 +44,84 @@ export function isHumanOnlyScope(value: string): value is HumanOnlyScope {
 
 /** REST 전용 — MCP 도구 대응이 없다(api.md §1.3). */
 export const REST_ONLY_SCOPES = ['import:write'] as const;
+
+// ── 역할 → 권한 (api.md §2 전표의 "권한" 열) ────────────────────────────────
+//
+// **역할과 스코프를 한 축으로 합친다.** `assertScope` 는 원래 "세션 사용자는 역할
+// 매트릭스가 판정한다"고 적어 두고 그 매트릭스가 없어, 웹 세션이면 `viewer` 도
+// EP-SPEC-15(메타 편집)·16(아카이브)·12(베이스라인 동결)을 통과했다(실측 2026-08-23).
+//
+// 두 경로가 같은 어휘를 쓰면 판정이 하나가 된다(D-05):
+//   - 세션(쿠키): 역할이 허용하는 스코프
+//   - PAT: 역할이 허용하는 스코프 **AND** 토큰에 실린 스코프 (api.md §1.3 "AND 로 추가")
+// 토큰이 역할보다 넓을 수 없다는 뜻이다 — 발급 시점의 역할이 상한이다.
+
+/** 사람 전용 스코프까지 포함한 권한 어휘 — 토큰 부여 가능 여부와는 다른 축이다. */
+export type RoleScope = AgentScope | HumanOnlyScope;
+
+/**
+ * 역할이 허용하는 스코프. **`viewer` 는 읽기뿐이다.**
+ *
+ * `admin` 을 전량으로 두는 것은 정본의 "admin ●"들과 정합한다. 나머지는 전표의
+ * 권한 열을 그대로 옮긴 것이고, 근거가 없는 권한은 주지 않는다 — 넓게 열어 두고
+ * 나중에 조이는 것은 이미 통과하던 요청을 깨는 일이라 더 비싸다.
+ */
+export const ROLE_SCOPES: Readonly<Record<string, readonly RoleScope[]>> = {
+  admin: [...AGENT_SCOPES, ...HUMAN_ONLY_SCOPES],
+  // 스펙 계열의 주인 — 메타·베이스라인·승인이 여기 있다(EP-SPEC-12·15~17 · EP-APR-03)
+  planner: [
+    'spec:read',
+    'agent-session:launch',
+    'spec:draft',
+    'spec:meta',
+    'spec:approve',
+    'approval:decide',
+    'task:claim',
+    'task:update',
+    'review:submit',
+    'review:resolve',
+  ],
+  // ○ — 만들 수 있는 타입이 제한된다(SPEC_CREATE_TYPES). 메타·승인은 없다.
+  designer: ['spec:read', 'agent-session:launch', 'spec:draft', 'task:claim', 'task:update', 'review:submit'],
+  developer: ['spec:read', 'agent-session:launch', 'spec:draft', 'task:claim', 'task:update', 'review:submit'],
+  qa: [
+    'spec:read',
+    'agent-session:launch',
+    'spec:draft',
+    'task:claim',
+    'task:update',
+    'review:submit',
+    'review:resolve',
+  ],
+  viewer: ['spec:read'],
+};
+
+/**
+ * 역할별로 **새로 만들 수 있는 스펙 타입**(EP-SPEC-07 의 ● / ○).
+ *
+ * `null` 은 제한 없음이다. 정본이 타입을 적어 둔 역할만 좁힌다 — `qa` 는 ○ 인데
+ * 타입 목록이 없어(api.md §2.2 EP-SPEC-07) 여기서 지어내지 않는다. **미결**로 둔다.
+ */
+export const SPEC_CREATE_TYPES: Readonly<Record<string, readonly string[] | null>> = {
+  admin: null,
+  planner: null,
+  designer: ['design'],
+  developer: ['convention', 'adr'],
+  qa: null,
+  viewer: [],
+};
+
+/** 역할 여럿을 **합친다** — 고르지 않는다. 겸직은 권한의 합집합이다. */
+export function scopesForRoles(roles: readonly string[]): Set<RoleScope> {
+  const out = new Set<RoleScope>();
+  for (const role of roles) for (const s of ROLE_SCOPES[role] ?? []) out.add(s);
+  return out;
+}
+
+/** 어느 역할 하나라도 그 타입을 만들 수 있으면 만들 수 있다. */
+export function canCreateSpecType(roles: readonly string[], type: string): boolean {
+  return roles.some((role) => {
+    const allowed = SPEC_CREATE_TYPES[role];
+    return allowed === undefined ? false : allowed === null || allowed.includes(type);
+  });
+}

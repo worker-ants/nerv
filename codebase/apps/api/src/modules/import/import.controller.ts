@@ -80,11 +80,12 @@ export class ImportController {
         kind: 'missing',
       });
     }
-    if (req.nervRole !== 'admin') {
+    // 겸직이면 하나라도 admin 이면 통과다 — 역할은 합집합이다(0003_multi_role)
+    if (!(req.nervRoles ?? []).includes('admin')) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only_import'), {
         kind: 'role_required',
         required: 'admin',
-        granted: req.nervRole ?? null,
+        granted: req.nervRoles ?? [],
       });
     }
     this.auth.assertScope(principal, 'import:write');

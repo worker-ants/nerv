@@ -121,7 +121,8 @@ describe('PAT 검증', () => {
       userId,
       isAgent: true,
       projectId,
-      role: 'developer',
+      // 겸직이 기본형이다 — 하나가 아니라 **집합**이다(0003_multi_role)
+      roles: ['developer'],
       tokenId: issued.tokenId,
     });
     expect(principal.scopes).toEqual(['spec:read', 'task:claim']);

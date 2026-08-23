@@ -525,6 +525,7 @@ export const en = {
   'settings.members.name': 'Name',
   'settings.members.org_wide': 'Whole organization',
   'settings.members.role': 'Role',
+  'settings.members.last_role': 'Cannot remove the last role — the membership would disappear',
   'settings.members.role_admin_only': 'Only the admin role can make this change',
   'settings.members.role_changed': 'Role changed.',
   'settings.members.scope': 'Scope',

@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertScope, principalOf } from '../../common/scope-check.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { BaselineService } from './baseline.service.js';
@@ -400,6 +401,7 @@ export class SpecController {
     @Param('spec') spec: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
+    assertScope(principalOf(req), 'spec:meta');
     const principal = requireHuman(req);
     return this.specs.updateMeta({
       projectId: projectOf(req),
@@ -416,6 +418,7 @@ export class SpecController {
   /** EP-SPEC-16 */
   @Post('specs/:spec/archive')
   archive(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+    assertScope(principalOf(req), 'spec:meta');
     const principal = requireHuman(req);
     return this.specs.archive({
       projectId: projectOf(req),
@@ -427,6 +430,7 @@ export class SpecController {
   /** EP-SPEC-17 */
   @Post('specs/:spec/restore')
   restore(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+    assertScope(principalOf(req), 'spec:meta');
     const principal = requireHuman(req);
     return this.specs.restore({
       projectId: projectOf(req),
@@ -441,6 +445,7 @@ export class SpecController {
     @Req() req: ProjectRequest,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
+    assertScope(principalOf(req), 'spec:approve');
     const principal = requireHuman(req);
     return this.baselines.create({
       projectId: projectOf(req),

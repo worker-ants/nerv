@@ -9,7 +9,8 @@
 // 그래서 적용된 스키마의 사실을 직접 조회해 고정한다.
 
 import { randomUUID } from 'node:crypto';
-import { runMigrations } from '@nerv/schema/migrate';
+import { readdirSync } from 'node:fs';
+import { migrationsFolder, runMigrations } from '@nerv/schema/migrate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createScratchDb, withClient } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -25,9 +26,10 @@ afterAll(async () => {
 });
 
 describe('초기 스냅샷 적용 (database.md §2)', () => {
-  // 마이그레이션 3벌: 0000_init(도메인 전량) · 0001_auth(인증 인프라 — 4.3 §2.16)
-  // · 0002_token_host(api_token.last_used_hostname — REQ-WEB-026 의 데이터 소스)
-  const MIGRATIONS = 3;
+  // 마이그레이션 수는 **디렉터리에서 센다.** 숫자를 박아 두면 파일이 하나 늘 때마다
+  // "무엇이 틀렸는지 말해 주지 않는 실패"로 깨진다(실측: 0003_multi_role 을 더하며 깨졌다).
+  // 이 테스트가 지키려는 것은 개수가 아니라 **전량 적용과 왕복 멱등**이다.
+  const MIGRATIONS = readdirSync(migrationsFolder()).filter((f) => f.endsWith('.sql')).length;
 
   it('빈 DB 에 오류 없이 적용된다', async () => {
     const first = await runMigrations(db.url);

@@ -9,7 +9,7 @@
 
 import { Injectable } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
-import { msg, NERV_ERROR } from '@nerv/schema';
+import { msg, scopesForRoles, NERV_ERROR } from '@nerv/schema';
 import { AuthService } from '../modules/auth/auth.service.js';
 import type { MembershipRole, Principal } from '../modules/auth/auth.service.js';
 import { NervError } from './nerv-exception.filter.js';
@@ -19,7 +19,7 @@ export interface ProjectRequest {
   nervPrincipal?: Principal;
   /** 가드가 해소해 컨트롤러에 넘긴다 */
   nervProjectId?: string;
-  nervRole?: MembershipRole;
+  nervRoles?: readonly MembershipRole[];
 }
 
 @Injectable()
@@ -47,8 +47,18 @@ export class ProjectAccessGuard implements CanActivate {
     }
 
     this.auth.assertProjectScope(principal, project.id);
-    req.nervRole = await this.auth.assertMembership(principal.userId, project.id);
+    const roles = await this.auth.assertMembership(principal.userId, project.id);
+    req.nervRoles = roles;
     req.nervProjectId = project.id;
+
+    // **세션 주체의 권한은 여기서 정해진다.** `assertScope` 는 원래 "세션 사용자는 역할
+    // 매트릭스가 판정한다"고 적어 두고 그 매트릭스가 없어, 웹으로 들어오면 `viewer` 도
+    // 메타 편집·아카이브·베이스라인 동결을 통과했다(실측 2026-08-23).
+    // PAT 는 이미 발급 시점에 역할과 교집합을 냈으므로 건드리지 않는다.
+    if (!principal.isAgent) {
+      principal.roles = roles;
+      principal.scopes = [...scopesForRoles(roles)];
+    }
     return true;
   }
 }

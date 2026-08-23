@@ -90,6 +90,10 @@ export function classifyPlan(
 
   const ownerRaw = input.frontmatter['owner'];
   const ownerLabel = typeof ownerRaw === 'string' && ownerRaw !== '' ? ownerRaw.trim() : null;
+  // **추정하지 않는다.** 복합 라벨(`planner/developer`)을 쪼개 첫 조각을 쓰면 편하지만,
+  // `developer (다음 진입자)` 처럼 "사람이 아직 없다"는 뜻인 표기까지 특정인에게 배정된다.
+  // owner 는 신원이 아니라 역할이므로(1부 §소유자가 신원이 아니다) 매핑은 사람이 준다 —
+  // 복합 라벨도 `--owner-map` 에 그대로 키로 적으면 된다.
   const assignee = ownerLabel === null ? null : (options.ownerMap?.[ownerLabel] ?? null);
   if (ownerLabel !== null && assignee === null) {
     // owner 는 신원이 아니다 — 자유 텍스트를 계정으로 추정하지 않는다(§2.6)

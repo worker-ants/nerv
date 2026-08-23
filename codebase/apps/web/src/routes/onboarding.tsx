@@ -44,15 +44,16 @@ function OnboardingScreen(): React.JSX.Element {
       ) : (
         <div className="flex flex-col gap-3">
           <Card>
-            <h2 className="mb-1 font-medium">{t('onboarding.step2', { role: membership.role })}</h2>
+            <h2 className="mb-1 font-medium">{t('onboarding.step2', { role: membership.roles.join(' · ') })}</h2>
             <p className="text-sm text-text-mute">
-              {t(ROLE_NOTE_KEY[membership.role] ?? 'onboarding.role.unknown')}
+              {/* 겸직이면 **앞선 역할**의 안내를 보인다 — 여러 문단을 한꺼번에 읽히지 않는다 */}
+              {t(ROLE_NOTE_KEY[membership.roles[0] ?? ''] ?? 'onboarding.role.unknown')}
             </p>
           </Card>
           <Card>
             <h2 className="mb-1.5 font-medium">{t('onboarding.step3')}</h2>
             <Link
-              to={landingFor(membership.role, membership.project_slug)}
+              to={landingFor(membership.roles, membership.project_slug)}
               className="text-sm text-link hover:underline"
             >
               {membership.role === 'developer' || membership.role === 'qa'

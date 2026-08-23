@@ -42,7 +42,7 @@ beforeAll(async () => {
       projectId,
       userId: adminId,
       name: 'admin-pat',
-      scopes: ['spec:read', 'spec:draft', 'task:claim', 'task:update'],
+      scopes: ['spec:read', 'spec:draft', 'spec:meta', 'task:claim', 'task:update'],
     })
   ).token;
   viewerToken = (
@@ -568,6 +568,40 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
       payload: { email: 'viewer@example.com', role: 'qa', project: 'new-proj' },
     });
     expect(ok.status).toBe(201);
+  });
+
+  it('viewer 는 웹으로 들어와도 메타·아카이브·베이스라인을 못 건드린다 (역할 매트릭스)', async () => {
+    await call('POST', '/api/v1/projects/clemvion/specs', {
+      payload: { key: 'SPC-RBAC', title: '권한 시험', type: 'feature', body_markdown: '# 본문' },
+    });
+    // `assertScope` 는 "세션 사용자는 역할 매트릭스가 판정한다"고 적어 두고 그 매트릭스가
+    // 없어 `if (!isAgent) return;` 로 통과시켰다. 웹으로 들어오면 viewer 도 스펙을
+    // 아카이브하고 베이스라인을 동결할 수 있었다(실측 2026-08-23).
+    const denied = [
+      ['PATCH', `/api/v1/projects/clemvion/specs/SPC-RBAC`, { title: '바꿔본다' }],
+      ['POST', `/api/v1/projects/clemvion/specs/SPC-RBAC/archive`, {}],
+      ['POST', '/api/v1/projects/clemvion/baselines', { name: 'b1' }],
+    ] as const;
+    for (const [method, url, payload] of denied) {
+      const res = await call(method, url, { token: viewerToken, payload });
+      expect([403, 404]).toContain(res.status); // 403 이 정답, 404 는 라우트 오탈자 방어
+      expect(res.status).toBe(403);
+      expect((res.body as { details: Record<string, unknown> }).details['kind']).toBe(
+        'missing_scope',
+      );
+    }
+  });
+
+  it('권한이 있으면 스코프 문턱은 넘는다 — 조인 것이 아니라 **가른** 것이다', async () => {
+    // 전부 막으면 조인 것이 아니라 부순 것이다. 다만 EP-SPEC-15 는 그 다음 문턱이
+    // **사람 전용**이라(requireHuman) PAT 는 어차피 못 지난다 — 그래서 "통과했다"가 아니라
+    // "**스코프에서 막히지는 않았다**"를 본다. 두 문턱은 다른 것을 지킨다.
+    const res = await call('PATCH', '/api/v1/projects/clemvion/specs/SPC-RBAC', {
+      payload: { title: 'admin 이 고친 제목' },
+    });
+    const kind = (res.body as { details?: Record<string, unknown> }).details?.['kind'];
+    expect(kind).not.toBe('missing_scope');
+    expect(kind).toBe('human_only');
   });
 
   it('EP-MBR-03 — 멤버십 경로에 프로젝트가 없어도 admin 을 확인한다', async () => {

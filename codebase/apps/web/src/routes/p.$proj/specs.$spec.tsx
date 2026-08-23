@@ -378,8 +378,8 @@ function SpecDetail(): React.JSX.Element {
           specKey={spec}
           title={String(detail.data?.['title'] ?? spec)}
           // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다
-          canEdit={['planner', 'admin'].includes(
-            me.data?.memberships.find((m) => m.project_slug === proj)?.role ?? '',
+          canEdit={(me.data?.memberships.find((m) => m.project_slug === proj)?.roles ?? []).some(
+            (r) => r === 'planner' || r === 'admin',
           )}
           onClose={() => setMetaOpen(false)}
         />
