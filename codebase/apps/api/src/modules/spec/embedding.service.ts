@@ -35,7 +35,7 @@ export interface IndexReport {
 export class EmbeddingService {
   private readonly logger = new Logger(EmbeddingService.name);
   private readonly client = EmbeddingClient.fromEnv();
-  readonly model = process.env['NERV_EMBED_MODEL'] ?? 'BAAI/bge-m3';
+  readonly model = process.env['NERV_EMBED_MODEL'] ?? 'bge-m3';
 
   constructor(@InjectDb() private readonly db: NervDb) {}
 

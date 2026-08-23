@@ -38,20 +38,38 @@ services:
       timeout: 3s
       retries: 6
 
-  embed:                             # 로컬 프로필 전용 임베딩 서빙(TEI — OpenAI 호환 /v1/embeddings 노출).
+  embed:                             # 로컬 프로필 전용 임베딩 서빙(OpenAI 호환 /v1/embeddings 노출).
     profiles: ["local-embed"]        #   외부 제공자(LM Studio·OpenAI) 프로필에서는 기동하지 않는다 (§5.2a)
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest   # 버전 태그 고정 권장
+    # 이미지가 ollama 인 이유는 **개발자의 기계에서 도는 것**이 이 프로필의 존재 이유이기
+    # 때문이다. TEI(ghcr.io/huggingface/text-embeddings-inference)는 arm64 이미지를 내지
+    # 않아 Apple Silicon 에서 `no matching manifest` 로 멈춘다(실측 2026-08-23 — 전 태그 확인).
+    # amd64 에뮬레이션은 기동은 하지만 워밍업에서 OOM 으로 죽는다(exit 137).
+    # ollama 는 amd64·arm64 둘 다 내고, 같은 bge-m3(F16 · 1024차원)를 같은 계약으로 노출한다.
+    image: ollama/ollama:latest      # 버전 태그 고정 권장
     restart: unless-stopped
-    command: ["--model-id", "${NERV_EMBED_MODEL:-BAAI/bge-m3}"]
+    # ollama 는 요청 시 모델을 자동으로 받지 않는다(실측: `model not found, try pulling it first`).
+    # 서버를 띄운 뒤 한 번 받아 두지 않으면 첫 검색이 조용히 렉시컬로 degrade 한다.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        ollama pull "${NERV_EMBED_MODEL:-bge-m3}"
+        wait
     volumes:
-      - embedmodels:/data            # 모델 가중치 캐시 — 첫 기동만 다운로드
+      - embedmodels:/root/.ollama    # 모델 가중치 캐시 — 첫 기동만 다운로드
     ports:
-      - "127.0.0.1:${NERV_EMBED_PORT:-8090}:80"   # 개발 루프용 — 운영 배포에서는 제거
+      - "127.0.0.1:${NERV_EMBED_PORT:-8090}:11434"   # 개발 루프용 — 운영 배포에서는 제거
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
+      # **모델이 실제로 응답할 때만** healthy 다 — 서버만 떠 있는 상태를 준비됐다고 부르면
+      # 그 사이의 임베딩이 전부 조용히 실패한다
+      test:
+        - CMD-SHELL
+        - >
+          ollama list 2>/dev/null | grep -q "${NERV_EMBED_MODEL:-bge-m3}"
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 60                    # 첫 기동은 모델(~1.2GB) 다운로드를 기다린다
     # api·worker 는 embed 를 기다리지 않는다 — 무응답이면 렉시컬 degrade (REQ-API-026)
 
   minio:
@@ -101,8 +119,8 @@ services:
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
-      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:80/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
-      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-BAAI/bge-m3}
+      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
+      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-bge-m3}
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
@@ -134,8 +152,8 @@ services:
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
-      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:80/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
-      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-BAAI/bge-m3}
+      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
+      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-bge-m3}
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}

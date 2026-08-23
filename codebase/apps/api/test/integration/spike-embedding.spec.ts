@@ -121,7 +121,7 @@ describe('E06-S06 임베딩 제공자 계약 (REQ-CB-020)', () => {
 
   it('세 프로필이 같은 코드 경로를 쓴다 — env 3키만 다르다(§5.2a)', async () => {
     const profiles = [
-      { name: '로컬(TEI)', baseUrl: stubUrl, model: 'BAAI/bge-m3', sendDimensions: false },
+      { name: '로컬(ollama)', baseUrl: stubUrl, model: 'bge-m3', sendDimensions: false },
       {
         name: '스테이징(LM Studio)',
         baseUrl: stubUrl,

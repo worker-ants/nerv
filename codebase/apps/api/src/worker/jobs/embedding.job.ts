@@ -9,7 +9,7 @@ import type { IndexReport } from '../../modules/spec/embedding.service.js';
 export class EmbeddingJob {
   readonly name = 'embedding';
   readonly embedUrl = process.env['NERV_EMBED_URL'] ?? 'http://localhost:8090/v1';
-  readonly model = process.env['NERV_EMBED_MODEL'] ?? 'BAAI/bge-m3';
+  readonly model = process.env['NERV_EMBED_MODEL'] ?? 'bge-m3';
   /** 스키마 vector(1024)·HNSW 인덱스가 차원에 묶인다 — 전 프로필 고정(REQ-CB-021). */
   readonly dimensions = 1024;
 

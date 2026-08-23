@@ -2,7 +2,7 @@
 // 프로필 정본: docs/04-mvp/codebase.md §5.2a
 //
 // 이 파일이 존재하는 이유는 그 반대편에 있다: **제공자별 분기 코드를 만들지 않기 위해서**다.
-// 로컬 TEI · 스테이징 LM Studio · 운영 OpenAI 가 전부 같은 표면을 노출하므로, 코드는
+// 로컬 ollama · 스테이징 LM Studio · 운영 OpenAI 가 전부 같은 표면을 노출하므로, 코드는
 // 제공자를 모르고 env 3키(URL·MODEL·API_KEY)만 본다. 제공자 교체는 재임베딩이지 배포가 아니다.
 //
 // 차원은 전 프로필 1024 고정이다(REQ-CB-021) — spec_chunk_embedding.embedding vector(1024)와
@@ -94,7 +94,7 @@ export class EmbeddingClient {
     const baseUrl = process.env['NERV_EMBED_URL'] ?? 'http://localhost:8090/v1';
     return new EmbeddingClient({
       baseUrl,
-      model: process.env['NERV_EMBED_MODEL'] ?? 'BAAI/bge-m3',
+      model: process.env['NERV_EMBED_MODEL'] ?? 'bge-m3',
       apiKey: process.env['NERV_EMBED_API_KEY'],
       // OpenAI 는 절단이 필요하다. 판정은 URL 이 아니라 키 존재로 하지 않는다 —
       // 명시적으로 표시하는 편이 낫지만 env 가 3키뿐이므로 호스트로 추정한다.

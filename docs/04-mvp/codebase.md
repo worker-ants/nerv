@@ -9,7 +9,7 @@ updated: 2026-08-22
 >
 > 문서 버전 v1.1 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
 >
-> v1.1 변경(2026-08-23): **문구 카탈로그와 로케일 §3.4 신설** — 웹·API·CLI 가 `@nerv/schema` 의 한 벌을 쓴다(ko 기본 · en). §1.2 의 "런타임 로직 없음"에 번역기 예외를 마이그레이터와 같은 등급으로 기록. 신설 요구 REQ-CB-022~024. 다른 결정·요구는 불변.
+> v1.1 변경(2026-08-23): ① **문구 카탈로그와 로케일 §3.4 신설** — 웹·API·CLI 가 `@nerv/schema` 의 한 벌을 쓴다(ko 기본 · en). §1.2 의 "런타임 로직 없음"에 번역기 예외를 마이그레이터와 같은 등급으로 기록. 신설 요구 REQ-CB-022~024. ② **로컬 임베딩 프로필 이미지 교체**(§5.2a — TEI → ollama). TEI 가 arm64 이미지를 내지 않아 Apple Silicon 에서 기동되지 않는다(실측·점화 기록 §5.2a). 계약·모델·차원·외부 전송 0 은 그대로이고 바뀐 것은 개발자 기계에서 도는가뿐이다. 다른 결정·요구는 불변.
 >
 > v0.9 변경(2026-08-22 — 구현 중 확인 태스크 착지): **운영 Postgres 위치를 클러스터 외부로 확정**(§6.0 신설 — E06-S05). 근거는 NFR-01의 compose 자가호스팅과 운영 k8s가 같은 접속 모델을 써야 한다는 것이다. §6.5 백업 절차의 "관리형이면 ①을 스냅샷+PITR로 대체" 조건이 이 판정으로 확정됐다.
 >
@@ -593,12 +593,28 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 
 | 환경 | 제공자 | `NERV_EMBED_URL` | `NERV_EMBED_MODEL` | 비고 |
 | --- | --- | --- | --- | --- |
-| **로컬**(기본값) | TEI — compose `embed` 서비스(CPU) | `http://embed:80/v1` | `BAAI/bge-m3` | 네이티브 1024차원. API 키 불요. 외부 전송 0 |
+| **로컬**(기본값) | ollama — compose `embed` 서비스(CPU) | `http://embed:11434/v1` | `bge-m3` | 네이티브 1024차원(F16). API 키 불요. 외부 전송 0. **amd64·arm64 모두 기동**(2026-08-23 개정 — 아래 점화 기록) |
 | **스테이징** | LM Studio(OpenAI 호환 서버) | `http://<lmstudio-host>:1234/v1` | bge-m3 계열(GGUF) | 1024차원 확인 후 사용. `embed` 서비스 미기동 |
 | **운영** | OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | **`dimensions: 1024` 필수**(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021). `NERV_EMBED_API_KEY` 필수 |
 
 - **차원은 전 프로필 1024 고정**이다 — `spec_chunk_embedding.embedding vector(1024)`(4.3 §2.15)와 HNSW 인덱스가 차원에 묶이므로, 1024를 내지 못하는 제공자·모델은 프로필로 쓸 수 없다(REQ-CB-021이 적재 시 검증).
 - **환경 간 벡터는 호환되지 않는다** — 모델이 다르면 벡터 공간이 다르다. 각 환경의 인덱스는 자기 `model` 값에 묶이고(4.3 §2.15 규칙 3), 프로필 전환은 전량 재임베딩이다. DB를 환경 간 복사하는 경우(스테이징 복제 등)에도 임베딩 행은 버리고 재생성한다.
+- **로컬 프로필의 첫 기동은 모델을 받는다**(~1.2GB). ollama 는 요청 시 자동으로 받지 않으므로(실측: `model not found, try pulling it first`) `embed` 서비스가 기동 직후 한 번 `pull` 하고, **모델이 실제로 응답할 때만 healthy** 로 표시한다 — 서버만 떠 있는 상태를 준비됐다고 부르면 그 사이의 임베딩이 전부 조용히 실패한다.
+
+#### 점화 기록 — 로컬 프로필의 이미지 교체 (2026-08-23)
+
+로컬 프로필은 원래 TEI(`ghcr.io/huggingface/text-embeddings-inference:cpu-latest`)였다. **Apple Silicon 에서 기동되지 않는다**는 것이 실측으로 드러나 교체했다.
+
+| 확인한 것 | 결과 |
+| --- | --- |
+| TEI 이미지의 arm64 매니페스트 | **없음** — `cpu-latest` 는 `linux/amd64` 단독. 전 태그(6페이지)에 `arm`·`apple`·`metal` 태그 0건 |
+| amd64 에뮬레이션(Rosetta) | 기동은 하지만 모델 워밍업에서 **OOM 종료**(`OOMKilled=true` · exit 137, Docker VM 7.7GiB) |
+| ollama 이미지 | `linux/amd64` + `linux/arm64` 둘 다 발행 |
+| ollama 의 계약 적합성 | `POST /v1/embeddings` 가 `data[].index` + **1024차원** 반환(단건·배치 모두). 모델은 같은 bge-m3(566.7M · F16 · context 8192) |
+| 성능(M 계열 · 배치 32) | 약 34ms/청크 — 개발 루프에 충분 |
+
+**교체가 결정을 바꾸지 않는 이유**: 계약(OpenAI 호환 `/v1/embeddings`)·모델(bge-m3)·차원(1024)·외부 전송 0이 모두 그대로다. 코드는 제공자를 모르고 env 3키만 보므로(REQ-CB-020) 소스 변경은 기본값 문자열뿐이다. 바뀐 것은 **로컬 개발자의 기계에서 실제로 도는가**이고, 그것이 이 프로필의 존재 이유다.
+
 - **외부 제공자 = 스펙 본문 외부 전송**이다. 이는 운영 주체가 env로 명시 선택하는 사항이며(2026-08-22 — v0.6 "자가호스팅만"의 번복), 기밀 등급이 높은 프로젝트는 자가호스팅 프로필이 운영 권고다([4.1](scope.md) §5).
 
 ### 5.3 `docker-compose.yml` 전문
@@ -644,20 +660,38 @@ services:
       timeout: 3s
       retries: 6
 
-  embed:                             # 로컬 프로필 전용 임베딩 서빙(TEI — OpenAI 호환 /v1/embeddings 노출).
+  embed:                             # 로컬 프로필 전용 임베딩 서빙(OpenAI 호환 /v1/embeddings 노출).
     profiles: ["local-embed"]        #   외부 제공자(LM Studio·OpenAI) 프로필에서는 기동하지 않는다 (§5.2a)
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest   # 버전 태그 고정 권장
+    # 이미지가 ollama 인 이유는 **개발자의 기계에서 도는 것**이 이 프로필의 존재 이유이기
+    # 때문이다. TEI(ghcr.io/huggingface/text-embeddings-inference)는 arm64 이미지를 내지
+    # 않아 Apple Silicon 에서 `no matching manifest` 로 멈춘다(실측 2026-08-23 — 전 태그 확인).
+    # amd64 에뮬레이션은 기동은 하지만 워밍업에서 OOM 으로 죽는다(exit 137).
+    # ollama 는 amd64·arm64 둘 다 내고, 같은 bge-m3(F16 · 1024차원)를 같은 계약으로 노출한다.
+    image: ollama/ollama:latest      # 버전 태그 고정 권장
     restart: unless-stopped
-    command: ["--model-id", "${NERV_EMBED_MODEL:-BAAI/bge-m3}"]
+    # ollama 는 요청 시 모델을 자동으로 받지 않는다(실측: `model not found, try pulling it first`).
+    # 서버를 띄운 뒤 한 번 받아 두지 않으면 첫 검색이 조용히 렉시컬로 degrade 한다.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        ollama pull "${NERV_EMBED_MODEL:-bge-m3}"
+        wait
     volumes:
-      - embedmodels:/data            # 모델 가중치 캐시 — 첫 기동만 다운로드
+      - embedmodels:/root/.ollama    # 모델 가중치 캐시 — 첫 기동만 다운로드
     ports:
-      - "127.0.0.1:${NERV_EMBED_PORT:-8090}:80"   # 개발 루프용 — 운영 배포에서는 제거
+      - "127.0.0.1:${NERV_EMBED_PORT:-8090}:11434"   # 개발 루프용 — 운영 배포에서는 제거
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
+      # **모델이 실제로 응답할 때만** healthy 다 — 서버만 떠 있는 상태를 준비됐다고 부르면
+      # 그 사이의 임베딩이 전부 조용히 실패한다
+      test:
+        - CMD-SHELL
+        - >
+          ollama list 2>/dev/null | grep -q "${NERV_EMBED_MODEL:-bge-m3}"
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 60                    # 첫 기동은 모델(~1.2GB) 다운로드를 기다린다
     # api·worker 는 embed 를 기다리지 않는다 — 무응답이면 렉시컬 degrade (REQ-API-026)
 
   minio:
