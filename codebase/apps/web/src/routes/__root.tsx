@@ -26,6 +26,12 @@ function RootComponent(): React.JSX.Element {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const me = useMe();
 
+  // 사이드바 트리가 "지금 보는 문서"를 알아야 그 자리를 펼치고 표시할 수 있다(§1.3).
+  // 라우트 파라미터가 그 유일한 출처다 — 트리가 스스로 알 방법은 없다.
+  const activeSpecKey = matches
+    .map((m) => (m.params as { spec?: string }).spec)
+    .find((key): key is string => key !== undefined);
+
   const projectSlug = matches
     .map((m) => (m.params as { proj?: string }).proj)
     .find((slug): slug is string => slug !== undefined);
@@ -41,7 +47,7 @@ function RootComponent(): React.JSX.Element {
   if (BARE_ROUTES.has(pathname)) return <Outlet />;
 
   return (
-    <AppShell projectSlug={projectSlug}>
+    <AppShell projectSlug={projectSlug} activeSpecKey={activeSpecKey}>
       <Outlet />
     </AppShell>
   );

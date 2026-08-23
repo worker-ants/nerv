@@ -7,7 +7,7 @@
 import { statusLabelKey } from '@nerv/schema';
 import { useT } from '../lib/i18n.js';
 import { Link } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { rows, useSpecTree } from '../lib/queries.js';
 import { StatusBadge } from './status-badge.js';
 import { Input } from './ui/primitives.js';
@@ -53,6 +53,45 @@ export function groupByParent(nodes: TreeNode[]): Map<string | null, TreeNode[]>
   return map;
 }
 
+/**
+ * 펼침 상태를 브라우저에 남긴다 — 문서를 옮길 때마다 다시 펼치는 것은 반복 노동이다.
+ * 프로젝트별로 나눈다: 트리 모양이 프로젝트마다 다르므로 id 를 섞으면 남의 상태를 읽는다.
+ */
+function storageKeyFor(projectSlug: string): string {
+  return `nerv.tree.${projectSlug}`;
+}
+
+function readExpanded(key: string): Set<string> | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? null : new Set(JSON.parse(raw) as string[]);
+  } catch {
+    // 저장이 막힌 환경(사생활 보호 모드)에서도 트리는 떠야 한다
+    return null;
+  }
+}
+
+function writeExpanded(key: string, value: Set<string>): void {
+  try {
+    localStorage.setItem(key, JSON.stringify([...value]));
+  } catch {
+    // 이번 세션 동안만 유지된다 — 되돌려 놓는 것이 더 나쁘다
+  }
+}
+
+/** 어떤 노드에서 뿌리까지의 조상 id — 딥링크로 들어와도 그 자리를 펼쳐 보이기 위해 */
+export function ancestorsOf(nodes: readonly TreeNode[], key: string): string[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const start = nodes.find((n) => n.key === key);
+  const chain: string[] = [];
+  let parent = start?.parent_id ?? null;
+  while (parent !== null && !chain.includes(parent)) {
+    chain.push(parent);
+    parent = byId.get(parent)?.parent_id ?? null;
+  }
+  return chain;
+}
+
 export function SpecTree({
   projectSlug,
   projectId,
@@ -62,7 +101,9 @@ export function SpecTree({
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId);
   const [filter, setFilter] = useState('');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // null = 아직 정하지 않음. 첫 데이터가 와야 "뿌리만 펼친 상태"를 만들 수 있다.
+  const [expanded, setExpanded] = useState<Set<string> | null>(null);
+  const activeRef = useRef<HTMLAnchorElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
 
@@ -80,6 +121,42 @@ export function SpecTree({
         .map((n) => n.id),
     );
   }, [filter, nodes]);
+
+  const storageKey = storageKeyFor(projectSlug);
+
+  // 첫 펼침 상태 — 저장된 것이 있으면 그것, 없으면 **뿌리만**(REQ-WEB-041 의 depth=1 시작)
+  useEffect(() => {
+    if (expanded !== null || nodes.length === 0) return;
+    setExpanded(
+      readExpanded(storageKey) ??
+        new Set(nodes.filter((n) => n.parent_id === null).map((n) => n.id)),
+    );
+  }, [expanded, nodes, storageKey]);
+
+  // 보고 있는 문서까지의 길을 펼친다 — 딥링크로 들어오면 트리에서 내 위치를 알 수 없다
+  useEffect(() => {
+    if (activeKey === undefined || expanded === null || nodes.length === 0) return;
+    const chain = ancestorsOf(nodes, activeKey);
+    if (chain.every((id) => expanded.has(id))) return;
+    setExpanded((prev) => new Set([...(prev ?? []), ...chain]));
+  }, [activeKey, expanded, nodes]);
+
+  // 펼쳐도 화면 밖이면 못 본 것과 같다
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [activeKey, expanded]);
+
+  const open = expanded ?? new Set<string>();
+  const setOpen = (next: Set<string>): void => {
+    setExpanded(next);
+    writeExpanded(storageKey, next);
+  };
+  const toggle = (id: string): void => {
+    const next = new Set(open);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setOpen(next);
+  };
 
   if (tree.isLoading) {
     return (
@@ -109,7 +186,8 @@ export function SpecTree({
     for (const node of byParent.get(parentId) ?? []) {
       if (matches !== null && !matches.has(node.id) && !byParent.has(node.id)) continue;
       visible.push({ node, depth });
-      const isOpen = expanded.has(node.id) || matches !== null || depth === 0;
+      // 필터 중에는 전부 펼친다 — 걸린 노드를 접힌 가지에 숨기면 필터가 무의미하다
+      const isOpen = open.has(node.id) || matches !== null;
       if (isOpen) collect(node.id, depth + 1);
     }
   };
@@ -128,7 +206,7 @@ export function SpecTree({
       .map((node) => {
         const children = byParent.get(node.id) ?? [];
         // depth=1 까지만 펼친 채로 시작한다 — 나머지는 눌러야 로드·렌더한다(REQ-WEB-041)
-        const isOpen = expanded.has(node.id) || matches !== null || depth === 0;
+        const isOpen = open.has(node.id) || matches !== null;
         return (
           <li key={node.id} style={{ paddingLeft: depth === 0 ? 0 : 12 }}>
             <div className="group flex items-center rounded-nerv-sm hover:bg-bg-hover">
@@ -140,14 +218,7 @@ export function SpecTree({
                   type="button"
                   aria-label={isOpen ? t('specs.collapse') : t('specs.expand')}
                   className="w-4 shrink-0 text-2xs text-text-faint hover:text-text"
-                  onClick={() =>
-                    setExpanded((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(node.id)) next.delete(node.id);
-                      else next.add(node.id);
-                      return next;
-                    })
-                  }
+                  onClick={() => toggle(node.id)}
                 >
                   {isOpen ? '▾' : '▸'}
                 </button>
@@ -155,10 +226,16 @@ export function SpecTree({
               <Link
                 to="/p/$proj/specs/$spec"
                 params={{ proj: projectSlug, spec: node.key }}
+                {...(node.key === activeKey ? { ref: activeRef } : {})}
                 data-active={node.key === activeKey}
                 className="flex min-w-0 flex-1 items-center gap-1.5 rounded-nerv-sm py-1 pr-1 text-sm text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text"
               >
                 <span className="truncate">{node.title}</span>
+                {!isOpen && children.length > 0 && (
+                  <span className="shrink-0 text-2xs text-text-faint tabular-nums">
+                    {children.length}
+                  </span>
+                )}
                 {node.doc_status !== null && (
                   <StatusBadge
                     token={
@@ -178,12 +255,31 @@ export function SpecTree({
   return (
     <div data-testid="spec-tree" data-virtualized={virtualized}>
       {!(compact ?? false) && (
-        <Input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder={t('specs.tree_filter')}
-          className="mb-2"
-        />
+        <div className="mb-2 flex items-center gap-2">
+          <Input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={t('specs.tree_filter')}
+          />
+          <button
+            type="button"
+            data-testid="tree-expand-all"
+            onClick={() =>
+              setOpen(new Set(nodes.filter((n) => byParent.has(n.id)).map((n) => n.id)))
+            }
+            className="shrink-0 rounded-nerv-sm border border-border px-2 py-1 text-xs text-text-mute hover:bg-bg-hover"
+          >
+            {t('specs.expand_all')}
+          </button>
+          <button
+            type="button"
+            data-testid="tree-collapse-all"
+            onClick={() => setOpen(new Set())}
+            className="shrink-0 rounded-nerv-sm border border-border px-2 py-1 text-xs text-text-mute hover:bg-bg-hover"
+          >
+            {t('specs.collapse_all')}
+          </button>
+        </div>
       )}
       {virtualized ? (
         <div

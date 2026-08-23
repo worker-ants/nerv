@@ -14,6 +14,9 @@ import { lazy, Suspense, useState } from 'react';
 const SpecGraph = lazy(async () => ({
   default: (await import('../../features/spec-graph/graph.js')).SpecGraph,
 }));
+const SpecTable = lazy(async () => ({
+  default: (await import('../../features/spec-graph/table.js')).SpecTable,
+}));
 import { useQuery } from '@tanstack/react-query';
 import { SpecTree } from '../../components/spec-tree.js';
 
@@ -52,7 +55,7 @@ function SpecListScreen(): React.JSX.Element {
   const [submitted, setSubmitted] = useState('');
   // 트리와 그래프는 **같은 질문의 두 답**이다 — 계층으로 찾을 때와 관계로 찾을 때.
   // 다른 라우트로 가르면 둘을 오가며 비교할 수 없다.
-  const [view, setView] = useState<'tree' | 'graph'>('tree');
+  const [view, setView] = useState<'tree' | 'table' | 'graph'>('tree');
 
   const search = useQuery({
     queryKey: ['project', proj, 'search', submitted],
@@ -113,7 +116,7 @@ function SpecListScreen(): React.JSX.Element {
       {submitted.trim() === '' ? (
         <>
           <nav className="mb-3 flex rounded-nerv-sm border border-border p-0.5 text-xs">
-            {(['tree', 'graph'] as const).map((mode) => (
+            {(['tree', 'table', 'graph'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -124,7 +127,13 @@ function SpecListScreen(): React.JSX.Element {
                   view === mode ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
                 )}
               >
-                {t(mode === 'tree' ? 'graph.tab.tree' : 'graph.tab.graph')}
+                {t(
+                  mode === 'tree'
+                    ? 'graph.tab.tree'
+                    : mode === 'table'
+                      ? 'specs.tab.table'
+                      : 'graph.tab.graph',
+                )}
               </button>
             ))}
           </nav>
@@ -137,6 +146,10 @@ function SpecListScreen(): React.JSX.Element {
             </Card>
           ) : graph.data === undefined ? (
             <Skeleton rows={6} />
+          ) : view === 'table' ? (
+            <Suspense fallback={<Skeleton rows={6} />}>
+              <SpecTable nodes={graph.data.nodes} edges={graph.data.edges} projectSlug={proj} />
+            </Suspense>
           ) : graph.data.edges.length === 0 ? (
             <EmptyState icon="◎" title={t('graph.empty')} hint={t('graph.empty_hint')} />
           ) : (

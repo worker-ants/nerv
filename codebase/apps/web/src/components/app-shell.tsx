@@ -26,6 +26,8 @@ import { MenuItem, Popover } from './ui/primitives.js';
 export interface AppShellProps {
   children: React.ReactNode;
   projectSlug?: string | undefined;
+  /** 지금 보는 스펙 — 사이드바 트리가 그 자리를 펼치고 표시한다 */
+  activeSpecKey?: string | undefined;
 }
 
 /** 헤더 링크 — 눌리는 영역이 글자보다 커야 손이 빗나가지 않는다 */
@@ -60,7 +62,11 @@ function CountBadge({
   );
 }
 
-export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.Element {
+export function AppShell({
+  children,
+  projectSlug,
+  activeSpecKey,
+}: AppShellProps): React.JSX.Element {
   const t = useT();
   const { locale, setLocale } = useLocale();
   const navigate = useNavigate();
@@ -338,7 +344,7 @@ export function AppShell({ children, projectSlug }: AppShellProps): React.JSX.El
               <p className="mb-1 px-2 text-2xs font-semibold tracking-wide text-text-faint uppercase">
                 {t('shell.spec_tree')}
               </p>
-              <SpecTree projectSlug={projectSlug} compact />
+              <SpecTree projectSlug={projectSlug} compact activeKey={activeSpecKey} />
             </div>
           </aside>
         )}

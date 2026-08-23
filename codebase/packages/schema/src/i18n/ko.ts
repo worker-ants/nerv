@@ -578,6 +578,23 @@ export const ko = {
   'graph.mode.global': '전체',
   'graph.tab.graph': '관계 그래프',
   'graph.tab.tree': '트리',
+  // ── 스펙 트리 조작 ────────────────────────────────────────────────────────────
+  'specs.children_count': '{n}',
+  'specs.col.backlinks': '역참조',
+  'specs.col.path': '경로',
+  'specs.col.requirements': '요구사항',
+  'specs.col.status': '상태',
+  'specs.col.title': '제목',
+  'specs.col.type': '종류',
+  'specs.collapse_all': '전체 접기',
+  'specs.expand_all': '전체 펼치기',
+  'specs.tab.table': '표',
+  'specs.type.adr': '결정',
+  'specs.type.area': '영역',
+  'specs.type.convention': '규약',
+  'specs.type.design': '디자인',
+  'specs.type.feature': '기능',
+  'specs.type.vision': '비전',
   // ── CLI — nerv import 출력 (importer.md §3) ───────────────────────────────
   'cli.done': '{mode} 완료 — 스캔 {scanned} · 변환 {converted} ({rate}%) · 리포트 {dir}',
   'cli.err.apply_needs_server':

@@ -586,6 +586,23 @@ export const en = {
   'graph.mode.global': 'Whole project',
   'graph.tab.graph': 'Relations',
   'graph.tab.tree': 'Tree',
+  // ── 스펙 트리 조작 ────────────────────────────────────────────────────────────
+  'specs.children_count': '{n}',
+  'specs.col.backlinks': 'Referenced by',
+  'specs.col.path': 'Path',
+  'specs.col.requirements': 'Requirements',
+  'specs.col.status': 'Status',
+  'specs.col.title': 'Title',
+  'specs.col.type': 'Type',
+  'specs.collapse_all': 'Collapse all',
+  'specs.expand_all': 'Expand all',
+  'specs.tab.table': 'Table',
+  'specs.type.adr': 'Decision',
+  'specs.type.area': 'Area',
+  'specs.type.convention': 'Convention',
+  'specs.type.design': 'Design',
+  'specs.type.feature': 'Feature',
+  'specs.type.vision': 'Vision',
   // ── CLI — nerv import 출력 (importer.md §3) ───────────────────────────────
   'cli.done':
     '{mode} finished — scanned {scanned}, converted {converted} ({rate}%) · report at {dir}',
