@@ -81,6 +81,15 @@ describe('개발 시드 (database.md §4)', () => {
     // S5 세션 모니터 — active 2 · awaiting_input 1
     expect(await count('agent_session', `WHERE state = 'active'`)).toBe(2);
     expect(await count('agent_session', `WHERE state = 'awaiting_input'`)).toBe(1);
+    // S5 세션 **상세** — Activity 타임라인. 이 줄이 없어서 시드가 `activity` 를 비운 채로
+    // 지나갔고, 화면의 중심이 늘 빈 목록이었다(실측 2026-08-23). 세션마다 있어야 한다 —
+    // 하나만 채우면 나머지를 눌렀을 때 다시 빈 화면이다.
+    expect(await count('activity')).toBeGreaterThan(0);
+    const { rows: perSession } = await pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM agent_session s
+        WHERE NOT EXISTS (SELECT 1 FROM activity a WHERE a.session_id = s.id)`,
+    );
+    expect(perSession[0]?.n).toBe('0');
     // S7 승인함 — 열린 질문 1
     expect(await count('question', `WHERE status = 'open'`)).toBe(1);
     // S1 홈 — 읽지 않은 알림 1
@@ -88,6 +97,33 @@ describe('개발 시드 (database.md §4)', () => {
     // S3 스펙 상세 — SPC-CWC-007 은 v3 superseded → v4 approved (diff 재료)
     expect(await count('spec_version', `WHERE status = 'approved'`)).toBe(2);
     expect(await count('spec_version', `WHERE status = 'superseded'`)).toBe(1);
+  });
+
+  it('Activity 타임라인이 5종 어휘를 전부 보여 준다 — 화면이 무엇을 그리는지 시드가 증명한다', async () => {
+    // `thought/action/elicitation/response/error` 는 화면의 아이콘 5종과 1:1이다
+    // (ui-wireframes §2.5 주석 11). 한 종류라도 비면 그 아이콘 경로는 아무도 못 본다.
+    const { rows } = await pool.query<{ type: string }>(`SELECT DISTINCT type::text FROM activity`);
+    expect(rows.map((r) => r.type).sort()).toEqual([
+      'action',
+      'elicitation',
+      'error',
+      'response',
+      'thought',
+    ]);
+  });
+
+  it('사람의 개입이 에이전트의 행동 **사이에** 있다 — 이 섞임이 화면의 값어치다', async () => {
+    // 개입이 맨 앞이나 맨 뒤에만 있으면 "왜 방향을 틀었나"가 위아래로 읽히지 않는다.
+    // 앞뒤로 action 이 있는 elicitation·response 가 최소 하나는 있어야 한다.
+    const { rows } = await pool.query<{ n: string }>(`
+      SELECT count(*)::text AS n FROM activity a
+       WHERE a.type IN ('elicitation', 'response')
+         AND EXISTS (SELECT 1 FROM activity b
+                      WHERE b.session_id = a.session_id AND b.seq < a.seq AND b.type = 'action')
+         AND EXISTS (SELECT 1 FROM activity c
+                      WHERE c.session_id = a.session_id AND c.seq > a.seq AND c.type = 'action')
+    `);
+    expect(Number(rows[0]?.n ?? 0)).toBeGreaterThan(0);
   });
 
   it('활성 클레임 3건이 부분 unique 를 위반하지 않는다 — Task 당 하나씩이다', async () => {

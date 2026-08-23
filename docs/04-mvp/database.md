@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.7 · 2026-08-22 · HTML 판: [database.html](../html/database.html)
 >
 > v0.6 변경(2026-08-22 — 화면 대조에서 발견): `api_token.last_used_hostname` 추가(§2.2 · 마이그레이션 `0002_token_host`). REQ-WEB-026이 S8 토큰 목록에 "마지막 사용(시각·**hostname**)"을 요구하는데 데이터 소스가 없었다 — 헤더 값이라 신뢰하지 않으며 권한 판정이 아니라 표시 전용이다.
 >
@@ -920,6 +920,8 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 ## 4. 개발 시드
 
 예시 데이터 한 벌은 기존 문서 세트와 동일하다(vision §2·ui-wireframes §S4/S5) — 프로젝트 clemvion, 스펙 `SPC-CWC-007`(웹챗 위젯 임베드)·`SPC-CWC-012`(세션 복원 API), `REQ-CWC-031`, `CLV-T-0CFQC2`=하나/mac-07, `CLV-T-1KTDCK`=도현/mac-02, `CLV-T-TRA25N`=유나/linux-ci-01/codex, 세션 `S-b7e9` 등. 표시 문자열은 각 테이블의 `key`(spec·task) · `ref`(requirement) · `external_session_id`(agent_session)로 심는다. 시드는 **개발 전용**이며 `pnpm db:seed`가 TRUNCATE 후 재삽입하므로 몇 번을 실행해도 같은 상태다(REQ-DB-002). UUID는 가독성을 위한 고정값(UUIDv7 형식)이다.
+
+**Activity 타임라인도 심는다(2026-08-23 정정).** 시드가 `activity` 를 비워 두어 S5 세션 상세의 타임라인이 개발 환경에서 늘 빈 목록이었다 — 그 화면의 값어치가 "사람의 개입이 에이전트의 행동과 같은 줄에 섞여 보이는 것"인데, 중심이 비어 있으면 만들다 만 껍데기로 보인다(실측). 세 세션 모두에 넣고, `thought/action/elicitation/response/error` **5종 어휘를 전부** 쓰며, 개입(elicitation·response)은 앞뒤로 action 이 있는 자리에 둔다 — 섞임 자체가 보여 줄 것이기 때문이다. `created_at` 은 월 파티션 키라(§2.14) 음수 오프셋이 지난달로 넘어가지 않게 이번 달 시작으로 자른다. 도구 이름은 MVP 16종만 쓴다 — 없는 도구를 개발 데이터가 보여 주면 안 된다.
 
 **관리자 계정은 등장인물과 분리한다**(2026-08-23 추가). 위 다섯(지민·서연·도현·유나·하나)은 각 화면이 비어 보이지 않게 하는 **온보딩용 인물**이고, `admin@example.com`은 조직을 세우는 계정이다. 겸하게 두면 두 가지가 어긋난다 — ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin이 모든 자리에 앉아 있게 되고 ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다. 그래서 이 계정만 **조직 스코프**(`project_id NULL`) 멤버십을 갖는다 — 프로젝트가 늘어도 한 행이 조직 전체를 관리한다. 이 계정이 없으면 임포트(admin 전용)·게이트 정책·멤버 역할 화면을 시드만으로 시연할 수 없다(실측: clemvion 임포트가 여기서 막혔다).
 
