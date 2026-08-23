@@ -8,9 +8,9 @@
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run",
-    "dev": "node --watch dist/main.js",
-    "db:migrate": "node dist/migrate.js",
-    "db:seed": "node dist/seed.js",
+    "dev": "node --env-file-if-exists=../../.env --watch dist/main.js",
+    "db:migrate": "node --env-file-if-exists=../../.env dist/migrate.js",
+    "db:seed": "node --env-file-if-exists=../../.env dist/seed.js",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },

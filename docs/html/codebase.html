@@ -658,16 +658,30 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
 
   <p>개발 루프(HMR)가 필요하면 인프라만 compose로 띄우고 앱은 로컬 프로세스로 돈다:</p>
 
-<pre><code>pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
-pnpm db:migrate                 # drizzle 마이그레이션 적용 (= node apps/api/dist/migrate.js 의 dev 판)
-pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api·/mcp·/ingest·/ws·/sse 프록시) 병렬</code></pre>
+<pre><code class="language-bash">pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
+pnpm db:migrate                 # drizzle 마이그레이션 적용
+pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:worker
+</code></pre>
+
+  <p><b><code>pnpm dev</code> 는 <code>codebase/scripts/dev.mjs</code> 가 세 프로세스를 묶어 띄운다</b>(2026-08-23). 워크스페이스별 <code>dev</code> 스크립트를 <code>--parallel -r</code> 로 늘어놓는 방식은 두 군데서 조용히 어긋났다 — 둘 다 실측이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>증상</th><th>원인</th></tr></thead>
+    <tbody>
+      <tr><td><code>DATABASE_URL 이 없습니다</code> 로 API 가 즉시 죽는다</td><td>compose 는 env 를 넣어 주지만 로컬 프로세스에는 넣어 주는 사람이 없다. <code>.env</code> 를 읽는 책임이 프로세스 자신에게 있어야 한다(<code>node --env-file-if-exists</code>)</td></tr>
+      <tr><td><b>소스를 고쳐도 반영되지 않는다</b></td><td><code>tsc -b --watch</code> 는 의존을 따라 올라가지 소비자를 따라 내려가지 않는다. <code>packages/schema</code> 감시로는 <code>apps/api</code> 가 다시 빌드되지 않아 <code>dist</code> 가 그대로고, <code>node --watch</code> 는 아무것도 못 본다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>런처가 하는 일 넷: ① <code>.env</code> 가 없으면 <b>먼저 멈추고 안내한다</b>(없는 것과 안 읽은 것은 다른 문제인데 에러 메시지가 같아진다) ② 저장소 루트에서 <code>tsc -b --watch</code> 를 돌려 참조 전체(schema → api → cli)를 빌드한다 ③ <code>dist/main.js</code> 가 <b>생긴 뒤에</b> API 를 띄운다(빈 체크아웃의 첫 실행이 실패하지 않게) ④ 하나가 죽으면 전부 내린다 — 반쯤 살아 있는 루프가 가장 헷갈린다.</p>
 
   <p>루트 <code>package.json</code> 스크립트 표:</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>명령</th><th>내용</th></tr></thead>
     <tbody>
-      <tr><td><code>pnpm dev</code></td><td><code>pnpm --parallel -r dev</code> — api(:8080) + web(:5173)</td></tr>
+      <tr><td><code>pnpm dev</code></td><td>개발 루프 — 빌드 감시 + api(:8080) + web(:5173). <code>.env</code> 를 스스로 읽는다(§5.1)</td></tr>
+      <tr><td><code>pnpm dev:worker</code></td><td>위 + 워커(잡 루프 — 임베딩·알림·리스 회수)</td></tr>
       <tr><td><code>pnpm build</code> / <code>pnpm test</code> / <code>pnpm lint</code></td><td>전 워크스페이스 일괄</td></tr>
       <tr><td><code>pnpm db:generate</code></td><td><code>@nerv/schema</code>에서 <code>drizzle-kit generate</code> — 마이그레이션 SQL 생성</td></tr>
       <tr><td><code>pnpm db:migrate</code></td><td>마이그레이션 적용(<code>migrate.ts</code>) — compose·k8s와 같은 코드 경로</td></tr>

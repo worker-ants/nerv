@@ -10,7 +10,7 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "pnpm --parallel -r dev",
+    "dev": "node scripts/dev.mjs",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
@@ -20,8 +20,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc -b",
     "db:generate": "pnpm --filter @nerv/schema db:generate",
-    "db:migrate": "pnpm --filter @nerv/api db:migrate",
-    "db:seed": "pnpm --filter @nerv/api db:seed",
+    "db:migrate": "node --env-file-if-exists=.env apps/api/dist/migrate.js",
+    "db:seed": "node --env-file-if-exists=.env apps/api/dist/seed.js",
     "compose:up": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build",
     "compose:infra": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d postgres minio valkey embed",
     "compose:down": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env down",
@@ -29,7 +29,8 @@
     "e2e:down": "node scripts/e2e-stack.mjs down",
     "e2e:logs": "node scripts/e2e-stack.mjs logs",
     "e2e:reset": "pnpm e2e:down && pnpm e2e:up",
-    "e2e:env": "node scripts/e2e-stack.mjs env"
+    "e2e:env": "node scripts/e2e-stack.mjs env",
+    "dev:worker": "node scripts/dev.mjs --worker"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

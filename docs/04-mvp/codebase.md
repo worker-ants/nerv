@@ -544,15 +544,25 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
 
 ```bash
 pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
-pnpm db:migrate                 # drizzle 마이그레이션 적용 (= node apps/api/dist/migrate.js 의 dev 판)
-pnpm dev                        # @nerv/api(:8080) + @nerv/web(vite :5173, /api·/mcp·/ingest·/ws·/sse 프록시) 병렬
+pnpm db:migrate                 # drizzle 마이그레이션 적용
+pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:worker
 ```
+
+**`pnpm dev` 는 `codebase/scripts/dev.mjs` 가 세 프로세스를 묶어 띄운다**(2026-08-23). 워크스페이스별 `dev` 스크립트를 `--parallel -r` 로 늘어놓는 방식은 두 군데서 조용히 어긋났다 — 둘 다 실측이다.
+
+| 증상 | 원인 |
+| --- | --- |
+| `DATABASE_URL 이 없습니다` 로 API 가 즉시 죽는다 | compose 는 env 를 넣어 주지만 로컬 프로세스에는 넣어 주는 사람이 없다. `.env` 를 읽는 책임이 프로세스 자신에게 있어야 한다(`node --env-file-if-exists`) |
+| **소스를 고쳐도 반영되지 않는다** | `tsc -b --watch` 는 의존을 따라 올라가지 소비자를 따라 내려가지 않는다. `packages/schema` 감시로는 `apps/api` 가 다시 빌드되지 않아 `dist` 가 그대로고, `node --watch` 는 아무것도 못 본다 |
+
+런처가 하는 일 넷: ① `.env` 가 없으면 **먼저 멈추고 안내한다**(없는 것과 안 읽은 것은 다른 문제인데 에러 메시지가 같아진다) ② 저장소 루트에서 `tsc -b --watch` 를 돌려 참조 전체(schema → api → cli)를 빌드한다 ③ `dist/main.js` 가 **생긴 뒤에** API 를 띄운다(빈 체크아웃의 첫 실행이 실패하지 않게) ④ 하나가 죽으면 전부 내린다 — 반쯤 살아 있는 루프가 가장 헷갈린다.
 
 루트 `package.json` 스크립트 표:
 
 | 명령 | 내용 |
 | --- | --- |
-| `pnpm dev` | `pnpm --parallel -r dev` — api(:8080) + web(:5173) |
+| `pnpm dev` | 개발 루프 — 빌드 감시 + api(:8080) + web(:5173). `.env` 를 스스로 읽는다(§5.1) |
+| `pnpm dev:worker` | 위 + 워커(잡 루프 — 임베딩·알림·리스 회수) |
 | `pnpm build` / `pnpm test` / `pnpm lint` | 전 워크스페이스 일괄 |
 | `pnpm db:generate` | `@nerv/schema`에서 `drizzle-kit generate` — 마이그레이션 SQL 생성 |
 | `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로 |
