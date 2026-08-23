@@ -100,11 +100,12 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(String(result['instructions']).length).toBeLessThan(2048);
   });
 
-  it('tools/list 가 MVP 15종을 노출한다 (P0 8 + P1 7)', async () => {
+  it('tools/list 가 MVP 16종을 노출한다 (P0 8 + P1 8)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
-    expect(tools).toHaveLength(15);
+    expect(tools).toHaveLength(16);
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
+    expect(tools.map((t) => t.name)).toContain('nerv_spec_relate');
     // 리뷰 도구 2종은 Phase 2 — 카탈로그에 없다(scope.md §5)
     expect(tools.map((t) => t.name)).not.toContain('nerv_review_submit');
     for (const tool of tools) expect(tool.inputSchema).toBeTruthy();

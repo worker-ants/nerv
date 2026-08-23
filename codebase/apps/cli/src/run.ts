@@ -280,6 +280,7 @@ function convert(
     // 원문 보존이 제1규칙이다(§2.4)
     body_md: body,
     doc_status: (status?.doc ?? 'draft') as ImportSpecItem['doc_status'],
+    sort_key: sortKeyOf(basename(file.path)),
     requirements: extractRequirements(body, profile.requirement.id_pattern).map((r) => ({
       ref: r.ref,
       text: r.text,
@@ -406,6 +407,21 @@ function orderByParent(items: readonly ImportSpecItem[]): ImportSpecItem[] {
     }
   }
   return [...ordered, ...remaining.values()];
+}
+
+/**
+ * 파일·디렉터리 이름의 숫자 접두 → 형제 정렬 키.
+ *
+ * `0-common.md`·`1-logic`·`10-triggers` 의 접두는 저자가 적어 둔 읽는 순서다. 그대로 문자열로
+ * 두면 `10` 이 `9` 앞에 오므로(텍스트 정렬) **폭을 고정해 0 으로 채운다**.
+ *
+ * 앞의 한 글자는 숫자 유무를 가르는 순위다 — 접두가 있으면 `0`, 없으면 `1`. 콜레이션이
+ * 달라져도 `'1' > '0…'` 은 흔들리지 않으므로 접두 없는 이름은 항상 뒤로 간다. `ls` 순서와
+ * 같은 결과이고, 같은 순위 안의 동률은 트리 질의의 `ORDER BY sort_key, key` 가 푼다.
+ */
+export function sortKeyOf(name: string): string {
+  const digits = /^(\d+)/.exec(name);
+  return digits === null ? '1' : `0${digits[1]!.padStart(6, '0')}`;
 }
 
 /**
@@ -551,6 +567,8 @@ function buildAreaTree(
         key: keyOfDir.get(dir) ?? existing.key,
         type: 'area',
         parent_key: parentKeyOf(dir),
+        // 순서를 가진 쪽은 디렉터리 이름이다 — 대표 문서 이름(`_product-overview.md`)이 아니라.
+        sort_key: sortKeyOf(basename(dir)),
       });
       continue;
     }
@@ -569,6 +587,7 @@ function buildAreaTree(
       // 본문 없는 트리 노드다 — 원문이 없는데 지어내지 않는다
       body_md: '',
       doc_status: 'approved',
+      sort_key: sortKeyOf(basename(dir)),
       requirements: [],
       evidence: [],
     });

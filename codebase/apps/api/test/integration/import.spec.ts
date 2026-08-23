@@ -194,6 +194,30 @@ describe('EP-IMP-02 specs — 소급 적재', () => {
     expect(rows[0]?.n).toBe(2);
   });
 
+  it('sort_key 를 받아 트리 순서로 되돌린다 — 형제 정렬은 키 알파벳이 아니다', async () => {
+    // 원본의 `0-`·`1-` 접두는 저자가 적어 둔 읽는 순서인데, 임포트를 지나면 키·제목 어디에도
+    // 남지 않는다. 계약에 필드를 두고 서버가 **판정 없이 그대로 적재**하는지 본다 —
+    // 무엇이 순서를 뜻하는지는 프로파일을 아는 CLI 가 정한다(경계 1).
+    const ordered = (key: string, sort: string) => ({ ...docItem(key), key, sort_key: sort });
+    const res = await post('specs', {
+      profile: 'clemvion',
+      kind: 'structure',
+      // 일부러 키 알파벳과 반대로 넣는다 — 알파벳으로 떨어지면 이 테스트가 잡는다
+      items: [
+        ordered('SPC-ORD-A', '0000010'),
+        ordered('SPC-ORD-B', '0000002'),
+        ordered('SPC-ORD-C', '1'),
+      ],
+    });
+    expect(res.status).toBe(201);
+
+    const { rows } = await pool.query<{ key: string }>(
+      `SELECT key FROM spec WHERE project_id = $1 AND key LIKE 'SPC-ORD-%' ORDER BY sort_key, key`,
+      [projectId],
+    );
+    expect(rows.map((r) => r.key)).toEqual(['SPC-ORD-B', 'SPC-ORD-A', 'SPC-ORD-C']);
+  });
+
   it('한 항목의 실패가 배치를 되돌리지 않는다 (REQ-API-018)', async () => {
     // 두 항목이 같은 requirement ref 를 쓴다 — 하나는 UNIQUE (project_id, ref) 에 걸린다
     const good = docItem('SPC-OK-1');

@@ -4,6 +4,14 @@
 // clemvion 에서 실패한 지점이 정확히 여기였다 — 문서를 옮기면 링크가 끊기고, 폐기된 결정이
 // 다른 문서에서 계속 살아 있고(R-3), "이때의 스펙"을 되짚을 방법이 없었다.
 
+
+// **임베딩 제공자를 죽은 주소로 고정한다.** 아래 두 테스트("제공자가 없으면"·"죽어 있으면")는
+// 원래 기본 URL(localhost:8090)에 아무도 없다는 **주변 상황**에 기대고 있었다. 로컬 임베딩
+// 프로필(ollama)을 켜 둔 기계에서는 그 가정이 깨져 두 건이 실패한다 — 코드가 아니라 개발자의
+// 기계 상태를 검사하고 있었던 것이다(실측). 조건은 가정하지 않고 만든다.
+// 포트 1 은 특권 포트라 누구도 듣지 않는다 — 즉시 ECONNREFUSED 다.
+process.env['NERV_EMBED_URL'] = 'http://127.0.0.1:1/v1';
+
 import { NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -417,7 +425,7 @@ describe('E09-S10 하이브리드 검색', () => {
     const s = await draft('SPC-DEG-001', '# 문서\n\n세션 복원 API 설계', '세션 복원');
     await approve(s.versionId);
     const result = await search.search({ projectId, query: '세션 복원' });
-    // 테스트 환경에는 임베딩 서버가 없다 — 그래서 이 경로가 실제로 검증된다
+    // 제공자를 죽은 주소로 고정해 두었다(파일 선두) — 그래서 이 경로가 실제로 검증된다
     expect(result.degraded).toBe('lexical-only');
     expect(result.items.length).toBeGreaterThan(0);
   });

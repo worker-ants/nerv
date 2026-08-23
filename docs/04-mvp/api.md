@@ -5,9 +5,9 @@ updated: 2026-08-22
 ---
 # API 명세
 
-> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 15종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
+> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 17종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.8 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.9 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
 >
 > v0.8 변경(2026-08-23): §1.4 에 **`Accept-Language` 협상** 규약 추가 — 봉투의 `message` 는 요청 로케일로 만들고 `code`·`details` 는 로케일과 무관하다. MCP 표면(도구 설명·구조화 에러)도 같은 규칙을 따른다. 신설 요구 REQ-API-030. 카탈로그 정본은 [4.2](codebase.md) §3.4. 다른 계약은 불변.
 >
@@ -245,11 +245,11 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-16 | `POST /api/v1/projects/{proj}/specs/{spec}/archive` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409 `NERV_PRECONDITION`(`details.kind="archive_blocked"`, 차단 사유 목록) | ★`spec.archived` |
 | EP-SPEC-17 | `POST /api/v1/projects/{proj}/specs/{spec}/restore` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` NULL) — 부모가 아카이브 상태면 409(`details.kind="parent_archived"`) | ★`spec.restored` |
 | EP-SPEC-18 | `GET /api/v1/projects/{proj}/specs/{spec}/relations` | 전 역할(`spec:read`) | `SpecRelationQuery`(direction: out/in/both 기본 both, kind?, cursor) | `Page<SpecRelationEntry>`(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — **역참조(backlink)가 1급이다**: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널([4.5 화면 명세](screens.md) §2.4)과 영향 미리보기의 데이터 소스 | — |
-| EP-SPEC-19 | `GET /api/v1/projects/{proj}/specs/graph` | `spec:read` | A1 | 전역 관계 그래프 — 노드(트리와 같은 모양) + 간선을 **한 응답**으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 [4.5](screens.md) §2.4a |
+| EP-SPEC-19 | `GET /api/v1/projects/{proj}/specs/graph` | 전 역할(`spec:read`) | `SpecGraphQuery`(include_archived — 기본 false) | `SpecGraphResult`(`nodes[]` 트리와 같은 모양 + `edges[]` from_id·to_id·kind) — 전역 관계 그래프를 **한 응답**으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 [4.5](screens.md) §2.4a | — |
 
 스펙 **승인·거절 엔드포인트는 이 절에 없다.** `in_review → approved/rejected` 전이는 승인함의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 `nerv_spec_approve`가 존재하지 않는 것([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.
 
-**메타(트리)와 본문(버전)은 다른 축이다.** `spec` 행의 메타(title·parent_id·sort_key·owner_role)는 버전 이력을 만들지 않고 EP-SPEC-15로만 바뀐다 — FR-01 "문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다"의 실행 경로이며, 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 수단이다. 스코프 `spec:meta`는 PAT에 부여 가능하지만 대응 MCP 도구는 없다(도구 15종 불변) — 트리 구조는 거버넌스 대상이라 웹(S3 메타 다이얼로그 — [4.5 화면 명세](screens.md) §2.4)이 기본 경로다. 이에 따라 MCP `nerv_spec_draft_upsert`의 `parent_id`·`type`·`title` 입력은 **생성(spec_id 없음)에서만 소비**된다: 기존 spec_id 지정 호출에 현재 값과 다른 메타가 오면 무시하지 않고 409 `NERV_PRECONDITION`(`details.kind="meta_change_not_allowed"`, EP-SPEC-15 안내)을 반환하고, 같은 값이면 통과한다(멱등 재호출 보호). 아카이브(EP-SPEC-16)는 삭제가 아니다 — 행과 버전·관계·이벤트는 전부 남고, 트리(EP-SPEC-01)·검색(EP-SPEC-02)·목록 기본 결과에서 빠질 뿐이다(`?include_archived=true`로 포함).
+**메타(트리)와 본문(버전)은 다른 축이다.** `spec` 행의 메타(title·parent_id·sort_key·owner_role)는 버전 이력을 만들지 않고 EP-SPEC-15로만 바뀐다 — FR-01 "문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다"의 실행 경로이며, 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 수단이다. 스코프 `spec:meta`는 PAT에 부여 가능하지만 대응 MCP 도구는 없다 — 트리 구조는 거버넌스 대상이라 웹(S3 메타 다이얼로그 — [4.5 화면 명세](screens.md) §2.4)이 기본 경로다. 이에 따라 MCP `nerv_spec_draft_upsert`의 `parent_id`·`type`·`title` 입력은 **생성(spec_id 없음)에서만 소비**된다: 기존 spec_id 지정 호출에 현재 값과 다른 메타가 오면 무시하지 않고 409 `NERV_PRECONDITION`(`details.kind="meta_change_not_allowed"`, EP-SPEC-15 안내)을 반환하고, 같은 값이면 통과한다(멱등 재호출 보호). 아카이브(EP-SPEC-16)는 삭제가 아니다 — 행과 버전·관계·이벤트는 전부 남고, 트리(EP-SPEC-01)·검색(EP-SPEC-02)·목록 기본 결과에서 빠질 뿐이다(`?include_archived=true`로 포함).
 
 **`spec_relation`은 본문에서 자동 유도된다(MVP).** draft 저장(EP-SPEC-08 = `nerv_spec_draft_upsert`)이 커밋될 때, 서버는 본문에서 **실존하는 스펙 안정 ID**(`SPC-` 접두 표기 및 NERV 내부 스펙 URL)를 추출해 `spec_relation(kind='references', from=이 spec)` 행 집합을 그 저장 본문 기준으로 동기화한다(추가·제거 모두 — 규칙은 임포터 링크 패스 [4.7](importer.md) §2.4와 동일 코드). `references` 외의 kind(refines·depends_on 등)는 MVP에 편집 경로가 없다 — 임포터 산출 또는 Phase 2. approved 본문은 불변이므로 승인 이후 관계도 안정적이고, 참조 문서 전파(`spec.recheck_requested` — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3)는 이 행들의 역방향 조회로 동작한다. **임포트 없는 신규 프로젝트에서도 전파가 살아 있게 하는 것**이 이 규칙의 이유다.
 
@@ -403,7 +403,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 | ID | 메서드 · 경로 | 권한 | 요청(zod) | 응답(zod) | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
 | EP-IMP-01 | `POST /api/v1/projects/{proj}/import/preflight` | admin + `import:write` | `ImportPreflightInput`(profile, root_commit?, kind: spec/plan, items[]{source_path, natural_key, content_hash}) | `ImportPreflightResult`(항목별 `state`: `new`/`unchanged`/`changed`/`conflict` + 기존 `spec_id`·`version_no`) — 쓰기 0 | — |
-| EP-IMP-02 | `POST /api/v1/projects/{proj}/import/specs` | admin + `import:write` | `ImportSpecBatchInput`(profile, kind: structure/document, items[]{source_path, key, parent_key?, type, title, body_md, doc_status, requirements[]{ref, text, priority?, impl_status}, evidence[]}) | `ImportBatchResult`(항목별 `ok`/`error{code, details}` + 생성 `spec_id`·`spec_version_id`·`requirement` ref→UUID 맵) | ★`import.applied` |
+| EP-IMP-02 | `POST /api/v1/projects/{proj}/import/specs` | admin + `import:write` | `ImportSpecBatchInput`(profile, kind: structure/document, items[]{source_path, key, parent_key?, type, title, body_md, doc_status, **sort_key**(형제 정렬 — 값을 만드는 것은 CLI 다. 서버는 판정 없이 적재하고 **최초 적재에서만** 쓴다. 규칙 정본 [4.7 스펙 임포터](importer.md) §2.2), requirements[]{ref, text, priority?, impl_status}, evidence[]}) | `ImportBatchResult`(항목별 `ok`/`error{code, details}` + 생성 `spec_id`·`spec_version_id`·`requirement` ref→UUID 맵) | ★`import.applied` |
 | EP-IMP-03 | `POST /api/v1/projects/{proj}/import/tasks` | admin + `import:write` | `ImportTaskBatchInput`(profile, items[]{source_path, title, body_md, status, assignee_user_id?, source_spec_key?, depends_on[]}) — `ready` 상태와 위임 명세 4요소는 받지 않는다(임포터 REQ-IMP-009) | `ImportBatchResult` | ★`import.applied` |
 | EP-IMP-04 | `POST /api/v1/projects/{proj}/import/links` | admin + `import:write` | `ImportLinkBatchInput`(profile, relations[]{from_key, to_key, kind}, pending[]{requirement_ref, task_source_path}) | `ImportBatchResult` — 해소 실패는 오류가 아니라 항목별 `skipped` | ★`import.applied` |
 | EP-IMP-05 | `GET /api/v1/projects/{proj}/import/map` | admin + `import:write` | `ImportMapQuery`(kind?, cursor) | `Page<ImportMapEntry>`(자연 키 → `spec_id`/`task_id`/`requirement` UUID + `content_hash` + `version_no`) — `nerv import rebuild-map`의 소스 | — |
@@ -507,9 +507,9 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
 ---
 
-## 4. MCP 15종 ↔ 내부 서비스 ↔ REST 대응
+## 4. MCP 16종 ↔ 내부 서비스 ↔ REST 대응
 
-MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_review_submit`·`nerv_finding_resolve` 2종은 P2([4.1 MVP 범위와 스택 확정](scope.md)). 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
+MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 17종 중 `nerv_review_submit`·`nerv_finding_resolve` 2종은 P2([4.1 MVP 범위와 스택 확정](scope.md)). 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
 
 임포트 표면(§2.10)은 이 표에 없다 — **대응하는 MCP 도구가 없기 때문**이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다([4.7 스펙 임포터](importer.md) §3.6). 에이전트가 관여하는 지점은 도구가 아니라 CLI를 감싸는 스킬 `/nerv:import`다.
 
@@ -528,6 +528,7 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 | `nerv_spec_check` | A1 | `SpecService.check` | EP-SPEC-09 | 5검사기 서비스 호출 |
 | `nerv_spec_comment_resolve` | A2 | `SpecService.resolveComment` | EP-CMT-04 | |
 | `nerv_task_update` | A2(정책상 done은 A3) | `TaskService.transition` | EP-TASK-09 | done 게이트 판정 단일 지점 |
+| `nerv_spec_relate` | A2 | `SpecRelationService.declare` | — (관계 선언은 에이전트 전용 — 사람의 경로는 본문 참조 자동 동기화(REQ-API-024)와 S3 관계 패널 조회다) | 문서를 읽어야 아는 판단(`refines`·`depends_on`)을 채우는 도구. `references`는 본문에서 자동 동기화되므로 이 도구가 거부한다 |
 | `nerv_question_create` | A2 | `QuestionService.create` | — (질문 생성은 에이전트 전용. 사람의 답변이 EP-QST-02) | 멱등 재호출 = 폴링 규약은 MCP 표면 정의 |
 | `nerv_session_event` | A1 | `SessionService.appendActivity` | — (훅 ingest §2.9와 같은 메서드) | 훅 없는 실행 환경 폴백 |
 
@@ -586,7 +587,7 @@ MVP 도구는 15종(P0 8종 + P1 7종)이다 — 카탈로그 17종 중 `nerv_re
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 확정 스택(NestJS·socket.io·better-auth·실시간 WebSocket + SSE·방송 MQ Valkey)과 MVP 도구 15종 범위
+- [4.1 MVP 범위와 스택 확정](scope.md) — 확정 스택(NestJS·socket.io·better-auth·실시간 WebSocket + SSE·방송 MQ Valkey)과 MVP 도구 16종 범위
 - [4.2 코드베이스와 배포](codebase.md) — §2 모듈 맵(표면↔서비스 주입 구조의 실물)·§3 `packages/schema` zod 공유 규칙·§5.4/§6.3 SSE 프록시 규약
 - [4.3 데이터베이스 스키마](database.md) — §3 이벤트 방송 규약(Valkey `nerv_events` 채널·페이로드)
 - [4.5 화면 명세](screens.md) — 엔드포인트 ID 인용처, 이벤트→Query 무효화 매핑

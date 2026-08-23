@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.5 · 2026-08-22 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [plugin.html](../html/plugin.html)
 >
 > v0.5 변경(2026-08-22): **오프라인 폴백 실물 확정**(§3.4 — `.nerv/cache/`·`.nerv/outbox/` 레이아웃·파일 형식·flush 규칙, REQ-PLG-011~013). 스킬 5종 전부가 참조하던 경로의 규격 공백을 닫는다(NFR-05 ◐의 실행 실물).
 >
@@ -59,7 +59,7 @@ nerv-plugin/
 | --- | --- | --- |
 | 스킬 `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` | ✅ 포함 | [3.7 로드맵](../03-proposal/roadmap.md) Phase 1 "Claude Code 플러그인 v1" — 스킬 4종 명시 |
 | 스킬 `/nerv:import` | ✅ 포함 | 2026-08-22 추가 — 임포터 실행 모델이 CLI+API로 확정되면서 사람이 도는 절차(dry-run → 리포트 확인 → `--apply`)를 스킬로 배포한다([4.7 스펙 임포터](importer.md) §3.6). 로드맵 Phase 1 "clemvion 임포터"(FR-17 ◐)의 실행 경로이며 새 도구를 추가하지 않는다 |
-| 스킬 `/nerv:review` | ❌ P2 | `nerv_review_submit`·`nerv_finding_resolve`가 P2 도구(카탈로그 15종 → 17종 완성 시점) |
+| 스킬 `/nerv:review` | ❌ P2 | `nerv_review_submit`·`nerv_finding_resolve`가 P2 도구(MVP 16종 → 카탈로그 17종 완성 시점) |
 | `hooks/hooks.json` (SessionStart·PostToolUse·SubagentStart/Stop·Stop·SessionEnd) | ✅ 포함 | Phase 1 플러그인 v1 번들 |
 | `.mcp.json` | ✅ 포함 | P0부터 필요(도구 8종 + PAT) |
 | statusline | ✅ 포함 | 서버 사실의 로컬 투영 — 네트워크 왕복 없음 |
@@ -769,7 +769,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 15종·스킬 5종 범위와 PAT-먼저 인증 결정
+- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 16종·스킬 5종 범위와 PAT-먼저 인증 결정
 - [4.4 API 명세](api.md) — `/mcp`·`/ingest/hooks/*` 엔드포인트의 요청/응답 계약
 - [4.8 백로그](backlog.md) — 훅 헤더 토큰 주입 실측(E06-S06)·플러그인 v1 스토리·E2E 수용 시나리오
 

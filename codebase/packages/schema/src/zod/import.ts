@@ -108,6 +108,15 @@ export const importSpecItemSchema = z.object({
   /** 원문 보존이 제1규칙이다(importer.md §2.4) — 서버는 이 본문을 손대지 않는다 */
   body_md: z.string(),
   doc_status: z.enum(['draft', 'in_review', 'approved', 'superseded', 'deprecated']),
+  /**
+   * 형제 정렬 키. **원본의 순서는 원본만 안다** — `0-common.md`·`1-logic/` 의 숫자 접두는
+   * 저자가 읽는 순서를 적어 둔 것인데, 키·제목 어디에도 남지 않아 임포트를 지나면 사라진다.
+   * 그래서 계약에 필드를 둔다: 규칙(무엇이 순서를 뜻하는가)은 프로파일을 아는 CLI 가 정하고,
+   * 서버는 판정 없이 값만 받는다(importer.md §1.4 경계 1).
+   *
+   * 생략하면 빈 문자열 — 트리는 `ORDER BY sort_key, key` 이므로 키 알파벳 순으로 돌아간다.
+   */
+  sort_key: z.string().default(''),
   requirements: z.array(importRequirementSchema).default([]),
   evidence: z.array(z.object({ kind: z.string(), locator: z.string() })).default([]),
 });

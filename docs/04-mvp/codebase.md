@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.1 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.2 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
 >
 > v1.1 변경(2026-08-23): ① **문구 카탈로그와 로케일 §3.4 신설** — 웹·API·CLI 가 `@nerv/schema` 의 한 벌을 쓴다(ko 기본 · en). §1.2 의 "런타임 로직 없음"에 번역기 예외를 마이그레이터와 같은 등급으로 기록. 신설 요구 REQ-CB-022~024. ② **로컬 임베딩 프로필 이미지 교체**(§5.2a — TEI → ollama). TEI 가 arm64 이미지를 내지 않아 Apple Silicon 에서 기동되지 않는다(실측·점화 기록 §5.2a). 계약·모델·차원·외부 전송 0 은 그대로이고 바뀐 것은 개발자 기계에서 도는가뿐이다. 다른 결정·요구는 불변.
 >
@@ -157,7 +157,7 @@ REST·MCP·WebSocket·SSE가 **같은 도메인 서비스를 DI로 공유**한�
 flowchart TB
   subgraph SURF["표면 5종 — 번역만, 규칙 없음"]
     REST["REST 컨트롤러<br/>/api/v1/*"]
-    MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 15종"]
+    MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 16종"]
     WS["WS 게이트웨이<br/>/ws · 룸 join"]
     SSE["SSE 스트림<br/>GET /sse/* · 단방향"]
     ING["ingest 컨트롤러<br/>/ingest/hooks/* 5종"]
@@ -290,7 +290,7 @@ apps/api/src/
 
 `ImportModule`은 테이블을 소유하지 않고 `SpecModule`·`TaskModule`의 저장 계층에 소급 적재만 한다 — 그래서 29종 배정은 변하지 않는다. 워크플로 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 스코프가 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
 
-합계 검산: MVP 도구 = P0 8종 + P1 7종 = **15종**, 리뷰 2종은 P2(카탈로그 총 17종 — [3.4](../03-proposal/agent-integration.md) §2.3). 베이스라인은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
+합계 검산: MVP 도구 = P0 8종 + P1 8종 = **16종**, 리뷰 2종은 P2(카탈로그 총 17종 — [3.4](../03-proposal/agent-integration.md) §2.3). 베이스라인은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
 
 ### 2.4 표면별 규약
 

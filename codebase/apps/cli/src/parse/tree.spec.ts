@@ -34,6 +34,7 @@ function item(path: string, key: string): ImportSpecItem {
     title: key,
     body_md: '본문',
     doc_status: 'approved',
+    sort_key: '',
     requirements: [],
     evidence: [],
   };
@@ -88,5 +89,20 @@ describe('area 트리', () => {
     expect(out.find((i) => i.type === 'area')?.body_md).toBe('');
     expect(entries).toHaveLength(1);
     expect(entries[0]?.file).toBe('nav');
+  });
+});
+
+describe('buildTreeForTesting — sort_key 승계', () => {
+  it('area 는 대표 문서가 아니라 **디렉터리 이름**에서 순서를 얻는다', () => {
+    // `_product-overview.md` 에는 숫자 접두가 없다. 대표 문서 이름을 보면 모든 area 가
+    // 동률이 되어 원본 순서가 사라진다 — 순서를 가진 쪽은 디렉터리다.
+    const items = [
+      item('spec/1-logic/_product-overview.md', 'logic'),
+      item('spec/10-data/_product-overview.md', 'data'),
+      item('spec/2-flow/_product-overview.md', 'flow'),
+    ];
+    const areas = buildTreeForTesting(items, profile, []).filter((s) => s.type === 'area');
+    const order = [...areas].sort((a, b) => a.sort_key.localeCompare(b.sort_key)).map((s) => s.key);
+    expect(order).toEqual(['logic', 'flow', 'data']);
   });
 });

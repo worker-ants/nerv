@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.8 · 2026-08-22 · HTML 판: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.9 · 2026-08-22 · HTML 판: [backlog.html](../html/backlog.html)
 >
 > v0.8 변경(2026-08-22): 배포 산출물 위치 개정([4.2](codebase.md) v0.8 · REQ-CB-015) 반영 — E01-S01 스토리의 트리 서술을 2구역(코드 `codebase/` · 배포 `deploy/`)으로 갱신. 스토리 수·의존·수용 기준 불변.
 >
@@ -177,7 +177,7 @@ MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터�
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
 | E10-S01 | 초안 편집 리스 — TTL 30분(클레임 리스와 동일 상수), 암묵 획득/해제, 같은 사용자 표면 간 자동 인계 + 이전 표면 알림 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.7 · D-04 · [3.7 로드맵](../03-proposal/roadmap.md) §3.2 | WHEN 같은 사용자가 웹 편집 중 터미널에서 `nerv_spec_draft_upsert`를 호출하면, THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알린다<br>WHEN 다른 사용자가 리스 보유 초안에 upsert하면, THE SYSTEM SHALL `NERV_DRAFT_LEASED`로 거부하고 보유자 정보를 반환한다 | E09-S01 |
-| E10-S02 | MCP P1 도구 7종 — `nerv_spec_draft_upsert` `nerv_spec_submit_review` `nerv_spec_check` `nerv_spec_comment_resolve` `nerv_task_update` `nerv_question_create` `nerv_session_event` (카탈로그 MVP 15종 완성) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 · [3.7 로드맵](../03-proposal/roadmap.md) §3.3 · [4.1 범위·스택](scope.md) §4 | WHEN `base_version`이 현재 버전과 불일치하는 upsert가 오면, THE SYSTEM SHALL `NERV_PRECONDITION`을 반환하고 데이터를 덮어쓰지 않는다 | E03-S03 · E09-S01 |
+| E10-S02 | MCP P1 도구 8종 — `nerv_spec_draft_upsert` `nerv_spec_submit_review` `nerv_spec_check` `nerv_spec_comment_resolve` `nerv_task_update` `nerv_question_create` `nerv_session_event` `nerv_spec_relate` (MVP 16종 완성) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 · [3.7 로드맵](../03-proposal/roadmap.md) §3.3 · [4.1 범위·스택](scope.md) §4 | WHEN `base_version`이 현재 버전과 불일치하는 upsert가 오면, THE SYSTEM SHALL `NERV_PRECONDITION`을 반환하고 데이터를 덮어쓰지 않는다 | E03-S03 · E09-S01 |
 | E10-S03 | 코멘트 왕복 — 헤딩 slug·REQ ref 앵커(`spec_comment`), open→resolved 추적, 남은 open 수 반환 | [3.3 데이터 모델](../03-proposal/data-model.md) §2.2 · D-09 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3(`nerv_spec_comment_resolve`) | WHEN 코멘트가 달리면, THE SYSTEM SHALL `spec.comment_added` 이벤트를 적재하고 스레드 참여자에게 알림을 라우팅한다 | E09-S01 · E13-S03 |
 | E10-S04 | 제출·승인 왕복 완성 — `nerv_spec_submit_review` 멱등(pending Approval 재사용), 저장·제출 응답의 `web_url` 딥링크 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 | WHEN 같은 `spec_version_id`로 제출을 재호출하면, THE SYSTEM SHALL 승인함 카드를 중복 생성하지 않고 기존 pending Approval을 반환한다 | E10-S02 · E13-S01 |
 
@@ -200,7 +200,7 @@ Claude Code 배포 평면. 스킬 5종(`/nerv:review`는 Phase 2)·훅·`.mcp.js
 | E12-S02 | hooks.json + ingest 엔드포인트 — `type:"http"` 훅(SessionStart/PostToolUse/Stop/SessionEnd) 수신, 세션 등록·activity 적재 자동화 | [4.6 플러그인과 온보딩](plugin.md) §3 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3 · [3.7 로드맵](../03-proposal/roadmap.md) §3.3 | WHEN 훅 이벤트가 도착하면, THE SYSTEM SHALL 세션 등록·activity 적재에 반영하고 미인증 이벤트를 거부한다 | E05-S01 |
 | E12-S03 | `.mcp.json` + statusline + 마켓플레이스 배포 — 관리형 settings 강제 활성화 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.4~3.5 · [3.7 로드맵](../03-proposal/roadmap.md) §3.4(1-10) | WHEN 관리형 settings로 플러그인이 배포되면, THE SYSTEM SHALL 파일럿 참여 호스트의 활성화 여부를 서버에서 확인 가능하게 한다(목표 100%) | E12-S01 · E12-S02 |
 | E12-S04 | 사람 온보딩 절차 — PAT 발급(S8)→플러그인 설치→`nerv_bootstrap` 확인, 단계별 명령 문서화 | [4.6 플러그인과 온보딩](plugin.md) §4 | WHEN 신규 참여자가 온보딩 절차를 따르면, THE SYSTEM SHALL 단계별 명령만으로 첫 `nerv_bootstrap` 성공까지 도달시킨다 | E08-S08 · E12-S03 |
-| E12-S05 | **`/nerv:import` 스킬** — 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → `--apply` → 멱등 재실행 검증. MCP 도구가 아니라 로컬 CLI를 실행한다(도구 15종 불변) | [4.6 플러그인과 온보딩](plugin.md) §2.5 · [4.7 스펙 임포터](importer.md) §3.6 | WHEN 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 `--apply`를 실행한다(REQ-IMP-017) | E07-S05 · E12-S01 |
+| E12-S05 | **`/nerv:import` 스킬** — 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → `--apply` → 멱등 재실행 검증. MCP 도구가 아니라 로컬 CLI를 실행한다(도구 16종 불변) | [4.6 플러그인과 온보딩](plugin.md) §2.5 · [4.7 스펙 임포터](importer.md) §3.6 | WHEN 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 `--apply`를 실행한다(REQ-IMP-017) | E07-S05 · E12-S01 |
 | E12-S06 | 오프라인 폴백 실물 — `.nerv/cache/`·`.nerv/outbox/` 레이아웃·큐 파일 형식·flush(oldest-first·원 멱등 키)·SessionEnd 잔량 보고·`.gitignore` | [4.6 플러그인과 온보딩](plugin.md) §3.4(REQ-PLG-011~013) · NFR-05 | WHEN 쓰기 도구가 `NERV_UNAVAILABLE`을 받으면, THE SYSTEM SHALL outbox에 멱등 키와 함께 큐잉하고 복구 후 flush에서 중복 레코드 0을 유지한다 | E12-S01 |
 
 ### 3.6 E13 — 승인함 백엔드·질문·알림

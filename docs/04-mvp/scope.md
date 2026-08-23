@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 16종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.8 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
+> 문서 버전 v0.9 · 2026-08-22 · HTML 판: [scope.html](../html/scope.html)
 >
 > v0.8 변경(2026-08-22 — E06-S02 스파이크 종료): **TipTap 왕복 손실 트리거 점화 기록**(§2.2 점화 기록 ②). 실측 19/22·손실 유형 2종을 남기고 **판정은 보류**한다 — 저장 게이트가 손실의 커밋을 막으므로 MVP는 TipTap으로 진행하며, Milkdown 교체는 사람의 결정 사항이다. 확정 스택 표는 불변.
 >
@@ -166,7 +166,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | FR-12 | 알림 | ◐ | ○ | ◐ | 인앱 알림 | Slack·메일·다이제스트는 Phase 2 |
 | FR-13 | 증적·커버리지 | ◐ | ○ | ◐ | PR·커밋 웹훅 수신, Task↔PR 링크 | 커버리지 계산·대시보드는 Phase 2 |
 | FR-14 | 멀티테넌시 | ● | ◐ | ● | Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정) | — |
-| FR-15 | 에이전트 연동 | ◐ | ◐ | ◐ | MCP tools P0 8종 + P1 7종 = **15종**(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + `.mcp.json`), 훅 수집기 | Codex 완전 지원·`AGENTS.md` 배포·OAuth 2.1은 Phase 2(§5) |
+| FR-15 | 에이전트 연동 | ◐ | ◐ | ◐ | MCP tools P0 8종 + P1 8종 = **16종**(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + `.mcp.json`), 훅 수집기 | Codex 완전 지원·`AGENTS.md` 배포·OAuth 2.1은 Phase 2(§5) |
 | FR-16 | 감사 로그 | ● | ◐ | ● | append-only Event 전 상태 전이 + `is_agent` 액터 구분(P0), 엔티티별 이력 재구성 뷰(P1) | — |
 | FR-17 | clemvion 임포트 | ◐ | ◐ | ◐ | spec 임포터(P0: `spec/` 384 md 중 순수 135 md) → plan 임포터(P1: `plan/` 450 md). 멱등 재실행. 도구는 **프로파일 기반 범용 임포터**이고 clemvion은 그 내장 프로파일이다 — 실행은 원본 체크아웃 장비의 CLI(`@nerv/cli`)가 임포트 API(EP-IMP-01~05)를 호출하는 형태([4.7 스펙 임포터](importer.md) §1.4·§3.2) + 래퍼 스킬 `/nerv:import`(§4.3) | review 소급 임포트는 Phase 2. SoT는 MVP 기간 내내 git(컷오버는 Phase 2 M1부터 — 로드맵 §7.2). 양방향 동기화·서버 주도 원격 저장소 clone은 하지 않는다(§5) |
 
@@ -225,7 +225,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 
 도구 정의(입력·출력·권한·멱등성)는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 카탈로그(17종)가 정본이며, 여기서는 이름·티어·Phase 배정만 인용한다. **MVP = 16종, 카탈로그 완성은 Phase 2.**
 
-**15종 → 16종 (2026-08-23)**: `nerv_spec_relate` 1종을 더한다. 근거는 관계의 성질이다 — 본문이 이미 가리키는 참조(`references`)는 저장 시 자동 동기화되지만(REQ-API-024), "이 스펙이 저것을 정제한다(`refines`)"·"선행 의존이다(`depends_on`)"는 **문서를 읽어야 아는 판단**이다. 그 판단을 사람이 UI로 수백 편에 손으로 넣는 것은 현실적이지 않고(clemvion 130편·간선 1,253이 실측), 에이전트가 문서를 읽으며 채우는 것이 맞다. 읽기(전역 그래프·이웃 조회)는 새 도구를 만들지 않고 `nerv_spec_tree`의 `include_relations`·`around`·`hops` 옵션으로 접었다 — "구조를 달라"는 한 가지 요청이기 때문이다.
+**15종 → 16종 (2026-08-23 확정 — 사람 확인)**: `nerv_spec_relate` 1종을 더한다. 근거는 관계의 성질이다 — 본문이 이미 가리키는 참조(`references`)는 저장 시 자동 동기화되지만(REQ-API-024), "이 스펙이 저것을 정제한다(`refines`)"·"선행 의존이다(`depends_on`)"는 **문서를 읽어야 아는 판단**이다. 그 판단을 사람이 UI로 수백 편에 손으로 넣는 것은 현실적이지 않고(clemvion 130편·간선 1,253이 실측), 에이전트가 문서를 읽으며 채우는 것이 맞다. 읽기(전역 그래프·이웃 조회)는 새 도구를 만들지 않고 `nerv_spec_tree`의 `include_relations`·`around`·`hops` 옵션으로 접었다 — "구조를 달라"는 한 가지 요청이기 때문이다.
 
 | Phase | 도구 | 티어 | 한 줄(카탈로그 호출 시점 인용) |
 | --- | --- | :-: | --- |
@@ -247,9 +247,9 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | P1 | `nerv_session_event` | A1 | 훅 없는 실행 환경의 폴백 |
 | ~~P2~~ | `nerv_review_submit` · `nerv_finding_resolve` | — | **MVP 제외**(§5) — Phase 2에서 카탈로그 17종 완성 |
 
-임포트에는 **MCP 도구를 만들지 않는다.** 전수 계정·바이트 보존·멱등 재실행(REQ-IMP-001~004)이 재현돼야 하는 결정적 ETL이라 LLM이 매개하는 도구 호출로 쪼개지 않는다 — 에이전트가 관여하는 지점은 CLI를 감싸는 스킬 `/nerv:import`뿐이다([4.7 스펙 임포터](importer.md) §3.6). 그래서 MVP 도구 수는 15종 그대로다.
+임포트에는 **MCP 도구를 만들지 않는다.** 전수 계정·바이트 보존·멱등 재실행(REQ-IMP-001~004)이 재현돼야 하는 결정적 ETL이라 LLM이 매개하는 도구 호출로 쪼개지 않는다 — 에이전트가 관여하는 지점은 CLI를 감싸는 스킬 `/nerv:import`뿐이다([4.7 스펙 임포터](importer.md) §3.6). 임포트가 도구 수를 늘리지 않는 이유가 이것이다.
 
-티어 표기는 도구 위험 티어 **A1~A4**다. 스펙 변경 게이트 티어 **T0~T3**([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.4)와는 **다른 축**이므로 혼용하지 않는다. MCP 15종 ↔ 내부 서비스 ↔ REST 대응 표는 [4.4 API 명세](api.md) §4가 소유한다.
+티어 표기는 도구 위험 티어 **A1~A4**다. 스펙 변경 게이트 티어 **T0~T3**([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.4)와는 **다른 축**이므로 혼용하지 않는다. MCP 16종 ↔ 내부 서비스 ↔ REST 대응 표는 [4.4 API 명세](api.md) §4가 소유한다.
 
 ### 4.3 플러그인 스킬 범위 — 5종
 
@@ -264,7 +264,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 
 SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.6 플러그인과 온보딩](plugin.md)이 소유한다.
 
-> **스킬이 5종인데 도구가 15종인 이유.** 스킬은 도구와 1:1이 아니다 — `/nerv:import`는 MCP 도구가 아니라 로컬 CLI를 실행하는 절차 스킬이다(§4.2). 플러그인이 배포하는 것은 "무엇을 어떤 순서로 하느냐"이고, 서버 권한은 여전히 PAT 스코프가 정한다.
+> **스킬이 5종인데 도구가 16종인 이유.** 스킬은 도구와 1:1이 아니다 — `/nerv:import`는 MCP 도구가 아니라 로컬 CLI를 실행하는 절차 스킬이다(§4.2). 플러그인이 배포하는 것은 "무엇을 어떤 순서로 하느냐"이고, 서버 권한은 여전히 PAT 스코프가 정한다.
 
 ---
 
@@ -275,7 +275,7 @@ SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 | 하지 않는 것 | 언제 하나 | 왜 MVP가 아닌가 |
 | --- | --- | --- |
 | 리뷰 센터 S6 | Phase 2 | FR-09(리뷰 수집)가 Phase 2라 표시할 데이터가 없다 |
-| 리뷰 도구 2종 `nerv_review_submit` · `nerv_finding_resolve` | Phase 2 | 게이트 둘째 단(리뷰·커버리지)과 한 몸 — MVP 도구는 15종으로 고정 |
+| 리뷰 도구 2종 `nerv_review_submit` · `nerv_finding_resolve` | Phase 2 | 게이트 둘째 단(리뷰·커버리지)과 한 몸 — MVP 도구 16종에 들어가지 않는다 |
 | `/nerv:review` 스킬 | Phase 2 | 위 도구 2종에 의존 |
 | Codex 완전 지원 | Phase 2 | P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·`AGENTS.md` 배포는 Phase 2. MVP는 `config.toml`·`AGENTS.md` **초안 제공**까지 — 경계는 [4.6 플러그인과 온보딩](plugin.md) §5 |
 | CR 델타 UI 고도화 | Phase 2 | FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지 |
@@ -338,7 +338,7 @@ SKILL.md 5종의 파일 전문·hooks.json·`.mcp.json`·온보딩 절차는 [4.
 
 - [4.2 코드베이스와 배포](codebase.md) — §2.1 배포 규약의 실물(트리·compose·k8s)
 - [4.3 데이터베이스 스키마](database.md) — 확정 스택(Postgres+Drizzle)의 DDL 실물
-- [4.4 API 명세](api.md) — 도구 15종 ↔ REST 대응, HTTP md 미러
+- [4.4 API 명세](api.md) — 도구 16종 ↔ REST 대응, HTTP md 미러
 - [4.5 화면 명세](screens.md) — §4.1 화면 범위의 데이터·상태·컴포넌트 명세
 - [4.6 플러그인과 온보딩](plugin.md) — §4.3 스킬 5종 전문과 Codex 경계
 - [4.7 스펙 임포터](importer.md) — FR-17 ◐ 범위의 파싱·멱등 규칙

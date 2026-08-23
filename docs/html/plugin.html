@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.5 (2026-08-22)</span>
+      <span>버전 v0.6 (2026-08-22)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -112,7 +112,7 @@
     <tbody>
       <tr><td>스킬 <code>/nerv:import</code></td><td>✅ 포함</td><td>2026-08-22 추가 — 임포터 실행 모델이 CLI+API로 확정되면서 사람이 도는 절차(dry-run → 리포트 확인 → <code>--apply</code>)를 스킬로 배포한다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). 로드맵 Phase 1 "clemvion 임포터"(FR-17 ◐)의 실행 경로이며 새 도구를 추가하지 않는다</td></tr>
       <tr><td>스킬 <code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code></td><td>✅ 포함</td><td><a href="roadmap.html">3.7 로드맵</a> Phase 1 "Claude Code 플러그인 v1" — 스킬 4종 명시</td></tr>
-      <tr><td>스킬 <code>/nerv:review</code></td><td>❌ P2</td><td><code>nerv_review_submit</code>·<code>nerv_finding_resolve</code>가 P2 도구(카탈로그 15종 → 17종 완성 시점)</td></tr>
+      <tr><td>스킬 <code>/nerv:review</code></td><td>❌ P2</td><td><code>nerv_review_submit</code>·<code>nerv_finding_resolve</code>가 P2 도구(MVP 16종 → 카탈로그 17종 완성 시점)</td></tr>
       <tr><td><code>hooks/hooks.json</code> (SessionStart·PostToolUse·SubagentStart/Stop·Stop·SessionEnd)</td><td>✅ 포함</td><td>Phase 1 플러그인 v1 번들</td></tr>
       <tr><td><code>.mcp.json</code></td><td>✅ 포함</td><td>P0부터 필요(도구 8종 + PAT)</td></tr>
       <tr><td>statusline</td><td>✅ 포함</td><td>서버 사실의 로컬 투영 — 네트워크 왕복 없음</td></tr>
@@ -812,7 +812,7 @@ log_user_prompt = false</code></pre>
 
   <h3>4부 형제 문서</h3>
   <ul>
-    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 도구 15종·스킬 5종 범위와 PAT-먼저 인증 결정</li>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 도구 16종·스킬 5종 범위와 PAT-먼저 인증 결정</li>
     <li><a href="api.html">4.4 API 명세</a> — <code>/mcp</code>·<code>/ingest/hooks/*</code> 엔드포인트의 요청/응답 계약</li>
     <li><a href="backlog.html">4.8 백로그</a> — 훅 헤더 토큰 주입 실측(E06-S06)·플러그인 v1 스토리·E2E 수용 시나리오</li>
   </ul>

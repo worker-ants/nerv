@@ -244,8 +244,8 @@ export class ImportService {
       item.parent_key == null ? null : await this.specIdOf(tx, actor, item.parent_key);
     const specId = newId();
     await tx.execute(sql`
-      INSERT INTO spec (id, project_id, parent_id, type, key, title)
-      VALUES (${specId}, ${actor.projectId}, ${parentId}, ${item.type}::spec_type, ${item.key}, ${item.title})
+      INSERT INTO spec (id, project_id, parent_id, type, key, title, sort_key)
+      VALUES (${specId}, ${actor.projectId}, ${parentId}, ${item.type}::spec_type, ${item.key}, ${item.title}, ${item.sort_key})
     `);
     return { source_path: item.source_path, status: 'ok', spec_id: specId };
   }
