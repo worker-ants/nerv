@@ -68,6 +68,7 @@ beforeEach(async () => {
 
 async function approvedSpec(key: string, body: string): Promise<void> {
   const result = await specs.draftUpsert({
+    roles: ['planner'],
     projectId,
     key,
     title: key,
@@ -197,6 +198,7 @@ describe('md 미러 파일 생성 (export.job)', () => {
   it('승인된 스펙만 파일로 나간다 — draft 가 승인된 것처럼 읽히면 안 된다', async () => {
     await approvedSpec('SPC-PUB', '# 공개 문서');
     await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-DRAFT',
       title: 'draft',

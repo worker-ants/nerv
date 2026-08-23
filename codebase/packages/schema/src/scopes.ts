@@ -99,15 +99,19 @@ export const ROLE_SCOPES: Readonly<Record<string, readonly RoleScope[]>> = {
 /**
  * 역할별로 **새로 만들 수 있는 스펙 타입**(EP-SPEC-07 의 ● / ○).
  *
- * `null` 은 제한 없음이다. 정본이 타입을 적어 둔 역할만 좁힌다 — `qa` 는 ○ 인데
- * 타입 목록이 없어(api.md §2.2 EP-SPEC-07) 여기서 지어내지 않는다. **미결**로 둔다.
+ * `null` 은 제한 없음, `[]` 는 **하나도 못 만든다**는 뜻이다.
+ *
+ * `qa` 가 `[]` 인 이유(2026-08-23 확정 — 사람 확인): **qa 가 만드는 것은 리뷰이지 스펙이
+ * 아니다.** 리뷰 표면은 Phase 2 라(`nerv_review_submit`·`nerv_finding_resolve` — scope.md §5)
+ * 현 단계의 qa 에게는 만들 것이 없다. `spec:draft` 는 남긴다 — 생성이 아니라 코멘트 해소
+ * (EP-CMT-04 는 `spec:draft` 보유 역할)와 초안 편집의 몫이다.
  */
 export const SPEC_CREATE_TYPES: Readonly<Record<string, readonly string[] | null>> = {
   admin: null,
   planner: null,
   designer: ['design'],
   developer: ['convention', 'adr'],
-  qa: null,
+  qa: [],
   viewer: [],
 };
 

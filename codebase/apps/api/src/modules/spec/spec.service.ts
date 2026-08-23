@@ -8,7 +8,7 @@
 // 카탈로그에 대응 도구가 처음부터 없다(agent-integration §2.1 원칙 3).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { canCreateSpecType, msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb, toDate } from '../../common/database.module.js';
@@ -39,6 +39,8 @@ export interface DraftUpsertInput {
   projectId: string;
   /** 기존 스펙에 이어쓰기면 지정. 없으면 새 스펙을 만든다 */
   specId?: string | null;
+  /** 주체의 역할 — **생성 가능한 타입**을 가른다(EP-SPEC-07 의 ● / ○) */
+  roles?: readonly string[];
   /** 새 스펙 생성 시의 메타 — 기존 spec 에 다른 값이 오면 409(api.md §4) */
   key?: string;
   title?: string;
@@ -171,6 +173,17 @@ export class SpecService {
         if (input.key === undefined || input.title === undefined || input.type === undefined) {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.missing_fields'), {
             kind: 'missing_meta',
+          });
+        }
+        // **역할이 타입을 가른다**(EP-SPEC-07). designer 는 design 을, developer 는
+        // convention·adr 을 만든다. qa 가 만드는 것은 리뷰이지 스펙이 아니다(2026-08-23).
+        // 스코프(`spec:draft`)는 "초안을 쓸 수 있는가"이고 이것은 "무엇을 시작할 수 있는가"다 —
+        // 다른 물음이라 따로 판정한다.
+        if (!canCreateSpecType(input.roles ?? [], input.type)) {
+          throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.spec.type_not_allowed'), {
+            kind: 'spec_type_not_allowed',
+            type: input.type,
+            roles: input.roles ?? [],
           });
         }
         specId = newId();

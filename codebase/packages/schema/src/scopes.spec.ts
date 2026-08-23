@@ -81,6 +81,13 @@ describe('역할 → 스코프 매트릭스 (0003_multi_role)', () => {
     expect(canCreateSpecType(['developer'], 'adr')).toBe(true);
     expect(canCreateSpecType(['planner'], 'feature')).toBe(true);
     expect(canCreateSpecType(['viewer'], 'feature')).toBe(false);
+    // qa 가 만드는 것은 **리뷰이지 스펙이 아니다**(2026-08-23 확정). 리뷰 표면은 Phase 2 라
+    // 현 단계의 qa 에게는 만들 것이 없다 — `null`(제한 없음)이 아니라 `[]`(하나도 없음)이다.
+    for (const type of ['feature', 'design', 'convention', 'adr', 'vision', 'area']) {
+      expect(canCreateSpecType(['qa'], type)).toBe(false);
+    }
+    // 그래도 `spec:draft` 는 있다 — 코멘트 해소(EP-CMT-04)와 초안 편집의 몫이다
+    expect(scopesForRoles(['qa']).has('spec:draft')).toBe(true);
     // 겸직이면 어느 한쪽이 만들 수 있으면 만들 수 있다
     expect(canCreateSpecType(['designer', 'developer'], 'adr')).toBe(true);
   });

@@ -44,6 +44,7 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
 
     // 1단계 — 웹 에디터에서 초안 편집(리스 획득)
     const draft = await specs.draftUpsert({
+      roles: ['planner'],
       projectId: stack.projectId,
       key: 'SPC-CWC-007',
       title: '웹챗 위젯 임베드',
@@ -87,6 +88,7 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
     expect(check.error).toBeNull();
 
     await specs.draftUpsert({
+      roles: ['planner'],
       projectId: stack.projectId,
       specId,
       bodyMd:

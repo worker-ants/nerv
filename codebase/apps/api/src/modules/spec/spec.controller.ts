@@ -137,6 +137,8 @@ export class SpecController {
       });
     }
     return this.specs.draftUpsert({
+      // 역할은 가드가 실어 준 것을 그대로 넘긴다 — 표면은 번역만 하고 판정하지 않는다(D-05)
+      roles: principalOf(req).roles,
       projectId: projectOf(req),
       userId: principal.userId,
       bodyMd: String(body['body_markdown'] ?? body['body_md'] ?? ''),

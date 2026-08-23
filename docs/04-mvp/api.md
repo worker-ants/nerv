@@ -154,6 +154,8 @@ HTTP 상태 매핑:
 
 `viewer` 는 `spec:read` 뿐이다. 넓게 열어 두고 나중에 조이는 것은 이미 통과하던 요청을 깨는 일이라 더 비싸다.
 
+**타입 제한은 스코프와 다른 축이다(2026-08-23 구현).** `spec:draft` 는 "초안을 쓸 수 있는가"이고 위 표기는 "무엇을 **시작**할 수 있는가"다. 판정은 도메인 서비스 한 곳(`SpecService.draftUpsert`)에 있어 REST 와 MCP 가 같은 답을 낸다(D-05) — 거부는 403 `NERV_FORBIDDEN`(`details.kind="spec_type_not_allowed"`). 겸직이면 **어느 한 역할이라도 만들 수 있으면** 만들 수 있다.
+
 ### 1.7 요청/응답 표기와 엔드포인트 ID
 
 - §2 전표의 요청·응답 열은 **zod 스키마 이름**이다. 스키마는 `packages/schema`가 export하는 이름과 1:1이며(공유 규칙은 [4.2 코드베이스와 배포](codebase.md) §3), 서버(NestJS 파이프)와 웹(react-hook-form + zod)이 같은 스키마로 검증한다.
@@ -240,7 +242,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-04 | `GET /api/v1/projects/{proj}/specs/{spec}/versions` | 전 역할 | — | `Page<SpecVersionSummary>` | — |
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |
-| EP-SPEC-07 | `POST /api/v1/projects/{proj}/specs` | planner·admin ●, designer(design)·developer(convention/adr)·qa ○ | `SpecCreateInput`(parent_id, type, title, body_markdown) | `SpecDraftResult`(spec + draft v1) | `spec.draft_created` |
+| EP-SPEC-07 | `POST /api/v1/projects/{proj}/specs` | planner·admin ●, designer(design)·developer(convention/adr) ○, **qa ✗**(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. `spec:draft` 는 유지 — 코멘트 해소·초안 편집의 몫) | `SpecCreateInput`(parent_id, type, title, body_markdown) | `SpecDraftResult`(spec + draft v1) | `spec.draft_created` |
 | EP-SPEC-08 | `PUT /api/v1/projects/{proj}/specs/{spec}/draft` | EP-SPEC-07과 동일(`spec:draft`) | `SpecDraftUpsertInput`(body_markdown, **base_version**, change_summary) | `SpecDraftResult`(version, 델타 요약, 검증 경고, `web_url`) | 새 draft 버전 생성 시 `spec.draft_created`, 같은 draft 재저장은 이벤트 없음(리스 갱신만) |
 | EP-SPEC-09 | `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 전 역할(읽기 전용 셀프서비스) | — | `SpecCheckResult`(5검사기별 warning/block + 앵커 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.1) | — |
 | EP-SPEC-10 | `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | 작성자 본인 또는 planner | `SpecSubmitInput`(reviewer_hint, note) | `SpecSubmitResult`(approval_id[], 지정 리뷰어·SLA) | `spec.submitted` + `approval.requested` |

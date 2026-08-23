@@ -119,8 +119,10 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
       name: 'nerv_spec_draft_upsert',
       arguments: {
         key: 'SPC-AGENT-NEW',
-        title: '에이전트가 만든 스펙',
-        type: 'feature',
+        title: '에이전트가 만든 규약',
+        // 이 세션의 주체는 developer 다 — 만들 수 있는 것은 convention·adr 이다
+        // (EP-SPEC-07 의 ○). 역할이 타입을 가른다는 것이 여기서도 보인다.
+        type: 'convention',
         body_md: '# 에이전트가 만든 스펙\n\n본문',
       },
     });
@@ -138,7 +140,12 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
   it('기존 스펙에 다른 메타가 오면 409 다 — 이동·개명은 EP-SPEC-15 소관 (REQ-API-021)', async () => {
     const made = await rpc('tools/call', {
       name: 'nerv_spec_draft_upsert',
-      arguments: { key: 'SPC-AGENT-META', title: '원래 제목', type: 'feature', body_md: '# 원래 제목\n\n본문' },
+      arguments: {
+        key: 'SPC-AGENT-META',
+        title: '원래 제목',
+        type: 'convention',
+        body_md: '# 원래 제목\n\n본문',
+      },
     });
     const specId = String(
       ((made.body['result'] as { structuredContent?: Record<string, unknown> }).structuredContent ?? {})['spec_id'],
@@ -160,6 +167,20 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(err.isError).toBe(true);
     expect((err.structuredContent?.['details'] as Record<string, unknown>)?.['kind']).toBe(
       'meta_change_not_allowed',
+    );
+  });
+
+  it('역할이 만들 수 있는 타입을 가른다 — developer 는 feature 를 못 만든다', async () => {
+    // 스코프(`spec:draft`)는 "초안을 쓸 수 있는가"이고 타입 제한은 "무엇을 시작할 수
+    // 있는가"다. 다른 물음이라 따로 판정한다(EP-SPEC-07 의 ● / ○).
+    const { body } = await rpc('tools/call', {
+      name: 'nerv_spec_draft_upsert',
+      arguments: { key: 'SPC-NOPE', title: '기능', type: 'feature', body_md: '# 기능\n\n본문' },
+    });
+    const result = body['result'] as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(result.isError).toBe(true);
+    expect((result.structuredContent?.['details'] as Record<string, unknown>)?.['kind']).toBe(
+      'spec_type_not_allowed',
     );
   });
 

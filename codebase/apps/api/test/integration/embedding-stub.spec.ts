@@ -107,6 +107,7 @@ afterAll(async () => {
 describe('E09-S11 임베딩 적재', () => {
   it('청크를 적재하고, 두 번째 실행은 변경분이 없어 아무것도 다시 임베딩하지 않는다', async () => {
     const s = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-EMB-001',
       title: '세션 복원 API',
@@ -127,6 +128,7 @@ describe('E09-S11 임베딩 적재', () => {
 
   it('본문에서 사라진 절의 임베딩 행은 지운다 — 없는 절이 검색에 계속 뜨면 안 된다', async () => {
     const s = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-EMB-002',
       title: '삭제 대상',
@@ -137,6 +139,7 @@ describe('E09-S11 임베딩 적재', () => {
     await embeddings.runOnce({ projectId });
 
     await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       specId: s['spec_id'] as string,
       bodyMd: '# 머리\n본문',
@@ -156,6 +159,7 @@ describe('E09-S11 임베딩 적재', () => {
 
   it('1024차원이 아니면 적재하지 않고 오류로 기록한다 (REQ-CB-021)', async () => {
     await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-EMB-003',
       title: '차원 검증',
@@ -197,6 +201,7 @@ describe('E09-S11 임베딩 적재', () => {
 describe('E09-S10 벡터 경로', () => {
   it('의미 질의가 렉시컬 일치 없이도 문서를 찾는다', async () => {
     const s = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-VEC-001',
       title: '대화 이어보기',

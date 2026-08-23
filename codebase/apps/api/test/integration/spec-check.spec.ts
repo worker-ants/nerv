@@ -69,6 +69,7 @@ beforeEach(async () => {
 
 async function draft(key: string, body: string): Promise<{ specId: string; versionId: string }> {
   const result = await specs.draftUpsert({
+    roles: ['planner'],
     projectId,
     key,
     title: key,

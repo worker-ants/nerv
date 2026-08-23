@@ -252,6 +252,8 @@
 
   <p><code>viewer</code> 는 <code>spec:read</code> 뿐이다. 넓게 열어 두고 나중에 조이는 것은 이미 통과하던 요청을 깨는 일이라 더 비싸다.</p>
 
+  <p><b>타입 제한은 스코프와 다른 축이다(2026-08-23 구현).</b> <code>spec:draft</code> 는 "초안을 쓸 수 있는가"이고 위 표기는 "무엇을 <b>시작</b>할 수 있는가"다. 판정은 도메인 서비스 한 곳(<code>SpecService.draftUpsert</code>)에 있어 REST 와 MCP 가 같은 답을 낸다(D-05) — 거부는 403 <code>NERV_FORBIDDEN</code>(<code>details.kind="spec_type_not_allowed"</code>). 겸직이면 <b>어느 한 역할이라도 만들 수 있으면</b> 만들 수 있다.</p>
+
 <h3>1.7 요청/응답 표기와 엔드포인트 ID</h3>
 
   <ul>
@@ -344,7 +346,7 @@
       <tr><td>EP-SPEC-04</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions</code></td><td>전 역할</td><td>—</td><td><code>Page&lt;SpecVersionSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-SPEC-05</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}</code></td><td>전 역할</td><td>—</td><td><code>SpecVersionResult</code>(불변 스냅샷 — 같은 <code>{no}</code>는 영원히 같은 응답)</td><td>—</td></tr>
       <tr><td>EP-SPEC-06</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/diff</code></td><td>전 역할</td><td><code>SpecDiffQuery</code>(from, to)</td><td><code>SpecDiffResult</code>(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff)</td><td>—</td></tr>
-      <tr><td>EP-SPEC-07</td><td><code>POST /api/v1/projects/{proj}/specs</code></td><td>planner·admin ●, designer(design)·developer(convention/adr)·qa ○</td><td><code>SpecCreateInput</code>(parent_id, type, title, body_markdown)</td><td><code>SpecDraftResult</code>(spec + draft v1)</td><td><code>spec.draft_created</code></td></tr>
+      <tr><td>EP-SPEC-07</td><td><code>POST /api/v1/projects/{proj}/specs</code></td><td>planner·admin ●, designer(design)·developer(convention/adr) ○, <b>qa ✗</b>(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. <code>spec:draft</code> 는 유지)</td><td><code>SpecCreateInput</code>(parent_id, type, title, body_markdown)</td><td><code>SpecDraftResult</code>(spec + draft v1)</td><td><code>spec.draft_created</code></td></tr>
       <tr><td>EP-SPEC-08</td><td><code>PUT /api/v1/projects/{proj}/specs/{spec}/draft</code></td><td>EP-SPEC-07과 동일(<code>spec:draft</code>)</td><td><code>SpecDraftUpsertInput</code>(body_markdown, <b>base_version</b>, change_summary)</td><td><code>SpecDraftResult</code>(version, 델타 요약, 검증 경고, <code>web_url</code>)</td><td>새 draft 버전 생성 시 <code>spec.draft_created</code>, 같은 draft 재저장은 이벤트 없음(리스 갱신만)</td></tr>
       <tr><td>EP-SPEC-09</td><td><code>GET /api/v1/projects/{proj}/spec-versions/{ver}/check</code></td><td>전 역할(읽기 전용 셀프서비스)</td><td>—</td><td><code>SpecCheckResult</code>(5검사기별 warning/block + 앵커 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §2.1)</td><td>—</td></tr>
       <tr><td>EP-SPEC-10</td><td><code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td>작성자 본인 또는 planner</td><td><code>SpecSubmitInput</code>(reviewer_hint, note)</td><td><code>SpecSubmitResult</code>(approval_id[], 지정 리뷰어·SLA)</td><td><code>spec.submitted</code> + <code>approval.requested</code></td></tr>

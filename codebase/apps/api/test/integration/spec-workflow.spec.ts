@@ -69,6 +69,7 @@ async function newDraft(
   versionId: string;
 }> {
   const result = await specs.draftUpsert({
+    roles: ['planner'],
     projectId,
     key,
     title: key,
@@ -83,6 +84,7 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
   it('초안은 여러 번 고쳐도 같은 버전이다 — 저장마다 버전이 늘지 않는다', async () => {
     const { specId, versionId } = await newDraft();
     const again = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       specId,
       bodyMd: '# 수정본',
@@ -143,6 +145,7 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     await specs.submitReview({ projectId, specVersionId: first.versionId, userId: planner });
 
     const second = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       specId: first.specId,
       bodyMd: '# v2',
@@ -170,6 +173,7 @@ describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
     // 웹(세션 없음) → 터미널(세션 있음)
     await expect(
       specs.draftUpsert({
+        roles: ['planner'],
         projectId,
         specId,
         bodyMd: '# 터미널에서 이어쓰기',
@@ -201,6 +205,7 @@ describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
     const { specId } = await newDraft('SPC-BASE');
     await expect(
       specs.draftUpsert({
+        roles: ['planner'],
         projectId,
         specId,
         bodyMd: '# 낡은 기준',
@@ -337,6 +342,7 @@ describe('E09-S07 재브리핑·참조 전파 (§3.3)', () => {
     );
 
     const second = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       specId: first.specId,
       bodyMd: '# v2',
@@ -438,6 +444,7 @@ async function seed(): Promise<void> {
 describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
   it('같은 버전을 두 번 제출해도 승인함 카드는 하나다', async () => {
     const draft = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-IDEM',
       title: '멱등 제출',
@@ -477,6 +484,7 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
 
   it('저장 응답에 문서 딥링크가 실린다 — 에이전트가 대화에 붙일 링크다', async () => {
     const result = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-LINK',
       title: '딥링크',
@@ -489,6 +497,7 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
 
   it('제출 응답의 딥링크는 승인 대기면 승인함을 가리킨다 — 다음 행동이 있는 곳으로 보낸다', async () => {
     const draft = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-LINK2',
       title: '딥링크2',

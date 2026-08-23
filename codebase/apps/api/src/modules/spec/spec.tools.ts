@@ -160,6 +160,7 @@ export class SpecTools implements NervToolProvider {
       handler: async (input, ctx) =>
         this.specs.draftUpsert({
           projectId: ctx.projectId,
+          roles: ctx.principal.roles,
           userId: ctx.principal.userId,
           sessionId: ctx.sessionId,
           bodyMd: String(input['body_md'] ?? ''),

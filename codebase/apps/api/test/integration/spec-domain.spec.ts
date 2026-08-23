@@ -87,6 +87,7 @@ async function draft(
   title = key,
 ): Promise<{ specId: string; versionId: string }> {
   const r = await specs.draftUpsert({
+    roles: ['planner'],
     projectId,
     key,
     title,
@@ -117,6 +118,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
   it('실존하는 스펙만 관계가 되고 나머지는 경고다 — 아직 안 쓴 문서를 참조하는 건 정상이다', async () => {
     await draft('SPC-A', '# A');
     const b = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-B',
       title: 'B',
@@ -138,6 +140,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     ).toHaveLength(2);
 
     const again = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       specId: b.specId,
       bodyMd: '# B\n\nSPC-A 만 남긴다',
@@ -150,6 +153,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
 
   it('자기 자신은 참조가 아니다', async () => {
     const r = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       key: 'SPC-SELF',
       title: 'self',
@@ -296,6 +300,7 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
 
     // v2 승인 — v1 은 superseded 가 된다
     const v2 = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       specId: v1.specId,
       bodyMd: '# v2',
@@ -479,6 +484,7 @@ describe('E09-S11 임베딩 파이프라인', () => {
     const v1 = await draft('SPC-IX', '# v1');
     await approve(v1.versionId);
     const v2 = await specs.draftUpsert({
+      roles: ['planner'],
       projectId,
       specId: v1.specId,
       bodyMd: '# v2',

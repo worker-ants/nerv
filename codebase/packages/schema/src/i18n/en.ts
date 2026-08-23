@@ -77,6 +77,7 @@ export const en = {
   'error.spec.cycle': 'A spec cannot be moved under itself.',
   'error.spec.draft_leased': 'Someone else is editing this draft.',
   'error.spec.draft_not_found': 'Draft not found.',
+  'error.spec.type_not_allowed': 'This role cannot create that kind of spec.',
   'error.spec.meta_change_not_allowed': 'Spec metadata cannot be changed here — use EP-SPEC-15 to move or rename.',
   'error.spec.missing_fields': 'A new spec needs key, title and type.',
   'error.spec.no_changes': 'Nothing to change.',
