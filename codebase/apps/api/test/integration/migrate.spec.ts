@@ -9,7 +9,7 @@
 // 그래서 적용된 스키마의 사실을 직접 조회해 고정한다.
 
 import { randomUUID } from 'node:crypto';
-import { runMigrations } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createScratchDb, withClient } from './helpers.js';
 import type { ScratchDb } from './helpers.js';

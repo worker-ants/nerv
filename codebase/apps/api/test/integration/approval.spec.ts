@@ -4,7 +4,8 @@
 // 그러려면 승인이 여기서 되는 것만으로 부족하고 **여기서만** 되어야 한다 —
 // 그 성질을 검증하는 것이 이 스위트의 절반이다.
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';

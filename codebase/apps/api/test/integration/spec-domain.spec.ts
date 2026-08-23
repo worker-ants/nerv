@@ -4,7 +4,8 @@
 // clemvion 에서 실패한 지점이 정확히 여기였다 — 문서를 옮기면 링크가 끊기고, 폐기된 결정이
 // 다른 문서에서 계속 살아 있고(R-3), "이때의 스펙"을 되짚을 방법이 없었다.
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';

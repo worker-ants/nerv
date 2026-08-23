@@ -5,7 +5,8 @@
 //
 // 예외는 Stop 하나다 — 턴 종료 직전의 **동기 판정**이라 서버의 답이 에이전트의 행동을 바꾼다.
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';

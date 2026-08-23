@@ -4,7 +4,8 @@
 // 않다). 그래서 검증이 이 파일의 절반이고, 나머지 절반은 "판정하지 않는다"의 확인이다 —
 // 증적이 붙어도 Task 상태는 그대로여야 한다.
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { createHmac } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';

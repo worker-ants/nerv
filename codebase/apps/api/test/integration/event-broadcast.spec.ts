@@ -14,7 +14,7 @@ import { sql } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { runMigrations } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { EventSubscriberService } from '../../src/modules/event/event-subscriber.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';

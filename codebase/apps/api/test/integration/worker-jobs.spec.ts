@@ -4,7 +4,8 @@
 // "워커가 두 개 떠도 하나만 돈다"이고, 그것을 mock 으로 확인하면 아무 의미가 없다 —
 // pg_try_advisory_lock 의 의미론 자체가 검증 대상이라 실제 Postgres 커넥션 2개로 본다.
 
-import { newId, runMigrations, WORKER_ADVISORY_LOCK_KEY } from '@nerv/schema';
+import { newId, WORKER_ADVISORY_LOCK_KEY } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';

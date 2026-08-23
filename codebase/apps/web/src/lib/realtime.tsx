@@ -19,6 +19,7 @@ import {
 import type { Socket } from 'socket.io-client';
 import { NERV_EVENT } from '@nerv/schema';
 import type { NervEventEnvelope } from '@nerv/schema';
+import { useMe } from './queries.js';
 import { connectNervSocket, joinProjectRoom, leaveProjectRoom } from './ws.js';
 import { invalidationKeysFor } from './event-invalidation.js';
 import type { ConnectionState } from './ws.js';
@@ -62,6 +63,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
   const [offline, setOffline] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const socketRef = useRef<Socket | null>(null);
+  const me = useMe();
   const wasConnected = useRef(false);
 
   const pushToast = useCallback((toast: Omit<Toast, 'id'>) => {
@@ -92,7 +94,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
     [pushToast, queryClient],
   );
 
+  // **인증된 뒤에만 붙는다.** 예전에는 마운트 즉시 붙었는데, 로그인 화면에서는 세션 쿠키가
+  // 없어 서버가 핸드셰이크를 거절하고 소켓을 끊는다. socket.io 는 **서버가 끊은 연결은 자동
+  // 재연결하지 않으므로**(`io server disconnect`) 로그인에 성공해도 실시간이 영영 죽은 채로
+  // 남았다 — 새로고침하기 전까지 "실시간 갱신 중단" 배너가 걸려 있었다(실측 2026-08-23).
+  //
+  // E2E 가 이것을 놓친 이유도 같다: 저장된 세션으로 시작하니 첫 연결이 성공했다.
+  // 로그인 **화면을 거쳐** 들어오는 경로가 검증되지 않았던 것이다.
+  const userId = me.data?.id;
+
   useEffect(() => {
+    if (userId === undefined) return undefined;
     const socket = connectNervSocket({
       onEvent,
       onStateChange: (next) => {
@@ -109,7 +121,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
       socket.close();
       socketRef.current = null;
     };
-  }, [onEvent, queryClient]);
+    // userId 가 바뀌면(로그인·로그아웃·계정 전환) 소켓을 새로 만든다
+  }, [onEvent, queryClient, userId]);
 
   const joinProject = useCallback((projectId: string) => {
     const socket = socketRef.current;

@@ -8,7 +8,8 @@
 // "룸 밖으로는 안 나간다"도 검증되지 않는다.
 
 import { request as httpRequest } from 'node:http';
-import { WS_ERROR_EVENT, NERV_ERROR, NERV_EVENT, newId, runMigrations } from '@nerv/schema';
+import { WS_ERROR_EVENT, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';

@@ -7,7 +7,8 @@
 // 승인 축은 clemvion 이 갖지 못했던 것이다(D-01). 그 축이 실제로 서 있는지는 "가변 구간이
 // draft 하나뿐"이라는 성질이 DB 에서 강제되는지로 판정된다.
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';

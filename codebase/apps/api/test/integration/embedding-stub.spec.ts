@@ -7,7 +7,8 @@
 // 차원 검증(REQ-CB-021)도 여기서만 제대로 볼 수 있다 — 1023차원을 내는 제공자를
 // 실물로 구하는 것보다 스텁이 정확하다.
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import { drizzle } from 'drizzle-orm/node-postgres';

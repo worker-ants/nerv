@@ -6,7 +6,7 @@
 // 시드는 화면 개발의 "데이터 있음" 경로를 즉시 확인하게 해주는 물건이라(database.md §4 말미),
 // 무엇이 몇 건인지가 곧 계약이다. 여기서 그 계약을 고정한다.
 
-import { runMigrations, runSeed } from '@nerv/schema';
+import { runMigrations, runSeed } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createScratchDb } from './helpers.js';

@@ -449,7 +449,10 @@
     constants.ts                 # §3.2 상수 전표
     events.ts                    # 이벤트 이름 리터럴 유니온 — &lt;리소스&gt;.&lt;동사&gt; (정본: 3.5 §6)
     errors.ts                    # NERV_* 에러 코드 리터럴 유니온 (정본: 3.4 §2.7)
-    migrate.ts                   # drizzle 마이그레이터 — apps/api/src/migrate.ts 가 호출</code></pre>
+    migrate.ts                   # drizzle 마이그레이터 — apps/api/src/migrate.ts 가 호출
+    migrate-entry.ts             # `@nerv/schema/migrate` 서브패스 — 배럴에서 분리한 이유는 아래</code></pre>
+
+  <p><b>배럴(<code>@nerv/schema</code>)은 브라우저에서 평가된다</b> — <code>apps/web</code> 이 상수·에러 코드·이벤트 이름·문구를 거기서 가져오기 때문이다. 그래서 마이그레이터·시드는 배럴에서 내보내지 않고 <code>@nerv/schema/migrate</code> 서브패스로 뺀다(2026-08-23). 그 둘은 <code>pg</code> 드라이버를 import 하고, 배럴이 재수출하면 <b>브라우저가 Postgres 드라이버를 평가한다</b> — 웹 dev 서버가 <code>Buffer is not defined</code> 로 아무것도 렌더하지 못했다(실측). 프로덕션 번들은 tree-shaking 이 지워 줘서 증상이 안 보였고, <b>빌드가 살려 주는 실수는 개발 루프에서만 터진다</b> — 그래서 경계를 패키지 표면(<code>exports</code> 맵)에 박는다.</p>
 
   <p>파생 타입 공유 규칙: 테이블 행 타입은 drizzle 선언에서(<code>InferSelectModel</code>), API·도구 입출력 타입은 zod 스키마에서(<code>z.infer</code>) 파생한다. <b>손으로 쓴 중복 인터페이스는 금지</b>다 — 웹 폼(react-hook-form + zod)·REST 컨트롤러·MCP 도구 레지스트리가 전부 <code>@nerv/schema</code>의 같은 zod 객체를 import하므로, 검증 규칙이 표면마다 갈라질 수 없다.</p>
 
@@ -720,6 +723,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
       <tr><td><code>DATABASE_URL</code></td><td>dev 루프 시</td><td><code>postgres://nerv:&lt;pw&gt;@localhost:5432/nerv</code></td><td>api · worker · migrate · drizzle-kit</td><td>compose 내부에서는 <code>postgres</code> 호스트로 자동 조립</td></tr>
       <tr><td><code>NERV_API_PORT</code></td><td></td><td><code>8080</code></td><td>api</td><td></td></tr>
       <tr><td><code>NERV_PUBLIC_URL</code></td><td></td><td><code>http://localhost:8080</code></td><td>api(세션 쿠키·CORS 기준) · web(<code>/mcp</code> Origin 1차 검증)</td><td>경로 없는 오리진만</td></tr>
+      <tr><td><code>NERV_TRUSTED_ORIGINS</code></td><td></td><td>(비움)</td><td>api(better-auth)</td><td>baseURL 밖에서 화면을 띄울 때만 추가(쉼표 구분) — CSRF 방어선이라 기본은 비운다. 개발 루프는 화면이 Vite(:5173)·API 가 :8080 이라 오리진이 달라 <code>http://localhost:5173</code> 이 필요하다. compose 는 둘이 같아 불요</td></tr>
       <tr><td><code>NERV_AUTH_SECRET</code></td><td><b>필수</b></td><td>—</td><td>api(better-auth 서명)</td><td><code>openssl rand -base64 32</code></td></tr>
       <tr><td><code>VALKEY_PORT</code></td><td></td><td><code>6379</code></td><td>compose 포트 노출(127.0.0.1 한정)</td><td>개발 루프(<code>pnpm dev</code>)의 Valkey 접근</td></tr>
       <tr><td><code>NERV_VALKEY_URL</code></td><td>dev 루프 시</td><td><code>redis://localhost:6379</code></td><td>api · worker</td><td>실시간 방송 MQ(§2.1). compose 내부에서는 <code>redis://valkey:6379</code>로 자동 조립(Valkey는 RESP 프로토콜 — <code>redis://</code> 스킴)</td></tr>

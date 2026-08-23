@@ -13,7 +13,7 @@
 
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
-import { runMigrations } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EmbeddingClient } from '../../src/modules/spec/embedding.client.js';
 import { createScratchDb } from './helpers.js';

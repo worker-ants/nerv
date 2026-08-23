@@ -11,7 +11,8 @@
 // 파드 2개는 **앱 인스턴스 2개**로 흉내낸다. 프로세스가 다른 것과 같은 조건이다 —
 // 둘은 같은 Valkey 를 구독할 뿐 서로를 모른다.
 
-import { NERV_EVENT, newId, runMigrations } from '@nerv/schema';
+import { NERV_EVENT, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';

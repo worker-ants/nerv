@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./migrate": {
+      "types": "./dist/migrate-entry.d.ts",
+      "default": "./dist/migrate-entry.js"
     }
   },
   "main": "./dist/index.js",

@@ -6,7 +6,8 @@
 
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { newId, runMigrations } from '@nerv/schema';
+import { newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';

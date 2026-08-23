@@ -340,7 +340,10 @@ packages/schema/
       locale.ts                  #   Accept-Language 협상
       domain.ts                  #   이벤트·상태값 → 문구 키 파생
     migrate.ts                   # drizzle 마이그레이터 — apps/api/src/migrate.ts 가 호출
+    migrate-entry.ts             # `@nerv/schema/migrate` 서브패스 — 배럴에서 분리한 이유는 아래
 ```
+
+**배럴(`@nerv/schema`)은 브라우저에서 평가된다** — `apps/web` 이 상수·에러 코드·이벤트 이름·문구를 거기서 가져오기 때문이다. 그래서 마이그레이터·시드는 배럴에서 내보내지 않고 `@nerv/schema/migrate` 서브패스로 뺀다(2026-08-23). 그 둘은 `pg` 드라이버를 import 하고, 배럴이 재수출하면 **브라우저가 Postgres 드라이버를 평가한다** — 웹 dev 서버가 `Buffer is not defined` 로 아무것도 렌더하지 못했다(실측). 프로덕션 번들은 tree-shaking 이 지워 줘서 증상이 안 보였고, **빌드가 살려 주는 실수는 개발 루프에서만 터진다** — 그래서 경계를 패키지 표면(`exports` 맵)에 박는다.
 
 파생 타입 공유 규칙: 테이블 행 타입은 drizzle 선언에서(`InferSelectModel`), API·도구 입출력 타입은 zod 스키마에서(`z.infer`) 파생한다. **손으로 쓴 중복 인터페이스는 금지**다 — 웹 폼(react-hook-form + zod)·REST 컨트롤러·MCP 도구 레지스트리가 전부 `@nerv/schema`의 같은 zod 객체를 import하므로, 검증 규칙이 표면마다 갈라질 수 없다.
 
@@ -595,6 +598,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `DATABASE_URL` | dev 루프 시 | `postgres://nerv:<pw>@localhost:5432/nerv` | api · worker · migrate · drizzle-kit | compose 내부에서는 `postgres` 호스트로 자동 조립 |
 | `NERV_API_PORT` | | `8080` | api | |
 | `NERV_PUBLIC_URL` | | `http://localhost:8080` | api(세션 쿠키·CORS 기준) · web(`/mcp` Origin 1차 검증) | 경로 없는 오리진만 |
+| `NERV_TRUSTED_ORIGINS` | | (비움) | api(better-auth) | baseURL 밖에서 화면을 띄울 때만 추가(쉼표 구분) — CSRF 방어선이라 기본은 비운다. 개발 루프는 화면이 Vite(:5173)·API 가 :8080 이라 오리진이 달라 `http://localhost:5173` 이 필요하다. compose 는 둘이 같아 불요 |
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
 | `VALKEY_PORT` | | `6379` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 Valkey 접근 |
 | `NERV_VALKEY_URL` | dev 루프 시 | `redis://localhost:6379` | api · worker | 실시간 방송 MQ(§2.1). compose 내부에서는 `redis://valkey:6379`로 자동 조립(Valkey는 RESP 프로토콜 — `redis://` 스킴) |

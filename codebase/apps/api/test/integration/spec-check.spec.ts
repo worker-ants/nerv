@@ -5,7 +5,8 @@
 // 732세션 중 24건(3.3%). 그래서 여기서는 종합 verdict 를 "개별 severity 의 최댓값"으로
 // **계산**한다 — 낮출 조건문 자체가 없다.
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';

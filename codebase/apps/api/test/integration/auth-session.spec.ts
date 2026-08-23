@@ -4,7 +4,8 @@
 // **두 경로가 같은 사람을 가리키되 권한이 다르다**는 것이다 — 세션은 사람이라 승인함에
 // 도달하고, PAT 는 에이전트라 같은 URL 에서 HUMAN_ONLY 로 막힌다(D-08).
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';

@@ -7,7 +7,8 @@
 // 이 표면만 워크플로 전이 검사를 우회한다(approved 를 승인 없이 만든다). 그래서 문(門)의
 // 검증이 곧 이 스위트의 절반이다 — admin AND import:write 가 둘 다 필요하다는 것.
 
-import { NERV_ERROR, newId, runMigrations } from '@nerv/schema';
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';

@@ -12,6 +12,21 @@ import { RATE_LIMIT_AUTH_PER_MIN, RATE_LIMIT_SIGN_IN_PER_MIN, newId } from '@ner
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
 
+/**
+ * baseURL 외에 추가로 신뢰할 오리진 — `NERV_TRUSTED_ORIGINS`(쉼표 구분, §5.2 전표).
+ *
+ * 이 목록은 CSRF 방어선이다. 늘리는 것은 **환경이 실제로 다른 오리진에서 화면을 띄울 때**
+ * 뿐이고, 그 판단은 운영 주체가 env 로 명시한다 — 코드가 추측하지 않는다.
+ */
+function trustedOrigins(): string[] {
+  const base = process.env['NERV_PUBLIC_URL'] ?? 'http://localhost:8080';
+  const extra = (process.env['NERV_TRUSTED_ORIGINS'] ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin !== '');
+  return [...new Set([base, ...extra])];
+}
+
 /** 반환 타입은 옵션 리터럴에 의존한다 — 추론에 맡긴다(명시하면 타입이 좁아 대입이 깨진다). */
 export type NervAuth = ReturnType<typeof createBetterAuth>;
 
@@ -22,6 +37,11 @@ export function createBetterAuth(pool: pg.Pool) {
     secret: secret === '' ? 'dev-only-insecure-secret-change-me' : secret,
     baseURL: process.env['NERV_PUBLIC_URL'] ?? 'http://localhost:8080',
     basePath: '/api/auth',
+    // 브라우저의 Origin 이 baseURL 과 다를 수 있다 — **개발 루프가 그렇다**: 화면은 Vite(:5173)
+    // 에서 뜨고 API 는 :8080 이라, 프록시를 거쳐도 Origin 은 :5173 로 남는다. baseURL 만
+    // 신뢰하면 로그인이 `INVALID_ORIGIN` 으로 막힌다(실측 — compose 는 둘이 같아서 안 보였다).
+    // 기본값을 비워 두는 것이 중요하다: 운영에서는 baseURL 하나만 신뢰한다(CSRF 방어선).
+    trustedOrigins: trustedOrigins(),
     // 커넥션 풀을 그대로 넘긴다 — drizzle 어댑터를 쓰면 better-auth 가 끌고 오는
     // drizzle peer 집합이 @nerv/schema 의 것과 갈라져 같은 테이블 타입이 둘이 된다(실측).
     // 테이블·컬럼 이름은 아래 modelName·fields 매핑이 정한다.

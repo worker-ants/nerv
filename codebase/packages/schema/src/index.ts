@@ -15,8 +15,6 @@ export * from './zod/index.js';
 // 웹·API·CLI 가 같은 문구를 쓰게 하려면 정본이 여기 있어야 한다.
 export * from './i18n/index.js';
 
-// 마이그레이터 — 순수 선언은 아니지만 §1.2 가 허용한 예외다("순수 선언 + 마이그레이터만").
-export { runMigrations, migrationsFolder } from './migrate.js';
-export { runSeed, seedSqlPath } from './seed.js';
-export type { SeedResult } from './seed.js';
-export type { MigrateResult } from './migrate.js';
+// 마이그레이터·시드는 **여기서 내보내지 않는다** — `@nerv/schema/migrate` 서브패스다.
+// 이 배럴은 브라우저(apps/web)도 import 하는데, 그 둘은 `pg` 드라이버를 끌고 온다.
+// 재수출하면 브라우저가 Postgres 드라이버를 평가하다 죽는다(§3.1 — 실측 2026-08-23).

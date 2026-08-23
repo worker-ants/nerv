@@ -9,7 +9,8 @@
 // 그래서 스키마는 도메인을, api 는 인증을 심는다.
 
 import { Logger } from '@nestjs/common';
-import { newId, runSeed } from '@nerv/schema';
+import { newId } from '@nerv/schema';
+import { runSeed } from '@nerv/schema/migrate';
 import { hashPassword } from 'better-auth/crypto';
 import pg from 'pg';
 

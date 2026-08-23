@@ -60,6 +60,23 @@ test('가입 → 로그인 → 셸 진입 · ⌘K 퀵 스위처 (REQ-WEB-006 · 
   await expect(page.getByTestId('quick-switcher')).toHaveCount(0);
 });
 
+test('로그인 화면을 거쳐 들어와도 실시간이 붙는다 (D-14 배너가 걸린 채로 남지 않는다)', async ({
+  page,
+}) => {
+  // **저장된 세션으로 시작하지 않는다**는 것이 이 테스트의 전부다.
+  // 다른 E2E 는 storageState 로 이미 로그인된 채 시작해서 첫 WS 핸드셰이크가 성공한다 —
+  // 그래서 "로그인 화면에서 붙었다가 거절당한 소켓은 다시 붙지 않는다"를 아무도 못 봤다.
+  // socket.io 는 **서버가 끊은 연결**을 자동 재연결하지 않는다(`io server disconnect`).
+  await page.goto('/login');
+  await page.getByLabel('이메일').fill(EMAIL);
+  await page.getByLabel('비밀번호').fill(PASSWORD);
+  await page.getByRole('button', { name: /로그인/ }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+
+  // 연결 배너는 끊겼을 때만 뜬다(§1.4) — 붙었으면 없어야 한다
+  await expect(page.getByTestId('connection-banner')).toHaveCount(0, { timeout: 15_000 });
+});
+
 test('로그아웃하면 세션이 끊기고 보호 경로가 다시 막힌다', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('이메일').fill(EMAIL);

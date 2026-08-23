@@ -5,7 +5,7 @@
 // 왕복 멱등은 drizzle 적용 이력이 보장하므로 이 프로세스를 두 번 돌려도 변경 0건이다(REQ-DB-001).
 
 import { Logger } from '@nestjs/common';
-import { runMigrations } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
 
 async function main(): Promise<void> {
   const url = process.env['DATABASE_URL'];
