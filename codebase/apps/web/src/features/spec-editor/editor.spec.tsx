@@ -73,6 +73,20 @@ describe('SpecEditor 본문 동기화', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('편집 가능 상태로 만들어져도 빈 갱신이 부모의 draft 를 굳히지 않는다', async () => {
+    // 부모(specs.$spec)는 데이터가 오기 전 doc_status 기본값이 'draft' 라 **editable 로**
+    // 편집기를 만든다. 그때의 빈 갱신이 draft='' 로 굳으면 `draft ?? body` 가 빈 문자열을
+    // 통과시켜 본문이 도착해도 화면은 백지다 — 실측으로 잡은 결함이다.
+    const onChange = vi.fn();
+    const { rerender } = render(<SpecEditor value="" readOnly={false} onChange={onChange} />);
+    rerender(<SpecEditor value={'# 도착한 본문'} readOnly={false} onChange={onChange} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('editor-content').textContent).toContain('도착한 본문');
+    });
+    // 사람이 친 적이 없으므로 부모는 아무것도 받지 않았어야 한다
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it('소스 보기는 md 원문을 그대로 보인다 — 편집 경로는 없다(§3.1)', () => {
     render(<SpecEditor value={'# 제목'} readOnly onChange={() => undefined} />);
     expect(screen.queryByTestId('editor-source')).toBeNull();

@@ -51,6 +51,18 @@ export const WORKER_ADVISORY_LOCK_KEY = 1852796534n;
  * 쿼터 — PAT 토큰당 분당 요청 수. `/api/v1` + `/mcp` 공용 풀.
  * 정본: docs/04-mvp/api.md §1.8
  */
+/**
+ * 요청 본문 상한 — 임포트 배치가 정한다.
+ *
+ * Fastify 기본값은 1 MiB 인데, 임포터의 **문서 기본 배치**(50건 — importer.md §3.1)는
+ * 실제 스펙 저장소에서 그것을 넘는다: clemvion 은 평균 34 KB/건 · 최대 298 KB/건이라
+ * 50건이 약 1.7 MB 다(실측 2026-08-23). 서버가 자기 문서가 선언한 배치를 못 받으면
+ * 그 기본값은 쓸 수 없는 값이다.
+ *
+ * 16 MiB 는 최악(50 × 300 KB)에 여유를 둔 값이다. 더 큰 이관은 `--batch-size` 로 줄인다.
+ */
+export const MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
+
 export const RATE_LIMIT_PAT_PER_MIN = 300;
 
 /** 쿼터 — 웹 세션 사용자당 분당 요청 수(`/api/v1`). 정본: docs/04-mvp/api.md §1.8 */

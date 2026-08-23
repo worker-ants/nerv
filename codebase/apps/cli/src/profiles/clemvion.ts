@@ -12,8 +12,10 @@ export const clemvionProfile: ImportProfile = {
   scan: {
     spec: ['spec/**/*.md'],
     plan: ['plan/{in-progress,complete,research}/**/*.md'],
-    // 기계생성 API 카탈로그는 옮기지 않는다 — 재생성 가능한 산출물이다(D-07)
-    exclude: ['spec/**/api-catalog/**', 'spec/**/generated/**'],
+    // 기계생성 API 카탈로그는 옮기지 않는다 — 재생성 가능한 산출물이다(D-07).
+    // **접두사를 흘려 받는다**(`*api-catalog`): 실제 디렉터리는 `makeshop-api-catalog`·
+    // `cafe24-api-catalog` 이고, 정확 일치 글롭은 249건을 그대로 통과시켰다(실측 2026-08-23).
+    exclude: ['spec/**/*api-catalog/**', 'spec/**/*generated/**'],
   },
   // 실측 정본이 있는 대상이라 기대 집계를 선언한다 — "측정 방법이 흔들리는 수치"(P4) 방어
   expect: {

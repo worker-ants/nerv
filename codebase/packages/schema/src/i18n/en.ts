@@ -582,6 +582,8 @@ export const en = {
   'cli.err.unknown_profile': 'Unknown built-in profile: {name} (available: {available})',
   'cli.mode.apply': 'Apply',
   'cli.mode.dry_run': 'Dry run',
+  'cli.reason.duplicate_key':
+    'Duplicate key — {count} files share "{key}"; later ones overwrite earlier ones',
   'cli.reason.load_failed': 'Load failed',
   'cli.reason.no_started': 'No start time declared — using the import time',
   'cli.reason.no_worktree': 'No worktree declared — loaded into the backlog',

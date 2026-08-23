@@ -9,8 +9,13 @@
 // 수행해 자연 키 충돌을 미리 본다(REQ-IMP-011).
 
 import { t } from './i18n.js';
-import { basename, dirname } from 'node:path';
-import type { ImportProfile, ImportSpecItem, ImportTaskItem } from '@nerv/schema';
+import { dirname } from 'node:path';
+import type {
+  ImportBatchResult,
+  ImportProfile,
+  ImportSpecItem,
+  ImportTaskItem,
+} from '@nerv/schema';
 import { ImportClient } from './client/index.js';
 import { classifyPlan } from './parse/plan.js';
 import { parseFrontmatter, splitStatus } from './parse/frontmatter.js';
@@ -40,13 +45,15 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
     if (converted !== null) items.push(converted);
   }
 
+  const loadable = withoutDuplicateKeys(items, entries);
+
   const expectation = checkExpectations(profile, files.length, statusCounts, entries);
   const report: ImportReport = {
     profile: profile.profile,
     root: options.root,
     rootCommit: null,
     scanned: files.length,
-    converted: items.length,
+    converted: loadable.length,
     entries,
     expectation,
   };
@@ -72,9 +79,21 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
 
     if (options.apply) {
       // ① 트리 골격 → ② 본문 순서. 부모가 먼저 있어야 자식이 붙는다
-      await client.specs({ profile: profile.profile, kind: 'structure', items });
-      const applied = await client.specs({ profile: profile.profile, kind: 'document', items });
-      for (const item of applied.items) {
+      //
+      // **나눠 보낸다**(importer.md §3.1 `--batch-size`). 한 번에 보내면 본문이 몸집을
+      // 키워 서버가 413 으로 끊는다 — clemvion 136건이 그랬다(실측 2026-08-23).
+      for (const chunk of chunked(orderByParent(loadable), options.batchSize)) {
+        await client.specs({ profile: profile.profile, kind: 'structure', items: chunk });
+      }
+      const applied: ImportBatchResult['items'] = [];
+      for (const chunk of chunked(loadable, options.batchSize)) {
+        // 문서는 **파일 1건 = 트랜잭션 1건**이라(§3.5) 순서가 결과를 바꾸지 않는다
+        applied.push(
+          ...(await client.specs({ profile: profile.profile, kind: 'document', items: chunk }))
+            .items,
+        );
+      }
+      for (const item of applied) {
         if (item.status === 'error') {
           entries.push({
             file: item.source_path,
@@ -215,7 +234,10 @@ function convert(
 ): ImportSpecItem | null {
   const { frontmatter, body } = parseFrontmatter(file.content);
   const rawId = frontmatter['id'];
-  const key = typeof rawId === 'string' && rawId !== '' ? rawId : basename(file.path, '.md');
+  // **폴백은 경로다.** 파일명만 쓰면 디렉터리가 다른 동명 파일이 같은 키를 갖고, upsert 가
+  // 서로를 덮어쓴다 — clemvion 은 `_product-overview.md` 7건 · `0-common.md` 7건이라
+  // 136건이 127노드로 줄고 9건이 조용히 사라졌다(실측 2026-08-23). 경로는 유일하다.
+  const key = typeof rawId === 'string' && rawId !== '' ? rawId : keyFromPath(file.path);
 
   const rawStatus = typeof frontmatter['status'] === 'string' ? frontmatter['status'] : undefined;
   if (rawStatus !== undefined) statusCounts[rawStatus] = (statusCounts[rawStatus] ?? 0) + 1;
@@ -326,4 +348,89 @@ function checkExpectations(
     }
   }
   return results;
+}
+
+/** n 개씩 끊는다 — 배치는 전송 단위일 뿐이다(api.md §2.10) */
+function chunked<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * 부모 먼저 오도록 위상 정렬한다.
+ *
+ * 구조 패스는 `parent_key` 를 id 로 해소하므로 부모가 **먼저 적재돼 있어야** 한다.
+ * 한 배치로 보낼 때는 배열 순서가 그것을 보장했지만, 나눠 보내면 경계가 부모와 자식을
+ * 가를 수 있다 — 그때 자식은 부모 없이 트리에 붙는다(조용한 손상이다).
+ *
+ * 부모를 못 찾는 항목(원본이 순환이거나 참조가 깨진 경우)은 **버리지 않고 뒤에 붙인다** —
+ * 여기서 지우면 리포트의 전수 계정(REQ-IMP-016)이 맞지 않게 된다. 판정은 서버가 한다.
+ */
+function orderByParent(items: readonly ImportSpecItem[]): ImportSpecItem[] {
+  const remaining = new Map(items.map((item) => [item.key, item]));
+  const placed = new Set<string>();
+  const ordered: ImportSpecItem[] = [];
+
+  let progressed = true;
+  while (progressed && remaining.size > 0) {
+    progressed = false;
+    for (const [key, item] of [...remaining]) {
+      const parent = item.parent_key;
+      if (parent == null || placed.has(parent) || !remaining.has(parent)) {
+        ordered.push(item);
+        placed.add(key);
+        remaining.delete(key);
+        progressed = true;
+      }
+    }
+  }
+  return [...ordered, ...remaining.values()];
+}
+
+/**
+ * frontmatter `id` 가 없을 때의 키 — **경로에서 만든다**.
+ *
+ * 스캔 경로는 저장소 안에서 유일하므로 키도 유일하다. 파일명만 쓰면 디렉터리가 다른
+ * 동명 파일이 한 키를 두고 다투고, 그 다툼은 upsert 가 조용히 덮어쓰는 것으로 끝난다.
+ */
+function keyFromPath(path: string): string {
+  return path
+    .replace(/\.md$/, '')
+    .split('/')
+    .filter((segment) => segment !== '')
+    .join('-');
+}
+
+/**
+ * 같은 키를 가진 파일이 둘 이상이면 **적재에서 빼고 리포트에 올린다**.
+ *
+ * 키가 겹치면 나중 것이 앞선 것을 덮어쓴다 — 그런데 그 덮어쓰기는 서버에서 정상 upsert 라
+ * 오류가 나지 않는다. 아무도 말해 주지 않으면 "136건 전량 변환·실패 0" 이라는 리포트와
+ * 함께 문서가 사라진다(실측). 전수 계정(REQ-IMP-016)이 지켜야 하는 것이 바로 이것이다.
+ */
+function withoutDuplicateKeys(
+  items: readonly ImportSpecItem[],
+  entries: ReportEntry[],
+): ImportSpecItem[] {
+  const byKey = new Map<string, string[]>();
+  for (const item of items) {
+    byKey.set(item.key, [...(byKey.get(item.key) ?? []), item.source_path]);
+  }
+  const conflicted = new Set<string>();
+  for (const [key, paths] of byKey) {
+    if (paths.length < 2) continue;
+    conflicted.add(key);
+    for (const path of paths) {
+      entries.push({
+        file: path,
+        line: null,
+        reason: t()('cli.reason.duplicate_key', { key, count: paths.length }),
+        disposition: 'aborted',
+      });
+    }
+  }
+  // **적재에서 뺀다.** 그대로 보내면 서버는 정상 upsert 로 받아들이고 나중 것이 앞선 것을
+  // 덮어쓴다 — 문서가 사라지는데 오류는 나지 않는다. 빼면 사라지되 리포트에 이름이 남는다.
+  return items.filter((item) => !conflicted.has(item.key));
 }

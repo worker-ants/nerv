@@ -27,6 +27,8 @@ export interface CliOptions {
   mapPath: string;
   /** owner 라벨 → 사용자 id (E11-S02). 매핑 없는 라벨은 unassigned 로 적재된다 */
   ownerMap?: Record<string, string>;
+  /** EP-IMP-02/03 한 배치의 파일 수 (importer.md §3.1) */
+  batchSize: number;
 }
 
 export function parseArgs(argv: string[]): CliOptions {
@@ -54,6 +56,8 @@ export function parseArgs(argv: string[]): CliOptions {
     root: flags.get('root') ?? process.cwd(),
     project: flags.get('project') ?? '',
     apply,
+    // 기본 50 — 한 번에 보내면 본문 크기가 서버의 한도를 넘는다(importer.md §3.1)
+    batchSize: Math.max(1, Number.parseInt(flags.get('batch-size') ?? '50', 10) || 50),
     reportDir: flags.get('report-dir') ?? './nerv-import-report',
     mapPath: flags.get('map') ?? './nerv-import.map.json',
   };

@@ -64,6 +64,11 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
       if (!instance.isEditable || synced.current === null) return;
       const storage = instance.storage as { markdown?: { getMarkdown: () => string } };
       const serialized = storage.markdown?.getMarkdown() ?? '';
+      // **바깥에서 넣은 것과 같으면 편집이 아니다.** 문서가 아직 안 왔을 때 이 편집기는
+      // 빈 값으로 만들어지는데(부모의 doc_status 기본값이 draft 라 editable 이다), 그때의
+      // 빈 갱신이 부모의 draft 를 '' 로 굳힌다. `draft ?? body` 는 빈 문자열을 통과시키므로
+      // 본문이 도착해도 화면은 영영 백지다 — 실측으로 두 번 잡은 결함이다.
+      if (serialized === synced.current) return;
       onChange(serialized, roundTrip(instance, serialized));
     },
   });

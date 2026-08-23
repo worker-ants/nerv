@@ -1,6 +1,7 @@
 // HTTP 엔트리 — Nest(Fastify) 부트스트랩: REST + MCP + WS + SSE + ingest
 // 정본: docs/04-mvp/codebase.md §2.2 · 포트·오리진 환경변수는 §5.2 전표
 
+import { MAX_REQUEST_BODY_BYTES } from '@nerv/schema';
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
@@ -16,9 +17,13 @@ import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
 export async function createApp(): Promise<NestFastifyApplication> {
   // rawBody 를 켠다 — GitHub 웹훅의 HMAC 은 **원문 바이트**로 계산되므로 파싱 후
   // 재직렬화한 문자열로는 검증할 수 없다(키 순서·공백이 달라진다).
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
-    rawBody: true,
-  });
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter({ bodyLimit: MAX_REQUEST_BODY_BYTES }),
+    {
+      rawBody: true,
+    },
+  );
 
   app.useGlobalFilters(new NervExceptionFilter());
   app.useGlobalInterceptors(new ProjectScopeInterceptor());

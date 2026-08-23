@@ -574,6 +574,8 @@ export const ko = {
   'cli.err.unknown_profile': '알 수 없는 내장 프로파일: {name} (사용 가능: {available})',
   'cli.mode.apply': '적재',
   'cli.mode.dry_run': 'dry-run',
+  'cli.reason.duplicate_key':
+    '키 중복 — "{key}" 를 {count}건이 함께 쓴다. 나중 것이 앞선 것을 덮어쓴다',
   'cli.reason.load_failed': '적재 실패',
   'cli.reason.no_started': 'started 미선언 — 임포트 시각으로 적재',
   'cli.reason.no_worktree': 'worktree 미선언 — backlog 로 적재',
