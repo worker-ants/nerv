@@ -47,7 +47,8 @@ beforeAll(async () => {
       projectId,
       userId,
       name: 'e2e',
-      scopes: ['spec:read', 'task:claim', 'task:update', 'agent-session:launch'],
+      // `spec:draft` 를 넣는 이유: 에이전트가 스펙을 쓰는 것이 이 표면의 절반이다
+      scopes: ['spec:read', 'spec:draft', 'task:claim', 'task:update', 'agent-session:launch'],
     })
   ).token;
   readOnlyToken = (await auth.issueToken({ projectId, userId, name: 'ro', scopes: ['spec:read'] }))
@@ -109,6 +110,57 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     // 리뷰 도구 2종은 Phase 2 — 카탈로그에 없다(scope.md §5)
     expect(tools.map((t) => t.name)).not.toContain('nerv_review_submit');
     for (const tool of tools) expect(tool.inputSchema).toBeTruthy();
+  });
+
+  it('에이전트가 스펙을 **새로** 만든다 — 도구가 메타를 받아야 가능하다', async () => {
+    // 도구 스키마에 key·title·type 이 없어 **새 스펙을 시작할 수 없었다**(실측 2026-08-23).
+    // 이어쓰기만 되는 도구는 "스펙을 에이전트가 쓴다"의 절반이다.
+    const { body } = await rpc('tools/call', {
+      name: 'nerv_spec_draft_upsert',
+      arguments: {
+        key: 'SPC-AGENT-NEW',
+        title: '에이전트가 만든 스펙',
+        type: 'feature',
+        body_md: '# 에이전트가 만든 스펙\n\n본문',
+      },
+    });
+    const result = body['result'] as {
+      isError?: boolean;
+      structuredContent?: Record<string, unknown>;
+      content?: { text?: string }[];
+    };
+    // 실패하면 **무엇 때문인지** 보이게 한다 — isError 만 보면 원인이 남지 않는다
+    expect(result.content?.[0]?.text ?? '').toContain('"ok":true');
+    expect(result.isError ?? false).toBe(false);
+    expect(result.structuredContent?.['spec_id']).toBeTruthy();
+  });
+
+  it('기존 스펙에 다른 메타가 오면 409 다 — 이동·개명은 EP-SPEC-15 소관 (REQ-API-021)', async () => {
+    const made = await rpc('tools/call', {
+      name: 'nerv_spec_draft_upsert',
+      arguments: { key: 'SPC-AGENT-META', title: '원래 제목', type: 'feature', body_md: '# 원래 제목\n\n본문' },
+    });
+    const specId = String(
+      ((made.body['result'] as { structuredContent?: Record<string, unknown> }).structuredContent ?? {})['spec_id'],
+    );
+
+    // 같은 값이면 통과한다 — 멱등 재호출이 여기서 걸리면 안 된다
+    const same = await rpc('tools/call', {
+      name: 'nerv_spec_draft_upsert',
+      arguments: { spec_id: specId, title: '원래 제목', body_md: '# 원래 제목\n\n고친 본문' },
+    });
+    expect((same.body['result'] as { isError?: boolean }).isError ?? false).toBe(false);
+
+    // 다른 값이면 거부한다. 조용히 무시하면 부른 쪽은 옮겨졌다고 믿는다
+    const changed = await rpc('tools/call', {
+      name: 'nerv_spec_draft_upsert',
+      arguments: { spec_id: specId, title: '바뀐 제목', body_md: '# 바뀐 제목\n\n본문' },
+    });
+    const err = changed.body['result'] as { isError?: boolean; structuredContent?: Record<string, unknown> };
+    expect(err.isError).toBe(true);
+    expect((err.structuredContent?.['details'] as Record<string, unknown>)?.['kind']).toBe(
+      'meta_change_not_allowed',
+    );
   });
 
   it('리비전을 병행 서빙한다 — 구 클라이언트도 협상된다 (D-11)', async () => {

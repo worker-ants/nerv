@@ -695,11 +695,19 @@ export class AuthService {
   }
 }
 
+/**
+ * 인증 실패는 **왜 실패했는지 말하지 않는다.**
+ *
+ * 주석은 원래 "사유는 로그에만"이라고 적혀 있었는데 `reason` 이 응답 `details` 에 그대로
+ * 실려 나갔다(실측 2026-08-23). "형식이 아니다 / 모르는 토큰이다 / 만료됐다"를 구분해
+ * 주면 유효한 토큰을 찾는 쪽에 단서가 된다 — 막으려던 것이 그것이다.
+ *
+ * 사유는 서버 로그에만 남긴다. 운영자는 로그를 보고, 호출자는 401 만 본다.
+ */
 function unauthenticated(message: string): NervError {
-  // 사유는 로그에만 남기고 응답에는 싣지 않는다 — 유효한 토큰 탐색의 단서가 된다
+  new Logger('Auth').debug(`인증 실패 — ${message}`);
   return new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.invalid'), {
     kind: 'invalid_credential',
-    reason: message,
   });
 }
 

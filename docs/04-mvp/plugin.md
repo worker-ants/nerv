@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.6 · 2026-08-22 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.7 · 2026-08-22 · HTML 판: [plugin.html](../html/plugin.html)
 >
 > v0.5 변경(2026-08-22): **오프라인 폴백 실물 확정**(§3.4 — `.nerv/cache/`·`.nerv/outbox/` 레이아웃·파일 형식·flush 규칙, REQ-PLG-011~013). 스킬 5종 전부가 참조하던 경로의 규격 공백을 닫는다(NFR-05 ◐의 실행 실물).
 >
@@ -667,7 +667,7 @@ export NERV_HOSTNAME="$(hostname -s)"
 | MCP 접속 | `.codex/config.toml` 초안으로 tools-only 접속 — `bootstrap→next→claim→heartbeat→release` 완주([3.7 로드맵](../03-proposal/roadmap.md) Phase 0 검증 0-8) | — |
 | 규약 전달 | AGENTS.md 초안 제공(아래 전문). SKILL.md 5종은 오픈 표준이라 같은 파일 재사용 | AGENTS.md를 스펙에서 **자동 생성·갱신**하는 배포 평면 |
 | 훅 텔레메트리 | 없음 — Codex 세션은 저해상도(`nerv_session_event`로 마일스톤 보고) | `.codex/hooks.json`·notify 포워더 매핑(스키마 자체가 Phase 0 실측 항목) |
-| 온보딩 | 초안 파일 2종을 저장소에 커밋해 두는 수동 경로 | 온보딩 스크립트(생성+검증), `/nerv:review` 포함 스킬 5종 |
+| 온보딩 | 초안 파일 2종을 저장소에 커밋해 두는 수동 경로 — **템플릿은 플러그인 패키지가 배포한다**(`plugin/codex/`, 2026-08-23 신설) | 온보딩 스크립트(생성+검증), `/nerv:review` 포함 스킬 5종 |
 
 Codex 완전 지원은 [3.7 로드맵](../03-proposal/roadmap.md) Phase 2의 범위다(FR-15 ●). MVP의 약속은 하나로 좁힌다 — **핵심 기능은 예외 없이 tools이므로, Codex 세션은 지금도 전 흐름을 도구만으로 완주할 수 있다**(D-05). elicitation 부재는 `nerv_question_create` 멱등 재호출 폴링으로, channels 부재는 하트비트 응답의 `pending`으로 대응한다(정본: [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.4).
 
@@ -696,6 +696,8 @@ log_user_prompt = false
 ```
 
 MVP에서는 `notify`·`[otel]` 줄이 동작하지 않아도 무방하다(포워더 미설치 시 무시됨) — MCP 블록만으로 완주가 성립한다. 저장소의 `.codex/config.toml`은 신뢰된 프로젝트에서만 읽히므로 최초 1회 신뢰 승인이 필요하다.
+
+**템플릿을 어디에 두는가(2026-08-23 정정).** 두 파일이 있어야 할 곳은 NERV 저장소가 아니라 **쓰는 쪽 저장소**다. NERV 저장소 루트에 `.codex/config.toml` 을 두면 이 저장소에서 도는 Codex 세션이 예시 URL(`nerv.example.com`)로 접속하려 든다. 그래서 플러그인 패키지가 `plugin/codex/{config.toml, AGENTS.md, README.md}` 로 **템플릿을 배포하고 사람이 복사한다** — 그것이 §5.1 이 말한 "수동 경로"의 실물이다. 이 절과 §5.2 의 전문이 그 템플릿의 정본이며, 플러그인 패키지 테스트가 둘의 정합을 지킨다.
 
 ### 5.3 AGENTS.md 초안 (정본 §4.3 재수록)
 

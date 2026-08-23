@@ -37,6 +37,24 @@ afterAll(async () => {
 });
 
 describe('PAT 발급 (EP-TOK-02)', () => {
+  it('인증 실패는 **왜** 실패했는지 말하지 않는다 — 유효한 토큰 탐색의 단서가 된다', async () => {
+    // `unauthenticated()` 는 "사유는 로그에만"이라고 적어 두고 `reason` 을 응답 details 에
+    // 그대로 실어 보냈다(실측 2026-08-23). "형식이 아니다 / 모르는 토큰이다"를 구분해 주면
+    // 막으려던 그 단서가 된다.
+    const shapes = new Set<string>();
+    for (const raw of ['잘못된형식', `nerv_${'x'.repeat(43)}`]) {
+      const err = await auth.verifyPat(raw).then(
+        () => null,
+        (e: unknown) => e as { code: string; details: Record<string, unknown> },
+      );
+      expect(err?.code).toBe(NERV_ERROR.UNAUTHENTICATED);
+      expect(err?.details['reason']).toBeUndefined();
+      shapes.add(JSON.stringify(err?.details));
+    }
+    // 두 실패가 **구별되지 않아야** 한다 — 구별되면 그것이 곧 신호다
+    expect(shapes.size).toBe(1);
+  });
+
   it('원문은 nerv_ 접두 + base64url 이고 응답에서 한 번만 나온다', async () => {
     const issued = await auth.issueToken({
       projectId,

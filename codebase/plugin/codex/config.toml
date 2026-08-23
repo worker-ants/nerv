@@ -1,0 +1,26 @@
+# <repo>/.codex/config.toml — Codex 세션용 NERV 접속 초안
+#
+# **이 파일은 템플릿이다.** 쓰는 저장소의 `.codex/config.toml` 로 복사하고 아래 세 곳을
+# 자기 값으로 바꾼다: `url` · `X-NERV-Project` · (필요하면) `[otel] environment`.
+# 자동 생성·갱신은 Phase 2 다(4.6 §5.1) — MVP 의 약속은 이 초안을 손으로 두는 경로다.
+#
+# 정본: docs/04-mvp/plugin.md §5.2
+
+[mcp_servers.nerv]
+url = "https://nerv.example.com/mcp"
+bearer_token_env_var = "NERV_TOKEN"
+http_headers = { "X-NERV-Project" = "clemvion" }
+startup_timeout_sec = 20
+# hostname 은 nerv_bootstrap 인자로 전달한다(헤더 확장에 의존하지 않는다)
+
+# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않는다
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# 턴 완료 알림 → NERV Ingest 로 전달
+notify = ["/usr/local/bin/nerv-hook-forward", "--event", "notify"]
+
+[otel]
+exporter = "otlp-http"
+environment = "prod"
+log_user_prompt = false

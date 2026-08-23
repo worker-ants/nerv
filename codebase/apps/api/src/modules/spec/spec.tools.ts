@@ -142,6 +142,18 @@ export class SpecTools implements NervToolProvider {
           body_md: { type: 'string' },
           base_version: { type: 'string' },
           idempotency_key: { type: 'string' },
+          // **생성에 필요한 메타.** 이 넷이 없으면 에이전트는 기존 스펙 이어쓰기만 할 수
+          // 있고 새 스펙을 시작하지 못한다 — 실제로 그 상태였다(실측 2026-08-23).
+          // 기존 spec_id 지정 호출에서 다른 값이 오면 409 다(REQ-API-021) — 메타 수정은
+          // 거버넌스 대상이라 EP-SPEC-15 전담이다(api.md §2.2).
+          key: { type: 'string', description: 'new spec only — stable display key' },
+          title: { type: 'string', description: 'new spec only' },
+          type: {
+            type: 'string',
+            enum: ['vision', 'area', 'feature', 'design', 'convention', 'adr'],
+            description: 'new spec only',
+          },
+          parent_id: { type: 'string', description: 'new spec only' },
         },
         required: ['body_md'],
       },
@@ -155,6 +167,12 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['base_version'] === 'string'
             ? { baseVersionId: input['base_version'] }
             : {}),
+          ...(typeof input['key'] === 'string' ? { key: input['key'] } : {}),
+          ...(typeof input['title'] === 'string' ? { title: input['title'] } : {}),
+          ...(typeof input['type'] === 'string'
+            ? { type: input['type'] }
+            : {}),
+          ...(typeof input['parent_id'] === 'string' ? { parentId: input['parent_id'] } : {}),
         }),
     },
     {

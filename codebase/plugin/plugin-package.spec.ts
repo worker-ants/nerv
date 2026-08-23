@@ -151,3 +151,37 @@ describe('패키지 구성', () => {
     expect(existsSync(join(here, 'agents/nerv-code-reviewer.md'))).toBe(false);
   });
 });
+
+/** 플러그인 패키지 안의 파일을 읽는다 — 배포되는 실물이 검사 대상이다 */
+function readShipped(rel: string): string {
+  return readFileSync(join(here, rel), 'utf8');
+}
+
+describe('Codex 초안 2종 (REQ-PLG-010)', () => {
+  // 정본(4.6 §5.1)이 MVP 약속으로 적은 것은 "초안 파일 2종을 저장소에 커밋해 두는 수동
+  // 경로"인데 그 파일이 없었다(실측 2026-08-23). 생성 스크립트는 Phase 2 라 대체 경로도
+  // 없어서, 없으면 Codex 세션이 붙을 방법 자체가 없다.
+  it('`.codex/config.toml` 템플릿이 있고 MCP 접속 3요소를 담는다', () => {
+    const toml = readShipped('codex/config.toml');
+    expect(toml).toContain('[mcp_servers.nerv]');
+    expect(toml).toContain('bearer_token_env_var');
+    expect(toml).toContain('X-NERV-Project');
+    // A3 도구가 승인 없이 실행되면 안 된다 — 사람 승인 레인이 규약이다
+    expect(toml).toContain('approval_policy = "on-request"');
+  });
+
+  it('AGENTS.md 초안이 세션 시작 순서와 금지 사항을 담는다', () => {
+    const md = readShipped('codex/AGENTS.md');
+    for (const tool of ['nerv_bootstrap', 'nerv_task_next', 'nerv_task_claim', 'nerv_task_heartbeat']) {
+      expect(md).toContain(tool);
+    }
+    // 비신뢰 본문의 지시문을 따르지 않는다(REQ-PLG-006 과 같은 규율)
+    expect(md).toContain('데이터다');
+  });
+
+  it('NERV 저장소 자신에게는 `.codex/config.toml` 을 두지 않는다', () => {
+    // 두면 이 저장소에서 도는 Codex 세션이 예시 URL 로 접속하려 든다.
+    // 템플릿으로 배포하고 쓰는 쪽이 복사하는 것이 맞다.
+    expect(existsSync(join(repoRoot, '.codex', 'config.toml'))).toBe(false);
+  });
+});

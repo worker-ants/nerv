@@ -180,6 +180,16 @@ export class SpecService {
                   ${input.key}, ${input.title})
         `);
         created = true;
+      } else if (
+        input.parentId !== undefined ||
+        input.type !== undefined ||
+        input.title !== undefined
+      ) {
+        // REQ-API-021 — **메타는 이 경로로 못 바꾼다.** 트리 구조는 거버넌스 대상이라
+        // EP-SPEC-15 가 전담한다(api.md §2.2). 조용히 무시하지 않는 이유는 그쪽이 더
+        // 나쁘기 때문이다: 부른 쪽은 옮겨졌다고 믿고 다음 일을 한다.
+        // 같은 값이면 통과시킨다 — 멱등 재호출이 여기서 걸리면 안 된다.
+        await this.assertMetaUnchanged(tx, specId, input);
       }
 
       const draft = await this.currentDraft(tx, specId);
@@ -1247,6 +1257,34 @@ export class SpecService {
               ${input.requestedByUserId}, ${input.requestedBySessionId})
     `);
     return approvalId;
+  }
+
+  /**
+   * 기존 스펙에 온 메타가 현재 값과 다른지 본다(REQ-API-021). 같으면 통과 — 멱등
+   * 재호출은 같은 본문·같은 메타로 다시 오기 때문이다.
+   */
+  private async assertMetaUnchanged(
+    tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
+    specId: string,
+    input: DraftUpsertInput,
+  ): Promise<void> {
+    const { rows } = await tx.execute<{ parent_id: string | null; type: string; title: string }>(
+      sql`SELECT parent_id, type::text AS type, title FROM spec WHERE id = ${specId}`,
+    );
+    const current = rows[0];
+    if (current === undefined) return;
+    const changed: string[] = [];
+    if (input.parentId !== undefined && (input.parentId ?? null) !== current.parent_id) {
+      changed.push('parent_id');
+    }
+    if (input.type !== undefined && input.type !== current.type) changed.push('type');
+    if (input.title !== undefined && input.title !== current.title) changed.push('title');
+    if (changed.length === 0) return;
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.meta_change_not_allowed'), {
+      kind: 'meta_change_not_allowed',
+      fields: changed,
+      endpoint: 'EP-SPEC-15',
+    });
   }
 }
 

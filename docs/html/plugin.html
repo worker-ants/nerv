@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-08-22)</span>
+      <span>버전 v0.7 (2026-08-22)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -711,7 +711,7 @@ export NERV_HOSTNAME="$(hostname -s)"</code></pre>
       <tr><td>MCP 접속</td><td><code>.codex/config.toml</code> 초안으로 tools-only 접속 — <code>bootstrap→next→claim→heartbeat→release</code> 완주(<a href="roadmap.html">3.7 로드맵</a> Phase 0 검증 0-8)</td><td>—</td></tr>
       <tr><td>규약 전달</td><td>AGENTS.md 초안 제공(아래 전문). SKILL.md 5종은 오픈 표준이라 같은 파일 재사용</td><td>AGENTS.md를 스펙에서 <b>자동 생성·갱신</b>하는 배포 평면</td></tr>
       <tr><td>훅 텔레메트리</td><td>없음 — Codex 세션은 저해상도(<code>nerv_session_event</code>로 마일스톤 보고)</td><td><code>.codex/hooks.json</code>·notify 포워더 매핑(스키마 자체가 Phase 0 실측 항목)</td></tr>
-      <tr><td>온보딩</td><td>초안 파일 2종을 저장소에 커밋해 두는 수동 경로</td><td>온보딩 스크립트(생성+검증), <code>/nerv:review</code> 포함 스킬 5종</td></tr>
+      <tr><td>온보딩</td><td>초안 파일 2종을 저장소에 커밋해 두는 수동 경로 — <b>템플릿은 플러그인 패키지가 배포한다</b>(<code>plugin/codex/</code>, 2026-08-23 신설)</td><td>온보딩 스크립트(생성+검증), <code>/nerv:review</code> 포함 스킬 5종</td></tr>
     </tbody>
   </table></div>
 
@@ -744,7 +744,9 @@ log_user_prompt = false</code></pre>
 
   <p>MVP에서는 <code>notify</code>·<code>[otel]</code> 줄이 동작하지 않아도 무방하다(포워더 미설치 시 무시됨) — MCP 블록만으로 완주가 성립한다. 저장소의 <code>.codex/config.toml</code>은 신뢰된 프로젝트에서만 읽히므로 최초 1회 신뢰 승인이 필요하다.</p>
 
-  <h3>5.3 AGENTS.md 초안 (정본 §4.3 재수록)</h3>
+    <p><b>템플릿을 어디에 두는가(2026-08-23 정정).</b> 두 파일이 있어야 할 곳은 NERV 저장소가 아니라 <b>쓰는 쪽 저장소</b>다. NERV 저장소 루트에 <code>.codex/config.toml</code> 을 두면 이 저장소에서 도는 Codex 세션이 예시 URL(<code>nerv.example.com</code>)로 접속하려 든다. 그래서 플러그인 패키지가 <code>plugin/codex/{config.toml, AGENTS.md, README.md}</code> 로 <b>템플릿을 배포하고 사람이 복사한다</b> — 그것이 §5.1 이 말한 "수동 경로"의 실물이다.</p>
+
+<h3>5.3 AGENTS.md 초안 (정본 §4.3 재수록)</h3>
 
 <pre><code># AGENTS.md — clemvion
 &lt;!-- 이 파일은 NERV가 생성합니다. 직접 편집하지 마세요.

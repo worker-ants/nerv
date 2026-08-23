@@ -17,13 +17,23 @@ export const clemvionProfile: ImportProfile = {
     // `cafe24-api-catalog` 이고, 정확 일치 글롭은 249건을 그대로 통과시켰다(실측 2026-08-23).
     exclude: ['spec/**/*api-catalog/**', 'spec/**/*generated/**'],
   },
-  // 실측 정본이 있는 대상이라 기대 집계를 선언한다 — "측정 방법이 흔들리는 수치"(P4) 방어
+  /**
+   * 기대 집계 — "측정 방법이 흔들리는 수치"(P4) 방어. **수치에는 잰 시점이 붙는다.**
+   *
+   * 옛 값(135 / implemented 117 · plan 450 / done 387)으로는 지금 clemvion 을 임포트할 수
+   * 없었다 — 대조에서 중단된다(REQ-IMP-003). 원본이 살아 있는 저장소라 그 사이 문서가
+   * 늘고 상태가 바뀐 것이고, 값이 틀렸다기보다 **잰 때가 다르다**.
+   *
+   * 아래는 clemvion `04fe5962f`(2026-08-23) 실측이다. 원본이 또 움직이면 이 값도 어긋난다 —
+   * 그때는 이 상수를 고치는 대신 `--profile-file` 로 그날의 값을 주는 편이 맞다. 이 선언의
+   * 목적은 원본의 변화를 막는 것이 아니라 **임포터의 세는 법이 바뀌는 것**을 잡는 것이다.
+   */
   expect: {
-    spec_total: 135,
-    status_distribution: { implemented: 117, partial: 17, backlog: 1 },
-    // plan 실측(importer.md §2.6 · 로드맵 §7.3(2)): 450건 · complete 387 · research 1
-    plan_total: 450,
-    plan_status_distribution: { done: 387, reference: 1 },
+    spec_total: 136,
+    status_distribution: { implemented: 93, partial: 17, backlog: 1 },
+    // plan 실측: 485건 · complete 419 · in-progress 65 · research 1(Task 미생성)
+    plan_total: 485,
+    plan_status_distribution: { done: 419, reference: 1 },
   },
   tree: {
     area_from_directory: true,

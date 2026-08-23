@@ -79,6 +79,7 @@ export const ko = {
   'error.spec.cycle': '자기 하위로는 이동할 수 없습니다.',
   'error.spec.draft_leased': '다른 사용자가 이 초안을 편집 중입니다.',
   'error.spec.draft_not_found': '초안을 찾을 수 없습니다.',
+  'error.spec.meta_change_not_allowed': '스펙 메타는 이 경로로 바꿀 수 없습니다 — 이동·개명은 EP-SPEC-15 입니다.',
   'error.spec.missing_fields': '새 스펙에는 key·title·type 이 필요합니다.',
   'error.spec.no_changes': '변경할 필드가 없습니다.',
   'error.spec.not_draft': 'draft 가 아닙니다({status}).',
