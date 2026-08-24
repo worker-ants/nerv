@@ -530,47 +530,35 @@ function SpecDetail(): React.JSX.Element {
                 ))}
               </div>
 
-              {shownRelations.map((r) => {
-                const incoming = r['direction'] === 'in';
-                return (
-                  <Link
-                    key={`${String(r['spec_id'])}-${String(r['kind'])}-${String(r['direction'])}`}
-                    to="/p/$proj/specs/$spec"
-                    params={{ proj, spec: String(r['key']) }}
-                    className="flex items-start gap-[9px] rounded-nerv px-2 py-2 transition-colors hover:bg-bg-hover"
-                  >
-                    {/* 방향 표식(시안): 들어오는 것은 조용히, 나가는 것은 물들여서 */}
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[9.5px] font-semibold',
-                        incoming
-                          ? 'bg-bg-sunken text-text-mute'
-                          : 'bg-status-action-soft text-status-action',
-                      )}
-                    >
-                      {incoming ? '↓' : '↑'}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm leading-[1.45] text-text">
-                        {String(r['title'])}
-                      </span>
-                      <span className="mt-0.5 block text-2xs text-text-faint">
-                        {incoming ? t('spec.rail.backlink') : String(r['kind'])} ·{' '}
-                        {String(r['key'])}
-                      </span>
-                    </span>
-                  </Link>
-                );
-              })}
               {shownRelations.length === 0 && (
                 <p className="px-2 text-text-faint">{t('common.not_yet')}</p>
               )}
-              {/* 역참조가 **보이는 목록에 있을 때만** 그 설명을 단다 — 레퍼런스만 보는
-                  중에 "고치면 흔들리는 문서"가 떠 있으면 지금 보는 것을 잘못 읽게 된다 */}
+
+              {/* 역참조 무리 — 설명은 **머리에** 단다(사람 지시 2026-08-24). 꼬리에 달면
+                  스무 줄을 다 내려간 뒤에야 "이게 뭐였나"를 알게 되고, 그때는 이미 다
+                  읽은 뒤다. 그리고 그 설명이 무엇을 가리키는지는 **보이는 목록에 역참조가
+                  있을 때만** 성립한다 — 레퍼런스만 보는 중에 떠 있으면 지금 보고 있는
+                  것을 잘못 읽게 된다. */}
               {relTab !== 'out' && backlinks.length > 0 && (
-                <p className="px-2 pt-1 text-2xs text-text-ghost">{t('spec.backlinks_hint')}</p>
+                <>
+                  <p className="px-2 pb-1 text-2xs text-text-ghost">{t('spec.backlinks_hint')}</p>
+                  {backlinks.map((r) => (
+                    <RelationRow key={relationKey(r)} relation={r} proj={proj} t={t} />
+                  ))}
+                </>
               )}
+
+              {/* 전체 탭에서 **방향이 바뀌는 자리**에 선을 긋는다(사람 지시 2026-08-24).
+                  화살표만으로는 무리가 바뀐 것을 눈이 알아채지 못한다 — 한쪽이 비어
+                  있으면 나눌 것도 없으므로 선도 없다. */}
+              {relTab === 'all' && backlinks.length > 0 && outgoing.length > 0 && (
+                <hr data-testid="rel-divider" className="my-1.5 border-t border-border" />
+              )}
+
+              {relTab !== 'in' &&
+                outgoing.map((r) => (
+                  <RelationRow key={relationKey(r)} relation={r} proj={proj} t={t} />
+                ))}
             </>
           )}
 
@@ -739,5 +727,54 @@ function Byline({
       )}
       <span>{t('spec.byline.backlinks', { count: backlinks })}</span>
     </>
+  );
+}
+
+/** 관계 한 줄의 키 — 같은 문서가 kind·방향을 달리해 두 번 나올 수 있다 */
+function relationKey(r: Record<string, unknown>): string {
+  return `${String(r['spec_id'])}-${String(r['kind'])}-${String(r['direction'])}`;
+}
+
+/**
+ * 관계 한 줄 — 역참조 무리와 레퍼런스 무리가 **같은 컴포넌트**를 쓴다.
+ * 무리마다 따로 그리면 둘의 생김새가 조용히 갈라지고, 그때 사람은 방향이 아니라
+ * 모양의 차이를 먼저 읽는다.
+ */
+function RelationRow({
+  relation,
+  proj,
+  t,
+}: {
+  relation: Record<string, unknown>;
+  proj: string;
+  t: ReturnType<typeof useT>;
+}): React.JSX.Element {
+  const incoming = relation['direction'] === 'in';
+  return (
+    <Link
+      to="/p/$proj/specs/$spec"
+      params={{ proj, spec: String(relation['key']) }}
+      className="flex items-start gap-[9px] rounded-nerv px-2 py-2 transition-colors hover:bg-bg-hover"
+    >
+      {/* 방향 표식(시안): 들어오는 것은 조용히, 나가는 것은 물들여서 */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[9.5px] font-semibold',
+          incoming ? 'bg-bg-sunken text-text-mute' : 'bg-status-action-soft text-status-action',
+        )}
+      >
+        {incoming ? '↓' : '↑'}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm leading-[1.45] text-text">
+          {String(relation['title'])}
+        </span>
+        <span className="mt-0.5 block text-2xs text-text-faint">
+          {incoming ? t('spec.rail.backlink') : String(relation['kind'])} ·{' '}
+          {String(relation['key'])}
+        </span>
+      </span>
+    </Link>
   );
 }

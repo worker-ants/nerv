@@ -106,6 +106,32 @@ describe('관계 하위 탭 (2026-08-24 · 사람 지시)', () => {
     expect(screen.getByText('나가는 하나')).toBeDefined();
   });
 
+  it('역참조 설명은 그 무리의 **머리**에 있다 — 꼬리에 달면 다 읽은 뒤에야 안다', async () => {
+    await waitFor(() => expect(screen.queryByText('고치면 흔들리는 문서')).not.toBeNull());
+    const rail = screen.getByTestId('rel-tab-all').closest('aside');
+    const nodes = [...(rail?.querySelectorAll('p, a[href*="/specs/"]') ?? [])];
+    const hint = nodes.findIndex((n) => n.textContent === '고치면 흔들리는 문서');
+    const firstLink = nodes.findIndex((n) => n.tagName === 'A');
+    expect(hint).toBeGreaterThanOrEqual(0);
+    expect(hint).toBeLessThan(firstLink);
+  });
+
+  it('전체 탭은 두 무리 사이에 선을 긋는다 — 방향이 바뀌는 자리를 눈이 알아채야 한다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rel-divider')).not.toBeNull());
+    // 한쪽만 보는 탭에는 나눌 것이 없다
+    fireEvent.click(screen.getByTestId('rel-tab-in'));
+    await waitFor(() => expect(screen.queryByTestId('rel-divider')).toBeNull());
+    fireEvent.click(screen.getByTestId('rel-tab-out'));
+    await waitFor(() => expect(screen.queryByTestId('rel-divider')).toBeNull());
+  });
+
+  it('전체 탭은 역참조를 먼저 놓는다 — 설명이 머리에 있으려면 무리도 먼저여야 한다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rel-divider')).not.toBeNull());
+    const rail = screen.getByTestId('rel-tab-all').closest('aside');
+    const links = [...(rail?.querySelectorAll('a[href*="/specs/"]') ?? [])];
+    expect(links.map((a) => a.textContent?.includes('역참조'))).toEqual([true, true, false]);
+  });
+
   it('레퍼런스만 볼 때는 역참조 설명을 달지 않는다 — 지금 보는 것을 잘못 읽게 된다', async () => {
     await waitFor(() => expect(screen.queryByText('고치면 흔들리는 문서')).not.toBeNull());
 
