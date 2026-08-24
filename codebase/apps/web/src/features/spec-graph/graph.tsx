@@ -21,6 +21,8 @@ import fcose from 'cytoscape-fcose';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
+import { RelationTabs } from '../../components/relation-tabs.js';
+import type { RelationDirection } from '../../components/relation-tabs.js';
 import { Button } from '../../components/ui/primitives.js';
 
 cytoscape.use(fcose);
@@ -185,6 +187,8 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
   const [grouped, setGrouped] = useState(true);
   /** 고른 문서의 key — 이동이 아니라 **선택**이다 */
   const [selected, setSelected] = useState<string | null>(null);
+  // 패널의 방향 탭 — 레일(§2.4)과 같은 컴포넌트·같은 어휘를 쓴다
+  const [relTab, setRelTab] = useState<RelationDirection>('all');
   // 그래프를 다시 그린 뒤에도 강조를 되살려야 한다. 빌드 이펙트가 `selected` 를 의존하면
   // 노드를 누를 때마다 배치가 다시 계산돼 그림이 튄다 — ref 로 읽는다.
   const selectedRef = useRef<string | null>(null);
@@ -202,6 +206,8 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
    * 줄이면 패널이 "이 문서는 이것뿐"이라고 거짓을 말한다. 그림은 view 이고 패널은 data 다.
    */
   const links = useMemo(() => connectionsOf(nodes, edges, selected), [edges, nodes, selected]);
+  const shownLinks =
+    relTab === 'in' ? links.in : relTab === 'out' ? links.out : [...links.in, ...links.out];
 
   /** 중심 모드면 hop 이내만 남긴다 — 전역은 지도, 중심은 답이다 */
   const visible = useMemo(
@@ -380,6 +386,10 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
     ensureVisible(cy, selected);
   }, [selected]);
 
+  // 다른 문서를 고르면 방향 탭도 처음으로 돌린다 — 역참조가 없는 문서를 골랐는데
+  // 역참조 탭이 남아 있으면 빈 패널이 열리고, 사람은 그것을 "관계가 없다"로 읽는다
+  useEffect(() => setRelTab('all'), [selected]);
+
   const panelOpen = selectedNode !== undefined;
 
   // Esc 로 놓는다 — 마우스를 캔버스 밖으로 옮기지 않고 빠져나올 수 있어야 한다
@@ -485,22 +495,38 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
               </button>
             </header>
 
+            {/* 레일과 **같은 탭·같은 어휘**다(§2.4) — 두 화면이 관계를 다르게 부르면
+                사람은 그 둘이 같은 것인지부터 의심하게 된다 */}
+            <RelationTabs
+              value={relTab}
+              onChange={setRelTab}
+              counts={{
+                all: links.in.length + links.out.length,
+                in: links.in.length,
+                out: links.out.length,
+              }}
+              className="border-b border-border px-1.5 py-1.5"
+            />
+
             <div className="flex flex-col gap-0.5 px-1.5 py-2">
-              {links.in.length === 0 && links.out.length === 0 && (
+              {shownLinks.length === 0 && (
                 <p className="px-1.5 text-sm text-text-faint">{t('graph.panel.empty')}</p>
               )}
-              {/* 레일과 같은 순서·같은 어휘다(§2.4) — 두 화면이 관계를 다르게 부르면
-                  사람은 그 둘이 같은 것인지부터 의심하게 된다 */}
-              <ConnectionGroup
-                label={t('spec.rail.rel_in')}
-                items={links.in}
-                incoming
-                onOpen={onOpen}
-              />
-              <ConnectionGroup label={t('spec.rail.rel_out')} items={links.out} onOpen={onOpen} />
+              {relTab !== 'out' &&
+                links.in.map((c) => (
+                  <ConnectionRow key={connectionKey(c)} connection={c} incoming onOpen={onOpen} />
+                ))}
+              {/* 전체 탭에서 방향이 바뀌는 자리에 선을 긋는다 — 레일과 같은 규약이다 */}
+              {relTab === 'all' && links.in.length > 0 && links.out.length > 0 && (
+                <hr data-testid="graph-panel-divider" className="my-1.5 border-t border-border" />
+              )}
+              {relTab !== 'in' &&
+                links.out.map((c) => (
+                  <ConnectionRow key={connectionKey(c)} connection={c} onOpen={onOpen} />
+                ))}
             </div>
 
-            {(links.in.length > 0 || links.out.length > 0) && (
+            {shownLinks.length > 0 && (
               <p className="mt-auto border-t border-border px-3 py-2 text-2xs text-text-ghost">
                 {t('graph.panel.hint')}
               </p>
@@ -513,52 +539,50 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
   );
 }
 
-/** 패널의 한 무리 — 방향 하나. 비면 머리글도 내지 않는다(빈 제목은 자리만 먹는다) */
-function ConnectionGroup({
-  label,
-  items,
+/** 이웃 한 줄의 키 — 같은 문서가 kind 를 달리해 두 번 나올 수 있다 */
+function connectionKey(c: Connection): string {
+  return `${c.node.id}-${c.kind}`;
+}
+
+/**
+ * 패널의 이웃 한 줄. **레일의 관계 줄과 같은 생김새**다(§2.4) — 두 무리가 같은
+ * 컴포넌트를 쓰듯, 두 화면도 같은 모양이어야 방향만 다른 같은 것으로 읽힌다.
+ */
+function ConnectionRow({
+  connection,
   incoming,
   onOpen,
 }: {
-  label: string;
-  items: readonly Connection[];
+  connection: Connection;
   incoming?: boolean;
   onOpen: (key: string) => void;
-}): React.JSX.Element | null {
-  if (items.length === 0) return null;
+}): React.JSX.Element {
   return (
-    <>
-      <p className="flex items-center gap-1.5 px-1.5 pt-1.5 pb-1 text-2xs font-semibold tracking-[0.06em] text-text-faint uppercase">
-        {label}
-        <span className="tabular-nums">{items.length}</span>
-      </p>
-      {items.map((c) => (
-        <button
-          key={`${c.node.id}-${c.kind}`}
-          type="button"
-          onClick={() => onOpen(c.node.key)}
-          className="flex w-full items-start gap-[9px] rounded-nerv px-1.5 py-1.5 text-left transition-colors hover:bg-bg-hover"
-        >
-          {/* 방향 표식은 레일과 같다 — 들어오는 것은 조용히, 나가는 것은 물들여서 */}
-          <span
-            aria-hidden="true"
-            className={cn(
-              'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[9.5px] font-semibold',
-              incoming === true
-                ? 'bg-bg-sunken text-text-mute'
-                : 'bg-status-action-soft text-status-action',
-            )}
-          >
-            {incoming === true ? '↓' : '↑'}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm leading-[1.45] text-text">{c.node.title}</span>
-            <span className="mt-0.5 block truncate text-2xs text-text-faint">
-              {c.kind} · {c.node.key}
-            </span>
-          </span>
-        </button>
-      ))}
-    </>
+    <button
+      type="button"
+      onClick={() => onOpen(connection.node.key)}
+      className="flex w-full items-start gap-[9px] rounded-nerv px-1.5 py-1.5 text-left transition-colors hover:bg-bg-hover"
+    >
+      {/* 방향 표식은 레일과 같다 — 들어오는 것은 조용히, 나가는 것은 물들여서 */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[9.5px] font-semibold',
+          incoming === true
+            ? 'bg-bg-sunken text-text-mute'
+            : 'bg-status-action-soft text-status-action',
+        )}
+      >
+        {incoming === true ? '↓' : '↑'}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm leading-[1.45] text-text">
+          {connection.node.title}
+        </span>
+        <span className="mt-0.5 block truncate text-2xs text-text-faint">
+          {connection.kind} · {connection.node.key}
+        </span>
+      </span>
+    </button>
   );
 }

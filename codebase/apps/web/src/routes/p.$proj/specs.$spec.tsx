@@ -10,6 +10,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
+import { RelationTabs } from '../../components/relation-tabs.js';
+import type { RelationDirection } from '../../components/relation-tabs.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
 import { NERV_ERROR, statusLabelKey } from '@nerv/schema';
@@ -62,7 +64,7 @@ function SpecDetail(): React.JSX.Element {
   const [railTab, setRailTab] = useState<'relations' | 'versions' | 'comments'>('relations');
   // 관계 안의 두 방향은 **다른 질문**이다: 역참조는 "고치면 무엇이 흔들리나",
   // 레퍼런스는 "이 문서가 무엇에 기대나". 섞어 놓으면 둘 다 훑어야 답이 나온다.
-  const [relTab, setRelTab] = useState<'all' | 'in' | 'out'>('all');
+  const [relTab, setRelTab] = useState<RelationDirection>('all');
 
   // **스펙이 바뀌면 이 화면의 상태는 전부 남의 것이 된다.** 라우트 파라미터만 바뀌면
   // 리액트는 같은 컴포넌트를 재사용하므로 `draft`·리스 보유자·충돌이 그대로 살아남는다.
@@ -503,32 +505,12 @@ function SpecDetail(): React.JSX.Element {
                   넘으면 "이 문서를 고치면 무엇이 흔들리나"와 "이 문서가 무엇에 기대나"가
                   한 목록에 섞여, 둘 중 하나를 보려면 목록 전체를 훑어야 한다.
                   수는 **누르기 전에** 적는다 — 빈 탭을 열어 보게 하지 않는다. */}
-              <div className="flex gap-1 px-1 pb-1.5">
-                {(
-                  [
-                    ['all', t('spec.rail.rel_all'), relationItems.length],
-                    ['in', t('spec.rail.rel_in'), backlinks.length],
-                    ['out', t('spec.rail.rel_out'), outgoing.length],
-                  ] as const
-                ).map(([key, label, count]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    data-testid={`rel-tab-${key}`}
-                    aria-pressed={relTab === key}
-                    onClick={() => setRelTab(key)}
-                    className={cn(
-                      'flex items-center gap-1 rounded-nerv-sm px-2 py-[3px] text-2xs transition-colors',
-                      relTab === key
-                        ? 'bg-bg-active font-medium text-text'
-                        : 'text-text-faint hover:bg-bg-hover hover:text-text',
-                    )}
-                  >
-                    {label}
-                    <span className="text-text-ghost tabular-nums">{count}</span>
-                  </button>
-                ))}
-              </div>
+              <RelationTabs
+                value={relTab}
+                onChange={setRelTab}
+                counts={{ all: relationItems.length, in: backlinks.length, out: outgoing.length }}
+                className="px-1 pb-1.5"
+              />
 
               {shownRelations.length === 0 && (
                 <p className="px-2 text-text-faint">{t('common.not_yet')}</p>
