@@ -126,3 +126,12 @@ export const PAGE_LIMIT_MAX = 100;
  * 마이그레이션도 잡도 필요 없고 언제나 정확하다.
  */
 export const TASK_DONE_WINDOW_DAYS = 7;
+
+/**
+ * 개발 시드가 심는 조직 slug — `dev-seed.sql` 과 시드 안전장치가 **같은 값을 봐야 한다**.
+ *
+ * 실측(2026-08-24): 시드의 조직을 `nerv` → `default` 로 바꾸자 안전장치가 자기 시드의
+ * 조직을 "남의 조직"으로 보고 재적재를 거부했다. 값이 두 곳에 있으면 한쪽만 바뀐다.
+ * SQL 은 TS 를 import 할 수 없으므로 이 상수를 정본으로 두고 **테스트가 둘을 대조한다**.
+ */
+export const SEED_ORG_SLUG = 'default';

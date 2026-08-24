@@ -6,6 +6,7 @@
 // 시드는 화면 개발의 "데이터 있음" 경로를 즉시 확인하게 해주는 물건이라(database.md §4 말미),
 // 무엇이 몇 건인지가 곧 계약이다. 여기서 그 계약을 고정한다.
 
+import { SEED_ORG_SLUG } from '@nerv/schema';
 import { runMigrations, runSeed } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -45,6 +46,13 @@ describe('개발 시드 (database.md §4)', () => {
       sessions: 3,
       events: 3,
     });
+  });
+
+  it('시드가 심는 조직 slug 가 안전장치가 보는 값과 같다', async () => {
+    // 값이 두 곳(SQL · 안전장치)에 있으면 한쪽만 바뀐다 — 실제로 그랬다(2026-08-24):
+    // 조직명을 바꾸자 안전장치가 **자기 시드의 조직**을 남의 것으로 보고 재적재를 막았다.
+    const { rows } = await pool.query<{ slug: string }>(`SELECT slug FROM organization`);
+    expect(rows.map((r) => r.slug)).toEqual([SEED_ORG_SLUG]);
   });
 
   it('2회 연속 실행해도 상태가 같다 — 멱등 (REQ-DB-002)', async () => {

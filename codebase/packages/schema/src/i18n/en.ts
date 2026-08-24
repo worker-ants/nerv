@@ -7,6 +7,8 @@ import type { ko } from './ko.js';
 
 export const en = {
   // ── 에러 — api.md §1.4 봉투의 message ────────────────────────────────────────
+  'cli.reason.plan_no_done_at':
+    'Could not recover the completion time from git — it falls back to the import time (blurring the archive window)',
   'cli.reason.review_no_snapshot':
     'The review is not committed, so no input snapshot (head_sha) could be recovered — skipped',
   'cli.reason.review_tableless':

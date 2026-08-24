@@ -179,7 +179,11 @@ export class ImportService {
             VALUES (${taskId}, ${actor.projectId}, ${key}, ${item.title}, ${item.body_md},
                     ${item.status}::task_status, ${specVersionId},
                     ${item.assignee_user_id ?? null}, ${item.blocked_reason ?? null},
-                    ${item.status === 'done' ? sql`now()` : sql`NULL`},
+                    ${
+                      item.status === 'done'
+                        ? sql`coalesce(${item.done_at ?? null}::timestamptz, now())`
+                        : sql`NULL`
+                    },
                     ${item.status === 'done' ? sql`'{"none": true}'::jsonb` : sql`NULL`},
                     ${provenance}, ${provenance}, ${provenance}, ${provenance})
           `);

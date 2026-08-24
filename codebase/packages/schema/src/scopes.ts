@@ -82,8 +82,22 @@ export const ROLE_SCOPES: Readonly<Record<string, readonly RoleScope[]>> = {
     'review:resolve',
   ],
   // ○ — 만들 수 있는 타입이 제한된다(SPEC_CREATE_TYPES). 메타·승인은 없다.
-  designer: ['spec:read', 'agent-session:launch', 'spec:draft', 'task:claim', 'task:update', 'review:submit'],
-  developer: ['spec:read', 'agent-session:launch', 'spec:draft', 'task:claim', 'task:update', 'review:submit'],
+  designer: [
+    'spec:read',
+    'agent-session:launch',
+    'spec:draft',
+    'task:claim',
+    'task:update',
+    'review:submit',
+  ],
+  developer: [
+    'spec:read',
+    'agent-session:launch',
+    'spec:draft',
+    'task:claim',
+    'task:update',
+    'review:submit',
+  ],
   qa: [
     'spec:read',
     'agent-session:launch',

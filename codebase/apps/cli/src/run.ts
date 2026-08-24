@@ -24,7 +24,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { classifyPlan } from './parse/plan.js';
 import { branchFromRetryState, parseReviewSummary } from './parse/review.js';
-import { snapshotMap, snapshotOf } from './parse/git.js';
+import { addedAtMap, snapshotMap, snapshotOf } from './parse/git.js';
 import { parseFrontmatter, splitStatus } from './parse/frontmatter.js';
 import { extractRequirements } from './parse/requirements.js';
 import { scan } from './parse/scan.js';
@@ -141,6 +141,9 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
   const items: ImportTaskItem[] = [];
   const statusCounts: Record<string, number> = {};
   const importedAt = new Date().toISOString();
+  // 완료 시각은 **git 이 안다** — frontmatter 에 완료일이 없다(§2.6d). 계획이
+  // `plan/complete/` 에 처음 나타난 커밋이 곧 그것을 끝낸 날이다. 이력 한 번 훑기다.
+  const completedAt = addedAtMap(options.root, 'plan/');
 
   for (const file of files) {
     const { frontmatter, body } = parseFrontmatter(file.content);
@@ -173,6 +176,16 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       statusCounts['unassigned'] = (statusCounts['unassigned'] ?? 0) + 1;
     }
 
+    const doneAt = task.status === 'done' ? (completedAt.get(task.source_path) ?? null) : null;
+    if (task.status === 'done' && doneAt === null) {
+      // 되찾지 못하면 서버가 적재 시각으로 채운다 — 조용히 넘기지 않고 리포트에 올린다
+      entries.push({
+        file: task.source_path,
+        line: null,
+        reason: t()('cli.reason.plan_no_done_at'),
+        disposition: 'manual',
+      });
+    }
     items.push({
       source_path: task.source_path,
       title: task.title,
@@ -180,6 +193,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       status: task.status,
       assignee_user_id: task.assignee_user_id,
       depends_on: [],
+      ...(doneAt === null ? {} : { done_at: doneAt }),
     });
   }
 

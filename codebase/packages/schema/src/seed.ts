@@ -4,6 +4,7 @@
 // 재실행 시 신규 레코드가 0이다(REQ-DB-002). 운영 DB 에 도는 일이 없도록 실행 전에
 // 데이터 규모를 확인하고, 이미 사람이 쓴 흔적이 보이면 멈춘다.
 
+import { SEED_ORG_SLUG } from './constants.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +34,7 @@ export interface SeedResult {
 /**
  * 개발 시드를 적재한다.
  *
- * @param force 안전장치 해제. 기본값에서는 시드가 심는 조직(slug='nerv') 외의 조직이
+ * @param force 안전장치 해제. 기본값에서는 시드가 심는 조직(`SEED_ORG_SLUG`) 외의 조직이
  *              이미 있으면 멈춘다 — 운영 데이터를 TRUNCATE 하는 사고를 막는다.
  */
 export async function runSeed(databaseUrl: string, force = false): Promise<SeedResult> {
@@ -41,7 +42,8 @@ export async function runSeed(databaseUrl: string, force = false): Promise<SeedR
   try {
     if (!force) {
       const { rows } = await pool.query<{ n: string }>(
-        `SELECT count(*)::text AS n FROM organization WHERE slug <> 'nerv'`,
+        `SELECT count(*)::text AS n FROM organization WHERE slug <> $1`,
+        [SEED_ORG_SLUG],
       );
       if (Number(rows[0]?.n ?? 0) > 0) {
         throw new Error(

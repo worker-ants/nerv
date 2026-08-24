@@ -248,6 +248,66 @@ describe('EP-IMP-03 tasks — ready 는 받지 않는다 (REQ-IMP-009)', () => {
     expect([400, 409]).toContain(res.status);
   });
 
+  it('완료 시각은 **적재 시각이 아니다** — 보관 창이 무의미해진다(2026-08-24 실측)', async () => {
+    // 실측: 임포터가 `done_at` 을 `now()` 로 채워 clemvion 완료 419건이 전부 "오늘 끝난
+    // 것"이 됐고, 그래서 **보관 보기 토글이 아무것도 드러내지 못했다**(창 밖이 0건).
+    const longAgo = '2026-06-01T09:00:00.000Z';
+    await post('tasks', {
+      profile: 'clemvion',
+      items: [
+        {
+          source_path: 'plan/complete/dated-old.md',
+          title: '오래 전에 끝난 일',
+          status: 'done',
+          done_at: longAgo,
+        },
+        { source_path: 'plan/complete/dated-new.md', title: '방금 끝난 일', status: 'done' },
+      ],
+    });
+
+    const at = async (title: string): Promise<Date> => {
+      const { rows } = await pool.query<{ done_at: Date }>(
+        `SELECT done_at FROM task WHERE title = $1`,
+        [title],
+      );
+      return rows[0]!.done_at;
+    };
+    expect((await at('오래 전에 끝난 일')).toISOString()).toBe(longAgo);
+    // 주지 않으면 적재 시각으로 떨어진다 — 되찾지 못한 경우의 폴백이다
+    expect((await at('방금 끝난 일')).getTime()).toBeGreaterThan(new Date(longAgo).getTime());
+  });
+
+  it('보관 창 밖의 done 은 기본 목록에서 빠지고 include_archived 로만 나온다', async () => {
+    await post('tasks', {
+      profile: 'clemvion',
+      items: [
+        {
+          source_path: 'plan/complete/win-out.md',
+          title: '창 밖',
+          status: 'done',
+          done_at: '2026-06-01T09:00:00.000Z',
+        },
+        { source_path: 'plan/complete/win-in.md', title: '창 안', status: 'done' },
+      ],
+    });
+
+    const listed = async (archived: boolean): Promise<string[]> => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/projects/clemvion/tasks?status=done${archived ? '&include_archived=true' : ''}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const body = res.json() as { items: { title: string }[] };
+      return body.items.map((i) => i.title);
+    };
+
+    // **다른 케이스가 남긴 행이 섞이는 스위트다** — 내가 만든 두 건의 있고 없음만 본다
+    const plain = await listed(false);
+    expect(plain).toContain('창 안');
+    expect(plain).not.toContain('창 밖');
+    expect(await listed(true)).toContain('창 밖');
+  });
+
   it('done Task 를 게이트 판정 없이 만든다', async () => {
     const res = await post('tasks', {
       profile: 'clemvion',

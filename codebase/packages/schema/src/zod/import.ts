@@ -161,6 +161,15 @@ export const importTaskItemSchema = z.object({
   source_spec_key: z.string().nullable().optional(),
   depends_on: z.array(z.string()).default([]),
   blocked_reason: z.string().nullable().optional(),
+  /**
+   * 완료 시각 — **적재 시각이 아니다**(2026-08-24 신설).
+   *
+   * 비워 두면 서버가 `now()` 로 채우는데, 그러면 과거에 끝난 계획 419건이 전부 "지금
+   * 끝난 것"이 되고 **완료 창(`TASK_DONE_WINDOW_DAYS`)이 무의미해진다** — 보관 보기
+   * 토글이 아무것도 드러내지 못한 이유가 그것이었다(실측). 원본 frontmatter 에는
+   * 완료일이 없으므로 임포터가 git 에서 되찾는다(importer.md §2.6d).
+   */
+  done_at: z.string().nullable().optional(),
 });
 
 export const importTaskBatchInputSchema = z.object({

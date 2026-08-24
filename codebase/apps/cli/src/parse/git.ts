@@ -67,3 +67,55 @@ export function snapshotMap(root: string, pathspec: string): Map<string, Snapsho
 export function snapshotOf(map: Map<string, Snapshot>, sessionDir: string): Snapshot | null {
   return map.get(sessionDir) ?? null;
 }
+
+/**
+ * 파일이 **지금 경로에 추가된 커밋의 시각**. plan 임포트가 완료 시점으로 쓴다.
+ *
+ * clemvion plan frontmatter 에는 `started` 는 있어도 **완료일이 없다**(실측). 그런데
+ * 완료된 계획은 `plan/in-progress/` 에서 `plan/complete/` 로 옮겨져 커밋되므로, 그
+ * 경로에 처음 나타난 커밋이 곧 "완료한 날"이다 — 리뷰의 `head_sha` 를 되찾은 것과
+ * 같은 방법이다(§2.7).
+ *
+ * 되찾지 못하면 `null` 이고, 그때 서버는 적재 시각으로 떨어진다.
+ */
+export function addedAtMap(root: string, pathspec: string): Map<string, string> {
+  const out = new Map<string, string>();
+  let log: string;
+  try {
+    log = execFileSync(
+      'git',
+      [
+        'log',
+        '--diff-filter=A',
+        // **rename 감지를 끈다.** 완료된 계획은 `plan/in-progress/` 에서
+        // `plan/complete/` 로 **옮겨져** 커밋되는데, pathspec(`plan/`)이 두 경로를 모두
+        // 덮으므로 git 은 그것을 rename 으로 보고 `A` 에서 제외한다 — 그러면 완료
+        // 경로가 이력에 아예 나타나지 않는다(실측 2026-08-24: 409건 중 267건이 그렇게
+        // 사라졌다). 우리가 묻는 것은 "내용이 어디서 왔나"가 아니라 **"이 경로가 언제
+        // 생겼나"** 이므로 rename 을 delete + add 로 보는 편이 맞다.
+        '--no-renames',
+        '--reverse',
+        '--format=C%x09%cI',
+        '--name-only',
+        '--',
+        pathspec,
+      ],
+      { cwd: root, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 },
+    );
+  } catch {
+    return out;
+  }
+
+  let when = '';
+  for (const line of log.split('\n')) {
+    if (line.startsWith('C\t')) {
+      when = line.slice(2).trim();
+      continue;
+    }
+    const path = line.trim();
+    if (path === '' || when === '') continue;
+    // `--reverse` 라 먼저 오는 것이 최초 추가다 — 나중 것으로 덮지 않는다
+    if (!out.has(path)) out.set(path, when);
+  }
+  return out;
+}

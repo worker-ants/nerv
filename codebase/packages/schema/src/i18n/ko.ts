@@ -11,6 +11,8 @@
 
 export const ko = {
   // ── 에러 — api.md §1.4 봉투의 message ────────────────────────────────────────
+  'cli.reason.plan_no_done_at':
+    '완료 시각을 git 에서 되찾지 못했다 — 적재 시각으로 채워진다(보관 창 판정이 흐려진다)',
   'cli.reason.review_no_snapshot':
     '리뷰가 커밋되지 않아 입력 스냅샷(head_sha)을 되찾지 못했다 — 건너뜀',
   'cli.reason.review_tableless':
