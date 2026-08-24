@@ -70,6 +70,8 @@ function SpecDetail(): React.JSX.Element {
   }, [spec]);
 
   const body = String(detail.data?.['body_md'] ?? '');
+  // area 는 임포터가 디렉터리에서 만든 **묶음 노드**다 — 본문이 없는 것이 정상일 수 있다
+  const isArea = String(detail.data?.['type'] ?? '') === 'area';
   const docStatus = String(detail.data?.['doc_status'] ?? 'draft');
   const versionId = String(detail.data?.['version_id'] ?? '');
   const editable = docStatus === 'draft' && leaseHolder === null;
@@ -313,6 +315,20 @@ function SpecDetail(): React.JSX.Element {
               ))}
             </ul>
           </section>
+        )}
+
+        {/* **본문 없는 묶음 노드를 빈 화면으로 두지 않는다**(2026-08-24 · REQ-WEB-068).
+            임포터는 디렉터리마다 area 노드를 만드는데, 원본에 `_product-overview.md` 가
+            없으면 본문이 없다(4.7 §2.2 — clemvion 실측 area 16개 중 9개). 그냥 비워 두면
+            "내용이 사라졌다"로 읽힌다 — 무엇이고 어디로 가면 되는지 말해야 한다(§1.5).
+            **편집 권한과 무관하게** 띄운다: 빈 이유를 알아야 하는 것은 읽는 사람도 같다. */}
+        {body.trim() === '' && (
+          <div
+            data-testid="spec-empty-body"
+            className="mb-3 rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute"
+          >
+            {isArea ? t('spec.empty.area') : t('spec.empty.body')}
+          </div>
         )}
 
         {/* **문서마다 새 편집기다.** 본문이 앞 문서로 남던 결함을 고치는 것은 위의 상태

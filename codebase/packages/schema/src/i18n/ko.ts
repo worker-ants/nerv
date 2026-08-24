@@ -144,6 +144,9 @@ export const ko = {
   'severity.critical': 'critical',
   'severity.info': 'info',
   'severity.warning': 'warning',
+  'spec.empty.area':
+    '이 문서는 디렉터리를 묶는 노드입니다 — 원본에 개요 문서(_product-overview.md)가 없어 본문이 없습니다. 하위 문서는 왼쪽 트리에 있습니다.',
+  'spec.empty.body': '본문이 비어 있습니다.',
   'status.finding.dismissed': '기각',
   'status.finding.fixed': '수정됨',
   'status.finding.open': '열림',

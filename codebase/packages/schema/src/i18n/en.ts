@@ -144,6 +144,9 @@ export const en = {
   'severity.critical': 'critical',
   'severity.info': 'info',
   'severity.warning': 'warning',
+  'spec.empty.area':
+    'This node groups a directory — the source has no overview document (_product-overview.md), so there is no body. Its documents are in the tree on the left.',
+  'spec.empty.body': 'This document has no body yet.',
   'status.finding.dismissed': 'Dismissed',
   'status.finding.fixed': 'Fixed',
   'status.finding.open': 'Open',

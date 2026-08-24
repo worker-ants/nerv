@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { msg, NERV_ERROR, NERV_ERROR_CODES } from '@nerv/schema';
 import type { ArgumentsHost } from '@nestjs/common';
-import { NervError, NervExceptionFilter, statusFor } from './nerv-exception.filter.js';
+import { diagnostic, NervError, NervExceptionFilter, statusFor } from './nerv-exception.filter.js';
 import type { NervErrorBody } from './nerv-exception.filter.js';
 
 describe('statusFor — api.md §1.4 매핑표', () => {
@@ -82,5 +82,31 @@ describe('봉투의 message 는 요청 로케일로 만든다', () => {
     const en = catchWith('en', error);
     expect(en?.code).toBe(ko?.code);
     expect(en?.details).toEqual(ko?.details);
+  });
+});
+
+describe('원인 사슬 — 감싸는 예외가 이유를 삼키지 않는다 (2026-08-24)', () => {
+  it('cause 를 끝까지 편다', () => {
+    // 실측: drizzle 은 드라이버 오류를 감싸면서 message 에 **SQL 전문**을 넣는다.
+    // stack 만 찍으면 로그에 쿼리만 남고 "왜 실패했는지"가 사라진다 — 그 쿼리는
+    // psql 에서 멀쩡히 도는 것이라 로그만 보고는 아무것도 알 수 없었다.
+    const root = new Error('connection terminated unexpectedly');
+    const wrapped = new Error('Failed query: SELECT ...', { cause: root });
+    const text = diagnostic(wrapped);
+    expect(text).toContain('Failed query');
+    expect(text).toContain('caused by');
+    expect(text).toContain('connection terminated unexpectedly');
+  });
+
+  it('사슬이 순환해도 멈춘다', () => {
+    const a = new Error('a');
+    const b = new Error('b', { cause: a });
+    (a as { cause?: unknown }).cause = b;
+    expect(() => diagnostic(a)).not.toThrow();
+  });
+
+  it('Error 가 아닌 것도 문자열로 남긴다 — 삼키는 것보다 낫다', () => {
+    expect(diagnostic('그냥 문자열')).toBe('그냥 문자열');
+    expect(diagnostic(new Error('겉', { cause: { code: '57P01' } }))).toContain('57P01');
   });
 });

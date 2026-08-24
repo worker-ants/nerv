@@ -139,7 +139,7 @@ export class NervExceptionFilter implements ExceptionFilter {
     this.logger.error(
       // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       '처리되지 않은 예외',
-      exception instanceof Error ? exception.stack : exception,
+      diagnostic(exception),
     );
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -161,4 +161,46 @@ function headerOf(headers: Record<string, unknown> | undefined, name: string): s
   if (typeof raw === 'string') return raw;
   if (Array.isArray(raw) && typeof raw[0] === 'string') return raw[0];
   return null;
+}
+
+/**
+ * 로그에 남길 진단 문자열 — **원인 사슬을 끝까지 편다**(2026-08-24 신설).
+ *
+ * `error.stack` 만 찍으면 감싸는 예외가 원인을 삼킨다. 실제로 그랬다: drizzle 이
+ * 드라이버 오류를 `DrizzleQueryError` 로 감싸는데 그 `message` 는 **SQL 전문**이고
+ * 진짜 이유는 `cause` 에 있다 — 로그에는 쿼리만 남고 "왜 실패했는지"가 없었다.
+ * 쿼리는 psql 에서 멀쩡히 도는 것이라 로그만 보고는 아무것도 알 수 없다.
+ *
+ * 사슬을 도는 것은 다섯 겹까지다. 순환 참조는 `seen` 이 막는다.
+ */
+export function diagnostic(exception: unknown): string {
+  if (!(exception instanceof Error)) return String(exception);
+  const seen = new Set<unknown>();
+  const parts: string[] = [];
+  let current: unknown = exception;
+  for (let depth = 0; depth < 5 && current instanceof Error && !seen.has(current); depth += 1) {
+    seen.add(current);
+    parts.push(
+      depth === 0
+        ? (current.stack ?? current.message)
+        : `caused by: ${current.stack ?? current.message}`,
+    );
+    current = (current as { cause?: unknown }).cause;
+  }
+  if (current !== undefined && current !== null && !(current instanceof Error)) {
+    parts.push(`caused by: ${describe(current)}`);
+  }
+  return parts.join('\n');
+}
+
+/** Error 가 아닌 원인 — `[object Object]` 로 뭉개면 남긴 의미가 없다(pg 는 code 를 객체로 단다). */
+function describe(value: unknown): string {
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value) ?? String(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
 }
