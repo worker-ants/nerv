@@ -60,6 +60,9 @@ function SpecDetail(): React.JSX.Element {
   const [metaOpen, setMetaOpen] = useState(false);
   // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다
   const [railTab, setRailTab] = useState<'relations' | 'versions' | 'comments'>('relations');
+  // 관계 안의 두 방향은 **다른 질문**이다: 역참조는 "고치면 무엇이 흔들리나",
+  // 레퍼런스는 "이 문서가 무엇에 기대나". 섞어 놓으면 둘 다 훑어야 답이 나온다.
+  const [relTab, setRelTab] = useState<'all' | 'in' | 'out'>('all');
 
   // **스펙이 바뀌면 이 화면의 상태는 전부 남의 것이 된다.** 라우트 파라미터만 바뀌면
   // 리액트는 같은 컴포넌트를 재사용하므로 `draft`·리스 보유자·충돌이 그대로 살아남는다.
@@ -151,6 +154,8 @@ function SpecDetail(): React.JSX.Element {
 
   const relationItems = relations.data?.items ?? [];
   const backlinks = relationItems.filter((r) => r['direction'] === 'in');
+  const outgoing = relationItems.filter((r) => r['direction'] !== 'in');
+  const shownRelations = relTab === 'in' ? backlinks : relTab === 'out' ? outgoing : relationItems;
 
   return (
     // 3열 중 **좌측 트리는 셸 사이드바가 소유한다**(§1.3 — "S3 좌측 트리와 같은 컴포넌트").
@@ -494,7 +499,38 @@ function SpecDetail(): React.JSX.Element {
         <div className="flex flex-col gap-1 pt-2.5">
           {railTab === 'relations' && (
             <>
-              {relationItems.map((r) => {
+              {/* **하위 탭은 방향으로 가른다**(사람 지시 2026-08-24). 관계가 스무 건이
+                  넘으면 "이 문서를 고치면 무엇이 흔들리나"와 "이 문서가 무엇에 기대나"가
+                  한 목록에 섞여, 둘 중 하나를 보려면 목록 전체를 훑어야 한다.
+                  수는 **누르기 전에** 적는다 — 빈 탭을 열어 보게 하지 않는다. */}
+              <div className="flex gap-1 px-1 pb-1.5">
+                {(
+                  [
+                    ['all', t('spec.rail.rel_all'), relationItems.length],
+                    ['in', t('spec.rail.rel_in'), backlinks.length],
+                    ['out', t('spec.rail.rel_out'), outgoing.length],
+                  ] as const
+                ).map(([key, label, count]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    data-testid={`rel-tab-${key}`}
+                    aria-pressed={relTab === key}
+                    onClick={() => setRelTab(key)}
+                    className={cn(
+                      'flex items-center gap-1 rounded-nerv-sm px-2 py-[3px] text-2xs transition-colors',
+                      relTab === key
+                        ? 'bg-bg-active font-medium text-text'
+                        : 'text-text-faint hover:bg-bg-hover hover:text-text',
+                    )}
+                  >
+                    {label}
+                    <span className="text-text-ghost tabular-nums">{count}</span>
+                  </button>
+                ))}
+              </div>
+
+              {shownRelations.map((r) => {
                 const incoming = r['direction'] === 'in';
                 return (
                   <Link
@@ -527,10 +563,12 @@ function SpecDetail(): React.JSX.Element {
                   </Link>
                 );
               })}
-              {relationItems.length === 0 && (
+              {shownRelations.length === 0 && (
                 <p className="px-2 text-text-faint">{t('common.not_yet')}</p>
               )}
-              {backlinks.length > 0 && (
+              {/* 역참조가 **보이는 목록에 있을 때만** 그 설명을 단다 — 레퍼런스만 보는
+                  중에 "고치면 흔들리는 문서"가 떠 있으면 지금 보는 것을 잘못 읽게 된다 */}
+              {relTab !== 'out' && backlinks.length > 0 && (
                 <p className="px-2 pt-1 text-2xs text-text-ghost">{t('spec.backlinks_hint')}</p>
               )}
             </>

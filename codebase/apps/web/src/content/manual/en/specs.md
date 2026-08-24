@@ -58,7 +58,15 @@ These statuses are what produce **coverage** on the project screen. That axis on
 
 When a document refers to another in its body, a `references` relation is created **automatically**. The other relations — `refines` · `depends_on` · `duplicates` · `supersedes` — are judgements you only make by reading, so a person or an agent declares them.
 
-**Backlinks** in the right rail are the documents that point at this one. That is where you see what shakes when you change something.
+The **Relations** tab in the right rail shows both, and its sub-tabs split them by direction — because the two directions ask different questions.
+
+| Sub-tab        | What it shows                                                         |
+| -------------- | --------------------------------------------------------------------- |
+| **All**        | Both directions                                                       |
+| **Backlinks**  | Documents that point **at** this one — what shakes when you change it |
+| **References** | Documents this one points **to** — what it leans on                   |
+
+The number beside each tab name is how many that direction holds. You can see the count before clicking, so there is never a reason to open an empty tab.
 
 ## Archiving
 
