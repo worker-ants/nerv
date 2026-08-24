@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.19 (2026-08-24)</span>
+      <span>버전 v0.20 (2026-08-24)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -198,14 +198,17 @@
   <div class="table-wrap"><table>
     <thead><tr><th>셸 요소</th><th>명세</th></tr></thead>
     <tbody>
-      <tr><td><span class="marker">1</span> 전역 헤더</td><td>조직 스코프. 승인함·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 승인함 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
+      <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾</b>(2026-08-24 신설 · REQ-WEB-069). 승인함·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 승인함 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
+      <tr><td>프로젝트 select</td><td>고른 조직의 프로젝트 목록. <b>하나뿐일 때도 select 로 둔다</b>(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(<code>/p/:proj</code>)로 간다. 홈·승인함·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 <b>마지막으로 본 프로젝트</b>를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다)</td></tr>
       <tr><td><span class="marker">2</span> 연결 상태 배너</td><td>2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
       <tr><td><span class="marker">3</span> 프로젝트 사이드바</td><td><code>/p/:proj/*</code>에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 — 비활성 + 툴팁). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1))</td></tr>
       <tr><td><span class="marker">4</span> 토스트 스택</td><td><code>claim.conflict_warn</code> 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1)</td></tr>
     </tbody>
   </table></div>
 
-    <p><b>셸의 조형은 시안을 따르되 IA 는 위 그림이 정본이다(2026-08-23).</b> 시안은 헤더를 브레드크럼으로 두고 승인함을 프로젝트 사이드바로 내렸는데 <b>그대로 받지 않는다</b>: 승인함·알림은 조직 전역이지 프로젝트 소속이 아니라 프로젝트가 여럿일 때 자리가 틀린다.</p>
+    <p><b>프로젝트를 고를 길이 화면에 없었다</b>(2026-08-24 — 사람 지적). 사이드바는 현재 프로젝트의 <b>이름만</b> 적어 두었고, 옮겨 가는 경로는 퀵 스위처(⌘K)뿐이었다 — 단축키를 아는 사람만 쓸 수 있는 길은 길이 아니다. 조직 select 오른쪽에 프로젝트 select 를, 헤더 <code>홈</code> 오른쪽에 그 프로젝트로 가는 링크를 둔다. 헤더 링크는 <b>개요일 때만 활성</b>이다.</p>
+
+  <p><b>셸의 조형은 시안을 따르되 IA 는 위 그림이 정본이다(2026-08-23).</b> 시안은 헤더를 브레드크럼으로 두고 승인함을 프로젝트 사이드바로 내렸는데 <b>그대로 받지 않는다</b>: 승인함·알림은 조직 전역이지 프로젝트 소속이 아니라 프로젝트가 여럿일 때 자리가 틀린다.</p>
   <ul>
     <li>로고는 글리프(<code>⬢</code>)가 아니라 <b>채운 사각형 마크</b>다 — 글리프는 주변 글자와 같은 무게라 정박점이 되지 못한다.</li>
     <li>프로젝트에도 색 배지를 준다 — 이름만 있으면 어느 프로젝트인지 <b>읽어야</b> 안다.</li>
@@ -883,6 +886,7 @@ export const TaskCreateInput = z.object({
       <tr><td><b>REQ-WEB-065</b></td><td>WHEN 게이트 현황을 표시하면 THE SYSTEM SHALL 브랜치마다 커버 리뷰·해소 비율·판정을 적고, 면제가 있으면 <b>면제한 사람·시각·사유</b>를 같은 줄에 펼친다(FR-10 · FR-16 — 면제가 조용히 일어나지 않는 것 자체가 기능이다)</td></tr>
       <tr><td><b>REQ-WEB-066</b></td><td>WHILE 리뷰 센터가 열려 있으면 THE SYSTEM SHALL <code>finding.opened</code>·<code>finding.resolved</code>를 받아 큐와 facet을 다시 읽는다</td></tr>
       <tr><td><b>REQ-WEB-067</b></td><td>WHEN 발견 큐나 게이트 표가 상한에 걸려 잘리면 THE SYSTEM SHALL <b>전체 건수와 표시 건수를 함께</b> 적는다 — 잘라 놓고 말하지 않으면 화면이 "이게 전부"라고 거짓말한다</td></tr>
+      <tr><td><b>REQ-WEB-069</b></td><td>WHILE 로그인 상태이면 THE SYSTEM SHALL 전역 헤더에 조직·프로젝트 선택을 <b>두 축 순서대로</b> 표시하고, 라우트에 프로젝트가 없는 화면에서는 마지막으로 본 프로젝트를 보인다 — 선택지가 하나뿐이어도 select 형태를 유지한다</td></tr>
       <tr><td><b>REQ-WEB-068</b></td><td>WHEN 본문이 빈 스펙을 열면 THE SYSTEM SHALL 빈 화면 대신 <b>왜 비었는지</b>를 적는다 — <code>area</code>는 디렉터리를 묶는 노드이고 원본에 개요 문서가 없으면 본문이 없는 것이 정상이다(4.7 §2.2). 그 밖의 타입은 "본문 없음"으로 구분해 적는다</td></tr>
     </tbody>
   </table></div>

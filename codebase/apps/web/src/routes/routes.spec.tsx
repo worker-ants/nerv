@@ -46,15 +46,28 @@ function renderAt(path: string) {
 }
 
 beforeEach(() => {
-  // 라우팅 검증이 목적이라 네트워크는 빈 응답으로 고정한다
+  localStorage.clear();
+  // 라우팅 검증이 목적이라 네트워크는 빈 응답으로 고정한다. **다만 스코프 두 축은
+  // 채운다** — 조직·프로젝트 select 는 memberships·프로젝트 목록에서 오므로 빈
+  // 응답이면 헤더의 절반이 아예 렌더되지 않는다.
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      // me 는 배열이 아니라 객체다 — 셸이 memberships 를 읽는다
-      json: async () => ({ items: [], summary: {}, next_cursor: null, memberships: [], count: 0 }),
-    })),
+    vi.fn(async (url: unknown) => {
+      const path = String(url);
+      const json = path.includes('/projects')
+        ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
+        : path.includes('/me')
+          ? {
+              id: 'u-1',
+              display_name: '지민',
+              memberships: [
+                { org_slug: 'nerv', org_name: 'NERV', project_slug: 'clemvion', roles: ['admin'] },
+              ],
+            }
+          : // me 는 배열이 아니라 객체다 — 셸이 memberships 를 읽는다
+            { items: [], summary: {}, next_cursor: null, memberships: [], count: 0 };
+      return { ok: true, status: 200, json: async () => json };
+    }),
   );
 });
 
@@ -68,7 +81,10 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
     renderAt('/');
     await waitFor(() => expect(screen.getByTestId('today-strip')).toBeDefined());
     // 앱 셸 — 전역 헤더 · 토스트 아웃렛 · ⌘K 진입점(§1.3)
-    expect(screen.getByText('NERV')).toBeDefined();
+    // 로고(제품)와 조직 select 가 이름을 공유할 수 있다 — 시드의 조직이 'NERV' 다.
+    // 둘은 다른 것이므로 각각을 가려서 본다.
+    expect(screen.getAllByText('NERV').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('org-switcher').textContent).toContain('NERV');
     expect(screen.getByTestId('toast-outlet')).toBeDefined();
     expect(screen.getByText(/검색/)).toBeDefined();
   });
@@ -99,7 +115,8 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
   it('프로젝트 사이드바는 /p/:proj/* 에서만 나온다 (§1.3)', async () => {
     const { unmount } = renderAt('/p/clemvion/tasks');
     await waitFor(() => expect(screen.getByText('작업 보드')).toBeDefined());
-    expect(screen.getByText('clemvion')).toBeDefined();
+    // 사이드바 제목과 헤더 프로젝트 select 양쪽에 이름이 있다 — 사이드바 쪽을 본다
+    expect(screen.getAllByText('clemvion').length).toBeGreaterThan(0);
     // 리뷰 탭은 2026-08-23 에 열렸다 — 비활성 표기 대신 실제 링크다(screens.md §2.6a)
     expect(screen.getByRole('link', { name: /리뷰/ }).getAttribute('href')).toBe(
       '/p/clemvion/reviews',
@@ -131,5 +148,32 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
       await waitFor(() => expect(screen.getByText(title, { selector: 'h1' })).toBeDefined());
       unmount();
     }
+  });
+});
+
+describe('헤더 스코프 — 조직 → 프로젝트 (2026-08-24 · 사람 지시)', () => {
+  it('조직 오른쪽에 프로젝트 select 가 있다 — 이전에는 고를 길이 화면에 없었다', async () => {
+    renderAt('/p/clemvion/tasks');
+    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
+    expect(screen.getByTestId('org-switcher')).toBeDefined();
+  });
+
+  it('홈 오른쪽에 프로젝트 페이지로 가는 길이 있다 — 골라도 갈 데가 없으면 표시일 뿐이다', async () => {
+    renderAt('/p/clemvion/tasks');
+    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
+    const nav = screen.getAllByRole('link', { name: '프로젝트' })[0];
+    expect(nav?.getAttribute('href')).toBe('/p/clemvion');
+  });
+
+  it('전역 화면에서도 프로젝트 칸이 비지 않는다 — 마지막으로 본 것을 기억한다', async () => {
+    // 프로젝트 라우트를 지나면 기억되고, 전역 라우트에서 그것이 헤더에 남는다.
+    // 기억이 없으면 빈 칸이 되고, **빈 칸은 "선택할 수 없다"로 읽힌다**.
+    const first = renderAt('/p/clemvion/tasks');
+    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
+    first.unmount();
+
+    renderAt('/inbox');
+    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
+    expect(localStorage.getItem('nerv.last-project')).toBe('clemvion');
   });
 });
