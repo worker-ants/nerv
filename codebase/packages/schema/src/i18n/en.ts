@@ -383,6 +383,7 @@ export const en = {
   // ── 제품 매뉴얼 (screens.md §2.10) ─────────────────────────────────────────
   'help.ch.agents': 'Agents',
   'help.ch.inbox': 'Inbox and notifications',
+  'help.ch.install': 'Installing the plugin',
   'help.ch.reviews': 'Reviews',
   'help.ch.sessions': 'Sessions',
   'help.ch.settings': 'Settings',

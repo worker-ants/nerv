@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.22 (2026-08-24)</span>
+      <span>버전 v0.23 (2026-08-24)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -1044,6 +1044,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
         <div class="wf-nav-item">리뷰</div>
         <div class="wf-nav-item">승인함과 알림</div>
         <div class="wf-nav-item">에이전트 연동</div>
+        <div class="wf-nav-item">플러그인 설치</div>
         <div class="wf-nav-item">설정</div>
         <div class="wf-nav-item">단축키와 언어</div>
       </div>
@@ -1071,6 +1072,8 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
       </div>
     </div>
   </div>
+
+  <p>장은 <b>열 장</b>이고 순서가 곧 읽는 순서다 — 시작하기 · 스펙 · 작업 · 세션 · 리뷰 · 승인함과 알림 · 에이전트 연동 · 플러그인 설치 · 설정 · 단축키와 언어. <b>개념과 절차를 나눠 둔다</b>: "에이전트 연동"은 MCP 도구·훅·스킬이 무엇이고 왜 그렇게 맞물리는지를 말하고, "플러그인 설치"는 Claude Code(<code>/plugin marketplace add</code> → <code>/plugin install nerv@nerv-internal</code>)와 Codex(<code>.codex/config.toml</code>·<code>AGENTS.md</code> 초안 2종 복사 — <a href="plugin.html">4.6 플러그인</a> §5.1이 말한 수동 경로)의 절차를 5단계로 밟는다. 한 장에 섞으면 "이게 뭔가"를 읽으러 온 사람과 "어떻게 붙이나"를 읽으러 온 사람이 서로의 문단을 건너뛰게 된다.</p>
 
   <ul class="wf-legend">
     <li><span class="marker">1</span><span><b>헤더 진입점은 한 칸짜리 <code>?</code>다.</b> 헤더는 여섯 자리뿐이고(§1.3) 자주 쓰지 않는 항목이 자주 쓰는 항목의 자리를 먹으면 헤더는 금세 도구모음이 된다. 이름은 <code>title</code>·<code>aria-label</code>이 준다. 메뉴 항목 3종: <b>이 화면 도움말</b> · <b>제품 매뉴얼</b> · <b>단축키와 언어</b>.</span></li>

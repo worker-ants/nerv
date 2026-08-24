@@ -21,6 +21,7 @@ type ManualTitleKey = Extract<MessageKey, `help.ch.${string}`>;
 
 import agentsEn from '../content/manual/en/agents.md?raw';
 import inboxEn from '../content/manual/en/inbox.md?raw';
+import installEn from '../content/manual/en/install.md?raw';
 import reviewsEn from '../content/manual/en/reviews.md?raw';
 import sessionsEn from '../content/manual/en/sessions.md?raw';
 import settingsEn from '../content/manual/en/settings.md?raw';
@@ -31,6 +32,7 @@ import tasksEn from '../content/manual/en/tasks.md?raw';
 
 import agentsKo from '../content/manual/ko/agents.md?raw';
 import inboxKo from '../content/manual/ko/inbox.md?raw';
+import installKo from '../content/manual/ko/install.md?raw';
 import reviewsKo from '../content/manual/ko/reviews.md?raw';
 import sessionsKo from '../content/manual/ko/sessions.md?raw';
 import settingsKo from '../content/manual/ko/settings.md?raw';
@@ -55,6 +57,7 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
   { id: 'reviews', titleKey: 'help.ch.reviews', body: { ko: reviewsKo, en: reviewsEn } },
   { id: 'inbox', titleKey: 'help.ch.inbox', body: { ko: inboxKo, en: inboxEn } },
   { id: 'agents', titleKey: 'help.ch.agents', body: { ko: agentsKo, en: agentsEn } },
+  { id: 'install', titleKey: 'help.ch.install', body: { ko: installKo, en: installEn } },
   { id: 'settings', titleKey: 'help.ch.settings', body: { ko: settingsKo, en: settingsEn } },
   { id: 'shortcuts', titleKey: 'help.ch.shortcuts', body: { ko: shortcutsKo, en: shortcutsEn } },
 ];

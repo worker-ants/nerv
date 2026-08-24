@@ -1,0 +1,128 @@
+Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전트가 스펙을 읽고 작업을 클레임할 수 있고, 무슨 일을 하고 있는지가 세션 화면에 뜹니다.
+
+**끝까지 5단계**이고, 어디서 막혔는지는 마지막 절이 짚어 줍니다. 무엇이 왜 그렇게 맞물리는지는 [에이전트 연동](/help/agents) 장에 있습니다.
+
+## 시작하기 전에
+
+세 가지를 알아 둬야 합니다.
+
+| 무엇           | 어디서                   | 예                         |
+| -------------- | ------------------------ | -------------------------- |
+| NERV 서버 주소 | 관리자에게               | `https://nerv.example.com` |
+| 프로젝트 slug  | 주소창의 `/p/` 다음 조각 | `clemvion`                 |
+| 내 역할        | 설정 → 멤버              | `developer`                |
+
+역할이 중요합니다 — **토큰은 역할보다 넓어질 수 없습니다.** `viewer`로는 작업을 클레임하는 토큰을 만들 수 없습니다.
+
+## 1. 토큰 발급
+
+**설정 → 토큰 → 발급**. 이름은 쓰는 기계가 드러나게 짓습니다(`mac-02/claude-code`처럼).
+
+- 토큰 값은 **발급 직후 한 번만** 보입니다. 창을 닫으면 다시 볼 수 없고, 다시 발급해야 합니다.
+- 스코프는 역할 프리셋이 기본값으로 채웁니다. `developer`라면 `spec:read` · `spec:draft` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch`입니다.
+- `spec:approve`와 `approval:decide`는 체크박스 자체가 잠겨 있습니다 — 승인은 사람이 하는 일이라 토큰에 실을 수 없습니다.
+
+## 2. 환경변수
+
+셸 프로필(또는 시크릿 매니저)에 넣습니다.
+
+```bash
+export NERV_TOKEN="<1단계에서 받은 토큰>"
+export NERV_PROJECT="clemvion"
+export NERV_HOSTNAME="$(hostname -s)"
+```
+
+`NERV_HOSTNAME`은 세션 화면에 "누구의 어떤 기계인지"로 뜹니다. 비워 두면 세션이 이름 없이 뜹니다.
+
+**토큰을 저장소에 커밋하지 마세요.** 작업 저장소의 `.gitignore`에 `.nerv/`도 함께 넣습니다 — 플러그인의 캐시와 오프라인 큐가 그 아래에 쌓입니다.
+
+## 3-A. Claude Code에 플러그인 설치
+
+Claude Code 안에서 두 줄입니다.
+
+```text
+/plugin marketplace add <사내 마켓플레이스 git URL>
+/plugin install nerv@nerv-internal
+```
+
+그리고 **재시작**합니다. `/plugin` 목록에 `nerv` v0.1.0이 활성으로 보이면 됩니다.
+
+설치되는 것은 넷입니다.
+
+| 무엇            | 하는 일                                                                               |
+| --------------- | ------------------------------------------------------------------------------------- |
+| MCP 서버 `nerv` | `nerv_*` 도구 — 에이전트가 NERV를 읽고 쓰는 통로                                      |
+| 스킬 6종        | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` |
+| 훅              | 에이전트의 행동을 세션 화면으로 흘려보냅니다                                          |
+| statusline      | 지금 쥔 클레임·리스 남은 시간·범위 겹침을 프롬프트 줄에 답니다                        |
+
+**회사 관리 기기라면 이 단계를 건너뜁니다.** 관리형 설정이 마켓플레이스 등록과 플러그인 활성화를 이미 해 두었고, `NERV_SERVER`·`NERV_PROJECT`도 거기서 옵니다 — 그때는 1·2·4·5단계만 하면 됩니다.
+
+## 3-B. Codex에 연결
+
+Codex에는 플러그인 형식이 없습니다. 대신 **파일 두 개를 쓰는 저장소에 둡니다.** 플러그인 패키지가 그 초안을 `codex/`에 담아 배포합니다.
+
+```bash
+mkdir -p <내 저장소>/.codex
+cp <플러그인>/codex/config.toml <내 저장소>/.codex/config.toml
+cp <플러그인>/codex/AGENTS.md   <내 저장소>/AGENTS.md
+```
+
+`AGENTS.md`가 이미 있으면 덮어쓰지 말고 **"단일 진실"·"세션 시작 시 반드시" 두 절만** 옮깁니다.
+
+복사한 `.codex/config.toml`에서 세 곳을 자기 값으로 바꿉니다 — `url` · `X-NERV-Project` · (쓴다면) `[otel] environment`.
+
+```toml
+[mcp_servers.nerv]
+url = "https://nerv.example.com/mcp"
+bearer_token_env_var = "NERV_TOKEN"
+http_headers = { "X-NERV-Project" = "clemvion" }
+startup_timeout_sec = 20
+
+# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않습니다
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+```
+
+토큰은 파일에 적지 않습니다. `bearer_token_env_var`가 가리키는 대로 **`NERV_TOKEN` 환경변수**에서 읽습니다(2단계).
+
+Claude Code는 아직 `AGENTS.md`를 자동으로 읽지 않으므로, 같은 저장소를 둘 다 쓴다면 `CLAUDE.md`에 한 줄만 둡니다.
+
+```markdown
+@AGENTS.md
+```
+
+**Codex에서 되는 것과 안 되는 것.**
+
+- 도구는 **전부 됩니다.** `bootstrap → next → claim → heartbeat → release`를 도구만으로 완주합니다 — 핵심 기능에 도구 아닌 경로가 없기 때문입니다.
+- 스킬 파일(`SKILL.md`)은 그대로 재사용합니다. 열린 형식이라 같은 파일입니다.
+- **훅 텔레메트리는 없습니다.** 그래서 Codex 세션은 세션 화면에서 해상도가 낮습니다 — 매 행동이 아니라 에이전트가 직접 올리는 마일스톤만 보입니다.
+- 저장소의 `.codex/config.toml`은 **신뢰한 프로젝트에서만** 읽힙니다. 처음 열 때 한 번 승인해야 합니다.
+
+## 4. 연결 확인
+
+- **Claude Code**: 프로젝트 저장소에서 실행한 뒤 `/mcp`. `nerv` 서버가 connected이고 `nerv_*` 도구 목록이 보이면 됩니다.
+- **Codex**: 세션을 시작하고 `nerv_bootstrap`을 부릅니다. 응답에 `session_id`와 게이트 정책이 실려 옵니다.
+
+어느 쪽이든 **웹의 세션 화면에 내 세션 카드가 떠야** 진짜로 붙은 것입니다. 도구 목록만 보이고 세션이 안 뜨면 아직 `nerv_bootstrap`을 부르지 않은 것입니다.
+
+## 5. 첫 작업
+
+```text
+/nerv:next
+```
+
+스킬이 `nerv_bootstrap`부터 부르고, 다음 작업을 추천한 뒤 클레임까지 갑니다. Codex라면 같은 순서를 도구로 직접 부릅니다 — 그 순서가 복사해 둔 `AGENTS.md`에 적혀 있습니다.
+
+## 잘 안 될 때
+
+| 증상                               | 대개는 이것                                                                       |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| `/mcp`에 `nerv`가 없다             | 설치 후 재시작을 안 했습니다                                                      |
+| 서버에 닿지 못한다                 | `url` 오타 또는 사내망 밖 — 관리자에게 주소를 확인하세요                          |
+| `NERV_UNAUTHENTICATED`             | `NERV_TOKEN`이 비었거나 폐기됐습니다. 설정 → 토큰에서 다시 발급                   |
+| `NERV_FORBIDDEN` · 스코프 부족     | 토큰 스코프가 좁거나, 발급 시점 역할이 그 일을 못 합니다                          |
+| 도구는 되는데 프로젝트가 안 보인다 | `X-NERV-Project`(또는 `NERV_PROJECT`) 값이 틀렸거나 그 프로젝트의 멤버가 아닙니다 |
+| 검토 요청이 그냥 실패한다          | A3 도구입니다 — 사람이 웹에서 눌러야 합니다([승인함](/help/inbox))                |
+| `NERV_RATE_LIMIT`                  | 응답의 `retry_after_s`만큼 기다립니다. 병렬 재시도로 우회하지 마세요              |
+| 세션이 `stale`로 넘어간다          | 하트비트가 끊겼습니다. 30분이 지나면 클레임이 회수됩니다([세션](/help/sessions))  |

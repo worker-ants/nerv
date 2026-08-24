@@ -1,5 +1,7 @@
 Connect an agent and Claude Code or Codex will read your specs, claim tasks, and report live on what it is doing. Three things get connected: **MCP tools, hooks and skills**.
 
+This chapter explains **how the pieces fit together**. The procedure for actually connecting one is in [Installing the plugin](/help/install).
+
 ## What gets connected
 
 - **MCP tools** — the channel an agent reads and writes NERV through. The server is named `nerv` and the tools are `nerv_*`.
@@ -8,9 +10,9 @@ Connect an agent and Claude Code or Codex will read your specs, claim tasks, and
 
 Permissions come from the **token, not the skill.** A skill is convenience and resolution; it cannot get around a server gate.
 
-## Issuing a token
+## Tokens and scopes
 
-Issue tokens under **Settings → Tokens**.
+What an agent may do is decided by **the token** (issuing one is step 1 of [Installing the plugin](/help/install)).
 
 - The token value is shown **once, right after issuing**. Copy it there and then.
 - Scopes are written `resource:action`: `spec:read` · `spec:draft` · `spec:meta` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.

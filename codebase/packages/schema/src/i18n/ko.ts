@@ -381,6 +381,7 @@ export const ko = {
   // 하기 때문이다. 본문은 apps/web/src/content/manual/<로케일>/<장>.md 가 정본이다.
   'help.ch.agents': '에이전트 연동',
   'help.ch.inbox': '승인함과 알림',
+  'help.ch.install': '플러그인 설치',
   'help.ch.reviews': '리뷰',
   'help.ch.sessions': '세션',
   'help.ch.settings': '설정',

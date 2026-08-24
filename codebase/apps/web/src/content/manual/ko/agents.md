@@ -1,5 +1,7 @@
 NERV에 에이전트를 붙이면 Claude Code나 Codex가 스펙을 읽고, 작업을 클레임하고, 무슨 일을 하는지 실시간으로 보고합니다. 붙는 것은 세 가지입니다: **MCP 도구 · 훅 · 스킬**.
 
+이 장은 **무엇이 어떻게 맞물리는지**를 설명합니다. 실제로 붙이는 절차는 [플러그인 설치](/help/install) 장에 있습니다.
+
 ## 무엇이 붙는가
 
 - **MCP 도구** — 에이전트가 NERV를 읽고 쓰는 통로입니다. 서버 이름은 `nerv`이고 도구는 `nerv_*`입니다.
@@ -8,9 +10,9 @@ NERV에 에이전트를 붙이면 Claude Code나 Codex가 스펙을 읽고, 작�
 
 권한은 스킬이 아니라 **토큰이 정합니다.** 스킬은 편의와 해상도일 뿐, 서버 게이트를 우회할 수 없습니다.
 
-## 토큰 발급
+## 토큰과 스코프
 
-**설정 → 토큰**에서 발급합니다.
+에이전트가 할 수 있는 일은 **토큰이 정합니다**(발급은 [플러그인 설치](/help/install) 1단계).
 
 - 토큰 값은 **발급 직후 한 번만** 보입니다. 그 자리에서 복사해 두세요.
 - 스코프는 `resource:action` 표기입니다: `spec:read` · `spec:draft` · `spec:meta` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
