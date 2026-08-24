@@ -4,7 +4,7 @@
 // 엉뚱한 문서가 "영향 범위"로 보인다 — 눈으로는 절대 못 잡는 종류의 오류다.
 
 import { describe, expect, it } from 'vitest';
-import { neighborhoodForTesting } from './graph.js';
+import { connectionsOf, neighborhoodForTesting } from './graph.js';
 
 const nodes = ['a', 'b', 'c', 'd', 'z'].map((k) => ({
   id: k,
@@ -40,5 +40,33 @@ describe('중심 모드의 hop 계산', () => {
 
   it('모르는 키면 전체를 보여준다 — 빈 화면보다 낫다', () => {
     expect(neighborhoodForTesting(nodes, edges, 'nope', 1).size).toBe(nodes.length);
+  });
+});
+
+describe('패널이 적는 이웃 (2026-08-24 · 사람 지시)', () => {
+  it('방향으로 가른다 — 레퍼런스는 나가는 것, 역참조는 들어오는 것', () => {
+    const links = connectionsOf(nodes, edges, 'b');
+    expect(links.out.map((c) => c.node.key)).toEqual(['c']);
+    expect(links.in.map((c) => c.node.key)).toEqual(['a']);
+  });
+
+  it('관계 종류를 함께 나른다 — "무엇으로 이어졌나"가 목록의 절반이다', () => {
+    expect(connectionsOf(nodes, edges, 'b').out[0]?.kind).toBe('references');
+  });
+
+  it('그린 것이 아니라 **실제 관계 전부**를 센다', () => {
+    // 중심 모드 1 hop 에서 c 는 화면에 없지만, b 를 고르면 패널은 c 를 적어야 한다 —
+    // 화면을 따라 줄이면 패널이 "이 문서는 이것뿐"이라고 거짓을 말한다.
+    expect(neighborhoodForTesting(nodes, edges, 'a', 1).has('c')).toBe(false);
+    expect(connectionsOf(nodes, edges, 'b').out.map((c) => c.node.key)).toContain('c');
+  });
+
+  it('고르지 않았거나 모르는 키면 빈 목록이다 — 빈 패널이 열리지 않는다', () => {
+    expect(connectionsOf(nodes, edges, null)).toEqual({ out: [], in: [] });
+    expect(connectionsOf(nodes, edges, 'nope')).toEqual({ out: [], in: [] });
+  });
+
+  it('고립 노드는 양쪽 다 비어 있다', () => {
+    expect(connectionsOf(nodes, edges, 'z')).toEqual({ out: [], in: [] });
   });
 });

@@ -68,6 +68,8 @@ The **Relations** tab in the right rail shows both, and its sub-tabs split them 
 
 The number beside each tab name is how many that direction holds. You can see the count before clicking, so there is never a reason to open an empty tab.
 
+The **relations graph** shows the same thing as a picture — the `Relations` tab on the spec list screen. Clicking a node does **not** open that document: it highlights the node and everything linked to it, and opens a panel on the right with its name and its neighbours (backlinks / references). To go to a document, **click its name in the panel.** Click the background or press `Esc` to let go.
+
 ## Archiving
 
 Archiving is **not deletion.** The document drops out of lists and the tree but its address still works, and links pointing at it stay alive. A spec is the record of what was decided and why — delete it and that record is gone.

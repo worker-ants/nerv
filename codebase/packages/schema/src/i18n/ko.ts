@@ -764,8 +764,12 @@ export const ko = {
   'graph.empty': '관계가 아직 없습니다.',
   'graph.empty_hint': '본문이 다른 스펙을 참조하면 여기에 선이 생깁니다.',
   'graph.group_by_area': '영역으로 묶기',
-  'graph.hint': '노드를 누르면 그 문서로 갑니다 · 휠로 확대·축소 · 화살표는 참조 방향입니다',
+  'graph.hint':
+    '노드를 누르면 이웃이 강조되고 오른쪽에 관계가 열립니다 · 휠로 확대·축소 · 화살표는 참조 방향입니다',
   'graph.hops': '{n}단계',
+  'graph.panel.center': '이 문서 중심으로',
+  'graph.panel.empty': '연결된 문서가 없습니다.',
+  'graph.panel.hint': '이름을 누르면 그 문서로 갑니다',
   'graph.mode.ego': '이 문서 중심',
   'graph.mode.global': '전체',
   'graph.tab.graph': '관계 그래프',

@@ -775,8 +775,12 @@ export const en = {
   'graph.empty': 'No relations yet.',
   'graph.empty_hint': 'Links between spec bodies show up here as edges.',
   'graph.group_by_area': 'Group by area',
-  'graph.hint': 'Click a node to open it · scroll to zoom · arrows point at what is referenced',
+  'graph.hint':
+    'Click a node to highlight its neighbours and open its relations on the right · scroll to zoom · arrows point at what is referenced',
   'graph.hops': '{n} hop',
+  'graph.panel.center': 'Centre on this doc',
+  'graph.panel.empty': 'Nothing is linked to this document.',
+  'graph.panel.hint': 'Click a name to open that document',
   'graph.mode.ego': 'Around this doc',
   'graph.mode.global': 'Whole project',
   'graph.tab.graph': 'Relations',
