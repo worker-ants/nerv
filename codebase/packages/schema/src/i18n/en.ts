@@ -7,13 +7,20 @@ import type { ko } from './ko.js';
 
 export const en = {
   // ── 에러 — api.md §1.4 봉투의 message ────────────────────────────────────────
+  'cli.reason.plan_many_refs':
+    'The body names {count} requirements — the document does not say which one it implements, so no link is made',
   'cli.reason.plan_no_done_at':
     'Could not recover the completion time from git — it falls back to the import time (blurring the archive window)',
+  'cli.reason.plan_spec_unresolved':
+    'Could not resolve the spec this plan points at — it loads without a basis version ({paths})',
   'cli.reason.review_no_snapshot':
     'The review is not committed, so no input snapshot (head_sha) could be recovered — skipped',
   'cli.reason.review_tableless':
     'The SUMMARY is prose, not a findings table — the session is loaded but findings need a human read',
   'cli.reason.review_total': 'review_total mismatch — expected {expected}, actual {actual}',
+  'common.create': 'Create',
+  'common.delete': 'Delete',
+  'common.edit': 'Edit',
   'error.approval.already_decided': 'This item has already been decided.',
   'error.approval.content_changed': 'The content changed after you opened this card.',
   'error.approval.not_found': 'Approval item not found.',
@@ -65,6 +72,9 @@ export const en = {
   'error.mcp.pat_only': 'MCP accepts personal access tokens only.',
   'error.membership.duplicate': 'Already a member at that scope.',
   'error.membership.not_found': 'Membership not found.',
+  'error.org.missing_fields': 'An organization needs a slug and a name.',
+  'error.org.not_empty':
+    'An organization with projects cannot be deleted — archive its projects first.',
   'error.org.not_found': 'Organization not found.',
   'error.project.missing_fields': 'slug, key and name are required.',
   'error.project.not_found': 'Project not found.',
@@ -94,6 +104,7 @@ export const en = {
   'home.todo.blocking': 'Blocking',
   'home.waiting_count': '{count} waiting on you',
   'import.delegation_missing': '(imported — source had no delegation brief)',
+  'import.requirement_not_found': 'Requirement not found — it points outside this repository',
   'import.spec_not_found': 'target spec not found',
   'agent.no_claim': 'NERV: no active claim — start with /nerv:next.',
   'agent.resume_claim': 'Continue with it — do not claim anything new.',
@@ -105,6 +116,7 @@ export const en = {
   'export.index_lead':
     '> NERV spec tree index. Each entry points at the md mirror of the latest approved version.',
   'export.index_specs': '## Specs',
+  'import.task_not_found': 'Task not found — the plan was not loaded, or its path differs',
   'reviews.action.dismissed': 'Dismiss',
   'reviews.action.fixed': 'Fixed',
   'reviews.action.wont_fix': "Won't fix",
@@ -154,10 +166,34 @@ export const en = {
   'reviews.verdict.uncovered': 'Uncovered',
   'sessions.detail_link': 'Details',
   'sessions.rail.activity': 'Activity',
+  'settings.tab.workspace': 'Organization & projects',
+  'settings.workspace.admin_only': 'Only an admin can change organization and project settings.',
+  'settings.workspace.archive': 'Archive',
+  'settings.workspace.archived': 'Archived',
+  'settings.workspace.key_hint': 'Display-ID prefix (CLV-T-…)',
+  'settings.workspace.no_projects': 'No projects yet.',
+  'settings.workspace.org': 'Organization',
+  'settings.workspace.org_delete': 'Delete organization',
+  'settings.workspace.org_delete_confirm': 'This cannot be undone. Delete it?',
+  'settings.workspace.org_delete_rule':
+    'An organization with projects cannot be deleted — archive its projects first.',
+  'settings.workspace.org_name': 'Organization name',
+  'settings.workspace.org_renamed': 'Organization renamed.',
+  'settings.workspace.project_created': 'Project created.',
+  'settings.workspace.project_key': 'Key',
+  'settings.workspace.project_name': 'Name',
+  'settings.workspace.project_new': '+ New project',
+  'settings.workspace.project_slug': 'Slug',
+  'settings.workspace.projects': 'Projects',
+  'settings.workspace.restore': 'Restore',
+  'settings.workspace.slug_fixed': 'The slug anchors URLs and API paths, so it stays fixed —',
+  'settings.workspace.slug_hint': 'Used in URLs (/p/…)',
   'severity.critical': 'critical',
   'severity.info': 'info',
   'severity.warning': 'warning',
+  'shell.manage_workspace': 'Manage · new organization',
   'shell.nav.project': 'Project',
+  'shell.new_project': 'Manage · new project',
   'shell.no_other_project': 'No other project',
   'shell.no_project': 'No project',
   'spec.byline.approved_by': 'Approved by {name}',

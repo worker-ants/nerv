@@ -150,6 +150,117 @@ export class AuthService {
   }
 
   /**
+   * EP-ORG-03 — 조직 생성. **만든 사람이 그 조직의 admin 이 된다** — 아무도 admin 이
+   * 아닌 조직은 만들자마자 아무도 손댈 수 없는 껍데기다.
+   */
+  async createOrg(input: {
+    userId: string;
+    slug: string;
+    name: string;
+  }): Promise<Record<string, unknown>> {
+    if (input.slug.trim() === '' || input.name.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.missing_fields'), {
+        kind: 'missing_fields',
+      });
+    }
+    const orgId = newId();
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`
+        INSERT INTO organization (id, slug, name) VALUES (${orgId}, ${input.slug}, ${input.name})
+      `);
+      await tx.execute(sql`
+        INSERT INTO membership (id, org_id, project_id, user_id, role)
+        VALUES (${newId()}, ${orgId}, NULL, ${input.userId}, 'admin')
+      `);
+    });
+    return this.org({ userId: input.userId, orgSlug: input.slug });
+  }
+
+  /** EP-ORG-04 — 조직 이름 변경(admin). **slug 는 바꾸지 않는다** — 링크의 축이다(D-09). */
+  async updateOrg(input: {
+    userId: string;
+    orgSlug: string;
+    name: string;
+  }): Promise<Record<string, unknown>> {
+    await this.assertOrgAdmin(input.userId, input.orgSlug);
+    if (input.name.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.missing_fields'), {
+        kind: 'missing_fields',
+      });
+    }
+    await this.db.execute(
+      sql`UPDATE organization SET name = ${input.name} WHERE slug = ${input.orgSlug}`,
+    );
+    return this.org({ userId: input.userId, orgSlug: input.orgSlug });
+  }
+
+  /**
+   * EP-ORG-05 — 조직 삭제. **비어 있을 때만.**
+   *
+   * 프로젝트가 하나라도 남아 있으면 거부한다. 조직 아래에는 스펙·Task·리뷰·이벤트가
+   * 달려 있고, 그것을 지우는 것은 감사 기록(FR-16 append-only)을 지우는 일이다 —
+   * "정리"처럼 보이는 한 번의 클릭으로 일어나서는 안 된다. 프로젝트를 먼저 **보관**한
+   * 뒤 지우게 하면, 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계가 하나 선다.
+   */
+  async deleteOrg(input: { userId: string; orgSlug: string }): Promise<{ deleted: true }> {
+    const orgId = await this.assertOrgAdmin(input.userId, input.orgSlug);
+    const { rows } = await this.db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM project WHERE org_id = ${orgId}`,
+    );
+    if ((rows[0]?.n ?? 0) > 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_empty'), {
+        kind: 'not_empty',
+        projects: rows[0]?.n ?? 0,
+      });
+    }
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`DELETE FROM membership WHERE org_id = ${orgId}`);
+      await tx.execute(sql`DELETE FROM organization WHERE id = ${orgId}`);
+    });
+    return { deleted: true };
+  }
+
+  /**
+   * EP-PRJ-05 — 프로젝트 보관·복구(admin). **지우지 않는다.**
+   *
+   * `archived_at` 이 이 자리에 있는 이유가 그것이다. 프로젝트에는 스펙 141편·Task
+   * 484건·리뷰 1,984건이 달려 있고(clemvion 실측), 그것을 지우는 버튼은 사고를 한 번
+   * 클릭으로 만든다. 보관은 목록에서 빠지되 링크는 살아 있다 — 스펙 아카이브와 같은
+   * 규약이다(EP-SPEC-16·17).
+   */
+  async setProjectArchived(input: {
+    projectId: string;
+    roles: readonly MembershipRole[];
+    archived: boolean;
+  }): Promise<Record<string, unknown>> {
+    this.assertAdmin(input.roles);
+    await this.db.execute(sql`
+      UPDATE project SET archived_at = ${input.archived ? sql`now()` : sql`NULL`}
+       WHERE id = ${input.projectId}
+    `);
+    return this.project(input.projectId);
+  }
+
+  /** 조직 admin 인지 보고 조직 id 를 돌려준다 — 세 곳이 같은 판정을 쓴다. */
+  private async assertOrgAdmin(userId: string, orgSlug: string): Promise<string> {
+    const { rows } = await this.db.execute<{ id: string; roles: string[] }>(sql`
+      SELECT o.id, array_agg(DISTINCT m.role::text) AS roles FROM organization o
+        JOIN membership m ON m.org_id = o.id AND m.user_id = ${userId}
+       WHERE o.slug = ${orgSlug}
+       GROUP BY o.id
+    `);
+    const org = rows[0];
+    if (org === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
+        kind: 'not_found',
+        org: orgSlug,
+      });
+    }
+    this.assertAdmin(org.roles as MembershipRole[]);
+    return org.id;
+  }
+
+  /**
    * EP-PRJ-02 — 프로젝트 생성(admin). 만든 사람을 자동으로 admin 멤버로 넣는다 —
    * 넣지 않으면 만든 즉시 자기가 못 들어가는 프로젝트가 생긴다.
    */
@@ -309,7 +420,11 @@ export class AuthService {
   }
 
   /** EP-PRJ-01 — 조직 멤버가 볼 수 있는 프로젝트. 조직 멤버십은 프로젝트 전체를 덮는다. */
-  async projects(input: { userId: string; orgSlug: string }): Promise<Record<string, unknown>[]> {
+  async projects(input: {
+    userId: string;
+    orgSlug: string;
+    includeArchived?: boolean;
+  }): Promise<Record<string, unknown>[]> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT p.id, p.slug, p.key, p.name, p.description, p.archived_at,
              (SELECT count(*) FROM agent_session se
@@ -320,6 +435,9 @@ export class AuthService {
         FROM project p
         JOIN organization o ON o.id = p.org_id
        WHERE o.slug = ${input.orgSlug}
+         -- 보관한 프로젝트는 **목록에서 빠진다**(스펙 아카이브와 같은 규약).
+         -- 링크는 살아 있으므로 주소를 아는 사람은 그대로 들어갈 수 있다.
+         ${input.includeArchived === true ? sql`` : sql`AND p.archived_at IS NULL`}
          AND EXISTS (
            SELECT 1 FROM membership m
             WHERE m.user_id = ${input.userId} AND m.org_id = o.id

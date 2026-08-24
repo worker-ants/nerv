@@ -26,6 +26,16 @@ export interface PlanTask {
   started: string | null;
   priority: string | null;
   spec_impact: Record<string, unknown> | null;
+  /**
+   * 이 계획이 건드리는 스펙 파일 경로들(frontmatter `spec_impact`·`spec_area`·`spec`).
+   * 임포터가 경로 → 스펙 키로 바꿔 **기준 SpecVersion** 을 잡는다(§2.6e).
+   */
+  spec_paths: string[];
+  /**
+   * 본문이 언급한 요구사항 ref. **하나뿐일 때만** 링크로 쓴다 — 여럿을 언급한 계획은
+   * 그중 무엇을 구현한 것인지 문서가 말하지 않으므로, 고르는 순간 지어내는 것이 된다.
+   */
+  requirement_refs: string[];
   source_spec_key: string | null;
   warnings: string[];
 }
@@ -108,6 +118,16 @@ export function classifyPlan(
       : null;
 
   const specImpact = mapSpecImpact(input.frontmatter['spec_impact'], warnings);
+  // 스펙 경로는 세 자리에 흩어져 있다(실측): `spec_impact` · `spec_area` · `spec`.
+  // 셋을 합쳐 중복을 걷는다 — 어느 이름을 썼는지는 계획마다 다르다.
+  const specPaths = [
+    ...new Set(
+      ['spec_impact', 'spec_area', 'spec']
+        .flatMap((field) => asPathList(input.frontmatter[field]))
+        .filter((path) => path.endsWith('.md')),
+    ),
+  ];
+  const requirementRefs = [...new Set(input.body.match(REQUIREMENT_REF) ?? [])];
 
   return {
     kind: 'task',
@@ -124,6 +144,8 @@ export function classifyPlan(
       started: started ?? options.importedAt,
       priority,
       spec_impact: specImpact,
+      spec_paths: specPaths,
+      requirement_refs: requirementRefs,
       source_spec_key: null,
       warnings,
     },
@@ -172,4 +194,17 @@ export function parseOwnerMap(raw: string): Record<string, string> {
     map[label] = id;
   }
   return map;
+}
+
+/**
+ * 요구사항 ref 모양 — 스펙 쪽 추출기와 **같은 규약**이다(`[A-Z]+-[A-Z]+-\d+`).
+ * 여기서 다른 모양을 쓰면 계획이 가리키는 ref 와 스펙이 발급한 ref 가 갈린다.
+ */
+const REQUIREMENT_REF = /\b[A-Z][A-Z]+-[A-Z][A-Z]+-\d+\b/g;
+
+/** frontmatter 값 하나 → 경로 목록. 문자열 하나든 배열이든 같은 것으로 읽는다. */
+function asPathList(value: unknown): string[] {
+  if (typeof value === 'string') return [value.trim()];
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string').map((v) => v.trim());
 }

@@ -3,7 +3,18 @@
 // 표면은 번역만 한다(REQ-CB-003). 역할 판정은 AuthService 안에 있다 — 화면의 비활성 버튼과
 // 여기의 403 이 **같은 규칙의 두 표현**이어야 하고, 규칙이 두 벌이면 그중 하나는 반드시 틀린다.
 
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
@@ -31,6 +42,36 @@ export class AuthController {
   @Get('orgs/:org')
   org(@Req() req: ProjectRequest, @Param('org') org: string): Promise<unknown> {
     return this.auth.org({ userId: principalOf(req).userId, orgSlug: org });
+  }
+
+  /** EP-ORG-03 — 조직 생성. 만든 사람이 그 조직의 admin 이 된다 */
+  @Post('orgs')
+  createOrg(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+    return this.auth.createOrg({
+      userId: principalOf(req).userId,
+      slug: String(body['slug'] ?? ''),
+      name: String(body['name'] ?? ''),
+    });
+  }
+
+  /** EP-ORG-04 — 이름 변경(admin). slug 는 링크의 축이라 바꾸지 않는다 */
+  @Patch('orgs/:org')
+  updateOrg(
+    @Req() req: ProjectRequest,
+    @Param('org') org: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.auth.updateOrg({
+      userId: principalOf(req).userId,
+      orgSlug: org,
+      name: String(body['name'] ?? ''),
+    });
+  }
+
+  /** EP-ORG-05 — 삭제(admin). **비어 있을 때만** */
+  @Delete('orgs/:org')
+  deleteOrg(@Req() req: ProjectRequest, @Param('org') org: string): Promise<unknown> {
+    return this.auth.deleteOrg({ userId: principalOf(req).userId, orgSlug: org });
   }
 
   /** EP-PRJ-02 — admin. 만든 사람이 자동으로 admin 멤버가 된다 */
@@ -102,8 +143,16 @@ export class AuthController {
 
   /** EP-PRJ-01 */
   @Get('orgs/:org/projects')
-  projects(@Req() req: ProjectRequest, @Param('org') org: string): Promise<unknown> {
-    return this.auth.projects({ userId: principalOf(req).userId, orgSlug: org });
+  projects(
+    @Req() req: ProjectRequest,
+    @Param('org') org: string,
+    @Query('include_archived') includeArchived?: string,
+  ): Promise<unknown> {
+    return this.auth.projects({
+      userId: principalOf(req).userId,
+      orgSlug: org,
+      includeArchived: includeArchived === 'true',
+    });
   }
 
   /** EP-MBR-01 */
@@ -167,6 +216,25 @@ export class ProjectController {
   @Get()
   project(@Req() req: ProjectRequest): Promise<unknown> {
     return this.auth.project(req.nervProjectId ?? '');
+  }
+
+  /** EP-PRJ-05 — 보관·복구(admin). **지우지 않는다** — 스펙 아카이브와 같은 규약이다 */
+  @Post('archive')
+  archive(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.auth.setProjectArchived({
+      projectId: req.nervProjectId ?? '',
+      roles: rolesOf(req),
+      archived: true,
+    });
+  }
+
+  @Post('restore')
+  restore(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.auth.setProjectArchived({
+      projectId: req.nervProjectId ?? '',
+      roles: rolesOf(req),
+      archived: false,
+    });
   }
 
   /** EP-PRJ-04 — 게이트 정책·위험도 임계는 admin 전용 */

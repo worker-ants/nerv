@@ -196,6 +196,15 @@ export function AppShell({
                   {orgs.length === 1 && (
                     <p className="px-3 py-1.5 text-xs text-text-faint">{t('shell.no_other_org')}</p>
                   )}
+                  {/* **고르는 자리에서 만들 수도 있어야 한다.** 설정 어딘가로 찾아가게
+                      하면 "새로 만들기"는 아는 사람만 쓰는 기능이 된다 */}
+                  <Link
+                    to="/settings/workspace"
+                    onClick={() => setMenuOpen(null)}
+                    className="mt-1 block border-t border-border px-3 pt-2 pb-1.5 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
+                  >
+                    {t('shell.manage_workspace')}
+                  </Link>
                 </Popover>
               )}
             </div>
@@ -250,6 +259,14 @@ export function AppShell({
                       {t('shell.no_other_project')}
                     </p>
                   )}
+                  <Link
+                    to="/settings/workspace"
+                    data-testid="project-new-link"
+                    onClick={() => setMenuOpen(null)}
+                    className="mt-1 block border-t border-border px-3 pt-2 pb-1.5 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
+                  >
+                    {t('shell.new_project')}
+                  </Link>
                 </Popover>
               )}
             </div>

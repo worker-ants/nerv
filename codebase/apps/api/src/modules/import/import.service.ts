@@ -149,7 +149,22 @@ export class ImportService {
             sql`SELECT id FROM task WHERE project_id = ${actor.projectId} AND key = ${key}`,
           );
           if (existing[0] !== undefined) {
-            // 멱등 — 이미 있으면 만들지 않는다(성공 기준 0-7)
+            // 멱등 — 이미 있으면 만들지 않는다(성공 기준 0-7).
+            //
+            // **다만 비어 있는 링크는 채운다**(2026-08-24). 임포터가 나중에 새 축을 채우게
+            // 되면(여기서는 `source_spec_key`) 이미 적재된 행은 영영 그 값을 못 받는다 —
+            // 재적재하려면 지우는 수밖에 없고, 그건 임포트를 다시 위험한 작업으로 만든다.
+            // 규칙은 좁다: **NULL 인 자리만 채우고, 값이 있는 자리는 건드리지 않는다.**
+            // 사람이 화면에서 고친 것을 임포트가 되돌리지 않는다는 뜻이다.
+            if (item.source_spec_key != null) {
+              const backfill = await this.currentVersionOf(tx, actor, item.source_spec_key);
+              if (backfill !== null) {
+                await tx.execute(sql`
+                  UPDATE task SET source_spec_version_id = ${backfill}
+                   WHERE id = ${existing[0].id} AND source_spec_version_id IS NULL
+                `);
+              }
+            }
             return {
               source_path: item.source_path,
               status: 'skipped',
@@ -227,6 +242,57 @@ export class ImportService {
           ON CONFLICT DO NOTHING
         `);
         results.push({ source_path: label, status: 'ok' });
+      }
+
+      // ── pending: 요구사항 ↔ Task ────────────────────────────────────────
+      //
+      // **계약에는 있었고 아무도 채우지 않았다**(2026-08-24 정정). 임포터가 늘 빈
+      // 배열을 보냈고 서버는 이 절이 아예 없어서, 커버리지의 "요구사항 → 작업" 축이
+      // 언제나 0 이었다 — 화면은 0/739 라고 정직하게 그렸지만 그 0 은 사실이 아니라
+      // **묻지 않은 것**이었다.
+      //
+      // Task 는 표시 키로 찾는다: 임포트는 `displayKey(projectKey, 'T', source_path)`
+      // 로 키를 만들므로 같은 경로에서 같은 키가 나온다(§5.1 · 재실행 멱등의 축과 같다).
+      const { rows: project } = await tx.execute<{ key: string }>(
+        sql`SELECT key FROM project WHERE id = ${actor.projectId}`,
+      );
+      const projectKey = project[0]?.key ?? '';
+
+      for (const link of input.pending) {
+        const label = `${link.requirement_ref} → ${link.task_source_path}`;
+        const { rows: requirement } = await tx.execute<{ id: string; spec_id: string }>(sql`
+          SELECT r.id, r.spec_id FROM requirement r
+            JOIN spec s ON s.id = r.spec_id
+           WHERE s.project_id = ${actor.projectId} AND r.ref = ${link.requirement_ref}
+             AND r.removed_in_version_id IS NULL
+           LIMIT 1
+        `);
+        const target = requirement[0];
+        if (target === undefined) {
+          // 원본이 저장소 밖 ref 를 가리키는 것은 정상이다 — 오류가 아니라 skipped
+          results.push({
+            source_path: label,
+            status: 'skipped',
+            detail: text('import.requirement_not_found'),
+          });
+          continue;
+        }
+
+        const { rows: updated } = await tx.execute<{ id: string }>(sql`
+          UPDATE task SET source_requirement_id = ${target.id}
+           WHERE project_id = ${actor.projectId}
+             AND key = ${displayKey(projectKey, 'T', link.task_source_path)}
+          RETURNING id
+        `);
+        if (updated[0] === undefined) {
+          results.push({
+            source_path: label,
+            status: 'skipped',
+            detail: text('import.task_not_found'),
+          });
+          continue;
+        }
+        results.push({ source_path: label, status: 'ok', task_id: updated[0].id });
       }
     });
 

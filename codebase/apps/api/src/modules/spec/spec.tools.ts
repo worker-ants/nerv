@@ -170,9 +170,7 @@ export class SpecTools implements NervToolProvider {
             : {}),
           ...(typeof input['key'] === 'string' ? { key: input['key'] } : {}),
           ...(typeof input['title'] === 'string' ? { title: input['title'] } : {}),
-          ...(typeof input['type'] === 'string'
-            ? { type: input['type'] }
-            : {}),
+          ...(typeof input['type'] === 'string' ? { type: input['type'] } : {}),
           ...(typeof input['parent_id'] === 'string' ? { parentId: input['parent_id'] } : {}),
         }),
     },

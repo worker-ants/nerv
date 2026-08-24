@@ -144,6 +144,11 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
   // 완료 시각은 **git 이 안다** — frontmatter 에 완료일이 없다(§2.6d). 계획이
   // `plan/complete/` 에 처음 나타난 커밋이 곧 그것을 끝낸 날이다. 이력 한 번 훑기다.
   const completedAt = addedAtMap(options.root, 'plan/');
+  // 스펙 경로 → 키. plan 패스는 spec 패스와 따로 도는데, 계획의 `spec_impact` 는
+  // **경로**로 적혀 있고 서버가 아는 것은 **키**다. 같은 규칙으로 다시 계산한다 —
+  // 규칙이 갈라지면 링크가 조용히 빗나가므로 spec 패스와 같은 함수를 쓴다(§2.6e).
+  const specKeys = specKeyIndex(options, profile);
+  const pending: { requirement_ref: string; task_source_path: string }[] = [];
 
   for (const file of files) {
     const { frontmatter, body } = parseFrontmatter(file.content);
@@ -176,6 +181,35 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       statusCounts['unassigned'] = (statusCounts['unassigned'] ?? 0) + 1;
     }
 
+    // 기준 스펙 — 계획이 건드린다고 적어 둔 스펙 중 **우리가 아는 첫 번째**.
+    // 여럿이면 첫 번째를 기준으로 삼는다: 하나만 고를 수 있는 자리이고(FK 는 단수),
+    // 원본의 나열 순서가 곧 그 계획의 주된 대상이라는 것이 실측이다.
+    const specKey = task.spec_paths.map((path) => specKeys.get(path)).find((k) => k !== undefined);
+    if (task.spec_paths.length > 0 && specKey === undefined) {
+      entries.push({
+        file: task.source_path,
+        line: null,
+        reason: t()('cli.reason.plan_spec_unresolved', { paths: task.spec_paths.join(', ') }),
+        disposition: 'skipped',
+      });
+    }
+
+    // **하나뿐일 때만 링크한다.** 여럿을 언급한 계획은 그중 무엇을 구현한 것인지
+    // 문서가 말하지 않는다 — 고르는 순간 없는 판정을 지어내는 것이 된다.
+    if (task.requirement_refs.length === 1) {
+      pending.push({
+        requirement_ref: task.requirement_refs[0]!,
+        task_source_path: task.source_path,
+      });
+    } else if (task.requirement_refs.length > 1) {
+      entries.push({
+        file: task.source_path,
+        line: null,
+        reason: t()('cli.reason.plan_many_refs', { count: task.requirement_refs.length }),
+        disposition: 'manual',
+      });
+    }
+
     const doneAt = task.status === 'done' ? (completedAt.get(task.source_path) ?? null) : null;
     if (task.status === 'done' && doneAt === null) {
       // 되찾지 못하면 서버가 적재 시각으로 채운다 — 조용히 넘기지 않고 리포트에 올린다
@@ -193,6 +227,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       status: task.status,
       assignee_user_id: task.assignee_user_id,
       depends_on: [],
+      ...(specKey === undefined ? {} : { source_spec_key: specKey }),
       ...(doneAt === null ? {} : { done_at: doneAt }),
     });
   }
@@ -225,6 +260,28 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
     for (const chunk of chunked(loadable, options.batchSize)) {
       applied.push(...(await client.tasks({ profile: profile.profile, items: chunk })).items);
     }
+
+    // 요구사항 ↔ Task 링크는 **Task 가 다 들어온 뒤에** 보낸다 — 양끝이 있어야 해소된다.
+    // 이 호출이 없어 계약의 `pending` 이 늘 빈 배열이었고, 그래서 커버리지의
+    // "요구사항 → 작업" 축이 언제나 0 이었다(실측 2026-08-24).
+    for (const chunk of chunked(pending, options.batchSize)) {
+      const linked = await client.links({
+        profile: profile.profile,
+        relations: [],
+        pending: chunk,
+      });
+      for (const item of linked.items) {
+        if (item.status !== 'ok') {
+          entries.push({
+            file: item.source_path,
+            line: null,
+            reason: item.detail ?? t()('cli.reason.load_failed'),
+            disposition: 'skipped',
+          });
+        }
+      }
+    }
+
     for (const item of applied) {
       if (item.status === 'error') {
         entries.push({
@@ -238,6 +295,31 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
   }
 
   return report;
+}
+
+/**
+ * 스펙 파일 경로 → 스펙 키. **spec 패스와 같은 규칙**이다(frontmatter `id` 우선, 없으면
+ * 스캔 뿌리 기준 상대 경로에서 만든다) — 규칙이 갈라지면 plan 이 가리키는 키와 spec 이
+ * 발급한 키가 어긋나 링크가 조용히 빗나간다(§2.6e).
+ */
+function specKeyIndex(options: CliOptions, profile: ImportProfile): Map<string, string> {
+  const out = new Map<string, string>();
+  if (profile.scan.spec.length === 0) return out;
+  for (const file of scan(options.root, profile.scan.spec, profile.scan.exclude)) {
+    const { frontmatter } = parseFrontmatter(file.content);
+    // **`id` 를 읽는다.** 프로파일의 `frontmatter.id: 'spec.key'` 는 "원본의 id 가 우리
+    // spec.key 가 된다"는 **매핑 방향**이지 원본 필드 이름이 아니다 — 그것을 필드
+    // 이름으로 읽어 `key` 를 찾았더니 365건 중 31건만 맞았다(실측 2026-08-24).
+    // spec 패스가 읽는 자리와 같아야 한다(`convert()`).
+    const declared = frontmatter['id'];
+    out.set(
+      file.path,
+      typeof declared === 'string' && declared !== ''
+        ? declared
+        : keyFromPath(relativeToScanRoot(file.path, profile)),
+    );
+  }
+  return out;
 }
 
 /**

@@ -243,7 +243,10 @@ describe('Task 표면 (EP-TASK-01·03·04·05·09)', () => {
     );
 
     const closed = await call('GET', '/api/v1/projects/clemvion/tasks?status=done');
-    const open = await call('GET', '/api/v1/projects/clemvion/tasks?status=done&include_archived=true');
+    const open = await call(
+      'GET',
+      '/api/v1/projects/clemvion/tasks?status=done&include_archived=true',
+    );
     const keys = (r: typeof closed): unknown[] =>
       (r.body as { items: Record<string, unknown>[] }).items.map((x) => x['key']);
     expect(keys(closed)).not.toContain(key);

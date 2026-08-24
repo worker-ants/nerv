@@ -431,6 +431,79 @@ describe('EP-IMP-06 reviews — 리뷰를 파일에서 레코드로 (FR-09)', ()
   });
 });
 
+describe('EP-IMP-04 pending — 요구사항 ↔ Task (2026-08-24 신설)', () => {
+  it('계약에는 있었고 아무도 채우지 않았다 — 이제 링크가 걸린다', async () => {
+    // 커버리지의 "요구사항 → 작업" 축이 언제나 0 이었던 이유다. 화면은 0 이라고
+    // 정직하게 그렸지만 그 0 은 사실이 아니라 **묻지 않은 것**이었다.
+    await post('specs', { profile: 'clemvion', kind: 'structure', items: [docItem('LNK')] });
+    await post('specs', { profile: 'clemvion', kind: 'document', items: [docItem('LNK')] });
+    await post('tasks', {
+      profile: 'clemvion',
+      items: [{ source_path: 'plan/complete/linked.md', title: '연결될 작업', status: 'done' }],
+    });
+
+    const res = await post('links', {
+      profile: 'clemvion',
+      relations: [],
+      pending: [{ requirement_ref: 'REQ-LNK', task_source_path: 'plan/complete/linked.md' }],
+    });
+    expect(res.json).toMatchObject({ applied: 1 });
+
+    const { rows } = await pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM task t JOIN requirement r ON r.id = t.source_requirement_id
+        WHERE t.title = '연결될 작업' AND r.ref = 'REQ-LNK'`,
+    );
+    expect(rows[0]?.n).toBe('1');
+  });
+
+  it('대상이 없으면 오류가 아니라 skipped 다 — 저장소 밖을 가리키는 것은 정상이다', async () => {
+    const res = await post('links', {
+      profile: 'clemvion',
+      relations: [],
+      pending: [
+        { requirement_ref: 'REQ-NOPE-999', task_source_path: 'plan/complete/linked.md' },
+        { requirement_ref: 'REQ-LNK', task_source_path: 'plan/complete/없는계획.md' },
+      ],
+    });
+    expect(res.json).toMatchObject({ applied: 0, errors: 0, skipped: 2 });
+  });
+
+  it('이미 적재된 Task 의 **빈** 링크는 재실행이 채운다 — 값이 있는 자리는 건드리지 않는다', async () => {
+    // 새 축이 생겼을 때 이미 들어간 행이 영영 그것을 못 받으면, 채우는 유일한 길이
+    // "지우고 다시 넣기"가 된다 — 그건 임포트를 다시 위험한 작업으로 만든다.
+    await post('tasks', {
+      profile: 'clemvion',
+      items: [
+        {
+          source_path: 'plan/complete/backfill.md',
+          title: '기준 없이 들어온 작업',
+          status: 'done',
+        },
+      ],
+    });
+    const before = await pool.query<{ v: string | null }>(
+      `SELECT source_spec_version_id AS v FROM task WHERE title = '기준 없이 들어온 작업'`,
+    );
+    expect(before.rows[0]?.v).toBeNull();
+
+    await post('tasks', {
+      profile: 'clemvion',
+      items: [
+        {
+          source_path: 'plan/complete/backfill.md',
+          title: '기준 없이 들어온 작업',
+          status: 'done',
+          source_spec_key: 'LNK',
+        },
+      ],
+    });
+    const after = await pool.query<{ v: string | null }>(
+      `SELECT source_spec_version_id AS v FROM task WHERE title = '기준 없이 들어온 작업'`,
+    );
+    expect(after.rows[0]?.v).not.toBeNull();
+  });
+});
+
 describe('EP-IMP-04 links · EP-IMP-05 map', () => {
   it('해소 실패는 오류가 아니라 skipped 다', async () => {
     const res = await post('links', {

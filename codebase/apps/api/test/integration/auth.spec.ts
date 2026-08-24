@@ -214,6 +214,102 @@ describe('스코프·프로젝트 경계', () => {
   });
 });
 
+describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 신설)', () => {
+  it('조직을 만들면 만든 사람이 그 조직의 admin 이 된다', async () => {
+    await auth.createOrg({ userId, slug: 'acme', name: 'Acme' });
+    const { rows } = await pool.query<{ role: string }>(
+      `SELECT m.role::text AS role FROM membership m JOIN organization o ON o.id = m.org_id
+        WHERE o.slug = 'acme'`,
+    );
+    // 아무도 admin 이 아닌 조직은 만들자마자 아무도 손댈 수 없는 껍데기다
+    expect(rows.map((r) => r.role)).toEqual(['admin']);
+  });
+
+  it('이름은 바꾸고 slug 는 지킨다 — slug 는 링크의 축이다(D-09)', async () => {
+    await auth.createOrg({ userId, slug: 'rename-me', name: '옛 이름' });
+    const updated = await auth.updateOrg({ userId, orgSlug: 'rename-me', name: '새 이름' });
+    expect(updated).toMatchObject({ slug: 'rename-me', name: '새 이름' });
+  });
+
+  it('admin 이 아니면 고칠 수 없다', async () => {
+    await auth.createOrg({ userId, slug: 'guarded', name: '보호' });
+    const outsider = newId();
+    await pool.query(
+      // 이메일은 unique 다 — 스위트가 DB 를 공유하므로 id 로 유일하게 만든다
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'밖','active')`,
+      [outsider, `out-${outsider}@example.com`],
+    );
+    await expect(
+      auth.updateOrg({ userId: outsider, orgSlug: 'guarded', name: '탈취' }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+
+  it('프로젝트가 남아 있는 조직은 지울 수 없다 — 되돌릴 수 없는 일 앞의 단계다', async () => {
+    await auth.createOrg({ userId, slug: 'busy', name: 'Busy' });
+    const project = await auth.createProject({
+      userId,
+      orgSlug: 'busy',
+      slug: 'busy-one',
+      key: 'BSY',
+      name: '프로젝트 하나',
+    });
+
+    await expect(auth.deleteOrg({ userId, orgSlug: 'busy' })).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+    });
+
+    // **보관은 삭제가 아니다** — 보관해도 프로젝트는 남으므로 조직은 여전히 못 지운다
+    await auth.setProjectArchived({
+      projectId: String(project['id']),
+      roles: ['admin'],
+      archived: true,
+    });
+    await expect(auth.deleteOrg({ userId, orgSlug: 'busy' })).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+    });
+  });
+
+  it('빈 조직은 지워진다', async () => {
+    await auth.createOrg({ userId, slug: 'empty', name: '빈 조직' });
+    await expect(auth.deleteOrg({ userId, orgSlug: 'empty' })).resolves.toEqual({ deleted: true });
+    const { rows } = await pool.query(`SELECT 1 FROM organization WHERE slug = 'empty'`);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('프로젝트는 보관한다 — 목록에서 빠지되 링크는 살아 있다', async () => {
+    await auth.createOrg({ userId, slug: 'arch', name: 'Arch' });
+    const project = await auth.createProject({
+      userId,
+      orgSlug: 'arch',
+      slug: 'to-archive',
+      key: 'ARC',
+      name: '보관할 프로젝트',
+    });
+    const projectId = String(project['id']);
+
+    const listed = async (includeArchived: boolean): Promise<string[]> =>
+      (await auth.projects({ userId, orgSlug: 'arch', includeArchived })).map((p) =>
+        String(p['slug']),
+      );
+
+    expect(await listed(false)).toContain('to-archive');
+    await auth.setProjectArchived({ projectId, roles: ['admin'], archived: true });
+    expect(await listed(false)).not.toContain('to-archive');
+    expect(await listed(true)).toContain('to-archive');
+    // 주소를 아는 사람은 그대로 들어간다 — 보관은 숨김이지 삭제가 아니다
+    expect(await auth.project(projectId)).toMatchObject({ slug: 'to-archive' });
+
+    await auth.setProjectArchived({ projectId, roles: ['admin'], archived: false });
+    expect(await listed(false)).toContain('to-archive');
+  });
+
+  it('admin 이 아니면 보관할 수 없다', async () => {
+    await expect(
+      auth.setProjectArchived({ projectId, roles: ['developer'], archived: true }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
+  });
+});
+
 async function seed(): Promise<void> {
   const orgId = newId();
   projectId = newId();

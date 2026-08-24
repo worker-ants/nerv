@@ -123,3 +123,21 @@ export function landingFor(roles: readonly string[], projectSlug: string | null)
 export function primaryMembership(me: Me): Membership | null {
   return me.memberships.find((m) => m.project_slug !== null) ?? me.memberships[0] ?? null;
 }
+
+/**
+ * 한 조직에서 내가 가진 역할 **전부**.
+ *
+ * `primaryMembership` 은 프로젝트 스코프 멤버십을 먼저 고르는데, 조직 단위 권한을 그걸로
+ * 판정하면 **조직 admin 인데 프로젝트에서는 planner 인 사람이 admin 이 아니게 된다**
+ * (실측 2026-08-24 — 조직 설정 화면이 그렇게 잠겼다). 겸직은 합집합이라는 규칙(0003)이
+ * 여기에도 그대로 적용된다: 조직 안의 모든 멤버십을 합쳐 본다.
+ */
+export function rolesInOrg(me: Me | undefined, orgSlug: string | null): string[] {
+  if (me === undefined || orgSlug === null) return [];
+  const out = new Set<string>();
+  for (const m of me.memberships) {
+    if (m.org_slug !== orgSlug) continue;
+    for (const role of m.roles) out.add(role);
+  }
+  return [...out];
+}

@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.14 · 2026-08-24 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.15 · 2026-08-24 · HTML 판: [api.html](../html/api.html)
+>
+> v0.15 변경(2026-08-24 — 조직·프로젝트 관리 표면, 사람 지시): **EP-ORG-03~05 · EP-PRJ-05 신설**(§2.1). 조직은 만들고 이름을 바꾸고 **비어 있을 때만** 지운다 — 프로젝트가 남아 있으면 409 다. 프로젝트는 **지우지 않고 보관한다**(`archived_at`) — 그 아래 스펙·Task·리뷰가 달려 있고 지우는 것은 감사 기록(FR-16)을 지우는 일이다. 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계를 하나 세운 것이다. 곁가지로 **EP-IMP-04 의 `pending` 을 실제로 구현했다** — 계약에는 있었고 아무도 채우지 않아 커버리지의 "요구사항 → 작업" 축이 언제나 0 이었다.
 >
 > v0.14 변경(2026-08-24 — 리뷰 소급 적재): **EP-IMP-06 신설**(§2.10) — 임포터가 파싱한 리뷰 세션 배치. 판정은 도구 경로와 같은 `ReviewService` 한 곳에 있고(D-05), **임포트는 이벤트를 내지 않는다**(과거 리뷰 수만 건이 알림이 되면 사람이 알림을 끈다). 곁가지로 EP-REV-03·04 에 상한을 넣었다 — clemvion 실측 18,650 발견·441 브랜치를 한 응답에 담으면 화면이 3만 픽셀이 된다.
 >
@@ -194,9 +196,13 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | EP-ORG-01 | `GET /api/v1/orgs` | 로그인 사용자 | — | `Page<OrgSummary>` | — |
 | EP-ORG-02 | `GET /api/v1/orgs/{org}` | 조직 멤버 | — | `OrgResult` | — |
 | EP-PRJ-01 | `GET /api/v1/orgs/{org}/projects` | 조직 멤버 | — | `Page<ProjectSummary>` | — |
+| EP-ORG-03 | `POST /api/v1/orgs` | 로그인 사용자 | `OrgCreateInput`(slug, name) | `OrgResult` — 만든 사람이 그 조직의 **admin** 이 된다 | — |
+| EP-ORG-04 | `PATCH /api/v1/orgs/{org}` | admin | `OrgUpdateInput`(name) | `OrgResult` — **slug 는 바꾸지 않는다**(링크의 축 · D-09) | — |
+| EP-ORG-05 | `DELETE /api/v1/orgs/{org}` | admin | — | `{deleted:true}` — **프로젝트가 하나라도 있으면 409**. 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계(프로젝트 보관)를 세운다 | — |
 | EP-PRJ-02 | `POST /api/v1/orgs/{org}/projects` | admin | `ProjectCreateInput` | `ProjectResult` | ★`project.created` |
 | EP-PRJ-03 | `GET /api/v1/projects/{proj}` | 프로젝트 멤버 | — | `ProjectResult`(게이트 정책 `gate_policy`·보존 `retention`·활성 세션/승인 대기 카운트 포함) | — |
 | EP-PRJ-04 | `PATCH /api/v1/projects/{proj}` | admin (게이트 정책·위험도 임계는 admin 전용 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6 매트릭스) | `ProjectUpdateInput` | `ProjectResult` | ★`project.updated` |
+| EP-PRJ-05 | `POST /api/v1/projects/{proj}/archive` · `/restore` | admin | — | `ProjectResult` — **지우지 않고 보관한다**(`archived_at`). 목록에서 빠지되 주소는 살아 있다(EP-SPEC-16·17 과 같은 규약). EP-PRJ-01 은 `include_archived=true` 로만 보관분을 준다 |  — |
 | EP-MBR-01 | `GET /api/v1/orgs/{org}/members` | 조직 멤버 | — | `Page<MemberResult>` | — |
 | EP-MBR-02 | `POST /api/v1/orgs/{org}/members` | admin | `MemberAddInput`(user + org/project 스코프 + `role`) | `MemberResult` | ★`member.added` |
 | EP-MBR-03 | `PATCH /api/v1/memberships/{id}` | admin | `MemberUpdateInput`(role 변경) | `MemberResult` | ★`member.updated` |

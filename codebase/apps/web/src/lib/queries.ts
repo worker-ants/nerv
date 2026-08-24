@@ -45,6 +45,11 @@ export function useProject(slug: string): UseQueryResult<Row> {
   return useQuery({
     queryKey: queryKeys.project(slug),
     queryFn: () => apiFetch<Row>(`/projects/${slug}`),
+    // **프로젝트가 없으면 묻지 않는다.** 셸은 전역 화면(홈·승인함·설정)에서도 이 훅을
+    // 부르는데 그때 slug 가 빈 문자열이라 `/projects/` 로 나갔고, 서버는 그것을
+    // `:proj = ''` 로 받아 uuid 캐스트에서 터졌다 — **화면마다 조용한 500 두 개**가
+    // 깔려 있었다(실측 2026-08-24. 원인 사슬을 로그에 펴 놓은 덕에 바로 보였다).
+    enabled: slug !== '',
   });
 }
 

@@ -1,4 +1,4 @@
-// /settings — S8 설정 셸(탭 내비게이션). MVP 탭 3종: 멤버·토큰·게이트 정책.
+// /settings — S8 설정 셸(탭 내비게이션). 탭 4종: 조직·프로젝트 · 멤버 · 토큰 · 게이트 정책.
 // git 연동 탭·리뷰 게이트 정책은 Phase 2 다(scope.md §4.1).
 //
 // **어느 탭에 있는지 화면이 말해야 한다.** 링크 세 개를 나란히 두고 활성 표시가 없으면
@@ -29,6 +29,10 @@ function SettingsShell(): React.JSX.Element {
         {t('settings.title')}
       </p>
       <nav className="mb-5 flex gap-4 border-b border-border">
+        {/* 조직·프로젝트가 먼저다 — 멤버·토큰·게이트는 그 안에서 정하는 것들이다 */}
+        <Link to="/settings/workspace" className={TAB}>
+          {t('settings.tab.workspace')}
+        </Link>
         <Link to="/settings/members" className={TAB}>
           {t('settings.tab.members')}
         </Link>

@@ -121,10 +121,9 @@ describe('SessionStart — 등록 + 컨텍스트 주입', () => {
 
     // 키 **형식**이 아니라 그 Task 의 실제 키가 들어 있는지 본다 — 형식이 바뀌어도
     // 이 테스트가 지키려는 것("어느 작업을 쥐고 있는지 말해 준다")은 그대로다.
-    const { rows: task } = await pool.query<{ key: string }>(
-      `SELECT key FROM task WHERE id = $1`,
-      [taskId],
-    );
+    const { rows: task } = await pool.query<{ key: string }>(`SELECT key FROM task WHERE id = $1`, [
+      taskId,
+    ]);
     const again = await hook('session', { session_id: EXTERNAL_SESSION }, { host: 'mac-07' });
     expect(again.body['additionalContext']).toContain(task[0]!.key);
     expect(again.body['additionalContext']).toContain('새로 클레임하지 말고');
