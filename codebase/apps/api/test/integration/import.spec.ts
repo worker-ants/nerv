@@ -264,6 +264,113 @@ describe('EP-IMP-03 tasks — ready 는 받지 않는다 (REQ-IMP-009)', () => {
   });
 });
 
+describe('EP-IMP-06 reviews — 리뷰를 파일에서 레코드로 (FR-09)', () => {
+  const session = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    source_path: 'review/code/2026/06/21/21_26_26',
+    kind: 'code',
+    branch: 'feat/memory',
+    base_sha: 'aaa111',
+    head_sha: 'bbb222',
+    changeset: ['src/a.ts', 'src/b.ts'],
+    reviewed_at: '2026-06-21T21:26:26.000Z',
+    block: false,
+    reports: [
+      { role: 'security', risk: 'low', body_md: '캐스팅 검증 부재' },
+      { role: 'testing', risk: 'high', body_md: '전용 테스트 없음' },
+    ],
+    findings: [
+      {
+        severity: 'warning',
+        category: 'architecture',
+        title: '인터페이스 부재',
+        file: 'src/a.ts',
+        line: 139,
+        tags: [],
+      },
+      {
+        severity: 'info',
+        category: 'testing',
+        title: '폴백 경로 미테스트',
+        file: 'src/a.ts',
+        line: 75,
+        tags: ['spec_drift'],
+      },
+    ],
+    ...over,
+  });
+
+  it('한 세션에 리뷰어가 여럿이다 — 도구 경로의 "리뷰어 하나" 로는 담기지 않는다', async () => {
+    const res = await post('reviews', { profile: 'clemvion', items: [session()] });
+    expect(res.json).toMatchObject({ applied: 1, errors: 0 });
+
+    const { rows: reports } = await pool.query<{ role: string; risk: string }>(
+      `SELECT role, risk::text AS risk FROM reviewer_report ORDER BY role`,
+    );
+    expect(reports.map((r) => r.role)).toEqual(['security', 'testing']);
+    // 세션 위험도는 가장 높은 리포트를 따른다 — low 가 high 를 지우지 않는다
+    const { rows: sessions } = await pool.query<{ risk: string; file_count: number }>(
+      `SELECT risk::text AS risk, file_count FROM review_session`,
+    );
+    expect(sessions[0]).toMatchObject({ risk: 'high', file_count: 2 });
+  });
+
+  it('원본이 돌던 시각을 남긴다 — 임포트 시각으로 뭉치면 이력이 사라진다', async () => {
+    await post('reviews', { profile: 'clemvion', items: [session()] });
+    const { rows } = await pool.query<{ completed_at: Date }>(
+      `SELECT completed_at FROM review_session`,
+    );
+    expect(rows[0]?.completed_at.toISOString()).toBe('2026-06-21T21:26:26.000Z');
+    const { rows: findings } = await pool.query<{ created_at: Date }>(
+      `SELECT created_at FROM finding LIMIT 1`,
+    );
+    expect(findings[0]?.created_at.toISOString()).toBe('2026-06-21T21:26:26.000Z');
+  });
+
+  it('재실행이 세션도 발견도 늘리지 않는다 — changeset 해시가 멱등을 만든다', async () => {
+    await post('reviews', { profile: 'clemvion', items: [session()] });
+    await post('reviews', { profile: 'clemvion', items: [session()] });
+
+    const count = async (table: string): Promise<number> => {
+      const { rows } = await pool.query<{ n: string }>(`SELECT count(*)::text AS n FROM ${table}`);
+      return Number(rows[0]?.n ?? 0);
+    };
+    expect(await count('review_session')).toBe(1);
+    expect(await count('reviewer_report')).toBe(2);
+    expect(await count('finding')).toBe(2);
+    // 같은 세션의 같은 발견은 출현도 하나다(finding_occurrence_uq)
+    expect(await count('finding_occurrence')).toBe(2);
+  });
+
+  it('태그를 그대로 싣는다 — spec_drift 는 필터의 축이다', async () => {
+    await post('reviews', { profile: 'clemvion', items: [session()] });
+    const { rows } = await pool.query<{ tags: string[] }>(
+      `SELECT tags FROM finding WHERE title = '폴백 경로 미테스트'`,
+    );
+    expect(rows[0]?.tags).toEqual(['spec_drift']);
+  });
+
+  it('입력 스냅샷이 없으면 그 항목만 실패한다 — 배치는 되돌리지 않는다(REQ-API-018)', async () => {
+    const res = await post('reviews', {
+      profile: 'clemvion',
+      items: [
+        session({ source_path: 'review/ok', head_sha: 'ccc333' }),
+        session({ source_path: 'review/bad', head_sha: '  ', base_sha: '  ' }),
+      ],
+    });
+    expect(res.json).toMatchObject({ applied: 1, errors: 1 });
+    const items = res.json['items'] as { source_path: string; status: string }[];
+    expect(items.find((i) => i.source_path === 'review/bad')?.status).toBe('error');
+  });
+
+  it('임포트는 이벤트를 내지 않는다 — 과거 리뷰 3만 건이 알림이 되면 알림을 끈다', async () => {
+    await post('reviews', { profile: 'clemvion', items: [session()] });
+    const { rows } = await pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM event WHERE type LIKE 'finding.%'`,
+    );
+    expect(rows[0]?.n).toBe('0');
+  });
+});
+
 describe('EP-IMP-04 links · EP-IMP-05 map', () => {
   it('해소 실패는 오류가 아니라 skipped 다', async () => {
     const res = await post('links', {

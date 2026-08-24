@@ -11,6 +11,11 @@
 
 export const ko = {
   // ── 에러 — api.md §1.4 봉투의 message ────────────────────────────────────────
+  'cli.reason.review_no_snapshot':
+    '리뷰가 커밋되지 않아 입력 스냅샷(head_sha)을 되찾지 못했다 — 건너뜀',
+  'cli.reason.review_tableless':
+    'SUMMARY 가 표 형식이 아니라 발견을 추출하지 못했다 — 세션만 적재, 원문 확인 필요',
+  'cli.reason.review_total': 'review_total 불일치 — 기대 {expected} · 실제 {actual}',
   'error.approval.already_decided': '이미 결정된 항목입니다.',
   'error.approval.content_changed': '카드를 연 뒤 내용이 바뀌었습니다.',
   'error.approval.not_found': '승인 항목을 찾을 수 없습니다.',
@@ -103,6 +108,7 @@ export const ko = {
   'reviews.gate.note': '판정을 표시할 뿐 아직 막지는 않는다 — 집행은 FR-10 의 몫이다.',
   'reviews.gate.resolved': '해소',
   'reviews.gate.review': '커버 리뷰',
+  'reviews.gate.shown': '브랜치 {total}개 중 최근 {shown}개',
   'reviews.gate.title': '게이트 현황',
   'reviews.gate.verdict': '판정',
   'reviews.lead': '리뷰어가 남긴 발견을 위험한 순서로 본다 — 원시 diff 가 아니라 정리된 결론이다.',
@@ -116,6 +122,8 @@ export const ko = {
   'reviews.queue.empty_hint':
     '리뷰는 nerv_review_submit 으로 들어옵니다 — 저장소에 파일로 커밋하지 않습니다.',
   'reviews.queue.error': '발견을 불러오지 못했습니다.',
+  'reviews.queue.more': '더 보기 — 나머지는 필터로 좁히는 편이 빠릅니다',
+  'reviews.queue.shown': '{total}건 중 {shown}건',
   'reviews.queue.title': '발견 큐',
   'reviews.resolve.cancel': '취소',
   'reviews.resolve.commit': '수정 커밋(commit_sha)',
@@ -744,7 +752,7 @@ export const ko = {
   'cli.report.source': '- 원본: `{root}`',
   'cli.report.title': '# 임포트 리포트 — {profile}',
   'cli.usage':
-    '사용법: nerv import <spec|plan|docs|rebuild-map> --root <경로> --project <slug> [--apply]',
+    '사용법: nerv import <spec|plan|review|docs|rebuild-map> --root <경로> --project <slug> [--apply]',
 } as const;
 
 export type MessageKey = keyof typeof ko;

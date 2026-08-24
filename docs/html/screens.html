@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.16 (2026-08-23)</span>
+      <span>버전 v0.17 (2026-08-24)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -862,6 +862,7 @@ export const TaskCreateInput = z.object({
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>finding.opened</code> · <code>finding.resolved</code> → 큐와 facet 재조회. 두 이름은 MVP 무효화 표(§1.4)에 없던 것이라 구현의 <code>NO_SCREEN_YET</code> 예외 목록에서 빠지고 매핑을 갖는다 — 화면이 생겼으니 더는 "의도한 공백"이 아니다.</li>
     <li><b>컴포넌트</b>: <code>FindingQueue</code> · <code>FindingCard</code>(severity 룰 + provenance 3줄 + 액션) · <code>FindingFilters</code>(facet 건수) · <code>ResolveDialog</code>(사유 필수 · <code>fixed</code>는 커밋 SHA) · <code>GateCoverageTable</code>.</li>
     <li><b>빈 상태</b>: 열린 발견 0 — "열린 발견이 없습니다" + <code>nerv_review_submit</code> 안내(막다른 길 금지 — §1.5).</li>
+    <li><b>규모</b>(2026-08-24 — clemvion 소급 적재 실측): 발견 <b>18,650건</b> · 브랜치 <b>441개</b>. 전량을 한 응답에 담아 그리면 화면이 <b>30,396px</b>가 된다(실측). 큐는 50건(최대 200)·게이트 표는 최근 20개 브랜치까지만 그리고, <b>잘린 사실을 숫자로 말한다</b>(REQ-WEB-067). 답은 무한 스크롤이 아니라 필터다 — "무엇이 위험한지 고른다"가 이 화면의 전제이기 때문이다.</li>
   </ul>
 
   <p><b>와이어프레임과 다른 세 곳</b>, 그리고 그 이유.</p>
@@ -881,6 +882,7 @@ export const TaskCreateInput = z.object({
       <tr><td><b>REQ-WEB-064</b></td><td>WHEN 사용자가 발견을 처분하면 THE SYSTEM SHALL 근거를 필수로 받고, <code>fixed</code> 처분에는 커밋 SHA를 함께 요구한다</td></tr>
       <tr><td><b>REQ-WEB-065</b></td><td>WHEN 게이트 현황을 표시하면 THE SYSTEM SHALL 브랜치마다 커버 리뷰·해소 비율·판정을 적고, 면제가 있으면 <b>면제한 사람·시각·사유</b>를 같은 줄에 펼친다(FR-10 · FR-16 — 면제가 조용히 일어나지 않는 것 자체가 기능이다)</td></tr>
       <tr><td><b>REQ-WEB-066</b></td><td>WHILE 리뷰 센터가 열려 있으면 THE SYSTEM SHALL <code>finding.opened</code>·<code>finding.resolved</code>를 받아 큐와 facet을 다시 읽는다</td></tr>
+      <tr><td><b>REQ-WEB-067</b></td><td>WHEN 발견 큐나 게이트 표가 상한에 걸려 잘리면 THE SYSTEM SHALL <b>전체 건수와 표시 건수를 함께</b> 적는다 — 잘라 놓고 말하지 않으면 화면이 "이게 전부"라고 거짓말한다</td></tr>
     </tbody>
   </table></div>
 

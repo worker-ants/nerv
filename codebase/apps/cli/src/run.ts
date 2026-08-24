@@ -15,11 +15,16 @@ import { basename, dirname } from 'node:path';
 import type {
   ImportBatchResult,
   ImportProfile,
+  ImportReviewItem,
   ImportSpecItem,
   ImportTaskItem,
 } from '@nerv/schema';
 import { ImportClient } from './client/index.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { classifyPlan } from './parse/plan.js';
+import { branchFromRetryState, parseReviewSummary } from './parse/review.js';
+import { snapshotMap, snapshotOf } from './parse/git.js';
 import { parseFrontmatter, splitStatus } from './parse/frontmatter.js';
 import { extractRequirements } from './parse/requirements.js';
 import { scan } from './parse/scan.js';
@@ -36,6 +41,7 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
 
   // plan 패스는 스펙과 다른 트리를 읽고 다른 표면에 쓴다(EP-IMP-03) — 여기서 갈린다.
   if (options.command === 'plan') return runPlanImport(options, profile);
+  if (options.command === 'review') return runReviewImport(options, profile);
 
   const files = scan(options.root, profile.scan.spec, profile.scan.exclude);
   const entries: ReportEntry[] = [];
@@ -218,6 +224,200 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
   }
 
   return report;
+}
+
+/**
+ * review 패스 — **리뷰를 파일에서 레코드로**(FR-09 · importer.md §2.7).
+ *
+ * 원본 한 세션 = `review/<kind>/YYYY/MM/DD/HH_MM_SS/` 디렉터리이고, 그 안에서 우리가
+ * 읽는 것은 `SUMMARY.md`(결론) · `meta.json`(대상 파일) · `_retry_state.json`(브랜치)
+ * 셋뿐이다. 역할별 md 13,777개는 **읽지 않는다** — 옮기면 clemvion 의 131MB 를 DB 안에서
+ * 재현하는 것이 된다(D-01·D-07).
+ *
+ * `head_sha`·`base_sha` 는 원본에 없어서 git 이력에서 되찾는다(§2.7). 되찾지 못한 세션은
+ * **건너뛴다**: 무엇을 봤는지 답할 수 없는 리뷰는 게이트의 근거가 되지 못한다.
+ */
+async function runReviewImport(options: CliOptions, profile: ImportProfile): Promise<ImportReport> {
+  const patterns = profile.scan.review ?? [];
+  const files = patterns.length === 0 ? [] : scan(options.root, patterns, profile.scan.exclude);
+  const entries: ReportEntry[] = [];
+  const items: ImportReviewItem[] = [];
+  const snapshots = snapshotMap(options.root, 'review/');
+  let findingCount = 0;
+
+  for (const file of files) {
+    const sessionDir = dirname(file.path);
+    const snapshot = snapshotOf(snapshots, sessionDir);
+    if (snapshot === null) {
+      // 커밋되지 않은 리뷰다(작업 트리에만 있는 것). 스냅샷이 없으면 받을 수 없다.
+      entries.push({
+        file: file.path,
+        line: null,
+        reason: t()('cli.reason.review_no_snapshot'),
+        disposition: 'skipped',
+      });
+      continue;
+    }
+
+    const parsed = parseReviewSummary(file.content);
+    const meta = readJson(join(options.root, sessionDir, 'meta.json'));
+    const retry = readText(join(options.root, sessionDir, '_retry_state.json'));
+    const branch = retry === null ? 'main' : branchFromRetryState(retry, 'main');
+
+    if (parsed.tableless) {
+      // 산문 형식 SUMMARY(원본 271/1,984 — sub-agent 실패 등). 세션은 남기되 사람이 본다.
+      entries.push({
+        file: file.path,
+        line: null,
+        reason: t()('cli.reason.review_tableless'),
+        disposition: 'manual',
+      });
+    }
+
+    findingCount += parsed.findings.length;
+    items.push({
+      source_path: sessionDir,
+      kind: reviewKindOf(sessionDir),
+      branch,
+      base_sha: snapshot.base_sha === '' ? snapshot.head_sha : snapshot.base_sha,
+      head_sha: snapshot.head_sha,
+      changeset: changesetOf(meta),
+      ...(timestampOf(meta) === null ? {} : { reviewed_at: timestampOf(meta)! }),
+      block: parsed.block,
+      reports: reportsOf(parsed, meta),
+      findings: parsed.findings,
+    });
+  }
+
+  const report: ImportReport = {
+    profile: profile.profile,
+    root: options.root,
+    rootCommit: null,
+    scanned: files.length,
+    converted: items.length,
+    entries,
+    expectation: checkReviewExpectations(profile, files.length, findingCount, entries),
+  };
+
+  if (options.server !== undefined && options.token !== undefined && options.apply) {
+    const client = new ImportClient({
+      server: options.server,
+      token: options.token,
+      project: options.project,
+    });
+    const applied: ImportBatchResult['items'] = [];
+    for (const chunk of chunked(items, options.batchSize)) {
+      applied.push(...(await client.reviews({ profile: profile.profile, items: chunk })).items);
+    }
+    for (const item of applied) {
+      if (item.status === 'error') {
+        entries.push({
+          file: item.source_path,
+          line: null,
+          reason: item.detail ?? t()('cli.reason.load_failed'),
+          disposition: 'manual',
+        });
+      }
+    }
+  }
+
+  return report;
+}
+
+/** `review/code/...` → `code`. 디렉터리가 kind 다(원본 구조가 그렇게 나뉘어 있다). */
+function reviewKindOf(sessionDir: string): ImportReviewItem['kind'] {
+  const segment = sessionDir.split('/')[1] ?? '';
+  if (segment === 'consistency') return 'consistency';
+  if (segment === 'spec-coverage') return 'spec_coverage';
+  if (segment === 'merge') return 'merge';
+  return 'code';
+}
+
+function readText(path: string): string | null {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function readJson(path: string): Record<string, unknown> | null {
+  const raw = readText(path);
+  if (raw === null) return null;
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 검토 대상 목록 — changeset 해시의 재료다. **kind 마다 다른 곳에 있다**(실측):
+ *   code         `files[].file_path` — 파일 목록
+ *   consistency  `target_path` — 검사 대상 경로 하나(`files` 자체가 없다)
+ *
+ * 이 갈래를 놓치면 consistency 세션의 changeset 이 전부 비고, **같은 커밋에 들어온 두
+ * 검사가 한 세션으로 합쳐진다**(실측 2026-08-24: 922건이 461건으로 정확히 반이 됐다).
+ * 라운드 병합은 "같은 것을 다시 본 것"에만 일어나야 한다.
+ */
+function changesetOf(meta: Record<string, unknown> | null): string[] {
+  const files = meta?.['files'];
+  if (Array.isArray(files)) {
+    return files
+      .map((f) => (f as { file_path?: unknown }).file_path)
+      .filter((p): p is string => typeof p === 'string');
+  }
+  const target = meta?.['target_path'];
+  return typeof target === 'string' && target !== '' ? [target] : [];
+}
+
+function timestampOf(meta: Record<string, unknown> | null): string | null {
+  const value = meta?.['timestamp'];
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/**
+ * 역할별 리포트. **표가 있으면 그것이 정본**이고(위험도·핵심 발견이 함께 온다),
+ * 없으면 `meta.json.agents` 명단으로 커버리지만 남긴다 — 누가 봤는지는 게이트가 묻는
+ * 질문이라(커버리지 무결성) 위험도를 모르더라도 명단은 값이 있다.
+ */
+function reportsOf(
+  parsed: ReturnType<typeof parseReviewSummary>,
+  meta: Record<string, unknown> | null,
+): ImportReviewItem['reports'] {
+  if (parsed.reports.length > 0) return parsed.reports;
+  // 역할 명단도 kind 마다 이름이 다르다 — code 는 `agents`, consistency 는 `checkers`
+  const roster = meta?.['agents'] ?? meta?.['checkers'];
+  if (!Array.isArray(roster)) return [];
+  return roster
+    .filter((a): a is string => typeof a === 'string')
+    .map((role) => ({ role, risk: parsed.risk, body_md: null }));
+}
+
+/** review 기대 집계 — plan·spec 과 같은 규율이다(REQ-IMP-016). */
+function checkReviewExpectations(
+  profile: ImportProfile,
+  scanned: number,
+  findings: number,
+  entries: ReportEntry[],
+): ImportReport['expectation'] {
+  const results: ImportReport['expectation'] = [];
+  const expected = profile.expect?.review_total;
+  if (expected !== undefined) {
+    const ok = expected === scanned;
+    results.push({ field: 'review_total', expected, actual: scanned, ok });
+    if (!ok) {
+      entries.push({
+        file: t()('cli.report.aggregate'),
+        line: null,
+        reason: t()('cli.reason.review_total', { expected, actual: scanned }),
+        disposition: 'aborted',
+      });
+    }
+  }
+  // 발견 수는 **기대값이 없다** — 원본이 살아 있는 저장소라 수치가 자란다. 세고 적기만 한다.
+  results.push({ field: 'review_findings', expected: findings, actual: findings, ok: true });
+  return results;
 }
 
 /** plan 기대 집계 — 선언된 경우에만 대조한다(REQ-IMP-016). */

@@ -11,6 +11,8 @@ export const nervDocsProfile: ImportProfile = {
   scan: {
     spec: ['**/*.md'],
     plan: [],
+    // 이 프로파일은 문서만 옮긴다 — 리뷰 산출물이 없다
+    review: [],
     // html 파생본과 자산은 원본이 아니다
     exclude: ['html/**', 'README.md'],
   },

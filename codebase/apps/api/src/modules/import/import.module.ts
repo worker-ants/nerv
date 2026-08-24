@@ -3,11 +3,12 @@ import { Module } from '@nestjs/common';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { EventModule } from '../event/event.module.js';
+import { ReviewModule } from '../review/review.module.js';
 import { ImportController } from './import.controller.js';
 import { ImportService } from './import.service.js';
 
 @Module({
-  imports: [EventModule, AuthModule],
+  imports: [EventModule, AuthModule, ReviewModule],
   controllers: [ImportController],
   providers: [ImportService, ProjectAccessGuard],
   exports: [ImportService],

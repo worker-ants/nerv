@@ -62,9 +62,16 @@ afterEach(() => {
 describe('plan 패스 — 계약의 항목 상한을 넘지 않는다', () => {
   it('481건을 batch-size 단위로 나눠 보낸다', async () => {
     await runImport({
-      command: 'plan', root, project: 'p', apply: true, batchSize: 50,
-      reportDir: join(root, 'report'), mapPath: join(root, 'map.json'),
-      profileFile: profilePath, server: 'http://stub', token: 'nerv_x',
+      command: 'plan',
+      root,
+      project: 'p',
+      apply: true,
+      batchSize: 50,
+      reportDir: join(root, 'report'),
+      mapPath: join(root, 'map.json'),
+      profileFile: profilePath,
+      server: 'http://stub',
+      token: 'nerv_x',
     });
     expect(sent.length).toBeGreaterThan(1); // 한 방에 보내지 않는다
     expect(Math.max(...sent)).toBeLessThanOrEqual(200); // 계약의 벽
@@ -74,9 +81,16 @@ describe('plan 패스 — 계약의 항목 상한을 넘지 않는다', () => {
   it('batch-size 를 200 보다 크게 줘도 계약을 넘기지 않는다', async () => {
     // 사람이 큰 값을 줄 수 있다. 그때 조용히 거절당하는 대신 상한이 지켜져야 한다.
     await runImport({
-      command: 'plan', root, project: 'p', apply: true, batchSize: 500,
-      reportDir: join(root, 'report2'), mapPath: join(root, 'map2.json'),
-      profileFile: profilePath, server: 'http://stub', token: 'nerv_x',
+      command: 'plan',
+      root,
+      project: 'p',
+      apply: true,
+      batchSize: 500,
+      reportDir: join(root, 'report2'),
+      mapPath: join(root, 'map2.json'),
+      profileFile: profilePath,
+      server: 'http://stub',
+      token: 'nerv_x',
     });
     expect(Math.max(...sent)).toBeLessThanOrEqual(200);
   });
@@ -102,8 +116,18 @@ describe('task 표시 ID — 충돌하면 조용히 덮어쓰지 않는다', () 
   it('같은 키를 받는 두 파일은 적재에서 빠지고 리포트에 남는다', async () => {
     // 같은 경로 두 번 = 같은 키. 겹친 채로 보내면 서버는 정상 upsert 로 받는다.
     const entries: { disposition: string }[] = [];
-    const dupe = { source_path: 'plan/complete/x.md', title: 'x', body_md: '', status: 'done' as const, assignee_user_id: null, depends_on: [] };
-    const kept = withoutDuplicateTaskKeysForTesting([dupe, { ...dupe }, { ...dupe, source_path: 'plan/complete/y.md' }], entries as never);
+    const dupe = {
+      source_path: 'plan/complete/x.md',
+      title: 'x',
+      body_md: '',
+      status: 'done' as const,
+      assignee_user_id: null,
+      depends_on: [],
+    };
+    const kept = withoutDuplicateTaskKeysForTesting(
+      [dupe, { ...dupe }, { ...dupe, source_path: 'plan/complete/y.md' }],
+      entries as never,
+    );
     expect(kept.map((k) => k.source_path)).toEqual(['plan/complete/y.md']);
     expect(entries.filter((e) => e.disposition === 'aborted')).toHaveLength(2);
   });

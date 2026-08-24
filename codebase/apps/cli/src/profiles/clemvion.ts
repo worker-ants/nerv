@@ -12,6 +12,9 @@ export const clemvionProfile: ImportProfile = {
   scan: {
     spec: ['spec/**/*.md'],
     plan: ['plan/{in-progress,complete,research}/**/*.md'],
+    // 리뷰는 **SUMMARY.md 만** 읽는다. 역할별 md 13,777개(131MB)를 옮기면 clemvion 이
+    // 겪은 것을 DB 안에서 재현하는 것이 된다(D-01·D-07) — 옮기는 것은 결론이다.
+    review: ['review/*/**/SUMMARY.md'],
     // 기계생성 API 카탈로그는 옮기지 않는다 — 재생성 가능한 산출물이다(D-07).
     // **접두사를 흘려 받는다**(`*api-catalog`): 실제 디렉터리는 `makeshop-api-catalog`·
     // `cafe24-api-catalog` 이고, 정확 일치 글롭은 249건을 그대로 통과시켰다(실측 2026-08-23).
@@ -34,6 +37,8 @@ export const clemvionProfile: ImportProfile = {
     // plan 실측: 485건 · complete 419 · in-progress 65 · research 1(Task 미생성)
     plan_total: 485,
     plan_status_distribution: { done: 419, reference: 1 },
+    // 리뷰 실측(2026-08-24): SUMMARY.md 1,984건 — code 1,060 · consistency 922 · spec-coverage 2
+    review_total: 1984,
   },
   tree: {
     area_from_directory: true,

@@ -30,7 +30,15 @@ describe('sortKeyOf — 숫자 접두를 정렬 가능한 키로', () => {
 
   it('clemvion 실측 디렉터리가 원본 순서로 정렬된다', () => {
     const dirs = ['7-channel-web-chat', '2-navigation', 'conventions', '5-system', '4-nodes'];
-    const ordered = [...dirs].sort((a, b) => sortKeyOf(a).localeCompare(sortKeyOf(b)) || a.localeCompare(b));
-    expect(ordered).toEqual(['2-navigation', '4-nodes', '5-system', '7-channel-web-chat', 'conventions']);
+    const ordered = [...dirs].sort(
+      (a, b) => sortKeyOf(a).localeCompare(sortKeyOf(b)) || a.localeCompare(b),
+    );
+    expect(ordered).toEqual([
+      '2-navigation',
+      '4-nodes',
+      '5-system',
+      '7-channel-web-chat',
+      'conventions',
+    ]);
   });
 });

@@ -7,6 +7,11 @@ import type { ko } from './ko.js';
 
 export const en = {
   // ── 에러 — api.md §1.4 봉투의 message ────────────────────────────────────────
+  'cli.reason.review_no_snapshot':
+    'The review is not committed, so no input snapshot (head_sha) could be recovered — skipped',
+  'cli.reason.review_tableless':
+    'The SUMMARY is prose, not a findings table — the session is loaded but findings need a human read',
+  'cli.reason.review_total': 'review_total mismatch — expected {expected}, actual {actual}',
   'error.approval.already_decided': 'This item has already been decided.',
   'error.approval.content_changed': 'The content changed after you opened this card.',
   'error.approval.not_found': 'Approval item not found.',
@@ -103,6 +108,7 @@ export const en = {
     'This reports the verdict; it does not block yet — enforcement belongs to FR-10.',
   'reviews.gate.resolved': 'Resolved',
   'reviews.gate.review': 'Covering review',
+  'reviews.gate.shown': 'the {shown} most recent of {total} branches',
   'reviews.gate.title': 'Gate status',
   'reviews.gate.verdict': 'Verdict',
   'reviews.lead': 'Findings in order of risk — the conclusions, not the raw diff.',
@@ -116,6 +122,8 @@ export const en = {
   'reviews.queue.empty_hint':
     'Reviews arrive through nerv_review_submit — never as files committed to the repo.',
   'reviews.queue.error': 'Could not load findings.',
+  'reviews.queue.more': 'Show more — narrowing with filters is usually faster',
+  'reviews.queue.shown': '{shown} of {total}',
   'reviews.queue.title': 'Finding queue',
   'reviews.resolve.cancel': 'Cancel',
   'reviews.resolve.commit': 'Fixing commit (commit_sha)',
@@ -761,5 +769,5 @@ export const en = {
   'cli.report.source': '- Source: `{root}`',
   'cli.report.title': '# Import report — {profile}',
   'cli.usage':
-    'Usage: nerv import <spec|plan|docs|rebuild-map> --root <path> --project <slug> [--apply]',
+    'Usage: nerv import <spec|plan|review|docs|rebuild-map> --root <path> --project <slug> [--apply]',
 } satisfies Catalog<typeof ko>;

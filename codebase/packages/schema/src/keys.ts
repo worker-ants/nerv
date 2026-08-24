@@ -127,8 +127,20 @@ export function changesetHash(input: {
   baseSha: string;
   headSha: string;
   changeset: readonly string[];
+  /**
+   * **임포트 전용 식별자**(원본 세션 경로). 도구 경로는 쓰지 않는다.
+   *
+   * 소급 적재에서는 "같은 changeset 이면 같은 라운드"가 성립하지 않는다 — 원본은 한
+   * 커밋에 여러 리뷰 세션을 함께 담았고(실측: clemvion consistency 922건 중 343건이
+   * 같은 커밋·같은 대상), 그것들은 **서로 다른 시점의 다른 리뷰**다. 소금이 없으면
+   * 그 셋이 한 세션으로 합쳐지고 리포트는 마지막 것만 남는다.
+   *
+   * 재실행 멱등은 그대로다: 같은 원본 경로는 같은 소금을 낸다.
+   */
+  salt?: string | null;
 }): Buffer {
   const files = [...input.changeset].map((f) => normalizePath(f)).sort();
   const parts = [input.baseSha.trim(), input.headSha.trim(), ...files];
+  if (input.salt != null && input.salt !== '') parts.push(`salt:${input.salt}`);
   return createHash('sha256').update(parts.join('\n'), 'utf8').digest();
 }

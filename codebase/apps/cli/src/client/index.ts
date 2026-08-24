@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import type {
   ImportBatchResult,
   ImportLinkBatchInput,
+  ImportReviewBatchInput,
   ImportPreflightInput,
   ImportPreflightResult,
   ImportSpecBatchInput,
@@ -53,6 +54,11 @@ export class ImportClient {
 
   links(input: ImportLinkBatchInput): Promise<ImportBatchResult> {
     return this.post('links', input);
+  }
+
+  /** EP-IMP-06 — 리뷰 세션 배치(FR-09). 멱등은 서버의 changeset 해시가 만든다 */
+  reviews(input: ImportReviewBatchInput): Promise<ImportBatchResult> {
+    return this.post('reviews', input);
   }
 
   map(): Promise<{ items: Record<string, unknown>[] }> {

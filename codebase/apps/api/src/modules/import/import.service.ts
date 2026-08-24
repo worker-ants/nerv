@@ -17,6 +17,7 @@ import type {
   ImportBatchResult,
   ImportItemResult,
   ImportLinkBatchInput,
+  ImportReviewBatchInput,
   ImportPreflightInput,
   ImportPreflightResult,
   ImportSpecBatchInput,
@@ -28,6 +29,7 @@ import { createHash } from 'node:crypto';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { EventService } from '../event/event.service.js';
+import { ReviewService } from '../review/review.service.js';
 
 interface Actor {
   userId: string;
@@ -49,6 +51,8 @@ export class ImportService {
 
   constructor(
     private readonly events: EventService,
+    // 리뷰 적재의 판정은 이 서비스가 갖는다 — 임포터는 번역만 한다(D-05)
+    private readonly reviews: ReviewService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -206,7 +210,11 @@ export class ImportService {
         const label = `${relation.from_key} → ${relation.to_key}`;
 
         if (from === null || to === null || from === to) {
-          results.push({ source_path: label, status: 'skipped', detail: text('import.spec_not_found') });
+          results.push({
+            source_path: label,
+            status: 'skipped',
+            detail: text('import.spec_not_found'),
+          });
           continue;
         }
         await tx.execute(sql`
@@ -223,6 +231,52 @@ export class ImportService {
   }
 
   /** EP-IMP-05 — 자연 키 → UUID 맵. `nerv import rebuild-map` 의 소스다. */
+  /**
+   * EP-IMP-06 — 리뷰 세션 배치. **판정은 ReviewService 한 곳에 있다**(D-05) —
+   * 임포터가 자기 적재 규칙을 따로 갖는 순간, 도구로 들어온 리뷰와 임포트된 리뷰가
+   * 다른 규칙을 타고 게이트는 어느 쪽을 믿어야 하는지 답할 수 없게 된다.
+   *
+   * **한 항목의 실패가 배치를 되돌리지 않는다**(REQ-API-018) — 실패는 리포트로 간다.
+   */
+  async applyReviews(actor: Actor, input: ImportReviewBatchInput): Promise<ImportBatchResult> {
+    const results: ImportItemResult[] = [];
+    for (const item of input.items) {
+      try {
+        const out = await this.reviews.ingest({
+          sourcePath: item.source_path,
+          projectId: actor.projectId,
+          userId: actor.userId,
+          branch: item.branch,
+          baseSha: item.base_sha,
+          headSha: item.head_sha,
+          changeset: item.changeset,
+          kind: item.kind,
+          reviewedAt: item.reviewed_at ?? null,
+          block: item.block,
+          reports: item.reports.map((r) => ({
+            role: r.role,
+            risk: r.risk,
+            bodyMd: r.body_md ?? null,
+          })),
+          findings: item.findings.map((f) => ({
+            severity: f.severity,
+            title: f.title,
+            body_md: f.detail_md ?? null,
+            suggestion_md: f.suggestion_md ?? null,
+            category: f.category === '' ? null : f.category,
+            file: f.file ?? null,
+            line: f.line ?? null,
+            tags: f.tags,
+          })),
+        });
+        results.push({ source_path: item.source_path, status: 'ok', spec_id: out.session_id });
+      } catch (error) {
+        results.push(toError(item.source_path, error));
+      }
+    }
+    return summarize(results);
+  }
+
   async map(actor: Actor): Promise<{ items: Record<string, unknown>[] }> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT 'spec' AS kind, s.key AS natural_key, s.id::text AS id,

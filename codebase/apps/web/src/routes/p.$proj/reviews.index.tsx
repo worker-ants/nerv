@@ -48,14 +48,22 @@ function ReviewCenter(): React.JSX.Element {
   const [status, setStatus] = useState<string[]>(['open']);
   const [tag, setTag] = useState<string[]>([]);
   const [resolving, setResolving] = useState<{ id: string; action: ResolveAction } | null>(null);
+  // **더 보기는 배수로 늘린다.** clemvion 실측 18,650건 — 전량을 한 번에 그리면
+  // 화면이 3만 픽셀이 된다(실측 2026-08-24). 답은 무한 스크롤이 아니라 **필터**이고,
+  // 그래서 "몇 건 중 몇 건인지"를 먼저 말한다(REQ-WEB-067).
+  const [limit, setLimit] = useState(50);
 
-  const queue = useFindings(proj, { severity, status, tag }, id);
+  const queue = useFindings(proj, { severity, status, tag }, id, limit);
   const gate = useGateCoverage(proj, id);
   const roles = me.data === undefined ? [] : (primaryMembership(me.data)?.roles ?? []);
   const canResolve = roles.some((r) => RESOLVER_ROLES.includes(r));
 
   const facets = queue.data?.facets;
   const items = queue.data?.items ?? [];
+  const gateRows = rows(gate.data?.items);
+  // 지금 필터로 잡히는 전체 — facet 은 "이것을 켜면 몇 건인가"라 status facet 의 합이다
+  const matched = status.reduce((sum, key) => sum + (facets?.status[key] ?? 0), 0);
+  const truncated = matched > items.length;
   const summary: SummaryMetric[] = [
     {
       label: t('reviews.summary.critical'),
@@ -63,7 +71,7 @@ function ReviewCenter(): React.JSX.Element {
       tone: 'danger',
     },
     { label: t('reviews.summary.open'), value: facets?.status['open'] ?? 0 },
-    { label: t('reviews.summary.branches'), value: rows(gate.data).length },
+    { label: t('reviews.summary.branches'), value: gate.data?.total ?? 0 },
   ];
 
   const toggle = (list: string[], set: (v: string[]) => void, value: string): void =>
@@ -121,7 +129,14 @@ function ReviewCenter(): React.JSX.Element {
         </aside>
 
         <div className="min-w-0 flex-1">
-          <SectionTitle>{t('reviews.queue.title')}</SectionTitle>
+          <SectionTitle>
+            {t('reviews.queue.title')}
+            {truncated && (
+              <span className="ml-2 text-2xs font-normal text-text-faint">
+                {t('reviews.queue.shown', { shown: items.length, total: matched })}
+              </span>
+            )}
+          </SectionTitle>
           {queue.isPending ? (
             <div data-testid="finding-queue-skeleton" className="flex flex-col gap-2">
               <Skeleton className="h-16" />
@@ -161,11 +176,21 @@ function ReviewCenter(): React.JSX.Element {
               ))}
             </Card>
           )}
+          {truncated && (
+            <button
+              type="button"
+              data-testid="queue-more"
+              onClick={() => setLimit(Math.min(limit * 2, 200))}
+              className="mt-2 w-full rounded-nerv border border-border py-1.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
+            >
+              {t('reviews.queue.more')}
+            </button>
+          )}
         </div>
       </div>
 
       <div className="mt-6">
-        <GateCoverage rows={rows(gate.data)} />
+        <GateCoverage rows={gateRows} total={gate.data?.total ?? gateRows.length} />
       </div>
     </PageBody>
   );

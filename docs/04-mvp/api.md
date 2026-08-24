@@ -5,9 +5,11 @@ updated: 2026-08-22
 ---
 # API 명세
 
-> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~05)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
+> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.13 · 2026-08-23 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.14 · 2026-08-24 · HTML 판: [api.html](../html/api.html)
+>
+> v0.14 변경(2026-08-24 — 리뷰 소급 적재): **EP-IMP-06 신설**(§2.10) — 임포터가 파싱한 리뷰 세션 배치. 판정은 도구 경로와 같은 `ReviewService` 한 곳에 있고(D-05), **임포트는 이벤트를 내지 않는다**(과거 리뷰 수만 건이 알림이 되면 사람이 알림을 끈다). 곁가지로 EP-REV-03·04 에 상한을 넣었다 — clemvion 실측 18,650 발견·441 브랜치를 한 응답에 담으면 화면이 3만 픽셀이 된다.
 >
 > v0.13 변경(2026-08-23 — S6 가 읽을 것): **EP-REV-03 확장**(`severity[]`·`status[]`·`tag[]` 필터 + **facet 건수를 같은 응답에**)과 **EP-REV-04 신설**(브랜치별 게이트 현황). facet 을 따로 받게 하면 목록과 숫자가 어긋나는 순간이 생긴다. EP-REV-04 는 **표시일 뿐 집행이 아니다** — Task `done` 을 막는 것은 FR-10 의 Phase 2 몫이다.
 >
@@ -441,6 +443,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 | EP-IMP-02 | `POST /api/v1/projects/{proj}/import/specs` | admin + `import:write` | `ImportSpecBatchInput`(profile, kind: structure/document, items[]{source_path, key, parent_key?, type, title, body_md, doc_status, **sort_key**(형제 정렬 — 값을 만드는 것은 CLI 다. 서버는 판정 없이 적재하고 **최초 적재에서만** 쓴다. 규칙 정본 [4.7 스펙 임포터](importer.md) §2.2), requirements[]{ref, text, priority?, impl_status}, evidence[]}) | `ImportBatchResult`(항목별 `ok`/`error{code, details}` + 생성 `spec_id`·`spec_version_id`·`requirement` ref→UUID 맵) | ★`import.applied` |
 | EP-IMP-03 | `POST /api/v1/projects/{proj}/import/tasks` | admin + `import:write` | `ImportTaskBatchInput`(profile, items[]{source_path, title, body_md, status, assignee_user_id?, source_spec_key?, depends_on[]}) — `ready` 상태와 위임 명세 4요소는 받지 않는다(임포터 REQ-IMP-009) | `ImportBatchResult` | ★`import.applied` |
 | EP-IMP-04 | `POST /api/v1/projects/{proj}/import/links` | admin + `import:write` | `ImportLinkBatchInput`(profile, relations[]{from_key, to_key, kind}, pending[]{requirement_ref, task_source_path}) | `ImportBatchResult` — 해소 실패는 오류가 아니라 항목별 `skipped` | ★`import.applied` |
+| EP-IMP-06 | `POST /api/v1/projects/{proj}/import/reviews` | admin + `import:write` | `ImportReviewBatchInput`(items[]{source_path, kind, branch, base_sha, head_sha, changeset[], reviewed_at?, block, reports[]{role, risk, body_md}, findings[]{severity, category, title, detail_md, suggestion_md, file, line, tags[]}}) | `ImportBatchResult` | — (**임포트는 이벤트를 내지 않는다** — 과거 리뷰 수만 건이 알림이 되면 사람이 알림을 끈다) |
 | EP-IMP-05 | `GET /api/v1/projects/{proj}/import/map` | admin + `import:write` | `ImportMapQuery`(kind?, cursor) | `Page<ImportMapEntry>`(자연 키 → `spec_id`/`task_id`/`requirement` UUID + `content_hash` + `version_no`) — `nerv import rebuild-map`의 소스 | — |
 
 `import.applied` 이벤트는 배치당 1건이며 payload에 프로파일 이름·`root_commit`·처리 건수(ok/error/skipped)를 담는다. **알림은 만들지 않는다**(§3.3 표) — 감사(FR-16)와 화면 갱신용이다.
@@ -594,7 +597,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | REQ-API-014 | WHILE SSE 스트림이 열려 있는 동안, THE SYSTEM SHALL 25초 주기의 코멘트 라인(`: ping`)을 송신해 프록시 유휴 타임아웃을 방지한다 | 60초 무이벤트 구간에서 keep-alive 2회 이상 수신 |
 | REQ-API-015 | WHEN 베이스라인 생성 요청(EP-SPEC-12)에 `approved`가 아닌 SpecVersion 항목이 포함되면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`으로 전체를 거부하고, 생성된 베이스라인의 항목 집합 변경 요청은 제공하지 않는다(세트 변경 = 새 베이스라인 — REQ-DB-008) | draft 항목 포함 생성 거부 + 핀 대상 superseded 후 EP-SPEC-13 결과 불변 확인 |
 | REQ-API-016 | WHEN Task의 기준 SpecVersion(`source_spec_version_id`)이 `superseded`로 전이되면 THE SYSTEM SHALL 그 Task의 조회(EP-TASK-04)·`nerv_task_next`·`nerv_spec_get`(기준 버전 지정)·하트비트 응답에 `basis_superseded`와 최신 approved 버전 번호를 표시하고, `task.rebrief_required` 이벤트를 발행한다 | 기준 버전 supersede 후 4개 표면 응답 각 1건 + 이벤트 수신 확인 |
-| REQ-API-017 | WHEN admin이 아니거나 `import:write` 스코프가 없는 주체가 EP-IMP-01~05를 호출하면 THE SYSTEM SHALL 403 `NERV_FORBIDDEN`으로 거부하고 어떤 레코드도 생성하지 않는다 | developer PAT·스코프 없는 admin PAT 각 1케이스 |
+| REQ-API-017 | WHEN admin이 아니거나 `import:write` 스코프가 없는 주체가 EP-IMP-01~06을 호출하면 THE SYSTEM SHALL 403 `NERV_FORBIDDEN`으로 거부하고 어떤 레코드도 생성하지 않는다 | developer PAT·스코프 없는 admin PAT 각 1케이스 |
 | REQ-API-018 | WHEN EP-IMP-02(`kind=document`) 배치의 일부 항목이 스키마 제약을 위반하면 THE SYSTEM SHALL 그 항목만 롤백해 `error`로 표시하고 나머지 항목의 적재는 커밋한다 — 배치 전체를 되돌리지 않는다 | 중복 `requirement.ref` 1건을 섞은 50건 배치 |
 | REQ-API-019 | WHEN 같은 `Idempotency-Key`로 EP-IMP-02~04가 재전송되면 THE SYSTEM SHALL 최초 응답을 재생하고 신규 레코드를 0건 생성한다(§1.5) | 배치 전송 후 동일 키 재전송, 레코드 수 불변 확인 |
 | REQ-API-020 | WHEN EP-SPEC-15로 `parent_id`를 자기 자신 또는 자기 하위 노드로 바꾸려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`details.kind="tree_cycle"`)으로 거부하고, 유효한 이동·개명은 spec.id와 기존 버전·관계·코멘트 참조를 전부 보존한다(FR-01) | 사이클 이동 1케이스 + 이동 후 EP-SPEC-03/코멘트 조회로 참조 불변 확인 |

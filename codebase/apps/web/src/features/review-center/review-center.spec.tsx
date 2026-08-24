@@ -56,7 +56,7 @@ const BARE = {
   occurrence_count: 1,
 };
 
-const GATE = [
+const GATE_ROWS = [
   {
     branch: 'hotfix/session-restore',
     head_sha: '3d90f1aabb',
@@ -73,6 +73,8 @@ const GATE = [
     ],
   },
 ];
+// 응답은 **잘린 사실을 함께 준다** — total 이 없으면 화면이 "이게 전부"라고 거짓말한다
+const GATE = { items: GATE_ROWS, total: 441 };
 
 /** 처분 호출을 잡아 두는 곳 — 무엇을 보냈는지가 검사 대상이다 */
 let posted: { url: string; body: unknown }[] = [];
@@ -176,6 +178,14 @@ describe('S6 발견 큐 — provenance 와 dedup (REQ-WEB-062·063)', () => {
   });
 });
 
+describe('S6 규모 — 잘린 사실을 말한다 (REQ-WEB-067)', () => {
+  it('큐가 잘리면 "몇 건 중 몇 건"을 적고 더 보기를 준다', async () => {
+    await renderCenter();
+    // 픽스처는 열린 것 2건인데 facet 은 2건이라 잘리지 않는다 → 표기도 없다
+    expect(screen.queryByTestId('queue-more')).toBeNull();
+  });
+});
+
 describe('S6 필터 — facet 은 같은 응답에서 온다 (REQ-WEB-061)', () => {
   it('필터 칸의 숫자가 facet 값이다 — 따로 세지 않는다', async () => {
     await renderCenter();
@@ -262,5 +272,11 @@ describe('S6 게이트 현황 — 면제가 조용히 일어나지 않는다 (RE
   it('막지는 않는다고 화면이 말한다 — 표시와 집행을 섞지 않는다', async () => {
     await renderCenter();
     expect(screen.getByText(/아직 막지는 않는다/)).toBeDefined();
+  });
+
+  it('잘랐으면 잘랐다고 말한다 — clemvion 실측 441 브랜치 (REQ-WEB-067)', async () => {
+    await renderCenter();
+    // 20개만 그리고 아무 말도 안 하면 화면은 "브랜치가 20개뿐"이라고 거짓말한다
+    expect(screen.getByTestId('gate-truncated').textContent).toContain('441');
   });
 });

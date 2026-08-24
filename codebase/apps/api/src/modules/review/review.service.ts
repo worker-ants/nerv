@@ -37,6 +37,8 @@ export interface SubmitFinding {
   symbol?: string | null;
   requirement_id?: string | null;
   spec_version_id?: string | null;
+  /** `spec_drift` 등 — 필터의 축이다(screens.md §2.6a) */
+  tags?: readonly string[];
 }
 
 export interface SubmitInput {
@@ -58,6 +60,11 @@ export interface SubmitInput {
   findings: readonly SubmitFinding[];
   /** 재생성 가능한 프롬프트 페이로드의 TTL 오브젝트 스토리지 위치(D-01·D-07) */
   payloadRef?: string | null;
+  /**
+   * 리뷰가 **실제로 돌던 시각**. 임포트가 쓴다 — 비워 두면 과거 리뷰 1,984건이 전부
+   * "지금"으로 찍혀 타임라인이 한 점으로 뭉친다(그 순간 이력이 사라진다).
+   */
+  reviewedAt?: string | null;
 }
 
 export interface SubmitResult {
@@ -69,6 +76,22 @@ export interface SubmitResult {
   /** 이월된 미해결 — 이 리뷰가 아니라 **이 프로젝트**의 열린 발견이다 */
   carried_over: readonly { id: string; severity: string; title: string }[];
   block: boolean;
+}
+
+export interface IngestInput {
+  projectId: string;
+  userId: string;
+  /** 원본 세션 경로 — 소급 적재의 식별자다(changesetHash 의 salt) */
+  sourcePath: string;
+  branch: string;
+  baseSha: string;
+  headSha: string;
+  changeset?: readonly string[];
+  kind: 'code' | 'consistency' | 'spec_coverage' | 'merge';
+  reviewedAt?: string | null;
+  block: boolean;
+  reports: readonly { role: string; risk: 'low' | 'medium' | 'high'; bodyMd?: string | null }[];
+  findings: readonly SubmitFinding[];
 }
 
 export type ResolutionKind = 'fixed' | 'deferred' | 'dismissed' | 'escalated' | 'spec_change';
@@ -159,7 +182,8 @@ export class ReviewService {
       const block = carried.some((f) => f.severity === 'critical');
       await tx.execute(sql`
         UPDATE review_session
-           SET state = 'complete', completed_at = now(),
+           SET state = 'complete',
+               completed_at = coalesce(${input.reviewedAt ?? null}::timestamptz, now()),
                risk = ${await this.sessionRisk(tx, session.id)}::review_risk,
                block = ${block},
                file_count = ${(input.changeset ?? []).length}
@@ -190,6 +214,80 @@ export class ReviewService {
         carried_over: carried,
         block,
       };
+    });
+  }
+
+  /**
+   * EP-IMP-06 — **임포트 전용**. 원본 한 세션에는 리뷰어가 여럿이라(역할별 md) 도구
+   * 경로(`submit`)의 "리뷰어 하나" 계약으로는 담기지 않는다.
+   *
+   * 이벤트를 내지 않는 것이 도구 경로와의 두 번째 차이다: 과거 리뷰 1,984건을 적재하며
+   * `finding.opened` 를 3만 번 방송하면 알림이 소음이 되고, 그 소음이 알림을 끄게 만든다.
+   * 임포트는 **이미 일어난 일**을 옮기는 것이지 지금 일어나는 일이 아니다.
+   */
+  async ingest(input: IngestInput): Promise<{ session_id: string; findings: number }> {
+    if (input.headSha.trim() === '' || input.baseSha.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.head_required'), {
+        kind: 'missing_head_sha',
+      });
+    }
+    const hash = changesetHash({
+      baseSha: input.baseSha,
+      headSha: input.headSha,
+      changeset: input.changeset ?? [],
+      // 원본 세션 하나 = 우리 세션 하나. 소금이 없으면 한 커밋에 함께 담긴 리뷰들이
+      // 한 세션으로 뭉치고, 그때 리포트는 마지막 것만 남는다(실측 2026-08-24).
+      salt: input.sourcePath,
+    }).toString('hex');
+
+    return this.db.transaction(async (tx) => {
+      const base: SubmitInput = {
+        projectId: input.projectId,
+        userId: input.userId,
+        branch: input.branch,
+        baseSha: input.baseSha,
+        headSha: input.headSha,
+        changeset: input.changeset ?? [],
+        kind: input.kind,
+        reviewer: { role: 'import' },
+        findings: [],
+        reviewedAt: input.reviewedAt ?? null,
+      };
+      const session = await this.sessionFor(tx, base, hash);
+
+      let displayNo = 0;
+      let worst = 0;
+      for (const report of input.reports) {
+        worst = Math.max(worst, RISK_ORDER.indexOf(report.risk));
+        const reportId = await this.upsertReport(tx, session.id, {
+          ...base,
+          reviewer: { role: report.role, risk: report.risk },
+          summaryMd: report.bodyMd ?? null,
+        });
+        // 발견은 **세션에 하나씩**이지 리포트마다가 아니다 — 원본 SUMMARY 가 이미
+        // 역할을 가로질러 합쳐 놓은 표라, 첫 리포트에 달아 출처만 남긴다.
+        if (report !== input.reports[0]) continue;
+        for (const finding of input.findings) {
+          displayNo += 1;
+          await this.upsertFinding(tx, base, finding, {
+            sessionId: session.id,
+            reportId,
+            roundNo: session.roundNo,
+            displayNo,
+          });
+        }
+      }
+
+      await tx.execute(sql`
+        UPDATE review_session
+           SET state = 'complete',
+               completed_at = coalesce(${input.reviewedAt ?? null}::timestamptz, now()),
+               risk = ${RISK_ORDER[worst] ?? 'low'}::review_risk,
+               block = ${input.block},
+               file_count = ${(input.changeset ?? []).length}
+         WHERE id = ${session.id}
+      `);
+      return { session_id: session.id, findings: input.findings.length };
     });
   }
 
@@ -239,7 +337,7 @@ export class ReviewService {
               ${roundNo}, ${previous?.id ?? null}, 'running'::review_state,
               ${input.payloadRef ?? null},
               ${input.payloadRef == null ? null : sql`now() + interval '30 days'`},
-              now())
+              coalesce(${input.reviewedAt ?? null}::timestamptz, now()))
     `);
     return { id: sessionId, roundNo, fresh: true };
   }
@@ -312,15 +410,17 @@ export class ReviewService {
       findingId = newId();
       await tx.execute(sql`
         INSERT INTO finding (id, project_id, fingerprint, severity, category, title, detail_md,
-                             suggestion_md, file_path, line_start, symbol, spec_version_id,
+                             suggestion_md, tags, file_path, line_start, symbol, spec_version_id,
                              requirement_id, status, first_session_id, last_session_id,
-                             occurrence_count)
+                             occurrence_count, created_at)
         VALUES (${findingId}, ${input.projectId}, decode(${hex}, 'hex'),
                 ${finding.severity}::finding_severity, ${category}, ${finding.title},
                 ${finding.body_md ?? null}, ${finding.suggestion_md ?? null},
+                ${sql.raw(pgTextArray(finding.tags ?? []))},
                 ${finding.file ?? null}, ${finding.line ?? null}, ${finding.symbol ?? null},
                 ${finding.spec_version_id ?? null}, ${finding.requirement_id ?? null},
-                'open'::finding_status, ${round.sessionId}, ${round.sessionId}, 1)
+                'open'::finding_status, ${round.sessionId}, ${round.sessionId}, 1,
+                coalesce(${input.reviewedAt ?? null}::timestamptz, now()))
       `);
     } else {
       findingId = hit.id;
@@ -522,10 +622,13 @@ export class ReviewService {
     status?: readonly string[];
     tag?: readonly string[];
     limit?: number;
-  }): Promise<{ items: Record<string, unknown>[]; facets: FindingFacets }> {
+  }): Promise<{ items: Record<string, unknown>[]; facets: FindingFacets; limit: number }> {
     const severity = normalizeFilter(input.severity, FINDING_SEVERITIES);
     const status = normalizeFilter(input.status, FINDING_STATUSES);
     const tags = (input.tag ?? []).filter((t) => t.trim() !== '');
+    // 상한은 계약이 정한다 — clemvion 실측 18,650 발견을 한 응답에 담으면 화면이
+    // 3만 픽셀이 된다(실측 2026-08-24). 잘린 사실은 facet 총계가 말한다.
+    const limit = Math.min(Math.max(input.limit ?? FINDING_PAGE, 1), FINDING_PAGE_MAX);
 
     const { rows: items } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT f.id, f.severity::text AS severity, f.status::text AS status, f.category, f.title,
@@ -543,11 +646,12 @@ export class ReviewService {
          ${this.filter('f.status', status, 'finding_status')}
          ${tags.length === 0 ? sql`` : sql`AND f.tags && ${sql.raw(pgTextArray(tags))}`}
        ORDER BY f.severity, f.created_at DESC
-       LIMIT ${Math.min(input.limit ?? 100, 200)}
+       LIMIT ${limit}
     `);
 
     return {
       items,
+      limit,
       facets: {
         // 각 차원은 **자기 선택을 뺀** 나머지 필터로 센다
         severity: await this.facet(input.projectId, 'severity', {
@@ -615,7 +719,10 @@ export class ReviewService {
    * 면제는 **같은 줄에 펼친다**(REQ-WEB-065). 면제한 사람·시각·사유가 목록 어딘가가 아니라
    * 그 브랜치 옆에 있어야 한다 — 면제가 조용히 일어나지 않는 것 자체가 기능이다(FR-10·FR-16).
    */
-  async gateCoverage(projectId: string): Promise<Record<string, unknown>[]> {
+  async gateCoverage(
+    projectId: string,
+    limit = GATE_BRANCH_LIMIT,
+  ): Promise<{ items: Record<string, unknown>[]; total: number }> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       WITH latest AS (
         SELECT DISTINCT ON (branch) branch, id, head_sha, round_no, completed_at
@@ -638,6 +745,13 @@ export class ReviewService {
                   ELSE 'pending' END AS verdict
         FROM latest l LEFT JOIN counts c ON c.branch = l.branch
        ORDER BY l.completed_at DESC NULLS LAST
+       LIMIT ${Math.min(limit, GATE_BRANCH_LIMIT_MAX)}
+    `);
+
+    // **전체 수를 함께 준다.** clemvion 실측 441 브랜치 — 잘라 놓고 잘랐다고 말하지
+    // 않으면 화면은 "브랜치가 20개뿐"이라고 거짓말한다(REQ-WEB-067).
+    const { rows: totals } = await this.db.execute<{ n: number }>(sql`
+      SELECT count(DISTINCT branch)::int AS n FROM review_session WHERE project_id = ${projectId}
     `);
 
     // 면제는 **결재 레코드**다(FR-10) — `approval.is_bypass` 가 정본이고 여기서 붙인다.
@@ -660,7 +774,10 @@ export class ReviewService {
       const key = String(b['branch']);
       byBranch.set(key, [...(byBranch.get(key) ?? []), b]);
     }
-    return rows.map((r) => ({ ...r, bypasses: byBranch.get(String(r['branch'])) ?? [] }));
+    return {
+      items: rows.map((r) => ({ ...r, bypasses: byBranch.get(String(r['branch'])) ?? [] })),
+      total: totals[0]?.n ?? rows.length,
+    };
   }
 }
 
@@ -669,6 +786,13 @@ export interface FindingFacets {
   status: Record<string, number>;
   tag: Record<string, number>;
 }
+
+/** 한 화면에 담기는 발견 수. 넘는 것은 필터로 좁힌다 — 무한 스크롤은 답이 아니다 */
+const FINDING_PAGE = 50;
+const FINDING_PAGE_MAX = 200;
+/** 게이트 표의 브랜치 수 — 최근 리뷰 순. clemvion 실측 441개다 */
+const GATE_BRANCH_LIMIT = 20;
+const GATE_BRANCH_LIMIT_MAX = 200;
 
 const FINDING_SEVERITIES = ['critical', 'warning', 'info'] as const;
 const FINDING_STATUSES = ['open', 'fixed', 'dismissed', 'wont_fix'] as const;

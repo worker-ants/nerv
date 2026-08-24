@@ -18,7 +18,13 @@ const VERDICT_TOKEN: Record<string, StatusToken> = {
   uncovered: 'danger',
 };
 
-export function GateCoverage({ rows: items }: { rows: Row[] }): React.JSX.Element {
+export function GateCoverage({
+  rows: items,
+  total,
+}: {
+  rows: Row[];
+  total: number;
+}): React.JSX.Element {
   const t = useT();
   if (items.length === 0) {
     return (
@@ -31,7 +37,16 @@ export function GateCoverage({ rows: items }: { rows: Row[] }): React.JSX.Elemen
   return (
     <section data-testid="gate-coverage">
       <SectionTitle>{t('reviews.gate.title')}</SectionTitle>
-      <p className="mb-2 text-2xs text-text-faint">{t('reviews.gate.note')}</p>
+      <p className="mb-2 text-2xs text-text-faint">
+        {t('reviews.gate.note')}
+        {/* **잘랐으면 잘랐다고 말한다.** clemvion 실측 441 브랜치 — 20개만 그리고
+            아무 말도 안 하면 화면은 "브랜치가 20개뿐"이라고 거짓말한다(REQ-WEB-067) */}
+        {total > items.length && (
+          <span className="ml-2" data-testid="gate-truncated">
+            {t('reviews.gate.shown', { shown: items.length, total })}
+          </span>
+        )}
+      </p>
       <Table
         head={
           <>

@@ -15,7 +15,7 @@ import { runImport } from './run.js';
 import { exitCode, renderJsonl, renderMarkdown } from './report/index.js';
 
 export interface CliOptions {
-  command: 'spec' | 'plan' | 'docs' | 'rebuild-map';
+  command: 'spec' | 'plan' | 'review' | 'docs' | 'rebuild-map';
   profile?: string;
   profileFile?: string;
   root: string;
@@ -33,7 +33,13 @@ export interface CliOptions {
 
 export function parseArgs(argv: string[]): CliOptions {
   const [command, ...rest] = argv;
-  if (command !== 'spec' && command !== 'plan' && command !== 'docs' && command !== 'rebuild-map') {
+  if (
+    command !== 'spec' &&
+    command !== 'plan' &&
+    command !== 'review' &&
+    command !== 'docs' &&
+    command !== 'rebuild-map'
+  ) {
     throw new Error(t()('cli.usage'));
   }
 

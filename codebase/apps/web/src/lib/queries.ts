@@ -247,11 +247,19 @@ export function useEvents(slug: string, projectId?: string): UseQueryResult<Row[
 
 export interface FindingQueueResponse {
   items: Row[];
+  /** 서버가 실제로 적용한 상한 — 화면이 "몇 건 중 몇 건"을 말하려면 필요하다 */
+  limit: number;
   facets: {
     severity: Record<string, number>;
     status: Record<string, number>;
     tag: Record<string, number>;
   };
+}
+
+export interface GateCoverageResponse {
+  items: Row[];
+  /** 잘라 놓고 잘랐다고 말하지 않으면 화면이 거짓말한다(REQ-WEB-067) */
+  total: number;
 }
 
 /**
@@ -262,24 +270,29 @@ export function useFindings(
   slug: string,
   filters: { severity: readonly string[]; status: readonly string[]; tag: readonly string[] },
   projectId?: string,
+  limit?: number,
 ): UseQueryResult<FindingQueueResponse> {
   const refetchInterval = useLivePolling();
   const query = new URLSearchParams();
   if (filters.severity.length > 0) query.set('severity', filters.severity.join(','));
   if (filters.status.length > 0) query.set('status', filters.status.join(','));
   if (filters.tag.length > 0) query.set('tag', filters.tag.join(','));
+  if (limit !== undefined) query.set('limit', String(limit));
   return useQuery({
-    queryKey: [...queryKeys.projectFindings(projectId ?? slug), filters],
+    queryKey: [...queryKeys.projectFindings(projectId ?? slug), filters, limit],
     queryFn: () => apiFetch<FindingQueueResponse>(`/projects/${slug}/findings?${query.toString()}`),
     refetchInterval,
   });
 }
 
-export function useGateCoverage(slug: string, projectId?: string): UseQueryResult<Row[]> {
+export function useGateCoverage(
+  slug: string,
+  projectId?: string,
+): UseQueryResult<GateCoverageResponse> {
   const refetchInterval = useLivePolling();
   return useQuery({
     queryKey: queryKeys.projectGateCoverage(projectId ?? slug),
-    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/gates/reviews`),
+    queryFn: () => apiFetch<GateCoverageResponse>(`/projects/${slug}/gates/reviews`),
     refetchInterval,
   });
 }

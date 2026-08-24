@@ -52,7 +52,7 @@
     <h1>스펙 임포터</h1>
     <p class="lead">기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 <b>프로파일 기반 범용 임포터</b>의 확정판. 대상별 차이는 프로파일(§1.4)이 흡수하고 엔진은 하나다 — 내장 프로파일은 <code>clemvion</code>(FR-17 대상: 순수 스펙 135 md + plan 450 md)과 <code>nerv-docs</code>(도그푸딩) 2종이며, 다른 저장소는 프로파일 파일을 얹는다. 실행 모델은 <b>읽기는 클라이언트, 쓰기는 API</b>(2026-08-22 확정) — 원본 체크아웃이 있는 장비의 CLI가 파싱·리포트를 만들고(dry-run은 서버 없이 완결), <code>--apply</code>만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. 수용 기준은 REQ-IMP-001~017.</p>
     <div class="meta-line">
-      <span>버전 v0.8 (2026-08-23)</span>
+      <span>버전 v0.9 (2026-08-24)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
     </div>
@@ -347,9 +347,39 @@ task:                        # plan 프로파일(P1) — §2.6
 
   <p>보증은 <b>보내는 자리 한 곳</b>(<code>chunked</code>)에 둔다. <code>--batch-size</code> 는 사람에게서 오고 보내는 자리는 넷(structure·document·links·tasks)이라, 각자 지키게 하면 한 곳이 빠졌을 때 드러나지 않는다 — 실제로 tasks 가 그랬다. 사람이 상한보다 큰 값을 줘도 조용히 400 을 받지 않고 깎인다.</p>
 
-  <h3>2.7 review 소급은 P2 — 경계만 명시</h3>
+  <h3>2.7 review 소급 — <b>Phase 2, 2026-08-24 구현</b> (<code>nerv import review</code>)</h3>
 
-  <p><code>review/</code> 13,777 md의 소급은 Phase 2다(로드맵 §3 "review P2" · §7.3(3)). MVP 임포터는 이 경로를 구현하지 않는다. P2 착수 시의 정본 규칙만 재인용해 둔다: 결론(SUMMARY·RESOLUTION)만 소급하고 <code>_prompts/</code>(리뷰 전체의 ~70%, 이미 gitignored)는 이관하지 않는다 · 커밋 SHA가 <code>meta.json</code>에 필드 자체가 없으므로(표본 200개 SUMMARY 중 47개만 산문에 해시 언급) NULL + <code>provenance_incomplete</code> 플래그를 세우고 게이트 판정 입력으로 쓰지 않는다 · 멱등 키는 <code>(source_path, content_hash)</code>다.</p>
+  <p><code>review/</code> 13,777 md의 소급은 Phase 2다(로드맵 §3 "review P2"). 리뷰 수집(FR-09)의 서버·화면이 들어오면서(<a href="scope.html">4.1 범위</a> §5 착수 기록) 이 패스도 함께 구현했다. 원본 한 세션은 <code>review/&lt;kind&gt;/YYYY/MM/DD/HH_MM_SS/</code> 디렉터리다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>원본</th><th>NERV</th><th>규칙</th></tr></thead>
+    <tbody>
+      <tr><td>디렉터리 1개</td><td><code>review_session</code> 1개</td><td><code>kind</code>는 첫 세그먼트(<code>code</code>·<code>consistency</code>·<code>spec-coverage</code>)</td></tr>
+      <tr><td><code>SUMMARY.md</code> 발견 표</td><td><code>finding</code> × N</td><td>절 제목이 severity(<code>Critical</code> / <code>경고(WARNING)</code> / <code>참고(INFO)</code>)</td></tr>
+      <tr><td><code>SUMMARY.md</code> 역할별 위험도 표</td><td><code>reviewer_report</code> × N</td><td>없으면 <code>meta.json</code>의 역할 명단으로 커버리지만</td></tr>
+      <tr><td><code>meta.json.timestamp</code></td><td><code>started_at</code>·<code>completed_at</code>·<code>finding.created_at</code></td><td><b>지금이 아니다</b> — 임포트 시각으로 뭉치면 이력이 사라진다</td></tr>
+      <tr><td><code>meta.json.files[]</code> (code) · <code>target_path</code> (consistency)</td><td><code>changeset</code></td><td>kind마다 다른 자리다(아래)</td></tr>
+      <tr><td><code>_retry_state.json</code>의 worktree 경로</td><td><code>branch</code></td><td><code>.claude/worktrees/&lt;이름&gt;/</code> → <code>&lt;이름&gt;</code>, 아니면 <code>main</code></td></tr>
+      <tr><td>git 이력</td><td><code>head_sha</code>·<code>base_sha</code></td><td>리뷰가 <b>추가된 커밋</b>과 그 첫 부모</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>옮기지 않는 것</b>: 역할별 md 본문(13,777개·131MB) · <code>_prompts/</code> · <code>_retry_state.json</code>의 나머지. 옮기는 것은 결론이지 재생성 가능한 입력이 아니다(D-01·D-07) — 통째로 넣으면 clemvion이 겪은 자기증식을 DB 안에서 재현하는 것이 된다.</p>
+
+  <div class="callout note"><span class="ico">💡</span><div class="body">
+    <b class="title">커밋 SHA는 NULL이 아니라 git에서 되찾는다 (2026-08-24 — v0.8까지의 계획 정정)</b>
+    <p>옛 규칙은 "<code>meta.json</code>에 필드 자체가 없으므로 NULL + <code>provenance_incomplete</code> 플래그"였는데, 스키마가 <code>head_sha</code>·<code>base_sha</code>를 <b>NOT NULL로 확정</b>했고(<a href="database.html">4.3</a> §2.7) 그것이 이 스키마에서 가장 값싼 개선이라는 판단이 정본이다. 그리고 되찾을 수 있다: 리뷰 산출물 자체가 커밋돼 있으므로 "이 리뷰를 담은 커밋"과 그 부모를 git이 안다. 되찾지 못한 세션(커밋되지 않은 작업 트리 산출물)은 <b>건너뛴다</b>. 실측(2026-08-24): 1,984건 전부 되찾았고 건너뛴 것은 0건이다.</p>
+  </div></div>
+
+  <div class="callout warn"><span class="ico">⚠</span><div class="body">
+    <b class="title">kind마다 <code>meta.json</code>의 모양이 다르다 (실측 2026-08-24)</b>
+    <p><code>code</code>는 <code>files[].file_path</code>와 <code>agents[]</code>를, <code>consistency</code>는 <code>target_path</code>와 <code>checkers[]</code>를 갖는다 — <code>files</code> 자체가 없다. 이 갈래를 놓치면 consistency의 changeset이 전부 비고, <b>같은 커밋에 들어온 두 검사가 한 세션으로 합쳐진다</b>(922건 → 461건, 정확히 반). 라운드 병합은 "같은 것을 다시 본 것"에만 일어나야 한다.</p>
+    <p><b>표의 열 이름도 kind마다 다르다.</b> code는 <code>| # | 카테고리 | 발견사항 | 위치 | 제안 |</code>, consistency는 <code>| # | Checker | 위배 | target 위치 | 충돌 대상 | 제안 |</code>(WARNING)과 <code>| # | Checker | 항목 | 위치 | 제안 |</code>(INFO)이다. 그래서 파서는 <b>열 위치를 고정하지 않고 머리글에서 찾는다</b>. 그리고 원본은 코드 스팬 안의 <code>|</code>를 이스케이프하지 않는다 — 그대로 쪼개면 열이 밀려 백틱 한 글자가 제목이 되고 배치 전체가 계약 위반으로 멈춘다(실측).</p>
+  </div></div>
+
+  <p><b>멱등</b>은 새 장치를 만들지 않고 <code>review_session</code>의 <code>changeset_hash</code>가 만든다 — 소급 적재에서는 원본 세션 경로를 소금으로 섞어 <b>원본 한 세션 = 우리 한 세션</b>을 지킨다(<a href="api.html">4.4</a> §2.6a). 재실행이 세션도 발견도 늘리지 않는다.</p>
+
+  <p><b>산문 SUMMARY 271건</b>(1,984 중)은 표가 아니라 문단이다(원본에서 요약 sub-agent가 실패해 사람이 직접 쓴 것). 세션은 적재하되 발견 0건으로 두고 <b>리포트에 <code>manual</code>로 올린다</b> — 조용히 0건으로 넘기면 "리뷰가 있었는데 지적이 없었다"와 구별되지 않는다.</p>
 
   <h2 id="sec-3">3. 실행 모델</h2>
 
@@ -364,6 +394,9 @@ task:                        # plan 프로파일(P1) — §2.6
 
 nerv import plan  --profile clemvion --root &lt;경로&gt; --project &lt;slug&gt;
                   [--apply] [--map …] [--report-dir …] [--owner-map &lt;owners.yaml&gt;] [--split-checkboxes]
+
+nerv import review --profile clemvion --root &lt;경로&gt; --project &lt;slug&gt;              # §2.7 (Phase 2)
+                  [--apply] [--report-dir …] [--batch-size &lt;n&gt;]
 
 nerv import docs  --profile nerv-docs --root docs/ --project &lt;slug&gt; [--apply] …   # §5 도그푸딩
 

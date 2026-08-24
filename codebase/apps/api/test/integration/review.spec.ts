@@ -460,10 +460,11 @@ describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)',
   });
 
   it('게이트 현황은 브랜치마다 판정을 준다 — 열린 것이 남으면 pending', async () => {
-    const rows = await reviews.gateCoverage(projectId);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ branch: 'feat/widget', verdict: 'pending', total: 3 });
-    expect(rows[0]!['bypasses']).toEqual([]);
+    const gate = await reviews.gateCoverage(projectId);
+    expect(gate.items).toHaveLength(1);
+    expect(gate.total).toBe(1);
+    expect(gate.items[0]).toMatchObject({ branch: 'feat/widget', verdict: 'pending', total: 3 });
+    expect(gate.items[0]!['bypasses']).toEqual([]);
   });
 
   it('전부 처분되면 passed 다', async () => {
@@ -480,8 +481,8 @@ describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)',
         commitSha: 'dddd444',
       });
     }
-    const rows = await reviews.gateCoverage(projectId);
-    expect(rows[0]).toMatchObject({ verdict: 'passed', resolved: 3, total: 3 });
+    const gate = await reviews.gateCoverage(projectId);
+    expect(gate.items[0]).toMatchObject({ verdict: 'passed', resolved: 3, total: 3 });
   });
 
   it('면제는 같은 줄에 사람·시각·사유로 펼쳐진다 (REQ-WEB-065)', async () => {
@@ -494,8 +495,8 @@ describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)',
        VALUES ($1,$2,'gate_bypass',$3,$4,'approve',now(),true,$5)`,
       [newId(), projectId, session[0].id, userId, '핫픽스 배포, 사후 리뷰 예약'],
     );
-    const rows = await reviews.gateCoverage(projectId);
-    const bypasses = rows[0]!['bypasses'] as Record<string, unknown>[];
+    const gate = await reviews.gateCoverage(projectId);
+    const bypasses = gate.items[0]!['bypasses'] as Record<string, unknown>[];
     expect(bypasses).toHaveLength(1);
     expect(bypasses[0]).toMatchObject({
       bypass_reason: '핫픽스 배포, 사후 리뷰 예약',

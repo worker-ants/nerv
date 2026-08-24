@@ -66,9 +66,12 @@ export class ReviewController {
 
   /** EP-REV-04 — 브랜치별 게이트 현황. 표시일 뿐 집행이 아니다 */
   @Get('gates/reviews')
-  gateCoverage(@Req() req: ProjectRequest): Promise<unknown> {
+  gateCoverage(@Req() req: ProjectRequest, @Query('limit') limit?: string): Promise<unknown> {
     assertScope(principalOf(req), 'spec:read');
-    return this.reviews.gateCoverage(req.nervProjectId!);
+    return this.reviews.gateCoverage(
+      req.nervProjectId!,
+      ...(limit === undefined ? [] : ([Number(limit)] as const)),
+    );
   }
 
   /**

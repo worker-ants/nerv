@@ -12,6 +12,7 @@ import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import {
   importLinkBatchInputSchema,
+  importReviewBatchInputSchema,
   importPreflightInputSchema,
   importSpecBatchInputSchema,
   importTaskBatchInputSchema,
@@ -60,6 +61,13 @@ export class ImportController {
   async links(@Req() req: ProjectRequest, @Body() body: unknown): Promise<ImportBatchResult> {
     const actor = this.authorize(req);
     return this.imports.applyLinks(actor, parse(importLinkBatchInputSchema, body));
+  }
+
+  /** EP-IMP-06 — 리뷰 세션(FR-09). 도구 경로와 같은 ReviewService 를 거친다(D-05) */
+  @Post('reviews')
+  async reviews(@Req() req: ProjectRequest, @Body() body: unknown): Promise<ImportBatchResult> {
+    const actor = this.authorize(req);
+    return this.imports.applyReviews(actor, parse(importReviewBatchInputSchema, body));
   }
 
   /** EP-IMP-05 — 자연 키 → UUID 맵 */

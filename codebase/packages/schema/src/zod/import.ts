@@ -13,6 +13,11 @@ export const importProfileSchema = z.object({
   scan: z.object({
     spec: z.array(z.string()).default([]),
     plan: z.array(z.string()).default([]),
+    /**
+     * 리뷰 세션의 `SUMMARY.md` 를 가리킨다(FR-09 임포트). 역할별 md·`_prompts/` 는
+     * **가리키지 않는다** — 옮기는 것은 결론이지 재생성 가능한 입력이 아니다(D-07).
+     */
+    review: z.array(z.string()).default([]),
     /** 재생성 가능한 산출물은 옮기지 않는다(D-07) */
     exclude: z.array(z.string()).default([]),
   }),
@@ -27,6 +32,8 @@ export const importProfileSchema = z.object({
       /** plan 패스의 기대 집계 — clemvion 은 450건·complete 387 이 실측 정본이다(importer.md §2.6) */
       plan_total: z.number().int().positive().optional(),
       plan_status_distribution: z.record(z.string(), z.number().int()).optional(),
+      /** review 패스 — clemvion 은 SUMMARY.md 1,984건이 실측 정본이다(2026-08-24) */
+      review_total: z.number().int().positive().optional(),
     })
     .optional(),
   tree: z
@@ -162,6 +169,58 @@ export const importTaskBatchInputSchema = z.object({
   items: z.array(importTaskItemSchema).max(IMPORT_BATCH_MAX),
 });
 
+// ── EP-IMP-06 reviews (FR-09 · 2026-08-24) ─────────────────────────────────
+//
+// **리뷰를 파일에서 레코드로 옮기는 경로다.** clemvion 의 `review/**` 는 md 13,777개이고
+// 그 자체가 다음 리뷰의 입력이 되는 자기증식 루프였다(D-01·D-07). 임포트는 그 산출물을
+// 한 번만 읽어 결론(Finding)으로 옮긴다 — 옮기고 나면 파일은 이력일 뿐이다.
+//
+// 이 계약이 `nerv_review_submit` 과 다른 점은 하나다: **리뷰어가 여럿**이다. 원본의 한
+// 세션 디렉터리에는 역할별 md 가 여러 개 있고, 그것이 곧 한 세션의 여러 reviewer_report 다.
+
+export const importReviewFindingSchema = z.object({
+  severity: z.enum(['critical', 'warning', 'info']),
+  category: z.string().default(''),
+  title: z.string().min(1),
+  detail_md: z.string().nullable().optional(),
+  suggestion_md: z.string().nullable().optional(),
+  file: z.string().nullable().optional(),
+  line: z.number().int().nullable().optional(),
+  tags: z.array(z.string()).default([]),
+});
+
+export const importReviewReportSchema = z.object({
+  role: z.string().min(1),
+  risk: z.enum(['low', 'medium', 'high']).default('low'),
+  body_md: z.string().nullable().optional(),
+});
+
+export const importReviewItemSchema = z.object({
+  /** 원본 세션 디렉터리 — 리포트의 식별자이고 재실행 대조의 축이다 */
+  source_path: z.string().min(1),
+  kind: z.enum(['code', 'consistency', 'spec_coverage', 'merge']),
+  /**
+   * 입력 스냅샷 3종. **원본에는 없다** — clemvion `meta.json` 에 이 필드 자체가 없어
+   * 임포터가 git 에서 되찾는다(importer.md §2.7). 되찾지 못하면 그 세션은 건너뛴다:
+   * 무엇을 봤는지 답할 수 없는 리뷰는 게이트의 근거가 되지 못한다.
+   */
+  branch: z.string().min(1),
+  base_sha: z.string().min(1),
+  head_sha: z.string().min(1),
+  changeset: z.array(z.string()).default([]),
+  /** 원본이 돌던 시각 — 지금이 아니다. 타임라인이 임포트 시각으로 뭉치면 이력이 사라진다 */
+  reviewed_at: z.string().optional(),
+  /** consistency 의 `BLOCK: YES/NO` 계승 */
+  block: z.boolean().default(false),
+  reports: z.array(importReviewReportSchema).default([]),
+  findings: z.array(importReviewFindingSchema).default([]),
+});
+
+export const importReviewBatchInputSchema = z.object({
+  profile: z.string().min(1),
+  items: z.array(importReviewItemSchema).max(IMPORT_BATCH_MAX),
+});
+
 // ── EP-IMP-04 links ────────────────────────────────────────────────────────
 
 export const importLinkBatchInputSchema = z.object({
@@ -211,6 +270,9 @@ export type ImportSpecItem = z.infer<typeof importSpecItemSchema>;
 export type ImportTaskItem = z.infer<typeof importTaskItemSchema>;
 export type ImportTaskBatchInput = z.infer<typeof importTaskBatchInputSchema>;
 export type ImportLinkBatchInput = z.infer<typeof importLinkBatchInputSchema>;
+export type ImportReviewFinding = z.infer<typeof importReviewFindingSchema>;
+export type ImportReviewItem = z.infer<typeof importReviewItemSchema>;
+export type ImportReviewBatchInput = z.infer<typeof importReviewBatchInputSchema>;
 export type ImportBatchResult = z.infer<typeof importBatchResultSchema>;
 export type ImportItemResult = z.infer<typeof importItemResultSchema>;
 export type ImportItemState = z.infer<typeof importItemStateSchema>;
