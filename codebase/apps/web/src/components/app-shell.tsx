@@ -12,12 +12,13 @@
 // 늘 같은 자리에 있어야 한다 — 위로 스크롤해서 찾아야 하는 내비게이션은 내비게이션이 아니다.
 
 import { LOCALE_LABEL, LOCALES, useLocale, useT } from '../lib/i18n.js';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import { useEffect, useMemo, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { signOut } from '../lib/session.js';
 import { rows, useInbox, useMe, useProjects, useUnreadCount, useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
+import { chapterForRoute } from '../lib/manual.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { SpecTree } from './spec-tree.js';
 import { MenuItem, Popover } from './ui/primitives.js';
@@ -92,8 +93,7 @@ export function AppShell({
   const inbox = useInbox();
   const unread = useUnreadCount();
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState<'org' | 'project' | 'user' | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState<'org' | 'project' | 'user' | 'help' | null>(null);
 
   // 조직 스코프 — 헤더가 조직 단위라는 것을 화면이 말해야 한다(§1.3 "전역 헤더 · 조직 스코프").
   // 멤버십에서 조직을 뽑는다: 사용자가 속한 곳만 고를 수 있다는 사실이 목록 자체로 드러난다.
@@ -134,16 +134,25 @@ export function AppShell({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // 바깥을 누르면 닫는다 — 드롭다운이 열린 채로 남으면 다음 클릭이 먹히지 않는다
+  // 바깥을 누르면 닫는다 — 드롭다운이 열린 채로 남으면 다음 클릭이 먹히지 않는다.
+  //
+  // **어느 메뉴가 열렸든 그 메뉴의 뿌리를 표식으로 찾는다**(`data-menu-root`). 예전에는
+  // 사용자 메뉴의 ref 하나로 판정해서, 조직·프로젝트 드롭다운 **안**을 눌러도 "바깥"으로
+  // 읽혔다 — mousedown 에서 팝오버가 사라지면 뒤이은 click 은 이미 없는 요소로 가므로
+  // 그 항목은 눌러도 아무 일이 없었다.
   useEffect(() => {
     if (menuOpen === null) return;
     const onClick = (e: MouseEvent): void => {
-      if (menuRef.current !== null && !menuRef.current.contains(e.target as Node))
-        setMenuOpen(null);
+      const target = e.target as HTMLElement | null;
+      if (target === null || target.closest('[data-menu-root]') === null) setMenuOpen(null);
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [menuOpen]);
+
+  // 도움말의 "이 화면" 항목 — 짚어 줄 장이 없으면 그 항목을 아예 안 보인다(manual.ts)
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const contextChapter = chapterForRoute(pathname);
 
   const banner = connectionBanner(t, state, offline);
   const pending = inbox.data?.length ?? 0;
@@ -168,7 +177,7 @@ export function AppShell({
             NERV
           </Link>
           {currentOrg !== null && (
-            <div className="relative">
+            <div className="relative" data-menu-root>
               <button
                 type="button"
                 data-testid="org-switcher"
@@ -214,7 +223,7 @@ export function AppShell({
               헤더가 그 순서를 그대로 보인다. 하나뿐일 때도 select 로 둔다: 예외 케이스가
               없는 쪽이 직관적이라는 것이 사람 판단이다(2026-08-24). */}
           {currentOrg !== null && (
-            <div className="relative">
+            <div className="relative" data-menu-root>
               <button
                 type="button"
                 data-testid="project-switcher"
@@ -339,11 +348,63 @@ export function AppShell({
             <span className="flex-1 text-left">{t('common.search')}</span>
             <kbd className="text-[10px] text-text-ghost">⌘K</kbd>
           </button>
+          {/* 도움말 — **글자가 아니라 한 칸짜리 글리프다**(2026-08-24 신설). 와이어프레임의
+              헤더는 여섯 자리뿐이고(§2.1) 자주 쓰지 않는 항목이 자주 쓰는 항목의 자리를
+              먹으면 헤더는 금세 도구모음이 된다. `?` 는 그 규율을 지키면서도 사람들이
+              도움을 찾을 때 실제로 먼저 보는 자리다 — 이름은 title·aria-label 이 준다. */}
+          <div className="relative" data-menu-root>
+            <button
+              type="button"
+              data-testid="help-menu"
+              aria-label={t('shell.help')}
+              title={t('shell.help')}
+              onClick={() => setMenuOpen((open) => (open === 'help' ? null : 'help'))}
+              className={cn(
+                HEADER_LINK,
+                'flex size-[27px] items-center justify-center px-0 text-text-faint',
+              )}
+            >
+              <span aria-hidden="true">?</span>
+            </button>
+            {menuOpen === 'help' && (
+              <Popover align="right">
+                {/* 지금 화면을 설명하는 장이 먼저다 — 도움말을 여는 사람은 대개 지금
+                    보고 있는 것 때문에 연다 */}
+                {contextChapter !== null && (
+                  <Link
+                    to="/help/$chapter"
+                    params={{ chapter: contextChapter }}
+                    data-testid="help-this-screen"
+                    onClick={() => setMenuOpen(null)}
+                    className="block px-3 py-1.5 text-sm hover:bg-bg-hover"
+                  >
+                    {t('help.this_screen')}
+                  </Link>
+                )}
+                <Link
+                  to="/help"
+                  data-testid="help-manual"
+                  onClick={() => setMenuOpen(null)}
+                  className="block px-3 py-1.5 text-sm hover:bg-bg-hover"
+                >
+                  {t('help.title')}
+                </Link>
+                <Link
+                  to="/help/$chapter"
+                  params={{ chapter: 'shortcuts' }}
+                  onClick={() => setMenuOpen(null)}
+                  className="block px-3 py-1.5 text-sm hover:bg-bg-hover"
+                >
+                  {t('help.ch.shortcuts')}
+                </Link>
+              </Popover>
+            )}
+          </div>
           {/* 설정은 사용자 메뉴 안에 있다 — 와이어프레임 헤더(§2.1)는
               `⬢ NERV 홈 승인함 알림 🔍검색 [지민 ▾]` 여섯 자리뿐이고, 자주 쓰지 않는 항목이
               자주 쓰는 항목의 자리를 먹으면 헤더는 금세 도구모음이 된다. */}
           {me.data !== undefined && (
-            <div className="relative" ref={menuRef}>
+            <div className="relative" data-menu-root>
               <button
                 type="button"
                 data-testid="user-menu"

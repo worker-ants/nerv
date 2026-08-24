@@ -364,6 +364,7 @@ export const en = {
   'common.search': 'Search',
   // ── 앱 셸 — 헤더·사이드바 (screens.md §1.3) ─────────────────────────────────────
   'shell.dismiss': 'Dismiss',
+  'shell.help': 'Help',
   'shell.home': 'Home',
   'shell.inbox': 'Inbox',
   'shell.language': 'Language',
@@ -379,6 +380,20 @@ export const en = {
   'shell.sign_out': 'Sign out',
   'shell.spec_tree': 'Spec tree',
   'shell.toast.undo': 'Undo',
+  // ── 제품 매뉴얼 (screens.md §2.10) ─────────────────────────────────────────
+  'help.ch.agents': 'Agents',
+  'help.ch.inbox': 'Inbox and notifications',
+  'help.ch.reviews': 'Reviews',
+  'help.ch.sessions': 'Sessions',
+  'help.ch.settings': 'Settings',
+  'help.ch.shortcuts': 'Shortcuts and language',
+  'help.ch.specs': 'Specs',
+  'help.ch.start': 'Getting started',
+  'help.ch.tasks': 'Tasks',
+  'help.not_found': 'No such chapter.',
+  'help.on_this_page': 'On this page',
+  'help.this_screen': 'Help for this screen',
+  'help.title': 'Product manual',
   // ── 시간 표기 — 상대 시각만 쓴다 (ui-wireframes §3.3) ──────────────────────────────
   'time.days_ago': '{n}d ago',
   'time.hours_ago': '{n}h ago',

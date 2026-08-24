@@ -22,6 +22,8 @@ const SHOTS: [string, string][] = [
   ['/p/clemvion/sessions', 'sessions'],
   ['/p/clemvion/reviews', 'reviews'],
   ['/settings/tokens', 'settings'],
+  // 매뉴얼도 화면이다 — 디자인 확인에서 빠지면 여기만 아무도 안 본 채로 배포된다
+  ['/help/tasks', 'manual'],
 ];
 
 for (const [route, name] of SHOTS) {

@@ -160,6 +160,9 @@ importers:
       cytoscape-fcose:
         specifier: ^2.2.0
         version: 2.2.0(cytoscape@3.34.1)
+      markdown-it:
+        specifier: ^14.3.0
+        version: 14.3.0
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -197,6 +200,9 @@ importers:
       '@types/cytoscape':
         specifier: ^3.31.0
         version: 3.31.0
+      '@types/markdown-it':
+        specifier: ^14.2.0
+        version: 14.2.0
       '@types/react':
         specifier: ^19.2.18
         version: 19.2.18

@@ -10,11 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HelpRouteRouteImport } from './routes/help/route'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
+import { Route as HelpIndexRouteImport } from './routes/help/index'
+import { Route as HelpChapterRouteImport } from './routes/help/$chapter'
 import { Route as OOrgRouteImport } from './routes/o.$org'
 import { Route as PProjRouteRouteImport } from './routes/p.$proj/route'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
@@ -34,6 +37,11 @@ import { Route as PProjTasksTaskRouteImport } from './routes/p.$proj/tasks.$task
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRouteRoute = HelpRouteRouteImport.update({
+  id: '/help',
+  path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -60,6 +68,16 @@ const SettingsRouteRoute = SettingsRouteRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => rootRouteImport,
+} as any)
+const HelpIndexRoute = HelpIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => HelpRouteRoute,
+} as any)
+const HelpChapterRoute = HelpChapterRouteImport.update({
+  id: '/$chapter',
+  path: '/$chapter',
+  getParentRoute: () => HelpRouteRoute,
 } as any)
 const OOrgRoute = OOrgRouteImport.update({
   id: '/o/$org',
@@ -139,17 +157,20 @@ const PProjTasksTaskRoute = PProjTasksTaskRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/help': typeof HelpRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
   '/p/$proj': typeof PProjRouteRouteWithChildren
+  '/help/$chapter': typeof HelpChapterRoute
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
+  '/help/': typeof HelpIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/p/$proj/': typeof PProjIndexRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
@@ -166,11 +187,13 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/help/$chapter': typeof HelpChapterRoute
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
+  '/help': typeof HelpIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/p/$proj': typeof PProjIndexRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
@@ -184,17 +207,20 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/help': typeof HelpRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
   '/p/$proj': typeof PProjRouteRouteWithChildren
+  '/help/$chapter': typeof HelpChapterRoute
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
+  '/help/': typeof HelpIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/p/$proj/': typeof PProjIndexRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
@@ -209,17 +235,20 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/help'
     | '/settings'
     | '/inbox'
     | '/login'
     | '/notifications'
     | '/onboarding'
     | '/p/$proj'
+    | '/help/$chapter'
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
     | '/settings/tokens'
     | '/settings/workspace'
+    | '/help/'
     | '/settings/'
     | '/p/$proj/'
     | '/p/$proj/sessions/$session'
@@ -236,11 +265,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/onboarding'
+    | '/help/$chapter'
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
     | '/settings/tokens'
     | '/settings/workspace'
+    | '/help'
     | '/settings'
     | '/p/$proj'
     | '/p/$proj/sessions/$session'
@@ -253,17 +284,20 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/help'
     | '/settings'
     | '/inbox'
     | '/login'
     | '/notifications'
     | '/onboarding'
     | '/p/$proj'
+    | '/help/$chapter'
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
     | '/settings/tokens'
     | '/settings/workspace'
+    | '/help/'
     | '/settings/'
     | '/p/$proj/'
     | '/p/$proj/sessions/$session'
@@ -277,6 +311,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  HelpRouteRoute: typeof HelpRouteRouteWithChildren
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
   InboxRoute: typeof InboxRoute
   LoginRoute: typeof LoginRoute
@@ -293,6 +328,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -329,6 +371,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/help/': {
+      id: '/help/'
+      path: '/'
+      fullPath: '/help/'
+      preLoaderRoute: typeof HelpIndexRouteImport
+      parentRoute: typeof HelpRouteRoute
+    }
+    '/help/$chapter': {
+      id: '/help/$chapter'
+      path: '/$chapter'
+      fullPath: '/help/$chapter'
+      preLoaderRoute: typeof HelpChapterRouteImport
+      parentRoute: typeof HelpRouteRoute
     }
     '/o/$org': {
       id: '/o/$org'
@@ -438,6 +494,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface HelpRouteRouteChildren {
+  HelpChapterRoute: typeof HelpChapterRoute
+  HelpIndexRoute: typeof HelpIndexRoute
+}
+
+const HelpRouteRouteChildren: HelpRouteRouteChildren = {
+  HelpChapterRoute: HelpChapterRoute,
+  HelpIndexRoute: HelpIndexRoute,
+}
+
+const HelpRouteRouteWithChildren = HelpRouteRoute._addFileChildren(
+  HelpRouteRouteChildren,
+)
+
 interface SettingsRouteRouteChildren {
   SettingsGatesRoute: typeof SettingsGatesRoute
   SettingsMembersRoute: typeof SettingsMembersRoute
@@ -486,6 +556,7 @@ const PProjRouteRouteWithChildren = PProjRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  HelpRouteRoute: HelpRouteRouteWithChildren,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,
   InboxRoute: InboxRoute,
   LoginRoute: LoginRoute,

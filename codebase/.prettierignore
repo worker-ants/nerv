@@ -16,3 +16,5 @@ plugin/hooks/
 plugin/.mcp.json
 plugin/.claude-plugin/plugin.json
 plugin/statusline/
+# codex/ 도 그대로 배포되는 실물이다 — 사람이 복사해 쓰는 템플릿이라 포매터가 손댈 자리가 아니다
+plugin/codex/

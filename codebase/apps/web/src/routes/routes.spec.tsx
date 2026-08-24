@@ -9,7 +9,7 @@
 import { LocaleProvider } from '../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
@@ -163,6 +163,23 @@ describe('헤더 스코프 — 조직 → 프로젝트 (2026-08-24 · 사람 지
     await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
     const nav = screen.getAllByRole('link', { name: '프로젝트' })[0];
     expect(nav?.getAttribute('href')).toBe('/p/clemvion');
+  });
+
+  it('드롭다운 **안**을 눌러도 닫히지 않는다 — 닫히면 그 항목은 눌러도 아무 일이 없다', async () => {
+    // 바깥 클릭 판정이 사용자 메뉴 ref 하나였을 때, 조직·프로젝트 드롭다운 안의 클릭도
+    // "바깥"으로 읽혔다. mousedown 에서 팝오버가 사라지면 뒤이은 click 은 이미 없는
+    // 요소로 가므로, 그 안의 링크는 **보이지만 눌리지 않는** 상태가 된다.
+    renderAt('/p/clemvion/tasks');
+    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
+
+    fireEvent.click(screen.getByTestId('project-switcher'));
+    const link = screen.getByTestId('project-new-link');
+    fireEvent.mouseDown(link);
+    expect(screen.queryByTestId('project-new-link')).not.toBeNull();
+
+    // 진짜 바깥은 여전히 닫는다
+    fireEvent.mouseDown(document.body);
+    await waitFor(() => expect(screen.queryByTestId('project-new-link')).toBeNull());
   });
 
   it('전역 화면에서도 프로젝트 칸이 비지 않는다 — 마지막으로 본 것을 기억한다', async () => {

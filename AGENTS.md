@@ -41,6 +41,7 @@ nerv/
 2. **경계 규칙**(정본: codebase.md — REQ-CB-001~015): `apps/*` 간 직접 import 금지(공유는 `packages/schema` 경유), 표면(컨트롤러·게이트웨이·도구)은 번역만 하고 판정은 도메인 서비스 한 곳(D-05), 상수·이벤트 이름·에러 코드는 `@nerv/schema`에서만 import(하드코딩 금지).
 3. **명령 실행 위치.** `pnpm`·`docker compose` 명령은 `codebase/`에서 실행한다. 부트스트랩 절차는 codebase.md §5.1.
 4. **테스트.** 3계층(L1 단위 / L2 통합 — 실제 Postgres / L3 E2E)이며 무게중심은 L2다. 동시성(클레임 원자성·겹침·리스 만료)은 mock으로 검증하지 않는다.
+5. **도움말은 변경과 같은 커밋에서 갱신한다.** 제품 매뉴얼의 정본은 `codebase/apps/web/src/content/manual/<로케일>/<장>.md`이고 **ko·en 두 벌**이다(장 목차·화면 대응은 `apps/web/src/lib/manual.ts`, 장 제목은 `@nerv/schema` 카탈로그의 `help.ch.*`). 사람이 보는 것 — 화면의 동작·상태값·단축키·CLI 명령·역할과 권한·기본값 — 이 바뀌었는데 매뉴얼이 그대로면 **결함이다**. 없는 문서는 사람을 헤매게 하지만 **틀린 문서는 확신을 준다**. 장을 더하거나 빼면 목차와 `chapterForRoute()`의 화면 대응까지 함께 고친다(두 로케일·죽은 링크·남지 않은 마크업은 `manual.spec.ts`가 본다). 화면 명세는 [4.5 screens](docs/04-mvp/screens.md) §2.10이 정본이다.
 
 ## git 규약
 

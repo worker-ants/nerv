@@ -18,6 +18,8 @@ test-results/
 
 # 도구 캐시
 .vite/
+# TanStack Router 플러그인의 라우트 생성 임시 파일 (dev 서버가 만든다)
+.tanstack/
 .eslintcache
 
 # 스파이크 산출물 — 리포트는 실행 때마다 갱신된다(측정값은 문서에 기록한다)

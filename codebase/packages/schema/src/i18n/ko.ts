@@ -360,6 +360,7 @@ export const ko = {
   'common.search': '검색',
   // ── 앱 셸 — 헤더·사이드바 (screens.md §1.3) ─────────────────────────────────────
   'shell.dismiss': '닫기',
+  'shell.help': '도움말',
   'shell.home': '홈',
   'shell.inbox': '승인함',
   'shell.language': '언어',
@@ -375,6 +376,22 @@ export const ko = {
   'shell.sign_out': '로그아웃',
   'shell.spec_tree': '스펙 트리',
   'shell.toast.undo': '되돌리기',
+  // ── 제품 매뉴얼 (screens.md §2.10) ─────────────────────────────────────────
+  // 장 **제목**만 여기 있다 — 사이드바·도움말 메뉴·문서 머리 세 곳이 같은 이름을 불러야
+  // 하기 때문이다. 본문은 apps/web/src/content/manual/<로케일>/<장>.md 가 정본이다.
+  'help.ch.agents': '에이전트 연동',
+  'help.ch.inbox': '승인함과 알림',
+  'help.ch.reviews': '리뷰',
+  'help.ch.sessions': '세션',
+  'help.ch.settings': '설정',
+  'help.ch.shortcuts': '단축키와 언어',
+  'help.ch.specs': '스펙',
+  'help.ch.start': '시작하기',
+  'help.ch.tasks': '작업',
+  'help.not_found': '그런 장이 없습니다.',
+  'help.on_this_page': '이 문서 안',
+  'help.this_screen': '이 화면 도움말',
+  'help.title': '제품 매뉴얼',
   // ── 시간 표기 — 상대 시각만 쓴다 (ui-wireframes §3.3) ──────────────────────────────
   'time.days_ago': '{n}일 전',
   'time.hours_ago': '{n}시간 전',
