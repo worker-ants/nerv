@@ -17,11 +17,16 @@ import type { SessionCard as Card } from './types.js';
 export interface SessionCardProps {
   card: Card;
   now?: number;
+  /** 시안의 master-detail — 선택된 줄이 오른쪽 타임라인 레일의 주인이다 */
+  selected?: boolean;
+  onSelect?: (() => void) | undefined;
 }
 
 export function SessionCard({
   card,
   now = Date.now(),
+  selected,
+  onSelect,
 }: SessionCardProps): React.JSX.Element | null {
   const t = useT();
   // REQ-WEB-019 — hostname 없는 세션은 렌더링하지 않는다
@@ -35,10 +40,17 @@ export function SessionCard({
     // 한 줄에 고정 폭으로 늘어놓으면 세로로 훑는 것만으로 비교가 된다.
     <article
       data-testid="session-card"
+      data-selected={selected === true}
       // **`@container` 로 자기 폭을 본다.** 뷰포트 미디어 쿼리는 여기서 거짓말을 한다 —
       // 화면은 1440px 인데 이 줄이 놓인 칸은 350px 일 수 있고(대시보드 2열 격자), 그때
       // 고정 폭 열들이 넘쳐 가운데 칸이 한 글자 폭으로 찌그러진다(실측 2026-08-23).
-      className="@container group flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-2.5 py-3 transition-colors last:border-b-0 hover:bg-bg-hover"
+      // 선택 표시는 왼쪽 룰 + 옅은 바탕(시안) — 색만으로 구분하지 않는다(룰의 위치가 말한다).
+      onClick={onSelect}
+      className={cn(
+        '@container group flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-l-2 border-b-border px-2.5 py-3 transition-colors last:border-b-0 hover:bg-bg-hover',
+        selected === true ? 'border-l-text bg-bg-sunken/60' : 'border-l-transparent',
+        onSelect !== undefined && 'cursor-pointer',
+      )}
     >
       <Avatar name={card.user_name} size="lg" />
 

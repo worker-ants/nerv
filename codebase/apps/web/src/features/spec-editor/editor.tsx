@@ -125,9 +125,7 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
           data-testid="editor-content"
           className={cn(
             'prose-nerv min-h-[40vh] [&_.ProseMirror]:outline-none',
-            !readOnly
-              ? 'rounded-nerv border border-border bg-bg-elev px-5 py-4'
-              : 'px-0 py-1',
+            !readOnly ? 'rounded-nerv border border-border bg-bg-elev px-5 py-4' : 'px-0 py-1',
           )}
         />
       )}

@@ -13,14 +13,26 @@ import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
 
 vi.mock('socket.io-client', () => ({
-  io: () => ({ on: () => undefined, onAny: () => undefined, emit: () => undefined, close: () => undefined }),
+  io: () => ({
+    on: () => undefined,
+    onAny: () => undefined,
+    emit: () => undefined,
+    close: () => undefined,
+  }),
 }));
 
 /** 레인별로 무엇을 요청했는지 기록한다 — 요청 자체가 검사 대상이다 */
 let asked: string[] = [];
 
 function task(id: string, status: string): Record<string, unknown> {
-  return { id, key: `CLV-T-${id}`, title: `작업 ${id}`, status, priority: 'P2', delegation_complete: true };
+  return {
+    id,
+    key: `CLV-T-${id}`,
+    title: `작업 ${id}`,
+    status,
+    priority: 'P2',
+    delegation_complete: true,
+  };
 }
 
 beforeEach(() => {
@@ -43,7 +55,11 @@ beforeEach(() => {
           }),
         };
       }
-      return { ok: true, status: 200, json: async () => ({ id: 'p1', items: [], memberships: [], count: 0, summary: {} }) };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'p1', items: [], memberships: [], count: 0, summary: {} }),
+      };
     }),
   );
 });
@@ -59,7 +75,9 @@ async function renderBoard() {
   });
   render(
     <LocaleProvider locale="ko">
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
         <RealtimeProvider>
           <RouterProvider router={router as never} />
         </RealtimeProvider>
@@ -131,5 +149,4 @@ describe('레인 구성 (§2.5)', () => {
       .map((n) => n.dataset['testid']?.replace('column-', ''));
     expect(order).toEqual(['blocked', 'ready', 'claimed', 'in_progress', 'in_review', 'done']);
   });
-
 });

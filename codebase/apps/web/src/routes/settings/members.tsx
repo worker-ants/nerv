@@ -12,14 +12,7 @@ import { cn } from '../../lib/utils.js';
 import { rows, useMe, useMembers } from '../../lib/queries.js';
 import { primaryMembership } from '../../lib/session.js';
 import { useRealtime } from '../../lib/realtime.js';
-import {
-  EmptyState,
-  PageHeader,
-  Table,
-  Td,
-  Th,
-  Tr,
-} from '../../components/ui/primitives.js';
+import { EmptyState, PageHeader, Table, Td, Th, Tr } from '../../components/ui/primitives.js';
 
 /**
  * 같은 사람·같은 스코프의 멤버십을 **한 줄로 묶는다**. 서버는 부여마다 행을 주므로
@@ -78,7 +71,12 @@ function MembersTab(): React.JSX.Element {
    * 한 행의 값을 바꾸던 예전 방식(PATCH)은 겸직에서 표현할 수가 없다.
    */
   const toggleRole = useMutation({
-    mutationFn: (input: { userEmail: string; role: string; on: boolean; id: string | undefined }) =>
+    mutationFn: (input: {
+      userEmail: string;
+      role: string;
+      on: boolean;
+      id: string | undefined;
+    }) =>
       input.on
         ? apiFetch(`/memberships/${input.id ?? ''}`, { method: 'DELETE' })
         : apiFetch(`/orgs/${orgSlug ?? ''}/members`, {
@@ -122,9 +120,7 @@ function MembersTab(): React.JSX.Element {
             <Tr key={m.key}>
               <Td className="font-medium">{m.display_name}</Td>
               <Td className="text-text-mute">{m.email}</Td>
-              <Td className="text-text-mute">
-                {m.project_slug ?? t('settings.members.org_wide')}
-              </Td>
+              <Td className="text-text-mute">{m.project_slug ?? t('settings.members.org_wide')}</Td>
               <Td>
                 {/* **체크박스다.** 하나를 고르는 자리가 아니다 — 겸직이 흔한 형태라는 것이
                     clemvion 실측(복합 라벨 20건)이고, 데이터도 이제 그것을 담는다.

@@ -44,7 +44,9 @@ function OnboardingScreen(): React.JSX.Element {
       ) : (
         <div className="flex flex-col gap-3">
           <Card>
-            <h2 className="mb-1 font-medium">{t('onboarding.step2', { role: membership.roles.join(' · ') })}</h2>
+            <h2 className="mb-1 font-medium">
+              {t('onboarding.step2', { role: membership.roles.join(' · ') })}
+            </h2>
             <p className="text-sm text-text-mute">
               {/* 겸직이면 **앞선 역할**의 안내를 보인다 — 여러 문단을 한꺼번에 읽히지 않는다 */}
               {t(ROLE_NOTE_KEY[membership.roles[0] ?? ''] ?? 'onboarding.role.unknown')}

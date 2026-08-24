@@ -139,8 +139,12 @@ export class SpecService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type, s.archived_at,
              sv.id AS version_id, sv.version_no, sv.status::text AS doc_status, sv.body_md,
-             sv.superseded_by_version_id
-        FROM spec s JOIN spec_version sv ON ${pick}
+             sv.superseded_by_version_id,
+             -- 곁줄(시안) — 누가 언제 승인했는가. 이 문서의 무게를 한 줄로 말한다
+             sv.approved_at, u.display_name AS approved_by_name
+        FROM spec s
+        JOIN spec_version sv ON ${pick}
+   LEFT JOIN "user" u ON u.id = sv.approved_by_user_id
        WHERE s.project_id = ${input.projectId} AND s.key = ${input.specKey}
     `);
     const spec = rows[0];

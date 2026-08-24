@@ -37,8 +37,11 @@ const HEADER_LINK =
 // 시안의 nav 는 29px 줄에 13.5px 글자다 — 손가락이 아니라 눈으로 고르는 목록이라
 // 빽빽해도 되고, 빽빽해야 트리와 한 덩어리로 읽힌다(시안 대조 2026-08-23).
 const NAV_ITEM =
-  'flex h-[29px] items-center gap-2 rounded-nerv-sm px-2 text-sm text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
+  'group flex h-[29px] items-center gap-2 rounded-[5px] px-2 text-base text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
 const NAV_ACTIVE = 'bg-bg-active font-medium text-text';
+/** 글리프 칸 — 시안은 15px 고정 폭에 흐린 색, **활성일 때만 강조색**이다 */
+const NAV_GLYPH =
+  'inline-flex w-[15px] shrink-0 text-text-faint group-[.bg-bg-active]:text-status-action';
 
 function CountBadge({
   count,
@@ -54,14 +57,17 @@ function CountBadge({
     <span
       {...(testId === undefined ? {} : { 'data-testid': testId })}
       className={cn(
-        'ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white',
+        // **차오른 색이 아니라 물든 색이다**(시안). 진한 배경 + 흰 글자는 화면에서 가장
+        // 시끄러운 물건이 되는데, 배지는 어디에나 있다 — 소프트 배경 + 같은 계열 글자면
+        // 숫자는 읽히되 화면이 배지로 뒤덮이지 않는다.
+        'ml-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-[5px] text-2xs font-semibold',
         tone === 'action'
-          ? 'bg-status-action'
+          ? 'bg-status-action-soft text-status-action'
           : tone === 'agent'
-            ? 'bg-status-agent'
+            ? 'bg-status-agent-soft text-status-agent'
             : tone === 'danger'
-              ? 'bg-status-danger'
-              : 'bg-status-waiting',
+              ? 'bg-status-danger-soft text-status-danger'
+              : 'bg-status-waiting-soft text-status-waiting',
       )}
     >
       {count > 99 ? '99+' : count}
@@ -208,11 +214,24 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setSwitcherOpen(true)}
-            className="flex h-7 w-56 items-center gap-2 rounded-nerv-sm border border-border bg-bg-sunken px-2 text-sm text-text-faint transition-colors hover:border-border-strong"
+            className="flex h-[27px] w-52 items-center gap-[7px] rounded-nerv bg-bg-sunken px-[9px] text-sm text-text-faint transition-colors hover:bg-bg-hover"
           >
-            <span aria-hidden="true">🔍</span>
+            {/* 이모지 돋보기는 색을 갖고 와 헤더에서 저 혼자 튄다 — 시안은 흐린 선화다 */}
+            <svg
+              aria-hidden="true"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
             <span className="flex-1 text-left">{t('common.search')}</span>
-            <kbd className="rounded-nerv-sm border border-border px-1 text-2xs">⌘K</kbd>
+            <kbd className="text-[10px] text-text-ghost">⌘K</kbd>
           </button>
           {/* 설정은 사용자 메뉴 안에 있다 — 와이어프레임 헤더(§2.1)는
               `⬢ NERV 홈 승인함 알림 🔍검색 [지민 ▾]` 여섯 자리뿐이고, 자주 쓰지 않는 항목이
@@ -332,7 +351,10 @@ export function AppShell({
                 activeProps={{ className: NAV_ACTIVE }}
                 activeOptions={{ exact: true }}
               >
-                <span aria-hidden="true">◇</span> {t('shell.nav.overview')}
+                <span aria-hidden="true" className={NAV_GLYPH}>
+                  ◇
+                </span>
+                <span className="flex-1">{t('shell.nav.overview')}</span>
               </Link>
               <Link
                 to="/p/$proj/specs"
@@ -340,7 +362,10 @@ export function AppShell({
                 className={NAV_ITEM}
                 activeProps={{ className: NAV_ACTIVE }}
               >
-                <span aria-hidden="true">▤</span> {t('shell.nav.specs')}
+                <span aria-hidden="true" className={NAV_GLYPH}>
+                  ▤
+                </span>
+                <span className="flex-1">{t('shell.nav.specs')}</span>
               </Link>
               <Link
                 to="/p/$proj/tasks"
@@ -348,7 +373,10 @@ export function AppShell({
                 className={NAV_ITEM}
                 activeProps={{ className: NAV_ACTIVE }}
               >
-                <span aria-hidden="true">◫</span> {t('shell.nav.tasks')}
+                <span aria-hidden="true" className={NAV_GLYPH}>
+                  ◫
+                </span>
+                <span className="flex-1">{t('shell.nav.tasks')}</span>
               </Link>
               <Link
                 to="/p/$proj/sessions"
@@ -356,7 +384,9 @@ export function AppShell({
                 className={NAV_ITEM}
                 activeProps={{ className: NAV_ACTIVE }}
               >
-                <span aria-hidden="true">◉</span>
+                <span aria-hidden="true" className={NAV_GLYPH}>
+                  ◉
+                </span>
                 <span className="flex-1">{t('shell.nav.sessions')}</span>
                 {/* **지금 몇 개가 돌고 있나**를 사이드바가 말한다 — 세션 화면에 들어가야
                     아는 숫자면 그 화면을 열기 전에는 아무도 모른다(시안 대조) */}
@@ -371,17 +401,21 @@ export function AppShell({
                 className={NAV_ITEM}
                 activeProps={{ className: NAV_ACTIVE }}
               >
-                <span aria-hidden="true">◈</span>
+                <span aria-hidden="true" className={NAV_GLYPH}>
+                  ◈
+                </span>
                 <span className="flex-1">{t('shell.nav.review')}</span>
                 <CountBadge count={openCritical} tone="danger" />
               </Link>
             </nav>
             {/* 트리는 S3 좌측 트리와 같은 컴포넌트다 — 스크롤 위치를 공유한다(§1.3) */}
             <div className="mt-4 border-t border-border pt-3">
-              <p className="mb-1 px-2 text-2xs font-semibold tracking-wide text-text-faint uppercase">
-                {t('shell.spec_tree')}
-              </p>
-              <SpecTree projectSlug={projectSlug} compact activeKey={activeSpecKey} />
+              <SpecTree
+                projectSlug={projectSlug}
+                compact
+                activeKey={activeSpecKey}
+                heading={t('shell.spec_tree')}
+              />
             </div>
           </aside>
         )}

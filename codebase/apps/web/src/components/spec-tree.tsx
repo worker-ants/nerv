@@ -26,6 +26,8 @@ export interface TreeNode {
 }
 
 export interface SpecTreeProps {
+  /** 구역 머리(예: "스펙 트리") — 시안은 개수를 함께 적는다("스펙 트리 141") */
+  heading?: string;
   projectSlug: string;
   /** 쿼리 키를 이벤트 봉투와 같은 축(UUID)에 맞추기 위한 값 — 없으면 slug 로 떨어진다 */
   projectId?: string | undefined;
@@ -98,6 +100,7 @@ export function SpecTree({
   projectId,
   compact,
   activeKey,
+  heading,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId);
@@ -229,7 +232,11 @@ export function SpecTree({
                 params={{ proj: projectSlug, spec: node.key }}
                 {...(node.key === activeKey ? { ref: activeRef } : {})}
                 data-active={node.key === activeKey}
-                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-nerv-sm py-1 pr-1 text-sm text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text"
+                className={cn(
+                  'flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] pr-1 text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text',
+                  // 시안: 사이드바 트리는 26px 줄에 13px 글자 — nav(29px)보다 반 단 조밀하다
+                  compact ? 'h-[26px] text-[13px]' : 'py-1 text-sm',
+                )}
               >
                 <span className="truncate">{node.title}</span>
                 {!isOpen && children.length > 0 && (
@@ -276,6 +283,17 @@ export function SpecTree({
 
   return (
     <div data-testid="spec-tree" data-virtualized={virtualized}>
+      {heading !== undefined && (
+        <div className="mb-1 flex items-center justify-between px-2">
+          <span className="text-2xs font-semibold tracking-[0.07em] text-text-ghost uppercase">
+            {heading}
+          </span>
+          {/* 개수는 트리를 다 세지 않아도 규모를 말해 준다(시안 "스펙 트리 141") */}
+          {nodes.length > 0 && (
+            <span className="text-2xs text-text-ghost tabular-nums">{nodes.length}</span>
+          )}
+        </div>
+      )}
       {!(compact ?? false) && (
         <div className="mb-2 flex items-center gap-2">
           <Input

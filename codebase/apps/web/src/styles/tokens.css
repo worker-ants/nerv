@@ -29,6 +29,8 @@
   --color-text: #37352f;
   --color-text-mute: #787774;
   --color-text-faint: #9b9a97;
+  /* 시안의 네 번째 단 — 키·경과 시간처럼 "있어야 하지만 먼저 읽히면 안 되는" 값 */
+  --color-text-ghost: #b8b7b4;
 
   /* 경계선은 **거의 안 보여야 한다.** 보이는 선이 많으면 화면이 표처럼 딱딱해진다 */
   --color-border: #ebebea;
@@ -70,24 +72,28 @@
   --radius-nerv: 6px;
   --radius-nerv-lg: 10px;
 
-  /* ── 타이포 ───────────────────────────────────────────────────────────────
-   * 본문 14px. 화면이 표·목록 위주라 16px 는 한 줄에 들어가는 정보를 줄인다.
+  /* ── 타이포 — **시안의 램프 그대로**(2026-08-24 정정) ─────────────────────
+   * 시안(NERV UI 재구성)은 반 픽셀 단계를 쓴다: 10.5 / 11.5 / 12.5 / 13.5 / 15px.
+   * 이전 램프(11/12/13/14)와 반 픽셀 차이인데 그 반 픽셀이 밀도의 전부였다 —
+   * 네 화면을 나란히 놓으면 구현 쪽이 한 뼘 굵고 성글게 읽혔다(실측 대조).
    * 제목은 크기보다 **굵기와 여백**으로 구분한다 — 크기만 키우면 화면이 소란스러워진다.
    */
-  --text-2xs: 0.6875rem;
+  --text-2xs: 0.65625rem; /* 10.5px — 메타·키·라벨 */
   --text-2xs--line-height: 1.45;
-  --text-xs: 0.75rem;
+  --text-xs: 0.71875rem; /* 11.5px — 부가 정보 */
   --text-xs--line-height: 1.5;
-  --text-sm: 0.8125rem;
-  --text-sm--line-height: 1.6;
-  --text-base: 0.875rem;
-  --text-base--line-height: 1.65;
-  --text-lg: 1rem;
-  --text-lg--line-height: 1.5;
-  --text-xl: 1.25rem;
-  --text-xl--line-height: 1.35;
-  --text-2xl: 1.625rem;
-  --text-2xl--line-height: 1.25;
+  --text-sm: 0.78125rem; /* 12.5px — 보조 텍스트·버튼 */
+  --text-sm--line-height: 1.55;
+  --text-base: 0.84375rem; /* 13.5px — UI 본문 */
+  --text-base--line-height: 1.5;
+  --text-lg: 0.9375rem; /* 15px — 문서 본문·구역 제목 */
+  --text-lg--line-height: 1.55;
+  --text-xl: 1.1875rem; /* 19px — 문서 h2 */
+  --text-xl--line-height: 1.3;
+  --text-2xl: 1.6875rem; /* 27px — 화면 제목 */
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 2.0625rem; /* 33px — 문서 제목 */
+  --text-3xl--line-height: 1.16;
 
   --font-sans:
     'Pretendard', 'Pretendard Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system,
@@ -95,7 +101,7 @@
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 
   /* ── 레이아웃 상수 ───────────────────────────────────────────────────────── */
-  --spacing-sidebar: 15rem;
+  --spacing-sidebar: 14.5rem; /* 232px — 시안 */
   --spacing-header: 2.75rem;
   --spacing-content: 60rem;
 }
@@ -133,6 +139,7 @@
     --color-text: #e9e9e7;
     --color-text-mute: #9b9a97;
     --color-text-faint: #6f6f6c;
+    --color-text-ghost: #5d5d5a;
 
     --color-border: #2c2c2c;
     --color-border-strong: #3d3d3d;
@@ -218,19 +225,19 @@ body {
 .prose-nerv h2,
 .prose-nerv h3,
 .prose-nerv h4 {
-  margin: 1.5em 0 0.4em;
-  font-weight: 600;
+  /* 시안의 h2: 19px/650, 위 34px 아래 12px — em 으로 환산해 그대로 옮긴다 */
+  margin: 1.8em 0 0.63em;
+  font-weight: 650;
   line-height: 1.3;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.016em;
 }
 .prose-nerv h1 {
-  font-size: 1.6em;
+  font-size: 1.55em;
+  letter-spacing: -0.022em;
 }
 .prose-nerv h2 {
-  font-size: 1.3em;
-  /* h2 는 문서의 뼈대다 — 옅은 선 하나로 구역이 시작된다는 것을 보인다 */
-  padding-bottom: 0.2em;
-  border-bottom: 1px solid var(--color-border);
+  /* 19px / 15px — 시안 값. 선은 걷었다: 시안의 h2 는 크기·굵기만으로 구역을 세운다 */
+  font-size: 1.2667em;
 }
 .prose-nerv h3 {
   font-size: 1.1em;

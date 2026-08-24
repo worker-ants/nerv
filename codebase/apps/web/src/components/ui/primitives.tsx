@@ -59,7 +59,7 @@ export function PageHeader({
           {meta}
         </div>
         {description !== undefined && (
-          <p className="mt-1.5 text-sm leading-relaxed text-text-mute">{description}</p>
+          <p className="mt-[7px] text-base leading-[1.55] text-text-mute">{description}</p>
         )}
       </div>
       {actions !== undefined && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
@@ -179,8 +179,9 @@ const VARIANT: Record<ButtonVariant, string> = {
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  sm: 'h-7 px-2 text-xs gap-1',
-  md: 'h-8 px-3 text-sm gap-1.5',
+  // 시안의 두 단뿐이다: 보조 27px(12.5px 글자) · 주 행동 30px(13px 글자)
+  sm: 'h-[27px] px-[11px] text-sm gap-1',
+  md: 'h-[30px] px-[13px] text-[13px] gap-1.5',
 };
 
 export function Button({
@@ -197,7 +198,7 @@ export function Button({
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center rounded-nerv-sm font-medium transition-colors',
+        'inline-flex items-center justify-center rounded-nerv font-medium transition-colors',
         // 비활성은 **숨기지 않는다**(REQ-WEB-003) — 흐리게 두고 사유는 title 로 준다
         'disabled:cursor-not-allowed disabled:opacity-45',
         VARIANT[variant],
@@ -444,7 +445,11 @@ export function Avatar({
   const initial = name.trim().slice(0, 1) || '?';
   let hash = 0;
   for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)!) >>> 0;
-  const box = { sm: 'h-[18px] w-[18px] text-2xs', md: 'h-6 w-6 text-2xs', lg: 'h-7.5 w-7.5 text-xs' };
+  const box = {
+    sm: 'h-[18px] w-[18px] text-2xs',
+    md: 'h-6 w-6 text-2xs',
+    lg: 'h-7.5 w-7.5 text-xs',
+  };
   return (
     <span
       aria-hidden="true"
@@ -494,18 +499,18 @@ export function SummaryStrip({
   };
   return (
     <div
-      className={cn('flex items-center gap-0 border-y border-border py-3', className)}
+      className={cn('flex items-center gap-0 border-y border-border py-[13px]', className)}
       {...rest}
     >
       {metrics.map((m, i) => {
         const body = (
           <>
-            <span className="text-2xs font-semibold tracking-[0.06em] text-text-mute uppercase">
+            <span className="text-2xs font-semibold tracking-[0.06em] text-text-faint uppercase">
               {m.label}
             </span>
             <span
               className={cn(
-                'text-xl leading-none font-semibold tabular-nums',
+                'text-[21px] leading-none font-[650] tracking-[-0.02em] tabular-nums',
                 tone[m.tone ?? 'default'],
               )}
             >
@@ -514,8 +519,8 @@ export function SummaryStrip({
           </>
         );
         const shell = cn(
-          'flex flex-col gap-0.5 pr-8',
-          i < metrics.length - 1 && 'mr-8 border-r border-border',
+          'flex flex-col gap-[3px] pr-[34px]',
+          i < metrics.length - 1 && 'mr-[34px] border-r border-border',
         );
         return m.href === undefined ? (
           <div key={m.label} className={shell}>

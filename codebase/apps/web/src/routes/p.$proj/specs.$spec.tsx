@@ -26,7 +26,9 @@ import {
   useSpecVersions,
 } from '../../lib/queries.js';
 import type { RoundTripResult } from '../../features/spec-editor/editor.js';
-import { Button, Input, Mono, SectionTitle, Textarea } from '../../components/ui/primitives.js';
+import { relativeTime } from '../../lib/format.js';
+import { cn } from '../../lib/utils.js';
+import { Avatar, Button, Input, Mono, Textarea } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/specs/$spec')({ component: SpecDetail });
@@ -53,6 +55,8 @@ function SpecDetail(): React.JSX.Element {
   const [handoffRequested, setHandoffRequested] = useState(false);
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
+  // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다
+  const [railTab, setRailTab] = useState<'relations' | 'versions' | 'comments'>('relations');
 
   // **스펙이 바뀌면 이 화면의 상태는 전부 남의 것이 된다.** 라우트 파라미터만 바뀌면
   // 리액트는 같은 컴포넌트를 재사용하므로 `draft`·리스 보유자·충돌이 그대로 살아남는다.
@@ -67,6 +71,7 @@ function SpecDetail(): React.JSX.Element {
     setHandoffRequested(false);
     setShowImpact(false);
     setMetaOpen(false);
+    setRailTab('relations');
   }, [spec]);
 
   const body = String(detail.data?.['body_md'] ?? '');
@@ -152,42 +157,63 @@ function SpecDetail(): React.JSX.Element {
           다음 줄 머리를 못 찾아 문서가 평문 덩어리로 읽힌다 — 44rem(704px)이 한 줄에
           70~80자로, 긴 글을 읽는 표준 폭이다. 화면은 넓게 쓰되 글은 좁게 흐른다. */}
       <main className="mx-auto min-w-0 max-w-[44rem]">
-        <header className="mb-4 flex flex-wrap items-center gap-2">
-          {/* 크기·굵기는 `PageHeader` 와 같은 값이다 — 여기서 따로 정하면 갈라진다 */}
-          <h1 className="text-2xl font-bold tracking-[-0.022em]">
+        {/* 시안의 문서 머리: **메타 줄 → 큰 제목 → 곁줄** 세 층이다. 제목 옆에 배지를
+            늘어놓던 이전 배치는 제목이 배지들과 폭을 다퉜다 — 문서의 이름은 문서에서
+            가장 큰 글자여야 하고(33px), 신원(키·타입·버전)은 그 위에 조용히 눕는다. */}
+        <header className="mb-3">
+          <div className="flex flex-wrap items-center gap-[7px]">
+            <StatusBadge
+              token={
+                (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
+                  'idle') as StatusToken
+              }
+              label={t(statusLabelKey('spec', docStatus))}
+            />
+            <Mono className="text-xs">{spec}</Mono>
+            {typeof detail.data?.['type'] === 'string' && (
+              <>
+                <span aria-hidden="true" className="text-text-ghost">
+                  ·
+                </span>
+                <span className="text-sm text-text-faint">{String(detail.data['type'])}</span>
+              </>
+            )}
+            <span aria-hidden="true" className="text-text-ghost">
+              ·
+            </span>
+            <span className="text-sm text-text-faint">
+              v{String(detail.data?.['version_no'] ?? '')}
+            </span>
+            {detail.data?.['basis_superseded'] === true && (
+              <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
+            )}
+            {/* 참조 갱신 배지(REQ-WEB-037) — 내가 참조하는 문서가 나보다 앞서 갔다는 신호.
+                이게 없으면 낡은 근거 위에서 계속 쓰게 된다 */}
+            {relationItems.some(
+              (r) => r['direction'] === 'out' && r['doc_status'] === 'approved',
+            ) &&
+              detail.data?.['doc_status'] === 'draft' && (
+                <span data-testid="recheck-badge">
+                  <StatusBadge token="waiting" label={t('spec.recheck')} />
+                </span>
+              )}
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="meta-open"
+              onClick={() => setMetaOpen(true)}
+              className="ml-auto"
+            >
+              {t('spec.meta_button')}
+            </Button>
+          </div>
+          <h1 className="mt-[13px] text-3xl font-bold tracking-[-0.026em]">
             {String(detail.data?.['title'] ?? spec)}
           </h1>
-          <Mono>{spec}</Mono>
-          <StatusBadge
-            token={
-              (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
-                'idle') as StatusToken
-            }
-            label={t(statusLabelKey('spec', docStatus))}
-          />
-          <span className="text-xs text-text-mute">
-            v{String(detail.data?.['version_no'] ?? '')}
-          </span>
-          {detail.data?.['basis_superseded'] === true && (
-            <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
-          )}
-          {/* 참조 갱신 배지(REQ-WEB-037) — 내가 참조하는 문서가 나보다 앞서 갔다는 신호.
-              이게 없으면 낡은 근거 위에서 계속 쓰게 된다 */}
-          {relationItems.some((r) => r['direction'] === 'out' && r['doc_status'] === 'approved') &&
-            detail.data?.['doc_status'] === 'draft' && (
-              <span data-testid="recheck-badge">
-                <StatusBadge token="waiting" label={t('spec.recheck')} />
-              </span>
-            )}
-          <Button
-            size="sm"
-            variant="ghost"
-            data-testid="meta-open"
-            onClick={() => setMetaOpen(true)}
-            className="ml-auto"
-          >
-            {t('spec.meta_button')}
-          </Button>
+          {/* 곁줄 — 이 문서의 이력·무게가 한 줄로 요약된다(시안: 승인자 · 파생 · 역참조) */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-b border-border pb-[22px] text-sm text-text-mute">
+            <Byline detail={detail.data} backlinks={backlinks.length} t={t} />
+          </div>
         </header>
 
         {/* 내가 리스를 쥐고 있다는 사실을 보인다(REQ-WEB-029) — 안 보이면 사람은 자기가
@@ -430,59 +456,116 @@ function SpecDetail(): React.JSX.Element {
       {/* **레일도 스스로 스크롤한다.** `sticky` 로 붙여만 두면 내용이 화면보다 길 때
           아래쪽이 영영 닿지 않는다 — 역참조 18건이면 이미 그렇다(실측 2026-08-23).
           높이를 뷰포트에 묶고 넘치면 레일 안에서 흐르게 한다. */}
-      <aside className="flex flex-col gap-5 text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:max-h-[calc(100vh-var(--spacing-header)-3rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
-        <section>
-          <SectionTitle>{t('spec.versions')}</SectionTitle>
-          <ul className="flex flex-col gap-1">
-            {rows(versions.data)
-              .slice(0, 8)
-              .map((v) => (
-                <li key={String(v['id'])} className="flex items-center gap-2">
-                  <span className="w-8 shrink-0 font-mono text-xs text-text-faint">
-                    v{String(v['version_no'])}
-                  </span>
-                  <StatusBadge
-                    token={
-                      (SPEC_VERSION_TOKEN[String(v['status']) as keyof typeof SPEC_VERSION_TOKEN] ??
-                        'idle') as StatusToken
-                    }
-                    label={t(statusLabelKey('spec', String(v['status'])))}
-                  />
-                </li>
-              ))}
-          </ul>
-        </section>
+      <aside className="flex flex-col text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:max-h-[calc(100vh-var(--spacing-header)-3rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
+        {/* **탭이다**(시안). 버전·역참조·코멘트를 세로로 쌓으면 레일이 세 화면 길이가
+            되고, 그때 코멘트는 스크롤 끝의 소문이 된다. 한 번에 하나를 보이되 수는
+            탭 이름 옆에 미리 적는다 — 눌러 보기 전에 "있는지"는 알아야 한다. */}
+        <div className="flex border-b border-border">
+          {(
+            [
+              ['relations', t('spec.rail.relations'), relationItems.length],
+              ['versions', t('spec.versions'), rows(versions.data).length],
+              ['comments', t('spec.comments'), rows(comments.data).length],
+            ] as const
+          ).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              data-testid={`rail-tab-${key}`}
+              onClick={() => setRailTab(key)}
+              className={cn(
+                'flex items-center gap-[5px] border-b-2 px-[11px] pt-1 pb-2.5 text-sm transition-colors',
+                railTab === key
+                  ? 'border-text font-semibold text-text'
+                  : 'border-transparent text-text-faint hover:text-text',
+              )}
+            >
+              {label}
+              <span className="text-2xs text-text-ghost tabular-nums">{count}</span>
+            </button>
+          ))}
+        </div>
 
-        <section>
-          <SectionTitle>{t('spec.backlinks', { count: backlinks.length })}</SectionTitle>
-          <p className="mb-1.5 text-2xs text-text-faint">{t('spec.backlinks_hint')}</p>
-          <ul className="flex flex-col gap-1">
-            {backlinks.map((r) => (
-              <li key={String(r['spec_id'])}>
-                <Link
-                  to="/p/$proj/specs/$spec"
-                  params={{ proj, spec: String(r['key']) }}
-                  className="text-link hover:underline"
-                >
-                  {String(r['title'])}
-                </Link>
-              </li>
-            ))}
-            {backlinks.length === 0 && <li className="text-text-faint">{t('common.not_yet')}</li>}
-          </ul>
-        </section>
+        <div className="flex flex-col gap-1 pt-2.5">
+          {railTab === 'relations' && (
+            <>
+              {relationItems.map((r) => {
+                const incoming = r['direction'] === 'in';
+                return (
+                  <Link
+                    key={`${String(r['spec_id'])}-${String(r['kind'])}-${String(r['direction'])}`}
+                    to="/p/$proj/specs/$spec"
+                    params={{ proj, spec: String(r['key']) }}
+                    className="flex items-start gap-[9px] rounded-nerv px-2 py-2 transition-colors hover:bg-bg-hover"
+                  >
+                    {/* 방향 표식(시안): 들어오는 것은 조용히, 나가는 것은 물들여서 */}
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[9.5px] font-semibold',
+                        incoming
+                          ? 'bg-bg-sunken text-text-mute'
+                          : 'bg-status-action-soft text-status-action',
+                      )}
+                    >
+                      {incoming ? '↓' : '↑'}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm leading-[1.45] text-text">
+                        {String(r['title'])}
+                      </span>
+                      <span className="mt-0.5 block text-2xs text-text-faint">
+                        {incoming ? t('spec.rail.backlink') : String(r['kind'])} ·{' '}
+                        {String(r['key'])}
+                      </span>
+                    </span>
+                  </Link>
+                );
+              })}
+              {relationItems.length === 0 && (
+                <p className="px-2 text-text-faint">{t('common.not_yet')}</p>
+              )}
+              {backlinks.length > 0 && (
+                <p className="px-2 pt-1 text-2xs text-text-ghost">{t('spec.backlinks_hint')}</p>
+              )}
+            </>
+          )}
 
-        <section>
-          <SectionTitle>{t('spec.comments')}</SectionTitle>
-          <CommentList
-            projectSlug={proj}
-            specKey={spec}
-            versionId={versionId}
-            comments={rows(comments.data)}
-          />
-        </section>
+          {railTab === 'versions' && (
+            <ul className="flex flex-col gap-1 px-2">
+              {rows(versions.data)
+                .slice(0, 8)
+                .map((v) => (
+                  <li key={String(v['id'])} className="flex items-center gap-2 py-0.5">
+                    <span className="w-8 shrink-0 font-mono text-xs text-text-faint">
+                      v{String(v['version_no'])}
+                    </span>
+                    <StatusBadge
+                      token={
+                        (SPEC_VERSION_TOKEN[
+                          String(v['status']) as keyof typeof SPEC_VERSION_TOKEN
+                        ] ?? 'idle') as StatusToken
+                      }
+                      label={t(statusLabelKey('spec', String(v['status'])))}
+                    />
+                  </li>
+                ))}
+            </ul>
+          )}
 
-        <section className="border-t border-border pt-3 text-2xs text-text-faint">
+          {railTab === 'comments' && (
+            <div className="px-2">
+              <CommentList
+                projectSlug={proj}
+                specKey={spec}
+                versionId={versionId}
+                comments={rows(comments.data)}
+              />
+            </div>
+          )}
+        </div>
+
+        <section className="mt-4 border-t border-border px-2 pt-3 text-2xs text-text-faint">
           {me.data !== undefined && t('spec.viewer', { name: me.data.display_name })}
         </section>
       </aside>
@@ -573,5 +656,45 @@ function CommentList({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * 문서 곁줄 — **누가 언제 승인했고 무엇이 이 문서에 매달려 있는가.**
+ * 승인자가 없으면(초안) 작성 흐름의 정보만 남는다. 파생 작업 수는 상세 응답에 없으면
+ * 조용히 생략한다 — 없는 숫자를 0 으로 지어내지 않는다.
+ */
+function Byline({
+  detail,
+  backlinks,
+  t,
+}: {
+  detail: Record<string, unknown> | undefined;
+  backlinks: number;
+  t: ReturnType<typeof useT>;
+}): React.JSX.Element {
+  const approver =
+    typeof detail?.['approved_by_name'] === 'string' ? detail['approved_by_name'] : null;
+  const approvedAt = typeof detail?.['approved_at'] === 'string' ? detail['approved_at'] : null;
+  return (
+    <>
+      {approver !== null && (
+        <span className="flex items-center gap-2">
+          <Avatar name={approver} size="sm" />
+          {approvedAt === null
+            ? t('spec.byline.approved_by', { name: approver })
+            : t('spec.byline.approved_when', {
+                name: approver,
+                when: relativeTime(t, approvedAt),
+              })}
+        </span>
+      )}
+      {approver !== null && (
+        <span aria-hidden="true" className="text-text-ghost">
+          ·
+        </span>
+      )}
+      <span>{t('spec.byline.backlinks', { count: backlinks })}</span>
+    </>
   );
 }

@@ -35,6 +35,9 @@ export const Route = createFileRoute('/p/$proj/tasks/')({ component: TaskBoard }
  * 보라"가 이 보드가 할 말이다. `backlog` 는 여전히 필터다 — 아직 시작되지 않은 일은
  * "지금 흐르고 있는 것"이 아니다.
  */
+/** 레인 하나가 처음 그리는 카드 수 — 시안은 4장 + "+N개 더" 다 */
+const LANE_CAP = 8;
+
 const LANES = ['blocked', 'ready', 'claimed', 'in_progress', 'in_review', 'done'] as const;
 
 /** 레인 이름은 `task_status` 어휘다 — 토큰·라벨 표를 그대로 색인한다 */
@@ -152,7 +155,7 @@ function TaskBoard(): React.JSX.Element {
 
       {/* 레인을 화면 폭에 욱여넣지 않는다 — 좁으면 가로로 민다. 억지로 접으면 순서
           (ready → … → done)가 깨지고, 그 순서가 이 보드의 의미 전부다 */}
-      <div className="-mx-6 flex gap-3 overflow-x-auto px-6 pb-2">
+      <div className="-mx-6 flex gap-[22px] overflow-x-auto px-6 pb-2">
         {lanes.map((lane) => (
           <Lane
             key={lane}
@@ -164,7 +167,6 @@ function TaskBoard(): React.JSX.Element {
           />
         ))}
       </div>
-
     </PageBody>
   );
 }
@@ -224,7 +226,14 @@ function Lane({
   });
   // 막힘은 **흐르지 않는 일**이다 — 같은 가로줄에 있되 레인 자체가 그렇게 보여야 한다
   const halted = lane === 'blocked';
-  const items = query.data?.items ?? [];
+  // 레인 접기(시안) — 머리 전체가 토글이다. 접힌 레인은 이름과 수만 남는다.
+  const [collapsed, setCollapsed] = useState(false);
+  // **레인은 잘라 그린다**(시안 "+N개 더"). 진행 중 24장을 다 세우면 보드가 세로
+  // 2,600px 가 되고(실측 2026-08-24), 그때 다른 레인은 화면 밖의 소문이 된다.
+  const [cap, setCap] = useState(LANE_CAP);
+  const all = query.data?.items ?? [];
+  const items = collapsed ? [] : all.slice(0, cap);
+  const hidden = all.length - items.length;
   const more = query.data?.next_cursor !== null && query.data?.next_cursor !== undefined;
 
   // **레인에 배경을 두지 않는다**(시안 대조 2026-08-23). 가라앉은 상자를 다섯 개
@@ -232,52 +241,74 @@ function Lane({
   // 꼴이 된다. 카드는 페이지 위에 뜬다 — 레인을 나누는 것은 상자가 아니라 **간격과
   // 머리글**이다. 막힘만 예외다: 성질이 다른 레인이라 바탕을 아주 옅게 깐다.
   return (
-            <section
-              data-testid={`column-${lane}`}
-              className={cn(
-                'flex w-64 shrink-0 flex-col',
-                halted && 'rounded-nerv bg-status-danger-soft/30 p-2',
-              )}
-            >
-              {/* **알약이 아니라 맨 점이다**(시안 대조 2026-08-23). 배지는 배경을 깔아
+    <section
+      data-testid={`column-${lane}`}
+      className={cn(
+        'flex w-[268px] shrink-0 flex-col',
+        halted && 'rounded-nerv bg-status-danger-soft/30 p-2',
+      )}
+    >
+      {/* **알약이 아니라 맨 점이다**(시안 대조 2026-08-23). 배지는 배경을 깔아
                   그 자체가 하나의 요소가 되는데, 레인 머리는 요소가 아니라 이름표다.
-                  점은 색만 나르고 이름은 글자가 나른다 — REQ-WEB-033 은 그대로다. */}
-              <h2 className="mb-2.5 flex items-center gap-[7px] px-1">
-                <span
-                  aria-hidden="true"
-                  className={cn('size-1.5 shrink-0 rounded-full', LANE_DOT[lane])}
-                />
-                {/* `statusLabelKey` 는 **키**를 준다 — 번역을 거치지 않으면 화면에
-                    `status.task.ready` 가 그대로 찍힌다(실측 2026-08-23) */}
-                <span className="text-xs font-semibold tracking-[-0.005em] text-text">
-                  {t(statusLabelKey('task', lane))}
-                </span>
-                {/* 한 페이지를 채웠으면 **뒤에 더 있다**는 뜻이다 — 그냥 30 이라고
-                    적으면 사람은 그것이 전부라고 읽는다 */}
-                <span className="text-2xs tabular-nums text-text-faint">
-                  {items.length}
-                  {more ? '+' : ''}
-                </span>
-              </h2>
-              {/* 로딩은 화면 골격으로 — 스피너 단독 금지(§1.5). 레인마다 따로 부르므로
+                  점은 색만 나르고 이름은 글자가 나른다 — REQ-WEB-033 은 그대로다.
+                  머리 전체가 접기 토글이다(시안) — 지금 안 보는 레인은 이름만 남긴다. */}
+      <h2>
+        <button
+          type="button"
+          data-testid={`lane-toggle-${lane}`}
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex w-full items-center gap-[7px] px-1 pb-2.5 text-left"
+        >
+          <span
+            aria-hidden="true"
+            className={cn('size-1.5 shrink-0 rounded-full', LANE_DOT[lane])}
+          />
+          {/* `statusLabelKey` 는 **키**를 준다 — 번역을 거치지 않으면 화면에
+                      `status.task.ready` 가 그대로 찍힌다(실측 2026-08-23) */}
+          <span className="text-sm font-semibold tracking-[-0.005em] text-text">
+            {t(statusLabelKey('task', lane))}
+          </span>
+          {/* 한 페이지를 채웠으면 **뒤에 더 있다**는 뜻이다 — 그냥 30 이라고
+                      적으면 사람은 그것이 전부라고 읽는다 */}
+          <span className="text-xs tabular-nums text-text-faint">
+            {all.length}
+            {more ? '+' : ''}
+          </span>
+          <span aria-hidden="true" className="ml-auto text-[10px] text-text-ghost">
+            {collapsed ? '▸' : '▾'}
+          </span>
+        </button>
+      </h2>
+      {/* 로딩은 화면 골격으로 — 스피너 단독 금지(§1.5). 레인마다 따로 부르므로
                   빠른 레인이 먼저 차고 느린 레인만 골격으로 남는다 */}
-              {query.isLoading && <Skeleton rows={3} className="[&>div]:h-12" />}
-              <ul className="flex flex-col gap-1.5">
-                {items.map((task) => (
-                  <li key={String(task['id'])}>
-                    <TaskCard proj={proj} task={task} lane={lane} onEdit={onEdit} />
-                  </li>
-                ))}
-                {items.length === 0 && !query.isLoading && (
-                  <li className="px-1 py-2 text-2xs text-text-faint">{t('tasks.empty_column')}</li>
-                )}
-              </ul>
-              {more && (
-                // 커서가 남았다는 사실만 알린다 — 여기서 다음 장을 이어 붙이는 것은
-                // 실시간 무효화와 얽히므로 목록 화면(§2.5 필터)의 몫으로 둔다
-                <p className="px-1 pt-1 text-2xs text-text-faint">{t('tasks.more')}</p>
-              )}
-            </section>
+      {query.isLoading && !collapsed && <Skeleton rows={3} className="[&>div]:h-12" />}
+      {!collapsed && (
+        <ul className="flex flex-col gap-1">
+          {items.map((task) => (
+            <li key={String(task['id'])}>
+              <TaskCard proj={proj} task={task} lane={lane} onEdit={onEdit} />
+            </li>
+          ))}
+          {all.length === 0 && !query.isLoading && (
+            // 시안의 빈 레인: 점선 상자 — "없는 것"과 "아직 안 온 것"을 가른다
+            <li className="rounded-[7px] border border-dashed border-border p-3 text-center text-sm text-text-ghost">
+              {t('tasks.empty_column')}
+            </li>
+          )}
+        </ul>
+      )}
+      {!collapsed && hidden > 0 && (
+        <button
+          type="button"
+          data-testid={`lane-more-${lane}`}
+          onClick={() => setCap(cap + LANE_CAP)}
+          className="px-3 py-2 text-left text-sm text-text-faint hover:text-text"
+        >
+          {t('tasks.lane_more', { count: hidden })}
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -308,7 +339,7 @@ function TaskCard({
     // 만져지는 것만 알린다 — 주의가 필요한 카드만 왼쪽 2px 룰로 스스로 튄다.
     <article
       className={cn(
-        'group rounded-nerv-sm border-l-2 px-2.5 py-2 text-sm transition-colors hover:bg-bg-hover',
+        'group rounded-[7px] border-l-2 py-2.5 pr-[11px] pl-2.5 transition-colors hover:bg-bg-sunken',
         needsAttention ? 'border-l-status-waiting' : 'border-l-transparent',
       )}
     >
@@ -318,7 +349,7 @@ function TaskCard({
         <Link
           to="/p/$proj/tasks/$task"
           params={{ proj, task: String(task['key']) }}
-          className="min-w-0 flex-1 leading-snug font-medium hover:text-link"
+          className="min-w-0 flex-1 text-base leading-[1.42] font-medium tracking-[-0.008em] hover:text-link"
         >
           {String(task['title'])}
         </Link>
@@ -344,10 +375,7 @@ function TaskCard({
         {typeof task['assignee_name'] === 'string' && (
           <Avatar name={task['assignee_name']} size="sm" />
         )}
-        <span className="font-mono">{String(task['key'])}</span>
-        {task['spec_key'] !== null && task['spec_key'] !== undefined && (
-          <span className="font-mono">{String(task['spec_key'])}</span>
-        )}
+        <span className="font-mono tracking-[-0.02em] text-text-ghost">{String(task['key'])}</span>
         {/* **경과 시간은 오른쪽 끝에 붙는다**(시안 대조 2026-08-23). 카드가 스무 장
             늘어선 칸에서 "얼마나 묵었나"는 세로로 훑히는 값이라 열이 맞아야 읽힌다 —
             메타 줄 가운데에 섞어 두면 카드마다 위치가 달라 매번 찾아야 한다. */}
@@ -373,20 +401,19 @@ function TaskCard({
           </span>
         )}
       </div>
-      {task['rebrief_required_at'] !== null &&
-        task['rebrief_required_at'] !== undefined && (
-          // 036 — 기준 버전이 지나갔다는 사실과 어디로 가야 하는지를 함께 준다
-          <Link
-            to="/p/$proj/tasks/$task"
-            params={{ proj, task: String(task['key']) }}
-            data-testid="rebrief-badge"
-            className="mt-1.5 block rounded-nerv-sm bg-status-waiting-soft px-1.5 py-1 text-2xs text-status-waiting hover:underline"
-          >
-            {t('tasks.rebrief', {
-              version: String(task['basis_version_no'] ?? '?'),
-            })}
-          </Link>
-        )}
+      {task['rebrief_required_at'] !== null && task['rebrief_required_at'] !== undefined && (
+        // 036 — 기준 버전이 지나갔다는 사실과 어디로 가야 하는지를 함께 준다
+        <Link
+          to="/p/$proj/tasks/$task"
+          params={{ proj, task: String(task['key']) }}
+          data-testid="rebrief-badge"
+          className="mt-1.5 block rounded-nerv-sm bg-status-waiting-soft px-1.5 py-1 text-2xs text-status-waiting hover:underline"
+        >
+          {t('tasks.rebrief', {
+            version: String(task['basis_version_no'] ?? '?'),
+          })}
+        </Link>
+      )}
       {lane === 'backlog' && task['delegation_complete'] === false && (
         <div className="mt-1.5 border-t border-border pt-1.5">
           {/* **무엇이 비었는지**를 카드가 말한다(REQ-WEB-016). "채우세요"만
@@ -416,4 +443,3 @@ function TaskCard({
     </article>
   );
 }
-

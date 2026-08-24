@@ -11,14 +11,33 @@ import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
-import { Button, EmptyState, Skeleton , SummaryStrip } from '../../components/ui/primitives.js';
+import { cn } from '../../lib/utils.js';
+import { Button, EmptyState, Skeleton } from '../../components/ui/primitives.js';
+
+/** 상태 점 — §4.2 매핑의 진한 쪽을 그대로 쓴다(새 색을 만들지 않는다) */
+const SUMMARY_DOT: Record<string, string> = {
+  pending: 'bg-status-idle-text',
+  active: 'bg-status-ok',
+  awaiting_input: 'bg-status-waiting',
+  complete: 'bg-status-done',
+  error: 'bg-status-danger',
+  stale: 'bg-status-idle-text',
+};
 
 export interface SessionBoardProps {
   projectSlug: string;
   projectId: string;
+  /** master-detail — 선택된 세션 id 와 선택 콜백(시안 §2.5) */
+  selectedId?: string | undefined;
+  onSelect?: ((id: string) => void) | undefined;
 }
 
-export function SessionBoard({ projectSlug, projectId }: SessionBoardProps): React.JSX.Element {
+export function SessionBoard({
+  projectSlug,
+  projectId,
+  selectedId,
+  onSelect,
+}: SessionBoardProps): React.JSX.Element {
   const t = useT();
   const query = useQuery({
     queryKey: queryKeys.projectSessions(projectId),
@@ -72,9 +91,15 @@ export function SessionBoard({ projectSlug, projectId }: SessionBoardProps): Rea
     <div className="flex flex-col gap-3">
       <SessionSummaryStrip summary={result?.summary ?? {}} />
       {/* 줄이 되었으니 격자가 아니라 목록이다 — 2열로 쪼개면 세로 훑기가 끊긴다 */}
-      <div className="flex flex-col rounded-nerv border border-border">
+      {/* 시안은 상자를 걷었다 — 줄 사이 실선만으로 목록이 된다 */}
+      <div className="flex flex-col">
         {items.map((card) => (
-          <SessionCard key={card.id} card={card} />
+          <SessionCard
+            key={card.id}
+            card={card}
+            selected={selectedId === card.id}
+            onSelect={onSelect === undefined ? undefined : () => onSelect(card.id)}
+          />
         ))}
       </div>
     </div>
@@ -98,19 +123,34 @@ export function SessionSummaryStrip({
         {t('sessions.no_sessions')}
       </div>
     ) : (
-      <SummaryStrip
+      // 시안의 세션 스트립은 **점 + 큰 숫자 + 라벨**을 한 줄에 둔다 — 상태의 색은
+      // 점이 나르고 숫자는 중립을 지킨다(숫자까지 물들이면 스트립이 신호등이 된다).
+      <div
         data-testid="session-summary"
-        metrics={entries.map(([state, n]) => ({
-          label: t(statusLabelKey('session', state)),
-          value: n,
-          tone:
-            state === 'active'
-              ? ('done' as const)
-              : state === 'awaiting_input'
-                ? ('waiting' as const)
-                : ('default' as const),
-        }))}
-      />
+        className="flex items-center border-y border-border py-[13px]"
+      >
+        {entries.map(([state, n], i) => (
+          <div
+            key={state}
+            className={cn(
+              'flex items-center gap-[9px] pr-[30px]',
+              i < entries.length - 1 && 'mr-[30px] border-r border-border',
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                'size-[7px] shrink-0 rounded-full',
+                SUMMARY_DOT[state] ?? 'bg-status-idle-text',
+              )}
+            />
+            <span className="text-[20px] leading-none font-[650] tracking-[-0.02em] tabular-nums">
+              {n}
+            </span>
+            <span className="text-sm text-text-mute">{t(statusLabelKey('session', state))}</span>
+          </div>
+        ))}
+      </div>
     )
   );
 }
