@@ -141,3 +141,30 @@ export function rolesInOrg(me: Me | undefined, orgSlug: string | null): string[]
   }
   return [...out];
 }
+
+/**
+ * 한 **프로젝트**에서 내가 가진 역할 전부 — 서버의 `assertMembership` 과 같은 규칙이다.
+ *
+ * 프로젝트 스코프 멤버십과 **조직 스코프 멤버십(`project_slug === null`)을 합친다.** 한
+ * 행만 보면 조직 단위로만 소속된 admin 이 어느 프로젝트에서도 아무 역할이 없는 사람이
+ * 된다 — 스펙 메타 편집이 "planner·admin 만 가능합니다"로 잠겨 있던 원인이 그것이었다
+ * (실측 2026-08-24). 서버는 이미 합집합으로 판정하고 있었으므로, 화면이 **서버가 허용할
+ * 일을 못 한다고 말하고 있었다**. 권한 판정이 화면과 서버에서 갈라지면 사람은 화면을
+ * 믿는다.
+ *
+ * 조직도 함께 본다: 다른 조직의 조직 단위 역할이 이 프로젝트로 새면 안 된다.
+ */
+export function rolesInProject(
+  me: Me | undefined,
+  orgSlug: string | null,
+  projectSlug: string | null,
+): string[] {
+  if (me === undefined || orgSlug === null) return [];
+  const out = new Set<string>();
+  for (const m of me.memberships) {
+    if (m.org_slug !== orgSlug) continue;
+    if (m.project_slug !== null && m.project_slug !== projectSlug) continue;
+    for (const role of m.roles) out.add(role);
+  }
+  return [...out];
+}

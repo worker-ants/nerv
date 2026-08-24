@@ -27,6 +27,8 @@ import {
 } from '../../lib/queries.js';
 import type { RoundTripResult } from '../../features/spec-editor/editor.js';
 import { relativeTime } from '../../lib/format.js';
+import { rolesInProject } from '../../lib/session.js';
+import { useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { Avatar, Button, Input, Mono, Textarea } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
@@ -42,6 +44,7 @@ function SpecDetail(): React.JSX.Element {
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const me = useMe();
+  const { orgSlug } = useScope(proj);
   const detail = useSpec(proj, spec);
   const versions = useSpecVersions(proj, spec);
   const comments = useSpecComments(proj, spec);
@@ -443,8 +446,10 @@ function SpecDetail(): React.JSX.Element {
           }
           specKey={spec}
           title={String(detail.data?.['title'] ?? spec)}
-          // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다
-          canEdit={(me.data?.memberships.find((m) => m.project_slug === proj)?.roles ?? []).some(
+          // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다.
+          // **합집합으로 본다**: 멤버십 한 행만 보면 조직 단위 admin 이 어느 프로젝트에서도
+          // 역할이 없는 사람이 되어, 서버가 허용할 편집을 화면이 막는다(실측 2026-08-24).
+          canEdit={rolesInProject(me.data, orgSlug, proj).some(
             (r) => r === 'planner' || r === 'admin',
           )}
           onClose={() => setMetaOpen(false)}

@@ -12,8 +12,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AGENT_SCOPES, HUMAN_ONLY_SCOPES } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
-import { rows, useMe, useTokens } from '../../lib/queries.js';
-import { primaryMembership } from '../../lib/session.js';
+import { rows, useTokens } from '../../lib/queries.js';
+import { useScope } from '../../lib/scope.js';
 import { useRealtime } from '../../lib/realtime.js';
 import {
   Button,
@@ -32,11 +32,13 @@ export const Route = createFileRoute('/settings/tokens')({ component: TokensTab 
 
 function TokensTab(): React.JSX.Element {
   const t = useT();
-  const me = useMe();
   const tokens = useTokens();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
-  const membership = me.data === undefined ? null : primaryMembership(me.data);
+  // 발급 대상 프로젝트는 **헤더에서 고른 프로젝트**다. 예전에는 멤버십 한 행의
+  // `project_slug` 를 썼고, 조직 단위 멤버십만 가진 admin 은 그 값이 `null` 이라
+  // 발급 버튼이 영영 비활성이었다(실측 2026-08-24).
+  const { projectSlug } = useScope();
 
   const [name, setName] = useState(t('settings.tokens.default_name'));
   const [scopes, setScopes] = useState<string[]>(['spec:read', 'task:claim']);
@@ -46,7 +48,7 @@ function TokensTab(): React.JSX.Element {
     mutationFn: () =>
       apiFetch<{ token: string; prefix: string }>('/me/tokens', {
         method: 'POST',
-        body: { project: membership?.project_slug ?? '', name, scopes },
+        body: { project: projectSlug ?? '', name, scopes },
       }),
     onSuccess: (result) => {
       setIssued(result.token);
@@ -77,7 +79,7 @@ function TokensTab(): React.JSX.Element {
           />
           <Button
             variant="primary"
-            disabled={issue.isPending || membership?.project_slug == null}
+            disabled={issue.isPending || projectSlug === null}
             onClick={() => issue.mutate()}
           >
             {t('settings.tokens.issue')}

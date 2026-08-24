@@ -16,9 +16,10 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { signOut } from '../lib/session.js';
-import { rows, useInbox, useMe, useProjects, useUnreadCount, useProject } from '../lib/queries.js';
+import { useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
 import { chapterForRoute } from '../lib/manual.js';
+import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { SpecTree } from './spec-tree.js';
 import { MenuItem, Popover } from './ui/primitives.js';
@@ -95,32 +96,24 @@ export function AppShell({
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState<'org' | 'project' | 'user' | 'help' | null>(null);
 
-  // 조직 스코프 — 헤더가 조직 단위라는 것을 화면이 말해야 한다(§1.3 "전역 헤더 · 조직 스코프").
-  // 멤버십에서 조직을 뽑는다: 사용자가 속한 곳만 고를 수 있다는 사실이 목록 자체로 드러난다.
-  const orgs = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const m of me.data?.memberships ?? []) seen.set(m.org_slug, m.org_name);
-    return [...seen].map(([slug, name]) => ({ slug, name }));
-  }, [me.data]);
-  const currentOrg = orgs[0] ?? null;
-
-  // ── 프로젝트 스코프 ───────────────────────────────────────────────────────
+  // ── 스코프 두 축 ─────────────────────────────────────────────────────────
   //
   // **프로젝트도 고를 수 있어야 한다**(사람 지시 2026-08-24). 이전에는 사이드바가
   // 현재 프로젝트의 **이름만** 적어 두어, 프로젝트가 둘 이상이면 옮겨 갈 길이 화면에
   // 없었다(퀵 스위처를 아는 사람만 ⌘K 로 갔다).
   //
-  // 어느 프로젝트인가는 **라우트가 가장 잘 안다.** 다만 홈·승인함·알림은 조직 전역이라
-  // 라우트에 프로젝트가 없다 — 그때는 마지막으로 본 프로젝트를 쓴다. 기억하지 않으면
-  // 전역 화면에서 헤더의 프로젝트 칸이 매번 비고, 빈 칸은 "선택할 수 없다"로 읽힌다.
-  const projects = useProjects(currentOrg?.slug ?? null);
-  const projectRows = rows(projects.data);
-  const remembered = useLastProject(projectSlug);
-  const currentProjectSlug =
-    projectSlug ??
-    (projectRows.some((p) => p['slug'] === remembered) ? remembered : null) ??
-    (typeof projectRows[0]?.['slug'] === 'string' ? String(projectRows[0]['slug']) : null);
-  const currentProject = projectRows.find((p) => p['slug'] === currentProjectSlug);
+  // 어느 조직·프로젝트인가를 정하는 규칙은 `lib/scope.ts` 한 곳에 있다 — 화면마다 다시
+  // 쓰면 그때마다 조금씩 다르게 틀린다(설정 탭들이 실제로 그렇게 틀렸다).
+  const orgs = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of me.data?.memberships ?? []) seen.set(m.org_slug, m.org_name);
+    return [...seen].map(([slug, name]) => ({ slug, name }));
+  }, [me.data]);
+  const scope = useScope(projectSlug);
+  const currentOrg = scope.orgSlug === null ? null : { slug: scope.orgSlug, name: scope.orgName };
+  const projectRows = scope.projects;
+  const currentProjectSlug = scope.projectSlug;
+  const currentProject = scope.project;
 
   // ⌘K / Ctrl+K — 전 라우트 공통(REQ-WEB-040)
   useEffect(() => {
@@ -622,38 +615,4 @@ export function AppShell({
       />
     </div>
   );
-}
-
-/**
- * 마지막으로 본 프로젝트를 기억한다.
- *
- * 홈·승인함·알림은 조직 전역이라 라우트에 프로젝트가 없다. 기억이 없으면 그 화면들에서
- * 헤더의 프로젝트 칸이 매번 비고, **빈 칸은 "선택할 수 없다"로 읽힌다** — 실제로는 고를
- * 수 있는데도. 프로젝트 라우트를 지날 때마다 적어 두고, 전역 화면에서는 그것을 읽는다.
- *
- * localStorage 가 막힌 환경(사파리 프라이빗 등)에서도 화면은 그대로 돌아야 한다 —
- * 읽기·쓰기 모두 실패를 삼키고 `null` 로 떨어진다.
- */
-const LAST_PROJECT_KEY = 'nerv.last-project';
-
-function useLastProject(projectSlug: string | undefined): string | null {
-  const [remembered, setRemembered] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(LAST_PROJECT_KEY);
-    } catch {
-      return null;
-    }
-  });
-
-  useEffect(() => {
-    if (projectSlug === undefined || projectSlug === remembered) return;
-    setRemembered(projectSlug);
-    try {
-      localStorage.setItem(LAST_PROJECT_KEY, projectSlug);
-    } catch {
-      // 기억하지 못해도 화면은 돈다 — 라우트가 아는 동안은 라우트가 정본이다
-    }
-  }, [projectSlug, remembered]);
-
-  return remembered;
 }

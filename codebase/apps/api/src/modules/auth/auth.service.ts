@@ -798,9 +798,16 @@ export class AuthService {
   async assertMembership(userId: string, projectId: string): Promise<MembershipRole[]> {
     // **하나만 고르지 않는다.** 프로젝트 스코프와 조직 스코프 양쪽의 역할을 합친다 —
     // 조직 admin 이면서 프로젝트 developer 인 사람은 둘 다여야 맞다.
+    //
+    // **조직이 경계다**(2026-08-24 정정). `project_id IS NULL` 만 보고 `org_id` 를 보지
+    // 않아, A 조직의 조직 단위 admin 이 **B 조직의 프로젝트에서도 admin** 이었다. 이
+    // 판정은 REST·WS join·SSE 가 함께 쓰는 한 곳이라 여기가 새면 전부 샌다.
     const { rows } = await this.db.execute<{ role: MembershipRole }>(sql`
-      SELECT DISTINCT role FROM membership
-       WHERE user_id = ${userId} AND (project_id = ${projectId} OR project_id IS NULL)
+      SELECT DISTINCT m.role FROM membership m
+        JOIN project p ON p.id = ${projectId}
+       WHERE m.user_id = ${userId}
+         AND m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
     `);
     const roles = rows.map((r) => r.role);
     if (roles.length === 0) {

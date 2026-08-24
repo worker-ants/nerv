@@ -9,8 +9,8 @@ import { eventLabelKey } from '@nerv/schema';
 import { useLocale, useT } from '../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { relativeTime } from '../lib/format.js';
-import { rows, useCoverage, useEvents, useInbox, useMe, useProjects } from '../lib/queries.js';
-import { primaryMembership } from '../lib/session.js';
+import { rows, useCoverage, useEvents, useInbox, useMe } from '../lib/queries.js';
+import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
 import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
 
@@ -21,14 +21,12 @@ function HomeScreen(): React.JSX.Element {
   const { locale } = useLocale();
   const me = useMe();
   const inbox = useInbox();
-  const membership = me.data === undefined ? null : primaryMembership(me.data);
-  const orgSlug = membership?.org_slug ?? null;
-  const projects = useProjects(orgSlug);
-  const projectRows = rows(projects.data);
-  // 홈은 조직 전역이지만 활동·커버리지는 프로젝트의 것이다 — 첫 프로젝트를 보여 주고,
-  // 여럿이면 그 카드가 프로젝트 화면으로 가는 문이 된다(MVP 는 단일 프로젝트가 보통이다)
-  const primary = projectRows[0];
-  const primarySlug = typeof primary?.['slug'] === 'string' ? primary['slug'] : '';
+  // 홈은 조직 전역이지만 활동·커버리지는 프로젝트의 것이다. **헤더가 고른 그 프로젝트**를
+  // 보여 준다(scope.ts) — 홈이 첫 프로젝트를, 헤더가 마지막으로 본 프로젝트를 가리키면
+  // 같은 화면의 두 자리가 서로 다른 프로젝트를 말하게 된다.
+  const scope = useScope();
+  const primary = scope.project;
+  const primarySlug = scope.projectSlug ?? '';
   const primaryId = typeof primary?.['id'] === 'string' ? primary['id'] : undefined;
   const events = useEvents(primarySlug, primaryId);
   const coverage = useCoverage(primarySlug, primaryId);

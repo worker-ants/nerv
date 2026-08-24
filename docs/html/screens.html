@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.23 (2026-08-24)</span>
+      <span>버전 v0.24 (2026-08-24)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -355,6 +355,32 @@
     <tbody>
       <tr><td>REQ-WEB-048</td><td>WHEN 사용자가 언어를 고르면 THE SYSTEM SHALL 그 선택을 브라우저에 남기고, 이후 방문에서 브라우저 언어보다 우선 적용한다</td></tr>
       <tr><td>REQ-WEB-049</td><td>WHILE 화면이 특정 로케일로 그려지는 동안 THE SYSTEM SHALL 모든 API 요청에 같은 로케일의 <code>Accept-Language</code> 를 실어 화면과 응답의 언어를 일치시킨다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.8 스코프와 권한 판정 (2026-08-24 신설 — 사람 보고)</h3>
+
+  <p>화면은 권한을 <b>정하지 않는다.</b> 정본은 서버다(<a href="api.html">4.4 API 명세</a> §1.6a). 화면이 하는 일은 서버가 무엇을 허용할지 <b>미리 말해 주는 것</b>뿐이고, 그래서 두 판정은 같은 규칙이어야 한다 — 갈라지면 사람은 화면을 믿는다.</p>
+
+  <p><b>점화 기록(2026-08-24).</b> admin 계정으로 스펙 메타 편집이 "planner·admin 만 가능합니다"로 잠겨 있다는 보고. 원인은 화면이 멤버십 <b>한 행</b>만 보고 역할을 판정한 것이었다 — 조직 단위로만 소속된 admin 은 <code>project_slug === null</code> 행 하나를 갖는데, 프로젝트 슬러그로 찾으면 걸리지 않아 "아무 역할 없음"이 된다. 서버는 이미 합집합으로 판정하고 있었으므로 <b>화면이 서버가 허용할 일을 못 한다고 말하고 있었다</b>. 같은 뿌리에서 네 화면이 함께 틀려 있었다(메타 편집 · 게이트 정책 · 토큰 발급 · 리뷰 처분).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>무엇</th><th>규칙</th><th>어디</th></tr></thead>
+    <tbody>
+      <tr><td>지금 조직</td><td>내가 속한 첫 조직</td><td><code>lib/scope.ts</code> <code>useScope()</code></td></tr>
+      <tr><td>지금 프로젝트</td><td><b>라우트 → 마지막으로 본 것 → 첫 프로젝트</b></td><td>같음 (<code>nerv.last-project</code>)</td></tr>
+      <tr><td>조직에서의 역할</td><td>그 조직 멤버십 전부의 합집합</td><td><code>lib/session.ts</code> <code>rolesInOrg()</code></td></tr>
+      <tr><td>프로젝트에서의 역할</td><td>프로젝트 스코프 ∪ <b>같은 조직의</b> 조직 스코프</td><td>같음 <code>rolesInProject()</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>한 곳에서만 정한다.</b> 화면마다 "내 멤버십에서 하나 고른다"를 다시 쓰면 그때마다 조금씩 다르게 틀린다 — 게이트 정책 탭은 존재하지도 않는 <code>membership.role</code>(단수)을 읽어 <b>누구에게나</b> 읽기 전용이었고(<code>Membership</code> 이 <code>Record&lt;string, unknown&gt;</code> 을 확장해 타입이 잡지 못했다), 토큰 탭은 멤버십의 <code>project_slug</code> 가 <code>null</code> 이라 발급 버튼이 영영 비활성이었다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-075</td><td>WHEN 화면이 역할로 조작 가능 여부를 정하면 THE SYSTEM SHALL 서버와 같은 규칙(겸직 합집합 · 조직 스코프 포함 · 조직 경계)으로 판정한다 — 서버가 허용하는 일을 화면이 막지 않는다</td></tr>
+      <tr><td>REQ-WEB-076</td><td>WHEN 조직 전역 화면(홈·승인함·알림·설정)이 프로젝트를 필요로 하면 THE SYSTEM SHALL 헤더가 고른 것과 같은 프로젝트를 쓴다(멤버십 행에서 따로 고르지 않는다)</td></tr>
     </tbody>
   </table></div>
 

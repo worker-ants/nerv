@@ -11,7 +11,8 @@ import { useState } from 'react';
 import { GatePolicySchema } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { useMe, useProject } from '../../lib/queries.js';
-import { primaryMembership } from '../../lib/session.js';
+import { rolesInProject } from '../../lib/session.js';
+import { useScope } from '../../lib/scope.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import {
@@ -28,12 +29,19 @@ export const Route = createFileRoute('/settings/gates')({ component: GatesTab })
 function GatesTab(): React.JSX.Element {
   const t = useT();
   const me = useMe();
-  const membership = me.data === undefined ? null : primaryMembership(me.data);
-  const projectSlug = membership?.project_slug ?? '';
-  const project = useProject(projectSlug);
+  // 스코프는 헤더의 select 와 같은 규칙으로 정한다(scope.ts) — 예전에는 멤버십 한 행의
+  // `project_slug` 를 썼고, 조직 단위 멤버십만 가진 admin 은 그 값이 `null` 이라
+  // **자기 조직의 게이트 정책을 아예 열지 못했다**(실측 2026-08-24).
+  const { orgSlug, projectSlug } = useScope();
+  // 프로젝트가 없으면 편집할 정책도 없다 — 빈 slug 로 서버를 부르지 않는다(조용한 500 의 원인)
+  const slug = projectSlug ?? '';
+  const project = useProject(slug);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
-  const isAdmin = membership?.role === 'admin';
+  // `membership?.role` 은 **없는 필드**였다(멤버십이 나르는 것은 `roles` 배열이다).
+  // `Membership` 이 `Record<string, unknown>` 을 확장해 타입이 잡지 못했고, 그래서
+  // 이 탭은 누구에게나 읽기 전용이었다 — admin 에게도.
+  const isAdmin = rolesInProject(me.data, orgSlug, projectSlug).includes('admin');
 
   const stored = GatePolicySchema.safeParse(project.data?.['gate_policy'] ?? {});
   const policy = stored.success ? stored.data : GatePolicySchema.parse({});
@@ -44,7 +52,7 @@ function GatesTab(): React.JSX.Element {
 
   const save = useMutation({
     mutationFn: () =>
-      apiFetch(`/projects/${projectSlug}`, {
+      apiFetch(`/projects/${slug}`, {
         method: 'PATCH',
         body: {
           gate_policy: {
@@ -60,7 +68,7 @@ function GatesTab(): React.JSX.Element {
         },
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectSlug) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.project(slug) });
       pushToast({ tone: 'ok', message: t('settings.gates.saved') });
     },
     onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
@@ -109,7 +117,7 @@ function GatesTab(): React.JSX.Element {
         <Button
           variant="primary"
           className="self-start"
-          disabled={!isAdmin || save.isPending}
+          disabled={!isAdmin || slug === '' || save.isPending}
           onClick={() => save.mutate()}
           title={isAdmin ? undefined : t('settings.gates.admin_only_title')}
         >

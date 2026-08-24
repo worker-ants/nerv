@@ -10,7 +10,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
 import { rows, useMe, useMembers } from '../../lib/queries.js';
-import { primaryMembership } from '../../lib/session.js';
+import { rolesInOrg } from '../../lib/session.js';
+import { useScope } from '../../lib/scope.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { EmptyState, PageHeader, Table, Td, Th, Tr } from '../../components/ui/primitives.js';
 
@@ -57,14 +58,14 @@ const ROLES = ['admin', 'planner', 'designer', 'developer', 'qa', 'viewer'] as c
 function MembersTab(): React.JSX.Element {
   const t = useT();
   const me = useMe();
-  const membership = me.data === undefined ? null : primaryMembership(me.data);
-  const orgSlug = membership?.org_slug ?? null;
-  const projectSlug = membership?.project_slug ?? null;
+  const { orgSlug, projectSlug } = useScope();
   const members = useMembers(orgSlug);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
-  // **하나를 고르지 않는다.** 겸직이면 planner+developer 중 하나가 사라진다(0003_multi_role)
-  const isAdmin = (membership?.roles ?? []).includes('admin');
+  // **하나를 고르지 않는다.** 겸직이면 planner+developer 중 하나가 사라진다(0003_multi_role).
+  // 조직 권한은 그 조직의 멤버십 **전부**를 합쳐 본다 — 한 행만 보면 조직 admin 이면서
+  // 프로젝트에서 planner 인 사람이 admin 이 아니게 된다.
+  const isAdmin = rolesInOrg(me.data, orgSlug).includes('admin');
 
   /**
    * 역할 하나를 켜고 끈다. **부여마다 행**이므로 켜기는 추가, 끄기는 삭제다 —

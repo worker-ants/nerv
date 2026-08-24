@@ -214,6 +214,78 @@ describe('스코프·프로젝트 경계', () => {
   });
 });
 
+describe('멤버십 판정 — 겸직은 합집합, 조직은 경계다 (2026-08-24)', () => {
+  it('조직 단위 멤버십(project_id NULL)은 그 조직의 모든 프로젝트에 적용된다', async () => {
+    const orgUser = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'orgadmin@example.com','조직관리','active')`,
+      [orgUser],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, NULL, $2, 'admin' FROM project WHERE id = $3`,
+      [newId(), orgUser, projectId],
+    );
+
+    // 프로젝트 스코프 행이 하나도 없는데도 admin 이어야 한다 — 화면이 이 사람을
+    // "아무 역할 없음"으로 읽어 스펙 메타 편집을 잠갔던 것이 사람 보고의 원인이었다.
+    expect(await auth.assertMembership(orgUser, projectId)).toEqual(['admin']);
+    expect(await auth.assertMembership(orgUser, otherProjectId)).toEqual(['admin']);
+  });
+
+  it('겸직은 합집합이다 — 프로젝트 역할과 조직 역할을 함께 준다', async () => {
+    const bothUser = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'both@example.com','겸직','active')`,
+      [bothUser],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, NULL, $2, 'admin' FROM project WHERE id = $3`,
+      [newId(), bothUser, projectId],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'planner' FROM project WHERE id = $3`,
+      [newId(), bothUser, projectId],
+    );
+    expect((await auth.assertMembership(bothUser, projectId)).sort()).toEqual(['admin', 'planner']);
+  });
+
+  it('**다른 조직의** 조직 단위 역할은 새지 않는다 — 조직이 경계다', async () => {
+    // `project_id IS NULL` 만 보고 org_id 를 보지 않으면, A 조직의 admin 이 B 조직의
+    // 프로젝트에서도 admin 이 된다. 멤버십 판정은 표면 셋(REST·WS·SSE)이 공유하는
+    // 한 곳이라 여기가 새면 전부 샌다.
+    const otherOrg = newId();
+    const foreignProject = newId();
+    const crossUser = newId();
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'acme-sep','Acme')`, [
+      otherOrg,
+    ]);
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'acme-app','ACM','acme app')`,
+      [foreignProject, otherOrg],
+    );
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'cross@example.com','교차','active')`,
+      [crossUser],
+    );
+    // 우리 조직에서는 조직 단위 admin
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, NULL, $2, 'admin' FROM project WHERE id = $3`,
+      [newId(), crossUser, projectId],
+    );
+    // 남의 조직에서는 그 프로젝트의 viewer 일 뿐이다
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'viewer')`,
+      [newId(), otherOrg, foreignProject, crossUser],
+    );
+
+    expect(await auth.assertMembership(crossUser, foreignProject)).toEqual(['viewer']);
+  });
+});
+
 describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 신설)', () => {
   it('조직을 만들면 만든 사람이 그 조직의 admin 이 된다', async () => {
     await auth.createOrg({ userId, slug: 'acme', name: 'Acme' });

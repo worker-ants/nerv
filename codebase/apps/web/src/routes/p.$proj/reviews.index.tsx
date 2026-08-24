@@ -14,7 +14,8 @@ import { ResolveDialog } from '../../features/review-center/resolve-dialog.js';
 import type { ResolveAction } from '../../features/review-center/resolve-dialog.js';
 import { useT } from '../../lib/i18n.js';
 import { rows, useFindings, useGateCoverage, useMe, useProject } from '../../lib/queries.js';
-import { primaryMembership } from '../../lib/session.js';
+import { rolesInProject } from '../../lib/session.js';
+import { useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import {
   Card,
@@ -55,7 +56,10 @@ function ReviewCenter(): React.JSX.Element {
 
   const queue = useFindings(proj, { severity, status, tag }, id, limit);
   const gate = useGateCoverage(proj, id);
-  const roles = me.data === undefined ? [] : (primaryMembership(me.data)?.roles ?? []);
+  // 멤버십 한 행이 아니라 이 프로젝트에서의 역할 **전부**다 — 조직 단위 멤버십만 가진
+  // 사람은 한 행 판정에서 아무 역할도 없는 사람이 된다(2026-08-24).
+  const { orgSlug } = useScope(proj);
+  const roles = rolesInProject(me.data, orgSlug, proj);
   const canResolve = roles.some((r) => RESOLVER_ROLES.includes(r));
 
   const facets = queue.data?.facets;
