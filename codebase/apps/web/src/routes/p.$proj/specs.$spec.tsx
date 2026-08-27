@@ -169,62 +169,72 @@ function SpecDetail(): React.JSX.Element {
       <main className="mx-auto min-w-0 max-w-[44rem]">
         {/* 시안의 문서 머리: **메타 줄 → 큰 제목 → 곁줄** 세 층이다. 제목 옆에 배지를
             늘어놓던 이전 배치는 제목이 배지들과 폭을 다퉜다 — 문서의 이름은 문서에서
-            가장 큰 글자여야 하고(33px), 신원(키·타입·버전)은 그 위에 조용히 눕는다. */}
-        <header className="mb-3">
-          <div className="flex flex-wrap items-center gap-[7px]">
-            <StatusBadge
-              token={
-                (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
-                  'idle') as StatusToken
-              }
-              label={t(statusLabelKey('spec', docStatus))}
-            />
-            <Mono className="text-xs">{spec}</Mono>
-            {typeof detail.data?.['type'] === 'string' && (
-              <>
-                <span aria-hidden="true" className="text-text-ghost">
-                  ·
-                </span>
-                <span className="text-sm text-text-faint">{String(detail.data['type'])}</span>
-              </>
-            )}
-            <span aria-hidden="true" className="text-text-ghost">
-              ·
-            </span>
-            <span className="text-sm text-text-faint">
-              v{String(detail.data?.['version_no'] ?? '')}
-            </span>
-            {detail.data?.['basis_superseded'] === true && (
-              <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
-            )}
-            {/* 참조 갱신 배지(REQ-WEB-037) — 내가 참조하는 문서가 나보다 앞서 갔다는 신호.
+            가장 큰 글자여야 하고(33px), 신원(키·타입·버전)은 그 위에 조용히 눕는다.
+            세 층을 `<header>` 로 묶지 **않는다**: `position: sticky` 는 부모 상자 안에서만
+            붙어 있으므로, 150px 짜리 머리 안에 제목을 두면 머리가 화면을 떠날 때 제목도
+            같이 떠난다(실측 2026-08-27 — 그래서 처음 시도가 동작하지 않았다). 제목이
+            본문 끝까지 붙어 있으려면 본문만큼 긴 상자의 자식이어야 한다. */}
+        <div className="flex flex-wrap items-center gap-[7px]">
+          <StatusBadge
+            token={
+              (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
+                'idle') as StatusToken
+            }
+            label={t(statusLabelKey('spec', docStatus))}
+          />
+          <Mono className="text-xs">{spec}</Mono>
+          {typeof detail.data?.['type'] === 'string' && (
+            <>
+              <span aria-hidden="true" className="text-text-ghost">
+                ·
+              </span>
+              <span className="text-sm text-text-faint">{String(detail.data['type'])}</span>
+            </>
+          )}
+          <span aria-hidden="true" className="text-text-ghost">
+            ·
+          </span>
+          <span className="text-sm text-text-faint">
+            v{String(detail.data?.['version_no'] ?? '')}
+          </span>
+          {detail.data?.['basis_superseded'] === true && (
+            <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
+          )}
+          {/* 참조 갱신 배지(REQ-WEB-037) — 내가 참조하는 문서가 나보다 앞서 갔다는 신호.
                 이게 없으면 낡은 근거 위에서 계속 쓰게 된다 */}
-            {relationItems.some(
-              (r) => r['direction'] === 'out' && r['doc_status'] === 'approved',
-            ) &&
-              detail.data?.['doc_status'] === 'draft' && (
-                <span data-testid="recheck-badge">
-                  <StatusBadge token="waiting" label={t('spec.recheck')} />
-                </span>
-              )}
-            <Button
-              size="sm"
-              variant="ghost"
-              data-testid="meta-open"
-              onClick={() => setMetaOpen(true)}
-              className="ml-auto"
-            >
-              {t('spec.meta_button')}
-            </Button>
-          </div>
-          <h1 className="mt-[13px] text-3xl font-bold tracking-[-0.026em]">
-            {String(detail.data?.['title'] ?? spec)}
-          </h1>
-          {/* 곁줄 — 이 문서의 이력·무게가 한 줄로 요약된다(시안: 승인자 · 파생 · 역참조) */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-b border-border pb-[22px] text-sm text-text-mute">
-            <Byline detail={detail.data} backlinks={backlinks.length} t={t} />
-          </div>
-        </header>
+          {relationItems.some((r) => r['direction'] === 'out' && r['doc_status'] === 'approved') &&
+            detail.data?.['doc_status'] === 'draft' && (
+              <span data-testid="recheck-badge">
+                <StatusBadge token="waiting" label={t('spec.recheck')} />
+              </span>
+            )}
+          <Button
+            size="sm"
+            variant="ghost"
+            data-testid="meta-open"
+            onClick={() => setMetaOpen(true)}
+            className="ml-auto"
+          >
+            {t('spec.meta_button')}
+          </Button>
+        </div>
+        {/* **이름은 화면을 떠나지 않는다**(2026-08-27 — 사람 요청). 스펙 본문은 길다
+            (clemvion 실측: `data-model` 50,685px = 화면 56장). 몇 장만 내려가도 지금
+            보는 것이 어느 문서인지가 화면에서 사라지고, 트리에서 눌러 들어온 사람은
+            되짚을 것이 스크롤바밖에 없다. 셸 헤더 바로 아래에 붙고, 아래로 흐르는
+            본문을 덮어야 하므로 배경은 **불투명**하다. */}
+        <h1
+          data-testid="spec-title"
+          className="sticky top-header z-20 mt-[7px] bg-bg pt-1.5 pb-0.5 text-3xl font-bold tracking-[-0.026em]
+            after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2
+            after:bg-gradient-to-b after:from-bg after:to-transparent after:content-['']"
+        >
+          {String(detail.data?.['title'] ?? spec)}
+        </h1>
+        {/* 곁줄 — 이 문서의 이력·무게가 한 줄로 요약된다(시안: 승인자 · 파생 · 역참조) */}
+        <div className="mt-2 mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-[22px] text-sm text-text-mute">
+          <Byline detail={detail.data} backlinks={backlinks.length} t={t} />
+        </div>
 
         {/* 내가 리스를 쥐고 있다는 사실을 보인다(REQ-WEB-029) — 안 보이면 사람은 자기가
             문서를 잠그고 있는 줄 모르고 자리를 뜬다 */}

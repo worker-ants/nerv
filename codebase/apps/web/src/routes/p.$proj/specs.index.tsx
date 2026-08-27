@@ -67,10 +67,25 @@ function SpecListScreen(): React.JSX.Element {
   const projectId = project.data?.['id'];
   const graph = useSpecGraph(proj, typeof projectId === 'string' ? projectId : undefined);
 
+  // 그래프를 보는 동안에만 화면 높이를 **확정한다**. `min-h` 로 두면 `flex-1` 자식이
+  // 내용만큼 자라는데, 이웃 93개짜리 문서를 고르는 순간 패널이 4,771px 이 되고 캔버스도
+  // 같이 늘어나 문서 전체가 스크롤됐다(실측 2026-08-27 · 문서 5,016px). 높이가 확정되면
+  // 패널은 자기 안에서 스크롤하고 캔버스는 화면 밖으로 나가지 않는다.
+  //
+  // 트리·표는 반대로 **문서가 스크롤한다** — 141줄짜리 목록을 화면에 가두면 스크롤이
+  // 두 겹이 되고, 안쪽 스크롤은 바깥 스크롤에 가려 있다는 것 자체가 잘 안 보인다.
+  const viewportLocked = submitted.trim() === '' && view === 'graph';
+
   return (
-    // 화면 높이만큼을 쓰고 **남는 세로는 본문이 가진다**(아래 `flex-1`). 그래프는 밀도가
-    // 전부인 그림이라 캔버스 100px 이 곧 읽을 수 있는 노드 수다.
-    <PageBody wide className="flex min-h-[calc(100dvh-var(--spacing-header))] flex-col">
+    <PageBody
+      wide
+      className={cn(
+        'flex flex-col',
+        viewportLocked
+          ? 'h-[calc(100dvh-var(--spacing-header))]'
+          : 'min-h-[calc(100dvh-var(--spacing-header))]',
+      )}
+    >
       <PageHeader
         title={t('specs.title')}
         description={t('specs.lead')}
