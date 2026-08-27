@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.9 · 2026-08-23 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.10 · 2026-08-27 · HTML 판: [database.html](../html/database.html)
+>
+> v0.10 변경(2026-08-27 — 선언과 실물이 어긋나 있었다): `membership` 고유 인덱스의 축을 **실물에 맞춘다**. 0003_multi_role 이 raw SQL 로 (사용자, 스코프) → (사용자, 스코프, 역할)로 바꿨는데 §2.1 DDL·§2.12·drizzle 테이블 선언·스냅샷 5개가 옛 축에 머물러 있었다 — 선언상으로는 "한 스코프에 역할 하나"였고, 이 표를 누가 건드리는 순간 생성된 마이그레이션이 **겸직을 도로 막았을 것이다**(REQ-DB-010 은 이미 새 축을 적고 있었으므로 문서 안에서도 갈라져 있었다). 0005 는 조건부 SQL 이라 기존 DB 에서는 아무 일도 하지 않는다 — 이 마이그레이션이 하는 일은 스냅샷을 실물에 맞추는 것이다.
 >
 > v0.9 변경(2026-08-23 — 리뷰 수집 착수): `approval_subject_type` 에 **`finding`** 추가(§2.1 · 마이그레이션 `0004_finding_approval`). `nerv_finding_resolve(critical → dismissed/wont_fix)` 는 A3라 사람의 승인함을 거치는데 카드가 붙을 자리가 열거에 없었다 — 리뷰 표면이 Phase 2 라 빠져 있던 것이다. 테이블·엔티티 수는 불변(29종). 곁가지로 **drizzle 스냅샷 체인의 파손을 고쳤다**: `0003_multi_role` 이 손으로 쓰인 마이그레이션이라 `meta/0003_snapshot.json` 이 0002 의 복사본(같은 `id`·`prevId`)으로 들어가 있었고, 그 때문에 `pnpm db:generate` 가 **collision 으로 죽어 CI 의 "생성물 정합" 잡이 이미 빨간 상태였다**. 0003·0004 스냅샷을 다시 세웠고 이제 `db:generate` 는 변경 0건으로 끝난다.
 >
@@ -166,7 +168,7 @@ CREATE TABLE membership (
   role       member_role NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- 중복 배정 차단은 표현식 unique — §2.12 membership_user_scope_uq
+-- 중복 배정 차단은 표현식 unique — §2.12 membership_user_scope_role_uq
 
 CREATE TABLE api_token (
   id           uuid PRIMARY KEY,
@@ -673,7 +675,8 @@ data-model §5.3 표의 전량 + 보조 인덱스(표에 없는 것은 주석에
 
 ```sql
 -- 테넌시
-CREATE UNIQUE INDEX membership_user_scope_uq ON membership (user_id, coalesce(project_id, org_id));
+-- 유일성의 축에 **역할이 들어간다**(0003_multi_role · REQ-DB-010) — 겸직이 흔한 형태다
+CREATE UNIQUE INDEX membership_user_scope_role_uq ON membership (user_id, coalesce(project_id, org_id), role);
 CREATE INDEX api_token_project_user ON api_token (project_id, user_id);            -- 보조: S8 토큰 목록
 
 -- 스펙

@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as HelpIndexRouteImport } from './routes/help/index'
 import { Route as HelpChapterRouteImport } from './routes/help/$chapter'
 import { Route as OOrgRouteImport } from './routes/o.$org'
@@ -67,6 +68,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const SettingsRouteRoute = SettingsRouteRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HelpIndexRoute = HelpIndexRouteImport.update({
@@ -163,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/signup': typeof SignupRoute
   '/p/$proj': typeof PProjRouteRouteWithChildren
   '/help/$chapter': typeof HelpChapterRoute
   '/o/$org': typeof OOrgRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/signup': typeof SignupRoute
   '/help/$chapter': typeof HelpChapterRoute
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
@@ -213,6 +221,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/signup': typeof SignupRoute
   '/p/$proj': typeof PProjRouteRouteWithChildren
   '/help/$chapter': typeof HelpChapterRoute
   '/o/$org': typeof OOrgRoute
@@ -241,6 +250,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/onboarding'
+    | '/signup'
     | '/p/$proj'
     | '/help/$chapter'
     | '/o/$org'
@@ -265,6 +275,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/onboarding'
+    | '/signup'
     | '/help/$chapter'
     | '/o/$org'
     | '/settings/gates'
@@ -290,6 +301,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/onboarding'
+    | '/signup'
     | '/p/$proj'
     | '/help/$chapter'
     | '/o/$org'
@@ -317,6 +329,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
   OnboardingRoute: typeof OnboardingRoute
+  SignupRoute: typeof SignupRoute
   PProjRouteRoute: typeof PProjRouteRouteWithChildren
   OOrgRoute: typeof OOrgRoute
 }
@@ -370,6 +383,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help/': {
@@ -562,6 +582,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
   OnboardingRoute: OnboardingRoute,
+  SignupRoute: SignupRoute,
   PProjRouteRoute: PProjRouteRouteWithChildren,
   OOrgRoute: OOrgRoute,
 }

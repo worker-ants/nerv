@@ -1,29 +1,27 @@
-// /login — 로그인 (screens.md §2.1 · REQ-WEB-005·006)
+// /signup — 가입 (screens.md §2.1)
 //
-// 실패 사유는 **폼 안**에 있고 비밀번호만 초기화한다. 전역 토스트로 알리면 사용자는 방금 친
-// 값과 오류를 동시에 볼 수 없고, 이메일까지 지우면 다시 타이핑하게 만든다.
+// **처음 켠 서버의 첫 걸음이다.** 계정이 하나도 없는 서버에서 로그인 화면만 보이면
+// 무엇을 해야 하는지 알 수 없다(사람 보고 2026-08-27). 가입한 사람은 온보딩에서 조직을
+// 만들고 **그 조직의 admin 이 된다** — 최고 관리자를 따로 세우는 절차를 두지 않는 대신,
+// 조직을 만든 사람이 그 조직을 책임진다.
+//
+// 로그인과 같은 규율: 실패 사유는 **폼 안**에 있고 비밀번호만 초기화한다.
 
 import { useT } from '../lib/i18n.js';
-import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { authFailureText, landingFor, primaryMembership, signIn } from '../lib/session.js';
-import { fetchMe } from '../lib/session.js';
+import { authFailureText, fetchMe, signIn, signUp } from '../lib/session.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { Button, Field, Input } from '../components/ui/primitives.js';
 
-export const Route = createFileRoute('/login')({
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    ...(typeof search['redirect'] === 'string' ? { redirect: search['redirect'] } : {}),
-  }),
-  component: LoginScreen,
-});
+export const Route = createFileRoute('/signup')({ component: SignupScreen });
 
-function LoginScreen(): React.JSX.Element {
+function SignupScreen(): React.JSX.Element {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const search = useSearch({ from: '/login' });
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -33,30 +31,23 @@ function LoginScreen(): React.JSX.Element {
     event.preventDefault();
     setBusy(true);
     setError(null);
-    const failure = await signIn({ email, password });
+
+    const failure = await signUp({ email, password, name });
     if (failure !== null) {
       setError(authFailureText(t, failure));
-      setPassword(''); // 비밀번호 필드만 초기화한다(REQ-WEB-005)
+      setPassword('');
       setBusy(false);
       return;
     }
-
-    // 로그인 직후 착지 규칙: 조직 0개면 온보딩, 아니면 역할별 첫 화면(REQ-WEB-006)
-    const me = await fetchMe();
-    queryClient.setQueryData(queryKeys.me(), me);
-    const target =
-      search.redirect ??
-      (me.memberships.length === 0
-        ? '/onboarding'
-        : landingFor(
-            primaryMembership(me)?.roles ?? ['viewer'],
-            primaryMembership(me)?.project_slug ?? null,
-          ));
-    void navigate({ to: target });
+    // 가입 직후 바로 들어간다 — 방금 정한 비밀번호를 다시 치게 하지 않는다.
+    // better-auth 가 이미 세션을 세웠더라도 한 번 더 부르는 편이 확실하다(멱등이다).
+    await signIn({ email, password });
+    queryClient.setQueryData(queryKeys.me(), await fetchMe());
+    // 소속이 없는 상태이므로 온보딩으로 — 거기서 조직을 만든다
+    void navigate({ to: '/onboarding' });
   }
 
   return (
-    // 로그인은 셸 밖이라 화면 전체가 이 폼 하나다 — 가운데에 두고 나머지는 비운다
     <div className="flex min-h-screen items-center justify-center bg-bg-sunken px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
@@ -66,12 +57,21 @@ function LoginScreen(): React.JSX.Element {
             </span>{' '}
             NERV
           </div>
-          <p className="mt-1 text-sm text-text-mute">{t('login.tagline')}</p>
+          <p className="mt-1 text-sm text-text-mute">{t('signup.lead')}</p>
         </div>
         <form
           onSubmit={(e) => void submit(e)}
           className="flex flex-col gap-3 rounded-nerv-lg border border-border bg-bg-elev p-6"
         >
+          <Field label={t('signup.name')}>
+            <Input
+              required
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-9"
+            />
+          </Field>
           <Field label={t('login.email')}>
             <Input
               type="email"
@@ -87,7 +87,7 @@ function LoginScreen(): React.JSX.Element {
               type="password"
               required
               minLength={8}
-              autoComplete="current-password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="h-9"
@@ -95,7 +95,7 @@ function LoginScreen(): React.JSX.Element {
           </Field>
           {error !== null && (
             <p
-              data-testid="login-error"
+              data-testid="signup-error"
               role="alert"
               className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
             >
@@ -103,17 +103,14 @@ function LoginScreen(): React.JSX.Element {
             </p>
           )}
           <Button type="submit" variant="primary" disabled={busy} className="mt-1 h-9 w-full">
-            {busy ? t('login.submitting') : t('login.submit')}
+            {busy ? t('signup.submitting') : t('signup.submit')}
           </Button>
         </form>
-        {/* **가입 경로가 화면에 있어야 한다.** 계정이 하나도 없는 서버에서 로그인 화면만
-            보이면 무엇을 해야 하는지 알 수 없다(사람 보고 2026-08-27) */}
         <p className="mt-4 text-center text-xs">
-          <Link to="/signup" data-testid="signup-link" className="text-link hover:underline">
-            {t('login.no_account')}
+          <Link to="/login" className="text-link hover:underline">
+            {t('signup.have_account')}
           </Link>
         </p>
-        <p className="mt-1 text-center text-xs text-text-faint">{t('login.invite_note')}</p>
       </div>
     </div>
   );

@@ -18,7 +18,7 @@ import { useMe } from '../lib/queries.js';
 export const Route = createRootRoute({ component: RootComponent });
 
 /** 셸을 두르지 않는 경로 — 로그인 전에는 헤더·사이드바가 의미를 갖지 않는다. */
-const BARE_ROUTES = new Set(['/login']);
+const BARE_ROUTES = new Set(['/login', '/signup']);
 
 function RootComponent(): React.JSX.Element {
   const matches = useMatches();
