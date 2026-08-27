@@ -14,6 +14,9 @@
 #   nerv-outbox status                                           # 잔량 보고(SessionEnd)
 set -uo pipefail
 
+# 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
+. "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"
+
 dir="${NERV_CACHE_DIR:-.nerv}"
 outbox="${dir%/cache}/outbox"
 outbox="${outbox/#.nerv\/outbox/.nerv/outbox}"

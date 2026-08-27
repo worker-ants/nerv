@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.8 · 2026-08-23 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.9 · 2026-08-27 · HTML 판: [plugin.html](../html/plugin.html)
+>
+> v0.9 변경(2026-08-27 — 환경변수는 기계가 아니라 프로젝트에 속한다, 사람 지시): §3.3 에 **"어디에 두는가"** 절과 `bin/nerv-env.sh` 를 넣고, 온보딩 2단계를 세 갈래로 고쳤다 — 관리형 settings · 저장소 `.claude/settings.local.json` 의 `env`(개발자 기계의 기본) · 저장소 `.nerv/env`(Codex·CLI 까지) · 셸 프로필(한 프로젝트만 쓰는 기계). 셸 프로필의 `export` 는 기계에 하나뿐이라 멀티 프로젝트라는 제품의 전제와 설치 절차가 어긋나 있었다. 파일은 **이미 있는 값을 덮지 않고 `NERV_*` 만 읽는다.**
 >
 > v0.8 변경(2026-08-23 — `/nerv:review` 배포): **§2.6 스킬 신설**(패키지 5종 → 6종. **MVP 약속은 5종 그대로**이고 Phase 2 가 위에 얹혔다). 리뷰 결과가 가는 곳이 저장소가 아니라 서버라는 규약을 스킬이 배포한다 — critical 하향이 `NERV_APPROVAL_REQUIRED` 로 돌아오면 **재시도가 아니라 사람에게 보고하고 멈춘다**(REQ-PLG-014·015 신설). §2.3 `/nerv:impl` 의 "리뷰(MVP 경계)" 절도 갱신했다 — 이제 넘길 곳이 있다.
 >
@@ -591,6 +593,9 @@ statusline은 **수집이 아니라 표시**다. 네트워크 왕복 없이 두 
 # 입력 2: .nerv/cache/claim.json — /nerv:impl 하트비트 응답이 갱신
 set -euo pipefail
 
+# 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
+. "$(dirname "${BASH_SOURCE[0]}")/../bin/nerv-env.sh"
+
 input="$(cat)"
 cache="${NERV_CACHE_DIR:-.nerv/cache}/claim.json"
 
@@ -660,6 +665,60 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | `NERV_PROJECT` | 프로젝트 슬러그(예: `clemvion`) | `.mcp.json`·훅 `X-NERV-Project` 헤더, statusline |
 | `NERV_HOSTNAME` | 이 머신의 식별자(예: `mac-02`) | 훅 `X-NERV-Host` 헤더. MCP 경로에서는 `nerv_bootstrap` 인자로 전달 |
 | `NERV_CACHE_DIR` | (선택) 기본 `.nerv/cache` | statusline·오프라인 폴백 캐시 위치 |
+| `NERV_ENV_FILE` | (선택) 기본 `.nerv/env` | 아래 "어디에 두는가"의 파일 경로 |
+
+#### 어디에 두는가 — 값은 기계가 아니라 **프로젝트**에 속한다 (2026-08-27 개정 — 사람 지시)
+
+셸 프로필의 `export` 는 **기계에 하나뿐이다.** NERV 는 멀티 프로젝트가 전제인데 `NERV_PROJECT` 를 프로필에 박으면 프로젝트를 옮길 때마다 프로필을 고치고 모든 세션을 다시 띄워야 한다 — 제품의 전제와 설치 절차가 어긋난다. 값을 두는 자리를 셋으로 갈랐고, **강한 자리가 약한 자리를 덮는다**(Claude Code 의 관리형 > CLI > 프로젝트 > 유저 순서와 같다 — §2 배포 경로).
+
+| 자리 | 쓰는 곳 | 언제 |
+| --- | --- | --- |
+| 관리형 settings 의 `env` | 회사 관리 기기 | 조직이 서버·프로젝트를 정해 준다(§2 · `managed-settings.example.json`) |
+| **저장소 `.claude/settings.local.json` 의 `env`** | Claude Code 한정 · **프로젝트별** | 개발자 기계의 기본값. 기본 gitignore 대상이라 토큰이 커밋되지 않는다. **정적 문자열만** 받으므로 `$(hostname -s)` 같은 값은 넣을 수 없다(스크립트가 스스로 폴백한다) |
+| **저장소 `.nerv/env`** | Claude Code 밖까지 — Codex `bearer_token_env_var` · `nerv` CLI · statusline · 훅 포워더 | 한 파일로 전부 덮고 싶을 때. `bin/nerv-env.sh` 가 읽는다 |
+| 셸 프로필 `export` | 기계 전체 | 그 기계가 **한 프로젝트만** 쓸 때 |
+
+`.nerv/env` 의 규칙 셋: **이미 있는 값을 덮지 않는다**(위 표의 강한 자리가 이긴다) · **`NERV_*` 만 읽는다**(저장소에 굴러다니는 파일이 `PATH` 를 갈아 끼우지 못하게) · 없으면 조용히 지나간다(프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다). 파일은 `.nerv/` 아래라 이미 `.gitignore` 대상이다(REQ-PLG-013).
+
+곁가지로 이것이 **미해결 실측 하나를 덜 위험하게** 만든다: 훅 `headers` 의 `${NERV_TOKEN}` 확장이 되는지가 아직 확인되지 않았는데(§3.1 주의 · 백로그), 폴백인 `bin/nerv-hook-forward` 는 `.nerv/env` 를 직접 읽으므로 확장 여부와 무관하다.
+
+`bin/nerv-env.sh` 전문:
+
+```bash
+#!/usr/bin/env bash
+# nerv-env.sh — 프로젝트별 환경을 읽는다 (plugin.md §3.3)
+#
+# **셸 프로필의 export 는 기계에 하나뿐이다.** NERV 는 멀티 프로젝트가 전제인데 그렇게 두면
+# 프로젝트를 옮길 때마다 프로필을 고치고 모든 세션을 다시 띄워야 한다 — 제품의 전제와 설치
+# 절차가 어긋난다. 그래서 값을 **저장소 안의 파일**에서도 읽는다.
+#
+# 규칙 셋:
+#   ① **이미 있는 값을 덮지 않는다.** 관리형 settings · CLI · 프로젝트 settings 가 더 강한
+#      자리이므로(우선순위 표 §3.3), 이 파일은 비어 있는 칸만 채운다.
+#   ② **`NERV_*` 만 읽는다.** 저장소에 굴러다니는 파일이 PATH 를 갈아 끼우지 못하게.
+#   ③ 없으면 조용히 지나간다 — 셸 프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다.
+#
+# 사용: 스크립트 머리에서 `. "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"`
+
+nerv_load_env() {
+  local file="${NERV_ENV_FILE:-.nerv/env}" line key value
+  [ -f "$file" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in '' | '#'*) continue ;; esac
+    line="${line#export }"
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in NERV_*) ;; *) continue ;; esac
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    [ -n "${!key:-}" ] || export "$key=$value"
+  done <"$file"
+}
+
+nerv_load_env
+```
 
 ---
 
@@ -707,15 +766,39 @@ outbox 항목 형식(1파일 = 1호출):
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 환경변수 | 아래 셸 블록을 프로필(또는 시크릿 매니저)에 등록 | `echo $NERV_PROJECT` 등으로 확인 |
+| 2 | 환경변수 | 아래 블록을 **프로젝트별 자리**에 둔다(§3.3 "어디에 두는가") — 기본은 저장소 `.claude/settings.local.json` 의 `env`, Codex·CLI 까지 덮으려면 `.nerv/env` | `echo $NERV_PROJECT` 또는 `/mcp` 연결 확인 |
 | 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add <사내 마켓플레이스 git URL>` → `/plugin install nerv@nerv-internal` → 재시작 | `/plugin` 목록에 `nerv` v0.1.0 활성 표시 |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
 
-2단계 셸 블록:
+2단계 블록 — **프로젝트별**(권장, Claude Code):
+
+```jsonc
+// <작업 저장소>/.claude/settings.local.json — 기본 gitignore 대상
+{
+  "env": {
+    "NERV_SERVER": "https://nerv.example.com",
+    "NERV_PROJECT": "clemvion",
+    "NERV_TOKEN": "<S8에서 발급한 PAT — 발급 시 1회만 표시>"
+  }
+}
+```
+
+Codex·CLI·statusline 까지 한 파일로 덮으려면 같은 값을 `.nerv/env` 에 둔다:
 
 ```bash
-# NERV 온보딩 — 환경변수 (셸 프로필 또는 시크릿 매니저)
+# <작업 저장소>/.nerv/env — .nerv/ 는 이미 .gitignore 대상이다(REQ-PLG-013)
+NERV_SERVER=https://nerv.example.com
+NERV_PROJECT=clemvion
+NERV_TOKEN=<S8에서 발급한 PAT>
+```
+
+**`NERV_HOSTNAME` 은 적지 않아도 된다** — 비어 있으면 스크립트가 `hostname -s` 로 채운다. settings 의 `env` 는 정적 문자열만 받으므로 거기에 명령 치환을 넣을 수도 없다.
+
+그 기계가 **한 프로젝트만** 쓴다면 예전처럼 셸 프로필도 된다(가장 약한 자리라 위의 둘이 언제든 덮는다):
+
+```bash
+# NERV 온보딩 — 기계 전체 (셸 프로필 또는 시크릿 매니저)
 export NERV_TOKEN="<S8에서 발급한 PAT — 발급 시 1회만 표시>"
 export NERV_PROJECT="clemvion"
 export NERV_HOSTNAME="$(hostname -s)"

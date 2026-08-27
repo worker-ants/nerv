@@ -24,17 +24,46 @@ The role matters: **a token can never be broader than the role.** As a `viewer` 
 
 ## 2. Environment variables
 
-Put these in your shell profile (or a secrets manager).
+**These values belong to a project, not to a machine.** Exported in your shell profile they are machine-wide, so the machine can only serve one project — switch projects and you edit the profile and restart every session. Put them **inside the working repository** instead.
+
+### Default — the repository's `.claude/settings.local.json`
+
+```jsonc
+{
+  "env": {
+    "NERV_SERVER": "https://nerv.example.com",
+    "NERV_PROJECT": "clemvion",
+    "NERV_TOKEN": "<the token from step 1>",
+  },
+}
+```
+
+This file is **git-ignored by default**, so the token is not committed. Every repository can carry its own values and your shell profile stays untouched.
+
+### One file that also covers Codex and the CLI — `.nerv/env`
+
+To use the same values outside Claude Code (Codex, the `nerv` CLI), put them in `.nerv/env` in the repository. The plugin's scripts read it.
+
+```bash
+NERV_SERVER=https://nerv.example.com
+NERV_PROJECT=clemvion
+NERV_TOKEN=<the token from step 1>
+```
+
+**Values already set are never overwritten** — a managed machine's settings, or anything already in your shell, always wins. Only names starting with `NERV_` are read.
+
+### If the machine only ever serves one project
+
+The shell profile still works. It is the weakest place, so either of the above overrides it.
 
 ```bash
 export NERV_TOKEN="<the token from step 1>"
 export NERV_PROJECT="clemvion"
-export NERV_HOSTNAME="$(hostname -s)"
 ```
 
-`NERV_HOSTNAME` is what the sessions screen shows as "whose machine this is". Leave it empty and your sessions appear nameless.
+You can **leave `NERV_HOSTNAME` out** — when it is empty the plugin fills it with this machine's name (`hostname -s`). It is what the sessions screen shows as "whose machine this is".
 
-**Do not commit the token.** While you are there, add `.nerv/` to the working repository's `.gitignore` — the plugin's cache and offline queue live under it.
+**Do not commit the token.** While you are there, add `.nerv/` to the working repository's `.gitignore` — the environment file, the plugin's cache and the offline queue all live under it.
 
 ## 3-A. Install the plugin in Claude Code
 
@@ -84,7 +113,7 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 ```
 
-The token does not go in the file. As `bearer_token_env_var` says, it is read from the **`NERV_TOKEN` environment variable** (step 2).
+**The token does not go in `config.toml`.** As `bearer_token_env_var` says, it is read from the `NERV_TOKEN` environment variable, and that value comes from wherever you put it in step 2 — for Codex it has to be `.nerv/env` or the shell, since Codex does not read `.claude/settings.local.json`.
 
 Claude Code does not read `AGENTS.md` on its own yet, so if both tools share the repository, put a single line in `CLAUDE.md`.
 

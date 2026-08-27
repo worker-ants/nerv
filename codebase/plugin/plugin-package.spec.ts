@@ -65,6 +65,10 @@ describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', 
       fenceAfter('`statusline/nerv-statusline.sh` 전문', '```'),
     );
   });
+
+  it('bin/nerv-env.sh', () => {
+    expect(file('bin/nerv-env.sh')).toBe(fenceAfter('`bin/nerv-env.sh` 전문', '```'));
+  });
 });
 
 describe('REQ-PLG-003 — A3 도구는 어느 스킬의 allowed-tools 에도 없다', () => {

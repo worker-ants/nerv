@@ -24,17 +24,46 @@ Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전�
 
 ## 2. 환경변수
 
-셸 프로필(또는 시크릿 매니저)에 넣습니다.
+**값은 기계가 아니라 프로젝트에 속합니다.** 셸 프로필에 `export` 로 박으면 그 기계는 한 프로젝트만 쓸 수 있고, 다른 프로젝트로 옮길 때마다 프로필을 고치고 세션을 다시 띄워야 합니다. 그래서 **작업 저장소 안에** 둡니다.
+
+### 기본 — 저장소의 `.claude/settings.local.json`
+
+```jsonc
+{
+  "env": {
+    "NERV_SERVER": "https://nerv.example.com",
+    "NERV_PROJECT": "clemvion",
+    "NERV_TOKEN": "<1단계에서 받은 토큰>",
+  },
+}
+```
+
+이 파일은 **기본으로 git 무시 대상**이라 토큰이 커밋되지 않습니다. 저장소마다 다른 값을 쓸 수 있고, 셸 프로필은 건드리지 않습니다.
+
+### Codex·터미널까지 한 파일로 — `.nerv/env`
+
+Claude Code 밖(Codex, `nerv` CLI)에서도 같은 값을 쓰려면 저장소에 `.nerv/env` 를 둡니다. 플러그인의 스크립트들이 이 파일을 읽습니다.
+
+```bash
+NERV_SERVER=https://nerv.example.com
+NERV_PROJECT=clemvion
+NERV_TOKEN=<1단계에서 받은 토큰>
+```
+
+**이미 설정된 값은 덮지 않습니다** — 회사 관리 기기의 설정이나 셸에 있는 값이 항상 이깁니다. 그리고 `NERV_` 로 시작하는 이름만 읽습니다.
+
+### 그 기계가 한 프로젝트만 쓴다면
+
+예전처럼 셸 프로필도 됩니다. 가장 약한 자리라 위의 둘이 언제든 덮습니다.
 
 ```bash
 export NERV_TOKEN="<1단계에서 받은 토큰>"
 export NERV_PROJECT="clemvion"
-export NERV_HOSTNAME="$(hostname -s)"
 ```
 
-`NERV_HOSTNAME`은 세션 화면에 "누구의 어떤 기계인지"로 뜹니다. 비워 두면 세션이 이름 없이 뜹니다.
+`NERV_HOSTNAME`은 **적지 않아도 됩니다** — 비어 있으면 플러그인이 이 기계의 이름(`hostname -s`)으로 채웁니다. 세션 화면에 "누구의 어떤 기계인지"로 뜨는 값입니다.
 
-**토큰을 저장소에 커밋하지 마세요.** 작업 저장소의 `.gitignore`에 `.nerv/`도 함께 넣습니다 — 플러그인의 캐시와 오프라인 큐가 그 아래에 쌓입니다.
+**토큰을 저장소에 커밋하지 마세요.** 작업 저장소의 `.gitignore`에 `.nerv/`도 함께 넣습니다 — 환경 파일과 플러그인의 캐시·오프라인 큐가 그 아래에 쌓입니다.
 
 ## 3-A. Claude Code에 플러그인 설치
 
@@ -84,7 +113,7 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 ```
 
-토큰은 파일에 적지 않습니다. `bearer_token_env_var`가 가리키는 대로 **`NERV_TOKEN` 환경변수**에서 읽습니다(2단계).
+**`config.toml` 에는 토큰을 적지 않습니다.** `bearer_token_env_var`가 가리키는 대로 `NERV_TOKEN` 환경변수에서 읽고, 그 값은 2단계에서 정한 자리(`.nerv/env` 또는 셸)에서 옵니다 — Codex 는 `.claude/settings.local.json` 을 읽지 않으므로 Codex 를 쓴다면 `.nerv/env` 쪽입니다.
 
 Claude Code는 아직 `AGENTS.md`를 자동으로 읽지 않으므로, 같은 저장소를 둘 다 쓴다면 `CLAUDE.md`에 한 줄만 둡니다.
 

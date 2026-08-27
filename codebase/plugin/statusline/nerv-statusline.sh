@@ -4,6 +4,9 @@
 # 입력 2: .nerv/cache/claim.json — /nerv:impl 하트비트 응답이 갱신
 set -euo pipefail
 
+# 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
+. "$(dirname "${BASH_SOURCE[0]}")/../bin/nerv-env.sh"
+
 input="$(cat)"
 cache="${NERV_CACHE_DIR:-.nerv/cache}/claim.json"
 

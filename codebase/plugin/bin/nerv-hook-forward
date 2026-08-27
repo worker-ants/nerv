@@ -11,6 +11,9 @@
 # stdin 으로 들어온 훅 페이로드를 그대로 전달한다.
 set -uo pipefail
 
+# 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
+. "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"
+
 endpoint="${1:?사용법: nerv-hook-forward <session|tool|subagent|stop|session-end>}"
 base="${NERV_SERVER:-https://nerv.example.com}"
 payload="$(cat)"
