@@ -810,6 +810,8 @@ export const ko = {
   'graph.group_by_area': '영역으로 묶기',
   'graph.hint':
     '누르면 이웃이 강조되고 오른쪽에 관계가 열립니다 · 노드는 끌어서 옮기고, 바탕을 끌면 화면이 움직입니다 · 휠로 확대·축소(가까이 가면 이름이 보입니다) · 화살표는 참조 방향입니다',
+  'graph.help': '조작 안내',
+  'graph.help_more': '도움말 — 스펙 장에서 더 보기 ▸',
   'graph.hops': '{n}단계',
   'graph.relayout': '다시 배치',
   'graph.panel.center': '이 문서 중심으로',

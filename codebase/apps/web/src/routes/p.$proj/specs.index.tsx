@@ -88,64 +88,65 @@ function SpecListScreen(): React.JSX.Element {
     >
       <PageHeader
         title={t('specs.title')}
-        actions={
-          // 검색 줄과 탭 줄을 **머리 안에 포갠다**. 탭이 따로 한 줄을 차지하면 제목 오른쪽의
-          // 빈자리는 그대로 둔 채 본문만 46px 밀려 내려간다 — 화면에서 가장 비싼 것은 세로다.
-          <div className="flex flex-col items-end gap-2">
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                setSubmitted(query);
-              }}
+        // 탭은 **제목 옆**이다(2026-08-27 정정). 검색 아래에 두었더니 세로 한 줄은 아꼈지만
+        // 보기 방식을 바꾸는 물건이 검색과 한 덩어리로 묶여 화면 오른쪽 끝에 앉았다 —
+        // "스펙을 무엇으로 보는가"는 제목 바로 다음 질문이라 제목을 따라다녀야 한다.
+        meta={
+          submitted.trim() === '' ? (
+            <nav
+              aria-label={t('specs.title')}
+              className="inline-flex rounded-nerv-sm border border-border p-0.5 text-xs"
             >
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('specs.search_placeholder')}
-                className="w-64"
-              />
-              <Button type="submit">{t('common.search')}</Button>
-              {submitted !== '' && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setQuery('');
-                    setSubmitted('');
-                  }}
+              {(['tree', 'table', 'graph'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  data-testid={`view-${mode}`}
+                  onClick={() => setView(mode)}
+                  className={cn(
+                    'rounded-nerv-sm px-3 py-1',
+                    view === mode ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
+                  )}
                 >
-                  {t('specs.back_to_tree')}
-                </Button>
-              )}
-            </form>
-            {submitted.trim() === '' && (
-              <nav
-                aria-label={t('specs.title')}
-                className="inline-flex rounded-nerv-sm border border-border p-0.5 text-xs"
+                  {t(
+                    mode === 'tree'
+                      ? 'graph.tab.tree'
+                      : mode === 'table'
+                        ? 'specs.tab.table'
+                        : 'graph.tab.graph',
+                  )}
+                </button>
+              ))}
+            </nav>
+          ) : undefined
+        }
+        actions={
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSubmitted(query);
+            }}
+          >
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('specs.search_placeholder')}
+              className="w-64"
+            />
+            <Button type="submit">{t('common.search')}</Button>
+            {submitted !== '' && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setQuery('');
+                  setSubmitted('');
+                }}
               >
-                {(['tree', 'table', 'graph'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    data-testid={`view-${mode}`}
-                    onClick={() => setView(mode)}
-                    className={cn(
-                      'rounded-nerv-sm px-3 py-1',
-                      view === mode ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
-                    )}
-                  >
-                    {t(
-                      mode === 'tree'
-                        ? 'graph.tab.tree'
-                        : mode === 'table'
-                          ? 'specs.tab.table'
-                          : 'graph.tab.graph',
-                    )}
-                  </button>
-                ))}
-              </nav>
+                {t('specs.back_to_tree')}
+              </Button>
             )}
-          </div>
+          </form>
         }
       />
 

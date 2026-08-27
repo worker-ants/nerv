@@ -18,6 +18,7 @@
 
 import cytoscape from 'cytoscape';
 import fcose from 'cytoscape-fcose';
+import { Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
@@ -203,6 +204,9 @@ const LAYOUT = {
   nestingFactor: 0.2,
   animate: false,
   randomize: true,
+  // 맞춤 여백을 기본값(30)보다 좁힌다 — 고립된 무리 하나가 멀리 떨어져 있으면 그 빈 공간까지
+  // 화면에 넣느라 정작 빽빽한 본체가 작게 맞춰진다. 여백을 줄이면 같은 픽셀로 그림이 커진다.
+  padding: 16,
 } as cytoscape.LayoutOptions;
 
 export function letAreasPan(cy: cytoscape.Core): void {
@@ -220,6 +224,8 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
   const [selected, setSelected] = useState<string | null>(null);
   // 패널의 방향 탭 — 레일(§2.4)과 같은 컴포넌트·같은 어휘를 쓴다
   const [relTab, setRelTab] = useState<RelationDirection>('all');
+  // 조작 안내 — 캔버스 위 물음표 뒤에 접어 둔다(늘 켜 두면 한 번 읽고 끝인 것이 매번 자리를 먹는다)
+  const [helpOpen, setHelpOpen] = useState(false);
   // 그래프를 다시 그린 뒤에도 강조를 되살려야 한다. 빌드 이펙트가 `selected` 를 의존하면
   // 노드를 누를 때마다 배치가 다시 계산돼 그림이 튄다 — ref 로 읽는다.
   const selectedRef = useRef<string | null>(null);
@@ -450,143 +456,183 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
   const shownCount = visible.size;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <Button
-          size="sm"
-          variant={focus === null ? 'primary' : 'default'}
-          onClick={() => setFocus(null)}
-        >
-          {t('graph.mode.global')}
-        </Button>
-        {focusKey !== undefined && (
-          <Button
-            size="sm"
-            variant={focus !== null ? 'primary' : 'default'}
-            onClick={() => setFocus(focusKey)}
-          >
-            {t('graph.mode.ego')}
-          </Button>
-        )}
-        {focus !== null && (
-          <span className="flex items-center gap-1">
-            {[1, 2].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setHops(n)}
-                className={cn(
-                  'rounded-nerv-sm px-2 py-0.5',
-                  hops === n ? 'bg-bg-active font-medium' : 'text-text-mute hover:bg-bg-hover',
-                )}
-              >
-                {t('graph.hops', { n })}
-              </button>
-            ))}
-          </span>
-        )}
-        <label className="flex items-center gap-1.5 text-text-mute">
-          <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
-          {t('graph.group_by_area')}
-        </label>
-        {/* 손으로 끌어 놓은 자리를 되돌리는 길이자, 밀집한 자리를 한 번 더 굴려 보는 길 */}
-        <Button size="sm" data-testid="graph-relayout" onClick={relayout}>
-          {t('graph.relayout')}
-        </Button>
-        <span className="ml-auto text-text-faint">
-          {t('graph.counts', { nodes: shownCount, edges: edges.length })}
-        </span>
-      </div>
-      {/* 스크롤이 아니라 확대/축소로 보는 그림이다 — 그래서 높이는 **화면이 정한다**.
-          70vh 로 못 박으면 머리 아래 남는 세로가 그림에 쓰이지 않는다(실측 2026-08-27
-          1440×900: 캔버스 611px → 650px). 남는 만큼 캔버스가 가져가고, 좁은 창에서는
-          최소 높이가 그림을 지킨다. 패널은 캔버스와 같은 높이로 늘어난다(stretch). */}
-      <div className="flex min-h-0 flex-1 gap-2">
+    /* 스크롤이 아니라 확대/축소로 보는 그림이다 — 그래서 높이는 **화면이 정한다**.
+       70vh 로 못 박으면 머리 아래 남는 세로가 그림에 쓰이지 않는다(실측 2026-08-27
+       1440×900: 캔버스 611px → 650px). 남는 만큼 캔버스가 가져가고, 좁은 창에서는
+       최소 높이가 그림을 지킨다. 패널은 캔버스와 같은 높이로 늘어난다(stretch).
+
+       **조종기·건수·안내는 캔버스 위에 얹는다**(2026-08-27 — 사람 지시). 셋 다 캔버스에만
+       작용하는데 페이지 행으로 두면 영구히 세로를 먹고(실측: 조종기 35px + 안내 23px),
+       트리·표 탭에서는 아무 일도 안 하면서 자리만 지켰다. 지도 도구는 지도 위에 있다. */
+    <div className="flex min-h-0 flex-1 gap-2">
+      <div className="relative min-h-[380px] min-w-0 flex-1">
         <div
           ref={container}
           data-testid="spec-graph"
-          className="min-h-[380px] min-w-0 flex-1 rounded-nerv border border-border bg-bg-elev"
+          className="h-full w-full rounded-nerv border border-border bg-bg-elev"
         />
-        {selectedNode !== undefined && (
-          <aside
-            data-testid="graph-panel"
-            className="flex w-[288px] shrink-0 flex-col overflow-y-auto rounded-nerv border border-border bg-bg-elev"
+        {/* 겹쳐 둔 것이 캔버스의 제스처를 삼키지 않게 — 칩에만 포인터를 준다 */}
+        <div className="pointer-events-none absolute inset-x-2 top-2 flex justify-start">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-nerv border border-border bg-bg-elev/90 px-2 py-1.5 text-xs shadow-popover backdrop-blur-sm">
+            <Button
+              size="sm"
+              variant={focus === null ? 'primary' : 'default'}
+              onClick={() => setFocus(null)}
+            >
+              {t('graph.mode.global')}
+            </Button>
+            {focusKey !== undefined && (
+              <Button
+                size="sm"
+                variant={focus !== null ? 'primary' : 'default'}
+                onClick={() => setFocus(focusKey)}
+              >
+                {t('graph.mode.ego')}
+              </Button>
+            )}
+            {focus !== null && (
+              <span className="flex items-center gap-1">
+                {[1, 2].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setHops(n)}
+                    className={cn(
+                      'rounded-nerv-sm px-2 py-0.5',
+                      hops === n ? 'bg-bg-active font-medium' : 'text-text-mute hover:bg-bg-hover',
+                    )}
+                  >
+                    {t('graph.hops', { n })}
+                  </button>
+                ))}
+              </span>
+            )}
+            <label className="flex items-center gap-1.5 text-text-mute">
+              <input
+                type="checkbox"
+                checked={grouped}
+                onChange={(e) => setGrouped(e.target.checked)}
+              />
+              {t('graph.group_by_area')}
+            </label>
+            {/* 손으로 끌어 놓은 자리를 되돌리는 길이자, 밀집한 자리를 한 번 더 굴려 보는 길 */}
+            <Button size="sm" data-testid="graph-relayout" onClick={relayout}>
+              {t('graph.relayout')}
+            </Button>
+            <span aria-hidden="true" className="h-4 w-px bg-border" />
+            {/* 안내는 **한 번 읽으면 끝인 것**이라 늘 켜 두지 않는다 — 물음표 뒤로 접고,
+                더 알고 싶은 사람은 매뉴얼로 간다 */}
+            <button
+              type="button"
+              data-testid="graph-help"
+              aria-expanded={helpOpen}
+              aria-label={t('graph.help')}
+              onClick={() => setHelpOpen((open) => !open)}
+              className={cn(
+                'flex size-5 items-center justify-center rounded-full border border-border text-2xs text-text-mute',
+                helpOpen ? 'bg-bg-active text-text' : 'hover:bg-bg-hover hover:text-text',
+              )}
+            >
+              ?
+            </button>
+          </div>
+        </div>
+        {helpOpen && (
+          <div
+            data-testid="graph-help-panel"
+            className="absolute top-14 left-2 z-10 max-w-[420px] rounded-nerv border border-border bg-bg-elev px-3 py-2.5 text-xs leading-[1.6] text-text-mute shadow-popover"
           >
-            {/* 머리에 고른 문서의 이름. **이름 자체가 문 이다** — 이동은 여기서만 일어난다 */}
-            <header className="sticky top-0 z-10 border-b border-border bg-bg-elev px-3 py-2.5">
-              <div className="flex items-start gap-2">
-                <button
-                  type="button"
-                  data-testid="graph-panel-open"
-                  onClick={() => onOpen(selectedNode.key)}
-                  className="min-w-0 flex-1 text-left text-base leading-[1.35] font-semibold tracking-[-0.01em] text-text hover:text-link hover:underline"
-                >
-                  {selectedNode.title}
-                </button>
-                <button
-                  type="button"
-                  aria-label={t('common.close')}
-                  onClick={() => setSelected(null)}
-                  className="shrink-0 rounded-nerv-sm px-1 text-text-faint hover:bg-bg-hover hover:text-text"
-                >
-                  ✕
-                </button>
-              </div>
-              <p className="mt-0.5 truncate font-mono text-2xs text-text-faint">
-                {selectedNode.key}
-              </p>
+            {t('graph.hint')}
+            <Link
+              to="/help/$chapter"
+              params={{ chapter: 'specs' }}
+              className="mt-1.5 block text-link hover:underline"
+            >
+              {t('graph.help_more')}
+            </Link>
+          </div>
+        )}
+        {/* 건수는 지도의 축척 표기처럼 **아래 모서리**에 — 조종기와 눈이 부딪히지 않는다 */}
+        <span className="pointer-events-none absolute right-2 bottom-2 rounded-nerv-sm bg-bg-elev/80 px-1.5 py-0.5 text-2xs text-text-faint">
+          {t('graph.counts', { nodes: shownCount, edges: edges.length })}
+        </span>
+      </div>
+      {selectedNode !== undefined && (
+        <aside
+          data-testid="graph-panel"
+          className="flex w-[288px] shrink-0 flex-col overflow-y-auto rounded-nerv border border-border bg-bg-elev"
+        >
+          {/* 머리에 고른 문서의 이름. **이름 자체가 문 이다** — 이동은 여기서만 일어난다 */}
+          <header className="sticky top-0 z-10 border-b border-border bg-bg-elev px-3 py-2.5">
+            <div className="flex items-start gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setFocus(selectedNode.key);
-                  setHops(1);
-                }}
-                className="mt-1.5 rounded-nerv-sm px-1.5 py-0.5 text-2xs text-text-mute hover:bg-bg-hover hover:text-text"
+                data-testid="graph-panel-open"
+                onClick={() => onOpen(selectedNode.key)}
+                className="min-w-0 flex-1 text-left text-base leading-[1.35] font-semibold tracking-[-0.01em] text-text hover:text-link hover:underline"
               >
-                {t('graph.panel.center')}
+                {selectedNode.title}
               </button>
-            </header>
-
-            {/* 레일과 **같은 탭·같은 어휘**다(§2.4) — 두 화면이 관계를 다르게 부르면
-                사람은 그 둘이 같은 것인지부터 의심하게 된다 */}
-            <RelationTabs
-              value={relTab}
-              onChange={setRelTab}
-              counts={{
-                all: links.in.length + links.out.length,
-                in: links.in.length,
-                out: links.out.length,
-              }}
-              className="border-b border-border px-1.5 py-1.5"
-            />
-
-            <div className="flex flex-col gap-0.5 px-1.5 py-2">
-              {shownLinks.length === 0 && (
-                <p className="px-1.5 text-sm text-text-faint">{t('graph.panel.empty')}</p>
-              )}
-              {relTab !== 'out' &&
-                links.in.map((c) => (
-                  <ConnectionRow key={connectionKey(c)} connection={c} incoming onOpen={onOpen} />
-                ))}
-              {/* 전체 탭에서 방향이 바뀌는 자리에 선을 긋는다 — 레일과 같은 규약이다 */}
-              {relTab === 'all' && links.in.length > 0 && links.out.length > 0 && (
-                <hr data-testid="graph-panel-divider" className="my-1.5 border-t border-border" />
-              )}
-              {relTab !== 'in' &&
-                links.out.map((c) => (
-                  <ConnectionRow key={connectionKey(c)} connection={c} onOpen={onOpen} />
-                ))}
+              <button
+                type="button"
+                aria-label={t('common.close')}
+                onClick={() => setSelected(null)}
+                className="shrink-0 rounded-nerv-sm px-1 text-text-faint hover:bg-bg-hover hover:text-text"
+              >
+                ✕
+              </button>
             </div>
+            <p className="mt-0.5 truncate font-mono text-2xs text-text-faint">{selectedNode.key}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setFocus(selectedNode.key);
+                setHops(1);
+              }}
+              className="mt-1.5 rounded-nerv-sm px-1.5 py-0.5 text-2xs text-text-mute hover:bg-bg-hover hover:text-text"
+            >
+              {t('graph.panel.center')}
+            </button>
+          </header>
 
-            {shownLinks.length > 0 && (
-              <p className="mt-auto border-t border-border px-3 py-2 text-2xs text-text-ghost">
-                {t('graph.panel.hint')}
-              </p>
+          {/* 레일과 **같은 탭·같은 어휘**다(§2.4) — 두 화면이 관계를 다르게 부르면
+                사람은 그 둘이 같은 것인지부터 의심하게 된다 */}
+          <RelationTabs
+            value={relTab}
+            onChange={setRelTab}
+            counts={{
+              all: links.in.length + links.out.length,
+              in: links.in.length,
+              out: links.out.length,
+            }}
+            className="border-b border-border px-1.5 py-1.5"
+          />
+
+          <div className="flex flex-col gap-0.5 px-1.5 py-2">
+            {shownLinks.length === 0 && (
+              <p className="px-1.5 text-sm text-text-faint">{t('graph.panel.empty')}</p>
             )}
-          </aside>
-        )}
-      </div>
-      <p className="text-2xs text-text-faint">{t('graph.hint')}</p>
+            {relTab !== 'out' &&
+              links.in.map((c) => (
+                <ConnectionRow key={connectionKey(c)} connection={c} incoming onOpen={onOpen} />
+              ))}
+            {/* 전체 탭에서 방향이 바뀌는 자리에 선을 긋는다 — 레일과 같은 규약이다 */}
+            {relTab === 'all' && links.in.length > 0 && links.out.length > 0 && (
+              <hr data-testid="graph-panel-divider" className="my-1.5 border-t border-border" />
+            )}
+            {relTab !== 'in' &&
+              links.out.map((c) => (
+                <ConnectionRow key={connectionKey(c)} connection={c} onOpen={onOpen} />
+              ))}
+          </div>
+
+          {shownLinks.length > 0 && (
+            <p className="mt-auto border-t border-border px-3 py-2 text-2xs text-text-ghost">
+              {t('graph.panel.hint')}
+            </p>
+          )}
+        </aside>
+      )}
     </div>
   );
 }

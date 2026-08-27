@@ -821,6 +821,8 @@ export const en = {
   'graph.group_by_area': 'Group by area',
   'graph.hint':
     'Click a node to highlight its neighbours and open its relations on the right · drag a node to move it, drag the background to move the view · scroll to zoom (names appear as you get closer) · arrows point at what is referenced',
+  'graph.help': 'How to use this',
+  'graph.help_more': 'More in the Specs chapter of the manual ▸',
   'graph.hops': '{n} hop',
   'graph.relayout': 'Re-layout',
   'graph.panel.center': 'Centre on this doc',
