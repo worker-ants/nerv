@@ -63,7 +63,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
    승인 대기(`NERV_APPROVAL_REQUIRED`)면 `approval_id`로 상태를 폴링하고,
    그동안 다른 작업을 시작하지 않는다.
 3. 성공 응답의 `web_url`을 터미널에 표시한다. 같은 `spec_version_id` 재호출은 기존
-   pending Approval을 재사용하므로 승인함 카드가 중복 생성되지 않는다.
+   pending Approval을 재사용하므로 받은 요청 카드가 중복 생성되지 않는다.
 
 ## 에러 대응
 

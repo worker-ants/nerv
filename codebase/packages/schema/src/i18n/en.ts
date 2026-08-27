@@ -503,7 +503,7 @@ export const en = {
   'home.title': 'Here’s your day, {name}',
   'home.title_anon': 'Home',
   'home.waiting_on_you': 'Today',
-  // ── S7 승인함 (screens.md §2.7) ────────────────────────────────────────────
+  // ── S7 받은 요청 (screens.md §2.7) ────────────────────────────────────────────
   'inbox.card.answer_placeholder': 'Your answer',
   'inbox.card.approval': 'Approval',
   'inbox.card.approve': 'Approve',

@@ -50,7 +50,7 @@
     <h1>NERV — 스펙이 단일 진실이 되고, 에이전트가 조정되고, 사람이 게이트를 지키는 플랫폼</h1>
     <p class="lead">기획자·디자이너·개발자·QA가 하나의 플랫폼에서 스펙 문서와 전체 상태를 관리하고, Claude Code·Codex 에이전트가 MCP·훅·스킬로 연동되어 스펙 작성→검토→구현→테스트를 수행하며, 사람은 승인/거절/코멘트하고 누구의 어떤 세션이 무엇을 하는지 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼 제안서. 4부(MVP 구체화)는 이 제안을 코드베이스·DB 스키마·API·화면·플러그인·임포터·백로그까지 "구현 착수 가능" 수준으로 구체화한다.</p>
     <div class="meta-line">
-      <span>버전 v1.44 (2026-08-27)</span>
+      <span>버전 v1.45 (2026-08-27)</span>
       <span>원본: <code>docs/README.md</code> + 21편(1~3부 13편 + 4부 8편)</span>
       <span>근거: clemvion 실측 분석 4건 + 웹 딥리서치 7건</span>
     </div>
@@ -81,7 +81,7 @@
   <div class="grid-3">
     <div class="card"><h4>📄 단일 진실 스펙</h4><p>스펙을 DB 기반 트리 + 불변 버전 + 2축 상태(문서 승인 축 × 요구사항 구현 축)로 관리. "무엇이 구현됐고 다음이 무엇인지"를 문서가 아니라 관계 데이터가 답한다.</p></div>
     <div class="card"><h4>🤖 조정되는 에이전트</h4><p>작업은 원자적 클레임+리스(lease)로 선점하고 scope 겹침을 사전 감지. 모든 세션(사용자·hostname·상태·현재 작업)이 미션 컨트롤 보드에 실시간 표시된다.</p></div>
-    <div class="card"><h4>🚦 사람의 게이트</h4><p>스펙 승인·변경 요청·에이전트 질문·머지가 위험도 가변 게이트로 승인함(Inbox)에 모인다. 지시자≠승인자, 모든 행위는 감사 로그에 (사람/AI 구분되어) 남는다.</p></div>
+    <div class="card"><h4>🚦 사람의 게이트</h4><p>스펙 승인·변경 요청·에이전트 질문·머지가 위험도 가변 게이트로 받은 요청(Inbox)에 모인다. 지시자≠승인자, 모든 행위는 감사 로그에 (사람/AI 구분되어) 남는다.</p></div>
   </div>
 
   <div class="callout decision"><span class="ico">🎯</span><div class="body">
@@ -110,7 +110,7 @@
       <rect x="16" y="200" width="180" height="110" rx="12" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="106" y="222" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="13" font-weight="700">사람 (웹 UI)</text>
       <text x="106" y="246" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">기획 · 디자인 · 개발 · QA</text>
-      <text x="106" y="268" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">스펙 편집 · 승인함 · 코멘트</text>
+      <text x="106" y="268" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">스펙 편집 · 받은 요청 · 코멘트</text>
       <text x="106" y="290" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">세션 모니터 · 대시보드</text>
       <!-- NERV 코어 -->
       <rect x="300" y="60" width="220" height="220" rx="14" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
@@ -155,7 +155,7 @@
       <tr><td><b>P4</b> 구현 상태 추적 곤란</td><td>문서 단위 status·수동 ✅의 사각</td><td>Requirement 단위 증적 그래프 + 커버리지 대시보드 (FR-03/13)</td><td><a href="data-model.html">3.3</a></td></tr>
       <tr><td><b>P5</b> 리뷰 출처 단절</td><td>리뷰가 검토한 커밋 SHA 필드조차 없음</td><td>ReviewSession에 커밋 스냅샷 필수 + Finding FK 연결 (FR-09)</td><td><a href="data-model.html">3.3</a></td></tr>
       <tr><td><b>P6</b> git 비대화</td><td>리뷰가 blob의 60%, 자기증식 루프</td><td>산출물은 DB, git엔 포인터 — 미러/내보내기 제공 (D-01)</td><td><a href="architecture.html">3.2</a></td></tr>
-      <tr><td><b>P7</b> 직군 장벽</td><td>비개발자가 git·CLI를 못 씀</td><td>웹 스펙 편집·코멘트·승인함 — md는 내부 포맷 (FR-01/11)</td><td><a href="vision.html">3.1</a>, <a href="ui-wireframes.html">3.6</a></td></tr>
+      <tr><td><b>P7</b> 직군 장벽</td><td>비개발자가 git·CLI를 못 씀</td><td>웹 스펙 편집·코멘트·받은 요청 — md는 내부 포맷 (FR-01/11)</td><td><a href="vision.html">3.1</a>, <a href="ui-wireframes.html">3.6</a></td></tr>
       <tr><td><b>P8</b> n:n 구조 부재</td><td>owner가 자유 텍스트, 신원 없음</td><td>Organization/Project/Member 역할 모델 + 사람 assignee·AI delegate (FR-14, D-08)</td><td><a href="data-model.html">3.3</a></td></tr>
     </tbody>
   </table></div>
@@ -184,7 +184,7 @@
   <h2 id="roadmap">6. 로드맵 한눈에</h2>
   <div class="grid-2">
     <div class="card"><h4>Phase 0 · PoC (2~3주)</h4><p>MCP 최소(spec read + claim/heartbeat) + 세션 보드 + clemvion 임포트. <b>검증: 두 호스트·세 세션 동시 작업에서 중복 클레임 0.</b></p></div>
-    <div class="card"><h4>Phase 1 · MVP (4~6주)</h4><p>스펙 CRUD+버전+승인 · 작업 보드 · 세션 모니터 · 승인함 · 인앱 알림 · GitHub PR 연동 · Claude Code 플러그인 v1.</p></div>
+    <div class="card"><h4>Phase 1 · MVP (4~6주)</h4><p>스펙 CRUD+버전+승인 · 작업 보드 · 세션 모니터 · 받은 요청 · 인앱 알림 · GitHub PR 연동 · Claude Code 플러그인 v1.</p></div>
     <div class="card"><h4>Phase 2 (4~6주)</h4><p>리뷰 센터(수집·dedup·게이트 API) · Slack 알림 · Codex 지원 · CR 델타 리뷰 · 커버리지 대시보드.</p></div>
     <div class="card"><h4>Phase 3+</h4><p>실시간 공동 편집(CRDT) · 임베딩 기반 중복/충돌 감지 · 분석 · SSO/감사 고도화 · SaaS화.</p></div>
   </div>

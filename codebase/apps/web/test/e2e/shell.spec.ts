@@ -119,7 +119,7 @@ test.describe('시드 세션', () => {
   });
 
   test('프로젝트 사이드바는 /p/:proj/* 에서만 나온다 (§1.3)', async ({ page }) => {
-    // 승인함은 조직 스코프 화면이라 사이드바가 없는 것이 맞다
+    // 받은 요청은 조직 스코프 화면이라 사이드바가 없는 것이 맞다
     await page.goto('/inbox');
     await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
     await expect(page.locator('aside')).toHaveCount(0);

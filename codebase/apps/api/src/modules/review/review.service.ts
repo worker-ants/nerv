@@ -477,7 +477,7 @@ export class ReviewService {
     }
 
     // **게이트는 트랜잭션 밖이다.** 승인 카드를 만들고 같은 트랜잭션에서 막으면 그 카드도
-    // 함께 롤백된다 — 사람의 승인함에는 아무것도 뜨지 않고 에이전트만 재시도한다(실측).
+    // 함께 롤백된다 — 사람의 받은 요청에는 아무것도 뜨지 않고 에이전트만 재시도한다(실측).
     const preflight = await this.loadFinding(input);
     const downgrade =
       preflight.severity === 'critical' &&
@@ -561,7 +561,7 @@ export class ReviewService {
    * A3 게이트 — 승인된 카드가 있으면 돌아오고, 없으면 **카드를 만들고 막는다**.
    *
    * 카드를 만들어 두는 것이 핵심이다: 막기만 하면 에이전트는 사람에게 무엇을 부탁해야
-   * 하는지 모른 채 재시도만 하고, 사람의 승인함에는 아무것도 뜨지 않는다.
+   * 하는지 모른 채 재시도만 하고, 사람의 받은 요청에는 아무것도 뜨지 않는다.
    */
   private async requireDowngradeApproval(input: ResolveInput): Promise<void> {
     const card = await this.events.transact(async (tx, emit) => {

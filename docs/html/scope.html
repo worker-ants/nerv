@@ -89,7 +89,7 @@
     <tbody>
       <tr><td>① 조정</td><td>원자적 클레임+리스가 중복 작업·스펙 충돌을 착수 시점에 막는다</td><td>FR-06 클레임 엔진 + scope 겹침 감지 (Phase 0)</td><td>두 호스트·세 세션 90분 동시 작업에서 <b>중복 클레임 0건</b>, 겹침 경고 10/10·오탐 0 (로드맵 §2.4)</td></tr>
       <tr><td>② 가시성</td><td>세션 레지스트리+이벤트 스트림이 "누가 무엇을 하는가"를 즉답한다</td><td>FR-07·FR-08 세션 보드 (Phase 0 읽기 전용 → Phase 1 steer/stop)</td><td>세션 가시성 <b>100%</b> / 보드 반영 <b>p95 ≤ 5초</b> (로드맵 §3.4)</td></tr>
-      <tr><td>③ 게이트(첫 단)</td><td>승인이 터미널 밖 수신함으로 나가면 비개발 직군이 참여한다</td><td>FR-11 승인함 + FR-02 승인 레코드 (Phase 1)</td><td>파일럿 2주간 <b>플랫폼 밖에서 처리된 승인 0건</b> (로드맵 §3.4)</td></tr>
+      <tr><td>③ 게이트(첫 단)</td><td>승인이 터미널 밖 수신함으로 나가면 비개발 직군이 참여한다</td><td>FR-11 받은 요청 + FR-02 승인 레코드 (Phase 1)</td><td>파일럿 2주간 <b>플랫폼 밖에서 처리된 승인 0건</b> (로드맵 §3.4)</td></tr>
     </tbody>
   </table></div>
 
@@ -242,7 +242,7 @@
       <tr><td>FR-08</td><td>활동 스트림·미션 컨트롤</td><td>●</td><td>○</td><td>●</td><td>typed Activity 타임라인, 전역 보드, steer/stop(P1)</td><td>—</td></tr>
       <tr><td>FR-09</td><td>리뷰 수집</td><td>○</td><td>○</td><td>○</td><td>—</td><td>ReviewSession→Finding→Resolution 전부 Phase 2. <b>서버·도구는 2026-08-23 착수 완료</b>(§5 착수 기록) — S6 화면과 <code>/nerv:review</code> 스킬은 남아 있다</td></tr>
       <tr><td>FR-10</td><td>게이트 판정 API</td><td>◐</td><td>○</td><td>◐</td><td>Task <code>done</code> 전이 조건 판정</td><td>리뷰 커버리지 조건·커밋 범위 판정은 Phase 2</td></tr>
-      <tr><td>FR-11</td><td>승인함(Inbox)</td><td>◐</td><td>○</td><td>◐</td><td>스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트</td><td>CR·에스컬레이션 카드(5유형 완성)는 Phase 2</td></tr>
+      <tr><td>FR-11</td><td>받은 요청(Inbox)</td><td>◐</td><td>○</td><td>◐</td><td>스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트</td><td>CR·에스컬레이션 카드(5유형 완성)는 Phase 2</td></tr>
       <tr><td>FR-12</td><td>알림</td><td>◐</td><td>○</td><td>◐</td><td>인앱 알림</td><td>Slack·메일·다이제스트는 Phase 2</td></tr>
       <tr><td>FR-13</td><td>증적·커버리지</td><td>◐</td><td>○</td><td>◐</td><td>PR·커밋 웹훅 수신, Task↔PR 링크</td><td>커버리지 계산·대시보드는 Phase 2</td></tr>
       <tr><td>FR-14</td><td>멀티테넌시</td><td>●</td><td>◐</td><td>●</td><td>Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정)</td><td>—</td></tr>
@@ -305,7 +305,7 @@
       <tr><td>S4</td><td>작업 보드</td><td>●</td><td>칸반, 위임 명세 4요소 강제</td></tr>
       <tr><td>S5</td><td>세션 모니터(미션 컨트롤)</td><td>●</td><td>Phase 0은 읽기 전용 축소판 → Phase 1에 steer/stop 승격</td></tr>
       <tr><td>S6</td><td>리뷰 센터</td><td>○</td><td><b>Phase 2</b>(§5)</td></tr>
-      <tr><td>S7</td><td>승인함(Inbox)</td><td>●</td><td>3유형 카드(스펙 승인·플랜·질문) — CR·에스컬레이션 카드는 Phase 2</td></tr>
+      <tr><td>S7</td><td>받은 요청(Inbox)</td><td>●</td><td>3유형 카드(스펙 승인·플랜·질문) — CR·에스컬레이션 카드는 Phase 2</td></tr>
       <tr><td>S8</td><td>설정 · 멤버 · 토큰</td><td>●</td><td>MVP 탭: 멤버·역할, 에이전트 토큰(PAT 발급·폐기), 스펙 게이트 정책(T0~T3 티어 매핑 — 저위험 자동 통과는 로드맵 §3.5가 첫날부터 요구). git 연동 탭·리뷰 게이트 정책은 Phase 2</td></tr>
     </tbody>
   </table></div>
@@ -391,7 +391,7 @@
     <b class="title">착수 기록 — FR-09 리뷰 수집 (2026-08-23, 사람 지시)</b>
     <p>Phase 2 항목 중 <b>리뷰 수집의 서버·도구</b>를 앞당겨 구현했다. 들어온 것: <code>ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution</code> 적재, MCP 도구 2종(<code>nerv_review_submit</code> A2 · <code>nerv_finding_resolve</code> A2 / critical→dismissed·wont_fix는 A3), REST 3종(EP-REV-01~03 — <a href="api.html">4.4 API 명세</a> §2.6a). 같은 날 이어서 <b>S6 리뷰 센터 화면</b>(<a href="screens.html">4.5</a> §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 <b><code>/nerv:review</code> 스킬</b>(<a href="plugin.html">4.6</a> §2.6)까지 들어왔다. 남은 것: 게이트 둘째 단의 <b>집행</b>(리뷰 커버리지가 Task <code>done</code>을 막는 것 — FR-10의 Phase 2 몫. 지금은 판정을 <b>표시</b>만 한다), <code>spec_drift</code> → CR 라우팅(FR-04 의존), 리뷰 서브에이전트 2종.</p>
     <p><b>MVP 범위 표(§3.2·§4.2)는 바꾸지 않았다.</b> FR-09는 여전히 MVP가 아니고 MVP 도구도 16종 그대로다 — 카탈로그가 18종이 된 것은 Phase 2가 그 위에 얹혔기 때문이다. 두 수를 하나로 합치면 "MVP에서 무엇을 약속했는가"를 다시 셀 수 없게 된다(도구 정의의 <code>phase</code> 필드가 그 구분을 나른다).</p>
-    <p>이 결정이 스키마 하나를 건드렸다: <code>approval_subject_type</code>에 <b><code>finding</code></b>을 더했다(<a href="database.html">4.3</a> §2.1 · <code>0004_finding_approval</code>). A3는 "막는다"가 아니라 <b>사람의 승인함을 거친다</b>는 뜻인데, 승인 카드가 붙을 자리가 열거에 없었다.</p>
+    <p>이 결정이 스키마 하나를 건드렸다: <code>approval_subject_type</code>에 <b><code>finding</code></b>을 더했다(<a href="database.html">4.3</a> §2.1 · <code>0004_finding_approval</code>). A3는 "막는다"가 아니라 <b>사람의 받은 요청을 거친다</b>는 뜻인데, 승인 카드가 붙을 자리가 열거에 없었다.</p>
   </div></div>
 
   <p>이 표는 3부 non-goals(<a href="pain-points.html">1.2 문제 정의와 요구사항</a> §5 — 코드 호스팅·CI·범용 PM·에이전트 런타임 비대체, 로컬 하네스 전면 흡수 금지)를 대체하지 않고 그 위에 얹힌다.</p>

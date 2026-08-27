@@ -73,7 +73,7 @@ NERV에서 EARS는 문서 서식이 아니라 **Requirement 엔티티의 입력 
 
 ### 2.2 GitHub Spec Kit — 생태계 최대, 그러나 철저히 파일·브랜치 기반
 
-`specify init`이 `.specify/`(템플릿과 `memory/` 아래 constitution)와 `specs/`를 만들고, 그 뒤는 슬래시 명령 체인이다: `/speckit.constitution` → `/speckit.specify`(what/why, user story) → `/speckit.clarify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.analyze`·`/speckit.checklist` → `/speckit.implement`. 단계마다 인간 검토 체크포인트를 두도록 설계된 점이 공식 발표에서 강조됐는데, 이 체크포인트는 채팅 안의 관행일 뿐 시스템이 강제하거나 기록하지 않는다. NERV의 승인함(S7, FR-11)은 정확히 이 체크포인트를 서버 측 엔티티로 승격한 것이다.
+`specify init`이 `.specify/`(템플릿과 `memory/` 아래 constitution)와 `specs/`를 만들고, 그 뒤는 슬래시 명령 체인이다: `/speckit.constitution` → `/speckit.specify`(what/why, user story) → `/speckit.clarify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.analyze`·`/speckit.checklist` → `/speckit.implement`. 단계마다 인간 검토 체크포인트를 두도록 설계된 점이 공식 발표에서 강조됐는데, 이 체크포인트는 채팅 안의 관행일 뿐 시스템이 강제하거나 기록하지 않는다. NERV의 받은 요청(S7, FR-11)은 정확히 이 체크포인트를 서버 측 엔티티로 승격한 것이다.
 
 주목할 신호는 `/speckit.taskstoissues`다. 태스크를 GitHub Issues로 내보내는 공식 통로가 존재한다는 사실 자체가 **마크다운 체크리스트로는 추적이 안 된다는 것을 도구가 인정한 셈**이다.
 
@@ -170,7 +170,7 @@ flowchart LR
 | **델타 스펙(ADDED/MODIFIED/REMOVED)** | OpenSpec | 검토 대상이 문서 전체가 아니라 변경분으로 줄어 리뷰 피로가 급감 | ChangeRequest + SpecVersion 불변 스냅샷 + 델타 리뷰 뷰 (D-02, FR-02/FR-04) |
 | **자기완결 스토리 파일** | BMAD | 에이전트가 컨텍스트를 스스로 재수집하지 않아도 되고, 작업의 경계가 명시됨 | Task의 위임 명세 4요소: 목표 / 산출물 형식 / 도구·출처 / 경계 (FR-05) |
 | **태스크 의존성 그래프와 wave 병렬 실행** | Kiro | 무엇을 지금 시작해도 되는지 계산으로 답함 | TaskDependency + ready 큐 + 원자적 클레임·리스 (D-04, FR-05/FR-06) |
-| **승인 라이프사이클(요청→피드백→수정→승인)** | spec-workflow-mcp (개념만) | 에이전트 산출물에 사람의 결재점을 만듦 | 승인함(Inbox) 카드 + Approval 엔티티 + 알림 (FR-11/FR-12) |
+| **승인 라이프사이클(요청→피드백→수정→승인)** | spec-workflow-mcp (개념만) | 에이전트 산출물에 사람의 결재점을 만듦 | 받은 요청(Inbox) 카드 + Approval 엔티티 + 알림 (FR-11/FR-12) |
 | **중앙 스펙 레지스트리** | Tessl | 스펙을 리포 경계 밖에서 버전 관리·재사용 | Organization 스코프 공유와 안정 ID 참조 (FR-14, D-09) |
 | **테스트 링크 = 구현 상태** | Tessl | 자기보고가 아니라 산출물이 상태를 결정 | Evidence(Requirement ↔ 코드·테스트·PR·커밋), 커버리지 대시보드 (FR-13, D-14) |
 
@@ -193,7 +193,7 @@ flowchart LR
 **③ OpenSpec Issue #435 — "Collaboration & Orchestration"**
 "스펙 작성은 본질적으로 협업인데 현재 도구들은 single-player 이거나 평범한 git 충돌에 의존한다"는 문제 제기와 함께 멀티유저 워크스페이스(RBAC·실시간 편집), Google Docs 식 인라인 코멘트, 멀티 에이전트 병렬 리뷰, 모델 간 합의 기능이 요청됐다. 결과는 **"closed as not planned"**. 파일 기반 도구가 이 방향을 구조적으로 감당할 수 없다는 판단이 공개적으로 내려진 것이다.
 
-> **읽는 법.** 이 세 건은 NERV의 기능 명세를 시장이 대신 써 준 문서다. #497은 FR-01(스펙 단일 진실 저장소)·FR-13(증적 그래프)을, #2116은 D-04(원자적 클레임 + 서버 발급 ID)와 FR-06을, #435는 FR-11(승인함)·FR-14(멀티테넌시)·FR-08(세션 활동 스트림)을 각각 요구하고 있다.
+> **읽는 법.** 이 세 건은 NERV의 기능 명세를 시장이 대신 써 준 문서다. #497은 FR-01(스펙 단일 진실 저장소)·FR-13(증적 그래프)을, #2116은 D-04(원자적 클레임 + 서버 발급 ID)와 FR-06을, #435는 FR-11(받은 요청)·FR-14(멀티테넌시)·FR-08(세션 활동 스트림)을 각각 요구하고 있다.
 
 - [What's the best way to use spec-kit in a team? (Discussion #497)](https://github.com/github/spec-kit/discussions/497) — (2026-08-13 확인) 번호 충돌·계약 동시 유효성 검증 불가·마스터 계약 부재라는 팀 도입 3대 문제와 공식 해법 부재.
 - [What best practices exist for concurrent SpecKit development? (Discussion #2116)](https://github.com/github/spec-kit/discussions/2116) — (2026-08-13 확인) 동시 스펙 생성 시 번호 충돌의 필연성과 타임스탬프 옵션이라는 완화책.
@@ -269,11 +269,11 @@ Yuval Yeret의 반론이 이 진영의 대표다. 워터폴이 무너진 이유�
 구체적으로 NERV는 세 가지 장치로 검토 피로에 대응한다.
 
 1. **델타만 검토한다.** OpenSpec의 ADDED/MODIFIED/REMOVED를 ChangeRequest의 델타 뷰로 승격해, 승인자가 1,750줄 문서가 아니라 변경분과 그 영향 범위만 본다(FR-04).
-2. **위험도로 경로를 가른다.** 델타 크기, 영향받는 Requirement 수, 이미 구현된 Task 존재 여부로 위험도를 계산해 저위험은 기록만 남기고 통과시키고 고위험만 승인함으로 보낸다(FR-10/FR-11).
+2. **위험도로 경로를 가른다.** 델타 크기, 영향받는 Requirement 수, 이미 구현된 Task 존재 여부로 위험도를 계산해 저위험은 기록만 남기고 통과시키고 고위험만 받은 요청으로 보낸다(FR-10/FR-11).
 3. **why를 필드로 강제한다.** Isoform이 지적한 "what만 있고 why가 없다"는 문제에 대해, 결정 근거를 스펙 레코드의 구조화 필드로 두고 ADR 타입 스펙과 연결한다(D-09).
 
 ```text
-┌─ 승인함(Inbox) ────────────────────────────────────────────────────┐
+┌─ 받은 요청(Inbox) ────────────────────────────────────────────────────┐
 │ ● CR · 로그인 화면 안내 문구 수정                      위험도: 낮음 │
 │   델타 MODIFIED 1건(2줄) · 영향 Requirement 0건                     │
 │   → 자동 통과 · 이벤트 로그에 기록됨            [기록 보기]         │
@@ -286,7 +286,7 @@ Yuval Yeret의 반론이 이 진영의 대표다. 워터폴이 무너진 이유�
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-*그림 3. 위험도 가변 게이트가 승인함에서 보이는 모습(개념 스케치). 전체 화면 정의는 [화면 설계](../03-proposal/ui-wireframes.md) S7 참조.*
+*그림 3. 위험도 가변 게이트가 받은 요청에서 보이는 모습(개념 스케치). 전체 화면 정의는 [화면 설계](../03-proposal/ui-wireframes.md) S7 참조.*
 
 - [Spec-Driven Development: The Waterfall Strikes Back (Marmelab)](https://marmelab.com/blog/2025/11/12/spec-driven-development-waterfall-strikes-back.html) — (2025-11-12 게시) 8파일 1,300줄 실증과 이중 리뷰 부담, 대안으로서의 반복적 자연어 개발 시연.
 - [The Limits of Spec-Driven Development (Isoform)](https://isoform.ai/blog/the-limits-of-spec-driven-development) — (2025-11-25 게시) 유지보수 부담·why 부재·false confidence·추상화 미스매치라는 4대 한계 정리.
@@ -305,7 +305,7 @@ Yuval Yeret의 반론이 이 진영의 대표다. 워터폴이 무너진 이유�
 | ADDED/MODIFIED/REMOVED 델타 | OpenSpec | ChangeRequest + SpecVersion 불변 스냅샷 + 델타 리뷰 뷰 | D-02, FR-02, FR-04 | [스펙 워크플로우](../03-proposal/spec-workflow.md), [데이터 모델](../03-proposal/data-model.md) |
 | 자기완결 스토리 파일 | BMAD | Task 위임 명세 4요소(목표/산출물 형식/도구·출처/경계) | FR-05 | [스펙 워크플로우](../03-proposal/spec-workflow.md) |
 | 의존성 그래프 · wave 병렬 실행 | Kiro | TaskDependency + ready 큐 + 원자적 클레임·리스 | D-04, FR-05, FR-06 | [스펙 워크플로우](../03-proposal/spec-workflow.md), [시스템 아키텍처](../03-proposal/architecture.md) |
-| MCP 연동 + 웹 대시보드 승인 | spec-workflow-mcp (개념만, GPL-3.0) | tools-first 원격 MCP + 승인함(Inbox) + 알림 | D-05, FR-11, FR-12, FR-15 | [에이전트 연동 설계](../03-proposal/agent-integration.md), [Claude Code/Codex 연동 기술](integration-tech.md) |
+| MCP 연동 + 웹 대시보드 승인 | spec-workflow-mcp (개념만, GPL-3.0) | tools-first 원격 MCP + 받은 요청(Inbox) + 알림 | D-05, FR-11, FR-12, FR-15 | [에이전트 연동 설계](../03-proposal/agent-integration.md), [Claude Code/Codex 연동 기술](integration-tech.md) |
 | 중앙 스펙 레지스트리 | Tessl | Organization 스코프 공유 + 안정 ID 참조(경로·앵커 아님) | D-09, FR-14 | [데이터 모델](../03-proposal/data-model.md) |
 | 테스트 링크 = 구현 상태 | Tessl | Evidence(Requirement ↔ 코드·테스트·PR·커밋) + 커버리지 대시보드 | D-14, FR-13 | [데이터 모델](../03-proposal/data-model.md), [스펙 워크플로우](../03-proposal/spec-workflow.md) |
 | 단계별 인간 체크포인트 | Spec Kit | 표준 게이트 4+1, 위험도 가변 + 기록되는 BYPASS | D-06, FR-10, FR-11 | [스펙 워크플로우](../03-proposal/spec-workflow.md) |

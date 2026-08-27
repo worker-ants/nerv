@@ -1108,7 +1108,7 @@ WHERE c.status = 'active'
                 WHERE nerv_glob_overlap(a, b)) );</code></pre>
   <p><code>nerv_glob_overlap(a, b)</code>의 MVP 구현은 와일드카드 앞 접두사 비교다(<code>codebase/backend/src/modules/chat-channel/**</code> vs <code>codebase/backend/**</code> → 겹침). 정확한 glob 교집합은 어렵지만 <b>과검출은 경고, 미검출은 사고</b>이므로 넉넉한 쪽으로 잡는다. 차단이냐 경고냐는 프로젝트 정책이다(D-06). 이 질의가 clemvion이 로컬 한계 때문에 삭제한 기능(#576)의 복원이라는 점은 §2.4에서 다뤘다.</p>
 
-  <h3>4.7 "내가 처리해야 할 결재" — 승인함 <span class="badge impl">P7 · FR-11 · FR-12</span></h3>
+  <h3>4.7 "내가 처리해야 할 결재" — 받은 요청 <span class="badge impl">P7 · FR-11 · FR-12</span></h3>
 <pre><code>SELECT a.id, a.subject_type, a.subject_id, a.requested_at, a.due_at,
        coalesce(sp.title, cr.title, q.title) AS subject_title,
        (a.due_at &lt; now())                    AS overdue
@@ -1122,7 +1122,7 @@ WHERE a.project_id = ANY($1)
   AND (a.assignee_user_id = $2 OR a.assignee_role = ANY($3))
   AND a.requested_by_user_id &lt;&gt; $2          -- 지시자 ≠ 승인자
 ORDER BY (a.subject_type = 'question') DESC, a.requested_at;</code></pre>
-  <p>S1 홈의 숫자 배지와 S7 승인함이 이 질의다. <code>question</code>을 맨 위로 올리는 이유는 그 세션이 <code>awaiting_input</code>으로 <b>멈춰 서 있기</b> 때문이다.</p>
+  <p>S1 홈의 숫자 배지와 S7 받은 요청이 이 질의다. <code>question</code>을 맨 위로 올리는 이유는 그 세션이 <code>awaiting_input</code>으로 <b>멈춰 서 있기</b> 때문이다.</p>
 
   <h3>4.8 "이 스펙에 무슨 일이 있었나" — 감사 타임라인 <span class="badge impl">P3 · FR-16</span></h3>
 <pre><code>SELECT e.occurred_at, e.type, e.from_state, e.to_state,
@@ -1187,7 +1187,7 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td><code>agent_session</code></td><td><code>(project_id, state, last_heartbeat_at)</code></td><td>세션 보드(§4.2) + stale 스캔</td></tr>
       <tr><td><code>review_session</code></td><td><code>(project_id, head_sha)</code>, <code>(changeset_hash, round_no)</code></td><td>게이트 판정(§4.4)</td></tr>
       <tr><td><code>finding</code></td><td><code>UNIQUE (project_id, fingerprint)</code>, <code>(project_id, status, severity)</code></td><td>dedup + 리뷰 센터 큐</td></tr>
-      <tr><td><code>approval</code></td><td><code>(project_id, assignee_user_id) WHERE decision IS NULL</code></td><td>승인함(§4.7)</td></tr>
+      <tr><td><code>approval</code></td><td><code>(project_id, assignee_user_id) WHERE decision IS NULL</code></td><td>받은 요청(§4.7)</td></tr>
       <tr><td><code>event</code></td><td><code>(project_id, occurred_at DESC)</code>, <code>(subject_type, subject_id, occurred_at)</code></td><td>피드·감사(§4.8)</td></tr>
       <tr><td><code>spec_version</code></td><td><b>하이브리드 검색</b>(2026-08-22 MVP 확정 — <a href="scope.html">4.1 MVP 범위와 스택 확정</a> §2.1): GIN tsvector + pg_trgm(한국어·부분 일치) + pgvector HNSW(헤딩 청크 임베딩 — 인덱스 테이블 <code>spec_chunk_embedding</code>은 재생성 가능한 파생 데이터로 <b>엔티티 29종에 들지 않는다</b>, DDL 정본 <a href="database.html">4.3</a> §2.15) + <code>spec_relation</code> 1-hop 관계 확장</td><td>스펙 검색(FR-01) — 파이프라인 정본 <a href="api.html">4.4</a> §2.2b</td></tr>
     </tbody>

@@ -1,4 +1,4 @@
-// REST — 승인함 · 결정 · 질문 답변 (api.md §2.6)
+// REST — 받은 요청 · 결정 · 질문 답변 (api.md §2.6)
 //
 // 이 표면이 Phase 1 종료 게이트의 대상이다: 파일럿 2주간 **플랫폼 밖에서 처리된 승인 0건**.
 // 그러려면 승인이 여기서 되는 것만으로는 부족하고, 여기서 **되어야만** 해야 한다 —
@@ -21,7 +21,7 @@ export class ApprovalController {
     private readonly questions: QuestionService,
   ) {}
 
-  /** 프로젝트 스코프 승인함 — S2·S4 의 사이드 패널용. 전역 승인함은 EP-APR-01 이다 */
+  /** 프로젝트 스코프 받은 요청 — S2·S4 의 사이드 패널용. 전역 받은 요청은 EP-APR-01 이다 */
   @Get('inbox')
   inbox(@Req() req: ProjectRequest): Promise<InboxCard[]> {
     const { projectId, userId } = human(req);
@@ -89,11 +89,11 @@ function human(req: ProjectRequest): { projectId: string; userId: string } {
 }
 
 /**
- * 전역 승인함 — EP-APR-01·02·03. 경로에 프로젝트가 없다.
+ * 전역 받은 요청 — EP-APR-01·02·03. 경로에 프로젝트가 없다.
  *
  * **사람의 하루는 프로젝트로 나뉘어 있지 않다.** 승인이 프로젝트별로 흩어져 있으면
  * "내가 지금 막고 있는 것"을 세는 곳이 없어지고, 그 순간 승인은 조용히 늦어진다(P4).
- * 그래서 이 표면이 승인함의 정본이고, 프로젝트 스코프 inbox 는 화면 안의 부분 뷰다.
+ * 그래서 이 표면이 받은 요청의 정본이고, 프로젝트 스코프 inbox 는 화면 안의 부분 뷰다.
  */
 @Controller('api/v1/approvals')
 export class ApprovalInboxController {

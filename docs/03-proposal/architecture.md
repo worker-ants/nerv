@@ -69,7 +69,7 @@ flowchart LR
 
 | 컴포넌트 | 책임 | 하지 않는 일 | 관련 FR/NFR |
 | --- | --- | --- | --- |
-| **웹앱** (Vite + React SPA) | S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, WebSocket 구독으로 보드 실시간 갱신 | 비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증 | FR-08·11·13 / NFR-02 |
+| **웹앱** (Vite + React SPA) | S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 받은 요청 원클릭 액션, WebSocket 구독으로 보드 실시간 갱신 | 비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증 | FR-08·11·13 / NFR-02 |
 | **API + MCP 게이트웨이** (NestJS) | REST/RPC + Streamable HTTP MCP 엔드포인트 + WebSocket·SSE 실시간 채널을 **같은 도메인 서비스 위에** 노출(같은 Nest 모듈의 provider를 여러 표면이 주입받는다). 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버 | 장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당) | FR-01~11·14·15 / NFR-02·03 |
 | **훅 수집기** (HTTP ingest + OTLP) | Claude Code `type:"http"` 훅과 Codex hooks/notify를 토큰 인증으로 수신해 202로 즉시 응답하고 큐에 적재. OTLP는 정량 관측용 별도 경로 | 차단 **판정의 산출**(판정은 API가 하고 수집기는 응답을 중계한다). 단 `Stop` 훅만 동기 판정 경로다 | FR-07·08·16 / NFR-02·04 |
 | **Postgres** | 스펙·요구사항·작업·클레임·세션·활동·리뷰·발견사항·승인·이벤트·알림의 단일 진실. 게이트 판정도 여기서 SQL로 | 대용량 blob 보관(오브젝트 스토리지로), 실시간 방송(Valkey로) | FR-01~17 |
@@ -193,7 +193,7 @@ sequenceDiagram
   A->>DB: 자동 사전 검토 큐잉 - 일관성 검사
   A->>K: Event spec.submitted
   K->>R: Notification - 인앱 · Slack
-  R->>W: 승인함에서 델타 확인 후 승인
+  R->>W: 받은 요청에서 델타 확인 후 승인
   W->>A: Approval decision approve
   A->>DB: in_review → approved - 불변 스냅샷 발행
   A->>DB: Requirement 델타 계산 → Task backlog/ready 파생
@@ -256,7 +256,7 @@ sequenceDiagram
   H->>DB: Activity 적재 - thought / action / response
   S->>M: nerv_question_create - 사람 결정 필요
   M->>DB: Question + AgentSession → awaiting_input
-  K->>U: Notification 승인함 카드
+  K->>U: Notification 받은 요청 카드
   U->>M: 답변 - approve / reject / comment
   M->>DB: AgentSession awaiting_input → active
   Note over S,K: 세션이 죽으면 하트비트가 끊긴다

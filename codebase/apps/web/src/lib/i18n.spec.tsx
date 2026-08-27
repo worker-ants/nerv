@@ -32,7 +32,7 @@ describe('언어 전환', () => {
         <Probe />
       </LocaleProvider>,
     );
-    expect(screen.getByTestId('text').textContent).toBe('승인함');
+    expect(screen.getByTestId('text').textContent).toBe('받은 요청');
 
     cleanup();
     render(

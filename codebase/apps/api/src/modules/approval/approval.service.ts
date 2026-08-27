@@ -1,8 +1,8 @@
-// 승인함 — 결정 · 지시자≠승인자 · stale 승인 차단
+// 받은 요청 — 결정 · 지시자≠승인자 · stale 승인 차단
 // 정본: docs/03-proposal/spec-workflow.md §2.5·§6.4 · docs/04-mvp/api.md §2.6
 //
 // **승인·질문·리뷰 요청은 알림이 아니라 작업 항목이다**(§6.4). 흩어진 핑 대신 미결 액션을
-// 한 곳에서 추적하는 것이 승인함의 존재 이유이고, Phase 1 종료 게이트가 그것을 수치로 잰다 —
+// 한 곳에서 추적하는 것이 받은 요청의 존재 이유이고, Phase 1 종료 게이트가 그것을 수치로 잰다 —
 // 파일럿 2주간 **플랫폼 밖에서 처리된 승인 0건**.
 //
 // 카드는 세 유형이다: 승인 · 질문 · 통지. 그리고 **에이전트의 요약문이 아니라 실제 diff·대상
@@ -46,8 +46,8 @@ export class ApprovalService {
   ) {}
 
   /**
-   * EP-APR-01 승인함 — **내 결정을 기다리는 것만** 센다(§6.6 원칙 3).
-   * 나머지는 피드다. 이 구분이 없으면 배지 숫자가 의미를 잃고 승인함이 두 번째 받은편지함이 된다.
+   * EP-APR-01 받은 요청 — **내 결정을 기다리는 것만** 센다(§6.6 원칙 3).
+   * 나머지는 피드다. 이 구분이 없으면 배지 숫자가 의미를 잃고 받은 요청이 두 번째 받은편지함이 된다.
    */
   async inbox(input: { projectId: string; userId: string }): Promise<InboxCard[]> {
     const { rows } = await this.db.execute<InboxCard>(sql`
@@ -71,7 +71,7 @@ export class ApprovalService {
   }
 
   /**
-   * EP-APR-01 전역 승인함 — **내 결정을 기다리는 것만** 센다(spec-workflow §6.6 원칙 3).
+   * EP-APR-01 전역 받은 요청 — **내 결정을 기다리는 것만** 센다(spec-workflow §6.6 원칙 3).
    *
    * 프로젝트를 가로지르는 이유는 사람의 하루가 프로젝트로 나뉘어 있지 않기 때문이다.
    * 승인 3유형(스펙 승인·플랜·질문)이 한 줄에 섞여 나오고, 각 카드는 **얼마나 기다렸는지**를
@@ -104,7 +104,7 @@ export class ApprovalService {
        WHERE ${stateFilter}${projectFilter}
          -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
          -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
-         -- 사람이 계속 결재하도록 두는 것은 승인함을 못 믿게 만드는 가장 빠른 길이다.
+         -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
          AND p.archived_at IS NULL
          AND (a.assignee_user_id IS NULL OR a.assignee_user_id = ${input.userId})
          AND EXISTS (
@@ -135,7 +135,7 @@ export class ApprovalService {
    LEFT JOIN task t ON t.id = q.task_id
        WHERE q.status = 'open'${projectFilter}
          -- 승인 카드와 **같은 조건**이다. 한쪽만 걸렀더니 보관한 프로젝트의 질문
-         -- 카드가 승인함에 그대로 남았다(실측 2026-08-27) — 승인함은 한 목록이므로
+         -- 카드가 받은 요청에 그대로 남았다(실측 2026-08-27) — 받은 요청은 한 목록이므로
          -- 두 갈래가 같은 규칙을 써야 그 목록이 한 가지 뜻을 갖는다.
          AND p.archived_at IS NULL
          AND EXISTS (

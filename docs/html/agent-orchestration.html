@@ -134,7 +134,7 @@
 
       <rect x="150" y="200" width="460" height="82" rx="12" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
       <text x="380" y="226" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="14" font-weight="800">공통으로 필요한 조정·가시성 계층 = NERV</text>
-      <text x="380" y="248" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">할당(ready 큐) · 상태 표시(세션 레지스트리) · 충돌 방지(클레임+scope) · 게이트(승인함)</text>
+      <text x="380" y="248" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">할당(ready 큐) · 상태 표시(세션 레지스트리) · 충돌 방지(클레임+scope) · 게이트(받은 요청)</text>
       <text x="380" y="268" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">격리 자체는 로컬 하네스와 벤더 샌드박스에 위임한다</text>
     </svg>
     <div class="cap">그림 1. 격리는 2계층으로 수렴했고, 나머지 4축은 두 계보가 공유하는 미해결 문제다.</div>
@@ -251,7 +251,7 @@
       <tr><td>Factory</td><td>터미널/IDE/웹/Slack/티켓</td><td>클라우드 또는 로컬</td><td>플랫폼 관측성</td><td>Mission이 병렬 트랙으로 분해</td><td>사람은 고수준 결정·거버넌스</td></tr>
       <tr><td>beads</td><td><code>bd ready</code>로 에이전트가 자가 발견</td><td>(트래커 — 격리 무관)</td><td>이슈 상태·의존성 그래프</td><td><b>원자적 <code>--claim</code></b>, 해시 ID</td><td>사람도 같은 트래커로 관리</td></tr>
       <tr><td><b>clemvion(현행)</b></td><td>사람이 plan 문서에서 수동 선택</td><td>git worktree + 4-layer 브랜치 가드</td><td>자기 세션 statusline 1줄</td><td><b>없음</b>(자동 검출 제거, #576)</td><td>그 터미널 그 세션 안에서만</td></tr>
-      <tr><td><b>NERV(제안)</b></td><td>ready 큐 + <code>nerv_task_next</code>/<code>nerv_task_claim</code></td><td>로컬 worktree·클라우드 샌드박스 <b>양쪽 수용</b></td><td>세션 모니터(S5): 사용자·hostname·상태·현재 Task·하트비트·diff</td><td>원자적 클레임 + 리스 + <b>scope 겹침 감지</b></td><td>승인함(S7): 스펙/CR·플랜·질문·머지</td></tr>
+      <tr><td><b>NERV(제안)</b></td><td>ready 큐 + <code>nerv_task_next</code>/<code>nerv_task_claim</code></td><td>로컬 worktree·클라우드 샌드박스 <b>양쪽 수용</b></td><td>세션 모니터(S5): 사용자·hostname·상태·현재 Task·하트비트·diff</td><td>원자적 클레임 + 리스 + <b>scope 겹침 감지</b></td><td>받은 요청(S7): 스펙/CR·플랜·질문·머지</td></tr>
     </tbody>
   </table></div>
 
@@ -286,7 +286,7 @@
         <div class="wf-nav-item">✅ 작업</div>
         <div class="wf-nav-item on">🖥️ 세션 모니터</div>
         <div class="wf-nav-item">🔎 리뷰 센터</div>
-        <div class="wf-nav-item">📥 승인함</div>
+        <div class="wf-nav-item">📥 받은 요청</div>
       </div>
       <div class="wf-main">
         <div class="wf-topbar"><span class="ttl">세션 모니터 <span class="marker">1</span></span>
@@ -341,7 +341,7 @@
     <li><span class="marker">1</span><span>업계 공통 필드: 상태 dot(작업중/idle/입력대기/완료/실패) · 태스크 요약 · diff 통계 · attach/stop 액션 (Conductor · Claude Code web · Jules · Devin).</span></li>
     <li><span class="marker">2</span><span><b>NERV 추가 ①</b> 사용자 + hostname + 에이전트 종류 — clemvion에는 "누구의 어떤 세션인지" 기록이 아예 없다(P8).</span></li>
     <li><span class="marker">3</span><span><b>NERV 추가 ②</b> 클레임한 Task ID와 리스 잔여 시간 + 유래 SpecVersion/Requirement — "무엇을 구현 중인가"가 스펙에 연결된다(FR-03·FR-13).</span></li>
-    <li><span class="marker">4</span><span><b>NERV 추가 ③</b> <code>awaiting_input</code> 세션에 그 자리에서 답변 — 질문이 승인함(S7) 카드로도 동시에 뜬다(FR-11).</span></li>
+    <li><span class="marker">4</span><span><b>NERV 추가 ③</b> <code>awaiting_input</code> 세션에 그 자리에서 답변 — 질문이 받은 요청(S7) 카드로도 동시에 뜬다(FR-11).</span></li>
   </ul>
 
   <h3 id="sec-3-4">3.4 3게이트 + 1원칙</h3>
@@ -403,7 +403,7 @@
     <li><b>게이트 3 · 머지·CI 실행</b> — Copilot은 <b>CI 실행에도</b> 사람 승인을 요구하고 요청자의 자기 승인을 금지한다("지시자 ≠ 승인자").</li>
     <li><b>+1원칙</b> — "명확하면 자동 진행, 모호하거나 아키텍처적이면 질문"(Claude Auto-fix PR). NERV에서는 Question 엔티티와 세션 상태 <code>awaiting_input</code>이 이 원칙의 구현체다(D-13).</li>
   </ul>
-  <p>이 4분류는 D-06의 표준 게이트 4+1에 대응하며, 그중 플랜 승인·질문은 승인함(Inbox) 카드가 되고(FR-11) 머지·CI 승인은 git forge 측 게이트다.</p>
+  <p>이 4분류는 D-06의 표준 게이트 4+1에 대응하며, 그중 플랜 승인·질문은 받은 요청(Inbox) 카드가 되고(FR-11) 머지·CI 승인은 git forge 측 게이트다.</p>
 
   <h3 id="sec-3-5">3.5 위임 명세 4요소</h3>
   <p>Anthropic 멀티에이전트 리서치 시스템의 실패 분석은 명확하다. <b>objective / 기대 output format / 도구·출처 가이드 / 명확한 task boundaries</b> 중 하나라도 빠지면 서브에이전트들이 같은 주제를 중복 조사한다 — "research the semiconductor shortage" 같은 모호한 지시가 실제로 중복 작업을 유발했다. 같은 글은 노력 스케일링 규칙(단순 조회 1에이전트·3~10 tool calls, 직접 비교 2~4에이전트·각 10~15 calls, 복잡 리서치 10+)도 프롬프트에 명시하라고 권한다.</p>
@@ -501,7 +501,7 @@
       <tr><td>세션 상태 머신 + 무응답 처리</td><td>claude-squad 일시정지/재개, Claude web 세션 상태</td><td><code>pending → active ↔ awaiting_input → complete/error/stale</code>, 임계 초과 시 stale + 클레임 회수</td><td>FR-07, <b>D-13</b></td></tr>
       <tr><td>미션 컨트롤 + attach/stop</td><td>Conductor 대시보드, <code>/tasks</code>, <code>--teleport</code>, Devin take-over</td><td>전역 세션 보드(S5)와 steer/stop 액션</td><td>FR-08</td></tr>
       <tr><td>이벤트 기반 상태 자동 전이</td><td>vibe-kanban(시작·PR·머지)</td><td>git forge 웹훅 → Task 상태 전이, Event 기록</td><td>FR-08, FR-16</td></tr>
-      <tr><td>3게이트 + "모호하면 질문"</td><td>Jules, Copilot, Claude Auto-fix</td><td>승인함 카드 유형 5종(스펙 승인·CR·플랜·질문·에스컬레이션), Question ↔ <code>awaiting_input</code></td><td>FR-11, D-06</td></tr>
+      <tr><td>3게이트 + "모호하면 질문"</td><td>Jules, Copilot, Claude Auto-fix</td><td>받은 요청 카드 유형 5종(스펙 승인·CR·플랜·질문·에스컬레이션), Question ↔ <code>awaiting_input</code></td><td>FR-11, D-06</td></tr>
       <tr><td>지시자 ≠ 승인자</td><td>Copilot 자기승인 금지</td><td>승인 권한 분리와 감사 기록(<code>is_agent</code>)</td><td>FR-11, FR-16, D-06</td></tr>
       <tr><td>정리된 리뷰 산출물</td><td>Devin Review</td><td>ReviewSession → Finding → Resolution</td><td>FR-09, D-07</td></tr>
       <tr><td>완료 훅으로 품질 게이트</td><td>agent teams exit-2 거부, Stop hook</td><td>Task done 전이 조건 = 해소된 리뷰 커버리지</td><td>FR-10, D-14</td></tr>
@@ -577,7 +577,7 @@
     <div class="card"><h4>조정·게이트</h4><p>클레임·리스·scope 알고리즘과 게이트 판정 → <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a></p></div>
     <div class="card"><h4>데이터</h4><p>Task / Claim / AgentSession / Activity 엔티티와 인덱스 → <a href="data-model.html">3.3 데이터 모델</a></p></div>
     <div class="card"><h4>연동</h4><p><code>nerv_task_next / claim / heartbeat / release</code> · 세션 규약 · 어댑터 설계 → <a href="agent-integration.html">3.4 에이전트 연동 설계</a></p></div>
-    <div class="card"><h4>화면</h4><p>세션 보드(S5)·승인함(S7) → <a href="ui-wireframes.html">3.6 화면 설계</a></p></div>
+    <div class="card"><h4>화면</h4><p>세션 보드(S5)·받은 요청(S7) → <a href="ui-wireframes.html">3.6 화면 설계</a></p></div>
     <div class="card"><h4>단계</h4><p>Phase 0 검증 목표("두 호스트·세 세션 동시 작업에서 중복 클레임 0") → <a href="roadmap.html">3.7 로드맵</a></p></div>
     <div class="card"><h4>포지셔닝</h4><p>Build vs Buy와 3대 가치 → <a href="vision.html">3.1 비전과 핵심 시나리오</a></p></div>
   </div>

@@ -371,7 +371,7 @@
 
   <div class="callout note"><span class="ico">ℹ️</span><div class="body">
     <b class="title">스펙 승인·거절 엔드포인트는 이 절에 없다</b>
-    <p><code>in_review → approved/rejected</code> 전이는 승인함의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 <code>nerv_spec_approve</code>가 존재하지 않는 것(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.</p>
+    <p><code>in_review → approved/rejected</code> 전이는 받은 요청의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 <code>nerv_spec_approve</code>가 존재하지 않는 것(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.</p>
   </div></div>
 
   <p><b>메타(트리)와 본문(버전)은 다른 축이다.</b> <code>spec</code> 행의 메타(title·parent_id·sort_key·owner_role)는 버전 이력을 만들지 않고 EP-SPEC-15로만 바뀐다 — FR-01 "문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다"의 실행 경로이며, 임포터 수동 확인 큐의 "트리 위치 변경"(<a href="importer.html">4.7 스펙 임포터</a> §3.4)을 사람이 처리하는 수단이다. 스코프 <code>spec:meta</code>는 PAT에 부여 가능하지만 대응 MCP 도구는 없다 — 트리 구조는 거버넌스 대상이라 웹(S3 메타 다이얼로그 — <a href="screens.html">4.5 화면 명세</a> §2.4)이 기본 경로다. 이에 따라 MCP <code>nerv_spec_draft_upsert</code>의 <code>key</code>·<code>parent_id</code>·<code>type</code>·<code>title</code> 입력은 <b>생성(spec_id 없음)에서만 소비</b>된다: 기존 spec_id 지정 호출에 현재 값과 다른 메타가 오면 무시하지 않고 409 <code>NERV_PRECONDITION</code>(<code>details.kind="meta_change_not_allowed"</code>, EP-SPEC-15 안내)을 반환하고, 같은 값이면 통과한다(멱등 재호출 보호). 아카이브(EP-SPEC-16)는 삭제가 아니다 — 행과 버전·관계·이벤트는 전부 남고, 트리(EP-SPEC-01)·검색(EP-SPEC-02)·목록 기본 결과에서 빠질 뿐이다(<code>?include_archived=true</code>로 포함).</p>
@@ -466,7 +466,7 @@
 
   <p>세션의 생성·상태 전이는 REST가 아니라 훅 ingest(<a href="#ep-ing">§2.9</a>)와 MCP <code>nerv_bootstrap</code>이 만든다. REST 표면은 조회와 steer만 갖는다 — 세션은 에이전트의 실행 사실이지 웹에서 만드는 리소스가 아니기 때문이다.</p>
 
-  <h3 id="ep-apr">2.6 승인함·질문 (S7)</h3>
+  <h3 id="ep-apr">2.6 받은 요청·질문 (S7)</h3>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
@@ -480,7 +480,7 @@
     </tbody>
   </table></div>
 
-  <p>승인 유효성 판정(자기 승인 거부·에이전트 영구 불가·content hash 불일치 = stale 승인 거부)과 SLA·리마인더·만료는 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §2.3·§2.6 정본을 서버가 그대로 집행한다. MVP 승인함 카드는 스펙 승인·플랜·질문 3유형이고 CR·에스컬레이션 카드는 P2다(<a href="roadmap.html">3.7 로드맵</a> FR-11).</p>
+  <p>승인 유효성 판정(자기 승인 거부·에이전트 영구 불가·content hash 불일치 = stale 승인 거부)과 SLA·리마인더·만료는 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §2.3·§2.6 정본을 서버가 그대로 집행한다. MVP 받은 요청 카드는 스펙 승인·플랜·질문 3유형이고 CR·에스컬레이션 카드는 P2다(<a href="roadmap.html">3.7 로드맵</a> FR-11).</p>
 
   <h3 id="ep-rev">2.6a 리뷰·발견 (S6 — <b>Phase 2</b>, 2026-08-23 착수)</h3>
 
@@ -502,7 +502,7 @@
     <li><b>입력 스냅샷은 필수다.</b> <code>head_sha</code>·<code>base_sha</code> 없는 제출은 <code>NERV_PRECONDITION</code>이다 — 나중에 "무엇을 봤는가"에 답할 수 없는 리뷰는 게이트의 근거가 되지 못한다(clemvion 실측: 표본 SUMMARY 200개 중 47개만 산문에 해시를 남겼다).</li>
     <li><b>라운드는 서버가 센다.</b> 같은 커밋·같은 파일 집합의 재제출은 <code>changeset_hash</code>로 같은 세션에 합쳐지고(<code>merged_into_existing_session=true</code>), 라운드는 늘지 않는다. 리뷰어 여럿이 같은 changeset을 보면 한 세션의 <code>reviewer_report</code> 여럿이 된다.</li>
     <li><b>게이트 현황은 표시일 뿐 집행이 아니다.</b> EP-REV-04는 "이 브랜치를 커버하는 해소된 리뷰가 있는가"를 SQL 한 번으로 답한다. 그 판정이 Task <code>done</code> 전이를 <b>막는</b> 것은 FR-10의 Phase 2 몫이라 아직 없다 — 보여 주는 것과 막는 것을 한 번에 넣지 않는다.</li>
-    <li><b>하향은 A3다.</b> <code>critical</code> 발견을 <code>dismissed</code>/<code>wont_fix</code>로 옮기는 <b>에이전트의</b> 호출은 <code>NERV_APPROVAL_REQUIRED</code>(202)로 되돌아가고 승인 카드(<code>approval.subject_type='finding'</code>)가 승인함에 뜬다. 사람이 승인한 뒤 같은 호출을 다시 하면 통과한다. 사람이 직접 부르는 경로에는 이 게이트가 없다 — 막는 것은 에이전트가 <b>자기 리뷰의 심각도를 스스로 낮추는 것</b>이다(<a href="agent-integration.html">3.6 에이전트 연동 설계</a> §2.3 — 실측 732건 중 24건).</li>
+    <li><b>하향은 A3다.</b> <code>critical</code> 발견을 <code>dismissed</code>/<code>wont_fix</code>로 옮기는 <b>에이전트의</b> 호출은 <code>NERV_APPROVAL_REQUIRED</code>(202)로 되돌아가고 승인 카드(<code>approval.subject_type='finding'</code>)가 받은 요청에 뜬다. 사람이 승인한 뒤 같은 호출을 다시 하면 통과한다. 사람이 직접 부르는 경로에는 이 게이트가 없다 — 막는 것은 에이전트가 <b>자기 리뷰의 심각도를 스스로 낮추는 것</b>이다(<a href="agent-integration.html">3.6 에이전트 연동 설계</a> §2.3 — 실측 732건 중 24건).</li>
   </ol>
 
   <h3 id="ep-evt">2.7 이벤트 피드·알림·커버리지</h3>
@@ -780,7 +780,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
   <div class="callout decision"><span class="ico">✅</span><div class="body">
     <b class="title">사람 전용 액션은 어느 표면에도 도구가 없다</b>
-    <p><code>spec:approve</code>·<code>approval:decide</code>는 REST에서도 승인함 결정(EP-APR-03) 하나뿐이고 MCP 카탈로그에는 처음부터 존재하지 않는다. A4 액션을 MCP로 요청하면 <code>NERV_HUMAN_ONLY</code>와 웹 딥링크가 돌아온다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.2).</p>
+    <p><code>spec:approve</code>·<code>approval:decide</code>는 REST에서도 받은 요청 결정(EP-APR-03) 하나뿐이고 MCP 카탈로그에는 처음부터 존재하지 않는다. A4 액션을 MCP로 요청하면 <code>NERV_HUMAN_ONLY</code>와 웹 딥링크가 돌아온다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.2).</p>
   </div></div>
 
   <h2 id="sec-5">5. 수용 기준 (REQ-API-*)</h2>
@@ -792,7 +792,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
     <tbody>
       <tr><td>REQ-API-030</td><td>WHEN 요청이 <code>Accept-Language</code>를 실어 오면 THE SYSTEM SHALL 봉투의 <code>message</code>를 그 로케일로 만들고 <code>code</code>·<code>details</code>는 로케일과 무관하게 유지한다(§1.4)</td><td><code>ko</code>·<code>en</code>·미지원 언어·헤더 없음 4케이스</td></tr>
       <tr><td>REQ-API-031</td><td>WHEN 보관한 프로젝트의 경로를 호출하면 THE SYSTEM SHALL slug 를 정상 해소해 열람과 복구(EP-PRJ-05)를 허용한다 — 보관은 목록에서 빼는 것이지 없애는 것이 아니다</td><td>보관 후 복구·열람 각 1건</td></tr>
-      <tr><td>REQ-API-032</td><td>WHEN 전역 승인함·알림 목록과 안읽음 수를 낼 때 THE SYSTEM SHALL 보관한 프로젝트의 항목을 제외한다 — 목록·질문·배지가 같은 조건을 쓴다</td><td>승인·질문·알림·배지 4축을 보관 전후로 대조</td></tr>
+      <tr><td>REQ-API-032</td><td>WHEN 전역 받은 요청·알림 목록과 안읽음 수를 낼 때 THE SYSTEM SHALL 보관한 프로젝트의 항목을 제외한다 — 목록·질문·배지가 같은 조건을 쓴다</td><td>승인·질문·알림·배지 4축을 보관 전후로 대조</td></tr>
       <tr><td>REQ-API-033</td><td>WHEN 이미 쓰는 slug 로 프로젝트를 만들려 하면 THE SYSTEM SHALL 400 <code>NERV_PRECONDITION</code>(<code>details.kind</code>=<code>slug_taken</code>/<code>slug_archived</code>)으로 거부한다 — 보관된 것이 쥐고 있으면 복구할 수 있다는 사실을 함께 말한다</td><td>활성 1건·보관 1건</td></tr>
       <tr><td>REQ-API-001</td><td>WHEN 자격증명이 없거나 만료된 요청이 오면 THE SYSTEM SHALL HTTP 401과 <code>code: "NERV_UNAUTHENTICATED"</code> 봉투를 반환한다</td><td>쿠키 없음·만료 PAT·폐기 PAT 3케이스</td></tr>
       <tr><td>REQ-API-002</td><td>WHEN 인증은 유효하나 역할 또는 PAT 스코프가 부족하면 THE SYSTEM SHALL HTTP 403과 <code>code: "NERV_FORBIDDEN"</code>을 반환하고, 부족한 스코프 이름을 <code>details</code>에 명시하되 권한 확대 경로는 제공하지 않는다</td><td>viewer의 draft 쓰기, <code>spec:draft</code> 없는 PAT의 EP-SPEC-08</td></tr>

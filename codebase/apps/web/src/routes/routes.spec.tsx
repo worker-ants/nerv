@@ -92,7 +92,7 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
   it.each([
     ['/login', '로그인'],
     ['/onboarding', '시작하기'],
-    ['/inbox', /승인함/],
+    ['/inbox', /받은 요청/],
     ['/notifications', '알림'],
   ])('전역 경로 %s 가 렌더된다', async (path, title) => {
     renderAt(path);
@@ -124,7 +124,7 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
     unmount();
 
     renderAt('/inbox');
-    await waitFor(() => expect(screen.getAllByText(/승인함/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/받은 요청/).length).toBeGreaterThan(0));
     expect(screen.queryByText('clemvion')).toBeNull();
   });
 

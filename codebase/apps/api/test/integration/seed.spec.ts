@@ -98,7 +98,7 @@ describe('개발 시드 (database.md §4)', () => {
         WHERE NOT EXISTS (SELECT 1 FROM activity a WHERE a.session_id = s.id)`,
     );
     expect(perSession[0]?.n).toBe('0');
-    // S7 승인함 — 열린 질문 1
+    // S7 받은 요청 — 열린 질문 1
     expect(await count('question', `WHERE status = 'open'`)).toBe(1);
     // S1 홈 — 읽지 않은 알림 1
     expect(await count('notification', `WHERE state = 'unread'`)).toBe(1);

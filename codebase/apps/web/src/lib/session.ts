@@ -97,7 +97,7 @@ export function authFailureText(t: Translator, value: AuthFailure): string {
  */
 export function landingFor(roles: readonly string[], projectSlug: string | null): string {
   if (projectSlug === null) return '/inbox';
-  // **겸직이면 앞선 역할을 따른다.** planner+developer 는 승인함으로 보낸다 — 사람이
+  // **겸직이면 앞선 역할을 따른다.** planner+developer 는 받은 요청으로 보낸다 — 사람이
   // 기다리는 결정이 있는 쪽이 먼저다. 아래 switch 의 순서가 그 우선순위다.
   for (const role of ['admin', 'planner', 'designer', 'qa', 'developer', 'viewer']) {
     if (roles.includes(role)) return landingForOne(role);

@@ -63,7 +63,7 @@ export class QuestionService {
     `);
     const found = existing[0];
     if (found !== undefined) {
-      // 폴링 — 새 카드를 만들지 않는다. 승인함이 같은 질문으로 덮이지 않게.
+      // 폴링 — 새 카드를 만들지 않는다. 받은 요청이 같은 질문으로 덮이지 않게.
       return {
         question_id: found.id,
         status: found.status,

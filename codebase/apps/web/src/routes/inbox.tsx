@@ -1,6 +1,6 @@
-// /inbox → S7 승인함 (ui-wireframes §2.7 · screens.md §2.7)
+// /inbox → S7 받은 요청 (ui-wireframes §2.7 · screens.md §2.7)
 //
-// **키보드로 완결한다**(j/k 이동 · a 승인 · r 거절 · c 코멘트). 승인함은 매일 여러 번 여는
+// **키보드로 완결한다**(j/k 이동 · a 승인 · r 거절 · c 코멘트). 받은 요청은 매일 여러 번 여는
 // 화면이라 마우스 왕복이 그대로 지연이 된다 — 그 지연이 P4(승인 병목)의 실체다.
 
 import { useT } from '../lib/i18n.js';

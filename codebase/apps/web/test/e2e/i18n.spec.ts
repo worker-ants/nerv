@@ -25,7 +25,7 @@ test('브라우저 언어가 한국어면 화면이 한국어로 뜬다', async 
   const context = await browser.newContext({ storageState: STORAGE_STATE, locale: 'ko-KR' });
   const page = await context.newPage();
   await page.goto('/');
-  await expect(page.locator('header').getByRole('link', { name: /승인함/ })).toBeVisible();
+  await expect(page.locator('header').getByRole('link', { name: /받은 요청/ })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
   await context.close();
 });

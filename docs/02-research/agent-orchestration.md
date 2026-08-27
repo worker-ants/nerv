@@ -124,7 +124,7 @@ clemvion은 로컬 worktree 계보의 완성형에 가깝다. 모든 신규 작�
 | Factory | 터미널/IDE/웹/Slack/티켓 | 클라우드 또는 로컬 | 플랫폼 관측성 | Mission이 병렬 트랙으로 분해 | 사람은 고수준 결정·거버넌스 |
 | beads | `bd ready`로 에이전트가 자가 발견 | (트래커 — 격리 무관) | 이슈 상태·의존성 그래프 | **원자적 `--claim`**, 해시 ID | 사람도 같은 트래커로 관리 |
 | **clemvion(현행)** | 사람이 plan 문서에서 수동 선택 | git worktree + 4-layer 브랜치 가드 | 자기 세션 statusline 1줄 | **없음**(자동 검출 제거, #576) | 그 터미널 그 세션 안에서만 |
-| **NERV(제안)** | ready 큐 + `nerv_task_next`/`nerv_task_claim` | 로컬 worktree·클라우드 샌드박스 **양쪽 수용** | 세션 모니터(S5): 사용자·hostname·상태·현재 Task·하트비트·diff | 원자적 클레임 + 리스 + **scope 겹침 감지** | 승인함(S7): 스펙/CR·플랜·질문·머지 |
+| **NERV(제안)** | ready 큐 + `nerv_task_next`/`nerv_task_claim` | 로컬 worktree·클라우드 샌드박스 **양쪽 수용** | 세션 모니터(S5): 사용자·hostname·상태·현재 Task·하트비트·diff | 원자적 클레임 + 리스 + **scope 겹침 감지** | 받은 요청(S7): 스펙/CR·플랜·질문·머지 |
 
 > **읽는 법.** 마지막 두 행이 이 문서의 결론이다. clemvion은 (b)에서 업계 최상급이지만 (a)(c)(d)(e)가 전부 로컬 한 대에 갇혀 있고, NERV는 (b)를 기존 도구에 위임한 채 나머지 네 축을 서버로 올린다.
 
@@ -185,7 +185,7 @@ flowchart LR
 - **게이트 3 · 머지·CI 실행** — Copilot은 **CI 실행에도** 사람 승인을 요구하고 요청자의 자기 승인을 금지한다("지시자 ≠ 승인자").
 - **+1원칙** — "명확하면 자동 진행, 모호하거나 아키텍처적이면 질문"(Claude Auto-fix PR). NERV에서는 Question 엔티티와 세션 상태 `awaiting_input`이 이 원칙의 구현체다(D-13).
 
-이 4분류는 D-06의 표준 게이트 4+1에 대응하며, 그중 플랜 승인·질문은 승인함(Inbox) 카드가 되고(FR-11) 머지·CI 승인은 git forge 측 게이트다.
+이 4분류는 D-06의 표준 게이트 4+1에 대응하며, 그중 플랜 승인·질문은 받은 요청(Inbox) 카드가 되고(FR-11) 머지·CI 승인은 git forge 측 게이트다.
 
 ### 3.5 위임 명세 4요소
 
@@ -283,7 +283,7 @@ METR의 RCT는 숙련 오픈소스 개발자 16명·실제 이슈 246개에서 A
 | 세션 상태 머신 + 무응답 처리 | claude-squad 일시정지/재개, Claude web 세션 상태 | `pending → active ↔ awaiting_input → complete/error/stale`, 하트비트 임계 초과 시 stale + 클레임 회수 | FR-07, **D-13** |
 | 미션 컨트롤 + attach/stop | Conductor 대시보드, `/tasks`, `--teleport`, Devin take-over | 전역 세션 보드(S5)와 steer/stop 액션 | FR-08 |
 | 이벤트 기반 상태 자동 전이 | vibe-kanban(시작·PR·머지) | git forge 웹훅 → Task 상태 전이, Event 기록 | FR-08, FR-16 |
-| 3게이트 + "모호하면 질문" | Jules, Copilot, Claude Auto-fix | 승인함 카드 유형 5종(스펙 승인·CR·플랜·질문·에스컬레이션), Question ↔ `awaiting_input` | FR-11, D-06 |
+| 3게이트 + "모호하면 질문" | Jules, Copilot, Claude Auto-fix | 받은 요청 카드 유형 5종(스펙 승인·CR·플랜·질문·에스컬레이션), Question ↔ `awaiting_input` | FR-11, D-06 |
 | 지시자 ≠ 승인자 | Copilot 자기승인 금지 | 승인 권한 분리와 감사 기록(is_agent) | FR-11, FR-16, D-06 |
 | 정리된 리뷰 산출물 | Devin Review | ReviewSession → Finding → Resolution | FR-09, D-07 |
 | 완료 훅으로 품질 게이트 | agent teams exit-2 거부, Stop hook | Task done 전이 조건 = 해소된 리뷰 커버리지 | FR-10, D-14 |
@@ -320,7 +320,7 @@ stateDiagram-v2
 - 클레임·리스·scope 알고리즘과 게이트 판정 → [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md)
 - Task/Claim/AgentSession/Activity 엔티티와 인덱스 → [3.3 데이터 모델](../03-proposal/data-model.md)
 - `nerv_task_next/claim/heartbeat/release`·세션 규약·어댑터 설계 → [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md)
-- 세션 보드·승인함 화면 → [3.6 화면 설계](../03-proposal/ui-wireframes.md)
+- 세션 보드·받은 요청 화면 → [3.6 화면 설계](../03-proposal/ui-wireframes.md)
 - Phase 0 검증 목표("두 호스트·세 세션 동시 작업에서 중복 클레임 0") → [3.7 로드맵](../03-proposal/roadmap.md)
 - 포지셔닝과 Build vs Buy → [3.1 비전과 핵심 시나리오](../03-proposal/vision.md)
 

@@ -1,7 +1,7 @@
 // E08-S01 — better-auth 세션 인증(웹 경로)
 //
 // 인증은 두 경로다(api.md §1.3): 세션 쿠키(브라우저)와 PAT(에이전트). 이 파일이 지키는 것은
-// **두 경로가 같은 사람을 가리키되 권한이 다르다**는 것이다 — 세션은 사람이라 승인함에
+// **두 경로가 같은 사람을 가리키되 권한이 다르다**는 것이다 — 세션은 사람이라 받은 요청에
 // 도달하고, PAT 는 에이전트라 같은 URL 에서 HUMAN_ONLY 로 막힌다(D-08).
 
 import { NERV_ERROR, newId } from '@nerv/schema';
@@ -134,7 +134,7 @@ describe('세션 쿠키로 도메인 표면에 든다', () => {
     expect((res.json() as Record<string, unknown>)['slug']).toBe('clemvion');
   });
 
-  it('세션은 사람이라 승인함에 도달한다 — 같은 URL 에서 PAT 는 막힌다 (D-08)', async () => {
+  it('세션은 사람이라 받은 요청에 도달한다 — 같은 URL 에서 PAT 는 막힌다 (D-08)', async () => {
     const asHuman = await app.inject({
       method: 'GET',
       url: '/api/v1/approvals',

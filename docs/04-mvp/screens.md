@@ -5,7 +5,7 @@ updated: 2026-08-27
 ---
 # 화면 명세
 
-> **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 승인함 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
+> **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
 > 문서 버전 v0.35 · 2026-08-27 · HTML 판: [screens.html](../html/screens.html)
 >
@@ -91,7 +91,7 @@ updated: 2026-08-27
 | `/onboarding` | 온보딩 | 인증 필요 | 소속 조직 0개일 때만 진입 |
 | `/` | S1 홈 대시보드 | 인증 필요 | 활성 조직 컨텍스트 |
 | `/o/:org` | 조직 전환 | 인증 필요 | 컨텍스트 전환 후 `/`로 리다이렉트(멀티 조직) |
-| `/inbox` | S7 승인함 | 인증 필요 | 조직 전역 — 승인함은 하나(FR-14) |
+| `/inbox` | S7 받은 요청 | 인증 필요 | 조직 전역 — 받은 요청은 하나(FR-14) |
 | `/notifications` | 알림 센터(인앱 피드) | 인증 필요 | MVP는 인앱만 — Slack·메일·다이제스트는 Phase 2(로드맵 §1.3 FR-12) |
 | `/help` | 제품 매뉴얼 | 인증 필요 | index는 첫 장으로 — 2026-08-24 신설(§2.10) |
 | `/help/:chapter` | 매뉴얼 한 장 | 인증 필요 | 본문은 번들 md, 서버를 타지 않는다 |
@@ -148,7 +148,7 @@ apps/web/src/routes/
 ```text
 ┌────────────────────────────────────────────────────────────────┐
 │ 전역 헤더  ⬢ NERV · [조직 ▾][프로젝트 ▾] · 홈 | 프로젝트 |     │ ← WS 배지
-│           승인함 (2) | 알림 (5)                                │
+│           받은 요청 (2) | 알림 (5)                                │
 │           🔍 전역 검색                        [사용자 메뉴 ▾]  │
 ├────────────────────────────────────────────────────────────────┤
 │ ⚠ 연결 상태 배너 (WS 끊김 · 오프라인 · 게이트 fail-open)      │ ← 조건부
@@ -164,8 +164,8 @@ apps/web/src/routes/
 
 | 셸 요소 | 명세 |
 | --- | --- |
-| 전역 헤더 | **스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾**(2026-08-24 신설 · REQ-WEB-069). 승인함·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 승인함 배지는 **내 결정을 기다리는 것만** 센다(spec-workflow §6.6 원칙 3) |
-| 프로젝트 select | 고른 조직의 프로젝트 목록. **하나뿐일 때도 select 로 둔다**(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(`/p/:proj`)로 간다. 홈·승인함·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 **마지막으로 본 프로젝트**를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다) |
+| 전역 헤더 | **스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾**(2026-08-24 신설 · REQ-WEB-069). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 **내 결정을 기다리는 것만** 센다(spec-workflow §6.6 원칙 3) |
+| 프로젝트 select | 고른 조직의 프로젝트 목록. **하나뿐일 때도 select 로 둔다**(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(`/p/:proj`)로 간다. 홈·받은 요청·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 **마지막으로 본 프로젝트**를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다) |
 | 프로젝트 사이드바 | `/p/:proj/*`에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 — 비활성 + 툴팁). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1)) |
 | 연결 상태 배너 | 2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = `NERV_UNAVAILABLE`): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14) |
 | 토스트 스택 | `claim.conflict_warn` 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1) |
@@ -174,7 +174,7 @@ apps/web/src/routes/
 
 > **프로젝트를 고를 길이 화면에 없었다**(2026-08-24 — 사람 지적). 사이드바는 현재 프로젝트의 **이름만** 적어 두었고, 옮겨 가는 경로는 퀵 스위처(⌘K)뿐이었다 — 단축키를 아는 사람만 쓸 수 있는 길은 길이 아니다. 조직 select 오른쪽에 프로젝트 select 를, 헤더 `홈` 오른쪽에 그 프로젝트로 가는 링크를 둔다. 헤더 링크는 **개요일 때만 활성**이다: 접두 일치로 두면 작업·세션 화면에서 사이드바의 활성 항목과 활성 표시가 둘이 되고, 그때 "지금 어디인가"의 답이 둘이 된다.
 
-**셸의 조형은 시안을 따르되 IA 는 위 그림이 정본이다(2026-08-23).** 시안(디자인 캔버스)은 헤더를 `프로젝트 / 화면` 브레드크럼으로 두고 승인함을 프로젝트 사이드바로 내렸는데, **그대로 받지 않는다**: 승인함·알림은 조직 전역이지 프로젝트 소속이 아니라 프로젝트가 여럿일 때 자리가 틀린다. 그래서 헤더의 전역 링크 3종은 그대로 두고, 시안이 더 나은 부분만 가져왔다.
+**셸의 조형은 시안을 따르되 IA 는 위 그림이 정본이다(2026-08-23).** 시안(디자인 캔버스)은 헤더를 `프로젝트 / 화면` 브레드크럼으로 두고 받은 요청을 프로젝트 사이드바로 내렸는데, **그대로 받지 않는다**: 받은 요청·알림은 조직 전역이지 프로젝트 소속이 아니라 프로젝트가 여럿일 때 자리가 틀린다. 그래서 헤더의 전역 링크 3종은 그대로 두고, 시안이 더 나은 부분만 가져왔다.
 
 - 로고는 글리프(`⬢`)가 아니라 **채운 사각형 마크**다. 글리프는 주변 글자와 같은 무게라 화면의 정박점이 되지 못한다.
 - 프로젝트에도 색 배지를 준다 — 이름만 있으면 어느 프로젝트인지 **읽어야** 안다.
@@ -187,7 +187,7 @@ apps/web/src/routes/
 
 전역 헤더의 "🔍 전역 검색"의 실체이자 대규모 프로젝트의 기본 이동 수단이다. 트리 스크롤 대신 **타이핑 → Enter**로 어디서든 어디로든 간다.
 
-- **호출**: `⌘K`(mac) / `Ctrl+K` — 전 라우트 공통. 모달, `Esc` 닫기, `↑↓` 이동, `Enter` 이동, 전부 키보드 완결(승인함 `j/k/a/r/c`와 같은 규약).
+- **호출**: `⌘K`(mac) / `Ctrl+K` — 전 라우트 공통. 모달, `Esc` 닫기, `↑↓` 이동, `Enter` 이동, 전부 키보드 완결(받은 요청 `j/k/a/r/c`와 같은 규약).
 - **동작**: 입력 디바운스 후 EP-SPEC-02(하이브리드 — [4.4](api.md) §2.2b). 안정 ID 패턴(`SPC-`·`REQ-`·`TSK-`)은 서버 ID 직행과 짝으로 최상위 1건 즉시 표시. 빈 입력 상태에서는 **최근 방문**(localStorage, 최대 20)과 핀 목록을 보여준다.
 - **결과 행**: 타입 아이콘 · 제목 · 안정 ID · 문서 상태 배지 · 매칭 앵커(선택 시 해당 헤딩으로 스크롤). Task·Requirement 결과는 각각 S4 패널·S3 요구사항 앵커로 딥링크.
 - **최근·핀**: 클라이언트 로컬(localStorage — 뷰 상태 규약(ui-wireframes §1.4)과 같은 등급, 서버 동기화·watch 테이블은 Phase 2). 핀은 스펙 목록·트리에도 ★로 표기.
@@ -241,7 +241,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `NERV_CONFLICT_SCOPE` | 클레임 겹침 모달 — 상대 세션의 사용자·hostname·scope 표시 |
 | `NERV_LEASE_EXPIRED` | 리스 만료 배너 + 재클레임 안내 |
 | `NERV_DRAFT_LEASED` | S3 읽기 전용 전환 + 보유자 배지 + [인계 요청] 버튼(§3.4) |
-| `NERV_APPROVAL_REQUIRED` | "승인 대기 항목이 생성됨" 안내 + 승인함 딥링크 |
+| `NERV_APPROVAL_REQUIRED` | "승인 대기 항목이 생성됨" 안내 + 받은 요청 딥링크 |
 | `NERV_HUMAN_ONLY` | (에이전트 전용 코드 — 웹에서는 도달하지 않음. 도달 시 일반 에러 카드) |
 | `NERV_RATE_LIMIT` | 재시도 대기 안내(Retry-After 존중) |
 | `NERV_UNAVAILABLE` | 연결 상태 배너 격상 + 폴백 폴링 |
@@ -266,7 +266,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `/onboarding` | 온보딩 | **이 문서 §2.1** |
 | `/` | S1 홈 대시보드 | ui-wireframes §2.1 |
 | `/o/:org` | 조직 전환 | 화면 없음(컨텍스트 전환 후 즉시 리다이렉트) — 그림 비대상 |
-| `/inbox` | S7 승인함 | ui-wireframes §2.7 (고충실도) |
+| `/inbox` | S7 받은 요청 | ui-wireframes §2.7 (고충실도) |
 | `/notifications` | 알림 센터 | **이 문서 §2.9** |
 | `/settings/members` · `/tokens` · `/gates` | S8 설정 3탭 | ui-wireframes §2.8 (멤버·토큰·게이트 정책 3탭 합성 — 연동 탭은 Phase 2 비활성) |
 | `/p/:proj` | S2 프로젝트 개요 | ui-wireframes §2.2 |
@@ -311,7 +311,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-WEB-075 | WHEN 화면이 역할로 조작 가능 여부를 정하면 THE SYSTEM SHALL 서버와 같은 규칙(겸직 합집합 · 조직 스코프 포함 · 조직 경계)으로 판정한다 — 서버가 허용하는 일을 화면이 막지 않는다 |
-| REQ-WEB-076 | WHEN 조직 전역 화면(홈·승인함·알림·설정)이 프로젝트를 필요로 하면 THE SYSTEM SHALL 헤더가 고른 것과 같은 프로젝트를 쓴다(멤버십 행에서 따로 고르지 않는다) |
+| REQ-WEB-076 | WHEN 조직 전역 화면(홈·받은 요청·알림·설정)이 프로젝트를 필요로 하면 THE SYSTEM SHALL 헤더가 고른 것과 같은 프로젝트를 쓴다(멤버십 행에서 따로 고르지 않는다) |
 
 ---
 
@@ -366,7 +366,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 │   아크메 · planner 로 초대됨 — 지민       [수락]             │
 ├──────────────────────────────────────────────────────────────┤
 │  ② 당신의 역할: planner — 스펙 승인·플랜 검토가 옵니다  (3)  │
-│  ③ 다음 행동: 승인함으로 이동 ▸                         (4)  │
+│  ③ 다음 행동: 받은 요청으로 이동 ▸                         (4)  │
 │     에이전트를 연결하려면: 설정 › 에이전트 토큰 ▸            │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -377,7 +377,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 4. **다음 행동** — 역할별 첫 화면 규칙(ui-wireframes §1.5, qa는 MVP에서 작업 보드로)대로 착지 링크. 에이전트 연결(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4로 링크만 둔다.
 
 - **컴포넌트**: `LoginForm` · `InviteAcceptCard` · `OrgCreateForm`. 폼은 react-hook-form + zod(`LoginInput`: email 형식, password min 8).
-- 온보딩 마지막 단계는 역할 확인과 "다음 행동" 안내다 — planner/designer는 승인함, developer는 작업 보드, qa는 (MVP에서는) 커버리지가 아니라 작업 보드로 안내한다(ui-wireframes §1.5 역할별 첫 화면 — S6은 Phase 2이므로 qa 착지만 조정). 에이전트 연결 온보딩(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4가 정의하고, 이 화면은 S8 토큰 탭으로 가는 링크만 둔다.
+- 온보딩 마지막 단계는 역할 확인과 "다음 행동" 안내다 — planner/designer는 받은 요청, developer는 작업 보드, qa는 (MVP에서는) 커버리지가 아니라 작업 보드로 안내한다(ui-wireframes §1.5 역할별 첫 화면 — S6은 Phase 2이므로 qa 착지만 조정). 에이전트 연결 온보딩(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4가 정의하고, 이 화면은 S8 토큰 탭으로 가는 링크만 둔다.
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
@@ -429,9 +429,9 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
-| 오늘 할 일 숫자 | EP-APR-01 `GET /api/v1/approvals` (state=pending — 승인함 목록) | MVP는 승인 대기·답변 대기 질문 2숫자. 와이어프레임의 "내가 만든 CR" 칩은 Phase 2(CR) |
+| 오늘 할 일 숫자 | EP-APR-01 `GET /api/v1/approvals` (state=pending — 받은 요청 목록) | MVP는 승인 대기·답변 대기 질문 2숫자. 와이어프레임의 "내가 만든 CR" 칩은 Phase 2(CR) |
 | 내 승인 대기 카드 | 위와 동일 목록의 상위 N건 | 카드 위 승인/거절/코멘트 — S7과 같은 `ApprovalCard` 재사용 |
-| 내 질문 큐 | 승인함 목록 중 `subject_type = question` | 세션 신원 3요소(사용자·hostname·에이전트 종류)와 대기 시간 필수 표기 |
+| 내 질문 큐 | 받은 요청 목록 중 `subject_type = question` | 세션 신원 3요소(사용자·hostname·에이전트 종류)와 대기 시간 필수 표기 |
 | 내 프로젝트 카드 | EP-PRJ-01 `GET /api/v1/orgs/{org}/projects` + EP-PRJ-03 `GET /api/v1/projects/{proj}`(활성 세션/승인 대기 카운트 포함) | 승인률·커버리지 게이지 고도화는 Phase 2 — MVP는 상태별 카운트 표시 |
 | 최근 알림 | EP-NTF-01 `GET /api/v1/me/notifications` · 읽음 처리 EP-NTF-02 | 인앱 피드. `notification` 파생·읽음 상태는 [data-model](../03-proposal/data-model.md) §2.9 |
 
@@ -497,14 +497,14 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 버전 목록·diff | EP-SPEC-04 `GET /api/v1/projects/{proj}/specs/{spec}/versions` · EP-SPEC-06 `GET .../specs/{spec}/diff` | `?diff=v3..v4` 뷰 상태 → EP-SPEC-06(from, to)으로 조회. 표기는 ui-wireframes §4.3 |
 | 초안 저장 | EP-SPEC-08 `PUT /api/v1/projects/{proj}/specs/{spec}/draft` (draft upsert — `base_version` 전제조건) | `nerv_spec_draft_upsert`와 같은 서비스·같은 zod 스키마(D-05) |
 | 사전 검토 | EP-SPEC-09 `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 5검사기 결과(warning/block + 앵커) — `nerv_spec_check`와 동일 |
-| 검토 요청 | EP-SPEC-10 `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | `draft → in_review` — 성공 시 승인함 카드 생성(FR-11) |
+| 검토 요청 | EP-SPEC-10 `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | `draft → in_review` — 성공 시 받은 요청 카드 생성(FR-11) |
 | 코멘트 | EP-CMT-01 `GET .../specs/{spec}/comments` · EP-CMT-02 `POST .../spec-versions/{ver}/comments` · EP-CMT-04 `POST .../comments/{id}/resolve` | 앵커: 헤딩 slug 또는 Requirement `ref`(§3.3) |
 | 우측 패널 | include 응답의 requirement 목록(`ref`·`statement_md`·`impl_status`) · 파생 task 목록 | "관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시. **참조 갱신 배지**: `spec.recheck_requested` 수신 시 "참조 스펙에 앞선 버전 존재" 표시(spec-workflow §3.3 참조 문서 전파) |
 | 베이스라인 조회 | EP-SPEC-11 `GET .../baselines` · EP-SPEC-13 `GET .../baselines/{bl}` | 버전 피커(`VersionPicker`)에 베이스라인 항목 — 선택 시 그 세트에 핀된 버전을 표시(`?baseline=` 쿼리, spec-workflow §3.6) |
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → `['spec', specId]`, `spec.comment_added`·`comment.resolved` → `['spec', specId, 'comments']`, `task.*` → 파생 Task 패널.
 - **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `SourceViewToggle`(read-only md) · `CommentThread` · `EditLeaseBadge` · `RequirementPanel` · `DerivedTaskPanel` · `SpecMetaDialog` · `ArchiveConfirmDialog` · `RelationPanel` · `ImpactPreview` · `QuickSwitcher`(§1.3a) · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
-- **버튼 상태**: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 승인함 카드에서 한다(S7).
+- **버튼 상태**: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 받은 요청 카드에서 한다(S7).
 - **터미널 이어쓰기**: 복사용 명령 `claude "/nerv:spec edit SPC-CWC-007"` 카드(ui-wireframes §2.3 (12)). 반대 방향은 `nerv_spec_draft_upsert` 응답의 `web_url` 딥링크가 이 화면으로 온다.
 - **관계 패널**(상태 패널 내 섹션): EP-SPEC-18(direction=both) — **참조함 N / 참조됨 N**(backlink)을 kind 배지와 함께 목록으로, 클릭 시 해당 스펙으로 이동. 20건 초과는 [전체 보기]로 커서 페이지네이션 확장. 참조 갱신 배지(REQ-WEB-037)는 이 섹션 머리에 흡수된다 — "무엇이 낡았나"가 배지가 아니라 목록으로 보인다. 관계 데이터는 저장 시 자동 추출(REQ-API-024)이라 사람이 관리하지 않는다.
 - **관계 안은 방향으로 가른다**(2026-08-24 신설 — 사람 지시): 레일의 `관계` 탭 아래에 **전체 · 역참조 · 레퍼런스** 하위 탭을 두고 각각 건수를 단다. 두 방향은 **다른 질문**이기 때문이다 — 역참조는 "이 문서를 고치면 무엇이 흔들리나", 레퍼런스는 "이 문서가 무엇에 기대나". 한 목록에 섞이면(실측: `0-overview` 50건 = 역참조 22 + 레퍼런스 28) 둘 중 하나를 보려고 전체를 훑어야 한다. 건수는 **누르기 전에** 보인다 — 빈 탭을 열어 보게 하지 않는다.
@@ -672,7 +672,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | --- | --- | --- |
 | "원문은 발급 직후 한 번만 보입니다" | 토큰 **발급 버튼 위** | 화면 머리에 있으면 눈이 버튼까지 내려간 뒤라 이미 늦다 |
 | "MVP 편집 항목은 spec_gate 3키" | 게이트 **필드 상자 안** | 없으면 비활성 필드가 고장으로 읽힌다 |
-| "여기 있는 것은 이미 일어난 일이다" | 알림 **목록 바로 위** | 알림과 승인함의 경계를 세우는 유일한 문장이라 목록을 보며 읽혀야 한다 |
+| "여기 있는 것은 이미 일어난 일이다" | 알림 **목록 바로 위** | 알림과 받은 요청의 경계를 세우는 유일한 문장이라 목록을 보며 읽혀야 한다 |
 
 프로젝트 개요의 설명은 **사용자가 등록한 데이터**라 이 규칙 밖이다. 온보딩의 "세 단계면 끝납니다"도 남긴다 — 처음 오는 사람에게 절차의 길이를 알려주는 것은 화면이 보여주지 않는 정보다.
 
@@ -803,7 +803,7 @@ export const TaskCreateInput = z.object({
 
 - **실시간**: `project:{id}` 룸 — `session.started` `session.stale` `session.complete` `session.steered` → 보드, Activity 스트림·하트비트/diff 갱신도 같은 룸으로 흐른다(알림 아님 — spec-workflow §6.3). 하트비트 표기는 상대 시각만(ui-wireframes §3.3).
 - **컴포넌트**: `SessionBoard` · `SessionCard` · `SessionSummaryStrip` · `ActivityTimeline` · `ScopeChips`(spec_ids + file_globs) · `SteerDialog` · `StopDialog`(사유 필수) · `FailOpenBanner`(게이트 판정 실패 카운터 — 판정 자체는 Phase 2, 배너 컴포넌트는 자리 확보).
-- **액션 4종**: 로그 보기 · attach ↗(세션 상세 딥링크) · steer(중단 없이 지시 큐잉) · stop(확인 + 사유, 클레임 즉시 회수 → Task `ready`). `awaiting_input` 카드는 [질문 열기 ↗]로 승인함 딥링크.
+- **액션 4종**: 로그 보기 · attach ↗(세션 상세 딥링크) · steer(중단 없이 지시 큐잉) · stop(확인 + 사유, 클레임 즉시 회수 → Task `ready`). `awaiting_input` 카드는 [질문 열기 ↗]로 받은 요청 딥링크.
 - **폼·검증**: `SessionSteerInput`(`kind`: steer/stop, `message` min 1 — stop의 message가 곧 사유). 스티어 메시지는 승인이 아니다(ui-wireframes §4.2 보안 불변식).
 - **빈 상태**: 활성 세션 0 — "실행 중인 세션이 없습니다" + 플러그인 온보딩 링크([plugin.md](plugin.md) §4).
 
@@ -849,13 +849,13 @@ export const TaskCreateInput = z.object({
 | REQ-WEB-069 | WHILE 로그인 상태이면 THE SYSTEM SHALL 전역 헤더에 조직·프로젝트 선택을 **두 축 순서대로** 표시하고, 라우트에 프로젝트가 없는 화면에서는 마지막으로 본 프로젝트를 보인다 — 선택지가 하나뿐이어도 select 형태를 유지한다 |
 | REQ-WEB-068 | WHEN 본문이 빈 스펙을 열면 THE SYSTEM SHALL 빈 화면 대신 **왜 비었는지**를 적는다 — `area` 는 디렉터리를 묶는 노드이고 원본에 개요 문서가 없으면 본문이 없는 것이 정상이다(4.7 §2.2). 그 밖의 타입은 "본문 없음"으로 구분해 적는다 |
 
-### 2.7 S7 승인함 — [ui-wireframes §2.7](../03-proposal/ui-wireframes.md)
+### 2.7 S7 받은 요청 — [ui-wireframes §2.7](../03-proposal/ui-wireframes.md)
 
 MVP 카드 유형은 3종이다 — **스펙 승인 · 플랜 승인 · 질문**(로드맵 §3: CR·에스컬레이션 유형은 Phase 2). 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
-| 대기 목록 | EP-APR-01 `GET /api/v1/approvals` (state=pending · 유형/프로젝트 필터 — 승인함 목록) | `approval.subject_type`: `spec_version / plan / question`(MVP) — data-model §2.7 |
+| 대기 목록 | EP-APR-01 `GET /api/v1/approvals` (state=pending · 유형/프로젝트 필터 — 받은 요청 목록) | `approval.subject_type`: `spec_version / plan / question`(MVP) — data-model §2.7 |
 | 결정 | EP-APR-03 `POST /api/v1/approvals/{id}/decision` | `decision`: `approve / reject / comment`(spec-workflow §2.5) |
 | 질문 답변 | EP-QST-02 `POST /api/v1/projects/{proj}/questions/{id}/answer` | `answer_key`(선택지) 또는 `answer_md` — 내부적으로 승인 결정과 한 경로(api.md §2.6) |
 | 카드 본문 | EP-APR-01 응답 `ApprovalCard`에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지) | 요약문이 아니라 **원문 우선**(spec-workflow §6.4 — OWASP ASI09 방어) |
@@ -880,7 +880,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
 | REQ-WEB-022 | WHEN 사용자가 거절을 선택하면 THE SYSTEM SHALL 사유 입력을 필수로 요구하고, 사유는 요청자 알림과 감사 로그 양쪽에 남긴다(FR-16) |
 | REQ-WEB-023 | WHEN 요청자와 열람자가 같거나 대상 초안을 열람자의 세션이 작성했으면 THE SYSTEM SHALL 승인 버튼을 비활성화하고 사유를 표시한다(지시자≠승인자 — D-06) |
 | REQ-WEB-024 | WHEN 질문 처리에 성공하면 THE SYSTEM SHALL 카드에 "요청 세션 `<hostname>/<agent_type>`에 전달됨"을 표시하고 처리됨 트레일에 3분간 유지한다 |
-| REQ-WEB-025 | WHEN 승인함이 포커스를 가지면 THE SYSTEM SHALL `j/k/a/r/c` 키보드만으로 카드 이동과 결정을 지원한다 |
+| REQ-WEB-025 | WHEN 받은 요청이 포커스를 가지면 THE SYSTEM SHALL `j/k/a/r/c` 키보드만으로 카드 이동과 결정을 지원한다 |
 
 ### 2.8 S8 설정 — [ui-wireframes §2.8](../03-proposal/ui-wireframes.md)
 
@@ -904,7 +904,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 
 ### 2.9 알림 센터 (`/notifications`)
 
-인앱 알림 피드다(FR-12 ◐ — Slack·메일·다이제스트는 Phase 2). 승인함과 역할이 다르다 — **승인함은 "내 결정을 기다리는 것", 알림은 "내가 알아야 하는 것"**(spec-workflow §6.6 원칙 3). 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
+인앱 알림 피드다(FR-12 ◐ — Slack·메일·다이제스트는 Phase 2). 받은 요청과 역할이 다르다 — **받은 요청은 "내 결정을 기다리는 것", 알림은 "내가 알아야 하는 것"**(spec-workflow §6.6 원칙 3). 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 
 ```text
 알림 센터 — nerv.example.com/notifications
@@ -924,7 +924,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 
 1. **필터 2종만** — 전체/안읽음. 헤더 배지 수 = 안읽음 수(정합 — REQ-WEB-035).
 2. **행 = 이벤트 요약 + 딥링크** — 클릭 시 읽음 처리 후 대상으로 이동(뷰 상태 쿼리 포함 — ui-wireframes §1.4). ●/○는 읽음 여부.
-3. **승인함 항목의 그림자** — 승인 요청 알림은 여기에도 남지만 행동은 승인함에서 한다(카드 중복 금지).
+3. **받은 요청 항목의 그림자** — 승인 요청 알림은 여기에도 남지만 행동은 받은 요청에서 한다(카드 중복 금지).
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
@@ -933,7 +933,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 
 - **실시간**: `user:{id}` 룸 — `notification.created` → `['me', 'notifications']` + 헤더 배지(§1.4 표와 동일).
 - **컴포넌트**: `NotificationFeed` · `NotificationRow`(아이콘·본문·딥링크·상대 시각·읽음 dot).
-- **빈 상태**: "새 알림이 없습니다" + 승인함 링크(막다른 길 금지 — ui-wireframes §3.4).
+- **빈 상태**: "새 알림이 없습니다" + 받은 요청 링크(막다른 길 금지 — ui-wireframes §3.4).
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
@@ -947,7 +947,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 ```text
 제품 매뉴얼 — nerv.example.com/help/tasks
 ┌──────────────────────────────────────────────────────────────────┐
-│ ⬢ NERV  default▾ clemvion▾ │ 홈 프로젝트 승인함 알림   🔍  [?] 지민▾│ (1)
+│ ⬢ NERV  default▾ clemvion▾ │ 홈 프로젝트 받은 요청 알림   🔍  [?] 지민▾│ (1)
 ├────────────┬─────────────────────────────────────┬───────────────┤
 │ 제품 매뉴얼 │ 작업                                 │ 이 문서 안     │ (4)
 │ 시작하기    │                                      │ 보드와 레인    │
@@ -955,7 +955,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 │ ▸ 작업      │ 할 일 하나입니다.                    │ 클레임과 리스  │
 │ 세션        │                                      │ 완료와 보관 창 │
 │ 리뷰        │ ## 보드와 레인                       │ 요구사항 링크  │
-│ 승인함과 알림│ ┌────────┬───────────────────────┐  │ 기준 버전…     │
+│ 받은 요청과 알림│ ┌────────┬───────────────────────┐  │ 기준 버전…     │
 │ 에이전트 연동│ │ 상태    │ 뜻                    │  │               │
 │ 플러그인 설치│ │ ready   │ 지금 가져갈 수 있습니다│  │               │
 │ 설정        │ └────────┴───────────────────────┘  │               │
@@ -966,7 +966,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 └────────────┴─────────────────────────────────────┴───────────────┘
 ```
 
-장은 **열 장**이고 순서가 곧 읽는 순서다 — 시작하기 · 스펙 · 작업 · 세션 · 리뷰 · 승인함과 알림 · 에이전트 연동 · 플러그인 설치 · 설정 · 단축키와 언어. **개념과 절차를 나눠 둔다**: "에이전트 연동"은 MCP 도구·훅·스킬이 무엇이고 왜 그렇게 맞물리는지를 말하고, "플러그인 설치"는 Claude Code(`/plugin marketplace add` → `/plugin install nerv@nerv-internal`)와 Codex(`.codex/config.toml`·`AGENTS.md` 초안 2종 복사 — [4.6 플러그인](plugin.md) §5.1이 말한 수동 경로)의 절차를 5단계로 밟는다. 한 장에 섞으면 "이게 뭔가"를 읽으러 온 사람과 "어떻게 붙이나"를 읽으러 온 사람이 서로의 문단을 건너뛰게 된다.
+장은 **열 장**이고 순서가 곧 읽는 순서다 — 시작하기 · 스펙 · 작업 · 세션 · 리뷰 · 받은 요청과 알림 · 에이전트 연동 · 플러그인 설치 · 설정 · 단축키와 언어. **개념과 절차를 나눠 둔다**: "에이전트 연동"은 MCP 도구·훅·스킬이 무엇이고 왜 그렇게 맞물리는지를 말하고, "플러그인 설치"는 Claude Code(`/plugin marketplace add` → `/plugin install nerv@nerv-internal`)와 Codex(`.codex/config.toml`·`AGENTS.md` 초안 2종 복사 — [4.6 플러그인](plugin.md) §5.1이 말한 수동 경로)의 절차를 5단계로 밟는다. 한 장에 섞으면 "이게 뭔가"를 읽으러 온 사람과 "어떻게 붙이나"를 읽으러 온 사람이 서로의 문단을 건너뛰게 된다.
 
 1. **헤더 진입점은 한 칸짜리 `?`다.** 헤더는 여섯 자리뿐이고(§1.3) 자주 쓰지 않는 항목이 자주 쓰는 항목의 자리를 먹으면 헤더는 금세 도구모음이 된다. 이름은 `title`·`aria-label`이 준다. 메뉴 항목 3종: **이 화면 도움말**(지금 화면을 설명하는 장) · **제품 매뉴얼**(첫 장) · **단축키와 언어**.
 2. **차례는 늘 옆에 있다.** 매뉴얼은 처음부터 읽는 문서가 아니라 필요할 때 한 장을 펴는 문서다 — 목차로 돌아가야 다음 장이 보이는 구조에서는 아무도 두 번째 장을 열지 않는다.

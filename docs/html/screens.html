@@ -102,7 +102,7 @@
       <tr><td><code>/onboarding</code></td><td>온보딩</td><td>인증 필요</td><td>소속 조직 0개일 때만 진입</td></tr>
       <tr><td><code>/</code></td><td>S1 홈 대시보드</td><td>인증 필요</td><td>활성 조직 컨텍스트</td></tr>
       <tr><td><code>/o/:org</code></td><td>조직 전환</td><td>인증 필요</td><td>컨텍스트 전환 후 <code>/</code>로 리다이렉트(멀티 조직)</td></tr>
-      <tr><td><code>/inbox</code></td><td>S7 승인함</td><td>인증 필요</td><td>조직 전역 — 승인함은 하나(FR-14)</td></tr>
+      <tr><td><code>/inbox</code></td><td>S7 받은 요청</td><td>인증 필요</td><td>조직 전역 — 받은 요청은 하나(FR-14)</td></tr>
       <tr><td><code>/notifications</code></td><td>알림 센터(인앱 피드)</td><td>인증 필요</td><td>MVP는 인앱만 — Slack·메일·다이제스트는 Phase 2(로드맵 §1.3 FR-12)</td></tr>
       <tr><td><code>/help</code></td><td>제품 매뉴얼</td><td>인증 필요</td><td>index는 첫 장으로 — 2026-08-24 신설(§2.10)</td></tr>
       <tr><td><code>/help/:chapter</code></td><td>매뉴얼 한 장</td><td>인증 필요</td><td>본문은 번들 md, 서버를 타지 않는다</td></tr>
@@ -165,7 +165,7 @@
       <b style="letter-spacing:-.01em">⬢ NERV</b>
       <span class="wf-btn ghost">아크메 ▾</span>
       <span style="font-weight:600;color:var(--accent-text)">홈</span>
-      <span>📥 승인함 <span class="badge blocked">2</span></span>
+      <span>📥 받은 요청 <span class="badge blocked">2</span></span>
       <span>🔔 알림 <span class="badge draft">5</span></span>
       <span class="marker">1</span>
       <span class="wf-input" style="margin-left:auto">🔍 전역 검색 — 스펙 · 작업 · 세션…</span>
@@ -209,8 +209,8 @@
   <div class="table-wrap"><table>
     <thead><tr><th>셸 요소</th><th>명세</th></tr></thead>
     <tbody>
-      <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾</b>(2026-08-24 신설 · REQ-WEB-069). 승인함·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 승인함 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
-      <tr><td>프로젝트 select</td><td>고른 조직의 프로젝트 목록. <b>하나뿐일 때도 select 로 둔다</b>(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(<code>/p/:proj</code>)로 간다. 홈·승인함·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 <b>마지막으로 본 프로젝트</b>를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다)</td></tr>
+      <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾</b>(2026-08-24 신설 · REQ-WEB-069). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
+      <tr><td>프로젝트 select</td><td>고른 조직의 프로젝트 목록. <b>하나뿐일 때도 select 로 둔다</b>(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(<code>/p/:proj</code>)로 간다. 홈·받은 요청·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 <b>마지막으로 본 프로젝트</b>를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다)</td></tr>
       <tr><td><span class="marker">2</span> 연결 상태 배너</td><td>2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
       <tr><td><span class="marker">3</span> 프로젝트 사이드바</td><td><code>/p/:proj/*</code>에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 — 비활성 + 툴팁). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1))</td></tr>
       <tr><td><span class="marker">4</span> 토스트 스택</td><td><code>claim.conflict_warn</code> 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1)</td></tr>
@@ -219,7 +219,7 @@
 
     <p><b>프로젝트를 고를 길이 화면에 없었다</b>(2026-08-24 — 사람 지적). 사이드바는 현재 프로젝트의 <b>이름만</b> 적어 두었고, 옮겨 가는 경로는 퀵 스위처(⌘K)뿐이었다 — 단축키를 아는 사람만 쓸 수 있는 길은 길이 아니다. 조직 select 오른쪽에 프로젝트 select 를, 헤더 <code>홈</code> 오른쪽에 그 프로젝트로 가는 링크를 둔다. 헤더 링크는 <b>개요일 때만 활성</b>이다.</p>
 
-  <p><b>셸의 조형은 시안을 따르되 IA 는 위 그림이 정본이다(2026-08-23).</b> 시안은 헤더를 브레드크럼으로 두고 승인함을 프로젝트 사이드바로 내렸는데 <b>그대로 받지 않는다</b>: 승인함·알림은 조직 전역이지 프로젝트 소속이 아니라 프로젝트가 여럿일 때 자리가 틀린다.</p>
+  <p><b>셸의 조형은 시안을 따르되 IA 는 위 그림이 정본이다(2026-08-23).</b> 시안은 헤더를 브레드크럼으로 두고 받은 요청을 프로젝트 사이드바로 내렸는데 <b>그대로 받지 않는다</b>: 받은 요청·알림은 조직 전역이지 프로젝트 소속이 아니라 프로젝트가 여럿일 때 자리가 틀린다.</p>
   <ul>
     <li>로고는 글리프(<code>⬢</code>)가 아니라 <b>채운 사각형 마크</b>다 — 글리프는 주변 글자와 같은 무게라 정박점이 되지 못한다.</li>
     <li>프로젝트에도 색 배지를 준다 — 이름만 있으면 어느 프로젝트인지 <b>읽어야</b> 안다.</li>
@@ -233,7 +233,7 @@
   <p>전역 헤더의 "🔍 전역 검색"의 실체이자 대규모 프로젝트의 기본 이동 수단이다. 트리 스크롤 대신 <b>타이핑 → Enter</b>로 어디서든 어디로든 간다.</p>
 
   <ul>
-    <li><b>호출</b>: <code>⌘K</code>(mac) / <code>Ctrl+K</code> — 전 라우트 공통. 모달, <code>Esc</code> 닫기, <code>↑↓</code> 이동, <code>Enter</code> 이동, 전부 키보드 완결(승인함 <code>j/k/a/r/c</code>와 같은 규약).</li>
+    <li><b>호출</b>: <code>⌘K</code>(mac) / <code>Ctrl+K</code> — 전 라우트 공통. 모달, <code>Esc</code> 닫기, <code>↑↓</code> 이동, <code>Enter</code> 이동, 전부 키보드 완결(받은 요청 <code>j/k/a/r/c</code>와 같은 규약).</li>
     <li><b>동작</b>: 입력 디바운스 후 EP-SPEC-02(하이브리드 — <a href="api.html">4.4</a> §2.2b). 안정 ID 패턴(<code>SPC-</code>·<code>REQ-</code>·<code>TSK-</code>)은 서버 ID 직행과 짝으로 최상위 1건 즉시 표시. 빈 입력 상태에서는 <b>최근 방문</b>(localStorage, 최대 20)과 핀 목록을 보여준다.</li>
     <li><b>결과 행</b>: 타입 아이콘 · 제목 · 안정 ID · 문서 상태 배지 · 매칭 앵커(선택 시 해당 헤딩으로 스크롤). Task·Requirement 결과는 각각 S4 패널·S3 요구사항 앵커로 딥링크.</li>
     <li><b>최근·핀</b>: 클라이언트 로컬(localStorage — 뷰 상태 규약(ui-wireframes §1.4)과 같은 등급, 서버 동기화·watch 테이블은 Phase 2). 핀은 스펙 목록·트리에도 ★로 표기.</li>
@@ -297,7 +297,7 @@
       <tr><td><code>NERV_CONFLICT_SCOPE</code></td><td>클레임 겹침 모달 — 상대 세션의 사용자·hostname·scope 표시</td></tr>
       <tr><td><code>NERV_LEASE_EXPIRED</code></td><td>리스 만료 배너 + 재클레임 안내</td></tr>
       <tr><td><code>NERV_DRAFT_LEASED</code></td><td>S3 읽기 전용 전환 + 보유자 배지 + [인계 요청] 버튼(§3.4)</td></tr>
-      <tr><td><code>NERV_APPROVAL_REQUIRED</code></td><td>"승인 대기 항목이 생성됨" 안내 + 승인함 딥링크</td></tr>
+      <tr><td><code>NERV_APPROVAL_REQUIRED</code></td><td>"승인 대기 항목이 생성됨" 안내 + 받은 요청 딥링크</td></tr>
       <tr><td><code>NERV_HUMAN_ONLY</code></td><td>(에이전트 전용 코드 — 웹에서는 도달하지 않음. 도달 시 일반 에러 카드)</td></tr>
       <tr><td><code>NERV_RATE_LIMIT</code></td><td>재시도 대기 안내(Retry-After 존중)</td></tr>
       <tr><td><code>NERV_UNAVAILABLE</code></td><td>연결 상태 배너 격상 + 폴백 폴링</td></tr>
@@ -328,7 +328,7 @@
       <tr><td><code>/onboarding</code></td><td>온보딩</td><td><b>이 문서 §2.1</b></td></tr>
       <tr><td><code>/</code></td><td>S1 홈 대시보드</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.1</td></tr>
       <tr><td><code>/o/:org</code></td><td>조직 전환</td><td>화면 없음(컨텍스트 전환 후 즉시 리다이렉트) — 그림 비대상</td></tr>
-      <tr><td><code>/inbox</code></td><td>S7 승인함</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.7 (고충실도)</td></tr>
+      <tr><td><code>/inbox</code></td><td>S7 받은 요청</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.7 (고충실도)</td></tr>
       <tr><td><code>/notifications</code></td><td>알림 센터</td><td><b>이 문서 §2.9</b></td></tr>
       <tr><td><code>/settings/members</code> · <code>/tokens</code> · <code>/gates</code></td><td>S8 설정 3탭</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.8 (멤버·토큰·게이트 정책 3탭 합성 — 연동 탭은 Phase 2 비활성)</td></tr>
       <tr><td><code>/p/:proj</code></td><td>S2 프로젝트 개요</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.2</td></tr>
@@ -384,7 +384,7 @@
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
       <tr><td>REQ-WEB-075</td><td>WHEN 화면이 역할로 조작 가능 여부를 정하면 THE SYSTEM SHALL 서버와 같은 규칙(겸직 합집합 · 조직 스코프 포함 · 조직 경계)으로 판정한다 — 서버가 허용하는 일을 화면이 막지 않는다</td></tr>
-      <tr><td>REQ-WEB-076</td><td>WHEN 조직 전역 화면(홈·승인함·알림·설정)이 프로젝트를 필요로 하면 THE SYSTEM SHALL 헤더가 고른 것과 같은 프로젝트를 쓴다(멤버십 행에서 따로 고르지 않는다)</td></tr>
+      <tr><td>REQ-WEB-076</td><td>WHEN 조직 전역 화면(홈·받은 요청·알림·설정)이 프로젝트를 필요로 하면 THE SYSTEM SHALL 헤더가 고른 것과 같은 프로젝트를 쓴다(멤버십 행에서 따로 고르지 않는다)</td></tr>
     </tbody>
   </table></div>
 
@@ -455,8 +455,8 @@
         </div>
 
         <div class="wf-panel">
-          <div class="wf-row"><span class="grow">② 당신의 역할: <span class="badge human">planner</span> — 스펙 승인·플랜 검토가 승인함으로 옵니다</span><span class="marker">3</span></div>
-          <div class="wf-row"><span class="grow">③ 다음 행동: <b>승인함으로 이동 ▸</b></span><span class="marker">4</span></div>
+          <div class="wf-row"><span class="grow">② 당신의 역할: <span class="badge human">planner</span> — 스펙 승인·플랜 검토가 받은 요청으로 옵니다</span><span class="marker">3</span></div>
+          <div class="wf-row"><span class="grow">③ 다음 행동: <b>받은 요청으로 이동 ▸</b></span><span class="marker">4</span></div>
           <div class="wf-row"><span class="grow sub">에이전트를 연결하려면: 설정 › 에이전트 토큰 ▸</span></div>
         </div>
       </div>
@@ -472,7 +472,7 @@
 
   <ul>
     <li><b>컴포넌트</b>: <code>LoginForm</code> · <code>InviteAcceptCard</code> · <code>OrgCreateForm</code>. 폼은 react-hook-form + zod(<code>LoginInput</code>: email 형식, password min 8).</li>
-    <li>온보딩 마지막 단계는 역할 확인과 "다음 행동" 안내다 — planner/designer는 승인함, developer는 작업 보드, qa는 (MVP에서는) 커버리지가 아니라 작업 보드로 안내한다(ui-wireframes §1.5 역할별 첫 화면 — S6은 Phase 2이므로 qa 착지만 조정). 에이전트 연결 온보딩(PAT 발급→플러그인 설치)은 <a href="plugin.html">plugin.md</a> §4가 정의하고, 이 화면은 S8 토큰 탭으로 가는 링크만 둔다.</li>
+    <li>온보딩 마지막 단계는 역할 확인과 "다음 행동" 안내다 — planner/designer는 받은 요청, developer는 작업 보드, qa는 (MVP에서는) 커버리지가 아니라 작업 보드로 안내한다(ui-wireframes §1.5 역할별 첫 화면 — S6은 Phase 2이므로 qa 착지만 조정). 에이전트 연결 온보딩(PAT 발급→플러그인 설치)은 <a href="plugin.html">plugin.md</a> §4가 정의하고, 이 화면은 S8 토큰 탭으로 가는 링크만 둔다.</li>
   </ul>
 
   <div class="table-wrap"><table>
@@ -542,9 +542,9 @@
   <div class="table-wrap"><table>
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
     <tbody>
-      <tr><td>오늘 할 일 숫자</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending — 승인함 목록)</td><td>MVP는 승인 대기·답변 대기 질문 2숫자. 와이어프레임의 "내가 만든 CR" 칩은 Phase 2(CR)</td></tr>
+      <tr><td>오늘 할 일 숫자</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending — 받은 요청 목록)</td><td>MVP는 승인 대기·답변 대기 질문 2숫자. 와이어프레임의 "내가 만든 CR" 칩은 Phase 2(CR)</td></tr>
       <tr><td>내 승인 대기 카드</td><td>위와 동일 목록의 상위 N건</td><td>카드 위 승인/거절/코멘트 — S7과 같은 <code>ApprovalCard</code> 재사용</td></tr>
-      <tr><td>내 질문 큐</td><td>승인함 목록 중 <code>subject_type = question</code></td><td>세션 신원 3요소(사용자·hostname·에이전트 종류)와 대기 시간 필수 표기</td></tr>
+      <tr><td>내 질문 큐</td><td>받은 요청 목록 중 <code>subject_type = question</code></td><td>세션 신원 3요소(사용자·hostname·에이전트 종류)와 대기 시간 필수 표기</td></tr>
       <tr><td>내 프로젝트 카드</td><td>EP-PRJ-01 <code>GET /api/v1/orgs/{org}/projects</code> + EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code>(활성 세션/승인 대기 카운트 포함)</td><td>승인률·커버리지 게이지 고도화는 Phase 2 — MVP는 상태별 카운트 표시</td></tr>
       <tr><td>최근 알림</td><td>EP-NTF-01 <code>GET /api/v1/me/notifications</code> · 읽음 처리 EP-NTF-02</td><td>인앱 피드. <code>notification</code> 파생·읽음 상태는 <a href="data-model.html">data-model</a> §2.9</td></tr>
     </tbody>
@@ -635,7 +635,7 @@
       <tr><td>버전 목록·diff</td><td>EP-SPEC-04 <code>GET /api/v1/projects/{proj}/specs/{spec}/versions</code> · EP-SPEC-06 <code>GET .../specs/{spec}/diff</code></td><td><code>?diff=v3..v4</code> 뷰 상태 → EP-SPEC-06(from, to)으로 조회. 표기는 ui-wireframes §4.3</td></tr>
       <tr><td>초안 저장</td><td>EP-SPEC-08 <code>PUT /api/v1/projects/{proj}/specs/{spec}/draft</code> (draft upsert — <code>base_version</code> 전제조건)</td><td><code>nerv_spec_draft_upsert</code>와 같은 서비스·같은 zod 스키마(D-05)</td></tr>
       <tr><td>사전 검토</td><td>EP-SPEC-09 <code>GET /api/v1/projects/{proj}/spec-versions/{ver}/check</code></td><td>5검사기 결과(warning/block + 앵커) — <code>nerv_spec_check</code>와 동일</td></tr>
-      <tr><td>검토 요청</td><td>EP-SPEC-10 <code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td><code>draft → in_review</code> — 성공 시 승인함 카드 생성(FR-11)</td></tr>
+      <tr><td>검토 요청</td><td>EP-SPEC-10 <code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td><code>draft → in_review</code> — 성공 시 받은 요청 카드 생성(FR-11)</td></tr>
       <tr><td>코멘트</td><td>EP-CMT-01 <code>GET .../specs/{spec}/comments</code> · EP-CMT-02 <code>POST .../spec-versions/{ver}/comments</code> · EP-CMT-04 <code>POST .../comments/{id}/resolve</code></td><td>앵커: 헤딩 slug 또는 Requirement <code>ref</code>(§3.3)</td></tr>
       <tr><td>우측 패널</td><td>include 응답의 requirement 목록(<code>ref</code>·<code>statement_md</code>·<code>impl_status</code>) · 파생 task 목록</td><td>"관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시. <b>참조 갱신 배지</b>: <code>spec.recheck_requested</code> 수신 시 "참조 스펙에 앞선 버전 존재" 표시(spec-workflow §3.3 참조 문서 전파)</td></tr>
       <tr><td>베이스라인 조회</td><td>EP-SPEC-11 <code>GET .../baselines</code> · EP-SPEC-13 <code>GET .../baselines/{bl}</code></td><td>버전 피커(<code>VersionPicker</code>)에 베이스라인 항목 — 선택 시 그 세트에 핀된 버전을 표시(<code>?baseline=</code> 쿼리, spec-workflow §3.6)</td></tr>
@@ -645,7 +645,7 @@
   <ul>
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → <code>['spec', specId]</code>, <code>spec.comment_added</code>·<code>comment.resolved</code> → <code>['spec', specId, 'comments']</code>, <code>task.*</code> → 파생 Task 패널.</li>
     <li><b>컴포넌트</b>: <code>SpecTree</code> · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>SpecEditor</code>(TipTap — §3) · <code>SourceViewToggle</code>(read-only md) · <code>CommentThread</code> · <code>EditLeaseBadge</code> · <code>RequirementPanel</code> · <code>DerivedTaskPanel</code> · <code>SpecMetaDialog</code> · <code>ArchiveConfirmDialog</code> · <code>RelationPanel</code> · <code>ImpactPreview</code> · <code>QuickSwitcher</code>(§1.3a) · <code>StatusPanel</code> · <code>SubmitReviewButton</code> · <code>TerminalHandoffCard</code>.</li>
-    <li><b>버튼 상태</b>: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 승인함 카드에서 한다(S7).</li>
+    <li><b>버튼 상태</b>: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 받은 요청 카드에서 한다(S7).</li>
     <li><b>터미널 이어쓰기</b>: 복사용 명령 <code>claude "/nerv:spec edit SPC-CWC-007"</code> 카드(ui-wireframes §2.3 (12)). 반대 방향은 <code>nerv_spec_draft_upsert</code> 응답의 <code>web_url</code> 딥링크가 이 화면으로 온다.</li>
     <li><b>관계 패널</b>(상태 패널 내 섹션): EP-SPEC-18(direction=both) — <b>참조함 N / 참조됨 N</b>(backlink)을 kind 배지와 함께 목록으로, 클릭 시 해당 스펙으로 이동. 20건 초과는 [전체 보기]로 커서 페이지네이션 확장. 참조 갱신 배지(REQ-WEB-037)는 이 섹션 머리에 흡수된다 — "무엇이 낡았나"가 배지가 아니라 목록으로 보인다. 관계 데이터는 저장 시 자동 추출(REQ-API-024)이라 사람이 관리하지 않는다.</li>
     <li><b>관계 안은 방향으로 가른다</b>(2026-08-24 신설 — 사람 지시): 레일의 <code>관계</code> 탭 아래에 <b>전체 · 역참조 · 레퍼런스</b> 하위 탭을 두고 각각 건수를 단다. 두 방향은 <b>다른 질문</b>이기 때문이다 — 역참조는 "이 문서를 고치면 무엇이 흔들리나", 레퍼런스는 "이 문서가 무엇에 기대나". 한 목록에 섞이면(실측: <code>0-overview</code> 50건 = 역참조 22 + 레퍼런스 28) 둘 중 하나를 보려고 전체를 훑어야 한다. 건수는 <b>누르기 전에</b> 보인다 — 빈 탭을 열어 보게 하지 않는다. 전체 탭은 <b>역참조 무리 → 구분선 → 레퍼런스 무리</b> 순으로 놓는다: 화살표 표식만으로는 무리가 바뀐 자리를 눈이 알아채지 못한다(한쪽이 비면 나눌 것이 없으므로 선도 없다). 역참조 설명("고치면 흔들리는 문서")은 그 무리의 <b>머리</b>에 단다 — 꼬리에 달면 스무 줄을 다 내려간 뒤에야 무엇을 읽은 것인지 알게 된다. 그 설명은 역참조가 <b>보이는 목록에 있을 때만</b> 성립하므로 레퍼런스 탭에서는 달지 않는다.</li>
@@ -835,7 +835,7 @@
     <tbody>
       <tr><td>"원문은 발급 직후 한 번만 보입니다"</td><td>토큰 <b>발급 버튼 위</b></td><td>화면 머리에 있으면 눈이 버튼까지 내려간 뒤라 이미 늦다</td></tr>
       <tr><td>"MVP 편집 항목은 spec_gate 3키"</td><td>게이트 <b>필드 상자 안</b></td><td>없으면 비활성 필드가 고장으로 읽힌다</td></tr>
-      <tr><td>"여기 있는 것은 이미 일어난 일이다"</td><td>알림 <b>목록 바로 위</b></td><td>알림과 승인함의 경계를 세우는 유일한 문장이라 목록을 보며 읽혀야 한다</td></tr>
+      <tr><td>"여기 있는 것은 이미 일어난 일이다"</td><td>알림 <b>목록 바로 위</b></td><td>알림과 받은 요청의 경계를 세우는 유일한 문장이라 목록을 보며 읽혀야 한다</td></tr>
     </tbody>
   </table></div>
 
@@ -1003,7 +1003,7 @@ export const TaskCreateInput = z.object({
   <ul>
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>session.started</code> <code>session.stale</code> <code>session.complete</code> <code>session.steered</code> → 보드, Activity 스트림·하트비트/diff 갱신도 같은 룸으로 흐른다(알림 아님 — spec-workflow §6.3). 하트비트 표기는 상대 시각만(ui-wireframes §3.3).</li>
     <li><b>컴포넌트</b>: <code>SessionBoard</code> · <code>SessionCard</code> · <code>SessionSummaryStrip</code> · <code>ActivityTimeline</code> · <code>ScopeChips</code>(spec_ids + file_globs) · <code>SteerDialog</code> · <code>StopDialog</code>(사유 필수) · <code>FailOpenBanner</code>(게이트 판정 실패 카운터 — 판정 자체는 Phase 2, 배너 컴포넌트는 자리 확보).</li>
-    <li><b>액션 4종</b>: 로그 보기 · attach ↗(세션 상세 딥링크) · steer(중단 없이 지시 큐잉) · stop(확인 + 사유, 클레임 즉시 회수 → Task <code>ready</code>). <code>awaiting_input</code> 카드는 [질문 열기 ↗]로 승인함 딥링크.</li>
+    <li><b>액션 4종</b>: 로그 보기 · attach ↗(세션 상세 딥링크) · steer(중단 없이 지시 큐잉) · stop(확인 + 사유, 클레임 즉시 회수 → Task <code>ready</code>). <code>awaiting_input</code> 카드는 [질문 열기 ↗]로 받은 요청 딥링크.</li>
     <li><b>폼·검증</b>: <code>SessionSteerInput</code>(<code>kind</code>: steer/stop, <code>message</code> min 1 — stop의 message가 곧 사유). 스티어 메시지는 승인이 아니다(ui-wireframes §4.2 보안 불변식).</li>
     <li><b>빈 상태</b>: 활성 세션 0 — "실행 중인 세션이 없습니다" + 플러그인 온보딩 링크(<a href="plugin.html">plugin.md</a> §4).</li>
   </ul>
@@ -1063,14 +1063,14 @@ export const TaskCreateInput = z.object({
     </tbody>
   </table></div>
 
-  <h3>2.7 S7 승인함 — <a href="ui-wireframes.html">ui-wireframes §2.7</a></h3>
+  <h3>2.7 S7 받은 요청 — <a href="ui-wireframes.html">ui-wireframes §2.7</a></h3>
 
   <p>MVP 카드 유형은 3종이다 — <b>스펙 승인 · 플랜 승인 · 질문</b>(로드맵 §3: CR·에스컬레이션 유형은 Phase 2). 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
     <tbody>
-      <tr><td>대기 목록</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending · 유형/프로젝트 필터 — 승인함 목록)</td><td><code>approval.subject_type</code>: <code>spec_version / plan / question</code>(MVP) — data-model §2.7</td></tr>
+      <tr><td>대기 목록</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending · 유형/프로젝트 필터 — 받은 요청 목록)</td><td><code>approval.subject_type</code>: <code>spec_version / plan / question</code>(MVP) — data-model §2.7</td></tr>
       <tr><td>결정</td><td>EP-APR-03 <code>POST /api/v1/approvals/{id}/decision</code></td><td><code>decision</code>: <code>approve / reject / comment</code>(spec-workflow §2.5)</td></tr>
       <tr><td>질문 답변</td><td>EP-QST-02 <code>POST /api/v1/projects/{proj}/questions/{id}/answer</code></td><td><code>answer_key</code>(선택지) 또는 <code>answer_md</code> — 내부적으로 승인 결정과 한 경로(api.md §2.6)</td></tr>
       <tr><td>카드 본문</td><td>EP-APR-01 응답 <code>ApprovalCard</code>에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지)</td><td>요약문이 아니라 <b>원문 우선</b>(spec-workflow §6.4 — OWASP ASI09 방어)</td></tr>
@@ -1099,7 +1099,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
       <tr><td>REQ-WEB-022</td><td>WHEN 사용자가 거절을 선택하면 THE SYSTEM SHALL 사유 입력을 필수로 요구하고, 사유는 요청자 알림과 감사 로그 양쪽에 남긴다(FR-16)</td></tr>
       <tr><td>REQ-WEB-023</td><td>WHEN 요청자와 열람자가 같거나 대상 초안을 열람자의 세션이 작성했으면 THE SYSTEM SHALL 승인 버튼을 비활성화하고 사유를 표시한다(지시자≠승인자 — D-06)</td></tr>
       <tr><td>REQ-WEB-024</td><td>WHEN 질문 처리에 성공하면 THE SYSTEM SHALL 카드에 "요청 세션 <code>&lt;hostname&gt;/&lt;agent_type&gt;</code>에 전달됨"을 표시하고 처리됨 트레일에 3분간 유지한다</td></tr>
-      <tr><td>REQ-WEB-025</td><td>WHEN 승인함이 포커스를 가지면 THE SYSTEM SHALL <code>j/k/a/r/c</code> 키보드만으로 카드 이동과 결정을 지원한다</td></tr>
+      <tr><td>REQ-WEB-025</td><td>WHEN 받은 요청이 포커스를 가지면 THE SYSTEM SHALL <code>j/k/a/r/c</code> 키보드만으로 카드 이동과 결정을 지원한다</td></tr>
     </tbody>
   </table></div>
 
@@ -1133,7 +1133,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
 
   <h3>2.9 알림 센터 (<code>/notifications</code>)</h3>
 
-  <p>인앱 알림 피드다(FR-12 ◐ — Slack·메일·다이제스트는 Phase 2). 승인함과 역할이 다르다 — <b>승인함은 "내 결정을 기다리는 것", 알림은 "내가 알아야 하는 것"</b>(spec-workflow §6.6 원칙 3). 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).</p>
+  <p>인앱 알림 피드다(FR-12 ◐ — Slack·메일·다이제스트는 Phase 2). 받은 요청과 역할이 다르다 — <b>받은 요청은 "내 결정을 기다리는 것", 알림은 "내가 알아야 하는 것"</b>(spec-workflow §6.6 원칙 3). 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).</p>
 
   <div class="wf">
     <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/notifications</div></div>
@@ -1159,7 +1159,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <ul class="wf-legend">
     <li><span class="marker">1</span><span><b>필터 2종만</b> — 전체/안읽음. 헤더 배지 수 = 안읽음 수(정합 — <code>REQ-WEB-035</code>).</span></li>
     <li><span class="marker">2</span><span><b>행 = 이벤트 요약 + 딥링크</b> — 클릭 시 읽음 처리 후 대상으로 이동(뷰 상태 쿼리 포함 — ui-wireframes §1.4). 좌측 dot은 읽음 여부.</span></li>
-    <li><span class="marker">3</span><span><b>승인함 항목의 그림자</b> — 승인 요청 알림은 여기에도 남지만 행동은 승인함에서 한다(카드 중복 금지).</span></li>
+    <li><span class="marker">3</span><span><b>받은 요청 항목의 그림자</b> — 승인 요청 알림은 여기에도 남지만 행동은 받은 요청에서 한다(카드 중복 금지).</span></li>
   </ul>
 
   <div class="table-wrap"><table>
@@ -1173,7 +1173,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <ul>
     <li><b>실시간</b>: <code>user:{id}</code> 룸 — <code>notification.created</code> → <code>['me', 'notifications']</code> + 헤더 배지(§1.4 표와 동일).</li>
     <li><b>컴포넌트</b>: <code>NotificationFeed</code> · <code>NotificationRow</code>(아이콘·본문·딥링크·상대 시각·읽음 dot).</li>
-    <li><b>빈 상태</b>: "새 알림이 없습니다" + 승인함 링크(막다른 길 금지 — ui-wireframes §3.4).</li>
+    <li><b>빈 상태</b>: "새 알림이 없습니다" + 받은 요청 링크(막다른 길 금지 — ui-wireframes §3.4).</li>
   </ul>
 
   <div class="table-wrap"><table>
@@ -1193,7 +1193,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     <div class="wf-topbar">
       <span class="ttl">⬢ NERV</span>
       <span class="wf-btn ghost">default ▾</span><span class="wf-btn ghost">clemvion ▾</span>
-      <span class="sub">홈 · 프로젝트 · 승인함 · 알림</span>
+      <span class="sub">홈 · 프로젝트 · 받은 요청 · 알림</span>
       <span class="wf-input" style="margin-left:auto">🔍 검색</span>
       <span class="wf-btn ghost" style="font-weight:700;color:var(--accent-text)">?</span><span class="marker">1</span>
       <span class="wf-avatar">지</span>
@@ -1206,7 +1206,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
         <div class="wf-nav-item on">작업</div>
         <div class="wf-nav-item">세션</div>
         <div class="wf-nav-item">리뷰</div>
-        <div class="wf-nav-item">승인함과 알림</div>
+        <div class="wf-nav-item">받은 요청과 알림</div>
         <div class="wf-nav-item">에이전트 연동</div>
         <div class="wf-nav-item">플러그인 설치</div>
         <div class="wf-nav-item">설정</div>
@@ -1237,7 +1237,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     </div>
   </div>
 
-  <p>장은 <b>열 장</b>이고 순서가 곧 읽는 순서다 — 시작하기 · 스펙 · 작업 · 세션 · 리뷰 · 승인함과 알림 · 에이전트 연동 · 플러그인 설치 · 설정 · 단축키와 언어. <b>개념과 절차를 나눠 둔다</b>: "에이전트 연동"은 MCP 도구·훅·스킬이 무엇이고 왜 그렇게 맞물리는지를 말하고, "플러그인 설치"는 Claude Code(<code>/plugin marketplace add</code> → <code>/plugin install nerv@nerv-internal</code>)와 Codex(<code>.codex/config.toml</code>·<code>AGENTS.md</code> 초안 2종 복사 — <a href="plugin.html">4.6 플러그인</a> §5.1이 말한 수동 경로)의 절차를 5단계로 밟는다. 한 장에 섞으면 "이게 뭔가"를 읽으러 온 사람과 "어떻게 붙이나"를 읽으러 온 사람이 서로의 문단을 건너뛰게 된다.</p>
+  <p>장은 <b>열 장</b>이고 순서가 곧 읽는 순서다 — 시작하기 · 스펙 · 작업 · 세션 · 리뷰 · 받은 요청과 알림 · 에이전트 연동 · 플러그인 설치 · 설정 · 단축키와 언어. <b>개념과 절차를 나눠 둔다</b>: "에이전트 연동"은 MCP 도구·훅·스킬이 무엇이고 왜 그렇게 맞물리는지를 말하고, "플러그인 설치"는 Claude Code(<code>/plugin marketplace add</code> → <code>/plugin install nerv@nerv-internal</code>)와 Codex(<code>.codex/config.toml</code>·<code>AGENTS.md</code> 초안 2종 복사 — <a href="plugin.html">4.6 플러그인</a> §5.1이 말한 수동 경로)의 절차를 5단계로 밟는다. 한 장에 섞으면 "이게 뭔가"를 읽으러 온 사람과 "어떻게 붙이나"를 읽으러 온 사람이 서로의 문단을 건너뛰게 된다.</p>
 
   <ul class="wf-legend">
     <li><span class="marker">1</span><span><b>헤더 진입점은 한 칸짜리 <code>?</code>다.</b> 헤더는 여섯 자리뿐이고(§1.3) 자주 쓰지 않는 항목이 자주 쓰는 항목의 자리를 먹으면 헤더는 금세 도구모음이 된다. 이름은 <code>title</code>·<code>aria-label</code>이 준다. 메뉴 항목 3종: <b>이 화면 도움말</b> · <b>제품 매뉴얼</b> · <b>단축키와 언어</b>.</span></li>

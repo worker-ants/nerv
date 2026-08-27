@@ -491,7 +491,7 @@ user_guide:               # 선택, 가드 미적용 (R-10)
   <div class="callout evidence"><span class="ico">📊</span><div class="body">
     <b class="title">ESCALATE 매트릭스 — 사람 개입 지점의 어휘</b>
     <p><code>STATUS=… ITEMS=&lt;r&gt;/&lt;t&gt; E2E=… ESCALATE=&lt;no|spec|user-decision|infra|e2e-fail-3x|sensitive-fix&gt; NEEDS_SPEC=… RESOLUTION=…</code></p>
-    <p>특히 <code>spec</code> 경로는 <b>SPEC-DRIFT 역류</b>를 정식화한다 — resolution-applier가 코드를 되돌리지 않고 <code>plan/in-progress/spec-update-&lt;area&gt;.md</code> draft를 만들고 <code>/consistency-check --spec</code>으로 스펙에 반영한다. 이 어휘는 NERV 승인함(FR-11)의 카드 유형으로 그대로 이식된다.</p>
+    <p>특히 <code>spec</code> 경로는 <b>SPEC-DRIFT 역류</b>를 정식화한다 — resolution-applier가 코드를 되돌리지 않고 <code>plan/in-progress/spec-update-&lt;area&gt;.md</code> draft를 만들고 <code>/consistency-check --spec</code>으로 스펙에 반영한다. 이 어휘는 NERV 받은 요청(FR-11)의 카드 유형으로 그대로 이식된다.</p>
   </div></div>
 
   <h2 id="sec-4">4. 잘 작동하는 것 — 계승 자산</h2>
@@ -507,7 +507,7 @@ user_guide:               # 선택, 가드 미적용 (R-10)
       <tr><td><b>rewrite-immune 시계 같은 공학</b></td><td>경로 타임스탬프 + author date 시계(<code>clemvion:.claude/hooks/_lib/review_guard.py</code>)</td><td>서버 발급 이벤트 시각으로 <b>자연 해소</b> — 이 공학 자체가 불필요해지는 것이 이득</td></tr>
       <tr><td><b>디스크가 arbiter (자기보고 불신)</b></td><td>"파일이 뒷받침하지 않는 자기보고 STATUS는 이 계약이 없애려는 가짜 성공"(<code>clemvion:.claude/docs/subagent-call-contract.md</code>)</td><td><b>D-14</b> — 에이전트 자기보고와 산출물 업로드 분리 검증</td></tr>
       <tr><td><b>라우터 불신 규칙</b></td><td>forced 리뷰어 누락 시 라우팅 결정 폐기·전수 실행(<code>clemvion:.claude/workflows/ai-review.js</code>)</td><td>리뷰 커버리지 무결성 판정(<b>FR-09</b>)</td></tr>
-      <tr><td><b>ESCALATE 어휘 + SPEC-DRIFT 역류 경로</b></td><td><code>no/spec/user-decision/infra/e2e-fail-3x/sensitive-fix</code>(<code>clemvion:.claude/agents/resolution-applier.md</code>)</td><td>승인함(<b>FR-11</b>) 카드 유형 + CR 흐름(<b>FR-04</b>)</td></tr>
+      <tr><td><b>ESCALATE 어휘 + SPEC-DRIFT 역류 경로</b></td><td><code>no/spec/user-decision/infra/e2e-fail-3x/sensitive-fix</code>(<code>clemvion:.claude/agents/resolution-applier.md</code>)</td><td>받은 요청(<b>FR-11</b>) 카드 유형 + CR 흐름(<b>FR-04</b>)</td></tr>
       <tr><td><b>완료 의식이 스펙 정합을 강제 동반</b></td><td>Gate C — 완료 plan의 <code>spec_impact</code> 선언 의무</td><td>Task 완료 API의 필수 필드로 승격(<b>FR-05</b>)</td></tr>
       <tr><td><b>doc-sync-matrix 3중 구조</b></td><td>사람용 표(<code>clemvion:PROJECT.md</code>) + 기계용 JSON(<code>clemvion:.claude/config/doc-sync-matrix.json</code>) + 정합 테스트</td><td>규칙 엔진·체크리스트 자동화</td></tr>
       <tr><td><b>쓰기 전 사전 일관성 검토</b></td><td>planner의 <code>/consistency-check --spec</code> 의무(5 관점 병렬)</td><td>스펙 제출 파이프라인의 자동 사전 검토 단계</td></tr>
@@ -773,11 +773,11 @@ user_guide:               # 선택, 가드 미적용 (R-10)
       <tr><td>owner가 자유 텍스트</td><td>34건 6가지 표기 요동</td><td><b>FR-14</b> 역할 기반 권한 · <b>D-08</b> assignee/delegate 분리</td></tr>
       <tr><td>백로그·우선순위 부재</td><td><code>(unstarted)</code> 13/34, <code>priority</code> 15/34, 인덱스 문서 사망</td><td><b>FR-05</b> ready 큐·의존성 그래프</td></tr>
       <tr><td>문서 단위 status</td><td>1,750줄 문서에 값 하나, CCH-SE-02 누락</td><td><b>FR-03</b> Requirement 단위 2축 추적 · <b>D-02</b></td></tr>
-      <tr><td>문서 리뷰 라이프사이클 부재</td><td>초안/검토중/승인 상태 없음, 승인 이력이 git PR에 묻힘</td><td><b>FR-02</b> SpecVersion <code>draft→in_review→approved</code> · <b>FR-11</b> 승인함</td></tr>
+      <tr><td>문서 리뷰 라이프사이클 부재</td><td>초안/검토중/승인 상태 없음, 승인 이력이 git PR에 묻힘</td><td><b>FR-02</b> SpecVersion <code>draft→in_review→approved</code> · <b>FR-11</b> 받은 요청</td></tr>
       <tr><td>리뷰 provenance 단절</td><td>커밋 SHA 필드 부재(200 표본 중 47), PR 링크 없음</td><td><b>FR-09</b> ReviewSession 커밋 스냅샷 필수 · <b>FR-13</b> 증적 그래프</td></tr>
       <tr><td>리뷰 자기증식·git 비대화</td><td>13,777 md·131MB, blob의 60%, 8라운드 86/94</td><td><b>D-01</b> DB 저장 · <b>D-07</b> fingerprint dedup</td></tr>
       <tr><td>게이트 판정이 텍스트 휴리스틱</td><td>1,005줄 훅 + ReDoS 3회 수정</td><td><b>FR-10</b> 게이트 판정 API(서버 질의)</td></tr>
-      <tr><td>사람 개입이 터미널에 갇힘</td><td>승인·confirm이 그 세션 안에서만</td><td><b>FR-11</b> 승인함 · <b>FR-12</b> 알림 · <b>D-06</b> 위험도 가변 게이트</td></tr>
+      <tr><td>사람 개입이 터미널에 갇힘</td><td>승인·confirm이 그 세션 안에서만</td><td><b>FR-11</b> 받은 요청 · <b>FR-12</b> 알림 · <b>D-06</b> 위험도 가변 게이트</td></tr>
       <tr><td>비개발자 참여 불가</td><td>모든 진입점이 CLI·md·git</td><td><b>FR-01</b> 스펙 저장소 웹 UI · <b>D-09</b> markdown 편집기</td></tr>
       <tr><td>훅 미설치 클론이면 무효</td><td>게이트가 이 머신의 훅에만 존재</td><td><b>FR-15</b> 플러그인·관리형 settings 배포 · <b>D-05</b></td></tr>
     </tbody>

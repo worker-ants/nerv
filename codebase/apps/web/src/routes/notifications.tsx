@@ -74,7 +74,7 @@ function NotificationScreen(): React.JSX.Element {
       <div className="mb-4">
         <InvitationCards heading={false} />
       </div>
-      {/* 이 한 줄이 알림과 승인함의 경계다 — 목록 옆에 두어야 목록을 보며 읽는다 */}
+      {/* 이 한 줄이 알림과 받은 요청의 경계다 — 목록 옆에 두어야 목록을 보며 읽는다 */}
       <p className="mb-1.5 text-2xs text-text-faint">{t('notif.lead')}</p>
       {notifications.isLoading && <Skeleton rows={5} />}
       {!notifications.isLoading && items.length === 0 && (

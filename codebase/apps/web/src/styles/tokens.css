@@ -183,7 +183,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 포커스는 **항상 보인다.** 키보드로 승인함을 도는 것이 규약인데(REQ-WEB-025)
+/* 포커스는 **항상 보인다.** 키보드로 받은 요청을 도는 것이 규약인데(REQ-WEB-025)
    포커스가 안 보이면 그 규약은 쓸 수 없다. */
 :focus-visible {
   outline: 2px solid var(--color-link);

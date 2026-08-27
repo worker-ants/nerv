@@ -159,7 +159,7 @@ CREATE TYPE resolution_kind         AS ENUM ('fixed', 'deferred', 'dismissed', '
 CREATE TYPE escalate_reason         AS ENUM ('no', 'spec', 'user-decision', 'infra', 'e2e-fail-3x', 'sensitive-fix');
 CREATE TYPE approval_subject_type   AS ENUM ('spec_version', 'change_request', 'plan', 'question', 'gate_bypass', 'finding');
 -- 'finding' 추가 2026-08-23(마이그레이션 0004) — `nerv_finding_resolve(critical → dismissed/wont_fix)`는
--- A3라 사람의 승인함을 거치는데(agent-integration §2.3), 그 카드가 붙을 자리가 열거에 없었다.
+-- A3라 사람의 받은 요청을 거치는데(agent-integration §2.3), 그 카드가 붙을 자리가 열거에 없었다.
 -- 리뷰 표면이 Phase 2라 빠져 있던 것이고, FR-09 착수(scope.md §5)로 필요해졌다.
 CREATE TYPE approval_decision       AS ENUM ('approve', 'reject', 'comment');
 CREATE TYPE question_urgency        AS ENUM ('blocking', 'normal');
@@ -745,7 +745,7 @@ CREATE INDEX review_session_round ON review_session (changeset_hash, round_no);
 CREATE INDEX finding_queue ON finding (project_id, status, severity);              -- dedup + 리뷰 큐
 
 -- 승인·이벤트·알림
-CREATE INDEX approval_inbox ON approval (project_id, assignee_user_id) WHERE decision IS NULL; -- 승인함(§4.7)
+CREATE INDEX approval_inbox ON approval (project_id, assignee_user_id) WHERE decision IS NULL; -- 받은 요청(§4.7)
 CREATE INDEX event_project_time ON event (project_id, occurred_at DESC);           -- 피드
 CREATE INDEX event_subject      ON event (subject_type, subject_id, occurred_at);  -- 감사(§4.8)
 CREATE INDEX notification_inbox ON notification (user_id, state, created_at DESC); -- 보조: 수신함
@@ -1104,7 +1104,7 @@ INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status,
    ARRAY['01990a66-0000-7000-8000-000000000042']::uuid[],
    ARRAY['codebase/frontend/src/loader/**'], now() + interval '21 minutes');
 
--- 질문 (S-2d04는 awaiting_input — S7 승인함 카드) --------------------------
+-- 질문 (S-2d04는 awaiting_input — S7 받은 요청 카드) --------------------------
 INSERT INTO question (id, project_id, agent_session_id, task_id, title, body_md,
                       options, urgency, status) VALUES
   ('01990a66-0000-7000-8000-0000000000a1', '01990a66-0000-7000-8000-000000000021',
@@ -1128,7 +1128,7 @@ INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, actor_sessi
    '01990a66-0000-7000-8000-000000000082', true, 'question',
    '01990a66-0000-7000-8000-0000000000a1', NULL, NULL);
 
--- 알림 (question.created → 지민 승인함, critical 티어라 immediate) ----------
+-- 알림 (question.created → 지민 받은 요청, critical 티어라 immediate) ----------
 INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state) VALUES
   ('01990a66-0000-7000-8000-0000000000c1', '01990a66-0000-7000-8000-000000000021',
    '01990a66-0000-7000-8000-000000000011', '01990a66-0000-7000-8000-0000000000b3',
@@ -1136,7 +1136,7 @@ INSERT INTO notification (id, project_id, user_id, event_id, importance, channel
 
 COMMIT;</code></pre>
 
-  <p>이 한 벌로 S1 홈(질문 배지 1), S3 스펙 상세(SPC-CWC-007 v4 approved + REQ-CWC-031), S4 작업 보드(in_progress 2 · blocked 1), S5 세션 모니터(active 2 · awaiting_input 1), <b>S6 리뷰 센터(열린 발견 3 — severity 3종 · 브랜치 2 · 면제 1 · 라운드 체인 1→2로 dedup 표기 1건)</b>, S7 승인함(질문 카드 1)이 전부 비어 있지 않게 뜬다 — 화면 개발(<a href="screens.html">4.5 화면 명세</a>)의 로딩/빈/에러 3상태 중 "데이터 있음" 경로를 즉시 확인할 수 있다.</p>
+  <p>이 한 벌로 S1 홈(질문 배지 1), S3 스펙 상세(SPC-CWC-007 v4 approved + REQ-CWC-031), S4 작업 보드(in_progress 2 · blocked 1), S5 세션 모니터(active 2 · awaiting_input 1), <b>S6 리뷰 센터(열린 발견 3 — severity 3종 · 브랜치 2 · 면제 1 · 라운드 체인 1→2로 dedup 표기 1건)</b>, S7 받은 요청(질문 카드 1)이 전부 비어 있지 않게 뜬다 — 화면 개발(<a href="screens.html">4.5 화면 명세</a>)의 로딩/빈/에러 3상태 중 "데이터 있음" 경로를 즉시 확인할 수 있다.</p>
 
   <h2 id="sec-5">5. 수용 기준 (REQ-DB-*)</h2>
 

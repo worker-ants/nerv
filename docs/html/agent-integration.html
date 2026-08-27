@@ -262,7 +262,7 @@
         <td><code>nerv_spec_submit_review</code></td><td><code>spec_version_id</code>, <code>reviewer_hint?</code>, <code>note</code></td>
         <td><code>approval_id[]</code>, <span class="badge draft">draft</span> → <span class="badge review">in_review</span> 전이, 지정 리뷰어·SLA, <code>web_url</code>(S3 딥링크)</td>
         <td><code>spec:draft</code>(+제출)</td><td><b>A3</b></td><td>초안 완료 후 사람 검토 요청</td>
-        <td>멱등 — pending Approval 재사용(승인함 카드 중복 금지)</td>
+        <td>멱등 — pending Approval 재사용(받은 요청 카드 중복 금지)</td>
       </tr>
       <tr>
         <td><code>nerv_spec_check</code></td><td><code>spec_version_id</code></td>
@@ -605,7 +605,7 @@
       <rect x="590" y="10" width="140" height="34" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="660" y="32" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">NERV 서버 · DB</text>
       <rect x="765" y="10" width="130" height="34" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/>
-      <text x="830" y="32" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">사람 · 승인함</text>
+      <text x="830" y="32" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12">사람 · 받은 요청</text>
 
       <!-- 라이프라인 -->
       <line x1="90" y1="48" x2="90" y2="700" stroke="var(--border)" stroke-dasharray="4 4"/>
@@ -663,7 +663,7 @@
       <line x1="470" y1="510" x2="656" y2="510" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar2)"/>
       <text x="563" y="504" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">Question + awaiting_input</text>
       <line x1="660" y1="534" x2="826" y2="534" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar2)"/>
-      <text x="743" y="528" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">승인함 카드 알림</text>
+      <text x="743" y="528" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">받은 요청 카드 알림</text>
       <line x1="830" y1="558" x2="474" y2="558" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar2)"/>
       <text x="652" y="552" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">선택지 결정 · 코멘트</text>
       <line x1="90" y1="582" x2="466" y2="582" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar2)"/>
@@ -807,7 +807,7 @@ log_user_prompt = false</code></pre>
   <p>리스 TTL(30분)이 하트비트 주기(60초)보다 훨씬 긴 이유는 일시적 네트워크 단절로 작업이 회수되는 것을 막기 위해서다(하트비트 30회분 여유). 그리고 리스 TTL을 stale 임계(30분, Linear의 Agent Session 규약과 같은 값)와 <b>같은 값</b>으로 묶은 이유는 따로 있다 — 두 값이 다르면 "클레임은 회수됐는데 세션은 아직 살아 있다고 표시되는" 구간이 생기고, 그 사이 돌아온 세션이 자기가 여전히 클레임을 쥐고 있다고 착각해 다른 세션과 같은 파일을 건드릴 수 있다. 한 값으로 묶으면 세션이 <code>stale</code>로 전이되는 바로 그 시점에 클레임이 함께 회수되므로 그 경합 창이 사라진다.</p>
 
   <h3 id="sec-5-3">5.3 질문 에스컬레이션</h3>
-  <p>에이전트 → 사람 에스컬레이션은 알림이 아니라 <b>승인함 항목</b>이다(상태 머신: 대기 → 결정 → 만료). clemvion의 ESCALATE 매트릭스(user-decision/spec/infra/e2e-fail-3x/sensitive-fix)를 그대로 트리거 목록으로 이식한다.</p>
+  <p>에이전트 → 사람 에스컬레이션은 알림이 아니라 <b>받은 요청 항목</b>이다(상태 머신: 대기 → 결정 → 만료). clemvion의 ESCALATE 매트릭스(user-decision/spec/infra/e2e-fail-3x/sensitive-fix)를 그대로 트리거 목록으로 이식한다.</p>
 
   <div class="wf">
     <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/inbox/q/8f2a</div></div>
@@ -817,10 +817,10 @@ log_user_prompt = false</code></pre>
         <div class="wf-nav-item">📄 스펙</div>
         <div class="wf-nav-item">✅ 작업</div>
         <div class="wf-nav-item">🖥️ 세션</div>
-        <div class="wf-nav-item on">📥 승인함 <span class="badge blocked">3</span></div>
+        <div class="wf-nav-item on">📥 받은 요청 <span class="badge blocked">3</span></div>
       </div>
       <div class="wf-main">
-        <div class="wf-topbar"><span class="ttl">승인함 · 질문 <span class="marker">1</span></span>
+        <div class="wf-topbar"><span class="ttl">받은 요청 · 질문 <span class="marker">1</span></span>
           <span class="wf-input">요청 12분 전</span><span class="badge agent">awaiting_input</span> <span class="marker">2</span></div>
         <div class="wf-panel">
           <div class="wf-panel-hd">❓ TASK-142 구현 중 경계 이탈 <span class="spacer"></span><span class="wf-avatar bot">AI</span><span class="sub">claude-code@wks-park</span></div>
@@ -835,7 +835,7 @@ log_user_prompt = false</code></pre>
     </div>
   </div>
   <ul class="wf-legend">
-    <li><span class="marker">1</span><span>질문·승인·리뷰는 같은 승인함의 카드 타입이다(notify / question / review 3종).</span></li>
+    <li><span class="marker">1</span><span>질문·승인·리뷰는 같은 받은 요청의 카드 타입이다(notify / question / review 3종).</span></li>
     <li><span class="marker">2</span><span>이 카드가 열려 있는 동안 해당 AgentSession은 <code>awaiting_input</code>이고 S5 세션 모니터에도 같은 상태로 보인다.</span></li>
     <li><span class="marker">3</span><span>질문 본문은 에이전트가 쓴 텍스트이므로 <b>지시가 아니라 인용으로</b> 렌더한다.</span></li>
     <li><span class="marker">4</span><span>선택지는 <code>options[]</code>로 구조화해 받는다 — 자유 서술 답변은 에이전트가 재해석하며 드리프트가 생긴다.</span></li>

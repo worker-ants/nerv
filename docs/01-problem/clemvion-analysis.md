@@ -295,7 +295,7 @@ consistency는 여기에 SUMMARY 최상단 **`BLOCK: YES/NO`**를 추가한다 �
 | **rewrite-immune 시계 같은 공학** | 경로 타임스탬프 + author date 시계(`clemvion:.claude/hooks/_lib/review_guard.py`) | 서버 발급 이벤트 시각으로 **자연 해소** — 이 공학 자체가 불필요해지는 것이 이득 |
 | **디스크가 arbiter (자기보고 불신)** | "파일이 뒷받침하지 않는 자기보고 STATUS는 이 계약이 없애려는 가짜 성공"(`clemvion:.claude/docs/subagent-call-contract.md`) | D-14 — 에이전트 자기보고와 산출물 업로드 분리 검증 |
 | **라우터 불신 규칙** | forced 리뷰어 누락 시 라우팅 결정 폐기·전수 실행(`clemvion:.claude/workflows/ai-review.js`) | 리뷰 커버리지 무결성 판정(FR-09) |
-| **ESCALATE 어휘 + SPEC-DRIFT 역류 경로** | `no/spec/user-decision/infra/e2e-fail-3x/sensitive-fix`(`clemvion:.claude/agents/resolution-applier.md`) | 승인함(FR-11) 카드 유형 + CR 흐름(FR-04) |
+| **ESCALATE 어휘 + SPEC-DRIFT 역류 경로** | `no/spec/user-decision/infra/e2e-fail-3x/sensitive-fix`(`clemvion:.claude/agents/resolution-applier.md`) | 받은 요청(FR-11) 카드 유형 + CR 흐름(FR-04) |
 | **완료 의식이 스펙 정합을 강제 동반** | Gate C — 완료 plan의 `spec_impact` 선언 의무 | Task 완료 API의 필수 필드로 승격(FR-05) |
 | **doc-sync-matrix 3중 구조** | 사람용 표(`clemvion:PROJECT.md`) + 기계용 JSON(`clemvion:.claude/config/doc-sync-matrix.json`) + 정합 테스트 | 규칙 엔진·체크리스트 자동화 |
 | **쓰기 전 사전 일관성 검토** | planner의 `/consistency-check --spec` 의무(5 관점 병렬) | 스펙 제출 파이프라인의 자동 사전 검토 단계 |
@@ -464,11 +464,11 @@ changeset 하나(#1167)가 code review 5회 + consistency 3회 = **8라운드**�
 | owner가 자유 텍스트 | 34건 6가지 표기 요동 | FR-14 역할 기반 권한 · D-08 assignee/delegate 분리 |
 | 백로그·우선순위 부재 | `(unstarted)` 13/34, `priority` 15/34, 인덱스 문서 사망 | FR-05 ready 큐·의존성 그래프 |
 | 문서 단위 status | 1,750줄 문서에 값 하나, CCH-SE-02 누락 | FR-03 Requirement 단위 2축 추적 · D-02 |
-| 문서 리뷰 라이프사이클 부재 | 초안/검토중/승인 상태 없음, 승인 이력이 git PR에 묻힘 | FR-02 SpecVersion `draft→in_review→approved` · FR-11 승인함 |
+| 문서 리뷰 라이프사이클 부재 | 초안/검토중/승인 상태 없음, 승인 이력이 git PR에 묻힘 | FR-02 SpecVersion `draft→in_review→approved` · FR-11 받은 요청 |
 | 리뷰 provenance 단절 | 커밋 SHA 필드 부재(200 표본 중 47), PR 링크 없음 | FR-09 ReviewSession 커밋 스냅샷 필수 · FR-13 증적 그래프 |
 | 리뷰 자기증식·git 비대화 | 13,777 md·131MB, blob의 60%, 8라운드 86/94 | D-01 DB 저장 · D-07 fingerprint dedup |
 | 게이트 판정이 텍스트 휴리스틱 | 1,005줄 훅 + ReDoS 3회 수정 | FR-10 게이트 판정 API(서버 질의) |
-| 사람 개입이 터미널에 갇힘 | 승인·confirm이 그 세션 안에서만 | FR-11 승인함 · FR-12 알림 · D-06 위험도 가변 게이트 |
+| 사람 개입이 터미널에 갇힘 | 승인·confirm이 그 세션 안에서만 | FR-11 받은 요청 · FR-12 알림 · D-06 위험도 가변 게이트 |
 | 비개발자 참여 불가 | 모든 진입점이 CLI·md·git | FR-01 스펙 저장소 웹 UI · D-09 markdown 편집기 |
 | 훅 미설치 클론이면 무효 | 게이트가 이 머신의 훅에만 존재 | FR-15 플러그인·관리형 settings 배포 · D-05 |
 

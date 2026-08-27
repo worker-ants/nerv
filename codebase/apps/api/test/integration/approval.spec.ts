@@ -1,4 +1,4 @@
-// E13-S01·S02 — 승인함 · 질문 에스컬레이션.
+// E13-S01·S02 — 받은 요청 · 질문 에스컬레이션.
 //
 // **Phase 1 종료 게이트의 직접 대상이다**: 파일럿 2주간 플랫폼 밖에서 처리된 승인 0건.
 // 그러려면 승인이 여기서 되는 것만으로 부족하고 **여기서만** 되어야 한다 —
@@ -56,7 +56,7 @@ beforeEach(async () => {
   await pool.query(`UPDATE agent_session SET state = 'active'`);
 });
 
-describe('E13-S01 승인함 — 내 결정을 기다리는 것만 (§6.6 원칙 3)', () => {
+describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원칙 3)', () => {
   it('결정되지 않은 카드만 온다 — 처리한 것은 사라진다', async () => {
     const { approval_id } = await approvals.request({
       projectId,
@@ -98,7 +98,7 @@ describe('E13-S01 승인함 — 내 결정을 기다리는 것만 (§6.6 원칙 
     expect(card?.self_requested).toBe(true);
   });
 
-  it('같은 대상의 요청은 재사용된다 — 카드가 중복되면 승인함이 즉시 무너진다', async () => {
+  it('같은 대상의 요청은 재사용된다 — 카드가 중복되면 받은 요청이 즉시 무너진다', async () => {
     const subjectId = newId();
     const first = await approvals.request({
       projectId,
@@ -353,7 +353,7 @@ describe('E13-S03 인앱 알림 — 결정이 필요한 것만 (§6.2·§6.6)', 
   it('critical·high 는 알림을 만들고 low 는 만들지 않는다', async () => {
     const notifications = new NotificationService(drizzle(pool));
 
-    // low — 배경 활동. 배지가 이것으로 덮이면 승인함이 두 번째 받은편지함이 된다
+    // low — 배경 활동. 배지가 이것으로 덮이면 받은 요청이 두 번째 받은편지함이 된다
     await pool.query(
       `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
        VALUES ($1,$2,now(),'task.claimed',$3,true,'task',$4)`,
@@ -420,10 +420,10 @@ describe('E13-S03 인앱 알림 — 결정이 필요한 것만 (§6.2·§6.6)', 
 });
 
 /**
- * 보관한 프로젝트는 **승인함과 알림에서도 빠진다**(사람 보고 2026-08-27).
+ * 보관한 프로젝트는 **받은 요청과 알림에서도 빠진다**(사람 보고 2026-08-27).
  *
  * 목록에는 보이는데 누르면 "프로젝트가 없다"로 아무 일도 일어나지 않았다. 치운
- * 프로젝트를 사람이 계속 결재하도록 두는 것은 승인함을 못 믿게 만드는 가장 빠른 길이다.
+ * 프로젝트를 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
  */
 describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27)', () => {
   const archive = async (on: boolean): Promise<void> => {

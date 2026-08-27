@@ -2,7 +2,9 @@
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v1.44 · 2026-08-27 · 사람이 읽기 좋은 HTML 판: [html/index.html](html/index.html)
+> 문서 버전 v1.45 · 2026-08-27 · 사람이 읽기 좋은 HTML 판: [html/index.html](html/index.html)
+>
+> v1.45 변경(2026-08-27 — **승인함 → 받은 요청** 개명, 사람 결정): 화면 이름이 내용보다 좁았다. 이 화면에 모이는 것은 승인만이 아니라 **질문·에스컬레이션**까지 다섯 유형이고, FR-11 자신이 "다섯 유형의 **요청**이 한 **수신함**에 모이고"라고 적고 있었다. 용어 정본(1.2 FR-11)과 화면 명세·UI 카탈로그(ko)·제품 매뉴얼을 한 이름으로 맞췄다 — 문서·html·코드 407곳. **과거 문서의 변경 기록 줄은 그때의 기록이라 옛 이름을 그대로 둔다**(FR-11 에 개명 사실과 옛 이름을 남겼다). 영문 라벨은 `Inbox` 그대로다.
 >
 > v1.44 변경(2026-08-27 — 환경변수는 기계가 아니라 프로젝트에 속한다, 사람 지시): 에이전트 온보딩이 `NERV_TOKEN`·`NERV_PROJECT` 를 **셸 프로필에 export** 하게 하고 있었다 — 기계에 하나뿐인 자리라, 멀티 프로젝트가 전제인 제품에서 프로젝트를 옮기려면 프로필을 고치고 모든 세션을 다시 띄워야 했다. 자리를 셋으로 가른다(4.6 §3.3 · 매뉴얼 설치 장): 관리형 settings · 저장소 **`.claude/settings.local.json` 의 `env`**(개발자 기계의 기본 — 기본 gitignore 대상) · 저장소 **`.nerv/env`**(Codex·CLI·statusline 까지 한 파일로). 새 `bin/nerv-env.sh` 가 그 파일을 읽는데 **이미 있는 값을 덮지 않고 `NERV_*` 만** 읽는다 — 강한 자리(관리형·CLI)가 언제나 이긴다.
 >
@@ -143,7 +145,7 @@
 | [3.3 데이터 모델](03-proposal/data-model.md) | ERD 전체와 엔티티 상세(Spec/SpecVersion/Requirement, Task/Claim, AgentSession/Activity, ReviewSession/Finding, Approval/Question, Event…), clemvion frontmatter 매핑, 검증 질의 |
 | [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
 | [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
-| [3.6 화면 설계](03-proposal/ui-wireframes.md) | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·승인함·설정) — HTML 판은 실제 렌더링 목업 |
+| [3.6 화면 설계](03-proposal/ui-wireframes.md) | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·받은 요청·설정) — HTML 판은 실제 렌더링 목업 |
 | [3.7 로드맵](03-proposal/roadmap.md) | Phase 0 PoC(조정 검증) → 1 MVP → 2 리뷰·연동 확장 → 3 고도화, 각 단계 성공 기준·리스크·clemvion 마이그레이션 계획 |
 
 ### 4부 · MVP 구체화 (구현 착수 가능한 명세)

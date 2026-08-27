@@ -152,6 +152,6 @@ Claude Code는 아직 `AGENTS.md`를 자동으로 읽지 않으므로, 같은 �
 | `NERV_UNAUTHENTICATED`             | `NERV_TOKEN`이 비었거나 폐기됐습니다. 설정 → 토큰에서 다시 발급                   |
 | `NERV_FORBIDDEN` · 스코프 부족     | 토큰 스코프가 좁거나, 발급 시점 역할이 그 일을 못 합니다                          |
 | 도구는 되는데 프로젝트가 안 보인다 | `X-NERV-Project`(또는 `NERV_PROJECT`) 값이 틀렸거나 그 프로젝트의 멤버가 아닙니다 |
-| 검토 요청이 그냥 실패한다          | A3 도구입니다 — 사람이 웹에서 눌러야 합니다([승인함](/help/inbox))                |
+| 검토 요청이 그냥 실패한다          | A3 도구입니다 — 사람이 웹에서 눌러야 합니다([받은 요청](/help/inbox))             |
 | `NERV_RATE_LIMIT`                  | 응답의 `retry_after_s`만큼 기다립니다. 병렬 재시도로 우회하지 마세요              |
 | 세션이 `stale`로 넘어간다          | 하트비트가 끊겼습니다. 30분이 지나면 클레임이 회수됩니다([세션](/help/sessions))  |

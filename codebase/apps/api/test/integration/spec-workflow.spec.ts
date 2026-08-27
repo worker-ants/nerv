@@ -442,7 +442,7 @@ async function seed(): Promise<void> {
 }
 
 describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
-  it('같은 버전을 두 번 제출해도 승인함 카드는 하나다', async () => {
+  it('같은 버전을 두 번 제출해도 받은 요청 카드는 하나다', async () => {
     const draft = await specs.draftUpsert({
       roles: ['planner'],
       projectId,
@@ -495,7 +495,7 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
     expect(result['web_url']).toBe('/p/clemvion/specs/SPC-LINK');
   });
 
-  it('제출 응답의 딥링크는 승인 대기면 승인함을 가리킨다 — 다음 행동이 있는 곳으로 보낸다', async () => {
+  it('제출 응답의 딥링크는 승인 대기면 받은 요청을 가리킨다 — 다음 행동이 있는 곳으로 보낸다', async () => {
     const draft = await specs.draftUpsert({
       roles: ['planner'],
       projectId,

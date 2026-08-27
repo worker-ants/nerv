@@ -40,7 +40,7 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     expect(keys).toEqual([queryKeys.projectTasks('prj-1'), queryKeys.projectSessions('prj-1')]);
   });
 
-  it('승인 요청·질문 생성은 승인함을 무효화한다', () => {
+  it('승인 요청·질문 생성은 받은 요청을 무효화한다', () => {
     expect(invalidationKeysFor(envelope(NERV_EVENT.APPROVAL_REQUESTED))).toEqual([
       queryKeys.inbox(),
     ]);

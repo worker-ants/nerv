@@ -453,7 +453,7 @@ export class SpecService {
         payload: { gate_tier: gate.tier, required_approvers: gate.requiredApprovers },
       });
 
-      // T2·T3 은 승인함이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다
+      // T2·T3 은 받은 요청이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다
       return { status: 'in_review', gate, approval_id: approvalId, web_url: '/inbox' };
     });
   }

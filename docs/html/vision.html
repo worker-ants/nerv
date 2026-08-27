@@ -182,7 +182,7 @@
 
   <p>시나리오의 각 단계에는 <b>어느 화면</b>과 <b>어느 MCP 도구</b>가 개입하는지를 태그로 붙였다.</p>
 
-  <p><span class="badge human">S3 스펙 상세</span> = 사람이 보는 화면(S1 홈 대시보드 / S2 프로젝트 개요 / S3 스펙 상세 / S4 작업 보드 / S5 세션 모니터 / S6 리뷰 센터 / S7 승인함 / S8 설정·멤버) — 상세 와이어프레임은 <a href="ui-wireframes.html">3.6 화면 설계</a>.<br>
+  <p><span class="badge human">S3 스펙 상세</span> = 사람이 보는 화면(S1 홈 대시보드 / S2 프로젝트 개요 / S3 스펙 상세 / S4 작업 보드 / S5 세션 모니터 / S6 리뷰 센터 / S7 받은 요청 / S8 설정·멤버) — 상세 와이어프레임은 <a href="ui-wireframes.html">3.6 화면 설계</a>.<br>
   <span class="badge agent">nerv_task_claim</span> = 에이전트가 호출하는 MCP 도구 — 전체 카탈로그는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a>. 사람은 이 호출을 직접 하지 않지만 그 결과는 항상 화면과 이벤트로 드러난다.</p>
 
   <h3>2.2 페르소나 요약</h3>
@@ -190,8 +190,8 @@
   <div class="table-wrap"><table>
     <thead><tr><th>페르소나</th><th>역할(Role)</th><th>지금(clemvion) 겪는 것</th><th>NERV에서의 주 무대</th><th>문제</th></tr></thead>
     <tbody>
-      <tr><td><b>지민</b> · 프로덕트 기획자</td><td><code>planner</code></td><td>스펙은 저장소 안 md, 승인은 git 커밋. 에이전트 질문은 남의 터미널에 뜨고 사라진다</td><td>S3 스펙 상세, S7 승인함, S2 프로젝트 개요</td><td>P3·P7</td></tr>
-      <tr><td><b>서연</b> · 프로덕트 디자이너</td><td><code>designer</code></td><td>참여 경로 자체가 없음. 디자인 결정은 개발자 구두 전달 뒤 스펙에 흡수</td><td>S3 스펙 상세(design 타입), S7 승인함</td><td>P7</td></tr>
+      <tr><td><b>지민</b> · 프로덕트 기획자</td><td><code>planner</code></td><td>스펙은 저장소 안 md, 승인은 git 커밋. 에이전트 질문은 남의 터미널에 뜨고 사라진다</td><td>S3 스펙 상세, S7 받은 요청, S2 프로젝트 개요</td><td>P3·P7</td></tr>
+      <tr><td><b>서연</b> · 프로덕트 디자이너</td><td><code>designer</code></td><td>참여 경로 자체가 없음. 디자인 결정은 개발자 구두 전달 뒤 스펙에 흡수</td><td>S3 스펙 상세(design 타입), S7 받은 요청</td><td>P7</td></tr>
       <tr><td><b>도현</b> · 개발자</td><td><code>developer</code></td><td>worktree 격리는 최상급이나 조정은 공백 — “다른 머신·세션이면 로컬에 안 보여”</td><td>S4 작업 보드, S5 세션 모니터, 터미널(Claude Code)</td><td>P1·P2·P4</td></tr>
       <tr><td><b>하나</b> · QA 엔지니어</td><td><code>qa</code></td><td>리뷰 결론이 13,777개 md 안에 있고 검토 커밋 SHA조차 필드로 없다</td><td>S6 리뷰 센터, S2 커버리지, S4 작업 보드</td><td>P4·P5</td></tr>
     </tbody>
@@ -210,7 +210,7 @@
       <tr><td>09:10</td><td><span class="badge human">S1 홈 대시보드</span></td><td>로그인하면 숫자 배지 세 개 — 승인 대기 2건, 답변 대기 질문 1건, 내 프로젝트 카드에 “활성 세션 3”. 어젯밤 도현의 에이전트가 남긴 질문이 아직 열려 있다는 게 한눈에 보인다.</td></tr>
       <tr><td>09:25</td><td><span class="badge human">S3 스펙 상세</span></td><td>새 기능 “웹챗 위젯 임베드 v2”를 쓴다. 좌측 트리에서 <code>7-channel-web-chat</code> 영역을 골라 <code>feature</code> 타입 스펙을 만들고, 우측 패널에서 요구사항 3개를 EARS 템플릿으로 등록한다 — <i>WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다</i>. 각각 서버 발급 안정 ID(<code>REQ-CWC-031</code>)를 받는다(FR-03).</td></tr>
       <tr><td>09:50</td><td><span class="badge human">S3 스펙 상세</span></td><td>“검토 요청”. 자동 사전 검토가 돈다(clemvion의 consistency-check 5관점을 플랫폼 서비스로 이식). 경고 2건 — 타 문서와 문구 불일치, Rationale 누락. 첫 번째는 참조 링크로 바꾸고(중복 서술이 drift의 근원, D-09) 두 번째를 채운 뒤 재제출. 문서 상태 <span class="badge draft">draft</span> → <span class="badge review">in_review</span> (D-02).</td></tr>
-      <tr><td>10:05</td><td><span class="badge human">S7 승인함</span> <span class="badge agent">nerv_question_create</span></td><td>어제 열린 질문 카드: <i>“세션 복원을 localStorage로 할지 서버 세션으로 할지 — 스펙에 명시 없음. (A)/(B)/(C) 스펙에 남길 질문”</i>. (B)를 고르고 한 줄 코멘트. 즉시 “요청 세션 <code>mac-02/claude-code</code>에 전달됨” 표시 — 도현의 세션이 <code>awaiting_input</code>에서 풀렸다는 뜻이다(FR-11).</td></tr>
+      <tr><td>10:05</td><td><span class="badge human">S7 받은 요청</span> <span class="badge agent">nerv_question_create</span></td><td>어제 열린 질문 카드: <i>“세션 복원을 localStorage로 할지 서버 세션으로 할지 — 스펙에 명시 없음. (A)/(B)/(C) 스펙에 남길 질문”</i>. (B)를 고르고 한 줄 코멘트. 즉시 “요청 세션 <code>mac-02/claude-code</code>에 전달됨” 표시 — 도현의 세션이 <code>awaiting_input</code>에서 풀렸다는 뜻이다(FR-11).</td></tr>
       <tr><td>11:20</td><td>터미널 · Claude Code<br><span class="badge agent">nerv_spec_check</span> <span class="badge agent">nerv_spec_comment_resolve</span></td><td>서연의 코멘트를 반영하려고 S3 웹 에디터에 새 draft 버전을 열어 둔 참이지만, 코멘트를 EARS 문장으로 옮기는 일은 에이전트가 빠르다. 터미널에서 <code>/nerv:spec edit SPC-CWC-007</code>로 초안을 이어쓴다. 에이전트가 <code>nerv_spec_get</code>을 <code>include=comments</code>로 호출해 open 코멘트를 읽고, 빈 상태·오프라인 두 케이스를 EARS 요구사항 수정안으로 만든다 — <i>WHEN 복원할 이전 대화가 없으면 THE SYSTEM SHALL 빈 상태 안내를 보여준다</i> 식이다. 문구를 다듬어 승낙하면 <code>nerv_spec_draft_upsert</code>가 초안을 저장하면서 <b>웹 에디터가 잡고 있던 초안 편집 리스(D-04의 문서 축 확장)를 지민의 터미널 세션으로 자동 인계</b>하고, 열어 둔 웹 탭에는 인계 알림이 뜬다. 이어서 <code>nerv_spec_check</code>로 09:50에 제출하며 강제로 돌던 그 사전 검토를 제출 전에 셀프서비스로 미리 돌려 <b>경고 0</b>을 확인하고, 반영된 코멘트는 <code>nerv_spec_comment_resolve</code>로 닫는다. 응답의 <code>web_url</code>(S3 딥링크)을 열면 방금 저장한 draft가 웹에 그대로 보이고, 이 스펙 작성 세션도 S5 세션 보드에 구현 세션들과 나란히 뜬다(FR-07·FR-08). <b>기획자의 도구가 화면이냐 터미널이냐는 경계가 아니다 — 경계는 계정·역할·리스이고(D-08·D-04), 어느 표면이든 같은 draft·같은 게이트를 지난다.</b></td></tr>
       <tr><td>14:30</td><td><span class="badge human">S3 스펙 상세</span></td><td>오후에 도현의 코멘트가 헤딩 앵커에 하나 더 달렸다 — “복원 실패 시 폴백 필요”. 서연의 빈 상태 코멘트는 11:20에 터미널에서 이미 반영·해소됐으므로, 웹 에디터에서 같은 draft 버전에 폴백 요구사항만 마저 반영하고 재제출 → 두 사람 승인 → <span class="badge approved">approved</span>. 본문이 불변 스냅샷으로 고정되고 이전 버전은 <code>superseded</code>가 된다(FR-02).</td></tr>
       <tr><td>14:45</td><td><span class="badge human">S4 작업 보드</span></td><td>승인된 SpecVersion에서 Task를 파생한다. 위임 명세 4요소(목표/산출물 형식/도구·출처/경계)를 채워야 하고 하나라도 비면 <code>ready</code>로 전이하지 않는다(FR-05). “경계” 칸: <i>“프론트엔드 위젯 코드만. 서버 세션 API는 별도 Task.”</i></td></tr>
@@ -231,7 +231,7 @@
       <tr><td>09:40</td><td><span class="badge human">S1 홈 대시보드</span></td><td>알림: “지민이 검토 요청 — 리뷰어로 지정됨”. 서연은 저장소를 clone한 적이 없고 터미널을 열 필요도 없다(P7 해소).</td></tr>
       <tr><td>10:00</td><td><span class="badge human">S3 스펙 상세</span></td><td>“위젯 최초 진입” 헤딩에 앵커 코멘트: <i>“빈 상태(empty state)와 오프라인 상태 정의가 없습니다. 두 케이스 모두 화면이 필요합니다.”</i> 코멘트는 스레드가 되고 답이 오면 알림으로 돌아온다.</td></tr>
       <tr><td>11:20</td><td><span class="badge human">S3 스펙 상세</span></td><td><code>design</code> 타입 스펙 “웹챗 위젯 v2 — 상태별 화면”을 만들고 상위 feature 스펙과 관계를 건다. 상세 시안은 외부 디자인 도구 링크로. <b>디자인 결정이 처음으로 스펙 그래프의 노드가 된다</b> — 지금까지는 구두 전달 뒤 개발자가 요약해 스펙에 흡수하는 형태였다.</td></tr>
-      <tr><td>14:00</td><td><span class="badge human">S7 승인함</span></td><td>도현의 에이전트가 구현 중 발견해 올린 CR 제안(SPEC-DRIFT 역류 경로 — clemvion 검증 패턴의 플랫폼판). 델타 뷰가 <b>ADDED 2 / MODIFIED 1 / REMOVED 0</b>으로 표시되어 <b>변경분만</b> 읽는다. MODIFIED 한 건이 디자인 토큰 이름을 바꾸는 내용이라 코멘트를 달아 거절(FR-04·FR-11).</td></tr>
+      <tr><td>14:00</td><td><span class="badge human">S7 받은 요청</span></td><td>도현의 에이전트가 구현 중 발견해 올린 CR 제안(SPEC-DRIFT 역류 경로 — clemvion 검증 패턴의 플랫폼판). 델타 뷰가 <b>ADDED 2 / MODIFIED 1 / REMOVED 0</b>으로 표시되어 <b>변경분만</b> 읽는다. MODIFIED 한 건이 디자인 토큰 이름을 바꾸는 내용이라 코멘트를 달아 거절(FR-04·FR-11).</td></tr>
       <tr><td>16:30</td><td><span class="badge human">S5 세션 모니터</span></td><td>구현 진행이 궁금해 세션 보드를 연다. <code>mac-02 / claude-code / 도현</code> 세션이 <span class="badge impl">active</span>, 현재 Task “위젯 상태별 렌더링”, diff <code>+218 −34</code>. Activity 타임라인에서 어떤 스펙을 읽고 무엇을 고쳤는지 시간순으로 보인다(FR-08). 아무것도 클릭하지 않고 닫는다 — <b>물어보지 않아도 안다</b>는 것이 이 화면의 값이다.</td></tr>
     </tbody>
   </table></div>
@@ -251,7 +251,7 @@
       <tr><td>09:08</td><td><span class="badge agent">nerv_task_claim</span> <span class="badge human">S4 작업 보드</span></td><td>1순위 Task 클레임 — scope 선언 <code>spec_ids: [SPC-CWC-007]</code>, <code>file_globs: ["codebase/frontend/src/widget/**"]</code>. 서버가 <b>겹침을 감지</b>: <i>“세션 <code>linux-ci-01/codex/유나</code>가 같은 glob을 30분째 점유 중(리스 잔여 8분)”</i>. 2순위로 넘어간다. 이 한 번의 응답이 P1·P2를 동시에 막는다.</td></tr>
       <tr><td>09:12</td><td><span class="badge agent">nerv_spec_get</span> <span class="badge agent">nerv_spec_tree</span></td><td>승인된 SpecVersion 본문과 연결 Requirement를 읽는다. <b>파일 경로가 아니라 안정 ID</b>로 읽으므로 문서를 옮기거나 이름을 바꿔도 참조가 깨지지 않는다(FR-01).</td></tr>
       <tr><td>09:15~11:40</td><td><span class="badge agent">nerv_task_heartbeat</span></td><td>TDD로 구현이 돈다. 60초마다 하트비트. S4 카드에는 리스 잔여가 줄어들고, S5에는 diff 통계가 5초 이내로 갱신된다(NFR-02).</td></tr>
-      <tr><td>10:30</td><td><span class="badge agent">nerv_question_create</span> <span class="badge human">S7 승인함</span></td><td>세션 복원 방식이 스펙에 없다. 에이전트는 <b>추측하지 않고</b> 선택지 3개를 붙여 질문을 만든다. 세션 <code>active → awaiting_input</code>. 20분 뒤 답이 오면 자동 재개. “명확하면 자동, 모호하면 질문” 규약은 스킬에 명시되고 질문·응답은 감사 로그에 남는다(FR-16).</td></tr>
+      <tr><td>10:30</td><td><span class="badge agent">nerv_question_create</span> <span class="badge human">S7 받은 요청</span></td><td>세션 복원 방식이 스펙에 없다. 에이전트는 <b>추측하지 않고</b> 선택지 3개를 붙여 질문을 만든다. 세션 <code>active → awaiting_input</code>. 20분 뒤 답이 오면 자동 재개. “명확하면 자동, 모호하면 질문” 규약은 스킬에 명시되고 질문·응답은 감사 로그에 남는다(FR-16).</td></tr>
       <tr><td>13:00</td><td><span class="badge human">S5 세션 모니터</span></td><td>점심 사이 유나의 세션이 절전으로 끊겼다. 하트비트가 30분간 없어 <code>stale</code> 자동 전이, 잡고 있던 Task는 <code>claimed → ready</code>로 자동 회수(D-13·FR-06). <b>아무도 이걸 정리하지 않았다</b> — clemvion에서는 6시간 주기 GC reaper를 기다렸고, 그 reaper조차 타 세션의 앵커를 죽일 수 있다는 한계를 스스로 적어 두었다.</td></tr>
       <tr><td>15:20</td><td><span class="badge agent">nerv_review_submit</span> <span class="badge human">S6 리뷰 센터</span></td><td>리뷰를 돌린다. ReviewSession이 <b>입력 스냅샷(커밋 SHA·diff base·브랜치)</b>과 함께 제출된다. 세션 디렉토리 하나에 md가 평균 10.7개(66KB) 쌓이는 대신 Finding 6건이 fingerprint와 함께 등록된다(D-07·FR-09). <b>자기증식 루프가 여기서 끊긴다.</b></td></tr>
       <tr><td>16:10</td><td><span class="badge agent">nerv_finding_resolve</span></td><td>critical 2건을 수정하고 커밋 FK와 함께 해소, warning 1건은 사유를 달아 <code>wont_fix</code>. 라운드가 바뀌어도 같은 지적은 fingerprint로 하나의 Finding에 합쳐지므로 “유예 항목을 세션마다 재서술”하는 낭비가 사라진다.</td></tr>
@@ -271,7 +271,7 @@
         <div class="wf-nav-item">✅ 작업</div>
         <div class="wf-nav-item on">🖥️ 세션</div>
         <div class="wf-nav-item">🔍 리뷰</div>
-        <div class="wf-nav-item">📥 승인함</div>
+        <div class="wf-nav-item">📥 받은 요청</div>
       </div>
       <div class="wf-main">
         <div class="wf-topbar"><span class="ttl">세션 모니터 <span class="marker">1</span></span>
@@ -368,7 +368,7 @@
 
       <rect x="328" y="40" width="126" height="52" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
       <text x="391" y="62" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">in_review</text>
-      <text x="391" y="80" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S7 승인함 · 리뷰어</text>
+      <text x="391" y="80" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">S7 받은 요청 · 리뷰어</text>
 
       <line x1="454" y1="66" x2="490" y2="66" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#a-arr)"/>
 
@@ -451,7 +451,7 @@
       <text x="245" y="326" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">nerv_question_create → 세션 awaiting_input</text>
       <line x1="110" y1="334" x2="374" y2="334" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
 
-      <text x="505" y="356" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">승인함 카드 + 알림</text>
+      <text x="505" y="356" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">받은 요청 카드 + 알림</text>
       <line x1="380" y1="364" x2="624" y2="364" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#b-arr)"/>
 
       <text x="505" y="386" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">선택지 (B) + 코멘트 — 원클릭</text>
@@ -652,7 +652,7 @@
         <li><b>Task / Claim / Lease + scope 겹침 판정</b> — 클레임을 원자적 연산으로 제공하는 후보가 없다. clemvion이 “로컬에 안 보여서” 제거한 기능의 복원</li>
         <li><b>AgentSession 레지스트리 + typed Activity</b> — 로컬 CLI 세션(사내 hostname)을 보여주는 후보가 없다</li>
         <li><b>ReviewSession / Finding / Resolution + 게이트 판정 API</b> — 커밋 스냅샷 기반 커버리지 판정을 제공하는 후보가 없다(P5·P6의 직접 해법)</li>
-        <li><b>승인함(Inbox) + 알림 라우팅</b> — 다섯 유형을 한 수신함에 모으는 후보가 없다</li>
+        <li><b>받은 요청(Inbox) + 알림 라우팅</b> — 다섯 유형을 한 수신함에 모으는 후보가 없다</li>
         <li><b>증적·커버리지 그래프</b> — 수동 ✅ 없이 관계에서 계산되는 커버리지를 제공하는 후보가 없다</li>
       </ul>
     </div>

@@ -816,7 +816,7 @@ WHERE c.status = 'active'
 
 `nerv_glob_overlap(a, b)`의 MVP 구현은 와일드카드 앞 접두사 비교다(`codebase/backend/src/modules/chat-channel/**` vs `codebase/backend/**` → 겹침). 정확한 glob 교집합은 어렵지만 **과검출은 경고, 미검출은 사고**이므로 넉넉한 쪽으로 잡는다. 차단이냐 경고냐는 프로젝트 정책이다(D-06). 이 질의가 clemvion이 로컬 한계 때문에 삭제한 기능(#576)의 복원이라는 점은 §2.4에서 다뤘다.
 
-### 4.7 "내가 처리해야 할 결재" — 승인함 (P7 · FR-11 · FR-12)
+### 4.7 "내가 처리해야 할 결재" — 받은 요청 (P7 · FR-11 · FR-12)
 
 ```sql
 SELECT a.id, a.subject_type, a.subject_id, a.requested_at, a.due_at,
@@ -834,7 +834,7 @@ WHERE a.project_id = ANY($1)
 ORDER BY (a.subject_type = 'question') DESC, a.requested_at;
 ```
 
-S1 홈의 숫자 배지와 S7 승인함이 이 질의다. `question`을 맨 위로 올리는 이유는 그 세션이 `awaiting_input`으로 **멈춰 서 있기** 때문이다.
+S1 홈의 숫자 배지와 S7 받은 요청이 이 질의다. `question`을 맨 위로 올리는 이유는 그 세션이 `awaiting_input`으로 **멈춰 서 있기** 때문이다.
 
 ### 4.8 "이 스펙에 무슨 일이 있었나" — 감사 타임라인 (P3 · FR-16)
 
@@ -902,7 +902,7 @@ fingerprint = sha256(
 | `agent_session` | `(project_id, state, last_heartbeat_at)` | 세션 보드(§4.2) + stale 스캔 |
 | `review_session` | `(project_id, head_sha)`, `(changeset_hash, round_no)` | 게이트 판정(§4.4) |
 | `finding` | `UNIQUE (project_id, fingerprint)`, `(project_id, status, severity)` | dedup + 리뷰 센터 큐 |
-| `approval` | `(project_id, assignee_user_id) WHERE decision IS NULL` | 승인함(§4.7) |
+| `approval` | `(project_id, assignee_user_id) WHERE decision IS NULL` | 받은 요청(§4.7) |
 | `event` | `(project_id, occurred_at DESC)`, `(subject_type, subject_id, occurred_at)` | 피드·감사(§4.8) |
 | `spec_version` | **하이브리드 검색**(2026-08-22 MVP 확정 — [4.1 MVP 범위와 스택 확정](../04-mvp/scope.md) §2.1): GIN tsvector + pg_trgm(한국어·부분 일치) + pgvector HNSW(헤딩 청크 임베딩 — 인덱스 테이블 `spec_chunk_embedding`은 재생성 가능한 파생 데이터로 **엔티티 29종에 들지 않는다**, DDL 정본 [4.3](../04-mvp/database.md) §2.15) + `spec_relation` 1-hop 관계 확장 | 스펙 검색(FR-01) — 파이프라인 정본 [4.4](../04-mvp/api.md) §2.2b |
 

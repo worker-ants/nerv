@@ -196,7 +196,7 @@
       <tr><td><code>E08-S04</code></td><td>S3 스펙 상세 — TipTap 에디터(+md 소스 read-only 토글)·버전·diff·코멘트·승인 패널·편집 리스 UI·터미널 이어쓰기 안내</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S3 · <a href="screens.html">4.5 화면 명세</a> §2~3 · D-09</td><td>WHEN 편집 중 같은 사용자의 다른 표면이 리스를 인계받으면, THE SYSTEM SHALL 리스 인계 배너를 표시하고 에디터를 read-only로 전환한다</td><td>E08-S01 · E06-S02 · E09-S01 · E10-S01</td></tr>
       <tr><td><code>E08-S05</code></td><td>S4 작업 보드 — 칸반, 승인된 SpecVersion에서 Task 파생, 위임 명세 4요소 폼(zod 검증)</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S4 · <a href="screens.html">4.5 화면 명세</a> §2 · FR-05</td><td>WHEN 위임 명세 4요소가 미완성인 채 <code>ready</code> 전이를 시도하면, THE SYSTEM SHALL 누락 필드를 폼 검증으로 표시하고 전이를 막는다</td><td>E08-S01 · E04-S05</td></tr>
       <tr><td><code>E08-S06</code></td><td>S5 세션 모니터 승격 — 읽기 전용 보드에 steer/stop 추가, activity 타임라인</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S5 · FR-08 · <a href="roadmap.html">3.7 로드맵</a> §3.2</td><td>WHEN 사람이 세션 카드에서 stop을 누르면, THE SYSTEM SHALL 지시를 하트비트 역채널에 실어 세션에 전달한다</td><td>E05-S03 · E04-S03</td></tr>
-      <tr><td><code>E08-S07</code></td><td>S7 승인함 — 스펙 승인·플랜·질문 3유형 카드, 원클릭 승인/거절/코멘트</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S7 · FR-11 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6.4</td><td>WHEN 카드에서 결정을 처리하면, THE SYSTEM SHALL 요청 세션을 <code>awaiting_input</code>에서 즉시 해제한다</td><td>E08-S01 · E13-S01</td></tr>
+      <tr><td><code>E08-S07</code></td><td>S7 받은 요청 — 스펙 승인·플랜·질문 3유형 카드, 원클릭 승인/거절/코멘트</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S7 · FR-11 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6.4</td><td>WHEN 카드에서 결정을 처리하면, THE SYSTEM SHALL 요청 세션을 <code>awaiting_input</code>에서 즉시 해제한다</td><td>E08-S01 · E13-S01</td></tr>
       <tr><td><code>E08-S08</code></td><td>S8 설정 — 멤버·역할(6종)·에이전트 토큰 발급/폐기·게이트 정책</td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S8 · FR-14 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §1.6</td><td>WHEN admin이 아닌 역할이 게이트 정책 편집에 접근하면, THE SYSTEM SHALL API와 UI 양쪽에서 거부한다</td><td>E08-S01 · E03-S02</td></tr>
       <tr><td><code>E08-S09</code></td><td>전역 퀵 스위처(⌘K) — 안정 ID 직행·최근 방문·핀(localStorage)·키보드 완결</td><td><a href="screens.html">4.5 화면 명세</a> §1.3a(REQ-WEB-040)</td><td>WHEN 어느 라우트에서든 ⌘K를 누르면, THE SYSTEM SHALL 마우스 없이 검색·이동을 완결시킨다</td><td>E08-S01 · E09-S10</td></tr>
       <tr><td><code>E08-S10</code></td><td>트리 스케일 + 관계 UI — 지연 로드(depth=1)·가상 스크롤·트리 필터, 검색 결과 뷰(관련도·related 구분·degraded 배너), S3 관계 패널·영향 미리보기</td><td><a href="screens.html">4.5 화면 명세</a> §2.4(REQ-WEB-041~044)</td><td>WHEN 트리 노드 200개 초과 프로젝트를 열면, THE SYSTEM SHALL 최초 페인트에 전체 트리 로드 없이 렌더한다<br>WHEN 검토 요청을 누르면, THE SYSTEM SHALL 역참조·파생 Task 영향 미리보기를 표시한다</td><td>E08-S04 · E09-S12</td></tr>
@@ -231,7 +231,7 @@
       <tr><td><code>E10-S01</code></td><td>초안 편집 리스 — TTL 30분(클레임 리스와 동일 상수), 암묵 획득/해제, 같은 사용자 표면 간 자동 인계 + 이전 표면 알림</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.7 · D-04 · <a href="roadmap.html">3.7 로드맵</a> §3.2</td><td>WHEN 같은 사용자가 웹 편집 중 터미널에서 <code>nerv_spec_draft_upsert</code>를 호출하면, THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알린다<br>WHEN 다른 사용자가 리스 보유 초안에 upsert하면, THE SYSTEM SHALL <code>NERV_DRAFT_LEASED</code>로 거부하고 보유자 정보를 반환한다</td><td>E09-S01</td></tr>
       <tr><td><code>E10-S02</code></td><td>MCP P1 도구 8종 — <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code> <code>nerv_task_update</code> <code>nerv_question_create</code> <code>nerv_session_event</code> <code>nerv_spec_relate</code> (MVP 16종 완성)</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3 · <a href="roadmap.html">3.7 로드맵</a> §3.3 · <a href="scope.html">4.1 범위·스택</a> §4</td><td>WHEN <code>base_version</code>이 현재 버전과 불일치하는 upsert가 오면, THE SYSTEM SHALL <code>NERV_PRECONDITION</code>을 반환하고 데이터를 덮어쓰지 않는다</td><td>E03-S03 · E09-S01</td></tr>
       <tr><td><code>E10-S03</code></td><td>코멘트 왕복 — 헤딩 slug·REQ ref 앵커(<code>spec_comment</code>), open→resolved 추적, 남은 open 수 반환</td><td><a href="data-model.html">3.3 데이터 모델</a> §2.2 · D-09 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3(<code>nerv_spec_comment_resolve</code>)</td><td>WHEN 코멘트가 달리면, THE SYSTEM SHALL <code>spec.comment_added</code> 이벤트를 적재하고 스레드 참여자에게 알림을 라우팅한다</td><td>E09-S01 · E13-S03</td></tr>
-      <tr><td><code>E10-S04</code></td><td>제출·승인 왕복 완성 — <code>nerv_spec_submit_review</code> 멱등(pending Approval 재사용), 저장·제출 응답의 <code>web_url</code> 딥링크</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3</td><td>WHEN 같은 <code>spec_version_id</code>로 제출을 재호출하면, THE SYSTEM SHALL 승인함 카드를 중복 생성하지 않고 기존 pending Approval을 반환한다</td><td>E10-S02 · E13-S01</td></tr>
+      <tr><td><code>E10-S04</code></td><td>제출·승인 왕복 완성 — <code>nerv_spec_submit_review</code> 멱등(pending Approval 재사용), 저장·제출 응답의 <code>web_url</code> 딥링크</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3</td><td>WHEN 같은 <code>spec_version_id</code>로 제출을 재호출하면, THE SYSTEM SHALL 받은 요청 카드를 중복 생성하지 않고 기존 pending Approval을 반환한다</td><td>E10-S02 · E13-S01</td></tr>
     </tbody>
   </table></div>
 
@@ -259,7 +259,7 @@
     </tbody>
   </table></div>
 
-  <h3>3.6 E13 — 승인함 백엔드·질문·알림</h3>
+  <h3>3.6 E13 — 받은 요청 백엔드·질문·알림</h3>
   <p>FR-11 ◐(3유형) + FR-12 ◐(인앱). 성공 기준 1-1(플랫폼 밖 승인 0)·1-3·1-4의 기반.</p>
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
@@ -334,7 +334,7 @@
       <text x="565" y="74" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">승인 게이트</text>
 
       <rect x="680" y="40" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
-      <text x="755" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E13 승인함·</text>
+      <text x="755" y="58" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12" font-weight="700">E13 받은 요청·</text>
       <text x="755" y="74" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">질문·알림</text>
 
       <rect x="490" y="124" width="150" height="44" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>

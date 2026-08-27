@@ -84,7 +84,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `pending` | 위임·멘션으로 세션 생성(`created` webhook) | "접수는 됐다, 아직 응답 없음" | `pending` |
 | `active` | `thought` 또는 `action` activity 방출 | "지금 일하는 중" (사고 과정 스트리밍) | `active` |
-| `awaitingInput` | `elicitation` activity 방출 | "사람 답변 대기 — 승인함에 카드 도착" | `awaiting_input` |
+| `awaitingInput` | `elicitation` activity 방출 | "사람 답변 대기 — 받은 요청에 카드 도착" | `awaiting_input` |
 | `complete` | `response` activity 방출 | "끝났다 + 결과 코멘트 자동 생성" | `complete` |
 | `error` | `error` activity 방출 | "실패했다(사유 표시)" | `error` |
 | `stale` | 무활동 30분 | "죽은 세션 — 사람이 감시할 필요 없음" | `stale` |
@@ -262,7 +262,7 @@ Slack의 AI 앱(에이전트)은 상단 바에서 열리는 **스플릿 뷰 컨�
 | --- | --- | --- |
 | `assistant.threads.setStatus` | "thinking…" 로딩 상태 표시 | Activity `thought`(ephemeral) → 세션 카드 상태 라인 |
 | `assistant.threads.setTitle` | 스레드 제목 설정 | 세션 요약 한 줄(현재 Task) |
-| `assistant.threads.setSuggestedPrompts` | 추천 프롬프트 제시 | 승인함 카드의 선택지(Question options) |
+| `assistant.threads.setSuggestedPrompts` | 추천 프롬프트 제시 | 받은 요청 카드의 선택지(Question options) |
 | `chat.startStream` / `appendStream` / `stopStream` | 응답 스트리밍 | WebSocket 기반 Activity 스트림(NFR-02) |
 | plan/task 디스플레이 모드 | 멀티스텝 추론 진행 표시 | 위임 명세·플랜 승인 뷰(FR-05, D-06) |
 
@@ -320,7 +320,7 @@ sequenceDiagram
     H->>A: steer — 실행 중 지시 수정
   end
   A->>P: ④ 개입 요청 — elicitation
-  P-->>H: 승인함 카드 + 알림 (세션은 awaiting_input)
+  P-->>H: 받은 요청 카드 + 알림 (세션은 awaiting_input)
   H->>P: 승인 / 거절 / 코멘트
   P->>A: 답변 전달 → active 복귀
   A->>P: ⑤ draft 산출물 업로드 (스펙 draft · PR · 리뷰)
@@ -336,7 +336,7 @@ sequenceDiagram
 | **① 위임(Delegate)** | 이슈 할당 또는 @멘션 → Agent Session 자동 생성. `app:assignable`/`app:mentionable` 스코프 | 이슈 assignee로 Copilot, @copilot 멘션, `/task`, automations | assignee·@멘션·**워크플로 전환·보드 컬럼** 4표면 | Notion: 스케줄·Slack·메일·캘린더·DB 변경 트리거 / Asana: 태스크 할당·AI Studio 스텝 / Slack: DM·멘션 | Task **delegate** 지정 또는 ready 큐 self-claim(`nerv_task_claim`). 위임 명세 4요소(목표/산출물 형식/도구·출처/경계) 필수 — **FR-05, FR-06, D-04, D-08** |
 | **② ACK(접수 신호)** | **10초 내 `thought`** 미방출 시 UI에 무응답 표시 | 👀 리액션·세션 생성으로 접수 표시 | Agents 섹션에 실행 표시 | Slack `setStatus`("thinking…") | 세션 등록(`pending`) 후 첫 Activity로 `active` 전이, 지연은 보드에 노출 — **FR-07, D-13** |
 | **③ 진행 스레드(Progress)** | `thought`/`action` activity 스트림(ephemeral) | 세션 로그(내부 추론·도구·토큰 사용량), mission control 통합 뷰, **실행 중 steer** | Agents 섹션 + 실시간 코드 뷰 + 채팅 패널 | Notion: run 로그 / Slack: 스트리밍·plan·task 모드 | Activity 타임라인(`thought/action`) + 세션 모니터(S5) 실시간 갱신 ≤5s, steer/stop 액션 — **FR-08, NFR-02** |
-| **④ 개입 요청(Elicitation)** | `elicitation` → `awaitingInput` + 자동 코멘트 + Inbox 알림 | PR 코멘트·리뷰 요청, "모호하면 질문" 정책 | "필요한 입력을 채운 뒤 공유" | Asana 체크포인트 / AI Studio "Human input" 스텝 | **Question 엔티티**(선택지 포함) → 세션 `awaiting_input` → 승인함(S7) 카드 + 알림. 응답 시 즉시 세션 해제 — **FR-11, FR-12, D-06, D-13** |
+| **④ 개입 요청(Elicitation)** | `elicitation` → `awaitingInput` + 자동 코멘트 + Inbox 알림 | PR 코멘트·리뷰 요청, "모호하면 질문" 정책 | "필요한 입력을 채운 뒤 공유" | Asana 체크포인트 / AI Studio "Human input" 스텝 | **Question 엔티티**(선택지 포함) → 세션 `awaiting_input` → 받은 요청(S7) 카드 + 알림. 응답 시 즉시 세션 해제 — **FR-11, FR-12, D-06, D-13** |
 | **⑤ draft 산출물(Draft)** | 코딩 세션 diff + 검증 아티팩트 → Reviews 탭 | **draft PR**, 제출 전 1차 자동 리뷰 | draft comment(개인 검토 후 공개), draft PR(머지 금지) | Notion: 페이지 변경 + run 로그(가역) | SpecVersion `draft` / ReviewSession·Finding / PR 링크. **서버에 업로드된 산출물만 진실** — **FR-02, FR-09, D-14** |
 | **⑥ 완료 보고(Completion)** | `response` → `complete` + 코멘트 자동 생성 | 리뷰어 지정, **지시자 승인 무효**, "Approve and run workflows" | 사람이 PR 생성·머지, work item key 자동 링크 | Notion 가역 run / Asana 감사·가역 | `complete` 전이 + 게이트 판정(해소된 리뷰 커버리지) 통과 시 Task `done`, 증적·커버리지 갱신, Event 기록 — **FR-10, FR-13, FR-16, D-14** |
 
@@ -347,7 +347,7 @@ sequenceDiagram
 | 위임에는 **경계와 기대 산출물**이 명시돼야 한다 | Linear guidance, GitHub AGENTS.md, 위임 명세 4요소 | 같은 일을 두 세션이 다르게 해석(P1·P2) | Task 스키마 필수 필드 미충족 시 `ready` 전이 거부(FR-05) |
 | 접수는 **시간 제한이 있는 신호**여야 한다 | Linear 10초 ACK | 죽은 세션인지 일하는 중인지 구분 불가 | 첫 Activity 지연 노출 + 무활동 30분 `stale`(FR-07, D-13) |
 | 진행은 **결과가 아니라 과정**이 보여야 한다 | GitHub 세션 로그, Linear activity | 스코프 이탈·의도 오해를 완료 후에야 발견 | Activity 스트림 + Scope 겹침 감지(FR-08, D-04) |
-| 질문은 **세션을 멈추고 사람 수신함으로** 가야 한다 | Linear elicitation, Asana 체크포인트 | 에이전트가 추측으로 진행하거나 무한 대기 | Question → `awaiting_input` → 승인함(FR-11, D-06) |
+| 질문은 **세션을 멈추고 사람 수신함으로** 가야 한다 | Linear elicitation, Asana 체크포인트 | 에이전트가 추측으로 진행하거나 무한 대기 | Question → `awaiting_input` → 받은 요청(FR-11, D-06) |
 | 산출물은 **draft 상태로 도착**해야 한다 | 전 플랫폼 공통 | 검토 없이 확정본이 되어 되돌릴 수 없음 | SpecVersion `draft`, PR draft, Finding `open`(FR-02, FR-09) |
 | **지시자 ≠ 승인자**, 위험 행동은 별도 승인 | GitHub | 자기 승인으로 게이트가 형식화 | 승인 권한 분리 + BYPASS 기록(FR-10, FR-11, D-06) |
 | 완료는 **불변 기록**으로 남아야 한다 | Linear frozen activity, GitHub audit, Notion run 로그 | 출처 추적 불가(P5), 감사 불가 | Event append-only + `is_agent` + ReviewSession 커밋 스냅샷(FR-16, D-07, D-10) |
@@ -364,7 +364,7 @@ sequenceDiagram
 │ ⚙️ action    nerv_task_claim(TASK-7f21) · scope: spec/nav, src/nav/**  │
 │ ⚙️ action    Edit src/nav/tabs.tsx  (+82 −14)                          │
 │ ❓ elicitation  "탭 최대 개수 초과 시 스크롤 vs 접기 — 어느 쪽?"        │
-│                 [ 스크롤 ]  [ 접기 ]  [ 코멘트 ]     → 승인함으로 전송  │
+│                 [ 스크롤 ]  [ 접기 ]  [ 코멘트 ]     → 받은 요청으로 전송  │
 │ ────────────────────────────────────────────────────────────────────── │
 │ [ 전체 로그 ]   [ steer: 지시 추가 ]   [ stop ]    리스 잔여 08:12     │
 └────────────────────────────────────────────────────────────────────────┘
@@ -395,7 +395,7 @@ clemvion과의 대비가 이 결정의 실효를 보여준다. clemvion은 조�
 | 6상태 머신 + 응답성 SLA | Linear 6-state, 10초/30분 | `pending→active↔awaiting_input→complete/error/stale` + 하트비트 임계 | **FR-07**, **D-13** |
 | typed activity 불변 로그 | Linear 5종 activity, frozen 권고 | Activity(`thought/action/elicitation/response/error`) append-only | **FR-08**, D-10 |
 | 미션 컨트롤 + 실행 중 steer/stop | GitHub mission control, prompt box, Stop session | 세션 모니터(S5)의 steer·stop 액션 | **FR-08**, NFR-02 |
-| 개입 요청 → 대기 상태 → 수신함 | Linear elicitation, Asana 체크포인트 | Question → `awaiting_input` → 승인함(S7) 원클릭 처리 | **FR-11**, FR-12, D-06 |
+| 개입 요청 → 대기 상태 → 수신함 | Linear elicitation, Asana 체크포인트 | Question → `awaiting_input` → 받은 요청(S7) 원클릭 처리 | **FR-11**, FR-12, D-06 |
 | 산출물은 draft로 수렴 | GitHub draft PR, Rovo draft comment, Linear Reviews 탭 | SpecVersion `draft`, Finding `open`, PR 링크 | FR-02, FR-09, D-14 |
 | 지시자 ≠ 승인자, 위험 행동 별도 승인 | GitHub 승인 규칙, Approve and run workflows | 승인 권한 분리, 게이트 4+1과 BYPASS 기록 | FR-10, FR-11, **D-06** |
 | 산출물 ↔ 세션 역링크 | GitHub 커밋 메시지의 세션 로그 링크 | ReviewSession 커밋 스냅샷 + Evidence 그래프 | FR-09, FR-13, D-07 |
@@ -418,7 +418,7 @@ clemvion과의 대비가 이 결정의 실효를 보여준다. clemvion은 조�
 | 조정 계층(ready 큐·원자적 클레임·리스·scope 겹침) | **자체 구축** | Linear/GitHub는 "한 이슈에 한 에이전트"를 가정한다. 스펙 영역 겹침 감지는 스펙 도메인을 아는 서버만 할 수 있다(D-04) |
 | 세션 레지스트리·활동 스트림 | **자체 구축(규약은 차용)** | 벤더 플랫폼은 자기 에이전트만 본다. NERV는 로컬 Claude Code·Codex·클라우드 세션을 **한 보드에** 모아야 한다(FR-07·08) |
 | 리뷰 수집·게이트 판정 | **자체 구축** | 커밋 범위 리뷰 커버리지 판정은 스펙·Requirement와 조인해야 성립한다(D-07, FR-10) |
-| 승인함·알림 | **자체 구축 + 채널 연동** | 승인 카드의 도메인(스펙/CR/플랜/질문)은 NERV 고유. 전달 채널은 Slack·메일 연동(FR-11·12) |
+| 받은 요청·알림 | **자체 구축 + 채널 연동** | 승인 카드의 도메인(스펙/CR/플랜/질문)은 NERV 고유. 전달 채널은 Slack·메일 연동(FR-11·12) |
 | 코드 호스팅·PR·CI | **연동** | non-goal. git forge 웹훅으로 PR·머지·CI 결과를 증적으로 수집(§3.6, FR-13) |
 | 에이전트 실행 환경(샌드박스·worktree) | **연동** | Linear/Jira/GitHub가 관리형 샌드박스를 제공하지만, NERV는 실행기를 만들지 않는다([2.2 오케스트레이션](agent-orchestration.md) §5.5) |
 | 채팅·문서 협업(Slack/Notion 대체) | **연동** | 범용 협업 도구를 다시 만들 이유가 없다 |
@@ -438,7 +438,7 @@ clemvion과의 대비가 이 결정의 실효를 보여준다. clemvion은 조�
 - 에이전트 액터·세션·Activity 엔티티와 상태 컬럼 → [3.3 데이터 모델](../03-proposal/data-model.md)
 - MCP 도구 카탈로그·인증·세션 규약(ACK·하트비트·질문 에스컬레이션) → [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md)
 - 승인 흐름·게이트·알림 라우팅 → [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md)
-- 세션 모니터(S5)·승인함(S7)·스펙 상세(S3) 인라인 스레드 → [3.6 화면 설계](../03-proposal/ui-wireframes.md)
+- 세션 모니터(S5)·받은 요청(S7)·스펙 상세(S3) 인라인 스레드 → [3.6 화면 설계](../03-proposal/ui-wireframes.md)
 - 실시간·이벤트·감사 축의 시스템 구성 → [3.2 시스템 아키텍처](../03-proposal/architecture.md)
 - Build vs Buy와 포지셔닝 → [3.1 비전과 핵심 시나리오](../03-proposal/vision.md)
 - 단계별 도입(자율 트리거·allowlist의 시점) → [3.7 로드맵](../03-proposal/roadmap.md)
@@ -494,7 +494,7 @@ clemvion과의 대비가 이 결정의 실효를 보여준다. clemvion은 조�
 - 자기증식 루프 — 한 changeset이 **8라운드** 리뷰, 마지막 라운드 프롬프트 **94파일 중 86개가 이전 `review/**` 산출물**. → 불변 activity/DB 저장의 필요(§2.4, D-01·D-07).
 - 조율 상태 전량이 **gitignored 로컬 파일**(단일 호스트 갇힘), 하네스 훅 약 **7,600줄**(최대 단일 훅 1,005줄). → 세션 레지스트리 부재(§6.2), 규약의 플랫폼화(§2.7).
 - 스펙 동시수정 자동 검출 제거(**#576**, "다른 머신·세션이면 로컬에 안 보여"), worktree reaper의 타 세션 앵커 파괴 위험("살아있는 세션 앵커 레지스트리 필요"), 머지 이벤트는 `gh` 폴링만. → D-13·D-04의 직접 근거(§6.2).
-- 사람 개입 채널이 그 터미널의 그 세션 안뿐 → 비개발 직군 참여 불가(P7). → 승인함(FR-11)과 알림(FR-12)의 근거(§5.2 ④).
+- 사람 개입 채널이 그 터미널의 그 세션 안뿐 → 비개발 직군 참여 불가(P7). → 받은 요청(FR-11)과 알림(FR-12)의 근거(§5.2 ④).
 
 ### 관련 문서
 

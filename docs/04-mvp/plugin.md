@@ -223,7 +223,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
    승인 대기(`NERV_APPROVAL_REQUIRED`)면 `approval_id`로 상태를 폴링하고,
    그동안 다른 작업을 시작하지 않는다.
 3. 성공 응답의 `web_url`을 터미널에 표시한다. 같은 `spec_version_id` 재호출은 기존
-   pending Approval을 재사용하므로 승인함 카드가 중복 생성되지 않는다.
+   pending Approval을 재사용하므로 받은 요청 카드가 중복 생성되지 않는다.
 
 ## 에러 대응
 
@@ -324,15 +324,15 @@ allowed-tools:
 ````markdown
 ---
 name: question
-description: 판단 불가·경계 이탈·게이트 필요 상황의 에스컬레이션. 선택지를 구조화해 승인함으로 보내고, 같은 멱등 키 재호출로 답변을 폴링한다.
+description: 판단 불가·경계 이탈·게이트 필요 상황의 에스컬레이션. 선택지를 구조화해 받은 요청으로 보내고, 같은 멱등 키 재호출로 답변을 폴링한다.
 allowed-tools:
   - mcp__nerv__nerv_question_create
 ---
 
 # /nerv:question — 에스컬레이션
 
-에스컬레이션은 알림이 아니라 **승인함 항목**이다. 질문이 열려 있는 동안 이 세션은
-awaiting_input 상태로 승인함(S7)과 세션 모니터(S5)에 보인다.
+에스컬레이션은 알림이 아니라 **받은 요청 항목**이다. 질문이 열려 있는 동안 이 세션은
+awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 
 ## 언제 쓰나 (트리거 매트릭스)
 

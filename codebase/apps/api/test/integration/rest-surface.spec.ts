@@ -1,4 +1,4 @@
-// REST 표면 전량 — 프로젝트·멤버·토큰 · Task · 세션 steer · 승인함 · 커버리지 · 알림
+// REST 표면 전량 — 프로젝트·멤버·토큰 · Task · 세션 steer · 받은 요청 · 커버리지 · 알림
 //
 // 실제 HTTP 로 돈다. 서비스 단위 테스트가 이미 판정을 지키고 있으므로 여기서 확인할 것은
 // **번역**이다(REQ-CB-003): 경로·역할 가드·에러 코드가 화면이 기대하는 모양으로 나오는가.
@@ -400,8 +400,8 @@ describe('세션 steer (EP-SES-04)', () => {
   });
 });
 
-describe('승인함·알림·커버리지 표면', () => {
-  it('전역 승인함은 프로젝트를 가로지르고 대기 시간을 싣는다 (EP-APR-01)', async () => {
+describe('받은 요청·알림·커버리지 표면', () => {
+  it('전역 받은 요청은 프로젝트를 가로지르고 대기 시간을 싣는다 (EP-APR-01)', async () => {
     const { ApprovalService } = await import('../../src/modules/approval/approval.service.js');
     const specVersionId = await seedSpecVersion();
     await app.get(ApprovalService).request({
@@ -412,7 +412,7 @@ describe('승인함·알림·커버리지 표면', () => {
       assigneeUserId: adminId,
     });
 
-    // PAT 는 사람이 아니다 — 전역 승인함은 세션 쿠키(사람)만 본다(D-08 · auth-session.spec.ts)
+    // PAT 는 사람이 아니다 — 전역 받은 요청은 세션 쿠키(사람)만 본다(D-08 · auth-session.spec.ts)
     const denied = await call('GET', '/api/v1/approvals');
     expect(denied.status).toBe(403);
 

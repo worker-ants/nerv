@@ -114,7 +114,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `nerv_spec_search` | `query`, `type?`, `status?`, `requirement_id?`, `references?`(이 스펙을 참조하는 문서만 — REST EP-SPEC-02와 동일 필터), `limit` | 매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫 + 관련도) + **`related[]`**(상위 결과의 `spec_relation` 1-hop — 질의에 없지만 걸려 있는 스펙) + `degraded?`(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 [4.4 API 명세](../04-mvp/api.md) §2.2b) | `spec:read` | A1 | 컨텍스트 수집·중복 확인 — **`related[]`가 중복 확인의 핵심 입력**이다(언급 안 된 인접 스펙) | 읽기 전용 |
 | `nerv_spec_get` | `spec_id`, `version?`(기본 approved 최신 — **Task 컨텍스트에서는 기준 버전을 지정한다**, §2.4), `baseline?`(베이스라인 이름 — 그 세트에 핀된 버전을 읽는다, `version`과 배타), `include[]`(requirements/tasks/reviews/comments/relations — relations는 양방향 요약: 총계+상위 20, 전량은 REST EP-SPEC-18) | 본문 markdown(비신뢰 래핑, §6.3) + 메타 + Requirement 목록 + 파생 Task + **`basis_superseded?`**(요청 버전이 superseded면 최신 approved 버전 번호와 함께 표시) | `spec:read` | A1 | 구현 착수 전, 리뷰 전 | 읽기 전용 — `version`/`baseline` 지정 시 불변 스냅샷이라 결과 고정 |
 | `nerv_spec_draft_upsert` | `spec_id?`, `parent_id`, `type`, `title`, `body_markdown`, `base_version`, `change_summary` | `spec_version_id`, `version`, 델타 요약(ADDED/MODIFIED/REMOVED), 검증 경고, `web_url`(S3 딥링크) | `spec:draft` | A2 | 스펙 초안 작성·CR 제안 | 조건부 — (spec_id, base_version, content_hash) 동일이면 같은 draft 반환. base_version 불일치는 `NERV_PRECONDITION`. 초안 편집 리스 자동 획득·갱신, 타인 보유 시 `NERV_DRAFT_LEASED` |
-| `nerv_spec_submit_review` | `spec_version_id`, `reviewer_hint?`, `note` | `approval_id[]`, `draft → in_review` 전이 결과, 지정 리뷰어·SLA, `web_url`(S3 딥링크) | `spec:draft`(+제출) | **A3** | 초안 완료 후 사람 검토 요청 | 멱등 — 같은 `spec_version_id`의 pending Approval을 재사용(승인함 카드 중복 생성 금지) |
+| `nerv_spec_submit_review` | `spec_version_id`, `reviewer_hint?`, `note` | `approval_id[]`, `draft → in_review` 전이 결과, 지정 리뷰어·SLA, `web_url`(S3 딥링크) | `spec:draft`(+제출) | **A3** | 초안 완료 후 사람 검토 요청 | 멱등 — 같은 `spec_version_id`의 pending Approval을 재사용(받은 요청 카드 중복 생성 금지) |
 | `nerv_spec_check` | `spec_version_id` | 5검사기(cross-spec/rationale-continuity/convention-compliance/requirement-shape/task-coherence)별 결과 — warning/block + 앵커 위치 | `spec:read` | A1 | 초안 저장 후·제출 전 아무 때나 | 읽기 전용 |
 | `nerv_spec_comment_resolve` | `comment_id`, `resolution_note?`, `resolved_in_version_id?` | 코멘트 새 상태(open→resolved), 남은 open 코멘트 수 | `spec:draft` | A2 | 코멘트 반영 직후 | 멱등 — (comment_id, resolved) 재호출은 no-op |
 | `nerv_spec_relate` | `from`(spec key), `to`(spec key), `kind`(refines/depends_on/duplicates/supersedes), `remove?` | 선언된 관계와 반대 방향 이웃, 순환 거부 사유 | `spec:draft` | A2 | 문서를 읽고 관계를 선언할 때 | 멱등 — 같은 (from, to, kind) 재호출은 no-op. `remove:true`가 되돌리는 경로다 |
@@ -381,7 +381,7 @@ sequenceDiagram
   participant H as NERV 훅 수집기
   participant M as NERV MCP 게이트웨이
   participant DB as NERV 서버 · DB
-  actor U as 사람 · 승인함
+  actor U as 사람 · 받은 요청
   S->>H: SessionStart 훅 - user · hostname · agent_type · cwd
   H->>DB: AgentSession pending → active
   H-->>S: additionalContext - 내 클레임 · 미해결 finding
@@ -400,7 +400,7 @@ sequenceDiagram
   H->>DB: Activity 적재 - 세션 타임라인 · diff 통계
   S->>M: nerv_question_create - 경계 이탈 판단 필요
   M->>DB: Question 생성 + AgentSession → awaiting_input
-  DB->>U: 승인함 카드 알림
+  DB->>U: 받은 요청 카드 알림
   U-->>M: 선택지 결정 · 코멘트
   S->>M: nerv_question_create 재호출 - 같은 멱등 키
   M-->>S: status answered + 결정 내용
@@ -563,10 +563,10 @@ bootstrap → next → claim → (구현 ⟲ heartbeat 60s) → review_submit �
 
 ### 5.3 질문 에스컬레이션
 
-에이전트 → 사람 에스컬레이션은 알림이 아니라 **승인함 항목**이다(상태 머신: 대기 → 결정 → 만료). clemvion의 ESCALATE 매트릭스(user-decision/spec/infra/e2e-fail-3x/sensitive-fix)를 그대로 트리거 목록으로 이식한다.
+에이전트 → 사람 에스컬레이션은 알림이 아니라 **받은 요청 항목**이다(상태 머신: 대기 → 결정 → 만료). clemvion의 ESCALATE 매트릭스(user-decision/spec/infra/e2e-fail-3x/sensitive-fix)를 그대로 트리거 목록으로 이식한다.
 
 ```text
-┌─ S7 승인함 › 질문 ① ────────────────────── 요청 12분 전 · 세션 대기 중 ② ─┐
+┌─ S7 받은 요청 › 질문 ① ────────────────────── 요청 12분 전 · 세션 대기 중 ② ─┐
 │ ❓ TASK-142 구현 중 경계 이탈                    claude-code@wks-park       │
 │ "노드 삭제 시 하위 연결선 처리 규칙이 스펙에 없습니다. 어떻게 할까요?"  ③  │
 │   ( ) A. 연결선도 함께 삭제                                                │
@@ -577,7 +577,7 @@ bootstrap → next → claim → (구현 ⟲ heartbeat 60s) → review_submit �
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- ① 질문·승인·리뷰는 같은 승인함의 카드 타입이다(notify/question/review 3종).
+- ① 질문·승인·리뷰는 같은 받은 요청의 카드 타입이다(notify/question/review 3종).
 - ② 이 카드가 열려 있는 동안 해당 AgentSession은 `awaiting_input`이고 S5 세션 모니터에도 같은 상태로 보인다.
 - ③ 질문 본문은 에이전트가 쓴 텍스트이므로 **지시가 아니라 인용으로** 렌더한다.
 - ④ 선택지는 `options[]`로 구조화해 받는다 — 자유 서술 답변은 에이전트가 재해석하며 드리프트가 생긴다.
@@ -767,5 +767,5 @@ Claude Code의 권한 평가 순서(훅 → deny → ask 강제 레인 → 권�
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — MCP 게이트웨이·훅 수집기의 배치와 리비전 전략
 - [3.3 데이터 모델](../03-proposal/data-model.md) — AgentSession·Activity·Claim·ReviewSession의 필드와 상태 머신
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 역할별 권한 표와 게이트가 걸리는 지점
-- [3.6 화면 설계](../03-proposal/ui-wireframes.md) — S5 세션 모니터·S7 승인함·S8 토큰 화면의 상세 와이어프레임
+- [3.6 화면 설계](../03-proposal/ui-wireframes.md) — S5 세션 모니터·S7 받은 요청·S8 토큰 화면의 상세 와이어프레임
 - [3.7 로드맵](../03-proposal/roadmap.md) — Phase 0에서 실측 확정할 항목(훅 헤더 토큰 주입·Codex hooks 스키마)과 배포 순서

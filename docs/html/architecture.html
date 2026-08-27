@@ -207,7 +207,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>컴포넌트</th><th>책임</th><th>하지 않는 일</th><th>관련 FR/NFR</th></tr></thead>
     <tbody>
-      <tr><td><b>웹앱</b> (Vite + React SPA)</td><td>S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 승인함 원클릭 액션, WebSocket 구독으로 보드 실시간 갱신</td><td>비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증</td><td>FR-08·11·13 / NFR-02</td></tr>
+      <tr><td><b>웹앱</b> (Vite + React SPA)</td><td>S1~S8 화면 렌더링, markdown 편집기·프리뷰·diff 뷰, 받은 요청 원클릭 액션, WebSocket 구독으로 보드 실시간 갱신</td><td>비즈니스 규칙 판정(전부 API에 위임), 에이전트 인증</td><td>FR-08·11·13 / NFR-02</td></tr>
       <tr><td><b>API + MCP 게이트웨이</b> (NestJS)</td><td>REST/RPC와 Streamable HTTP MCP 엔드포인트와 WebSocket·SSE 실시간 채널을 <b>같은 도메인 서비스 위에</b> 노출. 상태 전이 트랜잭션, 클레임 원자성, 게이트 판정 SQL, OAuth 2.1 리소스 서버</td><td>장기 실행 작업(워커로), 모델 호출(에이전트 하네스가 담당)</td><td>FR-01~11·14·15 / NFR-02·03</td></tr>
       <tr><td><b>훅 수집기</b> (ingest + OTLP)</td><td>Claude Code <code>type:"http"</code> 훅과 Codex hooks/notify를 토큰 인증으로 수신해 202로 즉시 응답하고 큐에 적재. OTLP는 정량 관측용 별도 경로</td><td>차단 <b>판정의 산출</b>(판정은 API가 하고 수집기는 응답을 중계한다). 단 <code>Stop</code> 훅만 동기 판정 경로다</td><td>FR-07·08·16 / NFR-02·04</td></tr>
       <tr><td><b>Postgres</b></td><td>스펙·요구사항·작업·클레임·세션·활동·리뷰·발견사항·승인·이벤트·알림의 단일 진실. 게이트 판정도 여기서 SQL로</td><td>대용량 blob 보관(오브젝트 스토리지로), 실시간 방송(Valkey로)</td><td>FR-01~17</td></tr>
@@ -395,7 +395,7 @@
       <tr><td>5</td><td>API → Postgres</td><td><span class="badge draft">draft</span> → <span class="badge review">in_review</span>, 역할·영역 기반 리뷰어 자동 지정, Approval 생성</td></tr>
       <tr><td>6</td><td>API → 워커</td><td>자동 사전 검토(일관성 검사) 큐잉 + <code>spec.submitted</code> 이벤트</td></tr>
       <tr><td>7</td><td>워커 → 리뷰어</td><td>Notification — 인앱 · Slack (승인 요청은 즉시 채널)</td></tr>
-      <tr><td>8</td><td>리뷰어 → 웹앱</td><td>승인함(S7)에서 델타(ADDED/MODIFIED/REMOVED) 확인 후 승인</td></tr>
+      <tr><td>8</td><td>리뷰어 → 웹앱</td><td>받은 요청(S7)에서 델타(ADDED/MODIFIED/REMOVED) 확인 후 승인</td></tr>
       <tr><td>9</td><td>API → Postgres</td><td><span class="badge review">in_review</span> → <span class="badge approved">approved</span> — <b>불변 스냅샷 발행</b>, 이전 approved는 superseded</td></tr>
       <tr><td>10</td><td>API → Postgres</td><td>Requirement 델타 계산 → Task <span class="badge draft">backlog</span>/<span class="badge impl">ready</span> 자동 파생</td></tr>
       <tr><td>11</td><td>API → 웹앱 · 세션</td><td>WebSocket <code>spec.approved</code> 방송, 대기 중이던 에이전트 세션에 승인 결과 전달</td></tr>
@@ -433,7 +433,7 @@
       <tr><td>3</td><td>세션 → MCP <i>(60초 주기 반복)</i></td><td><code>nerv_task_heartbeat</code> — lease 연장 + <code>last_heartbeat_at</code> 갱신</td></tr>
       <tr><td>4</td><td>세션 → 훅 수집기</td><td><code>PostToolUse</code> · <code>Stop</code> 훅 → Activity 적재(thought / action / response)</td></tr>
       <tr><td>5</td><td>세션 → MCP</td><td><code>nerv_question_create</code> — 세션은 <code>awaiting_input</code>으로 대기</td></tr>
-      <tr><td>6</td><td>워커 → 사람</td><td>승인함 카드로 Notification 전달</td></tr>
+      <tr><td>6</td><td>워커 → 사람</td><td>받은 요청 카드로 Notification 전달</td></tr>
       <tr><td>7</td><td>사람 → MCP</td><td>승인 / 거절 / 코멘트 → 세션 <code>awaiting_input</code> → <code>active</code></td></tr>
       <tr><td>8</td><td colspan="2"><b>세션이 죽으면 하트비트가 끊긴다</b> — 워커가 무활동 30분(설정값) 초과 세션을 스캔</td></tr>
       <tr><td>9</td><td>워커 → Postgres</td><td>AgentSession → <code>stale</code> + Claim 자동 회수(<span class="badge impl">claimed</span> → <span class="badge impl">ready</span>)</td></tr>

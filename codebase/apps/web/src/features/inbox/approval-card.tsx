@@ -30,7 +30,7 @@ export function waitedLabel(t: Translator, seconds: number): string {
 export interface ApprovalCardProps {
   card: Record<string, unknown>;
   compact?: boolean;
-  /** 승인함이 포커스한 카드 — j/k 로 옮겨온 카드에 a/r/c 가 꽂힌다(REQ-WEB-025) */
+  /** 받은 요청이 포커스한 카드 — j/k 로 옮겨온 카드에 a/r/c 가 꽂힌다(REQ-WEB-025) */
   active?: boolean;
 }
 

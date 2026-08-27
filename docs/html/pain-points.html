@@ -52,7 +52,7 @@
     <h1>문제 정의와 요구사항</h1>
     <p class="lead">1인용 Claude Code 하네스 <code>clemvion</code>이 여러 세션·여러 사람으로 확장될 때 반복해서 무너지는 지점 여덟 가지(P1~P8)를 증상 → 실측 근거 → 근본 원인으로 정리하고, 이를 해소하기 위한 요구사항 FR-01~FR-17 · NFR-01~NFR-05를 수용 기준과 함께 정의한다.</p>
     <div class="meta-line">
-      <span>버전 v0.1 (2026-08-13)</span>
+      <span>버전 v0.2 (2026-08-27)</span>
       <span>원본: <code>docs/01-problem/pain-points.md</code></span>
       <span>이 문서가 정의하는 FR/NFR 번호를 전 문서가 인용한다</span>
     </div>
@@ -336,7 +336,7 @@
       <text x="486" y="216" fill="var(--text-mute)" font-family="var(--font)" font-size="11">→ FR-03 · FR-09 · FR-10 · FR-13</text>
 
       <rect x="470" y="246" width="418" height="58" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
-      <text x="486" y="270" fill="var(--text)" font-family="var(--font)" font-size="13">④ 비동기 사람 개입 — 알림·승인함</text>
+      <text x="486" y="270" fill="var(--text)" font-family="var(--font)" font-size="13">④ 비동기 사람 개입 — 알림·받은 요청</text>
       <text x="486" y="290" fill="var(--text-mute)" font-family="var(--font)" font-size="11">→ FR-11 · FR-12</text>
     </svg>
     <div class="cap">그림 1. 세 가지 잘못된 전제 → 여덟 개의 증상 → 서버가 가져야 할 네 가지 능력</div>
@@ -500,7 +500,7 @@
       <tr><td><b>FR-08</b></td><td>세션 활동 스트림(typed Activity)과 미션 컨트롤(전역 보드, steer/stop)</td><td>세션이 남긴 Activity(<code>thought</code>/<code>action</code>/<code>elicitation</code>/<code>response</code>/<code>error</code>)가 시간순 타임라인으로 보이고, 전역 보드에서 임의 세션에 지시(steer)와 중단(stop)을 보낼 수 있다</td></tr>
       <tr><td><b>FR-09</b></td><td>리뷰 수집: ReviewSession(커밋 스냅샷)·Finding(fingerprint dedup)·Resolution</td><td>모든 ReviewSession이 입력 스냅샷(커밋 SHA·diff base·브랜치)을 필수로 갖고, 라운드가 바뀌어도 동일 지적은 fingerprint로 하나의 Finding에 합쳐지며, 각 Finding은 <code>open→fixed/dismissed/wont_fix</code> 처분과 근거(커밋 또는 사유)를 남긴다</td></tr>
       <tr><td><b>FR-10</b></td><td>게이트 판정 API: 커밋 범위 리뷰 커버리지, Task done 전이 조건, 면제 기록</td><td>"이 커밋 범위를 커버하는 해소된 리뷰가 있는가"를 단일 API 호출로 판정하고, Task의 <code>done</code> 전이가 그 판정을 통과해야 하며, 면제(BYPASS)는 사유·행위자·시각과 함께 기록된다</td></tr>
-      <tr><td><b>FR-11</b></td><td>승인함(Inbox): 스펙 승인/CR/플랜 승인/질문/에스컬레이션 — 승인·거절·코멘트</td><td>다섯 유형의 요청이 한 수신함에 모이고, 카드에서 승인/거절/코멘트를 원클릭으로 처리하면 요청한 세션이 <code>awaiting_input</code>에서 즉시 해제된다</td></tr>
+      <tr><td><b>FR-11</b></td><td>받은 요청(Inbox): 스펙 승인/CR/플랜 승인/질문/에스컬레이션 — 승인·거절·코멘트</td><td>다섯 유형의 요청이 한 수신함에 모이고, 카드에서 승인/거절/코멘트를 원클릭으로 처리하면 요청한 세션이 <code>awaiting_input</code>에서 즉시 해제된다</td></tr>
       <tr><td><b>FR-12</b></td><td>알림: 인앱/Slack/메일, 중요도 라우팅, 다이제스트(피로 방지)</td><td>이벤트가 구독 규칙(역할·워치)에 따라 채널로 라우팅되고, 승인 요청 같은 즉시성 항목과 단순 상태 변화가 분리되어 후자는 다이제스트로 묶인다</td></tr>
       <tr><td><b>FR-13</b></td><td>증적·커버리지: Requirement↔Task↔PR↔Review 그래프, 커버리지 대시보드</td><td>임의의 Requirement에서 연결된 Task·PR/커밋·ReviewSession으로 양방향 드릴다운이 가능하고, 스펙별 구현/검증 커버리지가 수동 표기 없이 관계에서 계산되어 대시보드에 표시된다</td></tr>
       <tr><td><b>FR-14</b></td><td>멀티테넌시: Organization/Project/User n:n, 역할 기반 권한</td><td>한 사용자가 여러 프로젝트에, 한 프로젝트가 여러 사용자에 속할 수 있고, 역할(admin·planner·designer·developer·qa·viewer)별 권한이 API와 UI 양쪽에서 강제되며 다른 조직의 데이터는 조회되지 않는다</td></tr>

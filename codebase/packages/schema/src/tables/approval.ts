@@ -51,7 +51,7 @@ export const approval = pgTable(
   },
   (t) => [
     check('approval_bypass_reason_ck', sql`NOT ${t.isBypass} OR ${t.bypassReason} IS NOT NULL`),
-    // 승인함(§4.7) — 내 결정을 기다리는 것만 센다
+    // 받은 요청(§4.7) — 내 결정을 기다리는 것만 센다
     index('approval_inbox')
       .on(t.projectId, t.assigneeUserId)
       .where(sql`${t.decision} IS NULL`),
