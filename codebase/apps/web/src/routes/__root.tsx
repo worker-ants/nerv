@@ -19,6 +19,8 @@ export const Route = createRootRoute({ component: RootComponent });
 
 /** 셸을 두르지 않는 경로 — 로그인 전에는 헤더·사이드바가 의미를 갖지 않는다. */
 const BARE_ROUTES = new Set(['/login', '/signup']);
+/** 초대 링크는 로그인 전에도 열려야 한다 — 모르는 것에 가입부터 하라고 할 수는 없다 */
+const BARE_PREFIXES = ['/invite/'];
 
 function RootComponent(): React.JSX.Element {
   const matches = useMatches();
@@ -39,12 +41,17 @@ function RootComponent(): React.JSX.Element {
   const unauthenticated = me.isError && me.error instanceof NervApiError && me.error.status === 401;
 
   useEffect(() => {
-    if (unauthenticated && !BARE_ROUTES.has(pathname)) {
+    if (
+      unauthenticated &&
+      !BARE_ROUTES.has(pathname) &&
+      !BARE_PREFIXES.some((p) => pathname.startsWith(p))
+    ) {
       void navigate({ to: '/login', search: { redirect: pathname } });
     }
   }, [navigate, pathname, unauthenticated]);
 
-  if (BARE_ROUTES.has(pathname)) return <Outlet />;
+  if (BARE_ROUTES.has(pathname) || BARE_PREFIXES.some((p) => pathname.startsWith(p)))
+    return <Outlet />;
 
   return (
     <AppShell projectSlug={projectSlug} activeSpecKey={activeSpecKey}>

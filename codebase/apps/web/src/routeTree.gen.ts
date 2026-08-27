@@ -19,6 +19,7 @@ import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as HelpIndexRouteImport } from './routes/help/index'
 import { Route as HelpChapterRouteImport } from './routes/help/$chapter'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as OOrgRouteImport } from './routes/o.$org'
 import { Route as PProjRouteRouteImport } from './routes/p.$proj/route'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
@@ -84,6 +85,11 @@ const HelpChapterRoute = HelpChapterRouteImport.update({
   id: '/$chapter',
   path: '/$chapter',
   getParentRoute: () => HelpRouteRoute,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const OOrgRoute = OOrgRouteImport.update({
   id: '/o/$org',
@@ -172,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/p/$proj': typeof PProjRouteRouteWithChildren
   '/help/$chapter': typeof HelpChapterRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/signup': typeof SignupRoute
   '/help/$chapter': typeof HelpChapterRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/p/$proj': typeof PProjRouteRouteWithChildren
   '/help/$chapter': typeof HelpChapterRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/p/$proj'
     | '/help/$chapter'
+    | '/invite/$token'
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/signup'
     | '/help/$chapter'
+    | '/invite/$token'
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/p/$proj'
     | '/help/$chapter'
+    | '/invite/$token'
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
@@ -331,6 +343,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   SignupRoute: typeof SignupRoute
   PProjRouteRoute: typeof PProjRouteRouteWithChildren
+  InviteTokenRoute: typeof InviteTokenRoute
   OOrgRoute: typeof OOrgRoute
 }
 
@@ -405,6 +418,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/help/$chapter'
       preLoaderRoute: typeof HelpChapterRouteImport
       parentRoute: typeof HelpRouteRoute
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/o/$org': {
       id: '/o/$org'
@@ -584,6 +604,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   SignupRoute: SignupRoute,
   PProjRouteRoute: PProjRouteRouteWithChildren,
+  InviteTokenRoute: InviteTokenRoute,
   OOrgRoute: OOrgRoute,
 }
 export const routeTree = rootRouteImport

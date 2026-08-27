@@ -325,3 +325,26 @@ export function useMembers(orgSlug: string | null): UseQueryResult<Row[]> {
 export function useTokens(): UseQueryResult<Row[]> {
   return useQuery({ queryKey: ['me', 'tokens'], queryFn: () => apiFetch<Row[]>('/me/tokens') });
 }
+
+/**
+ * **내게 온 초대** — 홈·온보딩·알림 세 화면이 같은 값을 쓴다(EP-INV-06).
+ *
+ * 알림 테이블을 타지 않는 이유가 있다: `notification.project_id` 는 NOT NULL 인데 조직
+ * 초대에는 프로젝트가 없고, 무엇보다 **초대받은 사람은 아직 아무 프로젝트의 멤버가
+ * 아니다** — 프로젝트 스코프 알림 목록은 그에게 언제나 비어 있다.
+ */
+export function useMyInvitations(): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: ['me', 'invitations'],
+    queryFn: () => apiFetch<Row[]>('/me/invitations'),
+  });
+}
+
+/** 조직이 보낸 초대 — 설정의 멤버 탭이 쓴다(EP-INV-02, admin) */
+export function useOrgInvitations(orgSlug: string | null): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: ['org', orgSlug, 'invitations'],
+    queryFn: () => apiFetch<Row[]>(`/orgs/${orgSlug ?? ''}/invitations`),
+    enabled: orgSlug !== null,
+  });
+}

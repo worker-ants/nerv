@@ -257,7 +257,7 @@ function str(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function principalOf(req: ProjectRequest): Principal {
+export function principalOf(req: ProjectRequest): Principal {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
     throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });

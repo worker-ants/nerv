@@ -13,6 +13,7 @@ import { rows, useCoverage, useEvents, useInbox, useMe } from '../lib/queries.js
 import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
 import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
+import { InvitationCards } from '../components/invitation-cards.js';
 
 export const Route = createFileRoute('/')({ component: HomeScreen });
 
@@ -50,6 +51,12 @@ function HomeScreen(): React.JSX.Element {
             ? t('home.greeting_clear', { name })
             : t('home.greeting_pending', { name, count: cards.length })}
       </h1>
+
+      {/* **받은 초대가 먼저다.** 아직 들어가지도 않은 조직의 일이라 '오늘 할 일'보다
+          앞에 선다 — 수락하기 전에는 그 조직의 어떤 것도 보이지 않는다 */}
+      <div className="mt-8">
+        <InvitationCards />
+      </div>
 
       <section className="mt-8" data-testid="today-strip">
         <div className="mb-1 flex items-baseline gap-[9px]">

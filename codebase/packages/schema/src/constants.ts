@@ -135,3 +135,12 @@ export const TASK_DONE_WINDOW_DAYS = 7;
  * SQL 은 TS 를 import 할 수 없으므로 이 상수를 정본으로 두고 **테스트가 둘을 대조한다**.
  */
 export const SEED_ORG_SLUG = 'default';
+
+/**
+ * 초대 링크의 수명(일) — 조직 초대(api.md §2.1b · 사람 결정 2026-08-27).
+ *
+ * 짧게 잡는 이유는 **되찾는 길이 있기 때문**이다: 만료되면 admin 이 다시 만든다.
+ * 링크는 메신저·메일을 타고 흐르고 그 흔적은 오래 남는다 — 오래 사는 링크는 오래
+ * 사는 열쇠다.
+ */
+export const INVITATION_TTL_DAYS = 7;

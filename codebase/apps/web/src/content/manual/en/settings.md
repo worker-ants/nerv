@@ -11,6 +11,18 @@ What the two header selects let you _pick_, this tab lets you create, rename and
 - You cannot create a new project on the same slug. If an archived project holds that name, the screen says so — **restore** it instead of creating a new one.
 - **Delete an organisation** — possible **only while it holds no projects**. That puts one reversible step (archiving a project) in front of an irreversible one.
 
+## Inviting people
+
+Under **Invitations** on the Members tab, pick an email, a role and a scope, and you get an **invitation link**.
+
+- **The link is shown once, right there.** The server cannot produce it again — copy it and pass it on (there is no automatic email yet).
+- **Only the invited email can accept.** If the link reaches someone else, it does not let them in.
+- It **expires after 7 days**. Just make a new one.
+- It is the **same link** whether or not they already have an account. Without one they sign up and are returned to the invitation automatically.
+- Sent it by mistake? **Revoke** it from the list. Revoking keeps the record — who invited whom is part of the audit trail.
+
+On the receiving side the invitation shows as a card on **Home, Getting started and Notifications**, and can be accepted right there.
+
 ## Members
 
 Who is here and in what role. A role can be granted across the whole organisation or on a single project. When one person holds both, **permissions are the union**.

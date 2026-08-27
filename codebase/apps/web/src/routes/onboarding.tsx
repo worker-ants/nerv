@@ -13,6 +13,7 @@ import { fetchMe, landingFor, primaryMembership } from '../lib/session.js';
 import { apiFetch } from '../lib/api.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { Button, Card, Field, Input, PageBody, PageHeader } from '../components/ui/primitives.js';
+import { InvitationCards } from '../components/invitation-cards.js';
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingScreen });
 
@@ -33,6 +34,10 @@ function OnboardingScreen(): React.JSX.Element {
   return (
     <PageBody>
       <PageHeader title={t('onboarding.title')} description={t('onboarding.lead')} />
+
+      {/* 소속이 없는 사람에게 초대가 와 있으면 **조직을 만들기 전에** 그것을 보인다 —
+          부른 조직이 있는데 새로 만드는 것은 조직을 가르는 일이다 */}
+      <InvitationCards />
 
       {membership === null ? (
         <CreateOrgCard email={me.data?.email ?? ''} />

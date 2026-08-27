@@ -13,6 +13,7 @@ import { queryKeys } from '../lib/query-keys.js';
 import { rows, useNotifications } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
 import { StatusBadge } from '../components/status-badge.js';
+import { InvitationCards } from '../components/invitation-cards.js';
 import {
   Button,
   EmptyState,
@@ -68,6 +69,12 @@ function NotificationScreen(): React.JSX.Element {
           ) : undefined
         }
       />
+
+      {/* 초대는 알림 테이블을 타지 않는다(초대받은 사람은 아직 아무 프로젝트의 멤버가
+          아니다) — 그래도 **알림이라 불리는 화면**에는 보여야 한다 */}
+      <div className="mb-4">
+        <InvitationCards heading={false} />
+      </div>
       {notifications.isLoading && <Skeleton rows={5} />}
       {!notifications.isLoading && items.length === 0 && (
         <EmptyState icon="○" title={t('notif.empty')} hint={t('notif.empty_hint')} />

@@ -8,19 +8,26 @@
 // 로그인과 같은 규율: 실패 사유는 **폼 안**에 있고 비밀번호만 초기화한다.
 
 import { useT } from '../lib/i18n.js';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { authFailureText, fetchMe, signIn, signUp } from '../lib/session.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { Button, Field, Input } from '../components/ui/primitives.js';
 
-export const Route = createFileRoute('/signup')({ component: SignupScreen });
+export const Route = createFileRoute('/signup')({
+  // 초대 링크에서 온 사람은 가입이 끝나면 **그 초대로 돌아간다**(REQ-WEB-089)
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    ...(typeof search['redirect'] === 'string' ? { redirect: search['redirect'] } : {}),
+  }),
+  component: SignupScreen,
+});
 
 function SignupScreen(): React.JSX.Element {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const search = useSearch({ from: '/signup' });
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,8 +50,9 @@ function SignupScreen(): React.JSX.Element {
     // better-auth 가 이미 세션을 세웠더라도 한 번 더 부르는 편이 확실하다(멱등이다).
     await signIn({ email, password });
     queryClient.setQueryData(queryKeys.me(), await fetchMe());
-    // 소속이 없는 상태이므로 온보딩으로 — 거기서 조직을 만든다
-    void navigate({ to: '/onboarding' });
+    // 초대에서 왔으면 그 자리로 돌아간다. 아니면 소속이 없으므로 온보딩으로 — 거기서
+    // 조직을 만든다.
+    void navigate({ to: search.redirect ?? '/onboarding' });
   }
 
   return (

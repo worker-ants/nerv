@@ -7,13 +7,27 @@
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
-import { rows, useMe, useMembers } from '../../lib/queries.js';
+import { rows, useMe, useMembers, useOrgInvitations } from '../../lib/queries.js';
 import { rolesInOrg } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRealtime } from '../../lib/realtime.js';
-import { EmptyState, PageHeader, Table, Td, Th, Tr } from '../../components/ui/primitives.js';
+import {
+  Button,
+  EmptyState,
+  Field,
+  Input,
+  Mono,
+  PageHeader,
+  SectionTitle,
+  Select,
+  Table,
+  Td,
+  Th,
+  Tr,
+} from '../../components/ui/primitives.js';
 
 /**
  * 같은 사람·같은 스코프의 멤버십을 **한 줄로 묶는다**. 서버는 부여마다 행을 주므로
@@ -100,6 +114,11 @@ function MembersTab(): React.JSX.Element {
           {t('settings.members.admin_only_post')}
         </p>
       )}
+      {/* **부르는 자리와 관리하는 자리가 같아야 한다.** 멤버 표는 이미 있는 사람만 다루고,
+          새 사람을 넣는 길은 화면에 아예 없었다 — 서버의 EP-MBR-02 는 기존 사용자만
+          찾으므로 신규 사용자는 어느 쪽으로도 들어올 수 없었다(사람 지시 2026-08-27) */}
+      <InviteSection orgSlug={orgSlug} projectSlug={projectSlug} canInvite={isAdmin} />
+
       {rows(members.data).length === 0 ? (
         <EmptyState icon="👥" title={t('settings.members.empty')} />
       ) : (
@@ -161,6 +180,174 @@ function MembersTab(): React.JSX.Element {
             </Tr>
           ))}
         </Table>
+      )}
+    </section>
+  );
+}
+
+/**
+ * 초대 구역 — 이메일·역할·스코프로 링크를 만들고, 보낸 초대를 회수한다(EP-INV-01~03).
+ *
+ * **링크는 만들 때 한 번만 보인다.** 서버는 해시만 갖고 있어 다시 보여 줄 수 없다(PAT 와
+ * 같은 규율 · D-08) — 그래서 그 사실을 화면이 먼저 말하고, 복사 버튼을 붙인다.
+ *
+ * 메일 발송은 Phase 2 다. MVP 에서는 **admin 이 링크를 직접 전달한다** — 없는 기능을
+ * 있는 것처럼 그리지 않는다.
+ */
+function InviteSection({
+  orgSlug,
+  projectSlug,
+  canInvite,
+}: {
+  orgSlug: string | null;
+  projectSlug: string | null;
+  canInvite: boolean;
+}): React.JSX.Element {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const { pushToast } = useRealtime();
+  const invitations = useOrgInvitations(canInvite ? orgSlug : null);
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<string>('developer');
+  const [scope, setScope] = useState<'org' | 'project'>('org');
+  const [link, setLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const refresh = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'invitations'] });
+  };
+
+  const send = useMutation({
+    mutationFn: () =>
+      apiFetch<{ token: string }>(`/orgs/${orgSlug ?? ''}/invitations`, {
+        method: 'POST',
+        body: { email, role, project: scope === 'project' ? projectSlug : null },
+      }),
+    onSuccess: (result) => {
+      setLink(`${window.location.origin}/invite/${result.token}`);
+      setCopied(false);
+      setEmail('');
+      refresh();
+    },
+    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+  });
+
+  const revoke = useMutation({
+    mutationFn: (id: string) => apiFetch(`/invitations/${id}`, { method: 'DELETE' }),
+    onSuccess: refresh,
+    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+  });
+
+  if (!canInvite) return <></>;
+
+  return (
+    <section className="mb-6">
+      <SectionTitle
+        action={
+          <Button size="sm" data-testid="invite-new" onClick={() => setOpen(!open)}>
+            {open ? t('common.cancel') : t('invite.new')}
+          </Button>
+        }
+      >
+        {t('invite.title')}
+      </SectionTitle>
+
+      {open && (
+        <form
+          className="mb-3 flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            send.mutate();
+          }}
+        >
+          <div className="min-w-56 flex-1">
+            <Field label={t('invite.email')}>
+              <Input
+                type="email"
+                required
+                data-testid="invite-email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-9"
+              />
+            </Field>
+          </div>
+          <Field label={t('invite.role')}>
+            <Select value={role} onChange={(e) => setRole(e.target.value)} className="h-9">
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t('invite.scope')}>
+            <Select
+              value={scope}
+              onChange={(e) => setScope(e.target.value === 'project' ? 'project' : 'org')}
+              className="h-9"
+            >
+              <option value="org">{t('invite.scope_org')}</option>
+              {projectSlug !== null && <option value="project">{projectSlug}</option>}
+            </Select>
+          </Field>
+          <Button type="submit" variant="primary" disabled={send.isPending} className="h-9">
+            {send.isPending ? t('invite.sending') : t('invite.send')}
+          </Button>
+        </form>
+      )}
+
+      {link !== null && (
+        <div
+          data-testid="invite-link"
+          className="mb-3 rounded-nerv border border-border bg-status-action-soft px-3 py-2"
+        >
+          <p className="text-xs text-status-action">{t('invite.link_once')}</p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <code className="min-w-0 flex-1 truncate font-mono text-xs">{link}</code>
+            <Button
+              size="sm"
+              onClick={() => {
+                void navigator.clipboard.writeText(link).then(() => setCopied(true));
+              }}
+            >
+              {copied ? t('invite.copied') : t('invite.copy')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {rows(invitations.data).length === 0 ? (
+        <p className="text-sm text-text-faint">{t('invite.none')}</p>
+      ) : (
+        <ul className="flex flex-col">
+          {rows(invitations.data).map((row) => (
+            <li
+              key={String(row['id'])}
+              className="flex items-center gap-3 border-b border-border py-2 text-sm last:border-b-0"
+            >
+              <span className="min-w-0 flex-1 truncate">{String(row['email'])}</span>
+              <Mono>{String(row['role'])}</Mono>
+              <span className="w-28 text-xs text-text-faint">
+                {row['project_slug'] === null ? t('invite.scope_org') : String(row['project_slug'])}
+              </span>
+              <span className="w-16 text-xs text-text-mute">
+                {t(`invite.${String(row['state'])}` as never)}
+              </span>
+              {row['state'] === 'pending' && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={revoke.isPending}
+                  onClick={() => revoke.mutate(String(row['id']))}
+                >
+                  {t('invite.revoke')}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

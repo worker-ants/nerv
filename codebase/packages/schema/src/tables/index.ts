@@ -10,6 +10,7 @@
 
 export * from './auth.js';
 export * from './tenancy.js'; // organization · user · project · membership · api_token
+export * from './invitation.js'; // invitation (조직 초대 — 2026-08-27)
 export * from './session.js'; // agent_session · activity
 export * from './spec.js'; // spec · spec_version · requirement · requirement_version
 //                            · spec_relation · spec_comment · spec_baseline
