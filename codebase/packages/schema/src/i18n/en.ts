@@ -78,6 +78,9 @@ export const en = {
   'error.org.not_found': 'Organization not found.',
   'error.project.missing_fields': 'slug, key and name are required.',
   'error.project.not_found': 'Project not found.',
+  'error.project.slug_archived':
+    'An archived project already uses "{slug}" — you can restore it instead of creating a new one.',
+  'error.project.slug_taken': 'A project already uses "{slug}".',
   'error.project.unresolved': 'The project could not be resolved.',
   'error.question.not_open': 'That question is not open.',
   'error.relation.auto_kind':
@@ -186,6 +189,8 @@ export const en = {
   'settings.workspace.project_slug': 'Slug',
   'settings.workspace.projects': 'Projects',
   'settings.workspace.restore': 'Restore',
+  'settings.workspace.show_archived': 'Show archived',
+  'settings.workspace.show_archived_hint': 'Also lists archived projects — restore them here',
   'settings.workspace.slug_fixed': 'The slug anchors URLs and API paths, so it stays fixed —',
   'settings.workspace.slug_hint': 'Used in URLs (/p/…)',
   'severity.critical': 'critical',

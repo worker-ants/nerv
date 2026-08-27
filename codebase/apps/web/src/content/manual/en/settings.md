@@ -6,7 +6,9 @@ What the two header selects let you _pick_, this tab lets you create, rename and
 
 - **Create a project** — type a name and the address (slug) and key follow from it. The key is the short prefix on task and spec numbers (`CLV-T-3F92A1`).
 - **Rename** — only the name changes. **The slug does not** — addresses and API paths are built on it, so changing it would break every link already out in the world.
-- **Archive a project** — it drops out of lists but is not deleted, and its address still works. It can be undone.
+- **Archive a project** — it drops out of lists but is not deleted, and its address still works. It can be undone: turn on **Show archived** above the list and press **Restore** on that row.
+- An archived project's **notifications and approval cards are hidden.** You should not be kept waiting on decisions for something you put away — they come back when you restore it.
+- You cannot create a new project on the same slug. If an archived project holds that name, the screen says so — **restore** it instead of creating a new one.
 - **Delete an organisation** — possible **only while it holds no projects**. That puts one reversible step (archiving a project) in front of an irreversible one.
 
 ## Members

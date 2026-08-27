@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.16 · 2026-08-24 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.17 · 2026-08-27 · HTML 판: [api.html](../html/api.html)
+>
+> v0.17 변경(2026-08-27 — 보관이 되돌릴 수 없는 일이었다, 사람 보고): ① **`resolveProject` 가 보관을 걸러** 보관한 프로젝트의 모든 경로가 409 였다 — **복구 엔드포인트까지** 프로젝트 경로라 한 번 보관하면 되살릴 길이 없었고, 주소로 열람도 되지 않았다(§1.6a · REQ-API-031). ② **전역 승인함·알림·안읽음 수에서 보관한 프로젝트를 뺀다**(REQ-API-032) — 목록에는 보이는데 누르면 아무 일도 일어나지 않았다. 승인 카드와 **질문 카드**가 서로 다른 조건을 쓰고 있어 한쪽만 고치면 반만 사라진다. ③ 같은 slug 재생성이 유니크 제약 위반 그대로 올라와 **500** 이던 것을 이유 있는 400 으로 바꿨다(REQ-API-033) — 보관된 것이 자리를 쥐고 있으면 그 사실을 말해야 복구라는 길이 보인다.
 >
 > v0.16 변경(2026-08-24 — 멤버십 판정에서 조직 경계가 빠져 있었다): §1.6a에 **조직 경계**를 명시한다. 한 프로젝트에서의 역할은 "프로젝트 스코프 멤버십 ∪ **같은 조직의** 조직 스코프 멤버십"인데, `assertMembership`이 `project_id IS NULL`만 보고 `org_id`를 보지 않아 **A 조직의 조직 단위 admin이 B 조직의 프로젝트에서도 admin**이었다(L2 회귀로 재현·수정). 이 판정은 REST·WS join·SSE가 공유하는 한 곳이라 여기가 새면 세 표면이 함께 샌다. 사람 보고("admin인데 스펙 메타 편집이 잠겨 있다")를 좇다가 같은 절에서 발견했다 — 그쪽은 화면 결함이었고([4.5](screens.md) §1.8), 서버는 합집합을 이미 하고 있었으나 경계가 없었다.
 >
@@ -161,6 +163,7 @@ HTTP 상태 매핑:
 - **PAT**: 역할이 허용하는 스코프 **∩** 토큰에 실린 스코프. 토큰이 역할보다 넓을 수 없다 — 발급 뒤 역할이 낮아지면 낮아진 쪽을 따른다.
 - **겸직은 합집합**이다([4.3 데이터베이스](database.md) §4 REQ-DB-010). planner+developer 는 양쪽 스코프를 다 갖는다.
 - **한 프로젝트에서의 역할 = 프로젝트 스코프 멤버십 ∪ 같은 조직의 조직 스코프 멤버십**(`project_id IS NULL`). 조직 단위로만 소속된 admin 은 그 조직의 모든 프로젝트에서 admin 이다.
+- **보관한 프로젝트도 slug 로 해소된다**(2026-08-27 정정). `resolveProject` 가 `archived_at IS NULL` 로 걸러, 보관한 프로젝트의 **모든 경로가 409** 였다 — 복구(EP-PRJ-05)까지 프로젝트 경로라 **보관이 되돌릴 수 없는 일**이 됐고 주소로 열람도 되지 않았다(사람 보고·실측). 보관의 뜻은 "목록에서 뺀다"이지 "없앤다"가 아니다 — 스펙 아카이브와 같은 규약이다.
 - **조직이 경계다**(2026-08-24 정정). 그 합집합은 **같은 조직 안에서만** 이뤄진다. `assertMembership` 이 `project_id IS NULL` 만 보고 `org_id` 를 보지 않아, A 조직의 조직 단위 admin 이 **B 조직의 프로젝트에서도 admin** 이었다(실측·L2 회귀). 이 판정은 REST·WS join·SSE 가 함께 쓰는 한 곳이라 여기가 새면 세 표면이 함께 샌다.
 - 사람 전용 스코프(`spec:approve`·`approval:decide`)는 역할에는 있어도 **토큰에는 못 간다** — 다른 축이다(§1.3).
 
@@ -592,6 +595,9 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | --- | --- | --- |
 | REQ-API-001 | WHEN 자격증명이 없거나 만료된 요청이 오면 THE SYSTEM SHALL HTTP 401과 `code: "NERV_UNAUTHENTICATED"` 봉투를 반환한다 | 쿠키 없음·만료 PAT·폐기 PAT 3케이스 |
 | REQ-API-030 | WHEN 요청이 `Accept-Language`를 실어 오면 THE SYSTEM SHALL 봉투의 `message`를 그 로케일로 만들고 `code`·`details`는 로케일과 무관하게 유지한다(§1.4) | `ko`·`en`·미지원 언어·헤더 없음 4케이스 |
+| REQ-API-031 | WHEN 보관한 프로젝트의 경로를 호출하면 THE SYSTEM SHALL slug 를 정상 해소해 열람과 복구(EP-PRJ-05)를 허용한다 — 보관은 목록에서 빼는 것이지 없애는 것이 아니다 |
+| REQ-API-032 | WHEN 전역 승인함·알림 목록과 안읽음 수를 낼 때 THE SYSTEM SHALL 보관한 프로젝트의 항목을 제외한다 — 목록·질문·배지가 같은 조건을 쓴다 |
+| REQ-API-033 | WHEN 이미 쓰는 slug 로 프로젝트를 만들려 하면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`details.kind`=`slug_taken`/`slug_archived`)으로 거부한다 — 보관된 것이 쥐고 있으면 복구할 수 있다는 사실을 함께 말한다 |
 | REQ-API-002 | WHEN 인증은 유효하나 역할 또는 PAT 스코프가 부족하면 THE SYSTEM SHALL HTTP 403과 `code: "NERV_FORBIDDEN"`을 반환하고, 부족한 스코프 이름을 `details`에 명시하되 권한 확대 경로는 제공하지 않는다 | viewer의 draft 쓰기, `spec:draft` 없는 PAT의 EP-SPEC-08 |
 | REQ-API-003 | WHEN 같은 `Idempotency-Key`와 같은 본문으로 24시간 내 재호출되면 THE SYSTEM SHALL 부작용 없이 최초 응답을 재생하고 `Idempotency-Replayed: true` 헤더를 단다 | EP-TASK-06 이중 제출 → 클레임 1건 |
 | REQ-API-004 | WHEN 같은 `Idempotency-Key`에 다른 본문이 오면 THE SYSTEM SHALL HTTP 409 `NERV_PRECONDITION`(`details.kind = "idempotency_mismatch"`)을 반환한다 | 본문 변조 재호출 |

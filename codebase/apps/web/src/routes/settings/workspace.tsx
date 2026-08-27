@@ -38,7 +38,11 @@ function WorkspaceTab(): React.JSX.Element {
   // 조직 권한은 **그 조직의 모든 멤버십을 합쳐** 본다 — 한 행만 보면 조직
   // admin 인데 프로젝트에서 planner 인 사람이 잠긴다(겸직은 합집합이다)
   const isAdmin = rolesInOrg(me.data, orgSlug).includes('admin');
-  const projects = useProjects(orgSlug);
+  // **보관한 프로젝트를 볼 길이 화면에 없었다**(사람 보고 2026-08-27). 복구 버튼은
+  // 코드에 있었지만 목록이 보관을 빼고 오니 그 줄이 영영 그려지지 않았고, 그래서
+  // 보관은 사실상 되돌릴 수 없는 일이었다.
+  const [showArchived, setShowArchived] = useState(false);
+  const projects = useProjects(orgSlug, showArchived);
   const projectRows = rows(projects.data);
 
   return (
@@ -56,7 +60,13 @@ function WorkspaceTab(): React.JSX.Element {
         name={membership?.org_name ?? ''}
         canEdit={isAdmin}
       />
-      <ProjectSection orgSlug={orgSlug} projects={projectRows} canEdit={isAdmin} />
+      <ProjectSection
+        orgSlug={orgSlug}
+        projects={projectRows}
+        canEdit={isAdmin}
+        showArchived={showArchived}
+        onShowArchived={setShowArchived}
+      />
     </section>
   );
 }
@@ -172,10 +182,14 @@ function OrgSection({
 function ProjectSection({
   orgSlug,
   projects,
+  showArchived,
+  onShowArchived,
   canEdit,
 }: {
   orgSlug: string | null;
   projects: Record<string, unknown>[];
+  showArchived: boolean;
+  onShowArchived: (next: boolean) => void;
   canEdit: boolean;
 }): React.JSX.Element {
   const t = useT();
@@ -192,9 +206,24 @@ function ProjectSection({
       <SectionTitle
         action={
           canEdit ? (
-            <Button size="sm" data-testid="project-new" onClick={() => setCreating(!creating)}>
-              {creating ? t('common.cancel') : t('settings.workspace.project_new')}
-            </Button>
+            <span className="flex items-center gap-3">
+              {/* 보관을 **볼 수 있어야** 복구할 수 있다 — 켜면 목록이 보관까지 담는다 */}
+              <label
+                className="flex cursor-pointer items-center gap-1.5 text-xs text-text-mute"
+                title={t('settings.workspace.show_archived_hint')}
+              >
+                <input
+                  type="checkbox"
+                  data-testid="show-archived"
+                  checked={showArchived}
+                  onChange={(e) => onShowArchived(e.target.checked)}
+                />
+                {t('settings.workspace.show_archived')}
+              </label>
+              <Button size="sm" data-testid="project-new" onClick={() => setCreating(!creating)}>
+                {creating ? t('common.cancel') : t('settings.workspace.project_new')}
+              </Button>
+            </span>
           ) : undefined
         }
       >

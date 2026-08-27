@@ -419,6 +419,64 @@ describe('E13-S03 인앱 알림 — 결정이 필요한 것만 (§6.2·§6.6)', 
   });
 });
 
+/**
+ * 보관한 프로젝트는 **승인함과 알림에서도 빠진다**(사람 보고 2026-08-27).
+ *
+ * 목록에는 보이는데 누르면 "프로젝트가 없다"로 아무 일도 일어나지 않았다. 치운
+ * 프로젝트를 사람이 계속 결재하도록 두는 것은 승인함을 못 믿게 만드는 가장 빠른 길이다.
+ */
+describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27)', () => {
+  const archive = async (on: boolean): Promise<void> => {
+    await pool.query(
+      on
+        ? `UPDATE project SET archived_at = now() WHERE id = $1`
+        : `UPDATE project SET archived_at = NULL WHERE id = $1`,
+      [projectId],
+    );
+  };
+
+  afterAll(() => archive(false));
+
+  it('승인 카드·질문 카드·알림·안읽음 수가 함께 사라졌다 돌아온다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const versionId = await makeSpecVersion('보관 시험', 'in_review');
+    await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: planner,
+    });
+    await questions.create({ projectId, sessionId, title: '보관 시험 질문' });
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'approval.requested',$3,false,'approval',$4)`,
+      [newId(), projectId, planner, newId()],
+    );
+    await notifications.route();
+
+    const before = {
+      cards: (await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).length,
+      feed: (await notifications.list({ userId: reviewer })).length,
+      unread: await notifications.unreadCount(reviewer),
+    };
+    expect(before.cards).toBeGreaterThan(0);
+    expect(before.feed).toBeGreaterThan(0);
+
+    await archive(true);
+    expect(await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).toHaveLength(0);
+    expect(await notifications.list({ userId: reviewer })).toHaveLength(0);
+    // **배지와 목록이 같은 조건으로 센다**(REQ-WEB-035) — 어긋나면 지울 수 없는 숫자가 남는다
+    expect(await notifications.unreadCount(reviewer)).toBe(0);
+
+    await archive(false);
+    expect((await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).length).toBe(
+      before.cards,
+    );
+    expect((await notifications.list({ userId: reviewer })).length).toBe(before.feed);
+    expect(await notifications.unreadCount(reviewer)).toBe(before.unread);
+  });
+});
+
 async function makeSpecVersion(body: string, status = 'draft'): Promise<string> {
   const specId = newId();
   const versionId = newId();

@@ -144,6 +144,8 @@ export class NotificationService {
    LEFT JOIN spec s ON s.id = coalesce(sv.spec_id, CASE WHEN e.subject_type = 'spec' THEN e.subject_id END)
    LEFT JOIN task t ON t.id = e.subject_id AND e.subject_type = 'task'
        WHERE n.user_id = ${input.userId}${stateFilter}
+         -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
+         AND p.archived_at IS NULL
        ORDER BY n.created_at DESC
        LIMIT ${Math.min(input.limit ?? 50, 200)}
     `);
@@ -159,10 +161,19 @@ export class NotificationService {
     return { ok: true };
   }
 
+  /**
+   * 헤더 배지의 수.
+   *
+   * **목록과 같은 조건으로 센다**(REQ-WEB-035 — 배지 수 = 안읽음 목록 수). 보관한
+   * 프로젝트를 목록에서만 빼고 여기서 빼지 않으면 "안 읽음 3"인데 목록은 비어 있는
+   * 상태가 되고, 그때 배지는 지울 수 없는 숫자가 된다.
+   */
   async unreadCount(userId: string): Promise<number> {
-    const { rows } = await this.db.execute<{ n: number }>(
-      sql`SELECT count(*)::int AS n FROM notification WHERE user_id = ${userId} AND state = 'unread'`,
-    );
+    const { rows } = await this.db.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM notification notif
+        JOIN project p ON p.id = notif.project_id
+       WHERE notif.user_id = ${userId} AND notif.state = 'unread' AND p.archived_at IS NULL
+    `);
     return rows[0]?.n ?? 0;
   }
 }

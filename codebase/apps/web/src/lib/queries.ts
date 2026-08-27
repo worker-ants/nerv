@@ -33,10 +33,22 @@ export function useMe(): UseQueryResult<Me> {
   return useQuery({ queryKey: queryKeys.me(), queryFn: fetchMe, retry: false });
 }
 
-export function useProjects(orgSlug: string | null): UseQueryResult<Row[]> {
+/**
+ * 조직의 프로젝트 목록.
+ *
+ * `includeArchived` 는 **관리 화면만** 켠다. 헤더 select 나 홈이 보관한 것까지 보이면
+ * 치운 것이 치워지지 않은 셈이 되고, 그러면 보관에 뜻이 없다.
+ */
+export function useProjects(
+  orgSlug: string | null,
+  includeArchived = false,
+): UseQueryResult<Row[]> {
   return useQuery({
-    queryKey: ['org', orgSlug, 'projects'],
-    queryFn: () => apiFetch<Row[]>(`/orgs/${orgSlug ?? ''}/projects`),
+    queryKey: ['org', orgSlug, 'projects', includeArchived],
+    queryFn: () =>
+      apiFetch<Row[]>(
+        `/orgs/${orgSlug ?? ''}/projects${includeArchived ? '?include_archived=true' : ''}`,
+      ),
     enabled: orgSlug !== null,
   });
 }

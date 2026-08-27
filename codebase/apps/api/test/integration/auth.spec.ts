@@ -368,11 +368,51 @@ describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 
     await auth.setProjectArchived({ projectId, roles: ['admin'], archived: true });
     expect(await listed(false)).not.toContain('to-archive');
     expect(await listed(true)).toContain('to-archive');
-    // 주소를 아는 사람은 그대로 들어간다 — 보관은 숨김이지 삭제가 아니다
+    // 주소를 아는 사람은 그대로 들어간다 — 보관은 숨김이지 삭제가 아니다.
+    //
+    // **slug 로도 확인한다.** 예전에는 id 로만 봤고(`auth.project`), 실제 경로는
+    // `resolveProject(slug)` 를 거치는데 그쪽이 `archived_at IS NULL` 로 걸러
+    // 보관한 프로젝트의 모든 경로가 409 였다 — 복구 엔드포인트까지 프로젝트 경로라
+    // **보관이 되돌릴 수 없는 일**이 됐다(사람 보고 2026-08-27). 테스트가 지나가는
+    // 길과 사람이 지나가는 길이 달랐던 것이다.
     expect(await auth.project(projectId)).toMatchObject({ slug: 'to-archive' });
+    expect(await auth.resolveProject('to-archive')).toMatchObject({ id: projectId, key: 'ARC' });
+    expect((await auth.resolveProject('to-archive'))?.archivedAt).not.toBeNull();
 
     await auth.setProjectArchived({ projectId, roles: ['admin'], archived: false });
     expect(await listed(false)).toContain('to-archive');
+    expect((await auth.resolveProject('to-archive'))?.archivedAt).toBeNull();
+  });
+
+  it('이미 쓰는 slug 는 500 이 아니라 이유다 — 보관된 것이 쥐고 있으면 그렇게 말한다', async () => {
+    await auth.createOrg({ userId, slug: 'clash', name: 'Clash' });
+    const made = await auth.createProject({
+      userId,
+      orgSlug: 'clash',
+      slug: 'taken',
+      key: 'TKN',
+      name: '먼저',
+    });
+
+    const again = (): Promise<unknown> =>
+      auth.createProject({ userId, orgSlug: 'clash', slug: 'taken', key: 'TK2', name: '다시' });
+
+    await expect(again()).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'slug_taken' },
+    });
+
+    // 보관한 것이 자리를 쥐고 있으면 **그 사실을 말해야** 복구라는 길이 보인다 —
+    // 예전에는 유니크 제약 위반이 그대로 올라와 "internal error" 였다.
+    await auth.setProjectArchived({
+      projectId: String(made['id']),
+      roles: ['admin'],
+      archived: true,
+    });
+    await expect(again()).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'slug_archived' },
+    });
   });
 
   it('admin 이 아니면 보관할 수 없다', async () => {

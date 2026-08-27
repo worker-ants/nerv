@@ -80,6 +80,9 @@ export const ko = {
   'error.org.not_found': '조직을 찾을 수 없습니다.',
   'error.project.missing_fields': 'slug·key·name 이 필요합니다.',
   'error.project.not_found': '프로젝트를 찾을 수 없습니다.',
+  'error.project.slug_archived':
+    '보관된 프로젝트가 "{slug}" 를 쓰고 있습니다 — 새로 만들 것이 아니라 복구할 수 있습니다.',
+  'error.project.slug_taken': '이미 "{slug}" 를 쓰는 프로젝트가 있습니다.',
   'error.project.unresolved': '프로젝트가 해소되지 않았습니다.',
   'error.question.not_open': '열린 질문이 아닙니다.',
   'error.relation.auto_kind':
@@ -186,6 +189,8 @@ export const ko = {
   'settings.workspace.project_slug': 'slug',
   'settings.workspace.projects': '프로젝트',
   'settings.workspace.restore': '복구',
+  'settings.workspace.show_archived': '보관 보기',
+  'settings.workspace.show_archived_hint': '보관한 프로젝트까지 보여 줍니다 — 여기서 복구합니다',
   'settings.workspace.slug_fixed': 'slug 는 주소와 API 경로의 축이라 바꾸지 않습니다 —',
   'settings.workspace.slug_hint': '주소에 쓰입니다 (/p/…)',
   'severity.critical': 'critical',

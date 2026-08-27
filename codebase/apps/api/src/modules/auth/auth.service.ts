@@ -294,6 +294,24 @@ export class AuthService {
       });
     }
 
+    // **이미 쓰는 slug 는 500 이 아니라 이유다.** 예전에는 유니크 제약 위반이 그대로
+    // 올라와 "internal error" 로 보였고, 보관한 프로젝트와 같은 이름을 다시 만들려던
+    // 사람은 무엇이 막고 있는지 알 수 없었다(사람 보고 · 실측 500). 보관된 것이 그
+    // 자리를 쥐고 있으면 **그 사실을 말해야** 복구라는 길이 보인다.
+    const { rows: taken } = await this.db.execute<{ slug: string; archived_at: string | null }>(sql`
+      SELECT slug, archived_at::text FROM project WHERE org_id = ${org.id} AND slug = ${input.slug}
+    `);
+    const clash = taken[0];
+    if (clash !== undefined) {
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        clash.archived_at === null
+          ? msg('error.project.slug_taken', { slug: input.slug })
+          : msg('error.project.slug_archived', { slug: input.slug }),
+        { kind: clash.archived_at === null ? 'slug_taken' : 'slug_archived', slug: input.slug },
+      );
+    }
+
     const projectId = newId();
     await this.db.execute(sql`
       INSERT INTO project (id, org_id, slug, key, name, description)
@@ -835,12 +853,26 @@ export class AuthService {
     }
   }
 
-  /** 프로젝트 slug → id 해소. 경로 파라미터 {proj} 는 slug 다(api.md §1.2). */
-  async resolveProject(slug: string): Promise<{ id: string; key: string } | null> {
-    const { rows } = await this.db.execute<{ id: string; key: string }>(
-      sql`SELECT id, key FROM project WHERE slug = ${slug} AND archived_at IS NULL`,
-    );
-    return rows[0] ?? null;
+  /**
+   * 프로젝트 slug → id 해소. 경로 파라미터 {proj} 는 slug 다(api.md §1.2).
+   *
+   * **보관한 프로젝트도 해소한다**(2026-08-27 정정). 여기서 `archived_at IS NULL` 로
+   * 걸렀더니 보관은 **되돌릴 수 없는 일**이 됐다 — 복구 엔드포인트(EP-PRJ-05)까지
+   * 프로젝트 경로라 가드가 먼저 "없는 프로젝트"로 막았고, 주소로 열람도 되지 않았다
+   * (사람 보고 · 실측 409). 보관의 뜻은 "목록에서 뺀다"이지 "없앤다"가 아니다 —
+   * 스펙 아카이브와 같은 규약이다. 보관 여부는 함께 실어 보내 화면이 그 사실을 말할 수
+   * 있게 한다.
+   */
+  async resolveProject(
+    slug: string,
+  ): Promise<{ id: string; key: string; archivedAt: string | null } | null> {
+    const { rows } = await this.db.execute<{
+      id: string;
+      key: string;
+      archived_at: string | null;
+    }>(sql`SELECT id, key, archived_at::text FROM project WHERE slug = ${slug}`);
+    const row = rows[0];
+    return row === undefined ? null : { id: row.id, key: row.key, archivedAt: row.archived_at };
   }
 }
 
