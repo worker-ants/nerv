@@ -75,6 +75,8 @@ describe('패널이 적는 이웃 (2026-08-24 · 사람 지시)', () => {
 describe('영역 상자 위의 드래그 (2026-08-27 · 사람 보고)', () => {
   // 영역으로 묶으면 상자가 화면의 대부분을 덮는다. 그 위의 드래그가 노드를 잡는 일로
   // 남아 있으면 — 이 그래프는 아무 노드도 잡히지 않으므로 — 화면이 끌리지 않는다.
+  // 컴포넌트와 같은 옵션이다 — `autoungrabify` 는 걷혔고(노드를 끌어 옮길 수 있다)
+  // 영역 상자만 `letAreasPan` 이 배경으로 되돌린다.
   const grouped = (): cytoscape.Core =>
     cytoscape({
       headless: true,
@@ -83,7 +85,6 @@ describe('영역 상자 위의 드래그 (2026-08-27 · 사람 보고)', () => {
         { data: { id: 'doc', parent: 'area' } },
         { data: { id: 'loose' } },
       ],
-      autoungrabify: true,
     });
 
   it('영역은 배경이다 — 그 위의 드래그는 화면 이동으로 넘어간다', () => {
@@ -99,6 +100,18 @@ describe('영역 상자 위의 드래그 (2026-08-27 · 사람 보고)', () => {
     letAreasPan(cy);
     expect(cy.$id('doc').pannable()).toBe(false);
     expect(cy.$id('loose').pannable()).toBe(false);
+    cy.destroy();
+  });
+
+  // 끄는 것은 **배치**이지 재배치가 아니다(2026-08-27 · 사람 지시) — 문서 노드는 손으로
+  // 옮길 수 있어야 하고, 영역 상자는 그 위를 끌면 화면이 움직여야 한다. 둘이 한 규칙의
+  // 앞뒷면이라 같이 본다: 배경으로 만든 상자는 잡히지 않는다.
+  it('문서 노드는 끌어서 옮길 수 있고, 영역 상자는 잡히지 않는다', () => {
+    const cy = grouped();
+    letAreasPan(cy);
+    expect(cy.$id('doc').grabbable()).toBe(true);
+    expect(cy.$id('loose').grabbable()).toBe(true);
+    expect(cy.$id('area').grabbable()).toBe(false);
     cy.destroy();
   });
 });

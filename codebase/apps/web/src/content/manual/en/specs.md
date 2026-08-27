@@ -70,7 +70,11 @@ The number beside each tab name is how many that direction holds. You can see th
 
 The **relations graph** shows the same thing as a picture — the `Relations` tab on the spec list screen. Clicking a node does **not** open that document: it highlights the node and everything linked to it, and opens a panel on the right with its name and its neighbours (backlinks / references). To go to a document, **click its name in the panel.** Click the background or press `Esc` to let go.
 
-**Drag to move the view**, scroll to zoom. Dragging inside an area box (the pale rectangle around a group of documents) moves the view too — selecting the box is a **single click**.
+**Drag the background to move the view**, scroll to zoom. Dragging inside an area box (the pale rectangle around a group of documents) moves the view too — selecting the box is a **single click**.
+
+**Nodes can be dragged.** Use it to pull apart a crowded spot; the new position lives only in this view — it does not change where the document sits in the tree, and redrawing the graph (centre mode, area grouping) restores the computed layout. **[Re-layout]** recomputes the arrangement: every run gives a different picture, which is what untangles a knot — and it is also how you undo your own dragging.
+
+Zoomed out, **document names are not drawn.** A hundred labels too small to read cover the picture in smudges — zoom in and the names come back. Area names stay at any zoom.
 
 ## Archiving
 

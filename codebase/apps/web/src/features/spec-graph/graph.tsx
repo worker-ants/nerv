@@ -189,6 +189,22 @@ function applyHighlight(cy: cytoscape.Core, key: string | null): void {
  * 영역 상자는 노드가 아니라 **배경**이다. `panify()` 가 그 위의 드래그를 패닝으로 넘긴다
  * (누르기는 그대로 — 클릭 한 번은 여전히 그 영역 문서를 고른다).
  */
+/**
+ * 배치 옵션 — 첫 그림과 [다시 배치]가 **같은 값**을 쓴다.
+ *
+ * `randomize` 라 누를 때마다 다른 답이 나온다. 그것이 이 버튼의 쓸모다: 밀집한 자리는
+ * 한 번 더 굴리면 풀리고, 손으로 끌어 흐트러뜨린 뒤 되돌리는 길도 여기 하나다.
+ */
+const LAYOUT = {
+  name: 'fcose',
+  // 밀도가 높을수록 밀어내는 힘을 키운다 — 기본값으로는 중앙에 뭉친다
+  nodeRepulsion: 9000,
+  idealEdgeLength: 90,
+  nestingFactor: 0.2,
+  animate: false,
+  randomize: true,
+} as cytoscape.LayoutOptions;
+
 export function letAreasPan(cy: cytoscape.Core): void {
   cy.nodes(':parent').panify();
 }
@@ -279,6 +295,11 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
             // 라벨이 겹치면 아무것도 못 읽는다 — 잘라서 보여주고 전문은 클릭으로
             'text-max-width': '90px',
             'text-wrap': 'ellipsis',
+            // **읽을 수 없는 크기면 그리지 않는다.** 전체 보기의 기본 배율은 0.42 라
+            // 9px 라벨이 화면에는 3.8px 로 찍힌다(실측 2026-08-27 · 노드 125개). 그건
+            // 글자가 아니라 얼룩이고, 얼룩 125개가 그림을 덮으면 구조가 안 보인다.
+            // 가까이 가면(배율 0.89 이상) 이름이 돌아온다.
+            'min-zoomed-font-size': 8,
             width: 'data(weight)',
             height: 'data(weight)',
           },
@@ -291,6 +312,9 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
             'border-color': cssVar('--color-border-strong'),
             'text-valign': 'top',
             'font-size': 11,
+            // 영역 이름은 **지도의 지명**이다 — 문서 라벨을 감춘 배율에서도 남는다.
+            // 열여섯 개뿐이라 얼룩이 되지 않고, 이것까지 지우면 어디를 보는지 알 수 없다.
+            'min-zoomed-font-size': 0,
           },
         },
         {
@@ -354,17 +378,11 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
           },
         },
       ],
-      layout: {
-        name: 'fcose',
-        // 밀도가 높을수록 밀어내는 힘을 키운다 — 기본값으로는 중앙에 뭉친다
-        nodeRepulsion: 9000,
-        idealEdgeLength: 90,
-        nestingFactor: 0.2,
-        animate: false,
-        randomize: true,
-      } as cytoscape.LayoutOptions,
-      // 읽기 전용이다 — 그래프에서 문서를 옮기는 경로는 만들지 않는다(트리가 그 자리다)
-      autoungrabify: true,
+      layout: LAYOUT,
+      // **끄는 것은 배치이지 재배치가 아니다**(2026-08-27 — 사람 지시). 노드를 끌면 그림 위의
+      // 자리만 바뀐다: 부모도 정렬 키도 서버로 가지 않는다. 문서를 옮기는 경로는 여전히
+      // 트리 하나뿐이고, 그래프는 데이터를 쓰지 않는다는 뜻에서 읽기 전용이다.
+      // (`autoungrabify` 를 걷었다 — 영역 상자는 `panify()` 가 잡기를 끄므로 그대로 패닝이다.)
       wheelSensitivity: 0.2,
     });
 
@@ -406,6 +424,16 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
   // 다른 문서를 고르면 방향 탭도 처음으로 돌린다 — 역참조가 없는 문서를 골랐는데
   // 역참조 탭이 남아 있으면 빈 패널이 열리고, 사람은 그것을 "관계가 없다"로 읽는다
   useEffect(() => setRelTab('all'), [selected]);
+
+  /**
+   * 배치를 다시 계산한다 — **그림만 다시 그린다.**
+   *
+   * 컴포넌트를 다시 그리지 않는 이유는 고른 문서·중심 모드·패널이 그대로 남아야 하기
+   * 때문이다. 강조 클래스는 노드에 붙어 있으므로 자리가 바뀌어도 따라간다.
+   */
+  const relayout = (): void => {
+    cyRef.current?.layout(LAYOUT).run();
+  };
 
   const panelOpen = selectedNode !== undefined;
 
@@ -461,6 +489,10 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
           <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
           {t('graph.group_by_area')}
         </label>
+        {/* 손으로 끌어 놓은 자리를 되돌리는 길이자, 밀집한 자리를 한 번 더 굴려 보는 길 */}
+        <Button size="sm" data-testid="graph-relayout" onClick={relayout}>
+          {t('graph.relayout')}
+        </Button>
         <span className="ml-auto text-text-faint">
           {t('graph.counts', { nodes: shownCount, edges: edges.length })}
         </span>
