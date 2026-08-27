@@ -52,7 +52,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.5 (2026-08-23)</span>
+      <span>버전 v1.6 (2026-08-27)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -686,9 +686,15 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
   <p>개발 루프(HMR)가 필요하면 인프라만 compose로 띄우고 앱은 로컬 프로세스로 돈다:</p>
 
 <pre><code class="language-bash">pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
+pnpm build                      # 첫 실행에서만 — db:migrate·db:seed 는 빌드 산출물을 실행한다(아래)
 pnpm db:migrate                 # drizzle 마이그레이션 적용
+pnpm db:seed                    # 개발 시드 — 로그인 자격증명도 함께 심는다(아래 명령 표)
 pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:all
 </code></pre>
+
+  <p><b><code>pnpm build</code> 가 왜 여기 있나</b>(2026-08-27 — 실행 중 발견). <code>db:migrate</code>·<code>db:seed</code> 는 <code>apps/api/dist/{migrate,seed}.js</code> 를 실행한다. 그 엔트리를 소스가 아니라 산출물로 두는 것은 의도다 — compose 의 <code>migrate</code> 서비스와 k8s 의 <code>nerv-migrate</code> Job 이 이미지 안에서 <b>같은 파일</b>을 돌리기 때문이고, 그래서 마이그레이션 경로가 개발·로컬·운영에서 갈라지지 않는다(REQ-CB-008). 대신 <code>dist/</code> 는 git 에 없고 <code>pnpm install</code> 에 빌드 훅도 없어서, <b>새로 클론한 장비의 첫 실행에서는 그 파일이 아직 없다.</b> <code>pnpm dev</code> 는 스스로 빌드 감시를 띄우므로 이 줄이 필요 없지만, 그 앞의 두 명령은 자기 힘으로 산출물을 만들지 않는다. 두 번째 실행부터는 건너뛰어도 된다.</p>
+
+  <p><b>compose 경로(위 블록 6개)는 이 줄이 필요 없다</b> — 이미지 빌드가 <code>dist</code> 를 만들고 <code>migrate</code> 서비스가 그것을 실행한다. REQ-CB-009 의 수용 기준은 그대로다.</p>
 
   <p><b><code>pnpm dev</code> 는 <code>codebase/scripts/dev.mjs</code> 가 세 프로세스를 묶어 띄운다</b>(2026-08-23). 워크스페이스별 <code>dev</code> 스크립트를 <code>--parallel -r</code> 로 늘어놓는 방식은 두 군데서 조용히 어긋났다 — 둘 다 실측이다.</p>
 
@@ -714,12 +720,12 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
       <tr><td><code>pnpm dev:worker</code></td><td><b>워커 만</b> — 빌드 감시 + 워커</td></tr>
       <tr><td><code>pnpm build</code> / <code>pnpm test</code> / <code>pnpm lint</code></td><td>전 워크스페이스 일괄</td></tr>
       <tr><td><code>pnpm db:generate</code></td><td><code>@nerv/schema</code>에서 <code>drizzle-kit generate</code> — 마이그레이션 SQL 생성</td></tr>
-      <tr><td><code>pnpm db:migrate</code></td><td>마이그레이션 적용(<code>migrate.ts</code>) — compose·k8s와 같은 코드 경로</td></tr>
-      <tr><td><code>pnpm e2e:up</code></td><td><b>E2E 전용 스택</b> 기동(웹 :8090 · PG :55432) — 마이그레이션·시드까지 끝나고 나온다</td></tr>
+      <tr><td><code>pnpm db:migrate</code></td><td>마이그레이션 적용(<code>migrate.ts</code>) — compose·k8s와 같은 코드 경로. <b>빌드 산출물(<code>apps/api/dist/migrate.js</code>)을 실행한다</b> — 첫 실행 전 <code>pnpm build</code>(§5.1)</td></tr>
+      <tr><td><code>pnpm e2e:up</code></td><td><b>E2E 전용 스택</b> 기동 — 세션별 포트를 잡고(대역 <code>19000~19999</code> · §4.3) 마이그레이션·시드까지 끝난 뒤 배정된 주소를 출력한다</td></tr>
     <tr><td><code>pnpm e2e:down</code></td><td>같은 파일에 <code>down -v</code> — tmpfs라 흔적이 남지 않는다</td></tr>
     <tr><td><code>pnpm e2e:reset</code></td><td><code>e2e:down &amp;&amp; e2e:up</code> — 실행 간 상태를 비운다</td></tr>
     <tr><td><code>pnpm test:e2e</code></td><td>L3 전량(API 시나리오 A~E + 브라우저). 대상 주소를 E2E 스택으로 고정해서 넘긴다</td></tr>
-    <tr><td><code>pnpm db:seed</code></td><td>개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등(<a href="database.html">4.3 데이터베이스 스키마</a> §4, REQ-DB-002). <b>로그인 자격증명도 함께 심는다</b>: 시드 사용자 5명(<code>jimin</code>·<code>seoyeon</code>·<code>dohyun</code>·<code>yuna</code>·<code>hana</code>@example.com)의 비밀번호는 <code>nerv-dev-1234</code>이고 <code>NERV_SEED_PASSWORD</code>로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 <code>apps/api</code>의 시드 엔트리가 심고 <code>@nerv/schema</code>는 도메인만 심는다</td></tr>
+    <tr><td><code>pnpm db:seed</code></td><td>개발 시드 적재(빌드 산출물 <code>apps/api/dist/seed.js</code> — <code>db:migrate</code> 와 같은 전제) — TRUNCATE 후 재삽입이라 재실행 멱등(<a href="database.html">4.3 데이터베이스 스키마</a> §4, REQ-DB-002). <b>로그인 자격증명도 함께 심는다</b>: 시드 사용자 5명(<code>jimin</code>·<code>seoyeon</code>·<code>dohyun</code>·<code>yuna</code>·<code>hana</code>@example.com)의 비밀번호는 <code>nerv-dev-1234</code>이고 <code>NERV_SEED_PASSWORD</code>로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 <code>apps/api</code>의 시드 엔트리가 심고 <code>@nerv/schema</code>는 도메인만 심는다</td></tr>
       <tr><td><code>pnpm compose:up</code></td><td><code>docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build</code> — 외부 임베딩 제공자 사용 시 <code>--profile local-embed</code> 생략(§5.2a)</td></tr>
       <tr><td><code>pnpm compose:infra</code></td><td>위 명령 + <code>postgres minio valkey embed</code> 서비스만(<code>embed</code>는 local-embed 프로필일 때)</td></tr>
       <tr><td><code>pnpm compose:down</code></td><td>스택 정지(볼륨 유지)</td></tr>
@@ -934,8 +940,8 @@ services:
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
-      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:80/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
-      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-BAAI/bge-m3}
+      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
+      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-bge-m3}
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
@@ -967,8 +973,8 @@ services:
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
-      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:80/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
-      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-BAAI/bge-m3}
+      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
+      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-bge-m3}
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}

@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-CODEBASE
 status: draft
-updated: 2026-08-22
+updated: 2026-08-27
 ---
 # 코드베이스와 배포
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.5 · 2026-08-23 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.6 · 2026-08-27 · HTML 판: [codebase.html](../html/codebase.html)
+>
+> v1.6 변경(2026-08-27 — 절차와 전문의 어긋난 자리 셋, 실행 중 발견): ① §5.1 의 **개발 루프 블록에 `pnpm build` 가 없었다**. `db:migrate`·`db:seed` 는 빌드 산출물(`apps/api/dist/*.js`)을 실행하는데 `dist/` 는 git 에 없고 설치 훅도 없다 — 새로 클론한 장비에서 블록대로 따라가면 `db:migrate` 가 파일을 찾지 못한다. 엔트리를 산출물로 두는 것 자체는 의도이므로(compose·k8s 가 이미지 안에서 같은 파일을 돌린다 — REQ-CB-008) 절차에 한 줄을 넣었다. **REQ-CB-009(명령 6개)는 영향이 없다**: 그 6개는 compose 경로이고 빠진 것은 로컬 프로세스로 도는 개발 루프 쪽뿐이다. ② **§5.2 전표와 §5.3 compose 전문에 TEI 시절 값이 남아 있었다** — `NERV_EMBED_URL` 의 compose 기본이 `http://embed:80/v1`, 모델이 `BAAI/bge-m3` 였는데 실물은 v1.1 의 ollama 교체 이후 `http://embed:11434/v1` · `bge-m3` 다(같은 문서 §5.2a 프로필 표는 이미 그렇게 적고 있었다). 실물 `deploy/compose/docker-compose.yml` 과 줄 단위로 대조해 4줄을 맞췄고, **이제 §5.3 전문이 실물과 바이트 단위로 일치한다.** ③ html 파생본의 `pnpm e2e:up` 행이 세션별 포트 할당(§4.3) 이전의 고정 포트를 적고 있던 것을 md 에 맞췄다.
 >
 > v1.1 변경(2026-08-23): ① **문구 카탈로그와 로케일 §3.4 신설** — 웹·API·CLI 가 `@nerv/schema` 의 한 벌을 쓴다(ko 기본 · en). §1.2 의 "런타임 로직 없음"에 번역기 예외를 마이그레이터와 같은 등급으로 기록. 신설 요구 REQ-CB-022~024. ② **로컬 임베딩 프로필 이미지 교체**(§5.2a — TEI → ollama). TEI 가 arm64 이미지를 내지 않아 Apple Silicon 에서 기동되지 않는다(실측·점화 기록 §5.2a). 계약·모델·차원·외부 전송 0 은 그대로이고 바뀐 것은 개발자 기계에서 도는가뿐이다. 다른 결정·요구는 불변.
 >
@@ -564,9 +566,15 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
 
 ```bash
 pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
+pnpm build                      # 첫 실행에서만 — db:migrate·db:seed 는 빌드 산출물을 실행한다(아래)
 pnpm db:migrate                 # drizzle 마이그레이션 적용
+pnpm db:seed                    # 개발 시드 — 로그인 자격증명도 함께 심는다(아래 명령 표)
 pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:all
 ```
+
+**`pnpm build` 가 왜 여기 있나**(2026-08-27 — 실행 중 발견). `db:migrate`·`db:seed` 는 `apps/api/dist/{migrate,seed}.js` 를 실행한다. 그 엔트리를 소스가 아니라 산출물로 두는 것은 의도다 — compose 의 `migrate` 서비스와 k8s 의 `nerv-migrate` Job 이 이미지 안에서 **같은 파일**을 돌리기 때문이고, 그래서 마이그레이션 경로가 개발·로컬·운영에서 갈라지지 않는다(REQ-CB-008). 대신 `dist/` 는 git 에 없고 `pnpm install` 에 빌드 훅도 없어서, **새로 클론한 장비의 첫 실행에서는 그 파일이 아직 없다.** `pnpm dev` 는 스스로 빌드 감시를 띄우므로 이 줄이 필요 없지만, 그 앞의 두 명령은 자기 힘으로 산출물을 만들지 않는다. 두 번째 실행부터는 건너뛰어도 된다.
+
+**compose 경로(위 블록 6개)는 이 줄이 필요 없다** — 이미지 빌드가 `dist` 를 만들고 `migrate` 서비스가 그것을 실행한다. REQ-CB-009 의 수용 기준은 그대로다.
 
 **`pnpm dev` 는 `codebase/scripts/dev.mjs` 가 세 프로세스를 묶어 띄운다**(2026-08-23). 워크스페이스별 `dev` 스크립트를 `--parallel -r` 로 늘어놓는 방식은 두 군데서 조용히 어긋났다 — 둘 다 실측이다.
 
@@ -593,12 +601,12 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `pnpm dev:worker` | **워커 만** — 빌드 감시 + 워커 |
 | `pnpm build` / `pnpm test` / `pnpm lint` | 전 워크스페이스 일괄 |
 | `pnpm db:generate` | `@nerv/schema`에서 `drizzle-kit generate` — 마이그레이션 SQL 생성 |
-| `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로 |
+| `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로. **빌드 산출물(`apps/api/dist/migrate.js`)을 실행한다** — 첫 실행 전 `pnpm build`(§5.1) |
 | `pnpm e2e:up` | **E2E 전용 스택** 기동 — 세션별 포트를 잡고(대역 19000~19999 · §4.3) 마이그레이션·시드까지 끝난 뒤 배정된 주소를 출력한다 |
 | `pnpm e2e:down` | 같은 파일에 `down -v` — tmpfs라 흔적이 남지 않는다 |
 | `pnpm e2e:reset` | `e2e:down && e2e:up` — 실행 간 상태를 비운다 |
 | `pnpm test:e2e` | L3 전량(API 시나리오 A~E + 브라우저). 대상 주소를 E2E 스택으로 고정해서 넘긴다 |
-| `pnpm db:seed` | 개발 시드 적재 — TRUNCATE 후 재삽입이라 재실행 멱등([4.3 데이터베이스 스키마](database.md) §4, REQ-DB-002). **로그인 자격증명도 함께 심는다**: 시드 사용자 5명(`jimin`·`seoyeon`·`dohyun`·`yuna`·`hana`@example.com)의 비밀번호는 `nerv-dev-1234`이고 `NERV_SEED_PASSWORD`로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 `apps/api`의 시드 엔트리가 심고 `@nerv/schema`는 도메인만 심는다 |
+| `pnpm db:seed` | 개발 시드 적재(빌드 산출물 `apps/api/dist/seed.js` — `db:migrate` 와 같은 전제) — TRUNCATE 후 재삽입이라 재실행 멱등([4.3 데이터베이스 스키마](database.md) §4, REQ-DB-002). **로그인 자격증명도 함께 심는다**: 시드 사용자 5명(`jimin`·`seoyeon`·`dohyun`·`yuna`·`hana`@example.com)의 비밀번호는 `nerv-dev-1234`이고 `NERV_SEED_PASSWORD`로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 `apps/api`의 시드 엔트리가 심고 `@nerv/schema`는 도메인만 심는다 |
 | `pnpm compose:up` | `docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build` — 외부 임베딩 제공자 사용 시 `--profile local-embed` 생략(§5.2a) |
 | `pnpm compose:infra` | 위 명령 + `postgres minio valkey embed` 서비스만(`embed`는 local-embed 프로필일 때) |
 | `pnpm compose:down` | 스택 정지(볼륨 유지) |
@@ -627,7 +635,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
 | `VALKEY_PORT` | | `6379` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 Valkey 접근 |
 | `NERV_VALKEY_URL` | dev 루프 시 | `redis://localhost:6379` | api · worker | 실시간 방송 MQ(§2.1). compose 내부에서는 `redis://valkey:6379`로 자동 조립(Valkey는 RESP 프로토콜 — `redis://` 스킴) |
-| `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090/v1` | api(질의 임베딩) · worker(`embedding.job`) | **OpenAI 호환 base URL(`/v1`까지)** — 프로필 §5.2a. compose 내부 기본은 `http://embed:80/v1`. 무응답 시 검색은 렉시컬 degrade(REQ-API-026) |
+| `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090/v1` | api(질의 임베딩) · worker(`embedding.job`) | **OpenAI 호환 base URL(`/v1`까지)** — 프로필 §5.2a. compose 내부 기본은 `http://embed:11434/v1`. 무응답 시 검색은 렉시컬 degrade(REQ-API-026) |
 | `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | `/v1/embeddings`의 `model` 인자 · 재임베딩 관리(`spec_chunk_embedding.model` — 4.3 §2.15) | 제공자·모델 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
 | `NERV_EMBED_API_KEY` | 외부 제공자 시 | — | `Authorization: Bearer` 헤더 | **secret** — 로컬 TEI는 불요. k8s는 `nerv-secrets`(§6.2) |
 | `NERV_EMBED_PORT` | | `8090` | compose 포트 노출(127.0.0.1 한정) | 로컬 프로필 전용 |
@@ -798,8 +806,8 @@ services:
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
-      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:80/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
-      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-BAAI/bge-m3}
+      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
+      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-bge-m3}
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
@@ -831,8 +839,8 @@ services:
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
-      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:80/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
-      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-BAAI/bge-m3}
+      NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
+      NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-bge-m3}
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       NERV_S3_ENDPOINT: http://minio:9000
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
