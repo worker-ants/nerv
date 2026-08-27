@@ -107,7 +107,7 @@ function MembersTab(): React.JSX.Element {
 
   return (
     <section>
-      <PageHeader title={t('settings.tab.members')} description={t('settings.members.lead')} />
+      <PageHeader title={t('settings.tab.members')} />
       {!isAdmin && (
         <p className="mb-3 rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute">
           {t('settings.members.admin_only_pre')} <code className="font-mono">admin</code>{' '}

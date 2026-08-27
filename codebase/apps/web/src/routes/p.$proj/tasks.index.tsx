@@ -103,12 +103,6 @@ function TaskBoard(): React.JSX.Element {
     <PageBody wide>
       <PageHeader
         title={t('tasks.title')}
-        description={
-          <>
-            {t('tasks.lead_pre')} <code className="font-mono text-text">ready</code>
-            {t('tasks.lead_post')}
-          </>
-        }
         actions={
           <Button variant="primary" onClick={() => setEditing('new')}>
             {t('tasks.new')}

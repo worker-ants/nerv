@@ -67,9 +67,12 @@ function TokensTab(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t('settings.tab.tokens')} description={t('settings.tokens.lead')} />
+      <PageHeader title={t('settings.tab.tokens')} />
       <Card>
         <SectionTitle>{t('settings.tokens.new')}</SectionTitle>
+        {/* 한 번만 보인다는 사실은 **누르기 전에** 읽혀야 한다 — 화면 머리에 있으면
+            발급 버튼까지 눈이 내려간 뒤라 이미 늦다 */}
+        <p className="mb-2.5 text-xs text-text-mute">{t('settings.tokens.lead')}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Input
             value={name}

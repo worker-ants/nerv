@@ -88,7 +88,6 @@ function SpecListScreen(): React.JSX.Element {
     >
       <PageHeader
         title={t('specs.title')}
-        description={t('specs.lead')}
         actions={
           // 검색 줄과 탭 줄을 **머리 안에 포갠다**. 탭이 따로 한 줄을 차지하면 제목 오른쪽의
           // 빈자리는 그대로 둔 채 본문만 46px 밀려 내려간다 — 화면에서 가장 비싼 것은 세로다.

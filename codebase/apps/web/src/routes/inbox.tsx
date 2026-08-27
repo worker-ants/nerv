@@ -47,7 +47,6 @@ function InboxScreen(): React.JSX.Element {
     <PageBody>
       <PageHeader
         title={t('inbox.title')}
-        description={t('inbox.lead')}
         actions={
           // 탭은 두 개뿐이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 두 링크로 읽힌다
           <nav className="flex rounded-nerv-sm border border-border p-0.5 text-xs">

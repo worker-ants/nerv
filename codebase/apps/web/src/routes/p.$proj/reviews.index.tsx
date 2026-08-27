@@ -83,7 +83,7 @@ function ReviewCenter(): React.JSX.Element {
 
   return (
     <PageBody wide>
-      <PageHeader title={t('reviews.title')} description={t('reviews.lead')} />
+      <PageHeader title={t('reviews.title')} />
       <SummaryStrip className="mb-5" metrics={summary} />
 
       {/* 필터 | 큐 — **가로로 나란히**다(2026-08-23 사람 판단, §2.5 와 같은 규칙).

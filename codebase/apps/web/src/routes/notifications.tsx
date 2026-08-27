@@ -62,7 +62,6 @@ function NotificationScreen(): React.JSX.Element {
     <PageBody>
       <PageHeader
         title={t('notif.title')}
-        description={t('notif.lead')}
         meta={
           unread > 0 ? (
             <StatusBadge token="waiting" label={t('notif.unread_badge', { count: unread })} />
@@ -75,6 +74,8 @@ function NotificationScreen(): React.JSX.Element {
       <div className="mb-4">
         <InvitationCards heading={false} />
       </div>
+      {/* 이 한 줄이 알림과 승인함의 경계다 — 목록 옆에 두어야 목록을 보며 읽는다 */}
+      <p className="mb-1.5 text-2xs text-text-faint">{t('notif.lead')}</p>
       {notifications.isLoading && <Skeleton rows={5} />}
       {!notifications.isLoading && items.length === 0 && (
         <EmptyState icon="○" title={t('notif.empty')} hint={t('notif.empty_hint')} />

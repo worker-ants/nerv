@@ -42,7 +42,7 @@ function SessionMonitor(): React.JSX.Element {
     <div className="flex min-h-[calc(100vh-var(--spacing-header))]">
       <div className="min-w-0 flex-1">
         <PageBody wide>
-          <PageHeader title={t('sessions.title')} description={t('sessions.lead')} />
+          <PageHeader title={t('sessions.title')} />
           <SessionBoard
             projectSlug={proj}
             projectId={typeof projectId === 'string' ? projectId : proj}

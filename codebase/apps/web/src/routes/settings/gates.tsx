@@ -76,7 +76,7 @@ function GatesTab(): React.JSX.Element {
 
   return (
     <section className="flex max-w-2xl flex-col gap-5">
-      <PageHeader title={t('settings.tab.gates')} description={t('settings.gates.lead')} />
+      <PageHeader title={t('settings.tab.gates')} />
       {!isAdmin && (
         <p className="rounded-nerv border border-border bg-status-waiting-soft px-3 py-2 text-sm text-status-waiting">
           {t('settings.gates.admin_only_pre')} <code className="font-mono">admin</code>{' '}
@@ -85,6 +85,8 @@ function GatesTab(): React.JSX.Element {
       )}
 
       <Card className="flex flex-col gap-4">
+        {/* 없으면 비활성 필드가 **고장으로** 읽힌다 — 무엇이 편집 대상인지 먼저 말한다 */}
+        <p className="text-xs text-text-mute">{t('settings.gates.lead')}</p>
         <Field label={t('settings.gates.boundaries')} hint={t('settings.gates.boundaries_hint')}>
           <Input
             value={boundaries ?? policy.spec_gate.tier_boundaries.join(', ')}
