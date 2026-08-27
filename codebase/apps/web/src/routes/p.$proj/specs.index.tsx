@@ -68,37 +68,70 @@ function SpecListScreen(): React.JSX.Element {
   const graph = useSpecGraph(proj, typeof projectId === 'string' ? projectId : undefined);
 
   return (
-    <PageBody wide>
+    // 화면 높이만큼을 쓰고 **남는 세로는 본문이 가진다**(아래 `flex-1`). 그래프는 밀도가
+    // 전부인 그림이라 캔버스 100px 이 곧 읽을 수 있는 노드 수다.
+    <PageBody wide className="flex min-h-[calc(100dvh-var(--spacing-header))] flex-col">
       <PageHeader
         title={t('specs.title')}
         description={t('specs.lead')}
         actions={
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setSubmitted(query);
-            }}
-          >
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('specs.search_placeholder')}
-              className="w-64"
-            />
-            <Button type="submit">{t('common.search')}</Button>
-            {submitted !== '' && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setQuery('');
-                  setSubmitted('');
-                }}
+          // 검색 줄과 탭 줄을 **머리 안에 포갠다**. 탭이 따로 한 줄을 차지하면 제목 오른쪽의
+          // 빈자리는 그대로 둔 채 본문만 46px 밀려 내려간다 — 화면에서 가장 비싼 것은 세로다.
+          <div className="flex flex-col items-end gap-2">
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSubmitted(query);
+              }}
+            >
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('specs.search_placeholder')}
+                className="w-64"
+              />
+              <Button type="submit">{t('common.search')}</Button>
+              {submitted !== '' && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setQuery('');
+                    setSubmitted('');
+                  }}
+                >
+                  {t('specs.back_to_tree')}
+                </Button>
+              )}
+            </form>
+            {submitted.trim() === '' && (
+              <nav
+                aria-label={t('specs.title')}
+                className="inline-flex rounded-nerv-sm border border-border p-0.5 text-xs"
               >
-                {t('specs.back_to_tree')}
-              </Button>
+                {(['tree', 'table', 'graph'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    data-testid={`view-${mode}`}
+                    onClick={() => setView(mode)}
+                    className={cn(
+                      'rounded-nerv-sm px-3 py-1',
+                      view === mode ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
+                    )}
+                  >
+                    {t(
+                      mode === 'tree'
+                        ? 'graph.tab.tree'
+                        : mode === 'table'
+                          ? 'specs.tab.table'
+                          : 'graph.tab.graph',
+                    )}
+                  </button>
+                ))}
+              </nav>
             )}
-          </form>
+          </div>
         }
       />
 
@@ -114,29 +147,7 @@ function SpecListScreen(): React.JSX.Element {
       )}
 
       {submitted.trim() === '' ? (
-        <>
-          <nav className="mb-3 flex rounded-nerv-sm border border-border p-0.5 text-xs">
-            {(['tree', 'table', 'graph'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                data-testid={`view-${mode}`}
-                onClick={() => setView(mode)}
-                className={cn(
-                  'rounded-nerv-sm px-3 py-1',
-                  view === mode ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
-                )}
-              >
-                {t(
-                  mode === 'tree'
-                    ? 'graph.tab.tree'
-                    : mode === 'table'
-                      ? 'specs.tab.table'
-                      : 'graph.tab.graph',
-                )}
-              </button>
-            ))}
-          </nav>
+        <div className="flex min-h-0 flex-1 flex-col">
           {view === 'tree' ? (
             <Card padded={false} className="p-3">
               <SpecTree
@@ -163,7 +174,7 @@ function SpecListScreen(): React.JSX.Element {
               />
             </Suspense>
           )}
-        </>
+        </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
           <section>

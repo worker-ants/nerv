@@ -3,8 +3,9 @@
 // 여기서 지키는 것: 중심 모드가 hop 을 정확히 세는가. 이게 틀리면 화면은 그럴듯한데
 // 엉뚱한 문서가 "영향 범위"로 보인다 — 눈으로는 절대 못 잡는 종류의 오류다.
 
+import cytoscape from 'cytoscape';
 import { describe, expect, it } from 'vitest';
-import { connectionsOf, neighborhoodForTesting } from './graph.js';
+import { connectionsOf, letAreasPan, neighborhoodForTesting } from './graph.js';
 
 const nodes = ['a', 'b', 'c', 'd', 'z'].map((k) => ({
   id: k,
@@ -68,5 +69,36 @@ describe('패널이 적는 이웃 (2026-08-24 · 사람 지시)', () => {
 
   it('고립 노드는 양쪽 다 비어 있다', () => {
     expect(connectionsOf(nodes, edges, 'z')).toEqual({ out: [], in: [] });
+  });
+});
+
+describe('영역 상자 위의 드래그 (2026-08-27 · 사람 보고)', () => {
+  // 영역으로 묶으면 상자가 화면의 대부분을 덮는다. 그 위의 드래그가 노드를 잡는 일로
+  // 남아 있으면 — 이 그래프는 아무 노드도 잡히지 않으므로 — 화면이 끌리지 않는다.
+  const grouped = (): cytoscape.Core =>
+    cytoscape({
+      headless: true,
+      elements: [
+        { data: { id: 'area' } },
+        { data: { id: 'doc', parent: 'area' } },
+        { data: { id: 'loose' } },
+      ],
+      autoungrabify: true,
+    });
+
+  it('영역은 배경이다 — 그 위의 드래그는 화면 이동으로 넘어간다', () => {
+    const cy = grouped();
+    expect(cy.$id('area').pannable()).toBe(false); // cytoscape 기본값
+    letAreasPan(cy);
+    expect(cy.$id('area').pannable()).toBe(true);
+    cy.destroy();
+  });
+
+  it('문서 노드는 그대로다 — 누르면 고르는 것이 노드의 일이다', () => {
+    const cy = grouped();
+    letAreasPan(cy);
+    expect(cy.$id('doc').pannable()).toBe(false);
+    expect(cy.$id('loose').pannable()).toBe(false);
+    cy.destroy();
   });
 });

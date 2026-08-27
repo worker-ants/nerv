@@ -828,7 +828,7 @@ export const en = {
   'graph.empty_hint': 'Links between spec bodies show up here as edges.',
   'graph.group_by_area': 'Group by area',
   'graph.hint':
-    'Click a node to highlight its neighbours and open its relations on the right · scroll to zoom · arrows point at what is referenced',
+    'Click a node to highlight its neighbours and open its relations on the right · drag to move the view · scroll to zoom · arrows point at what is referenced',
   'graph.hops': '{n} hop',
   'graph.panel.center': 'Centre on this doc',
   'graph.panel.empty': 'Nothing is linked to this document.',

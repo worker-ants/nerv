@@ -178,6 +178,21 @@ function applyHighlight(cy: cytoscape.Core, key: string | null): void {
   });
 }
 
+/**
+ * 영역 상자 위에서 시작한 드래그도 **화면을 옮긴다**(2026-08-27 — 사람 보고).
+ *
+ * cytoscape 는 노드 위의 드래그를 "그 노드를 잡는 일"로 본다. 이 그래프는 읽기 전용이라
+ * 아무 노드도 잡히지 않으므로(`autoungrabify`) 영역 안에서 끌면 **아무 일도 일어나지 않고**
+ * 손을 뗄 때 그 영역만 골라졌다. 그런데 영역으로 묶으면 상자가 화면의 대부분을 덮는다 —
+ * 끌 수 있는 바탕이 상자 사이의 틈뿐이어서, 사람은 "이 그래프는 안 움직인다"고 읽는다.
+ *
+ * 영역 상자는 노드가 아니라 **배경**이다. `panify()` 가 그 위의 드래그를 패닝으로 넘긴다
+ * (누르기는 그대로 — 클릭 한 번은 여전히 그 영역 문서를 고른다).
+ */
+export function letAreasPan(cy: cytoscape.Core): void {
+  cy.nodes(':parent').panify();
+}
+
 export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): React.JSX.Element {
   const t = useT();
   const container = useRef<HTMLDivElement>(null);
@@ -353,6 +368,8 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
       wheelSensitivity: 0.2,
     });
 
+    letAreasPan(cy);
+
     if (focus !== null) {
       const node = cy.nodes().filter((n) => n.data('key') === focus);
       node.addClass('focus');
@@ -405,7 +422,7 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
   const shownCount = visible.size;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Button
           size="sm"
@@ -448,17 +465,20 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
           {t('graph.counts', { nodes: shownCount, edges: edges.length })}
         </span>
       </div>
-      {/* 높이를 고정한다 — 그래프는 스크롤이 아니라 확대/축소로 본다 */}
-      <div className="flex gap-2">
+      {/* 스크롤이 아니라 확대/축소로 보는 그림이다 — 그래서 높이는 **화면이 정한다**.
+          70vh 로 못 박으면 머리 아래 남는 세로가 그림에 쓰이지 않는다(실측 2026-08-27
+          1440×900: 캔버스 611px → 650px). 남는 만큼 캔버스가 가져가고, 좁은 창에서는
+          최소 높이가 그림을 지킨다. 패널은 캔버스와 같은 높이로 늘어난다(stretch). */}
+      <div className="flex min-h-0 flex-1 gap-2">
         <div
           ref={container}
           data-testid="spec-graph"
-          className="h-[70vh] min-w-0 flex-1 rounded-nerv border border-border bg-bg-elev"
+          className="min-h-[380px] min-w-0 flex-1 rounded-nerv border border-border bg-bg-elev"
         />
         {selectedNode !== undefined && (
           <aside
             data-testid="graph-panel"
-            className="flex h-[70vh] w-[288px] shrink-0 flex-col overflow-y-auto rounded-nerv border border-border bg-bg-elev"
+            className="flex w-[288px] shrink-0 flex-col overflow-y-auto rounded-nerv border border-border bg-bg-elev"
           >
             {/* 머리에 고른 문서의 이름. **이름 자체가 문 이다** — 이동은 여기서만 일어난다 */}
             <header className="sticky top-0 z-10 border-b border-border bg-bg-elev px-3 py-2.5">
