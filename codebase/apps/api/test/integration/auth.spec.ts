@@ -12,6 +12,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AuthService, hashToken } from '../../src/modules/auth/auth.service.js';
+import { dbConstraintError } from '../../src/common/db-error.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -382,6 +383,40 @@ describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 
     await auth.setProjectArchived({ projectId, roles: ['admin'], archived: false });
     expect(await listed(false)).toContain('to-archive');
     expect((await auth.resolveProject('to-archive'))?.archivedAt).toBeNull();
+  });
+
+  // 2026-08-28 사람 보고 — slug 는 미리 확인하는데 **key 는 아니어서** 유니크 제약이 그대로
+  // 올라와 "internal server error" 였다. 미리 확인을 제약마다 심는 대신 표면이 한 번에
+  // 받는다(§1.4a) — 그래서 이 테스트가 보는 것은 "key 라고 말하는가"이다.
+  it('같은 key 도 500 이 아니라 이유다 — 어느 필드인지 말한다', async () => {
+    await auth.createOrg({ userId, slug: 'keyclash', name: 'KeyClash' });
+    await auth.createProject({
+      userId,
+      orgSlug: 'keyclash',
+      slug: 'first',
+      key: 'DUP',
+      name: '먼저',
+    });
+
+    // slug 는 다르고 key 만 같다 — 미리 확인이 없는 경로다
+    const raw = await auth
+      .createProject({ userId, orgSlug: 'keyclash', slug: 'second', key: 'DUP', name: '다시' })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(raw).not.toBeNull();
+
+    // 번역은 **표면**이 한다(REST 필터 · MCP 컨트롤러). 여기서 그 변환을 직접 부르는 이유는
+    // 이 테스트가 지켜야 하는 것이 파서이기 때문이다 — 단위 테스트의 pg 오류는 손으로 만든
+    // 것이고, SQLSTATE·`detail` 문자열의 **실제 모양**은 진짜 드라이버만 알려준다.
+    const translated = dbConstraintError(raw);
+    expect(translated?.code).toBe(NERV_ERROR.PRECONDITION);
+    expect(translated?.details['kind']).toBe('unique_violation');
+    expect(translated?.details['fields']).toContain('key');
+    expect(translated?.details['constraint']).toBe('project_org_key_uq');
+    // 사람에게는 고칠 수 있는 필드만 부른다
+    expect(translated?.message).toContain('key');
   });
 
   it('이미 쓰는 slug 는 500 이 아니라 이유다 — 보관된 것이 쥐고 있으면 그렇게 말한다', async () => {

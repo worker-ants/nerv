@@ -8,6 +8,7 @@ import { Catch, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { DEFAULT_LOCALE, NERV_ERROR, negotiateLocale, renderMessage } from '@nerv/schema';
 import type { Locale, Message, NervErrorCode } from '@nerv/schema';
+import { dbConstraintError } from './db-error.js';
 
 /**
  * 도메인·표면이 던지는 NERV 에러. code 가 곧 HTTP 상태를 정한다(아래 매핑).
@@ -61,9 +62,19 @@ const STATUS: Record<NervErrorCode, number> = {
   [NERV_ERROR.UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
 };
 
-/** zod 스키마 위반만 400 — 그 밖의 전제조건 위반은 409(api.md §1.4). */
+/**
+ * 입력의 **모양**이 틀린 것은 400, 그 밖의 전제조건 위반은 409(api.md §1.4).
+ *
+ * zod 위반이 원래의 400 이고, DB 무결성 위반 중 셋이 같은 성질이다(§1.4a): 빠뜨린 값 ·
+ * 허용되지 않는 값 · 너무 긴 값. 반대로 중복 값과 없는 참조는 **모양이 아니라 상태** 라
+ * 409 다 — 같은 요청이 다른 시점에는 성공한다.
+ */
+const BAD_REQUEST_KINDS = new Set(['not_null_violation', 'check_violation', 'too_long']);
+
 export function statusFor(code: NervErrorCode, details: Record<string, unknown>): number {
-  if (code === NERV_ERROR.PRECONDITION && 'issues' in details) return HttpStatus.BAD_REQUEST;
+  if (code !== NERV_ERROR.PRECONDITION) return STATUS[code];
+  if ('issues' in details) return HttpStatus.BAD_REQUEST;
+  if (BAD_REQUEST_KINDS.has(String(details['kind']))) return HttpStatus.BAD_REQUEST;
   return STATUS[code];
 }
 
@@ -130,6 +141,23 @@ export class NervExceptionFilter implements ExceptionFilter {
           code: null,
           message: exception.message,
           details: {},
+          retry_after_s: null,
+          next_actions: [],
+        },
+      };
+    }
+
+    // DB 무결성 위반은 **서버의 잘못이 아니다** — 무엇이 왜 막혔는지 말한다(§1.4a).
+    // 이 갈래가 없으면 "같은 키로 프로젝트 만들기"가 internal error 로 보인다(사람 보고).
+    const constraint = dbConstraintError(exception);
+    if (constraint !== null) {
+      return {
+        status: statusFor(constraint.code, constraint.details),
+        body: {
+          ok: false,
+          code: constraint.code,
+          message: renderMessage(constraint.descriptor, locale),
+          details: constraint.details,
           retry_after_s: null,
           next_actions: [],
         },

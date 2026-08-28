@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.18 · 2026-08-27 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.19 · 2026-08-28 · HTML 판: [api.html](../html/api.html)
+>
+> v0.19 변경(2026-08-28 — 무결성 위반이 500 으로 보였다, 사람 보고): **§1.4a 신설**(REQ-API-036). 같은 `key` 로 프로젝트를 만들면 유니크 제약이 그대로 올라와 "internal server error" 였다 — slug 는 미리 확인하는데 `key` 는 아니었고, 제약마다 미리 확인을 심는 방식은 유지되지 않는다. **표면(REST 필터·MCP 컨트롤러)이 한 번에** SQLSTATE 5종을 `NERV_PRECONDITION` 으로 옮기고 필드·제약 이름을 `details` 에 싣는다(값은 싣지 않는다 — `detail` 에는 충돌한 값이 있다). MCP 에서는 더 나빴다: 같은 실패가 `NERV_UNAVAILABLE` 로 나가 에이전트가 **영원히 실패할 요청을 재시도**했다. 곁가지 정정 둘: **REQ-API-033 이 두 요구에 겹쳐 있던 것**(초대 · 프로젝트 slug)을 slug 쪽을 REQ-API-035 로 옮겨 풀고, 그 요구의 상태 표기를 실물에 맞춰 400 → **409** 로 고쳤다.
 >
 > v0.18 변경(2026-08-27 — 조직 초대, 사람 결정): **§2.1b 신설**(EP-INV-01~06 · REQ-API-031~034). 멤버 표면은 기존 사용자 배정만 담당했고 화면에는 그 입구조차 없어, **신규 사용자는 어느 쪽으로도 들어올 수 없었다**. 초대를 레코드(`invitation`)로 만들고 **링크 하나가 기존·신규를 모두 처리**한다 — 초대하는 쪽은 상대가 계정을 가졌는지 모르고 알 필요도 없다. 사람이 정한 규칙 둘: **초대한 이메일로만 수락**(링크는 메신저를 타고 흐른다) · **7일 만료**. 토큰은 해시만 저장하고 원문은 생성 응답에 한 번만 나간다(PAT 와 같은 규율). 메일 발송은 Phase 2 그대로 — MVP 는 admin 이 링크를 직접 전달한다.
 >
@@ -129,7 +131,7 @@ HTTP 상태 매핑:
 | --- | --- | --- |
 | `NERV_UNAUTHENTICATED` | 401 | 세션 쿠키 없음·만료, PAT 폐기·만료 |
 | `NERV_FORBIDDEN` | 403 | 역할 미충족, PAT 스코프 부족, 지시자≠승인자 위반 |
-| `NERV_PRECONDITION` | 400 / 409 | 400: zod 스키마 위반(`details.issues`) · 409: `base_version` 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치 |
+| `NERV_PRECONDITION` | 400 / 409 | 400: zod 스키마 위반(`details.issues`) · **입력 모양을 어긴 DB 제약**(§1.4a — 빠뜨린 값·허용되지 않는 값·너무 긴 값) · 409: `base_version` 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치, **중복 값·없는 참조**(§1.4a) |
 | `NERV_CONFLICT_SCOPE` | 409 | 클레임 scope 겹침 `block` 판정 |
 | `NERV_LEASE_EXPIRED` | 409 | 리스 만료 후 상태 변경 시도 |
 | `NERV_DRAFT_LEASED` | 409 | 다른 사용자가 초안 편집 리스 보유 |
@@ -137,6 +139,34 @@ HTTP 상태 매핑:
 | `NERV_HUMAN_ONLY` | 403 | A4 액션 요청 — `details.web_url` 딥링크 포함 |
 | `NERV_RATE_LIMIT` | 429 | 쿼터 초과 — `retry_after_s` + `Retry-After` 헤더 병행 |
 | `NERV_UNAVAILABLE` | 503 | 의존 구성요소 장애 |
+
+### 1.4a DB 무결성 위반은 500 이 아니다 (2026-08-28 신설 — 사람 보고)
+
+**"internal server error" 는 사용자의 잘못을 서버의 잘못으로 보고한다.** 같은 `key` 로 프로젝트를 만들면 유니크 제약 위반이 그대로 올라와 500 이었다 — 화면은 무엇이 잘못됐는지 말하지 못하고, 로그를 볼 수 있는 사람만 원인을 안다. slug 는 저장 전에 미리 확인하고 있었지만 `key` 는 아니었고(같은 표에 유니크가 둘이다), **제약마다 미리 확인을 심는 방식은 유지되지 않는다.**
+
+그래서 **표면이 한 번에 받는다.** REST 필터와 MCP 컨트롤러가 같은 변환을 쓴다.
+
+| SQLSTATE | 뜻 | `details.kind` | HTTP |
+| --- | --- | --- | --- |
+| `23505` | 중복 값 | `unique_violation` | 409 |
+| `23503` | 없는 참조 | `foreign_key_violation` | 409 |
+| `23502` | 빠뜨린 값 | `not_null_violation` | 400 |
+| `23514` | 허용되지 않는 값 | `check_violation` | 400 |
+| `22001` | 너무 긴 값 | `too_long` | 400 |
+
+가르는 기준은 **모양이냐 상태냐**다. 빠뜨린 값·허용되지 않는 값·너무 긴 값은 요청의 모양이 틀린 것이라 다시 보내도 같은 결과이므로 400 이고, 중복 값·없는 참조는 지금의 상태라 다른 시점에는 같은 요청이 성공하므로 409 다.
+
+- `details` 에 **`fields`**(제약이 건 열 전부) · **`constraint`** · `table` 을 싣는다. 사람에게 보이는 문장은 그중 **`_id` 로 끝나지 않는 열**만 부른다 — `(org_id, key)` 유니크에서 사람이 고른 값은 `key` 하나이고, 범위 열까지 부르면 무엇을 고치라는 것인지 흐려진다.
+- **값은 싣지 않는다.** Postgres 의 `detail` 에는 충돌한 값이 들어 있는데(`Key (key)=(nerv)`) 그대로 돌려주면 남의 행 값이 새는 자리가 된다. 나가는 것은 이름뿐이다.
+- 필드 이름은 `detail` 에서 읽으므로 서버 로케일(`lc_messages`)이 영어가 아니면 못 읽을 수 있다. 그때는 `fields` 가 비고 **제약 이름만** 남는다 — 이름이라도 있는 편이 "internal error" 보다 낫다.
+- **모르는 오류는 그대로 500 이다.** 여기서 아무거나 4xx 로 만들면 서버의 결함이 사용자 잘못으로 둔갑하고, 그 순간 500 이 사라져 아무도 고치지 않는다.
+- MCP 에서 특히 중요하다: 예전에는 이런 실패가 `NERV_UNAVAILABLE`("잠시 뒤 다시")로 나갔고, 그 코드를 받은 에이전트는 **영원히 실패할 요청을 재시도**한다. 중복 키는 기다린다고 풀리지 않는다.
+
+**더 친절한 답이 필요한 자리에는 여전히 미리 확인을 둔다** — 프로젝트 slug 가 그렇다(REQ-API-035): 보관된 것이 자리를 쥐고 있다는 사실까지 말해야 "복구"라는 길이 보이고, 그건 제약 위반만 보고는 알 수 없다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-API-036 | WHEN DB 제약 위반으로 요청이 실패하면 THE SYSTEM SHALL 표면(REST·MCP)에서 그것을 `NERV_PRECONDITION` 으로 옮기고, 어긴 제약의 종류·필드 이름·제약 이름을 `details` 에 담아 응답한다 — 값은 담지 않는다 |
 
 ### 1.5 멱등 키 — `Idempotency-Key` 헤더
 
@@ -637,7 +667,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | REQ-API-030 | WHEN 요청이 `Accept-Language`를 실어 오면 THE SYSTEM SHALL 봉투의 `message`를 그 로케일로 만들고 `code`·`details`는 로케일과 무관하게 유지한다(§1.4) | `ko`·`en`·미지원 언어·헤더 없음 4케이스 |
 | REQ-API-031 | WHEN 보관한 프로젝트의 경로를 호출하면 THE SYSTEM SHALL slug 를 정상 해소해 열람과 복구(EP-PRJ-05)를 허용한다 — 보관은 목록에서 빼는 것이지 없애는 것이 아니다 |
 | REQ-API-032 | WHEN 전역 받은 요청·알림 목록과 안읽음 수를 낼 때 THE SYSTEM SHALL 보관한 프로젝트의 항목을 제외한다 — 목록·질문·배지가 같은 조건을 쓴다 |
-| REQ-API-033 | WHEN 이미 쓰는 slug 로 프로젝트를 만들려 하면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`details.kind`=`slug_taken`/`slug_archived`)으로 거부한다 — 보관된 것이 쥐고 있으면 복구할 수 있다는 사실을 함께 말한다 |
+| REQ-API-035 | WHEN 이미 쓰는 slug 로 프로젝트를 만들려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`details.kind`=`slug_taken`/`slug_archived`)으로 거부한다 — 보관된 것이 쥐고 있으면 복구할 수 있다는 사실을 함께 말한다 (2026-08-28 정정: 번호가 초대의 REQ-API-033 과 겹쳐 있었고, 상태는 실물이 409 다) |
 | REQ-API-002 | WHEN 인증은 유효하나 역할 또는 PAT 스코프가 부족하면 THE SYSTEM SHALL HTTP 403과 `code: "NERV_FORBIDDEN"`을 반환하고, 부족한 스코프 이름을 `details`에 명시하되 권한 확대 경로는 제공하지 않는다 | viewer의 draft 쓰기, `spec:draft` 없는 PAT의 EP-SPEC-08 |
 | REQ-API-003 | WHEN 같은 `Idempotency-Key`와 같은 본문으로 24시간 내 재호출되면 THE SYSTEM SHALL 부작용 없이 최초 응답을 재생하고 `Idempotency-Replayed: true` 헤더를 단다 | EP-TASK-06 이중 제출 → 클레임 1건 |
 | REQ-API-004 | WHEN 같은 `Idempotency-Key`에 다른 본문이 오면 THE SYSTEM SHALL HTTP 409 `NERV_PRECONDITION`(`details.kind = "idempotency_mismatch"`)을 반환한다 | 본문 변조 재호출 |

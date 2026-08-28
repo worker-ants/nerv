@@ -62,6 +62,12 @@ export const en = {
   'error.comment.body_required': 'A body is required.',
   'error.comment.not_found': 'Comment not found.',
   'error.human_only.approve': 'Only humans can approve.',
+  'error.db.check_violation': 'That value is not allowed — see constraint "{constraint}".',
+  'error.db.foreign_key_violation':
+    'Nothing to point at — {fields}. Create it first, or use another value.',
+  'error.db.not_null_violation': 'A required value is missing — {fields}.',
+  'error.db.too_long': 'That value is too long — {fields}.',
+  'error.db.unique_violation': 'Already in use — {fields}. Pick another value.',
   'error.human_only.inbox': 'The inbox is for humans only.',
   'error.human_only.inbox_decide': 'Only humans can decide inbox items.',
   'error.human_only.steer': 'Only humans can steer or stop a session.',

@@ -14,6 +14,7 @@ import { Body, Controller, Headers, Post, Req } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
 import { createTranslator, msg, negotiateLocale, renderMessage, NERV_ERROR } from '@nerv/schema';
 import type { Locale, Translator } from '@nerv/schema';
+import { dbConstraintError } from '../common/db-error.js';
 import { NervError } from '../common/nerv-exception.filter.js';
 import type { Principal } from '../modules/auth/auth.service.js';
 import { AuthService } from '../modules/auth/auth.service.js';
@@ -228,6 +229,19 @@ export class McpController {
         nextActionsFor(error),
       );
     }
+    // DB 무결성 위반은 REST 와 **같은 변환**을 쓴다(common/db-error.ts · api.md §1.4a).
+    // 여기서 UNAVAILABLE 로 뭉개면 더 나쁘다: 그 코드는 "잠시 뒤 다시"라는 뜻이라 에이전트가
+    // 영원히 실패할 요청을 재시도한다. 중복 키는 기다린다고 풀리지 않는다.
+    const constraint = dbConstraintError(error);
+    if (constraint !== null) {
+      return toolError(
+        constraint.code,
+        renderMessage(constraint.descriptor, locale),
+        constraint.details,
+        nextActionsFor(constraint),
+      );
+    }
+
     // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
     this.logger.error('도구 실행 실패', error instanceof Error ? error.stack : String(error));
     return toolError(NERV_ERROR.UNAVAILABLE, t('mcp.error.tool_failed'), {
