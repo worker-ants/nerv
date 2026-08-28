@@ -30,4 +30,6 @@ Three things are never translated: **identifiers** (status values like `ready` a
 
 ## Light and dark
 
-Light and dark follow your browser (or operating system) setting. There is deliberately no separate switch inside the app.
+Pick **Light / Dark / System** from the same menu, right under the language. `System` is the choice not to choose: while it is selected the screen follows your browser (or operating system) setting, so it turns dark when your machine does. Picking Light or Dark overrides the machine setting.
+
+Unlike the language, **the theme is remembered by this browser, not by your account** — the same person uses a laptop by day and a desktop at night. On another machine you pick it again there.

@@ -8,6 +8,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LocaleProvider } from './lib/i18n.js';
+import { startTheme } from './lib/theme.js';
 import { RealtimeProvider } from './lib/realtime.js';
 import { createQueryClient } from './lib/query-client.js';
 import { routeTree } from './routeTree.gen';
@@ -21,6 +22,10 @@ declare module '@tanstack/react-router' {
     router: typeof router;
   }
 }
+
+// 테마를 **그리기 전에** 문서에 적는다 — 첫 페인트가 옳아야 다크 사용자에게 흰 화면이
+// 번쩍이지 않는다(§1.7a).
+startTheme();
 
 const rootElement = document.getElementById('root');
 if (rootElement === null) throw new Error('#root not found');

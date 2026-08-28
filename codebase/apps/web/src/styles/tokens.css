@@ -128,45 +128,62 @@
   box-shadow: var(--shadow-modal);
 }
 
+/* 다크 팔레트는 **여기 한 곳에만** 있다.
+ *
+ * 예전에는 `@media (prefers-color-scheme: dark)` 안에 있었고, 사용자가 고를 수 있게 되면서
+ * "시스템용 한 벌 + 선택용 한 벌"이 될 뻔했다. 팔레트를 두 벌 적으면 언젠가 한쪽만 고친다 —
+ * 이 파일은 그 사고를 이미 한 번 겪었다(위 `@theme` 주석: 라이트 팔레트가 죽은 코드였다).
+ * 그래서 `system` 은 CSS 가 모른다: 스크립트가 **풀린 값**(light|dark)만 `data-theme` 에 적고
+ * (`lib/theme.tsx`), CSS 는 둘만 안다.
+ */
+:root[data-theme='dark'] {
+  --color-bg: #191919;
+  --color-bg-elev: #202020;
+  --color-bg-sunken: #1e1e1e;
+  --color-bg-hover: #2a2a2a;
+  --color-bg-active: #313131;
+
+  --color-text: #e9e9e7;
+  --color-text-mute: #9b9a97;
+  --color-text-faint: #6f6f6c;
+  --color-text-ghost: #5d5d5a;
+
+  --color-border: #2c2c2c;
+  --color-border-strong: #3d3d3d;
+
+  --color-link: #529cca;
+  --color-code-bg: #252525;
+  --color-code-text: #ff7369;
+
+  --color-status-idle: #2a2a2a;
+  --color-status-idle-text: #9b9a97;
+  --color-status-action: #818cf8;
+  --color-status-action-soft: #232a45;
+  --color-status-waiting: #fbbf24;
+  --color-status-waiting-soft: #2e2410;
+  --color-status-agent: #c4b5fd;
+  --color-status-agent-soft: #241a3a;
+  --color-status-progress: #60a5fa;
+  --color-status-progress-soft: #14203a;
+  --color-status-ok: #4ade80;
+  --color-status-ok-soft: #12291a;
+  --color-status-done: #5eead4;
+  --color-status-done-soft: #0e2724;
+  --color-status-danger: #f87171;
+  --color-status-danger-soft: #321616;
+
+  --shadow-popover: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 40%);
+  --shadow-modal: 0 2px 4px rgb(0 0 0 / 50%), 0 16px 48px rgb(0 0 0 / 50%);
+}
+
+/* 스크립트가 붙기 전 한 프레임 — 배경만 시스템을 따른다.
+ * 다크 사용자에게 흰 화면이 번쩍이는 것을 막는 최소한이고, 여기서 팔레트 전체를 다시 적지
+ * 않는 이유는 바로 위에 있다. 사용자가 라이트를 명시했으면 이것도 적용하지 않는다. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --color-bg: #191919;
-    --color-bg-elev: #202020;
-    --color-bg-sunken: #1e1e1e;
-    --color-bg-hover: #2a2a2a;
-    --color-bg-active: #313131;
-
     --color-text: #e9e9e7;
-    --color-text-mute: #9b9a97;
-    --color-text-faint: #6f6f6c;
-    --color-text-ghost: #5d5d5a;
-
-    --color-border: #2c2c2c;
-    --color-border-strong: #3d3d3d;
-
-    --color-link: #529cca;
-    --color-code-bg: #252525;
-    --color-code-text: #ff7369;
-
-    --color-status-idle: #2a2a2a;
-    --color-status-idle-text: #9b9a97;
-    --color-status-action: #818cf8;
-    --color-status-action-soft: #232a45;
-    --color-status-waiting: #fbbf24;
-    --color-status-waiting-soft: #2e2410;
-    --color-status-agent: #c4b5fd;
-    --color-status-agent-soft: #241a3a;
-    --color-status-progress: #60a5fa;
-    --color-status-progress-soft: #14203a;
-    --color-status-ok: #4ade80;
-    --color-status-ok-soft: #12291a;
-    --color-status-done: #5eead4;
-    --color-status-done-soft: #0e2724;
-    --color-status-danger: #f87171;
-    --color-status-danger-soft: #321616;
-
-    --shadow-popover: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 40%);
-    --shadow-modal: 0 2px 4px rgb(0 0 0 / 50%), 0 16px 48px rgb(0 0 0 / 50%);
+    color-scheme: dark;
   }
 }
 

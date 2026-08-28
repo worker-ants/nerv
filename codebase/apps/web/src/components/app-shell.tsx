@@ -12,6 +12,7 @@
 // 늘 같은 자리에 있어야 한다 — 위로 스크롤해서 찾아야 하는 내비게이션은 내비게이션이 아니다.
 
 import { LOCALE_LABEL, LOCALES, useLocale, useT } from '../lib/i18n.js';
+import { THEMES, useTheme } from '../lib/theme.js';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
@@ -84,6 +85,7 @@ export function AppShell({
 }: AppShellProps): React.JSX.Element {
   const t = useT();
   const { locale, setLocale } = useLocale();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   // 활성 세션 수는 프로젝트 조회가 함께 준다(EP-PRJ-03) — 세션 목록을 또 부르지 않는다
   const shellProject = useProject(projectSlug ?? '');
@@ -448,6 +450,32 @@ export function AppShell({
                         >
                           {/* 언어 이름은 그 언어로 적는다 — 읽을 수 없는 말로 적힌 선택지는 고를 수 없다 */}
                           {LOCALE_LABEL[code]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* 테마는 언어 바로 아래다 — 둘 다 "이 화면을 어떻게 볼 것인가"이고,
+                      같은 자리에 같은 모양으로 있어야 한 번 찾은 사람이 다시 찾는다.
+                      다만 성질은 다르다: 언어는 계정에 붙고 **테마는 기계에 붙는다**
+                      (같은 사람이 낮의 노트북과 밤의 데스크톱을 다르게 쓴다). */}
+                  <div className="border-t border-border px-3 pt-1.5 pb-1">
+                    <p className="mb-1 text-2xs text-text-faint">{t('shell.theme')}</p>
+                    <div className="flex gap-1">
+                      {THEMES.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          data-testid={`theme-${name}`}
+                          aria-pressed={theme === name}
+                          onClick={() => setTheme(name)}
+                          className={cn(
+                            'rounded-nerv-sm px-2 py-0.5 text-xs',
+                            theme === name
+                              ? 'bg-bg-active font-medium'
+                              : 'text-text-mute hover:bg-bg-hover',
+                          )}
+                        >
+                          {t(`theme.${name}`)}
                         </button>
                       ))}
                     </div>
