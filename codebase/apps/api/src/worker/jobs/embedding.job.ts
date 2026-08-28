@@ -22,11 +22,21 @@ export class EmbeddingJob {
     if (report.chunks_embedded > 0 || report.chunks_deleted > 0) {
       this.logger.log(
         `임베딩 ${report.chunks_embedded}청크 적재 · ${report.chunks_deleted}청크 삭제 ` +
-          `(무변경 ${report.chunks_unchanged})`,
+          `(무변경 ${report.chunks_unchanged})` +
+          // 시간 상한은 실패가 아니다 — 비싼 잡이 급한 잡(리스 회수·stale)을 굶기지 않으려는 것이고,
+          // 남은 것은 다음 틱이 이어간다. 그래도 말은 해야 "왜 아직 다 안 됐나"에 답이 된다.
+          // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022 예외)
+          (report.stopped_early ? ' · 시간 상한에서 멈춤 — 다음 틱이 이어간다' : ''),
       );
     }
     // 제공자 무응답은 경고다 — 검색은 렉시컬로 degrade 되고(REQ-API-026) 다음 틱에 다시 시도한다.
-    if (report.error !== null) this.logger.warn(`임베딩 제공자 오류 — ${report.error}`);
+    // **한 사건에 한 줄만 남긴다**: 서비스가 report.error 에 맥락(어느 문서에서 멈췄나)을 담고
+    // 여기서 한 번 찍는다. 같은 실패를 두 계층이 각자 찍으면 로그가 두 배로 늘고 원인은 그대로다.
+    if (report.error !== null) {
+      this.logger.warn(
+        `임베딩 중단(이번 판 ${report.chunks_embedded}청크 적재 후) — ${report.error}`,
+      );
+    }
     return report;
   }
 }

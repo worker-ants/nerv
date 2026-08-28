@@ -42,6 +42,10 @@ let stub: Server;
 let stubPort: number;
 let stubDimensions = DIMENSIONS;
 let lastRequest: Record<string, unknown> | null = null;
+/** 요청마다 (입력 수, 총 문자 수) — 예산이 지켜지는지 보는 눈이다 */
+let requestSizes: { items: number; chars: number }[] = [];
+/** 이 번호부터의 요청을 늦춘다 — 타임아웃 재현용(0 이면 지연 없음) */
+let stallFromRequest = 0;
 
 let db: ScratchDb;
 let pool: pg.Pool;
@@ -62,15 +66,27 @@ beforeAll(async () => {
       }
       const payload = JSON.parse(body) as { input: string[] };
       lastRequest = JSON.parse(body) as Record<string, unknown>;
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          data: payload.input.map((text, index) => ({
-            index,
-            embedding: fakeEmbedding(text, stubDimensions),
-          })),
-        }),
-      );
+      requestSizes.push({
+        items: payload.input.length,
+        chars: payload.input.reduce((sum, text) => sum + text.length, 0),
+      });
+      const answer = (): void => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            data: payload.input.map((text, index) => ({
+              index,
+              embedding: fakeEmbedding(text, stubDimensions),
+            })),
+          }),
+        );
+      };
+      // 늦게 답하는 제공자 — 클라이언트가 먼저 끊는다(AbortError 경로)
+      if (stallFromRequest > 0 && requestSizes.length >= stallFromRequest) {
+        setTimeout(answer, 5_000).unref();
+        return;
+      }
+      answer();
     });
   });
   await new Promise<void>((resolve) => stub.listen(0, '127.0.0.1', resolve));
@@ -274,3 +290,70 @@ async function seed(): Promise<void> {
   );
   expect(NERV_ERROR.PRECONDITION).toBeDefined();
 }
+
+// 2026-08-28 실측 — 색인이 approved 114편 중 1편에서 멈춰 있었다. 원인은 제공자가 아니라
+// **한 문서의 청크를 통째로 한 요청에 실은 것**이었고, 그래서 매 틱 같은 자리에서 타임아웃했다.
+describe('요청 예산과 부분 진행 (2026-08-28 회귀 방지)', () => {
+  const longBody = (sections: number): string =>
+    Array.from({ length: sections }, (_, i) => `## 절 ${i}\n\n${'가'.repeat(3000)}`).join('\n\n');
+
+  it('한 문서의 청크를 통째로 보내지 않는다 — 요청마다 문자 예산을 지킨다', async () => {
+    const spec = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-BATCH-1',
+      title: '긴 문서',
+      type: 'feature',
+      bodyMd: longBody(6),
+      userId: planner,
+    });
+    expect(spec).toBeDefined();
+
+    requestSizes = [];
+    const report = await embeddings.runOnce({ projectId });
+
+    expect(report.error).toBeNull();
+    expect(requestSizes.length).toBeGreaterThan(1);
+    // 예산(6,000자)을 넘는 요청은 **한 개짜리**뿐이다 — 청크는 더 쪼갤 수 없다
+    for (const size of requestSizes) {
+      if (size.chars > 6000) expect(size.items).toBe(1);
+      expect(size.items).toBeLessThanOrEqual(8);
+    }
+  });
+
+  it('타임아웃이 나도 앞선 배치는 남는다 — 다음 틱이 그 다음부터 이어간다', async () => {
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-BATCH-2',
+      title: '중간에 끊기는 문서',
+      type: 'feature',
+      bodyMd: longBody(8),
+      userId: planner,
+    });
+
+    requestSizes = [];
+    stallFromRequest = 3; // 세 번째 요청부터 늦게 답한다
+    process.env['NERV_EMBED_TIMEOUT_MS'] = '300';
+    let report;
+    try {
+      report = await embeddings.runOnce({ projectId });
+    } finally {
+      stallFromRequest = 0;
+      delete process.env['NERV_EMBED_TIMEOUT_MS'];
+    }
+
+    // 실패는 실패라고 말한다 — 어느 문서에서, 무엇을 하다, 어느 손잡이를 돌리면 되는지까지
+    expect(report.error).toContain('SPC-BATCH-2');
+    expect(report.error).toContain('NERV_EMBED_TIMEOUT_MS');
+    // 그리고 **앞의 두 배치는 남는다**
+    expect(report.chunks_embedded).toBeGreaterThan(0);
+
+    // 다음 판은 남은 청크만 이어서 한다
+    requestSizes = [];
+    const next = await embeddings.runOnce({ projectId });
+    expect(next.error).toBeNull();
+    expect(next.chunks_embedded).toBeGreaterThan(0);
+    expect(next.chunks_unchanged).toBeGreaterThan(0);
+  });
+});

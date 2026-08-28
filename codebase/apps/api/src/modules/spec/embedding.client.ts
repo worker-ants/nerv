@@ -13,6 +13,17 @@ import { Logger } from '@nestjs/common';
 /** 전 프로필 고정 차원 — 4.3 §2.15 · REQ-CB-021 */
 export const EMBEDDING_DIMENSIONS = 1024;
 
+/**
+ * 기본 타임아웃 — **가장 느린 프로필이 기준이다.**
+ *
+ * 10초는 로컬 ollama(CPU)에서 거의 항상 부족했다(실측 2026-08-28: 4,000자 한 개에 5.5초,
+ * 16,000자 여덟 개에 39.8초). 빠른 제공자에서 30초는 그냥 안 쓰이는 상한이지만, 느린
+ * 제공자에서 10초는 **색인이 한 걸음도 못 나가는** 값이다. `NERV_EMBED_TIMEOUT_MS` 로 바꾼다.
+ */
+function defaultTimeoutMs(): number {
+  return Number(process.env['NERV_EMBED_TIMEOUT_MS'] ?? 30_000);
+}
+
 export interface EmbeddingClientOptions {
   baseUrl: string;
   model: string;
@@ -43,8 +54,10 @@ export class EmbeddingClient {
     const body: Record<string, unknown> = { model: this.options.model, input: inputs };
     if (this.options.sendDimensions === true) body['dimensions'] = EMBEDDING_DIMENSIONS;
 
+    const timeoutMs = this.options.timeoutMs ?? defaultTimeoutMs();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 10_000);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const chars = inputs.reduce((sum, text) => sum + text.length, 0);
     let payload: EmbeddingResponse;
     try {
       const res = await fetch(`${this.options.baseUrl}/embeddings`, {
@@ -55,6 +68,19 @@ export class EmbeddingClient {
       });
       if (!res.ok) throw new Error(`임베딩 제공자 오류 ${res.status}`);
       payload = (await res.json()) as EmbeddingResponse;
+    } catch (error) {
+      // **`AbortError` 세 글자로는 아무도 원인을 모른다.** 무엇을 얼마나 보냈고 어디서
+      // 끊겼는지, 어느 손잡이를 돌리면 되는지까지 문장에 담는다 — 이 경고는 로그에만
+      // 남으므로 그 자리에서 읽히지 않으면 영영 안 읽힌다.
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(
+          `임베딩 제공자가 ${timeoutMs}ms 안에 응답하지 않았다(입력 ${inputs.length}개 · ${chars}자 · ` +
+            `${this.options.baseUrl}). 느린 프로필이면 NERV_EMBED_TIMEOUT_MS 를 올리거나 ` +
+            `NERV_EMBED_BATCH_CHARS 를 줄인다`,
+          { cause: error },
+        );
+      }
+      throw error;
     } finally {
       clearTimeout(timer);
     }
