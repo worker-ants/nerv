@@ -23,9 +23,16 @@ export async function createWorker(): Promise<INestApplicationContext> {
  * "unsettled top-level await"). 워커의 본체는 원래 주기 루프이므로 그 자리를 그대로 쓴다.
  *
  * 틱마다 JobRunner 가 advisory lock(REQ-CB-011)을 확인하고, 보유 시에만 각 잡을
- * 자기 주기에 따라 실행한다. 틱 간격이 곧 스케줄 해상도다.
+ * 자기 주기에 따라 실행한다. 틱 간격이 곧 **스케줄 해상도**다 — 잡이 1초 주기를 원해도
+ * 틱이 10초면 10초마다 발화한다. 그래서 기본을 1초로 둔다(2026-08-28 · `NERV_WORKER_TICK_MS`).
+ *
+ * 촘촘한 틱이 싼 이유: 락은 **한 번 잡으면 계속 보유**하므로(advisory-lock.ts) 틱마다 DB 를
+ * 왕복하지 않고, 주기가 안 된 잡은 비교 한 번으로 건너뛴다. 앞 틱이 아직 돌고 있으면
+ * 아래 `ticking` 이 그 틱을 통째로 건너뛴다 — 겹쳐 돌지 않는다.
  */
-const JOB_TICK_MS = 10_000;
+function jobTickMs(): number {
+  return Number(process.env['NERV_WORKER_TICK_MS'] ?? 1000);
+}
 
 async function bootstrap(): Promise<void> {
   const worker = await createWorker();
@@ -43,7 +50,7 @@ async function bootstrap(): Promise<void> {
       .finally(() => {
         ticking = false;
       });
-  }, JOB_TICK_MS);
+  }, jobTickMs());
   // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
   Logger.log('nerv-worker started (HTTP 리스너 없음 — REQ-CB-005)', 'Worker');
 

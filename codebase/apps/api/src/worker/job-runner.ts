@@ -20,7 +20,11 @@ import { SessionStaleJob } from './jobs/session-stale.job.js';
 
 interface Scheduled {
   name: string;
-  everyMs: number;
+  /**
+   * 주기. **함수면 매 틱 다시 묻는다** — 임베딩만 그렇다(§2.2): 일감이 있으면 붙어서 돌고
+   * 없으면 물러난다. 나머지 다섯은 상수이고, 상수인 편이 읽기 쉬우므로 그대로 둔다.
+   */
+  everyMs: number | (() => number);
   run: () => Promise<unknown>;
   /** 아직 한 번도 안 돈 상태 — null 이면 즉시 실행 대상이다(기동 직후 첫 틱이 그렇다) */
   lastRunAt: number | null;
@@ -59,7 +63,15 @@ export class JobRunner {
       },
       // 임베딩은 비싸고 급하지 않다. 저장 직후 수 초간 벡터 결과에 새 본문이 빠지는
       // 비대칭은 문서가 이미 수용했다(api.md §2.2b "인덱싱 시점").
-      { name: embedding.name, everyMs: heartbeat * 5, run: () => embedding.run(), lastRunAt: null },
+      // **다만 밀려 있을 때는 급하다**(2026-08-28): 고정 5분 주기는 판당 20초씩이라 가동률이
+      // 6.7% 였고 문서 140편을 채우는 데 몇 시간이 걸렸다. 그래서 이 잡만 주기가 변한다.
+      {
+        name: embedding.name,
+        // 잡이 스스로 정한다 — 밀린 색인이 있으면 1초, 다 채웠으면 5분(§2.2 · REQ-CB-027)
+        everyMs: () => embedding.everyMs,
+        run: () => embedding.run(),
+        lastRunAt: null,
+      },
       // 보존 정책·미러는 하루 단위 작업이다 — 자주 돌 이유가 없고, 자주 돌면 삭제가
       // 사용자의 작업 시간과 겹친다. 1시간 주기로 두고 잡 내부가 날짜로 판정한다.
       {
@@ -78,7 +90,8 @@ export class JobRunner {
 
     const ran: string[] = [];
     for (const job of this.schedule) {
-      if (job.lastRunAt !== null && now - job.lastRunAt < job.everyMs) continue;
+      const everyMs = typeof job.everyMs === 'function' ? job.everyMs() : job.everyMs;
+      if (job.lastRunAt !== null && now - job.lastRunAt < everyMs) continue;
       job.lastRunAt = now;
       try {
         await job.run();

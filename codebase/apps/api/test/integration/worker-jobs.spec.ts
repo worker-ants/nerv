@@ -118,7 +118,9 @@ describe('E04-S04 주기 스케줄', () => {
 
     const later = await runner.tick(1_000_000 + 61_000); // 하트비트 간격 뒤
     expect(later).toContain('lease-reaper');
-    expect(later).not.toContain('embedding'); // 임베딩은 5배 주기다
+    // 임베딩은 **주기가 변하는 유일한 잡**이다(REQ-CB-027). 이 환경에는 제공자가 없어
+    // 첫 판이 오류로 끝나므로 물러난 주기(5분)를 쓴다 — 61초 뒤에는 아직 차례가 아니다.
+    expect(later).not.toContain('embedding');
     await lock.release();
   });
 
