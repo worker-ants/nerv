@@ -40,6 +40,14 @@ export interface ActiveClaimSummary extends Record<string, unknown> {
   baseline_id: string | null;
 }
 
+/** 세션 추정의 후보 한 줄 — 여럿일 때 에이전트가 고를 수 있도록 신원을 함께 준다 */
+export interface SessionCandidate extends Record<string, unknown> {
+  session_id: string;
+  hostname: string;
+  agent_type: string;
+  last_seen_at: string;
+}
+
 /** S5 카드 한 장 — 신원 3요소 + 클레임 + 리스 잔여 + diff (ui-wireframes §3.3) */
 export interface SessionCard extends Record<string, unknown> {
   id: string;
@@ -97,6 +105,14 @@ export class SessionService {
     const existing = await this.findResumable(input);
 
     if (existing !== null) {
+      // **재개는 되살리는 것이다.** stale 로 쓸려 간 세션을 그대로 두고 `resumed: true` 만
+      // 돌려주면, 그 세션은 살아 있다고 말하면서 죽은 상태로 남는다 — 세션 추정(§1.4c)도
+      // 그 세션을 찾지 못해 에이전트가 bootstrap 과 실패를 무한히 오간다.
+      await this.db.execute(sql`
+        UPDATE agent_session
+           SET state = 'active', ended_at = NULL, end_reason = NULL, last_heartbeat_at = now()
+         WHERE id = ${existing} AND state <> 'active'
+      `);
       return this.pack(existing, input.projectId, true);
     }
 
@@ -498,9 +514,53 @@ export class SessionService {
     return Object.fromEntries(rows.map((r) => [r.state, r.n]));
   }
 
-  async requireSession(sessionId: string, projectId: string): Promise<void> {
+  /**
+   * 이 호출이 **어느 세션의 일인가** — 도구가 `session_id` 를 주지 않았을 때의 추정(§1.4c).
+   *
+   * 카탈로그(3.4 §2.3)는 `nerv_bootstrap` 외의 도구에 `session_id` 를 적지 않는다. 서버가
+   * 안다는 뜻이었는데 **그 절반이 구현돼 있지 않았다** — 그래서 세션을 요구하는 도구
+   * (`nerv_question_create`·`nerv_task_claim`·`nerv_session_event`)는 스키마대로 부르면
+   * 언제나 `session_required` 였다(실측 2026-08-29).
+   *
+   * **여럿이면 고르지 않는다.** 잘못 고르면 남의 세션에 질문과 클레임이 붙고, 클레임은
+   * 세션 단위로 겹침을 판정하므로(scope 충돌) 조용한 오귀속이 곧 잘못된 충돌 판정이 된다.
+   * 후보를 그대로 돌려주고 부르는 쪽이 `session_id` 를 요구하게 한다.
+   */
+  async liveSessions(projectId: string, userId: string): Promise<SessionCandidate[]> {
+    const { rows } = await this.db.execute<SessionCandidate>(sql`
+      SELECT id AS session_id, hostname, agent_type::text AS agent_type,
+             coalesce(last_heartbeat_at, started_at)::text AS last_seen_at
+        FROM agent_session
+       WHERE project_id = ${projectId} AND user_id = ${userId}
+         AND state IN ('pending', 'active', 'awaiting_input')
+         AND coalesce(last_heartbeat_at, started_at)
+             > now() - ${sql.raw(`interval '${SESSION_STALE_SECONDS} seconds'`)}
+       ORDER BY coalesce(last_heartbeat_at, started_at) DESC
+    `);
+    return rows;
+  }
+
+  /**
+   * 도구 호출은 **생존의 증거다.** 하트비트는 클레임을 쥔 세션만 치므로, 스펙만 쓰는
+   * 세션은 30분 뒤 stale 로 쓸려 가고 그때부터 자기 도구를 못 쓴다(실측 시나리오).
+   */
+  async touch(sessionId: string): Promise<void> {
+    await this.db.execute(
+      sql`UPDATE agent_session SET last_heartbeat_at = now() WHERE id = ${sessionId}`,
+    );
+  }
+
+  /**
+   * 명시된 세션이 **이 프로젝트의, 이 사람의** 세션인가.
+   *
+   * 사용자를 함께 보는 이유: 존재만 확인하면 같은 프로젝트의 **남의 세션 id** 를 실어
+   * 질문·클레임을 그쪽에 붙일 수 있다. 감사(FR-16)가 "누가 했나"에 답하려면 이 자리가
+   * 먼저 답해야 한다.
+   */
+  async requireSession(sessionId: string, projectId: string, userId?: string): Promise<void> {
+    const owner = userId === undefined ? sql`` : sql` AND user_id = ${userId}`;
     const { rows } = await this.db.execute<{ id: string }>(
-      sql`SELECT id FROM agent_session WHERE id = ${sessionId} AND project_id = ${projectId}`,
+      sql`SELECT id FROM agent_session WHERE id = ${sessionId} AND project_id = ${projectId}${owner}`,
     );
     if (rows.length === 0) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.not_found'), {

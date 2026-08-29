@@ -21,6 +21,7 @@ export class QuestionTools implements NervToolProvider {
           question: { type: 'string' },
           options: { type: 'array', items: { type: 'string' } },
           urgency: { type: 'string', enum: ['blocking', 'normal'] },
+          session_id: { type: 'string', description: 'mcp.arg.session_id' },
           idempotency_key: { type: 'string' },
         },
         required: ['question'],

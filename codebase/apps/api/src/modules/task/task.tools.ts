@@ -55,6 +55,7 @@ export class TaskTools implements NervToolProvider {
             },
           },
           lease_seconds: { type: 'integer' },
+          session_id: { type: 'string', description: 'mcp.arg.session_id' },
           idempotency_key: { type: 'string' },
         },
         required: ['task_id'],

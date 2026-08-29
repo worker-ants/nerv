@@ -74,7 +74,10 @@ export const en = {
   'error.human_only.token_issue': 'Only humans can issue tokens.',
   'error.mcp.bad_origin': 'Origin not allowed.',
   'error.mcp.bad_revision': 'Unsupported protocol revision: {revision}',
-  'error.mcp.no_session': 'No session — call nerv_bootstrap first.',
+  'error.mcp.no_session':
+    'No live session — start or resume one with nerv_bootstrap (a session expires after 30 minutes of inactivity).',
+  'error.mcp.session_ambiguous':
+    'This project has {count} live sessions — name the one this belongs to with session_id.',
   'error.mcp.pat_only': 'MCP accepts personal access tokens only.',
   'error.membership.duplicate': 'Already a member at that scope.',
   'error.membership.not_found': 'Membership not found.',
@@ -251,6 +254,8 @@ export const en = {
   'mcp.arg.event_seq': 'Monotonic within the session — the idempotency key for resends',
   'mcp.arg.around': 'spec key — when given, only the neighbourhood of this document',
   'mcp.arg.scope': 'Specs and files this work will touch — the input to overlap detection',
+  'mcp.arg.session_id':
+    'Which session this belongs to — omit it and the live session for this token is used (required when more than one is live)',
   'error.spec.type_not_allowed': 'This role cannot create that kind of spec.',
   'error.review.already_resolved': 'This finding already carries a different resolution.',
   'error.review.commit_required':

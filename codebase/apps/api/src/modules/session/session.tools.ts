@@ -73,6 +73,7 @@ export class SessionTools implements NervToolProvider {
           body_md: { type: 'string' },
           tool_name: { type: 'string' },
           payload: { type: 'object' },
+          session_id: { type: 'string', description: 'mcp.arg.session_id' },
         },
         required: ['event_seq', 'type'],
       },
@@ -101,12 +102,23 @@ function str(value: unknown): string | null {
  * 구조화 에러로 던지는 것이 중요하다 — "먼저 bootstrap 을 불러라"는 에이전트가 읽고 스스로
  * 고칠 수 있는 정보다. 일반 Error 로 던지면 게이트웨이가 내부 오류로 뭉개고,
  * 모델은 무엇을 잘못했는지 모른 채 같은 호출을 반복한다(agent-integration §2.7).
+ *
+ * **두 실패는 다른 실패다**(2026-08-29). 없어서 못 고른 것과 여럿이라 안 고른 것은 다음
+ * 행동이 다르다 — 앞은 bootstrap, 뒤는 `session_id` 지정이다. 같은 코드로 뭉치면
+ * 에이전트는 이미 만든 세션을 두고 bootstrap 을 다시 부르며 제자리를 돈다.
  */
 export function requireSession(ctx: ToolContext): string {
-  if (ctx.sessionId === null) {
-    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.no_session'), {
-      kind: 'session_required',
-    });
+  if (ctx.sessionId !== null) return ctx.sessionId;
+
+  const candidates = ctx.sessionCandidates ?? [];
+  if (candidates.length > 1) {
+    throw new NervError(
+      NERV_ERROR.PRECONDITION,
+      msg('error.mcp.session_ambiguous', { count: String(candidates.length) }),
+      { kind: 'session_ambiguous', sessions: candidates },
+    );
   }
-  return ctx.sessionId;
+  throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.no_session'), {
+    kind: 'session_required',
+  });
 }

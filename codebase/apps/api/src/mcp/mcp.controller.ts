@@ -19,6 +19,7 @@ import { NervError } from '../common/nerv-exception.filter.js';
 import type { Principal } from '../modules/auth/auth.service.js';
 import { AuthService } from '../modules/auth/auth.service.js';
 import { SessionService } from '../modules/session/session.service.js';
+import type { SessionCandidate } from '../modules/session/session.service.js';
 import { ToolRegistry } from './tool-registry.js';
 import type { ToolContext } from './tool-context.js';
 
@@ -177,10 +178,20 @@ export class McpController {
       return this.toStructuredError(error, t, locale);
     }
 
+    // 세션 해소도 **구조화 에러**여야 한다 — 여기서 던지면 게이트웨이가 프로토콜 오류로
+    // 뭉개고, 모델은 자기가 무엇을 잘못 넘겼는지 모른 채 같은 호출을 반복한다.
+    let session: { id: string | null; candidates: readonly SessionCandidate[] };
+    try {
+      session = await this.resolveSession(args, principal);
+    } catch (error) {
+      return this.toStructuredError(error, t, locale);
+    }
+
     const ctx: ToolContext = {
       principal,
       projectId: principal.projectId ?? '',
-      sessionId: await this.resolveSession(args, principal),
+      sessionId: session.id,
+      sessionCandidates: session.candidates,
       idempotencyKey:
         typeof args['idempotency_key'] === 'string'
           ? args['idempotency_key']
@@ -200,19 +211,40 @@ export class McpController {
   }
 
   /**
-   * 도구 실행 세션 — 명시 인자 > 활성 세션 추정.
-   * nerv_bootstrap 은 세션을 만드는 도구라 여기서 null 이어도 정상이다.
+   * 도구 실행 세션 — **명시 인자 > 살아 있는 세션 추정**(api.md §1.4c).
+   *
+   * 추정이 오랫동안 비어 있었다: 이 함수는 `session_id` 를 준 호출만 세션을 얻었는데,
+   * 카탈로그(3.4 §2.3)는 `nerv_bootstrap` 외의 도구에 그 인자를 적지 않는다. 그래서
+   * 스키마대로 부르는 에이전트는 `nerv_question_create`·`nerv_task_claim`·
+   * `nerv_session_event` 를 **한 번도 성공시킬 수 없었다** — bootstrap 이 방금 성공했어도
+   * `session_required` 였다(실측 2026-08-29 · 토이 프로젝트 보고).
+   *
+   * 도구 호출은 **생존의 증거**이므로 찾은 세션의 마지막 활동 시각을 갱신한다. 그러지
+   * 않으면 하트비트를 치지 않는 세션(스펙만 쓰는 세션)이 30분 뒤 stale 로 쓸려 가고,
+   * 그때부터 자기 도구를 못 쓴다.
+   *
+   * nerv_bootstrap 은 세션을 만드는 도구라 여기서 비어 있어도 정상이다.
    */
   private async resolveSession(
     args: Record<string, unknown>,
     principal: Principal,
-  ): Promise<string | null> {
+  ): Promise<{ id: string | null; candidates: readonly SessionCandidate[] }> {
+    const projectId = principal.projectId ?? '';
     const explicit = args['session_id'];
     if (typeof explicit === 'string' && explicit !== '') {
-      await this.sessions.requireSession(explicit, principal.projectId ?? '');
-      return explicit;
+      // **자기 세션만 받는다.** 존재만 보면 같은 프로젝트의 남의 세션에 일을 붙일 수 있다
+      await this.sessions.requireSession(explicit, projectId, principal.userId);
+      await this.sessions.touch(explicit);
+      return { id: explicit, candidates: [] };
     }
-    return null;
+    const candidates = await this.sessions.liveSessions(projectId, principal.userId);
+    if (candidates.length === 1) {
+      const only = candidates[0] as SessionCandidate;
+      await this.sessions.touch(only.session_id);
+      return { id: only.session_id, candidates };
+    }
+    // 0개면 "먼저 bootstrap", 2개 이상이면 "어느 것인지 말하라" — 판단은 requireSession 이 한다
+    return { id: null, candidates };
   }
 
   /**
@@ -263,6 +295,9 @@ export class McpController {
 function nextActionsFor(error: NervError): string[] {
   // 세션이 없어서 막힌 것이면 답은 하나다 — bootstrap 부터.
   if (error.details['kind'] === 'session_required') return ['nerv_bootstrap'];
+  // 여럿이라 못 고른 것이면 **부를 도구가 없다** — 인자를 붙여 다시 부르는 것이 답이다.
+  // 여기서 bootstrap 을 권하면 세션이 하나 더 생겨 모호함이 깊어진다.
+  if (error.details['kind'] === 'session_ambiguous') return [];
 
   switch (error.code as string) {
     case NERV_ERROR.CONFLICT_SCOPE:

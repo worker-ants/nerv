@@ -388,11 +388,130 @@ describe('E03-S03 P0 도구 — 작업 흐름', () => {
     expect(released['taskStatus']).toBe('ready');
   });
 
-  it('세션 없이 클레임하면 막고 bootstrap 을 가리킨다 — 모델이 스스로 고칠 수 있게', async () => {
+  /** 이 프로젝트의 살아 있는 세션을 비운다 — 추정의 입력을 통제하기 위해 */
+  async function clearSessions(): Promise<void> {
+    await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
+  }
+
+  it('세션이 하나도 없으면 막고 bootstrap 을 가리킨다 — 모델이 스스로 고칠 수 있게', async () => {
+    await clearSessions();
     const result = await callTool('nerv_task_claim', { task_id: newId() });
     expect(result).toMatchObject({ ok: false, code: NERV_ERROR.PRECONDITION });
     expect(result['details']).toMatchObject({ kind: 'session_required' });
     expect(result['next_actions']).toEqual(['nerv_bootstrap']);
+  });
+});
+
+// ── 세션 추정 (2026-08-29 — 토이 프로젝트 실측 보고) ─────────────────────────────
+//
+// 카탈로그(3.4 §2.3)는 `nerv_bootstrap` 외의 도구에 `session_id` 를 적지 않는다. 서버가
+// 안다는 뜻인데 **그 절반이 없었다** — 세션을 요구하는 도구는 스키마대로 부르면 언제나
+// `session_required` 였고, bootstrap 이 방금 성공했어도 그랬다.
+//
+// L2 가 이것을 잡지 못한 이유가 이 파일에 있다: 여기 호출들은 전부 `session_id` 를 실어
+// 보냈다 — **테스트가 계약에 없는 인자를 알고 있었다.**
+
+describe('E03-S03 세션 추정 — 스키마대로 부르면 된다', () => {
+  async function clearSessions(): Promise<void> {
+    await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
+  }
+
+  const boot = (external: string, hostname: string): Promise<Record<string, unknown>> =>
+    callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname,
+      external_session_id: external,
+    });
+
+  it('bootstrap 뒤에는 session_id 없이도 세션 도구가 돈다', async () => {
+    await clearSessions();
+    await boot('S-infer', 'mac-infer');
+
+    const question = await callTool('nerv_question_create', {
+      question: '이 판단이 맞습니까',
+      urgency: 'normal',
+    });
+    expect(question['ok']).toBe(true);
+    expect(question['question_id']).toEqual(expect.any(String));
+  });
+
+  it('살아 있는 세션이 둘이면 고르지 않고 후보를 준다 — 오귀속은 잘못된 충돌 판정이 된다', async () => {
+    await clearSessions();
+    await boot('S-two-a', 'mac-a');
+    await boot('S-two-b', 'mac-b');
+
+    const result = await callTool('nerv_question_create', {
+      question: '누구의 질문인가',
+      urgency: 'normal',
+    });
+    expect(result).toMatchObject({ ok: false, code: NERV_ERROR.PRECONDITION });
+    const details = result['details'] as { kind: string; sessions: { hostname: string }[] };
+    expect(details.kind).toBe('session_ambiguous');
+    expect(details.sessions.map((x) => x.hostname).sort()).toEqual(['mac-a', 'mac-b']);
+    // bootstrap 을 권하면 세션이 하나 더 생겨 모호함이 깊어진다
+    expect(result['next_actions']).toEqual([]);
+  });
+
+  it('모호하면 session_id 로 고른다 — 그리고 남의 세션은 받지 않는다', async () => {
+    await clearSessions();
+    const mine = (await boot('S-mine', 'mac-mine'))['session_id'] as string;
+    await boot('S-other-live', 'mac-other-live'); // 모호하게 만든다
+
+    const ok = await callTool('nerv_question_create', {
+      question: '이 세션의 질문',
+      urgency: 'normal',
+      session_id: mine,
+    });
+    expect(ok['ok']).toBe(true);
+
+    // 같은 프로젝트의 **남의** 세션 — 존재만 보면 여기에 일을 붙일 수 있었다
+    const stranger = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state, last_heartbeat_at)
+       VALUES ($1, $2, $3, 'claude-code', 'someone-else', 'active', now())`,
+      [stranger, projectId, qaUserId],
+    );
+    const refused = await callTool('nerv_question_create', {
+      question: '남의 세션에 붙는가',
+      urgency: 'normal',
+      session_id: stranger,
+    });
+    expect(refused).toMatchObject({ ok: false, code: NERV_ERROR.PRECONDITION });
+    expect(refused['details']).toMatchObject({ kind: 'not_found' });
+  });
+
+  it('stale 로 쓸려 간 세션은 bootstrap 재개가 되살린다 — resumed 는 살아났다는 뜻이다', async () => {
+    await clearSessions();
+    await boot('S-revive', 'mac-revive');
+    await clearSessions(); // 무활동 30분이 지난 것과 같은 상태
+
+    const again = await boot('S-revive', 'mac-revive');
+    expect(again['resumed']).toBe(true);
+
+    // 되살아나지 않으면 추정이 그 세션을 못 찾아 bootstrap 과 실패를 무한히 오간다
+    const question = await callTool('nerv_question_create', {
+      question: '되살아난 세션의 질문',
+      urgency: 'normal',
+    });
+    expect(question['ok']).toBe(true);
+  });
+
+  it('도구 호출은 생존의 증거다 — 하트비트를 안 쳐도 세션이 늙지 않는다', async () => {
+    await clearSessions();
+    const id = (await boot('S-touch', 'mac-touch'))['session_id'] as string;
+    await pool.query(
+      `UPDATE agent_session SET last_heartbeat_at = now() - interval '20 minutes' WHERE id = $1`,
+      [id],
+    );
+
+    await callTool('nerv_spec_tree', {});
+
+    const { rows } = await pool.query<{ age: string }>(
+      `SELECT extract(epoch from now() - last_heartbeat_at)::int::text AS age
+         FROM agent_session WHERE id = $1`,
+      [id],
+    );
+    expect(Number(rows[0]?.age)).toBeLessThan(60);
   });
 });
 

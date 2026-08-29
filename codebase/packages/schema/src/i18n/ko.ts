@@ -76,7 +76,10 @@ export const ko = {
   'error.human_only.token_issue': '토큰 발급은 사람만 할 수 있습니다.',
   'error.mcp.bad_origin': '허용되지 않은 Origin 입니다.',
   'error.mcp.bad_revision': '지원하지 않는 프로토콜 리비전: {revision}',
-  'error.mcp.no_session': '세션이 없습니다 — 먼저 nerv_bootstrap 을 호출하세요.',
+  'error.mcp.no_session':
+    '활성 세션이 없습니다 — nerv_bootstrap 으로 세션을 시작하거나 재개하세요(세션은 무활동 30분이면 만료됩니다).',
+  'error.mcp.session_ambiguous':
+    '이 프로젝트에 활성 세션이 {count}개입니다 — 어느 세션의 일인지 session_id 로 지정하세요.',
   'error.mcp.pat_only': 'MCP 는 PAT 로만 호출합니다.',
   'error.membership.duplicate': '이미 같은 스코프의 멤버입니다.',
   'error.membership.not_found': '멤버십을 찾을 수 없습니다.',
@@ -250,6 +253,8 @@ export const ko = {
   'mcp.arg.event_seq': '세션 내 단조 증가 — 재전송 멱등 키',
   'mcp.arg.around': 'spec key — 주면 이 문서 주변만',
   'mcp.arg.scope': '이 작업이 건드릴 스펙·파일. 겹침 판정의 입력이다',
+  'mcp.arg.session_id':
+    '어느 세션의 일인가 — 비우면 이 토큰의 살아 있는 세션으로 본다(둘 이상이면 지정해야 한다)',
   'error.spec.type_not_allowed': '이 역할은 그 종류의 스펙을 만들 수 없습니다.',
   'error.review.already_resolved': '이미 다른 처분이 내려진 발견입니다.',
   'error.review.commit_required': 'fixed 처분에는 수정 커밋(commit_sha)이 필요합니다.',
