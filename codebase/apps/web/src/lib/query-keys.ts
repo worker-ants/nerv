@@ -10,6 +10,8 @@ export const queryKeys = {
 
   project: (projId: string) => ['project', projId] as const,
   projectSpecTree: (projId: string) => ['project', projId, 'specTree'] as const,
+  /** 스펙 표·관계 그래프가 함께 쓰는 한 응답(EP-SPEC-19) */
+  projectSpecGraph: (projId: string) => ['project', projId, 'specGraph'] as const,
   projectTasks: (projId: string) => ['project', projId, 'tasks'] as const,
   projectSessions: (projId: string) => ['project', projId, 'sessions'] as const,
   projectBaselines: (projId: string) => ['project', projId, 'baselines'] as const,

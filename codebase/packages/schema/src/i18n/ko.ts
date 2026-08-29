@@ -572,6 +572,7 @@ export const ko = {
   'project.no_sessions_hint_pre': '에이전트가',
   'project.recent_events': '최근 이벤트',
   // ── 스펙 목록·검색 (screens.md §2.4) ──────────────────────────────────────────
+  'specs.archived_badge': '보관됨',
   'specs.back_to_tree': '전체 트리로',
   'specs.collapse': '접기',
   'specs.degraded': '의미 검색이 잠시 꺼져 있어 키워드 검색 결과만 보여줍니다.',
@@ -582,6 +583,8 @@ export const ko = {
   'specs.related_hint': '질의에 없지만 연결된 것 — 관련성의 근거이지 질의 일치가 아닙니다.',
   'specs.results': '결과 {count}건',
   'specs.search_placeholder': '검색 (한국어·안정 ID 모두)',
+  'specs.show_archived': '보관 보기',
+  'specs.show_archived_hint': '보관한 문서까지 목록에 담습니다 — 복구는 그 문서에서 합니다',
   'specs.title': '스펙',
   'specs.tree_filter': '트리 필터',
   // ── S3 스펙 상세 (screens.md §2.4·§3) ───────────────────────────────────────
@@ -629,6 +632,12 @@ export const ko = {
   'spec.versions': '버전',
   'spec.viewer': '보는 사람: {name}',
   // ── 스펙 메타·아카이브 (screens.md §2.4) ────────────────────────────────────────
+  'spec.archived_banner':
+    '보관된 문서입니다 — 목록과 트리에서 빠지고 주소로만 닿습니다. 링크와 이력은 그대로입니다.',
+  'spec.restore': '복구',
+  'spec.restore_blocked_parent':
+    '상위 문서({parent})가 보관돼 있어 복구할 수 없습니다 — 그것을 먼저 복구하세요.',
+  'spec.restore_done': '복구했습니다 — 목록과 트리에 다시 나타납니다.',
   'spec.meta.archive': '아카이브',
   'spec.meta.archive_blocked': '아카이브할 수 없습니다 — 먼저 정리하세요',
   'spec.meta.archive_title': '삭제가 아닙니다 — 기본 조회에서만 빠지고 링크·이력은 남습니다',

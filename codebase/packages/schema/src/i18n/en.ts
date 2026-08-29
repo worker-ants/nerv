@@ -577,6 +577,7 @@ export const en = {
   'project.no_sessions_hint_pre': 'When an agent claims work with',
   'project.recent_events': 'Recent activity',
   // ── 스펙 목록·검색 (screens.md §2.4) ──────────────────────────────────────────
+  'specs.archived_badge': 'Archived',
   'specs.back_to_tree': 'Back to the tree',
   'specs.collapse': 'Collapse',
   'specs.degraded': 'Semantic search is off for now — these are keyword results only.',
@@ -586,6 +587,9 @@ export const en = {
   'specs.related': 'Reached through relations',
   'specs.related_hint': 'Not matched by your query but connected — a reason to look, not a match.',
   'specs.results': '{count} results',
+  'specs.show_archived': 'Show archived',
+  'specs.show_archived_hint':
+    'Also lists archived documents — restore one from the document itself',
   'specs.search_placeholder': 'Search (words or stable IDs)',
   'specs.title': 'Specs',
   'specs.tree_filter': 'Filter tree',
@@ -636,6 +640,12 @@ export const en = {
   'spec.versions': 'Versions',
   'spec.viewer': 'Viewing as {name}',
   // ── 스펙 메타·아카이브 (screens.md §2.4) ────────────────────────────────────────
+  'spec.archived_banner':
+    'This document is archived — it is out of the lists and the tree, reachable only by its address. Its links and history are intact.',
+  'spec.restore': 'Restore',
+  'spec.restore_blocked_parent':
+    'Its parent ({parent}) is archived, so it cannot be restored — restore the parent first.',
+  'spec.restore_done': 'Restored — it is back in the lists and the tree.',
   'spec.meta.archive': 'Archive',
   'spec.meta.archive_blocked': 'Cannot archive yet — clear these first',
   'spec.meta.archive_title':

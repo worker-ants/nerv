@@ -89,3 +89,7 @@ Zoomed out, **document names are not drawn.** A hundred labels too small to read
 ## Archiving
 
 Archiving is **not deletion.** The document drops out of lists and the tree but its address still works, and links pointing at it stay alive. A spec is the record of what was decided and why — delete it and that record is gone.
+
+To **see archived documents again**, turn on **Show archived** in the header of the spec list. They come back into the list marked `Archived`, and the setting stays in the address (`?archived=true`), so a link you share shows the other person the same list.
+
+**Restoring happens inside the document.** Open an archived spec and a banner appears at the top, with a **Restore** button for planners and admins. If its parent is archived the restore is refused — and the screen tells you the key of the document to restore first.

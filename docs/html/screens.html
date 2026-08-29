@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.40 (2026-08-29)</span>
+      <span>버전 v0.41 (2026-08-29)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -789,6 +789,34 @@
       <tr><td>REQ-WEB-102</td><td>WHEN 스펙 트리·표를 렌더하면 THE SYSTEM SHALL 표시 건수와 전체 건수를 함께 표시한다(<code>표시 N / 전체 M</code>)</td></tr>
       <tr><td>REQ-WEB-103</td><td>WHILE 가상 스크롤로 트리를 그리는 동안 THE SYSTEM SHALL 접기/펼치기와 자식 수 표시를 일반 렌더와 동일하게 제공한다</td></tr>
       <tr><td>REQ-WEB-104</td><td>WHEN 두 자리(사이드바·전수 목록)의 트리가 함께 떠 있으면 THE SYSTEM SHALL 펼침 상태를 자리별로 보존한다 — 한쪽에서 접은 것이 다른 쪽의 첫 화면을 바꾸지 않는다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>전수의 경계 — 보관한 문서는 어디에도 없었다 (2026-08-29 — 실측)</h4>
+
+  <p>"전부 있다"고 말하려면 <b>경계도 말해야 한다.</b> 보관은 그 경계다.</p>
+
+  <p>§2.4는 처음부터 두 가지를 적어 두었다 — 목록의 <b>[보관 보기] 토글</b>(<code>?include_archived=true</code>)과 <b>단건 진입 시 상단 배너 + [복원]</b>. <b>둘 다 구현되지 않았다.</b> 실측(2026-08-29 · sudoku 잎 하나를 보관해 확인): 표는 6→5행으로 줄고, 토글은 화면에 없고(0개), 상세 페이지는 <b>평소와 똑같이</b> 열렸다 — 보관됐다는 말도, 되살릴 버튼도 없었다. 메타 다이얼로그로 보관은 할 수 있으니, <b>웹만 쓰는 사람에게 보관은 되돌릴 수 없는 일</b>이었다.</p>
+
+  <p>같은 결함을 프로젝트 쪽에서 이미 한 번 고쳤다(<a href="api.html">4.4</a> §2.1 — 보관한 프로젝트가 모든 경로에서 409 라 복구조차 못 하던 일). 스펙에도 같은 규약을 세운다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>자리</th><th>무엇을 두나</th></tr></thead>
+    <tbody>
+      <tr><td>목록 머리</td><td><b>[보관 보기]</b> 체크 — 뷰 상태이므로 주소에 남는다(<code>?archived=true</code>). 트리·표·그래프·검색이 <b>같은 값</b>을 쓴다</td></tr>
+      <tr><td>목록의 줄</td><td>보관한 것은 <code>보관됨</code> 배지 + 흐린 글자. 켜서 찾아온 사람에게만 보이되, <b>살아 있는 문서와 같은 무게로 그리지 않는다</b></td></tr>
+      <tr><td>문서 상단</td><td>보관 배너 + <b>[복구]</b>(planner·admin). 보관된 문서는 목록에서 빠지므로 <b>복구 손잡이를 목록에 둘 수 없다</b> — 주소로 들어온 이 자리가 그 손잡이의 유일한 집이다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>트리·표가 보관을 가르려면 응답이 그것을 말해야 한다 — EP-SPEC-01·19 노드에 <b><code>archived_at</code></b> 을 싣는다(<a href="api.html">4.4</a> §2.2).</p>
+
+  <p>복구가 상위 때문에 막히면(<code>parent_archived</code>) <b>무엇을 먼저 복구해야 하는지 이름으로</b> 말한다. "복구할 수 없습니다"만 남기면 사람은 그 문서를 포기한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-105</td><td>WHEN 스펙 목록에서 [보관 보기]를 켜면 THE SYSTEM SHALL 보관한 문서를 트리·표·그래프·검색에 함께 담고 <code>보관됨</code> 표식으로 구분하며, 그 상태를 주소(<code>?archived=true</code>)에 남긴다. WHEN 보관된 스펙 상세로 진입하면 THE SYSTEM SHALL 상단 배너로 그 사실을 알리고 planner·admin 에게 [복구](EP-SPEC-17)를 제공하며, <code>parent_archived</code> 로 막히면 먼저 복구할 문서의 키를 표시한다</td></tr>
     </tbody>
   </table></div>
 

@@ -43,6 +43,8 @@ export interface SpecTreeNode extends Record<string, unknown> {
   sort_key: string;
   doc_status: string | null;
   version_no: number | null;
+  /** 보관 시각 — `include_archived` 로 받아 온 목록에서 **어느 것이 보관된 것인지** 화면이 갈라야 한다 */
+  archived_at: string | null;
 }
 
 export interface DraftUpsertInput {
@@ -99,7 +101,7 @@ export class SpecService {
     const archived = input.includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
     const { rows } = await this.db.execute<SpecTreeNode>(sql`
       SELECT s.id, s.key, s.title, s.type::text AS type, s.parent_id, s.sort_key,
-             sv.status::text AS doc_status, sv.version_no
+             s.archived_at, sv.status::text AS doc_status, sv.version_no
         FROM spec s
    LEFT JOIN spec_version sv ON sv.id = s.current_version_id
        WHERE s.project_id = ${input.projectId}${archived}

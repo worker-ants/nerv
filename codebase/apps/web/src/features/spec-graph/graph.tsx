@@ -35,6 +35,7 @@ export interface GraphNode {
   type: string;
   parent_id: string | null;
   doc_status: string | null;
+  archived_at?: string | null;
 }
 export interface GraphEdge {
   from_id: string;

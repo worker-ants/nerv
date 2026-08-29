@@ -29,6 +29,8 @@ export interface TreeNode {
   parent_id: string | null;
   doc_status: string | null;
   version_no: number | null;
+  /** 보관 시각 — 보관 보기를 켰을 때만 null 이 아닌 것이 섞인다 */
+  archived_at?: string | null;
 }
 
 /** 트리가 서는 자리 — 화면 밀도가 아니라 **역할**이다(전수인가 동반자인가). */
@@ -42,6 +44,8 @@ export interface SpecTreeProps {
   projectId?: string | undefined;
   variant?: SpecTreeVariant;
   activeKey?: string | undefined;
+  /** 보관한 문서까지 담는다 — 전수 목록 화면의 토글이 이것을 켠다(REQ-WEB-105) */
+  includeArchived?: boolean;
 }
 
 /**
@@ -127,9 +131,10 @@ export function SpecTree({
   variant = 'full',
   activeKey,
   heading,
+  includeArchived = false,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
-  const tree = useSpecTree(projectSlug, projectId);
+  const tree = useSpecTree(projectSlug, projectId, includeArchived);
   const [filter, setFilter] = useState('');
   // null = 아직 정하지 않음. 첫 데이터가 와야 초깃값을 만들 수 있다.
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
@@ -263,9 +268,14 @@ export function SpecTree({
             'flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] pr-1 text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text',
             // 시안: 사이드바 트리는 26px 줄에 13px 글자 — nav(29px)보다 반 단 조밀하다
             variant === 'rail' ? 'h-[26px] text-[13px]' : 'py-1 text-sm',
+            // 보관한 것은 목록에 있어도 **같은 무게가 아니다** — 켜서 찾아온 사람에게만 보인다
+            node.archived_at != null ? 'text-text-faint' : undefined,
           )}
         >
           <span className="truncate">{node.title}</span>
+          {node.archived_at != null && (
+            <StatusBadge token="idle" label={t('specs.archived_badge')} />
+          )}
           {!isOpen && children.length > 0 && (
             <span className="shrink-0 text-2xs text-text-faint tabular-nums">
               {children.length}

@@ -121,10 +121,14 @@ export function useSpec(slug: string, specKey: string): UseQueryResult<Row> {
 export function useSpecGraph(
   slug: string,
   projectId: string | undefined,
+  includeArchived = false,
 ): UseQueryResult<SpecGraph> {
   return useQuery({
-    queryKey: ['project', projectId ?? slug, 'specGraph'],
-    queryFn: () => apiFetch<SpecGraph>(`/projects/${slug}/specs/graph`),
+    queryKey: [...queryKeys.projectSpecGraph(projectId ?? slug), includeArchived],
+    queryFn: () =>
+      apiFetch<SpecGraph>(
+        `/projects/${slug}/specs/graph?include_archived=${String(includeArchived)}`,
+      ),
     enabled: projectId !== undefined,
   });
 }

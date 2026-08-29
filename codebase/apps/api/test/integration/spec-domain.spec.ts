@@ -243,12 +243,17 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
 
   it('아카이브는 삭제가 아니다 — 기본 트리에서만 빠진다', async () => {
     await draft('SPC-OLD', '# old');
+    await draft('SPC-LIVE', '# live');
     await specs.archive({ projectId, specKey: 'SPC-OLD', userId: planner });
 
     expect((await specs.tree({ projectId })).map((n) => n.key)).not.toContain('SPC-OLD');
-    expect((await specs.tree({ projectId, includeArchived: true })).map((n) => n.key)).toContain(
-      'SPC-OLD',
-    );
+    const withArchived = await specs.tree({ projectId, includeArchived: true });
+    expect(withArchived.map((n) => n.key)).toContain('SPC-OLD');
+
+    // 섞여 온 목록에서 **어느 것이 보관된 것인지** 화면이 갈라야 한다(REQ-WEB-105).
+    // 이 값이 없으면 보관 보기를 켠 목록은 살아 있는 문서와 보관된 문서를 같은 무게로 그린다.
+    expect(withArchived.find((n) => n.key === 'SPC-OLD')?.archived_at).not.toBeNull();
+    expect(withArchived.find((n) => n.key === 'SPC-LIVE')?.archived_at).toBeNull();
 
     await specs.restore({ projectId, specKey: 'SPC-OLD', userId: planner });
     expect((await specs.tree({ projectId })).map((n) => n.key)).toContain('SPC-OLD');

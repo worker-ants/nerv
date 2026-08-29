@@ -112,11 +112,17 @@ export function SpecTable({ nodes, edges, projectSlug }: SpecTableProps): React.
               <Link
                 to="/p/$proj/specs/$spec"
                 params={{ proj: projectSlug, spec: node.key }}
-                className="font-medium hover:text-link"
+                className={cn(
+                  'font-medium hover:text-link',
+                  node.archived_at != null ? 'text-text-faint' : undefined,
+                )}
               >
                 {node.title}
               </Link>{' '}
-              <Mono>{node.key}</Mono>
+              <Mono>{node.key}</Mono>{' '}
+              {node.archived_at != null && (
+                <StatusBadge token="idle" label={t('specs.archived_badge')} />
+              )}
             </Td>
             <Td className="text-xs text-text-mute">
               {t(`specs.type.${node.type}` as 'specs.type.feature')}

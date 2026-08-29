@@ -147,6 +147,40 @@ function SpecDetail(): React.JSX.Element {
     onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
   });
 
+  // **복구는 이 화면에만 있다**(REQ-WEB-105). 보관한 문서는 목록·트리에서 빠지므로
+  // 되살릴 손잡이를 목록에 둘 수 없다 — 주소로 들어온 이 자리가 그 손잡이의 유일한 집이다.
+  const projectUuid =
+    typeof detail.data?.['project_id'] === 'string' ? detail.data['project_id'] : proj;
+  const restore = useMutation({
+    mutationFn: () =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/restore`, {
+        method: 'POST',
+        body: {},
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
+      // 목록으로 돌아오는 것이 복구의 요점이다 — 트리와 표(그래프 응답)를 함께 새로 받는다
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecTree(projectUuid) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecGraph(projectUuid) });
+      pushToast({ tone: 'ok', message: t('spec.restore_done') });
+    },
+    onError: (error: Error) => {
+      // 상위가 보관돼 있으면 되살릴 자리가 없다 — 무엇을 먼저 복구해야 하는지 이름으로 말한다
+      if (
+        error instanceof NervApiError &&
+        error.body.details['kind'] === 'parent_archived' &&
+        typeof error.body.details['parent'] === 'string'
+      ) {
+        pushToast({
+          tone: 'warn',
+          message: t('spec.restore_blocked_parent', { parent: error.body.details['parent'] }),
+        });
+        return;
+      }
+      pushToast({ tone: 'warn', message: error.message });
+    },
+  });
+
   // 리스 주기 갱신 — 에디터가 열려 있는 동안 저장 없이도 붙잡고 있어야 한다(REQ-WEB-029)
   useEffect(() => {
     if (!editable || draft === null) return;
@@ -158,6 +192,12 @@ function SpecDetail(): React.JSX.Element {
   const backlinks = relationItems.filter((r) => r['direction'] === 'in');
   const outgoing = relationItems.filter((r) => r['direction'] !== 'in');
   const shownRelations = relTab === 'in' ? backlinks : relTab === 'out' ? outgoing : relationItems;
+  // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다.
+  // **합집합으로 본다**: 멤버십 한 행만 보면 조직 단위 admin 이 어느 프로젝트에서도
+  // 역할이 없는 사람이 되어, 서버가 허용할 편집을 화면이 막는다(실측 2026-08-24).
+  const canEditMeta = rolesInProject(me.data, orgSlug, proj).some(
+    (r) => r === 'planner' || r === 'admin',
+  );
 
   return (
     // 3열 중 **좌측 트리는 셸 사이드바가 소유한다**(§1.3 — "S3 좌측 트리와 같은 컴포넌트").
@@ -235,6 +275,28 @@ function SpecDetail(): React.JSX.Element {
         <div className="mt-2 mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-[22px] text-sm text-text-mute">
           <Byline detail={detail.data} backlinks={backlinks.length} t={t} />
         </div>
+
+        {/* 보관 배너 — 목록에 없는 문서를 주소로 열었을 때, 화면이 그 사실을 **먼저** 말한다.
+            이게 없으면 보관된 문서가 평소와 똑같이 열려 살아 있는 기준으로 읽힌다 */}
+        {detail.data?.['archived_at'] != null && (
+          <div
+            data-testid="archived-banner"
+            className="mb-3 flex flex-wrap items-center gap-3 rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute"
+          >
+            <StatusBadge token="idle" label={t('specs.archived_badge')} />
+            <span className="min-w-0 flex-1">{t('spec.archived_banner')}</span>
+            {canEditMeta && (
+              <Button
+                size="sm"
+                data-testid="spec-restore"
+                disabled={restore.isPending}
+                onClick={() => restore.mutate()}
+              >
+                {t('spec.restore')}
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* 내가 리스를 쥐고 있다는 사실을 보인다(REQ-WEB-029) — 안 보이면 사람은 자기가
             문서를 잠그고 있는 줄 모르고 자리를 뜬다 */}
@@ -466,9 +528,7 @@ function SpecDetail(): React.JSX.Element {
           // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다.
           // **합집합으로 본다**: 멤버십 한 행만 보면 조직 단위 admin 이 어느 프로젝트에서도
           // 역할이 없는 사람이 되어, 서버가 허용할 편집을 화면이 막는다(실측 2026-08-24).
-          canEdit={rolesInProject(me.data, orgSlug, proj).some(
-            (r) => r === 'planner' || r === 'admin',
-          )}
+          canEdit={canEditMeta}
           onClose={() => setMetaOpen(false)}
         />
       )}

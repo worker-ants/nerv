@@ -38,7 +38,15 @@ import {
 } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
-export const Route = createFileRoute('/p/$proj/specs/')({ component: SpecListScreen });
+export const Route = createFileRoute('/p/$proj/specs/')({
+  // 보관 보기는 **뷰 상태**라 주소에 남는다(§2.4 (3)) — 링크로 건네면 상대도 같은 목록을 본다
+  validateSearch: (search: Record<string, unknown>): { archived?: true } => ({
+    ...(search['archived'] === true || search['archived'] === '1'
+      ? { archived: true as const }
+      : {}),
+  }),
+  component: SpecListScreen,
+});
 
 interface SearchResult {
   items: Record<string, unknown>[];
@@ -50,6 +58,7 @@ function SpecListScreen(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
+  const { archived = false } = Route.useSearch();
   const project = useProject(proj);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -58,14 +67,16 @@ function SpecListScreen(): React.JSX.Element {
   const [view, setView] = useState<'tree' | 'table' | 'graph'>('tree');
 
   const search = useQuery({
-    queryKey: ['project', proj, 'search', submitted],
+    queryKey: ['project', proj, 'search', submitted, archived],
     queryFn: () =>
-      apiFetch<SearchResult>(`/projects/${proj}/specs/search?q=${encodeURIComponent(submitted)}`),
+      apiFetch<SearchResult>(
+        `/projects/${proj}/specs/search?q=${encodeURIComponent(submitted)}&include_archived=${String(archived)}`,
+      ),
     enabled: submitted.trim() !== '',
   });
 
   const projectId = project.data?.['id'];
-  const graph = useSpecGraph(proj, typeof projectId === 'string' ? projectId : undefined);
+  const graph = useSpecGraph(proj, typeof projectId === 'string' ? projectId : undefined, archived);
 
   // 그래프를 보는 동안에만 화면 높이를 **확정한다**. `min-h` 로 두면 `flex-1` 자식이
   // 내용만큼 자라는데, 이웃 93개짜리 문서를 고르는 순간 패널이 4,771px 이 되고 캔버스도
@@ -122,12 +133,32 @@ function SpecListScreen(): React.JSX.Element {
         }
         actions={
           <form
-            className="flex gap-2"
+            className="flex items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               setSubmitted(query);
             }}
           >
+            {/* **전수의 경계를 화면이 말한다**(REQ-WEB-105). 보관한 문서는 어느 목록에도
+                없어서 키를 아는 사람만 주소로 닿을 수 있었다 — 복구 경로가 없는 것과 같다 */}
+            <label
+              className="flex cursor-pointer items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
+              title={t('specs.show_archived_hint')}
+            >
+              <input
+                type="checkbox"
+                data-testid="show-archived"
+                checked={archived}
+                onChange={(e) =>
+                  void navigate({
+                    to: '/p/$proj/specs',
+                    params: { proj },
+                    search: e.target.checked ? { archived: true } : {},
+                  })
+                }
+              />
+              {t('specs.show_archived')}
+            </label>
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -169,6 +200,7 @@ function SpecListScreen(): React.JSX.Element {
                 projectSlug={proj}
                 projectId={typeof projectId === 'string' ? projectId : undefined}
                 variant="full"
+                includeArchived={archived}
               />
             </Card>
           ) : graph.data === undefined ? (

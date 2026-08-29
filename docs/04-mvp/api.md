@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.22 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.23 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+>
+> v0.23 변경(2026-08-29 — 보관을 화면이 가를 수 있게, 실측): EP-SPEC-01·19 노드에 **`archived_at`** 을 싣는다(§2.2). `include_archived=true` 로 받은 목록에서 무엇이 보관된 것인지 응답이 말하지 않으면, 화면은 살아 있는 문서와 보관된 문서를 **같은 무게로** 그린다([4.5](screens.md) §2.4b · REQ-WEB-105).
 >
 > v0.22 변경(2026-08-29 — 실시간 갱신이 조용히 죽어 있었다, 사람 보고): ① **방송이 봉투를 잘라 보내고 있었다** — `{id, type, project_id}` 세 필드뿐이라 받는 쪽은 무엇이 바뀌었는지 몰랐다(§3.3). 봉투를 통째로 싣는다. ② 봉투에 **`actor_user_id`·`is_agent`** 를 더한다 — "내가 한 일"과 "남이 한 일"을 갈라야 알림이 소음이 되지 않는다(식별자만이라 D-14 와 어긋나지 않는다). ③ **`spec.draft_updated` 신설**(EP-SPEC-08 개정) — 같은 draft 재저장에 이벤트가 없어서, 에이전트가 본문을 고쳐도 화면이 알 수 없었다.
 >
@@ -318,7 +320,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-SPEC-01 | `GET /api/v1/projects/{proj}/specs/tree` | 전 역할(`spec:read`) | `SpecTreeQuery`(root, depth, status, include_archived — 기본 false, REQ-API-022) | `SpecTreeResult`(id·title·type·문서 상태·현재 버전) | — |
+| EP-SPEC-01 | `GET /api/v1/projects/{proj}/specs/tree` | 전 역할(`spec:read`) | `SpecTreeQuery`(root, depth, status, include_archived — 기본 false, REQ-API-022) | `SpecTreeResult`(id·title·type·문서 상태·현재 버전·`archived_at`) | — |
 | EP-SPEC-02 | `GET /api/v1/projects/{proj}/specs/search` | 전 역할 | `SpecSearchQuery`(query, type, status, requirement_id, **references**(이 스펙을 참조하는 문서만), include_archived — 기본 false(REQ-API-022), limit) | `SpecSearchResult`(안정 ID + 앵커 + 스니펫 + 관련도, **`related[]`** 1-hop 관계 확장 그룹, **`degraded?`** — 파이프라인은 §2.2b) | — |
 | EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `baseline` 이름으로 세트 조회 가능(`version`과 배타), `include[]`: requirements/tasks/comments/**relations**(양방향 요약 — 총계 + 상위 20, 전량·커서는 EP-SPEC-18)) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시) | — |
 | EP-SPEC-04 | `GET /api/v1/projects/{proj}/specs/{spec}/versions` | 전 역할 | — | `Page<SpecVersionSummary>` | — |
