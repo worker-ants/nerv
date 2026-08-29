@@ -14,7 +14,16 @@ const API = 'http://localhost:8080';
 export default defineConfig({
   plugins: [
     // 파일 기반 라우팅 — 라우트 트리는 src/routes/ 에서 생성된다(screens.md §1.2)
-    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
+    //
+    // **테스트는 라우트가 아니다.** 화면 테스트는 그 화면 옆에 두는 것이 이 저장소의 관례라
+    // `src/routes/` 안에 `*.spec.tsx` 가 함께 사는데, 플러그인은 그것을 "Route 를 export
+    // 하지 않는 라우트 파일"로 보고 파일마다 12줄짜리 경고를 찍는다(기동 로그 실측: 7개
+    // 파일 84줄). 경고가 기동 로그의 대부분이 되면 진짜 경고가 그 속에 묻힌다.
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+      routeFileIgnorePattern: '\\.spec\\.tsx?$',
+    }),
     react(),
     tailwindcss(),
   ],

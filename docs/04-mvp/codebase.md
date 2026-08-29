@@ -7,7 +7,9 @@ updated: 2026-08-28
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.8 · 2026-08-28 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.9 · 2026-08-29 · HTML 판: [codebase.html](../html/codebase.html)
+>
+> v1.9 변경(2026-08-29 — 기동 로그의 대부분이 경고였다, 사람 보고): §4.3 에 라우트 생성 제외 규칙. 화면 테스트를 `src/routes/` 안에 두는 관례를 TanStack Router 플러그인이 "Route 를 export 하지 않는 라우트 파일"로 읽어 파일마다 12줄씩 경고했다(실측 7개 파일 84줄). `routeFileIgnorePattern` 으로 제외한다 — `routeTree.gen.ts` 는 바이트 단위로 동일하다.
 >
 > v1.8 변경(2026-08-28 — 임베딩 주기를 일감이 정한다, 사람 결정): §5.2b 에 적응형 주기(REQ-CB-027) + `.env` 전표 2키(`NERV_EMBED_EVERY_MS`·`NERV_WORKER_TICK_MS`). 한 판 상한(20초)을 두자 이번엔 **고정 5분 주기**가 병목이 됐다 — 가동률 6.7% 라 140편을 채우는 데 몇 시간이다. 그렇다고 1초 고정은 다 채운 뒤에도 초당 142 질의로 "바뀐 것 없음"만 확인한다. 그래서 **이 잡만 주기가 변한다**: 일했으면 1초, 아무것도 안 했거나 오류면 5분. 틱 해상도도 1초로 내렸다(락은 한 번 잡으면 계속 보유하므로 틱은 싸다).
 >
@@ -63,7 +65,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
     apps/
       web/                      # @nerv/web — Vite + React SPA (화면 명세는 4.5)
         index.html
-        vite.config.ts          # dev proxy: /api·/mcp·/ingest·/ws·/sse → :8080 (§5.1)
+        vite.config.ts          # dev proxy: /api·/mcp·/ingest·/ws·/sse → :8080 (§5.1) · 라우트 생성 제외 규칙(§4.3)
         src/
           routes/               # TanStack Router 파일 라우트
           features/             # 화면 단위 모듈 (spec-editor · task-board · session-monitor …)
@@ -494,6 +496,8 @@ E2E는 개발 스택과 **완전히 분리된 compose 파일**(`deploy/compose/d
 | L3 계약/E2E | Vitest(API·MCP·WS) + Playwright(웹) | `apps/api/test/e2e/` + `apps/web/test/e2e/` | **E2E 전용 compose 스택**(`deploy/compose/docker-compose.e2e.yml`) 기동 후 REST·MCP·WS·브라우저 시나리오 — [4.8 백로그](backlog.md) §5의 E2E 수용 시나리오가 케이스 정본 | `pnpm e2e:up && pnpm test:e2e` (머지 전·야간) |
 
 L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시 클레임·게이트 판정)는 mock으로 검증되지 않는다 — 트랜잭션·행 잠금·부분 인덱스가 실제로 동작하는 DB를 상대로만 의미가 있다.
+
+**소스 옆에 둔다는 규칙에는 웹의 라우트 폴더도 포함된다** — 화면 테스트는 그 화면 파일 옆(`src/routes/**/*.spec.tsx`)에 산다. 대신 라우트 생성기가 그것을 **라우트로 오해한다**: TanStack Router 플러그인은 `src/routes/` 안의 모든 파일에서 `Route` export 를 찾고, 없으면 파일마다 12줄짜리 경고를 찍는다(2026-08-29 실측 — 7개 파일 84줄이 기동 로그의 대부분이었다). 경고가 소음이 되면 **진짜 경고가 그 속에 묻힌다.** `vite.config.ts` 의 `routeFileIgnorePattern: '\\.spec\\.tsx?$'` 로 테스트를 생성 대상에서 뺀다 — 생성된 `routeTree.gen.ts` 는 바이트 단위로 동일하다(빠지는 라우트가 없다는 뜻이다).
 
 ### 4.4 커밋·브랜치
 
