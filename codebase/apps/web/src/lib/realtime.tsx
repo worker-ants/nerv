@@ -18,7 +18,7 @@ import {
 } from 'react';
 import type { Socket } from 'socket.io-client';
 import { NERV_EVENT } from '@nerv/schema';
-import type { NervEventEnvelope } from '@nerv/schema';
+import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { useMe } from './queries.js';
 import { connectNervSocket, joinProjectRoom, leaveProjectRoom } from './ws.js';
 import { invalidationKeysFor } from './event-invalidation.js';
@@ -57,6 +57,30 @@ export function useRealtime(): RealtimeValue {
 /** 폴백 폴링 간격 — WS 가 끊긴 동안의 갱신 수단(REQ-WEB-002). */
 export const FALLBACK_POLL_MS = 15_000;
 
+/**
+ * 토스트로 알릴 이벤트 — **전부는 아니다.**
+ *
+ * 알림의 기준은 "화면을 보고 있는 사람이 지금 알아야 하는가"다. 스펙이 생기거나 승인되는
+ * 것은 그렇고(내 화면의 내용이 바뀐다), 하트비트나 세션 활동은 그렇지 않다 — 그런 것까지
+ * 띄우면 토스트가 배경 소음이 되고, 그러면 정작 중요한 겹침 경고도 같이 묻힌다.
+ */
+type SpecNotice =
+  | 'realtime.spec_changed'
+  | 'realtime.spec_submitted'
+  | 'realtime.spec_approved'
+  | 'realtime.spec_rejected';
+
+const NOTIFY: Partial<Record<NervEventName, SpecNotice>> = {
+  [NERV_EVENT.SPEC_DRAFT_CREATED]: 'realtime.spec_changed',
+  [NERV_EVENT.SPEC_DRAFT_UPDATED]: 'realtime.spec_changed',
+  [NERV_EVENT.SPEC_SUBMITTED]: 'realtime.spec_submitted',
+  [NERV_EVENT.SPEC_APPROVED]: 'realtime.spec_approved',
+  [NERV_EVENT.SPEC_REJECTED]: 'realtime.spec_rejected',
+  [NERV_EVENT.SPEC_ARCHIVED]: 'realtime.spec_changed',
+  [NERV_EVENT.SPEC_RESTORED]: 'realtime.spec_changed',
+  [NERV_EVENT.SPEC_META_UPDATED]: 'realtime.spec_changed',
+};
+
 export function RealtimeProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
@@ -79,6 +103,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // onEvent 가 읽으므로 그보다 먼저 잡는다 — "내가 한 일"을 가르는 기준이다
+  const userId = me.data?.id;
+
   const onEvent = useCallback(
     (event: NervEventEnvelope) => {
       for (const key of invalidationKeysFor(event)) {
@@ -87,12 +114,26 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
       // 겹침 경고는 무효화만으로 충분하지 않다 — 사람이 **지금** 알아야 하는 사실이다.
       if (event.type === NERV_EVENT.CLAIM_CONFLICT_WARN) {
         pushToast({ tone: 'warn', message: t('realtime.conflict_warn') });
+        return;
       }
       if (event.type === NERV_EVENT.CLAIM_CONFLICT_BLOCKED) {
         pushToast({ tone: 'warn', message: t('realtime.conflict_blocked') });
+        return;
       }
+
+      // **남이 바꾼 것만 알린다**(2026-08-29 신설). 화면이 조용히 갱신되면 사람은 "안 바뀌었다"
+      // 와 구별하지 못한다 — 에이전트가 스펙을 만들어도 알 길이 없었다. 반대로 내가 방금 한
+      // 저장까지 알리면 저장할 때마다 두 번 뜨고, 그 소음은 알림 자체를 못 믿게 만든다.
+      // 그래서 봉투의 `actor_user_id` 로 가른다(api.md §3.3).
+      if (event.actor_user_id !== null && event.actor_user_id === userId) return;
+      const label = NOTIFY[event.type];
+      if (label === undefined) return;
+      pushToast({
+        tone: 'ok',
+        message: t(label, { subject: event.subject_key ?? '' }),
+      });
     },
-    [pushToast, queryClient],
+    [pushToast, queryClient, t, userId],
   );
 
   // **인증된 뒤에만 붙는다.** 예전에는 마운트 즉시 붙었는데, 로그인 화면에서는 세션 쿠키가
@@ -102,7 +143,6 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
   //
   // E2E 가 이것을 놓친 이유도 같다: 저장된 세션으로 시작하니 첫 연결이 성공했다.
   // 로그인 **화면을 거쳐** 들어오는 경로가 검증되지 않았던 것이다.
-  const userId = me.data?.id;
 
   useEffect(() => {
     if (userId === undefined) return undefined;

@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.21 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.22 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+>
+> v0.22 변경(2026-08-29 — 실시간 갱신이 조용히 죽어 있었다, 사람 보고): ① **방송이 봉투를 잘라 보내고 있었다** — `{id, type, project_id}` 세 필드뿐이라 받는 쪽은 무엇이 바뀌었는지 몰랐다(§3.3). 봉투를 통째로 싣는다. ② 봉투에 **`actor_user_id`·`is_agent`** 를 더한다 — "내가 한 일"과 "남이 한 일"을 갈라야 알림이 소음이 되지 않는다(식별자만이라 D-14 와 어긋나지 않는다). ③ **`spec.draft_updated` 신설**(EP-SPEC-08 개정) — 같은 draft 재저장에 이벤트가 없어서, 에이전트가 본문을 고쳐도 화면이 알 수 없었다.
 >
 > v0.21 변경(2026-08-29 — 도구마다 식별자 기준이 달랐다, 실측): **§1.4b 신설**(REQ-API-038). `nerv_spec_get` 의 `spec_id` 는 키를, `nerv_spec_draft_upsert` 의 같은 이름은 UUID 를 받고 있었고 설명도 없어서 에이전트가 실패로 배웠다 — get 은 **자기 출력을 자기 입력에 넣을 수도 없었다**. 이제 `spec_id`·`parent_id`·`task_id`·`scope.spec_ids` 가 **키와 UUID 를 모두** 받는다(형태로 판별). 호환은 그대로다.
 >
@@ -323,7 +325,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |
 | EP-SPEC-07 | `POST /api/v1/projects/{proj}/specs` | planner·admin ●, designer(design)·developer(convention/adr) ○, **qa ✗**(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. `spec:draft` 는 유지 — 코멘트 해소·초안 편집의 몫) | `SpecCreateInput`(parent_id, type, title, body_markdown) | `SpecDraftResult`(spec + draft v1) | `spec.draft_created` |
-| EP-SPEC-08 | `PUT /api/v1/projects/{proj}/specs/{spec}/draft` | EP-SPEC-07과 동일(`spec:draft`) | `SpecDraftUpsertInput`(body_markdown, **base_version**, change_summary) | `SpecDraftResult`(version, 델타 요약, 검증 경고, `web_url`) | 새 draft 버전 생성 시 `spec.draft_created`, 같은 draft 재저장은 이벤트 없음(리스 갱신만) |
+| EP-SPEC-08 | `PUT /api/v1/projects/{proj}/specs/{spec}/draft` | EP-SPEC-07과 동일(`spec:draft`) | `SpecDraftUpsertInput`(body_markdown, **base_version**, change_summary) | `SpecDraftResult`(version, 델타 요약, 검증 경고, `web_url`) | 새 draft 버전 생성 시 `spec.draft_created`, **같은 draft 재저장은 `spec.draft_updated`**(2026-08-29 개정 — 예전에는 "이벤트 없음(리스 갱신만)"이었다. 에이전트가 스펙을 쓰는 방식이 대부분 이 경로라, 본문이 바뀌어도 화면이 새로고침 전에는 알 수 없었다. 저장 빈도는 자동 저장 주기(60초)라 방송이 넘치지 않는다) |
 | EP-SPEC-09 | `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 전 역할(읽기 전용 셀프서비스) | — | `SpecCheckResult`(5검사기별 warning/block + 앵커 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.1) | — |
 | EP-SPEC-10 | `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | 작성자 본인 또는 planner | `SpecSubmitInput`(reviewer_hint, note) | `SpecSubmitResult`(approval_id[], 지정 리뷰어·SLA) | `spec.submitted` + `approval.requested` |
 | EP-CMT-01 | `GET /api/v1/projects/{proj}/specs/{spec}/comments` | 전 역할 | `CommentListQuery`(status: open/resolved) | `Page<CommentResult>` | — |
@@ -617,13 +619,19 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
   "subject_type": "spec_version",
   "subject_id": "…",
   "subject_key": "SPC-CWC-007",
+  "actor_user_id": "…",
+  "is_agent": true,
   "occurred_at": "2026-08-20T05:30:00Z"
 }
 ```
 
+**봉투는 통째로 나간다**(2026-08-29 정정 — 실측). 구현이 방송에 `{id, type, project_id}` 세 필드만 싣고 있었고, 그래서 받는 쪽은 **무엇이 바뀌었는지 몰랐다** — 화면은 `['spec', undefined]` 를 무효화하고 있었고, 프로젝트 단위 키(트리·목록)만 우연히 맞아떨어져 "새로고침해야 보이는 화면"과 아닌 화면이 뒤섞여 있었다.
+
+`actor_user_id` · `is_agent` 는 같은 날 더했다. **식별자만이라 D-14(본문 없음)와 어긋나지 않는다.** 받는 쪽이 "내가 방금 한 일"과 "남이 한 일"을 갈라야 하기 때문이다 — 그것이 없으면 화면은 자기 저장에도 알림을 띄우고, 그 소음은 알림 자체를 못 믿게 만든다.
+
 | 이벤트(정본) | 발생 지점 | 룸 | MVP |
 | --- | --- | --- | --- |
-| `spec.draft_created` · `spec.submitted` · `spec.rejected` · `spec.approved` · `spec.superseded` · `spec.deprecated` | 문서 축 전이([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2) | `project:{id}` | P1 |
+| `spec.draft_created` · ★`spec.draft_updated` · `spec.submitted` · `spec.rejected` · `spec.approved` · `spec.superseded` · `spec.deprecated` | 문서 축 전이([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2) | `project:{id}` | P1 |
 | `spec.comment_added` | EP-CMT-02 | `project:{id}` | P1 |
 | ★`spec.meta_updated` · ★`spec.archived` · ★`spec.restored` | EP-SPEC-15~17(§2.2) | `project:{id}` | P1 |
 | ★`comment.resolved` | EP-CMT-04 | `project:{id}` | P1 |

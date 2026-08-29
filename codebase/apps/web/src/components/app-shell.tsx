@@ -596,10 +596,16 @@ export function AppShell({
                 <CountBadge count={openCritical} tone="danger" />
               </Link>
             </nav>
-            {/* 트리는 S3 좌측 트리와 같은 컴포넌트다 — 스크롤 위치를 공유한다(§1.3) */}
+            {/* 트리는 S3 좌측 트리와 같은 컴포넌트다 — 스크롤 위치를 공유한다(§1.3).
+                `projectId` 를 함께 넘겨 쿼리 키를 **UUID 축**으로 맞춘다: 이벤트 무효화는
+                project_id(UUID)로 오는데 여기서 slug 로 키를 만들면 같은 컴포넌트인데도
+                사이드바만 갱신되지 않는다(실측 2026-08-29). */}
             <div className="mt-4 border-t border-border pt-3">
               <SpecTree
                 projectSlug={projectSlug}
+                {...(typeof shellProject.data?.['id'] === 'string'
+                  ? { projectId: shellProject.data['id'] as string }
+                  : {})}
                 compact
                 activeKey={activeSpecKey}
                 heading={t('shell.spec_tree')}

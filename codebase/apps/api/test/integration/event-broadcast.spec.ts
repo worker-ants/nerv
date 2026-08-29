@@ -86,14 +86,30 @@ describe('EventService.transact — 커밋 후 방송 (REQ-CB-004)', () => {
     await waitFor(() => received.length > before);
 
     const broadcast = received.at(-1);
-    expect(broadcast).toEqual({
+    // **봉투를 통째로 싣는다**(2026-08-29 개정). 이 테스트는 예전에 세 필드만 나가는 것을
+    // 고정하고 있었는데, 그 세 필드로는 받는 쪽이 **무엇이 바뀌었는지 알 수 없다** — 화면은
+    // `['spec', undefined]` 를 무효화하고 있었다(실측). 계약(api.md §3.3)이 원래 이것이다.
+    expect(broadcast).toEqual(envelope);
+    expect(broadcast).toMatchObject({
       id: envelope.id,
       type: NERV_EVENT.TASK_CLAIMED,
       project_id: projectId,
+      subject_id: envelope.subject_id,
+      is_agent: true,
     });
 
-    // 봉투에는 참조만 있다 — 본문은 싣지 않는다(database.md §3.2)
-    expect(Object.keys(broadcast ?? {}).sort()).toEqual(['id', 'project_id', 'type']);
+    // 그래도 **본문은 싣지 않는다** — 나가는 것은 식별자와 시각뿐이다(D-14 · database.md §3.2)
+    expect(Object.keys(broadcast ?? {}).sort()).toEqual([
+      'actor_user_id',
+      'id',
+      'is_agent',
+      'occurred_at',
+      'project_id',
+      'subject_id',
+      'subject_key',
+      'subject_type',
+      'type',
+    ]);
 
     const rows = await pool.query('SELECT type, is_agent FROM event WHERE id = $1', [envelope.id]);
     expect(rows.rows[0]).toMatchObject({ type: NERV_EVENT.TASK_CLAIMED, is_agent: true });

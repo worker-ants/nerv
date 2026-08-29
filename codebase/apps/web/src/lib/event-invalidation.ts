@@ -18,11 +18,22 @@ const P2 = NERV_EVENT_PHASE2;
 /** subject_id 를 그 이벤트의 주체 키로 해석하는 규칙(§1.4 표의 두 번째 열). */
 type KeyBuilder = (e: NervEventEnvelope) => NervQueryKey[];
 
-const specAxis: KeyBuilder = (e) => [
-  queryKeys.spec(e.subject_id),
-  queryKeys.specVersions(e.subject_id),
-  queryKeys.projectSpecTree(e.project_id),
-];
+/**
+ * 스펙 축 — **키로 잡는다**(2026-08-29 정정).
+ *
+ * 화면의 쿼리 키는 안정 키(`SPC-…`)인데 봉투의 `subject_id` 는 버전·스펙 UUID 라
+ * 축이 달랐다. `['spec', <버전UUID>]` 를 무효화해도 `['spec','SPC-CWC-007']` 에는 닿지
+ * 않는다 — 그래서 상세 화면이 **한 번도** 다시 읽히지 않았다. 서버가 `subject_key` 를
+ * 싣게 됐으므로(api.md §3.3) 그것을 쓰고, 없으면 예전대로 id 로 떨어진다.
+ */
+const specAxis: KeyBuilder = (e) => {
+  const ref = e.subject_key ?? e.subject_id;
+  return [
+    queryKeys.spec(ref),
+    queryKeys.specVersions(ref),
+    queryKeys.projectSpecTree(e.project_id),
+  ];
+};
 const specComments: KeyBuilder = (e) => [queryKeys.specComments(e.subject_id)];
 const taskAxis: KeyBuilder = (e) => [
   queryKeys.projectTasks(e.project_id),
@@ -36,6 +47,7 @@ const inboxAxis: KeyBuilder = () => [queryKeys.inbox()];
 
 const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.SPEC_DRAFT_CREATED]: specAxis,
+  [E.SPEC_DRAFT_UPDATED]: specAxis,
   [E.SPEC_SUBMITTED]: specAxis,
   [E.SPEC_REJECTED]: specAxis,
   [E.SPEC_APPROVED]: specAxis,

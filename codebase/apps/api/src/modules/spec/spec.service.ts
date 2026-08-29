@@ -191,6 +191,25 @@ export class SpecService {
    * 리스는 1차 사전 조정이고 409 가 데이터 유실의 최후 방어선이다 — 역할이 달라 둘 다 있다.
    */
   /**
+   * 이벤트에 실을 **스펙 키**. 봉투의 `subject_id` 는 버전·스펙 UUID 라 화면의 쿼리 키
+   * (안정 키)와 축이 다르다 — 키가 없으면 무효화가 목표를 못 맞춘다(screens.md §1.4).
+   */
+  private async keyOfSpec(tx: Tx, specId: string): Promise<string | null> {
+    const { rows } = await tx.execute<{ key: string }>(
+      sql`SELECT key FROM spec WHERE id = ${specId}`,
+    );
+    return rows[0]?.key ?? null;
+  }
+
+  /** 같은 것을 버전 id 로 찾을 때 */
+  private async keyOfVersion(tx: Tx, versionId: string): Promise<string | null> {
+    const { rows } = await tx.execute<{ key: string }>(
+      sql`SELECT s.key FROM spec_version sv JOIN spec s ON s.id = sv.spec_id WHERE sv.id = ${versionId}`,
+    );
+    return rows[0]?.key ?? null;
+  }
+
+  /**
    * 참조(키 또는 UUID)를 스펙 UUID 로 바꾼다. 빈 값이면 null 그대로 — "안 준 것"이다.
    *
    * 키로 왔는데 그런 스펙이 없으면 **못 찾았다고 말한다**. 조용히 null 로 떨어뜨리면
@@ -292,6 +311,23 @@ export class SpecService {
            WHERE id = ${draft.id}
         `);
         const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
+
+        // **같은 draft 를 다시 저장해도 알린다**(2026-08-29 개정 — 사람 보고).
+        // 예전에는 여기서 아무 이벤트도 내지 않았다("리스 갱신만" — api.md EP-SPEC-08).
+        // 그런데 에이전트가 스펙을 쓰는 방식이 대부분 이 경로라, 본문이 바뀌어도 화면은
+        // 새로고침 전에는 알 수 없었다. 새 버전이 생긴 것이 아니므로 이름이 다르다.
+        await emit({
+          type: NERV_EVENT.SPEC_DRAFT_UPDATED,
+          projectId: input.projectId,
+          subjectType: 'spec_version',
+          subjectId: draft.id,
+          subjectKey: await this.keyOfSpec(tx, specId),
+          actorUserId: input.userId,
+          actorSessionId: input.sessionId ?? null,
+          isAgent: input.sessionId != null,
+          toState: 'draft',
+        });
+
         return {
           spec_id: specId,
           spec_version_id: draft.id,
@@ -328,6 +364,7 @@ export class SpecService {
         projectId: input.projectId,
         subjectType: 'spec_version',
         subjectId: versionId,
+        subjectKey: await this.keyOfSpec(tx, specId),
         actorUserId: input.userId,
         actorSessionId: input.sessionId ?? null,
         isAgent: input.sessionId != null,
@@ -455,6 +492,7 @@ export class SpecService {
         projectId: input.projectId,
         subjectType: 'spec_version',
         subjectId: input.specVersionId,
+        subjectKey: await this.keyOfVersion(tx, input.specVersionId),
         actorUserId: input.userId,
         actorSessionId: input.sessionId ?? null,
         isAgent: input.sessionId != null,
@@ -569,6 +607,7 @@ export class SpecService {
         projectId: input.projectId,
         subjectType: 'spec_version',
         subjectId: input.specVersionId,
+        subjectKey: await this.keyOfVersion(tx, input.specVersionId),
         actorUserId: input.reviewerUserId,
         fromState: 'in_review',
         toState: 'draft',
@@ -650,6 +689,7 @@ export class SpecService {
         projectId: input.projectId,
         subjectType: 'spec',
         subjectId: spec.id,
+        subjectKey: await this.keyOfSpec(tx, spec.id),
         actorUserId: input.userId,
         isAgent: false,
         payload: { fields: changed },
@@ -701,6 +741,7 @@ export class SpecService {
         projectId: input.projectId,
         subjectType: 'spec',
         subjectId: spec.id,
+        subjectKey: await this.keyOfSpec(tx, spec.id),
         actorUserId: input.userId,
         isAgent: false,
       });
@@ -734,6 +775,7 @@ export class SpecService {
         projectId: input.projectId,
         subjectType: 'spec',
         subjectId: spec.id,
+        subjectKey: await this.keyOfSpec(tx, spec.id),
         actorUserId: input.userId,
         isAgent: false,
       });
@@ -1222,6 +1264,7 @@ export class SpecService {
       projectId: input.projectId,
       subjectType: 'spec_version',
       subjectId: input.specVersionId,
+      subjectKey: await this.keyOfVersion(tx, input.specVersionId),
       actorUserId: input.approverUserId,
       isAgent: false,
       fromState: 'in_review',

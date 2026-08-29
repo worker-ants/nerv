@@ -9,14 +9,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnApplicationBootstrap } from '@nestjs/common';
 import { EVENTS_CHANNEL } from '@nerv/schema';
+import type { NervEventEnvelope } from '@nerv/schema';
 import { ValkeyService } from './valkey.service.js';
 
-/** 방송 봉투의 최소 형태 — WS·SSE 가 그대로 흘린다. */
-export interface BroadcastEnvelope {
-  id: string;
-  type: string;
-  project_id: string;
-}
+/**
+ * 방송 봉투 — WS·SSE 가 그대로 흘린다. **정본은 `NervEventEnvelope`**(api.md §3.3).
+ *
+ * 예전에는 세 필드짜리 "최소 형태"였고, 그래서 받는 쪽이 무엇이 바뀌었는지(`subject_id`·
+ * `subject_key`) 알 수 없었다 — 화면은 무효화할 키를 만들지 못했다(실측 2026-08-29).
+ * 여기서 타입을 좁히면 그 사고가 다시 난다.
+ */
+export type BroadcastEnvelope = NervEventEnvelope;
 
 export type BroadcastListener = (envelope: BroadcastEnvelope) => void;
 

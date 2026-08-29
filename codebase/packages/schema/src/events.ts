@@ -11,6 +11,15 @@
 export const NERV_EVENT = {
   // ── 스펙 문서 축 전이 (P1) ────────────────────────────────────────────────
   SPEC_DRAFT_CREATED: 'spec.draft_created',
+  /**
+   * 같은 draft 를 다시 저장했다 — **새 버전은 생기지 않는다**(2026-08-29 신설).
+   *
+   * 예전에는 이 자리에서 아무 이벤트도 내지 않았다("리스 갱신만" — api.md EP-SPEC-08).
+   * 그런데 에이전트가 스펙을 쓰는 방식이 대부분 **이 경로**라, 화면은 본문이 바뀌어도
+   * 새로고침 전에는 알 수 없었다(실측 2026-08-29). 저장 빈도는 자동 저장 주기(60초)라
+   * 방송이 넘치지 않는다.
+   */
+  SPEC_DRAFT_UPDATED: 'spec.draft_updated',
   SPEC_SUBMITTED: 'spec.submitted',
   SPEC_REJECTED: 'spec.rejected',
   SPEC_APPROVED: 'spec.approved',
@@ -119,6 +128,15 @@ export interface NervEventEnvelope {
   subject_type: string;
   subject_id: string;
   subject_key: string | null;
+  /**
+   * 누가 일으켰나 — **식별자만**이라 D-14(본문 없음)와 어긋나지 않는다.
+   *
+   * 받는 쪽이 "내가 방금 한 일"과 "남이 한 일"을 갈라야 하기 때문이다. 이것이 없으면
+   * 화면은 자기 저장에도 "바뀌었습니다"를 띄우고, 그 소음은 알림 자체를 못 믿게 만든다.
+   */
+  actor_user_id: string | null;
+  /** 사람이 아니라 에이전트가 한 일인가(D-08 표기 규약) */
+  is_agent: boolean;
   /** ISO 8601 */
   occurred_at: string;
 }

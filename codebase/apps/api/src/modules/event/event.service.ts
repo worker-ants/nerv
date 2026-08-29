@@ -101,6 +101,8 @@ export class EventService {
       subject_type: input.subjectType,
       subject_id: input.subjectId,
       subject_key: input.subjectKey ?? null,
+      actor_user_id: input.actorUserId ?? null,
+      is_agent: input.isAgent ?? false,
       occurred_at: occurredAt.toISOString(),
     };
   }
@@ -147,12 +149,18 @@ export class EventService {
     return rows;
   }
 
+  /**
+   * 방송 — **봉투를 통째로 싣는다**(2026-08-29 정정).
+   *
+   * 예전에는 `{id, type, project_id}` 세 필드만 실었다. 그래서 받는 쪽의 `subject_id` 가
+   * `undefined` 였고, 화면은 `['spec', undefined]` 를 무효화하고 있었다 — 아무것도 다시
+   * 읽히지 않는다. 프로젝트 단위 키(트리·작업 목록)만 우연히 맞아떨어져서, 새로고침해야
+   * 보이는 화면과 그렇지 않은 화면이 뒤섞인 채로 남아 있었다(실측 2026-08-29).
+   *
+   * **본문은 여전히 싣지 않는다**(D-14). 나가는 것은 식별자와 시각뿐이고, 받는 쪽은 그것으로
+   * 자기 권한으로 다시 읽는다 — 봉투가 커진 것이 아니라 원래 계약(api.md §3.3)이 이것이다.
+   */
   async broadcast(envelope: NervEventEnvelope): Promise<boolean> {
-    const wire = JSON.stringify({
-      id: envelope.id,
-      type: envelope.type,
-      project_id: envelope.project_id,
-    });
-    return this.valkey.publish(EVENTS_CHANNEL, wire);
+    return this.valkey.publish(EVENTS_CHANNEL, JSON.stringify(envelope));
   }
 }

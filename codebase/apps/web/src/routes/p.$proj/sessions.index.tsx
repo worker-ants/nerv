@@ -10,11 +10,10 @@
 
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityRail } from '../../features/session-monitor/activity-rail.js';
 import { SessionBoard } from '../../features/session-monitor/session-board.js';
 import { useProject, useSessions } from '../../lib/queries.js';
-import { useRealtime } from '../../lib/realtime.js';
 import { PageBody, PageHeader } from '../../components/ui/primitives.js';
 import type { SessionCard } from '../../features/session-monitor/types.js';
 
@@ -25,14 +24,8 @@ function SessionMonitor(): React.JSX.Element {
   const { proj } = Route.useParams();
   const project = useProject(proj);
   const sessions = useSessions(proj, projectIdOf(project.data));
-  const { joinProject } = useRealtime();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
   const projectId = project.data?.['id'];
-  useEffect(() => {
-    if (typeof projectId !== 'string') return;
-    return joinProject(projectId);
-  }, [joinProject, projectId]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const cards = (sessions.data?.items ?? []) as unknown as SessionCard[];
   // 고르지 않았으면 첫 줄이 초점이다 — 빈 레일은 화면 절반을 버리는 것이다

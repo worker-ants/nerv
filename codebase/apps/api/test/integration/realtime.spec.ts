@@ -267,10 +267,30 @@ describe('SSE 계약 (EP-SSE-01·02 · api.md §3.5)', () => {
     const text = await res.until((t) => t.includes(NERV_EVENT.SPEC_APPROVED));
     res.close();
 
-    // 메시지마다 event: = Event type, id: = event id, data: = 최소 봉투(§3.5)
+    // 메시지마다 event: = Event type, id: = event id, data: = 봉투(§3.3·§3.5)
     expect(text).toContain('event: spec.approved');
     expect(text).toContain('data: ');
     expect(text).not.toContain('body_md'); // 본문은 싣지 않는다
+
+    // **봉투가 무엇이 바뀌었는지 말해야 한다**(2026-08-29 실측). 예전에는 방송이
+    // {id,type,project_id} 세 필드로 잘려 나가서, 받는 쪽은 subject 를 몰랐고 화면은
+    // `['spec', undefined]` 를 무효화하고 있었다 — 새로고침해야 보이는 이유가 이것이었다.
+    const line = text.split('\n').find((l) => l.startsWith('data: ')) ?? '';
+    const wire = JSON.parse(line.slice('data: '.length)) as Record<string, unknown>;
+    expect(Object.keys(wire).sort()).toEqual(
+      [
+        'actor_user_id',
+        'id',
+        'is_agent',
+        'occurred_at',
+        'project_id',
+        'subject_id',
+        'subject_key',
+        'subject_type',
+        'type',
+      ].sort(),
+    );
+    expect(typeof wire['subject_id']).toBe('string');
   });
 
   it('/sse/me 는 본인 스트림을 연다', async () => {

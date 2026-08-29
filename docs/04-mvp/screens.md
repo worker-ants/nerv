@@ -7,7 +7,9 @@ updated: 2026-08-27
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.38 · 2026-08-29 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.39 · 2026-08-29 · HTML 판: [screens.html](../html/screens.html)
+>
+> v0.39 변경(2026-08-29 — 실시간 갱신이 조용히 죽어 있었다, 사람 보고): §1.4 정정(REQ-WEB-100). 스펙이 생기거나 바뀌어도 새로고침 전에는 알 수 없었다 — 세 자리가 어긋나 있었다: ① 룸 join 을 **개요·세션 두 화면만** 했다(이제 프로젝트 셸이 한 번 한다) ② 스펙 상세의 무효화 축이 봉투의 **버전 UUID** 와 화면의 **안정 키** 로 갈려 있었다(이제 `subject_key` 로 잡는다) ③ 사이드바 트리 키가 **slug** 축이라 같은 컴포넌트인데 목록 화면의 트리만 갱신됐다. **토스트는 남이 바꾼 것에만** 뜬다(`actor_user_id`).
 >
 > v0.38 변경(2026-08-29 — 한 줄에 놓인 필드의 정렬, 사람 보고): **`FieldRow` 프리미티브 신설**(§4.4 · REQ-WEB-099). 프로젝트 추가 줄에서 "이름"만 한 단 아래로 내려앉아 있었다 — 줄이 `items-end` 라 상자의 **아래 끝**만 맞았고, 힌트가 있는 필드와 없는 필드는 키가 다르기 때문이다. 세 줄짜리 격자(라벨/입력/힌트)를 만들고 각 필드가 `subgrid` 로 그 줄을 나눠 쓴다. 버튼은 `FieldRowAction` 으로 **입력 줄**에 놓는다.
 >
@@ -202,7 +204,7 @@ apps/web/src/routes/
 
 WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만)이고, 핸드셰이크 인증·룸 join 규약·이벤트 전체 목록의 정본은 [api.md](api.md) §3이다. 클라이언트 계약은 세 줄이다.
 
-1. **룸 2종** — `user:{id}`는 연결 성공 시 서버가 자동 join, `project:{id}`는 프로젝트 화면 진입 시 클라이언트가 join emit(서버가 멤버십 검사, 이탈 시 leave — api.md §3.2).
+1. **룸 2종** — `user:{id}`는 연결 성공 시 서버가 자동 join, `project:{id}`는 **프로젝트 셸(`/p/:proj`)이 한 번** join 한다(서버가 멤버십 검사, 이탈 시 leave — api.md §3.2). 화면마다 각자 join 하지 않는다(2026-08-29 정정 — 그렇게 두었더니 개요·세션 두 화면만 join 했고, 스펙 목록·상세와 사이드바 트리는 이벤트를 **아예 받지 못했다**). 룸은 화면이 아니라 프로젝트에 속한다.
 2. **이벤트는 무효화 신호다.** 이벤트 봉투에는 식별자만 있고 본문이 없다 — 수신하면 해당 TanStack Query 키를 invalidate하고 재조회한다(진실은 DB, D-14).
 3. **재연결 = 전체 재조회.** 끊겼다 붙으면 활성 화면의 쿼리를 전부 무효화한다. 이벤트 재전송(replay)은 없다(api.md §3.4).
 
@@ -210,7 +212,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 
 | 이벤트(`<리소스>.<동사>`) | 무효화하는 쿼리 키 | 수신 룸 |
 | --- | --- | --- |
-| `spec.draft_created` `spec.submitted` `spec.rejected` `spec.approved` `spec.superseded` `spec.deprecated` | `['spec', specId]` · `['spec', specId, 'versions']` · `['project', projId, 'specTree']` | `project:{id}` |
+| `spec.draft_created` ★`spec.draft_updated` `spec.submitted` `spec.rejected` `spec.approved` `spec.superseded` `spec.deprecated` | `['spec', specKey]` · `['spec', specKey, 'versions']` · `['project', projId, 'specTree']` | `project:{id}` |
 | `spec.comment_added` · ★`comment.resolved` | `['spec', specId, 'comments']` | `project:{id}` |
 | `task.ready` `task.claimed` `task.blocked` `task.done` · ★`task.created` ★`task.updated` | `['project', projId, 'tasks']` · `['task', taskId]` | `project:{id}` |
 | `task.rebrief_required` | `['project', projId, 'tasks']` · `['task', taskId]` + S4 재브리핑 배지 | `project:{id}` + 담당자·클레임 세션 소유자 `user:{id}` |
@@ -226,6 +228,24 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `finding.opened` `finding.resolved` `cr.opened` | — Phase 2(S6·CR) | — |
 
 세션 상세의 Activity 스트림과 하트비트·diff 갱신은 알림을 만들지 않고 `project:{id}` 룸으로만 흐른다(spec-workflow §6.3 말미). 리스 잔여·경과 시간 카운트다운은 서버 push가 아니라 응답의 `lease_expires_at`·`started_at`을 기준으로 한 클라이언트 시계 렌더링이다.
+
+#### 축이 맞아야 무효화가 닿는다 (2026-08-29 정정 — 사람 보고)
+
+세 자리가 어긋나 있어서, 스펙이 생기거나 바뀌어도 **새로고침 전에는 아무 변화가 없었다.**
+
+| 어긋난 곳 | 무엇이 달랐나 |
+| --- | --- |
+| 룸 join | 개요·세션 두 화면만 했다 — 스펙 화면과 사이드바는 이벤트를 받지 못했다 |
+| 스펙 상세 키 | 봉투는 **버전 UUID**(`subject_id`)를 싣고 화면 키는 **안정 키**였다. `['spec', <UUID>]` 무효화는 `['spec','SPC-…']` 에 닿지 않는다 |
+| 사이드바 트리 키 | 셸이 `projectId` 를 안 넘겨 키가 **slug** 축이었다. 같은 컴포넌트인데 스펙 목록 화면의 트리만 갱신됐다 |
+
+그래서 **스펙 축은 `subject_key` 로 잡는다**(서버가 스펙 이벤트에 키를 싣는다 — api.md §3.3). 키가 없는 봉투는 예전처럼 id 로 떨어진다.
+
+**토스트는 남이 바꾼 것에만 뜬다.** 화면이 조용히 갱신되면 사람은 "안 바뀌었다"와 구별하지 못하고, 반대로 자기 저장까지 알리면 저장할 때마다 두 번 뜬다 — 봉투의 `actor_user_id` 로 가른다. 알리는 것은 스펙 축 전이뿐이다: 하트비트·세션 활동까지 띄우면 토스트가 배경 소음이 되고, 그러면 정작 중요한 겹침 경고가 묻힌다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-WEB-100 | WHILE 프로젝트 화면에 머무는 동안 THE SYSTEM SHALL 그 프로젝트의 스펙 변경 이벤트를 받아 스펙 트리·목록·상세를 새로고침 없이 갱신하고, 다른 사람·에이전트가 일으킨 변경이면 무엇이 바뀌었는지 토스트로 알린다 |
 
 ### 1.5 공통 상태·에러 규약
 

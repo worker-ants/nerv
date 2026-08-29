@@ -15,12 +15,37 @@ function envelope(type: NervEventName, over: Partial<NervEventEnvelope> = {}): N
     subject_type: 'spec_version',
     subject_id: 'sub-1',
     subject_key: null,
+    actor_user_id: null,
+    is_agent: false,
     occurred_at: '2026-08-22T00:00:00Z',
     ...over,
   };
 }
 
 describe('invalidationKeysFor — screens.md §1.4', () => {
+  // 2026-08-29 실측 — 봉투의 subject_id 는 **버전 UUID** 인데 화면의 쿼리 키는 안정 키다.
+  // 축이 달라서 스펙 상세는 한 번도 다시 읽히지 않았다(새로고침해야 보였다).
+  it('스펙 축은 subject_key 로 잡는다 — 화면의 쿼리 키가 안정 키이기 때문이다', () => {
+    const keys = invalidationKeysFor(
+      envelope(NERV_EVENT.SPEC_DRAFT_CREATED, {
+        subject_id: 'ver-uuid',
+        subject_key: 'SPC-CWC-007',
+      }),
+    );
+    expect(keys).toEqual([
+      queryKeys.spec('SPC-CWC-007'),
+      queryKeys.specVersions('SPC-CWC-007'),
+      queryKeys.projectSpecTree('prj-1'),
+    ]);
+  });
+
+  it('키가 없으면 예전대로 id 로 떨어진다 — 옛 서버와도 맞물린다', () => {
+    const keys = invalidationKeysFor(
+      envelope(NERV_EVENT.SPEC_DRAFT_CREATED, { subject_id: 'spc-7', subject_key: null }),
+    );
+    expect(keys[0]).toEqual(queryKeys.spec('spc-7'));
+  });
+
   it('스펙 문서 축 전이는 스펙·버전·트리 셋을 무효화한다', () => {
     const keys = invalidationKeysFor(envelope(NERV_EVENT.SPEC_APPROVED, { subject_id: 'spc-7' }));
     expect(keys).toEqual([

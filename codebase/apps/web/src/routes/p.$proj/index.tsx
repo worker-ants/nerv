@@ -6,11 +6,9 @@
 import { eventLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useEffect } from 'react';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
 import { relativeTime } from '../../lib/format.js';
 import { rows, useCoverage, useEvents, useProject, useSessions } from '../../lib/queries.js';
-import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import {
   Card,
@@ -31,14 +29,6 @@ function ProjectOverview(): React.JSX.Element {
   const coverage = useCoverage(proj, projectIdOf(project.data));
   const sessions = useSessions(proj, projectIdOf(project.data));
   const events = useEvents(proj, projectIdOf(project.data));
-  const { joinProject } = useRealtime();
-
-  const projectId = project.data?.['id'];
-  useEffect(() => {
-    if (typeof projectId !== 'string') return;
-    return joinProject(projectId);
-  }, [joinProject, projectId]);
-
   const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
   const active = (sessions.data?.items ?? []) as unknown as SessionCardData[];
 
