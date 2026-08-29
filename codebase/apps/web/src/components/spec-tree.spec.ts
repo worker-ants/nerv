@@ -26,8 +26,18 @@ describe('평면 목록 → 계층', () => {
     expect(map.get(null)?.map((n) => n.id)).toEqual(['z', 'a']);
   });
 
-  it('부모가 목록에 없어도 잃어버리지 않는다 — 지연 로드 중간 상태', () => {
-    const map = groupByParent([node('orphan', 'missing-parent')]);
-    expect(map.get('missing-parent')?.map((n) => n.id)).toEqual(['orphan']);
+  // 이 테스트는 예전에 **결함을 지키고 있었다**: 부모 키 아래에 남겨 두는 것을 "잃어버리지
+  // 않는다"로 읽었지만, 렌더는 뿌리에서 내려가므로 그 노드는 화면에서 사라졌다. 목록에
+  // 없으면 열람도 없다(REQ-WEB-101) — 그래서 뿌리로 올린다.
+  it('부모를 못 찾은 노드는 뿌리로 올린다 — 트리에 자리가 없다고 문서를 지우지 않는다', () => {
+    const map = groupByParent([node('a', null), node('orphan', 'missing-parent')]);
+    expect(map.get(null)?.map((n) => n.id)).toEqual(['a', 'orphan']);
+    expect(map.get('missing-parent')).toBeUndefined();
+  });
+
+  it('부모가 있는 노드는 그대로 부모 밑이다 — 승격은 못 찾았을 때만이다', () => {
+    const map = groupByParent([node('a', null), node('b', 'a')]);
+    expect(map.get(null)?.map((n) => n.id)).toEqual(['a']);
+    expect(map.get('a')?.map((n) => n.id)).toEqual(['b']);
   });
 });

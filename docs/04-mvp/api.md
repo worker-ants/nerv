@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.23 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.24 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+>
+> v0.24 변경(2026-08-29 — 보관된 부모 아래에 만들 수 있었다, 실측): 복원에는 있던 `parent_archived` 규칙이 **생성·이동에는 없었다** — 보관된 부모를 지정해 스펙을 만들면 201 이었고, 그 문서는 기본 트리에서 부모를 못 찾아 **화면에서 사라졌다**(만든 사람도 다시 찾지 못한다). EP-SPEC-07·08·15 가 같은 규칙을 쓴다(§2.2 · REQ-API-039).
 >
 > v0.23 변경(2026-08-29 — 보관을 화면이 가를 수 있게, 실측): EP-SPEC-01·19 노드에 **`archived_at`** 을 싣는다(§2.2). `include_archived=true` 로 받은 목록에서 무엇이 보관된 것인지 응답이 말하지 않으면, 화면은 살아 있는 문서와 보관된 문서를 **같은 무게로** 그린다([4.5](screens.md) §2.4b · REQ-WEB-105).
 >
@@ -200,6 +202,7 @@ HTTP 상태 매핑:
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-038 | WHEN 도구·엔드포인트가 스펙·Task 참조를 받으면 THE SYSTEM SHALL 안정 키와 UUID 를 모두 해석하고, 어느 쪽으로 받았든 같은 대상을 가리키게 하며, 해석되지 않으면 `not_found` 로 거부한다 |
+| REQ-API-039 | WHEN 보관된 스펙을 부모로 지정해 스펙을 만들거나 옮기면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`details.kind="parent_archived"`, `parent`=부모 키)로 거부한다 — 보관된 부모 아래의 문서는 기본 목록·트리 어디에도 나타나지 않아 만든 사람도 다시 찾지 못한다 | 보관 후 그 아래 생성 1건 + 보관된 부모로 이동 1건 |
 
 ### 1.5 멱등 키 — `Idempotency-Key` 헤더
 
@@ -326,7 +329,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-04 | `GET /api/v1/projects/{proj}/specs/{spec}/versions` | 전 역할 | — | `Page<SpecVersionSummary>` | — |
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |
-| EP-SPEC-07 | `POST /api/v1/projects/{proj}/specs` | planner·admin ●, designer(design)·developer(convention/adr) ○, **qa ✗**(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. `spec:draft` 는 유지 — 코멘트 해소·초안 편집의 몫) | `SpecCreateInput`(parent_id, type, title, body_markdown) | `SpecDraftResult`(spec + draft v1) | `spec.draft_created` |
+| EP-SPEC-07 | `POST /api/v1/projects/{proj}/specs` | planner·admin ●, designer(design)·developer(convention/adr) ○, **qa ✗**(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. `spec:draft` 는 유지 — 코멘트 해소·초안 편집의 몫) | `SpecCreateInput`(parent_id, type, title, body_markdown) | `SpecDraftResult`(spec + draft v1) — **보관된 부모 아래에는 만들지 못한다**: 409 `NERV_PRECONDITION`(`details.kind="parent_archived"`, REQ-API-039) | `spec.draft_created` |
 | EP-SPEC-08 | `PUT /api/v1/projects/{proj}/specs/{spec}/draft` | EP-SPEC-07과 동일(`spec:draft`) | `SpecDraftUpsertInput`(body_markdown, **base_version**, change_summary) | `SpecDraftResult`(version, 델타 요약, 검증 경고, `web_url`) | 새 draft 버전 생성 시 `spec.draft_created`, **같은 draft 재저장은 `spec.draft_updated`**(2026-08-29 개정 — 예전에는 "이벤트 없음(리스 갱신만)"이었다. 에이전트가 스펙을 쓰는 방식이 대부분 이 경로라, 본문이 바뀌어도 화면이 새로고침 전에는 알 수 없었다. 저장 빈도는 자동 저장 주기(60초)라 방송이 넘치지 않는다) |
 | EP-SPEC-09 | `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 전 역할(읽기 전용 셀프서비스) | — | `SpecCheckResult`(5검사기별 warning/block + 앵커 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.1) | — |
 | EP-SPEC-10 | `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | 작성자 본인 또는 planner | `SpecSubmitInput`(reviewer_hint, note) | `SpecSubmitResult`(approval_id[], 지정 리뷰어·SLA) | `spec.submitted` + `approval.requested` |
@@ -338,7 +341,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-12 | `POST /api/v1/projects/{proj}/baselines` | planner·admin — **사람 전용**(PAT 불가, 베이스라인 동결은 거버넌스 행위 — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.6) | `BaselineCreateInput`(name, note_md, items[]? — 생략 시 스펙별 최신 approved 전체) | `BaselineResult` — approved 아닌 항목 포함 시 409 `NERV_PRECONDITION` | ★`baseline.created` |
 | EP-SPEC-13 | `GET /api/v1/projects/{proj}/baselines/{bl}` | 전 역할 | — | `BaselineDetailResult`(항목 전량: spec_id·key·title·핀 버전·현재 최신 approved와의 차이 표시) — 불변, 같은 `{bl}`은 영원히 같은 세트 | — |
 | EP-SPEC-14 | `GET /api/v1/projects/{proj}/specs/manifest` | 전 역할(`spec:read`, PAT 허용) | `ManifestQuery`(`as_of?` timestamptz 또는 `baseline?` 이름 — 둘 다 생략 시 현재) | `SpecManifestResult`(spec_id→{version_no, status, approved_at} 전량 — git export `manifest.json`의 API 판, [아키텍처](../03-proposal/architecture.md) §2.4b) | — |
-| EP-SPEC-15 | `PATCH /api/v1/projects/{proj}/specs/{spec}` | planner·admin (`spec:meta`) | `SpecMetaUpdateInput`(title?, parent_id?, sort_key?, owner_role? — 전 필드 선택, 최소 1개) | `SpecResult` — parent_id 이동은 사이클(자기 자신·자기 하위로 이동) 시 409 `NERV_PRECONDITION`(`details.kind="tree_cycle"`) | ★`spec.meta_updated`(payload에 변경 필드 목록) |
+| EP-SPEC-15 | `PATCH /api/v1/projects/{proj}/specs/{spec}` | planner·admin (`spec:meta`) | `SpecMetaUpdateInput`(title?, parent_id?, sort_key?, owner_role? — 전 필드 선택, 최소 1개) | `SpecResult` — parent_id 이동은 사이클(자기 자신·자기 하위로 이동) 시 409 `NERV_PRECONDITION`(`details.kind="tree_cycle"`), 보관된 부모로의 이동도 409(`parent_archived`, REQ-API-039) | ★`spec.meta_updated`(payload에 변경 필드 목록) |
 | EP-SPEC-16 | `POST /api/v1/projects/{proj}/specs/{spec}/archive` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409 `NERV_PRECONDITION`(`details.kind="archive_blocked"`, 차단 사유 목록) | ★`spec.archived` |
 | EP-SPEC-17 | `POST /api/v1/projects/{proj}/specs/{spec}/restore` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` NULL) — 부모가 아카이브 상태면 409(`details.kind="parent_archived"`) | ★`spec.restored` |
 | EP-SPEC-18 | `GET /api/v1/projects/{proj}/specs/{spec}/relations` | 전 역할(`spec:read`) | `SpecRelationQuery`(direction: out/in/both 기본 both, kind?, cursor) | `Page<SpecRelationEntry>`(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — **역참조(backlink)가 1급이다**: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널([4.5 화면 명세](screens.md) §2.4)과 영향 미리보기의 데이터 소스 | — |

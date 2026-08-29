@@ -58,13 +58,24 @@ export interface SpecTreeProps {
 const VIRTUAL_THRESHOLD = 200;
 const ROW_HEIGHT = 24;
 
-/** 평면 목록 → 부모별 자식 맵. 서버는 정렬만 하고 계층 조립은 화면 몫이다. */
+/**
+ * 평면 목록 → 부모별 자식 맵. 서버는 정렬만 하고 계층 조립은 화면 몫이다.
+ *
+ * **부모를 못 찾은 노드는 뿌리로 올린다.** 렌더는 뿌리(`null`)에서 내려가므로, 부모가 이
+ * 응답에 없는 노드를 그 부모 아래에 넣어 두면 그 문서는 **화면에서 사라진다** — 목록에
+ * 없으면 열람도 없다는 것이 이 화면의 계약이라(REQ-WEB-101) 트리에 자리가 없다고 문서를
+ * 지울 수는 없다. 실제로 만들 수 있는 상태였다(실측 2026-08-29 — 보관된 부모 아래 생성).
+ * 서버가 그 경로를 막은 뒤에도 이 방어는 남긴다: 화면은 자기가 받은 목록을 다 그려야 한다.
+ */
 export function groupByParent(nodes: TreeNode[]): Map<string | null, TreeNode[]> {
+  const list = Array.isArray(nodes) ? nodes : [];
+  const known = new Set(list.map((n) => n.id));
   const map = new Map<string | null, TreeNode[]>();
-  for (const node of Array.isArray(nodes) ? nodes : []) {
-    const siblings = map.get(node.parent_id) ?? [];
+  for (const node of list) {
+    const parent = node.parent_id !== null && known.has(node.parent_id) ? node.parent_id : null;
+    const siblings = map.get(parent) ?? [];
     siblings.push(node);
-    map.set(node.parent_id, siblings);
+    map.set(parent, siblings);
   }
   return map;
 }

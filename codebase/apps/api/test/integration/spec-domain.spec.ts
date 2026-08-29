@@ -259,6 +259,42 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
     expect((await specs.tree({ projectId })).map((n) => n.key)).toContain('SPC-OLD');
   });
 
+  // 복원에는 있던 규칙이 **생성·이동에는 없었다**: 보관된 부모 아래에 문서를 만들 수 있었고
+  // (실측 2026-08-29 — 201), 그 문서는 기본 트리에서 부모를 못 찾아 화면에서 사라졌다.
+  // 목록에 없으면 열람도 없다([4.5](screens.md) §2.4b) — 만들 수 없어야 한다.
+  it('보관된 부모 아래에는 만들 수 없다 — 어느 목록에도 없는 문서가 된다', async () => {
+    await draft('SPC-DEADBOX', '# box');
+    await specs.archive({ projectId, specKey: 'SPC-DEADBOX', userId: planner });
+
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        key: 'SPC-UNDER',
+        title: '아래',
+        type: 'feature',
+        parentId: 'SPC-DEADBOX',
+        bodyMd: '# under',
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'parent_archived', parent: 'SPC-DEADBOX' } });
+  });
+
+  it('보관된 부모로 옮길 수도 없다 — 옮기는 것은 만드는 것과 같은 결과다', async () => {
+    await draft('SPC-DEADBOX2', '# box');
+    await draft('SPC-MOVER', '# mover');
+    await specs.archive({ projectId, specKey: 'SPC-DEADBOX2', userId: planner });
+
+    await expect(
+      specs.updateMeta({
+        projectId,
+        specKey: 'SPC-MOVER',
+        parentKey: 'SPC-DEADBOX2',
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'parent_archived', parent: 'SPC-DEADBOX2' } });
+  });
+
   it('부모가 아카이브 상태면 복원해도 보이지 않으므로 거부한다', async () => {
     await draft('SPC-PBOX', '# p');
     await draft('SPC-PKID', '# k');

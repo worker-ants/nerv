@@ -238,6 +238,25 @@ export class SpecService {
     return found;
   }
 
+  /**
+   * 부모가 **살아 있는지** 본다 — 보관된 부모 아래에 문서를 두면 그 문서는 어느 목록에도
+   * 없다(트리는 부모를 못 찾아 버리고, 기본 목록은 부모째 빠져 있다). 복원에 이미 같은
+   * 규칙이 있었는데(`parent_archived`) 생성·이동에는 없어서, 실제로 만들 수 있었다
+   * (실측 2026-08-29 — 보관된 부모 아래 생성 201, 그 뒤 트리 응답에 부모 없는 노드가 남았다).
+   */
+  private async requireLiveParent(tx: Tx, parentId: string | null): Promise<void> {
+    if (parentId === null) return;
+    const { rows } = await tx.execute<{ archived_at: unknown; key: string }>(
+      sql`SELECT archived_at, key FROM spec WHERE id = ${parentId}`,
+    );
+    if (rows[0]?.archived_at != null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.parent_archived'), {
+        kind: 'parent_archived',
+        parent: rows[0].key,
+      });
+    }
+  }
+
   async draftUpsert(input: DraftUpsertInput): Promise<Record<string, unknown>> {
     return this.events.transact(async (tx, emit) => {
       // **키로 왔든 UUID 로 왔든 같은 스펙을 가리킨다**(§1.4b). 예전에는 이 자리가 UUID 만
@@ -264,6 +283,7 @@ export class SpecService {
           });
         }
         const parentId = await this.resolveSpecId(tx, input.projectId, input.parentId ?? null);
+        await this.requireLiveParent(tx, parentId);
         specId = newId();
         await tx.execute(sql`
           INSERT INTO spec (id, project_id, parent_id, type, key, title)
@@ -669,6 +689,7 @@ export class SpecService {
         changed.push('parent_id');
       } else if (input.parentKey != null) {
         const parent = await this.requireSpec(tx, input.projectId, input.parentKey);
+        await this.requireLiveParent(tx, parent.id);
         if (await this.isDescendant(tx, spec.id, parent.id)) {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.cycle'), {
             kind: 'tree_cycle',
