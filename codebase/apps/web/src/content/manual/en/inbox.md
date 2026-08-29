@@ -10,6 +10,16 @@ The inbox collects **only what is waiting on your decision**. Count background a
 
 Lowering a `critical` review finding also arrives here as a card (see [Reviews](/help/reviews)).
 
+## Question cards
+
+When an agent hits something it must not decide on its own, it **stops** and asks. Those cards carry three more things.
+
+- **Options** — the agent writes 2–4 answers that can be acted on as they stand. Pressing a button sends **exactly that value**, which is more precise than retyping it as a sentence. Add anything else in the answer box.
+- **Source** — which spec, task, or finding the question came from, printed as a key you can click through to the original. You never have to judge from the summary alone.
+- **Reason** — why a human is being called (product decision · spec gap · infrastructure · E2E failed 3× · sensitive change). It is the first sorting of what to look at.
+
+Answering **wakes the session immediately.** Until then the agent is stopped.
+
 ## Deciding
 
 Every card offers three things: **approve, reject, comment**. Rejections and comments take a reason — without one the requester cannot tell what to do next.

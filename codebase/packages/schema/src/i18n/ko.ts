@@ -100,6 +100,8 @@ export const ko = {
     '보관된 프로젝트가 "{slug}" 를 쓰고 있습니다 — 새로 만들 것이 아니라 복구할 수 있습니다.',
   'error.project.slug_taken': '이미 "{slug}" 를 쓰는 프로젝트가 있습니다.',
   'error.project.unresolved': '프로젝트가 해소되지 않았습니다.',
+  'error.question.context_not_found':
+    '{field} 를 찾을 수 없습니다 — 출처는 실제 문서·작업·발견을 가리켜야 합니다.',
   'error.question.not_open': '열린 질문이 아닙니다.',
   'error.relation.auto_kind':
     'references 는 본문에서 자동 동기화됩니다 — 손으로 넣으면 다음 저장에 지워집니다.',
@@ -253,6 +255,11 @@ export const ko = {
   'mcp.arg.event_seq': '세션 내 단조 증가 — 재전송 멱등 키',
   'mcp.arg.around': 'spec key — 주면 이 문서 주변만',
   'mcp.arg.scope': '이 작업이 건드릴 스펙·파일. 겹침 판정의 입력이다',
+  'mcp.arg.question_context': '출처 — 사람이 원문으로 갈 수 있게 안정 ID 를 단다',
+  'mcp.arg.escalate': '왜 사람을 부르는가 — 5종 어휘(spec-workflow §4.7)',
+  'mcp.arg.blocking':
+    '게이트를 막는가(기본 true) — urgency 와 같은 축이고, urgency 를 주면 그쪽이 이긴다',
+  'mcp.arg.wait_seconds': '답을 이만큼 기다린다(초, 최대 60) — 비우면 즉시 돌아온다',
   'mcp.arg.session_id':
     '어느 세션의 일인가 — 비우면 이 토큰의 살아 있는 세션으로 본다(둘 이상이면 지정해야 한다)',
   'error.spec.type_not_allowed': '이 역할은 그 종류의 스펙을 만들 수 없습니다.',
@@ -525,6 +532,11 @@ export const ko = {
   'inbox.card.decided': '{decision} 처리됐습니다.',
   'inbox.card.delivered': '요청 세션 {host}/{agent} 에 전달됨',
   'inbox.card.handle_in_inbox': '받은 요청에서 처리 ▸',
+  'question.escalate.spec': '스펙 공백',
+  'question.escalate.user-decision': '제품 결정',
+  'question.escalate.infra': '인프라',
+  'question.escalate.e2e-fail-3x': 'E2E 3회 실패',
+  'question.escalate.sensitive-fix': '민감한 수정',
   'inbox.card.question': '질문',
   'inbox.card.reason_missing': '거절 사유를 적어주세요.',
   'inbox.card.reason_required': '거절에는 사유가 필요합니다 — 요청자 알림과 감사 로그에 남습니다.',

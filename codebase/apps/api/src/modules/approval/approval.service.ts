@@ -126,13 +126,16 @@ export class ApprovalService {
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
              u.display_name AS requested_by,
              se.hostname, se.agent_type::text AS agent_type, se.external_session_id,
-             t.key AS task_key,
+             -- **출처는 카드의 절반이다.** 사람은 에이전트의 요약이 아니라 원문을 보고
+             -- 판단하므로, 어느 문서·작업·발견에서 온 질문인지가 카드에 있어야 한다
+             t.key AS task_key, s.key AS spec_key, q.finding_id, q.escalate::text AS escalate,
              extract(epoch FROM (now() - q.asked_at))::int AS waiting_seconds
         FROM question q
         JOIN project p ON p.id = q.project_id
         JOIN agent_session se ON se.id = q.agent_session_id
         JOIN "user" u ON u.id = se.user_id
    LEFT JOIN task t ON t.id = q.task_id
+   LEFT JOIN spec s ON s.id = q.spec_id
        WHERE q.status = 'open'${projectFilter}
          -- 승인 카드와 **같은 조건**이다. 한쪽만 걸렀더니 보관한 프로젝트의 질문
          -- 카드가 받은 요청에 그대로 남았다(실측 2026-08-27) — 받은 요청은 한 목록이므로
@@ -209,12 +212,14 @@ export class ApprovalService {
       SELECT q.id, q.title, q.body_md, q.options, q.urgency::text AS urgency,
              q.status::text AS status, q.answer_key, q.answer_md, q.asked_at, q.answered_at,
              se.hostname, se.agent_type::text AS agent_type, se.external_session_id,
-             u.display_name AS asked_by, t.key AS task_key,
+             u.display_name AS asked_by, t.key AS task_key, s.key AS spec_key,
+             q.finding_id, q.escalate::text AS escalate,
              extract(epoch FROM (now() - q.asked_at))::int AS waiting_seconds
         FROM question q
         JOIN agent_session se ON se.id = q.agent_session_id
         JOIN "user" u ON u.id = se.user_id
    LEFT JOIN task t ON t.id = q.task_id
+   LEFT JOIN spec s ON s.id = q.spec_id
        WHERE q.project_id = ${input.projectId} AND q.status = ${status}::question_status
        ORDER BY q.asked_at DESC
     `);

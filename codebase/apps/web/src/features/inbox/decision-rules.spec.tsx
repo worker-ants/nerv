@@ -145,3 +145,47 @@ describe('REQ-WEB-024 — 질문 처리는 어느 세션에 전달됐는지 말�
     );
   });
 });
+
+// ── 선택지 (2026-08-30 — 스킬이 요구하던 것을 도구·화면이 받는다) ────────────────
+//
+// 에이전트는 그대로 실행 가능한 답 2~4개를 만들어 보낸다(skills/question §절차 1).
+// 그런데 화면에는 자유 서술 상자 하나뿐이라 **선택지가 어디에도 그려지지 않았다** —
+// 구조화해서 보낸 쪽의 노력이 사라지고, 사람이 고른 것과 에이전트가 읽은 것이 갈린다.
+
+describe('질문의 선택지는 누를 수 있어야 한다', () => {
+  const card = {
+    id: 'q9',
+    subject_type: 'question',
+    title: '판정 방식',
+    project_slug: 'clemvion',
+    hostname: 'mac-07',
+    agent_type: 'claude-code',
+    options: ['A — 순수 클리어 순서', 'B — 감점 가중'],
+    waiting_seconds: 60,
+  };
+
+  it('선택지를 버튼으로 그린다', () => {
+    renderCard(card);
+    const options = screen.getByTestId('question-options');
+    expect(options.textContent).toContain('A — 순수 클리어 순서');
+    expect(options.textContent).toContain('B — 감점 가중');
+  });
+
+  it('누르면 고른 값이 answer_key 로 그대로 실린다 — 재해석이 끼어들 자리가 없다', async () => {
+    renderCard(card);
+    fireEvent.click(screen.getByRole('button', { name: 'B — 감점 가중' }));
+
+    // /me 같은 배경 조회가 섞이므로 답변 요청만 골라 본다
+    const answer = await waitFor(() => {
+      const hit = posted.find((p) => p.url.includes('/questions/q9/answer'));
+      expect(hit).toBeDefined();
+      return hit;
+    });
+    expect(answer?.body).toMatchObject({ answer_key: 'B — 감점 가중' });
+  });
+
+  it('선택지가 없으면 버튼 줄도 없다 — 빈 줄은 고를 것이 있다는 거짓말이다', () => {
+    renderCard({ ...card, options: [] });
+    expect(screen.queryByTestId('question-options')).toBeNull();
+  });
+});

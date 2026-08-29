@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 16종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.25 (2026-08-29)</span>
+      <span>버전 v0.26 (2026-08-30)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -316,6 +316,30 @@
     <tbody>
       <tr><td>REQ-API-040</td><td>WHEN MCP 도구가 세션을 요구하는데 <code>session_id</code> 인자가 없으면 THE SYSTEM SHALL 그 토큰 주체의 살아 있는 세션이 하나일 때 그것으로 해소하고, 없으면 <code>session_required</code>(다음 행동: <code>nerv_bootstrap</code>), 둘 이상이면 <code>session_ambiguous</code>(후보 목록 + 빈 다음 행동)로 거부한다. WHEN <code>session_id</code> 가 명시되면 THE SYSTEM SHALL 그것이 같은 프로젝트의 <b>자기 세션</b>일 때만 받아들인다</td></tr>
       <tr><td>REQ-API-041</td><td>WHEN 세션 위에서 도구가 실행되면 THE SYSTEM SHALL 그 세션의 마지막 활동 시각을 갱신한다. WHEN <code>nerv_bootstrap</code> 이 stale 세션을 재개하면 THE SYSTEM SHALL 그 세션을 다시 활성으로 되돌린다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.4d 도구가 받는 것과 스킬이 시키는 것 (2026-08-30 신설 — 사람 결정)</h3>
+
+  <p><code>nerv_question_create</code> 의 스킬(<code>/nerv:question</code>)과 카탈로그(<a href="agent-integration.html">3.4</a> §2.3)는 넷을 더 지시한다 — <code>context{spec_id,task_id,finding_id}</code> · <code>escalate</code> · <code>blocking</code> · <code>wait_seconds</code>. <b>도구는 그 넷을 받지 않았다.</b> JSON Schema 가 추가 속성을 막지 않으므로 요청은 성공했고, 값은 <b>조용히 버려졌다</b>: 에이전트는 출처를 달았다고 믿는데 받은 요청 카드에는 아무것도 없었다(실측 2026-08-29 — 토이 프로젝트 보고). 지시와 표면이 어긋나면 <b>지시를 따른 쪽이 손해를 본다.</b></p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>입력</th><th>어디로</th></tr></thead>
+    <tbody>
+      <tr><td><code>context.spec_id</code> · <code>context.task_id</code></td><td><code>question.spec_id</code> · <code>question.task_id</code> — <b>키든 UUID 든</b> 받는다(§1.4b). 못 찾으면 <code>not_found</code> + 어느 항목인지(<code>details.field</code>)</td></tr>
+      <tr><td><code>context.finding_id</code></td><td><code>question.finding_id</code> — Finding 은 안정 키가 없으므로 UUID 만</td></tr>
+      <tr><td><code>escalate</code></td><td><code>question.escalate</code> — <b>어휘를 새로 만들지 않는다.</b> <code>escalate_reason</code> 은 clemvion 에서 5개월 검증된 5종이고 Resolution 이 이미 쓴다</td></tr>
+      <tr><td><code>blocking</code></td><td><code>urgency</code> 와 <b>같은 축이다</b> — 질문의 열은 <code>urgency</code> 하나이고 spec-workflow §4.7 의 예시가 <code>blocking: true</code> 로 부른다. 둘 다 받되 명시된 <code>urgency</code> 가 이긴다. 기본은 <code>blocking</code> — 사람을 부르고도 그냥 진행하는 것은 에스컬레이션이 아니다</td></tr>
+      <tr><td><code>wait_seconds</code></td><td>저장하지 않는다 — 이 요청 안에서 <b>기다린다</b>(long-poll). 상한 60초는 하트비트 주기와 같은 값이라 에이전트의 리듬과 맞고, 그보다 오래 붙잡는 것은 대기가 아니라 누수다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>출처는 <b>사람이 원문으로 가는 길</b>이므로 받은 요청 카드까지 이어진다(EP-QST-01·EP-APR-01 응답에 <code>spec_key</code>·<code>task_key</code>·<code>finding_id</code>·<code>escalate</code>, <a href="screens.html">4.5</a> §2.7 · REQ-WEB-107).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-API-042</td><td>WHEN <code>nerv_question_create</code> 가 <code>context</code> 를 받으면 THE SYSTEM SHALL 각 참조를 키 또는 UUID 로 해석해 질문에 저장하고, 해석되지 않으면 어느 항목인지(<code>details.field</code>)와 함께 <code>not_found</code> 로 거부한다. WHEN <code>wait_seconds</code> 가 오면 THE SYSTEM SHALL 답이 오거나 그 시간(최대 60초)이 지날 때까지 응답을 미루고 그 시점의 상태를 반환한다</td></tr>
     </tbody>
   </table></div>
 

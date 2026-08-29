@@ -27,6 +27,31 @@ export function waitedLabel(t: Translator, seconds: number): string {
   return t('inbox.waited.days', { n: Math.floor(seconds / 86400) });
 }
 
+/**
+ * 질문의 출처 — 스펙·Task 를 **누를 수 있는 것**으로 만든다.
+ *
+ * 이것이 카드에 없으면 사람은 에이전트가 요약한 문장만 보고 판단하게 된다. 스킬이
+ * `context` 를 요구하는 이유가 그것이고(skills/question §절차 2), 요구해 놓고 화면에
+ * 내보내지 않으면 그 인자는 쓰이지 않는 인자가 된다.
+ */
+function questionContext(card: Record<string, unknown>): {
+  key: string;
+  to: string;
+  params: Record<string, string>;
+}[] {
+  const proj = String(card['project_slug'] ?? '');
+  const out: { key: string; to: string; params: Record<string, string> }[] = [];
+  const specKey = card['spec_key'];
+  const taskKey = card['task_key'];
+  if (typeof specKey === 'string' && specKey !== '') {
+    out.push({ key: specKey, to: '/p/$proj/specs/$spec', params: { proj, spec: specKey } });
+  }
+  if (typeof taskKey === 'string' && taskKey !== '') {
+    out.push({ key: taskKey, to: '/p/$proj/tasks/$task', params: { proj, task: taskKey } });
+  }
+  return out;
+}
+
 export interface ApprovalCardProps {
   card: Record<string, unknown>;
   compact?: boolean;
@@ -43,7 +68,39 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
   const commentRef = useRef<HTMLTextAreaElement>(null);
   const isQuestion = card['subject_type'] === 'question';
   const id = String(card['id']);
+  const context = questionContext(card);
+  // 선택지는 서버가 jsonb 로 준다 — 배열이 아니면 없는 것으로 본다(카드 하나가 목록을 죽이지 않게)
+  const options = Array.isArray(card['options'])
+    ? (card['options'] as unknown[]).filter((o): o is string => typeof o === 'string')
+    : [];
   const projectSlug = String(card['project_slug'] ?? '');
+
+  /**
+   * 선택지로 답한다 — **원클릭이 이 필드의 존재 이유다**(data-model §2.7).
+   *
+   * 에이전트는 그대로 실행 가능한 선택지를 2~4개 만들어 보낸다(skills/question §절차 1).
+   * 그것을 화면이 자유 서술 상자 하나로 받으면, 구조화해서 보낸 쪽의 노력이 사라지고
+   * **재해석 드리프트**가 되돌아온다 — 사람이 고른 것과 에이전트가 읽은 것이 갈린다.
+   */
+  const answerWith = useMutation({
+    mutationFn: (choice: string) =>
+      apiFetch(`/projects/${projectSlug}/questions/${id}/answer`, {
+        method: 'POST',
+        body: { answer_key: choice, answer_md: comment },
+        idempotencyKey: `answer-${id}`,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inbox() });
+      pushToast({
+        tone: 'ok',
+        message: t('inbox.card.delivered', {
+          host: String(card['hostname'] ?? '?'),
+          agent: String(card['agent_type'] ?? '?'),
+        }),
+      });
+    },
+    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+  });
 
   const decide = useMutation({
     mutationFn: async (decision: Decision) => {
@@ -61,6 +118,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
           idempotencyKey: `answer-${id}`,
         });
       }
+
       return apiFetch(`/approvals/${id}/decision`, {
         method: 'POST',
         body: {
@@ -120,7 +178,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
           token={isQuestion ? 'waiting' : 'action'}
           label={isQuestion ? t('inbox.card.question') : t('inbox.key.approve')}
         />
-        <Mono>{String(card['spec_key'] ?? card['task_key'] ?? '')}</Mono>
+        {!isQuestion && <Mono>{String(card['spec_key'] ?? card['task_key'] ?? '')}</Mono>}
         <span className="min-w-0 flex-1 truncate font-medium">
           {String(card['title'] ?? card['spec_title'] ?? t('inbox.card.untitled'))}
         </span>
@@ -148,14 +206,69 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
           {String(card['requested_by'] ?? '')} ·{' '}
           <span className="font-mono">{String(card['hostname'] ?? '')}</span> ·{' '}
           {String(card['agent_type'] ?? '')}
+          {/* **왜 부르는가**를 같은 줄에 둔다 — 다섯 사유는 읽는 사람의 첫 분류다
+              (제품 결정인가, 스펙 공백인가, 인프라인가). 없으면 적지 않는다 */}
+          {typeof card['escalate'] === 'string' && card['escalate'] !== '' && (
+            <>
+              {' · '}
+              <span data-testid="question-escalate">
+                {t(`question.escalate.${card['escalate']}` as 'question.escalate.spec')}
+              </span>
+            </>
+          )}
+        </p>
+      )}
+
+      {/* 출처 — 사람은 요약이 아니라 원문을 보고 판단한다. 머리의 키는 한 칸뿐이라
+          둘 이상이면 여기서 나머지를 잇는다 */}
+      {isQuestion && (context.length > 0 || typeof card['finding_id'] === 'string') && (
+        <p data-testid="question-context" className="mt-1 flex flex-wrap gap-2 text-xs">
+          {context.map((item) => (
+            <Link
+              key={item.key}
+              to={item.to}
+              params={item.params as never}
+              className="text-link hover:underline"
+            >
+              <Mono>{item.key}</Mono>
+            </Link>
+          ))}
+          {typeof card['finding_id'] === 'string' && card['finding_id'] !== '' && (
+            <span className="text-text-faint">
+              <Mono>{String(card['finding_id']).slice(0, 8)}</Mono>
+            </span>
+          )}
         </p>
       )}
 
       {!(compact ?? false) && (
         <>
-          <p className="mt-2 max-h-40 overflow-y-auto rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-sm whitespace-pre-wrap text-text-mute">
-            {String(card['body_md'] ?? '')}
-          </p>
+          {/* 본문이 없는 질문도 있다 — 빈 회색 띠를 그리면 "무언가 못 불러왔다"로 읽힌다 */}
+          {String(card['body_md'] ?? '') !== '' && (
+            <p className="mt-2 max-h-40 overflow-y-auto rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-sm whitespace-pre-wrap text-text-mute">
+              {String(card['body_md'])}
+            </p>
+          )}
+          {/* **선택지는 누를 수 있어야 한다.** 에이전트가 그대로 실행 가능한 답 2~4개를
+              만들어 보내는데(skills/question §절차 1) 화면이 자유 서술 상자 하나로만
+              받으면, 구조화한 쪽의 노력이 사라지고 재해석 드리프트가 되돌아온다.
+              아래 답변 칸은 남긴다 — 고르는 것과 함께 덧붙일 말이 있을 수 있다 */}
+          {isQuestion && options.length > 0 && (
+            <div data-testid="question-options" className="mt-2 flex flex-wrap gap-2">
+              {options.map((option) => (
+                <Button
+                  key={option}
+                  size="sm"
+                  variant="ghost"
+                  disabled={answerWith.isPending}
+                  onClick={() => answerWith.mutate(option)}
+                  className="border border-border"
+                >
+                  {option}
+                </Button>
+              ))}
+            </div>
+          )}
           <Textarea
             ref={commentRef}
             value={comment}

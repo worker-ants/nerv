@@ -65,6 +65,41 @@ describe('카드 3유형', () => {
     expect(screen.getByTestId('waited').textContent).toBe('5분 대기');
   });
 
+  it('왜 부르는지를 같은 줄에 적는다 — 다섯 사유가 읽는 사람의 첫 분류다', () => {
+    renderCard({
+      id: 'q2',
+      subject_type: 'question',
+      title: '판정 방식',
+      project_slug: 'sudoku',
+      escalate: 'user-decision',
+      waiting_seconds: 60,
+    });
+    expect(screen.getByTestId('question-escalate').textContent).toBe('제품 결정');
+  });
+
+  it('사유가 없으면 적지 않는다 — 빈 자리를 만들지 않는다', () => {
+    renderCard({
+      id: 'q3',
+      subject_type: 'question',
+      title: '사유 없는 질문',
+      project_slug: 'sudoku',
+      waiting_seconds: 60,
+    });
+    expect(screen.queryByTestId('question-escalate')).toBeNull();
+  });
+
+  it('발견에서 온 질문은 그 짧은 id 를 단다 — 리뷰 센터와 같은 표기다', () => {
+    renderCard({
+      id: 'q4',
+      subject_type: 'question',
+      title: '이 발견을 어떻게',
+      project_slug: 'sudoku',
+      finding_id: '9f8d4a2e-1c3b-4f5a-8e7d-6b5c4a3d2e1f',
+      waiting_seconds: 60,
+    });
+    expect(screen.getByTestId('question-context').textContent).toContain('9f8d4a2e');
+  });
+
   it('내가 요청한 승인은 버튼이 잠기고 사유가 보인다 — 지시자≠승인자 (spec-workflow §2.3)', () => {
     renderCard({
       id: 'a1',

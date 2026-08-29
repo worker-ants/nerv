@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.11 · 2026-08-27 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.12 · 2026-08-30 · HTML 판: [database.html](../html/database.html)
+>
+> v0.12 변경(2026-08-30 — 질문의 출처와 사유, 사람 결정): `question` 에 **`spec_id`·`finding_id`·`escalate`** 3열(0007). 스킬과 카탈로그가 `context{spec_id,task_id,finding_id}`·`escalate` 를 지시하는데 저장할 자리가 없어 도구가 그 값을 **조용히 버리고 있었다**([4.4](api.md) §1.4d). **enum 은 새로 만들지 않았다** — `escalate_reason` 이 이미 그 5종 어휘이고 Resolution 이 쓴다(§2.1 그대로 38종). 테이블 수는 30종 그대로다.
 >
 > v0.11 변경(2026-08-27 — 조직 초대, 사람 결정): **`invitation` 테이블 신설**(0006) — 테넌시가 6종, 도메인 전체가 **30종**이 된다. 초대는 레코드여야 한다: 초대받은 사람이 아직 가입하지 않았으면 `user` 행이 없어 membership 을 만들 수 없고, 만료·회수는 상태를 가진 것만이 가질 수 있으며, "누가 누구를 언제 불렀나"는 감사 대상이다(FR-16). 토큰은 **해시만**(PAT 와 같은 컬럼 형태), 대기 중 초대의 유일성은 **부분 인덱스**로 잡는다 — 수락·회수된 것은 기록으로 남으므로 지우지 않는다. 계약은 [4.4](api.md) §2.1b.
 >
@@ -577,6 +579,9 @@ CREATE TABLE question (                        -- 세션은 awaiting_input으로
   project_id          uuid NOT NULL REFERENCES project(id),
   agent_session_id    uuid NOT NULL REFERENCES agent_session(id),
   task_id             uuid REFERENCES task(id),
+  spec_id             uuid REFERENCES spec(id),   -- 출처(context) — 사람이 원문으로 가는 길
+  finding_id          uuid REFERENCES finding(id),
+  escalate            escalate_reason,            -- 왜 사람을 부르는가(어휘 재사용 — §2.1)
   title               text NOT NULL,
   body_md             text,
   options             jsonb NOT NULL DEFAULT '[]', -- 선택지(있으면 원클릭 응답)

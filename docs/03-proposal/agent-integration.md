@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 18종의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.5 · 2026-08-29 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.6 · 2026-08-30 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.6 변경(2026-08-30 — 표에만 있고 도구에는 없던 입력, 사람 결정): `nerv_question_create` 의 `context`·`escalate`·`blocking`·`wait_seconds` 는 이 표와 스킬이 지시하면서 도구가 받지 않던 것들이다 — 이제 받는다. `blocking` 과 `urgency` 가 같은 축이라는 것을 §2.4에 적었다. 처리 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.4d(REQ-API-042).
 >
 > v0.5 변경(2026-08-29 — 세션 규약을 §2.4에 명문화, 실측 보고): 이 문서의 카탈로그가 `nerv_bootstrap` 외의 도구에 `session_id` 를 적지 않는 것은 **생략이 아니라 규약**이다 — 세션은 서버가 해소한다. 그 절반이 구현돼 있지 않아 `nerv_question_create`·`nerv_task_claim`·`nerv_session_event` 가 스키마대로 부르면 언제나 실패하고 있었다. 규약과 예외(모호할 때의 `session_id`)를 §2.4에 적었다. 구현 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.4c(REQ-API-040·041).
 >
@@ -135,6 +137,8 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 **세션은 서버가 안다 — 도구는 `session_id` 를 나르지 않는다**(2026-08-29 보강 — 실측 보고). 위 표가 `nerv_bootstrap` 외의 도구에 `session_id` 를 적지 않는 것은 생략이 아니라 규약이다: 도구 호출의 세션은 **PAT 주체의 살아 있는 세션**으로 서버가 해소한다([4.4](../04-mvp/api.md) §1.4c · REQ-API-040). 이 절반이 실제로는 없어서, 세션을 요구하는 도구 세 개(`nerv_question_create`·`nerv_task_claim`·`nerv_session_event`)가 스키마대로 부르면 언제나 실패하고 있었다 — bootstrap 이 방금 성공했어도 그랬다.
 
 예외는 **모호할 때**다. 한 토큰으로 여러 세션이 동시에 살아 있으면 서버는 고르지 않고 후보를 돌려준다(`session_ambiguous`) — 클레임의 겹침 판정이 세션 단위라, 조용한 오귀속은 곧 잘못된 충돌 판정이다. 그때만 `session_id` 를 실어 다시 부른다(세 도구의 스키마에 **선택 인자**로 적혀 있다). `nerv_review_submit` 은 그것과 별개로 예전부터 `session_id` 를 명시 입력으로 받는다 — 리뷰는 리뷰어 세션의 산출이라 어느 세션의 것인지가 데이터의 일부다.
+
+**`nerv_question_create` — `blocking` 과 `urgency` 는 같은 축이다**(2026-08-30 보강). 위 표는 둘을 나란히 적고 있지만 질문의 열은 `urgency` 하나이고([3.3 데이터 모델](data-model.md) §2.7), §4.7 의 예시는 `blocking: true` 로 부른다. 도구는 둘 다 받되 명시된 `urgency` 가 이긴다 — 더 구체적인 말이 이기는 것이 덜 놀랍다. 기본은 `blocking` 이다: 사람을 부르고도 그냥 진행하는 것은 에스컬레이션이 아니다. `context`·`escalate`·`wait_seconds` 를 포함한 나머지 입력의 처리는 [4.4 API 명세](../04-mvp/api.md) §1.4d 가 정본이다 — 이 넷은 오랫동안 **표에만 있고 도구에는 없었다.**
 
 **`nerv_task_claim` — 겹침 판정.** 입력 `scope`는 `spec_ids`와 `file_globs` 두 축이다. 서버는 활성 Claim 전체와 교집합을 계산해 겹치면 상대 세션의 **사용자·hostname·scope**를 그대로 돌려준다. 이 기능이 중요한 이유는 clemvion이 이것을 **의도적으로 삭제**했기 때문이다 — `plan_coherence` 체커가 spec 동시수정을 검출했으나 "병렬 작업이 다른 머신·세션이면 로컬에 안 보여 신뢰할 수 없다"는 이유로 제거됐다(`clemvion:.claude/docs/worktree-policy.md` §3, #576). 서버는 모든 세션의 선언을 보므로 이 기능이 성립한다(D-04, FR-06).
 

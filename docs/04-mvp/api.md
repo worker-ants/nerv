@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.25 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.26 · 2026-08-30 · HTML 판: [api.html](../html/api.html)
+>
+> v0.26 변경(2026-08-30 — 도구를 스킬에 맞춘다, 사람 결정): **§1.4d 신설**(REQ-API-042). `nerv_question_create` 의 스킬과 카탈로그가 지시하는 `context`·`escalate`·`blocking`·`wait_seconds` 를 도구가 **받지 않고 조용히 버리고 있었다** — 에이전트는 출처를 달았다고 믿는데 받은 요청 카드에는 아무것도 없었다. 넷을 다 받는다: 출처는 키든 UUID 든 해석해 저장하고(못 찾으면 어느 항목인지 말한다), `escalate` 는 **기존 `escalate_reason` 어휘를 재사용**하며, `blocking` 은 `urgency` 와 같은 축, `wait_seconds` 는 최대 60초 long-poll 이다.
 >
 > v0.25 변경(2026-08-29 — 세션을 요구하는 도구가 전부 막혀 있었다, 실측 보고): **§1.4c 신설**(REQ-API-040·041). 카탈로그는 `nerv_bootstrap` 외의 도구에 `session_id` 를 적지 않는다 — 서버가 안다는 뜻인데 **추정이 구현돼 있지 않았다.** 그래서 `nerv_question_create`·`nerv_task_claim`·`nerv_session_event` 는 스키마대로 부르면 언제나 `session_required` 였다(bootstrap 직후에도). 이제 살아 있는 세션이 하나면 그것으로 해소하고, 여럿이면 **고르지 않고** 후보를 준다(오귀속은 잘못된 충돌 판정이 된다). 도구 호출이 세션을 살려 두고, stale 세션은 재개가 되살린다.
 >
@@ -238,6 +240,26 @@ HTTP 상태 매핑:
 | --- | --- |
 | REQ-API-040 | WHEN MCP 도구가 세션을 요구하는데 `session_id` 인자가 없으면 THE SYSTEM SHALL 그 토큰 주체의 살아 있는 세션이 하나일 때 그것으로 해소하고, 없으면 `session_required`(다음 행동: `nerv_bootstrap`), 둘 이상이면 `session_ambiguous`(후보 목록 + 빈 다음 행동)로 거부한다. WHEN `session_id` 가 명시되면 THE SYSTEM SHALL 그것이 같은 프로젝트의 **자기 세션**일 때만 받아들인다 |
 | REQ-API-041 | WHEN 세션 위에서 도구가 실행되면 THE SYSTEM SHALL 그 세션의 마지막 활동 시각을 갱신한다. WHEN `nerv_bootstrap` 이 stale 세션을 재개하면 THE SYSTEM SHALL 그 세션을 다시 활성으로 되돌린다 |
+
+### 1.4d 도구가 받는 것과 스킬이 시키는 것 (2026-08-30 신설 — 사람 결정)
+
+`nerv_question_create` 의 스킬(`/nerv:question`)과 카탈로그([3.4](../03-proposal/agent-integration.md) §2.3)는 넷을 더 지시한다 — `context{spec_id,task_id,finding_id}` · `escalate` · `blocking` · `wait_seconds`. **도구는 그 넷을 받지 않았다.** JSON Schema 가 추가 속성을 막지 않으므로 요청은 성공했고, 값은 **조용히 버려졌다**: 에이전트는 출처를 달았다고 믿는데 받은 요청 카드에는 아무것도 없었다(실측 2026-08-29 — 토이 프로젝트 보고). 지시와 표면이 어긋나면 **지시를 따른 쪽이 손해를 본다.**
+
+도구를 스킬에 맞춘다(2026-08-30 사람 결정 — "도구를 스킬에 맞춰 늘려줘").
+
+| 입력 | 어디로 |
+| --- | --- |
+| `context.spec_id` · `context.task_id` | `question.spec_id` · `question.task_id` — **키든 UUID 든** 받는다(§1.4b). 못 찾으면 `not_found` + 어느 항목인지(`details.field`) |
+| `context.finding_id` | `question.finding_id` — Finding 은 안정 키가 없으므로 UUID 만 |
+| `escalate` | `question.escalate` — **어휘를 새로 만들지 않는다.** `escalate_reason` 은 clemvion 에서 5개월 검증된 5종이고 Resolution 이 이미 쓴다([3.3](../03-proposal/data-model.md) §2.6) |
+| `blocking` | `urgency` 와 **같은 축이다** — 질문의 열은 `urgency` 하나이고([3.3](../03-proposal/data-model.md) §2.7) spec-workflow §4.7 의 예시가 `blocking: true` 로 부른다. 둘 다 받되 명시된 `urgency` 가 이긴다(더 구체적인 말이 이기는 것이 덜 놀랍다). 기본은 `blocking` — 사람을 부르고도 그냥 진행하는 것은 에스컬레이션이 아니다 |
+| `wait_seconds` | 저장하지 않는다 — 이 요청 안에서 **기다린다**(long-poll). 상한 60초는 하트비트 주기와 같은 값이라 에이전트의 리듬과 맞고, 그보다 오래 붙잡는 것은 대기가 아니라 누수다 |
+
+출처는 **사람이 원문으로 가는 길**이므로 받은 요청 카드까지 이어진다(EP-QST-01·EP-APR-01 응답에 `spec_key`·`task_key`·`finding_id`·`escalate`, [4.5](screens.md) §2.7 · REQ-WEB-107).
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-API-042 | WHEN `nerv_question_create` 가 `context` 를 받으면 THE SYSTEM SHALL 각 참조를 키 또는 UUID 로 해석해 질문에 저장하고, 해석되지 않으면 어느 항목인지(`details.field`)와 함께 `not_found` 로 거부한다. WHEN `wait_seconds` 가 오면 THE SYSTEM SHALL 답이 오거나 그 시간(최대 60초)이 지날 때까지 응답을 미루고 그 시점의 상태를 반환한다 |
 
 ### 1.5 멱등 키 — `Idempotency-Key` 헤더
 
@@ -484,7 +506,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-APR-02 | `GET /api/v1/approvals/{id}` | 관련자 | — | `ApprovalDetailResult` | — |
 | EP-APR-03 | `POST /api/v1/approvals/{id}/decision` | 지정 승인자·해당 역할 큐 — **사람 전용**, 지시자≠승인자 판정([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.3 5규칙) | `ApprovalDecisionInput`(decision: approve/reject/comment, comment_md) | `ApprovalResult` | 대상이 spec_version이면 `spec.approved`(+이전 버전 `spec.superseded`) / `spec.rejected` · 대상이 question이면 ★`question.answered` |
 | EP-APR-04 | `POST /api/v1/projects/{proj}/gates/bypass` | admin ●, planner(스펙 계열)·developer(코드 계열) ○ | `GateBypassInput`(대상, 사유, 유효 시간) | `ApprovalResult`(is_bypass=true) | `gate.bypassed` |
-| EP-QST-01 | `GET /api/v1/projects/{proj}/questions` | 전 역할 | `QuestionListQuery`(status: open/answered, cursor) | `Page<QuestionResult>`(선택지·대기 세션·경과) | — |
+| EP-QST-01 | `GET /api/v1/projects/{proj}/questions` | 전 역할 | `QuestionListQuery`(status: open/answered, cursor) | `Page<QuestionResult>`(선택지·대기 세션·경과·**출처**(`spec_key`·`task_key`·`finding_id`)·`escalate`) | — |
 | EP-QST-02 | `POST /api/v1/projects/{proj}/questions/{id}/answer` | 대상 역할 또는 지정자 — 사람 전용 | `QuestionAnswerInput`(answer_key 또는 answer_md) | `QuestionResult`(status=answered) — 내부적으로 ApprovalService.decide(subject=question) 한 경로 | ★`question.answered` |
 
 승인 유효성 판정(자기 승인 거부·에이전트 영구 불가·content hash 불일치 = stale 승인 거부)과 SLA·리마인더·만료는 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.3·§2.6 정본을 서버가 그대로 집행한다. MVP 받은 요청 카드는 스펙 승인·플랜·질문 3유형이고 CR·에스컬레이션 카드는 P2다([로드맵](../03-proposal/roadmap.md) FR-11).
@@ -739,7 +761,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | `nerv_spec_comment_resolve` | A2 | `SpecService.resolveComment` | EP-CMT-04 | |
 | `nerv_task_update` | A2(정책상 done은 A3) | `TaskService.transition` | EP-TASK-09 | done 게이트 판정 단일 지점 |
 | `nerv_spec_relate` | A2 | `SpecRelationService.declare` | — (관계 선언은 에이전트 전용 — 사람의 경로는 본문 참조 자동 동기화(REQ-API-024)와 S3 관계 패널 조회다) | 문서를 읽어야 아는 판단(`refines`·`depends_on`)을 채우는 도구. `references`는 본문에서 자동 동기화되므로 이 도구가 거부한다 |
-| `nerv_question_create` | A2 | `QuestionService.create` | — (질문 생성은 에이전트 전용. 사람의 답변이 EP-QST-02) | 멱등 재호출 = 폴링 규약은 MCP 표면 정의 |
+| `nerv_question_create` | A2 | `QuestionService.create` | — (질문 생성은 에이전트 전용. 사람의 답변이 EP-QST-02) | 멱등 재호출 = 폴링 규약은 MCP 표면 정의. 입력 전부(`context`·`escalate`·`blocking`·`wait_seconds`)를 받는다 — §1.4d |
 | `nerv_session_event` | A1 | `SessionService.appendActivity` | — (훅 ingest §2.9와 같은 메서드) | 훅 없는 실행 환경 폴백 |
 
 **사람 전용 액션은 어느 표면에도 도구가 없다.** `spec:approve`·`approval:decide`는 REST에서도 받은 요청 결정(EP-APR-03) 하나뿐이고 MCP 카탈로그에는 처음부터 존재하지 않는다. A4 액션을 MCP로 요청하면 `NERV_HUMAN_ONLY`와 웹 딥링크가 돌아온다([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.2).

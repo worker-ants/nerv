@@ -340,6 +340,93 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
     );
     expect(rows[0]?.state).toBe('active');
   });
+
+  // ── 출처와 사유 (2026-08-30 — 스킬이 요구하던 인자를 도구가 받는다) ────────────
+  //
+  // 스킬(`/nerv:question`)은 `context{spec_id,task_id,finding_id}`·`escalate`·`blocking`·
+  // `wait_seconds` 를 지시하는데 도구가 그것을 **조용히 버리고 있었다** — 에이전트는
+  // 출처를 달았다고 믿지만 받은 요청 카드에는 아무것도 없었다.
+
+  it('출처를 키로 준다 — 사람은 요약이 아니라 원문을 보고 판단한다', async () => {
+    const specKey = `SPC-CTX-${newId().slice(0, 4)}`;
+    const specRow = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
+      [specRow, projectId, specKey],
+    );
+    const taskRow = newId();
+    const taskKey = `TSK-CTX-${newId().slice(0, 4)}`;
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'출처 작업','ready','목표','PR','nerv_spec_get','경계')`,
+      [taskRow, projectId, taskKey],
+    );
+
+    const made = await questions.create({
+      projectId,
+      sessionId,
+      title: '출처가 있는 질문',
+      specId: specKey,
+      taskId: taskKey,
+      escalate: 'spec',
+    });
+
+    const { rows } = await pool.query<{ spec_id: string; task_id: string; escalate: string }>(
+      `SELECT spec_id, task_id, escalate::text AS escalate FROM question WHERE id = $1`,
+      [made.question_id],
+    );
+    expect(rows[0]).toMatchObject({ spec_id: specRow, task_id: taskRow, escalate: 'spec' });
+  });
+
+  it('없는 출처는 조용히 버리지 않는다 — 어느 항목이 틀렸는지 말한다', async () => {
+    await expect(
+      questions.create({
+        projectId,
+        sessionId,
+        title: '없는 출처',
+        specId: 'SPC-없는키',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'not_found', field: 'context.spec_id' },
+    });
+  });
+
+  it('기다린 만큼 기다렸다가 그 사이 들어온 답을 본다 (wait_seconds)', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '기다리는 질문' });
+
+    // 1.5초 뒤에 사람이 답한다 — 그동안 에이전트는 이 호출 안에서 기다린다
+    setTimeout(() => {
+      void questions.answer({
+        projectId,
+        questionId: created.question_id,
+        userId: planner,
+        answerKey: 'late-yes',
+      });
+    }, 1500);
+
+    const waited = await questions.create({
+      projectId,
+      sessionId,
+      title: '기다리는 질문',
+      waitSeconds: 10,
+    });
+    expect(waited).toMatchObject({ status: 'answered', answer_key: 'late-yes', created: false });
+  });
+
+  it('답이 안 오면 예산만큼 기다리고 open 으로 돌아온다 — 무한 대기는 없다', async () => {
+    const started = Date.now();
+    const result = await questions.create({
+      projectId,
+      sessionId,
+      title: '답이 안 오는 질문',
+      waitSeconds: 2,
+    });
+    // 답이 없으면 예산만큼 기다리고 open 그대로 돌아온다
+    expect(result.status).toBe('open');
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1800);
+  });
 });
 
 /**

@@ -98,6 +98,8 @@ export const en = {
     'An archived project already uses "{slug}" — you can restore it instead of creating a new one.',
   'error.project.slug_taken': 'A project already uses "{slug}".',
   'error.project.unresolved': 'The project could not be resolved.',
+  'error.question.context_not_found':
+    'Could not find {field} — the context must point at a real spec, task, or finding.',
   'error.question.not_open': 'That question is not open.',
   'error.relation.auto_kind':
     'references is synced from the body — declaring it by hand is undone on the next save.',
@@ -254,6 +256,12 @@ export const en = {
   'mcp.arg.event_seq': 'Monotonic within the session — the idempotency key for resends',
   'mcp.arg.around': 'spec key — when given, only the neighbourhood of this document',
   'mcp.arg.scope': 'Specs and files this work will touch — the input to overlap detection',
+  'mcp.arg.question_context': 'Where this came from — stable IDs so a human can read the source',
+  'mcp.arg.escalate': 'Why a human is being called — one of five reasons (spec-workflow §4.7)',
+  'mcp.arg.blocking':
+    'Does this block the gate (default true) — same axis as urgency; urgency wins if both are given',
+  'mcp.arg.wait_seconds':
+    'Wait this long for an answer (seconds, max 60) — omit to return immediately',
   'mcp.arg.session_id':
     'Which session this belongs to — omit it and the live session for this token is used (required when more than one is live)',
   'error.spec.type_not_allowed': 'This role cannot create that kind of spec.',
@@ -528,6 +536,11 @@ export const en = {
   'inbox.card.decided': '{decision} recorded.',
   'inbox.card.delivered': 'Delivered to {host}/{agent}',
   'inbox.card.handle_in_inbox': 'Handle it in the inbox ▸',
+  'question.escalate.spec': 'Spec gap',
+  'question.escalate.user-decision': 'Product decision',
+  'question.escalate.infra': 'Infrastructure',
+  'question.escalate.e2e-fail-3x': 'E2E failed 3×',
+  'question.escalate.sensitive-fix': 'Sensitive change',
   'inbox.card.question': 'Question',
   'inbox.card.reason_missing': 'Please write a reason for rejecting.',
   'inbox.card.reason_required':

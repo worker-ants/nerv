@@ -10,12 +10,15 @@ import { boolean, check, index, jsonb, pgTable, text, uuid } from 'drizzle-orm/p
 import {
   approvalDecision,
   approvalSubjectType,
+  escalateReason,
   memberRole,
   questionStatus,
   questionUrgency,
 } from '../enums.js';
 import { createdAt, idPk, ts } from './_columns.js';
+import { finding } from './review.js';
 import { agentSession } from './session.js';
+import { spec } from './spec.js';
 import { task } from './task.js';
 import { project, user } from './tenancy.js';
 
@@ -69,7 +72,19 @@ export const question = pgTable(
     agentSessionId: uuid('agent_session_id')
       .notNull()
       .references(() => agentSession.id),
+    /**
+     * 출처(`context`) — **사람은 에이전트의 요약이 아니라 원문을 보고 판단한다**
+     * (skills/question §절차 2). 셋 다 선택이고, 받은 요청 카드가 이 링크를 건다.
+     */
     taskId: uuid('task_id').references(() => task.id),
+    specId: uuid('spec_id').references(() => spec.id),
+    findingId: uuid('finding_id').references(() => finding.id),
+    /**
+     * 왜 사람을 부르는가 — **어휘를 새로 만들지 않는다.** `escalate_reason` 은
+     * clemvion 에서 5개월 검증된 매트릭스이고(data-model §2.6) 이미 Resolution 이 쓴다.
+     * 같은 뜻에 두 어휘를 두면 그 순간부터 둘이 갈라진다.
+     */
+    escalate: escalateReason('escalate'),
     title: text('title').notNull(),
     bodyMd: text('body_md'),
     /** 선택지(있으면 원클릭 응답) */

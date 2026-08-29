@@ -2,7 +2,9 @@
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 29개 엔티티의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.3 · 2026-08-21 · HTML 판: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.4 · 2026-08-30 · HTML 판: [data-model.html](../html/data-model.html)
+>
+> v0.4 변경(2026-08-30 — 질문의 출처와 사유, 사람 결정): `question` 에 `spec_id`·`finding_id`·`escalate` 를 더한다(§2.7). 출처는 **사람이 원문으로 가는 길**이고, 사유는 `escalate_reason` 어휘를 그대로 쓴다(§2.6 — 같은 뜻에 두 어휘를 두지 않는다). DDL 정본은 [4.3](../04-mvp/database.md) §2.8.
 
 ---
 
@@ -567,6 +569,8 @@ ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 �
 | --- | --- | --- |
 | `id` | uuid PK | |
 | `project_id` · `agent_session_id` · `task_id` | uuid FK | |
+| `spec_id` · `finding_id` | uuid FK NULL | 출처(`context`) — 사람은 요약이 아니라 **원문**을 보고 판단한다. 받은 요청 카드가 이 링크를 건다 |
+| `escalate` | enum NULL | 왜 사람을 부르는가 — **`escalate_reason` 어휘를 그대로 쓴다**(§2.6). 같은 뜻에 두 어휘를 두면 그 순간부터 갈라진다 |
 | `title` · `body_md` | text | |
 | `options` | jsonb | 선택지(있으면 원클릭 응답) |
 | `urgency` | enum | `blocking / normal` |
