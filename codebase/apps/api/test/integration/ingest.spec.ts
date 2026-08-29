@@ -66,12 +66,13 @@ beforeEach(async () => {
 async function hook(
   path: string,
   payload: Record<string, unknown>,
-  options: { token?: string | null; host?: string } = {},
+  options: { token?: string | null; host?: string; agent?: string } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   const bearer = options.token === undefined ? token : options.token;
   if (bearer !== null) headers['authorization'] = `Bearer ${bearer}`;
   if (options.host !== undefined) headers['x-nerv-host'] = options.host;
+  if (options.agent !== undefined) headers['x-nerv-agent'] = options.agent;
 
   const res = await app.inject({ method: 'POST', url: `/ingest/hooks/${path}`, headers, payload });
   return {
@@ -107,6 +108,39 @@ describe('SessionStart — 등록 + 컨텍스트 주입', () => {
       [EXTERNAL_SESSION],
     );
     expect(rows[0]).toMatchObject({ hostname: 'mac-07', agent_type: 'claude-code' });
+  });
+
+  // 2026-08-29 실측 — Claude Code 훅 본문에는 에이전트 종류가 없다. 본문만 읽던 동안
+  // 훅으로 만들어진 세션은 **전부 `other`** 였고, 세션 화면은 "누구의 무엇"에 답하지 못했다.
+  it('헤더가 말하면 그것을 쓴다 — 훅 본문에는 에이전트 종류가 없다', async () => {
+    await hook('session', { session_id: 'S-header' }, { host: 'mac-08', agent: 'claude-code' });
+    const { rows } = await pool.query<{ agent_type: string }>(
+      `SELECT agent_type::text AS agent_type FROM agent_session WHERE external_session_id = $1`,
+      ['S-header'],
+    );
+    expect(rows[0]?.agent_type).toBe('claude-code');
+  });
+
+  it('헤더가 본문을 이긴다 — 헤더는 보내는 쪽이 자기를 말한 것이다', async () => {
+    await hook(
+      'session',
+      { session_id: 'S-both', agent_type: 'web' },
+      { host: 'mac-08', agent: 'codex' },
+    );
+    const { rows } = await pool.query<{ agent_type: string }>(
+      `SELECT agent_type::text AS agent_type FROM agent_session WHERE external_session_id = $1`,
+      ['S-both'],
+    );
+    expect(rows[0]?.agent_type).toBe('codex');
+  });
+
+  it('헤더가 없으면 본문을 쓴다 — MCP nerv_bootstrap 경로가 그 자리다', async () => {
+    await hook('session', { session_id: 'S-body', agent_type: 'web' }, { host: 'mac-08' });
+    const { rows } = await pool.query<{ agent_type: string }>(
+      `SELECT agent_type::text AS agent_type FROM agent_session WHERE external_session_id = $1`,
+      ['S-body'],
+    );
+    expect(rows[0]?.agent_type).toBe('web');
   });
 
   it('클레임을 쥐고 있으면 그것을 알려준다 — 다시 묻지 않게', async () => {

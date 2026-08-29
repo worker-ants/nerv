@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.19 · 2026-08-28 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.20 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+>
+> v0.20 변경(2026-08-29 — 훅으로 만든 세션이 전부 `other` 였다, 실측): **§2.5a 신설**(REQ-API-037). 훅 본문에는 에이전트 종류가 없어서 세션 화면이 "누구의 무엇"에 답하지 못했다 — `X-NERV-Agent` 헤더를 우선하고 본문 `agent_type`(MCP `nerv_bootstrap` 경로)을 폴백으로 둔다.
 >
 > v0.19 변경(2026-08-28 — 무결성 위반이 500 으로 보였다, 사람 보고): **§1.4a 신설**(REQ-API-036). 같은 `key` 로 프로젝트를 만들면 유니크 제약이 그대로 올라와 "internal server error" 였다 — slug 는 미리 확인하는데 `key` 는 아니었고, 제약마다 미리 확인을 심는 방식은 유지되지 않는다. **표면(REST 필터·MCP 컨트롤러)이 한 번에** SQLSTATE 5종을 `NERV_PRECONDITION` 으로 옮기고 필드·제약 이름을 `details` 에 싣는다(값은 싣지 않는다 — `detail` 에는 충돌한 값이 있다). MCP 에서는 더 나빴다: 같은 실패가 `NERV_UNAVAILABLE` 로 나가 에이전트가 **영원히 실패할 요청을 재시도**했다. 곁가지 정정 둘: **REQ-API-033 이 두 요구에 겹쳐 있던 것**(초대 · 프로젝트 slug)을 slug 쪽을 REQ-API-035 로 옮겨 풀고, 그 요구의 상태 표기를 실물에 맞춰 400 → **409** 로 고쳤다.
 >
@@ -393,6 +395,18 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 세션의 생성·상태 전이는 REST가 아니라 훅 ingest(§2.9)와 MCP `nerv_bootstrap`이 만든다. REST 표면은 조회와 steer만 갖는다 — 세션은 에이전트의 실행 사실이지 웹에서 만드는 리소스가 아니기 때문이다.
 
+#### 2.5a 세션의 에이전트 종류는 헤더가 말한다 (2026-08-29 신설 — 실측)
+
+`agent_type` 을 정하는 순서는 **`X-NERV-Agent` 헤더 → 본문 `agent_type` → `other`** 다.
+
+훅 본문에는 에이전트 종류가 없다 — Claude Code 가 보내는 페이로드는 세션 id·cwd·source 뿐이다. 본문만 읽으면 훅으로 만들어진 세션이 **전부 `other`** 가 되고, 세션 화면은 "누구의 무엇이 도는가"에 답하지 못한다(실측 2026-08-29). 훅을 보내는 쪽은 자기가 누구인지 아니까 헤더로 말한다([4.6 플러그인](plugin.md) §3.3).
+
+본문 자리를 없애지 않는 이유는 **MCP 경로**다. `nerv_bootstrap` 은 도구 인자로 종류를 받으므로 그쪽은 본문이 정본이고, 두 경로가 같은 정규화(`claude-code`·`codex`·`web`·`other`)를 지난다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-API-037 | WHEN 훅이 세션을 등록하면 THE SYSTEM SHALL `X-NERV-Agent` 헤더를 우선해 에이전트 종류를 정하고, 헤더가 없으면 본문 `agent_type`, 그것도 없으면 `other` 로 기록한다 |
+
 ### 2.6 받은 요청·질문 (S7)
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
@@ -460,7 +474,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
 ### 2.9 훅 ingest (참조)
 
-훅 수집 엔드포인트 5종(`POST /ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)의 경로·헤더(`Authorization` Bearer, `X-NERV-Project`, `X-NERV-Host`)·응답 의미론(`additionalContext` 주입, `{"decision":"block"}` 종료 차단)은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3이 정본이고, 훅 페이로드 실물은 [4.6 플러그인과 온보딩](plugin.md)이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 **인증 필수**다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 `SessionService`를 주입받아 세션 전이·Activity 적재를 수행한다(§4 표).
+훅 수집 엔드포인트 5종(`POST /ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)의 경로·헤더(`Authorization` Bearer, `X-NERV-Project`, `X-NERV-Host`, `X-NERV-Agent` — 아래 §2.5a)·응답 의미론(`additionalContext` 주입, `{"decision":"block"}` 종료 차단)은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3이 정본이고, 훅 페이로드 실물은 [4.6 플러그인과 온보딩](plugin.md)이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 **인증 필수**다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 `SessionService`를 주입받아 세션 전이·Activity 적재를 수행한다(§4 표).
 
 ### 2.9a GitHub 웹훅 ingest — Task ↔ PR 링크 (FR-13)
 

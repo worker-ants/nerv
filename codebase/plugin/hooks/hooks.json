@@ -10,7 +10,8 @@
             "headers": {
               "Authorization": "Bearer ${NERV_TOKEN}",
               "X-NERV-Project": "${NERV_PROJECT}",
-              "X-NERV-Host": "${NERV_HOSTNAME}"
+              "X-NERV-Host": "${NERV_HOSTNAME}",
+              "X-NERV-Agent": "claude-code"
             },
             "timeout": 5
           }

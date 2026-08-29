@@ -25,6 +25,7 @@ curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" \
   --header "Authorization: Bearer ${NERV_TOKEN:-}" \
   --header "X-NERV-Project: ${NERV_PROJECT:-}" \
   --header "X-NERV-Host: ${NERV_HOSTNAME:-$(hostname -s 2>/dev/null || echo unknown)}" \
+  --header "X-NERV-Agent: ${NERV_AGENT_TYPE:-claude-code}" \
   --data "${payload}" >/dev/null 2>&1 || true
 
 exit 0

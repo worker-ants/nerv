@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.9 · 2026-08-27 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.10 · 2026-08-29 · HTML 판: [plugin.html](../html/plugin.html)
+>
+> v0.10 변경(2026-08-29 — 훅이 자기가 누구인지 말하지 않았다, 실측): 세션 훅에 **`X-NERV-Agent`** 헤더를 더한다(§3.3). Claude Code 훅 본문에는 에이전트 종류가 없어서 모든 세션이 `other` 로 기록되고 있었다 — 세션 화면이 "누구의 무엇"에 답하지 못했다. 폴백 포워더는 `NERV_AGENT_TYPE`(기본 `claude-code`)으로 같은 헤더를 보낸다.
 >
 > v0.9 변경(2026-08-27 — 환경변수는 기계가 아니라 프로젝트에 속한다, 사람 지시): §3.3 에 **"어디에 두는가"** 절과 `bin/nerv-env.sh` 를 넣고, 온보딩 2단계를 세 갈래로 고쳤다 — 관리형 settings · 저장소 `.claude/settings.local.json` 의 `env`(개발자 기계의 기본) · 저장소 `.nerv/env`(Codex·CLI 까지) · 셸 프로필(한 프로젝트만 쓰는 기계). 셸 프로필의 `export` 는 기계에 하나뿐이라 멀티 프로젝트라는 제품의 전제와 설치 절차가 어긋나 있었다. 파일은 **이미 있는 값을 덮지 않고 `NERV_*` 만 읽는다.**
 >
@@ -518,7 +520,8 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "headers": {
               "Authorization": "Bearer ${NERV_TOKEN}",
               "X-NERV-Project": "${NERV_PROJECT}",
-              "X-NERV-Host": "${NERV_HOSTNAME}"
+              "X-NERV-Host": "${NERV_HOSTNAME}",
+              "X-NERV-Agent": "claude-code"
             },
             "timeout": 5
           }
@@ -666,6 +669,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | `NERV_HOSTNAME` | 이 머신의 식별자(예: `mac-02`) | 훅 `X-NERV-Host` 헤더. MCP 경로에서는 `nerv_bootstrap` 인자로 전달 |
 | `NERV_CACHE_DIR` | (선택) 기본 `.nerv/cache` | statusline·오프라인 폴백 캐시 위치 |
 | `NERV_ENV_FILE` | (선택) 기본 `.nerv/env` | 아래 "어디에 두는가"의 파일 경로 |
+| `NERV_AGENT_TYPE` | (선택) 기본 `claude-code` | `bin/nerv-hook-forward` 가 보내는 `X-NERV-Agent` 헤더 |
 
 #### 어디에 두는가 — 값은 기계가 아니라 **프로젝트**에 속한다 (2026-08-27 개정 — 사람 지시)
 
@@ -721,6 +725,16 @@ nerv_load_env
 ```
 
 ---
+
+#### 훅은 자기가 누구인지 말한다 — `X-NERV-Agent` (2026-08-29 신설 — 실측)
+
+**훅 본문에는 에이전트 종류가 없다.** Claude Code 가 보내는 페이로드는 세션 id · cwd · source 뿐이라, 본문만 보고 세션을 만들면 `agent_type` 이 전부 `other` 로 남는다 — 세션 화면이 "누구의 무엇이 도는가"에 답하지 못한다(실측 2026-08-29: 토이 프로젝트 연동에서 드러났다).
+
+훅을 보내는 쪽은 자기가 누구인지 안다. 그래서 **세션 훅이 `X-NERV-Agent` 헤더로 말한다**(`hooks.json` 은 Claude Code 전용 파일이므로 값이 상수다). 폴백 경로인 `bin/nerv-hook-forward` 는 여러 호스트가 공용이라 `NERV_AGENT_TYPE` 으로 받고 기본값이 `claude-code` 다.
+
+서버는 **헤더 → 본문 `agent_type` → `other`** 순으로 읽는다([4.4 API 명세](api.md) §2.5a). 본문 자리를 남겨 두는 이유는 MCP `nerv_bootstrap` 경로가 그것을 쓰기 때문이다 — 그쪽은 도구 인자로 종류를 넘긴다.
+
+세션을 만들지 않는 훅(도구·subagent·stop·session-end)에는 달지 않는다. 읽는 곳이 없는 헤더는 규약이 아니라 장식이다.
 
 ### 3.4 오프라인 폴백 실물 — `.nerv/cache/` · `.nerv/outbox/`
 

@@ -51,13 +51,18 @@ export class IngestController {
   async session(
     @Req() req: HookRequest,
     @Headers('x-nerv-host') host: string | undefined,
+    @Headers('x-nerv-agent') agent: string | undefined,
     @Body() body: HookPayload,
   ): Promise<{ ok: true; session_id: string; additionalContext: string }> {
     const principal = requireAgent(req);
     const result = await this.sessions.bootstrap({
       projectId: principal.projectId ?? '',
       userId: principal.userId,
-      agentType: normalizeAgentType(body.agent_type),
+      // **훅 본문에는 에이전트 종류가 없다.** Claude Code 가 보내는 페이로드는 세션 id·cwd·
+      // source 뿐이라, 본문만 보면 모든 세션이 `other` 로 남는다(실측 2026-08-29 — 세션 화면이
+      // 누구의 무엇인지 말하지 못했다). 훅을 보내는 쪽은 자기가 누구인지 아니까 헤더로 말한다.
+      // 본문의 `agent_type` 은 그대로 폴백이다 — MCP `nerv_bootstrap` 경로가 그 자리를 쓴다.
+      agentType: normalizeAgentType(agent ?? body.agent_type),
       hostname: host ?? String(body['hostname'] ?? 'unknown'),
       cwd: body.cwd ?? null,
       externalSessionId: body.session_id ?? null,
