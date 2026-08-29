@@ -167,6 +167,73 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
   });
 });
 
+// 2026-08-29 실측 — `nerv_spec_get` 은 키를, `nerv_spec_draft_upsert` 는 UUID 를 받았다.
+// 같은 이름의 인자가 도구마다 다른 것을 뜻하면 에이전트는 실패로 배운다(세션 로그에서 확인).
+// 게다가 get 은 **자기 출력을 자기 입력에 못 넣었다** — 응답의 spec_id 는 UUID 였다.
+describe('참조는 키든 UUID 든 받는다 (§1.4b · 2026-08-29)', () => {
+  it('get 은 키로도 UUID 로도 같은 스펙을 준다 — 자기 출력을 자기 입력에 넣을 수 있다', async () => {
+    const { specId } = await newDraft('SPC-REF-001');
+
+    const byKey = await specs.get({ projectId, specKey: 'SPC-REF-001' });
+    const byUuid = await specs.get({ projectId, specKey: specId });
+
+    expect(byKey['spec_id']).toBe(specId);
+    expect(byUuid['spec_id']).toBe(specId);
+    // 출력의 spec_id 를 그대로 다시 넣어도 된다는 것이 이 테스트의 요점이다
+    expect(await specs.get({ projectId, specKey: String(byKey['spec_id']) })).toMatchObject({
+      key: 'SPC-REF-001',
+    });
+  });
+
+  it('draft upsert 는 키로 이어쓴다 — 예전에는 UUID 만 받았다', async () => {
+    const { specId, versionId } = await newDraft('SPC-REF-002');
+
+    const again = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: 'SPC-REF-002',
+      bodyMd: '# 키로 이어쓰기',
+      userId: planner,
+    });
+
+    expect(again['spec_id']).toBe(specId);
+    expect(again['spec_version_id']).toBe(versionId);
+    expect(again['created']).toBe(false);
+  });
+
+  it('없는 키는 못 찾았다고 말한다 — 조용히 새로 만들지 않는다', async () => {
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId: 'SPC-NOPE-999',
+        bodyMd: '# 없는 것',
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'not_found' } });
+  });
+
+  it('parent_id 도 키로 받는다 — 트리에서 본 값을 그대로 쓴다', async () => {
+    const { specId: parent } = await newDraft('SPC-REF-PARENT');
+    const child = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-REF-CHILD',
+      title: '자식',
+      type: 'feature',
+      parentId: 'SPC-REF-PARENT',
+      bodyMd: '# 자식',
+      userId: planner,
+    });
+
+    const { rows } = await pool.query<{ parent_id: string }>(
+      `SELECT parent_id FROM spec WHERE id = $1`,
+      [child['spec_id']],
+    );
+    expect(rows[0]?.parent_id).toBe(parent);
+  });
+});
+
 describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
   it('같은 사용자는 표면을 옮겨도 자동 인계된다', async () => {
     const { specId } = await newDraft('SPC-LEASE');

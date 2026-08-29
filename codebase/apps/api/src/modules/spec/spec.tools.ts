@@ -116,7 +116,8 @@ export class SpecTools implements NervToolProvider {
       inputSchema: {
         type: 'object',
         properties: {
-          spec_id: { type: 'string' },
+          // 키·UUID 둘 다 받는다(§1.4b) — 도구마다 기준이 다르면 에이전트가 실패로 배운다
+          spec_id: { type: 'string', description: 'spec key (SPC-…) or UUID' },
           version: { type: 'integer' },
           baseline: { type: 'string' },
         },
@@ -138,7 +139,10 @@ export class SpecTools implements NervToolProvider {
       inputSchema: {
         type: 'object',
         properties: {
-          spec_id: { type: 'string' },
+          spec_id: {
+            type: 'string',
+            description: 'existing spec — key (SPC-…) or UUID. omit to create a new one',
+          },
           body_md: { type: 'string' },
           base_version: { type: 'string' },
           idempotency_key: { type: 'string' },
@@ -153,7 +157,7 @@ export class SpecTools implements NervToolProvider {
             enum: ['vision', 'area', 'feature', 'design', 'convention', 'adr'],
             description: 'new spec only',
           },
-          parent_id: { type: 'string', description: 'new spec only' },
+          parent_id: { type: 'string', description: 'new spec only — parent key or UUID' },
         },
         required: ['body_md'],
       },

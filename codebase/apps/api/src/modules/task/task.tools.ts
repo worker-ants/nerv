@@ -41,12 +41,16 @@ export class TaskTools implements NervToolProvider {
       inputSchema: {
         type: 'object',
         properties: {
-          task_id: { type: 'string' },
+          // 키·UUID 둘 다 받는다(§1.4b). 화면과 로그가 쓰는 것은 키다
+          task_id: { type: 'string', description: 'task key (CLV-T-…) or UUID' },
           scope: {
             type: 'object',
             description: 'mcp.arg.scope',
             properties: {
-              spec_ids: { type: 'array', items: { type: 'string' } },
+              spec_ids: {
+                type: 'array',
+                items: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+              },
               file_globs: { type: 'array', items: { type: 'string' } },
             },
           },
@@ -127,7 +131,7 @@ export class TaskTools implements NervToolProvider {
       inputSchema: {
         type: 'object',
         properties: {
-          task_id: { type: 'string' },
+          task_id: { type: 'string', description: 'task key (CLV-T-…) or UUID' },
           status: { type: 'string' },
           idempotency_key: { type: 'string' },
         },

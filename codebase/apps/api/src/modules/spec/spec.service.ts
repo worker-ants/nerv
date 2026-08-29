@@ -19,6 +19,8 @@ import {
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
+import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -65,6 +67,17 @@ export interface SpecGraphEdge extends Record<string, unknown> {
   from_id: string;
   to_id: string;
   kind: string;
+}
+
+/**
+ * 스펙 한 건을 가리키는 조건 — **키와 UUID 를 둘 다 받는다**(§1.4b).
+ *
+ * UUID 로 보이는 값만 `id` 와 견준다. 아무 문자열이나 `::uuid` 로 캐스팅하면 못 읽는 값에서
+ * 22P02 가 나고, 그건 "못 찾았다"가 아니라 500 이 된다.
+ */
+function specMatch(ref: string): SQL {
+  const parsed = entityRef(ref);
+  return parsed.id === null ? sql`s.key = ${ref}` : sql`s.id = ${parsed.id}`;
 }
 
 @Injectable()
@@ -121,6 +134,7 @@ export class SpecService {
   /** nerv_spec_get · EP-SPEC-03 — 기준 버전 지정 조회를 지원한다(agent-integration §2.4) */
   async get(input: {
     projectId: string;
+    /** 안정 키(`SPC-…`) 또는 UUID — 둘 다 받는다(§1.4b) */
     specKey: string;
     versionNo?: number | null;
   }): Promise<Record<string, unknown>> {
@@ -145,7 +159,7 @@ export class SpecService {
         FROM spec s
         JOIN spec_version sv ON ${pick}
    LEFT JOIN "user" u ON u.id = sv.approved_by_user_id
-       WHERE s.project_id = ${input.projectId} AND s.key = ${input.specKey}
+       WHERE s.project_id = ${input.projectId} AND ${specMatch(input.specKey)}
     `);
     const spec = rows[0];
     if (spec === undefined) {
@@ -176,9 +190,39 @@ export class SpecService {
    * **base_version 409**(낙관적 동시성) · **불변 스냅샷 규칙**(draft 밖은 못 고친다).
    * 리스는 1차 사전 조정이고 409 가 데이터 유실의 최후 방어선이다 — 역할이 달라 둘 다 있다.
    */
+  /**
+   * 참조(키 또는 UUID)를 스펙 UUID 로 바꾼다. 빈 값이면 null 그대로 — "안 준 것"이다.
+   *
+   * 키로 왔는데 그런 스펙이 없으면 **못 찾았다고 말한다**. 조용히 null 로 떨어뜨리면
+   * `parent_id` 오타가 "최상위에 만들기"로 둔갑한다.
+   */
+  private async resolveSpecId(
+    tx: Tx,
+    projectId: string,
+    ref: string | null,
+  ): Promise<string | null> {
+    const parsed = entityRef(ref);
+    if (parsed.id !== null) return parsed.id;
+    if (parsed.key === null) return null;
+    const { rows } = await tx.execute<{ id: string }>(
+      sql`SELECT id FROM spec WHERE project_id = ${projectId} AND key = ${parsed.key}`,
+    );
+    const found = rows[0]?.id;
+    if (found === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+        kind: 'not_found',
+        spec: parsed.key,
+      });
+    }
+    return found;
+  }
+
   async draftUpsert(input: DraftUpsertInput): Promise<Record<string, unknown>> {
     return this.events.transact(async (tx, emit) => {
-      let specId = input.specId ?? null;
+      // **키로 왔든 UUID 로 왔든 같은 스펙을 가리킨다**(§1.4b). 예전에는 이 자리가 UUID 만
+      // 받았고, 바로 옆 `nerv_spec_get` 은 키만 받았다 — 같은 이름의 인자가 도구마다 다른
+      // 것을 뜻하면 에이전트는 실패로 배운다.
+      let specId = await this.resolveSpecId(tx, input.projectId, input.specId ?? null);
       let created = false;
 
       if (specId === null) {
@@ -198,10 +242,11 @@ export class SpecService {
             roles: input.roles ?? [],
           });
         }
+        const parentId = await this.resolveSpecId(tx, input.projectId, input.parentId ?? null);
         specId = newId();
         await tx.execute(sql`
           INSERT INTO spec (id, project_id, parent_id, type, key, title)
-          VALUES (${specId}, ${input.projectId}, ${input.parentId ?? null}, ${input.type}::spec_type,
+          VALUES (${specId}, ${input.projectId}, ${parentId}, ${input.type}::spec_type,
                   ${input.key}, ${input.title})
         `);
         created = true;

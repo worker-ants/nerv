@@ -15,8 +15,12 @@ import {
 import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
 import { displayKey } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
+import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
+
+/** 트랜잭션 핸들 — spec.service.ts 와 같은 방식으로 유도한다 */
+type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
@@ -448,11 +452,65 @@ export class TaskService {
    * 4단계가 핵심이다. FOR UPDATE 로 직렬화하더라도 조건부 UPDATE 가 없으면 먼저 커밋한 쪽의
    * 전이를 두 번째가 덮어쓴다. 이 두 겹 + 부분 unique(claim_task_active_uq)가 "중복 클레임 0건"이다.
    */
+  /**
+   * 참조(`CLV-T-…` 키 또는 UUID)를 Task UUID 로 바꾼다(§1.4b).
+   *
+   * 사람과 화면과 로그가 쓰는 것은 키인데 도구는 UUID 만 받고 있었다 — 에이전트가 화면에서
+   * 본 값을 그대로 넣으면 "없는 작업"이 된다. 형태로 갈라 둘 다 받는다.
+   */
+  private async resolveTaskId(tx: Tx, projectId: string, ref: string): Promise<string> {
+    const parsed = entityRef(ref);
+    if (parsed.id !== null) return parsed.id;
+    const { rows } = await tx.execute<{ id: string }>(
+      sql`SELECT id FROM task WHERE project_id = ${projectId} AND key = ${parsed.key ?? ''}`,
+    );
+    const found = rows[0]?.id;
+    if (found === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
+        kind: 'not_found',
+        task: ref,
+      });
+    }
+    return found;
+  }
+
+  /** scope 의 스펙 참조를 UUID 로 — 키와 UUID 를 섞어 줘도 된다(§1.4b). */
+  private async resolveSpecIds(tx: Tx, projectId: string, refs: string[]): Promise<string[]> {
+    const out: string[] = [];
+    for (const ref of refs) {
+      const parsed = entityRef(ref);
+      if (parsed.id !== null) {
+        out.push(parsed.id);
+        continue;
+      }
+      if (parsed.key === null) continue;
+      const { rows } = await tx.execute<{ id: string }>(
+        sql`SELECT id FROM spec WHERE project_id = ${projectId} AND key = ${parsed.key}`,
+      );
+      const found = rows[0]?.id;
+      if (found === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+          kind: 'not_found',
+          spec: parsed.key,
+        });
+      }
+      out.push(found);
+    }
+    return out;
+  }
+
   async claim(input: ClaimInput): Promise<ClaimResult> {
     const ttl = input.leaseSeconds ?? LEASE_TTL_SECONDS;
 
     return this.events.transact(async (tx, emit) => {
-      // 0) 대상 행 잠금
+      // 0) 대상 행 잠금 — 키로 왔으면 먼저 UUID 로 바꾼다(§1.4b)
+      const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
+      // scope 의 스펙도 같은 규칙이다 — 키로 선언해도 겹침 판정이 UUID 로 돌아야 한다.
+      // 여기서 안 풀면 `::uuid[]` 캐스팅에서 22P02 가 나고, 그건 "못 찾았다"가 아니라 500 이다.
+      const scope = {
+        ...input.scope,
+        specIds: await this.resolveSpecIds(tx, input.projectId, input.scope.specIds),
+      };
       const { rows: taskRows } = await tx.execute<{
         id: string;
         status: string;
@@ -462,18 +520,18 @@ export class TaskService {
         output_format_md: string | null;
         tools_sources_md: string | null;
         boundaries_md: string | null;
-      }>(sql`SELECT * FROM task WHERE id = ${input.taskId} FOR UPDATE`);
+      }>(sql`SELECT * FROM task WHERE id = ${taskId} FOR UPDATE`);
 
       const task = taskRows[0];
       if (task === undefined) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
           kind: 'not_found',
-          task_id: input.taskId,
+          task_id: taskId,
         });
       }
 
       // 같은 세션의 재호출은 기존 클레임을 그대로 돌려준다(멱등 — agent-integration §2.3)
-      const existing = await this.findOwnActiveClaim(tx, input.taskId, input.sessionId);
+      const existing = await this.findOwnActiveClaim(tx, taskId, input.sessionId);
       if (existing !== null) {
         return {
           claimId: existing.claim_id,
@@ -493,7 +551,7 @@ export class TaskService {
       await this.claims.reclaimExpired(tx, task.project_id);
 
       const { rows: fresh } = await tx.execute<{ status: string }>(
-        sql`SELECT status::text AS status FROM task WHERE id = ${input.taskId}`,
+        sql`SELECT status::text AS status FROM task WHERE id = ${taskId}`,
       );
       const status = fresh[0]?.status ?? task.status;
       if (status !== 'ready') {
@@ -508,7 +566,7 @@ export class TaskService {
       const overlaps = await this.claims.detectOverlaps(tx, {
         projectId: task.project_id,
         sessionId: input.sessionId,
-        scope: input.scope,
+        scope,
         sourceRequirementId: task.source_requirement_id,
       });
 
@@ -516,7 +574,7 @@ export class TaskService {
       const blocking = overlaps.filter((o) => o.severity === 'block');
       if (blocking.length > 0) {
         // 차단도 사실이므로 기록한다. 롤백되므로 이 이벤트는 별도 트랜잭션에서 남긴다.
-        this.logger.warn(`클레임 차단 — task=${input.taskId} 겹침 ${blocking.length}건`);
+        this.logger.warn(`클레임 차단 — task=${taskId} 겹침 ${blocking.length}건`);
         throw new NervError(NERV_ERROR.CONFLICT_SCOPE, msg('error.claim.scope_conflict'), {
           kind: 'scope_conflict',
           overlaps: blocking.map(toDetail),
@@ -529,7 +587,7 @@ export class TaskService {
            SET status = 'claimed',
                assignee_user_id = COALESCE(assignee_user_id, ${input.userId}),
                delegate_session_id = ${input.sessionId}
-         WHERE id = ${input.taskId} AND status = 'ready'
+         WHERE id = ${taskId} AND status = 'ready'
         RETURNING id
       `);
       if (updated.length === 0) {
@@ -540,10 +598,10 @@ export class TaskService {
 
       const claim = await this.claims.insertClaim(tx, {
         projectId: task.project_id,
-        taskId: input.taskId,
+        taskId: taskId,
         sessionId: input.sessionId,
         userId: input.userId,
-        scope: input.scope,
+        scope,
         ttlSeconds: ttl,
       });
 
@@ -551,7 +609,7 @@ export class TaskService {
         type: NERV_EVENT.TASK_CLAIMED,
         projectId: task.project_id,
         subjectType: 'task',
-        subjectId: input.taskId,
+        subjectId: taskId,
         actorUserId: input.userId,
         actorSessionId: input.sessionId,
         isAgent: input.sessionId !== null,
@@ -679,8 +737,10 @@ export class TaskService {
     evidence?: { kind: string; locator: string }[];
   }): Promise<{ status: string; gate?: { ok: boolean; missing: string[] } }> {
     return this.events.transact(async (tx, emit) => {
+      // 키로 왔든 UUID 로 왔든 같은 작업을 가리킨다(§1.4b)
+      const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
       const { rows } = await tx.execute<{ status: string; project_id: string }>(
-        sql`SELECT status::text AS status, project_id FROM task WHERE id = ${input.taskId} FOR UPDATE`,
+        sql`SELECT status::text AS status, project_id FROM task WHERE id = ${taskId} FOR UPDATE`,
       );
       const task = rows[0];
       if (task === undefined || task.project_id !== input.projectId) {
@@ -696,7 +756,7 @@ export class TaskService {
       for (const item of input.evidence ?? []) {
         await tx.execute(sql`
           INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
-          VALUES (${newId()}, ${input.projectId}, ${input.taskId}, ${item.kind}::evidence_kind,
+          VALUES (${newId()}, ${input.projectId}, ${taskId}, ${item.kind}::evidence_kind,
                   ${item.locator}, ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
         `);
       }
@@ -712,13 +772,13 @@ export class TaskService {
         await tx.execute(sql`
           UPDATE task SET status = 'done', done_at = now(),
                           spec_impact = ${JSON.stringify(input.specImpact ?? {})}::jsonb
-           WHERE id = ${input.taskId}
+           WHERE id = ${taskId}
         `);
         await emit({
           type: NERV_EVENT.TASK_DONE,
           projectId: input.projectId,
           subjectType: 'task',
-          subjectId: input.taskId,
+          subjectId: taskId,
           actorUserId: input.userId,
           actorSessionId: input.sessionId ?? null,
           isAgent: input.sessionId != null,
@@ -738,13 +798,13 @@ export class TaskService {
       await tx.execute(sql`
         UPDATE task SET status = ${input.status}::task_status,
                         blocked_reason = ${input.blockedReason ?? null}
-         WHERE id = ${input.taskId}
+         WHERE id = ${taskId}
       `);
       await emit({
         type: input.status === 'blocked' ? NERV_EVENT.TASK_BLOCKED : NERV_EVENT.TASK_UPDATED,
         projectId: input.projectId,
         subjectType: 'task',
-        subjectId: input.taskId,
+        subjectId: taskId,
         actorUserId: input.userId,
         actorSessionId: input.sessionId ?? null,
         isAgent: input.sessionId != null,

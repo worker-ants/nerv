@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.20 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.21 · 2026-08-29 · HTML 판: [api.html](../html/api.html)
+>
+> v0.21 변경(2026-08-29 — 도구마다 식별자 기준이 달랐다, 실측): **§1.4b 신설**(REQ-API-038). `nerv_spec_get` 의 `spec_id` 는 키를, `nerv_spec_draft_upsert` 의 같은 이름은 UUID 를 받고 있었고 설명도 없어서 에이전트가 실패로 배웠다 — get 은 **자기 출력을 자기 입력에 넣을 수도 없었다**. 이제 `spec_id`·`parent_id`·`task_id`·`scope.spec_ids` 가 **키와 UUID 를 모두** 받는다(형태로 판별). 호환은 그대로다.
 >
 > v0.20 변경(2026-08-29 — 훅으로 만든 세션이 전부 `other` 였다, 실측): **§2.5a 신설**(REQ-API-037). 훅 본문에는 에이전트 종류가 없어서 세션 화면이 "누구의 무엇"에 답하지 못했다 — `X-NERV-Agent` 헤더를 우선하고 본문 `agent_type`(MCP `nerv_bootstrap` 경로)을 폴백으로 둔다.
 >
@@ -169,6 +171,31 @@ HTTP 상태 매핑:
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-036 | WHEN DB 제약 위반으로 요청이 실패하면 THE SYSTEM SHALL 표면(REST·MCP)에서 그것을 `NERV_PRECONDITION` 으로 옮기고, 어긴 제약의 종류·필드 이름·제약 이름을 `details` 에 담아 응답한다 — 값은 담지 않는다 |
+
+### 1.4b 참조는 키든 UUID 든 받는다 (2026-08-29 신설 — 실측)
+
+**같은 이름의 인자가 도구마다 다른 것을 뜻하고 있었다.**
+
+| 도구 | 인자 | 받던 것 |
+| --- | --- | --- |
+| `nerv_spec_get` | `spec_id` | 키(`SPC-…`) |
+| `nerv_spec_draft_upsert` | `spec_id` · `parent_id` | UUID |
+| `nerv_task_claim` · `nerv_task_update` | `task_id` | UUID |
+| `nerv_task_claim` | `scope.spec_ids` | UUID |
+| `nerv_spec_relate` | `from` · `to` | 키 |
+
+스키마에 설명도 없어서 고를 근거가 없었고, 에이전트는 **실패로 배웠다** — 한 세션이 `spec get` 두 번과 `draft upsert` 한 번을 틀리고 나서야 "upsert 는 UUID 를 받는군요"라고 적었다(실측 2026-08-29). 더 나쁜 것은 `nerv_spec_get` 이 **자기 출력을 자기 입력에 넣을 수 없었다**는 것이다: 입력은 키인데 응답의 `spec_id` 는 UUID다.
+
+**규칙은 하나다: 참조는 키와 UUID 를 둘 다 받는다.** 값의 **형태**로 가른다(UUID 모양이면 id, 아니면 키). 사람·화면·로그가 쓰는 것은 키이므로 키가 정본이고 UUID 는 내부 식별자다 — 어느 쪽을 줘도 같은 것을 가리키면 그것으로 충분하다.
+
+- 적용 대상: `spec_id` · `parent_id` · `task_id` · `scope.spec_ids`. 스키마의 `description` 에 "key (SPC-…) or UUID" 를 적어 **고를 근거를 준다**.
+- **없는 키는 못 찾았다고 말한다.** 조용히 null 로 떨어뜨리면 `parent_id` 오타가 "최상위에 만들기"로 둔갑한다.
+- 아무 문자열이나 `::uuid` 로 캐스팅하지 않는다 — 못 읽는 값에서 22P02 가 나고 그건 사용자 잘못이 **500 으로** 보고되는 자리다(§1.4a).
+- 호환은 깨지지 않는다. UUID 를 넘기던 호출은 그대로 동작하고, 키를 넘기던 호출이 새로 동작한다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-API-038 | WHEN 도구·엔드포인트가 스펙·Task 참조를 받으면 THE SYSTEM SHALL 안정 키와 UUID 를 모두 해석하고, 어느 쪽으로 받았든 같은 대상을 가리키게 하며, 해석되지 않으면 `not_found` 로 거부한다 |
 
 ### 1.5 멱등 키 — `Idempotency-Key` 헤더
 
