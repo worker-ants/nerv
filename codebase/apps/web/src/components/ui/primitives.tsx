@@ -7,6 +7,7 @@
 // 디자인 방향은 평평함이다: 층은 그림자가 아니라 선과 여백으로 만든다. 그림자는 떠 있는 것
 // (드롭다운·모달)에만 쓴다.
 
+import { createContext, useContext } from 'react';
 import { Link } from '@tanstack/react-router';
 import { cn } from '../../lib/utils.js';
 
@@ -253,19 +254,80 @@ export function Select({ className, ...rest }: React.ComponentProps<'select'>): 
   );
 }
 
+/**
+ * **한 줄에 놓이는 필드들** — 라벨은 라벨끼리, 입력은 입력끼리, 힌트는 힌트끼리 선다.
+ *
+ * 예전에는 `flex items-end` 였다. 그러면 **아래 끝**만 맞는데, 힌트가 있는 필드와 없는 필드는
+ * 키가 다르므로 힌트 없는 쪽의 라벨과 입력이 통째로 내려앉는다(실측 2026-08-29: 프로젝트 추가
+ * 줄에서 "이름"이 slug·키보다 한 단 아래로 밀렸다). 눈이 따라가는 것은 상자의 밑변이 아니라
+ * **입력의 줄**이다.
+ *
+ * 세 줄짜리 격자를 만들고 각 필드가 `subgrid` 로 그 줄을 나눠 쓴다. 힌트가 없는 칸은 비어
+ * 있을 뿐 자리는 그대로라, 무엇을 더하고 빼도 줄은 흔들리지 않는다.
+ *
+ * 필드가 아닌 것(버튼 등)은 `FieldRowAction` 으로 감싸 **입력 줄**에 놓는다.
+ */
+const FieldRowContext = createContext(false);
+
+export function FieldRow({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <FieldRowContext.Provider value={true}>
+      <div
+        className={cn(
+          // `justify-start`: 자동 트랙은 남는 가로를 나눠 갖는다 — 그대로 두면 버튼이 카드 끝까지
+          // 늘어난다(실측). 좁은 화면에서는 줄로 흐르게 해서 칸이 밖으로 밀리지 않게 한다.
+          'grid grid-flow-col justify-start items-start gap-x-3 gap-y-1 max-md:grid-flow-row',
+          '[grid-template-rows:auto_auto_auto]',
+          className,
+        )}
+      >
+        {children}
+      </div>
+    </FieldRowContext.Provider>
+  );
+}
+
+/**
+ * 줄 안의 버튼 자리 — 라벨 줄도 힌트 줄도 아닌 **입력 줄**에 선다.
+ *
+ * 좁은 화면에서 줄이 세로로 흐를 때는(위 `max-md:grid-flow-row`) 자리를 지정하지 않는다 —
+ * 그때 2행은 첫 필드의 입력 칸이라, 못 박아 두면 버튼이 폼 맨 위로 올라간다(실측).
+ */
+export function FieldRowAction({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  return <div className={cn('md:row-start-2', className)}>{children}</div>;
+}
+
 export function Field({
   label,
   hint,
   error,
+  className,
   children,
 }: {
   label: React.ReactNode;
   hint?: React.ReactNode;
   error?: string | undefined;
+  className?: string;
   children: React.ReactNode;
 }): React.JSX.Element {
+  // 줄 안에서는 세 칸을 부모 격자에서 빌려 쓰고, 혼자 있을 때는 그냥 세로로 쌓는다
+  const inRow = useContext(FieldRowContext);
   return (
-    <label className="flex flex-col gap-1">
+    <label
+      className={cn(inRow ? 'row-span-3 grid grid-rows-subgrid' : 'flex flex-col gap-1', className)}
+    >
       <span className="text-xs font-medium text-text-mute">{label}</span>
       {children}
       {hint !== undefined && error === undefined && (

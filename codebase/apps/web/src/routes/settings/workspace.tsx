@@ -23,6 +23,8 @@ import {
   Card,
   EmptyState,
   Field,
+  FieldRow,
+  FieldRowAction,
   Input,
   Mono,
   SectionTitle,
@@ -302,7 +304,7 @@ function ProjectForm({
   const ready = name.trim() !== '' && slug.trim() !== '' && key.trim() !== '';
 
   return (
-    <Card className="mb-3 flex flex-wrap items-end gap-3">
+    <FieldRow className="mb-3 rounded-nerv border border-border bg-bg-elev px-4 py-3">
       <Field label={t('settings.workspace.project_name')}>
         <Input data-testid="project-name" value={name} onChange={(e) => onName(e.target.value)} />
       </Field>
@@ -322,15 +324,18 @@ function ProjectForm({
           className="w-24 font-mono"
         />
       </Field>
-      <Button
-        variant="primary"
-        data-testid="project-create"
-        disabled={!ready || create.isPending}
-        onClick={() => create.mutate()}
-      >
-        {t('common.create')}
-      </Button>
-    </Card>
+      {/* 버튼은 **입력 줄**에 선다 — 라벨 줄도 힌트 줄도 아니다 */}
+      <FieldRowAction>
+        <Button
+          variant="primary"
+          data-testid="project-create"
+          disabled={!ready || create.isPending}
+          onClick={() => create.mutate()}
+        >
+          {t('common.create')}
+        </Button>
+      </FieldRowAction>
+    </FieldRow>
   );
 }
 
