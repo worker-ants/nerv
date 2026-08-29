@@ -87,55 +87,64 @@ export function SpecTable({ nodes, edges, projectSlug }: SpecTableProps): React.
   }
 
   return (
-    <Table
-      head={
-        <>
-          {header('title', t('specs.col.title'))}
-          {header('type', t('specs.col.type'))}
-          {header('status', t('specs.col.status'))}
-          {header('backlinks', t('specs.col.backlinks'))}
-          <Th>{t('specs.col.path')}</Th>
-        </>
-      }
-    >
-      {rows.map((node) => (
-        <Tr key={node.id}>
-          <Td>
-            <Link
-              to="/p/$proj/specs/$spec"
-              params={{ proj: projectSlug, spec: node.key }}
-              className="font-medium hover:text-link"
+    <>
+      {/* 트리와 **같은 표기**를 쓴다 — 두 탭의 수가 다르다는 것을 사람이 발견하는 자리가
+          화면 안이어야 한다(REQ-WEB-102). 표는 계층을 접지 않으므로 늘 전수다 */}
+      <div className="mb-2 flex justify-end">
+        <span data-testid="table-count" className="text-xs text-text-faint tabular-nums">
+          {t('specs.count.shown_total', { shown: rows.length, total: nodes.length })}
+        </span>
+      </div>
+      <Table
+        head={
+          <>
+            {header('title', t('specs.col.title'))}
+            {header('type', t('specs.col.type'))}
+            {header('status', t('specs.col.status'))}
+            {header('backlinks', t('specs.col.backlinks'))}
+            <Th>{t('specs.col.path')}</Th>
+          </>
+        }
+      >
+        {rows.map((node) => (
+          <Tr key={node.id}>
+            <Td>
+              <Link
+                to="/p/$proj/specs/$spec"
+                params={{ proj: projectSlug, spec: node.key }}
+                className="font-medium hover:text-link"
+              >
+                {node.title}
+              </Link>{' '}
+              <Mono>{node.key}</Mono>
+            </Td>
+            <Td className="text-xs text-text-mute">
+              {t(`specs.type.${node.type}` as 'specs.type.feature')}
+            </Td>
+            <Td>
+              {node.doc_status !== null && (
+                <StatusBadge
+                  token={
+                    (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
+                      'idle') as StatusToken
+                  }
+                  label={t(statusLabelKey('spec', node.doc_status))}
+                />
+              )}
+            </Td>
+            {/* 0 은 흐리게 — 아무도 참조하지 않는 문서를 눈이 먼저 찾게 */}
+            <Td
+              className={cn(
+                'tabular-nums',
+                (backlinks.get(node.id) ?? 0) === 0 ? 'text-text-faint' : undefined,
+              )}
             >
-              {node.title}
-            </Link>{' '}
-            <Mono>{node.key}</Mono>
-          </Td>
-          <Td className="text-xs text-text-mute">
-            {t(`specs.type.${node.type}` as 'specs.type.feature')}
-          </Td>
-          <Td>
-            {node.doc_status !== null && (
-              <StatusBadge
-                token={
-                  (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
-                    'idle') as StatusToken
-                }
-                label={t(statusLabelKey('spec', node.doc_status))}
-              />
-            )}
-          </Td>
-          {/* 0 은 흐리게 — 아무도 참조하지 않는 문서를 눈이 먼저 찾게 */}
-          <Td
-            className={cn(
-              'tabular-nums',
-              (backlinks.get(node.id) ?? 0) === 0 ? 'text-text-faint' : undefined,
-            )}
-          >
-            {backlinks.get(node.id) ?? 0}
-          </Td>
-          <Td className="text-xs text-text-faint">{pathOf(node, byId)}</Td>
-        </Tr>
-      ))}
-    </Table>
+              {backlinks.get(node.id) ?? 0}
+            </Td>
+            <Td className="text-xs text-text-faint">{pathOf(node, byId)}</Td>
+          </Tr>
+        ))}
+      </Table>
+    </>
   );
 }

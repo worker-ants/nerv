@@ -15,6 +15,14 @@ The tree on the left is the structure of your specs. There are six types, and th
 
 An `area` may hold a place in the tree with no body of its own. For the rest, the body is the document.
 
+## Where you can see all of them
+
+The tree in the left sidebar is there for **what sits around the document you are reading**, so it is expanded only down to the roots. The `106 / 141` in its header is **how many are showing / how many there are**.
+
+To see all of them, go to **Specs** in the left menu. That screen is the **complete list** — it opens with every document expanded, and collapsing is something you do, not the default. **A document that is not there is not in this project.**
+
+Both the tree tab and the table tab print `Showing N of M`. When the two numbers differ, that many are collapsed or filtered out by the tree filter.
+
 ## Versions and statuses
 
 Specs are **not edited in place — versions accumulate.** Each version is in one of five statuses.

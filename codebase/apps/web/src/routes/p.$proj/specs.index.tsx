@@ -168,6 +168,7 @@ function SpecListScreen(): React.JSX.Element {
               <SpecTree
                 projectSlug={proj}
                 projectId={typeof projectId === 'string' ? projectId : undefined}
+                variant="full"
               />
             </Card>
           ) : graph.data === undefined ? (

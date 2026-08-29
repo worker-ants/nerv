@@ -1,8 +1,14 @@
-// 스펙 트리 — 사이드바와 S3 좌측이 **같은 컴포넌트**를 쓴다 (screens.md §1.3 · §2.4)
+// 스펙 트리 — 사이드바와 스펙 목록이 **같은 컴포넌트**를 쓴다 (screens.md §1.3 · §2.4)
 //
-// 트리는 대규모에서 먼저 무너진다(REQ-WEB-041): 노드 200개가 넘는 프로젝트에서 전체를 한 번에
-// 그리면 최초 페인트가 늦어진다. 그래서 ① 기본은 depth=1 로 접어 두고 ② 필터로 좁힌다.
-// 가상 스크롤은 그 다음 단계이고, 접힌 트리에서는 대개 필요해지지 않는다.
+// 두 자리는 역할이 다르다(`variant`).
+//
+// - `rail` — 좁은 사이드바. 늘 떠 있는 **동반자**라 부분이어도 되지만, 부분임을 수로 말한다.
+// - `full` — 스펙 목록 화면(`/p/:proj/specs`). **전수 목록이다**: 이 화면에 있는 것이 그
+//   프로젝트 문서의 전부다. 목록에 노출되어야 열람도 가능한 구조라(2026-08-29 — 사람 지시),
+//   처음 열었을 때 접힌 가지에 문서가 숨어 있으면 그 문서는 없는 것과 같다. 실측이 그랬다:
+//   clemvion 141편 중 화면에 있던 것은 106편, sudoku 는 6편 중 3편이었다.
+//
+// 접는 것은 **사람의 조작**이고 기본값이 아니다. 규모의 부담은 가상 스크롤이 진다(REQ-WEB-044).
 
 import { statusLabelKey } from '@nerv/schema';
 import { useT } from '../lib/i18n.js';
@@ -25,22 +31,25 @@ export interface TreeNode {
   version_no: number | null;
 }
 
+/** 트리가 서는 자리 — 화면 밀도가 아니라 **역할**이다(전수인가 동반자인가). */
+export type SpecTreeVariant = 'rail' | 'full';
+
 export interface SpecTreeProps {
-  /** 구역 머리(예: "스펙 트리") — 시안은 개수를 함께 적는다("스펙 트리 141") */
+  /** 구역 머리(예: "스펙 트리") — 시안은 개수를 함께 적는다 */
   heading?: string;
   projectSlug: string;
   /** 쿼리 키를 이벤트 봉투와 같은 축(UUID)에 맞추기 위한 값 — 없으면 slug 로 떨어진다 */
   projectId?: string | undefined;
-  compact?: boolean;
+  variant?: SpecTreeVariant;
   activeKey?: string | undefined;
 }
 
 /**
  * 가상 스크롤 임계 — 이 수를 넘으면 보이는 만큼만 그린다(REQ-WEB-044).
  *
- * 트리는 대규모에서 먼저 무너진다. 다만 **접힌 트리에서는 대개 필요해지지 않는다** —
- * depth=1 로 접어두면 보이는 노드가 수십 개다. 그래서 가상 스크롤은 "펼친 상태에서
- * 여전히 많을 때"의 안전망이고, 기본 경로는 접기다.
+ * 전수 목록은 기본이 전부 펼침이라 큰 프로젝트에서 이 분기가 곧바로 걸린다. 그래서
+ * **가상 분기도 일반 렌더와 같은 줄을 그린다** — 삼각형과 자식 수가 사라지면 200편을
+ * 넘긴 프로젝트만 접을 수단을 잃는다.
  */
 const VIRTUAL_THRESHOLD = 200;
 const ROW_HEIGHT = 24;
@@ -57,11 +66,28 @@ export function groupByParent(nodes: TreeNode[]): Map<string | null, TreeNode[]>
 }
 
 /**
- * 펼침 상태를 브라우저에 남긴다 — 문서를 옮길 때마다 다시 펼치는 것은 반복 노동이다.
- * 프로젝트별로 나눈다: 트리 모양이 프로젝트마다 다르므로 id 를 섞으면 남의 상태를 읽는다.
+ * 첫 펼침 상태 — 저장된 것이 없을 때의 초깃값이다.
+ *
+ * `full` 은 **전부**다. 전수 목록의 약속이 여기서 지켜진다.
+ * `rail` 은 뿌리까지 — 141줄이 늘 떠 있으면 그 아래 아무것도 안 보인다.
  */
-function storageKeyFor(projectSlug: string): string {
-  return `nerv.tree.${projectSlug}`;
+export function defaultExpanded(nodes: TreeNode[], variant: SpecTreeVariant): Set<string> {
+  if (variant === 'rail') {
+    return new Set(nodes.filter((n) => n.parent_id === null).map((n) => n.id));
+  }
+  const parents = new Set(nodes.map((n) => n.parent_id).filter((id): id is string => id !== null));
+  return new Set(nodes.filter((n) => parents.has(n.id)).map((n) => n.id));
+}
+
+/**
+ * 펼침 상태를 브라우저에 남긴다 — 문서를 옮길 때마다 다시 펼치는 것은 반복 노동이다.
+ *
+ * 프로젝트별로 나누고 **역할별로도 나눈다**: 두 트리가 한 열쇠를 함께 쓰면 사이드바에서
+ * 가지 하나를 접은 것이 전수 목록의 첫 화면을 부분으로 만든다(같은 화면에 106과 141이
+ * 동시에 뜨던 원인 — 실측 2026-08-29).
+ */
+function storageKeyFor(projectSlug: string, variant: SpecTreeVariant): string {
+  return `nerv.tree.${projectSlug}.${variant}`;
 }
 
 function readExpanded(key: string): Set<string> | null {
@@ -98,14 +124,14 @@ export function ancestorsOf(nodes: readonly TreeNode[], key: string): string[] {
 export function SpecTree({
   projectSlug,
   projectId,
-  compact,
+  variant = 'full',
   activeKey,
   heading,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId);
   const [filter, setFilter] = useState('');
-  // null = 아직 정하지 않음. 첫 데이터가 와야 "뿌리만 펼친 상태"를 만들 수 있다.
+  // null = 아직 정하지 않음. 첫 데이터가 와야 초깃값을 만들 수 있다.
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -126,16 +152,12 @@ export function SpecTree({
     );
   }, [filter, nodes]);
 
-  const storageKey = storageKeyFor(projectSlug);
+  const storageKey = storageKeyFor(projectSlug, variant);
 
-  // 첫 펼침 상태 — 저장된 것이 있으면 그것, 없으면 **뿌리만**(REQ-WEB-041 의 depth=1 시작)
   useEffect(() => {
     if (expanded !== null || nodes.length === 0) return;
-    setExpanded(
-      readExpanded(storageKey) ??
-        new Set(nodes.filter((n) => n.parent_id === null).map((n) => n.id)),
-    );
-  }, [expanded, nodes, storageKey]);
+    setExpanded(readExpanded(storageKey) ?? defaultExpanded(nodes, variant));
+  }, [expanded, nodes, storageKey, variant]);
 
   // 보고 있는 문서까지의 길을 펼친다 — 딥링크로 들어오면 트리에서 내 위치를 알 수 없다
   useEffect(() => {
@@ -184,102 +206,116 @@ export function SpecTree({
     );
   }
 
+  // 필터 판정은 **한 곳에서만** 한다 — 평탄화(수 세기·가상 렌더)와 중첩 렌더가 서로 다른
+  // 규칙을 쓰면 화면에 적힌 수와 화면에 그린 줄이 어긋난다.
+  const childrenToShow = (parentId: string | null): TreeNode[] =>
+    (byParent.get(parentId) ?? []).filter(
+      (node) => matches === null || matches.has(node.id) || byParent.has(node.id),
+    );
+  // 필터 중에는 전부 펼친다 — 걸린 노드를 접힌 가지에 숨기면 필터가 무의미하다
+  const isOpenOf = (node: TreeNode): boolean => open.has(node.id) || matches !== null;
+
   // 보이는 노드만 평탄화한다 — 접힌 가지는 리스트에 아예 들어오지 않는다.
   const visible: { node: TreeNode; depth: number }[] = [];
   const collect = (parentId: string | null, depth: number): void => {
-    for (const node of byParent.get(parentId) ?? []) {
-      if (matches !== null && !matches.has(node.id) && !byParent.has(node.id)) continue;
+    for (const node of childrenToShow(parentId)) {
       visible.push({ node, depth });
-      // 필터 중에는 전부 펼친다 — 걸린 노드를 접힌 가지에 숨기면 필터가 무의미하다
-      const isOpen = open.has(node.id) || matches !== null;
-      if (isOpen) collect(node.id, depth + 1);
+      if (isOpenOf(node)) collect(node.id, depth + 1);
     }
   };
   collect(null, 0);
 
+  const shown = visible.length;
+  const total = nodes.length;
+
   // 200 노드를 넘으면 창 밖은 그리지 않는다 — 최초 페인트가 전체 트리를 요구하지 않게.
-  const virtualized = visible.length > VIRTUAL_THRESHOLD;
+  const virtualized = shown > VIRTUAL_THRESHOLD;
   const startIndex = virtualized ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 10) : 0;
   const endIndex = virtualized
-    ? Math.min(visible.length, startIndex + Math.ceil(viewportHeight / ROW_HEIGHT) + 20)
-    : visible.length;
+    ? Math.min(shown, startIndex + Math.ceil(viewportHeight / ROW_HEIGHT) + 20)
+    : shown;
+
+  /** 줄 하나 — 중첩 렌더와 가상 렌더가 **같은 줄**을 쓴다(둘이 갈라지면 조작이 사라진다) */
+  const row = (node: TreeNode): React.JSX.Element => {
+    const children = byParent.get(node.id) ?? [];
+    const isOpen = isOpenOf(node);
+    return (
+      <div className="group flex items-center rounded-nerv-sm hover:bg-bg-hover">
+        {/* 자식이 없어도 자리를 비운다 — 삼각형 유무로 들여쓰기가 어긋나면
+            트리가 계단처럼 보인다 */}
+        {children.length === 0 && <span aria-hidden="true" className="w-4 shrink-0" />}
+        {children.length > 0 && (
+          <button
+            type="button"
+            aria-label={isOpen ? t('specs.collapse') : t('specs.expand')}
+            className="w-4 shrink-0 text-2xs text-text-faint hover:text-text"
+            onClick={() => toggle(node.id)}
+          >
+            {isOpen ? '▾' : '▸'}
+          </button>
+        )}
+        <Link
+          to="/p/$proj/specs/$spec"
+          params={{ proj: projectSlug, spec: node.key }}
+          {...(node.key === activeKey ? { ref: activeRef } : {})}
+          data-active={node.key === activeKey}
+          className={cn(
+            'flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] pr-1 text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text',
+            // 시안: 사이드바 트리는 26px 줄에 13px 글자 — nav(29px)보다 반 단 조밀하다
+            variant === 'rail' ? 'h-[26px] text-[13px]' : 'py-1 text-sm',
+          )}
+        >
+          <span className="truncate">{node.title}</span>
+          {!isOpen && children.length > 0 && (
+            <span className="shrink-0 text-2xs text-text-faint tabular-nums">
+              {children.length}
+            </span>
+          )}
+          {/* **다 같으면 그건 신호가 아니다**(2026-08-23 재검토). 141편 중 128편이
+              `approved` 라 배지를 모든 줄에 달면 초록색이 줄마다 반복되고,
+              정작 눈에 띄어야 할 초안·폐기가 그 반복 속에 묻힌다.
+              좁은 사이드바에서는 **평소와 다른 것만** 말한다 — 승인됨은 침묵이다.
+              전수 목록은 폭이 있으니 배지를 그대로 단다. */}
+          {node.doc_status !== null &&
+            (variant === 'rail' ? (
+              node.doc_status !== 'approved' && (
+                <span
+                  aria-label={t(statusLabelKey('spec', node.doc_status))}
+                  title={t(statusLabelKey('spec', node.doc_status))}
+                  className={cn(
+                    'size-1.5 shrink-0 rounded-full',
+                    node.doc_status === 'draft'
+                      ? 'bg-status-waiting'
+                      : node.doc_status === 'in_review'
+                        ? 'bg-status-progress'
+                        : 'bg-status-idle-text',
+                  )}
+                />
+              )
+            ) : (
+              <StatusBadge
+                token={
+                  (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
+                    'idle') as StatusToken
+                }
+                label={t(statusLabelKey('spec', node.doc_status))}
+              />
+            ))}
+        </Link>
+      </div>
+    );
+  };
 
   const renderLevel = (parentId: string | null, depth: number): React.JSX.Element[] =>
-    (byParent.get(parentId) ?? [])
-      .filter((node) => matches === null || matches.has(node.id) || byParent.has(node.id))
-      .map((node) => {
-        const children = byParent.get(node.id) ?? [];
-        // depth=1 까지만 펼친 채로 시작한다 — 나머지는 눌러야 로드·렌더한다(REQ-WEB-041)
-        const isOpen = open.has(node.id) || matches !== null;
-        return (
-          <li key={node.id} style={{ paddingLeft: depth === 0 ? 0 : 12 }}>
-            <div className="group flex items-center rounded-nerv-sm hover:bg-bg-hover">
-              {/* 자식이 없어도 자리를 비운다 — 삼각형 유무로 들여쓰기가 어긋나면
-                  트리가 계단처럼 보인다 */}
-              {children.length === 0 && <span aria-hidden="true" className="w-4 shrink-0" />}
-              {children.length > 0 && (
-                <button
-                  type="button"
-                  aria-label={isOpen ? t('specs.collapse') : t('specs.expand')}
-                  className="w-4 shrink-0 text-2xs text-text-faint hover:text-text"
-                  onClick={() => toggle(node.id)}
-                >
-                  {isOpen ? '▾' : '▸'}
-                </button>
-              )}
-              <Link
-                to="/p/$proj/specs/$spec"
-                params={{ proj: projectSlug, spec: node.key }}
-                {...(node.key === activeKey ? { ref: activeRef } : {})}
-                data-active={node.key === activeKey}
-                className={cn(
-                  'flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] pr-1 text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text',
-                  // 시안: 사이드바 트리는 26px 줄에 13px 글자 — nav(29px)보다 반 단 조밀하다
-                  compact ? 'h-[26px] text-[13px]' : 'py-1 text-sm',
-                )}
-              >
-                <span className="truncate">{node.title}</span>
-                {!isOpen && children.length > 0 && (
-                  <span className="shrink-0 text-2xs text-text-faint tabular-nums">
-                    {children.length}
-                  </span>
-                )}
-                {/* **다 같으면 그건 신호가 아니다**(2026-08-23 재검토). 141편 중 128편이
-                    `approved` 라 배지를 모든 줄에 달면 초록색이 줄마다 반복되고,
-                    정작 눈에 띄어야 할 초안·폐기가 그 반복 속에 묻힌다.
-                    좁은 사이드바에서는 **평소와 다른 것만** 말한다 — 승인됨은 침묵이다.
-                    전체 화면 트리(`compact` 아님)는 폭이 있으니 배지를 그대로 단다. */}
-                {node.doc_status !== null &&
-                  (compact ? (
-                    node.doc_status !== 'approved' && (
-                      <span
-                        aria-label={t(statusLabelKey('spec', node.doc_status))}
-                        title={t(statusLabelKey('spec', node.doc_status))}
-                        className={cn(
-                          'size-1.5 shrink-0 rounded-full',
-                          node.doc_status === 'draft'
-                            ? 'bg-status-waiting'
-                            : node.doc_status === 'in_review'
-                              ? 'bg-status-progress'
-                              : 'bg-status-idle-text',
-                        )}
-                      />
-                    )
-                  ) : (
-                    <StatusBadge
-                      token={
-                        (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
-                          'idle') as StatusToken
-                      }
-                      label={t(statusLabelKey('spec', node.doc_status))}
-                    />
-                  ))}
-              </Link>
-            </div>
-            {isOpen && children.length > 0 && <ul>{renderLevel(node.id, depth + 1)}</ul>}
-          </li>
-        );
-      });
+    childrenToShow(parentId).map((node) => {
+      const children = byParent.get(node.id) ?? [];
+      return (
+        <li key={node.id} style={{ paddingLeft: depth === 0 ? 0 : 12 }}>
+          {row(node)}
+          {isOpenOf(node) && children.length > 0 && <ul>{renderLevel(node.id, depth + 1)}</ul>}
+        </li>
+      );
+    });
 
   return (
     <div data-testid="spec-tree" data-virtualized={virtualized}>
@@ -288,13 +324,19 @@ export function SpecTree({
           <span className="text-2xs font-semibold tracking-[0.07em] text-text-ghost uppercase">
             {heading}
           </span>
-          {/* 개수는 트리를 다 세지 않아도 규모를 말해 준다(시안 "스펙 트리 141") */}
-          {nodes.length > 0 && (
-            <span className="text-2xs text-text-ghost tabular-nums">{nodes.length}</span>
-          )}
+          {/* **수는 둘이다.** 총계만 적으면 트리는 141 을 약속하고 106 만 지킨다 —
+              사이드바는 부분이므로 부분임을 스스로 말해야 한다(REQ-WEB-102) */}
+          <span
+            data-testid="tree-count"
+            aria-label={t('specs.count.shown_total', { shown, total })}
+            title={t('specs.count.shown_total', { shown, total })}
+            className="text-2xs text-text-ghost tabular-nums"
+          >
+            {t('specs.count.short', { shown, total })}
+          </span>
         </div>
       )}
-      {!(compact ?? false) && (
+      {variant === 'full' && (
         <div className="mb-2 flex items-center gap-2">
           <Input
             value={filter}
@@ -304,9 +346,7 @@ export function SpecTree({
           <button
             type="button"
             data-testid="tree-expand-all"
-            onClick={() =>
-              setOpen(new Set(nodes.filter((n) => byParent.has(n.id)).map((n) => n.id)))
-            }
+            onClick={() => setOpen(defaultExpanded(nodes, 'full'))}
             className="shrink-0 rounded-nerv-sm border border-border px-2 py-1 text-xs text-text-mute hover:bg-bg-hover"
           >
             {t('specs.expand_all')}
@@ -319,6 +359,11 @@ export function SpecTree({
           >
             {t('specs.collapse_all')}
           </button>
+          {/* 수는 그것을 바꾸는 조작 **옆에** 둔다 — 접기를 누르면 그 자리에서 줄어든다.
+              시안(§2.4)은 목록 발치에 두었지만, 141줄 아래는 화면 밖이다 */}
+          <span data-testid="tree-count" className="shrink-0 text-xs text-text-faint tabular-nums">
+            {t('specs.count.shown_total', { shown, total })}
+          </span>
         </div>
       )}
       {virtualized ? (
@@ -332,27 +377,11 @@ export function SpecTree({
           onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
         >
           {/* 스크롤 높이는 전체 노드 수로 잡고 내용만 창 크기로 그린다 */}
-          <div style={{ height: visible.length * ROW_HEIGHT, position: 'relative' }}>
+          <div style={{ height: shown * ROW_HEIGHT, position: 'relative' }}>
             <ul style={{ position: 'absolute', top: startIndex * ROW_HEIGHT, left: 0, right: 0 }}>
               {visible.slice(startIndex, endIndex).map(({ node, depth }) => (
                 <li key={node.id} style={{ paddingLeft: depth * 12, height: ROW_HEIGHT }}>
-                  <Link
-                    to="/p/$proj/specs/$spec"
-                    params={{ proj: projectSlug, spec: node.key }}
-                    data-active={node.key === activeKey}
-                    className="flex items-center gap-1.5 truncate rounded-nerv-sm px-1 text-sm text-text-mute hover:bg-bg-hover data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text"
-                  >
-                    <span className="truncate">{node.title}</span>
-                    {node.doc_status !== null && (
-                      <StatusBadge
-                        token={
-                          (SPEC_VERSION_TOKEN[node.doc_status as keyof typeof SPEC_VERSION_TOKEN] ??
-                            'idle') as StatusToken
-                        }
-                        label={t(statusLabelKey('spec', node.doc_status))}
-                      />
-                    )}
-                  </Link>
+                  {row(node)}
                 </li>
               ))}
             </ul>

@@ -856,6 +856,8 @@ export const en = {
   'specs.col.title': 'Title',
   'specs.col.type': 'Type',
   'specs.collapse_all': 'Collapse all',
+  'specs.count.short': '{shown} / {total}',
+  'specs.count.shown_total': 'Showing {shown} of {total}',
   'specs.expand_all': 'Expand all',
   'specs.tab.table': 'Table',
   'specs.type.adr': 'Decision',

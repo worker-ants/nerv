@@ -845,6 +845,8 @@ export const ko = {
   'specs.col.title': '제목',
   'specs.col.type': '종류',
   'specs.collapse_all': '전체 접기',
+  'specs.count.short': '{shown} / {total}',
+  'specs.count.shown_total': '표시 {shown} / 전체 {total}',
   'specs.expand_all': '전체 펼치기',
   'specs.tab.table': '표',
   'specs.type.adr': '결정',

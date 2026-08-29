@@ -88,8 +88,10 @@ async function renderTree(path: string) {
     </LocaleProvider>,
   );
   await screen.findAllByText('뿌리');
-  // 이 라우트는 트리를 둘 그린다(사이드바 + 본문 전체 화면 — §1.3). 한 그루만 검사한다.
-  return within(screen.getAllByTestId('spec-tree')[0]!);
+  // 이 라우트는 트리를 **둘** 그린다(§1.3) — 사이드바(rail)가 앞, 전수 목록(full)이 뒤다.
+  // 둘의 초깃값이 다른 것이 설계이므로 검사도 둘을 갈라서 한다.
+  const trees = screen.getAllByTestId('spec-tree');
+  return { rail: within(trees[0]!), full: within(trees[1]!) };
 }
 
 describe('조상 계산', () => {
@@ -106,29 +108,65 @@ describe('조상 계산', () => {
   });
 });
 
-describe('접힘/펼침', () => {
-  it('처음에는 뿌리만 펼쳐 있다 (REQ-WEB-041)', async () => {
-    const tree = await renderTree('/p/demo/specs');
-    expect(tree.queryByText('자식')).not.toBeNull();
+describe('사이드바 트리 — 동반자라 부분이어도 된다', () => {
+  it('처음에는 뿌리까지 펼쳐 있다', async () => {
+    const { rail } = await renderTree('/p/demo/specs');
+    expect(rail.queryByText('자식')).not.toBeNull();
     // 손자는 한 겹 더 접혀 있다
-    expect(tree.queryByText('손자')).toBeNull();
+    expect(rail.queryByText('손자')).toBeNull();
   });
 
   it('접으면 실제로 접힌다 — 최상위도 예외가 아니다', async () => {
-    const tree = await renderTree('/p/demo/specs');
-    fireEvent.click(tree.getAllByRole('button', { name: '접기' })[0]!);
-    expect(tree.queryByText('자식')).toBeNull();
+    const { rail } = await renderTree('/p/demo/specs');
+    fireEvent.click(rail.getAllByRole('button', { name: '접기' })[0]!);
+    expect(rail.queryByText('자식')).toBeNull();
   });
 
   it('접힌 가지는 자식 수를 보인다 — 눌러 보기 전에 뒤에 뭐가 있는지 안다', async () => {
-    const tree = await renderTree('/p/demo/specs');
-    fireEvent.click(tree.getAllByRole('button', { name: '접기' })[0]!);
-    expect(tree.queryByText('1')).not.toBeNull();
+    const { rail } = await renderTree('/p/demo/specs');
+    fireEvent.click(rail.getAllByRole('button', { name: '접기' })[0]!);
+    expect(rail.queryByText('1')).not.toBeNull();
   });
 
-  it('접은 상태가 다음 방문에도 남는다', async () => {
-    const tree = await renderTree('/p/demo/specs');
-    fireEvent.click(tree.getAllByRole('button', { name: '접기' })[0]!);
-    expect(localStorage.getItem('nerv.tree.demo')).toBe('[]');
+  it('접은 상태가 다음 방문에도 남는다 — 열쇠는 역할별이다', async () => {
+    const { rail } = await renderTree('/p/demo/specs');
+    fireEvent.click(rail.getAllByRole('button', { name: '접기' })[0]!);
+    expect(localStorage.getItem('nerv.tree.demo.rail')).toBe('[]');
+    // 전수 목록의 열쇠는 건드리지 않는다
+    expect(localStorage.getItem('nerv.tree.demo.full')).toBeNull();
+  });
+
+  it('부분임을 수로 말한다 — 총계만 적으면 141 을 약속하고 106 만 지킨다', async () => {
+    const { rail } = await renderTree('/p/demo/specs');
+    expect(rail.getByTestId('tree-count').textContent).toBe('2 / 3');
+  });
+});
+
+describe('전수 목록 — 목록에 없으면 열람도 없다 (REQ-WEB-101)', () => {
+  it('처음 열면 손자까지 전부 있다', async () => {
+    const { full } = await renderTree('/p/demo/specs');
+    expect(full.queryByText('손자')).not.toBeNull();
+  });
+
+  it('표시·전체를 함께 적는다 (REQ-WEB-102)', async () => {
+    const { full } = await renderTree('/p/demo/specs');
+    expect(full.getByTestId('tree-count').textContent).toBe('표시 3 / 전체 3');
+  });
+
+  it('사이드바에서 접은 것이 전수 목록의 첫 화면을 부분으로 만들지 않는다', async () => {
+    const first = await renderTree('/p/demo/specs');
+    fireEvent.click(first.rail.getAllByRole('button', { name: '접기' })[0]!);
+    cleanup();
+
+    const again = await renderTree('/p/demo/specs');
+    expect(again.full.queryByText('손자')).not.toBeNull();
+    expect(again.rail.queryByText('자식')).toBeNull();
+  });
+
+  it('접는 것은 사람의 조작이다 — 접으면 수도 같이 줄어든다', async () => {
+    const { full } = await renderTree('/p/demo/specs');
+    fireEvent.click(full.getByTestId('tree-collapse-all'));
+    expect(full.queryByText('자식')).toBeNull();
+    expect(full.getByTestId('tree-count').textContent).toBe('표시 1 / 전체 3');
   });
 });

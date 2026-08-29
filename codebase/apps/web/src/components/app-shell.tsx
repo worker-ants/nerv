@@ -606,7 +606,7 @@ export function AppShell({
                 {...(typeof shellProject.data?.['id'] === 'string'
                   ? { projectId: shellProject.data['id'] as string }
                   : {})}
-                compact
+                variant="rail"
                 activeKey={activeSpecKey}
                 heading={t('shell.spec_tree')}
               />
