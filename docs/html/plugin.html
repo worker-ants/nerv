@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.15 (2026-08-30)</span>
+      <span>버전 v0.16 (2026-08-30)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -256,6 +256,8 @@ allowed-tools:
 **기존 문서를 고칠 때는 필수다.** `nerv_spec_get` 응답의 `content_hash` 를 저장에 그대로 실으면, 서버가 "그 사이 아무도 안 바꿨다"를 확인하고 아니면 막는다. 저장 응답은 **새 지문**을 주므로 이어서 고칠 때는 그것을 쓴다(매번 다시 읽지 않아도 된다).
 
 없으면 무슨 일이 있었는지: 세 세션이 같은 초안을 동시에 고쳤을 때 **셋 다 성공하고 본문에는 하나만 남았다** — 둘은 오류도 경고도 없이 자기 글을 잃었다(실측 2026-08-30).
+
+`content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 싣지 않는다: 견줄 판이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
 
 `stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그건 남의 글을 덮어쓰는 것이다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
 

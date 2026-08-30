@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.15 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.16 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.16 변경(2026-08-30 — 결함 정정 후속): `skills/spec` 과 `nerv-spec-writer` 가 **`content_hash` 가 null 인 문서**(본문이 아직 없는 묶음 노드)를 말한다 — 그때는 `base_hash` 를 싣지 않는다(4.4 §1.4i · REQ-API-054). 서버는 고쳤는데 스킬이 그 경우를 몰라 에이전트가 "지문이 없다"에서 멈출 수 있었다.
 > v0.15 변경(2026-08-30 — 사람 결정 후속): `skills/spec` 과 `nerv-spec-writer` 에서 **`base_version` 을 걷고**(전제조건은 `base_hash` 하나다), **`key_taken`** 을 에러 표에 더한다 — 그 답은 키를 바꾸는 것이 아니라 **그 문서를 읽고 이어 쓰는 것**이다(§2.2).
 > v0.14 변경(2026-08-30 — 리스는 신호이고 지문이 자물쇠다): `skills/spec` 과 `nerv-spec-writer` 에 **세션 리스와 `takeover`**, **선언 관계의 상대 `base_hash`** 를 적는다(§2.2). `NERV_DRAFT_LEASED` 는 이제 **같은 사람이어도** 온다 — 보유자가 세션이기 때문이다. 에러 표에 `relation_base_hash_required`·`stale_relation_target` 을 더했다.
 > v0.13 변경(2026-08-30 — 내가 보고 쓴 것을 밝힌다): `skills/spec` 에 **`base_hash` 절**을 넣는다(§2.2). 기존 문서를 고칠 때는 필수이고, `stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다** — 그건 남의 글을 덮어쓰는 것이라 다시 읽고 그 위에 다시 얹는다. 에러 표에 `stale_body`·`base_hash_required` 를 더했다.
@@ -215,6 +216,8 @@ allowed-tools:
 **기존 문서를 고칠 때는 필수다.** `nerv_spec_get` 응답의 `content_hash` 를 저장에 그대로 실으면, 서버가 "그 사이 아무도 안 바꿨다"를 확인하고 아니면 막는다. 저장 응답은 **새 지문**을 주므로 이어서 고칠 때는 그것을 쓴다(매번 다시 읽지 않아도 된다).
 
 없으면 무슨 일이 있었는지: 세 세션이 같은 초안을 동시에 고쳤을 때 **셋 다 성공하고 본문에는 하나만 남았다** — 둘은 오류도 경고도 없이 자기 글을 잃었다(실측 2026-08-30).
+
+`content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 싣지 않는다: 견줄 판이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
 
 `stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그건 남의 글을 덮어쓰는 것이다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
 
