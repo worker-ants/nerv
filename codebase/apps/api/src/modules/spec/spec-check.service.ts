@@ -1,4 +1,5 @@
 import { text } from '@nerv/schema';
+import { extractLinkedKeys } from './spec-relation.service.js';
 // 제출 전 자동 사전 검토 — 5검사기 (E09-S02)
 // 정본: docs/03-proposal/spec-workflow.md §2.1
 //
@@ -93,14 +94,25 @@ export class SpecCheckService {
     return { verdict: worstOf(findings), findings, checkers: counts };
   }
 
-  /** 다른 스펙과의 중복 정의 — 안정 ID 참조 그래프로 기계 검출한다. */
+  /**
+   * 다른 스펙과의 관계 — 중복 정의, **끊긴 링크**, 그리고 **외딴 섬**.
+   *
+   * 뒤의 둘이 2026-08-30 에 들어왔다. 관계가 본문의 링크에서만 만들어지도록 좁힌 뒤
+   * (§2.2), 오타 하나가 곧 끊긴 관계다 — 저장 응답의 `unknown` 은 그 자리에서 흘려보내면
+   * 아무도 다시 보지 않으므로 검토가 다시 본다. 그리고 아무와도 이어지지 않은 문서는
+   * 그래프에서 없는 것과 같다: sudoku 13편이 그 상태로 조용히 통과했다.
+   */
   private async crossSpec(
     projectId: string,
     specId: string,
     body: string,
   ): Promise<CheckFinding[]> {
+    const findings = [
+      ...(await this.unresolvedLinks(projectId, specId, body)),
+      ...(await this.isolated(specId)),
+    ];
     const refs = [...new Set(body.match(/[A-Z]+-[A-Z]+-\d+/g) ?? [])];
-    if (refs.length === 0) return [];
+    if (refs.length === 0) return findings;
 
     // 이 문서가 언급한 요구사항 ID 중 **다른 스펙이 이미 소유한** 것 — 중복 정의의 신호다
     const { rows } = await this.db.execute<{ ref: string; owner_key: string }>(sql`
@@ -110,14 +122,64 @@ export class SpecCheckService {
          AND r.ref = ANY(${sql.raw(`ARRAY[${refs.map((r) => `'${r}'`).join(',')}]::text[]`)})
     `);
 
-    return rows.map((row) => ({
-      checker: 'cross-spec' as const,
-      // 인용은 정상이므로 경고다. 차단은 같은 ID 를 **정의**할 때인데 그 판정은
-      // 요구사항 블록 파싱이 필요해 requirement-shape 가 본다.
-      severity: 'warning' as const,
-      message: `${row.ref} 은 ${row.owner_key} 가 소유한다 — 재정의라면 중복이다`,
-      anchor: row.ref,
-    }));
+    return findings.concat(
+      rows.map((row) => ({
+        checker: 'cross-spec' as const,
+        // 인용은 정상이므로 경고다. 차단은 같은 ID 를 **정의**할 때인데 그 판정은
+        // 요구사항 블록 파싱이 필요해 requirement-shape 가 본다.
+        severity: 'warning' as const,
+        message: `${row.ref} 은 ${row.owner_key} 가 소유한다 — 재정의라면 중복이다`,
+        anchor: row.ref,
+      })),
+    );
+  }
+
+  /** 본문 링크가 가리키는데 이 프로젝트에 없는 문서 — 오타는 곧 끊긴 관계다 */
+  private async unresolvedLinks(
+    projectId: string,
+    specId: string,
+    body: string,
+  ): Promise<CheckFinding[]> {
+    const { rows: self } = await this.db.execute<{ key: string }>(
+      sql`SELECT key FROM spec WHERE id = ${specId}`,
+    );
+    const keys = extractLinkedKeys(body, self[0]?.key ?? null);
+    if (keys.length === 0) return [];
+    const { rows: known } = await this.db.execute<{ key: string }>(sql`
+      SELECT key FROM spec
+       WHERE project_id = ${projectId}
+         AND key IN (${sql.join(
+           keys.map((k) => sql`${k}`),
+           sql`, `,
+         )})
+    `);
+    const have = new Set(known.map((r) => r.key));
+    return keys
+      .filter((key) => !have.has(key))
+      .map((key) => ({
+        checker: 'cross-spec' as const,
+        severity: 'warning' as const,
+        message: text('check.link_unknown', { key }),
+        anchor: key,
+      }));
+  }
+
+  /** 어느 방향으로도 이어지지 않은 문서 — 그래프에서는 없는 것과 같다 */
+  private async isolated(specId: string): Promise<CheckFinding[]> {
+    const { rows } = await this.db.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM spec_relation
+       WHERE from_spec_id = ${specId} OR to_spec_id = ${specId}
+    `);
+    if ((rows[0]?.n ?? 0) > 0) return [];
+    return [
+      {
+        checker: 'cross-spec',
+        // block 이 아니다 — 비전처럼 정말 아무것도 참조하지 않는 문서가 있다
+        severity: 'warning',
+        message: text('check.no_relations'),
+        anchor: null,
+      },
+    ];
   }
 
   /** 기각한 대안의 무자각 재도입 — Rationale 을 결정 레코드로 보관해 질의한다. */

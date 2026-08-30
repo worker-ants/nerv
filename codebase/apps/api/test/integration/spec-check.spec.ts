@@ -136,7 +136,10 @@ describe('E09-S02 requirement-shape', () => {
   it('앵커를 남긴다 — 어디를 고쳐야 하는지 가리킨다', async () => {
     const { versionId } = await draft('SPC-ANCHOR', '# 문서\n\nREQ-CWC-034 잘못된 문형');
     const result = await checks.check({ projectId, specVersionId: versionId });
-    expect(result.findings[0]?.anchor).toBe('REQ-CWC-034');
+    // **검사기로 골라 본다.** `findings[0]` 은 검사기가 늘어날 때마다 깨지는 단언이고,
+    // 실제로 cross-spec 이 "아무와도 이어지지 않았다"를 내기 시작하자 깨졌다(2026-08-30)
+    const shape = result.findings.filter((f) => f.checker === 'requirement-shape');
+    expect(shape[0]?.anchor).toBe('REQ-CWC-034');
   });
 });
 

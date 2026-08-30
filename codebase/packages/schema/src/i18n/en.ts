@@ -133,6 +133,10 @@ export const en = {
     'Record status with nerv_task_update, then release with nerv_task_release before exiting.',
   'gate.reason.retry_threshold': 'retry threshold exceeded → tier +1',
   'gate.reason.recent_rollback': 'rollback within 30 days → tier +1',
+  'check.link_unknown':
+    'A link points at {key}, which does not exist in this project — a typo, or a document not written yet.',
+  'check.no_relations':
+    'This document is connected to nothing — if it refers to another spec, link it in the body.',
   'check.version_not_found': 'Version not found.',
   'export.index_lead':
     '> NERV spec tree index. Each entry points at the md mirror of the latest approved version.',
@@ -256,6 +260,7 @@ export const en = {
   'mcp.arg.event_seq': 'Monotonic within the session — the idempotency key for resends',
   'mcp.arg.around': 'spec key — when given, only the neighbourhood of this document',
   'mcp.arg.scope': 'Specs and files this work will touch — the input to overlap detection',
+  'mcp.arg.relations': 'Declared relations — judgements like refines/depends_on. A different axis from the references that body links create; omit it and nothing is touched',
   'mcp.arg.question_context': 'Where this came from — stable IDs so a human can read the source',
   'mcp.arg.escalate': 'Why a human is being called — one of five reasons (spec-workflow §4.7)',
   'mcp.arg.blocking':

@@ -59,6 +59,14 @@ export interface DraftUpsertInput {
   type?: string;
   parentId?: string | null;
   bodyMd: string;
+  /**
+   * 선언 관계(`refines`·`depends_on`·`duplicates`·`supersedes`) — 저장 한 번에 확정한다.
+   *
+   * **주지 않으면 건드리지 않는다.** 본문만 고치는 저장이 매번 관계를 쓸어버리면
+   * 아무도 관계를 선언하지 않게 된다. 빈 배열은 "전부 지워라"다.
+   * `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
+   */
+  relations?: readonly { to: string; kind: string }[] | undefined;
   /** 낙관적 동시성 — 불일치는 409. 리스의 최후 방어선이다(§1.2) */
   baseVersionId?: string | null;
   userId: string;
@@ -333,6 +341,7 @@ export class SpecService {
            WHERE id = ${draft.id}
         `);
         const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
+        const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
 
         // **같은 draft 를 다시 저장해도 알린다**(2026-08-29 개정 — 사람 보고).
         // 예전에는 여기서 아무 이벤트도 내지 않았다("리스 갱신만" — api.md EP-SPEC-08).
@@ -355,7 +364,7 @@ export class SpecService {
           spec_version_id: draft.id,
           version_no: draft.version_no,
           created: false,
-          relations,
+          relations: { ...relations, declared },
           web_url: await this.webUrl(tx, input.projectId, specId),
         };
       }
@@ -394,12 +403,13 @@ export class SpecService {
       });
 
       const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
+      const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
       return {
         spec_id: specId,
         spec_version_id: versionId,
         version_no: versionNo,
         created: true,
-        relations,
+        relations: { ...relations, declared },
         web_url: await this.webUrl(tx, input.projectId, specId),
       };
     });
@@ -1120,6 +1130,20 @@ export class SpecService {
     const path = row === undefined ? '/' : `/p/${row.slug}/specs/${row.key}`;
     const base = process.env['NERV_PUBLIC_URL'];
     return base === undefined || base === '' ? path : `${base.replace(/\/$/, '')}${path}`;
+  }
+
+  /**
+   * 선언 관계 — **주지 않았으면 건드리지 않는다.** 그 구분이 이 래퍼의 전부다:
+   * 본문만 고치는 저장이 매번 선언 관계를 쓸어버리면 아무도 관계를 선언하지 않게 된다.
+   */
+  private async syncDeclared(
+    tx: Tx,
+    projectId: string,
+    specId: string,
+    declared: readonly { to: string; kind: string }[] | undefined,
+  ): Promise<string[] | null> {
+    if (declared === undefined) return null;
+    return this.relationService.syncDeclared(tx, { projectId, specId, declared });
   }
 
   /**

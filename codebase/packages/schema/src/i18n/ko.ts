@@ -135,6 +135,8 @@ export const ko = {
     'nerv_task_update 로 상태를 남기고 nerv_task_release 로 내려놓은 뒤 끝내세요.',
   'gate.reason.retry_threshold': '재시도 임계 초과 → 티어 +1',
   'gate.reason.recent_rollback': '최근 30일 롤백 이력 → 티어 +1',
+  'check.link_unknown': '링크가 가리키는 {key} 를 이 프로젝트에서 찾을 수 없습니다 — 오타이거나 아직 안 쓴 문서입니다.',
+  'check.no_relations': '이 문서는 어떤 문서와도 이어져 있지 않습니다 — 가리킬 문서가 있으면 본문에 링크로 답니다.',
   'check.version_not_found': '버전을 찾을 수 없습니다.',
   'export.index_lead': '> NERV 스펙 트리 색인. 각 항목은 승인된 최신 버전의 md 미러를 가리킨다.',
   'export.index_specs': '## 스펙',
@@ -255,6 +257,7 @@ export const ko = {
   'mcp.arg.event_seq': '세션 내 단조 증가 — 재전송 멱등 키',
   'mcp.arg.around': 'spec key — 주면 이 문서 주변만',
   'mcp.arg.scope': '이 작업이 건드릴 스펙·파일. 겹침 판정의 입력이다',
+  'mcp.arg.relations': '선언 관계 — 정제·선행 같은 판단. 본문 링크가 만드는 references 와 다른 축이고, 주지 않으면 건드리지 않는다',
   'mcp.arg.question_context': '출처 — 사람이 원문으로 갈 수 있게 안정 ID 를 단다',
   'mcp.arg.escalate': '왜 사람을 부르는가 — 5종 어휘(spec-workflow §4.7)',
   'mcp.arg.blocking':

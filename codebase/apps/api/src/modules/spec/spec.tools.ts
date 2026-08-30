@@ -67,8 +67,8 @@ export class SpecTools implements NervToolProvider {
         required: ['from', 'to', 'kind'],
         properties: {
           project: { type: 'string' },
-          from: { type: 'string', description: 'spec key' },
-          to: { type: 'string', description: 'spec key' },
+          from: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+          to: { type: 'string', description: 'spec key (SPC-…) or UUID' },
           kind: { type: 'string', enum: ['refines', 'depends_on', 'duplicates', 'supersedes'] },
           // 되돌리는 경로를 같은 도구에 둔다 — 잘못 넣은 관계를 지울 수 없으면 아무도 안 넣는다
           remove: { type: 'boolean', default: false },
@@ -158,6 +158,24 @@ export class SpecTools implements NervToolProvider {
             description: 'new spec only',
           },
           parent_id: { type: 'string', description: 'new spec only — parent key or UUID' },
+          // **선언 관계** — 본문의 링크가 만드는 `references` 와 다른 축이다(§2.2).
+          // 정제·선행은 문서를 읽어야 아는 판단이라 문장에 적히지 않으므로 명시해야 남는다.
+          // 주지 않으면 건드리지 않고, 빈 배열은 "전부 지워라"다.
+          relations: {
+            type: 'array',
+            description: 'mcp.arg.relations',
+            items: {
+              type: 'object',
+              required: ['to', 'kind'],
+              properties: {
+                to: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+                kind: {
+                  type: 'string',
+                  enum: ['refines', 'depends_on', 'duplicates', 'supersedes'],
+                },
+              },
+            },
+          },
         },
         required: ['body_md'],
       },
@@ -176,6 +194,9 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['title'] === 'string' ? { title: input['title'] } : {}),
           ...(typeof input['type'] === 'string' ? { type: input['type'] } : {}),
           ...(typeof input['parent_id'] === 'string' ? { parentId: input['parent_id'] } : {}),
+          ...(Array.isArray(input['relations'])
+            ? { relations: input['relations'] as { to: string; kind: string }[] }
+            : {}),
         }),
     },
     {

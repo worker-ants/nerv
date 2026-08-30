@@ -152,6 +152,93 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     expect(after.items.map((i) => i['key'])).toEqual(['SPC-A']);
   });
 
+  // ── 선언 관계 (2026-08-30 — 저장 한 번에 확정한다) ──────────────────────────
+  it('저장이 선언 관계까지 확정한다 — 본문에 적히지 않는 판단이라 명시해야 남는다', async () => {
+    await draft('SPC-BASE', '# base');
+    const child = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-REFINE',
+      title: 'refine',
+      type: 'feature',
+      bodyMd: '# refine',
+      relations: [{ to: 'SPC-BASE', kind: 'refines' }],
+      userId: planner,
+    });
+    expect((child['relations'] as { declared: string[] }).declared).toEqual(['refines:SPC-BASE']);
+
+    const out = await relations.list({ projectId, specKey: 'SPC-REFINE', direction: 'out' });
+    expect(out.items.map((i) => [i['kind'], i['key']])).toEqual([['refines', 'SPC-BASE']]);
+  });
+
+  it('주지 않으면 건드리지 않는다 — 본문만 고치는 저장이 관계를 쓸어버리면 아무도 안 쓴다', async () => {
+    await draft('SPC-BASE2', '# base');
+    const child = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-KEEP',
+      title: 'keep',
+      type: 'feature',
+      bodyMd: '# keep',
+      relations: [{ to: 'SPC-BASE2', kind: 'depends_on' }],
+      userId: planner,
+    });
+
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: child['spec_id'] as string,
+      bodyMd: '# keep — 본문만 고친다',
+      userId: planner,
+    });
+    const kept = await relations.list({ projectId, specKey: 'SPC-KEEP', direction: 'out' });
+    expect(kept.items.map((i) => i['key'])).toEqual(['SPC-BASE2']);
+
+    // 빈 배열은 "전부 지워라"다 — 되돌릴 길이 없으면 아무도 넣지 않는다
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: child['spec_id'] as string,
+      bodyMd: '# keep — 관계를 비운다',
+      relations: [],
+      userId: planner,
+    });
+    expect(
+      (await relations.list({ projectId, specKey: 'SPC-KEEP', direction: 'out' })).items,
+    ).toHaveLength(0);
+  });
+
+  it('references 는 선언으로 받지 않는다 — 본문이 그것의 주인이다', async () => {
+    await draft('SPC-BASE3', '# base');
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        key: 'SPC-BADKIND',
+        title: 'bad',
+        type: 'feature',
+        bodyMd: '# bad',
+        relations: [{ to: 'SPC-BASE3', kind: 'references' }],
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'auto_managed' } });
+  });
+
+  it('없는 문서를 선언하면 어느 항목인지 말한다', async () => {
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        key: 'SPC-BADREF',
+        title: 'bad',
+        type: 'feature',
+        bodyMd: '# bad',
+        relations: [{ to: 'SPC-NOWHERE', kind: 'refines' }],
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'not_found', field: 'relations.to' } });
+  });
+
   it('자기 자신은 참조가 아니다', async () => {
     const r = await specs.draftUpsert({
       roles: ['planner'],

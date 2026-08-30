@@ -14,6 +14,7 @@ import { msg, newId, NERV_ERROR } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
+import { entityRef } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
@@ -121,17 +122,16 @@ export class SpecRelationService {
     if (input.fromKey === input.toKey) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.self'), { kind: 'self' });
     }
-    const { rows } = await this.db.execute<{ id: string; key: string }>(sql`
-      SELECT id, key FROM spec
-       WHERE project_id = ${input.projectId} AND key IN (${input.fromKey}, ${input.toKey})
-    `);
-    const byKey = new Map(rows.map((r) => [r.key, r.id]));
-    const fromId = byKey.get(input.fromKey);
-    const toId = byKey.get(input.toKey);
-    if (fromId === undefined || toId === undefined) {
+    // 키든 UUID 든 같은 문서를 가리킨다(§1.4b) — 옆 도구들과 같은 규칙이다
+    const fromId = await this.resolveSpec(this.db, input.projectId, input.fromKey);
+    const toId = await this.resolveSpec(this.db, input.projectId, input.toKey);
+    if (fromId === null || toId === null) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
         kind: 'unknown_key',
-        missing: [input.fromKey, input.toKey].filter((k) => !byKey.has(k)),
+        missing: [
+          ...(fromId === null ? [input.fromKey] : []),
+          ...(toId === null ? [input.toKey] : []),
+        ],
       });
     }
     if (input.remove) {
@@ -220,6 +220,75 @@ export class SpecRelationService {
     }
 
     return { added: added.sort(), removed: removed.sort(), unknown };
+  }
+
+  /**
+   * 저장 한 번에 **선언 관계까지** 확정한다(REQ-API-043).
+   *
+   * `references` 는 여기서 다루지 않는다 — 본문(링크)이 그것의 주인이다. 두 주인을 두면
+   * 산문에서 지운 참조가 배열에 남아 유령이 되고, 그래프는 한 번 틀리는 순간 신뢰를 잃는다.
+   *
+   * **주지 않은 것(`undefined`)과 빈 배열은 다르다**: 앞은 "건드리지 마라"(본문만 고치는
+   * 저장), 뒤는 "선언 관계를 전부 지워라"다. 이 구분이 없으면 본문만 고치는 저장이
+   * 매번 선언 관계를 쓸어버린다.
+   */
+  async syncDeclared(
+    tx: Tx,
+    input: {
+      projectId: string;
+      specId: string;
+      declared: readonly { to: string; kind: string }[];
+    },
+  ): Promise<string[]> {
+    const wanted: { toId: string; kind: string; to: string }[] = [];
+    for (const entry of input.declared) {
+      if (entry.kind === 'references') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.auto_kind'), {
+          kind: 'auto_managed',
+          field: 'relations',
+        });
+      }
+      const toId = await this.resolveSpec(tx, input.projectId, entry.to);
+      if (toId === null) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+          kind: 'not_found',
+          field: 'relations.to',
+          value: entry.to,
+        });
+      }
+      if (toId === input.specId) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.self'), { kind: 'self' });
+      }
+      wanted.push({ toId, kind: entry.kind, to: entry.to });
+    }
+
+    await tx.execute(sql`
+      DELETE FROM spec_relation
+       WHERE from_spec_id = ${input.specId} AND kind <> 'references'
+    `);
+    for (const entry of wanted) {
+      await tx.execute(sql`
+        INSERT INTO spec_relation (id, project_id, from_spec_id, to_spec_id, kind)
+        VALUES (${newId()}, ${input.projectId}, ${input.specId}, ${entry.toId},
+                ${entry.kind}::spec_relation_kind)
+        ON CONFLICT DO NOTHING
+      `);
+    }
+    return wanted.map((w) => `${w.kind}:${w.to}`).sort();
+  }
+
+  /** 키든 UUID 든 이 프로젝트의 스펙 하나로 — 못 찾으면 null(부르는 쪽이 문맥을 안다) */
+  private async resolveSpec(
+    db: Tx | NervDb,
+    projectId: string,
+    ref: string,
+  ): Promise<string | null> {
+    const parsed = entityRef(ref);
+    const match = parsed.id !== null ? sql`id = ${parsed.id}` : sql`key = ${parsed.key ?? ''}`;
+    const { rows } = await db.execute<{ id: string }>(
+      sql`SELECT id FROM spec WHERE project_id = ${projectId} AND ${match}`,
+    );
+    return rows[0]?.id ?? null;
   }
 
   /** EP-SPEC-18 — direction=out/in/both. 역참조가 같은 표에 1급으로 섞여 나온다. */
