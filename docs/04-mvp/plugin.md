@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.18 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.19 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.19 변경(2026-08-30 — 도구 2종 신설 반영): `skills/impl` 의 allowed-tools 에 **`nerv_task_get`·`nerv_task_create`**, `skills/next` 에 `nerv_task_get` 을 더한다(4.1 §4.2). 이번 작업 밖의 별도 건을 **Task 로 남기는 절차**를 적었다 — 4요소를 못 채우면 `backlog` 에 남고 사람이 마저 채운다. 잊는 것보다 낫다.
 > v0.18 변경(2026-08-30 — 아무도 다른 길을 말해 주지 않았다): `skills/spec` 과 `nerv-spec-writer` 에 **"다이어그램은 mermaid 로"** 절을 넣는다(§2.2). 에이전트가 스펙에 아스키 아트를 그리고 있었다 — 시킨 대로 한 결과다. 저장 쪽은 이미 무손실이었고(왕복 실측) 빠져 있던 것은 그리는 쪽과 **말해 주는 쪽**이다(4.5 §3.1b · REQ-WEB-113).
 > v0.17 변경(2026-08-30 — 스킬이 틀린 모양을 가르치고 있었다): `skills/impl` 의 `evidence` 예시가 `commit_sha·pr_url·test_ids` 였는데 **서버 계약은 `[{kind, locator}]` 배열**이다 — 그 모양으로 보낸 증적은 한 건도 저장되지 않고 done 게이트가 "증적 없음" 으로 막는다. 모양·`kind` 여섯 값·`spec_impact` 선언·`status` 일곱 값을 적었다. 서버에 없는 `note` 인자도 걷었다(§2.3).
 > v0.16 변경(2026-08-30 — 결함 정정 후속): `skills/spec` 과 `nerv-spec-writer` 가 **`content_hash` 가 null 인 문서**(본문이 아직 없는 묶음 노드)를 말한다 — 그때는 `base_hash` 를 싣지 않는다(4.4 §1.4i · REQ-API-054). 서버는 고쳤는데 스킬이 그 경우를 몰라 에이전트가 "지문이 없다"에서 멈출 수 있었다.
@@ -110,6 +111,7 @@ description: NERV에서 다음 할 일을 받아 클레임한다. 세션 시작 
 allowed-tools:
   - mcp__nerv__nerv_bootstrap
   - mcp__nerv__nerv_task_next
+  - mcp__nerv__nerv_task_get
   - mcp__nerv__nerv_task_claim
   - mcp__nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
@@ -333,7 +335,9 @@ name: impl
 description: 클레임한 Task의 구현 루프. 하트비트 60초 규약, pending 지시 처리, 진행 보고, 증적(commit/PR/test) 수집, 상태 전이. 구현 착수 시 사용.
 allowed-tools:
   - mcp__nerv__nerv_task_heartbeat
+  - mcp__nerv__nerv_task_get
   - mcp__nerv__nerv_task_update
+  - mcp__nerv__nerv_task_create
   - mcp__nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
 ---
@@ -377,6 +381,12 @@ allowed-tools:
   `commit`·`review`·`user_guide` 여섯 중 하나이고 `locator` 는 그것을 가리키는 문자열이다
   (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). 예: `[{kind: "commit", locator: "a1b2c3d"},
   {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
+- 작업 중에 **이번 Task 밖의 별도 건**을 발견하면 `nerv_task_create`(`title` 필수, 그리고
+  위임 명세 4요소 `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`)로
+  남긴다. 넷이 다 차야 서버가 `ready` 로 올리므로, 채우지 못하면 `backlog` 에 남아
+  사람이 마저 채운다 — **잊는 것보다 낫다.** 지금 하던 일을 그것 때문에 멈추지 않는다.
+- 특정 Task 를 읽어야 하면 `nerv_task_get`(`task_id` — 키든 UUID든)이다.
+  `nerv_task_next` 는 **지금 클레임할 수 있는 후보**만 준다.
 - `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
   `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
   "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.

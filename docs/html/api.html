@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 16종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.36 (2026-08-30)</span>
+      <span>버전 v0.37 (2026-08-30)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -1095,6 +1095,8 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td><code>nerv_spec_submit_review</code></td><td><b>A3</b></td><td><code>SpecService.submitReview</code> → <code>ApprovalService.request</code></td><td>EP-SPEC-10</td><td>pending Approval 재사용(카드 중복 금지) — 표면 무관</td></tr>
       <tr><td><code>nerv_spec_check</code></td><td>A1</td><td><code>SpecService.check</code></td><td>EP-SPEC-09</td><td>5검사기 서비스 호출</td></tr>
       <tr><td><code>nerv_spec_comment_resolve</code></td><td>A2</td><td><code>SpecService.resolveComment</code></td><td>EP-CMT-04</td><td></td></tr>
+      <tr><td><code>nerv_task_get</code></td><td>A1</td><td><code>TaskService.get</code></td><td>EP-TASK-02</td><td>2026-08-30 신설 — MCP 에 Task 단건 조회가 없어 <code>nerv_task_next</code>(클레임 후보)만 볼 수 있었다. 키·UUID 둘 다 받는다(§1.4b)</td></tr>
+      <tr><td><code>nerv_task_create</code></td><td>A2</td><td><code>TaskService.create</code></td><td>EP-TASK-03</td><td>2026-08-30 신설 — 위임 명세 4요소가 차야 서버가 <code>ready</code> 로 올린다(D-09)</td></tr>
       <tr><td><code>nerv_task_update</code></td><td>A2(정책상 done은 A3)</td><td><code>TaskService.transition</code></td><td>EP-TASK-09</td><td>done 게이트 판정 단일 지점</td></tr>
       <tr><td><code>nerv_spec_relate</code></td><td>A2</td><td><code>SpecRelationService.declare</code></td><td>— (관계 선언은 에이전트 전용 — 사람의 경로는 본문 참조 자동 동기화(REQ-API-024)와 S3 관계 패널 조회다)</td><td>문서를 읽어야 아는 판단(<code>refines</code>·<code>depends_on</code>)을 채우는 도구. <code>references</code>는 본문에서 자동 동기화되므로 이 도구가 거부한다</td></tr>
       <tr><td><code>nerv_question_create</code></td><td>A2</td><td><code>QuestionService.create</code></td><td>— (질문 생성은 에이전트 전용. 사람의 답변이 EP-QST-02)</td><td>멱등 재호출 = 폴링 규약은 MCP 표면 정의</td></tr>

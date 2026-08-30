@@ -288,6 +288,10 @@ export const ko = {
   'mcp.arg.body_markdown': '스펙 본문(markdown) — `body_md` 라는 이름으로도 받는다',
   'mcp.arg.change_summary':
     '무엇을 왜 바꿨나 — 버전에 남는 유일한 사람 말이다. 주지 않으면 앞의 것을 지우지 않는다',
+  'mcp.arg.goal_md': '무엇을 이루면 끝인가 — 위임 명세 4요소 중 하나다',
+  'mcp.arg.output_format_md': '무엇을 내놓아야 하는가(PR·문서·패치) — 위임 명세 4요소',
+  'mcp.arg.tools_sources_md': '무엇을 보고 무엇으로 하는가 — 위임 명세 4요소',
+  'mcp.arg.boundaries_md': '건드리면 안 되는 것 — 위임 명세 4요소',
   'mcp.arg.evidence':
     '증적 — done 게이트가 요구한다. kind 는 code_path·test·pr·commit·review·user_guide',
   'mcp.arg.blocked_reason': '막힌 이유 — status=blocked 면 필수다',

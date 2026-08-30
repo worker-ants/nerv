@@ -4,6 +4,7 @@ description: NERV에서 다음 할 일을 받아 클레임한다. 세션 시작 
 allowed-tools:
   - mcp__nerv__nerv_bootstrap
   - mcp__nerv__nerv_task_next
+  - mcp__nerv__nerv_task_get
   - mcp__nerv__nerv_task_claim
   - mcp__nerv__nerv_task_release
   - mcp__nerv__nerv_question_create

@@ -33,6 +33,72 @@ export class TaskTools implements NervToolProvider {
       }),
     },
     {
+      // **읽을 길이 없었다**(사람 보고 2026-08-30). `nerv_task_next` 는 "지금 클레임할 수
+      // 있는 후보"만 주므로, 이미 진행 중인 Task 를 펼쳐 읽거나 위임 명세 4요소를 확인할
+      // 방법이 에이전트에게 없었다 — REST 에는 처음부터 있었다(§4 대응표).
+      name: 'nerv_task_get',
+      tier: 'A1',
+      phase: 'P1',
+      summaryKey: 'mcp.tool.before_claim',
+      // 읽기지만 클레임 축의 읽기다 — `nerv_task_next` 와 같은 스코프를 쓴다
+      scope: 'task:claim',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          task_id: { type: 'string', description: 'task key (CLV-T-…) or UUID' },
+        },
+        required: ['task_id'],
+      },
+      handler: async (input, ctx) =>
+        this.tasks.get({ projectId: ctx.projectId, taskKey: String(input['task_id'] ?? '') }),
+    },
+    {
+      // **만들 길도 없었다.** Task 는 임포터와 웹만 만들 수 있었고, 그래서 에이전트가
+      // "이건 이번 작업 밖의 별도 건이다" 를 남길 방법이 질문밖에 없었다 —
+      // 별도 작업이 질문 카드로 흘러가거나 그냥 잊혔다.
+      name: 'nerv_task_create',
+      tier: 'A2',
+      phase: 'P1',
+      summaryKey: 'mcp.tool.on_transition',
+      scope: 'task:update',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          title: { type: 'string' },
+          body_md: { type: 'string' },
+          priority: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3'] },
+          // **위임 명세 4요소**(D-09). 넷이 다 차야 서버가 `ready` 로 올린다 —
+          // 만들자마자 누가 집어 갈 수 있는 상태가 되는 것이 아니라는 뜻이다.
+          goal_md: { type: 'string', description: 'mcp.arg.goal_md' },
+          output_format_md: { type: 'string', description: 'mcp.arg.output_format_md' },
+          tools_sources_md: { type: 'string', description: 'mcp.arg.tools_sources_md' },
+          boundaries_md: { type: 'string', description: 'mcp.arg.boundaries_md' },
+          source_spec_version_id: { type: 'string' },
+          source_requirement_id: { type: 'string' },
+          idempotency_key: { type: 'string' },
+        },
+        required: ['title'],
+      },
+      handler: async (input, ctx) =>
+        this.tasks.create({
+          projectId: ctx.projectId,
+          userId: ctx.principal.userId,
+          title: String(input['title'] ?? ''),
+          ...pick(input, {
+            body_md: 'bodyMd',
+            priority: 'priority',
+            goal_md: 'goalMd',
+            output_format_md: 'outputFormatMd',
+            tools_sources_md: 'toolsSourcesMd',
+            boundaries_md: 'boundariesMd',
+            source_spec_version_id: 'sourceSpecVersionId',
+            source_requirement_id: 'sourceRequirementId',
+          }),
+        }),
+    },
+    {
       name: 'nerv_task_claim',
       tier: 'A2',
       phase: 'P0',
@@ -189,4 +255,16 @@ export class TaskTools implements NervToolProvider {
         }),
     },
   ];
+}
+
+/** 준 것만 넘긴다 — 안 준 값을 `null` 로 바꾸면 "지워라" 가 된다 */
+function pick(
+  input: Record<string, unknown>,
+  names: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [from, to] of Object.entries(names)) {
+    if (typeof input[from] === 'string' && input[from] !== '') out[to] = input[from];
+  }
+  return out;
 }

@@ -289,6 +289,10 @@ export const en = {
   'mcp.arg.body_markdown': 'The spec body (markdown) — also accepted as `body_md`',
   'mcp.arg.change_summary':
     'What changed and why — the only human sentence a version carries. Omit it and the previous one is kept',
+  'mcp.arg.goal_md': 'what counts as done — one of the four delegation elements',
+  'mcp.arg.output_format_md': 'what to hand back (PR, doc, patch) — delegation element',
+  'mcp.arg.tools_sources_md': 'what to read and what to use — delegation element',
+  'mcp.arg.boundaries_md': 'what must not be touched — delegation element',
   'mcp.arg.evidence':
     'evidence — required by the done gate. kind is one of code_path/test/pr/commit/review/user_guide',
   'mcp.arg.blocked_reason': 'why it is blocked — required when status=blocked',

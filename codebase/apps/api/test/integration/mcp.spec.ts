@@ -125,14 +125,17 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(String(result['instructions']).length).toBeLessThan(2048);
   });
 
-  it('tools/list 가 18종을 노출한다 — MVP 16(P0 8 + P1 8) + 리뷰 2(P2)', async () => {
+  it('tools/list 가 20종을 노출한다 — MVP 18(P0 8 + P1 10) + 리뷰 2(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
-    // **MVP 는 여전히 16종이다.** 카탈로그가 18인 것은 리뷰 수집(FR-09)이 Phase 2 에서
-    // 들어왔기 때문이다(2026-08-23 — scope.md §5 착수 기록). 두 수를 섞지 않는다.
-    expect(tools).toHaveLength(18);
+    // 카탈로그가 20인 것은 리뷰 수집(FR-09)이 Phase 2 에서 위에 얹혔기 때문이다 —
+    // 두 수를 섞지 않는다. MVP 는 18 이다(2026-08-30 사람 결정으로 16 → 18: Task 를
+    // 만들고 읽는 두 도구가 없어 에이전트가 자기 일 밖의 건을 남길 수 없었다).
+    expect(tools).toHaveLength(20);
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_relate');
+    expect(tools.map((t) => t.name)).toContain('nerv_task_get');
+    expect(tools.map((t) => t.name)).toContain('nerv_task_create');
     expect(tools.map((t) => t.name)).toContain('nerv_review_submit');
     expect(tools.map((t) => t.name)).toContain('nerv_finding_resolve');
     for (const tool of tools) expect(tool.inputSchema).toBeTruthy();
@@ -724,6 +727,40 @@ describe('E03-S04 에러 규약 — 구조화 결과', () => {
       'commit:a1b2c3d',
       'test:spec-concurrency.spec.ts',
     ]);
+  });
+
+  // 2026-08-30 사람 결정 — MCP 표면이 REST 의 **부분집합**이었다: 만들기·읽기가 없었다.
+  it('만들고 읽는다 — 에이전트가 자기 일 밖의 건을 남길 수 있다', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-11',
+      external_session_id: 'S-create',
+    });
+    const made = await callTool('nerv_task_create', {
+      session_id: boot['session_id'],
+      title: '리스 해제 경로에 테스트가 없다',
+      goal_md: '해제 경로 L2 를 세운다',
+      output_format_md: 'PR',
+      tools_sources_md: 'nerv_spec_get',
+      boundaries_md: '스키마는 건드리지 않는다',
+      priority: 'P1',
+    });
+    // 만들자마자 누가 집어 가지 않는다 — 4요소가 차야 서버가 ready 로 올린다(D-09)
+    expect(made['status']).toBe('backlog');
+    expect(made['key']).toEqual(expect.any(String));
+
+    // 키로도 UUID 로도 읽는다(§1.4b) — 옆 도구들과 같은 규칙이다
+    const byKey = await callTool('nerv_task_get', {
+      session_id: boot['session_id'],
+      task_id: made['key'],
+    });
+    const byId = await callTool('nerv_task_get', {
+      session_id: boot['session_id'],
+      task_id: made['task_id'],
+    });
+    expect(byKey['title']).toBe('리스 해제 경로에 테스트가 없다');
+    expect(byId['id']).toBe(made['task_id']);
+    expect(byKey['goal_md']).toBe('해제 경로 L2 를 세운다');
   });
 
   it('상태 이름은 열거가 지킨다 — 지어낸 이름은 호출 전에 막힌다', async () => {

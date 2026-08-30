@@ -15,6 +15,7 @@ import {
 import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
 import { displayKey } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -57,6 +58,15 @@ export interface ReadyCandidate extends Record<string, unknown> {
   boundaries_md: string;
   source_spec_version_id: string | null;
   baseline_id: string | null;
+}
+
+/**
+ * Task 한 건을 가리키는 조건 — **키와 UUID 를 둘 다 받는다**(§1.4b).
+ * 아무 문자열이나 `::uuid` 로 캐스팅하면 22P02 가 나고, 그건 "못 찾았다"가 아니라 500 이다.
+ */
+function taskMatch(ref: string): SQL {
+  const parsed = entityRef(ref);
+  return parsed.id === null ? sql`t.key = ${ref}` : sql`t.id = ${parsed.id}`;
 }
 
 @Injectable()
@@ -202,6 +212,13 @@ export class TaskService {
   }
 
   /** EP-TASK-04 — 위임 명세·활성 클레임·의존·Evidence 전량. */
+  /**
+   * EP-TASK-02 — Task 한 건. **키든 UUID 든 받는다**(§1.4b).
+   *
+   * 예전에는 키만 받았다 — 그런데 옆의 `nerv_task_claim`·`nerv_task_update` 는 둘 다
+   * 받으므로, 같은 이름의 인자가 도구마다 다른 것을 뜻하는 상태였다(스펙 축에서 이미
+   * 한 번 고친 종류다).
+   */
   async get(input: { projectId: string; taskKey: string }): Promise<Record<string, unknown>> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.*, t.status::text AS status, t.priority::text AS priority,
@@ -210,7 +227,7 @@ export class TaskService {
         FROM task t
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
-       WHERE t.project_id = ${input.projectId} AND t.key = ${input.taskKey}
+       WHERE t.project_id = ${input.projectId} AND ${taskMatch(input.taskKey)}
     `);
     const task = rows[0];
     if (task === undefined) {

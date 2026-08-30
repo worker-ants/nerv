@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.18 (2026-08-30)</span>
+      <span>버전 v0.19 (2026-08-30)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -150,6 +150,7 @@ description: NERV에서 다음 할 일을 받아 클레임한다. 세션 시작 
 allowed-tools:
   - mcp__nerv__nerv_bootstrap
   - mcp__nerv__nerv_task_next
+  - mcp__nerv__nerv_task_get
   - mcp__nerv__nerv_task_claim
   - mcp__nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
@@ -184,7 +185,7 @@ allowed-tools:
    - `NERV_CONFLICT_SCOPE`: 클레임 실패다. 응답 details의 상대 정보를 보고하고
      다음 후보로 이동한다. 후보가 없으면 `nerv_question_create`.
 6. **기준 버전으로 컨텍스트 로드.** 구현 컨텍스트의 스펙 읽기는 항상
-   `nerv_spec_get`(`spec_id`, `version=<후보의 기준 버전>`)으로 한다 — 기본값(최신 approved)에
+   `nerv_spec_get`(`spec_id`, `version=&lt;후보의 기준 버전&gt;`)으로 한다 — 기본값(최신 approved)에
    의존하지 않는다. Task에 베이스라인이 있으면 주변 문서도 `baseline` 인자로 그 세트를 읽는다.
    응답에 `basis_superseded`가 있으면 그 사실을 사람에게 보고한다(기준 버전 규약 —
    agent-integration §2.4).
@@ -369,7 +370,9 @@ name: impl
 description: 클레임한 Task의 구현 루프. 하트비트 60초 규약, pending 지시 처리, 진행 보고, 증적(commit/PR/test) 수집, 상태 전이. 구현 착수 시 사용.
 allowed-tools:
   - mcp__nerv__nerv_task_heartbeat
+  - mcp__nerv__nerv_task_get
   - mcp__nerv__nerv_task_update
+  - mcp__nerv__nerv_task_create
   - mcp__nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
 ---
@@ -413,6 +416,12 @@ allowed-tools:
   `commit`·`review`·`user_guide` 여섯 중 하나이고 `locator` 는 그것을 가리키는 문자열이다
   (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). 예: `[{kind: "commit", locator: "a1b2c3d"},
   {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
+- 작업 중에 **이번 Task 밖의 별도 건**을 발견하면 `nerv_task_create`(`title` 필수, 그리고
+  위임 명세 4요소 `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`)로
+  남긴다. 넷이 다 차야 서버가 `ready` 로 올리므로, 채우지 못하면 `backlog` 에 남아
+  사람이 마저 채운다 — **잊는 것보다 낫다.** 지금 하던 일을 그것 때문에 멈추지 않는다.
+- 특정 Task 를 읽어야 하면 `nerv_task_get`(`task_id` — 키든 UUID든)이다.
+  `nerv_task_next` 는 **지금 클레임할 수 있는 후보**만 준다.
 - `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
   `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
   "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.

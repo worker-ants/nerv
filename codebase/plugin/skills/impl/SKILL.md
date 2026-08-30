@@ -3,7 +3,9 @@ name: impl
 description: 클레임한 Task의 구현 루프. 하트비트 60초 규약, pending 지시 처리, 진행 보고, 증적(commit/PR/test) 수집, 상태 전이. 구현 착수 시 사용.
 allowed-tools:
   - mcp__nerv__nerv_task_heartbeat
+  - mcp__nerv__nerv_task_get
   - mcp__nerv__nerv_task_update
+  - mcp__nerv__nerv_task_create
   - mcp__nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
 ---
@@ -47,6 +49,12 @@ allowed-tools:
   `commit`·`review`·`user_guide` 여섯 중 하나이고 `locator` 는 그것을 가리키는 문자열이다
   (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). 예: `[{kind: "commit", locator: "a1b2c3d"},
   {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
+- 작업 중에 **이번 Task 밖의 별도 건**을 발견하면 `nerv_task_create`(`title` 필수, 그리고
+  위임 명세 4요소 `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`)로
+  남긴다. 넷이 다 차야 서버가 `ready` 로 올리므로, 채우지 못하면 `backlog` 에 남아
+  사람이 마저 채운다 — **잊는 것보다 낫다.** 지금 하던 일을 그것 때문에 멈추지 않는다.
+- 특정 Task 를 읽어야 하면 `nerv_task_get`(`task_id` — 키든 UUID든)이다.
+  `nerv_task_next` 는 **지금 클레임할 수 있는 후보**만 준다.
 - `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
   `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
   "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.
