@@ -32,6 +32,8 @@ The two selects at the left of the header are the scope you are looking at: **or
 
 Home, inbox and notifications are organisation-wide, so their addresses carry no project. There the header shows the **project you looked at last** — an empty slot reads as "you cannot pick one", which would not be true.
 
+**To get back home, press the `NERV` logo at the top left.** There is no separate menu item for it — the logo is that link.
+
 ## Roles
 
 | Role                            | What it can do                                                    |

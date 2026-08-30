@@ -161,6 +161,7 @@ export function AppShell({
               같은 무게라 화면에 정박점이 되지 못한다(시안 대조 2026-08-23) */}
           <Link
             to="/"
+            title={t('shell.home')}
             className="mr-1 flex items-center gap-[7px] px-1 text-sm font-semibold tracking-[-0.01em]"
           >
             <span
@@ -276,15 +277,10 @@ export function AppShell({
             </div>
           )}
           <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
-          <Link
-            to="/"
-            className={HEADER_LINK}
-            activeProps={{ className: 'bg-bg-active text-text' }}
-            activeOptions={{ exact: true }}
-          >
-            {t('shell.home')}
-          </Link>
-          {/* **홈 오른쪽에 프로젝트 페이지로 가는 길**(사람 지시 2026-08-24). 프로젝트를
+          {/* **홈 링크는 두지 않는다**(2026-08-30 — 사람 지시). 로고가 이미 `/` 로 가는데
+              같은 자리로 가는 길을 둘 두면, 헤더에서 가장 비싼 왼쪽 끝을 같은 목적지가
+              두 번 차지한다. 로고를 누르면 홈이라는 것은 웹의 기본 약속이다. */}
+          {/* 프로젝트 select 오른쪽에 **그 프로젝트로 가는 길**(사람 지시 2026-08-24).
               골라도 갈 데가 없으면 select 는 표시일 뿐이다 — 고른 프로젝트의 개요로 간다.
               프로젝트가 없으면 자리도 없다(빈 링크를 두지 않는다). */}
           {currentProjectSlug !== null && (

@@ -158,11 +158,20 @@ describe('헤더 스코프 — 조직 → 프로젝트 (2026-08-24 · 사람 지
     expect(screen.getByTestId('org-switcher')).toBeDefined();
   });
 
-  it('홈 오른쪽에 프로젝트 페이지로 가는 길이 있다 — 골라도 갈 데가 없으면 표시일 뿐이다', async () => {
+  it('프로젝트 select 오른쪽에 그 프로젝트로 가는 길이 있다 — 골라도 갈 데가 없으면 표시일 뿐이다', async () => {
     renderAt('/p/clemvion/tasks');
     await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
     const nav = screen.getAllByRole('link', { name: '프로젝트' })[0];
     expect(nav?.getAttribute('href')).toBe('/p/clemvion');
+  });
+
+  it('헤더에 홈 링크는 없다 — 로고가 그 자리로 간다 (2026-08-30)', async () => {
+    renderAt('/p/clemvion/tasks');
+    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
+    // 같은 목적지로 가는 길을 둘 두면 헤더에서 가장 비싼 왼쪽 끝이 두 번 쓰인다
+    const toRoot = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === '/');
+    expect(toRoot).toHaveLength(1);
+    expect(toRoot[0]?.textContent).toContain('NERV');
   });
 
   it('드롭다운 **안**을 눌러도 닫히지 않는다 — 닫히면 그 항목은 눌러도 아무 일이 없다', async () => {
