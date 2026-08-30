@@ -447,6 +447,9 @@ function SpecDetail(): React.JSX.Element {
           key={spec}
           value={draft ?? body}
           readOnly={!editable}
+          projectSlug={proj}
+          projectId={projectUuid}
+          specKey={spec}
           onChange={(markdown, result) => {
             setDraft(markdown);
             setRoundTrip(result);

@@ -10,6 +10,8 @@
 
 import { useT } from '../../lib/i18n.js';
 import { EditorContent, useEditor } from '@tiptap/react';
+import type { Editor } from '@tiptap/react';
+import { SpecLinkPicker, specLinkHref } from './spec-link-picker.js';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
@@ -41,11 +43,24 @@ export interface SpecEditorProps {
   value: string;
   readOnly: boolean;
   onChange: (markdown: string, roundTrip: RoundTripResult) => void;
+  /** 스펙 링크를 만들 때 쓰는 주소 축 — 없으면 링크 버튼도 없다 */
+  projectSlug?: string | undefined;
+  projectId?: string | undefined;
+  /** 편집 중인 문서 — 자기 자신은 고를 수 없다 */
+  specKey?: string | undefined;
 }
 
-export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): React.JSX.Element {
+export function SpecEditor({
+  value,
+  readOnly,
+  onChange,
+  projectSlug,
+  projectId,
+  specKey,
+}: SpecEditorProps): React.JSX.Element {
   const t = useT();
   const [showSource, setShowSource] = useState(false);
+  const [linking, setLinking] = useState(false);
   /**
    * 바깥에서 마지막으로 밀어 넣은 본문. 두 가지를 이걸로 가른다:
    *   ① 아직 한 번도 동기화하지 않았다 = 편집기가 만들어지는 중이다 → 그때의 갱신은 편집이 아니다
@@ -105,6 +120,33 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
         >
           {showSource ? t('spec.editor.rich') : t('spec.editor.source')}
         </button>
+        {/* **관계는 본문의 링크에서만 만들어진다**(api.md §2.2). 링크를 넣는 길이 URL 을
+            손으로 붙이는 것뿐이면 사람이 쓴 문서는 계속 산문으로 남는다 — 규약을
+            에이전트에게만 지키게 하는 셈이다(2026-08-30 — 사람 결정). */}
+        {!readOnly && !showSource && projectSlug !== undefined && (
+          <div className="relative" data-menu-root>
+            <button
+              type="button"
+              data-testid="editor-link-spec"
+              onClick={() => setLinking((open) => !open)}
+              className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 hover:bg-bg-hover"
+            >
+              {t('spec.editor.link')}
+            </button>
+            {linking && (
+              <SpecLinkPicker
+                projectSlug={projectSlug}
+                projectId={projectId}
+                excludeKey={specKey}
+                onClose={() => setLinking(false)}
+                onPick={(spec) => {
+                  setLinking(false);
+                  insertSpecLink(editor, specLinkHref(projectSlug, spec.key), spec.title);
+                }}
+              />
+            )}
+          </div>
+        )}
         {/* 소스는 read-only 토글이다 — 소스를 직접 고치는 경로는 MVP 에 없다(§3.1) */}
         {showSource && <span className="text-text-faint">{t('spec.editor.source_readonly')}</span>}
       </div>
@@ -131,6 +173,28 @@ export function SpecEditor({ value, readOnly, onChange }: SpecEditorProps): Reac
       )}
     </div>
   );
+}
+
+/**
+ * 고른 문서를 링크로 넣는다.
+ *
+ * **고른 글자가 있으면 그 글자에 링크를 건다** — 사람이 이미 "협동 모드" 라고 써 둔 자리에
+ * 제목을 한 번 더 끼워 넣으면 문장이 망가진다. 고른 것이 없을 때만 제목을 글자로 넣는다.
+ */
+function insertSpecLink(editor: Editor | null, href: string, title: string): void {
+  if (editor === null) return;
+  const { from, to } = editor.state.selection;
+  if (from !== to) {
+    editor.chain().focus().setLink({ href }).run();
+    return;
+  }
+  editor
+    .chain()
+    .focus()
+    .insertContent({ type: 'text', text: title, marks: [{ type: 'link', attrs: { href } }] })
+    // 링크 뒤에 이어 쓰는 글자가 링크가 되지 않게 마크를 끊는다
+    .unsetMark('link')
+    .run();
 }
 
 /**
