@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.17 (2026-08-30)</span>
+      <span>버전 v0.18 (2026-08-30)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -276,6 +276,17 @@ allowed-tools:
 - 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind, base_hash}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
 - **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 싣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
 - 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`·`base_hash`, 되돌릴 때 `remove: true`)를 쓴다. 지울 때는 `base_hash` 를 요구하지 않는다.
+
+## 다이어그램은 mermaid 로 그린다
+
+**아스키 아트를 그리지 않는다.** 구조·흐름·상태를 그림으로 보여야 할 때는 언어 태그가 `mermaid` 인 코드 펜스를 쓴다 — 웹은 읽기 화면에서 그것을 그림으로 그리고, 아스키 아트는 그냥 글자로 남는다(폭이 좁은 화면에서는 줄이 접혀 형태마저 무너진다).
+
+쓸 수 있는 것은 mermaid 가 아는 전부다: `graph`·`flowchart`(구조·흐름) · `sequenceDiagram`(주고받는 순서) · `stateDiagram-v2`(상태 전이) · `erDiagram`(데이터 모형).
+
+- **한 그림에 한 가지만 담는다.** 노드가 스무 개를 넘으면 사람은 그것을 읽지 않는다 — 나눈다.
+- 노드 이름은 화면에 그대로 보이므로 **사람이 읽는 말**로 쓴다. 식별자를 그대로 쓰지 않는다.
+- 문법이 틀리면 화면은 그림 대신 코드와 함께 실패를 알린다 — 그림이 사라지지는 않지만 사람이 고쳐야 하므로, 확신이 없으면 단순한 형태로 쓴다.
+- 그림은 **본문을 대신하지 않는다.** 그림만 있고 문장이 없으면 검색에도 안 걸리고 요구사항 추출에도 잡히지 않는다.
 
 ## 서브커맨드
 

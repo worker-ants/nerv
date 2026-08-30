@@ -13,6 +13,9 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/react';
 import { SpecLinkPicker, specLinkHref } from './spec-link-picker.js';
 import StarterKit from '@tiptap/starter-kit';
+import { CodeBlock } from '@tiptap/extension-code-block';
+import { ReactNodeViewRenderer } from '@tiptap/react';
+import { MermaidBlock } from './mermaid-block.js';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
@@ -25,7 +28,14 @@ import { cn } from '../../lib/utils.js';
 export const EDITOR_EXTENSIONS = [
   // StarterKit 이 link 를 포함한다 — 따로 추가하면 확장 이름이 중복돼 경고가 나고
   // 마크 처리 순서가 흔들린다(실측: 왕복 스파이크에서 경고로 드러났다).
-  StarterKit.configure({ link: { openOnClick: false } }),
+  //
+  // **codeBlock 만 갈아 끼운다**(2026-08-30). 코드블록 자체는 StarterKit 의 것과 같고,
+  // 붙는 것은 노드뷰 하나뿐이다 — `language` 가 `mermaid` 면 읽을 때 그림으로 그린다.
+  // md 직렬화는 건드리지 않는다(왕복 스파이크가 그것을 지킨다).
+  StarterKit.configure({ link: { openOnClick: false }, codeBlock: false }),
+  CodeBlock.extend({
+    addNodeView: () => ReactNodeViewRenderer(MermaidBlock),
+  }),
   Table.configure({ resizable: false }),
   TableRow,
   TableHeader,

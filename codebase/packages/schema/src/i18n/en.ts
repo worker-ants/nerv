@@ -686,6 +686,7 @@ export const en = {
   'spec.impact_send': 'Send the review request',
   'spec.impact_tasks': '{count} derived tasks — a new basis version means a re-brief',
   'spec.impact_title': 'What this change shakes',
+  'spec.mermaid_failed': 'Could not draw the diagram — check the syntax.',
   'spec.lease_mine': '✏️ Editing — {name} · web · auto-renewed (30 min)',
   'spec.lease_mine_anon': 'you',
   'spec.lease_other': '✏️ {name} is editing — switched you to read-only.',

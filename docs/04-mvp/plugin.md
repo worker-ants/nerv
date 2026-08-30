@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.17 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.18 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.18 변경(2026-08-30 — 아무도 다른 길을 말해 주지 않았다): `skills/spec` 과 `nerv-spec-writer` 에 **"다이어그램은 mermaid 로"** 절을 넣는다(§2.2). 에이전트가 스펙에 아스키 아트를 그리고 있었다 — 시킨 대로 한 결과다. 저장 쪽은 이미 무손실이었고(왕복 실측) 빠져 있던 것은 그리는 쪽과 **말해 주는 쪽**이다(4.5 §3.1b · REQ-WEB-113).
 > v0.17 변경(2026-08-30 — 스킬이 틀린 모양을 가르치고 있었다): `skills/impl` 의 `evidence` 예시가 `commit_sha·pr_url·test_ids` 였는데 **서버 계약은 `[{kind, locator}]` 배열**이다 — 그 모양으로 보낸 증적은 한 건도 저장되지 않고 done 게이트가 "증적 없음" 으로 막는다. 모양·`kind` 여섯 값·`spec_impact` 선언·`status` 일곱 값을 적었다. 서버에 없는 `note` 인자도 걷었다(§2.3).
 > v0.16 변경(2026-08-30 — 결함 정정 후속): `skills/spec` 과 `nerv-spec-writer` 가 **`content_hash` 가 null 인 문서**(본문이 아직 없는 묶음 노드)를 말한다 — 그때는 `base_hash` 를 싣지 않는다(4.4 §1.4i · REQ-API-054). 서버는 고쳤는데 스킬이 그 경우를 몰라 에이전트가 "지문이 없다"에서 멈출 수 있었다.
 > v0.15 변경(2026-08-30 — 사람 결정 후속): `skills/spec` 과 `nerv-spec-writer` 에서 **`base_version` 을 걷고**(전제조건은 `base_hash` 하나다), **`key_taken`** 을 에러 표에 더한다 — 그 답은 키를 바꾸는 것이 아니라 **그 문서를 읽고 이어 쓰는 것**이다(§2.2).
@@ -237,6 +238,17 @@ allowed-tools:
 - 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind, base_hash}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
 - **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 싣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
 - 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`·`base_hash`, 되돌릴 때 `remove: true`)를 쓴다. 지울 때는 `base_hash` 를 요구하지 않는다.
+
+## 다이어그램은 mermaid 로 그린다
+
+**아스키 아트를 그리지 않는다.** 구조·흐름·상태를 그림으로 보여야 할 때는 언어 태그가 `mermaid` 인 코드 펜스를 쓴다 — 웹은 읽기 화면에서 그것을 그림으로 그리고, 아스키 아트는 그냥 글자로 남는다(폭이 좁은 화면에서는 줄이 접혀 형태마저 무너진다).
+
+쓸 수 있는 것은 mermaid 가 아는 전부다: `graph`·`flowchart`(구조·흐름) · `sequenceDiagram`(주고받는 순서) · `stateDiagram-v2`(상태 전이) · `erDiagram`(데이터 모형).
+
+- **한 그림에 한 가지만 담는다.** 노드가 스무 개를 넘으면 사람은 그것을 읽지 않는다 — 나눈다.
+- 노드 이름은 화면에 그대로 보이므로 **사람이 읽는 말**로 쓴다. 식별자를 그대로 쓰지 않는다.
+- 문법이 틀리면 화면은 그림 대신 코드와 함께 실패를 알린다 — 그림이 사라지지는 않지만 사람이 고쳐야 하므로, 확신이 없으면 단순한 형태로 쓴다.
+- 그림은 **본문을 대신하지 않는다.** 그림만 있고 문장이 없으면 검색에도 안 걸리고 요구사항 추출에도 잡히지 않는다.
 
 ## 서브커맨드
 

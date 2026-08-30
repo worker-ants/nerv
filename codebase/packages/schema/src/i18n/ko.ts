@@ -677,6 +677,7 @@ export const ko = {
   'spec.impact_send': '검토 요청 보내기',
   'spec.impact_tasks': '파생 Task {count}건 — 기준 버전이 바뀌면 재브리핑',
   'spec.impact_title': '이 변경이 흔드는 것',
+  'spec.mermaid_failed': '다이어그램을 그리지 못했습니다 — 문법을 확인하세요.',
   'spec.lease_mine': '✏️ 편집 중 — {name} · 웹 · 자동 갱신(30분)',
   'spec.lease_mine_anon': '나',
   'spec.lease_other': '✏️ {name} 이(가) 편집 중입니다 — 읽기 전용으로 전환했습니다.',
