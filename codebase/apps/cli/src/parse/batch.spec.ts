@@ -9,7 +9,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { displayKeySuffix } from '@nerv/schema/keys';
-import { runImport, withoutDuplicateTaskKeysForTesting } from '../run.js';
+import {
+  runImport,
+  withoutDuplicateKeysForTesting,
+  withoutDuplicateTaskKeysForTesting,
+} from '../run.js';
 
 const PLAN_COUNT = 481; // clemvion 실측 규모
 
@@ -129,6 +133,30 @@ describe('task 표시 ID — 충돌하면 조용히 덮어쓰지 않는다', () 
       entries as never,
     );
     expect(kept.map((k) => k.source_path)).toEqual(['plan/complete/y.md']);
+    expect(entries.filter((e) => e.disposition === 'aborted')).toHaveLength(2);
+  });
+
+  // 스펙 쪽 판(判)에는 테스트가 없었다 — 그런데 2026-08-30 부터 스펙 키는 **DB 가 강제하는
+  // 유일 키**다(api.md §1.4i). 이 걸러내기가 빠지면 서버가 배치를 통째로 되돌린다.
+  it('같은 spec.key 를 주장하는 두 파일은 적재에서 빠지고 리포트에 남는다', async () => {
+    const entries: { disposition: string }[] = [];
+    const dupe = {
+      source_path: 'spec/a.md',
+      key: 'SPC-DUP',
+      parent_key: null,
+      type: 'feature' as const,
+      title: 'a',
+      body_md: '# a',
+      doc_status: 'approved' as const,
+      requirements: [],
+      sort_key: '',
+    };
+    const kept = withoutDuplicateKeysForTesting(
+      [dupe, { ...dupe, source_path: 'spec/b.md' }, { ...dupe, key: 'SPC-ONLY' }] as never,
+      entries as never,
+    );
+    expect(kept.map((k) => k.key)).toEqual(['SPC-ONLY']);
+    // 둘 다 이름이 남는다 — 조용히 사라지는 것이 이 함수가 막는 것이다
     expect(entries.filter((e) => e.disposition === 'aborted')).toHaveLength(2);
   });
 });

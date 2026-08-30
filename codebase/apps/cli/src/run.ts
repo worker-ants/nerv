@@ -858,6 +858,7 @@ function relativeToScanRoot(path: string, profile: ImportProfile): string {
 /** 테스트가 트리 규칙만 따로 확인할 수 있게 내보낸다 */
 export const buildTreeForTesting = buildAreaTree;
 export const withoutDuplicateTaskKeysForTesting = withoutDuplicateTaskKeys;
+export const withoutDuplicateKeysForTesting = withoutDuplicateKeys;
 
 function buildAreaTree(
   items: readonly ImportSpecItem[],

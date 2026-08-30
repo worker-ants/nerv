@@ -177,6 +177,35 @@ describe('EP-IMP-02 specs — 소급 적재', () => {
     expect(await count('spec_version')).toBe(afterFirst.versions);
   });
 
+  // 2026-08-30 — 스펙 키에 유니크 인덱스가 걸렸다(§1.4i). 임포터는 draftUpsert 를 타지
+  // 않으므로 `key_taken` 을 받지 않는데, **그 사실이 테스트로 고정돼 있지 않았다.**
+  it('같은 키가 한 배치에 두 번 오면 두 번째는 skipped 다 — 배치를 되돌리지 않는다', async () => {
+    const before = await count('spec');
+    const res = await post('specs', {
+      profile: 'clemvion',
+      kind: 'structure',
+      items: [docItem('SPC-TWICE'), { ...docItem('SPC-TWICE'), source_path: 'spec/other.md' }],
+    });
+    expect(res.status).toBe(201);
+    const items = res.json['items'] as { status: string }[];
+    expect(items.map((i) => i.status)).toEqual(['ok', 'skipped']);
+    // 골격 배치는 트랜잭션 1건이다 — 유니크 위반이 났다면 첫 항목까지 함께 되돌아갔을 것이다
+    expect(await count('spec')).toBe(before + 1);
+  });
+
+  it('이미 있는 키로 문서가 또 오면 그 문서에 이어 쓴다 — 새 노드를 만들지 않는다', async () => {
+    await post('specs', { profile: 'clemvion', kind: 'document', items: [docItem('SPC-SAMEKEY')] });
+    const before = await count('spec');
+    const res = await post('specs', {
+      profile: 'clemvion',
+      kind: 'document',
+      items: [{ ...docItem('SPC-SAMEKEY', '# 다른 본문'), source_path: 'spec/elsewhere.md' }],
+    });
+    expect(res.status).toBe(201);
+    expect((res.json['items'] as { status: string }[])[0]?.status).toBe('ok');
+    expect(await count('spec')).toBe(before);
+  });
+
   it('본문이 바뀌면 새 버전이 생긴다 — 스냅샷은 덮어쓰지 않는다', async () => {
     await post('specs', {
       profile: 'clemvion',
