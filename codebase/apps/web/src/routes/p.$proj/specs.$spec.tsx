@@ -112,8 +112,8 @@ function SpecDetail(): React.JSX.Element {
         method: 'PUT',
         body: {
           body_markdown: markdown,
-          // 낙관적 동시성의 최후 방어선 — 리스가 뚫려도 여기서 막힌다(§3.4)
-          base_version: versionId,
+          // 무엇을 보고 썼는가 — 이것 하나가 낙관적 동시성의 전부다(§1.4g).
+          // 계보(`base_version`)는 서버가 채운다: 부른 쪽이 아는 사실이 아니다.
           base_hash: baseHash ?? readHash,
           ...(takeover ? { takeover: true } : {}),
         },

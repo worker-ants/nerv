@@ -40,7 +40,13 @@ export const spec = pgTable(
       .references(() => project.id),
     parentId: uuid('parent_id'),
     type: specType('type').notNull(),
-    /** 사람이 읽는 slug(예: channel-web-chat). **참조 키가 아니다** */
+    /**
+     * 사람이 읽는 안정 키(예: channel-web-chat) — **프로젝트 안에서 유일하다**.
+     *
+     * 예전 주석은 "참조 키가 아니다"였는데 실제로는 도구·URL·본문 링크가 전부 이것으로
+     * 문서를 가리킨다. 유일하지 않으면 같은 키를 가진 문서 둘 중 하나는 **아무도 못 찾는
+     * 유령**이 된다(2026-08-30 — 사람 결정).
+     */
     key: text('key').notNull(),
     title: text('title').notNull(),
     /** clemvion 의 0-/1- 정수 접두 규약을 데이터로 흡수한 자리 */
@@ -53,6 +59,7 @@ export const spec = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    uniqueIndex('spec_key_uq').on(t.projectId, t.key),
     index('spec_tree').on(t.projectId, t.parentId, t.sortKey),
     // 검색 렉시컬 축 — 파이프라인 정본은 api.md §2.2b. 제목은 노드(spec), 본문은 버전에 있다.
     index('spec_title_fts').using('gin', sql`to_tsvector('simple', ${t.title})`),

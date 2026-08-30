@@ -125,7 +125,6 @@ export const ko = {
   'error.spec.archive_blocked': '아카이브할 수 없습니다.',
   'error.spec.base_hash_required':
     '이 문서를 고치려면 base_hash 가 필요합니다 — nerv_spec_get 응답의 content_hash 를 그대로 실으세요.',
-  'error.spec.base_version_stale': '기준 버전이 현재 초안과 다릅니다.',
   'error.spec.check_blocked': '사전 검토에서 차단 항목이 발견됐습니다.',
   'error.spec.cycle': '자기 하위로는 이동할 수 없습니다.',
   'error.spec.draft_leased':
@@ -297,6 +296,8 @@ export const ko = {
   'error.review.head_required': '리뷰에는 검토한 커밋(head_sha)이 필요합니다.',
   'error.spec.meta_change_not_allowed':
     '스펙 메타는 이 경로로 바꿀 수 없습니다 — 이동·개명은 EP-SPEC-15 입니다.',
+  'error.spec.key_taken':
+    '이미 그 키를 쓰는 문서가 있습니다 — 새로 만들지 말고 그 문서를 읽고 이어 쓰세요(보관된 문서면 복구합니다).',
   'error.spec.missing_fields': '새 스펙에는 key·title·type 이 필요합니다.',
   'error.spec.no_changes': '변경할 필드가 없습니다.',
   'error.spec.not_draft': 'draft 가 아닙니다({status}).',
@@ -677,17 +678,17 @@ export const ko = {
   'spec.submit_review': '검토 요청',
   'spec.versions': '버전',
   'spec.viewer': '보는 사람: {name}',
-  // ── 스펙 메타·아카이브 (screens.md §2.4) ────────────────────────────────────────
+  // ── 스펙 메타·보관 (screens.md §2.4) ────────────────────────────────────────
   'spec.archived_banner':
     '보관된 문서입니다 — 목록과 트리에서 빠지고 주소로만 닿습니다. 링크와 이력은 그대로입니다.',
   'spec.restore': '복구',
   'spec.restore_blocked_parent':
     '상위 문서({parent})가 보관돼 있어 복구할 수 없습니다 — 그것을 먼저 복구하세요.',
   'spec.restore_done': '복구했습니다 — 목록과 트리에 다시 나타납니다.',
-  'spec.meta.archive': '아카이브',
-  'spec.meta.archive_blocked': '아카이브할 수 없습니다 — 먼저 정리하세요',
+  'spec.meta.archive': '보관',
+  'spec.meta.archive_blocked': '보관할 수 없습니다 — 먼저 정리하세요',
   'spec.meta.archive_title': '삭제가 아닙니다 — 기본 조회에서만 빠지고 링크·이력은 남습니다',
-  'spec.meta.archived': '아카이브했습니다 — 삭제가 아니라 기본 조회에서만 빠집니다.',
+  'spec.meta.archived': '보관했습니다 — 삭제가 아니라 기본 조회에서만 빠집니다.',
   'spec.meta.blocker.child': '하위 스펙',
   'spec.meta.blocker.claim': '활성 클레임 Task',
   'spec.meta.cycle': '{parent} 은(는) {key} 의 하위입니다 — 자기 아래로는 옮길 수 없습니다.',

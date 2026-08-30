@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.33 · 2026-08-30 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.34 · 2026-08-30 · HTML 판: [api.html](../html/api.html)
 >
+> v0.34 변경(2026-08-30 — 사람 결정 4건): **§1.4i 신설**(REQ-API-051·052·053). ① `base_version` 을 요청 표면에서 걷는다 — 부른 쪽은 지문만 말하고 **계보와 버저닝은 시스템이 쥔다**. ② **안정 키를 프로젝트 안에서 유일**하게 한다(제약도 검사도 없어서 같은 키를 가진 유령 문서가 생길 수 있었다). ③ 리스가 **하트비트를 본다** — 죽은 세션의 리스에 30분씩 갇히지 않는다.
 > v0.33 변경(2026-08-30 — 리스가 아무것도 잠그지 않았다, 점검 결과 → 사람 결정): **§1.4h 신설**(REQ-API-049·050). 편집 리스 보유자를 **세션**으로 좁히고(예전에는 사용자 단위라 같은 PAT 로 도는 병렬 세션끼리 서로를 못 막았다), 뺏는 길을 `takeover` 로 연다 — 죽은 세션이 쥔 리스에 사람이 갇히지 않게. **선언 관계는 상대 문서의 `base_hash` 를 요구한다**.
 > v0.32 변경(2026-08-30 — 병렬 편집이 막히지 않았다, 점검 결과 → 사람 결정): **§1.4g 신설**(REQ-API-047·048). 세 세션이 같은 초안을 동시에 저장하면 **셋 다 성공하고 본문에는 하나만** 남았다 — 둘은 오류도 경고도 없이 글을 잃었다. `base_version` 은 초안 단계에서 원리적으로 못 막는다(같은 행을 덮어쓰므로 id 가 변하지 않는다). **`base_hash` 비교-교환을 필수로** 하고, 저장 경로에 행 잠금을 둔다(제출·승인은 이미 잠그고 있었다).
 >
@@ -158,7 +159,7 @@ HTTP 상태 매핑:
 | --- | --- | --- |
 | `NERV_UNAUTHENTICATED` | 401 | 세션 쿠키 없음·만료, PAT 폐기·만료 |
 | `NERV_FORBIDDEN` | 403 | 역할 미충족, PAT 스코프 부족, 지시자≠승인자 위반 |
-| `NERV_PRECONDITION` | 400 / 409 | 400: zod 스키마 위반(`details.issues`) · **입력 모양을 어긴 DB 제약**(§1.4a — 빠뜨린 값·허용되지 않는 값·너무 긴 값) · 409: `base_version` 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치, **중복 값·없는 참조**(§1.4a) |
+| `NERV_PRECONDITION` | 400 / 409 | 400: zod 스키마 위반(`details.issues`) · **입력 모양을 어긴 DB 제약**(§1.4a — 빠뜨린 값·허용되지 않는 값·너무 긴 값) · 409: 본문 지문(`base_hash`) 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치, **중복 값·없는 참조**(§1.4a) |
 | `NERV_CONFLICT_SCOPE` | 409 | 클레임 scope 겹침 `block` 판정 |
 | `NERV_LEASE_EXPIRED` | 409 | 리스 만료 후 상태 변경 시도 |
 | `NERV_DRAFT_LEASED` | 409 | 다른 사용자가 초안 편집 리스 보유 |
@@ -374,6 +375,24 @@ HTTP 상태 매핑:
 | REQ-API-049 | WHILE 초안에 만료되지 않은 편집 리스가 있으면 THE SYSTEM SHALL 리스를 쥔 `(user, session)` 이 아닌 저장을 `NERV_DRAFT_LEASED`(보유자 표시 이름·만료 시각 포함)로 거부한다. WHEN 저장이 `takeover: true` 를 실으면 THE SYSTEM SHALL 리스를 넘겨받고 그 사실을 이벤트 페이로드에 남긴다 |
 | REQ-API-050 | WHEN 저장이나 `nerv_spec_relate` 가 선언 관계를 **더하면** THE SYSTEM SHALL 대상 문서의 `base_hash` 를 요구하고, 없으면 `relation_base_hash_required`·어긋나면 `stale_relation_target` 으로 대상 목록과 함께 거부한다 |
 
+### 1.4i 계보는 시스템이 채우고, 안정 키는 유일하다 (2026-08-30 신설 — 사람 결정)
+
+**`base_version` 을 요청 표면에서 걷는다.** 부른 쪽이 말하는 전제조건은 **"어느 내용을 보고 썼는가"(`base_hash`) 하나**다. "어느 버전에서 갈라져 나왔는가"는 서버가 아는 사실이라 묻지 않는다 — 물어봐야 초안 단계에서는 아무것도 막지 못했고(§1.4g), 도구·스킬은 비슷한 이름의 두 인자를 매번 구분해 설명해야 했다.
+
+버저닝은 **확정 시점에 시스템이 진행한다**: 새 버전 행이 생길 때 서버가 직전 버전을 `base_version_id` 에 채우고, 승인이 그 행을 `approved` 로 닫으며 이전 approved 를 `superseded` 로 민다. 지문과 버전의 연결(`spec_version.content_hash` ↔ `version_no`)도 같은 자리에서 서버가 쥔다 — `nerv_spec_get` 이 둘을 함께 돌려주므로 에이전트는 지문만 다루면 된다.
+
+**안정 키는 프로젝트 안에서 유일하다.** 예전에는 유니크 제약도, 생성 경로의 검사도 없었다. 그런데 도구 7종·URL·본문 링크가 전부 이 키로 문서를 가리키므로, 같은 키를 가진 문서 둘이 생기면 그중 하나는 **어느 조회에도 걸리지 않는 유령**이 된다(`requirement` 는 이미 `(project_id, ref)` 유니크였다 — 같은 저장소 안에서 규칙이 갈려 있었다).
+
+이미 쓰이는 키로 온 생성은 `key_taken` 으로 막고 **그 문서를 딥링크로 짚어 준다**. 덮어쓰지도, 조용히 이어 쓰지도 않는다 — 같은 키로 오는 생성은 대개 "이미 있는 줄 몰랐다"이고, 그때 남의 문서에 말없이 이어 쓰는 것이 가장 나쁘다. 보관된 문서가 키를 쥐고 있으면 답은 새로 만드는 것이 아니라 복구다. 동시에 들어온 둘은 유니크 인덱스(`spec_key_uq`)가 잡는다 — **검사는 흔한 길의 말이고 인덱스가 자물쇠다.**
+
+**리스는 하트비트를 본다.** 리스 TTL(30분)과 세션 stale 임계(30분)가 같아, 크래시한 에이전트의 리스는 30분을 버텼다 — 그동안 사람은 자기 문서에서 막힌다. 하트비트는 60초마다 오고 있었는데 리스가 그 신호를 안 봤다. 이제 리스를 쥔 세션이 **3주기(180초) 침묵했거나 살아 있는 상태가 아니면** 그 리스는 비어 있는 것으로 본다. 세션이 없는 표면(웹 탭)에는 적용하지 않는다 — 하트비트가 없으니 오검출만 낸다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-API-051 | WHEN 초안 저장이 새 버전 행을 만들면 THE SYSTEM SHALL 직전 버전을 `base_version_id` 로 스스로 기록한다 — 요청은 계보를 싣지 않는다 |
+| REQ-API-052 | WHEN 이미 쓰이는 안정 키로 스펙 생성이 오면 THE SYSTEM SHALL `key_taken`(그 문서의 `web_url`·보관 여부 포함)으로 거부하고, 프로젝트 안에서 키의 유일성을 DB 제약으로 강제한다 |
+| REQ-API-053 | WHILE 초안 편집 리스를 쥔 세션이 하트비트 3주기를 넘겨 침묵했거나 활성 상태가 아니면 THE SYSTEM SHALL 그 리스를 비어 있는 것으로 취급한다 |
+
 ### 1.5 멱등 키 — `Idempotency-Key` 헤더
 
 상태를 바꾸는 모든 REST 요청(POST·PUT·PATCH·DELETE)은 `Idempotency-Key` 헤더를 받는다. MCP의 A2 이상 도구가 받는 `idempotency_key` 입력([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 4)과 **같은 저장소**를 쓴다 — 오프라인 아웃박스가 큐잉한 쓰기가 MCP로 재전송되든 REST로 재전송되든 한 번만 실행된다.
@@ -500,7 +519,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |
 | EP-SPEC-07 | `POST /api/v1/projects/{proj}/specs` | planner·admin ●, designer(design)·developer(convention/adr) ○, **qa ✗**(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. `spec:draft` 는 유지 — 코멘트 해소·초안 편집의 몫) | `SpecCreateInput`(parent_id, type, title, body_markdown) | `SpecDraftResult`(spec + draft v1) — **보관된 부모 아래에는 만들지 못한다**: 409 `NERV_PRECONDITION`(`details.kind="parent_archived"`, REQ-API-039) | `spec.draft_created` |
-| EP-SPEC-08 | `PUT /api/v1/projects/{proj}/specs/{spec}/draft` | EP-SPEC-07과 동일(`spec:draft`) | `SpecDraftUpsertInput`(body_markdown, **base_version**, change_summary) | `SpecDraftResult`(version, 델타 요약, 검증 경고, `web_url`) | 새 draft 버전 생성 시 `spec.draft_created`, **같은 draft 재저장은 `spec.draft_updated`**(2026-08-29 개정 — 예전에는 "이벤트 없음(리스 갱신만)"이었다. 에이전트가 스펙을 쓰는 방식이 대부분 이 경로라, 본문이 바뀌어도 화면이 새로고침 전에는 알 수 없었다. 저장 빈도는 자동 저장 주기(60초)라 방송이 넘치지 않는다) |
+| EP-SPEC-08 | `PUT /api/v1/projects/{proj}/specs/{spec}/draft` | EP-SPEC-07과 동일(`spec:draft`) | `SpecDraftUpsertInput`(body_markdown, **base_hash**, change_summary) | `SpecDraftResult`(version, 델타 요약, 검증 경고, `web_url`) | 새 draft 버전 생성 시 `spec.draft_created`, **같은 draft 재저장은 `spec.draft_updated`**(2026-08-29 개정 — 예전에는 "이벤트 없음(리스 갱신만)"이었다. 에이전트가 스펙을 쓰는 방식이 대부분 이 경로라, 본문이 바뀌어도 화면이 새로고침 전에는 알 수 없었다. 저장 빈도는 자동 저장 주기(60초)라 방송이 넘치지 않는다) |
 | EP-SPEC-09 | `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 전 역할(읽기 전용 셀프서비스) | — | `SpecCheckResult`(5검사기별 warning/block + 앵커 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.1) | — |
 | EP-SPEC-10 | `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | 작성자 본인 또는 planner | `SpecSubmitInput`(reviewer_hint, note) | `SpecSubmitResult`(approval_id[], 지정 리뷰어·SLA) | `spec.submitted` + `approval.requested` |
 | EP-CMT-01 | `GET /api/v1/projects/{proj}/specs/{spec}/comments` | 전 역할 | `CommentListQuery`(status: open/resolved) | `Page<CommentResult>` | — |
@@ -904,7 +923,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | `nerv_task_claim` | A2 | `TaskService.claim` | EP-TASK-06 | 겹침 판정·원자 전환이 이 메서드 안 — 표면 무관 동일 |
 | `nerv_task_heartbeat` | A1 | `TaskService.heartbeat` | EP-TASK-07 | 응답의 `pending` 역채널 포함 |
 | `nerv_task_release` | A2 | `TaskService.release` | EP-TASK-08 | |
-| `nerv_spec_draft_upsert` | A2 | `SpecService.draftUpsert` | EP-SPEC-07·08 | `base_version` 409·초안 편집 리스가 이 메서드 안. 메타 필드(parent_id·type·title)는 생성에서만 소비 — 기존 spec에 다른 값이 오면 409(§2.2). 메타 수정은 EP-SPEC-15 전용(도구 없음) |
+| `nerv_spec_draft_upsert` | A2 | `SpecService.draftUpsert` | EP-SPEC-07·08 | `base_hash` 비교-교환·초안 편집 리스가 이 메서드 안. 메타 필드(parent_id·type·title)는 생성에서만 소비 — 기존 spec에 다른 값이 오면 409(§2.2). 메타 수정은 EP-SPEC-15 전용(도구 없음) |
 | `nerv_spec_submit_review` | **A3** | `SpecService.submitReview` → `ApprovalService.request` | EP-SPEC-10 | pending Approval 재사용(카드 중복 금지) — 표면 무관 |
 | `nerv_spec_check` | A1 | `SpecService.check` | EP-SPEC-09 | 5검사기 서비스 호출 |
 | `nerv_spec_comment_resolve` | A2 | `SpecService.resolveComment` | EP-CMT-04 | |
@@ -932,8 +951,8 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | REQ-API-003 | WHEN 같은 `Idempotency-Key`와 같은 본문으로 24시간 내 재호출되면 THE SYSTEM SHALL 부작용 없이 최초 응답을 재생하고 `Idempotency-Replayed: true` 헤더를 단다 | EP-TASK-06 이중 제출 → 클레임 1건 |
 | REQ-API-004 | WHEN 같은 `Idempotency-Key`에 다른 본문이 오면 THE SYSTEM SHALL HTTP 409 `NERV_PRECONDITION`(`details.kind = "idempotency_mismatch"`)을 반환한다 | 본문 변조 재호출 |
 | REQ-API-005 | WHEN 리스가 만료된 클레임으로 상태 변경(EP-TASK-09 등)이 시도되면 THE SYSTEM SHALL HTTP 409 `NERV_LEASE_EXPIRED`를 반환하고, 재클레임 가능 여부를 `details`에 싣는다 | 리스 만료 후 done 전이 거부([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.7 리스 규약) |
-| REQ-API-006 | WHEN `base_version`이 현재 draft와 불일치하는 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 `NERV_PRECONDITION`과 최신 버전 번호를 반환하고 본문을 저장하지 않는다 | 웹·터미널 동시 편집 경합 |
-| REQ-API-007 | WHEN 다른 사용자가 편집 리스를 보유한 draft에 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 `NERV_DRAFT_LEASED`와 보유자(사용자·표면)를 반환한다. WHEN 같은 사용자가 다른 표면에서 요청하면 THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알림을 만든다 | [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2 표 재현 |
+| REQ-API-006 | WHEN `base_hash`가 빠졌거나 현재 본문 지문과 불일치하는 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 `NERV_PRECONDITION`(`base_hash_required`·`stale_body`)과 현재 지문을 반환하고 본문을 저장하지 않는다(2026-08-30 개정 — 예전 문형은 `base_version` 기준이었고 초안 단계에서 아무것도 막지 못했다, §1.4g·§1.4i) | 웹·터미널 동시 편집 경합 |
+| REQ-API-007 | WHEN 다른 **세션**이 편집 리스를 보유한 draft에 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 `NERV_DRAFT_LEASED`와 보유자(표시 이름·만료 시각)를 반환한다. WHEN 요청이 `takeover`를 실으면 THE SYSTEM SHALL 리스를 넘겨받고 그 사실을 이벤트에 남긴다(2026-08-30 개정 — 예전 문형은 사용자 단위였고 같은 PAT로 도는 병렬 세션끼리 서로를 막지 못했다, §1.4h) | [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2 표 재현 |
 | REQ-API-008 | WHEN 승인 요청자 본인·초안 작성 세션의 소유자가 EP-APR-03으로 승인을 시도하면 THE SYSTEM SHALL HTTP 403 `NERV_FORBIDDEN`(`details.rule = "requester-neq-approver"`)을 반환한다. WHEN 대상 content hash가 변해 있으면 THE SYSTEM SHALL 같은 코드로 stale 승인을 거부한다 | §2.3 판정 5규칙 각각 1케이스 |
 | REQ-API-009 | WHEN 미인증 소켓이 `/ws`에 연결을 시도하면 THE SYSTEM SHALL `connect_error`(`NERV_UNAUTHENTICATED`)로 끊고, WHEN 비멤버가 `project:{id}` join을 시도하면 THE SYSTEM SHALL ack `{ok:false, code:"NERV_FORBIDDEN"}`을 반환하며 룸에 넣지 않는다 | 비멤버 join 후 이벤트 미수신 확인 |
 | REQ-API-010 | WHEN WebSocket 또는 SSE 클라이언트가 재연결에 성공하면 THE SYSTEM SHALL 밀린 이벤트를 재전송하지 않는다(재조회는 클라이언트 책임 — D-14). SSE의 `Last-Event-ID` 헤더는 무시한다 | 단절 구간 이벤트 발생 후 재연결, 수신 0건 확인(WS·SSE 각 1건) |

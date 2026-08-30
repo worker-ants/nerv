@@ -26,7 +26,9 @@ tools:
 1. `nerv_spec_search` 로 **먼저 찾는다.** 새 스펙을 만들기 전에 같은 주제가 이미 있는지 본다 —
    중복 스펙은 나중에 어느 쪽이 진짜인지 아무도 모르게 만든다.
 2. `nerv_spec_get` 으로 인접 문서를 읽는다. 기준 버전이 지정돼 있으면 그 버전으로 읽는다.
-3. `nerv_spec_draft_upsert` 로 초안을 쓴다. **`base_hash`**(`nerv_spec_get` 의
+3. `nerv_spec_draft_upsert` 로 초안을 쓴다. 새 문서의 `key` 는 **프로젝트 안에서
+   유일하다** — `key_taken` 이 오면 키를 바꾸지 말고 그 문서를 읽고 이어 쓴다.
+   **`base_hash`**(`nerv_spec_get` 의
    `content_hash`)를 반드시 실어 비교-교환을 지킨다 — `stale_body` 는 실패가 아니라
    "그 사이 남이 고쳤다"는 사실이다. 같은 본문으로 재시도하지 말고 **다시 읽어 그 위에
    다시 얹는다.** 저장 응답이 다음 지문을 준다.

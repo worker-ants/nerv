@@ -154,7 +154,6 @@ export class SpecTools implements NervToolProvider {
           // **문서를 지우면서 성공**했다(실측 2026-08-30). 둘 다 받고, 적는 이름은 하나로 한다.
           body_markdown: { type: 'string', description: 'mcp.arg.body_markdown' },
           body_md: { type: 'string', description: 'mcp.arg.body_markdown' },
-          base_version: { type: 'string' },
           // **기존 문서를 고칠 때는 필수다.** `nerv_spec_get` 응답의 `content_hash` 를
           // 그대로 돌려주면 서버가 "그 사이 아무도 안 바꿨다"를 확인한다(§1.4g)
           base_hash: { type: 'string', description: 'mcp.arg.base_hash' },
@@ -220,9 +219,6 @@ export class SpecTools implements NervToolProvider {
             ? { changeSummary: input['change_summary'] }
             : {}),
           ...(typeof input['spec_id'] === 'string' ? { specId: input['spec_id'] } : {}),
-          ...(typeof input['base_version'] === 'string'
-            ? { baseVersionId: input['base_version'] }
-            : {}),
           ...(typeof input['base_hash'] === 'string' ? { baseHash: input['base_hash'] } : {}),
           ...(typeof input['key'] === 'string' ? { key: input['key'] } : {}),
           ...(typeof input['title'] === 'string' ? { title: input['title'] } : {}),

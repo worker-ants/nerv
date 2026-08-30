@@ -18,6 +18,17 @@ export const LEASE_TTL_SECONDS = 1800;
 export const HEARTBEAT_INTERVAL_SECONDS = 60;
 
 /**
+ * 편집 리스를 쥔 **세션이 죽었다고 보는 유예** — 하트비트 3주기(180초).
+ *
+ * 리스 TTL(30분)과 세션 stale 임계(30분)가 같아서, 크래시한 에이전트의 리스는 30분간
+ * 살아 있었다 — 그동안 사람은 자기 문서에서 막힌다. 하트비트는 60초마다 오고 있었는데
+ * 리스가 그 신호를 안 봤다(2026-08-30 — 사람 결정). 3회 놓친 세션은 죽은 것으로 본다.
+ *
+ * **세션이 없는 표면(웹)에는 적용하지 않는다** — 하트비트가 없으니 오검출만 낸다.
+ */
+export const LEASE_HEARTBEAT_GRACE_SECONDS = HEARTBEAT_INTERVAL_SECONDS * 3;
+
+/**
  * 세션 stale 임계 — 30분(리스 TTL 과 같은 값).
  * 무활동 초과 시 `stale` 자동 전이 + 클레임 자동 회수(D-13).
  * 정본: docs/03-proposal/agent-integration.md §5.2

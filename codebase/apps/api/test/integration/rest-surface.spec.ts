@@ -478,9 +478,10 @@ async function seedSpecVersion(): Promise<string> {
   const specId = newId();
   const versionId = newId();
   await pool.query(
-    `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,'스펙')
-     ON CONFLICT DO NOTHING`,
-    [specId, projectId, `SPC-${specId.slice(0, 4)}`],
+    `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,'스펙')`,
+    // 앞자리를 잘라 쓰면 UUIDv7 의 시각 부분이 겹친다 — 예전에는 ON CONFLICT 로 삼켜져
+    // "spec 이 안 만들어졌는데 성공한" 상태가 됐다(유니크 인덱스가 그것을 드러냈다)
+    [specId, projectId, `SPC-${specId}`],
   );
   await pool.query(
     `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)

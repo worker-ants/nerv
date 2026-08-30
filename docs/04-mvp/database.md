@@ -219,7 +219,7 @@ CREATE TABLE spec_version (                  -- 불변 스냅샷. 가변 구간�
   status                    spec_version_status NOT NULL DEFAULT 'draft',
   body_md                   text NOT NULL,
   content_hash              bytea NOT NULL,  -- sha256(body_md). 무변경 저장 차단
-  base_version_id           uuid REFERENCES spec_version(id), -- 낙관적 동시성. 불일치 = 409
+  base_version_id           uuid REFERENCES spec_version(id), -- 파생 계보 — 시스템이 채운다(§1.4i)
   change_summary_md         text,
   author_user_id            uuid NOT NULL REFERENCES "user"(id),
   author_session_id         uuid REFERENCES agent_session(id), -- 에이전트 작성이면 세션(D-08 쌍 기록)

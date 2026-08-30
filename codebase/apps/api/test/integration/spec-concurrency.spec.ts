@@ -404,6 +404,73 @@ describe('같은 사용자 · 다른 세션 — 리스는 세션이 쥔다 (§1.
   });
 });
 
+describe('안정 키는 프로젝트 안에서 유일하다 (2026-08-30 사람 결정)', () => {
+  it('이미 쓰이는 키로 만들면 막고, 그 문서를 짚어 준다', async () => {
+    const first = await makeSpec('SPC-UNIQ', '# 먼저 쓴 문서');
+    const r = await settle([makeSpec('SPC-UNIQ', '# 같은 키로 또 만든다')]);
+    expect(r.failed[0]).toMatchObject({ kind: 'key_taken' });
+    // 조용히 이어 쓰지 않는다 — 앞 문서의 본문은 그대로다
+    expect(await bodyOf(first.specId)).toBe('# 먼저 쓴 문서');
+  });
+
+  it('동시에 같은 키로 만들면 하나만 남는다 — 검사는 흔한 길, 인덱스가 자물쇠다', async () => {
+    const r = await settle([
+      makeSpec('SPC-RACEKEY', '# 가'),
+      makeSpec('SPC-RACEKEY', '# 나'),
+      makeSpec('SPC-RACEKEY', '# 다'),
+    ]);
+    expect(r.ok).toHaveLength(1);
+    const { rows } = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM spec WHERE key = 'SPC-RACEKEY'`,
+    );
+    expect(rows[0]?.n).toBe('1');
+  });
+});
+
+describe('리스를 쥔 세션이 죽었으면 (2026-08-30 사람 결정)', () => {
+  it('하트비트가 3주기 넘게 끊기면 비어 있는 것과 같다 — 30분을 기다리지 않는다', async () => {
+    const { specId, hash } = await makeSpec('SPC-DEAD', '# A 세션', alice, sessionA);
+    await pool.query(
+      `UPDATE agent_session SET last_heartbeat_at = now() - interval '10 minutes' WHERE id = $1`,
+      [sessionA],
+    );
+    const r = await settle([
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: hash,
+        bodyMd: '# B 세션이 이어 쓴다',
+        sessionId: sessionB,
+        userId: alice,
+      }),
+    ]);
+    // takeover 없이도 통과한다 — 죽은 세션의 자리는 빈 자리다
+    expect(r.failed).toHaveLength(0);
+    await pool.query(`UPDATE agent_session SET last_heartbeat_at = now() WHERE id = $1`, [
+      sessionA,
+    ]);
+  });
+
+  it('세션이 stale 로 닫혔으면 하트비트가 최근이어도 비어 있다', async () => {
+    const { specId, hash } = await makeSpec('SPC-DEAD2', '# A 세션', alice, sessionA);
+    await pool.query(`UPDATE agent_session SET state = 'stale' WHERE id = $1`, [sessionA]);
+    const r = await settle([
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: hash,
+        bodyMd: '# B 세션',
+        sessionId: sessionB,
+        userId: alice,
+      }),
+    ]);
+    expect(r.failed).toHaveLength(0);
+    await pool.query(`UPDATE agent_session SET state = 'active' WHERE id = $1`, [sessionA]);
+  });
+});
+
 describe('같은 문서 · 다른 사용자', () => {
   it('남이 리스를 쥔 초안은 저장하지 못한다', async () => {
     const { specId, hash } = await makeSpec('SPC-LEASE', '# 앨리스가 쓴다', alice);

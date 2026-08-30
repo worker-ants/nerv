@@ -325,7 +325,7 @@
       auth.controller.ts         # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
     spec/                        # SpecModule
       spec.module.ts
-      spec.service.ts            # 초안 upsert · base_version 전제조건 · 편집 리스 · 전이 · 사전 검토
+      spec.service.ts            # 초안 upsert · base_hash 비교-교환 · 편집 리스 · 전이 · 사전 검토
       spec-comment.service.ts
       baseline.service.ts        # 베이스라인 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
       spec.controller.ts         # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest
@@ -607,7 +607,7 @@
     <thead><tr><th>계층</th><th>러너</th><th>위치</th><th>대상</th><th>실행</th></tr></thead>
     <tbody>
       <tr><td>L1 단위</td><td>Vitest</td><td>소스 옆 <code>*.spec.ts</code></td><td>순수 로직 — zod 스키마, 델타 계산, fingerprint</td><td><code>pnpm test</code> (매 PR)</td></tr>
-      <tr><td>L2 통합</td><td>Vitest</td><td><code>apps/api/test/integration/</code></td><td>도메인 서비스 + 실제 Postgres(compose의 <code>postgres</code> 사용) — <b>클레임 원자성 동시 호출, scope 겹침, base_version 409, 리스 만료</b>. 임베딩은 결정적 <b>OpenAI 호환 스텁 서버</b>(테스트 픽스처 — 단일 계약(REQ-CB-020)이라 스텁도 같은 표면이다)로 검증하고 실모델 품질은 E06-S06·스테이징 소관</td><td><code>pnpm test:integration</code> (매 PR)</td></tr>
+      <tr><td>L2 통합</td><td>Vitest</td><td><code>apps/api/test/integration/</code></td><td>도메인 서비스 + 실제 Postgres(compose의 <code>postgres</code> 사용) — <b>클레임 원자성 동시 호출, scope 겹침, base_hash 비교-교환, 리스 만료</b>. 임베딩은 결정적 <b>OpenAI 호환 스텁 서버</b>(테스트 픽스처 — 단일 계약(REQ-CB-020)이라 스텁도 같은 표면이다)로 검증하고 실모델 품질은 E06-S06·스테이징 소관</td><td><code>pnpm test:integration</code> (매 PR)</td></tr>
       <tr><td>L3 계약/E2E</td><td>Vitest(API·MCP·WS) + Playwright(웹)</td><td><code>apps/api/test/e2e/</code> + <code>apps/web/test/e2e/</code></td><td><b>E2E 전용 compose 스택</b>(<code>deploy/compose/docker-compose.e2e.yml</code>) 기동 후 REST·MCP·WS·브라우저 시나리오 — <a href="backlog.html">4.8 백로그</a> §5의 E2E 수용 시나리오가 케이스 정본</td><td><code>pnpm e2e:up &amp;&amp; pnpm test:e2e</code> (머지 전·야간)</td></tr>
     </tbody>
   </table></div>

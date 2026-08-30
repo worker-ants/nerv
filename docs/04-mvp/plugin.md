@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.14 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.15 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.15 변경(2026-08-30 — 사람 결정 후속): `skills/spec` 과 `nerv-spec-writer` 에서 **`base_version` 을 걷고**(전제조건은 `base_hash` 하나다), **`key_taken`** 을 에러 표에 더한다 — 그 답은 키를 바꾸는 것이 아니라 **그 문서를 읽고 이어 쓰는 것**이다(§2.2).
 > v0.14 변경(2026-08-30 — 리스는 신호이고 지문이 자물쇠다): `skills/spec` 과 `nerv-spec-writer` 에 **세션 리스와 `takeover`**, **선언 관계의 상대 `base_hash`** 를 적는다(§2.2). `NERV_DRAFT_LEASED` 는 이제 **같은 사람이어도** 온다 — 보유자가 세션이기 때문이다. 에러 표에 `relation_base_hash_required`·`stale_relation_target` 을 더했다.
 > v0.13 변경(2026-08-30 — 내가 보고 쓴 것을 밝힌다): `skills/spec` 에 **`base_hash` 절**을 넣는다(§2.2). 기존 문서를 고칠 때는 필수이고, `stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다** — 그건 남의 글을 덮어쓰는 것이라 다시 읽고 그 위에 다시 얹는다. 에러 표에 `stale_body`·`base_hash_required` 를 더했다.
 >
@@ -240,15 +241,18 @@ allowed-tools:
    `nerv_spec_search`(`query`)로 중복 스펙이 없는지 확인한다.
 2. 사람과 트리 위치(`parent_id`)·`type`·`title`을 합의한 뒤 본문을 작성한다.
 3. `nerv_spec_draft_upsert` — 입력: `parent_id`, `type`, `title`, `body_markdown`,
-   `change_summary`(새 스펙이므로 `base_version` 없음), 필요하면 `relations`, `idempotency_key`.
+   `change_summary`(새 스펙이므로 `base_hash` 없음), 필요하면 `relations`, `idempotency_key`.
+   **`key` 는 프로젝트 안에서 유일하다** — 이미 쓰이면 `key_taken` 이 온다. 그때 답은 다른
+   키를 지어내는 것이 아니라 **그 문서를 읽고 이어 쓰는 것**이다(보관된 문서면 복구한다).
 4. 응답의 `web_url`(S3 딥링크) · `relations`(added·removed·unknown) · `delta` 를 터미널에
    표시한다 — 각각 사람이 웹에서 이어보는 경로, **이 문서가 그래프에 붙었는지**의 답,
    그리고 **무엇이 바뀌었는지**다.
 
 ### edit — 초안 이어쓰기·피드백 반영
 1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments","requirements"]`)로
-   최신 본문과 open 코멘트를 읽는다. 응답의 `content_hash` 를 `base_hash` 로 쓴다
-   (`version_id` 는 `base_version` 이다 — 앞은 **어느 내용**, 뒤는 **어느 행**을 가리킨다).
+   최신 본문과 open 코멘트를 읽는다. 응답의 `content_hash` 를 `base_hash` 로 쓴다 —
+   **저장에 싣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
+   아는 사실이라 묻지 않는다.
 2. 수정안을 만들어 사람에게 확인받고 `nerv_spec_draft_upsert`(`spec_id`, `base_hash`,
    `body_markdown`, `change_summary`, `idempotency_key`) 호출. 초안 편집 리스는 이 호출이
    성공하는 순간 자동 획득·갱신된다(TTL 30분 — Task 클레임 리스와 같은 상수).
@@ -285,7 +289,6 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | --- | --- |
 | NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문과 web_url 이 온다 |
 | NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 안 실었다 — nerv_spec_get 의 `content_hash` 를 실어 다시 부른다 |
-| NERV_PRECONDITION | base_version 불일치 — 최신 버전을 nerv_spec_get으로 재조회해 그 위에 재작성한다. 임의 강제 저장 경로는 없다 |
 | NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
 | NERV_APPROVAL_REQUIRED | 승인 대기 진입 — approval_id 폴링, 그동안 다른 작업 금지 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
@@ -294,6 +297,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
 | NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 실어 보낸다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
+| NERV_PRECONDITION `key_taken` | 그 키를 이미 쓰는 문서가 있다 — details 의 `web_url`·`archived` 를 보고 **그 문서를 읽고 이어 쓴다**(보관 상태면 복구가 먼저다). 키를 조금 바꿔 새로 만들지 않는다 |
 | NERV_PRECONDITION `relation_base_hash_required` | 관계를 선언하면서 상대 문서의 지문을 안 실었다 — details 의 `targets` 가 어느 문서인지 준다. 그 문서를 nerv_spec_get 으로 읽고 `content_hash` 를 실어 다시 부른다 |
 | NERV_PRECONDITION `stale_relation_target` | 상대 문서가 그 사이 바뀌었다 — 다시 읽고 **관계가 여전히 맞는지 확인한 뒤** 새 지문으로 부른다. 지문만 갈아 끼우는 것은 확인이 아니다 |
 

@@ -124,7 +124,6 @@ export const en = {
   'error.spec.archive_blocked': 'This spec cannot be archived yet.',
   'error.spec.base_hash_required':
     'Editing this document needs base_hash — send back the content_hash from nerv_spec_get.',
-  'error.spec.base_version_stale': 'The base version no longer matches the current draft.',
   'error.spec.check_blocked': 'The pre-submit check found blocking findings.',
   'error.spec.cycle': 'A spec cannot be moved under itself.',
   'error.spec.draft_leased': 'Another session is editing this draft — pass takeover to seize it.',
@@ -301,6 +300,8 @@ export const en = {
   'error.review.head_required': 'A review must name the commit it examined (head_sha).',
   'error.spec.meta_change_not_allowed':
     'Spec metadata cannot be changed here — use EP-SPEC-15 to move or rename.',
+  'error.spec.key_taken':
+    'A document already uses that key — read and continue that one instead of creating a new one (restore it if archived).',
   'error.spec.missing_fields': 'A new spec needs key, title and type.',
   'error.spec.no_changes': 'Nothing to change.',
   'error.spec.not_draft': 'Not a draft ({status}).',

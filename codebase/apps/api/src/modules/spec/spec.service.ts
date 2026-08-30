@@ -13,6 +13,7 @@ import {
   msg,
   newId,
   text,
+  LEASE_HEARTBEAT_GRACE_SECONDS,
   LEASE_TTL_SECONDS,
   NERV_ERROR,
   NERV_EVENT,
@@ -79,13 +80,12 @@ export interface DraftUpsertInput {
   /**
    * **내가 보고 쓴 본문의 지문**(`nerv_spec_get` 응답의 `content_hash`).
    *
-   * 기존 문서를 고칠 때는 필수다(2026-08-30 — 사람 결정). `base_version` 은 초안 단계에서
-   * 아무것도 막지 못했다: draft 는 같은 행을 덮어쓰므로 version id 가 변하지 않아
-   * "무엇을 보고 썼는가"를 식별하지 못한다. 지문은 내용이 바뀌면 함께 바뀐다.
+   * 기존 문서를 고칠 때는 **필수이자 유일한** 전제조건이다(2026-08-30 — 사람 결정).
+   * 지문은 내용이 바뀌면 함께 바뀐다 — 버전 id 는 초안이 같은 행을 덮어쓰는 동안
+   * 변하지 않아 "무엇을 보고 썼는가"를 식별하지 못했다.
    */
   baseHash?: string | undefined;
-  /** 낙관적 동시성 — 불일치는 409. 리스의 최후 방어선이다(§1.2) */
-  baseVersionId?: string | null;
+
   /**
    * **남의 리스를 뺏는다**(§1.4h). 리스 보유자는 세션이므로, 죽은 에이전트 세션이 쥔
    * 리스를 사람이 30분씩 기다리지 않게 하는 탈출구다. 뺏어도 본문은 `base_hash` 가 지킨다 —
@@ -223,8 +223,8 @@ export class SpecService {
    * nerv_spec_draft_upsert · EP-SPEC-07·08.
    *
    * 세 가지가 이 메서드 안에 있다: **초안 편집 리스**(D-04 문서 축 확장) ·
-   * **base_version 409**(낙관적 동시성) · **불변 스냅샷 규칙**(draft 밖은 못 고친다).
-   * 리스는 1차 사전 조정이고 409 가 데이터 유실의 최후 방어선이다 — 역할이 달라 둘 다 있다.
+   * **base_hash 비교-교환**(§1.4g) · **불변 스냅샷 규칙**(draft 밖은 못 고친다).
+   * 리스는 1차 사전 조정이고 지문이 데이터 유실의 최후 방어선이다 — 역할이 달라 둘 다 있다.
    */
   /**
    * 이벤트에 실을 **스펙 키**. 봉투의 `subject_id` 는 버전·스펙 UUID 라 화면의 쿼리 키
@@ -291,6 +291,33 @@ export class SpecService {
     }
   }
 
+  /**
+   * 안정 키는 프로젝트 안에서 유일하다 — 이미 쓰이고 있으면 만들지 않는다(2026-08-30 사람 결정).
+   *
+   * **덮어쓰지도, 이어쓰지도 않는다.** 같은 키로 온 생성은 대개 "이미 있는 줄 몰랐다"이고,
+   * 그때 조용히 남의 문서에 이어 쓰는 것이 가장 나쁘다. 어느 문서가 그 키를 쥐고 있는지
+   * 딥링크로 알려주면 부른 쪽이 읽고 정한다.
+   *
+   * 동시에 들어온 두 생성은 이 검사를 둘 다 통과할 수 있다 — 그 자리는 유니크 인덱스가
+   * 잡는다(`spec_key_uq` → §1.4a 의 `unique_violation`). 검사는 흔한 길의 말이고,
+   * 인덱스가 자물쇠다.
+   */
+  private async requireFreeKey(tx: Tx, projectId: string, key: string): Promise<void> {
+    const { rows } = await tx.execute<{ id: string; archived_at: unknown }>(
+      sql`SELECT id, archived_at FROM spec WHERE project_id = ${projectId} AND key = ${key}`,
+    );
+    const taken = rows[0];
+    if (taken === undefined) return;
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.key_taken'), {
+      kind: 'key_taken',
+      key,
+      spec_id: taken.id,
+      // 보관된 문서가 키를 쥔 경우가 있다 — 그때 답은 새로 만드는 것이 아니라 복구다
+      archived: taken.archived_at != null,
+      web_url: await this.webUrl(tx, projectId, taken.id),
+    });
+  }
+
   async draftUpsert(input: DraftUpsertInput): Promise<Record<string, unknown>> {
     return this.events.transact(async (tx, emit) => {
       // **키로 왔든 UUID 로 왔든 같은 스펙을 가리킨다**(§1.4b). 예전에는 이 자리가 UUID 만
@@ -320,6 +347,7 @@ export class SpecService {
         }
         const parentId = await this.resolveSpecId(tx, input.projectId, input.parentId ?? null);
         await this.requireLiveParent(tx, parentId);
+        await this.requireFreeKey(tx, input.projectId, input.key);
         specId = newId();
         await tx.execute(sql`
           INSERT INTO spec (id, project_id, parent_id, type, key, title)
@@ -351,18 +379,10 @@ export class SpecService {
               takeover: input.takeover === true,
             });
 
-      // base_version 전제조건 — 불일치는 409. 리스가 뚫려도 여기서 막힌다
-      if (input.baseVersionId != null && draft !== null && draft.id !== input.baseVersionId) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.base_version_stale'), {
-          kind: 'base_version',
-          expected: draft.id,
-          received: input.baseVersionId,
-        });
-      }
-
-      // **비교-교환**(§1.4g). 두 식별자는 다른 것을 말한다: `base_version` 은 "어느 행",
-      // `base_hash` 는 "어느 내용". 초안은 같은 행을 덮어쓰므로 앞엣것만으로는 남이 그
-      // 사이에 바꾼 것을 알 수 없다 — 실측에서 세 세션이 다 성공하고 둘이 글을 잃었다.
+      // **비교-교환**(§1.4g). 부른 쪽이 말하는 것은 **"어느 내용을 보고 썼는가" 하나**다.
+      // "어느 행에서 갈라졌는가"(계보)는 서버가 아는 사실이라 묻지 않는다 — 예전에는
+      // `base_version` 으로 물었는데, 초안은 같은 행을 덮어쓰므로 그 답은 아무것도 막지
+      // 못했다(실측에서 세 세션이 다 성공하고 둘이 글을 잃었다).
       if (isExisting) {
         const current = draft !== null ? draft.content_hash : await readerHash(tx, specId);
         if (input.baseHash == null || input.baseHash === '') {
@@ -474,6 +494,14 @@ export class SpecService {
       );
       const versionNo = Number(last[0]?.max ?? 0) + 1;
       const versionId = newId();
+      // **계보는 시스템이 채운다**(2026-08-30 사람 결정). 예전에는 부른 쪽이 `base_version` 으로
+      // 선언했는데, 부른 쪽은 "무엇을 보고 썼는가"를 지문으로 이미 말하고 있다(§1.4g).
+      // 어느 버전에서 갈라져 나왔는가는 서버가 아는 사실이지 물어볼 일이 아니다.
+      const { rows: lineage } = await tx.execute<{ id: string }>(sql`
+        SELECT id FROM spec_version WHERE spec_id = ${specId} AND version_no < ${versionNo}
+         ORDER BY version_no DESC LIMIT 1
+      `);
+      const baseVersionId = lineage[0]?.id ?? null;
 
       await tx.execute(sql`
         INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
@@ -483,7 +511,7 @@ export class SpecService {
         VALUES (${versionId}, ${specId}, ${versionNo}, 'draft', ${input.bodyMd},
                 decode(${hash}, 'hex'), ${input.changeSummary ?? null},
                 ${input.userId}, ${input.sessionId ?? null},
-                ${input.baseVersionId ?? null}, ${input.userId}, ${input.sessionId ?? null},
+                ${baseVersionId}, ${input.userId}, ${input.sessionId ?? null},
                 ${leaseExpires.toISOString()})
       `);
       if (created) {
@@ -536,7 +564,6 @@ export class SpecService {
     projectId: string;
     specKey: string;
     bodyMd: string;
-    baseVersionId?: string | null;
     baseHash?: string | undefined;
     changeSummary?: string | undefined;
     takeover?: boolean | undefined;
@@ -558,7 +585,6 @@ export class SpecService {
       specId,
       bodyMd: input.bodyMd,
       userId: input.userId,
-      ...(input.baseVersionId == null ? {} : { baseVersionId: input.baseVersionId }),
       ...(input.baseHash == null ? {} : { baseHash: input.baseHash }),
       ...(input.changeSummary == null ? {} : { changeSummary: input.changeSummary }),
       ...(input.takeover === true ? { takeover: true } : {}),
@@ -1378,6 +1404,9 @@ export class SpecService {
     const expires =
       draft.edit_lease_expires_at === null ? null : toDate(draft.edit_lease_expires_at);
     if (expires !== null && expires.getTime() <= Date.now()) return false; // 만료 — 비어 있다
+    // **쥔 세션이 죽었으면 비어 있는 것과 같다**(2026-08-30 사람 결정). 하트비트는 60초마다
+    // 오고 있었는데 리스가 그 신호를 안 봤다 — 크래시한 에이전트의 리스가 30분을 버텼다.
+    if (await this.leaseSessionDead(tx, draft.edit_lease_session_id)) return false;
     // 같은 세션이 이어 쓰는 것 — 웹 탭(세션 없음)끼리도 같은 사람이면 한 자리로 본다
     if (holder === actor.userId && (draft.edit_lease_session_id ?? null) === actor.sessionId) {
       return false;
@@ -1393,6 +1422,25 @@ export class SpecService {
       // 막다른 길이 아니라는 것을 오류가 스스로 말한다 — 안 그러면 사람은 만료를 기다린다
       takeover: true,
     });
+  }
+
+  /**
+   * 리스를 쥔 세션이 죽었나 — 하트비트 3주기(180초) 침묵이면 죽은 것으로 본다.
+   *
+   * 세션이 없는 표면(웹 탭)에는 적용하지 않는다: 하트비트가 없으니 판정할 근거도 없고,
+   * 적용하면 사람이 20분 쓰는 동안 남이 그 자리를 가져간다.
+   */
+  private async leaseSessionDead(tx: Tx, sessionId: string | null): Promise<boolean> {
+    if (sessionId === null) return false;
+    const { rows } = await tx.execute<{ dead: boolean }>(sql`
+      SELECT (state NOT IN ('pending', 'active', 'awaiting_input')
+              OR coalesce(last_heartbeat_at, started_at)
+                 < now() - ${sql.raw(`interval '${LEASE_HEARTBEAT_GRACE_SECONDS} seconds'`)}
+             ) AS dead
+        FROM agent_session WHERE id = ${sessionId}
+    `);
+    // 세션 행이 없으면(지워졌다) 그 리스를 지킬 이유도 없다
+    return rows[0]?.dead ?? true;
   }
 
   /** 누가 쥐고 있나 — 사람이 읽을 이름. 세션이면 에이전트·호스트, 아니면 사용자 표시 이름 */

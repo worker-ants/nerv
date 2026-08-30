@@ -569,7 +569,8 @@ async function makeSpecVersion(body: string, status = 'draft'): Promise<string> 
   const versionId = newId();
   await pool.query(
     `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
-    [specId, projectId, `SPC-${specId.slice(0, 6)}`],
+    // **앞자리를 잘라 쓰지 않는다** — UUIDv7 는 앞이 시각이라 같은 순간에 만든 둘이 겹친다
+    [specId, projectId, `SPC-${specId}`],
   );
   await pool.query(
     `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)

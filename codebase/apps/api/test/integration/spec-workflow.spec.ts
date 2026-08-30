@@ -309,19 +309,24 @@ describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
     ).resolves.toBeDefined();
   });
 
-  it('base_version 이 다르면 409 — 리스가 뚫려도 데이터는 지킨다', async () => {
-    const { specId } = await newDraft('SPC-BASE');
-    await expect(
-      specs.draftUpsert({
-        baseHash: await hashOf(specId),
-        roles: ['planner'],
-        projectId,
-        specId,
-        bodyMd: '# 낡은 기준',
-        userId: planner,
-        baseVersionId: newId(),
-      }),
-    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  it('계보는 시스템이 채운다 — 부른 쪽은 지문만 말한다 (2026-08-30 사람 결정)', async () => {
+    const { specId, versionId } = await newDraft('SPC-BASE');
+    // 승인해 그 버전을 닫으면 다음 저장이 **새 행**을 만든다 — 계보가 생기는 자리다
+    await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+    const next = await specs.draftUpsert({
+      baseHash: await hashOf(specId),
+      roles: ['planner'],
+      projectId,
+      specId,
+      bodyMd: '# 이어서 쓴다',
+      userId: planner,
+    });
+    const { rows } = await pool.query<{ base_version_id: string | null }>(
+      `SELECT base_version_id FROM spec_version WHERE id = $1`,
+      [next['spec_version_id'] as string],
+    );
+    // 부른 쪽은 계보를 말하지 않았는데 서버가 직전 버전을 채웠다
+    expect(rows[0]?.base_version_id).toBe(versionId);
   });
 
   it('제출하면 리스가 풀린다', async () => {

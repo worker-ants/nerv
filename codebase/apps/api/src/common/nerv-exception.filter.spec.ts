@@ -25,7 +25,7 @@ describe('statusFor — api.md §1.4 매핑표', () => {
 
   it('NERV_PRECONDITION 은 두 갈래다 — zod 위반은 400, 그 밖은 409', () => {
     expect(statusFor(NERV_ERROR.PRECONDITION, { issues: [] })).toBe(400);
-    expect(statusFor(NERV_ERROR.PRECONDITION, { kind: 'base_version' })).toBe(409);
+    expect(statusFor(NERV_ERROR.PRECONDITION, { kind: 'stale_body' })).toBe(409);
   });
 
   it('코드 10종 전부가 매핑을 갖는다', () => {

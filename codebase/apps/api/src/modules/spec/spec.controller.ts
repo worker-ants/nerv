@@ -125,7 +125,7 @@ export class SpecController {
 
   /**
    * EP-SPEC-07 — **새 스펙 생성**. 생성과 이어쓰기를 문서가 나눈 이유가 있다:
-   * 생성은 key·type·title 이 필요하고 이어쓰기는 base_version 이 필요하다 —
+   * 생성은 key·type·title 이 필요하고 이어쓰기는 base_hash 가 필요하다 —
    * 한 경로에 섞으면 어느 쪽 필수 필드가 빠졌는지 오류가 흐려진다.
    */
   @Post('specs')
@@ -167,7 +167,6 @@ export class SpecController {
       specKey: spec,
       userId: principal.userId,
       bodyMd: String(body['body_markdown'] ?? body['body_md'] ?? ''),
-      ...(typeof body['base_version'] === 'string' ? { baseVersionId: body['base_version'] } : {}),
       // 비교-교환의 기준 — 웹도 읽은 지문을 그대로 되돌려 준다(§1.4g)
       ...(typeof body['base_hash'] === 'string' ? { baseHash: body['base_hash'] } : {}),
       ...(typeof body['change_summary'] === 'string'

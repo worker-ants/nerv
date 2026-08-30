@@ -64,6 +64,13 @@
       "when": 1788067206732,
       "tag": "0008_spec_version_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788078220502,
+      "tag": "0009_spec_key_unique",
+      "breakpoints": true
     }
   ]
 }
