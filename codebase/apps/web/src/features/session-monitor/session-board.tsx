@@ -6,9 +6,7 @@
 
 import { statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
-import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '../../lib/api.js';
-import { queryKeys } from '../../lib/query-keys.js';
+import { useSessions } from '../../lib/queries.js';
 import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
 import { cn } from '../../lib/utils.js';
@@ -30,6 +28,9 @@ export interface SessionBoardProps {
   /** master-detail — 선택된 세션 id 와 선택 콜백(시안 §2.5) */
   selectedId?: string | undefined;
   onSelect?: ((id: string) => void) | undefined;
+  /** 스트립에서 고른 상태 — null 이면 전부(REQ-WEB-116) */
+  state?: string | null;
+  onStateChange?: ((state: string | null) => void) | undefined;
 }
 
 export function SessionBoard({
@@ -37,12 +38,16 @@ export function SessionBoard({
   projectId,
   selectedId,
   onSelect,
+  state = null,
+  onStateChange,
 }: SessionBoardProps): React.JSX.Element {
   const t = useT();
-  const query = useQuery({
-    queryKey: queryKeys.projectSessions(projectId),
-    queryFn: () => apiFetch<SessionBoardResult>(`/projects/${projectSlug}/sessions`),
-  });
+  const query = useSessions(projectSlug, projectId, state) as {
+    isLoading: boolean;
+    isError: boolean;
+    data: SessionBoardResult | undefined;
+    refetch: () => unknown;
+  };
 
   if (query.isLoading) {
     // 로딩은 화면 골격으로 — 스피너 단독 금지(screens.md §1.5)
@@ -70,6 +75,31 @@ export function SessionBoard({
   const result = query.data;
   const items = result?.items ?? [];
 
+  // **거르고 나서 비어 있는 것은 "세션이 없다" 가 아니다.** 그때 부트스트랩 안내를 띄우면
+  // 사람은 자기가 필터를 켠 사실을 잊고 "세션이 사라졌다" 고 읽는다.
+  if (items.length === 0 && state !== null) {
+    return (
+      <div className="flex flex-col gap-3">
+        <SessionSummaryStrip
+          summary={result?.summary ?? {}}
+          selected={state}
+          onSelect={onStateChange}
+        />
+        <EmptyState
+          icon="◌"
+          title={t('sessions.none_in_state', { state: t(statusLabelKey('session', state)) })}
+          action={
+            onStateChange === undefined ? undefined : (
+              <Button size="sm" variant="ghost" onClick={() => onStateChange(null)}>
+                {t('sessions.show_all')}
+              </Button>
+            )
+          }
+        />
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     // 빈 상태에 막다른 길을 두지 않는다 — 다음 행동 링크를 준다(screens.md §1.5)
     return (
@@ -89,7 +119,11 @@ export function SessionBoard({
 
   return (
     <div className="flex flex-col gap-3">
-      <SessionSummaryStrip summary={result?.summary ?? {}} />
+      <SessionSummaryStrip
+        summary={result?.summary ?? {}}
+        selected={state}
+        onSelect={onStateChange}
+      />
       {/* 줄이 되었으니 격자가 아니라 목록이다 — 2열로 쪼개면 세로 훑기가 끊긴다 */}
       {/* 시안은 상자를 걷었다 — 줄 사이 실선만으로 목록이 된다 */}
       <div className="flex flex-col">
@@ -106,11 +140,24 @@ export function SessionBoard({
   );
 }
 
-/** 요약 스트립 — 상태별 집계(screens.md §2.6) */
+/**
+ * 요약 스트립 — 상태별 집계이자 **필터다**(screens.md §2.6 · REQ-WEB-116).
+ *
+ * 숫자가 보이면 사람은 그것을 누른다. 예전에는 눌러도 아무 일이 없었다 — "종료 12건" 을
+ * 보고 그 열둘이 무엇인지 알려면 목록 전체를 훑어야 했다(사람 보고 2026-08-30).
+ * 고른 것을 다시 누르면 풀린다: 필터를 켜는 길과 끄는 길이 같은 자리에 있어야 한다.
+ *
+ * **숫자는 필터를 따라가지 않는다.** 전체 그림이 스트립이고 목록이 그 조각이라,
+ * 거를 때마다 숫자가 1로 바뀌면 스트립이 스트립이기를 그만둔다.
+ */
 export function SessionSummaryStrip({
   summary,
+  selected = null,
+  onSelect,
 }: {
   summary: Record<string, number>;
+  selected?: string | null;
+  onSelect?: ((state: string | null) => void) | undefined;
 }): React.JSX.Element {
   const t = useT();
   const entries = Object.entries(summary).filter(([, n]) => n > 0);
@@ -129,27 +176,42 @@ export function SessionSummaryStrip({
         data-testid="session-summary"
         className="flex items-center border-y border-border py-[13px]"
       >
-        {entries.map(([state, n], i) => (
-          <div
-            key={state}
-            className={cn(
-              'flex items-center gap-[9px] pr-[30px]',
-              i < entries.length - 1 && 'mr-[30px] border-r border-border',
-            )}
-          >
-            <span
-              aria-hidden="true"
+        {entries.map(([state, n], i) => {
+          const on = selected === state;
+          const label = t(statusLabelKey('session', state));
+          return (
+            <button
+              key={state}
+              type="button"
+              data-testid={`session-filter-${state}`}
+              data-selected={on}
+              aria-pressed={on}
+              // 고를 수 없으면 단추처럼 굴지 않는다 — 누를 수 있어 보이는데 안 눌리는 것이
+              // 가장 나쁘다. onSelect 를 주지 않는 화면(개요 카드)이 그 자리다.
+              disabled={onSelect === undefined}
+              onClick={() => onSelect?.(on ? null : state)}
               className={cn(
-                'size-[7px] shrink-0 rounded-full',
-                SUMMARY_DOT[state] ?? 'bg-status-idle-text',
+                'flex items-center gap-[9px] pr-[30px] transition-opacity',
+                i < entries.length - 1 && 'mr-[30px] border-r border-border',
+                onSelect !== undefined && 'cursor-pointer hover:opacity-100',
+                // 고른 것만 온전히 보이고 나머지는 물러선다 — 선택이 색이 아니라 **대비**로 읽힌다
+                onSelect !== undefined && selected !== null && !on && 'opacity-45',
               )}
-            />
-            <span className="text-[20px] leading-none font-[650] tracking-[-0.02em] tabular-nums">
-              {n}
-            </span>
-            <span className="text-sm text-text-mute">{t(statusLabelKey('session', state))}</span>
-          </div>
-        ))}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'size-[7px] shrink-0 rounded-full',
+                  SUMMARY_DOT[state] ?? 'bg-status-idle-text',
+                )}
+              />
+              <span className="text-[20px] leading-none font-[650] tracking-[-0.02em] tabular-nums">
+                {n}
+              </span>
+              <span className={cn('text-sm', on ? 'text-text' : 'text-text-mute')}>{label}</span>
+            </button>
+          );
+        })}
       </div>
     )
   );

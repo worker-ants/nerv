@@ -222,14 +222,23 @@ export interface SessionBoardResponse {
  * 무효화 매핑이 그 값으로 키를 만들기 때문이다(event-invalidation.ts). slug 로 잡으면
  * 이벤트가 와도 이 쿼리는 갱신되지 않는다.
  */
+/**
+ * 세션 판 — `state` 는 **서버가 거른다**(엔드포인트가 처음부터 `?state=` 를 받는다).
+ *
+ * 목록은 200건에서 잘리므로 클라이언트에서 거르면 "종료 12건" 이라 적어 놓고 그중
+ * 일부만 보이는 화면이 된다. 요약(`summary`)은 필터와 무관하게 **프로젝트 전체**다 —
+ * 스트립이 전체 그림이고 목록이 그 조각이라는 관계가 그래야 성립한다.
+ */
 export function useSessions(
   slug: string,
   projectId?: string,
+  state?: string | null,
 ): UseQueryResult<SessionBoardResponse> {
   const refetchInterval = useLivePolling();
+  const query = state == null || state === '' ? '' : `?state=${encodeURIComponent(state)}`;
   return useQuery({
-    queryKey: queryKeys.projectSessions(projectId ?? slug),
-    queryFn: () => apiFetch<SessionBoardResponse>(`/projects/${slug}/sessions`),
+    queryKey: [...queryKeys.projectSessions(projectId ?? slug), state ?? 'all'],
+    queryFn: () => apiFetch<SessionBoardResponse>(`/projects/${slug}/sessions${query}`),
     refetchInterval,
   });
 }

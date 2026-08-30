@@ -23,7 +23,9 @@ function SessionMonitor(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const project = useProject(proj);
-  const sessions = useSessions(proj, projectIdOf(project.data));
+  // 스트립에서 고른 상태 — 목록과 레일이 **같은 조각**을 봐야 하므로 여기가 그 자리다
+  const [state, setState] = useState<string | null>(null);
+  const sessions = useSessions(proj, projectIdOf(project.data), state);
   const projectId = project.data?.['id'];
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -41,6 +43,12 @@ function SessionMonitor(): React.JSX.Element {
             projectId={typeof projectId === 'string' ? projectId : proj}
             selectedId={focused?.id}
             onSelect={setSelectedId}
+            state={state}
+            onStateChange={(next) => {
+              setState(next);
+              // 거른 뒤에도 앞서 고른 세션이 레일에 남아 있으면 화면 둘이 다른 말을 한다
+              setSelectedId(null);
+            }}
           />
         </PageBody>
       </div>

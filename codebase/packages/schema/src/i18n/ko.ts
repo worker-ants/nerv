@@ -804,6 +804,8 @@ export const ko = {
   'sessions.no_sessions': '세션 없음',
   'sessions.none_hint_post': '을 호출하면 여기 나타납니다.',
   'sessions.none_hint_pre': '플러그인을 설치하고',
+  'sessions.none_in_state': '{state} 상태인 세션이 없습니다.',
+  'sessions.show_all': '전부 보기',
   'sessions.none_running': '실행 중인 세션이 없습니다.',
   'sessions.title': '세션 모니터',
   'steer.confirm_body':

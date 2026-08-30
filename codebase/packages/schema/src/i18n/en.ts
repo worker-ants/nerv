@@ -818,6 +818,8 @@ export const en = {
   'sessions.no_sessions': 'No sessions',
   'sessions.none_hint_post': ' — it shows up here.',
   'sessions.none_hint_pre': 'Install the plugin and call',
+  'sessions.none_in_state': 'No sessions are {state}.',
+  'sessions.show_all': 'Show all',
   'sessions.none_running': 'No sessions are running.',
   'sessions.title': 'Session monitor',
   'steer.confirm_body':

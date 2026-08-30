@@ -7,8 +7,16 @@
 
 import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { RealtimeProvider } from '../../lib/realtime.js';
 import { SessionBoard } from './session-board.js';
 import { SessionCard } from './session-card.js';
 import type { SessionCard as Card } from './types.js';
@@ -40,6 +48,26 @@ const NOW = new Date('2026-08-22T12:00:00Z').getTime();
 /** 카드도 로케일 안에서 산다 — 상태 배지·하트비트 문구가 카탈로그에서 온다 */
 function render(ui: React.ReactElement): ReturnType<typeof rtlRender> {
   return rtlRender(<LocaleProvider locale="ko">{ui}</LocaleProvider>);
+}
+
+let client: QueryClient;
+
+beforeEach(() => {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+});
+
+// 보드는 이제 `useSessions` 를 쓴다 — 폴링 판정이 실시간 상태를 보므로 그 안에서 산다.
+// 예전에는 보드가 자기 쿼리를 따로 들고 있었고, 그래서 페이지의 쿼리와 **둘**이었다.
+function renderBoard(props: Partial<React.ComponentProps<typeof SessionBoard>> = {}): void {
+  render(
+    <LocaleProvider locale="ko">
+      <QueryClientProvider client={client}>
+        <RealtimeProvider>
+          <SessionBoard projectSlug="clemvion" projectId="p-1" {...props} />
+        </RealtimeProvider>
+      </QueryClientProvider>
+    </LocaleProvider>,
+  );
 }
 
 describe('SessionCard — REQ-WEB-019 필수 표기', () => {
@@ -84,22 +112,6 @@ describe('SessionCard — REQ-WEB-019 필수 표기', () => {
 });
 
 describe('SessionBoard — 상태 3종 (screens.md §1.5)', () => {
-  let client: QueryClient;
-
-  beforeEach(() => {
-    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  });
-
-  function renderBoard(): void {
-    render(
-      <LocaleProvider locale="ko">
-        <QueryClientProvider client={client}>
-          <SessionBoard projectSlug="clemvion" projectId="p-1" />
-        </QueryClientProvider>
-      </LocaleProvider>,
-    );
-  }
-
   it('로딩은 골격으로 — 스피너 단독 금지', () => {
     vi.stubGlobal(
       'fetch',
@@ -160,5 +172,77 @@ describe('SessionBoard — 상태 3종 (screens.md §1.5)', () => {
     await waitFor(() => expect(screen.getByText('세션을 불러오지 못했습니다.')).toBeDefined());
     expect(screen.getByText('다시 시도')).toBeDefined();
     vi.unstubAllGlobals();
+  });
+});
+
+// 2026-08-30 사람 요청 — 스트립의 숫자는 보이는데 눌러도 아무 일이 없었다.
+// "종료 12건" 을 보고 그 열둘이 무엇인지 알려면 목록 전체를 훑어야 했다.
+describe('스트립은 필터다 (REQ-WEB-116)', () => {
+  const SUMMARY = { active: 2, complete: 12, stale: 3 };
+
+  function stubList(items: Card[]): string[] {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        urls.push(String(url));
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items, summary: SUMMARY, next_cursor: null }),
+        };
+      }),
+    );
+    return urls;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('상태를 고르면 서버에 그 상태만 묻는다 — 200건에서 잘리므로 화면에서 거르지 않는다', async () => {
+    const urls = stubList([base]);
+    const onStateChange = vi.fn();
+    renderBoard({ onStateChange });
+    await screen.findByTestId('session-summary');
+
+    fireEvent.click(screen.getByTestId('session-filter-complete'));
+    expect(onStateChange).toHaveBeenCalledWith('complete');
+
+    // 부모가 상태를 쥔다 — 목록과 레일이 같은 조각을 봐야 하기 때문이다
+    cleanup();
+    renderBoard({ state: 'complete', onStateChange });
+    await waitFor(() => expect(urls.some((u) => u.includes('state=complete'))).toBe(true));
+  });
+
+  it('고른 것을 다시 누르면 풀린다 — 켜는 길과 끄는 길이 같은 자리다', async () => {
+    stubList([base]);
+    const onStateChange = vi.fn();
+    renderBoard({ state: 'stale', onStateChange });
+    await screen.findByTestId('session-summary');
+
+    fireEvent.click(screen.getByTestId('session-filter-stale'));
+    expect(onStateChange).toHaveBeenCalledWith(null);
+  });
+
+  it('숫자는 필터를 따라가지 않는다 — 스트립은 전체 그림이고 목록이 그 조각이다', async () => {
+    stubList([base]);
+    renderBoard({ state: 'complete', onStateChange: vi.fn() });
+    const strip = await screen.findByTestId('session-summary');
+    expect(within(strip).getByTestId('session-filter-complete').textContent).toContain('12');
+  });
+
+  it('걸러서 비었으면 "세션이 없다" 고 하지 않는다 — 사람은 필터를 켠 것을 잊는다', async () => {
+    stubList([]);
+    renderBoard({ state: 'stale', onStateChange: vi.fn() });
+    await waitFor(() => expect(screen.queryByTestId('session-summary')).not.toBeNull());
+    // 부트스트랩 안내가 아니라 "그 상태가 없다" + 전부 보기다
+    expect(screen.queryByText(/nerv_bootstrap/)).toBeNull();
+    expect(screen.getByText('전부 보기')).toBeDefined();
+  });
+
+  it('고를 수 없는 화면에서는 단추처럼 굴지 않는다 — 개요 카드의 스트립이 그 자리다', async () => {
+    stubList([base]);
+    renderBoard();
+    await screen.findByTestId('session-summary');
+    expect(screen.getByTestId('session-filter-active').hasAttribute('disabled')).toBe(true);
   });
 });
