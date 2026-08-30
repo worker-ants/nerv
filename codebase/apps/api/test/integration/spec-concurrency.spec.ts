@@ -1,4 +1,4 @@
-// 병렬 편집 — 같은 문서를 여러 세션이 동시에 고칠 때 무엇이 막히나 (api.md §1.4g)
+// 병렬 편집 — 같은 문서를 여러 세션이 동시에 고칠 때 무엇이 막히나 (api.md §1.4g·§1.4h)
 //
 // **Task 축에는 동시성 테스트가 12건, 문서 축에는 0건이었다.** 그 비대칭이 그대로 결함이
 // 됐다(점검 2026-08-30): 세 세션이 같은 초안을 동시에 저장하면 셋 다 성공하고 본문에는
@@ -6,7 +6,9 @@
 //
 // 원인은 `base_version` 이 초안 단계에서 **원리적으로** 못 막는다는 것이었다: draft 는 같은
 // 행을 덮어쓰므로 version id 가 변하지 않아 "무엇을 보고 썼는가"를 식별하지 못한다.
-// 이 파일이 지키는 것은 그 자리다.
+// 이 파일이 지키는 것은 그 자리다. **두 층이다**: 리스가 남의 자리를 먼저 알리고(§1.4h),
+// 지문이 마지막에 잠근다(§1.4g). 리스는 신호이고 지문이 자물쇠다 — 그래서 리스를 뺏어도
+// 낡은 지문으로는 여전히 못 쓴다.
 
 process.env['NERV_EMBED_URL'] = 'http://127.0.0.1:1/v1';
 
@@ -107,6 +109,7 @@ async function makeSpec(
   key: string,
   body: string,
   userId = alice,
+  sessionId: string | null = null,
 ): Promise<{ specId: string; versionId: string; hash: string }> {
   const r = await specs.draftUpsert({
     roles: ['planner'],
@@ -116,6 +119,7 @@ async function makeSpec(
     type: 'feature',
     bodyMd: body,
     userId,
+    sessionId,
   });
   return {
     specId: r['spec_id'] as string,
@@ -152,8 +156,10 @@ async function bodyOf(specId: string): Promise<string> {
 }
 
 describe('같은 문서 · 같은 사용자 · 세션 N개', () => {
-  it('세 세션이 같은 지문으로 동시에 저장하면 하나만 성공한다', async () => {
-    const { specId, hash } = await makeSpec('SPC-RACE', '# 시작\n\n공통 문장');
+  it('한 세션이 같은 지문으로 셋을 동시에 던지면 하나만 성공한다', async () => {
+    // 리스가 아니라 **지문** 층을 보는 시험이라 보유자와 같은 세션으로 던진다.
+    // 다른 세션이면 리스가 먼저 막아 이 자리까지 오지 않는다(아래 describe 가 그것을 본다).
+    const { specId, hash } = await makeSpec('SPC-RACE', '# 시작\n\n공통 문장', alice, sessionA);
 
     const { ok, failed } = await settle(
       ['가', '나', '다'].map((mark) =>
@@ -239,7 +245,7 @@ describe('같은 문서 · 같은 사용자 · 세션 N개', () => {
 
 describe('본문은 그대로 두고 관계만 바꾸는 저장', () => {
   it('허용한다 — 지문이 같으므로 비교-교환을 통과한다 (2026-08-30 사람 결정)', async () => {
-    await makeSpec('SPC-TARGET', '# 대상');
+    const target = await makeSpec('SPC-TARGET', '# 대상');
     const { specId, hash } = await makeSpec('SPC-RELONLY', '# 본문 그대로');
 
     const r = await settle([
@@ -249,7 +255,7 @@ describe('본문은 그대로 두고 관계만 바꾸는 저장', () => {
         specId,
         baseHash: hash,
         bodyMd: '# 본문 그대로',
-        relations: [{ to: 'SPC-TARGET', kind: 'refines' }],
+        relations: [{ to: 'SPC-TARGET', kind: 'refines', baseHash: target.hash }],
         userId: alice,
       }),
     ]);
@@ -259,6 +265,142 @@ describe('본문은 그대로 두고 관계만 바꾸는 저장', () => {
       [specId],
     );
     expect(rows[0]?.n).toBe('1');
+  });
+});
+
+describe('선언 관계 — 상대 문서의 지문도 필수다 (2026-08-30 사람 결정)', () => {
+  it('상대 지문이 없으면 막는다 — 읽지 않고 선언한 관계는 그래프에 거짓을 심는다', async () => {
+    await makeSpec('SPC-RT', '# 대상');
+    const { specId, hash } = await makeSpec('SPC-RS', '# 나');
+    const r = await settle([
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: hash,
+        bodyMd: '# 나',
+        relations: [{ to: 'SPC-RT', kind: 'depends_on' }],
+        userId: alice,
+      }),
+    ]);
+    expect(r.failed[0]).toMatchObject({ kind: 'relation_base_hash_required' });
+  });
+
+  it('상대가 그 사이 바뀌었으면 막고, 어느 문서인지 짚어 준다', async () => {
+    const target = await makeSpec('SPC-RT2', '# 대상');
+    const { specId, hash } = await makeSpec('SPC-RS2', '# 나');
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: target.specId,
+      baseHash: target.hash,
+      bodyMd: '# 대상이 바뀌었다',
+      userId: alice,
+    });
+
+    const results = await Promise.allSettled([
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: hash,
+        bodyMd: '# 나',
+        relations: [{ to: 'SPC-RT2', kind: 'depends_on', baseHash: target.hash }],
+        userId: alice,
+      }),
+    ]);
+    const reason = (results[0] as PromiseRejectedResult).reason as {
+      details: { kind: string; targets: { to: string; current_hash: string }[] };
+    };
+    expect(reason.details.kind).toBe('stale_relation_target');
+    // **어느 문서를 다시 읽어야 하는지**를 오류가 말한다 — 안 그러면 다섯 개 중 하나를 찾아야 한다
+    expect(reason.details.targets[0]?.to).toBe('SPC-RT2');
+    expect(reason.details.targets[0]?.current_hash).not.toBe(target.hash);
+  });
+});
+
+describe('같은 사용자 · 다른 세션 — 리스는 세션이 쥔다 (§1.4h)', () => {
+  it('같은 사람이라도 다른 세션이면 막는다 — 예전에는 그냥 통과했다', async () => {
+    const { specId, hash } = await makeSpec('SPC-SESS', '# A 세션이 쓴다', alice, sessionA);
+    const r = await settle([
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: hash,
+        bodyMd: '# B 세션이 끼어든다',
+        sessionId: sessionB,
+        userId: alice,
+      }),
+    ]);
+    expect(r.failed[0]).toMatchObject({ code: NERV_ERROR.DRAFT_LEASED, kind: 'draft_leased' });
+    expect(await bodyOf(specId)).toBe('# A 세션이 쓴다');
+  });
+
+  it('takeover 로 뺏을 수 있다 — 죽은 세션이 쥔 리스에서 빠져나오는 유일한 길이다', async () => {
+    const { specId, hash } = await makeSpec('SPC-SEIZE', '# A 세션', alice, sessionA);
+    const r = await settle([
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: hash,
+        bodyMd: '# B 세션이 이어받는다',
+        sessionId: sessionB,
+        takeover: true,
+        userId: alice,
+      }),
+    ]);
+    expect(r.failed).toHaveLength(0);
+    expect(await bodyOf(specId)).toBe('# B 세션이 이어받는다');
+    // 뺏은 사실이 이벤트에 남는다 — 자리를 잃은 쪽이 나중에 물을 곳이다
+    const { rows } = await pool.query<{ payload: { takeover?: boolean } }>(
+      `SELECT payload FROM event WHERE type = 'spec.draft_updated' ORDER BY occurred_at DESC LIMIT 1`,
+    );
+    expect(rows[0]?.payload?.takeover).toBe(true);
+  });
+
+  it('뺏어도 낡은 지문으로는 못 쓴다 — 리스는 신호이고 지문이 자물쇠다', async () => {
+    const { specId, hash } = await makeSpec('SPC-SEIZE2', '# 처음', alice, sessionA);
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      baseHash: hash,
+      bodyMd: '# A 세션이 더 썼다',
+      sessionId: sessionA,
+      userId: alice,
+    });
+    const r = await settle([
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: hash, // 뺏기 전에 읽은 지문
+        bodyMd: '# B 세션이 덮어쓴다',
+        sessionId: sessionB,
+        takeover: true,
+        userId: alice,
+      }),
+    ]);
+    expect(r.failed[0]).toMatchObject({ kind: 'stale_body' });
+    expect(await bodyOf(specId)).toBe('# A 세션이 더 썼다');
+  });
+
+  it('웹 탭(세션 없음)과 에이전트 세션은 서로를 막는다 — 실측된 덮어쓰기의 자리다', async () => {
+    const { specId, hash } = await makeSpec('SPC-WEBVSAGENT', '# 사람이 웹에서 쓴다');
+    const r = await settle([
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: hash,
+        bodyMd: '# 에이전트가 덮어쓴다',
+        sessionId: sessionA,
+        userId: alice,
+      }),
+    ]);
+    expect(r.failed[0]).toMatchObject({ code: NERV_ERROR.DRAFT_LEASED });
   });
 });
 

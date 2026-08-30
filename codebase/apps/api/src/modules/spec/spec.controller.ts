@@ -173,6 +173,8 @@ export class SpecController {
       ...(typeof body['change_summary'] === 'string'
         ? { changeSummary: body['change_summary'] }
         : {}),
+      // 리스 인계 — 웹에서 "인계" 를 누른 다음 저장이 이것을 싣는다(§1.4h)
+      ...(body['takeover'] === true ? { takeover: true } : {}),
     });
   }
 

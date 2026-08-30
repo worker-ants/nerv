@@ -105,6 +105,16 @@ export const en = {
   'error.question.not_open': 'That question is not open.',
   'error.relation.auto_kind':
     'references is synced from the body — declaring it by hand is undone on the next save.',
+  'error.relation.base_hash_required':
+    'Declaring a relation needs the target document base_hash — read it with nerv_spec_get and send its content_hash.',
+  'error.relation.stale_target':
+    'The target document changed in the meantime — read it again and confirm the relation still holds.',
+  'mcp.arg.relation_base_hash':
+    'fingerprint of the target document — content_hash from nerv_spec_get. required when adding a relation',
+  'mcp.arg.takeover':
+    'seize an edit lease held by someone else — the way out when a dead session still holds it',
+  'spec.lease_takeover': 'Take over',
+  'spec.lease_taken': 'Taken over — you can edit now.',
   'error.relation.self': 'A spec cannot relate to itself.',
   'error.request.bad_field': '{field} has an invalid format.',
   'error.request.schema': 'The request body failed schema validation.',
@@ -117,7 +127,7 @@ export const en = {
   'error.spec.base_version_stale': 'The base version no longer matches the current draft.',
   'error.spec.check_blocked': 'The pre-submit check found blocking findings.',
   'error.spec.cycle': 'A spec cannot be moved under itself.',
-  'error.spec.draft_leased': 'Someone else is editing this draft.',
+  'error.spec.draft_leased': 'Another session is editing this draft — pass takeover to seize it.',
   'error.spec.draft_not_found': 'Draft not found.',
   'home.coverage': 'Coverage',
   'home.coverage.implemented': 'Requirements implemented',
@@ -655,9 +665,6 @@ export const en = {
   'spec.editor.source': 'View source',
   'spec.editor.source_readonly': 'Read-only — edit through the terminal path',
   'spec.gate_passed': '{tier} — passed without approval (recorded as an event).',
-  'spec.handoff_request': 'Ask for handoff',
-  'spec.handoff_requested': 'Requested',
-  'spec.handoff_sent': 'Asked {name} for the handoff — you can continue once they let go.',
   'spec.impact_backlinks':
     '{count} documents reference this — they get a recheck request on approval',
   'spec.impact_dialog': 'Review request impact',

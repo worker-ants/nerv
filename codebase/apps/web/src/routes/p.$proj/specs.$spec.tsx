@@ -57,7 +57,12 @@ function SpecDetail(): React.JSX.Element {
   const [roundTrip, setRoundTrip] = useState<RoundTripResult | null>(null);
   const [leaseHolder, setLeaseHolder] = useState<string | null>(null);
   const [conflict, setConflict] = useState<Record<string, unknown> | null>(null);
-  const [handoffRequested, setHandoffRequested] = useState(false);
+  /**
+   * **리스를 뺏었다.** 리스 보유자는 이제 세션이라(§1.4h), 죽은 에이전트 세션이 쥔 30분짜리
+   * 리스에 사람이 갇히는 것이 가장 흔한 상황이다. 눌러도 본문이 위험하지 않은 이유는
+   * `base_hash` 가 따로 지키기 때문이다 — 리스는 신호이고 지문이 자물쇠다.
+   */
+  const [takeover, setTakeover] = useState(false);
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
   // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다
@@ -76,7 +81,7 @@ function SpecDetail(): React.JSX.Element {
     setRoundTrip(null);
     setLeaseHolder(null);
     setConflict(null);
-    setHandoffRequested(false);
+    setTakeover(false);
     setShowImpact(false);
     setMetaOpen(false);
     setRailTab('relations');
@@ -110,6 +115,7 @@ function SpecDetail(): React.JSX.Element {
           // 낙관적 동시성의 최후 방어선 — 리스가 뚫려도 여기서 막힌다(§3.4)
           base_version: versionId,
           base_hash: baseHash ?? readHash,
+          ...(takeover ? { takeover: true } : {}),
         },
       }),
     onSuccess: (result) => {
@@ -333,20 +339,18 @@ function SpecDetail(): React.JSX.Element {
             <span>{t('spec.lease_other', { name: leaseHolder })}</span>
             <button
               type="button"
-              data-testid="handoff-request"
-              disabled={handoffRequested}
+              data-testid="lease-takeover"
               onClick={() => {
-                // 인계는 **보유자가 놓아야** 이뤄진다 — 뺏는 경로를 만들면 편집 리스가
-                // 의미를 잃는다. MVP 는 요청만 보낸다(질문 카드와 같은 사람 경로).
-                setHandoffRequested(true);
-                pushToast({
-                  tone: 'ok',
-                  message: t('spec.handoff_sent', { name: leaseHolder }),
-                });
+                // 예전에는 "요청"만 보냈다(보유자가 놓아야 이뤄진다는 규칙). 리스가 사용자
+                // 단위였을 때는 그래도 됐다 — 상대는 사람이었으니까. 이제 보유자는 세션이고,
+                // 가장 흔한 보유자는 **응답하지 않는 죽은 세션**이다. 요청은 도착하지 않는다.
+                setTakeover(true);
+                setLeaseHolder(null);
+                pushToast({ tone: 'ok', message: t('spec.lease_taken') });
               }}
-              className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 disabled:opacity-50"
+              className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5"
             >
-              {handoffRequested ? t('spec.handoff_requested') : t('spec.handoff_request')}
+              {t('spec.lease_takeover')}
             </button>
           </div>
         )}

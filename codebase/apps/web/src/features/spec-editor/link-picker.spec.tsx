@@ -16,7 +16,15 @@ const NODES = [
   { id: 'c', key: 'SUD-SELF', title: '나 자신', type: 'feature' },
 ];
 
+// jsdom 은 레이아웃을 계산하지 않아 `getClientRects` 가 없다. ProseMirror 는 선택을 옮긴 뒤
+// 그 자리로 스크롤하려고 그것을 부르는데, 그 호출이 **트랜잭션 바깥의 비동기**라 던지면
+// 테스트가 아니라 러너가 잡는다(간헐 실패로 나타났다 — 실측 2026-08-30).
 beforeEach(() => {
+  Element.prototype.getClientRects ??= () =>
+    ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList;
+  Range.prototype.getClientRects ??= () =>
+    ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect ??= () => new DOMRect();
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => ({

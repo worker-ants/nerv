@@ -29,6 +29,7 @@ import { decideGate, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
 import type { CheckResult } from './spec-check.service.js';
+import { readerHash } from './reader-hash.js';
 import { specDelta } from './spec-delta.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
@@ -74,7 +75,7 @@ export interface DraftUpsertInput {
    * 아무도 관계를 선언하지 않게 된다. 빈 배열은 "전부 지워라"다.
    * `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
    */
-  relations?: readonly { to: string; kind: string }[] | undefined;
+  relations?: readonly { to: string; kind: string; baseHash?: string | undefined }[] | undefined;
   /**
    * **내가 보고 쓴 본문의 지문**(`nerv_spec_get` 응답의 `content_hash`).
    *
@@ -85,6 +86,12 @@ export interface DraftUpsertInput {
   baseHash?: string | undefined;
   /** 낙관적 동시성 — 불일치는 409. 리스의 최후 방어선이다(§1.2) */
   baseVersionId?: string | null;
+  /**
+   * **남의 리스를 뺏는다**(§1.4h). 리스 보유자는 세션이므로, 죽은 에이전트 세션이 쥔
+   * 리스를 사람이 30분씩 기다리지 않게 하는 탈출구다. 뺏어도 본문은 `base_hash` 가 지킨다 —
+   * 리스는 신호이고 지문이 자물쇠다.
+   */
+  takeover?: boolean | undefined;
   userId: string;
   sessionId?: string | null;
 }
@@ -334,10 +341,15 @@ export class SpecService {
 
       const draft = await this.currentDraft(tx, specId);
 
-      // 편집 리스 — 같은 사용자면 자동 인계, 다른 사용자면 하드 차단(§1.2)
-      if (draft !== null) {
-        await this.assertDraftLease(draft, input.userId);
-      }
+      // 편집 리스 — 같은 **세션**이면 이어쓰기, 남의 리스는 `takeover` 없이는 하드 차단(§1.4h)
+      const seized =
+        draft === null
+          ? false
+          : await this.assertDraftLease(tx, draft, {
+              userId: input.userId,
+              sessionId: input.sessionId ?? null,
+              takeover: input.takeover === true,
+            });
 
       // base_version 전제조건 — 불일치는 409. 리스가 뚫려도 여기서 막힌다
       if (input.baseVersionId != null && draft !== null && draft.id !== input.baseVersionId) {
@@ -352,7 +364,7 @@ export class SpecService {
       // `base_hash` 는 "어느 내용". 초안은 같은 행을 덮어쓰므로 앞엣것만으로는 남이 그
       // 사이에 바꾼 것을 알 수 없다 — 실측에서 세 세션이 다 성공하고 둘이 글을 잃었다.
       if (isExisting) {
-        const current = draft !== null ? draft.content_hash : await this.readerHash(tx, specId);
+        const current = draft !== null ? draft.content_hash : await readerHash(tx, specId);
         if (input.baseHash == null || input.baseHash === '') {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.base_hash_required'), {
             kind: 'base_hash_required',
@@ -427,6 +439,8 @@ export class SpecService {
           // 40번 덮어쓴 draft 에서 "무엇이 바뀌었나"를 되짚을 수 있는 곳은 여기뿐이다.
           payload: {
             ...(input.changeSummary === undefined ? {} : { change_summary: input.changeSummary }),
+            // 뺏었으면 남긴다 — 리스를 넘긴 쪽이 나중에 "왜 내 자리가 사라졌나"를 물을 곳이다
+            ...(seized ? { takeover: true } : {}),
             // 봉투에는 **수**만 싣는다 — 본문은 이벤트에 담지 않는다(D-14)
             lines_added: delta.lines.added,
             lines_removed: delta.lines.removed,
@@ -523,6 +537,9 @@ export class SpecService {
     specKey: string;
     bodyMd: string;
     baseVersionId?: string | null;
+    baseHash?: string | undefined;
+    changeSummary?: string | undefined;
+    takeover?: boolean | undefined;
     userId: string;
     sessionId?: string | null;
   }): Promise<Record<string, unknown>> {
@@ -544,6 +561,7 @@ export class SpecService {
       ...(input.baseVersionId == null ? {} : { baseVersionId: input.baseVersionId }),
       ...(input.baseHash == null ? {} : { baseHash: input.baseHash }),
       ...(input.changeSummary == null ? {} : { changeSummary: input.changeSummary }),
+      ...(input.takeover === true ? { takeover: true } : {}),
       ...(input.sessionId == null ? {} : { sessionId: input.sessionId }),
     });
   }
@@ -1336,43 +1354,64 @@ export class SpecService {
   }
 
   /**
-   * 읽는 사람이 보게 되는 버전의 지문 — `get()` 의 선택 규칙과 같다(최신 approved, 없으면 현재).
-   * 초안이 없는 문서에 이어 쓸 때의 base_hash 비교 대상이다.
-   */
-  private async readerHash(tx: Tx, specId: string): Promise<string | null> {
-    const { rows } = await tx.execute<{ content_hash: string }>(sql`
-      SELECT encode(sv.content_hash, 'hex') AS content_hash
-        FROM spec s
-        JOIN spec_version sv ON sv.id = coalesce(
-              (SELECT a.id FROM spec_version a
-                WHERE a.spec_id = s.id AND a.status = 'approved'
-                ORDER BY a.version_no DESC LIMIT 1),
-              s.current_version_id)
-       WHERE s.id = ${specId}
-    `);
-    return rows[0]?.content_hash ?? null;
-  }
-
-  /**
-   * 초안 편집 리스 — 같은 사용자면 자동 인계, 다른 사용자면 NERV_DRAFT_LEASED(§1.2).
-   * 만료된 리스는 비어 있는 것과 같다.
+   * 초안 편집 리스 — **보유자는 세션이다**(2026-08-30 개정 — 사람 결정).
+   *
+   * 예전 규칙은 "같은 사용자면 자동 인계"였다. 그런데 실제 배치는 **PAT 하나 = 사용자 하나 =
+   * 세션 여럿**이다 — 같은 사람 이름으로 도는 병렬 에이전트 셋과 웹 탭 하나가 서로를 전혀
+   * 막지 않았다. 리스는 있는데 아무것도 잠그지 않는 상태였다(실측 2026-08-30).
+   *
+   * 이제는 `(user, session)` 이 같아야 자기 리스다. 남의 리스 위에 쓰려면 `takeover: true` 를
+   * **명시해야** 한다 — 죽은 세션이 30분짜리 리스를 쥔 채 사라지는 것이 가장 흔한 상황이라
+   * 뺏는 경로가 없으면 사람이 갇힌다. 뺏은 사실은 이벤트에 남는다.
    */
   private async assertDraftLease(
-    draft: { edit_lease_user_id: string | null; edit_lease_expires_at: unknown },
-    userId: string,
-  ): Promise<void> {
+    tx: Tx,
+    draft: {
+      edit_lease_user_id: string | null;
+      edit_lease_session_id: string | null;
+      edit_lease_expires_at: unknown;
+    },
+    actor: { userId: string; sessionId: string | null; takeover: boolean },
+  ): Promise<boolean> {
     const holder = draft.edit_lease_user_id;
-    if (holder === null) return;
+    if (holder === null) return false;
     const expires =
       draft.edit_lease_expires_at === null ? null : toDate(draft.edit_lease_expires_at);
-    if (expires !== null && expires.getTime() <= Date.now()) return; // 만료 — 비어 있다
-    if (holder === userId) return; // 같은 사용자 — 표면 간 자동 인계
+    if (expires !== null && expires.getTime() <= Date.now()) return false; // 만료 — 비어 있다
+    // 같은 세션이 이어 쓰는 것 — 웹 탭(세션 없음)끼리도 같은 사람이면 한 자리로 본다
+    if (holder === actor.userId && (draft.edit_lease_session_id ?? null) === actor.sessionId) {
+      return false;
+    }
+    if (actor.takeover) return true; // 명시적으로 뺏었다 — 이벤트에 남긴다
 
     throw new NervError(NERV_ERROR.DRAFT_LEASED, msg('error.spec.draft_leased'), {
       kind: 'draft_leased',
       holder_user_id: holder,
+      holder_session_id: draft.edit_lease_session_id,
+      holder: await this.leaseHolderLabel(tx, draft),
       expires_at: expires?.toISOString() ?? null,
+      // 막다른 길이 아니라는 것을 오류가 스스로 말한다 — 안 그러면 사람은 만료를 기다린다
+      takeover: true,
     });
+  }
+
+  /** 누가 쥐고 있나 — 사람이 읽을 이름. 세션이면 에이전트·호스트, 아니면 사용자 표시 이름 */
+  private async leaseHolderLabel(
+    tx: Tx,
+    draft: { edit_lease_user_id: string | null; edit_lease_session_id: string | null },
+  ): Promise<string | null> {
+    if (draft.edit_lease_session_id !== null) {
+      const { rows } = await tx.execute<{ agent_type: string; hostname: string }>(sql`
+        SELECT agent_type, hostname FROM agent_session WHERE id = ${draft.edit_lease_session_id}
+      `);
+      const row = rows[0];
+      if (row !== undefined) return `${row.agent_type} · ${row.hostname}`;
+    }
+    if (draft.edit_lease_user_id === null) return null;
+    const { rows } = await tx.execute<{ display_name: string }>(sql`
+      SELECT display_name FROM "user" WHERE id = ${draft.edit_lease_user_id}
+    `);
+    return rows[0]?.display_name ?? null;
   }
 
   /** 게이트 4축 추정 — 참조 수·파생 Task 수를 실제로 센다. */

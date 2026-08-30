@@ -16,6 +16,7 @@ import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { readerHash } from './reader-hash.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 
@@ -113,6 +114,7 @@ export class SpecRelationService {
     toKey: string;
     kind: string;
     remove: boolean;
+    baseHash?: string | undefined;
   }): Promise<{ ok: true; from: string; to: string; kind: string; removed: boolean }> {
     if (input.kind === 'references') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.auto_kind'), {
@@ -134,6 +136,26 @@ export class SpecRelationService {
         ],
       });
     }
+    // 더할 때만 상대의 지문을 요구한다 — **지우는 데 상대를 읽으라는 것은 뒤집힌 요구다**.
+    // 잘못 넣은 관계를 지우려는 사람은 대개 그 문서가 바뀌었기 때문에 지운다.
+    if (!input.remove) {
+      const current = await readerHash(this.db, toId);
+      if (input.baseHash == null || input.baseHash === '') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.base_hash_required'), {
+          kind: 'relation_base_hash_required',
+          field: 'base_hash',
+          targets: [{ to: input.toKey, current_hash: current }],
+        });
+      }
+      if (current !== null && input.baseHash !== current) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.stale_target'), {
+          kind: 'stale_relation_target',
+          field: 'base_hash',
+          targets: [{ to: input.toKey, current_hash: current, received: input.baseHash }],
+        });
+      }
+    }
+
     if (input.remove) {
       await this.db.execute(sql`
         DELETE FROM spec_relation
@@ -237,10 +259,13 @@ export class SpecRelationService {
     input: {
       projectId: string;
       specId: string;
-      declared: readonly { to: string; kind: string }[];
+      declared: readonly { to: string; kind: string; baseHash?: string | undefined }[];
     },
   ): Promise<string[]> {
     const wanted: { toId: string; kind: string; to: string }[] = [];
+    // **문제를 모아서 한 번에 돌려준다.** 하나씩 튕기면 다섯 개짜리 관계 선언이 다섯 왕복이 된다
+    const missing: { to: string; current_hash: string | null }[] = [];
+    const stale: { to: string; current_hash: string | null; received: string }[] = [];
     for (const entry of input.declared) {
       if (entry.kind === 'references') {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.auto_kind'), {
@@ -259,7 +284,30 @@ export class SpecRelationService {
       if (toId === input.specId) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.self'), { kind: 'self' });
       }
+      // **상대 문서의 지문도 필수다**(2026-08-30 — 사람 결정). 관계는 "저 문서를 읽고 내린
+      // 판단"이다 — 읽지 않고 선언한 `refines` 는 그래프에 거짓을 심는다. 본문을 안 고치고
+      // 관계만 바꾸는 저장이 허용되는 만큼, 그 경로가 검사 없는 뒷문이 되면 안 된다.
+      const current = await readerHash(tx, toId);
+      if (entry.baseHash == null || entry.baseHash === '') {
+        missing.push({ to: entry.to, current_hash: current });
+      } else if (current !== null && entry.baseHash !== current) {
+        stale.push({ to: entry.to, current_hash: current, received: entry.baseHash });
+      }
       wanted.push({ toId, kind: entry.kind, to: entry.to });
+    }
+    if (missing.length > 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.base_hash_required'), {
+        kind: 'relation_base_hash_required',
+        field: 'relations.base_hash',
+        targets: missing,
+      });
+    }
+    if (stale.length > 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.stale_target'), {
+        kind: 'stale_relation_target',
+        field: 'relations.base_hash',
+        targets: stale,
+      });
     }
 
     await tx.execute(sql`

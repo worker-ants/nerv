@@ -72,6 +72,9 @@ export class SpecTools implements NervToolProvider {
           from: { type: 'string', description: 'spec key (SPC-…) or UUID' },
           to: { type: 'string', description: 'spec key (SPC-…) or UUID' },
           kind: { type: 'string', enum: ['refines', 'depends_on', 'duplicates', 'supersedes'] },
+          // **상대 문서의 지문** — 관계를 더할 때는 필수다(§1.4h). 읽지 않고 선언한 관계는
+          // 그래프에 거짓을 심는다. 지울 때는 요구하지 않는다.
+          base_hash: { type: 'string', description: 'mcp.arg.relation_base_hash' },
           // 되돌리는 경로를 같은 도구에 둔다 — 잘못 넣은 관계를 지울 수 없으면 아무도 안 넣는다
           remove: { type: 'boolean', default: false },
         },
@@ -83,6 +86,7 @@ export class SpecTools implements NervToolProvider {
           toKey: String(input['to']),
           kind: String(input['kind']),
           remove: input['remove'] === true,
+          ...(typeof input['base_hash'] === 'string' ? { baseHash: input['base_hash'] } : {}),
         }),
     },
     {
@@ -178,16 +182,22 @@ export class SpecTools implements NervToolProvider {
             description: 'mcp.arg.relations',
             items: {
               type: 'object',
-              required: ['to', 'kind'],
+              required: ['to', 'kind', 'base_hash'],
               properties: {
                 to: { type: 'string', description: 'spec key (SPC-…) or UUID' },
                 kind: {
                   type: 'string',
                   enum: ['refines', 'depends_on', 'duplicates', 'supersedes'],
                 },
+                // **상대 문서의 지문**도 필수다 — 본문을 안 고치고 관계만 바꾸는 저장이
+                // 허용되는 만큼, 그 경로가 검사 없는 뒷문이 되면 안 된다(§1.4h)
+                base_hash: { type: 'string', description: 'mcp.arg.relation_base_hash' },
               },
             },
           },
+          // **남의 리스를 뺏는다**(§1.4h). 죽은 세션이 쥔 리스를 30분 기다리지 않게 하는
+          // 탈출구다 — 뺏어도 본문은 `base_hash` 가 지킨다.
+          takeover: { type: 'boolean', default: false, description: 'mcp.arg.takeover' },
         },
         // `required` 로는 "둘 중 하나"를 적을 수 없다 — 그 판정은 핸들러가 한다
         required: [],
@@ -218,8 +228,15 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['title'] === 'string' ? { title: input['title'] } : {}),
           ...(typeof input['type'] === 'string' ? { type: input['type'] } : {}),
           ...(typeof input['parent_id'] === 'string' ? { parentId: input['parent_id'] } : {}),
+          ...(input['takeover'] === true ? { takeover: true } : {}),
           ...(Array.isArray(input['relations'])
-            ? { relations: input['relations'] as { to: string; kind: string }[] }
+            ? {
+                relations: (input['relations'] as Record<string, unknown>[]).map((r) => ({
+                  to: String(r['to'] ?? ''),
+                  kind: String(r['kind'] ?? ''),
+                  ...(typeof r['base_hash'] === 'string' ? { baseHash: r['base_hash'] } : {}),
+                })),
+              }
             : {}),
         });
       },

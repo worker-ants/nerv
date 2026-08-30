@@ -60,8 +60,9 @@ allowed-tools:
 
 정제·선행 같은 **판단 관계는 선언해야 남는다** — `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes`. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다.
 
-- 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
-- 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`, 되돌릴 때 `remove: true`)를 쓴다.
+- 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind, base_hash}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
+- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 싣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
+- 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`·`base_hash`, 되돌릴 때 `remove: true`)를 쓴다. 지울 때는 `base_hash` 를 요구하지 않는다.
 
 ## 서브커맨드
 
@@ -82,7 +83,9 @@ allowed-tools:
 2. 수정안을 만들어 사람에게 확인받고 `nerv_spec_draft_upsert`(`spec_id`, `base_hash`,
    `body_markdown`, `change_summary`, `idempotency_key`) 호출. 초안 편집 리스는 이 호출이
    성공하는 순간 자동 획득·갱신된다(TTL 30분 — Task 클레임 리스와 같은 상수).
-   같은 사용자가 웹 에디터에 열어 둔 리스는 자동 인계된다(웹 탭에 인계 알림이 뜬다).
+   **리스 보유자는 세션이다** — 같은 사람의 다른 세션이나 웹 탭이 쥐고 있으면 자동 인계되지
+   않고 `NERV_DRAFT_LEASED` 가 온다. 상대가 죽은 세션이라 응답하지 않으면 `takeover: true` 로
+   이어받는다(뺏어도 본문은 `base_hash` 가 지킨다 — 리스는 신호이고 지문이 자물쇠다).
 3. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
    사람에게 보여준다.
 4. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
@@ -114,7 +117,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문과 web_url 이 온다 |
 | NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 안 실었다 — nerv_spec_get 의 `content_hash` 를 실어 다시 부른다 |
 | NERV_PRECONDITION | base_version 불일치 — 최신 버전을 nerv_spec_get으로 재조회해 그 위에 재작성한다. 임의 강제 저장 경로는 없다 |
-| NERV_DRAFT_LEASED | 다른 사용자가 편집 리스 보유 — 보유자(사용자·표면)를 사람에게 보고하고 인계 요청 또는 nerv_question_create. 같은 사용자의 리스면 자동 인계되므로 이 에러는 오지 않는다 |
+| NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
 | NERV_APPROVAL_REQUIRED | 승인 대기 진입 — approval_id 폴링, 그동안 다른 작업 금지 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
@@ -122,6 +125,8 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
 | NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 실어 보낸다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
+| NERV_PRECONDITION `relation_base_hash_required` | 관계를 선언하면서 상대 문서의 지문을 안 실었다 — details 의 `targets` 가 어느 문서인지 준다. 그 문서를 nerv_spec_get 으로 읽고 `content_hash` 를 실어 다시 부른다 |
+| NERV_PRECONDITION `stale_relation_target` | 상대 문서가 그 사이 바뀌었다 — 다시 읽고 **관계가 여전히 맞는지 확인한 뒤** 새 지문으로 부른다. 지문만 갈아 끼우는 것은 확인이 아니다 |
 
 ## 금지
 

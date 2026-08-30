@@ -107,6 +107,15 @@ export const ko = {
   'error.question.not_open': '열린 질문이 아닙니다.',
   'error.relation.auto_kind':
     'references 는 본문에서 자동 동기화됩니다 — 손으로 넣으면 다음 저장에 지워집니다.',
+  'error.relation.base_hash_required':
+    '관계를 선언하려면 상대 문서의 base_hash 가 필요합니다 — nerv_spec_get 으로 읽고 그 content_hash 를 실으세요.',
+  'error.relation.stale_target':
+    '상대 문서가 그 사이 바뀌었습니다 — 다시 읽고 관계가 여전히 맞는지 확인하세요.',
+  'mcp.arg.relation_base_hash':
+    '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
+  'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
+  'spec.lease_takeover': '인계',
+  'spec.lease_taken': '인계했습니다 — 이제 편집할 수 있습니다.',
   'error.relation.self': '자기 자신과는 관계를 맺을 수 없습니다.',
   'error.request.bad_field': '{field} 형식이 올바르지 않습니다.',
   'error.request.schema': '요청 본문이 스키마를 위반했습니다.',
@@ -114,11 +123,13 @@ export const ko = {
   'error.session.not_found': '세션을 찾을 수 없습니다.',
   'error.session.resume_not_found': '재개할 세션을 찾을 수 없습니다.',
   'error.spec.archive_blocked': '아카이브할 수 없습니다.',
-  'error.spec.base_hash_required': '이 문서를 고치려면 base_hash 가 필요합니다 — nerv_spec_get 응답의 content_hash 를 그대로 실으세요.',
+  'error.spec.base_hash_required':
+    '이 문서를 고치려면 base_hash 가 필요합니다 — nerv_spec_get 응답의 content_hash 를 그대로 실으세요.',
   'error.spec.base_version_stale': '기준 버전이 현재 초안과 다릅니다.',
   'error.spec.check_blocked': '사전 검토에서 차단 항목이 발견됐습니다.',
   'error.spec.cycle': '자기 하위로는 이동할 수 없습니다.',
-  'error.spec.draft_leased': '다른 사용자가 이 초안을 편집 중입니다.',
+  'error.spec.draft_leased':
+    '다른 세션이 이 초안을 편집 중입니다 — 이어받으려면 takeover 를 지정하세요.',
   'error.spec.draft_not_found': '초안을 찾을 수 없습니다.',
   'home.coverage': '커버리지',
   'home.coverage.implemented': '요구사항 구현',
@@ -269,7 +280,8 @@ export const ko = {
   'mcp.arg.body_markdown': '스펙 본문(markdown) — `body_md` 라는 이름으로도 받는다',
   'mcp.arg.change_summary':
     '무엇을 왜 바꿨나 — 버전에 남는 유일한 사람 말이다. 주지 않으면 앞의 것을 지우지 않는다',
-  'mcp.arg.base_hash': '내가 보고 쓴 본문의 지문 — nerv_spec_get 응답의 content_hash. 기존 문서를 고칠 때는 필수다',
+  'mcp.arg.base_hash':
+    '내가 보고 쓴 본문의 지문 — nerv_spec_get 응답의 content_hash. 기존 문서를 고칠 때는 필수다',
   'mcp.arg.blocking':
     '게이트를 막는가(기본 true) — urgency 와 같은 축이고, urgency 를 주면 그쪽이 이긴다',
   'mcp.arg.wait_seconds': '답을 이만큼 기다린다(초, 최대 60) — 비우면 즉시 돌아온다',
@@ -290,7 +302,8 @@ export const ko = {
   'error.spec.not_draft': 'draft 가 아닙니다({status}).',
   'error.spec.empty_body':
     '빈 본문으로 덮어쓸 수 없습니다 — 본문을 실어 보내세요(초안은 이전 본문을 남기지 않습니다).',
-  'error.spec.stale_body': '그 사이 본문이 바뀌었습니다 — 다시 읽고 그 위에 다시 얹으세요(같은 본문으로 재시도하면 남의 글을 덮어씁니다).',
+  'error.spec.stale_body':
+    '그 사이 본문이 바뀌었습니다 — 다시 읽고 그 위에 다시 얹으세요(같은 본문으로 재시도하면 남의 글을 덮어씁니다).',
   'error.spec.not_found': '스펙을 찾을 수 없습니다.',
   'error.spec.not_in_review': 'in_review 상태가 아닙니다.',
   'error.spec.parent_archived': '부모가 아카이브 상태입니다.',
@@ -644,9 +657,6 @@ export const ko = {
   'spec.editor.source': '소스 보기',
   'spec.editor.source_readonly': '읽기 전용 — 편집은 터미널 경로로',
   'spec.gate_passed': '{tier} — 승인 없이 통과했습니다(이벤트로 기록됨).',
-  'spec.handoff_request': '인계 요청',
-  'spec.handoff_requested': '요청함',
-  'spec.handoff_sent': '{name} 에게 인계를 요청했습니다 — 보유자가 놓으면 이어서 쓸 수 있습니다.',
   'spec.impact_backlinks': '역참조 문서 {count}건 — 승인 시 재확인 요청이 간다',
   'spec.impact_dialog': '검토 요청 영향',
   'spec.impact_send': '검토 요청 보내기',

@@ -307,7 +307,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
       title: 'refine',
       type: 'feature',
       bodyMd: '# refine',
-      relations: [{ to: 'SPC-BASE', kind: 'refines' }],
+      relations: [{ to: 'SPC-BASE', kind: 'refines', baseHash: await hashOf('SPC-BASE') }],
       userId: planner,
     });
     expect((child['relations'] as { declared: string[] }).declared).toEqual(['refines:SPC-BASE']);
@@ -325,7 +325,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
       title: 'keep',
       type: 'feature',
       bodyMd: '# keep',
-      relations: [{ to: 'SPC-BASE2', kind: 'depends_on' }],
+      relations: [{ to: 'SPC-BASE2', kind: 'depends_on', baseHash: await hashOf('SPC-BASE2') }],
       userId: planner,
     });
 
