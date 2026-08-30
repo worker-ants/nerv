@@ -74,6 +74,8 @@ export const en = {
   'error.human_only.token_issue': 'Only humans can issue tokens.',
   'error.mcp.bad_origin': 'Origin not allowed.',
   'error.mcp.bad_revision': 'Unsupported protocol revision: {revision}',
+  'error.mcp.invalid_input':
+    'The input does not match the schema — check the field names in details and call again.',
   'error.mcp.no_session':
     'No live session — start or resume one with nerv_bootstrap (a session expires after 30 minutes of inactivity).',
   'error.mcp.session_ambiguous':
@@ -263,6 +265,7 @@ export const en = {
   'mcp.arg.relations': 'Declared relations — judgements like refines/depends_on. A different axis from the references that body links create; omit it and nothing is touched',
   'mcp.arg.question_context': 'Where this came from — stable IDs so a human can read the source',
   'mcp.arg.escalate': 'Why a human is being called — one of five reasons (spec-workflow §4.7)',
+  'mcp.arg.body_markdown': 'The spec body (markdown) — also accepted as `body_md`',
   'mcp.arg.blocking':
     'Does this block the gate (default true) — same axis as urgency; urgency wins if both are given',
   'mcp.arg.wait_seconds':
@@ -284,6 +287,8 @@ export const en = {
   'error.spec.missing_fields': 'A new spec needs key, title and type.',
   'error.spec.no_changes': 'Nothing to change.',
   'error.spec.not_draft': 'Not a draft ({status}).',
+  'error.spec.empty_body':
+    'A draft cannot be overwritten with an empty body — send the body (a draft keeps no previous copy).',
   'error.spec.not_found': 'Spec not found.',
   'error.spec.not_in_review': 'Not in review.',
   'error.spec.parent_archived': 'The parent spec is archived.',

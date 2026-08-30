@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 16종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.28 (2026-08-30)</span>
+      <span>버전 v0.29 (2026-08-30)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -341,6 +341,34 @@
     <tbody>
       <tr><td>REQ-API-042</td><td>WHEN <code>nerv_question_create</code> 가 <code>context</code> 를 받으면 THE SYSTEM SHALL 각 참조를 키 또는 UUID 로 해석해 질문에 저장하고, 해석되지 않으면 어느 항목인지(<code>details.field</code>)와 함께 <code>not_found</code> 로 거부한다. WHEN <code>wait_seconds</code> 가 오면 THE SYSTEM SHALL 답이 오거나 그 시간(최대 60초)이 지날 때까지 응답을 미루고 그 시점의 상태를 반환한다</td></tr>
       <tr><td>REQ-API-043</td><td>WHEN EP-SPEC-08 이 <code>relations</code> 를 받으면 THE SYSTEM SHALL 그 spec 의 <code>references</code> 아닌 관계를 그 집합으로 교체하고(주지 않으면 건드리지 않는다), <code>references</code> kind 와 해석되지 않는 <code>to</code> 는 거부한다. WHEN 사전 검토를 실행하면 THE SYSTEM SHALL 해소되지 않는 본문 링크와 관계가 하나도 없는 문서를 각각 warning 으로 보고한다</td><td>선언 교체·미지정 보존·빈 배열 삭제 각 1건 + 검사기 경고 2종</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>1.4e 조용한 성공을 만들지 않는다 (2026-08-30 신설 — 실측)</h3>
+
+  <p>도구 스키마는 <code>required</code> 를 적고 있었지만 <b>아무도 읽지 않았다.</b> 인자 없이 부른 <code>nerv_spec_get</code> 이 그대로 핸들러까지 갔다(레지스트리 주석은 처음부터 "zod 입력 검증"을 말하고 있었다). 스키마가 계약이 되려면 표면이 그것을 집행해야 한다.</p>
+
+  <p>문제는 거부되지 않는다는 것이 아니라 <b>빈 값으로 성공한다</b>는 것이다. 핸들러는 없는 값을 <code>?? ''</code> 로 받는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>어긋난 것</th><th>예전 결과</th></tr></thead>
+    <tbody>
+      <tr><td>이름이 다르다 — 카탈로그·REST·웹은 <code>body_markdown</code>, 이 도구만 <code>body_md</code></td><td>본문이 <b>빈 문자열</b>이 되어 저장이 <b>성공</b>했다. draft 는 가변 구간이라 이전 본문이 남지 않으므로 <b>그 문서는 사라진다</b></td></tr>
+      <tr><td>필수 인자가 없다</td><td>도메인 서비스가 "찾을 수 없다"로 답해, 에이전트는 자기가 무엇을 빠뜨렸는지 모른 채 같은 호출을 반복했다</td></tr>
+    </tbody>
+  </table></div>
+
+  <ul>
+    <li><b>호출 전에 입력을 본다</b> — 최상위 <code>required</code>·<code>type</code>·<code>enum</code> 을 검사하고, 어긋나면 <code>invalid_input</code> 과 함께 <b>어느 항목인지 이름으로</b> 돌려준다.</li>
+    <li><b>본문은 두 이름으로 받는다</b> — <code>body_markdown</code> 과 <code>body_md</code>. 둘 다 없으면 거부한다("둘 중 하나"는 <code>required</code> 로 적을 수 없어 그 판정만 핸들러가 한다).</li>
+    <li><b>빈 본문으로 기존 초안을 덮어쓰지 못한다</b> — 새로 만드는 문서의 빈 본문은 막지 않는다(<code>area</code> 는 본문 없이 자리만 잡는다).</li>
+  </ul>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-API-044</td><td>WHEN MCP 도구 호출이 오면 THE SYSTEM SHALL 핸들러 실행 <b>전에</b> 스키마의 필수 인자·타입·열거값을 검사하고, 어긋난 항목의 이름과 함께 <code>invalid_input</code> 으로 거부한다</td></tr>
+      <tr><td>REQ-API-045</td><td>WHEN 초안 저장이 본문을 <code>body_markdown</code> 또는 <code>body_md</code> 중 하나로 실으면 THE SYSTEM SHALL 그것을 본문으로 받고, 둘 다 없으면 거부한다. WHEN 비어 있지 않은 초안에 빈 본문이 오면 THE SYSTEM SHALL <code>empty_body</code> 로 거부한다</td></tr>
     </tbody>
   </table></div>
 

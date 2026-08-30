@@ -76,6 +76,7 @@ export const ko = {
   'error.human_only.token_issue': '토큰 발급은 사람만 할 수 있습니다.',
   'error.mcp.bad_origin': '허용되지 않은 Origin 입니다.',
   'error.mcp.bad_revision': '지원하지 않는 프로토콜 리비전: {revision}',
+  'error.mcp.invalid_input': '입력이 스키마와 맞지 않습니다 — details 의 항목 이름을 보고 다시 부르세요.',
   'error.mcp.no_session':
     '활성 세션이 없습니다 — nerv_bootstrap 으로 세션을 시작하거나 재개하세요(세션은 무활동 30분이면 만료됩니다).',
   'error.mcp.session_ambiguous':
@@ -260,6 +261,7 @@ export const ko = {
   'mcp.arg.relations': '선언 관계 — 정제·선행 같은 판단. 본문 링크가 만드는 references 와 다른 축이고, 주지 않으면 건드리지 않는다',
   'mcp.arg.question_context': '출처 — 사람이 원문으로 갈 수 있게 안정 ID 를 단다',
   'mcp.arg.escalate': '왜 사람을 부르는가 — 5종 어휘(spec-workflow §4.7)',
+  'mcp.arg.body_markdown': '스펙 본문(markdown) — `body_md` 라는 이름으로도 받는다',
   'mcp.arg.blocking':
     '게이트를 막는가(기본 true) — urgency 와 같은 축이고, urgency 를 주면 그쪽이 이긴다',
   'mcp.arg.wait_seconds': '답을 이만큼 기다린다(초, 최대 60) — 비우면 즉시 돌아온다',
@@ -278,6 +280,7 @@ export const ko = {
   'error.spec.missing_fields': '새 스펙에는 key·title·type 이 필요합니다.',
   'error.spec.no_changes': '변경할 필드가 없습니다.',
   'error.spec.not_draft': 'draft 가 아닙니다({status}).',
+  'error.spec.empty_body': '빈 본문으로 덮어쓸 수 없습니다 — 본문을 실어 보내세요(초안은 이전 본문을 남기지 않습니다).',
   'error.spec.not_found': '스펙을 찾을 수 없습니다.',
   'error.spec.not_in_review': 'in_review 상태가 아닙니다.',
   'error.spec.parent_archived': '부모가 아카이브 상태입니다.',

@@ -327,6 +327,21 @@ export class SpecService {
         });
       }
 
+      // **빈 본문으로 덮어쓰지 않는다.** draft 는 가변 구간이라 이전 본문이 남지 않는다 —
+      // 여기서 통과시키면 이름을 잘못 적은 호출 하나가 그 문서를 지운다(실측 2026-08-30).
+      // 새로 만드는 문서의 빈 본문은 막지 않는다: `area` 는 본문 없이 자리만 잡는다.
+      if (draft !== null && input.bodyMd.trim() === '') {
+        const { rows: before } = await tx.execute<{ body_md: string }>(
+          sql`SELECT body_md FROM spec_version WHERE id = ${draft.id}`,
+        );
+        if ((before[0]?.body_md ?? '').trim() !== '') {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.empty_body'), {
+            kind: 'empty_body',
+            spec_version_id: draft.id,
+          });
+        }
+      }
+
       const hash = createHash('sha256').update(input.bodyMd, 'utf8').digest('hex');
       const leaseExpires = new Date(Date.now() + this.draftLeaseTtlSeconds * 1000);
 

@@ -5,6 +5,8 @@
 // E03-S01·E03-S04 가 얹는다.
 
 import { Injectable } from '@nestjs/common';
+import { msg, NERV_ERROR } from '@nerv/schema';
+import { NervError } from '../../common/nerv-exception.filter.js';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { SearchService } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
@@ -143,7 +145,11 @@ export class SpecTools implements NervToolProvider {
             type: 'string',
             description: 'existing spec — key (SPC-…) or UUID. omit to create a new one',
           },
-          body_md: { type: 'string' },
+          // **이름이 둘이다.** 카탈로그(3.4 §2.3)·REST·웹은 `body_markdown` 을 쓰는데 이
+          // 도구만 `body_md` 였다 — 스킬 문장대로 부른 호출은 본문이 빈 문자열이 되어
+          // **문서를 지우면서 성공**했다(실측 2026-08-30). 둘 다 받고, 적는 이름은 하나로 한다.
+          body_markdown: { type: 'string', description: 'mcp.arg.body_markdown' },
+          body_md: { type: 'string', description: 'mcp.arg.body_markdown' },
           base_version: { type: 'string' },
           idempotency_key: { type: 'string' },
           // **생성에 필요한 메타.** 이 넷이 없으면 에이전트는 기존 스펙 이어쓰기만 할 수
@@ -177,15 +183,23 @@ export class SpecTools implements NervToolProvider {
             },
           },
         },
-        required: ['body_md'],
+        // `required` 로는 "둘 중 하나"를 적을 수 없다 — 그 판정은 핸들러가 한다
+        required: [],
       },
-      handler: async (input, ctx) =>
-        this.specs.draftUpsert({
+      handler: async (input, ctx) => {
+        const body = input['body_markdown'] ?? input['body_md'];
+        if (typeof body !== 'string') {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+            kind: 'invalid_input',
+            missing: ['body_markdown'],
+          });
+        }
+        return this.specs.draftUpsert({
           projectId: ctx.projectId,
           roles: ctx.principal.roles,
           userId: ctx.principal.userId,
           sessionId: ctx.sessionId,
-          bodyMd: String(input['body_md'] ?? ''),
+          bodyMd: body,
           ...(typeof input['spec_id'] === 'string' ? { specId: input['spec_id'] } : {}),
           ...(typeof input['base_version'] === 'string'
             ? { baseVersionId: input['base_version'] }
@@ -197,7 +211,8 @@ export class SpecTools implements NervToolProvider {
           ...(Array.isArray(input['relations'])
             ? { relations: input['relations'] as { to: string; kind: string }[] }
             : {}),
-        }),
+        });
+      },
     },
     {
       name: 'nerv_spec_submit_review',

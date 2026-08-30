@@ -411,6 +411,65 @@ describe('E03-S03 P0 도구 — 작업 흐름', () => {
 // L2 가 이것을 잡지 못한 이유가 이 파일에 있다: 여기 호출들은 전부 `session_id` 를 실어
 // 보냈다 — **테스트가 계약에 없는 인자를 알고 있었다.**
 
+// ── 입력 검증 (2026-08-30 — 조용한 실패를 막는다) ────────────────────────────
+//
+// 스키마가 `required` 를 적어도 아무도 읽지 않으면 그것은 계약이 아니라 문서다. 그리고
+// 핸들러는 없는 값을 `?? ''` 로 받으므로, 이름을 잘못 적은 호출이 **거부되는 대신 빈 값으로
+// 성공한다** — 본문 저장에서는 그것이 곧 문서를 지우는 일이다.
+
+describe('E03-S01 입력은 호출 전에 본다', () => {
+  it('필수 인자가 없으면 무엇이 없는지 이름으로 말한다', async () => {
+    const result = await callTool('nerv_spec_get', {});
+    expect(result).toMatchObject({ ok: false, code: NERV_ERROR.PRECONDITION });
+    expect(result['details']).toMatchObject({ kind: 'invalid_input', missing: ['spec_id'] });
+  });
+
+  it('타입이 다르면 그 항목을 말한다 — 스키마가 문서로만 남지 않게', async () => {
+    const result = await callTool('nerv_spec_get', { spec_id: 42 });
+    expect(result['details']).toMatchObject({ kind: 'invalid_input', wrong_type: ['spec_id'] });
+  });
+
+  it('본문은 두 이름으로 받는다 — 카탈로그는 body_markdown, 이 도구는 body_md 였다', async () => {
+    const made = await callTool('nerv_spec_draft_upsert', {
+      key: 'SPC-BODYNAME',
+      title: '이름 둘',
+      // 이 스위트의 주체는 developer 다 — 그 역할이 만들 수 있는 종류로 쓴다(EP-SPEC-07)
+      type: 'convention',
+      body_markdown: '# 카탈로그 이름으로 부른다',
+    });
+    expect(made).toMatchObject({ ok: true });
+
+    const read = await callTool('nerv_spec_get', { spec_id: 'SPC-BODYNAME' });
+    expect(String(read['body_md'])).toContain('카탈로그 이름으로 부른다');
+  });
+
+  it('본문 이름을 아예 빠뜨리면 거부한다 — 빈 문자열로 성공하지 않는다', async () => {
+    const result = await callTool('nerv_spec_draft_upsert', {
+      key: 'SPC-NOBODY',
+      title: '본문 없음',
+      type: 'convention',
+    });
+    expect(result['details']).toMatchObject({ kind: 'invalid_input', missing: ['body_markdown'] });
+  });
+
+  it('빈 본문으로 기존 초안을 덮어쓰지 못한다 — 초안은 이전 본문을 남기지 않는다', async () => {
+    await callTool('nerv_spec_draft_upsert', {
+      key: 'SPC-WIPE',
+      title: '지워질 뻔한 문서',
+      type: 'convention',
+      body_markdown: '# 중요한 본문\n\n여러 줄',
+    });
+    const wiped = await callTool('nerv_spec_draft_upsert', {
+      spec_id: 'SPC-WIPE',
+      body_markdown: '   ',
+    });
+    expect(wiped['details']).toMatchObject({ kind: 'empty_body' });
+
+    const read = await callTool('nerv_spec_get', { spec_id: 'SPC-WIPE' });
+    expect(String(read['body_md'])).toContain('중요한 본문');
+  });
+});
+
 describe('E03-S03 세션 추정 — 스키마대로 부르면 된다', () => {
   async function clearSessions(): Promise<void> {
     await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);

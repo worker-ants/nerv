@@ -20,6 +20,7 @@ import type { Principal } from '../modules/auth/auth.service.js';
 import { AuthService } from '../modules/auth/auth.service.js';
 import { SessionService } from '../modules/session/session.service.js';
 import type { SessionCandidate } from '../modules/session/session.service.js';
+import { assertToolInput } from './tool-input.js';
 import { ToolRegistry } from './tool-registry.js';
 import type { ToolContext } from './tool-context.js';
 
@@ -171,9 +172,11 @@ export class McpController {
       });
     }
 
-    // 스코프는 호출 **전에** 검사한다 — 부작용 뒤의 거부는 거부가 아니다
+    // 스코프와 입력은 호출 **전에** 검사한다 — 부작용 뒤의 거부는 거부가 아니고,
+    // 스키마의 `required` 를 아무도 읽지 않으면 그것은 계약이 아니라 문서일 뿐이다
     try {
       this.auth.assertScope(principal, tool.scope);
+      assertToolInput(tool.inputSchema, args);
     } catch (error) {
       return this.toStructuredError(error, t, locale);
     }
