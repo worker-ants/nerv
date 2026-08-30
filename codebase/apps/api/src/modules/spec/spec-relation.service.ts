@@ -5,8 +5,9 @@
 // 알기 위해서다 — 그것을 모르면 스펙 수정은 매번 도박이 된다. clemvion 에서 문서 간 참조는
 // 사람의 기억 속에만 있었고, 그래서 폐기된 결정이 다른 문서에서 계속 살아 있었다(R-3).
 //
-// 추출은 임포터 링크 패스와 **같은 규칙**이다: 본문의 실존 스펙 안정 ID → `references` 관계.
-// 미실존 ID 는 오류가 아니라 경고다 — 아직 안 쓴 문서를 미리 참조하는 것은 정상적인 집필 순서다.
+// 추출은 임포터 링크 패스와 **같은 규칙**이다: 본문의 **링크**가 가리키는 실존 스펙 →
+// `references` 관계. 미실존 대상은 오류가 아니라 경고다 — 아직 안 쓴 문서를 미리 참조하는
+// 것은 정상적인 집필 순서다.
 
 import { Injectable } from '@nestjs/common';
 import { msg, newId, NERV_ERROR } from '@nerv/schema';
@@ -17,8 +18,66 @@ import { NervError } from '../../common/nerv-exception.filter.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 
-/** 스펙 안정 ID — `SPC-<영역>-<식별>`. 코드 블록·인라인 코드 안이어도 참조는 참조다. */
-const SPEC_KEY_RE = /\bSPC-[A-Z0-9]+(?:-[A-Z0-9]+)*\b/g;
+/**
+ * 인라인 링크 — `[텍스트](대상)`. **이미지(`![...](...)`)는 참조가 아니다.**
+ *
+ * 코드 블록 안의 링크도 센다. 코드 예시에 스펙 링크를 적었다면 그것도 그 문서를 가리킨 것이다.
+ */
+const MD_LINK_RE = /(?<!!)\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g;
+
+/** 앱의 스펙 경로 — `/p/<slug>/specs/<key>` 든 절대 URL 이든 끝의 키만 본다 */
+const SPEC_ROUTE_RE = /\/specs\/([^/]+)$/;
+
+/** 스킴이 붙은 주소(`https:`·`mailto:` …) — 남의 주소일 수 있으므로 스펙 경로일 때만 받는다 */
+const HAS_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+
+/**
+ * 링크 대상 → 스펙 키. 아니면 null.
+ *
+ * **산문에서 키를 줍지 않는다**(2026-08-30 개정 — 사람 결정). 예전 규칙은 `SPC-` 로 시작하는
+ * 문자열을 본문 아무 데서나 주웠는데, 두 가지가 동시에 틀렸다:
+ *
+ * - 접두 `SPC-` 는 **한 프로젝트의 작명 습관**이다. 키는 만드는 쪽이 정하므로 `SUD-…` 로
+ *   지은 프로젝트에서는 규칙이 통째로 죽는다(실측: sudoku 13편 · 관계 0건).
+ * - 그렇다고 접두를 프로젝트의 실제 키로 바꾸면 더 나쁘다. clemvion 의 키에는
+ *   `migrations`·`conventions`·`data-model` 같은 **일상어**가 있어 문장 한 줄이 관계가 된다.
+ *
+ * 링크는 사람이 **"이건 그 문서다"라고 적은 자리**라 이 둘이 다 없다.
+ */
+export function specKeyOfLink(rawTarget: string): string | null {
+  const target = (rawTarget.split('#')[0] ?? '').split('?')[0]?.trim().replace(/\/+$/, '') ?? '';
+  if (target === '') return null;
+
+  const routed = SPEC_ROUTE_RE.exec(target);
+  if (routed !== null) return decode(routed[1] ?? '');
+  // 스펙 경로가 아닌 외부 주소는 참조가 아니다 — `https://x.com/migrations` 가 문서를 가리키지 않는다
+  if (HAS_SCHEME_RE.test(target)) return null;
+  // 상대 경로(`../play/index.md`)는 **서버가 해소할 수 없다**. 원본 체크아웃을 보는
+  // 임포터 CLI 의 몫이고(importer.md §2.4), 서버가 마지막 조각을 키로 넘겨짚으면
+  // `index` 같은 이름이 남의 문서에 붙는다.
+  if (target.includes('/')) return null;
+  return decode(target);
+}
+
+function decode(value: string): string | null {
+  try {
+    const decoded = decodeURIComponent(value).trim();
+    return decoded === '' ? null : decoded;
+  } catch {
+    return value.trim() === '' ? null : value.trim();
+  }
+}
+
+/** 본문의 링크에서 참조 후보 키 — 자기 자신은 참조가 아니다. */
+export function extractLinkedKeys(bodyMd: string, selfKey?: string | null): string[] {
+  const found = new Set<string>();
+  for (const match of bodyMd.matchAll(MD_LINK_RE)) {
+    const key = specKeyOfLink(match[1] ?? '');
+    if (key !== null) found.add(key);
+  }
+  if (selfKey != null) found.delete(selfKey);
+  return [...found].sort();
+}
 
 export interface RelationSyncResult {
   added: string[];
@@ -97,11 +156,9 @@ export class SpecRelationService {
     };
   }
 
-  /** 본문에서 참조 후보 키를 뽑는다 — 자기 자신은 참조가 아니다. */
+  /** 본문의 **링크**에서 참조 후보 키를 뽑는다 — 규칙은 `specKeyOfLink` 가 갖는다. */
   extractKeys(bodyMd: string, selfKey?: string | null): string[] {
-    const found = new Set(bodyMd.match(SPEC_KEY_RE) ?? []);
-    if (selfKey != null) found.delete(selfKey);
-    return [...found].sort();
+    return extractLinkedKeys(bodyMd, selfKey);
   }
 
   /**

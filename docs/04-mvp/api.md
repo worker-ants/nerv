@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.26 · 2026-08-30 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.27 · 2026-08-30 · HTML 판: [api.html](../html/api.html)
+>
+> v0.27 변경(2026-08-30 — 관계는 링크에서만 읽는다, 사람 결정): §2.2 개정(REQ-API-024). 앞선 규칙은 본문 아무 데서나 `SPC-` 로 시작하는 문자열을 주웠는데, **접두가 상수라** 키를 다르게 지은 프로젝트에서는 통째로 죽었고(sudoku 13편 · 관계 0건), 그렇다고 프로젝트의 실제 키로 바꾸면 `migrations`·`conventions` 같은 **일상어 키**가 문장에서 걸린다. 링크는 사람이 "이건 그 문서다"라고 적은 자리라 둘 다 없다. 외부 주소·상대 경로·이미지는 받지 않는다.
 >
 > v0.26 변경(2026-08-30 — 도구를 스킬에 맞춘다, 사람 결정): **§1.4d 신설**(REQ-API-042). `nerv_question_create` 의 스킬과 카탈로그가 지시하는 `context`·`escalate`·`blocking`·`wait_seconds` 를 도구가 **받지 않고 조용히 버리고 있었다** — 에이전트는 출처를 달았다고 믿는데 받은 요청 카드에는 아무것도 없었다. 넷을 다 받는다: 출처는 키든 UUID 든 해석해 저장하고(못 찾으면 어느 항목인지 말한다), `escalate` 는 **기존 `escalate_reason` 어휘를 재사용**하며, `blocking` 은 `urgency` 와 같은 축, `wait_seconds` 는 최대 60초 long-poll 이다.
 >
@@ -408,7 +410,33 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 **메타(트리)와 본문(버전)은 다른 축이다.** `spec` 행의 메타(title·parent_id·sort_key·owner_role)는 버전 이력을 만들지 않고 EP-SPEC-15로만 바뀐다 — FR-01 "문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다"의 실행 경로이며, 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 수단이다. 스코프 `spec:meta`는 PAT에 부여 가능하지만 대응 MCP 도구는 없다 — 트리 구조는 거버넌스 대상이라 웹(S3 메타 다이얼로그 — [4.5 화면 명세](screens.md) §2.4)이 기본 경로다. 이에 따라 MCP `nerv_spec_draft_upsert`의 `key`·`parent_id`·`type`·`title` 입력은 **생성(spec_id 없음)에서만 소비**된다(도구 스키마에 그 넷이 빠져 있어 에이전트가 새 스펙을 아예 시작하지 못하던 것을 2026-08-23 정정했다): 기존 spec_id 지정 호출에 현재 값과 다른 메타가 오면 무시하지 않고 409 `NERV_PRECONDITION`(`details.kind="meta_change_not_allowed"`, EP-SPEC-15 안내)을 반환하고, 같은 값이면 통과한다(멱등 재호출 보호). 아카이브(EP-SPEC-16)는 삭제가 아니다 — 행과 버전·관계·이벤트는 전부 남고, 트리(EP-SPEC-01)·검색(EP-SPEC-02)·목록 기본 결과에서 빠질 뿐이다(`?include_archived=true`로 포함).
 
-**`spec_relation`은 본문에서 자동 유도된다(MVP).** draft 저장(EP-SPEC-08 = `nerv_spec_draft_upsert`)이 커밋될 때, 서버는 본문에서 **실존하는 스펙 안정 ID**(`SPC-` 접두 표기 및 NERV 내부 스펙 URL)를 추출해 `spec_relation(kind='references', from=이 spec)` 행 집합을 그 저장 본문 기준으로 동기화한다(추가·제거 모두 — 규칙은 임포터 링크 패스 [4.7](importer.md) §2.4와 동일 코드). `references` 외의 kind(refines·depends_on 등)는 MVP에 편집 경로가 없다 — 임포터 산출 또는 Phase 2. approved 본문은 불변이므로 승인 이후 관계도 안정적이고, 참조 문서 전파(`spec.recheck_requested` — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3)는 이 행들의 역방향 조회로 동작한다. **임포트 없는 신규 프로젝트에서도 전파가 살아 있게 하는 것**이 이 규칙의 이유다.
+**`spec_relation`은 본문의 링크에서 자동 유도된다(MVP).** draft 저장(EP-SPEC-08 = `nerv_spec_draft_upsert`)이 커밋될 때, 서버는 본문의 **인라인 링크**가 가리키는 실존 스펙을 추출해 `spec_relation(kind='references', from=이 spec)` 행 집합을 그 저장 본문 기준으로 동기화한다(추가·제거 모두 — 임포터 링크 패스 [4.7](importer.md) §2.4와 **같은 규칙**이다: 둘 다 링크를 읽고, 서버는 링크의 키를 CLI 는 파일 경로를 해소한다). `references` 외의 kind(refines·depends_on 등)는 MVP에 편집 경로가 없다 — 임포터 산출 또는 Phase 2. approved 본문은 불변이므로 승인 이후 관계도 안정적이고, 참조 문서 전파(`spec.recheck_requested` — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3)는 이 행들의 역방향 조회로 동작한다. **임포트 없는 신규 프로젝트에서도 전파가 살아 있게 하는 것**이 이 규칙의 이유다.
+
+#### 링크만 센다 (2026-08-30 개정 — 사람 결정)
+
+앞선 규칙은 본문 **아무 데서나** `SPC-` 로 시작하는 문자열을 주웠다. 두 가지가 동시에 틀려 있었다.
+
+| 무엇이 틀렸나 | 실측 |
+| --- | --- |
+| **접두가 상수였다** — 키는 만드는 쪽이 정하는 값인데 한 프로젝트의 작명 습관이 규칙에 박혀 있었다 | sudoku 는 키가 `SUD-…` 라 13편을 쓰는 동안 관계가 **0건**이었다. clemvion 의 1,255건은 이 경로가 아니라 **임포터**가 만든 것이다(대상 1,255건이 전부 `SPC-` 아닌 키다) |
+| **산문을 주웠다** — 그렇다고 접두를 프로젝트의 실제 키로 바꾸면 더 나쁘다 | clemvion 의 키에는 `migrations`·`conventions`·`data-model` 같은 **일상어**가 있다. "migrations 를 먼저 돌린다"는 문장이 관계가 된다 |
+
+**링크는 사람이 "이건 그 문서다"라고 적은 자리다.** 그래서 규칙을 링크로 좁힌다 — 산문에 적힌 키는 관계가 아니다.
+
+받는 형태는 둘이고, 앵커·질의는 판정에서 버린다(사람이 읽을 때만 쓴다).
+
+```markdown
+[게임플레이 §3](/p/sudoku/specs/SUD-AREA-PLAY#3)   권장 — 웹에서 그대로 눌린다
+[게임플레이](SUD-AREA-PLAY)                        키만 써도 된다
+```
+
+받지 않는 것도 규칙이다.
+
+- **스펙 경로가 아닌 외부 주소**(`https://example.com/migrations`)는 참조가 아니다 — 스킴이 붙은 주소는 `/specs/<키>` 로 끝날 때만 받는다.
+- **상대 경로**(`../play/index.md`)는 서버가 해소할 수 없다. 원본 체크아웃을 보는 임포터 CLI 의 몫이고([4.7](importer.md) §2.4), 서버가 마지막 조각을 키로 넘겨짚으면 `index` 같은 이름이 남의 문서에 붙는다.
+- **이미지**(`![…](…)`)는 문서를 가리키지 않는다.
+
+`unknown`(없는 문서를 가리킨 링크)은 여전히 경고다 — 아직 안 쓴 문서를 미리 링크하는 것은 정상적인 집필 순서다. 다만 이제 그 경고가 **오타의 유일한 방어선**이므로 사전 검토가 함께 본다(§2.2 검사기).
 
 #### 2.2b 검색 파이프라인 — 하이브리드 + 관계 확장 (EP-SPEC-02 = `nerv_spec_search`)
 
@@ -801,7 +829,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | REQ-API-021 | WHEN 기존 `spec_id`를 지정한 `nerv_spec_draft_upsert`에 현재 값과 다른 `parent_id`/`type`/`title`이 오면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`details.kind="meta_change_not_allowed"`)을 반환하고 본문도 저장하지 않는다. WHEN 같은 값이 오면 THE SYSTEM SHALL 정상 처리한다 | 다른 title 1케이스 + 동일 메타 재호출 1케이스 |
 | REQ-API-022 | WHEN 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task가 있는 스펙에 EP-SPEC-16이 오면 THE SYSTEM SHALL 409(`details.kind="archive_blocked"`)로 거부하고, 아카이브된 스펙은 `include_archived` 없는 EP-SPEC-01·02 결과에서 제외하되 EP-SPEC-03 단건 조회는 계속 응답한다 | 하위 노드 보유 스펙 아카이브 시도 + 아카이브 후 트리/단건 조회 각 1건 |
 | REQ-API-023 | WHEN EP-PRJ-04의 `gate_policy`·`retention`이 §2.1a 스키마를 위반하거나 알 수 없는 키를 포함하면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`details.issues`)으로 전체를 거부하고 부분 적용하지 않는다 | 오타 키 1케이스 + 경계값 위반 1케이스 |
-| REQ-API-024 | WHEN draft 저장이 커밋되면 THE SYSTEM SHALL 본문에서 실존 스펙 안정 ID를 추출해 그 spec의 `kind='references'` 관계 집합을 저장 본문과 일치하게 동기화한다(추가·제거 포함) — 미실존 ID는 행을 만들지 않고 응답 경고로만 반환한다 | 링크 추가·제거 저장 후 spec_relation 조회 + 미실존 ID 경고 확인 |
+| REQ-API-024 | WHEN draft 저장이 커밋되면 THE SYSTEM SHALL 본문의 **인라인 링크**가 가리키는 실존 스펙을 추출해 그 spec의 `kind='references'` 관계 집합을 저장 본문과 일치하게 동기화한다(추가·제거 포함) — 산문에 적힌 키는 세지 않고, 미실존 대상은 행을 만들지 않고 응답 경고로만 반환한다 (2026-08-30 개정 — 앞선 `SPC-` 접두 문자열 수집을 대체한다) | 링크 추가·제거 저장 후 spec_relation 조회 + 산문 키 무시 + 미실존 대상 경고 확인 |
 | REQ-API-025 | WHEN 검색 질의가 안정 ID 패턴이면 THE SYSTEM SHALL 해당 리소스를 최상위로 직행 반환하고, 그 외 질의는 렉시컬+벡터 RRF 병합 순위와 `related[]` 분리 그룹으로 응답한다(§2.2b) — REST와 MCP 두 표면의 결과가 동일하다 | ID 질의·한국어 질의·의미 질의 각 1건을 두 표면에서 실행해 대조 |
 | REQ-API-026 | WHEN 임베딩 제공자가 무응답이면 THE SYSTEM SHALL 렉시컬 결과만으로 200을 반환하고 `degraded: "lexical-only"`를 표기한다 — 검색 실패를 5xx로 전파하지 않는다(어느 프로필이든 동일) | 제공자 차단 상태에서 검색 1건 |
 | REQ-API-027 | WHEN EP-SPEC-18을 direction=both로 호출하면 THE SYSTEM SHALL 나가는 관계와 **역참조**를 kind·방향 표기와 함께 커서 페이지네이션으로 반환한다 | 역참조 30건 스펙에서 2페이지 조회 |

@@ -122,7 +122,9 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
       key: 'SPC-B',
       title: 'B',
       type: 'feature',
-      bodyMd: '# B\n\nSPC-A 를 따르고 SPC-NOPE 도 언급한다',
+      // **링크만 센다**(2026-08-30) — 산문에 적힌 키는 관계가 아니다
+      bodyMd:
+        '# B\n\n[A](SPC-A) 를 따르고 [없는 문서](SPC-NOPE) 도 링크한다. SPC-C 는 산문이라 세지 않는다',
       userId: planner,
     });
     const sync = b['relations'] as { added: string[]; unknown: string[] };
@@ -133,7 +135,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
   it('본문에서 사라진 참조는 관계에서도 사라진다 — 한 방향으로만 자라면 그래프는 신뢰를 잃는다', async () => {
     await draft('SPC-A', '# A');
     await draft('SPC-C', '# C');
-    const b = await draft('SPC-B', '# B\n\nSPC-A · SPC-C');
+    const b = await draft('SPC-B', '# B\n\n[A](SPC-A) · [C](/p/x/specs/SPC-C)');
     expect(
       (await relations.list({ projectId, specKey: 'SPC-B', direction: 'out' })).items,
     ).toHaveLength(2);
@@ -142,7 +144,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
       roles: ['planner'],
       projectId,
       specId: b.specId,
-      bodyMd: '# B\n\nSPC-A 만 남긴다',
+      bodyMd: '# B\n\n[A](SPC-A) 만 남긴다',
       userId: planner,
     });
     expect((again['relations'] as { removed: string[] }).removed).toEqual(['SPC-C']);
@@ -157,7 +159,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
       key: 'SPC-SELF',
       title: 'self',
       type: 'feature',
-      bodyMd: '# SPC-SELF\n\n이 문서는 SPC-SELF 다',
+      bodyMd: '# SPC-SELF\n\n이 문서는 [자기 자신](SPC-SELF) 이다',
       userId: planner,
     });
     expect((r['relations'] as { added: string[] }).added).toEqual([]);
@@ -167,8 +169,8 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
 describe('E09-S12 역참조가 1급이다', () => {
   it('both 는 나가는 관계와 역참조를 방향 표시와 함께 준다', async () => {
     await draft('SPC-CORE', '# core');
-    await draft('SPC-USER1', '# u1\n\nSPC-CORE 참조');
-    await draft('SPC-USER2', '# u2\n\nSPC-CORE 참조');
+    await draft('SPC-USER1', '# u1\n\n[core](SPC-CORE) 참조');
+    await draft('SPC-USER2', '# u2\n\n[core](/p/x/specs/SPC-CORE) 참조');
 
     const backlinks = await relations.list({ projectId, specKey: 'SPC-CORE', direction: 'in' });
     expect(backlinks.items.map((i) => i['key']).sort()).toEqual(['SPC-USER1', 'SPC-USER2']);
@@ -185,7 +187,7 @@ describe('E09-S12 역참조가 1급이다', () => {
 describe('E09-S08 메타 편집은 이력을 보존한다', () => {
   it('이동·개명해도 버전·관계·코멘트가 그대로다 (FR-01)', async () => {
     const parent = await draft('SPC-P', '# 부모');
-    const child = await draft('SPC-CH', '# 자식\n\nSPC-P 참조');
+    const child = await draft('SPC-CH', '# 자식\n\n[부모](SPC-P) 참조');
     const comment = await comments.add({
       projectId,
       specVersionId: child.versionId,
@@ -478,7 +480,9 @@ describe('E09-S10 하이브리드 검색', () => {
   it('관계 확장은 별도 그룹이다 — 본 랭킹에 섞지 않는다', async () => {
     const core = await draft('SPC-GR-001', '# 세션 복원 API\n\n본문', '세션 복원 API');
     await approve(core.versionId);
-    const dep = await draft('SPC-GR-002', '# 위젯\n\nSPC-GR-001 에 의존한다', '위젯');
+    // 링크 **글자**에 질의어를 넣지 않는다 — 넣으면 이 문서가 본 결과로 올라와
+    // 관계 그룹에서 빠진다(related 는 본 결과와 겹치지 않는다). 그건 이 검사의 주제가 아니다
+    const dep = await draft('SPC-GR-002', '# 위젯\n\n[그 문서](SPC-GR-001) 에 의존한다', '위젯');
     await approve(dep.versionId);
 
     const result = await search.search({ projectId, query: '세션 복원' });
@@ -489,7 +493,11 @@ describe('E09-S10 하이브리드 검색', () => {
   it('references 필터는 그 스펙을 참조하는 문서만 남긴다', async () => {
     const core = await draft('SPC-RF-001', '# 공통 규약\n\n본문', '공통 규약');
     await approve(core.versionId);
-    const user = await draft('SPC-RF-002', '# 공통 규약 사용\n\nSPC-RF-001 참조', '공통 규약 사용');
+    const user = await draft(
+      'SPC-RF-002',
+      '# 공통 규약 사용\n\n[공통 규약](SPC-RF-001) 참조',
+      '공통 규약 사용',
+    );
     await approve(user.versionId);
 
     const filtered = await search.search({
