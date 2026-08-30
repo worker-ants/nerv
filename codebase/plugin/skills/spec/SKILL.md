@@ -40,7 +40,20 @@ allowed-tools:
 - 저장 응답의 `relations` 를 **사람에게 보고한다** — `added` 는 새로 이어진 문서, `removed` 는 본문에서 빠져 끊긴 것, `unknown` 은 **없는 문서를 가리킨 링크**(오타이거나 아직 안 쓴 문서다).
 - `references` 는 본문이 주인이라 손으로 넣지 않는다. 다음 저장에 본문 기준으로 다시 맞춰진다.
 
-정제·선행 같은 **판단 관계는 선언해야 남는다** — `nerv_spec_relate` 로 `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes` 를 건다. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다. `remove: true` 로 되돌린다.
+## 무엇을 왜 바꿨는지 남긴다
+
+**초안은 덮어써진다.** 승인 전까지는 같은 버전을 고쳐 쓰므로 나중에 되짚을 diff 가 없다 —
+저장하는 그 순간이 "무엇이 바뀌었나"를 말할 수 있는 유일한 시점이다.
+
+- `change_summary` 를 **매 저장에 싣는다.** 한 줄이어도 된다. 싣지 않으면 앞의 요약이 그대로
+  남으므로 새 저장이 옛 요약을 달고 있게 된다.
+- 응답의 `delta` 는 요구사항(added·modified·removed)과 줄 수다. **사람에게 그대로 보고한다** —
+  에이전트가 무엇을 고쳤다고 말하는 것과 서버가 실제로 받은 것이 다르면 그 자리에서 드러난다.
+
+정제·선행 같은 **판단 관계는 선언해야 남는다** — `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes`. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다.
+
+- 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
+- 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`, 되돌릴 때 `remove: true`)를 쓴다.
 
 ## 서브커맨드
 
@@ -49,9 +62,10 @@ allowed-tools:
    `nerv_spec_search`(`query`)로 중복 스펙이 없는지 확인한다.
 2. 사람과 트리 위치(`parent_id`)·`type`·`title`을 합의한 뒤 본문을 작성한다.
 3. `nerv_spec_draft_upsert` — 입력: `parent_id`, `type`, `title`, `body_markdown`,
-   `change_summary`(새 스펙이므로 `base_version` 없음), `idempotency_key`.
-4. 응답의 `web_url`(S3 딥링크)과 `relations`(added·removed·unknown)를 터미널에 표시한다 —
-   앞은 사람이 웹에서 이어보는 경로이고, 뒤는 **이 문서가 그래프에 붙었는지**의 답이다.
+   `change_summary`(새 스펙이므로 `base_version` 없음), 필요하면 `relations`, `idempotency_key`.
+4. 응답의 `web_url`(S3 딥링크) · `relations`(added·removed·unknown) · `delta` 를 터미널에
+   표시한다 — 각각 사람이 웹에서 이어보는 경로, **이 문서가 그래프에 붙었는지**의 답,
+   그리고 **무엇이 바뀌었는지**다.
 
 ### edit — 초안 이어쓰기·피드백 반영
 1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments","requirements"]`)로
@@ -60,7 +74,8 @@ allowed-tools:
    `body_markdown`, `change_summary`, `idempotency_key`) 호출. 초안 편집 리스는 이 호출이
    성공하는 순간 자동 획득·갱신된다(TTL 30분 — Task 클레임 리스와 같은 상수).
    같은 사용자가 웹 에디터에 열어 둔 리스는 자동 인계된다(웹 탭에 인계 알림이 뜬다).
-3. 응답의 델타 요약(ADDED/MODIFIED/REMOVED)·검증 경고·`relations` 를 사람에게 보여준다.
+3. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
+   사람에게 보여준다.
 4. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
    `resolved_in_version_id`)로 닫는다. 반영하지 않기로 한 코멘트는 닫지 말고 사유를 보고한다.
 
@@ -93,6 +108,9 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
 | NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉 |
+| NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
+| NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 실어 보낸다 |
+| NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
 
 ## 금지
 
