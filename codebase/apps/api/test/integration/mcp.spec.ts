@@ -125,17 +125,18 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(String(result['instructions']).length).toBeLessThan(2048);
   });
 
-  it('tools/list 가 20종을 노출한다 — MVP 18(P0 8 + P1 10) + 리뷰 2(P2)', async () => {
+  it('tools/list 가 21종을 노출한다 — MVP 19(P0 8 + P1 11) + 리뷰 2(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
     // 카탈로그가 20인 것은 리뷰 수집(FR-09)이 Phase 2 에서 위에 얹혔기 때문이다 —
-    // 두 수를 섞지 않는다. MVP 는 18 이다(2026-08-30 사람 결정으로 16 → 18: Task 를
-    // 만들고 읽는 두 도구가 없어 에이전트가 자기 일 밖의 건을 남길 수 없었다).
-    expect(tools).toHaveLength(20);
+    // 두 수를 섞지 않는다. MVP 는 19 다(2026-08-30 사람 결정으로 16 → 19: Task 를
+    // 만들고·읽고·훑는 세 도구가 없어 에이전트가 자기 일 밖을 볼 수 없었다).
+    expect(tools).toHaveLength(21);
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_relate');
     expect(tools.map((t) => t.name)).toContain('nerv_task_get');
     expect(tools.map((t) => t.name)).toContain('nerv_task_create');
+    expect(tools.map((t) => t.name)).toContain('nerv_task_list');
     expect(tools.map((t) => t.name)).toContain('nerv_review_submit');
     expect(tools.map((t) => t.name)).toContain('nerv_finding_resolve');
     for (const tool of tools) expect(tool.inputSchema).toBeTruthy();
@@ -761,6 +762,55 @@ describe('E03-S04 에러 규약 — 구조화 결과', () => {
     expect(byKey['title']).toBe('리스 해제 경로에 테스트가 없다');
     expect(byId['id']).toBe(made['task_id']);
     expect(byKey['goal_md']).toBe('해제 경로 L2 를 세운다');
+  });
+
+  // 2026-08-30 사람 요청 — "이 프로젝트에 지금 무엇이 도는가" 를 물을 길이 없었다.
+  it('훑는다 — 상태로 거르고, 스펙은 키로도 가리킨다', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-12',
+      external_session_id: 'S-list',
+    });
+    const specId = newId();
+    const versionId = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature','SPC-LISTED','목록')`,
+      [specId, projectId],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'approved','# 본문', digest('x','sha256'), $3)`,
+      [versionId, specId, userId],
+    );
+    for (const [key, status] of [
+      ['TSK-l1', 'ready'],
+      ['TSK-l2', 'in_progress'],
+    ]) {
+      await pool.query(
+        `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id,
+                           goal_md, output_format_md, tools_sources_md, boundaries_md)
+         VALUES ($1,$2,$3,$3,$4::task_status,$5,'목표','PR','도구','경계')`,
+        [newId(), projectId, key, status, versionId],
+      );
+    }
+
+    const all = await callTool('nerv_task_list', { session_id: boot['session_id'] });
+    const keys = (all['items'] as { key: string }[]).map((t) => t.key);
+    expect(keys).toEqual(expect.arrayContaining(['TSK-l1', 'TSK-l2']));
+
+    // 상태로 거른다 — 쉼표 목록이다(REST 질의와 같은 모양)
+    const running = await callTool('nerv_task_list', {
+      session_id: boot['session_id'],
+      status: 'in_progress',
+    });
+    expect((running['items'] as { key: string }[]).map((t) => t.key)).toEqual(['TSK-l2']);
+
+    // **스펙은 키로도 가리킨다**(§1.4b) — 예전에는 UUID 만 받아 키를 넣으면 조용히 0건이었다
+    const bySpec = await callTool('nerv_task_list', {
+      session_id: boot['session_id'],
+      spec: 'SPC-LISTED',
+    });
+    expect((bySpec['items'] as unknown[]).length).toBe(2);
   });
 
   it('상태 이름은 열거가 지킨다 — 지어낸 이름은 호출 전에 막힌다', async () => {

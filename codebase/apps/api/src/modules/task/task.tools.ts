@@ -54,6 +54,43 @@ export class TaskTools implements NervToolProvider {
         this.tasks.get({ projectId: ctx.projectId, taskKey: String(input['task_id'] ?? '') }),
     },
     {
+      // **훑을 길도 없었다**(2026-08-30 사람 요청). `nerv_task_next` 는 "지금 클레임할 수
+      // 있는 것"만, `nerv_task_get` 은 "이미 아는 하나"만 준다 — 그래서 "이 프로젝트에
+      // 지금 무엇이 도는가" 를 물을 수 없었다. 그건 클레임 전에 하는 물음이고,
+      // 사람에게 보고할 때 필요한 물음이다.
+      name: 'nerv_task_list',
+      tier: 'A1',
+      phase: 'P1',
+      summaryKey: 'mcp.tool.before_claim',
+      scope: 'task:claim',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          // 배열이 아니라 쉼표 목록이다 — REST 질의와 같은 모양이라 사람이 옮겨 적기 쉽다
+          status: { type: 'string', description: 'mcp.arg.task_status_filter' },
+          assignee: { type: 'string', description: 'user UUID' },
+          spec: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+          // 기본은 **닫혀 있다** — 보관한 것까지 함께 오면 목록이 목록이기를 그만둔다
+          include_archived: { type: 'boolean', default: false },
+          limit: { type: 'integer', minimum: 1, maximum: 100 },
+          cursor: { type: 'string', description: 'mcp.arg.cursor' },
+        },
+      },
+      handler: async (input, ctx) => {
+        const status = typeof input['status'] === 'string' ? input['status'] : '';
+        return this.tasks.list({
+          projectId: ctx.projectId,
+          statuses: status === '' ? null : status.split(',').map((v) => v.trim()),
+          assigneeUserId: typeof input['assignee'] === 'string' ? input['assignee'] : null,
+          specId: typeof input['spec'] === 'string' ? input['spec'] : null,
+          includeArchived: input['include_archived'] === true,
+          ...(typeof input['limit'] === 'number' ? { limit: input['limit'] } : {}),
+          ...(typeof input['cursor'] === 'string' ? { cursor: input['cursor'] } : {}),
+        });
+      },
+    },
+    {
       // **만들 길도 없었다.** Task 는 임포터와 웹만 만들 수 있었고, 그래서 에이전트가
       // "이건 이번 작업 밖의 별도 건이다" 를 남길 방법이 질문밖에 없었다 —
       // 별도 작업이 질문 카드로 흘러가거나 그냥 잊혔다.

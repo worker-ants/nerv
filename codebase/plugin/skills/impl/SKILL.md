@@ -4,6 +4,7 @@ description: 클레임한 Task의 구현 루프. 하트비트 60초 규약, pend
 allowed-tools:
   - mcp__nerv__nerv_task_heartbeat
   - mcp__nerv__nerv_task_get
+  - mcp__nerv__nerv_task_list
   - mcp__nerv__nerv_task_update
   - mcp__nerv__nerv_task_create
   - mcp__nerv__nerv_task_release
@@ -59,6 +60,8 @@ allowed-tools:
   사람이 마저 채운다 — **잊는 것보다 낫다.** 지금 하던 일을 그것 때문에 멈추지 않는다.
 - 특정 Task 를 읽어야 하면 `nerv_task_get`(`task_id` — 키든 UUID든)이다.
   `nerv_task_next` 는 **지금 클레임할 수 있는 후보**만 준다.
+- 프로젝트에 무엇이 도는지 훑어야 하면 `nerv_task_list`(`status` 쉼표 목록 · `assignee` ·
+  `spec` · `cursor`)다. 보관한 것은 기본으로 빠진다 — 필요하면 `include_archived`.
 - `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
   `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
   "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.

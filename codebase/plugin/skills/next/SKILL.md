@@ -5,6 +5,7 @@ allowed-tools:
   - mcp__nerv__nerv_bootstrap
   - mcp__nerv__nerv_task_next
   - mcp__nerv__nerv_task_get
+  - mcp__nerv__nerv_task_list
   - mcp__nerv__nerv_task_claim
   - mcp__nerv__nerv_task_release
   - mcp__nerv__nerv_question_create

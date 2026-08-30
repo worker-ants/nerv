@@ -98,18 +98,19 @@ describe('ToolRegistry — modules/**/*.tools.ts 수집', () => {
     await app.init();
   });
 
-  it('MVP 18종 + 리뷰 2종을 수집한다 (P0 8 · P1 10 · P2 2)', () => {
+  it('MVP 19종 + 리뷰 2종을 수집한다 (P0 8 · P1 11 · P2 2)', () => {
     const registry = app.get(ToolRegistry);
     // **Phase 별로 센다.** 총계만 보면 "MVP 가 몇 종"이라는 사실이 수 안에서 사라지고,
     // 다음에 Phase 3 도구가 들어올 때 무엇이 늘었는지 이 테스트가 답하지 못한다.
     //
-    // 2026-08-30 사람 결정 — P1 이 8 → 10 이다. `nerv_task_get`·`nerv_task_create` 가
-    // 들어왔다: 에이전트는 자기가 클레임할 다음 것만 볼 수 있었고 Task 를 만들 길이
-    // 없었다(REST 에는 처음부터 있었다). MVP 약속도 16 → 18 로 함께 고쳤다(4.1 §4.2).
+    // 2026-08-30 사람 결정 — P1 이 8 → 11 이다. `nerv_task_get`·`nerv_task_create`·
+    // `nerv_task_list` 가 들어왔다: 에이전트는 자기가 클레임할 다음 것만 볼 수 있었고
+    // Task 를 만들 길도, 프로젝트에 무엇이 도는지 훑을 길도 없었다(REST 에는 처음부터
+    // 셋 다 있었다). MVP 약속도 16 → 19 로 함께 고쳤다(4.1 §4.2).
     expect(registry.list().filter((t) => t.phase === 'P0')).toHaveLength(8);
-    expect(registry.list().filter((t) => t.phase === 'P1')).toHaveLength(10);
+    expect(registry.list().filter((t) => t.phase === 'P1')).toHaveLength(11);
     expect(registry.list().filter((t) => t.phase === 'P2')).toHaveLength(2);
-    expect(registry.size).toBe(20);
+    expect(registry.size).toBe(21);
   });
 
   it('P0 8종의 이름이 카탈로그와 일치한다', () => {

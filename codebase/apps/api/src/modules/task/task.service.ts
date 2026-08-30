@@ -147,7 +147,16 @@ export class TaskService {
           )})`;
     const assignee =
       input.assigneeUserId == null ? sql`` : sql` AND t.assignee_user_id = ${input.assigneeUserId}`;
-    const spec = input.specId == null ? sql`` : sql` AND sv.spec_id = ${input.specId}`;
+    // **키든 UUID 든 받는다**(§1.4b). 예전에는 UUID 만 받았는데, 사람과 화면과 도구가
+    // 쓰는 것은 안정 키다 — 키를 넣으면 조용히 0건이 되어 "그 스펙에 Task 가 없다" 로 읽혔다.
+    const specRef = entityRef(input.specId ?? null);
+    const spec =
+      specRef.id === null && specRef.key === null
+        ? sql``
+        : specRef.id !== null
+          ? sql` AND sv.spec_id = ${specRef.id}`
+          : sql` AND sv.spec_id = (SELECT id FROM spec
+                                    WHERE project_id = ${input.projectId} AND key = ${specRef.key})`;
 
     // done 은 시간이 지나면 배경이 된다 — 창 밖의 것은 기본 결과에서 빠진다.
     //

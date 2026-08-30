@@ -302,6 +302,9 @@ export const en = {
   'mcp.arg.output_format_md': 'what to hand back (PR, doc, patch) — delegation element',
   'mcp.arg.tools_sources_md': 'what to read and what to use — delegation element',
   'mcp.arg.boundaries_md': 'what must not be touched — delegation element',
+  'mcp.arg.task_status_filter':
+    'status filter — comma separated (e.g. ready,in_progress). omit for all',
+  'mcp.arg.cursor': 'next page — pass the next_cursor from the previous response',
   'mcp.arg.evidence':
     'evidence — required by the done gate. kind is one of code_path/test/pr/commit/review/user_guide',
   'mcp.arg.blocked_reason': 'why it is blocked — required when status=blocked',

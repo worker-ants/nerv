@@ -300,6 +300,8 @@ export const ko = {
   'mcp.arg.output_format_md': '무엇을 내놓아야 하는가(PR·문서·패치) — 위임 명세 4요소',
   'mcp.arg.tools_sources_md': '무엇을 보고 무엇으로 하는가 — 위임 명세 4요소',
   'mcp.arg.boundaries_md': '건드리면 안 되는 것 — 위임 명세 4요소',
+  'mcp.arg.task_status_filter': '상태 필터 — 쉼표로 여럿(예: ready,in_progress). 주지 않으면 전부',
+  'mcp.arg.cursor': '다음 쪽 — 앞 응답의 next_cursor 를 그대로 싣는다',
   'mcp.arg.evidence':
     '증적 — done 게이트가 요구한다. kind 는 code_path·test·pr·commit·review·user_guide',
   'mcp.arg.blocked_reason': '막힌 이유 — status=blocked 면 필수다',
