@@ -203,7 +203,12 @@ function ReviewCenter(): React.JSX.Element {
         {selected !== null && (
           <aside className="hidden w-[340px] shrink-0 xl:block">
             <div className="sticky top-4 rounded-nerv border border-border bg-bg-elev px-4 py-3.5">
-              <FindingRail finding={selected} projectSlug={proj} />
+              <FindingRail
+                finding={selected}
+                projectSlug={proj}
+                projectId={id}
+                canResolve={canResolve}
+              />
             </div>
           </aside>
         )}

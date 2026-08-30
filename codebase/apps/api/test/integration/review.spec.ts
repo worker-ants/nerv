@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
+import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -23,6 +24,7 @@ let db: ScratchDb;
 let pool: pg.Pool;
 let app: NestFastifyApplication;
 let reviews: ReviewService;
+let questions: QuestionService;
 let projectId: string;
 let userId: string;
 let agentSessionId: string;
@@ -38,6 +40,7 @@ beforeAll(async () => {
   app = await createApp();
   await app.init();
   reviews = app.get(ReviewService);
+  questions = app.get(QuestionService);
 });
 
 afterAll(async () => {
@@ -51,7 +54,12 @@ beforeEach(async () => {
   await pool.query('DELETE FROM resolution');
   await pool.query('DELETE FROM approval');
   await pool.query('DELETE FROM finding_occurrence');
+  await pool.query('DELETE FROM finding_comment');
+  // 발견이 Task 를 가리키므로 그 손을 먼저 놓아야 Task 를 지울 수 있다
+  await pool.query('UPDATE finding SET promoted_task_id = NULL');
   await pool.query('DELETE FROM finding');
+  await pool.query('DELETE FROM evidence');
+  await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM reviewer_report');
   await pool.query('UPDATE review_session SET previous_session_id = NULL');
   await pool.query('DELETE FROM review_session');
@@ -198,6 +206,83 @@ describe('FR-09 dedup — 같은 지적은 라운드를 넘어 하나다', () =>
       submitInput({ headSha: 'cccc333', findings: [{ ...CRITICAL, title: '5곳에서 토큰 노출' }] }),
     );
     expect(again.findings_new).toHaveLength(0);
+  });
+});
+
+// 2026-08-30 사람 물음 — "피드백을 하면 이후 흐름이 어떻게 흘러가나".
+// 예전 답은 "아무 데로도" 였다: 처분 3종 말고는 적을 자리가 없었고, 무엇을 적든
+// 지적한 에이전트는 듣지 못했으며, "나중에 하자" 가 갈 곳도 없었다.
+describe('발견의 피드백 흐름 (2026-08-30 신설)', () => {
+  async function openOne(): Promise<string> {
+    const result = await reviews.submit(submitInput({ findings: [CRITICAL] }));
+    return result.findings_new[0]!;
+  }
+
+  it('사람이 말을 남기고, 그 말이 대화로 쌓인다', async () => {
+    const findingId = await openOne();
+    await reviews.comment({ projectId, findingId, userId, bodyMd: '이건 이래서 오탐이다' });
+    await reviews.comment({ projectId, findingId, userId, bodyMd: '아니다, 다시 보니 맞다' });
+    const listed = await reviews.comments({ projectId, findingId });
+    expect(listed.items.map((c) => c['body_md'])).toEqual([
+      '이건 이래서 오탐이다',
+      '아니다, 다시 보니 맞다',
+    ]);
+  });
+
+  it('빈 코멘트는 남기지 않는다 — 빈 줄은 대화가 아니다', async () => {
+    const findingId = await openOne();
+    await expect(
+      reviews.comment({ projectId, findingId, userId, bodyMd: '   ' }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+
+  it('발견을 Task 로 올린다 — "나중에 하자" 가 갈 곳이다', async () => {
+    const findingId = await openOne();
+    const promoted = await reviews.promote({ projectId, findingId, userId });
+    expect(promoted['created']).toBe(true);
+    // 만들자마자 누가 집어 가지 않는다 — 위임 명세 4요소를 사람이 채워야 ready 다(D-09)
+    expect(promoted['status']).toBe('backlog');
+
+    const { rows } = await pool.query<{ title: string; body_md: string; priority: string }>(
+      `SELECT title, body_md, priority::text AS priority FROM task WHERE id = $1`,
+      [promoted['task_id']],
+    );
+    expect(rows[0]?.title).toBe(CRITICAL.title);
+    // critical 은 큐의 맨 앞이다 — 막아야 하는 것이라 critical 인 것이다
+    expect(rows[0]?.priority).toBe('P0');
+    expect(rows[0]?.body_md).toContain(CRITICAL.body_md ?? '');
+  });
+
+  it('두 번 올리면 이미 만든 것을 돌려준다 — Task 둘은 서로를 모른 채 각자 done 이 된다', async () => {
+    const findingId = await openOne();
+    const first = await reviews.promote({ projectId, findingId, userId });
+    const second = await reviews.promote({ projectId, findingId, userId });
+    expect(second['created']).toBe(false);
+    expect(second['task_id']).toBe(first['task_id']);
+  });
+
+  it('지적한 세션이 하트비트로 그 말을 받는다 — 역채널이 질문 하나뿐이었다', async () => {
+    const findingId = await openOne();
+    await reviews.comment({ projectId, findingId, userId, bodyMd: '여기는 의도된 동작이다' });
+
+    const pending = await questions.pendingFor(agentSessionId);
+    const commented = pending.filter((p) => p['kind'] === 'finding_commented');
+    expect(commented).toHaveLength(1);
+    expect(commented[0]?.['body_md']).toBe('여기는 의도된 동작이다');
+    expect(commented[0]?.['finding_id']).toBe(findingId);
+  });
+
+  it('내가 쓴 코멘트는 나에게 돌아오지 않는다', async () => {
+    const findingId = await openOne();
+    await reviews.comment({
+      projectId,
+      findingId,
+      userId,
+      sessionId: agentSessionId,
+      bodyMd: '에이전트가 스스로 남긴 메모',
+    });
+    const pending = await questions.pendingFor(agentSessionId);
+    expect(pending.filter((p) => p['kind'] === 'finding_commented')).toHaveLength(0);
   });
 });
 

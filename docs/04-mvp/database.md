@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.13 · 2026-08-30 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.14 · 2026-08-30 · HTML 판: [database.html](../html/database.html)
 >
+> v0.14 변경(2026-08-30 — 사람 물음, 피드백 흐름): **`finding_comment` 신설**(도메인 31종)과 `finding.promoted_task_id` 추가(§2.7). 발견에 사람의 말을 적을 자리가 없었고, "나중에 하자" 가 갈 곳도 없었다 — 처분 3종은 큐에서 지우는 것이지 잇는 것이 아니다([4.4](api.md) REQ-API-057·059).
 > v0.13 변경(2026-08-30 — 초안이 언제 바뀌었는지 알 수 없었다, 사람 결정): `spec_version` 에 **`updated_at`**(0008). draft 는 같은 행을 덮어쓰므로 `created_at` 은 "언제 만들었나"에만 답한다 — 버전 목록이 "2시간 전"이라 적는데 방금 고친 문서인 상황이 그래서 나왔다. **본문이 바뀔 때만** 움직인다(요약만 고치는 저장·리스 갱신에는 움직이지 않는다 — 그때는 문서가 바뀌지 않았다).
 >
 > v0.12 변경(2026-08-30 — 질문의 출처와 사유, 사람 결정): `question` 에 **`spec_id`·`finding_id`·`escalate`** 3열(0007). 스킬과 카탈로그가 `context{spec_id,task_id,finding_id}`·`escalate` 를 지시하는데 저장할 자리가 없어 도구가 그 값을 **조용히 버리고 있었다**([4.4](api.md) §1.4d). **enum 은 새로 만들지 않았다** — `escalate_reason` 이 이미 그 5종 어휘이고 Resolution 이 쓴다(§2.1 그대로 38종). 테이블 수는 30종 그대로다.
@@ -456,7 +457,7 @@ CREATE TABLE activity (                       -- 타입드 불변 로그. 편집
 
 `UNIQUE (session_id, seq)`(data-model §2.5)는 파티션 테이블의 전역 unique로 선언할 수 없다(파티션 키가 포함돼야 하므로). 의미(세션 내 seq 유일)는 두 겹으로 지킨다 — ① 파티션마다 `(session_id, seq)` unique 인덱스를 생성하고(§2.14의 파티션 생성 함수가 자동으로 만든다), ② 월 경계를 넘는 재전송은 ingest 경로의 멱등 키(`nerv_session_event`의 `(session_id, event_seq)` — agent-integration §2)가 막는다.
 
-### 2.7 리뷰 — review_session · reviewer_report · finding · finding_occurrence · resolution
+### 2.7 리뷰 — review_session · reviewer_report · finding · finding_comment · finding_occurrence · resolution
 
 근거: data-model §2.6. `head_sha`·`base_sha`·`branch`의 NOT NULL이 이 스키마에서 가장 값싼 개선이다 — clemvion `meta.json`에는 이 필드 자체가 없어 표본 SUMMARY 200개 중 47개만 산문에 해시를 남겼다(data-model §3.3).
 
@@ -520,9 +521,21 @@ CREATE TABLE finding (                        -- 라운드를 넘어 하나로 �
   first_session_id uuid NOT NULL REFERENCES review_session(id),
   last_session_id  uuid NOT NULL REFERENCES review_session(id),
   occurrence_count int NOT NULL DEFAULT 1,
+  promoted_task_id uuid REFERENCES task(id),  -- 이 발견이 어느 Task 가 됐나(2026-08-30)
   created_at       timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT finding_fingerprint_uq UNIQUE (project_id, fingerprint)
 );
+
+CREATE TABLE finding_comment (                -- 발견에 대한 사람의 말(2026-08-30 신설)
+  id               uuid PRIMARY KEY,
+  project_id       uuid NOT NULL REFERENCES project(id),
+  finding_id       uuid NOT NULL REFERENCES finding(id),
+  author_user_id   uuid NOT NULL REFERENCES "user"(id),
+  author_session_id uuid REFERENCES agent_session(id),
+  body_md          text NOT NULL,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX finding_comment_thread ON finding_comment (finding_id, created_at);
 
 CREATE TABLE finding_occurrence (             -- 어느 라운드에서 몇 번으로 보였는가(구 SUMMARY#n)
   id                 uuid PRIMARY KEY,

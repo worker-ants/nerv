@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.19 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.20 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.20 변경(2026-08-30 — 피드백 흐름 반영): `skills/impl` 의 하트비트 `pending` 처리에 **`finding_commented`** 를 더하고(§2.3), `skills/review` 에 그 말에 **처분으로 답한다**는 절차와 **`body`·`suggestion` 을 채운다**는 지시를 넣는다(§2.6). 읽고 아무것도 하지 않는 것이 가장 나쁘다 — 사람은 답을 기다린다.
 > v0.19 변경(2026-08-30 — 도구 2종 신설 반영): `skills/impl` 의 allowed-tools 에 **`nerv_task_get`·`nerv_task_create`**, `skills/next` 에 `nerv_task_get` 을 더한다(4.1 §4.2). 이번 작업 밖의 별도 건을 **Task 로 남기는 절차**를 적었다 — 4요소를 못 채우면 `backlog` 에 남고 사람이 마저 채운다. 잊는 것보다 낫다.
 > v0.18 변경(2026-08-30 — 아무도 다른 길을 말해 주지 않았다): `skills/spec` 과 `nerv-spec-writer` 에 **"다이어그램은 mermaid 로"** 절을 넣는다(§2.2). 에이전트가 스펙에 아스키 아트를 그리고 있었다 — 시킨 대로 한 결과다. 저장 쪽은 이미 무손실이었고(왕복 실측) 빠져 있던 것은 그리는 쪽과 **말해 주는 쪽**이다(4.5 §3.1b · REQ-WEB-113).
 > v0.17 변경(2026-08-30 — 스킬이 틀린 모양을 가르치고 있었다): `skills/impl` 의 `evidence` 예시가 `commit_sha·pr_url·test_ids` 였는데 **서버 계약은 `[{kind, locator}]` 배열**이다 — 그 모양으로 보낸 증적은 한 건도 저장되지 않고 done 게이트가 "증적 없음" 으로 막는다. 모양·`kind` 여섯 값·`spec_impact` 선언·`status` 일곱 값을 적었다. 서버에 없는 `note` 인자도 걷었다(§2.3).
@@ -355,6 +356,10 @@ allowed-tools:
 - 하트비트 응답은 리스 연장(`lease_expires_at` 갱신)이자 **서버 → 세션 유일 보장 채널**이다.
   응답의 `pending`을 즉시 처리한다:
   - 질문 답변 도착 → 답변 내용대로 재개.
+  - `finding_commented`(내가 올린 리뷰 발견에 사람이 말을 남겼다) → 그 말을 읽고 판단한다.
+    지적을 접으라는 뜻이면 `nerv_finding_resolve`(`dismissed`)로 닫고, 고치라는 뜻이면
+    그 자리에서 고쳐 `fixed` + 커밋으로 닫는다. **읽고 아무것도 하지 않는 것이 가장 나쁘다** —
+    사람은 답을 기다리고 있다.
   - steer 지시 → 지시를 다음 행동에 즉시 반영.
   - stop 지시 → 현재 편집을 안전 지점까지 마무리하고
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.
@@ -562,6 +567,8 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
 3. **`nerv_review_submit`** — `reviewer{role, risk}`, `summary`, `findings[]`.
    - `severity`는 `critical`/`warning`/`info` 셋뿐이다. **막아야 하는 것만 critical**이다 — 전부 critical이면 게이트가 의미를 잃는다.
+   - **`body`와 `suggestion`을 채운다.** 제목은 손잡이일 뿐이라, 그것만으로는 사람이
+     무엇을 말하는지 알 수 없다 — `body`는 왜 문제인가, `suggestion`은 무엇을 하면 되는가다.
    - `file`·`line`·`symbol`을 채운다. 위치 없는 지적은 사람이 다시 찾아야 한다.
    - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다.
 4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 전부)·`block`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다.
@@ -571,6 +578,8 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 ## 처분 절차
 
 - **고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
+- **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
+  중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.
 - 근거는 어느 처분에나 필수다. 사유 없이 쌓인 유예 목록은 곧 잊힌 목록이 된다.
 

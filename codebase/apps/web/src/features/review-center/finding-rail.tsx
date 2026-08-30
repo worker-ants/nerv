@@ -8,6 +8,12 @@
 
 import { statusLabelKey } from '@nerv/schema';
 import { Link } from '@tanstack/react-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { apiFetch } from '../../lib/api.js';
+import { queryKeys } from '../../lib/query-keys.js';
+import { rows, useFindingComments } from '../../lib/queries.js';
+import { useRealtime } from '../../lib/realtime.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SEVERITY_TOKEN } from '../../components/status-token.js';
 import { useT } from '../../lib/i18n.js';
@@ -17,11 +23,55 @@ import type { Row } from '../../lib/queries.js';
 export function FindingRail({
   finding,
   projectSlug,
+  projectId,
+  canResolve,
 }: {
   finding: Row;
   projectSlug: string;
+  projectId?: string | undefined;
+  canResolve: boolean;
 }): React.JSX.Element {
   const t = useT();
+  const queryClient = useQueryClient();
+  const { pushToast } = useRealtime();
+  const findingId = String(finding['id']);
+  const [draft, setDraft] = useState('');
+  const comments = useFindingComments(projectSlug, findingId);
+
+  const add = useMutation({
+    mutationFn: (body: string) =>
+      apiFetch(`/projects/${projectSlug}/findings/${findingId}/comments`, {
+        method: 'POST',
+        body: { body_md: body },
+      }),
+    onSuccess: () => {
+      setDraft('');
+      void queryClient.invalidateQueries({ queryKey: ['finding', findingId, 'comments'] });
+    },
+    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+  });
+
+  const promote = useMutation({
+    mutationFn: (): Promise<Record<string, unknown>> =>
+      apiFetch<Record<string, unknown>>(`/projects/${projectSlug}/findings/${findingId}/task`, {
+        method: 'POST',
+        body: {},
+      }),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projectFindings(projectId ?? projectSlug),
+      });
+      pushToast({
+        tone: 'ok',
+        message:
+          result['created'] === true
+            ? t('reviews.promoted', { key: String(result['key'] ?? '') })
+            : t('reviews.promoted_already'),
+      });
+    },
+    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+  });
+  const promoted = typeof finding['promoted_task_key'] === 'string';
   const severity = String(finding['severity']);
   const status = String(finding['status']);
   const specKey = finding['spec_key'];
@@ -96,6 +146,54 @@ export function FindingRail({
           </p>
         </section>
       )}
+
+      {/* **피드백이 여기서 끝나지 않는다.** 예전에는 처분 버튼 셋뿐이라 "왜 아니라고
+          했는지" 를 적을 자리가 없었고, 적어도 지적한 에이전트는 듣지 못했다.
+          코멘트는 그 세션의 하트비트로 돌아간다(§6.7) */}
+      <section data-testid="finding-comments">
+        <h3 className="mb-1.5 text-2xs text-text-faint">{t('reviews.rail.comments')}</h3>
+        <ul className="mb-2 flex flex-col gap-1.5">
+          {rows(comments.data?.items).map((c) => (
+            <li key={String(c['id'])} className="border-l-2 border-l-border pl-2.5">
+              <p className="text-sm whitespace-pre-wrap text-text-mute">{String(c['body_md'])}</p>
+              <p className="text-2xs text-text-faint">
+                {c['is_agent'] === true ? '🤖 ' : '👤 '}
+                {String(c['author_name'] ?? '')} · {relativeTime(t, str(c['created_at']))}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <textarea
+          data-testid="comment-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={t('reviews.rail.comment_hint')}
+          rows={2}
+          className="w-full rounded-nerv-sm border border-border bg-bg-elev px-2 py-1.5 text-sm"
+        />
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            data-testid="comment-submit"
+            disabled={draft.trim() === '' || add.isPending}
+            onClick={() => add.mutate(draft)}
+            className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-50"
+          >
+            {t('reviews.rail.comment_submit')}
+          </button>
+          {/* **"나중에 하자" 가 갈 곳** — wont_fix 는 근거만 남기고 큐에서 사라진다 */}
+          <button
+            type="button"
+            data-testid="promote-task"
+            disabled={!canResolve || promoted || promote.isPending}
+            title={canResolve ? undefined : t('reviews.no_permission')}
+            onClick={() => promote.mutate()}
+            className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-50"
+          >
+            {promoted ? t('reviews.promote_done') : t('reviews.promote')}
+          </button>
+        </div>
+      </section>
 
       {/* 처분 — **무엇을 했나가 아니라 왜 그렇게 정했나**가 여기 남는 값이다 */}
       {str(finding['resolution_rationale']) !== null && (

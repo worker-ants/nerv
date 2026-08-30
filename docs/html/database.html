@@ -52,7 +52,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.13 (2026-08-30)</span>
+      <span>버전 v0.14 (2026-08-30)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -491,7 +491,7 @@ CREATE TABLE activity (                       -- 타입드 불변 로그. 편집
 
   <p><code>UNIQUE (session_id, seq)</code>(data-model §2.5)는 파티션 테이블의 전역 unique로 선언할 수 없다(파티션 키가 포함돼야 하므로). 의미(세션 내 seq 유일)는 두 겹으로 지킨다 — ① 파티션마다 <code>(session_id, seq)</code> unique 인덱스를 생성하고(§2.14의 파티션 생성 함수가 자동으로 만든다), ② 월 경계를 넘는 재전송은 ingest 경로의 멱등 키(<code>nerv_session_event</code>의 <code>(session_id, event_seq)</code> — agent-integration §2)가 막는다.</p>
 
-  <h3>2.7 리뷰 — review_session · reviewer_report · finding · finding_occurrence · resolution</h3>
+  <h3>2.7 리뷰 — review_session · reviewer_report · finding · finding_comment · finding_occurrence · resolution</h3>
 
   <p>근거: data-model §2.6. <code>head_sha</code>·<code>base_sha</code>·<code>branch</code>의 NOT NULL이 이 스키마에서 가장 값싼 개선이다 — clemvion <code>meta.json</code>에는 이 필드 자체가 없어 표본 SUMMARY 200개 중 47개만 산문에 해시를 남겼다(data-model §3.3).</p>
 
@@ -554,9 +554,21 @@ CREATE TABLE finding (                        -- 라운드를 넘어 하나로 �
   first_session_id uuid NOT NULL REFERENCES review_session(id),
   last_session_id  uuid NOT NULL REFERENCES review_session(id),
   occurrence_count int NOT NULL DEFAULT 1,
+  promoted_task_id uuid REFERENCES task(id),  -- 이 발견이 어느 Task 가 됐나(2026-08-30)
   created_at       timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT finding_fingerprint_uq UNIQUE (project_id, fingerprint)
 );
+
+CREATE TABLE finding_comment (                -- 발견에 대한 사람의 말(2026-08-30 신설)
+  id               uuid PRIMARY KEY,
+  project_id       uuid NOT NULL REFERENCES project(id),
+  finding_id       uuid NOT NULL REFERENCES finding(id),
+  author_user_id   uuid NOT NULL REFERENCES &quot;user&quot;(id),
+  author_session_id uuid REFERENCES agent_session(id),
+  body_md          text NOT NULL,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX finding_comment_thread ON finding_comment (finding_id, created_at);
 
 CREATE TABLE finding_occurrence (             -- 어느 라운드에서 몇 번으로 보였는가(구 SUMMARY#n)
   id                 uuid PRIMARY KEY,

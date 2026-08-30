@@ -312,6 +312,27 @@ export class QuestionService {
          AND answered_at > now() - interval '1 hour'
        ORDER BY answered_at DESC LIMIT 10
     `);
-    return rows;
+
+    // **사람 → 에이전트 역채널의 둘째 종류**(2026-08-30 · REQ-API-058).
+    //
+    // 예전에는 이 채널에 질문 답변 하나뿐이었다. 그래서 사람이 리뷰 발견에 무엇을 적든
+    // **지적한 에이전트는 영영 듣지 못했다** — 피드백이 플랫폼에 기록만 되고 멈췄다.
+    // 내가 올린 발견에 달린 말이 여기로 온다: 라우팅의 근거는 `review_session` 이 그
+    // 세션을 기억한다는 사실이다.
+    const { rows: comments } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT 'finding_commented' AS kind, c.finding_id, f.title, c.body_md,
+             c.created_at::text AS commented_at, u.display_name AS author_name,
+             f.status::text AS finding_status
+        FROM finding_comment c
+        JOIN finding f ON f.id = c.finding_id
+        JOIN review_session rs ON rs.id = f.last_session_id
+        JOIN "user" u ON u.id = c.author_user_id
+       WHERE rs.agent_session_id = ${sessionId}
+         -- 내가 쓴 코멘트가 나에게 돌아오지 않는다
+         AND (c.author_session_id IS NULL OR c.author_session_id <> ${sessionId})
+         AND c.created_at > now() - interval '1 hour'
+       ORDER BY c.created_at DESC LIMIT 10
+    `);
+    return [...rows, ...comments];
   }
 }

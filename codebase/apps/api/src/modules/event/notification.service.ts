@@ -8,7 +8,7 @@
 // 이 파일이 하는 일은 그 선별이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_EVENT, newId } from '@nerv/schema';
+import { NERV_EVENT_PHASE2, NERV_EVENT, newId } from '@nerv/schema';
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
@@ -32,6 +32,8 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.TASK_BLOCKED]: 'high',
   [NERV_EVENT.TASK_REBRIEF_REQUIRED]: 'high',
   [NERV_EVENT.GATE_BYPASSED]: 'high',
+  // 발견 코멘트는 스펙 코멘트와 같은 무게다 — 사람이 남긴 말이고, 답을 기다린다
+  [NERV_EVENT_PHASE2.FINDING_COMMENTED]: 'standard',
   [NERV_EVENT.SPEC_COMMENT_ADDED]: 'standard',
   [NERV_EVENT.SPEC_RECHECK_REQUESTED]: 'standard',
   [NERV_EVENT.TASK_READY]: 'standard',

@@ -137,12 +137,51 @@ export const finding = pgTable(
       .notNull()
       .references(() => reviewSession.id),
     occurrenceCount: integer('occurrence_count').notNull().default(1),
+    /**
+     * 이 발견이 **어느 Task 가 됐는가**(2026-08-30 신설 — 사람 결정).
+     *
+     * 처분 3종(fixed·dismissed·wont_fix)만으로는 "나중에 하자"가 갈 곳이 없었다.
+     * `wont_fix` 는 근거만 남기고 사라지므로 사실상 삭제와 같았다. 발견을 Task 로
+     * 올리면 그 뒤는 작업 축이 맡는다 — 그것이 "티켓 연쇄"의 실물이다.
+     *
+     * 한 발견은 Task 하나가 된다: 두 번 올리려는 시도는 이미 만든 것을 돌려준다.
+     */
+    promotedTaskId: uuid('promoted_task_id').references(() => task.id),
     createdAt: createdAt(),
   },
   (t) => [
     uniqueIndex('finding_fingerprint_uq').on(t.projectId, t.fingerprint),
     index('finding_queue').on(t.projectId, t.status, t.severity),
   ],
+);
+
+/**
+ * 발견에 대한 사람의 말 — 처분 이전에, 또는 처분과 무관하게 (2026-08-30 신설 · REQ-API-057)
+ *
+ * **처분 버튼 셋만으로는 "왜"를 적을 자리가 없었다.** 스펙에는 코멘트가 있는데 발견에는
+ * 없어서, 사람이 "이건 이래서 오탐이다"라고 말하려면 처분 근거 칸에 몰아 쓰거나
+ * 아무 데도 못 썼다 — 그리고 지적한 에이전트는 그것을 **영영 듣지 못했다**.
+ *
+ * 이 표가 사람 → 에이전트 역채널의 둘째 종류다(첫째는 질문 답변).
+ */
+export const findingComment = pgTable(
+  'finding_comment',
+  {
+    id: idPk(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    findingId: uuid('finding_id')
+      .notNull()
+      .references(() => finding.id),
+    authorUserId: uuid('author_user_id')
+      .notNull()
+      .references(() => user.id),
+    authorSessionId: uuid('author_session_id').references(() => agentSession.id),
+    bodyMd: text('body_md').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('finding_comment_thread').on(t.findingId, t.createdAt)],
 );
 
 /** 어느 라운드에서 몇 번으로 보였는가(구 SUMMARY#n). junction — project_id 생략 예외(§1.1). */

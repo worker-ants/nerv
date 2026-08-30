@@ -105,6 +105,39 @@ export class ReviewController {
         typeof body['change_request_id'] === 'string' ? body['change_request_id'] : null,
     });
   }
+  /** EP-REV-07 — 발견에 사람의 말을 남긴다(2026-08-30 신설) */
+  @Post('findings/:id/comments')
+  comment(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    // 처분과 같은 스코프다 — 발견에 개입하는 같은 축의 행동이다
+    assertScope(principalOf(req), 'review:resolve');
+    return this.reviews.comment({
+      projectId: req.nervProjectId!,
+      findingId: id,
+      userId: principalOf(req).userId,
+      bodyMd: String(body['body_md'] ?? ''),
+    });
+  }
+
+  @Get('findings/:id/comments')
+  findingComments(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    assertScope(principalOf(req), 'spec:read');
+    return this.reviews.comments({ projectId: req.nervProjectId!, findingId: id });
+  }
+
+  /** EP-REV-08 — 발견을 Task 로 올린다(2026-08-30 신설 · REQ-API-059) */
+  @Post('findings/:id/task')
+  promote(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    assertScope(principalOf(req), 'task:update');
+    return this.reviews.promote({
+      projectId: req.nervProjectId!,
+      findingId: id,
+      userId: principalOf(req).userId,
+    });
+  }
 }
 
 /** `?status=open,fixed` — 쉼표 목록을 배열로. 빈 값은 "필터 없음"이지 "0건"이 아니다. */

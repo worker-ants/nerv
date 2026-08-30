@@ -306,6 +306,19 @@ export function useFindings(
   });
 }
 
+/** 한 발견에 달린 사람의 말 — 레일이 편 것만 부른다(고르지 않았으면 부르지 않는다) */
+export function useFindingComments(
+  slug: string,
+  findingId: string | null,
+): UseQueryResult<{ items: Row[] }> {
+  return useQuery({
+    queryKey: ['finding', findingId, 'comments'],
+    queryFn: () =>
+      apiFetch<{ items: Row[] }>(`/projects/${slug}/findings/${findingId ?? ''}/comments`),
+    enabled: findingId !== null,
+  });
+}
+
 export function useGateCoverage(
   slug: string,
   projectId?: string,

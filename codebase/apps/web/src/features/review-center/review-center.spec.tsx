@@ -95,6 +95,23 @@ beforeEach(() => {
         posted.push({ url: path, body: JSON.parse(init.body ?? '{}') });
         return { ok: true, status: 200, json: async () => ({ ok: true }) };
       }
+      if (path.includes('/comments')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: [
+              {
+                id: 'c-1',
+                body_md: '이건 의도된 동작이다',
+                author_name: '규아',
+                is_agent: false,
+                created_at: new Date().toISOString(),
+              },
+            ],
+          }),
+        };
+      }
       const json = path.includes('/findings')
         ? {
             items: [FINDING, BARE],
@@ -321,5 +338,45 @@ describe('발견의 본문과 제안 (2026-08-30)', () => {
     expect(rail.textContent).toContain('security');
     expect(rail.textContent).toContain('restoreSession');
     expect(rail.textContent).toContain('src/widget/session.ts:88');
+  });
+});
+
+// 2026-08-30 사람 물음 — "피드백을 하면 이후 흐름이 어떻게 흘러가나".
+// 예전 답은 "아무 데로도" 였다: 처분 3종 말고는 적을 자리가 없었다.
+describe('발견의 피드백 (2026-08-30)', () => {
+  it('레일에서 말을 남긴다 — 그 말은 지적한 세션에게 간다', async () => {
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+
+    const rail = await screen.findByTestId('finding-rail');
+    // 이미 달린 말이 대화로 보인다
+    await waitFor(() =>
+      expect(screen.getByTestId('finding-comments').textContent).toContain('이건 의도된 동작이다'),
+    );
+
+    fireEvent.change(within(rail).getByTestId('comment-input'), {
+      target: { value: '다시 봤는데 맞는 지적이다' },
+    });
+    fireEvent.click(within(rail).getByTestId('comment-submit'));
+    await waitFor(() => expect(posted.some((p) => p.url.includes('/comments'))).toBe(true));
+    expect(posted.find((p) => p.url.includes('/comments'))?.body).toMatchObject({
+      body_md: '다시 봤는데 맞는 지적이다',
+    });
+  });
+
+  it('발견을 Task 로 올린다 — "나중에 하자" 가 갈 곳이다', async () => {
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+    const rail = await screen.findByTestId('finding-rail');
+
+    fireEvent.click(within(rail).getByTestId('promote-task'));
+    await waitFor(() => expect(posted.some((p) => p.url.endsWith('/task'))).toBe(true));
+  });
+
+  it('빈 코멘트는 보내지 않는다 — 빈 줄은 대화가 아니다', async () => {
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+    const rail = await screen.findByTestId('finding-rail');
+    expect(within(rail).getByTestId('comment-submit').hasAttribute('disabled')).toBe(true);
   });
 });

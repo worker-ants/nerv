@@ -114,6 +114,8 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
     queryKeys.projectFindings(e.project_id),
     queryKeys.projectGateCoverage(e.project_id),
   ],
+  // 코멘트는 큐의 수를 바꾸지 않는다 — 레일이 편 대화만 다시 읽는다(2026-08-30)
+  [P2.FINDING_COMMENTED]: (e) => [['finding', e.subject_id, 'comments']],
   [P2.FINDING_RESOLVED]: (e) => [
     queryKeys.projectFindings(e.project_id),
     queryKeys.projectGateCoverage(e.project_id),

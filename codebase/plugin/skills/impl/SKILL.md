@@ -23,6 +23,10 @@ allowed-tools:
 - 하트비트 응답은 리스 연장(`lease_expires_at` 갱신)이자 **서버 → 세션 유일 보장 채널**이다.
   응답의 `pending`을 즉시 처리한다:
   - 질문 답변 도착 → 답변 내용대로 재개.
+  - `finding_commented`(내가 올린 리뷰 발견에 사람이 말을 남겼다) → 그 말을 읽고 판단한다.
+    지적을 접으라는 뜻이면 `nerv_finding_resolve`(`dismissed`)로 닫고, 고치라는 뜻이면
+    그 자리에서 고쳐 `fixed` + 커밋으로 닫는다. **읽고 아무것도 하지 않는 것이 가장 나쁘다** —
+    사람은 답을 기다리고 있다.
   - steer 지시 → 지시를 다음 행동에 즉시 반영.
   - stop 지시 → 현재 편집을 안전 지점까지 마무리하고
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.

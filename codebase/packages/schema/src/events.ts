@@ -94,6 +94,8 @@ export const NERV_EVENT = {
  */
 export const NERV_EVENT_PHASE2 = {
   FINDING_OPENED: 'finding.opened',
+  // 사람이 발견에 말을 남겼다 — 지적한 세션이 하트비트로 듣는다(2026-08-30 · REQ-API-058)
+  FINDING_COMMENTED: 'finding.commented',
   FINDING_RESOLVED: 'finding.resolved',
   CR_OPENED: 'cr.opened',
 } as const;

@@ -19,6 +19,7 @@ import { msg, newId, NERV_ERROR, NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/sch
 import { changesetHash, findingFingerprint } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import { EventService } from '../event/event.service.js';
+import { TaskService } from '../task/task.service.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -129,6 +130,7 @@ const RISK_ORDER = ['low', 'medium', 'high'] as const;
 export class ReviewService {
   constructor(
     private readonly events: EventService,
+    private readonly tasks: TaskService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -462,6 +464,132 @@ export class ReviewService {
    * 을 `dismissed`/`wont_fix` 로 옮기는 **에이전트의** 호출만 승인 큐를 거친다.
    * `fixed` + `commit_sha` 는 검증 가능한 사실이라 A2 다.
    */
+  /**
+   * EP-REV-07 — 발견에 사람의 말을 남긴다 (2026-08-30 신설 · REQ-API-057).
+   *
+   * **처분 버튼 셋만으로는 "왜"를 적을 자리가 없었다.** 스펙에는 코멘트가 있는데 발견에는
+   * 없어서, 사람이 "이건 이래서 오탐이다" 를 말하려면 처분 근거 칸에 몰아 쓰거나 아무 데도
+   * 못 썼다 — 그리고 지적한 에이전트는 그것을 영영 듣지 못했다.
+   */
+  async comment(input: {
+    projectId: string;
+    findingId: string;
+    userId: string;
+    sessionId?: string | null;
+    bodyMd: string;
+  }): Promise<Record<string, unknown>> {
+    if (input.bodyMd.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.empty_comment'), {
+        kind: 'empty_comment',
+      });
+    }
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{ title: string }>(
+        sql`SELECT title FROM finding WHERE id = ${input.findingId} AND project_id = ${input.projectId}`,
+      );
+      if (rows[0] === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.finding_not_found'), {
+          kind: 'not_found',
+          finding_id: input.findingId,
+        });
+      }
+      const id = newId();
+      await tx.execute(sql`
+        INSERT INTO finding_comment (id, project_id, finding_id, author_user_id, author_session_id, body_md)
+        VALUES (${id}, ${input.projectId}, ${input.findingId}, ${input.userId},
+                ${input.sessionId ?? null}, ${input.bodyMd})
+      `);
+      await emit({
+        type: NERV_EVENT_PHASE2.FINDING_COMMENTED,
+        projectId: input.projectId,
+        subjectType: 'finding',
+        subjectId: input.findingId,
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId ?? null,
+        isAgent: input.sessionId != null,
+      });
+      return { comment_id: id, finding_id: input.findingId };
+    });
+  }
+
+  /** 한 발견의 코멘트 — 오래된 것부터(대화 순서다) */
+  async comments(input: {
+    projectId: string;
+    findingId: string;
+  }): Promise<{ items: Record<string, unknown>[] }> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT c.id, c.body_md, c.created_at, u.display_name AS author_name,
+             (c.author_session_id IS NOT NULL) AS is_agent
+        FROM finding_comment c
+        JOIN "user" u ON u.id = c.author_user_id
+       WHERE c.project_id = ${input.projectId} AND c.finding_id = ${input.findingId}
+       ORDER BY c.created_at
+    `);
+    return { items: rows };
+  }
+
+  /**
+   * EP-REV-08 — 발견을 Task 로 올린다 (2026-08-30 신설 · REQ-API-059).
+   *
+   * **"나중에 하자" 가 갈 곳이 없었다.** `wont_fix` 는 근거만 남기고 큐에서 사라지므로
+   * 사실상 삭제와 같았다 — 다시 볼 근거가 어디에도 안 남는다. 올리고 나면 그 뒤는
+   * 작업 축이 맡는다: 그것이 "티켓 연쇄" 의 실물이다.
+   *
+   * 위임 명세 4요소를 여기서 **자동으로 채우지 않는다**(D-09). 발견이 아는 것은 목표와
+   * 경계의 일부뿐이고, 나머지를 서버가 지어내면 그 Task 는 근거 없이 `ready` 가 된다.
+   * 그래서 `backlog` 로 앉고 사람이 마저 채운다.
+   */
+  async promote(input: {
+    projectId: string;
+    findingId: string;
+    userId: string;
+  }): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<{
+      title: string;
+      detail_md: string | null;
+      suggestion_md: string | null;
+      severity: string;
+      file_path: string | null;
+      spec_version_id: string | null;
+      requirement_id: string | null;
+      promoted_task_id: string | null;
+    }>(sql`
+      SELECT title, detail_md, suggestion_md, severity::text AS severity, file_path,
+             spec_version_id, requirement_id, promoted_task_id
+        FROM finding WHERE id = ${input.findingId} AND project_id = ${input.projectId}
+    `);
+    const found = rows[0];
+    if (found === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.finding_not_found'), {
+        kind: 'not_found',
+        finding_id: input.findingId,
+      });
+    }
+    // **두 번 올리지 않는다.** 두 번째 호출은 이미 만든 것을 돌려준다 — 같은 지적으로
+    // Task 가 둘 생기면 그 둘은 서로를 모른 채 각자 done 이 된다.
+    if (found.promoted_task_id !== null) {
+      return { task_id: found.promoted_task_id, created: false };
+    }
+
+    const task = await this.tasks.create({
+      projectId: input.projectId,
+      userId: input.userId,
+      title: found.title,
+      bodyMd: [found.detail_md, found.suggestion_md]
+        .filter((part) => part !== null && part.trim() !== '')
+        .join('\n\n'),
+      // critical 은 큐의 맨 앞이어야 한다 — 막아야 하는 것이라 critical 인 것이다
+      priority: found.severity === 'critical' ? 'P0' : found.severity === 'warning' ? 'P1' : 'P2',
+      ...(found.spec_version_id === null ? {} : { sourceSpecVersionId: found.spec_version_id }),
+      ...(found.requirement_id === null ? {} : { sourceRequirementId: found.requirement_id }),
+    });
+    const taskId = task['task_id'] as string;
+    await this.db.execute(
+      sql`UPDATE finding SET promoted_task_id = ${taskId} WHERE id = ${input.findingId}`,
+    );
+    return { ...task, created: true };
+  }
+
   async resolve(input: ResolveInput): Promise<ResolveResult> {
     if (input.rationale.trim() === '') {
       // 유예 근거는 1급 데이터다(database.md §2.7 `rationale_md` NOT NULL).
