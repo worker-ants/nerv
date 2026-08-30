@@ -122,6 +122,12 @@ export const en = {
   'error.session.not_found': 'Session not found.',
   'error.session.resume_not_found': 'No session to resume.',
   'error.spec.archive_blocked': 'This spec cannot be archived yet.',
+  'error.review.spec_version_required':
+    'A spec_change resolution needs the spec_version_id of what you changed.',
+  'error.review.spec_version_unknown': 'That spec version does not belong to this project.',
+  'mcp.arg.resolution_spec_version':
+    'evidence when the fix was a spec correction — the spec_version_id of that save',
+  'mcp.arg.commit_sha': 'evidence when the fix was code — required for fixed',
   'error.review.empty_comment': 'An empty comment is not saved.',
   'error.spec.base_hash_required':
     'Editing this document needs base_hash — send back the content_hash from nerv_spec_get.',
@@ -170,6 +176,7 @@ export const en = {
   'reviews.promoted': 'Created {key} — fill the delegation brief to make it ready.',
   'reviews.promoted_already': 'This finding is already a task.',
   'reviews.expand': 'Expand',
+  'reviews.by_spec_change': 'resolved by a spec correction',
   'reviews.collapse': 'Collapse',
   'reviews.suggestion': 'Suggestion',
   'reviews.rail.category': 'Category',
@@ -321,7 +328,7 @@ export const en = {
   'error.spec.type_not_allowed': 'This role cannot create that kind of spec.',
   'error.review.already_resolved': 'This finding already carries a different resolution.',
   'error.review.commit_required':
-    'Resolving as fixed requires the commit that fixed it (commit_sha).',
+    'A fixed resolution needs the commit that fixed it — if the fix was a spec correction, use resolution=spec_change with spec_version_id.',
   'error.review.downgrade_needs_human':
     'Dismissing or deferring a critical finding needs a human approval.',
   'error.review.finding_not_found': 'Finding not found.',

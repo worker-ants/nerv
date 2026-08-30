@@ -30,7 +30,9 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 ## 처분 절차
 
-- **고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
+- **코드를 고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
+- **스펙을 고쳐 해결했으면** `resolution=spec_change` + `spec_version_id`(그 저장의 버전 id) + `rationale`. 구현이 맞고 스펙이 틀렸던 경우가 이쪽이다 — `spec_drift` 지적의 절반은 여기로 간다. **커밋이 없다고 `dismissed`나 `wont_fix`로 닫지 않는다**: 오탐도 아니었고 미룬 것도 아니라, 둘 다 거짓이 되고 나중에 "이 발견들은 어떻게 해결됐나"의 답이 뭉개진다.
+  `critical`이어도 사람 승인을 거치지 않는다 — 스펙을 고쳐 닫는 것은 **지적이 옳았다는 인정**이지 하향이 아니다.
 - **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
   중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.

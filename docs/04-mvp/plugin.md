@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.21 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.22 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.22 변경(2026-08-30 — 처분에 정직한 길을 준다): `skills/review` 의 처분 절차를 **코드/스펙 두 갈래**로 가른다(§2.6). 스펙을 고쳐 해결했으면 `spec_change` + `spec_version_id` 이고, 커밋이 없다고 `dismissed`·`wont_fix` 로 닫지 않는다 — 둘 다 거짓이 된다(4.4 REQ-API-060).
 > v0.21 변경(2026-08-30 — 도구 1종 추가 반영): `skills/impl`·`skills/next` 의 allowed-tools 에 **`nerv_task_list`** 와 그 쓰임(상태·담당·스펙 필터, 보관은 기본으로 빠진다)을 적는다(4.1 §4.2).
 > v0.20 변경(2026-08-30 — 피드백 흐름 반영): `skills/impl` 의 하트비트 `pending` 처리에 **`finding_commented`** 를 더하고(§2.3), `skills/review` 에 그 말에 **처분으로 답한다**는 절차와 **`body`·`suggestion` 을 채운다**는 지시를 넣는다(§2.6). 읽고 아무것도 하지 않는 것이 가장 나쁘다 — 사람은 답을 기다린다.
 > v0.19 변경(2026-08-30 — 도구 2종 신설 반영): `skills/impl` 의 allowed-tools 에 **`nerv_task_get`·`nerv_task_create`**, `skills/next` 에 `nerv_task_get` 을 더한다(4.1 §4.2). 이번 작업 밖의 별도 건을 **Task 로 남기는 절차**를 적었다 — 4요소를 못 채우면 `backlog` 에 남고 사람이 마저 채운다. 잊는 것보다 낫다.
@@ -582,7 +583,9 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 ## 처분 절차
 
-- **고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
+- **코드를 고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
+- **스펙을 고쳐 해결했으면** `resolution=spec_change` + `spec_version_id`(그 저장의 버전 id) + `rationale`. 구현이 맞고 스펙이 틀렸던 경우가 이쪽이다 — `spec_drift` 지적의 절반은 여기로 간다. **커밋이 없다고 `dismissed`나 `wont_fix`로 닫지 않는다**: 오탐도 아니었고 미룬 것도 아니라, 둘 다 거짓이 되고 나중에 "이 발견들은 어떻게 해결됐나"의 답이 뭉개진다.
+  `critical`이어도 사람 승인을 거치지 않는다 — 스펙을 고쳐 닫는 것은 **지적이 옳았다는 인정**이지 하향이 아니다.
 - **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
   중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.

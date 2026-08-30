@@ -14,6 +14,10 @@ const RESOLUTION: Readonly<
   Record<string, { kind: ResolutionKind; status: 'fixed' | 'dismissed' | 'wont_fix' }>
 > = {
   fixed: { kind: 'fixed', status: 'fixed' },
+  // **스펙을 고쳐 해결했다.** 발견은 닫히므로 상태는 `fixed` 와 같고, `왜` 를 담는
+  // `resolution_kind` 만 다르다 — 그래야 "이 발견들은 무엇으로 해결됐나" 를 나중에
+  // 되물을 수 있다(spec_drift 지적이 코드 커밋으로 닫혔다면 그건 이상 신호다).
+  spec_change: { kind: 'spec_change', status: 'fixed' },
   dismissed: { kind: 'dismissed', status: 'dismissed' },
   // `wont_fix` 는 처분 이름이 없다 — 유예(deferred)로 기록하고 상태만 wont_fix 다.
   // 이 둘을 가르는 이유는 `resolution_kind` 가 **왜**를, `finding_status` 가 **무엇**을
@@ -115,8 +119,13 @@ export class ReviewTools implements NervToolProvider {
         type: 'object',
         properties: {
           finding_id: { type: 'string' },
-          resolution: { type: 'string', enum: ['fixed', 'dismissed', 'wont_fix'] },
-          commit_sha: { type: 'string' },
+          resolution: {
+            type: 'string',
+            enum: ['fixed', 'spec_change', 'dismissed', 'wont_fix'],
+          },
+          commit_sha: { type: 'string', description: 'mcp.arg.commit_sha' },
+          // 스펙을 고쳐 해결했을 때의 증거 — `nerv_spec_draft_upsert` 응답의 버전 id
+          spec_version_id: { type: 'string', description: 'mcp.arg.resolution_spec_version' },
           change_request_id: { type: 'string' },
           rationale: { type: 'string' },
           idempotency_key: { type: 'string' },
@@ -138,6 +147,8 @@ export class ReviewTools implements NervToolProvider {
           commitSha: typeof input['commit_sha'] === 'string' ? input['commit_sha'] : null,
           changeRequestId:
             typeof input['change_request_id'] === 'string' ? input['change_request_id'] : null,
+          specVersionId:
+            typeof input['spec_version_id'] === 'string' ? input['spec_version_id'] : null,
         });
         return {
           ...result,

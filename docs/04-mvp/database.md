@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.14 · 2026-08-30 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.15 · 2026-08-30 · HTML 판: [database.html](../html/database.html)
 >
+> v0.15 변경(2026-08-30 — 사람 결정): `resolution` 에 **`spec_version_id`**(0011)와 `resolution_spec_change_cr_ck` 완화 — CR 또는 스펙 버전 **둘 중 하나**면 통과한다. `spec_change` 는 열거에 있었는데 CHECK 가 CR 을 요구하고 그 표에 INSERT 하는 코드가 없어 **닿을 수 없는 값**이었다([4.4](api.md) REQ-API-060). 테이블 수는 31종 그대로다.
 > v0.14 변경(2026-08-30 — 사람 물음, 피드백 흐름): **`finding_comment` 신설**(도메인 31종)과 `finding.promoted_task_id` 추가(§2.7). 발견에 사람의 말을 적을 자리가 없었고, "나중에 하자" 가 갈 곳도 없었다 — 처분 3종은 큐에서 지우는 것이지 잇는 것이 아니다([4.4](api.md) REQ-API-057·059).
 > v0.13 변경(2026-08-30 — 초안이 언제 바뀌었는지 알 수 없었다, 사람 결정): `spec_version` 에 **`updated_at`**(0008). draft 는 같은 행을 덮어쓰므로 `created_at` 은 "언제 만들었나"에만 답한다 — 버전 목록이 "2시간 전"이라 적는데 방금 고친 문서인 상황이 그래서 나왔다. **본문이 바뀔 때만** 움직인다(요약만 고치는 저장·리스 갱신에는 움직이지 않는다 — 그때는 문서가 바뀌지 않았다).
 >
@@ -555,6 +556,7 @@ CREATE TABLE resolution (
   kind              resolution_kind NOT NULL,
   commit_sha        text,
   change_request_id uuid REFERENCES change_request(id),
+  spec_version_id   uuid REFERENCES spec_version(id), -- 스펙을 고쳐 해결한 증거(2026-08-30)
   escalate_reason   escalate_reason,
   rationale_md      text NOT NULL,             -- 유예 근거는 1급 데이터
   actor_user_id     uuid NOT NULL REFERENCES "user"(id),

@@ -123,6 +123,11 @@ export const ko = {
   'error.session.not_found': '세션을 찾을 수 없습니다.',
   'error.session.resume_not_found': '재개할 세션을 찾을 수 없습니다.',
   'error.spec.archive_blocked': '아카이브할 수 없습니다.',
+  'error.review.spec_version_required':
+    'spec_change 처분에는 무엇을 고쳤는지(spec_version_id)가 필요합니다.',
+  'error.review.spec_version_unknown': '그 스펙 버전을 이 프로젝트에서 찾을 수 없습니다.',
+  'mcp.arg.resolution_spec_version': '스펙을 고쳐 해결했을 때의 증거 — 그 저장의 spec_version_id',
+  'mcp.arg.commit_sha': '코드를 고쳐 해결했을 때의 증거 — fixed 에는 필수다',
   'error.review.empty_comment': '빈 코멘트는 남기지 않습니다.',
   'error.spec.base_hash_required':
     '이 문서를 고치려면 base_hash 가 필요합니다 — nerv_spec_get 응답의 content_hash 를 그대로 실으세요.',
@@ -170,6 +175,7 @@ export const ko = {
   'reviews.promoted': '{key} 를 만들었습니다 — 위임 명세를 채우면 ready 가 됩니다.',
   'reviews.promoted_already': '이미 Task 로 올린 발견입니다.',
   'reviews.expand': '펼치기',
+  'reviews.by_spec_change': '스펙 정정으로 해결',
   'reviews.collapse': '접기',
   'reviews.suggestion': '제안',
   'reviews.rail.category': '갈래',
@@ -316,7 +322,8 @@ export const ko = {
     '어느 세션의 일인가 — 비우면 이 토큰의 살아 있는 세션으로 본다(둘 이상이면 지정해야 한다)',
   'error.spec.type_not_allowed': '이 역할은 그 종류의 스펙을 만들 수 없습니다.',
   'error.review.already_resolved': '이미 다른 처분이 내려진 발견입니다.',
-  'error.review.commit_required': 'fixed 처분에는 수정 커밋(commit_sha)이 필요합니다.',
+  'error.review.commit_required':
+    'fixed 처분에는 수정 커밋(commit_sha)이 필요합니다 — 스펙을 고쳐 해결했다면 resolution=spec_change 와 spec_version_id 를 쓰세요.',
   'error.review.downgrade_needs_human': 'critical 발견을 유예·기각하려면 사람의 승인이 필요합니다.',
   'error.review.finding_not_found': '발견을 찾을 수 없습니다.',
   'error.review.rationale_required': '처분 근거를 적어야 합니다.',

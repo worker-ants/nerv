@@ -204,6 +204,9 @@ export function FindingRail({
           </p>
           <p className="mt-1 text-2xs text-text-faint">
             {[
+              // **무엇으로 고쳤는지**를 적는다(2026-08-30) — spec_drift 지적이 코드 커밋으로
+              // 닫혔다면 그건 이상 신호인데, 종류를 적지 않으면 그 신호가 사라진다.
+              finding['resolution_kind'] === 'spec_change' ? t('reviews.by_spec_change') : null,
               str(finding['resolved_by_name']),
               relativeTime(t, str(finding['resolved_at'])),
               str(finding['resolution_commit'])?.slice(0, 12),

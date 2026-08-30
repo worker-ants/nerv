@@ -215,6 +215,18 @@ export const resolution = pgTable(
     kind: resolutionKind('kind').notNull(),
     commitSha: text('commit_sha'),
     changeRequestId: uuid('change_request_id').references(() => changeRequest.id),
+    /**
+     * **스펙을 고쳐 해결한 증거**(2026-08-30 신설 — 사람 결정).
+     *
+     * `spec_change` 는 처음부터 이 열거에 있었는데 **도구에서 닿을 수 없었고**, CHECK 가
+     * `change_request_id` 를 요구하는데 그 표에 INSERT 하는 코드가 없어 사실상 막혀 있었다.
+     * 그래서 스펙을 고쳐 해결한 에이전트에게는 정직한 선택지가 하나도 없었다 —
+     * `fixed` 는 커밋이 없어 막히고, `dismissed`·`wont_fix` 는 거짓말이다(사람 보고).
+     *
+     * 커밋이 코드 쪽의 증거이듯 이것이 문서 쪽의 증거다: "다 했습니다" 를 증거로 받지
+     * 않는다는 규약은 두 축에서 같아야 한다.
+     */
+    specVersionId: uuid('spec_version_id').references(() => specVersion.id),
     escalateReason: escalateReason('escalate_reason'),
     /** 유예 근거는 1급 데이터다 */
     rationaleMd: text('rationale_md').notNull(),
@@ -226,9 +238,11 @@ export const resolution = pgTable(
   },
   (t) => [
     check('resolution_fixed_commit_ck', sql`${t.kind} <> 'fixed' OR ${t.commitSha} IS NOT NULL`),
+    // **증거는 둘 중 하나면 된다**(2026-08-30 개정). 예전에는 CR 만 인정했는데 CR 을
+    // 만드는 코드가 없어(FR-04 소관) 이 처분 자체가 닿을 수 없는 값이었다.
     check(
       'resolution_spec_change_cr_ck',
-      sql`${t.kind} <> 'spec_change' OR ${t.changeRequestId} IS NOT NULL`,
+      sql`${t.kind} <> 'spec_change' OR ${t.changeRequestId} IS NOT NULL OR ${t.specVersionId} IS NOT NULL`,
     ),
   ],
 );

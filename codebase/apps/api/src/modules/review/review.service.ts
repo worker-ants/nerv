@@ -108,12 +108,14 @@ export interface ResolveInput {
    * 에이전트인지가 기준이다 — PAT 는 에이전트 세션 없이도 온다.
    */
   isAgent?: boolean;
-  /** 도구 계약의 `resolution` 값(fixed·dismissed·wont_fix)은 표면이 여기로 번역한다 */
+  /** 도구 계약의 `resolution` 값(fixed·spec_change·dismissed·wont_fix)은 표면이 여기로 번역한다 */
   kind: ResolutionKind;
   status: 'fixed' | 'dismissed' | 'wont_fix';
   rationale: string;
   commitSha?: string | null;
   changeRequestId?: string | null;
+  /** `spec_change` 의 증거 — 무엇을 고쳐서 해결했는가(2026-08-30) */
+  specVersionId?: string | null;
 }
 
 export interface ResolveResult {
@@ -599,9 +601,35 @@ export class ReviewService {
     }
     if (input.kind === 'fixed' && (input.commitSha ?? '').trim() === '') {
       // CHECK 가 어차피 막지만, 여기서 막아야 **무엇이 잘못됐는지**가 응답에 남는다.
+      //
+      // **다른 길이 있다고 말한다**(2026-08-30 — 사람 보고). 스펙을 고쳐 해결한 에이전트가
+      // 여기서 막히면 남은 선택지가 전부 거짓말이었다: `dismissed` 는 오탐이 아니었고
+      // `wont_fix` 는 고쳤기 때문이다. 막다른 길에 세우지 않는다.
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.commit_required'), {
         kind: 'missing_commit_sha',
+        alternatives: ['spec_change'],
       });
+    }
+    if (input.kind === 'spec_change') {
+      // 커밋이 코드 쪽의 증거이듯 이것이 문서 쪽의 증거다 — "다 했습니다" 를 증거로
+      // 받지 않는다는 규약은 두 축에서 같다.
+      if ((input.specVersionId ?? '').trim() === '') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.spec_version_required'), {
+          kind: 'missing_spec_version',
+        });
+      }
+      const { rows: version } = await this.db.execute<{ id: string }>(sql`
+        SELECT sv.id FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+         WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
+      `);
+      // 남의 프로젝트 버전이나 없는 id 를 증거로 받으면 증거가 아니다
+      if (version[0] === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.spec_version_unknown'), {
+          kind: 'not_found',
+          field: 'spec_version_id',
+          value: input.specVersionId ?? null,
+        });
+      }
     }
 
     // **게이트는 트랜잭션 밖이다.** 승인 카드를 만들고 같은 트랜잭션에서 막으면 그 카드도
@@ -634,9 +662,10 @@ export class ReviewService {
       const resolutionId = newId();
       await tx.execute(sql`
         INSERT INTO resolution (id, finding_id, kind, commit_sha, change_request_id,
-                                rationale_md, actor_user_id, actor_session_id)
+                                spec_version_id, rationale_md, actor_user_id, actor_session_id)
         VALUES (${resolutionId}, ${input.findingId}, ${input.kind}::resolution_kind,
                 ${input.commitSha ?? null}, ${input.changeRequestId ?? null},
+                ${input.specVersionId ?? null},
                 ${input.rationale}, ${input.userId}, ${input.sessionId ?? null})
       `);
       await tx.execute(sql`
@@ -767,7 +796,8 @@ export class ReviewService {
              -- **처분한 사실도 함께 준다**(2026-08-30). 처분 근거가 화면에 없으면
              -- dismissed 는 삭제와 구별되지 않는다 — "왜 아니라고 했나"가 남지 않는다.
              res.kind::text AS resolution_kind, res.rationale_md AS resolution_rationale,
-             res.commit_sha AS resolution_commit, res.created_at AS resolved_at,
+             res.commit_sha AS resolution_commit, res.spec_version_id AS resolution_spec_version_id,
+             res.created_at AS resolved_at,
              ru.display_name AS resolved_by_name
         FROM finding f
         JOIN review_session rs ON rs.id = f.last_session_id
@@ -775,7 +805,7 @@ export class ReviewService {
         LEFT JOIN spec s ON s.id = sv.spec_id
         LEFT JOIN requirement r ON r.id = f.requirement_id
         LEFT JOIN LATERAL (
-          SELECT kind, rationale_md, commit_sha, created_at, actor_user_id
+          SELECT kind, rationale_md, commit_sha, spec_version_id, created_at, actor_user_id
             FROM resolution WHERE finding_id = f.id ORDER BY created_at DESC LIMIT 1
         ) res ON true
         LEFT JOIN "user" ru ON ru.id = res.actor_user_id

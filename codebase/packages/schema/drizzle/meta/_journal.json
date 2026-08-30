@@ -78,6 +78,13 @@
       "when": 1788084405613,
       "tag": "0010_finding_comment",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788089020660,
+      "tag": "0011_resolution_spec_version",
+      "breakpoints": true
     }
   ]
 }

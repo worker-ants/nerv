@@ -289,6 +289,28 @@ describe('발견의 피드백 흐름 (2026-08-30 신설)', () => {
   });
 });
 
+/** 스펙 한 편 + 승인본 하나 — `spec_change` 처분의 증거가 될 자리다 */
+async function makeSpecVersion(key: string): Promise<string> {
+  const specId = newId();
+  const versionId = newId();
+  await pool.query(
+    `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)
+     ON CONFLICT (project_id, key) DO NOTHING`,
+    [specId, projectId, key],
+  );
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM spec WHERE project_id = $1 AND key = $2`,
+    [projectId, key],
+  );
+  await pool.query(
+    `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+     VALUES ($1,$2,(SELECT coalesce(max(version_no),0)+1 FROM spec_version WHERE spec_id = $2),
+             'approved','# 정정한 스펙', digest('x','sha256'), $3)`,
+    [versionId, rows[0]!.id, userId],
+  );
+  return versionId;
+}
+
 describe('FR-09 처분 — 하향은 사람의 승인을 거친다(A3)', () => {
   async function openCritical(): Promise<string> {
     const result = await reviews.submit(submitInput({ findings: [CRITICAL] }));
@@ -333,6 +355,83 @@ describe('FR-09 처분 — 하향은 사람의 승인을 거친다(A3)', () => {
     expect(row?.['resolution_kind']).toBe('fixed');
     expect(row?.['resolution_commit']).toBe('dddd444');
     expect(row?.['resolved_by_name']).not.toBeNull();
+  });
+
+  // 2026-08-30 사람 보고 — 에이전트가 **스펙을 고쳐** 해결했는데 남은 선택지가 전부
+  // 거짓말이었다: `fixed` 는 커밋이 없어 막히고, `dismissed` 는 오탐이 아니었고,
+  // `wont_fix` 는 고쳤기 때문이다. `spec_change` 는 열거에 있었지만 CHECK 가 CR 을
+  // 요구했고 CR 을 만드는 코드가 없어 **닿을 수 없는 값**이었다.
+  it('스펙을 고쳐 해결하면 spec_change 로 닫는다 — 증거는 그 버전이다', async () => {
+    const findingId = await openCritical();
+    const versionId = await makeSpecVersion('SPC-DRIFT');
+    const out = await reviews.resolve({
+      projectId,
+      findingId,
+      userId,
+      sessionId: agentSessionId,
+      isAgent: true,
+      kind: 'spec_change',
+      status: 'fixed',
+      rationale: '구현이 맞고 스펙이 틀렸다 — 스펙을 정정했다',
+      specVersionId: versionId,
+    });
+    // critical 이지만 **하향이 아니다** — 지적이 옳았다는 인정이라 A2 로 통과한다
+    expect(out.status).toBe('fixed');
+
+    const listed = await reviews.findings({ projectId, status: ['fixed'] });
+    const row = listed.items.find((f) => f['id'] === findingId);
+    // 무엇으로 해결했는지가 남는다 — spec_drift 지적이 코드 커밋으로 닫혔다면 이상 신호다
+    expect(row?.['resolution_kind']).toBe('spec_change');
+    expect(row?.['resolution_spec_version_id']).toBe(versionId);
+    expect(row?.['resolution_commit']).toBeNull();
+  });
+
+  it('spec_change 인데 버전이 없으면 막는다 — "다 했습니다" 는 증거가 아니다', async () => {
+    const findingId = await openCritical();
+    await expect(
+      reviews.resolve({
+        projectId,
+        findingId,
+        userId,
+        isAgent: true,
+        kind: 'spec_change',
+        status: 'fixed',
+        rationale: '스펙을 고쳤다',
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'missing_spec_version' } });
+  });
+
+  it('남의 프로젝트 버전은 증거가 아니다', async () => {
+    const findingId = await openCritical();
+    await expect(
+      reviews.resolve({
+        projectId,
+        findingId,
+        userId,
+        isAgent: true,
+        kind: 'spec_change',
+        status: 'fixed',
+        rationale: '스펙을 고쳤다',
+        specVersionId: newId(),
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'not_found', field: 'spec_version_id' } });
+  });
+
+  it('커밋 없는 fixed 는 다른 길을 알려준다 — 막다른 길에 세우지 않는다', async () => {
+    const findingId = await openCritical();
+    await expect(
+      reviews.resolve({
+        projectId,
+        findingId,
+        userId,
+        isAgent: true,
+        kind: 'fixed',
+        status: 'fixed',
+        rationale: '고쳤다',
+      }),
+    ).rejects.toMatchObject({
+      details: { kind: 'missing_commit_sha', alternatives: ['spec_change'] },
+    });
   });
 
   it('fixed 인데 커밋이 없으면 막는다 — 검증 가능한 사실이라 A2 인 것이다', async () => {
