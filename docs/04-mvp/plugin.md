@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.12 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.13 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+>
+> v0.13 변경(2026-08-30 — 내가 보고 쓴 것을 밝힌다): `skills/spec` 에 **`base_hash` 절**을 넣는다(§2.2). 기존 문서를 고칠 때는 필수이고, `stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다** — 그건 남의 글을 덮어쓰는 것이라 다시 읽고 그 위에 다시 얹는다. 에러 표에 `stale_body`·`base_hash_required` 를 더했다.
 >
 > v0.12 변경(2026-08-30 — 도구가 늘었으면 스킬도 말해야 한다): `skills/spec` 에 **"무엇을 왜 바꿨는지 남긴다"** 절과 늘어난 계약을 넣는다(§2.2). 초안은 덮어써져 되짚을 diff 가 없으므로 `change_summary` 를 매 저장에 싣고, 응답의 `delta`(요구사항·줄 수)를 사람에게 보고한다. 선언 관계는 저장의 `relations` 로 함께 확정하고(증분 수정은 `nerv_spec_relate`), 에러 표에 `invalid_input`·`empty_body`·`not_found(field)` 를 더했다 — 새 방어선을 만난 에이전트가 무엇을 해야 하는지 알아야 한다. 서브에이전트도 같이 고쳤다.
 >
@@ -206,6 +208,14 @@ allowed-tools:
 - 저장 응답의 `relations` 를 **사람에게 보고한다** — `added` 는 새로 이어진 문서, `removed` 는 본문에서 빠져 끊긴 것, `unknown` 은 **없는 문서를 가리킨 링크**(오타이거나 아직 안 쓴 문서다).
 - `references` 는 본문이 주인이라 손으로 넣지 않는다. 다음 저장에 본문 기준으로 다시 맞춰진다.
 
+## 내가 보고 쓴 것을 밝힌다 — `base_hash`
+
+**기존 문서를 고칠 때는 필수다.** `nerv_spec_get` 응답의 `content_hash` 를 저장에 그대로 실으면, 서버가 "그 사이 아무도 안 바꿨다"를 확인하고 아니면 막는다. 저장 응답은 **새 지문**을 주므로 이어서 고칠 때는 그것을 쓴다(매번 다시 읽지 않아도 된다).
+
+없으면 무슨 일이 있었는지: 세 세션이 같은 초안을 동시에 고쳤을 때 **셋 다 성공하고 본문에는 하나만 남았다** — 둘은 오류도 경고도 없이 자기 글을 잃었다(실측 2026-08-30).
+
+`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그건 남의 글을 덮어쓰는 것이다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
+
 ## 무엇을 왜 바꿨는지 남긴다
 
 **초안은 덮어써진다.** 승인 전까지는 같은 버전을 고쳐 쓰므로 나중에 되짚을 diff 가 없다 —
@@ -235,8 +245,9 @@ allowed-tools:
 
 ### edit — 초안 이어쓰기·피드백 반영
 1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments","requirements"]`)로
-   최신 본문과 open 코멘트를 읽는다. 반영 대상 버전의 `version` 값을 `base_version`으로 쓴다.
-2. 수정안을 만들어 사람에게 확인받고 `nerv_spec_draft_upsert`(`spec_id`, `base_version`,
+   최신 본문과 open 코멘트를 읽는다. 응답의 `content_hash` 를 `base_hash` 로 쓴다
+   (`version_id` 는 `base_version` 이다 — 앞은 **어느 내용**, 뒤는 **어느 행**을 가리킨다).
+2. 수정안을 만들어 사람에게 확인받고 `nerv_spec_draft_upsert`(`spec_id`, `base_hash`,
    `body_markdown`, `change_summary`, `idempotency_key`) 호출. 초안 편집 리스는 이 호출이
    성공하는 순간 자동 획득·갱신된다(TTL 30분 — Task 클레임 리스와 같은 상수).
    같은 사용자가 웹 에디터에 열어 둔 리스는 자동 인계된다(웹 탭에 인계 알림이 뜬다).
@@ -268,6 +279,8 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 
 | 코드 | 대응 |
 | --- | --- |
+| NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문과 web_url 이 온다 |
+| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 안 실었다 — nerv_spec_get 의 `content_hash` 를 실어 다시 부른다 |
 | NERV_PRECONDITION | base_version 불일치 — 최신 버전을 nerv_spec_get으로 재조회해 그 위에 재작성한다. 임의 강제 저장 경로는 없다 |
 | NERV_DRAFT_LEASED | 다른 사용자가 편집 리스 보유 — 보유자(사용자·표면)를 사람에게 보고하고 인계 요청 또는 nerv_question_create. 같은 사용자의 리스면 자동 인계되므로 이 에러는 오지 않는다 |
 | NERV_APPROVAL_REQUIRED | 승인 대기 진입 — approval_id 폴링, 그동안 다른 작업 금지 |

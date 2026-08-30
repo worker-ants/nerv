@@ -87,6 +87,18 @@ function SpecDetail(): React.JSX.Element {
   const isArea = String(detail.data?.['type'] ?? '') === 'area';
   const docStatus = String(detail.data?.['doc_status'] ?? 'draft');
   const versionId = String(detail.data?.['version_id'] ?? '');
+  /**
+   * **읽은 본문의 지문** — 저장이 이것을 되돌려 주어야 서버가 "그 사이 아무도 안 바꿨다"를
+   * 확인한다(api.md §1.4g). 저장에 성공하면 응답의 새 지문으로 갈아탄다: 갈아타지 않으면
+   * 두 번째 자동 저장이 자기 자신을 낡은 것으로 판정한다.
+   */
+  const [baseHash, setBaseHash] = useState<string | null>(null);
+  // 다른 문서로 옮기면 앞 문서의 지문을 들고 가지 않는다(§2.4e 와 같은 이유다)
+  useEffect(() => setBaseHash(null), [spec]);
+  const readHash =
+    typeof detail.data?.['content_hash'] === 'string'
+      ? (detail.data['content_hash'] as string)
+      : null;
   const editable = docStatus === 'draft' && leaseHolder === null;
 
   const save = useMutation({
@@ -97,10 +109,14 @@ function SpecDetail(): React.JSX.Element {
           body_markdown: markdown,
           // 낙관적 동시성의 최후 방어선 — 리스가 뚫려도 여기서 막힌다(§3.4)
           base_version: versionId,
+          base_hash: baseHash ?? readHash,
         },
       }),
     onSuccess: (result) => {
       setConflict(null);
+      // 저장이 성공하면 **내가 방금 만든 내용**이 새 기준이다 — 갈아타지 않으면
+      // 다음 자동 저장이 자기 자신을 낡은 것으로 판정한다
+      if (typeof result['content_hash'] === 'string') setBaseHash(result['content_hash']);
       void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.specVersions(spec) });
       const relationSync = result['relations'] as { unknown?: string[] } | undefined;

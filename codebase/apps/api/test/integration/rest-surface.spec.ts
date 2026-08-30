@@ -519,14 +519,25 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     });
     expect(created.status).toBe(201);
 
-    // 이어쓰기는 경로에 스펙 키가 있다 — 본문에 spec_id 를 싣지 않는다
+    // 이어쓰기는 경로에 스펙 키가 있다 — 본문에 spec_id 를 싣지 않는다.
+    // `base_hash` 는 **읽은 내용의 지문**이라 생성 응답이 준 것을 그대로 되돌려 준다(§1.4g)
     const updated = await call('PUT', '/api/v1/projects/clemvion/specs/SPC-PATHS/draft', {
       payload: {
         body_markdown: '# 본문\n\n이어서',
         base_version: (created.body as Record<string, unknown>)['spec_version_id'],
+        base_hash: (created.body as Record<string, unknown>)['content_hash'],
       },
     });
     expect(updated.status).toBe(200);
+
+    // 지문 없이 부르면 막힌다 — 필수인 것이 이 표면에서도 필수다
+    const naked = await call('PUT', '/api/v1/projects/clemvion/specs/SPC-PATHS/draft', {
+      payload: { body_markdown: '# 지문 없이' },
+    });
+    expect(naked.status).toBe(409);
+    expect((naked.body as { details?: { kind?: string } }).details?.kind).toBe(
+      'base_hash_required',
+    );
   });
 
   it('EP-SPEC-05 — 버전 스냅샷은 같은 번호에 같은 응답이다', async () => {

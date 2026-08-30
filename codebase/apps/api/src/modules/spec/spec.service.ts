@@ -75,6 +75,14 @@ export interface DraftUpsertInput {
    * `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
    */
   relations?: readonly { to: string; kind: string }[] | undefined;
+  /**
+   * **내가 보고 쓴 본문의 지문**(`nerv_spec_get` 응답의 `content_hash`).
+   *
+   * 기존 문서를 고칠 때는 필수다(2026-08-30 — 사람 결정). `base_version` 은 초안 단계에서
+   * 아무것도 막지 못했다: draft 는 같은 행을 덮어쓰므로 version id 가 변하지 않아
+   * "무엇을 보고 썼는가"를 식별하지 못한다. 지문은 내용이 바뀌면 함께 바뀐다.
+   */
+  baseHash?: string | undefined;
   /** 낙관적 동시성 — 불일치는 409. 리스의 최후 방어선이다(§1.2) */
   baseVersionId?: string | null;
   userId: string;
@@ -171,6 +179,9 @@ export class SpecService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type, s.archived_at,
              sv.id AS version_id, sv.version_no, sv.status::text AS doc_status, sv.body_md,
+             -- **읽은 내용의 지문**. 다음 저장이 이것을 base_hash 로 되돌려 주면 서버는
+             -- "그 사이 아무도 안 바꿨다"를 확인할 수 있다(§1.4g — 비교-교환)
+             encode(sv.content_hash, 'hex') AS content_hash,
              sv.superseded_by_version_id,
              -- 곁줄(시안) — 누가 언제 승인했는가. 이 문서의 무게를 한 줄로 말한다
              sv.approved_at, u.display_name AS approved_by_name
@@ -279,6 +290,8 @@ export class SpecService {
       // 받았고, 바로 옆 `nerv_spec_get` 은 키만 받았다 — 같은 이름의 인자가 도구마다 다른
       // 것을 뜻하면 에이전트는 실패로 배운다.
       let specId = await this.resolveSpecId(tx, input.projectId, input.specId ?? null);
+      // 기존 문서를 고치는 저장인가 — 그때만 base_hash 를 요구한다(새 문서에는 기준이 없다)
+      const isExisting = specId !== null;
       let created = false;
 
       if (specId === null) {
@@ -335,6 +348,29 @@ export class SpecService {
         });
       }
 
+      // **비교-교환**(§1.4g). 두 식별자는 다른 것을 말한다: `base_version` 은 "어느 행",
+      // `base_hash` 는 "어느 내용". 초안은 같은 행을 덮어쓰므로 앞엣것만으로는 남이 그
+      // 사이에 바꾼 것을 알 수 없다 — 실측에서 세 세션이 다 성공하고 둘이 글을 잃었다.
+      if (isExisting) {
+        const current = draft !== null ? draft.content_hash : await this.readerHash(tx, specId);
+        if (input.baseHash == null || input.baseHash === '') {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.base_hash_required'), {
+            kind: 'base_hash_required',
+            current_hash: current,
+          });
+        }
+        if (current !== null && input.baseHash !== current) {
+          // 재시도가 아니라 **다시 읽고 다시 얹는 것**이 답이다 — 같은 본문으로 다시 부르면
+          // 그건 덮어쓰기다. 그래서 현재 지문과 딥링크를 함께 준다.
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.stale_body'), {
+            kind: 'stale_body',
+            current_hash: current,
+            received: input.baseHash,
+            web_url: await this.webUrl(tx, input.projectId, specId),
+          });
+        }
+      }
+
       // 덮어쓰기 **전의** 본문 — 델타의 기준이자 빈 본문 방어의 근거다.
       // draft 는 이 UPDATE 뒤에 이전 본문을 남기지 않으므로 지금 읽어 두어야 한다.
       const previousBody =
@@ -376,7 +412,7 @@ export class SpecService {
                  edit_lease_user_id = ${input.userId},
                  edit_lease_session_id = ${input.sessionId ?? null},
                  edit_lease_expires_at = ${leaseExpires.toISOString()}
-           WHERE id = ${draft.id}
+           WHERE id = ${draft.id} AND content_hash = decode(${draft.content_hash}, 'hex')
         `);
         const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
         const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
@@ -411,6 +447,8 @@ export class SpecService {
           spec_version_id: draft.id,
           version_no: draft.version_no,
           created: false,
+          // 다음 저장의 base_hash — 응답이 주지 않으면 에이전트는 매번 다시 읽어야 한다
+          content_hash: hash,
           delta,
           relations: { ...relations, declared },
           web_url: await this.webUrl(tx, input.projectId, specId),
@@ -466,6 +504,7 @@ export class SpecService {
         spec_version_id: versionId,
         version_no: versionNo,
         created: true,
+        content_hash: hash,
         delta: specDelta(prior[0]?.body_md ?? null, input.bodyMd),
         relations: { ...relations, declared },
         web_url: await this.webUrl(tx, input.projectId, specId),
@@ -503,6 +542,8 @@ export class SpecService {
       bodyMd: input.bodyMd,
       userId: input.userId,
       ...(input.baseVersionId == null ? {} : { baseVersionId: input.baseVersionId }),
+      ...(input.baseHash == null ? {} : { baseHash: input.baseHash }),
+      ...(input.changeSummary == null ? {} : { changeSummary: input.changeSummary }),
       ...(input.sessionId == null ? {} : { sessionId: input.sessionId }),
     });
   }
@@ -1259,26 +1300,57 @@ export class SpecService {
     return rows.length > 0;
   }
 
+  /**
+   * 지금 열려 있는 초안 — **행을 잠그고** 읽는다(§1.4g).
+   *
+   * 잠그지 않으면 두 트랜잭션이 같은 해시를 읽고 둘 다 비교-교환을 통과한다. 제출·승인은
+   * 이미 `FOR UPDATE` 로 직렬화하고 있었는데 정작 본문 저장만 비어 있었다(실측 2026-08-30:
+   * 세 세션 동시 저장 → 3건 다 성공, 남은 본문은 하나).
+   */
   private async currentDraft(
     tx: Tx,
     specId: string,
   ): Promise<{
     id: string;
     version_no: number;
+    content_hash: string;
     edit_lease_user_id: string | null;
+    edit_lease_session_id: string | null;
     edit_lease_expires_at: unknown;
   } | null> {
     const { rows } = await tx.execute<{
       id: string;
       version_no: number;
+      content_hash: string;
       edit_lease_user_id: string | null;
+      edit_lease_session_id: string | null;
       edit_lease_expires_at: unknown;
     }>(sql`
-      SELECT id, version_no, edit_lease_user_id, edit_lease_expires_at
+      SELECT id, version_no, encode(content_hash, 'hex') AS content_hash,
+             edit_lease_user_id, edit_lease_session_id, edit_lease_expires_at
         FROM spec_version WHERE spec_id = ${specId} AND status = 'draft'
        ORDER BY version_no DESC LIMIT 1
+         FOR UPDATE
     `);
     return rows[0] ?? null;
+  }
+
+  /**
+   * 읽는 사람이 보게 되는 버전의 지문 — `get()` 의 선택 규칙과 같다(최신 approved, 없으면 현재).
+   * 초안이 없는 문서에 이어 쓸 때의 base_hash 비교 대상이다.
+   */
+  private async readerHash(tx: Tx, specId: string): Promise<string | null> {
+    const { rows } = await tx.execute<{ content_hash: string }>(sql`
+      SELECT encode(sv.content_hash, 'hex') AS content_hash
+        FROM spec s
+        JOIN spec_version sv ON sv.id = coalesce(
+              (SELECT a.id FROM spec_version a
+                WHERE a.spec_id = s.id AND a.status = 'approved'
+                ORDER BY a.version_no DESC LIMIT 1),
+              s.current_version_id)
+       WHERE s.id = ${specId}
+    `);
+    return rows[0]?.content_hash ?? null;
   }
 
   /**

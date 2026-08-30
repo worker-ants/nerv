@@ -80,10 +80,29 @@ async function newDraft(
   return { specId: result['spec_id'] as string, versionId: result['spec_version_id'] as string };
 }
 
+/**
+ * 지금 본문의 지문 — 편집 저장의 `base_hash` 다(api.md §1.4g).
+ *
+ * 테스트의 주제는 비교-교환이 아니라 그 위의 동작이므로, "읽고 그 지문으로 쓴다"를
+ * 여기 한 줄로 감춘다. 동시성 자체는 spec-concurrency.spec.ts 가 본다.
+ */
+async function hashOf(specId: string): Promise<string> {
+  // 키로도 UUID 로도 부른다 — 도구가 둘 다 받으므로 테스트도 그렇다(§1.4b)
+  const { rows } = await pool.query<{ h: string }>(
+    `SELECT encode(v.content_hash, 'hex') AS h
+       FROM spec_version v JOIN spec s ON s.id = v.spec_id
+      WHERE (s.id::text = $1 OR s.key = $1)
+      ORDER BY v.version_no DESC LIMIT 1`,
+    [specId],
+  );
+  return rows[0]?.h ?? '';
+}
+
 describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => {
   it('초안은 여러 번 고쳐도 같은 버전이다 — 저장마다 버전이 늘지 않는다', async () => {
     const { specId, versionId } = await newDraft();
     const again = await specs.draftUpsert({
+      baseHash: await hashOf(specId),
       roles: ['planner'],
       projectId,
       specId,
@@ -136,7 +155,13 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     expect(rows[0]?.status).toBe('draft');
     // draft 로 돌아왔으니 다시 고칠 수 있다
     await expect(
-      specs.draftUpsert({ projectId, specId, bodyMd: '# 보완본', userId: planner }),
+      specs.draftUpsert({
+        baseHash: await hashOf(specId),
+        projectId,
+        specId,
+        bodyMd: '# 보완본',
+        userId: planner,
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -145,6 +170,7 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     await specs.submitReview({ projectId, specVersionId: first.versionId, userId: planner });
 
     const second = await specs.draftUpsert({
+      baseHash: await hashOf(first.specId),
       roles: ['planner'],
       projectId,
       specId: first.specId,
@@ -189,6 +215,7 @@ describe('참조는 키든 UUID 든 받는다 (§1.4b · 2026-08-29)', () => {
     const { specId, versionId } = await newDraft('SPC-REF-002');
 
     const again = await specs.draftUpsert({
+      baseHash: await hashOf('SPC-REF-002'),
       roles: ['planner'],
       projectId,
       specId: 'SPC-REF-002',
@@ -204,6 +231,7 @@ describe('참조는 키든 UUID 든 받는다 (§1.4b · 2026-08-29)', () => {
   it('없는 키는 못 찾았다고 말한다 — 조용히 새로 만들지 않는다', async () => {
     await expect(
       specs.draftUpsert({
+        baseHash: await hashOf('SPC-NOPE-999'),
         roles: ['planner'],
         projectId,
         specId: 'SPC-NOPE-999',
@@ -240,6 +268,7 @@ describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
     // 웹(세션 없음) → 터미널(세션 있음)
     await expect(
       specs.draftUpsert({
+        baseHash: await hashOf(specId),
         roles: ['planner'],
         projectId,
         specId,
@@ -253,7 +282,13 @@ describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
   it('다른 사용자의 upsert 는 NERV_DRAFT_LEASED 로 막힌다', async () => {
     const { specId } = await newDraft('SPC-LEASE2');
     await expect(
-      specs.draftUpsert({ projectId, specId, bodyMd: '# 남의 초안', userId: reviewer }),
+      specs.draftUpsert({
+        baseHash: await hashOf(specId),
+        projectId,
+        specId,
+        bodyMd: '# 남의 초안',
+        userId: reviewer,
+      }),
     ).rejects.toMatchObject({ code: NERV_ERROR.DRAFT_LEASED });
   });
 
@@ -264,7 +299,13 @@ describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
       [versionId],
     );
     await expect(
-      specs.draftUpsert({ projectId, specId, bodyMd: '# 인계', userId: reviewer }),
+      specs.draftUpsert({
+        baseHash: await hashOf(specId),
+        projectId,
+        specId,
+        bodyMd: '# 인계',
+        userId: reviewer,
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -272,6 +313,7 @@ describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
     const { specId } = await newDraft('SPC-BASE');
     await expect(
       specs.draftUpsert({
+        baseHash: await hashOf(specId),
         roles: ['planner'],
         projectId,
         specId,
@@ -409,6 +451,7 @@ describe('E09-S07 재브리핑·참조 전파 (§3.3)', () => {
     );
 
     const second = await specs.draftUpsert({
+      baseHash: await hashOf(first.specId),
       roles: ['planner'],
       projectId,
       specId: first.specId,

@@ -113,6 +113,24 @@ async function approve(versionId: string): Promise<void> {
 
 // ── E09-S09 · S12 관계 ───────────────────────────────────────────────────────
 
+/**
+ * 지금 본문의 지문 — 편집 저장의 `base_hash` 다(api.md §1.4g).
+ *
+ * 테스트의 주제는 비교-교환이 아니라 그 위의 동작이므로, "읽고 그 지문으로 쓴다"를
+ * 여기 한 줄로 감춘다. 동시성 자체는 spec-concurrency.spec.ts 가 본다.
+ */
+async function hashOf(specId: string): Promise<string> {
+  // 키로도 UUID 로도 부른다 — 도구가 둘 다 받으므로 테스트도 그렇다(§1.4b)
+  const { rows } = await pool.query<{ h: string }>(
+    `SELECT encode(v.content_hash, 'hex') AS h
+       FROM spec_version v JOIN spec s ON s.id = v.spec_id
+      WHERE (s.id::text = $1 OR s.key = $1)
+      ORDER BY v.version_no DESC LIMIT 1`,
+    [specId],
+  );
+  return rows[0]?.h ?? '';
+}
+
 describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
   it('실존하는 스펙만 관계가 되고 나머지는 경고다 — 아직 안 쓴 문서를 참조하는 건 정상이다', async () => {
     await draft('SPC-A', '# A');
@@ -141,6 +159,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     ).toHaveLength(2);
 
     const again = await specs.draftUpsert({
+      baseHash: await hashOf(b.specId),
       roles: ['planner'],
       projectId,
       specId: b.specId,
@@ -176,6 +195,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
 
     // 요약 없는 저장이 앞의 요약을 지우면, 마지막 자동 저장 하나가 이력을 비운다
     await specs.draftUpsert({
+      baseHash: await hashOf(specId),
       roles: ['planner'],
       projectId,
       specId,
@@ -185,6 +205,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     expect(await summaryOf()).toBe('첫 초안을 쓴다');
 
     await specs.draftUpsert({
+      baseHash: await hashOf(specId),
       roles: ['planner'],
       projectId,
       specId,
@@ -217,6 +238,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
 
     // 요약만 바꾸는 저장은 문서를 바꾸지 않는다 — 시계가 움직이면 "언제 바뀌었나"가 거짓이 된다
     await specs.draftUpsert({
+      baseHash: await hashOf(specId),
       roles: ['planner'],
       projectId,
       specId,
@@ -227,6 +249,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     expect((await stamps()).updated).toBe(first.updated);
 
     await specs.draftUpsert({
+      baseHash: await hashOf(specId),
       roles: ['planner'],
       projectId,
       specId,
@@ -255,6 +278,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     });
 
     const again = await specs.draftUpsert({
+      baseHash: await hashOf(made['spec_id'] as string),
       roles: ['planner'],
       projectId,
       specId: made['spec_id'] as string,
@@ -306,6 +330,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     });
 
     await specs.draftUpsert({
+      baseHash: await hashOf(child['spec_id'] as string),
       roles: ['planner'],
       projectId,
       specId: child['spec_id'] as string,
@@ -317,6 +342,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
 
     // 빈 배열은 "전부 지워라"다 — 되돌릴 길이 없으면 아무도 넣지 않는다
     await specs.draftUpsert({
+      baseHash: await hashOf(child['spec_id'] as string),
       roles: ['planner'],
       projectId,
       specId: child['spec_id'] as string,
@@ -550,6 +576,7 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
 
     // v2 승인 — v1 은 superseded 가 된다
     const v2 = await specs.draftUpsert({
+      baseHash: await hashOf(v1.specId),
       roles: ['planner'],
       projectId,
       specId: v1.specId,
@@ -740,6 +767,7 @@ describe('E09-S11 임베딩 파이프라인', () => {
     const v1 = await draft('SPC-IX', '# v1');
     await approve(v1.versionId);
     const v2 = await specs.draftUpsert({
+      baseHash: await hashOf(v1.specId),
       roles: ['planner'],
       projectId,
       specId: v1.specId,

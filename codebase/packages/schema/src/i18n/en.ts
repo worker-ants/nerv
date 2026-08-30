@@ -112,6 +112,8 @@ export const en = {
   'error.session.not_found': 'Session not found.',
   'error.session.resume_not_found': 'No session to resume.',
   'error.spec.archive_blocked': 'This spec cannot be archived yet.',
+  'error.spec.base_hash_required':
+    'Editing this document needs base_hash — send back the content_hash from nerv_spec_get.',
   'error.spec.base_version_stale': 'The base version no longer matches the current draft.',
   'error.spec.check_blocked': 'The pre-submit check found blocking findings.',
   'error.spec.cycle': 'A spec cannot be moved under itself.',
@@ -269,6 +271,8 @@ export const en = {
   'mcp.arg.body_markdown': 'The spec body (markdown) — also accepted as `body_md`',
   'mcp.arg.change_summary':
     'What changed and why — the only human sentence a version carries. Omit it and the previous one is kept',
+  'mcp.arg.base_hash':
+    'Fingerprint of the body you read — the content_hash from nerv_spec_get. Required when editing an existing document',
   'mcp.arg.blocking':
     'Does this block the gate (default true) — same axis as urgency; urgency wins if both are given',
   'mcp.arg.wait_seconds':
@@ -292,6 +296,8 @@ export const en = {
   'error.spec.not_draft': 'Not a draft ({status}).',
   'error.spec.empty_body':
     'A draft cannot be overwritten with an empty body — send the body (a draft keeps no previous copy).',
+  'error.spec.stale_body':
+    'The body changed underneath you — read it again and re-apply your edit (retrying the same body overwrites someone else).',
   'error.spec.not_found': 'Spec not found.',
   'error.spec.not_in_review': 'Not in review.',
   'error.spec.parent_archived': 'The parent spec is archived.',

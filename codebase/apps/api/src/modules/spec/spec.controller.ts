@@ -168,6 +168,11 @@ export class SpecController {
       userId: principal.userId,
       bodyMd: String(body['body_markdown'] ?? body['body_md'] ?? ''),
       ...(typeof body['base_version'] === 'string' ? { baseVersionId: body['base_version'] } : {}),
+      // 비교-교환의 기준 — 웹도 읽은 지문을 그대로 되돌려 준다(§1.4g)
+      ...(typeof body['base_hash'] === 'string' ? { baseHash: body['base_hash'] } : {}),
+      ...(typeof body['change_summary'] === 'string'
+        ? { changeSummary: body['change_summary'] }
+        : {}),
     });
   }
 

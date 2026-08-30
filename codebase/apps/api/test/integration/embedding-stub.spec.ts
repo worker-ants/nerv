@@ -120,6 +120,24 @@ afterAll(async () => {
   await new Promise<void>((resolve) => stub.close(() => resolve()));
 });
 
+/**
+ * 지금 본문의 지문 — 편집 저장의 `base_hash` 다(api.md §1.4g).
+ *
+ * 테스트의 주제는 비교-교환이 아니라 그 위의 동작이므로, "읽고 그 지문으로 쓴다"를
+ * 여기 한 줄로 감춘다. 동시성 자체는 spec-concurrency.spec.ts 가 본다.
+ */
+async function hashOf(specId: string): Promise<string> {
+  // 키로도 UUID 로도 부른다 — 도구가 둘 다 받으므로 테스트도 그렇다(§1.4b)
+  const { rows } = await pool.query<{ h: string }>(
+    `SELECT encode(v.content_hash, 'hex') AS h
+       FROM spec_version v JOIN spec s ON s.id = v.spec_id
+      WHERE (s.id::text = $1 OR s.key = $1)
+      ORDER BY v.version_no DESC LIMIT 1`,
+    [specId],
+  );
+  return rows[0]?.h ?? '';
+}
+
 describe('E09-S11 임베딩 적재', () => {
   it('청크를 적재하고, 두 번째 실행은 변경분이 없어 아무것도 다시 임베딩하지 않는다', async () => {
     const s = await specs.draftUpsert({
@@ -155,6 +173,7 @@ describe('E09-S11 임베딩 적재', () => {
     await embeddings.runOnce({ projectId });
 
     await specs.draftUpsert({
+      baseHash: await hashOf(s['spec_id'] as string),
       roles: ['planner'],
       projectId,
       specId: s['spec_id'] as string,

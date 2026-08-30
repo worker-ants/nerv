@@ -151,6 +151,9 @@ export class SpecTools implements NervToolProvider {
           body_markdown: { type: 'string', description: 'mcp.arg.body_markdown' },
           body_md: { type: 'string', description: 'mcp.arg.body_markdown' },
           base_version: { type: 'string' },
+          // **기존 문서를 고칠 때는 필수다.** `nerv_spec_get` 응답의 `content_hash` 를
+          // 그대로 돌려주면 서버가 "그 사이 아무도 안 바꿨다"를 확인한다(§1.4g)
+          base_hash: { type: 'string', description: 'mcp.arg.base_hash' },
           // **무엇을 왜 바꿨나.** 카탈로그·스킬이 처음부터 지시하던 입력인데 스키마에
           // 없어서 에이전트가 한 번도 싣지 않았다(실측 30/30) — 도구는 스키마를 읽는다.
           change_summary: { type: 'string', description: 'mcp.arg.change_summary' },
@@ -210,6 +213,7 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['base_version'] === 'string'
             ? { baseVersionId: input['base_version'] }
             : {}),
+          ...(typeof input['base_hash'] === 'string' ? { baseHash: input['base_hash'] } : {}),
           ...(typeof input['key'] === 'string' ? { key: input['key'] } : {}),
           ...(typeof input['title'] === 'string' ? { title: input['title'] } : {}),
           ...(typeof input['type'] === 'string' ? { type: input['type'] } : {}),

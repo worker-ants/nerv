@@ -173,22 +173,37 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
         body_md: '# 원래 제목\n\n본문',
       },
     });
-    const specId = String(
-      ((made.body['result'] as { structuredContent?: Record<string, unknown> }).structuredContent ??
-        {})['spec_id'],
-    );
+    const madeOut = ((made.body['result'] as { structuredContent?: Record<string, unknown> })
+      .structuredContent ?? {}) as Record<string, unknown>;
+    const specId = String(madeOut['spec_id']);
+    // 편집에는 **읽은 내용의 지문**이 필요하다 — 저장 응답이 다음 지문을 준다(§1.4g)
+    let hash = String(madeOut['content_hash']);
 
     // 같은 값이면 통과한다 — 멱등 재호출이 여기서 걸리면 안 된다
     const same = await rpc('tools/call', {
       name: 'nerv_spec_draft_upsert',
-      arguments: { spec_id: specId, title: '원래 제목', body_md: '# 원래 제목\n\n고친 본문' },
+      arguments: {
+        spec_id: specId,
+        title: '원래 제목',
+        body_md: '# 원래 제목\n\n고친 본문',
+        base_hash: hash,
+      },
     });
     expect((same.body['result'] as { isError?: boolean }).isError ?? false).toBe(false);
+    hash = String(
+      ((same.body['result'] as { structuredContent?: Record<string, unknown> }).structuredContent ??
+        {})['content_hash'],
+    );
 
     // 다른 값이면 거부한다. 조용히 무시하면 부른 쪽은 옮겨졌다고 믿는다
     const changed = await rpc('tools/call', {
       name: 'nerv_spec_draft_upsert',
-      arguments: { spec_id: specId, title: '바뀐 제목', body_md: '# 바뀐 제목\n\n본문' },
+      arguments: {
+        spec_id: specId,
+        title: '바뀐 제목',
+        body_md: '# 바뀐 제목\n\n본문',
+        base_hash: hash,
+      },
     });
     const err = changed.body['result'] as {
       isError?: boolean;
@@ -459,14 +474,16 @@ describe('E03-S01 입력은 호출 전에 본다', () => {
       type: 'convention',
       body_markdown: '# 중요한 본문\n\n여러 줄',
     });
+    const read = await callTool('nerv_spec_get', { spec_id: 'SPC-WIPE' });
     const wiped = await callTool('nerv_spec_draft_upsert', {
       spec_id: 'SPC-WIPE',
       body_markdown: '   ',
+      base_hash: read['content_hash'],
     });
     expect(wiped['details']).toMatchObject({ kind: 'empty_body' });
 
-    const read = await callTool('nerv_spec_get', { spec_id: 'SPC-WIPE' });
-    expect(String(read['body_md'])).toContain('중요한 본문');
+    const after = await callTool('nerv_spec_get', { spec_id: 'SPC-WIPE' });
+    expect(String(after['body_md'])).toContain('중요한 본문');
   });
 });
 
