@@ -152,6 +152,83 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     expect(after.items.map((i) => i['key'])).toEqual(['SPC-A']);
   });
 
+  // ── 이력 (2026-08-30 — draft 는 덮어써지므로 저장하는 그 순간이 유일한 기록이다) ──
+  it('무엇을 왜 바꿨나가 버전에 남는다 — 주지 않으면 앞의 것을 지우지 않는다', async () => {
+    const made = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-SUMMARY',
+      title: '요약',
+      type: 'feature',
+      bodyMd: '# 첫 판',
+      changeSummary: '첫 초안을 쓴다',
+      userId: planner,
+    });
+    const specId = made['spec_id'] as string;
+    const summaryOf = async (): Promise<string | null> => {
+      const { rows } = await pool.query<{ change_summary_md: string | null }>(
+        `SELECT change_summary_md FROM spec_version WHERE spec_id = $1 ORDER BY version_no DESC LIMIT 1`,
+        [specId],
+      );
+      return rows[0]?.change_summary_md ?? null;
+    };
+    expect(await summaryOf()).toBe('첫 초안을 쓴다');
+
+    // 요약 없는 저장이 앞의 요약을 지우면, 마지막 자동 저장 하나가 이력을 비운다
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      bodyMd: '# 둘째 판',
+      userId: planner,
+    });
+    expect(await summaryOf()).toBe('첫 초안을 쓴다');
+
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      bodyMd: '# 셋째 판',
+      changeSummary: '문장을 고쳤다',
+      userId: planner,
+    });
+    expect(await summaryOf()).toBe('문장을 고쳤다');
+  });
+
+  it('저장이 무엇이 바뀌었는지 함께 돌려준다 — 되짚을 diff 가 없는 자리다', async () => {
+    const made = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-DELTA',
+      title: '델타',
+      type: 'feature',
+      bodyMd:
+        '# 문서\n\n- REQ-SUD-001 WHEN a THE SYSTEM SHALL b\n- REQ-SUD-002 WHEN c THE SYSTEM SHALL d',
+      userId: planner,
+    });
+    expect(made['delta']).toMatchObject({
+      requirements: { added: ['REQ-SUD-001', 'REQ-SUD-002'], modified: [], removed: [] },
+    });
+
+    const again = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: made['spec_id'] as string,
+      bodyMd:
+        '# 문서\n\n- REQ-SUD-001 WHEN a THE SYSTEM SHALL 바뀐 결과\n- REQ-SUD-003 WHEN e THE SYSTEM SHALL f',
+      userId: planner,
+    });
+    expect(again['delta']).toMatchObject({
+      requirements: {
+        added: ['REQ-SUD-003'],
+        modified: ['REQ-SUD-001'],
+        removed: ['REQ-SUD-002'],
+      },
+    });
+    const delta = again['delta'] as { lines: { added: number; removed: number } };
+    expect(delta.lines.added).toBeGreaterThan(0);
+  });
+
   // ── 선언 관계 (2026-08-30 — 저장 한 번에 확정한다) ──────────────────────────
   it('저장이 선언 관계까지 확정한다 — 본문에 적히지 않는 판단이라 명시해야 남는다', async () => {
     await draft('SPC-BASE', '# base');

@@ -29,6 +29,7 @@ import { decideGate, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
 import type { CheckResult } from './spec-check.service.js';
+import { specDelta } from './spec-delta.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
 
@@ -59,6 +60,13 @@ export interface DraftUpsertInput {
   type?: string;
   parentId?: string | null;
   bodyMd: string;
+  /**
+   * 무엇을 왜 바꿨나 — 버전 행에 남는 유일한 사람 말이다.
+   *
+   * **주지 않으면 앞의 것을 지우지 않는다.** draft 는 여러 번 덮어써지는데, 요약 없는
+   * 저장이 앞의 요약을 지우면 마지막 자동 저장 하나가 이력을 비운다.
+   */
+  changeSummary?: string | undefined;
   /**
    * 선언 관계(`refines`·`depends_on`·`duplicates`·`supersedes`) — 저장 한 번에 확정한다.
    *
@@ -327,14 +335,22 @@ export class SpecService {
         });
       }
 
+      // 덮어쓰기 **전의** 본문 — 델타의 기준이자 빈 본문 방어의 근거다.
+      // draft 는 이 UPDATE 뒤에 이전 본문을 남기지 않으므로 지금 읽어 두어야 한다.
+      const previousBody =
+        draft === null
+          ? null
+          : ((
+              await tx.execute<{ body_md: string }>(
+                sql`SELECT body_md FROM spec_version WHERE id = ${draft.id}`,
+              )
+            ).rows[0]?.body_md ?? null);
+
       // **빈 본문으로 덮어쓰지 않는다.** draft 는 가변 구간이라 이전 본문이 남지 않는다 —
       // 여기서 통과시키면 이름을 잘못 적은 호출 하나가 그 문서를 지운다(실측 2026-08-30).
       // 새로 만드는 문서의 빈 본문은 막지 않는다: `area` 는 본문 없이 자리만 잡는다.
       if (draft !== null && input.bodyMd.trim() === '') {
-        const { rows: before } = await tx.execute<{ body_md: string }>(
-          sql`SELECT body_md FROM spec_version WHERE id = ${draft.id}`,
-        );
-        if ((before[0]?.body_md ?? '').trim() !== '') {
+        if ((previousBody ?? '').trim() !== '') {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.empty_body'), {
             kind: 'empty_body',
             spec_version_id: draft.id,
@@ -350,6 +366,7 @@ export class SpecService {
         await tx.execute(sql`
           UPDATE spec_version
              SET body_md = ${input.bodyMd}, content_hash = decode(${hash}, 'hex'),
+                 change_summary_md = coalesce(${input.changeSummary ?? null}, change_summary_md),
                  edit_lease_user_id = ${input.userId},
                  edit_lease_session_id = ${input.sessionId ?? null},
                  edit_lease_expires_at = ${leaseExpires.toISOString()}
@@ -357,12 +374,21 @@ export class SpecService {
         `);
         const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
         const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
+        const delta = specDelta(previousBody, input.bodyMd);
 
         // **같은 draft 를 다시 저장해도 알린다**(2026-08-29 개정 — 사람 보고).
         // 예전에는 여기서 아무 이벤트도 내지 않았다("리스 갱신만" — api.md EP-SPEC-08).
         // 그런데 에이전트가 스펙을 쓰는 방식이 대부분 이 경로라, 본문이 바뀌어도 화면은
         // 새로고침 전에는 알 수 없었다. 새 버전이 생긴 것이 아니므로 이름이 다르다.
         await emit({
+          // 요약은 **이벤트에도** 싣는다 — 버전 행은 마지막 상태만 남지만 이벤트는 매번 남는다.
+          // 40번 덮어쓴 draft 에서 "무엇이 바뀌었나"를 되짚을 수 있는 곳은 여기뿐이다.
+          payload: {
+            ...(input.changeSummary === undefined ? {} : { change_summary: input.changeSummary }),
+            // 봉투에는 **수**만 싣는다 — 본문은 이벤트에 담지 않는다(D-14)
+            lines_added: delta.lines.added,
+            lines_removed: delta.lines.removed,
+          },
           type: NERV_EVENT.SPEC_DRAFT_UPDATED,
           projectId: input.projectId,
           subjectType: 'spec_version',
@@ -379,6 +405,7 @@ export class SpecService {
           spec_version_id: draft.id,
           version_no: draft.version_no,
           created: false,
+          delta,
           relations: { ...relations, declared },
           web_url: await this.webUrl(tx, input.projectId, specId),
         };
@@ -392,10 +419,12 @@ export class SpecService {
 
       await tx.execute(sql`
         INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
+                                  change_summary_md,
                                   author_user_id, author_session_id, base_version_id,
                                   edit_lease_user_id, edit_lease_session_id, edit_lease_expires_at)
         VALUES (${versionId}, ${specId}, ${versionNo}, 'draft', ${input.bodyMd},
-                decode(${hash}, 'hex'), ${input.userId}, ${input.sessionId ?? null},
+                decode(${hash}, 'hex'), ${input.changeSummary ?? null},
+                ${input.userId}, ${input.sessionId ?? null},
                 ${input.baseVersionId ?? null}, ${input.userId}, ${input.sessionId ?? null},
                 ${leaseExpires.toISOString()})
       `);
@@ -406,6 +435,7 @@ export class SpecService {
       }
 
       await emit({
+        payload: input.changeSummary === undefined ? {} : { change_summary: input.changeSummary },
         type: NERV_EVENT.SPEC_DRAFT_CREATED,
         projectId: input.projectId,
         subjectType: 'spec_version',
@@ -419,11 +449,18 @@ export class SpecService {
 
       const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
       const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
+      // 새 버전의 기준은 **직전 버전**이다. 첫 버전이면 기준이 없으니 전부 새로 쓴 것이다.
+      const { rows: prior } = await tx.execute<{ body_md: string }>(sql`
+        SELECT body_md FROM spec_version
+         WHERE spec_id = ${specId} AND version_no < ${versionNo}
+         ORDER BY version_no DESC LIMIT 1
+      `);
       return {
         spec_id: specId,
         spec_version_id: versionId,
         version_no: versionNo,
         created: true,
+        delta: specDelta(prior[0]?.body_md ?? null, input.bodyMd),
         relations: { ...relations, declared },
         web_url: await this.webUrl(tx, input.projectId, specId),
       };

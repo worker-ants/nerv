@@ -622,18 +622,37 @@ function SpecDetail(): React.JSX.Element {
               {rows(versions.data)
                 .slice(0, 8)
                 .map((v) => (
-                  <li key={String(v['id'])} className="flex items-center gap-2 py-0.5">
-                    <span className="w-8 shrink-0 font-mono text-xs text-text-faint">
-                      v{String(v['version_no'])}
-                    </span>
-                    <StatusBadge
-                      token={
-                        (SPEC_VERSION_TOKEN[
-                          String(v['status']) as keyof typeof SPEC_VERSION_TOKEN
-                        ] ?? 'idle') as StatusToken
-                      }
-                      label={t(statusLabelKey('spec', String(v['status'])))}
-                    />
+                  <li key={String(v['id'])} className="py-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 shrink-0 font-mono text-xs text-text-faint">
+                        v{String(v['version_no'])}
+                      </span>
+                      <StatusBadge
+                        token={
+                          (SPEC_VERSION_TOKEN[
+                            String(v['status']) as keyof typeof SPEC_VERSION_TOKEN
+                          ] ?? 'idle') as StatusToken
+                        }
+                        label={t(statusLabelKey('spec', String(v['status'])))}
+                      />
+                      <span className="ml-auto shrink-0 text-2xs text-text-faint">
+                        {relativeTime(
+                          t,
+                          typeof v['created_at'] === 'string' ? v['created_at'] : null,
+                        )}
+                      </span>
+                    </div>
+                    {/* **무엇을 왜 바꿨나** — 이 줄이 없으면 목록은 번호와 배지뿐이고,
+                        draft 는 덮어써지므로 되짚을 diff 도 없다(api.md §2.2) */}
+                    {typeof v['change_summary_md'] === 'string' &&
+                      v['change_summary_md'] !== '' && (
+                        <p
+                          data-testid="version-summary"
+                          className="mt-0.5 ml-10 line-clamp-2 text-xs text-text-mute"
+                        >
+                          {v['change_summary_md']}
+                        </p>
+                      )}
                   </li>
                 ))}
             </ul>

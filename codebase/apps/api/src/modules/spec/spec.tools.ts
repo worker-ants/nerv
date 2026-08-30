@@ -151,6 +151,9 @@ export class SpecTools implements NervToolProvider {
           body_markdown: { type: 'string', description: 'mcp.arg.body_markdown' },
           body_md: { type: 'string', description: 'mcp.arg.body_markdown' },
           base_version: { type: 'string' },
+          // **무엇을 왜 바꿨나.** 카탈로그·스킬이 처음부터 지시하던 입력인데 스키마에
+          // 없어서 에이전트가 한 번도 싣지 않았다(실측 30/30) — 도구는 스키마를 읽는다.
+          change_summary: { type: 'string', description: 'mcp.arg.change_summary' },
           idempotency_key: { type: 'string' },
           // **생성에 필요한 메타.** 이 넷이 없으면 에이전트는 기존 스펙 이어쓰기만 할 수
           // 있고 새 스펙을 시작하지 못한다 — 실제로 그 상태였다(실측 2026-08-23).
@@ -200,6 +203,9 @@ export class SpecTools implements NervToolProvider {
           userId: ctx.principal.userId,
           sessionId: ctx.sessionId,
           bodyMd: body,
+          ...(typeof input['change_summary'] === 'string' && input['change_summary'].trim() !== ''
+            ? { changeSummary: input['change_summary'] }
+            : {}),
           ...(typeof input['spec_id'] === 'string' ? { specId: input['spec_id'] } : {}),
           ...(typeof input['base_version'] === 'string'
             ? { baseVersionId: input['base_version'] }

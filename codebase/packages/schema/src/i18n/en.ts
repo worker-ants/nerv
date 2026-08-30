@@ -262,10 +262,13 @@ export const en = {
   'mcp.arg.event_seq': 'Monotonic within the session — the idempotency key for resends',
   'mcp.arg.around': 'spec key — when given, only the neighbourhood of this document',
   'mcp.arg.scope': 'Specs and files this work will touch — the input to overlap detection',
-  'mcp.arg.relations': 'Declared relations — judgements like refines/depends_on. A different axis from the references that body links create; omit it and nothing is touched',
+  'mcp.arg.relations':
+    'Declared relations — judgements like refines/depends_on. A different axis from the references that body links create; omit it and nothing is touched',
   'mcp.arg.question_context': 'Where this came from — stable IDs so a human can read the source',
   'mcp.arg.escalate': 'Why a human is being called — one of five reasons (spec-workflow §4.7)',
   'mcp.arg.body_markdown': 'The spec body (markdown) — also accepted as `body_md`',
+  'mcp.arg.change_summary':
+    'What changed and why — the only human sentence a version carries. Omit it and the previous one is kept',
   'mcp.arg.blocking':
     'Does this block the gate (default true) — same axis as urgency; urgency wins if both are given',
   'mcp.arg.wait_seconds':

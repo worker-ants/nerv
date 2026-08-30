@@ -76,7 +76,8 @@ export const ko = {
   'error.human_only.token_issue': '토큰 발급은 사람만 할 수 있습니다.',
   'error.mcp.bad_origin': '허용되지 않은 Origin 입니다.',
   'error.mcp.bad_revision': '지원하지 않는 프로토콜 리비전: {revision}',
-  'error.mcp.invalid_input': '입력이 스키마와 맞지 않습니다 — details 의 항목 이름을 보고 다시 부르세요.',
+  'error.mcp.invalid_input':
+    '입력이 스키마와 맞지 않습니다 — details 의 항목 이름을 보고 다시 부르세요.',
   'error.mcp.no_session':
     '활성 세션이 없습니다 — nerv_bootstrap 으로 세션을 시작하거나 재개하세요(세션은 무활동 30분이면 만료됩니다).',
   'error.mcp.session_ambiguous':
@@ -136,8 +137,10 @@ export const ko = {
     'nerv_task_update 로 상태를 남기고 nerv_task_release 로 내려놓은 뒤 끝내세요.',
   'gate.reason.retry_threshold': '재시도 임계 초과 → 티어 +1',
   'gate.reason.recent_rollback': '최근 30일 롤백 이력 → 티어 +1',
-  'check.link_unknown': '링크가 가리키는 {key} 를 이 프로젝트에서 찾을 수 없습니다 — 오타이거나 아직 안 쓴 문서입니다.',
-  'check.no_relations': '이 문서는 어떤 문서와도 이어져 있지 않습니다 — 가리킬 문서가 있으면 본문에 링크로 답니다.',
+  'check.link_unknown':
+    '링크가 가리키는 {key} 를 이 프로젝트에서 찾을 수 없습니다 — 오타이거나 아직 안 쓴 문서입니다.',
+  'check.no_relations':
+    '이 문서는 어떤 문서와도 이어져 있지 않습니다 — 가리킬 문서가 있으면 본문에 링크로 답니다.',
   'check.version_not_found': '버전을 찾을 수 없습니다.',
   'export.index_lead': '> NERV 스펙 트리 색인. 각 항목은 승인된 최신 버전의 md 미러를 가리킨다.',
   'export.index_specs': '## 스펙',
@@ -258,10 +261,13 @@ export const ko = {
   'mcp.arg.event_seq': '세션 내 단조 증가 — 재전송 멱등 키',
   'mcp.arg.around': 'spec key — 주면 이 문서 주변만',
   'mcp.arg.scope': '이 작업이 건드릴 스펙·파일. 겹침 판정의 입력이다',
-  'mcp.arg.relations': '선언 관계 — 정제·선행 같은 판단. 본문 링크가 만드는 references 와 다른 축이고, 주지 않으면 건드리지 않는다',
+  'mcp.arg.relations':
+    '선언 관계 — 정제·선행 같은 판단. 본문 링크가 만드는 references 와 다른 축이고, 주지 않으면 건드리지 않는다',
   'mcp.arg.question_context': '출처 — 사람이 원문으로 갈 수 있게 안정 ID 를 단다',
   'mcp.arg.escalate': '왜 사람을 부르는가 — 5종 어휘(spec-workflow §4.7)',
   'mcp.arg.body_markdown': '스펙 본문(markdown) — `body_md` 라는 이름으로도 받는다',
+  'mcp.arg.change_summary':
+    '무엇을 왜 바꿨나 — 버전에 남는 유일한 사람 말이다. 주지 않으면 앞의 것을 지우지 않는다',
   'mcp.arg.blocking':
     '게이트를 막는가(기본 true) — urgency 와 같은 축이고, urgency 를 주면 그쪽이 이긴다',
   'mcp.arg.wait_seconds': '답을 이만큼 기다린다(초, 최대 60) — 비우면 즉시 돌아온다',
@@ -280,7 +286,8 @@ export const ko = {
   'error.spec.missing_fields': '새 스펙에는 key·title·type 이 필요합니다.',
   'error.spec.no_changes': '변경할 필드가 없습니다.',
   'error.spec.not_draft': 'draft 가 아닙니다({status}).',
-  'error.spec.empty_body': '빈 본문으로 덮어쓸 수 없습니다 — 본문을 실어 보내세요(초안은 이전 본문을 남기지 않습니다).',
+  'error.spec.empty_body':
+    '빈 본문으로 덮어쓸 수 없습니다 — 본문을 실어 보내세요(초안은 이전 본문을 남기지 않습니다).',
   'error.spec.not_found': '스펙을 찾을 수 없습니다.',
   'error.spec.not_in_review': 'in_review 상태가 아닙니다.',
   'error.spec.parent_archived': '부모가 아카이브 상태입니다.',
