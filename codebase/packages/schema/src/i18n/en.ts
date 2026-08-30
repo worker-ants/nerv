@@ -176,6 +176,12 @@ export const en = {
   'reviews.promoted': 'Created {key} — fill the delegation brief to make it ready.',
   'reviews.promoted_already': 'This finding is already a task.',
   'reviews.expand': 'Expand',
+  'reviews.action.spec_change': 'Spec fix',
+  'reviews.resolve.spec': 'Corrected spec',
+  'reviews.resolve.spec_hint':
+    'the current version of that document becomes the evidence — no version number needed',
+  'reviews.resolve.spec_none': 'none picked',
+  'reviews.resolve.spec_pick': 'Pick a document',
   'reviews.by_spec_change': 'resolved by a spec correction',
   'reviews.collapse': 'Collapse',
   'reviews.suggestion': 'Suggestion',

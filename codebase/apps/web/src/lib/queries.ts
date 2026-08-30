@@ -114,6 +114,8 @@ export function useSpec(slug: string, specKey: string): UseQueryResult<Row> {
   return useQuery({
     queryKey: queryKeys.spec(specKey),
     queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}`),
+    // 고르기 전에는 부르지 않는다 — 빈 키로 나가면 `/specs/` 가 되어 404 가 온다
+    enabled: specKey !== '',
   });
 }
 

@@ -95,6 +95,19 @@ beforeEach(() => {
         posted.push({ url: path, body: JSON.parse(init.body ?? '{}') });
         return { ok: true, status: 200, json: async () => ({ ok: true }) };
       }
+      if (path.includes('/specs/tree')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            { id: 'sp-1', key: 'SPC-CWC-007', title: '웹챗 위젯', type: 'feature' },
+          ],
+        };
+      }
+      if (path.includes('/specs/SPC-CWC-007')) {
+        // 증거는 그 문서의 **지금 버전**이다
+        return { ok: true, status: 200, json: async () => ({ version_id: 'v-77' }) };
+      }
       if (path.includes('/comments')) {
         return {
           ok: true,
@@ -378,5 +391,38 @@ describe('발견의 피드백 (2026-08-30)', () => {
     fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
     const rail = await screen.findByTestId('finding-rail');
     expect(within(rail).getByTestId('comment-submit').hasAttribute('disabled')).toBe(true);
+  });
+});
+
+// 2026-08-30 사람 요청 — 에이전트 경로만 열려 있던 처분을 사람에게도 준다.
+// 구현이 맞고 스펙이 틀린 지적은 코드가 아니라 문서를 고쳐 닫힌다.
+describe('스펙 정정으로 닫기 (REQ-WEB-117)', () => {
+  it('처분이 넷이다 — 커밋 없는 수정에도 정직한 길이 있다', async () => {
+    await renderCenter();
+    await screen.findByText('세션 토큰이 localStorage 에 평문 저장');
+    const card = screen.getAllByTestId('finding-card')[0]!;
+    expect(within(card).getByTestId('resolve-spec_change')).toBeDefined();
+  });
+
+  it('버전 id 를 묻지 않는다 — 문서만 고르면 그 지금 버전이 증거다', async () => {
+    await renderCenter();
+    await screen.findByText('세션 토큰이 localStorage 에 평문 저장');
+    const card = screen.getAllByTestId('finding-card')[0]!;
+    fireEvent.click(within(card).getByTestId('resolve-spec_change'));
+
+    const dialog = await screen.findByTestId('resolve-dialog');
+    // 지적이 나온 문서가 미리 골라져 있다 — 대개 그것을 고친다
+    expect(within(dialog).getByTestId('resolve-spec-key').textContent).toBe('SPC-CWC-007');
+
+    fireEvent.change(within(dialog).getByTestId('resolve-rationale'), {
+      target: { value: '구현이 맞고 스펙이 틀렸다 — 스펙을 정정했다' },
+    });
+    fireEvent.click(within(dialog).getByTestId('resolve-submit'));
+
+    await waitFor(() => expect(posted.some((p) => p.url.includes('/resolve'))).toBe(true));
+    expect(posted.find((p) => p.url.includes('/resolve'))?.body).toMatchObject({
+      resolution: 'spec_change',
+      spec_version_id: 'v-77',
+    });
   });
 });

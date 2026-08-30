@@ -24,7 +24,7 @@ export interface FindingCardProps {
   finding: Row;
   projectSlug: string;
   canResolve: boolean;
-  onResolve: (finding: Row, action: 'fixed' | 'dismissed' | 'wont_fix') => void;
+  onResolve: (finding: Row, action: 'fixed' | 'spec_change' | 'dismissed' | 'wont_fix') => void;
   /** 고르면 오른쪽 레일이 이 발견을 편다 — 카드에 담기지 않는 것이 거기 있다 */
   selected?: boolean;
   onSelect?: (finding: Row) => void;
@@ -177,7 +177,9 @@ export function FindingCard({
 
       {status === 'open' && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {(['fixed', 'dismissed', 'wont_fix'] as const).map((action) => (
+          {/* **넷이다**(2026-08-30). 구현이 맞고 스펙이 틀린 지적은 코드가 아니라 문서를
+              고쳐 닫힌다 — 그 길이 없으면 사람도 에이전트도 남은 값 중 아무거나 고른다 */}
+          {(['fixed', 'spec_change', 'dismissed', 'wont_fix'] as const).map((action) => (
             <button
               key={action}
               type="button"

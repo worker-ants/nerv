@@ -175,6 +175,12 @@ export const ko = {
   'reviews.promoted': '{key} 를 만들었습니다 — 위임 명세를 채우면 ready 가 됩니다.',
   'reviews.promoted_already': '이미 Task 로 올린 발견입니다.',
   'reviews.expand': '펼치기',
+  'reviews.action.spec_change': '스펙 정정',
+  'reviews.resolve.spec': '고친 스펙',
+  'reviews.resolve.spec_hint':
+    '그 문서의 지금 버전이 증거가 됩니다 — 버전 번호를 적을 필요는 없습니다',
+  'reviews.resolve.spec_none': '고르지 않음',
+  'reviews.resolve.spec_pick': '문서 고르기',
   'reviews.by_spec_change': '스펙 정정으로 해결',
   'reviews.collapse': '접기',
   'reviews.suggestion': '제안',
