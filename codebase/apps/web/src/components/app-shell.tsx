@@ -513,7 +513,7 @@ export function AppShell({
             대비가 커서 사이드바가 하나의 패널로 떠 보이는데, 이 화면들에서 사이드바는
             패널이 아니라 여백에 가깝다(시안 대조 2026-08-23) */}
         {projectSlug !== undefined && (
-          <aside className="sticky top-header hidden h-[calc(100vh-var(--spacing-header))] w-sidebar shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-sunken/40 px-2 py-3 md:flex">
+          <aside className="sticky top-header hidden h-[calc(100vh-var(--spacing-header))] w-sidebar shrink-0 flex-col overflow-hidden border-r border-border bg-bg-sunken/40 px-2 py-3 md:flex">
             <div className="px-2 pb-2.5">
               <p className="text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase">
                 {t('common.project')}
@@ -600,7 +600,10 @@ export function AppShell({
                 `projectId` 를 함께 넘겨 쿼리 키를 **UUID 축**으로 맞춘다: 이벤트 무효화는
                 project_id(UUID)로 오는데 여기서 slug 로 키를 만들면 같은 컴포넌트인데도
                 사이드바만 갱신되지 않는다(실측 2026-08-29). */}
-            <div className="mt-4 border-t border-border pt-3">
+            {/* **트리가 제 상자 안에서 스크롤한다**(2026-08-30). 전부 펼치면 141줄이라
+                사이드바 전체가 스크롤되면 프로젝트 이름·메뉴까지 화면 밖으로 밀린다 —
+                늘 있어야 하는 것이 사라지면 그건 네비게이션이 아니다. */}
+            <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-border pt-3">
               <SpecTree
                 projectSlug={projectSlug}
                 {...(typeof shellProject.data?.['id'] === 'string'

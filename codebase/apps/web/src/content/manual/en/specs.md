@@ -17,7 +17,7 @@ An `area` may hold a place in the tree with no body of its own. For the rest, th
 
 ## Where you can see all of them
 
-The tree in the left sidebar is there for **what sits around the document you are reading**, so it is expanded only down to the roots. The `106 / 141` in its header is **how many are showing / how many there are**.
+The tree in the left sidebar holds **every document, expanded**. A place that lists things and lists only some of them leaves you unable to tell a missing document from a collapsed one. The `141 / 141` in its header is **how many are showing / how many there are**; collapse a branch and that number drops, telling you what is now hidden.
 
 To see all of them, go to **Specs** in the left menu. That screen is the **complete list** — it opens with every document expanded, and collapsing is something you do, not the default. **A document that is not there is not in this project.**
 

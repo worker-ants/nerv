@@ -1,12 +1,15 @@
 // 스펙 트리 — 사이드바와 스펙 목록이 **같은 컴포넌트**를 쓴다 (screens.md §1.3 · §2.4)
 //
-// 두 자리는 역할이 다르다(`variant`).
+// **나열하는 자리는 전부 나열한다**(2026-08-30 개정 — 사람 지시). 자리는 둘인데(`variant`)
+// 다른 것은 밀도와 조작이지 **무엇을 보이느냐가 아니다.**
 //
-// - `rail` — 좁은 사이드바. 늘 떠 있는 **동반자**라 부분이어도 되지만, 부분임을 수로 말한다.
-// - `full` — 스펙 목록 화면(`/p/:proj/specs`). **전수 목록이다**: 이 화면에 있는 것이 그
-//   프로젝트 문서의 전부다. 목록에 노출되어야 열람도 가능한 구조라(2026-08-29 — 사람 지시),
-//   처음 열었을 때 접힌 가지에 문서가 숨어 있으면 그 문서는 없는 것과 같다. 실측이 그랬다:
-//   clemvion 141편 중 화면에 있던 것은 106편, sudoku 는 6편 중 3편이었다.
+// - `rail` — 좁은 사이드바. 처음에는 뿌리까지만 펼쳤다가 되돌렸다: 일부만 나열하면
+//   **없는 문서와 접힌 문서를 사람이 구분하지 못하고**, 트리는 사이드바의 마지막 블록이라
+//   길어져도 아래에 가릴 것이 없다(길어지는 값은 스크롤뿐이었다).
+// - `full` — 스펙 목록 화면(`/p/:proj/specs`). 전수 목록이다.
+//
+// 목록에 노출되어야 열람도 가능한 구조라(2026-08-29 — 사람 지시), 접힌 가지에 숨은 문서는
+// 없는 것과 같다. 실측이 그랬다: clemvion 141편 중 화면에 있던 것은 106편, sudoku 는 6편 중 3편.
 //
 // 접는 것은 **사람의 조작**이고 기본값이 아니다. 규모의 부담은 가상 스크롤이 진다(REQ-WEB-044).
 
@@ -37,7 +40,7 @@ export interface TreeNode {
 export type SpecTreeVariant = 'rail' | 'full';
 
 export interface SpecTreeProps {
-  /** 구역 머리(예: "스펙 트리") — 시안은 개수를 함께 적는다 */
+  /** 구역 머리(예: "스펙 트리") — 개수를 함께 적는다(표시 / 전체) */
   heading?: string;
   projectSlug: string;
   /** 쿼리 키를 이벤트 봉투와 같은 축(UUID)에 맞추기 위한 값 — 없으면 slug 로 떨어진다 */
@@ -81,15 +84,16 @@ export function groupByParent(nodes: TreeNode[]): Map<string | null, TreeNode[]>
 }
 
 /**
- * 첫 펼침 상태 — 저장된 것이 없을 때의 초깃값이다.
+ * 첫 펼침 상태 — 저장된 것이 없을 때의 초깃값은 **전부**다. 자리를 가리지 않는다.
  *
- * `full` 은 **전부**다. 전수 목록의 약속이 여기서 지켜진다.
- * `rail` 은 뿌리까지 — 141줄이 늘 떠 있으면 그 아래 아무것도 안 보인다.
+ * 사이드바는 뿌리까지만 펼쳤었다(2026-08-29). 141줄이 늘 떠 있으면 그 아래가 안 보인다는
+ * 이유였는데, **트리는 사이드바의 마지막 블록이라 아래에 가릴 것이 없다** — 길어지는 값은
+ * 스크롤뿐이었다. 그리고 그 대가가 컸다: 나열하는 자리에서 일부만 나열하면 **없는 문서와
+ * 접힌 문서를 사람이 구분하지 못한다**(2026-08-30 개정 — 사람 지시).
+ *
+ * 접는 것은 사람의 조작이고 자리별로 남는다(REQ-WEB-104).
  */
-export function defaultExpanded(nodes: TreeNode[], variant: SpecTreeVariant): Set<string> {
-  if (variant === 'rail') {
-    return new Set(nodes.filter((n) => n.parent_id === null).map((n) => n.id));
-  }
+export function defaultExpanded(nodes: TreeNode[]): Set<string> {
   const parents = new Set(nodes.map((n) => n.parent_id).filter((id): id is string => id !== null));
   return new Set(nodes.filter((n) => parents.has(n.id)).map((n) => n.id));
 }
@@ -172,8 +176,8 @@ export function SpecTree({
 
   useEffect(() => {
     if (expanded !== null || nodes.length === 0) return;
-    setExpanded(readExpanded(storageKey) ?? defaultExpanded(nodes, variant));
-  }, [expanded, nodes, storageKey, variant]);
+    setExpanded(readExpanded(storageKey) ?? defaultExpanded(nodes));
+  }, [expanded, nodes, storageKey]);
 
   // 보고 있는 문서까지의 길을 펼친다 — 딥링크로 들어오면 트리에서 내 위치를 알 수 없다
   useEffect(() => {
@@ -183,10 +187,21 @@ export function SpecTree({
     setExpanded((prev) => new Set([...(prev ?? []), ...chain]));
   }, [activeKey, expanded, nodes]);
 
-  // 펼쳐도 화면 밖이면 못 본 것과 같다
+  /**
+   * 펼쳐도 화면 밖이면 못 본 것과 같다(REQ-WEB-053).
+   *
+   * **다음 프레임에 옮긴다.** 트리가 전부 펼쳐지면서 이 줄이 3,697px 짜리 상자의 2,580px
+   * 자리에 서게 됐는데, 렌더 직후에 부르면 라우터의 스크롤 복원이 그 뒤에 0 으로 되돌린다
+   * (실측 2026-08-30 — 손으로 부르면 2,005 로 옮겨졌다). 데이터가 늦게 오는 것도 같은
+   * 자리라 `nodes.length` 를 함께 본다.
+   */
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [activeKey, expanded]);
+    if (activeKey === undefined) return undefined;
+    const frame = requestAnimationFrame(() =>
+      activeRef.current?.scrollIntoView({ block: 'nearest' }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [activeKey, expanded, nodes.length]);
 
   const open = expanded ?? new Set<string>();
   const setOpen = (next: Set<string>): void => {
@@ -339,14 +354,20 @@ export function SpecTree({
     });
 
   return (
-    <div data-testid="spec-tree" data-virtualized={virtualized}>
+    // 레일은 **제 상자 안에서 흐른다** — 머리(구역 이름과 수)는 붙어 있고 목록만 스크롤한다.
+    // 수는 트리가 전부라는 증거이므로 스크롤과 함께 사라지면 안 된다.
+    <div
+      data-testid="spec-tree"
+      data-virtualized={virtualized}
+      className={cn(variant === 'rail' ? 'flex min-h-0 flex-1 flex-col' : undefined)}
+    >
       {heading !== undefined && (
         <div className="mb-1 flex items-center justify-between px-2">
           <span className="text-2xs font-semibold tracking-[0.07em] text-text-ghost uppercase">
             {heading}
           </span>
-          {/* **수는 둘이다.** 총계만 적으면 트리는 141 을 약속하고 106 만 지킨다 —
-              사이드바는 부분이므로 부분임을 스스로 말해야 한다(REQ-WEB-102) */}
+          {/* **수는 둘이다.** 총계만 적으면 트리는 141 을 약속하고 106 만 지킨다.
+              접었을 때 무엇이 감춰졌는지가 이 수로 보인다(REQ-WEB-102) */}
           <span
             data-testid="tree-count"
             aria-label={t('specs.count.shown_total', { shown, total })}
@@ -367,7 +388,7 @@ export function SpecTree({
           <button
             type="button"
             data-testid="tree-expand-all"
-            onClick={() => setOpen(defaultExpanded(nodes, 'full'))}
+            onClick={() => setOpen(defaultExpanded(nodes))}
             className="shrink-0 rounded-nerv-sm border border-border px-2 py-1 text-xs text-text-mute hover:bg-bg-hover"
           >
             {t('specs.expand_all')}
@@ -390,7 +411,12 @@ export function SpecTree({
       {virtualized ? (
         <div
           data-testid="tree-viewport"
-          className="max-h-[70vh] overflow-y-auto"
+          className={cn(
+            'overflow-y-auto',
+            // 레일에서는 제 상자를 꽉 채운다 — 70vh 로 고정하면 스크롤이 두 겹이 되고,
+            // 안쪽 스크롤은 바깥 스크롤에 가려 있다는 것 자체가 잘 안 보인다
+            variant === 'rail' ? 'h-full' : 'max-h-[70vh]',
+          )}
           ref={(el) => {
             if (el !== null && el.clientHeight !== viewportHeight)
               setViewportHeight(el.clientHeight);
@@ -409,7 +435,11 @@ export function SpecTree({
           </div>
         </div>
       ) : (
-        <ul>{renderLevel(null, 0)}</ul>
+        // 레일에서만 목록이 스크롤한다. 전수 목록 화면은 반대로 **문서가 스크롤한다** —
+        // 141줄짜리 목록을 화면에 가두면 스크롤이 두 겹이 되기 때문이다(§2.4a)
+        <div className={cn(variant === 'rail' ? 'min-h-0 flex-1 overflow-y-auto' : undefined)}>
+          <ul>{renderLevel(null, 0)}</ul>
+        </div>
       )}
     </div>
   );

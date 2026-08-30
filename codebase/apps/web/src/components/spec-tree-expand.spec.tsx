@@ -108,12 +108,11 @@ describe('조상 계산', () => {
   });
 });
 
-describe('사이드바 트리 — 동반자라 부분이어도 된다', () => {
-  it('처음에는 뿌리까지 펼쳐 있다', async () => {
+describe('사이드바 트리 — 나열하는 자리는 전부 나열한다 (REQ-WEB-108)', () => {
+  it('처음부터 손자까지 전부 있다 — 보이지 않는 문서가 있으면 사람이 놓친다', async () => {
     const { rail } = await renderTree('/p/demo/specs');
     expect(rail.queryByText('자식')).not.toBeNull();
-    // 손자는 한 겹 더 접혀 있다
-    expect(rail.queryByText('손자')).toBeNull();
+    expect(rail.queryByText('손자')).not.toBeNull();
   });
 
   it('접으면 실제로 접힌다 — 최상위도 예외가 아니다', async () => {
@@ -128,17 +127,21 @@ describe('사이드바 트리 — 동반자라 부분이어도 된다', () => {
     expect(rail.queryByText('1')).not.toBeNull();
   });
 
-  it('접은 상태가 다음 방문에도 남는다 — 열쇠는 역할별이다', async () => {
+  it('접은 상태가 다음 방문에도 남는다 — 열쇠는 자리별이다', async () => {
     const { rail } = await renderTree('/p/demo/specs');
+    // 뿌리를 접으면 그 아래가 통째로 접힌다 — 남는 펼침 집합은 손자의 부모뿐이다
     fireEvent.click(rail.getAllByRole('button', { name: '접기' })[0]!);
-    expect(localStorage.getItem('nerv.tree.demo.rail')).toBe('[]');
+    expect(localStorage.getItem('nerv.tree.demo.rail')).toBe('["c"]');
     // 전수 목록의 열쇠는 건드리지 않는다
     expect(localStorage.getItem('nerv.tree.demo.full')).toBeNull();
   });
 
-  it('부분임을 수로 말한다 — 총계만 적으면 141 을 약속하고 106 만 지킨다', async () => {
+  it('수는 둘로 적는다 — 접었을 때 무엇이 감춰졌는지가 그 수로 보인다', async () => {
     const { rail } = await renderTree('/p/demo/specs');
-    expect(rail.getByTestId('tree-count').textContent).toBe('2 / 3');
+    expect(rail.getByTestId('tree-count').textContent).toBe('3 / 3');
+
+    fireEvent.click(rail.getAllByRole('button', { name: '접기' })[0]!);
+    expect(rail.getByTestId('tree-count').textContent).toBe('1 / 3');
   });
 });
 
@@ -153,7 +156,7 @@ describe('전수 목록 — 목록에 없으면 열람도 없다 (REQ-WEB-101)',
     expect(full.getByTestId('tree-count').textContent).toBe('표시 3 / 전체 3');
   });
 
-  it('사이드바에서 접은 것이 전수 목록의 첫 화면을 부분으로 만들지 않는다', async () => {
+  it('한쪽에서 접은 것이 다른 쪽의 첫 화면을 바꾸지 않는다', async () => {
     const first = await renderTree('/p/demo/specs');
     fireEvent.click(first.rail.getAllByRole('button', { name: '접기' })[0]!);
     cleanup();
