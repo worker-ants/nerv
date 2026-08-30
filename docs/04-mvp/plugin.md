@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.16 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.17 · 2026-08-30 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.17 변경(2026-08-30 — 스킬이 틀린 모양을 가르치고 있었다): `skills/impl` 의 `evidence` 예시가 `commit_sha·pr_url·test_ids` 였는데 **서버 계약은 `[{kind, locator}]` 배열**이다 — 그 모양으로 보낸 증적은 한 건도 저장되지 않고 done 게이트가 "증적 없음" 으로 막는다. 모양·`kind` 여섯 값·`spec_impact` 선언·`status` 일곱 값을 적었다. 서버에 없는 `note` 인자도 걷었다(§2.3).
 > v0.16 변경(2026-08-30 — 결함 정정 후속): `skills/spec` 과 `nerv-spec-writer` 가 **`content_hash` 가 null 인 문서**(본문이 아직 없는 묶음 노드)를 말한다 — 그때는 `base_hash` 를 싣지 않는다(4.4 §1.4i · REQ-API-054). 서버는 고쳤는데 스킬이 그 경우를 몰라 에이전트가 "지문이 없다"에서 멈출 수 있었다.
 > v0.15 변경(2026-08-30 — 사람 결정 후속): `skills/spec` 과 `nerv-spec-writer` 에서 **`base_version` 을 걷고**(전제조건은 `base_hash` 하나다), **`key_taken`** 을 에러 표에 더한다 — 그 답은 키를 바꾸는 것이 아니라 **그 문서를 읽고 이어 쓰는 것**이다(§2.2).
 > v0.14 변경(2026-08-30 — 리스는 신호이고 지문이 자물쇠다): `skills/spec` 과 `nerv-spec-writer` 에 **세션 리스와 `takeover`**, **선언 관계의 상대 `base_hash`** 를 적는다(§2.2). `NERV_DRAFT_LEASED` 는 이제 **같은 사람이어도** 온다 — 보유자가 세션이기 때문이다. 에러 표에 `relation_base_hash_required`·`stale_relation_target` 을 더했다.
@@ -353,13 +354,22 @@ allowed-tools:
 
 ## 진행·상태 전이
 
-- 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`, `note`) 호출.
+- 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`) 호출.
 - 스펙에 없는 결정이 필요하거나 scope 경계를 벗어나야 하면 **추측하지 말고**
   /nerv:question 규약으로 `nerv_question_create`. blocking 질문이면 답변까지 구현을 멈춘다.
-- 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`, `note`).
-- 완료 시 `nerv_task_update`(`task_id`, `status=done`, `note`,
-  `evidence{commit_sha,pr_url,test_ids}`) — **증적 없는 done 시도는 하지 않는다.**
-  "다 했습니다"는 증거가 아니다 — 판정은 서버가 evidence로 한다.
+- 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`).
+- 완료 시 `nerv_task_update`(`task_id`, `status=done`, `evidence`) —
+  **증적 없는 done 시도는 하지 않는다.** "다 했습니다"는 증거가 아니다 — 판정은 서버가
+  evidence로 한다.
+- `evidence` 는 **`[{kind, locator}]` 배열**이다. `kind` 는 `code_path`·`test`·`pr`·
+  `commit`·`review`·`user_guide` 여섯 중 하나이고 `locator` 는 그것을 가리키는 문자열이다
+  (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). 예: `[{kind: "commit", locator: "a1b2c3d"},
+  {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
+- `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
+  `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
+  "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.
+- `status` 는 `backlog`·`ready`·`claimed`·`in_progress`·`in_review`·`done`·`blocked`
+  일곱뿐이다.
   done 전이는 서버 게이트를 지나며 정책에 따라 사람 승인(A3)이 걸릴 수 있다.
   게이트 거부 응답이 오면 사유를 사람에게 그대로 보고한다(우회하지 않는다).
 - 작업을 끝냈거나 세션을 접으면 `nerv_task_release`(`claim_id`,

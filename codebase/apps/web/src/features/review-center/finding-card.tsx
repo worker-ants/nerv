@@ -3,9 +3,17 @@
 // **원시 diff 가 아니라 정리된 결론이다.** QA 의 하루는 "AI 가 찾은 것을 다시 읽는" 것이
 // 아니라 무엇이 위험한지 고르는 것이라, 카드가 답해야 하는 질문은 세 개뿐이다 —
 // 얼마나 위험한가 · 어디서 온 것인가 · 무엇을 하면 되는가.
+//
+// **그런데 셋째를 답하지 않고 있었다**(사람 보고 2026-08-30). 카드가 `title` 한 줄만
+// 그렸고 `detail_md`·`suggestion_md` 는 화면에 한 번도 나온 적이 없다 — 에이전트는
+// 처음부터 채워 보내고 있었는데도(sudoku 10건 전부, clemvion 18,652/18,654).
+// 제목만으로는 "무엇을 말하는지" 알 수 없다는 것이 그 결과다.
+//
+// 펼침이 기본이 아닌 이유는 큐이기 때문이다 — 18,650건을 다 펼치면 고를 수가 없다.
 
 import { statusLabelKey } from '@nerv/schema';
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SEVERITY_TOKEN } from '../../components/status-token.js';
 import { useT } from '../../lib/i18n.js';
@@ -17,6 +25,9 @@ export interface FindingCardProps {
   projectSlug: string;
   canResolve: boolean;
   onResolve: (finding: Row, action: 'fixed' | 'dismissed' | 'wont_fix') => void;
+  /** 고르면 오른쪽 레일이 이 발견을 편다 — 카드에 담기지 않는 것이 거기 있다 */
+  selected?: boolean;
+  onSelect?: (finding: Row) => void;
 }
 
 export function FindingCard({
@@ -24,14 +35,20 @@ export function FindingCard({
   projectSlug,
   canResolve,
   onResolve,
+  selected = false,
+  onSelect,
 }: FindingCardProps): React.JSX.Element {
   const t = useT();
+  const [open, setOpen] = useState(false);
   const severity = String(finding['severity']);
   const status = String(finding['status']);
   const token = SEVERITY_TOKEN[severity as 'info'] ?? 'idle';
   const occurrences = Number(finding['occurrence_count'] ?? 1);
   const specKey = finding['spec_key'];
   const tags = Array.isArray(finding['tags']) ? (finding['tags'] as string[]) : [];
+  const detail = textOf(finding['detail_md']);
+  const suggestion = textOf(finding['suggestion_md']);
+  const hasBody = detail !== null || suggestion !== null;
 
   return (
     <article
@@ -41,7 +58,9 @@ export function FindingCard({
         // 주의가 필요한 것만 좌측 룰로 튄다(§2.4d) — 전부 튀면 아무것도 튀지 않는다
         'border-b border-border px-4 py-3 last:border-b-0',
         severity === 'critical' && 'border-l-2 border-l-status-danger',
+        selected && 'bg-bg-sunken/60',
       )}
+      onClick={onSelect === undefined ? undefined : () => onSelect(finding)}
     >
       <div className="flex flex-wrap items-start gap-2">
         <StatusBadge token={token} label={t(`severity.${severity}` as 'severity.info')} />
@@ -49,7 +68,40 @@ export function FindingCard({
         {status !== 'open' && (
           <StatusBadge token="idle" label={t(statusLabelKey('finding', status))} />
         )}
+        {hasBody && (
+          <button
+            type="button"
+            data-testid="finding-toggle"
+            aria-expanded={open}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(!open);
+            }}
+            className="shrink-0 rounded-nerv-sm px-1 text-2xs text-text-faint hover:text-text"
+          >
+            {open ? t('reviews.collapse') : t('reviews.expand')}
+          </button>
+        )}
       </div>
+
+      {/* 지적의 본문과 제안 — **이것이 "무엇을 말하는지"다.** 제목은 손잡이일 뿐이다 */}
+      {open && detail !== null && (
+        <p
+          data-testid="finding-detail"
+          className="mt-2 rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-sm whitespace-pre-wrap text-text-mute"
+        >
+          {detail}
+        </p>
+      )}
+      {open && suggestion !== null && (
+        <p
+          data-testid="finding-suggestion"
+          className="mt-1.5 rounded-nerv-sm border-l-2 border-l-status-action bg-bg-sunken px-2.5 py-2 text-sm whitespace-pre-wrap text-text-mute"
+        >
+          <span className="mr-1.5 text-2xs text-text-faint">{t('reviews.suggestion')}</span>
+          {suggestion}
+        </p>
+      )}
 
       {/* provenance 3종 — 셋이 다 있어야 P5(리뷰 출처 추적 곤란)가 닫힌다(REQ-WEB-062).
        **없는 출처는 빈칸이 아니라 "없음"이다** — 빈칸은 "아직 안 불러왔나"로 읽힌다 */}
@@ -109,6 +161,20 @@ export function FindingCard({
         ))}
       </div>
 
+      {/* 처분한 것은 **왜 그렇게 정했는지**를 함께 보인다 — 근거가 없으면 dismissed 는
+          삭제와 구별되지 않는다(§2.6a) */}
+      {status !== 'open' && textOf(finding['resolution_rationale']) !== null && (
+        <p
+          data-testid="finding-resolution"
+          className="mt-2 border-l-2 border-l-border pl-2.5 text-2xs whitespace-pre-wrap text-text-faint"
+        >
+          {textOf(finding['resolution_rationale'])}
+          {typeof finding['resolved_by_name'] === 'string'
+            ? ` — ${String(finding['resolved_by_name'])}`
+            : ''}
+        </p>
+      )}
+
       {status === 'open' && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {(['fixed', 'dismissed', 'wont_fix'] as const).map((action) => (
@@ -118,7 +184,10 @@ export function FindingCard({
               data-testid={`resolve-${action}`}
               disabled={!canResolve}
               title={canResolve ? undefined : t('reviews.no_permission')}
-              onClick={() => onResolve(finding, action)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onResolve(finding, action);
+              }}
               className={cn(
                 'rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute transition-colors',
                 canResolve
@@ -148,6 +217,11 @@ function Provenance({
       <dd className="min-w-0 truncate font-mono">{children}</dd>
     </div>
   );
+}
+
+/** 빈 문자열과 null 을 한 가지로 — 빈 문단을 그리지 않는다 */
+function textOf(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
 /**

@@ -688,6 +688,62 @@ describe('E03-S04 에러 규약 — 구조화 결과', () => {
     ]);
   });
 
+  // 2026-08-30 사람 보고 — "에이전트가 task 조작을 하지 못한다". 핸들러는 `evidence`·
+  // `blocked_reason`·`spec_impact` 를 **처음부터 읽고 있었는데 스키마에 없었다**.
+  // 도구는 스키마를 읽으므로, 적히지 않은 입력은 애초에 실리지 않는다 —
+  // done 게이트가 증적을 요구하는데 증적을 실을 길이 없던 것이 그 결과다.
+  it('done 은 증적을 싣는다 — 스키마에 없던 입력이 계약이 된다', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-09',
+      external_session_id: 'S-evidence',
+    });
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-evi','증적','in_progress','목표','PR','nerv_spec_get','경계')`,
+      [taskId, projectId],
+    );
+
+    const done = await callTool('nerv_task_update', {
+      session_id: boot['session_id'],
+      task_id: taskId,
+      status: 'done',
+      evidence: [
+        { kind: 'commit', locator: 'a1b2c3d' },
+        { kind: 'test', locator: 'spec-concurrency.spec.ts' },
+      ],
+      spec_impact: { none: true },
+    });
+    expect(done['status']).toBe('done');
+    const { rows } = await pool.query<{ kind: string; locator: string }>(
+      `SELECT kind::text AS kind, locator FROM evidence WHERE task_id = $1 ORDER BY kind`,
+      [taskId],
+    );
+    expect(rows.map((r) => `${r.kind}:${r.locator}`)).toEqual([
+      'commit:a1b2c3d',
+      'test:spec-concurrency.spec.ts',
+    ]);
+  });
+
+  it('상태 이름은 열거가 지킨다 — 지어낸 이름은 호출 전에 막힌다', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-10',
+      external_session_id: 'S-badstatus',
+    });
+    const out = await callTool('nerv_task_update', {
+      session_id: boot['session_id'],
+      task_id: newId(),
+      status: 'completed',
+    });
+    expect(out).toMatchObject({
+      ok: false,
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'invalid_input', not_allowed: ['status'] },
+    });
+  });
+
   it('겹침 차단은 next_actions 를 실어 준다 — 별도 폴링 루프를 만들 필요가 없다', async () => {
     const boot = await callTool('nerv_bootstrap', {
       agent_type: 'claude-code',

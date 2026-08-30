@@ -41,6 +41,9 @@ const FINDING = {
   round_no: 3,
   spec_key: 'SPC-CWC-007',
   requirement_ref: 'REQ-CWC-031',
+  symbol: 'restoreSession',
+  detail_md: 'XSS 한 번이면 그대로 새어 나간다. 서버 세션 쿠키로 옮겨야 한다.',
+  suggestion_md: 'httpOnly 쿠키 + 서버 세션으로 전환',
 };
 
 const BARE = {
@@ -54,6 +57,8 @@ const BARE = {
   spec_key: null,
   requirement_ref: null,
   occurrence_count: 1,
+  detail_md: null,
+  suggestion_md: null,
 };
 
 const GATE_ROWS = [
@@ -278,5 +283,43 @@ describe('S6 게이트 현황 — 면제가 조용히 일어나지 않는다 (RE
     await renderCenter();
     // 20개만 그리고 아무 말도 안 하면 화면은 "브랜치가 20개뿐"이라고 거짓말한다
     expect(screen.getByTestId('gate-truncated').textContent).toContain('441');
+  });
+});
+
+// 2026-08-30 사람 보고 — "리뷰 페이지에 한 줄만 있어서 무엇을 말하는지 알 수 없다".
+// 에이전트는 처음부터 본문과 제안을 채워 보내고 있었고(sudoku 10/10 · clemvion
+// 18,652/18,654) API 도 실어 주고 있었는데, **카드가 제목만 그렸다.**
+describe('발견의 본문과 제안 (2026-08-30)', () => {
+  it('펼치면 내용과 제안이 나온다 — 제목은 손잡이일 뿐이다', async () => {
+    await renderCenter();
+    await screen.findByText('세션 토큰이 localStorage 에 평문 저장');
+
+    // 접힘이 기본이다 — 18,650건짜리 큐에서 전부 펼치면 고를 수가 없다
+    expect(screen.queryByTestId('finding-detail')).toBeNull();
+
+    const card = screen.getAllByTestId('finding-card')[0]!;
+    fireEvent.click(within(card).getByTestId('finding-toggle'));
+
+    expect(within(card).getByTestId('finding-detail').textContent).toContain('XSS 한 번이면');
+    expect(within(card).getByTestId('finding-suggestion').textContent).toContain('httpOnly 쿠키');
+  });
+
+  it('본문이 없는 발견에는 펼침 단추를 두지 않는다 — 눌러도 빈 자리다', async () => {
+    await renderCenter();
+    await screen.findByText('로더 캐시 헤더 TTL 미지정');
+    const bare = screen.getAllByTestId('finding-card')[1]!;
+    expect(within(bare).queryByTestId('finding-toggle')).toBeNull();
+  });
+
+  it('고르면 레일이 카드가 자르는 것을 편다 — 갈래·심볼·전체 경로', async () => {
+    await renderCenter();
+    const card = await screen.findByText('세션 토큰이 localStorage 에 평문 저장');
+    expect(screen.queryByTestId('finding-rail')).toBeNull();
+
+    fireEvent.click(card);
+    const rail = await screen.findByTestId('finding-rail');
+    expect(rail.textContent).toContain('security');
+    expect(rail.textContent).toContain('restoreSession');
+    expect(rail.textContent).toContain('src/widget/session.ts:88');
   });
 });

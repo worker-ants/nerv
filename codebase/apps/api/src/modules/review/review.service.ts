@@ -635,12 +635,22 @@ export class ReviewService {
              f.detail_md, f.suggestion_md, f.tags, f.file_path, f.line_start, f.symbol,
              f.occurrence_count, f.created_at,
              rs.head_sha, rs.branch, rs.round_no, rs.completed_at AS reviewed_at,
-             s.key AS spec_key, s.title AS spec_title, r.ref AS requirement_ref
+             s.key AS spec_key, s.title AS spec_title, r.ref AS requirement_ref,
+             -- **처분한 사실도 함께 준다**(2026-08-30). 처분 근거가 화면에 없으면
+             -- dismissed 는 삭제와 구별되지 않는다 — "왜 아니라고 했나"가 남지 않는다.
+             res.kind::text AS resolution_kind, res.rationale_md AS resolution_rationale,
+             res.commit_sha AS resolution_commit, res.created_at AS resolved_at,
+             ru.display_name AS resolved_by_name
         FROM finding f
         JOIN review_session rs ON rs.id = f.last_session_id
         LEFT JOIN spec_version sv ON sv.id = f.spec_version_id
         LEFT JOIN spec s ON s.id = sv.spec_id
         LEFT JOIN requirement r ON r.id = f.requirement_id
+        LEFT JOIN LATERAL (
+          SELECT kind, rationale_md, commit_sha, created_at, actor_user_id
+            FROM resolution WHERE finding_id = f.id ORDER BY created_at DESC LIMIT 1
+        ) res ON true
+        LEFT JOIN "user" ru ON ru.id = res.actor_user_id
        WHERE f.project_id = ${input.projectId}
          ${this.filter('f.severity', severity, 'finding_severity')}
          ${this.filter('f.status', status, 'finding_status')}

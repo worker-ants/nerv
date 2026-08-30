@@ -160,6 +160,15 @@ export const en = {
   'reviews.action.wont_fix': "Won't fix",
   'reviews.bypass': 'Waiver',
   'reviews.filter.reset': 'Clear filters',
+  'reviews.expand': 'Expand',
+  'reviews.collapse': 'Collapse',
+  'reviews.suggestion': 'Suggestion',
+  'reviews.rail.category': 'Category',
+  'reviews.rail.symbol': 'Symbol',
+  'reviews.rail.found_at': 'Opened',
+  'reviews.rail.reviewed_at': 'Reviewed',
+  'reviews.rail.detail': 'Detail',
+  'reviews.rail.resolution': 'Resolution',
   'reviews.filter.severity': 'Severity',
   'reviews.filter.status': 'Status',
   'reviews.filter.tag': 'Tags',
@@ -280,6 +289,11 @@ export const en = {
   'mcp.arg.body_markdown': 'The spec body (markdown) — also accepted as `body_md`',
   'mcp.arg.change_summary':
     'What changed and why — the only human sentence a version carries. Omit it and the previous one is kept',
+  'mcp.arg.evidence':
+    'evidence — required by the done gate. kind is one of code_path/test/pr/commit/review/user_guide',
+  'mcp.arg.blocked_reason': 'why it is blocked — required when status=blocked',
+  'mcp.arg.spec_impact':
+    'impact on specs — required by the done gate. put spec keys in changed, or set none to true when nothing moved',
   'mcp.arg.base_hash':
     'Fingerprint of the body you read — the content_hash from nerv_spec_get. Required when editing an existing document',
   'mcp.arg.blocking':

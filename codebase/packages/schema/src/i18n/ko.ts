@@ -161,6 +161,15 @@ export const ko = {
   'reviews.action.wont_fix': '유예',
   'reviews.bypass': '면제',
   'reviews.filter.reset': '필터 지우기',
+  'reviews.expand': '펼치기',
+  'reviews.collapse': '접기',
+  'reviews.suggestion': '제안',
+  'reviews.rail.category': '갈래',
+  'reviews.rail.symbol': '심볼',
+  'reviews.rail.found_at': '등록',
+  'reviews.rail.reviewed_at': '검토',
+  'reviews.rail.detail': '내용',
+  'reviews.rail.resolution': '처분 근거',
   'reviews.filter.severity': '심각도',
   'reviews.filter.status': '상태',
   'reviews.filter.tag': '태그',
@@ -279,6 +288,11 @@ export const ko = {
   'mcp.arg.body_markdown': '스펙 본문(markdown) — `body_md` 라는 이름으로도 받는다',
   'mcp.arg.change_summary':
     '무엇을 왜 바꿨나 — 버전에 남는 유일한 사람 말이다. 주지 않으면 앞의 것을 지우지 않는다',
+  'mcp.arg.evidence':
+    '증적 — done 게이트가 요구한다. kind 는 code_path·test·pr·commit·review·user_guide',
+  'mcp.arg.blocked_reason': '막힌 이유 — status=blocked 면 필수다',
+  'mcp.arg.spec_impact':
+    '스펙에 미친 영향 — done 게이트의 필수 선언이다. 바꾼 스펙이 있으면 changed 에 스펙 키 배열을, 없으면 none 을 true 로 준다',
   'mcp.arg.base_hash':
     '내가 보고 쓴 본문의 지문 — nerv_spec_get 응답의 content_hash. 기존 문서를 고칠 때는 필수다',
   'mcp.arg.blocking':

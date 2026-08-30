@@ -133,7 +133,41 @@ export class TaskTools implements NervToolProvider {
         type: 'object',
         properties: {
           task_id: { type: 'string', description: 'task key (CLV-T-…) or UUID' },
-          status: { type: 'string' },
+          // **허용값을 적는다.** 열거가 없으면 에이전트는 상태 이름을 지어내고, 그 실패는
+          // "전이 불가" 로 보여 스펙 문제처럼 읽힌다(2026-08-30 사람 보고)
+          status: {
+            type: 'string',
+            enum: ['backlog', 'ready', 'claimed', 'in_progress', 'in_review', 'done', 'blocked'],
+          },
+          // **핸들러는 처음부터 이 셋을 읽고 있었는데 스키마에 없었다** — `nerv_question_create`
+          // 와 같은 결함이다. 도구는 스키마를 읽으므로, 적지 않은 입력은 실리지 않는다.
+          // done 게이트가 증적을 요구하는데 증적을 실을 길이 없던 것이 그 결과다.
+          evidence: {
+            type: 'array',
+            description: 'mcp.arg.evidence',
+            items: {
+              type: 'object',
+              required: ['kind', 'locator'],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['code_path', 'test', 'pr', 'commit', 'review', 'user_guide'],
+                },
+                locator: { type: 'string' },
+              },
+            },
+          },
+          blocked_reason: { type: 'string', description: 'mcp.arg.blocked_reason' },
+          // **모양을 적는다.** done 게이트는 "비어 있지 않은 객체"만 보는데, 그것만으로는
+          // 무엇을 넣어야 할지 알 수 없다 — 열쇠 이름을 적어야 계약이 된다.
+          spec_impact: {
+            type: 'object',
+            description: 'mcp.arg.spec_impact',
+            properties: {
+              changed: { type: 'array', items: { type: 'string' }, description: 'spec keys' },
+              none: { type: 'boolean', description: 'no spec was affected' },
+            },
+          },
           idempotency_key: { type: 'string' },
         },
         required: ['task_id', 'status'],

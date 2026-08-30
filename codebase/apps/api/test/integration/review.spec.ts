@@ -224,6 +224,29 @@ describe('FR-09 처분 — 하향은 사람의 승인을 거친다(A3)', () => {
     expect(out.open_remaining).toBe(0);
   });
 
+  // 2026-08-30 — 처분 근거가 목록 응답에 없어서 화면이 그것을 보일 수 없었다.
+  // 근거가 없으면 dismissed 는 **삭제와 구별되지 않는다**.
+  it('처분한 발견은 목록이 근거와 처분자를 함께 준다', async () => {
+    const findingId = await openCritical();
+    await reviews.resolve({
+      projectId,
+      findingId,
+      userId,
+      sessionId: agentSessionId,
+      isAgent: true,
+      kind: 'fixed',
+      status: 'fixed',
+      rationale: '로거에서 토큰 필드를 지웠다',
+      commitSha: 'dddd444',
+    });
+    const listed = await reviews.findings({ projectId, status: ['fixed'] });
+    const row = listed.items.find((f) => f['id'] === findingId);
+    expect(row?.['resolution_rationale']).toBe('로거에서 토큰 필드를 지웠다');
+    expect(row?.['resolution_kind']).toBe('fixed');
+    expect(row?.['resolution_commit']).toBe('dddd444');
+    expect(row?.['resolved_by_name']).not.toBeNull();
+  });
+
   it('fixed 인데 커밋이 없으면 막는다 — 검증 가능한 사실이라 A2 인 것이다', async () => {
     const findingId = await openCritical();
     await expect(

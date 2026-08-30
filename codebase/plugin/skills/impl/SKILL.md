@@ -36,13 +36,22 @@ allowed-tools:
 
 ## 진행·상태 전이
 
-- 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`, `note`) 호출.
+- 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`) 호출.
 - 스펙에 없는 결정이 필요하거나 scope 경계를 벗어나야 하면 **추측하지 말고**
   /nerv:question 규약으로 `nerv_question_create`. blocking 질문이면 답변까지 구현을 멈춘다.
-- 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`, `note`).
-- 완료 시 `nerv_task_update`(`task_id`, `status=done`, `note`,
-  `evidence{commit_sha,pr_url,test_ids}`) — **증적 없는 done 시도는 하지 않는다.**
-  "다 했습니다"는 증거가 아니다 — 판정은 서버가 evidence로 한다.
+- 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`).
+- 완료 시 `nerv_task_update`(`task_id`, `status=done`, `evidence`) —
+  **증적 없는 done 시도는 하지 않는다.** "다 했습니다"는 증거가 아니다 — 판정은 서버가
+  evidence로 한다.
+- `evidence` 는 **`[{kind, locator}]` 배열**이다. `kind` 는 `code_path`·`test`·`pr`·
+  `commit`·`review`·`user_guide` 여섯 중 하나이고 `locator` 는 그것을 가리키는 문자열이다
+  (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). 예: `[{kind: "commit", locator: "a1b2c3d"},
+  {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
+- `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
+  `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
+  "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.
+- `status` 는 `backlog`·`ready`·`claimed`·`in_progress`·`in_review`·`done`·`blocked`
+  일곱뿐이다.
   done 전이는 서버 게이트를 지나며 정책에 따라 사람 승인(A3)이 걸릴 수 있다.
   게이트 거부 응답이 오면 사유를 사람에게 그대로 보고한다(우회하지 않는다).
 - 작업을 끝냈거나 세션을 접으면 `nerv_task_release`(`claim_id`,

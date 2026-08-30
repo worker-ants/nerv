@@ -9,6 +9,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
+import { FindingRail } from '../../features/review-center/finding-rail.js';
 import { GateCoverage } from '../../features/review-center/gate-coverage.js';
 import { ResolveDialog } from '../../features/review-center/resolve-dialog.js';
 import type { ResolveAction } from '../../features/review-center/resolve-dialog.js';
@@ -49,6 +50,8 @@ function ReviewCenter(): React.JSX.Element {
   const [status, setStatus] = useState<string[]>(['open']);
   const [tag, setTag] = useState<string[]>([]);
   const [resolving, setResolving] = useState<{ id: string; action: ResolveAction } | null>(null);
+  // 레일이 펴는 하나 — 고르지 않았으면 레일을 세우지 않는다(빈 패널을 만들지 않는다)
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   // **더 보기는 배수로 늘린다.** clemvion 실측 18,650건 — 전량을 한 번에 그리면
   // 화면이 3만 픽셀이 된다(실측 2026-08-24). 답은 무한 스크롤이 아니라 **필터**이고,
   // 그래서 "몇 건 중 몇 건인지"를 먼저 말한다(REQ-WEB-067).
@@ -64,6 +67,7 @@ function ReviewCenter(): React.JSX.Element {
 
   const facets = queue.data?.facets;
   const items = queue.data?.items ?? [];
+  const selected = items.find((f) => String(f['id']) === selectedId) ?? null;
   const gateRows = rows(gate.data?.items);
   // 지금 필터로 잡히는 전체 — facet 은 "이것을 켜면 몇 건인가"라 status facet 의 합이다
   const matched = status.reduce((sum, key) => sum + (facets?.status[key] ?? 0), 0);
@@ -163,6 +167,8 @@ function ReviewCenter(): React.JSX.Element {
                     finding={finding}
                     projectSlug={proj}
                     canResolve={canResolve}
+                    selected={selectedId === String(finding['id'])}
+                    onSelect={(f) => setSelectedId(String(f['id']))}
                     onResolve={(f, action) => setResolving({ id: String(f['id']), action })}
                   />
                   {resolving?.id === String(finding['id']) && (
@@ -191,6 +197,16 @@ function ReviewCenter(): React.JSX.Element {
             </button>
           )}
         </div>
+
+        {/* 고른 하나를 펴는 레일 — 카드가 자르는 것(경로·심볼·갈래·처분 근거)이 여기 있다.
+            고르지 않았으면 세우지 않는다: 빈 패널은 화면 폭을 버리는 것이다(§2.5 와 같은 규칙) */}
+        {selected !== null && (
+          <aside className="hidden w-[340px] shrink-0 xl:block">
+            <div className="sticky top-4 rounded-nerv border border-border bg-bg-elev px-4 py-3.5">
+              <FindingRail finding={selected} projectSlug={proj} />
+            </div>
+          </aside>
+        )}
       </div>
 
       <div className="mt-6">
