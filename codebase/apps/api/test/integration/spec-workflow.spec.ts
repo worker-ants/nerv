@@ -340,6 +340,55 @@ describe('E09-S01 초안 편집 리스 (D-04 문서 축 확장)', () => {
   });
 });
 
+// 2026-08-30 실측 — 임포터의 골격 배치는 디렉터리에서 area 노드를 만들고 본문 파일이 없으면
+// 버전 행을 만들지 않는다. clemvion 의 `channel-web-chat`(자식 둘을 거느린 영역)이 그것이었다:
+// 트리에는 보이는데 `nerv_spec_get` 은 "스펙을 찾을 수 없습니다" 라고 답했고, 이어 쓰려 하면
+// **얻을 수 없는 지문**을 요구했다.
+describe('버전이 없는 골격 노드도 문서다 (§1.4i)', () => {
+  async function skeleton(key: string): Promise<string> {
+    const specId = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'area',$3,$3)`,
+      [specId, projectId, key],
+    );
+    return specId;
+  }
+
+  it('get 은 "없다" 가 아니라 빈 본문의 노드를 준다', async () => {
+    await skeleton('SPC-EMPTY');
+    const r = await specs.get({ projectId, specKey: 'SPC-EMPTY' });
+    expect(r['key']).toBe('SPC-EMPTY');
+    expect(r['body_md']).toBe('');
+    // 견줄 판이 없다는 것을 지문이 그대로 말한다 — 가짜 값을 지어내게 하지 않는다
+    expect(r['content_hash']).toBeNull();
+    expect(r['version_id']).toBeNull();
+  });
+
+  it('지킬 내용이 없으면 지문을 요구하지 않는다 — 그 자리는 필수를 흉내만 냈다', async () => {
+    const specId = await skeleton('SPC-EMPTY2');
+    const r = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      bodyMd: '# 이제 본문이 생긴다',
+      userId: planner,
+    });
+    // 골격 노드에 처음 본문이 붙는 것은 **새 버전 행**이다(스펙 행은 이미 있었다)
+    expect(r['created']).toBe(true);
+    expect(r['version_no']).toBe(1);
+    // 한 번 본문이 생기면 그다음부터는 지문이 필수다
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        bodyMd: '# 지문 없이 덮어쓴다',
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+});
+
 describe('E09-S04 위험도 가변 게이트 (D-06)', () => {
   it('T0 은 승인 없이 통과하고 그 사실을 기록한다 — 첫날부터 켜는 경로다', async () => {
     const { versionId } = await newDraft('SPC-T0', '# 오탈자 정정');

@@ -492,7 +492,12 @@ function SpecDetail(): React.JSX.Element {
           <Button
             data-testid="submit-review"
             disabled={
-              docStatus !== 'draft' || submit.isPending || check.data?.['verdict'] === 'block'
+              // 버전 행이 아직 없는 골격 노드(임포터가 디렉터리에서 만든 area)에서는 제출할
+              // 것이 없다 — 예전에는 눌리고 `/spec-versions//submit` 로 나갔다(§1.4i)
+              versionId === '' ||
+              docStatus !== 'draft' ||
+              submit.isPending ||
+              check.data?.['verdict'] === 'block'
             }
             title={check.data?.['verdict'] === 'block' ? t('spec.submit_blocked') : undefined}
             onClick={() => setShowImpact(true)}
@@ -772,7 +777,7 @@ function CommentList({
         />
         <Button
           size="sm"
-          disabled={anchor.trim() === '' || body.trim() === '' || add.isPending}
+          disabled={versionId === '' || anchor.trim() === '' || body.trim() === '' || add.isPending}
           onClick={() => add.mutate()}
           className="self-start"
         >

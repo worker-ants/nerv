@@ -174,6 +174,11 @@ export class SpecService {
     // **기본은 최신 approved 다**(EP-SPEC-03 · REQ-WEB-011). current_version_id 를 그냥 주면
     // 초안이 기본 화면에 뜨고, 그러면 "승인된 것"과 "쓰는 중인 것"의 구분이 화면에서 사라진다
     // — 문서 축 분리(D-02)의 요점이 거기다. 승인본이 아직 없는 새 스펙만 draft 로 떨어진다.
+    // **버전이 없는 노드도 문서다.** 임포터의 골격 배치는 디렉터리에서 area 노드를 만들고
+    // 본문 파일이 없으면 버전 행을 만들지 않는다 — 그런 노드가 트리에는 보이는데
+    // `nerv_spec_get` 은 **"스펙을 찾을 수 없습니다"** 라고 답했다(실측 2026-08-30:
+    // clemvion `channel-web-chat` — 자식 둘을 거느린 영역이 도구로는 읽히지 않았다).
+    // 그건 "없다"가 아니라 "아직 본문이 없다"이므로 LEFT JOIN 으로 노드를 돌려준다.
     const pick =
       input.versionNo == null
         ? sql`sv.id = coalesce(
@@ -193,7 +198,7 @@ export class SpecService {
              -- 곁줄(시안) — 누가 언제 승인했는가. 이 문서의 무게를 한 줄로 말한다
              sv.approved_at, u.display_name AS approved_by_name
         FROM spec s
-        JOIN spec_version sv ON ${pick}
+   LEFT JOIN spec_version sv ON ${pick}
    LEFT JOIN "user" u ON u.id = sv.approved_by_user_id
        WHERE s.project_id = ${input.projectId} AND ${specMatch(input.specKey)}
     `);
@@ -213,9 +218,11 @@ export class SpecService {
 
     return {
       ...spec,
+      // 본문이 없는 노드는 빈 본문이다 — null 을 그대로 흘리면 화면이 "null" 을 쓴다
+      body_md: spec['body_md'] ?? '',
       requirements,
       // 기준 버전이 이미 지나간 판이면 표시한다 — 재브리핑의 신호다(§2.4)
-      basis_superseded: spec['superseded_by_version_id'] !== null,
+      basis_superseded: spec['superseded_by_version_id'] != null,
     };
   }
 
@@ -383,15 +390,23 @@ export class SpecService {
       // "어느 행에서 갈라졌는가"(계보)는 서버가 아는 사실이라 묻지 않는다 — 예전에는
       // `base_version` 으로 물었는데, 초안은 같은 행을 덮어쓰므로 그 답은 아무것도 막지
       // 못했다(실측에서 세 세션이 다 성공하고 둘이 글을 잃었다).
-      if (isExisting) {
-        const current = draft !== null ? draft.content_hash : await readerHash(tx, specId);
+      const current = isExisting
+        ? draft !== null
+          ? draft.content_hash
+          : await readerHash(tx, specId)
+        : null;
+      // **지킬 내용이 있을 때만 지문을 요구한다.** 예전 조건은 "기존 스펙이면"이었는데,
+      // 임포터의 골격 노드는 스펙 행만 있고 버전이 없다 — 견줄 지문이 없는데 지문을
+      // 요구하니 에이전트는 얻을 수 없는 값을 내놓아야 했고(그 문서의 get 은 "없다"고
+      // 답했다), 아무 문자열이나 넣으면 통과했다. 필수를 흉내만 낸 자리였다(실측 2026-08-30).
+      if (current !== null) {
         if (input.baseHash == null || input.baseHash === '') {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.base_hash_required'), {
             kind: 'base_hash_required',
             current_hash: current,
           });
         }
-        if (current !== null && input.baseHash !== current) {
+        if (input.baseHash !== current) {
           // 재시도가 아니라 **다시 읽고 다시 얹는 것**이 답이다 — 같은 본문으로 다시 부르면
           // 그건 덮어쓰기다. 그래서 현재 지문과 딥링크를 함께 준다.
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.stale_body'), {
