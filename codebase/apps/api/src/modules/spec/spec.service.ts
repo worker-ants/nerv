@@ -367,6 +367,12 @@ export class SpecService {
           UPDATE spec_version
              SET body_md = ${input.bodyMd}, content_hash = decode(${hash}, 'hex'),
                  change_summary_md = coalesce(${input.changeSummary ?? null}, change_summary_md),
+                 -- **본문이 바뀐 시각**이지 저장된 시각이 아니다. 요약만 고치는 저장이나
+                 -- 리스 갱신에 시계가 움직이면 "언제 바뀌었나"가 거짓이 된다.
+                 updated_at = CASE
+                   WHEN content_hash IS DISTINCT FROM decode(${hash}, 'hex') THEN now()
+                   ELSE updated_at
+                 END,
                  edit_lease_user_id = ${input.userId},
                  edit_lease_session_id = ${input.sessionId ?? null},
                  edit_lease_expires_at = ${leaseExpires.toISOString()}
@@ -874,7 +880,7 @@ export class SpecService {
     specKey: string;
   }): Promise<Record<string, unknown>[]> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT sv.id, sv.version_no, sv.status::text AS status, sv.change_summary_md,
+      SELECT sv.id, sv.version_no, sv.status::text AS status, sv.change_summary_md, sv.updated_at,
              sv.author_user_id, sv.approved_by_user_id, sv.submitted_at, sv.approved_at,
              sv.created_at
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id

@@ -95,6 +95,16 @@ export const specVersion = pgTable(
     /** TTL 30분 — Task 클레임 리스와 같은 상수(D-04) */
     editLeaseExpiresAt: ts('edit_lease_expires_at'),
     createdAt: createdAt(),
+    /**
+     * 본문이 마지막으로 **바뀐** 시각 — 저장된 시각이 아니다.
+     *
+     * draft 는 같은 행을 덮어쓰므로 `created_at` 은 "언제 만들었나"에만 답한다. 버전
+     * 목록이 "2시간 전"이라 적는데 방금 고친 문서인 상황이 그래서 나왔다(실측 2026-08-30).
+     * 무변경 저장(요약만 고치는 저장 포함)에는 움직이지 않는다 — 그때는 문서가 바뀌지 않았다.
+     */
+    updatedAt: ts('updated_at')
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => [
     uniqueIndex('spec_version_no_uq').on(t.specId, t.versionNo),

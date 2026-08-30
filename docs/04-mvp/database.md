@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.12 · 2026-08-30 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.13 · 2026-08-30 · HTML 판: [database.html](../html/database.html)
+>
+> v0.13 변경(2026-08-30 — 초안이 언제 바뀌었는지 알 수 없었다, 사람 결정): `spec_version` 에 **`updated_at`**(0008). draft 는 같은 행을 덮어쓰므로 `created_at` 은 "언제 만들었나"에만 답한다 — 버전 목록이 "2시간 전"이라 적는데 방금 고친 문서인 상황이 그래서 나왔다. **본문이 바뀔 때만** 움직인다(요약만 고치는 저장·리스 갱신에는 움직이지 않는다 — 그때는 문서가 바뀌지 않았다).
 >
 > v0.12 변경(2026-08-30 — 질문의 출처와 사유, 사람 결정): `question` 에 **`spec_id`·`finding_id`·`escalate`** 3열(0007). 스킬과 카탈로그가 `context{spec_id,task_id,finding_id}`·`escalate` 를 지시하는데 저장할 자리가 없어 도구가 그 값을 **조용히 버리고 있었다**([4.4](api.md) §1.4d). **enum 은 새로 만들지 않았다** — `escalate_reason` 이 이미 그 5종 어휘이고 Resolution 이 쓴다(§2.1 그대로 38종). 테이블 수는 30종 그대로다.
 >
@@ -230,6 +232,7 @@ CREATE TABLE spec_version (                  -- 불변 스냅샷. 가변 구간�
   edit_lease_session_id     uuid REFERENCES agent_session(id), -- 보유 표면. NULL = 웹
   edit_lease_expires_at     timestamptz,                        -- TTL 30분(공용 상수)
   created_at                timestamptz NOT NULL DEFAULT now(),
+  updated_at                timestamptz NOT NULL DEFAULT now(), -- 본문이 **바뀐** 시각(저장된 시각이 아니다)
   CONSTRAINT spec_version_no_uq UNIQUE (spec_id, version_no),
   CONSTRAINT spec_version_no_positive_ck CHECK (version_no >= 1),
   -- data-model §5.5 규칙 9: 편집 리스는 draft에서만 non-NULL

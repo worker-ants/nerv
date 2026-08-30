@@ -635,11 +635,10 @@ function SpecDetail(): React.JSX.Element {
                         }
                         label={t(statusLabelKey('spec', String(v['status'])))}
                       />
+                      {/* **바뀐 시각**이지 만든 시각이 아니다 — draft 는 같은 행을
+                          덮어쓰므로 created_at 을 적으면 방금 고친 문서가 "2시간 전"이 된다 */}
                       <span className="ml-auto shrink-0 text-2xs text-text-faint">
-                        {relativeTime(
-                          t,
-                          typeof v['created_at'] === 'string' ? v['created_at'] : null,
-                        )}
+                        {relativeTime(t, changedAt(v))}
                       </span>
                     </div>
                     {/* **무엇을 왜 바꿨나** — 이 줄이 없으면 목록은 번호와 배지뿐이고,
@@ -851,4 +850,11 @@ function RelationRow({
       </span>
     </Link>
   );
+}
+
+/** 버전이 마지막으로 바뀐 시각 — 옛 행에는 `updated_at` 이 없으니 만든 시각으로 떨어진다 */
+function changedAt(version: Record<string, unknown>): string | null {
+  const changed = version['updated_at'];
+  if (typeof changed === 'string') return changed;
+  return typeof version['created_at'] === 'string' ? version['created_at'] : null;
 }

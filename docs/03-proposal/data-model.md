@@ -2,7 +2,9 @@
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 29개 엔티티의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.4 · 2026-08-30 · HTML 판: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.5 · 2026-08-30 · HTML 판: [data-model.html](../html/data-model.html)
+>
+> v0.5 변경(2026-08-30 — 초안이 언제 바뀌었는지, 사람 결정): `spec_version` 에 `updated_at` 을 더한다(§2.7). draft 는 같은 행을 덮어쓰므로 `created_at` 은 "언제 만들었나"에만 답한다. DDL 정본은 [4.3](../04-mvp/database.md) §2.8.
 >
 > v0.4 변경(2026-08-30 — 질문의 출처와 사유, 사람 결정): `question` 에 `spec_id`·`finding_id`·`escalate` 를 더한다(§2.7). 출처는 **사람이 원문으로 가는 길**이고, 사유는 `escalate_reason` 어휘를 그대로 쓴다(§2.6 — 같은 뜻에 두 어휘를 두지 않는다). DDL 정본은 [4.3](../04-mvp/database.md) §2.8.
 
@@ -249,6 +251,7 @@ stateDiagram-v2
 | `edit_lease_user_id` | uuid FK NULL | 초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — `base_version_id` 409는 그대로 최후 방어선이다 |
 | `edit_lease_session_id` | uuid FK NULL | 보유 표면. 에이전트 세션이면 그 세션, NULL = 웹 |
 | `edit_lease_expires_at` | timestamptz NULL | 리스 만료. TTL 30분 — Task 클레임 리스·stale 임계와 같은 상수 |
+| `updated_at` | timestamptz | 본문이 **바뀐** 시각(저장된 시각이 아니다). draft 는 같은 행을 덮어쓰므로 `created_at` 만으로는 "언제 바뀌었나"에 답하지 못한다 — 요약만 고치는 저장·리스 갱신에는 움직이지 않는다 |
 
 무결성 규칙: `status = 'approved'` 이후 `body_md`·`content_hash` UPDATE를 트리거로 금지한다. 과거 버전 복원은 편집이 아니라 **새 버전 생성**이다 — Confluence가 20년째 쓰는 인터페이스이고, 요구공학의 baseline 정의("합의·검토·승인된 요구사항 집합의 시점 스냅샷") 그대로다.
 

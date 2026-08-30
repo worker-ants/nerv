@@ -195,6 +195,50 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     expect(await summaryOf()).toBe('문장을 고쳤다');
   });
 
+  it('바뀐 시각은 본문이 바뀔 때만 움직인다 — 저장한 시각이 아니다', async () => {
+    const made = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-TOUCHED',
+      title: '시각',
+      type: 'feature',
+      bodyMd: '# 처음',
+      userId: planner,
+    });
+    const specId = made['spec_id'] as string;
+    const stamps = async (): Promise<{ created: string; updated: string }> => {
+      const { rows } = await pool.query<{ created_at: string; updated_at: string }>(
+        `SELECT created_at::text, updated_at::text FROM spec_version WHERE spec_id = $1`,
+        [specId],
+      );
+      return { created: rows[0]?.created_at ?? '', updated: rows[0]?.updated_at ?? '' };
+    };
+    const first = await stamps();
+
+    // 요약만 바꾸는 저장은 문서를 바꾸지 않는다 — 시계가 움직이면 "언제 바뀌었나"가 거짓이 된다
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      bodyMd: '# 처음',
+      changeSummary: '요약만 고친다',
+      userId: planner,
+    });
+    expect((await stamps()).updated).toBe(first.updated);
+
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      bodyMd: '# 고쳤다',
+      userId: planner,
+    });
+    const after = await stamps();
+    expect(after.updated > first.updated).toBe(true);
+    // 만든 시각은 그대로다 — 그것이 두 값을 따로 두는 이유다
+    expect(after.created).toBe(first.created);
+  });
+
   it('저장이 무엇이 바뀌었는지 함께 돌려준다 — 되짚을 diff 가 없는 자리다', async () => {
     const made = await specs.draftUpsert({
       roles: ['planner'],
