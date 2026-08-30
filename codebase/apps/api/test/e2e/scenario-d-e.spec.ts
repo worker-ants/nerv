@@ -93,7 +93,8 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
       specId,
       bodyMd:
         '# 웹챗 위젯 임베드\n\nREQ-CWC-031 WHEN 방문자가 위젯을 열면 THE SYSTEM SHALL 대화를 복원한다\n\n## 보안\n토큰으로 검증한다\n\n## 마무리\n웹에서 이어서 쓴다',
-      baseVersionId: draft['spec_version_id'] as string,
+      // 계보는 서버가 채운다(§1.4i) — 부른 쪽이 말하는 전제조건은 지문 하나다
+      baseHash: draft['content_hash'] as string,
       userId: jimin,
     });
 

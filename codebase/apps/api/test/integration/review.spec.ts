@@ -90,6 +90,9 @@ function submitInput(over: Record<string, unknown> = {}): Parameters<ReviewServi
 const CRITICAL = {
   severity: 'critical' as const,
   title: '토큰이 로그에 남는다',
+  // 제목만으로는 무엇을 말하는지 알 수 없다 — 화면도 승격도 이 둘을 옮긴다(REQ-WEB-111)
+  body_md: '요청 로거가 Authorization 헤더를 통째로 찍는다.',
+  suggestion_md: '헤더 화이트리스트를 두고 나머지는 마스킹한다.',
   file: 'src/widget.ts',
   line: 42,
   category: 'security',

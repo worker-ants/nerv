@@ -131,7 +131,7 @@ async function makeSpec(
 /** 던지는 것이 정상인 검사라 예외를 값으로 다룬다 */
 async function settle<T>(
   work: Promise<T>[],
-): Promise<{ ok: T[]; failed: { code?: string; kind?: string }[] }> {
+): Promise<{ ok: T[]; failed: { code?: string | undefined; kind?: string | undefined }[] }> {
   const results = await Promise.allSettled(work);
   return {
     ok: results
