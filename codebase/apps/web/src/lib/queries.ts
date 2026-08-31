@@ -120,6 +120,29 @@ export function useSpec(slug: string, specKey: string): UseQueryResult<Row> {
 }
 
 /** EP-SPEC-19 — 전역 그래프. 노드·간선을 한 번에 받는다(끝점 없는 간선을 만들지 않는다) */
+/**
+ * **결재가 가리키는 바로 그 판** — 받은 요청의 카드가 연다(REQ-WEB-119).
+ *
+ * `useSpec` 은 "지금 읽는 사람이 보는 판"(최신 approved, 없으면 현재)을 준다. 결재는
+ * **검토 중인 그 버전**을 두고 하는 결정이라 둘이 다를 수 있다 — 카드가 보여준 것과
+ * 승인되는 것이 같아야 한다는 규약(§2.3 지문 대조)과 같은 이유다.
+ */
+export function useSpecVersion(
+  slug: string,
+  specKey: string,
+  versionNo: number | null,
+  enabled: boolean,
+): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: [...queryKeys.spec(specKey), 'v', versionNo ?? 'current'],
+    queryFn: () =>
+      apiFetch<Row>(
+        `/projects/${slug}/specs/${specKey}${versionNo === null ? '' : `?v=${versionNo}`}`,
+      ),
+    enabled: enabled && specKey !== '',
+  });
+}
+
 export function useSpecGraph(
   slug: string,
   projectId: string | undefined,

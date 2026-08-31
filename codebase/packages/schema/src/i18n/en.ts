@@ -467,6 +467,7 @@ export const en = {
   // ── 공통 — 여러 화면이 같이 쓰는 말 ─────────────────────────────────────────────────
   'common.all': 'See all ▸',
   'common.cancel': 'Cancel',
+  'common.loading': 'Loading…',
   'common.close': 'Close',
   'common.comment': 'Comment',
   'common.dash': '—',
@@ -621,6 +622,10 @@ export const en = {
   'inbox.card.reason_required':
     'Rejecting needs a reason — it goes to the requester and into the audit log.',
   'inbox.card.reject': 'Reject',
+  'inbox.card.show_body': 'Show content',
+  'inbox.card.hide_body': 'Hide content',
+  'inbox.card.body_failed': 'Could not load the content.',
+  'inbox.card.body_empty': 'The document is empty.',
   'inbox.card.self_requested': 'You requested this — someone else has to approve it.',
   'inbox.card.self_requested_admin':
     'You requested this — as an admin you can decide it yourself (it is recorded).',

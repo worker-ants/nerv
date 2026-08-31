@@ -7,7 +7,7 @@
 // 이 화면이 대체하는 것은 clemvion 의 `review/**` md 13,777개(131MB)다.
 
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
 import { FindingRail } from '../../features/review-center/finding-rail.js';
 import { GateCoverage } from '../../features/review-center/gate-coverage.js';
@@ -29,7 +29,15 @@ import {
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 
-export const Route = createFileRoute('/p/$proj/reviews/')({ component: ReviewCenter });
+export const Route = createFileRoute('/p/$proj/reviews/')({
+  // **발견 하나를 가리킬 주소가 필요하다**(2026-08-31 — 사람 요청). 받은 요청의 질문 카드가
+  // finding 을 짧은 id 로만 적고 있어서, 그 지적을 보려면 큐에서 손으로 찾아야 했다.
+  validateSearch: (search: Record<string, unknown>): { finding?: string } =>
+    typeof search['finding'] === 'string' && search['finding'] !== ''
+      ? { finding: search['finding'] }
+      : {},
+  component: ReviewCenter,
+});
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const;
 const STATUSES = ['open', 'fixed', 'dismissed', 'wont_fix'] as const;
@@ -51,7 +59,9 @@ function ReviewCenter(): React.JSX.Element {
   const [tag, setTag] = useState<string[]>([]);
   const [resolving, setResolving] = useState<{ id: string; action: ResolveAction } | null>(null);
   // 레일이 펴는 하나 — 고르지 않았으면 레일을 세우지 않는다(빈 패널을 만들지 않는다)
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 주소로 지목된 발견이 초기 선택이다 — 링크를 눌러 온 사람은 그것을 보러 온 것이다
+  const { finding: linked } = Route.useSearch();
+  const [selectedId, setSelectedId] = useState<string | null>(linked ?? null);
   // **더 보기는 배수로 늘린다.** clemvion 실측 18,650건 — 전량을 한 번에 그리면
   // 화면이 3만 픽셀이 된다(실측 2026-08-24). 답은 무한 스크롤이 아니라 **필터**이고,
   // 그래서 "몇 건 중 몇 건인지"를 먼저 말한다(REQ-WEB-067).
@@ -68,6 +78,16 @@ function ReviewCenter(): React.JSX.Element {
   const facets = queue.data?.facets;
   const items = queue.data?.items ?? [];
   const selected = items.find((f) => String(f['id']) === selectedId) ?? null;
+  // **주소가 가리키는데 큐에 없을 수 있다** — 이미 처분돼서 기본 필터(열림)에서 빠진
+  // 경우다. 그때 빈 화면을 주지 않고 상태 필터를 푼다(한 번만).
+  const [widened, setWidened] = useState(false);
+  useEffect(() => {
+    if (linked === undefined || widened) return;
+    if (queue.isPending) return;
+    if (items.some((f) => String(f['id']) === linked)) return;
+    setWidened(true);
+    setStatus([]);
+  }, [items, linked, queue.isPending, widened]);
   const gateRows = rows(gate.data?.items);
   // 지금 필터로 잡히는 전체 — facet 은 "이것을 켜면 몇 건인가"라 status facet 의 합이다
   const matched = status.reduce((sum, key) => sum + (facets?.status[key] ?? 0), 0);

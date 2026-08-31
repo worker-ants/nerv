@@ -13,6 +13,7 @@ import type { Translator } from '@nerv/schema';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
+import { useSpecVersion } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -52,6 +53,18 @@ function questionContext(card: Record<string, unknown>): {
   return out;
 }
 
+/** 승인 카드가 가리키는 문서 — 지금은 스펙 한 종류다(작업 결재는 없다) */
+function subjectLinkOf(
+  card: Record<string, unknown>,
+): { key: string; to: string; params: Record<string, string> } | null {
+  const proj = String(card['project_slug'] ?? '');
+  const specKey = card['spec_key'];
+  if (proj !== '' && typeof specKey === 'string' && specKey !== '') {
+    return { key: specKey, to: '/p/$proj/specs/$spec', params: { proj, spec: specKey } };
+  }
+  return null;
+}
+
 export interface ApprovalCardProps {
   card: Record<string, unknown>;
   compact?: boolean;
@@ -67,6 +80,15 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
   const [reasonRequired, setReasonRequired] = useState(false);
   const commentRef = useRef<HTMLTextAreaElement>(null);
   const isQuestion = card['subject_type'] === 'question';
+  const [showBody, setShowBody] = useState(false);
+  // 카드의 주어 — 승인은 스펙 한 편이고, 질문은 아래 `context` 가 여럿을 잇는다
+  const subjectLink = subjectLinkOf(card);
+  const subject = useSpecVersion(
+    String(card['project_slug'] ?? ''),
+    subjectLink?.params['spec'] ?? '',
+    typeof card['version_no'] === 'number' ? card['version_no'] : null,
+    showBody && subjectLink !== null,
+  );
   // 서버가 판정한 값이다 — 예전 판정(`self_requested !== true`)은 완화를 몰랐다.
   // 낡은 응답에는 이 필드가 없을 수 있으니 그때만 예전 규칙으로 떨어진다.
   const canApprove =
@@ -184,7 +206,20 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
           token={isQuestion ? 'waiting' : 'action'}
           label={isQuestion ? t('inbox.card.question') : t('inbox.key.approve')}
         />
-        {!isQuestion && <Mono>{String(card['spec_key'] ?? card['task_key'] ?? '')}</Mono>}
+        {/* **키는 손잡이가 아니라 문이다**(2026-08-31 — 사람 요청). 예전에는 글자였을 뿐이라
+            그 문서를 보려면 스펙 목록에서 손으로 찾아야 했다 */}
+        {!isQuestion && subjectLink !== null && (
+          <Link
+            to={subjectLink.to}
+            params={subjectLink.params as never}
+            className="text-link hover:underline"
+          >
+            <Mono>{subjectLink.key}</Mono>
+          </Link>
+        )}
+        {!isQuestion && subjectLink === null && (
+          <Mono>{String(card['spec_key'] ?? card['task_key'] ?? '')}</Mono>
+        )}
         <span className="min-w-0 flex-1 truncate font-medium">
           {String(card['title'] ?? card['spec_title'] ?? t('inbox.card.untitled'))}
         </span>
@@ -239,12 +274,54 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
               <Mono>{item.key}</Mono>
             </Link>
           ))}
+          {/* 발견도 갈 곳이 있다 — 예전에는 짧은 id 만 적혀 있어서 그 지적을 보려면
+              리뷰 큐에서 손으로 찾아야 했다(2026-08-31 — 사람 요청). 주소가 가리키는
+              발견이 이미 처분됐으면 리뷰 센터가 필터를 풀어 보여준다 */}
           {typeof card['finding_id'] === 'string' && card['finding_id'] !== '' && (
-            <span className="text-text-faint">
+            <Link
+              to="/p/$proj/reviews"
+              params={{ proj: String(card['project_slug'] ?? '') } as never}
+              search={{ finding: String(card['finding_id']) } as never}
+              data-testid="finding-link"
+              className="text-link hover:underline"
+            >
               <Mono>{String(card['finding_id']).slice(0, 8)}</Mono>
-            </span>
+            </Link>
           )}
         </p>
+      )}
+
+      {/* **문서를 여기서 연다**(2026-08-31 — 사람 요청). 결재하려면 본문을 봐야 하는데
+          카드에는 제목과 키뿐이었다 — 다른 탭에서 열고 돌아오는 왕복이 승인 병목(P4)이다.
+          **목록을 무겁게 하지 않으려고 펼칠 때 받아 온다**: 결재 목록에 본문을 싣는 것과
+          펼친 하나를 받는 것은 다른 비용이다. 그리고 **검토 중인 그 판**을 받는다 —
+          카드가 보여준 것과 승인되는 것이 같아야 한다(§2.3). */}
+      {!(compact ?? false) && !isQuestion && subjectLink !== null && (
+        <div className="mt-2">
+          <button
+            type="button"
+            data-testid="toggle-body"
+            aria-expanded={showBody}
+            onClick={() => setShowBody(!showBody)}
+            className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
+          >
+            {showBody ? t('inbox.card.hide_body') : t('inbox.card.show_body')}
+          </button>
+          {showBody && (
+            <div
+              data-testid="subject-body"
+              className="mt-1.5 max-h-80 overflow-y-auto rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-sm whitespace-pre-wrap text-text-mute"
+            >
+              {subject.isPending
+                ? t('common.loading')
+                : subject.isError
+                  ? t('inbox.card.body_failed')
+                  : String(subject.data?.['body_md'] ?? '') === ''
+                    ? t('inbox.card.body_empty')
+                    : String(subject.data?.['body_md'])}
+            </div>
+          )}
+        </div>
       )}
 
       {!(compact ?? false) && (

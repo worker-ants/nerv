@@ -460,6 +460,7 @@ export const ko = {
   // ── 공통 — 여러 화면이 같이 쓰는 말 ─────────────────────────────────────────────────
   'common.all': '전체 ▸',
   'common.cancel': '취소',
+  'common.loading': '불러오는 중…',
   'common.close': '닫기',
   'common.comment': '코멘트',
   'common.dash': '—',
@@ -614,6 +615,10 @@ export const ko = {
   'inbox.card.reason_missing': '거절 사유를 적어주세요.',
   'inbox.card.reason_required': '거절에는 사유가 필요합니다 — 요청자 알림과 감사 로그에 남습니다.',
   'inbox.card.reject': '거절',
+  'inbox.card.show_body': '본문 보기',
+  'inbox.card.hide_body': '본문 접기',
+  'inbox.card.body_failed': '본문을 불러오지 못했습니다.',
+  'inbox.card.body_empty': '본문이 비어 있습니다.',
   'inbox.card.self_requested': '내가 요청한 항목입니다 — 다른 승인자가 처리해야 합니다.',
   'inbox.card.self_requested_admin':
     '내가 요청한 항목입니다 — admin 이라 직접 결재할 수 있습니다(감사에 남습니다).',

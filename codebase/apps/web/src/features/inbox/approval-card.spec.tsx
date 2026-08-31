@@ -3,7 +3,13 @@
 import { createTranslator } from '@nerv/schema';
 import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+} from '@tanstack/react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalCard, waitedLabel } from './approval-card.js';
 import { RealtimeProvider } from '../../lib/realtime.js';
@@ -19,14 +25,29 @@ vi.mock('socket.io-client', () => ({
 
 afterEach(cleanup);
 
-function renderCard(card: Record<string, unknown>): void {
+/**
+ * 카드에 `<Link>` 가 들어왔으므로(2026-08-31) 라우터 안에서 그린다 — 밖에서 그리면
+ * 링크가 라우터를 못 찾아 터지고, 그것을 피하려고 링크를 걷으면 정작 검사할 것이 사라진다.
+ * 실제 routeTree 를 쓰지 않는 이유는 이 파일이 **카드 하나**를 보기 때문이다.
+ */
+async function renderCard(card: Record<string, unknown>): Promise<void> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const rootRoute = createRootRoute({
+    component: () => (
+      <RealtimeProvider>
+        <ApprovalCard card={card} />
+      </RealtimeProvider>
+    ),
+  });
+  const router = createRouter({
+    routeTree: rootRoute,
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  });
+  await router.load();
   render(
     <LocaleProvider locale="ko">
       <QueryClientProvider client={client}>
-        <RealtimeProvider>
-          <ApprovalCard card={card} />
-        </RealtimeProvider>
+        <RouterProvider router={router as never} />
       </QueryClientProvider>
     </LocaleProvider>,
   );
@@ -47,8 +68,8 @@ describe('대기 시간 표기 — 오래된 요청이 묻히지 않게', () => 
 });
 
 describe('카드 3유형', () => {
-  it('질문 카드는 세션 신원 3요소를 싣는다 (REQ-WEB-008)', () => {
-    renderCard({
+  it('질문 카드는 세션 신원 3요소를 싣는다 (REQ-WEB-008)', async () => {
+    await renderCard({
       id: 'q1',
       subject_type: 'question',
       title: '어느 쪽으로 갈까요',
@@ -65,8 +86,8 @@ describe('카드 3유형', () => {
     expect(screen.getByTestId('waited').textContent).toBe('5분 대기');
   });
 
-  it('왜 부르는지를 같은 줄에 적는다 — 다섯 사유가 읽는 사람의 첫 분류다', () => {
-    renderCard({
+  it('왜 부르는지를 같은 줄에 적는다 — 다섯 사유가 읽는 사람의 첫 분류다', async () => {
+    await renderCard({
       id: 'q2',
       subject_type: 'question',
       title: '판정 방식',
@@ -77,8 +98,8 @@ describe('카드 3유형', () => {
     expect(screen.getByTestId('question-escalate').textContent).toBe('제품 결정');
   });
 
-  it('사유가 없으면 적지 않는다 — 빈 자리를 만들지 않는다', () => {
-    renderCard({
+  it('사유가 없으면 적지 않는다 — 빈 자리를 만들지 않는다', async () => {
+    await renderCard({
       id: 'q3',
       subject_type: 'question',
       title: '사유 없는 질문',
@@ -88,8 +109,8 @@ describe('카드 3유형', () => {
     expect(screen.queryByTestId('question-escalate')).toBeNull();
   });
 
-  it('발견에서 온 질문은 그 짧은 id 를 단다 — 리뷰 센터와 같은 표기다', () => {
-    renderCard({
+  it('발견에서 온 질문은 그 짧은 id 를 단다 — 리뷰 센터와 같은 표기다', async () => {
+    await renderCard({
       id: 'q4',
       subject_type: 'question',
       title: '이 발견을 어떻게',
@@ -100,8 +121,8 @@ describe('카드 3유형', () => {
     expect(screen.getByTestId('question-context').textContent).toContain('9f8d4a2e');
   });
 
-  it('내가 요청한 승인은 버튼이 잠기고 사유가 보인다 — 지시자≠승인자 (spec-workflow §2.3)', () => {
-    renderCard({
+  it('내가 요청한 승인은 버튼이 잠기고 사유가 보인다 — 지시자≠승인자 (spec-workflow §2.3)', async () => {
+    await renderCard({
       id: 'a1',
       subject_type: 'spec_version',
       spec_title: '웹챗 위젯',
@@ -113,8 +134,8 @@ describe('카드 3유형', () => {
     expect(screen.getByRole('button', { name: '승인' }).hasAttribute('disabled')).toBe(true);
   });
 
-  it('남이 요청한 승인은 승인·거절이 열린다', () => {
-    renderCard({
+  it('남이 요청한 승인은 승인·거절이 열린다', async () => {
+    await renderCard({
       id: 'a2',
       subject_type: 'spec_version',
       spec_title: '세션 복원 API',
@@ -124,5 +145,63 @@ describe('카드 3유형', () => {
     });
     expect(screen.getByRole('button', { name: '승인' }).hasAttribute('disabled')).toBe(false);
     expect(screen.getByRole('button', { name: '거절' }).hasAttribute('disabled')).toBe(false);
+  });
+});
+
+// 2026-08-31 사람 요청 — "받은 요청에서 그 문서를 열거나 그 페이지로 갈 수 있으면 좋겠다".
+// 예전 카드에는 제목과 키뿐이었고, 키는 **글자였을 뿐**이라 문서를 보려면 목록에서
+// 손으로 찾아야 했다 — 다른 탭에서 열고 돌아오는 왕복이 승인 병목(P4)의 한 조각이다.
+describe('문서로 가는 길 (REQ-WEB-119)', () => {
+  const SPEC_CARD = {
+    id: 'ap-1',
+    subject_type: 'spec_version',
+    project_slug: 'sudoku',
+    spec_key: 'SUD-CONV-DOCS',
+    spec_title: '문서 규약',
+    version_no: 1,
+    waiting_seconds: 120,
+    can_approve: true,
+  };
+
+  it('키가 문서로 가는 링크다', async () => {
+    await renderCard(SPEC_CARD);
+    const link = screen.getByText('SUD-CONV-DOCS').closest('a');
+    expect(link?.getAttribute('href')).toBe('/p/sudoku/specs/SUD-CONV-DOCS');
+  });
+
+  it('본문을 카드에서 편다 — 펼칠 때 받아 온다(목록을 무겁게 하지 않는다)', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        calls.push(String(url));
+        return { ok: true, status: 200, json: async () => ({ body_md: '# 문서 규약\n\n본문' }) };
+      }),
+    );
+    await renderCard(SPEC_CARD);
+    // 펼치기 전에는 부르지 않는다
+    expect(calls.some((u) => u.includes('/specs/SUD-CONV-DOCS'))).toBe(false);
+
+    fireEvent.click(screen.getByTestId('toggle-body'));
+    await waitFor(() => expect(screen.getByTestId('subject-body').textContent).toContain('본문'));
+    // **검토 중인 그 판**을 받는다 — 카드가 보여준 것과 승인되는 것이 같아야 한다
+    expect(calls.some((u) => u.includes('/specs/SUD-CONV-DOCS?v=1'))).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('질문 카드의 발견은 리뷰 센터를 가리킨다 — 짧은 id 만 적어 두지 않는다', async () => {
+    await renderCard({
+      id: 'q-1',
+      subject_type: 'question',
+      project_slug: 'sudoku',
+      title: '이 지적이 맞나요',
+      finding_id: '0f3a91c2-7d10-4b55-9a3e-1c2d3e4f5a6b',
+      hostname: 'mac-02',
+      agent_type: 'claude-code',
+      waiting_seconds: 60,
+    });
+    const href = screen.getByTestId('finding-link').getAttribute('href');
+    expect(href).toContain('/p/sudoku/reviews');
+    expect(href).toContain('finding=0f3a91c2-7d10-4b55-9a3e-1c2d3e4f5a6b');
   });
 });
