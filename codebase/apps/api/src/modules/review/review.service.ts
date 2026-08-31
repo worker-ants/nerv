@@ -194,10 +194,34 @@ export class ReviewService {
          WHERE id = ${session.id}
       `);
 
+      // **라운드가 들어왔다는 사실 자체를 알린다**(2026-08-30 — 사람 보고 · REQ-API-061).
+      //
+      // 아래의 `finding.opened` 는 **새** 발견에만 난다. 그래서 재리뷰가 기존 발견에
+      // 합쳐지거나("봤고 문제 없었다" 처럼) 발견이 0건이면 게이트 현황·라운드 수·관측
+      // 횟수가 바뀌는데 **이벤트는 하나도 나지 않았다** — 화면은 새로고침 전에는 몰랐다.
+      //
+      // 알림은 만들지 않는다(카탈로그에 넣지 않는다): 사람을 부르는 것은 발견이지
+      // 라운드가 아니다. 이것은 **화면을 다시 읽게 하는 신호**다.
+      await emit({
+        type: NERV_EVENT_PHASE2.REVIEW_SUBMITTED,
+        projectId: input.projectId,
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId ?? null,
+        isAgent: input.isAgent ?? input.sessionId != null,
+        subjectType: 'review_session',
+        subjectId: session.id,
+        // 봉투에는 **수**만 싣는다(D-14) — 본문은 수신자가 자기 권한으로 다시 읽는다
+        payload: {
+          round_no: session.roundNo,
+          findings_new: created.length,
+          findings_merged: mergedIds.length,
+          block,
+        },
+      });
+
       for (const findingId of created) {
-        // **이벤트는 새로 열린 발견에만.** 같은 지적이 라운드마다 다시 울리면 알림이
+        // **알림은 새로 열린 발견에만.** 같은 지적이 라운드마다 다시 울리면 알림이
         // 소음이 되고, 그 소음 때문에 사람이 알림을 끈다 — dedup 이 여기서도 값을 한다.
-        // 이름은 카탈로그가 정본이다(spec-workflow §6.3): `review.submitted` 는 없다.
         await emit({
           type: NERV_EVENT_PHASE2.FINDING_OPENED,
           projectId: input.projectId,

@@ -67,6 +67,12 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
   const [reasonRequired, setReasonRequired] = useState(false);
   const commentRef = useRef<HTMLTextAreaElement>(null);
   const isQuestion = card['subject_type'] === 'question';
+  // 서버가 판정한 값이다 — 예전 판정(`self_requested !== true`)은 완화를 몰랐다.
+  // 낡은 응답에는 이 필드가 없을 수 있으니 그때만 예전 규칙으로 떨어진다.
+  const canApprove =
+    typeof card['can_approve'] === 'boolean'
+      ? card['can_approve']
+      : card['self_requested'] !== true;
   const id = String(card['id']);
   const context = questionContext(card);
   // 선택지는 서버가 jsonb 로 준다 — 배열이 아니면 없는 것으로 본다(카드 하나가 목록을 죽이지 않게)
@@ -151,7 +157,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
     const onKey = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement | null;
       if (target !== null && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
-      if (e.key === 'a' && !isQuestion && card['self_requested'] !== true) decide.mutate('approve');
+      if (e.key === 'a' && !isQuestion && canApprove) decide.mutate('approve');
       if (e.key === 'r' && !isQuestion) decide.mutate('reject');
       if (e.key === 'c') {
         e.preventDefault();
@@ -292,10 +298,20 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
         </>
       )}
 
+      {/* **판정은 서버가 한다**(`can_approve`) — 완화가 둘로 늘면서(소규모·admin) 화면이
+          규칙을 다시 구현하면 두 벌이 되고, 두 벌이 되면 언젠가 한쪽만 고친다.
+          내가 요청한 것인데 승인도 가능하면 그 사실만 조용히 적는다(admin 이 그 자리다). */}
       {card['self_requested'] === true && !isQuestion && (
-        // 지시자≠승인자 — 서버가 최종 판정하지만, 누를 수 없는 버튼의 이유는 미리 보여준다
-        <p className="mt-2 rounded-nerv-sm bg-status-waiting-soft px-2 py-1 text-xs text-status-waiting">
-          {t('inbox.card.self_requested')}
+        <p
+          data-testid="self-requested-note"
+          className={cn(
+            'mt-2 rounded-nerv-sm px-2 py-1 text-xs',
+            canApprove
+              ? 'bg-bg-sunken text-text-mute'
+              : 'bg-status-waiting-soft text-status-waiting',
+          )}
+        >
+          {canApprove ? t('inbox.card.self_requested_admin') : t('inbox.card.self_requested')}
         </p>
       )}
 
@@ -323,18 +339,21 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
               <Button
                 variant="primary"
                 size="sm"
-                disabled={decide.isPending || card['self_requested'] === true}
+                data-testid="approve"
+                disabled={decide.isPending || !canApprove}
                 onClick={() => decide.mutate('approve')}
-                title={
-                  card['self_requested'] === true ? t('inbox.card.self_requested_title') : undefined
-                }
+                title={canApprove ? undefined : t('inbox.card.self_requested_title')}
               >
                 {t('inbox.key.approve')}
               </Button>
+              {/* **거절은 요청자도 할 수 있다** — 서버가 막는 것은 승인뿐인데(EP-APR-03)
+                  화면이 둘 다 껐다. 자기 요청을 스스로 접는 길이 없으면 그 카드는
+                  다른 사람이 볼 때까지 받은편지함에 남는다 */}
               <Button
                 variant="danger"
                 size="sm"
-                disabled={decide.isPending || card['self_requested'] === true}
+                data-testid="reject"
+                disabled={decide.isPending}
                 onClick={() => decide.mutate('reject')}
               >
                 {t('inbox.key.reject')}

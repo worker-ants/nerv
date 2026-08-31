@@ -408,6 +408,7 @@ export const en = {
   'event.comment.resolved': 'Comment resolved',
   'event.cr.opened': 'Change request opened',
   'event.evidence.added': 'Evidence added',
+  'event.review.submitted': 'Review round submitted',
   'event.finding.opened': 'Review finding opened',
   'event.finding.commented': 'Finding commented',
   'event.finding.resolved': 'Review finding resolved',
@@ -621,6 +622,8 @@ export const en = {
     'Rejecting needs a reason — it goes to the requester and into the audit log.',
   'inbox.card.reject': 'Reject',
   'inbox.card.self_requested': 'You requested this — someone else has to approve it.',
+  'inbox.card.self_requested_admin':
+    'You requested this — as an admin you can decide it yourself (it is recorded).',
   'inbox.card.self_requested_title': 'You cannot approve work you requested',
   'inbox.card.send_answer': 'Send answer',
   'inbox.card.untitled': '(untitled)',

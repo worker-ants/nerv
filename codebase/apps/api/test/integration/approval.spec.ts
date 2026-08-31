@@ -56,6 +56,124 @@ beforeEach(async () => {
   await pool.query(`UPDATE agent_session SET state = 'active'`);
 });
 
+// 2026-08-30 사람 결정 — admin 은 자기가 만든 요청을 스스로 결재할 수 있다.
+// 지시자≠승인자 규칙이 막으려는 것은 **에이전트가 자기 산출물을 통과시키는 것**이고(D-01),
+// 사람 admin 이 자기 판단에 서명하는 것은 다른 일이다.
+describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
+  it('planner 는 자기 요청을 승인하지 못한다 — 규칙은 그대로다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await expect(
+      approvals.decide({
+        projectId,
+        approvalId: approval_id,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'self_approval', allowed_roles: ['admin'] },
+    });
+  });
+
+  it('요청자도 거절·코멘트는 할 수 있다 — 막는 것은 승인뿐이다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await expect(
+      approvals.decide({ projectId, approvalId: approval_id, userId: planner, decision: 'reject' }),
+    ).resolves.toMatchObject({ decision: 'reject' });
+  });
+
+  it('카드가 승인 가능 여부를 실어 준다 — 화면이 규칙을 다시 구현하지 않는다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    const mine = (await approvals.inbox({ projectId, userId: planner })).find(
+      (c) => c.id === approval_id,
+    );
+    expect(mine).toMatchObject({ self_requested: true, can_approve: false });
+
+    const others = (await approvals.inbox({ projectId, userId: reviewer })).find(
+      (c) => c.id === approval_id,
+    );
+    expect(others).toMatchObject({ self_requested: false, can_approve: true });
+  });
+
+  it('admin 은 자기 요청을 승인한다 — 없으면 어떤 결재도 끝나지 않는 상황이 생긴다', async () => {
+    const admin = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'admin@example.com','관리자','active')`,
+      [admin],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id = $2),$2,$3,'admin')`,
+      [newId(), projectId, admin],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: admin,
+    });
+
+    // 화면도 같은 답을 받는다 — 단추를 끌지 말지는 서버가 정한다
+    const card = (await approvals.inbox({ projectId, userId: admin })).find(
+      (c) => c.id === approval_id,
+    );
+    expect(card).toMatchObject({ self_requested: true, can_approve: true });
+
+    await expect(
+      approvals.decide({ projectId, approvalId: approval_id, userId: admin, decision: 'approve' }),
+    ).resolves.toMatchObject({ decision: 'approve' });
+
+    // **감사에 남는다.** 예외를 허용하는 것과 그것을 감추는 것은 다른 일이다
+    const { rows } = await pool.query<{ payload: { self_approved?: boolean } }>(
+      `SELECT payload FROM event WHERE subject_id = $1 ORDER BY occurred_at DESC LIMIT 1`,
+      [approval_id],
+    );
+    expect(rows[0]?.payload?.self_approved).toBe(true);
+  });
+
+  it('조직 단위 admin 도 같다 — 프로젝트 행이 없다고 권한이 없는 것은 아니다', async () => {
+    const orgAdmin = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'org@example.com','조직관리자','active')`,
+      [orgAdmin],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id = $2),NULL,$3,'admin')`,
+      [newId(), projectId, orgAdmin],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: orgAdmin,
+    });
+    await expect(
+      approvals.decide({
+        projectId,
+        approvalId: approval_id,
+        userId: orgAdmin,
+        decision: 'approve',
+      }),
+    ).resolves.toMatchObject({ decision: 'approve' });
+  });
+});
+
 describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원칙 3)', () => {
   it('결정되지 않은 카드만 온다 — 처리한 것은 사라진다', async () => {
     const { approval_id } = await approvals.request({

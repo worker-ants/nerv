@@ -454,7 +454,9 @@ describe('EP-IMP-06 reviews — 리뷰를 파일에서 레코드로 (FR-09)', ()
   it('임포트는 이벤트를 내지 않는다 — 과거 리뷰 3만 건이 알림이 되면 알림을 끈다', async () => {
     await post('reviews', { profile: 'clemvion', items: [session()] });
     const { rows } = await pool.query<{ n: string }>(
-      `SELECT count(*)::text AS n FROM event WHERE type LIKE 'finding.%'`,
+      // **리뷰 축 전체**다 — 2026-08-30 에 `review.submitted` 가 들어왔고, 임포트가
+      // 그것을 내면 과거 라운드 1,984건이 화면을 1,984번 다시 읽게 만든다
+      `SELECT count(*)::text AS n FROM event WHERE type LIKE 'finding.%' OR type LIKE 'review.%'`,
     );
     expect(rows[0]?.n).toBe('0');
   });

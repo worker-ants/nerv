@@ -110,6 +110,11 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
 
   // S6 리뷰 센터(2026-08-23) — 큐와 게이트 현황은 같은 사실의 두 얼굴이라 함께 무효화한다.
   // 큐만 갱신하면 "열린 것 0건"인데 판정은 `pending` 인 화면이 남는다(REQ-WEB-066).
+  // 라운드가 들어오면 큐도 게이트도 바뀐다 — 새 발견이 0건이어도 그렇다(2026-08-30)
+  [P2.REVIEW_SUBMITTED]: (e) => [
+    queryKeys.projectFindings(e.project_id),
+    queryKeys.projectGateCoverage(e.project_id),
+  ],
   [P2.FINDING_OPENED]: (e) => [
     queryKeys.projectFindings(e.project_id),
     queryKeys.projectGateCoverage(e.project_id),

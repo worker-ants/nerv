@@ -28,6 +28,9 @@ describe('이벤트 이름 카탈로그', () => {
       'import',
       'notification',
       'question',
+      // `review` 는 2026-08-30 에 들어왔다 — 라운드가 들어온 사실 자체를 알린다
+      // (`finding.opened` 는 **새** 발견에만 나므로 0건·병합 라운드는 조용했다)
+      'review',
       'session',
       'spec',
       'task',

@@ -13,6 +13,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -32,8 +33,30 @@ export interface InboxCard extends Record<string, unknown> {
   body_md: string | null;
   /** 지시자≠승인자 — 이 카드를 내가 승인할 수 있는가 */
   self_requested: boolean;
+  /** 지시자≠승인자 규칙과 그 완화(소규모·admin)를 서버가 판정한 결과 */
+  can_approve: boolean;
   /** stale 판정용 — 결정 시점에 내용이 바뀌었는지 본다 */
   content_hash: string | null;
+}
+
+/**
+ * 이 사람이 이 결재를 **승인할 수 있는가** — 지시자≠승인자 규칙과 그 완화 둘을 한 식으로.
+ *
+ * **판정은 서버 한 곳이다**(D-05). 예전에는 화면이 `self_requested` 만 보고 단추를 껐는데,
+ * 완화가 둘로 늘면(소규모·admin) 화면이 규칙을 다시 구현해야 한다 — 그러면 두 벌이 되고,
+ * 두 벌이 되면 언젠가 한쪽만 고친다. 화면은 이 불리언을 그대로 읽는다.
+ */
+function canApproveSql(userId: string): SQL {
+  return sql`(
+    a.requested_by_user_id <> ${userId}
+    OR EXISTS (SELECT 1 FROM membership m
+                WHERE m.user_id = ${userId} AND m.role = 'admin'
+                  AND (m.project_id = a.project_id
+                       OR (m.project_id IS NULL AND m.org_id = (
+                             SELECT org_id FROM project WHERE id = a.project_id))))
+    OR (SELECT count(DISTINCT user_id) FROM membership
+         WHERE project_id = a.project_id OR project_id IS NULL) < 2
+  ) AS can_approve`;
 }
 
 @Injectable()
@@ -57,6 +80,7 @@ export class ApprovalService {
              a.requested_at::text AS requested_at,
              sv.body_md,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
+             ${canApproveSql(input.userId)},
              encode(sv.content_hash, 'hex') AS content_hash
         FROM approval a
         JOIN "user" u ON u.id = a.requested_by_user_id
@@ -93,6 +117,7 @@ export class ApprovalService {
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
              u.display_name AS requested_by,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
+             ${canApproveSql(input.userId)},
              s.key AS spec_key, s.title AS spec_title, sv.version_no,
              encode(sv.content_hash, 'hex') AS content_hash,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
@@ -163,6 +188,7 @@ export class ApprovalService {
              a.is_bypass, a.bypass_reason,
              p.slug AS project_slug, u.display_name AS requested_by,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
+             ${canApproveSql(input.userId)},
              s.key AS spec_key, s.title AS spec_title, sv.version_no, sv.body_md,
              sv.change_summary_md, encode(sv.content_hash, 'hex') AS content_hash
         FROM approval a
@@ -286,8 +312,10 @@ export class ApprovalService {
       }
 
       // 지시자≠승인자 — approve 에만 적용한다(코멘트·거절은 요청자도 할 수 있다)
-      if (input.decision === 'approve' && approval.requested_by_user_id === input.userId) {
-        await this.assertSmallTeamRelief(tx, input.projectId, input.userId);
+      const selfApprove =
+        input.decision === 'approve' && approval.requested_by_user_id === input.userId;
+      if (selfApprove) {
+        await this.assertSelfApprovalAllowed(tx, input.projectId, input.userId);
       }
 
       await tx.execute(sql`
@@ -306,7 +334,9 @@ export class ApprovalService {
         subjectId: input.approvalId,
         actorUserId: input.userId,
         isAgent: false,
-        payload: { decision: input.decision },
+        // **자기 승인은 그 사실을 남긴다.** 규칙의 예외를 허용하는 것과 그것을 감추는 것은
+        // 다른 일이다 — 감사가 나중에 "이 결재는 한 사람이 양쪽에 섰다" 를 셀 수 있어야 한다.
+        payload: { decision: input.decision, ...(selfApprove ? { self_approved: true } : {}) },
       });
 
       return {
@@ -394,7 +424,20 @@ export class ApprovalService {
     return createHash('sha256').update(body, 'utf8').digest('hex');
   }
 
-  private async assertSmallTeamRelief(
+  /**
+   * 자기가 요청한 결재를 자기가 승인할 수 있는가 — **두 가지 완화**가 있다.
+   *
+   * ① **소규모**: 프로젝트에 사람이 하나뿐이면 규칙이 성립하지 않는다. 둘째 사람이 없는데
+   *    "둘째 사람이 승인하라" 는 것은 요구가 아니라 막다른 길이다.
+   * ② **admin**(2026-08-30 — 사람 결정): 조직·프로젝트를 책임지는 사람은 자기 요청을
+   *    스스로 결재할 수 있다. 지시자≠승인자 규칙이 막으려는 것은 **에이전트가 자기 산출물을
+   *    통과시키는 것**이고(D-01), 사람 admin 이 자기 판단에 서명하는 것은 다른 일이다 —
+   *    admin 이 없으면 그 프로젝트의 어떤 결재도 끝나지 않는 상황이 생긴다.
+   *
+   * 둘 다 **감사에 남는다**: 이벤트 페이로드의 `self_approved` 가 그 자리다.
+   * 예외를 허용하는 것과 그것을 감추는 것은 다른 일이다.
+   */
+  private async assertSelfApprovalAllowed(
     tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
     projectId: string,
     userId: string,
@@ -407,8 +450,26 @@ export class ApprovalService {
       this.logger.warn(`소규모 완화 — 자기 승인을 허용한다(감사 기록됨) user=${userId}`);
       return;
     }
+
+    // 프로젝트 멤버십과 **조직 단위 멤버십**을 함께 본다 — 조직 admin 만 가진 사람은
+    // 프로젝트 행이 없어서 한 행 판정에서는 아무 역할도 없는 사람이 된다(2026-08-24 와 같은 함정).
+    const { rows: admin } = await tx.execute<{ ok: boolean }>(sql`
+      SELECT true AS ok FROM membership
+       WHERE user_id = ${userId} AND role = 'admin'
+         AND (project_id = ${projectId}
+              OR (project_id IS NULL
+                  AND org_id = (SELECT org_id FROM project WHERE id = ${projectId})))
+       LIMIT 1
+    `);
+    if (admin[0]?.ok === true) {
+      this.logger.warn(`admin 자기 승인 — 허용한다(감사 기록됨) user=${userId}`);
+      return;
+    }
+
     throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.self_approve'), {
       kind: 'self_approval',
+      // 막다른 길에 세우지 않는다 — 누가 할 수 있는지 말한다
+      allowed_roles: ['admin'],
     });
   }
 }

@@ -401,6 +401,7 @@ export const ko = {
   'event.comment.resolved': '코멘트 해소됨',
   'event.cr.opened': '변경 요청 열림',
   'event.evidence.added': '증적 추가',
+  'event.review.submitted': '리뷰 라운드 제출됨',
   'event.finding.opened': '리뷰 발견 열림',
   'event.finding.commented': '리뷰 발견에 코멘트',
   'event.finding.resolved': '리뷰 발견 처분됨',
@@ -614,6 +615,8 @@ export const ko = {
   'inbox.card.reason_required': '거절에는 사유가 필요합니다 — 요청자 알림과 감사 로그에 남습니다.',
   'inbox.card.reject': '거절',
   'inbox.card.self_requested': '내가 요청한 항목입니다 — 다른 승인자가 처리해야 합니다.',
+  'inbox.card.self_requested_admin':
+    '내가 요청한 항목입니다 — admin 이라 직접 결재할 수 있습니다(감사에 남습니다).',
   'inbox.card.self_requested_title': '지시자는 자기 산출물을 승인할 수 없습니다',
   'inbox.card.send_answer': '답변 보내기',
   'inbox.card.untitled': '(제목 없음)',

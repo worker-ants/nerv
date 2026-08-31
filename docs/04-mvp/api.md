@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.40 · 2026-08-30 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.41 · 2026-08-31 · HTML 판: [api.html](../html/api.html)
 >
+> v0.41 변경(2026-08-31 — 사람 보고·결정): REQ-API-061·062. ① **`review.submitted` 신설** — `finding.opened` 는 새 발견에만 나서, 병합되거나 0건인 라운드는 게이트 현황만 조용히 바꿨다(화면은 새로고침 전에는 몰랐다). ② **admin 의 자기 결재 허용** — 지시자≠승인자가 막으려는 것은 에이전트의 자기 통과이지 사람 admin 의 서명이 아니다. 판정은 서버가 하고 카드가 `can_approve` 로 받는다.
 > v0.40 변경(2026-08-30 — 사람 보고 → 결정 A): **REQ-API-060**. 스펙을 고쳐 해결한 에이전트에게 **정직한 선택지가 하나도 없었다** — `fixed` 는 커밋이 없어 막히고 나머지 둘은 거짓말이다. `spec_change` 는 열거에 있었으나 도구가 노출하지 않았고 CHECK 가 CR 을 요구했다(그 표에 INSERT 하는 코드가 없다). 도구에 열고 증거를 `spec_version_id` 로도 받는다.
 > v0.39 변경(2026-08-30 — 사람 요청): §4 대응표에 **`nerv_task_list`**. `next`(집을 수 있는 것)·`get`(아는 하나)로는 "이 프로젝트에 지금 무엇이 도는가" 를 물을 수 없었다. 곁들여 `TaskService.list` 의 `spec` 필터가 키도 받도록 고쳤다 — UUID 만 받던 탓에 키를 넣으면 **조용히 0건**이 되어 "그 스펙에 Task 가 없다" 로 읽혔다(§1.4b).
 > v0.38 변경(2026-08-30 — 사람 물음): REQ-API-057·058·059. **피드백이 기록으로 끝났다** — 처분 3종 말고는 적을 자리가 없었고, 무엇을 적든 지적한 에이전트는 듣지 못했으며, "나중에 하자" 가 갈 곳이 없었다. 발견 코멘트 · 하트비트 역채널(`finding_commented`) · 발견 → Task 승격 셋을 잇는다.
@@ -392,6 +393,12 @@ HTTP 상태 매핑:
 
 이미 쓰이는 키로 온 생성은 `key_taken` 으로 막고 **그 문서를 딥링크로 짚어 준다**. 덮어쓰지도, 조용히 이어 쓰지도 않는다 — 같은 키로 오는 생성은 대개 "이미 있는 줄 몰랐다"이고, 그때 남의 문서에 말없이 이어 쓰는 것이 가장 나쁘다. 보관된 문서가 키를 쥐고 있으면 답은 새로 만드는 것이 아니라 복구다. 동시에 들어온 둘은 유니크 인덱스(`spec_key_uq`)가 잡는다 — **검사는 흔한 길의 말이고 인덱스가 자물쇠다.**
 
+**라운드가 들어온 사실 자체를 알린다**(2026-08-30 — 사람 보고 "매번 새로고침하기 힘들다"). `finding.opened` 는 **새** 발견에만 난다 — 그래서 재리뷰가 기존 발견에 합쳐지거나("봤고 문제가 없었다" 처럼) 발견이 0건이면 게이트 현황·라운드 번호·관측 횟수가 바뀌는데 **이벤트는 하나도 나지 않았다**. `review.submitted` 가 그 자리다. **알림은 만들지 않는다** — 사람을 부르는 것은 발견이지 라운드가 아니고, 이것은 화면을 다시 읽게 하는 신호다. 임포트는 이 이벤트도 내지 않는다(과거 라운드 1,984건이 화면을 1,984번 다시 읽게 만든다).
+
+**admin 은 자기 요청을 결재한다**(2026-08-30 — 사람 결정). 지시자≠승인자(REQ-API-008)가 막으려는 것은 **에이전트가 자기 산출물을 통과시키는 것**이고(D-01), 사람 admin 이 자기 판단에 서명하는 것은 다른 일이다 — 그 길이 없으면 admin 혼자 도는 프로젝트에서 **어떤 결재도 끝나지 않는다**. 완화는 둘이다: 소규모(멤버 2인 미만)와 admin. 조직 단위 admin 도 같다(프로젝트 행이 없다고 권한이 없는 것은 아니다). **허용한 사실은 감사에 남는다** — 예외를 허용하는 것과 그것을 감추는 것은 다른 일이다.
+
+판정은 **서버 한 곳**이고 카드가 `can_approve` 로 그 답을 받는다(D-05). 화면이 `self_requested` 를 보고 스스로 판정하면 완화가 늘 때마다 규칙이 두 벌이 되고, 두 벌이 되면 언젠가 한쪽만 고친다. 곁들여 **거절은 요청자도 할 수 있다** — 서버는 처음부터 승인만 막았는데 화면이 둘 다 껐다.
+
 **정직한 선택지가 없으면 에이전트는 거짓말을 배운다**(2026-08-30 — 사람 보고). 스펙을 고쳐 해결한 에이전트에게 남은 처분은 셋 다 틀린 것이었다: `fixed` 는 커밋이 없어 막히고, `dismissed` 는 오탐이 아니었으며, `wont_fix` 는 고쳤기 때문이다.
 
 `spec_change` 는 **처음부터 `resolution_kind` 에 있었다.** 막고 있던 것은 둘이다 — 도구가 그 값을 노출하지 않았고, CHECK 가 `change_request_id` 를 요구하는데 **그 표에 INSERT 하는 코드가 없다**. 도구에 값을 열고, 증거를 `spec_version_id` 로도 받는다(CHECK 는 둘 중 하나면 통과).
@@ -418,6 +425,8 @@ HTTP 상태 매핑:
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
+| REQ-API-061 | WHEN 리뷰 라운드가 제출되면 THE SYSTEM SHALL 새 발견이 0건이어도 `review.submitted` 를 방송한다(라운드 번호·새/병합 수·block). WHEN 임포트가 과거 리뷰를 적재하면 THE SYSTEM SHALL 이 이벤트를 내지 않는다 |
+| REQ-API-062 | WHEN 요청자가 자기 결재를 승인하려 하면 THE SYSTEM SHALL 그 사람이 그 프로젝트·조직의 `admin` 이거나 멤버가 2인 미만일 때만 허용하고, 허용한 사실을 이벤트 페이로드(`self_approved`)에 남긴다. WHEN 결재 카드를 조회하면 THE SYSTEM SHALL 이 판정을 `can_approve` 로 실어 준다 |
 | REQ-API-060 | WHEN 스펙을 고쳐 해결한 발견이 `spec_change` 로 처분되면 THE SYSTEM SHALL 그 프로젝트의 `spec_version_id` 를 증거로 요구하고, 없거나 남의 것이면 거부한다. WHEN `fixed` 가 커밋 없이 오면 THE SYSTEM SHALL 거부하면서 `spec_change` 라는 다른 길을 응답에 적는다 |
 | REQ-API-057 | WHEN 사람이 발견에 코멘트를 남기면 THE SYSTEM SHALL 그것을 발견별 대화로 저장하고 `finding.commented` 이벤트를 낸다. WHEN 본문이 비어 있으면 THE SYSTEM SHALL 저장하지 않는다 |
 | REQ-API-058 | WHEN 하트비트가 오면 THE SYSTEM SHALL 그 세션이 **올린 발견**에 달린 남의 코멘트를 `pending` 에 `finding_commented` 로 실어 준다 — 자기가 쓴 코멘트는 제외한다 |
@@ -992,7 +1001,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | REQ-API-005 | WHEN 리스가 만료된 클레임으로 상태 변경(EP-TASK-09 등)이 시도되면 THE SYSTEM SHALL HTTP 409 `NERV_LEASE_EXPIRED`를 반환하고, 재클레임 가능 여부를 `details`에 싣는다 | 리스 만료 후 done 전이 거부([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.7 리스 규약) |
 | REQ-API-006 | WHEN `base_hash`가 빠졌거나 현재 본문 지문과 불일치하는 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 `NERV_PRECONDITION`(`base_hash_required`·`stale_body`)과 현재 지문을 반환하고 본문을 저장하지 않는다(2026-08-30 개정 — 예전 문형은 `base_version` 기준이었고 초안 단계에서 아무것도 막지 못했다, §1.4g·§1.4i) | 웹·터미널 동시 편집 경합 |
 | REQ-API-007 | WHEN 다른 **세션**이 편집 리스를 보유한 draft에 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 `NERV_DRAFT_LEASED`와 보유자(표시 이름·만료 시각)를 반환한다. WHEN 요청이 `takeover`를 실으면 THE SYSTEM SHALL 리스를 넘겨받고 그 사실을 이벤트에 남긴다(2026-08-30 개정 — 예전 문형은 사용자 단위였고 같은 PAT로 도는 병렬 세션끼리 서로를 막지 못했다, §1.4h) | [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.2 표 재현 |
-| REQ-API-008 | WHEN 승인 요청자 본인·초안 작성 세션의 소유자가 EP-APR-03으로 승인을 시도하면 THE SYSTEM SHALL HTTP 403 `NERV_FORBIDDEN`(`details.rule = "requester-neq-approver"`)을 반환한다. WHEN 대상 content hash가 변해 있으면 THE SYSTEM SHALL 같은 코드로 stale 승인을 거부한다 | §2.3 판정 5규칙 각각 1케이스 |
+| REQ-API-008 | WHEN 승인 요청자 본인·초안 작성 세션의 소유자가 EP-APR-03으로 승인을 시도하면 THE SYSTEM SHALL HTTP 403 `NERV_FORBIDDEN`(`details.kind = "self_approval"`)을 반환한다 — **단 그 사람이 `admin` 이거나 멤버가 2인 미만이면 허용하고 `self_approved` 로 기록한다**(2026-08-31 개정 — REQ-API-062). WHEN 대상 content hash가 변해 있으면 THE SYSTEM SHALL 같은 코드로 stale 승인을 거부한다 | §2.3 판정 5규칙 각각 1케이스 |
 | REQ-API-009 | WHEN 미인증 소켓이 `/ws`에 연결을 시도하면 THE SYSTEM SHALL `connect_error`(`NERV_UNAUTHENTICATED`)로 끊고, WHEN 비멤버가 `project:{id}` join을 시도하면 THE SYSTEM SHALL ack `{ok:false, code:"NERV_FORBIDDEN"}`을 반환하며 룸에 넣지 않는다 | 비멤버 join 후 이벤트 미수신 확인 |
 | REQ-API-010 | WHEN WebSocket 또는 SSE 클라이언트가 재연결에 성공하면 THE SYSTEM SHALL 밀린 이벤트를 재전송하지 않는다(재조회는 클라이언트 책임 — D-14). SSE의 `Last-Event-ID` 헤더는 무시한다 | 단절 구간 이벤트 발생 후 재연결, 수신 0건 확인(WS·SSE 각 1건) |
 | REQ-API-011 | WHEN 상태 전이가 커밋되면 THE SYSTEM SHALL 같은 트랜잭션의 `event` 행과, 그로부터 파생된 WS emit·SSE 송신이 §3.3 표의 룸/스트림으로 5초 이내(NFR-02) 도달하게 한다 | 전이→보드 반영 p95 측정(WS) + SSE 수신 지연 측정 |

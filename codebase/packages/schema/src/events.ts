@@ -93,6 +93,14 @@ export const NERV_EVENT = {
  * MVP 범위가 아니므로 위 유니온과 분리해 둔다(docs/04-mvp/scope.md §5).
  */
 export const NERV_EVENT_PHASE2 = {
+  /**
+   * 한 라운드가 들어왔다 — **발견이 하나도 새로 열리지 않아도** 난다(2026-08-30).
+   *
+   * `finding.opened` 는 **새** 발견에만 난다. 그래서 재리뷰가 기존 발견에 합쳐지거나
+   * ("봤고 문제가 없었다" 처럼) 발견이 0건이면 게이트 현황만 조용히 바뀌었다 —
+   * 화면은 새로고침 전에는 그것을 몰랐다(사람 보고).
+   */
+  REVIEW_SUBMITTED: 'review.submitted',
   FINDING_OPENED: 'finding.opened',
   // 사람이 발견에 말을 남겼다 — 지적한 세션이 하트비트로 듣는다(2026-08-30 · REQ-API-058)
   FINDING_COMMENTED: 'finding.commented',

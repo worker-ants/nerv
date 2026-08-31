@@ -9,7 +9,7 @@
 // **동시성·제약은 mock 으로 보지 않는다**(AGENTS.md 테스트 규약) — 실제 Postgres 다.
 // dedup 이 진짜인지는 UNIQUE 제약과 SQL 이 함께 있어야만 답할 수 있다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, NERV_EVENT_PHASE2, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -215,6 +215,40 @@ describe('FR-09 dedup — 같은 지적은 라운드를 넘어 하나다', () =>
 // 2026-08-30 사람 물음 — "피드백을 하면 이후 흐름이 어떻게 흘러가나".
 // 예전 답은 "아무 데로도" 였다: 처분 3종 말고는 적을 자리가 없었고, 무엇을 적든
 // 지적한 에이전트는 듣지 못했으며, "나중에 하자" 가 갈 곳도 없었다.
+// 2026-08-30 사람 보고 — "리뷰 상태가 바뀌어도 새로고침해야 보인다".
+// `finding.opened` 는 **새** 발견에만 나므로, 재리뷰가 기존 발견에 합쳐지거나 발견이
+// 0건이면 게이트 현황만 조용히 바뀌었다.
+describe('라운드가 들어온 사실을 알린다 (REQ-API-061)', () => {
+  async function eventsOf(type: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await pool.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM event WHERE type = $1 ORDER BY occurred_at`,
+      [type],
+    );
+    return rows.map((r) => r.payload);
+  }
+
+  it('발견이 0건이어도 난다 — "봤고 문제가 없었다" 도 라운드다', async () => {
+    await pool.query('DELETE FROM event');
+    await reviews.submit(submitInput({ findings: [] }));
+    const events = await eventsOf(NERV_EVENT_PHASE2.REVIEW_SUBMITTED);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ round_no: 1, findings_new: 0, findings_merged: 0 });
+    // 새 발견이 없으니 finding.opened 는 나지 않는다 — 그래서 이 이벤트가 필요했다
+    expect(await eventsOf(NERV_EVENT_PHASE2.FINDING_OPENED)).toHaveLength(0);
+  });
+
+  it('같은 지적이 합쳐진 라운드도 난다 — 관측 횟수와 라운드가 바뀐다', async () => {
+    await reviews.submit(submitInput({ findings: [CRITICAL] }));
+    await pool.query('DELETE FROM event');
+    await reviews.submit(submitInput({ headSha: 'bbbb222', findings: [CRITICAL] }));
+
+    const events = await eventsOf(NERV_EVENT_PHASE2.REVIEW_SUBMITTED);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ findings_new: 0, findings_merged: 1 });
+    expect(await eventsOf(NERV_EVENT_PHASE2.FINDING_OPENED)).toHaveLength(0);
+  });
+});
+
 describe('발견의 피드백 흐름 (2026-08-30 신설)', () => {
   async function openOne(): Promise<string> {
     const result = await reviews.submit(submitInput({ findings: [CRITICAL] }));
