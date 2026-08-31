@@ -18,6 +18,7 @@ import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
+import { SpecService } from '../spec/spec.service.js';
 
 export type ApprovalDecision = 'approve' | 'reject' | 'comment';
 
@@ -65,8 +66,43 @@ export class ApprovalService {
 
   constructor(
     private readonly events: EventService,
+    private readonly specs: SpecService,
     @InjectDb() private readonly db: NervDb,
   ) {}
+
+  /**
+   * 결정을 **대상에 적용한다** — 결재 행을 고치는 것만으로는 아무 일도 일어나지 않는다.
+   *
+   * 지금 아는 대상은 `spec_version` 하나다. `question` 은 전용 경로(`questions.answer`)가
+   * 이미 상태를 옮기고, `plan`·`gate_bypass` 는 결재 자체가 사실이라 옮길 상태가 없다.
+   * **모르는 대상은 조용히 넘어간다** — 여기서 던지면 결정 자체가 롤백되고, 그건 "결재는
+   * 됐는데 문서가 안 움직였다" 보다 더 나쁜 자리다.
+   */
+  private async applyToSubject(
+    tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: { projectId: string; userId: string; decision: ApprovalDecision; comment?: string },
+    approval: { subject_type: string; subject_id: string },
+  ): Promise<void> {
+    if (approval.subject_type !== 'spec_version') return;
+    if (input.decision === 'approve') {
+      await this.specs.approveInTxForApproval(tx, emit, {
+        projectId: input.projectId,
+        specVersionId: approval.subject_id,
+        approverUserId: input.userId,
+      });
+      return;
+    }
+    if (input.decision === 'reject') {
+      await this.specs.rejectInTxForApproval(tx, emit, {
+        projectId: input.projectId,
+        specVersionId: approval.subject_id,
+        reviewerUserId: input.userId,
+        comment: input.comment ?? '',
+      });
+    }
+    // `comment` 는 대상을 움직이지 않는다 — 카드에 말만 남기는 결정이다
+  }
 
   /**
    * EP-APR-01 받은 요청 — **내 결정을 기다리는 것만** 센다(§6.6 원칙 3).
@@ -326,6 +362,17 @@ export class ApprovalService {
                assignee_user_id = COALESCE(assignee_user_id, ${input.userId})
          WHERE id = ${input.approvalId}
       `);
+
+      // **결정은 대상을 움직여야 한다**(2026-08-31 — 사람 보고 · REQ-API-063).
+      //
+      // 예전에는 여기서 결재 행만 고치고 끝냈다. 그래서 받은편지함에서 스펙을 거절하면
+      // 결재는 사라지는데(`decision IS NOT NULL`) **문서는 `in_review` 에 갇혔다** —
+      // 가변 구간은 draft 하나뿐이라(D-02) 고칠 수도, 다시 제출할 수도 없는 상태다.
+      // 실측(sudoku 2026-08-31): 거절 2건, 둘 다 `in_review` 로 남아 있었다.
+      //
+      // **같은 트랜잭션이다.** 웹이 두 번 부르게 하면 그 사이의 실패가 정확히 이 상태를
+      // 다시 만들고, 판정이 표면으로 새어 나간다(D-05).
+      await this.applyToSubject(tx, emit, input, approval);
 
       await emit({
         type: NERV_EVENT.QUESTION_ANSWERED,

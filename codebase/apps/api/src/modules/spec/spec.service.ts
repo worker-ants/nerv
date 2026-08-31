@@ -774,6 +774,73 @@ export class SpecService {
     });
   }
 
+  /**
+   * 받은편지함의 결정이 부르는 자리 — **남의 트랜잭션 안에서** 같은 전이를 한다.
+   *
+   * 공개 `approve()`/`reject()` 는 스스로 트랜잭션을 연다. 결재 결정과 문서 전이는
+   * **한 트랜잭션이어야** 하므로(둘로 나누면 그 사이의 실패가 "결재는 됐는데 문서는
+   * 안 움직인" 상태를 만든다 — 실측된 그 자리다) 트랜잭션을 받는 판을 따로 연다.
+   *
+   * `assertDifferentApprover` 는 여기서 부르지 않는다: 지시자≠승인자 판정은 결재 쪽이
+   * 이미 했고(완화 둘 포함), 두 곳에서 판정하면 규칙이 두 벌이 된다.
+   */
+  async approveInTxForApproval(
+    tx: Tx,
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: { projectId: string; specVersionId: string; approverUserId: string },
+  ): Promise<void> {
+    const { rows } = await tx.execute<{ spec_id: string; status: string; spec_type: string }>(sql`
+      SELECT sv.spec_id, sv.status::text AS status, s.type::text AS spec_type
+        FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+       WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
+       FOR UPDATE OF sv
+    `);
+    const version = rows[0];
+    // **이미 옮겨진 것은 오류가 아니다.** 결재는 남기고 전이만 건너뛴다 — 예전 데이터가
+    // 손으로 복구된 경우가 그 자리다.
+    if (version === undefined || version.status !== 'in_review') return;
+
+    await this.approveInTx(tx, emit, {
+      projectId: input.projectId,
+      specVersionId: input.specVersionId,
+      specId: version.spec_id,
+      approverUserId: input.approverUserId,
+      gate: await this.assessGate(tx, version.spec_id, version.spec_type),
+    });
+  }
+
+  /** 같은 이유로 여는 거절 판 — in_review → draft */
+  async rejectInTxForApproval(
+    tx: Tx,
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: {
+      projectId: string;
+      specVersionId: string;
+      reviewerUserId: string;
+      comment: string;
+    },
+  ): Promise<void> {
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
+        FROM spec s
+       WHERE sv.spec_id = s.id AND sv.id = ${input.specVersionId}
+         AND s.project_id = ${input.projectId} AND sv.status = 'in_review'
+      RETURNING sv.id
+    `);
+    if (rows.length === 0) return;
+    await emit({
+      type: NERV_EVENT.SPEC_REJECTED,
+      projectId: input.projectId,
+      subjectType: 'spec_version',
+      subjectId: input.specVersionId,
+      subjectKey: await this.keyOfVersion(tx, input.specVersionId),
+      actorUserId: input.reviewerUserId,
+      fromState: 'in_review',
+      toState: 'draft',
+      payload: { comment: input.comment },
+    });
+  }
+
   /** 거절 — in_review → draft. 리스는 다시 열린다. */
   async reject(input: {
     projectId: string;

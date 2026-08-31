@@ -10,6 +10,9 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
+import { SpecService } from '../../src/modules/spec/spec.service.js';
+import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
+import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { NotificationService } from '../../src/modules/event/notification.service.js';
@@ -20,6 +23,7 @@ import type { ScratchDb } from './helpers.js';
 let db: ScratchDb;
 let pool: pg.Pool;
 let approvals: ApprovalService;
+let specs: SpecService;
 let questions: QuestionService;
 let projectId: string;
 let planner: string;
@@ -36,7 +40,14 @@ beforeAll(async () => {
   } as unknown as ValkeyService;
   const drizzleDb = drizzle(pool);
   const events = new EventService(drizzleDb, silent);
-  approvals = new ApprovalService(events, drizzleDb);
+  // 결정이 문서를 움직이므로 결재 서비스가 스펙 서비스를 쥔다(REQ-API-063)
+  specs = new SpecService(
+    events,
+    new SpecCheckService(drizzleDb),
+    new SpecRelationService(drizzleDb),
+    drizzleDb,
+  );
+  approvals = new ApprovalService(events, specs, drizzleDb);
   questions = new QuestionService(events, drizzleDb);
   await seed();
 });
@@ -59,6 +70,133 @@ beforeEach(async () => {
 // 2026-08-30 사람 결정 — admin 은 자기가 만든 요청을 스스로 결재할 수 있다.
 // 지시자≠승인자 규칙이 막으려는 것은 **에이전트가 자기 산출물을 통과시키는 것**이고(D-01),
 // 사람 admin 이 자기 판단에 서명하는 것은 다른 일이다.
+// 2026-08-31 사람 보고 — "받은 요청에 등록됐는데 보이지 않는 항목이 있다".
+// sudoku 실측: 거절 2건이 결재에는 남았는데 스펙은 둘 다 `in_review` 에 갇혀 있었다.
+// 결재 행만 고치고 **대상을 움직이지 않았기** 때문이다 — 카드는 사라지고(decision 이
+// 채워졌다) 문서는 고칠 수도 다시 제출할 수도 없는 상태로 남는다(D-02).
+async function hashOfVersion(versionId: string): Promise<string> {
+  const { rows } = await pool.query<{ h: string }>(
+    `SELECT encode(content_hash, 'hex') AS h FROM spec_version WHERE id = $1`,
+    [versionId],
+  );
+  return rows[0]!.h;
+}
+
+describe('결정은 대상을 움직인다 (REQ-API-063)', () => {
+  async function inReviewVersion(key: string): Promise<{ specId: string; versionId: string }> {
+    const created = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key,
+      title: key,
+      type: 'feature',
+      bodyMd: `# ${key}\n\n본문`,
+      userId: planner,
+    });
+    const versionId = created['spec_version_id'] as string;
+    // 리스는 draft 에만 붙는다(CHECK) — 제출이 그것을 놓는 것과 같은 순서로 흉내 낸다
+    await pool.query(
+      `UPDATE spec_version SET status = 'in_review', submitted_at = now(),
+              edit_lease_user_id = NULL, edit_lease_session_id = NULL, edit_lease_expires_at = NULL
+        WHERE id = $1`,
+      [versionId],
+    );
+    return { specId: created['spec_id'] as string, versionId };
+  }
+
+  async function statusOf(versionId: string): Promise<string> {
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    return rows[0]!.status;
+  }
+
+  it('거절하면 문서가 draft 로 돌아온다 — 갇히지 않는다', async () => {
+    const { specId, versionId } = await inReviewVersion('SPC-DECIDE-REJ');
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: planner,
+    });
+
+    await approvals.decide({
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'reject',
+      comment: '잘못된 서술 존재',
+    });
+
+    expect(await statusOf(versionId)).toBe('draft');
+    // 되돌아왔으니 **다시 고칠 수 있다** — 그것이 갇히지 않는다는 말의 뜻이다
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: await hashOfVersion(versionId),
+        bodyMd: '# 고쳐서 다시 쓴다',
+        userId: planner,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('승인하면 문서가 approved 가 된다 — 결재만 남고 마는 일이 없다', async () => {
+    const { versionId } = await inReviewVersion('SPC-DECIDE-APR');
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: planner,
+    });
+
+    await approvals.decide({
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    expect(await statusOf(versionId)).toBe('approved');
+  });
+
+  it('코멘트는 문서를 움직이지 않는다 — 말만 남기는 결정이다', async () => {
+    const { versionId } = await inReviewVersion('SPC-DECIDE-CMT');
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: planner,
+    });
+    await approvals.decide({
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'comment',
+      comment: '한 가지만 확인해 주세요',
+    });
+    expect(await statusOf(versionId)).toBe('in_review');
+  });
+
+  it('스펙이 아닌 대상은 조용히 넘어간다 — 여기서 던지면 결정이 통째로 롤백된다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await expect(
+      approvals.decide({
+        projectId,
+        approvalId: approval_id,
+        userId: reviewer,
+        decision: 'approve',
+      }),
+    ).resolves.toMatchObject({ decision: 'approve' });
+  });
+});
+
 describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
   it('planner 는 자기 요청을 승인하지 못한다 — 규칙은 그대로다', async () => {
     const { approval_id } = await approvals.request({
