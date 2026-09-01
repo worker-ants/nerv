@@ -54,6 +54,14 @@ export const agentSession = pgTable(
     diffAdded: integer('diff_added').notNull().default(0),
     diffRemoved: integer('diff_removed').notNull().default(0),
     tokenUsage: jsonb('token_usage').notNull().default({}),
+    /**
+     * **원문이 사라진 뒤에도 남는 것**(2026-09-01 신설 · REQ-API-067).
+     *
+     * 보존 잡이 90일 지난 Activity 를 지우는데, 지우고 나면 그 세션은 아무것도 안 한 것처럼
+     * 보였다 — 빈 레일은 "기록이 없다" 와 "아무것도 안 했다" 를 구별하지 못한다.
+     * 지우기 **전에** 도구별 횟수와 기간을 여기 접어 둔다: `{"Bash": 383, "Edit": 5, …}`.
+     */
+    activitySummary: jsonb('activity_summary').notNull().default({}),
     /** 조회 편의 비정규화 — 진실은 claim 이다. FK 는 순환이라 §2.11 에서 ALTER 로 건다 */
     currentTaskId: uuid('current_task_id'),
     createdAt: createdAt(),

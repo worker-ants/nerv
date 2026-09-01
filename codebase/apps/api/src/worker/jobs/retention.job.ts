@@ -49,8 +49,30 @@ export class RetentionJob {
         );
       }
 
-      // Activity 원문만 지운다. 세션 요약(agent_session 의 diff·토큰 집계)은 영구다 —
-      // "무엇을 했나"의 결론은 남기고 "어떻게 말했나"의 원문을 버리는 것이 D-07 의 축이다.
+      // **지우기 전에 접는다**(2026-09-01 · REQ-API-067). 예전에는 그냥 지웠고, 지우고 나면
+      // 그 세션은 아무것도 안 한 것처럼 보였다 — 빈 레일은 "기록이 없다" 와 "아무것도 안
+      // 했다" 를 구별하지 못한다. 도구별 횟수를 세션에 남기면 원문이 사라져도 규모는 남는다.
+      await this.db.execute(sql`
+        UPDATE agent_session s
+           SET activity_summary = coalesce(s.activity_summary, '{}'::jsonb) || rolled.counts
+          FROM (
+            SELECT a.session_id,
+                   jsonb_object_agg(coalesce(a.tool_name, a.type), a.n) AS counts
+              FROM (
+                SELECT a2.session_id, a2.tool_name, a2.type::text AS type, count(*)::int AS n
+                  FROM activity a2
+                  JOIN agent_session s2 ON s2.id = a2.session_id
+                 WHERE s2.project_id = ${project.id}
+                   AND a2.created_at < now() - make_interval(days => ${policy.activity_days})
+                 GROUP BY a2.session_id, a2.tool_name, a2.type
+              ) a
+             GROUP BY a.session_id
+          ) rolled
+         WHERE s.id = rolled.session_id
+      `);
+
+      // Activity 원문을 지운다. 접어 둔 요약과 세션의 diff·토큰 집계는 영구다 —
+      // "무엇을 했나"의 결론은 남기고 "어떻게 말했나"의 원문을 버리는 것이 그 축이다.
       const { rows: deleted } = await this.db.execute<{ id: string }>(sql`
         DELETE FROM activity a
          USING agent_session s

@@ -4,6 +4,7 @@
 // 이 패키지는 순수 선언 + 마이그레이터만 갖는다 — 런타임 로직을 두지 않는다(§1.2).
 
 export * from './constants.js';
+export * from './redact.js';
 export * from './ids.js';
 export * from './scopes.js';
 export * from './errors.js';

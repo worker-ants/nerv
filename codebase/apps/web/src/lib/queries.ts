@@ -289,6 +289,21 @@ export function useSessions(
   });
 }
 
+/**
+ * 세션의 **작업 궤적** — 도구 로그가 아니라 "무엇을 했나"(REQ-API-068 · REQ-WEB-124).
+ *
+ * 세션 모니터의 첫 물음은 "무슨 도구를 썼나" 가 아니라 "무엇을 하는 중이고 막혀 있나" 다.
+ */
+export function useSessionTrajectory(slug: string, sessionId: string): UseQueryResult<Row[]> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: ['session', sessionId, 'trajectory'],
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/sessions/${sessionId}/trajectory`),
+    enabled: sessionId !== '',
+    refetchInterval,
+  });
+}
+
 export function useSessionDetail(slug: string, sessionId: string): UseQueryResult<Row> {
   return useQuery({
     queryKey: queryKeys.session(sessionId),

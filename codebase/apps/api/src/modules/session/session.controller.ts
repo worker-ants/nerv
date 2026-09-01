@@ -42,6 +42,26 @@ export class SessionController {
     return this.sessions.timeline({
       projectId: req.nervProjectId ?? '',
       sessionId: sid,
+      // 원문 열람 판정의 축 — 에이전트 토큰이면 그 세션 사용자다(REQ-API-066)
+      userId: req.nervPrincipal?.userId ?? null,
+      ...(limit === undefined ? {} : { limit: Number(limit) }),
+    });
+  }
+
+  /**
+   * EP-SES-05 — 작업 궤적. **도구 로그가 아니라 한 일이다**(REQ-API-068).
+   *
+   * 새 저장 없이 이벤트를 세션 축으로 읽는다 — 그 사실들은 처음부터 거기 있었다.
+   */
+  @Get(':sid/trajectory')
+  trajectory(
+    @Req() req: ProjectRequest,
+    @Param('sid') sid: string,
+    @Query('limit') limit?: string,
+  ): Promise<unknown> {
+    return this.sessions.trajectory({
+      projectId: req.nervProjectId ?? '',
+      sessionId: sid,
       ...(limit === undefined ? {} : { limit: Number(limit) }),
     });
   }

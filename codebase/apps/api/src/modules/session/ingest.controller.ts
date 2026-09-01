@@ -10,7 +10,8 @@
 // 훅 하나로 남의 세션을 조작할 수 있다.
 
 import { Body, Controller, Headers, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
-import { msg, NERV_ERROR, text } from '@nerv/schema';
+import { msg, NERV_ERROR, prepareHookPayload, redact, text } from '@nerv/schema';
+import { outcomeOf, summarize } from './hook-summary.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { AuthService } from '../auth/auth.service.js';
 import { SessionService } from './session.service.js';
@@ -26,6 +27,8 @@ interface HookPayload extends Record<string, unknown> {
   cwd?: string;
   tool_name?: string;
   tool_use_id?: string;
+  tool_input?: unknown;
+  tool_response?: unknown;
   agent_type?: string;
   agent_id?: string;
   reason?: string;
@@ -88,15 +91,33 @@ export class IngestController {
     const sessionId = await this.resolveSession(principal, body);
     if (sessionId === null) return { ok: false };
 
+    const toolName = body.tool_name ?? 'tool';
+    // **제목도 가린 값에서 만든다.** 원문에서 만들면 `--token abc` 가 목록에 그대로 뜬다 —
+    // 페이로드만 가리고 제목을 놓치면 마스킹이 뚫린 것과 같다(L2 가 이것을 잡았다).
+    const safeInput = redact(body.tool_input);
+    const outcome = outcomeOf(body.tool_response);
     await this.sessions.appendHookActivity({
       sessionId,
       projectId: principal.projectId ?? '',
       type: 'action',
-      title: body.tool_name ?? 'tool',
-      toolName: body.tool_name ?? null,
-      // 훅 페이로드 원문을 통째로 넣지 않는다 — 개인정보·비밀이 섞일 수 있고, 여기 목적은
-      // "무엇을 했나"의 타임라인이지 전체 로그 보관이 아니다(D-07).
-      payload: { tool_use_id: body.tool_use_id ?? null },
+      // **도구 이름은 "무엇을 했는가" 가 아니다.** 예전에는 이 자리에 그것만 넣어서
+      // 타임라인이 "Bash" 를 383번 반복했다(실측 2026-09-01) — 답은 인자에 있다.
+      title: summarize(toolName, safeInput, body.cwd ?? ''),
+      toolName,
+      // **원문을 보관한다**(2026-09-01 — 사람 결정 · REQ-API-065). 비밀만 예외로 가리고,
+      // 그 예외는 **여기서** 적용한다: 저장한 뒤 화면에서만 가리면 백업·복제본에 이미
+      // 들어간 값을 되돌리지 못한다.
+      payload: {
+        tool_use_id: body.tool_use_id ?? null,
+        ...prepareHookPayload({
+          toolName,
+          // 이미 가린 값을 넘긴다 — 안에서 한 번 더 훑어도 남은 비밀이 없다(방어는 두 겹이다)
+          toolInput: safeInput,
+          toolResponse: body.tool_response,
+        }),
+        // 성패는 목록에서 보인다 — 펼치지 않아도 실패가 눈에 띄어야 한다
+        ...(outcome === null ? {} : { ok: outcome.ok, outcome: outcome.detail }),
+      },
     });
     return { ok: true };
   }

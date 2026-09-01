@@ -9,6 +9,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { msg, newId, NERV_ERROR, NERV_EVENT, SESSION_STALE_SECONDS } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -422,18 +423,91 @@ export class SessionService {
   async timeline(input: {
     projectId: string;
     sessionId: string;
+    /** 보는 사람 — 원문 열람 판정의 축이다. 주지 않으면 요약만 준다 */
+    userId?: string | null;
     limit?: number;
   }): Promise<Record<string, unknown>[]> {
+    // **원문은 세션 본인과 admin 만 본다**(2026-09-01 사람 결정 · REQ-API-066).
+    //
+    // 마스킹은 휴리스틱이라 완벽하지 않다 — 이름도 모양도 없는 비밀은 못 잡는다. 그래서
+    // 가리는 것과 좁히는 것을 **함께** 둔다. 요약 줄(무슨 도구로 무엇을, 성공했나)은
+    // 프로젝트 멤버 전체가 본다: 그것까지 가리면 세션 모니터가 서지 않는다.
+    //
+    // **판정은 SQL 안이다.** 응답을 만들고 나서 지우면 그 사이의 어떤 경로가 원문을 흘린다.
+    const viewer = input.userId ?? null;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT a.id, a.seq, a.type::text AS type, a.title, a.body_md, a.tool_name, a.payload,
-             a.created_at
-        FROM activity a JOIN agent_session se ON se.id = a.session_id
+      WITH viewer AS (
+        SELECT ${viewer}::uuid AS user_id
+      )
+      SELECT a.id, a.seq, a.type::text AS type, a.title, a.body_md, a.tool_name,
+             a.created_at,
+             CASE WHEN ${this.canSeeRaw()} THEN a.payload
+                  ELSE jsonb_strip_nulls(jsonb_build_object(
+                         'tool_use_id', a.payload -> 'tool_use_id',
+                         'ok', a.payload -> 'ok',
+                         'outcome', a.payload -> 'outcome'))
+             END AS payload,
+             ${this.canSeeRaw()} AS raw_visible
+        FROM activity a
+        JOIN agent_session se ON se.id = a.session_id
+        JOIN project p ON p.id = se.project_id
+       CROSS JOIN viewer v
        WHERE se.project_id = ${input.projectId}
          AND (se.id::text = ${input.sessionId} OR se.external_session_id = ${input.sessionId})
        ORDER BY a.seq DESC
        LIMIT ${Math.min(input.limit ?? 200, 500)}
     `);
     return rows.reverse();
+  }
+
+  /**
+   * EP-SES-05 — 세션의 **작업 궤적** (2026-09-01 신설 · REQ-API-068).
+   *
+   * 세션 모니터가 답해야 하는 물음은 "무슨 도구를 썼나" 가 아니라 **"무엇을 하는 중이고
+   * 막혀 있나"** 다. 도구 로그는 그 아래 접히는 것이고, 위에 서야 하는 것은 이쪽이다.
+   *
+   * **새로 저장하는 것이 없다.** 이벤트가 이미 세션 id 를 달고 있으므로(`actor_session_id`)
+   * 질의만 있으면 된다 — 스펙을 저장했고, 제출했고, 질문을 던졌고, 발견을 올렸다는 사실이
+   * 전부 거기 있다. 세션 축으로 읽은 적이 없었을 뿐이다.
+   */
+  async trajectory(input: {
+    projectId: string;
+    sessionId: string;
+    limit?: number;
+  }): Promise<Record<string, unknown>[]> {
+    // **키는 봉투에만 있고 행에는 없다.** `event` 는 subject_id 만 들고 있으므로 여기서
+    // 되찾는다 — 화면이 읽는 것은 UUID 가 아니라 `SUD-AREA-PLAY` 다.
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT e.id, e.type, e.subject_type, e.subject_id,
+             coalesce(s.key, t.key) AS subject_key,
+             e.from_state, e.to_state, e.payload, e.occurred_at
+        FROM event e
+        JOIN agent_session se ON se.id = e.actor_session_id
+   LEFT JOIN spec_version sv ON sv.id = e.subject_id AND e.subject_type = 'spec_version'
+   LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN task t ON t.id = e.subject_id AND e.subject_type = 'task'
+       WHERE se.project_id = ${input.projectId}
+         AND (se.id::text = ${input.sessionId} OR se.external_session_id = ${input.sessionId})
+         -- 세션 자신의 생애(started·stale·complete)는 카드가 이미 말한다 — 궤적은 **한 일**이다
+         AND e.type NOT LIKE 'session.%'
+       ORDER BY e.occurred_at DESC
+       LIMIT ${Math.min(input.limit ?? 50, 200)}
+    `);
+    return rows.reverse();
+  }
+
+  /** 세션 본인이거나, 그 프로젝트·조직의 admin 인가 — 조직 단위 멤버십도 본다 */
+  private canSeeRaw(): SQL {
+    // **`coalesce` 가 없으면 안 본 사람에게 NULL 이 간다.** SQL 의 3값 논리에서
+    // `NULL = uuid` 는 false 가 아니라 NULL 이고, 화면은 그것을 "모름" 으로 받는다 —
+    // 권한 판정에 "모름" 은 없다. 닫힘이 기본이다.
+    return sql`coalesce(
+      se.user_id = v.user_id
+      OR EXISTS (SELECT 1 FROM membership m
+                  WHERE m.user_id = v.user_id AND m.role = 'admin'
+                    AND (m.project_id = se.project_id
+                         OR (m.project_id IS NULL AND m.org_id = p.org_id)))
+    , false)`;
   }
 
   /**

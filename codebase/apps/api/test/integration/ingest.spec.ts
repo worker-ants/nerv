@@ -5,13 +5,14 @@
 //
 // 예외는 Stop 하나다 — 턴 종료 직전의 **동기 판정**이라 서버의 답이 에이전트의 행동을 바꾼다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
+import { SessionService } from '../../src/modules/session/session.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -296,3 +297,205 @@ async function seed(): Promise<void> {
     [taskId, projectId],
   );
 }
+
+// 2026-09-01 사람 결정 — 훅 페이로드 **원문을 보관한다**. 비밀만 예외로, **적재 시점에** 가린다.
+// 그전에는 `tool_name` 만 남아 타임라인이 "Bash / Bash" 를 383번 반복했다(실측).
+describe('원문 보관과 마스킹 (REQ-API-065)', () => {
+  async function lastActivity(): Promise<Record<string, unknown>> {
+    const { rows } = await pool.query<Record<string, unknown>>(
+      `SELECT title, tool_name, payload FROM activity ORDER BY created_at DESC, seq DESC LIMIT 1`,
+    );
+    return rows[0]!;
+  }
+
+  it('명령과 출력이 남는다 — 무엇을 했는지 알 수 있다', async () => {
+    await hook('session', { session_id: EXTERNAL_SESSION, source: 'startup' });
+    await hook('tool', {
+      session_id: EXTERNAL_SESSION,
+      tool_name: 'Bash',
+      tool_use_id: 'tu-raw',
+      tool_input: { command: 'pnpm -r test' },
+      tool_response: { stdout: 'Tests 274 passed', exit_code: 0 },
+    });
+    const row = await lastActivity();
+    // **제목이 도구 이름이 아니다** — 그것이 이 변경의 전부다
+    expect(row['title']).toBe('Bash · pnpm -r test');
+    expect(JSON.stringify(row['payload'])).toContain('Tests 274 passed');
+    expect((row['payload'] as Record<string, unknown>)['ok']).toBe(true);
+  });
+
+  it('실패는 성패와 이유를 남긴다 — 예전에는 성공했는지도 몰랐다', async () => {
+    await hook('session', { session_id: EXTERNAL_SESSION, source: 'startup' });
+    await hook('tool', {
+      session_id: EXTERNAL_SESSION,
+      tool_name: 'Bash',
+      tool_use_id: 'tu-fail',
+      tool_input: { command: 'pnpm lint' },
+      tool_response: { stdout: '', exit_code: 1 },
+    });
+    const payload = (await lastActivity())['payload'] as Record<string, unknown>;
+    expect(payload['ok']).toBe(false);
+    expect(payload['outcome']).toBe('exit 1');
+  });
+
+  it('비밀은 DB 에 들어가지 않는다 — 예외는 적재 시점에 적용한다', async () => {
+    await hook('session', { session_id: EXTERNAL_SESSION, source: 'startup' });
+    await hook('tool', {
+      session_id: EXTERNAL_SESSION,
+      tool_name: 'Bash',
+      tool_use_id: 'tu-secret',
+      tool_input: { command: 'curl -H "Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz01"' },
+      tool_response: { stdout: 'ok', exit_code: 0 },
+    });
+    const raw = JSON.stringify(await lastActivity());
+    expect(raw).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz01');
+    expect(raw).toContain('masked');
+    // 가렸다고 말한다 — 조용히 지우면 "그 인자를 안 받았나" 로 읽힌다
+    expect(raw).toContain('github_token');
+  });
+
+  it('비밀 파일을 읽으면 응답을 통째로 가리고 경로는 남긴다', async () => {
+    await hook('session', { session_id: EXTERNAL_SESSION, source: 'startup' });
+    await hook('tool', {
+      session_id: EXTERNAL_SESSION,
+      tool_name: 'Read',
+      tool_use_id: 'tu-env',
+      tool_input: { file_path: '/repo/.env' },
+      tool_response: 'NERV_TOKEN=super-secret-value',
+    });
+    const row = await lastActivity();
+    const raw = JSON.stringify(row);
+    expect(raw).not.toContain('super-secret-value');
+    expect(raw).toContain('secret_file');
+    // 무엇을 읽었는지는 사실이다 — 그것까지 가리면 타임라인이 다시 무의미해진다
+    expect(String(row['title'])).toContain('.env');
+  });
+});
+
+// 2026-09-01 사람 결정 — 마스킹이 완벽하지 않으므로 **원문 열람을 좁힌다**.
+// 가리는 것과 좁히는 것은 한 쌍이다: 하나만으로는 부족하다.
+describe('원문 열람 — 세션 본인과 admin 만 (REQ-API-066)', () => {
+  async function seed(): Promise<void> {
+    await hook('session', { session_id: EXTERNAL_SESSION, source: 'startup' });
+    await hook('tool', {
+      session_id: EXTERNAL_SESSION,
+      tool_name: 'Bash',
+      tool_use_id: 'tu-view',
+      tool_input: { command: 'pnpm -r test' },
+      tool_response: { stdout: '비밀은 아니지만 원문이다', exit_code: 0 },
+    });
+  }
+
+  async function timelineFor(viewer: string | null): Promise<Record<string, unknown>[]> {
+    return app
+      .get(SessionService)
+      .timeline({ projectId, sessionId: EXTERNAL_SESSION, userId: viewer });
+  }
+
+  it('세션 본인은 원문을 본다', async () => {
+    await seed();
+    const rows = await timelineFor(userId);
+    const last = rows[rows.length - 1]!;
+    expect(last['raw_visible']).toBe(true);
+    expect(JSON.stringify(last['payload'])).toContain('pnpm -r test');
+  });
+
+  it('남은 요약만 본다 — 무엇을 했고 성공했는지는 알되 원문은 못 본다', async () => {
+    await seed();
+    const other = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'other@example.com','남','active')`,
+      [other],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id = $2),$2,$3,'developer')`,
+      [newId(), projectId, other],
+    );
+
+    const rows = await timelineFor(other);
+    const last = rows[rows.length - 1]!;
+    expect(last['raw_visible']).toBe(false);
+    // 제목과 성패는 남는다 — 그것까지 가리면 세션 모니터가 서지 않는다
+    expect(String(last['title'])).toContain('pnpm -r test');
+    expect((last['payload'] as Record<string, unknown>)['ok']).toBe(true);
+    expect(JSON.stringify(last['payload'])).not.toContain('원문이다');
+  });
+
+  it('admin 은 남의 세션 원문도 본다 — 조직 단위 admin 도 같다', async () => {
+    await seed();
+    const admin = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'adm@example.com','관리','active')`,
+      [admin],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id = $2),NULL,$3,'admin')`,
+      [newId(), projectId, admin],
+    );
+    const rows = await timelineFor(admin);
+    expect(rows[rows.length - 1]!['raw_visible']).toBe(true);
+  });
+
+  it('보는 사람을 모르면 원문을 주지 않는다 — 기본이 닫힘이다', async () => {
+    await seed();
+    const rows = await timelineFor(null);
+    expect(rows[rows.length - 1]!['raw_visible']).toBe(false);
+  });
+});
+
+// 2026-09-01 사람 보고 — 세션 모니터가 답해야 하는 물음은 "무슨 도구를 썼나" 가 아니라
+// "무엇을 하는 중이고 막혀 있나" 다. 그 답은 **이벤트에 처음부터 있었다**(actor_session_id).
+describe('작업 궤적 — 도구 로그가 아니라 한 일 (REQ-API-068)', () => {
+  it('그 세션이 한 일을 시간순으로 준다 — 새로 저장하는 것이 없다', async () => {
+    await hook('session', { session_id: EXTERNAL_SESSION, source: 'startup' });
+    const { rows: session } = await pool.query<{ id: string }>(
+      `SELECT id FROM agent_session WHERE external_session_id = $1`,
+      [EXTERNAL_SESSION],
+    );
+    const sessionId = session[0]!.id;
+
+    // 이벤트는 도메인 서비스가 낸다 — 여기서는 그 결과만 흉내 낸다(궤적은 읽기다).
+    // **키는 event 행에 없다** — subject_id 로 되찾으므로 실제 스펙을 하나 만든다.
+    const specId = newId();
+    const versionId = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature','SUD-AREA-PLAY','놀이')`,
+      [specId, projectId],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'draft','# 본문', digest('x','sha256'), $3)`,
+      [versionId, specId, userId],
+    );
+    for (const [type, subjectType, subjectId] of [
+      [NERV_EVENT.SPEC_DRAFT_UPDATED, 'spec_version', versionId],
+      [NERV_EVENT.QUESTION_CREATED, 'question', newId()],
+    ] as const) {
+      await pool.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id,
+                            actor_user_id, actor_session_id, is_agent)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,true)`,
+        [newId(), projectId, type, subjectType, subjectId, userId, sessionId],
+      );
+    }
+
+    const steps = await app
+      .get(SessionService)
+      .trajectory({ projectId, sessionId: EXTERNAL_SESSION });
+    expect(steps.map((s) => s['type'])).toEqual([
+      NERV_EVENT.SPEC_DRAFT_UPDATED,
+      NERV_EVENT.QUESTION_CREATED,
+    ]);
+    expect(steps[0]?.['subject_key']).toBe('SUD-AREA-PLAY');
+  });
+
+  it('세션 자신의 생애는 궤적이 아니다 — 카드가 이미 말한다', async () => {
+    await hook('session', { session_id: EXTERNAL_SESSION, source: 'startup' });
+    const steps = await app
+      .get(SessionService)
+      .trajectory({ projectId, sessionId: EXTERNAL_SESSION });
+    expect(steps.every((s) => !String(s['type']).startsWith('session.'))).toBe(true);
+  });
+});

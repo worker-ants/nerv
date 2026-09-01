@@ -26,6 +26,7 @@ export class ActivityService {
   timeline(input: {
     projectId: string;
     sessionId: string;
+    userId?: string | null;
     limit?: number;
   }): Promise<Record<string, unknown>[]> {
     return this.sessions.timeline(input);

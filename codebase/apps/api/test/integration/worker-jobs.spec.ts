@@ -134,3 +134,68 @@ describe('E04-S04 주기 스케줄', () => {
     await lock.release();
   });
 });
+
+// 2026-09-01 사람 결정 — 원문을 보관하기로 했으니 보존이 한 쌍이다.
+// 잡은 이미 있었는데(90일 삭제) **지우기 전에 접는 단계**가 없었다: 지우고 나면 그 세션은
+// 아무것도 안 한 것처럼 보였고, 빈 레일은 "기록이 없다" 와 "아무것도 안 했다" 를 구별하지 못한다.
+describe('보존 — 지우기 전에 접는다 (REQ-API-067)', () => {
+  it('도구별 횟수를 세션에 남기고 원문을 지운다', async () => {
+    const pool = poolA;
+    const orgId = newId();
+    const projectId = newId();
+    const userId = newId();
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'ret','R')`, [orgId]);
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'ret@example.com','보존','active')`,
+      [userId],
+    );
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'ret','RET','ret')`,
+      [projectId, orgId],
+    );
+    const sessionId = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','host','complete')`,
+      [sessionId, projectId, userId],
+    );
+    // 월 파티션이라 그 달의 파티션이 있어야 넣을 수 있다 — 실제 운영에서는 그 달이
+    // 현재였을 때 만들어져 있다(0000 의 `nerv_ensure_month_partitions`)
+    for (const days of [100, 1, 0]) {
+      await pool.query(
+        `SELECT nerv_ensure_month_partitions(date_trunc('month', now() - make_interval(days => $1))::date)`,
+        [days],
+      );
+    }
+    // 100일 전 활동 — 기본 정책(90일)의 바깥이다
+    for (const [i, tool] of ['Bash', 'Bash', 'Edit'].entries()) {
+      await pool.query(
+        `INSERT INTO activity (id, session_id, project_id, seq, type, title, tool_name, created_at)
+         VALUES ($1,$2,$3,$4,'action',$5,$5, now() - interval '100 days')`,
+        [newId(), sessionId, projectId, i + 1, tool],
+      );
+    }
+    // 어제 것은 남아야 한다 — 보존은 오래된 것만 걷는다
+    await pool.query(
+      `INSERT INTO activity (id, session_id, project_id, seq, type, title, tool_name, created_at)
+       VALUES ($1,$2,$3,99,'action','Bash · 최근','Bash', now() - interval '1 day')`,
+      [newId(), sessionId, projectId],
+    );
+
+    const report = await new RetentionJob(drizzle(pool)).run();
+    expect(report.activities_deleted).toBe(3);
+
+    const { rows } = await pool.query<{ activity_summary: Record<string, number> }>(
+      `SELECT activity_summary FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    // 원문은 사라졌지만 **규모는 남는다**
+    expect(rows[0]?.activity_summary).toMatchObject({ Bash: 2, Edit: 1 });
+
+    const { rows: left } = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM activity WHERE session_id = $1`,
+      [sessionId],
+    );
+    expect(left[0]?.n).toBe('1');
+  });
+});
