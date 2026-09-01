@@ -9,6 +9,9 @@ import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-regist
 import { ReviewService } from './review.service.js';
 import type { ResolutionKind, SubmitFinding } from './review.service.js';
 
+/** 선언된 area 만 받는다 — 모르는 값은 안 준 것으로 보고 서버가 추론한다 */
+const AREAS = ['codebase', 'spec', 'task', 'process'];
+
 /** 도구 계약의 `resolution` 3값 → 저장 모델의 (kind, status) 짝. */
 const RESOLUTION: Readonly<
   Record<string, { kind: ResolutionKind; status: 'fixed' | 'dismissed' | 'wont_fix' }>
@@ -69,6 +72,13 @@ export class ReviewTools implements NervToolProvider {
                 symbol: { type: 'string' },
                 requirement_id: { type: 'string' },
                 spec_version_id: { type: 'string' },
+                // **어디에 대한 지적인가** — 지적한 쪽이 가장 잘 안다. 안 주면 서버가
+                // 출처로 유추하고 그 사실을 남긴다(REQ-API-073)
+                area: {
+                  type: 'string',
+                  enum: ['codebase', 'spec', 'task', 'process'],
+                  description: 'mcp.arg.finding_area',
+                },
               },
               required: ['severity', 'title'],
             },
@@ -178,6 +188,7 @@ function asFindings(value: unknown): SubmitFinding[] {
       symbol: typeof f['symbol'] === 'string' ? f['symbol'] : null,
       requirement_id: typeof f['requirement_id'] === 'string' ? f['requirement_id'] : null,
       spec_version_id: typeof f['spec_version_id'] === 'string' ? f['spec_version_id'] : null,
+      area: AREAS.includes(String(f['area'])) ? (f['area'] as SubmitFinding['area']) : null,
     };
   });
 }

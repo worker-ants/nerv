@@ -20,7 +20,7 @@ import type { Socket } from 'socket.io-client';
 import { NERV_EVENT } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { useMe } from './queries.js';
-import { connectNervSocket, joinProjectRoom, leaveProjectRoom } from './ws.js';
+import { connectNervSocket, forgetRooms, joinProjectRoom, leaveProjectRoom } from './ws.js';
 import { invalidationKeysFor } from './event-invalidation.js';
 import type { ConnectionState } from './ws.js';
 
@@ -157,6 +157,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
         if (next === 'connected') wasConnected.current = true;
       },
     });
+    // 새 소켓은 새 기억으로 시작한다 — 앞 계정이 보던 룸을 물려받지 않는다
+    forgetRooms();
     socketRef.current = socket;
     return () => {
       socket.close();

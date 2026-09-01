@@ -352,6 +352,8 @@ export interface FindingQueueResponse {
   facets: {
     severity: Record<string, number>;
     status: Record<string, number>;
+    /** 어디에 대한 지적인가 — 2026-09-01 신설(REQ-API-073) */
+    area: Record<string, number>;
     tag: Record<string, number>;
   };
 }
@@ -368,7 +370,12 @@ export interface GateCoverageResponse {
  */
 export function useFindings(
   slug: string,
-  filters: { severity: readonly string[]; status: readonly string[]; tag: readonly string[] },
+  filters: {
+    severity: readonly string[];
+    status: readonly string[];
+    tag: readonly string[];
+    area: readonly string[];
+  },
   projectId?: string,
   limit?: number,
 ): UseQueryResult<FindingQueueResponse> {
@@ -377,6 +384,7 @@ export function useFindings(
   if (filters.severity.length > 0) query.set('severity', filters.severity.join(','));
   if (filters.status.length > 0) query.set('status', filters.status.join(','));
   if (filters.tag.length > 0) query.set('tag', filters.tag.join(','));
+  if (filters.area.length > 0) query.set('area', filters.area.join(','));
   if (limit !== undefined) query.set('limit', String(limit));
   return useQuery({
     queryKey: [...queryKeys.projectFindings(projectId ?? slug), filters, limit],

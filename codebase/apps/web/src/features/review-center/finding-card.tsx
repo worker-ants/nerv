@@ -154,6 +154,14 @@ export function FindingCard({
             })}
           </span>
         )}
+        {/* **어디에 대한 지적인가** — 추론된 값은 그렇다고 밝힌다(REQ-API-073).
+            밝히지 않으면 사람은 그것을 지적한 쪽이 정한 값으로 읽는다 */}
+        <span data-testid="finding-area" className="rounded-nerv-sm bg-bg-sunken px-1.5 py-0.5">
+          {t(`area.${String(finding['area'] ?? 'codebase')}` as 'area.codebase')}
+          {finding['area_inferred'] === true && (
+            <span className="ml-1 text-text-ghost">· {t('reviews.area_inferred')}</span>
+          )}
+        </span>
         {tags.map((tag) => (
           <span key={tag} className="rounded-nerv-sm bg-bg-sunken px-1.5 py-0.5 font-mono">
             {tag}

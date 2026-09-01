@@ -16,6 +16,7 @@ import { QuestionService } from '../../src/modules/approval/question.service.js'
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
+import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { worstOf } from '../../src/modules/spec/spec-check.service.js';
@@ -46,6 +47,7 @@ beforeAll(async () => {
     new ClaimService(),
     events,
     new QuestionService(events, drizzleDb),
+    new SessionService(events, drizzleDb),
     drizzleDb,
   );
   await seed();

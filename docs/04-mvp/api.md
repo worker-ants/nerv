@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP MVP 16종 ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 18종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.45 · 2026-09-01 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.46 · 2026-09-01 · HTML 판: [api.html](../html/api.html)
 >
 > v0.45 변경(2026-09-01 — 사람 결정): **§2.10 신설**(REQ-API-069~071). 스펙에 디자인 시안을 첨부한다 — MinIO 는 스택에 처음부터 있었고 아무도 쓰지 않았다. 사람은 서버를 거쳐, 에이전트는 **presigned 2단계**로 올린다(응답에 파일을 싣지 않는다). 읽기도 서버를 거친다: 첨부가 공개면 스펙 권한이 무의미해진다. 곁들여 **편집기가 이미지를 통째로 지우고 있던 결함**을 고쳤다.
 > v0.44 변경(2026-09-01 — 사람 결정, 정책 변경): **REQ-API-065~068**. 훅 페이로드 **원문 보관**으로 정책을 바꾼다 — 예전에는 `tool_name` 만 남겨 타임라인이 "Bash / Bash" 를 383번 반복했다. **비밀만 예외**이고 그 예외는 적재 시점에 적용한다(저장 뒤 가리기는 백업·복제본을 되돌리지 못한다). 마스킹이 완벽하지 않으므로 **원문 열람은 세션 본인과 admin** 으로 좁힌다. 보존 잡은 지우기 전에 도구 횟수를 세션에 접어 두고, 세션 **작업 궤적**(도구 로그가 아니라 한 일)을 새로 연다.
@@ -481,6 +481,25 @@ HTTP 상태 매핑:
 | REQ-API-052 | WHEN 이미 쓰이는 안정 키로 스펙 생성이 오면 THE SYSTEM SHALL `key_taken`(그 문서의 `web_url`·보관 여부 포함)으로 거부하고, 프로젝트 안에서 키의 유일성을 DB 제약으로 강제한다 |
 | REQ-API-053 | WHILE 초안 편집 리스를 쥔 세션이 하트비트 3주기를 넘겨 침묵했거나 활성 상태가 아니면 THE SYSTEM SHALL 그 리스를 비어 있는 것으로 취급한다 |
 
+### 2.11 사람이 보낸 지시의 전달 · 발견의 대상 축 (2026-09-01 신설 — 사람 보고)
+
+**보낸 지시가 아무에게도 가지 않았다.** 세션 화면의 "메시지 보내기"는 `activity` 에 `elicitation` 행을 잘 넣고 있었고, 그것을 꺼내 주는 `takePendingInstructions` 도 처음부터 있었다 — **부르는 곳이 없었다**(실측 2026-09-01: 호출자 0). 하트비트의 `pending` 에는 질문 답변과 발견 코멘트만 실렸다. 사람이 보낸 말은 DB 에 앉아 화면에만 보였고, 받는 쪽은 그런 말이 있는 줄도 몰랐다.
+
+하트비트가 그 자리다 — 에이전트와 서버가 정기적으로 만나는 유일한 곳이고, 역채널의 다른 둘이 이미 거기로 온다. **지시가 답변보다 앞선다**: `stop` 은 "지금 하던 것을 멈춰라"인데 질문 답변 열 개 뒤에 붙으면 늦게 읽힌다. `stop` 자체는 클레임을 회수하므로 다음 하트비트가 `NERV_LEASE_EXPIRED` 로 끝난다 — **그 오류가 곧 정지 신호**이고, 이 경로가 실어 나르는 것은 클레임이 살아 있는 `steer` 다.
+
+**발견에는 "어디에 대한 말인가"가 없었다.** `severity` 는 얼마나 급한가, `category` 는 무슨 종류인가(보안·성능·테스트)를 답하는데, 사람이 발견을 보고 **다음에 할 행동**을 가르는 축은 그 둘이 아니다. 코드를 고칠 것인가, 문서를 고칠 것인가, 작업 정의를 고칠 것인가, 일하는 방식을 바꿀 것인가 — 처분 4종(`fixed`·`spec_change`·`dismissed`·`wont_fix`)이 이미 이 갈림을 전제하고 있었는데 **분류가 없어 목록에서 그것을 미리 나눌 수 없었다**.
+
+넷으로 정의한다. **codebase** — 구현이 잘못됐다(고칠 것: 코드·테스트). **spec** — 명세가 틀렸거나 구현과 어긋난다(고칠 것: 문서, 대개 `spec_change` 로 닫힌다). **task** — 작업 정의·범위·위임 명세가 문제다(고칠 것: Task). **process** — 규약·게이트·도구 등 일하는 방식이다(고칠 것: 규칙). 축이 다섯이 되면 사람이 고르지 못하고, 셋이면 `task` 와 `process` 가 한 덩어리가 되어 다시 안 쓰인다.
+
+**에이전트가 선언하고, 없으면 서버가 유추한다.** 지금까지 쌓인 18,690건(실측)에 새 열을 붙이면 전부 기본값이 되므로 유추가 필요하고, 앞으로 오는 것도 도구가 그 값을 안 실으면 마찬가지다. 유추 규칙은 짚는 대상을 따른다 — 스펙·요구사항을 짚었거나 `spec_drift` 태그면 `spec`(파일이 함께 있어도 그렇다: 드리프트는 코드가 아니라 문서 쪽 사실이다), 파일이 있으면 `codebase`, 파일 없이 Task 리뷰면 `task`, 짚을 것이 없으면 `process`.
+
+**유추한 값은 유추라고 밝힌다**(`area_inferred`). 밝히지 않으면 사람은 그것을 **지적한 쪽이 정한 값**으로 읽고, 틀린 분류를 근거로 다음 행동을 고른다 — 없는 분류보다 나쁘다. 화면도 그 표식을 그대로 보인다(REQ-WEB-128). 이 열은 나중에 규칙을 고칠 때 "어디까지가 서버의 짐작이었나"를 답하는 유일한 근거이기도 하다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-API-072 | WHEN 하트비트가 오면 THE SYSTEM SHALL 그 세션 앞으로 온 사람의 지시(`steer`·`stop`)를 `pending` 의 **맨 앞**에 실어 주고, 한 번 전달한 지시는 다시 싣지 않는다 |
+| REQ-API-073 | WHEN 발견이 적재되면 THE SYSTEM SHALL 대상 축(`codebase`·`spec`·`task`·`process`)을 함께 저장하되, 제출이 값을 싣지 않으면 짚는 대상으로 유추하고 **유추했다는 사실**(`area_inferred`)을 남긴다. WHEN 발견 목록을 조회하면 THE SYSTEM SHALL 이 축으로 거를 수 있게 하고 facet 을 함께 준다 |
+
 ### 1.5 멱등 키 — `Idempotency-Key` 헤더
 
 상태를 바꾸는 모든 REST 요청(POST·PUT·PATCH·DELETE)은 `Idempotency-Key` 헤더를 받는다. MCP의 A2 이상 도구가 받는 `idempotency_key` 입력([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 4)과 **같은 저장소**를 쓴다 — 오프라인 아웃박스가 큐잉한 쓰기가 MCP로 재전송되든 REST로 재전송되든 한 번만 실행된다.
@@ -775,7 +794,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | --- | --- | --- | --- | --- | --- |
 | EP-REV-01 | `POST /api/v1/projects/{proj}/reviews` | `review:submit` | `ReviewSubmitInput`(branch, base_sha, head_sha, changeset[], kind, task_id?, reviewer{role, risk}, summary, findings[]{severity, title, body, suggestion, category, file, line, symbol, requirement_id?, spec_version_id?}, payload_ref?) | `ReviewSubmitResult`(review_session_id, round_no, merged_into_existing_session, findings_new[], findings_merged[], carried_over[], block) | 새로 열린 발견마다 `finding.opened` |
 | EP-REV-02 | `POST /api/v1/projects/{proj}/findings/{id}/resolve` | `review:resolve` | `FindingResolveInput`(resolution: fixed/dismissed/wont_fix, commit_sha?, change_request_id?, rationale) | `FindingResolveResult`(finding_id, status, resolution_id, open_remaining) | `finding.resolved` · 에이전트의 critical 하향이면 먼저 `approval.requested` |
-| EP-REV-03 | `GET /api/v1/projects/{proj}/findings` | `spec:read` | `FindingListQuery`(`severity[]`·`status[]`·`tag[]`·`limit`) | `FindingListResult`(`items[]` — severity·category·위치·occurrence_count + 마지막 세션의 head_sha·branch·round_no + 유래 스펙/Requirement, `facets{severity,status,tag}`) | — |
+| EP-REV-03 | `GET /api/v1/projects/{proj}/findings` | `spec:read` | `FindingListQuery`(`severity[]`·`status[]`·`area[]`·`tag[]`·`limit`) | `FindingListResult`(`items[]` — severity·category·위치·occurrence_count + 마지막 세션의 head_sha·branch·round_no + 유래 스펙/Requirement, `facets{severity,status,area,tag}`) | — |
 | EP-REV-04 | `GET /api/v1/projects/{proj}/gates/reviews` | `spec:read` | — | `GateCoverageResult[]`(branch, 커버 리뷰(head_sha·round_no·완료 시각), 해소 `resolved/total`, 판정 `passed`/`pending`/`uncovered`, 면제(`is_bypass` 결재의 사람·시각·사유)) | — |
 
 세 가지가 이 표면의 계약이다.

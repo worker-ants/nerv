@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.23 · 2026-09-01 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.24 · 2026-09-01 · HTML 판: [plugin.html](../html/plugin.html)
+>
+> v0.24 변경(2026-09-01 — 사람 보고의 곁가지): `SessionStart` 훅이 **outbox 를 먼저 비운다**(§3.4 · REQ-PLG-016). flush 주체가 "다음 스킬 턴" 뿐이라, 서버가 죽은 동안 큐잉하고 세션을 끝내면 그 쓰기가 언제 갈지 아무도 몰랐다.
 >
 > v0.23 변경(2026-09-01 — 도구 1종 신설 반영): `skills/spec` 에 **"시안·문서는 첨부한다"** 절(§2.2) — `nerv_spec_attach` 의 2단계 절차와, 확정 뒤 **본문에 이미지로 넣으라는** 지시다. 매달기만 하고 본문에 안 넣으면 문서를 읽는 사람은 그 그림을 못 본다.
 > v0.22 변경(2026-08-30 — 처분에 정직한 길을 준다): `skills/review` 의 처분 절차를 **코드/스펙 두 갈래**로 가른다(§2.6). 스펙을 고쳐 해결했으면 `spec_change` + `spec_version_id` 이고, 커밋이 없다고 `dismissed`·`wont_fix` 로 닫지 않는다 — 둘 다 거짓이 된다(4.4 REQ-API-060).
@@ -594,6 +596,9 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
      무엇을 말하는지 알 수 없다 — `body`는 왜 문제인가, `suggestion`은 무엇을 하면 되는가다.
    - `file`·`line`·`symbol`을 채운다. 위치 없는 지적은 사람이 다시 찾아야 한다.
    - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다.
+   - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
+     `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
+     비워 두면 서버가 짚은 대상으로 유추하고 화면에 "추론됨"이라 적히므로, 아는 것은 직접 적는다.
 4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 전부)·`block`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다.
 
 발견이 0건이어도 제출한다. "봤고 문제가 없었다"는 라운드가 있어야 게이트가 그것을 통과로 읽는다.
@@ -657,6 +662,11 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
               "X-NERV-Agent": "claude-code"
             },
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
+            "timeout": 20
           }
         ]
       }
@@ -904,7 +914,9 @@ outbox 항목 형식(1파일 = 1호출):
 4. **SessionEnd 시 잔량을 보고한다.** outbox에 항목이 남아 있으면 세션 종료 메시지에 건수·가장 오래된 항목을 표시한다 — 조용히 사라지는 쓰기가 0이어야 한다(임포터 전수 계정과 같은 원칙).
 5. **큐는 위임 판단을 대신하지 않는다.** 오프라인 동안 신규 클레임 발급·`ready` 전이 시도는 금지 그대로다(agent-integration §5.4 — "조정 행위는 낙관적으로 진행하지 않는다"). 큐잉 가능한 것은 이미 쥔 클레임 위의 상태 보고·질문·증적뿐이다.
 
-복구 후 **자동** 동기화(백그라운드 데몬)는 Phase 2다(NFR-05 ◐ — [4.1 MVP 범위와 스택 확정](scope.md) §3.4). MVP의 flush 주체는 다음 스킬 턴이다.
+**세션이 시작될 때도 비운다**(2026-09-01 — 사람 보고 "재연결이 안 된다"의 곁가지 · REQ-PLG-016). 규칙 2의 flush 주체가 "다음 스킬 턴"뿐이면, 서버가 죽은 동안 큐잉하고 세션을 끝낸 사람은 **다음에 스킬을 부를 때까지** 그 쓰기를 보내지 않는다 — 그동안 플랫폼은 그 작업이 멈춘 것으로 보인다. `SessionStart` 훅에 `nerv-outbox flush` 를 함께 걸어 **켤 때 먼저 비운다**: 서버가 그사이 살아났으면 밀린 쓰기가 첫 도구 호출보다 앞서 도착한다. 멱등 키가 그대로라 중복 실행은 없고(규칙 2), 서버가 아직 죽어 있으면 그대로 남는다.
+
+복구 후 **자동** 동기화(백그라운드 데몬)는 Phase 2다(NFR-05 ◐ — [4.1 MVP 범위와 스택 확정](scope.md) §3.4). MVP의 flush 주체는 세션 시작과 다음 스킬 턴이다.
 
 ## 4. 사람 온보딩 절차
 
@@ -1055,6 +1067,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-011 | WHEN 쓰기 도구가 `NERV_UNAVAILABLE`을 반환하면 THE SYSTEM SHALL 호출 입력·`idempotency_key`·`queued_at`을 §3.4 형식으로 `.nerv/outbox/`에 기록하고, 4xx 실패는 큐잉하지 않는다 | 서버 차단 상태에서 쓰기 시도 → outbox 파일 형식 검사 + 403 시 큐잉 0건 |
 | REQ-PLG-012 | WHEN 서버 복구 후 첫 도구 호출 전이면 THE SYSTEM SHALL outbox를 oldest-first로 원래 멱등 키 그대로 재전송하고, 성공 항목 삭제·4xx 항목 `outbox/failed/` 이동 후 서버 레코드 중복 0을 유지한다 | 큐 3건(성공 2·403 1) flush 실측 — 레코드 수·failed/ 이동 확인 |
 | REQ-PLG-014 | WHEN `/nerv:review` 세션이 리뷰를 마치면 THE SYSTEM SHALL `nerv_review_submit`으로 제출하고 리뷰 산출물을 저장소에 파일로 커밋하지 않는다 — 서버가 `NERV_UNAVAILABLE`이면 outbox에 큐잉한다(파일 커밋으로 대체하지 않는다) | 리뷰 1회 실측: 저장소 diff에 리뷰 산출물 0건 + 서버 차단 상태에서 outbox 1건 |
+| REQ-PLG-016 | WHEN 세션이 시작되면 THE SYSTEM SHALL `.nerv/outbox/` 를 `queued_at` 순으로 비우고, 실패한 항목은 남긴 채 세션을 진행한다 | 서버 중단 중 큐잉 1건 → 서버 복구 후 세션 시작 1회: 첫 도구 호출 이전에 전송 완료, 중복 실행 0건 |
 | REQ-PLG-015 | WHEN `nerv_finding_resolve`가 `NERV_APPROVAL_REQUIRED`를 반환하면 THE SYSTEM SHALL 재시도하지 않고 `approval_id`와 함께 사람에게 보고한 뒤 멈춘다 | critical → wont_fix 1회 실측: 재호출 0건 + 보고에 approval_id 포함 |
 | REQ-PLG-013 | WHEN 플러그인이 설치되면 THE SYSTEM SHALL `.gitignore`에 `.nerv/`를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다 | 설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측 |
 

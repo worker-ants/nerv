@@ -7,7 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.17 · 2026-08-30 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.18 · 2026-09-01 · HTML 판: [database.html](../html/database.html)
+>
+> v0.18 변경(2026-09-01 — 사람 요청): `finding` 에 **대상 축**(`finding_area` 열거 + `area`·`area_inferred`, 0014). 이미 쌓인 발견 18,690건은 짚는 대상으로 백필했고(codebase 15,047 · process 3,350 · spec 293) **그것이 유추임을 행마다 남긴다** — 정의와 규칙은 [4.4](api.md) §2.11.
 >
 > v0.17 변경(2026-09-01 — 사람 결정): **`attachment` 신설**(0013 · 도메인 32종). 스펙에 디자인 시안을 매단다 — 파일은 MinIO 에, 메타는 여기. **버전이 아니라 문서에** 매다는 이유는 초안이 덮어써지는 동안에도 시안은 그대로 남아야 하기 때문이다([4.4](api.md) §2.10).
 > v0.16 변경(2026-09-01 — 사람 결정): `agent_session` 에 **`activity_summary`**(0012). 보존 잡이 90일 지난 Activity 를 지우는데 지우고 나면 그 세션이 아무것도 안 한 것처럼 보였다 — 빈 레일은 "기록이 없다" 와 "아무것도 안 했다" 를 구별하지 못한다. 지우기 전에 도구별 횟수를 접어 둔다([4.4](api.md) REQ-API-067).
@@ -112,6 +114,7 @@ CREATE TYPE review_trigger          AS ENUM ('auto', 'manual', 'gate');
 CREATE TYPE review_state            AS ENUM ('running', 'complete', 'failed');
 CREATE TYPE review_risk             AS ENUM ('none', 'low', 'medium', 'high', 'critical');
 CREATE TYPE finding_severity        AS ENUM ('critical', 'warning', 'info');
+CREATE TYPE finding_area            AS ENUM ('codebase', 'spec', 'task', 'process'); -- 무엇을 고쳐야 하는가(2026-09-01)
 CREATE TYPE finding_status          AS ENUM ('open', 'fixed', 'dismissed', 'wont_fix');
 CREATE TYPE resolution_kind         AS ENUM ('fixed', 'deferred', 'dismissed', 'escalated', 'spec_change');
 CREATE TYPE escalate_reason         AS ENUM ('no', 'spec', 'user-decision', 'infra', 'e2e-fail-3x', 'sensitive-fix');
@@ -511,7 +514,9 @@ CREATE TABLE finding (                        -- 라운드를 넘어 하나로 �
   fingerprint      bytea NOT NULL,            -- 라운드 불변 dedup 키(data-model §5.2)
   severity         finding_severity NOT NULL,
   tags             text[] NOT NULL DEFAULT '{}', -- 'spec_drift' 등
-  category         text NOT NULL,
+  category         text NOT NULL,            -- 무슨 종류인가(보안·성능·테스트…)
+  area             finding_area NOT NULL DEFAULT 'codebase', -- 어디를 고쳐야 하는가(4.4 §2.11)
+  area_inferred    boolean NOT NULL DEFAULT true, -- 서버가 유추한 값인가 — 짐작을 사실로 읽히게 두지 않는다
   title            text NOT NULL,
   detail_md        text,
   suggestion_md    text,

@@ -98,8 +98,8 @@ describe('enum 선언 (database.md §2.1)', () => {
     (e) => typeof e === 'function' && 'enumName' in e && 'enumValues' in e,
   );
 
-  it('38종이다', () => {
-    expect(declaredEnums).toHaveLength(38);
+  it('39종이다', () => {
+    expect(declaredEnums).toHaveLength(39);
   });
 
   it('하이픈이 든 clemvion 계승 어휘를 그대로 쓴다 (data-model §2.6)', () => {

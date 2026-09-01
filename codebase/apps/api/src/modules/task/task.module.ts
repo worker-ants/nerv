@@ -4,6 +4,7 @@ import { ApprovalModule } from '../approval/approval.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { EventModule } from '../event/event.module.js';
+import { SessionModule } from '../session/session.module.js';
 import { ClaimService } from './claim.service.js';
 import { TaskController } from './task.controller.js';
 import { WebhookController } from './webhook.controller.js';
@@ -12,7 +13,7 @@ import { TaskService } from './task.service.js';
 import { TaskTools } from './task.tools.js';
 
 @Module({
-  imports: [EventModule, ApprovalModule, AuthModule],
+  imports: [EventModule, ApprovalModule, AuthModule, SessionModule],
   controllers: [TaskController, WebhookController],
   providers: [TaskService, ClaimService, TaskTools, WebhookService, ProjectAccessGuard],
   exports: [TaskService, ClaimService],

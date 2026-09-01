@@ -773,3 +773,75 @@ async function seed(): Promise<void> {
     [agentSessionId, projectId, userId],
   );
 }
+
+// 2026-09-01 사람 요청 — "리뷰에서 어느 부분에 관련된 리뷰인지 필터".
+// `category` 는 "무슨 종류인가"(보안·테스트) 이고 이 축은 **"무엇을 고쳐야 하는가"** 다 —
+// 사람이 발견을 보고 다음에 할 행동이 넷으로 갈린다.
+describe('발견의 대상 축 (REQ-API-073)', () => {
+  it.each([
+    [{ file: 'src/a.ts' }, 'codebase'],
+    [{ file: 'src/a.ts', tags: ['spec_drift'] }, 'spec'],
+    // 짚을 파일이 없는 지적은 코드가 아니라 **일하는 방식**에 대한 말이다
+    [{ file: null }, 'process'],
+  ])('%o → %s', async (extra, expected) => {
+    await pool.query('DELETE FROM finding_occurrence');
+    await pool.query('DELETE FROM finding');
+    const out = await reviews.submit(
+      submitInput({ findings: [{ ...CRITICAL, ...extra } as never] }),
+    );
+    const { rows } = await pool.query<{ area: string; area_inferred: boolean }>(
+      `SELECT area::text AS area, area_inferred FROM finding WHERE id = $1`,
+      [out.findings_new[0]!],
+    );
+    expect(rows[0]?.area).toBe(expected);
+    // 서버가 유추했으면 그 사실이 남는다 — 나중에 규칙을 고칠 근거다
+    expect(rows[0]?.area_inferred).toBe(true);
+  });
+
+  it('스펙 근거가 있으면 파일이 함께 있어도 spec 이다 — spec_drift 는 코드가 아니라 문서다', async () => {
+    await pool.query('DELETE FROM finding_occurrence');
+    await pool.query('DELETE FROM finding');
+    const out = await reviews.submit(
+      submitInput({
+        findings: [{ ...CRITICAL, file: 'src/a.ts', tags: ['spec_drift'] } as never],
+      }),
+    );
+    const { rows } = await pool.query<{ area: string }>(
+      `SELECT area::text AS area FROM finding WHERE id = $1`,
+      [out.findings_new[0]!],
+    );
+    expect(rows[0]?.area).toBe('spec');
+  });
+
+  it('에이전트가 선언하면 그것이 이긴다 — 추론은 안 준 값을 채우는 것이다', async () => {
+    await pool.query('DELETE FROM finding_occurrence');
+    await pool.query('DELETE FROM finding');
+    const out = await reviews.submit(
+      submitInput({ findings: [{ ...CRITICAL, file: 'src/a.ts', area: 'task' } as never] }),
+    );
+    const { rows } = await pool.query<{ area: string; area_inferred: boolean }>(
+      `SELECT area::text AS area, area_inferred FROM finding WHERE id = $1`,
+      [out.findings_new[0]!],
+    );
+    expect(rows[0]?.area).toBe('task');
+    expect(rows[0]?.area_inferred).toBe(false);
+  });
+
+  it('필터와 facet 이 같은 응답에서 온다 — 목록과 숫자가 어긋나지 않는다', async () => {
+    await pool.query('DELETE FROM finding_occurrence');
+    await pool.query('DELETE FROM finding');
+    await reviews.submit(
+      submitInput({
+        findings: [
+          { ...CRITICAL, title: '코드', file: 'src/a.ts' } as never,
+          { ...CRITICAL, title: '문서', tags: ['spec_drift'] } as never,
+        ],
+      }),
+    );
+    const all = await reviews.findings({ projectId, status: ['open'] });
+    expect(all.facets.area).toMatchObject({ codebase: 1, spec: 1 });
+
+    const onlySpec = await reviews.findings({ projectId, status: ['open'], area: ['spec'] });
+    expect(onlySpec.items.map((f) => f['title'])).toEqual(['문서']);
+  });
+});

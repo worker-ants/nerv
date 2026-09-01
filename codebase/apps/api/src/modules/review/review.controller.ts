@@ -51,6 +51,7 @@ export class ReviewController {
     @Query('status') status?: string,
     @Query('severity') severity?: string,
     @Query('tag') tag?: string,
+    @Query('area') area?: string,
     @Query('limit') limit?: string,
   ): Promise<unknown> {
     assertScope(principalOf(req), 'spec:read');
@@ -60,6 +61,7 @@ export class ReviewController {
       status: csv(status) ?? ['open'],
       ...(csv(severity) === undefined ? {} : { severity: csv(severity)! }),
       ...(csv(tag) === undefined ? {} : { tag: csv(tag)! }),
+      ...(csv(area) === undefined ? {} : { area: csv(area)! }),
       ...(limit === undefined ? {} : { limit: Number(limit) }),
     });
   }

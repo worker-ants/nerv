@@ -20,6 +20,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   escalateReason,
+  findingArea,
   findingSeverity,
   findingStatus,
   resolutionKind,
@@ -130,6 +131,16 @@ export const finding = pgTable(
     specVersionId: uuid('spec_version_id').references(() => specVersion.id),
     requirementId: uuid('requirement_id').references(() => requirement.id),
     status: findingStatus('status').notNull().default('open'),
+    /** 어디에 대한 지적인가 — 필터의 축이다(REQ-API-073) */
+    area: findingArea('area').notNull().default('codebase'),
+    /**
+     * 그 값이 **추론된 것인가**.
+     *
+     * 에이전트가 선언하면 false, 서버가 출처로 유추했으면 true 다. 구별해 두는 이유는
+     * 추론 규칙이 틀렸을 때 **무엇을 다시 계산해도 되는지** 알기 위해서다 — 사람과
+     * 에이전트가 정한 값을 나중에 규칙이 덮으면 그건 고치는 게 아니라 지우는 것이다.
+     */
+    areaInferred: boolean('area_inferred').notNull().default(true),
     firstSessionId: uuid('first_session_id')
       .notNull()
       .references(() => reviewSession.id),

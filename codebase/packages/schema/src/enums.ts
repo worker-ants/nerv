@@ -112,6 +112,17 @@ export const reviewState = pgEnum('review_state', ['running', 'complete', 'faile
 export const reviewRisk = pgEnum('review_risk', ['none', 'low', 'medium', 'high', 'critical']);
 export const findingSeverity = pgEnum('finding_severity', ['critical', 'warning', 'info']);
 export const findingStatus = pgEnum('finding_status', ['open', 'fixed', 'dismissed', 'wont_fix']);
+/**
+ * **어디에 대한 지적인가**(2026-09-01 신설 — 사람 결정). `category` 와 다른 축이다:
+ * category 는 "무슨 종류인가"(보안·테스트·명명)이고 이것은 **"무엇을 고쳐야 하는가"** 다.
+ *
+ * 사람이 발견을 보고 다음에 할 행동이 이 넷으로 갈린다 — 코드를 고친다 / 스펙을 고친다
+ * (`spec_change` 처분이 그 자리다) / 작업을 다시 쪼갠다 / 규약을 짚는다.
+ *
+ * `process` 가 넷째인 이유: 나머지 셋에 안 맞는 것이 반드시 생기는데, 그때 `codebase` 로
+ * 밀어 넣으면 그 값이 "분류 안 된 것" 의 쓰레기통이 된다. 이름이 있는 편이 정직하다.
+ */
+export const findingArea = pgEnum('finding_area', ['codebase', 'spec', 'task', 'process']);
 export const resolutionKind = pgEnum('resolution_kind', [
   'fixed',
   'deferred',

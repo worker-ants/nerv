@@ -23,7 +23,9 @@ Each session carries whose machine it is on, which agent is running (`claude-cod
 
 Five kinds of entry flow through the rail: `thought` (reasoning), `action` (a tool run), `elicitation` (asking a person), `response`, and `error`. The agent's hooks send this stream; where hooks are unavailable the agent posts the events itself.
 
-## Stopping
+## Messages and stopping
+
+**A message** tells a running agent to change direction. It does not interrupt immediately — the agent meets the server every 60 seconds (the heartbeat) and picks it up there. So the message appears on the rail right away, but the agent's response lags by up to a minute. The same message is never delivered twice.
 
 **Stop** does not deliver an instruction — it **reclaims the work now**. The most common reason to press it is that the session is already dead and cannot heartbeat, and waiting for delivery in that case would do nothing at all. Stopping releases the claim and the task returns to `ready`.
 

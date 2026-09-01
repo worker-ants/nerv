@@ -15,6 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
+import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -24,6 +25,8 @@ let db: ScratchDb;
 let pool: pg.Pool;
 let tasks: TaskService;
 let claims: ClaimService;
+let questions: QuestionService;
+let sessions: SessionService;
 let drizzleDb: ReturnType<typeof drizzle>;
 
 /** 시나리오 등장인물 — backlog §5.1~5.3 과 같은 한 벌 */
@@ -56,7 +59,9 @@ beforeAll(async () => {
 
   claims = new ClaimService();
   // 하트비트 역채널은 이 스위트의 관심사가 아니다 — 질문이 없으면 빈 목록이다.
-  tasks = new TaskService(claims, events, new QuestionService(events, drizzleDb), drizzleDb);
+  questions = new QuestionService(events, drizzleDb);
+  sessions = new SessionService(events, drizzleDb);
+  tasks = new TaskService(claims, events, questions, sessions, drizzleDb);
 
   await seed();
 });
@@ -300,6 +305,61 @@ describe('E04-S03 하트비트·리스 연장', () => {
     const before = claim.leaseExpiresAt.getTime();
     const beat = await tasks.heartbeat({ claimId: claim.claimId, leaseSeconds: 1800 });
     expect(beat.leaseExpiresAt.getTime()).toBeGreaterThan(before);
+  });
+
+  // 2026-09-01 사람 보고 — "세션에서 에이전트에게 메세지를 보내면 오류가 발생".
+  // 화면은 지시를 잘 넣고 있었고 `takePendingInstructions` 도 있었는데 **부르는 곳이
+  // 없었다** — 지시는 activity 에 앉아 아무에게도 가지 않았다. 하트비트가 에이전트와
+  // 서버가 정기적으로 만나는 유일한 자리라 전달도 그 자리에서 한다.
+  //
+  // (`stop` 은 클레임을 회수하므로 하트비트 자체가 NERV_LEASE_EXPIRED 로 끝난다 —
+  //  그 오류가 곧 정지 신호다. 여기서 보는 것은 클레임이 살아 있는 `steer` 다.)
+  it('사람이 보낸 지시가 하트비트에 실려 나간다 — 한 번만 (REQ-API-072)', async () => {
+    const taskId = await makeTask('TSK-steer');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await sessions.steer({
+      projectId,
+      sessionId: sessionHana,
+      kind: 'steer',
+      message: '그 방향은 아니다',
+      userId: hana,
+    });
+
+    const beat = await tasks.heartbeat({ claimId: claim.claimId });
+    expect(beat.pending).toHaveLength(1);
+    expect(beat.pending[0]).toMatchObject({ kind: 'steer', message: '그 방향은 아니다' });
+
+    // 두 번 주면 에이전트가 같은 지시를 두 번 따른다
+    expect((await tasks.heartbeat({ claimId: claim.claimId })).pending).toEqual([]);
+  });
+
+  it('지시가 답변보다 앞선다 — 방향을 바꾸라는 말이 먼저 읽혀야 한다', async () => {
+    const taskId = await makeTask('TSK-steer-order');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    const asked = await questions.create({
+      projectId,
+      sessionId: sessionHana,
+      title: '이대로 진행할까요?',
+    });
+    await questions.answer({
+      projectId,
+      questionId: asked.question_id,
+      userId: hana,
+      answerMd: '그렇게 하자',
+    });
+    await sessions.steer({
+      projectId,
+      sessionId: sessionHana,
+      kind: 'steer',
+      message: '아니, 이쪽이다',
+      userId: hana,
+    });
+
+    const beat = await tasks.heartbeat({ claimId: claim.claimId });
+    expect(beat.pending.map((p) => (p as Record<string, unknown>)['kind'])).toEqual([
+      'steer',
+      'question_answered',
+    ]);
   });
 
   it('만료된 리스로 하트비트하면 NERV_LEASE_EXPIRED', async () => {

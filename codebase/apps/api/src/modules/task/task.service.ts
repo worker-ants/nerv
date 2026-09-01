@@ -25,6 +25,7 @@ type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
+import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
 
@@ -77,6 +78,8 @@ export class TaskService {
     private readonly claims: ClaimService,
     private readonly events: EventService,
     private readonly questions: QuestionService,
+    // 지시 역채널 — 세션이 그것을 들고 있다(SessionModule → TaskModule 방향은 없어 순환이 아니다)
+    private readonly sessions: SessionService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -685,9 +688,20 @@ export class TaskService {
       sql`SELECT agent_session_id FROM claim WHERE id = ${input.claimId}`,
     );
     const sessionId = rows[0]?.agent_session_id ?? null;
-    const pending = sessionId === null ? [] : await this.questions.pendingFor(sessionId);
+    if (sessionId === null) return { leaseExpiresAt, pending: [] };
 
-    return { leaseExpiresAt, pending };
+    // **사람이 보낸 지시도 여기 실린다**(2026-09-01 · REQ-API-072).
+    //
+    // `steer`/`stop` 은 `activity` 에 `delivered: false` 로 잘 적히고 있었는데, 그것을
+    // 걷어 오는 `takePendingInstructions` 를 **아무도 부르지 않았다** — 화면은 "다음
+    // 하트비트에 전달됩니다" 라고 약속하는데 그 하트비트가 지시를 싣지 않았다.
+    // 보낸 사람은 보냈다고 믿고, 에이전트는 영영 듣지 못한다.
+    const [answers, instructions] = await Promise.all([
+      this.questions.pendingFor(sessionId),
+      this.sessions.takePendingInstructions(sessionId),
+    ]);
+    // 지시가 앞이다 — stop 은 지금 하던 것을 멈추라는 말이라 답변보다 먼저 읽혀야 한다
+    return { leaseExpiresAt, pending: [...instructions, ...answers] };
   }
 
   /** 클레임 해제 — reason 에 따라 Task 를 ready 로 회수하거나 그대로 둔다. */

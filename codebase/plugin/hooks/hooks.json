@@ -14,6 +14,11 @@
               "X-NERV-Agent": "claude-code"
             },
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
+            "timeout": 20
           }
         ]
       }

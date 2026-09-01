@@ -24,9 +24,20 @@ Findings have three severities: `critical` · `warning` · `info`. There are fou
 
 **Lowering a `critical` is a person's decision.** When an agent tries to move a `critical` finding to `dismissed` or `wont_fix`, it is not applied on the spot — an **approval card** is created instead. There is deliberately no quiet path for making a severe problem disappear.
 
+## What needs fixing
+
+Severity says how urgent a finding is; **area** says what needs fixing. There are four.
+
+- `Codebase` — the implementation is wrong. Fix the code and its tests.
+- `Spec` — the specification is wrong, or has drifted from the implementation. Fix the document; these usually close as `spec_change`.
+- `Task` — the task definition, its scope or its delegation brief is the problem. Fix the task.
+- `Process` — a convention, gate or tool: the way of working itself.
+
+When an agent does not send this value, **the server infers it from what the finding points at**, and the card then says `inferred`. Where you see that mark, read the finding before trusting the classification — the mark exists so a guess never reads as a fact.
+
 ## Filters
 
-Narrow the list with the three filters at the top — **severity, status and tag**. The number beside each value tells you in advance how many match. So that an empty list is never ambiguous between "there are none" and "they were filtered out", the screen also states **M of N**.
+Narrow the list with the four filters at the top — **severity, area, status and tag**. The number beside each value tells you in advance how many match. So that an empty list is never ambiguous between "there are none" and "they were filtered out", the screen also states **M of N**.
 
 ## Gate coverage
 

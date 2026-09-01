@@ -40,6 +40,38 @@ export interface SubmitFinding {
   spec_version_id?: string | null;
   /** `spec_drift` 등 — 필터의 축이다(screens.md §2.6a) */
   tags?: readonly string[];
+  /**
+   * **어디에 대한 지적인가**(2026-09-01). 지적한 쪽이 가장 잘 알므로 받되, 주지 않으면
+   * 서버가 출처로 추론한다 — 그 경우 `area_inferred` 가 참이다.
+   */
+  area?: 'codebase' | 'spec' | 'task' | 'process' | null | undefined;
+}
+
+/**
+ * 출처로 유추하는 규칙 — 정본: api.md §2.11.
+ *
+ * **선언이 언제나 이긴다.** 추론은 안 준 값을 채우는 것이지 준 값을 고치는 것이 아니다.
+ * 순서가 규칙의 전부다: 스펙 근거가 있으면 문서 이야기이고(파일이 함께 있어도 그렇다 —
+ * `spec_drift` 는 코드가 아니라 스펙이 틀렸다는 뜻이다), 파일이 있으면 코드,
+ * Task 리뷰인데 파일이 없으면 작업, 아무것도 없으면 규약이다.
+ */
+export function inferArea(input: {
+  specVersionId?: string | null;
+  requirementId?: string | null;
+  tags?: readonly string[];
+  file?: string | null;
+  taskId?: string | null;
+}): 'codebase' | 'spec' | 'task' | 'process' {
+  if (
+    (input.specVersionId ?? null) !== null ||
+    (input.requirementId ?? null) !== null ||
+    (input.tags ?? []).includes('spec_drift')
+  ) {
+    return 'spec';
+  }
+  if ((input.file ?? null) !== null && input.file !== '') return 'codebase';
+  if ((input.taskId ?? null) !== null) return 'task';
+  return 'process';
 }
 
 export interface SubmitInput {
@@ -434,12 +466,25 @@ export class ReviewService {
     const hit = existing[0];
     let findingId: string;
 
+    // **선언이 이기고, 없으면 추론한다.** 지적한 쪽이 가장 잘 알지만 대개 안 준다 —
+    // 그때 서버가 출처로 유추하고 그 사실을 `area_inferred` 로 남긴다.
+    const area =
+      finding.area ??
+      inferArea({
+        specVersionId: finding.spec_version_id ?? null,
+        requirementId: finding.requirement_id ?? null,
+        tags: finding.tags ?? [],
+        file: finding.file ?? null,
+        taskId: input.taskId ?? null,
+      });
+
     if (hit === undefined) {
       findingId = newId();
       await tx.execute(sql`
         INSERT INTO finding (id, project_id, fingerprint, severity, category, title, detail_md,
                              suggestion_md, tags, file_path, line_start, symbol, spec_version_id,
-                             requirement_id, status, first_session_id, last_session_id,
+                             requirement_id, area, area_inferred,
+                             status, first_session_id, last_session_id,
                              occurrence_count, created_at)
         VALUES (${findingId}, ${input.projectId}, decode(${hex}, 'hex'),
                 ${finding.severity}::finding_severity, ${category}, ${finding.title},
@@ -447,6 +492,7 @@ export class ReviewService {
                 ${sql.raw(pgTextArray(finding.tags ?? []))},
                 ${finding.file ?? null}, ${finding.line ?? null}, ${finding.symbol ?? null},
                 ${finding.spec_version_id ?? null}, ${finding.requirement_id ?? null},
+                ${area}::finding_area, ${finding.area == null},
                 'open'::finding_status, ${round.sessionId}, ${round.sessionId}, 1,
                 coalesce(${input.reviewedAt ?? null}::timestamptz, now()))
       `);
@@ -802,10 +848,13 @@ export class ReviewService {
     severity?: readonly string[];
     status?: readonly string[];
     tag?: readonly string[];
+    /** 어디에 대한 지적인가 — 사람이 다음에 할 행동으로 가른 축(REQ-API-073) */
+    area?: readonly string[];
     limit?: number;
   }): Promise<{ items: Record<string, unknown>[]; facets: FindingFacets; limit: number }> {
     const severity = normalizeFilter(input.severity, FINDING_SEVERITIES);
     const status = normalizeFilter(input.status, FINDING_STATUSES);
+    const area = normalizeFilter(input.area, FINDING_AREAS);
     const tags = (input.tag ?? []).filter((t) => t.trim() !== '');
     // 상한은 계약이 정한다 — clemvion 실측 18,650 발견을 한 응답에 담으면 화면이
     // 3만 픽셀이 된다(실측 2026-08-24). 잘린 사실은 facet 총계가 말한다.
@@ -813,6 +862,7 @@ export class ReviewService {
 
     const { rows: items } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT f.id, f.severity::text AS severity, f.status::text AS status, f.category, f.title,
+             f.area::text AS area, f.area_inferred,
              f.detail_md, f.suggestion_md, f.tags, f.file_path, f.line_start, f.symbol,
              f.occurrence_count, f.created_at,
              rs.head_sha, rs.branch, rs.round_no, rs.completed_at AS reviewed_at,
@@ -836,6 +886,7 @@ export class ReviewService {
        WHERE f.project_id = ${input.projectId}
          ${this.filter('f.severity', severity, 'finding_severity')}
          ${this.filter('f.status', status, 'finding_status')}
+         ${this.filter('f.area', area, 'finding_area')}
          ${tags.length === 0 ? sql`` : sql`AND f.tags && ${sql.raw(pgTextArray(tags))}`}
        ORDER BY f.severity, f.created_at DESC
        LIMIT ${limit}
@@ -848,10 +899,13 @@ export class ReviewService {
         // 각 차원은 **자기 선택을 뺀** 나머지 필터로 센다
         severity: await this.facet(input.projectId, 'severity', {
           status,
+          area,
           tags,
           severity: [],
         }),
-        status: await this.facet(input.projectId, 'status', { severity, tags, status: [] }),
+        status: await this.facet(input.projectId, 'status', { severity, area, tags, status: [] }),
+        // 각 차원은 **자기 선택을 뺀** 나머지 필터로 센다 — 그래야 "이걸 켜면 몇 건인가" 다
+        area: await this.facet(input.projectId, 'area', { severity, status, tags, area: [] }),
         tag: await this.facetTags(input.projectId, severity, status),
       },
     };
@@ -869,8 +923,13 @@ export class ReviewService {
 
   private async facet(
     projectId: string,
-    dimension: 'severity' | 'status',
-    filters: { severity: readonly string[]; status: readonly string[]; tags: readonly string[] },
+    dimension: 'severity' | 'status' | 'area',
+    filters: {
+      severity: readonly string[];
+      status: readonly string[];
+      area: readonly string[];
+      tags: readonly string[];
+    },
   ): Promise<Record<string, number>> {
     const { rows } = await this.db.execute<{ k: string; n: number }>(sql`
       SELECT ${sql.raw(`f.${dimension}`)}::text AS k, count(*)::int AS n
@@ -878,6 +937,7 @@ export class ReviewService {
        WHERE f.project_id = ${projectId}
          ${this.filter('f.severity', filters.severity, 'finding_severity')}
          ${this.filter('f.status', filters.status, 'finding_status')}
+         ${this.filter('f.area', filters.area, 'finding_area')}
          ${filters.tags.length === 0 ? sql`` : sql`AND f.tags && ${sql.raw(pgTextArray(filters.tags))}`}
        GROUP BY 1
     `);
@@ -976,8 +1036,12 @@ export class ReviewService {
 export interface FindingFacets {
   severity: Record<string, number>;
   status: Record<string, number>;
+  area: Record<string, number>;
   tag: Record<string, number>;
 }
+
+/** 필터가 받는 값 — 열거 밖은 버린다(정본: enums.ts `finding_area`) */
+export const FINDING_AREAS = ['codebase', 'spec', 'task', 'process'] as const;
 
 /** 한 화면에 담기는 발견 수. 넘는 것은 필터로 좁힌다 — 무한 스크롤은 답이 아니다 */
 const FINDING_PAGE = 50;

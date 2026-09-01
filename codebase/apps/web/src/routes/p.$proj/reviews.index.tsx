@@ -41,6 +41,12 @@ export const Route = createFileRoute('/p/$proj/reviews/')({
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const;
 const STATUSES = ['open', 'fixed', 'dismissed', 'wont_fix'] as const;
+/**
+ * **어디에 대한 지적인가**(2026-09-01 · REQ-WEB-128). severity 가 "얼마나 급한가" 이고
+ * category 가 "무슨 종류인가" 라면, 이 축은 **"무엇을 고쳐야 하는가"** 다 — 사람이 발견을
+ * 보고 다음에 할 행동이 이 넷으로 갈린다.
+ */
+const AREAS = ['codebase', 'spec', 'task', 'process'] as const;
 
 /** 처분할 수 있는 역할 — 정본은 서버의 `ROLE_SCOPES` 다. 화면은 버튼을 **비활성 + 사유**로 둔다(REQ-WEB-003) */
 const RESOLVER_ROLES = ['admin', 'planner', 'qa'];
@@ -57,6 +63,7 @@ function ReviewCenter(): React.JSX.Element {
   const [severity, setSeverity] = useState<string[]>([]);
   const [status, setStatus] = useState<string[]>(['open']);
   const [tag, setTag] = useState<string[]>([]);
+  const [area, setArea] = useState<string[]>([]);
   const [resolving, setResolving] = useState<{ id: string; action: ResolveAction } | null>(null);
   // 레일이 펴는 하나 — 고르지 않았으면 레일을 세우지 않는다(빈 패널을 만들지 않는다)
   // 주소로 지목된 발견이 초기 선택이다 — 링크를 눌러 온 사람은 그것을 보러 온 것이다
@@ -67,7 +74,7 @@ function ReviewCenter(): React.JSX.Element {
   // 그래서 "몇 건 중 몇 건인지"를 먼저 말한다(REQ-WEB-067).
   const [limit, setLimit] = useState(50);
 
-  const queue = useFindings(proj, { severity, status, tag }, id, limit);
+  const queue = useFindings(proj, { severity, status, tag, area }, id, limit);
   const gate = useGateCoverage(proj, id);
   // 멤버십 한 행이 아니라 이 프로젝트에서의 역할 **전부**다 — 조직 단위 멤버십만 가진
   // 사람은 한 행 판정에서 아무 역할도 없는 사람이 된다(2026-08-24).
@@ -123,6 +130,14 @@ function ReviewCenter(): React.JSX.Element {
             onToggle={(v) => toggle(severity, setSeverity, v)}
           />
           <FacetGroup
+            label={t('reviews.filter.area')}
+            values={AREAS}
+            selected={area}
+            counts={facets?.area ?? {}}
+            labelOf={(v) => t(`area.${v}` as 'area.codebase')}
+            onToggle={(v) => toggle(area, setArea, v)}
+          />
+          <FacetGroup
             label={t('reviews.filter.status')}
             values={STATUSES}
             selected={status}
@@ -140,7 +155,10 @@ function ReviewCenter(): React.JSX.Element {
               onToggle={(v) => toggle(tag, setTag, v)}
             />
           )}
-          {(severity.length > 0 || tag.length > 0 || status.join() !== 'open') && (
+          {(severity.length > 0 ||
+            tag.length > 0 ||
+            area.length > 0 ||
+            status.join() !== 'open') && (
             <button
               type="button"
               data-testid="filter-reset"
@@ -149,6 +167,7 @@ function ReviewCenter(): React.JSX.Element {
                 setSeverity([]);
                 setStatus(['open']);
                 setTag([]);
+                setArea([]);
               }}
             >
               {t('reviews.filter.reset')}

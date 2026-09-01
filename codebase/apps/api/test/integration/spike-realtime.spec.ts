@@ -109,13 +109,22 @@ describe('스파이크: 크로스파드 팬아웃 (E06-S01)', () => {
   it('두 파드에 붙은 클라이언트가 **같은 이벤트를 각각 한 번씩** 받는다', async () => {
     const a: string[] = [];
     const b: string[] = [];
+    // **앞 케이스의 이벤트가 아직 날고 있을 수 있다.** 앞 케이스는 A 가 받은 것만 확인하고
+    // 끝나므로, 같은 메시지가 B 에 늦게 닿는 순간이 이 케이스와 겹친다 — 그때 b 에 남의
+    // 이벤트가 하나 섞여 "중복 전달" 로 오독됐다(간헐 실패의 정체). 이 케이스가 묻는 것은
+    // **이 이벤트가 파드마다 한 번씩인가** 이므로 종류로 걸러도 그 물음은 그대로다.
+    const mine = (e: { id: string; type: string }): boolean => e.type === NERV_EVENT.SPEC_APPROVED;
     const offA = podA.get(FanoutService).add({
       rooms: new Set([`project:${projectId}` as const]),
-      deliver: (e) => a.push(e.id),
+      deliver: (e) => {
+        if (mine(e)) a.push(e.id);
+      },
     });
     const offB = podB.get(FanoutService).add({
       rooms: new Set([`project:${projectId}` as const]),
-      deliver: (e) => b.push(e.id),
+      deliver: (e) => {
+        if (mine(e)) b.push(e.id);
+      },
     });
 
     const envelope = await podA.get(EventService).transact(async (_tx, emit) =>
