@@ -13,12 +13,16 @@ import { SpecRelationService } from './spec-relation.service.js';
 import { SearchService } from './search.service.js';
 import { EmbeddingService } from './embedding.service.js';
 import { SpecService } from './spec.service.js';
+import { AttachmentService } from './attachment.service.js';
+import { StorageService } from '../../common/storage.service.js';
 import { SpecTools } from './spec.tools.js';
 
 @Module({
   imports: [EventModule, AuthModule],
   controllers: [SpecController, MirrorController],
   providers: [
+    AttachmentService,
+    StorageService,
     SpecService,
     SpecCheckService,
     SpecRelationService,

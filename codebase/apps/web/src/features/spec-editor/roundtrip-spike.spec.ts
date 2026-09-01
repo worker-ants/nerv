@@ -149,6 +149,18 @@ describe('E06-S02 — md 왕복 실측', () => {
     }
   });
 
+  // 2026-09-01 실측 — **이미지가 조용히 사라지고 있었다.** StarterKit 에 image 노드가
+  // 없어서 `![…](…)` 이 파싱에서 버려졌고, 사람이 그 문서를 열어 한 글자만 고치면 그
+  // 순간 모든 이미지가 삭제됐다(저장은 성공하면서). §3.2 규칙 4 를 이미지가 어기고 있었다.
+  it('이미지는 왕복에서 살아남는다 — 앞뒤 문단도 붙지 않는다', () => {
+    const source = '# 제목\n\n![시안](/api/v1/attachments/abc)\n\n뒷글';
+    const once = roundTripOnce(source);
+    expect(once).toContain('![시안](/api/v1/attachments/abc)');
+    // **빈 줄까지 지켜야 한다** — block 으로 두면 다음 문단이 이미지에 붙는다(실측)
+    expect(once).toBe(source);
+    expect(roundTripOnce(once)).toBe(once);
+  });
+
   it('화이트리스트 밖 구문은 본문을 재작성하지 않는다 (§3.2 규칙 4)', () => {
     // 각주는 지원 노드가 아니다 — 사라지거나 다른 것으로 바뀌면 정보 손실이다
     const source = '# 제목\n\n본문[^1]\n\n[^1]: 각주 내용';

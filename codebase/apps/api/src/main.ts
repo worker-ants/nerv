@@ -1,10 +1,11 @@
 // HTTP 엔트리 — Nest(Fastify) 부트스트랩: REST + MCP + WS + SSE + ingest
 // 정본: docs/04-mvp/codebase.md §2.2 · 포트·오리진 환경변수는 §5.2 전표
 
-import { MAX_REQUEST_BODY_BYTES } from '@nerv/schema';
+import { ATTACHMENT_MAX_BYTES, MAX_REQUEST_BODY_BYTES } from '@nerv/schema';
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
+import multipart from '@fastify/multipart';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module.js';
@@ -33,6 +34,10 @@ export async function createApp(): Promise<NestFastifyApplication> {
     new McpOriginGuard(),
     new AuthGuard(app.get(Reflector), app.get(AuthService)),
   );
+
+  // 첨부 업로드는 multipart 다(§2.10) — 파일당 10MB 는 서비스가 다시 보지만, 여기서도
+  // 막아야 그보다 큰 요청이 메모리에 들어오지 않는다.
+  await app.register(multipart, { limits: { fileSize: ATTACHMENT_MAX_BYTES, files: 1 } });
 
   // better-auth 핸들러 마운트 — `/api/auth/*` 는 로그인·로그아웃·세션 조회의 표면이다.
   // Nest 라우트가 아니라 Fastify 에 직접 단다: 전역 AuthGuard 를 타면 "로그인하려면 먼저

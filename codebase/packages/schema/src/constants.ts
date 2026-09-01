@@ -11,6 +11,13 @@
 export const LEASE_TTL_SECONDS = 1800;
 
 /**
+ * 첨부 파일당 상한 — 10MB(2026-09-01 사람 결정).
+ * 스펙당 **합계는 제한하지 않는다** — 시안이 쌓이는 것은 문서가 자라는 것이다.
+ * 정본: docs/04-mvp/api.md §2.10
+ */
+export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
  * 하트비트 주기 — 60초.
  * `nerv_task_heartbeat` 의 응답은 서버→세션 역채널을 겸한다.
  * 정본: docs/03-proposal/agent-integration.md §2.3

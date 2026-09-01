@@ -32,6 +32,12 @@ export const en = {
   'error.auth.hook_missing': 'Hook credentials are missing.',
   'error.auth.human_only_scope': 'Human-only scopes cannot be granted to a token.',
   'error.auth.invalid': 'Invalid credentials.',
+  'error.attachment.too_large': 'The file is too large — attachments are capped at 10MB.',
+  'error.attachment.type': 'Unsupported type — png, jpeg, gif, webp, svg and pdf only.',
+  'error.attachment.not_found': 'No such attachment.',
+  'error.attachment.not_uploaded':
+    'Nothing uploaded yet — PUT the file to the given URL, then commit.',
+  'error.attachment.storage_off': 'Attachment storage is not configured.',
   'error.auth.missing': 'Not signed in.',
   'error.auth.no_role': 'Your role could not be determined.',
   'error.auth.not_member': 'You are not a member of this project.',
@@ -325,6 +331,8 @@ export const en = {
   'mcp.arg.blocked_reason': 'why it is blocked — required when status=blocked',
   'mcp.arg.spec_impact':
     'impact on specs — required by the done gate. put spec keys in changed, or set none to true when nothing moved',
+  'mcp.tool.attach': 'attaching a mockup or document to a spec',
+  'mcp.arg.attachment_id': 'second step — call again with just this after the upload (commit)',
   'mcp.arg.base_hash':
     'Fingerprint of the body you read — the content_hash from nerv_spec_get. Required when editing an existing document',
   'mcp.arg.blocking':
@@ -704,6 +712,12 @@ export const en = {
   'spec.comment_anchor': 'Anchor (heading slug or REQ-…)',
   'spec.comment_anchor_label': 'Anchor',
   'spec.comment_resolve': 'Resolve',
+  'spec.attach.hint': 'Drop a mockup here, or',
+  'spec.attach.pick': 'choose a file',
+  'spec.attach.done': 'Attached.',
+  'spec.attach.insert': 'Insert into body',
+  'spec.attach.empty': 'No attachments.',
+  'spec.attachments': 'Attachments',
   'spec.comments': 'Comments',
   'spec.conflict_body_post': ' — pick one below.',
   'spec.conflict_body_pre':

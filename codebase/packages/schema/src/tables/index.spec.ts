@@ -35,7 +35,7 @@ describe('테이블 선언 (database.md §2)', () => {
   // 한다: 초대받은 사람이 아직 가입하지 않았으면 membership 을 만들 수 없고, 만료·회수는
   // 상태를 가진 것만이 가질 수 있다.
   it('30종이다 — 6(테넌시) + 9(스펙) + 4(작업) + 2(세션) + 2(승인) + 5(리뷰) + 2(이벤트)', () => {
-    expect(declaredTables).toHaveLength(31);
+    expect(declaredTables).toHaveLength(32);
   });
 
   it('이름이 data-model 의 테이블 표와 1:1 이다', () => {
@@ -44,6 +44,7 @@ describe('테이블 선언 (database.md §2)', () => {
       'agent_session',
       'api_token',
       'approval',
+      'attachment',
       'change_request',
       'claim',
       'event',
@@ -82,8 +83,8 @@ describe('테이블 선언 (database.md §2)', () => {
 
   it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16)', () => {
     const all = allTables.map((t) => getTableName(t));
-    // 31 엔티티 + 인프라 4종(검색 인덱스 1 + 인증 3)
-    expect(all).toHaveLength(35);
+    // 32 엔티티 + 인프라 4종(검색 인덱스 1 + 인증 3)
+    expect(all).toHaveLength(36);
     for (const infra of NON_ENTITY_TABLES) {
       expect(all).toContain(infra);
       expect(tableNames).not.toContain(infra);

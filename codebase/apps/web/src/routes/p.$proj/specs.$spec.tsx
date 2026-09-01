@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
 import { VersionDiff } from '../../features/spec-editor/version-diff.js';
+import { AttachmentPanel } from '../../features/spec-editor/attachment-panel.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -28,6 +29,7 @@ import {
   useSpecRelations,
   useSpecDiff,
   useSpecVersion,
+  useSpecAttachments,
   useSpecVersions,
 } from '../../lib/queries.js';
 import type { RoundTripResult } from '../../features/spec-editor/editor.js';
@@ -80,6 +82,7 @@ function SpecDetail(): React.JSX.Element {
   const versions = useSpecVersions(proj, spec);
   const comments = useSpecComments(proj, spec);
   const relations = useSpecRelations(proj, spec);
+  const attachments = useSpecAttachments(proj, spec);
   const check = useSpecCheck(proj, String(detail.data?.['version_id'] ?? ''));
 
   const search = Route.useSearch();
@@ -104,7 +107,9 @@ function SpecDetail(): React.JSX.Element {
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
   // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다
-  const [railTab, setRailTab] = useState<'relations' | 'versions' | 'comments'>('relations');
+  const [railTab, setRailTab] = useState<'relations' | 'versions' | 'attachments' | 'comments'>(
+    'relations',
+  );
   // 관계 안의 두 방향은 **다른 질문**이다: 역참조는 "고치면 무엇이 흔들리나",
   // 레퍼런스는 "이 문서가 무엇에 기대나". 섞어 놓으면 둘 다 훑어야 답이 나온다.
   const [relTab, setRelTab] = useState<RelationDirection>('all');
@@ -679,6 +684,7 @@ function SpecDetail(): React.JSX.Element {
             [
               ['relations', t('spec.rail.relations'), relationItems.length],
               ['versions', t('spec.versions'), rows(versions.data).length],
+              ['attachments', t('spec.attachments'), rows(attachments.data).length],
               ['comments', t('spec.comments'), rows(comments.data).length],
             ] as const
           ).map(([key, label, count]) => (
@@ -828,6 +834,23 @@ function SpecDetail(): React.JSX.Element {
                   </li>
                 ))}
             </ul>
+          )}
+
+          {railTab === 'attachments' && (
+            <AttachmentPanel
+              projectSlug={proj}
+              specKey={spec}
+              canEdit={editable}
+              // 편집 중일 때만 본문에 넣는다 — 읽기 전용 화면에서 넣기를 주면 눌러도 아무 일이 없다
+              {...(editable
+                ? {
+                    onInsert: (markdown: string) => {
+                      setDraft(`${draft ?? body}\n\n${markdown}`);
+                      pushToast({ tone: 'ok', message: t('spec.attach.done') });
+                    },
+                  }
+                : {})}
+            />
           )}
 
           {railTab === 'comments' && (

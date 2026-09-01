@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 16종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.44 (2026-09-01)</span>
+      <span>버전 v0.45 (2026-09-01)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -465,6 +465,18 @@
 
   <p>이미 쓰이는 키로 온 생성은 <code>key_taken</code> 으로 막고 <b>그 문서를 딥링크로 짚어 준다</b>. 덮어쓰지도, 조용히 이어 쓰지도 않는다 — 같은 키로 오는 생성은 대개 "이미 있는 줄 몰랐다"이고, 그때 남의 문서에 말없이 이어 쓰는 것이 가장 나쁘다. 보관된 문서가 키를 쥐고 있으면 답은 새로 만드는 것이 아니라 복구다. 동시에 들어온 둘은 유니크 인덱스(<code>spec_key_uq</code>)가 잡는다 — <b>검사는 흔한 길의 말이고 인덱스가 자물쇠다.</b></p>
 
+  <h3>2.10 스펙 첨부 — 디자인 시안 (2026-09-01 신설 — 사람 결정)</h3>
+
+  <p><b>시안이 문서 밖에 있으면 문서가 아니다.</b> 외부 링크는 스펙의 버전과 무관하게 바뀌므로 "이 판이 말하는 화면" 을 나중에 되짚을 수 없다.</p>
+
+  <p><b>스토리지는 처음부터 있었다.</b> MinIO 가 compose·k8s 스택에 서 있고 <code>NERV_S3_*</code> 환경 변수까지 준비돼 있었는데, 어떤 코드도 그것을 부르지 않았다(실측 2026-09-01) — 계층이 놓여 있고 배선만 없었다.</p>
+
+  <p><b>파일은 오브젝트 스토리지에, 메타는 DB 에.</b> 첨부는 <b>버전이 아니라 문서에</b> 매단다: 초안이 덮어써지는 동안에도 시안은 그대로 남아야 한다. 사람은 서버를 거쳐 올리고, 에이전트는 <b>presigned 2단계</b>로 올린다 — MCP 응답에 base64 를 실으면 그 세션의 컨텍스트 예산이 그것으로 찬다. 확정은 <b>말만 듣지 않는다</b>: 서버가 실제 업로드를 확인한 뒤에만 목록에 넣는다.</p>
+
+  <p><b>읽기는 서버를 거친다.</b> presigned GET 을 주면 그 주소가 권한 밖으로 샌다. <b>SVG 를 허용하되</b> 스크립트 위험은 서빙이 막는다: <code>&lt;img src&gt;</code> 로 부른 SVG 는 스크립트를 실행하지 않고, 직접 연 경우를 위해 <code>nosniff</code> 와 CSP sandbox 를 붙인다.</p>
+
+  <p><b>곁들여 드러난 결함</b>: 편집기에 image 노드가 없어 <code>![…](…)</code> 이 왕복에서 <b>통째로 사라지고 있었다</b> — 사람이 그 문서를 열어 한 글자만 고치면 모든 이미지가 삭제됐다(저장은 성공하면서). <b>테스트가 없어 아무도 못 봤다.</b></p>
+
   <p><b>훅 페이로드는 원문을 보관한다</b>(2026-09-01 — 사람 결정). 예전에는 <code>tool_name</code> 만 남겼고(코드 주석이 D-07 을 인용했는데 D-07 은 이 사안과 무관하다 — <b>문서에 규칙이 없었다</b>), 그 결과 세션 타임라인이 <b>"Bash / Bash" 를 383번</b> 반복했다(실측 443건 중 86%).</p>
 
   <p><b>비밀만 예외이고, 그 예외는 적재 시점에 적용한다.</b> 저장한 뒤 화면에서만 가리면 백업·복제본·파티션에 이미 들어간 값을 되돌리지 못한다. 가리는 축은 넷이다: <b>이름</b> · <b>모양</b> · <b>주소 자격</b> · <b>파일 자체가 비밀인 것</b>(내용에는 열쇠 이름이 없어 패턴으로는 못 잡으므로 응답 전체를 가리고 경로는 남긴다). 원칙 둘: <b>애매하면 가린다</b> · <b>가렸다고 말한다</b>. <b>제목도 가린 값에서 만든다</b> — 페이로드만 가리고 제목을 놓치면 마스킹이 뚫린 것과 같다.</p>
@@ -508,6 +520,9 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
+      <tr><td>REQ-API-069</td><td>WHEN 스펙에 파일을 첨부하면 THE SYSTEM SHALL 형식 화이트리스트(png·jpeg·gif·webp·svg·pdf)와 파일당 10MB 를 강제하고, 올린 주체가 사람인지 에이전트인지 함께 기록한다</td></tr>
+      <tr><td>REQ-API-070</td><td>WHEN 첨부를 내려주면 THE SYSTEM SHALL <b>서버를 거쳐</b> 멤버십을 확인한 뒤 스트리밍하고, <code>nosniff</code> 와 CSP sandbox 를 붙인다</td></tr>
+      <tr><td>REQ-API-071</td><td>WHEN 에이전트가 첨부를 올리면 THE SYSTEM SHALL presigned PUT 주소를 주고, <b>확정 요청 시 실제 업로드를 확인한 뒤에만</b> 목록에 넣는다. WHEN 확정 시점의 크기가 상한을 넘으면 THE SYSTEM SHALL 오브젝트를 지우고 거부한다</td></tr>
       <tr><td>REQ-API-065</td><td>WHEN 도구 훅이 들어오면 THE SYSTEM SHALL <code>tool_input</code>·<code>tool_response</code> <b>원문</b>을 적재하되 비밀을 <b>적재 시점에</b> 가리고, 가린 자리에 사유를 남긴다. 필드는 64KB·행은 256KB 를 넘지 않게 자르되 <b>끝을 남긴다</b></td></tr>
       <tr><td>REQ-API-066</td><td>WHEN 활동 타임라인을 조회하면 THE SYSTEM SHALL 원문을 <b>세션 본인과 admin 에게만</b> 주고, 그 밖에는 제목·성패·도구만 준다. WHEN 보는 사람을 알 수 없으면 THE SYSTEM SHALL 원문을 주지 않는다</td></tr>
       <tr><td>REQ-API-067</td><td>WHEN 보존 잡이 오래된 Activity 를 지우면 THE SYSTEM SHALL 지우기 전에 세션별 도구 횟수를 <code>agent_session.activity_summary</code> 에 접어 둔다</td></tr>

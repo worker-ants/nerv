@@ -212,6 +212,55 @@ export const specRelation = pgTable(
 );
 
 /** 앵커 스레드 코멘트(FR-11) — 편집·해소되는 협업 개체다(불변 로그인 activity 와 다르다). */
+/**
+ * 스펙 첨부 — 디자인 시안 등 (2026-09-01 신설 · REQ-API-069)
+ *
+ * **파일은 오브젝트 스토리지에, 메타는 여기.** MinIO 는 스택에 처음부터 있었는데
+ * (compose·k8s 둘 다) 아무도 쓰지 않았다 — 스토리지 계층이 놓여 있고 배선만 없었다.
+ *
+ * **스펙에 매단다.** 첨부는 문서의 일부다: 문서를 보관하면 함께 따라가야 하고,
+ * 프로젝트를 지우면 함께 사라져야 한다. 버전이 아니라 **문서**에 매다는 이유는
+ * 초안이 덮어써지는 동안에도 시안은 그대로 남아야 하기 때문이다.
+ */
+export const attachment = pgTable(
+  'attachment',
+  {
+    id: idPk(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    specId: uuid('spec_id')
+      .notNull()
+      .references(() => spec.id),
+    /** 스토리지 키 — `{project}/{spec}/{id}.{ext}` */
+    storageKey: text('storage_key').notNull(),
+    filename: text('filename').notNull(),
+    contentType: text('content_type').notNull(),
+    bytes: integer('bytes').notNull(),
+    /** 무결성 — 같은 파일을 두 번 올렸는지도 이것으로 안다 */
+    checksum: text('checksum').notNull(),
+    /**
+     * **사람인가 에이전트인가**(FR-16 · D-08). 감사의 첫 질문이고, 화면의 표시도 이것이다.
+     */
+    uploadedByUserId: uuid('uploaded_by_user_id')
+      .notNull()
+      .references(() => user.id),
+    uploadedBySessionId: uuid('uploaded_by_session_id').references(() => agentSession.id),
+    /**
+     * 올리는 중인가 — presigned 2단계의 **첫 단계가 남기는 자리**다.
+     *
+     * 에이전트는 URL 을 받아 스토리지에 직접 올리므로, 서버는 "확정" 을 따로 들어야
+     * 올리다 만 것과 올린 것을 구별할 수 있다. 확정 안 된 행은 목록에 나오지 않는다.
+     */
+    committedAt: ts('committed_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('attachment_spec').on(t.specId, t.createdAt),
+    uniqueIndex('attachment_storage_key_uq').on(t.storageKey),
+  ],
+);
+
 export const specComment = pgTable(
   'spec_comment',
   {

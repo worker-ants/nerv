@@ -6,6 +6,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -13,8 +14,19 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { MultipartFile } from '@fastify/multipart';
+
+/**
+ * 회신 객체의 **쓰는 만큼만** 타입을 적는다 — `fastify` 를 직접 의존하지 않으려는 것이다
+ * (플랫폼 어댑터가 그것을 감싸고 있고, 여기서 뚫으면 어댑터를 바꿀 때 이 파일이 걸린다).
+ */
+interface RawReply {
+  header(name: string, value: string): RawReply;
+  send(body: unknown): unknown;
+}
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertScope, principalOf } from '../../common/scope-check.js';
@@ -24,6 +36,8 @@ import { BaselineService } from './baseline.service.js';
 import { SearchService } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import { SpecRelationService } from './spec-relation.service.js';
+import { AttachmentService } from './attachment.service.js';
+import { StorageService } from '../../common/storage.service.js';
 import { SpecService } from './spec.service.js';
 import type { SpecGraphEdge, SpecTreeNode } from './spec.service.js';
 
@@ -36,6 +50,9 @@ export class SpecController {
     private readonly baselines: BaselineService,
     private readonly searches: SearchService,
     private readonly relations: SpecRelationService,
+    // 이름 끝의 `_` 는 위의 `attachments()` 메서드와 부딪히지 않게 하려는 것이다
+    private readonly attachments_: AttachmentService,
+    private readonly storage: StorageService,
   ) {}
 
   /** EP-SPEC-01 */
@@ -462,6 +479,84 @@ export class SpecController {
       specVersionIds: Array.isArray(body['items']) ? (body['items'] as string[]) : null,
       userId: principal.userId,
     });
+  }
+
+  /**
+   * EP-SPEC-20 — 첨부 목록. 디자인 시안이 문서 밖에 있으면 문서가 아니다(§2.10).
+   */
+  @Get('specs/:spec/attachments')
+  attachments(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+    assertScope(principalOf(req), 'spec:read');
+    return this.attachments_.list({ projectId: projectOf(req), specKey: spec });
+  }
+
+  /** EP-SPEC-21 — 사람 업로드(multipart). 에이전트는 presign 2단계를 쓴다 */
+  @Post('specs/:spec/attachments')
+  async upload(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+    const principal = principalOf(req);
+    assertScope(principal, 'spec:draft');
+    const file = await (
+      req as unknown as { file: () => Promise<MultipartFile | undefined> }
+    ).file();
+    if (file === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        missing: ['file'],
+      });
+    }
+    return this.attachments_.upload({
+      projectId: projectOf(req),
+      specKey: spec,
+      userId: principal.userId,
+      filename: file.filename,
+      contentType: file.mimetype,
+      body: await file.toBuffer(),
+    });
+  }
+
+  /**
+   * EP-SPEC-22 — 첨부 내려받기. **서버를 거친다**(REQ-API-070).
+   *
+   * presigned GET 을 주면 그 URL 이 권한 밖으로 새고, 첨부 주소가 공개면 스펙 권한이
+   * 무의미해진다. SVG 를 허용하므로(사람 결정) 응답에 **CSP sandbox 와 nosniff** 를 붙인다 —
+   * `<img src>` 로 부른 SVG 는 스크립트를 실행하지 않지만, 주소를 직접 연 경우가 남는다.
+   */
+  @Get('attachments/:id')
+  async attachment(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Res() reply: RawReply,
+  ): Promise<void> {
+    assertScope(principalOf(req), 'spec:read');
+    const projectId = projectOf(req);
+    const found = await this.attachments_.open({ projectId, attachmentId: id });
+    if (found === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.attachment.not_found'), {
+        kind: 'not_found',
+      });
+    }
+    const object = await this.storage.get(found.storageKey);
+    if (object === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.attachment.not_uploaded'), {
+        kind: 'not_uploaded',
+      });
+    }
+    void reply
+      .header('content-type', found.contentType)
+      .header('x-content-type-options', 'nosniff')
+      .header('content-security-policy', "sandbox; default-src 'none'")
+      // 이름은 남기되 브라우저가 열게 둔다 — 시안은 보라고 올리는 것이다
+      .header(
+        'content-disposition',
+        `inline; filename*=UTF-8''${encodeURIComponent(found.filename)}`,
+      )
+      .send(object.body);
+  }
+
+  @Delete('attachments/:id')
+  removeAttachment(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    assertScope(principalOf(req), 'spec:draft');
+    return this.attachments_.remove({ projectId: projectOf(req), attachmentId: id });
   }
 }
 

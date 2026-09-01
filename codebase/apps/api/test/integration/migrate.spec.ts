@@ -45,7 +45,7 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     expect(after).toEqual(before);
   });
 
-  it('도메인 테이블 31종 + 검색 인덱스 1종이 존재한다', async () => {
+  it('도메인 테이블 32종 + 검색 인덱스 1종이 존재한다', async () => {
     const names = await withClient(db.url, async (c) => {
       const { rows } = await c.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables
@@ -55,11 +55,12 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
       );
       return rows.map((r) => r.table_name);
     });
-    // 31 도메인 엔티티 + 인프라 4종(엔티티 아님):
+    // 32 도메인 엔티티 + 인프라 4종(엔티티 아님):
     //   spec_chunk_embedding(§2.15) · auth_session·auth_account·auth_verification(§2.16)
     // 30번째는 `invitation` 이다(2026-08-27 · 사람 결정 — 조직 초대)
     // 31번째는 `finding_comment` 다(2026-08-30 · 사람 결정 — 리뷰 피드백 흐름)
-    expect(names).toHaveLength(35);
+    // 32번째는 `attachment` 다(2026-09-01 · 사람 결정 — 디자인 시안 첨부)
+    expect(names).toHaveLength(36);
     expect(names).toContain('spec_chunk_embedding');
     expect(names).toEqual(
       expect.arrayContaining(['auth_session', 'auth_account', 'auth_verification']),

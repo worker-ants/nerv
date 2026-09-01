@@ -12,6 +12,7 @@ import { SearchService } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import { SpecService } from './spec.service.js';
 import { SpecRelationService } from './spec-relation.service.js';
+import { AttachmentService } from './attachment.service.js';
 import type { SpecGraphEdge, SpecTreeNode } from './spec.service.js';
 
 @Injectable()
@@ -21,6 +22,7 @@ export class SpecTools implements NervToolProvider {
     private readonly searches: SearchService,
     private readonly comments: SpecCommentService,
     private readonly relations: SpecRelationService,
+    private readonly attachments: AttachmentService,
   ) {}
 
   readonly tools: readonly NervToolDefinition[] = [
@@ -88,6 +90,72 @@ export class SpecTools implements NervToolProvider {
           remove: input['remove'] === true,
           ...(typeof input['base_hash'] === 'string' ? { baseHash: input['base_hash'] } : {}),
         }),
+    },
+    {
+      /**
+       * **에이전트도 시안을 올린다**(2026-09-01 사람 결정 · REQ-API-071).
+       *
+       * **두 단계인 이유**: MCP 응답에 수백 KB base64 를 실으면 그 세션의 컨텍스트 예산이
+       * 그것으로 찬다. 자리를 받아 스토리지에 직접 올리고(`PUT`), 올렸다고 말한다 —
+       * 서버는 **말만 듣지 않고 실제로 확인한 뒤** 확정한다: 링크가 깨진 시안은 시안이
+       * 없는 것보다 나쁘다(사람이 그것을 찾아 헤맨다).
+       */
+      name: 'nerv_spec_attach',
+      tier: 'A2',
+      phase: 'P1',
+      summaryKey: 'mcp.tool.attach',
+      scope: 'spec:draft',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          spec_id: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+          filename: { type: 'string' },
+          content_type: {
+            type: 'string',
+            enum: [
+              'image/png',
+              'image/jpeg',
+              'image/gif',
+              'image/webp',
+              'image/svg+xml',
+              'application/pdf',
+            ],
+          },
+          // 두 단계의 둘째 — 올린 뒤 이것만 실어 다시 부른다
+          attachment_id: { type: 'string', description: 'mcp.arg.attachment_id' },
+          session_id: { type: 'string', description: 'mcp.arg.session_id' },
+        },
+        // `required` 로는 "첫 단계냐 둘째 단계냐" 를 적을 수 없다 — 핸들러가 가른다
+        required: [],
+      },
+      handler: async (input, ctx) => {
+        const attachmentId = input['attachment_id'];
+        if (typeof attachmentId === 'string' && attachmentId !== '') {
+          return this.attachments.commit({ projectId: ctx.projectId, attachmentId });
+        }
+        const specKey = String(input['spec_id'] ?? '');
+        const filename = String(input['filename'] ?? '');
+        const contentType = String(input['content_type'] ?? '');
+        if (specKey === '' || filename === '' || contentType === '') {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+            kind: 'invalid_input',
+            missing: [
+              ...(specKey === '' ? ['spec_id'] : []),
+              ...(filename === '' ? ['filename'] : []),
+              ...(contentType === '' ? ['content_type'] : []),
+            ],
+          });
+        }
+        return this.attachments.presign({
+          projectId: ctx.projectId,
+          specKey,
+          userId: ctx.principal.userId,
+          sessionId: ctx.sessionId,
+          filename,
+          contentType,
+        });
+      },
     },
     {
       name: 'nerv_spec_search',

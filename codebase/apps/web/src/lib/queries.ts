@@ -164,6 +164,15 @@ export function useSpecDiff(
   });
 }
 
+/** 스펙 첨부 — 디자인 시안 등(REQ-WEB-125) */
+export function useSpecAttachments(slug: string, specKey: string): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: ['spec', specKey, 'attachments'],
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/specs/${specKey}/attachments`),
+    enabled: specKey !== '',
+  });
+}
+
 export function useSpecGraph(
   slug: string,
   projectId: string | undefined,

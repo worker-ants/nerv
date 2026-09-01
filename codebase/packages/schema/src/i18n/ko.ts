@@ -36,6 +36,12 @@ export const ko = {
   'error.auth.hook_missing': '훅 자격증명이 없습니다.',
   'error.auth.human_only_scope': '사람 전용 스코프는 토큰에 부여할 수 없습니다.',
   'error.auth.invalid': '자격증명이 유효하지 않습니다.',
+  'error.attachment.too_large': '파일이 너무 큽니다 — 첨부는 10MB 까지입니다.',
+  'error.attachment.type': '지원하지 않는 형식입니다 — png·jpeg·gif·webp·svg·pdf 만 받습니다.',
+  'error.attachment.not_found': '그 첨부를 찾을 수 없습니다.',
+  'error.attachment.not_uploaded':
+    '아직 올라오지 않았습니다 — 준 주소로 파일을 올린 뒤 확정하세요.',
+  'error.attachment.storage_off': '첨부 저장소가 설정되지 않았습니다.',
   'error.auth.missing': '자격증명이 없습니다.',
   'error.auth.no_role': '역할이 확인되지 않았습니다.',
   'error.auth.not_member': '프로젝트 멤버가 아닙니다.',
@@ -321,6 +327,8 @@ export const ko = {
   'mcp.arg.blocked_reason': '막힌 이유 — status=blocked 면 필수다',
   'mcp.arg.spec_impact':
     '스펙에 미친 영향 — done 게이트의 필수 선언이다. 바꾼 스펙이 있으면 changed 에 스펙 키 배열을, 없으면 none 을 true 로 준다',
+  'mcp.tool.attach': '디자인 시안·문서를 스펙에 붙일 때',
+  'mcp.arg.attachment_id': '둘째 단계 — 올린 뒤 이것만 실어 다시 부른다(확정)',
   'mcp.arg.base_hash':
     '내가 보고 쓴 본문의 지문 — nerv_spec_get 응답의 content_hash. 기존 문서를 고칠 때는 필수다',
   'mcp.arg.blocking':
@@ -695,6 +703,12 @@ export const ko = {
   'spec.comment_anchor': '앵커 (헤딩 slug 또는 REQ-…)',
   'spec.comment_anchor_label': '앵커',
   'spec.comment_resolve': '해소',
+  'spec.attach.hint': '시안을 여기로 끌어다 놓거나',
+  'spec.attach.pick': '파일 고르기',
+  'spec.attach.done': '첨부했습니다.',
+  'spec.attach.insert': '본문에 넣기',
+  'spec.attach.empty': '첨부가 없습니다.',
+  'spec.attachments': '첨부',
   'spec.comments': '코멘트',
   'spec.conflict_body_post': '— 아래에서 고르세요.',
   'spec.conflict_body_pre': '다른 표면에서 먼저 저장된 내용이 있습니다. 덮어쓰지 않았고,',
