@@ -810,3 +810,132 @@ async function seed(): Promise<void> {
     [newId(), orgId, projectId, planner],
   );
 }
+
+// 2026-09-01 사람 요청 — 버전 간 차이를 화면에서 보고 싶다.
+// **서버는 처음부터 줄 수 있었다**(EP-SPEC-06, 2026-08-22). 그런데 부르는 쪽이 없어서
+// **테스트도 0건**이었다 — 아무도 안 쓰는 계약은 언젠가 조용히 깨진다.
+describe('EP-SPEC-06 버전 diff', () => {
+  async function twoVersions(): Promise<{ specId: string }> {
+    const first = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-DIFF',
+      title: 'diff',
+      type: 'feature',
+      bodyMd: '# 제목\n\n첫 문단\n\n공통 문단',
+      userId: planner,
+    });
+    const specId = first['spec_id'] as string;
+    await specs.submitReview({
+      projectId,
+      specVersionId: first['spec_version_id'] as string,
+      userId: planner,
+    });
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      baseHash: await hashOf(specId),
+      bodyMd: '# 제목\n\n고친 문단\n\n공통 문단\n\n새 문단',
+      userId: planner,
+    });
+    return { specId };
+  }
+
+  async function latestVersionId(specId: string): Promise<string> {
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM spec_version WHERE spec_id = $1 ORDER BY version_no DESC LIMIT 1`,
+      [specId],
+    );
+    return rows[0]!.id;
+  }
+
+  it('기본은 최신과 그 직전이다 — 가장 흔한 물음이 인자 없이 답해진다', async () => {
+    await twoVersions();
+    const out = await specs.diff({ projectId, specKey: 'SPC-DIFF' });
+    expect(out['from']).toMatchObject({ version_no: 1 });
+    expect(out['to']).toMatchObject({ version_no: 2 });
+  });
+
+  it('본문 diff 는 바뀐 줄만 op 로 가른다 — 같은 줄은 same 이다', async () => {
+    await twoVersions();
+    const out = await specs.diff({ projectId, specKey: 'SPC-DIFF' });
+    const body = out['body_diff'] as { op: string; text: string }[];
+    expect(body.filter((l) => l.op === 'del').map((l) => l.text)).toContain('첫 문단');
+    expect(body.filter((l) => l.op === 'add').map((l) => l.text)).toContain('고친 문단');
+    expect(body.filter((l) => l.op === 'add').map((l) => l.text)).toContain('새 문단');
+    // 안 바뀐 줄은 남아 있어야 한다 — 화면이 그것으로 맥락을 만든다
+    expect(body.filter((l) => l.op === 'same').map((l) => l.text)).toContain('공통 문단');
+  });
+
+  it('요구사항 델타는 계산이 아니라 조회다 — added·modified·removed 를 가른다', async () => {
+    const first = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-DIFF-REQ',
+      title: 'req',
+      type: 'feature',
+      bodyMd:
+        '# 제목\n\nREQ-DIF-001 WHEN 가 오면 THE SYSTEM SHALL 나 한다\n\nREQ-DIF-002 WHEN 다 오면 THE SYSTEM SHALL 라 한다',
+      userId: planner,
+    });
+    const specId = first['spec_id'] as string;
+    await specs.submitReview({
+      projectId,
+      specVersionId: first['spec_version_id'] as string,
+      userId: planner,
+    });
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      baseHash: await hashOf(specId),
+      bodyMd:
+        '# 제목\n\nREQ-DIF-001 WHEN 가 오면 THE SYSTEM SHALL **다르게** 한다\n\nREQ-DIF-003 WHEN 마 오면 THE SYSTEM SHALL 바 한다',
+      userId: planner,
+    });
+
+    const out = await specs.diff({ projectId, specKey: 'SPC-DIFF-REQ' });
+    const byRef = Object.fromEntries(
+      (out['requirements'] as Record<string, unknown>[]).map((r) => [r['ref'], r['delta']]),
+    );
+    expect(byRef['REQ-DIF-001']).toBe('modified');
+    expect(byRef['REQ-DIF-002']).toBe('removed');
+    expect(byRef['REQ-DIF-003']).toBe('added');
+  });
+
+  it('임의의 두 판을 견준다 — 인접하지 않아도 된다', async () => {
+    const { specId } = await twoVersions();
+    await specs.submitReview({
+      projectId,
+      specVersionId: (await latestVersionId(specId)) as string,
+      userId: planner,
+    });
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      baseHash: await hashOf(specId),
+      bodyMd: '# 제목\n\n세 번째 판',
+      userId: planner,
+    });
+
+    const out = await specs.diff({
+      projectId,
+      specKey: 'SPC-DIFF',
+      fromVersionNo: 1,
+      toVersionNo: 3,
+    });
+    expect(out['from']).toMatchObject({ version_no: 1 });
+    expect(out['to']).toMatchObject({ version_no: 3 });
+    const body = out['body_diff'] as { op: string; text: string }[];
+    expect(body.filter((l) => l.op === 'add').map((l) => l.text)).toContain('세 번째 판');
+  });
+
+  it('없는 버전을 가리키면 못 찾았다고 말한다 — 조용히 최신을 주지 않는다', async () => {
+    await twoVersions();
+    await expect(
+      specs.diff({ projectId, specKey: 'SPC-DIFF', fromVersionNo: 99, toVersionNo: 2 }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } });
+  });
+});

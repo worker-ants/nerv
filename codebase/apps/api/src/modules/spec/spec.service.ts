@@ -31,7 +31,7 @@ import type { GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
 import type { CheckResult } from './spec-check.service.js';
 import { readerHash } from './reader-hash.js';
-import { specDelta } from './spec-delta.js';
+import { requirementsOf, specDelta } from './spec-delta.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
 
@@ -1126,7 +1126,16 @@ export class SpecService {
     return {
       from: { version_no: from['version_no'], status: from['status'] },
       to: { version_no: to['version_no'], status: to['status'] },
-      requirements,
+      // **행이 없으면 본문에서 읽는다**(2026-09-01 — 사람 요청으로 화면을 붙이며 드러났다).
+      //
+      // `requirement_version` 을 채우는 것은 **임포터뿐**이다. 에이전트가 쓴 스펙에는 그
+      // 행이 없어서, 조회로만 만든 이 델타는 언제나 빈 배열이었다 — 리뷰가 실제로 묻는
+      // 축(약속이 늘었나 줄었나)이 그 문서들에서 통째로 죽어 있었다는 뜻이다.
+      // 저장 응답의 델타(`specDelta`)가 이미 같은 규칙으로 본문을 읽으므로 그것을 쓴다.
+      requirements:
+        requirements.length > 0
+          ? requirements
+          : requirementDeltaFromBody(bodyOf(from['id'] as string), bodyOf(to['id'] as string)),
       body_diff: lineDiff(bodyOf(from['id'] as string), bodyOf(to['id'] as string)),
     };
   }
@@ -1751,6 +1760,25 @@ export class SpecService {
  * 줄 단위 diff — LCS 기반. 라이브러리를 넣지 않는 이유는 본문 diff 가 이 파일에서
  * **부차적**이기 때문이다(리뷰의 주 신호는 요구사항 델타다). 필요가 커지면 그때 교체한다.
  */
+/**
+ * 요구사항 행이 없는 문서의 델타 — 본문에서 읽어 같은 모양으로 만든다.
+ *
+ * 조회(`requirement_version`)와 **같은 필드 이름**을 낸다: 화면이 두 경로를 구분할 이유가
+ * 없고, 구분하게 두면 한쪽만 고치는 날이 온다.
+ */
+function requirementDeltaFromBody(before: string, after: string): Record<string, unknown>[] {
+  const from = requirementsOf(before);
+  const to = requirementsOf(after);
+  const refs = [...new Set([...from.keys(), ...to.keys()])].sort();
+  return refs.map((ref) => {
+    const a = from.get(ref);
+    const b = to.get(ref);
+    const delta =
+      a === undefined ? 'added' : b === undefined ? 'removed' : a === b ? 'unchanged' : 'modified';
+    return { ref, statement_md: b ?? a ?? '', delta };
+  });
+}
+
 function lineDiff(before: string, after: string): { op: string; text: string }[] {
   const a = before.split('\n');
   const b = after.split('\n');

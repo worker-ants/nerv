@@ -18,7 +18,8 @@ export interface SpecDelta {
   lines: { added: number; removed: number };
 }
 
-function requirementsOf(body: string): Map<string, string> {
+/** 본문에서 요구사항을 읽는다 — 행이 없는 문서의 diff 가 이것을 쓴다(EP-SPEC-06) */
+export function requirementsOf(body: string): Map<string, string> {
   const found = new Map<string, string>();
   for (const line of body.split('\n')) {
     const match = REQUIREMENT_LINE.exec(line.trim());

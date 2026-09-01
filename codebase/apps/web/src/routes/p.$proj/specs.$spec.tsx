@@ -5,11 +5,12 @@
 // 답하지 못하는 편집기는 문서를 고치게 만들지 말아야 한다.
 
 import { useT } from '../../lib/i18n.js';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
+import { VersionDiff } from '../../features/spec-editor/version-diff.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -25,6 +26,8 @@ import {
   useSpecCheck,
   useSpecComments,
   useSpecRelations,
+  useSpecDiff,
+  useSpecVersion,
   useSpecVersions,
 } from '../../lib/queries.js';
 import type { RoundTripResult } from '../../features/spec-editor/editor.js';
@@ -35,7 +38,33 @@ import { cn } from '../../lib/utils.js';
 import { Avatar, Button, Input, Mono, Textarea } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
-export const Route = createFileRoute('/p/$proj/specs/$spec')({ component: SpecDetail });
+export const Route = createFileRoute('/p/$proj/specs/$spec')({
+  /**
+   * 두 축이 주소에 있다(§2.4). `?v=3` 은 그 판 전문, `?diff=v2..v3` 은 두 판의 차이 —
+   * **화면 상태가 아니라 주소가 진실이라** 공유·북마크·뒤로가기가 그대로 산다.
+   */
+  validateSearch: (search: Record<string, unknown>): { v?: number; diff?: string } => ({
+    ...(typeof search['v'] === 'string' || typeof search['v'] === 'number'
+      ? { v: Number(search['v']) }
+      : {}),
+    ...(typeof search['diff'] === 'string' && DIFF_RE.test(search['diff'])
+      ? { diff: search['diff'] }
+      : {}),
+  }),
+  component: SpecDetail,
+});
+
+/** `v2..v3` — 양쪽 다 있어야 한 쌍이다 */
+const DIFF_RE = /^v(\d+)\.\.v(\d+)$/;
+
+/** 주소의 `diff` 를 두 수로 — 항상 **오래된 쪽 → 새 쪽**이다(added/removed 는 순서가 뜻이다) */
+function parseDiff(value: string | undefined): { from: number; to: number } | null {
+  const m = value === undefined ? null : DIFF_RE.exec(value);
+  if (m === null) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  return { from: Math.min(a, b), to: Math.max(a, b) };
+}
 
 /** 리스 갱신 주기 — 하트비트 상수와 같은 값을 쓴다(§3.4 "갱신"). */
 const LEASE_REFRESH_MS = 60_000;
@@ -52,6 +81,15 @@ function SpecDetail(): React.JSX.Element {
   const comments = useSpecComments(proj, spec);
   const relations = useSpecRelations(proj, spec);
   const check = useSpecCheck(proj, String(detail.data?.['version_id'] ?? ''));
+
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const compare = parseDiff(search.diff);
+  const viewing = typeof search.v === 'number' && Number.isFinite(search.v) ? search.v : null;
+  const [diffFull, setDiffFull] = useState(false);
+  const diff = useSpecDiff(proj, spec, compare?.from ?? null, compare?.to ?? null);
+  // 옛 판 전문 — 지금 판이 아닌 것을 볼 때만 부른다
+  const pastVersion = useSpecVersion(proj, spec, viewing, viewing !== null);
 
   const [draft, setDraft] = useState<string | null>(null);
   const [roundTrip, setRoundTrip] = useState<RoundTripResult | null>(null);
@@ -445,12 +483,76 @@ function SpecDetail(): React.JSX.Element {
           </section>
         )}
 
+        {/* **비교 중에는 편집기가 아니라 diff 다**(REQ-WEB-121). 지금 판이 아닌 것을 보고
+            있을 수 있으므로 이 자리에서 고치게 두지 않는다 — 주소를 비우면 돌아온다 */}
+        {compare !== null && (
+          <>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-testid="diff-close"
+                onClick={() => void navigate({ to: '.', search: {}, replace: true })}
+                className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
+              >
+                ← {t('spec.diff.close')}
+              </button>
+            </div>
+            <VersionDiff
+              diff={diff.data}
+              isPending={diff.isPending}
+              isError={diff.isError}
+              versions={rows(versions.data)}
+              from={compare.from}
+              to={compare.to}
+              onChange={(from, to) =>
+                void navigate({
+                  to: '.',
+                  search: {
+                    diff: `v${String(Math.min(from, to))}..v${String(Math.max(from, to))}`,
+                  },
+                  replace: true,
+                })
+              }
+              full={diffFull}
+              onToggleFull={() => setDiffFull(!diffFull)}
+            />
+          </>
+        )}
+
+        {/* 옛 판 전문 — 읽기 전용이고, 돌아오는 길을 같은 자리에 둔다(§1.5) */}
+        {compare === null && viewing !== null && (
+          <>
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-nerv-sm bg-status-waiting-soft px-3 py-1.5 text-sm text-status-waiting">
+              <span data-testid="version-view-banner">
+                {t('spec.version_view', { n: viewing })}
+              </span>
+              <button
+                type="button"
+                data-testid="version-view-close"
+                onClick={() => void navigate({ to: '.', search: {}, replace: true })}
+                className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 text-2xs"
+              >
+                {t('spec.version_current')}
+              </button>
+            </div>
+            <SpecEditor
+              key={`v${String(viewing)}`}
+              value={String(pastVersion.data?.['body_md'] ?? '')}
+              readOnly
+              projectSlug={proj}
+              projectId={projectUuid}
+              specKey={spec}
+              onChange={() => undefined}
+            />
+          </>
+        )}
+
         {/* **본문 없는 묶음 노드를 빈 화면으로 두지 않는다**(2026-08-24 · REQ-WEB-068).
             임포터는 디렉터리마다 area 노드를 만드는데, 원본에 `_product-overview.md` 가
             없으면 본문이 없다(4.7 §2.2 — clemvion 실측 area 16개 중 9개). 그냥 비워 두면
             "내용이 사라졌다"로 읽힌다 — 무엇이고 어디로 가면 되는지 말해야 한다(§1.5).
             **편집 권한과 무관하게** 띄운다: 빈 이유를 알아야 하는 것은 읽는 사람도 같다. */}
-        {body.trim() === '' && (
+        {compare === null && viewing === null && body.trim() === '' && (
           <div
             data-testid="spec-empty-body"
             className="mb-3 rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute"
@@ -463,18 +565,20 @@ function SpecDetail(): React.JSX.Element {
             초기화이고(실측으로 갈라 확인했다), 이 `key` 가 막는 것은 다른 것이다:
             TipTap 인스턴스가 살아남으면 **되돌리기 이력도 살아남아** 문서 B 에서 ⌘Z 를
             누르면 문서 A 의 글이 돌아온다. 이력은 문서에 속한다. */}
-        <SpecEditor
-          key={spec}
-          value={draft ?? body}
-          readOnly={!editable}
-          projectSlug={proj}
-          projectId={projectUuid}
-          specKey={spec}
-          onChange={(markdown, result) => {
-            setDraft(markdown);
-            setRoundTrip(result);
-          }}
-        />
+        {compare === null && viewing === null && (
+          <SpecEditor
+            key={spec}
+            value={draft ?? body}
+            readOnly={!editable}
+            projectSlug={proj}
+            projectId={projectUuid}
+            specKey={spec}
+            onChange={(markdown, result) => {
+              setDraft(markdown);
+              setRoundTrip(result);
+            }}
+          />
+        )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
           <Button
@@ -647,7 +751,16 @@ function SpecDetail(): React.JSX.Element {
               {rows(versions.data)
                 .slice(0, 8)
                 .map((v) => (
-                  <li key={String(v['id'])} className="py-0.5">
+                  <li
+                    key={String(v['id'])}
+                    className={cn(
+                      'rounded-nerv-sm py-0.5',
+                      // 지금 보고 있는 판을 표시한다 — 목록과 본문이 다른 말을 하지 않게
+                      (viewing === Number(v['version_no']) ||
+                        compare?.to === Number(v['version_no'])) &&
+                        'bg-bg-sunken',
+                    )}
+                  >
                     <div className="flex items-center gap-2">
                       <span className="w-8 shrink-0 font-mono text-xs text-text-faint">
                         v{String(v['version_no'])}
@@ -665,6 +778,41 @@ function SpecDetail(): React.JSX.Element {
                       <span className="ml-auto shrink-0 text-2xs text-text-faint">
                         {relativeTime(t, changedAt(v))}
                       </span>
+                    </div>
+                    {/* **누를 수 있어야 한다**(2026-09-01 — 사람 요청 · REQ-WEB-121·122).
+                        서버는 처음부터 diff 를 줄 수 있었는데(EP-SPEC-06) 이 목록이
+                        글자였을 뿐이라, "무엇이 바뀌었나" 를 화면에서 물을 수 없었다.
+                        누르면 **직전과의 차이**(가장 흔한 물음), 옆이 그 판 전문이다. */}
+                    <div className="mt-0.5 ml-10 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        data-testid={`diff-open-${String(v['version_no'])}`}
+                        disabled={Number(v['version_no']) <= 1}
+                        title={
+                          Number(v['version_no']) <= 1 ? t('spec.diff.no_previous') : undefined
+                        }
+                        onClick={() =>
+                          void navigate({
+                            to: '.',
+                            search: {
+                              diff: `v${String(Number(v['version_no']) - 1)}..v${String(v['version_no'])}`,
+                            },
+                          })
+                        }
+                        className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-40"
+                      >
+                        {t('spec.diff.open')}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`version-open-${String(v['version_no'])}`}
+                        onClick={() =>
+                          void navigate({ to: '.', search: { v: Number(v['version_no']) } })
+                        }
+                        className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
+                      >
+                        {t('spec.version.open')}
+                      </button>
                     </div>
                     {/* **무엇을 왜 바꿨나** — 이 줄이 없으면 목록은 번호와 배지뿐이고,
                         draft 는 덮어써지므로 되짚을 diff 도 없다(api.md §2.2) */}

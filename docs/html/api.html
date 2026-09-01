@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 16종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.42 (2026-08-31)</span>
+      <span>버전 v0.43 (2026-09-01)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -465,6 +465,8 @@
 
   <p>이미 쓰이는 키로 온 생성은 <code>key_taken</code> 으로 막고 <b>그 문서를 딥링크로 짚어 준다</b>. 덮어쓰지도, 조용히 이어 쓰지도 않는다 — 같은 키로 오는 생성은 대개 "이미 있는 줄 몰랐다"이고, 그때 남의 문서에 말없이 이어 쓰는 것이 가장 나쁘다. 보관된 문서가 키를 쥐고 있으면 답은 새로 만드는 것이 아니라 복구다. 동시에 들어온 둘은 유니크 인덱스(<code>spec_key_uq</code>)가 잡는다 — <b>검사는 흔한 길의 말이고 인덱스가 자물쇠다.</b></p>
 
+  <p><b>요구사항 델타는 행이 없으면 본문에서 읽는다</b>(2026-09-01 — 화면을 붙이며 드러났다). EP-SPEC-06 의 요구사항 델타는 <code>requirement_version</code> <b>조회</b>인데, 그 표를 채우는 것은 <b>임포터뿐</b>이다. 에이전트가 쓴 스펙에는 그 행이 없어서 델타가 언제나 빈 배열이었다 — 리뷰가 실제로 묻는 축이 그 문서들에서 통째로 죽어 있었고, 화면이 없어서 아무도 몰랐다. <b>필드 이름은 조회 경로와 같다</b>: 화면이 두 경로를 구분할 이유가 없다.</p>
+
   <p><b>결정은 대상을 움직여야 한다</b>(2026-08-31 — 사람 보고 "등록됐는데 보이지 않는 항목이 있다"). <code>POST /approvals/{id}/decision</code> 은 결재 행에 결정을 적고 이벤트를 내고 <b>끝났다</b>. 문서를 실제로 옮기는 <code>SpecService.approve</code>/<code>reject</code> 는 <code>POST /specs/approve</code>·<code>/specs/reject</code> 에 따로 붙어 있고 <b>웹은 그 경로를 한 번도 부르지 않는다</b>.</p>
 
   <p>결과는 조용한 교착이다: 거절하면 카드는 사라지는데(<code>decision IS NOT NULL</code>) <b>문서는 <code>in_review</code> 에 갇힌다</b> — 가변 구간은 draft 하나뿐이라(D-02) 고칠 수도 없고, 다시 낼 수도 없다. 실측(sudoku 2026-08-31): 거절 2건, 스펙 둘 다 <code>in_review</code>. clemvion 에 같은 증상이 없는 이유는 그쪽이 임포터로 직접 <code>approved</code> 가 됐기 때문이다 — <b>sudoku 가 이 길을 처음 실제로 걸었다.</b></p>
@@ -500,6 +502,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
+      <tr><td>REQ-API-064</td><td>WHEN 버전 diff 를 조회하는데 대상 스펙에 <code>requirement</code> 행이 없으면 THE SYSTEM SHALL 두 본문에서 요구사항을 읽어 같은 모양(<code>ref</code>·<code>statement_md</code>·<code>delta</code>)으로 델타를 만든다</td></tr>
       <tr><td>REQ-API-063</td><td>WHEN 결재 결정이 기록되면 THE SYSTEM SHALL <b>같은 트랜잭션에서</b> 대상의 상태 전이를 적용한다 — <code>spec_version</code> 은 승인 시 <code>approved</code>, 거절 시 <code>draft</code>. WHEN 대상이 이미 그 상태가 아니면 THE SYSTEM SHALL 결정을 남기고 전이만 건너뛴다</td></tr>
       <tr><td>REQ-API-061</td><td>WHEN 리뷰 라운드가 제출되면 THE SYSTEM SHALL 새 발견이 0건이어도 <code>review.submitted</code> 를 방송한다(라운드 번호·새/병합 수·block). WHEN 임포트가 과거 리뷰를 적재하면 THE SYSTEM SHALL 이 이벤트를 내지 않는다</td></tr>
       <tr><td>REQ-API-062</td><td>WHEN 요청자가 자기 결재를 승인하려 하면 THE SYSTEM SHALL 그 사람이 그 프로젝트·조직의 <code>admin</code> 이거나 멤버가 2인 미만일 때만 허용하고, 허용한 사실을 이벤트 페이로드(<code>self_approved</code>)에 남긴다. WHEN 결재 카드를 조회하면 THE SYSTEM SHALL 이 판정을 <code>can_approve</code> 로 실어 준다</td></tr>

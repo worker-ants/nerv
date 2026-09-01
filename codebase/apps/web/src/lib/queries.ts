@@ -143,6 +143,27 @@ export function useSpecVersion(
   });
 }
 
+/**
+ * EP-SPEC-06 버전 diff — 요구사항 델타 + 줄 단위 diff (REQ-WEB-121).
+ *
+ * **서버는 처음부터 이것을 줄 수 있었다.** 2026-09-01 까지 부르는 쪽이 없었을 뿐이다.
+ */
+export function useSpecDiff(
+  slug: string,
+  specKey: string,
+  from: number | null,
+  to: number | null,
+): UseQueryResult<Row> {
+  const query = new URLSearchParams();
+  if (from !== null) query.set('from', String(from));
+  if (to !== null) query.set('to', String(to));
+  return useQuery({
+    queryKey: [...queryKeys.spec(specKey), 'diff', from, to],
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}/diff?${query.toString()}`),
+    enabled: specKey !== '' && from !== null && to !== null,
+  });
+}
+
 export function useSpecGraph(
   slug: string,
   projectId: string | undefined,
