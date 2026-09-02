@@ -95,5 +95,3 @@ TypeScript · pnpm workspace / Vite + React SPA · TanStack Router·Query · Tai
 ## 라이선스
 
 [Apache License 2.0](LICENSE). 저작권 표기는 [NOTICE](NOTICE)에 있다.
-
-파일마다 라이선스 헤더를 붙이지는 않는다. 이 저장소의 파일 머리 주석은 **"이 파일이 왜 이렇게 되어 있는가"**를 적는 자리이고, 같은 문구 다섯 줄이 그 위에 앉으면 읽는 사람이 매번 건너뛰게 된다. 배포 조건은 루트의 `LICENSE`·`NOTICE`가 진다.
