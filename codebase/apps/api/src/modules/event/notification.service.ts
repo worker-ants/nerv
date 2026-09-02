@@ -47,8 +47,17 @@ export function tierOf(type: string): ImportanceTier | null {
   return NOTIFICATION_CATALOG[type as NervEventName] ?? null;
 }
 
+/** 한 실행이 넘기는 페이지 상한 — 밀린 이력이 길어도 한 틱이 무한히 돌지 않게 한다 */
+const MAX_PAGES = 20;
+
 @Injectable()
 export class NotificationService {
+  /**
+   * 지난 실행이 어디까지 봤는가(메모리). 워커는 advisory lock 을 쥔 한 프로세스라
+   * 이 값이 곧 그 워커의 물마루다 — 재기동하면 비고, 그때는 밀린 것부터 다시 훑는다.
+   */
+  private cursor: string | null = null;
+
   private readonly logger = new Logger(NotificationService.name);
 
   constructor(@InjectDb() private readonly db: NervDb) {}
@@ -61,38 +70,61 @@ export class NotificationService {
    */
   async route(input: { since?: Date | null; limit?: number } = {}): Promise<number> {
     const limit = input.limit ?? 200;
-    const { rows: events } = await this.db.execute<{
-      id: string;
-      project_id: string;
-      type: string;
-      actor_user_id: string | null;
-      subject_id: string;
-      occurred_at: string;
-    }>(sql`
-      SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_id, e.occurred_at::text AS occurred_at
-        FROM event e
-       WHERE NOT EXISTS (SELECT 1 FROM notification n WHERE n.event_id = e.id)
-         ${input.since == null ? sql`` : sql`AND e.occurred_at > ${input.since.toISOString()}`}
-       ORDER BY e.occurred_at
-       LIMIT ${limit}
-    `);
-
+    // 명시 `since` 는 호출자의 것이고, 없으면 지난 실행이 남긴 물마루에서 잇는다
+    let cursor: string | null = input.since?.toISOString() ?? this.cursor;
     let created = 0;
-    for (const event of events) {
-      const tier = tierOf(event.type);
-      if (tier === null || tier === 'low') continue; // 카탈로그 밖 · 배경 활동은 알림이 아니다
 
-      const recipients = await this.recipientsFor(event);
-      for (const userId of recipients) {
-        await this.db.execute(sql`
-          INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state)
-          VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
-                  ${tier === 'critical' || tier === 'high' ? 'immediate' : 'digest'}::notification_importance,
-                  'inapp', 'unread')
-        `);
-        created += 1;
+    // **창이 막히지 않게 앞으로 민다.** 예전에는 "알림 행이 없는 이벤트" 를 시각순 200건만
+    // 읽고 끝냈다. 그런데 카탈로그 밖 이벤트(초안 자동 저장 등)·low 티어·수신자 0명은
+    // `continue` 로 건너뛰며 **아무 표식도 남기지 않는다** — 그런 이벤트가 200건을 넘는
+    // 순간 창이 그것들로 영구히 채워지고, 그 뒤의 `approval.requested` 는 다시는 읽히지
+    // 않는다. 받은 요청 배지가 0 으로 굳고 사람은 결정 대기가 없다고 믿는다.
+    //
+    // 그래서 페이지를 넘긴다: 처리한 마지막 시각을 커서로 삼아 건너뛴 것들을 지나간다.
+    // 두 조건을 함께 쓰는 것이 요점이다 — 시각 커서는 **전진**을, `NOT EXISTS` 는
+    // **중복 방지**를 맡는다(재기동하면 커서가 비고, 그때는 밀린 것부터 다시 훑는다).
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const at: string | null = cursor;
+      const { rows: events } = await this.db.execute<{
+        id: string;
+        project_id: string;
+        type: string;
+        actor_user_id: string | null;
+        subject_id: string;
+        occurred_at: string;
+      }>(sql`
+        SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_id,
+               e.occurred_at::text AS occurred_at
+          FROM event e
+         WHERE NOT EXISTS (SELECT 1 FROM notification n WHERE n.event_id = e.id)
+           ${at == null ? sql`` : sql`AND e.occurred_at > ${at}`}
+         ORDER BY e.occurred_at
+         LIMIT ${limit}
+      `);
+      if (events.length === 0) break;
+
+      for (const event of events) {
+        const tier = tierOf(event.type);
+        // 카탈로그 밖 · 배경 활동은 알림이 아니다 — 건너뛰되 **커서는 지나간다**
+        if (tier !== null && tier !== 'low') {
+          const recipients = await this.recipientsFor(event);
+          for (const userId of recipients) {
+            await this.db.execute(sql`
+              INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state)
+              VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
+                      ${tier === 'critical' || tier === 'high' ? 'immediate' : 'digest'}::notification_importance,
+                      'inapp', 'unread')
+            `);
+            created += 1;
+          }
+        }
+        cursor = event.occurred_at;
       }
+      if (events.length < limit) break;
     }
+
+    // 명시 `since` 로 부른 호출은 물마루를 옮기지 않는다 — 그것은 호출자의 질의다
+    if (input.since == null) this.cursor = cursor;
     if (created > 0) this.logger.log(`알림 ${created}건 파생`);
     return created;
   }

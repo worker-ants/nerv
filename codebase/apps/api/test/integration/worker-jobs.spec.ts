@@ -38,9 +38,12 @@ let poolB: pg.Pool;
 beforeAll(async () => {
   db = await createScratchDb('nerv_worker');
   await runMigrations(db.url);
-  // 커넥션 1개씩 — advisory lock 은 **세션 수준**이라 풀이 커넥션을 바꾸면 의미가 흐려진다.
-  poolA = new pg.Pool({ connectionString: db.url, max: 1 });
-  poolB = new pg.Pool({ connectionString: db.url, max: 1 });
+  // 워커마다 **자기 풀**이다 — advisory lock 은 세션 수준이라 어느 커넥션이 쥐었는지가
+  // 곧 어느 워커가 쥐었는지다. 락은 전용 커넥션 하나를 붙잡고 있으므로(advisory-lock.ts)
+  // 풀에는 최소 2개가 필요하다: 하나는 락, 나머지가 잡의 질의다. max: 1 이면 잡이
+  // 커넥션을 기다리며 멈춘다 — 예전 구현이 락을 반납했기 때문에 1로도 돌았던 것이다.
+  poolA = new pg.Pool({ connectionString: db.url, max: 3 });
+  poolB = new pg.Pool({ connectionString: db.url, max: 3 });
 });
 
 afterAll(async () => {
@@ -55,7 +58,7 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
     publish: async () => false,
     subscribe: async () => undefined,
   } as unknown as ValkeyService;
-  const lock = new AdvisoryLock(drizzleDb);
+  const lock = new AdvisoryLock(pool);
   const runner = new JobRunner(
     lock,
     new LeaseReaperJob(new ClaimService(), drizzleDb),
@@ -76,6 +79,64 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
   );
   return { runner, lock };
 }
+
+describe('알림 라우팅은 창에 막히지 않는다 (REQ-API-064 계열)', () => {
+  it('알림을 만들지 않는 이벤트가 창을 채워도 그 뒤의 결재 요청이 읽힌다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const orgId = newId();
+    const projectId = newId();
+    const actor = newId();
+    const watcher = newId();
+    await poolA.query(`INSERT INTO organization (id, slug, name) VALUES ($1,$2,'알림')`, [
+      orgId,
+      `ntf-${orgId.slice(-6)}`,
+    ]);
+    await poolA.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,'알림')`,
+      [projectId, orgId, `ntf-${projectId.slice(-6)}`, `N${projectId.slice(-2).toUpperCase()}`],
+    );
+    for (const [id, email] of [
+      [actor, 'actor@example.com'],
+      [watcher, 'watcher@example.com'],
+    ] as const) {
+      await poolA.query(
+        `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'x','active')`,
+        [id, `${id.slice(-6)}-${email}`],
+      );
+      await poolA.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
+        [newId(), orgId, projectId, id],
+      );
+    }
+
+    // ① 알림을 만들지 않는 이벤트로 창(200)을 넘긴다 — 카탈로그 밖 타입이다
+    for (let i = 0; i < 205; i += 1) {
+      await poolA.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
+         VALUES ($1,$2,'spec.draft_updated','spec_version',$3,$4, now() - interval '1 hour' + ($5 || ' seconds')::interval)`,
+        [newId(), projectId, newId(), actor, i],
+      );
+    }
+    // ② 그 뒤에 사람을 불러야 하는 이벤트 하나
+    const importantId = newId();
+    await poolA.query(
+      `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
+       VALUES ($1,$2,'approval.requested','approval',$3,$4, now())`,
+      [importantId, projectId, newId(), actor],
+    );
+
+    // 예전에는 창이 ①로 가득 차 ②가 **다시는** 읽히지 않았다(그 이벤트들은 표식을
+    // 남기지 않으므로 다음 실행에서도 같은 200건이 잡힌다).
+    const created = await new NotificationService(drizzle(poolA)).route();
+    expect(created).toBeGreaterThan(0);
+
+    const { rows } = await poolA.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM notification WHERE event_id = $1`,
+      [importantId],
+    );
+    expect(rows[0]?.n).toBe(1);
+  });
+});
 
 describe('월 파티션 — 두 달 뒤에 멈추지 않는다 (REQ-DB-021)', () => {
   /** 그 달의 event 파티션이 있는가 */
@@ -163,6 +224,41 @@ describe('E04-S04 잡 루프는 하나만 돈다', () => {
     await a.lock.release();
     expect(await b.runner.tick(0)).not.toEqual([]);
     await b.lock.release();
+  });
+
+  it('락은 전용 커넥션을 쥔다 — 풀이 커넥션을 돌려도 놓지 않는다 (REQ-CB-011)', async () => {
+    // 예전에는 풀에서 빌린 커넥션으로 락을 잡고 곧바로 반납했다. 세션 수준 락은 그 물리
+    // 커넥션에 묶이므로 풀이 유휴 커넥션을 닫는 순간(기본 10초) Postgres 가 락을 놓았고,
+    // 메모리의 `held` 만 true 로 남아 **락 없이 도는 워커**가 됐다.
+    const a = runnerFor(poolA);
+    const b = runnerFor(poolB);
+    try {
+      expect(await a.lock.acquire()).toBe(true);
+
+      // 락을 쥔 뒤 같은 풀로 여러 질의를 돌려 커넥션을 순환시킨다
+      for (let i = 0; i < 5; i += 1) await poolA.query('SELECT 1');
+
+      // 두 번째 워커는 여전히 못 잡는다 — 락이 살아 있다는 뜻이다
+      expect(await b.lock.acquire()).toBe(false);
+      expect(a.lock.isHeld).toBe(true);
+
+      // DB 가 보는 사실로도 확인한다 — 이 데이터베이스에서 그 키를 쥔 세션은 하나뿐이다
+      const { rows } = await poolB.query<{ n: number }>(
+        `SELECT count(DISTINCT pid)::int AS n FROM pg_locks
+          WHERE locktype = 'advisory' AND granted
+            AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+            AND ((classid::bigint << 32) | objid::bigint) = $1::bigint`,
+        [WORKER_ADVISORY_LOCK_KEY.toString()],
+      );
+      expect(rows[0]?.n).toBe(1);
+
+      await a.lock.release();
+      expect(await b.lock.acquire()).toBe(true);
+    } finally {
+      // 실패해도 놓는다 — 쥔 채로 끝나면 뒤 테스트가 전부 무너진다
+      await a.lock.release();
+      await b.lock.release();
+    }
   });
 
   it('키는 @nerv/schema 정본이다 — 워커와 검사 도구가 같은 값을 본다', async () => {
