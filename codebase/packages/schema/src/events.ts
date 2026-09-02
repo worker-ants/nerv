@@ -149,4 +149,15 @@ export interface NervEventEnvelope {
   is_agent: boolean;
   /** ISO 8601 */
   occurred_at: string;
+  /**
+   * **개인 룸 수신자**(api.md §3.3 의 "+ `user:{id}`" 열).
+   *
+   * 방송 전용이다 — `event` 행에는 없다. 봉투를 받은 파드는 이 목록의 `user:{id}` 룸에도
+   * 흘린다. 없거나 비면 프로젝트 룸에만 간다.
+   *
+   * 이 필드가 없던 동안 `user:{id}` 룸과 `GET /sse/me` 로는 **아무것도 나가지 않았다**:
+   * 종 아이콘은 새로고침해야 숫자가 바뀌었고, 다른 프로젝트 화면에 있던 사람은 자기 앞으로
+   * 온 승인 요청을 실시간으로 받지 못했다(2026-09-02 정정).
+   */
+  recipient_user_ids?: string[];
 }

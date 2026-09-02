@@ -104,7 +104,10 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.QUESTION_CREATED]: inboxAxis,
   [E.QUESTION_ANSWERED]: (e) => [queryKeys.inbox(), queryKeys.projectSessions(e.project_id)],
 
-  [E.NOTIFICATION_CREATED]: () => [queryKeys.myNotifications()],
+  // **받은 요청도 함께 되읽는다.** 이 이벤트는 개인 룸으로 오는 유일한 방송이고(api.md §3.3),
+  // 다른 프로젝트 화면에 있는 사람에게는 승인 요청·질문이 닿는 유일한 길이다 — 종만
+  // 갱신하면 숫자는 늘어나는데 목록은 그대로다.
+  [E.NOTIFICATION_CREATED]: () => [queryKeys.myNotifications(), queryKeys.inbox()],
 
   [E.GATE_BYPASSED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.GATE_FAILOPEN]: (e) => [queryKeys.projectEvents(e.project_id)],

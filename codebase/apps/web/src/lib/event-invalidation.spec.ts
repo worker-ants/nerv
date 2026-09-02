@@ -90,9 +90,10 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     expect(invalidationKeysFor(envelope(NERV_EVENT.QUESTION_CREATED))).toEqual([queryKeys.inbox()]);
   });
 
-  it('알림 생성은 개인 알림 목록만 건드린다', () => {
+  it('알림 생성은 종과 받은 요청을 함께 되읽는다 — 개인 룸으로 오는 유일한 방송이다', () => {
     expect(invalidationKeysFor(envelope(NERV_EVENT.NOTIFICATION_CREATED))).toEqual([
       queryKeys.myNotifications(),
+      queryKeys.inbox(),
     ]);
   });
 

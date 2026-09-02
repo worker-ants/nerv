@@ -42,15 +42,23 @@ export class FanoutService {
   /**
    * 봉투 하나를 관련 룸의 구독자에게만 흘린다.
    *
-   * 봉투에는 project_id 만 있고 user 대상 여부는 없다 — 개인 룸 라우팅(승인 요청·질문 등)은
-   * notification 파생이 정한다(E13-S03). 여기서는 프로젝트 룸만 계산하고, 개인 룸은
-   * 구독자가 명시적으로 join 한 것에만 보낸다.
+   * 룸은 둘이다(api.md §3.3). 프로젝트 룸은 `project_id` 로 곧장 계산되고, **개인 룸은
+   * 봉투가 지목한다** — `recipient_user_ids` 가 그 자리다. 수신자 산출은 표면이 아니라
+   * 알림 파생이 하고(D-05: 판정은 한 곳), 여기서는 지목된 룸으로 흘리기만 한다.
+   *
+   * 한 사람이 두 룸에 다 있으면 **한 번만** 받는다 — 같은 봉투를 두 번 흘리면 화면은
+   * 같은 Query 를 두 번 무효화한다.
    */
   dispatch(envelope: BroadcastEnvelope): number {
     const room: RoomName = `project:${envelope.project_id}`;
+    const personal = new Set<RoomName>(
+      (envelope.recipient_user_ids ?? []).map((id) => `user:${id}` as RoomName),
+    );
     let delivered = 0;
     for (const subscriber of this.subscribers) {
-      if (!subscriber.rooms.has(room)) continue;
+      const listening =
+        subscriber.rooms.has(room) || [...personal].some((r) => subscriber.rooms.has(r));
+      if (!listening) continue;
       try {
         subscriber.deliver(envelope);
         delivered += 1;

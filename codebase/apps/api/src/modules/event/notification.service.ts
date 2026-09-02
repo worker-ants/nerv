@@ -7,12 +7,13 @@
 // 그리고 **결정이 필요한 것만 받은 요청으로** 간다(§6.6 원칙 3). 나머지는 피드다.
 // 이 파일이 하는 일은 그 선별이다.
 
-import { Injectable, Logger } from '@nestjs/common';
-import { NERV_EVENT_PHASE2, NERV_EVENT, newId } from '@nerv/schema';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { EVENTS_CHANNEL, NERV_EVENT_PHASE2, NERV_EVENT, newId } from '@nerv/schema';
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
+import { ValkeyService } from './valkey.service.js';
 
 /** 중요도 티어 — 채널·배칭 규칙을 이것이 결정한다(§6.2) */
 export type ImportanceTier = 'critical' | 'high' | 'standard' | 'low';
@@ -60,7 +61,15 @@ export class NotificationService {
 
   private readonly logger = new Logger(NotificationService.name);
 
-  constructor(@InjectDb() private readonly db: NervDb) {}
+  constructor(
+    @InjectDb() private readonly db: NervDb,
+    /**
+     * 방송은 **선택**이다. 알림 행은 이미 DB 에 있고 화면은 재조회로 그것을 본다 —
+     * 방송 유실이 알림 유실은 아니다(D-14). 테스트가 Valkey 없이 이 서비스를 세울 수
+     * 있는 이유이기도 하다.
+     */
+    @Optional() private readonly valkey: ValkeyService | null = null,
+  ) {}
 
   /**
    * 아직 알림으로 파생되지 않은 event 를 처리한다 — 워커의 notification 잡이 부른다.
@@ -117,6 +126,14 @@ export class NotificationService {
             `);
             created += 1;
           }
+          // **개인 룸으로 나가는 유일한 방송**(api.md §3.3). 이것이 없던 동안 `user:{id}` 룸과
+          // `GET /sse/me` 는 열려 있기만 하고 아무것도 흘리지 않았다 — 종은 새로고침해야
+          // 숫자가 바뀌었고, 다른 프로젝트 화면에 있던 사람은 자기 앞으로 온 승인 요청을
+          // 실시간으로 받지 못했다(프로젝트 룸은 그가 join 한 프로젝트만 흘린다).
+          //
+          // 방송하는 것은 **원본 이벤트가 아니라 `notification.created`** 다. 원본을 개인
+          // 룸에도 흘리면 프로젝트 룸에 이미 있는 사람이 같은 봉투를 두 번 받는다.
+          if (recipients.length > 0) await this.announce(event, recipients);
         }
         cursor = event.occurred_at;
       }
@@ -127,6 +144,37 @@ export class NotificationService {
     if (input.since == null) this.cursor = cursor;
     if (created > 0) this.logger.log(`알림 ${created}건 파생`);
     return created;
+  }
+
+  /**
+   * 수신자들의 개인 룸으로 `notification.created` 를 흘린다.
+   *
+   * 봉투의 `subject_*` 는 **원인이 된 이벤트**를 가리킨다 — 받은 쪽이 "무엇 때문에 온
+   * 알림인가" 를 알아야 어느 화면을 다시 읽을지 정할 수 있다.
+   *
+   * 실패는 삼킨다. 알림 행은 이미 DB 에 있고 화면은 재조회로 그것을 본다(D-14).
+   */
+  private async announce(
+    event: { id: string; project_id: string; type: string; occurred_at: string },
+    recipients: string[],
+  ): Promise<void> {
+    if (this.valkey === null) return;
+    const envelope = {
+      id: newId(),
+      type: NERV_EVENT.NOTIFICATION_CREATED,
+      project_id: event.project_id,
+      subject_type: 'event',
+      subject_id: event.id,
+      subject_key: event.type,
+      // 알림을 만든 것은 사람이 아니라 서버다 — 행위자가 없다
+      actor_user_id: null,
+      is_agent: false,
+      // 봉투의 시각은 ISO 8601 이다(§3.3) — `timestamptz::text` 는 Postgres 표기라
+      // 그대로 실으면 받는 쪽의 Date 파싱이 브라우저마다 갈린다
+      occurred_at: new Date(event.occurred_at).toISOString(),
+      recipient_user_ids: recipients,
+    };
+    await this.valkey.publish(EVENTS_CHANNEL, JSON.stringify(envelope));
   }
 
   /**
