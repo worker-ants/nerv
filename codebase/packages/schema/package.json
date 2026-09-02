@@ -2,6 +2,7 @@
   "name": "@nerv/schema",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
   "description": "NERV 타입·상수의 단일 정본 — drizzle 테이블 · zod · 도메인 상수 · 이벤트 이름 · 에러 코드 (docs/04-mvp/codebase.md §3)",

@@ -2,6 +2,7 @@
   "name": "@nerv/api",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "description": "NERV API — REST · MCP · WebSocket · SSE · ingest 다섯 표면과 도메인 서비스, 워커 잡 (docs/04-mvp/codebase.md §2)",
   "main": "./dist/main.js",

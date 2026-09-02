@@ -2,6 +2,7 @@
   "name": "nerv",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "description": "NERV — AI 에이전트 협업 개발 플랫폼 (모노레포 루트, docs/04-mvp/codebase.md §1)",
   "packageManager": "pnpm@10.23.0",

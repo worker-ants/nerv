@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.25 (2026-09-02)</span>
+      <span>버전 v0.26 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -131,7 +131,8 @@ printf &#x27;  %s · ctx %s%%%s · 미해소 finding %s\n&#x27; \
 <pre><code>{
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 스킬 5종 · 훅 텔레메트리 · MCP 설정 · statusline",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "license": "Apache-2.0"
 }</code></pre>
 
   <p>플러그인 버전(0.1.0)과 <b>게이트 정책 버전은 별개다.</b> 정책 버전은 <code>nerv_bootstrap</code> 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 <code>policy.stale</code> 이벤트가 남는다(<a href="agent-integration.html">3.4</a> §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.</p>

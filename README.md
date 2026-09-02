@@ -15,7 +15,7 @@
 | [`docs/`](docs/) | 제안서·MVP 명세. **md가 원본, `docs/html/`은 파생본** — 한쪽만 고치면 결함이다 |
 | [`codebase/`](codebase/) | 애플리케이션·패키지 코드. **pnpm 모노레포 루트가 여기다**(REQ-CB-015) — `pnpm`·`docker compose` 명령은 이 디렉터리에서 실행한다 |
 | [`deploy/`](deploy/) | 배포 산출물 — compose · Dockerfile · nginx · kustomize(base/overlays) |
-| 루트 | 이 README와 규약·메타 파일(`AGENTS.md`·`CLAUDE.md`·`.github/`)만 둔다 |
+| 루트 | 이 README와 규약·메타 파일(`AGENTS.md`·`CLAUDE.md`·`.github/`·`LICENSE`·`NOTICE`)만 둔다 |
 
 트리·배치의 정본은 [4.2 코드베이스와 배포](docs/04-mvp/codebase.md) §1이다.
 
@@ -91,3 +91,9 @@ TypeScript · pnpm workspace / Vite + React SPA · TanStack Router·Query · Tai
 - **도움말은 변경과 같은 커밋에서 갱신한다** — 화면의 동작·상태값·단축키·CLI 명령·역할과 권한·기본값이 바뀌었는데 매뉴얼(`apps/web/src/content/manual/`, ko·en)이 그대로면 결함이다. 없는 문서는 사람을 헤매게 하지만 **틀린 문서는 확신을 준다**.
 - **git** — Conventional Commits(`feat|fix|docs|refactor|test|chore(scope)`), 구현 코드는 브랜치 + PR이고 `main` 직접 push 금지. PR 본문에 Task ID(`TSK-…`)와 스펙 안정 ID(`SPC-…`·`REQ-…`)를 남긴다.
 - **임의 결정 금지** — 스택 변경·범위 조정·새 결정(D-번호·FR/NFR 추가)은 사람의 확인 없이 하지 않는다.
+
+## 라이선스
+
+[Apache License 2.0](LICENSE). 저작권 표기는 [NOTICE](NOTICE)에 있다.
+
+파일마다 라이선스 헤더를 붙이지는 않는다. 이 저장소의 파일 머리 주석은 **"이 파일이 왜 이렇게 되어 있는가"**를 적는 자리이고, 같은 문구 다섯 줄이 그 위에 앉으면 읽는 사람이 매번 건너뛰게 된다. 배포 조건은 루트의 `LICENSE`·`NOTICE`가 진다.

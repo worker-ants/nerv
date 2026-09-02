@@ -14,6 +14,7 @@ NERV(가칭)는 **AI 에이전트 협업 개발 플랫폼**이다 — 스펙 문
 
 ```text
 nerv/
+  LICENSE        # Apache License 2.0 전문 (원문 그대로) · NOTICE 가 저작권 표기
   AGENTS.md      # 이 파일 — 에이전트 규약 정본
   CLAUDE.md      # Claude Code 진입점 — @AGENTS.md import만 한다
   docs/          # 제안서·명세 (md 원본 + html/ 파생본)

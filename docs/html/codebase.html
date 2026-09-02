@@ -52,7 +52,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.12 (2026-09-02)</span>
+      <span>버전 v1.13 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -77,11 +77,13 @@
 
   <p>언어·저장소 구조는 TypeScript + pnpm workspace로 확정됐다(<a href="architecture.html">3.2 시스템 아키텍처</a> §4.1, 스택 확정 전문은 <a href="scope.html">4.1 MVP 범위와 스택 확정</a>). Turborepo는 빌드 시간이 아플 때 도입한다 — 트리거만 기록하고 지금은 넣지 않는다.</p>
 
-  <p><b>애플리케이션·패키지 코드는 저장소 루트가 아니라 <code>codebase/</code> 하위에 쓰고, 배포 산출물은 저장소 루트의 <code>deploy/</code>에 쓴다</b>(REQ-CB-015 — 2026-08-22 개정). 저장소 루트는 문서(<code>docs/</code>)·에이전트 규약(<code>AGENTS.md</code>·<code>CLAUDE.md</code>)·구현(<code>codebase/</code>)·배포(<code>deploy/</code>)의 네 구역으로 나뉘고, 모노레포 루트는 <code>codebase/</code>다.</p>
+  <p><b>애플리케이션·패키지 코드는 저장소 루트가 아니라 <code>codebase/</code> 하위에 쓰고, 배포 산출물은 저장소 루트의 <code>deploy/</code>에 쓴다</b>(REQ-CB-015 — 2026-08-22 개정). 저장소 루트는 문서(<code>docs/</code>)·에이전트 규약(<code>AGENTS.md</code>·<code>CLAUDE.md</code>)·구현(<code>codebase/</code>)·배포(<code>deploy/</code>)의 네 구역으로 나뉘고, 모노레포 루트는 <code>codebase/</code>다. 배포 조건은 루트의 <code>LICENSE</code>(Apache-2.0 원문)·<code>NOTICE</code>(저작권 표기)가 진다 — 파일마다 라이선스 헤더를 붙이지 않는 것이 이 저장소의 선택이다(2026-09-02 · 사람 결정).</p>
 
   <p>경로 표기의 기준이 구역마다 다르다 — 이 문서를 포함한 전 문서에서 <b><code>apps/*</code>·<code>packages/*</code>는 <code>codebase/</code> 기준 상대 경로</b>이고 <b><code>deploy/*</code>는 저장소 루트 기준 상대 경로</b>다. <code>pnpm</code> 명령은 <code>codebase/</code>에서 실행하고(§5.1), <code>docker compose</code>는 <code>pnpm compose:*</code> 래퍼가 <code>-f ../deploy/compose/docker-compose.yml</code>로 가리키므로 역시 <code>codebase/</code>에서 실행한다. <code>kustomize</code>·<code>kubectl</code> 명령만 저장소 루트에서 실행한다(§6.3).</p>
 
 <pre><code>nerv/                           # 저장소 루트 — 애플리케이션 코드 없음
+  LICENSE                       # Apache License 2.0 전문 — <b>원문 그대로</b> 둔다(자동 판별기가 읽는다)
+  NOTICE                        # 저작권 표기 — LICENSE 부록의 자리표시자는 건드리지 않고 여기가 진다
   AGENTS.md                     # 에이전트 공통 작업 규약 (Codex·Claude Code 공용)
   .dockerignore                 # 이미지 빌드 컨텍스트(= 저장소 루트) 제외 목록 (§5.3·§6.1)
   CLAUDE.md                     # Claude Code 진입점 — @AGENTS.md import만 한다

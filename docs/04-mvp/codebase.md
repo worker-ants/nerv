@@ -7,8 +7,9 @@ updated: 2026-08-28
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.12 · 2026-09-02 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.13 · 2026-09-02 · HTML 판: [codebase.html](../html/codebase.html)
 >
+> v1.13 변경(2026-09-02 — 라이선스): 저장소를 **Apache License 2.0** 으로 공개한다. §1 트리에 루트의 `LICENSE`·`NOTICE` 를 넣었다 — `LICENSE` 는 원문 그대로 두고(부록의 자리표시자를 채우면 자동 판별기가 Apache-2.0 으로 읽지 못한다) 저작권 표기는 `NOTICE` 가 진다. 파일마다 라이선스 헤더는 붙이지 않는다(사람 결정).
 > v1.12 변경(2026-09-02 — 계약의 실물화): §3.2 상수 전표에 세 줄을 더한다(`IDEMPOTENCY_TTL_HOURS`·`MAX_PROJECT_ROOMS`·`MAX_SSE_PER_USER`). 룸 상한 `8` 은 웹의 `ws.ts` 와 API 의 `fanout.service.ts` 에 각각 박혀 있었고 SSE 상한이 세 번째 사본이 될 참이었다 — REQ-CB-006 이 금지하는 바로 그 모양이다.
 > v1.11 변경(2026-09-02 — CI 복구): §4.5 를 실물에 맞춘다. **게이트를 테스트 앞으로** 옮겼다 — CI 가 도입 이래 21회 연속 실패하는 동안 배포 산출물 정합·schema drift 는 매번 skipped 됐고, 그래서 REQ-CB-007·018·010 은 한 번도 실행된 적이 없었다. integration 에 pg17 클라이언트, e2e 에 `pnpm build`, `concurrency` 는 PR 에서만 취소.
 > v1.10 변경(2026-09-02 — 정합 점검): §2.2 잡 목록에 **`partition.job.ts`** 를 더한다 — 4.3 §2.14 가 워커 잡으로 약속한 월 파티션 선생성이고, 없는 동안 서버는 마이그레이션 두 달 뒤에 멈추는 상태였다(REQ-DB-021).
@@ -46,12 +47,14 @@ updated: 2026-08-28
 
 언어·저장소 구조는 TypeScript + pnpm workspace로 확정됐다([3.2 시스템 아키텍처](../03-proposal/architecture.md) §4.1, 스택 확정 전문은 [4.1 MVP 범위와 스택 확정](scope.md)). Turborepo는 빌드 시간이 아플 때 도입한다 — 트리거만 기록하고 지금은 넣지 않는다.
 
-**애플리케이션·패키지 코드는 저장소 루트가 아니라 `codebase/` 하위에 쓰고, 배포 산출물은 저장소 루트의 `deploy/`에 쓴다**(REQ-CB-015 — 2026-08-22 개정). 저장소 루트는 문서(`docs/`)·에이전트 규약(`AGENTS.md`·`CLAUDE.md`)·구현(`codebase/`)·배포(`deploy/`)의 네 구역으로 나뉘고, 모노레포 루트는 `codebase/`다.
+**애플리케이션·패키지 코드는 저장소 루트가 아니라 `codebase/` 하위에 쓰고, 배포 산출물은 저장소 루트의 `deploy/`에 쓴다**(REQ-CB-015 — 2026-08-22 개정). 저장소 루트는 문서(`docs/`)·에이전트 규약(`AGENTS.md`·`CLAUDE.md`)·구현(`codebase/`)·배포(`deploy/`)의 네 구역으로 나뉘고, 모노레포 루트는 `codebase/`다. 배포 조건은 루트의 `LICENSE`(Apache-2.0 원문)·`NOTICE`(저작권 표기)가 진다 — 파일마다 라이선스 헤더를 붙이지 않는 것이 이 저장소의 선택이다(2026-09-02 · 사람 결정).
 
 경로 표기의 기준이 구역마다 다르다 — 이 문서를 포함한 전 문서에서 **`apps/*`·`packages/*`는 `codebase/` 기준 상대 경로**이고 **`deploy/*`는 저장소 루트 기준 상대 경로**다. `pnpm` 명령은 `codebase/`에서 실행하고(§5.1), `docker compose`는 `pnpm compose:*` 래퍼가 `-f ../deploy/compose/docker-compose.yml`로 가리키므로 역시 `codebase/`에서 실행한다. `kustomize`·`kubectl` 명령만 저장소 루트에서 실행한다(§6.3).
 
 ```text
 nerv/                           # 저장소 루트 — 애플리케이션 코드 없음
+  LICENSE                       # Apache License 2.0 전문 — **원문 그대로** 둔다(자동 판별기가 읽는다)
+  NOTICE                        # 저작권 표기 — LICENSE 부록의 자리표시자는 건드리지 않고 여기가 진다
   AGENTS.md                     # 에이전트 공통 작업 규약 (Codex·Claude Code 공용)
   .dockerignore                 # 이미지 빌드 컨텍스트(= 저장소 루트) 제외 목록 (§5.3·§6.1)
   CLAUDE.md                     # Claude Code 진입점 — @AGENTS.md import만 한다
