@@ -5,6 +5,7 @@
 // 증적이 붙어도 Task 상태는 그대로여야 한다.
 
 import { NERV_ERROR, newId } from '@nerv/schema';
+import { displayKey } from '@nerv/schema/keys';
 import { runMigrations } from '@nerv/schema/migrate';
 import { createHmac } from 'node:crypto';
 import pg from 'pg';
@@ -84,7 +85,7 @@ describe('서명 검증 — 검증 없는 웹훅은 누구나 증적을 만드�
   });
 
   it('본문이 한 글자만 달라도 서명이 깨진다 — 원문 바이트로 계산하기 때문', async () => {
-    const raw = JSON.stringify({ pull_request: { title: 'TSK-0001' } });
+    const raw = JSON.stringify({ pull_request: { title: 'CLV-T-0001ZZ' } });
     const signature = `sha256=${createHmac('sha256', SECRET).update(raw, 'utf8').digest('hex')}`;
     const res = await app.inject({
       method: 'POST',
@@ -94,7 +95,7 @@ describe('서명 검증 — 검증 없는 웹훅은 누구나 증적을 만드�
         'x-github-event': 'pull_request',
         'x-hub-signature-256': signature,
       },
-      payload: JSON.stringify({ pull_request: { title: 'TSK-0002' } }),
+      payload: JSON.stringify({ pull_request: { title: 'CLV-T-0002ZZ' } }),
     });
     expect(res.statusCode).toBe(401);
   });
@@ -182,9 +183,9 @@ describe('판정하지 않는다 — 수집이 상태를 바꾸지 않는다', (
 
   it('없는 Task 키는 어느 Task 에도 붙이지 않는다', async () => {
     const res = await post({
-      pull_request: { title: 'TSK-ffff 없는 작업', html_url: 'https://x/2' },
+      pull_request: { title: 'CLV-T-FFFFZZ 없는 작업', html_url: 'https://x/2' },
     });
-    expect(res.body['matched_task']).toBe('TSK-FFFF');
+    expect(res.body['matched_task']).toBe('CLV-T-FFFFZZ');
     expect(res.body['evidence_id']).toBeNull();
   });
 
@@ -195,8 +196,15 @@ describe('판정하지 않는다 — 수집이 상태를 바꾸지 않는다', (
   });
 });
 
+/**
+ * 실제 발급 규칙으로 키를 만든다 — `displayKey(project.key, 'T', seed)`.
+ *
+ * 예전에는 이 헬퍼가 `TSK-<uuid 앞 4자>` 를 만들었다. 그 픽스처가 서비스의 옛 정규식과
+ * 짝이 맞아 **둘 다 틀린 채로 테스트가 통과했다** — 현행 키(`CLV-T-…`)로 발급된 Task 는
+ * 웹훅에서 한 번도 매칭되지 않는데도(2026-09-02 실측).
+ */
 function taskKey(): string {
-  return `TSK-${taskId.slice(0, 4).toUpperCase()}`;
+  return displayKey('CLV', 'T', taskId);
 }
 
 async function seed(): Promise<void> {

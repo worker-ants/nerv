@@ -7,26 +7,11 @@
 import { Injectable } from '@nestjs/common';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { ReviewService } from './review.service.js';
-import type { ResolutionKind, SubmitFinding } from './review.service.js';
+import { resolutionOf } from './review.service.js';
+import type { SubmitFinding } from './review.service.js';
 
 /** 선언된 area 만 받는다 — 모르는 값은 안 준 것으로 보고 서버가 추론한다 */
 const AREAS = ['codebase', 'spec', 'task', 'process'];
-
-/** 도구 계약의 `resolution` 3값 → 저장 모델의 (kind, status) 짝. */
-const RESOLUTION: Readonly<
-  Record<string, { kind: ResolutionKind; status: 'fixed' | 'dismissed' | 'wont_fix' }>
-> = {
-  fixed: { kind: 'fixed', status: 'fixed' },
-  // **스펙을 고쳐 해결했다.** 발견은 닫히므로 상태는 `fixed` 와 같고, `왜` 를 담는
-  // `resolution_kind` 만 다르다 — 그래야 "이 발견들은 무엇으로 해결됐나" 를 나중에
-  // 되물을 수 있다(spec_drift 지적이 코드 커밋으로 닫혔다면 그건 이상 신호다).
-  spec_change: { kind: 'spec_change', status: 'fixed' },
-  dismissed: { kind: 'dismissed', status: 'dismissed' },
-  // `wont_fix` 는 처분 이름이 없다 — 유예(deferred)로 기록하고 상태만 wont_fix 다.
-  // 이 둘을 가르는 이유는 `resolution_kind` 가 **왜**를, `finding_status` 가 **무엇**을
-  // 담기 때문이다(database.md §2.7 두 enum).
-  wont_fix: { kind: 'deferred', status: 'wont_fix' },
-};
 
 @Injectable()
 export class ReviewTools implements NervToolProvider {
@@ -144,7 +129,7 @@ export class ReviewTools implements NervToolProvider {
       },
       handler: async (input, ctx) => {
         const asked = String(input['resolution'] ?? '');
-        const mapped = RESOLUTION[asked] ?? RESOLUTION['dismissed']!;
+        const mapped = resolutionOf(asked);
         const result = await this.reviews.resolve({
           projectId: ctx.projectId,
           findingId: String(input['finding_id'] ?? ''),

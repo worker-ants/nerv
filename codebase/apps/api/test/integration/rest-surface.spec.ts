@@ -42,7 +42,14 @@ beforeAll(async () => {
       projectId,
       userId: adminId,
       name: 'admin-pat',
-      scopes: ['spec:read', 'spec:draft', 'spec:meta', 'task:claim', 'task:update'],
+      scopes: [
+        'spec:read',
+        'spec:draft',
+        'spec:meta',
+        'task:claim',
+        'task:update',
+        'review:resolve',
+      ],
     })
   ).token;
   viewerToken = (
@@ -397,6 +404,60 @@ describe('세션 steer (EP-SES-04)', () => {
     // 지시는 한 번만 전달된다 — 두 번 주면 에이전트가 같은 지시를 두 번 따른다
     expect(await sessions.takePendingInstructions(sessionId)).toHaveLength(1);
     expect(await sessions.takePendingInstructions(sessionId)).toHaveLength(0);
+  });
+});
+
+describe('리뷰 처분 REST — 웹이 보내는 값이 그대로 저장된다 (EP-REV-02)', () => {
+  it('`spec_change` 가 `dismissed` 로 접히지 않고 근거 버전이 남는다', async () => {
+    // 웹 리뷰 센터의 처분 대화상자가 실제로 보내는 모양이다. 예전에는 REST 컨트롤러가
+    // 3값짜리 번역표를 따로 들고 있어서 이 값이 `dismissed` 로 접히고 `spec_version_id`
+    // 는 통째로 버려졌다 — 감사에는 "오탐으로 기각" 이 남았다(REQ-API-060).
+    const reviewSessionId = newId();
+    const findingId = newId();
+    const fingerprint = findingId.replaceAll('-', '').slice(0, 32);
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, branch, base_sha, head_sha, changeset_hash,
+                                   kind, trigger)
+       VALUES ($1,$2,'feat/x','base','head',decode($3,'hex'),'code','manual')`,
+      [reviewSessionId, projectId, fingerprint],
+    );
+    await pool.query(
+      `INSERT INTO finding (id, project_id, fingerprint, category, severity, status, title,
+                            first_session_id, last_session_id)
+       VALUES ($1,$2,decode($3,'hex'),'spec_drift','warning','open','문서와 다르다',$4,$4)`,
+      [findingId, projectId, fingerprint, reviewSessionId],
+    );
+    const specVersionId = await seedSpecVersion();
+
+    const res = await call('POST', `/api/v1/projects/clemvion/findings/${findingId}/resolve`, {
+      payload: {
+        resolution: 'spec_change',
+        rationale: '스펙을 고쳐 해결했다',
+        spec_version_id: specVersionId,
+      },
+    });
+    expect(res.status).toBe(201);
+
+    const { rows } = await pool.query<{ kind: string; status: string; version: string | null }>(
+      `SELECT r.kind::text AS kind, f.status::text AS status, r.spec_version_id AS version
+         FROM resolution r JOIN finding f ON f.id = r.finding_id
+        WHERE r.finding_id = $1`,
+      [findingId],
+    );
+    expect(rows[0]?.kind).toBe('spec_change');
+    expect(rows[0]?.status).toBe('fixed');
+    expect(rows[0]?.version).toBe(specVersionId);
+  });
+
+  it('계약 밖의 값은 기각으로 읽지 않는다 — 입력 오류다', async () => {
+    const res = await call('POST', `/api/v1/projects/clemvion/findings/${newId()}/resolve`, {
+      payload: { resolution: 'maybe', rationale: '?' },
+    });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'invalid_input',
+      field: 'resolution',
+    });
   });
 });
 

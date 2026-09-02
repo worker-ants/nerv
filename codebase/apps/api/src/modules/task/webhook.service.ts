@@ -8,7 +8,7 @@
 // 붙인다 — 커밋 메시지 규약을 새로 만들지 않는 이유는, 규약이 늘수록 지켜지지 않기 때문이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT, text } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT, text, findTaskKey } from '@nerv/schema';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
@@ -16,8 +16,10 @@ import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
 
-/** 본문 어디에서든 Task 키를 찾는다 — 브랜치명·제목·설명 순으로 본다. */
-const TASK_KEY_RE = /\bTSK-[A-Za-z0-9]{2,12}\b/;
+// Task 키를 찾는 규칙은 `@nerv/schema` 의 `findTaskKey` 다 — 여기서 다시 적지 않는다.
+// 예전에는 이 파일이 `TSK-…` 라는 옛 형식을 들고 있었고, 2026-08-23 에 키가
+// `<PROJ>-T-<base32 6자>` 로 바뀐 뒤로 **한 번도 매칭되지 않았다**(테스트만 손으로 만든
+// TSK- 키를 넣어 통과했다).
 
 export interface WebhookResult {
   ok: true;
@@ -83,8 +85,9 @@ export class WebhookService {
         : []),
     ];
     for (const candidate of candidates) {
-      const match = TASK_KEY_RE.exec(candidate);
-      if (match !== null) return match[0].toUpperCase();
+      // 브랜치·제목은 소문자로 적히기도 한다 — 찾기 전에 올린다(키 자체는 대문자다)
+      const found = findTaskKey(candidate.toUpperCase());
+      if (found !== null) return found;
     }
     return null;
   }

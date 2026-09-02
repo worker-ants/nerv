@@ -213,9 +213,12 @@ export class QuestionService {
         { kind: 'not_found', field: 'context.finding_id', value: ref },
       );
     }
+    // `finding` 은 **자기 project_id 를 갖는다** — 라운드를 넘어 유지되는 레코드라
+    // 특정 review_session 에 매이지 않는다(그 관계는 `finding_occurrence` 다).
+    // 예전 질의는 없는 컬럼(`f.review_session_id`)을 조인해 **언제나 DB 오류**였다:
+    // 발견을 근거로 질문을 올리는 경로가 통째로 500 이었다는 뜻이다.
     const { rows } = await tx.execute<{ id: string }>(
-      sql`SELECT f.id FROM finding f JOIN review_session rs ON rs.id = f.review_session_id
-           WHERE f.id = ${parsed.id} AND rs.project_id = ${projectId}`,
+      sql`SELECT id FROM finding WHERE id = ${parsed.id} AND project_id = ${projectId}`,
     );
     const id = rows[0]?.id;
     if (id === undefined) {

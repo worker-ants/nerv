@@ -130,6 +130,43 @@ export interface IngestInput {
 
 export type ResolutionKind = 'fixed' | 'deferred' | 'dismissed' | 'escalated' | 'spec_change';
 
+/**
+ * 도구·REST 계약의 `resolution` 값 → 저장 모델의 (kind, status) 짝.
+ *
+ * **표가 한 벌인 것이 요점이다.** 예전에는 MCP 도구가 4값을 알고 REST 컨트롤러는 3값만
+ * 알아서, 웹 리뷰 센터가 보낸 `spec_change` 가 `dismissed` 로 접히고 `spec_version_id` 는
+ * 버려졌다 — 사람이 "스펙을 고쳐 해결" 을 골랐는데 감사에는 "오탐으로 기각" 이 남았다.
+ * 표면은 번역만 하고, 그 번역표는 도메인 쪽에 하나만 둔다(REQ-CB-003 · D-05).
+ */
+export const RESOLUTION_OF: Readonly<
+  Record<string, { kind: ResolutionKind; status: 'fixed' | 'dismissed' | 'wont_fix' }>
+> = {
+  fixed: { kind: 'fixed', status: 'fixed' },
+  // **스펙을 고쳐 해결했다.** 발견은 닫히므로 상태는 `fixed` 와 같고, `왜` 를 담는
+  // `resolution_kind` 만 다르다 — "이 발견들은 무엇으로 해결됐나" 를 나중에 되묻기 위해서다.
+  spec_change: { kind: 'spec_change', status: 'fixed' },
+  dismissed: { kind: 'dismissed', status: 'dismissed' },
+  // `wont_fix` 는 처분 이름이 없다 — 유예(deferred)로 기록하고 상태만 wont_fix 다.
+  wont_fix: { kind: 'deferred', status: 'wont_fix' },
+};
+
+/** 모르는 값은 기각으로 읽지 않는다 — 계약 밖의 값은 입력 오류다. */
+export function resolutionOf(asked: string): {
+  kind: ResolutionKind;
+  status: 'fixed' | 'dismissed' | 'wont_fix';
+} {
+  const mapped = RESOLUTION_OF[asked];
+  if (mapped === undefined) {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+      kind: 'invalid_input',
+      field: 'resolution',
+      allowed: Object.keys(RESOLUTION_OF),
+      value: asked,
+    });
+  }
+  return mapped;
+}
+
 export interface ResolveInput {
   projectId: string;
   findingId: string;

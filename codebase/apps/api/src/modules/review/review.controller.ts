@@ -9,8 +9,8 @@ import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { principalOf } from '../../common/scope-check.js';
-import { ReviewService } from './review.service.js';
-import type { ResolutionKind, SubmitFinding } from './review.service.js';
+import { ReviewService, resolutionOf } from './review.service.js';
+import type { SubmitFinding } from './review.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
@@ -92,20 +92,21 @@ export class ReviewController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     const principal = principalOf(req);
-    const asked = String(body['resolution'] ?? 'dismissed');
-    const status: 'fixed' | 'dismissed' | 'wont_fix' =
-      asked === 'fixed' || asked === 'wont_fix' ? asked : 'dismissed';
+    // 번역표는 도메인 쪽 한 벌이다 — 예전에는 여기 3값짜리 사본이 있어서 웹이 보낸
+    // `spec_change` 가 `dismissed` 로 접히고 `spec_version_id` 가 버려졌다(REQ-API-060).
+    const mapped = resolutionOf(String(body['resolution'] ?? 'dismissed'));
     return this.reviews.resolve({
       projectId: req.nervProjectId!,
       findingId: id,
       userId: principal.userId,
       isAgent: principal.isAgent,
-      kind: (status === 'wont_fix' ? 'deferred' : status) as ResolutionKind,
-      status,
+      kind: mapped.kind,
+      status: mapped.status,
       rationale: String(body['rationale'] ?? ''),
       commitSha: typeof body['commit_sha'] === 'string' ? body['commit_sha'] : null,
       changeRequestId:
         typeof body['change_request_id'] === 'string' ? body['change_request_id'] : null,
+      specVersionId: typeof body['spec_version_id'] === 'string' ? body['spec_version_id'] : null,
     });
   }
   /** EP-REV-07 — 발견에 사람의 말을 남긴다(2026-08-30 신설) */

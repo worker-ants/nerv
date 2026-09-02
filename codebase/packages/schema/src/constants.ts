@@ -160,6 +160,28 @@ export const PAGE_LIMIT_MAX = 100;
 export const TASK_DONE_WINDOW_DAYS = 7;
 
 /**
+ * 표시 키를 **텍스트에서 찾는 규칙** — `<project.key>-<타입>-<base32 6자>`(data-model §5.1).
+ *
+ * 발급은 `@nerv/schema/keys`(node 전용, 해시를 쓴다)이고 여기에는 **모양만** 둔다.
+ * 브라우저도 읽는 배럴이라 그렇고, 찾는 쪽은 서버·CLI·웹 모두이기 때문이다.
+ *
+ * 이 상수가 생긴 이유: GitHub 웹훅이 `TSK-xxxx` 라는 **옛 형식**을 찾고 있었다(2026-08-23 에
+ * 키 공간을 넓히며 바뀐 형식을 따라오지 않았다). 그래서 PR 브랜치에 `CLV-T-7QF3K2` 를 적어도
+ * 매칭이 0건이었고 FR-13(PR↔Task 자동 링크)은 현행 키로 발급된 어떤 Task 에서도 동작하지
+ * 않았다 — 그 사이 테스트는 손으로 `TSK-` 키를 넣어 통과하고 있었다.
+ *
+ * 알파벳은 Crockford base32(`I`·`L`·`O`·`U` 제외)다 — `keys.ts` 의 BASE32 와 같은 집합이고,
+ * `display-key.spec.ts` 가 둘이 어긋나지 않는지 본다.
+ */
+export const DISPLAY_KEY_PATTERN = '\\b[A-Z][A-Z0-9]{1,9}-[TS]-[0-9A-HJKMNP-TV-Z]{6}\\b';
+
+/** 텍스트에서 Task 표시 키 하나를 찾는다(대문자만 — 사람이 소문자로 적으면 못 찾는다). */
+export function findTaskKey(text: string): string | null {
+  const re = new RegExp(DISPLAY_KEY_PATTERN.replace('[TS]', 'T'));
+  return re.exec(text)?.[0] ?? null;
+}
+
+/**
  * 개발 시드가 심는 조직 slug — `dev-seed.sql` 과 시드 안전장치가 **같은 값을 봐야 한다**.
  *
  * 실측(2026-08-24): 시드의 조직을 `nerv` → `default` 로 바꾸자 안전장치가 자기 시드의

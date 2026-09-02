@@ -677,6 +677,36 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
     expect(rows[0]).toMatchObject({ spec_id: specRow, task_id: taskRow, escalate: 'spec' });
   });
 
+  it('발견을 출처로 주면 그 발견이 붙는다 — 예전에는 없는 컬럼을 조인해 500 이었다', async () => {
+    const findingId = newId();
+    const reviewSessionId = newId();
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, branch, base_sha, head_sha, changeset_hash,
+                                   kind, trigger)
+       VALUES ($1,$2,'feat/x','base','head',decode($3,'hex'),'code','manual')`,
+      [reviewSessionId, projectId, findingId.replaceAll('-', '').slice(0, 32)],
+    );
+    await pool.query(
+      `INSERT INTO finding (id, project_id, fingerprint, category, severity, status, title,
+                            first_session_id, last_session_id)
+       VALUES ($1,$2,decode($3,'hex'),'correctness','critical','open','같은 지적',$4,$4)`,
+      [findingId, projectId, findingId.replaceAll('-', '').slice(0, 32), reviewSessionId],
+    );
+
+    const made = await questions.create({
+      projectId,
+      sessionId,
+      title: '발견을 근거로 묻는다',
+      findingId,
+    });
+
+    const { rows } = await pool.query<{ finding_id: string }>(
+      `SELECT finding_id FROM question WHERE id = $1`,
+      [made.question_id],
+    );
+    expect(rows[0]?.finding_id).toBe(findingId);
+  });
+
   it('없는 출처는 조용히 버리지 않는다 — 어느 항목이 틀렸는지 말한다', async () => {
     await expect(
       questions.create({
