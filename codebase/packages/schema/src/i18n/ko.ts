@@ -84,6 +84,9 @@ export const ko = {
   'error.human_only.inbox_decide': '받은 요청 결정은 사람만 할 수 있습니다.',
   'error.human_only.steer': 'steer/stop 은 사람만 할 수 있습니다.',
   'error.human_only.token_issue': '토큰 발급은 사람만 할 수 있습니다.',
+  'error.idempotency.mismatch':
+    '같은 멱등 키에 다른 요청이 왔습니다 — 키를 새로 만들어 보내세요.',
+  'error.idempotency.in_flight': '같은 키의 요청이 아직 처리 중입니다 — 잠시 뒤 다시 보내세요.',
   'error.mcp.bad_origin': '허용되지 않은 Origin 입니다.',
   'error.mcp.bad_revision': '지원하지 않는 프로토콜 리비전: {revision}',
   'error.mcp.invalid_input':
@@ -112,6 +115,8 @@ export const ko = {
     '보관된 프로젝트가 "{slug}" 를 쓰고 있습니다 — 새로 만들 것이 아니라 복구할 수 있습니다.',
   'error.project.slug_taken': '이미 "{slug}" 를 쓰는 프로젝트가 있습니다.',
   'error.project.unresolved': '프로젝트가 해소되지 않았습니다.',
+  'error.quota.exceeded': '요청이 너무 잦습니다 — 분당 {limit}건까지입니다.',
+  'error.quota.sse_connections': '동시 연결이 너무 많습니다 — 사용자당 {limit}개까지입니다.',
   'error.question.context_not_found':
     '{field} 를 찾을 수 없습니다 — 출처는 실제 문서·작업·발견을 가리켜야 합니다.',
   'error.question.not_open': '열린 질문이 아닙니다.',

@@ -87,7 +87,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 1. **하나의 원격 서버, 하나의 엔드포인트.** `https://nerv.example.com/mcp` 한 곳에 Streamable HTTP로 붙는다. 저장소에 커밋되는 설정은 `.mcp.json`(Claude)과 `.codex/config.toml`(Codex) 두 파일뿐이다.
 2. **도구 이름은 동사구, 접두사는 `nerv_`.** 도구 정의는 지연 로딩되므로 서버 `instructions` 필드가 검색 힌트로 중요하다(2KB에서 잘림). 핵심 5종(`nerv_bootstrap`·`nerv_task_next`·`nerv_task_claim`·`nerv_task_heartbeat`·`nerv_question_create`)은 상시 로딩으로 표시한다.
 3. **승인 권한을 가진 도구는 만들지 않는다.** `spec:approve`와 `approval:decide`는 어떤 자율성 레벨에서도 사람 전용이므로, 카탈로그에 `nerv_spec_approve` 같은 도구가 **존재하지 않는 것**이 설계다.
-4. **모든 상태 변경은 멱등 키를 받는다.** 재시도·오프라인 아웃박스 재전송·네트워크 중복이 상시 발생하기 때문이다.
+4. **모든 상태 변경은 멱등 키를 받는다.** 재시도·오프라인 아웃박스 재전송·네트워크 중복이 상시 발생하기 때문이다. 저장소는 REST 와 **공용**이며 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.5다. 예외가 둘 있다(2026-09-02 구현 확인): 읽기(A1) 도구는 재실행에 부작용이 없어 저장소를 거치지 않고, `nerv_question_create` 는 **같은 키의 재호출이 곧 폴링**이라(§5.3) 공용 재생을 건너뛴다 — 최초 응답을 되돌려주면 답이 달린 뒤에도 영원히 `open` 을 받는다.
 5. **응답은 항상 다음 행동을 포함한다.** 도구 결과에 `next_actions`(권장 도구 호출)와 `pending`(대기 중 질문 답변·steer 지시)을 실어 에이전트가 별도 폴링을 만들 필요를 없앤다.
 
 ### 2.2 위험도 티어와 게이트

@@ -110,6 +110,35 @@ export class ValkeyService implements OnApplicationShutdown {
     this.logger.log(`SUBSCRIBE ${channel}`);
   }
 
+  /**
+   * 고정 창 카운터 — 쿼터(api.md §1.8)의 저장소.
+   *
+   * **파드가 여럿이라 프로세스 메모리로는 셀 수 없다.** api 는 replicas 2 로 뜨므로
+   * (deploy/k8s/base/api/deployment.yaml) 각자 세면 실효 한도가 파드 수만큼 늘어난다 —
+   * 300 req/min 이라 적어 두고 600 을 허용하는 것은 한도가 아니라 장식이다.
+   *
+   * 실패는 **null** 로 돌려준다. 방송과 달리 여기서 삼키면 안 되는 것이 하나 있다:
+   * 부르는 쪽이 "Valkey 가 죽어서 못 셌다" 와 "0건이다" 를 구별해야 한다. 못 셌을 때
+   * 무엇을 할지(프로세스 메모리로 낮춰 세기)는 부르는 쪽의 판정이다.
+   */
+  async incrementWindow(key: string, ttlSeconds: number): Promise<number | null> {
+    try {
+      const client = this.client();
+      // INCR 로 만들어진 키에는 TTL 이 없다 — 첫 히트에서 붙이지 않으면 창이 영원히 산다.
+      const pipeline = client.multi().incr(key).expire(key, ttlSeconds, 'NX');
+      const exec = pipeline.exec();
+      exec.catch(() => undefined);
+      const replies = await withTimeout(exec, PUBLISH_TIMEOUT_MS);
+      const first = replies?.[0];
+      if (first === undefined) return null;
+      const [error, value] = first;
+      if (error !== null || typeof value !== 'number') return null;
+      return value;
+    } catch {
+      return null;
+    }
+  }
+
   get failureCount(): number {
     return this.publishFailures;
   }

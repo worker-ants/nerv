@@ -13,6 +13,8 @@ import { AuthGuard } from './common/auth.guard.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { McpOriginGuard } from './common/mcp-origin.guard.js';
 import { NervExceptionFilter } from './common/nerv-exception.filter.js';
+import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
+import { RateLimitGuard } from './common/rate-limit.guard.js';
 import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
 
 export async function createApp(): Promise<NestFastifyApplication> {
@@ -27,12 +29,16 @@ export async function createApp(): Promise<NestFastifyApplication> {
   );
 
   app.useGlobalFilters(new NervExceptionFilter());
-  app.useGlobalInterceptors(new ProjectScopeInterceptor());
+  // 멱등은 **응답을 만드는 일**이라 인터셉터다(§1.5) — 재생은 핸들러를 건너뛴다.
+  app.useGlobalInterceptors(new ProjectScopeInterceptor(), app.get(IdempotencyInterceptor));
   // 가드 순서가 규약이다 — Origin 검증(어디서)이 인증(누가)보다 먼저다(REQ-CB-013).
   // AuthGuard 는 AuthService 를 주입받으므로 컨테이너에서 꺼낸다.
   app.useGlobalGuards(
     new McpOriginGuard(),
     new AuthGuard(app.get(Reflector), app.get(AuthService)),
+    // 쿼터는 주체를 알아야 세므로 인증 뒤다(§1.8) — 앞에 두면 인증도 안 된 요청이
+    // 남의 창을 채운다.
+    app.get(RateLimitGuard),
   );
 
   // 첨부 업로드는 multipart 다(§2.10) — 파일당 10MB 는 서비스가 다시 보지만, 여기서도

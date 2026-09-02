@@ -83,6 +83,9 @@ export const en = {
   'error.human_only.inbox_decide': 'Only humans can decide inbox items.',
   'error.human_only.steer': 'Only humans can steer or stop a session.',
   'error.human_only.token_issue': 'Only humans can issue tokens.',
+  'error.idempotency.mismatch':
+    'That idempotency key was used for a different request — send a new key.',
+  'error.idempotency.in_flight': 'A request with that key is still running — retry in a moment.',
   'error.mcp.bad_origin': 'Origin not allowed.',
   'error.mcp.bad_revision': 'Unsupported protocol revision: {revision}',
   'error.mcp.invalid_input':
@@ -111,6 +114,8 @@ export const en = {
     'An archived project already uses "{slug}" — you can restore it instead of creating a new one.',
   'error.project.slug_taken': 'A project already uses "{slug}".',
   'error.project.unresolved': 'The project could not be resolved.',
+  'error.quota.exceeded': 'Too many requests — the limit is {limit} per minute.',
+  'error.quota.sse_connections': 'Too many open streams — the limit is {limit} per user.',
   'error.question.context_not_found':
     'Could not find {field} — the context must point at a real spec, task, or finding.',
   'error.question.not_open': 'That question is not open.',

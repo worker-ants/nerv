@@ -160,5 +160,5 @@ The skill calls `nerv_bootstrap` first, recommends the next task, and takes you 
 | `NERV_FORBIDDEN`, missing scope           | The token's scopes are too narrow, or the role it was issued under cannot do that                |
 | Tools work but the project is not visible | `X-NERV-Project` (or `NERV_PROJECT`) is wrong, or you are not a member of that project           |
 | Requesting review just fails              | That is an A3 tool — a person has to press it on the web (see [Inbox](/help/inbox))              |
-| `NERV_RATE_LIMIT`                         | Wait the `retry_after_s` from the response. Do not work around it with parallel retries          |
+| `NERV_RATE_LIMIT`                         | Too frequent — 300 requests per minute per token, 120 for hooks per session. Wait the `retry_after_s` from the response. Do not work around it with parallel retries |
 | The session goes `stale`                  | Heartbeats stopped. After 30 minutes the claim is reclaimed (see [Sessions](/help/sessions))     |

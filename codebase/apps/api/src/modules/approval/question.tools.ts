@@ -25,6 +25,9 @@ export class QuestionTools implements NervToolProvider {
     {
       name: 'nerv_question_create',
       tier: 'A2',
+      // 같은 키의 재호출이 **폴링**이다(§5.3) — 공용 멱등 저장소가 최초 응답을 재생하면
+      // 그 폴링은 답이 달린 뒤에도 영원히 `open` 을 받는다.
+      selfIdempotent: true,
       phase: 'P1',
       summaryKey: 'mcp.tool.escalate',
       scope: 'task:update',

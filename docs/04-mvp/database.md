@@ -5,10 +5,11 @@ updated: 2026-08-22
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**32종** — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 32개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**33종** — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.20 · 2026-09-02 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.21 · 2026-09-02 · HTML 판: [database.html](../html/database.html)
 >
+> v0.21 변경(2026-09-02 — 계약의 실물화): **`idempotency_key` 신설**(0015 · §2.3b · 도메인 33종). [4.4](api.md) §1.5 가 "같은 저장소" 라고 적어 둔 그 저장소가 없었다 — 헤더도 도구 인자도 받기만 하고 버려졌고, 같은 클레임이 두 번 만들어졌다. 행에 `project_id` 가 없는 이유는 주체가 프로젝트가 아니라 자격증명이라서다.
 > v0.20 변경(2026-09-02 — 정본 정리): **DDL 정본에 세 가지가 없었다** — `invitation`(0006)·`attachment`(0013)·`agent_session.activity_summary`(0012), 그리고 `spec_key_uq`(0009). 변경 기록은 신설을 적었는데 본문 DDL 은 그대로였다: 이 문서만 읽고 스키마를 다루는 사람은 마이그레이션 SQL 을 역으로 읽어야 했다. §2.3 의 "참조 키 아님" 주석도 2026-08-30 사람 결정과 반대였다. 계수 표기(29/30/32 · enum 38/39)는 **실측으로 통일**했다 — 도메인 32종 · enum 39종.
 > v0.19 변경(2026-09-02 — 정합 점검): **§2.14 에 파티션을 만드는 주체를 적는다**(REQ-DB-021). 문서는 "워커가 매일 호출한다" 고 적었는데 그 잡이 없었다 — 마이그레이션 달 +2 부터 `event`·`activity` INSERT 가 실패하고, 이벤트가 도메인 트랜잭션 안에 있으므로 **모든 상태 전이가 함께 롤백된다**. 워커 잡과 마이그레이터가 창을 채운다. 12개월 DETACH·파티션 드랍은 **여전히 미구현**이며 그 사실을 절에 명시했다.
 > v0.18 변경(2026-09-01 — 사람 요청): `finding` 에 **대상 축**(`finding_area` 열거 + `area`·`area_inferred`, 0014). 이미 쌓인 발견 18,690건은 짚는 대상으로 백필했고(codebase 15,047 · process 3,350 · spec 293) **그것이 유추임을 행마다 남긴다** — 정의와 규칙은 [4.4](api.md) §2.11.
@@ -41,7 +42,7 @@ updated: 2026-08-22
 
 | 무엇 | 정본 | 이 문서의 역할 |
 | --- | --- | --- |
-| 엔티티 **32종**(2026-09-02 실측) 필드의 **의미**·상태 머신·관계 | [3.3 데이터 모델](../03-proposal/data-model.md) | 재서술하지 않는다. 각 절에 원문 § 링크만 남긴다 |
+| 엔티티 **33종**(2026-09-02 실측) 필드의 **의미**·상태 머신·관계 | [3.3 데이터 모델](../03-proposal/data-model.md) | 재서술하지 않는다. 각 절에 원문 § 링크만 남긴다 |
 | 테이블·컬럼·타입·제약의 **DDL 표현** | **이 문서** | §2 전문. 컬럼명은 data-model 필드 표와 1:1 — 예: `review_session`은 `head_sha`/`base_sha`, `spec_version`은 `edit_lease_user_id`/`edit_lease_session_id`/`edit_lease_expires_at` 3필드와 `author_session_id` |
 | 이벤트 이름(`<리소스>.<동사>`) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6 | `event.type` 값으로 인용만 한다(`spec.approved` · `task.claimed` · `session.stale` …) |
 | `nerv_*` 도구가 읽고 쓰는 계약 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2 | DDL 주석에서 도구 이름을 인용만 한다 |
@@ -78,7 +79,7 @@ updated: 2026-08-22
 
 ## 2. 전체 DDL
 
-서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 **32종**(초기 29 + `invitation`·`attachment` · 그리고 §2.3a) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
+서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 **33종**(초기 29 + `invitation`·`attachment`·`idempotency_key` · 그리고 §2.3a·§2.3b) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
 ### 2.1 확장과 enum 39종
 
@@ -369,6 +370,29 @@ CREATE TABLE attachment (
 ```
 
 `committed_at` 이 NULL 인 행은 "주소는 줬는데 아직 올라오지 않은 것"이다. 서버가 실제 업로드를 확인한 뒤에만 채운다 — 링크가 깨진 시안은 시안이 없는 것보다 나쁘다(사람이 그것을 찾아 헤맨다).
+
+### 2.3b 멱등 키 — idempotency_key (2026-09-02 신설)
+
+근거: [4.4 API 명세](api.md) §1.5. **표면이 둘인데 저장소는 하나다** — REST 의 `Idempotency-Key` 헤더와 MCP 의 `idempotency_key` 입력이 같은 행을 본다. 아웃박스가 큐잉한 쓰기는 재전송될 때 어느 표면으로 나갈지 정해져 있지 않아서, 표면마다 저장소가 다르면 "한 번만 실행된다" 는 약속이 표면이 바뀌는 순간 깨진다.
+
+**행에 `project_id` 가 없다.** 주체가 프로젝트가 아니라 **자격증명**이기 때문이다 — 같은 사람이 두 토큰으로 보낸 재시도는 서로의 응답을 재생하면 안 된다.
+
+```sql
+CREATE TABLE idempotency_key (
+  id            uuid PRIMARY KEY,
+  subject       text NOT NULL,              -- `token:{id}` 또는 `user:{id}`
+  key           text NOT NULL,              -- 클라이언트가 만든 값. 서버는 해석하지 않는다
+  request_hash  text NOT NULL,              -- 경로(또는 도구 이름) + 본문의 sha256
+  status_code   integer,                    -- 최초 응답의 상태. 재생은 상태까지 같아야 한다
+  response_body jsonb,
+  completed_at  timestamptz,                -- NULL = 최초 요청이 아직 돌고 있다
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+```
+
+`completed_at` 이 NULL 인 행은 "자리는 잡았는데 아직 안 끝난 것" 이다. 그 사이의 같은 키는 재생할 응답이 없으므로 409(`idempotency_in_flight`)로 돌려보낸다 — 실행하면 두 번 실행된다. 최초 요청이 **실패로** 끝나면 행을 지운다: 실패를 박제하면 같은 키의 재시도가 영원히 같은 실패를 받는다.
+
+보존은 **24시간**이고 보존 잡이 지운다(§2.12 의 `idempotency_key_created` 가 그 스캔의 인덱스다).
 
 ### 2.4 변경 요청 — change_request
 
@@ -770,6 +794,11 @@ CREATE INDEX invitation_email ON invitation (email);
 -- 전부 이 키로 문서를 가리키므로, 같은 키의 문서 둘이 생기면 하나는 어느 조회에도 걸리지
 -- 않는 유령이 된다. 검사는 흔한 길의 말이고 이 인덱스가 자물쇠다.
 CREATE UNIQUE INDEX spec_key_uq ON spec (project_id, key);
+
+-- 멱등 키: (주체, 키)가 자리이고 **이 인덱스가 경합의 판정자다**(api.md §1.5).
+-- 먼저 SELECT 하고 없으면 INSERT 하는 순서로는 동시 요청 둘이 나란히 통과한다.
+CREATE UNIQUE INDEX idempotency_key_uq ON idempotency_key (subject, key);
+CREATE INDEX idempotency_key_created ON idempotency_key (created_at);   -- 24시간 만료 스캔
 
 CREATE INDEX attachment_spec ON attachment (spec_id, created_at);
 CREATE UNIQUE INDEX attachment_storage_key_uq ON attachment (storage_key);   -- 같은 오브젝트를 두 행이 가리키지 않는다

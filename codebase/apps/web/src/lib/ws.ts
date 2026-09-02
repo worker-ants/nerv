@@ -20,7 +20,7 @@ export interface NervSocketHandlers {
 }
 
 /** 연결당 join 가능한 project 룸 상한 — 서버와 같은 값(api.md §3.2) */
-export const MAX_PROJECT_ROOMS = 8;
+export { MAX_PROJECT_ROOMS } from '@nerv/schema';
 
 /**
  * **들어간 룸은 연결이 기억한다**(2026-09-01 — 사람 보고 · REQ-WEB-127).

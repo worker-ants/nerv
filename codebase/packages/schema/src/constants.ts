@@ -95,6 +95,32 @@ export const WORKER_ADVISORY_LOCK_KEY = 1852796534n;
  */
 export const MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
 
+/**
+ * 연결당 join 가능한 project 룸 상한 — WS(api.md §3.2)·SSE(§3.5) 공통.
+ *
+ * 여기 있는 이유는 **사본이 셋이 될 뻔했기 때문이다**: 웹의 ws.ts 와 API 의 fanout.service.ts 가
+ * 각각 8 을 들고 있었고 SSE 상한이 세 번째였다. 세 사본이 어긋나면 클라이언트는 9번째 룸을
+ * 시도하고 서버는 거절하는데, 그 거절이 버그처럼 보인다.
+ */
+export const MAX_PROJECT_ROOMS = 8;
+
+/**
+ * 사용자당 동시 SSE 연결 상한(api.md §3.5). WS 의 룸 상한과 **같은 값**이다 — 한 사람이
+ * 한 번에 지켜볼 수 있는 프로젝트 수라는 같은 물음의 답이라서.
+ *
+ * 세는 단위는 파드다. 열려 있는 소켓은 파드의 자원이고, 이 상한이 막으려는 것도 그
+ * 자원의 고갈이다 — 클러스터 전역으로 세는 것이 오히려 물음과 어긋난다.
+ */
+export const MAX_SSE_PER_USER = MAX_PROJECT_ROOMS;
+
+/**
+ * 멱등 키 보존 시간 — 정본: docs/04-mvp/api.md §1.5.
+ *
+ * 24시간이 재시도의 현실적 상한이다. 그보다 오래 남은 키를 재생하는 것은 재시도가 아니라
+ * 사고다 — 어제의 응답을 오늘의 요청에 돌려준다.
+ */
+export const IDEMPOTENCY_TTL_HOURS = 24;
+
 export const RATE_LIMIT_PAT_PER_MIN = 300;
 
 /** 쿼터 — 웹 세션 사용자당 분당 요청 수(`/api/v1`). 정본: docs/04-mvp/api.md §1.8 */

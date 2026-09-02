@@ -36,6 +36,15 @@ export interface NervToolDefinition {
   /** 입력 JSON Schema — MCP tools/list 가 그대로 노출한다 */
   readonly inputSchema: Record<string, unknown>;
   readonly handler: (input: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
+  /**
+   * 이 도구가 **자기 멱등을 스스로 한다**는 표시. 게이트웨이의 공용 멱등 저장소(§1.5)를
+   * 건너뛴다.
+   *
+   * 하나뿐이고, 그 하나가 중요하다: `nerv_question_create` 는 같은 키의 재호출이 **폴링**
+   * 이다(agent-integration §5.3 — 에이전트에게 서버 push 채널이 없어서 있는 설계).
+   * 공용 저장소가 최초 응답을 재생하면 그 폴링은 영원히 `open` 을 받는다 — 답이 달렸는데도.
+   */
+  readonly selfIdempotent?: boolean;
 }
 
 /** `*.tools.ts` 가 구현하는 계약. 레지스트리는 이 모양만 보고 수집한다. */

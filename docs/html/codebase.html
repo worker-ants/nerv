@@ -52,7 +52,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.11 (2026-09-02)</span>
+      <span>버전 v1.12 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -473,6 +473,9 @@
       <tr><td><code>RATE_LIMIT_PAT_PER_MIN</code></td><td><code>300</code></td><td><a href="api.html">4.4 API 명세</a> §1.8 — PAT 토큰당, <code>/api/v1</code> + <code>/mcp</code> 공용 풀</td></tr>
       <tr><td><code>RATE_LIMIT_WEB_PER_MIN</code></td><td><code>600</code></td><td>같은 곳 — 웹 세션 사용자당</td></tr>
       <tr><td><code>RATE_LIMIT_INGEST_PER_MIN</code></td><td><code>120</code></td><td>같은 곳 — 세션당 <code>/ingest/hooks/*</code>. 셋 다 시작값 — 파일럿 실측(정상 트래픽 429)이 재검토 트리거</td></tr>
+      <tr><td><code>IDEMPOTENCY_TTL_HOURS</code></td><td><code>24</code></td><td><a href="api.html">4.4 API 명세</a> §1.5 — 멱등 키 보존. 그보다 오래 남은 키의 재생은 재시도가 아니라 사고다</td></tr>
+      <tr><td><code>MAX_PROJECT_ROOMS</code></td><td><code>8</code></td><td>같은 문서 §3.2 — 연결당 join 가능한 project 룸. <b>웹과 API 에 각각 박혀 있던 것을 모았다</b>(2026-09-02)</td></tr>
+      <tr><td><code>MAX_SSE_PER_USER</code></td><td><code>8</code></td><td>같은 문서 §3.5 — 사용자당 동시 SSE 연결. 세는 단위는 파드다</td></tr>
       <tr><td><code>WORKER_ADVISORY_LOCK_KEY</code></td><td>프로젝트 전역 단일 키(bigint 리터럴 1개)</td><td>§6.3 — 워커 단일 실행</td></tr>
     </tbody>
   </table></div>

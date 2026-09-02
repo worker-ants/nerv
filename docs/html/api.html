@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 22종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.49 (2026-09-02)</span>
+      <span>버전 v0.50 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -607,8 +607,18 @@
       <tr><td>같은 키 + 같은 본문</td><td>최초 응답을 그대로 재생하고 응답 헤더 <code>Idempotency-Replayed: true</code>를 단다</td></tr>
       <tr><td>같은 키 + 다른 본문</td><td>409 <code>NERV_PRECONDITION</code>(<code>details.kind = "idempotency_mismatch"</code>)</td></tr>
       <tr><td>헤더 생략</td><td>허용하되 재시도 안전성은 클라이언트 책임. 웹 SPA는 폼 제출·클레임·결정 요청에 항상 부여한다</td></tr>
+      <tr><td>같은 키 + <b>아직 도는 요청</b></td><td>409 <code>NERV_PRECONDITION</code>(<code>details.kind = "idempotency_in_flight"</code>) + <code>Retry-After: 1</code>. 재생할 응답이 아직 없고 실행하면 두 번 실행된다 — 잠시 뒤 다시 부르면 그때는 재생이다 (2026-09-02 신설 — 구현이 이 자리를 비워 둘 수 없어 채웠다)</td></tr>
+      <tr><td><b>실패한 최초 요청</b></td><td>자리를 비운다. 같은 키의 재시도는 다시 실행된다 — 멱등의 목적은 부작용을 두 번 만들지 않는 것이지 실패를 박제하는 것이 아니다 (2026-09-02)</td></tr>
     </tbody>
   </table></div>
+
+  <ul>
+    <li><b>주체는 프로젝트가 아니라 자격증명이다</b>(<code>token:{id}</code> 또는 <code>user:{id}</code>). 키는 클라이언트가 만드는 값이라 남과 겹칠 수 있고, 전역 유일로 두면 남이 먼저 쓴 키로 내 요청이 남의 응답을 받는다. 저장소는 <code>idempotency_key</code> 테이블이고(<a href="database.html">4.3 데이터베이스</a> §2.3b) 경합은 그 유일 인덱스가 판정한다 — 먼저 SELECT 하고 없으면 INSERT 하는 순서로는 동시 요청 둘이 나란히 통과한다.</li>
+    <li><b>읽기(A1) 도구는 저장소를 거치지 않는다.</b> 재실행에 부작용이 없고, 재생하면 오히려 낡은 값을 준다.</li>
+    <li><b><code>nerv_question_create</code> 는 예외다.</b> 그 도구는 같은 키의 재호출이 곧 폴링이라(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §5.3 — 에이전트에게 서버 push 채널이 없어서 있는 설계), 공용 저장소가 최초 응답을 재생하면 답이 달린 뒤에도 영원히 <code>open</code> 을 받는다. 자기 멱등을 스스로 하는 도구로 표시하고 건너뛴다.</li>
+    <li><b>표면이 다르면 지문도 다르다.</b> 지문은 (경로 또는 도구 이름 + 본문)이므로, REST 로 보낸 쓰기를 같은 키로 MCP 에 재전송하면 재생이 아니라 409(<code>idempotency_mismatch</code>)다. 계약이 약속한 것은 "한 번만 실행된다" 이고 409 는 그것을 지킨다 — 두 표면의 요청 본문을 같은 모양으로 만들 수는 없다.</li>
+    <li>보관은 <b>24시간</b>이며 만료는 보존 잡이 지운다(<a href="codebase.html">4.2 코드베이스와 배포</a> §3.2 <code>IDEMPOTENCY_TTL_HOURS</code>). 하루 지난 키의 재생은 재시도가 아니라 사고다 — 어제의 응답을 오늘의 요청에 돌려주는 일이 된다.</li>
+  </ul>
 
   <h3>1.6 커서 페이지네이션</h3>
 
@@ -662,6 +672,7 @@
 
   <ul>
     <li>한도 계산은 고정 창(1분) 기준이며, 응답 헤더 <code>Retry-After</code>(초)와 봉투 <code>details.retry_after_s</code>를 함께 싣는다(§1.4).</li>
+    <li><b>세는 곳은 Valkey다</b>(2026-09-02 · 구현 기록). api 파드가 여럿이라(§6.3 replicas 2) 프로세스 메모리로 세면 실효 한도가 파드 수만큼 늘어난다 — 300 이라 적어 두고 600 을 허용하는 것은 한도가 아니라 장식이다. Valkey 가 닿지 않으면 파드별 카운터로 낮춰 센다: 과부하 방어에 필요한 것은 정확한 숫자가 아니라 상한의 존재이고, 아예 안 세는 것보다 파드별로라도 세는 편이 낫다(D-14 의 degrade 규율과 같은 축).</li>
     <li>WS·SSE <b>연결 수</b>는 쿼터 대상이 아니다 — 연결 후 이벤트는 서버 발신이므로. 연결 시도 폭주는 인프라 계층(nginx/Ingress) 소관.</li>
   </ul>
 
@@ -1259,6 +1270,9 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td>REQ-API-025</td><td>WHEN 검색 질의가 안정 ID 패턴이면 THE SYSTEM SHALL 해당 리소스를 최상위로 직행 반환하고, 그 외 질의는 렉시컬+벡터 RRF 병합 순위와 <code>related[]</code> 분리 그룹으로 응답한다(§2.2b) — REST와 MCP 두 표면의 결과가 동일하다</td><td>ID 질의·한국어 질의·의미 질의 각 1건을 두 표면에서 실행해 대조</td></tr>
       <tr><td>REQ-API-026</td><td>WHEN 임베딩 제공자가 무응답이면 THE SYSTEM SHALL 렉시컬 결과만으로 200을 반환하고 <code>degraded: "lexical-only"</code>를 표기한다 — 검색 실패를 5xx로 전파하지 않는다(어느 프로필이든 동일)</td><td>제공자 차단 상태에서 검색 1건</td></tr>
       <tr><td>REQ-API-027</td><td>WHEN EP-SPEC-18을 direction=both로 호출하면 THE SYSTEM SHALL 나가는 관계와 <b>역참조</b>를 kind·방향 표기와 함께 커서 페이지네이션으로 반환한다</td><td>역참조 30건 스펙에서 2페이지 조회</td></tr>
+      <tr><td>REQ-API-076</td><td>WHILE 같은 <code>Idempotency-Key</code>의 최초 요청이 아직 처리 중인 동안 THE SYSTEM SHALL 409 <code>NERV_PRECONDITION</code>(<code>idempotency_in_flight</code>)로 거절하고 재시도 시각을 싣는다. WHEN 최초 요청이 실패로 끝나면 THE SYSTEM SHALL 그 키의 자리를 비워 같은 키의 재시도가 다시 실행되게 한다 (2026-09-02)</td><td>동시 2요청 → 하나만 실행 · 실패 후 같은 키 재시도 성공</td></tr>
+      <tr><td>REQ-API-077</td><td>WHEN 쿼터 주체가 정해지면 THE SYSTEM SHALL 파드 사이에 공유되는 카운터로 세고, 그 저장소에 닿지 못하면 파드별 카운터로 낮춰 센다 — 세지 않는 상태로 통과시키지 않는다 (2026-09-02 · §1.8)</td><td>저장소 차단 상태에서 한도 초과 요청 1건</td></tr>
+      <tr><td>REQ-API-078</td><td>WHILE 한 사용자의 SSE 연결이 상한에 도달한 동안 THE SYSTEM SHALL 추가 연결을 429 <code>NERV_RATE_LIMIT</code>(<code>sse_connection_limit</code>)로 거절하고, 열린 연결이 끊기면 그 자리를 즉시 돌려준다 (2026-09-02 · §3.5)</td><td>상한만큼 연결 후 1건 추가 → 429, 하나 끊고 재연결</td></tr>
     </tbody>
   </table></div>
 

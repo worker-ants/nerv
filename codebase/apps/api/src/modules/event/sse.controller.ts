@@ -9,10 +9,13 @@
 //   ③ keep-alive 25초 코멘트 라인 — 프록시가 유휴 연결을 끊지 않게(§5.4·§6.3과 짝)
 //   ④ PAT 는 프로젝트 바인딩만 검사한다 — 스코프별 필터링을 두지 않는 이유는 봉투에
 //      식별자만 흐르기 때문이고, 최종 방어선은 상세 조회 시점의 권한 검사다
+//   ⑤ 사용자당 동시 연결 8개 — 초과는 429(§3.5). **요청 쿼터와는 다른 규칙이다**: §1.8 은
+//      "연결 수는 쿼터 대상이 아니다" 라고 적었고, 그것은 연결을 세지 말라는 말이 아니라
+//      분당 요청으로 세지 말라는 말이다. SSE 연결은 열려 있는 동안 파드의 자원을 잡는다.
 
 import { Controller, Req, Sse, UseGuards } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
-import { msg, NERV_ERROR } from '@nerv/schema';
+import { MAX_SSE_PER_USER, msg, NERV_ERROR } from '@nerv/schema';
 import { Observable } from 'rxjs';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { SseAccessGuard } from './sse-access.guard.js';
@@ -38,6 +41,12 @@ interface SseMessage {
 export class SseController {
   private readonly logger = new Logger(SseController.name);
 
+  /**
+   * 사용자별 열린 스트림 수. **파드 단위로 센다** — 세는 대상이 이 프로세스의 소켓이라
+   * 클러스터 전역 합계는 이 상한이 답하려는 물음이 아니다(MAX_SSE_PER_USER 주석).
+   */
+  private readonly open = new Map<string, number>();
+
   constructor(private readonly fanout: FanoutService) {}
 
   /**
@@ -52,17 +61,32 @@ export class SseController {
         kind: 'unresolved_project',
       });
     }
-    return this.stream([`project:${projectId}`]);
+    return this.stream(requirePrincipal(req).userId, [`project:${projectId}`]);
   }
 
   /** EP-SSE-02 — user:{id} 룸과 동일한 이벤트 흐름 */
   @Sse('me')
   me(@Req() req: SseRequest): Observable<SseMessage> {
     const principal = requirePrincipal(req);
-    return this.stream([`user:${principal.userId}`]);
+    return this.stream(principal.userId, [`user:${principal.userId}`]);
   }
 
-  private stream(rooms: RoomName[]): Observable<SseMessage> {
+  private stream(userId: string, rooms: RoomName[]): Observable<SseMessage> {
+    // **여는 순간 센다.** Observable 안에서 세면 이미 200 과 헤더가 나간 뒤라 429 를 줄 수
+    // 없다 — 스트림을 열어 놓고 곧바로 닫는 것은 초과를 알리는 방법이 아니다.
+    const current = this.open.get(userId) ?? 0;
+    if (current >= MAX_SSE_PER_USER) {
+      throw new NervError(
+        NERV_ERROR.RATE_LIMIT,
+        msg('error.quota.sse_connections', { limit: String(MAX_SSE_PER_USER) }),
+        { kind: 'sse_connection_limit', limit: MAX_SSE_PER_USER },
+        // 다시 시도할 시점은 서버가 모른다 — 남의 연결이 끊겨야 열린다. 창이 아니라
+        // 사건을 기다리는 것이라, 짧게 부르지 말라는 뜻으로 한 창을 준다.
+        60,
+      );
+    }
+    this.open.set(userId, current + 1);
+
     return new Observable<SseMessage>((observer) => {
       const deliver = (envelope: BroadcastEnvelope): void => {
         observer.next({
@@ -83,6 +107,10 @@ export class SseController {
       return () => {
         clearInterval(keepalive);
         off();
+        const left = (this.open.get(userId) ?? 1) - 1;
+        // 0 이면 지운다 — 남겨 두면 사용자 수만큼 맵이 자란다
+        if (left <= 0) this.open.delete(userId);
+        else this.open.set(userId, left);
       };
     });
   }

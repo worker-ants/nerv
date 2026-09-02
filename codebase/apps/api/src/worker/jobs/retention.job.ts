@@ -7,7 +7,7 @@
 // 프로젝트별 `retention` jsonb 가 기본값을 덮는다(api.md §2.1a) — 프로젝트마다 규제 요건이
 // 다르기 때문이다. 상수는 최후의 기본값이고 정책이 있으면 정책이 이긴다.
 import { Injectable, Logger } from '@nestjs/common';
-import { REVIEW_PROMPT_BLOB_TTL_DAYS, RetentionSchema } from '@nerv/schema';
+import { IDEMPOTENCY_TTL_HOURS, REVIEW_PROMPT_BLOB_TTL_DAYS, RetentionSchema } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -16,6 +16,8 @@ export interface RetentionReport {
   activities_deleted: number;
   blobs_expired: number;
   projects_scanned: number;
+  /** 만료된 멱등 키 행 수(api.md §1.5 — 24시간) */
+  idempotency_keys_deleted: number;
 }
 
 @Injectable()
@@ -31,7 +33,21 @@ export class RetentionJob {
       activities_deleted: 0,
       blobs_expired: 0,
       projects_scanned: 0,
+      idempotency_keys_deleted: 0,
     };
+
+    // 멱등 키는 **24시간**이다(api.md §1.5). 프로젝트 정책이 아니라 계약이 정한 값이라
+    // 프로젝트 순회 밖에서 한 번에 지운다 — 행에 project_id 가 없는 이유이기도 하다
+    // (주체는 프로젝트가 아니라 자격증명이다).
+    //
+    // 오래된 키를 남겨 두는 것은 저장 비용의 문제가 아니다: 하루 지난 키의 재생은
+    // 재시도가 아니라 사고다 — 어제의 응답을 오늘의 요청에 돌려주는 일이 된다.
+    const { rows: staleKeys } = await this.db.execute<{ id: string }>(sql`
+      DELETE FROM idempotency_key
+       WHERE created_at < now() - make_interval(hours => ${IDEMPOTENCY_TTL_HOURS})
+      RETURNING id
+    `);
+    report.idempotency_keys_deleted = staleKeys.length;
 
     const { rows: projects } = await this.db.execute<{ id: string; retention: unknown }>(
       sql`SELECT id, retention FROM project WHERE archived_at IS NULL`,
@@ -96,9 +112,14 @@ export class RetentionJob {
       report.blobs_expired += expired.length;
     }
 
-    if (report.activities_deleted > 0 || report.blobs_expired > 0) {
+    if (
+      report.activities_deleted > 0 ||
+      report.blobs_expired > 0 ||
+      report.idempotency_keys_deleted > 0
+    ) {
       this.logger.log(
-        `보존 정책 집행 — Activity ${report.activities_deleted}건 삭제 · blob ${report.blobs_expired}건 만료`,
+        `보존 정책 집행 — Activity ${report.activities_deleted}건 삭제 · blob ${report.blobs_expired}건 만료` +
+          ` · 멱등 키 ${report.idempotency_keys_deleted}건 만료`,
       );
     }
     return report;

@@ -9,7 +9,11 @@
 import { Module } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
 import { DatabaseModule } from './common/database.module.js';
+import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
+import { IdempotencyService } from './common/idempotency.service.js';
 import { McpOriginGuard } from './common/mcp-origin.guard.js';
+import { RateLimitGuard } from './common/rate-limit.guard.js';
+import { RateLimitService } from './common/rate-limit.service.js';
 import { McpController } from './mcp/mcp.controller.js';
 import { ToolRegistry } from './mcp/tool-registry.js';
 import { ApprovalModule } from './modules/approval/approval.module.js';
@@ -44,6 +48,13 @@ export class WorkerAppModule {}
   // MCP 표면은 AuthModule(스코프 검사)·SessionModule(세션 확인)을 쓴다 —
   // 표면이 직접 판정하지 않고 도메인 서비스에 묻는다(D-05 · REQ-CB-003).
   controllers: [McpController],
-  providers: [ToolRegistry, McpOriginGuard],
+  providers: [
+    ToolRegistry,
+    McpOriginGuard,
+    RateLimitService,
+    RateLimitGuard,
+    IdempotencyService,
+    IdempotencyInterceptor,
+  ],
 })
 export class AppModule {}

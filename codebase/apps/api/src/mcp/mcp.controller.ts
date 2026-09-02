@@ -15,6 +15,8 @@ import { Logger } from '@nestjs/common';
 import { createTranslator, msg, negotiateLocale, renderMessage, NERV_ERROR } from '@nerv/schema';
 import type { Locale, Translator } from '@nerv/schema';
 import { dbConstraintError } from '../common/db-error.js';
+import { IdempotencyService } from '../common/idempotency.service.js';
+import { subjectOfPrincipal } from '../common/idempotency.interceptor.js';
 import { NervError } from '../common/nerv-exception.filter.js';
 import type { Principal } from '../modules/auth/auth.service.js';
 import { AuthService } from '../modules/auth/auth.service.js';
@@ -22,6 +24,7 @@ import { SessionService } from '../modules/session/session.service.js';
 import type { SessionCandidate } from '../modules/session/session.service.js';
 import { assertToolInput } from './tool-input.js';
 import { ToolRegistry } from './tool-registry.js';
+import type { NervToolDefinition } from './tool-registry.js';
 import type { ToolContext } from './tool-context.js';
 
 /** 지원 리비전 — 첫 값이 서버 선호다. */
@@ -64,6 +67,8 @@ export class McpController {
     private readonly registry: ToolRegistry,
     private readonly auth: AuthService,
     private readonly sessions: SessionService,
+    // REST 와 **같은 저장소**를 쓴다(§1.5) — 표면이 둘이어도 실행은 한 번이다
+    private readonly idempotency: IdempotencyService,
   ) {}
 
   /**
@@ -209,7 +214,7 @@ export class McpController {
     };
 
     try {
-      const result = await tool.handler(args, ctx);
+      const result = await this.runOnce(tool, args, ctx);
       return {
         // 구조화 결과 — 모델이 읽고 다음 행동을 고르게 한다(agent-integration §2.7)
         content: [{ type: 'text', text: JSON.stringify({ ok: true, ...asObject(result) }) }],
@@ -217,6 +222,43 @@ export class McpController {
       };
     } catch (error) {
       return this.toStructuredError(error, t, locale);
+    }
+  }
+
+  /**
+   * 멱등 키가 있으면 **REST 와 같은 저장소**를 거쳐 한 번만 실행한다(api.md §1.5).
+   *
+   * 표면을 나누지 않는 이유가 이 함수의 존재 이유다: 아웃박스가 큐잉한 쓰기는 재전송될 때
+   * MCP 로 갈지 REST 로 갈지 정해져 있지 않다. 저장소가 표면마다 다르면 "한 번만 실행된다"
+   * 는 약속이 표면이 바뀌는 순간 깨진다.
+   *
+   * 읽기 도구(A1)는 지나간다 — 재실행에 부작용이 없고, 재생하면 오히려 낡은 값을 준다.
+   */
+  private async runOnce(
+    tool: NervToolDefinition,
+    args: Record<string, unknown>,
+    ctx: ToolContext,
+  ): Promise<unknown> {
+    const key = ctx.idempotencyKey;
+    if (key === undefined || key === '' || tool.tier === 'A1' || tool.selfIdempotent === true) {
+      return tool.handler(args, ctx);
+    }
+    const subject = subjectOfPrincipal(ctx.principal);
+    const fingerprint = IdempotencyService.fingerprint({
+      route: `mcp ${tool.name}`,
+      // 키 자체는 지문에 넣지 않는다 — 지문이 답해야 하는 것은 "같은 키에 다른 요청인가" 다
+      body: { ...args, idempotency_key: undefined },
+    });
+    const outcome = await this.idempotency.begin({ subject, key, fingerprint });
+    if (outcome.replay !== null) return outcome.replay.body;
+    try {
+      const result = await tool.handler(args, ctx);
+      await this.idempotency.complete({ subject, key, statusCode: 200, body: result ?? null });
+      return result;
+    } catch (error) {
+      // 실패를 박제하지 않는다 — 자리를 비워야 재시도가 다시 실행된다
+      await this.idempotency.abandon({ subject, key });
+      throw error;
     }
   }
 

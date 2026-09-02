@@ -21,8 +21,8 @@ export interface Subscriber {
   deliver: (envelope: BroadcastEnvelope) => void;
 }
 
-/** 연결당 join 가능한 project 룸 상한 — WS·SSE 공통(api.md §3.2·§3.5) */
-export const MAX_PROJECT_ROOMS = 8;
+// 상한은 @nerv/schema 가 정본이다 — 웹과 API 가 각각 8 을 들고 있으면 언젠가 어긋난다.
+export { MAX_PROJECT_ROOMS } from '@nerv/schema';
 
 @Injectable()
 export class FanoutService {
