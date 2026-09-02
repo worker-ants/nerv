@@ -819,6 +819,8 @@ export class SpecService {
       specVersionId: string;
       reviewerUserId: string;
       comment: string;
+      /** `comment` 결정도 문서를 draft 로 되돌린다 — 뜻만 다르다(3.5 §2.5) */
+      asComment?: boolean;
     },
   ): Promise<void> {
     const { rows } = await tx.execute<{ id: string }>(sql`
@@ -830,7 +832,7 @@ export class SpecService {
     `);
     if (rows.length === 0) return;
     await emit({
-      type: NERV_EVENT.SPEC_REJECTED,
+      type: input.asComment === true ? NERV_EVENT.SPEC_COMMENT_ADDED : NERV_EVENT.SPEC_REJECTED,
       projectId: input.projectId,
       subjectType: 'spec_version',
       subjectId: input.specVersionId,

@@ -126,15 +126,26 @@ export class ApprovalService {
       });
       return;
     }
-    if (input.decision === 'reject') {
+    // **`comment` 도 문서를 움직인다** — 되돌려 놓는다(2026-09-02).
+    //
+    // 예전에는 "말만 남기는 결정" 이라 대상을 건드리지 않았다. 그런데 결정이 적히는
+    // 순간 카드는 받은 요청에서 사라지고(`decision IS NULL` 만 보인다) 재결정은
+    // `already_decided` 로 막힌다. 문서는 `in_review` 에 남는데 그 상태는 편집 불가이고
+    // (D-02: 가변 구간은 draft 하나뿐) 제출도 draft 만 받으므로, **고칠 수도 다시 낼 수도
+    // 없는 문서**가 된다 — 검토자가 "한 가지만 확인해 주세요" 를 누른 대가치고는 무겁다.
+    //
+    // 3.5 §2.5 는 이 결정을 "comment + 승인자가 직접 draft 편집 → 재제출" 로 그린다.
+    // 그러려면 편집 가능한 상태여야 한다. 거절과 다른 것은 **뜻**이지 상태가 아니다 —
+    // 이벤트는 `spec.rejected` 가 아니라 코멘트로 남는다.
+    if (input.decision === 'reject' || input.decision === 'comment') {
       await this.specs.rejectInTxForApproval(tx, emit, {
         projectId: input.projectId,
         specVersionId: approval.subject_id,
         reviewerUserId: input.userId,
         comment: input.comment ?? '',
+        ...(input.decision === 'comment' ? { asComment: true } : {}),
       });
     }
-    // `comment` 는 대상을 움직이지 않는다 — 카드에 말만 남기는 결정이다
   }
 
   /**

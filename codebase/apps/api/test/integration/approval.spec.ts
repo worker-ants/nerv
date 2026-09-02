@@ -162,14 +162,15 @@ describe('결정은 대상을 움직인다 (REQ-API-063)', () => {
     expect(await statusOf(versionId)).toBe('approved');
   });
 
-  it('코멘트는 문서를 움직이지 않는다 — 말만 남기는 결정이다', async () => {
-    const { versionId } = await inReviewVersion('SPC-DECIDE-CMT');
+  it('코멘트는 문서를 draft 로 되돌린다 — 갇히지 않는다 (3.5 §2.5)', async () => {
+    const { specId, versionId } = await inReviewVersion('SPC-DECIDE-CMT');
     const { approval_id } = await approvals.request({
       projectId,
       subjectType: 'spec_version',
       subjectId: versionId,
       requestedByUserId: planner,
     });
+
     await approvals.decide({
       projectId,
       approvalId: approval_id,
@@ -177,7 +178,22 @@ describe('결정은 대상을 움직인다 (REQ-API-063)', () => {
       decision: 'comment',
       comment: '한 가지만 확인해 주세요',
     });
-    expect(await statusOf(versionId)).toBe('in_review');
+
+    // 예전에는 여기서 `in_review` 로 남았다 — 카드는 사라지고(결정됨) 문서는 편집도
+    // 재제출도 불가(D-02)라 되살릴 길이 없었다. 실측으로 그 상태의 스펙 2건이 있었다.
+    expect(await statusOf(versionId)).toBe('draft');
+
+    // 되돌아왔으니 고치고 다시 낼 수 있다 — 그것이 "말을 남긴다" 의 값이다
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId,
+        baseHash: await hashOfVersion(versionId),
+        bodyMd: '# 확인했습니다',
+        userId: planner,
+      }),
+    ).resolves.toBeDefined();
   });
 
   it('스펙이 아닌 대상은 조용히 넘어간다 — 여기서 던지면 결정이 통째로 롤백된다', async () => {

@@ -499,7 +499,7 @@ HTTP 상태 매핑:
 | REQ-API-067 | WHEN 보존 잡이 오래된 Activity 를 지우면 THE SYSTEM SHALL 지우기 전에 세션별 도구 횟수를 `agent_session.activity_summary` 에 접어 둔다 |
 | REQ-API-068 | WHEN 세션의 작업 궤적을 조회하면 THE SYSTEM SHALL 그 세션이 낸 이벤트를 시간순으로 주되(`session.*` 제외) 대상의 안정 키를 함께 되찾아 준다 |
 | REQ-API-064 | WHEN 버전 diff 를 조회하는데 대상 스펙에 `requirement` 행이 없으면 THE SYSTEM SHALL 두 본문에서 요구사항을 읽어 같은 모양(`ref`·`statement_md`·`delta`)으로 델타를 만든다 |
-| REQ-API-063 | WHEN 결재 결정이 기록되면 THE SYSTEM SHALL **같은 트랜잭션에서** 대상의 상태 전이를 적용한다 — `spec_version` 은 승인 시 `approved`, 거절 시 `draft`. WHEN 대상이 이미 그 상태가 아니면 THE SYSTEM SHALL 결정을 남기고 전이만 건너뛴다 |
+| REQ-API-063 | WHEN 결재 결정이 기록되면 THE SYSTEM SHALL **같은 트랜잭션에서** 대상의 상태 전이를 적용한다 — `spec_version` 은 승인 시 `approved`, 거절·**코멘트** 시 `draft`(2026-09-02 — 코멘트가 문서를 `in_review` 에 가두고 있었다: 카드는 결정됨으로 사라지고 그 상태는 편집도 재제출도 불가라 되살릴 길이 없었다. 3.5 §2.5 의 "comment → 편집 → 재제출" 이 성립하려면 편집 가능한 상태여야 한다). WHEN 대상이 이미 그 상태가 아니면 THE SYSTEM SHALL 결정을 남기고 전이만 건너뛴다 |
 | REQ-API-061 | WHEN 리뷰 라운드가 제출되면 THE SYSTEM SHALL 새 발견이 0건이어도 `review.submitted` 를 방송한다(라운드 번호·새/병합 수·block). WHEN 임포트가 과거 리뷰를 적재하면 THE SYSTEM SHALL 이 이벤트를 내지 않는다 |
 | REQ-API-062 | WHEN 요청자가 자기 결재를 승인하려 하면 THE SYSTEM SHALL 그 사람이 그 프로젝트·조직의 `admin` 이거나 멤버가 2인 미만일 때만 허용하고, 허용한 사실을 이벤트 페이로드(`self_approved`)에 남긴다. WHEN 결재 카드를 조회하면 THE SYSTEM SHALL 이 판정을 `can_approve` 로 실어 준다 |
 | REQ-API-060 | WHEN 스펙을 고쳐 해결한 발견이 `spec_change` 로 처분되면 THE SYSTEM SHALL 그 프로젝트의 `spec_version_id` 를 증거로 요구하고, 없거나 남의 것이면 거부한다. WHEN `fixed` 가 커밋 없이 오면 THE SYSTEM SHALL 거부하면서 `spec_change` 라는 다른 길을 응답에 적는다 |
