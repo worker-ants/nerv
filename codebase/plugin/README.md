@@ -5,17 +5,17 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 
 ## 무엇이 들어 있나
 
-| 경로                                               | 역할                                             | 정본           |
-| -------------------------------------------------- | ------------------------------------------------ | -------------- |
-| `.claude-plugin/plugin.json`                       | 매니페스트                                       | §1.1           |
-| `.claude-plugin/marketplace.json`                  | 사내 마켓플레이스 등록                           | §1.2 배포 경로 |
-| `.mcp.json`                                        | MCP 서버 1개(`nerv`)                             | §3.3           |
-| `hooks/hooks.json`                                 | 훅 이벤트 6종(`type:"http"`) — 세션 시작은 둘    | §3.1           |
-| `skills/{next,spec,impl,question,import,review}/SKILL.md` | 스킬 6종(MVP 약속은 5종 · `review` 는 P2 배포분) | §2.1~§2.6 |
-| `agents/nerv-spec-writer.md`                       | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음) | §1.1           |
-| `statusline/nerv-statusline.sh`                    | 클레임·리스·겹침 표시                            | §3.2           |
-| `bin/nerv-hook-forward`                            | 훅 헤더 토큰 확장이 안 되는 호스트용 폴백        | §3.1 주의      |
-| `bin/nerv-outbox`                                  | 오프라인 쓰기 큐(enqueue·flush·status)           | §3.4           |
+| 경로                                                      | 역할                                             | 정본           |
+| --------------------------------------------------------- | ------------------------------------------------ | -------------- |
+| `.claude-plugin/plugin.json`                              | 매니페스트                                       | §1.1           |
+| `.claude-plugin/marketplace.json`                         | 사내 마켓플레이스 등록                           | §1.2 배포 경로 |
+| `.mcp.json`                                               | MCP 서버 1개(`nerv`)                             | §3.3           |
+| `hooks/hooks.json`                                        | 훅 이벤트 6종(`type:"http"`) — 세션 시작은 둘    | §3.1           |
+| `skills/{next,spec,impl,question,import,review}/SKILL.md` | 스킬 6종(MVP 약속은 5종 · `review` 는 P2 배포분) | §2.1~§2.6      |
+| `agents/nerv-spec-writer.md`                              | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음) | §1.1           |
+| `statusline/nerv-statusline.sh`                           | 클레임·리스·겹침 표시                            | §3.2           |
+| `bin/nerv-hook-forward`                                   | 훅 헤더 토큰 확장이 안 되는 호스트용 폴백        | §3.1 주의      |
+| `bin/nerv-outbox`                                         | 오프라인 쓰기 큐(enqueue·flush·status)           | §3.4           |
 
 ## 설계에서 물러서지 않는 두 가지
 

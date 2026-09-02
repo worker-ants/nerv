@@ -14,9 +14,20 @@ set -uo pipefail
 # 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
 . "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"
 
-endpoint="${1:?사용법: nerv-hook-forward <session|tool|subagent|stop|session-end>}"
+# Codex 의 `notify` 는 **인자로** 부른다: `notify = [".../nerv-hook-forward", "--event", "notify"]`
+# 뒤에 JSON 페이로드가 마지막 argv 로 붙고 stdin 은 열리지 않는다. 그대로 두면 `--event` 가
+# 엔드포인트 이름이 되어 `/ingest/hooks/--event` 로 빈 본문이 갔다(2026-09-02 정정).
+if [[ "${1:-}" == "--event" ]]; then
+  endpoint="${2:?사용법: nerv-hook-forward --event <name> <json>}"
+  payload="${3:-}"
+else
+  endpoint="${1:?사용법: nerv-hook-forward <session|tool|subagent|stop|session-end>}"
+  # Claude 경로는 stdin 으로 온다
+  payload="$(cat)"
+fi
 base="${NERV_SERVER:-https://nerv.example.com}"
-payload="$(cat)"
+# 본문이 비면 보내지 않는다 — 서버의 빈 훅 처리를 늘리는 것보다 여기서 멈추는 편이 낫다
+[[ -z "${payload}" ]] && exit 0
 
 # 실패해도 0 으로 끝낸다 — 훅의 실패가 세션을 멈추면 텔레메트리가 조정 경로가 되어버린다.
 curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" \
