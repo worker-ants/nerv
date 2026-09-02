@@ -521,6 +521,8 @@
 
   <p><b>결정은 대상을 움직여야 한다</b>(2026-08-31 — 사람 보고 "등록됐는데 보이지 않는 항목이 있다"). <code>POST /approvals/{id}/decision</code> 은 결재 행에 결정을 적고 이벤트를 내고 <b>끝났다</b>. 문서를 실제로 옮기는 <code>SpecService.approve</code>/<code>reject</code> 는 <code>POST /specs/approve</code>·<code>/specs/reject</code> 에 따로 붙어 있고 <b>웹은 그 경로를 한 번도 부르지 않는다</b>.</p>
 
+  <p><b>그 두 라우트는 이제 없다</b>(2026-09-02 — 보안 점검). 결재를 거치지 않고 문서를 확정하는 문이었고, 문턱은 "사람인가" 하나였다 — <code>viewer</code> 도 통과했다는 뜻이다. 게다가 거절은 <code>project_id</code> 를 보지 않아 <b>다른 프로젝트의 <code>in_review</code> 를 되돌릴 수 있었다</b>(승인·제출·결재 경로는 전부 조인하고 있었다). 전이는 EP-APR-03 한 경로이고, 도메인 연산(<code>SpecService.approve</code>/<code>reject</code>)은 남되 결재 서비스와 테스트만 부른다.</p>
+
   <p>결과는 조용한 교착이다: 거절하면 카드는 사라지는데(<code>decision IS NOT NULL</code>) <b>문서는 <code>in_review</code> 에 갇힌다</b> — 가변 구간은 draft 하나뿐이라(D-02) 고칠 수도 없고, 다시 낼 수도 없다. 실측(sudoku 2026-08-31): 거절 2건, 스펙 둘 다 <code>in_review</code>. clemvion 에 같은 증상이 없는 이유는 그쪽이 임포터로 직접 <code>approved</code> 가 됐기 때문이다 — <b>sudoku 가 이 길을 처음 실제로 걸었다.</b></p>
 
   <p>결정과 전이를 <b>한 트랜잭션</b>으로 묶는다. 둘로 나누면 그 사이의 실패가 이 상태를 다시 만들고, 판정이 표면으로 새어 나간다(D-05). <b>모르는 대상은 조용히 넘어간다</b> — 여기서 던지면 결정 자체가 롤백된다.</p>

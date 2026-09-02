@@ -476,6 +476,18 @@ describe('세션 보드 상태 필터 (EP-SES-01) — 값은 조립되지 않는
   });
 });
 
+describe('문서에 없는 승인·거절 REST 는 없다 (api.md §2.2)', () => {
+  it('POST /specs/approve · /specs/reject 는 존재하지 않는다 — 전이는 EP-APR-03 한 경로다', async () => {
+    for (const path of ['specs/approve', 'specs/reject']) {
+      const res = await call('POST', `/api/v1/projects/clemvion/${path}`, {
+        payload: { spec_version_id: newId() },
+      });
+      // 결재를 거치지 않는 확정 경로였다 — 지금은 라우트 자체가 없다
+      expect(res.status).toBe(404);
+    }
+  });
+});
+
 describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
   // viewer 는 역할도 스코프도 읽기뿐이다(ROLE_SCOPES.viewer = ['spec:read']).
   // 예전에는 이 토큰으로 아래가 **전부 통과했다** — 판정 함수는 있었고 부르는 곳이 없었다.

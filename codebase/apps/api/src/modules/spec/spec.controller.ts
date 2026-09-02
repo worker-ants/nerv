@@ -221,33 +221,13 @@ export class SpecController {
     });
   }
 
-  /**
-   * 승인 — **사람 전용**이다. PAT 로 들어온 요청은 여기서 막힌다:
-   * `spec:approve` 는 토큰에 부여 자체가 불가능한 스코프라(api.md §1.3) 에이전트는 이 경로에
-   * 도달할 수 없어야 한다. 도달하면 NERV_HUMAN_ONLY + 웹 딥링크다.
-   */
-  @RequireScope('spec:approve')
-  @Post('specs/approve')
-  approve(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
-    const principal = requireHuman(req);
-    return this.specs.approve({
-      projectId: projectOf(req),
-      specVersionId: String(body['spec_version_id'] ?? ''),
-      approverUserId: principal.userId,
-    });
-  }
-
-  @RequireScope('spec:approve')
-  @Post('specs/reject')
-  reject(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
-    const principal = requireHuman(req);
-    return this.specs.reject({
-      projectId: projectOf(req),
-      specVersionId: String(body['spec_version_id'] ?? ''),
-      reviewerUserId: principal.userId,
-      comment: String(body['comment'] ?? ''),
-    });
-  }
+  // 승인·거절 REST 는 **없다**(api.md §2.2). 전이는 EP-APR-03 `POST /approvals/{id}/decision`
+  // 한 경로다 — 결재 카드가 남고, 지시자≠승인자와 자기승인 완화가 거기서 판정되며,
+  // 결정과 문서 상태가 같은 트랜잭션에서 함께 움직인다(REQ-API-063).
+  //
+  // 예전에는 `POST specs/approve`·`specs/reject` 가 열려 있었고 문턱이 `requireHuman` 뿐이라
+  // **결재를 거치지 않고** 문서를 확정할 수 있었다. 거절은 `project_id` 조차 보지 않아 다른
+  // 프로젝트의 in_review 를 되돌렸다(2026-09-02 제거).
 
   /** EP-COV-01 — 관계 그래프 집계다(§5.5). 문서 안의 ✅ 가 아니다 */
   @RequireScope('spec:read')

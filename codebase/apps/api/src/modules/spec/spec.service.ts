@@ -850,10 +850,15 @@ export class SpecService {
     comment: string;
   }): Promise<{ status: string }> {
     return this.events.transact(async (tx, emit) => {
+      // **프로젝트가 경계다.** 예전에는 이 UPDATE 만 `spec` 조인이 없어, 다른 프로젝트의
+      // in_review 버전 id 를 실으면 그 문서가 draft 로 되돌아갔다(같은 파일의
+      // `approve`·`submitReview`·`rejectInTxForApproval` 은 전부 조인하고 있었다).
       const { rows } = await tx.execute<{ id: string }>(sql`
-        UPDATE spec_version SET status = 'draft', submitted_at = NULL
-         WHERE id = ${input.specVersionId} AND status = 'in_review'
-        RETURNING id
+        UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
+          FROM spec s
+         WHERE sv.id = ${input.specVersionId} AND sv.status = 'in_review'
+           AND s.id = sv.spec_id AND s.project_id = ${input.projectId}
+        RETURNING sv.id
       `);
       if (rows.length === 0) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_in_review'), {

@@ -8,8 +8,14 @@
 // 여기서는 요청 없이 드러낸다: 라우트 목록과 선언 목록을 맞춰 본다. 새 라우트를 열고
 // 선언을 잊으면 이 테스트가 먼저 말한다.
 
-import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import { RequestMethod } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
+
+// Nest 가 라우트 데코레이터에 심는 메타데이터 키. `@nestjs/common/constants` 는 타입 선언이
+// 없어 루트 `tsc -b` 가 걸린다(같은 자리를 20e8736 이 이미 한 번 고쳤다) — 프레임워크 상수라
+// 도메인 어휘가 아니고, 값만 여기 둔다.
+const PATH_METADATA = 'path';
+const METHOD_METADATA = 'method';
 import { ROUTE_PERMISSION } from './route-permission.js';
 import type { RoutePermission } from './route-permission.js';
 import { ProjectController } from '../modules/auth/auth.controller.js';
@@ -38,13 +44,17 @@ const CONTROLLERS = [
 interface Route {
   where: string;
   path: string;
-  /** POST·PUT·PATCH·DELETE 인가 — RequestMethod 열거의 GET(0)·ALL(5) 밖 */
+  /** POST·PUT·PATCH·DELETE 인가 */
   write: boolean;
   permission: RoutePermission | undefined;
 }
 
-/** @nestjs/common RequestMethod — GET 0 · POST 1 · PUT 2 · DELETE 3 · PATCH 4 */
-const WRITE_METHODS = new Set([1, 2, 3, 4]);
+const WRITE_METHODS = new Set<number>([
+  RequestMethod.POST,
+  RequestMethod.PUT,
+  RequestMethod.DELETE,
+  RequestMethod.PATCH,
+]);
 
 function routesOf(controller: new (...args: never[]) => object): Route[] {
   const prefix = String(Reflect.getMetadata(PATH_METADATA, controller) ?? '');

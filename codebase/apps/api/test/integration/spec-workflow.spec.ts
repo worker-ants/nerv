@@ -136,6 +136,29 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
   });
 
+  it('거절은 프로젝트 경계를 넘지 못한다 — 남의 in_review 를 되돌리지 않는다', async () => {
+    const { specId, versionId } = await newDraft();
+    await raiseTier(specId, versionId);
+    await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+
+    // 다른 프로젝트의 id 로 같은 버전을 거절해 본다 — 예전에는 UPDATE 가 spec 조인 없이
+    // `spec_version.id` 만 보고 있어서 통과했다(그리고 이벤트는 남의 프로젝트에 남았다).
+    await expect(
+      specs.reject({
+        projectId: newId(),
+        specVersionId: versionId,
+        reviewerUserId: reviewer,
+        comment: '남의 문서',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    expect(rows[0]?.status).toBe('in_review');
+  });
+
   it('거절은 draft 로 되돌리고 리스를 다시 연다', async () => {
     const { specId, versionId } = await newDraft();
     // 참조를 만들어 T2 이상으로 올린다(자동 통과를 피한다)
