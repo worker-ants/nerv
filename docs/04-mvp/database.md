@@ -5,10 +5,11 @@ updated: 2026-08-22
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**32종** — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 32개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.19 · 2026-09-02 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.20 · 2026-09-02 · HTML 판: [database.html](../html/database.html)
 >
+> v0.20 변경(2026-09-02 — 정본 정리): **DDL 정본에 세 가지가 없었다** — `invitation`(0006)·`attachment`(0013)·`agent_session.activity_summary`(0012), 그리고 `spec_key_uq`(0009). 변경 기록은 신설을 적었는데 본문 DDL 은 그대로였다: 이 문서만 읽고 스키마를 다루는 사람은 마이그레이션 SQL 을 역으로 읽어야 했다. §2.3 의 "참조 키 아님" 주석도 2026-08-30 사람 결정과 반대였다. 계수 표기(29/30/32 · enum 38/39)는 **실측으로 통일**했다 — 도메인 32종 · enum 39종.
 > v0.19 변경(2026-09-02 — 정합 점검): **§2.14 에 파티션을 만드는 주체를 적는다**(REQ-DB-021). 문서는 "워커가 매일 호출한다" 고 적었는데 그 잡이 없었다 — 마이그레이션 달 +2 부터 `event`·`activity` INSERT 가 실패하고, 이벤트가 도메인 트랜잭션 안에 있으므로 **모든 상태 전이가 함께 롤백된다**. 워커 잡과 마이그레이터가 창을 채운다. 12개월 DETACH·파티션 드랍은 **여전히 미구현**이며 그 사실을 절에 명시했다.
 > v0.18 변경(2026-09-01 — 사람 요청): `finding` 에 **대상 축**(`finding_area` 열거 + `area`·`area_inferred`, 0014). 이미 쌓인 발견 18,690건은 짚는 대상으로 백필했고(codebase 15,047 · process 3,350 · spec 293) **그것이 유추임을 행마다 남긴다** — 정의와 규칙은 [4.4](api.md) §2.11.
 >
@@ -40,7 +41,7 @@ updated: 2026-08-22
 
 | 무엇 | 정본 | 이 문서의 역할 |
 | --- | --- | --- |
-| 엔티티 29종 필드의 **의미**·상태 머신·관계 | [3.3 데이터 모델](../03-proposal/data-model.md) | 재서술하지 않는다. 각 절에 원문 § 링크만 남긴다 |
+| 엔티티 **32종**(2026-09-02 실측) 필드의 **의미**·상태 머신·관계 | [3.3 데이터 모델](../03-proposal/data-model.md) | 재서술하지 않는다. 각 절에 원문 § 링크만 남긴다 |
 | 테이블·컬럼·타입·제약의 **DDL 표현** | **이 문서** | §2 전문. 컬럼명은 data-model 필드 표와 1:1 — 예: `review_session`은 `head_sha`/`base_sha`, `spec_version`은 `edit_lease_user_id`/`edit_lease_session_id`/`edit_lease_expires_at` 3필드와 `author_session_id` |
 | 이벤트 이름(`<리소스>.<동사>`) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6 | `event.type` 값으로 인용만 한다(`spec.approved` · `task.claimed` · `session.stale` …) |
 | `nerv_*` 도구가 읽고 쓰는 계약 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2 | DDL 주석에서 도구 이름을 인용만 한다 |
@@ -77,9 +78,9 @@ updated: 2026-08-22
 
 ## 2. 전체 DDL
 
-서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 29종 → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
+서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 **32종**(초기 29 + `invitation`·`attachment` · 그리고 §2.3a) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
-### 2.1 확장과 enum 38종
+### 2.1 확장과 enum 39종
 
 ```sql
 -- 0000_init.sql · §1 — 확장
@@ -199,6 +200,25 @@ CREATE TABLE api_token (
                                          --   헤더 값이라 신뢰하지 않는다: 권한 판정에 쓰지 않고 S8 목록 표시 전용이다
   created_at   timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE invitation (
+  id                 uuid PRIMARY KEY,
+  org_id             uuid NOT NULL REFERENCES organization(id),
+  project_id         uuid REFERENCES project(id),   -- NULL = 조직 전역 역할로 초대
+  email              citext NOT NULL,               -- 대소문자 무관 — 초대와 가입이 같은 사람을 가리켜야 한다
+  role               member_role NOT NULL,
+  token_hash         bytea NOT NULL UNIQUE,         -- 원문 미저장(PAT 와 같은 규율 · D-08)
+  invited_by_user_id uuid NOT NULL REFERENCES "user"(id),
+  expires_at         timestamptz NOT NULL,
+  accepted_at        timestamptz,
+  accepted_user_id   uuid REFERENCES "user"(id),
+  revoked_at         timestamptz,
+  created_at         timestamptz NOT NULL DEFAULT now()
+);
+```
+
+**초대는 레코드다**(2026-08-27 · 마이그레이션 `0006`). `membership` 을 바로 만들 수 없다 — 초대받은 사람이 아직 가입하지 않았으면 `user` 행이 없다. "누가 누구를 언제 불렀나"는 감사 대상이고(FR-16), 만료와 회수는 상태를 가진 것만이 가질 수 있다. 대기 중 초대의 유일성은 **부분 인덱스**로 잡는다(§2.12 `invitation_pending_uq`) — 수락·회수된 것은 기록이라 지우지 않기 때문이다.
+
+```sql
 ```
 
 ### 2.3 스펙 — spec · spec_version · requirement · requirement_version · spec_relation · spec_comment · spec_baseline
@@ -211,7 +231,9 @@ CREATE TABLE spec (
   project_id         uuid NOT NULL REFERENCES project(id),
   parent_id          uuid REFERENCES spec(id),
   type               spec_type NOT NULL,
-  key                text NOT NULL,          -- 사람이 읽는 slug(예: channel-web-chat). 참조 키 아님
+  key                text NOT NULL,          -- 사람이 읽는 slug(예: channel-web-chat).
+                                             --   **참조 키다**(2026-08-30 사람 결정 · §2.12 spec_key_uq):
+                                             --   도구·URL·본문 링크가 이 값으로 문서를 가리킨다
   title              text NOT NULL,
   sort_key           text NOT NULL DEFAULT '', -- clemvion의 0-/1- 정수 접두 규약을 데이터로 흡수
   current_version_id uuid,                   -- FK는 §2.11(순환)
@@ -324,6 +346,29 @@ CREATE TABLE spec_baseline_item (            -- junction — project_id 생략 �
   PRIMARY KEY (baseline_id, spec_id)         -- 스펙당 1개 핀
 );
 ```
+
+### 2.3a 첨부 — attachment (2026-09-01 신설)
+
+근거: api.md §2.10. **파일은 오브젝트 스토리지에, 메타는 여기.** 첨부는 버전이 아니라 **문서에** 매단다 — 초안이 덮어써지는 동안에도 시안은 남아야 하고, 문서를 보관하면 함께 따라가야 한다.
+
+```sql
+CREATE TABLE attachment (
+  id                     uuid PRIMARY KEY,
+  project_id             uuid NOT NULL REFERENCES project(id),
+  spec_id                uuid NOT NULL REFERENCES spec(id),
+  storage_key            text NOT NULL,              -- 오브젝트 키. §2.12 에서 UNIQUE
+  filename               text NOT NULL,
+  content_type           text NOT NULL,              -- 화이트리스트는 서버가 강제(REQ-API-069)
+  bytes                  integer NOT NULL,
+  checksum               text NOT NULL,
+  uploaded_by_user_id    uuid NOT NULL REFERENCES "user"(id),
+  uploaded_by_session_id uuid REFERENCES agent_session(id),   -- 에이전트가 올렸으면 그 세션
+  committed_at           timestamptz,                -- **확정 전에는 목록에 없다**(presigned 2단계)
+  created_at             timestamptz NOT NULL DEFAULT now()
+);
+```
+
+`committed_at` 이 NULL 인 행은 "주소는 줬는데 아직 올라오지 않은 것"이다. 서버가 실제 업로드를 확인한 뒤에만 채운다 — 링크가 깨진 시안은 시안이 없는 것보다 나쁘다(사람이 그것을 찾아 헤맨다).
 
 ### 2.4 변경 요청 — change_request
 
@@ -444,6 +489,9 @@ CREATE TABLE agent_session (
   token_usage         jsonb NOT NULL DEFAULT '{}',
   current_task_id     uuid,                   -- 조회 편의 비정규화(진실은 claim). FK는 §2.11
   created_at          timestamptz NOT NULL DEFAULT now()
+  -- 보존 잡이 Activity 를 지우기 전에 **접어 두는** 도구 횟수(0012 · REQ-API-067).
+  -- 지우고 나면 "이 세션이 무엇을 얼마나 했나" 를 답할 근거가 사라진다.
+  activity_summary   jsonb NOT NULL DEFAULT '{}',
 );
 
 CREATE TABLE activity (                       -- 타입드 불변 로그. 편집 가능한 코멘트와 분리
@@ -712,6 +760,20 @@ data-model §5.3 표의 전량 + 보조 인덱스(표에 없는 것은 주석에
 CREATE UNIQUE INDEX membership_user_scope_role_uq ON membership (user_id, coalesce(project_id, org_id), role);
 CREATE INDEX api_token_project_user ON api_token (project_id, user_id);            -- 보조: S8 토큰 목록
 
+-- 대기 중 초대는 (이메일 × 대상)당 하나다 — 수락·회수된 것은 기록이라 지우지 않으므로
+-- 전체 unique 가 아니라 부분 unique 다(0006).
+CREATE UNIQUE INDEX invitation_pending_uq ON invitation (email, coalesce(project_id, org_id))
+  WHERE accepted_at IS NULL AND revoked_at IS NULL;
+CREATE INDEX invitation_email ON invitation (email);
+
+-- **안정 키는 프로젝트 안에서 유일하다**(0009 · api.md §1.4i). 도구 7종·URL·본문 링크가
+-- 전부 이 키로 문서를 가리키므로, 같은 키의 문서 둘이 생기면 하나는 어느 조회에도 걸리지
+-- 않는 유령이 된다. 검사는 흔한 길의 말이고 이 인덱스가 자물쇠다.
+CREATE UNIQUE INDEX spec_key_uq ON spec (project_id, key);
+
+CREATE INDEX attachment_spec ON attachment (spec_id, created_at);
+CREATE UNIQUE INDEX attachment_storage_key_uq ON attachment (storage_key);   -- 같은 오브젝트를 두 행이 가리키지 않는다
+
 -- 스펙
 CREATE INDEX spec_tree ON spec (project_id, parent_id, sort_key);                  -- 보조: 트리 렌더
 CREATE INDEX spec_version_spec_status ON spec_version (spec_id, status);           -- 최신 approved 조회
@@ -860,7 +922,7 @@ SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);
 
 ### 2.15 검색 인덱스 테이블 — `spec_chunk_embedding` (도메인 엔티티 아님)
 
-**이 테이블은 데이터 모델의 엔티티가 아니다.** 원문(`spec_version.body_md`)에서 언제든 재생성 가능한 **검색 인덱스의 물리 테이블**이며(D-07 "결론 영구·입력 휘발"과 같은 축 — 이쪽은 "원본 영구·인덱스 파생"), 엔티티 29종 카운트·[3.3 데이터 모델](../03-proposal/data-model.md)의 ERD에 들지 않는다. 백업 대상에서도 제외 가능하다([4.2](codebase.md) §6.5 — 유실 시 재임베딩).
+**이 테이블은 데이터 모델의 엔티티가 아니다.** 원문(`spec_version.body_md`)에서 언제든 재생성 가능한 **검색 인덱스의 물리 테이블**이며(D-07 "결론 영구·입력 휘발"과 같은 축 — 이쪽은 "원본 영구·인덱스 파생"), 엔티티 32종 카운트·[3.3 데이터 모델](../03-proposal/data-model.md)의 ERD에 들지 않는다. 백업 대상에서도 제외 가능하다([4.2](codebase.md) §6.5 — 유실 시 재임베딩).
 
 ```sql
 CREATE TABLE spec_chunk_embedding (

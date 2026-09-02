@@ -1144,7 +1144,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 
 ### 정본 문서 (이 문서가 인용만 하고 재정의하지 않는 것)
 
-- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — `nerv_*` 도구 18종 카탈로그(§2.3)·위험 티어 A1~A4(§2.2)·에러 규약과 리스 만료(§2.7)·플러그인 구성(§3.1)·스킬 책임(§3.2)·hooks.json(§3.3)·`.mcp.json`(§3.4)·statusline(§3.5)·Codex(§4)·에이전트 규약(§5)·비신뢰 규약(§6.3)
+- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — `nerv_*` 도구 22종 카탈로그(§2.3)·위험 티어 A1~A4(§2.2)·에러 규약과 리스 만료(§2.7)·플러그인 구성(§3.1)·스킬 책임(§3.2)·hooks.json(§3.3)·`.mcp.json`(§3.4)·statusline(§3.5)·Codex(§4)·에이전트 규약(§5)·비신뢰 규약(§6.3)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 초안 편집 리스(§1.2)·클레임과 리스(§4.3)·하트비트/리스/stale 상수 표(§4.5)·위임 명세 4요소(§4.1)
 - [3.7 로드맵](../03-proposal/roadmap.md) — Phase 1 "플러그인 v1"(로드맵 표기는 스킬 4종 · `/nerv:import` 추가로 MVP는 5종 · `/nerv:review`는 Phase 2)·검증 0-8(tools-only 완주)·1-10(플러그인 활성화율)·1-11(기획자 웹·터미널 왕복)·Phase 2 Codex 지원
 - [3.6 화면 설계](../03-proposal/ui-wireframes.md) — S8 토큰 발급 화면·S5 세션 모니터·S3 "터미널에서 이어쓰기"(⑫)

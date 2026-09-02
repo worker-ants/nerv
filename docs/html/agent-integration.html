@@ -50,7 +50,7 @@
 
   <header class="page-header">
     <h1>에이전트 연동 설계</h1>
-    <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 18종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
+    <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
       <span>버전 v0.6 (2026-08-30)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
@@ -59,7 +59,7 @@
 
   <div class="callout note"><span class="ico">📌</span><div class="body">
     <b class="title">요약</b>
-    <p>NERV(가칭)와 에이전트를 잇는 표면은 세 층이다(<b>D-05</b>): 데이터 평면인 <b>원격 MCP 서버</b>(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 <b>훅 텔레메트리</b>(Claude <code>type:"http"</code> 훅 31종 · Codex 훅 11종+notify · OTel 병행), <b>배포 평면</b>(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·<code>.codex/config.toml</code>). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 도구 18종의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 권한 설계에 직접 반영하며, 세션 수명주기와 보안(토큰 스코프·프롬프트 인젝션 완화)까지 다룬다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — <b>클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다</b>(D-14).</p>
+    <p>NERV(가칭)와 에이전트를 잇는 표면은 세 층이다(<b>D-05</b>): 데이터 평면인 <b>원격 MCP 서버</b>(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 <b>훅 텔레메트리</b>(Claude <code>type:"http"</code> 훅 31종 · Codex 훅 11종+notify · OTel 병행), <b>배포 평면</b>(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·<code>.codex/config.toml</code>). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 도구 <b>22종</b>(2026-09-02 실측)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 권한 설계에 직접 반영하며, 세션 수명주기와 보안(토큰 스코프·프롬프트 인젝션 완화)까지 다룬다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — <b>클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다</b>(D-14).</p>
   </div></div>
 
   <div class="toc">
@@ -325,7 +325,11 @@
         <td><code>task:update</code>(생성만, 결정은 사람)</td><td>A2</td><td>판단 불가·경계 이탈·게이트 필요</td>
         <td><b>멱등 재호출이 곧 폴링</b> — 같은 키면 현재 상태 반환(§4.4)</td>
       </tr>
-      <tr>
+            <tr><td><code>nerv_task_get</code></td><td><code>task_id</code>(키 또는 UUID)</td><td>위임 명세 4요소 + 기준 SpecVersion·베이스라인 + 활성 클레임·의존</td><td><code>spec:read</code></td><td>A1</td><td>클레임 전후 &quot;이 작업이 무엇인가&quot;</td><td>읽기 전용</td></tr>
+      <tr><td><code>nerv_task_list</code></td><td><code>project</code>, <code>status?</code>, <code>assignee?</code>, <code>limit?</code></td><td>Task 목록(상태·담당·리스 잔여)</td><td><code>spec:read</code></td><td>A1</td><td><b>&quot;지금 무엇이 도는가&quot;</b> — 세 번째 물음(2026-08-30)</td><td>읽기 전용</td></tr>
+      <tr><td><code>nerv_task_create</code></td><td><code>title</code>, <code>goal_md?</code>, <code>output_format_md?</code>, <code>tools_sources_md?</code>, <code>boundaries_md?</code>, <code>source_spec_version_id?</code>, <code>priority?</code></td><td><code>task_id</code>, <code>key</code>, 상태(4요소가 차면 서버가 <code>ready</code> 로 승격)</td><td><code>task:update</code></td><td>A2</td><td>스펙에서 작업을 떼어낼 때</td><td>멱등 키 지원</td></tr>
+      <tr><td><code>nerv_spec_attach</code></td><td><code>spec_id</code>, <code>filename</code>, <code>content_type</code>, <code>bytes</code> → (1단계) <code>upload_url</code>·<code>attachment_id</code>, (2단계) <code>attachment_id</code> 확정</td><td>첨부 메타. <b>presigned 2단계</b>이고 확정은 실제 업로드를 확인한 뒤에만 통과한다</td><td><code>spec:draft</code></td><td>A2</td><td>시안·문서를 스펙에 붙일 때</td><td>확정 재호출은 no-op</td></tr>
+<tr>
         <td><code>nerv_session_event</code></td><td><code>event_seq</code>, <code>type</code>(thought/action/elicitation/response/error), <code>payload</code>, <code>ts</code></td>
         <td>ack + 서버 지시(steer/stop)</td>
         <td><code>agent-session:launch</code>(자기 세션)</td><td>A1</td><td>훅이 없는 환경의 폴백, 마일스톤</td>
