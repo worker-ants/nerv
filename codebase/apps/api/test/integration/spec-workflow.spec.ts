@@ -136,6 +136,37 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
   });
 
+  it('요구사항을 담은 신규 스펙은 T0 자동 통과가 아니다 — 게이트가 본문을 읽는다', async () => {
+    // 예전에는 게이트가 요구사항 추가·삭제를 **상수 0** 으로 넘기고 '수정' 만 `requirement`
+    // 행의 존재로 근사했다. 그 표를 채우는 것은 임포터뿐이라, 에이전트가 쓴 스펙은
+    // 부작용 0 + 민감도 1 = 1점 → T0 이 되어 **사람이 한 번도 보지 않고** approved 로 갔다.
+    const key = `SPC-GATE-${newId().slice(-4).toUpperCase()}`;
+    const draft = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key,
+      title: '게이트',
+      type: 'feature',
+      bodyMd: [
+        '# 게이트',
+        '',
+        'REQ-GAT-001 WHEN 사용자가 저장하면 THE SYSTEM SHALL 문서를 남긴다',
+        'REQ-GAT-002 WHEN 문서가 없으면 THE SYSTEM SHALL 빈 상태를 보인다',
+      ].join('\n'),
+      userId: planner,
+    });
+
+    const submitted = await specs.submitReview({
+      projectId,
+      specVersionId: draft['spec_version_id'] as string,
+      userId: planner,
+    });
+
+    // 부작용 2(요구사항 추가) + 민감도 1(feature) = 3점 → T1. 자동 통과지만 T0 은 아니다.
+    expect(submitted.gate.tier).not.toBe('T0');
+    expect(submitted.gate.score).toBeGreaterThanOrEqual(3);
+  });
+
   it('거절은 프로젝트 경계를 넘지 못한다 — 남의 in_review 를 되돌리지 않는다', async () => {
     const { specId, versionId } = await newDraft();
     await raiseTier(specId, versionId);

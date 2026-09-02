@@ -669,7 +669,7 @@ export class SpecService {
         });
       }
 
-      const gate = await this.assessGate(tx, version.spec_id, version.spec_type);
+      const gate = await this.assessGate(tx, version.spec_id, version.spec_type, input.specVersionId);
 
       // 제출 = 본문 동결. 트리거가 이후 UPDATE 를 막는다(4.3 §2.13)
       await tx.execute(sql`
@@ -763,7 +763,7 @@ export class SpecService {
 
       await this.assertDifferentApprover(tx, input, version.author_user_id);
 
-      const gate = await this.assessGate(tx, version.spec_id, version.spec_type);
+      const gate = await this.assessGate(tx, version.spec_id, version.spec_type, input.specVersionId);
       await this.approveInTx(tx, emit, {
         projectId: input.projectId,
         specVersionId: input.specVersionId,
@@ -806,7 +806,7 @@ export class SpecService {
       specVersionId: input.specVersionId,
       specId: version.spec_id,
       approverUserId: input.approverUserId,
-      gate: await this.assessGate(tx, version.spec_id, version.spec_type),
+      gate: await this.assessGate(tx, version.spec_id, version.spec_type, input.specVersionId),
     });
   }
 
@@ -1559,8 +1559,25 @@ export class SpecService {
     return rows[0]?.display_name ?? null;
   }
 
-  /** 게이트 4축 추정 — 참조 수·파생 Task 수를 실제로 센다. */
-  private async assessGate(tx: Tx, specId: string, specType: string): Promise<GateDecision> {
+  /**
+   * 게이트 4축 추정 — 참조 수·파생 Task 수를 세고, **요구사항 델타를 본문에서 읽는다**.
+   *
+   * 예전에는 추가·삭제를 상수 0 으로 넘기고 '수정' 은 `requirement` 행의 **존재 여부**로
+   * 근사했다. 그런데 그 표를 채우는 것은 임포터뿐이라(같은 파일 §diff 주석) 에이전트가 쓴
+   * 스펙에는 행이 하나도 없다 — feature 타입이 부작용 0 + 민감도 1 = 1점으로 **T0** 이 되어
+   * 사람 승인 없이 approved 로 갔다. 사람 승인 게이트(FR-06·D-06)가 새 문서에서 통째로
+   * 열려 있었다는 뜻이다.
+   *
+   * 본문에서 요구사항을 읽는 함수는 이미 있었고(`specDelta` — 저장 응답이 쓴다) 게이트만
+   * 그것을 쓰지 않았다. 기준은 **현재 approved 본문**이다: 새 문서면 이전이 없으므로 본문의
+   * 요구사항 전부가 추가다.
+   */
+  private async assessGate(
+    tx: Tx,
+    specId: string,
+    specType: string,
+    specVersionId: string,
+  ): Promise<GateDecision> {
     const { rows } = await tx.execute<{
       referencing: number;
       tasks: number;
@@ -1574,15 +1591,33 @@ export class SpecService {
     `);
     const counts = rows[0] ?? { referencing: 0, tasks: 0, requirements: 0 };
 
+    const { rows: bodies } = await tx.execute<{ body_md: string; base_md: string | null }>(sql`
+      SELECT sv.body_md,
+             (SELECT prev.body_md FROM spec_version prev
+               WHERE prev.spec_id = sv.spec_id AND prev.status = 'approved' AND prev.id <> sv.id
+               ORDER BY prev.version_no DESC LIMIT 1) AS base_md
+        FROM spec_version sv WHERE sv.id = ${specVersionId}
+    `);
+    const delta = specDelta(bodies[0]?.base_md ?? null, bodies[0]?.body_md ?? '');
+
     return decideGate(
       inferAxes({
         specType,
-        requirementsAdded: 0,
-        requirementsRemoved: 0,
-        requirementsModified: counts.requirements > 0 ? 1 : 0,
+        requirementsAdded: delta.requirements.added.length,
+        requirementsRemoved: delta.requirements.removed.length,
+        // 본문에서 읽은 수정이 우선이고, 행이 있는 문서(임포트본)는 그 존재도 신호로 쓴다
+        requirementsModified:
+          delta.requirements.modified.length > 0
+            ? delta.requirements.modified.length
+            : counts.requirements > 0
+              ? 1
+              : 0,
         bodyChanged: true,
         referencingSpecs: counts.referencing,
         derivedTasks: counts.tasks,
+        // 승인된 약속이 사라지는 것은 되돌리기 어려운 변경이다(gate-tier 의 축)
+        approvedRequirementsRemoved:
+          bodies[0]?.base_md != null && delta.requirements.removed.length > 0,
       }),
     );
   }
