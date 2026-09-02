@@ -110,6 +110,7 @@ export class TaskController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     return this.tasks.transition({
+      roles: req.nervRoles ?? [],
       projectId: projectOf(req),
       taskId: task,
       status: String(body['status'] ?? ''),

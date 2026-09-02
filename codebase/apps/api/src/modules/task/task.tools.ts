@@ -283,6 +283,7 @@ export class TaskTools implements NervToolProvider {
       },
       handler: async (input, ctx) =>
         this.tasks.transition({
+          roles: ctx.principal.roles,
           projectId: ctx.projectId,
           taskId: String(input['task_id'] ?? ''),
           status: String(input['status'] ?? ''),

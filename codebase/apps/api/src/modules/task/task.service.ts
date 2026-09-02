@@ -10,6 +10,7 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   TASK_DONE_WINDOW_DAYS,
+  taskStatus,
   text,
 } from '@nerv/schema';
 import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
@@ -760,6 +761,53 @@ export class TaskService {
     return { leaseExpiresAt, pending: [...instructions, ...answers] };
   }
 
+  /**
+   * **이 Task 를 옮길 수 있는 사람인가**(EP-TASK-09 "담당자·planner·admin").
+   *
+   * 예전에는 아무 검사가 없었다 — 활성 클레임을 다른 세션이 쥐고 있어도, 내 리스가 이미
+   * 만료돼 그 사이 다른 세션이 같은 Task 를 잡았어도, `done` 으로 옮길 수 있었다.
+   * 그러면 "활성 소유자는 한 명" 이라는 클레임 모델의 전제가 상태 축에서 무너진다.
+   *
+   * 활성 클레임이 없으면 판정하지 않는다 — 아직 아무도 잡지 않은 Task 를 사람이 옮기는
+   * 것은 정상 경로다(위임 명세를 채우고 backlog 를 정리하는 일).
+   */
+  private async assertMayTransition(
+    tx: Tx,
+    taskId: string,
+    input: { userId: string; sessionId?: string | null; roles?: readonly string[] },
+  ): Promise<void> {
+    const { rows } = await tx.execute<{
+      agent_session_id: string | null;
+      user_id: string;
+      expired: boolean;
+    }>(sql`
+      SELECT agent_session_id, user_id, lease_expires_at <= now() AS expired
+        FROM claim WHERE task_id = ${taskId} AND status = 'active' LIMIT 1
+    `);
+    const claim = rows[0];
+    if (claim === undefined) return;
+
+    const mine =
+      (input.sessionId != null && claim.agent_session_id === input.sessionId) ||
+      claim.user_id === input.userId;
+    // planner·admin 은 남의 작업도 정리할 수 있다(전표의 "담당자·planner·admin")
+    const privileged = (input.roles ?? []).some((r) => r === 'planner' || r === 'admin');
+
+    if (!mine && !privileged) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.task.not_assignee'), {
+        kind: 'not_assignee',
+        task_id: taskId,
+      });
+    }
+    // 만료된 리스로는 옮기지 못한다 — 그 사이 다른 세션이 이 Task 를 잡았을 수 있다
+    if (mine && !privileged && claim.expired) {
+      throw new NervError(NERV_ERROR.LEASE_EXPIRED, msg('error.claim.lease_expired'), {
+        kind: 'lease_expired',
+        task_id: taskId,
+      });
+    }
+  }
+
   /** 클레임 해제 — reason 에 따라 Task 를 ready 로 회수하거나 그대로 둔다. */
   async release(input: {
     claimId: string;
@@ -831,6 +879,8 @@ export class TaskService {
     status: string;
     userId: string;
     sessionId?: string | null;
+    /** 전표의 "담당자·planner·admin" 판정 축 — 표면이 실어 준다 */
+    roles?: readonly string[];
     specImpact?: Record<string, unknown> | null;
     blockedReason?: string | null;
     evidence?: { kind: string; locator: string }[];
@@ -851,6 +901,29 @@ export class TaskService {
         // 같은 목표 상태로의 재호출은 no-op 성공이다(멱등 — agent-integration §2.3)
         return { status: task.status };
       }
+
+      // **어휘 안의 값만 받는다.** 예전에는 입력을 그대로 `::task_status` 로 캐스팅해
+      // 오타 하나가 500(22P02)이 됐다 — 그것은 "그런 상태는 없다" 가 아니라 서버 오류다.
+      if (!(taskStatus.enumValues as readonly string[]).includes(input.status)) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+          kind: 'invalid_input',
+          field: 'status',
+          allowed: taskStatus.enumValues,
+          value: input.status,
+        });
+      }
+
+      // **끝난 일은 조용히 되살아나지 않는다.** done 은 게이트를 통과해 닫힌 상태이고
+      // (증적·spec_impact) 그것을 지나 되돌리는 것은 새 결정이라 이 문으로 하지 않는다.
+      if (task.status === 'done') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.done_is_final'), {
+          kind: 'not_allowed',
+          from: task.status,
+          to: input.status,
+        });
+      }
+
+      await this.assertMayTransition(tx, taskId, input);
 
       for (const item of input.evidence ?? []) {
         await tx.execute(sql`

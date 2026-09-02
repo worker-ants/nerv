@@ -78,6 +78,9 @@ beforeEach(async () => {
   await pool.query('UPDATE agent_session SET current_task_id = NULL');
   await pool.query('DELETE FROM claim');
   await pool.query('DELETE FROM task_dependency');
+  // 증적은 Task 를 참조한다 — 먼저 지우지 않으면 done 전이를 만든 테스트 뒤로
+  // 이 스위트 전체가 FK 위반으로 무너진다
+  await pool.query('DELETE FROM evidence');
   await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM event');
 });
@@ -444,6 +447,79 @@ describe('E04-S04 만료 자동 회수 (성공 기준 0-4)', () => {
       claimInput(t2, sessionHana, hana, { specIds: [specA], fileGlobs: [] }),
     );
     expect(r.warnings).toEqual([]);
+  });
+});
+
+describe('전이의 주인 (EP-TASK-09)', () => {
+  it('남의 클레임이 걸린 Task 는 옮기지 못한다 — planner·admin 은 예외다', async () => {
+    const taskId = await makeTask('TSK-tr-own');
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
+
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'in_progress',
+        userId: dohyun,
+        sessionId: sessionDohyun,
+        roles: ['developer'],
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_assignee' } });
+
+    // planner 는 남의 작업도 정리한다(전표의 "담당자·planner·admin")
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'in_progress',
+        userId: dohyun,
+        roles: ['planner'],
+      }),
+    ).resolves.toMatchObject({ status: 'in_progress' });
+  });
+
+  it('만료된 리스로는 옮기지 못한다 — 그 사이 다른 세션이 잡았을 수 있다', async () => {
+    const taskId = await makeTask('TSK-tr-lease');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await pool.query(
+      `UPDATE claim SET lease_expires_at = now() - interval '1 minute' WHERE id=$1`,
+      [claim.claimId],
+    );
+
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: hana,
+        sessionId: sessionHana,
+        roles: ['developer'],
+        specImpact: { none: true },
+        evidence: [{ kind: 'pr', locator: 'https://pr/1' }],
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.LEASE_EXPIRED });
+  });
+
+  it('어휘 밖의 상태는 500 이 아니라 거절이다', async () => {
+    const taskId = await makeTask('TSK-tr-enum');
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'shipped', userId: hana }),
+    ).rejects.toMatchObject({ details: { kind: 'invalid_input', field: 'status' } });
+  });
+
+  it('done 은 이 문으로 되돌아오지 않는다', async () => {
+    const taskId = await makeTask('TSK-tr-done');
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId: hana,
+      specImpact: { none: true },
+      evidence: [{ kind: 'pr', locator: 'https://pr/2' }],
+    });
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'in_progress', userId: hana }),
+    ).rejects.toMatchObject({ details: { kind: 'not_allowed' } });
   });
 });
 

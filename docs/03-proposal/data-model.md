@@ -385,6 +385,10 @@ stateDiagram-v2
 | `in_review → done` | 게이트 통과(해소된 리뷰 존재) **AND** `spec_impact` NOT NULL | 게이트 API(FR-10) |
 | `* → blocked` | 질문 미해결·의존성 역행 | 서버·수동 |
 
+**전이의 문지기는 세 가지다**(2026-09-02 — 정합 점검). 구현은 위 표를 강제하지 않고 있었고, 그중 셋을 채웠다: ① **어휘** — 입력을 그대로 `::task_status` 로 캐스팅해 오타가 500(22P02)이 됐다(이제 400 `invalid_input`). ② **담당자** — 활성 클레임을 다른 세션이 쥐고 있어도 상태를 옮길 수 있었다(이제 보유자 또는 planner·admin). ③ **리스** — 내 리스가 만료돼 그 사이 다른 세션이 같은 Task 를 잡았어도 `done` 으로 옮길 수 있었다(이제 `NERV_LEASE_EXPIRED`). 더해 **done 은 이 문으로 되돌아오지 않는다** — 게이트를 통과해 닫힌 상태를 되살리는 것은 새 결정이다.
+
+**경로 그래프 자체는 아직 강제하지 않는다.** 위 표는 `in_review → done` 을 요구하는데 플러그인의 구현 루프(`/nerv:impl`)는 `claimed/in_progress → done` 으로 곧장 간다 — 표와 배포된 스킬이 어긋나 있고, 어느 쪽을 고칠지는 결정 사항이라 구현에서 임의로 정하지 않았다. done 의 실질 조건(증적 · `spec_impact`)은 게이트가 이미 강제한다.
+
 `spec_impact`를 done 전제조건으로 둔 것은 clemvion의 Gate C(`spec-plan-completion.test.ts`) 이식이다. 그쪽은 완료 plan의 frontmatter에 영향 스펙 목록 또는 `none` sentinel을 요구했고, 이 게이트가 "작업 완료가 스펙 정합 결정을 강제 동반"하게 만든 좋은 패턴이었다.
 
 **`task_dependency`**

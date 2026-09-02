@@ -378,6 +378,8 @@ export const ko = {
   'error.task.blocked_reason_required': 'blocked 에는 사유가 필요합니다.',
   'error.task.delegation_incomplete': '위임 명세 4요소가 비어 있습니다: {missing}',
   'error.task.done_gate': 'done 게이트를 충족하지 못했습니다.',
+  'error.task.done_is_final': '완료된 작업은 이 경로로 되돌리지 않습니다.',
+  'error.task.not_assignee': '이 작업의 담당자가 아닙니다.',
   'error.task.not_found': '작업을 찾을 수 없습니다.',
   'error.task.not_ready': '작업이 ready 가 아닙니다({status}).',
   'error.webhook.bad_signature': '서명이 일치하지 않습니다.',

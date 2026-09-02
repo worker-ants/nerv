@@ -658,7 +658,11 @@
       <tr><td><code>* → blocked</code></td><td>질문 미해결·의존성 역행</td><td>서버·수동</td></tr>
     </tbody>
   </table></div>
-  <p><code>spec_impact</code>를 done 전제조건으로 둔 것은 clemvion의 Gate C(<code>spec-plan-completion.test.ts</code>) 이식이다. 그쪽은 완료 plan의 frontmatter에 영향 스펙 목록 또는 <code>none</code> sentinel을 요구했고, 이 게이트가 "작업 완료가 스펙 정합 결정을 강제 동반"하게 만든 좋은 패턴이었다.</p>
+    <p><b>전이의 문지기는 세 가지다</b>(2026-09-02 — 정합 점검). 구현은 위 표를 강제하지 않고 있었고, 그중 셋을 채웠다: ① <b>어휘</b> — 입력을 그대로 <code>::task_status</code> 로 캐스팅해 오타가 500 이 됐다(이제 400 <code>invalid_input</code>). ② <b>담당자</b> — 활성 클레임을 다른 세션이 쥐고 있어도 상태를 옮길 수 있었다(이제 보유자 또는 planner·admin). ③ <b>리스</b> — 만료된 리스로도 <code>done</code> 으로 옮길 수 있었다(이제 <code>NERV_LEASE_EXPIRED</code>). 더해 <b>done 은 이 문으로 되돌아오지 않는다</b>.</p>
+
+  <p><b>경로 그래프 자체는 아직 강제하지 않는다.</b> 위 표는 <code>in_review → done</code> 을 요구하는데 배포된 구현 스킬은 <code>claimed/in_progress → done</code> 으로 곧장 간다 — 표와 스킬이 어긋나 있고, 어느 쪽을 고칠지는 사람의 결정이다. done 의 실질 조건(증적 · <code>spec_impact</code>)은 게이트가 이미 강제한다.</p>
+
+<p><code>spec_impact</code>를 done 전제조건으로 둔 것은 clemvion의 Gate C(<code>spec-plan-completion.test.ts</code>) 이식이다. 그쪽은 완료 plan의 frontmatter에 영향 스펙 목록 또는 <code>none</code> sentinel을 요구했고, 이 게이트가 "작업 완료가 스펙 정합 결정을 강제 동반"하게 만든 좋은 패턴이었다.</p>
 
   <h4><code>task_dependency</code></h4>
   <div class="table-wrap"><table>

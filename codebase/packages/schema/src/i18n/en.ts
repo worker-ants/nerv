@@ -385,6 +385,8 @@ export const en = {
   'error.task.blocked_reason_required': 'Blocking a task requires a reason.',
   'error.task.delegation_incomplete': 'The delegation brief is incomplete: {missing}',
   'error.task.done_gate': 'The done gate is not satisfied.',
+  'error.task.done_is_final': 'A finished task is not reopened through this path.',
+  'error.task.not_assignee': 'You are not the assignee of this task.',
   'error.task.not_found': 'Task not found.',
   'error.task.not_ready': 'The task is not ready ({status}).',
   'error.webhook.bad_signature': 'Signature mismatch.',
