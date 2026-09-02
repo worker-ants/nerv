@@ -68,4 +68,23 @@ if [[ -n "$diff_out" ]]; then
   exit 1
 fi
 
+# ⑥ 첨부 — **행이 있는데 파일이 없으면 손실이다.**
+# 행 수만 세면 `attachment` 는 전부 살아난 것처럼 보인다. 파일은 오브젝트 스토리지에
+# 있고 그것은 이 덤프에 없다 — 그래서 "손실 0" 을 말하기 전에 실물을 센다.
+attachments="$(psql "$DATABASE_URL" -tAc "SELECT count(*) FROM attachment WHERE committed_at IS NOT NULL" 2>/dev/null || echo 0)"
+if [[ "${attachments:-0}" != "0" ]]; then
+  if [[ -n "${NERV_S3_ENDPOINT:-}" ]] && command -v mc >/dev/null 2>&1; then
+    mc alias set nerv-restore-dst "$NERV_S3_ENDPOINT" \
+      "${NERV_S3_ACCESS_KEY:-}" "${NERV_S3_SECRET_KEY:-}" >/dev/null
+    objects="$(mc ls --recursive "nerv-restore-dst/${NERV_S3_BUCKET:-nerv-blobs}" 2>/dev/null | wc -l | tr -d ' ')"
+    echo "첨부: DB ${attachments}건 · 스토리지 ${objects}개"
+    if [[ "${objects:-0}" -lt "${attachments}" ]]; then
+      echo "첨부 파일이 모자랍니다 — 백업의 blobs/ 를 버킷으로 되돌리세요(nerv-backup.sh 가 미러합니다)" >&2
+      exit 1
+    fi
+  else
+    echo "첨부 ${attachments}건이 DB 에 있는데 스토리지를 확인하지 못했습니다 — 시안이 404 일 수 있습니다" >&2
+  fi
+fi
+
 echo "정합 검증 통과 — 데이터 손실 0 (spec_chunk_embedding 제외, 재임베딩 대상)"

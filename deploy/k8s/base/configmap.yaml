@@ -8,9 +8,16 @@ data:
   NERV_PUBLIC_URL: 'https://nerv.example.com'
   NERV_LOG_LEVEL: 'info'
   NERV_VALKEY_URL: 'redis://nerv-valkey:6379'
+  # **엔드포인트가 없으면 첨부가 조용히 꺼진다** — StorageService 는 ENDPOINT·ACCESS_KEY·
+  # SECRET_KEY 셋이 다 있어야 클라이언트를 만든다. 자격증명 둘은 nerv-secrets 의 몫이고,
+  # 주소는 비밀이 아니라 여기 둔다(조직의 S3 주소로 바꾼다).
+  NERV_S3_ENDPOINT: 'http://nerv-minio:9000'
+  # 에이전트가 받는 presigned PUT 주소 — 클러스터 밖에서 열리는 주소여야 한다.
+  # 내부 주소로 서명하면 개발자 장비의 에이전트가 그 호스트를 해소하지 못한다.
+  NERV_S3_PUBLIC_ENDPOINT: 'https://nerv.example.com/s3'
   NERV_S3_BUCKET: 'nerv-blobs'
   NERV_S3_FORCE_PATH_STYLE: 'true'
   # 임베딩 제공자 프로필(§5.2a) — 자가호스팅이면 http://nerv-embed/v1,
   # 외부 제공자면 그 base URL 로 바꾸고 base/embed/ 를 오버레이에서 제외한다.
   NERV_EMBED_URL: 'http://nerv-embed/v1'
-  NERV_EMBED_MODEL: 'BAAI/bge-m3'
+  NERV_EMBED_MODEL: 'bge-m3'

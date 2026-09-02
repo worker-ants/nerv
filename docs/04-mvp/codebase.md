@@ -678,7 +678,13 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `MINIO_PORT` | | `9000` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 S3 접근 |
 | `MINIO_CONSOLE_PORT` | | `9001` | compose 포트 노출(127.0.0.1 한정) | minio 웹 콘솔 |
 | `NERV_S3_ENDPOINT` | | `http://localhost:9000` | api · worker | compose 내부는 `http://minio:9000` |
-| `NERV_S3_BUCKET` | | `nerv-blobs` | api · worker | api가 기동 시 없으면 생성 |
+| `NERV_S3_ENDPOINT` | 첨부 쓸 때 | — | api · worker | 서버가 S3 에 붙는 주소. compose 는 `http://minio:9000` |
+| `NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY` | 첨부 쓸 때 | — | api · worker | **앱이 읽는 자격증명은 이 둘이다.** `MINIO_ROOT_*` 는 compose 가 MinIO 에 주는 값이라 로컬 프로세스(`pnpm dev`)에는 조립해 주는 주체가 없었다 — 문서대로 따라간 개발자는 첨부가 꺼진 API 를 띄웠다(2026-09-02) |
+| `NERV_S3_PUBLIC_ENDPOINT` | | (없으면 `NERV_S3_ENDPOINT`) | api | 에이전트가 받는 presigned PUT 주소의 호스트. 내부 주소로 서명하면 개발자 장비에서 해소되지 않아 **에이전트 업로드가 모든 배치에서 불통**이었다 |
+| `NERV_S3_REGION` | | `us-east-1` | api | S3 호환 서명용 |
+| `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
+| `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다 |
+| `NERV_S3_BUCKET` | | `nerv-blobs` | api · worker | api가 기동 시 없으면 생성한다(2026-09-02 — 전표는 그렇게 적었는데 코드가 없었다) |
 | `NERV_S3_FORCE_PATH_STYLE` | | `true` | api · worker | minio 호환 |
 | `NERV_HTTP_PORT` | | `8080` | compose `web` 공개 포트 | |
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |

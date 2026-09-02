@@ -782,6 +782,10 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
       <tr><td><code>MINIO_PORT</code></td><td></td><td><code>9000</code></td><td>compose 포트 노출(127.0.0.1 한정)</td><td>개발 루프(<code>pnpm dev</code>)의 S3 접근</td></tr>
       <tr><td><code>MINIO_CONSOLE_PORT</code></td><td></td><td><code>9001</code></td><td>compose 포트 노출(127.0.0.1 한정)</td><td>minio 웹 콘솔</td></tr>
       <tr><td><code>NERV_S3_ENDPOINT</code></td><td></td><td><code>http://localhost:9000</code></td><td>api · worker</td><td>compose 내부는 <code>http://minio:9000</code></td></tr>
+      <tr><td><code>NERV_S3_ENDPOINT</code></td><td>첨부 쓸 때</td><td>—</td><td>api · worker</td><td>서버가 S3 에 붙는 주소</td></tr>
+      <tr><td><code>NERV_S3_ACCESS_KEY</code> · <code>NERV_S3_SECRET_KEY</code></td><td>첨부 쓸 때</td><td>—</td><td>api · worker</td><td><b>앱이 읽는 자격증명은 이 둘이다</b> — <code>MINIO_ROOT_*</code> 는 compose 가 MinIO 에 주는 값이라 로컬 프로세스에는 조립 주체가 없었다(2026-09-02)</td></tr>
+      <tr><td><code>NERV_S3_PUBLIC_ENDPOINT</code></td><td></td><td>(없으면 ENDPOINT)</td><td>api</td><td>presigned PUT 주소의 호스트 — 내부 주소로 서명하면 에이전트 업로드가 불통이다</td></tr>
+      <tr><td><code>NERV_GITHUB_WEBHOOK_SECRET</code></td><td>웹훅 쓸 때</td><td>—</td><td>api</td><td>비면 EP-WHK-01 이 전 배송을 401 로 거절한다</td></tr>
       <tr><td><code>NERV_S3_BUCKET</code></td><td></td><td><code>nerv-blobs</code></td><td>api · worker</td><td>api가 기동 시 없으면 생성</td></tr>
       <tr><td><code>NERV_S3_FORCE_PATH_STYLE</code></td><td></td><td><code>true</code></td><td>api · worker</td><td>minio 호환</td></tr>
       <tr><td><code>NERV_HTTP_PORT</code></td><td></td><td><code>8080</code></td><td>compose <code>web</code> 공개 포트</td><td></td></tr>
