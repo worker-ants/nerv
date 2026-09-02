@@ -158,8 +158,8 @@ export class AuthController {
 
   /** EP-MBR-01 */
   @Get('orgs/:org/members')
-  members(@Param('org') org: string): Promise<unknown> {
-    return this.auth.members(org);
+  members(@Req() req: ProjectRequest, @Param('org') org: string): Promise<unknown> {
+    return this.auth.members(org, principalOf(req).userId);
   }
 
   /** EP-TOK-01 — 원문 없음 */

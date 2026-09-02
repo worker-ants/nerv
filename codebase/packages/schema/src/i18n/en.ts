@@ -46,7 +46,8 @@ export const en = {
     'Invitations in the MVP assign existing users — they need to sign up first.',
   'error.auth.project_out_of_scope': 'Outside this token’s project scope.',
   'error.auth.role_missing': 'Your role is not allowed to make this request.',
-  'error.auth.route_undeclared': 'This route declares no permission — a server configuration defect.',
+  'error.auth.route_undeclared':
+    'This route declares no permission — a server configuration defect.',
   'error.auth.scope_missing': 'Missing scope: {scope}',
   'error.auth.self_approve': 'Requesters cannot approve their own requests.',
   'error.auth.self_approve_spec': 'Authors cannot approve their own specs.',

@@ -540,7 +540,14 @@ export class AuthService {
   }
 
   /** EP-MBR-01 */
-  async members(orgSlug: string): Promise<Record<string, unknown>[]> {
+  /**
+   * EP-MBR-01 — 조직 명부. 권한은 "조직 멤버" 다.
+   *
+   * 예전에는 호출자를 **보지도 않았다**: 인증만 통과하면 slug 를 아는 누구나 다른 조직의
+   * 전 멤버 이메일·역할을 읽었다(같은 컨트롤러의 `org()`·`projects()` 는 멤버십을 본다).
+   */
+  async members(orgSlug: string, callerUserId: string): Promise<Record<string, unknown>[]> {
+    await this.assertOrgMembership(callerUserId, orgSlug);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT m.id, m.role::text AS role, m.created_at, u.id AS user_id, u.email,
              u.display_name, u.state::text AS user_state, p.slug AS project_slug
@@ -628,6 +635,21 @@ export class AuthService {
     }
   }
 
+  /** 조직 경계의 멤버십 — 프로젝트 단위 역할도 그 조직의 멤버라는 뜻이다 */
+  private async assertOrgMembership(userId: string, orgSlug: string): Promise<void> {
+    const { rows } = await this.db.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n
+        FROM membership m JOIN organization o ON o.id = m.org_id
+       WHERE m.user_id = ${userId} AND o.slug = ${orgSlug}
+    `);
+    if ((rows[0]?.n ?? 0) === 0) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.not_member'), {
+        kind: 'no_membership',
+        org: orgSlug,
+      });
+    }
+  }
+
   async issueToken(input: {
     projectId: string;
     userId: string;
@@ -651,7 +673,13 @@ export class AuthService {
     }
     const scopes = input.scopes.filter(isAgentScope);
 
-    // 발급자는 그 프로젝트의 멤버여야 한다 — 권한은 소유 사용자의 부분집합을 넘지 못한다(D-08)
+    // 발급자는 그 프로젝트의 멤버여야 한다 — 권한은 소유 사용자의 부분집합을 넘지 못한다(D-08).
+    //
+    // **여기서 역할과 교집합하지 않는 것은 결정이다.** 상한은 검증 시점에 걸린다
+    // (`verifyPat` 이 `token.scopes ∩ scopesForRoles(현재 역할)` 로 좁힌다) — 그래야 역할이
+    // 바뀌면 이미 발급된 토큰의 유효 권한도 **그 순간** 따라간다. 발급 때 잘라 저장하면
+    // 역할이 넓어져도 토큰은 좁은 채로 남아, 사람은 "권한을 줬는데 왜 안 되지" 를 겪는다.
+    // 전표의 "부분집합만"은 **유효 권한**에 대한 말이고, 그 판정자는 검증 쪽이다.
     await this.assertMembership(input.userId, input.projectId);
 
     const raw = `${TOKEN_PREFIX}${randomBytes(TOKEN_BYTES).toString('base64url')}`;
@@ -669,12 +697,24 @@ export class AuthService {
     return { tokenId, token: raw, prefix, scopes };
   }
 
-  /** 폐기 — 이관 작업이 끝난 import:write 토큰을 지우는 기본 운용 경로다(EP-TOK-03). */
+  /**
+   * 폐기 — 이관 작업이 끝난 import:write 토큰을 지우는 기본 운용 경로다(EP-TOK-03).
+   *
+   * **본인 또는 그 프로젝트의 admin.** 전표가 그렇게 적었는데 소유자만 지울 수 있었다 —
+   * 유출된 토큰을 admin 이 끊을 길이 없다는 뜻이고, 그때 남는 선택지는 사용자에게
+   * 연락하는 것뿐이다.
+   */
   async revokeToken(tokenId: string, userId: string): Promise<void> {
     const { rows } = await this.db.execute<{ id: string }>(sql`
-      UPDATE api_token SET revoked_at = now()
-       WHERE id = ${tokenId} AND user_id = ${userId} AND revoked_at IS NULL
-      RETURNING id
+      UPDATE api_token t SET revoked_at = now()
+       WHERE t.id = ${tokenId} AND t.revoked_at IS NULL
+         AND (t.user_id = ${userId}
+              OR EXISTS (SELECT 1 FROM membership m
+                          JOIN project p ON p.id = t.project_id
+                         WHERE m.user_id = ${userId} AND m.role = 'admin'
+                           AND m.org_id = p.org_id
+                           AND (m.project_id = p.id OR m.project_id IS NULL)))
+      RETURNING t.id
     `);
     if (rows.length === 0) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.token_not_found'), {
@@ -751,10 +791,18 @@ export class AuthService {
              t.expires_at, t.revoked_at,
              -- 토큰 주체의 역할 **전부**. 하나만 뽑던 자리다 — 겸직이면 절반을 잃고,
              -- 그 절반에 admin 이 있으면 조용히 권한이 사라진다(0003_multi_role).
+             --
+             -- **조직도 함께 본다**(2026-09-02). assertMembership 은 2026-08-24 에
+             -- "조직이 경계다" 로 고쳤는데 이 서브쿼리만 project_id IS NULL 로 남아,
+             -- 다른 조직의 조직 전역 멤버십이 이 토큰의 역할로 딸려 들어왔다 — 그리고
+             -- 유효 스코프의 상한이 역할이므로 그대로 권한이 됐다.
              (SELECT array_agg(DISTINCT m.role::text) FROM membership m
                WHERE m.user_id = t.user_id
+                 AND m.org_id = p.org_id
                  AND (m.project_id = t.project_id OR m.project_id IS NULL)) AS roles
-        FROM api_token t JOIN "user" u ON u.id = t.user_id
+        FROM api_token t
+        JOIN "user" u ON u.id = t.user_id
+        JOIN project p ON p.id = t.project_id
        WHERE t.token_hash = decode(${digest.toString('hex')}, 'hex')
     `);
 

@@ -287,6 +287,110 @@ describe('멤버십 판정 — 겸직은 합집합, 조직은 경계다 (2026-08
   });
 });
 
+describe('조직 경계 — 토큰의 역할·명부·폐기 (2026-09-02 보안 점검)', () => {
+  it('PAT 의 역할 산출도 조직을 본다 — 남의 조직 admin 이 이 토큰의 권한이 되지 않는다', async () => {
+    // `assertMembership` 은 2026-08-24 에 "조직이 경계다" 로 고쳤는데 `verifyPat` 의
+    // 역할 서브쿼리만 project_id IS NULL 로 남아 있었다. 유효 스코프의 상한이 역할이므로
+    // 그 구멍은 그대로 권한이 됐다.
+    const otherOrg = newId();
+    const crossUser = newId();
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'acme-pat','Acme')`, [
+      otherOrg,
+    ]);
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'crosspat@example.com','교차','active')`,
+      [crossUser],
+    );
+    // 남의 조직에서는 조직 단위 admin
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,NULL,$3,'admin')`,
+      [newId(), otherOrg, crossUser],
+    );
+    // 우리 프로젝트에서는 viewer 일 뿐이다
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'viewer' FROM project WHERE id = $3`,
+      [newId(), crossUser, projectId],
+    );
+
+    const { token } = await auth.issueToken({
+      projectId,
+      userId: crossUser,
+      name: 'cross',
+      scopes: ['spec:read', 'spec:draft'],
+    });
+    const principal = await auth.verifyPat(token);
+    expect(principal.roles).toEqual(['viewer']);
+    // viewer 는 읽기뿐이다 — 토큰이 더 실었어도 유효 권한은 역할이 상한이다
+    expect(principal.scopes).toEqual(['spec:read']);
+  });
+
+  it('조직 명부는 그 조직의 멤버만 읽는다 (EP-MBR-01)', async () => {
+    const outsider = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'outsider@example.com','외부','active')`,
+      [outsider],
+    );
+    await expect(auth.members('nerv', outsider)).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'no_membership' },
+    });
+
+    const rows = await auth.members('nerv', userId);
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it('토큰 폐기는 본인 또는 admin 이다 (EP-TOK-03)', async () => {
+    const owner = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'owner@example.com','주인','active')`,
+      [owner],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'developer' FROM project WHERE id = $3`,
+      [newId(), owner, projectId],
+    );
+    const stranger = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'stranger@example.com','타인','active')`,
+      [stranger],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'developer' FROM project WHERE id = $3`,
+      [newId(), stranger, projectId],
+    );
+
+    const projectAdmin = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'padmin@example.com','관리','active')`,
+      [projectAdmin],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'admin' FROM project WHERE id = $3`,
+      [newId(), projectAdmin, projectId],
+    );
+
+    const issued = await auth.issueToken({
+      projectId,
+      userId: owner,
+      name: 'leaked',
+      scopes: ['spec:read'],
+    });
+    // 남은 못 지운다
+    await expect(auth.revokeToken(issued.tokenId, stranger)).rejects.toMatchObject({
+      details: { kind: 'not_found' },
+    });
+    // admin 은 지운다 — 유출된 토큰을 끊을 사람이 소유자뿐이면 대응이 연락으로 끝난다
+    await auth.revokeToken(issued.tokenId, projectAdmin);
+    await expect(auth.verifyPat(issued.token)).rejects.toMatchObject({
+      code: NERV_ERROR.UNAUTHENTICATED,
+    });
+  });
+});
+
 describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 신설)', () => {
   it('조직을 만들면 만든 사람이 그 조직의 admin 이 된다', async () => {
     await auth.createOrg({ userId, slug: 'acme', name: 'Acme' });
