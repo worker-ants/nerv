@@ -32,8 +32,8 @@ If any of them is empty the task cannot be claimed. Agents are instructed not to
 Taking a task is a **claim**. A claim carries a 30-minute lease, and the session sends a heartbeat every 60 seconds to keep it alive.
 
 - If heartbeats stop, the lease expires and the task returns to `ready`. This is what stops a dead session from holding work forever.
-- If two sessions touch the same scope, the second claim is refused as a **scope conflict**.
-- A person can revoke a claim from the task detail.
+- Two sessions touching the same scope register as an **overlap** — but not always a refusal. There are three grades. Only **block** (a direct collision on the same files) refuses the second claim; **warn** (scope reached through dependencies, or two tasks from the same requirement) and **info** (anything else that grazes) report the fact without stopping anyone. Blocking on every overlap would let one large module serialise the whole project.
+- A claim is released by **whoever holds it** — the agent releases it when it finishes or gives up (`nerv_task_release`). There is no revoke button in the UI. To stop work, **stop the session**: the heartbeat stops, the lease expires 30 minutes later, and the task returns to `ready`.
 
 ## Done, and the archive window
 

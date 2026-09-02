@@ -35,6 +35,29 @@ Specs are **not edited in place — versions accumulate.** Each version is in on
 
 The badge at the top is the status of the version you are looking at. If you are reading a `superseded` version, the screen says so first — reading an outdated document as if it were current is the most common accident here.
 
+## Comparing versions
+
+The **Versions** tab in the rail stacks every revision. Two things are possible.
+
+- **Compare with previous** — one button, the difference against the revision just before.
+- **Pick two** — choose any two revisions in the selects and compare them.
+
+While comparing you see the **difference**, not the editor. Requirements added or removed come first, body line changes below — that is the order review actually asks about.
+
+**The address is the state.** `?v=3` shows revision 3 in full (read-only), `?diff=v2..v3` shows the difference between two. Copy the URL and the other person sees the same screen — no need to say "look at the third paragraph".
+
+## Attachments
+
+The **Attachments** tab in the rail holds mockups and documents. Drag files in or pick them.
+
+- Formats: PNG · JPEG · GIF · WebP · SVG · PDF
+- Size: **10MB** per file
+- After uploading, **Insert into body** puts the image at the cursor.
+
+Attachments hang on the **document, not the revision**. Rewriting the draft leaves them in place, and archiving the document takes them along. An external link changes independently of the spec's revisions, so "the screen this revision describes" cannot be recovered later.
+
+Reading also goes through the server — **project members** see them, not whoever has the URL.
+
 ## The edit lease
 
 If two people edit one document at once, one person's writing disappears. So editing takes a **lease**.

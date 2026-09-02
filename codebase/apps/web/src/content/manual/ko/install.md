@@ -19,7 +19,8 @@ Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전�
 **설정 → 토큰 → 발급**. 이름은 쓰는 기계가 드러나게 짓습니다(`mac-02/claude-code`처럼).
 
 - 토큰 값은 **발급 직후 한 번만** 보입니다. 창을 닫으면 다시 볼 수 없고, 다시 발급해야 합니다.
-- 스코프는 역할 프리셋이 기본값으로 채웁니다. `developer`라면 `spec:read` · `spec:draft` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch`입니다.
+- 스코프는 **`spec:read` 와 `task:claim` 둘만 켜진 채로** 시작합니다. 역할 프리셋 같은 것은 없습니다 — 필요한 것을 직접 켭니다. 플러그인으로 작업까지 돌리려면 `task:update` · `agent-session:launch` 를, 초안을 쓰려면 `spec:draft` 를, 리뷰를 올리려면 `review:submit` 을 더 켭니다.
+- **토큰은 역할보다 넓어지지 않습니다.** 역할에 없는 스코프를 켜면 발급은 되지만 그 스코프는 실제로 힘을 쓰지 못합니다. 예를 들어 `review:resolve` 는 admin · planner · qa 의 것이라, `developer` 가 켜 봐야 발견을 닫지 못합니다.
 - `spec:approve`와 `approval:decide`는 체크박스 자체가 잠겨 있습니다 — 승인은 사람이 하는 일이라 토큰에 실을 수 없습니다.
 
 ## 2. 환경변수
@@ -61,7 +62,13 @@ export NERV_TOKEN="<1단계에서 받은 토큰>"
 export NERV_PROJECT="clemvion"
 ```
 
-`NERV_HOSTNAME`은 **적지 않아도 됩니다** — 비어 있으면 플러그인이 이 기계의 이름(`hostname -s`)으로 채웁니다. 세션 화면에 "누구의 어떤 기계인지"로 뜨는 값입니다.
+`NERV_HOSTNAME`은 세션 화면에 "누구의 어떤 기계인지"로 뜨는 값입니다. **적어 두는 편이 낫습니다.** 훅 중 서버로 바로 쏘는 것들은 이 변수를 그대로 싣기 때문에, 비어 있으면 기계 이름 없는 세션이 목록에 남습니다. 두 대 이상에서 돌리기 시작하면 그때부터 어느 세션이 어느 기계인지 알 수 없습니다.
+
+```bash
+export NERV_HOSTNAME="$(hostname -s)"
+```
+
+이 값은 **표시용**입니다. 헤더는 얼마든지 바꿔 쓸 수 있으므로 권한 판정에는 쓰지 않습니다.
 
 **토큰을 저장소에 커밋하지 마세요.** 작업 저장소의 `.gitignore`에 `.nerv/`도 함께 넣습니다 — 환경 파일과 플러그인의 캐시·오프라인 큐가 그 아래에 쌓입니다.
 

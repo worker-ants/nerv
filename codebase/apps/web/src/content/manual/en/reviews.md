@@ -15,12 +15,18 @@ A session goes `running` → `complete` (or `failed`). The input it looked at �
 
 ## Severity and disposition
 
-Findings have three severities: `critical` · `warning` · `info`. There are four dispositions.
+Findings carry one of three severities: `critical` · `warning` · `info`. `open` is the **state** nobody has touched yet; the **dispositions** are four.
 
-- `open` — nobody has touched it.
-- `fixed` — it was fixed.
-- `dismissed` — the finding was wrong, or is not a problem in this context.
-- `wont_fix` — it is a problem, but we are leaving it for now.
+- **Fixed** (`fixed`) — the code was changed. Record the commit hash with it.
+- **Fixed by changing the spec** (`spec_change`) — the **document** was wrong, not the code. Pick which spec revision resolved it (no need to memorise version numbers — choose from the list).
+- **Dismissed** (`dismissed`) — the finding was wrong, or is not a problem in this context.
+- **Won't fix** (`wont_fix`) — a real problem, but not one being fixed now.
+
+`spec_change` exists for honesty. Recording a documentation fix as `fixed` claims the code was changed; recording it as `dismissed` claims it was a false positive. Neither is true. When someone later asks "what resolved these findings", this distinction is the answer.
+
+**Findings take comments.** They flow separately from the disposition, so the person who raised it and the person fixing it talk in the same place. From here a finding can also be **promoted to a task**: what cannot be fixed now moves to the backlog.
+
+Dispositions are made by roles holding `review:resolve` — admin, planner and qa.
 
 **Lowering a `critical` is a person's decision.** When an agent tries to move a `critical` finding to `dismissed` or `wont_fix`, it is not applied on the spot — an **approval card** is created instead. There is deliberately no quiet path for making a severe problem disappear.
 

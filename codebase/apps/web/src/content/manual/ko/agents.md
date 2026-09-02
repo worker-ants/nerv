@@ -16,7 +16,7 @@ NERV에 에이전트를 붙이면 Claude Code나 Codex가 스펙을 읽고, 작�
 
 - 토큰 값은 **발급 직후 한 번만** 보입니다. 그 자리에서 복사해 두세요.
 - 스코프는 `resource:action` 표기입니다: `spec:read` · `spec:draft` · `spec:meta` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
-- **`spec:approve`와 `approval:decide`는 토큰에 부여할 수 없습니다.** 설정에서 끄고 켜는 항목이 아니라 발급 경로에 아예 없습니다 — 승인은 사람이 하는 일입니다.
+- **`spec:approve`와 `approval:decide`는 토큰에 부여할 수 없습니다.** 발급 화면에는 **보이지만 잠겨** 있습니다 — 목록에서 빼 버리면 "왜 승인 권한은 토큰에 못 주지?" 라는 물음이 화면 밖에 남기 때문입니다. 보이되 고를 수 없는 것이 규칙을 가르칩니다. 승인은 사람이 하는 일입니다.
 - 토큰이 역할보다 넓어질 수는 없습니다. 발급 시점의 역할이 상한입니다.
 - 목록에 마지막 사용 시각과 마지막 호스트가 남습니다. 모르는 호스트가 보이면 그 자리에서 폐기하세요.
 

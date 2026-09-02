@@ -19,7 +19,8 @@ The role matters: **a token can never be broader than the role.** As a `viewer` 
 **Settings → Tokens → Issue.** Name it after the machine that will use it (something like `mac-02/claude-code`).
 
 - The token value is shown **once, right after issuing**. Close the dialog and it is gone — you would have to issue another.
-- Scopes are pre-filled from your role. For `developer` that is `spec:read` · `spec:draft` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch`.
+- Scopes start with **`spec:read` and `task:claim` ticked, nothing else**. There are no role presets — tick what you need. To run tasks through the plugin add `task:update` and `agent-session:launch`; to write drafts add `spec:draft`; to file reviews add `review:submit`.
+- **A token never reaches wider than your role.** Ticking a scope your role does not hold still issues the token, but that scope carries no power. `review:resolve`, for instance, belongs to admin, planner and qa — a `developer` who ticks it still cannot close a finding.
 - `spec:approve` and `approval:decide` are locked checkboxes — approval is something a person does, so it cannot ride on a token.
 
 ## 2. Environment variables
@@ -61,7 +62,13 @@ export NERV_TOKEN="<the token from step 1>"
 export NERV_PROJECT="clemvion"
 ```
 
-You can **leave `NERV_HOSTNAME` out** — when it is empty the plugin fills it with this machine's name (`hostname -s`). It is what the sessions screen shows as "whose machine this is".
+`NERV_HOSTNAME` is what the sessions screen shows as "whose machine this is". **Set it.** The hooks that post straight to the server send this variable verbatim, so leaving it empty leaves sessions in the list with no machine name. The moment you run on a second machine, you can no longer tell which session is where.
+
+```bash
+export NERV_HOSTNAME="$(hostname -s)"
+```
+
+The value is **for display only**. A header can say anything, so it never enters a permission decision.
 
 **Do not commit the token.** While you are there, add `.nerv/` to the working repository's `.gitignore` — the environment file, the plugin's cache and the offline queue all live under it.
 

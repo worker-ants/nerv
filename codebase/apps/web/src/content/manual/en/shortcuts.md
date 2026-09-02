@@ -22,6 +22,8 @@
 
 They do nothing while the cursor is in a text field.
 
+**On a question card, `a` and `r` are inert.** A question is answered, not approved or rejected, so only `c` opens. `a` is also silently inert for roles without approval permission — better than looking pressable and then being refused.
+
 ## Language
 
 Pick **한국어 / English** from the user menu (your name ▾ at the right of the header). Screens, error messages and CLI output all draw on one catalogue of phrases, so switching the language switches all three.

@@ -16,7 +16,7 @@ What an agent may do is decided by **the token** (issuing one is step 1 of [Inst
 
 - The token value is shown **once, right after issuing**. Copy it there and then.
 - Scopes are written `resource:action`: `spec:read` · `spec:draft` · `spec:meta` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
-- **`spec:approve` and `approval:decide` cannot be granted to a token.** They are not a setting you switch off — they do not exist on the issuing path at all. Approval is something a person does.
+- **`spec:approve` and `approval:decide` cannot be granted to a token.** They are **visible but locked** on the issuing screen. Dropping them from the list would leave the question "why can't a token approve?" unanswered anywhere on screen; something visible and unpickable teaches the rule. Approval is something a person does.
 - A token can never be broader than the role. The role at issue time is the ceiling.
 - The list records last use and last host. If you see a host you do not recognise, revoke it right there.
 

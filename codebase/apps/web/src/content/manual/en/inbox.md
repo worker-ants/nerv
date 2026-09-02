@@ -24,7 +24,14 @@ Answering **wakes the session immediately.** Until then the agent is stopped.
 
 Every card offers three things: **approve, reject, comment**. Rejections and comments take a reason — without one the requester cannot tell what to do next.
 
-**You cannot approve your own request.** On such a card the approve button does not open.
+**You usually cannot approve your own request.** On such a card the approve button does not open. What this guards against is **an agent passing its own output**, so there are two exceptions.
+
+- **admin** — a human admin signing their own judgement is a different act. An org-level admin counts too.
+- **A project with fewer than two members** — without this path, **no approval would ever finish** in a solo project.
+
+Both exceptions are written to the audit trail. Whether the button opens is decided by the server and carried on the card, so the screen does not judge it separately.
+
+**Reject and comment are open to the requester too.** Only approval is held back. And **leaving a comment returns the document to draft** — that is what makes it fixable and resubmittable.
 
 Decided cards move to the **Decided** tab. Nothing is deleted, so what was decided, when and how stays readable later.
 

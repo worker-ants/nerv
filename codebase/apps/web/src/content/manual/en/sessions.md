@@ -21,8 +21,18 @@ Each session carries whose machine it is on, which agent is running (`claude-cod
 
 ## Activity
 
-Five kinds of entry flow through the rail: `thought` (reasoning), `action` (a tool run), `elicitation` (asking a person), `response`, and `error`. The agent's hooks send this stream; where hooks are unavailable the agent posts the events itself.
+Opening a session shows the rail in **two layers**. Above is **what it did** (what is in progress, and is it stuck); below is the **tool log** (which tools ran, in what order). That order exists because the first question here is not the name of a tool.
 
+Five kinds flow through it: `thought` · `action` (a tool ran) · `elicitation` (asking a person) · `response` · `error`. Hooks in the agent send this stream — where hooks are unavailable, the agent posts the events itself.
+
+Two things make it readable.
+
+- **Runs of the same tool collapse** (`×12`). A different tool in between means a different phase, so those are not merged.
+- **Failures never collapse.** Hidden inside a group, the marker made to stand out loses its point.
+
+Expanding a line shows the **raw payload** (tool input and response). Raw payloads are visible **only to the session's owner and to admins** — secrets are masked at ingest, but masking is never perfect, so the audience is narrowed too. Everyone else sees the title, the outcome and the tool name.
+
+The **summary strip** at the top is both a count and a filter — press a number and only sessions in that state remain.
 ## Messages and stopping
 
 **A message** tells a running agent to change direction. It does not interrupt immediately — the agent meets the server every 60 seconds (the heartbeat) and picks it up there. So the message appears on the rail right away, but the agent's response lags by up to a minute. The same message is never delivered twice.

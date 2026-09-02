@@ -39,9 +39,15 @@ Home, inbox and notifications are organisation-wide, so their addresses carry no
 | Role                            | What it can do                                                    |
 | ------------------------------- | ----------------------------------------------------------------- |
 | `admin`                         | Organisations and projects, members, tokens, gate policy, imports |
-| `planner`                       | Write and submit specs, create tasks, approve                     |
-| `designer` · `developer` · `qa` | Comment on specs, claim and progress tasks, answer questions      |
+| `planner`                       | Write, submit and **approve** specs of any type, baselines, metadata, resolve findings |
+| `designer`                      | Comment and edit drafts, claim and progress tasks. Creates **design** specs only |
+| `developer`                     | The same, but creates **convention** and **adr** specs           |
+| `qa`                            | The same, plus **resolving findings**. Creates no new specs      |
 | `viewer`                        | Read                                                              |
+
+**Which spec types a role may create differs by role.** admin and planner have no limit; designer creates `design`; developer creates `convention` and `adr`. qa creates none — what qa produces is a **review**, not a spec. All five roles still comment on other people's drafts and resolve those comments.
+
+**Resolving a review finding** (fixed, dismissed, won't fix) belongs to admin, planner and qa only. A developer receives findings and fixes them; closing them is someone else's call.
 
 One person can be `admin` in the organisation and `developer` on a project. **Holding both is a union** — you get the permissions of both seats.
 
