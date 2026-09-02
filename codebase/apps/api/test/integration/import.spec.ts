@@ -41,7 +41,12 @@ beforeAll(async () => {
   const admin = await userOf('admin');
   const dev = await userOf('developer');
   adminToken = (
-    await auth.issueToken({ projectId, userId: admin, name: 'imp', scopes: ['import:write'] })
+    await auth.issueToken({
+      projectId,
+      userId: admin,
+      name: 'imp',
+      scopes: ['import:write', 'spec:read'],
+    })
   ).token;
   adminNoScopeToken = (
     await auth.issueToken({ projectId, userId: admin, name: 'noscope', scopes: ['spec:read'] })
@@ -111,7 +116,7 @@ describe('문 — admin AND import:write (REQ-API-017)', () => {
       devToken,
     );
     expect(res.status).toBe(403);
-    expect(res.json['details']).toMatchObject({ kind: 'role_required', required: 'admin' });
+    expect(res.json['details']).toMatchObject({ kind: 'role_required', required: ['admin'] });
     expect(await count('spec')).toBe(before);
   });
 

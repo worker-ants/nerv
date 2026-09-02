@@ -9,6 +9,7 @@ import { Controller, Get, Header, Param, Query, Req, UseGuards } from '@nestjs/c
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { SpecService } from './spec.service.js';
 
@@ -18,6 +19,7 @@ export class MirrorController {
   constructor(private readonly specs: SpecService) {}
 
   /** EP-MIR-02 — 트리 색인. 에이전트의 첫 지도다 */
+  @RequireScope('spec:read')
   @Get('llms.txt')
   @Header('content-type', 'text/plain; charset=utf-8')
   llms(@Req() req: ProjectRequest): Promise<string> {
@@ -28,6 +30,7 @@ export class MirrorController {
   }
 
   /** EP-MIR-01 — 스펙 한 편. `.md` 확장자는 경로의 일부다 */
+  @RequireScope('spec:read')
   @Get('specs/:spec.md')
   @Header('content-type', 'text/markdown; charset=utf-8')
   spec(

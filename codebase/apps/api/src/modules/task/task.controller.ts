@@ -7,6 +7,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { RequireRole, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { TaskService } from './task.service.js';
 
@@ -16,6 +17,7 @@ export class TaskController {
   constructor(private readonly tasks: TaskService) {}
 
   /** EP-TASK-01 — S4 보드 */
+  @RequireScope('spec:read')
   @Get('tasks')
   list(
     @Req() req: ProjectRequest,
@@ -39,6 +41,7 @@ export class TaskController {
   }
 
   /** EP-TASK-02 */
+  @RequireScope('task:claim')
   @Get('tasks/next')
   next(@Req() req: ProjectRequest, @Query('limit') limit?: string): Promise<unknown> {
     return this.tasks.next({
@@ -48,12 +51,14 @@ export class TaskController {
   }
 
   /** EP-TASK-04 */
+  @RequireScope('spec:read')
   @Get('tasks/:task')
   get(@Req() req: ProjectRequest, @Param('task') task: string): Promise<unknown> {
     return this.tasks.get({ projectId: projectOf(req), taskKey: task });
   }
 
   /** EP-TASK-03 — 생성은 언제나 backlog 다. ready 승격은 서버 판정(FR-05) */
+  @RequireRole('planner', 'developer', 'admin', 'qa')
   @Post('tasks')
   create(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     return this.tasks.create({
@@ -72,6 +77,7 @@ export class TaskController {
   }
 
   /** EP-TASK-05 */
+  @RequireRole('planner', 'developer', 'admin')
   @Patch('tasks/:task')
   update(
     @Req() req: ProjectRequest,
@@ -95,6 +101,7 @@ export class TaskController {
   }
 
   /** EP-TASK-09 — done 게이트 판정의 단일 지점(FR-10) */
+  @RequireScope('task:update')
   @Post('tasks/:task/transition')
   transition(
     @Req() req: ProjectRequest,
@@ -115,6 +122,7 @@ export class TaskController {
   }
 
   /** EP-TASK-06 */
+  @RequireScope('task:claim')
   @Post('tasks/:task/claim')
   claim(
     @Req() req: ProjectRequest,
@@ -137,6 +145,7 @@ export class TaskController {
   }
 
   /** EP-TASK-07 */
+  @RequireScope('task:update')
   @Post('claims/:claim/heartbeat')
   heartbeat(
     @Req() req: ProjectRequest,
@@ -150,6 +159,7 @@ export class TaskController {
   }
 
   /** EP-TASK-08 */
+  @RequireScope('task:update')
   @Post('claims/:claim/release')
   release(
     @Req() req: ProjectRequest,

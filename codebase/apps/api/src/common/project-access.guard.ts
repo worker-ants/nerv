@@ -8,11 +8,14 @@
 // 이 가드의 차이가 "번역"과 "판정"의 경계다.
 
 import { Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { msg, scopesForRoles, NERV_ERROR } from '@nerv/schema';
 import { AuthService } from '../modules/auth/auth.service.js';
 import type { MembershipRole, Principal } from '../modules/auth/auth.service.js';
 import { NervError } from './nerv-exception.filter.js';
+import { ROUTE_PERMISSION } from './route-permission.js';
+import type { RoutePermission } from './route-permission.js';
 
 export interface ProjectRequest {
   params?: Record<string, string | undefined>;
@@ -24,7 +27,10 @@ export interface ProjectRequest {
 
 @Injectable()
 export class ProjectAccessGuard implements CanActivate {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<ProjectRequest>();
@@ -59,6 +65,55 @@ export class ProjectAccessGuard implements CanActivate {
       principal.roles = roles;
       principal.scopes = [...scopesForRoles(roles)];
     }
+
+    this.assertRoutePermission(context, principal, roles);
     return true;
+  }
+
+  /**
+   * 전표의 권한 열을 여기서 집행한다 — **선언이 없으면 거절한다**(fail-closed).
+   *
+   * 판정 함수는 처음부터 있었고 부르는 곳이 세 컨트롤러뿐이었다는 것이 이 결함의 전부다.
+   * 선언을 강제하면 "부르는 것을 잊었다"가 조용한 허용이 아니라 즉시 실패가 된다 —
+   * 새 라우트는 첫 요청에서 드러난다.
+   */
+  private assertRoutePermission(
+    context: ExecutionContext,
+    principal: Principal,
+    roles: readonly MembershipRole[],
+  ): void {
+    const declared = this.reflector.getAllAndOverride<RoutePermission | undefined>(
+      ROUTE_PERMISSION,
+      [context.getHandler(), context.getClass()],
+    );
+    if (declared === undefined) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.route_undeclared'), {
+        kind: 'route_undeclared',
+        route: `${context.getClass().name}.${context.getHandler().name}`,
+      });
+    }
+
+    const wantRoles = declared.roles ?? [];
+    if (wantRoles.length > 0 && !wantRoles.some((r) => roles.includes(r as MembershipRole))) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.role_missing'), {
+        kind: 'role_required',
+        required: wantRoles,
+        granted: roles,
+      });
+    }
+
+    const wantScopes = declared.scopes ?? [];
+    if (wantScopes.length > 0 && !wantScopes.some((s) => principal.scopes.includes(s))) {
+      throw new NervError(
+        NERV_ERROR.FORBIDDEN,
+        msg('error.auth.scope_missing', { scope: wantScopes.join(' · ') }),
+        {
+          kind: 'missing_scope',
+          required: wantScopes,
+          granted: principal.scopes,
+          roles: principal.roles,
+        },
+      );
+    }
   }
 }

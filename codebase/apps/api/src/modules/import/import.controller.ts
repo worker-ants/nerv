@@ -19,6 +19,7 @@ import {
 } from '@nerv/schema';
 import type { ImportBatchResult, ImportPreflightResult } from '@nerv/schema';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { RequireRoleAndScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { AuthService } from '../auth/auth.service.js';
@@ -33,6 +34,7 @@ export class ImportController {
   ) {}
 
   /** EP-IMP-01 — 자연 키 충돌 사전 판정. 서버 쓰기 0. */
+  @RequireRoleAndScope(['admin'], 'import:write')
   @Post('preflight')
   async preflight(
     @Req() req: ProjectRequest,
@@ -43,6 +45,7 @@ export class ImportController {
   }
 
   /** EP-IMP-02 */
+  @RequireRoleAndScope(['admin'], 'import:write')
   @Post('specs')
   async specs(@Req() req: ProjectRequest, @Body() body: unknown): Promise<ImportBatchResult> {
     const actor = this.authorize(req);
@@ -50,6 +53,7 @@ export class ImportController {
   }
 
   /** EP-IMP-03 */
+  @RequireRoleAndScope(['admin'], 'import:write')
   @Post('tasks')
   async tasks(@Req() req: ProjectRequest, @Body() body: unknown): Promise<ImportBatchResult> {
     const actor = this.authorize(req);
@@ -57,6 +61,7 @@ export class ImportController {
   }
 
   /** EP-IMP-04 */
+  @RequireRoleAndScope(['admin'], 'import:write')
   @Post('links')
   async links(@Req() req: ProjectRequest, @Body() body: unknown): Promise<ImportBatchResult> {
     const actor = this.authorize(req);
@@ -64,6 +69,7 @@ export class ImportController {
   }
 
   /** EP-IMP-06 — 리뷰 세션(FR-09). 도구 경로와 같은 ReviewService 를 거친다(D-05) */
+  @RequireRoleAndScope(['admin'], 'import:write')
   @Post('reviews')
   async reviews(@Req() req: ProjectRequest, @Body() body: unknown): Promise<ImportBatchResult> {
     const actor = this.authorize(req);
@@ -71,6 +77,7 @@ export class ImportController {
   }
 
   /** EP-IMP-05 — 자연 키 → UUID 맵 */
+  @RequireRoleAndScope(['admin'], 'import:write')
   @Get('map')
   async map(@Req() req: ProjectRequest): Promise<{ items: Record<string, unknown>[] }> {
     return this.imports.map(this.authorize(req));

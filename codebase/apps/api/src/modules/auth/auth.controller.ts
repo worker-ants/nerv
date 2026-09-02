@@ -18,6 +18,7 @@ import {
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { MemberOnly, RequireRole } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { AuthService } from './auth.service.js';
 import type { MembershipRole, Principal } from './auth.service.js';
@@ -213,12 +214,14 @@ export class ProjectController {
   constructor(private readonly auth: AuthService) {}
 
   /** EP-PRJ-03 */
+  @MemberOnly()
   @Get()
   project(@Req() req: ProjectRequest): Promise<unknown> {
     return this.auth.project(req.nervProjectId ?? '');
   }
 
   /** EP-PRJ-05 — 보관·복구(admin). **지우지 않는다** — 스펙 아카이브와 같은 규약이다 */
+  @RequireRole('admin')
   @Post('archive')
   archive(@Req() req: ProjectRequest): Promise<unknown> {
     return this.auth.setProjectArchived({
@@ -228,6 +231,7 @@ export class ProjectController {
     });
   }
 
+  @RequireRole('admin')
   @Post('restore')
   restore(@Req() req: ProjectRequest): Promise<unknown> {
     return this.auth.setProjectArchived({
@@ -238,6 +242,7 @@ export class ProjectController {
   }
 
   /** EP-PRJ-04 — 게이트 정책·위험도 임계는 admin 전용 */
+  @RequireRole('admin')
   @Patch()
   update(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     return this.auth.updateProject({

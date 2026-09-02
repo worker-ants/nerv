@@ -5,6 +5,7 @@
 
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -17,6 +18,7 @@ export class SessionController {
   constructor(private readonly sessions: SessionService) {}
 
   /** EP-SES-01 — S5 세션 보드. Phase 0 은 읽기 전용 축소판이다(steer/stop 은 E08-S06). */
+  @RequireScope('spec:read')
   @Get()
   async board(
     @Req() req: ProjectRequest,
@@ -40,6 +42,7 @@ export class SessionController {
   }
 
   /** EP-SES-03 — seq 순 타임라인 */
+  @RequireScope('spec:read')
   @Get(':sid/activities')
   timeline(
     @Req() req: ProjectRequest,
@@ -60,6 +63,7 @@ export class SessionController {
    *
    * 새 저장 없이 이벤트를 세션 축으로 읽는다 — 그 사실들은 처음부터 거기 있었다.
    */
+  @RequireScope('spec:read')
   @Get(':sid/trajectory')
   trajectory(
     @Req() req: ProjectRequest,
@@ -74,6 +78,7 @@ export class SessionController {
   }
 
   /** EP-SES-02 */
+  @RequireScope('spec:read')
   @Get(':sid')
   detail(@Req() req: ProjectRequest, @Param('sid') sid: string): Promise<unknown> {
     return this.sessions.detail({ projectId: req.nervProjectId ?? '', sessionId: sid });
@@ -83,6 +88,7 @@ export class SessionController {
    * EP-SES-04 — steer/stop. **사람 전용**이다: 에이전트가 다른 에이전트를 멈추게 하는 경로를
    * 열면 "사람이 개입하는 유일한 지점"이라는 FR-08 의 전제가 사라진다.
    */
+  @RequireScope('spec:read')
   @Post(':sid/steer')
   steer(
     @Req() req: ProjectRequest,

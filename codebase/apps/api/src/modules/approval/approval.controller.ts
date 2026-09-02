@@ -8,6 +8,7 @@ import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nest
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { RequireRole, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { ApprovalService } from './approval.service.js';
 import type { ApprovalDecision, InboxCard } from './approval.service.js';
@@ -22,6 +23,7 @@ export class ApprovalController {
   ) {}
 
   /** 프로젝트 스코프 받은 요청 — S2·S4 의 사이드 패널용. 전역 받은 요청은 EP-APR-01 이다 */
+  @RequireScope('spec:read')
   @Get('inbox')
   inbox(@Req() req: ProjectRequest): Promise<InboxCard[]> {
     const { projectId, userId } = human(req);
@@ -29,6 +31,7 @@ export class ApprovalController {
   }
 
   /** EP-QST-01 — 열린 질문 목록 */
+  @RequireScope('spec:read')
   @Get('questions')
   questionList(@Req() req: ProjectRequest, @Query('status') status?: string): Promise<unknown> {
     const { projectId } = human(req);
@@ -39,6 +42,7 @@ export class ApprovalController {
   }
 
   /** EP-APR-04 — 게이트 면제. 면제도 결재 레코드다(FR-10) */
+  @RequireRole('admin', 'planner', 'developer')
   @Post('gates/bypass')
   bypass(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const { projectId, userId } = human(req);
@@ -52,6 +56,7 @@ export class ApprovalController {
   }
 
   /** EP-QST-02 — 질문 답변. 사람 전용 */
+  @RequireScope('spec:read')
   @Post('questions/:id/answer')
   answer(
     @Req() req: ProjectRequest,

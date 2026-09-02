@@ -476,6 +476,70 @@ describe('세션 보드 상태 필터 (EP-SES-01) — 값은 조립되지 않는
   });
 });
 
+describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
+  // viewer 는 역할도 스코프도 읽기뿐이다(ROLE_SCOPES.viewer = ['spec:read']).
+  // 예전에는 이 토큰으로 아래가 **전부 통과했다** — 판정 함수는 있었고 부르는 곳이 없었다.
+  it('viewer 토큰은 Task 를 만들지 못한다 (EP-TASK-03 planner·developer·admin·qa)', async () => {
+    const res = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      token: viewerToken,
+      payload: { title: '몰래 만든 작업', goal_md: '목표' },
+    });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.FORBIDDEN);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'role_required',
+    });
+  });
+
+  it('viewer 토큰은 클레임·전이를 하지 못한다 (EP-TASK-06·09)', async () => {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'작업','ready','목표','PR','도구','경계')`,
+      [taskId, projectId, `TSK-${taskId.slice(-6)}`],
+    );
+
+    const claimed = await call('POST', `/api/v1/projects/clemvion/tasks/${taskId}/claim`, {
+      token: viewerToken,
+      payload: { scope: { spec_ids: [], file_globs: [] } },
+    });
+    expect(claimed.status).toBe(403);
+    expect((claimed.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'missing_scope',
+    });
+
+    const moved = await call('POST', `/api/v1/projects/clemvion/tasks/${taskId}/transition`, {
+      token: viewerToken,
+      payload: { status: 'done' },
+    });
+    expect(moved.status).toBe(403);
+
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM task WHERE id = $1`,
+      [taskId],
+    );
+    expect(rows[0]?.status).toBe('ready');
+  });
+
+  it('viewer 토큰은 초안을 저장하지 못한다 (EP-SPEC-08 `spec:draft`)', async () => {
+    const res = await call('PUT', '/api/v1/projects/clemvion/specs/SPC-GUARD/draft', {
+      token: viewerToken,
+      payload: { body_markdown: '# 덮어쓰기' },
+    });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'missing_scope',
+      required: ['spec:draft'],
+    });
+  });
+
+  it('읽기는 그대로 열려 있다 — 막은 것은 쓰기다', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/tasks', { token: viewerToken });
+    expect(res.status).toBe(200);
+  });
+});
+
 describe('받은 요청·알림·커버리지 표면', () => {
   it('전역 받은 요청은 프로젝트를 가로지르고 대기 시간을 싣는다 (EP-APR-01)', async () => {
     const { ApprovalService } = await import('../../src/modules/approval/approval.service.js');

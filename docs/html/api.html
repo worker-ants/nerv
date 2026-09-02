@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 16종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.47 (2026-09-02)</span>
+      <span>버전 v0.48 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -175,6 +175,23 @@
     <li><b><code>import:write</code>는 도구 대응이 없는 유일한 REST 전용 스코프</b>다(§2.10). MCP 도구 카탈로그에 임포트 도구가 없기 때문이며, admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사된다. 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).</li>
     <li>REST 엔드포인트의 인가는 역할 매트릭스(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6)가 정본이다. §2 전표의 "권한" 열은 그 매트릭스의 인용이며, PAT 요청은 역할 판정에 <b>스코프 검사가 AND로</b> 추가된다.</li>
   </ul>
+
+  <h3>1.3a 권한은 라우트가 선언한다 (2026-09-02 신설 — 보안 점검)</h3>
+
+  <p><b>판정 함수는 처음부터 있었고, 부르는 곳이 없었다.</b> <code>assertScope</code> 는 spec·review·import 세 컨트롤러에서만 불렸다. task(생성·클레임·하트비트·해제·전이)·approval(게이트 면제·질문 답변)·session 컨트롤러는 <b>한 번도</b> 부르지 않았고, spec 도 초안 저장·제출·증적·코멘트 해소는 빠져 있었다. 그래서 §2 전표의 "권한" 열은 문서에만 있었다 — <code>viewer</code> 웹 세션이나 <code>spec:read</code> 만 가진 PAT 로 초안 덮어쓰기·Task 생성·클레임·전이가 전부 통과했다(실측 2026-09-02).</p>
+
+  <p>고칠 방법은 빠진 자리에 호출을 더하는 것이 아니다. <b>빠뜨리는 것이 가능한 구조</b>가 결함이다. 그래서 프로젝트 경로(<code>/api/v1/projects/{proj}/**</code>)의 모든 라우트는 권한을 <b>선언</b>하고, 가드가 그 선언을 집행한다. 선언이 없으면 <b>요청을 거절한다</b>(fail-closed) — 새 라우트를 열고 잊으면 조용히 열리는 대신 첫 요청에서 드러나고, 그 전에 단위 테스트가 먼저 말한다(REQ-API-075).</p>
+
+  <p>선언은 전표의 두 축을 그대로 옮긴다. 전표가 스코프로 적은 자리는 스코프를, 역할로 적은 자리(EP-TASK-05 planner·developer·admin, EP-REQ-03 developer·qa·admin)는 역할을 요구한다. 축 <b>안에서는 하나라도</b>(겸직은 합집합이다), 축 <b>사이에서는 둘 다</b>(EP-IMP-* 의 <code>admin</code> AND <code>import:write</code>)다.</p>
+
+  <p><b>소유권은 여기서 판정하지 않는다.</b> "클레임 보유자"(EP-TASK-07)·"작성자 본인"(EP-CMT-03)·"세션 소유자"(EP-SES-04)는 문턱이 아니라 대상의 성질이라 도메인 서비스가 본다. 라우트 선언은 그 앞의 문턱이고, 둘은 겹치지 않는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-API-075</td><td>WHILE 프로젝트 경로의 라우트를 처리하는 동안 THE SYSTEM SHALL §2 전표의 권한을 선언에서 읽어 집행하고, 선언이 없는 라우트는 <b>거절한다</b>(403 <code>route_undeclared</code>). WHEN 주체의 역할·스코프가 선언을 충족하지 못하면 THE SYSTEM SHALL 403 <code>NERV_FORBIDDEN</code>(<code>role_required</code>·<code>missing_scope</code>)으로 거부하고 요구·보유 목록을 <code>details</code> 에 싣는다</td></tr>
+    </tbody>
+  </table></div>
 
   <h3>1.4 에러 포맷과 HTTP 상태 매핑</h3>
 

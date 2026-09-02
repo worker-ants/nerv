@@ -3,6 +3,7 @@ import { Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/com
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { EventService } from './event.service.js';
 import { NotificationService } from './notification.service.js';
@@ -15,6 +16,7 @@ export class EventController {
   ) {}
 
   /** EP-EVT-01 */
+  @RequireScope('spec:read')
   @Get('projects/:proj/events')
   @UseGuards(ProjectAccessGuard)
   feed(

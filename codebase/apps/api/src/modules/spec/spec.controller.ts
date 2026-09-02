@@ -29,8 +29,9 @@ interface RawReply {
 }
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
-import { assertScope, principalOf } from '../../common/scope-check.js';
+import { principalOf } from '../../common/scope-check.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { RequireRole, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { BaselineService } from './baseline.service.js';
 import { SearchService } from './search.service.js';
@@ -56,6 +57,7 @@ export class SpecController {
   ) {}
 
   /** EP-SPEC-01 */
+  @RequireScope('spec:read')
   @Get('specs/tree')
   tree(
     @Req() req: ProjectRequest,
@@ -71,6 +73,7 @@ export class SpecController {
    * EP-SPEC-19 — 전역 그래프. 노드와 간선을 한 응답으로 준다(§2.2).
    * 트리와 관계를 따로 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다.
    */
+  @RequireScope('spec:read')
   @Get('specs/graph')
   graph(
     @Req() req: ProjectRequest,
@@ -83,6 +86,7 @@ export class SpecController {
   }
 
   /** EP-SPEC-02 — 하이브리드. 모드 선택 파라미터가 없는 것이 의도다(§2.2b) */
+  @RequireScope('spec:read')
   @Get('specs/search')
   search(
     @Req() req: ProjectRequest,
@@ -101,12 +105,14 @@ export class SpecController {
   }
 
   /** EP-SPEC-11 */
+  @RequireScope('spec:read')
   @Get('baselines')
   listBaselines(@Req() req: ProjectRequest): Promise<unknown> {
     return this.baselines.list(projectOf(req));
   }
 
   /** EP-SPEC-14 — baseline 이름 또는 as_of 시각 중 하나(배타) */
+  @RequireScope('spec:read')
   @Get('specs/manifest')
   manifest(
     @Req() req: ProjectRequest,
@@ -121,12 +127,14 @@ export class SpecController {
   }
 
   /** EP-SPEC-13 */
+  @RequireScope('spec:read')
   @Get('baselines/:name')
   getBaseline(@Req() req: ProjectRequest, @Param('name') name: string): Promise<unknown> {
     return this.baselines.get({ projectId: projectOf(req), name });
   }
 
   /** EP-SPEC-03 — 기준 버전 지정 조회(`?v=`)를 지원한다 */
+  @RequireScope('spec:read')
   @Get('specs/:spec')
   get(
     @Req() req: ProjectRequest,
@@ -145,6 +153,7 @@ export class SpecController {
    * 생성은 key·type·title 이 필요하고 이어쓰기는 base_hash 가 필요하다 —
    * 한 경로에 섞으면 어느 쪽 필수 필드가 빠졌는지 오류가 흐려진다.
    */
+  @RequireScope('spec:draft')
   @Post('specs')
   create(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const principal = req.nervPrincipal;
@@ -167,6 +176,7 @@ export class SpecController {
   }
 
   /** EP-SPEC-08 — 초안 이어쓰기. `{spec}` 이 경로에 있으므로 본문에 spec_id 를 받지 않는다 */
+  @RequireScope('spec:draft')
   @Put('specs/:spec/draft')
   draft(
     @Req() req: ProjectRequest,
@@ -195,6 +205,7 @@ export class SpecController {
   }
 
   /** EP-SPEC-10 — A3. 게이트 티어에 따라 자동 통과 또는 승인 대기 */
+  @RequireScope('spec:draft')
   @Post('spec-versions/:ver/submit')
   submit(@Req() req: ProjectRequest, @Param('ver') ver: string): Promise<unknown> {
     const principal = req.nervPrincipal;
@@ -215,6 +226,7 @@ export class SpecController {
    * `spec:approve` 는 토큰에 부여 자체가 불가능한 스코프라(api.md §1.3) 에이전트는 이 경로에
    * 도달할 수 없어야 한다. 도달하면 NERV_HUMAN_ONLY + 웹 딥링크다.
    */
+  @RequireScope('spec:approve')
   @Post('specs/approve')
   approve(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const principal = requireHuman(req);
@@ -225,6 +237,7 @@ export class SpecController {
     });
   }
 
+  @RequireScope('spec:approve')
   @Post('specs/reject')
   reject(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const principal = requireHuman(req);
@@ -237,12 +250,14 @@ export class SpecController {
   }
 
   /** EP-COV-01 — 관계 그래프 집계다(§5.5). 문서 안의 ✅ 가 아니다 */
+  @RequireScope('spec:read')
   @Get('coverage')
   coverage(@Req() req: ProjectRequest, @Query('spec') spec?: string): Promise<unknown> {
     return this.specs.coverage({ projectId: projectOf(req), specKey: spec ?? null });
   }
 
   /** EP-REQ-01 */
+  @RequireScope('spec:read')
   @Get('requirements')
   requirements(
     @Req() req: ProjectRequest,
@@ -257,12 +272,14 @@ export class SpecController {
   }
 
   /** EP-REQ-02 */
+  @RequireScope('spec:read')
   @Get('requirements/:ref')
   requirement(@Req() req: ProjectRequest, @Param('ref') ref: string): Promise<unknown> {
     return this.specs.requirement({ projectId: projectOf(req), ref });
   }
 
   /** EP-REQ-03 — CI 가 PAT 로 부르는 경로이기도 하다 */
+  @RequireRole('developer', 'qa', 'admin')
   @Post('requirements/:ref/evidence')
   addEvidence(
     @Req() req: ProjectRequest,
@@ -286,6 +303,7 @@ export class SpecController {
   }
 
   /** EP-CMT-01 */
+  @RequireScope('spec:read')
   @Get('specs/:spec/comments')
   commentList(
     @Req() req: ProjectRequest,
@@ -300,6 +318,7 @@ export class SpecController {
   }
 
   /** EP-CMT-02 — viewer 도 쓴다. 지적은 권한이 아니라 참여다 */
+  @RequireScope('spec:read')
   @Post('spec-versions/:ver/comments')
   addComment(
     @Req() req: ProjectRequest,
@@ -322,6 +341,7 @@ export class SpecController {
   }
 
   /** EP-CMT-03 — 작성자 본인만 */
+  @RequireScope('spec:read')
   @Patch('comments/:id')
   updateComment(
     @Req() req: ProjectRequest,
@@ -343,6 +363,7 @@ export class SpecController {
   }
 
   /** EP-CMT-04 */
+  @RequireScope('spec:draft')
   @Post('comments/:id/resolve')
   resolveComment(
     @Req() req: ProjectRequest,
@@ -366,12 +387,14 @@ export class SpecController {
   }
 
   /** EP-SPEC-04 */
+  @RequireScope('spec:read')
   @Get('specs/:spec/versions')
   versions(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
     return this.specs.versions({ projectId: projectOf(req), specKey: spec });
   }
 
   /** EP-SPEC-05 — 불변 스냅샷. 같은 `{no}` 는 영원히 같은 응답이다 */
+  @RequireScope('spec:read')
   @Get('specs/:spec/versions/:no')
   version(
     @Req() req: ProjectRequest,
@@ -382,6 +405,7 @@ export class SpecController {
   }
 
   /** EP-SPEC-06 */
+  @RequireScope('spec:read')
   @Get('specs/:spec/diff')
   diff(
     @Req() req: ProjectRequest,
@@ -398,6 +422,7 @@ export class SpecController {
   }
 
   /** EP-SPEC-18 — 역참조가 1급이다: 수정 전 "누가 나를 참조하나"의 조회 경로 */
+  @RequireScope('spec:read')
   @Get('specs/:spec/relations')
   specRelations(
     @Req() req: ProjectRequest,
@@ -414,19 +439,20 @@ export class SpecController {
   }
 
   /** EP-SPEC-09 — 셀프서비스 사전 검토(읽기 전용) */
+  @RequireScope('spec:read')
   @Get('spec-versions/:ver/check')
   check(@Req() req: ProjectRequest, @Param('ver') ver: string): Promise<unknown> {
     return this.specs.check({ projectId: projectOf(req), specVersionId: ver });
   }
 
   /** EP-SPEC-15 — 메타 편집. 이동해도 버전·관계·코멘트는 그대로다(FR-01) */
+  @RequireScope('spec:meta')
   @Patch('specs/:spec')
   updateMeta(
     @Req() req: ProjectRequest,
     @Param('spec') spec: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:meta');
     const principal = requireHuman(req);
     return this.specs.updateMeta({
       projectId: projectOf(req),
@@ -441,9 +467,9 @@ export class SpecController {
   }
 
   /** EP-SPEC-16 */
+  @RequireScope('spec:meta')
   @Post('specs/:spec/archive')
   archive(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:meta');
     const principal = requireHuman(req);
     return this.specs.archive({
       projectId: projectOf(req),
@@ -453,9 +479,9 @@ export class SpecController {
   }
 
   /** EP-SPEC-17 */
+  @RequireScope('spec:meta')
   @Post('specs/:spec/restore')
   restore(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:meta');
     const principal = requireHuman(req);
     return this.specs.restore({
       projectId: projectOf(req),
@@ -465,12 +491,12 @@ export class SpecController {
   }
 
   /** EP-SPEC-12 — **사람 전용**. 동결은 거버넌스 행위다 */
+  @RequireScope('spec:approve')
   @Post('baselines')
   createBaseline(
     @Req() req: ProjectRequest,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:approve');
     const principal = requireHuman(req);
     return this.baselines.create({
       projectId: projectOf(req),
@@ -484,17 +510,17 @@ export class SpecController {
   /**
    * EP-SPEC-20 — 첨부 목록. 디자인 시안이 문서 밖에 있으면 문서가 아니다(§2.10).
    */
+  @RequireScope('spec:read')
   @Get('specs/:spec/attachments')
   attachments(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:read');
     return this.attachments_.list({ projectId: projectOf(req), specKey: spec });
   }
 
   /** EP-SPEC-21 — 사람 업로드(multipart). 에이전트는 presign 2단계를 쓴다 */
+  @RequireScope('spec:draft')
   @Post('specs/:spec/attachments')
   async upload(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
     const principal = principalOf(req);
-    assertScope(principal, 'spec:draft');
     const file = await (
       req as unknown as { file: () => Promise<MultipartFile | undefined> }
     ).file();
@@ -521,13 +547,13 @@ export class SpecController {
    * 무의미해진다. SVG 를 허용하므로(사람 결정) 응답에 **CSP sandbox 와 nosniff** 를 붙인다 —
    * `<img src>` 로 부른 SVG 는 스크립트를 실행하지 않지만, 주소를 직접 연 경우가 남는다.
    */
+  @RequireScope('spec:read')
   @Get('attachments/:id')
   async attachment(
     @Req() req: ProjectRequest,
     @Param('id') id: string,
     @Res() reply: RawReply,
   ): Promise<void> {
-    assertScope(principalOf(req), 'spec:read');
     const projectId = projectOf(req);
     const found = await this.attachments_.open({ projectId, attachmentId: id });
     if (found === null) {
@@ -553,9 +579,9 @@ export class SpecController {
       .send(object.body);
   }
 
+  @RequireScope('spec:draft')
   @Delete('attachments/:id')
   removeAttachment(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:draft');
     return this.attachments_.remove({ projectId: projectOf(req), attachmentId: id });
   }
 }

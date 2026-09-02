@@ -48,6 +48,8 @@ export const ko = {
   'error.auth.not_registered': '가입한 사용자가 아닙니다.',
   'error.auth.not_registered_hint': 'MVP 초대는 기존 사용자 배정입니다 — 먼저 가입해야 합니다.',
   'error.auth.project_out_of_scope': '토큰의 프로젝트 스코프 밖입니다.',
+  'error.auth.role_missing': '이 요청에 필요한 역할이 아닙니다.',
+  'error.auth.route_undeclared': '권한이 선언되지 않은 경로입니다 — 서버 설정 결함입니다.',
   'error.auth.scope_missing': '스코프가 부족합니다: {scope}',
   'error.auth.self_approve': '요청자는 자기 요청을 승인할 수 없습니다.',
   'error.auth.self_approve_spec': '작성자는 자기 스펙을 승인할 수 없습니다.',

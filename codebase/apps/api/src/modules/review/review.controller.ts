@@ -6,8 +6,9 @@
 
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
-import { assertScope, principalOf } from '../../common/scope-check.js';
+import { principalOf } from '../../common/scope-check.js';
 import { ReviewService } from './review.service.js';
 import type { ResolutionKind, SubmitFinding } from './review.service.js';
 
@@ -17,10 +18,10 @@ export class ReviewController {
   constructor(private readonly reviews: ReviewService) {}
 
   /** EP-REV-01 — 리뷰 제출. 도구 `nerv_review_submit` 과 같은 입구다 */
+  @RequireScope('review:submit')
   @Post('reviews')
   submit(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const principal = principalOf(req);
-    assertScope(principal, 'review:submit');
     const reviewer = (body['reviewer'] ?? {}) as { role?: string; risk?: string };
     return this.reviews.submit({
       projectId: req.nervProjectId!,
@@ -45,6 +46,7 @@ export class ReviewController {
   }
 
   /** EP-REV-03 — 발견 큐. S6 리뷰 센터가 읽는 곳. facet 은 같은 응답에 실린다 */
+  @RequireScope('spec:read')
   @Get('findings')
   findings(
     @Req() req: ProjectRequest,
@@ -54,7 +56,6 @@ export class ReviewController {
     @Query('area') area?: string,
     @Query('limit') limit?: string,
   ): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:read');
     return this.reviews.findings({
       projectId: req.nervProjectId!,
       // 기본은 **열린 것만**이다 — 처분한 것까지 함께 보이면 큐가 큐이기를 그만둔다
@@ -67,9 +68,9 @@ export class ReviewController {
   }
 
   /** EP-REV-04 — 브랜치별 게이트 현황. 표시일 뿐 집행이 아니다 */
+  @RequireScope('spec:read')
   @Get('gates/reviews')
   gateCoverage(@Req() req: ProjectRequest, @Query('limit') limit?: string): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:read');
     return this.reviews.gateCoverage(
       req.nervProjectId!,
       ...(limit === undefined ? [] : ([Number(limit)] as const)),
@@ -83,6 +84,7 @@ export class ReviewController {
    * 게이트가 막는 것은 "에이전트가 자기 리뷰의 심각도를 스스로 낮추는 것"이지 사람의
    * 판단이 아니다(agent-integration §2.3). 사람의 판단은 `rationale` 로 남는다.
    */
+  @RequireScope('review:resolve')
   @Post('findings/:id/resolve')
   resolve(
     @Req() req: ProjectRequest,
@@ -90,7 +92,6 @@ export class ReviewController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     const principal = principalOf(req);
-    assertScope(principal, 'review:resolve');
     const asked = String(body['resolution'] ?? 'dismissed');
     const status: 'fixed' | 'dismissed' | 'wont_fix' =
       asked === 'fixed' || asked === 'wont_fix' ? asked : 'dismissed';
@@ -108,6 +109,7 @@ export class ReviewController {
     });
   }
   /** EP-REV-07 — 발견에 사람의 말을 남긴다(2026-08-30 신설) */
+  @RequireScope('review:resolve')
   @Post('findings/:id/comments')
   comment(
     @Req() req: ProjectRequest,
@@ -115,7 +117,6 @@ export class ReviewController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     // 처분과 같은 스코프다 — 발견에 개입하는 같은 축의 행동이다
-    assertScope(principalOf(req), 'review:resolve');
     return this.reviews.comment({
       projectId: req.nervProjectId!,
       findingId: id,
@@ -124,16 +125,16 @@ export class ReviewController {
     });
   }
 
+  @RequireScope('spec:read')
   @Get('findings/:id/comments')
   findingComments(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
-    assertScope(principalOf(req), 'spec:read');
     return this.reviews.comments({ projectId: req.nervProjectId!, findingId: id });
   }
 
   /** EP-REV-08 — 발견을 Task 로 올린다(2026-08-30 신설 · REQ-API-059) */
+  @RequireScope('task:update')
   @Post('findings/:id/task')
   promote(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
-    assertScope(principalOf(req), 'task:update');
     return this.reviews.promote({
       projectId: req.nervProjectId!,
       findingId: id,
