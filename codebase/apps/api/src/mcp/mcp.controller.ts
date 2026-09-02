@@ -10,7 +10,7 @@
 // 이것이 가능한 이유는 **NERV 의 세션이 MCP 프로토콜 세션이 아니기 때문**이다 —
 // AgentSession 은 nerv_bootstrap 이 발급하고 PAT 에 묶이므로 리비전 변화의 영향을 받지 않는다.
 
-import { Body, Controller, Headers, Post, Req } from '@nestjs/common';
+import { Body, Controller, Headers, Post, Req, HttpCode, HttpStatus } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
 import { createTranslator, msg, negotiateLocale, renderMessage, NERV_ERROR } from '@nerv/schema';
 import type { Locale, Translator } from '@nerv/schema';
@@ -66,6 +66,13 @@ export class McpController {
     private readonly sessions: SessionService,
   ) {}
 
+  /**
+   * **200 이다, 201 이 아니다.** Nest 는 `@HttpCode` 가 없으면 POST 에 201 을 준다.
+   * JSON-RPC 응답은 "만들어진 자원"이 아니고, 무엇보다 이 상태 코드를 읽는 쪽이 있다:
+   * `bin/nerv-outbox flush` 는 200 만 성공으로 보고 201 은 4xx 도 아니라 **큐를 멈춘다** —
+   * 서버가 정상일수록 아웃박스가 영원히 비지 않았다(2026-09-02).
+   */
+  @HttpCode(HttpStatus.OK)
   @Post()
   async handle(
     @Body() body: JsonRpcRequest,

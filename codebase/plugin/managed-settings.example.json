@@ -24,6 +24,6 @@
   ],
   "statusLine": {
     "type": "command",
-    "command": "${CLAUDE_PLUGIN_ROOT}/statusline/nerv-statusline.sh"
+    "command": "$HOME/.claude/plugins/nerv/statusline/nerv-statusline.sh"
   }
 }

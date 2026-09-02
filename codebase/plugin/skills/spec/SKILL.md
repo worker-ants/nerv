@@ -5,14 +5,23 @@ paths:
   - "spec/**"
 allowed-tools:
   - mcp__nerv__nerv_spec_tree
+  - mcp__plugin_nerv_nerv__nerv_spec_tree
   - mcp__nerv__nerv_spec_search
+  - mcp__plugin_nerv_nerv__nerv_spec_search
   - mcp__nerv__nerv_spec_get
+  - mcp__plugin_nerv_nerv__nerv_spec_get
   - mcp__nerv__nerv_spec_draft_upsert
+  - mcp__plugin_nerv_nerv__nerv_spec_draft_upsert
   - mcp__nerv__nerv_spec_relate
+  - mcp__plugin_nerv_nerv__nerv_spec_relate
   - mcp__nerv__nerv_spec_attach
+  - mcp__plugin_nerv_nerv__nerv_spec_attach
   - mcp__nerv__nerv_spec_check
+  - mcp__plugin_nerv_nerv__nerv_spec_check
   - mcp__nerv__nerv_spec_comment_resolve
+  - mcp__plugin_nerv_nerv__nerv_spec_comment_resolve
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
 ---
 
 # /nerv:spec — 스펙 조회 · 초안 · 검토 요청

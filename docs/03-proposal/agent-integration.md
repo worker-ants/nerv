@@ -284,9 +284,16 @@ nerv-plugin/
             "headers": {
               "Authorization": "Bearer ${NERV_TOKEN}",
               "X-NERV-Project": "${NERV_PROJECT}",
-              "X-NERV-Host": "${NERV_HOSTNAME}"
+              "X-NERV-Host": "${NERV_HOSTNAME}",
+              "X-NERV-Agent": "claude-code"
             },
+            "allowedEnvVars": ["NERV_TOKEN", "NERV_PROJECT", "NERV_HOSTNAME"],
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
+            "timeout": 20
           }
         ]
       }
@@ -299,6 +306,7 @@ nerv-plugin/
             "type": "http",
             "url": "https://nerv.example.com/ingest/hooks/tool",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
             "async": true,
             "timeout": 3
           }
@@ -306,10 +314,30 @@ nerv-plugin/
       }
     ],
     "SubagentStart": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "async": true
+          }
+        ]
+      }
     ],
     "SubagentStop": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "async": true
+          }
+        ]
+      }
     ],
     "Stop": [
       {
@@ -318,13 +346,23 @@ nerv-plugin/
             "type": "http",
             "url": "https://nerv.example.com/ingest/hooks/stop",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 8
           }
         ]
       }
     ],
     "SessionEnd": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/session-end" } ] }
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/session-end",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"]
+          }
+        ]
+      }
     ]
   }
 }

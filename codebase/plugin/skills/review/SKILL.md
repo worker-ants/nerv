@@ -3,7 +3,9 @@ name: review
 description: 리뷰를 파일이 아니라 레코드로 제출한다. 검토 후 nerv_review_submit 으로 findings 를 올리고, 수정·판단 후 nerv_finding_resolve 로 처분한다. 리뷰 산출물을 저장소에 커밋하지 않는다.
 allowed-tools:
   - mcp__nerv__nerv_review_submit
+  - mcp__plugin_nerv_nerv__nerv_review_submit
   - mcp__nerv__nerv_finding_resolve
+  - mcp__plugin_nerv_nerv__nerv_finding_resolve
 ---
 
 # /nerv:review — 리뷰 제출과 발견 처분

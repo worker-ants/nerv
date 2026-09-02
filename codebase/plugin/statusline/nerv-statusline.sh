@@ -29,8 +29,12 @@ fnd="$(jq -r '.findings_open // 0' "$cache")"
 remain="--:--"
 if [[ -n "$exp" ]]; then
   now="$(date +%s)"
-  end="$(date -j -f '%Y-%m-%dT%H:%M:%S%z' "${exp/Z/+0000}" +%s 2>/dev/null \
-        || date -d "$exp" +%s 2>/dev/null || echo 0)"
+  # 서버가 주는 값은 `2026-09-02T08:17:56.568Z` — **밀리초가 있다.** BSD date 는 그 모양을
+  # `%Y-%m-%dT%H:%M:%S%z` 로 읽지 못해(GNU 는 읽는다) end=0 이 됐고, 그래서 macOS 에서는
+  # 리스가 얼마 남았든 **언제나 "만료"** 로 보였다(실측 2026-09-02).
+  iso="${exp%%.*}"; iso="${iso%Z}"
+  end="$(date -j -u -f '%Y-%m-%dT%H:%M:%S' "$iso" +%s 2>/dev/null \
+        || date -u -d "$exp" +%s 2>/dev/null || echo 0)"
   if (( end > now )); then
     remain="$(printf '%d:%02d' $(( (end - now) / 60 )) $(( (end - now) % 60 )))"
   else

@@ -3,12 +3,19 @@ name: impl
 description: 클레임한 Task의 구현 루프. 하트비트 60초 규약, pending 지시 처리, 진행 보고, 증적(commit/PR/test) 수집, 상태 전이. 구현 착수 시 사용.
 allowed-tools:
   - mcp__nerv__nerv_task_heartbeat
+  - mcp__plugin_nerv_nerv__nerv_task_heartbeat
   - mcp__nerv__nerv_task_get
+  - mcp__plugin_nerv_nerv__nerv_task_get
   - mcp__nerv__nerv_task_list
+  - mcp__plugin_nerv_nerv__nerv_task_list
   - mcp__nerv__nerv_task_update
+  - mcp__plugin_nerv_nerv__nerv_task_update
   - mcp__nerv__nerv_task_create
+  - mcp__plugin_nerv_nerv__nerv_task_create
   - mcp__nerv__nerv_task_release
+  - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
 ---
 
 # /nerv:impl — 구현 루프

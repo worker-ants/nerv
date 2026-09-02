@@ -3,6 +3,7 @@ name: question
 description: 판단 불가·경계 이탈·게이트 필요 상황의 에스컬레이션. 선택지를 구조화해 받은 요청으로 보내고, 같은 멱등 키 재호출로 답변을 폴링한다.
 allowed-tools:
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
 ---
 
 # /nerv:question — 에스컬레이션

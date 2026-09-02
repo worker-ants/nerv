@@ -77,23 +77,54 @@
 
   <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
-<pre><code>nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.1.0
-  .mcp.json                       # NERV MCP 서버 1개 (§3.3)
-  hooks/hooks.json                # type:"http" 훅 (§3.1)
-  skills/
-    next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
-    spec/SKILL.md                 # /nerv:spec     — 스펙 조회·초안·검토 요청 (§2.2)
-    impl/SKILL.md                 # /nerv:impl     — 구현 루프 + 하트비트 규약 (§2.3)
-    question/SKILL.md             # /nerv:question — 에스컬레이션 규약 (§2.4)
-    import/SKILL.md               # /nerv:import   — 임포터 CLI 래퍼 (§2.5)
-    # review/SKILL.md             (P2) /nerv:review — nerv_review_submit와 함께 추가
-  agents/
-    nerv-spec-writer.md           # 스펙 초안 전용(코드 쓰기 도구 미보유)
-    # nerv-code-reviewer.md       (P2) 리뷰 도구 2종과 함께 추가
-    # nerv-consistency-checker.md (P2)
-  bin/nerv-hook-forward           # 훅 헤더 토큰 주입 폴백 · Codex 공용 (§3.1 주의)
-  statusline/nerv-statusline.sh   # 클레임·리스·겹침 표시 (§3.2)</code></pre>
+<pre><code>#!/usr/bin/env bash
+# nerv-statusline.sh — 서버가 아는 사실의 로컬 투영. 네트워크 왕복 없음.
+# 입력 1: stdin — Claude Code 세션 JSON
+# 입력 2: .nerv/cache/claim.json — /nerv:impl 하트비트 응답이 갱신
+set -euo pipefail
+
+# 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
+. &quot;$(dirname &quot;${BASH_SOURCE[0]}&quot;)/../bin/nerv-env.sh&quot;
+
+input=&quot;$(cat)&quot;
+cache=&quot;${NERV_CACHE_DIR:-.nerv/cache}/claim.json&quot;
+
+model=&quot;$(jq -r &#x27;.model.display_name // &quot;?&quot;&#x27; &lt;&lt;&lt;&quot;$input&quot;)&quot;
+ctx=&quot;$(jq -r &#x27;.context_window.used_percentage // &quot;?&quot;&#x27; &lt;&lt;&lt;&quot;$input&quot;)&quot;
+cost=&quot;$(jq -r &#x27;.cost.total_cost_usd // empty&#x27; &lt;&lt;&lt;&quot;$input&quot;)&quot;
+
+if [[ ! -f &quot;$cache&quot; ]]; then
+  printf &#x27;◇ NERV %s · 클레임 없음 — /nerv:next\n&#x27; &quot;${NERV_PROJECT:-?}&quot;
+  printf &#x27;  %s · ctx %s%%%s\n&#x27; &quot;$model&quot; &quot;$ctx&quot; &quot;${cost:+ · \$$cost}&quot;
+  exit 0
+fi
+
+task=&quot;$(jq -r &#x27;.task_id // &quot;?&quot;&#x27; &quot;$cache&quot;)&quot;
+st=&quot;$(jq -r &#x27;.status // &quot;?&quot;&#x27; &quot;$cache&quot;)&quot;
+exp=&quot;$(jq -r &#x27;.lease_expires_at // empty&#x27; &quot;$cache&quot;)&quot;
+ov=&quot;$(jq -r &#x27;.scope_overlaps // 0&#x27; &quot;$cache&quot;)&quot;
+fnd=&quot;$(jq -r &#x27;.findings_open // 0&#x27; &quot;$cache&quot;)&quot;
+
+remain=&quot;--:--&quot;
+if [[ -n &quot;$exp&quot; ]]; then
+  now=&quot;$(date +%s)&quot;
+  # 서버가 주는 값은 `2026-09-02T08:17:56.568Z` — **밀리초가 있다.** BSD date 는 그 모양을
+  # `%Y-%m-%dT%H:%M:%S%z` 로 읽지 못해(GNU 는 읽는다) end=0 이 됐고, 그래서 macOS 에서는
+  # 리스가 얼마 남았든 **언제나 &quot;만료&quot;** 로 보였다(실측 2026-09-02).
+  iso=&quot;${exp%%.*}&quot;; iso=&quot;${iso%Z}&quot;
+  end=&quot;$(date -j -u -f &#x27;%Y-%m-%dT%H:%M:%S&#x27; &quot;$iso&quot; +%s 2&gt;/dev/null \
+        || date -u -d &quot;$exp&quot; +%s 2&gt;/dev/null || echo 0)&quot;
+  if (( end &gt; now )); then
+    remain=&quot;$(printf &#x27;%d:%02d&#x27; $(( (end - now) / 60 )) $(( (end - now) % 60 )))&quot;
+  else
+    remain=&quot;만료&quot;
+  fi
+fi
+
+printf &#x27;◆ NERV %s · %s %s · 리스 %s 남음 · scope 겹침 %s\n&#x27; \
+  &quot;${NERV_PROJECT:-?}&quot; &quot;$task&quot; &quot;$st&quot; &quot;$remain&quot; &quot;$ov&quot;
+printf &#x27;  %s · ctx %s%%%s · 미해소 finding %s\n&#x27; \
+  &quot;$model&quot; &quot;$ctx&quot; &quot;${cost:+ · \$$cost}&quot; &quot;$fnd&quot;</code></pre>
 
   <p><code>.claude-plugin/plugin.json</code> 전문:</p>
 
@@ -140,6 +171,8 @@
   <div class="callout note"><span class="ico">🔒</span><div class="body">
     <b class="title">allowed-tools 원칙</b>
     <p>frontmatter의 <code>allowed-tools</code>는 해당 턴 동안 <code>nerv_*</code> 도구를 무승인 허용하되 <b>A3 도구(<code>nerv_spec_submit_review</code>)는 어느 스킬의 목록에도 넣지 않는다</b> — 사람 승인 강제를 유지하기 위해서다. MCP 도구의 허용 목록 표기는 <code>mcp__nerv__&lt;도구명&gt;</code>(서버 이름 <code>nerv</code> + 카탈로그 도구명)이다.</p>
+  <p><b>이름이 설치 경로에 따라 다르다</b>(2026-09-02 정정). 플러그인이 <code>.mcp.json</code> 으로 서버를 번들하면 도구 이름에 플러그인·서버가 접두로 붙어 <code>mcp__plugin_nerv_nerv__&lt;도구명&gt;</code> 이 된다(Claude Code 플러그인 레퍼런스). <code>mcp__nerv__&lt;도구명&gt;</code> 은 프로젝트 <code>.mcp.json</code> 에 직접 등록했을 때의 이름이다 — README 의 "마켓플레이스 없이 쓰는 저장소" 경로가 그것이다. <b>두 경로 모두 지원해야 하므로 목록에 둘 다 적는다</b>: 마켓플레이스로 설치한 사람에게는 앞의 이름이 아무 도구와도 맞지 않아 60초 하트비트마다 승인 프롬프트가 뜬다.</p>
+
   </div></div>
 
   <h3>2.1 <code>skills/next/SKILL.md</code> — 다음 할 일 받아 클레임</h3>
@@ -664,64 +697,96 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
   <p><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3의 실물을 그대로 패키징한다. 훅은 텔레메트리 평면이다 — 끊겨도 세션은 진행되고, 게이트는 서버가 유지한다.</p>
 
 <pre><code>{
-  "hooks": {
-    "SessionStart": [
+  &quot;hooks&quot;: {
+    &quot;SessionStart&quot;: [
       {
-        "matcher": "startup|resume|clear|compact|fork",
-        "hooks": [
+        &quot;matcher&quot;: &quot;startup|resume|clear|compact|fork&quot;,
+        &quot;hooks&quot;: [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session",
-            "headers": {
-              "Authorization": "Bearer ${NERV_TOKEN}",
-              "X-NERV-Project": "${NERV_PROJECT}",
-              "X-NERV-Host": "${NERV_HOSTNAME}",
-              "X-NERV-Agent": "claude-code"
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session&quot;,
+            &quot;headers&quot;: {
+              &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot;,
+              &quot;X-NERV-Project&quot;: &quot;${NERV_PROJECT}&quot;,
+              &quot;X-NERV-Host&quot;: &quot;${NERV_HOSTNAME}&quot;,
+              &quot;X-NERV-Agent&quot;: &quot;claude-code&quot;
             },
-            "timeout": 5
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;, &quot;NERV_PROJECT&quot;, &quot;NERV_HOSTNAME&quot;],
+            &quot;timeout&quot;: 5
           },
           {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
-            "timeout": 20
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\&quot; flush&quot;,
+            &quot;timeout&quot;: 20
           }
         ]
       }
     ],
-    "PostToolUse": [
+    &quot;PostToolUse&quot;: [
       {
-        "matcher": "Write|Edit|MultiEdit|Bash",
-        "hooks": [
+        &quot;matcher&quot;: &quot;Write|Edit|MultiEdit|Bash&quot;,
+        &quot;hooks&quot;: [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/tool",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "async": true,
-            "timeout": 3
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/tool&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;async&quot;: true,
+            &quot;timeout&quot;: 3
           }
         ]
       }
     ],
-    "SubagentStart": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
-    ],
-    "SubagentStop": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
-    ],
-    "Stop": [
+    &quot;SubagentStart&quot;: [
       {
-        "hooks": [
+        &quot;hooks&quot;: [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/stop",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "timeout": 8
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;async&quot;: true
           }
         ]
       }
     ],
-    "SessionEnd": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/session-end" } ] }
+    &quot;SubagentStop&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;async&quot;: true
+          }
+        ]
+      }
+    ],
+    &quot;Stop&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/stop&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;timeout&quot;: 8
+          }
+        ]
+      }
+    ],
+    &quot;SessionEnd&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session-end&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;]
+          }
+        ]
+      }
     ]
   }
 }</code></pre>
@@ -847,7 +912,9 @@ printf '  %s · ctx %s%%%s · 미해소 finding %s\n' \
     </tbody>
   </table></div>
 
-  <p><code>.nerv/env</code> 의 규칙 셋: <b>이미 있는 값을 덮지 않는다</b>(위 표의 강한 자리가 이긴다) · <b><code>NERV_*</code> 만 읽는다</b>(저장소에 굴러다니는 파일이 <code>PATH</code> 를 갈아 끼우지 못하게) · 없으면 조용히 지나간다(프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다). 파일은 <code>.nerv/</code> 아래라 이미 <code>.gitignore</code> 대상이다(REQ-PLG-013).</p>
+    <p><b><code>${CLAUDE_PLUGIN_ROOT}</code> 는 플러그인 컴포넌트 안에서만 풀린다</b>(2026-09-02 정정). 관리형 settings 는 플러그인 파일이 아니라 그 밖의 설정이므로, 거기 적은 <code>${CLAUDE_PLUGIN_ROOT}/statusline/…</code> 은 치환되지 않고 그대로 남아 statusline 이 실행되지 않는다. 예시 파일은 설치 경로를 직접 적는다 — 조직의 배치가 다르면 그 경로로 바꾼다.</p>
+
+<p><code>.nerv/env</code> 의 규칙 셋: <b>이미 있는 값을 덮지 않는다</b>(위 표의 강한 자리가 이긴다) · <b><code>NERV_*</code> 만 읽는다</b>(저장소에 굴러다니는 파일이 <code>PATH</code> 를 갈아 끼우지 못하게) · 없으면 조용히 지나간다(프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다). 파일은 <code>.nerv/</code> 아래라 이미 <code>.gitignore</code> 대상이다(REQ-PLG-013).</p>
 
   <p>곁가지로 이것이 <b>미해결 실측 하나를 덜 위험하게</b> 만든다: 훅 <code>headers</code> 의 <code>${NERV_TOKEN}</code> 확장이 되는지가 아직 확인되지 않았는데(§3.1 주의 · 백로그), 폴백인 <code>bin/nerv-hook-forward</code> 는 <code>.nerv/env</code> 를 직접 읽으므로 확장 여부와 무관하다.</p>
 

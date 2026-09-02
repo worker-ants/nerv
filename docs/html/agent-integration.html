@@ -483,58 +483,96 @@
 
   <h3 id="sec-3-3">3.3 훅 설정 (<code>hooks/hooks.json</code>)</h3>
 <pre><code>{
-  "hooks": {
-    "SessionStart": [
+  &quot;hooks&quot;: {
+    &quot;SessionStart&quot;: [
       {
-        "matcher": "startup|resume|clear|compact|fork",
-        "hooks": [
+        &quot;matcher&quot;: &quot;startup|resume|clear|compact|fork&quot;,
+        &quot;hooks&quot;: [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session",
-            "headers": {
-              "Authorization": "Bearer ${NERV_TOKEN}",
-              "X-NERV-Project": "${NERV_PROJECT}",
-              "X-NERV-Host": "${NERV_HOSTNAME}"
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session&quot;,
+            &quot;headers&quot;: {
+              &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot;,
+              &quot;X-NERV-Project&quot;: &quot;${NERV_PROJECT}&quot;,
+              &quot;X-NERV-Host&quot;: &quot;${NERV_HOSTNAME}&quot;,
+              &quot;X-NERV-Agent&quot;: &quot;claude-code&quot;
             },
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit|Bash",
-        "hooks": [
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;, &quot;NERV_PROJECT&quot;, &quot;NERV_HOSTNAME&quot;],
+            &quot;timeout&quot;: 5
+          },
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/tool",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "async": true,
-            "timeout": 3
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\&quot; flush&quot;,
+            &quot;timeout&quot;: 20
           }
         ]
       }
     ],
-    "SubagentStart": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
-    ],
-    "SubagentStop": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
-    ],
-    "Stop": [
+    &quot;PostToolUse&quot;: [
       {
-        "hooks": [
+        &quot;matcher&quot;: &quot;Write|Edit|MultiEdit|Bash&quot;,
+        &quot;hooks&quot;: [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/stop",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "timeout": 8
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/tool&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;async&quot;: true,
+            &quot;timeout&quot;: 3
           }
         ]
       }
     ],
-    "SessionEnd": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/session-end" } ] }
+    &quot;SubagentStart&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;async&quot;: true
+          }
+        ]
+      }
+    ],
+    &quot;SubagentStop&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;async&quot;: true
+          }
+        ]
+      }
+    ],
+    &quot;Stop&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/stop&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;timeout&quot;: 8
+          }
+        ]
+      }
+    ],
+    &quot;SessionEnd&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;http&quot;,
+            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session-end&quot;,
+            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;]
+          }
+        ]
+      }
     ]
   }
 }</code></pre>

@@ -3,12 +3,19 @@ name: next
 description: NERV에서 다음 할 일을 받아 클레임한다. 세션 시작 직후, 또는 작업 전환 시 사용. 사람의 지시가 없으면 이 스킬이 지시다 — 임의로 작업을 고르지 않는다.
 allowed-tools:
   - mcp__nerv__nerv_bootstrap
+  - mcp__plugin_nerv_nerv__nerv_bootstrap
   - mcp__nerv__nerv_task_next
+  - mcp__plugin_nerv_nerv__nerv_task_next
   - mcp__nerv__nerv_task_get
+  - mcp__plugin_nerv_nerv__nerv_task_get
   - mcp__nerv__nerv_task_list
+  - mcp__plugin_nerv_nerv__nerv_task_list
   - mcp__nerv__nerv_task_claim
+  - mcp__plugin_nerv_nerv__nerv_task_claim
   - mcp__nerv__nerv_task_release
+  - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
 ---
 
 # /nerv:next — 다음 할 일 받아 클레임

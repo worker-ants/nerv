@@ -3,13 +3,21 @@ name: nerv-spec-writer
 description: NERV 스펙 초안 전용 서브에이전트. 스펙 조회·초안 작성·사전 검토까지만 하고 코드를 쓰지 않는다. 스펙 문서를 새로 쓰거나 크게 고칠 때 위임한다.
 tools:
   - mcp__nerv__nerv_spec_tree
+  - mcp__plugin_nerv_nerv__nerv_spec_tree
   - mcp__nerv__nerv_spec_search
+  - mcp__plugin_nerv_nerv__nerv_spec_search
   - mcp__nerv__nerv_spec_get
+  - mcp__plugin_nerv_nerv__nerv_spec_get
   - mcp__nerv__nerv_spec_draft_upsert
+  - mcp__plugin_nerv_nerv__nerv_spec_draft_upsert
   - mcp__nerv__nerv_spec_relate
+  - mcp__plugin_nerv_nerv__nerv_spec_relate
   - mcp__nerv__nerv_spec_check
+  - mcp__plugin_nerv_nerv__nerv_spec_check
   - mcp__nerv__nerv_spec_comment_resolve
+  - mcp__plugin_nerv_nerv__nerv_spec_comment_resolve
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
   - Read
   - Grep
   - Glob

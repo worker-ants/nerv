@@ -108,6 +108,8 @@ nerv-plugin/
 
 frontmatter의 `allowed-tools`는 해당 턴 동안 `nerv_*` 도구를 무승인 허용하되 **A3 도구(`nerv_spec_submit_review`)는 어느 스킬의 목록에도 넣지 않는다** — 사람 승인 강제를 유지하기 위해서다. MCP 도구의 허용 목록 표기는 `mcp__nerv__<도구명>`(서버 이름 `nerv` + 카탈로그 도구명)이다.
 
+**이름이 설치 경로에 따라 다르다**(2026-09-02 정정). 플러그인이 `.mcp.json` 으로 서버를 번들하면 도구 이름에 플러그인·서버가 접두로 붙어 `mcp__plugin_nerv_nerv__<도구명>` 이 된다(Claude Code 플러그인 레퍼런스). `mcp__nerv__<도구명>` 은 프로젝트 `.mcp.json` 에 직접 등록했을 때의 이름이다 — README 의 "마켓플레이스 없이 쓰는 저장소" 경로가 그것이다. **두 경로 모두 지원해야 하므로 목록에 둘 다 적는다**: 마켓플레이스로 설치한 사람에게는 앞의 이름이 아무 도구와도 맞지 않아 60초 하트비트마다 승인 프롬프트가 뜬다.
+
 ### 2.1 `skills/next/SKILL.md` — 다음 할 일 받아 클레임
 
 ````markdown
@@ -116,12 +118,19 @@ name: next
 description: NERV에서 다음 할 일을 받아 클레임한다. 세션 시작 직후, 또는 작업 전환 시 사용. 사람의 지시가 없으면 이 스킬이 지시다 — 임의로 작업을 고르지 않는다.
 allowed-tools:
   - mcp__nerv__nerv_bootstrap
+  - mcp__plugin_nerv_nerv__nerv_bootstrap
   - mcp__nerv__nerv_task_next
+  - mcp__plugin_nerv_nerv__nerv_task_next
   - mcp__nerv__nerv_task_get
+  - mcp__plugin_nerv_nerv__nerv_task_get
   - mcp__nerv__nerv_task_list
+  - mcp__plugin_nerv_nerv__nerv_task_list
   - mcp__nerv__nerv_task_claim
+  - mcp__plugin_nerv_nerv__nerv_task_claim
   - mcp__nerv__nerv_task_release
+  - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
 ---
 
 # /nerv:next — 다음 할 일 받아 클레임
@@ -187,14 +196,23 @@ paths:
   - "spec/**"
 allowed-tools:
   - mcp__nerv__nerv_spec_tree
+  - mcp__plugin_nerv_nerv__nerv_spec_tree
   - mcp__nerv__nerv_spec_search
+  - mcp__plugin_nerv_nerv__nerv_spec_search
   - mcp__nerv__nerv_spec_get
+  - mcp__plugin_nerv_nerv__nerv_spec_get
   - mcp__nerv__nerv_spec_draft_upsert
+  - mcp__plugin_nerv_nerv__nerv_spec_draft_upsert
   - mcp__nerv__nerv_spec_relate
+  - mcp__plugin_nerv_nerv__nerv_spec_relate
   - mcp__nerv__nerv_spec_attach
+  - mcp__plugin_nerv_nerv__nerv_spec_attach
   - mcp__nerv__nerv_spec_check
+  - mcp__plugin_nerv_nerv__nerv_spec_check
   - mcp__nerv__nerv_spec_comment_resolve
+  - mcp__plugin_nerv_nerv__nerv_spec_comment_resolve
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
 ---
 
 # /nerv:spec — 스펙 조회 · 초안 · 검토 요청
@@ -358,12 +376,19 @@ name: impl
 description: 클레임한 Task의 구현 루프. 하트비트 60초 규약, pending 지시 처리, 진행 보고, 증적(commit/PR/test) 수집, 상태 전이. 구현 착수 시 사용.
 allowed-tools:
   - mcp__nerv__nerv_task_heartbeat
+  - mcp__plugin_nerv_nerv__nerv_task_heartbeat
   - mcp__nerv__nerv_task_get
+  - mcp__plugin_nerv_nerv__nerv_task_get
   - mcp__nerv__nerv_task_list
+  - mcp__plugin_nerv_nerv__nerv_task_list
   - mcp__nerv__nerv_task_update
+  - mcp__plugin_nerv_nerv__nerv_task_update
   - mcp__nerv__nerv_task_create
+  - mcp__plugin_nerv_nerv__nerv_task_create
   - mcp__nerv__nerv_task_release
+  - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
 ---
 
 # /nerv:impl — 구현 루프
@@ -458,6 +483,7 @@ name: question
 description: 판단 불가·경계 이탈·게이트 필요 상황의 에스컬레이션. 선택지를 구조화해 받은 요청으로 보내고, 같은 멱등 키 재호출로 답변을 폴링한다.
 allowed-tools:
   - mcp__nerv__nerv_question_create
+  - mcp__plugin_nerv_nerv__nerv_question_create
 ---
 
 # /nerv:question — 에스컬레이션
@@ -575,7 +601,9 @@ name: review
 description: 리뷰를 파일이 아니라 레코드로 제출한다. 검토 후 nerv_review_submit 으로 findings 를 올리고, 수정·판단 후 nerv_finding_resolve 로 처분한다. 리뷰 산출물을 저장소에 커밋하지 않는다.
 allowed-tools:
   - mcp__nerv__nerv_review_submit
+  - mcp__plugin_nerv_nerv__nerv_review_submit
   - mcp__nerv__nerv_finding_resolve
+  - mcp__plugin_nerv_nerv__nerv_finding_resolve
 ---
 
 # /nerv:review — 리뷰 제출과 발견 처분
@@ -661,6 +689,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
               "X-NERV-Host": "${NERV_HOSTNAME}",
               "X-NERV-Agent": "claude-code"
             },
+            "allowedEnvVars": ["NERV_TOKEN", "NERV_PROJECT", "NERV_HOSTNAME"],
             "timeout": 5
           },
           {
@@ -679,6 +708,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "type": "http",
             "url": "https://nerv.example.com/ingest/hooks/tool",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
             "async": true,
             "timeout": 3
           }
@@ -686,10 +716,30 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
       }
     ],
     "SubagentStart": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "async": true
+          }
+        ]
+      }
     ],
     "SubagentStop": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/subagent", "async": true } ] }
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "async": true
+          }
+        ]
+      }
     ],
     "Stop": [
       {
@@ -698,13 +748,23 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "type": "http",
             "url": "https://nerv.example.com/ingest/hooks/stop",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 8
           }
         ]
       }
     ],
     "SessionEnd": [
-      { "hooks": [ { "type": "http", "url": "https://nerv.example.com/ingest/hooks/session-end" } ] }
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/session-end",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"]
+          }
+        ]
+      }
     ]
   }
 }
@@ -764,8 +824,12 @@ fnd="$(jq -r '.findings_open // 0' "$cache")"
 remain="--:--"
 if [[ -n "$exp" ]]; then
   now="$(date +%s)"
-  end="$(date -j -f '%Y-%m-%dT%H:%M:%S%z' "${exp/Z/+0000}" +%s 2>/dev/null \
-        || date -d "$exp" +%s 2>/dev/null || echo 0)"
+  # 서버가 주는 값은 `2026-09-02T08:17:56.568Z` — **밀리초가 있다.** BSD date 는 그 모양을
+  # `%Y-%m-%dT%H:%M:%S%z` 로 읽지 못해(GNU 는 읽는다) end=0 이 됐고, 그래서 macOS 에서는
+  # 리스가 얼마 남았든 **언제나 "만료"** 로 보였다(실측 2026-09-02).
+  iso="${exp%%.*}"; iso="${iso%Z}"
+  end="$(date -j -u -f '%Y-%m-%dT%H:%M:%S' "$iso" +%s 2>/dev/null \
+        || date -u -d "$exp" +%s 2>/dev/null || echo 0)"
   if (( end > now )); then
     remain="$(printf '%d:%02d' $(( (end - now) / 60 )) $(( (end - now) % 60 )))"
   else
@@ -824,6 +888,8 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | **저장소 `.claude/settings.local.json` 의 `env`** | Claude Code 한정 · **프로젝트별** | 개발자 기계의 기본값. 기본 gitignore 대상이라 토큰이 커밋되지 않는다. **정적 문자열만** 받으므로 `$(hostname -s)` 같은 값은 넣을 수 없다(스크립트가 스스로 폴백한다) |
 | **저장소 `.nerv/env`** | Claude Code 밖까지 — Codex `bearer_token_env_var` · `nerv` CLI · statusline · 훅 포워더 | 한 파일로 전부 덮고 싶을 때. `bin/nerv-env.sh` 가 읽는다 |
 | 셸 프로필 `export` | 기계 전체 | 그 기계가 **한 프로젝트만** 쓸 때 |
+
+**`${CLAUDE_PLUGIN_ROOT}` 는 플러그인 컴포넌트 안에서만 풀린다**(2026-09-02 정정). 관리형 settings 는 플러그인 파일이 아니라 그 밖의 설정이므로, 거기 적은 `${CLAUDE_PLUGIN_ROOT}/statusline/…` 은 치환되지 않고 그대로 남아 statusline 이 실행되지 않는다. 예시 파일은 설치 경로를 직접 적는다 — 조직의 배치가 다르면 그 경로로 바꾼다.
 
 `.nerv/env` 의 규칙 셋: **이미 있는 값을 덮지 않는다**(위 표의 강한 자리가 이긴다) · **`NERV_*` 만 읽는다**(저장소에 굴러다니는 파일이 `PATH` 를 갈아 끼우지 못하게) · 없으면 조용히 지나간다(프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다). 파일은 `.nerv/` 아래라 이미 `.gitignore` 대상이다(REQ-PLG-013).
 

@@ -918,3 +918,22 @@ async function seed(): Promise<void> {
     [newId(), projectId],
   );
 }
+
+describe('응답 상태 코드 — 200 이다 (bin/nerv-outbox 가 읽는다)', () => {
+  it('tools/call 성공은 200 · 도구 실패도 200 + isError 다', async () => {
+    // Nest 기본값(201)이면 아웃박스 flush 가 "성공도 4xx 도 아니다" 로 읽고 큐를 멈춘다 —
+    // 서버가 정상일수록 큐가 비지 않는 상태가 됐다(2026-09-02).
+    const ok = await rpc('tools/call', {
+      name: 'nerv_spec_tree',
+      arguments: { project: 'clemvion' },
+    });
+    expect(ok.status).toBe(200);
+
+    const bad = await rpc('tools/call', {
+      name: 'nerv_spec_get',
+      arguments: {},
+    });
+    expect(bad.status).toBe(200);
+    expect((bad.body['result'] as Record<string, unknown>)['isError']).toBe(true);
+  });
+});
