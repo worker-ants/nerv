@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.24 · 2026-09-01 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.25 · 2026-09-02 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.25 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.24 변경(2026-09-01 — 사람 보고의 곁가지): `SessionStart` 훅이 **outbox 를 먼저 비운다**(§3.4 · REQ-PLG-016). flush 주체가 "다음 스킬 턴" 뿐이라, 서버가 죽은 동안 큐잉하고 세션을 끝내면 그 쓰기가 언제 갈지 아무도 몰랐다.
 >
 > v0.23 변경(2026-09-01 — 도구 1종 신설 반영): `skills/spec` 에 **"시안·문서는 첨부한다"** 절(§2.2) — `nerv_spec_attach` 의 2단계 절차와, 확정 뒤 **본문에 이미지로 넣으라는** 지시다. 매달기만 하고 본문에 안 넣으면 문서를 읽는 사람은 그 그림을 못 본다.
@@ -1031,7 +1032,7 @@ export NERV_HOSTNAME="$(hostname -s)"
 
 - 5단계에서 클레임까지 이어가면 그것이 곧 수용 기준 REQ-PLG-002의 검증 시나리오다(§6).
 - 헤드리스/CI 경로(`claude -p`)는 PAT를 단일 호출 스코프로 주입하고, 플러그인·MCP 적재는 stream-json의 `system/init` 메시지로 확인한다.
-- 기획자도 같은 절차다 — 온보딩 후 터미널에서 `claude "/nerv:spec edit SPC-CWC-007"`로 웹 에디터와 같은 초안을 이어쓴다(리스 자동 인계, [3.6 화면 설계](../03-proposal/ui-wireframes.md) S3 ⑫).
+- 기획자도 같은 절차다 — 온보딩 후 터미널에서 `claude "/nerv:spec edit SPC-CWC-007"`로 웹 에디터와 같은 초안을 이어쓴다(리스는 `takeover` 로 이어받는다 — [3.6 화면 설계](../03-proposal/ui-wireframes.md) S3 ⑫).
 
 ---
 

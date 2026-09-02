@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.24 (2026-09-01)</span>
+      <span>버전 v0.25 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -1045,7 +1045,7 @@ export NERV_HOSTNAME="$(hostname -s)"</code></pre>
   <ul>
     <li>5단계에서 클레임까지 이어가면 그것이 곧 수용 기준 REQ-PLG-002의 검증 시나리오다(<a href="#sec-6">§6</a>).</li>
     <li>헤드리스/CI 경로(<code>claude -p</code>)는 PAT를 단일 호출 스코프로 주입하고, 플러그인·MCP 적재는 stream-json의 <code>system/init</code> 메시지로 확인한다.</li>
-    <li>기획자도 같은 절차다 — 온보딩 후 터미널에서 <code>claude "/nerv:spec edit SPC-CWC-007"</code>로 웹 에디터와 같은 초안을 이어쓴다(리스 자동 인계, <a href="ui-wireframes.html">3.6 화면 설계</a> S3 ⑫).</li>
+    <li>기획자도 같은 절차다 — 온보딩 후 터미널에서 <code>claude "/nerv:spec edit SPC-CWC-007"</code>로 웹 에디터와 같은 초안을 이어쓴다(리스는 <code>takeover</code> 로 이어받는다 — <a href="ui-wireframes.html">3.6 화면 설계</a> S3 ⑫).</li>
   </ul>
 
   <h2 id="sec-5">5. Codex — MVP 경계</h2>

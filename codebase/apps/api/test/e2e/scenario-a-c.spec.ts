@@ -41,7 +41,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (AVAILABLE) await stack.close();
+  // **`stack` 이 없을 수도 있다.** 기동이 실패하면 이 훅이 `undefined.close()` 로 다시
+  // 터져서, 원인 하나가 실패 둘로 보고된다 — 진짜 이유가 두 번째 오류에 묻힌다.
+  if (stack !== undefined) await stack.close();
 });
 
 /** 세션을 띄운다 — 클레임은 세션 신원 위에서만 성립한다(D-08). */

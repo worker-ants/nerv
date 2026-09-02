@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.60 (2026-09-02)</span>
+      <span>버전 v0.61 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -1588,7 +1588,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     <tbody>
       <tr><td>획득</td><td>draft 에디터를 여는 순간 자동 획득 — 별도 버튼 없음. 상단에 <code>✏️ 편집 중 — &lt;사용자&gt; · 웹 · 방금</code> 배지</td></tr>
       <tr><td>갱신</td><td>저장 시 + 에디터가 열려 있는 동안 60초 주기 갱신(하트비트 상수 재사용). 리스 잔여 2분 미만이면 배지를 호박색으로 전환(S4 리스 표시 임계와 동일)</td></tr>
-      <tr><td>같은 사용자, 다른 표면</td><td>터미널에서 열면 자동 인계 — 웹 에디터는 읽기 전용으로 전환되고 "터미널 세션 <code>&lt;hostname&gt;/&lt;agent_type&gt;</code>이 이어쓰는 중" 배지 + 이전 표면 알림</td></tr>
+      <tr><td>같은 사용자, 다른 표면</td><td><b>다른 자리다</b> — 리스 보유자는 <code>(user, session)</code> 이라 세션 없는 웹 탭과 터미널 세션이 서로를 막는다(2026-08-30 개정). 터미널은 <code>takeover: true</code> 로 이어받고, 웹 에디터는 읽기 전용 + 배지와 <b>[이어받기]</b> 버튼을 보인다</td></tr>
       <tr><td>다른 사용자</td><td>읽기 전용 + 보유자 배지 + [인계 요청](보유자 알림, 승인 시 이전). 에이전트 upsert는 <code>NERV_DRAFT_LEASED</code> 하드 차단</td></tr>
       <tr><td>해제</td><td>검토 요청 성공 · 에디터 닫기 · TTL 만료</td></tr>
       <tr><td>최후 방어선</td><td>리스와 무관하게 저장은 <code>base_version</code> 전제조건을 갖는다 — 409는 §1.5의 <code>NERV_PRECONDITION</code> 다이얼로그</td></tr>

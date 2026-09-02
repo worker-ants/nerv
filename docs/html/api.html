@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 22종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.52 (2026-09-02)</span>
+      <span>버전 v0.53 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -823,7 +823,7 @@
     <li><b>인덱싱 시점</b>: 검색 인덱스 갱신은 워커 <code>embedding.job</code> 비동기다 — 저장 직후 수 초간 벡터 결과에 새 본문이 빠질 수 있고, 렉시컬은 트랜잭션 내 인덱스라 즉시 반영된다. 이 비대칭은 수용한다(스펙 검색은 실시간 조정이 아니다).</li>
   </ul>
 
-  <p>초안 편집 리스는 EP-SPEC-08 성공 시 자동 획득·갱신되고(웹 표면), 타 사용자 보유 시 409 <code>NERV_DRAFT_LEASED</code>를 반환한다. TTL 30분·자동 인계·해제 조건은 <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.2 정본을 따른다.</p>
+  <p>초안 편집 리스는 EP-SPEC-08 성공 시 자동 획득·갱신되고(웹 표면), 리스를 쥔 <code>(user, session)</code> 이 아닌 저장은 409 <code>NERV_DRAFT_LEASED</code>를 반환한다. TTL 30분·<b>명시 인계</b>(<code>takeover</code>)·해제 조건은 <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §1.2 정본을 따르며, 보유자 단위와 인계 규약은 §1.4h 가 정본이다.<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.2 정본을 따른다.</p>
 
   <h3 id="ep-req">2.3 요구사항 (Requirement)</h3>
 
@@ -1254,7 +1254,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td>REQ-API-004</td><td>WHEN 같은 <code>Idempotency-Key</code>에 다른 본문이 오면 THE SYSTEM SHALL HTTP 409 <code>NERV_PRECONDITION</code>(<code>details.kind = "idempotency_mismatch"</code>)을 반환한다</td><td>본문 변조 재호출</td></tr>
       <tr><td>REQ-API-005</td><td>WHEN 리스가 만료된 클레임으로 상태 변경(EP-TASK-09 등)이 시도되면 THE SYSTEM SHALL HTTP 409 <code>NERV_LEASE_EXPIRED</code>를 반환하고, 재클레임 가능 여부를 <code>details</code>에 싣는다</td><td>리스 만료 후 done 전이 거부(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.7 리스 규약)</td></tr>
       <tr><td>REQ-API-006</td><td>WHEN <code>base_hash</code>가 빠졌거나 현재 본문 지문과 불일치하는 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 <code>NERV_PRECONDITION</code>(<code>base_hash_required</code>·<code>stale_body</code>)과 현재 지문을 반환하고 본문을 저장하지 않는다(2026-08-30 개정 — 예전 문형은 <code>base_version</code> 기준이었고 초안 단계에서 아무것도 막지 못했다, §1.4g·§1.4i)</td><td>웹·터미널 동시 편집 경합</td></tr>
-      <tr><td>REQ-API-007</td><td>WHEN 다른 사용자가 편집 리스를 보유한 draft에 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 <code>NERV_DRAFT_LEASED</code>와 보유자(사용자·표면)를 반환한다. WHEN 같은 사용자가 다른 표면에서 요청하면 THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알림을 만든다</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.2 표 재현</td></tr>
+      <tr><td>REQ-API-007</td><td>WHEN 다른 <b>세션</b>이 편집 리스를 보유한 draft에 EP-SPEC-08 요청이 오면 THE SYSTEM SHALL HTTP 409 <code>NERV_DRAFT_LEASED</code>와 보유자(표시 이름·만료 시각)를 반환한다. WHEN 요청이 <code>takeover</code>를 실으면 THE SYSTEM SHALL 리스를 넘겨받고 그 사실을 이벤트에 남긴다(2026-08-30 개정 — 예전 문형은 사용자 단위였고 같은 PAT로 도는 병렬 세션끼리 서로를 막지 못했다, §1.4h)</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §1.2 표 재현</td></tr>
       <tr><td>REQ-API-008</td><td>WHEN 승인 요청자 본인·초안 작성 세션의 소유자가 EP-APR-03으로 승인을 시도하면 THE SYSTEM SHALL HTTP 403 <code>NERV_FORBIDDEN</code>(<code>details.kind = "self_approval"</code>)을 반환한다 — <b>단 그 사람이 <code>admin</code> 이거나 멤버가 2인 미만이면 허용하고 <code>self_approved</code> 로 기록한다</b>(2026-08-31 개정 — REQ-API-062). WHEN 대상 content hash가 변해 있으면 THE SYSTEM SHALL 같은 코드로 stale 승인을 거부한다</td><td>§2.3 판정 5규칙 각각 1케이스</td></tr>
       <tr><td>REQ-API-009</td><td>WHEN 미인증 소켓이 <code>/ws</code>에 연결을 시도하면 THE SYSTEM SHALL <code>connect_error</code>(<code>NERV_UNAUTHENTICATED</code>)로 끊고, WHEN 비멤버가 <code>project:{id}</code> join을 시도하면 THE SYSTEM SHALL ack <code>{ok:false, code:"NERV_FORBIDDEN"}</code>을 반환하며 룸에 넣지 않는다</td><td>비멤버 join 후 이벤트 미수신 확인</td></tr>
       <tr><td>REQ-API-010</td><td>WHEN WebSocket 또는 SSE 클라이언트가 재연결에 성공하면 THE SYSTEM SHALL 밀린 이벤트를 재전송하지 않는다(재조회는 클라이언트 책임 — D-14). SSE의 <code>Last-Event-ID</code> 헤더는 무시한다</td><td>단절 구간 이벤트 발생 후 재연결, 수신 0건 확인(WS·SSE 각 1건)</td></tr>

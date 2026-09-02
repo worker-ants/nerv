@@ -9,7 +9,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NERV_EVENT } from '@nerv/schema';
@@ -33,7 +33,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (AVAILABLE) await stack.close();
+  // **`stack` 이 없을 수도 있다.** 기동이 실패하면 이 훅이 `undefined.close()` 로 다시
+  // 터져서, 원인 하나가 실패 둘로 보고된다 — 진짜 이유가 두 번째 오류에 묻힌다.
+  if (stack !== undefined) await stack.close();
 });
 
 describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복 (성공 기준 1-11)', () => {
@@ -54,7 +56,10 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
       userId: jimin,
     });
     const specId = draft['spec_id'] as string;
-    expect(draft['web_url']).toBe('/p/clemvion/specs/SPC-CWC-007');
+    // **끝을 본다.** `web_url` 은 `NERV_PUBLIC_URL` 이 있으면 절대 주소, 없으면 경로다
+    // (§1.4g 의 딥링크 — 에이전트는 눌러서 열 수 있어야 한다). 경로 하나로 못박으면
+    // 그 변수를 가진 기계에서만 깨지는 검사가 된다.
+    expect(String(draft['web_url'])).toMatch(/\/p\/clemvion\/specs\/SPC-CWC-007$/);
 
     const { rows: leased } = await stack.pool.query<{ holder: string }>(
       `SELECT edit_lease_user_id AS holder FROM spec_version WHERE id = $1`,
@@ -62,7 +67,16 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
     );
     expect(leased[0]?.holder).toBe(jimin); // 리스 보유자 표시
 
-    // 2단계 — **같은 사용자**가 터미널에서 이어쓴다. 자동 인계여야 한다
+    // 2단계 — 같은 사용자가 터미널에서 이어쓴다.
+    //
+    // **명시 인계다**(2026-08-30 사람 결정 · api.md §1.4h). 예전 리스는 사용자 단위라
+    // "같은 사용자면 자동 인계" 였는데, 실제 배치는 PAT 하나 = 사용자 하나 = 세션 여럿이라
+    // 병렬 에이전트들이 서로를 전혀 막지 못했다 — 리스는 있는데 아무것도 잠그지 않았다.
+    // 보유자를 `(user, session)` 으로 좁힌 뒤로, 세션 없는 웹 탭이 쥔 리스를 터미널 세션이
+    // 이어받는 것도 인계다. 서버는 거절하면서 응답에 `takeover: true` 로 길을 알려 준다.
+    //
+    // 사람이 겪는 왕복은 그대로다: 한 번의 호출로 이어 쓴다. 다른 것은 그 호출이
+    // **인계를 말한다**는 사실이고, 그 사실이 이벤트에 남는다.
     const session = await callTool(stack, jiminToken, 'nerv_bootstrap', {
       project: stack.projectSlug,
       agent_type: 'claude-code',
@@ -75,11 +89,21 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
       spec_id: specId,
       body_md:
         '# 웹챗 위젯 임베드\n\nREQ-CWC-031 WHEN 방문자가 위젯을 열면 THE SYSTEM SHALL 대화를 복원한다\n\n## 보안\n토큰으로 검증한다',
-      base_version: draft['spec_version_id'],
+      // 계보가 아니라 **지문**이다(§1.4i — `base_version` 은 2026-08-30 에 표면에서 걷었다)
+      base_hash: draft['content_hash'] as string,
+      takeover: true,
       idempotency_key: `d-terminal-${specId}`,
       session_id: sessionId,
     });
     expect(terminal.error).toBeNull();
+
+    // 인계는 기록된다 — 뺏은 사실이 남지 않으면 "누가 내 초안을 밀었나"에 답할 수 없다
+    const { rows: handover } = await stack.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM event
+        WHERE type = $1 AND payload->>'takeover' = 'true'`,
+      [NERV_EVENT.SPEC_DRAFT_UPDATED],
+    );
+    expect(handover[0]?.n).toBe(1);
 
     // 3단계 — 사전 검토 후 웹으로 복귀해 마무리
     const check = await callTool(stack, jiminToken, 'nerv_spec_check', {
@@ -87,22 +111,33 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
     });
     expect(check.error).toBeNull();
 
+    // 돌아오는 길도 인계다 — 이제 리스는 터미널 세션이 쥐고 있다. 화면에서는 편집기 위의
+    // "이어받기" 버튼(`data-testid="lease-takeover"`)이 이 인자를 싣는다. 사람이 겪는 것은
+    // 배너 한 줄과 클릭 한 번이고, 막히지 않는다는 것이 이 시나리오의 판정이다.
+    const { rows: current } = await stack.pool.query<{ h: string }>(
+      `SELECT encode(v.content_hash, 'hex') AS h FROM spec_version v
+        WHERE v.spec_id = $1 ORDER BY v.version_no DESC LIMIT 1`,
+      [specId],
+    );
     await specs.draftUpsert({
       roles: ['planner'],
       projectId: stack.projectId,
       specId,
       bodyMd:
         '# 웹챗 위젯 임베드\n\nREQ-CWC-031 WHEN 방문자가 위젯을 열면 THE SYSTEM SHALL 대화를 복원한다\n\n## 보안\n토큰으로 검증한다\n\n## 마무리\n웹에서 이어서 쓴다',
-      // 계보는 서버가 채운다(§1.4i) — 부른 쪽이 말하는 전제조건은 지문 하나다
-      baseHash: draft['content_hash'] as string,
+      // 터미널이 저장한 뒤라 지문이 바뀌었다 — 다시 읽고 그 위에 얹는다(§1.4g)
+      baseHash: current[0]?.h ?? '',
+      takeover: true,
       userId: jimin,
     });
 
-    // 판정 — 두 개의 0
+    // 판정 — **사람이 막힌 적이 없다.** 인계는 한 번의 호출로 끝났고(위 `takeover`),
+    // 리스 때문에 왕복이 늘거나 편집이 버려진 자리는 없다. 리스 관련 이벤트가 따로
+    // 쌓이지 않는다는 것이 그 증거다.
     const { rows: errors } = await stack.pool.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM event WHERE type LIKE '%lease%'`,
     );
-    expect(errors[0]?.n).toBe(0); // NERV_DRAFT_LEASED 로 막힌 적이 없다
+    expect(errors[0]?.n).toBe(0);
   });
 
   it('4단계 — 제출 → 코멘트 → 해소 → 승인이 전부 플랫폼 안에서 끝난다 (성공 기준 1-1)', async () => {
@@ -195,16 +230,31 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
    * 반드시 **비동기**여야 한다: 이 테스트 안에서는 API 서버가 같은 프로세스에 떠 있어서,
    * execFileSync 로 자식을 기다리면 이벤트 루프가 막혀 서버가 요청에 답하지 못한다 —
    * CLI 와 API 가 서로를 기다리는 교착이 된다(실측: 60초 타임아웃까지 매달렸다).
-   * `pnpm exec` 대신 tsx 바이너리를 직접 부르는 것도 같은 이유(출력 파이프 지연)다.
+   * `pnpm exec` 를 거치지 않고 바이너리를 직접 부르는 것도 같은 이유(출력 파이프 지연)다.
+   *
+   * **빌드 산출물을 부른다**(2026-09-02 정정). 예전에는 `node_modules/.bin/tsx` 로 소스를
+   * 실행했는데 `tsx` 는 vite 의 peer 로 딸려 온 **선언되지 않은 전이 의존**이라, 로컬에는
+   * 우연히 링크돼 있고 CI(`--frozen-lockfile`)에는 없었다. execFile 이 ENOENT 로 죽으면
+   * stdout·stderr 이 둘 다 비어서 이 함수는 빈 문자열을 돌려줬고, 검사는 "출력에 그 말이
+   * 없다"로 실패했다 — **CLI 가 실행조차 되지 않았다는 사실이 그 메시지에 없었다.**
+   * 그 뒤 `--apply` 검사까지 연쇄로 무너졌다(적재가 0건이니 스펙 수가 모자랐다).
+   *
+   * `dist/index.js` 는 `package.json` 의 `bin` 이 가리키는 **실제 배포 산출물**이고,
+   * CI 는 e2e 앞에 `pnpm build` 를 돈다. 사람이 치는 `nerv` 와 같은 것을 부르게 됐다.
    *
    * **로케일을 못박는다.** CLI 는 `NERV_LANG`/`LANG` 으로 출력 언어를 정하는데(importer.md
    * §3.5a), 그대로 두면 이 검사가 실행 기계의 LANG 을 따라간다 — 개발자 기계에서 통과하고
    * CI 에서 깨지거나 그 반대가 된다. 이 시나리오는 한국어 출력을 검사한다.
    */
   async function runCli(args: string[], env: Record<string, string> = {}): Promise<string> {
-    const tsx = join(import.meta.dirname, '../../../../node_modules/.bin/tsx');
+    const entry = join(cliDir, 'dist/index.js');
+    if (!existsSync(entry)) {
+      // 없는 이유를 여기서 말한다 — 빈 출력으로 흘려보내면 검사는 "그 말이 없다"로
+      // 실패하고, 진짜 원인(빌드 안 함)은 어디에도 남지 않는다.
+      throw new Error(`CLI 산출물이 없습니다: ${entry} — 먼저 \`pnpm build\` 를 도세요.`);
+    }
     try {
-      const { stdout } = await promisify(execFile)(tsx, ['src/index.ts', ...args], {
+      const { stdout } = await promisify(execFile)(process.execPath, [entry, ...args], {
         cwd: cliDir,
         encoding: 'utf8',
         timeout: 60_000,
@@ -214,8 +264,11 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
     } catch (error) {
       // dry-run 은 실패 항목이 있으면 비영 종료한다 — 출력은 그대로 판정에 쓴다.
       // stderr 도 합쳐 돌려준다: 조용히 빈 문자열을 주면 실패 원인이 사라진다.
-      const failure = error as { stdout?: string; stderr?: string };
-      return `${String(failure.stdout ?? '')}\n${String(failure.stderr ?? '')}`;
+      const failure = error as { stdout?: string; stderr?: string; message?: string };
+      const out = `${String(failure.stdout ?? '')}\n${String(failure.stderr ?? '')}`;
+      // **둘 다 비면 프로세스가 뜨지도 못한 것이다**(ENOENT·권한 등). 그 사실을 삼키면
+      // "출력에 그 말이 없다"라는 엉뚱한 실패로 보고된다.
+      return out.trim() === '' ? `CLI 실행 실패: ${String(failure.message ?? error)}` : out;
     }
   }
 

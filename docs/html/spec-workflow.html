@@ -52,7 +52,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.4 (2026-09-02)</span>
+      <span>버전 v0.5 (2026-09-02)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
     </div>
@@ -179,8 +179,9 @@
     <tbody>
       <tr><td>획득</td><td><b>암묵적</b> — 웹 에디터를 열거나 <code>nerv_spec_draft_upsert</code>가 성공하는 순간 자동 획득·갱신. 별도 claim/release 도구는 만들지 않는다</td></tr>
       <tr><td>갱신</td><td>저장·upsert마다 갱신. 웹은 에디터가 열려 있는 동안 주기 갱신</td></tr>
-      <tr><td>인계</td><td>같은 사용자가 다른 표면에서 열면 <b>자동 인계</b> + 이전 표면에 알림</td></tr>
-      <tr><td>타인 차단</td><td>다른 사용자의 에이전트 upsert는 <code>NERV_DRAFT_LEASED</code> 에러(하드 차단). 다른 사용자의 웹은 읽기 전용 + [인계 요청] 버튼(보유자에게 알림, 승인 시 이전)</td></tr>
+      <tr><td>인계</td><td><b>명시적</b> — <code>takeover: true</code> 를 실은 저장이 리스를 넘겨받고, 그 사실이 <code>spec.draft_updated</code> 페이로드에 남는다. 이전 표면에는 알림이 간다 (2026-08-30 개정 · 사람 결정 — <a href="api.html">4.4 API 명세</a> §1.4h)</td></tr>
+      <tr><td>보유자 단위</td><td><b><code>(user, session)</code></b> 이다(2026-08-30 개정). 예전에는 사용자 단위라 "같은 사용자면 자동 인계" 였는데, 실제 배치는 PAT 하나 = 사용자 하나 = 세션 여럿이라 병렬 에이전트들이 서로를 전혀 막지 못했다 — <b>리스는 있는데 아무것도 잠그지 않았다.</b> 세션이 없는 웹 탭끼리는 같은 사람이면 한 자리로 본다</td></tr>
+      <tr><td>타인 차단</td><td>리스를 쥔 <code>(user, session)</code> 이 아닌 upsert 는 <code>NERV_DRAFT_LEASED</code>(하드 차단) — 응답이 보유자와 함께 <code>takeover</code> 경로를 알린다. 웹은 읽기 전용 + [이어받기] 버튼이 그 인자를 싣는다</td></tr>
       <tr><td>만료</td><td>TTL <b>30분</b> — Task 클레임 리스·stale 임계와 같은 상수를 쓴다(§4.5, 새 상수를 만들지 않는다)</td></tr>
       <tr><td>해제</td><td><code>nerv_spec_submit_review</code> 성공 · 웹 에디터 닫기 · <code>SessionEnd</code> 훅 · TTL 만료</td></tr>
       <tr><td>최후 방어선</td><td><b><code>base_version</code> 409는 그대로 유지한다.</b> 리스는 1차 사전 조정(작업 낭비 방지)이고, 409는 데이터 유실 방지다 — 역할이 다르므로 둘 다 필요하다</td></tr>

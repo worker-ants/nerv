@@ -2,8 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **22종**(2026-09-02 실측 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.6 · 2026-08-30 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.7 · 2026-09-02 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 >
+> v0.7 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.6 변경(2026-08-30 — 표에만 있고 도구에는 없던 입력, 사람 결정): `nerv_question_create` 의 `context`·`escalate`·`blocking`·`wait_seconds` 는 이 표와 스킬이 지시하면서 도구가 받지 않던 것들이다 — 이제 받는다. `blocking` 과 `urgency` 가 같은 축이라는 것을 §2.4에 적었다. 처리 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.4d(REQ-API-042).
 >
 > v0.5 변경(2026-08-29 — 세션 규약을 §2.4에 명문화, 실측 보고): 이 문서의 카탈로그가 `nerv_bootstrap` 외의 도구에 `session_id` 를 적지 않는 것은 **생략이 아니라 규약**이다 — 세션은 서버가 해소한다. 그 절반이 구현돼 있지 않아 `nerv_question_create`·`nerv_task_claim`·`nerv_session_event` 가 스키마대로 부르면 언제나 실패하고 있었다. 규약과 예외(모호할 때의 `session_id`)를 §2.4에 적었다. 구현 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.4c(REQ-API-040·041).
@@ -208,7 +209,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `NERV_PRECONDITION` | `base_version` 불일치, 게이트 미충족 | 최신 버전 재조회 후 재작성, 게이트 사유를 사람에게 보고 |
 | `NERV_CONFLICT_SCOPE` | 클레임 scope 겹침 | 다음 후보로 이동하거나 `nerv_question_create` |
 | `NERV_LEASE_EXPIRED` | 리스 만료 후 쓰기 시도 | 재클레임 시도 → 실패 시 산출물만 제출하고 종료 |
-| `NERV_DRAFT_LEASED` | 다른 사용자가 이 초안의 편집 리스 보유 | 보유자 정보를 사람에게 보고하고 인계 요청 또는 `nerv_question_create`. **같은 사용자의 리스면 자동 인계되므로 이 에러는 오지 않는다** |
+| `NERV_DRAFT_LEASED` | **다른 `(user, session)`** 이 이 초안의 편집 리스 보유 | 보유자와 만료 시각을 사람에게 보고하고, 이어받기로 결정하면 같은 호출에 **`takeover: true`** 를 실어 재시도한다. 남의 것이면 `nerv_question_create`. **같은 사용자라도 세션이 다르면 이 에러가 온다**(2026-08-30 개정 — 예전에는 사용자 단위 자동 인계라 이 에러가 오지 않는다고 적혀 있었고, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈췄다) |
 | `NERV_APPROVAL_REQUIRED` | A3 도구가 승인 대기 진입 | `question_id`/`approval_id`로 폴링, 그동안 다른 작업 금지 |
 | `NERV_HUMAN_ONLY` | A4 액션 요청 | 웹 딥링크를 사람에게 전달하고 대기 |
 | `NERV_RATE_LIMIT` | 쿼터 초과 | `retry_after_s` 준수. **임의 우회·병렬 재시도 금지** |
@@ -216,7 +217,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 **리스 만료 규약.** 하트비트 주기 60초, 리스 TTL 기본 30분(하트비트 30회분 여유 — stale 임계와 같은 값), 무활동 30분 초과 시 AgentSession `stale` 자동 전이 + 클레임 자동 회수(D-13). 만료 후에도 **`nerv_review_submit`은 받는다** — 리뷰는 커밋 SHA 기준의 사실이고, 리스는 조정 장치일 뿐이기 때문이다. 반대로 `nerv_task_update(status=done)`은 유효한 리스가 없으면 거부한다. clemvion의 `RESET_HINT` + 로컬 재시도 상태 파일이 하던 일은 서버 쿼터·스케줄러로 이동한다.
 
-**초안 편집 리스 — 클레임 리스의 스펙 문서 축 확장(D-04).** `draft` 상태 SpecVersion의 편집 리스는 전용 claim/release 도구 없이 **암묵적으로** 오간다 — 웹 에디터 열기·`nerv_spec_draft_upsert` 성공이 곧 획득·갱신이고, `nerv_spec_submit_review` 성공·에디터 닫기·`SessionEnd`·TTL 만료(30분, Task 클레임 리스·stale 임계와 같은 상수)가 곧 해제다. 같은 사용자가 웹과 터미널을 오가면 리스가 자동 인계되고(이전 표면에 알림), 다른 사용자의 upsert만 `NERV_DRAFT_LEASED`로 막힌다. 리스는 편집 낭비를 막는 1차 사전 조정이고 `base_version` 409(`NERV_PRECONDITION`)가 데이터 유실을 막는 최후 방어선이라 역할이 달라 둘 다 유지한다 — 상세 규약은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) 참조.
+**초안 편집 리스 — 클레임 리스의 스펙 문서 축 확장(D-04).** `draft` 상태 SpecVersion의 편집 리스는 전용 claim/release 도구 없이 **암묵적으로** 오간다 — 웹 에디터 열기·`nerv_spec_draft_upsert` 성공이 곧 획득·갱신이고, `nerv_spec_submit_review` 성공·에디터 닫기·`SessionEnd`·TTL 만료(30분, Task 클레임 리스·stale 임계와 같은 상수)가 곧 해제다. 웹과 터미널을 오갈 때는 **`takeover: true` 로 이어받는다**(2026-08-30 개정 — 보유자가 `(user, session)` 이라 세션 없는 웹 탭과 터미널 세션은 다른 자리다). 이전 표면에는 알림이 가고, 뺏은 사실은 이벤트에 남는다. 리스는 편집 낭비를 막는 1차 사전 조정이고 `base_hash` 비교-교환이 데이터 유실을 막는 최후 방어선이라 역할이 달라 둘 다 유지한다 — **뺏어도 본문은 안전하다** — 상세 규약은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) 참조.
 
 ### 2.8 Claude 전용 향상과 tools 폴백
 

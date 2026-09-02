@@ -52,7 +52,7 @@
     <h1>백로그</h1>
     <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
     <div class="meta-line">
-      <span>버전 v0.10 (2026-08-30)</span>
+      <span>버전 v0.11 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 14 · 스토리 62 · E2E 시나리오 5</span>
     </div>
@@ -228,7 +228,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
     <tbody>
-      <tr><td><code>E10-S01</code></td><td>초안 편집 리스 — TTL 30분(클레임 리스와 동일 상수), 암묵 획득/해제, 같은 사용자 표면 간 자동 인계 + 이전 표면 알림</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.7 · D-04 · <a href="roadmap.html">3.7 로드맵</a> §3.2</td><td>WHEN 같은 사용자가 웹 편집 중 터미널에서 <code>nerv_spec_draft_upsert</code>를 호출하면, THE SYSTEM SHALL 리스를 자동 인계하고 이전 표면에 알린다<br>WHEN 다른 사용자가 리스 보유 초안에 upsert하면, THE SYSTEM SHALL <code>NERV_DRAFT_LEASED</code>로 거부하고 보유자 정보를 반환한다</td><td>E09-S01</td></tr>
+      <tr><td><code>E10-S01</code></td><td>초안 편집 리스 — TTL 30분(클레임 리스와 동일 상수), 암묵 획득/해제, 표면 간 <b>명시 인계</b>(<code>takeover</code>) + 이전 표면 알림</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.7 · D-04 · <a href="roadmap.html">3.7 로드맵</a> §3.2</td><td>WHEN 웹 편집 중인 초안에 터미널 세션이 <code>nerv_spec_draft_upsert</code>를 호출하면, THE SYSTEM SHALL <code>NERV_DRAFT_LEASED</code> 로 거절하며 응답에 <code>takeover</code> 경로를 알리고, <code>takeover: true</code> 를 실은 재호출은 인계하고 그 사실을 이벤트에 남긴다(2026-08-30 개정)<br>WHEN 다른 사용자가 리스 보유 초안에 upsert하면, THE SYSTEM SHALL <code>NERV_DRAFT_LEASED</code>로 거부하고 보유자 정보를 반환한다</td><td>E09-S01</td></tr>
       <tr><td><code>E10-S02</code></td><td>MCP P1 도구 8종 — <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code> <code>nerv_task_update</code> <code>nerv_question_create</code> <code>nerv_session_event</code> <code>nerv_spec_relate</code> (MVP 16종 완성)</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3 · <a href="roadmap.html">3.7 로드맵</a> §3.3 · <a href="scope.html">4.1 범위·스택</a> §4</td><td>WHEN <code>base_hash</code>가 현재 본문 지문과 불일치하거나 빠진 upsert가 오면, THE SYSTEM SHALL <code>NERV_PRECONDITION</code>을 반환하고 데이터를 덮어쓰지 않는다</td><td>E03-S03 · E09-S01</td></tr>
       <tr><td><code>E10-S03</code></td><td>코멘트 왕복 — 헤딩 slug·REQ ref 앵커(<code>spec_comment</code>), open→resolved 추적, 남은 open 수 반환</td><td><a href="data-model.html">3.3 데이터 모델</a> §2.2 · D-09 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3(<code>nerv_spec_comment_resolve</code>)</td><td>WHEN 코멘트가 달리면, THE SYSTEM SHALL <code>spec.comment_added</code> 이벤트를 적재하고 스레드 참여자에게 알림을 라우팅한다</td><td>E09-S01 · E13-S03</td></tr>
       <tr><td><code>E10-S04</code></td><td>제출·승인 왕복 완성 — <code>nerv_spec_submit_review</code> 멱등(pending Approval 재사용), 저장·제출 응답의 <code>web_url</code> 딥링크</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3</td><td>WHEN 같은 <code>spec_version_id</code>로 제출을 재호출하면, THE SYSTEM SHALL 받은 요청 카드를 중복 생성하지 않고 기존 pending Approval을 반환한다</td><td>E10-S02 · E13-S01</td></tr>
@@ -479,7 +479,7 @@
     <thead><tr><th>단계</th><th>행위</th><th>판정</th></tr></thead>
     <tbody>
       <tr><td>1</td><td>웹 에디터(S3)에서 초안 편집 — 편집 리스 획득</td><td>리스 보유자 표시</td></tr>
-      <tr><td>2</td><td>같은 사용자가 터미널에서 <code>/nerv:spec</code> → <code>nerv_spec_draft_upsert</code></td><td>리스 자동 인계, 웹 에디터에 인계 배너 + read-only 전환, <code>NERV_DRAFT_LEASED</code> 발생 0</td></tr>
+      <tr><td>2</td><td>같은 사용자가 터미널에서 <code>/nerv:spec</code> → <code>nerv_spec_draft_upsert</code>(<code>takeover: true</code>)</td><td><b>명시 인계</b>(2026-08-30 개정 — 리스 보유자는 <code>(user, session)</code> 이라 세션 없는 웹 탭과 터미널 세션은 다른 자리다), 웹 에디터에 인계 배너 + read-only 전환, 인계 사실이 <code>spec.draft_updated</code> 페이로드에 기록</td></tr>
       <tr><td>3</td><td>터미널에서 <code>nerv_spec_check</code> → 지적 반영 → 웹으로 복귀해 마무리</td><td><code>stale_body</code> 충돌(<code>NERV_PRECONDITION</code>) 0 — Event 로그로 실증</td></tr>
       <tr><td>4</td><td><code>nerv_spec_submit_review</code> → 다른 검토자가 S7에서 코멘트 → <code>nerv_spec_comment_resolve</code> → 승인</td><td>같은 초안 완성, <code>spec.approved</code> 기록, 승인은 전부 플랫폼 안(1-1)</td></tr>
     </tbody>
