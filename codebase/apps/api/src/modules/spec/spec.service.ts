@@ -10,6 +10,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   canCreateSpecType,
+  GatePolicySchema,
   msg,
   newId,
   text,
@@ -669,7 +670,7 @@ export class SpecService {
         });
       }
 
-      const gate = await this.assessGate(tx, version.spec_id, version.spec_type, input.specVersionId);
+      const gate = await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId);
 
       // 제출 = 본문 동결. 트리거가 이후 UPDATE 를 막는다(4.3 §2.13)
       await tx.execute(sql`
@@ -763,7 +764,7 @@ export class SpecService {
 
       await this.assertDifferentApprover(tx, input, version.author_user_id);
 
-      const gate = await this.assessGate(tx, version.spec_id, version.spec_type, input.specVersionId);
+      const gate = await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId);
       await this.approveInTx(tx, emit, {
         projectId: input.projectId,
         specVersionId: input.specVersionId,
@@ -806,7 +807,7 @@ export class SpecService {
       specVersionId: input.specVersionId,
       specId: version.spec_id,
       approverUserId: input.approverUserId,
-      gate: await this.assessGate(tx, version.spec_id, version.spec_type, input.specVersionId),
+      gate: await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId),
     });
   }
 
@@ -1576,6 +1577,7 @@ export class SpecService {
    */
   private async assessGate(
     tx: Tx,
+    projectId: string,
     specId: string,
     specType: string,
     specVersionId: string,
@@ -1602,6 +1604,16 @@ export class SpecService {
     `);
     const delta = specDelta(bodies[0]?.base_md ?? null, bodies[0]?.body_md ?? '');
 
+    // **프로젝트 정책을 읽는다**(2026-09-02). 경계와 동적 강화 스위치는 화면에서 고칠 수
+    // 있는데 판정이 상수를 쓰고 있었다 — 고칠 수 있고 효과가 없는 값이 화면에 있으면,
+    // 그것을 고친 사람은 게이트를 조인 줄 안다.
+    const { rows: policyRows } = await tx.execute<{ gate_policy: unknown }>(sql`
+      SELECT gate_policy FROM project WHERE id = ${projectId}
+    `);
+    const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
+    // 정책이 깨져 있어도 판정을 멈추지 않는다 — 기본값으로 간다(보존 잡과 같은 규율)
+    const policy = parsed.success ? parsed.data : GatePolicySchema.parse({});
+
     return decideGate(
       inferAxes({
         specType,
@@ -1621,6 +1633,17 @@ export class SpecService {
         approvedRequirementsRemoved:
           bodies[0]?.base_md != null && delta.requirements.removed.length > 0,
       }),
+      {
+        // **이 문서의 첫 approved 판인가**(2026-09-02 사람 결정). 새 문서는 되돌릴 이전
+        // 판이 없어 가역성 0, 아직 아무도 참조하지 않아 파급 0 이라 축이 구조적으로 낮게
+        // 나온다 — 요구사항을 새로 세우는 feature 스펙이 3점(T1)으로 사람 없이 통과했다.
+        // §2.4 표가 같은 문서에서 "신규 feature 스펙" 을 T2 예시로 드는데도 그랬다.
+        firstApprovedVersion: bodies[0]?.base_md == null,
+      },
+      {
+        boundaries: policy.spec_gate.tier_boundaries,
+        dynamicEscalation: policy.spec_gate.dynamic_escalation,
+      },
     );
   }
 

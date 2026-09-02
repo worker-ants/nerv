@@ -170,6 +170,7 @@ export const en = {
     'Record status with nerv_task_update, then release with nerv_task_release before exiting.',
   'gate.reason.retry_threshold': 'retry threshold exceeded → tier +1',
   'gate.reason.recent_rollback': 'rollback within 30 days → tier +1',
+  'gate.reason.first_version': "the document's first approved revision → tier +1",
   'check.link_unknown':
     'A link points at {key}, which does not exist in this project — a typo, or a document not written yet.',
   'check.no_relations':
@@ -931,7 +932,6 @@ export const en = {
   'settings.gates.failopen_body':
     'Escalates after {count} in a row within {hours} hours. When it cannot decide it proceeds and records, and repeats push it up (D-14).',
   'settings.gates.lead': 'The MVP edits three spec_gate keys — the rest is read-only.',
-  'settings.gates.objection_hours': 'T1 objection window (hours)',
   'settings.gates.saved': 'Gate policy saved.',
   'settings.members.admin_only_post': 'can change roles — this list is read-only for you.',
   'settings.members.admin_only_pre': 'Only',
@@ -959,6 +959,7 @@ export const en = {
   'settings.tokens.last_host': 'Last host',
   'settings.tokens.last_used': 'Last used',
   'settings.tokens.lead': 'The token is shown once, right after issuing — only the prefix is kept.',
+  'settings.tokens.out_of_role': 'Not in your role — ticking it would not give the token that power.',
   'settings.tokens.name': 'Token name',
   'settings.tokens.new': 'Issue a new token',
   'settings.tokens.prefix': 'Prefix',

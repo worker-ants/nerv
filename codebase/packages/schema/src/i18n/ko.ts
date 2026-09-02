@@ -170,6 +170,7 @@ export const ko = {
     'nerv_task_update 로 상태를 남기고 nerv_task_release 로 내려놓은 뒤 끝내세요.',
   'gate.reason.retry_threshold': '재시도 임계 초과 → 티어 +1',
   'gate.reason.recent_rollback': '최근 30일 롤백 이력 → 티어 +1',
+  'gate.reason.first_version': '이 문서의 첫 승인 판 → 티어 +1',
   'check.link_unknown':
     '링크가 가리키는 {key} 를 이 프로젝트에서 찾을 수 없습니다 — 오타이거나 아직 안 쓴 문서입니다.',
   'check.no_relations':
@@ -914,7 +915,6 @@ export const ko = {
   'settings.gates.failopen_body':
     '연속 {count}회 · {hours}시간 창에서 격상합니다. 판정 불가일 때 막지 않고 진행하되 기록하고, 반복되면 올린다(D-14).',
   'settings.gates.lead': 'MVP 편집 항목은 spec_gate 3키입니다 — 나머지는 표시 전용입니다.',
-  'settings.gates.objection_hours': 'T1 이의제기 창(시간)',
   'settings.gates.saved': '게이트 정책을 저장했습니다.',
   'settings.members.admin_only_post': '만 할 수 있습니다 — 아래 목록은 읽기 전용입니다.',
   'settings.members.admin_only_pre': '역할 변경은',
@@ -942,6 +942,7 @@ export const ko = {
   'settings.tokens.last_host': '마지막 호스트',
   'settings.tokens.last_used': '마지막 사용',
   'settings.tokens.lead': '원문은 발급 직후 한 번만 보입니다 — 목록에는 prefix 만 남습니다.',
+  'settings.tokens.out_of_role': '내 역할에 없는 스코프입니다 — 켜도 토큰이 그 일을 하지 못합니다.',
   'settings.tokens.name': '토큰 이름',
   'settings.tokens.new': '새 토큰 발급',
   'settings.tokens.prefix': 'prefix',

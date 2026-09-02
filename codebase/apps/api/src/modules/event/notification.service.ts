@@ -178,11 +178,69 @@ export class NotificationService {
   }
 
   /**
-   * 수신자 산출 — MVP 는 ①역할 기반과 ③관여만 쓴다.
-   * ②워치·④지정은 Phase 2 다(워치 테이블이 없다 — screens.md §2.4 말미).
-   * **행위자 자신에게는 보내지 않는다** — 자기가 한 일의 알림은 소음이다.
+   * 수신자 산출. **행위자 자신에게는 보내지 않는다** — 자기가 한 일의 알림은 소음이다.
+   *
+   * 승인 요청은 **지정을 본다**(2026-09-02 사람 결정). 결재 경로(EP-APR)는 처음부터
+   * `assignee_user_id`·`assignee_role` 을 보는데 알림만 보지 않아서 둘이 어긋나 있었다:
+   * 지정 승인자가 designer·qa 면 자기 앞으로 온 카드의 알림을 **못 받았고**, admin·planner
+   * 전원은 자기가 결정할 수 없는 카드의 알림을 받았다. 결정할 수 없는 카드의 알림은
+   * 알림 자체를 못 믿게 만들고, 그러면 받은 요청이 파괴된다(§6.6 원칙 3).
+   *
+   * 나머지 이벤트는 역할 큐다. ②워치·④지정 확장은 Phase 2 다(워치 테이블이 없다 —
+   * screens.md §2.4 말미).
    */
   private async recipientsFor(event: {
+    project_id: string;
+    actor_user_id: string | null;
+    type: string;
+    subject_id: string;
+  }): Promise<string[]> {
+    if (event.type === NERV_EVENT.APPROVAL_REQUESTED) {
+      const targeted = await this.approvalTargets(event);
+      // 지정이 없는 승인 요청만 역할 큐로 내려간다
+      if (targeted !== null) return targeted;
+    }
+    return this.roleQueue(event);
+  }
+
+  /**
+   * 지정 승인자 또는 지정 역할 큐. 둘 다 없으면 `null` 을 돌려 역할 큐로 넘긴다.
+   *
+   * 지정된 사람이 행위자 자신이면 빈 배열이다 — 자기가 올리고 자기가 받는 알림은 소음이고,
+   * 그 카드는 어차피 받은 요청 목록에 있다.
+   */
+  private async approvalTargets(event: {
+    project_id: string;
+    actor_user_id: string | null;
+    subject_id: string;
+  }): Promise<string[] | null> {
+    const { rows } = await this.db.execute<{
+      assignee_user_id: string | null;
+      assignee_role: string | null;
+    }>(sql`
+      SELECT assignee_user_id, assignee_role::text AS assignee_role
+        FROM approval WHERE id = ${event.subject_id} AND project_id = ${event.project_id}
+    `);
+    const approval = rows[0];
+    if (approval === undefined) return null;
+
+    if (approval.assignee_user_id !== null) {
+      return approval.assignee_user_id === event.actor_user_id ? [] : [approval.assignee_user_id];
+    }
+    if (approval.assignee_role !== null) {
+      const { rows: members } = await this.db.execute<{ user_id: string }>(sql`
+        SELECT DISTINCT user_id FROM membership
+         WHERE (project_id = ${event.project_id} OR project_id IS NULL)
+           AND role = ${approval.assignee_role}::member_role
+           ${event.actor_user_id === null ? sql`` : sql`AND user_id <> ${event.actor_user_id}`}
+      `);
+      return members.map((r) => r.user_id);
+    }
+    return null;
+  }
+
+  /** 지정이 없을 때의 기본 수신자 — 프로젝트의 admin·planner. */
+  private async roleQueue(event: {
     project_id: string;
     actor_user_id: string | null;
   }): Promise<string[]> {

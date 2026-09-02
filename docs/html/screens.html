@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.59 (2026-09-01)</span>
+      <span>버전 v0.60 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -1324,7 +1324,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     <tbody>
       <tr><td>멤버 매트릭스</td><td>EP-MBR-01 <code>GET /api/v1/orgs/{org}/members</code> · EP-MBR-02 <code>POST</code>(기존 사용자 배정 — 초대 메일 발송은 Phase 2, api.md §2.1) · EP-MBR-03 <code>PATCH /api/v1/memberships/{id}</code>(역할)</td><td><code>membership.role</code> 6종: <code>admin / planner / designer / developer / qa / viewer</code>. 사람 × 프로젝트 n:n(FR-14)</td></tr>
       <tr><td>토큰 목록·발급·폐기</td><td>EP-TOK-01 <code>GET /api/v1/me/tokens</code> · EP-TOK-02 <code>POST /api/v1/me/tokens</code> · EP-TOK-03 <code>DELETE /api/v1/me/tokens/{id}</code> · EP-TOK-04 <code>GET /api/v1/orgs/{org}/tokens</code>(admin 조직 전체)</td><td><code>api_token</code>: 라벨·소유자·프로젝트 스코프·<code>prefix</code>·<code>last_used_at</code>(hostname 포함 표기). admin은 조직 전체 목록 열람</td></tr>
-      <tr><td>게이트 정책</td><td>EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code> · EP-PRJ-04 <code>PATCH /api/v1/projects/{proj}</code> (<code>gate_policy</code> — 키 스키마 정본: <a href="api.html">4.4 API 명세</a> §2.1a)</td><td>MVP 편집 항목 = <code>spec_gate.*</code> 3키: 티어 경계(<code>tier_boundaries</code>)·T1 이의제기 창(<code>t1_objection_hours</code>)·동적 강화(<code>dynamic_escalation</code>). <code>failopen</code>·<code>retention</code>은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수(<a href="codebase.html">4.2</a> §3.2 <code>SESSION_STALE_SECONDS</code>), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화</td></tr>
+      <tr><td>게이트 정책</td><td>EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code> · EP-PRJ-04 <code>PATCH /api/v1/projects/{proj}</code> (<code>gate_policy</code> — 키 스키마 정본: <a href="api.html">4.4 API 명세</a> §2.1a)</td><td>MVP 편집 항목 = <code>spec_gate.*</code> 2키: 티어 경계(<code>tier_boundaries</code>)·동적 강화(<code>dynamic_escalation</code>). 둘 다 2026-09-02 부터 <b>판정이 실제로 읽는다</b> — 그 전까지 판정은 상수를 썼다. <code>t1_objection_hours</code> 는 같은 날 걷었다. <code>failopen</code>·<code>retention</code>은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수(<a href="codebase.html">4.2</a> §3.2 <code>SESSION_STALE_SECONDS</code>), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화</td></tr>
     </tbody>
   </table></div>
 

@@ -162,9 +162,82 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
       userId: planner,
     });
 
-    // 부작용 2(요구사항 추가) + 민감도 1(feature) = 3점 → T1. 자동 통과지만 T0 은 아니다.
-    expect(submitted.gate.tier).not.toBe('T0');
-    expect(submitted.gate.score).toBeGreaterThanOrEqual(3);
+    // 부작용 2(요구사항 추가) + 민감도 1(feature) = 3점. 축만으로는 T1(자동 통과)이지만
+    // **첫 승인 판**이라 한 단계 올라 T2 다(2026-09-02 사람 결정) — §2.4 표가 같은 문서에서
+    // "신규 feature 스펙"을 T2 예시로 들고 있는데 축이 그 예시에 닿지 못했다.
+    expect(submitted.gate.score).toBe(3);
+    expect(submitted.gate.tier).toBe('T2');
+    expect(submitted.gate.autoPass).toBe(false);
+    expect(submitted.status).toBe('in_review');
+    expect(submitted.approval_id).not.toBeNull();
+    expect(submitted.gate.rationale).toContain('첫 승인 판');
+  });
+
+  it('둘째 판부터는 축이 정한 대로다 — 가산은 문서당 한 번이다', async () => {
+    const key = `SPC-2ND-${newId().slice(-4).toUpperCase()}`;
+    const first = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key,
+      title: '둘째 판',
+      type: 'feature',
+      bodyMd: '# 둘째 판\n\n본문만 있는 문서',
+      userId: planner,
+    });
+    // 첫 판을 통과시켜 approved 기준을 만든다(T0 + 첫 판 가산 = T1, 자동 통과)
+    const firstResult = await specs.submitReview({
+      projectId,
+      specVersionId: first['spec_version_id'] as string,
+      userId: planner,
+    });
+    expect(firstResult.status).toBe('approved');
+
+    // 같은 문서의 다음 판 — 문구만 고친다. 이제 기준이 있으므로 가산이 붙지 않는다.
+    const second = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: first['spec_id'] as string,
+      baseHash: await hashOf(first['spec_id'] as string),
+      bodyMd: '# 둘째 판\n\n본문만 있는 문서 (문구 정리)',
+      userId: planner,
+    });
+    const secondResult = await specs.submitReview({
+      projectId,
+      specVersionId: second['spec_version_id'] as string,
+      userId: planner,
+    });
+    expect(secondResult.status).toBe('approved');
+    expect(secondResult.gate.rationale).not.toContain('첫 승인 판');
+  });
+
+  it('프로젝트가 동적 강화를 끄면 첫 판 가산도 붙지 않는다', async () => {
+    await pool.query(
+      `UPDATE project SET gate_policy = jsonb_build_object('spec_gate',
+         jsonb_build_object('dynamic_escalation', false)) WHERE id = $1`,
+      [projectId],
+    );
+    try {
+      const key = `SPC-OFF-${newId().slice(-4).toUpperCase()}`;
+      const draft = await specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        key,
+        title: '강화 끔',
+        type: 'feature',
+        bodyMd: '# 강화 끔\n\nREQ-OFF-001 WHEN 저장하면 THE SYSTEM SHALL 남긴다',
+        userId: planner,
+      });
+      const result = await specs.submitReview({
+        projectId,
+        specVersionId: draft['spec_version_id'] as string,
+        userId: planner,
+      });
+      // 껐다고 믿은 사람이 옳아야 한다 — 3점은 T1 이고 자동 통과다
+      expect(result.gate.tier).toBe('T1');
+      expect(result.status).toBe('approved');
+    } finally {
+      await pool.query(`UPDATE project SET gate_policy = '{}'::jsonb WHERE id = $1`, [projectId]);
+    }
   });
 
   it('거절은 프로젝트 경계를 넘지 못한다 — 남의 in_review 를 되돌리지 않는다', async () => {

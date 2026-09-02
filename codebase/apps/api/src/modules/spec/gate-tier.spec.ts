@@ -33,14 +33,16 @@ describe('4축 → 티어 (§2.4 표)', () => {
     expect(decision.tier).toBe('T0');
     expect(decision.autoPass).toBe(true);
     expect(decision.requiredApprovers).toBe(0);
-    expect(decision.appealWindowHours).toBeNull();
   });
 
-  it('T1 은 통과시키되 24시간 이의제기 창을 연다 — 되돌리기가 있는 통과다', () => {
+  // 2026-09-02 사람 결정: 이의제기 창은 두지 않는다. 구현이 없었고(값만 산출했다),
+  // 신규 문서가 T2 로 올라간 뒤로 T1 에 남는 것은 기존 문서의 문구 수정 정도다.
+  it('T1 도 승인 없이 통과한다 — T0 과 동작이 같고 등급만 남는다', () => {
     const decision = decideGate(axes(1, 1, 0, 0));
     expect(decision.tier).toBe('T1');
     expect(decision.autoPass).toBe(true);
-    expect(decision.appealWindowHours).toBe(24);
+    expect(decision.requiredApprovers).toBe(0);
+    expect(decision).not.toHaveProperty('appealWindowHours');
   });
 
   it('T2 는 사전 승인 1인', () => {
@@ -55,6 +57,44 @@ describe('4축 → 티어 (§2.4 표)', () => {
     expect(decision.tier).toBe('T3');
     expect(decision.requiredApprovers).toBe(2);
     expect(decision.autoPass).toBe(false);
+  });
+});
+
+describe('첫 승인 판은 티어를 올린다 (2026-09-02 사람 결정)', () => {
+  // 새 feature 스펙: 부작용 2(요구사항 추가) + 민감도 1(feature) + 가역성 0 + 파급 0 = 3점.
+  // 되돌릴 이전 판이 없고 아직 아무도 참조하지 않아 두 축이 구조적으로 0 이다.
+  const newFeatureSpec = (): ReturnType<typeof axes> => axes(2, 1, 0, 0);
+
+  it('신호가 없으면 3점은 T1 — 사람 없이 통과한다', () => {
+    const decision = decideGate(newFeatureSpec());
+    expect(decision.tier).toBe('T1');
+    expect(decision.autoPass).toBe(true);
+  });
+
+  it('첫 판이면 T2 로 올라간다 — §2.4 표의 "신규 feature 스펙" 예시와 맞는다', () => {
+    const decision = decideGate(newFeatureSpec(), { firstApprovedVersion: true });
+    expect(decision.tier).toBe('T2');
+    expect(decision.autoPass).toBe(false);
+    expect(decision.requiredApprovers).toBe(1);
+    expect(decision.rationale).toContain('첫 승인 판');
+  });
+
+  it('둘째 판부터는 올리지 않는다 — 문서당 한 번이다', () => {
+    expect(decideGate(newFeatureSpec(), { firstApprovedVersion: false }).tier).toBe('T1');
+  });
+});
+
+describe('프로젝트 정책 — 경계와 동적 강화 스위치가 실제로 걸린다', () => {
+  it('경계를 좁히면 같은 점수가 더 높은 티어가 된다', () => {
+    const three = axes(2, 1, 0, 0);
+    expect(decideGate(three).tier).toBe('T1');
+    expect(decideGate(three, {}, { boundaries: [2, 3, 6] }).tier).toBe('T2');
+  });
+
+  it('동적 강화를 끄면 신호를 세지 않는다 — 껐다고 믿은 사람이 옳아야 한다', () => {
+    const signals = { firstApprovedVersion: true, repeatedFailures: true };
+    expect(decideGate(axes(2, 1, 0, 0), signals).tier).toBe('T3');
+    expect(decideGate(axes(2, 1, 0, 0), signals, { dynamicEscalation: false }).tier).toBe('T1');
   });
 });
 

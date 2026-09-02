@@ -7,8 +7,9 @@ updated: 2026-08-29
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.59 · 2026-09-01 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.60 · 2026-09-02 · HTML 판: [screens.html](../html/screens.html)
 >
+> v0.60 변경(2026-09-02 — 사람 결정 반영): S8 게이트 정책 폼의 편집 항목이 3키에서 **2키**가 됐다(`t1_objection_hours` 제거). 남은 둘은 같은 날부터 판정이 실제로 읽는다 — 그 전까지는 화면에서 고칠 수 있고 효과가 없는 값이었다.
 > v0.48 변경(2026-08-30 — 버전 목록이 번호와 배지뿐이었다, 사람 보고): S3 레일의 버전 목록에 **변경 요약과 시각**을 싣는다(REQ-WEB-110). 서버는 `change_summary_md` 를 이미 주고 있었는데 화면이 그리지 않았다 — 남기기만 하고 보이지 않으면 없는 것과 같다([4.4](api.md) §1.4f).
 >
 > v0.47 변경(2026-08-30 — 사람에게도 링크를 넣을 길을 준다, 사람 결정): §3.1a 신설(REQ-WEB-109). 관계를 본문의 링크로 좁힌 뒤, 웹에서 링크를 넣는 길이 URL 을 손으로 붙이는 것뿐이면 사람이 쓴 문서는 계속 산문으로 남는다. 편집기에 **[스펙 링크]** 를 두고 트리에서 골라 넣는다.
@@ -1099,7 +1100,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 | --- | --- | --- |
 | 멤버 매트릭스 | EP-MBR-01 `GET /api/v1/orgs/{org}/members` · EP-MBR-02 `POST`(기존 사용자 배정 — 초대 메일 발송은 Phase 2, api.md §2.1) · EP-MBR-03 `PATCH /api/v1/memberships/{id}`(역할) | `membership.role` 6종: `admin / planner / designer / developer / qa / viewer`. 사람 × 프로젝트 n:n(FR-14) |
 | 토큰 목록·발급·폐기 | EP-TOK-01 `GET /api/v1/me/tokens` · EP-TOK-02 `POST /api/v1/me/tokens` · EP-TOK-03 `DELETE /api/v1/me/tokens/{id}` · EP-TOK-04 `GET /api/v1/orgs/{org}/tokens`(admin 조직 전체) | `api_token`: 라벨·소유자·프로젝트 스코프·`prefix`·`last_used_at`(hostname 포함 표기). admin은 조직 전체 목록 열람 |
-| 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` — 키 스키마 정본: [4.4 API 명세](api.md) §2.1a) | MVP 편집 항목 = `spec_gate.*` 3키: 티어 경계(`tier_boundaries`)·T1 이의제기 창(`t1_objection_hours`)·동적 강화(`dynamic_escalation`). `failopen`·`retention`은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수([4.2](codebase.md) §3.2 `SESSION_STALE_SECONDS`), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화 |
+| 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` — 키 스키마 정본: [4.4 API 명세](api.md) §2.1a) | MVP 편집 항목 = `spec_gate.*` 2키: 티어 경계(`tier_boundaries`)·동적 강화(`dynamic_escalation`). 둘 다 2026-09-02 부터 **판정이 실제로 읽는다** — 그 전까지 판정은 상수를 썼다. `t1_objection_hours` 는 같은 날 걷었다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). `failopen`·`retention`은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수([4.2](codebase.md) §3.2 `SESSION_STALE_SECONDS`), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화 |
 
 - **토큰 발급 흐름**: 발급 다이얼로그(`TokenCreateInput`: `project`·`name`·`scopes[]`·`expires`) → 성공 시 **원문 1회 표시**(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 `prefix`만. 스코프 체크박스는 [agent-integration §6.1](../03-proposal/agent-integration.md)의 `resource:action` 목록을 그대로 쓰고, `spec:approve`·`approval:decide`는 **체크박스 비활성**(사람 전용 — 시스템 불변식).
 - **컴포넌트**: `SettingsTabs` · `MemberMatrix` · `MemberAddDialog` · `TokenTable` · `TokenIssueDialog` · `TokenRevealOnce` · `GatePolicyForm` · 권한 비확대 고지문("토큰은 사용자 권한을 상속하며 절대 확대하지 않는다" — NFR-03 · D-08).

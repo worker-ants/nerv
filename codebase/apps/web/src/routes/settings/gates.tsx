@@ -47,7 +47,6 @@ function GatesTab(): React.JSX.Element {
   const policy = stored.success ? stored.data : GatePolicySchema.parse({});
 
   const [boundaries, setBoundaries] = useState<string | null>(null);
-  const [objectionHours, setObjectionHours] = useState<string | null>(null);
   const [dynamicEscalation, setDynamicEscalation] = useState<boolean | null>(null);
 
   const save = useMutation({
@@ -61,7 +60,6 @@ function GatesTab(): React.JSX.Element {
               tier_boundaries: (boundaries ?? policy.spec_gate.tier_boundaries.join(','))
                 .split(',')
                 .map((v) => Number(v.trim())),
-              t1_objection_hours: Number(objectionHours ?? policy.spec_gate.t1_objection_hours),
               dynamic_escalation: dynamicEscalation ?? policy.spec_gate.dynamic_escalation,
             },
           },
@@ -92,15 +90,6 @@ function GatesTab(): React.JSX.Element {
             value={boundaries ?? policy.spec_gate.tier_boundaries.join(', ')}
             onChange={(e) => setBoundaries(e.target.value)}
             disabled={!isAdmin}
-          />
-        </Field>
-        <Field label={t('settings.gates.objection_hours')}>
-          <Input
-            type="number"
-            value={objectionHours ?? String(policy.spec_gate.t1_objection_hours)}
-            onChange={(e) => setObjectionHours(e.target.value)}
-            disabled={!isAdmin}
-            className="w-32"
           />
         </Field>
         <label className="flex items-start gap-2 text-sm">

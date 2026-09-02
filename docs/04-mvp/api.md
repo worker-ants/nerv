@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.51 · 2026-09-02 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.52 · 2026-09-02 · HTML 판: [api.html](../html/api.html)
 >
+> v0.52 변경(2026-09-02 — 사람 결정 반영): §2.1a 의 `gate_policy` 에서 `t1_objection_hours` 를 걷었다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). EP-TOK-02 에 발급과 검증의 역할을 적었다 — 발급은 역할과 교집합하지 않고, 상한은 검증 시점에 걸리며, **화면은 역할 밖 스코프를 보이되 잠근다**.
 > v0.51 변경(2026-09-02 — 빈 룸): **§3.3 의 개인 룸이 비어 있었다.** "+ `user:{id}`" 열은 아홉 행에 걸쳐 있는데 그 룸으로 흐르는 봉투가 하나도 없었다 — WS 는 자동 join 하고 `/sse/me` 는 열리는데 내용이 없다. 봉투에 방송 전용 `recipient_user_ids` 를 두고, 알림 파생이 `notification.created` 를 수신자의 룸으로 흘린다. 웹은 그 이벤트에 종과 **받은 요청**을 함께 되읽는다 — 다른 프로젝트 화면에 있는 사람에게는 그것이 유일한 길이다.
 > v0.50 변경(2026-09-02 — 약속한 계약의 실물화): **§1.5 · §1.8 · §3.5 가 문서에만 있었다.** 멱등 키는 저장소가 없어 `Idempotency-Key` 도 MCP 의 `idempotency_key` 도 그냥 버려졌고(같은 클레임이 두 번 만들어졌다), 쿼터는 상수 3종만 있고 세는 곳이 없었으며(집행되던 것은 인증 표면의 IP 한도뿐), SSE 는 사용자당 8 연결 상한이 적혀 있을 뿐 아무도 세지 않았다. 셋을 구현하고 문서가 비워 둔 자리를 채운다(REQ-API-076~078): 처리 중인 키의 응답, 실패한 최초 요청의 자리 비우기, 표면이 다를 때의 지문, 쿼터 카운터의 저장소와 degrade. 곁가지로 룸 상한 `8` 이 웹·API 에 각각 박혀 있던 것을 `@nerv/schema` 로 모았다.
 > v0.49 변경(2026-09-02 — 정본 정리): §2.10 이 **둘**이었다(첨부·임포트) — 2026-09-01 에 신설한 두 절이 §1 안에 2.10·2.11 로 들어가 임포트 절과 번호가 겹쳤고, "4.4 §2.10" 인용이 두 뜻으로 갈렸다. 첨부는 §1.4k, 지시·발견 축은 §1.4l 로 옮긴다. 도구 수 표기(16/18)도 실측 22종으로 통일했다.
@@ -623,7 +624,7 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | EP-MBR-03 | `PATCH /api/v1/memberships/{id}` | admin | `MemberUpdateInput`(role 변경) | `MemberResult` | ★`member.updated` |
 | EP-MBR-04 | `DELETE /api/v1/memberships/{id}` | admin | — | `{ok:true}` | ★`member.removed` |
 | EP-TOK-01 | `GET /api/v1/me/tokens` | 본인 | — | `Page<TokenSummary>`(prefix·scopes·last_used_at, 원문 없음) | — |
-| EP-TOK-02 | `POST /api/v1/me/tokens` | 본인(역할이 허용하는 스코프의 부분집합만) | `TokenCreateInput`(project, name, scopes[], expires) | `TokenCreateResult`(**원문 1회 반환**) | ★`token.created` |
+| EP-TOK-02 | `POST /api/v1/me/tokens` | 본인(역할이 허용하는 스코프의 부분집합만) | `TokenCreateInput`(project, name, scopes[], expires) | `TokenCreateResult`(**원문 1회 반환**) — 발급은 역할과 교집합하지 않고 저장한다. 상한은 §1.6a 대로 **검증 시점**에 걸린다: 발급 때 잘라 두면 나중에 역할이 넓어져도 토큰이 좁은 채로 남는다. 화면은 역할 밖 스코프를 **보이되 잠근다**(2026-09-02 사람 결정 — 켜 놓고 쓸 수 없는 토큰이 나오던 자리다) | ★`token.created` |
 | EP-TOK-03 | `DELETE /api/v1/me/tokens/{id}` | 본인 또는 admin | — | `{ok:true}`(즉시 폐기, `revoked_at` 기록) | ★`token.revoked` |
 | EP-TOK-04 | `GET /api/v1/orgs/{org}/tokens` | admin | `TokenAdminListQuery`(project, user, cursor) | `Page<TokenAdminSummary>`(소유자·prefix·scopes·last_used_at, 원문 없음) — S8 admin의 조직 전체 토큰 표([화면 설계](../03-proposal/ui-wireframes.md) §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝 | — |
 
@@ -637,7 +638,6 @@ EP-PRJ-03 응답·EP-PRJ-04 입력의 두 jsonb 필드는 웹 폼(S8 게이트 �
   "version": 1,
   "spec_gate": {
     "tier_boundaries": [2, 4, 6],      // 4축 합산 점수의 T1/T2/T3 진입 경계(§2.4 기본: 0~1=T0 · 2~3=T1 · 4~5=T2 · 6+=T3)
-    "t1_objection_hours": 24,          // T1 소프트 게이트 이의제기 창
     "dynamic_escalation": true         // 재시도 임계·롤백 이력에 의한 티어 +1 (spec-workflow §2.4 "동적 강화")
   },
   "failopen": {

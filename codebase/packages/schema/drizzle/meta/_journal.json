@@ -113,6 +113,13 @@
       "when": 1788342925385,
       "tag": "0015_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788342926385,
+      "tag": "0016_drop_objection_window",
+      "breakpoints": true
     }
   ]
 }

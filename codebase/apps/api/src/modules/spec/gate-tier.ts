@@ -29,8 +29,6 @@ export interface GateDecision {
   requiredApprovers: number;
   /** 사전 승인 없이 approved 로 갈 수 있는가 */
   autoPass: boolean;
-  /** 이의제기 창(시간). T1 만 갖는다 */
-  appealWindowHours: number | null;
   /** 왜 이 티어인가 — 승인 카드가 산출 근거를 보여야 한다(§6.4) */
   rationale: string;
 }
@@ -41,17 +39,38 @@ export interface EscalationSignals {
   repeatedFailures?: boolean;
   /** 최근 30일 내 해당 영역의 승인 후 롤백 이력 */
   recentRollback?: boolean;
+  /**
+   * **이 문서의 첫 approved 판이다**(2026-09-02 사람 결정).
+   *
+   * 4축은 변화의 크기를 재는데, 새 문서는 그 축들이 구조적으로 낮게 나온다: 되돌릴 이전
+   * 판이 없어 가역성 0, 아직 아무도 참조하지 않아 파급 0. 그래서 요구사항을 새로 세우는
+   * feature 스펙이 3점(T1)으로 계산돼 **사람이 한 번도 보지 않고 approved** 로 갔다 —
+   * §2.4 표는 같은 문서에서 "신규 feature 스펙"을 T2 의 예시로 들고 있는데도.
+   *
+   * 축을 만지지 않고 강화 신호로 두는 이유: 축은 변화의 크기를 재는 자이고, "처음 들어오는
+   * 약속" 은 크기가 아니라 **성질**이다. 축에 가산점을 섞으면 그 자가 무엇을 재는지 흐려진다.
+   */
+  firstApprovedVersion?: boolean;
 }
 
 export function scoreOf(axes: GateAxes): number {
   return axes.sideEffect + axes.sensitivity + axes.reversibility + axes.blastRadius;
 }
 
-export function tierOf(score: number): GateTier {
-  if (score <= 1) return 'T0';
-  if (score <= 3) return 'T1';
-  if (score <= 5) return 'T2';
-  return 'T3';
+/**
+ * 점수 → 티어. **경계는 프로젝트가 바꿀 수 있다**(api.md §2.1a `tier_boundaries`).
+ *
+ * 인자를 받기 전까지 이 함수는 상수를 썼고, 그래서 `gate_policy.tier_boundaries` 는
+ * 화면에서 고칠 수는 있는데 아무 효과가 없는 값이었다(2026-09-02 정정).
+ *
+ * 경계 셋은 T1·T2·T3 의 **진입 점수**다: 기본 [2,4,6] 이면 0~1=T0 · 2~3=T1 · 4~5=T2 · 6+=T3.
+ */
+export function tierOf(score: number, boundaries: readonly number[] = [2, 4, 6]): GateTier {
+  const [t1 = 2, t2 = 4, t3 = 6] = boundaries;
+  if (score >= t3) return 'T3';
+  if (score >= t2) return 'T2';
+  if (score >= t1) return 'T1';
+  return 'T0';
 }
 
 /** 티어를 한 단계 올린다. T3 위는 없다. */
@@ -61,27 +80,39 @@ export function escalate(tier: GateTier): GateTier {
   return order[Math.min(index + 1, order.length - 1)] ?? tier;
 }
 
-export function decideGate(axes: GateAxes, signals: EscalationSignals = {}): GateDecision {
+export function decideGate(
+  axes: GateAxes,
+  signals: EscalationSignals = {},
+  policy: { boundaries?: readonly number[]; dynamicEscalation?: boolean } = {},
+): GateDecision {
   const score = scoreOf(axes);
-  let tier = tierOf(score);
+  let tier = tierOf(score, policy.boundaries);
 
   const reasons: string[] = [`4축 합계 ${score}점`];
-  if (signals.repeatedFailures === true) {
-    tier = escalate(tier);
-    reasons.push(text('gate.reason.retry_threshold'));
-  }
-  if (signals.recentRollback === true) {
-    tier = escalate(tier);
-    reasons.push(text('gate.reason.recent_rollback'));
+  // 동적 강화를 끈 프로젝트에서는 신호를 세지 않는다(`gate_policy.dynamic_escalation`).
+  // 끄는 선택지를 화면에 두고 값은 무시하면, 끈 사람은 껐다고 믿는다.
+  if (policy.dynamicEscalation !== false) {
+    if (signals.repeatedFailures === true) {
+      tier = escalate(tier);
+      reasons.push(text('gate.reason.retry_threshold'));
+    }
+    if (signals.recentRollback === true) {
+      tier = escalate(tier);
+      reasons.push(text('gate.reason.recent_rollback'));
+    }
+    if (signals.firstApprovedVersion === true) {
+      tier = escalate(tier);
+      reasons.push(text('gate.reason.first_version'));
+    }
   }
 
   return {
     tier,
     score,
     requiredApprovers: tier === 'T3' ? 2 : tier === 'T2' ? 1 : 0,
-    // T0·T1 은 사전 승인 없이 approved 로 간다. 차이는 이의제기 창의 유무다.
+    // T0·T1 은 사전 승인 없이 approved 로 간다. **둘의 동작은 같다** — 티어는 감사 기록에
+    // 남는 등급이고, 되돌리기 창은 두지 않는다(2026-09-02 사람 결정 · §2.4).
     autoPass: tier === 'T0' || tier === 'T1',
-    appealWindowHours: tier === 'T1' ? 24 : null,
     rationale: reasons.join(' · '),
   };
 }

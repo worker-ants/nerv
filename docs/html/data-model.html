@@ -52,7 +52,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 29개 엔티티의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.5 (2026-08-30)</span>
+      <span>버전 v0.6 (2026-09-02)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
     </div>
@@ -654,13 +654,17 @@
       <tr><td><code>ready → claimed</code></td><td><code>nerv_task_claim</code> 트랜잭션 성공(scope 겹침 통과)</td><td>partial unique 인덱스(FR-06)</td></tr>
       <tr><td><code>claimed → in_progress</code></td><td>세션의 첫 <code>action</code> Activity 또는 명시 전이</td><td>서버</td></tr>
       <tr><td><code>in_progress → in_review</code></td><td>산출물(PR/커밋) Evidence 1건 이상</td><td>API 검증</td></tr>
-      <tr><td><code>in_review → done</code></td><td>게이트 통과(해소된 리뷰 존재) <b>AND</b> <code>spec_impact</code> NOT NULL</td><td>게이트 API(FR-10)</td></tr>
+      <tr><td><code>in_progress</code>·<code>in_review → done</code></td><td>게이트 통과(증적 1건 이상) <b>AND</b> <code>spec_impact</code> NOT NULL</td><td>게이트 API(FR-10)</td></tr>
       <tr><td><code>* → blocked</code></td><td>질문 미해결·의존성 역행</td><td>서버·수동</td></tr>
     </tbody>
   </table></div>
     <p><b>전이의 문지기는 세 가지다</b>(2026-09-02 — 정합 점검). 구현은 위 표를 강제하지 않고 있었고, 그중 셋을 채웠다: ① <b>어휘</b> — 입력을 그대로 <code>::task_status</code> 로 캐스팅해 오타가 500 이 됐다(이제 400 <code>invalid_input</code>). ② <b>담당자</b> — 활성 클레임을 다른 세션이 쥐고 있어도 상태를 옮길 수 있었다(이제 보유자 또는 planner·admin). ③ <b>리스</b> — 만료된 리스로도 <code>done</code> 으로 옮길 수 있었다(이제 <code>NERV_LEASE_EXPIRED</code>). 더해 <b>done 은 이 문으로 되돌아오지 않는다</b>.</p>
 
-  <p><b>경로 그래프 자체는 아직 강제하지 않는다.</b> 위 표는 <code>in_review → done</code> 을 요구하는데 배포된 구현 스킬은 <code>claimed/in_progress → done</code> 으로 곧장 간다 — 표와 스킬이 어긋나 있고, 어느 쪽을 고칠지는 사람의 결정이다. done 의 실질 조건(증적 · <code>spec_impact</code>)은 게이트가 이미 강제한다.</p>
+  <p><b><code>in_review</code> 는 선택 단계다</b>(2026-09-02 · 사람 확정). 표는 <code>in_review → done</code> 만 적었는데 배포된 구현 루프(<code>/nerv:impl</code>)는 <code>in_progress → done</code> 으로 곧장 가고 서버도 경로를 막지 않았다 — 셋이 서로 다른 말을 하고 있었다. <b>표를 실물에 맞춘다.</b></p>
+
+  <p>이유는 <code>done</code> 의 실질 조건을 이미 게이트가 강제하기 때문이다: 증적 1건 이상과 <code>spec_impact</code> 가 없으면 <code>done</code> 으로 갈 수 없다. <code>in_review</code> 를 필수로 만들면 혼자 일하는 사람이 자기 작업을 <code>in_review</code> 로 옮겼다가 곧바로 <code>done</code> 으로 옮기는 형식 단계가 생기고, 그 단계는 아무것도 막지 못한다. 실제 리뷰가 붙는 곳은 FR-09 리뷰 세션이며 그것은 Task 상태와 <b>다른 축</b>이다.</p>
+
+  <p><code>in_review</code> 는 여러 사람이 보는 보드에서 "산출물은 나왔고 아직 확인 전"을 구분하고 싶을 때 쓴다. 경로 그래프는 계속 강제하지 않는다 — 강제하는 것은 어휘·담당자·리스, 그리고 <code>done</code> 이 최종이라는 사실 넷이다.</p>
 
 <p><code>spec_impact</code>를 done 전제조건으로 둔 것은 clemvion의 Gate C(<code>spec-plan-completion.test.ts</code>) 이식이다. 그쪽은 완료 plan의 frontmatter에 영향 스펙 목록 또는 <code>none</code> sentinel을 요구했고, 이 게이트가 "작업 완료가 스펙 정합 결정을 강제 동반"하게 만든 좋은 패턴이었다.</p>
 

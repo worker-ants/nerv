@@ -10,9 +10,11 @@ Lanes are task statuses.
 | `ready`       | **Can be picked up right now** |
 | `claimed`     | Someone has taken it           |
 | `in_progress` | Being worked on                |
-| `in_review`   | Waiting for review             |
+| `in_review`   | Waiting for review (optional)  |
 | `done`        | Finished                       |
 | `blocked`     | Stuck — with a stated reason   |
+
+`in_review` is an **optional** step. Use it on a shared board when you want "the work is out, nobody has checked it yet" to be visible. Going straight from `in_progress` to `done` is fine — what actually gates completion is the evidence and the spec impact, not the lane.
 
 By default `backlog` is folded away; **Show backlog** brings it back. The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
 

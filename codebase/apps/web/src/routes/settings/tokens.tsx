@@ -3,16 +3,23 @@
 // **원문은 발급 응답에서 한 번만 보인다.** 다시 볼 수 없다는 사실을 화면이 분명히 말해야
 // 하고(그러지 않으면 사람은 창을 닫고 다시 찾는다), 목록에는 prefix 만 남는다.
 //
-// 스코프는 **사람 권한의 부분집합**을 넘지 못한다(D-08). 사람 전용 스코프(`spec:approve` 등)는
-// 목록에 아예 없다 — 고를 수 있게 두고 서버가 거절하는 것보다, 고를 수 없게 하는 편이 낫다.
+// 스코프는 **사람 권한의 부분집합**을 넘지 못한다(D-08). 두 종류가 잠긴다.
+//   ① 사람 전용(`spec:approve`·`approval:decide`) — 누구도 토큰에 실을 수 없다
+//   ② **내 역할 밖** — 예를 들어 developer 의 `review:resolve`(2026-09-02 사람 결정)
+//
+// ②가 오래 열려 있었다. 발급은 되는데 검증 시점 교집합에서 잘려 **켜 놓고 쓸 수 없는**
+// 토큰이 나왔고, 사람은 그 이유를 화면 어디에서도 볼 수 없었다. 발급 시점에 잘라 저장하지
+// 않는 것은 그대로 둔다 — 나중에 역할이 넓어지면 이미 발급된 토큰이 그 순간 따라가야 한다.
+// 화면이 말해 주는 것과 저장을 좁히는 것은 다른 일이다.
 
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { AGENT_SCOPES, HUMAN_ONLY_SCOPES } from '@nerv/schema';
+import { AGENT_SCOPES, HUMAN_ONLY_SCOPES, scopesForRoles } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
-import { rows, useTokens } from '../../lib/queries.js';
+import { rows, useMe, useTokens } from '../../lib/queries.js';
+import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRealtime } from '../../lib/realtime.js';
 import {
@@ -38,7 +45,9 @@ function TokensTab(): React.JSX.Element {
   // 발급 대상 프로젝트는 **헤더에서 고른 프로젝트**다. 예전에는 멤버십 한 행의
   // `project_slug` 를 썼고, 조직 단위 멤버십만 가진 admin 은 그 값이 `null` 이라
   // 발급 버튼이 영영 비활성이었다(실측 2026-08-24).
-  const { projectSlug } = useScope();
+  const { orgSlug, projectSlug } = useScope();
+  // 역할은 겸직의 합집합이다 — 서버의 `assertMembership` 과 같은 규칙(session.ts)
+  const myScopes = scopesForRoles(rolesInProject(useMe().data, orgSlug, projectSlug));
 
   const [name, setName] = useState(t('settings.tokens.default_name'));
   const [scopes, setScopes] = useState<string[]>(['spec:read', 'task:claim']);
@@ -90,20 +99,30 @@ function TokensTab(): React.JSX.Element {
         </div>
         <fieldset className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
           <legend className="sr-only">{t('settings.members.scope')}</legend>
-          {AGENT_SCOPES.map((scope) => (
-            <label key={scope} className="flex cursor-pointer items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={scopes.includes(scope)}
-                onChange={(e) =>
-                  setScopes((prev) =>
-                    e.target.checked ? [...prev, scope] : prev.filter((s) => s !== scope),
-                  )
-                }
-              />
-              <code className="font-mono">{scope}</code>
-            </label>
-          ))}
+          {AGENT_SCOPES.map((scope) => {
+            // 내 역할에 없는 스코프는 **보이되 잠긴다**. 사람 전용 스코프와 같은 규율이다 —
+            // 목록에서 빼면 "왜 이건 못 주지"가 화면 밖에 남는다.
+            const mine = myScopes.has(scope);
+            return (
+              <label
+                key={scope}
+                className={mine ? 'flex cursor-pointer items-center gap-1.5' : 'flex items-center gap-1.5 opacity-45'}
+                title={mine ? undefined : t('settings.tokens.out_of_role')}
+              >
+                <input
+                  type="checkbox"
+                  checked={mine && scopes.includes(scope)}
+                  disabled={!mine}
+                  onChange={(e) =>
+                    setScopes((prev) =>
+                      e.target.checked ? [...prev, scope] : prev.filter((s) => s !== scope),
+                    )
+                  }
+                />
+                <code className="font-mono">{scope}</code>
+              </label>
+            );
+          })}
           {/* 사람 전용 스코프는 **숨기지 않고 비활성으로 보인다**(REQ-WEB-027 · D-08).
               목록에서 빼버리면 "왜 승인 권한을 토큰에 못 주지?"라는 질문이 화면 밖에 남고,
               그 답이 어디에도 없다. 보이되 고를 수 없는 것이 규칙을 가르친다. */}

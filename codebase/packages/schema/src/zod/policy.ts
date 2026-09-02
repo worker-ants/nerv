@@ -5,6 +5,11 @@
 //
 // `.strict()` 가 이 파일의 요점이다 — **알 수 없는 키는 거부한다**. 관대한 수용은
 // `spec_gate.tier_boundries` 같은 오타를 소리 없이 삼키고 기본값으로 돌아간다.
+//
+// `t1_objection_hours` 는 2026-09-02 에 걷었다(사람 결정). 이의제기 창은 구현이 없었고 —
+// 값을 산출만 하고 아무도 읽지 않았다 — 신규 문서가 T2 로 올라간 뒤로 T1 에 남는 것은
+// 기존 문서의 문구 수정 정도라, 되돌리기 창을 만드는 값이 낮다고 판단했다. 저장된 값은
+// 마이그레이션 0016 이 지운다(`.strict()` 라 남아 있으면 정책 저장이 400 이 된다).
 
 import { z } from 'zod';
 
@@ -15,13 +20,11 @@ export const GatePolicySchema = z
       .object({
         /** 4축 합산 점수의 T1/T2/T3 진입 경계 — 기본 0~1=T0 · 2~3=T1 · 4~5=T2 · 6+=T3 */
         tier_boundaries: z.array(z.number().int().min(0)).length(3).default([2, 4, 6]),
-        /** T1 소프트 게이트 이의제기 창 */
-        t1_objection_hours: z.number().int().min(1).max(168).default(24),
         /** 재시도 임계·롤백 이력에 의한 티어 +1 (spec-workflow §2.4 동적 강화) */
         dynamic_escalation: z.boolean().default(true),
       })
       .strict()
-      .default({ tier_boundaries: [2, 4, 6], t1_objection_hours: 24, dynamic_escalation: true }),
+      .default({ tier_boundaries: [2, 4, 6], dynamic_escalation: true }),
     failopen: z
       .object({
         /** 연속 fail-open 판정 격상 임계 — D-14 는 "허용하되 관측하고 격상한다"이다 */

@@ -38,7 +38,10 @@ Issue and revoke the tokens agents use. The details are in [Agents](/help/agents
 Gates decide what a spec change has to go through, according to **how risky it is**. Tiers run T0–T3, and the tier follows from the sum of four risk axes: side effects, sensitivity, reversibility and blast radius.
 
 - **Tier boundaries** — the scores at which T1, T2 and T3 begin. Lower them and more changes pass through a person.
-- **Dynamic escalation** — a history of retries or rollbacks raises the tier by one. Having already slipped once in a place is evidence that the place is dangerous.
-- **T1 objection window** — after a low-risk change passes automatically, the time in which a person can still object.
+- **Dynamic escalation** — three signals raise the tier by one: retries past the threshold, a recent rollback, and **a document's first approved revision**. The first two mean something already slipped here; the third means this promise is arriving for the first time.
+
+**A new document goes past a person once.** A newly created spec has no earlier revision to revert to and nothing referencing it yet, so it scores low. Left alone, a document that establishes new requirements would be approved without a person ever seeing it. So the first revision alone gets the extra step. From the second revision on, the score decides.
+
+Turning dynamic escalation off removes this too.
 
 Editing is `admin` only; everyone else sees the current values as they are — anyone should be able to see what is holding them up.

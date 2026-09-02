@@ -102,6 +102,56 @@ describe('알림 파생 → 개인 룸 방송', () => {
     expect(envelope?.occurred_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   }, 30_000);
 
+  it('지정 승인자가 있으면 그 사람에게만 간다 — 역할 큐로 흩뿌리지 않는다', async () => {
+    // designer 는 admin 도 planner 도 아니다. 지정을 보지 않던 동안 이 사람은 자기 앞으로
+    // 온 카드의 알림을 한 번도 받지 못했다.
+    const designerId = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'designer@example.com','디자','active')`,
+      [designerId],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id=$2),$2,$3,'designer')`,
+      [newId(), projectId, designerId],
+    );
+    const approvalId = newId();
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id, assignee_user_id)
+       VALUES ($1,$2,'spec_version',$3,$4,$5)`,
+      [approvalId, projectId, newId(), actorId, designerId],
+    );
+
+    const before = received.length;
+    await events.transact(async (_tx, emit) =>
+      emit({
+        type: NERV_EVENT.APPROVAL_REQUESTED,
+        projectId,
+        subjectType: 'approval',
+        subjectId: approvalId,
+        actorUserId: actorId,
+      }),
+    );
+    await waitFor(() => received.length > before);
+    await notifications.route();
+    await waitFor(() =>
+      received.slice(before).some((e) => e.type === NERV_EVENT.NOTIFICATION_CREATED),
+    );
+
+    const announced = received
+      .slice(before)
+      .filter((e) => e.type === NERV_EVENT.NOTIFICATION_CREATED);
+    expect(announced.at(-1)?.recipient_user_ids).toEqual([designerId]);
+
+    // 결정할 수 없는 카드의 알림은 planner 에게 가지 않는다
+    const { rows } = await pool.query<{ user_id: string }>(
+      `SELECT n.user_id FROM notification n JOIN event e ON e.id = n.event_id
+        WHERE e.subject_id = $1`,
+      [approvalId],
+    );
+    expect(rows.map((r) => r.user_id)).toEqual([designerId]);
+  }, 30_000);
+
   it('행위자 자신에게는 가지 않는다 — 자기가 한 일의 알림은 소음이다', async () => {
     // 위 케이스의 행위자는 actorId 이고, 수신자 목록에 그가 없었다
     const announced = received.filter((e) => e.type === NERV_EVENT.NOTIFICATION_CREATED);

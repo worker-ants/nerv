@@ -52,7 +52,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-08-21)</span>
+      <span>버전 v0.4 (2026-09-02)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
     </div>
@@ -431,7 +431,13 @@
 
     <p><b>게이트가 본문을 읽는다</b>(2026-09-02 — 정합 점검). 구현은 요구사항 <b>추가·삭제를 상수 0</b> 으로 넘기고 '수정' 만 <code>requirement</code> 행의 존재로 근사하고 있었다. 그런데 그 표를 채우는 것은 임포터뿐이라, 에이전트가 쓴 스펙에는 행이 하나도 없다 — 신규 feature 스펙이 <b>부작용 0 + 민감도 1 = 1점 → T0</b> 이 되어 사람이 한 번도 보지 않고 approved 로 갔다. 이제 현재 approved 본문과 견줘 추가·수정·삭제를 센다.</p>
 
-  <p><b>남은 두 가지는 사람의 결정이 필요하다.</b> ① 위 표의 T2 예시가 "신규 feature 스펙"인데, 같은 절의 축 표로 계산하면 참조도 파생 Task 도 없는 새 문서는 <b>3점(T1)</b> 이다 — 예시와 축이 어긋난다. ② <b>T1 의 24시간 이의제기 창은 구현이 없다</b> — 산출만 하고 아무도 쓰지 않아 지금 T1 은 T0 처럼 동작한다.</p>
+  <p><b>두 결정이 내려졌다</b>(2026-09-02 · 사람 확정).</p>
+
+  <p>① <b>첫 승인 판은 티어를 한 단계 올린다.</b> 위 표의 T2 예시가 "신규 feature 스펙"인데 축으로 계산하면 3점(T1)이었다 — 예시와 축이 어긋났고, 어긋난 쪽으로 실물이 돌아 요구사항을 새로 세우는 문서가 사람 없이 approved 로 갔다. 축을 고치지 않고 <b>동적 강화 신호</b>(<code>firstApprovedVersion</code>)로 둔다: 축은 변화의 크기를 재는 자이고 "처음 들어오는 약속"은 크기가 아니라 성질이라, 축에 가산점을 섞으면 그 자가 무엇을 재는지 흐려진다. 가산은 <b>문서당 한 번</b>이고, <code>dynamic_escalation</code> 을 끈 프로젝트에서는 붙지 않는다. 경계값을 낮추는 선택지는 택하지 않았다 — 3점짜리를 전부 T2 로 올리면 문구 수정까지 승인 대기에 걸리고, 대기가 늘면 사람이 카드를 읽지 않고 누르기 시작한다(OWASP ASI09 의 consent fatigue).</p>
+
+  <p>② <b>T1 의 이의제기 창은 걷는다.</b> 구현이 없었고(값을 산출만 하고 아무도 읽지 않았다), ①로 위험한 문서가 T2 로 올라간 뒤로 T1 에 남는 것은 기존 문서의 문구 수정 정도다. <code>gate_policy.t1_objection_hours</code> 키는 제거했고 저장된 값은 마이그레이션 <code>0016</code> 이 지운다. <b>T0 과 T1 의 동작은 같다</b> — 남는 차이는 감사 기록의 등급뿐이다.</p>
+
+  <p><b>곁가지로 정책이 장식이 아니게 됐다.</b> <code>tier_boundaries</code> 와 <code>dynamic_escalation</code> 은 화면에서 고칠 수 있는데 판정이 상수를 쓰고 있었다(2026-09-02 정정). 고칠 수 있고 효과가 없는 값이 화면에 있으면, 그것을 고친 사람은 게이트를 조인 줄 안다.</p>
 
 <p>이 티어는 <b>스펙 변경 게이트 티어(T0~T3)</b>이며, <a href="agent-integration.html">3.4 에이전트 연동 설계</a>가 정의하는 <b>도구 호출 위험도(A1~A4)</b>와는 다른 축이다.</p>
 
@@ -478,7 +484,7 @@
       <rect x="340" y="62" width="200" height="44" rx="8" fill="var(--teal-soft)" stroke="var(--teal)"/>
       <text x="356" y="82" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">T1 · 2~3</text>
       <text x="356" y="97" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">소프트 게이트</text>
-      <text x="556" y="89" fill="var(--text-mute)" font-family="var(--font)" font-size="11">즉시 approved + 24시간 이의제기 창</text>
+      <text x="556" y="89" fill="var(--text-mute)" font-family="var(--font)" font-size="11">즉시 approved (되돌리기 창 없음)</text>
 
       <rect x="340" y="114" width="200" height="44" rx="8" fill="var(--warn-soft)" stroke="var(--warn)"/>
       <text x="356" y="134" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">T2 · 4~5</text>
@@ -1059,6 +1065,14 @@ SELECT EXISTS (
     <p>도구 호출·파일 수정 같은 세션 진행 이벤트는 세션 모니터(S5)와 활동 피드에서 WebSocket으로 흐를 뿐이다. 이걸 알림으로 만들면 동시 세션 수십 개(NFR-04) 환경에서 받은 요청이 즉시 파괴된다.</p>
   </div></div>
 
+  <p><b>구현 범위</b>(2026-09-02 실측 기준). MVP 는 위 표의 수신자 어휘 중 둘만 산출한다.</p>
+  <ul>
+    <li><code>approval.requested</code> 는 <b>지정을 본다</b> — <code>assignee_user_id</code> 가 있으면 그 사람에게만, <code>assignee_role</code> 이 있으면 그 역할의 멤버에게, 둘 다 없으면 역할 큐(admin·planner)로 간다. 같은 날 사람 결정으로 붙였다: 결재 경로(EP-APR)는 처음부터 지정을 보는데 알림만 보지 않아, 지정 승인자가 designer·qa 면 <b>자기 앞으로 온 카드의 알림을 못 받았고</b> admin·planner 전원은 결정할 수 없는 카드의 알림을 받았다. 결정할 수 없는 카드의 알림은 §6.6 원칙 3 이 막으려는 바로 그 소음이다.</li>
+    <li>나머지 이벤트는 역할 큐(admin·planner)다. 표의 "작성자 · 워처"·"담당자"·"스레드 참여자"는 <b>워치 테이블이 없어</b> Phase 2 다(<a href="screens.html">4.5 화면 명세</a> §2.4 말미).</li>
+    <li>어느 경우든 <b>행위자 자신은 제외한다</b> — 자기가 한 일의 알림은 소음이다.</li>
+  </ul>
+  <p>수신자에게 실제로 닿는 경로는 <code>notification.created</code> 방송이다(<a href="api.html">4.4 API 명세</a> §3.3 — 개인 룸).</p>
+
   <h3>6.4 받은 요청 승격 — 알림을 줄이는 궁극의 방법</h3>
 
   <p><b>승인·질문·리뷰 요청은 알림이 아니라 작업 항목이다.</b> 흩어진 핑 대신 미결 액션을 한 곳에서 추적하는 Agent Inbox 패턴이며, NERV의 받은 요청(S7, FR-11)이 그 화면이다. 받은 요청 항목은 자체 상태 머신 <code>대기 → 결정 → 만료</code>(§2.6)를 갖고, Slack·메일은 <b>받은 요청으로 가는 딥링크만</b> 나른다. 받은 요청에서 이미 처리된 항목은 대기 중이던 메일 다이제스트에서 빠진다(크로스 채널 dedup).</p>
@@ -1102,7 +1116,7 @@ SELECT EXISTS (
         </div>
 
         <div class="wf-panel">
-          <div class="wf-panel-hd">🔔 통지 · T1 소프트 게이트로 자동 승인됨 <span class="spacer"></span><span class="badge draft">23시간 남음</span> <span class="marker">6</span></div>
+          <div class="wf-panel-hd">🔔 통지 · T1 소프트 게이트로 자동 승인됨 <span class="spacer"></span><span class="badge draft">T1</span> <span class="marker">6</span></div>
           <div class="wf-row"><span class="grow">5-system / 12-webhook · 설명 문구 명확화 (부작용 1 · 민감도 0 · 가역성 1 · 범위 0 = 2)</span>
             <span class="wf-btn ghost">되돌리기</span></div>
         </div>
@@ -1115,7 +1129,7 @@ SELECT EXISTS (
     <li><span class="marker">3</span><span>영향 분석은 승인 <b>전에</b> 미리보기로 보여준다. 진행 중 클레임이 걸려 있으면 그 세션에도 critical 알림이 나간다(§3.3).</span></li>
     <li><span class="marker">4</span><span>카드는 에이전트 요약문이 아니라 <b>요구사항 단위 델타 원문</b>을 먼저 보여준다(OWASP ASI09 대응). 지시자≠승인자 위반 시 승인 버튼은 비활성이다(§2.3).</span></li>
     <li><span class="marker">5</span><span>질문 카드는 대기 중인 세션의 사용자·hostname·경과를 함께 띄운다. 답변은 그대로 세션 재개 신호가 된다(§4.7).</span></li>
-    <li><span class="marker">6</span><span>T1 소프트 게이트는 이미 승인된 상태로 오되 24시간 <b>이의제기 창</b>과 원클릭 되돌리기를 함께 준다(§2.4).</span></li>
+    <li><span class="marker">6</span><span>T1 소프트 게이트는 이미 승인된 상태로 온다. <b>되돌리기 창은 두지 않는다</b>(2026-09-02 결정 · §2.4) — 위험한 문서는 첫 판 가산으로 T2 에서 걸리고, T1 에 남는 것은 기존 문서의 문구 수정 정도다.</span></li>
   </ul>
 
   <div class="table-wrap"><table>
@@ -1123,7 +1137,7 @@ SELECT EXISTS (
     <tbody>
       <tr><td>승인(스펙/CR/플랜/게이트 면제)</td><td>Review</td><td>요구사항 단위 델타 원문, 영향 분석(파생 Task·진행 중 클레임), 게이트 티어와 산출 근거</td></tr>
       <tr><td>질문</td><td>Question</td><td>질문 원문, 선택지, 대기 중인 세션(사용자·hostname·경과)</td></tr>
-      <tr><td>통지</td><td>Notify</td><td>무엇이 왜 바뀌었는지 + 되돌리기 링크(T1 이의제기 창)</td></tr>
+      <tr><td>통지</td><td>Notify</td><td>무엇이 왜 바뀌었는지 + 문서 링크</td></tr>
     </tbody>
   </table></div>
 
@@ -1212,7 +1226,7 @@ SELECT EXISTS (
   <p class="src"><a href="https://linear.app/now/our-approach-to-building-the-agent-interaction-sdk">Our approach to building the Agent Interaction SDK — Linear Blog</a> (2025-08-01): "에이전트는 책임을 질 수 없다" 원칙과 사람 assignee + 에이전트 delegate 분리(§1.6·§2.3).</p>
   <p class="src"><a href="https://support.atlassian.com/jira-software-cloud/docs/collaborate-on-work-items-with-ai-agents/">Collaborate on work items with AI agents — Jira Cloud Docs</a> (2026-08-13 확인): 에이전트 출력은 트리거한 사람의 개인 검토를 거쳐 draft로 팀에 공개된다(§2.4·§6.4).</p>
   <p class="src"><a href="https://asana.com/product/ai/ai-teammates">Asana AI Teammates</a> (2026-08-13 확인): 체크포인트 승인 + 권한 상속·비확대 + 가역성의 3원칙(§1.6).</p>
-  <p class="src"><a href="https://www.notion.com/releases/2026-02-24">Notion 3.3: Custom Agents — Release Notes</a> (2026-02-24): "모든 실행이 로그로 남아 변경이 가시적이고 되돌릴 수 있다" — 가역성의 최소 단위(§2.4 T1 이의제기 창).</p>
+  <p class="src"><a href="https://www.notion.com/releases/2026-02-24">Notion 3.3: Custom Agents — Release Notes</a> (2026-02-24): "모든 실행이 로그로 남아 변경이 가시적이고 되돌릴 수 있다" — 가역성의 최소 단위(§2.4 — NERV 는 되돌리기 창 대신 첫 판 가산으로 사람을 세운다).</p>
   <p class="src"><a href="https://github.blog/changelog/2026-02-26-enterprise-ai-controls-agent-control-plane-now-generally-available/">Enterprise AI Controls &amp; agent control plane — GitHub Changelog</a> (2026-02-26): <code>actor_is_agent</code> 감사 플래그와 세션 이벤트 전수 감사(§6.1).</p>
   <p class="src"><a href="https://www.c-sharpcorner.com/article/designing-approval-gates-for-high-risk-ai-agent-actions/">Designing Approval Gates for High-Risk AI Agent Actions — C# Corner</a> (2026-08-13 확인): 부작용×민감도×가역성×범위 4축 위험 분류, 승인 만료 윈도우·스테일 승인 거부, 승인 감사 레코드 필수 항목(§2.3·§2.4·§2.6).</p>
   <p class="src"><a href="https://developers.openai.com/api/docs/guides/agents/guardrails-approvals">Guardrails and human review — OpenAI API Docs</a> (2026-08-13 확인): 승인 대기 시 상태를 직렬화해 저장하고 재개하면 여전히 같은 run이다. 실패 임계 초과 시 에스컬레이션(§2.6·§4.7).</p>
