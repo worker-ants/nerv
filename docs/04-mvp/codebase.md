@@ -7,8 +7,9 @@ updated: 2026-08-28
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.10 · 2026-09-02 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.11 · 2026-09-02 · HTML 판: [codebase.html](../html/codebase.html)
 >
+> v1.11 변경(2026-09-02 — CI 복구): §4.5 를 실물에 맞춘다. **게이트를 테스트 앞으로** 옮겼다 — CI 가 도입 이래 21회 연속 실패하는 동안 배포 산출물 정합·schema drift 는 매번 skipped 됐고, 그래서 REQ-CB-007·018·010 은 한 번도 실행된 적이 없었다. integration 에 pg17 클라이언트, e2e 에 `pnpm build`, `concurrency` 는 PR 에서만 취소.
 > v1.10 변경(2026-09-02 — 정합 점검): §2.2 잡 목록에 **`partition.job.ts`** 를 더한다 — 4.3 §2.14 가 워커 잡으로 약속한 월 파티션 선생성이고, 없는 동안 서버는 마이그레이션 두 달 뒤에 멈추는 상태였다(REQ-DB-021).
 > v1.9 변경(2026-08-29 — 기동 로그의 대부분이 경고였다, 사람 보고): §4.3 에 라우트 생성 제외 규칙. 화면 테스트를 `src/routes/` 안에 두는 관례를 TanStack Router 플러그인이 "Route 를 export 하지 않는 라우트 파일"로 읽어 파일마다 12줄씩 경고했다(실측 7개 파일 84줄). `routeFileIgnorePattern` 으로 제외한다 — `routeTree.gen.ts` 는 바이트 단위로 동일하다.
 >
@@ -527,9 +528,16 @@ jobs:
       - uses: actions/checkout@v4
       - run: corepack enable && pnpm install --frozen-lockfile
       - run: pnpm lint && pnpm exec tsc -b
-      - run: pnpm test
+      # 게이트가 **테스트보다 앞이다** — 뒤에 두면 테스트가 깨진 동안 skipped 된다(아래 문단)
+      - name: 배포 산출물 정합   # 백업 스크립트 사본 diff · kustomize 오버레이 빌드
+        working-directory: .
+        run: |
+          diff deploy/scripts/nerv-backup.sh deploy/k8s/base/backup/nerv-backup.sh
+          kubectl kustomize deploy/k8s/overlays/dev > /dev/null
+          kubectl kustomize deploy/k8s/overlays/prod > /dev/null
       - name: schema drift     # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제
         run: pnpm db:generate && git diff --exit-code -- packages/schema/drizzle
+      - run: pnpm test
   integration:                 # 매 PR — L2 (무게중심)
     runs-on: ubuntu-latest
     services:
@@ -540,6 +548,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable && pnpm install --frozen-lockfile
+      # 서버(pg17)와 **짝이 맞는** 클라이언트. 러너 기본은 pg16 이라 pg_dump 가 즉시 죽는다
+      - run: sudo apt-get install -y postgresql-client-17   # (pgdg 저장소 추가는 실물 참조)
+      - run: pnpm build      # migrate 는 dist/migrate.js 를 쓴다 — compose·k8s 와 같은 경로
       - run: pnpm db:migrate && pnpm test:integration
         env: { DATABASE_URL: "postgres://postgres:ci@localhost:5432/postgres" }
   e2e:                         # merge_group + 야간 — L3
@@ -548,11 +559,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable && pnpm install --frozen-lockfile
+      # **호스트 빌드가 필요하다** — L3 스위트가 `@nerv/schema` 의 dist/ 진입점을 import 한다.
+      # 컨테이너 빌드는 호스트 dist 를 만들지 않으므로, 없으면 첫 import 에서 죽는다.
+      - run: pnpm build
       - run: cp .env.example .env && docker compose -f ../deploy/compose/docker-compose.yml --env-file .env up -d --build
         # local-embed 프로필 없이 기동 — CI 에서 모델 가중치(수 GB) 다운로드 금지.
         # 검색 E2E 는 렉시컬 degrade 경로(REQ-API-026)로 검증하고, 벡터 품질은 E06-S06 스파이크·스테이징 소관
       - run: pnpm test:e2e
 ```
+
+**게이트는 테스트보다 앞이다**(2026-09-02 — 실측 정정). 예전 순서는 `pnpm test` → 배포 산출물 정합 → schema drift 였다. 그런데 L1 두 스위트가 Valkey 없이는 영원히 매달려(§2.1 구독) CI 는 도입일부터 **21회 연속 실패**했고, 그동안 뒤의 두 단계는 `if:` 가 없어 매번 skipped 됐다 — 이 문서가 "CI 가 강제한다"고 적은 REQ-CB-007·018·010 이 **한 번도 실행된 적이 없었다**는 뜻이다. 순서를 뒤집으면 테스트가 깨져도 드리프트는 잡힌다. (2026-09-02 이 트리에서 세 검사를 손으로 돌려 통과를 확인했다.)
+
+같은 실패의 나머지 둘도 여기 적는다. **integration** 은 러너 기본 클라이언트(pg16)로 pg17 서비스를 덤프하려 해 백업 왕복(REQ-CB-019)이 매번 죽었다 — 짝이 맞는 클라이언트를 설치한다. **e2e** 는 빌드 단계가 없어 L3 가 첫 import 에서 죽었고, 그래서 시나리오 A~E 는 CI 에서 한 번도 판정된 적이 없다. `concurrency` 도 고쳤다: PR 은 최신 푸시만 의미가 있으니 취소하되, main 푸시·야간 스케줄이 서로를 취소하면 "그 커밋은 검증된 적 없음" 이 된다.
 
 | ID | 요구(EARS) |
 | --- | --- |

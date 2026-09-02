@@ -19,6 +19,16 @@ export type ValkeyMessageHandler = (channel: string, payload: string) => void;
  */
 const PUBLISH_TIMEOUT_MS = 1000;
 
+/**
+ * 구독 시한. 기동 경로 위에 있으므로 Valkey 가 없을 때 **기동 자체가 멈추면 안 된다** —
+ * 문서가 약속한 것은 "실시간 없이 뜬다" 이지 "뜨지 않는다" 가 아니다(D-14).
+ * 재시도는 구독 서비스가 배경에서 계속한다.
+ */
+const SUBSCRIBE_TIMEOUT_MS = 3000;
+
+/** 종료 인사의 시한. 넘기면 인사 없이 끊는다 — 닫히지 않는 프로세스보다 낫다. */
+const QUIT_TIMEOUT_MS = 500;
+
 @Injectable()
 export class ValkeyService implements OnApplicationShutdown {
   private readonly logger = new Logger(ValkeyService.name);
@@ -81,11 +91,22 @@ export class ValkeyService implements OnApplicationShutdown {
     }
   }
 
-  /** 파드별 구독. 구독 전용 커넥션을 따로 연다. */
+  /**
+   * 파드별 구독. 구독 전용 커넥션을 따로 연다.
+   *
+   * **시한이 있다.** 구독 커넥션은 `maxRetriesPerRequest: null`(무제한 재시도)로 열리고
+   * ioredis 는 접속 전 명령을 오프라인 큐에 넣으므로, Valkey 가 없으면 이 프로미스는
+   * 거부되지도 해결되지도 않는다 — 영원히 pending 이다. 기동이 이것을 await 하고 있어서
+   * "구독 실패는 프로세스를 죽이지 않는다" 는 catch 문에 **도달할 수 없었다**: 서버는
+   * 죽지도 않고 뜨지도 않았다(healthz 무응답 → k8s 재시작 루프, CI L1 은 훅 타임아웃).
+   */
   async subscribe(channel: string, handler: ValkeyMessageHandler): Promise<void> {
     this.subscriber ??= this.connect('subscriber', { maxRetriesPerRequest: null });
     this.subscriber.on('message', handler);
-    await this.subscriber.subscribe(channel);
+    const subscribed = this.subscriber.subscribe(channel);
+    // 오프라인 큐에 남은 명령이 나중에 거부되면 unhandled rejection 이 된다
+    subscribed.catch(() => undefined);
+    await withTimeout(subscribed, SUBSCRIBE_TIMEOUT_MS);
     this.logger.log(`SUBSCRIBE ${channel}`);
   }
 
@@ -93,8 +114,26 @@ export class ValkeyService implements OnApplicationShutdown {
     return this.publishFailures;
   }
 
+  /**
+   * 종료. **`quit()` 을 기다리지 않는다.**
+   *
+   * `quit` 은 QUIT 명령을 보내고 응답을 기다리는데, 접속이 없으면 그 명령은 오프라인 큐에
+   * 앉아 영원히 돌아오지 않는다 — Valkey 가 죽은 상태에서 앱을 닫으면 `close()` 가 멈췄고,
+   * 그래서 테스트는 훅 타임아웃으로, 컨테이너는 SIGTERM 뒤 강제 종료로 끝났다.
+   * 시한 안에 인사하고, 안 되면 그냥 끊는다(`disconnect`).
+   */
   async onApplicationShutdown(): Promise<void> {
-    await Promise.allSettled([this.publisher?.quit(), this.subscriber?.quit()]);
+    const close = async (client: Redis | null): Promise<void> => {
+      if (client === null) return;
+      const quitting = client.quit();
+      quitting.catch(() => undefined);
+      try {
+        await withTimeout(quitting, QUIT_TIMEOUT_MS);
+      } catch {
+        client.disconnect();
+      }
+    };
+    await Promise.allSettled([close(this.publisher), close(this.subscriber)]);
   }
 }
 

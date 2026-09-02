@@ -669,17 +669,43 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
     expect(after[0]?.n).toBe(1);
   });
 
+  // 딥링크는 `NERV_PUBLIC_URL` 이 있으면 절대 URL, 없으면 상대 경로다(spec.service.webUrl).
+  // 그런데 테스트는 상대 경로만 고정 기대값으로 두고 있었고, 개발 루프는 `.env` 를 쓰라고
+  // 안내한다(codebase.md §5.1) — **문서대로 환경을 꾸민 사람에게만 빨간 테스트**였다.
+  // CI 는 그 변수를 넣지 않아 통과했다. 이제 테스트가 환경을 스스로 고정하고 양쪽을 본다.
+  async function webUrlWith(base: string | undefined, key: string): Promise<unknown> {
+    const before = process.env['NERV_PUBLIC_URL'];
+    if (base === undefined) delete process.env['NERV_PUBLIC_URL'];
+    else process.env['NERV_PUBLIC_URL'] = base;
+    try {
+      const result = await specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        key,
+        title: '딥링크',
+        type: 'feature',
+        bodyMd: '# 딥링크\n\n본문',
+        userId: planner,
+      });
+      return result['web_url'];
+    } finally {
+      if (before === undefined) delete process.env['NERV_PUBLIC_URL'];
+      else process.env['NERV_PUBLIC_URL'] = before;
+    }
+  }
+
   it('저장 응답에 문서 딥링크가 실린다 — 에이전트가 대화에 붙일 링크다', async () => {
-    const result = await specs.draftUpsert({
-      roles: ['planner'],
-      projectId,
-      key: 'SPC-LINK',
-      title: '딥링크',
-      type: 'feature',
-      bodyMd: '# 딥링크\n\n본문',
-      userId: planner,
-    });
-    expect(result['web_url']).toBe('/p/clemvion/specs/SPC-LINK');
+    expect(await webUrlWith(undefined, 'SPC-LINK')).toBe('/p/clemvion/specs/SPC-LINK');
+  });
+
+  it('공개 주소가 설정돼 있으면 절대 URL 이다 — 대화에 붙여도 열린다', async () => {
+    expect(await webUrlWith('https://nerv.example.com', 'SPC-LINK-ABS')).toBe(
+      'https://nerv.example.com/p/clemvion/specs/SPC-LINK-ABS',
+    );
+    // 끝의 슬래시는 두 번 겹치지 않는다
+    expect(await webUrlWith('https://nerv.example.com/', 'SPC-LINK-SLASH')).toBe(
+      'https://nerv.example.com/p/clemvion/specs/SPC-LINK-SLASH',
+    );
   });
 
   it('제출 응답의 딥링크는 승인 대기면 받은 요청을 가리킨다 — 다음 행동이 있는 곳으로 보낸다', async () => {
@@ -692,13 +718,19 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
       bodyMd: `# 딥링크2\n\n${'본문 문장. '.repeat(200)}`,
       userId: planner,
     });
-    const result = await specs.submitReview({
-      projectId,
-      specVersionId: draft['spec_version_id'] as string,
-      userId: planner,
-    });
-    expect(result.web_url).toBe(
-      result.status === 'in_review' ? '/inbox' : '/p/clemvion/specs/SPC-LINK2',
-    );
+    const before = process.env['NERV_PUBLIC_URL'];
+    delete process.env['NERV_PUBLIC_URL'];
+    try {
+      const result = await specs.submitReview({
+        projectId,
+        specVersionId: draft['spec_version_id'] as string,
+        userId: planner,
+      });
+      expect(result.web_url).toBe(
+        result.status === 'in_review' ? '/inbox' : '/p/clemvion/specs/SPC-LINK2',
+      );
+    } finally {
+      if (before !== undefined) process.env['NERV_PUBLIC_URL'] = before;
+    }
   });
 });

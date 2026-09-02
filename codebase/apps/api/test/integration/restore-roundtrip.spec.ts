@@ -18,20 +18,54 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
-import { createScratchDb } from './helpers.js';
+import { createScratchDb, databaseUrl } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
 // test/integration → apps/api → codebase → 저장소 루트 → deploy/scripts
 const SCRIPTS = join(import.meta.dirname, '../../../../../deploy/scripts');
-/** pg 클라이언트가 없는 환경(CI 이미지에 따라)에서는 왕복을 건너뛴다 — 거짓 실패를 만들지 않는다. */
-const HAS_PG_TOOLS = (() => {
+/**
+ * pg 클라이언트가 **서버와 짝이 맞는가**. 안 맞으면 사유를 남기고 건너뛴다.
+ *
+ * 존재만 보던 검사였다. 그런데 `pg_dump` 는 자기보다 새 메이저의 서버를 거부하므로
+ * (`aborting because of server version mismatch`), 러너에 구버전 클라이언트가 깔려 있으면
+ * skip 이 아니라 **실패**가 됐다 — ubuntu-latest 의 pg16 클라이언트 × pgvector:pg17 서비스가
+ * 정확히 그 조합이고, 그래서 L2 잡이 매번 붉었다(실측 2026-09-02).
+ *
+ * 건너뛰기는 **로컬 장비를 위한 것이지 CI 의 면제가 아니다** — CI 는 짝을 맞춘다
+ * (.github/workflows/ci.yml 이 postgresql-client-17 을 설치한다).
+ */
+function majorOf(text: string): number | null {
+  const m = /(\d+)/.exec(text);
+  return m === null ? null : Number(m[1]);
+}
+
+const PG_TOOLS: { ok: boolean; reason: string } = (() => {
+  let client: number | null;
   try {
-    execFileSync('pg_dump', ['--version'], { stdio: 'ignore' });
-    return true;
+    client = majorOf(execFileSync('pg_dump', ['--version'], { encoding: 'utf8' }));
   } catch {
-    return false;
+    return { ok: false, reason: 'pg_dump 이 없다' };
   }
+  let server: number | null;
+  try {
+    server = majorOf(
+      execFileSync('psql', ['-tAc', 'SHOW server_version', databaseUrl()], { encoding: 'utf8' }),
+    );
+  } catch {
+    return { ok: false, reason: 'psql 로 서버 버전을 읽지 못했다' };
+  }
+  if (client === null || server === null) return { ok: false, reason: '버전 문자열을 읽지 못했다' };
+  if (client < server) {
+    return { ok: false, reason: `pg_dump ${client} 는 서버 ${server} 를 덤프하지 못한다` };
+  }
+  return { ok: true, reason: '' };
 })();
+
+const HAS_PG_TOOLS = PG_TOOLS.ok;
+if (!HAS_PG_TOOLS) {
+  // 건너뛴 이유를 남기지 않으면 "통과" 로 읽힌다
+  console.warn(`[restore-roundtrip] 건너뜀 — ${PG_TOOLS.reason}`);
+}
 
 let source: ScratchDb;
 let restored: ScratchDb;
