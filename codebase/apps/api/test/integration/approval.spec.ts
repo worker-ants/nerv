@@ -11,6 +11,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
+import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
@@ -47,7 +48,7 @@ beforeAll(async () => {
     new SpecRelationService(drizzleDb),
     drizzleDb,
   );
-  approvals = new ApprovalService(events, specs, drizzleDb);
+  approvals = new ApprovalService(events, specs, new AuthService(drizzleDb), drizzleDb);
   questions = new QuestionService(events, drizzleDb);
   await seed();
 });
@@ -198,6 +199,47 @@ describe('결정은 대상을 움직인다 (REQ-API-063)', () => {
 });
 
 describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
+  it('viewer 는 결재를 내리지 못한다 — 역할 큐가 문이다 (EP-APR-03)', async () => {
+    const viewer = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'viewer-apr@example.com','뷰어','active')`,
+      [viewer],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'viewer' FROM project WHERE id = $3`,
+      [newId(), viewer, projectId],
+    );
+
+    const { approval_id: approvalId } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+
+    // 전역 경로(`/api/v1/approvals/{id}/decision`)라 프로젝트 가드가 스코프를 채우지 않고
+    // 지나간다 — 판정은 서비스가 한다(D-05).
+    await expect(
+      approvals.decide({ projectId, approvalId, userId: viewer, decision: 'approve' }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'missing_scope', required: ['approval:decide'] },
+    });
+
+    // 결정은 남지 않았다 — 카드는 여전히 대기다
+    const { rows } = await pool.query<{ decision: string | null }>(
+      `SELECT decision::text AS decision FROM approval WHERE id = $1`,
+      [approvalId],
+    );
+    expect(rows[0]?.decision).toBeNull();
+
+    // planner 는 같은 카드를 결재한다
+    await expect(
+      approvals.decide({ projectId, approvalId, userId: reviewer, decision: 'approve' }),
+    ).resolves.toMatchObject({ decision: 'approve' });
+  });
+
   it('planner 는 자기 요청을 승인하지 못한다 — 규칙은 그대로다', async () => {
     const { approval_id } = await approvals.request({
       projectId,

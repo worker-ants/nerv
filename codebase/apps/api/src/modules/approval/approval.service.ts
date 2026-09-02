@@ -10,7 +10,7 @@
 // OWASP ASI09 가 명명한 공격 표면이고, 원문 우선 표시가 그에 대한 구조적 방어다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { msg, newId, NERV_ERROR, NERV_EVENT, scopesForRoles } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -19,6 +19,7 @@ import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
 import { SpecService } from '../spec/spec.service.js';
+import { AuthService } from '../auth/auth.service.js';
 
 export type ApprovalDecision = 'approve' | 'reject' | 'comment';
 
@@ -67,8 +68,40 @@ export class ApprovalService {
   constructor(
     private readonly events: EventService,
     private readonly specs: SpecService,
+    private readonly auth: AuthService,
     @InjectDb() private readonly db: NervDb,
   ) {}
+
+  /**
+   * 지정 승인자가 있으면 그 사람(또는 admin), 없으면 **역할 큐**다.
+   *
+   * 역할 큐는 `approval:decide` 를 가진 역할이고(정본: `ROLE_SCOPES`), 그 목록을 여기서
+   * 다시 적지 않는다 — 역할이 늘거나 권한이 바뀌면 두 벌 중 하나만 고쳐지기 때문이다.
+   */
+  private async assertMayDecide(
+    projectId: string,
+    userId: string,
+    assigneeUserId: string | null,
+  ): Promise<void> {
+    const roles = await this.auth.assertMembership(userId, projectId);
+    if (assigneeUserId !== null) {
+      if (assigneeUserId === userId || roles.includes('admin')) return;
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.not_assignee'), {
+        kind: 'not_assignee',
+        roles,
+      });
+    }
+    if (scopesForRoles(roles).has('approval:decide')) return;
+    throw new NervError(
+      NERV_ERROR.FORBIDDEN,
+      msg('error.auth.scope_missing', { scope: 'approval:decide' }),
+      {
+        kind: 'missing_scope',
+        required: ['approval:decide'],
+        roles,
+      },
+    );
+  }
 
   /**
    * 결정을 **대상에 적용한다** — 결재 행을 고치는 것만으로는 아무 일도 일어나지 않는다.
@@ -310,11 +343,12 @@ export class ApprovalService {
         subject_type: string;
         subject_id: string;
         requested_by_user_id: string;
+        assignee_user_id: string | null;
         decision: string | null;
         content_hash: string | null;
       }>(sql`
         SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
-               a.requested_by_user_id, a.decision::text AS decision,
+               a.requested_by_user_id, a.assignee_user_id, a.decision::text AS decision,
                encode(sv.content_hash, 'hex') AS content_hash
           FROM approval a
      LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
@@ -327,6 +361,13 @@ export class ApprovalService {
           kind: 'not_found',
         });
       }
+      // **이 결재를 내릴 수 있는 사람인가**(EP-APR-03 "지정 승인자·해당 역할 큐").
+      //
+      // 예전에는 이 문이 "사람인가" 하나였다 — 전역 경로(`/api/v1/approvals/...`)라
+      // 프로젝트 가드가 스코프를 채우지 않고 지나가고, 서비스는 멤버십만 확인했다.
+      // 그래서 `viewer` 도 스펙 승인을 확정할 수 있었다(그 다음은 문서가 approved 다).
+      await this.assertMayDecide(input.projectId, input.userId, approval.assignee_user_id);
+
       if (approval.decision !== null) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.already_decided'), {
           kind: 'already_decided',

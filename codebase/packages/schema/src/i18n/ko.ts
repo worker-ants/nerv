@@ -27,6 +27,7 @@ export const ko = {
   'common.edit': '편집',
   'error.approval.already_decided': '이미 결정된 항목입니다.',
   'error.approval.content_changed': '카드를 연 뒤 내용이 바뀌었습니다.',
+  'error.approval.not_assignee': '지정된 승인자가 아닙니다.',
   'error.approval.not_found': '승인 항목을 찾을 수 없습니다.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
   'error.auth.admin_only': 'admin 만 할 수 있습니다.',

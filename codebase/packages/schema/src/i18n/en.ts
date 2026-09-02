@@ -23,6 +23,7 @@ export const en = {
   'common.edit': 'Edit',
   'error.approval.already_decided': 'This item has already been decided.',
   'error.approval.content_changed': 'The content changed after you opened this card.',
+  'error.approval.not_assignee': 'You are not the designated approver.',
   'error.approval.not_found': 'Approval item not found.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
   'error.auth.admin_only': 'Only admins can do this.',
