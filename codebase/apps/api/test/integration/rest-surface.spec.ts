@@ -552,6 +552,34 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
   });
 });
 
+describe('세션 지시는 소유자·admin 만 (EP-SES-04)', () => {
+  it('남의 세션은 멈추지 못한다 — stop 은 남의 클레임을 회수하는 일이다', async () => {
+    const sessionId = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-09','active')`,
+      [sessionId, projectId, adminId],
+    );
+    const { SessionService } = await import('../../src/modules/session/session.service.js');
+    const sessions = app.get(SessionService);
+
+    await expect(
+      sessions.steer({ projectId, sessionId, kind: 'stop', message: '중단', userId: viewerId }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_owner' } });
+
+    // admin 은 된다(전표의 "세션 소유자·admin")
+    const ok = await sessions.steer({
+      projectId,
+      sessionId,
+      kind: 'steer',
+      message: '이쪽으로',
+      userId: viewerId,
+      isAdmin: true,
+    });
+    expect(ok.ok).toBe(true);
+  });
+});
+
 describe('받은 요청·알림·커버리지 표면', () => {
   it('전역 받은 요청은 프로젝트를 가로지르고 대기 시간을 싣는다 (EP-APR-01)', async () => {
     const { ApprovalService } = await import('../../src/modules/approval/approval.service.js');

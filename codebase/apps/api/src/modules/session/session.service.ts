@@ -204,11 +204,24 @@ export class SessionService {
     return { accepted: rows.length > 0 };
   }
 
-  /** 훅이 세션 신원을 조인하는 키 — 하네스가 발급한 external_session_id 다(§3.3). */
-  async findByExternalId(projectId: string, externalSessionId: string): Promise<string | null> {
+  /**
+   * 훅이 세션 신원을 조인하는 키 — 하네스가 발급한 external_session_id 다(§3.3).
+   *
+   * **소유자도 함께 본다.** external id 는 비밀이 아니다: EP-SES-02 상세와 EP-EVT-01 피드,
+   * 작업 화면이 그대로 싣는 값이다. 그래서 예전에는 같은 프로젝트에 PAT 를 가진 다른 멤버가
+   * 그 값 하나로 남의 세션을 끝내고(활성 클레임이 전부 회수된다) 남의 타임라인에 활동을
+   * 적재할 수 있었다. 신원은 **토큰에서 온다**(D-08) — 컨트롤러 머리 주석이 처음부터
+   * 그렇게 적고 있었고, 조인만 그 말을 따르지 않았다.
+   */
+  async findByExternalId(
+    projectId: string,
+    externalSessionId: string,
+    userId: string,
+  ): Promise<string | null> {
     const { rows } = await this.db.execute<{ id: string }>(sql`
       SELECT id FROM agent_session
        WHERE project_id = ${projectId} AND external_session_id = ${externalSessionId}
+         AND user_id = ${userId}
        ORDER BY started_at DESC LIMIT 1
     `);
     return rows[0]?.id ?? null;
@@ -335,6 +348,8 @@ export class SessionService {
     kind: 'steer' | 'stop';
     message: string;
     userId: string;
+    /** 전표의 "세션 소유자·admin"(EP-SES-04). 없으면 소유자 판정만 한다 */
+    isAdmin?: boolean;
   }): Promise<{ ok: true; kind: string; reclaimed: number }> {
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{ id: string; user_id: string; state: string }>(sql`
@@ -345,6 +360,15 @@ export class SessionService {
       if (session === undefined) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.not_found'), {
           kind: 'not_found',
+          session_id: input.sessionId,
+        });
+      }
+
+      // 남의 세션을 멈추는 것은 남의 클레임을 회수하는 것이다(stop 이 그렇게 한다) —
+      // 전표는 이 문을 세션 소유자와 admin 에게만 열어 두었다(EP-SES-04).
+      if (session.user_id !== input.userId && input.isAdmin !== true) {
+        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.session.not_owner'), {
+          kind: 'not_owner',
           session_id: input.sessionId,
         });
       }

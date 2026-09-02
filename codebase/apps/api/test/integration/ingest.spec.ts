@@ -246,6 +246,55 @@ describe('Stop — 유일한 동기 판정 경로', () => {
   });
 });
 
+describe('훅의 세션 신원은 토큰에서 온다 (D-08)', () => {
+  it('남의 PAT 로는 그 세션을 끝내지 못한다 — external id 는 비밀이 아니다', async () => {
+    const start = await hook('session', { session_id: EXTERNAL_SESSION }, { host: 'mac-07' });
+    const sessionId = String(start.body['session_id']);
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status, lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+      [newId(), projectId, taskId, sessionId, userId],
+    );
+
+    // 같은 프로젝트의 다른 멤버 — 그의 PAT 는 그의 세션만 만질 수 있다
+    const other = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'dohyun@example.com','도현','active')`,
+      [other],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'developer' FROM project WHERE id = $3`,
+      [newId(), other, projectId],
+    );
+    const otherToken = (
+      await app.get(AuthService).issueToken({
+        projectId,
+        userId: other,
+        name: 'other',
+        scopes: ['agent-session:launch', 'task:update'],
+      })
+    ).token;
+
+    const res = await hook(
+      'session-end',
+      { session_id: EXTERNAL_SESSION, reason: 'complete' },
+      { token: otherToken },
+    );
+    // 세션을 못 찾은 것과 같다 — 조용히 버린다(bootstrap 전 훅과 구별하지 않는다)
+    expect(res.status).toBe(202);
+
+    const { rows } = await pool.query<{ state: string; claims: number }>(
+      `SELECT s.state::text AS state,
+              (SELECT count(*)::int FROM claim c WHERE c.agent_session_id = s.id AND c.status='active') AS claims
+         FROM agent_session s WHERE s.id = $1`,
+      [sessionId],
+    );
+    expect(rows[0]?.state).toBe('active');
+    expect(rows[0]?.claims).toBe(1);
+  });
+});
+
 describe('SessionEnd — 종료 + 미해제 클레임 회수', () => {
   it('세션이 끝나면 클레임을 돌려놓는다 — 30분 리스를 기다리게 두지 않는다 (D-13)', async () => {
     const start = await hook('session', { session_id: EXTERNAL_SESSION }, { host: 'mac-07' });

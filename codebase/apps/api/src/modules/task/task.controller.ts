@@ -10,6 +10,7 @@ import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRole, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { TaskService } from './task.service.js';
+import type { ClaimActor } from './task.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
@@ -155,7 +156,7 @@ export class TaskController {
     // 프로젝트 소속 확인은 가드가 끝냈다 — 여기서는 클레임 ID 만 넘긴다.
     projectOf(req);
     void body;
-    return this.tasks.heartbeat({ claimId: claim });
+    return this.tasks.heartbeat({ claimId: claim, actor: claimActor(req) });
   }
 
   /** EP-TASK-08 */
@@ -169,6 +170,7 @@ export class TaskController {
     projectOf(req);
     const reason = body['reason'];
     return this.tasks.release({
+      actor: claimActor(req),
       claimId: claim,
       userId: principalOf(req).userId,
       reason: reason === 'done' || reason === 'abandon' ? reason : 'handoff',
@@ -196,4 +198,18 @@ function principalOf(req: ProjectRequest): { userId: string } {
     throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   return principal;
+}
+
+/**
+ * 클레임을 만지는 주체 — 표면은 "누가·어디서·무엇으로" 를 모아 넘기기만 한다(D-05).
+ * REST 에는 에이전트 세션이 없다: 사람이 웹에서 부르는 경로이고, 그때의 보유 판정 축은
+ * 클레임을 만든 사용자다.
+ */
+function claimActor(req: ProjectRequest): ClaimActor {
+  return {
+    projectId: projectOf(req),
+    userId: principalOf(req).userId,
+    sessionId: null,
+    isAdmin: (req.nervRoles ?? []).includes('admin'),
+  };
 }

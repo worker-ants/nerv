@@ -193,7 +193,11 @@ export class IngestController {
    */
   private async resolveSession(principal: Principal, body: HookPayload): Promise<string | null> {
     if (body.session_id === undefined || body.session_id === '') return null;
-    return this.sessions.findByExternalId(principal.projectId ?? '', body.session_id);
+    return this.sessions.findByExternalId(
+      principal.projectId ?? '',
+      body.session_id,
+      principal.userId,
+    );
   }
 }
 

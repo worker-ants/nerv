@@ -29,6 +29,15 @@ import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
 
+/** 클레임을 만지는 주체 — 전표의 "보유자"·"admin" 판정에 필요한 것 전부다 */
+export interface ClaimActor {
+  projectId: string;
+  userId: string;
+  /** 에이전트 세션. 사람의 REST 호출에는 없다 */
+  sessionId: string | null;
+  isAdmin: boolean;
+}
+
 export interface ClaimInput {
   projectId: string;
   taskId: string;
@@ -489,9 +498,13 @@ export class TaskService {
    */
   private async resolveTaskId(tx: Tx, projectId: string, ref: string): Promise<string> {
     const parsed = entityRef(ref);
-    if (parsed.id !== null) return parsed.id;
+    // **UUID 도 프로젝트 안에서 해소한다.** 예전에는 UUID 면 그대로 돌려줬고, 그래서
+    // `claim` 의 FOR UPDATE 조회가 남의 프로젝트 Task 를 잠그고 그 프로젝트 id 로
+    // 클레임·이벤트를 적었다(`transition` 은 같은 파일에서 이미 경계를 보고 있었다).
     const { rows } = await tx.execute<{ id: string }>(
-      sql`SELECT id FROM task WHERE project_id = ${projectId} AND key = ${parsed.key ?? ''}`,
+      parsed.id !== null
+        ? sql`SELECT id FROM task WHERE project_id = ${projectId} AND id = ${parsed.id}`
+        : sql`SELECT id FROM task WHERE project_id = ${projectId} AND key = ${parsed.key ?? ''}`,
     );
     const found = rows[0]?.id;
     if (found === undefined) {
@@ -670,24 +683,67 @@ export class TaskService {
   }
 
   /**
+   * **이 클레임은 부른 쪽의 것인가**(EP-TASK-07·08).
+   *
+   * 예전에는 `claim_id` 하나면 충분했다 — 프로젝트도, 세션도, 사용자도 보지 않았다.
+   * 클레임 UUID 는 이벤트 피드·화면·로그에 그대로 실리는 값이라 비밀이 아니고, 그래서
+   * 같은 프로젝트의 다른 멤버가 남의 리스를 연장하고(그리고 그 세션 앞으로 온 steer·stop 을
+   * **소비하고**) 남의 클레임을 해제해 Task 를 ready 로 되돌릴 수 있었다.
+   *
+   * 보유자는 **그 클레임을 쥔 세션**이고, 세션이 없는 경로(사람의 REST)에서는 그 클레임을
+   * 만든 사용자다. admin 은 해제만 할 수 있다 — 전표가 그렇게 적었다.
+   */
+  private async assertClaimOwner(
+    claimId: string,
+    actor: ClaimActor,
+    action: 'heartbeat' | 'release',
+  ): Promise<{ agentSessionId: string | null }> {
+    const { rows } = await this.db.execute<{
+      project_id: string;
+      user_id: string;
+      agent_session_id: string | null;
+    }>(sql`SELECT project_id, user_id, agent_session_id FROM claim WHERE id = ${claimId}`);
+    const claim = rows[0];
+    if (claim === undefined || claim.project_id !== actor.projectId) {
+      // 남의 프로젝트 클레임은 **없는 것**이다 — 존재를 알려 주지 않는다
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.claim.not_active'), {
+        kind: 'not_active',
+        claim_id: claimId,
+      });
+    }
+
+    const bySession = actor.sessionId !== null && claim.agent_session_id === actor.sessionId;
+    const byUser = claim.user_id === actor.userId;
+    const byAdmin = action === 'release' && actor.isAdmin;
+    if (!bySession && !byUser && !byAdmin) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.claim.not_owner'), {
+        kind: 'not_owner',
+        claim_id: claimId,
+      });
+    }
+    return { agentSessionId: claim.agent_session_id };
+  }
+
+  /**
    * 하트비트 — 리스 연장 + **서버 → 세션 방향의 유일한 보장된 채널**이다(agent-integration §2.4).
    * 질문 답변·steer/stop 지시가 여기 실린다. Claude 의 channel capability 는 향상이고
    * 하트비트가 정본이다(Codex 에는 채널이 없다).
    */
   async heartbeat(input: {
     claimId: string;
+    /** 전표의 "클레임 보유자"(EP-TASK-07) — 부른 주체다 */
+    actor: ClaimActor;
     leaseSeconds?: number;
   }): Promise<{ leaseExpiresAt: Date; pending: unknown[] }> {
+    const owned = await this.assertClaimOwner(input.claimId, input.actor, 'heartbeat');
+
     const leaseExpiresAt = await this.db.transaction(async (tx) =>
       this.claims.renewLease(tx, input.claimId, input.leaseSeconds),
     );
 
     // 역채널 — 답변된 질문을 여기 싣는다. Claude 의 channel capability 는 향상이고
     // 하트비트가 정본이다(Codex 에는 채널이 없다). 여기 실리지 않으면 에이전트는 모른다.
-    const { rows } = await this.db.execute<{ agent_session_id: string | null }>(
-      sql`SELECT agent_session_id FROM claim WHERE id = ${input.claimId}`,
-    );
-    const sessionId = rows[0]?.agent_session_id ?? null;
+    const sessionId = owned.agentSessionId;
     if (sessionId === null) return { leaseExpiresAt, pending: [] };
 
     // **사람이 보낸 지시도 여기 실린다**(2026-09-01 · REQ-API-072).
@@ -709,7 +765,10 @@ export class TaskService {
     claimId: string;
     reason: 'done' | 'handoff' | 'abandon';
     userId: string;
+    /** 전표의 "클레임 보유자 또는 admin"(EP-TASK-08) */
+    actor: ClaimActor;
   }): Promise<{ taskStatus: string }> {
+    await this.assertClaimOwner(input.claimId, input.actor, 'release');
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         task_id: string;

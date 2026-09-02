@@ -114,6 +114,7 @@ export class SessionController {
       kind,
       message: String(body['message'] ?? ''),
       userId: principal.userId,
+      isAdmin: (req.nervRoles ?? []).includes('admin'),
     });
   }
 }

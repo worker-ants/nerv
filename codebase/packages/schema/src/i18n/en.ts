@@ -64,6 +64,7 @@ export const en = {
   'error.baseline.not_found': 'Baseline not found.',
   'error.claim.lease_expired': 'The lease expired, or this is not an active claim.',
   'error.claim.not_active': 'Not an active claim.',
+  'error.claim.not_owner': 'You do not hold this claim.',
   'error.claim.scope_conflict': 'Another session already holds the same spec document.',
   'error.claim.taken': 'Another session claimed it first.',
   'error.comment.anchor_required': 'An anchor is required.',
@@ -128,6 +129,7 @@ export const en = {
   'error.request.schema': 'The request body failed schema validation.',
   'error.requirement.not_found': 'Requirement not found.',
   'error.session.not_found': 'Session not found.',
+  'error.session.not_owner': 'You do not own this session.',
   'error.session.resume_not_found': 'No session to resume.',
   'error.spec.archive_blocked': 'This spec cannot be archived yet.',
   'error.review.spec_version_required':

@@ -5,6 +5,8 @@ import { Injectable } from '@nestjs/common';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { requireSession } from '../session/session.tools.js';
 import { TaskService } from './task.service.js';
+import type { ClaimActor } from './task.service.js';
+import type { ToolContext } from '../../mcp/tool-context.js';
 
 @Injectable()
 export class TaskTools implements NervToolProvider {
@@ -195,8 +197,11 @@ export class TaskTools implements NervToolProvider {
         properties: { claim_id: { type: 'string' }, progress: { type: 'string' } },
         required: ['claim_id'],
       },
-      handler: async (input) => {
-        const beat = await this.tasks.heartbeat({ claimId: String(input['claim_id']) });
+      handler: async (input, ctx) => {
+        const beat = await this.tasks.heartbeat({
+          claimId: String(input['claim_id']),
+          actor: claimActor(ctx),
+        });
         return {
           lease_expires_at: beat.leaseExpiresAt.toISOString(),
           // 서버 → 세션 방향의 유일한 보장된 채널이다(agent-integration §2.4)
@@ -224,6 +229,7 @@ export class TaskTools implements NervToolProvider {
           claimId: String(input['claim_id']),
           reason: input['reason'] as 'done' | 'handoff' | 'abandon',
           userId: ctx.principal.userId,
+          actor: claimActor(ctx),
         }),
     },
     {
@@ -304,4 +310,18 @@ function pick(
     if (typeof input[from] === 'string' && input[from] !== '') out[to] = input[from];
   }
   return out;
+}
+
+/**
+ * 도구 호출의 주체 — 에이전트는 **세션이 축이다**(그 세션이 클레임을 쥔다).
+ * 세션을 못 좁혔으면 null 이고, 그때는 사용자 축으로만 판정된다.
+ */
+function claimActor(ctx: ToolContext): ClaimActor {
+  return {
+    projectId: ctx.projectId,
+    userId: ctx.principal.userId,
+    sessionId: ctx.sessionId,
+    // 에이전트 토큰에 admin 해제 권한을 주지 않는다 — 전표의 admin 은 사람이다
+    isAdmin: false,
+  };
 }

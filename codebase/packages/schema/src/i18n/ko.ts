@@ -66,6 +66,7 @@ export const ko = {
   'error.baseline.not_found': '베이스라인을 찾을 수 없습니다.',
   'error.claim.lease_expired': '리스가 만료되었거나 활성 클레임이 아닙니다.',
   'error.claim.not_active': '활성 클레임이 아닙니다.',
+  'error.claim.not_owner': '이 클레임의 보유자가 아닙니다.',
   'error.claim.scope_conflict': '같은 스펙 문서를 다른 세션이 이미 잡고 있습니다.',
   'error.claim.taken': '다른 세션이 먼저 클레임했습니다.',
   'error.comment.anchor_required': '앵커가 필요합니다.',
@@ -129,6 +130,7 @@ export const ko = {
   'error.request.schema': '요청 본문이 스키마를 위반했습니다.',
   'error.requirement.not_found': '요구사항을 찾을 수 없습니다.',
   'error.session.not_found': '세션을 찾을 수 없습니다.',
+  'error.session.not_owner': '이 세션의 소유자가 아닙니다.',
   'error.session.resume_not_found': '재개할 세션을 찾을 수 없습니다.',
   'error.spec.archive_blocked': '아카이브할 수 없습니다.',
   'error.review.spec_version_required':

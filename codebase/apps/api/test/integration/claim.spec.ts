@@ -84,6 +84,15 @@ beforeEach(async () => {
 
 // ── E04-S01 원자적 클레임 ───────────────────────────────────────────────────
 
+/** 클레임을 쥔 주체 — 하트비트·해제는 보유자만 부를 수 있다(EP-TASK-07·08) */
+function actor(
+  sessionId: string | null,
+  userId: string,
+  isAdmin = false,
+): { projectId: string; userId: string; sessionId: string | null; isAdmin: boolean } {
+  return { projectId, userId, sessionId, isAdmin };
+}
+
 describe('E04-S01 원자적 클레임 (성공 기준 0-1·0-2)', () => {
   it('세 세션이 같은 ready Task 를 동시에 잡으면 정확히 1건만 성공한다', async () => {
     const taskId = await makeTask('CLV-T-0CFQC2');
@@ -303,7 +312,11 @@ describe('E04-S03 하트비트·리스 연장', () => {
     const claim = await tasks.claim(claimInput(taskId, sessionHana, hana, undefined, 60));
 
     const before = claim.leaseExpiresAt.getTime();
-    const beat = await tasks.heartbeat({ claimId: claim.claimId, leaseSeconds: 1800 });
+    const beat = await tasks.heartbeat({
+      claimId: claim.claimId,
+      leaseSeconds: 1800,
+      actor: actor(sessionHana, hana),
+    });
     expect(beat.leaseExpiresAt.getTime()).toBeGreaterThan(before);
   });
 
@@ -325,12 +338,14 @@ describe('E04-S03 하트비트·리스 연장', () => {
       userId: hana,
     });
 
-    const beat = await tasks.heartbeat({ claimId: claim.claimId });
+    const beat = await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) });
     expect(beat.pending).toHaveLength(1);
     expect(beat.pending[0]).toMatchObject({ kind: 'steer', message: '그 방향은 아니다' });
 
     // 두 번 주면 에이전트가 같은 지시를 두 번 따른다
-    expect((await tasks.heartbeat({ claimId: claim.claimId })).pending).toEqual([]);
+    expect(
+      (await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) })).pending,
+    ).toEqual([]);
   });
 
   it('지시가 답변보다 앞선다 — 방향을 바꾸라는 말이 먼저 읽혀야 한다', async () => {
@@ -355,7 +370,7 @@ describe('E04-S03 하트비트·리스 연장', () => {
       userId: hana,
     });
 
-    const beat = await tasks.heartbeat({ claimId: claim.claimId });
+    const beat = await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) });
     expect(beat.pending.map((p) => (p as Record<string, unknown>)['kind'])).toEqual([
       'steer',
       'question_answered',
@@ -370,7 +385,9 @@ describe('E04-S03 하트비트·리스 연장', () => {
       [claim.claimId],
     );
 
-    await expect(tasks.heartbeat({ claimId: claim.claimId })).rejects.toMatchObject({
+    await expect(
+      tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) }),
+    ).rejects.toMatchObject({
       code: NERV_ERROR.LEASE_EXPIRED,
     });
   });
@@ -430,11 +447,79 @@ describe('E04-S04 만료 자동 회수 (성공 기준 0-4)', () => {
   });
 });
 
+describe('클레임의 주인 (EP-TASK-07·08)', () => {
+  // claim_id 는 비밀이 아니다 — 이벤트 피드·화면·로그가 그대로 싣는다. 예전에는 그 값
+  // 하나면 남의 리스를 연장하고(그 세션 앞으로 온 지시를 **소비하고**) 남의 클레임을
+  // 풀어 Task 를 ready 로 되돌릴 수 있었다.
+  it('남의 세션은 하트비트로 리스를 연장하지 못한다', async () => {
+    const taskId = await makeTask('TSK-own-hb');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+
+    await expect(
+      tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionDohyun, dohyun) }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_owner' } });
+
+    // 보유자는 그대로 된다
+    const beat = await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) });
+    expect(beat.leaseExpiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('남의 클레임은 해제하지 못하고 Task 도 그대로다', async () => {
+    const taskId = await makeTask('TSK-own-rel');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+
+    await expect(
+      tasks.release({
+        claimId: claim.claimId,
+        reason: 'abandon',
+        userId: dohyun,
+        actor: actor(sessionDohyun, dohyun),
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_owner' } });
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('claimed');
+  });
+
+  it('admin 은 해제할 수 있다 — 전표가 그렇게 적었다(해제만)', async () => {
+    const taskId = await makeTask('TSK-own-admin');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+
+    // 하트비트는 admin 에게도 열려 있지 않다 — 리스는 일하는 쪽이 쥔다
+    await expect(
+      tasks.heartbeat({ claimId: claim.claimId, actor: actor(null, dohyun, true) }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
+
+    const r = await tasks.release({
+      claimId: claim.claimId,
+      reason: 'abandon',
+      userId: dohyun,
+      actor: actor(null, dohyun, true),
+    });
+    expect(r.taskStatus).toBe('ready');
+  });
+
+  it('다른 프로젝트의 클레임은 없는 것으로 답한다 — 존재를 알려 주지 않는다', async () => {
+    const taskId = await makeTask('TSK-own-tenant');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+
+    await expect(
+      tasks.heartbeat({
+        claimId: claim.claimId,
+        actor: { projectId: newId(), userId: hana, sessionId: sessionHana, isAdmin: true },
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'not_active' } });
+  });
+});
+
 describe('클레임 해제', () => {
   it('abandon 은 Task 를 ready 로 회수한다', async () => {
     const taskId = await makeTask('TSK-rel');
     const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
-    const r = await tasks.release({ claimId: claim.claimId, reason: 'abandon', userId: hana });
+    const r = await tasks.release({
+      claimId: claim.claimId,
+      reason: 'abandon',
+      userId: hana,
+      actor: actor(sessionHana, hana),
+    });
     expect(r.taskStatus).toBe('ready');
     expect(await count(`SELECT count(*)::int AS n FROM event WHERE type='claim.released'`)).toBe(1);
   });
@@ -442,7 +527,12 @@ describe('클레임 해제', () => {
   it('done 은 Task 상태를 건드리지 않는다 — done 전이는 게이트가 따로 판정한다', async () => {
     const taskId = await makeTask('TSK-rel2');
     const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
-    const r = await tasks.release({ claimId: claim.claimId, reason: 'done', userId: hana });
+    const r = await tasks.release({
+      claimId: claim.claimId,
+      reason: 'done',
+      userId: hana,
+      actor: actor(sessionHana, hana),
+    });
     expect(r.taskStatus).toBe('unchanged');
     expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('claimed');
   });
