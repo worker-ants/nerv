@@ -324,6 +324,9 @@ export class TaskService {
         projectId: input.projectId,
         subjectType: 'task',
         subjectId: taskId,
+        // 화면의 쿼리 키 축은 안정 키다(`CLV-T-…`) — UUID 만 실으면 단건 캐시가
+        // 무효화되지 않아 작업 상세가 열린 채로 낡는다(screens.md §1.4)
+        subjectKey: key,
         actorUserId: input.userId,
         isAgent: false,
         toState: 'backlog',
@@ -430,6 +433,7 @@ export class TaskService {
           projectId: input.projectId,
           subjectType: 'task',
           subjectId: task.id,
+          subjectKey: input.taskKey,
           actorUserId: input.userId,
           isAgent: false,
         });
@@ -888,8 +892,8 @@ export class TaskService {
     return this.events.transact(async (tx, emit) => {
       // 키로 왔든 UUID 로 왔든 같은 작업을 가리킨다(§1.4b)
       const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
-      const { rows } = await tx.execute<{ status: string; project_id: string }>(
-        sql`SELECT status::text AS status, project_id FROM task WHERE id = ${taskId} FOR UPDATE`,
+      const { rows } = await tx.execute<{ status: string; project_id: string; key: string }>(
+        sql`SELECT status::text AS status, project_id, key FROM task WHERE id = ${taskId} FOR UPDATE`,
       );
       const task = rows[0];
       if (task === undefined || task.project_id !== input.projectId) {
@@ -951,6 +955,7 @@ export class TaskService {
           projectId: input.projectId,
           subjectType: 'task',
           subjectId: taskId,
+          subjectKey: task.key,
           actorUserId: input.userId,
           actorSessionId: input.sessionId ?? null,
           isAgent: input.sessionId != null,
@@ -977,6 +982,7 @@ export class TaskService {
         projectId: input.projectId,
         subjectType: 'task',
         subjectId: taskId,
+        subjectKey: task.key,
         actorUserId: input.userId,
         actorSessionId: input.sessionId ?? null,
         isAgent: input.sessionId != null,

@@ -32,12 +32,18 @@ const specAxis: KeyBuilder = (e) => {
     queryKeys.spec(ref),
     queryKeys.specVersions(ref),
     queryKeys.projectSpecTree(e.project_id),
+    // 표·그래프(EP-SPEC-19)도 스펙이 생기거나 승인되면 낡는다 — 어떤 이벤트에도
+    // 걸려 있지 않아 새로고침 전까지 옛 그림을 보여 주고 있었다
+    queryKeys.projectSpecGraph(e.project_id),
   ];
 };
-const specComments: KeyBuilder = (e) => [queryKeys.specComments(e.subject_id)];
+// 코멘트·Task 도 **같은 축**이다(2026-09-02). 스펙 축만 2026-08-29 에 안정 키로 옮겼고
+// 나머지는 UUID 로 남아 있었다 — 화면의 키는 안정 키라 코멘트가 달려도, Task 가 done 이
+// 돼도 단건 캐시는 한 번도 무효화되지 않았다(서버가 그 이벤트에 키를 싣게 됐다).
+const specComments: KeyBuilder = (e) => [queryKeys.specComments(e.subject_key ?? e.subject_id)];
 const taskAxis: KeyBuilder = (e) => [
   queryKeys.projectTasks(e.project_id),
-  queryKeys.task(e.subject_id),
+  queryKeys.task(e.subject_key ?? e.subject_id),
 ];
 const sessionAxis: KeyBuilder = (e) => [
   queryKeys.projectSessions(e.project_id),
@@ -57,7 +63,7 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.SPEC_ARCHIVED]: specAxis,
   [E.SPEC_RESTORED]: specAxis,
   // 참조 전파 — S3 참조 갱신 배지가 함께 붙는다
-  [E.SPEC_RECHECK_REQUESTED]: (e) => [queryKeys.spec(e.subject_id)],
+  [E.SPEC_RECHECK_REQUESTED]: (e) => [queryKeys.spec(e.subject_key ?? e.subject_id)],
 
   [E.SPEC_COMMENT_ADDED]: specComments,
   [E.COMMENT_RESOLVED]: specComments,
@@ -76,7 +82,7 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   // 증적은 Task 상세와 커버리지 두 곳에 나타난다 — GitHub 웹훅이 붙인 PR 링크가
   // 작업 화면에 뜨지 않으면 "수집됐는지" 확인할 방법이 사람에게 없다(FR-13).
   [E.EVIDENCE_ADDED]: (e) => [
-    queryKeys.task(e.subject_id),
+    queryKeys.task(e.subject_key ?? e.subject_id),
     queryKeys.projectTasks(e.project_id),
     [...queryKeys.project(e.project_id), 'coverage'],
   ],
