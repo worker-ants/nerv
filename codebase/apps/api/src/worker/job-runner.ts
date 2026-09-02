@@ -16,6 +16,7 @@ import { ExportJob } from './jobs/export.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
 import { RetentionJob } from './jobs/retention.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
+import { PartitionJob } from './jobs/partition.job.js';
 import { SessionStaleJob } from './jobs/session-stale.job.js';
 
 interface Scheduled {
@@ -43,6 +44,7 @@ export class JobRunner {
     embedding: EmbeddingJob,
     retention: RetentionJob,
     exporter: ExportJob,
+    partition: PartitionJob,
   ) {
     const heartbeat = HEARTBEAT_INTERVAL_SECONDS * 1000;
     this.schedule = [
@@ -81,6 +83,15 @@ export class JobRunner {
         lastRunAt: null,
       },
       { name: exporter.name, everyMs: heartbeat * 60, run: () => exporter.run(), lastRunAt: null },
+      // 파티션은 **미래를 미리 만드는** 일이라 하루 한 번이면 충분하고, 그보다 드물면
+      // 워커가 며칠 멈췄을 때 경계에 닿는다. 기동 직후 첫 틱에 한 번 도는 것이 중요하다 —
+      // 그 한 번이 "마이그레이션만 하고 워커를 늦게 띄운" 배치를 구한다.
+      {
+        name: partition.name,
+        everyMs: heartbeat * 60 * 24,
+        run: () => partition.run(),
+        lastRunAt: null,
+      },
     ];
   }
 

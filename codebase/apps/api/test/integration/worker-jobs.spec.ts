@@ -4,7 +4,7 @@
 // "워커가 두 개 떠도 하나만 돈다"이고, 그것을 mock 으로 확인하면 아무 의미가 없다 —
 // pg_try_advisory_lock 의 의미론 자체가 검증 대상이라 실제 Postgres 커넥션 2개로 본다.
 
-import { newId, WORKER_ADVISORY_LOCK_KEY } from '@nerv/schema';
+import { newId, PARTITION_MONTHS_AHEAD, WORKER_ADVISORY_LOCK_KEY } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
@@ -16,6 +16,7 @@ import { EventService } from '../../src/modules/event/event.service.js';
 import { JobRunner } from '../../src/worker/job-runner.js';
 import { LeaseReaperJob } from '../../src/worker/jobs/lease-reaper.job.js';
 import { NotificationJob } from '../../src/worker/jobs/notification.job.js';
+import { PartitionJob } from '../../src/worker/jobs/partition.job.js';
 import { NotificationService } from '../../src/modules/event/notification.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { SessionStaleJob } from '../../src/worker/jobs/session-stale.job.js';
@@ -71,9 +72,79 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
       ),
       drizzleDb,
     ),
+    new PartitionJob(drizzleDb),
   );
   return { runner, lock };
 }
+
+describe('월 파티션 — 두 달 뒤에 멈추지 않는다 (REQ-DB-021)', () => {
+  /** 그 달의 event 파티션이 있는가 */
+  async function hasPartition(monthsFromNow: number): Promise<boolean> {
+    const { rows } = await poolA.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_class
+        WHERE relkind = 'r'
+          AND relname = 'event_' || to_char((current_date + ($1 || ' month')::interval), '"y"YYYY"m"MM')`,
+      [monthsFromNow],
+    );
+    return (rows[0]?.n ?? 0) > 0;
+  }
+
+  it('잡이 돌면 앞으로 몇 달치가 생긴다 — 0000 은 당월·익월만 만든다', async () => {
+    // 마이그레이션 직후 상태를 재현한다: +2 개월 파티션을 지운다(0000 은 두 달만 만든다)
+    const { rows: names } = await poolA.query<{ event: string; activity: string }>(
+      `SELECT 'event_' || to_char((current_date + ($1 || ' month')::interval), '"y"YYYY"m"MM') AS event,
+              'activity_' || to_char((current_date + ($1 || ' month')::interval), '"y"YYYY"m"MM') AS activity`,
+      [2],
+    );
+    await poolA.query(`DROP TABLE IF EXISTS ${names[0]!.event}`);
+    await poolA.query(`DROP TABLE IF EXISTS ${names[0]!.activity}`);
+    expect(await hasPartition(2)).toBe(false);
+
+    const { runner, lock } = runnerFor(poolA);
+    try {
+      const ran = await runner.tick(0);
+      expect(ran).toContain('partition');
+    } finally {
+      // 세션 수준 lock 이라 놓지 않으면 뒤 테스트의 "인계" 시나리오가 깨진다
+      await lock.release();
+    }
+
+    expect(await hasPartition(0)).toBe(true);
+    expect(await hasPartition(2)).toBe(true);
+    expect(await hasPartition(PARTITION_MONTHS_AHEAD)).toBe(true);
+  });
+
+  it('두 달 뒤의 이벤트도 적재된다 — 파티션이 없으면 도메인 트랜잭션째 롤백된다', async () => {
+    const { runner, lock } = runnerFor(poolA);
+    try {
+      await runner.tick(0);
+    } finally {
+      await lock.release();
+    }
+
+    // 이벤트는 도메인 쓰기와 같은 트랜잭션에 있다(REQ-CB-004) — 여기서 실패하면
+    // 승인도 클레임도 함께 사라진다. 그래서 미래 시각의 INSERT 를 직접 본다.
+    const orgId = newId();
+    const projectId = newId();
+    await poolA.query(`INSERT INTO organization (id, slug, name) VALUES ($1,$2,'파티션')`, [
+      orgId,
+      `part-${orgId.slice(-6)}`,
+    ]);
+    await poolA.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,'파티션')`,
+      [projectId, orgId, `part-${projectId.slice(-6)}`, `P${projectId.slice(-2).toUpperCase()}`],
+    );
+
+    await expect(
+      poolA.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, occurred_at)
+         VALUES ($1, $2, 'spec.approved', 'spec_version', $3,
+                 (date_trunc('month', current_date) + interval '2 month' + interval '1 day'))`,
+        [newId(), projectId, newId()],
+      ),
+    ).resolves.toBeDefined();
+  });
+});
 
 describe('E04-S04 잡 루프는 하나만 돈다', () => {
   it('두 워커가 떠도 lock 을 쥔 쪽만 잡을 실행한다 (REQ-CB-011)', async () => {

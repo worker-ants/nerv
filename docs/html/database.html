@@ -52,7 +52,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.18 (2026-09-01)</span>
+      <span>버전 v0.19 (2026-09-02)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -855,6 +855,19 @@ END $$;
 
 SELECT nerv_ensure_month_partitions(current_date);
 SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);</code></pre>
+
+  <p><b>만드는 주체가 없었다</b>(2026-09-02 — 보안·정합 점검). 위 주석과 이 절은 "이후는 nerv-worker 가 매일 1회 호출" 이라고 적었는데 <b>그 잡이 존재하지 않았다</b>(실측: <code>apps/api/src</code>·<code>packages/schema/src</code> 전체에 partition 참조 0건). 마이그레이션이 만든 두 달이 지나는 순간, 즉 적용한 달의 <b>+2 개월 1일 00:00</b> 부터 <code>event</code>·<code>activity</code> INSERT 가 <code>no partition of relation … found for row</code> 로 실패한다. 이벤트는 도메인 트랜잭션 <b>안에서</b> 쓰이므로(REQ-CB-004) 스펙 승인·클레임·리뷰 제출이 <b>전부 함께 롤백된다</b> — 조용한 저하가 아니라 서버가 멈추는 결함이다.</p>
+
+  <p>두 자리에서 채운다. <b>워커</b>가 하루 한 번 오늘부터 <code>PARTITION_MONTHS_AHEAD</code>(3)개월 뒤까지 보장하고(<code>partition</code> 잡, advisory lock 하), <b>마이그레이터</b>도 같은 함수를 한 번 돌린다 — 워커가 뜨기 전에도 서버는 이벤트를 쓰기 때문이다. 함수 전체가 <code>IF NOT EXISTS</code> 라 몇 번을 돌아도 결과가 같다(REQ-DB-001 의 왕복 멱등을 깨지 않는다).</p>
+
+  <p><b>아직 없는 것</b>: 12개월 지난 <code>event</code> 파티션의 <code>DETACH</code>, 보존 기간을 넘긴 <code>activity</code> 파티션의 드랍. 아래 문단이 워커 잡으로 약속하지만 구현은 없다 — 파티션은 계속 쌓인다. 지금 규모에서 급하지 않아 남겨 두되, <b>문서가 있다고 말하지 않게</b> 여기에 적는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-DB-021</td><td>WHILE 서버가 도는 동안 THE SYSTEM SHALL 오늘부터 <code>PARTITION_MONTHS_AHEAD</code> 개월 뒤까지의 <code>event</code>·<code>activity</code> 월 파티션을 워커 잡이 매일 보장하고, 마이그레이션 직후에도 같은 창을 채운다. WHEN 그 창 안의 시각으로 이벤트가 적재되면 THE SYSTEM SHALL 파티션 부재로 실패하지 않는다</td></tr>
+    </tbody>
+  </table></div>
 
   <p>보존 정책(data-model §5.4)과의 연결: <code>event</code>는 영구 보존하되 12개월 지난 파티션을 <code>DETACH PARTITION</code> 후 콜드 스토리지로 내리고, <code>activity</code>는 프로젝트 설정(기본 90일)에 따라 워커가 세션 요약으로 압축한 뒤 파티션을 드랍한다. 두 동작 모두 워커 잡이며 이 문서의 범위는 "파티션이 존재하고 분리 가능하다"까지다.</p>
 

@@ -10,6 +10,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { readdirSync } from 'node:fs';
+import { PARTITION_MONTHS_AHEAD } from '@nerv/schema';
 import { migrationsFolder, runMigrations } from '@nerv/schema/migrate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createScratchDb, withClient } from './helpers.js';
@@ -95,13 +96,15 @@ describe('동봉된 raw SQL — 생성기가 만들어주지 않는 부분 (§1.
     expect(parents).toEqual(['activity', 'event']);
   });
 
-  it('현재 달과 다음 달 파티션이 미리 만들어진다 (§2.14)', async () => {
+  it('마이그레이션이 앞으로 몇 달치 파티션까지 보장한다 (§2.14)', async () => {
     const count = await scalar(
       `SELECT count(*)::int FROM pg_class
         WHERE relkind = 'r' AND (relname LIKE 'event_y%' OR relname LIKE 'activity_y%')`,
     );
-    // 테이블 2종 × 2개월
-    expect(count).toBe(4);
+    // 0000 은 당월+익월만 만든다. 그 뒤를 잇는 것은 워커인데(§2.14) 워커가 뜨기 전에도
+    // 서버는 이벤트를 쓰므로, 마이그레이터가 같은 함수로 창을 채운다.
+    // 테이블 2종 × (오늘 ~ +PARTITION_MONTHS_AHEAD 개월)
+    expect(count).toBe(2 * (PARTITION_MONTHS_AHEAD + 1));
   });
 
   it('activity 파티션마다 (session_id, seq) unique 가 붙는다 (§2.6)', async () => {
@@ -109,7 +112,7 @@ describe('동봉된 raw SQL — 생성기가 만들어주지 않는 부분 (§1.
       `SELECT count(*)::int FROM pg_indexes
         WHERE schemaname = 'public' AND indexname LIKE 'activity_y%_session_seq_uq'`,
     );
-    expect(count).toBe(2);
+    expect(count).toBe(PARTITION_MONTHS_AHEAD + 1);
   });
 
   it('순환 참조 FK 가 걸린다 (§2.11)', async () => {

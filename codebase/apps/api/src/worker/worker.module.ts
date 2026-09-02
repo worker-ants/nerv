@@ -13,6 +13,7 @@ import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
+import { PartitionJob } from './jobs/partition.job.js';
 import { RetentionJob } from './jobs/retention.job.js';
 import { SessionStaleJob } from './jobs/session-stale.job.js';
 
@@ -24,6 +25,7 @@ import { SessionStaleJob } from './jobs/session-stale.job.js';
     LeaseReaperJob,
     SessionStaleJob,
     NotificationJob,
+    PartitionJob,
     ExportJob,
     RetentionJob,
     EmbeddingJob,

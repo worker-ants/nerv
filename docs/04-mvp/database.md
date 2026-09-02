@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 29개 엔티티를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum 38종 → 29개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.18 · 2026-09-01 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.19 · 2026-09-02 · HTML 판: [database.html](../html/database.html)
 >
+> v0.19 변경(2026-09-02 — 정합 점검): **§2.14 에 파티션을 만드는 주체를 적는다**(REQ-DB-021). 문서는 "워커가 매일 호출한다" 고 적었는데 그 잡이 없었다 — 마이그레이션 달 +2 부터 `event`·`activity` INSERT 가 실패하고, 이벤트가 도메인 트랜잭션 안에 있으므로 **모든 상태 전이가 함께 롤백된다**. 워커 잡과 마이그레이터가 창을 채운다. 12개월 DETACH·파티션 드랍은 **여전히 미구현**이며 그 사실을 절에 명시했다.
 > v0.18 변경(2026-09-01 — 사람 요청): `finding` 에 **대상 축**(`finding_area` 열거 + `area`·`area_inferred`, 0014). 이미 쌓인 발견 18,690건은 짚는 대상으로 백필했고(codebase 15,047 · process 3,350 · spec 293) **그것이 유추임을 행마다 남긴다** — 정의와 규칙은 [4.4](api.md) §2.11.
 >
 > v0.17 변경(2026-09-01 — 사람 결정): **`attachment` 신설**(0013 · 도메인 32종). 스펙에 디자인 시안을 매단다 — 파일은 MinIO 에, 메타는 여기. **버전이 아니라 문서에** 매다는 이유는 초안이 덮어써지는 동안에도 시안은 그대로 남아야 하기 때문이다([4.4](api.md) §2.10).
@@ -842,6 +843,16 @@ END $$;
 SELECT nerv_ensure_month_partitions(current_date);
 SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);
 ```
+
+**만드는 주체가 없었다**(2026-09-02 — 보안·정합 점검). 위 주석과 이 절은 "이후는 nerv-worker 가 매일 1회 호출" 이라고 적었는데 **그 잡이 존재하지 않았다**(실측: `apps/api/src`·`packages/schema/src` 전체에 partition 참조 0건). 마이그레이션이 만든 두 달이 지나는 순간, 즉 적용한 달의 **+2 개월 1일 00:00** 부터 `event`·`activity` INSERT 가 `no partition of relation … found for row` 로 실패한다. 이벤트는 도메인 트랜잭션 **안에서** 쓰이므로(REQ-CB-004) 스펙 승인·클레임·리뷰 제출이 **전부 함께 롤백된다** — 조용한 저하가 아니라 서버가 멈추는 결함이다.
+
+두 자리에서 채운다. **워커**가 하루 한 번 오늘부터 `PARTITION_MONTHS_AHEAD`(3)개월 뒤까지 보장하고(`partition` 잡, advisory lock 하), **마이그레이터**도 같은 함수를 한 번 돌린다 — 워커가 뜨기 전에도 서버는 이벤트를 쓰기 때문이다. 함수 전체가 `IF NOT EXISTS` 라 몇 번을 돌아도 결과가 같다(REQ-DB-001 의 왕복 멱등을 깨지 않는다).
+
+**아직 없는 것**: 12개월 지난 `event` 파티션의 `DETACH`, 보존 기간을 넘긴 `activity` 파티션의 드랍. 아래 문단이 워커 잡으로 약속하지만 구현은 없다 — 파티션은 계속 쌓인다. 지금 규모에서 급하지 않아 남겨 두되, **문서가 있다고 말하지 않게** 여기에 적는다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-DB-021 | WHILE 서버가 도는 동안 THE SYSTEM SHALL 오늘부터 `PARTITION_MONTHS_AHEAD` 개월 뒤까지의 `event`·`activity` 월 파티션을 워커 잡이 매일 보장하고, 마이그레이션 직후에도 같은 창을 채운다. WHEN 그 창 안의 시각으로 이벤트가 적재되면 THE SYSTEM SHALL 파티션 부재로 실패하지 않는다 |
 
 보존 정책(data-model §5.4)과의 연결: `event`는 영구 보존하되 12개월 지난 파티션을 `DETACH PARTITION` 후 콜드 스토리지로 내리고, `activity`는 프로젝트 설정(기본 90일)에 따라 워커가 세션 요약으로 압축한 뒤 파티션을 드랍한다. 두 동작 모두 워커 잡이며 이 문서의 범위는 "파티션이 존재하고 분리 가능하다"까지다.
 

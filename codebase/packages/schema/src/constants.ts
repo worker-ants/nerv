@@ -43,6 +43,20 @@ export const LEASE_HEARTBEAT_GRACE_SECONDS = HEARTBEAT_INTERVAL_SECONDS * 3;
 export const SESSION_STALE_SECONDS = 1800;
 
 /**
+ * 월 파티션을 **몇 달 앞까지 미리 만들어 둘 것인가**(database.md §2.14).
+ *
+ * 0000 은 당월과 다음 달만 만든다. 그 뒤를 이어 만드는 주체가 없으면 마이그레이션 달
+ * +2 부터 `event`·`activity` INSERT 가 "no partition of relation … found for row" 로
+ * 실패하고, 이벤트는 도메인 트랜잭션 안에서 쓰이므로(REQ-CB-004) **모든 상태 전이가
+ * 함께 롤백된다** — 승인도 클레임도 되지 않는 서버가 된다.
+ *
+ * 3개월인 이유: 워커가 하루 한 번 도는데 한 달치만 앞서면 워커가 며칠만 멈춰도 경계에
+ * 닿는다. 12개월은 빈 파티션을 필요 이상으로 만든다. 마이그레이션 직후에는 잡을 한 번
+ * 돌려 이 창을 채운다(apps/api/src/migrate.ts).
+ */
+export const PARTITION_MONTHS_AHEAD = 3;
+
+/**
  * 리뷰 프롬프트 blob 보존 — 30일.
  * MVP 범위가 아니다(Phase 2 리뷰 수집 FR-09 부터 적용) — 참고용 상수.
  * 정본: docs/03-proposal/architecture.md §2.5
