@@ -17,6 +17,7 @@ import type { RelationDirection } from '../../components/relation-tabs.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
 import { NERV_ERROR, statusLabelKey } from '@nerv/schema';
+import { baseHashFor, changedByOthers } from '../../lib/edit-basis.js';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -147,6 +148,32 @@ function SpecDetail(): React.JSX.Element {
     typeof detail.data?.['content_hash'] === 'string'
       ? (detail.data['content_hash'] as string)
       : null;
+
+  /**
+   * **내가 편집을 시작한 시점의 지문**을 붙잡는다.
+   *
+   * 예전에는 첫 저장 전까지 `readHash`(라이브 쿼리 값)를 그대로 보냈다. 그런데 그 쿼리는
+   * `spec.draft_updated` 로 무효화·재조회되므로, 다른 사람·에이전트가 같은 초안을 저장하면
+   * `readHash` 가 **상대의 새 지문으로 갱신된다.** 내 화면의 본문은 옛 내용 그대로인데
+   * 다음 저장은 최신 지문을 실어 보내므로 서버의 비교-교환이 통과한다 — §1.4g 가 막으려던
+   * "두 편집자 중 한쪽 글이 사라지는" 일이 웹에서 그대로 재현됐다.
+   *
+   * 그래서 기준은 라이브 값이 아니라 **내가 처음 본 값**이다. 그 사이 문서가 바뀌었다면
+   * 저장은 409 로 돌아오고, 그것이 정확히 우리가 원하는 답이다.
+   */
+  const [openedHash, setOpenedHash] = useState<string | null>(null);
+  useEffect(() => setOpenedHash(null), [spec]);
+  useEffect(() => {
+    // 문서를 처음 읽은 그 순간의 지문 하나만 붙잡는다(이후 재조회는 이 값을 바꾸지 않는다)
+    if (openedHash === null && readHash !== null) setOpenedHash(readHash);
+  }, [openedHash, readHash]);
+
+  /** 내가 본 뒤로 남이 저장했는가 — 배너로 알린다(조용히 덮지 않기 위해서다) */
+  const staleByOthers = changedByOthers({
+    editing: draft !== null,
+    opened: openedHash,
+    live: readHash,
+  });
   const editable = docStatus === 'draft' && leaseHolder === null;
 
   const save = useMutation({
@@ -157,7 +184,7 @@ function SpecDetail(): React.JSX.Element {
           body_markdown: markdown,
           // 무엇을 보고 썼는가 — 이것 하나가 낙관적 동시성의 전부다(§1.4g).
           // 계보(`base_version`)는 서버가 채운다: 부른 쪽이 아는 사실이 아니다.
-          base_hash: baseHash ?? readHash,
+          base_hash: baseHashFor({ saved: baseHash, opened: openedHash, live: readHash }),
           ...(takeover ? { takeover: true } : {}),
         },
       }),
@@ -395,6 +422,16 @@ function SpecDetail(): React.JSX.Element {
             >
               {t('spec.lease_takeover')}
             </button>
+          </div>
+        )}
+
+        {staleByOthers && conflict === null && (
+          <div
+            data-testid="changed-by-others"
+            className="mb-2 rounded-nerv border border-status-waiting bg-status-waiting-soft px-3 py-2.5 text-sm"
+          >
+            <p className="font-medium text-status-waiting">{t('spec.changed_by_others')}</p>
+            <p className="text-text-mute">{t('spec.changed_by_others_body')}</p>
           </div>
         )}
 

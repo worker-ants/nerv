@@ -725,6 +725,8 @@ export const ko = {
   'spec.attach.empty': '첨부가 없습니다.',
   'spec.attachments': '첨부',
   'spec.comments': '코멘트',
+  'spec.changed_by_others': '내가 연 뒤로 다른 곳에서 저장됐습니다.',
+  'spec.changed_by_others_body': '지금 저장하면 충돌로 막힙니다 — 최신 내용을 먼저 확인하세요.',
   'spec.conflict_body_post': '— 아래에서 고르세요.',
   'spec.conflict_body_pre': '다른 표면에서 먼저 저장된 내용이 있습니다. 덮어쓰지 않았고,',
   'spec.conflict_body_strong': '지금 쓰던 본문도 그대로 남아 있습니다',

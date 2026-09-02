@@ -83,6 +83,13 @@ const NOTIFY: Partial<Record<NervEventName, SpecNotice>> = {
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const t = useT();
+  // **번역기는 소켓의 수명에 영향을 주지 않는다.** `onEvent` 가 `t` 에 의존하면 언어를
+  // 바꿀 때마다 콜백 정체성이 바뀌고, 그러면 소켓 effect 가 다시 돌아 연결을 닫고 새로
+  // 만들며 `forgetRooms()` 로 기억까지 지운다 — 그런데 화면의 join effect 는 다시 돌지
+  // 않으므로 그 프로젝트의 실시간이 조용히 끊겼다(REQ-WEB-127 이 고친 결함의 다른 문).
+  // ref 로 최신 번역기를 들고 있으면 문구는 최신이고 소켓은 그대로다.
+  const translate = useRef(t);
+  translate.current = t;
   const queryClient = useQueryClient();
   const [state, setState] = useState<ConnectionState>('connecting');
   const [offline, setOffline] = useState(false);
@@ -113,11 +120,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
       }
       // 겹침 경고는 무효화만으로 충분하지 않다 — 사람이 **지금** 알아야 하는 사실이다.
       if (event.type === NERV_EVENT.CLAIM_CONFLICT_WARN) {
-        pushToast({ tone: 'warn', message: t('realtime.conflict_warn') });
+        pushToast({ tone: 'warn', message: translate.current('realtime.conflict_warn') });
         return;
       }
       if (event.type === NERV_EVENT.CLAIM_CONFLICT_BLOCKED) {
-        pushToast({ tone: 'warn', message: t('realtime.conflict_blocked') });
+        pushToast({ tone: 'warn', message: translate.current('realtime.conflict_blocked') });
         return;
       }
 
@@ -130,10 +137,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
       if (label === undefined) return;
       pushToast({
         tone: 'ok',
-        message: t(label, { subject: event.subject_key ?? '' }),
+        message: translate.current(label, { subject: event.subject_key ?? '' }),
       });
     },
-    [pushToast, queryClient, t, userId],
+    [pushToast, queryClient, userId],
   );
 
   // **인증된 뒤에만 붙는다.** 예전에는 마운트 즉시 붙었는데, 로그인 화면에서는 세션 쿠키가
@@ -168,10 +175,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
   }, [onEvent, queryClient, userId]);
 
   const joinProject = useCallback((projectId: string) => {
-    const socket = socketRef.current;
-    if (socket === null) return () => undefined;
-    joinProjectRoom(socket, projectId);
-    return () => leaveProjectRoom(socket, projectId);
+    // 소켓이 아직 없어도 **기억은 남긴다** — 붙는 순간 `connect` 핸들러가 되찾는다.
+    joinProjectRoom(socketRef.current, projectId);
+    return () => leaveProjectRoom(socketRef.current, projectId);
   }, []);
 
   const value = useMemo<RealtimeValue>(

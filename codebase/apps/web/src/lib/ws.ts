@@ -65,16 +65,25 @@ export function connectNervSocket(handlers: NervSocketHandlers): Socket {
   return socket;
 }
 
-export function joinProjectRoom(socket: Socket, projectId: string): void {
+/**
+ * 룸을 기억하고, 소켓이 있으면 지금 들어간다.
+ *
+ * **소켓이 없어도 기억한다**(2026-09-02). 예전에는 소켓이 아직 없으면 아무것도 하지 않고
+ * 돌아갔다. 그런데 `/p/:proj/*` 로 바로 들어오면 `/me`(소켓을 만드는 쪽)와
+ * `/projects/:slug`(join 을 부르는 쪽)가 같은 렌더에서 함께 나가고, 프로젝트 응답이 먼저
+ * 오면 그 join 은 **없던 일이 된다** — 기억에도 남지 않으므로 뒤이어 소켓이 붙어도
+ * 되찾을 룸이 없다. 그 프로젝트의 실시간은 화면을 옮겼다 돌아올 때까지 조용하다.
+ */
+export function joinProjectRoom(socket: Socket | null, projectId: string): void {
   const room = `project:${projectId}`;
   joined.add(room);
-  socket.emit('join', { room });
+  socket?.emit('join', { room });
 }
 
-export function leaveProjectRoom(socket: Socket, projectId: string): void {
+export function leaveProjectRoom(socket: Socket | null, projectId: string): void {
   const room = `project:${projectId}`;
   joined.delete(room);
-  socket.emit('leave', { room });
+  socket?.emit('leave', { room });
 }
 
 /** 소켓을 새로 만들 때 — 기억은 연결과 함께 사라져야 한다(로그아웃·계정 전환) */

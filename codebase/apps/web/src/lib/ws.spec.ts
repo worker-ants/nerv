@@ -38,6 +38,20 @@ beforeEach(() => {
   forgetRooms();
 });
 
+describe('룸 기억 — 소켓보다 먼저 온 join (2026-09-02)', () => {
+  it('소켓이 없을 때 부른 join 도 기억된다 — 붙는 순간 되찾는다', async () => {
+    forgetRooms();
+
+    // 콜드 로드에서 실제로 일어나는 순서다: 프로젝트 응답이 `/me` 보다 먼저 왔다.
+    // 예전에는 여기서 아무것도 하지 않고 돌아갔고, 그래서 소켓이 붙어도 되찾을 룸이 없었다.
+    joinProjectRoom(null, 'p-1');
+    expect(joinedRoomsForTesting()).toContain('project:p-1');
+
+    leaveProjectRoom(null, 'p-1');
+    expect(joinedRoomsForTesting()).not.toContain('project:p-1');
+  });
+});
+
 describe('재연결 정책', () => {
   it('무제한으로 다시 시도하고 간격은 1분에서 멈춘다 — 사람이 새로고침하지 않아도 된다', () => {
     connect();

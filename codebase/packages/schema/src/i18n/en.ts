@@ -735,6 +735,9 @@ export const en = {
   'spec.attach.empty': 'No attachments.',
   'spec.attachments': 'Attachments',
   'spec.comments': 'Comments',
+  'spec.changed_by_others': 'Someone saved this after you opened it.',
+  'spec.changed_by_others_body':
+    'Saving now will be refused as a conflict — read the latest version first.',
   'spec.conflict_body_post': ' — pick one below.',
   'spec.conflict_body_pre':
     'Something was saved from another surface first. Nothing was overwritten, and',
