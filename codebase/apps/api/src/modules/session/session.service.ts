@@ -7,9 +7,17 @@
 // 서버가 모든 세션의 선언을 보면 그 한계는 존재하지 않는다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT, SESSION_STALE_SECONDS } from '@nerv/schema';
+import {
+  msg,
+  newId,
+  NERV_ERROR,
+  NERV_EVENT,
+  sessionState,
+  SESSION_STALE_SECONDS,
+} from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -47,6 +55,28 @@ export interface SessionCandidate extends Record<string, unknown> {
   hostname: string;
   agent_type: string;
   last_seen_at: string;
+}
+
+/**
+ * 상태 필터는 **어휘 안에서만** 받는다 — 모르는 값은 거절이지 무시가 아니다.
+ *
+ * 판정이 서비스에 있는 이유는 D-05 다: 표면이 늘어도 "무엇이 상태인가"의 답은 한 곳이다.
+ * 어휘의 정본은 `session_state` enum 이고(`@nerv/schema`), 여기서 목록을 다시 적지 않는다.
+ * 값 자체는 이제 파라미터로 바인딩되므로(`sqlArray`) 이 검사는 두 번째 방어선이다 —
+ * 첫 번째는 "조립하지 않는다"이고, 이것은 "필터가 거짓말하지 않는다"를 지킨다.
+ */
+function assertSessionStates(values: readonly string[]): string[] {
+  const allowed = sessionState.enumValues as readonly string[];
+  const unknown = values.filter((v) => !allowed.includes(v));
+  if (unknown.length > 0) {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+      kind: 'invalid_input',
+      field: 'state',
+      unknown,
+      allowed,
+    });
+  }
+  return [...values];
 }
 
 /** S5 카드 한 장 — 신원 3요소 + 클레임 + 리스 잔여 + diff (ui-wireframes §3.3) */
@@ -521,7 +551,7 @@ export class SessionService {
            SET state = 'stale', ended_at = now(), end_reason = 'stale'
          WHERE state IN ('pending', 'active', 'awaiting_input')
            AND coalesce(last_heartbeat_at, started_at)
-               < now() - ${sql.raw(`interval '${SESSION_STALE_SECONDS} seconds'`)}
+               < now() - ${sqlSeconds(SESSION_STALE_SECONDS)}
         RETURNING id, project_id, user_id
       `);
 
@@ -552,10 +582,9 @@ export class SessionService {
    * 매초 서버에 묻지 않기 위해서다.
    */
   async board(input: { projectId: string; states?: string[] }): Promise<SessionCard[]> {
+    const states = assertSessionStates(input.states ?? []);
     const stateFilter =
-      input.states === undefined || input.states.length === 0
-        ? sql``
-        : sql` AND s.state = ANY(${sql.raw(`ARRAY[${input.states.map((v) => `'${v}'`).join(',')}]::session_state[]`)})`;
+      states.length === 0 ? sql`` : sql` AND s.state = ANY(${sqlArray(states, 'session_state')})`;
 
     const { rows } = await this.db.execute<SessionCard>(sql`
       SELECT s.id, u.display_name AS user_name, s.hostname,
@@ -608,7 +637,7 @@ export class SessionService {
        WHERE project_id = ${projectId} AND user_id = ${userId}
          AND state IN ('pending', 'active', 'awaiting_input')
          AND coalesce(last_heartbeat_at, started_at)
-             > now() - ${sql.raw(`interval '${SESSION_STALE_SECONDS} seconds'`)}
+             > now() - ${sqlSeconds(SESSION_STALE_SECONDS)}
        ORDER BY coalesce(last_heartbeat_at, started_at) DESC
     `);
     return rows;

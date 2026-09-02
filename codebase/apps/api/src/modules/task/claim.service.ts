@@ -13,6 +13,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
+import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -95,7 +96,7 @@ export class ClaimService {
     if (specIds.length === 0) return new Set();
     const { rows } = await tx.execute<{ id: string }>(sql`
       WITH RECURSIVE seed AS (
-        SELECT id, parent_id FROM spec WHERE id = ANY(${sql.raw(`ARRAY['${specIds.join("','")}']::uuid[]`)})
+        SELECT id, parent_id FROM spec WHERE id = ANY(${sqlArray(specIds, 'uuid')})
       ),
       up AS (
         SELECT s.id, s.parent_id FROM seed s
@@ -212,8 +213,8 @@ export class ClaimService {
   private async globHits(tx: Tx, mine: string[], theirs: string[]): Promise<[string, string][]> {
     if (mine.length === 0 || theirs.length === 0) return [];
     const { rows } = await tx.execute<{ a: string; b: string }>(sql`
-      SELECT a, b FROM unnest(${sql.raw(`ARRAY[${mine.map((g) => `'${g.replaceAll("'", "''")}'`).join(',')}]::text[]`)}) AS a
-      CROSS JOIN unnest(${sql.raw(`ARRAY[${theirs.map((g) => `'${g.replaceAll("'", "''")}'`).join(',')}]::text[]`)}) AS b
+      SELECT a, b FROM unnest(${sqlArray(mine, 'text')}) AS a
+      CROSS JOIN unnest(${sqlArray(theirs, 'text')}) AS b
       WHERE nerv_glob_overlap(a, b)
     `);
     return rows.map((r) => [r.a, r.b] as [string, string]);
@@ -223,7 +224,7 @@ export class ClaimService {
   async renewLease(tx: Tx, claimId: string, ttlSeconds = this.leaseTtlSeconds): Promise<Date> {
     const { rows } = await tx.execute<{ lease_expires_at: unknown }>(sql`
       UPDATE claim
-         SET lease_expires_at = now() + ${sql.raw(`interval '${ttlSeconds} seconds'`)},
+         SET lease_expires_at = now() + ${sqlSeconds(ttlSeconds)},
              last_heartbeat_at = now()
        WHERE id = ${claimId} AND status = 'active' AND lease_expires_at > now()
       RETURNING lease_expires_at
@@ -250,23 +251,15 @@ export class ClaimService {
     },
   ): Promise<{ claimId: string; leaseExpiresAt: Date }> {
     const claimId = newId();
-    const specArray =
-      input.scope.specIds.length === 0
-        ? sql`'{}'::uuid[]`
-        : sql.raw(`ARRAY['${input.scope.specIds.join("','")}']::uuid[]`);
-    const globArray =
-      input.scope.fileGlobs.length === 0
-        ? sql`'{}'::text[]`
-        : sql.raw(
-            `ARRAY[${input.scope.fileGlobs.map((g) => `'${g.replaceAll("'", "''")}'`).join(',')}]::text[]`,
-          );
+    const specArray = sqlArray(input.scope.specIds, 'uuid');
+    const globArray = sqlArray(input.scope.fileGlobs, 'text');
 
     const { rows } = await tx.execute<{ lease_expires_at: unknown }>(sql`
       INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status,
                          scope_spec_ids, scope_file_globs, lease_expires_at)
       VALUES (${claimId}, ${input.projectId}, ${input.taskId}, ${input.sessionId}, ${input.userId},
               'active', ${specArray}, ${globArray},
-              now() + ${sql.raw(`interval '${input.ttlSeconds} seconds'`)})
+              now() + ${sqlSeconds(input.ttlSeconds)})
       RETURNING lease_expires_at
     `);
     const row = rows[0];

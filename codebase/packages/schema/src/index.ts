@@ -9,6 +9,10 @@ export * from './ids.js';
 export * from './scopes.js';
 export * from './errors.js';
 export * from './events.js';
+// enum 어휘의 정본 — `sessionState.enumValues` 처럼 **값 목록으로** 쓰라고 내보낸다.
+// 배럴에 없는 동안 apps/* 는 같은 어휘를 문자열 리터럴로 다시 적었고, 그 사본은
+// enum 이 늘 때 함께 늘지 않는다(REQ-CB-006 이 막으려던 바로 그것이다).
+export * from './enums.js';
 export * from './tables/index.js';
 export * from './zod/index.js';
 

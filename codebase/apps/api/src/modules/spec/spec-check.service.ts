@@ -13,6 +13,7 @@ import { extractLinkedKeys } from './spec-relation.service.js';
 
 import { Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
+import { sqlArray } from '../../common/sql-array.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 
@@ -119,7 +120,7 @@ export class SpecCheckService {
       SELECT r.ref, s.key AS owner_key
         FROM requirement r JOIN spec s ON s.id = r.spec_id
        WHERE r.project_id = ${projectId} AND r.spec_id <> ${specId}
-         AND r.ref = ANY(${sql.raw(`ARRAY[${refs.map((r) => `'${r}'`).join(',')}]::text[]`)})
+         AND r.ref = ANY(${sqlArray(refs, 'text')})
     `);
 
     return findings.concat(

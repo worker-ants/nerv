@@ -21,6 +21,7 @@ import {
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import { sqlSeconds } from '../../common/sql-array.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -1526,7 +1527,7 @@ export class SpecService {
     const { rows } = await tx.execute<{ dead: boolean }>(sql`
       SELECT (state NOT IN ('pending', 'active', 'awaiting_input')
               OR coalesce(last_heartbeat_at, started_at)
-                 < now() - ${sql.raw(`interval '${LEASE_HEARTBEAT_GRACE_SECONDS} seconds'`)}
+                 < now() - ${sqlSeconds(LEASE_HEARTBEAT_GRACE_SECONDS)}
              ) AS dead
         FROM agent_session WHERE id = ${sessionId}
     `);

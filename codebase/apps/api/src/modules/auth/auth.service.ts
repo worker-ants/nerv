@@ -26,6 +26,7 @@ import {
 import type { AgentScope } from '@nerv/schema';
 import { scopesForRoles } from '@nerv/schema';
 import type { RoleScope } from '@nerv/schema';
+import { sqlArray } from '../../common/sql-array.js';
 import { assertScope as assertScopeOf } from '../../common/scope-check.js';
 import { sql } from 'drizzle-orm';
 import { Inject } from '@nestjs/common';
@@ -661,7 +662,7 @@ export class AuthService {
       INSERT INTO api_token (id, project_id, user_id, name, token_hash, prefix, scopes, expires_at)
       VALUES (${tokenId}, ${input.projectId}, ${input.userId}, ${input.name},
               decode(${hashToken(raw).toString('hex')}, 'hex'), ${prefix},
-              ${sql.raw(`ARRAY[${scopes.map((s) => `'${s}'`).join(',') || ''}]::text[]`)},
+              ${sqlArray(scopes, 'text')},
               ${input.expiresAt ?? null})
     `);
 

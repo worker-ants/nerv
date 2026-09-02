@@ -400,6 +400,82 @@ describe('세션 steer (EP-SES-04)', () => {
   });
 });
 
+describe('세션 보드 상태 필터 (EP-SES-01) — 값은 조립되지 않는다', () => {
+  /** 다른 프로젝트의 세션 하나 — WHERE 절이 무너지면 이 행이 응답에 새어 나온다 */
+  async function seedOtherProjectSession(): Promise<string> {
+    const otherProjectId = newId();
+    const otherSessionId = newId();
+    // UUIDv7 은 앞자리가 시각이라 같은 실행에서 겹친다 — 유니크 축은 뒷자리에서 만든다
+    const suffix = otherProjectId.slice(-6);
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,'다른 프로젝트')`,
+      [otherProjectId, orgId, `other-${suffix}`, `O${suffix.toUpperCase()}`],
+    );
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','secret-host','active')`,
+      [otherSessionId, otherProjectId, adminId],
+    );
+    return otherSessionId;
+  }
+
+  it('인젝션 시도는 WHERE 절을 재작성하지 못하고 거절된다 — 남의 프로젝트 세션이 새지 않는다', async () => {
+    const leaked = await seedOtherProjectSession();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-01','active')`,
+      [newId(), projectId, adminId],
+    );
+
+    // 예전에는 이 값이 `ARRAY['…']::session_state[]` 안에 그대로 이어 붙어
+    // `s.project_id = $1` 술어를 `OR 1=1` 로 무력화할 수 있었다.
+    const payload = "active']::session_state[]) OR 1=1 --";
+    const res = await call(
+      'GET',
+      `/api/v1/projects/clemvion/sessions?state=${encodeURIComponent(payload)}`,
+    );
+
+    expect(res.status).toBe(400);
+    const body = res.body as Record<string, unknown>;
+    expect(body['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect(body['details']).toMatchObject({ kind: 'invalid_input', field: 'state' });
+    // 응답 어디에도 다른 프로젝트의 세션이 없다
+    expect(JSON.stringify(res.body)).not.toContain(leaked);
+    expect(JSON.stringify(res.body)).not.toContain('secret-host');
+  });
+
+  it('모르는 상태값은 거절한다 — 조용히 무시하면 필터가 거짓말을 한다', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/sessions?state=active,uploading');
+    expect(res.status).toBe(400);
+    const details = (res.body as Record<string, unknown>)['details'] as Record<string, unknown>;
+    expect(details['unknown']).toEqual(['uploading']);
+    expect(details['allowed']).toContain('active');
+  });
+
+  it('어휘 안의 값은 그 상태만 남긴다 — 필터 자체는 그대로 동작한다', async () => {
+    await seedOtherProjectSession();
+    const activeId = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-02','active')`,
+      [activeId, projectId, adminId],
+    );
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'codex','mac-03','complete')`,
+      [newId(), projectId, adminId],
+    );
+
+    const res = await call('GET', '/api/v1/projects/clemvion/sessions?state=active');
+    expect(res.status).toBe(200);
+    const items = (res.body as Record<string, unknown>)['items'] as Record<string, unknown>[];
+    expect(items.every((i) => i['state'] === 'active')).toBe(true);
+    expect(items.map((i) => i['id'])).toContain(activeId);
+    // 프로젝트 경계도 그대로다
+    expect(items.every((i) => i['hostname'] !== 'secret-host')).toBe(true);
+  });
+});
+
 describe('받은 요청·알림·커버리지 표면', () => {
   it('전역 받은 요청은 프로젝트를 가로지르고 대기 시간을 싣는다 (EP-APR-01)', async () => {
     const { ApprovalService } = await import('../../src/modules/approval/approval.service.js');

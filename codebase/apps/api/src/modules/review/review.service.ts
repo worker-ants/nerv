@@ -20,6 +20,7 @@ import { changesetHash, findingFingerprint } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import { EventService } from '../event/event.service.js';
 import { TaskService } from '../task/task.service.js';
+import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -489,7 +490,7 @@ export class ReviewService {
         VALUES (${findingId}, ${input.projectId}, decode(${hex}, 'hex'),
                 ${finding.severity}::finding_severity, ${category}, ${finding.title},
                 ${finding.body_md ?? null}, ${finding.suggestion_md ?? null},
-                ${sql.raw(pgTextArray(finding.tags ?? []))},
+                ${sqlArray(finding.tags ?? [], 'text')},
                 ${finding.file ?? null}, ${finding.line ?? null}, ${finding.symbol ?? null},
                 ${finding.spec_version_id ?? null}, ${finding.requirement_id ?? null},
                 ${area}::finding_area, ${finding.area == null},
@@ -887,7 +888,7 @@ export class ReviewService {
          ${this.filter('f.severity', severity, 'finding_severity')}
          ${this.filter('f.status', status, 'finding_status')}
          ${this.filter('f.area', area, 'finding_area')}
-         ${tags.length === 0 ? sql`` : sql`AND f.tags && ${sql.raw(pgTextArray(tags))}`}
+         ${tags.length === 0 ? sql`` : sql`AND f.tags && ${sqlArray(tags, 'text')}`}
        ORDER BY f.severity, f.created_at DESC
        LIMIT ${limit}
     `);
@@ -911,7 +912,13 @@ export class ReviewService {
     };
   }
 
-  /** `IN (...)` 를 만들되 빈 목록이면 조건 자체를 내지 않는다 — 빈 IN 은 전량 배제다. */
+  /**
+   * `IN (...)` 를 만들되 빈 목록이면 조건 자체를 내지 않는다 — 빈 IN 은 전량 배제다.
+   *
+   * `sql.raw` 가 남아 있는 것은 **컬럼·타입 이름**이기 때문이다(호출부 리터럴, 사용자 입력이
+   * 닿지 않는다). 값은 전부 `sql`${v}`` 로 바인딩된다 — 값을 raw 로 넣는 자리는 이 저장소에
+   * 더 이상 없다(common/sql-array.ts).
+   */
   private filter(column: string, values: readonly string[], enumType: string) {
     if (values.length === 0) return sql``;
     const list = sql.join(
@@ -938,7 +945,7 @@ export class ReviewService {
          ${this.filter('f.severity', filters.severity, 'finding_severity')}
          ${this.filter('f.status', filters.status, 'finding_status')}
          ${this.filter('f.area', filters.area, 'finding_area')}
-         ${filters.tags.length === 0 ? sql`` : sql`AND f.tags && ${sql.raw(pgTextArray(filters.tags))}`}
+         ${filters.tags.length === 0 ? sql`` : sql`AND f.tags && ${sqlArray(filters.tags, 'text')}`}
        GROUP BY 1
     `);
     return Object.fromEntries(rows.map((r) => [r.k, r.n]));
@@ -1059,10 +1066,4 @@ function normalizeFilter(
   allowed: readonly string[],
 ): string[] {
   return (values ?? []).filter((v) => allowed.includes(v));
-}
-
-/** `ARRAY['a','b']::text[]` — 태그는 자유 문자열이라 리터럴을 직접 만든다(작은따옴표 이스케이프). */
-function pgTextArray(values: readonly string[]): string {
-  const quoted = values.map((v) => `'${v.replaceAll("'", "''")}'`).join(', ');
-  return `ARRAY[${quoted}]::text[]`;
 }

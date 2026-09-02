@@ -23,7 +23,14 @@ export class SessionController {
     @Query('state') state?: string,
   ): Promise<{ items: SessionCard[]; summary: Record<string, number>; next_cursor: null }> {
     const projectId = req.nervProjectId ?? '';
-    const states = state === undefined || state === '' ? [] : state.split(',');
+    // 표면은 쪼개고 다듬기만 한다 — 어휘 판정은 서비스가 한다(D-05).
+    const states =
+      state === undefined || state === ''
+        ? []
+        : state
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s !== '');
     const [items, summary] = await Promise.all([
       this.sessions.board({ projectId, states }),
       this.sessions.boardSummary(projectId),

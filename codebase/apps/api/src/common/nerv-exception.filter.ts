@@ -69,7 +69,15 @@ const STATUS: Record<NervErrorCode, number> = {
  * 허용되지 않는 값 · 너무 긴 값. 반대로 중복 값과 없는 참조는 **모양이 아니라 상태** 라
  * 409 다 — 같은 요청이 다른 시점에는 성공한다.
  */
-const BAD_REQUEST_KINDS = new Set(['not_null_violation', 'check_violation', 'too_long']);
+// `invalid_input` 은 **요청의 모양**이 틀린 것이다 — 같은 요청을 다시 보내도 같은 결과다.
+// §1.4 가 가르는 기준("모양이냐 상태냐")대로 400 이다. 409 로 나가던 동안 웹은 이것을
+// 상태 충돌(다시 시도하면 될 일)과 구별할 수 없었다.
+const BAD_REQUEST_KINDS = new Set([
+  'not_null_violation',
+  'check_violation',
+  'too_long',
+  'invalid_input',
+]);
 
 export function statusFor(code: NervErrorCode, details: Record<string, unknown>): number {
   if (code !== NERV_ERROR.PRECONDITION) return STATUS[code];
