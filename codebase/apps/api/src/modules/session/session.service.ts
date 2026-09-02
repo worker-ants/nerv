@@ -258,18 +258,31 @@ export class SessionService {
     toolName: string | null;
     payload?: Record<string, unknown>;
   }): Promise<{ accepted: boolean }> {
-    const { rows } = await this.db.execute<{ next: string }>(
-      sql`SELECT coalesce(max(seq), 0) + 1 AS next FROM activity WHERE session_id = ${input.sessionId}`,
-    );
-    return this.appendActivity({
-      sessionId: input.sessionId,
-      projectId: input.projectId,
-      seq: BigInt(rows[0]?.next ?? '1'),
-      type: input.type,
-      title: input.title,
-      toolName: input.toolName,
-      ...(input.payload === undefined ? {} : { payload: input.payload }),
+    // **번호 매기기와 쓰기가 한 문장이다.** 예전에는 `max(seq)+1` 을 읽고 따로 INSERT 했다 —
+    // 훅은 병렬로 도착하고(PostToolUse 는 async 다) 두 요청이 같은 번호를 읽으면 뒤엣것이
+    // `(session_id, seq)` 유니크에 걸려 `ON CONFLICT DO NOTHING` 으로 **조용히 사라졌다**.
+    // 응답은 그때도 성공이었다. 세션 단위 advisory lock 으로 그 구간을 직렬화한다 —
+    // 락의 범위는 트랜잭션이고, 같은 세션의 훅끼리만 기다린다.
+    const { rows } = await this.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.sessionId}::text, 0))`,
+      );
+      return tx.execute<{ id: string }>(sql`
+        INSERT INTO activity (id, session_id, project_id, seq, type, title, tool_name, payload)
+        SELECT ${newId()}, ${input.sessionId}, ${input.projectId},
+               coalesce(max(seq), 0) + 1, ${input.type}::activity_type,
+               ${input.title}, ${input.toolName},
+               ${JSON.stringify(input.payload ?? {})}::jsonb
+          FROM activity WHERE session_id = ${input.sessionId}
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `);
     });
+
+    await this.db.execute(
+      sql`UPDATE agent_session SET last_heartbeat_at = now() WHERE id = ${input.sessionId}`,
+    );
+    return { accepted: rows.length > 0 };
   }
 
   /**

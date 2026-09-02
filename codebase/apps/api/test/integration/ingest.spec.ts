@@ -246,6 +246,35 @@ describe('Stop — 유일한 동기 판정 경로', () => {
   });
 });
 
+describe('훅은 병렬로 온다 — 번호가 겹쳐 사라지지 않는다', () => {
+  it('동시 도구 훅 20건이 하나도 유실되지 않는다', async () => {
+    const start = await hook('session', { session_id: 'S-par' }, { host: 'mac-07' });
+    const sessionId = String(start.body['session_id']);
+
+    // PostToolUse 는 async 훅이라 실제로 겹쳐 도착한다. 예전에는 `max(seq)+1` 을 읽고
+    // 따로 INSERT 해서, 같은 번호를 읽은 뒤엣것이 유니크에 걸려 조용히 사라졌다 —
+    // 응답은 그때도 성공(202)이었다.
+    const sent = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        hook('tool', {
+          session_id: 'S-par',
+          tool_name: `Tool${i}`,
+          tool_input: { i },
+        }),
+      ),
+    );
+    expect(sent.every((r) => r.status === 202)).toBe(true);
+
+    const { rows } = await pool.query<{ n: number; distinct_seq: number }>(
+      `SELECT count(*)::int AS n, count(DISTINCT seq)::int AS distinct_seq
+         FROM activity WHERE session_id = $1`,
+      [sessionId],
+    );
+    expect(rows[0]?.n).toBe(20);
+    expect(rows[0]?.distinct_seq).toBe(20);
+  });
+});
+
 describe('훅의 세션 신원은 토큰에서 온다 (D-08)', () => {
   it('남의 PAT 로는 그 세션을 끝내지 못한다 — external id 는 비밀이 아니다', async () => {
     const start = await hook('session', { session_id: EXTERNAL_SESSION }, { host: 'mac-07' });
