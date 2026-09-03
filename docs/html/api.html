@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 22종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.58 (2026-09-03)</span>
+      <span>버전 v0.59 (2026-09-03)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -748,7 +748,7 @@
     <tbody>
       <tr><td>EP-SPEC-01</td><td><code>GET /api/v1/projects/{proj}/specs/tree</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecTreeQuery</code>(root, depth, status, include_archived — 기본 false, REQ-API-022)</td><td><code>SpecTreeResult</code>(id·title·type·문서 상태·현재 버전·<code>archived_at</code>)</td><td>—</td></tr>
       <tr><td>EP-SPEC-02</td><td><code>GET /api/v1/projects/{proj}/specs/search</code></td><td>전 역할</td><td><code>SpecSearchQuery</code>(query, type, status, requirement_id, <b>references</b>(이 스펙을 참조하는 문서만), include_archived — 기본 false(REQ-API-022), limit)</td><td><code>SpecSearchResult</code>(안정 ID + 앵커 + 스니펫 + 관련도, <b><code>related[]</code></b> 1-hop 관계 확장 그룹, <b><code>degraded?</code></b> — 파이프라인은 §2.2b)</td><td>—</td></tr>
-      <tr><td>EP-SPEC-03</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}</code></td><td>전 역할</td><td><code>SpecGetQuery</code>(<code>version</code> 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, <code>baseline</code> 이름으로 세트 조회 가능(<code>version</code>과 배타), <code>include[]</code>: requirements/tasks/comments/<b>relations</b>(양방향 요약 — 총계 + 상위 20, 전량·커서는 EP-SPEC-18))</td><td><code>SpecGetResult</code>(+<code>basis_superseded?</code> — 요청 버전이 superseded면 최신 approved 번호와 함께 표시)</td><td>—</td></tr>
+      <tr><td>EP-SPEC-03</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}</code></td><td>전 역할</td><td><code>SpecGetQuery</code>(<code>version</code> 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, <code>baseline</code> 이름으로 세트 조회 가능(<code>version</code>과 배타), <code>include</code>(쉼표 구분) — 구현: tasks·comments/<b>relations</b>(양방향 요약 — 총계 + 상위 20, 전량·커서는 EP-SPEC-18))</td><td><code>SpecGetResult</code>(+<code>basis_superseded?</code> — 요청 버전이 superseded면 최신 approved 번호와 함께 표시)</td><td>—</td></tr>
       <tr><td>EP-SPEC-04</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions</code></td><td>전 역할</td><td>—</td><td><code>Page&lt;SpecVersionSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-SPEC-05</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}</code></td><td>전 역할</td><td>—</td><td><code>SpecVersionResult</code>(불변 스냅샷 — 같은 <code>{no}</code>는 영원히 같은 응답)</td><td>—</td></tr>
       <tr><td>EP-SPEC-06</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/diff</code></td><td>전 역할</td><td><code>SpecDiffQuery</code>(from, to)</td><td><code>SpecDiffResult</code>(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff)</td><td>—</td></tr>

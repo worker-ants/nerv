@@ -113,7 +113,10 @@ export function useSpecTree(
 export function useSpec(slug: string, specKey: string): UseQueryResult<Row> {
   return useQuery({
     queryKey: queryKeys.spec(specKey),
-    queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}`),
+    // **`include=tasks` 를 붙이는 이유**: 영향 미리보기가 파생 Task 수를 세는데, 서버는
+    // 요청해야 그것을 싣는다(EP-SPEC-03). 붙이지 않던 동안 그 줄은 언제나 "0건" 이었다 —
+    // 실측 2026-09-03: 파생 Task 를 가진 스펙 86개, 한 스펙 최대 29건이 0으로 보였다.
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}?include=tasks`),
     // 고르기 전에는 부르지 않는다 — 빈 키로 나가면 `/specs/` 가 되어 404 가 온다
     enabled: specKey !== '',
   });

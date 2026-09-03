@@ -782,6 +782,17 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     );
   });
 
+  // 화면의 영향 미리보기가 이 값을 센다. 서버가 요청받아야 싣는데 REST 가 그 인자를
+  // 넘기지 않아, 파생 Task 를 가진 스펙 86개가 전부 "0건" 이라 말하고 있었다(실측 2026-09-03).
+  it('EP-SPEC-03 — include=tasks 가 파생 Task 를 싣는다', async () => {
+    const plain = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS');
+    expect((plain.body as Record<string, unknown>)['tasks']).toBeUndefined();
+
+    const withTasks = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS?include=tasks');
+    expect(withTasks.status).toBe(200);
+    expect((withTasks.body as Record<string, unknown>)['tasks']).toEqual(expect.any(Array));
+  });
+
   it('EP-SPEC-05 — 버전 스냅샷은 같은 번호에 같은 응답이다', async () => {
     const res = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS/versions/1');
     expect(res.status).toBe(200);
