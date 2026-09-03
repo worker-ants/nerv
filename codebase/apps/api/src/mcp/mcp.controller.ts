@@ -186,11 +186,18 @@ export class McpController {
 
     // 스코프와 입력은 호출 **전에** 검사한다 — 부작용 뒤의 거부는 거부가 아니고,
     // 스키마의 `required` 를 아무도 읽지 않으면 그것은 계약이 아니라 문서일 뿐이다
+    let ignoredArgs: string[];
     try {
       this.auth.assertScope(principal, tool.scope);
-      assertToolInput(tool.inputSchema, args);
+      ignoredArgs = assertToolInput(tool.inputSchema, args);
     } catch (error) {
       return this.toStructuredError(error, t, locale);
+    }
+    if (ignoredArgs.length > 0) {
+      // 운영자용 로그(REQ-CB-022) — 드리프트는 사람이 스킬·스키마를 고쳐야 사라진다
+      this.logger.warn(
+        `스킬↔스키마 드리프트: ${tool.name} 이(가) 받지 않는 인자 ${ignoredArgs.join(', ')}`,
+      );
     }
 
     // 세션 해소도 **구조화 에러**여야 한다 — 여기서 던지면 게이트웨이가 프로토콜 오류로
@@ -215,10 +222,17 @@ export class McpController {
 
     try {
       const result = await this.runOnce(tool, args, ctx);
+      // **무시한 인자를 성공 응답에도 싣는다**(REQ-API-080). 실패했을 때만 말하면
+      // 정작 흔한 경우 — 호출은 성공하고 값만 사라지는 경우 — 를 아무도 모른다.
+      const payload = {
+        ok: true,
+        ...asObject(result),
+        ...(ignoredArgs.length > 0 ? { ignored_args: ignoredArgs } : {}),
+      };
       return {
         // 구조화 결과 — 모델이 읽고 다음 행동을 고르게 한다(agent-integration §2.7)
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, ...asObject(result) }) }],
-        structuredContent: { ok: true, ...asObject(result) },
+        content: [{ type: 'text', text: JSON.stringify(payload) }],
+        structuredContent: payload,
       };
     } catch (error) {
       return this.toStructuredError(error, t, locale);

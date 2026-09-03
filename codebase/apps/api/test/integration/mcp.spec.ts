@@ -605,6 +605,38 @@ describe('E03-S03 세션 추정 — 스키마대로 부르면 된다', () => {
  * 알아보는 쪽이 됐다 — 스킬이 `session_id` 를 싣는 길은 하네스가 그 값을 모델에 주지
  * 않아서 막혀 있다.
  */
+/**
+ * 유령 인자 — 스킬이 보내고 도구가 받지 않는 것들(REQ-API-080).
+ *
+ * 실측 2026-09-03: 스킬 5종이 지시하는 인자 열한 종(`state_note`·`stats`·`include`·
+ * `repo{}`·`role`·`capabilities`·`branch`·`worktree`·`resolved_in_version_id`·`note`·
+ * `reviewer_hint`)이 성공 응답과 함께 사라지고 있었다. 거부하지 않되 **말은 한다.**
+ */
+describe('E03-S03 모르는 인자 — 성공해도 버렸다고 말한다', () => {
+  it('도구가 받지 않는 인자를 응답이 되돌려준다', async () => {
+    const result = await callTool('nerv_spec_tree', { unknown_arg: 1, include: ['comments'] });
+    expect(result['ok']).toBe(true);
+    expect(result['ignored_args']).toEqual(expect.arrayContaining(['unknown_arg', 'include']));
+  });
+
+  it('정상 호출에는 그 필드가 없다 — 늘 붙는 경고는 아무도 읽지 않는다', async () => {
+    const result = await callTool('nerv_spec_tree', {});
+    expect(result['ok']).toBe(true);
+    expect(result['ignored_args']).toBeUndefined();
+  });
+
+  it('봉투 인자는 유령이 아니다 — session_id 는 게이트웨이가 읽는다', async () => {
+    await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-envelope',
+      external_session_id: 'S-envelope',
+    });
+    const result = await callTool('nerv_spec_tree', { session_id: boot['session_id'] });
+    expect(result['ignored_args']).toBeUndefined();
+  });
+});
+
 describe('E03-S03 훅 세션 채택 — 두 평면이 한 세션을 쓴다', () => {
   async function clearSessions(): Promise<void> {
     await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
