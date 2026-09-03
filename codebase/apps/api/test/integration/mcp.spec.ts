@@ -692,6 +692,41 @@ describe('E03-S03 훅 세션 채택 — 두 평면이 한 세션을 쓴다', () 
     expect(question['ok']).toBe(true);
   });
 
+  // 실측 2026-09-03: 같은 사람·같은 cwd 에서 겹친 실사용 쌍 14건 중 10건에서 **나중에
+  // 등록된 세션은 활동이 0인 유령**이었다(나중 세션이 유일한 활동 주체인 경우는 0건).
+  // 등록 시각만 보면 그 유령을 고른다 — 일한 흔적이 1순위여야 하는 이유다.
+  it('활동이 있는 세션을 고른다 — 나중에 등록된 빈 세션이 아니라', async () => {
+    await clearSessions();
+    const worker = await sessionStartHook('S-worker', 'mac-pick', '/work/clemvion');
+    // 앞선 세션이 도구를 쓴다(훅 평면의 활동)
+    await pool.query(
+      `INSERT INTO activity (id, session_id, project_id, seq, type, title, created_at)
+       VALUES ($1,$2,$3,1,'action','Read(spec)', now())`,
+      [newId(), worker, projectId],
+    );
+    // 그 뒤 유령이 등록된다 — 활동은 하나도 없다
+    const phantom = await sessionStartHook('S-phantom', 'mac-pick', '/work/clemvion');
+    expect(phantom).not.toBe(worker);
+
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-pick',
+      cwd: '/work/clemvion',
+    });
+    expect(boot['session_id']).toBe(worker);
+  });
+
+  it('cwd 를 말하지 않으면 채택하지 않는다 — hostname 만으로 고르는 가지는 닫혀 있다', async () => {
+    await clearSessions();
+    await sessionStartHook('S-nocwd', 'mac-nocwd', '/work/clemvion');
+
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-nocwd',
+    });
+    expect(boot['resumed']).toBe(false);
+  });
+
   it('다른 호스트·다른 cwd 는 채택하지 않는다 — 남의 세션을 삼키면 오귀속이다', async () => {
     await clearSessions();
     await sessionStartHook('S-hook-other', 'mac-one', '/work/clemvion');

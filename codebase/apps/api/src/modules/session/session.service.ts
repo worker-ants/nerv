@@ -761,22 +761,37 @@ export class SessionService {
    * stdin 에만 있다). 그래서 **서버가 알아보는 쪽**이 되어야 한다.
    *
    * 대조 조건은 신원 3요소 중 서버가 양쪽에서 받을 수 있는 것들이다 — 같은 사람(D-08)·
-   * 같은 프로젝트·같은 hostname, 그리고 bootstrap 이 cwd 를 말했으면 같은 cwd. 훅이 만든
-   * 세션(`external_session_id IS NOT NULL`)만 채택 대상이다: MCP 가 만든 세션까지 삼키면
-   * 서로 다른 두 스킬 세션이 한 몸이 된다. 여럿이면 **가장 최근 것**을 고른다 — bootstrap 은
-   * SessionStart 직후에 오므로 마지막에 열린 세션이 곧 지금 그 세션이다.
+   * 같은 프로젝트·같은 hostname·**같은 cwd**. 훅이 만든 세션(`external_session_id IS NOT NULL`)만
+   * 채택 대상이다: MCP 가 만든 세션까지 삼키면 서로 다른 두 스킬 세션이 한 몸이 된다.
+   *
+   * **cwd 를 필수로 받는다**(2026-09-03 · 사람 결정). 없으면 채택하지 않는다 — hostname 만으로
+   * 고르는 가지가 가장 헐렁했고, 오귀속의 대가가 크다(클레임은 세션 단위로 겹침을 판정하므로
+   * 조용한 오귀속은 곧 잘못된 충돌 판정이다). 스킬은 이미 cwd 를 싣는다.
+   *
+   * **고르는 순서는 "일한 흔적"이 먼저다**(2026-09-03 · 실측). 같은 사람·같은 cwd 에서 세션이
+   * 겹친 실사용 쌍 14건 중 10건에서 나중에 등록된 세션은 **활동이 0인 유령**이었고, 실제로
+   * 일하는 것은 앞선 세션이었다(나중 세션이 유일한 활동 주체인 경우는 0건). 마지막 활동 시각을
+   * 1순위로 두면 그 유령은 어느 시점에 등록되든 진짜 세션을 이기지 못한다.
+   *
+   * 2순위가 `last_heartbeat_at` 인 이유: 훅 활동도 MCP 도구 호출도 이 값을 갱신하므로
+   * "최근에 살아 있었다" 의 상위 신호다. 활동 기록이 아직 없는 첫 순간에는 이쪽이 답한다.
    */
   private async adoptHookSession(input: BootstrapInput): Promise<string | null> {
-    const sameCwd = input.cwd == null ? sql`` : sql` AND cwd = ${input.cwd}`;
+    if (input.cwd == null || input.cwd === '') return null;
     const { rows } = await this.db.execute<{ id: string }>(sql`
-      SELECT id FROM agent_session
-       WHERE project_id = ${input.projectId} AND user_id = ${input.userId}
-         AND external_session_id IS NOT NULL
-         AND hostname = ${input.hostname}${sameCwd}
-         AND state IN ('pending', 'active', 'awaiting_input')
-         AND coalesce(last_heartbeat_at, started_at)
+      SELECT s.id FROM agent_session s
+       LEFT JOIN LATERAL (
+             SELECT max(a.created_at) AS last_activity_at
+               FROM activity a WHERE a.session_id = s.id
+            ) act ON true
+       WHERE s.project_id = ${input.projectId} AND s.user_id = ${input.userId}
+         AND s.external_session_id IS NOT NULL
+         AND s.hostname = ${input.hostname} AND s.cwd = ${input.cwd}
+         AND s.state IN ('pending', 'active', 'awaiting_input')
+         AND coalesce(s.last_heartbeat_at, s.started_at)
              > now() - ${sqlSeconds(SESSION_STALE_SECONDS)}
-       ORDER BY coalesce(last_heartbeat_at, started_at) DESC
+       ORDER BY act.last_activity_at DESC NULLS LAST,
+                coalesce(s.last_heartbeat_at, s.started_at) DESC
        LIMIT 1
     `);
     const adopted = rows[0]?.id ?? null;
