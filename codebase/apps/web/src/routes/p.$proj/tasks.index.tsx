@@ -40,6 +40,13 @@ const LANE_CAP = 8;
 
 const LANES = ['blocked', 'ready', 'claimed', 'in_progress', 'in_review', 'done'] as const;
 
+/**
+ * "내 담당" 이 세는 범위 — 끝나지 않은 것 전부다(`done` 은 뺀다).
+ *
+ * 전표는 상태를 쉼표로 받는다(EP-TASK-01). 한 상태로 좁히면 라벨과 값이 어긋난다.
+ */
+const MINE_LANES = 'ready,claimed,in_progress,in_review,blocked';
+
 /** 레인 이름은 `task_status` 어휘다 — 토큰·라벨 표를 그대로 색인한다 */
 type Lane = keyof typeof TASK_TOKEN;
 
@@ -85,7 +92,11 @@ function TaskBoard(): React.JSX.Element {
   // **"내 담당"이 없으면 이 줄은 절반만 답한다** — 조직 전체가 몇 개를 돌리는지는
   // 알려 주는데 "그중 내가 쥔 것"은 카드를 뒤져야 나온다(시안 대조 2026-08-23).
   const meId = typeof me.data?.id === 'string' ? me.data.id : undefined;
-  const mine = useTaskLane(proj, meId === undefined ? undefined : id, 'in_progress', {
+  // **"내 담당" 은 상태가 아니라 사람이다**(2026-09-03 정정). 예전에는 `in_progress` 로 못
+  // 박아 두어서, 담당이 지정된 Task 가 `ready`·`blocked` 면 그 사람의 "내 담당" 이 0 이었다 —
+  // 실측: 담당이 있는 Task 3건(ready 2 · blocked 1)이 세 사람 모두에게 0으로 보였다.
+  // 라벨이 "내 담당" 인데 값이 "내가 지금 붙잡고 있는 것" 이면 둘은 다른 질문이다.
+  const mine = useTaskLane(proj, meId === undefined ? undefined : id, MINE_LANES, {
     ...(meId === undefined ? {} : { assignee: meId }),
   });
   const count = (q: ReturnType<typeof useTaskLane>): string => {

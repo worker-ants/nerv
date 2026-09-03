@@ -3,8 +3,8 @@
 // 훅을 한 곳에 모으는 이유는 **폴백 폴링**(REQ-WEB-002) 때문이다. WS 가 끊긴 동안에는 화면이
 // 스스로 갱신해야 하는데, 그 판단이 화면마다 흩어지면 어떤 화면은 조용히 멈춘 채로 남는다.
 
-import { useQuery } from '@tanstack/react-query';
-import type { UseQueryResult } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import type { UseQueryResult, UseInfiniteQueryResult, InfiniteData } from '@tanstack/react-query';
 import { apiFetch } from './api.js';
 import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
 import { queryKeys } from './query-keys.js';
@@ -74,11 +74,25 @@ export function useInbox(state: 'pending' | 'decided' = 'pending'): UseQueryResu
   });
 }
 
-export function useNotifications(): UseQueryResult<Row[]> {
+/**
+ * 알림 목록 — **커서로 이어 받는다**(2026-09-03 · REQ-API-083).
+ *
+ * 예전에는 한 번 부르고 끝이라 서버 기본 상한 50 건에서 목록이 벽이 됐다. 실측(2026-09-03):
+ * 안 읽은 알림 479건 중 **429건에 웹에서 닿을 수 없었다** — 헤더 배지는 진짜 수를 보이는데
+ * 목록은 50 에서 끝나므로 화면이 자기 배지와 어긋났다.
+ */
+export function useNotifications(): UseInfiniteQueryResult<
+  InfiniteData<{ items: Row[]; next_cursor: string | null }>
+> {
   const refetchInterval = useLivePolling();
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.myNotifications(),
-    queryFn: () => apiFetch<Row[]>('/me/notifications'),
+    queryFn: ({ pageParam }) =>
+      apiFetch<{ items: Row[]; next_cursor: string | null }>(
+        `/me/notifications${pageParam === null ? '' : `?before=${encodeURIComponent(String(pageParam))}`}`,
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
     refetchInterval,
   });
 }
@@ -113,7 +127,10 @@ export function useSpecTree(
 export function useSpec(slug: string, specKey: string): UseQueryResult<Row> {
   return useQuery({
     queryKey: queryKeys.spec(specKey),
-    queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}`),
+    // **`include=tasks` 를 붙이는 이유**: 영향 미리보기가 파생 Task 수를 세는데, 서버는
+    // 요청해야 그것을 싣는다(EP-SPEC-03). 붙이지 않던 동안 그 줄은 언제나 "0건" 이었다 —
+    // 실측 2026-09-03: 파생 Task 를 가진 스펙 86개, 한 스펙 최대 29건이 0으로 보였다.
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}?include=tasks`),
     // 고르기 전에는 부르지 않는다 — 빈 키로 나가면 `/specs/` 가 되어 404 가 온다
     enabled: specKey !== '',
   });
@@ -349,6 +366,8 @@ export interface FindingQueueResponse {
   items: Row[];
   /** 서버가 실제로 적용한 상한 — 화면이 "몇 건 중 몇 건"을 말하려면 필요하다 */
   limit: number;
+  /** 다음 쪽 — null 이면 끝이다(REQ-API-083) */
+  next_cursor: string | null;
   facets: {
     severity: Record<string, number>;
     status: Record<string, number>;
@@ -368,6 +387,14 @@ export interface GateCoverageResponse {
  * 발견 큐(S6). **필터는 키의 일부다** — 필터를 바꾸면 다른 질문이라 다른 캐시다.
  * facet 이 같은 응답에 오므로 필터 칸의 숫자에 따로 요청하지 않는다(REQ-WEB-061).
  */
+/**
+ * 발견 큐 — **커서로 이어 받는다**(2026-09-03 · REQ-API-083).
+ *
+ * 예전에는 상한을 두 배씩 올려 200 에서 멈췄고 서버도 거기가 끝이었다. 실측(2026-09-03):
+ * 열린 발견 18,653건 중 **18,453건에 웹에서 닿을 수 없었다** — critical 만 걸러도 423건이라
+ * 상한 안에 들어오지 않는다. 화면은 "18653건 중 50건" 이라고 정직하게 말하면서 나머지로
+ * 가는 길을 주지 않았다.
+ */
 export function useFindings(
   slug: string,
   filters: {
@@ -377,18 +404,22 @@ export function useFindings(
     area: readonly string[];
   },
   projectId?: string,
-  limit?: number,
-): UseQueryResult<FindingQueueResponse> {
+): UseInfiniteQueryResult<InfiniteData<FindingQueueResponse>> {
   const refetchInterval = useLivePolling();
-  const query = new URLSearchParams();
-  if (filters.severity.length > 0) query.set('severity', filters.severity.join(','));
-  if (filters.status.length > 0) query.set('status', filters.status.join(','));
-  if (filters.tag.length > 0) query.set('tag', filters.tag.join(','));
-  if (filters.area.length > 0) query.set('area', filters.area.join(','));
-  if (limit !== undefined) query.set('limit', String(limit));
-  return useQuery({
-    queryKey: [...queryKeys.projectFindings(projectId ?? slug), filters, limit],
-    queryFn: () => apiFetch<FindingQueueResponse>(`/projects/${slug}/findings?${query.toString()}`),
+  const base = new URLSearchParams();
+  if (filters.severity.length > 0) base.set('severity', filters.severity.join(','));
+  if (filters.status.length > 0) base.set('status', filters.status.join(','));
+  if (filters.tag.length > 0) base.set('tag', filters.tag.join(','));
+  if (filters.area.length > 0) base.set('area', filters.area.join(','));
+  return useInfiniteQuery({
+    queryKey: [...queryKeys.projectFindings(projectId ?? slug), filters],
+    queryFn: ({ pageParam }) => {
+      const query = new URLSearchParams(base);
+      if (pageParam !== null) query.set('cursor', String(pageParam));
+      return apiFetch<FindingQueueResponse>(`/projects/${slug}/findings?${query.toString()}`);
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor ?? null,
     refetchInterval,
   });
 }

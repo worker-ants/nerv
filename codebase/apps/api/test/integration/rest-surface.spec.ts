@@ -177,7 +177,130 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
   });
 });
 
+/**
+ * §1.4j — 어휘 밖의 값은 **거절이지 무시가 아니고, 500 도 아니다**(REQ-API-074).
+ *
+ * 라이브 실측(2026-09-03): 네 자리가 사용자의 오타에 500 을 돌려주고 있었다. 값이 그대로
+ * `::enum` 으로 캐스팅되거나 `Number('abc')` 가 NaN 이 되어 SQL 이 22P02 로 죽는 자리다.
+ * 500 은 "서버가 잘못했다, 기다렸다 다시" 라는 뜻이라 클라이언트는 고칠 수 없는 요청을
+ * 재시도한다. 400 은 "이 목록에서 골라라" 다.
+ */
+/**
+ * 알림 목록의 커서(REQ-API-083).
+ *
+ * 실측(2026-09-03): 한 사람의 안 읽은 알림 479건 중 **429건에 웹에서 닿을 수 없었다** —
+ * 서비스에 상한은 있었는데 컨트롤러도 웹도 `limit` 을 넘기지 않아 언제나 최신 50건이었고,
+ * 그 뒤로 가는 길이 없었다. 헤더 배지는 진짜 수를 보이므로 화면이 자기 배지와 어긋났다.
+ */
+describe('EP-NTF-01 — 알림은 50 에서 끝나지 않는다', () => {
+  it('커서로 다음 쪽을 이어 받는다', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      const eventId = newId();
+      await pool.query(
+        `INSERT INTO event (id, project_id, occurred_at, type, is_agent, subject_type, subject_id, payload)
+         VALUES ($1,$2, now() - ($3 || ' minutes')::interval, 'session.started', false,
+                 'agent_session', $4, '{}'::jsonb)`,
+        [eventId, projectId, String(i), newId()],
+      );
+      await pool.query(
+        `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at)
+         VALUES ($1,$2,$3,$4,'immediate','inapp','unread', now() - ($5 || ' minutes')::interval)`,
+        [newId(), projectId, adminId, eventId, String(i)],
+      );
+    }
+
+    const first = await call('GET', '/api/v1/me/notifications?limit=2');
+    const firstBody = first.body as { items: Record<string, unknown>[]; next_cursor: string };
+    expect(firstBody.items).toHaveLength(2);
+    expect(firstBody.next_cursor).toEqual(expect.any(String));
+
+    const next = await call(
+      'GET',
+      `/api/v1/me/notifications?limit=2&before=${encodeURIComponent(firstBody.next_cursor)}`,
+    );
+    const nextBody = next.body as { items: Record<string, unknown>[] };
+    expect(nextBody.items.length).toBeGreaterThan(0);
+    // 같은 것을 두 번 주지 않는다 — 커서가 겹치면 사람은 읽은 것을 다시 읽는다
+    const firstIds = firstBody.items.map((n) => n['id']);
+    expect(nextBody.items.every((n) => !firstIds.includes(n['id']))).toBe(true);
+  });
+});
+
+describe('오타는 400 이다 (§1.4j · REQ-API-074)', () => {
+  it.each([
+    ['tasks?status=doing', '/api/v1/projects/clemvion/tasks?status=doing', 'status'],
+    [
+      'requirements?impl_status=nope',
+      '/api/v1/projects/clemvion/requirements?impl_status=nope',
+      'impl_status',
+    ],
+    ['specs/:spec?v=abc', '/api/v1/projects/clemvion/specs/SPC-RBAC?v=abc', 'v'],
+    ['events?limit=abc', '/api/v1/projects/clemvion/events?limit=abc', 'limit'],
+  ])('%s → 400 이고 허용 목록을 준다', async (_name, url, field) => {
+    const res = await call('GET', url);
+    expect(res.status).toBe(400);
+    const body = res.body as Record<string, unknown>;
+    expect(body['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect(body['details']).toMatchObject({ kind: 'invalid_input', field });
+    // 무엇을 보낼 수 있는지 말해 주지 않으면 클라이언트는 같은 요청을 반복한다
+    expect((body['details'] as { allowed: string[] }).allowed.length).toBeGreaterThan(0);
+  });
+
+  // 조용한 무시는 500 보다 나쁘다 — 사람은 걸러진 화면이라고 믿으면서 걸러지지 않은
+  // 목록을 읽는다. 이 자리는 200 을 주면서 필터를 버리고 있었다(라이브 실측).
+  it('발견 큐의 어휘 밖 필터는 조용히 버리지 않는다', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/findings?severity=HIGH');
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'invalid_input',
+      field: 'severity',
+    });
+  });
+});
+
 describe('Task 표면 (EP-TASK-01·03·04·05·09)', () => {
+  // 보드의 "내 담당" 이 기대는 계약이다. 화면이 상태 하나(`in_progress`)로 좁혀 세던 동안,
+  // 담당이 지정된 Task 3건(ready 2 · blocked 1)이 세 사람 모두에게 0으로 보였다(실측).
+  it('EP-TASK-01 — 상태 여럿과 담당자를 함께 거를 수 있다', async () => {
+    const made = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      payload: { title: '내 담당 집계' },
+    });
+    expect(made.status).toBe(201);
+    const key = (made.body as Record<string, unknown>)['key'] as string;
+    // 생성은 언제나 backlog 다 — 4요소가 차야 서버가 ready 로 올린다(같은 절의 다음 테스트)
+    const ready = await call('PATCH', `/api/v1/projects/clemvion/tasks/${key}`, {
+      payload: {
+        goal_md: '목표',
+        output_format_md: 'PR',
+        tools_sources_md: '도구',
+        boundaries_md: '경계',
+        assignee_user_id: adminId,
+      },
+    });
+    expect((ready.body as Record<string, unknown>)['status']).toBe('ready');
+
+    // 라벨이 "내 담당" 이면 값도 사람 축이어야 한다 — 상태 하나로 좁히면 둘이 어긋난다
+    const mine = await call(
+      'GET',
+      `/api/v1/projects/clemvion/tasks?status=ready,claimed,in_progress,in_review,blocked&assignee=${adminId}`,
+    );
+    expect(mine.status).toBe(200);
+    const keys = ((mine.body as { items: Record<string, unknown>[] }).items ?? []).map(
+      (t) => t['key'],
+    );
+    expect(keys).toContain(key);
+
+    // 대조군 — 한 상태로만 좁히면 같은 Task 가 사라진다(예전 화면이 세던 방식이다)
+    const narrow = await call(
+      'GET',
+      `/api/v1/projects/clemvion/tasks?status=in_progress&assignee=${adminId}`,
+    );
+    const narrowKeys = ((narrow.body as { items: Record<string, unknown>[] }).items ?? []).map(
+      (t) => t['key'],
+    );
+    expect(narrowKeys).not.toContain(key);
+  });
+
   it('생성은 언제나 backlog 이고, 4요소가 차면 서버가 ready 로 승격한다 (FR-05)', async () => {
     const created = await call('POST', '/api/v1/projects/clemvion/tasks', {
       payload: { title: '위젯 임베드', priority: 'P1' },
@@ -780,6 +903,17 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     expect((naked.body as { details?: { kind?: string } }).details?.kind).toBe(
       'base_hash_required',
     );
+  });
+
+  // 화면의 영향 미리보기가 이 값을 센다. 서버가 요청받아야 싣는데 REST 가 그 인자를
+  // 넘기지 않아, 파생 Task 를 가진 스펙 86개가 전부 "0건" 이라 말하고 있었다(실측 2026-09-03).
+  it('EP-SPEC-03 — include=tasks 가 파생 Task 를 싣는다', async () => {
+    const plain = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS');
+    expect((plain.body as Record<string, unknown>)['tasks']).toBeUndefined();
+
+    const withTasks = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS?include=tasks');
+    expect(withTasks.status).toBe(200);
+    expect((withTasks.body as Record<string, unknown>)['tasks']).toEqual(expect.any(Array));
   });
 
   it('EP-SPEC-05 — 버전 스냅샷은 같은 번호에 같은 응답이다', async () => {

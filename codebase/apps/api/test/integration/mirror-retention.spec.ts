@@ -16,6 +16,7 @@ import { ExportJob } from '../../src/worker/jobs/export.job.js';
 import { RetentionJob } from '../../src/worker/jobs/retention.job.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
+import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -44,6 +45,7 @@ beforeAll(async () => {
     events,
     new SpecCheckService(drizzleDb),
     new SpecRelationService(drizzleDb),
+    new SpecCommentService(events, drizzleDb),
     drizzleDb,
   );
   retention = new RetentionJob(drizzleDb);

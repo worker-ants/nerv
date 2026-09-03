@@ -15,6 +15,7 @@
     "NERV_SERVER": "https://nerv.example.com",
     "NERV_PROJECT": "clemvion"
   },
+  "$comment_hooks": "allowedHttpHookUrls 는 `type:\"http\"` 훅에만 걸린다. NERV 의 기본 훅은 command 변형(hooks/hooks.json — bin/nerv-hook-forward 경유)이므로 이 목록이 그 훅들을 덮지 않는다. URL 통제가 필요한 조직은 둘 중 하나다: hooks/hooks.http.json 을 hooks/hooks.json 자리에 두거나, 이 파일의 `hooks` 키로 훅 정의 자체를 내린다(관리형이 플러그인을 이긴다). 어느 쪽이든 `env.NERV_SERVER` 가 서버 주소이고, 가장 강한 강제는 서버 게이트 판정이다. 정본: 4.6 §3.1 · 3.4 §6.4.",
   "allowedHttpHookUrls": [
     "https://nerv.example.com/ingest/hooks/session",
     "https://nerv.example.com/ingest/hooks/tool",

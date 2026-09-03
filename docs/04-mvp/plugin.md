@@ -7,8 +7,12 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.26 · 2026-09-02 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.30 · 2026-09-03 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.30 변경(2026-09-03 — 기본 변형을 command 로, 사람 결정): `hooks/hooks.json` 이 이제 `bin/nerv-hook-forward` 를 거치는 command 변형이고 http 변형은 `hooks/hooks.http.json` 으로 남는다. 이유 셋: 훅 `url` 은 `${VAR}` 확장을 안 받아 http 는 주소가 박히고, `async` 가 command 전용이라 http 는 `PostToolUse` 가 매 도구 호출마다 동기로 기다리며, hostname 폴백이 포워더에만 있다. 대가는 `allowedHttpHookUrls` 가 기본 훅을 덮지 않는 것이고, 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다.
+> v0.29 변경(2026-09-03 — 포크 없이 배포되게, 사람 결정 대기): 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다(실측). 셋을 고친다. ① `.mcp.json` 의 `url` 이 `${NERV_SERVER:-…}` 를 읽는다 — 기본값은 그대로다. ② **`hooks/hooks.command.json` 을 파일로 넣는다** — 주의 문단이 말만 하던 변형이다(훅 `url` 은 `${VAR}` 확장을 받지 않는다). ③ http 변형에서 `async` 를 걷고(command 전용 필드라 조용히 무시됐다) 상한 없던 훅에 `timeout` 을 준다 — 기본값 10분은 텔레메트리 평면의 상한이 아니다. **어느 변형을 기본으로 삼을지는 사람 결정으로 남긴다** — command 로 통일하면 `allowedHttpHookUrls`(§6.4)가 NERV 훅을 덮지 않는다.
+> v0.28 변경(2026-09-03 — 스킬이 없는 인자를 부르고 있었다): 스킬 문장을 도구 실물에 맞췄다. `repo{}` → 평면 `branch`·`worktree_path`, `nerv_task_next` 의 `role`·`capabilities` 삭제, 클레임의 `branch`·`worktree` 삭제(세션이 등록한다), `nerv_spec_submit_review` 의 `note`·`reviewer_hint` 삭제, 기준 문서 열기를 후보 응답의 `spec_key`·`version_no` 로 고쳤다. 정본은 [3.4](../03-proposal/agent-integration.md) §2.3.
+> v0.27 변경(2026-09-03 — 포워더가 응답을 버리고 있었다): `bin/nerv-hook-forward` 가 서버 응답을 `/dev/null` 로 보내고 있어 `command` 폴백 설치에서는 `SessionStart` 주입도 `Stop` 의 종료 차단도 모델에 닿지 않았다 — 실측한 유일한 실사용 설치가 그 경로였다. 이제 JSON 응답을 stdout 으로 흘린다(§3.1).
 > v0.26 변경(2026-09-02 — 라이선스): 플러그인 매니페스트에 `"license": "Apache-2.0"` 을 더했다(§1.1). 플러그인은 저장소 밖으로 따로 배포되므로 매니페스트가 자기 배포 조건을 말해야 한다. (이 줄에 매니페스트 파일명을 그대로 쓰지 않는 이유가 있다 — `plugin-package.spec.ts` 는 문서에서 **그 이름 다음에 오는 첫 코드 펜스**를 전문으로 읽는다. 머리말이 같은 문자열을 먼저 쓰면 검사가 엉뚱한 펜스를 본다.)
 > v0.25 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.24 변경(2026-09-01 — 사람 보고의 곁가지): `SessionStart` 훅이 **outbox 를 먼저 비운다**(§3.4 · REQ-PLG-016). flush 주체가 "다음 스킬 턴" 뿐이라, 서버가 죽은 동안 큐잉하고 세션을 끝내면 그 쓰기가 언제 갈지 아무도 몰랐다.
@@ -144,29 +148,28 @@ allowed-tools:
 ## 절차
 
 1. **bootstrap 확인.** 이 세션에서 `nerv_bootstrap`을 아직 호출하지 않았다면 지금 호출한다 —
-   입력: `project`, `agent_type`, `hostname`, `cwd`, `repo{remote,branch}`,
+   입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
    - 응답의 정책 버전이 이 플러그인이 가정한 규약과 다르면, 진행은 하되 사용자에게
      플러그인 재설치를 안내한다(서버가 policy.stale 이벤트를 남긴다).
 2. **다른 클레임을 쥐고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
-3. **후보 조회.** `nerv_task_next` — 입력: `project`, `role`, 필요 시 `spec_id`·`capabilities`,
-   `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
+3. **후보 조회.** `nerv_task_next` — 입력: `project`, `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
    **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·베이스라인, 권장 scope가 실려 있다.
    - 4요소 중 하나라도 비어 있으면 그 Task는 클레임하지 않는다. `nerv_question_create`로
      빈 요소를 지목해 에스컬레이션한다(/nerv:question 규약).
 4. **클레임.** `nerv_task_claim` — 입력: `task_id`, `scope{spec_ids,file_globs}`(응답의 권장
-   scope에서 시작하되 실제 건드릴 범위로 좁힌다), 필요 시 `branch`·`worktree`. `idempotency_key`
-   포함. 응답의 `claim_id`·`lease_expires_at`을 기록한다(리스 TTL 기본 30분, 하트비트로 갱신).
+   scope에서 시작하되 실제 건드릴 범위로 좁힌다). `idempotency_key` 포함.
+   (브랜치·워크트리는 `nerv_bootstrap`이 세션에 등록한다 — 클레임은 받지 않는다.) 응답의 `claim_id`·`lease_expires_at`을 기록한다(리스 TTL 기본 30분, 하트비트로 갱신).
 5. **겹침 응답 처리.**
    - 경고(겹침 있으나 허용): 상대 세션의 사용자·hostname·scope를 사용자에게 보여주고,
      계속할지 확인받는다.
    - `NERV_CONFLICT_SCOPE`: 클레임 실패다. 응답 details의 상대 정보를 보고하고
      다음 후보로 이동한다. 후보가 없으면 `nerv_question_create`.
 6. **기준 버전으로 컨텍스트 로드.** 구현 컨텍스트의 스펙 읽기는 항상
-   `nerv_spec_get`(`spec_id`, `version=<후보의 기준 버전>`)으로 한다 — 기본값(최신 approved)에
-   의존하지 않는다. Task에 베이스라인이 있으면 주변 문서도 `baseline` 인자로 그 세트를 읽는다.
+   `nerv_spec_get`(`spec_id=<후보의 spec_key>`, `version=<후보의 version_no>`)으로 한다 —
+   기본값(최신 approved)에 의존하지 않는다. 두 값은 후보 응답에 실려 온다.
    응답에 `basis_superseded`가 있으면 그 사실을 사람에게 보고한다(기준 버전 규약 —
    agent-integration §2.4).
 7. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
@@ -338,8 +341,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 
 ### submit — 검토 요청 (A3 · 사람 승인 필수)
 1. 먼저 check를 돌려 block이 없음을 확인한다.
-2. `nerv_spec_submit_review`(`spec_version_id`, `note`, 필요 시 `reviewer_hint`)를
-   호출한다. 이 도구는 allowed-tools에 없다 — **매 호출 사람 승인을 거치는 것이 정상이다.**
+2. `nerv_spec_submit_review`(`spec_version_id`)를 호출한다. 이 도구는 allowed-tools에 없다 — **매 호출 사람 승인을 거치는 것이 정상이다.**
    승인 대기(`NERV_APPROVAL_REQUIRED`)면 `approval_id`로 상태를 폴링하고,
    그동안 다른 작업을 시작하지 않는다.
 3. 성공 응답의 `web_url`을 터미널에 표시한다. 같은 `spec_version_id` 재호출은 기존
@@ -678,6 +680,109 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 ```json
 {
+  "$comment": "기본 변형(2026-09-03 사람 결정). 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다 — 그 스크립트가 NERV_SERVER 와 .nerv/env 를 읽으므로 서버 주소가 어디든 포크 없이 동작하고, 텔레메트리 훅은 async 로 턴을 막지 않는다(http 훅에는 async 가 없다). http 변형은 hooks/hooks.http.json 이며 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" session",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" tool",
+            "async": true,
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" subagent",
+            "async": true,
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" subagent",
+            "async": true,
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" stop",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" session-end",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+각 훅의 용도(등록·Activity 적재·게이트 조회·정리)와 응답 의미론은 정본 표([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3)를 따른다. ingest 엔드포인트의 요청/응답 계약은 [4.4 API 명세](api.md)가 정의한다.
+
+> **Phase 0 실측 항목 — 훅 헤더의 `${NERV_TOKEN}` 확장.** `.mcp.json`의 `${VAR}` 확장은 공식 지원이 확인되지만 훅 `headers`에서의 동작은 1차 문서에서 확인하지 못했다(정본의 §3.3 주의와 동일). 확장이 안 되면 위 6개 항목의 `type:"http"`를 `type:"command"` + `bin/nerv-hook-forward`(토큰 주입 래퍼)로 바꾼 변형 hooks.json을 배포한다 — Codex 포워더와 같은 바이너리라 추가 비용이 없다. 이 실측은 [4.8 백로그](backlog.md) E06-S06으로 등재되어 있다.
+
+> **포워더는 응답을 흘린다**(2026-09-03 정정 · 실측). `bin/nerv-hook-forward` 는 서버 응답을 `/dev/null` 로 버리고 있었다 — 그래서 `command` 폴백을 쓰는 설치에서는 `SessionStart` 의 컨텍스트 주입도 `Stop` 의 `{"decision":"block"}` 도 **모델에 도달하지 못했다.** 실측한 유일한 실사용 설치가 정확히 그 폴백 경로였다(훅 6종 전부 `type:"command"`). 이제 포워더는 응답 본문이 JSON 이면 stdout 으로 그대로 내보낸다 — `command` 훅의 stdout 은 `http` 훅의 응답 본문과 같은 자리다. JSON 이 아닌 본문(프록시의 HTML 오류 페이지 등)은 내보내지 않는다.
+
+#### `hooks/hooks.http.json` 전문 — 관리형 URL 통제가 필요할 때 (2026-09-03)
+
+**기본을 바꾼 이유**(2026-09-03 · 사람 결정). 실측: 실제로 도는 유일한 설치가 `.mcp.json` 을 손으로 다시 쓰고 훅 6종을 손으로 갈아 끼웠다 — 마켓플레이스 설치 경로는 한 번도 쓰인 적이 없다. **패키지가 배포 가능한 물건이 아니면 사람은 포크한다.** 그래서 `hooks/hooks.json`(기본)은 이제 `bin/nerv-hook-forward` 를 거치는 command 변형이고, http 변형은 `hooks/hooks.http.json` 으로 남는다.
+
+근거 셋. ① 훅 `url` 은 `${VAR}` 확장을 받지 않으므로(headers 만 받는다) http 변형은 서버 주소가 파일에 박힌다 — 포워더는 `NERV_SERVER` 와 `.nerv/env` 를 읽으므로 어느 주소든 무설정으로 간다. ② **`async` 는 command 전용 필드다**(공식 문서 확인). http 훅은 전부 동기라 `PostToolUse` 가 `Write|Edit|MultiEdit|Bash` **매 호출마다** 최대 `timeout` 만큼 기다린다 — 서버가 느려지는 순간 훅이 "텔레메트리 평면" 이기를 그만둔다(정본 §3.3 이 선언한 성질이다). ③ 포워더에는 `hostname -s` 폴백이 있다(http 훅에는 없어 `NERV_HOSTNAME` 미설정 시 빈 hostname 으로 세션이 만들어졌다).
+
+**대가는 하나다.** `allowedHttpHookUrls`(3.4 §6.4)는 http 훅에만 걸리므로 기본 변형의 훅을 덮지 않는다 — command 훅에 대한 동등한 통제는 공식 문서에 없다. 그 성질이 필요한 조직은 둘 중 하나를 쓴다: **①** `hooks/hooks.http.json` 을 `hooks/hooks.json` 자리에 두거나, **②** 관리형 settings 로 훅 정의 자체를 내린다(`hooks` 키는 관리형 파일에서도 유효하다 — 관리형 > 프로젝트 > 유저). ②가 더 강하다: 조직의 URL 과 allowlist 를 함께 못 박고 플러그인 기본값을 이긴다.
+
+덧붙여 **"셸을 실행하지 않는다" 는 위안은 어느 변형에도 없었다** — http 변형의 SessionStart 에도 `bin/nerv-outbox flush` 가 command 훅으로 이미 들어 있다. 바뀐 것은 위험의 종류가 아니라 범위다.
+
+`.mcp.json` 은 변형이 필요 없다 — `url` 이 `${VAR}` 확장을 받으므로 `${NERV_SERVER:-https://nerv.example.com}/mcp` 하나로 둘 다 된다.
+
+```json
+{
+  "$comment": "http 변형 — 서버가 nerv.example.com 이고 관리형 settings 의 allowedHttpHookUrls 로 훅 URL 을 묶고 싶을 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가: 훅 url 은 ${VAR} 확장을 받지 않아 주소가 파일에 박히고, http 훅에는 async 가 없어 PostToolUse 가 매 도구 호출마다 동기로 기다린다. 정본: 4.6 §3.1.",
   "hooks": {
     "SessionStart": [
       {
@@ -712,7 +817,6 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "url": "https://nerv.example.com/ingest/hooks/tool",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true,
             "timeout": 3
           }
         ]
@@ -726,7 +830,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "url": "https://nerv.example.com/ingest/hooks/subagent",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -739,7 +843,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "url": "https://nerv.example.com/ingest/hooks/subagent",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -764,7 +868,8 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "type": "http",
             "url": "https://nerv.example.com/ingest/hooks/session-end",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"]
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "timeout": 5
           }
         ]
       }
@@ -772,10 +877,6 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
   }
 }
 ```
-
-각 훅의 용도(등록·Activity 적재·게이트 조회·정리)와 응답 의미론은 정본 표([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3)를 따른다. ingest 엔드포인트의 요청/응답 계약은 [4.4 API 명세](api.md)가 정의한다.
-
-> **Phase 0 실측 항목 — 훅 헤더의 `${NERV_TOKEN}` 확장.** `.mcp.json`의 `${VAR}` 확장은 공식 지원이 확인되지만 훅 `headers`에서의 동작은 1차 문서에서 확인하지 못했다(정본의 §3.3 주의와 동일). 확장이 안 되면 위 6개 항목의 `type:"http"`를 `type:"command"` + `bin/nerv-hook-forward`(토큰 주입 래퍼)로 바꾼 변형 hooks.json을 배포한다 — Codex 포워더와 같은 바이너리라 추가 비용이 없다. 이 실측은 [4.8 백로그](backlog.md) E06-S06으로 등재되어 있다.
 
 ### 3.2 statusline — 서버 사실의 로컬 투영
 
@@ -860,7 +961,7 @@ printf '  %s · ctx %s%%%s · 미해소 finding %s\n' \
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "https://nerv.example.com/mcp",
+      "url": "${NERV_SERVER:-https://nerv.example.com}/mcp",
       "headers": {
         "Authorization": "Bearer ${NERV_TOKEN}",
         "X-NERV-Project": "${NERV_PROJECT}"

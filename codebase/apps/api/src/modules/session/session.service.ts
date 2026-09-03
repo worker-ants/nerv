@@ -21,6 +21,7 @@ import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 
 export type AgentKind = 'claude-code' | 'codex' | 'web' | 'other';
@@ -66,17 +67,9 @@ export interface SessionCandidate extends Record<string, unknown> {
  * 첫 번째는 "조립하지 않는다"이고, 이것은 "필터가 거짓말하지 않는다"를 지킨다.
  */
 function assertSessionStates(values: readonly string[]): string[] {
-  const allowed = sessionState.enumValues as readonly string[];
-  const unknown = values.filter((v) => !allowed.includes(v));
-  if (unknown.length > 0) {
-    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
-      kind: 'invalid_input',
-      field: 'state',
-      unknown,
-      allowed,
-    });
-  }
-  return [...values];
+  // 판정은 공용 헬퍼가 한다(2026-09-03) — 같은 규칙이 다섯 자리에 흩어져 있었고,
+  // 그중 넷은 아예 없어서 오타가 500 이 됐다(§1.4j · common/query-vocab.ts).
+  return assertVocab(values, sessionState.enumValues, 'state');
 }
 
 /** S5 카드 한 장 — 신원 3요소 + 클레임 + 리스 잔여 + diff (ui-wireframes §3.3) */
@@ -143,6 +136,18 @@ export class SessionService {
         UPDATE agent_session
            SET state = 'active', ended_at = NULL, end_reason = NULL, last_heartbeat_at = now()
          WHERE id = ${existing} AND state <> 'active'
+      `);
+      // **훅이 모르는 것을 여기서 채운다.** 훅 페이로드에는 branch·worktree·model 이 없어
+      // 훅이 만든 세션은 신원 3요소(§1.4c)가 비어 있다 — 실측 2026-09-03: 실사용 세션
+      // 34개 전부에서 셋이 NULL 이었고, 세션 카드가 "누구의 무엇"에 답하지 못했다.
+      // `coalesce` 라 **덮어쓰지 않는다**: 이미 채워진 값은 그 세션이 말한 자기 자신이다.
+      await this.db.execute(sql`
+        UPDATE agent_session
+           SET branch = coalesce(branch, ${input.branch ?? null}::text),
+               worktree_path = coalesce(worktree_path, ${input.worktreePath ?? null}::text),
+               model = coalesce(model, ${input.model ?? null}::text),
+               cwd = coalesce(cwd, ${input.cwd ?? null}::text)
+         WHERE id = ${existing}
       `);
       return this.pack(existing, input.projectId, true);
     }
@@ -731,7 +736,62 @@ export class SessionService {
       `);
       return rows[0]?.id ?? null;
     }
-    return null;
+    return this.adoptHookSession(input);
+  }
+
+  /**
+   * 훅이 먼저 만든 세션을 **채택한다**(2026-09-03).
+   *
+   * 이것이 없는 동안 기본 설치는 세션을 둘 만들었다: SessionStart 훅이 하네스의
+   * `session_id` 로 세션 A 를, 스킬의 `nerv_bootstrap` 이 그 id 없이 세션 B 를 만들었다.
+   * 그러면 `nerv_task_claim` 은 살아 있는 세션이 둘이라 `session_ambiguous` 로 거부되고,
+   * Stop 게이트·SessionEnd 회수는 external id 로 A 만 찾아 클레임과 훅 평면이 갈라진다.
+   * **실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 0건이었고, 같은 사용자·같은
+   * cwd 에 살아 있는 세션이 둘 이상인 순간이 10번 있었다.**
+   *
+   * 채택이 유일한 길인 이유: 반대 방향 — 스킬이 `session_id` 를 싣는 것 — 은 막혀 있다.
+   * Claude Code 는 모델에게 자기 `session_id` 를 주지 않는다(훅 페이로드와 statusline
+   * stdin 에만 있다). 그래서 **서버가 알아보는 쪽**이 되어야 한다.
+   *
+   * 대조 조건은 신원 3요소 중 서버가 양쪽에서 받을 수 있는 것들이다 — 같은 사람(D-08)·
+   * 같은 프로젝트·같은 hostname·**같은 cwd**. 훅이 만든 세션(`external_session_id IS NOT NULL`)만
+   * 채택 대상이다: MCP 가 만든 세션까지 삼키면 서로 다른 두 스킬 세션이 한 몸이 된다.
+   *
+   * **cwd 를 필수로 받는다**(2026-09-03 · 사람 결정). 없으면 채택하지 않는다 — hostname 만으로
+   * 고르는 가지가 가장 헐렁했고, 오귀속의 대가가 크다(클레임은 세션 단위로 겹침을 판정하므로
+   * 조용한 오귀속은 곧 잘못된 충돌 판정이다). 스킬은 이미 cwd 를 싣는다.
+   *
+   * **고르는 순서는 "일한 흔적"이 먼저다**(2026-09-03 · 실측). 같은 사람·같은 cwd 에서 세션이
+   * 겹친 실사용 쌍 14건 중 10건에서 나중에 등록된 세션은 **활동이 0인 유령**이었고, 실제로
+   * 일하는 것은 앞선 세션이었다(나중 세션이 유일한 활동 주체인 경우는 0건). 마지막 활동 시각을
+   * 1순위로 두면 그 유령은 어느 시점에 등록되든 진짜 세션을 이기지 못한다.
+   *
+   * 2순위가 `last_heartbeat_at` 인 이유: 훅 활동도 MCP 도구 호출도 이 값을 갱신하므로
+   * "최근에 살아 있었다" 의 상위 신호다. 활동 기록이 아직 없는 첫 순간에는 이쪽이 답한다.
+   */
+  private async adoptHookSession(input: BootstrapInput): Promise<string | null> {
+    if (input.cwd == null || input.cwd === '') return null;
+    const { rows } = await this.db.execute<{ id: string }>(sql`
+      SELECT s.id FROM agent_session s
+       LEFT JOIN LATERAL (
+             SELECT max(a.created_at) AS last_activity_at
+               FROM activity a WHERE a.session_id = s.id
+            ) act ON true
+       WHERE s.project_id = ${input.projectId} AND s.user_id = ${input.userId}
+         AND s.external_session_id IS NOT NULL
+         AND s.hostname = ${input.hostname} AND s.cwd = ${input.cwd}
+         AND s.state IN ('pending', 'active', 'awaiting_input')
+         AND coalesce(s.last_heartbeat_at, s.started_at)
+             > now() - ${sqlSeconds(SESSION_STALE_SECONDS)}
+       ORDER BY act.last_activity_at DESC NULLS LAST,
+                coalesce(s.last_heartbeat_at, s.started_at) DESC
+       LIMIT 1
+    `);
+    const adopted = rows[0]?.id ?? null;
+    if (adopted !== null) {
+      this.logger.log(`훅 세션 채택 — host=${input.hostname} session=${adopted}`);
+    }
+    return adopted;
   }
 
   /** 컨텍스트 팩 — 세션이 첫 호출로 받아야 할 것들. */

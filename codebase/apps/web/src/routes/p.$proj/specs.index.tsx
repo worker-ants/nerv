@@ -19,6 +19,7 @@ const SpecTable = lazy(async () => ({
 }));
 import { useQuery } from '@tanstack/react-query';
 import { SpecTree } from '../../components/spec-tree.js';
+import { NewSpecDialog } from '../../features/spec-editor/new-spec-dialog.js';
 
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
@@ -65,6 +66,8 @@ function SpecListScreen(): React.JSX.Element {
   // 트리와 그래프는 **같은 질문의 두 답**이다 — 계층으로 찾을 때와 관계로 찾을 때.
   // 다른 라우트로 가르면 둘을 오가며 비교할 수 없다.
   const [view, setView] = useState<'tree' | 'table' | 'graph'>('tree');
+  // 웹에서 문서를 **시작하는** 문(2026-09-03 신설). 이것이 없는 동안 목록은 읽기 전용이었다.
+  const [creating, setCreating] = useState(false);
 
   const search = useQuery({
     queryKey: ['project', proj, 'search', submitted, archived],
@@ -139,6 +142,16 @@ function SpecListScreen(): React.JSX.Element {
               setSubmitted(query);
             }}
           >
+            {/* **만드는 문이 목록에 있다**(2026-09-03 신설 · REQ-WEB-043). 읽을 수는 있는데
+                시작할 수 없는 화면은 기획자에게 읽기 전용 제품이다 — P7 의 첫 걸음이다. */}
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="new-spec"
+              onClick={() => setCreating(true)}
+            >
+              {t('specs.new')}
+            </Button>
             {/* **전수의 경계를 화면이 말한다**(REQ-WEB-105). 보관한 문서는 어느 목록에도
                 없어서 키를 아는 사람만 주소로 닿을 수 있었다 — 복구 경로가 없는 것과 같다 */}
             <label
@@ -308,6 +321,7 @@ function SpecListScreen(): React.JSX.Element {
           </section>
         </div>
       )}
+      {creating && <NewSpecDialog projectSlug={proj} onClose={() => setCreating(false)} />}
     </PageBody>
   );
 }

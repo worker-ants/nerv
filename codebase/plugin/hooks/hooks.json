@@ -1,19 +1,13 @@
 {
+  "$comment": "기본 변형(2026-09-03 사람 결정). 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다 — 그 스크립트가 NERV_SERVER 와 .nerv/env 를 읽으므로 서버 주소가 어디든 포크 없이 동작하고, 텔레메트리 훅은 async 로 턴을 막지 않는다(http 훅에는 async 가 없다). http 변형은 hooks/hooks.http.json 이며 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
   "hooks": {
     "SessionStart": [
       {
         "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session",
-            "headers": {
-              "Authorization": "Bearer ${NERV_TOKEN}",
-              "X-NERV-Project": "${NERV_PROJECT}",
-              "X-NERV-Host": "${NERV_HOSTNAME}",
-              "X-NERV-Agent": "claude-code"
-            },
-            "allowedEnvVars": ["NERV_TOKEN", "NERV_PROJECT", "NERV_HOSTNAME"],
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" session",
             "timeout": 5
           },
           {
@@ -29,12 +23,10 @@
         "matcher": "Write|Edit|MultiEdit|Bash",
         "hooks": [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/tool",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"],
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" tool",
             "async": true,
-            "timeout": 3
+            "timeout": 5
           }
         ]
       }
@@ -43,11 +35,10 @@
       {
         "hooks": [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/subagent",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" subagent",
+            "async": true,
+            "timeout": 3
           }
         ]
       }
@@ -56,11 +47,10 @@
       {
         "hooks": [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/subagent",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" subagent",
+            "async": true,
+            "timeout": 3
           }
         ]
       }
@@ -69,10 +59,8 @@
       {
         "hooks": [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/stop",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"],
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" stop",
             "timeout": 8
           }
         ]
@@ -82,10 +70,9 @@
       {
         "hooks": [
           {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session-end",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"]
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" session-end",
+            "timeout": 5
           }
         ]
       }

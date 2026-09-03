@@ -176,6 +176,36 @@ function SpecDetail(): React.JSX.Element {
   });
   const editable = docStatus === 'draft' && leaseHolder === null;
 
+  /**
+   * 승인본에서 **다음 판을 시작한다**(2026-09-03 신설 · WEB-02).
+   *
+   * 승인본은 읽기 전용이 맞다(D-02 — 가변 구간은 draft 하나뿐). 문제는 그 다음이 없었다는
+   * 것이다: 웹에는 새 초안으로 가는 문이 없어서 **승인된 문서 132개를 웹에서 고칠 수
+   * 없었다**(실측 2026-09-03). 터미널이 유일한 길이면 P7 은 문서에만 있다.
+   *
+   * 서버 경로는 처음부터 있었다 — 열린 draft 가 없으면 `versionNo+1` 짜리 새 draft 를
+   * 만든다. 본문은 지금 읽는 판을 그대로 얹고, 지문은 그 판의 것을 보낸다(§1.4g).
+   */
+  const startDraft = useMutation({
+    mutationFn: () =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/draft`, {
+        method: 'PUT',
+        body: {
+          body_markdown: String(detail.data?.['body_md'] ?? ''),
+          base_hash: String(detail.data?.['content_hash'] ?? ''),
+        },
+      }),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.specVersions(spec) });
+      pushToast({
+        tone: 'ok',
+        message: t('spec.new_draft_started', { version: String(result['version_no'] ?? '') }),
+      });
+    },
+    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+  });
+
   const save = useMutation({
     mutationFn: (markdown: string) =>
       apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/draft`, {
@@ -281,6 +311,10 @@ function SpecDetail(): React.JSX.Element {
   }, [draft, editable, save]);
 
   const relationItems = relations.data?.items ?? [];
+  // 참조 갱신 — 서버 판정(REQ-WEB-037). 배지는 이 값만 본다.
+  const recheck = (detail.data?.['recheck'] ?? {}) as { count?: number; specs?: string[] };
+  const recheckCount = typeof recheck.count === 'number' ? recheck.count : 0;
+  const recheckSpecs = Array.isArray(recheck.specs) ? recheck.specs : [];
   const backlinks = relationItems.filter((r) => r['direction'] === 'in');
   const outgoing = relationItems.filter((r) => r['direction'] !== 'in');
   const shownRelations = relTab === 'in' ? backlinks : relTab === 'out' ? outgoing : relationItems;
@@ -333,13 +367,18 @@ function SpecDetail(): React.JSX.Element {
             <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
           )}
           {/* 참조 갱신 배지(REQ-WEB-037) — 내가 참조하는 문서가 나보다 앞서 갔다는 신호.
-                이게 없으면 낡은 근거 위에서 계속 쓰게 된다 */}
-          {relationItems.some((r) => r['direction'] === 'out' && r['doc_status'] === 'approved') &&
-            detail.data?.['doc_status'] === 'draft' && (
-              <span data-testid="recheck-badge">
-                <StatusBadge token="waiting" label={t('spec.recheck')} />
-              </span>
-            )}
+                이게 없으면 낡은 근거 위에서 계속 쓰게 된다.
+
+                **판정은 서버가 한다**(2026-09-03). 예전에는 "참조하는 approved 문서가 있고
+                내가 초안이면" 으로 켰는데, 그것은 초안이면 거의 언제나 참이라 **초안 26판 중
+                26판에서 켜져 있었다**(실측). 늘 켜진 경고는 아무도 읽지 않는다. 서버는 참조
+                전파에서 이미 `spec.recheck_requested` 를 발행하므로, 판정은 "이 판을 마지막으로
+                쓴 뒤 그 신호가 왔는가" 이고 무엇 때문인지도 함께 온다. */}
+          {recheckCount > 0 && (
+            <span data-testid="recheck-badge" title={recheckSpecs.join(', ')}>
+              <StatusBadge token="waiting" label={t('spec.recheck')} />
+            </span>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -623,6 +662,18 @@ function SpecDetail(): React.JSX.Element {
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          {/* 승인본에는 **다음 판으로 가는 문**을 둔다 — 없으면 웹은 읽기 전용이다(WEB-02) */}
+          {docStatus === 'approved' && (
+            <Button
+              variant="primary"
+              data-testid="start-draft"
+              title={t('spec.new_draft_hint')}
+              disabled={startDraft.isPending}
+              onClick={() => startDraft.mutate()}
+            >
+              {t('spec.new_draft')}
+            </Button>
+          )}
           <Button
             variant="primary"
             disabled={

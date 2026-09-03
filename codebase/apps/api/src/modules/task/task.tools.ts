@@ -194,13 +194,24 @@ export class TaskTools implements NervToolProvider {
       scope: 'task:update',
       inputSchema: {
         type: 'object',
-        properties: { claim_id: { type: 'string' }, progress: { type: 'string' } },
+        properties: {
+          claim_id: { type: 'string' },
+          progress: { type: 'string' },
+          // 카탈로그(3.4 §2.3)가 처음부터 적고 있던 셋 — 스키마에도 없어 조용히 버려졌다
+          stats: { type: 'object' },
+          lease_seconds: { type: 'integer' },
+        },
         required: ['claim_id'],
       },
       handler: async (input, ctx) => {
         const beat = await this.tasks.heartbeat({
           claimId: String(input['claim_id']),
           actor: claimActor(ctx),
+          progress: str(input['progress']),
+          stats: (input['stats'] as { added?: number } | undefined) ?? null,
+          ...(typeof input['lease_seconds'] === 'number'
+            ? { leaseSeconds: input['lease_seconds'] }
+            : {}),
         });
         return {
           lease_expires_at: beat.leaseExpiresAt.toISOString(),
@@ -220,6 +231,8 @@ export class TaskTools implements NervToolProvider {
         properties: {
           claim_id: { type: 'string' },
           reason: { type: 'string', enum: ['done', 'handoff', 'abandon'] },
+          // 인수인계 노트 — 다음 사람이 "왜 내려놨나" 에 답을 얻는 자리다(REQ-API-081)
+          state_note: { type: 'string' },
           idempotency_key: { type: 'string' },
         },
         required: ['claim_id', 'reason'],
@@ -229,6 +242,7 @@ export class TaskTools implements NervToolProvider {
           claimId: String(input['claim_id']),
           reason: input['reason'] as 'done' | 'handoff' | 'abandon',
           userId: ctx.principal.userId,
+          stateNote: str(input['state_note']),
           actor: claimActor(ctx),
         }),
     },
@@ -325,4 +339,9 @@ function claimActor(ctx: ToolContext): ClaimActor {
     // 에이전트 토큰에 admin 해제 권한을 주지 않는다 — 전표의 admin 은 사람이다
     isAdmin: false,
   };
+}
+
+/** 빈 문자열은 값이 아니다 — 지우려는 것과 말하지 않은 것을 같게 두지 않는다. */
+function str(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' ? value : null;
 }

@@ -7,6 +7,7 @@
 // "어느 머신의 누구를 멈춰 세우고 있나"가 답변 우선순위를 정하기 때문이다.
 
 import { useT } from '../../lib/i18n.js';
+import { relativeTime } from '../../lib/format.js';
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Translator } from '@nerv/schema';
@@ -80,6 +81,8 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
   const [reasonRequired, setReasonRequired] = useState(false);
   const commentRef = useRef<HTMLTextAreaElement>(null);
   const isQuestion = card['subject_type'] === 'question';
+  // 결정된 카드인가 — 처리됨 탭의 카드는 조작 대상이 아니라 기록이다(2026-09-03)
+  const decided = (card['decision'] ?? null) as string | null;
   const [showBody, setShowBody] = useState(false);
   // 카드의 주어 — 승인은 스펙 한 편이고, 질문은 아래 `context` 가 여럿을 잇는다
   const subjectLink = subjectLinkOf(card);
@@ -221,24 +224,44 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
           <Mono>{String(card['spec_key'] ?? card['task_key'] ?? '')}</Mono>
         )}
         <span className="min-w-0 flex-1 truncate font-medium">
-          {String(card['title'] ?? card['spec_title'] ?? t('inbox.card.untitled'))}
+          {String(
+            card['title'] ??
+              card['spec_title'] ??
+              // 게이트 우회는 스펙도 Task 도 아니라 제목 재료가 없다 — 그래도 "(제목 없음)"
+              // 은 사람에게 아무것도 말하지 않는다(실측 2026-09-03: 처리됨 카드가 그랬다)
+              (card['subject_type'] === 'gate_bypass'
+                ? t('inbox.subject.gate_bypass')
+                : t('inbox.card.untitled')),
+          )}
         </span>
         <span className="shrink-0 text-xs text-text-mute">
           {String(card['project_slug'] ?? '')}
         </span>
         {/* 기다린 시간은 **오래될수록 눈에 띄어야 한다** — 한 시간 넘게 묵은 요청이
             방금 온 요청과 같은 회색이면 목록의 순서만으로는 묻힌다 */}
-        <span
-          data-testid="waited"
-          className={cn(
-            'shrink-0 text-xs',
-            Number(card['waiting_seconds'] ?? 0) >= 3600
-              ? 'font-medium text-status-waiting'
-              : 'text-text-faint',
-          )}
-        >
-          {waitedLabel(t, Number(card['waiting_seconds'] ?? 0))}
-        </span>
+        {/* **결정된 카드는 기다리는 중이 아니다**(2026-09-03). 처리됨 탭에서도 대기 시간이
+            계속 흘러 "9일 대기" 라고 적혀 있었다 — 그 값은 requested_at 기준이라 결정한
+            뒤에도 자란다. 결정된 것은 무엇을 언제 정했는지를 말한다. */}
+        {decided === null ? (
+          <span
+            data-testid="waited"
+            className={cn(
+              'shrink-0 text-xs',
+              Number(card['waiting_seconds'] ?? 0) >= 3600
+                ? 'font-medium text-status-waiting'
+                : 'text-text-faint',
+            )}
+          >
+            {waitedLabel(t, Number(card['waiting_seconds'] ?? 0))}
+          </span>
+        ) : (
+          <span data-testid="decided-at" className="shrink-0 text-xs text-text-faint">
+            {t('inbox.card.decided_at', {
+              decision: decisionLabel(t, decided as Decision),
+              when: relativeTime(t, String(card['decided_at'] ?? '')),
+            })}
+          </span>
+        )}
       </header>
 
       {isQuestion && (
@@ -352,17 +375,24 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
               ))}
             </div>
           )}
-          <Textarea
-            ref={commentRef}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder={
-              isQuestion ? t('inbox.card.answer_placeholder') : t('inbox.card.comment_placeholder')
-            }
-            data-testid="decision-comment"
-            className="mt-2"
-            rows={2}
-          />
+          {/* 결정된 카드에는 입력 칸을 두지 않는다(2026-09-03) — 처리됨 탭에서 코멘트를
+              적고 [승인] 을 눌러도 서버는 already_decided 로 거절한다. 누를 수 있는 것은
+              할 수 있다는 뜻이어야 한다. */}
+          {decided === null && (
+            <Textarea
+              ref={commentRef}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder={
+                isQuestion
+                  ? t('inbox.card.answer_placeholder')
+                  : t('inbox.card.comment_placeholder')
+              }
+              data-testid="decision-comment"
+              className="mt-2"
+              rows={2}
+            />
+          )}
           {reasonRequired && (
             <p
               role="alert"
@@ -400,7 +430,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
         </Link>
       )}
 
-      {!(compact ?? false) && (
+      {!(compact ?? false) && decided === null && (
         <footer className="mt-2.5 flex items-center gap-2">
           {isQuestion ? (
             <Button

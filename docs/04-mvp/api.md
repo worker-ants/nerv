@@ -7,8 +7,17 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.53 · 2026-09-02 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.62 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
 >
+> v0.62 변경(2026-09-03 — 상한만 있고 커서가 없던 목록 둘): **REQ-API-083 신설.** 알림은 서비스에 상한이 있는데 컨트롤러도 웹도 `limit` 을 넘기지 않아 언제나 최신 50건이었고, 발견 큐는 200 이 절대 상한이었다. 실측(2026-09-03): 안 읽은 알림 479건 중 **429건**, 열린 발견 18,653건 중 **18,453건**이 웹에서 도달 불가였다 — 화면은 "18653건 중 50건" 이라고 정직하게 말하면서 나머지로 가는 길을 주지 않았다. 두 목록에 커서를 둔다. 발견 큐의 커서는 `(severity, created_at, id)` 세 값이다 — 정렬 방향이 섞여 있어 행 값 비교를 쓸 수 없다.
+> v0.61 변경(2026-09-03 — 오타가 500 이던 자리 넷, 라이브 실측): **§1.4j 확장**(REQ-API-082). 어휘 검사가 EP-SES-01 한 자리에만 있어 `?status=doing`·`?impl_status=nope`·`?v=abc`·`events?limit=abc` 가 전부 500 이었고, 발견 큐는 반대로 어휘 밖 값을 **조용히 버려** 걸러지지 않은 목록을 200 으로 돌려줬다. 판정을 `common/query-vocab.ts` 한 곳으로 모은다. 함께 **EP-SPEC-15 `owner_role` 이 존재하지 않는 타입(`membership_role`)으로 캐스팅하던 것**을 고쳤다 — 이 경로는 100% 500 이었고 같은 요청의 다른 필드까지 롤백시켰다. MCP 실패 응답의 예외 원문(SQL 전문) 유출도 막았다.
+> v0.60 변경(2026-09-03 — 배지의 판정을 서버로): EP-SPEC-03 응답에 `recheck{count,specs[]}` 를 더한다. 참조 갱신 배지의 판정이 화면에 있었고 그 규칙이 초안이면 거의 언제나 참이라 **오탐률 100%** 였다(4.5 v0.62). 판정은 서버가 한다 — 이미 발행하고 있던 `spec.recheck_requested` 를 이 판의 저장 시각과 견주고, 무엇 때문인지도 함께 싣는다.
+> v0.59 변경(2026-09-03 — REST 쪽 절반): EP-SPEC-03 이 `include` 를 실제로 받는다. 전표는 처음부터 적고 있었지만 컨트롤러가 그 인자를 넘기지 않아, 웹의 영향 미리보기가 파생 Task 를 **언제나 0건**이라 말했다(실측: 그 수치가 0이던 스펙 86개 중 하나는 실제로 29건이다). 전표에서 `relations`·`baseline` 은 Phase 2 로 표기를 맞췄다 — 적어 두고 없는 것이 이 결함의 원인이었다.
+> v0.58 변경(2026-09-03 — 받는 척하던 인자를 실물로, 사람 결정): **REQ-API-081 신설.** v0.57 이 드러낸 유령 인자 열한 종 중 일곱을 배선했다 — `state_note`·`progress`·`stats`·`include[tasks,comments]`·`resolved_in_version_id`·`lease_seconds`·후보의 `spec_key`·`version_no`. 열 셋이 새로 생겼다(`claim.release_note`·`claim.progress_note`·`agent_session.diff_files` — 4.3 참조). 나머지 넷은 정본 표에서 걷었다(3.4 v0.10).
+> v0.57 변경(2026-09-03 — 유령 인자, 실측): **§1.4e 보강**(REQ-API-080). 스키마에 없는 인자를 검사도 거부도 없이 지나쳐, 스킬이 지시하는 인자 열한 종이 성공 응답과 함께 사라지고 있었다. 거부하지 않되 `ignored_args`(성공)·`details.unknown`(거절)로 버렸다는 사실을 말한다 — 개별 인자의 구현·삭제는 그다음 결정이다.
+> v0.56 변경(2026-09-03 — 채택 규칙을 좁힌다, 사람 결정): REQ-API-079 의 선택 규칙을 확정했다. **`cwd` 필수**(hostname 만으로 고르는 가지를 닫는다)와 **마지막 활동 시각 1순위**(유령 세션이 등록 시각으로 이기지 못하게 한다). §1.4c 의 점화 기록을 해소로 닫았다.
+> v0.55 변경(2026-09-03 — 훅 세션 채택에 번호를 준다, 사람 결정): §1.4c 에 **REQ-API-079** 를 신설했다. 어제까지 이 동작은 산문에만 있었다. 함께 **재검토 트리거 하나를 점화 기록으로 남긴다** — 후보가 여럿일 때의 선택 규칙("가장 최근")이 같은 DB 의 실측과 어긋난다: 겹친 쌍 14건 중 10건에서 나중 세션은 활동 0의 유령이었다.
+> v0.54 변경(2026-09-03 — 훅 응답 의미론 정정): §2.9 의 훅 응답 서술을 실물에 맞췄다 — 주입은 `hookSpecificOutput.additionalContext` 아래이고, `Stop` 은 `stop_hook_active` 면 즉시 허용한다. 정본은 [3.4](../03-proposal/agent-integration.md) §3.3.
 > v0.53 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.52 변경(2026-09-02 — 사람 결정 반영): §2.1a 의 `gate_policy` 에서 `t1_objection_hours` 를 걷었다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). EP-TOK-02 에 발급과 검증의 역할을 적었다 — 발급은 역할과 교집합하지 않고, 상한은 검증 시점에 걸리며, **화면은 역할 밖 스코프를 보이되 잠근다**.
 > v0.51 변경(2026-09-02 — 빈 룸): **§3.3 의 개인 룸이 비어 있었다.** "+ `user:{id}`" 열은 아홉 행에 걸쳐 있는데 그 룸으로 흐르는 봉투가 하나도 없었다 — WS 는 자동 join 하고 `/sse/me` 는 열리는데 내용이 없다. 봉투에 방송 전용 `recipient_user_ids` 를 두고, 알림 파생이 `notification.created` 를 수신자의 룸으로 흘린다. 웹은 그 이벤트에 종과 **받은 요청**을 함께 되읽는다 — 다른 프로젝트 화면에 있는 사람에게는 그것이 유일한 길이다.
@@ -283,8 +292,15 @@ HTTP 상태 매핑:
 
 세 도구의 스키마에는 `session_id` 를 **선택 인자로 적었다** — 추정이 기본 경로이고, 지정은 모호할 때의 길이다.
 
+**모호함을 만들지 않는 쪽이 먼저다 — 훅 세션 채택**(2026-09-03 신설 · 실측). 위 ③은 모호해진 **뒤**의 대응인데, 기본 설치는 그 모호함을 스스로 만들고 있었다: `SessionStart` 훅이 하네스 id 로 세션 A 를 만들고, 곧이어 스킬의 `nerv_bootstrap` 이 그 id 를 모른 채 세션 B 를 만든다. 그래서 첫 `nerv_task_claim` 이 ③에 걸렸다 — 실측(2026-09-03 · 실사용 DB): 세션 34개가 만든 클레임 **0건**.
+
+그래서 `nerv_bootstrap` 이 `external_session_id`·`resume_session_id` **둘 다 없이** 오면 서버가 훅 세션을 채택한다. 대조 조건은 서버가 양쪽에서 받을 수 있는 것들이다 — 같은 사용자(D-08)·같은 프로젝트·같은 `hostname`, 그리고 호출이 `cwd` 를 말했으면 같은 `cwd`, `external_session_id` 가 있는(= 훅이 만든) 살아 있는 세션. 반대편은 막혀 있다: Claude Code 는 모델에게 자기 `session_id` 를 주지 않으므로 스킬이 그것을 실을 수 없다.
+
+> **점화 기록 — 후보가 여럿일 때의 선택 규칙**(2026-09-03 점화 · 같은 날 해소). 처음 구현은 등록 순서로 골랐고, 실측이 그 위험을 드러냈다: 같은 사람·같은 cwd 에서 겹친 실사용 쌍 14건 중 **10건에서 나중에 등록된 세션은 활동이 0인 유령**이었다(나중 세션이 유일한 활동 주체인 경우는 0건). 다만 검토 중 하나를 정정한다 — 훅 활동도 `last_heartbeat_at` 을 갱신하므로 기존 정렬(`last_heartbeat_at`)이 관측된 10건에서는 이미 진짜 세션을 고르고 있었다. 남아 있던 위험은 **유령이 등록된 순간부터 진짜 세션이 다음 도구를 쓰기 전까지의 창**이다. 그 창을 닫기 위해 **마지막 활동 시각을 1순위**로 올리고, hostname 만으로 고르는 가지를 닫았다(`cwd` 필수 — 사람 결정 2026-09-03).
+
 | ID | 수용 기준(EARS) |
 | --- | --- |
+| REQ-API-079 | WHEN `nerv_bootstrap` 이 `external_session_id` 와 `resume_session_id` 없이 호출되면 THE SYSTEM SHALL 같은 사용자·프로젝트·`hostname`·`cwd` 의 살아 있는 훅 세션(`external_session_id IS NOT NULL`)을 채택하고 그 스냅샷을 `resumed: true` 로 반환한다. WHEN 호출이 `cwd` 를 싣지 않으면 THE SYSTEM SHALL 채택하지 않는다. WHILE 채택·재개가 일어나면 THE SYSTEM SHALL 훅이 알 수 없는 `branch`·`worktree_path`·`model`·`cwd` 를 **비어 있는 자리에만** 채운다(이미 있는 값을 덮지 않는다). WHEN 후보가 여럿이면 THE SYSTEM SHALL **마지막 활동 시각이 가장 최근인 것**을 고르고, 활동 기록이 없는 후보들 사이에서는 `last_heartbeat_at`(없으면 `started_at`)이 최근인 것을 고른다. WHEN 대조되는 세션이 없으면 THE SYSTEM SHALL 새 세션을 만든다 |
 | REQ-API-040 | WHEN MCP 도구가 세션을 요구하는데 `session_id` 인자가 없으면 THE SYSTEM SHALL 그 토큰 주체의 살아 있는 세션이 하나일 때 그것으로 해소하고, 없으면 `session_required`(다음 행동: `nerv_bootstrap`), 둘 이상이면 `session_ambiguous`(후보 목록 + 빈 다음 행동)로 거부한다. WHEN `session_id` 가 명시되면 THE SYSTEM SHALL 그것이 같은 프로젝트의 **자기 세션**일 때만 받아들인다 |
 | REQ-API-041 | WHEN 세션 위에서 도구가 실행되면 THE SYSTEM SHALL 그 세션의 마지막 활동 시각을 갱신한다. WHEN `nerv_bootstrap` 이 stale 세션을 재개하면 THE SYSTEM SHALL 그 세션을 다시 활성으로 되돌린다 |
 
@@ -326,9 +342,17 @@ HTTP 상태 매핑:
 - **본문은 두 이름으로 받는다** — `body_markdown`(카탈로그·REST·웹의 이름)과 `body_md`. 둘 다 없으면 `invalid_input`(`missing: ["body_markdown"]`)이다. "둘 중 하나"는 `required` 로 적을 수 없으므로 그 판정만 핸들러가 한다.
 - **빈 본문으로 기존 초안을 덮어쓰지 못한다** — `empty_body` 로 거부한다. 새로 만드는 문서의 빈 본문은 막지 않는다: `area` 는 본문 없이 자리만 잡는다([4.7](importer.md) §2.2).
 
+**모르는 인자는 세어서 돌려준다**(2026-09-03 신설 — 실측). 위 셋을 세우고도 한 구멍이 남아 있었다: 스키마에 **없는** 속성은 검사도 거부도 없이 지나갔다. 그래서 스킬이 지시하는데 도구가 받지 않는 인자들이 **성공 응답과 함께 사라졌다** — 실측 열한 종(`state_note` 인수인계 노트 · `stats` diff 통계 · `include` · `repo{}` · `role` · `capabilities` · `branch` · `worktree` · `resolved_in_version_id` · `note` · `reviewer_hint`). 에이전트는 노트를 남겼다고 믿고, 서버에는 그 노트가 없다.
+
+거부하지 않는 이유는 **배포된 스킬이 지금 그것들을 보내고 있기 때문**이다 — 거부하면 첫 세션 경로가 다시 막힌다(§1.4c). 대신 버렸다는 사실을 말한다: 성공 응답에 `ignored_args`, 거절 응답의 `details` 에 `unknown`. 조용한 실패를 시끄러운 실패로 바꾸는 것이 이 판정의 전부이고, 개별 인자를 실제로 구현할지 스킬 문장에서 지울지는 그다음 결정이다.
+
+`session_id` 와 `idempotency_key` 는 **봉투 인자**라 이 계산에서 뺀다 — 도구가 아니라 게이트웨이가 읽으므로(§1.4c · §1.5), 스키마에 안 적은 도구를 부를 때 정상 호출이 경고를 받으면 안 된다.
+
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-044 | WHEN MCP 도구 호출이 오면 THE SYSTEM SHALL 핸들러 실행 **전에** 스키마의 필수 인자·타입·열거값을 검사하고, 어긋난 항목의 이름과 함께 `invalid_input` 으로 거부한다 |
+| REQ-API-081 | WHEN `nerv_task_release` 가 `state_note` 를 실으면 THE SYSTEM SHALL 그것을 `claim.release_note` 에 저장하고 응답에 되돌려주며, WHEN `nerv_task_next` 가 후보를 돌려주면 THE SYSTEM SHALL 그 Task 의 가장 최근 인수인계 노트를 `handoff_note` 로 함께 싣는다. WHEN `nerv_task_heartbeat` 가 `progress`·`stats` 를 실으면 THE SYSTEM SHALL `progress` 를 `claim.progress_note` 에 덮어쓰고(LWW) `stats{added,removed,files}` 를 세션의 diff 열에 반영한다 — 실리지 않은 값은 이전 값을 지우지 않는다. WHEN `nerv_spec_get` 이 `include` 에 `tasks`·`comments` 를 실으면 THE SYSTEM SHALL 파생 Task 목록과 코멘트 목록을 함께 반환한다 |
+| REQ-API-080 | WHEN MCP 도구 호출이 스키마에 없는 인자를 실으면 THE SYSTEM SHALL 그 호출을 거부하지 않고, 성공 응답에 무시한 인자 이름을 `ignored_args` 로 싣는다. WHEN 같은 호출이 다른 이유로 거절되면 THE SYSTEM SHALL `details.unknown` 에 그 이름을 함께 싣는다. WHILE 게이트웨이가 직접 읽는 봉투 인자(`session_id`·`idempotency_key`)는 THE SYSTEM SHALL 무시 목록에서 제외한다 |
 | REQ-API-045 | WHEN 초안 저장이 본문을 `body_markdown` 또는 `body_md` 중 하나로 실으면 THE SYSTEM SHALL 그것을 본문으로 받고, 둘 다 없으면 거부한다. WHEN 비어 있지 않은 초안에 빈 본문이 오면 THE SYSTEM SHALL `empty_body` 로 거부한다 |
 
 ### 1.4f 저장이 남기는 것 (2026-08-30 신설 — 사람 보고)
@@ -428,9 +452,17 @@ HTTP 상태 매핑:
 
 곁가지 정정: `invalid_input` 은 요청의 **모양**이 틀린 것이라 §1.4 의 기준("모양이냐 상태냐")대로 **400** 이다. 409 로 나가던 동안 화면은 이것을 "지금은 안 되지만 나중에는 될 일"(상태 충돌)과 구별할 수 없었다.
 
+**한 자리만 고쳤던 것이 드러났다**(2026-09-03 · 라이브 실측 — REQ-API-082). 위 규칙은 EP-SES-01 에만 적용돼 있었고, 같은 모양의 자리 넷은 값을 그대로 `::enum` 으로 캐스팅하거나 `Number()` 의 `NaN` 을 SQL 에 실어 **사용자의 오타가 500** 이 됐다: `?status=doing` · `?impl_status=nope` · `?v=abc` · `events?limit=abc`. 그리고 발견 큐(`?severity=HIGH`)는 반대 방향으로 어긋나 있었다 — 200 을 주면서 **필터를 조용히 버렸다.** 조용한 무시가 더 나쁘다: 500 은 실패를 알려 주지만 무시는 걸러진 화면이라고 믿게 만든다.
+
+판정은 이제 한 곳이다(`common/query-vocab.ts`) — 어휘의 정본은 언제나 `@nerv/schema` 의 enum 이고, 표면은 그것을 다시 적지 않는다(D-05).
+
+**예외 원문은 나가지 않는다.** MCP 표면은 실패한 도구의 예외 메시지를 `details.detail` 에 그대로 실었는데, drizzle 의 예외 메시지는 **SQL 전문**이라 오타 하나가 스키마와 질의를 돌려주는 창이 됐다. 원인은 운영자 로그에 남고 모델에게는 "다시 시도할 수 있는 실패" 라는 사실만 준다.
+
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-074 | WHEN 목록·기간 값을 SQL 에 실으면 THE SYSTEM SHALL 문자열로 조립하지 않고 파라미터로 바인딩한다. WHEN EP-SES-01 의 `state` 에 `session_state` 어휘 밖의 값이 오면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`invalid_input`)으로 거부하고 허용 목록을 `details` 에 싣는다 |
+| REQ-API-083 | WHEN 알림 목록(EP-NTF-01) 또는 발견 큐(EP-REV-02)가 상한을 넘는 결과를 가지면 THE SYSTEM SHALL 다음 쪽의 커서를 `next_cursor` 로 반환하고, 그 커서를 받은 요청에 **겹치지도 빠뜨리지도 않는** 다음 쪽을 준다. WHEN 마지막 쪽이면 THE SYSTEM SHALL `next_cursor` 를 `null` 로 준다 — 끝을 말하지 않으면 화면은 영원히 [더 보기] 를 보인다 |
+| REQ-API-082 | WHEN 어느 표면이든 질의 인자에 어휘 밖의 값(`status`·`impl_status`·`severity`·`owner_role` 등) 또는 정수가 아닌 수치(`v`·`limit`)를 실으면 THE SYSTEM SHALL 400 `invalid_input` 으로 거부하고 `field`·`unknown`·`allowed` 를 `details` 에 싣는다 — **조용히 버리지도, 500 으로 죽지도 않는다.** WHEN 도구 실행이 내부 예외로 실패하면 THE SYSTEM SHALL 예외 원문을 응답에 싣지 않고 운영자 로그에만 남긴다 |
 
 ### 1.4k 스펙 첨부 — 디자인 시안 (2026-09-01 신설 — 사람 결정 · 2026-09-02 번호 정정)
 
@@ -666,7 +698,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | --- | --- | --- | --- | --- | --- |
 | EP-SPEC-01 | `GET /api/v1/projects/{proj}/specs/tree` | 전 역할(`spec:read`) | `SpecTreeQuery`(root, depth, status, include_archived — 기본 false, REQ-API-022) | `SpecTreeResult`(id·title·type·문서 상태·현재 버전·`archived_at`) | — |
 | EP-SPEC-02 | `GET /api/v1/projects/{proj}/specs/search` | 전 역할 | `SpecSearchQuery`(query, type, status, requirement_id, **references**(이 스펙을 참조하는 문서만), include_archived — 기본 false(REQ-API-022), limit) | `SpecSearchResult`(안정 ID + 앵커 + 스니펫 + 관련도, **`related[]`** 1-hop 관계 확장 그룹, **`degraded?`** — 파이프라인은 §2.2b) | — |
-| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `baseline` 이름으로 세트 조회 가능(`version`과 배타), `include[]`: requirements/tasks/comments/**relations**(양방향 요약 — 총계 + 상위 20, 전량·커서는 EP-SPEC-18)) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시) | — |
+| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `include` 쉼표 구분 — **구현: `tasks`·`comments`**(`requirements` 는 늘 실린다). `relations` 요약과 `baseline` 은 Phase 2 — 2026-09-03 정정) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시, +`recheck{count,specs[]}` — 이 판을 마지막으로 쓴 뒤 온 참조 갱신 신호와 그 출처 스펙 키, REQ-WEB-037) | — |
 | EP-SPEC-04 | `GET /api/v1/projects/{proj}/specs/{spec}/versions` | 전 역할 | — | `Page<SpecVersionSummary>` | — |
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |
@@ -885,7 +917,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
 ### 2.9 훅 ingest (참조)
 
-훅 수집 엔드포인트 5종(`POST /ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)의 경로·헤더(`Authorization` Bearer, `X-NERV-Project`, `X-NERV-Host`, `X-NERV-Agent` — 아래 §2.5a)·응답 의미론(`additionalContext` 주입, `{"decision":"block"}` 종료 차단)은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3이 정본이고, 훅 페이로드 실물은 [4.6 플러그인과 온보딩](plugin.md)이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 **인증 필수**다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 `SessionService`를 주입받아 세션 전이·Activity 적재를 수행한다(§4 표).
+훅 수집 엔드포인트 5종(`POST /ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)의 경로·헤더(`Authorization` Bearer, `X-NERV-Project`, `X-NERV-Host`, `X-NERV-Agent` — 아래 §2.5a)·응답 의미론(`hookSpecificOutput.additionalContext` 주입, `{"decision":"block"}` 종료 차단, `stop_hook_active` 면 즉시 허용 — 2026-09-03 정정)은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3이 정본이고, 훅 페이로드 실물은 [4.6 플러그인과 온보딩](plugin.md)이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 **인증 필수**다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 `SessionService`를 주입받아 세션 전이·Activity 적재를 수행한다(§4 표).
 
 ### 2.9a GitHub 웹훅 ingest — Task ↔ PR 링크 (FR-13)
 

@@ -50,7 +50,13 @@ beforeAll(async () => {
   const drizzleDb = drizzle(pool);
   const events = new EventService(drizzleDb, silent);
   relations = new SpecRelationService(drizzleDb);
-  specs = new SpecService(events, new SpecCheckService(drizzleDb), relations, drizzleDb);
+  specs = new SpecService(
+    events,
+    new SpecCheckService(drizzleDb),
+    relations,
+    new SpecCommentService(events, drizzleDb),
+    drizzleDb,
+  );
   baselines = new BaselineService(events, drizzleDb);
   comments = new SpecCommentService(events, drizzleDb);
   search = new SearchService(drizzleDb);
@@ -130,6 +136,46 @@ async function hashOf(specId: string): Promise<string> {
   );
   return rows[0]?.h ?? '';
 }
+
+/**
+ * EP-SPEC-15 `owner_role` — **존재하지 않는 타입으로 캐스팅하고 있었다.**
+ *
+ * `membership_role` 은 이 스키마에 없는 이름이라(실물은 `member_role`) 이 경로는 100% 500
+ * 이었고, 42704 는 db-error 의 변환표 밖이라 같은 요청의 다른 필드까지 롤백시켰다 —
+ * 라이브 실측(2026-09-03)에서 title 과 함께 보낸 요청이 title 도 잃었다. 실데이터의 스펙
+ * 158개 전부 owner_role 이 NULL 인 것이 "안 쓴다" 가 아니라 "쓸 수 없다" 였던 이유다.
+ */
+describe('EP-SPEC-15 owner_role (2026-09-03)', () => {
+  it('소유 역할을 저장한다 — 그리고 같은 요청의 다른 필드를 잃지 않는다', async () => {
+    const { specId } = await draft('SPC-OWNER', '# 소유');
+    const updated = await specs.updateMeta({
+      projectId,
+      specKey: 'SPC-OWNER',
+      userId: planner,
+      title: '소유자가 있는 문서',
+      ownerRole: 'designer',
+    });
+    expect(updated).toBeTruthy();
+
+    const { rows } = await pool.query<{ owner_role: string; title: string }>(
+      `SELECT owner_role::text AS owner_role, title FROM spec WHERE id = $1`,
+      [specId],
+    );
+    expect(rows[0]).toMatchObject({ owner_role: 'designer', title: '소유자가 있는 문서' });
+  });
+
+  it('어휘 밖의 역할은 400 이다 — 500 이 아니다', async () => {
+    await draft('SPC-OWNER-BAD', '# 소유');
+    await expect(
+      specs.updateMeta({
+        projectId,
+        specKey: 'SPC-OWNER-BAD',
+        userId: planner,
+        ownerRole: 'wizard',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+});
 
 describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
   it('실존하는 스펙만 관계가 되고 나머지는 경고다 — 아직 안 쓴 문서를 참조하는 건 정상이다', async () => {

@@ -18,6 +18,8 @@ import {
   LEASE_TTL_SECONDS,
   NERV_ERROR,
   NERV_EVENT,
+  implStatus,
+  memberRole,
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -27,10 +29,12 @@ import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 import { decideGate, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
+import { SpecCommentService } from './spec-comment.service.js';
 import type { CheckResult } from './spec-check.service.js';
 import { readerHash } from './reader-hash.js';
 import { requirementsOf, specDelta } from './spec-delta.js';
@@ -126,6 +130,9 @@ export class SpecService {
     private readonly events: EventService,
     private readonly checks: SpecCheckService,
     private readonly relationService: SpecRelationService,
+    // `include=["comments"]` 하나 때문에 주입한다 — 판정은 그쪽 서비스 한 곳이다(D-05).
+    // 질의를 여기에 복사하면 열린 코멘트의 정의가 두 곳이 되고, 두 곳은 반드시 갈라진다.
+    private readonly comments: SpecCommentService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -172,6 +179,13 @@ export class SpecService {
     /** 안정 키(`SPC-…`) 또는 UUID — 둘 다 받는다(§1.4b) */
     specKey: string;
     versionNo?: number | null;
+    /**
+     * 곁들여 실을 것(REQ-API-081). 카탈로그는 처음부터 `include[]` 를 적고 있었지만 도구도
+     * 서비스도 받지 않아 **스킬이 코멘트를 나열할 방법이 없었다**(실측 2026-09-03:
+     * 스펙 158·요구사항 739 가 도는 프로젝트에서 사람 코멘트가 0건이다).
+     * `requirements` 는 늘 실린다 — 옵션으로 두면 기존 호출이 조용히 얇아진다.
+     */
+    include?: readonly string[] | null;
   }): Promise<Record<string, unknown>> {
     // **기본은 최신 approved 다**(EP-SPEC-03 · REQ-WEB-011). current_version_id 를 그냥 주면
     // 초안이 기본 화면에 뜨고, 그러면 "승인된 것"과 "쓰는 중인 것"의 구분이 화면에서 사라진다
@@ -198,7 +212,7 @@ export class SpecService {
              encode(sv.content_hash, 'hex') AS content_hash,
              sv.superseded_by_version_id,
              -- 곁줄(시안) — 누가 언제 승인했는가. 이 문서의 무게를 한 줄로 말한다
-             sv.approved_at, u.display_name AS approved_by_name
+             sv.approved_at, sv.updated_at, u.display_name AS approved_by_name
         FROM spec s
    LEFT JOIN spec_version sv ON ${pick}
    LEFT JOIN "user" u ON u.id = sv.approved_by_user_id
@@ -218,11 +232,51 @@ export class SpecService {
        ORDER BY ref
     `);
 
+    const include = new Set(input.include ?? []);
+
+    // **파생 Task 는 요청해야 온다.** 화면의 영향 미리보기가 이 값을 세는데 응답에 없어
+    // 언제나 "0건" 이라 말했다(실측 2026-09-03: 파생 Task 를 가진 스펙 86개, 최대 29건).
+    const tasks = include.has('tasks')
+      ? (
+          await this.db.execute<Record<string, unknown>>(sql`
+            SELECT t.id, t.key, t.title, t.status::text AS status
+              FROM task t
+              JOIN spec_version sv ON sv.id = t.source_spec_version_id
+             WHERE t.project_id = ${input.projectId} AND sv.spec_id = ${spec['spec_id'] as string}
+             ORDER BY t.created_at DESC
+          `)
+        ).rows
+      : undefined;
+
+    const comments = include.has('comments')
+      ? await this.comments.list({ projectId: input.projectId, specKey: String(spec['key']) })
+      : undefined;
+
+    // **참조 갱신은 이벤트가 안다**(REQ-WEB-037 · 2026-09-03). 화면은 "앞선 판이 있으면"
+    // 으로 판정하고 있었는데 그것은 **모든 초안에서 참이라** 배지가 늘 켜져 있었다
+    // (실측 2026-09-03: 초안 26판 중 26판 점등 — 오탐률 100%). 늘 켜진 경고는 아무도 읽지
+    // 않는다. 서버는 이미 참조 전파에서 `spec.recheck_requested` 를 발행하고 있었으므로
+    // (§3.3 — 이 DB 에 413건), 판정은 **이 판을 마지막으로 쓴 뒤 그 신호가 왔는가** 다.
+    const { rows: recheck } = await this.db.execute<{ n: number; keys: string[] }>(sql`
+      SELECT count(*)::int AS n,
+             coalesce(array_agg(DISTINCT src.key) FILTER (WHERE src.key IS NOT NULL), '{}') AS keys
+        FROM event e
+   LEFT JOIN spec src ON src.id = (e.payload ->> 'because_of')::uuid
+       WHERE e.project_id = ${input.projectId}
+         AND e.type = ${NERV_EVENT.SPEC_RECHECK_REQUESTED}
+         AND e.subject_id = ${spec['spec_id'] as string}
+         AND e.occurred_at > ${spec['updated_at'] as string}
+    `);
+
     return {
       ...spec,
       // 본문이 없는 노드는 빈 본문이다 — null 을 그대로 흘리면 화면이 "null" 을 쓴다
       body_md: spec['body_md'] ?? '',
       requirements,
+      ...(tasks === undefined ? {} : { tasks }),
+      ...(comments === undefined ? {} : { comments }),
+      // 배지가 무엇 때문에 켜졌는지까지 준다 — "낡았다" 만으로는 어디를 볼지 모른다
+      recheck: { count: recheck[0]?.n ?? 0, specs: recheck[0]?.keys ?? [] },
       // 기준 버전이 이미 지나간 판이면 표시한다 — 재브리핑의 신호다(§2.4)
       basis_superseded: spec['superseded_by_version_id'] != null,
     };
@@ -670,7 +724,13 @@ export class SpecService {
         });
       }
 
-      const gate = await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId);
+      const gate = await this.assessGate(
+        tx,
+        input.projectId,
+        version.spec_id,
+        version.spec_type,
+        input.specVersionId,
+      );
 
       // 제출 = 본문 동결. 트리거가 이후 UPDATE 를 막는다(4.3 §2.13)
       await tx.execute(sql`
@@ -764,7 +824,13 @@ export class SpecService {
 
       await this.assertDifferentApprover(tx, input, version.author_user_id);
 
-      const gate = await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId);
+      const gate = await this.assessGate(
+        tx,
+        input.projectId,
+        version.spec_id,
+        version.spec_type,
+        input.specVersionId,
+      );
       await this.approveInTx(tx, emit, {
         projectId: input.projectId,
         specVersionId: input.specVersionId,
@@ -807,7 +873,13 @@ export class SpecService {
       specVersionId: input.specVersionId,
       specId: version.spec_id,
       approverUserId: input.approverUserId,
-      gate: await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId),
+      gate: await this.assessGate(
+        tx,
+        input.projectId,
+        version.spec_id,
+        version.spec_type,
+        input.specVersionId,
+      ),
     });
   }
 
@@ -923,7 +995,10 @@ export class SpecService {
       }
       if (input.ownerRole != null) {
         await tx.execute(
-          sql`UPDATE spec SET owner_role = ${input.ownerRole}::membership_role WHERE id = ${spec.id}`,
+          // **타입 이름이 틀려 있었다.** `membership_role` 은 존재하지 않는 타입이라(실물은
+          // `member_role`) 이 경로는 **100% 500** 이었고, 같은 요청의 다른 필드까지 롤백시켰다
+          // (라이브 실측 2026-09-03 — 그래서 실데이터의 스펙 158개 전부 owner_role 이 NULL 이다).
+          sql`UPDATE spec SET owner_role = ${assertVocab([input.ownerRole], memberRole.enumValues, 'owner_role')[0]}::member_role WHERE id = ${spec.id}`,
         );
         changed.push('owner_role');
       }
@@ -1229,7 +1304,10 @@ export class SpecService {
   }): Promise<Record<string, unknown>[]> {
     const specFilter = input.specKey == null ? sql`` : sql` AND s.key = ${input.specKey}`;
     const statusFilter =
-      input.implStatus == null ? sql`` : sql` AND r.impl_status = ${input.implStatus}::impl_status`;
+      input.implStatus == null
+        ? sql``
+        : // 어휘 밖의 값은 400 이다 — 그대로 캐스팅하면 오타가 500 이 된다(§1.4j)
+          sql` AND r.impl_status = ${assertVocab([input.implStatus], implStatus.enumValues, 'impl_status')[0]}::impl_status`;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT r.id, r.ref, r.statement_md, r.priority::text AS priority,
              r.impl_status::text AS impl_status, r.verified_at,

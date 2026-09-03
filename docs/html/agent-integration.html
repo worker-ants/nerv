@@ -52,7 +52,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.7 (2026-09-02)</span>
+      <span>버전 v0.12 (2026-09-03)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -229,11 +229,11 @@
     <tbody>
       <tr>
         <td><code>nerv_bootstrap</code></td>
-        <td><code>project</code>, <code>agent_type</code>, <code>hostname</code>, <code>cwd</code>, <code>repo{remote,branch}</code>, <code>resume_session_id?</code></td>
+        <td><code>project</code>, <code>agent_type</code>, <code>hostname</code>, <code>cwd</code>, <code>branch?</code>, <code>worktree_path?</code>, <code>model?</code>, <code>resume_session_id?</code></td>
         <td><code>session_id</code>, 규약 스펙 요약, 내 활성 클레임(<b>Task 기준 버전·베이스라인 포함</b>), 게이트 정책·자율성 레벨, 컨텍스트 팩 ETag</td>
         <td><code>spec:read</code> + <code>agent-session:launch</code></td><td>A1</td>
         <td>세션 시작 직후 <b>첫 도구 호출</b></td>
-        <td>멱등 — 같은 세션이면 동일 스냅샷</td>
+        <td>멱등 — 같은 세션이면 동일 스냅샷. id 가 없으면 <b>같은 사람·hostname·cwd 의 살아 있는 훅 세션을 채택</b>(2026-09-03)</td>
       </tr>
       <tr>
         <td><code>nerv_spec_tree</code></td><td><code>project</code>, <code>root_spec_id?</code>, <code>depth?</code>, <code>status?</code></td>
@@ -259,7 +259,7 @@
         <td>조건부 — 같은 (spec_id, base_version, content_hash)면 같은 draft. 불일치는 <code>NERV_PRECONDITION</code>. 초안 편집 리스 자동 획득·갱신, 타인 보유 시 <code>NERV_DRAFT_LEASED</code></td>
       </tr>
       <tr>
-        <td><code>nerv_spec_submit_review</code></td><td><code>spec_version_id</code>, <code>reviewer_hint?</code>, <code>note</code></td>
+        <td><code>nerv_spec_submit_review</code></td><td><code>spec_version_id</code> (2026-09-03 정정 — <code>note</code>·<code>reviewer_hint</code> 는 걷는다)</td>
         <td><code>approval_id[]</code>, <span class="badge draft">draft</span> → <span class="badge review">in_review</span> 전이, 지정 리뷰어·SLA, <code>web_url</code>(S3 딥링크)</td>
         <td><code>spec:draft</code>(+제출)</td><td><b>A3</b></td><td>초안 완료 후 사람 검토 요청</td>
         <td>멱등 — pending Approval 재사용(받은 요청 카드 중복 금지)</td>
@@ -280,7 +280,7 @@
         <td><code>spec:draft</code></td><td>A2</td><td>문서를 읽고 관계를 선언할 때</td><td>멱등 — 같은 (from, to, kind) 재호출은 no-op. <code>remove:true</code>가 되돌리는 경로다</td>
       </tr>
       <tr>
-        <td><code>nerv_task_next</code></td><td><code>project</code>, <code>role?</code>, <code>spec_id?</code>, <code>capabilities?</code>, <code>limit</code></td>
+        <td><code>nerv_task_next</code></td><td><code>project</code>, <code>limit</code> (2026-09-03 정정 — <code>role</code>·<code>capabilities</code> 는 걷는다)</td>
         <td>ready Task 후보 + <b>위임 명세 4요소</b>(목표·산출물 형식·도구/출처·경계) + <b>기준 SpecVersion(id·version_no)·베이스라인</b> + 권장 scope</td>
         <td><code>task:claim</code></td><td>A1</td><td>클레임 직전</td><td>읽기 전용(후보 순서는 시점 의존)</td>
       </tr>
@@ -291,7 +291,7 @@
         <td>멱등 — 같은 세션 재호출은 기존 claim 반환(연장 없음). 타 세션은 409</td>
       </tr>
       <tr>
-        <td><code>nerv_task_heartbeat</code></td><td><code>claim_id</code>, <code>progress?</code>, <code>stats?{added,removed,files}</code></td>
+        <td><code>nerv_task_heartbeat</code></td><td><code>claim_id</code>, <code>progress?</code>, <code>stats?{added,removed,files}</code> — <b>2026-09-03 배선</b></td>
         <td>새 <code>lease_expires_at</code>, <b>pending 질문 답변·알림·steer/stop 지시·기준 버전 변경 알림(<code>basis_superseded</code> — 재브리핑 대기)</b></td>
         <td><code>task:update</code></td><td>A1</td><td><b>60초 주기</b></td><td>자연 멱등(LWW)</td>
       </tr>
@@ -302,7 +302,7 @@
         <td>멱등 — 같은 목표 상태 재호출은 no-op 성공</td>
       </tr>
       <tr>
-        <td><code>nerv_task_release</code></td><td><code>claim_id</code>, <code>reason</code>(done/handoff/abandon), <code>state_note</code></td>
+        <td><code>nerv_task_release</code></td><td><code>claim_id</code>, <code>reason</code>(done/handoff/abandon), <code>state_note</code> — <b>2026-09-03 배선</b></td>
         <td>Task 최종 상태(<code>claimed → ready</code> 회수 또는 유지), 인수인계 노트</td>
         <td><code>task:update</code></td><td>A2</td><td>세션 종료·작업 전환·중단</td><td>멱등</td>
       </tr>
@@ -345,6 +345,8 @@
   <p><b>세션은 서버가 안다 — 도구는 <code>session_id</code> 를 나르지 않는다</b>(2026-08-29 보강 — 실측 보고). §2.3 표가 <code>nerv_bootstrap</code> 외의 도구에 <code>session_id</code> 를 적지 않는 것은 생략이 아니라 규약이다: 도구 호출의 세션은 <b>PAT 주체의 살아 있는 세션</b>으로 서버가 해소한다(<a href="api.html">4.4</a> §1.4c · REQ-API-040). 이 절반이 실제로는 없어서, 세션을 요구하는 도구 세 개(<code>nerv_question_create</code>·<code>nerv_task_claim</code>·<code>nerv_session_event</code>)가 스키마대로 부르면 언제나 실패하고 있었다 — bootstrap 이 방금 성공했어도 그랬다.</p>
 
   <p>예외는 <b>모호할 때</b>다. 한 토큰으로 여러 세션이 동시에 살아 있으면 서버는 고르지 않고 후보를 돌려준다(<code>session_ambiguous</code>) — 클레임의 겹침 판정이 세션 단위라, 조용한 오귀속은 곧 잘못된 충돌 판정이다. 그때만 <code>session_id</code> 를 실어 다시 부른다(세 도구의 스키마에 <b>선택 인자</b>로 적혀 있다). <code>nerv_review_submit</code> 은 그것과 별개로 예전부터 <code>session_id</code> 를 명시 입력으로 받는다 — 리뷰는 리뷰어 세션의 산출이라 어느 세션의 것인지가 데이터의 일부다.</p>
+  <p><b>훅 세션 채택 — 모호함을 만들지 않는 쪽이 먼저다</b>(2026-09-03 · 실측 보고). 위 예외는 모호해진 <b>뒤</b>의 대응이고, 기본 설치는 그 모호함을 스스로 만들고 있었다: <code>SessionStart</code> 훅이 하네스의 <code>session_id</code> 로 세션 A 를 만들고, 곧이어 스킬의 <code>nerv_bootstrap</code> 이 그 id 를 모른 채 세션 B 를 만들었다. 그 순간 살아 있는 세션이 둘이 되어 첫 <code>nerv_task_claim</code> 이 <code>session_ambiguous</code> 로 거부되고, Stop 게이트·SessionEnd 회수는 external id 로 A 만 찾아 <b>클레임과 훅 평면이 갈라졌다</b>. 실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 <b>0건</b>이었고, 같은 사람·같은 cwd 에 세션이 둘 이상 살아 있던 순간이 10번 있었다.</p>
+  <p>고치는 방향은 하나뿐이다 — <b>서버가 알아본다.</b> 반대편(스킬이 <code>session_id</code> 를 싣는 것)은 막혀 있다: Claude Code 는 모델에게 자기 <code>session_id</code> 를 주지 않는다(훅 페이로드와 statusline stdin 에만 있다). 그래서 <code>nerv_bootstrap</code> 이 <code>external_session_id</code>·<code>resume_session_id</code> 없이 오면, 서버는 <b>같은 사용자(D-08)·같은 프로젝트·같은 hostname, 같은 <code>cwd</code></b> 의 살아 있는 훅 세션을 채택하고 그 스냅샷을 <code>resumed: true</code> 로 돌려준다. <code>cwd</code> 를 싣지 않은 호출은 채택하지 않는다. 여럿이면 <b>마지막 활동 시각이 가장 최근인 것</b>이다 — 등록 순서가 아니라 일한 흔적으로 고른다(실측 2026-09-03: 겹친 쌍 14건 중 10건에서 나중에 등록된 세션은 활동이 0인 유령이었다). 채택할 때 훅이 알 수 없었던 <code>branch</code>·<code>worktree_path</code>·<code>model</code>·<code>cwd</code> 를 <b>비어 있는 자리에만</b> 채운다.</p>
 
   <div class="callout evidence"><span class="ico">📊</span><div class="body">
     <b class="title">근거 · <code>nerv_task_claim</code>이 복원하는 기능</b>
@@ -584,13 +586,15 @@
   <div class="table-wrap"><table>
     <thead><tr><th>훅</th><th>NERV 용도</th><th>응답으로 하는 일</th></tr></thead>
     <tbody>
-      <tr><td><code>SessionStart</code></td><td>AgentSession <code>pending → active</code> 등록(user·hostname·agent_type·cwd·repo)</td><td><code>additionalContext</code>로 현재 클레임·미해결 finding 주입</td></tr>
+      <tr><td><code>SessionStart</code></td><td>AgentSession <code>pending → active</code> 등록(user·hostname·agent_type·cwd·repo)</td><td><code>hookSpecificOutput.additionalContext</code>로 현재 클레임·미해결 finding 주입 — <b>래퍼 안이어야 한다</b>(2026-09-03)</td></tr>
       <tr><td><code>PostToolUse</code></td><td>Activity 적재(<code>tool_name</code>·<code>tool_use_id</code>) → 타임라인·diff 통계</td><td>관찰 전용(비차단), <code>async: true</code></td></tr>
       <tr><td><code>SubagentStart</code>/<code>Stop</code></td><td>어느 역할 에이전트가 무엇을 했는지(<code>agent_id</code>/<code>agent_type</code>)</td><td>관찰 전용</td></tr>
-      <tr><td><code>Stop</code></td><td>턴 종료 직전 게이트 조회 — 미해소 critical, 리스 생존 여부</td><td>서버가 <code>{"decision":"block"}</code> 반환 시 종료 차단</td></tr>
+      <tr><td><code>Stop</code></td><td>턴 종료 직전 게이트 조회 — 미해소 critical, 리스 생존 여부</td><td>서버가 <code>{"decision":"block"}</code> 반환 시 종료 차단. <b><code>stop_hook_active</code> 면 즉시 허용</b>(2026-09-03 · anti-wedge)</td></tr>
       <tr><td><code>SessionEnd</code></td><td><code>complete</code>/<code>error</code> 전이, 미해제 클레임 회수</td><td>없음(정리만)</td></tr>
     </tbody>
   </table></div>
+
+  <p><b>응답의 자리와 형태</b>(2026-09-03 · 실측 정정). 두 훅의 응답은 <b>형태가 계약이다.</b> ① <code>SessionStart</code> 의 주입은 <code>hookSpecificOutput</code> 아래여야 한다 — 최상위 <code>additionalContext</code> 는 훅 문서가 "조용히 무시한다"고 못 박은 자리이고, 그동안 이 주입은 세션 37개 내내 한 번도 모델에 닿지 않았다. ② <code>Stop</code> 은 <code>stop_hook_active</code> 를 확인해 <b>이미 Stop 훅 때문에 계속하는 중이면 막지 않는다.</b> 확인하지 않으면 클레임을 쥔 채 사람에게 물으려는 턴마다 강제 계속이 반복되고(호스트 상한 8회), 모델은 멈추려고 클레임을 조기 릴리스한다. 이것은 새 발견이 아니다 — <a href="clemvion-analysis.html">1.2 clemvion 분석</a> §3 이 같은 자리에서 같은 답을 이미 적어 두었다. ③ <code>command</code> 핸들러로 폴백할 때 포워더는 <b>응답 본문을 stdout 으로 흘려야 한다</b>: 버리면 ①과 ②가 함께 사라진다(<a href="plugin.html">4.6 플러그인</a> §3.1).</p>
 
   <div class="callout evidence"><span class="ico">📊</span><div class="body">
     <b class="title">근거 · 이 JSON이 대체하는 것</b>
@@ -668,13 +672,13 @@
       <line x1="270" y1="102" x2="656" y2="102" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar2)"/>
       <text x="463" y="96" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">AgentSession pending → active</text>
       <line x1="270" y1="128" x2="94" y2="128" stroke="var(--text-faint)" stroke-width="1.2" stroke-dasharray="5 3" marker-end="url(#ar3)"/>
-      <text x="178" y="122" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">additionalContext — 내 클레임 · 미해결 finding</text>
+      <text x="178" y="122" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">hookSpecificOutput.additionalContext — 내 클레임 · 미해결 finding</text>
 
       <!-- bootstrap -->
       <line x1="90" y1="156" x2="466" y2="156" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar2)"/>
       <text x="278" y="150" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11" font-weight="700">nerv_bootstrap</text>
       <line x1="470" y1="182" x2="94" y2="182" stroke="var(--text-faint)" stroke-width="1.2" stroke-dasharray="5 3" marker-end="url(#ar3)"/>
-      <text x="282" y="176" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">session_id · 규약 · 게이트 정책 · 컨텍스트 팩</text>
+      <text x="282" y="176" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">훅 세션 채택 · session_id · 규약 · 게이트 정책</text>
 
       <!-- next -->
       <line x1="90" y1="210" x2="466" y2="210" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar2)"/>
@@ -1012,7 +1016,7 @@ log_user_prompt = false</code></pre>
 
   <h3 id="sec-6-5">6.5 수집 경로와 감사</h3>
   <ul>
-    <li><b>훅 URL 통제</b> — <code>allowedHttpHookUrls</code>로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. 훅 설정이 오염돼도 데이터가 외부로 나가지 않는다.</li>
+    <li><b>훅 URL 통제</b> — <code>allowedHttpHookUrls</code>로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. <b>적용 범위는 <code>type:"http"</code> 훅뿐이다</b>(2026-09-03 정정). NERV 의 기본 훅은 <code>command</code> 변형이므로 이 목록이 그것들을 덮지 않는다 — 그 성질이 필요한 배치는 http 변형을 기본 자리에 두거나 관리형 settings 로 훅 정의 자체를 내린다.</li>
     <li><b>ingest 인증 필수</b> — 토큰 없는 이벤트는 버린다. hostname은 헤더(<code>X-NERV-Host</code>)로, MCP 경로에서는 <code>nerv_bootstrap</code> 인자로 받는다.</li>
     <li><b>민감정보 최소화</b> — OTel의 프롬프트·툴 상세는 기본 마스킹이며 opt-in으로만 켠다. 리뷰 프롬프트 페이로드는 TTL 오브젝트에 두고 결론만 영구 보존한다(D-07).</li>
     <li><b>감사 스키마</b> — <code>actor{type,id,is_agent}</code> · <code>action</code>(<code>spec.approved</code>·<code>session.started</code> 식) · <code>targets[]</code> · <code>context</code> · 정책 버전. 승인 이벤트에는 <b>평가된 정책 버전</b>을 반드시 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하기 위해서다.</li>

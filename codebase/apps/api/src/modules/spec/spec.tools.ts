@@ -193,7 +193,8 @@ export class SpecTools implements NervToolProvider {
           // 키·UUID 둘 다 받는다(§1.4b) — 도구마다 기준이 다르면 에이전트가 실패로 배운다
           spec_id: { type: 'string', description: 'spec key (SPC-…) or UUID' },
           version: { type: 'integer' },
-          baseline: { type: 'string' },
+          // 곁들여 실을 것 — `requirements` 는 늘 실리므로 여기서는 나머지만 고른다
+          include: { type: 'array' },
         },
         required: ['spec_id'],
       },
@@ -202,6 +203,7 @@ export class SpecTools implements NervToolProvider {
           projectId: ctx.projectId,
           specKey: String(input['spec_id'] ?? ''),
           versionNo: typeof input['version'] === 'number' ? input['version'] : null,
+          include: Array.isArray(input['include']) ? (input['include'] as string[]) : null,
         }),
     },
     {
@@ -352,6 +354,8 @@ export class SpecTools implements NervToolProvider {
         properties: {
           comment_id: { type: 'string' },
           resolution_note: { type: 'string' },
+          // 서비스는 처음부터 받고 열도 있었다 — 도구 스키마만 빠져 있었다(REQ-API-081)
+          resolved_in_version_id: { type: 'string' },
           idempotency_key: { type: 'string' },
         },
         required: ['comment_id'],
@@ -364,6 +368,10 @@ export class SpecTools implements NervToolProvider {
           sessionId: ctx.sessionId ?? null,
           resolutionNote:
             typeof input['resolution_note'] === 'string' ? input['resolution_note'] : null,
+          resolvedInVersionId:
+            typeof input['resolved_in_version_id'] === 'string'
+              ? input['resolved_in_version_id']
+              : null,
         }),
     },
   ];

@@ -408,6 +408,136 @@ describe('E03-S03 P0 도구 — 작업 흐름', () => {
     expect(released['taskStatus']).toBe('ready');
   });
 
+  /**
+   * 카탈로그가 적고 있던 인자들이 실제로 어딘가에 남는가(REQ-API-081).
+   *
+   * 이 넷은 오랫동안 **받는 척만** 했다 — 스키마에 없거나(그래서 조용히 버려지거나) 저장할
+   * 열이 없었다. 에이전트는 노트를 남겼다고 믿고 다음 사람은 빈 Task 를 집었다.
+   */
+  it('progress · stats · state_note 가 실제로 남는다', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-note',
+      external_session_id: 'S-note',
+    });
+    const sessionId = boot['session_id'] as string;
+
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-note','노트','ready','목표','PR','nerv_spec_get','경계')`,
+      [taskId, projectId],
+    );
+    const claimed = await callTool('nerv_task_claim', {
+      session_id: sessionId,
+      task_id: taskId,
+      scope: { spec_ids: [], file_globs: ['codebase/note/**'] },
+    });
+
+    await callTool('nerv_task_heartbeat', {
+      session_id: sessionId,
+      claim_id: claimed['claim_id'],
+      progress: '로더 캐시 헤더를 고치는 중',
+      stats: { added: 12, removed: 3, files: 2 },
+    });
+
+    // 세션 카드의 +N −M — 열은 처음부터 있었고 읽는 화면도 있었는데 쓰는 곳이 없었다
+    const { rows: session } = await pool.query<{ a: number; r: number; f: number }>(
+      `SELECT diff_added AS a, diff_removed AS r, diff_files AS f FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(session[0]).toMatchObject({ a: 12, r: 3, f: 2 });
+
+    const { rows: progress } = await pool.query<{ progress_note: string }>(
+      `SELECT progress_note FROM claim WHERE id = $1`,
+      [claimed['claim_id']],
+    );
+    expect(progress[0]?.progress_note).toBe('로더 캐시 헤더를 고치는 중');
+
+    const released = await callTool('nerv_task_release', {
+      session_id: sessionId,
+      claim_id: claimed['claim_id'],
+      reason: 'handoff',
+      state_note: '리스 헤더까지 고쳤고 캐시 무효화가 남았다',
+    });
+    expect(released['state_note']).toBe('리스 헤더까지 고쳤고 캐시 무효화가 남았다');
+
+    // **다음 사람이 후보 목록에서 그것을 본다** — 타임라인에만 있으면 찾지 못한다
+    const next = await callTool('nerv_task_next', { session_id: sessionId });
+    const mine = (next['candidates'] as Record<string, unknown>[]).find((c) => c['id'] === taskId);
+    expect(mine?.['handoff_note']).toBe('리스 헤더까지 고쳤고 캐시 무효화가 남았다');
+  });
+
+  it('후보가 기준 문서를 열 수 있게 한다 — spec_key · version_no', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-basis',
+      external_session_id: 'S-basis',
+    });
+    const basis = await makeSpecVersion('SPC-BASIS', 'approved', 4);
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md, source_spec_version_id)
+       VALUES ($1,$2,'TSK-basis','기준','ready','목표','PR','nerv_spec_get','경계',$3)`,
+      [taskId, projectId, basis.id],
+    );
+
+    const next = await callTool('nerv_task_next', { session_id: boot['session_id'] });
+    const mine = (next['candidates'] as Record<string, unknown>[]).find((c) => c['id'] === taskId);
+    // id 만으로는 nerv_spec_get 을 부를 수 없다 — 스킬 6단계가 요구하는 것은 키와 판 번호다
+    expect(mine).toMatchObject({ spec_key: basis.key, version_no: 4 });
+  });
+
+  it('nerv_spec_get 이 include 를 받는다 — 코멘트와 파생 Task', async () => {
+    const target = await makeSpecVersion('SPC-INCLUDE', 'approved', 1);
+    await pool.query(
+      `INSERT INTO spec_comment (id, project_id, spec_id, spec_version_id, anchor, author_user_id, body_md, status)
+       VALUES ($1,$2,$3,$4,'1-개요',$5,'여기 한 줄이 모호합니다','open')`,
+      [newId(), projectId, target.specId, target.id, userId],
+    );
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id)
+       VALUES ($1,$2,'TSK-derived','파생','backlog',$3)`,
+      [taskId, projectId, target.id],
+    );
+
+    const plain = await callTool('nerv_spec_get', { spec_id: target.key });
+    expect(plain['comments']).toBeUndefined();
+    expect(plain['tasks']).toBeUndefined();
+
+    const rich = await callTool('nerv_spec_get', {
+      spec_id: target.key,
+      include: ['comments', 'tasks'],
+    });
+    expect((rich['comments'] as unknown[]).length).toBeGreaterThan(0);
+    expect((rich['tasks'] as { key: string }[]).map((t) => t.key)).toContain('TSK-derived');
+    // 받는 척만 하던 인자가 아니라는 것 — 무시 목록에 오르지 않는다
+    expect(rich['ignored_args']).toBeUndefined();
+  });
+
+  /** 스펙 한 벌을 만든다 — 시드에는 버전 있는 스펙이 없다(도구가 만든다). */
+  async function makeSpecVersion(
+    key: string,
+    status: 'draft' | 'approved',
+    versionNo: number,
+  ): Promise<{ id: string; specId: string; key: string }> {
+    const specId = newId();
+    const versionId = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$4)`,
+      [specId, projectId, key, key],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,$3,$4::spec_version_status,'# 본문', sha256('본문'::bytea), $5)`,
+      [versionId, specId, versionNo, status, userId],
+    );
+    await pool.query(`UPDATE spec SET current_version_id = $1 WHERE id = $2`, [versionId, specId]);
+    return { id: versionId, specId, key };
+  }
+
   /** 이 프로젝트의 살아 있는 세션을 비운다 — 추정의 입력을 통제하기 위해 */
   async function clearSessions(): Promise<void> {
     await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
@@ -593,6 +723,189 @@ describe('E03-S03 세션 추정 — 스키마대로 부르면 된다', () => {
       [id],
     );
     expect(Number(rows[0]?.age)).toBeLessThan(60);
+  });
+});
+
+/**
+ * 훅 세션 채택 — 기본 설치의 첫 클레임이 막히던 자리(2026-09-03).
+ *
+ * SessionStart 훅이 세션 A 를 만들고, 스킬의 `nerv_bootstrap` 이 하네스 id 를 모른 채
+ * 세션 B 를 만들면 살아 있는 세션이 둘이 되어 `nerv_task_claim` 이 `session_ambiguous` 로
+ * 거부됐다. **실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 0건.** 그래서 서버가
+ * 알아보는 쪽이 됐다 — 스킬이 `session_id` 를 싣는 길은 하네스가 그 값을 모델에 주지
+ * 않아서 막혀 있다.
+ */
+/**
+ * 유령 인자 — 스킬이 보내고 도구가 받지 않는 것들(REQ-API-080).
+ *
+ * 실측 2026-09-03: 스킬 5종이 지시하는 인자 열한 종(`state_note`·`stats`·`include`·
+ * `repo{}`·`role`·`capabilities`·`branch`·`worktree`·`resolved_in_version_id`·`note`·
+ * `reviewer_hint`)이 성공 응답과 함께 사라지고 있었다. 거부하지 않되 **말은 한다.**
+ */
+describe('E03-S03 모르는 인자 — 성공해도 버렸다고 말한다', () => {
+  it('도구가 받지 않는 인자를 응답이 되돌려준다', async () => {
+    const result = await callTool('nerv_spec_tree', { unknown_arg: 1, include: ['comments'] });
+    expect(result['ok']).toBe(true);
+    expect(result['ignored_args']).toEqual(expect.arrayContaining(['unknown_arg', 'include']));
+  });
+
+  it('정상 호출에는 그 필드가 없다 — 늘 붙는 경고는 아무도 읽지 않는다', async () => {
+    const result = await callTool('nerv_spec_tree', {});
+    expect(result['ok']).toBe(true);
+    expect(result['ignored_args']).toBeUndefined();
+  });
+
+  it('봉투 인자는 유령이 아니다 — session_id 는 게이트웨이가 읽는다', async () => {
+    await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-envelope',
+      external_session_id: 'S-envelope',
+    });
+    const result = await callTool('nerv_spec_tree', { session_id: boot['session_id'] });
+    expect(result['ignored_args']).toBeUndefined();
+  });
+});
+
+describe('E03-S03 훅 세션 채택 — 두 평면이 한 세션을 쓴다', () => {
+  async function clearSessions(): Promise<void> {
+    await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
+  }
+
+  async function sessionStartHook(
+    external: string,
+    hostname: string,
+    cwd: string,
+  ): Promise<string> {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ingest/hooks/session',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+        'x-nerv-host': hostname,
+        'x-nerv-agent': 'claude-code',
+      },
+      payload: { session_id: external, cwd },
+    });
+    return String((res.json() as Record<string, unknown>)['session_id']);
+  }
+
+  it('bootstrap 이 훅 세션을 채택한다 — 세션은 하나로 남는다', async () => {
+    await clearSessions();
+    const hookSession = await sessionStartHook('S-hook-adopt', 'mac-adopt', '/work/clemvion');
+
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-adopt',
+      cwd: '/work/clemvion',
+      branch: 'fix/adopt',
+    });
+
+    expect(boot['session_id']).toBe(hookSession);
+    expect(boot['resumed']).toBe(true);
+
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM agent_session
+        WHERE project_id = $1 AND state IN ('pending','active','awaiting_input')`,
+      [projectId],
+    );
+    expect(rows[0]?.n).toBe(1);
+  });
+
+  it('채택한 세션에 신원을 채운다 — 훅 페이로드에는 branch·worktree·model 이 없다', async () => {
+    await clearSessions();
+    const hookSession = await sessionStartHook('S-hook-identity', 'mac-id', '/work/clemvion');
+
+    await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-id',
+      cwd: '/work/clemvion',
+      branch: 'feat/identity',
+      worktree_path: '/work/clemvion',
+      model: 'claude-opus-5',
+    });
+
+    const { rows } = await pool.query<{
+      branch: string | null;
+      worktree_path: string | null;
+      model: string | null;
+    }>(`SELECT branch, worktree_path, model FROM agent_session WHERE id = $1`, [hookSession]);
+    expect(rows[0]).toMatchObject({
+      branch: 'feat/identity',
+      worktree_path: '/work/clemvion',
+      model: 'claude-opus-5',
+    });
+  });
+
+  it('채택 뒤 첫 클레임이 막히지 않는다 — 이 스위트가 지키려는 것', async () => {
+    await clearSessions();
+    await sessionStartHook('S-hook-claim', 'mac-claim', '/work/clemvion');
+    await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-claim',
+      cwd: '/work/clemvion',
+    });
+
+    const question = await callTool('nerv_question_create', {
+      question: '채택된 세션의 질문',
+      urgency: 'normal',
+    });
+    expect(question['ok']).toBe(true);
+  });
+
+  // 실측 2026-09-03: 같은 사람·같은 cwd 에서 겹친 실사용 쌍 14건 중 10건에서 **나중에
+  // 등록된 세션은 활동이 0인 유령**이었다(나중 세션이 유일한 활동 주체인 경우는 0건).
+  // 등록 시각만 보면 그 유령을 고른다 — 일한 흔적이 1순위여야 하는 이유다.
+  it('활동이 있는 세션을 고른다 — 나중에 등록된 빈 세션이 아니라', async () => {
+    await clearSessions();
+    const worker = await sessionStartHook('S-worker', 'mac-pick', '/work/clemvion');
+    // 앞선 세션이 도구를 쓴다(훅 평면의 활동)
+    await pool.query(
+      `INSERT INTO activity (id, session_id, project_id, seq, type, title, created_at)
+       VALUES ($1,$2,$3,1,'action','Read(spec)', now())`,
+      [newId(), worker, projectId],
+    );
+    // 그 뒤 유령이 등록된다 — 활동은 하나도 없다
+    const phantom = await sessionStartHook('S-phantom', 'mac-pick', '/work/clemvion');
+    expect(phantom).not.toBe(worker);
+
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-pick',
+      cwd: '/work/clemvion',
+    });
+    expect(boot['session_id']).toBe(worker);
+  });
+
+  it('cwd 를 말하지 않으면 채택하지 않는다 — hostname 만으로 고르는 가지는 닫혀 있다', async () => {
+    await clearSessions();
+    await sessionStartHook('S-nocwd', 'mac-nocwd', '/work/clemvion');
+
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-nocwd',
+    });
+    expect(boot['resumed']).toBe(false);
+  });
+
+  it('다른 호스트·다른 cwd 는 채택하지 않는다 — 남의 세션을 삼키면 오귀속이다', async () => {
+    await clearSessions();
+    await sessionStartHook('S-hook-other', 'mac-one', '/work/clemvion');
+
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-two',
+      cwd: '/work/clemvion',
+    });
+    expect(boot['resumed']).toBe(false);
+
+    const elsewhere = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-one',
+      cwd: '/work/other-repo',
+    });
+    expect(elsewhere['resumed']).toBe(false);
   });
 });
 
