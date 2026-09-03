@@ -33,7 +33,6 @@
             "url": "https://nerv.example.com/ingest/hooks/tool",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true,
             "timeout": 3
           }
         ]
@@ -47,7 +46,7 @@
             "url": "https://nerv.example.com/ingest/hooks/subagent",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -60,7 +59,7 @@
             "url": "https://nerv.example.com/ingest/hooks/subagent",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true
+            "timeout": 3
           }
         ]
       }
@@ -85,7 +84,8 @@
             "type": "http",
             "url": "https://nerv.example.com/ingest/hooks/session-end",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"]
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "timeout": 5
           }
         ]
       }

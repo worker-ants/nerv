@@ -15,6 +15,7 @@
     "NERV_SERVER": "https://nerv.example.com",
     "NERV_PROJECT": "clemvion"
   },
+  "$comment_hooks": "allowedHttpHookUrls 는 `hooks/hooks.json`(http 변형)에 걸린다. `hooks.command.json` 을 배포하면 훅은 bin/nerv-hook-forward 를 거치므로 이 목록이 그 훅을 덮지 않는다 — 그 대가와 선택 기준은 4.6 §3.1 이 정본이다. `env.NERV_SERVER` 가 두 변형 모두의 서버 주소다.",
   "allowedHttpHookUrls": [
     "https://nerv.example.com/ingest/hooks/session",
     "https://nerv.example.com/ingest/hooks/tool",

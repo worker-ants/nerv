@@ -2,8 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **22종**(2026-09-02 실측 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.10 · 2026-09-03 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.11 · 2026-09-03 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 >
+> v0.11 변경(2026-09-03 — 확장의 경계): 훅 `url` 은 `${VAR}` 확장을 받지 않고 `headers` 만 받는다는 것을 §3.3 에 적었다. `.mcp.json` 의 `url` 은 받는다. 이 비대칭이 배포 변형 둘의 이유다(4.6 §3.1).
 > v0.10 변경(2026-09-03 — 받는 척하던 인자들, 실측): 카탈로그가 적고 있던 인자 열한 종이 도구 스키마에 없거나 저장할 자리가 없어 **성공 응답과 함께 버려지고 있었다**(4.4 v0.57 REQ-API-080 이 그 사실을 드러냈다). 일곱을 실물로 만들고 넷은 표에서 걷었다. 실물: `state_note`(`claim.release_note` — 후보 목록의 `handoff_note` 로 다음 사람에게 간다) · `progress`(LWW) · `stats{added,removed,files}`(세션 카드의 +N −M 이 34개 세션 전부 0이던 원인) · `include[tasks,comments]` · `resolved_in_version_id` · `lease_seconds` · 후보의 `spec_key`·`version_no`. 걷은 것: `repo{}`(실물은 평면 `branch`·`worktree_path`) · `role`·`capabilities`(Task 에 그 축이 없다) · 클레임의 `branch`·`worktree`(세션이 등록한다) · `note`·`reviewer_hint`(리뷰어 지정은 게이트 §6.3 이 정한다) · `baseline`(Phase 2).
 > v0.9 변경(2026-09-03 — 채택 규칙을 좁힌다, 사람 결정): §2.4 의 훅 세션 채택에서 `cwd` 를 필수로 하고, 후보가 여럿일 때 **마지막 활동 시각**으로 고르도록 확정했다. 구현 규약 정본은 [4.4](../04-mvp/api.md) §1.4c(REQ-API-079).
 > v0.8 변경(2026-09-03 — 훅 평면과 세션 평면이 갈라져 있었다): 기본 설치의 **첫 클레임이 막히고 있었다.** `SessionStart` 훅이 세션 A 를, 스킬의 `nerv_bootstrap` 이 세션 B 를 만들어 살아 있는 세션이 둘이 되고, `nerv_task_claim` 은 `session_ambiguous` 로 거부됐다 — 실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 **0건**. 세 가지를 §2.4·§3.3에 못 박았다. ① **훅 세션 채택** — bootstrap 이 id 없이 오면 같은 사람·hostname·cwd 의 살아 있는 훅 세션을 채택하고 훅이 모르는 `branch`·`worktree_path`·`model` 을 빈 자리에만 채운다(반대편은 막혀 있다 — 하네스가 모델에게 `session_id` 를 주지 않는다). ② **`hookSpecificOutput` 래퍼** — 최상위 `additionalContext` 는 훅 문서가 "조용히 무시한다"고 못 박은 자리라 세션 37개 내내 주입이 닿지 않았다. ③ **`stop_hook_active` 면 즉시 허용** — 우리 문제 정의([1.2](../01-problem/clemvion-analysis.md) §3)가 이미 적어 둔 anti-wedge 를 서버가 되풀이하고 있었다.
@@ -397,6 +398,8 @@ nerv-plugin/
 - [Hooks reference — Claude Code Docs](https://code.claude.com/docs/en/hooks) (2026-08-13 확인): 31종 이벤트, 공통 페이로드(`session_id`·`prompt_id`·`transcript_path`·`cwd`), `type:"http"` 핸들러와 헤더 지정, `async`, exit 2 차단 의미론, `allowedHttpHookUrls` 통제.
 
 > **주의 — Phase 0 실측 항목.** 훅 `headers` 값의 환경변수 확장(`${NERV_TOKEN}`)은 `.mcp.json`에서는 공식 지원이 확인되지만 훅 헤더에서의 동작은 1차 문서에서 형태까지 확인하지 못했다([2.4 연동 기술](../02-research/integration-tech.md) §4.5의 미확인 항목과 동일). 확장이 불가하면 `command` 핸들러 래퍼(`bin/nerv-hook-forward`)가 토큰을 주입하는 경로로 폴백한다 — Codex와 같은 바이너리를 쓰므로 추가 비용이 없다.
+
+> **확장의 경계**(2026-09-03 실측 정정). 위 미확인 항목의 절반이 확정됐다 — 훅 `headers` 는 `${VAR}` 확장을 받고 **`url` 은 받지 않는다.** `.mcp.json` 의 `url` 은 받는다(`${VAR:-기본값}` 형태까지). 그래서 서버 주소가 `nerv.example.com` 이 아닌 배치에서 MCP 는 파일 하나로 되지만 훅은 `command` 핸들러(`bin/nerv-hook-forward`)를 거쳐야 한다. 그 변형을 [4.6 플러그인](../04-mvp/plugin.md) §3.1 이 파일로 싣는다 — 대가는 `allowedHttpHookUrls`(§6.4)가 그 훅들을 덮지 않는다는 것이고, 어느 변형을 기본으로 삼을지는 **사람 결정으로 열려 있다.**
 
 ### 3.4 MCP 설정과 강제 배포
 

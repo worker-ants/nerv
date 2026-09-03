@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.28 (2026-09-03)</span>
+      <span>버전 v0.29 (2026-09-03)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -730,7 +730,6 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/tool&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
             &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
-            &quot;async&quot;: true,
             &quot;timeout&quot;: 3
           }
         ]
@@ -744,7 +743,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
             &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
-            &quot;async&quot;: true
+            &quot;timeout&quot;: 3
           }
         ]
       }
@@ -757,7 +756,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
             &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
-            &quot;async&quot;: true
+            &quot;timeout&quot;: 3
           }
         ]
       }
@@ -782,7 +781,8 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             &quot;type&quot;: &quot;http&quot;,
             &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session-end&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
-            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;]
+            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
+            &quot;timeout&quot;: 5
           }
         ]
       }
@@ -801,6 +801,92 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
     <b class="title">포워더는 응답을 흘린다 (2026-09-03 정정 · 실측)</b>
     <p><code>bin/nerv-hook-forward</code> 는 서버 응답을 <code>/dev/null</code> 로 버리고 있었다 — 그래서 <code>command</code> 폴백을 쓰는 설치에서는 <code>SessionStart</code> 의 컨텍스트 주입도 <code>Stop</code> 의 <code>{"decision":"block"}</code> 도 <b>모델에 도달하지 못했다.</b> 실측한 유일한 실사용 설치가 정확히 그 폴백 경로였다(훅 6종 전부 <code>type:"command"</code>). 이제 포워더는 응답 본문이 JSON 이면 stdout 으로 그대로 내보낸다 — <code>command</code> 훅의 stdout 은 <code>http</code> 훅의 응답 본문과 같은 자리다. JSON 이 아닌 본문(프록시의 HTML 오류 페이지 등)은 내보내지 않는다.</p>
   </div></div>
+
+  <h4><code>hooks/hooks.command.json</code> 전문 — 서버 주소가 다른 배치용 (2026-09-03 신설)</h4>
+  <p><b>문단이 아니라 파일이어야 했다.</b> §3.1 주의는 "확장이 안 되면 변형 hooks.json 을 배포한다" 고 적어 두었지만 그 변형이 패키지에 없었다. 실측(2026-09-03): 실제로 도는 유일한 설치가 <code>.mcp.json</code> 을 손으로 다시 쓰고 훅 6종을 손으로 갈아 끼웠다 — <b>패키지가 배포 가능한 물건이 아니면 사람은 포크한다.</b></p>
+  <p>고르는 기준은 하나다. <code>hooks/hooks.json</code>(기본)은 서버가 <code>nerv.example.com</code> 일 때 쓰고, 관리형 settings 의 <code>allowedHttpHookUrls</code> 가 그 훅들을 덮는다. <code>hooks/hooks.command.json</code> 은 <b>서버 주소가 다른 배치</b>에서 쓴다 — 훅 <code>url</code> 은 <code>${VAR}</code> 확장을 받지 않으므로(headers 만 받는다) 주소를 환경에서 읽으려면 <code>bin/nerv-hook-forward</code> 를 거쳐야 한다. 대가도 하나다: command 훅은 URL 화이트리스트에 걸리지 않는다. 어느 쪽이든 <b>가장 강한 강제는 서버 게이트 판정</b>이다.</p>
+  <p><code>.mcp.json</code> 은 변형이 필요 없다 — <code>url</code> 이 <code>${VAR}</code> 확장을 받으므로 <code>${NERV_SERVER:-https://nerv.example.com}/mcp</code> 하나로 둘 다 된다.</p>
+  <pre><code class="language-json">{
+  &quot;$comment&quot;: &quot;command 변형 — 서버 주소가 nerv.example.com 이 아닌 배치용. hooks/hooks.json 과 같은 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다(그 스크립트가 NERV_SERVER 와 .nerv/env 를 읽는다). 고르는 기준과 대가는 4.6 §3.1 이 정본이다.&quot;,
+  &quot;hooks&quot;: {
+    &quot;SessionStart&quot;: [
+      {
+        &quot;matcher&quot;: &quot;startup|resume|clear|compact|fork&quot;,
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\&quot; session&quot;,
+            &quot;timeout&quot;: 5
+          },
+          {
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\&quot; flush&quot;,
+            &quot;timeout&quot;: 20
+          }
+        ]
+      }
+    ],
+    &quot;PostToolUse&quot;: [
+      {
+        &quot;matcher&quot;: &quot;Write|Edit|MultiEdit|Bash&quot;,
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\&quot; tool&quot;,
+            &quot;async&quot;: true,
+            &quot;timeout&quot;: 5
+          }
+        ]
+      }
+    ],
+    &quot;SubagentStart&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\&quot; subagent&quot;,
+            &quot;async&quot;: true,
+            &quot;timeout&quot;: 3
+          }
+        ]
+      }
+    ],
+    &quot;SubagentStop&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\&quot; subagent&quot;,
+            &quot;async&quot;: true,
+            &quot;timeout&quot;: 3
+          }
+        ]
+      }
+    ],
+    &quot;Stop&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\&quot; stop&quot;,
+            &quot;timeout&quot;: 8
+          }
+        ]
+      }
+    ],
+    &quot;SessionEnd&quot;: [
+      {
+        &quot;hooks&quot;: [
+          {
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\&quot; session-end&quot;,
+            &quot;timeout&quot;: 5
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
 
   <h3>3.2 statusline — 서버 사실의 로컬 투영</h3>
 
@@ -876,13 +962,13 @@ printf '  %s · ctx %s%%%s · 미해소 finding %s\n' \
   <h3>3.3 <code>.mcp.json</code> 전문과 환경변수 전표</h3>
 
 <pre><code>{
-  "mcpServers": {
-    "nerv": {
-      "type": "http",
-      "url": "https://nerv.example.com/mcp",
-      "headers": {
-        "Authorization": "Bearer ${NERV_TOKEN}",
-        "X-NERV-Project": "${NERV_PROJECT}"
+  &quot;mcpServers&quot;: {
+    &quot;nerv&quot;: {
+      &quot;type&quot;: &quot;http&quot;,
+      &quot;url&quot;: &quot;${NERV_SERVER:-https://nerv.example.com}/mcp&quot;,
+      &quot;headers&quot;: {
+        &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot;,
+        &quot;X-NERV-Project&quot;: &quot;${NERV_PROJECT}&quot;
       }
     }
   }

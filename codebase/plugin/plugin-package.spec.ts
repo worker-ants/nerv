@@ -54,6 +54,12 @@ describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', 
     expect(file('.mcp.json')).toBe(fenceAfter('### 3.3 `.mcp.json` 전문', '```'));
   });
 
+  it('hooks/hooks.command.json', () => {
+    expect(file('hooks/hooks.command.json')).toBe(
+      fenceAfter('`hooks/hooks.command.json` 전문', '```'),
+    );
+  });
+
   it('.claude-plugin/plugin.json', () => {
     expect(file('.claude-plugin/plugin.json')).toBe(
       fenceAfter('`.claude-plugin/plugin.json` 전문', '```'),
@@ -114,6 +120,43 @@ describe('REQ-PLG-013 — 설치가 .nerv/ 를 무시 목록에 넣는다', () =
   });
 });
 
+describe('배포 — 서버 주소가 포크 없이 바뀐다 (PLG-04 · 2026-09-03)', () => {
+  // 실측 2026-09-03: 실제로 도는 유일한 설치가 `.mcp.json` 을 손으로 다시 쓰고 훅 6종을
+  // 손으로 갈아 끼웠다. 패키지가 배포 가능한 물건이 아니면 사람은 포크한다.
+  it('.mcp.json 은 NERV_SERVER 를 읽는다 — 기본값은 그대로다', () => {
+    const mcp = file('.mcp.json');
+    expect(mcp).toContain('${NERV_SERVER:-https://nerv.example.com}/mcp');
+  });
+
+  it('command 변형이 같은 다섯 엔드포인트를 덮는다 — 문단이 아니라 파일이다', () => {
+    const command = file('hooks/hooks.command.json');
+    for (const endpoint of ['session', 'tool', 'subagent', 'stop', 'session-end']) {
+      expect(command).toContain(`nerv-hook-forward\\" ${endpoint}`);
+    }
+    // 서버 주소는 스크립트가 NERV_SERVER 에서 읽는다 — 변형 파일에 도메인이 박히지 않는다
+    expect(command).not.toContain('nerv.example.com/ingest');
+  });
+
+  it('http 변형에는 command 전용 필드가 없다 — 무시되는 필드는 계약이 아니다', () => {
+    // `async` 는 command 핸들러의 필드다. http 훅에 적으면 조용히 무시되고, 그 훅은
+    // 동기로 기다린다(실측 2026-09-03 · HOOK-03).
+    expect(file('hooks/hooks.json')).not.toContain('"async"');
+  });
+
+  it('모든 훅에 상한이 있다 — 기본값 10분은 텔레메트리 평면의 상한이 아니다', () => {
+    for (const name of ['hooks/hooks.json', 'hooks/hooks.command.json']) {
+      const parsed = JSON.parse(file(name)) as {
+        hooks: Record<string, { hooks: Record<string, unknown>[] }[]>;
+      };
+      for (const groups of Object.values(parsed.hooks)) {
+        for (const group of groups) {
+          for (const hook of group.hooks) expect(hook['timeout']).toEqual(expect.any(Number));
+        }
+      }
+    }
+  });
+});
+
 describe('관리형 settings — 훅 URL 통제 (agent-integration §3.4 · §6.4)', () => {
   it('allowedHttpHookUrls 가 hooks.json 의 URL 전부를 덮는다', () => {
     const settings = JSON.parse(file('managed-settings.example.json')) as {
@@ -139,6 +182,7 @@ describe('패키지 구성', () => {
     'agents/nerv-spec-writer.md',
     'bin/nerv-hook-forward',
     'bin/nerv-outbox',
+    'hooks/hooks.command.json',
     'managed-settings.example.json',
     'README.md',
   ])('%s 가 있다', (path) => {
