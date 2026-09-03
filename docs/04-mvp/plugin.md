@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.27 · 2026-09-03 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.28 · 2026-09-03 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.28 변경(2026-09-03 — 스킬이 없는 인자를 부르고 있었다): 스킬 문장을 도구 실물에 맞췄다. `repo{}` → 평면 `branch`·`worktree_path`, `nerv_task_next` 의 `role`·`capabilities` 삭제, 클레임의 `branch`·`worktree` 삭제(세션이 등록한다), `nerv_spec_submit_review` 의 `note`·`reviewer_hint` 삭제, 기준 문서 열기를 후보 응답의 `spec_key`·`version_no` 로 고쳤다. 정본은 [3.4](../03-proposal/agent-integration.md) §2.3.
 > v0.27 변경(2026-09-03 — 포워더가 응답을 버리고 있었다): `bin/nerv-hook-forward` 가 서버 응답을 `/dev/null` 로 보내고 있어 `command` 폴백 설치에서는 `SessionStart` 주입도 `Stop` 의 종료 차단도 모델에 닿지 않았다 — 실측한 유일한 실사용 설치가 그 경로였다. 이제 JSON 응답을 stdout 으로 흘린다(§3.1).
 > v0.26 변경(2026-09-02 — 라이선스): 플러그인 매니페스트에 `"license": "Apache-2.0"` 을 더했다(§1.1). 플러그인은 저장소 밖으로 따로 배포되므로 매니페스트가 자기 배포 조건을 말해야 한다. (이 줄에 매니페스트 파일명을 그대로 쓰지 않는 이유가 있다 — `plugin-package.spec.ts` 는 문서에서 **그 이름 다음에 오는 첫 코드 펜스**를 전문으로 읽는다. 머리말이 같은 문자열을 먼저 쓰면 검사가 엉뚱한 펜스를 본다.)
 > v0.25 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
@@ -145,29 +146,28 @@ allowed-tools:
 ## 절차
 
 1. **bootstrap 확인.** 이 세션에서 `nerv_bootstrap`을 아직 호출하지 않았다면 지금 호출한다 —
-   입력: `project`, `agent_type`, `hostname`, `cwd`, `repo{remote,branch}`,
+   입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
    - 응답의 정책 버전이 이 플러그인이 가정한 규약과 다르면, 진행은 하되 사용자에게
      플러그인 재설치를 안내한다(서버가 policy.stale 이벤트를 남긴다).
 2. **다른 클레임을 쥐고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
-3. **후보 조회.** `nerv_task_next` — 입력: `project`, `role`, 필요 시 `spec_id`·`capabilities`,
-   `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
+3. **후보 조회.** `nerv_task_next` — 입력: `project`, `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
    **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·베이스라인, 권장 scope가 실려 있다.
    - 4요소 중 하나라도 비어 있으면 그 Task는 클레임하지 않는다. `nerv_question_create`로
      빈 요소를 지목해 에스컬레이션한다(/nerv:question 규약).
 4. **클레임.** `nerv_task_claim` — 입력: `task_id`, `scope{spec_ids,file_globs}`(응답의 권장
-   scope에서 시작하되 실제 건드릴 범위로 좁힌다), 필요 시 `branch`·`worktree`. `idempotency_key`
-   포함. 응답의 `claim_id`·`lease_expires_at`을 기록한다(리스 TTL 기본 30분, 하트비트로 갱신).
+   scope에서 시작하되 실제 건드릴 범위로 좁힌다). `idempotency_key` 포함.
+   (브랜치·워크트리는 `nerv_bootstrap`이 세션에 등록한다 — 클레임은 받지 않는다.) 응답의 `claim_id`·`lease_expires_at`을 기록한다(리스 TTL 기본 30분, 하트비트로 갱신).
 5. **겹침 응답 처리.**
    - 경고(겹침 있으나 허용): 상대 세션의 사용자·hostname·scope를 사용자에게 보여주고,
      계속할지 확인받는다.
    - `NERV_CONFLICT_SCOPE`: 클레임 실패다. 응답 details의 상대 정보를 보고하고
      다음 후보로 이동한다. 후보가 없으면 `nerv_question_create`.
 6. **기준 버전으로 컨텍스트 로드.** 구현 컨텍스트의 스펙 읽기는 항상
-   `nerv_spec_get`(`spec_id`, `version=<후보의 기준 버전>`)으로 한다 — 기본값(최신 approved)에
-   의존하지 않는다. Task에 베이스라인이 있으면 주변 문서도 `baseline` 인자로 그 세트를 읽는다.
+   `nerv_spec_get`(`spec_id=<후보의 spec_key>`, `version=<후보의 version_no>`)으로 한다 —
+   기본값(최신 approved)에 의존하지 않는다. 두 값은 후보 응답에 실려 온다.
    응답에 `basis_superseded`가 있으면 그 사실을 사람에게 보고한다(기준 버전 규약 —
    agent-integration §2.4).
 7. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
@@ -339,8 +339,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 
 ### submit — 검토 요청 (A3 · 사람 승인 필수)
 1. 먼저 check를 돌려 block이 없음을 확인한다.
-2. `nerv_spec_submit_review`(`spec_version_id`, `note`, 필요 시 `reviewer_hint`)를
-   호출한다. 이 도구는 allowed-tools에 없다 — **매 호출 사람 승인을 거치는 것이 정상이다.**
+2. `nerv_spec_submit_review`(`spec_version_id`)를 호출한다. 이 도구는 allowed-tools에 없다 — **매 호출 사람 승인을 거치는 것이 정상이다.**
    승인 대기(`NERV_APPROVAL_REQUIRED`)면 `approval_id`로 상태를 폴링하고,
    그동안 다른 작업을 시작하지 않는다.
 3. 성공 응답의 `web_url`을 터미널에 표시한다. 같은 `spec_version_id` 재호출은 기존

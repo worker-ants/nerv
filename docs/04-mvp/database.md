@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**33종** — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.22 · 2026-09-02 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.23 · 2026-09-03 · HTML 판: [database.html](../html/database.html)
 >
+> v0.23 변경(2026-09-03 — 받는 척하던 인자에 자리를 준다): 열 셋을 더한다(`0017_handoff_note`). `claim.release_note` 는 `nerv_task_release(state_note)` 의 인수인계 노트다 — **세션 타임라인이 아니라 클레임에** 붙는 이유는 다음 사람이 `nerv_task_next` 로 후보를 볼 때 거기서 읽어야 하기 때문이다. `claim.progress_note` 는 하트비트의 한 줄 요약(LWW — 이력이 아니라 '지금 무엇을 하는 중인가'). `agent_session.diff_files` 는 `stats` 의 셋째 값이다 — 줄 수만으로는 '한 파일을 크게' 와 '여러 파일을 조금' 이 같아 보인다. 계약 정본은 [4.4](api.md) §1.4e(REQ-API-081).
 > v0.22 변경(2026-09-02 — 사람 결정): §2.14 의 미구현(12개월 `DETACH`)에 **재검토 트리거를 숫자로** 적었다 — 파티션 24개 또는 `event` 1천만 행. "급하지 않다"는 판단은 있었는데 언제 다시 볼지가 없었고, 트리거 없는 유예는 유예가 아니라 망각이다. `0016` 은 걷어낸 정책 키를 저장된 값에서 지운다.
 > v0.21 변경(2026-09-02 — 계약의 실물화): **`idempotency_key` 신설**(0015 · §2.3b · 도메인 33종). [4.4](api.md) §1.5 가 "같은 저장소" 라고 적어 둔 그 저장소가 없었다 — 헤더도 도구 인자도 받기만 하고 버려졌고, 같은 클레임이 두 번 만들어졌다. 행에 `project_id` 가 없는 이유는 주체가 프로젝트가 아니라 자격증명이라서다.
 > v0.20 변경(2026-09-02 — 정본 정리): **DDL 정본에 세 가지가 없었다** — `invitation`(0006)·`attachment`(0013)·`agent_session.activity_summary`(0012), 그리고 `spec_key_uq`(0009). 변경 기록은 신설을 적었는데 본문 DDL 은 그대로였다: 이 문서만 읽고 스키마를 다루는 사람은 마이그레이션 SQL 을 역으로 읽어야 했다. §2.3 의 "참조 키 아님" 주석도 2026-08-30 사람 결정과 반대였다. 계수 표기(29/30/32 · enum 38/39)는 **실측으로 통일**했다 — 도메인 32종 · enum 39종.
@@ -482,6 +483,8 @@ CREATE TABLE claim (                          -- D-04의 실체. nerv_task_claim
   last_heartbeat_at timestamptz NOT NULL DEFAULT now(),
   released_at      timestamptz,
   release_reason   claim_release_reason,
+  release_note     text,                                 -- 인수인계 노트(2026-09-03 · REQ-API-081)
+  progress_note    text,                                 -- 하트비트의 한 줄 진행 요약(LWW)
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 -- "한 Task에 활성 클레임은 하나"는 §2.12의 partial unique — claim_task_active_uq
@@ -511,6 +514,7 @@ CREATE TABLE agent_session (
   end_reason          session_end_reason,
   diff_added          int NOT NULL DEFAULT 0, -- 세션 카드의 +N −M
   diff_removed        int NOT NULL DEFAULT 0,
+  diff_files          int NOT NULL DEFAULT 0, -- 하트비트 stats 의 셋째 값(2026-09-03)
   token_usage         jsonb NOT NULL DEFAULT '{}',
   current_task_id     uuid,                   -- 조회 편의 비정규화(진실은 claim). FK는 §2.11
   created_at          timestamptz NOT NULL DEFAULT now()

@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.57 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.58 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
 >
+> v0.58 변경(2026-09-03 — 받는 척하던 인자를 실물로, 사람 결정): **REQ-API-081 신설.** v0.57 이 드러낸 유령 인자 열한 종 중 일곱을 배선했다 — `state_note`·`progress`·`stats`·`include[tasks,comments]`·`resolved_in_version_id`·`lease_seconds`·후보의 `spec_key`·`version_no`. 열 셋이 새로 생겼다(`claim.release_note`·`claim.progress_note`·`agent_session.diff_files` — 4.3 참조). 나머지 넷은 정본 표에서 걷었다(3.4 v0.10).
 > v0.57 변경(2026-09-03 — 유령 인자, 실측): **§1.4e 보강**(REQ-API-080). 스키마에 없는 인자를 검사도 거부도 없이 지나쳐, 스킬이 지시하는 인자 열한 종이 성공 응답과 함께 사라지고 있었다. 거부하지 않되 `ignored_args`(성공)·`details.unknown`(거절)로 버렸다는 사실을 말한다 — 개별 인자의 구현·삭제는 그다음 결정이다.
 > v0.56 변경(2026-09-03 — 채택 규칙을 좁힌다, 사람 결정): REQ-API-079 의 선택 규칙을 확정했다. **`cwd` 필수**(hostname 만으로 고르는 가지를 닫는다)와 **마지막 활동 시각 1순위**(유령 세션이 등록 시각으로 이기지 못하게 한다). §1.4c 의 점화 기록을 해소로 닫았다.
 > v0.55 변경(2026-09-03 — 훅 세션 채택에 번호를 준다, 사람 결정): §1.4c 에 **REQ-API-079** 를 신설했다. 어제까지 이 동작은 산문에만 있었다. 함께 **재검토 트리거 하나를 점화 기록으로 남긴다** — 후보가 여럿일 때의 선택 규칙("가장 최근")이 같은 DB 의 실측과 어긋난다: 겹친 쌍 14건 중 10건에서 나중 세션은 활동 0의 유령이었다.
@@ -346,6 +347,7 @@ HTTP 상태 매핑:
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-044 | WHEN MCP 도구 호출이 오면 THE SYSTEM SHALL 핸들러 실행 **전에** 스키마의 필수 인자·타입·열거값을 검사하고, 어긋난 항목의 이름과 함께 `invalid_input` 으로 거부한다 |
+| REQ-API-081 | WHEN `nerv_task_release` 가 `state_note` 를 실으면 THE SYSTEM SHALL 그것을 `claim.release_note` 에 저장하고 응답에 되돌려주며, WHEN `nerv_task_next` 가 후보를 돌려주면 THE SYSTEM SHALL 그 Task 의 가장 최근 인수인계 노트를 `handoff_note` 로 함께 싣는다. WHEN `nerv_task_heartbeat` 가 `progress`·`stats` 를 실으면 THE SYSTEM SHALL `progress` 를 `claim.progress_note` 에 덮어쓰고(LWW) `stats{added,removed,files}` 를 세션의 diff 열에 반영한다 — 실리지 않은 값은 이전 값을 지우지 않는다. WHEN `nerv_spec_get` 이 `include` 에 `tasks`·`comments` 를 실으면 THE SYSTEM SHALL 파생 Task 목록과 코멘트 목록을 함께 반환한다 |
 | REQ-API-080 | WHEN MCP 도구 호출이 스키마에 없는 인자를 실으면 THE SYSTEM SHALL 그 호출을 거부하지 않고, 성공 응답에 무시한 인자 이름을 `ignored_args` 로 싣는다. WHEN 같은 호출이 다른 이유로 거절되면 THE SYSTEM SHALL `details.unknown` 에 그 이름을 함께 싣는다. WHILE 게이트웨이가 직접 읽는 봉투 인자(`session_id`·`idempotency_key`)는 THE SYSTEM SHALL 무시 목록에서 제외한다 |
 | REQ-API-045 | WHEN 초안 저장이 본문을 `body_markdown` 또는 `body_md` 중 하나로 실으면 THE SYSTEM SHALL 그것을 본문으로 받고, 둘 다 없으면 거부한다. WHEN 비어 있지 않은 초안에 빈 본문이 오면 THE SYSTEM SHALL `empty_body` 로 거부한다 |
 

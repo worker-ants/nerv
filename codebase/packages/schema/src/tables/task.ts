@@ -153,6 +153,20 @@ export const claim = pgTable(
       .default(sql`now()`),
     releasedAt: ts('released_at'),
     releaseReason: claimReleaseReason('release_reason'),
+    /**
+     * 인수인계 노트 — `nerv_task_release(state_note)` 가 남기는 것(2026-09-03 신설 · REQ-API-081).
+     *
+     * 카탈로그(3.4 §2.3)는 이 입력과 "인수인계 노트" 출력을 처음부터 적고 있었지만 저장할
+     * 열이 없어 **성공 응답과 함께 버려졌다.** 다음 사람이 이 작업을 집을 때 "왜 내려놨나"에
+     * 답하는 자리이므로 세션 타임라인이 아니라 **클레임에** 붙는다 — 타임라인에만 있으면
+     * `nerv_task_next` 로 후보를 보는 다음 에이전트가 찾지 못한다.
+     */
+    releaseNote: text('release_note'),
+    /**
+     * 진행 요약 — 하트비트가 60초마다 덮어쓴다(LWW). 카탈로그의 `progress?` 가 여기 앉는다.
+     * 이력이 아니라 **지금 무엇을 하는 중인가**라서 행을 쌓지 않는다(하트비트는 자연 멱등이다).
+     */
+    progressNote: text('progress_note'),
     createdAt: createdAt(),
   },
   (t) => [

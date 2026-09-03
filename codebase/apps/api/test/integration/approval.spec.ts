@@ -14,6 +14,7 @@ import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
+import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { NotificationService } from '../../src/modules/event/notification.service.js';
@@ -46,6 +47,7 @@ beforeAll(async () => {
     events,
     new SpecCheckService(drizzleDb),
     new SpecRelationService(drizzleDb),
+    new SpecCommentService(events, drizzleDb),
     drizzleDb,
   );
   approvals = new ApprovalService(events, specs, new AuthService(drizzleDb), drizzleDb);

@@ -50,9 +50,11 @@ export const agentSession = pgTable(
     lastHeartbeatAt: ts('last_heartbeat_at'),
     endedAt: ts('ended_at'),
     endReason: sessionEndReason('end_reason'),
-    /** 세션 카드의 +N −M */
+    /** 세션 카드의 +N −M — `nerv_task_heartbeat(stats)` 가 채운다(2026-09-03 배선) */
     diffAdded: integer('diff_added').notNull().default(0),
     diffRemoved: integer('diff_removed').notNull().default(0),
+    /** 같은 stats 의 셋째 값 — 줄 수만으로는 "한 파일을 크게" 와 "여러 파일을 조금" 이 같아 보인다 */
+    diffFiles: integer('diff_files').notNull().default(0),
     tokenUsage: jsonb('token_usage').notNull().default({}),
     /**
      * **원문이 사라진 뒤에도 남는 것**(2026-09-01 신설 · REQ-API-067).

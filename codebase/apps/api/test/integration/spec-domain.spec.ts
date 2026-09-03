@@ -50,7 +50,13 @@ beforeAll(async () => {
   const drizzleDb = drizzle(pool);
   const events = new EventService(drizzleDb, silent);
   relations = new SpecRelationService(drizzleDb);
-  specs = new SpecService(events, new SpecCheckService(drizzleDb), relations, drizzleDb);
+  specs = new SpecService(
+    events,
+    new SpecCheckService(drizzleDb),
+    relations,
+    new SpecCommentService(events, drizzleDb),
+    drizzleDb,
+  );
   baselines = new BaselineService(events, drizzleDb);
   comments = new SpecCommentService(events, drizzleDb);
   search = new SearchService(drizzleDb);

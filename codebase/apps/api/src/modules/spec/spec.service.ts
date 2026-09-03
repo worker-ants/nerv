@@ -31,6 +31,7 @@ import { EventService } from '../event/event.service.js';
 import { decideGate, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
+import { SpecCommentService } from './spec-comment.service.js';
 import type { CheckResult } from './spec-check.service.js';
 import { readerHash } from './reader-hash.js';
 import { requirementsOf, specDelta } from './spec-delta.js';
@@ -126,6 +127,9 @@ export class SpecService {
     private readonly events: EventService,
     private readonly checks: SpecCheckService,
     private readonly relationService: SpecRelationService,
+    // `include=["comments"]` 하나 때문에 주입한다 — 판정은 그쪽 서비스 한 곳이다(D-05).
+    // 질의를 여기에 복사하면 열린 코멘트의 정의가 두 곳이 되고, 두 곳은 반드시 갈라진다.
+    private readonly comments: SpecCommentService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -172,6 +176,13 @@ export class SpecService {
     /** 안정 키(`SPC-…`) 또는 UUID — 둘 다 받는다(§1.4b) */
     specKey: string;
     versionNo?: number | null;
+    /**
+     * 곁들여 실을 것(REQ-API-081). 카탈로그는 처음부터 `include[]` 를 적고 있었지만 도구도
+     * 서비스도 받지 않아 **스킬이 코멘트를 나열할 방법이 없었다**(실측 2026-09-03:
+     * 스펙 158·요구사항 739 가 도는 프로젝트에서 사람 코멘트가 0건이다).
+     * `requirements` 는 늘 실린다 — 옵션으로 두면 기존 호출이 조용히 얇아진다.
+     */
+    include?: readonly string[] | null;
   }): Promise<Record<string, unknown>> {
     // **기본은 최신 approved 다**(EP-SPEC-03 · REQ-WEB-011). current_version_id 를 그냥 주면
     // 초안이 기본 화면에 뜨고, 그러면 "승인된 것"과 "쓰는 중인 것"의 구분이 화면에서 사라진다
@@ -218,11 +229,33 @@ export class SpecService {
        ORDER BY ref
     `);
 
+    const include = new Set(input.include ?? []);
+
+    // **파생 Task 는 요청해야 온다.** 화면의 영향 미리보기가 이 값을 세는데 응답에 없어
+    // 언제나 "0건" 이라 말했다(실측 2026-09-03: 파생 Task 를 가진 스펙 86개, 최대 29건).
+    const tasks = include.has('tasks')
+      ? (
+          await this.db.execute<Record<string, unknown>>(sql`
+            SELECT t.id, t.key, t.title, t.status::text AS status
+              FROM task t
+              JOIN spec_version sv ON sv.id = t.source_spec_version_id
+             WHERE t.project_id = ${input.projectId} AND sv.spec_id = ${spec['spec_id'] as string}
+             ORDER BY t.created_at DESC
+          `)
+        ).rows
+      : undefined;
+
+    const comments = include.has('comments')
+      ? await this.comments.list({ projectId: input.projectId, specKey: String(spec['key']) })
+      : undefined;
+
     return {
       ...spec,
       // 본문이 없는 노드는 빈 본문이다 — null 을 그대로 흘리면 화면이 "null" 을 쓴다
       body_md: spec['body_md'] ?? '',
       requirements,
+      ...(tasks === undefined ? {} : { tasks }),
+      ...(comments === undefined ? {} : { comments }),
       // 기준 버전이 이미 지나간 판이면 표시한다 — 재브리핑의 신호다(§2.4)
       basis_superseded: spec['superseded_by_version_id'] != null,
     };

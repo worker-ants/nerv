@@ -69,6 +69,11 @@ export interface ReadyCandidate extends Record<string, unknown> {
   boundaries_md: string;
   source_spec_version_id: string | null;
   baseline_id: string | null;
+  /** 기준 문서를 여는 데 필요한 것 — `nerv_spec_get(spec_key, version_no)` 가 그대로 받는다 */
+  spec_key: string | null;
+  version_no: number | null;
+  /** 앞 사람이 `nerv_task_release(state_note)` 로 남긴 인수인계 노트 */
+  handoff_note: string | null;
 }
 
 /**
@@ -104,9 +109,18 @@ export class TaskService {
     const { rows } = await this.db.execute<ReadyCandidate>(sql`
       SELECT t.id, t.key, t.title, t.priority::text AS priority,
              t.goal_md, t.output_format_md, t.tools_sources_md, t.boundaries_md,
-             t.source_spec_version_id, t.baseline_id
+             t.source_spec_version_id, t.baseline_id,
+             -- **기준 문서를 열 수 있게 한다**(REQ-API-081). 조인은 처음부터 있었는데 sv 에서
+             -- 아무것도 고르지 않아, 스킬 6단계("기준 버전으로 nerv_spec_get")를 응답만으로는
+             -- 수행할 수 없었다 — id 는 있는데 키와 판 번호가 없었다.
+             s.key AS spec_key, sv.version_no,
+             -- 앞 사람이 남긴 인수인계 노트 — "왜 내려놨나" 가 후보 목록에서 보여야 한다
+             (SELECT c.release_note FROM claim c
+               WHERE c.task_id = t.id AND c.release_note IS NOT NULL
+               ORDER BY c.released_at DESC NULLS LAST LIMIT 1) AS handoff_note
         FROM task t
         LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
+        LEFT JOIN spec s ON s.id = sv.spec_id
        WHERE t.project_id = ${input.projectId}
          AND t.status = 'ready'
          AND t.blocked_reason IS NULL
@@ -739,6 +753,10 @@ export class TaskService {
     /** 전표의 "클레임 보유자"(EP-TASK-07) — 부른 주체다 */
     actor: ClaimActor;
     leaseSeconds?: number;
+    /** 한 줄 진행 요약 — 이력이 아니라 **지금 무엇을 하는 중인가**라 덮어쓴다(LWW) */
+    progress?: string | null;
+    /** 세션 카드의 +N −M — 카탈로그가 처음부터 적고 있던 셋(REQ-API-081) */
+    stats?: { added?: number; removed?: number; files?: number } | null;
   }): Promise<{ leaseExpiresAt: Date; pending: unknown[] }> {
     const owned = await this.assertClaimOwner(input.claimId, input.actor, 'heartbeat');
 
@@ -746,10 +764,30 @@ export class TaskService {
       this.claims.renewLease(tx, input.claimId, input.leaseSeconds),
     );
 
+    if (input.progress != null && input.progress !== '') {
+      await this.db.execute(
+        sql`UPDATE claim SET progress_note = ${input.progress} WHERE id = ${input.claimId}`,
+      );
+    }
+
     // 역채널 — 답변된 질문을 여기 싣는다. Claude 의 channel capability 는 향상이고
     // 하트비트가 정본이다(Codex 에는 채널이 없다). 여기 실리지 않으면 에이전트는 모른다.
     const sessionId = owned.agentSessionId;
     if (sessionId === null) return { leaseExpiresAt, pending: [] };
+
+    // **세션 카드의 +N −M 이 여기서 채워진다.** 열은 처음부터 있었고 읽는 화면도 있었는데
+    // 쓰는 곳이 없어 실사용 세션 34개 전부 `+0 −0` 이었다(실측 2026-09-03). 하트비트는
+    // 자연 멱등(LWW)이라 마지막 값이 곧 현재 값이다 — 누적이 아니라 덮어쓰기다.
+    const stats = input.stats ?? null;
+    if (stats !== null) {
+      await this.db.execute(sql`
+        UPDATE agent_session
+           SET diff_added = coalesce(${num(stats.added)}::int, diff_added),
+               diff_removed = coalesce(${num(stats.removed)}::int, diff_removed),
+               diff_files = coalesce(${num(stats.files)}::int, diff_files)
+         WHERE id = ${sessionId}
+      `);
+    }
 
     // **사람이 보낸 지시도 여기 실린다**(2026-09-01 · REQ-API-072).
     //
@@ -817,21 +855,30 @@ export class TaskService {
     claimId: string;
     reason: 'done' | 'handoff' | 'abandon';
     userId: string;
+    /**
+     * 인수인계 노트(REQ-API-081). 카탈로그는 처음부터 이 입력과 "인수인계 노트" 출력을
+     * 적고 있었지만 저장할 열이 없어 **성공 응답과 함께 버려졌다** — 에이전트는 노트를
+     * 남겼다고 믿고 다음 사람은 빈 Task 를 집었다(실측 2026-09-03).
+     */
+    stateNote?: string | null;
     /** 전표의 "클레임 보유자 또는 admin"(EP-TASK-08) */
     actor: ClaimActor;
-  }): Promise<{ taskStatus: string }> {
+  }): Promise<{ taskStatus: string; state_note: string | null }> {
     await this.assertClaimOwner(input.claimId, input.actor, 'release');
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         task_id: string;
         project_id: string;
         agent_session_id: string | null;
+        release_note: string | null;
       }>(sql`
         UPDATE claim
            SET status = 'released', released_at = now(),
-               release_reason = ${input.reason === 'done' ? 'done' : 'manual'}
+               release_reason = ${input.reason === 'done' ? 'done' : 'manual'},
+               -- 빈 노트로 앞의 노트를 지우지 않는다 — 인계는 덧쓰기가 아니라 남기는 일이다
+               release_note = coalesce(${input.stateNote ?? null}::text, release_note)
          WHERE id = ${input.claimId} AND status = 'active'
-        RETURNING task_id, project_id, agent_session_id
+        RETURNING task_id, project_id, agent_session_id, release_note
       `);
       const claim = rows[0];
       if (claim === undefined) {
@@ -863,7 +910,7 @@ export class TaskService {
         payload: { reason: input.reason },
       });
 
-      return { taskStatus };
+      return { taskStatus, state_note: claim.release_note };
     });
   }
 
@@ -1063,4 +1110,14 @@ function toDetail(o: Overlap): Record<string, unknown> {
     severity: o.severity,
     overlap: { spec_ids: o.specHit, file_globs: o.fileHit },
   };
+}
+
+/**
+ * 통계 값 하나 — 숫자가 아니면 `null` 이라 `coalesce` 가 이전 값을 지킨다.
+ *
+ * 셋 중 하나만 보낸 하트비트가 나머지 둘을 0 으로 지우면, 화면의 `+0 −0` 은 "변경이 없다"
+ * 가 아니라 "말하지 않았다" 를 뜻하게 된다 — 두 가지는 다르게 보여야 한다.
+ */
+function num(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : null;
 }
