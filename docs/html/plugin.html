@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.26 (2026-09-02)</span>
+      <span>버전 v0.27 (2026-09-03)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -797,6 +797,11 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
   <div class="callout warn"><span class="ico">⚠️</span><div class="body">
     <b class="title">Phase 0 실측 항목 — 훅 헤더의 <code>${NERV_TOKEN}</code> 확장</b>
     <p><code>.mcp.json</code>의 <code>${VAR}</code> 확장은 공식 지원이 확인되지만 훅 <code>headers</code>에서의 동작은 1차 문서에서 확인하지 못했다(정본의 §3.3 주의와 동일). 확장이 안 되면 위 6개 항목의 <code>type:"http"</code>를 <code>type:"command"</code> + <code>bin/nerv-hook-forward</code>(토큰 주입 래퍼)로 바꾼 변형 hooks.json을 배포한다 — Codex 포워더와 같은 바이너리라 추가 비용이 없다. 이 실측은 <a href="backlog.html">4.8 백로그</a> E06-S06으로 등재되어 있다.</p>
+  </div></div>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">포워더는 응답을 흘린다 (2026-09-03 정정 · 실측)</b>
+    <p><code>bin/nerv-hook-forward</code> 는 서버 응답을 <code>/dev/null</code> 로 버리고 있었다 — 그래서 <code>command</code> 폴백을 쓰는 설치에서는 <code>SessionStart</code> 의 컨텍스트 주입도 <code>Stop</code> 의 <code>{"decision":"block"}</code> 도 <b>모델에 도달하지 못했다.</b> 실측한 유일한 실사용 설치가 정확히 그 폴백 경로였다(훅 6종 전부 <code>type:"command"</code>). 이제 포워더는 응답 본문이 JSON 이면 stdout 으로 그대로 내보낸다 — <code>command</code> 훅의 stdout 은 <code>http</code> 훅의 응답 본문과 같은 자리다. JSON 이 아닌 본문(프록시의 HTML 오류 페이지 등)은 내보내지 않는다.</p>
   </div></div>
 
   <h3>3.2 statusline — 서버 사실의 로컬 투영</h3>

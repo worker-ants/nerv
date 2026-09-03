@@ -30,13 +30,22 @@ base="${NERV_SERVER:-https://nerv.example.com}"
 [[ -z "${payload}" ]] && exit 0
 
 # 실패해도 0 으로 끝낸다 — 훅의 실패가 세션을 멈추면 텔레메트리가 조정 경로가 되어버린다.
-curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" \
+response="$(curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" \
   --request POST "${base}/ingest/hooks/${endpoint}" \
   --header "content-type: application/json" \
   --header "Authorization: Bearer ${NERV_TOKEN:-}" \
   --header "X-NERV-Project: ${NERV_PROJECT:-}" \
   --header "X-NERV-Host: ${NERV_HOSTNAME:-$(hostname -s 2>/dev/null || echo unknown)}" \
   --header "X-NERV-Agent: ${NERV_AGENT_TYPE:-claude-code}" \
-  --data "${payload}" >/dev/null 2>&1 || true
+  --data "${payload}" 2>/dev/null || true)"
+
+# **응답을 흘려보낸다**(2026-09-03). 예전에는 본문을 `/dev/null` 로 버렸다 — 그래서 이 경로를
+# 쓰는 설치에서는 SessionStart 의 컨텍스트 주입도, Stop 의 `{"decision":"block"}` 도 모델에
+# 도달하지 못했다. command 훅의 stdout 은 **JSON 이면 판정으로 읽힌다**(http 훅의 응답 본문과
+# 같은 자리다). JSON 이 아닌 것은 내보내지 않는다: 프록시의 HTML 오류 페이지가 전사에 섞이면
+# 사람이 그것을 훅의 말로 읽는다.
+case "${response}" in
+  '{'*) printf '%s' "${response}" ;;
+esac
 
 exit 0

@@ -93,6 +93,15 @@ describe('인증 — 토큰 없는 이벤트는 버린다 (§6.5)', () => {
   );
 });
 
+/**
+ * 주입은 **래퍼 안에 있어야** 모델에 닿는다 — 최상위 `additionalContext` 는 Claude Code 가
+ * 조용히 무시한다(2026-09-03). 이 헬퍼가 그 자리를 한 곳에서 읽는다.
+ */
+function injected(body: Record<string, unknown>): string {
+  const wrapper = body['hookSpecificOutput'] as Record<string, unknown> | undefined;
+  return String(wrapper?.['additionalContext'] ?? '');
+}
+
 describe('SessionStart — 등록 + 컨텍스트 주입', () => {
   it('세션을 만들고 클레임 없음을 안내한다', async () => {
     const res = await hook(
@@ -101,7 +110,10 @@ describe('SessionStart — 등록 + 컨텍스트 주입', () => {
       { host: 'mac-07' },
     );
     expect(res.status).toBe(202);
-    expect(res.body['additionalContext']).toContain('활성 클레임 없음');
+    // 래퍼가 계약이다 — 최상위로 돌려주면 훅은 성공하고 주입만 사라진다
+    expect(res.body['hookSpecificOutput']).toMatchObject({ hookEventName: 'SessionStart' });
+    expect(res.body['additionalContext']).toBeUndefined();
+    expect(injected(res.body)).toContain('활성 클레임 없음');
 
     const { rows } = await pool.query<{ hostname: string; state: string; agent_type: string }>(
       `SELECT hostname, state::text AS state, agent_type::text AS agent_type
@@ -160,8 +172,8 @@ describe('SessionStart — 등록 + 컨텍스트 주입', () => {
       taskId,
     ]);
     const again = await hook('session', { session_id: EXTERNAL_SESSION }, { host: 'mac-07' });
-    expect(again.body['additionalContext']).toContain(task[0]!.key);
-    expect(again.body['additionalContext']).toContain('새로 클레임하지 말고');
+    expect(injected(again.body)).toContain(task[0]!.key);
+    expect(injected(again.body)).toContain('새로 클레임하지 말고');
   });
 
   it('알 수 없는 에이전트 종류는 other 로 적재한다 — enum 밖 값으로 실패시키지 않는다', async () => {
@@ -243,6 +255,26 @@ describe('Stop — 유일한 동기 판정 경로', () => {
   it('세션을 모르면 막지 않는다 — 판정할 근거가 없을 때 막는 것은 방해다', async () => {
     const res = await hook('stop', { session_id: 'S-unknown-2' });
     expect(res.body['decision']).toBeUndefined();
+  });
+
+  // clemvion 이 같은 자리에서 같은 답을 냈다(1.2 §"stop_hook_active면 즉시 허용").
+  // 확인하지 않으면 클레임을 쥔 채 사람에게 물으려는 턴마다 강제 계속이 반복된다.
+  it('이미 Stop 훅으로 계속하는 중이면 다시 막지 않는다 — anti-wedge', async () => {
+    const start = await hook('session', { session_id: EXTERNAL_SESSION }, { host: 'mac-07' });
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status, lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+      [newId(), projectId, taskId, String(start.body['session_id']), userId],
+    );
+    await pool.query(`UPDATE task SET status = 'in_progress' WHERE id = $1`, [taskId]);
+
+    // 같은 상태에서 첫 판정은 막는다 — 막을 이유가 사라진 것이 아니라는 대조군이다
+    const first = await hook('stop', { session_id: EXTERNAL_SESSION });
+    expect(first.body['decision']).toBe('block');
+
+    const again = await hook('stop', { session_id: EXTERNAL_SESSION, stop_hook_active: true });
+    expect(again.body['decision']).toBeUndefined();
+    expect(again.body['ok']).toBe(true);
   });
 });
 

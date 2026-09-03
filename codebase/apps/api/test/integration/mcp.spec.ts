@@ -596,6 +596,122 @@ describe('E03-S03 세션 추정 — 스키마대로 부르면 된다', () => {
   });
 });
 
+/**
+ * 훅 세션 채택 — 기본 설치의 첫 클레임이 막히던 자리(2026-09-03).
+ *
+ * SessionStart 훅이 세션 A 를 만들고, 스킬의 `nerv_bootstrap` 이 하네스 id 를 모른 채
+ * 세션 B 를 만들면 살아 있는 세션이 둘이 되어 `nerv_task_claim` 이 `session_ambiguous` 로
+ * 거부됐다. **실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 0건.** 그래서 서버가
+ * 알아보는 쪽이 됐다 — 스킬이 `session_id` 를 싣는 길은 하네스가 그 값을 모델에 주지
+ * 않아서 막혀 있다.
+ */
+describe('E03-S03 훅 세션 채택 — 두 평면이 한 세션을 쓴다', () => {
+  async function clearSessions(): Promise<void> {
+    await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
+  }
+
+  async function sessionStartHook(
+    external: string,
+    hostname: string,
+    cwd: string,
+  ): Promise<string> {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ingest/hooks/session',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+        'x-nerv-host': hostname,
+        'x-nerv-agent': 'claude-code',
+      },
+      payload: { session_id: external, cwd },
+    });
+    return String((res.json() as Record<string, unknown>)['session_id']);
+  }
+
+  it('bootstrap 이 훅 세션을 채택한다 — 세션은 하나로 남는다', async () => {
+    await clearSessions();
+    const hookSession = await sessionStartHook('S-hook-adopt', 'mac-adopt', '/work/clemvion');
+
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-adopt',
+      cwd: '/work/clemvion',
+      branch: 'fix/adopt',
+    });
+
+    expect(boot['session_id']).toBe(hookSession);
+    expect(boot['resumed']).toBe(true);
+
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM agent_session
+        WHERE project_id = $1 AND state IN ('pending','active','awaiting_input')`,
+      [projectId],
+    );
+    expect(rows[0]?.n).toBe(1);
+  });
+
+  it('채택한 세션에 신원을 채운다 — 훅 페이로드에는 branch·worktree·model 이 없다', async () => {
+    await clearSessions();
+    const hookSession = await sessionStartHook('S-hook-identity', 'mac-id', '/work/clemvion');
+
+    await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-id',
+      cwd: '/work/clemvion',
+      branch: 'feat/identity',
+      worktree_path: '/work/clemvion',
+      model: 'claude-opus-5',
+    });
+
+    const { rows } = await pool.query<{
+      branch: string | null;
+      worktree_path: string | null;
+      model: string | null;
+    }>(`SELECT branch, worktree_path, model FROM agent_session WHERE id = $1`, [hookSession]);
+    expect(rows[0]).toMatchObject({
+      branch: 'feat/identity',
+      worktree_path: '/work/clemvion',
+      model: 'claude-opus-5',
+    });
+  });
+
+  it('채택 뒤 첫 클레임이 막히지 않는다 — 이 스위트가 지키려는 것', async () => {
+    await clearSessions();
+    await sessionStartHook('S-hook-claim', 'mac-claim', '/work/clemvion');
+    await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-claim',
+      cwd: '/work/clemvion',
+    });
+
+    const question = await callTool('nerv_question_create', {
+      question: '채택된 세션의 질문',
+      urgency: 'normal',
+    });
+    expect(question['ok']).toBe(true);
+  });
+
+  it('다른 호스트·다른 cwd 는 채택하지 않는다 — 남의 세션을 삼키면 오귀속이다', async () => {
+    await clearSessions();
+    await sessionStartHook('S-hook-other', 'mac-one', '/work/clemvion');
+
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-two',
+      cwd: '/work/clemvion',
+    });
+    expect(boot['resumed']).toBe(false);
+
+    const elsewhere = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-one',
+      cwd: '/work/other-repo',
+    });
+    expect(elsewhere['resumed']).toBe(false);
+  });
+});
+
 describe('P2 리뷰 도구 2종 — 카탈로그에 들어온 표면 (FR-09, 2026-08-23)', () => {
   it('리뷰를 제출하면 세션·발견이 레코드로 남는다 — 파일 커밋 대신', async () => {
     const result = await callTool(

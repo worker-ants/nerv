@@ -2,8 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **22종**(2026-09-02 실측 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.7 · 2026-09-02 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.8 · 2026-09-03 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 >
+> v0.8 변경(2026-09-03 — 훅 평면과 세션 평면이 갈라져 있었다): 기본 설치의 **첫 클레임이 막히고 있었다.** `SessionStart` 훅이 세션 A 를, 스킬의 `nerv_bootstrap` 이 세션 B 를 만들어 살아 있는 세션이 둘이 되고, `nerv_task_claim` 은 `session_ambiguous` 로 거부됐다 — 실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 **0건**. 세 가지를 §2.4·§3.3에 못 박았다. ① **훅 세션 채택** — bootstrap 이 id 없이 오면 같은 사람·hostname·cwd 의 살아 있는 훅 세션을 채택하고 훅이 모르는 `branch`·`worktree_path`·`model` 을 빈 자리에만 채운다(반대편은 막혀 있다 — 하네스가 모델에게 `session_id` 를 주지 않는다). ② **`hookSpecificOutput` 래퍼** — 최상위 `additionalContext` 는 훅 문서가 "조용히 무시한다"고 못 박은 자리라 세션 37개 내내 주입이 닿지 않았다. ③ **`stop_hook_active` 면 즉시 허용** — 우리 문제 정의([1.2](../01-problem/clemvion-analysis.md) §3)가 이미 적어 둔 anti-wedge 를 서버가 되풀이하고 있었다.
 > v0.7 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.6 변경(2026-08-30 — 표에만 있고 도구에는 없던 입력, 사람 결정): `nerv_question_create` 의 `context`·`escalate`·`blocking`·`wait_seconds` 는 이 표와 스킬이 지시하면서 도구가 받지 않던 것들이다 — 이제 받는다. `blocking` 과 `urgency` 가 같은 축이라는 것을 §2.4에 적었다. 처리 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.4d(REQ-API-042).
 >
@@ -114,7 +115,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 | 도구 | 입력(주요) | 출력 | 필요 권한 | 티어 | 호출 시점 | 멱등성 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `nerv_bootstrap` | `project`, `agent_type`, `hostname`, `cwd`, `repo{remote,branch}`, `resume_session_id?` | `session_id`, 규약 스펙(convention/vision) 요약, 내 활성 클레임(**Task 기준 버전·베이스라인 포함**), 게이트 정책·자율성 레벨, 컨텍스트 팩 ETag | `spec:read` + `agent-session:launch`(자기 세션) | A1 | 세션 시작 직후 **첫 도구 호출** | 멱등 — 같은 `session_id`/`resume_session_id`면 동일 스냅샷 반환 |
+| `nerv_bootstrap` | `project`, `agent_type`, `hostname`, `cwd`, `repo{remote,branch}`, `resume_session_id?` | `session_id`, 규약 스펙(convention/vision) 요약, 내 활성 클레임(**Task 기준 버전·베이스라인 포함**), 게이트 정책·자율성 레벨, 컨텍스트 팩 ETag | `spec:read` + `agent-session:launch`(자기 세션) | A1 | 세션 시작 직후 **첫 도구 호출** | 멱등 — 같은 `session_id`/`resume_session_id`면 동일 스냅샷 반환. 둘 다 없으면 **같은 사람·hostname·cwd 의 살아 있는 훅 세션을 채택한다**(2026-09-03 · §2.4) |
 | `nerv_spec_tree` | `project`, `root_spec_id?`, `depth?`, `status?` | 스펙 노드 트리(id·title·type·문서 상태·현재 버전) | `spec:read` | A1 | 스펙 탐색 시작 | 읽기 전용 |
 | `nerv_spec_search` | `query`, `type?`, `status?`, `requirement_id?`, `references?`(이 스펙을 참조하는 문서만 — REST EP-SPEC-02와 동일 필터), `limit` | 매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫 + 관련도) + **`related[]`**(상위 결과의 `spec_relation` 1-hop — 질의에 없지만 걸려 있는 스펙) + `degraded?`(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 [4.4 API 명세](../04-mvp/api.md) §2.2b) | `spec:read` | A1 | 컨텍스트 수집·중복 확인 — **`related[]`가 중복 확인의 핵심 입력**이다(언급 안 된 인접 스펙) | 읽기 전용 |
 | `nerv_spec_get` | `spec_id`(키 또는 UUID — [4.4](../04-mvp/api.md) §1.4b), `version?`(기본 approved 최신 — **Task 컨텍스트에서는 기준 버전을 지정한다**, §2.4), `baseline?`(베이스라인 이름 — 그 세트에 핀된 버전을 읽는다, `version`과 배타), `include[]`(requirements/tasks/reviews/comments/relations — relations는 양방향 요약: 총계+상위 20, 전량은 REST EP-SPEC-18) | 본문 markdown(비신뢰 래핑, §6.3) + 메타 + Requirement 목록 + 파생 Task + **`basis_superseded?`**(요청 버전이 superseded면 최신 approved 버전 번호와 함께 표시) | `spec:read` | A1 | 구현 착수 전, 리뷰 전 | 읽기 전용 — `version`/`baseline` 지정 시 불변 스냅샷이라 결과 고정 |
@@ -144,6 +145,10 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 **세션은 서버가 안다 — 도구는 `session_id` 를 나르지 않는다**(2026-08-29 보강 — 실측 보고). 위 표가 `nerv_bootstrap` 외의 도구에 `session_id` 를 적지 않는 것은 생략이 아니라 규약이다: 도구 호출의 세션은 **PAT 주체의 살아 있는 세션**으로 서버가 해소한다([4.4](../04-mvp/api.md) §1.4c · REQ-API-040). 이 절반이 실제로는 없어서, 세션을 요구하는 도구 세 개(`nerv_question_create`·`nerv_task_claim`·`nerv_session_event`)가 스키마대로 부르면 언제나 실패하고 있었다 — bootstrap 이 방금 성공했어도 그랬다.
 
 예외는 **모호할 때**다. 한 토큰으로 여러 세션이 동시에 살아 있으면 서버는 고르지 않고 후보를 돌려준다(`session_ambiguous`) — 클레임의 겹침 판정이 세션 단위라, 조용한 오귀속은 곧 잘못된 충돌 판정이다. 그때만 `session_id` 를 실어 다시 부른다(세 도구의 스키마에 **선택 인자**로 적혀 있다). `nerv_review_submit` 은 그것과 별개로 예전부터 `session_id` 를 명시 입력으로 받는다 — 리뷰는 리뷰어 세션의 산출이라 어느 세션의 것인지가 데이터의 일부다.
+
+**훅 세션 채택 — 모호함을 만들지 않는 쪽이 먼저다**(2026-09-03 · 실측 보고). 위 예외는 모호해진 **뒤**의 대응이고, 기본 설치는 그 모호함을 스스로 만들고 있었다: `SessionStart` 훅이 하네스의 `session_id` 로 세션 A 를 만들고, 곧이어 스킬의 `nerv_bootstrap` 이 그 id 를 모른 채 세션 B 를 만들었다. 그 순간 살아 있는 세션이 둘이 되어 첫 `nerv_task_claim` 이 `session_ambiguous` 로 거부되고, Stop 게이트·SessionEnd 회수는 external id 로 A 만 찾아 **클레임과 훅 평면이 갈라졌다**. 실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 **0건**이었고, 같은 사람·같은 cwd 에 세션이 둘 이상 살아 있던 순간이 10번 있었다.
+
+고치는 방향은 하나뿐이다 — **서버가 알아본다.** 반대편(스킬이 `session_id` 를 싣는 것)은 막혀 있다: Claude Code 는 모델에게 자기 `session_id` 를 주지 않는다(훅 페이로드와 statusline stdin 에만 있다). 그래서 `nerv_bootstrap` 이 `external_session_id`·`resume_session_id` 없이 오면, 서버는 **같은 사용자(D-08)·같은 프로젝트·같은 hostname, 그리고 호출이 `cwd` 를 말했으면 같은 `cwd`** 의 살아 있는 훅 세션(`external_session_id` 가 있는 세션)을 채택하고 그 스냅샷을 `resumed: true` 로 돌려준다. 여럿이면 가장 최근 것이다 — bootstrap 은 `SessionStart` 직후에 오므로 마지막에 열린 세션이 곧 지금 그 세션이다. 채택할 때 훅이 알 수 없었던 `branch`·`worktree_path`·`model`·`cwd` 를 **비어 있는 자리에만** 채운다(실측: 실사용 세션 34개 전부에서 셋이 비어 있어 세션 카드가 "누구의 무엇"에 답하지 못했다).
 
 **`nerv_question_create` — `blocking` 과 `urgency` 는 같은 축이다**(2026-08-30 보강). 위 표는 둘을 나란히 적고 있지만 질문의 열은 `urgency` 하나이고([3.3 데이터 모델](data-model.md) §2.7), §4.7 의 예시는 `blocking: true` 로 부른다. 도구는 둘 다 받되 명시된 `urgency` 가 이긴다 — 더 구체적인 말이 이기는 것이 덜 놀랍다. 기본은 `blocking` 이다: 사람을 부르고도 그냥 진행하는 것은 에스컬레이션이 아니다. `context`·`escalate`·`wait_seconds` 를 포함한 나머지 입력의 처리는 [4.4 API 명세](../04-mvp/api.md) §1.4d 가 정본이다 — 이 넷은 오랫동안 **표에만 있고 도구에는 없었다.**
 
@@ -377,11 +382,13 @@ nerv-plugin/
 
 | 훅 | NERV 용도 | 응답으로 하는 일 |
 | --- | --- | --- |
-| `SessionStart` | AgentSession `pending → active` 등록(user·hostname·agent_type·cwd·repo) | `additionalContext`로 현재 클레임·미해결 finding 요약을 주입 |
+| `SessionStart` | AgentSession `pending → active` 등록(user·hostname·agent_type·cwd·repo) | `hookSpecificOutput.additionalContext`로 현재 클레임·미해결 finding 요약을 주입 — **래퍼 안이어야 한다**(2026-09-03) |
 | `PostToolUse` | Activity 적재(`tool_name`·`tool_use_id`) → 세션 타임라인·diff 통계 | 관찰 전용(비차단), `async: true` |
 | `SubagentStart`/`Stop` | 어느 역할 에이전트가 무엇을 했는지(`agent_id`/`agent_type`) | 관찰 전용 |
-| `Stop` | 턴 종료 직전 게이트 조회 — "미해소 critical finding이 있는가", "리스가 살아있는가" | 서버가 `{"decision":"block","reason":…}` 반환 시 종료 차단 |
+| `Stop` | 턴 종료 직전 게이트 조회 — "미해소 critical finding이 있는가", "리스가 살아있는가" | 서버가 `{"decision":"block","reason":…}` 반환 시 종료 차단. **`stop_hook_active` 면 즉시 허용**(2026-09-03 · anti-wedge) |
 | `SessionEnd` | `complete`/`error` 전이, 미해제 클레임 회수 | 없음(정리만) |
+
+**응답의 자리와 형태**(2026-09-03 · 실측 정정). 두 훅의 응답은 **형태가 계약이다.** ① `SessionStart` 의 주입은 `hookSpecificOutput` 아래여야 한다 — 최상위 `additionalContext` 는 훅 문서가 "조용히 무시한다"고 못 박은 자리이고, 그동안 이 주입은 세션 37개 내내 한 번도 모델에 닿지 않았다. ② `Stop` 은 `stop_hook_active` 를 확인해 **이미 Stop 훅 때문에 계속하는 중이면 막지 않는다.** 확인하지 않으면 클레임을 쥔 채 사람에게 물으려는 턴마다 강제 계속이 반복되고(호스트 상한 8회), 모델은 멈추려고 클레임을 조기 릴리스한다. 이것은 새 발견이 아니다 — [1.2 clemvion 분석](../01-problem/clemvion-analysis.md) §3 이 같은 자리에서 같은 답("`stop_hook_active`면 즉시 허용 — 무한 루프 차단")을 이미 적어 두었다. ③ `command` 핸들러로 폴백할 때 포워더는 **응답 본문을 stdout 으로 흘려야 한다**: 버리면 ①과 ②가 함께 사라진다([4.6 플러그인](../04-mvp/plugin.md) §3.1).
 
 **핵심 대체.** `Stop` 훅 한 줄이 clemvion의 `guard_review_before_stop.py`를 대신하고, 게이트 판정은 `guard_review_before_push.py`(**1,005줄**, 하네스 최대 훅, ReDoS 3회 수정 이력)에서 서버 SQL + git forge 웹훅으로 옮겨간다. 넛지 dedup 마커(`clemvion:.claude/state/review_stop_nudged/<sid>__<branch>`)도 서버가 사용자·작업 단위로 처리하므로 사라진다.
 
@@ -439,9 +446,10 @@ sequenceDiagram
   actor U as 사람 · 받은 요청
   S->>H: SessionStart 훅 - user · hostname · agent_type · cwd
   H->>DB: AgentSession pending → active
-  H-->>S: additionalContext - 내 클레임 · 미해결 finding
+  H-->>S: hookSpecificOutput.additionalContext - 내 클레임 · 미해결 finding
   S->>M: nerv_bootstrap - project · hostname · repo
-  M-->>S: session_id · 규약 스펙 · 게이트 정책 · 컨텍스트 팩
+  M->>DB: 같은 사람 · hostname · cwd 의 훅 세션을 채택
+  M-->>S: session_id 는 훅 세션과 같다 · 규약 스펙 · 게이트 정책 · 컨텍스트 팩
   S->>M: nerv_task_next - role
   M-->>S: 후보 Task + 위임 명세 4요소
   S->>M: nerv_task_claim - task_id · scope

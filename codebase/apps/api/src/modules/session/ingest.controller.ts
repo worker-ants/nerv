@@ -33,6 +33,8 @@ interface HookPayload extends Record<string, unknown> {
   agent_id?: string;
   reason?: string;
   source?: string;
+  /** Stop 훅 전용 — 이미 Stop 훅 때문에 계속하는 중이라는 표시(anti-wedge) */
+  stop_hook_active?: boolean;
 }
 
 @Controller('ingest/hooks')
@@ -48,6 +50,12 @@ export class IngestController {
    *
    * 이 주입이 훅의 값어치다: 세션이 시작하자마자 "너는 지금 CLV-T-1KTDCK 을 쥐고 있다"를
    * 알려주면, 에이전트가 그것을 다시 물어보거나(왕복) 잊고 새 작업을 잡는 일이 줄어든다.
+   *
+   * **래퍼가 계약이다**(2026-09-03). 예전에는 `additionalContext` 를 최상위 키로 돌려줬다 —
+   * Claude Code 훅 문서는 그 자리를 **조용히 무시한다**(silently ignores)고 못 박고, 값은
+   * `hookSpecificOutput` 아래여야 한다. 그래서 이 주입은 세션 37개 내내 한 번도 모델에
+   * 도달하지 못했다(실측 2026-09-03). 알려지지 않은 최상위 키는 무시되므로 `ok`·
+   * `session_id` 는 우리 쪽 도구(포워더·L2)를 위해 남긴다.
    */
   @Post('session')
   @HttpCode(HttpStatus.ACCEPTED)
@@ -56,7 +64,11 @@ export class IngestController {
     @Headers('x-nerv-host') host: string | undefined,
     @Headers('x-nerv-agent') agent: string | undefined,
     @Body() body: HookPayload,
-  ): Promise<{ ok: true; session_id: string; additionalContext: string }> {
+  ): Promise<{
+    ok: true;
+    session_id: string;
+    hookSpecificOutput: { hookEventName: 'SessionStart'; additionalContext: string };
+  }> {
     const principal = requireAgent(req);
     const result = await this.sessions.bootstrap({
       projectId: principal.projectId ?? '',
@@ -75,11 +87,14 @@ export class IngestController {
     return {
       ok: true,
       session_id: result.session_id,
-      additionalContext:
-        claims.length === 0
-          ? text('agent.no_claim')
-          : `NERV: 활성 클레임 ${claims.map((c) => `${c.task_key}(${c.status})`).join(', ')}. ` +
-            text('agent.resume_claim'),
+      hookSpecificOutput: {
+        hookEventName: 'SessionStart',
+        additionalContext:
+          claims.length === 0
+            ? text('agent.no_claim')
+            : `NERV: 활성 클레임 ${claims.map((c) => `${c.task_key}(${c.status})`).join(', ')}. ` +
+              text('agent.resume_claim'),
+      },
     };
   }
 
@@ -147,6 +162,14 @@ export class IngestController {
    * MVP 의 판정은 하나다: **리스가 살아 있는데 아직 정리하지 않은 클레임이 있는가.**
    * 미해소 critical finding 조건은 리뷰 수집(FR-09)이 Phase 2 라 판정할 데이터가 없다 —
    * 없는 것을 요구하지 않는다.
+   *
+   * **한 번 막은 뒤에는 막지 않는다**(2026-09-03 · anti-wedge). `stop_hook_active` 는
+   * "이미 Stop 훅 때문에 계속하는 중"이라는 뜻이고, 훅 문서는 이 값을 확인해 **풀리지 않을
+   * 조건으로 막지 말라**고 명시한다. 확인하지 않으면 클레임을 쥔 채 사람에게 물으려는
+   * 턴마다 강제 계속이 반복되고(상한 8회), 모델은 멈추려고 클레임을 조기 릴리스한다.
+   * clemvion 이 같은 자리에서 같은 답을 냈다 — [1.2 분석](../../../../../docs/01-problem/clemvion-analysis.md)
+   * §"`stop_hook_active`면 즉시 허용 — 무한 루프 차단". 우리 문제 정의가 이미 적어 둔
+   * 교훈을 서버가 되풀이하고 있었다.
    */
   @Post('stop')
   async stop(
@@ -154,6 +177,9 @@ export class IngestController {
     @Body() body: HookPayload,
   ): Promise<{ decision?: 'block'; reason?: string; ok: true }> {
     const principal = requireAgent(req);
+    // 두 번째 판정은 하지 않는다 — 첫 block 이 이미 말했고, 그것으로 안 풀렸다면
+    // 다시 막는 것은 안내가 아니라 덫이다.
+    if (body.stop_hook_active === true) return { ok: true };
     const sessionId = await this.resolveSession(principal, body);
     if (sessionId === null) return { ok: true };
 

@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.53 · 2026-09-02 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.54 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
 >
+> v0.54 변경(2026-09-03 — 훅 응답 의미론 정정): §2.9 의 훅 응답 서술을 실물에 맞췄다 — 주입은 `hookSpecificOutput.additionalContext` 아래이고, `Stop` 은 `stop_hook_active` 면 즉시 허용한다. 정본은 [3.4](../03-proposal/agent-integration.md) §3.3.
 > v0.53 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.52 변경(2026-09-02 — 사람 결정 반영): §2.1a 의 `gate_policy` 에서 `t1_objection_hours` 를 걷었다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). EP-TOK-02 에 발급과 검증의 역할을 적었다 — 발급은 역할과 교집합하지 않고, 상한은 검증 시점에 걸리며, **화면은 역할 밖 스코프를 보이되 잠근다**.
 > v0.51 변경(2026-09-02 — 빈 룸): **§3.3 의 개인 룸이 비어 있었다.** "+ `user:{id}`" 열은 아홉 행에 걸쳐 있는데 그 룸으로 흐르는 봉투가 하나도 없었다 — WS 는 자동 join 하고 `/sse/me` 는 열리는데 내용이 없다. 봉투에 방송 전용 `recipient_user_ids` 를 두고, 알림 파생이 `notification.created` 를 수신자의 룸으로 흘린다. 웹은 그 이벤트에 종과 **받은 요청**을 함께 되읽는다 — 다른 프로젝트 화면에 있는 사람에게는 그것이 유일한 길이다.
@@ -885,7 +886,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 
 ### 2.9 훅 ingest (참조)
 
-훅 수집 엔드포인트 5종(`POST /ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)의 경로·헤더(`Authorization` Bearer, `X-NERV-Project`, `X-NERV-Host`, `X-NERV-Agent` — 아래 §2.5a)·응답 의미론(`additionalContext` 주입, `{"decision":"block"}` 종료 차단)은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3이 정본이고, 훅 페이로드 실물은 [4.6 플러그인과 온보딩](plugin.md)이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 **인증 필수**다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 `SessionService`를 주입받아 세션 전이·Activity 적재를 수행한다(§4 표).
+훅 수집 엔드포인트 5종(`POST /ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)의 경로·헤더(`Authorization` Bearer, `X-NERV-Project`, `X-NERV-Host`, `X-NERV-Agent` — 아래 §2.5a)·응답 의미론(`hookSpecificOutput.additionalContext` 주입, `{"decision":"block"}` 종료 차단, `stop_hook_active` 면 즉시 허용 — 2026-09-03 정정)은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3이 정본이고, 훅 페이로드 실물은 [4.6 플러그인과 온보딩](plugin.md)이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 **인증 필수**다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 `SessionService`를 주입받아 세션 전이·Activity 적재를 수행한다(§4 표).
 
 ### 2.9a GitHub 웹훅 ingest — Task ↔ PR 링크 (FR-13)
 

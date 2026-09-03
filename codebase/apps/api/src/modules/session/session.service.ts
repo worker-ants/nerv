@@ -144,6 +144,18 @@ export class SessionService {
            SET state = 'active', ended_at = NULL, end_reason = NULL, last_heartbeat_at = now()
          WHERE id = ${existing} AND state <> 'active'
       `);
+      // **훅이 모르는 것을 여기서 채운다.** 훅 페이로드에는 branch·worktree·model 이 없어
+      // 훅이 만든 세션은 신원 3요소(§1.4c)가 비어 있다 — 실측 2026-09-03: 실사용 세션
+      // 34개 전부에서 셋이 NULL 이었고, 세션 카드가 "누구의 무엇"에 답하지 못했다.
+      // `coalesce` 라 **덮어쓰지 않는다**: 이미 채워진 값은 그 세션이 말한 자기 자신이다.
+      await this.db.execute(sql`
+        UPDATE agent_session
+           SET branch = coalesce(branch, ${input.branch ?? null}::text),
+               worktree_path = coalesce(worktree_path, ${input.worktreePath ?? null}::text),
+               model = coalesce(model, ${input.model ?? null}::text),
+               cwd = coalesce(cwd, ${input.cwd ?? null}::text)
+         WHERE id = ${existing}
+      `);
       return this.pack(existing, input.projectId, true);
     }
 
@@ -731,7 +743,47 @@ export class SessionService {
       `);
       return rows[0]?.id ?? null;
     }
-    return null;
+    return this.adoptHookSession(input);
+  }
+
+  /**
+   * 훅이 먼저 만든 세션을 **채택한다**(2026-09-03).
+   *
+   * 이것이 없는 동안 기본 설치는 세션을 둘 만들었다: SessionStart 훅이 하네스의
+   * `session_id` 로 세션 A 를, 스킬의 `nerv_bootstrap` 이 그 id 없이 세션 B 를 만들었다.
+   * 그러면 `nerv_task_claim` 은 살아 있는 세션이 둘이라 `session_ambiguous` 로 거부되고,
+   * Stop 게이트·SessionEnd 회수는 external id 로 A 만 찾아 클레임과 훅 평면이 갈라진다.
+   * **실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 0건이었고, 같은 사용자·같은
+   * cwd 에 살아 있는 세션이 둘 이상인 순간이 10번 있었다.**
+   *
+   * 채택이 유일한 길인 이유: 반대 방향 — 스킬이 `session_id` 를 싣는 것 — 은 막혀 있다.
+   * Claude Code 는 모델에게 자기 `session_id` 를 주지 않는다(훅 페이로드와 statusline
+   * stdin 에만 있다). 그래서 **서버가 알아보는 쪽**이 되어야 한다.
+   *
+   * 대조 조건은 신원 3요소 중 서버가 양쪽에서 받을 수 있는 것들이다 — 같은 사람(D-08)·
+   * 같은 프로젝트·같은 hostname, 그리고 bootstrap 이 cwd 를 말했으면 같은 cwd. 훅이 만든
+   * 세션(`external_session_id IS NOT NULL`)만 채택 대상이다: MCP 가 만든 세션까지 삼키면
+   * 서로 다른 두 스킬 세션이 한 몸이 된다. 여럿이면 **가장 최근 것**을 고른다 — bootstrap 은
+   * SessionStart 직후에 오므로 마지막에 열린 세션이 곧 지금 그 세션이다.
+   */
+  private async adoptHookSession(input: BootstrapInput): Promise<string | null> {
+    const sameCwd = input.cwd == null ? sql`` : sql` AND cwd = ${input.cwd}`;
+    const { rows } = await this.db.execute<{ id: string }>(sql`
+      SELECT id FROM agent_session
+       WHERE project_id = ${input.projectId} AND user_id = ${input.userId}
+         AND external_session_id IS NOT NULL
+         AND hostname = ${input.hostname}${sameCwd}
+         AND state IN ('pending', 'active', 'awaiting_input')
+         AND coalesce(last_heartbeat_at, started_at)
+             > now() - ${sqlSeconds(SESSION_STALE_SECONDS)}
+       ORDER BY coalesce(last_heartbeat_at, started_at) DESC
+       LIMIT 1
+    `);
+    const adopted = rows[0]?.id ?? null;
+    if (adopted !== null) {
+      this.logger.log(`훅 세션 채택 — host=${input.hostname} session=${adopted}`);
+    }
+    return adopted;
   }
 
   /** 컨텍스트 팩 — 세션이 첫 호출로 받아야 할 것들. */
