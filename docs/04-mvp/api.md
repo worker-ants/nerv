@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.54 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.55 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
 >
+> v0.55 변경(2026-09-03 — 훅 세션 채택에 번호를 준다, 사람 결정): §1.4c 에 **REQ-API-079** 를 신설했다. 어제까지 이 동작은 산문에만 있었다. 함께 **재검토 트리거 하나를 점화 기록으로 남긴다** — 후보가 여럿일 때의 선택 규칙("가장 최근")이 같은 DB 의 실측과 어긋난다: 겹친 쌍 14건 중 10건에서 나중 세션은 활동 0의 유령이었다.
 > v0.54 변경(2026-09-03 — 훅 응답 의미론 정정): §2.9 의 훅 응답 서술을 실물에 맞췄다 — 주입은 `hookSpecificOutput.additionalContext` 아래이고, `Stop` 은 `stop_hook_active` 면 즉시 허용한다. 정본은 [3.4](../03-proposal/agent-integration.md) §3.3.
 > v0.53 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.52 변경(2026-09-02 — 사람 결정 반영): §2.1a 의 `gate_policy` 에서 `t1_objection_hours` 를 걷었다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). EP-TOK-02 에 발급과 검증의 역할을 적었다 — 발급은 역할과 교집합하지 않고, 상한은 검증 시점에 걸리며, **화면은 역할 밖 스코프를 보이되 잠근다**.
@@ -284,8 +285,15 @@ HTTP 상태 매핑:
 
 세 도구의 스키마에는 `session_id` 를 **선택 인자로 적었다** — 추정이 기본 경로이고, 지정은 모호할 때의 길이다.
 
+**모호함을 만들지 않는 쪽이 먼저다 — 훅 세션 채택**(2026-09-03 신설 · 실측). 위 ③은 모호해진 **뒤**의 대응인데, 기본 설치는 그 모호함을 스스로 만들고 있었다: `SessionStart` 훅이 하네스 id 로 세션 A 를 만들고, 곧이어 스킬의 `nerv_bootstrap` 이 그 id 를 모른 채 세션 B 를 만든다. 그래서 첫 `nerv_task_claim` 이 ③에 걸렸다 — 실측(2026-09-03 · 실사용 DB): 세션 34개가 만든 클레임 **0건**.
+
+그래서 `nerv_bootstrap` 이 `external_session_id`·`resume_session_id` **둘 다 없이** 오면 서버가 훅 세션을 채택한다. 대조 조건은 서버가 양쪽에서 받을 수 있는 것들이다 — 같은 사용자(D-08)·같은 프로젝트·같은 `hostname`, 그리고 호출이 `cwd` 를 말했으면 같은 `cwd`, `external_session_id` 가 있는(= 훅이 만든) 살아 있는 세션. 반대편은 막혀 있다: Claude Code 는 모델에게 자기 `session_id` 를 주지 않으므로 스킬이 그것을 실을 수 없다.
+
+> **후보가 여럿일 때의 선택 규칙은 재검토 중이다**(2026-09-03 점화). 현재 구현은 "가장 최근에 시작한 것"인데, 같은 DB 의 실측이 그것을 반증한다 — 겹친 쌍 14건 중 **10건에서 나중 세션은 활동이 0인 유령**이었고 실제로 일하는 것은 앞선 세션이었다(나중 세션이 유일한 활동 주체인 경우는 0건). 대안은 §1.4c 아래 표에 적고, 확정 시 REQ-API-079 의 마지막 문장을 고친다.
+
 | ID | 수용 기준(EARS) |
 | --- | --- |
+| REQ-API-079 | WHEN `nerv_bootstrap` 이 `external_session_id` 와 `resume_session_id` 없이 호출되면 THE SYSTEM SHALL 같은 사용자·프로젝트·`hostname`(호출이 `cwd` 를 실었으면 같은 `cwd`)의 살아 있는 훅 세션(`external_session_id IS NOT NULL`)을 채택하고 그 스냅샷을 `resumed: true` 로 반환한다. WHILE 채택·재개가 일어나면 THE SYSTEM SHALL 훅이 알 수 없는 `branch`·`worktree_path`·`model`·`cwd` 를 **비어 있는 자리에만** 채운다(이미 있는 값을 덮지 않는다). WHEN 대조되는 세션이 없으면 THE SYSTEM SHALL 새 세션을 만든다. 후보가 여럿이면 THE SYSTEM SHALL 가장 최근에 시작한 것을 고른다(잠정 — 위 재검토 트리거) |
 | REQ-API-040 | WHEN MCP 도구가 세션을 요구하는데 `session_id` 인자가 없으면 THE SYSTEM SHALL 그 토큰 주체의 살아 있는 세션이 하나일 때 그것으로 해소하고, 없으면 `session_required`(다음 행동: `nerv_bootstrap`), 둘 이상이면 `session_ambiguous`(후보 목록 + 빈 다음 행동)로 거부한다. WHEN `session_id` 가 명시되면 THE SYSTEM SHALL 그것이 같은 프로젝트의 **자기 세션**일 때만 받아들인다 |
 | REQ-API-041 | WHEN 세션 위에서 도구가 실행되면 THE SYSTEM SHALL 그 세션의 마지막 활동 시각을 갱신한다. WHEN `nerv_bootstrap` 이 stale 세션을 재개하면 THE SYSTEM SHALL 그 세션을 다시 활성으로 되돌린다 |
 
