@@ -42,10 +42,21 @@ export class EventController {
 
   /** EP-NTF-01 */
   @Get('me/notifications')
-  myNotifications(@Req() req: ProjectRequest, @Query('state') state?: string): Promise<unknown> {
+  myNotifications(
+    @Req() req: ProjectRequest,
+    @Query('state') state?: string,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string,
+  ): Promise<unknown> {
     return this.notifications.list({
       userId: userOf(req),
       state: state === 'read' ? 'read' : state === 'unread' ? 'unread' : null,
+      before: before ?? null,
+      // 커서가 없으면 목록은 50 에서 끝나는 벽이다(REQ-API-083)
+      ...((): { limit?: number } => {
+        const parsed = intParam(limit, 'limit');
+        return parsed === null ? {} : { limit: parsed };
+      })(),
     });
   }
 

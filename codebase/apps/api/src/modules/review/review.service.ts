@@ -890,7 +890,14 @@ export class ReviewService {
     /** 어디에 대한 지적인가 — 사람이 다음에 할 행동으로 가른 축(REQ-API-073) */
     area?: readonly string[];
     limit?: number;
-  }): Promise<{ items: Record<string, unknown>[]; facets: FindingFacets; limit: number }> {
+    /** 다음 쪽의 시작 — 앞 응답의 `next_cursor` 를 그대로 되돌려 준다 */
+    cursor?: string | null;
+  }): Promise<{
+    items: Record<string, unknown>[];
+    facets: FindingFacets;
+    limit: number;
+    next_cursor: string | null;
+  }> {
     const severity = normalizeFilter(input.severity, FINDING_SEVERITIES, 'severity');
     const status = normalizeFilter(input.status, FINDING_STATUSES, 'status');
     const area = normalizeFilter(input.area, FINDING_AREAS, 'area');
@@ -898,6 +905,21 @@ export class ReviewService {
     // 상한은 계약이 정한다 — clemvion 실측 18,650 발견을 한 응답에 담으면 화면이
     // 3만 픽셀이 된다(실측 2026-08-24). 잘린 사실은 facet 총계가 말한다.
     const limit = Math.min(Math.max(input.limit ?? FINDING_PAGE, 1), FINDING_PAGE_MAX);
+
+    // **상한만 있고 커서가 없으면 목록은 벽이다**(2026-09-03 · REQ-API-083).
+    // 화면의 [더 보기] 는 200 에서 멈추고 서버도 거기서 끝이라, 열린 발견 18,653건 중
+    // **18,453건에 웹에서 닿을 수 없었다** — critical 만 걸러도 423건이라 상한 안에
+    // 들어오지 않는다(실측 2026-09-03). 정렬이 `severity ASC, created_at DESC` 라 행
+    // 값 비교(row-value)를 쓸 수 없다 — 방향이 섞이면 `(a,b) > (c,d)` 가 거짓말을 한다.
+    const cursor = decodeFindingCursor(input.cursor ?? null);
+    const cursorFilter =
+      cursor === null
+        ? sql``
+        : sql` AND (f.severity > ${cursor.severity}::finding_severity
+                    OR (f.severity = ${cursor.severity}::finding_severity
+                        AND (f.created_at < ${cursor.createdAt}::timestamptz
+                             OR (f.created_at = ${cursor.createdAt}::timestamptz
+                                 AND f.id > ${cursor.id}))))`;
 
     const { rows: items } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT f.id, f.severity::text AS severity, f.status::text AS status, f.category, f.title,
@@ -927,13 +949,25 @@ export class ReviewService {
          ${this.filter('f.status', status, 'finding_status')}
          ${this.filter('f.area', area, 'finding_area')}
          ${tags.length === 0 ? sql`` : sql`AND f.tags && ${sqlArray(tags, 'text')}`}
-       ORDER BY f.severity, f.created_at DESC
-       LIMIT ${limit}
+         ${cursorFilter}
+       ORDER BY f.severity, f.created_at DESC, f.id
+       LIMIT ${limit + 1}
     `);
 
+    // 한 건 더 받아 다음 쪽의 유무를 안다 — 총계는 facet 이 이미 말한다
+    const page = items.slice(0, limit);
+    const last = page[page.length - 1];
     return {
-      items,
+      items: page,
       limit,
+      next_cursor:
+        items.length > limit && last !== undefined
+          ? encodeFindingCursor({
+              severity: String(last['severity']),
+              createdAt: String(last['created_at']),
+              id: String(last['id']),
+            })
+          : null,
       facets: {
         // 각 차원은 **자기 선택을 뺀** 나머지 필터로 센다
         severity: await this.facet(input.projectId, 'severity', {
@@ -1113,4 +1147,33 @@ function normalizeFilter(
   field: string,
 ): string[] {
   return assertVocab(values ?? [], allowed, field);
+}
+
+/**
+ * 발견 큐의 커서 — `(severity, created_at, id)` 세 값.
+ *
+ * base64 한 겹을 씌우는 이유는 **불투명하게 두기 위해서**다. 클라이언트가 안을 열어
+ * 조립하기 시작하면 정렬 키를 바꾸는 순간 남의 화면이 깨진다 — 커서는 서버가 준 그대로
+ * 돌려주는 값이어야 한다.
+ */
+interface FindingCursor {
+  severity: string;
+  createdAt: string;
+  id: string;
+}
+
+function encodeFindingCursor(cursor: FindingCursor): string {
+  return Buffer.from(`${cursor.severity}|${cursor.createdAt}|${cursor.id}`, 'utf8').toString(
+    'base64url',
+  );
+}
+
+/** 망가진 커서는 **처음부터**다 — 400 으로 막으면 낡은 링크가 막다른 길이 된다. */
+function decodeFindingCursor(raw: string | null): FindingCursor | null {
+  if (raw === null || raw === '') return null;
+  const parts = Buffer.from(raw, 'base64url').toString('utf8').split('|');
+  if (parts.length !== 3) return null;
+  const [severity, createdAt, id] = parts as [string, string, string];
+  if (!(FINDING_SEVERITIES as readonly string[]).includes(severity)) return null;
+  return { severity, createdAt, id };
 }

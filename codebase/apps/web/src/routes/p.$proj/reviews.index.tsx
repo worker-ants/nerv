@@ -72,9 +72,7 @@ function ReviewCenter(): React.JSX.Element {
   // **더 보기는 배수로 늘린다.** clemvion 실측 18,650건 — 전량을 한 번에 그리면
   // 화면이 3만 픽셀이 된다(실측 2026-08-24). 답은 무한 스크롤이 아니라 **필터**이고,
   // 그래서 "몇 건 중 몇 건인지"를 먼저 말한다(REQ-WEB-067).
-  const [limit, setLimit] = useState(50);
-
-  const queue = useFindings(proj, { severity, status, tag, area }, id, limit);
+  const queue = useFindings(proj, { severity, status, tag, area }, id);
   const gate = useGateCoverage(proj, id);
   // 멤버십 한 행이 아니라 이 프로젝트에서의 역할 **전부**다 — 조직 단위 멤버십만 가진
   // 사람은 한 행 판정에서 아무 역할도 없는 사람이 된다(2026-08-24).
@@ -82,8 +80,10 @@ function ReviewCenter(): React.JSX.Element {
   const roles = rolesInProject(me.data, orgSlug, proj);
   const canResolve = roles.some((r) => RESOLVER_ROLES.includes(r));
 
-  const facets = queue.data?.facets;
-  const items = queue.data?.items ?? [];
+  // facet 은 필터에만 달렸으므로 첫 쪽의 것이 전체를 말한다 — 쪽마다 다시 세지 않는다
+  const facets = queue.data?.pages[0]?.facets;
+  // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 200 에서 끝나지 않는다(REQ-API-083)
+  const items = (queue.data?.pages ?? []).flatMap((page) => page.items);
   const selected = items.find((f) => String(f['id']) === selectedId) ?? null;
   // **주소가 가리키는데 큐에 없을 수 있다** — 이미 처분돼서 기본 필터(열림)에서 빠진
   // 경우다. 그때 빈 화면을 주지 않고 상태 필터를 푼다(한 번만).
@@ -98,7 +98,8 @@ function ReviewCenter(): React.JSX.Element {
   const gateRows = rows(gate.data?.items);
   // 지금 필터로 잡히는 전체 — facet 은 "이것을 켜면 몇 건인가"라 status facet 의 합이다
   const matched = status.reduce((sum, key) => sum + (facets?.status[key] ?? 0), 0);
-  const truncated = matched > items.length;
+  // 잘렸다는 사실은 이제 **다음 쪽이 있는가**로 안다 — 상한이 아니라 커서가 답한다
+  const truncated = queue.hasNextPage === true || matched > items.length;
   const summary: SummaryMetric[] = [
     {
       label: t('reviews.summary.critical'),
@@ -229,7 +230,8 @@ function ReviewCenter(): React.JSX.Element {
             <button
               type="button"
               data-testid="queue-more"
-              onClick={() => setLimit(Math.min(limit * 2, 200))}
+              disabled={queue.isFetchingNextPage}
+              onClick={() => void queue.fetchNextPage()}
               className="mt-2 w-full rounded-nerv border border-border py-1.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
             >
               {t('reviews.queue.more')}

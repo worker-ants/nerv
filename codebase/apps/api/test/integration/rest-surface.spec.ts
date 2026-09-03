@@ -185,6 +185,47 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
  * 500 은 "서버가 잘못했다, 기다렸다 다시" 라는 뜻이라 클라이언트는 고칠 수 없는 요청을
  * 재시도한다. 400 은 "이 목록에서 골라라" 다.
  */
+/**
+ * 알림 목록의 커서(REQ-API-083).
+ *
+ * 실측(2026-09-03): 한 사람의 안 읽은 알림 479건 중 **429건에 웹에서 닿을 수 없었다** —
+ * 서비스에 상한은 있었는데 컨트롤러도 웹도 `limit` 을 넘기지 않아 언제나 최신 50건이었고,
+ * 그 뒤로 가는 길이 없었다. 헤더 배지는 진짜 수를 보이므로 화면이 자기 배지와 어긋났다.
+ */
+describe('EP-NTF-01 — 알림은 50 에서 끝나지 않는다', () => {
+  it('커서로 다음 쪽을 이어 받는다', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      const eventId = newId();
+      await pool.query(
+        `INSERT INTO event (id, project_id, occurred_at, type, is_agent, subject_type, subject_id, payload)
+         VALUES ($1,$2, now() - ($3 || ' minutes')::interval, 'session.started', false,
+                 'agent_session', $4, '{}'::jsonb)`,
+        [eventId, projectId, String(i), newId()],
+      );
+      await pool.query(
+        `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at)
+         VALUES ($1,$2,$3,$4,'immediate','inapp','unread', now() - ($5 || ' minutes')::interval)`,
+        [newId(), projectId, adminId, eventId, String(i)],
+      );
+    }
+
+    const first = await call('GET', '/api/v1/me/notifications?limit=2');
+    const firstBody = first.body as { items: Record<string, unknown>[]; next_cursor: string };
+    expect(firstBody.items).toHaveLength(2);
+    expect(firstBody.next_cursor).toEqual(expect.any(String));
+
+    const next = await call(
+      'GET',
+      `/api/v1/me/notifications?limit=2&before=${encodeURIComponent(firstBody.next_cursor)}`,
+    );
+    const nextBody = next.body as { items: Record<string, unknown>[] };
+    expect(nextBody.items.length).toBeGreaterThan(0);
+    // 같은 것을 두 번 주지 않는다 — 커서가 겹치면 사람은 읽은 것을 다시 읽는다
+    const firstIds = firstBody.items.map((n) => n['id']);
+    expect(nextBody.items.every((n) => !firstIds.includes(n['id']))).toBe(true);
+  });
+});
+
 describe('오타는 400 이다 (§1.4j · REQ-API-074)', () => {
   it.each([
     ['tasks?status=doing', '/api/v1/projects/clemvion/tasks?status=doing', 'status'],

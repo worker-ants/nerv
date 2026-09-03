@@ -176,6 +176,36 @@ function SpecDetail(): React.JSX.Element {
   });
   const editable = docStatus === 'draft' && leaseHolder === null;
 
+  /**
+   * 승인본에서 **다음 판을 시작한다**(2026-09-03 신설 · WEB-02).
+   *
+   * 승인본은 읽기 전용이 맞다(D-02 — 가변 구간은 draft 하나뿐). 문제는 그 다음이 없었다는
+   * 것이다: 웹에는 새 초안으로 가는 문이 없어서 **승인된 문서 132개를 웹에서 고칠 수
+   * 없었다**(실측 2026-09-03). 터미널이 유일한 길이면 P7 은 문서에만 있다.
+   *
+   * 서버 경로는 처음부터 있었다 — 열린 draft 가 없으면 `versionNo+1` 짜리 새 draft 를
+   * 만든다. 본문은 지금 읽는 판을 그대로 얹고, 지문은 그 판의 것을 보낸다(§1.4g).
+   */
+  const startDraft = useMutation({
+    mutationFn: () =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/draft`, {
+        method: 'PUT',
+        body: {
+          body_markdown: String(detail.data?.['body_md'] ?? ''),
+          base_hash: String(detail.data?.['content_hash'] ?? ''),
+        },
+      }),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.specVersions(spec) });
+      pushToast({
+        tone: 'ok',
+        message: t('spec.new_draft_started', { version: String(result['version_no'] ?? '') }),
+      });
+    },
+    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+  });
+
   const save = useMutation({
     mutationFn: (markdown: string) =>
       apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/draft`, {
@@ -632,6 +662,18 @@ function SpecDetail(): React.JSX.Element {
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          {/* 승인본에는 **다음 판으로 가는 문**을 둔다 — 없으면 웹은 읽기 전용이다(WEB-02) */}
+          {docStatus === 'approved' && (
+            <Button
+              variant="primary"
+              data-testid="start-draft"
+              title={t('spec.new_draft_hint')}
+              disabled={startDraft.isPending}
+              onClick={() => startDraft.mutate()}
+            >
+              {t('spec.new_draft')}
+            </Button>
+          )}
           <Button
             variant="primary"
             disabled={

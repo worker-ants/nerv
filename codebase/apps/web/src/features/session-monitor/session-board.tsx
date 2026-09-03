@@ -129,6 +129,7 @@ export function SessionBoard({
       <div className="flex flex-col">
         {items.map((card) => (
           <SessionCard
+            projectSlug={projectSlug}
             key={card.id}
             card={card}
             selected={selectedId === card.id}

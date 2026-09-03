@@ -5,6 +5,7 @@
 // 머신인가"가 이 화면의 존재 이유(P8)라 그것을 모르는 카드는 화면에 있어선 안 된다.
 
 import { statusLabelKey } from '@nerv/schema';
+import { Link } from '@tanstack/react-router';
 import { useT } from '../../lib/i18n.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
@@ -20,6 +21,15 @@ export interface SessionCardProps {
   /** 시안의 master-detail — 선택된 줄이 오른쪽 타임라인 레일의 주인이다 */
   selected?: boolean;
   onSelect?: (() => void) | undefined;
+  /**
+   * 상세로 가는 문(2026-09-03 신설 · WEB-14).
+   *
+   * 이것이 없는 동안 **어느 폭에서도** 세션 상세로 갈 길이 없었다 — 저장소 전체에서
+   * `/sessions/:id` 로 가는 링크가 0건이었다(실측). 곁레일은 xl 이상에서만 열리므로
+   * 좁은 화면에서는 타임라인 자체에 닿을 수 없었고, 넓은 화면에서도 "이 세션만 크게
+   * 보기" 가 없었다. 라우트는 처음부터 있었다.
+   */
+  projectSlug?: string | undefined;
 }
 
 export function SessionCard({
@@ -27,6 +37,7 @@ export function SessionCard({
   now = Date.now(),
   selected,
   onSelect,
+  projectSlug,
 }: SessionCardProps): React.JSX.Element | null {
   const t = useT();
   // REQ-WEB-019 — hostname 없는 세션은 렌더링하지 않는다
@@ -122,6 +133,18 @@ export function SessionCard({
       {/* stale 은 왜 그렇게 됐는지까지 적는다(REQ-WEB-020 · D-13) — 다만 **조용하게**.
           채운 빨강 덩어리가 줄마다 서면 그 자체가 소음이 되고, 그때는 진짜 위험한 줄이
           어느 것인지 알 수 없다. 사유는 남기되 배경을 걷는다(2026-08-23 재검토). */}
+      {projectSlug !== undefined && (
+        <Link
+          to="/p/$proj/sessions/$session"
+          params={{ proj: projectSlug, session: card.id }}
+          data-testid="session-detail-link"
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0 text-2xs text-text-mute underline-offset-2 hover:underline"
+        >
+          {t('session.detail')}
+        </Link>
+      )}
+
       {card.state === 'stale' && (
         // 사유는 **감추지 않는다**(REQ-WEB-020) — 좁으면 제 줄로 내려간다
         <span className="order-last w-full shrink-0 text-2xs leading-snug text-text-mute @2xl:order-none @2xl:w-40">

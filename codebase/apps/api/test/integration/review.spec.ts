@@ -712,6 +712,38 @@ describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)',
     expect(items).toHaveLength(3);
   });
 
+  /**
+   * 상한만 있고 커서가 없으면 목록은 벽이다(REQ-API-083).
+   *
+   * 실측(2026-09-03): 열린 발견 18,653건 중 **18,453건에 웹에서 닿을 수 없었다** —
+   * [더 보기] 는 200 에서 멈추고 서버도 거기가 끝이었다. critical 만 걸러도 423건이다.
+   */
+  it('커서로 다음 쪽을 이어 받는다 — 겹치지도, 빠뜨리지도 않는다', async () => {
+    const first = await reviews.findings({ projectId, status: ['open'], limit: 1 });
+    expect(first.items).toHaveLength(1);
+    expect(first.next_cursor).toEqual(expect.any(String));
+
+    const second = await reviews.findings({
+      projectId,
+      status: ['open'],
+      limit: 1,
+      cursor: first.next_cursor,
+    });
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0]?.['id']).not.toBe(first.items[0]?.['id']);
+
+    // 쪽을 이어 붙이면 한 번에 받은 것과 같다 — 정렬이 흔들리면 여기서 갈린다
+    const whole = await reviews.findings({ projectId, status: ['open'] });
+    expect([first.items[0]?.['id'], second.items[0]?.['id']]).toEqual(
+      whole.items.slice(0, 2).map((f) => f['id']),
+    );
+  });
+
+  it('마지막 쪽은 커서를 주지 않는다 — 끝을 말하지 않으면 화면이 영원히 더 보기를 보인다', async () => {
+    const all = await reviews.findings({ projectId, status: ['open'] });
+    expect(all.next_cursor).toBeNull();
+  });
+
   it('게이트 현황은 브랜치마다 판정을 준다 — 열린 것이 남으면 pending', async () => {
     const gate = await reviews.gateCoverage(projectId);
     expect(gate.items).toHaveLength(1);

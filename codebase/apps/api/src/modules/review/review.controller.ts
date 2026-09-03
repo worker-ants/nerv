@@ -5,6 +5,7 @@
 // 게이트는 어느 쪽을 믿어야 하는지 답할 수 없다.
 
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { intParam } from '../../common/query-vocab.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -55,6 +56,7 @@ export class ReviewController {
     @Query('tag') tag?: string,
     @Query('area') area?: string,
     @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ): Promise<unknown> {
     return this.reviews.findings({
       projectId: req.nervProjectId!,
@@ -63,7 +65,12 @@ export class ReviewController {
       ...(csv(severity) === undefined ? {} : { severity: csv(severity)! }),
       ...(csv(tag) === undefined ? {} : { tag: csv(tag)! }),
       ...(csv(area) === undefined ? {} : { area: csv(area)! }),
-      ...(limit === undefined ? {} : { limit: Number(limit) }),
+      cursor: cursor ?? null,
+      // 숫자가 아니면 400 이다(§1.4j) — NaN 을 상한 계산에 넣으면 조용히 기본값이 된다
+      ...((): { limit?: number } => {
+        const parsed = intParam(limit, 'limit');
+        return parsed === null ? {} : { limit: parsed };
+      })(),
     });
   }
 

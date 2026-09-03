@@ -261,13 +261,30 @@ export class NotificationService {
    * 저장하면 같은 사실이 두 곳에 남고 이벤트가 정정돼도 알림은 옛 문구를 계속 말한다.
    * 그래서 표시 내용은 **조회 시점에 event 에서 만든다**(D-10 — 진실은 event 한 곳).
    */
+  /**
+   * EP-NTF-01 — 알림 목록.
+   *
+   * **커서가 없으면 목록은 벽이다**(2026-09-03 신설 · REQ-API-083). 상한은 처음부터 있었는데
+   * 컨트롤러도 웹도 `limit` 을 넘기지 않아 언제나 최신 50건이었고, 그 뒤로 가는 길이 없었다 —
+   * 실측(2026-09-03): 한 사람의 안 읽은 알림이 479건인데 **429건은 웹에서 도달 불가**였다.
+   * 헤더 배지는 진짜 수를 보이고 목록은 50 에서 끝나므로, 화면이 자기 배지와 어긋난다.
+   */
   async list(input: {
     userId: string;
     state?: 'unread' | 'read' | null;
     limit?: number;
-  }): Promise<Record<string, unknown>[]> {
+    /** 이 시각보다 **앞선** 것 — 목록의 마지막 항목이 다음 쪽의 시작이다 */
+    before?: string | null;
+  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
     const stateFilter =
       input.state == null ? sql`` : sql` AND n.state = ${input.state}::notification_state`;
+    // strict 비교라 같은 시각의 행을 건너뛸 수 있다 — 알림은 초 단위로 몰리지 않으므로
+    // 여기서는 감수하고, 정확한 페이지네이션이 필요해지면 (created_at, id) 복합 커서로 간다.
+    const beforeFilter =
+      input.before == null || input.before === ''
+        ? sql``
+        : sql` AND n.created_at < ${input.before}::timestamptz`;
+    const limit = Math.min(input.limit ?? 50, 200);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT n.id, n.state::text AS state, n.importance::text AS importance,
              n.channel::text AS channel, n.created_at, n.read_at, n.event_id,
@@ -283,13 +300,19 @@ export class NotificationService {
    LEFT JOIN spec_version sv ON sv.id = e.subject_id AND e.subject_type = 'spec_version'
    LEFT JOIN spec s ON s.id = coalesce(sv.spec_id, CASE WHEN e.subject_type = 'spec' THEN e.subject_id END)
    LEFT JOIN task t ON t.id = e.subject_id AND e.subject_type = 'task'
-       WHERE n.user_id = ${input.userId}${stateFilter}
+       WHERE n.user_id = ${input.userId}${stateFilter}${beforeFilter}
          -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
          AND p.archived_at IS NULL
        ORDER BY n.created_at DESC
-       LIMIT ${Math.min(input.limit ?? 50, 200)}
+       LIMIT ${limit + 1}
     `);
-    return rows;
+    // 한 건 더 받아 **다음 쪽이 있는지**를 안다 — 총계를 세면 매 요청이 전량 스캔이다
+    const items = rows.slice(0, limit);
+    const last = items[items.length - 1];
+    return {
+      items,
+      next_cursor: rows.length > limit && last !== undefined ? String(last['created_at']) : null,
+    };
   }
 
   /** EP-NTF-02 — 읽음 처리. 남의 알림을 읽음 처리할 수 없게 user_id 를 조건에 둔다. */

@@ -889,7 +889,7 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
 
     const before = {
       cards: (await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).length,
-      feed: (await notifications.list({ userId: reviewer })).length,
+      feed: (await notifications.list({ userId: reviewer })).items.length,
       unread: await notifications.unreadCount(reviewer),
     };
     expect(before.cards).toBeGreaterThan(0);
@@ -897,7 +897,7 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
 
     await archive(true);
     expect(await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).toHaveLength(0);
-    expect(await notifications.list({ userId: reviewer })).toHaveLength(0);
+    expect((await notifications.list({ userId: reviewer })).items).toHaveLength(0);
     // **배지와 목록이 같은 조건으로 센다**(REQ-WEB-035) — 어긋나면 지울 수 없는 숫자가 남는다
     expect(await notifications.unreadCount(reviewer)).toBe(0);
 
@@ -905,7 +905,7 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
     expect((await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).length).toBe(
       before.cards,
     );
-    expect((await notifications.list({ userId: reviewer })).length).toBe(before.feed);
+    expect((await notifications.list({ userId: reviewer })).items.length).toBe(before.feed);
     expect(await notifications.unreadCount(reviewer)).toBe(before.unread);
   });
 });

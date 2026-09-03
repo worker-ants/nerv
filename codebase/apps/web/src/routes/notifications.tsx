@@ -10,7 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
 import { queryKeys } from '../lib/query-keys.js';
-import { rows, useNotifications } from '../lib/queries.js';
+import { rows, useNotifications, useUnreadCount } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
 import { StatusBadge } from '../components/status-badge.js';
 import { InvitationCards } from '../components/invitation-cards.js';
@@ -47,6 +47,7 @@ export function deepLinkFor(n: Record<string, unknown>): string {
 function NotificationScreen(): React.JSX.Element {
   const t = useT();
   const notifications = useNotifications();
+  const unreadCount = useUnreadCount();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -55,8 +56,11 @@ function NotificationScreen(): React.JSX.Element {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.myNotifications() }),
   });
 
-  const items = rows(notifications.data);
-  const unread = items.filter((n) => n['state'] === 'unread').length;
+  // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 목록은 50 에서 끝나지 않는다
+  const items = (notifications.data?.pages ?? []).flatMap((page) => rows(page.items));
+  // **배지는 받아 온 것이 아니라 진짜 수를 센다**(2026-09-03). 예전에는 로드된 50건 안에서
+  // 세어 "읽지 않음 50" 을 보이면서 헤더는 479 를 보였다 — 같은 화면이 두 수를 말했다.
+  const unread = unreadCount.data?.count ?? 0;
 
   return (
     <PageBody>
@@ -137,6 +141,18 @@ function NotificationScreen(): React.JSX.Element {
           );
         })}
       </ul>
+      {notifications.hasNextPage === true && (
+        <div className="mt-3 flex justify-center">
+          <Button
+            variant="ghost"
+            data-testid="notif-more"
+            disabled={notifications.isFetchingNextPage}
+            onClick={() => void notifications.fetchNextPage()}
+          >
+            {t('tasks.more')}
+          </Button>
+        </div>
+      )}
     </PageBody>
   );
 }
