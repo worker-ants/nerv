@@ -2,8 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **22종**(2026-09-02 실측 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.11 · 2026-09-03 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.12 · 2026-09-03 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 >
+> v0.12 변경(2026-09-03 — 통제의 적용 범위 정정): §6.4 의 훅 URL 통제가 `type:"http"` 훅에만 걸린다는 사실을 명시했다. NERV 의 기본 훅이 command 변형으로 바뀌었으므로(4.6 v0.30 · 사람 결정) 그 목록은 NERV 자신의 훅을 덮지 않는다 — 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다. `hooks` 키가 관리형 파일에서도 유효하다는 것도 함께 적었다.
 > v0.11 변경(2026-09-03 — 확장의 경계): 훅 `url` 은 `${VAR}` 확장을 받지 않고 `headers` 만 받는다는 것을 §3.3 에 적었다. `.mcp.json` 의 `url` 은 받는다. 이 비대칭이 배포 변형 둘의 이유다(4.6 §3.1).
 > v0.10 변경(2026-09-03 — 받는 척하던 인자들, 실측): 카탈로그가 적고 있던 인자 열한 종이 도구 스키마에 없거나 저장할 자리가 없어 **성공 응답과 함께 버려지고 있었다**(4.4 v0.57 REQ-API-080 이 그 사실을 드러냈다). 일곱을 실물로 만들고 넷은 표에서 걷었다. 실물: `state_note`(`claim.release_note` — 후보 목록의 `handoff_note` 로 다음 사람에게 간다) · `progress`(LWW) · `stats{added,removed,files}`(세션 카드의 +N −M 이 34개 세션 전부 0이던 원인) · `include[tasks,comments]` · `resolved_in_version_id` · `lease_seconds` · 후보의 `spec_key`·`version_no`. 걷은 것: `repo{}`(실물은 평면 `branch`·`worktree_path`) · `role`·`capabilities`(Task 에 그 축이 없다) · 클레임의 `branch`·`worktree`(세션이 등록한다) · `note`·`reviewer_hint`(리뷰어 지정은 게이트 §6.3 이 정한다) · `baseline`(Phase 2).
 > v0.9 변경(2026-09-03 — 채택 규칙을 좁힌다, 사람 결정): §2.4 의 훅 세션 채택에서 `cwd` 를 필수로 하고, 후보가 여럿일 때 **마지막 활동 시각**으로 고르도록 확정했다. 구현 규약 정본은 [4.4](../04-mvp/api.md) §1.4c(REQ-API-079).
@@ -767,7 +768,7 @@ Claude Code의 권한 평가 순서(훅 → deny → ask 강제 레인 → 권�
 
 ### 6.5 수집 경로와 감사
 
-- **훅 URL 통제** — `allowedHttpHookUrls`로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. 훅 설정이 오염돼도 데이터가 외부로 나가지 않는다.
+- **훅 URL 통제** — `allowedHttpHookUrls`로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. **적용 범위는 `type:"http"` 훅뿐이다**(2026-09-03 정정 — 공식 문서 확인). NERV 의 기본 훅은 `command` 변형이므로 이 목록이 그것들을 덮지 않고, command 훅에 대한 동등한 통제는 문서에 없다. 그 성질이 필요한 배치는 둘 중 하나다: `hooks/hooks.http.json` 을 기본 자리에 두거나, **관리형 settings 로 훅 정의 자체를 내린다**(`hooks` 키는 관리형 파일에서도 유효하며 플러그인 기본값을 이긴다 — §3.4의 강제력 등급이 그대로 적용된다). 어느 쪽이든 가장 강한 강제는 서버 게이트 판정이다(D-14).
 - **ingest 인증 필수** — 토큰 없는 이벤트는 버린다. hostname은 헤더(`X-NERV-Host`)로, MCP 경로에서는 `nerv_bootstrap` 인자로 받는다.
 - **민감정보 최소화** — OTel의 프롬프트·툴 상세는 기본 마스킹이며 opt-in으로만 켠다. 리뷰 프롬프트 페이로드는 TTL 오브젝트에 두고 결론만 영구 보존한다(D-07).
 - **감사 스키마** — `actor{type,id,is_agent}` · `action`(`spec.approved`·`session.started` 식) · `targets[]` · `context` · 정책 버전. 승인 이벤트에는 **평가된 정책 버전**을 반드시 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하기 위해서다.

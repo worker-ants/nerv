@@ -52,7 +52,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.11 (2026-09-03)</span>
+      <span>버전 v0.12 (2026-09-03)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -1016,7 +1016,7 @@ log_user_prompt = false</code></pre>
 
   <h3 id="sec-6-5">6.5 수집 경로와 감사</h3>
   <ul>
-    <li><b>훅 URL 통제</b> — <code>allowedHttpHookUrls</code>로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. 훅 설정이 오염돼도 데이터가 외부로 나가지 않는다.</li>
+    <li><b>훅 URL 통제</b> — <code>allowedHttpHookUrls</code>로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. <b>적용 범위는 <code>type:"http"</code> 훅뿐이다</b>(2026-09-03 정정). NERV 의 기본 훅은 <code>command</code> 변형이므로 이 목록이 그것들을 덮지 않는다 — 그 성질이 필요한 배치는 http 변형을 기본 자리에 두거나 관리형 settings 로 훅 정의 자체를 내린다.</li>
     <li><b>ingest 인증 필수</b> — 토큰 없는 이벤트는 버린다. hostname은 헤더(<code>X-NERV-Host</code>)로, MCP 경로에서는 <code>nerv_bootstrap</code> 인자로 받는다.</li>
     <li><b>민감정보 최소화</b> — OTel의 프롬프트·툴 상세는 기본 마스킹이며 opt-in으로만 켠다. 리뷰 프롬프트 페이로드는 TTL 오브젝트에 두고 결론만 영구 보존한다(D-07).</li>
     <li><b>감사 스키마</b> — <code>actor{type,id,is_agent}</code> · <code>action</code>(<code>spec.approved</code>·<code>session.started</code> 식) · <code>targets[]</code> · <code>context</code> · 정책 버전. 승인 이벤트에는 <b>평가된 정책 버전</b>을 반드시 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하기 위해서다.</li>

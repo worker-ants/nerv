@@ -1,0 +1,95 @@
+{
+  "$comment": "http 변형 — 서버가 nerv.example.com 이고 관리형 settings 의 allowedHttpHookUrls 로 훅 URL 을 묶고 싶을 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가: 훅 url 은 ${VAR} 확장을 받지 않아 주소가 파일에 박히고, http 훅에는 async 가 없어 PostToolUse 가 매 도구 호출마다 동기로 기다린다. 정본: 4.6 §3.1.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/session",
+            "headers": {
+              "Authorization": "Bearer ${NERV_TOKEN}",
+              "X-NERV-Project": "${NERV_PROJECT}",
+              "X-NERV-Host": "${NERV_HOSTNAME}",
+              "X-NERV-Agent": "claude-code"
+            },
+            "allowedEnvVars": ["NERV_TOKEN", "NERV_PROJECT", "NERV_HOSTNAME"],
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/tool",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/stop",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://nerv.example.com/ingest/hooks/session-end",
+            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
+            "allowedEnvVars": ["NERV_TOKEN"],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
