@@ -342,10 +342,11 @@ export class McpController {
 
     // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
     this.logger.error('도구 실행 실패', error instanceof Error ? error.stack : String(error));
-    return toolError(NERV_ERROR.UNAVAILABLE, t('mcp.error.tool_failed'), {
-      kind: 'internal',
-      detail: error instanceof Error ? error.message : String(error),
-    });
+    // **원문을 밖으로 내보내지 않는다**(2026-09-03). 예전에는 예외 메시지를 `detail` 에
+    // 그대로 실었는데, drizzle 의 예외 메시지는 **SQL 전문**이라(db-error.ts 주석이 이미
+    // 그렇게 적고 있다) 오타 하나가 스키마와 질의를 그대로 돌려주는 창이 됐다. 원인은
+    // 운영자 로그에 남고, 모델에게는 "다시 시도할 수 있는 실패" 라는 사실만 준다.
+    return toolError(NERV_ERROR.UNAVAILABLE, t('mcp.error.tool_failed'), { kind: 'internal' });
   }
 
   /** 골격 검증용 — 수집된 카탈로그를 노출한다. 프로토콜 응답이 아니다. */

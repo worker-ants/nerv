@@ -18,6 +18,8 @@ import {
   LEASE_TTL_SECONDS,
   NERV_ERROR,
   NERV_EVENT,
+  implStatus,
+  memberRole,
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -27,6 +29,7 @@ import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 import { decideGate, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
@@ -992,7 +995,10 @@ export class SpecService {
       }
       if (input.ownerRole != null) {
         await tx.execute(
-          sql`UPDATE spec SET owner_role = ${input.ownerRole}::membership_role WHERE id = ${spec.id}`,
+          // **타입 이름이 틀려 있었다.** `membership_role` 은 존재하지 않는 타입이라(실물은
+          // `member_role`) 이 경로는 **100% 500** 이었고, 같은 요청의 다른 필드까지 롤백시켰다
+          // (라이브 실측 2026-09-03 — 그래서 실데이터의 스펙 158개 전부 owner_role 이 NULL 이다).
+          sql`UPDATE spec SET owner_role = ${assertVocab([input.ownerRole], memberRole.enumValues, 'owner_role')[0]}::member_role WHERE id = ${spec.id}`,
         );
         changed.push('owner_role');
       }
@@ -1298,7 +1304,10 @@ export class SpecService {
   }): Promise<Record<string, unknown>[]> {
     const specFilter = input.specKey == null ? sql`` : sql` AND s.key = ${input.specKey}`;
     const statusFilter =
-      input.implStatus == null ? sql`` : sql` AND r.impl_status = ${input.implStatus}::impl_status`;
+      input.implStatus == null
+        ? sql``
+        : // 어휘 밖의 값은 400 이다 — 그대로 캐스팅하면 오타가 500 이 된다(§1.4j)
+          sql` AND r.impl_status = ${assertVocab([input.implStatus], implStatus.enumValues, 'impl_status')[0]}::impl_status`;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT r.id, r.ref, r.statement_md, r.priority::text AS priority,
              r.impl_status::text AS impl_status, r.verified_at,

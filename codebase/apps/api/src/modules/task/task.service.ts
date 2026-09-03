@@ -24,6 +24,7 @@ import type { NervDb } from '../../common/database.module.js';
 /** 트랜잭션 핸들 — spec.service.ts 와 같은 방식으로 유도한다 */
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
 import { SessionService } from '../session/session.service.js';
@@ -164,7 +165,10 @@ export class TaskService {
     limit?: number;
     cursor?: string | undefined;
   }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
-    const statuses = input.statuses ?? null;
+    // 모르는 상태는 거절이지 무시가 아니다(§1.4j) — 예전에는 그대로 `::task_status` 로
+    // 캐스팅해 **사용자의 오타가 500** 이 됐다(라이브 실측 2026-09-03: `?status=doing`).
+    const statuses =
+      input.statuses == null ? null : assertVocab(input.statuses, taskStatus.enumValues, 'status');
     const statusFilter =
       statuses === null || statuses.length === 0
         ? sql``

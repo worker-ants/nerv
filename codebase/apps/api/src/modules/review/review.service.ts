@@ -22,6 +22,7 @@ import { EventService } from '../event/event.service.js';
 import { TaskService } from '../task/task.service.js';
 import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 
@@ -890,9 +891,9 @@ export class ReviewService {
     area?: readonly string[];
     limit?: number;
   }): Promise<{ items: Record<string, unknown>[]; facets: FindingFacets; limit: number }> {
-    const severity = normalizeFilter(input.severity, FINDING_SEVERITIES);
-    const status = normalizeFilter(input.status, FINDING_STATUSES);
-    const area = normalizeFilter(input.area, FINDING_AREAS);
+    const severity = normalizeFilter(input.severity, FINDING_SEVERITIES, 'severity');
+    const status = normalizeFilter(input.status, FINDING_STATUSES, 'status');
+    const area = normalizeFilter(input.area, FINDING_AREAS, 'area');
     const tags = (input.tag ?? []).filter((t) => t.trim() !== '');
     // 상한은 계약이 정한다 — clemvion 실측 18,650 발견을 한 응답에 담으면 화면이
     // 3만 픽셀이 된다(실측 2026-08-24). 잘린 사실은 facet 총계가 말한다.
@@ -1098,9 +1099,18 @@ const FINDING_SEVERITIES = ['critical', 'warning', 'info'] as const;
 const FINDING_STATUSES = ['open', 'fixed', 'dismissed', 'wont_fix'] as const;
 
 /** 모르는 값은 조용히 버린다 — 표면이 보낸 오타로 enum 캐스트가 터지지 않게. */
+/**
+ * 발견 큐의 필터 — **모르는 값은 거절이지 무시가 아니다**(§1.4j).
+ *
+ * 예전에는 어휘 밖의 값을 조용히 **버렸다**. 그래서 `?severity=HIGH`(대문자 오타)가 200 을
+ * 받고 **필터가 걸리지 않은 목록**을 돌려줬다 — 사람은 critical 만 걸러진 화면이라고 믿으면서
+ * 전량을 읽는다(라이브 실측 2026-09-03). 500 도 나쁘지만 조용한 무시는 더 나쁘다:
+ * 앞은 실패를 알려 주고 뒤는 거짓말을 한다.
+ */
 function normalizeFilter(
   values: readonly string[] | undefined,
   allowed: readonly string[],
+  field: string,
 ): string[] {
-  return (values ?? []).filter((v) => allowed.includes(v));
+  return assertVocab(values ?? [], allowed, field);
 }

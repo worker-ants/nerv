@@ -1,5 +1,6 @@
 // REST — 이벤트 피드 · 알림 (docs/04-mvp/api.md §2.7)
 import { Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { intParam } from '../../common/query-vocab.js';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
@@ -31,7 +32,11 @@ export class EventController {
       types: type === undefined || type === '' ? null : type.split(','),
       subjectId: subjectId ?? null,
       before: before ?? null,
-      ...(limit === undefined ? {} : { limit: Number(limit) }),
+      // 숫자가 아니면 400 이다 — NaN 을 SQL 에 실으면 22P02 로 죽는다(라이브 실측 500)
+      ...((): { limit?: number } => {
+        const parsed = intParam(limit, 'limit');
+        return parsed === null ? {} : { limit: parsed };
+      })(),
     });
   }
 

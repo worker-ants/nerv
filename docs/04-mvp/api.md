@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.60 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.61 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
 >
+> v0.61 변경(2026-09-03 — 오타가 500 이던 자리 넷, 라이브 실측): **§1.4j 확장**(REQ-API-082). 어휘 검사가 EP-SES-01 한 자리에만 있어 `?status=doing`·`?impl_status=nope`·`?v=abc`·`events?limit=abc` 가 전부 500 이었고, 발견 큐는 반대로 어휘 밖 값을 **조용히 버려** 걸러지지 않은 목록을 200 으로 돌려줬다. 판정을 `common/query-vocab.ts` 한 곳으로 모은다. 함께 **EP-SPEC-15 `owner_role` 이 존재하지 않는 타입(`membership_role`)으로 캐스팅하던 것**을 고쳤다 — 이 경로는 100% 500 이었고 같은 요청의 다른 필드까지 롤백시켰다. MCP 실패 응답의 예외 원문(SQL 전문) 유출도 막았다.
 > v0.60 변경(2026-09-03 — 배지의 판정을 서버로): EP-SPEC-03 응답에 `recheck{count,specs[]}` 를 더한다. 참조 갱신 배지의 판정이 화면에 있었고 그 규칙이 초안이면 거의 언제나 참이라 **오탐률 100%** 였다(4.5 v0.62). 판정은 서버가 한다 — 이미 발행하고 있던 `spec.recheck_requested` 를 이 판의 저장 시각과 견주고, 무엇 때문인지도 함께 싣는다.
 > v0.59 변경(2026-09-03 — REST 쪽 절반): EP-SPEC-03 이 `include` 를 실제로 받는다. 전표는 처음부터 적고 있었지만 컨트롤러가 그 인자를 넘기지 않아, 웹의 영향 미리보기가 파생 Task 를 **언제나 0건**이라 말했다(실측: 그 수치가 0이던 스펙 86개 중 하나는 실제로 29건이다). 전표에서 `relations`·`baseline` 은 Phase 2 로 표기를 맞췄다 — 적어 두고 없는 것이 이 결함의 원인이었다.
 > v0.58 변경(2026-09-03 — 받는 척하던 인자를 실물로, 사람 결정): **REQ-API-081 신설.** v0.57 이 드러낸 유령 인자 열한 종 중 일곱을 배선했다 — `state_note`·`progress`·`stats`·`include[tasks,comments]`·`resolved_in_version_id`·`lease_seconds`·후보의 `spec_key`·`version_no`. 열 셋이 새로 생겼다(`claim.release_note`·`claim.progress_note`·`agent_session.diff_files` — 4.3 참조). 나머지 넷은 정본 표에서 걷었다(3.4 v0.10).
@@ -450,9 +451,16 @@ HTTP 상태 매핑:
 
 곁가지 정정: `invalid_input` 은 요청의 **모양**이 틀린 것이라 §1.4 의 기준("모양이냐 상태냐")대로 **400** 이다. 409 로 나가던 동안 화면은 이것을 "지금은 안 되지만 나중에는 될 일"(상태 충돌)과 구별할 수 없었다.
 
+**한 자리만 고쳤던 것이 드러났다**(2026-09-03 · 라이브 실측 — REQ-API-082). 위 규칙은 EP-SES-01 에만 적용돼 있었고, 같은 모양의 자리 넷은 값을 그대로 `::enum` 으로 캐스팅하거나 `Number()` 의 `NaN` 을 SQL 에 실어 **사용자의 오타가 500** 이 됐다: `?status=doing` · `?impl_status=nope` · `?v=abc` · `events?limit=abc`. 그리고 발견 큐(`?severity=HIGH`)는 반대 방향으로 어긋나 있었다 — 200 을 주면서 **필터를 조용히 버렸다.** 조용한 무시가 더 나쁘다: 500 은 실패를 알려 주지만 무시는 걸러진 화면이라고 믿게 만든다.
+
+판정은 이제 한 곳이다(`common/query-vocab.ts`) — 어휘의 정본은 언제나 `@nerv/schema` 의 enum 이고, 표면은 그것을 다시 적지 않는다(D-05).
+
+**예외 원문은 나가지 않는다.** MCP 표면은 실패한 도구의 예외 메시지를 `details.detail` 에 그대로 실었는데, drizzle 의 예외 메시지는 **SQL 전문**이라 오타 하나가 스키마와 질의를 돌려주는 창이 됐다. 원인은 운영자 로그에 남고 모델에게는 "다시 시도할 수 있는 실패" 라는 사실만 준다.
+
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-074 | WHEN 목록·기간 값을 SQL 에 실으면 THE SYSTEM SHALL 문자열로 조립하지 않고 파라미터로 바인딩한다. WHEN EP-SES-01 의 `state` 에 `session_state` 어휘 밖의 값이 오면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`invalid_input`)으로 거부하고 허용 목록을 `details` 에 싣는다 |
+| REQ-API-082 | WHEN 어느 표면이든 질의 인자에 어휘 밖의 값(`status`·`impl_status`·`severity`·`owner_role` 등) 또는 정수가 아닌 수치(`v`·`limit`)를 실으면 THE SYSTEM SHALL 400 `invalid_input` 으로 거부하고 `field`·`unknown`·`allowed` 를 `details` 에 싣는다 — **조용히 버리지도, 500 으로 죽지도 않는다.** WHEN 도구 실행이 내부 예외로 실패하면 THE SYSTEM SHALL 예외 원문을 응답에 싣지 않고 운영자 로그에만 남긴다 |
 
 ### 1.4k 스펙 첨부 — 디자인 시안 (2026-09-01 신설 — 사람 결정 · 2026-09-02 번호 정정)
 

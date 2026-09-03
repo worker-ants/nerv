@@ -29,6 +29,7 @@ interface RawReply {
 }
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { intParam } from '../../common/query-vocab.js';
 import { principalOf } from '../../common/scope-check.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRole, RequireScope } from '../../common/route-permission.js';
@@ -146,7 +147,8 @@ export class SpecController {
     return this.specs.get({
       projectId: projectOf(req),
       specKey: spec,
-      versionNo: version === undefined ? null : Number(version),
+      // `Number('abc')` 는 NaN 이고, NaN 을 SQL 에 실으면 22P02 로 죽는다(라이브 실측: `?v=abc` → 500)
+      versionNo: intParam(version, 'v'),
       include:
         include === undefined || include === ''
           ? null

@@ -21,6 +21,7 @@ import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 
 export type AgentKind = 'claude-code' | 'codex' | 'web' | 'other';
@@ -66,17 +67,9 @@ export interface SessionCandidate extends Record<string, unknown> {
  * 첫 번째는 "조립하지 않는다"이고, 이것은 "필터가 거짓말하지 않는다"를 지킨다.
  */
 function assertSessionStates(values: readonly string[]): string[] {
-  const allowed = sessionState.enumValues as readonly string[];
-  const unknown = values.filter((v) => !allowed.includes(v));
-  if (unknown.length > 0) {
-    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
-      kind: 'invalid_input',
-      field: 'state',
-      unknown,
-      allowed,
-    });
-  }
-  return [...values];
+  // 판정은 공용 헬퍼가 한다(2026-09-03) — 같은 규칙이 다섯 자리에 흩어져 있었고,
+  // 그중 넷은 아예 없어서 오타가 500 이 됐다(§1.4j · common/query-vocab.ts).
+  return assertVocab(values, sessionState.enumValues, 'state');
 }
 
 /** S5 카드 한 장 — 신원 3요소 + 클레임 + 리스 잔여 + diff (ui-wireframes §3.3) */

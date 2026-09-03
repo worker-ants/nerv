@@ -177,6 +177,46 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
   });
 });
 
+/**
+ * §1.4j — 어휘 밖의 값은 **거절이지 무시가 아니고, 500 도 아니다**(REQ-API-074).
+ *
+ * 라이브 실측(2026-09-03): 네 자리가 사용자의 오타에 500 을 돌려주고 있었다. 값이 그대로
+ * `::enum` 으로 캐스팅되거나 `Number('abc')` 가 NaN 이 되어 SQL 이 22P02 로 죽는 자리다.
+ * 500 은 "서버가 잘못했다, 기다렸다 다시" 라는 뜻이라 클라이언트는 고칠 수 없는 요청을
+ * 재시도한다. 400 은 "이 목록에서 골라라" 다.
+ */
+describe('오타는 400 이다 (§1.4j · REQ-API-074)', () => {
+  it.each([
+    ['tasks?status=doing', '/api/v1/projects/clemvion/tasks?status=doing', 'status'],
+    [
+      'requirements?impl_status=nope',
+      '/api/v1/projects/clemvion/requirements?impl_status=nope',
+      'impl_status',
+    ],
+    ['specs/:spec?v=abc', '/api/v1/projects/clemvion/specs/SPC-RBAC?v=abc', 'v'],
+    ['events?limit=abc', '/api/v1/projects/clemvion/events?limit=abc', 'limit'],
+  ])('%s → 400 이고 허용 목록을 준다', async (_name, url, field) => {
+    const res = await call('GET', url);
+    expect(res.status).toBe(400);
+    const body = res.body as Record<string, unknown>;
+    expect(body['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect(body['details']).toMatchObject({ kind: 'invalid_input', field });
+    // 무엇을 보낼 수 있는지 말해 주지 않으면 클라이언트는 같은 요청을 반복한다
+    expect((body['details'] as { allowed: string[] }).allowed.length).toBeGreaterThan(0);
+  });
+
+  // 조용한 무시는 500 보다 나쁘다 — 사람은 걸러진 화면이라고 믿으면서 걸러지지 않은
+  // 목록을 읽는다. 이 자리는 200 을 주면서 필터를 버리고 있었다(라이브 실측).
+  it('발견 큐의 어휘 밖 필터는 조용히 버리지 않는다', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/findings?severity=HIGH');
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'invalid_input',
+      field: 'severity',
+    });
+  });
+});
+
 describe('Task 표면 (EP-TASK-01·03·04·05·09)', () => {
   // 보드의 "내 담당" 이 기대는 계약이다. 화면이 상태 하나(`in_progress`)로 좁혀 세던 동안,
   // 담당이 지정된 Task 3건(ready 2 · blocked 1)이 세 사람 모두에게 0으로 보였다(실측).

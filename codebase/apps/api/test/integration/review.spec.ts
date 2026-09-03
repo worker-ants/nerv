@@ -698,8 +698,17 @@ describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)',
     expect(first['spec_key']).toBeNull();
   });
 
-  it('모르는 필터 값은 조용히 버린다 — enum 캐스트가 터지지 않는다', async () => {
-    const { items } = await reviews.findings({ projectId, severity: ['bogus'], status: ['open'] });
+  // **2026-09-03 정정 — 이 단언은 뒤집혔다.** 예전에는 어휘 밖의 값을 조용히 버려서
+  // `?severity=HIGH`(대문자 오타)가 200 과 **걸러지지 않은 목록**을 받았다. 그러면 사람은
+  // critical 만 남은 화면이라 믿으면서 전량을 읽는다 — 조용한 무시는 500 보다 나쁘다.
+  // 정본이 이미 그렇게 적고 있었다(§1.4j · REQ-API-074): "모르는 값은 거절이지 무시가 아니다".
+  it('모르는 필터 값은 거절한다 — 조용히 버리면 필터가 거짓말을 한다', async () => {
+    await expect(
+      reviews.findings({ projectId, severity: ['bogus'], status: ['open'] }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+
+    // 어휘 안의 값은 그대로 돈다 — 거절이 넓어지지 않았다는 대조군이다
+    const { items } = await reviews.findings({ projectId, status: ['open'] });
     expect(items).toHaveLength(3);
   });
 
