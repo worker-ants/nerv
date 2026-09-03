@@ -178,6 +178,48 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
 });
 
 describe('Task 표면 (EP-TASK-01·03·04·05·09)', () => {
+  // 보드의 "내 담당" 이 기대는 계약이다. 화면이 상태 하나(`in_progress`)로 좁혀 세던 동안,
+  // 담당이 지정된 Task 3건(ready 2 · blocked 1)이 세 사람 모두에게 0으로 보였다(실측).
+  it('EP-TASK-01 — 상태 여럿과 담당자를 함께 거를 수 있다', async () => {
+    const made = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      payload: { title: '내 담당 집계' },
+    });
+    expect(made.status).toBe(201);
+    const key = (made.body as Record<string, unknown>)['key'] as string;
+    // 생성은 언제나 backlog 다 — 4요소가 차야 서버가 ready 로 올린다(같은 절의 다음 테스트)
+    const ready = await call('PATCH', `/api/v1/projects/clemvion/tasks/${key}`, {
+      payload: {
+        goal_md: '목표',
+        output_format_md: 'PR',
+        tools_sources_md: '도구',
+        boundaries_md: '경계',
+        assignee_user_id: adminId,
+      },
+    });
+    expect((ready.body as Record<string, unknown>)['status']).toBe('ready');
+
+    // 라벨이 "내 담당" 이면 값도 사람 축이어야 한다 — 상태 하나로 좁히면 둘이 어긋난다
+    const mine = await call(
+      'GET',
+      `/api/v1/projects/clemvion/tasks?status=ready,claimed,in_progress,in_review,blocked&assignee=${adminId}`,
+    );
+    expect(mine.status).toBe(200);
+    const keys = ((mine.body as { items: Record<string, unknown>[] }).items ?? []).map(
+      (t) => t['key'],
+    );
+    expect(keys).toContain(key);
+
+    // 대조군 — 한 상태로만 좁히면 같은 Task 가 사라진다(예전 화면이 세던 방식이다)
+    const narrow = await call(
+      'GET',
+      `/api/v1/projects/clemvion/tasks?status=in_progress&assignee=${adminId}`,
+    );
+    const narrowKeys = ((narrow.body as { items: Record<string, unknown>[] }).items ?? []).map(
+      (t) => t['key'],
+    );
+    expect(narrowKeys).not.toContain(key);
+  });
+
   it('생성은 언제나 backlog 이고, 4요소가 차면 서버가 ready 로 승격한다 (FR-05)', async () => {
     const created = await call('POST', '/api/v1/projects/clemvion/tasks', {
       payload: { title: '위젯 임베드', priority: 'P1' },

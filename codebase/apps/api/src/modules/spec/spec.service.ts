@@ -209,7 +209,7 @@ export class SpecService {
              encode(sv.content_hash, 'hex') AS content_hash,
              sv.superseded_by_version_id,
              -- 곁줄(시안) — 누가 언제 승인했는가. 이 문서의 무게를 한 줄로 말한다
-             sv.approved_at, u.display_name AS approved_by_name
+             sv.approved_at, sv.updated_at, u.display_name AS approved_by_name
         FROM spec s
    LEFT JOIN spec_version sv ON ${pick}
    LEFT JOIN "user" u ON u.id = sv.approved_by_user_id
@@ -249,6 +249,22 @@ export class SpecService {
       ? await this.comments.list({ projectId: input.projectId, specKey: String(spec['key']) })
       : undefined;
 
+    // **참조 갱신은 이벤트가 안다**(REQ-WEB-037 · 2026-09-03). 화면은 "앞선 판이 있으면"
+    // 으로 판정하고 있었는데 그것은 **모든 초안에서 참이라** 배지가 늘 켜져 있었다
+    // (실측 2026-09-03: 초안 26판 중 26판 점등 — 오탐률 100%). 늘 켜진 경고는 아무도 읽지
+    // 않는다. 서버는 이미 참조 전파에서 `spec.recheck_requested` 를 발행하고 있었으므로
+    // (§3.3 — 이 DB 에 413건), 판정은 **이 판을 마지막으로 쓴 뒤 그 신호가 왔는가** 다.
+    const { rows: recheck } = await this.db.execute<{ n: number; keys: string[] }>(sql`
+      SELECT count(*)::int AS n,
+             coalesce(array_agg(DISTINCT src.key) FILTER (WHERE src.key IS NOT NULL), '{}') AS keys
+        FROM event e
+   LEFT JOIN spec src ON src.id = (e.payload ->> 'because_of')::uuid
+       WHERE e.project_id = ${input.projectId}
+         AND e.type = ${NERV_EVENT.SPEC_RECHECK_REQUESTED}
+         AND e.subject_id = ${spec['spec_id'] as string}
+         AND e.occurred_at > ${spec['updated_at'] as string}
+    `);
+
     return {
       ...spec,
       // 본문이 없는 노드는 빈 본문이다 — null 을 그대로 흘리면 화면이 "null" 을 쓴다
@@ -256,6 +272,8 @@ export class SpecService {
       requirements,
       ...(tasks === undefined ? {} : { tasks }),
       ...(comments === undefined ? {} : { comments }),
+      // 배지가 무엇 때문에 켜졌는지까지 준다 — "낡았다" 만으로는 어디를 볼지 모른다
+      recheck: { count: recheck[0]?.n ?? 0, specs: recheck[0]?.keys ?? [] },
       // 기준 버전이 이미 지나간 판이면 표시한다 — 재브리핑의 신호다(§2.4)
       basis_superseded: spec['superseded_by_version_id'] != null,
     };
@@ -703,7 +721,13 @@ export class SpecService {
         });
       }
 
-      const gate = await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId);
+      const gate = await this.assessGate(
+        tx,
+        input.projectId,
+        version.spec_id,
+        version.spec_type,
+        input.specVersionId,
+      );
 
       // 제출 = 본문 동결. 트리거가 이후 UPDATE 를 막는다(4.3 §2.13)
       await tx.execute(sql`
@@ -797,7 +821,13 @@ export class SpecService {
 
       await this.assertDifferentApprover(tx, input, version.author_user_id);
 
-      const gate = await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId);
+      const gate = await this.assessGate(
+        tx,
+        input.projectId,
+        version.spec_id,
+        version.spec_type,
+        input.specVersionId,
+      );
       await this.approveInTx(tx, emit, {
         projectId: input.projectId,
         specVersionId: input.specVersionId,
@@ -840,7 +870,13 @@ export class SpecService {
       specVersionId: input.specVersionId,
       specId: version.spec_id,
       approverUserId: input.approverUserId,
-      gate: await this.assessGate(tx, input.projectId, version.spec_id, version.spec_type, input.specVersionId),
+      gate: await this.assessGate(
+        tx,
+        input.projectId,
+        version.spec_id,
+        version.spec_type,
+        input.specVersionId,
+      ),
     });
   }
 

@@ -281,6 +281,10 @@ function SpecDetail(): React.JSX.Element {
   }, [draft, editable, save]);
 
   const relationItems = relations.data?.items ?? [];
+  // 참조 갱신 — 서버 판정(REQ-WEB-037). 배지는 이 값만 본다.
+  const recheck = (detail.data?.['recheck'] ?? {}) as { count?: number; specs?: string[] };
+  const recheckCount = typeof recheck.count === 'number' ? recheck.count : 0;
+  const recheckSpecs = Array.isArray(recheck.specs) ? recheck.specs : [];
   const backlinks = relationItems.filter((r) => r['direction'] === 'in');
   const outgoing = relationItems.filter((r) => r['direction'] !== 'in');
   const shownRelations = relTab === 'in' ? backlinks : relTab === 'out' ? outgoing : relationItems;
@@ -333,13 +337,18 @@ function SpecDetail(): React.JSX.Element {
             <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
           )}
           {/* 참조 갱신 배지(REQ-WEB-037) — 내가 참조하는 문서가 나보다 앞서 갔다는 신호.
-                이게 없으면 낡은 근거 위에서 계속 쓰게 된다 */}
-          {relationItems.some((r) => r['direction'] === 'out' && r['doc_status'] === 'approved') &&
-            detail.data?.['doc_status'] === 'draft' && (
-              <span data-testid="recheck-badge">
-                <StatusBadge token="waiting" label={t('spec.recheck')} />
-              </span>
-            )}
+                이게 없으면 낡은 근거 위에서 계속 쓰게 된다.
+
+                **판정은 서버가 한다**(2026-09-03). 예전에는 "참조하는 approved 문서가 있고
+                내가 초안이면" 으로 켰는데, 그것은 초안이면 거의 언제나 참이라 **초안 26판 중
+                26판에서 켜져 있었다**(실측). 늘 켜진 경고는 아무도 읽지 않는다. 서버는 참조
+                전파에서 이미 `spec.recheck_requested` 를 발행하므로, 판정은 "이 판을 마지막으로
+                쓴 뒤 그 신호가 왔는가" 이고 무엇 때문인지도 함께 온다. */}
+          {recheckCount > 0 && (
+            <span data-testid="recheck-badge" title={recheckSpecs.join(', ')}>
+              <StatusBadge token="waiting" label={t('spec.recheck')} />
+            </span>
+          )}
           <Button
             size="sm"
             variant="ghost"

@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.59 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.60 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
 >
+> v0.60 변경(2026-09-03 — 배지의 판정을 서버로): EP-SPEC-03 응답에 `recheck{count,specs[]}` 를 더한다. 참조 갱신 배지의 판정이 화면에 있었고 그 규칙이 초안이면 거의 언제나 참이라 **오탐률 100%** 였다(4.5 v0.62). 판정은 서버가 한다 — 이미 발행하고 있던 `spec.recheck_requested` 를 이 판의 저장 시각과 견주고, 무엇 때문인지도 함께 싣는다.
 > v0.59 변경(2026-09-03 — REST 쪽 절반): EP-SPEC-03 이 `include` 를 실제로 받는다. 전표는 처음부터 적고 있었지만 컨트롤러가 그 인자를 넘기지 않아, 웹의 영향 미리보기가 파생 Task 를 **언제나 0건**이라 말했다(실측: 그 수치가 0이던 스펙 86개 중 하나는 실제로 29건이다). 전표에서 `relations`·`baseline` 은 Phase 2 로 표기를 맞췄다 — 적어 두고 없는 것이 이 결함의 원인이었다.
 > v0.58 변경(2026-09-03 — 받는 척하던 인자를 실물로, 사람 결정): **REQ-API-081 신설.** v0.57 이 드러낸 유령 인자 열한 종 중 일곱을 배선했다 — `state_note`·`progress`·`stats`·`include[tasks,comments]`·`resolved_in_version_id`·`lease_seconds`·후보의 `spec_key`·`version_no`. 열 셋이 새로 생겼다(`claim.release_note`·`claim.progress_note`·`agent_session.diff_files` — 4.3 참조). 나머지 넷은 정본 표에서 걷었다(3.4 v0.10).
 > v0.57 변경(2026-09-03 — 유령 인자, 실측): **§1.4e 보강**(REQ-API-080). 스키마에 없는 인자를 검사도 거부도 없이 지나쳐, 스킬이 지시하는 인자 열한 종이 성공 응답과 함께 사라지고 있었다. 거부하지 않되 `ignored_args`(성공)·`details.unknown`(거절)로 버렸다는 사실을 말한다 — 개별 인자의 구현·삭제는 그다음 결정이다.
@@ -687,7 +688,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | --- | --- | --- | --- | --- | --- |
 | EP-SPEC-01 | `GET /api/v1/projects/{proj}/specs/tree` | 전 역할(`spec:read`) | `SpecTreeQuery`(root, depth, status, include_archived — 기본 false, REQ-API-022) | `SpecTreeResult`(id·title·type·문서 상태·현재 버전·`archived_at`) | — |
 | EP-SPEC-02 | `GET /api/v1/projects/{proj}/specs/search` | 전 역할 | `SpecSearchQuery`(query, type, status, requirement_id, **references**(이 스펙을 참조하는 문서만), include_archived — 기본 false(REQ-API-022), limit) | `SpecSearchResult`(안정 ID + 앵커 + 스니펫 + 관련도, **`related[]`** 1-hop 관계 확장 그룹, **`degraded?`** — 파이프라인은 §2.2b) | — |
-| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `include` 쉼표 구분 — **구현: `tasks`·`comments`**(`requirements` 는 늘 실린다). `relations` 요약과 `baseline` 은 Phase 2 — 2026-09-03 정정) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시) | — |
+| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `include` 쉼표 구분 — **구현: `tasks`·`comments`**(`requirements` 는 늘 실린다). `relations` 요약과 `baseline` 은 Phase 2 — 2026-09-03 정정) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시, +`recheck{count,specs[]}` — 이 판을 마지막으로 쓴 뒤 온 참조 갱신 신호와 그 출처 스펙 키, REQ-WEB-037) | — |
 | EP-SPEC-04 | `GET /api/v1/projects/{proj}/specs/{spec}/versions` | 전 역할 | — | `Page<SpecVersionSummary>` | — |
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |

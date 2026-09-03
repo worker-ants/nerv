@@ -675,6 +675,38 @@ describe('E09-S07 재브리핑·참조 전파 (§3.3)', () => {
     );
     expect(rows.map((r) => r.subject_id)).toContain(source.specId);
   });
+
+  /**
+   * 배지의 판정은 서버가 한다(REQ-WEB-037 · 2026-09-03).
+   *
+   * 화면이 "참조하는 approved 문서가 있고 내가 초안이면" 으로 켜던 동안 **초안 26판 중
+   * 26판에서 배지가 켜져 있었다**(실측). 늘 켜진 경고는 아무도 읽지 않는다.
+   */
+  it('참조 갱신은 신호가 온 문서에서만 켜진다 — 그리고 무엇 때문인지 말한다', async () => {
+    const target = await newDraft('SPC-MOVED');
+    const source = await newDraft('SPC-WATCHER');
+    await newDraft('SPC-BYSTANDER');
+    await pool.query(
+      `INSERT INTO spec_relation (id, project_id, from_spec_id, to_spec_id, kind)
+       VALUES ($1,$2,$3,$4,'references')`,
+      [newId(), projectId, source.specId, target.specId],
+    );
+
+    // 아직 아무것도 움직이지 않았다 — 참조가 있다는 사실만으로는 켜지지 않는다
+    const before = await specs.get({ projectId, specKey: 'SPC-WATCHER' });
+    expect(before['recheck']).toMatchObject({ count: 0 });
+
+    await specs.submitReview({ projectId, specVersionId: target.versionId, userId: planner });
+
+    const after = await specs.get({ projectId, specKey: 'SPC-WATCHER' });
+    expect((after['recheck'] as { count: number }).count).toBeGreaterThan(0);
+    // "낡았다" 만으로는 어디를 볼지 모른다 — 무엇 때문인지 함께 온다
+    expect((after['recheck'] as { specs: string[] }).specs).toContain('SPC-MOVED');
+
+    // 참조하지 않는 문서는 조용하다 — 오탐이 하나라도 있으면 배지는 다시 장식이 된다
+    const quiet = await specs.get({ projectId, specKey: 'SPC-BYSTANDER' });
+    expect(quiet['recheck']).toMatchObject({ count: 0 });
+  });
 });
 
 /**
