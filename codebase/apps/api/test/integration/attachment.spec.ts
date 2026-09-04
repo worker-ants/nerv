@@ -354,6 +354,12 @@ describe('에이전트 경로 — presigned 2단계', () => {
     expect(committed['bytes']).toBe(6);
     const listed = await attachments.list({ projectId, specKey: 'SPC-ATT' });
     expect(listed).toHaveLength(1);
+
+    // **확정 응답이 받는 주소를 준다**(2026-09-04 실사용 보고). 스킬은 "확정하면 응답의
+    // `url` 을 본문에 넣으라" 고 지시하는데 이 응답에 그 필드가 없어, 에이전트가 목록을
+    // 따로 불러 메웠다 — 지시가 가리키는 필드는 지시가 가리키는 자리에 있어야 한다.
+    expect(committed['url']).toBe(listed[0]?.['url']);
+    expect(String(committed['url'])).toContain('/projects/p/');
   });
 
   it('상한은 확정에서 지켜진다 — presigned PUT 은 크기를 못 막는다', async () => {

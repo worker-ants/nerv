@@ -201,7 +201,15 @@ export class AttachmentService {
       UPDATE attachment SET committed_at = now(), bytes = ${head.bytes}
        WHERE id = ${input.attachmentId}
     `);
-    return { attachment_id: input.attachmentId, bytes: head.bytes, committed: true };
+    // 확정 응답이 **받는 주소를 준다**(2026-09-04 · REQ-API-089). 스킬은 "확정하면 응답의
+    // `url` 을 본문에 넣으라" 고 지시하는데 이 응답에 그 필드가 없었다 — 실사용 에이전트가
+    // 목록을 따로 불러 메웠다. 지시가 가리키는 필드는 지시가 가리키는 자리에 있어야 한다.
+    return {
+      attachment_id: input.attachmentId,
+      bytes: head.bytes,
+      committed: true,
+      url: `/api/v1/projects/${await this.projectSlug(input.projectId)}/attachments/${input.attachmentId}`,
+    };
   }
 
   /** 라우트의 `:proj` 는 슬러그로만 해소된다 — 주소를 만드는 자리는 전부 이것을 쓴다. */
