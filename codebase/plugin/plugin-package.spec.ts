@@ -50,8 +50,17 @@ describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', 
     expect(file('hooks/hooks.json')).toBe(fenceAfter('### 3.1 `hooks/hooks.json` 전문', '```'));
   });
 
-  it('.mcp.json', () => {
-    expect(file('.mcp.json')).toBe(fenceAfter('### 3.3 `.mcp.json` 전문', '```'));
+  /**
+   * **플러그인은 `.mcp.json` 을 담지 않는다**(REQ-PLG-001 개정 2026-09-04).
+   *
+   * 담고 있던 동안 그 파일은 어느 프로젝트에서도 붙을 수 없었다: 플러그인이 제공한
+   * `.mcp.json` 은 그 프로젝트의 `settings.local.json` `env` 를 읽지 못해
+   * `${NERV_SERVER:-…}` 가 언제나 기본값으로 떨어졌고(실측), 세션마다 `nerv.example.com`
+   * 연결 실패가 하나씩 남았다. 서버 주소·토큰은 프로젝트별 값이라 여러 프로젝트가
+   * 공유하는 물건에 담길 수 없다 — 4.6 §3.3 템플릿을 쓰는 쪽 저장소가 자기 루트에 둔다.
+   */
+  it('.mcp.json 을 담지 않는다 — 서버 주소·토큰은 프로젝트별 값이다', () => {
+    expect(existsSync(join(here, '.mcp.json'))).toBe(false);
   });
 
   it('hooks/hooks.http.json', () => {
@@ -121,9 +130,12 @@ describe('REQ-PLG-013 — 설치가 .nerv/ 를 무시 목록에 넣는다', () =
 describe('배포 — 서버 주소가 포크 없이 바뀐다 (PLG-04 · 2026-09-03)', () => {
   // 실측 2026-09-03: 실제로 도는 유일한 설치가 `.mcp.json` 을 손으로 다시 쓰고 훅 6종을
   // 손으로 갈아 끼웠다. 패키지가 배포 가능한 물건이 아니면 사람은 포크한다.
-  it('.mcp.json 은 NERV_SERVER 를 읽는다 — 기본값은 그대로다', () => {
-    const mcp = file('.mcp.json');
-    expect(mcp).toContain('${NERV_SERVER:-https://nerv.example.com}/mcp');
+  // 템플릿은 이제 문서에만 있다(플러그인 파일이 아니다). 그래도 그 전문이 서버 주소를
+  // 읽는 모양인지는 지켜야 한다 — 쓰는 쪽이 그대로 복사하는 물건이기 때문이다.
+  it('문서의 `.mcp.json` 템플릿이 NERV_SERVER 를 읽는다 — 기본값은 그대로다', () => {
+    const template = fenceAfter('### 3.3 `.mcp.json` 템플릿', '```');
+    expect(template).toContain('${NERV_SERVER:-https://nerv.example.com}/mcp');
+    expect(template).toContain('${NERV_TOKEN}');
   });
 
   it('기본 변형이 다섯 엔드포인트를 덮는다 — 서버 주소는 파일에 박히지 않는다', () => {

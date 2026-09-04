@@ -2,8 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **22종**(2026-09-02 실측 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.15 · 2026-09-04 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.16 · 2026-09-04 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 >
+> v0.16 변경(2026-09-04 — 플러그인이 `.mcp.json` 을 담지 않는다, 사람 결정): §3.1 트리와 §3.4 서술에서 `.mcp.json` 을 걷었다. 플러그인이 제공한 `.mcp.json` 은 그 프로젝트의 `settings.local.json` `env` 를 읽지 못해 `${NERV_SERVER:-…}` 가 언제나 기본값으로 떨어졌다(실측) — 서버 주소·토큰은 프로젝트별 값이라 여러 프로젝트가 공유하는 물건에 담길 수 없다. 쓰는 쪽 저장소가 [4.6](../04-mvp/plugin.md) §3.3 템플릿을 자기 루트에 둔다(REQ-PLG-001 개정).
 > v0.15 변경(2026-09-04 — §2.4 의 지시가 참이 된다): §2.4 는 "Task 가 베이스라인 맥락이면 주변 문서도 `baseline` 인자로 그 세트를 읽는다" 고 **지시하고 있었는데 그 인자가 없었다** — 같은 문서 §2.3 이 Phase 2 라고 적고 있었다. 에이전트 규약이 없는 인자를 쓰라고 말하는 상태였고, 이 저장소는 정확히 그 방식으로 유령 인자 열한 종을 만든 전력이 있다. `nerv_spec_get(baseline)`·`nerv_task_create(baseline)` 을 실물로 만들어 두 문장을 맞췄다(4.4 v0.66 REQ-API-087).
 > v0.14 변경(2026-09-04 — 스코프 어휘를 사실에 맞춘다, 실측): ③ 의 "§2.3 도구 표와 1:1" 은 사실이 아니었다 — 도구 22종이 쓰는 스코프는 **일곱**이고, `spec:meta`·`import:write`·신설 `spec:evidence` 는 REST 축이다. §6.1 의 발급 화면 그림도 **존재하지 않는 스코프 둘**(`policy:edit`·`audit:read`)을 그리고 있었다. 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES` 이고 구현 규약은 [4.4](../04-mvp/api.md) §1.3·§1.3b(REQ-API-085)다.
 > v0.13 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): §3.3 에 `X-NERV-Branch`·`X-NERV-Worktree` 를 더했다. 세션 신원의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다(실측). 훅은 작업 디렉터리에서 도니까 포워더가 git 에게 직접 묻는다 — detached HEAD 면 보내지 않는다. 이 경로는 command 변형에만 있다(http 훅의 `headers` 는 상수·`${VAR}` 뿐이다). 구현 규약 정본은 [4.4](../04-mvp/api.md) §2.5b(REQ-API-084).
@@ -247,12 +248,11 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 ### 3.1 NERV 플러그인 구성
 
-플러그인 하나로 스킬·서브에이전트·훅·MCP 설정을 함께 배포한다. 사내 git 마켓플레이스(`.claude-plugin/marketplace.json`)에 올리고 관리형 settings로 강제 활성화하는 것이 정석 경로다.
+플러그인 하나로 스킬·서브에이전트·훅을 함께 배포한다(**MCP 설정은 제외** — 서버 주소·토큰이 프로젝트별 값이라 쓰는 쪽이 갖는다, 2026-09-04). 사내 git 마켓플레이스(`.claude-plugin/marketplace.json`)에 올리고 관리형 settings로 강제 활성화하는 것이 정석 경로다.
 
 ```text
 nerv-plugin/
   .claude-plugin/plugin.json      # 매니페스트 · 버전 · 정책 버전
-  .mcp.json                       # NERV MCP 서버 1개 (§3.4)
   hooks/hooks.json                # type:"http" 훅 (§3.3)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임
@@ -431,7 +431,7 @@ nerv-plugin/
 }
 ```
 
-`.mcp.json`은 저장소에 커밋해 팀 전체가 공유하고(`${VAR}` 확장 지원), 조직 관리 기기에는 **관리형 settings**로 마켓플레이스 등록 + 플러그인 활성화 + OTel 환경변수 + `allowedHttpHookUrls`를 함께 내린다. 강제력의 등급은 명확하다.
+`.mcp.json`은 **플러그인이 아니라 쓰는 쪽 저장소가 갖고** 커밋해 팀 전체가 공유한다(`${VAR}` 확장 지원 — 플러그인이 제공한 것은 그 프로젝트의 `env` 를 읽지 못한다, 2026-09-04 실측 · [4.6](../04-mvp/plugin.md) §3.3), 조직 관리 기기에는 **관리형 settings**로 마켓플레이스 등록 + 플러그인 활성화 + OTel 환경변수 + `allowedHttpHookUrls`를 함께 내린다. 강제력의 등급은 명확하다.
 
 | 대상 | 수단 | 강제력 |
 | --- | --- | --- |
