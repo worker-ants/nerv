@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.34 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.35 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.35 변경(2026-09-04 — GitHub 경로를 연다, 사람 결정): 저장소 루트에 `.claude-plugin/marketplace.json` 을 두어 `/plugin marketplace add worker-ants/nerv` 로 설치된다. **서버도 인증서도 필요 없는 가장 싼 경로**다 — 웹 서빙(§3.5)은 https·비-루프백·신뢰된 CA 셋을 다 요구하는데(2026-09-04 실측: `NODE_EXTRA_CA_CERTS` 까지 있어야 설치된다) GitHub 은 그중 아무것도 요구하지 않는다. 루트에 두는 이유는 Claude Code 가 카탈로그를 **저장소 루트에서만** 찾기 때문이다: git URL 의 `#` 는 경로가 아니라 브랜치 ref 라 `#codebase/plugin` 은 `Remote branch not found` 로 끝난다(실측). 카탈로그 셋의 이름·`source` 대응표와 REQ-CB-015 정합 근거를 §3.5 에 적었다.
 > v0.34 변경(2026-09-04 — 첨부 절차가 실사용에서 막혔다): 실사용 세션이 1단계에서 `NERV_UNAVAILABLE`(`kind:'internal'`)을 받고 멈췄다. 원인은 서버의 스토리지 설정 누락인데 **에러가 그것을 말하지 않아** 에이전트가 일시 장애로 읽었다 — 스킬의 대응표가 그 코드를 outbox 큐잉으로 적고 있어 영원히 재시도하는 모양이었다. `/nerv:spec` 대응표에 **`storage_unconfigured` 면 큐잉하지 않는다**를 못 박고, 받는 형식을 아홉으로 적었다(그림 다섯 · 문서 셋 · 묶음 하나). 그림이 아닌 첨부는 본문에 이미지가 아니라 **링크**로 넣는다. 곁들여 `nerv_spec_attach` 의 **도구 설명 자체가 두 단계를 말하게** 했다 — 스킬 없이 도구만 보고 부르는 에이전트가 파일을 실을 자리를 찾다 헤맸다(4.4 v0.67).
 > v0.33 변경(2026-09-04 — 프롬프트가 서버를 따라오지 못한 자리 넷): 스킬은 **모델이 읽는 규약**이라 서버가 앞서가면 그 차이가 그대로 행동의 결함이 된다. ① `/nerv:next` 3번이 후보에 베이스라인이 실린다고 적고 6번은 **그것으로 무엇을 하라는 말이 없었다** — 주변 문서를 `baseline` 으로 읽는 지시를 넣었다(4.4 REQ-API-087). ② 4번의 "브랜치·워크트리는 `nerv_bootstrap` 이 등록한다" 를 **훅이 git 에게 직접 묻는다**로 고쳤다(REQ-API-084) — 예전 문장은 모델이 자기가 실어야 하는 값으로 읽게 했고, 실사용 세션 34개가 전부 NULL 이던 이유가 그것이다. ③ `handoff_note` 를 읽으라는 말이 없었다 — **다음 사람에게 가라고 만든 값**인데(REQ-API-081) 아무도 읽지 않으면 앞사람이 해 본 것을 되풀이한다. ④ `ignored_args`(REQ-API-080)를 `/nerv:next`·`/nerv:impl` 에 적었다: 호출은 성공했는데 인자가 버려진 상태를 조용히 넘기지 않게 한다.
 > v0.32 변경(2026-09-04 — 플랫폼이 자기 플러그인을 서빙한다, 사람 결정): **§3.5 신설.** 서버가 `GET /plugin/marketplace.json` 으로 카탈로그를, `GET /plugin/<이름>-<버전>.zip` 으로 아카이브를 준다(4.4 §2.11 · REQ-API-086). 카탈로그의 주소는 그 서버의 `NERV_PUBLIC_URL` 이라 **받는 쪽이 고칠 것이 없다** — v0.29 가 기록한 포크의 원인이 사라진다. git 경로(`.claude-plugin/marketplace.json`)는 폐쇄망 폴백으로 그대로 남는다. 설치 경로가 셋이 되어 §4 온보딩 3단계에 표를 둔다.
@@ -1141,13 +1142,27 @@ outbox 항목 형식(1파일 = 1호출):
 
 **포크의 원인이 사라진다.** v0.29 가 실측으로 기록한 것이 이것이다 — 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다. git 마켓플레이스는 모두에게 **같은 파일**을 준다. 서버가 만들면 주소는 언제나 그 서버의 것이고, 받는 쪽이 고칠 것이 없다.
 
-**세 경로가 공존한다.**
+**네 경로가 공존한다** — 같은 플러그인을 어디서 받아 오느냐의 차이다.
 
 | 경로 | 어떻게 | 언제 쓰나 |
 | --- | --- | --- |
-| **마켓플레이스 URL**(기본) | `/plugin marketplace add https://<서버>/plugin/marketplace.json` | 플랫폼이 도는 보통의 경우 |
-| git 마켓플레이스 | `/plugin marketplace add <사내 git URL>` — `plugin/.claude-plugin/marketplace.json` 이 상대경로로 자신을 가리킨다 | 서버에 닿기 전, 또는 플랫폼과 분리해 배포할 때 |
-| 수동 | 저장소를 클론해 `.claude/settings.json` 이 절대경로로 `bin/` 을 부른다 | 개발 중(이 저장소 자신이 그렇게 쓴다) |
+| **GitHub**(가장 간단) | `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` | 서버가 없어도 되고 인증서도 필요 없다. 대부분의 경우 |
+| **마켓플레이스 URL** | `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `nerv@nerv` | 플랫폼이 서 있고 그 서버의 것을 받고 싶을 때 |
+| 로컬 경로 | `/plugin marketplace add <클론 경로>/codebase/plugin` → `nerv@nerv-internal` | 이 저장소를 고치면서 바로 시험할 때 |
+| 수동 | 저장소를 클론해 `.claude/settings.json` 이 절대경로로 `bin/` 을 부른다 | 마켓플레이스를 쓰지 않는 저장소(§ README 재동기화 절차) |
+
+**카탈로그가 셋인 이유.** Claude Code 는 `marketplace.json` 을 **저장소 루트에서만** 찾는다 — 서브디렉터리를 가리키는 문법이 없다(git URL 의 `#` 는 경로가 아니라 **브랜치 ref** 다: `#codebase/plugin` 은 `Remote branch not found` 로 끝난다 — 2026-09-04 실측). 그래서 GitHub 경로용 카탈로그는 저장소 루트에 있고 `./codebase/plugin` 을 가리킨다. 상대경로는 **마켓플레이스 루트**(= 저장소 루트) 기준이다.
+
+| 파일 | 마켓플레이스 이름 | `source` |
+| --- | --- | --- |
+| `.claude-plugin/marketplace.json`(저장소 루트) | `nerv` | `./codebase/plugin` |
+| `codebase/plugin/.claude-plugin/marketplace.json` | `nerv-internal` | `./` |
+| 서버가 만드는 응답(파일 아님) | `nerv` | `archive` + 절대 URL |
+
+GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 두 전송로이기 때문이다 — 어느 쪽으로 받아도 설치 명령이 같고, 전송로를 바꿔도 사람이 외운 것이 바뀌지 않는다(둘을 **동시에** 등록할 수는 없다 — 그럴 이유도 없다). 로컬 경로만 이름이 다른 것은 개발자가 그것과 원격 하나를 함께 두고 견주기 때문이다. 셋이 갈리지 않는 것은 `plugin-package.spec.ts` 가 지킨다.
+
+**저장소 루트에 `.claude-plugin/` 을 두는 것이 REQ-CB-015 와 어긋나지 않는다.** 그 규약이 막는 것은 **애플리케이션 코드**가 `codebase/` 밖으로, **배포 산출물**이 `deploy/` 밖으로 나가는 것이고, 루트에는 "세 구역과 규약·메타 파일" 을 허용한다. `.claude-plugin/` 은 저장소가 도구에게 자기를 설명하는 매니페스트이고 그 자리에는 이미 `.claude/`·`.github/` 가 있다 — 네 번째 구역이 아니라 그 옆자리다.
+
 
 **설치되는 주소는 따로 있다**(2026-09-04 · 실기기 실측). 카탈로그 추가는 `http://localhost` 로도 성공하지만 **설치가 거부된다** — `Archive URLs must use https:// and must not point at a loopback, link-local, or cloud-metadata host`. 두 단계 사이에서 갈라지므로 운영에서 `NERV_PUBLIC_URL` 이 `http://` 이거나 내부 주소면 "추가는 됐는데 설치가 안 된다" 가 된다. 서버가 카탈로그를 만들 때 그 사실을 로그에 먼저 경고한다. 개발 기본값은 설치 불가이고 그것이 맞다 — 개발은 위 표의 **수동** 경로를 쓴다.
 
@@ -1171,7 +1186,7 @@ outbox 항목 형식(1파일 = 1호출):
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
 | 2 | 환경변수 | 아래 블록을 **프로젝트별 자리**에 둔다(§3.3 "어디에 두는가") — 기본은 저장소 `.claude/settings.local.json` 의 `env`, Codex·CLI 까지 덮으려면 `.nerv/env` | `echo $NERV_PROJECT` 또는 `/mcp` 연결 확인 |
-| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. 서버에 닿기 전이면 사내 git URL 을 쓴다(§3.5 표) | `/plugin` 목록에 `nerv` v0.1.0 활성 표시 |
+| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.1.0 활성 표시 |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
 

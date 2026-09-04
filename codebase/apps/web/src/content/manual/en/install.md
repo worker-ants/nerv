@@ -78,9 +78,11 @@ The value is **for display only**. A header can say anything, so it never enters
 Two lines inside Claude Code.
 
 ```text
-/plugin marketplace add https://<this server>/plugin/marketplace.json
+/plugin marketplace add worker-ants/nerv
 /plugin install nerv@nerv
 ```
+
+To take what this server ships instead, change only the first line — `add https://<this server>/plugin/marketplace.json`. They are **two transports for the same marketplace**, so the install command is unchanged (don't register both at once).
 
 Then **restart**. You should see `nerv` v0.1.0 listed as active under `/plugin`.
 

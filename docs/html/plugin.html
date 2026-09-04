@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.34 (2026-09-04)</span>
+      <span>버전 v0.35 (2026-09-04)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -1199,14 +1199,32 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
 
   <p><b>포크의 원인이 사라진다.</b> v0.29 가 실측으로 기록한 것이 이것이다 — 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다. git 마켓플레이스는 모두에게 <b>같은 파일</b>을 준다. 서버가 만들면 주소는 언제나 그 서버의 것이고, 받는 쪽이 고칠 것이 없다.</p>
 
+  <p><b>네 경로가 공존한다</b> — 같은 플러그인을 어디서 받아 오느냐의 차이다.</p>
+
   <div class="table-wrap"><table>
     <thead><tr><th>경로</th><th>어떻게</th><th>언제 쓰나</th></tr></thead>
     <tbody>
-      <tr><td><b>마켓플레이스 URL</b>(기본)</td><td><code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code></td><td>플랫폼이 도는 보통의 경우</td></tr>
-      <tr><td>git 마켓플레이스</td><td><code>/plugin marketplace add &lt;사내 git URL&gt;</code> — <code>plugin/.claude-plugin/marketplace.json</code> 이 상대경로로 자신을 가리킨다</td><td>서버에 닿기 전, 또는 플랫폼과 분리해 배포할 때</td></tr>
-      <tr><td>수동</td><td>저장소를 클론해 <code>.claude/settings.json</code> 이 절대경로로 <code>bin/</code> 을 부른다</td><td>개발 중(이 저장소 자신이 그렇게 쓴다)</td></tr>
+      <tr><td><b>GitHub</b>(가장 간단)</td><td><code>/plugin marketplace add worker-ants/nerv</code> → <code>/plugin install nerv@nerv</code></td><td>서버가 없어도 되고 인증서도 필요 없다. 대부분의 경우</td></tr>
+      <tr><td><b>마켓플레이스 URL</b></td><td><code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code> → <code>nerv@nerv</code></td><td>플랫폼이 서 있고 그 서버의 것을 받고 싶을 때</td></tr>
+      <tr><td>로컬 경로</td><td><code>/plugin marketplace add &lt;클론 경로&gt;/codebase/plugin</code> → <code>nerv@nerv-internal</code></td><td>이 저장소를 고치면서 바로 시험할 때</td></tr>
+      <tr><td>수동</td><td>저장소를 클론해 <code>.claude/settings.json</code> 이 절대경로로 <code>bin/</code> 을 부른다</td><td>마켓플레이스를 쓰지 않는 저장소</td></tr>
     </tbody>
   </table></div>
+
+  <p><b>카탈로그가 셋인 이유.</b> Claude Code 는 <code>marketplace.json</code> 을 <b>저장소 루트에서만</b> 찾는다 — 서브디렉터리를 가리키는 문법이 없다(git URL 의 <code>#</code> 는 경로가 아니라 <b>브랜치 ref</b> 다: <code>#codebase/plugin</code> 은 <code>Remote branch not found</code> 로 끝난다 — 2026-09-04 실측). 그래서 GitHub 경로용 카탈로그는 저장소 루트에 있고 <code>./codebase/plugin</code> 을 가리킨다. 상대경로는 <b>마켓플레이스 루트</b>(= 저장소 루트) 기준이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>파일</th><th>마켓플레이스 이름</th><th><code>source</code></th></tr></thead>
+    <tbody>
+      <tr><td><code>.claude-plugin/marketplace.json</code>(저장소 루트)</td><td><code>nerv</code></td><td><code>./codebase/plugin</code></td></tr>
+      <tr><td><code>codebase/plugin/.claude-plugin/marketplace.json</code></td><td><code>nerv-internal</code></td><td><code>./</code></td></tr>
+      <tr><td>서버가 만드는 응답(파일 아님)</td><td><code>nerv</code></td><td><code>archive</code> + 절대 URL</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>GitHub 과 서버가 <b>같은 이름</b>인 것은 같은 마켓플레이스의 두 전송로이기 때문이다 — 어느 쪽으로 받아도 설치 명령이 같다(둘을 <b>동시에</b> 등록할 수는 없다). 로컬 경로만 이름이 다른 것은 개발자가 그것과 원격 하나를 함께 두고 견주기 때문이다. 셋이 갈리지 않는 것은 <code>plugin-package.spec.ts</code> 가 지킨다.</p>
+
+  <p><b>저장소 루트에 <code>.claude-plugin/</code> 을 두는 것이 REQ-CB-015 와 어긋나지 않는다.</b> 그 규약이 막는 것은 <b>애플리케이션 코드</b>가 <code>codebase/</code> 밖으로, <b>배포 산출물</b>이 <code>deploy/</code> 밖으로 나가는 것이고, 루트에는 "세 구역과 규약·메타 파일" 을 허용한다. <code>.claude-plugin/</code> 은 저장소가 도구에게 자기를 설명하는 매니페스트이고 그 자리에는 이미 <code>.claude/</code>·<code>.github/</code> 가 있다 — 네 번째 구역이 아니라 그 옆자리다.</p>
 
   <p><b>설치되는 주소는 따로 있다</b>(2026-09-04 · 실기기 실측). 카탈로그 추가는 <code>http://localhost</code> 로도 성공하지만 <b>설치가 거부된다</b> — <code>Archive URLs must use https:// and must not point at a loopback, link-local, or cloud-metadata host</code>. 두 단계 사이에서 갈라지므로 운영에서 <code>NERV_PUBLIC_URL</code> 이 <code>http://</code> 이거나 내부 주소면 "추가는 됐는데 설치가 안 된다" 가 된다. 서버가 카탈로그를 만들 때 그 사실을 로그에 먼저 경고한다. 개발 기본값은 설치 불가이고 그것이 맞다 — 개발은 위 표의 <b>수동</b> 경로를 쓴다.</p>
 
@@ -1231,7 +1249,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
     <tbody>
       <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: <code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code>) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용)</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
       <tr><td>2</td><td>환경변수</td><td>아래 블록을 <b>프로젝트별 자리</b>에 둔다(§3.3 "어디에 두는가") — 기본은 저장소 <code>.claude/settings.local.json</code> 의 <code>env</code>, Codex·CLI 까지 덮으려면 <code>.nerv/env</code></td><td><code>echo $NERV_PROJECT</code> 또는 <code>/mcp</code> 연결 확인</td></tr>
-      <tr><td>3</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code> → <code>/plugin install nerv@nerv</code> → 재시작. 서버에 닿기 전이면 사내 git URL 을 쓴다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.1.0 활성 표시</td></tr>
+      <tr><td>3</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add worker-ants/nerv</code> → <code>/plugin install nerv@nerv</code> → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 <code>https://&lt;서버&gt;/plugin/marketplace.json</code> 을 넣는다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.1.0 활성 표시</td></tr>
       <tr><td>4</td><td>연결 확인</td><td>프로젝트 저장소에서 Claude Code 실행 → <code>/mcp</code></td><td><code>nerv</code> 서버 connected, <code>nerv_*</code> 도구 목록 표시</td></tr>
       <tr><td>5</td><td>첫 부트스트랩</td><td><code>/nerv:next</code> 실행(스킬이 <code>nerv_bootstrap</code>부터 호출한다)</td><td>응답에 <code>session_id</code>·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다</td></tr>
     </tbody>

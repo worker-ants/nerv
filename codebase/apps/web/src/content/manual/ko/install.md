@@ -78,9 +78,11 @@ export NERV_HOSTNAME="$(hostname -s)"
 Claude Code 안에서 두 줄입니다. **주소는 이 서버의 주소**입니다 — 브라우저 주소창에 있는 그것입니다.
 
 ```text
-/plugin marketplace add https://<이 서버>/plugin/marketplace.json
+/plugin marketplace add worker-ants/nerv
 /plugin install nerv@nerv
 ```
+
+이 서버가 배포한 것을 받고 싶으면 첫 줄만 바꿉니다 — `add https://<이 서버>/plugin/marketplace.json`. 둘은 **같은 마켓플레이스의 두 전송로**라 설치 명령은 그대로입니다(둘을 동시에 등록하지는 않습니다).
 
 그리고 **재시작**합니다. `/plugin` 목록에 `nerv` v0.1.0이 활성으로 보이면 됩니다.
 
