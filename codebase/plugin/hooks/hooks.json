@@ -1,5 +1,5 @@
 {
-  "$comment": "기본 변형(2026-09-03 사람 결정). 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다 — 그 스크립트가 NERV_SERVER 와 .nerv/env 를 읽으므로 서버 주소가 어디든 포크 없이 동작하고, 텔레메트리 훅은 async 로 턴을 막지 않는다(http 훅에는 async 가 없다). http 변형은 hooks/hooks.http.json 이며 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
+  "$comment": "기본 변형 — 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다. http 변형은 hooks/hooks.http.json 이고, 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
   "hooks": {
     "SessionStart": [
       {

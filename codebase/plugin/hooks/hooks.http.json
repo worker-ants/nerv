@@ -1,5 +1,5 @@
 {
-  "$comment": "http 변형 — 서버가 nerv.example.com 이고 관리형 settings 의 allowedHttpHookUrls 로 훅 URL 을 묶고 싶을 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가: 훅 url 은 ${VAR} 확장을 받지 않아 주소가 파일에 박히고, http 훅에는 async 가 없어 PostToolUse 가 매 도구 호출마다 동기로 기다린다. 정본: 4.6 §3.1.",
+  "$comment": "http 변형 — allowedHttpHookUrls 로 훅 URL 을 묶어야 할 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가는 4.6 §3.1 이 적는다.",
   "hooks": {
     "SessionStart": [
       {
