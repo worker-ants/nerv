@@ -52,7 +52,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.16 (2026-09-04)</span>
+      <span>버전 v0.17 (2026-09-04)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -246,7 +246,7 @@
         <td><code>spec:read</code></td><td>A1</td><td>컨텍스트 수집·중복 확인 — <b><code>related[]</code>가 중복 확인의 핵심 입력</b>이다(언급 안 된 인접 스펙)</td><td>읽기 전용</td>
       </tr>
       <tr>
-        <td><code>nerv_spec_get</code></td><td><code>spec_id</code>, <code>version?</code>(기본 approved 최신 — <b>Task 컨텍스트에서는 기준 버전을 지정한다</b>, §2.4), <code>baseline?</code>(베이스라인 이름 — 그 세트에 핀된 버전을 읽는다, <code>version</code>과 배타), <code>include[]</code>(requirements/tasks/reviews/comments/relations — relations는 양방향 요약: 총계+상위 20, 전량은 REST EP-SPEC-18)</td>
+        <td><code>nerv_spec_get</code></td><td><code>spec_id</code>, <code>version?</code>(기본 approved 최신 — <b>Task 컨텍스트에서는 기준 버전을 지정한다</b>, §2.4), <code>baseline?</code>(베이스라인 이름 — 그 세트에 핀된 버전을 읽는다, <code>version</code>과 배타), <code>include[]</code>(<b>구현: <code>tasks</code>·<code>comments</code>·<code>attachments</code></b> — 목록 밖의 값은 400 이다(2026-09-04 · REQ-API-088). <code>requirements</code> 는 늘 실린다. <code>reviews</code>·<code>relations</code> 요약은 Phase 2)</td>
         <td>본문 markdown(비신뢰 래핑) + 메타 + Requirement + 파생 Task + <b><code>basis_superseded?</code></b>(요청 버전이 superseded면 최신 approved 버전 번호와 함께 표시)</td>
         <td><code>spec:read</code></td><td>A1</td><td>구현 착수 전, 리뷰 전</td>
         <td>읽기 전용 — <code>version</code>/<code>baseline</code> 지정 시 불변 스냅샷이라 결과 고정</td>
@@ -329,6 +329,7 @@
       <tr><td><code>nerv_task_list</code></td><td><code>project</code>, <code>status?</code>, <code>assignee?</code>, <code>limit?</code></td><td>Task 목록(상태·담당·리스 잔여)</td><td><code>spec:read</code></td><td>A1</td><td><b>&quot;지금 무엇이 도는가&quot;</b> — 세 번째 물음(2026-08-30)</td><td>읽기 전용</td></tr>
       <tr><td><code>nerv_task_create</code></td><td><code>title</code>, <code>goal_md?</code>, <code>output_format_md?</code>, <code>tools_sources_md?</code>, <code>boundaries_md?</code>, <code>source_spec_version_id?</code>, <code>priority?</code></td><td><code>task_id</code>, <code>key</code>, 상태(4요소가 차면 서버가 <code>ready</code> 로 승격)</td><td><code>task:update</code></td><td>A2</td><td>스펙에서 작업을 떼어낼 때</td><td>멱등 키 지원</td></tr>
       <tr><td><code>nerv_spec_attach</code></td><td><code>spec_id</code>, <code>filename</code>, <code>content_type</code>, <code>bytes</code> → (1단계) <code>upload_url</code>·<code>attachment_id</code>, (2단계) <code>attachment_id</code> 확정</td><td>첨부 메타. <b>presigned 2단계</b>이고 확정은 실제 업로드를 확인한 뒤에만 통과한다</td><td><code>spec:draft</code></td><td>A2</td><td>시안·문서를 스펙에 붙일 때</td><td>확정 재호출은 no-op</td></tr>
+      <tr><td><code>nerv_spec_attachment_read</code></td><td><code>attachment_id</code></td><td>첨부 본문. <b>텍스트만</b>(<code>text/*</code>)이고 <code>ATTACHMENT_READ_MAX_BYTES</code> 를 넘으면 자르되 <code>truncated:true</code> 로 말한다. 그림·PDF·zip 은 거부하고 <b>받는 주소</b>를 준다</td><td><code>spec:read</code></td><td>A1</td><td>Bash 가 없는 세션이 첨부를 되읽을 때 — 있으면 목록의 <code>url</code> 로 받는 것이 기본이다</td><td>읽기 전용</td></tr>
 <tr>
         <td><code>nerv_session_event</code></td><td><code>event_seq</code>, <code>type</code>(thought/action/elicitation/response/error), <code>payload</code>, <code>ts</code></td>
         <td>ack + 서버 지시(steer/stop)</td>

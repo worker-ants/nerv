@@ -376,6 +376,10 @@ export const en = {
   'mcp.arg.blocked_reason': 'why it is blocked — required when status=blocked',
   'mcp.arg.spec_impact':
     'impact on specs — required by the done gate. put spec keys in changed, or set none to true when nothing moved',
+  'mcp.tool.attachment_read':
+    'Reading the body of a text attachment on a spec. Prefer fetching the url the listing gives you and handling it as a file — this tool is the path when you cannot, and it truncates at 32KiB',
+  'mcp.arg.attachment_id_read':
+    'Id of the attachment to read — the nerv_spec_get(include:["attachments"]) listing gives it',
   'mcp.tool.attach':
     'Attaching a design mock or an output artifact to a spec. **Two steps**: (1) call with filename and content_type to get an upload_url, (2) PUT the file to that URL (Content-Type header only), (3) call again with just attachment_id to commit. Never pass file contents as an argument to this tool',
   'mcp.arg.attachment_id': 'second step — call again with just this after the upload (commit)',
@@ -411,6 +415,8 @@ export const en = {
   'error.spec.stale_body':
     'The body changed underneath you — read it again and re-apply your edit (retrying the same body overwrites someone else).',
   'error.spec.version_xor_baseline': 'Version and baseline cannot be given together.',
+  'error.attachment.not_text':
+    'Only text attachments can be inlined — fetch the rest from the url.',
   'error.attachment.storage_unset':
     'Attachment storage is not configured — retrying will not open it.',
   'error.spec.baseline_not_found': 'No baseline by that name.',

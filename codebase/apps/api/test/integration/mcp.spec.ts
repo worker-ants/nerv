@@ -125,13 +125,13 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(String(result['instructions']).length).toBeLessThan(2048);
   });
 
-  it('tools/list 가 22종을 노출한다 — MVP 20(P0 8 + P1 12) + 리뷰 2(P2)', async () => {
+  it('tools/list 가 23종을 노출한다 — MVP 20(P0 8 + P1 12) + 리뷰 2(P2) + 첨부 읽기 1', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
     // 카탈로그가 20인 것은 리뷰 수집(FR-09)이 Phase 2 에서 위에 얹혔기 때문이다 —
     // 두 수를 섞지 않는다. MVP 는 20 이다 — 2026-08-30 에 16 → 19(Task 를 만들고·읽고·훑는
     // 셋), 2026-09-01 에 20(`nerv_spec_attach` — 시안을 문서에 매다는 길이 없었다).
-    expect(tools).toHaveLength(22);
+    expect(tools).toHaveLength(23);
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_relate');
     expect(tools.map((t) => t.name)).toContain('nerv_task_get');
@@ -146,7 +146,7 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
   /**
    * "스코프는 도구 표의 '필요 권한' 열과 1:1" 은 **사실이 아니었다**(2026-09-04 실측).
    *
-   * 도구 22종이 쓰는 스코프는 일곱이고 셋(`spec:meta`·`spec:evidence`·`import:write`)은
+   * 도구 23종이 쓰는 스코프는 일곱이고 셋(`spec:meta`·`spec:evidence`·`import:write`)은
    * 도구가 없는 REST 축이다. 문서가 그 말을 오래 달고 있었으므로 여기서 사실을 못박는다 —
    * 다음에 어긋나면 문장이 아니라 이 테스트가 먼저 말한다.
    */

@@ -1492,5 +1492,5 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 - [4.6 플러그인과 온보딩](plugin.md) — 에이전트 장비 쪽 설치·환경변수 절차
 - [4.8 백로그](backlog.md) — E01 저장소 부트스트랩 에픽과 운영 Postgres 위치 확인 태스크
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — 컴포넌트 책임·배포 원형(§4.4)
-- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 22종·훅·ingest의 정본
+- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 카탈로그·훅·ingest의 정본
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드 의미의 정본

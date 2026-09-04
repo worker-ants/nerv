@@ -5,10 +5,11 @@ updated: 2026-08-22
 ---
 # API 명세
 
-> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
+> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **23종**(2026-09-04 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 23종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.68 · 2026-09-04 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.69 · 2026-09-04 · HTML 판: [api.html](../html/api.html)
 >
+> v0.69 변경(2026-09-04 — 첨부를 되읽는 두 길, 사람 결정): **REQ-API-089 신설 · 도구 23종.** ① 목록이 **받는 주소**를 함께 준다 — id 만 주면 조립 규칙을 아는 쪽만 받을 수 있고, 실사용 에이전트는 몰라서 스토리지를 직접 두드리다 403 을 받았다. ② `nerv_spec_attachment_read` 를 더한다(P1 · `spec:read`) — Bash 가 없는 세션을 위한 길이라 **텍스트만·32KiB 상한**이고, 자르면 잘랐다고 말한다. 규약의 예외이므로 경계를 좁게 잡았다: 응답에 파일을 싣지 않는 것이 2단계 업로드의 이유였고 그 이유는 내려받기에도 유효하다. ③ 곁들여 §4 대응표가 19행에서 멈춰 있던 것을 채웠다(`spec_attach`·`review_submit`·`finding_resolve`·신설 도구) — 제목은 23종인데 본문은 19행이었다. ④ 그러다 **주소 자체가 깨져 있던 것**을 찾았다 — `upload`·`commit` 응답의 `url` 이 `projectId`(UUID)로 만들어져 **409** 였다(실측). 스킬이 그 주소를 본문에 넣으라고 하니 에이전트가 쓴 첨부 링크가 전부 죽어 있었다. 주소를 만드는 자리를 슬러그로 통일했다.
 > v0.68 변경(2026-09-04 — 올릴 수는 있는데 되읽을 수 없었다, 실사용 보고): **REQ-API-088 신설 · EP-NTF-03 신설.** ① 에이전트가 `nerv_spec_attach` 로 파일을 올린 뒤 확인하려 했는데 `include:["attachments"]` 가 **`ok:true` 와 함께 사라졌다** — 응답 키가 그대로여서 "이 배포에는 첨부를 되읽을 경로가 없다" 고 결론지었다. **있는데 못 쓴 것과 없는 것을 구별할 수 없으면 사람은 없는 쪽을 믿는다.** `include` 어휘를 검사해 목록 밖은 400 으로 거부하고(REQ-API-082 와 같은 규율), `attachments` 를 실물로 만든다. ② 안 읽은 알림 **695건**을 한 건씩 지우는 것이 유일한 길이었다 — 지울 수 없는 배지는 곧 읽지 않는 배지가 된다. 일괄 읽음을 두고 **몇 건을 읽었는지 돌려준다.**
 > v0.67 변경(2026-09-04 — 첨부 형식 셋과, 설정 누락을 장애로 말하던 자리): **REQ-API-069 확장.** ① 화이트리스트에 `text/html`·`text/plain`·`application/zip` 을 더한다(사람 지시) — 시안만이 아니라 **산출물**(리포트·로그·묶음)도 문서에 매달린다. `text/html` 이 새 위험을 만들지 않는 것은 내려받기(EP-SPEC-22)가 이미 `CSP: sandbox; default-src 'none'` + `nosniff` 를 걸고 있기 때문이다 — 더 어려운 경우인 `image/svg+xml` 을 이미 그 방어로 받고 있었다. ② **스토리지 미설정이 `kind:'internal'` 로 나가고 있었다**(실사용 보고): `NERV_UNAVAILABLE` 은 규약상 "나중에 재시도" 라 스킬이 outbox 에 큐잉하는데, 설정 누락은 재시도로 풀리지 않는다. `storage_unconfigured` 와 `missing[]` 으로 가른다.
 > v0.66 변경(2026-09-04 — 베이스라인을 읽는 길, 사람 결정): **REQ-API-087 신설.** 테이블도 엔드포인트 넷도 2026-08 부터 있었는데 **그 세트로 문서를 읽는 길이 없어 실사용 베이스라인이 0개**였다(실측). EP-SPEC-03·`nerv_spec_get` 에 `baseline` 을, EP-TASK-03·`nerv_task_create` 에 기준 세트 인자를 단다. `version` 과 **배타**다 — 둘을 섞으면 "어느 쪽이 이겼나" 를 매번 물어야 하고 그 물음이 생기는 순간 기준선의 값어치가 사라진다. 없는 이름은 400 으로 거부한다(조용히 최신을 주면 사람은 기준선을 읽었다고 믿는다 — REQ-API-082 와 같은 규율). **이름은 맞는데 그 세트에 이 문서가 없는 것은 오류가 아니다**(나중에 만들어진 문서): 기본으로 떨어지되 `baseline_pinned:false` 로 말한다.
@@ -159,7 +160,7 @@ flowchart LR
 
 - PAT 원문 형식: `nerv_` 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(`api_token.token_hash`), 식별·감사용으로 앞 8자를 `api_token.prefix`에 남긴다([데이터 모델](../03-proposal/data-model.md) §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 **한 번만** 반환된다.
 - 스코프 어휘는 `resource:action` 표기이고 **10종**이다: `spec:read` `spec:draft` `spec:meta` `spec:evidence` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch` `import:write`. `spec:approve`와 `approval:decide`는 **토큰에 부여 자체가 불가능한 사람 전용 스코프**다 — 정책이 아니라 시스템 불변식([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1 ④). 정본은 `@nerv/schema` 의 `AGENT_SCOPES`·`HUMAN_ONLY_SCOPES` 이며, 어느 문서도 이 목록을 다시 적지 않는다.
-- **MCP 도구 대응이 없는 스코프가 셋 있다**(2026-09-04 정정 — 실측). 도구 22종이 쓰는 스코프는 **일곱**이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — `import:write`(§2.10 이관 표면) · `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). `import:write`는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
+- **MCP 도구 대응이 없는 스코프가 셋 있다**(2026-09-04 정정 — 실측). 도구 23종이 쓰는 스코프는 **일곱**이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — `import:write`(§2.10 이관 표면) · `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). `import:write`는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
 - REST 엔드포인트의 인가는 역할 매트릭스([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6)가 정본이다. §2 전표의 "권한" 열은 그 매트릭스의 인용이며, PAT 요청은 역할 판정에 **스코프 검사가 AND로** 추가된다.
 
 ### 1.3a 권한은 라우트가 선언한다 (2026-09-02 신설 — 보안 점검)
@@ -1173,9 +1174,9 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 
 ---
 
-## 4. MCP 도구 22종 ↔ 내부 서비스 ↔ REST 대응
+## 4. MCP 도구 23종 ↔ 내부 서비스 ↔ REST 대응
 
-MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_review_submit`·`nerv_finding_resolve` 2종은 P2([4.1 MVP 범위와 스택 확정](scope.md)). 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
+카탈로그는 **23종**이고 단계 분포는 **P0 8 · P1 13 · P2 2**다(2026-09-04 실측 — 도구 레지스트리 기준). P2 둘은 `nerv_review_submit`·`nerv_finding_resolve` 다. [4.1 MVP 범위와 스택 확정](scope.md) 이 적은 **MVP 21종**(P0 8 + P1 13) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
 
 임포트 표면(§2.10)은 이 표에 없다 — **대응하는 MCP 도구가 없기 때문**이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다([4.7 스펙 임포터](importer.md) §3.6). 에이전트가 관여하는 지점은 도구가 아니라 CLI를 감싸는 스킬 `/nerv:import`다.
 
@@ -1199,6 +1200,10 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | `nerv_task_update` | A2(정책상 done은 A3) | `TaskService.transition` | EP-TASK-09 | done 게이트 판정 단일 지점 |
 | `nerv_spec_relate` | A2 | `SpecRelationService.declare` | — (관계 선언은 에이전트 전용 — 사람의 경로는 본문 참조 자동 동기화(REQ-API-024)와 S3 관계 패널 조회다) | 문서를 읽어야 아는 판단(`refines`·`depends_on`)을 채우는 도구. `references`는 본문에서 자동 동기화되므로 이 도구가 거부한다 |
 | `nerv_question_create` | A2 | `QuestionService.create` | — (질문 생성은 에이전트 전용. 사람의 답변이 EP-QST-02) | 멱등 재호출 = 폴링 규약은 MCP 표면 정의. 입력 전부(`context`·`escalate`·`blocking`·`wait_seconds`)를 받는다 — §1.4d |
+| `nerv_spec_attach` | A2 | `AttachmentService.insert` → `.commit` | §1.4k(사람 경로는 서버 경유 업로드) | presigned 2단계. 확정은 **실제 업로드를 확인한 뒤에만** 통과한다(REQ-API-071) |
+| `nerv_spec_attachment_read` | A1 | `AttachmentService.read` | §1.4k 내려받기와 같은 오브젝트 | 2026-09-04 신설 — **텍스트만·상한 있음**. 되읽는 기본 길은 목록의 `url` 이고 이것은 Bash 가 없는 세션의 좁은 길이다(REQ-API-089) |
+| `nerv_review_submit` | A2 | `ReviewService.submit` | EP-REV-01 | P2. 라운드 병합·fingerprint dedup 이 이 메서드 안 — 표면 무관 |
+| `nerv_finding_resolve` | A2(critical 하향은 **A3**) | `ReviewService.resolve` | EP-REV-02 | P2. 에이전트의 critical 하향은 승인 카드로 간다(202 `NERV_APPROVAL_REQUIRED`) |
 | `nerv_session_event` | A1 | `SessionService.appendActivity` | — (훅 ingest §2.9와 같은 메서드) | 훅 없는 실행 환경 폴백 |
 
 **사람 전용 액션은 어느 표면에도 도구가 없다.** `spec:approve`·`approval:decide`는 REST에서도 받은 요청 결정(EP-APR-03) 하나뿐이고 MCP 카탈로그에는 처음부터 존재하지 않는다. A4 액션을 MCP로 요청하면 `NERV_HUMAN_ONLY`와 웹 딥링크가 돌아온다([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.2).
@@ -1229,6 +1234,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 | REQ-API-012 | WHEN 쿼터를 초과한 요청이 오면 THE SYSTEM SHALL HTTP 429 `NERV_RATE_LIMIT`과 `retry_after_s`·`Retry-After` 헤더를 함께 반환한다 | 버스트 요청 |
 | REQ-API-013 | WHEN 미인증 요청이 `/sse/*`에 오면 THE SYSTEM SHALL HTTP 401 `NERV_UNAUTHENTICATED`로 거부하고, WHEN 비멤버 사용자 또는 타 프로젝트 PAT가 EP-SSE-01을 요청하면 THE SYSTEM SHALL HTTP 403 `NERV_FORBIDDEN`으로 스트림을 열지 않는다 | 쿠키 없음·타 프로젝트 PAT 각 1케이스 |
 | REQ-API-014 | WHILE SSE 스트림이 열려 있는 동안, THE SYSTEM SHALL 25초 주기의 코멘트 라인(`: ping`)을 송신해 프록시 유휴 타임아웃을 방지한다 | 60초 무이벤트 구간에서 keep-alive 2회 이상 수신 |
+| REQ-API-089 | WHEN 첨부 목록을 반환하면 THE SYSTEM SHALL 각 항목에 **받는 주소**(`/api/v1/projects/{slug}/attachments/{id}`)를 함께 싣는다 — id 만 주면 주소를 조립하는 규칙을 아는 쪽만 받을 수 있다. WHILE 주소를 만드는 동안 THE SYSTEM SHALL **슬러그**를 쓴다(라우트의 `:proj` 는 UUID 로 해소되지 않는다 — 그 주소는 409 다). WHEN `nerv_spec_attachment_read` 가 텍스트가 아닌 첨부를 요청하면 THE SYSTEM SHALL 거부하고 받는 주소를 함께 준다. WHEN 본문이 `ATTACHMENT_READ_MAX_BYTES` 를 넘으면 THE SYSTEM SHALL 잘라내되 **잘랐다는 사실과 주소를** 함께 싣는다 |
 | REQ-API-088 | WHEN 스펙 조회의 `include` 에 어휘(`tasks`·`comments`·`attachments`) 밖의 값이 오면 THE SYSTEM SHALL 400 `invalid_input` 으로 거부하고 `allowed` 를 함께 싣는다 — **조용히 버리면 호출자는 그 기능이 없다고 결론짓는다.** WHEN `attachments` 를 실으면 THE SYSTEM SHALL 그 스펙의 첨부 목록(EP-SPEC-20 과 같은 정의)을 함께 반환한다. WHEN 사람이 알림 일괄 읽음(EP-NTF-03)을 호출하면 THE SYSTEM SHALL 자기 안 읽은 알림을 전부 읽음으로 바꾸고 **그 건수를 반환한다** |
 | REQ-API-087 | WHEN 스펙 조회(EP-SPEC-03 · `nerv_spec_get`)에 `baseline` 이 실리면 THE SYSTEM SHALL 그 베이스라인이 이 문서에 핀해 둔 SpecVersion 을 반환하고, 응답에 `baseline`·`baseline_pinned` 를 싣는다. WHEN 그 세트에 이 문서가 없으면 THE SYSTEM SHALL 기본(최신 approved)으로 응답하되 `baseline_pinned` 를 `false` 로 준다 — 거부하지 않는다. WHEN 존재하지 않는 베이스라인 이름이 오거나 `version` 과 함께 오면 THE SYSTEM SHALL 400 `invalid_input` 으로 거부한다. WHEN Task 파생(EP-TASK-03 · `nerv_task_create`)에 `baseline` 이 실리면 THE SYSTEM SHALL 그 이름을 해소해 `task.baseline_id` 에 고정하고, 해소되지 않으면 Task 를 만들지 않는다 |
 | REQ-API-015 | WHEN 베이스라인 생성 요청(EP-SPEC-12)에 `approved`가 아닌 SpecVersion 항목이 포함되면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`으로 전체를 거부하고, 생성된 베이스라인의 항목 집합 변경 요청은 제공하지 않는다(세트 변경 = 새 베이스라인 — REQ-DB-008) | draft 항목 포함 생성 거부 + 핀 대상 superseded 후 EP-SPEC-13 결과 불변 확인 |
@@ -1254,7 +1260,7 @@ MVP 도구는 16종(P0 8종 + P1 8종)이다 — 카탈로그 18종 중 `nerv_re
 
 ### 이 문서가 인용한 정본
 
-- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — §2 도구 22종의 입력·출력·권한·티어·멱등성, §2.7 에러 코드 10종과 봉투, §2.5·§6.1 PAT 튜플·스코프, §3.3 훅 ingest 경로 — **이 문서의 §1.4·§2.9·§4가 인용** (재정의 금지)
+- [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — §2 도구 카탈로그의 입력·출력·권한·티어·멱등성, §2.7 에러 코드 10종과 봉투, §2.5·§6.1 PAT 튜플·스코프, §3.3 훅 ingest 경로 — **이 문서의 §1.4·§2.9·§4가 인용** (재정의 금지)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — §1 세 상태 축과 전이·§1.6 권한 매트릭스·§2.3 지시자≠승인자·§4.4 겹침 알고리즘·§4.6 done 게이트·§6 이벤트 이름 규약과 카탈로그 — **§2 전표의 권한 열과 §3.3 이벤트 목록의 정본**
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드(응답 필드명은 이 문서와 1:1)·§4 대표 질의·§5.1 ID 체계
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — §2.4 markdown 미러·`llms.txt` 경로(§2.8이 문자열 그대로 인용), §1.2 전체 구성도

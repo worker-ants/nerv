@@ -98,7 +98,7 @@ describe('ToolRegistry — modules/**/*.tools.ts 수집', () => {
     await app.init();
   });
 
-  it('MVP 20종 + 리뷰 2종을 수집한다 (P0 8 · P1 12 · P2 2)', () => {
+  it('MVP 21종 + 리뷰 2종을 수집한다 (P0 8 · P1 13 · P2 2)', () => {
     const registry = app.get(ToolRegistry);
     // **Phase 별로 센다.** 총계만 보면 "MVP 가 몇 종"이라는 사실이 수 안에서 사라지고,
     // 다음에 Phase 3 도구가 들어올 때 무엇이 늘었는지 이 테스트가 답하지 못한다.
@@ -106,10 +106,12 @@ describe('ToolRegistry — modules/**/*.tools.ts 수집', () => {
     // 2026-08-30 — P1 이 8 → 11(`nerv_task_get`·`create`·`list`: 에이전트는 자기가 클레임할
     // 다음 것만 볼 수 있었다). 2026-09-01 — 12(`nerv_spec_attach`: 디자인 시안을 문서에
     // 매다는 길이 없었다). MVP 약속도 16 → 20 으로 함께 고쳤다(4.1 §4.2).
+    // 2026-09-04 — P1 이 13(`nerv_spec_attachment_read`: 올릴 수는 있는데 되읽을 길이 없어
+    // 실사용 에이전트가 "이 배포에는 첨부를 확인할 경로가 없다" 고 결론지었다).
     expect(registry.list().filter((t) => t.phase === 'P0')).toHaveLength(8);
-    expect(registry.list().filter((t) => t.phase === 'P1')).toHaveLength(12);
+    expect(registry.list().filter((t) => t.phase === 'P1')).toHaveLength(13);
     expect(registry.list().filter((t) => t.phase === 'P2')).toHaveLength(2);
-    expect(registry.size).toBe(22);
+    expect(registry.size).toBe(23);
   });
 
   it('P0 8종의 이름이 카탈로그와 일치한다', () => {

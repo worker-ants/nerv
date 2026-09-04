@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.39 (2026-09-04)</span>
+      <span>버전 v0.40 (2026-09-04)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -414,6 +414,12 @@ allowed-tools:
 - 확정하면 응답의 `url` 을 **본문에 이미지로 넣는다**: `![시안 이름](그 주소)`. 매달기만 하고 본문에 안 넣으면 문서를 읽는 사람은 그 그림을 못 본다.
 - 그림만 두지 않는다 — 무엇을 보여 주는 시안인지 문장으로 적는다. 그림은 검색에도 요구사항 추출에도 잡히지 않는다.
 - 흐름·구조는 그림 파일보다 mermaid 가 낫다(위 절) — 첨부는 **손으로 그린 시안·캡처·PDF** 의 자리다.
+
+**되읽기 — 매단 파일을 다시 못 열면 매단 것이 아니다.**
+
+- `nerv_spec_get`(`spec_id`, `include: ["attachments"]`) → 항목마다 `url` 이 있다. 그 주소로 받는다: `curl -sL "$NERV_SERVER&lt;그 url&gt;" -H "Authorization: Bearer $NERV_TOKEN"`.
+- Bash 가 없는 세션이면 `nerv_spec_attachment_read`(`attachment_id`) — **텍스트만·32KiB 까지**의 좁은 길이다. 잘리면 응답이 `truncated: true` 로 말하니, 그때 앞부분을 전부인 양 다루지 않는다. 그림·PDF·zip 은 거부하고 `url` 을 준다.
+- **스토리지(`:9000`)를 직접 두드리지 않는다.** 서명 없이는 403 이고 그 서명은 업로드용 한 번짜리다 — 받는 길은 위의 `url` 하나다.
 
 ## 서브커맨드
 
@@ -1417,7 +1423,7 @@ log_user_prompt = false</code></pre>
 
   <h3>정본 문서 (이 문서가 인용만 하고 재정의하지 않는 것)</h3>
   <ul>
-    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구 22종 카탈로그(§2.3)·위험 티어 A1~A4(§2.2)·에러 규약과 리스 만료(§2.7)·플러그인 구성(§3.1)·스킬 책임(§3.2)·hooks.json(§3.3)·<code>.mcp.json</code>(§3.4)·statusline(§3.5)·Codex(§4)·에이전트 규약(§5)·비신뢰 규약(§6.3)</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구 카탈로그(§2.3)·위험 티어 A1~A4(§2.2)·에러 규약과 리스 만료(§2.7)·플러그인 구성(§3.1)·스킬 책임(§3.2)·hooks.json(§3.3)·<code>.mcp.json</code>(§3.4)·statusline(§3.5)·Codex(§4)·에이전트 규약(§5)·비신뢰 규약(§6.3)</li>
     <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 초안 편집 리스(§1.2)·클레임과 리스(§4.3)·하트비트/리스/stale 상수 표(§4.5)·위임 명세 4요소(§4.1)</li>
     <li><a href="roadmap.html">3.7 로드맵</a> — Phase 1 "플러그인 v1"(로드맵 표기는 스킬 4종 · <code>/nerv:import</code> 추가로 MVP는 5종 · <code>/nerv:review</code>는 Phase 2)·검증 0-8(tools-only 완주)·1-10(플러그인 활성화율)·1-11(기획자 웹·터미널 왕복)·Phase 2 Codex 지원</li>
     <li><a href="ui-wireframes.html">3.6 화면 설계</a> — S8 토큰 발급 화면·S5 세션 모니터·S3 "터미널에서 이어쓰기"(⑫)</li>

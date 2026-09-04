@@ -18,6 +18,17 @@ export const LEASE_TTL_SECONDS = 1800;
 export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 
 /**
+ * `nerv_spec_attachment_read` 가 한 번에 실어 주는 텍스트 상한(REQ-API-089).
+ *
+ * 업로드 상한(10MB)과 **다른 축이다.** 저장은 디스크의 문제이고 이쪽은 **세션의 컨텍스트
+ * 예산**이다 — 2단계 업로드를 만든 이유가 바로 그것이었다(응답에 파일을 싣지 않는다).
+ * 32KiB 는 대략 8천 토큰이라 한 턴이 감당할 만하고, 그보다 큰 것은 잘라내되 **잘랐다고
+ * 말한다**. 통째로 필요하면 응답의 `url` 로 받아 파일로 다루는 편이 언제나 낫다.
+ * 정본: docs/04-mvp/api.md §2.10
+ */
+export const ATTACHMENT_READ_MAX_BYTES = 32 * 1024;
+
+/**
  * 하트비트 주기 — 60초.
  * `nerv_task_heartbeat` 의 응답은 서버→세션 역채널을 겸한다.
  * 정본: docs/03-proposal/agent-integration.md §2.3
