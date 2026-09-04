@@ -38,7 +38,8 @@ export const ko = {
   'error.auth.human_only_scope': '사람 전용 스코프는 토큰에 부여할 수 없습니다.',
   'error.auth.invalid': '자격증명이 유효하지 않습니다.',
   'error.attachment.too_large': '파일이 너무 큽니다 — 첨부는 10MB 까지입니다.',
-  'error.attachment.type': '지원하지 않는 형식입니다 — png·jpeg·gif·webp·svg·pdf 만 받습니다.',
+  'error.attachment.type':
+    '지원하지 않는 형식입니다 — 그림 png·jpeg·gif·webp·svg, 문서 pdf·html·txt, 묶음 zip 만 받습니다.',
   'error.attachment.not_found': '그 첨부를 찾을 수 없습니다.',
   'error.attachment.not_uploaded':
     '아직 올라오지 않았습니다 — 준 주소로 파일을 올린 뒤 확정하세요.',
@@ -375,7 +376,7 @@ export const ko = {
   'mcp.arg.attachment_id_read':
     '읽을 첨부의 id — nerv_spec_get(include:["attachments"]) 목록이 준다',
   'mcp.tool.attach':
-    '디자인 시안·산출물을 스펙에 붙일 때. **두 단계다**: ① filename·content_type 으로 부르면 upload_url 을 준다 → ② 그 주소에 파일을 PUT 한다(헤더는 Content-Type 만) → ③ attachment_id 만 실어 다시 불러 확정한다. 파일 내용을 이 도구의 인자로 싣지 않는다',
+    '디자인 시안·산출물을 스펙에 붙일 때. **이 도구를 두 번 부르고, 그 사이에 파일을 직접 올린다**: ① filename·content_type 으로 부르면 upload_url 을 준다 → ② 그 주소에 파일을 PUT 한다(헤더는 Content-Type 만) → ③ attachment_id 만 실어 다시 불러 확정한다. 확정 응답의 url 이 받는 주소다. 파일 내용을 이 도구의 인자로 싣지 않는다',
   'mcp.arg.attachment_id': '둘째 단계 — 올린 뒤 이것만 실어 다시 부른다(확정)',
   'mcp.arg.baseline':
     '베이스라인 이름 — 그 세트가 이 문서에 핀해 둔 판을 읽는다. version 과 함께 줄 수 없다',

@@ -91,7 +91,7 @@ allowed-tools:
 
 **디자인 시안이 문서 밖에 있으면 문서가 아니다.** 외부 링크는 스펙의 버전과 무관하게 바뀌므로, "이 판이 말하는 화면" 을 나중에 되짚을 수 없다.
 
-`nerv_spec_attach` 는 **두 단계**다 — 응답에 파일을 싣지 않기 위해서다(base64 를 실으면 그 세션의 컨텍스트 예산이 그것으로 찬다).
+`nerv_spec_attach` 는 **두 번 부르고, 그 사이에 파일을 직접 올린다**(도구 호출 둘 + PUT 하나 = 세 걸음). 도구가 파일을 나르지 않는 이유는 응답에 그것을 싣지 않기 위해서다 — base64 를 실으면 그 세션의 컨텍스트 예산이 그것으로 찬다.
 
 1. `nerv_spec_attach`(`spec_id`, `filename`, `content_type`) → `upload_url` 과 `attachment_id` 를 받는다.
 2. 그 주소에 파일을 그대로 `PUT` 한다(헤더는 `Content-Type` 만).

@@ -35,6 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 플러그인 버전 게이트가 base 와 견주므로 얕은 클론으로는 부족하다
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           # Node 버전의 단일 정본은 .nvmrc 다 (REQ-CB-002)
@@ -47,6 +50,15 @@ jobs:
       # 않아, 7개 파일이 이틀간 실패한 채로 그 사이 커밋들을 받았다(2026-09-02 → 09-04).
       # 아무도 몰라서가 아니라 **아무도 돌리지 않아서**다 — 돌지 않는 검사는 없는 검사다.
       - run: pnpm format:check
+
+      # **버전이 곧 배달이다**(REQ-PLG-017). 설치된 플러그인은 `plugin.json` 의 version 이
+      # 오를 때만 새 사본을 받는다 — 스킬을 고치고 버전을 그대로 두면 이미 설치한 쪽은
+      # 오류도 경고도 없이 옛 판을 계속 읽는다. 2026-09-04 에 실제로 그렇게 됐다: 첨부
+      # 되읽기 절을 넣었는데 설치본에는 그 문장이 **한 번도 나오지 않았다**(실사용 보고).
+      - name: 플러그인 버전 게이트
+        # PR 은 base 와, main 푸시는 직전 커밋과 견준다. 그 밖(merge_group·schedule)에서는
+        # 비교 대상이 없어 스크립트가 스스로 통과한다 — 비교 대상이 없으면 판정도 없다.
+        run: node scripts/check-plugin-version.mjs "${{ github.event.pull_request.base.sha || github.event.before }}"
 
       # **게이트를 테스트 앞에 둔다.** 예전에는 `pnpm test` 뒤에 있었고, L1 이 실패하는 동안
       # (2026-08-26~09-02 · 21회 연속) 이 두 단계는 `if:` 없이 skipped 됐다 — 문서가 "CI 가
