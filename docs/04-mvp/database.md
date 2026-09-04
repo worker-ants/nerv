@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**33종** — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.24 · 2026-09-04 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.25 · 2026-09-04 · HTML 판: [database.html](../html/database.html)
 >
+> v0.25 변경(2026-09-04 — 번호 하나가 둘이었다): **`REQ-DB-008` 이 서로 다른 두 요구사항에 붙어 있었다** — 베이스라인 불변과 `evidence` 앵커 CHECK. 규약 5 는 번호의 재사용을 금지한다. 인용 관계로 갈랐다: 베이스라인 쪽은 DDL 주석·[4.4](api.md) REQ-API-015·`packages/schema/src/tables/spec.ts` **세 곳에서 인용**되고 있어 008 을 유지하고, 인용이 0건인 `evidence` 쪽에 끝번호 **REQ-DB-022** 를 준다. 빈 번호(`REQ-DB-020`)를 채우지 않은 것은 규약이 "끝번호에 추가" 라고 적기 때문이다 — 빈자리를 메우면 그 번호가 왜 비었는지가 영영 사라진다.
 > v0.24 변경(2026-09-04 — 토큰에 남아 있던 죽은 스코프): `0018_prune_dead_scopes` 는 열을 더하지 않고 **값을 걷는다.** 개발 씨앗이 `spec:write`·`review:write`·`session:write` 를 심고 있었고 셋 다 어휘에 없어 `verifyPat` 이 사용 시점에 조용히 버렸다 — 권한은 새지 않았지만 설정 화면의 토큰 표가 그 값을 그대로 보여줘 **사람은 그 토큰이 쓰기 권한을 가졌다고 읽었다.** 발급 경로는 이미 `isAgentScope` 로 거르므로 남은 것은 과거의 잔재다. 지우는 것은 값이 아니라 설명이다(4.4 v0.64 REQ-API-085).
 > v0.23 변경(2026-09-03 — 받는 척하던 인자에 자리를 준다): 열 셋을 더한다(`0017_handoff_note`). `claim.release_note` 는 `nerv_task_release(state_note)` 의 인수인계 노트다 — **세션 타임라인이 아니라 클레임에** 붙는 이유는 다음 사람이 `nerv_task_next` 로 후보를 볼 때 거기서 읽어야 하기 때문이다. `claim.progress_note` 는 하트비트의 한 줄 요약(LWW — 이력이 아니라 '지금 무엇을 하는 중인가'). `agent_session.diff_files` 는 `stats` 의 셋째 값이다 — 줄 수만으로는 '한 파일을 크게' 와 '여러 파일을 조금' 이 같아 보인다. 계약 정본은 [4.4](api.md) §1.4e(REQ-API-081).
 > v0.22 변경(2026-09-02 — 사람 결정): §2.14 의 미구현(12개월 `DETACH`)에 **재검토 트리거를 숫자로** 적었다 — 파티션 24개 또는 `event` 1천만 행. "급하지 않다"는 판단은 있었는데 언제 다시 볼지가 없었고, 트리거 없는 유예는 유예가 아니라 망각이다. `0016` 은 걷어낸 정책 키를 저장된 값에서 지운다.
@@ -1280,7 +1281,7 @@ COMMIT;
 | REQ-DB-006 | WHEN 위임 명세 4요소 중 하나라도 NULL인 `task`를 `backlog`·`blocked` 밖의 상태로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 4요소 각각 NULL로 4케이스 |
 | REQ-DB-007 | WHEN `spec_impact IS NULL`인 `task`를 `done`으로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + `{"none": true}` 통과 1건 |
 | REQ-DB-008 | WHEN 베이스라인 생성 트랜잭션에 `approved`가 아닌 `spec_version` 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 베이스라인의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 베이스라인 생성으로만 한다 | draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건 |
-| REQ-DB-008 | WHEN `requirement_id`·`spec_version_id`·`task_id`가 전부 NULL인 `evidence`를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + 각 앵커 단독 통과 3건 |
+| REQ-DB-022 | WHEN `requirement_id`·`spec_version_id`·`task_id`가 전부 NULL인 `evidence`를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + 각 앵커 단독 통과 3건 |
 | REQ-DB-009 | WHEN `nerv_ensure_month_partitions(대상 월)`을 호출하면 THE SYSTEM SHALL `event`·`activity`의 해당 월 파티션과 activity 파티션별 `(session_id, seq)` unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다 | 함수 2회 호출 후 카탈로그 조회 |
 | REQ-DB-010 | WHEN 같은 사용자에게 같은 스코프의 **같은 역할**을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · `membership_user_scope_role_uq`) | 같은 역할 중복 1건 · 다른 역할 추가 1건 |
 | REQ-DB-011 | WHEN `status <> 'draft'`인 `spec_version`에 `edit_lease_user_id`·`edit_lease_session_id`·`edit_lease_expires_at` 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 3필드 각각 1건 |

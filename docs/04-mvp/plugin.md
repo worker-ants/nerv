@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.32 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.33 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.33 변경(2026-09-04 — 프롬프트가 서버를 따라오지 못한 자리 넷): 스킬은 **모델이 읽는 규약**이라 서버가 앞서가면 그 차이가 그대로 행동의 결함이 된다. ① `/nerv:next` 3번이 후보에 베이스라인이 실린다고 적고 6번은 **그것으로 무엇을 하라는 말이 없었다** — 주변 문서를 `baseline` 으로 읽는 지시를 넣었다(4.4 REQ-API-087). ② 4번의 "브랜치·워크트리는 `nerv_bootstrap` 이 등록한다" 를 **훅이 git 에게 직접 묻는다**로 고쳤다(REQ-API-084) — 예전 문장은 모델이 자기가 실어야 하는 값으로 읽게 했고, 실사용 세션 34개가 전부 NULL 이던 이유가 그것이다. ③ `handoff_note` 를 읽으라는 말이 없었다 — **다음 사람에게 가라고 만든 값**인데(REQ-API-081) 아무도 읽지 않으면 앞사람이 해 본 것을 되풀이한다. ④ `ignored_args`(REQ-API-080)를 `/nerv:next`·`/nerv:impl` 에 적었다: 호출은 성공했는데 인자가 버려진 상태를 조용히 넘기지 않게 한다.
 > v0.32 변경(2026-09-04 — 플랫폼이 자기 플러그인을 서빙한다, 사람 결정): **§3.5 신설.** 서버가 `GET /plugin/marketplace.json` 으로 카탈로그를, `GET /plugin/<이름>-<버전>.zip` 으로 아카이브를 준다(4.4 §2.11 · REQ-API-086). 카탈로그의 주소는 그 서버의 `NERV_PUBLIC_URL` 이라 **받는 쪽이 고칠 것이 없다** — v0.29 가 기록한 포크의 원인이 사라진다. git 경로(`.claude-plugin/marketplace.json`)는 폐쇄망 폴백으로 그대로 남는다. 설치 경로가 셋이 되어 §4 온보딩 3단계에 표를 둔다.
 > v0.31 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): `bin/nerv-hook-forward` 가 `session`·`tool` 엔드포인트에 `X-NERV-Branch`·`X-NERV-Worktree` 를 붙인다(§3.3). 세션의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다 — 훅은 작업 디렉터리에서 도니까 `git rev-parse` 로 직접 읽는다. detached HEAD·비-git 디렉터리면 보내지 않는다. http 변형에는 이 경로가 없다(헤더가 상수라 git 을 부를 자리가 없다).
 > v0.30 변경(2026-09-03 — 기본 변형을 command 로, 사람 결정): `hooks/hooks.json` 이 이제 `bin/nerv-hook-forward` 를 거치는 command 변형이고 http 변형은 `hooks/hooks.http.json` 으로 남는다. 이유 셋: 훅 `url` 은 `${VAR}` 확장을 안 받아 http 는 주소가 박히고, `async` 가 command 전용이라 http 는 `PostToolUse` 가 매 도구 호출마다 동기로 기다리며, hostname 폴백이 포워더에만 있다. 대가는 `allowedHttpHookUrls` 가 기본 훅을 덮지 않는 것이고, 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다.
@@ -161,9 +162,12 @@ allowed-tools:
    **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·베이스라인, 권장 scope가 실려 있다.
    - 4요소 중 하나라도 비어 있으면 그 Task는 클레임하지 않는다. `nerv_question_create`로
      빈 요소를 지목해 에스컬레이션한다(/nerv:question 규약).
+   - **`handoff_note`가 있으면 먼저 읽는다.** 앞사람이 이 작업을 내려놓으며 남긴 인수인계다
+     — 어디까지 했고 무엇이 막혔는지가 거기 있다. 읽지 않고 시작하면 그 사람이 이미
+     해 본 것을 되풀이한다.
 4. **클레임.** `nerv_task_claim` — 입력: `task_id`, `scope{spec_ids,file_globs}`(응답의 권장
    scope에서 시작하되 실제 건드릴 범위로 좁힌다). `idempotency_key` 포함.
-   (브랜치·워크트리는 `nerv_bootstrap`이 세션에 등록한다 — 클레임은 받지 않는다.) 응답의 `claim_id`·`lease_expires_at`을 기록한다(리스 TTL 기본 30분, 하트비트로 갱신).
+   (브랜치·워크트리는 **훅이 git에게 직접 물어** 세션에 채운다 — 도구 인자로 실을 필요가 없고, 클레임은 받지 않는다.) 응답의 `claim_id`·`lease_expires_at`을 기록한다(리스 TTL 기본 30분, 하트비트로 갱신).
 5. **겹침 응답 처리.**
    - 경고(겹침 있으나 허용): 상대 세션의 사용자·hostname·scope를 사용자에게 보여주고,
      계속할지 확인받는다.
@@ -174,6 +178,13 @@ allowed-tools:
    기본값(최신 approved)에 의존하지 않는다. 두 값은 후보 응답에 실려 온다.
    응답에 `basis_superseded`가 있으면 그 사실을 사람에게 보고한다(기준 버전 규약 —
    agent-integration §2.4).
+   - **후보에 `baseline`이 실려 있으면 주변 문서도 그 세트로 읽는다** —
+     `nerv_spec_get`(`spec_id=<참조할 스펙>`, `baseline=<그 이름>`). 기준 버전은 이 문서
+     하나의 판이고, 베이스라인은 **그 문서가 참조하는 문서들까지 포함한 세트**다. 세트 없이
+     주변 문서를 최신으로 읽으면 내 문서만 그때 것이고 나머지는 지금 것이 된다.
+     `version`과 `baseline`은 함께 줄 수 없다(둘 다 주면 거절된다).
+   - 응답의 `baseline_pinned`가 `false`면 **그 세트에 없는 문서**다(나중에 만들어진 것).
+     최신 판을 받은 것이므로 그 사실을 알고 읽는다.
 7. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
    없으면 저장소 규약대로 새 브랜치를 만든다. 이후 /nerv:impl 규약으로 구현을 시작한다
    (하트비트 60초 주기 — 첫 하트비트는 클레임 직후 바로 보낸다).
@@ -186,6 +197,10 @@ allowed-tools:
 | NERV_CONFLICT_SCOPE | 다음 후보로 이동, 없으면 nerv_question_create |
 | NERV_RATE_LIMIT | retry_after_s 준수. 병렬 재시도로 우회하지 않는다 |
 | NERV_UNAVAILABLE | 읽기는 .nerv/cache/ 폴백, 쓰기는 .nerv/outbox/에 멱등 키로 큐잉. 신규 클레임은 발급하지 않는다 |
+
+**응답에 `ignored_args`가 있으면 내가 보낸 인자 중 서버가 모르는 것이 있다는 뜻이다**(호출은
+성공했다). 그 인자에 기대고 있었다면 기대한 일은 일어나지 않았다 — 이름을 확인하고, 필요한
+동작이면 사람에게 보고한다. 조용히 넘어가면 "보냈는데 반영되지 않은" 상태로 계속 간다.
 
 ## 금지
 
@@ -474,6 +489,10 @@ allowed-tools:
 | NERV_APPROVAL_REQUIRED | 승인 대기 — 폴링, 그동안 다른 작업 금지 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
 | NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉. 신규 클레임 발급 금지 |
+
+**응답에 `ignored_args`가 있으면 내가 보낸 인자 중 서버가 모르는 것이 있다는 뜻이다**(호출은
+성공했다). 그 인자에 기대고 있었다면 기대한 일은 일어나지 않았다 — 이름을 확인하고, 필요한
+동작이면 사람에게 보고한다. 조용히 넘어가면 "보냈는데 반영되지 않은" 상태로 계속 간다.
 
 ## 금지
 
