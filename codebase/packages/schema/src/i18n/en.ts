@@ -81,6 +81,7 @@ export const en = {
   'error.db.unique_violation': 'Already in use — {fields}. Pick another value.',
   'error.human_only.inbox': 'The inbox is for humans only.',
   'error.human_only.inbox_decide': 'Only humans can decide inbox items.',
+  'error.human_only.project_admin': 'Only humans can change, archive, or restore project settings.',
   'error.human_only.steer': 'Only humans can steer or stop a session.',
   'error.human_only.token_issue': 'Only humans can issue tokens.',
   'error.idempotency.mismatch':

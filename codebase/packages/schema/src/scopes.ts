@@ -1,12 +1,13 @@
 // PAT 스코프 어휘 — 정본: docs/04-mvp/api.md §1.3 · agent-integration §2.3 "필요 권한" 열
 //
-// `resource:action` 표기이고 도구 표와 1:1 이다. 두 가지가 이 파일의 존재 이유다.
+// `resource:action` 표기다. 두 가지가 이 파일의 존재 이유다.
 //
 //   ① **사람 전용 스코프는 토큰에 부여 자체가 불가능하다.** `spec:approve` 와
 //      `approval:decide` 는 정책이 아니라 **시스템 불변식**이다(agent-integration §6.1 ④).
 //      "설정에서 끄면 되는 것"이 아니라 발급 경로에 존재하지 않아야 한다.
-//   ② `import:write` 는 도구 대응이 없는 유일한 REST 전용 스코프다(api.md §1.3) —
-//      admin 이 자신에게만 발급하고 역할 판정과 AND 로 검사된다.
+//   ② **MCP 도구 대응이 없는 스코프가 셋 있다** — `import:write`(admin 전용 이관 표면) ·
+//      `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). 나머지 일곱이 도구 22종을
+//      덮는다. "도구 표와 1:1" 은 그 일곱에 대한 말이고, 이 셋은 REST 축이다(api.md §1.3).
 
 /** 토큰에 부여할 수 있는 스코프. */
 export const AGENT_SCOPES = [
@@ -18,6 +19,7 @@ export const AGENT_SCOPES = [
   'review:submit',
   'review:resolve',
   'agent-session:launch',
+  'spec:evidence',
   'import:write',
 ] as const;
 
@@ -42,8 +44,13 @@ export function isHumanOnlyScope(value: string): value is HumanOnlyScope {
   return HUMAN_SET.has(value);
 }
 
-/** REST 전용 — MCP 도구 대응이 없다(api.md §1.3). */
-export const REST_ONLY_SCOPES = ['import:write'] as const;
+/**
+ * REST 전용 — MCP 도구 대응이 없다(api.md §1.3).
+ *
+ * 목록이 `import:write` 하나였던 동안 `spec:meta` 는 어느 쪽에도 없었다 — 도구 22종이
+ * 쓰는 스코프는 일곱인데 문서는 "도구 표와 1:1" 이라고 적고 있었다(2026-09-04 실측).
+ */
+export const REST_ONLY_SCOPES = ['import:write', 'spec:meta', 'spec:evidence'] as const;
 
 // ── 역할 → 권한 (api.md §2 전표의 "권한" 열) ────────────────────────────────
 //
@@ -90,10 +97,13 @@ export const ROLE_SCOPES: Readonly<Record<string, readonly RoleScope[]>> = {
     'task:update',
     'review:submit',
   ],
+  // `spec:evidence` 는 EP-REQ-03 의 권한 열(developer·qa·admin)을 그대로 옮긴 것이다.
+  // planner 에게 주지 않는 이유도 같다 — 전표가 그렇게 적고 있다.
   developer: [
     'spec:read',
     'agent-session:launch',
     'spec:draft',
+    'spec:evidence',
     'task:claim',
     'task:update',
     'review:submit',
@@ -102,6 +112,7 @@ export const ROLE_SCOPES: Readonly<Record<string, readonly RoleScope[]>> = {
     'spec:read',
     'agent-session:launch',
     'spec:draft',
+    'spec:evidence',
     'task:claim',
     'task:update',
     'review:submit',

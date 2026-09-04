@@ -82,6 +82,7 @@ export const ko = {
   'error.db.unique_violation': '이미 쓰이고 있는 값입니다 — {fields}. 다른 값을 쓰세요.',
   'error.human_only.inbox': '받은 요청은 사람 전용입니다.',
   'error.human_only.inbox_decide': '받은 요청 결정은 사람만 할 수 있습니다.',
+  'error.human_only.project_admin': '프로젝트 설정 변경·보관·복구는 사람만 할 수 있습니다.',
   'error.human_only.steer': 'steer/stop 은 사람만 할 수 있습니다.',
   'error.human_only.token_issue': '토큰 발급은 사람만 할 수 있습니다.',
   'error.idempotency.mismatch': '같은 멱등 키에 다른 요청이 왔습니다 — 키를 새로 만들어 보내세요.',

@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **22종**(2026-09-02 실측 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 22종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.63 · 2026-09-03 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.64 · 2026-09-04 · HTML 판: [api.html](../html/api.html)
 >
+> v0.64 변경(2026-09-04 — 토큰의 실제 권한이 체크박스보다 넓었다, 실측): **§1.3b 신설**(REQ-API-085). 역할(`@RequireRole`)만 걸린 라우트는 **토큰의 스코프를 보지 않았다** — `spec:read` 하나만 체크한 developer 토큰으로 Task 생성·수정(EP-TASK-03·05)과 증적 등록(EP-REQ-03)이 통과했고, 같은 작업의 MCP 경로는 `task:update` 를 요구하고 있었다(**경로마다 권한이 달랐다**). 셋에 스코프를 AND 로 얹고, 증적에는 새 스코프 `spec:evidence` 를 준다 — 정본이 "CI는 PAT"라고 적어 둔 자리라 CI 토큰을 증적만으로 좁힐 수 있어야 한다. 프로젝트 설정·보관·복구(EP-PRJ-04·05)는 **사람 전용**으로 바꾼다: 게이트 면제(EP-APR-04)가 이미 사람 전용인데 정책 자체를 낮추는 길이 토큰에 열려 있으면 그것이 면제의 우회로가 된다. 함께 어휘 서술의 "도구 표와 1:1"을 사실로 고쳤다(도구가 쓰는 스코프는 일곱이다).
 > v0.63 변경(2026-09-03 — 브랜치는 모델이 아니라 git 이 말한다, 사람 결정): **§2.5b 신설**(REQ-API-084). 세션 신원 3요소 중 `branch`·`worktree_path` 는 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 그것을 실어 준 적이 없다 — **실사용 세션 34개 전부 NULL** 이다(실측). 훅은 프로젝트 디렉터리에서 도니까 포워더가 `git rev-parse` 로 읽어 `X-NERV-Branch`·`X-NERV-Worktree` 헤더에 싣고, 서버는 **빈 자리에만** 채운다. detached HEAD 면 헤더를 보내지 않는다 — 없는 것과 잘못된 것은 다르다.
 > v0.62 변경(2026-09-03 — 상한만 있고 커서가 없던 목록 둘): **REQ-API-083 신설.** 알림은 서비스에 상한이 있는데 컨트롤러도 웹도 `limit` 을 넘기지 않아 언제나 최신 50건이었고, 발견 큐는 200 이 절대 상한이었다. 실측(2026-09-03): 안 읽은 알림 479건 중 **429건**, 열린 발견 18,653건 중 **18,453건**이 웹에서 도달 불가였다 — 화면은 "18653건 중 50건" 이라고 정직하게 말하면서 나머지로 가는 길을 주지 않았다. 두 목록에 커서를 둔다. 발견 큐의 커서는 `(severity, created_at, id)` 세 값이다 — 정렬 방향이 섞여 있어 행 값 비교를 쓸 수 없다.
 > v0.61 변경(2026-09-03 — 오타가 500 이던 자리 넷, 라이브 실측): **§1.4j 확장**(REQ-API-082). 어휘 검사가 EP-SES-01 한 자리에만 있어 `?status=doing`·`?impl_status=nope`·`?v=abc`·`events?limit=abc` 가 전부 500 이었고, 발견 큐는 반대로 어휘 밖 값을 **조용히 버려** 걸러지지 않은 목록을 200 으로 돌려줬다. 판정을 `common/query-vocab.ts` 한 곳으로 모은다. 함께 **EP-SPEC-15 `owner_role` 이 존재하지 않는 타입(`membership_role`)으로 캐스팅하던 것**을 고쳤다 — 이 경로는 100% 500 이었고 같은 요청의 다른 필드까지 롤백시켰다. MCP 실패 응답의 예외 원문(SQL 전문) 유출도 막았다.
@@ -153,8 +154,8 @@ flowchart LR
 | **PAT** | `Authorization: Bearer <token>` | 에이전트(MCP)·CI·외부 연동·md 미러 | better-auth api-key 플러그인 기반. 토큰은 **(사용자, 프로젝트, 역할, 스코프)** 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을 넘지 못한다([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1, D-08). Bearer 헤더 필수, **쿼리스트링 전달 금지**(MCP Authorization 규약 재인용) |
 
 - PAT 원문 형식: `nerv_` 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(`api_token.token_hash`), 식별·감사용으로 앞 8자를 `api_token.prefix`에 남긴다([데이터 모델](../03-proposal/data-model.md) §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 **한 번만** 반환된다.
-- 스코프 어휘는 `resource:action` 표기로 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 도구 표의 "필요 권한" 열과 1:1이다(`spec:read` `spec:draft` `spec:meta` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch` …). `spec:approve`와 `approval:decide`는 **토큰에 부여 자체가 불가능한 사람 전용 스코프**다 — 정책이 아니라 시스템 불변식(같은 문서 §6.1 ④).
-- **`import:write`는 도구 대응이 없는 유일한 REST 전용 스코프**다(§2.10). MCP 도구 카탈로그에 임포트 도구가 없기 때문이며, admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사된다. 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
+- 스코프 어휘는 `resource:action` 표기이고 **10종**이다: `spec:read` `spec:draft` `spec:meta` `spec:evidence` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch` `import:write`. `spec:approve`와 `approval:decide`는 **토큰에 부여 자체가 불가능한 사람 전용 스코프**다 — 정책이 아니라 시스템 불변식([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1 ④). 정본은 `@nerv/schema` 의 `AGENT_SCOPES`·`HUMAN_ONLY_SCOPES` 이며, 어느 문서도 이 목록을 다시 적지 않는다.
+- **MCP 도구 대응이 없는 스코프가 셋 있다**(2026-09-04 정정 — 실측). 도구 22종이 쓰는 스코프는 **일곱**이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — `import:write`(§2.10 이관 표면) · `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). `import:write`는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
 - REST 엔드포인트의 인가는 역할 매트릭스([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6)가 정본이다. §2 전표의 "권한" 열은 그 매트릭스의 인용이며, PAT 요청은 역할 판정에 **스코프 검사가 AND로** 추가된다.
 
 ### 1.3a 권한은 라우트가 선언한다 (2026-09-02 신설 — 보안 점검)
@@ -170,6 +171,26 @@ flowchart LR
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-075 | WHILE 프로젝트 경로의 라우트를 처리하는 동안 THE SYSTEM SHALL §2 전표의 권한을 선언에서 읽어 집행하고, 선언이 없는 라우트는 **거절한다**(403 `route_undeclared`). WHEN 주체의 역할·스코프가 선언을 충족하지 못하면 THE SYSTEM SHALL 403 `NERV_FORBIDDEN`(`role_required`·`missing_scope`)으로 거부하고 요구·보유 목록을 `details` 에 싣는다 |
+
+#### 1.3b 역할만 보던 자리 — 토큰의 권한은 체크박스가 말한 것이어야 한다 (2026-09-04 신설 — 실측)
+
+§1.3a가 "선언하지 않으면 거절한다"로 **빠뜨림**을 막았다. 남은 것은 **선언의 축이 하나뿐인 자리**였다. `@RequireRole` 만 붙은 라우트는 역할만 보고 토큰의 스코프를 보지 않는다 — 그래서 발급 화면에서 `spec:read` 하나만 체크한 토큰이 다음을 전부 통과했다(실측 2026-09-04).
+
+| 자리 | 예전 | 지금 | 왜 |
+| --- | --- | --- | --- |
+| EP-TASK-03 · 05 | 역할만 | 역할 **AND** `task:update` | MCP `nerv_task_create`·`nerv_task_update` 가 이미 그 스코프를 요구했다. **같은 작업의 권한이 경로마다 달랐다** — 토큰에서 빼도 REST 로는 그대로 됐다 |
+| EP-REQ-03 | 역할만 | 역할 **AND** `spec:evidence` | 전표가 "CI는 PAT"라고 적어 둔 자리다. 증적만 올리는 CI 토큰을 좁게 발급할 방법이 없었다 |
+| EP-PRJ-04 · 05 | 역할만 | **사람 전용** | 아래 |
+
+**`spec:evidence` 를 새로 만든 이유**(사람 결정). 기존 스코프를 재사용하면 CI 토큰이 필요 이상을 갖는다 — `spec:draft` 면 초안 덮어쓰기(도구 5종)까지, `task:update` 면 Task 생성·전이·클레임 해제까지 딸려온다. 증적은 그 둘 어느 쪽도 아니고, 최소권한이 실제로 성립하려면 자기 이름이 있어야 한다. MCP 도구 대응은 없다 — REST 축이다(§1.3).
+
+**프로젝트 관리를 사람 전용으로 옮긴 이유**(사람 결정). 게이트 **면제**(EP-APR-04)는 이미 사람 전용이었다. 그런데 게이트 **정책 자체**를 낮추는 길이 토큰에 열려 있으면 그것이 면제의 우회로가 된다 — 면제를 받지 못하는 에이전트가 임계값을 내리면 되기 때문이다. 같은 축의 한쪽만 잠그는 것은 잠근 것이 아니다. 보관·복구를 함께 막는 것은 프로젝트를 목록에서 지우는 일이 같은 무게라서다.
+
+**권한이 새고 있었다는 뜻은 아니다.** 이 자리들은 전부 역할 검사를 통과해야 했고, 역할은 사람이 가진 것이다. 무너진 것은 **최소권한**이다: 발급 화면이 보여준 체크박스가 그 토큰이 할 수 있는 일의 전부가 아니었고, 그래서 좁은 토큰을 만들려는 사람에게 그럴 방법이 없었다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-API-085 | WHEN 어느 라우트가 역할을 요구하면서 대응 스코프가 어휘에 있으면 THE SYSTEM SHALL 역할과 스코프를 **함께**(AND) 검사한다 — 같은 작업의 MCP 경로와 REST 경로는 같은 스코프를 요구한다. WHEN 프로젝트 설정 변경·보관·복구(EP-PRJ-04·05)를 에이전트 주체가 호출하면 THE SYSTEM SHALL 403 `NERV_HUMAN_ONLY` 로 거부한다. WHEN 토큰을 발급하면 THE SYSTEM SHALL 어휘에 없는 스코프를 저장하지 않는다 |
 
 ### 1.4 에러 포맷과 HTTP 상태 매핑
 
@@ -651,8 +672,8 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | EP-ORG-05 | `DELETE /api/v1/orgs/{org}` | admin | — | `{deleted:true}` — **프로젝트가 하나라도 있으면 409**. 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계(프로젝트 보관)를 세운다 | — |
 | EP-PRJ-02 | `POST /api/v1/orgs/{org}/projects` | admin | `ProjectCreateInput` | `ProjectResult` | ★`project.created` |
 | EP-PRJ-03 | `GET /api/v1/projects/{proj}` | 프로젝트 멤버 | — | `ProjectResult`(게이트 정책 `gate_policy`·보존 `retention`·활성 세션/승인 대기 카운트 포함) | — |
-| EP-PRJ-04 | `PATCH /api/v1/projects/{proj}` | admin (게이트 정책·위험도 임계는 admin 전용 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6 매트릭스) | `ProjectUpdateInput` | `ProjectResult` | ★`project.updated` |
-| EP-PRJ-05 | `POST /api/v1/projects/{proj}/archive` · `/restore` | admin | — | `ProjectResult` — **지우지 않고 보관한다**(`archived_at`). 목록에서 빠지되 주소는 살아 있다(EP-SPEC-16·17 과 같은 규약). EP-PRJ-01 은 `include_archived=true` 로만 보관분을 준다 |  — |
+| EP-PRJ-04 | `PATCH /api/v1/projects/{proj}` | admin **· 사람 전용**(§1.3b — 토큰은 403 `NERV_HUMAN_ONLY`) (게이트 정책·위험도 임계는 admin 전용 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6 매트릭스) | `ProjectUpdateInput` | `ProjectResult` | ★`project.updated` |
+| EP-PRJ-05 | `POST /api/v1/projects/{proj}/archive` · `/restore` | admin **· 사람 전용**(§1.3b) | — | `ProjectResult` — **지우지 않고 보관한다**(`archived_at`). 목록에서 빠지되 주소는 살아 있다(EP-SPEC-16·17 과 같은 규약). EP-PRJ-01 은 `include_archived=true` 로만 보관분을 준다 |  — |
 | EP-MBR-01 | `GET /api/v1/orgs/{org}/members` | 조직 멤버 | — | `Page<MemberResult>` | — |
 | EP-MBR-02 | `POST /api/v1/orgs/{org}/members` | admin | `MemberAddInput`(user + org/project 스코프 + `role`) | `MemberResult` | ★`member.added` |
 | EP-MBR-03 | `PATCH /api/v1/memberships/{id}` | admin | `MemberUpdateInput`(role 변경) | `MemberResult` | ★`member.updated` |
@@ -787,7 +808,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | --- | --- | --- | --- | --- | --- |
 | EP-REQ-01 | `GET /api/v1/projects/{proj}/requirements` | 전 역할 | `RequirementListQuery`(spec, impl_status, cursor) | `Page<RequirementResult>`(`ref`·`statement_md`·`impl_status`·연결 Task/Evidence 수) | — |
 | EP-REQ-02 | `GET /api/v1/projects/{proj}/requirements/{ref}` | 전 역할 | — | `RequirementDetailResult`(버전 이력 + 파생 Task + Evidence) | — |
-| EP-REQ-03 | `POST /api/v1/projects/{proj}/requirements/{ref}/evidence` | developer·qa·admin (CI는 PAT) | `EvidenceCreateInput`(kind: code_path/test/pr/commit, locator, repo) | `EvidenceResult` | ★`evidence.added` |
+| EP-REQ-03 | `POST /api/v1/projects/{proj}/requirements/{ref}/evidence` | developer·qa·admin **AND `spec:evidence`** (CI는 PAT — §1.3b) | `EvidenceCreateInput`(kind: code_path/test/pr/commit, locator, repo) | `EvidenceResult` | ★`evidence.added` |
 
 `impl_status`는 파생 값이라 **직접 쓰는 엔드포인트가 없다** — `verified` 전이도 QA의 검증 Evidence 등록(EP-REQ-03, kind=test)이 파생 규칙([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.3)을 통해 만든다. MVP(P1)의 Evidence는 PR 링크 수집까지이고 커버리지 계산은 P2다([로드맵](../03-proposal/roadmap.md) FR-13).
 
@@ -797,9 +818,9 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | --- | --- | --- | --- | --- | --- |
 | EP-TASK-01 | `GET /api/v1/projects/{proj}/tasks` | 전 역할 | `TaskListQuery`(status[], assignee, spec, priority, **include_archived**(기본 false — `done_at` 이 `TASK_DONE_WINDOW_DAYS` 를 지난 done 을 포함, [4.5 화면 명세](screens.md) §2.5), cursor, limit) | `Page<TaskSummary>`(보드 레인용 — 정렬 `priority ASC, updated_at DESC, id ASC`) | — |
 | EP-TASK-02 | `GET /api/v1/projects/{proj}/tasks/next` | task:claim 보유 역할 | `TaskNextQuery`(role, spec_id, limit) | `TaskNextResult`(ready 후보 + **위임 명세 4요소** + 권장 scope) | — |
-| EP-TASK-03 | `POST /api/v1/projects/{proj}/tasks` | planner·developer·admin ●, qa ○ | `TaskCreateInput`(title, body_md, source_spec_version_id, source_requirement_id, 위임 명세 4필드, priority) | `TaskResult`(status=backlog) | ★`task.created` |
+| EP-TASK-03 | `POST /api/v1/projects/{proj}/tasks` | planner·developer·admin ●, qa ○ **AND `task:update`**(MCP `nerv_task_create` 와 같은 스코프 — §1.3b) | `TaskCreateInput`(title, body_md, source_spec_version_id, source_requirement_id, 위임 명세 4필드, priority) | `TaskResult`(status=backlog) | ★`task.created` |
 | EP-TASK-04 | `GET /api/v1/projects/{proj}/tasks/{task}` | 전 역할 | — | `TaskDetailResult`(위임 명세·활성 클레임·의존·Evidence) | — |
-| EP-TASK-05 | `PATCH /api/v1/projects/{proj}/tasks/{task}` | planner·developer·admin | `TaskUpdateInput`(위임 명세·priority·의존) | `TaskResult` — 위임 명세 4요소 충족 + 의존 해소 시 서버가 `ready` 승격 | `task.ready`(승격 시) |
+| EP-TASK-05 | `PATCH /api/v1/projects/{proj}/tasks/{task}` | planner·developer·admin **AND `task:update`** | `TaskUpdateInput`(위임 명세·priority·의존) | `TaskResult` — 위임 명세 4요소 충족 + 의존 해소 시 서버가 `ready` 승격 | `task.ready`(승격 시) |
 | EP-TASK-06 | `POST /api/v1/projects/{proj}/tasks/{task}/claim` | viewer 제외 전 역할(`task:claim`) | `TaskClaimInput`(scope{spec_ids, file_globs}, branch, worktree, lease_seconds) | `TaskClaimResult`(claim_id, lease_expires_at, warnings[]) — 겹침 `block`이면 409 `NERV_CONFLICT_SCOPE` | `task.claimed` / `claim.conflict_warn` / `claim.conflict_blocked` |
 | EP-TASK-07 | `POST /api/v1/projects/{proj}/claims/{claim}/heartbeat` | 클레임 보유자 | `HeartbeatInput`(progress, stats{added, removed, files}) | `HeartbeatResult`(새 lease_expires_at + pending 질문 답변·steer/stop 지시) | — (이벤트 없음 — `last_heartbeat_at` 갱신만) |
 | EP-TASK-08 | `POST /api/v1/projects/{proj}/claims/{claim}/release` | 클레임 보유자 또는 admin | `ClaimReleaseInput`(reason: done/handoff/abandon, state_note) | `ClaimReleaseResult`(Task 최종 상태 — `claimed → ready` 회수 또는 유지) | ★`claim.released` + `task.ready`(회수 시) |

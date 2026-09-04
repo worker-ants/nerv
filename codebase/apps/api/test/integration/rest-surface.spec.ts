@@ -19,6 +19,7 @@ let pool: pg.Pool;
 let app: NestFastifyApplication;
 let adminToken: string;
 let viewerToken: string;
+let narrowToken: string;
 let projectId: string;
 let orgId: string;
 let adminId: string;
@@ -50,6 +51,16 @@ beforeAll(async () => {
         'task:update',
         'review:resolve',
       ],
+    })
+  ).token;
+  // **역할은 admin, 스코프는 읽기뿐.** 역할만 보던 자리를 잡아내려면 이 조합이 필요하다 —
+  // adminToken 은 두 축을 다 갖고 있어서 어느 쪽이 통과시켰는지 구별하지 못한다.
+  narrowToken = (
+    await auth.issueToken({
+      projectId,
+      userId: adminId,
+      name: 'admin-narrow-pat',
+      scopes: ['spec:read'],
     })
   ).token;
   viewerToken = (
@@ -125,7 +136,7 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
     expect(res.body as Record<string, unknown>).toHaveProperty('gate_policy');
   });
 
-  it('게이트 정책 편집은 admin 만 — API 와 UI 양쪽에서 막는다는 규칙의 API 쪽 절반', async () => {
+  it('게이트 정책 편집은 admin 만 — 그리고 admin 이어도 토큰으로는 못 한다 (2026-09-04)', async () => {
     const policy = { spec_gate: { tier_boundaries: [2, 4, 7] } };
 
     const denied = await call('PATCH', '/api/v1/projects/clemvion', {
@@ -135,26 +146,41 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
     expect(denied.status).toBe(403);
     expect((denied.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.FORBIDDEN);
 
-    const allowed = await call('PATCH', '/api/v1/projects/clemvion', {
+    // **역할이 admin 이어도 PAT 는 막힌다.** 게이트 면제(EP-APR-04)가 이미 사람 전용인데
+    // 정책 자체를 낮추는 길이 토큰에 열려 있으면 그것이 면제의 우회로가 된다.
+    const asAgent = await call('PATCH', '/api/v1/projects/clemvion', {
       payload: { gate_policy: policy },
     });
-    expect(allowed.status).toBe(200);
-    const saved = (allowed.body as Record<string, unknown>)['gate_policy'] as Record<
-      string,
-      unknown
-    >;
+    expect(asAgent.status).toBe(403);
+    expect((asAgent.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.HUMAN_ONLY);
+
+    // 사람 경로의 성공은 서비스가 지킨다 — 표면은 번역만 한다(D-05).
+    const saved = (
+      await app.get(AuthService).updateProject({ projectId, roles: ['admin'], gatePolicy: policy })
+    )['gate_policy'] as Record<string, unknown>;
     expect((saved['spec_gate'] as Record<string, unknown>)['tier_boundaries']).toEqual([2, 4, 7]);
   });
 
   it('알 수 없는 정책 키는 거부한다 — 오타를 삼키면 게이트가 꺼진 줄 모르게 된다 (§2.1a)', async () => {
-    const res = await call('PATCH', '/api/v1/projects/clemvion', {
-      payload: { gate_policy: { spec_gate: { tier_boundries: [1, 2, 3] } } },
+    // HTTP 자리는 이제 사람 전용이라(위 테스트) 판정을 도메인 서비스에서 본다.
+    await expect(
+      app.get(AuthService).updateProject({
+        projectId,
+        roles: ['admin'],
+        gatePolicy: { spec_gate: { tier_boundries: [1, 2, 3] } },
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'invalid_policy' },
     });
-    // NERV_PRECONDITION 은 상황에 따라 400/409 로 사상된다(api.md §1.4) — 코드로 확인한다
-    expect((res.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.PRECONDITION);
-    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
-      kind: 'invalid_policy',
-    });
+  });
+
+  it('보관·복구도 사람 전용이다 — 프로젝트를 목록에서 지우는 일은 같은 무게다', async () => {
+    for (const path of ['archive', 'restore']) {
+      const res = await call('POST', `/api/v1/projects/clemvion/${path}`, { payload: {} });
+      expect(res.status).toBe(403);
+      expect((res.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.HUMAN_ONLY);
+    }
   });
 
   it('토큰 목록에 원문이 없다 — 발급 응답에서 한 번 보여준 뒤로는 어디에도 남지 않는다', async () => {
@@ -728,6 +754,70 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
       kind: 'missing_scope',
       required: ['spec:draft'],
     });
+  });
+
+  /**
+   * 역할만 보던 세 자리 (2026-09-04 · 실측).
+   *
+   * `@RequireRole` 만 걸린 라우트는 **토큰의 스코프를 보지 않았다.** 그래서 `spec:read` 하나만
+   * 체크한 토큰으로도 Task 를 만들고 증적을 올릴 수 있었고, 같은 작업의 MCP 경로
+   * (`nerv_task_create` — `task:update`)와 권한이 달랐다. 발급 화면의 체크박스가 토큰의
+   * 실제 권한보다 좁았다는 뜻이다.
+   */
+  it('admin 역할이어도 스코프가 없으면 Task 를 만들지 못한다 (EP-TASK-03)', async () => {
+    const res = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      token: narrowToken,
+      payload: { title: '스코프 없이 생성' },
+    });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'missing_scope',
+      required: ['task:update'],
+    });
+  });
+
+  it('증적 등록에도 스코프가 필요하다 — CI 토큰을 증적만으로 좁힐 수 있어야 한다 (EP-REQ-03)', async () => {
+    const specVersionId = await seedSpecVersion();
+    const { rows } = await pool.query<{ spec_id: string }>(
+      `SELECT spec_id FROM spec_version WHERE id = $1`,
+      [specVersionId],
+    );
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority, impl_status,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-EVD-1','문장','must','implemented',$4,$4)`,
+      [newId(), projectId, rows[0]?.spec_id ?? '', specVersionId],
+    );
+
+    const denied = await call('POST', '/api/v1/projects/clemvion/requirements/REQ-EVD-1/evidence', {
+      token: narrowToken,
+      payload: { kind: 'pr', locator: 'https://example.com/pr/1' },
+    });
+    expect(denied.status).toBe(403);
+    expect((denied.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'missing_scope',
+      required: ['spec:evidence'],
+    });
+
+    const ciToken = (
+      await app.get(AuthService).issueToken({
+        projectId,
+        userId: adminId,
+        name: 'ci-evidence-only',
+        scopes: ['spec:evidence'],
+      })
+    ).token;
+    const allowed = await call(
+      'POST',
+      '/api/v1/projects/clemvion/requirements/REQ-EVD-1/evidence',
+      { token: ciToken, payload: { kind: 'pr', locator: 'https://example.com/pr/1' } },
+    );
+    expect(allowed.status).toBeLessThan(300);
+
+    // 이 스위트는 requirement 를 비우지 않는다 — 남기면 커버리지 테스트가 세는 수가 달라진다
+    await pool.query(`DELETE FROM evidence WHERE requirement_id IN
+                        (SELECT id FROM requirement WHERE ref = 'REQ-EVD-1')`);
+    await pool.query(`DELETE FROM requirement WHERE ref = 'REQ-EVD-1'`);
   });
 
   it('읽기는 그대로 열려 있다 — 막은 것은 쓰기다', async () => {
