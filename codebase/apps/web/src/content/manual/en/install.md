@@ -78,11 +78,17 @@ The value is **for display only**. A header can say anything, so it never enters
 Two lines inside Claude Code.
 
 ```text
-/plugin marketplace add <your internal marketplace git URL>
-/plugin install nerv@nerv-internal
+/plugin marketplace add https://<this server>/plugin/marketplace.json
+/plugin install nerv@nerv
 ```
 
 Then **restart**. You should see `nerv` v0.1.0 listed as active under `/plugin`.
+
+The server builds the catalogue itself, so **there is nothing to edit after you install** — its own address is already in there. If your deployment uses an internal git marketplace instead, put that git URL in and install `nerv@nerv-internal`.
+
+> If the install is refused with `Archive URLs must use https://…`, this server is **not on https, or is on an internal address**. Adding the marketplace succeeding and the install failing is the expected shape of that problem — ask an administrator to check the server's public URL setting.
+
+> To pick up a new version, run `/plugin marketplace update`. You only get a new copy when an administrator bumps the plugin version — at the same version you keep the copy you already have.
 
 Four things get installed.
 

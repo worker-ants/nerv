@@ -251,6 +251,27 @@ describe('Codex 초안 2종 (REQ-PLG-010)', () => {
     expect(md).toContain('데이터다');
   });
 
+  /**
+   * 카탈로그가 둘이다 — git 경로용(`.claude-plugin/marketplace.json`, 상대경로)과 서버가
+   * 만드는 URL 경로용(`GET /plugin/marketplace.json`, 절대 아카이브 URL). **버전이 갈라지면
+   * 두 경로의 사용자가 서로 다른 것을 받는다.** 서버 쪽은 `plugin.json` 에서 파생하므로
+   * 여기서는 git 쪽이 같은 값을 적고 있는지만 보면 된다.
+   */
+  it('git 카탈로그의 이름·버전이 plugin.json 과 같다 — 배포 경로 둘이 갈라지지 않게', () => {
+    const manifest = JSON.parse(readShipped('.claude-plugin/plugin.json')) as {
+      name: string;
+      version: string;
+    };
+    const catalog = JSON.parse(readShipped('.claude-plugin/marketplace.json')) as {
+      plugins: { name: string; version: string; source: unknown }[];
+    };
+    expect(catalog.plugins).toHaveLength(1);
+    expect(catalog.plugins[0]?.name).toBe(manifest.name);
+    expect(catalog.plugins[0]?.version).toBe(manifest.version);
+    // git 경로는 상대경로가 맞다 — 저장소를 통째로 클론해 오므로 가리킬 대상이 있다.
+    expect(catalog.plugins[0]?.source).toBe('./');
+  });
+
   it('NERV 저장소 자신에게는 `.codex/config.toml` 을 두지 않는다', () => {
     // 두면 이 저장소에서 도는 Codex 세션이 예시 URL 로 접속하려 든다.
     // 템플릿으로 배포하고 쓰는 쪽이 복사하는 것이 맞다.

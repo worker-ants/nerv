@@ -72,6 +72,17 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 
+  # 플러그인 배포 — 무인증 카탈로그와 zip (api.md §2.11 · 4.6 §3.5)
+  # `/plugin marketplace add https://<이 호스트>/plugin/marketplace.json` 이 닿는 자리다.
+  # 앞문이 여기를 web 으로 보내면 마켓플레이스가 SPA 의 index.html 을 받는다 — 200 인 채로.
+  location /plugin/ {
+    set $nerv_api ${NERV_API_UPSTREAM};
+    proxy_pass http://$nerv_api;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
   # SSE — 단방향 이벤트 스트림, 버퍼링 금지 (REQ-CB-014)
   location /sse/ {
     set $nerv_api ${NERV_API_UPSTREAM};

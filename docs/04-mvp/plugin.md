@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.31 · 2026-09-03 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.32 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.32 변경(2026-09-04 — 플랫폼이 자기 플러그인을 서빙한다, 사람 결정): **§3.5 신설.** 서버가 `GET /plugin/marketplace.json` 으로 카탈로그를, `GET /plugin/<이름>-<버전>.zip` 으로 아카이브를 준다(4.4 §2.11 · REQ-API-086). 카탈로그의 주소는 그 서버의 `NERV_PUBLIC_URL` 이라 **받는 쪽이 고칠 것이 없다** — v0.29 가 기록한 포크의 원인이 사라진다. git 경로(`.claude-plugin/marketplace.json`)는 폐쇄망 폴백으로 그대로 남는다. 설치 경로가 셋이 되어 §4 온보딩 3단계에 표를 둔다.
 > v0.31 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): `bin/nerv-hook-forward` 가 `session`·`tool` 엔드포인트에 `X-NERV-Branch`·`X-NERV-Worktree` 를 붙인다(§3.3). 세션의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다 — 훅은 작업 디렉터리에서 도니까 `git rev-parse` 로 직접 읽는다. detached HEAD·비-git 디렉터리면 보내지 않는다. http 변형에는 이 경로가 없다(헤더가 상수라 git 을 부를 자리가 없다).
 > v0.30 변경(2026-09-03 — 기본 변형을 command 로, 사람 결정): `hooks/hooks.json` 이 이제 `bin/nerv-hook-forward` 를 거치는 command 변형이고 http 변형은 `hooks/hooks.http.json` 으로 남는다. 이유 셋: 훅 `url` 은 `${VAR}` 확장을 안 받아 http 는 주소가 박히고, `async` 가 command 전용이라 http 는 `PostToolUse` 가 매 도구 호출마다 동기로 기다리며, hostname 폴백이 포워더에만 있다. 대가는 `allowedHttpHookUrls` 가 기본 훅을 덮지 않는 것이고, 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다.
 > v0.29 변경(2026-09-03 — 포크 없이 배포되게, 사람 결정 대기): 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다(실측). 셋을 고친다. ① `.mcp.json` 의 `url` 이 `${NERV_SERVER:-…}` 를 읽는다 — 기본값은 그대로다. ② **`hooks/hooks.command.json` 을 파일로 넣는다** — 주의 문단이 말만 하던 변형이다(훅 `url` 은 `${VAR}` 확장을 받지 않는다). ③ http 변형에서 `async` 를 걷고(command 전용 필드라 조용히 무시됐다) 상한 없던 훅에 `timeout` 을 준다 — 기본값 10분은 텔레메트리 평면의 상한이 아니다. **어느 변형을 기본으로 삼을지는 사람 결정으로 남긴다** — command 로 통일하면 `allowedHttpHookUrls`(§6.4)가 NERV 훅을 덮지 않는다.
@@ -1107,6 +1108,39 @@ outbox 항목 형식(1파일 = 1호출):
 
 복구 후 **자동** 동기화(백그라운드 데몬)는 Phase 2다(NFR-05 ◐ — [4.1 MVP 범위와 스택 확정](scope.md) §3.4). MVP의 flush 주체는 세션 시작과 다음 스킬 턴이다.
 
+### 3.5 플랫폼이 자기 플러그인을 서빙한다 (2026-09-04 신설 — 사람 결정)
+
+서버가 자기 카탈로그와 아카이브를 준다. 계약 정본은 [4.4 API 명세](api.md) §2.11(EP-PLG-01·02 · REQ-API-086)이고, 여기서는 **왜 그리고 어떻게 쓰는가**를 적는다.
+
+```bash
+/plugin marketplace add https://nerv.example.com/plugin/marketplace.json
+/plugin install nerv@nerv
+```
+
+**포크의 원인이 사라진다.** v0.29 가 실측으로 기록한 것이 이것이다 — 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다. git 마켓플레이스는 모두에게 **같은 파일**을 준다. 서버가 만들면 주소는 언제나 그 서버의 것이고, 받는 쪽이 고칠 것이 없다.
+
+**세 경로가 공존한다.**
+
+| 경로 | 어떻게 | 언제 쓰나 |
+| --- | --- | --- |
+| **마켓플레이스 URL**(기본) | `/plugin marketplace add https://<서버>/plugin/marketplace.json` | 플랫폼이 도는 보통의 경우 |
+| git 마켓플레이스 | `/plugin marketplace add <사내 git URL>` — `plugin/.claude-plugin/marketplace.json` 이 상대경로로 자신을 가리킨다 | 서버에 닿기 전, 또는 플랫폼과 분리해 배포할 때 |
+| 수동 | 저장소를 클론해 `.claude/settings.json` 이 절대경로로 `bin/` 을 부른다 | 개발 중(이 저장소 자신이 그렇게 쓴다) |
+
+**설치되는 주소는 따로 있다**(2026-09-04 · 실기기 실측). 카탈로그 추가는 `http://localhost` 로도 성공하지만 **설치가 거부된다** — `Archive URLs must use https:// and must not point at a loopback, link-local, or cloud-metadata host`. 두 단계 사이에서 갈라지므로 운영에서 `NERV_PUBLIC_URL` 이 `http://` 이거나 내부 주소면 "추가는 됐는데 설치가 안 된다" 가 된다. 서버가 카탈로그를 만들 때 그 사실을 로그에 먼저 경고한다. 개발 기본값은 설치 불가이고 그것이 맞다 — 개발은 위 표의 **수동** 경로를 쓴다.
+
+**버전을 올리지 않으면 아무도 갱신받지 못한다.** Claude Code 는 카탈로그의 `version` 이 바뀔 때만 새 아카이브를 받는다 — zip 을 바꾸고 `plugin/.claude-plugin/plugin.json` 의 `version` 을 그대로 두면 이미 설치한 사람은 **캐시된 사본을 계속 쓴다. 오류도 경고도 없이.** 그래서 릴리스의 첫 줄은 언제나 버전이다.
+
+**아카이브는 빌드 산출물이다.** `pnpm pack:plugin`(= `node scripts/pack-plugin.mjs`)이 `plugin/` 을 `plugin-dist/<이름>-<버전>.zip` 으로 묶고, 이미지 빌드가 같은 명령을 돌려 `/app/plugin-dist` 에 심는다(`NERV_PLUGIN_DIST`). 커밋하지 않는다.
+
+패커가 지키는 것 셋:
+
+- **실행 비트.** `bin/nerv-hook-forward`·`bin/nerv-outbox` 는 훅이 직접 실행한다. zip 이 모드를 잃으면 **설치는 성공하고 훅만 조용히 죽는다** — `SessionStart` 주입도 `Stop` 게이트도 사라지는데 아무도 오류를 보지 못한다. 그래서 유닉스 모드를 zip 의 external attributes 에 싣고, 그 자리를 L2 가 본다.
+- **결정성.** 타임스탬프를 고정해 같은 소스가 같은 바이트를 낸다. 정확성에 필요하진 않지만("갱신 신호는 `version` 이지 해시가 아니다") "패키지가 실제로 바뀌었나"에 답할 수 있게 된다.
+- **패키지에 안 들어가는 것.** `plugin-package.spec.ts`·`package.json`·`node_modules/` 는 저장소 전용이다.
+
+**무인증이다.** 인증 헤더를 붙이는 `headersHelper` 는 관리형 settings 에 등록한 마켓플레이스에만 걸리고, 사람이 `/plugin marketplace add <url>` 로 직접 치는 경로에는 붙지 않는다 — 손으로 설치하는 길을 남기려면 공개여야 한다. 패키지에 비밀은 없다: 서버 주소는 들어가지만 **토큰은 `.nerv/env` 에 있고 그것은 패키지가 아니다**(§3.3).
+
 ## 4. 사람 온보딩 절차
 
 목표: 신규 팀원이 아래 5단계로 **첫 `nerv_bootstrap` 성공**까지 도달한다. 관리 기기는 3단계(플러그인 설치)가 관리형 settings로 자동이므로 1·2·4·5만 수행한다.
@@ -1115,7 +1149,7 @@ outbox 항목 형식(1파일 = 1호출):
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
 | 2 | 환경변수 | 아래 블록을 **프로젝트별 자리**에 둔다(§3.3 "어디에 두는가") — 기본은 저장소 `.claude/settings.local.json` 의 `env`, Codex·CLI 까지 덮으려면 `.nerv/env` | `echo $NERV_PROJECT` 또는 `/mcp` 연결 확인 |
-| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add <사내 마켓플레이스 git URL>` → `/plugin install nerv@nerv-internal` → 재시작 | `/plugin` 목록에 `nerv` v0.1.0 활성 표시 |
+| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. 서버에 닿기 전이면 사내 git URL 을 쓴다(§3.5 표) | `/plugin` 목록에 `nerv` v0.1.0 활성 표시 |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
 
