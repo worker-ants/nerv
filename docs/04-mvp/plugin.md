@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.38 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.39 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.39 변경(2026-09-04 — 설명이 구성요소를 나열하고 있었다, 사람 지적): 플러그인 `description` 이 `"스킬 5종 · 훅 텔레메트리 · **MCP 설정** · statusline"` 이었다 — **`.mcp.json` 을 뺀 뒤에도 그대로여서 거짓이 됐다**(v0.37). 나열은 설치 화면이 이미 보이는 것이고(Will install 절), 구성이 바뀔 때마다 낡는다. 설명은 **무엇을 해 주는가**로 바꾼다. 함께 설정 파일의 `$comment` 넷을 줄였다(총 902자 → 382자): 파일을 읽는 사람이 알아야 하고 파일에서 안 보이는 것 하나와 정본 포인터만 남기고, 근거는 이미 그것을 적고 있는 문서에 맡긴다.
 > v0.38 변경(2026-09-04 — 패키지 버전 0.1.0 → **0.2.0**): 설치했을 때 **무엇이 들어오는지가 바뀌었다** — `.mcp.json` 이 빠졌고(v0.37), 기본 훅 변형이 command 가 됐으며(v0.30), 훅이 git 에서 브랜치를 읽고(4.4 REQ-API-084), 스킬 넷이 서버를 따라잡았다(v0.33·v0.34). **버전이 곧 갱신 신호다**: 카탈로그의 `version` 이 바뀌지 않으면 이미 설치한 사람은 오류도 경고도 없이 옛 사본을 계속 쓴다(§3.5). 0.x 에서 구성요소가 빠지는 것은 minor 로 알린다. 값의 정본은 `plugin.json` 하나이고 카탈로그 둘이 그것을 따르는지는 `plugin-package.spec.ts` 가 지킨다.
 > v0.37 변경(2026-09-04 — 플러그인이 `.mcp.json` 을 담지 않는다, 사람 결정): **REQ-PLG-001 개정.** 플러그인이 제공한 `.mcp.json` 은 그 프로젝트의 `settings.local.json` `env` 를 읽지 못해(v0.36 실측 표) `${NERV_SERVER:-…}` 가 언제나 기본값으로 떨어졌다 — **어느 프로젝트에서도 붙을 수 없는 파일이 세션마다 연결 실패 하나를 남기고 있었다.** 값의 성질과도 맞지 않는다: 서버 주소·토큰은 프로젝트마다 다르고 플러그인은 여러 프로젝트가 공유하는 물건이다. §3.3 의 전문을 **쓰는 쪽 저장소가 두는 템플릿**으로 위치를 바꾸고 온보딩에 단계 2a 를 넣었다. 훅이 같은 값을 쓰면서도 플러그인에 남는 이유도 적었다 — 훅은 파일이 아니라 **스크립트**라 실행 시점에 그 프로젝트의 환경을 읽는다.
 > v0.36 변경(2026-09-04 — 값을 두는 자리를 하나로, 사람 결정): §3.3 의 네 자리가 **두 곳에 같은 값을 두게 만들고 있었다**(실측: 실사용 저장소가 `settings.local.json` 과 `.nerv/env` 양쪽에 서버·프로젝트·토큰을 갖고 있었다). **Claude Code 의 자리는 `.claude/settings.local.json` 하나**로 정하고 `.nerv/env` 는 **Codex 폴백**으로 격하한다(스크립트 지원은 그대로 — Codex 가 올 때 필요하다). 근거를 실측 표로 남겼다: 훅·statusline·**프로젝트** `.mcp.json` 은 그 `env` 를 보는데 **플러그인이 제공한** `.mcp.json` 은 못 본다. 그래서 서버 주소·토큰 같은 프로젝트별 MCP 설정은 프로젝트가 갖는다. `.nerv/env` 가 Codex 를 절반만 덮는다는 것(notify·훅은 덮고 MCP 인증은 못 덮는다)과 Codex 쪽 대응물의 한계도 적었다 — 두 하네스가 공유하는 유일한 층은 프로세스 환경변수이고, 그것을 한 자리로 합치는 문제는 Phase 2 로 남긴다.
@@ -83,7 +84,7 @@ nerv-plugin/
 ```json
 {
   "name": "nerv",
-  "description": "NERV 협업 플랫폼 연동 — 스킬 5종 · 훅 텔레메트리 · MCP 설정 · statusline",
+  "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
   "version": "0.2.0",
   "license": "Apache-2.0"
 }
@@ -707,7 +708,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 ```json
 {
-  "$comment": "기본 변형(2026-09-03 사람 결정). 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다 — 그 스크립트가 NERV_SERVER 와 .nerv/env 를 읽으므로 서버 주소가 어디든 포크 없이 동작하고, 텔레메트리 훅은 async 로 턴을 막지 않는다(http 훅에는 async 가 없다). http 변형은 hooks/hooks.http.json 이며 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
+  "$comment": "기본 변형 — 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다. http 변형은 hooks/hooks.http.json 이고, 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
   "hooks": {
     "SessionStart": [
       {
@@ -809,7 +810,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 ```json
 {
-  "$comment": "http 변형 — 서버가 nerv.example.com 이고 관리형 settings 의 allowedHttpHookUrls 로 훅 URL 을 묶고 싶을 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가: 훅 url 은 ${VAR} 확장을 받지 않아 주소가 파일에 박히고, http 훅에는 async 가 없어 PostToolUse 가 매 도구 호출마다 동기로 기다린다. 정본: 4.6 §3.1.",
+  "$comment": "http 변형 — allowedHttpHookUrls 로 훅 URL 을 묶어야 할 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가는 4.6 §3.1 이 적는다.",
   "hooks": {
     "SessionStart": [
       {

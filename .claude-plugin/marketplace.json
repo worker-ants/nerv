@@ -1,5 +1,5 @@
 {
-  "$comment": "GitHub 경로의 카탈로그 — `/plugin marketplace add worker-ants/nerv` 가 읽는다. Claude Code 는 이 파일을 **저장소 루트에서만** 찾는다(서브디렉터리를 가리키는 문법이 없다: git URL 의 `#` 는 경로가 아니라 브랜치 ref 다 — 2026-09-04 실측). 그래서 플러그인 본체는 codebase/plugin 에 두고 여기서 상대경로로 가리킨다. 상대경로는 마켓플레이스 루트(= 저장소 루트) 기준이다. 카탈로그 셋의 관계와 이름은 docs/04-mvp/plugin.md §3.5 가 정본이다.",
+  "$comment": "GitHub 경로의 카탈로그. Claude Code 는 이 파일을 저장소 루트에서만 찾으므로 플러그인 본체(codebase/plugin)를 상대경로로 가리킨다. 정본: docs/04-mvp/plugin.md §3.5.",
   "name": "nerv",
   "owner": {
     "name": "NERV",
@@ -9,7 +9,7 @@
     {
       "name": "nerv",
       "source": "./codebase/plugin",
-      "description": "NERV 협업 플랫폼 연동 — 스킬 5종 · 훅 텔레메트리 · MCP 설정 · statusline",
+      "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
       "version": "0.2.0"
     }
   ]
