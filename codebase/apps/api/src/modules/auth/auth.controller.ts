@@ -224,6 +224,7 @@ export class ProjectController {
   @RequireRole('admin')
   @Post('archive')
   archive(@Req() req: ProjectRequest): Promise<unknown> {
+    humanOnly(req);
     return this.auth.setProjectArchived({
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
@@ -234,6 +235,7 @@ export class ProjectController {
   @RequireRole('admin')
   @Post('restore')
   restore(@Req() req: ProjectRequest): Promise<unknown> {
+    humanOnly(req);
     return this.auth.setProjectArchived({
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
@@ -245,6 +247,7 @@ export class ProjectController {
   @RequireRole('admin')
   @Patch()
   update(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+    humanOnly(req);
     return this.auth.updateProject({
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
@@ -268,6 +271,23 @@ export function principalOf(req: ProjectRequest): Principal {
     throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
   return principal;
+}
+
+/**
+ * 프로젝트 관리 셋(EP-PRJ-04·05)은 **사람 전용**이다(2026-09-04 · 사람 결정).
+ *
+ * 역할만 보던 동안 admin 의 PAT 는 게이트 정책과 위험도 임계를 바꿀 수 있었다 — 그런데
+ * 게이트 **면제**(EP-APR-04)는 이미 사람 전용이다. 같은 축의 한쪽만 토큰에 열려 있으면
+ * 그것이 우회로가 된다: 면제를 못 받는 에이전트가 정책 자체를 낮추면 되기 때문이다.
+ * 보관·복구를 함께 막는 것은 프로젝트를 목록에서 지우는 일이 같은 무게라서다.
+ */
+function humanOnly(req: ProjectRequest): void {
+  if (principalOf(req).isAgent) {
+    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.project_admin'), {
+      kind: 'human_only',
+      web_url: '/settings',
+    });
+  }
 }
 
 function rolesOf(req: ProjectRequest): readonly MembershipRole[] {

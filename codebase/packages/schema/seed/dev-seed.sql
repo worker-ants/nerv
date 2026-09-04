@@ -60,7 +60,11 @@ INSERT INTO api_token (id, project_id, user_id, name, token_hash, prefix, scopes
   ('01990a66-0000-7000-8000-000000000036', '01990a66-0000-7000-8000-000000000021',
    '01990a66-0000-7000-8000-000000000015', '노트북 Claude Code',
    digest('dev-seed-token-hana', 'sha256'), 'nrv_dev1',
-   ARRAY['spec:read', 'spec:write', 'task:claim', 'review:write', 'session:write']);
+   -- 어휘에 있는 값만 심는다 — 하나는 clemvion 의 developer 다(2026-09-04 정정).
+   -- 예전 씨앗은 spec:write·review:write·session:write 를 심었고, 셋 다 어휘에 없어
+   -- 사용 시점에 버려지면서 설정 화면에만 남아 있었다.
+   ARRAY['spec:read', 'spec:draft', 'task:claim', 'task:update', 'review:submit',
+         'agent-session:launch']);
 
 -- 세션 (S5 보드 한 벌: S-8f31 도현/mac-02, S-2d04 유나/linux-ci-01, S-b7e9 하나/mac-07) --
 INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, branch,

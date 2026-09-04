@@ -2,8 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **22종**(2026-09-02 실측 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.13 · 2026-09-03 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.14 · 2026-09-04 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 >
+> v0.14 변경(2026-09-04 — 스코프 어휘를 사실에 맞춘다, 실측): ③ 의 "§2.3 도구 표와 1:1" 은 사실이 아니었다 — 도구 22종이 쓰는 스코프는 **일곱**이고, `spec:meta`·`import:write`·신설 `spec:evidence` 는 REST 축이다. §6.1 의 발급 화면 그림도 **존재하지 않는 스코프 둘**(`policy:edit`·`audit:read`)을 그리고 있었다. 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES` 이고 구현 규약은 [4.4](../04-mvp/api.md) §1.3·§1.3b(REQ-API-085)다.
 > v0.13 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): §3.3 에 `X-NERV-Branch`·`X-NERV-Worktree` 를 더했다. 세션 신원의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다(실측). 훅은 작업 디렉터리에서 도니까 포워더가 git 에게 직접 묻는다 — detached HEAD 면 보내지 않는다. 이 경로는 command 변형에만 있다(http 훅의 `headers` 는 상수·`${VAR}` 뿐이다). 구현 규약 정본은 [4.4](../04-mvp/api.md) §2.5b(REQ-API-084).
 > v0.12 변경(2026-09-03 — 통제의 적용 범위 정정): §6.4 의 훅 URL 통제가 `type:"http"` 훅에만 걸린다는 사실을 명시했다. NERV 의 기본 훅이 command 변형으로 바뀌었으므로(4.6 v0.30 · 사람 결정) 그 목록은 NERV 자신의 훅을 덮지 않는다 — 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다. `hooks` 키가 관리형 파일에서도 유효하다는 것도 함께 적었다.
 > v0.11 변경(2026-09-03 — 확장의 경계): 훅 `url` 은 `${VAR}` 확장을 받지 않고 `headers` 만 받는다는 것을 §3.3 에 적었다. `.mcp.json` 의 `url` 은 받는다. 이 비대칭이 배포 변형 둘의 이유다(4.6 §3.1).
@@ -718,9 +719,9 @@ Claude Code on the web과 Codex cloud는 관리 VM에서 실행되므로 로컬 
 ├─ 스코프 ③ ─────────────────────────────────────────────────────────────┤
 │  [v] spec:read      [v] spec:draft      [ ] spec:approve  ← 사람 전용 ④ │
 │  [v] task:claim     [v] task:update     [v] review:submit               │
-│  [v] review:resolve [v] agent-session:launch                            │
+│  [v] review:resolve [v] agent-session:launch  [ ] spec:evidence         │
+│  [ ] spec:meta      [ ] import:write  ← 역할이 admin 일 때만 고를 수 있다│
 │  [ ] approval:decide  ← 사람 전용                                       │
-│  [ ] policy:edit    [ ] audit:read                                      │
 ├─ 게이트 정책 ⑤ ────────────────────────────────────────────────────────┤
 │  A3 도구 호출  [v] 사람 승인 강제   승인 만료 30분 · 스테일 승인 거부    │
 │  critical finding 하향  [v] 승인 필요        자율성 레벨  L4 Approver ⑥ │
@@ -730,7 +731,7 @@ Claude Code on the web과 Codex cloud는 관리 VM에서 실행되므로 로컬 
 
 - ① 토큰 발급·폐기는 S8 설정 화면의 1급 기능이다(FR-14). 상세 화면은 [3.6 화면 설계](../03-proposal/ui-wireframes.md).
 - ② 소유자가 곧 책임자다 — 에이전트가 한 모든 행동은 이 사람의 권한으로 기록된다(D-08).
-- ③ 스코프는 `resource:action` 표기로 §2.3 도구 표의 "필요 권한" 열과 1:1 대응한다.
+- ③ 스코프는 `resource:action` 표기이고 **10종**이다. 그중 일곱이 §2.3 도구 표의 "필요 권한" 열을 덮고, 나머지 셋(`spec:meta`·`spec:evidence`·`import:write`)은 도구 대응이 없는 **REST 축**이다(2026-09-04 정정 — 예전 서술은 전체가 1:1 이라고 적고 있었다). 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES` 다.
 - ④ `spec:approve`와 `approval:decide`는 **체크박스가 비활성**이다. 정책이 아니라 시스템 불변식이다.
 - ⑤ 게이트 정책은 프로젝트 단위 기본값 + 토큰 단위 강화만 허용(완화 불가).
 - ⑥ 자율성 레벨은 게이트 밀도를 결정하는 단일 다이얼이다(L1 Operator ~ L5 Observer). 구현은 L4 Approver, 스펙·배포는 L2로 낮추는 프리셋을 기본으로 둔다.

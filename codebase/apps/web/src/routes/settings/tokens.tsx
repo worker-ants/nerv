@@ -53,11 +53,17 @@ function TokensTab(): React.JSX.Element {
   const [scopes, setScopes] = useState<string[]>(['spec:read', 'task:claim']);
   const [issued, setIssued] = useState<string | null>(null);
 
+  // **화면이 보여준 것과 발급되는 것이 같아야 한다**(2026-09-04 · 실측).
+  // 초기값이 상수라, 역할에 `task:claim` 이 없는 사람에게는 그 칸이 잠긴 채 **체크 해제로**
+  // 보이는데 본문에는 실려 갔다. 사용 시점에 역할과 교집합을 내므로 권한이 새지는 않았지만,
+  // 발급된 토큰의 스코프 표는 그 사람이 고른 적 없는 값을 보여줬다.
+  const granted = scopes.filter((scope) => myScopes.has(scope as never));
+
   const issue = useMutation({
     mutationFn: () =>
       apiFetch<{ token: string; prefix: string }>('/me/tokens', {
         method: 'POST',
-        body: { project: projectSlug ?? '', name, scopes },
+        body: { project: projectSlug ?? '', name, scopes: granted },
       }),
     onSuccess: (result) => {
       setIssued(result.token);
@@ -106,12 +112,16 @@ function TokensTab(): React.JSX.Element {
             return (
               <label
                 key={scope}
-                className={mine ? 'flex cursor-pointer items-center gap-1.5' : 'flex items-center gap-1.5 opacity-45'}
+                className={
+                  mine
+                    ? 'flex cursor-pointer items-center gap-1.5'
+                    : 'flex items-center gap-1.5 opacity-45'
+                }
                 title={mine ? undefined : t('settings.tokens.out_of_role')}
               >
                 <input
                   type="checkbox"
-                  checked={mine && scopes.includes(scope)}
+                  checked={granted.includes(scope)}
                   disabled={!mine}
                   onChange={(e) =>
                     setScopes((prev) =>

@@ -7,8 +7,9 @@ updated: 2026-08-29
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.64 · 2026-09-03 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.65 · 2026-09-04 · HTML 판: [screens.html](../html/screens.html)
 >
+> v0.65 변경(2026-09-04 — 화면이 보여준 것과 발급되는 것이 달랐다, 실측): **REQ-WEB-134 신설.** 토큰 발급의 초기 선택값이 상수 `['spec:read','task:claim']` 이라, 역할에 `task:claim` 이 없는 사람에게는 그 칸이 **잠긴 채 체크 해제로** 보이는데 발급 본문에는 실려 갔다. 사용 시점에 역할과 교집합을 내므로 권한이 새지는 않았지만, 발급된 토큰의 스코프 표가 그 사람이 고른 적 없는 값을 보였다. 스코프 목록의 정본도 `@nerv/schema` 의 `AGENT_SCOPES` 로 고쳤다(10종 — `spec:evidence` 신설, 4.4 v0.64).
 > v0.64 변경(2026-09-03 — 번호 부여, 사람 결정): v0.63 이 산문으로만 적은 화면 동작 다섯에 **REQ-WEB-129~133** 을 준다. 생성 진입점 · 승인본의 다음 판 · 목록 커서와 배지의 진짜 수 · 세션 상세 링크 · 처리됨 카드. 번호는 끝번호에 이어 붙였다(AGENTS.md 규약 5).
 > v0.63 변경(2026-09-03 — 웹의 막다른 길 다섯): 읽을 수는 있는데 **할 수 없던** 자리들을 연다. ① **[+ 새 스펙]**(S3 목록) — 웹에 스펙 생성 진입점이 하나도 없어 저장소 전체에서 `POST …/specs` 를 부르는 웹 코드가 0건이었다. 터미널이 유일한 길이면 P7 은 문서에만 있다. ② **[새 초안 만들기]**(S3 상세) — 승인본은 읽기 전용이 맞지만 다음 판으로 가는 문이 없어 승인본 132개를 웹에서 고칠 수 없었다. ③ **알림·발견 큐의 [더 보기]** — 커서가 없어 알림 429건·발견 18,453건이 도달 불가였고, 알림 화면의 "읽지 않음" 배지는 받아 온 50건 안에서 세어 헤더(479)와 어긋났다. 이제 배지는 진짜 수를 센다. ④ **세션 상세 링크**(S5) — `/sessions/:id` 라우트는 있는데 그리로 가는 링크가 **어느 폭에도** 없었다. ⑤ **처리됨 카드**(S7) — 결정된 카드에 승인·거절·코멘트 단추와 입력 칸이 그대로 살아 있었고(서버는 `already_decided` 로 거절한다), 대기 시간이 `requested_at` 기준이라 결정 뒤에도 계속 자랐다. 게이트 우회 요청은 제목 재료가 없어 "(제목 없음)" 이었다.
 > v0.62 변경(2026-09-03 — 화면이 세던 두 수가 거짓이었다): ① **참조 갱신 배지**(REQ-WEB-037) — 화면이 "참조하는 approved 문서가 있고 내가 초안이면"으로 켜서 **초안 26판 중 26판에서 켜져 있었다**(오탐률 100%). 늘 켜진 경고는 아무도 읽지 않는다. 판정을 서버로 옮겼다 — 서버는 참조 전파에서 이미 `spec.recheck_requested`를 발행하므로(이 DB 에 413건) "이 판을 마지막으로 쓴 뒤 그 신호가 왔는가"가 판정이고, 무엇 때문인지도 함께 온다. 요구사항의 "핀 시점 버전"은 `spec_relation`에 버전 핀이 없어 성립하지 않으므로 문장에서 걷었다(Phase 2). ② **"내 담당"**(S4) — `in_progress` 한 상태로 좁혀 세어, 담당이 지정된 Task 3건이 세 사람 모두에게 0으로 보였다. 끝나지 않은 것 전부를 센다.
@@ -1043,6 +1044,7 @@ export const TaskCreateInput = z.object({
 | REQ-WEB-125 | WHEN 스펙 레일의 첨부 탭을 열면 THE SYSTEM SHALL 이미지를 미리보기로 그리고, 편집 가능하면 끌어다 놓기·고르기로 올리며 **본문에 넣는 길**을 같은 자리에 둔다 |
 | REQ-WEB-126 | WHEN 본문에 이미지가 있으면 THE SYSTEM SHALL 왕복에서 그것을 보존한다 — 편집기가 지원하지 않는 노드로 버려서는 안 된다 |
 | REQ-WEB-123 | WHEN 활동을 그리면 THE SYSTEM SHALL 도구 이름이 아니라 **무엇을 했는지**를 한 줄로 적고(명령·경로·대상 키), 같은 도구가 연달으면 묶어 횟수를 적으며, 실패는 표식과 사유로 튀게 한다. WHEN 원문이 내려오면 THE SYSTEM SHALL 접힘을 기본으로 펼쳐 볼 수 있게 하고, 권한이 없어 안 왔으면 그 사실을 적는다 |
+| REQ-WEB-134 | WHEN 토큰을 발급하면 THE SYSTEM SHALL 화면에서 **체크된 것으로 보이는 스코프만** 요청 본문에 싣는다 — 역할이 허용하지 않아 잠긴 칸은 초기 선택값이더라도 제외한다 |
 | REQ-WEB-124 | WHEN 세션 레일을 그리면 THE SYSTEM SHALL **한 일**(그 세션이 낸 이벤트)을 위에, 도구 로그를 아래에 둔다 |
 | REQ-WEB-121 | WHEN 버전 목록에서 한 판을 고르면 THE SYSTEM SHALL 그 판과 직전의 차이를 `?diff=vN-1..vN` 주소로 열고, 요구사항 델타를 본문 diff보다 **먼저** 보인다. WHILE 변경분만 보기이면 THE SYSTEM SHALL 안 바뀐 구간을 앞뒤 3줄만 남기고 접으며 **몇 줄을 접었는지** 적는다 |
 | REQ-WEB-122 | WHEN 사람이 diff의 양 끝을 바꾸면 THE SYSTEM SHALL 인접하지 않은 두 판도 견주고 그 선택을 주소에 남긴다(항상 오래된 쪽 → 새 쪽). WHEN `?v=<번호>` 로 열면 THE SYSTEM SHALL 그 판의 전문을 읽기 전용으로 보이고 현재 판으로 돌아가는 길을 같은 자리에 둔다 |
@@ -1113,7 +1115,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 | 토큰 목록·발급·폐기 | EP-TOK-01 `GET /api/v1/me/tokens` · EP-TOK-02 `POST /api/v1/me/tokens` · EP-TOK-03 `DELETE /api/v1/me/tokens/{id}` · EP-TOK-04 `GET /api/v1/orgs/{org}/tokens`(admin 조직 전체) | `api_token`: 라벨·소유자·프로젝트 스코프·`prefix`·`last_used_at`(hostname 포함 표기). admin은 조직 전체 목록 열람 |
 | 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` — 키 스키마 정본: [4.4 API 명세](api.md) §2.1a) | MVP 편집 항목 = `spec_gate.*` 2키: 티어 경계(`tier_boundaries`)·동적 강화(`dynamic_escalation`). 둘 다 2026-09-02 부터 **판정이 실제로 읽는다** — 그 전까지 판정은 상수를 썼다. `t1_objection_hours` 는 같은 날 걷었다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). `failopen`·`retention`은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수([4.2](codebase.md) §3.2 `SESSION_STALE_SECONDS`), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화 |
 
-- **토큰 발급 흐름**: 발급 다이얼로그(`TokenCreateInput`: `project`·`name`·`scopes[]`·`expires`) → 성공 시 **원문 1회 표시**(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 `prefix`만. 스코프 체크박스는 [agent-integration §6.1](../03-proposal/agent-integration.md)의 `resource:action` 목록을 그대로 쓰고, `spec:approve`·`approval:decide`는 **체크박스 비활성**(사람 전용 — 시스템 불변식).
+- **토큰 발급 흐름**: 발급 다이얼로그(`TokenCreateInput`: `project`·`name`·`scopes[]`·`expires`) → 성공 시 **원문 1회 표시**(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 `prefix`만. 스코프 체크박스는 `@nerv/schema` 의 `AGENT_SCOPES`(10종)를 그대로 쓰고, `spec:approve`·`approval:decide`는 **체크박스 비활성**(사람 전용 — 시스템 불변식). **내 역할에 없는 스코프도 보이되 잠긴다**(§1.8) — 그리고 **잠긴 것은 발급 본문에도 실리지 않는다**(REQ-WEB-134 · 2026-09-04): 초기 선택값이 상수라, `task:claim` 이 없는 역할에게 그 칸이 꺼져 보이면서 본문에는 실려 갔다. 화면이 자기가 한 일을 잘못 말하면 토큰 목록의 스코프 표를 믿을 수 없게 된다.
 - **컴포넌트**: `SettingsTabs` · `MemberMatrix` · `MemberAddDialog` · `TokenTable` · `TokenIssueDialog` · `TokenRevealOnce` · `GatePolicyForm` · 권한 비확대 고지문("토큰은 사용자 권한을 상속하며 절대 확대하지 않는다" — NFR-03 · D-08).
 - **빈 상태**: 토큰 0개 — 플러그인 온보딩 절차 링크([plugin.md](plugin.md) §4).
 

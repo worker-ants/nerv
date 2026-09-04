@@ -52,7 +52,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.13 (2026-09-03)</span>
+      <span>버전 v0.14 (2026-09-04)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -970,7 +970,7 @@ log_user_prompt = false</code></pre>
           <div class="wf-row"><span class="grow"><b>스코프</b> <span class="marker">3</span></span></div>
           <div class="wf-row"><span class="wf-dot on"></span><span class="grow"><code>spec:read</code> · <code>spec:draft</code> · <code>task:claim</code> · <code>task:update</code> · <code>review:submit</code> · <code>review:resolve</code> · <code>agent-session:launch</code></span><span class="badge agent">Agent</span></div>
           <div class="wf-row"><span class="wf-dot off"></span><span class="grow"><code>spec:approve</code> · <code>approval:decide</code> — 체크박스 비활성</span><span class="badge human">사람 전용</span><span class="marker">4</span></div>
-          <div class="wf-row"><span class="wf-dot off"></span><span class="grow"><code>policy:edit</code> · <code>audit:read</code></span><span class="sub">미부여</span></div>
+          <div class="wf-row"><span class="wf-dot off"></span><span class="grow"><code>spec:meta</code> · <code>spec:evidence</code> · <code>import:write</code></span><span class="sub">역할이 허용할 때만</span></div>
         </div>
         <div class="wf-panel">
           <div class="wf-panel-hd">게이트 정책 <span class="marker">5</span><span class="spacer"></span><span class="badge impl">자율성 L4 Approver <span class="marker">6</span></span></div>
@@ -984,7 +984,7 @@ log_user_prompt = false</code></pre>
   <ul class="wf-legend">
     <li><span class="marker">1</span><span>토큰 발급·폐기는 S8 설정 화면의 1급 기능이다(FR-14). 상세 화면은 <a href="ui-wireframes.html">3.6 화면 설계</a>.</span></li>
     <li><span class="marker">2</span><span>소유자가 곧 책임자다 — 에이전트가 한 모든 행동은 이 사람의 권한으로 기록된다(D-08).</span></li>
-    <li><span class="marker">3</span><span>스코프는 <code>resource:action</code> 표기로 §2.3 도구 표의 "필요 권한" 열과 1:1 대응한다.</span></li>
+    <li><span class="marker">3</span><span>스코프는 <code>resource:action</code> 표기이고 <b>10종</b>이다. 그중 일곱이 §2.3 도구 표의 "필요 권한" 열을 덮고, 나머지 셋(<code>spec:meta</code>·<code>spec:evidence</code>·<code>import:write</code>)은 도구 대응이 없는 <b>REST 축</b>이다(2026-09-04 정정). 어휘 정본은 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code> 다.</span></li>
     <li><span class="marker">4</span><span><code>spec:approve</code>와 <code>approval:decide</code>는 정책이 아니라 <b>시스템 불변식</b>이라 켤 수 없다.</span></li>
     <li><span class="marker">5</span><span>게이트 정책은 프로젝트 단위 기본값 + 토큰 단위 강화만 허용(완화 불가).</span></li>
     <li><span class="marker">6</span><span>자율성 레벨은 게이트 밀도를 결정하는 단일 다이얼이다(L1 Operator ~ L5 Observer). 구현은 L4, 스펙·배포는 L2로 낮추는 프리셋을 기본으로 둔다.</span></li>

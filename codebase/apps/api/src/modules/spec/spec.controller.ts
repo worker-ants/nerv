@@ -32,7 +32,7 @@ import { NervError } from '../../common/nerv-exception.filter.js';
 import { intParam } from '../../common/query-vocab.js';
 import { principalOf } from '../../common/scope-check.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
-import { RequireRole, RequireScope } from '../../common/route-permission.js';
+import { RequireRoleAndScope, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { BaselineService } from './baseline.service.js';
 import { SearchService } from './search.service.js';
@@ -266,8 +266,12 @@ export class SpecController {
     return this.specs.requirement({ projectId: projectOf(req), ref });
   }
 
-  /** EP-REQ-03 — CI 가 PAT 로 부르는 경로이기도 하다 */
-  @RequireRole('developer', 'qa', 'admin')
+  /**
+   * EP-REQ-03 — CI 가 PAT 로 부르는 경로이기도 하다. **그래서 스코프가 필요하다**
+   * (2026-09-04): 역할만 보던 동안 `spec:read` 하나만 체크한 developer 토큰으로도
+   * 증적이 올라갔다 — 증적만 올리는 CI 토큰을 좁게 발급할 방법이 없었다.
+   */
+  @RequireRoleAndScope(['developer', 'qa', 'admin'], 'spec:evidence')
   @Post('requirements/:ref/evidence')
   addEvidence(
     @Req() req: ProjectRequest,

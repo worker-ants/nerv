@@ -19,7 +19,7 @@ The role matters: **a token can never be broader than the role.** As a `viewer` 
 **Settings → Tokens → Issue.** Name it after the machine that will use it (something like `mac-02/claude-code`).
 
 - The token value is shown **once, right after issuing**. Close the dialog and it is gone — you would have to issue another.
-- Scopes start with **`spec:read` and `task:claim` ticked, nothing else**. There are no role presets — tick what you need. To run tasks through the plugin add `task:update` and `agent-session:launch`; to write drafts add `spec:draft`; to file reviews add `review:submit`.
+- Scopes start with **`spec:read` and `task:claim` ticked, nothing else** (whichever your role lacks starts off — a locked box is never issued behind your back). There are no role presets — tick what you need. To run tasks through the plugin add `task:update` and `agent-session:launch`; to write drafts add `spec:draft`; to file reviews add `review:submit`.
 - **A token never reaches wider than your role.** Scopes your role does not hold appear **dimmed and locked**. `review:resolve`, for instance, belongs to admin, planner and qa, so it is locked for a `developer`. They stay visible for the same reason the human-only scopes do: why you cannot grant it belongs on the screen.
 - If your role widens later, **the tokens you already issued follow immediately.** No need to reissue.
 - `spec:approve` and `approval:decide` are locked checkboxes — approval is something a person does, so it cannot ride on a token.

@@ -73,11 +73,19 @@ describe('rolesInProject — 서버의 assertMembership 과 같은 규칙', () =
 
 // ── 화면에서도 지켜지는가 ────────────────────────────────────────────────────
 
-function stubFetch(): void {
+/** 발급 요청의 본문을 담아 둔다 — 화면이 **무엇을 보냈는지**가 이 결함의 자리다. */
+const sentBodies: Record<string, unknown>[] = [];
+
+function stubFetch(who: Me = ORG_ADMIN): void {
+  sentBodies.length = 0;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: unknown) => {
+    vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
       const path = String(url);
+      if (init?.method === 'POST' && path.includes('/me/tokens')) {
+        sentBodies.push(JSON.parse(init.body ?? '{}') as Record<string, unknown>);
+        return { ok: true, status: 200, json: async () => ({ token: 'nerv_x', prefix: 'nerv_x' }) };
+      }
       const json = path.includes('/me/tokens')
         ? { items: [] }
         : path.includes('/projects/')
@@ -85,7 +93,7 @@ function stubFetch(): void {
           : path.includes('/projects')
             ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
             : path.includes('/me')
-              ? ORG_ADMIN
+              ? who
               : path.includes('/specs/')
                 ? { id: 's-1', key: 'SPC-CWC-007', title: '스펙', project_id: 'p-1' }
                 : { items: [], memberships: [], count: 0, summary: {} };
@@ -151,5 +159,32 @@ describe('조직 단위 admin 이 admin 으로 대접받는다', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: '발급' }).hasAttribute('disabled')).toBe(false),
     );
+  });
+});
+
+/**
+ * 화면이 보여준 것과 발급되는 것이 같은가 (2026-09-04 · 실측).
+ *
+ * 초기 선택값이 상수 `['spec:read','task:claim']` 이라, 역할에 `task:claim` 이 없는 사람에게는
+ * 그 칸이 **잠긴 채 체크 해제로** 보이는데 발급 본문에는 실려 갔다. 사용 시점에 역할과
+ * 교집합을 내므로 권한이 새지는 않았지만, 발급된 토큰의 스코프 표는 그 사람이 고른 적 없는
+ * 값을 보여줬다 — 화면이 자기가 한 일을 잘못 말한 것이다.
+ */
+describe('발급 본문은 역할이 허용한 것만 담는다', () => {
+  const VIEWER = me([
+    { org_slug: 'default', org_name: 'default', project_slug: 'clemvion', roles: ['viewer'] },
+  ]);
+
+  it('viewer 는 잠긴 task:claim 을 발급받지 않는다', async () => {
+    vi.unstubAllGlobals();
+    stubFetch(VIEWER);
+    renderAt('/settings/tokens');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '발급' }).hasAttribute('disabled')).toBe(false),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '발급' }));
+    await waitFor(() => expect(sentBodies.length).toBe(1));
+    expect(sentBodies[0]?.['scopes']).toEqual(['spec:read']);
   });
 });

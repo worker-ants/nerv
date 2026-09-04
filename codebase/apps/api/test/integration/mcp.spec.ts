@@ -9,7 +9,7 @@
 // 실제 HTTP 로 돈다 — 가드 순서(Origin → 인증)·스코프 검사·구조화 에러가 배선된 상태로만
 // 의미가 있기 때문이다. Phase 0 성공 기준 0-8(tools-only 완주)의 재현이기도 하다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { AGENT_SCOPES, NERV_ERROR, REST_ONLY_SCOPES, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -141,6 +141,28 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(tools.map((t) => t.name)).toContain('nerv_review_submit');
     expect(tools.map((t) => t.name)).toContain('nerv_finding_resolve');
     for (const tool of tools) expect(tool.inputSchema).toBeTruthy();
+  });
+
+  /**
+   * "스코프는 도구 표의 '필요 권한' 열과 1:1" 은 **사실이 아니었다**(2026-09-04 실측).
+   *
+   * 도구 22종이 쓰는 스코프는 일곱이고 셋(`spec:meta`·`spec:evidence`·`import:write`)은
+   * 도구가 없는 REST 축이다. 문서가 그 말을 오래 달고 있었으므로 여기서 사실을 못박는다 —
+   * 다음에 어긋나면 문장이 아니라 이 테스트가 먼저 말한다.
+   */
+  it('REST 전용 스코프에는 도구가 없다 — 어휘가 도구 표와 1:1 이 아니다', async () => {
+    const { body } = await rpc('tools/list');
+    const tools = (
+      body['result'] as { name: string; _meta?: Record<string, unknown> }[] & {
+        tools: { _meta?: Record<string, unknown> }[];
+      }
+    ).tools;
+    const used = new Set(tools.map((t) => String(t._meta?.['nerv/scope'])));
+
+    for (const scope of REST_ONLY_SCOPES) expect(used.has(scope)).toBe(false);
+    // 남은 일곱이 도구 22종을 덮는다 — 어휘 10 에서 REST 축 3 을 뺀 수와 정확히 같다
+    expect(used.size).toBe(AGENT_SCOPES.length - REST_ONLY_SCOPES.length);
+    for (const scope of used) expect(AGENT_SCOPES as readonly string[]).toContain(scope);
   });
 
   it('에이전트가 스펙을 **새로** 만든다 — 도구가 메타를 받아야 가능하다', async () => {

@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 22종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.63 (2026-09-03)</span>
+      <span>버전 v0.64 (2026-09-04)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -171,8 +171,8 @@
 
   <ul>
     <li>PAT 원문 형식: <code>nerv_</code> 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(<code>api_token.token_hash</code>), 식별·감사용으로 앞 8자를 <code>api_token.prefix</code>에 남긴다(<a href="data-model.html">3.3 데이터 모델</a> §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 <b>한 번만</b> 반환된다.</li>
-    <li>스코프 어휘는 <code>resource:action</code> 표기로 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.3 도구 표의 "필요 권한" 열과 1:1이다(<code>spec:read</code> <code>spec:draft</code> <code>spec:meta</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code> …). <code>spec:approve</code>와 <code>approval:decide</code>는 <b>토큰에 부여 자체가 불가능한 사람 전용 스코프</b>다 — 정책이 아니라 시스템 불변식(같은 문서 §6.1 ④).</li>
-    <li><b><code>import:write</code>는 도구 대응이 없는 유일한 REST 전용 스코프</b>다(§2.10). MCP 도구 카탈로그에 임포트 도구가 없기 때문이며, admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사된다. 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).</li>
+    <li>스코프 어휘는 <code>resource:action</code> 표기이고 <b>10종</b>이다: <code>spec:read</code> <code>spec:draft</code> <code>spec:meta</code> <code>spec:evidence</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code> <code>import:write</code>. <code>spec:approve</code>와 <code>approval:decide</code>는 <b>토큰에 부여 자체가 불가능한 사람 전용 스코프</b>다 — 정책이 아니라 시스템 불변식. 정본은 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>·<code>HUMAN_ONLY_SCOPES</code> 이며, 어느 문서도 이 목록을 다시 적지 않는다.</li>
+    <li><b>MCP 도구 대응이 없는 스코프가 셋 있다</b>(2026-09-04 정정 — 실측). 도구 22종이 쓰는 스코프는 <b>일곱</b>이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — <code>import:write</code>(§2.10 이관 표면) · <code>spec:meta</code>(EP-SPEC-12·15~17) · <code>spec:evidence</code>(EP-REQ-03). <code>import:write</code>는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).</li>
     <li>REST 엔드포인트의 인가는 역할 매트릭스(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6)가 정본이다. §2 전표의 "권한" 열은 그 매트릭스의 인용이며, PAT 요청은 역할 판정에 <b>스코프 검사가 AND로</b> 추가된다.</li>
   </ul>
 
@@ -190,6 +190,32 @@
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
       <tr><td>REQ-API-075</td><td>WHILE 프로젝트 경로의 라우트를 처리하는 동안 THE SYSTEM SHALL §2 전표의 권한을 선언에서 읽어 집행하고, 선언이 없는 라우트는 <b>거절한다</b>(403 <code>route_undeclared</code>). WHEN 주체의 역할·스코프가 선언을 충족하지 못하면 THE SYSTEM SHALL 403 <code>NERV_FORBIDDEN</code>(<code>role_required</code>·<code>missing_scope</code>)으로 거부하고 요구·보유 목록을 <code>details</code> 에 싣는다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>1.3b 역할만 보던 자리 — 토큰의 권한은 체크박스가 말한 것이어야 한다 (2026-09-04 신설 — 실측)</h4>
+
+  <p>§1.3a가 "선언하지 않으면 거절한다"로 <b>빠뜨림</b>을 막았다. 남은 것은 <b>선언의 축이 하나뿐인 자리</b>였다. <code>@RequireRole</code> 만 붙은 라우트는 역할만 보고 토큰의 스코프를 보지 않는다 — 그래서 발급 화면에서 <code>spec:read</code> 하나만 체크한 토큰이 다음을 전부 통과했다(실측 2026-09-04).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>자리</th><th>예전</th><th>지금</th><th>왜</th></tr></thead>
+    <tbody>
+      <tr><td>EP-TASK-03 · 05</td><td>역할만</td><td>역할 <b>AND</b> <code>task:update</code></td><td>MCP <code>nerv_task_create</code>·<code>nerv_task_update</code> 가 이미 그 스코프를 요구했다. <b>같은 작업의 권한이 경로마다 달랐다</b> — 토큰에서 빼도 REST 로는 그대로 됐다</td></tr>
+      <tr><td>EP-REQ-03</td><td>역할만</td><td>역할 <b>AND</b> <code>spec:evidence</code></td><td>전표가 "CI는 PAT"라고 적어 둔 자리다. 증적만 올리는 CI 토큰을 좁게 발급할 방법이 없었다</td></tr>
+      <tr><td>EP-PRJ-04 · 05</td><td>역할만</td><td><b>사람 전용</b></td><td>아래</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b><code>spec:evidence</code> 를 새로 만든 이유</b>(사람 결정). 기존 스코프를 재사용하면 CI 토큰이 필요 이상을 갖는다 — <code>spec:draft</code> 면 초안 덮어쓰기(도구 5종)까지, <code>task:update</code> 면 Task 생성·전이·클레임 해제까지 딸려온다. 증적은 그 둘 어느 쪽도 아니고, 최소권한이 실제로 성립하려면 자기 이름이 있어야 한다. MCP 도구 대응은 없다 — REST 축이다(§1.3).</p>
+
+  <p><b>프로젝트 관리를 사람 전용으로 옮긴 이유</b>(사람 결정). 게이트 <b>면제</b>(EP-APR-04)는 이미 사람 전용이었다. 그런데 게이트 <b>정책 자체</b>를 낮추는 길이 토큰에 열려 있으면 그것이 면제의 우회로가 된다 — 면제를 받지 못하는 에이전트가 임계값을 내리면 되기 때문이다. 같은 축의 한쪽만 잠그는 것은 잠근 것이 아니다. 보관·복구를 함께 막는 것은 프로젝트를 목록에서 지우는 일이 같은 무게라서다.</p>
+
+  <p><b>권한이 새고 있었다는 뜻은 아니다.</b> 이 자리들은 전부 역할 검사를 통과해야 했고, 역할은 사람이 가진 것이다. 무너진 것은 <b>최소권한</b>이다: 발급 화면이 보여준 체크박스가 그 토큰이 할 수 있는 일의 전부가 아니었고, 그래서 좁은 토큰을 만들려는 사람에게 그럴 방법이 없었다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-API-085</td><td>WHEN 어느 라우트가 역할을 요구하면서 대응 스코프가 어휘에 있으면 THE SYSTEM SHALL 역할과 스코프를 <b>함께</b>(AND) 검사한다 — 같은 작업의 MCP 경로와 REST 경로는 같은 스코프를 요구한다. WHEN 프로젝트 설정 변경·보관·복구(EP-PRJ-04·05)를 에이전트 주체가 호출하면 THE SYSTEM SHALL 403 <code>NERV_HUMAN_ONLY</code> 로 거부한다. WHEN 토큰을 발급하면 THE SYSTEM SHALL 어휘에 없는 스코프를 저장하지 않는다</td></tr>
     </tbody>
   </table></div>
 
@@ -704,7 +730,7 @@
       <tr><td>EP-PRJ-01</td><td><code>GET /api/v1/orgs/{org}/projects</code></td><td>조직 멤버</td><td>—</td><td><code>Page&lt;ProjectSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-PRJ-02</td><td><code>POST /api/v1/orgs/{org}/projects</code></td><td>admin</td><td><code>ProjectCreateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.created</code></td></tr>
       <tr><td>EP-PRJ-03</td><td><code>GET /api/v1/projects/{proj}</code></td><td>프로젝트 멤버</td><td>—</td><td><code>ProjectResult</code>(게이트 정책 <code>gate_policy</code>·보존 <code>retention</code>·활성 세션/승인 대기 카운트 포함)</td><td>—</td></tr>
-      <tr><td>EP-PRJ-04</td><td><code>PATCH /api/v1/projects/{proj}</code></td><td>admin (게이트 정책·위험도 임계는 admin 전용 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6 매트릭스)</td><td><code>ProjectUpdateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.updated</code></td></tr>
+      <tr><td>EP-PRJ-04</td><td><code>PATCH /api/v1/projects/{proj}</code></td><td>admin <b>· 사람 전용</b>(§1.3b — 토큰은 403 <code>NERV_HUMAN_ONLY</code>) (게이트 정책·위험도 임계는 admin 전용 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6 매트릭스)</td><td><code>ProjectUpdateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.updated</code></td></tr>
       <tr><td>EP-MBR-01</td><td><code>GET /api/v1/orgs/{org}/members</code></td><td>조직 멤버</td><td>—</td><td><code>Page&lt;MemberResult&gt;</code></td><td>—</td></tr>
       <tr><td>EP-MBR-02</td><td><code>POST /api/v1/orgs/{org}/members</code></td><td>admin</td><td><code>MemberAddInput</code>(user + org/project 스코프 + <code>role</code>)</td><td><code>MemberResult</code></td><td>★<code>member.added</code></td></tr>
       <tr><td>EP-MBR-03</td><td><code>PATCH /api/v1/memberships/{id}</code></td><td>admin</td><td><code>MemberUpdateInput</code>(role 변경)</td><td><code>MemberResult</code></td><td>★<code>member.updated</code></td></tr>
@@ -847,7 +873,7 @@
     <tbody>
       <tr><td>EP-REQ-01</td><td><code>GET /api/v1/projects/{proj}/requirements</code></td><td>전 역할</td><td><code>RequirementListQuery</code>(spec, impl_status, cursor)</td><td><code>Page&lt;RequirementResult&gt;</code>(<code>ref</code>·<code>statement_md</code>·<code>impl_status</code>·연결 Task/Evidence 수)</td><td>—</td></tr>
       <tr><td>EP-REQ-02</td><td><code>GET /api/v1/projects/{proj}/requirements/{ref}</code></td><td>전 역할</td><td>—</td><td><code>RequirementDetailResult</code>(버전 이력 + 파생 Task + Evidence)</td><td>—</td></tr>
-      <tr><td>EP-REQ-03</td><td><code>POST /api/v1/projects/{proj}/requirements/{ref}/evidence</code></td><td>developer·qa·admin (CI는 PAT)</td><td><code>EvidenceCreateInput</code>(kind: code_path/test/pr/commit, locator, repo)</td><td><code>EvidenceResult</code></td><td>★<code>evidence.added</code></td></tr>
+      <tr><td>EP-REQ-03</td><td><code>POST /api/v1/projects/{proj}/requirements/{ref}/evidence</code></td><td>developer·qa·admin <b>AND <code>spec:evidence</code></b> (CI는 PAT — §1.3b)</td><td><code>EvidenceCreateInput</code>(kind: code_path/test/pr/commit, locator, repo)</td><td><code>EvidenceResult</code></td><td>★<code>evidence.added</code></td></tr>
     </tbody>
   </table></div>
 
@@ -860,9 +886,9 @@
     <tbody>
       <tr><td>EP-TASK-01</td><td><code>GET /api/v1/projects/{proj}/tasks</code></td><td>전 역할</td><td><code>TaskListQuery</code>(status[], assignee, spec, priority, <b>include_archived</b>(기본 false — <code>done_at</code> 이 <code>TASK_DONE_WINDOW_DAYS</code> 를 지난 done 을 포함, <a href="screens.html">4.5</a> §2.5), cursor, limit)</td><td><code>Page&lt;TaskSummary&gt;</code>(보드 레인용 — 정렬 <code>priority ASC, updated_at DESC, id ASC</code>)</td><td>—</td></tr>
       <tr><td>EP-TASK-02</td><td><code>GET /api/v1/projects/{proj}/tasks/next</code></td><td>task:claim 보유 역할</td><td><code>TaskNextQuery</code>(role, spec_id, limit)</td><td><code>TaskNextResult</code>(ready 후보 + <b>위임 명세 4요소</b> + 권장 scope)</td><td>—</td></tr>
-      <tr><td>EP-TASK-03</td><td><code>POST /api/v1/projects/{proj}/tasks</code></td><td>planner·developer·admin ●, qa ○</td><td><code>TaskCreateInput</code>(title, body_md, source_spec_version_id, source_requirement_id, 위임 명세 4필드, priority)</td><td><code>TaskResult</code>(status=backlog)</td><td>★<code>task.created</code></td></tr>
+      <tr><td>EP-TASK-03</td><td><code>POST /api/v1/projects/{proj}/tasks</code></td><td>planner·developer·admin ●, qa ○ <b>AND <code>task:update</code></b>(MCP <code>nerv_task_create</code> 와 같은 스코프 — §1.3b)</td><td><code>TaskCreateInput</code>(title, body_md, source_spec_version_id, source_requirement_id, 위임 명세 4필드, priority)</td><td><code>TaskResult</code>(status=backlog)</td><td>★<code>task.created</code></td></tr>
       <tr><td>EP-TASK-04</td><td><code>GET /api/v1/projects/{proj}/tasks/{task}</code></td><td>전 역할</td><td>—</td><td><code>TaskDetailResult</code>(위임 명세·활성 클레임·의존·Evidence)</td><td>—</td></tr>
-      <tr><td>EP-TASK-05</td><td><code>PATCH /api/v1/projects/{proj}/tasks/{task}</code></td><td>planner·developer·admin</td><td><code>TaskUpdateInput</code>(위임 명세·priority·의존)</td><td><code>TaskResult</code> — 위임 명세 4요소 충족 + 의존 해소 시 서버가 <code>ready</code> 승격</td><td><code>task.ready</code>(승격 시)</td></tr>
+      <tr><td>EP-TASK-05</td><td><code>PATCH /api/v1/projects/{proj}/tasks/{task}</code></td><td>planner·developer·admin <b>AND <code>task:update</code></b></td><td><code>TaskUpdateInput</code>(위임 명세·priority·의존)</td><td><code>TaskResult</code> — 위임 명세 4요소 충족 + 의존 해소 시 서버가 <code>ready</code> 승격</td><td><code>task.ready</code>(승격 시)</td></tr>
       <tr><td>EP-TASK-06</td><td><code>POST /api/v1/projects/{proj}/tasks/{task}/claim</code></td><td>viewer 제외 전 역할(<code>task:claim</code>)</td><td><code>TaskClaimInput</code>(scope{spec_ids, file_globs}, branch, worktree, lease_seconds)</td><td><code>TaskClaimResult</code>(claim_id, lease_expires_at, warnings[]) — 겹침 <code>block</code>이면 409 <code>NERV_CONFLICT_SCOPE</code></td><td><code>task.claimed</code> / <code>claim.conflict_warn</code> / <code>claim.conflict_blocked</code></td></tr>
       <tr><td>EP-TASK-07</td><td><code>POST /api/v1/projects/{proj}/claims/{claim}/heartbeat</code></td><td>클레임 보유자</td><td><code>HeartbeatInput</code>(progress, stats{added, removed, files})</td><td><code>HeartbeatResult</code>(새 lease_expires_at + pending 질문 답변·steer/stop 지시)</td><td>— (이벤트 없음 — <code>last_heartbeat_at</code> 갱신만)</td></tr>
       <tr><td>EP-TASK-08</td><td><code>POST /api/v1/projects/{proj}/claims/{claim}/release</code></td><td>클레임 보유자 또는 admin</td><td><code>ClaimReleaseInput</code>(reason: done/handoff/abandon, state_note)</td><td><code>ClaimReleaseResult</code>(Task 최종 상태 — <code>claimed → ready</code> 회수 또는 유지)</td><td>★<code>claim.released</code> + <code>task.ready</code>(회수 시)</td></tr>
