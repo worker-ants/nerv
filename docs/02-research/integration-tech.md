@@ -2,7 +2,9 @@
 
 > **요약** — Claude Code는 훅 31종·MCP 클라이언트·스킬·서브에이전트·플러그인·헤드리스·Agent SDK·OTel까지 여덟 개의 공식 연동 표면을 열어두고 있고, 그중 `type:"http"` 훅 하나만으로 세션 전 생명주기를 래퍼 스크립트 없이 NERV(가칭) 수집 엔드포인트로 직접 POST할 수 있다. Codex도 MCP·훅(11종)·notify·OTel·비대화형 실행·AGENTS.md에서 거의 대칭이지만 **MCP의 resources·prompts·elicitation을 소비하지 못하고, 플러그인 마켓플레이스급 일괄 배포 체계가 없으며, cloud 태스크 생성 API가 문서화되어 있지 않다.** 이 격차가 D-05의 tools-first 설계를 강제한다 — 스펙 조회·클레임·리뷰 제출 같은 핵심 동작은 전부 MCP tools로 만들고 resources/prompts/elicitation/channels는 Claude 전용 향상으로만 얹는다. 수집은 훅(실시간 제어)과 OTel(정량 관측)의 이중 파이프라인으로 가되, 훅 페이로드의 `prompt_id`와 OTel 이벤트의 `prompt.id`가 같은 UUID라는 공식 조인 키가 있어 두 평면을 하나의 AgentSession으로 합칠 수 있다. 이 문서는 FR-15와 D-05의 1차 근거이며, 실제 도구 카탈로그·플러그인 구성·세션 시퀀스는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md)로 이어진다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 판: [integration-tech.html](../html/integration-tech.html)
+> 문서 버전 v0.2 · 2026-09-04 · HTML 판: [integration-tech.html](../html/integration-tech.html)
+>
+> v0.2 변경(2026-09-04 — Codex 원격 MCP 의 토큰 자리, 접속 확인): §3.1 에 원격 MCP 설정 키 전량과 그 한계를 적었다. 토큰을 싣는 자리 셋 중 둘(`bearer_token_env_var`·`env_http_headers`)은 **환경변수 이름만** 받고 하나(`http_headers`)는 설정 파일에 값을 박으므로, "파일 하나로 프로젝트 값을 준다" 가 성립하지 않는다 — NERV 의 `.nerv/env` 가 Codex 의 notify·훅은 덮지만 MCP 인증은 못 덮는 이유다. 넷째 키 **`http_headers_helper`** 가 그 공백을 메울 수 있으나 의미론 미실측이라 Phase 2 항목으로 둔다. `[shell_environment_policy] set` 의 적용 범위가 "spawned commands" 한정이라는 것과, 프로젝트 config 가 자격증명·notify 계열을 못 덮는다는 제약도 함께 적었다(후자는 §3.1 의 `notify` 배치와 겹칠 수 있어 실측 필요).
 
 ---
 
@@ -349,6 +351,23 @@ exporter = "otlp-http"
 environment = "prod"
 log_user_prompt = false
 ```
+
+**원격 MCP 설정 키와 그 한계**(2026-09-04 확인 — [Codex MCP 문서](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)). 원격 서버 항목이 받는 키는 `url`(필수) · `auth` · `bearer_token_env_var` · `http_headers` · `env_http_headers` · **`http_headers_helper`** · `startup_timeout_sec` · `tool_timeout_sec` · `enabled` · `required` · `enabled_tools` · `disabled_tools` · 도구별 승인/출력 상한이다.
+
+토큰을 싣는 자리가 셋인데 성질이 다르다.
+
+| 키 | 무엇을 받나 | 값이 어디서 오나 |
+| --- | --- | --- |
+| `bearer_token_env_var` | 환경변수 **이름** | Codex 자신의 프로세스 환경 |
+| `env_http_headers` | 헤더 이름 → 환경변수 **이름** | 같음 |
+| `http_headers` | 정적 값 | 설정 파일에 그대로 박힌다 |
+| `http_headers_helper` | (미실측) | 이름대로 명령이 헤더를 만들어 준다면 파일에서 읽을 길이 된다 |
+
+**앞의 셋으로는 "파일 하나로 프로젝트 값을 준다"가 성립하지 않는다.** 이름만 받는 두 키는 값을 프로세스 환경에서 읽고, `http_headers` 는 토큰을 설정 파일에 박게 된다. 그래서 NERV 의 `.nerv/env`(프로젝트별 값 파일)는 Codex 의 notify·훅은 덮지만 **MCP 인증은 덮지 못한다** — 그 앞에서 파일을 읽는 주체가 없다([4.6 플러그인](../04-mvp/plugin.md) §3.3).
+
+`http_headers_helper` 가 Claude Code 의 `headersHelper` 와 같은 모양이라면 그 공백을 메운다. **의미론을 확인하지 않았으므로 Phase 2 실측 항목으로 둔다.**
+
+환경변수를 설정으로 정의하는 자리는 `[shell_environment_policy]` 의 `set` 이다([고급 설정 문서](https://learn.chatgpt.com/docs/config-file/config-advanced), 2026-09-04 확인). 다만 문서가 그 정책의 적용 범위를 **"spawned commands"** 라고 적고 있어 MCP·훅·notify 에 걸린다는 언급이 없다. 프로젝트 `.codex/config.toml` 은 *"자격증명을 바꾸거나 machine-local 알림/텔레메트리 명령을 실행하는 설정"* 을 덮지 못한다는 제약도 같은 문서에 있다 — `notify` 를 저장소 config 에 두는 §3.1 의 배치는 그 제약과 겹칠 수 있어 **함께 실측해야 한다.**
 
 ### 3.2 hooks 11종 — 같은 계열, 좁은 표면
 

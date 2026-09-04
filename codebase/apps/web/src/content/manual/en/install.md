@@ -42,15 +42,19 @@ The role matters: **a token can never be broader than the role.** As a `viewer` 
 
 This file is **git-ignored by default**, so the token is not committed. Every repository can carry its own values and your shell profile stays untouched.
 
-### One file that also covers Codex and the CLI — `.nerv/env`
+### `.nerv/env` — the slot for Codex (not needed today)
 
-To use the same values outside Claude Code (Codex, the `nerv` CLI), put them in `.nerv/env` in the repository. The plugin's scripts read it.
+**If you only use Claude Code, the one place above is all you need.** Don't keep the values in two places — when they drift, which one won is answered by a different part of the system each time.
+
+`.nerv/env` is a fallback for outside Claude Code (Codex). The plugin's scripts read it.
 
 ```bash
 NERV_SERVER=https://nerv.example.com
 NERV_PROJECT=clemvion
 NERV_TOKEN=<the token from step 1>
 ```
+
+> This file covers Codex only **halfway**. Notifications and hooks work because our own scripts read the file, but Codex's MCP authentication only accepts the *name* of an environment variable, so this file never reaches it. Codex support is still in preparation.
 
 **Values already set are never overwritten** — a managed machine's settings, or anything already in your shell, always wins. Only names starting with `NERV_` are read.
 

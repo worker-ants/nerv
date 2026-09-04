@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.35 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.36 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.36 변경(2026-09-04 — 값을 두는 자리를 하나로, 사람 결정): §3.3 의 네 자리가 **두 곳에 같은 값을 두게 만들고 있었다**(실측: 실사용 저장소가 `settings.local.json` 과 `.nerv/env` 양쪽에 서버·프로젝트·토큰을 갖고 있었다). **Claude Code 의 자리는 `.claude/settings.local.json` 하나**로 정하고 `.nerv/env` 는 **Codex 폴백**으로 격하한다(스크립트 지원은 그대로 — Codex 가 올 때 필요하다). 근거를 실측 표로 남겼다: 훅·statusline·**프로젝트** `.mcp.json` 은 그 `env` 를 보는데 **플러그인이 제공한** `.mcp.json` 은 못 본다. 그래서 서버 주소·토큰 같은 프로젝트별 MCP 설정은 프로젝트가 갖는다. `.nerv/env` 가 Codex 를 절반만 덮는다는 것(notify·훅은 덮고 MCP 인증은 못 덮는다)과 Codex 쪽 대응물의 한계도 적었다 — 두 하네스가 공유하는 유일한 층은 프로세스 환경변수이고, 그것을 한 자리로 합치는 문제는 Phase 2 로 남긴다.
 > v0.35 변경(2026-09-04 — GitHub 경로를 연다, 사람 결정): 저장소 루트에 `.claude-plugin/marketplace.json` 을 두어 `/plugin marketplace add worker-ants/nerv` 로 설치된다. **서버도 인증서도 필요 없는 가장 싼 경로**다 — 웹 서빙(§3.5)은 https·비-루프백·신뢰된 CA 셋을 다 요구하는데(2026-09-04 실측: `NODE_EXTRA_CA_CERTS` 까지 있어야 설치된다) GitHub 은 그중 아무것도 요구하지 않는다. 루트에 두는 이유는 Claude Code 가 카탈로그를 **저장소 루트에서만** 찾기 때문이다: git URL 의 `#` 는 경로가 아니라 브랜치 ref 라 `#codebase/plugin` 은 `Remote branch not found` 로 끝난다(실측). 카탈로그 셋의 이름·`source` 대응표와 REQ-CB-015 정합 근거를 §3.5 에 적었다.
 > v0.34 변경(2026-09-04 — 첨부 절차가 실사용에서 막혔다): 실사용 세션이 1단계에서 `NERV_UNAVAILABLE`(`kind:'internal'`)을 받고 멈췄다. 원인은 서버의 스토리지 설정 누락인데 **에러가 그것을 말하지 않아** 에이전트가 일시 장애로 읽었다 — 스킬의 대응표가 그 코드를 outbox 큐잉으로 적고 있어 영원히 재시도하는 모양이었다. `/nerv:spec` 대응표에 **`storage_unconfigured` 면 큐잉하지 않는다**를 못 박고, 받는 형식을 아홉으로 적었다(그림 다섯 · 문서 셋 · 묶음 하나). 그림이 아닌 첨부는 본문에 이미지가 아니라 **링크**로 넣는다. 곁들여 `nerv_spec_attach` 의 **도구 설명 자체가 두 단계를 말하게** 했다 — 스킬 없이 도구만 보고 부르는 에이전트가 파일을 실을 자리를 찾다 헤맸다(4.4 v0.67).
 > v0.33 변경(2026-09-04 — 프롬프트가 서버를 따라오지 못한 자리 넷): 스킬은 **모델이 읽는 규약**이라 서버가 앞서가면 그 차이가 그대로 행동의 결함이 된다. ① `/nerv:next` 3번이 후보에 베이스라인이 실린다고 적고 6번은 **그것으로 무엇을 하라는 말이 없었다** — 주변 문서를 `baseline` 으로 읽는 지시를 넣었다(4.4 REQ-API-087). ② 4번의 "브랜치·워크트리는 `nerv_bootstrap` 이 등록한다" 를 **훅이 git 에게 직접 묻는다**로 고쳤다(REQ-API-084) — 예전 문장은 모델이 자기가 실어야 하는 값으로 읽게 했고, 실사용 세션 34개가 전부 NULL 이던 이유가 그것이다. ③ `handoff_note` 를 읽으라는 말이 없었다 — **다음 사람에게 가라고 만든 값**인데(REQ-API-081) 아무도 읽지 않으면 앞사람이 해 본 것을 되풀이한다. ④ `ignored_args`(REQ-API-080)를 `/nerv:next`·`/nerv:impl` 에 적었다: 호출은 성공했는데 인자가 버려진 상태를 조용히 넘기지 않게 한다.
@@ -1004,19 +1005,38 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | `NERV_PROJECT` | 프로젝트 슬러그(예: `clemvion`) | `.mcp.json`·훅 `X-NERV-Project` 헤더, statusline |
 | `NERV_HOSTNAME` | 이 머신의 식별자(예: `mac-02`) | 훅 `X-NERV-Host` 헤더. MCP 경로에서는 `nerv_bootstrap` 인자로 전달 |
 | `NERV_CACHE_DIR` | (선택) 기본 `.nerv/cache` | statusline·오프라인 폴백 캐시 위치 |
-| `NERV_ENV_FILE` | (선택) 기본 `.nerv/env` | 아래 "어디에 두는가"의 파일 경로 |
+| `NERV_ENV_FILE` | (선택) 기본 `.nerv/env` | 아래 "어디에 두는가"의 파일 경로 — **Codex 폴백 전용**이다 |
 | `NERV_AGENT_TYPE` | (선택) 기본 `claude-code` | `bin/nerv-hook-forward` 가 보내는 `X-NERV-Agent` 헤더 |
 
-#### 어디에 두는가 — 값은 기계가 아니라 **프로젝트**에 속한다 (2026-08-27 개정 — 사람 지시)
+#### 어디에 두는가 — **Claude Code 는 `settings.local.json` 하나다** (2026-09-04 개정 — 사람 결정)
 
-셸 프로필의 `export` 는 **기계에 하나뿐이다.** NERV 는 멀티 프로젝트가 전제인데 `NERV_PROJECT` 를 프로필에 박으면 프로젝트를 옮길 때마다 프로필을 고치고 모든 세션을 다시 띄워야 한다 — 제품의 전제와 설치 절차가 어긋난다. 값을 두는 자리를 셋으로 갈랐고, **강한 자리가 약한 자리를 덮는다**(Claude Code 의 관리형 > CLI > 프로젝트 > 유저 순서와 같다 — §2 배포 경로).
+셸 프로필의 `export` 는 **기계에 하나뿐이다.** NERV 는 멀티 프로젝트가 전제인데 `NERV_PROJECT` 를 프로필에 박으면 프로젝트를 옮길 때마다 프로필을 고치게 된다 — 그래서 값은 기계가 아니라 프로젝트에 붙는다(2026-08-27 확정).
+
+**그런데 자리를 넷으로 열어 둔 것이 두 곳에 같은 값을 두게 만들었다**(실측 2026-09-04: 실사용 저장소가 `.claude/settings.local.json` 과 `.nerv/env` 양쪽에 `NERV_SERVER`·`NERV_PROJECT`·`NERV_TOKEN` 을 갖고 있었다). 둘이 갈리면 어느 쪽이 이겼는지는 그때그때 다른 자리가 답한다. **Claude Code 에는 자리를 하나만 준다.**
 
 | 자리 | 쓰는 곳 | 언제 |
 | --- | --- | --- |
-| 관리형 settings 의 `env` | 회사 관리 기기 | 조직이 서버·프로젝트를 정해 준다(§2 · `managed-settings.example.json`) |
-| **저장소 `.claude/settings.local.json` 의 `env`** | Claude Code 한정 · **프로젝트별** | 개발자 기계의 기본값. 기본 gitignore 대상이라 토큰이 커밋되지 않는다. **정적 문자열만** 받으므로 `$(hostname -s)` 같은 값은 넣을 수 없다(스크립트가 스스로 폴백한다) |
-| **저장소 `.nerv/env`** | Claude Code 밖까지 — Codex `bearer_token_env_var` · `nerv` CLI · statusline · 훅 포워더 | 한 파일로 전부 덮고 싶을 때. `bin/nerv-env.sh` 가 읽는다 |
+| **저장소 `.claude/settings.local.json` 의 `env`** | **Claude Code 의 유일한 자리** | 기본이자 권장. 기본 gitignore 대상이라 토큰이 커밋되지 않는다. 훅·statusline·프로젝트 `.mcp.json` 이 전부 이 값을 본다(아래 실측) |
+| 관리형 settings 의 `env` | 회사 관리 기기 | 조직이 서버·프로젝트를 정해 준다(§2 · `managed-settings.example.json`). 위를 이긴다 |
+| 저장소 `.nerv/env` | **Codex 폴백** — notify·훅 포워더 | Codex 가 오기 전까지는 **쓰지 않는다.** `bin/nerv-env.sh` 가 읽고 이미 있는 값을 덮지 않는다 |
 | 셸 프로필 `export` | 기계 전체 | 그 기계가 **한 프로젝트만** 쓸 때 |
+
+**무엇이 `settings.local.json` 의 `env` 를 보는가**(2026-09-04 실측 — 이 결정의 근거다).
+
+| 소비자 | 본다 | 어떻게 확인했나 |
+| --- | :-: | --- |
+| 훅(포워더·outbox) | ✔ | `.nerv/env` 를 치우고 세션을 돌려도 세션이 정상 등록됐다 |
+| statusline | ✔ | 훅과 같은 방식으로 Claude Code 가 띄운다 |
+| **프로젝트** `.mcp.json` | ✔ | 헤더의 `${NERV_TOKEN}` 이 풀려 도구 22종이 붙었다 |
+| **플러그인이 제공한** `.mcp.json` | **✘** | `${NERV_SERVER:-…}` 가 기본값으로 떨어져 `nerv.example.com` 으로 갔다 |
+
+마지막 줄이 중요하다. **같은 `${VAR}` 문법인데 플러그인이 제공한 것만 프로젝트 환경을 못 본다.** 그래서 서버 주소·토큰처럼 **프로젝트마다 다른 값을 쓰는 MCP 설정은 프로젝트가 갖는다** — 플러그인은 여러 프로젝트가 공유하는 물건이라 애초에 담을 수 없는 값이다.
+
+**`.nerv/env` 는 Codex 를 절반만 덮는다**(2026-09-04 확인). Codex 의 notify·훅은 우리 포워더를 부르고 그 스크립트가 파일을 직접 읽으므로 덮인다. 그러나 **MCP 인증은 그 경로로 덮이지 않는다** — `bearer_token_env_var`·`env_http_headers` 는 **환경변수의 이름만** 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env` 를 읽는 주체가 없다.
+
+**다만 길이 하나 있을 수 있다**: Codex 원격 MCP 설정에 **`http_headers_helper`** 키가 있다([2.4 연동 기술](../02-research/integration-tech.md) §3.1). 이름대로 명령이 헤더를 만들어 주는 자리라면 그 명령이 `.nerv/env` 를 읽어 토큰을 실을 수 있다 — Claude Code 의 `headersHelper` 와 같은 모양이다. **의미론을 실측하지 않았으므로 된다고 적지 않는다**(Phase 2 실측 항목).
+
+Codex 쪽 대응물도 정확히 맞지는 않는다: `[shell_environment_policy] set = { … }` 로 값을 정의할 수 있지만 문서가 **"spawned commands"** 한정이라 적고 있고, 프로젝트 `.codex/config.toml` 은 자격증명을 바꾸는 설정을 덮지 못한다. 두 하네스가 **확실히 공유하는 층은 프로세스 환경변수**이므로, 그것으로 한 자리를 만들려면 디렉터리별 환경 로더(direnv 류)나 Codex 실행 래퍼가 필요하다 — 위 helper 실측과 함께 **Codex 지원(Phase 2) 시점의 결정으로 남긴다.**
 
 **`${CLAUDE_PLUGIN_ROOT}` 는 플러그인 컴포넌트 안에서만 풀린다**(2026-09-02 정정). 관리형 settings 는 플러그인 파일이 아니라 그 밖의 설정이므로, 거기 적은 `${CLAUDE_PLUGIN_ROOT}/statusline/…` 은 치환되지 않고 그대로 남아 statusline 이 실행되지 않는다. 예시 파일은 설치 경로를 직접 적는다 — 조직의 배치가 다르면 그 경로로 바꾼다.
 
@@ -1185,7 +1205,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 환경변수 | 아래 블록을 **프로젝트별 자리**에 둔다(§3.3 "어디에 두는가") — 기본은 저장소 `.claude/settings.local.json` 의 `env`, Codex·CLI 까지 덮으려면 `.nerv/env` | `echo $NERV_PROJECT` 또는 `/mcp` 연결 확인 |
+| 2 | 환경변수 | 아래 블록을 저장소 `.claude/settings.local.json` 의 `env` 에 둔다 — **Claude Code 의 유일한 자리다**(§3.3). `.nerv/env` 는 Codex 폴백이라 지금은 쓰지 않는다 | `/mcp` 연결 확인 |
 | 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.1.0 활성 표시 |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
