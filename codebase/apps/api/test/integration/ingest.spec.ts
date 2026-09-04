@@ -67,13 +67,21 @@ beforeEach(async () => {
 async function hook(
   path: string,
   payload: Record<string, unknown>,
-  options: { token?: string | null; host?: string; agent?: string } = {},
+  options: {
+    token?: string | null;
+    host?: string;
+    agent?: string;
+    branch?: string;
+    worktree?: string;
+  } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   const bearer = options.token === undefined ? token : options.token;
   if (bearer !== null) headers['authorization'] = `Bearer ${bearer}`;
   if (options.host !== undefined) headers['x-nerv-host'] = options.host;
   if (options.agent !== undefined) headers['x-nerv-agent'] = options.agent;
+  if (options.branch !== undefined) headers['x-nerv-branch'] = options.branch;
+  if (options.worktree !== undefined) headers['x-nerv-worktree'] = options.worktree;
 
   const res = await app.inject({ method: 'POST', url: `/ingest/hooks/${path}`, headers, payload });
   return {
@@ -182,6 +190,64 @@ describe('SessionStart — 등록 + 컨텍스트 주입', () => {
       `SELECT agent_type::text AS agent_type FROM agent_session WHERE external_session_id = 'S-unknown'`,
     );
     expect(rows[0]?.agent_type).toBe('other');
+  });
+});
+
+/**
+ * 브랜치는 모델이 아니라 git 이 말한다(REQ-API-084 · 2026-09-03).
+ *
+ * 세션 신원 3요소 중 branch·worktree 는 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 그것을
+ * 실어 준 적이 없다 — **실사용 세션 34개 전부 NULL** 이었다. 포워더가 프로젝트 디렉터리에서
+ * `git rev-parse` 로 읽어 헤더에 싣는다.
+ */
+describe('세션 신원 — git 이 말한 브랜치 (REQ-API-084)', () => {
+  it('SessionStart 헤더의 브랜치·워크트리가 세션에 남는다', async () => {
+    await hook(
+      'session',
+      { session_id: 'S-branch' },
+      { host: 'mac-07', branch: 'fix/loader-cache', worktree: '/work/clemvion' },
+    );
+    const { rows } = await pool.query<{ branch: string; worktree_path: string }>(
+      `SELECT branch, worktree_path FROM agent_session WHERE external_session_id = 'S-branch'`,
+    );
+    expect(rows[0]).toMatchObject({
+      branch: 'fix/loader-cache',
+      worktree_path: '/work/clemvion',
+    });
+  });
+
+  // detached HEAD 에서는 포워더가 헤더를 아예 보내지 않는다 — 없는 것과 잘못된 것은 다르다.
+  // `HEAD` 를 그대로 실으면 서로 다른 작업이 게이트 현황에서 한 행으로 뭉친다.
+  it('헤더가 없으면 비워 둔다 — 빈 문자열도 값으로 읽지 않는다', async () => {
+    await hook('session', { session_id: 'S-detached' }, { host: 'mac-07', branch: '  ' });
+    const { rows } = await pool.query<{ branch: string | null }>(
+      `SELECT branch FROM agent_session WHERE external_session_id = 'S-detached'`,
+    );
+    expect(rows[0]?.branch).toBeNull();
+  });
+
+  it('도구 훅이 신선도를 맡는다 — 세션 도중 checkout 하면 카드가 따라간다', async () => {
+    await hook('session', { session_id: 'S-switch' }, { host: 'mac-07', branch: 'main' });
+    await hook(
+      'tool',
+      { session_id: 'S-switch', tool_name: 'Edit' },
+      { branch: 'feat/next', worktree: '/work/clemvion' },
+    );
+
+    const { rows } = await pool.query<{ branch: string; worktree_path: string }>(
+      `SELECT branch, worktree_path FROM agent_session WHERE external_session_id = 'S-switch'`,
+    );
+    expect(rows[0]).toMatchObject({ branch: 'feat/next', worktree_path: '/work/clemvion' });
+  });
+
+  it('헤더 없는 도구 훅은 이미 있는 값을 지우지 않는다', async () => {
+    await hook('session', { session_id: 'S-keep' }, { host: 'mac-07', branch: 'main' });
+    await hook('tool', { session_id: 'S-keep', tool_name: 'Bash' });
+
+    const { rows } = await pool.query<{ branch: string }>(
+      `SELECT branch FROM agent_session WHERE external_session_id = 'S-keep'`,
+    );
+    expect(rows[0]?.branch).toBe('main');
   });
 });
 

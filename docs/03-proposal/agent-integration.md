@@ -2,8 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **22종**(2026-09-02 실측 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.12 · 2026-09-03 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.13 · 2026-09-03 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 >
+> v0.13 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): §3.3 에 `X-NERV-Branch`·`X-NERV-Worktree` 를 더했다. 세션 신원의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다(실측). 훅은 작업 디렉터리에서 도니까 포워더가 git 에게 직접 묻는다 — detached HEAD 면 보내지 않는다. 이 경로는 command 변형에만 있다(http 훅의 `headers` 는 상수·`${VAR}` 뿐이다). 구현 규약 정본은 [4.4](../04-mvp/api.md) §2.5b(REQ-API-084).
 > v0.12 변경(2026-09-03 — 통제의 적용 범위 정정): §6.4 의 훅 URL 통제가 `type:"http"` 훅에만 걸린다는 사실을 명시했다. NERV 의 기본 훅이 command 변형으로 바뀌었으므로(4.6 v0.30 · 사람 결정) 그 목록은 NERV 자신의 훅을 덮지 않는다 — 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다. `hooks` 키가 관리형 파일에서도 유효하다는 것도 함께 적었다.
 > v0.11 변경(2026-09-03 — 확장의 경계): 훅 `url` 은 `${VAR}` 확장을 받지 않고 `headers` 만 받는다는 것을 §3.3 에 적었다. `.mcp.json` 의 `url` 은 받는다. 이 비대칭이 배포 변형 둘의 이유다(4.6 §3.1).
 > v0.10 변경(2026-09-03 — 받는 척하던 인자들, 실측): 카탈로그가 적고 있던 인자 열한 종이 도구 스키마에 없거나 저장할 자리가 없어 **성공 응답과 함께 버려지고 있었다**(4.4 v0.57 REQ-API-080 이 그 사실을 드러냈다). 일곱을 실물로 만들고 넷은 표에서 걷었다. 실물: `state_note`(`claim.release_note` — 후보 목록의 `handoff_note` 로 다음 사람에게 간다) · `progress`(LWW) · `stats{added,removed,files}`(세션 카드의 +N −M 이 34개 세션 전부 0이던 원인) · `include[tasks,comments]` · `resolved_in_version_id` · `lease_seconds` · 후보의 `spec_key`·`version_no`. 걷은 것: `repo{}`(실물은 평면 `branch`·`worktree_path`) · `role`·`capabilities`(Task 에 그 축이 없다) · 클레임의 `branch`·`worktree`(세션이 등록한다) · `note`·`reviewer_hint`(리뷰어 지정은 게이트 §6.3 이 정한다) · `baseline`(Phase 2).
@@ -391,6 +392,18 @@ nerv-plugin/
 | `SubagentStart`/`Stop` | 어느 역할 에이전트가 무엇을 했는지(`agent_id`/`agent_type`) | 관찰 전용 |
 | `Stop` | 턴 종료 직전 게이트 조회 — "미해소 critical finding이 있는가", "리스가 살아있는가" | 서버가 `{"decision":"block","reason":…}` 반환 시 종료 차단. **`stop_hook_active` 면 즉시 허용**(2026-09-03 · anti-wedge) |
 | `SessionEnd` | `complete`/`error` 전이, 미해제 클레임 회수 | 없음(정리만) |
+
+**헤더가 말하는 것 넷.** 훅 본문은 세션 id·cwd·source 뿐이라, 세션이 "누구의 무엇이 어디서 도는가"에 답하려면 보내는 쪽이 말해야 한다.
+
+| 헤더 | 값 | 어느 훅에 | 서버가 하는 일 |
+| --- | --- | --- | --- |
+| `Authorization` | `Bearer ${NERV_TOKEN}` | 전부 | 없으면 버린다(§6.5) |
+| `X-NERV-Project` | 프로젝트 슬러그 | 전부 | 토큰의 프로젝트와 대조 |
+| `X-NERV-Host` | 머신 식별자 | 세션 훅 | `agent_session.hostname` — 채택 규칙(§2.4)의 키 |
+| `X-NERV-Agent` | `claude-code`·`codex`·… | 세션 훅 | `agent_type`(헤더 → 본문 → `other` · [4.4](../04-mvp/api.md) §2.5a) |
+| `X-NERV-Branch` · `X-NERV-Worktree` | `git rev-parse --abbrev-ref HEAD` · `--show-toplevel` | `session`·`tool` | `branch`·`worktree_path` — **빈 자리에만** 채우고 도구 훅이 신선도를 맡는다([4.4](../04-mvp/api.md) §2.5b) |
+
+**브랜치는 모델이 아니라 git 이 말한다**(2026-09-03 · 사람 결정). 세션 신원 3요소 중 `branch`·`worktree_path` 는 지금까지 `nerv_bootstrap` 인자로만 올 수 있었다 — **모델이 자기 브랜치를 말해 주기를 기다리는 설계**였고, 모델은 말하지 않았다(실측: 실사용 세션 34개 전부 NULL). 훅은 작업 디렉터리 안에서 도니까 물어볼 이유가 없다. detached HEAD·비-git 디렉터리에서는 헤더를 **생략한다** — `HEAD` 를 그대로 실으면 서로 다른 작업이 게이트 현황에서 한 행으로 뭉친다. 이 경로는 `command` 변형에만 있다: `type:"http"` 훅의 `headers` 는 상수와 `${VAR}` 확장만 받아 git 을 부를 자리가 없다.
 
 **응답의 자리와 형태**(2026-09-03 · 실측 정정). 두 훅의 응답은 **형태가 계약이다.** ① `SessionStart` 의 주입은 `hookSpecificOutput` 아래여야 한다 — 최상위 `additionalContext` 는 훅 문서가 "조용히 무시한다"고 못 박은 자리이고, 그동안 이 주입은 세션 37개 내내 한 번도 모델에 닿지 않았다. ② `Stop` 은 `stop_hook_active` 를 확인해 **이미 Stop 훅 때문에 계속하는 중이면 막지 않는다.** 확인하지 않으면 클레임을 쥔 채 사람에게 물으려는 턴마다 강제 계속이 반복되고(호스트 상한 8회), 모델은 멈추려고 클레임을 조기 릴리스한다. 이것은 새 발견이 아니다 — [1.2 clemvion 분석](../01-problem/clemvion-analysis.md) §3 이 같은 자리에서 같은 답("`stop_hook_active`면 즉시 허용 — 무한 루프 차단")을 이미 적어 두었다. ③ `command` 핸들러로 폴백할 때 포워더는 **응답 본문을 stdout 으로 흘려야 한다**: 버리면 ①과 ②가 함께 사라진다([4.6 플러그인](../04-mvp/plugin.md) §3.1).
 

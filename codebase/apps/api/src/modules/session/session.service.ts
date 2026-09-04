@@ -262,6 +262,14 @@ export class SessionService {
     title: string | null;
     toolName: string | null;
     payload?: Record<string, unknown>;
+    /**
+     * 훅이 git 에게 물어 온 값(2026-09-03 · REQ-API-084). **덮어쓴다** — 세션 도중
+     * checkout 하면 카드가 옛 브랜치를 말하고, 그 카드는 겹침을 읽는 사람의 첫 근거다.
+     * `nerv_bootstrap` 이 실어 준 값과의 관계도 같다: 나중에 온 사실이 이긴다.
+     * 헤더가 오지 않았으면(비-git · detached HEAD) `null` 이고, 그때는 건드리지 않는다.
+     */
+    branch?: string | null;
+    worktreePath?: string | null;
   }): Promise<{ accepted: boolean }> {
     // **번호 매기기와 쓰기가 한 문장이다.** 예전에는 `max(seq)+1` 을 읽고 따로 INSERT 했다 —
     // 훅은 병렬로 도착하고(PostToolUse 는 async 다) 두 요청이 같은 번호를 읽으면 뒤엣것이
@@ -284,9 +292,14 @@ export class SessionService {
       `);
     });
 
-    await this.db.execute(
-      sql`UPDATE agent_session SET last_heartbeat_at = now() WHERE id = ${input.sessionId}`,
-    );
+    // 신원 갱신을 **같은 문장에** 얹는다 — 훅은 도구 호출마다 오므로 왕복 하나가 곧 비용이다
+    await this.db.execute(sql`
+      UPDATE agent_session
+         SET last_heartbeat_at = now(),
+             branch = coalesce(${input.branch ?? null}::text, branch),
+             worktree_path = coalesce(${input.worktreePath ?? null}::text, worktree_path)
+       WHERE id = ${input.sessionId}
+    `);
     return { accepted: rows.length > 0 };
   }
 
