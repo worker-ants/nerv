@@ -33,6 +33,7 @@ Two things make it readable.
 Expanding a line shows the **raw payload** (tool input and response). Raw payloads are visible **only to the session's owner and to admins** — secrets are masked at ingest, but masking is never perfect, so the audience is narrowed too. Everyone else sees the title, the outcome and the tool name.
 
 The **summary strip** at the top is both a count and a filter — press a number and only sessions in that state remain.
+
 ## Messages and stopping
 
 **A message** tells a running agent to change direction. It does not interrupt immediately — the agent meets the server every 60 seconds (the heartbeat) and picks it up there. So the message appears on the rail right away, but the agent's response lags by up to a minute. The same message is never delivered twice.

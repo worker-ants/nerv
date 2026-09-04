@@ -7,8 +7,9 @@ updated: 2026-08-28
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.14 · 2026-09-04 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.15 · 2026-09-04 · HTML 판: [codebase.html](../html/codebase.html)
 >
+> v1.15 변경(2026-09-04 — 돌지 않던 검사, 사람 지시): **REQ-CB-028 신설.** CI 의 check 잡이 `pnpm lint`·`tsc -b` 만 부르고 **`pnpm format:check` 는 부르지 않았다** — 그 스크립트는 처음부터 있었는데, 그래서 7개 파일이 서식 실패인 채로 이틀을 지나며 그 사이의 커밋들을 받았다(2026-09-02 → 09-04). 아무도 몰라서가 아니라 **아무도 돌리지 않아서**다. 같은 뿌리의 앞선 사례가 이 문서에 이미 적혀 있다 — 게이트가 `pnpm test` 뒤에 있어 21회 연속 skipped 됐던 일. 검사는 **돌 때만** 검사다. 사람이 지키는 쪽은 `AGENTS.md` 구현 규약 7 이 맡는다.
 > v1.14 변경(2026-09-04 — 플러그인 아카이브가 빌드 산출물이 된다): `scripts/pack-plugin.mjs` 가 `plugin/` 을 `plugin-dist/<이름>-<버전>.zip` 으로 묶고(`pnpm pack:plugin`), 이미지 빌드가 같은 명령을 돌려 `/app/plugin-dist` 에 심는다(`NERV_PLUGIN_DIST`). 서버가 그것을 `GET /plugin/...` 로 서빙한다(4.4 §2.11 · 4.6 §3.5). 앞문 둘(nginx `location /plugin/` · Ingress `path: /plugin`)에 경로를 열었다 — 열지 않으면 마켓플레이스가 SPA 의 index.html 을 **200 인 채로** 받는다.
 > v1.13 변경(2026-09-02 — 라이선스): 저장소를 **Apache License 2.0** 으로 공개한다. §1 트리에 루트의 `LICENSE`·`NOTICE` 를 넣었다 — `LICENSE` 는 원문 그대로 두고(부록의 자리표시자를 채우면 자동 판별기가 Apache-2.0 으로 읽지 못한다) 저작권 표기는 `NOTICE` 가 진다. 파일마다 라이선스 헤더는 붙이지 않는다(사람 결정).
 > v1.12 변경(2026-09-02 — 계약의 실물화): §3.2 상수 전표에 세 줄을 더한다(`IDEMPOTENCY_TTL_HOURS`·`MAX_PROJECT_ROOMS`·`MAX_SSE_PER_USER`). 룸 상한 `8` 은 웹의 `ws.ts` 와 API 의 `fanout.service.ts` 에 각각 박혀 있었고 SSE 상한이 세 번째 사본이 될 참이었다 — REQ-CB-006 이 금지하는 바로 그 모양이다.
@@ -536,6 +537,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: corepack enable && pnpm install --frozen-lockfile
       - run: pnpm lint && pnpm exec tsc -b
+      - run: pnpm format:check   # 돌지 않는 검사는 없는 검사다 — 2026-09-02~09-04 에 7개 파일이 실패한 채 커밋을 받았다
       # 게이트가 **테스트보다 앞이다** — 뒤에 두면 테스트가 깨진 동안 skipped 된다(아래 문단)
       - name: 배포 산출물 정합   # 백업 스크립트 사본 diff · kustomize 오버레이 빌드
         working-directory: .
@@ -776,6 +778,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | --- | --- |
 | **REQ-CB-025** | WHEN 임베딩 잡이 한 문서의 청크를 색인하면, THE SYSTEM SHALL 요청 문자 예산 단위로 나눠 보내고 **각 요청의 결과를 받는 즉시 적재**하여, 한 요청이 실패해도 앞선 진행이 남게 한다. |
 | **REQ-CB-026** | WHILE 임베딩 한 판이 시간 상한을 넘기면, THE SYSTEM SHALL 그 판을 멈추고 진행 상황을 보고하며 다음 틱에서 남은 문서부터 이어간다 — 다른 잡의 주기를 굶기지 않는다. |
+| **REQ-CB-028** | WHEN PR 의 check 잡이 돌면 THE SYSTEM SHALL `pnpm format:check` 를 실행하고, 서식이 어긋난 파일이 하나라도 있으면 **실패한다** — 돌지 않는 검사는 없는 검사다: 이 스크립트는 처음부터 있었는데 CI 가 부르지 않아 7개 파일이 이틀간(2026-09-02 → 09-04) 실패한 채로 그 사이 커밋들을 받았다 | 서식이 어긋난 파일 1개를 넣은 PR 이 check 에서 실패 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 
 ---

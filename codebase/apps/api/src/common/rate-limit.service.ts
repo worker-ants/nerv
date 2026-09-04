@@ -72,7 +72,10 @@ export class RateLimitService {
     // 창이 끝날 때까지 남은 초. 올림이라 0 초를 주지 않는다 — 0 은 "지금 다시" 라는 뜻이라
     // 클라이언트를 곧장 다음 429 로 보낸다.
     const elapsedMs = now - window * RATE_WINDOW_SECONDS * 1000;
-    const retryAfterSeconds = Math.max(1, Math.ceil((RATE_WINDOW_SECONDS * 1000 - elapsedMs) / 1000));
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((RATE_WINDOW_SECONDS * 1000 - elapsedMs) / 1000),
+    );
 
     return { allowed: count <= limit, retryAfterSeconds, limit, count };
   }
