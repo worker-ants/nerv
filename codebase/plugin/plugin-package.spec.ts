@@ -257,19 +257,51 @@ describe('Codex 초안 2종 (REQ-PLG-010)', () => {
    * 두 경로의 사용자가 서로 다른 것을 받는다.** 서버 쪽은 `plugin.json` 에서 파생하므로
    * 여기서는 git 쪽이 같은 값을 적고 있는지만 보면 된다.
    */
-  it('git 카탈로그의 이름·버전이 plugin.json 과 같다 — 배포 경로 둘이 갈라지지 않게', () => {
+  /**
+   * **카탈로그가 셋이다.** 같은 플러그인을 세 경로로 배포하기 때문이다(4.6 §3.5).
+   *
+   *   저장소 루트 `.claude-plugin/marketplace.json`  → GitHub (`worker-ants/nerv`)
+   *   `codebase/plugin/.claude-plugin/marketplace.json` → 로컬 경로 (개발 중)
+   *   서버가 만드는 `GET /plugin/marketplace.json`   → 배포된 플랫폼 (L2 가 본다)
+   *
+   * 셋이 갈리면 **경로마다 다른 것을 받는다**. 앞의 둘은 파일이라 여기서 묶고, 서버가
+   * 만드는 것은 `plugin.json` 에서 파생하므로 그쪽은 파생 자체가 보증이다.
+   *
+   * 이름은 일부러 다르다: 루트는 `nerv`(GitHub·서버와 같은 마켓플레이스의 두 전송로),
+   * 플러그인 안쪽은 `nerv-internal`(개발용) — 그래야 개발자가 둘을 동시에 등록할 수 있다.
+   */
+  it.each([
+    ['codebase/plugin/.claude-plugin/marketplace.json', './', 'nerv-internal'],
+    ['.claude-plugin/marketplace.json', './codebase/plugin', 'nerv'],
+  ])('%s 가 plugin.json 과 같은 이름·버전을 말한다', (rel, source, marketplaceName) => {
     const manifest = JSON.parse(readShipped('.claude-plugin/plugin.json')) as {
       name: string;
       version: string;
     };
-    const catalog = JSON.parse(readShipped('.claude-plugin/marketplace.json')) as {
+    const catalog = JSON.parse(readFileSync(join(repoRoot, rel), 'utf8')) as {
+      name: string;
       plugins: { name: string; version: string; source: unknown }[];
     };
+    expect(catalog.name).toBe(marketplaceName);
     expect(catalog.plugins).toHaveLength(1);
     expect(catalog.plugins[0]?.name).toBe(manifest.name);
     expect(catalog.plugins[0]?.version).toBe(manifest.version);
-    // git 경로는 상대경로가 맞다 — 저장소를 통째로 클론해 오므로 가리킬 대상이 있다.
-    expect(catalog.plugins[0]?.source).toBe('./');
+    // 상대경로는 **마켓플레이스 루트** 기준이다 — 루트 카탈로그는 저장소 루트에서 센다.
+    expect(catalog.plugins[0]?.source).toBe(source);
+  });
+
+  /**
+   * 루트 카탈로그가 가리키는 곳에 **실제로 플러그인이 있는가.** 경로가 틀리면 `add` 는
+   * 성공하고 `install` 만 실패한다 — 두 단계가 갈라지는 자리라 파일만 보고는 모른다.
+   */
+  it('루트 카탈로그의 source 가 실재하는 플러그인을 가리킨다', () => {
+    const catalog = JSON.parse(
+      readFileSync(join(repoRoot, '.claude-plugin/marketplace.json'), 'utf8'),
+    ) as { plugins: { source: string }[] };
+    const target = join(repoRoot, catalog.plugins[0]!.source);
+    expect(existsSync(join(target, '.claude-plugin', 'plugin.json'))).toBe(true);
+    // `../` 로 마켓플레이스 루트 밖을 가리키지 않는다(플러그인 마켓플레이스 문서의 제약)
+    expect(catalog.plugins[0]!.source.includes('..')).toBe(false);
   });
 
   it('NERV 저장소 자신에게는 `.codex/config.toml` 을 두지 않는다', () => {
