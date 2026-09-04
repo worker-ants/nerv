@@ -29,6 +29,30 @@ base="${NERV_SERVER:-https://nerv.example.com}"
 # 본문이 비면 보내지 않는다 — 서버의 빈 훅 처리를 늘리는 것보다 여기서 멈추는 편이 낫다
 [[ -z "${payload}" ]] && exit 0
 
+# **브랜치는 모델이 아니라 git 이 말한다**(2026-09-03 · 사람 결정).
+#
+# 세션의 신원 3요소 중 branch·worktree 는 지금까지 `nerv_bootstrap` 인자로만 올 수 있었고,
+# 모델이 그것을 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다(실측). 훅은 프로젝트
+# 디렉터리에서 돌므로 여기서 git 에게 직접 물으면 모델을 거치지 않는다.
+#
+# 두 자리에서만 묻는다 — 세션을 만드는 훅과 도구 훅이다. 앞은 처음 채우고 뒤는 신선하게
+# 유지한다(브랜치는 세션 도중 바뀐다). 나머지 훅에서 git 을 부르는 것은 값 없는 비용이다.
+extra=()
+case "${endpoint}" in
+  session | tool)
+    if command -v git >/dev/null 2>&1; then
+      ref="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+      # **detached HEAD 는 브랜치가 아니다.** 그대로 보내면 서로 다른 작업 수십 개가
+      # 게이트 현황에서 "HEAD" 한 행으로 뭉친다 — 없는 것과 잘못된 것은 다르다.
+      if [[ -n "${ref}" && "${ref}" != "HEAD" ]]; then
+        extra+=(--header "X-NERV-Branch: ${ref}")
+      fi
+      top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+      [[ -n "${top}" ]] && extra+=(--header "X-NERV-Worktree: ${top}")
+    fi
+    ;;
+esac
+
 # 실패해도 0 으로 끝낸다 — 훅의 실패가 세션을 멈추면 텔레메트리가 조정 경로가 되어버린다.
 response="$(curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" \
   --request POST "${base}/ingest/hooks/${endpoint}" \
@@ -37,6 +61,7 @@ response="$(curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" \
   --header "X-NERV-Project: ${NERV_PROJECT:-}" \
   --header "X-NERV-Host: ${NERV_HOSTNAME:-$(hostname -s 2>/dev/null || echo unknown)}" \
   --header "X-NERV-Agent: ${NERV_AGENT_TYPE:-claude-code}" \
+  ${extra[@]+"${extra[@]}"} \
   --data "${payload}" 2>/dev/null || true)"
 
 # **응답을 흘려보낸다**(2026-09-03). 예전에는 본문을 `/dev/null` 로 버렸다 — 그래서 이 경로를

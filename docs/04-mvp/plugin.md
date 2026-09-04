@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.30 · 2026-09-03 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.31 · 2026-09-03 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.31 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): `bin/nerv-hook-forward` 가 `session`·`tool` 엔드포인트에 `X-NERV-Branch`·`X-NERV-Worktree` 를 붙인다(§3.3). 세션의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다 — 훅은 작업 디렉터리에서 도니까 `git rev-parse` 로 직접 읽는다. detached HEAD·비-git 디렉터리면 보내지 않는다. http 변형에는 이 경로가 없다(헤더가 상수라 git 을 부를 자리가 없다).
 > v0.30 변경(2026-09-03 — 기본 변형을 command 로, 사람 결정): `hooks/hooks.json` 이 이제 `bin/nerv-hook-forward` 를 거치는 command 변형이고 http 변형은 `hooks/hooks.http.json` 으로 남는다. 이유 셋: 훅 `url` 은 `${VAR}` 확장을 안 받아 http 는 주소가 박히고, `async` 가 command 전용이라 http 는 `PostToolUse` 가 매 도구 호출마다 동기로 기다리며, hostname 폴백이 포워더에만 있다. 대가는 `allowedHttpHookUrls` 가 기본 훅을 덮지 않는 것이고, 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다.
 > v0.29 변경(2026-09-03 — 포크 없이 배포되게, 사람 결정 대기): 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다(실측). 셋을 고친다. ① `.mcp.json` 의 `url` 이 `${NERV_SERVER:-…}` 를 읽는다 — 기본값은 그대로다. ② **`hooks/hooks.command.json` 을 파일로 넣는다** — 주의 문단이 말만 하던 변형이다(훅 `url` 은 `${VAR}` 확장을 받지 않는다). ③ http 변형에서 `async` 를 걷고(command 전용 필드라 조용히 무시됐다) 상한 없던 훅에 `timeout` 을 준다 — 기본값 10분은 텔레메트리 평면의 상한이 아니다. **어느 변형을 기본으로 삼을지는 사람 결정으로 남긴다** — command 로 통일하면 `allowedHttpHookUrls`(§6.4)가 NERV 훅을 덮지 않는다.
 > v0.28 변경(2026-09-03 — 스킬이 없는 인자를 부르고 있었다): 스킬 문장을 도구 실물에 맞췄다. `repo{}` → 평면 `branch`·`worktree_path`, `nerv_task_next` 의 `role`·`capabilities` 삭제, 클레임의 `branch`·`worktree` 삭제(세션이 등록한다), `nerv_spec_submit_review` 의 `note`·`reviewer_hint` 삭제, 기준 문서 열기를 후보 응답의 `spec_key`·`version_no` 로 고쳤다. 정본은 [3.4](../03-proposal/agent-integration.md) §2.3.
@@ -1048,6 +1049,24 @@ nerv_load_env
 서버는 **헤더 → 본문 `agent_type` → `other`** 순으로 읽는다([4.4 API 명세](api.md) §2.5a). 본문 자리를 남겨 두는 이유는 MCP `nerv_bootstrap` 경로가 그것을 쓰기 때문이다 — 그쪽은 도구 인자로 종류를 넘긴다.
 
 세션을 만들지 않는 훅(도구·subagent·stop·session-end)에는 달지 않는다. 읽는 곳이 없는 헤더는 규약이 아니라 장식이다.
+
+#### 브랜치는 모델이 아니라 git 이 말한다 — `X-NERV-Branch`·`X-NERV-Worktree` (2026-09-03 신설 — 사람 결정)
+
+세션 카드의 신원 3요소(hostname·branch·worktree)에서 뒤의 둘은 지금까지 **`nerv_bootstrap` 인자로만** 채워질 수 있었다. 즉 모델이 자기 브랜치를 말해 주기를 기다리는 설계였고, 모델은 말하지 않았다 — 실측(2026-09-03): 실사용 세션 34개의 `branch`·`worktree_path` 가 **전부 NULL**.
+
+훅은 작업 저장소 안에서 돈다. 그러니 물어볼 이유가 없다 — 포워더가 직접 읽는다.
+
+```bash
+ref="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"   # → X-NERV-Branch
+top="$(git rev-parse --show-toplevel 2>/dev/null || true)"      # → X-NERV-Worktree
+```
+
+- **두 엔드포인트에만 붙인다** — `session`(처음 채운다)과 `tool`(신선하게 유지한다). 브랜치는 세션 도중 바뀌고, 도구 훅은 어차피 하트비트를 갱신하러 온다. 나머지 훅에서 git 을 부르는 것은 값 없는 비용이다.
+- **detached HEAD 면 브랜치 헤더를 생략한다.** 그 상태에서 `--abbrev-ref HEAD` 는 문자열 `HEAD` 를 돌려주는데, 그것을 실으면 서로 다른 작업 수십 개가 게이트 현황에서 `HEAD` 한 행으로 뭉친다. **없는 것과 잘못된 것은 다르다.**
+- **git 이 없거나 비-git 디렉터리면 그냥 보내지 않는다** — 훅은 그대로 성공한다(텔레메트리 평면).
+- 서버는 **빈 자리에만** 채운다. 헤더가 없거나 공백뿐이면 이미 있는 값을 지우지 않는다([4.4 API 명세](api.md) §2.5b · REQ-API-084).
+
+**http 변형에는 이 경로가 없다.** `type:"http"` 훅의 `headers` 는 상수와 `${VAR}` 확장만 받으므로 명령을 실행할 자리가 없다 — 기본 변형을 command 로 정한 결정(§3.1)의 네 번째 근거다.
 
 ### 3.4 오프라인 폴백 실물 — `.nerv/cache/` · `.nerv/outbox/`
 

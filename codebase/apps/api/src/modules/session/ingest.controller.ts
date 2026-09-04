@@ -63,6 +63,8 @@ export class IngestController {
     @Req() req: HookRequest,
     @Headers('x-nerv-host') host: string | undefined,
     @Headers('x-nerv-agent') agent: string | undefined,
+    @Headers('x-nerv-branch') branch: string | undefined,
+    @Headers('x-nerv-worktree') worktree: string | undefined,
     @Body() body: HookPayload,
   ): Promise<{
     ok: true;
@@ -80,6 +82,12 @@ export class IngestController {
       agentType: normalizeAgentType(agent ?? body.agent_type),
       hostname: host ?? String(body['hostname'] ?? 'unknown'),
       cwd: body.cwd ?? null,
+      // **브랜치는 모델이 아니라 git 이 말한다**(2026-09-03 · REQ-API-084). 포워더가
+      // 프로젝트 디렉터리에서 `git rev-parse` 로 읽어 헤더에 싣는다 — 실사용 세션 34개
+      // 전부에서 이 칸이 비어 있던 이유는 이 값을 실어 줄 주체가 없었기 때문이다.
+      // detached HEAD 면 헤더 자체가 오지 않는다: 없는 것과 잘못된 것은 다르다.
+      branch: nonEmpty(branch),
+      worktreePath: nonEmpty(worktree),
       externalSessionId: body.session_id ?? null,
     });
 
@@ -101,7 +109,12 @@ export class IngestController {
   /** PostToolUse — Activity 적재. 관찰 전용이라 실패해도 202 다. */
   @Post('tool')
   @HttpCode(HttpStatus.ACCEPTED)
-  async tool(@Req() req: HookRequest, @Body() body: HookPayload): Promise<{ ok: boolean }> {
+  async tool(
+    @Req() req: HookRequest,
+    @Headers('x-nerv-branch') branch: string | undefined,
+    @Headers('x-nerv-worktree') worktree: string | undefined,
+    @Body() body: HookPayload,
+  ): Promise<{ ok: boolean }> {
     const principal = requireAgent(req);
     const sessionId = await this.resolveSession(principal, body);
     if (sessionId === null) return { ok: false };
@@ -114,6 +127,10 @@ export class IngestController {
     await this.sessions.appendHookActivity({
       sessionId,
       projectId: principal.projectId ?? '',
+      // 도구 훅이 신선도를 맡는다 — 세션 도중 checkout 하면 카드가 옛 브랜치를 말한다.
+      // 별도 왕복이 아니라 이 훅이 이미 치는 하트비트 UPDATE 에 얹는다.
+      branch: nonEmpty(branch),
+      worktreePath: nonEmpty(worktree),
       type: 'action',
       // **도구 이름은 "무엇을 했는가" 가 아니다.** 예전에는 이 자리에 그것만 넣어서
       // 타임라인이 "Bash" 를 383번 반복했다(실측 2026-09-01) — 답은 인자에 있다.
@@ -242,4 +259,9 @@ function requireAgent(req: HookRequest): Principal {
 function normalizeAgentType(value: string | undefined): 'claude-code' | 'codex' | 'web' | 'other' {
   if (value === 'claude-code' || value === 'codex' || value === 'web') return value;
   return 'other';
+}
+
+/** 빈 헤더는 값이 아니다 — 없는 것과 빈 문자열을 같게 두면 카드가 빈 칸을 "말한 값" 으로 읽는다. */
+function nonEmpty(value: string | undefined): string | null {
+  return value === undefined || value.trim() === '' ? null : value.trim();
 }

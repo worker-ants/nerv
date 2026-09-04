@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.30 (2026-09-03)</span>
+      <span>버전 v0.31 (2026-09-03)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -1115,6 +1115,24 @@ nerv_load_env</code></pre>
   <p>서버는 <b>헤더 → 본문 <code>agent_type</code> → <code>other</code></b> 순으로 읽는다(<a href="api.html">4.4 API 명세</a> §2.5a). 본문 자리를 남겨 두는 이유는 MCP <code>nerv_bootstrap</code> 경로가 그것을 쓰기 때문이다.</p>
 
   <p>세션을 만들지 않는 훅(도구·subagent·stop·session-end)에는 달지 않는다. 읽는 곳이 없는 헤더는 규약이 아니라 장식이다.</p>
+
+  <h4>브랜치는 모델이 아니라 git 이 말한다 — <code>X-NERV-Branch</code>·<code>X-NERV-Worktree</code> (2026-09-03 신설 — 사람 결정)</h4>
+
+  <p>세션 카드의 신원 3요소(hostname·branch·worktree)에서 뒤의 둘은 지금까지 <b><code>nerv_bootstrap</code> 인자로만</b> 채워질 수 있었다. 즉 모델이 자기 브랜치를 말해 주기를 기다리는 설계였고, 모델은 말하지 않았다 — 실측(2026-09-03): 실사용 세션 34개의 <code>branch</code>·<code>worktree_path</code> 가 <b>전부 NULL</b>.</p>
+
+  <p>훅은 작업 저장소 안에서 돈다. 그러니 물어볼 이유가 없다 — 포워더가 직접 읽는다.</p>
+
+  <pre><code>ref="$(git rev-parse --abbrev-ref HEAD 2&gt;/dev/null || true)"   # → X-NERV-Branch
+top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-Worktree</code></pre>
+
+  <ul>
+    <li><b>두 엔드포인트에만 붙인다</b> — <code>session</code>(처음 채운다)과 <code>tool</code>(신선하게 유지한다). 브랜치는 세션 도중 바뀌고, 도구 훅은 어차피 하트비트를 갱신하러 온다. 나머지 훅에서 git 을 부르는 것은 값 없는 비용이다.</li>
+    <li><b>detached HEAD 면 브랜치 헤더를 생략한다.</b> 그 상태에서 <code>--abbrev-ref HEAD</code> 는 문자열 <code>HEAD</code> 를 돌려주는데, 그것을 실으면 서로 다른 작업 수십 개가 게이트 현황에서 <code>HEAD</code> 한 행으로 뭉친다. <b>없는 것과 잘못된 것은 다르다.</b></li>
+    <li><b>git 이 없거나 비-git 디렉터리면 그냥 보내지 않는다</b> — 훅은 그대로 성공한다(텔레메트리 평면).</li>
+    <li>서버는 <b>빈 자리에만</b> 채운다. 헤더가 없거나 공백뿐이면 이미 있는 값을 지우지 않는다(<a href="api.html">4.4 API 명세</a> §2.5b · REQ-API-084).</li>
+  </ul>
+
+  <p><b>http 변형에는 이 경로가 없다.</b> <code>type:"http"</code> 훅의 <code>headers</code> 는 상수와 <code>${VAR}</code> 확장만 받으므로 명령을 실행할 자리가 없다 — 기본 변형을 command 로 정한 결정(§3.1)의 네 번째 근거다.</p>
 
   <h3>3.4 오프라인 폴백 실물 — <code>.nerv/cache/</code> · <code>.nerv/outbox/</code></h3>
 
