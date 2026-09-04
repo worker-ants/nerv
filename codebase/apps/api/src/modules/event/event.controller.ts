@@ -71,6 +71,12 @@ export class EventController {
   markRead(@Req() req: ProjectRequest, @Param('id') id: string): Promise<{ ok: true }> {
     return this.notifications.markRead({ userId: userOf(req), notificationId: id });
   }
+
+  /** EP-NTF-03 — 일괄 읽음. 읽은 건수를 돌려준다 */
+  @Post('me/notifications/read-all')
+  markAllRead(@Req() req: ProjectRequest): Promise<{ ok: true; marked: number }> {
+    return this.notifications.markAllRead({ userId: userOf(req) });
+  }
 }
 
 function userOf(req: ProjectRequest): string {

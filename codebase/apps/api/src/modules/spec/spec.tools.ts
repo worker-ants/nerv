@@ -199,8 +199,10 @@ export class SpecTools implements NervToolProvider {
           // **주변 문서를 그 세트로 읽는다**(REQ-API-087 · spec-workflow §3.6).
           // Task 가 베이스라인 맥락이면 `nerv_task_next` 응답이 이 이름을 실어 준다.
           baseline: { type: 'string', description: 'mcp.arg.baseline' },
-          // 곁들여 실을 것 — `requirements` 는 늘 실리므로 여기서는 나머지만 고른다
-          include: { type: 'array' },
+          // 곁들여 실을 것 — `requirements` 는 늘 실리므로 여기서는 나머지만 고른다.
+          // 목록 밖 값은 400 이다: 조용히 버리면 호출자가 그 기능이 **없다**고 결론짓는다
+          // (실사용 보고 2026-09-04 — `include:["attachments"]` 가 ok:true 로 사라졌다).
+          include: { type: 'array', items: { enum: ['tasks', 'comments', 'attachments'] } },
         },
         required: ['spec_id'],
       },

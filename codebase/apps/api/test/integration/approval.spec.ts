@@ -10,6 +10,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
+import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
@@ -48,6 +49,7 @@ beforeAll(async () => {
     new SpecCheckService(drizzleDb),
     new SpecRelationService(drizzleDb),
     new SpecCommentService(events, drizzleDb),
+    new AttachmentService(null as never, drizzleDb),
     drizzleDb,
   );
   approvals = new ApprovalService(events, specs, new AuthService(drizzleDb), drizzleDb);

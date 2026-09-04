@@ -970,6 +970,52 @@ describe('받은 요청·알림·커버리지 표면', () => {
     expect(rows[0]?.state).toBe('unread');
   });
 
+  /**
+   * 일괄 읽음(EP-NTF-03 · REQ-WEB-137). 실측 2026-09-04: 안 읽은 알림이 695건이었다 —
+   * 한 건씩 지우는 것이 유일한 길이면 그 배지는 **지울 수 없는 숫자**가 되고, 지울 수
+   * 없는 배지는 곧 읽지 않는 배지가 된다.
+   */
+  it('일괄 읽음이 남은 것을 전부 치우고 몇 건인지 말한다', async () => {
+    // 앞선 테스트의 상태에 기대지 않는다 — 자기 것을 심고 그 수를 센다
+    for (let i = 0; i < 4; i += 1) {
+      const eventId = newId();
+      await pool.query(
+        `INSERT INTO event (id, project_id, occurred_at, type, is_agent, subject_type, subject_id, payload)
+         VALUES ($1,$2, now(), 'session.started', false, 'agent_session', $3, '{}'::jsonb)`,
+        [eventId, projectId, newId()],
+      );
+      await pool.query(
+        `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state)
+         VALUES ($1,$2,$3,$4,'immediate','inapp','unread')`,
+        [newId(), projectId, adminId, eventId],
+      );
+    }
+
+    const { rows: before } = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM notification WHERE user_id = $1 AND state = 'unread'`,
+      [adminId],
+    );
+    const pending = Number(before[0]?.n ?? 0);
+    expect(pending).toBeGreaterThanOrEqual(4);
+
+    const res = await call('POST', '/api/v1/me/notifications/read-all', { payload: {} });
+    expect(res.status).toBeLessThan(300);
+    // **몇 개를 치웠는지 말한다** — 조용히 0 이 되는 목록은 사고처럼 보인다
+    expect((res.body as Record<string, unknown>)['marked']).toBe(pending);
+
+    const { rows: after } = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM notification WHERE user_id = $1 AND state = 'unread'`,
+      [adminId],
+    );
+    expect(Number(after[0]?.n ?? 0)).toBe(0);
+  });
+
+  it('치울 것이 없으면 0 을 말한다 — 없는 일을 했다고 하지 않는다', async () => {
+    await call('POST', '/api/v1/me/notifications/read-all', { payload: {} });
+    const res = await call('POST', '/api/v1/me/notifications/read-all', { payload: {} });
+    expect((res.body as Record<string, unknown>)['marked']).toBe(0);
+  });
+
   it('이벤트 피드는 사람/에이전트를 구분해 싣는다 (FR-16 · D-08)', async () => {
     await call('POST', '/api/v1/projects/clemvion/tasks', { payload: { title: '이벤트용' } });
     const res = await call('GET', '/api/v1/projects/clemvion/events');

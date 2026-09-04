@@ -23,6 +23,7 @@ import { SearchService } from '../../src/modules/spec/search.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
+import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -50,11 +51,13 @@ beforeAll(async () => {
   const drizzleDb = drizzle(pool);
   const events = new EventService(drizzleDb, silent);
   relations = new SpecRelationService(drizzleDb);
+  const attachments = new AttachmentService(null as never, drizzleDb);
   specs = new SpecService(
     events,
     new SpecCheckService(drizzleDb),
     relations,
     new SpecCommentService(events, drizzleDb),
+    attachments,
     drizzleDb,
   );
   baselines = new BaselineService(events, drizzleDb);
@@ -79,6 +82,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM requirement');
   await pool.query('DELETE FROM claim');
   await pool.query('DELETE FROM task');
+  await pool.query('DELETE FROM attachment');
   await pool.query('DELETE FROM spec_chunk_embedding');
   await pool.query('DELETE FROM spec_version');
   await pool.query('DELETE FROM spec');
@@ -707,6 +711,52 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
       specs.get({ projectId, specKey: 'SPC-TYPO', baseline: 'r2' }),
     ).rejects.toMatchObject({
       details: { kind: 'invalid_input', field: 'baseline', unknown: ['r2'] },
+    });
+  });
+
+  /**
+   * 실사용 보고(2026-09-04): 에이전트가 `nerv_spec_attach` 로 파일을 올린 뒤 **되읽을
+   * 길이 없어** "이 배포에는 첨부를 확인할 경로가 없다" 고 결론지었다. `include` 에
+   * `["attachments"]` 를 실으면 `ok:true` 가 오는데 응답에 첨부 필드가 없었다.
+   *
+   * 있는데 못 쓴 것과 없는 것을 구별할 수 없으면 사람은 **없는 쪽을 믿는다.**
+   */
+  it('include 에 attachments 를 실으면 첨부가 함께 온다', async () => {
+    const v = await draft('SPC-ATT-INC', '# a');
+    await approve(v.versionId);
+    // 확정된 첨부를 직접 심는다 — 여기서 보려는 것은 업로드가 아니라 **되읽는 길**이다
+    const attachmentId = newId();
+    await pool.query(
+      `INSERT INTO attachment (id, project_id, spec_id, storage_key, filename, content_type,
+                               bytes, checksum, uploaded_by_user_id, committed_at)
+       VALUES ($1,$2,$3,$4,'리포트.html','text/html',13,'x',$5, now())`,
+      [attachmentId, projectId, v.specId, `k/${attachmentId}`, planner],
+    );
+
+    const got = await specs.get({
+      projectId,
+      specKey: 'SPC-ATT-INC',
+      include: ['attachments'],
+    });
+    const list = got['attachments'] as Record<string, unknown>[];
+    expect(list).toHaveLength(1);
+    expect(list[0]?.['filename']).toBe('리포트.html');
+    expect(list[0]?.['id']).toBe(attachmentId);
+  });
+
+  it('요청하지 않으면 첨부는 오지 않는다 — 응답이 조용히 두꺼워지지 않는다', async () => {
+    await draft('SPC-ATT-OFF', '# a');
+    const got = await specs.get({ projectId, specKey: 'SPC-ATT-OFF' });
+    expect(got['attachments']).toBeUndefined();
+  });
+
+  /** **모르는 값은 조용히 버리지 않는다**(REQ-API-082 와 같은 규율). */
+  it('include 의 모르는 값은 거부한다 — 허용 목록을 함께 말한다', async () => {
+    await draft('SPC-ATT-BAD', '# a');
+    await expect(
+      specs.get({ projectId, specKey: 'SPC-ATT-BAD', include: ['nope'] }),
+    ).rejects.toMatchObject({
+      details: { kind: 'invalid_input', field: 'include', unknown: ['nope'] },
     });
   });
 

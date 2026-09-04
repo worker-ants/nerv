@@ -16,6 +16,7 @@ import { QuestionService } from '../../src/modules/approval/question.service.js'
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
+import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
@@ -43,11 +44,13 @@ beforeAll(async () => {
   const drizzleDb = drizzle(pool);
   const events = new EventService(drizzleDb, silent);
   checks = new SpecCheckService(drizzleDb);
+  const attachments = new AttachmentService(null as never, drizzleDb);
   specs = new SpecService(
     events,
     checks,
     new SpecRelationService(drizzleDb),
     new SpecCommentService(events, drizzleDb),
+    attachments,
     drizzleDb,
   );
   tasks = new TaskService(

@@ -16,6 +16,7 @@ import { EventService } from '../../src/modules/event/event.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
+import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -37,11 +38,13 @@ beforeAll(async () => {
     subscribe: async () => undefined,
   } as unknown as ValkeyService;
   const drizzleDb = drizzle(pool);
+  const attachments = new AttachmentService(null as never, drizzleDb);
   specs = new SpecService(
     new EventService(drizzleDb, silentValkey),
     new SpecCheckService(drizzleDb),
     new SpecRelationService(drizzleDb),
     new SpecCommentService(new EventService(drizzleDb, silentValkey), drizzleDb),
+    attachments,
     drizzleDb,
   );
   await seed();
