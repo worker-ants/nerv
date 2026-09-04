@@ -18,8 +18,11 @@ COPY codebase/ .
 # --legacy: pnpm v10 부터 deploy 는 inject-workspace-packages=true 를 요구하는데, 주입을 켜면
 # 워크스페이스 의존이 심링크가 아니라 복사본이 되어 개발 루프(schema 수정 → api 즉시 반영)가
 # 깨진다. 배포 산출물 추출은 이미지 빌드에서만 필요하므로 여기서만 legacy 경로를 쓴다.
+# 플러그인 아카이브도 여기서 만든다 — `deploy --prod` 는 apps/api 만 뽑아 오므로
+# plugin/ 디렉터리가 런타임 이미지에 남지 않는다. zip 과 매니페스트만 옮긴다.
 RUN pnpm install --frozen-lockfile --offline \
  && pnpm --filter @nerv/api build \
+ && node scripts/pack-plugin.mjs /plugin-dist \
  && pnpm --filter @nerv/api deploy --legacy --prod /out
 
 FROM node:24-bookworm-slim AS runtime
@@ -27,6 +30,9 @@ ENV NODE_ENV=production
 USER node
 WORKDIR /app
 COPY --from=build --chown=node:node /out .
+COPY --from=build --chown=node:node /plugin-dist ./plugin-dist
+# 서버가 아카이브를 찾는 자리 — 경로를 실행 위치로 추측하지 않게 배포가 말한다.
+ENV NERV_PLUGIN_DIST=/app/plugin-dist
 
 # → nerv-api  (migrate.js 도 이 이미지에 포함)
 FROM runtime AS api

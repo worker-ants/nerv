@@ -20,6 +20,7 @@ import { ApprovalModule } from './modules/approval/approval.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { EventModule } from './modules/event/event.module.js';
 import { ImportModule } from './modules/import/import.module.js';
+import { PluginModule } from './modules/plugin/plugin.module.js';
 import { ReviewModule } from './modules/review/review.module.js';
 import { SessionModule } from './modules/session/session.module.js';
 import { SpecModule } from './modules/spec/spec.module.js';
@@ -44,6 +45,7 @@ export class WorkerAppModule {}
     ApprovalModule,
     ImportModule,
     ReviewModule,
+    PluginModule,
   ],
   // MCP 표면은 AuthModule(스코프 검사)·SessionModule(세션 확인)을 쓴다 —
   // 표면이 직접 판정하지 않고 도메인 서비스에 묻는다(D-05 · REQ-CB-003).

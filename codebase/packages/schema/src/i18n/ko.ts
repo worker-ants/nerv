@@ -110,6 +110,7 @@ export const ko = {
     '프로젝트가 남아 있는 조직은 지울 수 없습니다 — 먼저 프로젝트를 보관하세요.',
   'error.org.not_found': '조직을 찾을 수 없습니다.',
   'error.project.missing_fields': 'slug·key·name 이 필요합니다.',
+  'error.plugin.no_archive': '플러그인 아카이브가 배포에 포함되지 않았습니다.',
   'error.project.not_found': '프로젝트를 찾을 수 없습니다.',
   'error.project.slug_archived':
     '보관된 프로젝트가 "{slug}" 를 쓰고 있습니다 — 새로 만들 것이 아니라 복구할 수 있습니다.',

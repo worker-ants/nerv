@@ -49,6 +49,11 @@ spec:
               backend: { service: { name: nerv-api, port: { name: http } } },
             }
           - {
+              path: /plugin,
+              pathType: Prefix,
+              backend: { service: { name: nerv-api, port: { name: http } } },
+            }
+          - {
               path: /,
               pathType: Prefix,
               backend: { service: { name: nerv-web, port: { name: http } } },

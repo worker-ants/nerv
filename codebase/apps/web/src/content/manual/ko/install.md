@@ -75,14 +75,20 @@ export NERV_HOSTNAME="$(hostname -s)"
 
 ## 3-A. Claude Code에 플러그인 설치
 
-Claude Code 안에서 두 줄입니다.
+Claude Code 안에서 두 줄입니다. **주소는 이 서버의 주소**입니다 — 브라우저 주소창에 있는 그것입니다.
 
 ```text
-/plugin marketplace add <사내 마켓플레이스 git URL>
-/plugin install nerv@nerv-internal
+/plugin marketplace add https://<이 서버>/plugin/marketplace.json
+/plugin install nerv@nerv
 ```
 
 그리고 **재시작**합니다. `/plugin` 목록에 `nerv` v0.1.0이 활성으로 보이면 됩니다.
+
+서버가 카탈로그를 직접 만들기 때문에 **받은 뒤에 고칠 것이 없습니다** — 서버 주소가 이미 들어 있습니다. 사내 git 마켓플레이스를 쓰는 배치라면 그 git URL 을 대신 넣습니다(`/plugin install nerv@nerv-internal`).
+
+> 설치가 `Archive URLs must use https://…` 로 거부되면 이 서버가 **https 가 아니거나 내부 주소**입니다. 마켓플레이스 추가까지는 되고 설치에서 막히는 것이 정상 동작입니다 — 관리자에게 서버 공개 주소 설정을 확인해 달라고 하세요.
+
+> 새 버전을 받으려면 `/plugin marketplace update` 입니다. 관리자가 플러그인 버전을 올렸을 때만 새것이 옵니다 — 같은 버전이면 갖고 있던 사본을 그대로 씁니다.
 
 설치되는 것은 넷입니다.
 

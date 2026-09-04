@@ -110,6 +110,7 @@ export const en = {
     'An organization with projects cannot be deleted — archive its projects first.',
   'error.org.not_found': 'Organization not found.',
   'error.project.missing_fields': 'slug, key and name are required.',
+  'error.plugin.no_archive': 'The plugin archive is not part of this deployment.',
   'error.project.not_found': 'Project not found.',
   'error.project.slug_archived':
     'An archived project already uses "{slug}" — you can restore it instead of creating a new one.',

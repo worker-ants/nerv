@@ -7,8 +7,9 @@ updated: 2026-08-28
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.13 · 2026-09-02 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.14 · 2026-09-04 · HTML 판: [codebase.html](../html/codebase.html)
 >
+> v1.14 변경(2026-09-04 — 플러그인 아카이브가 빌드 산출물이 된다): `scripts/pack-plugin.mjs` 가 `plugin/` 을 `plugin-dist/<이름>-<버전>.zip` 으로 묶고(`pnpm pack:plugin`), 이미지 빌드가 같은 명령을 돌려 `/app/plugin-dist` 에 심는다(`NERV_PLUGIN_DIST`). 서버가 그것을 `GET /plugin/...` 로 서빙한다(4.4 §2.11 · 4.6 §3.5). 앞문 둘(nginx `location /plugin/` · Ingress `path: /plugin`)에 경로를 열었다 — 열지 않으면 마켓플레이스가 SPA 의 index.html 을 **200 인 채로** 받는다.
 > v1.13 변경(2026-09-02 — 라이선스): 저장소를 **Apache License 2.0** 으로 공개한다. §1 트리에 루트의 `LICENSE`·`NOTICE` 를 넣었다 — `LICENSE` 는 원문 그대로 두고(부록의 자리표시자를 채우면 자동 판별기가 Apache-2.0 으로 읽지 못한다) 저작권 표기는 `NOTICE` 가 진다. 파일마다 라이선스 헤더는 붙이지 않는다(사람 결정).
 > v1.12 변경(2026-09-02 — 계약의 실물화): §3.2 상수 전표에 세 줄을 더한다(`IDEMPOTENCY_TTL_HOURS`·`MAX_PROJECT_ROOMS`·`MAX_SSE_PER_USER`). 룸 상한 `8` 은 웹의 `ws.ts` 와 API 의 `fanout.service.ts` 에 각각 박혀 있었고 SSE 상한이 세 번째 사본이 될 참이었다 — REQ-CB-006 이 금지하는 바로 그 모양이다.
 > v1.11 변경(2026-09-02 — CI 복구): §4.5 를 실물에 맞춘다. **게이트를 테스트 앞으로** 옮겼다 — CI 가 도입 이래 21회 연속 실패하는 동안 배포 산출물 정합·schema drift 는 매번 skipped 됐고, 그래서 REQ-CB-007·018·010 은 한 번도 실행된 적이 없었다. integration 에 pg17 클라이언트, e2e 에 `pnpm build`, `concurrency` 는 PR 에서만 취소.
@@ -666,7 +667,8 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `POSTGRES_PORT` | | `5432` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 DB 접근 |
 | `DATABASE_URL` | dev 루프 시 | `postgres://nerv:<pw>@localhost:5432/nerv` | api · worker · migrate · drizzle-kit | compose 내부에서는 `postgres` 호스트로 자동 조립 |
 | `NERV_API_PORT` | | `8080` | api | |
-| `NERV_PUBLIC_URL` | | `http://localhost:8080` | api(세션 쿠키·CORS 기준) · web(`/mcp` Origin 1차 검증) | 경로 없는 오리진만 |
+| `NERV_PUBLIC_URL` | | `http://localhost:8080` | api(세션 쿠키·CORS 기준 · **플러그인 카탈로그의 주소** 4.4 §2.11) · web(`/mcp` Origin 1차 검증) | 경로 없는 오리진만 |
+| `NERV_PLUGIN_DIST` | | (실행 파일 기준 `plugin-dist/`) | api(플러그인 아카이브를 읽는 자리) | 이미지가 `ENV` 로 준다 — 경로를 실행 위치로 추측하지 않는다 |
 | `NERV_TRUSTED_ORIGINS` | | (비움) | api(better-auth) | baseURL 밖에서 화면을 띄울 때만 추가(쉼표 구분) — CSRF 방어선이라 기본은 비운다. 개발 루프는 화면이 Vite(:5173)·API 가 :8080 이라 오리진이 달라 `http://localhost:5173` 이 필요하다. compose 는 둘이 같아 불요 |
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
 | `VALKEY_PORT` | | `6379` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 Valkey 접근 |

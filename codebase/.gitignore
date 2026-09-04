@@ -27,3 +27,6 @@ apps/web/.spike/
 
 # 임포트 리포트 — 실행마다 새로 쓰이는 산출물이다(importer.md §4)
 nerv-import-report/
+
+# 플러그인 아카이브는 빌드 산출물이다(scripts/pack-plugin.mjs)
+plugin-dist/
