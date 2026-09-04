@@ -97,11 +97,15 @@ export class PluginService {
    * 신뢰 경계는 이 컨테이너 이미지다.
    */
   async archive(): Promise<PluginArchive | null> {
-    if (this.cached !== null) return this.cached;
-
     const manifest = await this.manifest();
     if (manifest === null) return null;
     const filename = `${manifest.name}-${manifest.version}.zip`;
+
+    // **캐시는 이름으로 확인한다.** 매니페스트는 매번 읽고 아카이브만 들고 있으면, 버전이
+    // 오른 뒤 카탈로그가 `v0.2.0` 이라 말하면서 `…-0.1.0.zip` 을 가리킨다 — 실측
+    // 2026-09-04. 이미지 안에서는 둘 다 안 바뀌지만, 개발 트리에서는 갈라지고 그 상태의
+    // 카탈로그는 **자기 안에서 모순된다**(설치는 없는 파일을 받으러 간다).
+    if (this.cached !== null && this.cached.filename === filename) return this.cached;
     const path = pluginArchivePath(filename);
     try {
       await stat(path);

@@ -9,7 +9,7 @@
       "name": "nerv",
       "source": "./",
       "description": "NERV 협업 플랫폼 연동 — 스킬 5종 · 훅 텔레메트리 · MCP 설정 · statusline",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ]
 }
