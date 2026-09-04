@@ -70,6 +70,7 @@ export interface ReadyCandidate extends Record<string, unknown> {
   boundaries_md: string;
   source_spec_version_id: string | null;
   baseline_id: string | null;
+  baseline: string | null;
   /** 기준 문서를 여는 데 필요한 것 — `nerv_spec_get(spec_key, version_no)` 가 그대로 받는다 */
   spec_key: string | null;
   version_no: number | null;
@@ -110,7 +111,7 @@ export class TaskService {
     const { rows } = await this.db.execute<ReadyCandidate>(sql`
       SELECT t.id, t.key, t.title, t.priority::text AS priority,
              t.goal_md, t.output_format_md, t.tools_sources_md, t.boundaries_md,
-             t.source_spec_version_id, t.baseline_id,
+             t.source_spec_version_id, t.baseline_id, bl.name AS baseline,
              -- **기준 문서를 열 수 있게 한다**(REQ-API-081). 조인은 처음부터 있었는데 sv 에서
              -- 아무것도 고르지 않아, 스킬 6단계("기준 버전으로 nerv_spec_get")를 응답만으로는
              -- 수행할 수 없었다 — id 는 있는데 키와 판 번호가 없었다.
@@ -122,6 +123,7 @@ export class TaskService {
         FROM task t
         LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
         LEFT JOIN spec s ON s.id = sv.spec_id
+        LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
        WHERE t.project_id = ${input.projectId}
          AND t.status = 'ready'
          AND t.blocked_reason IS NULL
@@ -310,6 +312,13 @@ export class TaskService {
     bodyMd?: string | null;
     sourceSpecVersionId?: string | null;
     sourceRequirementId?: string | null;
+    /**
+     * 기준 베이스라인 **이름**(REQ-API-087 · spec-workflow §4.1).
+     *
+     * 기준 버전이 "이 문서의 어느 판" 이라면 베이스라인은 "**주변 문서까지 포함한 어느
+     * 세트**" 다. 문서 하나의 핀만으로는 그것이 참조하는 문서들의 기준이 흔들린다.
+     */
+    baseline?: string | null;
     priority?: string | null;
     goalMd?: string | null;
     outputFormatMd?: string | null;
@@ -317,6 +326,9 @@ export class TaskService {
     boundariesMd?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    // 이름을 id 로 바꾼다 — 없는 이름은 여기서 걸린다(조용히 NULL 로 만들지 않는다).
+    const baselineId = await this.baselineIdOf(input.projectId, input.baseline ?? null);
+
     if (input.title.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.title_required'), {
         kind: 'missing_title',
@@ -329,11 +341,12 @@ export class TaskService {
       const key = displayKey(await this.projectKeyOf(tx, input.projectId), 'T', taskId);
       await tx.execute(sql`
         INSERT INTO task (id, project_id, key, title, body_md, status, priority,
-                          source_spec_version_id, source_requirement_id,
+                          source_spec_version_id, source_requirement_id, baseline_id,
                           goal_md, output_format_md, tools_sources_md, boundaries_md)
         VALUES (${taskId}, ${input.projectId}, ${key}, ${input.title}, ${input.bodyMd ?? null},
                 'backlog', ${input.priority ?? 'P2'}::task_priority,
                 ${input.sourceSpecVersionId ?? null}, ${input.sourceRequirementId ?? null},
+                ${baselineId},
                 ${input.goalMd ?? null}, ${input.outputFormatMd ?? null},
                 ${input.toolsSourcesMd ?? null}, ${input.boundariesMd ?? null})
       `);
@@ -1089,6 +1102,29 @@ export class TaskService {
   }
 
   /** 표시 키의 접두는 프로젝트 것이다(§5.1). 트랜잭션 안에서 읽어 같은 스냅샷을 본다. */
+  /**
+   * 베이스라인 **이름 → id**. 없는 이름은 거부한다.
+   *
+   * 조용히 NULL 로 만들면 Task 는 만들어지는데 기준 세트가 없다 — 그러면 에이전트는
+   * "베이스라인 맥락" 이라고 지시받고도 최신 판을 읽게 되고, 그것이 정확히 기준선이
+   * 막으려던 상황이다(REQ-API-087).
+   */
+  private async baselineIdOf(projectId: string, name: string | null): Promise<string | null> {
+    if (name === null || name === '') return null;
+    const { rows } = await this.db.execute<{ id: string }>(sql`
+      SELECT id FROM spec_baseline WHERE project_id = ${projectId} AND name = ${name}
+    `);
+    const id = rows[0]?.id;
+    if (id === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.baseline_not_found'), {
+        kind: 'invalid_input',
+        field: 'baseline',
+        unknown: [name],
+      });
+    }
+    return id;
+  }
+
   private async projectKeyOf(
     tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
     projectId: string,

@@ -52,7 +52,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.5 (2026-09-02)</span>
+      <span>버전 v0.6 (2026-09-04)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
     </div>
@@ -651,7 +651,7 @@
       <tr><td>생성</td><td><b>사람 전용</b>(planner·admin) — 동결은 거버넌스 행위라 에이전트 생성 도구가 없다. 기본값은 "생성 시점의 스펙별 최신 approved 전체"이고, 항목을 큐레이션해 줄일 수 있다</td></tr>
       <tr><td>구성</td><td>스펙당 approved SpecVersion 1개 핀. draft·in_review는 담을 수 없다(생성 시 서버 검증)</td></tr>
       <tr><td>불변</td><td>생성 후 항목 집합은 바뀌지 않는다. 세트를 바꾸려면 새 베이스라인 — approved 스냅샷 불변과 같은 원리다</td></tr>
-      <tr><td>소비</td><td>Task 파생 시 <code>task.baseline_id</code>로 맥락을 고정할 수 있고, 에이전트·웹은 <code>nerv_spec_get(baseline=…)</code>·<code>?baseline=</code> 조회로 그 세트 그대로 읽는다. 핀 대상이 나중에 superseded 되어도 베이스라인 조회 결과는 변하지 않는다</td></tr>
+      <tr><td>소비</td><td>Task 파생 시 <code>task.baseline_id</code>로 맥락을 고정할 수 있고, 에이전트·웹은 <code>nerv_spec_get(baseline=…)</code>·<code>?baseline=</code> 조회로 그 세트 그대로 읽는다(2026-09-04 구현 — 4.4 REQ-API-087). 그 세트에 없는 문서는 최신으로 떨어지되 <code>baseline_pinned:false</code> 로 말한다. 핀 대상이 나중에 superseded 되어도 베이스라인 조회 결과는 변하지 않는다</td></tr>
       <tr><td>시각 절단과의 관계</td><td>특정 시각의 approved 집합은 <code>approved_at</code>으로 파생 가능하다(as-of manifest — <a href="api.html">4.4</a>). 베이스라인은 시각 절단이 아니라 <b>큐레이션된 이름 있는 동결</b>이다</td></tr>
     </tbody>
   </table></div>

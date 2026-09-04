@@ -642,6 +642,74 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
     expect(items[0]?.['drifted']).toBe(true);
   });
 
+  /**
+   * 소비 축(REQ-API-087) — **베이스라인은 읽힐 때 값이 생긴다.**
+   *
+   * 생성·불변은 2026-08 부터 있었지만 그 세트로 문서를 읽는 길이 없었고, 그래서 실사용
+   * 베이스라인이 **0개**였다(실측 2026-09-04). 여기가 그 길이다.
+   */
+  it('그 세트가 핀해 둔 판을 읽는다 — 뒤에 새 판이 승인돼도 그대로다', async () => {
+    const v1 = await draft('SPC-READ', '# v1');
+    await approve(v1.versionId);
+    await baselines.create({ projectId, name: 'r1', userId: planner });
+
+    const v2 = await specs.draftUpsert({
+      baseHash: await hashOf(v1.specId),
+      roles: ['planner'],
+      projectId,
+      specId: v1.specId,
+      bodyMd: '# v2',
+      userId: planner,
+    });
+    await approve(v2['spec_version_id'] as string);
+
+    // 기본은 최신 approved 다
+    const latest = await specs.get({ projectId, specKey: 'SPC-READ' });
+    expect(latest['version_no']).toBe(2);
+    expect(latest['body_md']).toBe('# v2');
+
+    // 베이스라인으로 읽으면 그때 그 판이다
+    const pinned = await specs.get({ projectId, specKey: 'SPC-READ', baseline: 'r1' });
+    expect(pinned['version_no']).toBe(1);
+    expect(pinned['body_md']).toBe('# v1');
+    expect(pinned['baseline_pinned']).toBe(true);
+    expect(pinned['baseline']).toBe('r1');
+  });
+
+  /**
+   * 이름이 맞는데 그 세트에 이 문서가 없는 것은 **오류가 아니다** — 나중에 만들어진
+   * 문서가 그렇다. 다만 읽는 쪽이 "기준선을 읽었다" 고 믿으면 안 되므로 말해 준다.
+   */
+  it('그 세트에 없는 문서는 기본으로 떨어지되 그 사실을 말한다', async () => {
+    const older = await draft('SPC-OLD', '# old');
+    await approve(older.versionId);
+    await baselines.create({ projectId, name: 'r1', userId: planner });
+
+    // 베이스라인 이후에 생긴 문서
+    const newer = await draft('SPC-NEW', '# new');
+    await approve(newer.versionId);
+
+    const read = await specs.get({ projectId, specKey: 'SPC-NEW', baseline: 'r1' });
+    expect(read['version_no']).toBe(1);
+    expect(read['baseline_pinned']).toBe(false);
+  });
+
+  /**
+   * **오타는 조용히 기본값이 되지 않는다.** 이 저장소가 이미 판정한 규칙이다
+   * (REQ-API-082 — "조용한 무시가 500 보다 나쁘다": 사람은 걸러진 화면이라고 믿는다).
+   */
+  it('없는 베이스라인 이름은 거부한다 — 조용히 최신을 주지 않는다', async () => {
+    const v = await draft('SPC-TYPO', '# x');
+    await approve(v.versionId);
+    await baselines.create({ projectId, name: 'r1', userId: planner });
+
+    await expect(
+      specs.get({ projectId, specKey: 'SPC-TYPO', baseline: 'r2' }),
+    ).rejects.toMatchObject({
+      details: { kind: 'invalid_input', field: 'baseline', unknown: ['r2'] },
+    });
+  });
+
   it('manifest 는 baseline 이름 또는 as_of 중 하나로만 본다', async () => {
     const v = await draft('SPC-MAN', '# m');
     await approve(v.versionId);

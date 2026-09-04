@@ -74,6 +74,7 @@ export class TaskController {
       title: String(body['title'] ?? ''),
       bodyMd: str(body['body_md']),
       sourceSpecVersionId: str(body['source_spec_version_id']),
+      baseline: str(body['baseline']),
       sourceRequirementId: str(body['source_requirement_id']),
       priority: str(body['priority']),
       goalMd: str(body['goal_md']),

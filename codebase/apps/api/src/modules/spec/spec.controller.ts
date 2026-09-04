@@ -134,7 +134,7 @@ export class SpecController {
     return this.baselines.get({ projectId: projectOf(req), name });
   }
 
-  /** EP-SPEC-03 — 기준 버전 지정 조회(`?v=`)를 지원한다 */
+  /** EP-SPEC-03 — 기준 버전 지정 조회(`?v=`)와 베이스라인 조회(`?baseline=`)를 지원한다 */
   @RequireScope('spec:read')
   @Get('specs/:spec')
   get(
@@ -143,10 +143,13 @@ export class SpecController {
     @Query('v') version?: string,
     // 쉼표로 온다 — 배열 쿼리 표기(`include[]=`)는 프록시마다 다르게 접힌다
     @Query('include') include?: string,
+    @Query('baseline') baseline?: string,
   ): Promise<Record<string, unknown>> {
+    assertVersionXorBaseline(version, baseline);
     return this.specs.get({
       projectId: projectOf(req),
       specKey: spec,
+      baseline: baseline === undefined || baseline === '' ? null : baseline,
       // `Number('abc')` 는 NaN 이고, NaN 을 SQL 에 실으면 22P02 로 죽는다(라이브 실측: `?v=abc` → 500)
       versionNo: intParam(version, 'v'),
       include:
@@ -575,6 +578,24 @@ export class SpecController {
   @Delete('attachments/:id')
   removeAttachment(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
     return this.attachments_.remove({ projectId: projectOf(req), attachmentId: id });
+  }
+}
+
+/**
+ * `v` 와 `baseline` 은 **배타**다(REQ-API-087).
+ *
+ * 둘을 함께 받으면 "어느 쪽이 이겼나" 를 매번 물어야 하고, 그 물음이 생기는 순간 기준선의
+ * 값어치가 사라진다 — 베이스라인은 "이 세트를 읽었다" 를 보장하는 장치이기 때문이다.
+ * 우선순위를 정해 조용히 하나를 이기게 두는 쪽이 더 나쁘다.
+ */
+function assertVersionXorBaseline(version?: string, baseline?: string): void {
+  const hasVersion = version !== undefined && version !== '';
+  const hasBaseline = baseline !== undefined && baseline !== '';
+  if (hasVersion && hasBaseline) {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_xor_baseline'), {
+      kind: 'invalid_input',
+      field: 'baseline',
+    });
   }
 }
 

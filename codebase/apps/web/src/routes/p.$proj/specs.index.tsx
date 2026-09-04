@@ -20,6 +20,7 @@ const SpecTable = lazy(async () => ({
 import { useQuery } from '@tanstack/react-query';
 import { SpecTree } from '../../components/spec-tree.js';
 import { NewSpecDialog } from '../../features/spec-editor/new-spec-dialog.js';
+import { BaselineSelect, FreezeDialog } from '../../features/spec-editor/baseline-controls.js';
 
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
@@ -41,9 +42,13 @@ import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/specs/')({
   // 보관 보기는 **뷰 상태**라 주소에 남는다(§2.4 (3)) — 링크로 건네면 상대도 같은 목록을 본다
-  validateSearch: (search: Record<string, unknown>): { archived?: true } => ({
+  validateSearch: (search: Record<string, unknown>): { archived?: true; baseline?: string } => ({
     ...(search['archived'] === true || search['archived'] === '1'
       ? { archived: true as const }
+      : {}),
+    // 고른 기준선도 **뷰 상태**다 — 링크로 건네면 상대도 같은 세트를 본다(REQ-WEB-135)
+    ...(typeof search['baseline'] === 'string' && search['baseline'] !== ''
+      ? { baseline: search['baseline'] }
       : {}),
   }),
   component: SpecListScreen,
@@ -59,7 +64,7 @@ function SpecListScreen(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
-  const { archived = false } = Route.useSearch();
+  const { archived = false, baseline } = Route.useSearch();
   const project = useProject(proj);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -68,6 +73,9 @@ function SpecListScreen(): React.JSX.Element {
   const [view, setView] = useState<'tree' | 'table' | 'graph'>('tree');
   // 웹에서 문서를 **시작하는** 문(2026-09-03 신설). 이것이 없는 동안 목록은 읽기 전용이었다.
   const [creating, setCreating] = useState(false);
+  // 동결은 사람의 거버넌스 행위다(EP-SPEC-12) — 서버가 역할을 최종 판정하므로 화면은
+  // 문을 열어 두고, 권한이 없으면 서버가 거절한 사유를 그대로 보인다.
+  const [freezing, setFreezing] = useState(false);
 
   const search = useQuery({
     queryKey: ['project', proj, 'search', submitted, archived],
@@ -151,6 +159,25 @@ function SpecListScreen(): React.JSX.Element {
               onClick={() => setCreating(true)}
             >
               {t('specs.new')}
+            </Button>
+            {/* 기준선 — 고르면 목록·상세가 그 세트의 판을 읽는다(REQ-WEB-135).
+             **이 자리가 없어서 실사용 베이스라인이 0개였다**(실측 2026-09-04) */}
+            <BaselineSelect
+              projectSlug={proj}
+              value={baseline ?? null}
+              onChange={(name) =>
+                void navigate({
+                  to: '/p/$proj/specs',
+                  params: { proj },
+                  search: {
+                    ...(archived ? { archived: true as const } : {}),
+                    ...(name === null ? {} : { baseline: name }),
+                  },
+                })
+              }
+            />
+            <Button type="button" data-testid="freeze-baseline" onClick={() => setFreezing(true)}>
+              {t('specs.freeze')}
             </Button>
             {/* **전수의 경계를 화면이 말한다**(REQ-WEB-105). 보관한 문서는 어느 목록에도
                 없어서 키를 아는 사람만 주소로 닿을 수 있었다 — 복구 경로가 없는 것과 같다 */}
@@ -322,6 +349,7 @@ function SpecListScreen(): React.JSX.Element {
         </div>
       )}
       {creating && <NewSpecDialog projectSlug={proj} onClose={() => setCreating(false)} />}
+      {freezing && <FreezeDialog projectSlug={proj} onClose={() => setFreezing(false)} />}
     </PageBody>
   );
 }

@@ -315,6 +315,15 @@ export const ko = {
   'spec.rail.rel_in': '역참조',
   'spec.rail.rel_out': '레퍼런스',
   'spec.rail.relations': '관계',
+  'specs.baseline': '기준선',
+  'specs.baseline_current': '현재(최신 승인본)',
+  'specs.freeze': '현재 세트로 동결…',
+  'specs.freeze_hint': '지금 시점의 스펙별 최신 승인본 전체를 한 세트로 묶어 이름을 붙입니다. 만든 뒤에는 바꿀 수 없습니다 — 세트를 바꾸려면 새로 만듭니다.',
+  'specs.freeze_submit': '동결',
+  'specs.baseline_name': '기준선 이름',
+  'specs.baseline_name_placeholder': '예: R1 · 2026-09-릴리스',
+  'specs.baseline_note': '메모',
+  'specs.baseline_note_placeholder': '메모(선택)',
   'specs.new': '+ 새 스펙',
   'specs.new.created': '스펙을 만들었습니다 — 초안입니다.',
   'specs.new.dialog': '새 스펙',
@@ -362,6 +371,8 @@ export const ko = {
     '스펙에 미친 영향 — done 게이트의 필수 선언이다. 바꾼 스펙이 있으면 changed 에 스펙 키 배열을, 없으면 none 을 true 로 준다',
   'mcp.tool.attach': '디자인 시안·문서를 스펙에 붙일 때',
   'mcp.arg.attachment_id': '둘째 단계 — 올린 뒤 이것만 실어 다시 부른다(확정)',
+  'mcp.arg.baseline':
+    '베이스라인 이름 — 그 세트가 이 문서에 핀해 둔 판을 읽는다. version 과 함께 줄 수 없다',
   'mcp.arg.base_hash':
     '내가 보고 쓴 본문의 지문 — nerv_spec_get 응답의 content_hash. 기존 문서를 고칠 때는 필수다',
   'mcp.arg.blocking':
@@ -389,6 +400,8 @@ export const ko = {
     '빈 본문으로 덮어쓸 수 없습니다 — 본문을 실어 보내세요(초안은 이전 본문을 남기지 않습니다).',
   'error.spec.stale_body':
     '그 사이 본문이 바뀌었습니다 — 다시 읽고 그 위에 다시 얹으세요(같은 본문으로 재시도하면 남의 글을 덮어씁니다).',
+  'error.spec.version_xor_baseline': '버전과 베이스라인은 함께 지정할 수 없습니다.',
+  'error.spec.baseline_not_found': '그 이름의 베이스라인이 없습니다.',
   'error.spec.not_found': '스펙을 찾을 수 없습니다.',
   'error.spec.not_in_review': 'in_review 상태가 아닙니다.',
   'error.spec.parent_archived': '부모가 아카이브 상태입니다.',
@@ -790,6 +803,8 @@ export const ko = {
   'spec.lease_other': '✏️ {name} 이(가) 편집 중입니다 — 읽기 전용으로 전환했습니다.',
   'spec.meta_button': '⋯ 메타',
   'spec.no_open_comments': '열린 코멘트가 없습니다.',
+  'spec.baseline_pinned': '기준',
+  'spec.baseline_unpinned': '기준 밖 — 최신 판',
   'spec.recheck': '참조 문서 갱신됨 — 근거를 재확인하세요',
   'spec.roundtrip_unstable':
     '직렬화 왕복이 불안정합니다 — 저장을 막았습니다. 소스 보기로 확인하세요.',

@@ -48,6 +48,7 @@ export interface ActiveClaimSummary extends Record<string, unknown> {
   /** 기준 버전·베이스라인 — 구현 컨텍스트가 읽어야 할 스펙을 못박는다(agent-integration §2.4) */
   source_spec_version_id: string | null;
   baseline_id: string | null;
+  baseline: string | null;
 }
 
 /** 세션 추정의 후보 한 줄 — 여럿일 때 에이전트가 고를 수 있도록 신원을 함께 준다 */
@@ -843,8 +844,9 @@ export class SessionService {
     const { rows: claims } = await this.db.execute<ActiveClaimSummary>(sql`
       SELECT c.id AS claim_id, c.task_id, t.key AS task_key,
              c.lease_expires_at::text AS lease_expires_at,
-             t.source_spec_version_id, t.baseline_id
+             t.source_spec_version_id, t.baseline_id, bl.name AS baseline
         FROM claim c JOIN task t ON t.id = c.task_id
+        LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
        WHERE c.agent_session_id = ${sessionId} AND c.status = 'active'
        ORDER BY c.acquired_at
     `);

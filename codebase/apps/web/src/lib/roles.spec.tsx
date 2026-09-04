@@ -82,21 +82,23 @@ function stubFetch(who: Me = ORG_ADMIN): void {
     'fetch',
     vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
       const path = String(url);
-      if (init?.method === 'POST' && path.includes('/me/tokens')) {
+      if (init?.method === 'POST' && (path.includes('/me/tokens') || path.includes('/baselines'))) {
         sentBodies.push(JSON.parse(init.body ?? '{}') as Record<string, unknown>);
         return { ok: true, status: 200, json: async () => ({ token: 'nerv_x', prefix: 'nerv_x' }) };
       }
-      const json = path.includes('/me/tokens')
-        ? { items: [] }
-        : path.includes('/projects/')
-          ? { id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', gate_policy: {} }
-          : path.includes('/projects')
-            ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
-            : path.includes('/me')
-              ? who
-              : path.includes('/specs/')
-                ? { id: 's-1', key: 'SPC-CWC-007', title: '스펙', project_id: 'p-1' }
-                : { items: [], memberships: [], count: 0, summary: {} };
+      const json = path.includes('/baselines')
+        ? [{ id: 'b-1', name: 'r1', note_md: null, item_count: 3, created_at: '2026-09-04' }]
+        : path.includes('/me/tokens')
+          ? { items: [] }
+          : path.includes('/projects/')
+            ? { id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', gate_policy: {} }
+            : path.includes('/projects')
+              ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
+              : path.includes('/me')
+                ? who
+                : path.includes('/specs/')
+                  ? { id: 's-1', key: 'SPC-CWC-007', title: '스펙', project_id: 'p-1' }
+                  : { items: [], memberships: [], count: 0, summary: {} };
       return { ok: true, status: 200, json: async () => json };
     }),
   );
@@ -170,6 +172,32 @@ describe('조직 단위 admin 이 admin 으로 대접받는다', () => {
  * 교집합을 내므로 권한이 새지는 않았지만, 발급된 토큰의 스코프 표는 그 사람이 고른 적 없는
  * 값을 보여줬다 — 화면이 자기가 한 일을 잘못 말한 것이다.
  */
+/**
+ * 3단계 — **동결 진입점**(REQ-WEB-136).
+ *
+ * 서버는 2026-08 부터 베이스라인을 만들 수 있었는데 웹에 버튼이 없었고, 그래서 실사용
+ * 베이스라인이 **0개**였다(실측 2026-09-04). 스펙 생성 진입점에서 이미 같은 일을 겪었다.
+ */
+describe('스펙 목록에서 기준선을 동결할 수 있다', () => {
+  it('[현재 세트로 동결…] 이 실제로 POST 한다', async () => {
+    renderAt('/p/clemvion/specs');
+    await waitFor(() => expect(screen.getByTestId('freeze-baseline')).toBeDefined());
+
+    fireEvent.click(screen.getByTestId('freeze-baseline'));
+    await waitFor(() => expect(screen.getByTestId('freeze-dialog')).toBeDefined());
+
+    // 이름 없이는 못 누른다 — 이름이 곧 그 세트의 신원이다
+    expect(screen.getByTestId('freeze-submit').hasAttribute('disabled')).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('기준선 이름'), { target: { value: 'R2' } });
+    expect(screen.getByTestId('freeze-submit').hasAttribute('disabled')).toBe(false);
+    fireEvent.click(screen.getByTestId('freeze-submit'));
+
+    await waitFor(() => expect(sentBodies.length).toBe(1));
+    expect(sentBodies[0]?.['name']).toBe('R2');
+  });
+});
+
 describe('발급 본문은 역할이 허용한 것만 담는다', () => {
   const VIEWER = me([
     { org_slug: 'default', org_name: 'default', project_slug: 'clemvion', roles: ['viewer'] },

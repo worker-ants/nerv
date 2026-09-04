@@ -820,6 +820,58 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
     await pool.query(`DELETE FROM requirement WHERE ref = 'REQ-EVD-1'`);
   });
 
+  /**
+   * 2단계 — **Task 가 기준 세트를 물고 간다**(REQ-API-087 · spec-workflow §4.1).
+   *
+   * 컬럼(`task.baseline_id`)은 2026-08 부터 있었는데 REST·MCP 어느 쪽도 값을 넘기지 않아
+   * 실사용 487건이 **전부 NULL** 이었다(실측 2026-09-04). 기준 버전이 "이 문서의 어느 판"
+   * 이라면 베이스라인은 "주변 문서까지 포함한 어느 세트" 다.
+   */
+  it('Task 파생이 베이스라인 이름을 받아 고정한다 (EP-TASK-03)', async () => {
+    const specVersionId = await seedSpecVersion();
+    await pool.query(`UPDATE spec_version SET status = 'approved' WHERE id = $1`, [specVersionId]);
+    const baselineId = newId();
+    const { rows: spec } = await pool.query<{ spec_id: string }>(
+      `SELECT spec_id FROM spec_version WHERE id = $1`,
+      [specVersionId],
+    );
+    await pool.query(
+      `INSERT INTO spec_baseline (id, project_id, name, created_by_user_id) VALUES ($1,$2,'r1',$3)`,
+      [baselineId, projectId, adminId],
+    );
+    await pool.query(
+      `INSERT INTO spec_baseline_item (baseline_id, spec_id, spec_version_id) VALUES ($1,$2,$3)`,
+      [baselineId, spec[0]?.spec_id, specVersionId],
+    );
+
+    const made = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      payload: { title: '베이스라인 맥락 작업', baseline: 'r1' },
+    });
+    expect(made.status).toBeLessThan(300);
+
+    const { rows } = await pool.query<{ name: string }>(
+      `SELECT b.name FROM task t JOIN spec_baseline b ON b.id = t.baseline_id WHERE t.key = $1`,
+      [(made.body as Record<string, unknown>)['key']],
+    );
+    expect(rows[0]?.name).toBe('r1');
+
+    await pool.query(`DELETE FROM task WHERE baseline_id = $1`, [baselineId]);
+    await pool.query(`DELETE FROM spec_baseline_item WHERE baseline_id = $1`, [baselineId]);
+    await pool.query(`DELETE FROM spec_baseline WHERE id = $1`, [baselineId]);
+  });
+
+  it('없는 베이스라인 이름으로는 Task 를 만들지 않는다 — 조용히 NULL 이 되지 않는다', async () => {
+    const res = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      payload: { title: '오타', baseline: 'r9' },
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'invalid_input',
+      field: 'baseline',
+      unknown: ['r9'],
+    });
+  });
+
   it('읽기는 그대로 열려 있다 — 막은 것은 쓰기다', async () => {
     const res = await call('GET', '/api/v1/projects/clemvion/tasks', { token: viewerToken });
     expect(res.status).toBe(200);

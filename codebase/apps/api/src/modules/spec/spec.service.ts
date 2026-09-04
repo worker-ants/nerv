@@ -180,6 +180,13 @@ export class SpecService {
     specKey: string;
     versionNo?: number | null;
     /**
+     * 베이스라인 이름 — 그 세트가 이 스펙에 핀해 둔 판을 읽는다(REQ-API-087).
+     *
+     * `versionNo` 와 **배타**다. 둘을 섞으면 "어느 쪽이 이겼나" 를 매번 물어야 하고,
+     * 그 물음이 생기는 순간 기준선의 값어치가 사라진다 — 컨트롤러·도구가 거부한다.
+     */
+    baseline?: string | null;
+    /**
      * 곁들여 실을 것(REQ-API-081). 카탈로그는 처음부터 `include[]` 를 적고 있었지만 도구도
      * 서비스도 받지 않아 **스킬이 코멘트를 나열할 방법이 없었다**(실측 2026-09-03:
      * 스펙 158·요구사항 739 가 도는 프로젝트에서 사람 코멘트가 0건이다).
@@ -195,14 +202,49 @@ export class SpecService {
     // `nerv_spec_get` 은 **"스펙을 찾을 수 없습니다"** 라고 답했다(실측 2026-08-30:
     // clemvion `channel-web-chat` — 자식 둘을 거느린 영역이 도구로는 읽히지 않았다).
     // 그건 "없다"가 아니라 "아직 본문이 없다"이므로 LEFT JOIN 으로 노드를 돌려준다.
+    // **핀을 먼저 해석한다.** 두 가지를 한 번에 얻는다 — 그 이름의 베이스라인이 있는가,
+    // 그리고 그것이 이 문서를 담고 있는가.
+    //
+    // 없는 이름을 조용히 기본값으로 떨어뜨리면 사람은 그 세트를 읽었다고 믿는다 — 이
+    // 저장소가 이미 겪은 실패 모양이다(REQ-API-082: "조용한 무시가 500 보다 나쁘다").
+    // 반면 **이름은 맞는데 그 세트에 이 문서가 없는 것**은 오류가 아니다: 나중에 만들어진
+    // 문서가 그렇다. 그때는 기본으로 떨어지되 응답이 그 사실을 말한다.
+    let pinnedVersionId: string | null = null;
+    if (input.baseline != null) {
+      const { rows: found } = await this.db.execute<{ id: string }>(sql`
+        SELECT id FROM spec_baseline
+         WHERE project_id = ${input.projectId} AND name = ${input.baseline}
+      `);
+      if (found[0] === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.baseline_not_found'), {
+          kind: 'invalid_input',
+          field: 'baseline',
+          unknown: [input.baseline],
+        });
+      }
+      const { rows: pin } = await this.db.execute<{ spec_version_id: string }>(sql`
+        SELECT i.spec_version_id
+          FROM spec_baseline_item i
+          JOIN spec s ON s.id = i.spec_id
+         WHERE i.baseline_id = ${found[0].id} AND ${specMatch(input.specKey)}
+      `);
+      pinnedVersionId = pin[0]?.spec_version_id ?? null;
+    }
+
+    // 기본(최신 approved) · 버전 지정 · **베이스라인 핀** 세 갈래다.
+    //
+    // 핀이 없으면 기본으로 떨어진다 — 위에서 해석한 그대로다(`baseline_pinned: false`).
+    const latestApproved = sql`coalesce(
+      (SELECT a.id FROM spec_version a
+        WHERE a.spec_id = s.id AND a.status = 'approved'
+        ORDER BY a.version_no DESC LIMIT 1),
+      s.current_version_id)`;
     const pick =
-      input.versionNo == null
-        ? sql`sv.id = coalesce(
-                (SELECT a.id FROM spec_version a
-                  WHERE a.spec_id = s.id AND a.status = 'approved'
-                  ORDER BY a.version_no DESC LIMIT 1),
-                s.current_version_id)`
-        : sql`sv.spec_id = s.id AND sv.version_no = ${input.versionNo}`;
+      pinnedVersionId !== null
+        ? sql`sv.id = ${pinnedVersionId}`
+        : input.versionNo == null
+          ? sql`sv.id = ${latestApproved}`
+          : sql`sv.spec_id = s.id AND sv.version_no = ${input.versionNo}`;
 
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type, s.archived_at,
@@ -279,6 +321,14 @@ export class SpecService {
       recheck: { count: recheck[0]?.n ?? 0, specs: recheck[0]?.keys ?? [] },
       // 기준 버전이 이미 지나간 판이면 표시한다 — 재브리핑의 신호다(§2.4)
       basis_superseded: spec['superseded_by_version_id'] != null,
+      // **그 세트가 이 문서를 담고 있었는가.** 담고 있지 않으면 최신 approved 로 떨어지는데,
+      // 그 사실을 말하지 않으면 읽는 쪽은 기준선을 읽었다고 믿는다.
+      ...(input.baseline == null
+        ? {}
+        : {
+            baseline: input.baseline,
+            baseline_pinned: pinnedVersionId !== null,
+          }),
     };
   }
 

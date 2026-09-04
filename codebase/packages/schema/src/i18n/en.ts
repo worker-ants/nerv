@@ -319,6 +319,15 @@ export const en = {
   'spec.rail.rel_in': 'Backlinks',
   'spec.rail.rel_out': 'References',
   'spec.rail.relations': 'Relations',
+  'specs.baseline': 'Baseline',
+  'specs.baseline_current': 'Current (latest approved)',
+  'specs.freeze': 'Freeze current set…',
+  'specs.freeze_hint': 'Names and freezes every spec at its latest approved version as of now. It cannot be changed afterwards — to change the set, make a new one.',
+  'specs.freeze_submit': 'Freeze',
+  'specs.baseline_name': 'Baseline name',
+  'specs.baseline_name_placeholder': 'e.g. R1 · 2026-09-release',
+  'specs.baseline_note': 'Note',
+  'specs.baseline_note_placeholder': 'Note (optional)',
   'specs.new': '+ New spec',
   'specs.new.created': 'Spec created — it is a draft.',
   'specs.new.dialog': 'New spec',
@@ -368,6 +377,8 @@ export const en = {
     'impact on specs — required by the done gate. put spec keys in changed, or set none to true when nothing moved',
   'mcp.tool.attach': 'attaching a mockup or document to a spec',
   'mcp.arg.attachment_id': 'second step — call again with just this after the upload (commit)',
+  'mcp.arg.baseline':
+    'Baseline name — reads the version that set pinned for this document. Cannot be combined with version',
   'mcp.arg.base_hash':
     'Fingerprint of the body you read — the content_hash from nerv_spec_get. Required when editing an existing document',
   'mcp.arg.blocking':
@@ -397,6 +408,8 @@ export const en = {
     'A draft cannot be overwritten with an empty body — send the body (a draft keeps no previous copy).',
   'error.spec.stale_body':
     'The body changed underneath you — read it again and re-apply your edit (retrying the same body overwrites someone else).',
+  'error.spec.version_xor_baseline': 'Version and baseline cannot be given together.',
+  'error.spec.baseline_not_found': 'No baseline by that name.',
   'error.spec.not_found': 'Spec not found.',
   'error.spec.not_in_review': 'Not in review.',
   'error.spec.parent_archived': 'The parent spec is archived.',
@@ -804,6 +817,8 @@ export const en = {
   'spec.lease_other': '✏️ {name} is editing — switched you to read-only.',
   'spec.meta_button': '⋯ Metadata',
   'spec.no_open_comments': 'No open comments.',
+  'spec.baseline_pinned': 'pinned',
+  'spec.baseline_unpinned': 'not in set — latest',
   'spec.recheck': 'A referenced doc changed — recheck your basis',
   'spec.roundtrip_unstable':
     'The markdown round-trip is unstable — saving is blocked. Check the source view.',
