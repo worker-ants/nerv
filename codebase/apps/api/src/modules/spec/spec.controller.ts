@@ -57,16 +57,25 @@ export class SpecController {
     private readonly storage: StorageService,
   ) {}
 
-  /** EP-SPEC-01 */
+  /**
+   * EP-SPEC-01 — `SpecTreeQuery(root, depth, include_archived)`.
+   *
+   * `root`·`depth` 도 질의로 적혀 있었는데 여기서 읽지 않아 **조용히 버려지고 있었다**
+   * (2026-09-05 · REQ-API-090). 판정은 서비스 한 곳이라 MCP 와 같은 답을 준다(D-05).
+   */
   @RequireScope('spec:read')
   @Get('specs/tree')
   tree(
     @Req() req: ProjectRequest,
     @Query('include_archived') includeArchived?: string,
+    @Query('root') root?: string,
+    @Query('depth') depth?: string,
   ): Promise<SpecTreeNode[]> {
     return this.specs.tree({
       projectId: projectOf(req),
       includeArchived: includeArchived === 'true',
+      root: root === undefined || root === '' ? null : root,
+      depth: depth === undefined || depth === '' ? null : Number(depth),
     });
   }
 

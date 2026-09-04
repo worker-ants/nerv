@@ -13,7 +13,6 @@ import { SpecCommentService } from './spec-comment.service.js';
 import { SpecService } from './spec.service.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import { AttachmentService } from './attachment.service.js';
-import type { SpecGraphEdge, SpecTreeNode } from './spec.service.js';
 
 @Injectable()
 export class SpecTools implements NervToolProvider {
@@ -36,26 +35,76 @@ export class SpecTools implements NervToolProvider {
         type: 'object',
         properties: {
           project: { type: 'string' },
-          root: { type: 'string' },
-          depth: { type: 'integer' },
+          root: { type: 'string', description: 'mcp.arg.spec_root' },
+          depth: { type: 'integer', minimum: 0, description: 'mcp.arg.spec_depth' },
           // 관계까지 필요하면 여기서 함께 받는다 — 별도 도구를 만들지 않는 이유는
           // "구조를 달라"는 한 가지 요청이기 때문이다(도구 15종 고정 — scope.md §4.2)
           include_relations: { type: 'boolean', default: false },
           around: { type: 'string', description: 'mcp.arg.around' },
-          hops: { type: 'integer', minimum: 1, maximum: 3, default: 1 },
+          hops: { type: 'integer', minimum: 0, maximum: 3, default: 1 },
         },
       },
+      /**
+       * **걸러 달라고 한 것은 걸러서 준다**(2026-09-05 실사용 보고 · REQ-API-090).
+       *
+       * `root`·`depth`·`around`·`hops` 넷이 스키마에만 있고 여기에는 없었다 — 무엇을
+       * 주든 전체가 돌아왔고, **없는 문서를 `root` 로 줘도 `ok:true` 였다.** 같은 때 스킬은
+       * 그 인자를 `root_spec_id` 라는 없는 이름으로 적고 있었다(4.6 v0.42). 둘이 겹쳐
+       * **옳은 이름을 쓴 세션과 틀린 이름을 쓴 세션의 응답이 같았다** — 그래서 어긋남을
+       * 알아챌 자리가 어디에도 없었다. 스키마가 적은 것은 스키마가 적은 대로 한다.
+       */
       handler: async (input, ctx) => {
-        if (input['include_relations'] !== true) {
-          return { nodes: await this.specs.tree({ projectId: ctx.projectId }) };
-        }
-        const graph = await this.specs.graph({ projectId: ctx.projectId });
         const around = typeof input['around'] === 'string' ? input['around'] : null;
+        const root = typeof input['root'] === 'string' ? input['root'] : null;
+        const depth = typeof input['depth'] === 'number' ? input['depth'] : null;
+        const hops = typeof input['hops'] === 'number' ? input['hops'] : null;
+        const withRelations = input['include_relations'] === true;
+
+        // 계층(root·depth)과 관계(around·hops)는 **다른 축**이다. 섞어 받으면 "어느 쪽이
+        // 이겼나"를 매번 물어야 하고, 그 물음이 생기는 순간 좁히기의 값어치가 사라진다.
+        const crossed =
+          around !== null
+            ? ['around', ...(root !== null ? ['root'] : []), ...(depth !== null ? ['depth'] : [])]
+            : [];
+        if (crossed.length > 1) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+            kind: 'invalid_input',
+            conflict: crossed,
+          });
+        }
+        // `hops` 만 주는 것은 아무 일도 하지 않는다 — 조용히 지나가면 그것이 이 결함이다
+        if (hops !== null && around === null) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+            kind: 'invalid_input',
+            field: 'hops',
+            requires: ['around'],
+          });
+        }
+        // 스키마가 적어 둔 범위는 스키마가 적어 둔 대로다 — 표면의 검사는 `required`·`type`
+        // 까지만 본다(tool-input.ts). 여기서 보지 않으면 `maximum: 3` 은 장식이 된다.
+        if (hops !== null && (hops < 0 || hops > 3)) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+            kind: 'invalid_input',
+            field: 'hops',
+            allowed: { minimum: 0, maximum: 3 },
+          });
+        }
+
         // 전역 그래프는 141노드·1,253간선이다 — 매번 통째로 실어 보내면 에이전트의
         // 컨텍스트 예산이 그것으로 찬다. 중심을 주면 그 주변만 돌려준다.
-        if (around === null) return graph;
-        const hops = typeof input['hops'] === 'number' ? input['hops'] : 1;
-        return neighborhood(graph, around, hops);
+        if (around !== null) {
+          const near = await this.specs.neighborhood({
+            projectId: ctx.projectId,
+            around,
+            hops: hops ?? 1,
+          });
+          // 관계를 청하지 않았으면 간선은 싣지 않는다 — 중심 지정은 좁히기지 관계 요청이 아니다
+          return withRelations ? near : { nodes: near.nodes };
+        }
+        if (!withRelations) {
+          return { nodes: await this.specs.tree({ projectId: ctx.projectId, root, depth }) };
+        }
+        return this.specs.graph({ projectId: ctx.projectId, root, depth });
       },
     },
     {
@@ -422,31 +471,4 @@ export class SpecTools implements NervToolProvider {
         }),
     },
   ];
-}
-
-/**
- * 중심에서 hop 이내의 부분 그래프 — 에이전트에게 전역을 통째로 주지 않기 위한 것이다.
- * 141노드·1,253간선을 매번 실어 보내면 컨텍스트 예산이 그것으로 찬다.
- */
-function neighborhood(
-  graph: { nodes: SpecTreeNode[]; edges: SpecGraphEdge[] },
-  aroundKey: string,
-  hops: number,
-): { nodes: SpecTreeNode[]; edges: SpecGraphEdge[] } {
-  const start = graph.nodes.find((n) => n.key === aroundKey);
-  if (start === undefined) return { nodes: [], edges: [] };
-  const near = new Set([start.id]);
-  for (let i = 0; i < hops; i += 1) {
-    const next: string[] = [];
-    for (const edge of graph.edges) {
-      if (near.has(edge.from_id) && !near.has(edge.to_id)) next.push(edge.to_id);
-      if (near.has(edge.to_id) && !near.has(edge.from_id)) next.push(edge.from_id);
-    }
-    if (next.length === 0) break;
-    for (const id of next) near.add(id);
-  }
-  return {
-    nodes: graph.nodes.filter((n) => near.has(n.id)),
-    edges: graph.edges.filter((e) => near.has(e.from_id) && near.has(e.to_id)),
-  };
 }
