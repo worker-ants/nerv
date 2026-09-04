@@ -355,6 +355,8 @@ export const ko = {
     'spec key 또는 UUID — 주면 이 문서에서 관계를 타고 hops 만큼만. root·depth 와 함께 쓰지 않는다',
   'mcp.arg.spec_root': 'spec key 또는 UUID — 주면 그 문서와 그 아래만. 없는 문서면 not_found 다',
   'mcp.arg.spec_depth': '뿌리에서 내려갈 간선 수 — 0 이면 뿌리만, 1 이면 뿌리와 그 자식',
+  'mcp.arg.spec_status_filter':
+    '문서 상태 필터 — 쉼표로 여럿(예: draft,in_review). 주지 않으면 전부. 걸러낸 것의 조상은 matched:false 로 함께 온다',
   'mcp.arg.scope': '이 작업이 건드릴 스펙·파일. 겹침 판정의 입력이다',
   'mcp.arg.relations':
     '선언 관계 — 정제·선행 같은 판단. 본문 링크가 만드는 references 와 다른 축이고, 주지 않으면 건드리지 않는다',

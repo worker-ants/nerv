@@ -362,6 +362,8 @@ export const en = {
     'spec key or UUID — when given, only that document and its descendants. Unknown key is not_found',
   'mcp.arg.spec_depth':
     'edges to descend from the root — 0 is roots only, 1 is roots and their children',
+  'mcp.arg.spec_status_filter':
+    'document status filter — comma-separated (e.g. draft,in_review). All when omitted. Ancestors of matches come along as matched:false',
   'mcp.arg.scope': 'Specs and files this work will touch — the input to overlap detection',
   'mcp.arg.relations':
     'Declared relations — judgements like refines/depends_on. A different axis from the references that body links create; omit it and nothing is touched',

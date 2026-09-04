@@ -875,21 +875,28 @@ describe('E03-S03 nerv_spec_tree — 걸러 달라고 한 것은 걸러서 준�
   let siblingId = '';
 
   beforeAll(async () => {
-    const make = async (key: string, parent: string | null): Promise<string> => {
+    const make = async (key: string, parent: string | null, status: string): Promise<string> => {
       const id = newId();
+      const versionId = newId();
       await pool.query(
         `INSERT INTO spec (id, project_id, type, key, title, parent_id)
          VALUES ($1,$2,'feature',$3,$4,$5)`,
         [id, projectId, key, key, parent],
       );
+      await pool.query(
+        `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+         VALUES ($1,$2,1,$3::spec_version_status,'# 본문', sha256($4::bytea), $5)`,
+        [versionId, id, status, key, userId],
+      );
+      await pool.query(`UPDATE spec SET current_version_id = $1 WHERE id = $2`, [versionId, id]);
       return id;
     };
-    // TRE-1-ROOT ─ TRE-2-BRANCH ─ TRE-3-LEAF
-    //            └ TRE-2-SIB
-    rootId = await make('TRE-1-ROOT', null);
-    branchId = await make('TRE-2-BRANCH', rootId);
-    siblingId = await make('TRE-2-SIB', rootId);
-    leafId = await make('TRE-3-LEAF', branchId);
+    // TRE-1-ROOT(approved) ─ TRE-2-BRANCH(approved) ─ TRE-3-LEAF(draft)
+    //                      └ TRE-2-SIB(draft)
+    rootId = await make('TRE-1-ROOT', null, 'approved');
+    branchId = await make('TRE-2-BRANCH', rootId, 'approved');
+    siblingId = await make('TRE-2-SIB', rootId, 'draft');
+    leafId = await make('TRE-3-LEAF', branchId, 'draft');
     await pool.query(
       `INSERT INTO spec_relation (id, project_id, from_spec_id, to_spec_id, kind)
        VALUES ($1,$2,$3,$4,'depends_on')`,
@@ -986,6 +993,71 @@ describe('E03-S03 nerv_spec_tree — 걸러 달라고 한 것은 걸러서 준�
     const result = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', root: 'TRE-1-ROOT' });
     expect(result['ok']).toBe(false);
     expect(result['details']).toMatchObject({ conflict: ['around', 'root'] });
+  });
+
+  it('status 는 매칭과 그 조상을 준다 — 조상은 matched:false 다', async () => {
+    const result = await callTool('nerv_spec_tree', { root: 'TRE-1-ROOT', status: 'draft' });
+    const nodes = result['nodes'] as { key: string; matched: boolean }[];
+    expect(nodes.map((node) => node.key)).toEqual([
+      'TRE-1-ROOT',
+      'TRE-2-BRANCH',
+      'TRE-2-SIB',
+      'TRE-3-LEAF',
+    ]);
+    // 매칭은 둘이고 나머지 둘은 자리를 지키러 왔다 — 조상까지 세면 "draft 4건" 이 된다
+    expect(nodes.filter((node) => node.matched).map((node) => node.key)).toEqual([
+      'TRE-2-SIB',
+      'TRE-3-LEAF',
+    ]);
+  });
+
+  it('매칭만 남기면 끊어질 자리를 조상이 잇는다 — TRE-3-LEAF 의 부모는 draft 가 아니다', async () => {
+    const result = await callTool('nerv_spec_tree', { root: 'TRE-1-ROOT', status: 'draft' });
+    const nodes = result['nodes'] as { id: string; parent_id: string | null }[];
+    const present = new Set(nodes.map((node) => node.id));
+    // 뿌리를 뺀 모든 노드의 부모가 결과 안에 있다 — 허공을 가리키는 부모가 없다
+    for (const node of nodes) {
+      if (node.id === rootId) continue;
+      expect(present.has(node.parent_id ?? '')).toBe(true);
+    }
+  });
+
+  it('status 를 주지 않으면 matched 필드 자체가 없다', async () => {
+    const result = await callTool('nerv_spec_tree', { root: 'TRE-1-ROOT' });
+    expect((result['nodes'] as Record<string, unknown>[])[0]).not.toHaveProperty('matched');
+  });
+
+  it('여럿이면 OR 이고, 어휘 밖은 거절한다 — allowed 를 함께 준다', async () => {
+    const both = await callTool('nerv_spec_tree', {
+      root: 'TRE-1-ROOT',
+      status: 'draft,approved',
+    });
+    expect((both['nodes'] as unknown[]).length).toBe(4);
+
+    const bad = await callTool('nerv_spec_tree', { root: 'TRE-1-ROOT', status: 'doing' });
+    expect(bad['ok']).toBe(false);
+    expect(bad['details']).toMatchObject({
+      kind: 'invalid_input',
+      field: 'status',
+      unknown: ['doing'],
+    });
+    expect((bad['details'] as { allowed: string[] }).allowed).toContain('in_review');
+  });
+
+  it('status 는 계층과 함께 쓰지만 around 와는 배타다 — 관계 이웃에는 조상이 없다', async () => {
+    const result = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', status: 'draft' });
+    expect(result['ok']).toBe(false);
+    expect(result['details']).toMatchObject({ conflict: ['around', 'status'] });
+  });
+
+  it('include_relations 와도 함께 온다 — 노드가 좁혀지면 간선도 좁혀진다', async () => {
+    const result = await callTool('nerv_spec_tree', {
+      root: 'TRE-1-ROOT',
+      status: 'draft',
+      include_relations: true,
+    });
+    // BRANCH → SIB 간선은 두 끝점이 모두 결과에 있으므로 남는다
+    expect(result['edges']).toEqual([{ from_id: branchId, to_id: siblingId, kind: 'depends_on' }]);
   });
 
   it('스키마 밖의 이름은 여전히 유령이라고 말한다 — root_spec_id 가 그것이었다', async () => {
