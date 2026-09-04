@@ -36,14 +36,14 @@ Home, inbox and notifications are organisation-wide, so their addresses carry no
 
 ## Roles
 
-| Role                            | What it can do                                                    |
-| ------------------------------- | ----------------------------------------------------------------- |
-| `admin`                         | Organisations and projects, members, tokens, gate policy, imports |
-| `planner`                       | Write, submit and **approve** specs of any type, baselines, metadata, resolve findings |
-| `designer`                      | Comment and edit drafts, claim and progress tasks. Creates **design** specs only |
-| `developer`                     | The same, but creates **convention** and **adr** specs           |
-| `qa`                            | The same, plus **resolving findings**. Creates no new specs      |
-| `viewer`                        | Read                                                              |
+| Role        | What it can do                                                                         |
+| ----------- | -------------------------------------------------------------------------------------- |
+| `admin`     | Organisations and projects, members, tokens, gate policy, imports                      |
+| `planner`   | Write, submit and **approve** specs of any type, baselines, metadata, resolve findings |
+| `designer`  | Comment and edit drafts, claim and progress tasks. Creates **design** specs only       |
+| `developer` | The same, but creates **convention** and **adr** specs                                 |
+| `qa`        | The same, plus **resolving findings**. Creates no new specs                            |
+| `viewer`    | Read                                                                                   |
 
 **Which spec types a role may create differs by role.** admin and planner have no limit; designer creates `design`; developer creates `convention` and `adr`. qa creates none — what qa produces is a **review**, not a spec. All five roles still comment on other people's drafts and resolve those comments.
 

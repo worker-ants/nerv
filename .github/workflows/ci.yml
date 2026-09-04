@@ -4,7 +4,7 @@
 # REQ-CB-015 의 "저장소 메타 파일"에 해당하며 codebase/ 배치 원칙의 예외가 아니라 그 정의 안이다.
 #
 # 잡 3종은 테스트 3계층(§4.3)과 1:1 이다.
-#   check       매 PR — lint · typecheck · L1 + 스키마 드리프트 검사
+#   check       매 PR — lint · typecheck · 서식 · L1 + 스키마 드리프트 검사
 #   integration 매 PR — L2(실제 Postgres). 이 코드베이스의 무게중심이다
 #   e2e         merge_group + 야간 — L3(compose 스택 상대)
 name: ci
@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   check:
-    name: check (lint · typecheck · L1)
+    name: check (lint · typecheck · 서식 · L1)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +43,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm exec tsc -b
+      # **서식도 검사한다.** `format:check` 스크립트는 처음부터 있었는데 CI 가 부르지
+      # 않아, 7개 파일이 이틀간 실패한 채로 그 사이 커밋들을 받았다(2026-09-02 → 09-04).
+      # 아무도 몰라서가 아니라 **아무도 돌리지 않아서**다 — 돌지 않는 검사는 없는 검사다.
+      - run: pnpm format:check
 
       # **게이트를 테스트 앞에 둔다.** 예전에는 `pnpm test` 뒤에 있었고, L1 이 실패하는 동안
       # (2026-08-26~09-02 · 21회 연속) 이 두 단계는 `if:` 없이 skipped 됐다 — 문서가 "CI 가

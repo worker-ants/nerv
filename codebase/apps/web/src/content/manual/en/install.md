@@ -54,7 +54,7 @@ NERV_PROJECT=clemvion
 NERV_TOKEN=<the token from step 1>
 ```
 
-> This file covers Codex only **halfway**. Notifications and hooks work because our own scripts read the file, but Codex's MCP authentication only accepts the *name* of an environment variable, so this file never reaches it. Codex support is still in preparation.
+> This file covers Codex only **halfway**. Notifications and hooks work because our own scripts read the file, but Codex's MCP authentication only accepts the _name_ of an environment variable, so this file never reaches it. Codex support is still in preparation.
 
 **Values already set are never overwritten** — a managed machine's settings, or anything already in your shell, always wins. Only names starting with `NERV_` are read.
 
@@ -98,11 +98,11 @@ The server builds the catalogue itself, so **there is nothing to edit after you 
 
 Three things get installed.
 
-| What              | What it does                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------- |
-| Six skills        | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` |
-| Hooks             | Stream what the agent does onto the sessions screen                                   |
-| statusline        | Puts your current claim, remaining lease and scope overlaps on the prompt line        |
+| What       | What it does                                                                          |
+| ---------- | ------------------------------------------------------------------------------------- |
+| Six skills | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` |
+| Hooks      | Stream what the agent does onto the sessions screen                                   |
+| statusline | Puts your current claim, remaining lease and scope overlaps on the prompt line        |
 
 **The MCP server is separate.** Its address and token differ per project, so the plugin does not ship it — put a `.mcp.json` at your repository root. Without that file you have no `nerv_*` tools.
 
@@ -183,13 +183,13 @@ The skill calls `nerv_bootstrap` first, recommends the next task, and takes you 
 
 ## When it does not work
 
-| Symptom                                   | Usually this                                                                                     |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `nerv` missing from `/mcp`                | You did not restart after installing                                                             |
-| Cannot reach the server                   | A typo in `url`, or you are off the internal network — check the address with your administrator |
-| `NERV_UNAUTHENTICATED`                    | `NERV_TOKEN` is empty or was revoked. Issue a new one under Settings → Tokens                    |
-| `NERV_FORBIDDEN`, missing scope           | The token's scopes are too narrow, or the role it was issued under cannot do that                |
-| Tools work but the project is not visible | `X-NERV-Project` (or `NERV_PROJECT`) is wrong, or you are not a member of that project           |
-| Requesting review just fails              | That is an A3 tool — a person has to press it on the web (see [Inbox](/help/inbox))              |
+| Symptom                                   | Usually this                                                                                                                                                         |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nerv` missing from `/mcp`                | You did not restart after installing                                                                                                                                 |
+| Cannot reach the server                   | A typo in `url`, or you are off the internal network — check the address with your administrator                                                                     |
+| `NERV_UNAUTHENTICATED`                    | `NERV_TOKEN` is empty or was revoked. Issue a new one under Settings → Tokens                                                                                        |
+| `NERV_FORBIDDEN`, missing scope           | The token's scopes are too narrow, or the role it was issued under cannot do that                                                                                    |
+| Tools work but the project is not visible | `X-NERV-Project` (or `NERV_PROJECT`) is wrong, or you are not a member of that project                                                                               |
+| Requesting review just fails              | That is an A3 tool — a person has to press it on the web (see [Inbox](/help/inbox))                                                                                  |
 | `NERV_RATE_LIMIT`                         | Too frequent — 300 requests per minute per token, 120 for hooks per session. Wait the `retry_after_s` from the response. Do not work around it with parallel retries |
-| The session goes `stale`                  | Heartbeats stopped. After 30 minutes the claim is reclaimed (see [Sessions](/help/sessions))     |
+| The session goes `stale`                  | Heartbeats stopped. After 30 minutes the claim is reclaimed (see [Sessions](/help/sessions))                                                                         |

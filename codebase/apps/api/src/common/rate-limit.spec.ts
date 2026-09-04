@@ -94,7 +94,11 @@ describe('쿼터 — 주체 판정', () => {
     ).toEqual({ kind: 'ingest', id: 'tok-9/sess-a' });
     // 남의 세션 id 를 적어도 자기 토큰의 창에 센다
     expect(
-      subjectOf({ url: '/ingest/hooks/tool', nervPrincipal: principal({ tokenId: 'tok-1' }) as never, body: { session_id: 'sess-a' } }),
+      subjectOf({
+        url: '/ingest/hooks/tool',
+        nervPrincipal: principal({ tokenId: 'tok-1' }) as never,
+        body: { session_id: 'sess-a' },
+      }),
     ).toEqual({ kind: 'ingest', id: 'tok-1/sess-a' });
   });
 
