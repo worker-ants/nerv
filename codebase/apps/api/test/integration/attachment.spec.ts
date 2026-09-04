@@ -8,9 +8,10 @@
 
 process.env['NERV_EMBED_URL'] = 'http://127.0.0.1:1/v1';
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { ATTACHMENT_READ_MAX_BYTES, NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { Readable } from 'node:stream';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AttachmentService, MAX_BYTES } from '../../src/modules/spec/attachment.service.js';
@@ -42,11 +43,25 @@ class FakeStorage {
     void contentType;
     return `https://storage.test/${key}?sig=x`;
   };
+  readonly bodies = new Map<string, Buffer>();
   put = async (key: string, body: Buffer, contentType: string): Promise<void> => {
     this.objects.set(key, { bytes: body.byteLength, contentType });
+    this.bodies.set(key, body);
   };
   head = async (key: string): Promise<{ bytes: number; contentType: string } | null> =>
     this.objects.get(key) ?? null;
+  /** 실물에 있는 것은 가짜에도 있어야 한다 — 없으면 그 경로의 테스트가 아예 못 돈다 */
+  get = async (
+    key: string,
+  ): Promise<{ body: Readable; contentType: string; bytes: number } | null> => {
+    const meta = this.objects.get(key);
+    if (meta === undefined) return null;
+    return {
+      body: Readable.from([this.bodies.get(key) ?? Buffer.alloc(0)]),
+      contentType: meta.contentType,
+      bytes: meta.bytes,
+    };
+  };
   remove = async (key: string): Promise<void> => {
     this.objects.delete(key);
   };
@@ -171,6 +186,102 @@ describe('사람 경로 — 서버가 받아서 넣는다', () => {
 });
 
 describe('에이전트 경로 — presigned 2단계', () => {
+  /**
+   * A — **받는 주소를 함께 준다**(실사용 보고 2026-09-04). id 만 주면 주소를 조립하는
+   * 규칙을 아는 쪽만 받을 수 있다: 웹은 알았고 에이전트는 몰라 스토리지를 직접 두드리다
+   * 403 을 받았고, 그래서 "되읽을 경로가 없다" 고 결론지었다.
+   */
+  it('목록이 서버 경로를 함께 준다 — 스토리지를 직접 두드리지 않게', async () => {
+    const up = await attachments.upload({
+      projectId,
+      specKey: 'SPC-ATT',
+      userId,
+      filename: 'url-확인.txt',
+      contentType: 'text/plain',
+      body: Buffer.from('hi'),
+    });
+    const listed = await attachments.list({ projectId, specKey: 'SPC-ATT' });
+    const row = listed.find((r) => r['id'] === up['attachment_id']);
+    expect(String(row?.['url'])).toBe(
+      `/api/v1/projects/p/attachments/${String(up['attachment_id'])}`,
+    );
+  });
+
+  /**
+   * B — 텍스트만, 상한을 두고 싣는다(REQ-API-089). 이 도구는 규약의 예외라 경계가 좁다:
+   * MCP 응답에 파일을 싣지 않는 것이 2단계 업로드를 만든 이유였고, 그 이유는 내려받기에도
+   * 그대로 유효하다.
+   */
+  /**
+   * **응답이 준 주소가 실제로 도는가.** 예전에는 `projectId`(UUID)로 주소를 만들었고
+   * 라우트의 `:proj` 는 슬러그로만 해소되므로 그 주소는 409 였다(실측 2026-09-04) —
+   * 스킬이 그 주소를 본문에 넣으라고 하니 에이전트가 쓴 링크가 전부 죽어 있었다.
+   * 문자열이 그럴듯한 것과 그 주소가 도는 것은 다르다.
+   */
+  it('업로드 응답의 url 과 목록의 url 이 같고, 슬러그로 되어 있다', async () => {
+    const up = await attachments.upload({
+      projectId,
+      specKey: 'SPC-ATT',
+      userId,
+      filename: '주소확인.txt',
+      contentType: 'text/plain',
+      body: Buffer.from('hi'),
+    });
+    const listed = await attachments.list({ projectId, specKey: 'SPC-ATT' });
+    const row = listed.find((r) => r['id'] === up['attachment_id']);
+    expect(up['url']).toBe(row?.['url']);
+    // UUID 가 섞여 있으면 그 주소는 409 다
+    expect(String(up['url'])).not.toContain(projectId);
+    expect(String(up['url'])).toContain('/projects/p/');
+  });
+
+  it('텍스트 첨부의 본문을 읽는다', async () => {
+    const up = await attachments.upload({
+      projectId,
+      specKey: 'SPC-ATT',
+      userId,
+      filename: '리포트.html',
+      contentType: 'text/html',
+      body: Buffer.from('<p>보고서</p>'),
+    });
+    const read = await attachments.read({ projectId, attachmentId: String(up['attachment_id']) });
+    expect(read['content']).toBe('<p>보고서</p>');
+    expect(read['truncated']).toBe(false);
+    expect(read['filename']).toBe('리포트.html');
+  });
+
+  it('상한을 넘으면 자르되 **잘랐다고 말하고** url 을 준다', async () => {
+    const big = 'x'.repeat(ATTACHMENT_READ_MAX_BYTES + 500);
+    const up = await attachments.upload({
+      projectId,
+      specKey: 'SPC-ATT',
+      userId,
+      filename: '큰로그.txt',
+      contentType: 'text/plain',
+      body: Buffer.from(big),
+    });
+    const read = await attachments.read({ projectId, attachmentId: String(up['attachment_id']) });
+    expect(read['truncated']).toBe(true);
+    expect(String(read['content']).length).toBe(ATTACHMENT_READ_MAX_BYTES);
+    // 조용히 자르면 모델은 그것이 전부라고 읽고 없는 내용을 근거로 판단한다
+    expect(read['url']).toBeDefined();
+    expect(read['bytes']).toBe(big.length);
+  });
+
+  it('텍스트가 아니면 거부하고 받는 길을 함께 준다', async () => {
+    const up = await attachments.upload({
+      projectId,
+      specKey: 'SPC-ATT',
+      userId,
+      filename: '시안.png',
+      contentType: 'image/png',
+      body: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    });
+    await expect(
+      attachments.read({ projectId, attachmentId: String(up['attachment_id']) }),
+    ).rejects.toMatchObject({ details: { kind: 'not_text' } });
+  });
+
   /**
    * **설정 누락과 일시 장애는 다른 사실이다**(실사용 보고 2026-09-04).
    *

@@ -370,6 +370,10 @@ export const ko = {
   'mcp.arg.blocked_reason': '막힌 이유 — status=blocked 면 필수다',
   'mcp.arg.spec_impact':
     '스펙에 미친 영향 — done 게이트의 필수 선언이다. 바꾼 스펙이 있으면 changed 에 스펙 키 배열을, 없으면 none 을 true 로 준다',
+  'mcp.tool.attachment_read':
+    '스펙에 매달린 텍스트 첨부의 본문을 읽을 때. 가능하면 목록이 준 url 로 받아 파일로 다루는 편이 낫다 — 이 도구는 그럴 수 없을 때의 길이고 32KiB 에서 자른다',
+  'mcp.arg.attachment_id_read':
+    '읽을 첨부의 id — nerv_spec_get(include:["attachments"]) 목록이 준다',
   'mcp.tool.attach':
     '디자인 시안·산출물을 스펙에 붙일 때. **두 단계다**: ① filename·content_type 으로 부르면 upload_url 을 준다 → ② 그 주소에 파일을 PUT 한다(헤더는 Content-Type 만) → ③ attachment_id 만 실어 다시 불러 확정한다. 파일 내용을 이 도구의 인자로 싣지 않는다',
   'mcp.arg.attachment_id': '둘째 단계 — 올린 뒤 이것만 실어 다시 부른다(확정)',
@@ -403,6 +407,7 @@ export const ko = {
   'error.spec.stale_body':
     '그 사이 본문이 바뀌었습니다 — 다시 읽고 그 위에 다시 얹으세요(같은 본문으로 재시도하면 남의 글을 덮어씁니다).',
   'error.spec.version_xor_baseline': '버전과 베이스라인은 함께 지정할 수 없습니다.',
+  'error.attachment.not_text': '텍스트 첨부만 본문을 실어 줍니다 — 그 밖은 url 로 받으세요.',
   'error.attachment.storage_unset':
     '첨부 스토리지가 설정되지 않았습니다 — 재시도해도 열리지 않습니다.',
   'error.spec.baseline_not_found': '그 이름의 베이스라인이 없습니다.',

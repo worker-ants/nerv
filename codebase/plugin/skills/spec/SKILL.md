@@ -104,6 +104,12 @@ allowed-tools:
 - 그림만 두지 않는다 — 무엇을 보여 주는 시안인지 문장으로 적는다. 그림은 검색에도 요구사항 추출에도 잡히지 않는다.
 - 흐름·구조는 그림 파일보다 mermaid 가 낫다(위 절) — 첨부는 **손으로 그린 시안·캡처·PDF** 의 자리다.
 
+**되읽기 — 매단 파일을 다시 못 열면 매단 것이 아니다.**
+
+- `nerv_spec_get`(`spec_id`, `include: ["attachments"]`) → 항목마다 `url` 이 있다. 그 주소로 받는다: `curl -sL "$NERV_SERVER<그 url>" -H "Authorization: Bearer $NERV_TOKEN"`.
+- Bash 가 없는 세션이면 `nerv_spec_attachment_read`(`attachment_id`) — **텍스트만·32KiB 까지**의 좁은 길이다. 잘리면 응답이 `truncated: true` 로 말하니, 그때 앞부분을 전부인 양 다루지 않는다. 그림·PDF·zip 은 거부하고 `url` 을 준다.
+- **스토리지(`:9000`)를 직접 두드리지 않는다.** 서명 없이는 403 이고 그 서명은 업로드용 한 번짜리다 — 받는 길은 위의 `url` 하나다.
+
 ## 서브커맨드
 
 ### new — 새 스펙 초안

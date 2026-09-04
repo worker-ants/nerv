@@ -227,6 +227,33 @@ export class SpecTools implements NervToolProvider {
       },
     },
     {
+      /**
+       * **가능하면 `url` 로 받아 파일로 다루는 편이 낫다**(목록이 그 주소를 준다).
+       * 이 도구는 Bash 가 없는 세션을 위한 길이고, 텍스트만·상한을 두고 싣는다 —
+       * MCP 응답에 파일을 싣지 않는 것이 2단계 업로드를 만든 이유였고 그 이유는
+       * 내려받기에도 유효하다(REQ-API-089).
+       */
+      name: 'nerv_spec_attachment_read',
+      tier: 'A1',
+      phase: 'P1',
+      summaryKey: 'mcp.tool.attachment_read',
+      scope: 'spec:read',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          attachment_id: { type: 'string', description: 'mcp.arg.attachment_id_read' },
+          session_id: { type: 'string', description: 'mcp.arg.session_id' },
+        },
+        required: ['attachment_id'],
+      },
+      handler: async (input, ctx) =>
+        this.attachments.read({
+          projectId: ctx.projectId,
+          attachmentId: String(input['attachment_id'] ?? ''),
+        }),
+    },
+    {
       name: 'nerv_spec_draft_upsert',
       tier: 'A2',
       phase: 'P1',
