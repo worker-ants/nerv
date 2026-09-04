@@ -713,6 +713,7 @@ export const ko = {
   'notif.read': '읽음',
   'notif.title': '알림',
   'notif.unread': '읽지 않음',
+  'notif.read_all': '모두 읽음',
   'notif.unread_badge': '읽지 않음 {count}',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '활성 세션 {count}개',

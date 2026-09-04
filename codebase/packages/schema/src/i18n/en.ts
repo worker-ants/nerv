@@ -722,6 +722,7 @@ export const en = {
   'notif.read': 'Read',
   'notif.title': 'Notifications',
   'notif.unread': 'Unread',
+  'notif.read_all': 'Mark all read',
   'notif.unread_badge': '{count} unread',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '{count} active sessions',

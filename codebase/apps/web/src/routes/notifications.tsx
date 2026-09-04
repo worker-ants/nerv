@@ -56,6 +56,16 @@ function NotificationScreen(): React.JSX.Element {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.myNotifications() }),
   });
 
+  /**
+   * 일괄 읽음(REQ-WEB-137). 한 건씩 지우는 것이 유일한 길이면 **지울 수 없는 배지**가
+   * 되고, 지울 수 없는 배지는 곧 읽지 않는 배지가 된다 — 실측 2026-09-04: 695건.
+   */
+  const markAllRead = useMutation({
+    mutationFn: () => apiFetch('/me/notifications/read-all', { method: 'POST' }),
+    // 배지 키가 알림 키의 하위라(`[...myNotifications(), 'unread']`) 상위 하나면 둘 다 간다
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.myNotifications() }),
+  });
+
   // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 목록은 50 에서 끝나지 않는다
   const items = (notifications.data?.pages ?? []).flatMap((page) => rows(page.items));
   // **배지는 받아 온 것이 아니라 진짜 수를 센다**(2026-09-03). 예전에는 로드된 50건 안에서
@@ -68,7 +78,19 @@ function NotificationScreen(): React.JSX.Element {
         title={t('notif.title')}
         meta={
           unread > 0 ? (
-            <StatusBadge token="waiting" label={t('notif.unread_badge', { count: unread })} />
+            <span className="flex items-center gap-2">
+              <StatusBadge token="waiting" label={t('notif.unread_badge', { count: unread })} />
+              {/* 수 바로 옆이다 — 그 수를 보고 누르는 단추라 목록 밖에 두면 찾지 못한다 */}
+              <Button
+                size="sm"
+                variant="ghost"
+                data-testid="mark-all-read"
+                disabled={markAllRead.isPending}
+                onClick={() => markAllRead.mutate()}
+              >
+                {t('notif.read_all')}
+              </Button>
+            </span>
           ) : undefined
         }
       />
@@ -124,19 +146,25 @@ function NotificationScreen(): React.JSX.Element {
               <span className="w-16 shrink-0 text-right text-xs text-text-faint">
                 {relativeTime(t, typeof n['occurred_at'] === 'string' ? n['occurred_at'] : null)}
               </span>
-              {n['state'] === 'unread' && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="opacity-0 group-hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation(); // 이동 없이 읽음만 처리하는 경로도 남긴다
-                    markRead.mutate(String(n['id']));
-                  }}
-                >
-                  {t('notif.read')}
-                </Button>
-              )}
+              {/* **동작 칸은 모든 행에 있다**(2026-09-04 · 사람 보고). 예전에는 안 읽은
+                  행에만 단추를 그렸는데, `opacity-0` 이어도 **자리는 차지한다** — 그래서
+                  읽은 행과 안 읽은 행의 열이 어긋나 목록이 두 벌처럼 보였다. 보이지
+                  않는 것과 자리를 차지하지 않는 것은 다르다. */}
+              <span className="flex w-14 shrink-0 justify-end">
+                {n['state'] === 'unread' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation(); // 이동 없이 읽음만 처리하는 경로도 남긴다
+                      markRead.mutate(String(n['id']));
+                    }}
+                  >
+                    {t('notif.read')}
+                  </Button>
+                )}
+              </span>
             </li>
           );
         })}

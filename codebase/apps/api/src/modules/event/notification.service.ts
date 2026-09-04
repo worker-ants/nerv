@@ -325,6 +325,24 @@ export class NotificationService {
   }
 
   /**
+   * EP-NTF-03 — **일괄 읽음**(REQ-WEB-137).
+   *
+   * 실측 2026-09-04: 안 읽은 알림이 695건이었다. 한 건씩 지우는 것이 유일한 길이면 그
+   * 배지는 **지울 수 없는 숫자**가 되고, 지울 수 없는 배지는 곧 읽지 않는 배지가 된다.
+   *
+   * 몇 건을 읽었는지 돌려준다 — 화면이 "몇 개를 치웠다" 를 말할 수 있어야 사람이 방금
+   * 무슨 일이 일어났는지 안다. 조용히 0 이 되는 목록은 사고처럼 보인다.
+   */
+  async markAllRead(input: { userId: string }): Promise<{ ok: true; marked: number }> {
+    const { rows } = await this.db.execute<{ id: string }>(sql`
+      UPDATE notification SET state = 'read', read_at = now()
+       WHERE user_id = ${input.userId} AND state = 'unread'
+      RETURNING id
+    `);
+    return { ok: true, marked: rows.length };
+  }
+
+  /**
    * 헤더 배지의 수.
    *
    * **목록과 같은 조건으로 센다**(REQ-WEB-035 — 배지 수 = 안읽음 목록 수). 보관한

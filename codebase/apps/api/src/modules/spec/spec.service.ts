@@ -30,6 +30,13 @@ import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
+import { AttachmentService } from './attachment.service.js';
+
+/**
+ * `include` 가 받는 값(REQ-API-081 · REQ-API-088). 목록 밖은 400 으로 거절한다 —
+ * 조용히 버리면 호출자는 그 기능이 **없다**고 결론짓는다(실사용 보고 2026-09-04).
+ */
+const INCLUDE_VALUES = ['tasks', 'comments', 'attachments'] as const;
 import { EventService } from '../event/event.service.js';
 import { decideGate, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
@@ -133,6 +140,8 @@ export class SpecService {
     // `include=["comments"]` 하나 때문에 주입한다 — 판정은 그쪽 서비스 한 곳이다(D-05).
     // 질의를 여기에 복사하면 열린 코멘트의 정의가 두 곳이 되고, 두 곳은 반드시 갈라진다.
     private readonly comments: SpecCommentService,
+    // 같은 이유로 주입한다 — 첨부 목록의 정의도 한 곳(EP-SPEC-20)이어야 한다
+    private readonly attachments: AttachmentService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -274,7 +283,11 @@ export class SpecService {
        ORDER BY ref
     `);
 
-    const include = new Set(input.include ?? []);
+    // **모르는 값은 조용히 버리지 않는다**(REQ-API-082 와 같은 규율). 실사용 보고
+    // 2026-09-04: `include:["attachments"]` 를 보내면 `ok:true` 가 오는데 응답에 첨부가
+    // 없었다 — 에이전트는 "이 배포에는 첨부를 되읽을 경로가 없다" 고 결론지었다.
+    // 있는데 못 쓴 것과 없는 것을 구별할 수 없으면 사람은 없는 쪽을 믿는다.
+    const include = new Set(assertVocab(input.include ?? [], INCLUDE_VALUES, 'include'));
 
     // **파생 Task 는 요청해야 온다.** 화면의 영향 미리보기가 이 값을 세는데 응답에 없어
     // 언제나 "0건" 이라 말했다(실측 2026-09-03: 파생 Task 를 가진 스펙 86개, 최대 29건).
@@ -292,6 +305,12 @@ export class SpecService {
 
     const comments = include.has('comments')
       ? await this.comments.list({ projectId: input.projectId, specKey: String(spec['key']) })
+      : undefined;
+
+    // 첨부는 **매달았는지 확인할 길**이다. 에이전트가 `nerv_spec_attach` 로 올릴 수는
+    // 있는데 되읽을 수 없으면 "올렸다" 를 스스로 검증하지 못한다(실사용 보고 2026-09-04).
+    const attachments = include.has('attachments')
+      ? await this.attachments.list({ projectId: input.projectId, specKey: String(spec['key']) })
       : undefined;
 
     // **참조 갱신은 이벤트가 안다**(REQ-WEB-037 · 2026-09-03). 화면은 "앞선 판이 있으면"
@@ -317,6 +336,7 @@ export class SpecService {
       requirements,
       ...(tasks === undefined ? {} : { tasks }),
       ...(comments === undefined ? {} : { comments }),
+      ...(attachments === undefined ? {} : { attachments }),
       // 배지가 무엇 때문에 켜졌는지까지 준다 — "낡았다" 만으로는 어디를 볼지 모른다
       recheck: { count: recheck[0]?.n ?? 0, specs: recheck[0]?.keys ?? [] },
       // 기준 버전이 이미 지나간 판이면 표시한다 — 재브리핑의 신호다(§2.4)
