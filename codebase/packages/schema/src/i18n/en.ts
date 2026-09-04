@@ -34,7 +34,8 @@ export const en = {
   'error.auth.human_only_scope': 'Human-only scopes cannot be granted to a token.',
   'error.auth.invalid': 'Invalid credentials.',
   'error.attachment.too_large': 'The file is too large — attachments are capped at 10MB.',
-  'error.attachment.type': 'Unsupported type — png, jpeg, gif, webp, svg and pdf only.',
+  'error.attachment.type':
+    'Unsupported type — images png, jpeg, gif, webp, svg; documents pdf, html, txt; archives zip.',
   'error.attachment.not_found': 'No such attachment.',
   'error.attachment.not_uploaded':
     'Nothing uploaded yet — PUT the file to the given URL, then commit.',
@@ -381,7 +382,7 @@ export const en = {
   'mcp.arg.attachment_id_read':
     'Id of the attachment to read — the nerv_spec_get(include:["attachments"]) listing gives it',
   'mcp.tool.attach':
-    'Attaching a design mock or an output artifact to a spec. **Two steps**: (1) call with filename and content_type to get an upload_url, (2) PUT the file to that URL (Content-Type header only), (3) call again with just attachment_id to commit. Never pass file contents as an argument to this tool',
+    'Attaching a design mock or an output artifact to a spec. **Call this tool twice, uploading the file yourself in between**: (1) call with filename and content_type to get an upload_url, (2) PUT the file to that URL (Content-Type header only), (3) call again with just attachment_id to commit. The commit response carries the url to read it back. Never pass file contents as an argument to this tool',
   'mcp.arg.attachment_id': 'second step — call again with just this after the upload (commit)',
   'mcp.arg.baseline':
     'Baseline name — reads the version that set pinned for this document. Cannot be combined with version',

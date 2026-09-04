@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.40 (2026-09-04)</span>
+      <span>버전 v0.41 (2026-09-04)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -402,7 +402,7 @@ allowed-tools:
 
 **디자인 시안이 문서 밖에 있으면 문서가 아니다.** 외부 링크는 스펙의 버전과 무관하게 바뀌므로, "이 판이 말하는 화면" 을 나중에 되짚을 수 없다.
 
-`nerv_spec_attach` 는 **두 단계**다 — 응답에 파일을 싣지 않기 위해서다(base64 를 실으면 그 세션의 컨텍스트 예산이 그것으로 찬다).
+`nerv_spec_attach` 는 **두 번 부르고, 그 사이에 파일을 직접 올린다**(도구 호출 둘 + PUT 하나 = 세 걸음). 도구가 파일을 나르지 않는 이유는 응답에 그것을 싣지 않기 위해서다 — base64 를 실으면 그 세션의 컨텍스트 예산이 그것으로 찬다.
 
 1. `nerv_spec_attach`(`spec_id`, `filename`, `content_type`) → `upload_url` 과 `attachment_id` 를 받는다.
 2. 그 주소에 파일을 그대로 `PUT` 한다(헤더는 `Content-Type` 만).
@@ -1268,6 +1268,40 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
 
   <p><b>무인증이다.</b> 인증 헤더를 붙이는 <code>headersHelper</code> 는 관리형 settings 에 등록한 마켓플레이스에만 걸리고, 사람이 <code>/plugin marketplace add &lt;url&gt;</code> 로 직접 치는 경로에는 붙지 않는다 — 손으로 설치하는 길을 남기려면 공개여야 한다. 패키지에 비밀은 없다: 서버 주소는 들어가지만 <b>토큰은 <code>.nerv/env</code> 에 있고 그것은 패키지가 아니다</b>(§3.3).</p>
 
+
+  <h3>3.6 버전이 곧 배달이다 (2026-09-04 신설 — 실사용 보고)</h3>
+
+  <p><b>설치된 플러그인은 <code>version</code> 이 오를 때만 새 사본을 받는다.</b> 같은 버전이면 파일을 고쳐도 이미 설치한 쪽은 옛 판을 계속 읽는다 — 오류도 경고도 없고, <b>자기가 낡았다는 것을 알 방법도 없다.</b></p>
+
+  <p>실제로 그렇게 됐다. 2026-09-04 에 <code>/nerv:spec</code> 스킬에 첨부 되읽기 절을 넣고 버전을 <code>0.2.0</code> 그대로 두었더니, 설치본과 원본이 이렇게 갈렸다(실측 보고).</p>
+
+  <table>
+    <thead><tr><th></th><th>크기</th><th><code>plugin.json</code></th></tr></thead>
+    <tbody>
+      <tr><td>설치본 <code>~/.claude/plugins/cache/nerv/nerv/0.2.0/skills/spec/SKILL.md</code></td><td>15508B</td><td><code>0.2.0</code></td></tr>
+      <tr><td>원본 <code>.../marketplaces/nerv/codebase/plugin/skills/spec/SKILL.md</code></td><td>16248B</td><td><code>0.2.0</code></td></tr>
+    </tbody>
+  </table>
+
+  <p>차이는 <b>되읽기 절 전체</b>였고, 설치본에서 <code>attachment_read</code> 가 나온 횟수는 <b>0</b> 이다. 되읽는 길을 알리려던 수정이 정작 그 길을 모르는 세션에는 닿지 않은 것이다. 나머지 파일(<code>skills/{impl,import,next,question,review}</code> · <code>agents/</code> · <code>hooks/</code>)은 바이트 단위로 같았다 — <b>한 파일만 갈렸기 때문에 아무도 눈치채지 못했다.</b></p>
+
+  <p>규칙은 하나다. <b>배포되는 파일을 고쳤으면 같은 변경에서 버전을 올린다</b>(REQ-PLG-017). 함께 맞출 자리는 여섯이다.</p>
+
+  <table>
+    <thead><tr><th>자리</th><th>무엇</th></tr></thead>
+    <tbody>
+      <tr><td><code>plugin/.claude-plugin/plugin.json</code></td><td><b>정본</b> — 나머지는 이것을 따라간다</td></tr>
+      <tr><td><code>plugin/.claude-plugin/marketplace.json</code> · 저장소 루트 <code>.claude-plugin/marketplace.json</code></td><td>카탈로그 둘 (<code>plugin-package.spec.ts</code> 가 정본과 대조한다)</td></tr>
+      <tr><td><code>plugin/package.json</code></td><td>워크스페이스 표기</td></tr>
+      <tr><td><code>plugin/README.md</code> 제목</td><td>사람이 먼저 보는 자리</td></tr>
+      <tr><td>매뉴얼 <code>install.md</code> <b>ko·en</b></td><td>"<code>/plugin</code> 목록에 <code>nerv</code> v… 가 보입니다"</td></tr>
+    </tbody>
+  </table>
+
+  <p><b>사람이 잊는 자리라 기계가 막는다.</b> <code>scripts/check-plugin-version.mjs</code> 가 base 와 견주어 <i>패키지가 바뀌었는데 버전이 그대로면</i> PR 을 실패시킨다(CI check 잡). 테스트·<code>package.json</code> 같은 배포되지 않는 파일은 세지 않는다 — 배달되지 않는 것은 버전을 요구하지 않는다.</p>
+
+  <p><b>갱신은 그래도 사람이 시작한다.</b> 버전을 올려도 쓰는 쪽이 <code>/plugin marketplace update</code> 를 부르기 전까지는 옛 사본이다. 버전은 <i>덮어쓸 근거</i>를 만들 뿐 밀어 넣지 않는다 — 그래서 서버·GitHub 어느 경로든 <b>버전을 올리는 것이 유일한 배달 신호</b>다.</p>
+
   <h2 id="sec-4">4. 사람 온보딩 절차</h2>
 
   <p>목표: 신규 팀원이 아래 5단계로 <b>첫 <code>nerv_bootstrap</code> 성공</b>까지 도달한다. 관리 기기는 3단계(플러그인 설치)가 관리형 settings로 자동이므로 1·2·4·5만 수행한다.</p>
@@ -1277,7 +1311,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
     <tbody>
       <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: <code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code>) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용)</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
       <tr><td>2</td><td>환경변수</td><td>아래 블록을 저장소 <code>.claude/settings.local.json</code> 의 <code>env</code> 에 둔다 — <b>Claude Code 의 유일한 자리다</b>(§3.3). <code>.nerv/env</code> 는 Codex 폴백이라 지금은 쓰지 않는다</td><td><code>echo $NERV_PROJECT</code> 또는 <code>/mcp</code> 연결 확인</td></tr>
-      <tr><td>3</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add worker-ants/nerv</code> → <code>/plugin install nerv@nerv</code> → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 <code>https://&lt;서버&gt;/plugin/marketplace.json</code> 을 넣는다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.2.0 활성 표시</td></tr>
+      <tr><td>3</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add worker-ants/nerv</code> → <code>/plugin install nerv@nerv</code> → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 <code>https://&lt;서버&gt;/plugin/marketplace.json</code> 을 넣는다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.2.1 활성 표시</td></tr>
       <tr><td>4</td><td>연결 확인</td><td>프로젝트 저장소에서 Claude Code 실행 → <code>/mcp</code></td><td><code>nerv</code> 서버 connected, <code>nerv_*</code> 도구 목록 표시</td></tr>
       <tr><td>5</td><td>첫 부트스트랩</td><td><code>/nerv:next</code> 실행(스킬이 <code>nerv_bootstrap</code>부터 호출한다)</td><td>응답에 <code>session_id</code>·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다</td></tr>
     </tbody>
@@ -1413,6 +1447,7 @@ log_user_prompt = false</code></pre>
       <tr><td><b>REQ-PLG-011</b></td><td>WHEN 쓰기 도구가 <code>NERV_UNAVAILABLE</code>을 반환하면 THE SYSTEM SHALL 호출 입력·<code>idempotency_key</code>·<code>queued_at</code>을 §3.4 형식으로 <code>.nerv/outbox/</code>에 기록하고, 4xx 실패는 큐잉하지 않는다</td><td>서버 차단 상태에서 쓰기 시도 → outbox 파일 형식 검사 + 403 시 큐잉 0건</td></tr>
       <tr><td><b>REQ-PLG-012</b></td><td>WHEN 서버 복구 후 첫 도구 호출 전이면 THE SYSTEM SHALL outbox를 oldest-first로 원래 멱등 키 그대로 재전송하고, 성공 항목 삭제·4xx 항목 <code>outbox/failed/</code> 이동 후 서버 레코드 중복 0을 유지한다</td><td>큐 3건(성공 2·403 1) flush 실측 — 레코드 수·failed/ 이동 확인</td></tr>
       <tr><td><b>REQ-PLG-014</b></td><td>WHEN <code>/nerv:review</code> 세션이 리뷰를 마치면 THE SYSTEM SHALL <code>nerv_review_submit</code>으로 제출하고 리뷰 산출물을 저장소에 파일로 커밋하지 않는다 — 서버가 <code>NERV_UNAVAILABLE</code>이면 outbox에 큐잉한다(파일 커밋으로 대체하지 않는다)</td><td>리뷰 1회 실측: 저장소 diff에 리뷰 산출물 0건 + 서버 차단 상태에서 outbox 1건</td></tr>
+      <tr><td><b>REQ-PLG-017</b></td><td>WHEN 배포되는 플러그인 파일(<code>skills/</code>·<code>hooks/</code>·<code>agents/</code>·<code>commands/</code>·매니페스트)이 바뀌면 THE SYSTEM SHALL 같은 변경에서 <code>.claude-plugin/plugin.json</code> 의 <code>version</code> 을 올리고, 카탈로그 둘·<code>plugin/README.md</code>·매뉴얼(ko·en)의 표기를 함께 맞춘다 — <b>버전이 곧 배달이다</b>: 같은 버전이면 이미 설치한 쪽은 오류도 경고도 없이 옛 사본을 계속 읽는다. WHILE PR 이 검사되는 동안 THE SYSTEM SHALL 버전이 오르지 않은 패키지 변경을 <b>실패로 막는다</b>(<code>scripts/check-plugin-version.mjs</code>)</td><td>스킬 1줄만 고치고 버전을 그대로 둔 커밋에서 check 잡 실패(2026-09-04 실제 이력으로 재현 확인)</td></tr>
       <tr><td><b>REQ-PLG-016</b></td><td>WHEN 세션이 시작되면 THE SYSTEM SHALL <code>.nerv/outbox/</code> 를 <code>queued_at</code> 순으로 비우고, 실패한 항목은 남긴 채 세션을 진행한다</td><td>서버 중단 중 큐잉 1건 → 서버 복구 후 세션 시작 1회: 첫 도구 호출 이전에 전송 완료, 중복 실행 0건</td></tr>
       <tr><td><b>REQ-PLG-015</b></td><td>WHEN <code>nerv_finding_resolve</code>가 <code>NERV_APPROVAL_REQUIRED</code>를 반환하면 THE SYSTEM SHALL 재시도하지 않고 <code>approval_id</code>와 함께 사람에게 보고한 뒤 멈춘다</td><td>critical → wont_fix 1회 실측: 재호출 0건 + 보고에 approval_id 포함</td></tr>
       <tr><td><b>REQ-PLG-013</b></td><td>WHEN 플러그인이 설치되면 THE SYSTEM SHALL <code>.gitignore</code>에 <code>.nerv/</code>를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다</td><td>설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측</td></tr>
