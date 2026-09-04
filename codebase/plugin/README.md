@@ -9,7 +9,6 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 | --------------------------------------------------------- | ------------------------------------------------ | -------------- |
 | `.claude-plugin/plugin.json`                              | 매니페스트                                       | §1.1           |
 | `.claude-plugin/marketplace.json`                         | 사내 마켓플레이스 등록                           | §1.2 배포 경로 |
-| `.mcp.json`                                               | MCP 서버 1개(`nerv`)                             | §3.3           |
 | `hooks/hooks.json`                                        | 훅 이벤트 6종(`type:"http"`) — 세션 시작은 둘    | §3.1           |
 | `skills/{next,spec,impl,question,import,review}/SKILL.md` | 스킬 6종(MVP 약속은 5종 · `review` 는 P2 배포분) | §2.1~§2.6      |
 | `agents/nerv-spec-writer.md`                              | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음) | §1.1           |

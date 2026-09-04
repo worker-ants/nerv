@@ -96,14 +96,32 @@ The server builds the catalogue itself, so **there is nothing to edit after you 
 
 > To pick up a new version, run `/plugin marketplace update`. You only get a new copy when an administrator bumps the plugin version — at the same version you keep the copy you already have.
 
-Four things get installed.
+Three things get installed.
 
 | What              | What it does                                                                          |
 | ----------------- | ------------------------------------------------------------------------------------- |
-| MCP server `nerv` | The `nerv_*` tools — how an agent reads and writes NERV                               |
 | Six skills        | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` |
 | Hooks             | Stream what the agent does onto the sessions screen                                   |
 | statusline        | Puts your current claim, remaining lease and scope overlaps on the prompt line        |
+
+**The MCP server is separate.** Its address and token differ per project, so the plugin does not ship it — put a `.mcp.json` at your repository root. Without that file you have no `nerv_*` tools.
+
+```json
+{
+  "mcpServers": {
+    "nerv": {
+      "type": "http",
+      "url": "${NERV_SERVER:-https://nerv.example.com}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NERV_TOKEN}",
+        "X-NERV-Project": "${NERV_PROJECT}"
+      }
+    }
+  }
+}
+```
+
+You should see `nerv` as connected under `/mcp`.
 
 **On a managed company machine, skip this step.** Managed settings have already registered the marketplace and enabled the plugin, and `NERV_SERVER` and `NERV_PROJECT` come from there too — you only need steps 1, 2, 4 and 5.
 

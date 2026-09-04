@@ -105,6 +105,25 @@ Claude Code 안에서 두 줄입니다. **주소는 이 서버의 주소**입니
 | 훅              | 에이전트의 행동을 세션 화면으로 흘려보냅니다                                          |
 | statusline      | 지금 쥔 클레임·리스 남은 시간·범위 겹침을 프롬프트 줄에 답니다                        |
 
+**MCP 서버는 따로 둡니다.** 서버 주소와 토큰이 프로젝트마다 다르기 때문에 플러그인이 담지 않습니다 — 저장소 루트에 `.mcp.json` 을 두세요. 이 파일이 있어야 `nerv_*` 도구를 씁니다.
+
+```json
+{
+  "mcpServers": {
+    "nerv": {
+      "type": "http",
+      "url": "${NERV_SERVER:-https://nerv.example.com}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NERV_TOKEN}",
+        "X-NERV-Project": "${NERV_PROJECT}"
+      }
+    }
+  }
+}
+```
+
+`/mcp` 에 `nerv` 가 connected 로 보이면 됩니다.
+
 **회사 관리 기기라면 이 단계를 건너뜁니다.** 관리형 설정이 마켓플레이스 등록과 플러그인 활성화를 이미 해 두었고, `NERV_SERVER`·`NERV_PROJECT`도 거기서 옵니다 — 그때는 1·2·4·5단계만 하면 됩니다.
 
 ## 3-B. Codex에 연결
