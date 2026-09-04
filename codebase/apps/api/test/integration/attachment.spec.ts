@@ -28,6 +28,16 @@ let specId: string;
 /** 스토리지 스텁 — 넣은 것을 기억하고, head 는 넣힌 크기를 돌려준다 */
 class FakeStorage {
   readonly objects = new Map<string, { bytes: number; contentType: string }>();
+  /**
+   * **가짜도 실물과 같은 불변식을 지켜야 한다.** 실물에서 `available === false` 면
+   * `presignPut` 은 던진다 — 둘은 같은 조건(설정 유무)에서 갈린다. 가짜가 "서명은 되는데
+   * available 은 거짓" 이면 그것은 어느 배치에서도 일어나지 않는 상태이고, 그 위에서
+   * 통과한 테스트는 아무것도 보장하지 않는다.
+   */
+  configured = true;
+  get available(): boolean {
+    return this.configured;
+  }
   presignPut = async (key: string, contentType: string): Promise<string> => {
     void contentType;
     return `https://storage.test/${key}?sig=x`;
@@ -97,7 +107,27 @@ describe('사람 경로 — 서버가 받아서 넣는다', () => {
     expect(listed[0]?.['is_agent']).toBe(false);
   });
 
-  it.each([['text/html'], ['application/zip'], ['application/x-sh']])(
+  /**
+   * 화이트리스트가 넓어졌다(2026-09-04 · 사람 지시): `text/html`·`text/plain`·`application/zip`
+   * 이 들어왔다 — 시안만이 아니라 **산출물**도 문서에 매달리기 때문이다. 그래도 **화이트
+   * 리스트라는 성질은 그대로**이므로 목록 밖은 여전히 거부한다. 이 테스트가 그 성질을 지킨다.
+   */
+  it.each([['text/html'], ['text/plain'], ['application/zip']])(
+    '%s 는 받는다 — 산출물도 문서에 매달린다 (2026-09-04)',
+    async (contentType) => {
+      const out = await attachments.upload({
+        projectId,
+        specKey: 'SPC-ATT',
+        userId,
+        filename: `산출물-${contentType.replace(/\W/g, '-')}`,
+        contentType,
+        body: Buffer.from('<p>보고서</p>'),
+      });
+      expect(out['content_type']).toBe(contentType);
+    },
+  );
+
+  it.each([['application/x-sh'], ['application/octet-stream'], ['text/xml']])(
     '%s 는 받지 않는다 — 화이트리스트다',
     async (contentType) => {
       await expect(
@@ -141,6 +171,34 @@ describe('사람 경로 — 서버가 받아서 넣는다', () => {
 });
 
 describe('에이전트 경로 — presigned 2단계', () => {
+  /**
+   * **설정 누락과 일시 장애는 다른 사실이다**(실사용 보고 2026-09-04).
+   *
+   * 예전에는 스토리지 설정이 없으면 `presign` 이 날 `Error` 를 던져 `NERV_UNAVAILABLE`
+   * (`kind:'internal'`)로 나갔다. 그 코드는 규약상 "나중에 재시도" 라서 스킬은
+   * `.nerv/outbox/` 에 큐잉한다 — 그런데 설정 누락은 재시도로 풀리지 않는다. 에이전트는
+   * 영원히 다시 걸고 사람은 왜 안 되는지 알 길이 없다. `kind` 로 가른다.
+   */
+  it('스토리지 설정이 없으면 무엇이 없는지 말한다 — internal 로 뭉개지 않는다', async () => {
+    storage.configured = false;
+    try {
+      await expect(
+        attachments.presign({
+          projectId,
+          specKey: 'SPC-ATT',
+          userId,
+          filename: 'x.png',
+          contentType: 'image/png',
+        }),
+      ).rejects.toMatchObject({
+        code: NERV_ERROR.UNAVAILABLE,
+        details: { kind: 'storage_unconfigured' },
+      });
+    } finally {
+      storage.configured = true;
+    }
+  });
+
   async function presigned(): Promise<Record<string, unknown>> {
     return attachments.presign({
       projectId,

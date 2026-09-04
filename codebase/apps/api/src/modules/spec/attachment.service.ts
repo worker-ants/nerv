@@ -31,6 +31,16 @@ export const ALLOWED_TYPES: Readonly<Record<string, string>> = {
   'image/webp': 'webp',
   'image/svg+xml': 'svg',
   'application/pdf': 'pdf',
+  // 텍스트 계열과 묶음(2026-09-04 · 사람 지시). 시안만이 아니라 **산출물**도 문서에
+  // 매달린다 — 리포트 한 장(html), 로그·추출물(txt), 여러 파일 묶음(zip).
+  //
+  // `text/html` 을 받는 것이 위험해 보이지만 **이미 `image/svg+xml` 을 받고 있고**
+  // 그쪽이 더 어려운 경우다(SVG 는 이미지로 위장한 스크립트다). 내려받기 경로가 둘 다
+  // 같은 방어를 건다(EP-SPEC-22): `Content-Security-Policy: sandbox; default-src 'none'`
+  // 로 스크립트를 막고 불투명 오리진에 가두며, `nosniff` 로 타입 추측을 끈다.
+  'text/html': 'html',
+  'text/plain': 'txt',
+  'application/zip': 'zip',
 };
 
 /** 파일당 10MB — 스펙당 합계는 제한하지 않는다(사람 결정). 값의 정본은 상수 파일이다 */
@@ -111,6 +121,7 @@ export class AttachmentService {
     contentType: string;
   }): Promise<Record<string, unknown>> {
     this.assertType(input.contentType);
+    this.assertStorage();
     const spec = await this.resolveSpec(input.projectId, input.specKey);
     const id = newId();
     const key = this.storageKey(input.projectId, spec, id, input.contentType);
@@ -203,6 +214,26 @@ export class AttachmentService {
       sql`DELETE FROM attachment WHERE id = ${input.attachmentId} AND project_id = ${input.projectId}`,
     );
     return { ok: true };
+  }
+
+  /**
+   * 스토리지가 **설정되어 있는가**. 없으면 여기서 말한다.
+   *
+   * 예전에는 `presign` 이 바로 `presignPut` 을 불렀고, 설정이 없으면 스토리지 서비스가
+   * 던지는 날 `Error` 가 `NERV_UNAVAILABLE`(`kind:'internal'`)로 나갔다 — 실사용 보고
+   * 2026-09-04. 그 코드는 규약상 **"의존 구성요소 장애, 나중에 재시도"** 라서 스킬은
+   * `.nerv/outbox/` 에 큐잉하고 다시 시도한다. 그런데 설정 누락은 **재시도로 풀리지 않는다.**
+   * 에이전트는 영원히 다시 걸고, 사람은 왜 안 되는지 알 길이 없다.
+   *
+   * 그래서 `kind` 로 가른다: 재시도할 것과 사람이 고쳐야 할 것은 다른 사실이다.
+   */
+  private assertStorage(): void {
+    if (this.storage.available) return;
+    throw new NervError(NERV_ERROR.UNAVAILABLE, msg('error.attachment.storage_unset'), {
+      kind: 'storage_unconfigured',
+      // 무엇이 없는지 말한다 — 이 셋이 다 있어야 첨부가 열린다(.env 전표 §5.2)
+      missing: ['NERV_S3_ENDPOINT', 'NERV_S3_ACCESS_KEY', 'NERV_S3_SECRET_KEY'],
+    });
   }
 
   private assertType(contentType: string): void {

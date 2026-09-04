@@ -120,6 +120,9 @@ export class SpecTools implements NervToolProvider {
               'image/webp',
               'image/svg+xml',
               'application/pdf',
+              'text/html',
+              'text/plain',
+              'application/zip',
             ],
           },
           // 두 단계의 둘째 — 올린 뒤 이것만 실어 다시 부른다

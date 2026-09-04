@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.33 (2026-09-04)</span>
+      <span>버전 v0.34 (2026-09-04)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -408,7 +408,9 @@ allowed-tools:
 2. 그 주소에 파일을 그대로 `PUT` 한다(헤더는 `Content-Type` 만).
 3. `nerv_spec_attach`(`attachment_id`) → 확정. **서버가 실제로 올라왔는지 확인한 뒤** 목록에 넣는다.
 
-- 받는 형식은 `png`·`jpeg`·`gif`·`webp`·`svg`·`pdf` 여섯이고 파일당 **10MB** 까지다.
+- 받는 형식은 아홉이다: 그림 `png`·`jpeg`·`gif`·`webp`·`svg`, 문서 `pdf`·`html`·`txt`, 묶음 `zip`. 파일당 **10MB** 까지다.
+  - 그림은 **시안**의 자리고, `html`·`txt`·`zip` 은 **산출물**의 자리다 — 리포트 한 장·추출한 로그·여러 파일 묶음. 본문에 붙일 수 없는 것이 문서 밖에 남지 않게 한다.
+  - 그림이 아닌 첨부는 이미지 문법(`![…](…)`)이 아니라 **링크**로 넣는다: `[리포트](그 주소)`.
 - 확정하면 응답의 `url` 을 **본문에 이미지로 넣는다**: `![시안 이름](그 주소)`. 매달기만 하고 본문에 안 넣으면 문서를 읽는 사람은 그 그림을 못 본다.
 - 그림만 두지 않는다 — 무엇을 보여 주는 시안인지 문장으로 적는다. 그림은 검색에도 요구사항 추출에도 잡히지 않는다.
 - 흐름·구조는 그림 파일보다 mermaid 가 낫다(위 절) — 첨부는 **손으로 그린 시안·캡처·PDF** 의 자리다.
@@ -471,7 +473,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_APPROVAL_REQUIRED | 승인 대기 진입 — approval_id 폴링, 그동안 다른 작업 금지 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
-| NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉 |
+| NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉. **단 `details.kind` 가 `storage_unconfigured` 면 큐잉하지 않는다** — 서버에 스토리지 설정이 없다는 뜻이라 재시도로 풀리지 않는다. `details.missing` 의 환경변수를 사람에게 그대로 전한다 |
 | NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
 | NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 실어 보낸다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
