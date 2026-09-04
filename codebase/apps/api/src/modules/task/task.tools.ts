@@ -115,6 +115,9 @@ export class TaskTools implements NervToolProvider {
           tools_sources_md: { type: 'string', description: 'mcp.arg.tools_sources_md' },
           boundaries_md: { type: 'string', description: 'mcp.arg.boundaries_md' },
           source_spec_version_id: { type: 'string' },
+          // 주변 문서까지 포함한 기준 세트 — 문서 하나의 핀만으로는 그것이 참조하는
+          // 문서들의 기준이 흔들린다(spec-workflow §4.1)
+          baseline: { type: 'string', description: 'mcp.arg.baseline' },
           source_requirement_id: { type: 'string' },
           idempotency_key: { type: 'string' },
         },
@@ -133,6 +136,7 @@ export class TaskTools implements NervToolProvider {
             tools_sources_md: 'toolsSourcesMd',
             boundaries_md: 'boundariesMd',
             source_spec_version_id: 'sourceSpecVersionId',
+            baseline: 'baseline',
             source_requirement_id: 'sourceRequirementId',
           }),
         }),

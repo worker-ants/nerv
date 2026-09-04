@@ -193,18 +193,33 @@ export class SpecTools implements NervToolProvider {
           // 키·UUID 둘 다 받는다(§1.4b) — 도구마다 기준이 다르면 에이전트가 실패로 배운다
           spec_id: { type: 'string', description: 'spec key (SPC-…) or UUID' },
           version: { type: 'integer' },
+          // **주변 문서를 그 세트로 읽는다**(REQ-API-087 · spec-workflow §3.6).
+          // Task 가 베이스라인 맥락이면 `nerv_task_next` 응답이 이 이름을 실어 준다.
+          baseline: { type: 'string', description: 'mcp.arg.baseline' },
           // 곁들여 실을 것 — `requirements` 는 늘 실리므로 여기서는 나머지만 고른다
           include: { type: 'array' },
         },
         required: ['spec_id'],
       },
-      handler: async (input, ctx) =>
-        this.specs.get({
+      handler: async (input, ctx) => {
+        const version = typeof input['version'] === 'number' ? input['version'] : null;
+        const baseline = typeof input['baseline'] === 'string' ? input['baseline'] : null;
+        // 배타 — REST 와 같은 규칙이다(§1.4b). 판정은 한 곳에 있어야 하지만 두 표면의
+        // 인자 모양이 달라(쿼리 문자열 · JSON) 검사는 각자 하고 규칙만 공유한다.
+        if (version !== null && baseline !== null) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_xor_baseline'), {
+            kind: 'invalid_input',
+            field: 'baseline',
+          });
+        }
+        return this.specs.get({
           projectId: ctx.projectId,
           specKey: String(input['spec_id'] ?? ''),
-          versionNo: typeof input['version'] === 'number' ? input['version'] : null,
+          versionNo: version,
+          baseline,
           include: Array.isArray(input['include']) ? (input['include'] as string[]) : null,
-        }),
+        });
+      },
     },
     {
       name: 'nerv_spec_draft_upsert',

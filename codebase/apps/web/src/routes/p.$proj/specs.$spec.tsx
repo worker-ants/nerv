@@ -46,12 +46,18 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({
    * 두 축이 주소에 있다(§2.4). `?v=3` 은 그 판 전문, `?diff=v2..v3` 은 두 판의 차이 —
    * **화면 상태가 아니라 주소가 진실이라** 공유·북마크·뒤로가기가 그대로 산다.
    */
-  validateSearch: (search: Record<string, unknown>): { v?: number; diff?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { v?: number; diff?: string; baseline?: string } => ({
     ...(typeof search['v'] === 'string' || typeof search['v'] === 'number'
       ? { v: Number(search['v']) }
       : {}),
     ...(typeof search['diff'] === 'string' && DIFF_RE.test(search['diff'])
       ? { diff: search['diff'] }
+      : {}),
+    // 목록에서 고른 기준선을 그대로 물고 온다 — 상세도 같은 세트를 읽어야 한다(REQ-WEB-135)
+    ...(typeof search['baseline'] === 'string' && search['baseline'] !== ''
+      ? { baseline: search['baseline'] }
       : {}),
   }),
   component: SpecDetail,
@@ -79,7 +85,7 @@ function SpecDetail(): React.JSX.Element {
   const { pushToast } = useRealtime();
   const me = useMe();
   const { orgSlug } = useScope(proj);
-  const detail = useSpec(proj, spec);
+  const detail = useSpec(proj, spec, Route.useSearch().baseline);
   const versions = useSpecVersions(proj, spec);
   const comments = useSpecComments(proj, spec);
   const relations = useSpecRelations(proj, spec);
@@ -363,6 +369,20 @@ function SpecDetail(): React.JSX.Element {
           <span className="text-sm text-text-faint">
             v{String(detail.data?.['version_no'] ?? '')}
           </span>
+          {/* **어느 세트로 읽고 있는지 화면이 말한다**(REQ-WEB-135). 말하지 않으면 사람은
+              최신 판을 본다고 믿는다 — 기준선의 값어치가 거기서 사라진다.
+              그 세트에 이 문서가 없으면(`baseline_pinned: false`) 최신으로 떨어졌다는
+              사실까지 말해야 한다. */}
+          {typeof detail.data?.['baseline'] === 'string' && (
+            <StatusBadge
+              token={detail.data['baseline_pinned'] === true ? 'ok' : 'waiting'}
+              label={
+                detail.data['baseline_pinned'] === true
+                  ? `${String(detail.data['baseline'])} ${t('spec.baseline_pinned')}`
+                  : `${String(detail.data['baseline'])} ${t('spec.baseline_unpinned')}`
+              }
+            />
+          )}
           {detail.data?.['basis_superseded'] === true && (
             <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
           )}

@@ -124,13 +124,21 @@ export function useSpecTree(
  * 재조회와 화면 재진입으로 갱신된다. 두 축을 억지로 잇지 않는 편이 낫다: 봉투에 key 를
  * 실으면 이름 변경이 이벤트 계약을 깨고, 화면이 UUID 를 쓰면 URL 이 사람이 못 읽는 것이 된다.
  */
-export function useSpec(slug: string, specKey: string): UseQueryResult<Row> {
+export function useSpec(slug: string, specKey: string, baseline?: string): UseQueryResult<Row> {
   return useQuery({
-    queryKey: queryKeys.spec(specKey),
+    // 기준선이 다르면 **다른 판**이라 캐시 키가 갈라져야 한다 — 같은 키로 두면
+    // 세트를 바꿔도 앞서 읽은 판이 그대로 보인다
+    queryKey: [...queryKeys.spec(specKey), baseline ?? null],
     // **`include=tasks` 를 붙이는 이유**: 영향 미리보기가 파생 Task 수를 세는데, 서버는
     // 요청해야 그것을 싣는다(EP-SPEC-03). 붙이지 않던 동안 그 줄은 언제나 "0건" 이었다 —
     // 실측 2026-09-03: 파생 Task 를 가진 스펙 86개, 한 스펙 최대 29건이 0으로 보였다.
-    queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}?include=tasks`),
+    queryFn: () =>
+      apiFetch<Row>(
+        `/projects/${slug}/specs/${specKey}?include=tasks` +
+          (baseline === undefined || baseline === ''
+            ? ''
+            : `&baseline=${encodeURIComponent(baseline)}`),
+      ),
     // 고르기 전에는 부르지 않는다 — 빈 키로 나가면 `/specs/` 가 되어 404 가 온다
     enabled: specKey !== '',
   });

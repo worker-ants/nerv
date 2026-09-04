@@ -35,6 +35,19 @@ Specs are **not edited in place — versions accumulate.** Each version is in on
 
 The badge at the top is the status of the version you are looking at. If you are reading a `superseded` version, the screen says so first — reading an outdated document as if it were current is the most common accident here.
 
+## Baselines — reading the set as it was
+
+Specs run ahead of implementation. While new versions get approved document by document, implementation needs to work against **the set of approved versions that were consistent with each other at the time**. Pinning a single document's version is not enough — the documents it references keep moving.
+
+A **baseline** names that set and freezes it.
+
+- Create one with **[Freeze current set…]** above the list (planner/admin). It captures every spec at its latest approved version as of now.
+- **It cannot be changed afterwards.** To change the set, make a new one — that is what makes a given baseline answer the same way whenever you look.
+- Pick one from the **baseline selector** and it stays in the address, following you into the detail view. **Hand someone the link and they see the same set.**
+- A badge at the top of the document says which set you are reading. If that set does not contain this document (one created later), you get the latest version instead, marked **"not in set"** — you are never quietly handed a different version.
+
+Tasks can carry a baseline too, so the agent working on one reads the surrounding documents from that same set.
+
 ## Comparing versions
 
 The **Versions** tab in the rail stacks every revision. Two things are possible.
