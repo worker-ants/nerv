@@ -15,7 +15,8 @@ import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 
 /** 서버와 같은 화이트리스트 — 고르개가 아닌 것을 보여 주면 올린 뒤에야 거부당한다 */
-const ACCEPT = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,application/pdf';
+const ACCEPT =
+  'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,application/pdf,text/html,text/plain,application/zip';
 
 export function AttachmentPanel({
   projectSlug,

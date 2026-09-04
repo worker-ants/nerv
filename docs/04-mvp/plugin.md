@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·`.mcp.json`·statusline 스크립트 전문, 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.33 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.34 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.34 변경(2026-09-04 — 첨부 절차가 실사용에서 막혔다): 실사용 세션이 1단계에서 `NERV_UNAVAILABLE`(`kind:'internal'`)을 받고 멈췄다. 원인은 서버의 스토리지 설정 누락인데 **에러가 그것을 말하지 않아** 에이전트가 일시 장애로 읽었다 — 스킬의 대응표가 그 코드를 outbox 큐잉으로 적고 있어 영원히 재시도하는 모양이었다. `/nerv:spec` 대응표에 **`storage_unconfigured` 면 큐잉하지 않는다**를 못 박고, 받는 형식을 아홉으로 적었다(그림 다섯 · 문서 셋 · 묶음 하나). 그림이 아닌 첨부는 본문에 이미지가 아니라 **링크**로 넣는다. 곁들여 `nerv_spec_attach` 의 **도구 설명 자체가 두 단계를 말하게** 했다 — 스킬 없이 도구만 보고 부르는 에이전트가 파일을 실을 자리를 찾다 헤맸다(4.4 v0.67).
 > v0.33 변경(2026-09-04 — 프롬프트가 서버를 따라오지 못한 자리 넷): 스킬은 **모델이 읽는 규약**이라 서버가 앞서가면 그 차이가 그대로 행동의 결함이 된다. ① `/nerv:next` 3번이 후보에 베이스라인이 실린다고 적고 6번은 **그것으로 무엇을 하라는 말이 없었다** — 주변 문서를 `baseline` 으로 읽는 지시를 넣었다(4.4 REQ-API-087). ② 4번의 "브랜치·워크트리는 `nerv_bootstrap` 이 등록한다" 를 **훅이 git 에게 직접 묻는다**로 고쳤다(REQ-API-084) — 예전 문장은 모델이 자기가 실어야 하는 값으로 읽게 했고, 실사용 세션 34개가 전부 NULL 이던 이유가 그것이다. ③ `handoff_note` 를 읽으라는 말이 없었다 — **다음 사람에게 가라고 만든 값**인데(REQ-API-081) 아무도 읽지 않으면 앞사람이 해 본 것을 되풀이한다. ④ `ignored_args`(REQ-API-080)를 `/nerv:next`·`/nerv:impl` 에 적었다: 호출은 성공했는데 인자가 버려진 상태를 조용히 넘기지 않게 한다.
 > v0.32 변경(2026-09-04 — 플랫폼이 자기 플러그인을 서빙한다, 사람 결정): **§3.5 신설.** 서버가 `GET /plugin/marketplace.json` 으로 카탈로그를, `GET /plugin/<이름>-<버전>.zip` 으로 아카이브를 준다(4.4 §2.11 · REQ-API-086). 카탈로그의 주소는 그 서버의 `NERV_PUBLIC_URL` 이라 **받는 쪽이 고칠 것이 없다** — v0.29 가 기록한 포크의 원인이 사라진다. git 경로(`.claude-plugin/marketplace.json`)는 폐쇄망 폴백으로 그대로 남는다. 설치 경로가 셋이 되어 §4 온보딩 3단계에 표를 둔다.
 > v0.31 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): `bin/nerv-hook-forward` 가 `session`·`tool` 엔드포인트에 `X-NERV-Branch`·`X-NERV-Worktree` 를 붙인다(§3.3). 세션의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다 — 훅은 작업 디렉터리에서 도니까 `git rev-parse` 로 직접 읽는다. detached HEAD·비-git 디렉터리면 보내지 않는다. http 변형에는 이 경로가 없다(헤더가 상수라 git 을 부를 자리가 없다).
@@ -311,7 +312,9 @@ allowed-tools:
 2. 그 주소에 파일을 그대로 `PUT` 한다(헤더는 `Content-Type` 만).
 3. `nerv_spec_attach`(`attachment_id`) → 확정. **서버가 실제로 올라왔는지 확인한 뒤** 목록에 넣는다.
 
-- 받는 형식은 `png`·`jpeg`·`gif`·`webp`·`svg`·`pdf` 여섯이고 파일당 **10MB** 까지다.
+- 받는 형식은 아홉이다: 그림 `png`·`jpeg`·`gif`·`webp`·`svg`, 문서 `pdf`·`html`·`txt`, 묶음 `zip`. 파일당 **10MB** 까지다.
+  - 그림은 **시안**의 자리고, `html`·`txt`·`zip` 은 **산출물**의 자리다 — 리포트 한 장·추출한 로그·여러 파일 묶음. 본문에 붙일 수 없는 것이 문서 밖에 남지 않게 한다.
+  - 그림이 아닌 첨부는 이미지 문법(`![…](…)`)이 아니라 **링크**로 넣는다: `[리포트](그 주소)`.
 - 확정하면 응답의 `url` 을 **본문에 이미지로 넣는다**: `![시안 이름](그 주소)`. 매달기만 하고 본문에 안 넣으면 문서를 읽는 사람은 그 그림을 못 본다.
 - 그림만 두지 않는다 — 무엇을 보여 주는 시안인지 문장으로 적는다. 그림은 검색에도 요구사항 추출에도 잡히지 않는다.
 - 흐름·구조는 그림 파일보다 mermaid 가 낫다(위 절) — 첨부는 **손으로 그린 시안·캡처·PDF** 의 자리다.
@@ -374,7 +377,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_APPROVAL_REQUIRED | 승인 대기 진입 — approval_id 폴링, 그동안 다른 작업 금지 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
-| NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉 |
+| NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉. **단 `details.kind` 가 `storage_unconfigured` 면 큐잉하지 않는다** — 서버에 스토리지 설정이 없다는 뜻이라 재시도로 풀리지 않는다. `details.missing` 의 환경변수를 사람에게 그대로 전한다 |
 | NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
 | NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 실어 보낸다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
