@@ -52,7 +52,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>33종</b> — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.24 (2026-09-04)</span>
+      <span>버전 v0.25 (2026-09-04)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -1245,7 +1245,7 @@ COMMIT;</code></pre>
     <tr><td><code>REQ-DB-006</code></td><td>WHEN 위임 명세 4요소 중 하나라도 NULL인 <code>task</code>를 <code>backlog</code>·<code>blocked</code> 밖의 상태로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>4요소 각각 NULL로 4케이스</td></tr>
     <tr><td><code>REQ-DB-007</code></td><td>WHEN <code>spec_impact IS NULL</code>인 <code>task</code>를 <code>done</code>으로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + <code>{"none": true}</code> 통과 1건</td></tr>
     <tr><td><code>REQ-DB-008</code></td><td>WHEN 베이스라인 생성 트랜잭션에 <code>approved</code>가 아닌 <code>spec_version</code> 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 베이스라인의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 베이스라인 생성으로만 한다</td><td>draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건</td></tr>
-    <tr><td><code>REQ-DB-008</code></td><td>WHEN <code>requirement_id</code>·<code>spec_version_id</code>·<code>task_id</code>가 전부 NULL인 <code>evidence</code>를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + 각 앵커 단독 통과 3건</td></tr>
+    <tr><td><code>REQ-DB-022</code></td><td>WHEN <code>requirement_id</code>·<code>spec_version_id</code>·<code>task_id</code>가 전부 NULL인 <code>evidence</code>를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + 각 앵커 단독 통과 3건</td></tr>
     <tr><td><code>REQ-DB-009</code></td><td>WHEN <code>nerv_ensure_month_partitions(대상 월)</code>을 호출하면 THE SYSTEM SHALL <code>event</code>·<code>activity</code>의 해당 월 파티션과 activity 파티션별 <code>(session_id, seq)</code> unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다</td><td>함수 2회 호출 후 카탈로그 조회</td></tr>
     <tr><td><code>REQ-DB-010</code></td><td>WHEN 같은 사용자를 같은 스코프(<code>coalesce(project_id, org_id)</code> 동일)에 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다</td><td>프로젝트 중복·조직 전역 중복 각 1건</td></tr>
     <tr><td><code>REQ-DB-011</code></td><td>WHEN <code>status &lt;&gt; 'draft'</code>인 <code>spec_version</code>에 <code>edit_lease_user_id</code>·<code>edit_lease_session_id</code>·<code>edit_lease_expires_at</code> 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>3필드 각각 1건</td></tr>
