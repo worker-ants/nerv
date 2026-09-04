@@ -101,6 +101,20 @@ describe('EP-PLG-01 — 마켓플레이스 카탈로그', () => {
     expect(body.plugins[0]?.name).toBe(manifest().name);
   });
 
+  /**
+   * **카탈로그는 자기 안에서 모순되지 않는다**(실측 2026-09-04).
+   *
+   * 아카이브만 캐시하고 매니페스트는 매번 읽던 동안, 버전이 오르면 카탈로그가 새 버전을
+   * 말하면서 **옛 파일을 가리켰다** — 그 주소로 설치하러 가면 없는 파일이다. 이미지 안에서는
+   * 둘 다 바뀌지 않아 드러나지 않지만, 개발 트리와 재빌드 사이에서 갈라진다.
+   */
+  it('버전과 아카이브 이름이 같은 것을 말한다 — 캐시가 둘을 갈라 놓지 않는다', async () => {
+    const body = await catalog();
+    const plugin = body.plugins[0];
+    expect(plugin?.source.url.endsWith(`${plugin.name}-${plugin.version}.zip`)).toBe(true);
+    expect(plugin?.version).toBe(manifest().version);
+  });
+
   it('sha256 이 실제로 서빙되는 바이트의 해시다', async () => {
     const body = await catalog();
     const url = new URL(body.plugins[0]?.source.url ?? '');

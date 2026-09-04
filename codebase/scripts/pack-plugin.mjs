@@ -15,7 +15,7 @@
 // 사용: node scripts/pack-plugin.mjs [출력 디렉터리]
 
 import { deflateRawSync } from 'node:zlib';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -137,6 +137,11 @@ if (entries.length === 0) {
 
 const zip = build(entries);
 mkdirSync(OUT_DIR, { recursive: true });
+// 버전이 오르면 옛 zip 이 옆에 남는다 — 어느 것이 현재인지 말해 주는 것이 없으면
+// 사람도 스크립트도 잘못된 파일을 집는다. 이 디렉터리는 **지금 것 하나**만 갖는다.
+for (const stale of readdirSync(OUT_DIR)) {
+  if (/^.+-\d+\.\d+\.\d+\.zip$/.test(stale)) rmSync(join(OUT_DIR, stale));
+}
 const target = join(OUT_DIR, `${manifest.name}-${manifest.version}.zip`);
 writeFileSync(target, zip);
 // 서버가 이름을 짓지 않아도 되게 매니페스트도 옆에 둔다 — 이미지에 plugin/ 전체는 없다.

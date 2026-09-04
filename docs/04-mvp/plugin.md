@@ -5,10 +5,11 @@ updated: 2026-08-22
 ---
 # 플러그인과 온보딩
 
-> **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
+> **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.37 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.38 · 2026-09-04 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.38 변경(2026-09-04 — 패키지 버전 0.1.0 → **0.2.0**): 설치했을 때 **무엇이 들어오는지가 바뀌었다** — `.mcp.json` 이 빠졌고(v0.37), 기본 훅 변형이 command 가 됐으며(v0.30), 훅이 git 에서 브랜치를 읽고(4.4 REQ-API-084), 스킬 넷이 서버를 따라잡았다(v0.33·v0.34). **버전이 곧 갱신 신호다**: 카탈로그의 `version` 이 바뀌지 않으면 이미 설치한 사람은 오류도 경고도 없이 옛 사본을 계속 쓴다(§3.5). 0.x 에서 구성요소가 빠지는 것은 minor 로 알린다. 값의 정본은 `plugin.json` 하나이고 카탈로그 둘이 그것을 따르는지는 `plugin-package.spec.ts` 가 지킨다.
 > v0.37 변경(2026-09-04 — 플러그인이 `.mcp.json` 을 담지 않는다, 사람 결정): **REQ-PLG-001 개정.** 플러그인이 제공한 `.mcp.json` 은 그 프로젝트의 `settings.local.json` `env` 를 읽지 못해(v0.36 실측 표) `${NERV_SERVER:-…}` 가 언제나 기본값으로 떨어졌다 — **어느 프로젝트에서도 붙을 수 없는 파일이 세션마다 연결 실패 하나를 남기고 있었다.** 값의 성질과도 맞지 않는다: 서버 주소·토큰은 프로젝트마다 다르고 플러그인은 여러 프로젝트가 공유하는 물건이다. §3.3 의 전문을 **쓰는 쪽 저장소가 두는 템플릿**으로 위치를 바꾸고 온보딩에 단계 2a 를 넣었다. 훅이 같은 값을 쓰면서도 플러그인에 남는 이유도 적었다 — 훅은 파일이 아니라 **스크립트**라 실행 시점에 그 프로젝트의 환경을 읽는다.
 > v0.36 변경(2026-09-04 — 값을 두는 자리를 하나로, 사람 결정): §3.3 의 네 자리가 **두 곳에 같은 값을 두게 만들고 있었다**(실측: 실사용 저장소가 `settings.local.json` 과 `.nerv/env` 양쪽에 서버·프로젝트·토큰을 갖고 있었다). **Claude Code 의 자리는 `.claude/settings.local.json` 하나**로 정하고 `.nerv/env` 는 **Codex 폴백**으로 격하한다(스크립트 지원은 그대로 — Codex 가 올 때 필요하다). 근거를 실측 표로 남겼다: 훅·statusline·**프로젝트** `.mcp.json` 은 그 `env` 를 보는데 **플러그인이 제공한** `.mcp.json` 은 못 본다. 그래서 서버 주소·토큰 같은 프로젝트별 MCP 설정은 프로젝트가 갖는다. `.nerv/env` 가 Codex 를 절반만 덮는다는 것(notify·훅은 덮고 MCP 인증은 못 덮는다)과 Codex 쪽 대응물의 한계도 적었다 — 두 하네스가 공유하는 유일한 층은 프로세스 환경변수이고, 그것을 한 자리로 합치는 문제는 Phase 2 로 남긴다.
 > v0.35 변경(2026-09-04 — GitHub 경로를 연다, 사람 결정): 저장소 루트에 `.claude-plugin/marketplace.json` 을 두어 `/plugin marketplace add worker-ants/nerv` 로 설치된다. **서버도 인증서도 필요 없는 가장 싼 경로**다 — 웹 서빙(§3.5)은 https·비-루프백·신뢰된 CA 셋을 다 요구하는데(2026-09-04 실측: `NODE_EXTRA_CA_CERTS` 까지 있어야 설치된다) GitHub 은 그중 아무것도 요구하지 않는다. 루트에 두는 이유는 Claude Code 가 카탈로그를 **저장소 루트에서만** 찾기 때문이다: git URL 의 `#` 는 경로가 아니라 브랜치 ref 라 `#codebase/plugin` 은 `Remote branch not found` 로 끝난다(실측). 카탈로그 셋의 이름·`source` 대응표와 REQ-CB-015 정합 근거를 §3.5 에 적었다.
@@ -60,7 +61,7 @@ updated: 2026-08-22
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.1.0
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.0
   hooks/hooks.json                # type:"http" 훅 (§3.1)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -83,12 +84,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 스킬 5종 · 훅 텔레메트리 · MCP 설정 · statusline",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.1.0)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.0)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -1213,7 +1214,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
 | 2 | 환경변수 | 아래 블록을 저장소 `.claude/settings.local.json` 의 `env` 에 둔다 — **Claude Code 의 유일한 자리다**(§3.3). `.nerv/env` 는 Codex 폴백이라 지금은 쓰지 않는다 | `/mcp` 연결 확인 |
 | 2a | MCP 설정 | 저장소 루트에 `.mcp.json` 을 둔다(§3.3 템플릿 그대로). **플러그인은 이 파일을 담지 않는다** — 서버 주소·토큰이 프로젝트마다 다르기 때문이다 | `/mcp` 에 `nerv` connected |
-| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.1.0 활성 표시 |
+| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.2.0 활성 표시 |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
 
@@ -1342,7 +1343,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 
 | ID | 요구 (EARS) | 검증 방법 |
 | --- | --- | --- |
-| REQ-PLG-001 | WHEN 플러그인 v0.1이 설치되면 THE SYSTEM SHALL skills 5종(next/spec/impl/question/import)·`hooks/hooks.json`·statusline을 본 문서 §2~§3의 전문과 동일한 내용으로 배치하고, **`.mcp.json` 은 담지 않는다**(2026-09-04 개정 — 서버 주소·토큰은 프로젝트별 값이고 플러그인이 제공한 `.mcp.json` 은 그 프로젝트의 `env` 를 읽지 못한다, §3.3). 쓰는 쪽 저장소가 §3.3 템플릿을 자기 루트에 둔다 | 설치 후 파일 diff — 본 문서 코드 블록과 바이트 일치(공백 제외) · 패키지에 `.mcp.json` 이 없음 |
+| REQ-PLG-001 | WHEN 플러그인 v0.2가 설치되면 THE SYSTEM SHALL skills 5종(next/spec/impl/question/import)·`hooks/hooks.json`·statusline을 본 문서 §2~§3의 전문과 동일한 내용으로 배치하고, **`.mcp.json` 은 담지 않는다**(2026-09-04 개정 — 서버 주소·토큰은 프로젝트별 값이고 플러그인이 제공한 `.mcp.json` 은 그 프로젝트의 `env` 를 읽지 못한다, §3.3). 쓰는 쪽 저장소가 §3.3 템플릿을 자기 루트에 둔다 | 설치 후 파일 diff — 본 문서 코드 블록과 바이트 일치(공백 제외) · 패키지에 `.mcp.json` 이 없음 |
 | REQ-PLG-002 | WHEN NERV를 처음 쓰는 세션이 사전 문서 없이 `/nerv:next`만 실행하면 THE SYSTEM SHALL `nerv_bootstrap → nerv_task_next → nerv_task_claim` 순서로 안내해 첫 클레임에 도달시킨다 | 신규 계정·신규 머신에서 1회 실측 — 스킬 외 문서 참조 0회, 클레임 성공 |
 | REQ-PLG-003 | WHEN 어느 스킬 턴에서든 `nerv_spec_submit_review`가 호출되면 THE SYSTEM SHALL 무승인 실행하지 않고 사람 승인을 거치게 한다(allowed-tools 5종 목록 어디에도 미포함) | 4개 SKILL.md의 allowed-tools grep — `nerv_spec_submit_review` 0건. `/nerv:spec submit` 실행 시 승인 프롬프트 발생 확인 |
 | REQ-PLG-004 | WHILE `/nerv:impl` 루프가 활성인 동안 THE SYSTEM SHALL 마지막 하트비트로부터 60초 경과 시 다음 행동 전에 `nerv_task_heartbeat`를 호출하고 응답의 `pending`을 먼저 처리한다 | 30분 세션의 Activity 로그에서 하트비트 간격 분포 확인 + steer 지시 주입 후 반영 확인 |
