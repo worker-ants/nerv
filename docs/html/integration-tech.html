@@ -52,7 +52,7 @@
     <h1>Claude Code/Codex 연동 기술 — 표면 목록과 NERV 결선도</h1>
     <p class="lead">Claude Code는 훅 31종·MCP 클라이언트·스킬·서브에이전트·플러그인·헤드리스·Agent SDK·OTel까지 여덟 개의 공식 연동 표면을 열어두고 있고, 그중 <code>type:"http"</code> 훅 하나만으로 세션 전 생명주기를 래퍼 스크립트 없이 NERV 수집 엔드포인트로 직접 POST할 수 있다. Codex도 거의 대칭이지만 <b>MCP의 resources·prompts·elicitation을 소비하지 못하고, 마켓플레이스급 일괄 배포 체계가 없으며, cloud 태스크 생성 API가 문서화되어 있지 않다</b> — 이 격차가 D-05의 tools-first 설계를 강제한다. FR-15와 D-05의 1차 근거.</p>
     <div class="meta-line">
-      <span>버전 v0.1 (2026-08-13)</span>
+      <span>버전 v0.2 (2026-09-04)</span>
       <span>원본: <code>docs/02-research/integration-tech.md</code></span>
       <span>1차 소스: 웹 딥리서치 노트 1건(공식 문서 26개 출처, 확인일 2026-08-13)</span>
     </div>
@@ -553,7 +553,23 @@ exporter = "otlp-http"
 environment = "prod"
 log_user_prompt = false</code></pre>
 
-  <h3 id="sec-3-2">3.2 hooks 11종 — 같은 계열, 좁은 표면</h3>
+    <p><b>원격 MCP 설정 키와 그 한계</b>(2026-09-04 확인 — <a href="https://learn.chatgpt.com/docs/extend/mcp?surface=cli">Codex MCP 문서</a>). 원격 서버 항목이 받는 키는 <code>url</code>(필수) · <code>auth</code> · <code>bearer_token_env_var</code> · <code>http_headers</code> · <code>env_http_headers</code> · <b><code>http_headers_helper</code></b> · <code>startup_timeout_sec</code> · <code>tool_timeout_sec</code> · <code>enabled</code> · <code>required</code> · <code>enabled_tools</code> · <code>disabled_tools</code> · 도구별 승인/출력 상한이다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>키</th><th>무엇을 받나</th><th>값이 어디서 오나</th></tr></thead>
+    <tbody>
+      <tr><td><code>bearer_token_env_var</code></td><td>환경변수 <b>이름</b></td><td>Codex 자신의 프로세스 환경</td></tr>
+      <tr><td><code>env_http_headers</code></td><td>헤더 이름 → 환경변수 <b>이름</b></td><td>같음</td></tr>
+      <tr><td><code>http_headers</code></td><td>정적 값</td><td>설정 파일에 그대로 박힌다</td></tr>
+      <tr><td><code>http_headers_helper</code></td><td>(미실측)</td><td>명령이 헤더를 만들어 준다면 파일에서 읽을 길이 된다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>앞의 셋으로는 "파일 하나로 프로젝트 값을 준다" 가 성립하지 않는다.</b> 그래서 NERV 의 <code>.nerv/env</code> 는 Codex 의 notify·훅은 덮지만 <b>MCP 인증은 덮지 못한다</b>(<a href="plugin.html">4.6 플러그인</a> §3.3). <code>http_headers_helper</code> 가 Claude Code 의 <code>headersHelper</code> 와 같은 모양이라면 그 공백을 메운다 — <b>의미론 미실측이라 Phase 2 실측 항목으로 둔다.</b></p>
+
+  <p>환경변수를 설정으로 정의하는 자리는 <code>[shell_environment_policy]</code> 의 <code>set</code> 이다(<a href="https://learn.chatgpt.com/docs/config-file/config-advanced">고급 설정 문서</a>, 2026-09-04 확인). 다만 적용 범위가 <b>"spawned commands"</b> 한정이라 MCP·훅·notify 에 걸린다는 언급이 없다. 프로젝트 <code>.codex/config.toml</code> 이 자격증명·machine-local 알림 명령을 덮지 못한다는 제약도 같은 문서에 있어, <code>notify</code> 를 저장소 config 에 두는 §3.1 의 배치와 겹칠 수 있다 — <b>함께 실측해야 한다.</b></p>
+
+<h3 id="sec-3-2">3.2 hooks 11종 — 같은 계열, 좁은 표면</h3>
 
   <p>Codex도 수명주기 훅을 지원한다(2026년 상반기 추가). 이벤트는 세션 수준 <code>SessionStart</code>/<code>SessionEnd</code>/<code>SubagentStart</code>, 턴 수준 <code>PreToolUse</code>/<code>PermissionRequest</code>/<code>PostToolUse</code>/<code>PreCompact</code>/<code>PostCompact</code>/<code>UserPromptSubmit</code>/<code>SubagentStop</code>/<code>Stop</code> — <b>총 11종</b>이다. 공통 페이로드는 <code>session_id</code>, <code>hook_event_name</code>, <code>transcript_path</code>, <code>cwd</code>, <code>model</code>이고 턴 스코프에서는 <code>turn_id</code>·<code>permission_mode</code>가 붙는다. 차단은 exit 2 + stderr 또는 JSON <code>{"decision":"block","reason":...}</code>이며 <b><code>PreToolUse</code>가 사실상 유일한 실질 차단 이벤트</b>다(PostToolUse는 결과 대체).</p>
 

@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.1의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.35 (2026-09-04)</span>
+      <span>버전 v0.36 (2026-09-04)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -1070,19 +1070,39 @@ printf '  %s · ctx %s%%%s · 미해소 finding %s\n' \
     </tbody>
   </table></div>
 
-  <h4>어디에 두는가 — 값은 기계가 아니라 <b>프로젝트</b>에 속한다 (2026-08-27 개정 — 사람 지시)</h4>
+  <h4>어디에 두는가 — <b><code>settings.local.json</code> 하나다</b> (2026-09-04 개정 — 사람 결정)</h4>
 
-  <p>셸 프로필의 <code>export</code> 는 <b>기계에 하나뿐이다.</b> NERV 는 멀티 프로젝트가 전제인데 <code>NERV_PROJECT</code> 를 프로필에 박으면 프로젝트를 옮길 때마다 프로필을 고치고 모든 세션을 다시 띄워야 한다 — 제품의 전제와 설치 절차가 어긋난다. 값을 두는 자리를 셋으로 갈랐고, <b>강한 자리가 약한 자리를 덮는다</b>(Claude Code 의 관리형 &gt; CLI &gt; 프로젝트 &gt; 유저 순서와 같다 — §2 배포 경로).</p>
+  <p>셸 프로필의 <code>export</code> 는 <b>기계에 하나뿐이다.</b> NERV 는 멀티 프로젝트가 전제라 값은 기계가 아니라 프로젝트에 붙는다(2026-08-27 확정).</p>
+
+  <p><b>그런데 자리를 넷으로 열어 둔 것이 두 곳에 같은 값을 두게 만들었다</b>(실측 2026-09-04: 실사용 저장소가 <code>.claude/settings.local.json</code> 과 <code>.nerv/env</code> 양쪽에 서버·프로젝트·토큰을 갖고 있었다). 둘이 갈리면 어느 쪽이 이겼는지는 그때그때 다른 자리가 답한다. <b>Claude Code 에는 자리를 하나만 준다.</b></p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>자리</th><th>쓰는 곳</th><th>언제</th></tr></thead>
     <tbody>
-      <tr><td>관리형 settings 의 <code>env</code></td><td>회사 관리 기기</td><td>조직이 서버·프로젝트를 정해 준다(§2 · <code>managed-settings.example.json</code>)</td></tr>
-      <tr><td><b>저장소 <code>.claude/settings.local.json</code> 의 <code>env</code></b></td><td>Claude Code 한정 · <b>프로젝트별</b></td><td>개발자 기계의 기본값. 기본 gitignore 대상이라 토큰이 커밋되지 않는다. <b>정적 문자열만</b> 받으므로 <code>$(hostname -s)</code> 같은 값은 넣을 수 없다(스크립트가 스스로 폴백한다)</td></tr>
-      <tr><td><b>저장소 <code>.nerv/env</code></b></td><td>Claude Code 밖까지 — Codex <code>bearer_token_env_var</code> · <code>nerv</code> CLI · statusline · 훅 포워더</td><td>한 파일로 전부 덮고 싶을 때. <code>bin/nerv-env.sh</code> 가 읽는다</td></tr>
+      <tr><td><b>저장소 <code>.claude/settings.local.json</code> 의 <code>env</code></b></td><td><b>Claude Code 의 유일한 자리</b></td><td>기본이자 권장. 기본 gitignore 대상이라 토큰이 커밋되지 않는다. 훅·statusline·프로젝트 <code>.mcp.json</code> 이 전부 이 값을 본다</td></tr>
+      <tr><td>관리형 settings 의 <code>env</code></td><td>회사 관리 기기</td><td>조직이 서버·프로젝트를 정해 준다. 위를 이긴다</td></tr>
+      <tr><td>저장소 <code>.nerv/env</code></td><td><b>Codex 폴백</b> — notify·훅 포워더</td><td>Codex 가 오기 전까지는 쓰지 않는다. <code>bin/nerv-env.sh</code> 가 읽고 이미 있는 값을 덮지 않는다</td></tr>
       <tr><td>셸 프로필 <code>export</code></td><td>기계 전체</td><td>그 기계가 <b>한 프로젝트만</b> 쓸 때</td></tr>
     </tbody>
   </table></div>
+
+  <p><b>무엇이 <code>settings.local.json</code> 의 <code>env</code> 를 보는가</b>(2026-09-04 실측 — 이 결정의 근거다).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>소비자</th><th>본다</th><th>어떻게 확인했나</th></tr></thead>
+    <tbody>
+      <tr><td>훅(포워더·outbox)</td><td>✔</td><td><code>.nerv/env</code> 를 치우고 세션을 돌려도 세션이 정상 등록됐다</td></tr>
+      <tr><td>statusline</td><td>✔</td><td>훅과 같은 방식으로 Claude Code 가 띄운다</td></tr>
+      <tr><td><b>프로젝트</b> <code>.mcp.json</code></td><td>✔</td><td>헤더의 <code>${NERV_TOKEN}</code> 이 풀려 도구 22종이 붙었다</td></tr>
+      <tr><td><b>플러그인이 제공한</b> <code>.mcp.json</code></td><td><b>✘</b></td><td><code>${NERV_SERVER:-…}</code> 가 기본값으로 떨어져 <code>nerv.example.com</code> 으로 갔다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>마지막 줄이 중요하다. <b>같은 <code>${VAR}</code> 문법인데 플러그인이 제공한 것만 프로젝트 환경을 못 본다.</b> 그래서 서버 주소·토큰처럼 <b>프로젝트마다 다른 값을 쓰는 MCP 설정은 프로젝트가 갖는다</b> — 플러그인은 여러 프로젝트가 공유하는 물건이라 애초에 담을 수 없는 값이다.</p>
+
+  <p><b><code>.nerv/env</code> 는 Codex 를 절반만 덮는다</b>(2026-09-04 확인). notify·훅은 우리 포워더가 파일을 직접 읽으므로 덮인다. 그러나 <b>MCP 인증은 그 경로로 덮이지 않는다</b> — <code>bearer_token_env_var</code>·<code>env_http_headers</code> 는 <b>환경변수의 이름만</b> 받고 값은 Codex 자신의 프로세스 환경에서 읽는다. <b>다만 길이 하나 있을 수 있다</b>: 원격 MCP 설정에 <code>http_headers_helper</code> 키가 있다 — 명령이 헤더를 만들어 주는 자리라면 그 명령이 <code>.nerv/env</code> 를 읽을 수 있다. <b>의미론을 실측하지 않았으므로 된다고 적지 않는다</b>(Phase 2 실측 항목).</p>
+
+  <p>Codex 쪽 대응물도 정확히 맞지는 않는다: <code>[shell_environment_policy] set</code> 은 문서가 <b>"spawned commands"</b> 한정이라 적고 있고, 프로젝트 <code>.codex/config.toml</code> 은 자격증명을 바꾸는 설정을 덮지 못한다. 두 하네스가 확실히 공유하는 층은 프로세스 환경변수이므로, 그것으로 한 자리를 만들려면 디렉터리별 환경 로더(direnv 류)나 Codex 실행 래퍼가 필요하다 — <b>Phase 2 시점의 결정으로 남긴다.</b></p>
 
     <p><b><code>${CLAUDE_PLUGIN_ROOT}</code> 는 플러그인 컴포넌트 안에서만 풀린다</b>(2026-09-02 정정). 관리형 settings 는 플러그인 파일이 아니라 그 밖의 설정이므로, 거기 적은 <code>${CLAUDE_PLUGIN_ROOT}/statusline/…</code> 은 치환되지 않고 그대로 남아 statusline 이 실행되지 않는다. 예시 파일은 설치 경로를 직접 적는다 — 조직의 배치가 다르면 그 경로로 바꾼다.</p>
 
@@ -1248,7 +1268,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
     <thead><tr><th>#</th><th>단계</th><th>명령/행동</th><th>확인 방법</th></tr></thead>
     <tbody>
       <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: <code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code>) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용)</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
-      <tr><td>2</td><td>환경변수</td><td>아래 블록을 <b>프로젝트별 자리</b>에 둔다(§3.3 "어디에 두는가") — 기본은 저장소 <code>.claude/settings.local.json</code> 의 <code>env</code>, Codex·CLI 까지 덮으려면 <code>.nerv/env</code></td><td><code>echo $NERV_PROJECT</code> 또는 <code>/mcp</code> 연결 확인</td></tr>
+      <tr><td>2</td><td>환경변수</td><td>아래 블록을 저장소 <code>.claude/settings.local.json</code> 의 <code>env</code> 에 둔다 — <b>Claude Code 의 유일한 자리다</b>(§3.3). <code>.nerv/env</code> 는 Codex 폴백이라 지금은 쓰지 않는다</td><td><code>echo $NERV_PROJECT</code> 또는 <code>/mcp</code> 연결 확인</td></tr>
       <tr><td>3</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add worker-ants/nerv</code> → <code>/plugin install nerv@nerv</code> → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 <code>https://&lt;서버&gt;/plugin/marketplace.json</code> 을 넣는다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.1.0 활성 표시</td></tr>
       <tr><td>4</td><td>연결 확인</td><td>프로젝트 저장소에서 Claude Code 실행 → <code>/mcp</code></td><td><code>nerv</code> 서버 connected, <code>nerv_*</code> 도구 목록 표시</td></tr>
       <tr><td>5</td><td>첫 부트스트랩</td><td><code>/nerv:next</code> 실행(스킬이 <code>nerv_bootstrap</code>부터 호출한다)</td><td>응답에 <code>session_id</code>·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다</td></tr>
