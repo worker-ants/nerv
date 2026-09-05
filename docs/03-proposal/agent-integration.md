@@ -2,8 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **23종**(2026-09-04 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 스코프와 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.19 · 2026-09-05 · HTML 판: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.20 · 2026-09-05 · HTML 판: [agent-integration.html](../html/agent-integration.html)
 >
+> v0.20 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): §3.2 제목이 "스킬 5종의 책임" 이었다 — `/nerv:review` 가 2026-08-23 에 더해져 6종이다.
 > v0.19 변경(2026-09-05 — 카탈로그가 실물을 따라간다): `nerv_spec_search` 행의 `type`·`status` 를 **배선됨**으로 고친다(4.4 v0.80 · REQ-API-099). `requirement_id` 는 **아직 없다**로 남긴다 — 전표가 이름만 적고 뜻을 정하지 않아, 배선하려면 사람이 의미를 정해야 한다.
 > v0.18 변경(2026-09-05 — 정본이 가장 낡은 자리였다, 정합성 감사): §2.3 카탈로그 세 자리를 실물에 맞춘다. ① `nerv_spec_tree` 의 인자가 아직 **`root_spec_id`** 였다 — 실재한 적 없는 이름이고, 스킬이 그것을 베껴 쓴 것이 2026-09-05 실사용 결함의 절반이었다(4.4 REQ-API-090). 같은 행에 그 뒤로 더해진 `type`·`baseline`·`around`·`hops`·`include_relations` 와 **두 축의 배타 규칙**을 함께 적는다. ② `nerv_spec_search` 의 질의 인자는 **`q`** 다(`query` 아님). 같은 행이 적던 `type`·`status`·`requirement_id` 는 **두 표면 어디에도 없다** — 지운 것이 아니라 없다고 표시했다(EP-SPEC-02 가 정본이고 요구는 유효하다). ③ `nerv_question_create` 의 출력 `status` 를 `pending/…` 에서 **`open`/…** 으로 고친다 — 이 한 줄이 스킬의 폴링을 영영 참이 되지 않게 만든 뿌리다(4.6 v0.46).
 > v0.17 변경(2026-09-04 — 카탈로그가 또 실물보다 좁았다): 표에 `nerv_spec_attachment_read` 를 더하고(23종째) `nerv_spec_get` 의 `include[]` 에 `attachments` 를 적었다. **매단 파일을 다시 못 열면 매단 것이 아니다** — 실사용 에이전트가 첨부 3건을 올려 두고 되읽을 길을 못 찾아 스토리지를 직접 두드리다 403 을 받았다. 되읽는 기본 길은 목록의 `url` 이고 이 도구는 Bash 가 없는 세션의 좁은 길이다(텍스트만·상한 있음 · 4.4 REQ-API-088·089).
@@ -280,7 +281,7 @@ nerv-plugin/
 - [Create custom subagents — Claude Code Docs](https://code.claude.com/docs/en/sub-agents) (2026-08-13 확인): 플러그인 배포 시 `hooks`/`mcpServers`/`permissionMode` frontmatter 무시, `SubagentStart`/`SubagentStop` 훅의 `agent_id`/`agent_type`.
 - [Agent Skills 오픈 표준 — agentskills.io](https://agentskills.io/) (2026-08-13 확인): SKILL.md를 40여 개 도구가 지원 — Claude Code와 Codex에 같은 파일을 배포할 수 있는 근거.
 
-### 3.2 스킬 5종의 책임
+### 3.2 스킬 6종의 책임
 
 | 스킬 | 트리거 | 하는 일 | 호출 도구 |
 | --- | --- | --- | --- |

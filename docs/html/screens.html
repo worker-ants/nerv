@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.72 (2026-09-05)</span>
+      <span>버전 v0.73 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -213,7 +213,7 @@
       <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾</b>(2026-08-24 신설 · REQ-WEB-069). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
       <tr><td>프로젝트 select</td><td>고른 조직의 프로젝트 목록. <b>하나뿐일 때도 select 로 둔다</b>(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(<code>/p/:proj</code>)로 간다. 홈·받은 요청·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 <b>마지막으로 본 프로젝트</b>를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다)</td></tr>
       <tr><td><span class="marker">2</span> 연결 상태 배너</td><td>2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
-      <tr><td><span class="marker">3</span> 프로젝트 사이드바</td><td><code>/p/:proj/*</code>에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 — 비활성 + 툴팁). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1))</td></tr>
+      <tr><td><span class="marker">3</span> 프로젝트 사이드바</td><td><code>/p/:proj/*</code>에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 로 계획했으나 2026-08-23 에 열렸다 — <b>활성 링크 + 열린 critical 배지</b>다, §2.6a). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1))</td></tr>
       <tr><td><span class="marker">4</span> 토스트 스택</td><td><code>claim.conflict_warn</code> 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1)</td></tr>
     </tbody>
   </table></div>
@@ -357,7 +357,7 @@
       <tr><td><code>/o/:org</code></td><td>조직 전환</td><td>화면 없음(컨텍스트 전환 후 즉시 리다이렉트) — 그림 비대상</td></tr>
       <tr><td><code>/inbox</code></td><td>S7 받은 요청</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.7 (고충실도)</td></tr>
       <tr><td><code>/notifications</code></td><td>알림 센터</td><td><b>이 문서 §2.9</b></td></tr>
-      <tr><td><code>/settings/members</code> · <code>/tokens</code> · <code>/gates</code></td><td>S8 설정 3탭</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.8 (멤버·토큰·게이트 정책 3탭 합성 — 연동 탭은 Phase 2 비활성)</td></tr>
+      <tr><td><code>/settings/members</code> · <code>/tokens</code> · <code>/gates</code></td><td>S8 설정 <b>4탭</b>(멤버·토큰·게이트 정책 + 워크스페이스 — 2026-09-05 현황 정정)</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.8 (멤버·토큰·게이트 정책 3탭 합성 — 연동 탭은 Phase 2 비활성)</td></tr>
       <tr><td><code>/p/:proj</code></td><td>S2 프로젝트 개요</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.2</td></tr>
       <tr><td><code>/p/:proj/specs</code></td><td>스펙 목록(트리 전체 화면)</td><td><b>이 문서 §2.4</b></td></tr>
       <tr><td><code>/p/:proj/specs/:spec</code></td><td>S3 스펙 상세</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.3 (고충실도)</td></tr>
@@ -1759,7 +1759,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <h3>이 문서가 인용한 정본 문서</h3>
   <ul>
     <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — S1~S8 와이어프레임·상태 표현 규칙·인터랙션 규약의 정본. 이 문서의 모든 화면 절이 § 단위로 인용</li>
-    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 29종 필드·enum 값·ID 발급 규칙(§5.1)·<code>spec_comment</code> 앵커(§2.2)</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 37종(도메인 33 + 인프라 4) 필드·enum 값·ID 발급 규칙(§5.1)·<code>spec_comment</code> 앵커(§2.2)</li>
     <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 상태 축 3종·권한 매트릭스(§1.6)·초안 편집 리스(§1.2)·지시자≠승인자(§2.3)·이벤트 이름과 알림 카탈로그(§6.3)</li>
     <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구 카탈로그(§2.3)·하트비트 역채널(§2.4)·토큰 스코프(§6.1)</li>
     <li><a href="roadmap.html">3.7 로드맵</a> — Phase 1 화면 범위(S1~S5·S7·S8)와 비범위(S6·CR 델타·커버리지 대시보드·Slack), FR-12 P1 인앱</li>

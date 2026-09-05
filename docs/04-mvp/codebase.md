@@ -7,8 +7,9 @@ updated: 2026-08-28
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.15 · 2026-09-04 · HTML 판: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.16 · 2026-09-05 · HTML 판: [codebase.html](../html/codebase.html)
 >
+> v1.16 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): ① `ReviewModule` 행의 `(P2)` 둘을 실물로 고친다 — 도구 2종·REST 7종이 있다. ② 플러그인 트리에서 `.mcp.json` 을 걷는다(4.6 v0.38 이 패키지에서 뺐고 이 트리만 남아 있었다). 훅은 두 변형, 스킬은 6종이다. ③ 아키텍처 그림의 도구 수를 21종으로.
 > v1.15 변경(2026-09-04 — 돌지 않던 검사, 사람 지시): **REQ-CB-028 신설.** CI 의 check 잡이 `pnpm lint`·`tsc -b` 만 부르고 **`pnpm format:check` 는 부르지 않았다** — 그 스크립트는 처음부터 있었는데, 그래서 7개 파일이 서식 실패인 채로 이틀을 지나며 그 사이의 커밋들을 받았다(2026-09-02 → 09-04). 아무도 몰라서가 아니라 **아무도 돌리지 않아서**다. 같은 뿌리의 앞선 사례가 이 문서에 이미 적혀 있다 — 게이트가 `pnpm test` 뒤에 있어 21회 연속 skipped 됐던 일. 검사는 **돌 때만** 검사다. 사람이 지키는 쪽은 `AGENTS.md` 구현 규약 7 이 맡는다.
 > v1.14 변경(2026-09-04 — 플러그인 아카이브가 빌드 산출물이 된다): `scripts/pack-plugin.mjs` 가 `plugin/` 을 `plugin-dist/<이름>-<버전>.zip` 으로 묶고(`pnpm pack:plugin`), 이미지 빌드가 같은 명령을 돌려 `/app/plugin-dist` 에 심는다(`NERV_PLUGIN_DIST`). 서버가 그것을 `GET /plugin/...` 로 서빙한다(4.4 §2.11 · 4.6 §3.5). 앞문 둘(nginx `location /plugin/` · Ingress `path: /plugin`)에 경로를 열었다 — 열지 않으면 마켓플레이스가 SPA 의 index.html 을 **200 인 채로** 받는다.
 > v1.13 변경(2026-09-02 — 라이선스): 저장소를 **Apache License 2.0** 으로 공개한다. §1 트리에 루트의 `LICENSE`·`NOTICE` 를 넣었다 — `LICENSE` 는 원문 그대로 두고(부록의 자리표시자를 채우면 자동 판별기가 Apache-2.0 으로 읽지 못한다) 저작권 표기는 `NOTICE` 가 진다. 파일마다 라이선스 헤더는 붙이지 않는다(사람 결정).
@@ -93,9 +94,8 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
                                 #   임포트 배치 · 프로파일 zod 스키마도 여기가 정본 (apps/api ↔ apps/cli 공유 계약)
     plugin/                     # @nerv/plugin — Claude Code 플러그인 패키지 (4.6 §1.1 전문의 실물)
       .claude-plugin/           #   plugin.json · marketplace.json
-      .mcp.json                 #   MCP 서버 1개 (4.6 §3.3)
-      hooks/hooks.json          #   훅 6종 — 텔레메트리 평면 (4.6 §3.1)
-      skills/                   #   next · spec · impl · question · import (4.6 §2)
+      hooks/                    #   hooks.json(기본 · command) · hooks.http.json (4.6 §3.1)
+      skills/                   #   next · spec · impl · question · import · review (4.6 §2)
       agents/                   #   nerv-spec-writer — 코드 쓰기 도구 미보유
       bin/                      #   nerv-hook-forward(토큰 주입 폴백) · nerv-outbox(오프라인 큐)
       statusline/               #   nerv-statusline.sh — 네트워크 왕복 없음 (4.6 §3.2)
@@ -125,7 +125,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
 | `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~05 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
 | `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터 + 번역기만 — §3.4가 근거) |
-| `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 5종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
+| `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 6종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
 의존 방향은 한쪽뿐이다: `apps/* → packages/schema`. `apps/web ↔ apps/api ↔ apps/cli` 간 직접 import는 금지하며 공유 계약(zod 스키마·타입·상수)은 전부 `@nerv/schema`를 거친다. `apps/cli`가 `apps/api`의 서비스를 import하지 않는다는 것이 REQ-CB-001의 적용례다 — CLI는 API의 클라이언트일 뿐 같은 프로세스가 아니다.
@@ -173,7 +173,7 @@ REST·MCP·WebSocket·SSE가 **같은 도메인 서비스를 DI로 공유**한�
 flowchart TB
   subgraph SURF["표면 5종 — 번역만, 규칙 없음"]
     REST["REST 컨트롤러<br/>/api/v1/*"]
-    MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 16종"]
+    MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 21종"]
     WS["WS 게이트웨이<br/>/ws · 룸 join"]
     SSE["SSE 스트림<br/>GET /sse/* · 단방향"]
     ING["ingest 컨트롤러<br/>/ingest/hooks/* 5종"]
@@ -260,7 +260,7 @@ apps/api/src/
       import.module.ts
       import.service.ts          # 자연 키 대조 · 배치 upsert · 전이 검사 우회(이 모듈에서만) · import.applied 이벤트
       import.controller.ts       # REST — preflight · specs · tasks · links · map
-    review/                      # ReviewModule — 테이블·서비스 골격은 MVP 스키마에 포함, 도구 2종은 P2
+    review/                      # ReviewModule — 도구 2종·REST 7종 구현됨(2026-08-23~ · Phase 2 로 계획했던 것)
       review.module.ts
       review.service.ts
     event/                       # EventModule
@@ -302,7 +302,7 @@ apps/api/src/
 | `TaskModule` | `task` `task_dependency` `claim` `evidence` | `nerv_task_next` `nerv_task_claim` `nerv_task_heartbeat` `nerv_task_release`(P0) · `nerv_task_update`(P1) | `…/projects/{p}/tasks` |
 | `SessionModule` | `agent_session` `activity` | `nerv_bootstrap`(P0) · `nerv_session_event`(P1) | `…/projects/{p}/sessions` + `/ingest/hooks/*` |
 | `ApprovalModule` | `approval` `question` | `nerv_question_create`(P1) | `…/projects/{p}/approvals` · `…/questions` |
-| `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` | (P2 — `nerv_review_submit` `nerv_finding_resolve`) | (P2) |
+| `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` | `nerv_review_submit` `nerv_finding_resolve` | `…/projects/{p}/reviews` 계열 7종 |
 | `EventModule` | `event` `notification` | — | `…/projects/{p}/events` + WebSocket · SSE(`/sse/*`) |
 | `ImportModule` | (소유 테이블 없음 — Spec·Task 계열에 소급 적재) | — (도구 없음 — [4.7 스펙 임포터](importer.md) §3.6) | `…/projects/{p}/import/*` |
 

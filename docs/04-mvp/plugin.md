@@ -5,10 +5,11 @@ updated: 2026-08-22
 ---
 # 플러그인과 온보딩
 
-> **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
+> **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **6종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.47 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.48 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.48 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): §1.1 트리가 `review/SKILL.md` 를 아직 주석 처리된 `(P2)` 로 두고 있었다 — **배포되고 바이트 대조 테스트까지 걸려 있는 파일이다.** 같은 트리의 `hooks/hooks.json` 설명도 `type:"http"` 로 남아 있었다(v0.30 에서 기본을 command 로 바꿨다). 요약과 참고 문헌의 "스킬 5종" 도 6종으로.
 > v0.47 변경(2026-09-05 — 새로 생긴 인자를 스킬이 알아야 한다, 규약 6): **패키지 0.2.6 → 0.2.7.** `nerv_spec_search` 가 `type`·`status` 를 받게 됐으므로(4.4 v0.80 · REQ-API-099) `skills/spec` 이 그것을 **쓰라고** 말하게 한다 — 받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다. 트리와 같은 쉼표 목록 표기라는 것까지 적는다: 같은 뜻의 인자가 도구마다 다른 모양이면 에이전트는 실패로 배운다.
 > v0.46 변경(2026-09-05 — 스킬이 오지 않을 값을 기다렸다, 정합성 감사): **패키지 0.2.5 → 0.2.6.** `skills/question` 의 폴링 조건이 응답 `status` 가 **`pending`** 이면 재호출하라고 적고 있었는데 `question_status` 어휘는 `open`/`answered`/`cancelled`/`expired` 이고 서버는 언제나 `open` 을 준다 — **조건이 참이 되는 일이 없었다.** `pending` 이라는 이름이 실재하기는 한다: **하트비트 응답의 `pending[]` 역채널**이다(같은 절의 다음 문장이 그것을 옳게 적고 있어 둘이 섞였다). 규약 6 이 "유령 응답 필드" 라 부른 자리이고, 문서의 흠이 아니라 그대로 에이전트 행동의 결함이다. 뿌리는 [3.4](../03-proposal/agent-integration.md) §2.3 카탈로그가 이 도구의 출력을 `status`(pending/…) 로 적어 둔 것이다 — 그쪽도 같이 고쳤다(3.4 v0.18).
 > v0.45 변경(2026-09-05 — 새 인자를 스킬이 몰랐다, 사람 지적): **패키지 0.2.4 → 0.2.5.** `nerv_spec_tree` 가 `baseline` 을 받게 됐는데(4.4 REQ-API-098) 스킬은 그것을 모른 채였다 — 규약 6 의 첫 항목("새로 생긴 것을 스킬이 아는가")을 서버 쪽만 고치고 건너뛴 자리다. `spec` 의 인자 목록에 `type`·`baseline` 을 넣고, `next` 의 기준선 문단에 **트리도 그 세트로 본다** 를 더했다: 세트 없이 트리를 보면 그 뒤에 만들어진 문서가 섞여 들어와 **그 세트에 있는 문서인 줄 알고 참조하게 된다** — 같은 문단이 `nerv_spec_get` 에 대해 이미 적어 둔 논리다. 곁들여 도구 설명이 `mcp.arg.baseline`(spec_get 용 문장)을 재사용해 **트리에는 없는 `version` 인자를 말하고 있었다** — 트리용 키를 따로 팠다.
@@ -66,19 +67,19 @@ updated: 2026-08-22
 
 ### 1.1 구조 — agent-integration §3.1의 MVP 절단면
 
-플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.1이 정본이고, 아래는 그중 **MVP(P0+P1)에 실제로 배포되는 절단면**이다. 주석 `(P2)`가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.
+플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.1이 정본이고, 아래는 그중 **MVP(P0+P1)에 실제로 배포되는 절단면**이다. 주석 `(P2)`가 붙은 항목은 Phase 2에 추가되며 이 패키지에 포함되지 않는다 — **`skills/review` 는 2026-08-23 에 그 자리를 벗어났다**(배포되고 바이트 대조 테스트가 걸려 있다).
 
 ```text
 nerv-plugin/
   .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.7
-  hooks/hooks.json                # type:"http" 훅 (§3.1)
+  hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
     spec/SKILL.md                 # /nerv:spec     — 스펙 조회·초안·검토 요청 (§2.2)
     impl/SKILL.md                 # /nerv:impl     — 구현 루프 + 하트비트 규약 (§2.3)
     question/SKILL.md             # /nerv:question — 에스컬레이션 규약 (§2.4)
     import/SKILL.md               # /nerv:import   — 임포터 CLI 래퍼 (§2.5)
-    # review/SKILL.md             (P2) /nerv:review — nerv_review_submit와 함께 추가
+    review/SKILL.md               # /nerv:review   — 리뷰 제출·발견 처분 (§2.6)
   agents/
     nerv-spec-writer.md           # 스펙 초안 전용(코드 쓰기 도구 미보유)
     # nerv-code-reviewer.md       (P2) 리뷰 도구 2종과 함께 추가
@@ -106,7 +107,7 @@ nerv-plugin/
 | --- | --- | --- |
 | 스킬 `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` | ✅ 포함 | [3.7 로드맵](../03-proposal/roadmap.md) Phase 1 "Claude Code 플러그인 v1" — 스킬 4종 명시 |
 | 스킬 `/nerv:import` | ✅ 포함 | 2026-08-22 추가 — 임포터 실행 모델이 CLI+API로 확정되면서 사람이 도는 절차(dry-run → 리포트 확인 → `--apply`)를 스킬로 배포한다([4.7 스펙 임포터](importer.md) §3.6). 로드맵 Phase 1 "clemvion 임포터"(FR-17 ◐)의 실행 경로이며 새 도구를 추가하지 않는다 |
-| 스킬 `/nerv:review` | ⏳ P2 — **2026-08-23 배포**(§2.6) | `nerv_review_submit`·`nerv_finding_resolve`가 P2 도구다. MVP 약속(스킬 5종)은 그대로이고 패키지가 6종이 된 것이다 |
+| 스킬 `/nerv:review` | ✅ 포함 — Phase 2 로 계획했으나 **2026-08-23 배포**(§2.6) | `nerv_review_submit`·`nerv_finding_resolve`가 P2 도구다. MVP 약속(스킬 5종)은 그대로이고 패키지가 6종이 된 것이다 |
 | `hooks/hooks.json` (SessionStart·PostToolUse·SubagentStart/Stop·Stop·SessionEnd) | ✅ 포함 | Phase 1 플러그인 v1 번들 |
 | `.mcp.json` | ❌ 제외 | **쓰는 쪽 저장소가 갖는다**(2026-09-04) — 서버 주소·토큰이 프로젝트별 값이고, 플러그인이 제공한 것은 그 프로젝트의 `env` 를 읽지 못한다(§3.3). 전문은 §3.3 템플릿 |
 | statusline | ✅ 포함 | 서버 사실의 로컬 투영 — 네트워크 왕복 없음 |
@@ -649,7 +650,7 @@ allowed-tools:
 
 ---
 
-### 2.6 `skills/review/SKILL.md` — 리뷰 제출과 발견 처분 (Phase 2, 2026-08-23)
+### 2.6 `skills/review/SKILL.md` — 리뷰 제출과 발견 처분 (2026-08-23 · **배포된다**)
 
 리뷰 수집(FR-09)의 도구 2종이 들어오면서 이 스킬이 가능해졌다([4.1 범위](scope.md) §5 착수 기록). 다섯 스킬이 "무엇을 어떤 순서로 하느냐"를 배포하듯, 이 스킬이 배포하는 것은 **리뷰 결과가 가는 곳이 저장소가 아니라 서버라는 규약**이다.
 
@@ -1149,7 +1150,7 @@ top="$(git rev-parse --show-toplevel 2>/dev/null || true)"      # → X-NERV-Wor
 
 ### 3.4 오프라인 폴백 실물 — `.nerv/cache/` · `.nerv/outbox/`
 
-스킬 5종의 에러 대응 표가 참조하는 `NERV_UNAVAILABLE` 폴백(NFR-05, [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §5.4 정책 정본)의 파일 실물이다. 위치는 **작업 저장소 루트의 `.nerv/`**(오버라이드: `NERV_CACHE_DIR` — §3.3 전표)이며, 플러그인 설치가 `.gitignore`에 `.nerv/`를 추가한다 — 캐시·큐가 커밋되면 그 자체가 clemvion식 git 비대화(P6)다.
+스킬 6종의 에러 대응 표가 참조하는 `NERV_UNAVAILABLE` 폴백(NFR-05, [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §5.4 정책 정본)의 파일 실물이다. 위치는 **작업 저장소 루트의 `.nerv/`**(오버라이드: `NERV_CACHE_DIR` — §3.3 전표)이며, 플러그인 설치가 `.gitignore`에 `.nerv/`를 추가한다 — 캐시·큐가 커밋되면 그 자체가 clemvion식 git 비대화(P6)다.
 
 ```text
 .nerv/
@@ -1430,7 +1431,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 16종·스킬 5종 범위와 PAT-먼저 인증 결정
+- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 21종(카탈로그 23종)·스킬 6종 범위와 PAT-먼저 인증 결정
 - [4.4 API 명세](api.md) — `/mcp`·`/ingest/hooks/*` 엔드포인트의 요청/응답 계약
 - [4.8 백로그](backlog.md) — 훅 헤더 토큰 주입 실측(E06-S06)·플러그인 v1 스토리·E2E 수용 시나리오
 
