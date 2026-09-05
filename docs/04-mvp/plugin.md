@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 5종(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.45 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.46 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.46 변경(2026-09-05 — 스킬이 오지 않을 값을 기다렸다, 정합성 감사): **패키지 0.2.5 → 0.2.6.** `skills/question` 의 폴링 조건이 응답 `status` 가 **`pending`** 이면 재호출하라고 적고 있었는데 `question_status` 어휘는 `open`/`answered`/`cancelled`/`expired` 이고 서버는 언제나 `open` 을 준다 — **조건이 참이 되는 일이 없었다.** `pending` 이라는 이름이 실재하기는 한다: **하트비트 응답의 `pending[]` 역채널**이다(같은 절의 다음 문장이 그것을 옳게 적고 있어 둘이 섞였다). 규약 6 이 "유령 응답 필드" 라 부른 자리이고, 문서의 흠이 아니라 그대로 에이전트 행동의 결함이다. 뿌리는 [3.4](../03-proposal/agent-integration.md) §2.3 카탈로그가 이 도구의 출력을 `status`(pending/…) 로 적어 둔 것이다 — 그쪽도 같이 고쳤다(3.4 v0.18).
 > v0.45 변경(2026-09-05 — 새 인자를 스킬이 몰랐다, 사람 지적): **패키지 0.2.4 → 0.2.5.** `nerv_spec_tree` 가 `baseline` 을 받게 됐는데(4.4 REQ-API-098) 스킬은 그것을 모른 채였다 — 규약 6 의 첫 항목("새로 생긴 것을 스킬이 아는가")을 서버 쪽만 고치고 건너뛴 자리다. `spec` 의 인자 목록에 `type`·`baseline` 을 넣고, `next` 의 기준선 문단에 **트리도 그 세트로 본다** 를 더했다: 세트 없이 트리를 보면 그 뒤에 만들어진 문서가 섞여 들어와 **그 세트에 있는 문서인 줄 알고 참조하게 된다** — 같은 문단이 `nerv_spec_get` 에 대해 이미 적어 둔 논리다. 곁들여 도구 설명이 `mcp.arg.baseline`(spec_get 용 문장)을 재사용해 **트리에는 없는 `version` 인자를 말하고 있었다** — 트리용 키를 따로 팠다.
 > v0.44 변경(2026-09-05 — 뼈대만 보는 길, 사람 결정): **패키지 0.2.3 → 0.2.4.** `nerv_spec_tree` 가 `type` 도 받는다(4.4 REQ-API-093). `new` 2단계는 사람과 **트리 위치**를 합의하는 자리인데, 141편을 다 보여 주고 고르라 하는 것과 뼈대 17편을 보여 주고 고르라 하는 것은 다른 일이다 — `area` 는 본문 없이 자리를 잡는 종류라 `type: "vision,area"` 가 곧 그 뼈대다. 그 한 줄을 적었다.
 > v0.43 변경(2026-09-05 — 새 인자를 스킬이 **쓰게** 한다, 사람 결정): **패키지 0.2.2 → 0.2.3.** `nerv_spec_tree` 가 `status` 를 받게 됐다(4.4 REQ-API-092). 규약 6 이 말하는 자리다 — **받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다.** 그래서 `new` 1단계에 할 일을 적는다: `status: "draft,in_review"` 로 **쓰다 만 문서를 먼저 훑고**, 그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 잇는다 — `key_taken` 때 "다른 키를 지어내지 말고 그 문서를 읽고 이어 쓴다" 와 같은 답이다. 응답에 섞여 오는 **조상(`matched: false`)을 후보로 세지 않는 것**까지 함께 적었다: 세는 규칙을 적지 않으면 26건이 29건이 된다.
@@ -68,7 +69,7 @@ updated: 2026-08-22
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.5
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.6
   hooks/hooks.json                # type:"http" 훅 (§3.1)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -91,12 +92,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.5)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.6)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -564,7 +565,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 3. `nerv_question_create` — 입력: `question`, `options[]`, `context{…}`, `urgency`,
    `blocking`(기본 true — 게이트 차단 여부), `escalate`, 필요 시 `wait_seconds`(long-poll),
    `idempotency_key`.
-4. **폴링 = 같은 멱등 키 재호출.** 응답 `status`가 `pending`이면 `wait_seconds`를 써서
+4. **폴링 = 같은 멱등 키 재호출.** 응답 `status`가 `open`이면 `wait_seconds`를 써서
    long-poll로 재호출한다. `answered`면 답변·결정자를 확인하고 재개한다.
    /nerv:impl 루프 중이라면 하트비트 응답의 pending에도 같은 답변이 실려 온다.
 5. **대기 중 규칙.** blocking 질문의 답변을 기다리는 동안 새 작업을 클레임하지 않고,

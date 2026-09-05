@@ -27,7 +27,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 3. `nerv_question_create` — 입력: `question`, `options[]`, `context{…}`, `urgency`,
    `blocking`(기본 true — 게이트 차단 여부), `escalate`, 필요 시 `wait_seconds`(long-poll),
    `idempotency_key`.
-4. **폴링 = 같은 멱등 키 재호출.** 응답 `status`가 `pending`이면 `wait_seconds`를 써서
+4. **폴링 = 같은 멱등 키 재호출.** 응답 `status`가 `open`이면 `wait_seconds`를 써서
    long-poll로 재호출한다. `answered`면 답변·결정자를 확인하고 재개한다.
    /nerv:impl 루프 중이라면 하트비트 응답의 pending에도 같은 답변이 실려 온다.
 5. **대기 중 규칙.** blocking 질문의 답변을 기다리는 동안 새 작업을 클레임하지 않고,

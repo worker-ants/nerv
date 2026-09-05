@@ -52,7 +52,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 29개 엔티티의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-09-02)</span>
+      <span>버전 v0.7 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
     </div>
@@ -461,7 +461,7 @@
       <tr><td><code>name</code></td><td>text</td><td>"노트북 Claude Code" 같은 사람용 라벨</td></tr>
       <tr><td><code>token_hash</code></td><td>bytea</td><td>원문 미저장</td></tr>
       <tr><td><code>prefix</code></td><td>text</td><td>앞 8자(식별·감사용)</td></tr>
-      <tr><td><code>scopes</code></td><td>text[]</td><td><code>spec:read</code>, <code>spec:write</code>, <code>task:claim</code>, <code>review:write</code>, <code>session:write</code> …</td></tr>
+      <tr><td><code>scopes</code></td><td>text[]</td><td><code>spec:read</code>, <code>spec:draft</code>, <code>task:claim</code>, <code>task:update</code> … — 어휘 정본은 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(10종)이고, 사람 전용 둘(<code>spec:approve</code>·<code>approval:decide</code>)은 토큰이 가질 수 없다(2026-09-05 정정)</td></tr>
       <tr><td><code>expires_at</code> · <code>revoked_at</code> · <code>last_used_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>

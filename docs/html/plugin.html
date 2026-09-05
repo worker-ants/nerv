@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.45 (2026-09-05)</span>
+      <span>버전 v0.46 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -638,7 +638,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 3. `nerv_question_create` — 입력: `question`, `options[]`, `context{…}`, `urgency`,
    `blocking`(기본 true — 게이트 차단 여부), `escalate`, 필요 시 `wait_seconds`(long-poll),
    `idempotency_key`.
-4. **폴링 = 같은 멱등 키 재호출.** 응답 `status`가 `pending`이면 `wait_seconds`를 써서
+4. **폴링 = 같은 멱등 키 재호출.** 응답 `status`가 `open`이면 `wait_seconds`를 써서
    long-poll로 재호출한다. `answered`면 답변·결정자를 확인하고 재개한다.
    /nerv:impl 루프 중이라면 하트비트 응답의 pending에도 같은 답변이 실려 온다.
 5. **대기 중 규칙.** blocking 질문의 답변을 기다리는 동안 새 작업을 클레임하지 않고,

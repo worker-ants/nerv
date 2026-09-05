@@ -52,7 +52,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>33종</b> — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.26 (2026-09-04)</span>
+      <span>버전 v0.27 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -228,7 +228,7 @@ CREATE TABLE api_token (
   name         text NOT NULL,                          -- 예: "노트북 Claude Code"
   token_hash   bytea NOT NULL UNIQUE,                  -- 원문 미저장
   prefix       text NOT NULL,                          -- 앞 8자(식별·감사용)
-  scopes       text[] NOT NULL DEFAULT '{}',           -- 'spec:read' 'spec:write' 'task:claim' …
+  scopes       text[] NOT NULL DEFAULT '{}',           -- 'spec:read' 'spec:draft' 'task:claim' … (AGENT_SCOPES 10종)
   expires_at   timestamptz,
   revoked_at   timestamptz,
   last_used_at timestamptz,
@@ -654,7 +654,11 @@ CREATE TABLE resolution (
   actor_session_id  uuid REFERENCES agent_session(id),
   created_at        timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT resolution_fixed_commit_ck    CHECK (kind &lt;&gt; 'fixed' OR commit_sha IS NOT NULL),
-  CONSTRAINT resolution_spec_change_cr_ck  CHECK (kind &lt;&gt; 'spec_change' OR change_request_id IS NOT NULL)
+  -- 증거는 <b>둘 중 하나면 된다</b>(0011 · v0.15 완화). 예전에는 CR 만 인정했는데 CR 을
+  -- 만드는 코드가 없어 이 처분 자체가 닿을 수 없는 값이었다.
+  CONSTRAINT resolution_spec_change_cr_ck  CHECK (kind &lt;&gt; 'spec_change'
+                                                 OR change_request_id IS NOT NULL
+                                                 OR spec_version_id IS NOT NULL)
 );</code></pre>
 
   <h3>2.8 사람 개입 — approval · question</h3>
@@ -1085,7 +1089,12 @@ INSERT INTO api_token (id, project_id, user_id, name, token_hash, prefix, scopes
   ('01990a66-0000-7000-8000-000000000036', '01990a66-0000-7000-8000-000000000021',
    '01990a66-0000-7000-8000-000000000015', '노트북 Claude Code',
    digest('dev-seed-token-hana', 'sha256'), 'nrv_dev1',
-   ARRAY['spec:read', 'spec:write', 'task:claim', 'review:write', 'session:write']);
+   -- **어휘에 있는 값만 심는다**(2026-09-05 정정 — 0018_prune_dead_scopes).
+   -- 예전 씨앗은 spec:write·review:write·session:write 를 심었고 셋 다 어휘에
+   -- 없어 verifyPat 이 사용 시점에 조용히 버렸다 — 설정 화면에만 남았다.
+   -- 어휘 정본은 @nerv/schema 의 AGENT_SCOPES 한 곳이다.
+   ARRAY['spec:read', 'spec:draft', 'task:claim', 'task:update', 'review:submit',
+         'agent-session:launch']);
 
 -- 세션 (S5 보드 한 벌: S-8f31 도현/mac-02, S-2d04 유나/linux-ci-01, S-b7e9 하나/mac-07) --
 INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, branch,

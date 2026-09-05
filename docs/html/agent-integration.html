@@ -52,7 +52,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.17 (2026-09-04)</span>
+      <span>버전 v0.18 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -236,12 +236,12 @@
         <td>멱등 — 같은 세션이면 동일 스냅샷. id 가 없으면 <b>같은 사람·hostname·cwd 의 살아 있는 훅 세션을 채택</b>(2026-09-03)</td>
       </tr>
       <tr>
-        <td><code>nerv_spec_tree</code></td><td><code>project</code>, <code>root_spec_id?</code>, <code>depth?</code>, <code>status?</code></td>
+        <td><code>nerv_spec_tree</code></td><td><code>project</code>, <b><code>root?</code></b>(키 또는 UUID — 2026-09-05 정정: <code>root_spec_id</code> 는 실재한 적 없는 이름이다), <code>depth?</code>, <code>status?</code>·<code>type?</code>(<b>쉼표 목록</b> — 일치 노드와 <b>그 조상</b>만 남고 노드마다 <code>matched</code> 가 붙는다. 어휘 밖 값은 거절이지 무시가 아니다 — REQ-API-074), <code>baseline?</code>(그 세트가 담은 문서만, 담을 때 핀된 판 — REQ-API-098), <code>include_relations?</code> / 또는 <b><code>around?</code>·<code>hops?</code></b>(관계 이웃 · <code>hops</code> 0~3, 기본 1) — <b>계층 축(<code>root</code>·<code>depth</code>)과 관계 축(<code>around</code>)은 배타다</b>(함께 오면 400)</td>
         <td>스펙 노드 트리(id·title·type·문서 상태·현재 버전)</td>
         <td><code>spec:read</code></td><td>A1</td><td>스펙 탐색 시작</td><td>읽기 전용</td>
       </tr>
       <tr>
-        <td><code>nerv_spec_search</code></td><td><code>query</code>, <code>type?</code>, <code>status?</code>, <code>requirement_id?</code>, <code>references?</code>(이 스펙을 참조하는 문서만 — REST EP-SPEC-02와 동일 필터), <code>limit</code></td>
+        <td><code>nerv_spec_search</code></td><td><b><code>q</code></b>(2026-09-05 정정 — <code>query</code> 가 아니다), <code>type?</code>·<code>status?</code>·<code>requirement_id?</code>(<b>두 표면 어디에도 아직 없다</b> — 2026-09-05 실측. EP-SPEC-02 가 정본이고 도구·REST 둘 다 이 셋을 받지 않는다), <code>references?</code>(이 스펙을 참조하는 문서만 — REST EP-SPEC-02와 동일 필터), <code>limit</code></td>
         <td>매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫 + 관련도) + <b><code>related[]</code></b>(상위 결과의 <code>spec_relation</code> 1-hop — 질의에 없지만 걸려 있는 스펙) + <code>degraded?</code>(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 <a href="api.html">4.4 API 명세</a> §2.2b)</td>
         <td><code>spec:read</code></td><td>A1</td><td>컨텍스트 수집·중복 확인 — <b><code>related[]</code>가 중복 확인의 핵심 입력</b>이다(언급 안 된 인접 스펙)</td><td>읽기 전용</td>
       </tr>
@@ -321,7 +321,7 @@
       </tr>
       <tr>
         <td><code>nerv_question_create</code></td><td><code>question</code>, <code>options[]?</code>, <code>context{spec_id?,task_id?,finding_id?}</code>, <code>urgency</code>, <code>blocking</code>(기본 true — 게이트 차단 여부), <code>escalate?</code>(user-decision/spec/infra/e2e-fail-3x/sensitive-fix), <code>wait_seconds?</code></td>
-        <td><code>question_id</code>, <code>status</code>(pending/answered/expired), 답변·결정자</td>
+        <td><code>question_id</code>, <code>status</code>(<b><code>open</code></b>/<code>answered</code>/<code>expired</code> — 2026-09-05 정정. <code>pending</code> 은 이 축의 값이 아니다: 그 이름은 <b>하트비트 응답의 <code>pending[]</code> 역채널</b>에만 쓴다. 스킬이 둘을 섞어 적어 폴링 조건이 영영 참이 되지 않았다), 답변·결정자</td>
         <td><code>task:update</code>(생성만, 결정은 사람)</td><td>A2</td><td>판단 불가·경계 이탈·게이트 필요</td>
         <td><b>멱등 재호출이 곧 폴링</b> — 같은 키면 현재 상태 반환(§4.4)</td>
       </tr>
