@@ -11,7 +11,9 @@
 | `Enter`         | Open                 |
 | `Esc`           | Close                |
 
-With the input empty, **what you opened recently** is listed.
+With the input empty, **what you pinned and what you opened recently** is listed — pinned first.
+
+Press the **☆** at the right of a row to pin that document (★); press it again to unpin. The recent list pushes yesterday's document out today, and **the five or six you open every day should not go that way.** Pins are kept **in this browser**, like the theme and the language.
 
 ## Dialogs and panels
 

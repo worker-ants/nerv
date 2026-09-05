@@ -1037,6 +1037,8 @@ export const en = {
   'switcher.label': 'Quick switcher',
   'switcher.no_results': 'No results — try different words.',
   'switcher.placeholder': 'Search specs and tasks, or paste a stable ID (SPC-…, TSK-…)',
+  'switcher.pin': 'Pin to the top',
+  'switcher.unpin': 'Unpin',
   'switcher.recent': 'Recently visited documents collect here.',
   // ── 실시간 연결 배너 (screens.md §1.4) ─────────────────────────────────────────
   'realtime.offline': 'Offline — read-only from cache. It syncs again once the connection returns.',

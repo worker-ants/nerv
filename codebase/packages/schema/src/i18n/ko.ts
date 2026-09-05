@@ -1015,6 +1015,8 @@ export const ko = {
   'switcher.label': '빠른 이동',
   'switcher.no_results': '결과가 없습니다 — 다른 표현으로 찾아보세요.',
   'switcher.placeholder': '스펙·작업 검색 또는 안정 ID (SPC-… · TSK-…)',
+  'switcher.pin': '목록 위에 고정',
+  'switcher.unpin': '고정 해제',
   'switcher.recent': '최근 방문한 문서가 여기 쌓입니다.',
   // ── 실시간 연결 배너 (screens.md §1.4) ─────────────────────────────────────────
   'realtime.offline': '오프라인 — 캐시된 읽기 전용입니다. 복구되면 자동으로 동기화합니다.',

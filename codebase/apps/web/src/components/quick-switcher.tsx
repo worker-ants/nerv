@@ -79,13 +79,21 @@ export function QuickSwitcher({
   const [hits, setHits] = useState<SwitcherHit[]>([]);
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // **핀은 상태다.** localStorage 만 보고 그리면 눌러도 화면이 그대로라, 판정과 저장은
+  // 있는데 쓸 수 없었다 — 2026-09-05 감사까지 이 목록에 단추가 없던 자리다.
+  const [pins, setPins] = useState<SwitcherHit[]>([]);
 
-  // 빈 입력에서는 최근 방문 + 핀을 보여준다 — "방금 보던 것"이 대개 다음 목적지다.
+  useEffect(() => {
+    if (open) setPins(readList(PIN_KEY));
+  }, [open]);
+
+  const isPinned = (hit: SwitcherHit): boolean => pins.some((p) => p.key === hit.key);
+
+  // 빈 입력에서는 핀 + 최근 방문을 보여준다 — 핀이 위다("자주 가는 곳" 이 먼저다).
   const fallback = useMemo(() => {
-    const pins = readList(PIN_KEY);
     const recent = readList(RECENT_KEY).filter((r) => !pins.some((p) => p.key === r.key));
     return [...pins, ...recent];
-  }, [open]);
+  }, [pins]);
 
   const rows = query.trim() === '' ? fallback : hits;
 
@@ -166,12 +174,16 @@ export function QuickSwitcher({
             </li>
           )}
           {rows.map((hit, index) => (
-            <li key={`${hit.key}-${hit.anchor ?? ''}`}>
+            <li
+              key={`${hit.key}-${hit.anchor ?? ''}`}
+              data-active={index === cursor}
+              className="flex items-center hover:bg-bg-hover data-[active=true]:bg-bg-active"
+            >
               <button
                 type="button"
                 onClick={() => go(hit)}
                 data-active={index === cursor}
-                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-bg-hover data-[active=true]:bg-bg-active"
+                className="flex min-w-0 flex-1 items-center gap-2 px-4 py-2 text-left text-sm"
               >
                 <span className="font-mono text-xs text-text-faint">{hit.key}</span>
                 <span className="min-w-0 flex-1 truncate">{hit.title}</span>
@@ -184,6 +196,21 @@ export function QuickSwitcher({
                     label={t(statusLabelKey('spec', hit.doc_status))}
                   />
                 )}
+              </button>
+              {/* **고정은 여는 것과 다른 일이다** — 그래서 단추도 따로다(중첩할 수도 없다).
+                  최근 방문은 어제 본 것이 오늘 밀려나지만, 매일 여는 대여섯은 그러면 안 된다. */}
+              <button
+                type="button"
+                data-testid={`switcher-pin-${hit.key}`}
+                aria-pressed={isPinned(hit)}
+                title={t(isPinned(hit) ? 'switcher.unpin' : 'switcher.pin')}
+                onClick={() => setPins(togglePin(hit))}
+                className="shrink-0 px-3 py-2 text-sm text-text-faint hover:text-text aria-pressed:text-accent"
+              >
+                <span aria-hidden="true">{isPinned(hit) ? '★' : '☆'}</span>
+                <span className="sr-only">
+                  {t(isPinned(hit) ? 'switcher.unpin' : 'switcher.pin')}
+                </span>
               </button>
             </li>
           ))}
