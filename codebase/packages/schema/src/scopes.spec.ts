@@ -1,4 +1,4 @@
-// 사람 전용 스코프가 토큰 어휘에 섞이지 않는지 — **시스템 불변식**이라 테스트로 못박는다.
+// 사람 전용 권한이 토큰 어휘에 섞이지 않는지 — **시스템 불변식**이라 테스트로 못박는다.
 // 정본: docs/04-mvp/api.md §1.3 · agent-integration §6.1 ④
 
 import { describe, expect, it } from 'vitest';
@@ -12,8 +12,8 @@ import {
   scopesForRoles,
 } from './scopes.js';
 
-describe('PAT 스코프 어휘', () => {
-  it('사람 전용 스코프는 토큰 어휘에 없다 — 정책이 아니라 불변식이다', () => {
+describe('PAT 권한 어휘', () => {
+  it('사람 전용 권한은 토큰 어휘에 없다 — 정책이 아니라 불변식이다', () => {
     for (const human of HUMAN_ONLY_SCOPES) {
       expect(isAgentScope(human)).toBe(false);
       expect(AGENT_SCOPES as readonly string[]).not.toContain(human);
@@ -45,11 +45,11 @@ describe('PAT 스코프 어휘', () => {
   });
 });
 
-describe('역할 → 스코프 매트릭스 (0003_multi_role)', () => {
+describe('역할 → 권한 매트릭스 (0003_multi_role)', () => {
   // 이 검사가 있는 이유는 실패해 봤기 때문이다: `agent-session:launch` 를 빠뜨렸더니
-  // developer 토큰에서 그 스코프가 조용히 걸러져 `nerv_bootstrap` 이 막혔다.
-  // **역할이 상한이 되는 순간 빠뜨린 스코프는 곧 사라진 권한이다.**
-  it('모든 스코프가 최소 한 역할에는 있다 — 빠뜨리면 아무도 못 쓴다', () => {
+  // developer 토큰에서 그 권한이 조용히 걸러져 `nerv_bootstrap` 이 막혔다.
+  // **역할이 상한이 되는 순간 빠뜨린 권한은 곧 사라진 권한이다.**
+  it('모든 권한이 최소 한 역할에는 있다 — 빠뜨리면 아무도 못 쓴다', () => {
     const covered = new Set(Object.values(ROLE_SCOPES).flat());
     const orphan = [...AGENT_SCOPES, ...HUMAN_ONLY_SCOPES].filter((s) => !covered.has(s));
     expect(orphan).toEqual([]);
@@ -69,7 +69,7 @@ describe('역할 → 스코프 매트릭스 (0003_multi_role)', () => {
     }
   });
 
-  it('사람 전용 스코프는 역할에는 있어도 토큰에는 못 간다', () => {
+  it('사람 전용 권한은 역할에는 있어도 토큰에는 못 간다', () => {
     // 역할 매트릭스와 토큰 발급 가능 여부는 **다른 축**이다(§1.3).
     expect(scopesForRoles(['planner']).has('spec:approve')).toBe(true);
     expect(isAgentScope('spec:approve')).toBe(false);

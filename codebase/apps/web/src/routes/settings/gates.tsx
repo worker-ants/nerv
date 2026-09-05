@@ -29,7 +29,7 @@ export const Route = createFileRoute('/settings/gates')({ component: GatesTab })
 function GatesTab(): React.JSX.Element {
   const t = useT();
   const me = useMe();
-  // 스코프는 헤더의 select 와 같은 규칙으로 정한다(scope.ts) — 예전에는 멤버십 한 행의
+  // 소속은 헤더의 select 와 같은 규칙으로 정한다(scope.ts) — 예전에는 멤버십 한 행의
   // `project_slug` 를 썼고, 조직 단위 멤버십만 가진 admin 은 그 값이 `null` 이라
   // **자기 조직의 게이트 정책을 아예 열지 못했다**(실측 2026-08-24).
   const { orgSlug, projectSlug } = useScope();

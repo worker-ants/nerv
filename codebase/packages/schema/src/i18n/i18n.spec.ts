@@ -67,7 +67,7 @@ describe('번역', () => {
 
   it('자리표시자를 값으로 채운다', () => {
     expect(createTranslator('ko')('error.auth.scope_missing', { scope: 'task:claim' })).toBe(
-      '스코프가 부족합니다: task:claim',
+      '권한이 부족합니다: task:claim',
     );
   });
 

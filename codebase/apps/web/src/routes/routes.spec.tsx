@@ -47,7 +47,7 @@ function renderAt(path: string) {
 
 beforeEach(() => {
   localStorage.clear();
-  // 라우팅 검증이 목적이라 네트워크는 빈 응답으로 고정한다. **다만 스코프 두 축은
+  // 라우팅 검증이 목적이라 네트워크는 빈 응답으로 고정한다. **다만 소속 두 축은
   // 채운다** — 조직·프로젝트 select 는 memberships·프로젝트 목록에서 오므로 빈
   // 응답이면 헤더의 절반이 아예 렌더되지 않는다.
   vi.stubGlobal(
@@ -151,7 +151,7 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
   });
 });
 
-describe('헤더 스코프 — 조직 → 프로젝트 (2026-08-24 · 사람 지시)', () => {
+describe('헤더 권한 — 조직 → 프로젝트 (2026-08-24 · 사람 지시)', () => {
   it('조직 오른쪽에 프로젝트 select 가 있다 — 이전에는 고를 길이 화면에 없었다', async () => {
     renderAt('/p/clemvion/tasks');
     await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());

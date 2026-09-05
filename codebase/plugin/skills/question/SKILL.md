@@ -22,7 +22,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 1. **선택지를 만든다.** `options[]`는 2~4개, 각각 그대로 실행 가능한 수준으로 구체적으로
    쓴다. 자유 서술 답변은 재해석 드리프트가 생기므로 구조화가 기본이다.
    스펙 공백이면 "CR을 제안하고 대기"를 선택지에 포함한다.
-2. **출처를 단다.** `context{spec_id,task_id,finding_id}`에 관련 리소스의 안정 ID를 넣는다.
+2. **출처를 단다.** `context{spec_id,task_id,finding_id}`에 관련 리소스의 고정 ID를 넣는다.
    사람은 에이전트의 요약이 아니라 원문을 보고 판단한다.
 3. `nerv_question_create` — 입력: `question`, `options[]`, `context{…}`, `urgency`,
    `blocking`(기본 true — 게이트 차단 여부), `escalate`, 필요 시 `wait_seconds`(long-poll),

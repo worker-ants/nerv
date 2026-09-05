@@ -85,14 +85,14 @@ export const membership = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    // 중복 배정 차단 — 표현식 unique(§2.12). project 스코프가 없으면 org 스코프로 접힌다.
+    // 중복 배정 차단 — 표현식 unique(§2.12). project 권한이 없으면 org 권한으로 접힌다.
     //
     // **유일성의 축에 역할이 들어간다**(0003_multi_role). 겸직이 흔한 형태라 한 사람이 한
-    // 스코프에서 역할을 여럿 가진다 — 축에서 역할을 빼면 그 겸직이 제약으로 막힌다.
+    // 소속에서 역할을 여럿 가진다 — 축에서 역할을 빼면 그 겸직이 제약으로 막힌다.
     //
     // 이 선언이 0003 이후로 **실물과 어긋나 있었다**(2026-08-27 정정). 마이그레이션은 raw
     // SQL 로 축을 바꿨는데 테이블 선언과 스냅샷 5개가 옛 축에 머물러, 선언상으로는 "한
-    // 스코프에 역할 하나"였다. 지금 당장은 `db:generate` 가 무변경이라 조용했지만, 이
+    // 권한에 역할 하나"였다. 지금 당장은 `db:generate` 가 무변경이라 조용했지만, 이
     // 표를 누가 건드리는 순간 생성된 마이그레이션이 겸직을 도로 막았을 것이다.
     uniqueIndex('membership_user_scope_role_uq').on(
       t.userId,
@@ -103,14 +103,14 @@ export const membership = pgTable(
 );
 
 /**
- * PAT — (사용자, 프로젝트, 역할, 스코프) 튜플 바인딩. 권한은 소유 사용자의 부분집합을 넘지 못한다(D-08).
+ * PAT — (사용자, 프로젝트, 역할, 소속) 튜플 바인딩. 권한은 소유 사용자의 부분집합을 넘지 못한다(D-08).
  * 원문은 저장하지 않는다 — 해시만 두고 앞 8자만 식별·감사용으로 남긴다(api.md §1.3).
  */
 export const apiToken = pgTable(
   'api_token',
   {
     id: idPk(),
-    /** 토큰은 항상 프로젝트 스코프다 */
+    /** 토큰은 항상 프로젝트 소속다 */
     projectId: uuid('project_id')
       .notNull()
       .references(() => project.id),

@@ -378,7 +378,7 @@ describe('E05-S03 세션 보드 (EP-SES-01)', () => {
     }
   });
 
-  it('REST 표면이 프로젝트 스코프를 판정한다 — 타 프로젝트 토큰은 403', async () => {
+  it('REST 표면이 프로젝트 소속을 판정한다 — 타 프로젝트 토큰은 403', async () => {
     const ok = await app.inject({
       method: 'GET',
       url: '/api/v1/projects/clemvion/sessions',

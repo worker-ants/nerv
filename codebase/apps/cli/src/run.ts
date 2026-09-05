@@ -756,7 +756,7 @@ function keyFromPath(path: string): string {
 }
 
 /**
- * task 판(判) — `withoutDuplicateKeys` 와 같은 이유, 다른 키다.
+ * task 버전(判) — `withoutDuplicateKeys` 와 같은 이유, 다른 키다.
  *
  * spec 은 키가 frontmatter·경로에서 오지만 task 의 표시 ID 는 **서버가 원본 경로를 해싱해**
  * 만든다. CLI 는 `project.key` 를 모르므로 **변하는 부분만** 견준다 — 한 프로젝트 안에서
@@ -848,7 +848,7 @@ function relativeToScanRoot(path: string, profile: ImportProfile): string {
  *   ① 디렉터리당 area 노드 1개
  *   ② 그 디렉터리에 `area_body_file`(예: `_product-overview.md`)이 있으면 **그 문서가 곧
  *      area 노드다** — 별도 리프로 만들지 않는다. 키·제목·본문·요구사항을 그대로 승계하므로
- *      원본의 안정 ID 가 트리 중간 노드에 살아남는다(FR-01)
+ *      원본의 고정 ID 가 트리 중간 노드에 살아남는다(FR-01)
  *   ③ 없으면 본문 없는 노드를 만들고 **리포트에 표기한다**(Spec 은 트리 노드일 뿐 본문을
  *      갖지 않는다 — data-model §2.2)
  *
@@ -897,7 +897,7 @@ function buildAreaTree(
   const keyOfDir = new Map<string, string>();
   for (const dir of dirs) {
     const body = areaByDir.get(dir);
-    // 대표 문서가 frontmatter `id` 를 선언했으면 그 안정 ID 를 area 가 승계한다(FR-01).
+    // 대표 문서가 frontmatter `id` 를 선언했으면 그 고정 ID 를 area 가 승계한다(FR-01).
     // 선언하지 않아 경로에서 만든 키였다면 **디렉터리 키**가 낫다 —
     // `4-nodes-_product-overview` 는 사람이 부를 이름이 아니다.
     const declared =
@@ -957,7 +957,7 @@ function buildAreaTree(
  * 본문의 상대경로 링크 → `references` 관계 (importer.md §2.4 · REQ-API-024).
  *
  * **경로 해소는 클라이언트만 할 수 있다.** 서버는 원본 체크아웃을 보지 못하므로(§3.2)
- * `[텍스트](../5-system/x.md)` 가 어느 스펙을 가리키는지 알 방법이 없다. 안정 ID 로 쓰인
+ * `[텍스트](../5-system/x.md)` 가 어느 스펙을 가리키는지 알 방법이 없다. 고정 ID 로 쓰인
  * 참조는 서버가 저장 시점에 동기화하고(SpecRelationService), 경로로 쓰인 참조는 여기서
  * 키로 바꿔 보낸다 — 둘이 같은 `references` kind 로 합류한다.
  *

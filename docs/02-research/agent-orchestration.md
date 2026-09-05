@@ -2,7 +2,9 @@
 
 > **요약** — 2025~2026년에 쏟아진 병렬 코딩 에이전트 도구는 **로컬 git worktree 계열**과 **클라우드 VM/컨테이너 계열**로 갈라졌지만, 할당·격리·상태 표시·충돌 방지·사람 개입 5축에서 거의 같은 답으로 수렴했다. 검증된 공통 규격은 원자적 클레임 + 의존성 기반 ready 판정(beads·Claude Code agent teams), 세션 카드 UI(상태·diff 통계·attach), 플랜/리뷰/머지·CI의 3게이트, 위임 명세 4요소다. 반면 필드 데이터는 병렬화의 병목이 코드 생성이 아니라 **리뷰**임을 가리킨다 — 중앙값 PR 리뷰 시간 +441%, 무리뷰 머지 31%, 실용 동시 한계 3~5 에이전트. 게다가 로컬 오케스트레이터는 1년 안에 사라진다(Crystal 2026-02 종료, vibe-kanban sunsetting). 그래서 NERV(가칭)는 특정 도구를 통합하는 대신 **패턴(클레임 API·세션 레지스트리·게이트)을 서버에 표준화**하고 에이전트별 어댑터를 얇게 유지하며, 이 문서가 FR-05~FR-08과 D-04·D-13의 1차 근거를 제공한다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 파생본: [agent-orchestration.html](../html/agent-orchestration.html)
+> 문서 버전 v0.2 · 2026-08-13 · HTML 파생본: [agent-orchestration.html](../html/agent-orchestration.html)
+>
+> v0.2 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 
 ---
 
@@ -80,7 +82,7 @@ clemvion은 로컬 worktree 계보의 완성형에 가깝다. 모든 신규 작�
 
 **Codex cloud** — 웹·IDE·GitHub PR·Linear·Slack에서 위임하면 격리 컨테이너에서 실행된다. 저장소별 환경을 정의·캐싱해 재현성을 확보하고, **동일 태스크의 여러 시도(attempts)를 비교하는 best-of-N**을 지원한다. 결과는 summary+diff로 도착한다.
 
-**GitHub Copilot coding agent** — **이슈를 사람에게 하듯 assign**하면 👀 리액션으로 접수를 알리고, GitHub Actions 기반 임시 환경(최대 59분)에서 자기 브랜치에 커밋을 쌓는 **draft PR**로 작업하다가 완료 시 사용자를 리뷰어로 지정한다. 보안 기본값이 특히 중요하다 — 에이전트는 자기 브랜치에만 push하고, **요청자는 그 PR을 스스로 승인할 수 없으며**, CI/CD 워크플로 실행에는 사람의 명시적 승인이 필요하다.
+**GitHub Copilot coding agent** — **이슈를 사람에게 하듯 assign**하면 👀 리액션으로 접수를 알리고, GitHub Actions 기반 임시 환경(최대 59분)에서 자기 브랜치에 커밋을 쌓는 **draft PR**로 작업하다가 완료 시 사용자를 리뷰어로 지정한다. 보안 기본값이 특히 중요하다 — 에이전트는 자기 브랜치에만 push하고, **요청자는 그 PR을 스스로 승인할 수 없으며**, CI/CD 워크플로우 실행에는 사람의 명시적 승인이 필요하다.
 
 **Jules (Google)** — 사람 개입 지점이 3체크포인트로 명문화돼 있다: (1) 프롬프트 (2) **코드 작성 전 플랜 리뷰·수정·거절** (3) diff 승인 후 PR 생성, 머지는 사람. 동시 실행 한도가 요금제로 규격화된 것도 참고 대상이다(Free 15태스크/일·동시 3, Pro 100/일·동시 15, Ultra 300/일·동시 60).
 
@@ -241,7 +243,7 @@ Faros AI는 이 패턴을 **"Acceleration Whiplash"**로 명명한다 — 코드
 - **실용 한계는 동시 3~5 에이전트다.** 그 이상은 리뷰 용량 초과로 품질이 "아무도 모르게" 하락한다(Superset). 공교롭게 agent teams의 권장 팀메이트 수(3~5)와 Anthropic 리서치 시스템의 서브에이전트 수(3~5)가 같다.
 - **비용은 선형이 아니다.** 멀티에이전트는 단일 채팅 대비 **약 15배 토큰**(단일 에이전트도 4배)을 쓴다. 같은 글은 **강한 의존성이 있는 코딩 작업에는 멀티에이전트가 부적합**하고 병렬 분해 가능한 작업에만 유효하다고 못박는다 — 무조건적 병렬화는 근거가 없다.
 - **한도는 이미 제품 기능이다.** Jules는 요금제별 동시 실행 한도(3/15/60)를 규격화했고, Claude Code web은 rate limit을 계정 전체와 공유한다.
-- **100 에이전트의 전제는 사람 주의력 추가가 아니다.** Superset의 로드맵은 자동 품질 게이트 + 구조화된 디스패치(에이전트가 스스로 일을 찾음) + 완료 시 리뷰 워크플로 세 가지를 든다 — 정확히 NERV의 ready 큐(FR-05) + 클레임(FR-06) + 게이트(FR-10)다.
+- **100 에이전트의 전제는 사람 주의력 추가가 아니다.** Superset의 로드맵은 자동 품질 게이트 + 구조화된 디스패치(에이전트가 스스로 일을 찾음) + 완료 시 리뷰 워크플로우 세 가지를 든다 — 정확히 NERV의 ready 큐(FR-05) + 클레임(FR-06) + 게이트(FR-10)다.
 
 - [The Complete Guide to Running Parallel AI Coding Agents — Superset](https://superset.sh/blog/parallel-coding-agents-guide) — (2026) 동시 3~5가 실용 한계, 병렬 운용 실용화의 3요소(CLI 신뢰성·worktree·tmux 성숙).
 - [Our plan for running 100 Parallel Coding Agents — Superset](https://superset.sh/blog/roadmap-to-100-agents) — (2026) 안전망 있는 자율성 = 자동 게이트 + 구조화 디스패치 + 완료 리뷰.
@@ -264,7 +266,7 @@ METR의 RCT는 숙련 오픈소스 개발자 16명·실제 이슈 246개에서 A
 > **결론: 도구를 통합하지 말고 패턴을 표준화하라.** NERV는 (1) 서버 API로서의 클레임·리스, (2) 세션 레지스트리와 상태 머신, (3) 게이트 판정 API를 고정 표면으로 두고, Claude Code·Codex 등 **에이전트별 어댑터(MCP 도구·스킬·훅)를 얇게** 유지한다. 어댑터가 깨져도 조정·기록·게이트는 남는다. 이는 벤더 API 변화 리스크에 대한 완화책이기도 하다([3.7 로드맵](../03-proposal/roadmap.md) 리스크 절).
 
 - [Best Tools for Managing Parallel AI Coding Agents in 2026 — Nimbalyst](https://nimbalyst.com/blog/best-agent-management-tools-2026/) — (2026) 로컬 오케스트레이터 세대교체 진행 상황.
-- [Multi-Agent Development Workflows with Claude Code — DEV(javatarz)](https://dev.to/javatarz/multi-agent-development-workflows-with-claude-code-n23) — (확인일 2026-08-13) 개인 실전기: 역할 분리·워크플로 정형화가 핵심이라는 결론.
+- [Multi-Agent Development Workflows with Claude Code — DEV(javatarz)](https://dev.to/javatarz/multi-agent-development-workflows-with-claude-code-n23) — (확인일 2026-08-13) 개인 실전기: 역할 분리·워크플로우 정형화가 핵심이라는 결론.
 
 ---
 
@@ -288,7 +290,7 @@ METR의 RCT는 숙련 오픈소스 개발자 16명·실제 이슈 246개에서 A
 | 정리된 리뷰 산출물 | Devin Review | ReviewSession → Finding → Resolution | FR-09, D-07 |
 | 완료 훅으로 품질 게이트 | agent teams exit-2 거부, Stop hook | Task done 전이 조건 = 해소된 리뷰 커버리지 | FR-10, D-14 |
 | 동시 실행 한도 정책화 | Jules 요금제 한도, 실용 3~5 | 조직·프로젝트 단위 동시 세션/클레임 한도 | FR-14 |
-| 자격증명은 실행 환경 밖 | Claude Code on the web 프록시 | 토큰 스코프·권한 비확대 | NFR-03, D-08 |
+| 자격증명은 실행 환경 밖 | Claude Code on the web 프록시 | 토큰 권한 · 확대 금지 | NFR-03, D-08 |
 | 에이전트 메시지 ≠ 승인 | agent teams 메일박스 규칙 | 스펙·Finding 본문은 비신뢰 데이터로 취급 | NFR-03 |
 
 ### 5.2 클레임 수명주기 — D-04와 D-13이 만나는 지점
@@ -368,7 +370,7 @@ stateDiagram-v2
 - [Agentic Code Review — Addy Osmani](https://addyo.substack.com/p/agentic-code-review) — (2026) AI 1차 리뷰 + 사람 판단의 계층화.
 - [These Aren't the Reviews You're Looking For — arXiv 2605.02273](https://arxiv.org/pdf/2605.02273) — (2026) 인간의 AI PR 리뷰 행동 연구.
 - [Best Tools for Managing Parallel AI Coding Agents in 2026 — Nimbalyst](https://nimbalyst.com/blog/best-agent-management-tools-2026/) — (2026) 로컬 오케스트레이터 세대교체.
-- [Multi-Agent Development Workflows with Claude Code — DEV(javatarz)](https://dev.to/javatarz/multi-agent-development-workflows-with-claude-code-n23) — (확인일 2026-08-13) 역할 분리·워크플로 정형화.
+- [Multi-Agent Development Workflows with Claude Code — DEV(javatarz)](https://dev.to/javatarz/multi-agent-development-workflows-with-claude-code-n23) — (확인일 2026-08-13) 역할 분리·워크플로우 정형화.
 
 ### clemvion 실측 근거
 

@@ -6,7 +6,7 @@
 //   THE SYSTEM SHALL session_id·규약 요약·활성 클레임·게이트 정책을 반환한다
 //   WHEN 같은 session_id 로 재호출하면, THE SYSTEM SHALL 동일 스냅샷을 반환한다(멱등)
 //
-// 실제 HTTP 로 돈다 — 가드 순서(Origin → 인증)·스코프 검사·구조화 에러가 배선된 상태로만
+// 실제 HTTP 로 돈다 — 가드 순서(Origin → 인증)·권한 검사·구조화 에러가 배선된 상태로만
 // 의미가 있기 때문이다. Phase 0 성공 기준 0-8(tools-only 완주)의 재현이기도 하다.
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -149,13 +149,13 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
   });
 
   /**
-   * "스코프는 도구 표의 '필요 권한' 열과 1:1" 은 **사실이 아니었다**(2026-09-04 실측).
+   * "권한은 도구 표의 '필요 권한' 열과 1:1" 은 **사실이 아니었다**(2026-09-04 실측).
    *
-   * 도구 23종이 쓰는 스코프는 일곱이고 셋(`spec:meta`·`spec:evidence`·`import:write`)은
+   * 도구 23종이 쓰는 권한은 일곱이고 셋(`spec:meta`·`spec:evidence`·`import:write`)은
    * 도구가 없는 REST 축이다. 문서가 그 말을 오래 달고 있었으므로 여기서 사실을 못박는다 —
    * 다음에 어긋나면 문장이 아니라 이 테스트가 먼저 말한다.
    */
-  it('REST 전용 스코프에는 도구가 없다 — 어휘가 도구 표와 1:1 이 아니다', async () => {
+  it('REST 전용 권한에는 도구가 없다 — 어휘가 도구 표와 1:1 이 아니다', async () => {
     const { body } = await rpc('tools/list');
     const tools = (
       body['result'] as { name: string; _meta?: Record<string, unknown> }[] & {
@@ -248,7 +248,7 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
   });
 
   it('역할이 만들 수 있는 타입을 가른다 — developer 는 feature 를 못 만든다', async () => {
-    // 스코프(`spec:draft`)는 "초안을 쓸 수 있는가"이고 타입 제한은 "무엇을 시작할 수
+    // 권한(`spec:draft`)는 "초안을 쓸 수 있는가"이고 타입 제한은 "무엇을 시작할 수
     // 있는가"다. 다른 물음이라 따로 판정한다(EP-SPEC-07 의 ● / ○).
     const { body } = await rpc('tools/call', {
       name: 'nerv_spec_draft_upsert',
@@ -512,7 +512,7 @@ describe('E03-S03 P0 도구 — 작업 흐름', () => {
 
     const next = await callTool('nerv_task_next', { session_id: boot['session_id'] });
     const mine = (next['candidates'] as Record<string, unknown>[]).find((c) => c['id'] === taskId);
-    // id 만으로는 nerv_spec_get 을 부를 수 없다 — 스킬 6단계가 요구하는 것은 키와 판 번호다
+    // id 만으로는 nerv_spec_get 을 부를 수 없다 — 스킬 6단계가 요구하는 것은 키와 버전 번호다
     expect(mine).toMatchObject({ spec_key: basis.key, version_no: 4 });
   });
 
@@ -911,7 +911,7 @@ describe('E03-S03 nerv_spec_tree — 걸러 달라고 한 것은 걸러서 준�
     );
   });
 
-  it('root 는 그 문서와 그 아래만 준다 — 안정 키로', async () => {
+  it('root 는 그 문서와 그 아래만 준다 — 고정 ID로', async () => {
     const result = await callTool('nerv_spec_tree', { root: 'TRE-2-BRANCH' });
     expect(keys(result)).toEqual(['TRE-2-BRANCH', 'TRE-3-LEAF']);
   });
@@ -1364,7 +1364,7 @@ describe('P2 리뷰 도구 2종 — 카탈로그에 들어온 표면 (FR-09, 202
 });
 
 describe('E03-S04 에러 규약 — 구조화 결과', () => {
-  it('스코프가 부족하면 호출 전에 막고 NERV_FORBIDDEN 을 구조화 결과로 준다', async () => {
+  it('권한이 부족하면 호출 전에 막고 NERV_FORBIDDEN 을 구조화 결과로 준다', async () => {
     const result = await callTool(
       'nerv_task_claim',
       { task_id: newId() },

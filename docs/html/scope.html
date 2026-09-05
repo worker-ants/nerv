@@ -53,7 +53,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 20종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.19 (2026-09-05)</span>
+      <span>버전 v0.20 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: draft</span>
     </div>
@@ -161,7 +161,7 @@
       <tr><td>API</td><td><b>NestJS(Fastify 어댑터)</b></td><td>2026-08-14</td><td>REST·MCP·WebSocket이 <b>같은 도메인 서비스를 DI로 공유</b>(D-05). 게이트 판정이 표면마다 갈라지는 것이 최악의 실패</td></tr>
       <tr><td>DB</td><td><b>Postgres</b> + <b>Drizzle</b></td><td>Postgres 2026-08-13 · Drizzle 2026-08-20</td><td>스키마는 <code>packages/schema</code>에 TS로 선언, drizzle-kit 마이그레이션. 복잡 질의는 raw <code>sql</code> 1급</td></tr>
       <tr><td>검색</td><td><b>하이브리드</b> — Postgres FTS(<code>simple</code>) + <b>pg_trgm</b>(한국어·부분 일치) + <b>pgvector</b>(HNSW·cosine) + 임베딩(<b>OpenAI 호환 <code>/v1/embeddings</code> 단일 계약</b>, 1024차원 고정) + <b>관계 확장(graph RAG)</b></td><td>2026-08-22 (제공자 추상화 같은 날 개정)</td><td>파이프라인(ID 직행 → 렉시컬+벡터 RRF 병합 → 1-hop 관계 확장)은 <a href="api.html">4.4 API 명세</a> §2.2b 정본. <b>임베딩 제공자는 env 프로필</b> — 로컬 TEI(CPU·compose <code>embed</code>) / 스테이징 LM Studio / 운영 OpenAI(<code>text-embedding-3-small</code>, <code>dimensions=1024</code>). 프로필 정본 <a href="codebase.html">4.2</a> §5.2a. 기본값은 자가호스팅이고 외부 전송은 운영 주체의 env 명시 선택(REQ-CB-020). 제공자 무응답 시 렉시컬 degrade(REQ-API-026)</td></tr>
-      <tr><td>인증</td><td><b>better-auth</b></td><td>2026-08-20</td><td>organization 플러그인(조직·멤버십), api-key 플러그인 기반 PAT(해시 저장·프로젝트 스코프). OAuth 2.1 리소스 서버는 Phase 2</td></tr>
+      <tr><td>인증</td><td><b>better-auth</b></td><td>2026-08-20</td><td>organization 플러그인(조직·멤버십), api-key 플러그인 기반 PAT(해시 저장·프로젝트 소속). OAuth 2.1 리소스 서버는 Phase 2</td></tr>
       <tr><td>실시간</td><td><b>WebSocket + SSE 다중 채널</b>, 방송 MQ <b>Valkey pub/sub</b> (NestJS <code>@WebSocketGateway</code> socket.io + <code>@Sse()</code> 스트림)</td><td>WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21</td><td>WS(<code>/ws</code>)는 웹 SPA 전용 — <b>websocket 전송만 활성</b>(폴링 폴백 off → k8s 스티키 불필요), 룸 <code>project:{id}</code>·<code>user:{id}</code>, join 시 멤버십 검사. SSE(<code>/sse/*</code>)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증(<a href="api.html">4.4 API 명세</a> §3.5). 팬아웃: EventService가 커밋 후 Valkey <code>nerv_events</code>에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14)</td></tr>
       <tr><td>에디터</td><td><b>TipTap + markdown 직렬화</b></td><td>2026-08-20</td><td>지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글</td></tr>
       <tr><td>그래프 시각화</td><td><b>Cytoscape.js + fcose</b> — 스펙 관계 그래프(<a href="screens.html">4.5</a> §2.4a)</td><td>2026-08-23</td><td>compound(영역 묶음) 레이아웃이 도입 이유다 — 자체 구현하면 그것이 곧 레이아웃 엔진을 쓰는 일이 된다. MIT · 코어 의존 0. gzip 172KB라 <b>탭 진입 시 지연 로드</b>한다(목록 청크 552KB → 5KB 실측). 재검토 트리거: 노드 1,000을 넘어 canvas 렌더가 버거워지면 WebGL(sigma)로 옮긴다</td></tr>
@@ -174,7 +174,7 @@
 
   <div class="callout decision"><span class="ico">✅</span><div class="body">
     <b class="title">인증 확정이 로드맵 표기 하나를 대체한다</b>
-    <p><a href="roadmap.html">로드맵</a> §3.2(v0.1 · 2026-08-13)는 Phase 1 인증을 "OAuth 2.1로 승격"으로 적었다. 2026-08-20 인증 스택 확정(better-auth)에서 <b>OAuth 2.1 리소스 서버는 Phase 2로 이동</b>했고, MVP의 에이전트 인증은 PAT(해시 저장 · 사용자·프로젝트·역할·스코프 튜플 바인딩)로 확정한다. NFR-03의 수용 기준(토큰 프로젝트 스코프·권한 비확대·본문 비신뢰 — <a href="pain-points.html">1.2 문제 정의와 요구사항</a> §4.3)은 PAT로 충족되므로 Phase 배분표의 NFR-03 ● 판정은 유지된다. OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다.</p>
+    <p><a href="roadmap.html">로드맵</a> §3.2(v0.1 · 2026-08-13)는 Phase 1 인증을 "OAuth 2.1로 승격"으로 적었다. 2026-08-20 인증 스택 확정(better-auth)에서 <b>OAuth 2.1 리소스 서버는 Phase 2로 이동</b>했고, MVP의 에이전트 인증은 PAT(해시 저장 · 사용자·프로젝트·역할·권한 튜플 바인딩)로 확정한다. NFR-03의 수용 기준(토큰 프로젝트 소속·권한 비확대·본문 비신뢰 — <a href="pain-points.html">1.2 문제 정의와 요구사항</a> §4.3)은 PAT로 충족되므로 Phase 배분표의 NFR-03 ● 판정은 유지된다. OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다.</p>
   </div></div>
 
   <h3>2.2 재검토 트리거 — 결정을 뒤집는 조건이 아니라 트레이드오프의 기록</h3>
@@ -233,9 +233,9 @@
   <div class="table-wrap"><table>
     <thead><tr><th>FR</th><th>이름(정본 인용)</th><th>MVP</th><th>P0</th><th>P1</th><th>MVP에서 되는 것</th><th>MVP에서 안 되는 것(Phase 2+)</th></tr></thead>
     <tbody>
-      <tr><td>FR-01</td><td>스펙 단일 진실 저장소</td><td>●</td><td>◐</td><td>●</td><td>트리·타입·안정 ID·검색(P0: FTS+trgm 렉시컬, P1: <b>하이브리드 완성</b> — 벡터·RRF·관계 확장, <a href="api.html">4.4</a> §2.2b), P1부터 편집 — 웹 에디터와 기획자 터미널 경로 양쪽(§3.3). 탐색 UI(퀵 스위처·관계 패널·트리 스케일)는 P1(<a href="screens.html">4.5</a>)</td><td>—</td></tr>
-      <tr><td>FR-02</td><td>스펙 버전·문서 상태</td><td>●</td><td>○</td><td>●</td><td>불변 SpecVersion 스냅샷, <code>draft→in_review→approved→superseded/deprecated</code>, 버전 diff, 승인 레코드, <b>베이스라인</b>(프로젝트 승인 세트 동결·재현 + as-of manifest — 2026-08-21 FR-02 범위 확장을 MVP 핵심으로 포함 확정) + <b>기준 버전 규약·재브리핑</b>(Task는 파생 버전으로 컨텍스트 고정, superseded 시 서버가 재브리핑 플래그 — <a href="spec-workflow.html">스펙 워크플로우</a> §3.3·§3.6)</td><td>—</td></tr>
-      <tr><td>FR-03</td><td>Requirement 단위 추적</td><td>◐</td><td>○</td><td>◐</td><td>EARS 템플릿, 안정 ID 발급, 구현 축 초기값 설정</td><td>구현 축 2축 완성(자동 계산·커버리지 연동)은 Phase 2</td></tr>
+      <tr><td>FR-01</td><td>스펙 단일 진실 저장소</td><td>●</td><td>◐</td><td>●</td><td>트리·타입·고정 ID·검색(P0: FTS+trgm 렉시컬, P1: <b>하이브리드 완성</b> — 벡터·RRF·관계 확장, <a href="api.html">4.4</a> §2.2b), P1부터 편집 — 웹 에디터와 기획자 터미널 경로 양쪽(§3.3). 탐색 UI(퀵 스위처·관계 패널·트리 스케일)는 P1(<a href="screens.html">4.5</a>)</td><td>—</td></tr>
+      <tr><td>FR-02</td><td>스펙 버전·문서 상태</td><td>●</td><td>○</td><td>●</td><td>불변 SpecVersion 스냅샷, <code>draft→in_review→approved→superseded/deprecated</code>, 버전 diff, 승인 레코드, <b>기준선</b>(프로젝트 승인 세트 동결·재현 + as-of manifest — 2026-08-21 FR-02 범위 확장을 MVP 핵심으로 포함 확정) + <b>기준 버전 규약·재브리핑</b>(Task는 파생 버전으로 컨텍스트 고정, superseded 시 서버가 재브리핑 플래그 — <a href="spec-workflow.html">스펙 워크플로우</a> §3.3·§3.6)</td><td>—</td></tr>
+      <tr><td>FR-03</td><td>Requirement 단위 추적</td><td>◐</td><td>○</td><td>◐</td><td>EARS 템플릿, 고정 ID 발급, 구현 축 초기값 설정</td><td>구현 축 2축 완성(자동 계산·커버리지 연동)은 Phase 2</td></tr>
       <tr><td>FR-04</td><td>CR·델타 리뷰</td><td>○</td><td>○</td><td>○</td><td>—</td><td>ADDED/MODIFIED/REMOVED 델타 뷰, 영향 분석 전부 Phase 2</td></tr>
       <tr><td>FR-05</td><td>Task 관리·ready 큐</td><td>●</td><td>◐</td><td>●</td><td>의존성 그래프 ready 판정 + 위임 명세 4요소 검증(P0), 스펙에서 Task 파생·칸반(P1)</td><td>—</td></tr>
       <tr><td>FR-06</td><td>원자적 클레임·리스</td><td>●</td><td>●</td><td>●</td><td><b>P0의 핵심 검증 대상.</b> 원자 클레임, scope(spec_ids·file_globs) 겹침 감지, 리스 TTL 30분·하트비트 60초·만료 자동 회수. P1에서 초안 편집 리스(문서 축, D-04 확장, 같은 TTL 30분)</td><td>—</td></tr>
@@ -270,7 +270,7 @@
     <tbody>
       <tr><td>NFR-01</td><td>자가호스팅</td><td>●</td><td>◐</td><td>●</td><td>compose 단일 파일 기동(P0), 백업·복구 왕복 검증(P1)</td><td>—</td></tr>
       <tr><td>NFR-02</td><td>실시간성(≤5s)</td><td>●</td><td>◐</td><td>●</td><td>WebSocket·SSE 푸시, 보드 반영 p95 ≤ 5초</td><td>—</td></tr>
-      <tr><td>NFR-03</td><td>보안</td><td>●</td><td>◐</td><td>●</td><td>PAT 프로젝트 스코프(P0), 권한 비확대·스펙 본문 비신뢰(P1). 인증 수단은 better-auth 세션(웹)+PAT(에이전트) — §2.1 인용</td><td>OAuth 2.1 리소스 서버는 Phase 2, SSO는 Phase 3+</td></tr>
+      <tr><td>NFR-03</td><td>보안</td><td>●</td><td>◐</td><td>●</td><td>PAT 프로젝트 소속(P0), 권한 비확대·스펙 본문 비신뢰(P1). 인증 수단은 better-auth 세션(웹)+PAT(에이전트) — §2.1 인용</td><td>OAuth 2.1 리소스 서버는 Phase 2, SSO는 Phase 3+</td></tr>
       <tr><td>NFR-04</td><td>규모</td><td>◐</td><td>○</td><td>◐</td><td>목표 규모 설계(프로젝트 수십·동시 세션 수십)</td><td>부하 시험은 Phase 2</td></tr>
       <tr><td>NFR-05</td><td>로컬 폴백</td><td>◐</td><td>○</td><td>◐</td><td>에이전트 오프라인 읽기 캐시</td><td>복구 후 자동 동기화는 Phase 2</td></tr>
     </tbody>

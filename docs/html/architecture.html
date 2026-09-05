@@ -53,7 +53,7 @@
     <h1>시스템 아키텍처</h1>
     <p class="lead">웹앱 · API/MCP 게이트웨이 · 훅 수집기 · Postgres · Valkey(실시간 방송 MQ) · 이벤트 워커의 여섯 덩어리로 구성된 NERV의 시스템 구조와, 가장 중요한 결정인 저장 전략(D-01) — <b>DB 단일 진실 + markdown 미러 + read-only git export</b> — 그리고 핵심 데이터 흐름 4종, 기술 스택 대안 비교, 보안·성능·운영 설계.</p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-09-05)</span>
+      <span>버전 v0.4 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/architecture.md</code></span>
       <span>주로 다루는 결정: D-01 · D-10 · D-11 · D-14</span>
     </div>
@@ -235,7 +235,7 @@
     <thead><tr><th>데이터</th><th>저장소</th><th>이유</th></tr></thead>
     <tbody>
       <tr><td>코드 · 테스트 · 설정</td><td><b>git forge</b></td><td>코드는 원래 git의 것. 브랜치·diff·머지가 그대로 필요하다</td></tr>
-      <tr><td>스펙 본문 · SpecVersion · Requirement</td><td><b>Postgres</b> (+ md 미러)</td><td>구조화 질의, 승인 워크플로, 비개발자 접근, 안정 ID 참조</td></tr>
+      <tr><td>스펙 본문 · SpecVersion · Requirement</td><td><b>Postgres</b> (+ md 미러)</td><td>구조화 질의, 승인 워크플로우, 비개발자 접근, 고정 ID 참조</td></tr>
       <tr><td>Task · 의존성 · Claim/Lease</td><td><b>Postgres</b></td><td>원자적 전이와 겹침 검사에 트랜잭션이 필수(D-04)</td></tr>
       <tr><td>AgentSession · Activity</td><td><b>Postgres</b></td><td>크로스 호스트 가시성이 존재 이유. 파일로는 원리적으로 불가</td></tr>
       <tr><td>ReviewSession · Finding · Resolution</td><td><b>Postgres</b></td><td>git 비대화의 주범이자 append-only 성격. fingerprint dedup은 DB 인덱스의 일</td></tr>
@@ -350,7 +350,7 @@
   <p>에이전트에게 블록 JSON이 아니라 markdown을 주는 것은 Notion이 호스티드 MCP를 만들며 내린 공식 결론이다 — 계층형 JSON은 다중 호출과 과다 토큰을 유발하는 반면 markdown은 LLM 토큰당 콘텐츠 밀도가 높다. URL에 <code>.md</code>를 붙인 클린 마크다운 미러와 루트 인덱스는 이미 표준(llms.txt v2)이며 Anthropic·OpenAI·Google이 자사 개발자 문서에 적용하고 있다.</p>
   <ul>
     <li><code>GET /api/projects/{p}/specs/{id}.md?version=approved</code> — 기본은 최신 <span class="badge approved">Approved</span> SpecVersion, <code>?version=42</code>로 특정 스냅샷</li>
-    <li>응답 frontmatter에 안정 ID·버전·문서 상태·승인자·요구사항 ID 목록을 실어 에이전트가 인용할 수 있게 한다. 경로·앵커가 아니라 <b>안정 ID로 상호참조</b>한다(D-09)</li>
+    <li>응답 frontmatter에 고정 ID·버전·문서 상태·승인자·요구사항 ID 목록을 실어 에이전트가 인용할 수 있게 한다. 경로·앵커가 아니라 <b>고정 ID로 상호참조</b>한다(D-09)</li>
     <li><code>GET /api/projects/{p}/llms.txt</code> — 스펙 트리 인덱스(제목 + <code>.md</code> 링크 + 한 줄 설명)</li>
   </ul>
   <p class="src"><a href="https://www.notion.com/blog/notions-hosted-mcp-server-an-inside-look">Notion's hosted MCP server: an inside look — Notion</a> (2025-07-15): 에이전트용 포맷을 블록 JSON에서 markdown으로 전환한 이유.</p>
@@ -477,7 +477,7 @@
     <tbody>
       <tr><td>언어 · 저장소 구조</td><td>TypeScript 모노레포(pnpm)</td><td>웹 · API · MCP · 에이전트 SDK가 모두 TS 생태계. 스키마·타입을 패키지로 공유</td></tr>
       <tr><td>웹앱</td><td>Vite + React SPA</td><td>모든 화면이 로그인 뒤의 사용자별 실시간 뷰라 SSR 이득이 작다. 웹 티어에 런타임이 없어 정적 자산 배포로 끝난다</td></tr>
-      <tr><td>API · MCP 게이트웨이</td><td>NestJS</td><td>REST와 MCP가 <b>같은 도메인 서비스</b>를 쓰도록 DI·모듈 구조가 강제한다(D-05). 가드·인터셉터로 스코프 검사·감사 로그를 일원화</td></tr>
+      <tr><td>API · MCP 게이트웨이</td><td>NestJS</td><td>REST와 MCP가 <b>같은 도메인 서비스</b>를 쓰도록 DI·모듈 구조가 강제한다(D-05). 가드·인터셉터로 권한 검사·감사 로그를 일원화</td></tr>
       <tr><td>DB</td><td>Postgres</td><td>트랜잭션 · 부분 인덱스 · JSONB · 전문검색을 한 엔진에서</td></tr>
       <tr><td>쿼리 계층</td><td>Drizzle</td><td>게이트·커버리지 질의가 복잡 조인이라 SQL 제어권이 중요</td></tr>
       <tr><td>인증</td><td>better-auth</td><td>자가호스팅(NFR-01) 전제에서 조직·역할·토큰 모델을 직접 소유</td></tr>
@@ -497,7 +497,7 @@
       <tr><td>API 프레임워크</td><td><b>NestJS</b>(Fastify 어댑터)</td><td>Hono, Fastify/Express 단독</td><td>웹 표준 <code>Request/Response</code> 기반이라 MCP Streamable HTTP 구현이 자연스럽고 런타임이 얇다</td><td>REST·MCP·워커가 한 도메인 규칙을 공유해야 한다(D-05). 표면마다 게이트 판정이 갈라지는 것이 이 플랫폼에서 가장 비싼 실패라, DI로 서비스 공유를 구조가 강제하는 쪽을 택했다. <code>@Sse()</code>·가드·인터셉터로 실시간·인가·감사가 1급</td><td>MCP 스트리밍 어댑터 계층이 유지보수 부담이 될 때</td></tr>
       <tr><td>데이터베이스</td><td><b>Postgres</b></td><td>MySQL, SQLite, MongoDB, Dolt</td><td>SQLite는 운영 단순, Dolt는 버전 관리 SQL(beads 채택)</td><td>클레임 원자성 · 게이트 조인 · 부분 인덱스 · JSONB가 한 엔진에 필요. Notion이 블록 모델을 Postgres에서 초대형까지 실증</td><td>스펙 버전 diff를 DB 네이티브로 다뤄야 하면 Dolt 재평가</td></tr>
       <tr><td>쿼리 계층</td><td><b>Drizzle</b></td><td>Prisma, Kysely, 순수 SQL</td><td>Prisma는 마이그레이션·툴링 성숙, Kysely는 타입 안전 쿼리빌더(Docmost 사례)</td><td>게이트·커버리지 질의가 재귀·윈도우 함수를 쓰는 복잡 조인이라 SQL 제어권 우선</td><td>마이그레이션 운영 부담이 임계를 넘을 때</td></tr>
-      <tr><td>인증</td><td><b>better-auth</b></td><td>Clerk/WorkOS, Auth.js, Keycloak</td><td>관리형은 SSO·MFA를 즉시 제공</td><td>자가호스팅 필수(NFR-01) + 프로젝트 스코프 PAT 발급을 직접 소유해야 함(D-08)</td><td>엔터프라이즈 SSO 요구가 들어오면 Keycloak 연동 검토</td></tr>
+      <tr><td>인증</td><td><b>better-auth</b></td><td>Clerk/WorkOS, Auth.js, Keycloak</td><td>관리형은 SSO·MFA를 즉시 제공</td><td>자가호스팅 필수(NFR-01) + 프로젝트 소속 PAT 발급을 직접 소유해야 함(D-08)</td><td>엔터프라이즈 SSO 요구가 들어오면 Keycloak 연동 검토</td></tr>
       <tr><td>실시간</td><td><b>WebSocket + SSE 다중 채널</b>(WS는 socket.io·websocket 전송만, SSE는 <code>/sse/*</code> 단방향), 방송 MQ <b>Valkey pub/sub</b></td><td>단일 채널 유지(WS만), 롱폴링</td><td>채널이 하나면 배포 산출물·프록시 규약이 단순</td><td>웹에서 에이전트 세션에 지시·답변을 보내는 양방향 UX(질문 즉답, Phase 2 steer) 때문에 WS를 깐다(2026-08-20). 이후 브라우저 밖 소비자(CLI·외부 도구)의 실시간 구독 요구를 수용해 SSE를 병행 채널로 확정하고(2026-08-21 — v0.1 재검토 트리거의 점화), 팬아웃 버스를 파드별 PG <code>LISTEN/NOTIFY</code>에서 <b>Valkey pub/sub</b>로 옮겼다 — PG NOTIFY의 8000B 페이로드 한도·<code>LISTEN</code> 전용 커넥션 점유·트랜잭션 풀러 비호환을 피하고 방송 부하를 DB 밖으로 격리한다. websocket 전송만 활성화해 k8s 스티키 세션을 피하고, 파드별 SUBSCRIBE라 크로스파드 socket.io 어댑터가 필요 없다</td><td>방송 유실 재조회 비용이 실측 임계를 넘으면 Valkey Streams(적재형)·HA 재검토</td></tr>
       <tr><td>실시간 협업 편집</td><td><b>미도입</b> (Phase 3)</td><td>Yjs + Hocuspocus, prosemirror-collab</td><td>오프라인 병합 · 동시 타이핑</td><td>주 작성자가 에이전트(원자적 API 저장 · 버전 전제조건 가능)라 동시 타이핑 빈도가 낮다. MVP부터 CRDT를 넣으면 버전 스냅샷·감사·스키마 권위가 CRDT 상태와 얽힌다</td><td>사람 동시 편집 요청이 반복되면</td></tr>
       <tr><td>배포</td><td><b>로컬 docker-compose / 운영 k8s(kustomize)</b></td><td>단일 타깃(compose 또는 k8s만), 관리형 PaaS</td><td>타깃이 하나면 배포 산출물 유지보수가 절반</td><td>온보딩·PoC·소규모 자가호스팅은 compose 한 파일이 최저 마찰이고, 운영은 조직 인프라 표준이 k8s다(clemvion <code>k8s/base</code>+<code>overlays</code> kustomize 관례). API는 무상태라 이중 타깃 비용이 낮고, 워커 replica 1·마이그레이션 Job 같은 규칙만 고정하면 된다</td><td>운영 규모가 단일 노드로 충분하면 k8s 생략 가능(NFR-04)</td></tr>
@@ -602,11 +602,11 @@
 
   <h3>5.1 테넌시 모델 (FR-14)</h3>
   <p>Organization &gt; Project &gt; Membership 3계층이고 사용자와 프로젝트는 n:n이다(P8의 직접 해소). 모든 도메인 테이블은 <code>project_id</code>를 갖고 조회 인덱스는 <code>(project_id, …)</code> 복합으로 시작한다 — 블록 테이블을 workspace ID로 파티셔닝한 Notion의 선택과 같은 이유로, 질의가 대부분 단일 프로젝트 범위이기 때문이다.</p>
-  <p>격리는 <b>앱 레벨 강제를 1차 방어선</b>으로 삼는다. 저장소 계층이 요청 컨텍스트의 프로젝트 스코프를 자동 주입하고, 스코프 없는 질의는 타입 레벨에서 컴파일되지 않게 한다. Postgres RLS는 <b>2차 방어선</b>으로 선택 도입한다(운영 복잡도가 올라가므로 조직 요구가 있을 때). 역할은 admin · planner · designer · developer · qa · viewer 6종이며 권한 표는 <a href="spec-workflow.html">스펙 워크플로우와 거버넌스</a>에 있다.</p>
+  <p>격리는 <b>앱 레벨 강제를 1차 방어선</b>으로 삼는다. 저장소 계층이 요청 컨텍스트의 프로젝트 소속을 자동 주입하고, 권한 없는 질의는 타입 레벨에서 컴파일되지 않게 한다. Postgres RLS는 <b>2차 방어선</b>으로 선택 도입한다(운영 복잡도가 올라가므로 조직 요구가 있을 때). 역할은 admin · planner · designer · developer · qa · viewer 6종이며 권한 표는 <a href="spec-workflow.html">스펙 워크플로우와 거버넌스</a>에 있다.</p>
 
   <h3>5.2 인증 · 인가와 에이전트 권한 (NFR-03 · D-08)</h3>
   <ul>
-    <li><b>사람</b>은 웹 세션으로, <b>에이전트</b>는 사용자별 발급 PAT 또는 OAuth 2.1 토큰으로 인증한다. 토큰은 항상 (사용자, 프로젝트, 역할, 스코프) 튜플에 묶인다.</li>
+    <li><b>사람</b>은 웹 세션으로, <b>에이전트</b>는 사용자별 발급 PAT 또는 OAuth 2.1 토큰으로 인증한다. 토큰은 항상 (사용자, 프로젝트, 역할, 소속) 튜플에 묶인다.</li>
     <li><b>권한 비확대 원칙</b>: <span class="badge agent">AgentSession</span>은 소유 사용자 권한의 부분집합으로만 행동한다. 위임으로 권한이 늘어나는 경로를 만들지 않는다.</li>
     <li><b>행위자 분리</b>: 사람 <span class="badge human">assignee</span>와 에이전트 <span class="badge agent">delegate</span>를 별도 필드로 둔다. "에이전트는 책임을 질 수 없다"는 Linear의 원칙을 데이터 모델로 고정한 것이고, 모든 Event에 <code>is_agent</code> 플래그를 남긴다(FR-16).</li>
     <li><b>지시자 ≠ 승인자</b>: 작업을 지시한 사람이 그 결과를 단독 승인할 수 없다(D-06). GitHub이 Copilot PR에 적용한 규격과 같다.</li>
@@ -695,7 +695,7 @@
   <p class="src"><a href="https://github.com/github/spec-kit">GitHub Spec Kit</a> · <a href="https://adr.github.io/">ADR — adr.github.io</a> (2026-08-13 확인): git-native 스펙/결정 기록의 대표 사례이자 하이브리드 미러가 흡수해야 할 반대 논거(§2.3).</p>
   <p class="src"><a href="https://gitbook.com/docs/docs-as-code/git-sync.md">GitHub &amp; GitLab Sync — GitBook</a> (2026-08-13 확인): DB 편집기 ↔ git markdown 양방향 동기화의 상용 실증(§2.4).</p>
   <p class="src"><a href="https://llmstxt.org/">The /llms.txt file, v2 — llmstxt.org</a> (v2 개정 2026-08-10): URL + <code>.md</code> 미러와 루트 인덱스 표준(§2.4a).</p>
-  <p class="src"><a href="https://linear.app/docs/mcp">MCP server — Linear Docs</a> (2026-08-13 확인): DB 기반 도구가 에이전트와 만나는 표준 접점은 권한 스코프가 분리된 호스티드 MCP(§2.4·§4.3).</p>
+  <p class="src"><a href="https://linear.app/docs/mcp">MCP server — Linear Docs</a> (2026-08-13 확인): DB 기반 도구가 에이전트와 만나는 표준 접점은 권한이 분리된 호스티드 MCP(§2.4·§4.3).</p>
   <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">MCP Streamable HTTP transport (2026-07-28)</a> (2026-08-13 확인): 세션·GET 스트림 제거, 필수 헤더, 하위호환 절차(§4.3).</p>
   <p class="src"><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization">MCP Authorization (OAuth 2.1, 2026-07-28)</a> (2026-08-13 확인): PRM 필수, CIMD 권장, audience 바인딩(§4.3·§5.2).</p>
   <p class="src"><a href="https://code.claude.com/docs/en/hooks">Hooks reference — Claude Code Docs</a> (2026-08-13 확인): 31종 훅, <code>type:"http"</code>, <code>allowedHttpHookUrls</code>(§1.3·§5.3·§5.7).</p>

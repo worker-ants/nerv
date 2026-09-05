@@ -52,7 +52,7 @@ export const MemberAddInput = z
   .object({
     email: z.string().min(1),
     role: z.string().default('viewer'),
-    /** 프로젝트 스코프 배정이면 슬러그, 조직 전역이면 없다 */
+    /** 프로젝트 소속 배정이면 슬러그, 조직 전역이면 없다 */
     project: z.string().nullish(),
   })
   .strict();
@@ -63,7 +63,7 @@ export const MemberUpdateInput = z.object({ role: z.string().min(1) }).strict();
 /**
  * EP-TOK-01 — 발급.
  *
- * `scopes` 의 어휘는 도메인이 본다(`isAgentScope` — 사람 전용 스코프는 토큰에 담기지
+ * `scopes` 의 어휘는 도메인이 본다(`isAgentScope` — 사람 전용 권한은 토큰에 담기지
  * 않는다). 여기서 보는 것은 "문자열 배열인가" 뿐이다.
  */
 export const TokenCreateInput = z

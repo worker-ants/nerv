@@ -7,17 +7,17 @@ NERV에 에이전트를 붙이면 Claude Code나 Codex가 스펙을 읽고, 작�
 - **MCP 도구** — 에이전트가 NERV를 읽고 쓰는 통로입니다. 서버 이름은 `nerv`이고 도구는 `nerv_*`입니다.
 - **훅** — 에이전트가 무엇을 하는지 세션 화면으로 흘려보냅니다. 훅이 없는 환경에서는 에이전트가 직접 이벤트를 올립니다.
 - **스킬** — `/nerv:next` 처럼 사람이 부르는 절차입니다. "무엇을 어떤 순서로"를 담습니다.
-- **statusline** — 지금 쥔 클레임·리스 남은 시간·범위 겹침을 프롬프트 줄에 답니다.
+- **statusline** — 지금 쥔 클레임·남은 시간·범위 겹침을 프롬프트 줄에 답니다.
 - **서브에이전트** — `nerv-spec-writer`. 스펙 초안을 쓰는 일만 맡는 좁은 에이전트입니다.
 
 권한은 스킬이 아니라 **토큰이 정합니다.** 스킬은 편의와 해상도일 뿐, 서버 게이트를 우회할 수 없습니다.
 
-## 토큰과 스코프
+## 토큰과 권한
 
 에이전트가 할 수 있는 일은 **토큰이 정합니다**(발급은 [플러그인 설치](/help/install) 1단계).
 
 - 토큰 값은 **발급 직후 한 번만** 보입니다. 그 자리에서 복사해 두세요.
-- 스코프는 `resource:action` 표기이고 **10종**입니다: `spec:read` · `spec:draft` · `spec:meta` · `spec:evidence` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
+- 권한은 `resource:action` 표기이고 **10종**입니다: `spec:read` · `spec:draft` · `spec:meta` · `spec:evidence` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
 - **`spec:evidence` 는 CI 를 위한 것입니다.** 요구사항에 PR·테스트 증적을 붙이는 일만 할 수 있습니다 — 빌드 파이프라인에 주는 토큰은 이것 하나만 켜면 됩니다. 초안도 Task 도 건드리지 못합니다.
 - **프로젝트 설정 변경·보관·복구는 토큰으로 할 수 없습니다.** 역할이 admin 이어도 그렇습니다 — 게이트 정책을 낮추는 일은 게이트 면제와 같은 무게라서 사람이 웹에서 합니다.
 - **`spec:approve`와 `approval:decide`는 토큰에 부여할 수 없습니다.** 발급 화면에는 **보이지만 잠겨** 있습니다 — 목록에서 빼 버리면 "왜 승인 권한은 토큰에 못 주지?" 라는 물음이 화면 밖에 남기 때문입니다. 보이되 고를 수 없는 것이 규칙을 가르칩니다. 승인은 사람이 하는 일입니다.

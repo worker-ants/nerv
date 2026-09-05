@@ -6,7 +6,7 @@
 // 모른다.
 //
 // **알림 테이블을 타지 않는다**(queries.ts `useMyInvitations` 주석) — 초대받은 사람은
-// 아직 아무 프로젝트의 멤버가 아니라, 프로젝트 스코프 알림 목록은 그에게 늘 비어 있다.
+// 아직 아무 프로젝트의 멤버가 아니라, 프로젝트 소속 알림 목록은 그에게 늘 비어 있다.
 
 import { useT } from '../lib/i18n.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';

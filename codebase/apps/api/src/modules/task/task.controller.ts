@@ -72,7 +72,7 @@ export class TaskController {
    * EP-TASK-03 — 생성은 언제나 backlog 다. ready 승격은 서버 판정(FR-05)
    *
    * MCP `nerv_task_create` 는 `task:update` 를 요구하는데 이 REST 자리는 역할만 봤다
-   * (2026-09-04). **같은 작업의 권한이 경로마다 달랐다** — 토큰에서 스코프를 빼도
+   * (2026-09-04). **같은 작업의 권한이 경로마다 달랐다** — 토큰에서 권한을 빼도
    * REST 로는 그대로 만들어졌다.
    */
   @RequireRoleAndScope(['planner', 'developer', 'admin', 'qa'], 'task:update')
@@ -95,7 +95,7 @@ export class TaskController {
     });
   }
 
-  /** EP-TASK-05 — MCP `nerv_task_update` 와 같은 스코프를 요구한다(2026-09-04) */
+  /** EP-TASK-05 — MCP `nerv_task_update` 와 같은 권한을 요구한다(2026-09-04) */
   @RequireRoleAndScope(['planner', 'developer', 'admin'], 'task:update')
   @Patch('tasks/:task')
   update(

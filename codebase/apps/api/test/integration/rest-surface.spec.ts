@@ -54,7 +54,7 @@ beforeAll(async () => {
       ],
     })
   ).token;
-  // **역할은 admin, 스코프는 읽기뿐.** 역할만 보던 자리를 잡아내려면 이 조합이 필요하다 —
+  // **역할은 admin, 권한은 읽기뿐.** 역할만 보던 자리를 잡아내려면 이 조합이 필요하다 —
   // adminToken 은 두 축을 다 갖고 있어서 어느 쪽이 통과시켰는지 구별하지 못한다.
   narrowToken = (
     await auth.issueToken({
@@ -201,7 +201,7 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
     }
   });
 
-  it('PAT 로는 PAT 를 발급할 수 없다 — 스코프 상속의 사슬은 사람에서 시작한다 (D-08)', async () => {
+  it('PAT 로는 PAT 를 발급할 수 없다 — 권한 상속의 사슬은 사람에서 시작한다 (D-08)', async () => {
     const res = await call('POST', '/api/v1/me/tokens', {
       payload: { project: 'clemvion', name: 'child', scopes: ['spec:read'] },
     });
@@ -712,7 +712,7 @@ describe('문서에 없는 승인·거절 REST 는 없다 (api.md §2.2)', () =>
 });
 
 describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
-  // viewer 는 역할도 스코프도 읽기뿐이다(ROLE_SCOPES.viewer = ['spec:read']).
+  // viewer 는 역할도 권한도 읽기뿐이다(ROLE_SCOPES.viewer = ['spec:read']).
   // 예전에는 이 토큰으로 아래가 **전부 통과했다** — 판정 함수는 있었고 부르는 곳이 없었다.
   it('viewer 토큰은 Task 를 만들지 못한다 (EP-TASK-03 planner·developer·admin·qa)', async () => {
     const res = await call('POST', '/api/v1/projects/clemvion/tasks', {
@@ -772,15 +772,15 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
   /**
    * 역할만 보던 세 자리 (2026-09-04 · 실측).
    *
-   * `@RequireRole` 만 걸린 라우트는 **토큰의 스코프를 보지 않았다.** 그래서 `spec:read` 하나만
+   * `@RequireRole` 만 걸린 라우트는 **토큰의 권한을 보지 않았다.** 그래서 `spec:read` 하나만
    * 체크한 토큰으로도 Task 를 만들고 증적을 올릴 수 있었고, 같은 작업의 MCP 경로
    * (`nerv_task_create` — `task:update`)와 권한이 달랐다. 발급 화면의 체크박스가 토큰의
    * 실제 권한보다 좁았다는 뜻이다.
    */
-  it('admin 역할이어도 스코프가 없으면 Task 를 만들지 못한다 (EP-TASK-03)', async () => {
+  it('admin 역할이어도 권한이 없으면 Task 를 만들지 못한다 (EP-TASK-03)', async () => {
     const res = await call('POST', '/api/v1/projects/clemvion/tasks', {
       token: narrowToken,
-      payload: { title: '스코프 없이 생성' },
+      payload: { title: '권한 없이 생성' },
     });
     expect(res.status).toBe(403);
     expect((res.body as Record<string, unknown>)['details']).toMatchObject({
@@ -789,7 +789,7 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
     });
   });
 
-  it('증적 등록에도 스코프가 필요하다 — CI 토큰을 증적만으로 좁힐 수 있어야 한다 (EP-REQ-03)', async () => {
+  it('증적 등록에도 권한이 필요하다 — CI 토큰을 증적만으로 좁힐 수 있어야 한다 (EP-REQ-03)', async () => {
     const specVersionId = await seedSpecVersion();
     const { rows } = await pool.query<{ spec_id: string }>(
       `SELECT spec_id FROM spec_version WHERE id = $1`,
@@ -837,10 +837,10 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
    * 2단계 — **Task 가 기준 세트를 물고 간다**(REQ-API-087 · spec-workflow §4.1).
    *
    * 컬럼(`task.baseline_id`)은 2026-08 부터 있었는데 REST·MCP 어느 쪽도 값을 넘기지 않아
-   * 실사용 487건이 **전부 NULL** 이었다(실측 2026-09-04). 기준 버전이 "이 문서의 어느 판"
-   * 이라면 베이스라인은 "주변 문서까지 포함한 어느 세트" 다.
+   * 실사용 487건이 **전부 NULL** 이었다(실측 2026-09-04). 기준 버전이 "이 문서의 어느 버전"
+   * 이라면 기준선은 "주변 문서까지 포함한 어느 세트" 다.
    */
-  it('Task 파생이 베이스라인 이름을 받아 고정한다 (EP-TASK-03)', async () => {
+  it('Task 파생이 기준선 이름을 받아 고정한다 (EP-TASK-03)', async () => {
     const specVersionId = await seedSpecVersion();
     await pool.query(`UPDATE spec_version SET status = 'approved' WHERE id = $1`, [specVersionId]);
     const baselineId = newId();
@@ -858,7 +858,7 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
     );
 
     const made = await call('POST', '/api/v1/projects/clemvion/tasks', {
-      payload: { title: '베이스라인 맥락 작업', baseline: 'r1' },
+      payload: { title: '기준선 맥락 작업', baseline: 'r1' },
     });
     expect(made.status).toBeLessThan(300);
 
@@ -873,7 +873,7 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
     await pool.query(`DELETE FROM spec_baseline WHERE id = $1`, [baselineId]);
   });
 
-  it('없는 베이스라인 이름으로는 Task 를 만들지 않는다 — 조용히 NULL 이 되지 않는다', async () => {
+  it('없는 기준선 이름으로는 Task 를 만들지 않는다 — 조용히 NULL 이 되지 않는다', async () => {
     const res = await call('POST', '/api/v1/projects/clemvion/tasks', {
       payload: { title: '오타', baseline: 'r9' },
     });
@@ -1261,7 +1261,7 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
       [newId(), projectId, spec.specId, ver[0]?.id],
     );
 
-    // EP-REQ-03 은 역할 AND `spec:evidence` 다 — adminToken 에는 그 스코프가 없다(§1.3b)
+    // EP-REQ-03 은 역할 AND `spec:evidence` 다 — adminToken 에는 그 권한이 없다(§1.3b)
     const ciToken = (
       await app.get(AuthService).issueToken({
         projectId,
@@ -1364,12 +1364,12 @@ describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', 
 
   /**
    * **기준선은 더 앞에서 막힌다.** `spec:approve` 는 `HUMAN_ONLY_SCOPES` 라 토큰에
-   * 부여 자체가 불가능하고(§1.3), 그래서 스코프 가드가 사람 전용 게이트보다 먼저 답한다.
+   * 부여 자체가 불가능하고(§1.3), 그래서 권한 가드가 사람 전용 게이트보다 먼저 답한다.
    *
    * 그것이 더 강한 보장이라 그대로 둔다 — 다만 **막히는 이유가 다르다는 사실**을 여기
    * 적어 둔다. 적지 않으면 다음 사람이 "왜 이것만 목록에 없나" 를 다시 조사해야 한다.
    */
-  it('기준선 생성은 스코프 단계에서 막힌다 — 사람 전용 스코프는 토큰이 가질 수 없다', async () => {
+  it('기준선 생성은 권한 단계에서 막힌다 — 사람 전용 권한은 토큰이 가질 수 없다', async () => {
     const res = await call('POST', '/api/v1/projects/clemvion/baselines', {
       payload: { name: 'r-human' },
     });
@@ -1548,13 +1548,13 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     expect(ok.status).toBe(201);
   });
 
-  it('viewer 는 웹으로 들어와도 메타·아카이브·베이스라인을 못 건드린다 (역할 매트릭스)', async () => {
+  it('viewer 는 웹으로 들어와도 메타·아카이브·기준선을 못 건드린다 (역할 매트릭스)', async () => {
     await call('POST', '/api/v1/projects/clemvion/specs', {
       payload: { key: 'SPC-RBAC', title: '권한 시험', type: 'feature', body_markdown: '# 본문' },
     });
     // `assertScope` 는 "세션 사용자는 역할 매트릭스가 판정한다"고 적어 두고 그 매트릭스가
     // 없어 `if (!isAgent) return;` 로 통과시켰다. 웹으로 들어오면 viewer 도 스펙을
-    // 아카이브하고 베이스라인을 동결할 수 있었다(실측 2026-08-23).
+    // 아카이브하고 기준선을 동결할 수 있었다(실측 2026-08-23).
     const denied = [
       ['PATCH', `/api/v1/projects/clemvion/specs/SPC-RBAC`, { title: '바꿔본다' }],
       ['POST', `/api/v1/projects/clemvion/specs/SPC-RBAC/archive`, {}],
@@ -1570,10 +1570,10 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     }
   });
 
-  it('권한이 있으면 스코프 문턱은 넘는다 — 조인 것이 아니라 **가른** 것이다', async () => {
+  it('권한이 있으면 권한 문턱은 넘는다 — 조인 것이 아니라 **가른** 것이다', async () => {
     // 전부 막으면 조인 것이 아니라 부순 것이다. 다만 EP-SPEC-15 는 그 다음 문턱이
     // **사람 전용**이라(requireHuman) PAT 는 어차피 못 지난다 — 그래서 "통과했다"가 아니라
-    // "**스코프에서 막히지는 않았다**"를 본다. 두 문턱은 다른 것을 지킨다.
+    // "**권한에서 막히지는 않았다**"를 본다. 두 문턱은 다른 것을 지킨다.
     const res = await call('PATCH', '/api/v1/projects/clemvion/specs/SPC-RBAC', {
       payload: { title: 'admin 이 고친 제목' },
     });

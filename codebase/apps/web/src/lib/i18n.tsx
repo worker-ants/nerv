@@ -71,7 +71,7 @@ export function LocaleProvider({
 }: LocaleProviderProps): React.JSX.Element {
   const [locale, setLocaleState] = useState<Locale>(() => fixed ?? initialLocale());
 
-  // 모듈 스코프의 값도 같이 옮긴다 — apiFetch 는 React 밖에서 헤더를 만든다
+  // 모듈 권한의 값도 같이 옮긴다 — apiFetch 는 React 밖에서 헤더를 만든다
   currentLocale = locale;
 
   useEffect(() => {

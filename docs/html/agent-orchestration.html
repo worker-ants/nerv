@@ -53,7 +53,7 @@
     <h1>병렬 에이전트 오케스트레이션 — 도구 지형과 검증된 패턴</h1>
     <p class="lead">2025~2026년의 병렬 코딩 에이전트 도구는 <b>로컬 git worktree 계열</b>과 <b>클라우드 VM 계열</b>로 갈라졌지만, 할당·격리·상태 표시·충돌 방지·사람 개입 5축에서 거의 같은 답으로 수렴했다. 이 문서는 12개 도구를 5축으로 해부해 <b>원자적 클레임·세션 카드·3게이트·위임 명세 4요소</b>라는 검증된 규격을 뽑아내고, 필드 데이터가 가리키는 진짜 병목(리뷰)과 도구의 짧은 수명이 왜 "패턴을 서버에 표준화하고 어댑터는 얇게"라는 결론으로 이어지는지 보인다. FR-05~FR-08과 D-04·D-13의 1차 근거.</p>
     <div class="meta-line">
-      <span>버전 v0.1 (2026-08-13)</span>
+      <span>버전 v0.2 (2026-08-13)</span>
       <span>원본: <code>docs/02-research/agent-orchestration.md</code></span>
       <span>1차 소스: 웹 딥리서치 노트 2건(도구 20개 출처 + 실전 보고 12건)</span>
     </div>
@@ -211,7 +211,7 @@
     <tbody>
       <tr><td><b>Claude Code<br>on the web</b></td><td>세션마다 관리형 격리 VM + 저장된 "cloud environment". <code>claude --cloud "태스크"</code>를 여러 번 실행하면 각각 독립 세션이 되고 <code>/tasks</code>로 일괄 모니터링. 세션 목록에 <code>+42 −18</code> 형태의 <b>diff 지표</b>가 붙고, diff 뷰의 인라인 코멘트가 다음 메시지로 에이전트에 전달된다. <code>--teleport</code>로 클라우드 세션을 로컬 터미널로 끌어오고, <code>claude -p "msg" --cloud &lt;session-id&gt;</code>로 어느 기계에서든 후속 지시를 큐잉. <b>Auto-fix PR</b>은 CI 실패·리뷰 코멘트에 자동 대응하되 해석이 갈리거나 아키텍처적으로 중요하면 사람에게 질문하고, 에이전트 답글에는 작성 주체 라벨이 붙는다. 권장 패턴 "plan locally, execute remotely".</td></tr>
       <tr><td><b>Codex cloud</b></td><td>웹·IDE·GitHub PR·Linear·Slack에서 위임 → 격리 컨테이너 실행. 저장소별 환경을 정의·캐싱해 재현성 확보, <b>동일 태스크의 여러 시도(attempts) 비교(best-of-N)</b> 지원. 결과는 summary+diff로 도착.</td></tr>
-      <tr><td><b>Copilot<br>coding agent</b></td><td><b>이슈를 사람에게 하듯 assign</b>하면 👀 리액션으로 접수를 알리고, Actions 기반 임시 환경(최대 59분)에서 자기 브랜치에 커밋을 쌓는 <b>draft PR</b>로 작업하다 완료 시 사용자를 리뷰어로 지정. 보안 기본값: 자기 브랜치에만 push, <b>요청자는 그 PR을 스스로 승인 불가</b>, CI/CD 워크플로 실행에 사람의 명시적 승인 필요.</td></tr>
+      <tr><td><b>Copilot<br>coding agent</b></td><td><b>이슈를 사람에게 하듯 assign</b>하면 👀 리액션으로 접수를 알리고, Actions 기반 임시 환경(최대 59분)에서 자기 브랜치에 커밋을 쌓는 <b>draft PR</b>로 작업하다 완료 시 사용자를 리뷰어로 지정. 보안 기본값: 자기 브랜치에만 push, <b>요청자는 그 PR을 스스로 승인 불가</b>, CI/CD 워크플로우 실행에 사람의 명시적 승인 필요.</td></tr>
       <tr><td><b>Jules</b></td><td>개입 지점 3체크포인트가 명문화: (1) 프롬프트 (2) <b>코드 작성 전 플랜 리뷰·수정·거절</b> (3) diff 승인 후 PR 생성, 머지는 사람. 동시 실행 한도가 요금제로 규격화(Free 15태스크/일·동시 3, Pro 100/일·동시 15, Ultra 300/일·동시 60).</td></tr>
       <tr><td><b>Devin</b></td><td>유입 경로 다중(Slack 멘션·Linear/Jira 티켓 태그·웹·CLI/API)이고 <b>티켓을 분석해 세션 프롬프트를 자동 생성</b>. 한 주에 659개 PR 머지 기록 공개. Devin Review가 복잡한 diff를 정리해 <b>리뷰어가 원시 diff 대신 정리된 산출물</b>을 보게 한다. 착수 전 <b>Confidence Score</b>로 이슈를 일괄 선별.</td></tr>
       <tr><td><b>Factory.ai</b></td><td>Droid(단순) → Automations(반복) → Droid Computers(장기 실행) → <b>Missions</b>(복잡 작업을 병렬 트랙으로 분해, 수 시간~수 일 자율 실행). 리뷰·보안·문서·QA가 <b>같은 조직 컨텍스트</b>를 공유해 피드백 루프 형성. 셀프호스팅·에어갭 옵션.</td></tr>
@@ -462,7 +462,7 @@
     <li><b>실용 한계는 동시 3~5 에이전트다.</b> 그 이상은 리뷰 용량 초과로 품질이 "아무도 모르게" 하락한다(Superset). 공교롭게 agent teams의 권장 팀메이트 수(3~5)와 Anthropic 리서치 시스템의 서브에이전트 수(3~5)가 같다.</li>
     <li><b>비용은 선형이 아니다.</b> 멀티에이전트는 단일 채팅 대비 <b>약 15배 토큰</b>(단일 에이전트도 4배)을 쓴다. 같은 글은 <b>강한 의존성이 있는 코딩 작업에는 멀티에이전트가 부적합</b>하고 병렬 분해 가능한 작업에만 유효하다고 못박는다 — 무조건적 병렬화는 근거가 없다.</li>
     <li><b>한도는 이미 제품 기능이다.</b> Jules는 요금제별 동시 실행 한도(3/15/60)를 규격화했고, Claude Code web은 rate limit을 계정 전체와 공유한다.</li>
-    <li><b>100 에이전트의 전제는 사람 주의력 추가가 아니다.</b> Superset의 로드맵은 자동 품질 게이트 + 구조화된 디스패치(에이전트가 스스로 일을 찾음) + 완료 시 리뷰 워크플로 세 가지를 든다 — 정확히 NERV의 ready 큐(FR-05) + 클레임(FR-06) + 게이트(FR-10)다.</li>
+    <li><b>100 에이전트의 전제는 사람 주의력 추가가 아니다.</b> Superset의 로드맵은 자동 품질 게이트 + 구조화된 디스패치(에이전트가 스스로 일을 찾음) + 완료 시 리뷰 워크플로우 세 가지를 든다 — 정확히 NERV의 ready 큐(FR-05) + 클레임(FR-06) + 게이트(FR-10)다.</li>
   </ul>
   <p class="src"><a href="https://superset.sh/blog/parallel-coding-agents-guide">The Complete Guide to Running Parallel AI Coding Agents — Superset</a> (2026): 동시 3~5가 실용 한계, 병렬 운용 실용화의 3요소(CLI 신뢰성·worktree·tmux 성숙).</p>
   <p class="src"><a href="https://superset.sh/blog/roadmap-to-100-agents">Our plan for running 100 Parallel Coding Agents — Superset</a> (2026): 안전망 있는 자율성 = 자동 게이트 + 구조화 디스패치 + 완료 리뷰.</p>
@@ -485,7 +485,7 @@
     <p>NERV는 (1) 서버 API로서의 클레임·리스, (2) 세션 레지스트리와 상태 머신, (3) 게이트 판정 API를 고정 표면으로 두고, Claude Code·Codex 등 <b>에이전트별 어댑터(MCP 도구·스킬·훅)를 얇게</b> 유지한다. 어댑터가 깨져도 조정·기록·게이트는 남는다. 벤더 API 변화 리스크에 대한 완화책이기도 하다(<a href="roadmap.html">3.7 로드맵</a> 리스크 절).</p>
   </div></div>
   <p class="src"><a href="https://nimbalyst.com/blog/best-agent-management-tools-2026/">Best Tools for Managing Parallel AI Coding Agents in 2026 — Nimbalyst</a> (2026): 로컬 오케스트레이터 세대교체 진행 상황.</p>
-  <p class="src"><a href="https://dev.to/javatarz/multi-agent-development-workflows-with-claude-code-n23">Multi-Agent Development Workflows with Claude Code — DEV(javatarz)</a> (확인일 2026-08-13): 개인 실전기 — 역할 분리·워크플로 정형화가 핵심.</p>
+  <p class="src"><a href="https://dev.to/javatarz/multi-agent-development-workflows-with-claude-code-n23">Multi-Agent Development Workflows with Claude Code — DEV(javatarz)</a> (확인일 2026-08-13): 개인 실전기 — 역할 분리·워크플로우 정형화가 핵심.</p>
 
   <h2 id="sec-5">5. NERV 시사점</h2>
 
@@ -507,7 +507,7 @@
       <tr><td>정리된 리뷰 산출물</td><td>Devin Review</td><td>ReviewSession → Finding → Resolution</td><td>FR-09, D-07</td></tr>
       <tr><td>완료 훅으로 품질 게이트</td><td>agent teams exit-2 거부, Stop hook</td><td>Task done 전이 조건 = 해소된 리뷰 커버리지</td><td>FR-10, D-14</td></tr>
       <tr><td>동시 실행 한도 정책화</td><td>Jules 요금제 한도, 실용 3~5</td><td>조직·프로젝트 단위 동시 세션/클레임 한도</td><td>FR-14</td></tr>
-      <tr><td>자격증명은 실행 환경 밖</td><td>Claude Code on the web 프록시</td><td>토큰 스코프·권한 비확대</td><td>NFR-03, D-08</td></tr>
+      <tr><td>자격증명은 실행 환경 밖</td><td>Claude Code on the web 프록시</td><td>토큰 권한 · 확대 금지</td><td>NFR-03, D-08</td></tr>
       <tr><td>에이전트 메시지 ≠ 승인</td><td>agent teams 메일박스 규칙</td><td>스펙·Finding 본문은 비신뢰 데이터로 취급</td><td>NFR-03</td></tr>
     </tbody>
   </table></div>
@@ -624,7 +624,7 @@
   <p class="src"><a href="https://addyo.substack.com/p/agentic-code-review">Agentic Code Review — Addy Osmani</a> (2026): AI 1차 리뷰 + 사람 판단의 계층화.</p>
   <p class="src"><a href="https://arxiv.org/pdf/2605.02273">These Aren't the Reviews You're Looking For — arXiv 2605.02273</a> (2026): 인간의 AI PR 리뷰 행동 연구.</p>
   <p class="src"><a href="https://nimbalyst.com/blog/best-agent-management-tools-2026/">Best Tools for Managing Parallel AI Coding Agents in 2026 — Nimbalyst</a> (2026): 로컬 오케스트레이터 세대교체.</p>
-  <p class="src"><a href="https://dev.to/javatarz/multi-agent-development-workflows-with-claude-code-n23">Multi-Agent Development Workflows with Claude Code — DEV(javatarz)</a> (확인일 2026-08-13): 역할 분리·워크플로 정형화.</p>
+  <p class="src"><a href="https://dev.to/javatarz/multi-agent-development-workflows-with-claude-code-n23">Multi-Agent Development Workflows with Claude Code — DEV(javatarz)</a> (확인일 2026-08-13): 역할 분리·워크플로우 정형화.</p>
 
   <h3 id="ref-3">clemvion 실측 근거</h3>
   <ul>

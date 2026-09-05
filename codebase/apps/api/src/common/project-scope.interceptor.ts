@@ -1,4 +1,4 @@
-// 요청 컨텍스트의 project_id 자동 주입 — 스코프 없는 질의가 컴파일되지 않게 하는 원칙의 표면 절반.
+// 요청 컨텍스트의 project_id 자동 주입 — 권한 없는 질의가 컴파일되지 않게 하는 원칙의 표면 절반.
 // 정본: docs/04-mvp/codebase.md §2.2
 //
 // 경로 파라미터 {proj} 는 project.slug 다(api.md §1.2). slug → project_id 해소와 멤버십 검사는

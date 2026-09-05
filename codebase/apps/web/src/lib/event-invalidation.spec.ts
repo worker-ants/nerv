@@ -23,9 +23,9 @@ function envelope(type: NervEventName, over: Partial<NervEventEnvelope> = {}): N
 }
 
 describe('invalidationKeysFor — screens.md §1.4', () => {
-  // 2026-08-29 실측 — 봉투의 subject_id 는 **버전 UUID** 인데 화면의 쿼리 키는 안정 키다.
+  // 2026-08-29 실측 — 봉투의 subject_id 는 **버전 UUID** 인데 화면의 쿼리 키는 고정 ID다.
   // 축이 달라서 스펙 상세는 한 번도 다시 읽히지 않았다(새로고침해야 보였다).
-  it('스펙 축은 subject_key 로 잡는다 — 화면의 쿼리 키가 안정 키이기 때문이다', () => {
+  it('스펙 축은 subject_key 로 잡는다 — 화면의 쿼리 키가 고정 ID이기 때문이다', () => {
     const keys = invalidationKeysFor(
       envelope(NERV_EVENT.SPEC_DRAFT_CREATED, {
         subject_id: 'ver-uuid',
@@ -58,9 +58,9 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     ]);
   });
 
-  it('코멘트·Task 도 안정 키 축이다 — 서버가 그 키를 싣는다 (2026-09-02)', () => {
-    // 스펙 축만 2026-08-29 에 안정 키로 옮겼고 나머지는 UUID 로 남아 있었다. 화면의
-    // 키는 안정 키라, 코멘트가 달려도 Task 가 done 이 돼도 단건 캐시는 한 번도
+  it('코멘트·Task 도 고정 ID 축이다 — 서버가 그 키를 싣는다 (2026-09-02)', () => {
+    // 스펙 축만 2026-08-29 에 고정 ID로 옮겼고 나머지는 UUID 로 남아 있었다. 화면의
+    // 키는 고정 ID라, 코멘트가 달려도 Task 가 done 이 돼도 단건 캐시는 한 번도
     // 무효화되지 않았다 — WS 가 붙어 있으니 폴백 폴링도 돌지 않아 조용했다.
     const comment = invalidationKeysFor(
       envelope(NERV_EVENT.SPEC_COMMENT_ADDED, { subject_id: 'spec-uuid', subject_key: 'SPC-A' }),

@@ -127,7 +127,7 @@ export class ReviewController {
     @Param('id') id: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    // 처분과 같은 스코프다 — 발견에 개입하는 같은 축의 행동이다
+    // 처분과 같은 권한다 — 발견에 개입하는 같은 축의 행동이다
     return this.reviews.comment({
       projectId: req.nervProjectId!,
       findingId: id,

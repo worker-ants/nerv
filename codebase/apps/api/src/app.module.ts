@@ -47,7 +47,7 @@ export class WorkerAppModule {}
     ReviewModule,
     PluginModule,
   ],
-  // MCP 표면은 AuthModule(스코프 검사)·SessionModule(세션 확인)을 쓴다 —
+  // MCP 표면은 AuthModule(권한 검사)·SessionModule(세션 확인)을 쓴다 —
   // 표면이 직접 판정하지 않고 도메인 서비스에 묻는다(D-05 · REQ-CB-003).
   controllers: [McpController],
   providers: [

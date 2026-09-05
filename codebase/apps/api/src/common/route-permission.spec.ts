@@ -90,7 +90,7 @@ describe('라우트 권한 선언 (api.md §2 전표의 권한 열)', () => {
     expect(undeclared).toEqual([]);
   });
 
-  it('선언은 스코프나 역할 중 하나를 담거나, 멤버십으로 충분함을 명시한다', () => {
+  it('선언은 권한나 역할 중 하나를 담거나, 멤버십으로 충분함을 명시한다', () => {
     const malformed = PROJECT_ROUTES.filter((r) => {
       const p = r.permission!;
       const scopes = p.scopes ?? [];
@@ -102,7 +102,7 @@ describe('라우트 권한 선언 (api.md §2 전표의 권한 열)', () => {
   });
 
   it('`spec:read` 만으로 쓰는 라우트는 넷뿐이다 — 나머지 조건은 서비스가 본다', () => {
-    // 읽기 스코프로 쓰기가 열리는 자리는 **의도된 것뿐이어야 한다**. 늘어났다면 둘 중
+    // 읽기 권한으로 쓰기가 열리는 자리는 **의도된 것뿐이어야 한다**. 늘어났다면 둘 중
     // 하나다: 전표가 그렇게 정했거나(그러면 여기에 더한다), 권한을 잘못 붙였거나.
     const writeWithReadOnly = PROJECT_ROUTES.filter(
       (r) => r.write && (r.permission?.scopes ?? []).join() === 'spec:read',

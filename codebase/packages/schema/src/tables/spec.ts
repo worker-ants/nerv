@@ -30,7 +30,7 @@ import { bytea, createdAt, idPk, ts } from './_columns.js';
 import { agentSession } from './session.js';
 import { project, user } from './tenancy.js';
 
-/** 안정 ID. 이동·개명해도 참조가 불변이다(D-09 · FR-01). */
+/** 고정 ID. 이동·개명해도 참조가 불변이다(D-09 · FR-01). */
 export const spec = pgTable(
   'spec',
   {
@@ -41,7 +41,7 @@ export const spec = pgTable(
     parentId: uuid('parent_id'),
     type: specType('type').notNull(),
     /**
-     * 사람이 읽는 안정 키(예: channel-web-chat) — **프로젝트 안에서 유일하다**.
+     * 사람이 읽는 고정 ID(예: channel-web-chat) — **프로젝트 안에서 유일하다**.
      *
      * 예전 주석은 "참조 키가 아니다"였는데 실제로는 도구·URL·본문 링크가 전부 이것으로
      * 문서를 가리킨다. 유일하지 않으면 같은 키를 가진 문서 둘 중 하나는 **아무도 못 찾는
@@ -292,7 +292,7 @@ export const specComment = pgTable(
 );
 
 /**
- * 베이스라인 — 프로젝트 단위 승인 스냅샷 세트(FR-02 확장. 규약 정본 spec-workflow §3.6).
+ * 기준선 — 프로젝트 단위 승인 스냅샷 세트(FR-02 확장. 규약 정본 spec-workflow §3.6).
  * **생성 후 불변** — 항목 UPDATE/DELETE 경로를 만들지 않는다.
  */
 export const specBaseline = pgTable(

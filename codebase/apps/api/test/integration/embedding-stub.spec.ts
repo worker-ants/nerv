@@ -372,7 +372,7 @@ describe('요청 예산과 부분 진행 (2026-08-28 회귀 방지)', () => {
     // 그리고 **앞의 두 배치는 남는다**
     expect(report.chunks_embedded).toBeGreaterThan(0);
 
-    // 다음 판은 남은 청크만 이어서 한다
+    // 다음 버전은 남은 청크만 이어서 한다
     requestSizes = [];
     const next = await embeddings.runOnce({ projectId });
     expect(next.error).toBeNull();

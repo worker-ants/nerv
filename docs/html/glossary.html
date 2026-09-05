@@ -53,7 +53,7 @@
     <h1>용어 사전</h1>
     <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>한국어 용어의 정본</b>이다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
     <div class="meta-line">
-      <span>버전 v0.1 (2026-09-05)</span>
+      <span>버전 v0.2 (2026-09-05)</span>
       <span>원본: <code>docs/glossary.md</code></span>
       <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
     </div>
@@ -104,16 +104,16 @@
       <tr><td>베이스라인 → <b>기준선</b></td><td>8</td><td>1</td><td>2</td><td>41</td><td>65</td><td>48</td><td>165</td></tr>
       <tr><td>워크플로 → <b>워크플로우</b></td><td>0</td><td>0</td><td>0</td><td>2</td><td>68</td><td>65</td><td>135</td></tr>
       <tr><td>스코프 → <b>권한 · 소속 · 작업 범위</b></td><td>11</td><td>10</td><td>3</td><td>154</td><td>206</td><td>167</td><td>551</td></tr>
-      <tr><td>판 → <b>버전</b> (버전 뜻만)</td><td>7</td><td>24</td><td>4</td><td>109</td><td>90</td><td>52</td><td>286</td></tr>
-      <tr><td>안정 ID → <b>번호</b>(화면) · <b>고정 ID</b>(명세)</td><td>4</td><td>0</td><td>1</td><td>14</td><td>61</td><td>57</td><td>137</td></tr>
-      <tr><td>안정 키 → <b>번호</b> · <b>고정 ID</b></td><td>2</td><td>0</td><td>1</td><td>28</td><td>18</td><td>11</td><td>60</td></tr>
-      <tr><td>리스 → <b>남은 시간 · 점유 시간</b> (사람이 읽는 곳만)</td><td>5</td><td>15</td><td>—</td><td>—</td><td>—</td><td>—</td><td>20</td></tr>
+      <tr><td>판 → <b>버전</b>(279) · <b>파생본</b>(10)</td><td>13</td><td>29</td><td>5</td><td>111</td><td>86</td><td>45</td><td>289</td></tr>
+      <tr><td>안정 ID · 안정 키 → <b>번호</b>(화면) · <b>고정 ID</b>(그 밖)</td><td>6</td><td>0</td><td>2</td><td>42</td><td>80</td><td>68</td><td>198</td></tr>
+      <tr><td>리스 → <b>남은 시간 · 점유 시간</b> (사람이 읽는 곳만)</td><td>3</td><td>15</td><td>—</td><td>—</td><td>—</td><td>—</td><td>18</td></tr>
       <tr><td>클레임 → <b>맡음</b> (보드 칸 이름만)</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
-      <tr><td>핀해 둔 → <b>묶어 둔</b></td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
-      <tr><td><b>합계</b></td><td><b>39</b></td><td><b>50</b></td><td><b>11</b></td><td><b>348</b></td><td><b>508</b></td><td><b>400</b></td><td><b>1,356</b></td></tr>
+      <tr><td>핀하다 → <b>묶다</b></td><td>1</td><td>0</td><td>0</td><td>3</td><td>6</td><td>5</td><td>15</td></tr>
+      <tr><td><b>합계</b></td><td><b>43</b></td><td><b>55</b></td><td><b>12</b></td><td><b>353</b></td><td><b>511</b></td><td><b>398</b></td><td><b>1,372</b></td></tr>
     </tbody>
   </table></div>
-  <p>사람과 에이전트가 읽는 자리는 <b>100곳</b>(화면 39 · 매뉴얼 50 · 스킬 11)이고, 나머지 1,256곳은 코드 주석과 명세·파생본이다.</p>
+  <p>사람과 에이전트가 읽는 자리는 <b>110곳</b>(화면 43 · 매뉴얼 55 · 스킬 12)이고, 나머지 1,262곳은 코드 주석과 명세·파생본이다.</p>
+  <p><b>이 표는 실제로 옮긴 수다</b>(2026-09-05 반영 완료 — v0.2). 옛 표현은 이 문서의 인용과 <a href="index.html">README</a>·<code>AGENTS.md</code> 의 변경 기록 넷 말고는 저장소에 남아 있지 않다.</p>
 
   <h3>1.2 부분 채택 셋 — 어디까지인지 못 박는다</h3>
   <ul>
@@ -152,7 +152,7 @@
     <tbody>
       <tr><td><b>스펙</b></td><td>spec</td><td><code>specs</code></td><td>단일 진실로 관리되는 문서 한 편. 화면 내비게이션의 이름이기도 하다</td></tr>
       <tr><td><b>버전</b> ← 판</td><td>version</td><td><code>spec_versions</code></td><td>스펙의 한 시점. 초안 → 검토 중 → 승인됨 → 대체됨·폐기됨의 다섯 상태를 갖는다. 승인된 버전은 고칠 수 없고, 고치려면 <b>다음 버전</b>을 시작한다</td></tr>
-      <tr><td><b>판</b></td><td>edition · rendering</td><td>—</td><td>같은 내용을 다른 형태로 낸 것. <b>버전과 다른 말</b>이고 한 문장 안에 함께 나온다 — 아래 참고</td></tr>
+      <tr><td><b>판</b></td><td>edition · pass</td><td>—</td><td>두 가지로 남는다 — ① <b>판본</b>: 같은 내용을 다른 형태로 낸 것("전체 화면 판"·"markdown 판"). ② <b>회차</b>: 한 번 도는 것("임베딩 한 판" — <code>NERV_EMBED_PASS_MS</code>). 둘 다 <b>버전과 다른 말</b>이다 — 아래 참고</td></tr>
       <tr><td><b>요구사항</b></td><td>requirement</td><td><code>requirements</code></td><td>스펙 안의 검증 가능한 한 줄. EARS 문형을 쓰고 <code>REQ-…</code> 번호를 갖는다</td></tr>
       <tr><td><b>기준선</b> ← 베이스라인</td><td>baseline</td><td><code>baselines</code></td><td>문서를 어느 버전으로 읽을지 정해 둔, 이름 붙은 묶음. 고르지 않으면 각 문서를 최신 승인본으로 읽는다</td></tr>
       <tr><td><b>워크플로우</b> ← 워크플로</td><td>workflow</td><td><code>spec_version_status</code></td><td>버전이 상태를 옮겨 가는 규칙과, 그 사이에 놓인 승인 게이트</td></tr>
@@ -162,7 +162,7 @@
   </table></div>
   <div class="callout note"><span class="ico">📐</span><div class="body">
     <b class="title">"판" 과 "버전" 을 가른 이유</b>
-    <p>전수 315곳 중 <b>29곳이 버전이 아니라 판본</b>이었고, 가장 분명한 증거는 모든 문서의 머리글이다 — <code>&gt; 문서 버전 v0.3 · 2026-09-05 · HTML 판: [...]</code> 은 <b>한 줄 안에 둘이 함께 있고 서로 다른 것을 가리킨다</b>. 일괄 치환하면 "문서 버전 … HTML 버전:" 이 되어 뒤엣것이 무엇인지 알 수 없어진다. 그래서 버전 뜻 286곳만 옮기고, 판본 뜻은 <b>"HTML 파생본"</b> 으로 바꿨다 — 이 저장소가 이미 md 를 원본, html 을 파생본이라 부르기 때문이다.</p>
+    <p>전수 323곳 중 <b>34곳이 버전이 아니었다</b> — 판본 뜻 아홉과 <b>회차 뜻 스물다섯</b>이다. 회차 뜻은 반영하면서야 드러났다(<code>임베딩 한 판의 시간 상한</code>) — 기계적으로 밀었다면 "임베딩 한 버전의 시간 상한" 이 됐을 것이다. 판본 뜻의 가장 분명한 증거는 모든 문서의 머리글이다 — <code>&gt; 문서 버전 v0.3 · 2026-09-05 · HTML 판: [...]</code> 은 <b>한 줄 안에 둘이 함께 있고 서로 다른 것을 가리킨다</b>. 일괄 치환하면 "문서 버전 … HTML 버전:" 이 되어 뒤엣것이 무엇인지 알 수 없어진다. 그래서 버전 뜻 <b>279곳</b>만 옮기고, <code>HTML 판</code>·<code>html 판</code> <b>40곳</b>은 <b>"HTML 파생본"</b> 으로 바꿨다 — 이 저장소가 이미 md 를 원본, html 을 파생본이라 부르기 때문이다.</p>
   </div></div>
   <p><b>"고정 ID" 와 화면의 "번호".</b> "안정" 은 한국어에서 <i>흔들리지 않는 상태</i>를 뜻해, 실제 뜻인 "옮겨도 변하지 않는 값" 이 이름에서 오지 않았다. 문서가 그 뜻을 <b>매번 다시 설명하던 것</b>이 증거다(<code>database.md</code>: "안정 ID. 이동·개명해도 참조 불변"). <b>화면에서는 "번호" 로 충분하다</b> — 사람은 <code>SPC-…</code> 를 이미 번호로 읽는다. "고정 ID" 는 스펙·요구사항·작업을 아울러야 하는 <b>명세의 개념어</b>다.</p>
 
@@ -246,6 +246,8 @@
       <tr><td>클레임</td><td>—</td><td>바꾸는 것은 <code>status.task.claimed</code> <b>한 칸</b>이다. 나머지 944곳은 그대로 둔다</td></tr>
     </tbody>
   </table></div>
+  <p><b>조사가 함께 바뀐다.</b> <code>스코프</code>는 모음으로 끝나고 <code>권한</code>·<code>소속</code>은 자음으로 끝난다 — <code>스코프를</code>→<code>권한을</code> · <code>스코프는</code>→<code>권한은</code> · <code>스코프가</code>→<code>권한이</code> · <code>스코프와</code>→<code>권한과</code> · <code>스코프로</code>→<code>권한으로</code>. 낱말만 바꾸면 <code>소속를</code> 같은 것이 남는다. <code>판</code>→<code>버전</code>, <code>베이스라인</code>→<code>기준선</code> 은 둘 다 자음으로 끝나 조사가 그대로다.</p>
+  <p><b>문서 자신의 변경 기록을 조심한다.</b> 옛 표현을 <i>인용하는</i> 문장이 있다 — "기준선/베이스라인 165곳", "판 → 버전", "한 이름이 세 가지를 가리켰다(스코프)". 일괄 치환은 그것도 바꾸어 <b>기록이 자기가 무엇을 고쳤는지 말하지 못하게</b> 만든다. 이 사전과 <a href="index.html">README</a>·<code>AGENTS.md</code> 의 해당 줄은 치환에서 뺀다.</p>
   <p>측정에서 <b>생성물은 뺀다</b> — <code>.tsbuild</code>·<code>dist</code>·<code>node_modules</code>. 넣고 세면 몇 건씩 부푼다.</p>
 
   <h3>4.2 규약이 요구하는 동반 변경</h3>

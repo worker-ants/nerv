@@ -53,7 +53,7 @@
     <h1>문제 정의와 요구사항</h1>
     <p class="lead">1인용 Claude Code 하네스 <code>clemvion</code>이 여러 세션·여러 사람으로 확장될 때 반복해서 무너지는 지점 여덟 가지(P1~P8)를 증상 → 실측 근거 → 근본 원인으로 정리하고, 이를 해소하기 위한 요구사항 FR-01~FR-17 · NFR-01~NFR-05를 수용 기준과 함께 정의한다.</p>
     <div class="meta-line">
-      <span>버전 v0.4 (2026-09-05)</span>
+      <span>버전 v0.5 (2026-09-05)</span>
       <span>원본: <code>docs/01-problem/pain-points.md</code></span>
       <span>이 문서가 정의하는 FR/NFR 번호를 전 문서가 인용한다</span>
     </div>
@@ -73,7 +73,7 @@
 
   <h2 id="sec-1">1. 문제 지형 한눈에 보기</h2>
 
-  <p>NERV(가칭)의 출발점은 <code>/Volumes/project/private/clemvion</code>이다. 1인 개발자가 Claude Code 하네스로 SDD(스펙 주도 개발)와 TDD를 자동화한 제품 모노레포이고, 완성도 자체는 매우 높다. 역할별 스킬 5+1종, 훅 9종, 워크플로 3종, 31개 서브에이전트가 "리뷰 없이 push 금지", "main 브랜치에서 작업 금지" 같은 규칙을 기계적으로 강제한다. 이 하네스의 철학은 한 문장으로 요약된다 — <b>강제 없는 규약은 반드시 깨진다</b>.</p>
+  <p>NERV(가칭)의 출발점은 <code>/Volumes/project/private/clemvion</code>이다. 1인 개발자가 Claude Code 하네스로 SDD(스펙 주도 개발)와 TDD를 자동화한 제품 모노레포이고, 완성도 자체는 매우 높다. 역할별 스킬 5+1종, 훅 9종, 워크플로우 3종, 31개 서브에이전트가 "리뷰 없이 push 금지", "main 브랜치에서 작업 금지" 같은 규칙을 기계적으로 강제한다. 이 하네스의 철학은 한 문장으로 요약된다 — <b>강제 없는 규약은 반드시 깨진다</b>.</p>
 
   <p>문제는 이 하네스가 <b>한 사람, 한 대의 컴퓨터</b>를 전제로 만들어졌다는 점이다. 여러 직군(기획자·디자이너·개발자·QA)이 여러 호스트에서 여러 에이전트 세션을 동시에 돌리는 순간, 잘 만들어진 규칙일수록 더 정확하게 한계를 드러낸다.</p>
 
@@ -108,7 +108,7 @@
   <h3 id="sec-1-2">1.2 이 문서가 정하는 것과 정하지 않는 것</h3>
   <ul>
     <li><b>정한다</b>: 문제 목록(P1~P8), 근본 원인 진단, 요구사항 번호 체계(FR-01~FR-17, NFR-01~NFR-05)와 각각의 수용 기준, non-goals.</li>
-    <li><b>정하지 않는다</b>: 해결 방식의 설계. 데이터 모델은 <a href="data-model.html">데이터 모델</a>, 시스템 구성은 <a href="architecture.html">시스템 아키텍처</a>, 워크플로는 <a href="spec-workflow.html">스펙 워크플로우와 거버넌스</a>, 단계별 계획은 <a href="roadmap.html">로드맵</a>이 다룬다.</li>
+    <li><b>정하지 않는다</b>: 해결 방식의 설계. 데이터 모델은 <a href="data-model.html">데이터 모델</a>, 시스템 구성은 <a href="architecture.html">시스템 아키텍처</a>, 워크플로우는 <a href="spec-workflow.html">스펙 워크플로우와 거버넌스</a>, 단계별 계획은 <a href="roadmap.html">로드맵</a>이 다룬다.</li>
     <li>현행 하네스의 구성 요소 전수 분석은 <a href="clemvion-analysis.html">clemvion 하네스 분석</a>에 있다. 이 문서는 그 분석에서 <b>문제만</b> 뽑아 요구사항으로 번역한 것이다.</li>
   </ul>
 
@@ -126,7 +126,7 @@
   <ul>
     <li>중복 서술이 실제로 모순을 낳은 기록: <code>9a4d3e32b</code>(2026-08-13) "종결 이벤트 계약을 EIA §6 도입부 하나로 — <b>네 문서가 각자 필드를 열거하고 있었다</b>", <code>c37a3732c</code> "<b>모방한 쪽이 맞고 원본이 틀렸다</b> — fixed window를 '슬라이딩'이라 부름".</li>
     <li>4.5개월간 <code>spec/</code> 터치 커밋 857개 중 <code>docs(spec)</code> 커밋이 211개이고, 그중 상당수가 이런 사후 정합화다.</li>
-    <li>같은 문제가 생태계 최대 SDD 도구에서도 미해결이다. Spec Kit 팀 도입 디스커션은 "두 기능이 같은 파일을 건드릴 때 두 스펙 계약이 동시에 유효한지 검증할 방법이 없다"고 보고하고, OpenSpec 공식 팀 워크플로 문서는 충돌 방지책이 <b>"One change, one owner"라는 사람 규약과 일반 git 병합뿐</b>임을 자인한다.</li>
+    <li>같은 문제가 생태계 최대 SDD 도구에서도 미해결이다. Spec Kit 팀 도입 디스커션은 "두 기능이 같은 파일을 건드릴 때 두 스펙 계약이 동시에 유효한지 검증할 방법이 없다"고 보고하고, OpenSpec 공식 팀 워크플로우 문서는 충돌 방지책이 <b>"One change, one owner"라는 사람 규약과 일반 git 병합뿐</b>임을 자인한다.</li>
   </ul>
 
   <p><b>근본 원인.</b> 조정(coordination)에는 <i>모든 참가자가 동시에 보는 하나의 상태</i>가 필요하다. 그런데 clemvion에서 "누가 어떤 영역을 언제부터 잡고 있는가"라는 정보는 ① 각 머신의 gitignored 로컬 파일(<code>.claude/state/**</code>)과 ② 아직 push되지 않은 브랜치에만 존재한다. 공유 지점이 원리적으로 없으므로, 검출을 시도하면 오탐만 늘어난다. <b>검출을 포기한 것은 잘못된 판단이 아니라 주어진 아키텍처에서의 합리적 결론</b>이었다. 바꿔야 하는 것은 판단이 아니라 아키텍처다.</p>
@@ -255,16 +255,16 @@
     <li><b>사람 개입 채널이 세션 내부에만 있다.</b> 승인·거절·코멘트는 전부 "그 터미널의 그 세션" 안에서만 가능하고(<code>AskUserQuestion</code>·confirm), 알림도 하네스 내부 task-notification뿐이다. hostname 단위로 "누가 무엇을 돌리는가"는 어디에도 기록되지 않는다.</li>
     <li><b>승인 지점은 이미 명확히 식별돼 있다.</b> 통합 조율의 2중 사용자 confirm, e2e 면제 승인, <code>BLOCK</code> 해소 결정, stale plan grooming, 커버리지 갭 picking — 모두 정식 절차인데 <b>종착지가 전부 단일 "사용자"</b>다. 역할별 승인자 분리(기획 승인 vs 코드 승인)라는 개념이 없다.</li>
     <li><b>역할은 있으나 신원은 없다.</b> 역할 분리는 경로별 쓰기 권한으로 잘 구현돼 있다(기획자=<code>project-planner</code>가 <code>spec/**</code>·<code>plan/**</code>, 개발자=<code>developer</code>가 <code>codebase/**</code>, <code>spec/</code>는 read-only). 그러나 이것은 스킬 프롬프트 규약이고, <code>owner</code>는 자유 텍스트 역할 라벨이라 실제 계정·배정·hostname 개념이 없다.</li>
-    <li><b>검토 결과를 제3자가 볼 수 없다.</b> 리뷰 산출물이 gitignored였던 기간에는 PR에 리뷰 흔적이 없어 "plan 노트가 PR에서 워크플로 이행을 확인할 유일한 흔적"이었다.</li>
-    <li><b>시장에서 요구됐고 거부됐다.</b> OpenSpec 이슈 #435는 "스펙 작성은 본질적으로 협업인데 현재 도구들은 single-player이거나 일반 git 충돌에 의존한다"며 멀티유저 워크스페이스(RBAC·실시간 편집), 문서식 인라인 코멘트, 멀티 에이전트 병렬 리뷰를 요청했으나 <b>"closed as not planned"로 종료</b>됐다. 승인 워크플로를 내장한 유일한 도구는 spec-workflow-mcp(GPL-3.0)인데, 사용자 계정·권한·원격 접근이 없는 로컬 도구라 "팀 협업"이 아니라 "1인+에이전트 협업"이다.</li>
+    <li><b>검토 결과를 제3자가 볼 수 없다.</b> 리뷰 산출물이 gitignored였던 기간에는 PR에 리뷰 흔적이 없어 "plan 노트가 PR에서 워크플로우 이행을 확인할 유일한 흔적"이었다.</li>
+    <li><b>시장에서 요구됐고 거부됐다.</b> OpenSpec 이슈 #435는 "스펙 작성은 본질적으로 협업인데 현재 도구들은 single-player이거나 일반 git 충돌에 의존한다"며 멀티유저 워크스페이스(RBAC·실시간 편집), 문서식 인라인 코멘트, 멀티 에이전트 병렬 리뷰를 요청했으나 <b>"closed as not planned"로 종료</b>됐다. 승인 워크플로우를 내장한 유일한 도구는 spec-workflow-mcp(GPL-3.0)인데, 사용자 계정·권한·원격 접근이 없는 로컬 도구라 "팀 협업"이 아니라 "1인+에이전트 협업"이다.</li>
     <li>반면 수요는 실재한다. Anthropic 사내 10개 팀 인터뷰에서는 법무·마케팅·데이터 등 비개발 직군의 Claude Code 활용이 보고된다.</li>
   </ul>
 
   <p><b>근본 원인.</b> <b>참여 표면이 개발 도구에 묶여 있으면 참여 자격이 개발 숙련도로 결정된다.</b> 더 근본적으로, 승인은 비동기 커뮤니케이션 문제인데 동기 CLI 대화로 구현돼 있다. 승인자가 그 터미널 앞에 그 순간 있어야 한다는 제약은, 팀이 커질수록 곧바로 병목이 된다.</p>
 
   <div class="callout decision"><span class="ico">✅</span><div class="body">
-    <b class="title">설계 결정 D-09 · 스펙은 markdown 문서이고, 참조는 안정 ID 다</b>
-    <p>저장 포맷은 markdown 이고 메타(타입·문서 상태·소유 역할)는 DB 컬럼이다 — 블록 JSON 이 아닌 이유는 <b>토큰 밀도</b>이고, 그래서 에이전트가 본문을 그대로 읽고 사람이 읽는 git 미러도 같은 파일이 된다. 문서끼리는 <b>경로·헤딩 앵커가 아니라 안정 ID 로 참조한다</b>: clemvion 의 인덱스 부패는 <code>plan/in-progress/</code> → <code>complete/</code> 이동이 본문 링크를 끊은 것이 원인이었다. <b>같은 사실을 두 문서가 각자 쓰지 않는다</b> — 중복 서술이 drift 의 근원이므로 단일 정의 + 관계 참조가 규약이다. <b>실시간 공동 편집(CRDT)은 Phase 3 이고</b>, MVP 의 협업 수단은 에디터 + 프리뷰 + <b>헤딩 앵커 코멘트</b>다: 문단이 아니라 헤딩에 붙이는 이유는 본문이 새 버전으로 바뀌어도 앵커가 살아남기 때문이다. 스펙 편집의 병목은 동시 타이핑이 아니라 승인·조정이다.</p>
+    <b class="title">설계 결정 D-09 · 스펙은 markdown 문서이고, 참조는 고정 ID 다</b>
+    <p>저장 포맷은 markdown 이고 메타(타입·문서 상태·소유 역할)는 DB 컬럼이다 — 블록 JSON 이 아닌 이유는 <b>토큰 밀도</b>이고, 그래서 에이전트가 본문을 그대로 읽고 사람이 읽는 git 미러도 같은 파일이 된다. 문서끼리는 <b>경로·헤딩 앵커가 아니라 고정 ID 로 참조한다</b>: clemvion 의 인덱스 부패는 <code>plan/in-progress/</code> → <code>complete/</code> 이동이 본문 링크를 끊은 것이 원인이었다. <b>같은 사실을 두 문서가 각자 쓰지 않는다</b> — 중복 서술이 drift 의 근원이므로 단일 정의 + 관계 참조가 규약이다. <b>실시간 공동 편집(CRDT)은 Phase 3 이고</b>, MVP 의 협업 수단은 에디터 + 프리뷰 + <b>헤딩 앵커 코멘트</b>다: 문단이 아니라 헤딩에 붙이는 이유는 본문이 새 버전으로 바뀌어도 앵커가 살아남기 때문이다. 스펙 편집의 병목은 동시 타이핑이 아니라 승인·조정이다.</p>
   </div></div>
 
   <h3 id="p8">2.8 P8 — 멀티 프로젝트 × 멀티 유저(n:n) 구조 부재</h3>
@@ -273,7 +273,7 @@
   <p><b>실측/사례 근거.</b></p>
   <ul>
     <li><b>조율 상태 전량이 비공유 로컬 파일이다.</b> <code>.claude/state/**</code>(세션별 경고 dedup, Stop 넛지 마커, resolution 진행 마커, fail-open 연속 카운터, reaper throttle)와 <code>.claude/worktrees/**</code>는 gitignored다. 키가 <code>session_id</code>·<code>tool_use_id</code>·브랜치 이름이므로 <b>다른 머신은 이 키 공간을 볼 수도 공유할 수도 없다</b>.</li>
-    <li><b>게이트 범위가 이 머신의 checkout 목록이다.</b> push 가드는 <code>git worktree list</code> 결과를 스코프로 삼는다. 다른 호스트에서의 push는 애초에 이 훅 밖이고, 훅이 설치되지 않은 클론에서 push하면 규칙 전체가 무효다.</li>
+    <li><b>게이트 범위가 이 머신의 checkout 목록이다.</b> push 가드는 <code>git worktree list</code> 결과를 권한으로 삼는다. 다른 호스트에서의 push는 애초에 이 훅 밖이고, 훅이 설치되지 않은 클론에서 push하면 규칙 전체가 무효다.</li>
     <li><b>세션 프레즌스가 없어서 서로를 죽인다.</b> <code>clemvion:.claude/docs/worktree-policy.md</code> §7은 한계를 명시한다 — 동시에 열린 다른 세션이 앵커로 쓰는 worktree의 PR이 머지되면 <b>그 세션은 여전히 죽는다</b>("살아있는 세션 앵커 레지스트리가 필요해 과하다고 판단"). 그 레지스트리가 곧 NERV의 세션 프레즌스 기능이다.</li>
     <li><b>이벤트 소스가 없어 폴링한다.</b> 머지는 대부분 웹에서 일어나 로컬이 관측할 수 없으므로, 세션 시작마다 <code>gh pr list</code> 배치 조회로 수렴한다(6시간 throttle).</li>
     <li><b>동시성 제어 부재를 코드 주석이 자인한다.</b> 재시도 상태 파일은 원자적 교체로 찢어진 읽기만 막고 "동시 writer 간 lost update는 남는다"고 적혀 있으며, 실제로 겹친 두 갱신에서 앞선 전이가 사라진 사고가 2026-08-07에 기록됐다. fail-open 카운터의 read-increment-write도 잠기지 않고, 세션 시작 시 의존성 설치의 락은 TOCTOU 문제로 <b>제거</b>됐다. 전부 "1인·저빈도·로컬" 전제에서 수용한 잔여 리스크인데, n개 세션에서는 상시 발생 조건이 된다.</li>
@@ -362,7 +362,7 @@
   <p>이 전제들을 유지하면서 규칙을 강제하려면 정교한 우회 공학이 필요하다. clemvion은 그것을 실제로 해냈고, 그 규모가 곧 청구서다.</p>
 
   <div class="grid-3">
-    <div class="card"><b class="card-title">하네스 훅 코드</b><div class="big">7,600줄</div><p>훅 + 판정 모듈 + 워크플로 합계. 회귀 테스트만 57파일 1.2MB</p></div>
+    <div class="card"><b class="card-title">하네스 훅 코드</b><div class="big">7,600줄</div><p>훅 + 판정 모듈 + 워크플로우 합계. 회귀 테스트만 57파일 1.2MB</p></div>
     <div class="card"><b class="card-title">최대 단일 훅</b><div class="big">1,005줄</div><p>push 게이트 — 상당 부분이 "이 Bash 명령이 push인가" 텍스트 판정</p></div>
     <div class="card"><b class="card-title">ReDoS 실측</b><div class="big">6.4초</div><p>246바이트 명령 하나에 소요된 정규식 시간(수정 후 밀리초대)</p></div>
   </div>
@@ -451,9 +451,9 @@
     <tbody>
       <tr><td>Spec Kit 팀 도입 디스커션(#497)</td><td>커뮤니티 보고</td><td>번호 충돌, 두 스펙 계약의 동시 유효성 검증 불가, 마스터 계약 부재 — 공식 해법 없음</td></tr>
       <tr><td>Spec Kit 동시 개발 디스커션(#2116)</td><td>커뮤니티 보고</td><td>두 사람이 동시에 같은 순번을 잡아 병합 충돌 필연. 타임스탬프 옵션은 완화일 뿐</td></tr>
-      <tr><td>OpenSpec 팀 워크플로 문서</td><td>공식 문서</td><td>충돌 방지는 "One change, one owner" 규약과 일반 git 병합뿐임을 자인</td></tr>
+      <tr><td>OpenSpec 팀 워크플로우 문서</td><td>공식 문서</td><td>충돌 방지는 "One change, one owner" 규약과 일반 git 병합뿐임을 자인</td></tr>
       <tr><td>OpenSpec 이슈 #435</td><td>공식 결정</td><td>멀티유저 워크스페이스·RBAC·인라인 코멘트 요청이 "not planned"로 종료</td></tr>
-      <tr><td>spec-workflow-mcp</td><td>유일한 승인 워크플로 내장</td><td>MCP 연동 + 웹 승인 대시보드 개념 증명. 단 계정·권한·원격 없음(GPL-3.0이라 개념만 참조)</td></tr>
+      <tr><td>spec-workflow-mcp</td><td>유일한 승인 워크플로우 내장</td><td>MCP 연동 + 웹 승인 대시보드 개념 증명. 단 계정·권한·원격 없음(GPL-3.0이라 개념만 참조)</td></tr>
     </tbody>
   </table></div>
 
@@ -496,9 +496,9 @@
   <div class="table-wrap"><table>
     <thead><tr><th>번호</th><th>요구사항</th><th>수용 기준 (acceptance)</th></tr></thead>
     <tbody>
-      <tr><td><b>FR-01</b></td><td>스펙 단일 진실 저장소(트리·타입·검색·안정 ID)</td><td>프로젝트의 모든 스펙을 트리로 조회할 수 있고, 타입(<code>vision</code>/<code>area</code>/<code>feature</code>/<code>design</code>/<code>convention</code>/<code>adr</code>)과 안정 ID로 단건 조회·전문 검색이 되며, 문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다</td></tr>
-      <tr><td><b>FR-02</b></td><td>스펙 버전·문서 상태 관리(불변 스냅샷, draft→in_review→approved, 버전 diff, <b>프로젝트 베이스라인</b>)</td><td><code>approved</code>된 SpecVersion 본문은 이후 편집으로 변하지 않고, 임의의 두 버전 간 diff와 상태 전이 이력(행위자·시각·사유)을 UI에서 확인할 수 있다. 프로젝트의 approved 버전 <b>집합</b>을 이름 붙은 베이스라인으로 동결하고, 임의 시점에 그 세트 그대로 재현·조회할 수 있다(범위 확장 2026-08-21 — 요구공학의 baseline은 문서 1건이 아니라 "합의·검토·승인된 요구사항 집합의 시점 스냅샷"이다. 스펙이 구현보다 앞서갈 때 구현의 기준 세트를 고정하기 위해 필요)</td></tr>
-      <tr><td><b>FR-03</b></td><td>요구사항(Requirement) 단위 추적(안정 ID, EARS 템플릿, 구현 상태 2축)</td><td>한 SpecVersion에서 추출된 각 Requirement가 안정 ID와 수용 기준을 갖고, 문서 축과 독립적으로 <code>unimplemented→in_progress→implemented→verified</code> 값을 가진다(같은 문서 안의 두 요구사항이 서로 다른 상태일 수 있다)</td></tr>
+      <tr><td><b>FR-01</b></td><td>스펙 단일 진실 저장소(트리·타입·검색·고정 ID)</td><td>프로젝트의 모든 스펙을 트리로 조회할 수 있고, 타입(<code>vision</code>/<code>area</code>/<code>feature</code>/<code>design</code>/<code>convention</code>/<code>adr</code>)과 고정 ID로 단건 조회·전문 검색이 되며, 문서를 옮기거나 이름을 바꿔도 ID 참조가 깨지지 않는다</td></tr>
+      <tr><td><b>FR-02</b></td><td>스펙 버전·문서 상태 관리(불변 스냅샷, draft→in_review→approved, 버전 diff, <b>프로젝트 기준선</b>)</td><td><code>approved</code>된 SpecVersion 본문은 이후 편집으로 변하지 않고, 임의의 두 버전 간 diff와 상태 전이 이력(행위자·시각·사유)을 UI에서 확인할 수 있다. 프로젝트의 approved 버전 <b>집합</b>을 이름 붙은 기준선으로 동결하고, 임의 시점에 그 세트 그대로 재현·조회할 수 있다(범위 확장 2026-08-21 — 요구공학의 baseline은 문서 1건이 아니라 "합의·검토·승인된 요구사항 집합의 시점 스냅샷"이다. 스펙이 구현보다 앞서갈 때 구현의 기준 세트를 고정하기 위해 필요)</td></tr>
+      <tr><td><b>FR-03</b></td><td>요구사항(Requirement) 단위 추적(고정 ID, EARS 템플릿, 구현 상태 2축)</td><td>한 SpecVersion에서 추출된 각 Requirement가 고정 ID와 수용 기준을 갖고, 문서 축과 독립적으로 <code>unimplemented→in_progress→implemented→verified</code> 값을 가진다(같은 문서 안의 두 요구사항이 서로 다른 상태일 수 있다)</td></tr>
       <tr><td><b>FR-04</b></td><td>변경 요청(CR)과 델타 리뷰(ADDED/MODIFIED/REMOVED)</td><td>승인된 스펙에 대한 CR이 ADDED/MODIFIED/REMOVED로 분류된 델타 뷰로 표시되고, 승인 시 새 버전이 <code>approved</code>, 이전 버전이 <code>superseded</code>로 전이한다</td></tr>
       <tr><td><b>FR-05</b></td><td>작업(Task) 관리: 스펙 파생, 의존성 그래프, ready 큐, 우선순위, 위임 명세 4요소(목표/산출물 형식/도구·출처/경계)</td><td>승인된 SpecVersion/Requirement에서 Task를 파생할 수 있고, 의존성 그래프로 계산된 ready 큐가 우선순위 순으로 제공되며, 위임 명세 4요소가 하나라도 비어 있으면 <code>ready</code>로 전이하지 않는다</td></tr>
       <tr><td><b>FR-06</b></td><td>원자적 클레임·리스: scope 선언, 겹침 감지, 하트비트, 만료 자동 회수</td><td>동시 클레임 요청 중 정확히 하나만 성공하고(나머지는 충돌 응답), 선언된 scope(spec_ids·file_globs)가 겹치면 경고 또는 차단이 발생하며, 하트비트가 TTL 내 도착하지 않으면 클레임이 자동 회수되어 Task가 <code>ready</code>로 복귀한다</td></tr>
@@ -522,7 +522,7 @@
     <tbody>
       <tr><td><b>NFR-01</b></td><td>자가호스팅 가능(docker-compose)</td><td>외부 SaaS 의존 없이 단일 compose 파일로 웹·API·DB·워커가 기동되고, 백업과 복구 절차가 문서화되어 실제로 왕복 검증된다</td></tr>
       <tr><td><b>NFR-02</b></td><td>실시간성(세션 보드 갱신 ≤5s)</td><td>세션 상태가 바뀐 시점부터 보드에 반영되기까지 5초 이내이며, 클라이언트 폴링 없이 서버 푸시(WebSocket·SSE)로 전달된다</td></tr>
-      <tr><td><b>NFR-03</b></td><td>보안(토큰 스코프, 권한 비확대, 프롬프트 인젝션 완화)</td><td>에이전트 토큰은 프로젝트 스코프이고 위임한 사용자의 권한을 넘는 요청은 거부되며, 스펙·리뷰 본문은 비신뢰 데이터로 취급되어 도구 실행 지시로 해석되지 않는다</td></tr>
+      <tr><td><b>NFR-03</b></td><td>보안(토큰 권한, 권한 비확대, 프롬프트 인젝션 완화)</td><td>에이전트 토큰은 프로젝트 소속이고 위임한 사용자의 권한을 넘는 요청은 거부되며, 스펙·리뷰 본문은 비신뢰 데이터로 취급되어 도구 실행 지시로 해석되지 않는다</td></tr>
       <tr><td><b>NFR-04</b></td><td>규모(프로젝트 수십, 동시 세션 수십)</td><td>프로젝트 수십 개·동시 세션 수십 개 부하에서 세션 보드가 NFR-02의 갱신 목표를 유지하고, 커버리지 대시보드 질의가 페이지 로드를 막지 않는다</td></tr>
       <tr><td><b>NFR-05</b></td><td>플랫폼 다운 시 로컬 폴백(오프라인 캐시로 읽기, 복구 후 동기화)</td><td>서버가 응답하지 않아도 에이전트는 캐시된 스펙·작업 정보로 작업을 계속할 수 있고, 복구 후 대기 중이던 상태 보고와 산출물이 자동 동기화되며 충돌은 사람에게 보고된다</td></tr>
     </tbody>
@@ -603,7 +603,7 @@
   <h3 id="ref-web">외부 출처</h3>
   <p class="src"><a href="https://github.com/github/spec-kit/discussions/497">What's the best way to use spec-kit in a team? (Discussion #497) — github/spec-kit</a> (2026-08-13 확인): 팀 도입 시 번호 충돌, 두 스펙 계약의 동시 유효성 검증 불가, 공식 해법 부재를 사용자들이 보고(P1).</p>
   <p class="src"><a href="https://github.com/github/spec-kit/discussions/2116">What best practices exist for concurrent SpecKit development? (Discussion #2116) — github/spec-kit</a> (2026-08-13 확인): 두 엔지니어가 동시에 같은 순번을 잡아 병합 충돌이 필연이며 타임스탬프 옵션은 완화에 그침(P2).</p>
-  <p class="src"><a href="https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md">OpenSpec 팀 워크플로 문서 (team-workflow.md) — Fission-AI/OpenSpec</a> (2026-08-13 확인): 충돌 방지책이 "One change, one owner" 규약과 일반 git 병합뿐임을 공식 문서가 자인(P1).</p>
+  <p class="src"><a href="https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md">OpenSpec 팀 워크플로우 문서 (team-workflow.md) — Fission-AI/OpenSpec</a> (2026-08-13 확인): 충돌 방지책이 "One change, one owner" 규약과 일반 git 병합뿐임을 공식 문서가 자인(P1).</p>
   <p class="src"><a href="https://github.com/Fission-AI/OpenSpec/issues/435">Issue #435: Collaboration &amp; Orchestration — Fission-AI/OpenSpec</a> (2026-08-13 확인): 멀티유저 워크스페이스·RBAC·인라인 코멘트 요청이 "closed as not planned"로 종료(P7).</p>
   <p class="src"><a href="https://github.com/Pimzino/spec-workflow-mcp">Pimzino/spec-workflow-mcp</a> (2026-08-13 확인): MCP 연동 + 웹 대시보드 승인 라이프사이클을 갖춘 유일한 도구이나 계정·권한·원격 접근 없음. GPL-3.0이므로 개념만 참조(P7).</p>
   <p class="src"><a href="https://kiro.dev/docs/specs/">Kiro Specs 공식 문서</a> (2026-08-13 확인): 태스크 의존성 그래프·wave 병렬 실행이라는 진행 추적의 상한선이 개인 IDE 로컬 뷰에 머문다(P4).</p>
@@ -612,7 +612,7 @@
   <p class="src"><a href="https://isoform.ai/blog/the-limits-of-spec-driven-development">The Limits of Spec-Driven Development — Isoform</a> (2025-11-25): 스펙에 why(가정·제약·근거)가 없으면 정렬이 깨진다는 지적. Rationale 보존과 증적의 근거.</p>
   <p class="src"><a href="https://codex.danielvaughan.com/2026/05/24/human-review-bottleneck-code-review-strategies-agent-output/">The Human Review Bottleneck: Practical Code Review Strategies for Agent Output — Codex Knowledge Base</a> (2026-05-24): AI 생성 PR이 리뷰어 배정까지 4.6배 대기, 스펙 검증의 상류 시프트 권고(§3.4).</p>
   <p class="src"><a href="https://superset.sh/blog/parallel-coding-agents-guide">The Complete Guide to Running Parallel AI Coding Agents — Superset</a> (2026): 동시 3~5 에이전트가 사람 리뷰 용량의 실용 한계라는 현장 보고(P8).</p>
-  <p class="src"><a href="https://superset.sh/blog/roadmap-to-100-agents">Our plan for running 100 Parallel Coding Agents — Superset</a> (2026): 자동 품질 게이트·구조화 디스패치·완료 리뷰 워크플로가 대규모 병렬의 전제(§3.5).</p>
+  <p class="src"><a href="https://superset.sh/blog/roadmap-to-100-agents">Our plan for running 100 Parallel Coding Agents — Superset</a> (2026): 자동 품질 게이트·구조화 디스패치·완료 리뷰 워크플로우가 대규모 병렬의 전제(§3.5).</p>
   <p class="src"><a href="https://claude.com/blog/how-anthropic-teams-use-claude-code">How Anthropic teams use Claude Code — Anthropic</a> (2025-07-24): 법무·마케팅·데이터 등 비개발 직군의 활용 실증(P7).</p>
   <p class="src"><a href="https://dev.to/aws-builders/what-i-learned-using-specification-driven-development-with-kiro-pdj">What I Learned Using Specification-Driven Development with Kiro — DEV</a> (2026-08-13 확인): 수용 기준이 스펙에서 가장 가치 있는 부분이며 진행 가시화가 SDD의 실이득(P4·FR-03).</p>
 

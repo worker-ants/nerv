@@ -7,11 +7,13 @@ updated: 2026-08-28
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.19 · 2026-09-05 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.20 · 2026-09-05 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.20 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
 > v1.19 변경(2026-09-05 — 카탈로그에 말투 규칙이 없었다, 용어 검토 → 사람 결정): §3.4 에 **말투 규칙**을 넣는다(화면은 합쇼체, 에이전트·CLI·생성 문서는 해라체). 카탈로그는 규칙 셋(키 짓기·자리표시자·식별자 비번역)을 적어 두었는데 **말투만 빠져 있었고**, 그래서 문서를 쓰던 손이 화면 문구 아홉에 그대로 이어졌다. 정본은 [용어 사전](../glossary.md) §3 이고 이 문서와 카탈로그 주석이 인용한다.
 > v1.18 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): 아키텍처 그림의 도구 수를 22종으로(4.1 v0.19).
-> v1.17 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 판의 CI 워크플로 전문에서 **배포 산출물 정합 단계와 postgresql-client-17 설치·빌드 단계가 빠져 있었는데, 바로 아래 산문은 그 단계들을 설명하고 있었다** — 설명은 있고 실물은 없는 상태였다. 환경변수 전표의 `NERV_S3_REGION`·`NERV_EXPORT_DIR` 두 행도 없었다.
+> v1.17 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 파생본의 CI 워크플로우 전문에서 **배포 산출물 정합 단계와 postgresql-client-17 설치·빌드 단계가 빠져 있었는데, 바로 아래 산문은 그 단계들을 설명하고 있었다** — 설명은 있고 실물은 없는 상태였다. 환경변수 전표의 `NERV_S3_REGION`·`NERV_EXPORT_DIR` 두 행도 없었다.
 > v1.16 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): ① `ReviewModule` 행의 `(P2)` 둘을 실물로 고친다 — 도구 2종·REST 7종이 있다. ② 플러그인 트리에서 `.mcp.json` 을 걷는다(4.6 v0.38 이 패키지에서 뺐고 이 트리만 남아 있었다). 훅은 두 변형, 스킬은 6종이다. ③ 아키텍처 그림의 도구 수를 21종으로.
 > v1.15 변경(2026-09-04 — 돌지 않던 검사, 사람 지시): **REQ-CB-028 신설.** CI 의 check 잡이 `pnpm lint`·`tsc -b` 만 부르고 **`pnpm format:check` 는 부르지 않았다** — 그 스크립트는 처음부터 있었는데, 그래서 7개 파일이 서식 실패인 채로 이틀을 지나며 그 사이의 커밋들을 받았다(2026-09-02 → 09-04). 아무도 몰라서가 아니라 **아무도 돌리지 않아서**다. 같은 뿌리의 앞선 사례가 이 문서에 이미 적혀 있다 — 게이트가 `pnpm test` 뒤에 있어 21회 연속 skipped 됐던 일. 검사는 **돌 때만** 검사다. 사람이 지키는 쪽은 `AGENTS.md` 구현 규약 7 이 맡는다.
 > v1.14 변경(2026-09-04 — 플러그인 아카이브가 빌드 산출물이 된다): `scripts/pack-plugin.mjs` 가 `plugin/` 을 `plugin-dist/<이름>-<버전>.zip` 으로 묶고(`pnpm pack:plugin`), 이미지 빌드가 같은 명령을 돌려 `/app/plugin-dist` 에 심는다(`NERV_PLUGIN_DIST`). 서버가 그것을 `GET /plugin/...` 로 서빙한다(4.4 §2.11 · 4.6 §3.5). 앞문 둘(nginx `location /plugin/` · Ingress `path: /plugin`)에 경로를 열었다 — 열지 않으면 마켓플레이스가 SPA 의 index.html 을 **200 인 채로** 받는다.
@@ -21,7 +23,7 @@ updated: 2026-08-28
 > v1.10 변경(2026-09-02 — 정합 점검): §2.2 잡 목록에 **`partition.job.ts`** 를 더한다 — 4.3 §2.14 가 워커 잡으로 약속한 월 파티션 선생성이고, 없는 동안 서버는 마이그레이션 두 달 뒤에 멈추는 상태였다(REQ-DB-021).
 > v1.9 변경(2026-08-29 — 기동 로그의 대부분이 경고였다, 사람 보고): §4.3 에 라우트 생성 제외 규칙. 화면 테스트를 `src/routes/` 안에 두는 관례를 TanStack Router 플러그인이 "Route 를 export 하지 않는 라우트 파일"로 읽어 파일마다 12줄씩 경고했다(실측 7개 파일 84줄). `routeFileIgnorePattern` 으로 제외한다 — `routeTree.gen.ts` 는 바이트 단위로 동일하다.
 >
-> v1.8 변경(2026-08-28 — 임베딩 주기를 일감이 정한다, 사람 결정): §5.2b 에 적응형 주기(REQ-CB-027) + `.env` 전표 2키(`NERV_EMBED_EVERY_MS`·`NERV_WORKER_TICK_MS`). 한 판 상한(20초)을 두자 이번엔 **고정 5분 주기**가 병목이 됐다 — 가동률 6.7% 라 140편을 채우는 데 몇 시간이다. 그렇다고 1초 고정은 다 채운 뒤에도 초당 142 질의로 "바뀐 것 없음"만 확인한다. 그래서 **이 잡만 주기가 변한다**: 일했으면 1초, 아무것도 안 했거나 오류면 5분. 틱 해상도도 1초로 내렸다(락은 한 번 잡으면 계속 보유하므로 틱은 싸다).
+> v1.8 변경(2026-08-28 — 임베딩 주기를 일감이 정한다, 사람 결정): §5.2b 에 적응형 주기(REQ-CB-027) + `.env` 전표 2키(`NERV_EMBED_EVERY_MS`·`NERV_WORKER_TICK_MS`). 한 버전 상한(20초)을 두자 이번엔 **고정 5분 주기**가 병목이 됐다 — 가동률 6.7% 라 140편을 채우는 데 몇 시간이다. 그렇다고 1초 고정은 다 채운 뒤에도 초당 142 질의로 "바뀐 것 없음"만 확인한다. 그래서 **이 잡만 주기가 변한다**: 일했으면 1초, 아무것도 안 했거나 오류면 5분. 틱 해상도도 1초로 내렸다(락은 한 번 잡으면 계속 보유하므로 틱은 싸다).
 >
 > v1.7 변경(2026-08-28 — 임베딩이 멈춰 있었다, 사람 보고): §5.2b 신설(REQ-CB-025·026) + `.env` 전표 3키. 로컬 프로필에서 색인이 **approved 114편 중 1편 11청크**에서 멈춘 채 매 틱 `AbortError` 만 찍고 있었다 — 원인은 제공자가 아니라 **요청 크기**였다(실측: 지연은 입력 개수가 아니라 총 문자 수를 따라간다 — 4,000자 5.5초 · 16,000자 39.8초인데, 한 문서의 청크를 통째로 보내고 상한은 10초였다). 요청을 **문자 예산으로 쪼개고**(`NERV_EMBED_BATCH_CHARS`), 상한을 느린 프로필 기준으로 올리고(`NERV_EMBED_TIMEOUT_MS`), **한 판에 시간 상한**을 둔다(`NERV_EMBED_PASS_MS` — 비싼 잡이 리스 회수·stale 을 굶기지 않게). 배치마다 적재해 **부분 진행을 지킨다.**
 >
@@ -155,7 +157,7 @@ packages:
 | --- | --- |
 | 배포 형태 | `pnpm --filter @nerv/cli build` 산출물을 사내 npm 레지스트리에 게시(`npm i -g @nerv/cli`) 또는 tarball 직접 설치. 컨테이너 이미지·k8s Job으로 만들지 않는다 |
 | 실행 위치 | 원본 체크아웃이 있는 장비 — 이관 담당자 워크스테이션·CI 러너 |
-| 서버 접속 | `--server` + `import:write` 스코프 PAT(`--token`/env `NERV_TOKEN`). `DATABASE_URL`은 쓰지 않는다 |
+| 서버 접속 | `--server` + `import:write` 권한 PAT(`--token`/env `NERV_TOKEN`). `DATABASE_URL`은 쓰지 않는다 |
 | 원본 접근 | READ-ONLY. 임포터는 대상 저장소에 어떤 쓰기도 하지 않는다 |
 | dry-run | 서버·네트워크 없이 완주(REQ-IMP-011) — CI에서 스펙 저장소 PR 검사로도 쓸 수 있다 |
 
@@ -225,7 +227,7 @@ apps/api/src/
   app.module.ts
   common/                        # 횡단 관심사 — 가드 · 인터셉터 · 필터
     auth.guard.ts                # 세션 쿠키(better-auth) / PAT Bearer 2경로 판별
-    project-scope.interceptor.ts # 요청 컨텍스트의 project_id 자동 주입 — 스코프 없는 질의 컴파일 불가 원칙
+    project-scope.interceptor.ts # 요청 컨텍스트의 project_id 자동 주입 — 권한 없는 질의 컴파일 불가 원칙
     mcp-origin.guard.ts          # /mcp Origin 검증의 최종 강제 지점 (REQ-CB-013)
     nerv-exception.filter.ts     # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
   modules/
@@ -237,7 +239,7 @@ apps/api/src/
       spec.module.ts
       spec.service.ts            # 초안 upsert · base_hash 비교-교환 · 편집 리스 · 전이 · 사전 검토
       spec-comment.service.ts
-      baseline.service.ts        # 베이스라인 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
+      baseline.service.ts        # 기준선 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
       spec.controller.ts         # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest
       spec.tools.ts              # MCP — nerv_spec_* 7종 (§2.3 표)
     task/                        # TaskModule
@@ -309,9 +311,9 @@ apps/api/src/
 | `EventModule` | `event` `notification` | — | `…/projects/{p}/events` + WebSocket · SSE(`/sse/*`) |
 | `ImportModule` | (소유 테이블 없음 — Spec·Task 계열에 소급 적재) | — (도구 없음 — [4.7 스펙 임포터](importer.md) §3.6) | `…/projects/{p}/import/*` |
 
-`ImportModule`은 테이블을 소유하지 않고 `SpecModule`·`TaskModule`의 저장 계층에 소급 적재만 한다 — 그래서 29종 배정은 변하지 않는다. 워크플로 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 스코프가 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
+`ImportModule`은 테이블을 소유하지 않고 `SpecModule`·`TaskModule`의 저장 계층에 소급 적재만 한다 — 그래서 29종 배정은 변하지 않는다. 워크플로우 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 권한이 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
 
-합계 검산: MVP 도구 = P0 8종 + P1 8종 = **16종**, 리뷰 2종은 P2(카탈로그 총 18종 — [3.4](../03-proposal/agent-integration.md) §2.3). 베이스라인은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
+합계 검산: MVP 도구 = P0 8종 + P1 8종 = **16종**, 리뷰 2종은 P2(카탈로그 총 18종 — [3.4](../03-proposal/agent-integration.md) §2.3). 기준선은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
 
 ### 2.4 표면별 규약
 
@@ -525,13 +527,13 @@ L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시
 
 - 커밋: Conventional Commits — `feat|fix|docs|refactor|test|chore(scope)` , scope는 워크스페이스 이름(`api`·`web`·`schema`·`deploy`). 현행 저장소 관례(`docs: …`)와 연속.
 - 브랜치: `feat/…`·`fix/…`·`docs/…`. `main` 직접 push 금지, PR 필수.
-- PR 본문에 관련 Task ID(`TSK-…`)와 스펙 안정 ID(`SPC-…`·`REQ-…`)를 남긴다 — NERV 가동 후 evidence 연결의 원료다(FR-13).
+- PR 본문에 관련 Task ID(`TSK-…`)와 스펙 고정 ID(`SPC-…`·`REQ-…`)를 남긴다 — NERV 가동 후 evidence 연결의 원료다(FR-13).
 
 ---
 
 ### 4.5 CI 파이프라인 — `.github/workflows/ci.yml`
 
-REQ-CB-007(스키마 변경 ↔ 마이그레이션 산출물 동반)과 §4.3 계층 실행의 실물이다. 워크플로 파일은 GitHub Actions 규약상 **저장소 루트** `.github/workflows/`에 둔다 — REQ-CB-015의 "저장소 메타 파일"에 해당하며 `codebase/` 배치 원칙의 예외가 아니라 그 정의 안이다(이 문단이 그 판정의 기록이다).
+REQ-CB-007(스키마 변경 ↔ 마이그레이션 산출물 동반)과 §4.3 계층 실행의 실물이다. 워크플로우 파일은 GitHub Actions 규약상 **저장소 루트** `.github/workflows/`에 둔다 — REQ-CB-015의 "저장소 메타 파일"에 해당하며 `codebase/` 배치 원칙의 예외가 아니라 그 정의 안이다(이 문단이 그 판정의 기록이다).
 
 ```yaml
 # .github/workflows/ci.yml — 요지 스켈레톤 (defaults.run.working-directory: codebase)
@@ -771,11 +773,11 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 
 상한을 20초로 두자 이번엔 **주기**가 병목이 됐다. 임베딩은 하트비트의 5배(5분) 고정이었으므로 가동률이 **6.7%**(5분에 20초)였고, 문서 140편을 채우는 데 몇 시간이 걸린다 — 색인이 비어 있는 동안 의미 검색은 계속 렉시컬로 degrade 되어 있다.
 
-그렇다고 1초 고정으로 두면 반대쪽이 상한다. 한 판은 **할 일이 없어도** 대상 버전을 전부 훑으며 버전마다 기존 청크 해시를 읽는다(140편이면 한 판에 약 142개 질의). 다 채운 뒤에도 초당 142 질의로 "바뀐 것 없음"만 확인하게 된다.
+그렇다고 1초 고정으로 두면 반대쪽이 상한다. 한 판은 **할 일이 없어도** 대상 버전을 전부 훑으며 버전마다 기존 청크 해시를 읽는다(140편이면 한 버전에 약 142개 질의). 다 채운 뒤에도 초당 142 질의로 "바뀐 것 없음"만 확인하게 된다.
 
-그래서 **이 잡만 주기가 변한다.** 이번 판의 결과가 다음 주기를 정한다.
+그래서 **이 잡만 주기가 변한다.** 이번 버전의 결과가 다음 주기를 정한다.
 
-| 이번 판 | 다음 주기 | 왜 |
+| 이번 버전 | 다음 주기 | 왜 |
 | --- | --- | --- |
 | 적재·삭제가 있었다 | `NERV_EMBED_EVERY_MS`(1초) | 밀린 일이 남아 있다 — 붙어서 돈다 |
 | 시간 상한에서 끊겼다 | 1초 | 끊겼다는 것이 곧 "남았다"는 뜻이다 |

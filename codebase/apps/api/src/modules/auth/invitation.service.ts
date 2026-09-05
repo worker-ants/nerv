@@ -82,7 +82,7 @@ export class InvitationService {
       });
     }
 
-    // 대기 중 초대는 스코프당 하나다(부분 unique). 다시 부르면 **덮어쓴다** — 오타를
+    // 대기 중 초대는 소속당 하나다(부분 unique). 다시 부르면 **덮어쓴다** — 오타를
     // 고치거나 만료된 것을 되살리는 것이 실제 사용이고, 그때 "이미 있다"는 막다른 길이다.
     await this.db.execute(sql`
       UPDATE invitation SET revoked_at = now()
@@ -211,7 +211,7 @@ export class InvitationService {
    *
    * 알림 테이블에 싣지 않는 이유가 있다: `notification.project_id` 는 NOT NULL 인데
    * 조직 초대에는 프로젝트가 없고, 무엇보다 **초대받은 사람은 아직 아무 프로젝트의
-   * 멤버가 아니다** — 프로젝트 스코프 알림 목록은 그에게 언제나 비어 있다.
+   * 멤버가 아니다** — 프로젝트 소속 알림 목록은 그에게 언제나 비어 있다.
    */
   async mine(userId: string): Promise<InvitationRow[]> {
     const { rows } = await this.db.execute<InvitationRow>(sql`

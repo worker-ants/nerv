@@ -68,7 +68,7 @@ describe('리포트', () => {
     expect(md).toContain('**불일치**');
   });
 
-  it('jsonl 은 한 줄 한 항목 — 기계가 읽는 판', () => {
+  it('jsonl 은 한 줄 한 항목 — 기계가 읽는 버전', () => {
     const jsonl = renderJsonl({
       ...base,
       entries: [

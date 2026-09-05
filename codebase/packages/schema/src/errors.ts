@@ -8,7 +8,7 @@
 export const NERV_ERROR = {
   /** 세션 쿠키 없음·만료, PAT 폐기·만료 → 401 */
   UNAUTHENTICATED: 'NERV_UNAUTHENTICATED',
-  /** 역할 미충족, PAT 스코프 부족, 지시자≠승인자 위반 → 403 */
+  /** 역할 미충족, PAT 권한 부족, 지시자≠승인자 위반 → 403 */
   FORBIDDEN: 'NERV_FORBIDDEN',
   /** zod 스키마 위반 → 400 / 본문 지문 불일치·게이트 미충족·멱등 키 본문 불일치 → 409 */
   PRECONDITION: 'NERV_PRECONDITION',

@@ -27,7 +27,7 @@ INSERT INTO organization (id, slug, name) VALUES
 -- admin 은 조직을 세우는 사람이다. 둘을 겸하게 두면 두 가지가 어긋난다:
 --   ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin 이 모든 자리에 앉아 있게 된다
 --   ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다
--- 그래서 조직 스코프(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
+-- 그래서 조직 소속(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
 INSERT INTO "user" (id, email, display_name, state) VALUES
   ('01990a66-0000-7000-8000-000000000010', 'admin@example.com',  '관리자', 'active'),
   ('01990a66-0000-7000-8000-000000000011', 'jimin@example.com',  '지민', 'active'),
@@ -41,7 +41,7 @@ INSERT INTO project (id, org_id, slug, key, name, repo_url, default_branch) VALU
    'clemvion', 'CLV', 'clemvion', 'https://git.example.com/nerv/clemvion.git', 'main');
 
 INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES
-  -- 조직 스코프(project_id NULL) — 프로젝트가 늘어도 이 한 행이 조직 전체를 관리한다
+  -- 조직 소속(project_id NULL) — 프로젝트가 늘어도 이 한 행이 조직 전체를 관리한다
   ('01990a66-0000-7000-8000-000000000030', '01990a66-0000-7000-8000-000000000001', NULL, '01990a66-0000-7000-8000-000000000010', 'admin'),
   ('01990a66-0000-7000-8000-000000000031', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000011', 'planner'),
   ('01990a66-0000-7000-8000-000000000032', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000012', 'designer'),

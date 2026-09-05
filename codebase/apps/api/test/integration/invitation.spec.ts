@@ -116,7 +116,7 @@ describe('수락 (EP-INV-04·05)', () => {
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'email_mismatch' } });
   });
 
-  it('수락하면 멤버십이 선다 — 초대에 적힌 스코프와 역할 그대로', async () => {
+  it('수락하면 멤버십이 선다 — 초대에 적힌 소속과 역할 그대로', async () => {
     const made = await invite({ projectSlug: 'app', role: 'planner' });
     await invitations.accept({ token: String(made['token']), userId: guestId });
 

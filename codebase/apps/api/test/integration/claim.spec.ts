@@ -855,7 +855,7 @@ describe('G2 플랜 승인 — 대형 작업은 착수 전에 사람을 거친�
     });
   });
 
-  /** 승인된 판 하나 — 티어를 주면 그 판정을 이벤트로 남긴다(실제 승인 경로가 그렇게 한다) */
+  /** 승인된 버전 하나 — 티어를 주면 그 판정을 이벤트로 남긴다(실제 승인 경로가 그렇게 한다) */
   async function makeApprovedSpecVersion(key: string, tier?: string): Promise<string> {
     const specId = newId();
     const versionId = newId();

@@ -42,7 +42,7 @@ export class TaskTools implements NervToolProvider {
       tier: 'A1',
       phase: 'P1',
       summaryKey: 'mcp.tool.before_claim',
-      // 읽기지만 클레임 축의 읽기다 — `nerv_task_next` 와 같은 스코프를 쓴다
+      // 읽기지만 클레임 축의 읽기다 — `nerv_task_next` 와 같은 권한을 쓴다
       scope: 'task:claim',
       inputSchema: {
         type: 'object',

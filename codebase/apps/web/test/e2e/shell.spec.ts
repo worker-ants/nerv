@@ -106,7 +106,7 @@ test.describe('시드 세션', () => {
     await page.goto('/');
     await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
 
-    // 헤더는 **조직 스코프**다 — 어느 조직을 보고 있는지가 화면에 없으면 다중 조직에서 길을 잃는다
+    // 헤더는 **조직 소속**다 — 어느 조직을 보고 있는지가 화면에 없으면 다중 조직에서 길을 잃는다
     await expect(page.getByTestId('org-switcher')).toBeVisible();
 
     await page.getByTestId('user-menu').click();
@@ -119,7 +119,7 @@ test.describe('시드 세션', () => {
   });
 
   test('프로젝트 사이드바는 /p/:proj/* 에서만 나온다 (§1.3)', async ({ page }) => {
-    // 받은 요청은 조직 스코프 화면이라 사이드바가 없는 것이 맞다
+    // 받은 요청은 조직 소속 화면이라 사이드바가 없는 것이 맞다
     await page.goto('/inbox');
     await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
     await expect(page.locator('aside')).toHaveCount(0);

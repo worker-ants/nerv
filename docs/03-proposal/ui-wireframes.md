@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)의 웹 화면 8종(S1 홈 대시보드 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S6 리뷰 센터 · S7 받은 요청 · S8 설정·멤버)을 정보 구조·와이어프레임·상태 표현 규칙·인터랙션 규약 수준까지 확정한다. 설계의 축은 하나다 — **화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.** 세션 카드에는 업계 관례(상태·diff 통계·브랜치·activity feed·attach)에 더해 NERV의 차별 요소인 **hostname·에이전트 종류·하트비트·클레임한 Task·리스 잔여**를 필수로 표기해, clemvion에서 "다른 머신·세션이면 로컬에 안 보여" 사라졌던 정보를 화면 위로 끌어올린다. 기획자·디자이너가 터미널 없이 스펙을 쓰고 승인하며(P7), QA가 원시 diff 대신 정리된 finding을 보고 위험을 판단하며, 개발자가 죽은 세션을 사람 눈으로 감시하지 않는 것 — 이 세 가지가 화면이 증명해야 할 명제다. 이 문서의 HTML 파생본은 모든 화면을 실제 UI로 렌더링한 쇼케이스다.
 >
-> 문서 버전 v0.2 · 2026-09-02 · HTML 파생본: [ui-wireframes.html](../html/ui-wireframes.html)
+> 문서 버전 v0.3 · 2026-09-02 · HTML 파생본: [ui-wireframes.html](../html/ui-wireframes.html)
+>
+> v0.3 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
 > v0.2 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 
@@ -95,8 +97,8 @@ Task  ▼        ▼ 리뷰    │   ┌─────────────�
 
 | 규칙 | 형태 | 이유 |
 | --- | --- | --- |
-| 리소스는 항상 **안정 ID**로 지목 | `/p/clemvion/specs/SPC-CWC-007` | 경로·제목이 바뀌어도 링크가 깨지지 않는다(FR-01, D-09). clemvion의 인덱스 문서 부패는 경로 참조가 원인이었다 |
-| 프로젝트 스코프는 URL 두 번째 세그먼트 | `/p/{project}/...` | 권한 검사 지점이 라우팅과 일치한다(FR-14) |
+| 리소스는 항상 **고정 ID**로 지목 | `/p/clemvion/specs/SPC-CWC-007` | 경로·제목이 바뀌어도 링크가 깨지지 않는다(FR-01, D-09). clemvion의 인덱스 문서 부패는 경로 참조가 원인이었다 |
+| 프로젝트 소속은 URL 두 번째 세그먼트 | `/p/{project}/...` | 권한 검사 지점이 라우팅과 일치한다(FR-14) |
 | 뷰 상태는 쿼리로 | `?diff=v3..v4`, `?severity=critical` | 공유 가능한 링크. 승인 요청 알림에 그대로 붙는다 |
 | 세션·작업은 전역 유일 ID | `/p/clemvion/sessions/S-8f31` | 훅·MCP 응답이 반환하는 딥링크와 동일 형태(FR-07·FR-15) |
 
@@ -157,7 +159,7 @@ S1 홈 대시보드 — nerv.example.com/                              지민 ·
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **전역 헤더** — 조직 스코프. 받은 요청·알림의 숫자 배지는 WebSocket으로 갱신된다. `FR-11 · FR-12 · NFR-02`
+1. **전역 헤더** — 조직 소속. 받은 요청·알림의 숫자 배지는 WebSocket으로 갱신된다. `FR-11 · FR-12 · NFR-02`
 2. **오늘 할 일 3숫자** — 사람이 아침에 확인해야 할 전부. clemvion에서 이 정보는 "남의 터미널에 떴다가 사라지는" 것이었다. `FR-11 · P7`
 3. **승인 대기 카드** — 목록에서 바로 승인/거절/코멘트. 거절은 사유 입력 단계를 거친다. `FR-11 · D-06`
 4. **질문 큐** — 에이전트 에스컬레이션. 세션 식별(사용자·hostname·에이전트 종류)과 대기 시간을 항상 함께 표기한다. `FR-11 · FR-07 · D-13`
@@ -248,7 +250,7 @@ S3 스펙 상세 — nerv.example.com/p/clemvion/specs/SPC-CWC-007
 5. **코드/스니펫 블록** — 스펙 본문은 에이전트에게 **비신뢰 데이터**다. 본문 안의 지시문이 에이전트 행동을 바꾸지 못하도록 하는 규약은 [에이전트 연동 설계](agent-integration.md)에서 다룬다. `NFR-03`
 6. **델타 하이라이트** — v3→v4에서 추가된 절. CR 델타 뷰(ADDED/MODIFIED/REMOVED)와 동일한 표기를 쓴다. `FR-04`
 7. **상태 패널** — 문서 상태·버전·승인자·작성자. 승인 이력이 git PR에 묻히지 않고 여기 산다. `FR-02 · D-02`
-8. **연결 Requirement 표** — 안정 ID + EARS 문장 + **구현 축 상태**. 문서 상태(approved)와 구현 상태(unimplemented)가 한 화면에서 서로 다른 값을 가질 수 있다는 것이 D-02의 요점이다. `FR-03 · D-02`
+8. **연결 Requirement 표** — 고정 ID + EARS 문장 + **구현 축 상태**. 문서 상태(approved)와 구현 상태(unimplemented)가 한 화면에서 서로 다른 값을 가질 수 있다는 것이 D-02의 요점이다. `FR-03 · D-02`
 9. **파생 Task** — 사람 assignee와 AI delegate(🤖 + hostname)를 함께 표기. 카드를 클릭하면 S4로 간다. `FR-05 · D-08`
 10. **관련 리뷰·finding** — 이 스펙에서 유래한 리뷰 결론. `spec_drift` 태그가 붙은 finding은 CR 제안 경로로 라우팅된다. `FR-09 · D-07`
 11. **초안 편집 리스 배지** — draft 버전이 편집 중이면 상단에 보유자를 **(사용자 · 표면 · 최신 갱신)**으로 표시한다. 웹 에디터 열기 / `nerv_spec_draft_upsert` 성공 시 자동 획득·갱신되고(TTL 30분 — Task 클레임 리스와 같은 상수), 리스를 쥔 `(user, session)` 이 아니면 읽기 전용 + **[이어받기]** 버튼이고(누르면 저장에 `takeover: true` 가 실린다 — 2026-08-30 개정), 뺏은 사실은 이벤트에 남는다. 리스는 1차 사전 조정이고 `base_hash` 비교-교환은 최후 방어선 — 역할이 달라 둘 다 유지한다. `FR-02 · D-04`
@@ -469,8 +471,8 @@ S8 설정 — nerv.example.com/settings                                      adm
 │  유나     developer  ✔         —              2시간 전                       │
 │  민석     viewer     ✔         ✔              어제                           │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 에이전트 토큰 (사용자별 발급 · 프로젝트 스코프)          [+ 토큰 발급]   (2) │
-│  라벨            소유자  스코프                 마지막 사용            상태  │
+│ 에이전트 토큰 (사용자별 발급 · 프로젝트 소속)          [+ 토큰 발급]   (2) │
+│  라벨            소유자  권한                 마지막 사용            상태  │
 │  mac-02 CC       도현    clemvion: task,review  3분 전 · mac-02        활성  │
 │  mac-07 CC       하나    clemvion: review       41분 전 · mac-07       활성  │
 │  linux-ci Codex  유나    clemvion: task         2시간 전 · linux-ci-01 활성  │
@@ -493,7 +495,7 @@ S8 설정 — nerv.example.com/settings                                      adm
 ```
 
 1. **멤버 n:n 매트릭스** — 사람 × 프로젝트. 역할은 조직 기본값 + 프로젝트별 재정의. `FR-14`
-2. **토큰 목록** — 라벨·소유자·스코프·마지막 사용(**hostname 포함**)·상태. 토큰은 사용자별로 발급되고 프로젝트로 스코프된다. `FR-15 · NFR-03 · D-08`
+2. **토큰 목록** — 라벨·소유자·권한·마지막 사용(**hostname 포함**)·상태. 토큰은 사용자별로 발급되고 프로젝트로 권한된다. `FR-15 · NFR-03 · D-08`
 3. **권한 비확대 고지** — Asana의 원칙을 UI 문구로 고정한다. 에이전트는 위임한 사람 이상을 볼 수 없다. `NFR-03 · D-08`
 4. **연동** — git forge 웹훅과 Slack 라우팅. 어느 것도 NERV가 대체하지 않는다. `FR-12 · FR-15`
 5. **위험도 가변 게이트 정책** — 저위험 자동 통과 경로가 있어야 도입 마찰이 낮아진다. "SDD는 워터폴 회귀" 비판에 대한 제품 차원의 답. `D-06 · FR-10`
@@ -645,7 +647,7 @@ S2 커버리지 게이지  ─클릭─▶  영역별 목록  ─클릭─▶  R
 - [Coding sessions — Linear Docs](https://linear.app/docs/coding-sessions) — (2026-08-13 확인) 세션 진행 중 스티어링과 diff·검증 아티팩트를 이슈에 인라인하는 흐름 — §4.2 steer.
 - [A mission control to assign, steer, and track Copilot coding agent tasks — GitHub Changelog](https://github.blog/changelog/2025-10-28-a-mission-control-to-assign-steer-and-track-copilot-coding-agent-tasks/) — (2025-10-28) 세션 로그·개요·파일 변경을 한 화면에 통합하고 실행 중 지시를 1급 동작으로 노출 — S5 액션 4종(§2.5 (7)).
 - [Tracking GitHub Copilot's sessions — GitHub Docs](https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/tracking-copilots-sessions) — (2026-08-13 확인) 세션 목록·세션 로그·prompt box·Stop session 버튼, 그리고 커밋→세션 역링크 — §2.5 (12) 산출물 역링크와 §4.2 stop.
-- [How to orchestrate agents using mission control — GitHub Blog](https://github.blog/ai-and-ml/github-copilot/how-to-orchestrate-agents-using-mission-control/) — (2025-12-01) 세션 로그를 통한 조기 개입(스코프 이탈·의도 오해 징후) — §2.5 요약 스트립의 설계 의도.
+- [How to orchestrate agents using mission control — GitHub Blog](https://github.blog/ai-and-ml/github-copilot/how-to-orchestrate-agents-using-mission-control/) — (2025-12-01) 세션 로그를 통한 조기 개입(작업 범위 이탈·의도 오해 징후) — §2.5 요약 스트립의 설계 의도.
 - [Reviewing a pull request created by GitHub Copilot — GitHub Docs](https://docs.github.com/enterprise-cloud@latest/copilot/how-tos/agents/copilot-coding-agent/reviewing-a-pull-request-created-by-copilot) — (2026-08-13 확인) 지시자의 승인은 필수 승인 수에 포함되지 않는다 — §4.1 "지시자≠승인자" 버튼 비활성 규칙.
 - [Enterprise AI Controls & agent control plane now generally available — GitHub Changelog](https://github.blog/changelog/2026-02-26-enterprise-ai-controls-agent-control-plane-now-generally-available/) — (2026-02-26) 감사 로그의 `actor_is_agent` 식별자와 세션 이벤트 — §3.2 감사 축 표기.
 - [Collaborate on work items with AI agents — Jira Cloud Docs](https://support.atlassian.com/jira-software-cloud/docs/collaborate-on-work-items-with-ai-agents/) — (2026-08-13 확인) 에이전트 출력은 트리거한 사람의 개인 검토를 거쳐 draft로 팀에 공개 — §2.7 CR 카드가 draft 버전을 대상으로 하는 이유.

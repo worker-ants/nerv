@@ -1,8 +1,8 @@
 // REST — preflight · specs · tasks · links · map (EP-IMP-01~05)
 //
 // 권한이 이 표면의 전부다: **admin AND `import:write`**(api.md §1.3·§2.10). 전이 검사 우회가
-// 여기서만 열리므로 두 조건이 AND 로 걸린다 — 역할만으로도, 스코프만으로도 지나갈 수 없다.
-// `import:write` 는 도구 대응이 없는 유일한 REST 전용 스코프이고, 이관이 끝나면 폐기하는 것이
+// 여기서만 열리므로 두 조건이 AND 로 걸린다 — 역할만으로도, 권한만으로도 지나갈 수 없다.
+// `import:write` 는 도구 대응이 없는 유일한 REST 전용 권한이고, 이관이 끝나면 폐기하는 것이
 // 기본 운용이다(EP-TOK-03).
 //
 // 이 표면이 하지 않는 것: 원본 파일 접근, 프로파일 해석, 리포트 생성, 매니페스트 보관.
@@ -85,7 +85,7 @@ export class ImportController {
 
   /**
    * admin **AND** import:write. 둘 중 하나만으로는 지나갈 수 없다(REQ-API-017).
-   * 스코프·역할이 부족하면 403 이고 **레코드를 만들지 않는다** — 부작용 뒤의 거부는 거부가 아니다.
+   * 권한·역할이 부족하면 403 이고 **레코드를 만들지 않는다** — 부작용 뒤의 거부는 거부가 아니다.
    */
   private authorize(req: ProjectRequest): { userId: string; projectId: string } {
     const principal = req.nervPrincipal;

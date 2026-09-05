@@ -43,7 +43,7 @@ import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/specs/$spec')({
   /**
-   * 두 축이 주소에 있다(§2.4). `?v=3` 은 그 판 전문, `?diff=v2..v3` 은 두 판의 차이 —
+   * 두 축이 주소에 있다(§2.4). `?v=3` 은 그 버전 전문, `?diff=v2..v3` 은 두 버전의 차이 —
    * **화면 상태가 아니라 주소가 진실이라** 공유·북마크·뒤로가기가 그대로 산다.
    */
   validateSearch: (
@@ -98,7 +98,7 @@ function SpecDetail(): React.JSX.Element {
   const viewing = typeof search.v === 'number' && Number.isFinite(search.v) ? search.v : null;
   const [diffFull, setDiffFull] = useState(false);
   const diff = useSpecDiff(proj, spec, compare?.from ?? null, compare?.to ?? null);
-  // 옛 판 전문 — 지금 판이 아닌 것을 볼 때만 부른다
+  // 옛 버전 전문 — 지금 버전이 아닌 것을 볼 때만 부른다
   const pastVersion = useSpecVersion(proj, spec, viewing, viewing !== null);
 
   const [draft, setDraft] = useState<string | null>(null);
@@ -183,14 +183,14 @@ function SpecDetail(): React.JSX.Element {
   const editable = docStatus === 'draft' && leaseHolder === null;
 
   /**
-   * 승인본에서 **다음 판을 시작한다**(2026-09-03 신설 · WEB-02).
+   * 승인본에서 **다음 버전을 시작한다**(2026-09-03 신설 · WEB-02).
    *
    * 승인본은 읽기 전용이 맞다(D-02 — 가변 구간은 draft 하나뿐). 문제는 그 다음이 없었다는
    * 것이다: 웹에는 새 초안으로 가는 문이 없어서 **승인된 문서 132개를 웹에서 고칠 수
    * 없었다**(실측 2026-09-03). 터미널이 유일한 길이면 P7 은 문서에만 있다.
    *
    * 서버 경로는 처음부터 있었다 — 열린 draft 가 없으면 `versionNo+1` 짜리 새 draft 를
-   * 만든다. 본문은 지금 읽는 판을 그대로 얹고, 지문은 그 판의 것을 보낸다(§1.4g).
+   * 만든다. 본문은 지금 읽는 버전을 그대로 얹고, 지문은 그 버전의 것을 보낸다(§1.4g).
    */
   const startDraft = useMutation({
     mutationFn: () =>
@@ -370,7 +370,7 @@ function SpecDetail(): React.JSX.Element {
             v{String(detail.data?.['version_no'] ?? '')}
           </span>
           {/* **어느 세트로 읽고 있는지 화면이 말한다**(REQ-WEB-135). 말하지 않으면 사람은
-              최신 판을 본다고 믿는다 — 기준선의 값어치가 거기서 사라진다.
+              최신 버전을 본다고 믿는다 — 기준선의 값어치가 거기서 사라진다.
               그 세트에 이 문서가 없으면(`baseline_pinned: false`) 최신으로 떨어졌다는
               사실까지 말해야 한다. */}
           {typeof detail.data?.['baseline'] === 'string' && (
@@ -390,9 +390,9 @@ function SpecDetail(): React.JSX.Element {
                 이게 없으면 낡은 근거 위에서 계속 쓰게 된다.
 
                 **판정은 서버가 한다**(2026-09-03). 예전에는 "참조하는 approved 문서가 있고
-                내가 초안이면" 으로 켰는데, 그것은 초안이면 거의 언제나 참이라 **초안 26판 중
-                26판에서 켜져 있었다**(실측). 늘 켜진 경고는 아무도 읽지 않는다. 서버는 참조
-                전파에서 이미 `spec.recheck_requested` 를 발행하므로, 판정은 "이 판을 마지막으로
+                내가 초안이면" 으로 켰는데, 그것은 초안이면 거의 언제나 참이라 **초안 26버전 중
+                26버전에서 켜져 있었다**(실측). 늘 켜진 경고는 아무도 읽지 않는다. 서버는 참조
+                전파에서 이미 `spec.recheck_requested` 를 발행하므로, 판정은 "이 버전을 마지막으로
                 쓴 뒤 그 신호가 왔는가" 이고 무엇 때문인지도 함께 온다. */}
           {recheckCount > 0 && (
             <span data-testid="recheck-badge" title={recheckSpecs.join(', ')}>
@@ -584,7 +584,7 @@ function SpecDetail(): React.JSX.Element {
           </section>
         )}
 
-        {/* **비교 중에는 편집기가 아니라 diff 다**(REQ-WEB-121). 지금 판이 아닌 것을 보고
+        {/* **비교 중에는 편집기가 아니라 diff 다**(REQ-WEB-121). 지금 버전이 아닌 것을 보고
             있을 수 있으므로 이 자리에서 고치게 두지 않는다 — 주소를 비우면 돌아온다 */}
         {compare !== null && (
           <>
@@ -620,7 +620,7 @@ function SpecDetail(): React.JSX.Element {
           </>
         )}
 
-        {/* 옛 판 전문 — 읽기 전용이고, 돌아오는 길을 같은 자리에 둔다(§1.5) */}
+        {/* 옛 버전 전문 — 읽기 전용이고, 돌아오는 길을 같은 자리에 둔다(§1.5) */}
         {compare === null && viewing !== null && (
           <>
             <div className="mb-2 flex flex-wrap items-center gap-2 rounded-nerv-sm bg-status-waiting-soft px-3 py-1.5 text-sm text-status-waiting">
@@ -682,7 +682,7 @@ function SpecDetail(): React.JSX.Element {
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          {/* 승인본에는 **다음 판으로 가는 문**을 둔다 — 없으면 웹은 읽기 전용이다(WEB-02) */}
+          {/* 승인본에는 **다음 버전으로 가는 문**을 둔다 — 없으면 웹은 읽기 전용이다(WEB-02) */}
           {docStatus === 'approved' && (
             <Button
               variant="primary"
@@ -869,7 +869,7 @@ function SpecDetail(): React.JSX.Element {
                     key={String(v['id'])}
                     className={cn(
                       'rounded-nerv-sm py-0.5',
-                      // 지금 보고 있는 판을 표시한다 — 목록과 본문이 다른 말을 하지 않게
+                      // 지금 보고 있는 버전을 표시한다 — 목록과 본문이 다른 말을 하지 않게
                       (viewing === Number(v['version_no']) ||
                         compare?.to === Number(v['version_no'])) &&
                         'bg-bg-sunken',
@@ -896,7 +896,7 @@ function SpecDetail(): React.JSX.Element {
                     {/* **누를 수 있어야 한다**(2026-09-01 — 사람 요청 · REQ-WEB-121·122).
                         서버는 처음부터 diff 를 줄 수 있었는데(EP-SPEC-06) 이 목록이
                         글자였을 뿐이라, "무엇이 바뀌었나" 를 화면에서 물을 수 없었다.
-                        누르면 **직전과의 차이**(가장 흔한 물음), 옆이 그 판 전문이다. */}
+                        누르면 **직전과의 차이**(가장 흔한 물음), 옆이 그 버전 전문이다. */}
                     <div className="mt-0.5 ml-10 flex flex-wrap gap-1.5">
                       <button
                         type="button"

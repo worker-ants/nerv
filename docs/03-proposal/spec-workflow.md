@@ -2,12 +2,14 @@
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.7 · 2026-09-05 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.8 · 2026-09-05 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.8 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
 > v0.7 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §2 최후 방어선의 `base_version` 409 를 **`base_hash` 409** 로 고친다(4.4 §1.4g).
-> v0.6 변경(2026-09-04 — §3.6 의 소비 규칙이 실물이 된다): 베이스라인의 "소비" 행은 2026-08-21 부터 `nerv_spec_get(baseline=…)`·`?baseline=` 로 그 세트를 읽는다고 적고 있었는데 **그 인자가 없었다** — 그래서 실사용 기준선이 0개였다(실측 2026-09-04). 읽기·Task 파생·웹 진입점을 이어 그 문장을 참으로 만들었다. 세트에 없는 문서의 처리(최신으로 떨어지되 `baseline_pinned:false`)를 함께 명시했다(4.4 v0.66 REQ-API-087).
+> v0.6 변경(2026-09-04 — §3.6 의 소비 규칙이 실물이 된다): 기준선의 "소비" 행은 2026-08-21 부터 `nerv_spec_get(baseline=…)`·`?baseline=` 로 그 세트를 읽는다고 적고 있었는데 **그 인자가 없었다** — 그래서 실사용 기준선이 0개였다(실측 2026-09-04). 읽기·Task 파생·웹 진입점을 이어 그 문장을 참으로 만들었다. 세트에 없는 문서의 처리(최신으로 떨어지되 `baseline_pinned:false`)를 함께 명시했다(4.4 v0.66 REQ-API-087).
 > v0.5 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
-> v0.4 변경(2026-09-02 — 사람 결정 둘): §2.4 에 남아 있던 결정 사항을 확정했다. ① **첫 승인 판은 티어 +1** — 축으로는 3점(T1)인 신규 feature 스펙이 사람 없이 approved 로 갔고, 같은 절의 표는 그것을 T2 예시로 들고 있었다. 축을 만지지 않고 동적 강화 신호로 둔다. ② **T1 이의제기 창은 걷는다** — 구현이 없었고, ①로 위험한 문서가 T2 로 올라간 뒤 T1 에 남는 것은 문구 수정 정도다. 곁가지로 `tier_boundaries`·`dynamic_escalation` 이 실제 판정에 걸리게 했다(그 전까지 판정은 상수를 썼다). §6.3 에는 알림 수신자의 **구현 범위**를 적었다 — 승인 요청은 지정을 본다.
+> v0.4 변경(2026-09-02 — 사람 결정 둘): §2.4 에 남아 있던 결정 사항을 확정했다. ① **첫 승인 버전은 티어 +1** — 축으로는 3점(T1)인 신규 feature 스펙이 사람 없이 approved 로 갔고, 같은 절의 표는 그것을 T2 예시로 들고 있었다. 축을 만지지 않고 동적 강화 신호로 둔다. ② **T1 이의제기 창은 걷는다** — 구현이 없었고, ①로 위험한 문서가 T2 로 올라간 뒤 T1 에 남는 것은 문구 수정 정도다. 곁가지로 `tier_boundaries`·`dynamic_escalation` 이 실제 판정에 걸리게 했다(그 전까지 판정은 상수를 썼다). §6.3 에는 알림 수신자의 **구현 범위**를 적었다 — 승인 요청은 지정을 본다.
 
 ---
 
@@ -162,7 +164,7 @@ clemvion에서 `spec/` 쓰기 직전 `/consistency-check --spec`은 의무였고
 
 | 검사기 | 무엇을 보는가 | NERV에서 가능해지는 것 |
 | --- | --- | --- |
-| `cross-spec` | 다른 스펙과의 모순·중복 서술 | 안정 ID 참조 그래프로 중복 정의를 기계 검출(clemvion: "네 문서가 각자 필드를 열거"하던 drift) |
+| `cross-spec` | 다른 스펙과의 모순·중복 서술 | 고정 ID 참조 그래프로 중복 정의를 기계 검출(clemvion: "네 문서가 각자 필드를 열거"하던 drift) |
 | `rationale-continuity` | 과거 기각한 대안의 무자각 재도입 | Rationale을 Decision 레코드로 보관해 기각 이력 질의 |
 | `convention-compliance` | convention 타입 스펙 위배 | 규약을 스펙 노드로 두고 참조 관계로 검사 |
 | `requirement-shape` | EARS 템플릿·요구사항 ID 형식·중복 ID | 요구사항이 1급 엔티티라 파싱이 아니라 스키마 검증 |
@@ -233,7 +235,7 @@ GitHub는 Copilot이 만든 PR에 대해 "작업을 지시한 사람의 승인�
 
 **두 결정이 내려졌다**(2026-09-02 · 사람 확정).
 
-① **첫 승인 판은 티어를 한 단계 올린다.** 위 표의 T2 예시가 "신규 feature 스펙"인데 축으로 계산하면 3점(T1)이었다 — 예시와 축이 어긋났고, 어긋난 쪽으로 실물이 돌아 요구사항을 새로 세우는 문서가 사람 없이 approved 로 갔다. 축을 고치지 않고 **동적 강화 신호**(`firstApprovedVersion`)로 둔다: 축은 변화의 크기를 재는 자이고 "처음 들어오는 약속"은 크기가 아니라 성질이라, 축에 가산점을 섞으면 그 자가 무엇을 재는지 흐려진다. 가산은 **문서당 한 번**이고(둘째 판부터는 비교할 approved 기준이 생긴다), `dynamic_escalation` 을 끈 프로젝트에서는 붙지 않는다.
+① **첫 승인 버전은 티어를 한 단계 올린다.** 위 표의 T2 예시가 "신규 feature 스펙"인데 축으로 계산하면 3점(T1)이었다 — 예시와 축이 어긋났고, 어긋난 쪽으로 실물이 돌아 요구사항을 새로 세우는 문서가 사람 없이 approved 로 갔다. 축을 고치지 않고 **동적 강화 신호**(`firstApprovedVersion`)로 둔다: 축은 변화의 크기를 재는 자이고 "처음 들어오는 약속"은 크기가 아니라 성질이라, 축에 가산점을 섞으면 그 자가 무엇을 재는지 흐려진다. 가산은 **문서당 한 번**이고(둘째 버전부터는 비교할 approved 기준이 생긴다), `dynamic_escalation` 을 끈 프로젝트에서는 붙지 않는다.
 
 경계값을 낮추는 선택지(`tier_boundaries` 를 `[2,3,6]` 으로)는 택하지 않았다. 3점짜리를 전부 T2 로 올리면 기존 문서의 문구 수정까지 승인 대기에 걸리고, 대기가 늘면 사람이 카드를 읽지 않고 누르기 시작한다 — 게이트가 형식이 되는 경로가 그것이다(OWASP ASI09 의 consent fatigue).
 
@@ -331,19 +333,19 @@ Finding(tag=spec_drift, severity=warning)
 
 CR은 자체 수명 상태(`open / in_review / approved / rejected / withdrawn`)를 갖되, **승인 판정의 진실은 대상 SpecVersion의 문서 축 상태**다. CR 상태는 제안 자체의 진행(철회·반려 포함)을 표현하고, 무엇이 승인된 기준인지는 언제나 SpecVersion이 답한다. 두 값 중 어느 쪽이 진실인지 미리 못 박아 두지 않으면, 값이 갈라지는 순간 판단이 불가능해지기 때문이다 — clemvion에서 plan frontmatter `status`와 디렉토리 위치(`in-progress/` vs `complete/`)가 두 번이나 어긋난 실패(#1108·#1117)가 그 사례다.
 
-### 3.6 베이스라인 — 프로젝트 단위 승인 스냅샷 (FR-02 확장, 2026-08-21 MVP 포함 확정)
+### 3.6 기준선 — 프로젝트 단위 승인 스냅샷 (FR-02 확장, 2026-08-21 MVP 포함 확정)
 
-스펙은 구현보다 앞서간다. 문서마다 draft→approved가 도는 동안, 구현은 "그때 함께 정합이던 approved 세트"를 기준으로 진행돼야 한다 — 문서 1건의 버전 핀(`task.source_spec_version_id`)만으로는 그 문서가 **참조하는 주변 문서들**의 기준이 흔들린다. 베이스라인은 그 세트를 이름 붙여 동결하는 1급 개념이다(엔티티 정본: [데이터 모델](data-model.md) §2.2, API: [4.4](../04-mvp/api.md)).
+스펙은 구현보다 앞서간다. 문서마다 draft→approved가 도는 동안, 구현은 "그때 함께 정합이던 approved 세트"를 기준으로 진행돼야 한다 — 문서 1건의 버전 핀(`task.source_spec_version_id`)만으로는 그 문서가 **참조하는 주변 문서들**의 기준이 흔들린다. 기준선은 그 세트를 이름 붙여 동결하는 1급 개념이다(엔티티 정본: [데이터 모델](data-model.md) §2.2, API: [4.4](../04-mvp/api.md)).
 
 | 규칙 | 내용 |
 | --- | --- |
 | 생성 | **사람 전용**(planner·admin) — 동결은 거버넌스 행위라 에이전트 생성 도구가 없다. 기본값은 "생성 시점의 스펙별 최신 approved 전체"이고, 항목을 큐레이션해 줄일 수 있다 |
 | 구성 | 스펙당 approved SpecVersion 1개 핀. draft·in_review는 담을 수 없다(생성 시 서버 검증) |
-| 불변 | 생성 후 항목 집합은 바뀌지 않는다. 세트를 바꾸려면 새 베이스라인 — approved 스냅샷 불변과 같은 원리다 |
-| 소비 | Task 파생 시 `baseline` 인자로 맥락을 고정하고(`task.baseline_id`), 에이전트·웹은 `nerv_spec_get(baseline=…)`·`?baseline=` 조회로 그 세트 그대로 읽는다(2026-09-04 구현 — 4.4 REQ-API-087). 그 세트에 없는 문서는 최신으로 떨어지되 `baseline_pinned:false` 로 말한다. 핀 대상이 나중에 superseded 되어도 베이스라인 조회 결과는 변하지 않는다 |
-| 시각 절단과의 관계 | 특정 시각의 approved 집합은 `approved_at`으로 파생 가능하다(as-of manifest — [4.4](../04-mvp/api.md)). 베이스라인은 시각 절단이 아니라 **큐레이션된 이름 있는 동결**이다 |
+| 불변 | 생성 후 항목 집합은 바뀌지 않는다. 세트를 바꾸려면 새 기준선 — approved 스냅샷 불변과 같은 원리다 |
+| 소비 | Task 파생 시 `baseline` 인자로 맥락을 고정하고(`task.baseline_id`), 에이전트·웹은 `nerv_spec_get(baseline=…)`·`?baseline=` 조회로 그 세트 그대로 읽는다(2026-09-04 구현 — 4.4 REQ-API-087). 그 세트에 없는 문서는 최신으로 떨어지되 `baseline_pinned:false` 로 말한다. 핀 대상이 나중에 superseded 되어도 기준선 조회 결과는 변하지 않는다 |
+| 시각 절단과의 관계 | 특정 시각의 approved 집합은 `approved_at`으로 파생 가능하다(as-of manifest — [4.4](../04-mvp/api.md)). 기준선은 시각 절단이 아니라 **큐레이션된 이름 있는 동결**이다 |
 
-베이스라인은 문서 축 상태 머신을 건드리지 않는다 — superseded 전이·CR 흐름은 그대로 돌고, 베이스라인은 그 위에 얹힌 읽기 기준일 뿐이다. 요구공학의 baseline("합의·검토·승인된 요구사항 집합의 시점 스냅샷")을 문서 1건이 아니라 프로젝트 세트에 적용한 것이며, §2.5 "승인의 유통기한"(content hash 기준 결정)과 함께 "무엇을 기준으로 만들었나"라는 질문을 어느 축에서든 답할 수 있게 한다.
+기준선은 문서 축 상태 머신을 건드리지 않는다 — superseded 전이·CR 흐름은 그대로 돌고, 기준선은 그 위에 얹힌 읽기 기준일 뿐이다. 요구공학의 baseline("합의·검토·승인된 요구사항 집합의 시점 스냅샷")을 문서 1건이 아니라 프로젝트 세트에 적용한 것이며, §2.5 "승인의 유통기한"(content hash 기준 결정)과 함께 "무엇을 기준으로 만들었나"라는 질문을 어느 축에서든 답할 수 있게 한다.
 
 ---
 
@@ -351,14 +353,14 @@ CR은 자체 수명 상태(`open / in_review / approved / rejected / withdrawn`)
 
 ### 4.1 Task 분해와 위임 명세 4요소 (FR-05)
 
-승인된 SpecVersion의 Requirement에서 Task를 파생한다. 파생 시점의 SpecVersion이 그 Task의 **기준 버전**(`source_spec_version_id`)으로 고정되고, 베이스라인 맥락에서 파생됐으면 `baseline_id`도 함께 고정된다 — 구현 컨텍스트는 이후 새 버전이 승인돼도 재브리핑(§3.3) 전까지 이 기준을 읽는다([에이전트 연동 설계](agent-integration.md) §2.4). 모든 Task는 **위임 명세 4요소**를 갖춰야 하며, 하나라도 비면 서버가 `ready` 승격을 거부한다.
+승인된 SpecVersion의 Requirement에서 Task를 파생한다. 파생 시점의 SpecVersion이 그 Task의 **기준 버전**(`source_spec_version_id`)으로 고정되고, 기준선 맥락에서 파생됐으면 `baseline_id`도 함께 고정된다 — 구현 컨텍스트는 이후 새 버전이 승인돼도 재브리핑(§3.3) 전까지 이 기준을 읽는다([에이전트 연동 설계](agent-integration.md) §2.4). 모든 Task는 **위임 명세 4요소**를 갖춰야 하며, 하나라도 비면 서버가 `ready` 승격을 거부한다.
 
 | 요소 | 내용 | 미충족 시 벌어지는 일 |
 | --- | --- | --- |
 | **목표** | 어떤 Requirement를 충족시키는가(REQ ID 필수) | 에이전트가 스펙을 재해석해 범위가 흔들림 |
 | **산출물 형식** | PR / 스펙 초안 / 리뷰 보고서 / 조사 노트 중 무엇인가 | 산출물이 어디로 가는지 몰라 로컬 파일로 남음 |
 | **도구·출처** | 어떤 MCP 도구·저장소·문서를 근거로 쓰는가 | 근거 없는 구현, provenance 추적 불가(P5) |
-| **경계** | 건드리면 안 되는 것, 결정하면 안 되는 것 | 스코프 이탈. clemvion이 리뷰어 14종 중 `scope`를 강제 화이트리스트에 넣은 이유 |
+| **경계** | 건드리면 안 되는 것, 결정하면 안 되는 것 | 작업 범위 이탈. clemvion이 리뷰어 14종 중 `scope`를 강제 화이트리스트에 넣은 이유 |
 
 **플랜 승인 게이트(D-06 ②).** 위임 명세가 갖춰져도, 파생 Task가 4건 이상이거나 T3 티어 스펙에서 나온 대형 작업은 착수 전 플랜 승인을 받는다. 코드 2,000줄이 쓰이기 전 설계 단계에서 문제를 잡는 shift-left 접근이 검증된 방향이고, clemvion의 `/merge-coordinate`가 Phase 2에서 사용자 confirm을 의무화한 것과 같은 위치의 게이트다.
 
@@ -780,7 +782,7 @@ D-06의 표준 게이트 4+1을 한 표로 정리하면 아래와 같다. 각 �
 - [Our approach to building the Agent Interaction SDK — Linear Blog](https://linear.app/now/our-approach-to-building-the-agent-interaction-sdk) — (2025-08-01) "에이전트는 책임을 질 수 없다" 원칙과 사람 assignee + 에이전트 delegate 분리(§1.6·§2.3).
 - [Collaborate on work items with AI agents — Jira Cloud Docs](https://support.atlassian.com/jira-software-cloud/docs/collaborate-on-work-items-with-ai-agents/) — (2026-08-13 확인) 에이전트 출력은 트리거한 사람의 개인 검토를 거쳐 draft로 팀에 공개된다(§2.4·§6.4).
 - [Asana AI Teammates](https://asana.com/product/ai/ai-teammates) — (2026-08-13 확인) 체크포인트 승인 + 권한 상속·비확대 + 가역성의 3원칙(§1.6).
-- [Notion 3.3: Custom Agents — Release Notes](https://www.notion.com/releases/2026-02-24) — (2026-02-24) "모든 실행이 로그로 남아 변경이 가시적이고 되돌릴 수 있다" — 가역성의 최소 단위(§2.4 — NERV 는 되돌리기 창 대신 첫 판 가산으로 사람을 세운다).
+- [Notion 3.3: Custom Agents — Release Notes](https://www.notion.com/releases/2026-02-24) — (2026-02-24) "모든 실행이 로그로 남아 변경이 가시적이고 되돌릴 수 있다" — 가역성의 최소 단위(§2.4 — NERV 는 되돌리기 창 대신 첫 버전 가산으로 사람을 세운다).
 - [Enterprise AI Controls & agent control plane — GitHub Changelog](https://github.blog/changelog/2026-02-26-enterprise-ai-controls-agent-control-plane-now-generally-available/) — (2026-02-26) `actor_is_agent` 감사 플래그와 세션 이벤트 전수 감사(§6.1).
 - [Designing Approval Gates for High-Risk AI Agent Actions — C# Corner](https://www.c-sharpcorner.com/article/designing-approval-gates-for-high-risk-ai-agent-actions/) — (2026-08-13 확인) 부작용×민감도×가역성×범위 4축 위험 분류, 승인 만료 윈도우·스테일 승인 거부, 승인 감사 레코드 필수 항목(§2.3·§2.4·§2.6).
 - [Guardrails and human review — OpenAI API Docs](https://developers.openai.com/api/docs/guides/agents/guardrails-approvals) — (2026-08-13 확인) 승인 대기 시 상태를 직렬화해 저장하고 나중에 재개하면 여전히 같은 run이다. 실패 임계 초과 시 에스컬레이션(§2.6·§4.7).
@@ -793,7 +795,7 @@ D-06의 표준 게이트 4+1을 한 표로 정리하면 아래와 같다. 각 �
 - [Configure permissions — Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/permissions) — (2026-08-13 확인) 6단계 권한 평가와 "조직이 ask로 지정한 도구는 bypass 모드에서도 사람에게 온다"는 강제 승인 레인(§2.4·§7).
 - [Levels of Autonomy for AI Agents](https://www.aigl.blog/levels-of-autonomy-for-ai-agents/) — (2025-07-28, arXiv:2506.12469v2) L1 Operator ~ L5 Observer 자율성 5단계. 자율성 레벨이 게이트 밀도를 결정하는 단일 다이얼(§2.4).
 - [Audit Logs — WorkOS](https://workos.com/docs/audit-logs) — (2026-08-13 확인) `<리소스>.<동사>` 액션 네이밍과 actor/targets[]/context 스키마(§6.1).
-- [How to design an RBAC model for multi-tenant SaaS — WorkOS](https://workos.com/blog/how-to-design-multi-tenant-rbac-saas) — (2026-08-13 확인) org/project 2계층 역할 스코프와 리소스 레벨 그랜트(특정 스펙의 승인자 지정)의 분리(§1.6·§6.1).
+- [How to design an RBAC model for multi-tenant SaaS — WorkOS](https://workos.com/blog/how-to-design-multi-tenant-rbac-saas) — (2026-08-13 확인) org/project 2계층 역할 권한과 리소스 레벨 그랜트(특정 스펙의 승인자 지정)의 분리(§1.6·§6.1).
 - [How to Reduce Notification Fatigue — Courier](https://www.courier.com/blog/how-to-reduce-notification-fatigue-7-proven-product-strategies-for-saas) — (2026-08-13 확인) 우선순위 티어제, 선호 센터(수신거부 최대 30% 감소), 크로스 채널 중복 제거(§6.2·§6.6).
 - [Building a batched notification engine — Knock](https://knock.app/blog/building-a-batched-notification-engine) — (2026-08-13 확인) batch key·batch window·batch-on-write vs batch-on-read, idempotency와 조기 flush(§6.5).
 
@@ -808,4 +810,4 @@ D-06의 표준 게이트 4+1을 한 표로 정리하면 아래와 같다. 각 �
 - [3.3 데이터 모델](data-model.md) — SpecVersion·Requirement·Task·Claim·Finding·Approval·Event 엔티티의 필드 상세
 - [3.4 에이전트 연동 설계](agent-integration.md) — `nerv_task_claim` 등 이 문서가 호출한 MCP 도구의 입출력·권한·멱등성
 - [3.6 화면 설계 (와이어프레임)](ui-wireframes.md) — S3 스펙 상세 · S4 작업 보드 · S6 리뷰 센터 · S7 받은 요청의 화면
-- [3.7 로드맵](roadmap.md) — 이 워크플로를 Phase 0~3에 배치하는 순서와 clemvion 마이그레이션(D-12)
+- [3.7 로드맵](roadmap.md) — 이 워크플로우를 Phase 0~3에 배치하는 순서와 clemvion 마이그레이션(D-12)

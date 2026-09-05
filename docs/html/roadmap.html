@@ -53,7 +53,7 @@
     <h1>로드맵</h1>
     <p class="lead">NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 <b>조정 → 가시성 → 거버넌스 → 고도화</b>로 고정하고, 각 Phase에 기간·범위(FR 번호)·산출물과 함께 <b>수치로 된 종료 조건</b>을 붙인다. 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-09-05)</span>
+      <span>버전 v0.4 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/roadmap.md</code></span>
       <span>주로 다루는 결정: D-12 · D-06 · D-14</span>
     </div>
@@ -207,7 +207,7 @@
       <g font-family="var(--font)" font-size="11" fill="var(--text)" text-anchor="middle">
         <text x="570" y="276">M1</text><text x="800" y="276">M2</text><text x="836" y="276">M3</text><text x="890" y="276">M4</text>
       </g>
-      <text x="128" y="294" fill="var(--text-mute)" font-family="var(--font)" font-size="11">M1 기계 산출물 · M2 spec·plan · M3 사람 워크플로 · M4 실시간 — 순서와 근거는 §7.2</text>
+      <text x="128" y="294" fill="var(--text-mute)" font-family="var(--font)" font-size="11">M1 기계 산출물 · M2 spec·plan · M3 사람 워크플로우 · M4 실시간 — 순서와 근거는 §7.2</text>
     </svg>
     <div class="cap">그림 2. Phase 타임라인(예시 달력) · 종료 게이트 G0~G2 · 이관 마일스톤 M1~M4</div>
   </div>
@@ -219,7 +219,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>요구사항</th><th>P0</th><th>P1</th><th>P2</th><th>P3+</th><th>비고</th></tr></thead>
     <tbody>
-      <tr><td>FR-01 스펙 단일 진실 저장소</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 읽기·트리·안정 ID만, P1 기획자 터미널 경로 포함</td></tr>
+      <tr><td>FR-01 스펙 단일 진실 저장소</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 읽기·트리·고정 ID만, P1 기획자 터미널 경로 포함</td></tr>
       <tr><td>FR-02 스펙 버전·문서 상태</td><td>○</td><td>●</td><td>●</td><td>●</td><td>승인은 P1</td></tr>
       <tr><td>FR-03 Requirement 단위 추적</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>구현 축 완성은 P2(커버리지와 함께)</td></tr>
       <tr><td>FR-04 CR·델타 리뷰</td><td>○</td><td>○</td><td>●</td><td>●</td><td></td></tr>
@@ -238,7 +238,7 @@
       <tr><td>FR-17 clemvion 임포트</td><td>◐</td><td>◐</td><td>●</td><td>●</td><td>spec P0 → plan P1 → review P2</td></tr>
       <tr><td>NFR-01 자가호스팅</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P1에서 백업·복구 왕복 검증</td></tr>
       <tr><td>NFR-02 실시간성(≤5s)</td><td>◐</td><td>●</td><td>●</td><td>●</td><td></td></tr>
-      <tr><td>NFR-03 보안</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 PAT 스코프만, SSO는 P3+</td></tr>
+      <tr><td>NFR-03 보안</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 PAT 권한만, SSO는 P3+</td></tr>
       <tr><td>NFR-04 규모</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>부하 시험은 P2</td></tr>
       <tr><td>NFR-05 로컬 폴백</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1 읽기 캐시, P2 복구 후 동기화</td></tr>
     </tbody>
@@ -269,7 +269,7 @@
     <thead><tr><th>범위 항목</th><th>FR/NFR</th><th>내용</th></tr></thead>
     <tbody>
       <tr><td>nerv-mcp 최소 서버</td><td>FR-15 ◐</td><td>Streamable HTTP + PAT. tools 8종만: <code>nerv_bootstrap</code> · <code>nerv_spec_tree</code> · <code>nerv_spec_search</code> · <code>nerv_spec_get</code> · <code>nerv_task_next</code> · <code>nerv_task_claim</code> · <code>nerv_task_heartbeat</code> · <code>nerv_task_release</code></td></tr>
-      <tr><td>스펙 읽기</td><td>FR-01 ◐</td><td>트리·타입·안정 ID·검색(P0는 렉시컬 — FTS+pg_trgm). 편집 없음(임포트로만 적재)</td></tr>
+      <tr><td>스펙 읽기</td><td>FR-01 ◐</td><td>트리·타입·고정 ID·검색(P0는 렉시컬 — FTS+pg_trgm). 편집 없음(임포트로만 적재)</td></tr>
       <tr><td>Task·ready 큐</td><td>FR-05 ◐</td><td>의존성 그래프 기반 ready 판정, 위임 명세 4요소 미비 시 <code>ready</code> 전이 거부</td></tr>
       <tr><td>원자적 클레임·리스</td><td><b>FR-06 ●</b></td><td>assignee+상태 원자 전환, TTL 리스, 하트비트 연장, 만료 자동 회수, scope(spec_ids·file_globs) 선언과 겹침 감지</td></tr>
       <tr><td>세션 레지스트리</td><td>FR-07 ◐</td><td>사용자·hostname·에이전트 종류·상태 머신(<code>pending→active↔awaiting_input→complete/error/stale</code>)·하트비트</td></tr>
@@ -342,7 +342,7 @@
     <tbody>
       <tr><td>하이브리드 검색·탐색 UI</td><td>FR-01 ● (완성)</td><td>렉시컬+벡터(pgvector·임베딩 env 프로필)+RRF 병합+관계 확장(graph RAG), 퀵 스위처(⌘K)·관계 패널·트리 스케일 — 정본 <a href="api.html">4.4 API 명세</a> §2.2b · <a href="screens.html">4.5 화면 명세</a></td></tr>
       <tr><td>스펙 CRUD·버전·승인</td><td><b>FR-01 · FR-02 ●</b></td><td>markdown 편집기+프리뷰+헤딩 앵커 코멘트(D-09), 불변 SpecVersion 스냅샷, <code>draft→in_review→approved→superseded/deprecated</code>, 버전 diff</td></tr>
-      <tr><td>Requirement 추출</td><td>FR-03 ◐</td><td>EARS 템플릿, 안정 ID 발급, 구현 축 초기값 설정(자동 계산은 Phase 2)</td></tr>
+      <tr><td>Requirement 추출</td><td>FR-03 ◐</td><td>EARS 템플릿, 고정 ID 발급, 구현 축 초기값 설정(자동 계산은 Phase 2)</td></tr>
       <tr><td>작업 보드</td><td><b>FR-05 ●</b></td><td>승인된 SpecVersion에서 Task 파생, 칸반(S4), 위임 명세 4요소 강제</td></tr>
       <tr><td>세션 모니터</td><td><b>FR-07 · FR-08 ●</b></td><td>S5 미션 컨트롤 — hostname·에이전트 종류·6상태·현재 Task·diff 통계·steer/stop</td></tr>
       <tr><td>받은 요청 + 인앱 알림</td><td>FR-11 ◐ / FR-12 ◐</td><td>스펙 승인·플랜 승인·질문 3유형(CR·에스컬레이션은 Phase 2), 원클릭 승인/거절/코멘트</td></tr>
@@ -499,7 +499,7 @@
       <tr><td>R6</td><td><b>마이그레이션 실패·데이터 유실</b></td><td>임포터 실패 항목 수, 컷오버 후 정합 검사 불일치 건수</td><td>병행 운영 + 읽기 전용 미러 + 마일스톤별 롤백 절차(<a href="#sec-7">§7.6</a>). clemvion이 <code>review/</code> 전체 gitignore를 2일 만에 롤백한 실측이 근거</td><td>D-12 · FR-17</td></tr>
       <tr><td>R7</td><td><b>리뷰 병목이 그대로 이동한다</b></td><td>리뷰 도달 시간 p50/p90 악화, 동시 활성 세션 수 &gt; 리뷰 처리량</td><td>조직·프로젝트별 동시 세션 한도를 정책으로 노출(FR-14), AI 1차 리뷰 + 사람 위험 판단 계층 분리</td><td>FR-09 · FR-11</td></tr>
       <tr><td>R8</td><td><b>범위 팽창으로 Phase가 끝나지 않음</b></td><td>Phase 종료 조건 미달 항목 수, 기간 초과 주차</td><td>기간이 아니라 범위를 줄인다(§1.4 규칙 2). 이월 항목은 다음 Phase 범위 표에 명시</td><td>—</td></tr>
-      <tr><td>R9</td><td><b>권한·인젝션 사고</b></td><td>권한 상승 시도 거부 로그, 스펙 본문 유래 도구 호출 시도</td><td>토큰 프로젝트 스코프·권한 비확대, 스펙·리뷰 본문을 비신뢰 데이터로 취급, 위험 도구는 사람 승인 강제</td><td>NFR-03</td></tr>
+      <tr><td>R9</td><td><b>권한·인젝션 사고</b></td><td>권한 상승 시도 거부 로그, 스펙 본문 유래 도구 호출 시도</td><td>토큰 프로젝트 소속·권한 비확대, 스펙·리뷰 본문을 비신뢰 데이터로 취급, 위험 도구는 사람 승인 강제</td><td>NFR-03</td></tr>
     </tbody>
   </table></div>
 
@@ -546,7 +546,7 @@
       <g font-family="var(--font)" font-size="11" fill="var(--text)">
         <text x="8" y="60">review/ (기계 산출물)</text>
         <text x="8" y="108">spec/ · plan/</text>
-        <text x="8" y="156">사람 워크플로(승인·코멘트)</text>
+        <text x="8" y="156">사람 워크플로우(승인·코멘트)</text>
         <text x="8" y="204">실시간 편집 · 양방향 sync</text>
       </g>
 
@@ -566,7 +566,7 @@
       <circle cx="760" cy="104" r="6" fill="var(--ok)"/>
       <text x="760" y="86" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11" font-weight="600">M2</text>
 
-      <!-- lane 3: 사람 워크플로 -->
+      <!-- lane 3: 사람 워크플로우 -->
       <rect x="160" y="140" width="616" height="24" rx="5" fill="var(--bg-sunken)" stroke="var(--border)" stroke-dasharray="4 4"/>
       <text x="468" y="157" text-anchor="middle" fill="var(--text-faint)" font-family="var(--font)" font-size="11">터미널 안(AskUserQuestion·confirm)</text>
       <rect x="776" y="140" width="136" height="24" rx="5" fill="var(--ok-soft)" stroke="var(--ok)"/>
@@ -590,12 +590,12 @@
     <tbody>
       <tr><td><b>M1 — 기계 산출물</b></td><td><code>review/</code> 신규 산출물(13,777 md의 증가분)</td><td>Phase 2 초</td><td>① 사람이 손으로 고치지 않는 append-only 데이터라 되돌리기 쉽다 ② 즉시 효과가 가장 크다(packed blob의 60%, 월 ~7,000파일/~50MB 증가 정지) ③ 스펙이라는 제품의 SoT를 걸기 전에 업로드·보존 정책 파이프라인을 실증한다</td></tr>
       <tr><td><b>M2 — spec · plan</b></td><td><code>spec/</code> 384 md · <code>plan/</code> 450 md</td><td>Phase 2 말</td><td>문서 축(승인)과 구현 축이 모두 준비되고(Phase 1), 커버리지 계산이 동작하는(Phase 2) 이후에만 SoT를 옮긴다. git에는 read-only 미러 export를 남긴다</td></tr>
-      <tr><td><b>M3 — 사람 워크플로</b></td><td>코멘트·승인·감사 이벤트</td><td>Phase 2 말~Phase 3 초</td><td>스펙이 플랫폼에 있어야 코멘트 앵커와 승인 레코드가 의미를 갖는다. 이 시점에 비개발 직군이 정식 온보딩된다</td></tr>
+      <tr><td><b>M3 — 사람 워크플로우</b></td><td>코멘트·승인·감사 이벤트</td><td>Phase 2 말~Phase 3 초</td><td>스펙이 플랫폼에 있어야 코멘트 앵커와 승인 레코드가 의미를 갖는다. 이 시점에 비개발 직군이 정식 온보딩된다</td></tr>
       <tr><td><b>M4 — 실시간</b></td><td>실시간 공동 편집 · 양방향 git sync</td><td>Phase 3+(착수 조건 §5.1)</td><td>수요가 계측된 뒤에만</td></tr>
     </tbody>
   </table></div>
 
-  <p>이 순서는 스펙 저장 아키텍처 리서치의 결론(기계 산출물 → 스펙 → 사람 워크플로 → 실시간)과 같다. <b>M1을 M2보다 먼저 두는 실질적 이유</b>는 리스크 비대칭이다 — M1이 실패해도 잃는 것은 리뷰 조회 편의(원본은 git 이력에 남아 있다)지만, M2가 먼저 실패하면 제품의 단일 진실이 접근 불가가 된다. NFR-05(로컬 폴백)가 실사용으로 검증되기 전에는 M2를 실행하지 않는다.</p>
+  <p>이 순서는 스펙 저장 아키텍처 리서치의 결론(기계 산출물 → 스펙 → 사람 워크플로우 → 실시간)과 같다. <b>M1을 M2보다 먼저 두는 실질적 이유</b>는 리스크 비대칭이다 — M1이 실패해도 잃는 것은 리뷰 조회 편의(원본은 git 이력에 남아 있다)지만, M2가 먼저 실패하면 제품의 단일 진실이 접근 불가가 된다. NFR-05(로컬 폴백)가 실사용으로 검증되기 전에는 M2를 실행하지 않는다.</p>
 
   <h3>7.3 임포터 상세</h3>
 
@@ -605,7 +605,7 @@
     <thead><tr><th>clemvion</th><th>NERV</th><th>비고</th></tr></thead>
     <tbody>
       <tr><td>디렉토리 계층(루트 3 + 영역 7)</td><td>Spec 트리 노드</td><td><code>_product-overview.md</code>→<code>area</code>, <code>N-name.md</code>→<code>feature</code>, <code>conventions/**</code>→<code>convention</code>, Rationale 단독 결정→<code>adr</code> 후보</td></tr>
-      <tr><td>frontmatter <code>id</code>(kebab-case)</td><td>안정 ID 매핑 테이블</td><td>서버 발급 해시 ID를 정본으로 하고, 옛 <code>id</code>는 별칭으로 보존해 기존 인용을 살린다</td></tr>
+      <tr><td>frontmatter <code>id</code>(kebab-case)</td><td>고정 ID 매핑 테이블</td><td>서버 발급 해시 ID를 정본으로 하고, 옛 <code>id</code>는 별칭으로 보존해 기존 인용을 살린다</td></tr>
       <tr><td>frontmatter <code>status</code> 5값</td><td><b>2축 분해</b>: 문서 축 + 구현 축</td><td><code>backlog</code>/<code>spec-only</code>→(문서 <code>draft</code> 또는 <code>approved</code>) + 구현 <code>unimplemented</code>, <code>partial</code>→<code>approved</code> + Requirement 일부 <code>in_progress</code>, <code>implemented</code>→<code>approved</code> + <code>implemented</code>, <code>archived</code>→<code>deprecated</code></td></tr>
       <tr><td><code>code:</code> glob</td><td>Evidence(코드 경로 패턴)</td><td>stale glob은 규약 스스로 검출 불가(R-1)라고 인정 — 임포트 후 <b>경로 실존 검사 리포트</b>를 사람에게 넘긴다</td></tr>
       <tr><td><code>pending_plans:</code></td><td>Requirement ↔ Task 링크</td><td>spec→plan 역방향 링크("빈 약속" 차단)를 관계로 승격</td></tr>
@@ -613,7 +613,7 @@
       <tr><td>요구사항 ID 표(<code>NAV-WF-01</code> 등)</td><td><b>Requirement 엔티티</b></td><td>우선순위(필수/권장) → 필드, 수용 기준 → 필드(EARS 템플릿으로 정규화는 사람 확인)</td></tr>
       <tr><td>수동 ✅ 마크(영역별 131개 vs 0개)</td><td><b>폐기</b></td><td>커버리지는 관계에서 계산(D-03)</td></tr>
       <tr><td><code>## Rationale</code> 섹션 105개</td><td>SpecVersion 본문 유지 + 결정 태깅</td><td>기각된 대안 보존은 계승 자산</td></tr>
-      <tr><td>상대경로 + heading 앵커 상호참조</td><td>안정 ID 참조</td><td>변환 실패 링크는 리포트로</td></tr>
+      <tr><td>상대경로 + heading 앵커 상호참조</td><td>고정 ID 참조</td><td>변환 실패 링크는 리포트로</td></tr>
     </tbody>
   </table></div>
 

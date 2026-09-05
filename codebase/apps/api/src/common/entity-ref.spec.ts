@@ -14,7 +14,7 @@ describe('참조 읽기', () => {
     });
   });
 
-  it('안정 키는 key 로 읽는다 — 사람과 화면이 쓰는 것이 이쪽이다', () => {
+  it('고정 ID는 key 로 읽는다 — 사람과 화면이 쓰는 것이 이쪽이다', () => {
     expect(entityRef('SPC-CWC-007')).toEqual({ id: null, key: 'SPC-CWC-007' });
     expect(entityRef('CLV-T-0CFQC2')).toEqual({ id: null, key: 'CLV-T-0CFQC2' });
     expect(entityRef('sudoku-area-play')).toEqual({ id: null, key: 'sudoku-area-play' });
@@ -30,7 +30,7 @@ describe('참조 읽기', () => {
     }
   });
 
-  it('UUID 판별은 형태로 한다 — 판(v4·v7)을 가리지 않는다', () => {
+  it('UUID 판별은 형태로 한다 — 버전(v4·v7)을 가리지 않는다', () => {
     expect(looksLikeUuid('01a04d4b-16d0-7293-919c-40025a7313b1')).toBe(true); // v7
     expect(looksLikeUuid('9f8d4a2e-1c3b-4f5a-8e7d-6b5c4a3d2e1f')).toBe(true); // v4
     expect(looksLikeUuid('01A04D4B-16D0-7293-919C-40025A7313B1')).toBe(true); // 대문자

@@ -136,7 +136,7 @@ describe('task 표시 ID — 충돌하면 조용히 덮어쓰지 않는다', () 
     expect(entries.filter((e) => e.disposition === 'aborted')).toHaveLength(2);
   });
 
-  // 스펙 쪽 판(判)에는 테스트가 없었다 — 그런데 2026-08-30 부터 스펙 키는 **DB 가 강제하는
+  // 스펙 쪽 버전(判)에는 테스트가 없었다 — 그런데 2026-08-30 부터 스펙 키는 **DB 가 강제하는
   // 유일 키**다(api.md §1.4i). 이 걸러내기가 빠지면 서버가 배치를 통째로 되돌린다.
   it('같은 spec.key 를 주장하는 두 파일은 적재에서 빠지고 리포트에 남는다', async () => {
     const entries: { disposition: string }[] = [];

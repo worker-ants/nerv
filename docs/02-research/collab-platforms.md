@@ -2,7 +2,9 @@
 
 > **요약** — Linear·GitHub·Atlassian·Notion·Asana·Slack 6개 협업 플랫폼은 2025~2026년에 각자 AI 에이전트를 제품에 들였지만, 결론은 네 가지 패턴으로 수렴했다: ① 에이전트는 **별도 액터 타입**이되 사람과 같은 표면(할당·멘션)에 노출되고 책임은 사람에게 남는다 ② 작업 단위는 **세션(Session)이라는 1급 객체**이며 상태 머신 + 타입드 로그 + 산출물 역링크를 갖는다 ③ 산출물은 **항상 draft로 수렴**하고 "지시자≠승인자" 같은 승인 무결성 규칙이 붙는다 ④ 외부 에이전트 진입로는 **MCP + 이벤트 webhook**으로 표준화되고 관리자는 감사·allowlist·즉시 비활성화를 쥔다. 가장 정교하게 문서화된 규격은 Linear의 **세션 6상태 + 응답성 SLA(5초/10초/30분)와 5종 typed activity**이고, 가장 강한 거버넌스 축은 GitHub의 **`actor_is_agent` 감사 로그와 커밋→세션 역링크**다. 그러나 6개 플랫폼 중 어느 것도 **스펙·요구사항 도메인**을 모델링하지 않는다 — 이것이 NERV(가칭)가 상호작용 규약은 그대로 차용하되 스펙 도메인과 조정 계층은 자체 구축해야 하는 이유이며, 이 문서는 D-08·D-13과 FR-07·FR-08·FR-11·FR-16의 1차 근거다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 파생본: [collab-platforms.html](../html/collab-platforms.html)
+> 문서 버전 v0.2 · 2026-08-13 · HTML 파생본: [collab-platforms.html](../html/collab-platforms.html)
+>
+> v0.2 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 
 ---
 
@@ -18,7 +20,7 @@
 | **GitHub** | 이슈/PR (Copilot coding agent, Agent HQ) | 상 — 감사·승인 규칙이 제품 기능으로 명문화 | 감사 축(`actor_is_agent`), 커밋→세션 역링크, 승인 무결성 |
 | **Atlassian(Jira+Rovo)** | 작업 항목 (Agents 섹션) | 중상 — 트리거 표면과 단계적 가시성이 명확 | 트리거 4표면, "개인 검토 → 승인 후 팀 공개" |
 | **Notion** | 페이지/DB (커스텀 에이전트) | 중상 — run 로그·가역성·MCP 설계 원칙 공개 | run 단위 로그와 가역성, 에이전트 지향 Markdown 툴 설계 |
-| **Asana** | 태스크 (AI Teammates) | 중 — 거버넌스 원칙 중심 | 권한 상속·비확대, 체크포인트 승인, 워크플로의 "Human input" 스텝 |
+| **Asana** | 태스크 (AI Teammates) | 중 — 거버넌스 원칙 중심 | 권한 상속·비확대, 체크포인트 승인, 워크플로우의 "Human input" 스텝 |
 | **Slack** | 대화 컨테이너 (AI 앱) | 상 — 상태·스트리밍 API가 플랫폼 제공 | 진행 상태 표시를 플랫폼 API로 표준화하는 발상 |
 
 ### 1.2 수렴한 4가지 패턴
@@ -47,9 +49,9 @@ Linear는 에이전트를 별도 액터 타입("app user")으로 승격시키고
 
 ### 2.1 앱 유저(app user) — 비과금 액터
 
-OAuth 인가 URL에 `actor=app` 파라미터를 붙이면 에이전트가 **워크스페이스별 고유 ID를 가진 "app user"** 로 설치된다(워크스페이스 admin 권한 필요, **과금 시트에 미포함**). 팀원형 상호작용을 결정하는 것은 두 개의 선택 스코프다 — `app:assignable`(이슈 위임 가능), `app:mentionable`(이슈·문서에서 @멘션 가능). 설치 후에는 admin이 Integrations Directory에서 팀 접근 범위를 지정하고, 에이전트는 assignee 메뉴에 일반 팀원처럼 나타난다(이름 충돌 시 "Charlie1"처럼 숫자 자동 부여).
+OAuth 인가 URL에 `actor=app` 파라미터를 붙이면 에이전트가 **워크스페이스별 고유 ID를 가진 "app user"** 로 설치된다(워크스페이스 admin 권한 필요, **과금 시트에 미포함**). 팀원형 상호작용을 결정하는 것은 두 개의 선택 권한다 — `app:assignable`(이슈 위임 가능), `app:mentionable`(이슈·문서에서 @멘션 가능). 설치 후에는 admin이 Integrations Directory에서 팀 접근 범위를 지정하고, 에이전트는 assignee 메뉴에 일반 팀원처럼 나타난다(이름 충돌 시 "Charlie1"처럼 숫자 자동 부여).
 
-> **NERV 대응.** 에이전트를 사람 User 테이블에 섞지 말고 별도 액터 타입 + 프로젝트 스코프 토큰으로 분리하되, UI 표면(담당자 선택·멘션)은 공유한다(FR-14, FR-15, D-08). "비과금"에 대응하는 NERV 개념은 **좌석 개념 없음 + 조직·프로젝트 단위 동시 세션 한도**다(FR-14).
+> **NERV 대응.** 에이전트를 사람 User 테이블에 섞지 말고 별도 액터 타입 + 프로젝트 소속 토큰으로 분리하되, UI 표면(담당자 선택·멘션)은 공유한다(FR-14, FR-15, D-08). "비과금"에 대응하는 NERV 개념은 **좌석 개념 없음 + 조직·프로젝트 단위 동시 세션 한도**다(FR-14).
 
 ### 2.2 assignee / delegate 분리 — "에이전트는 책임을 질 수 없다"
 
@@ -123,7 +125,7 @@ Activity 타입은 NERV의 Activity 엔티티([3.3 데이터 모델](../03-propo
 
 "Deploy AI teammates inside Linear" 디렉토리에는 Cursor, Devin, GitHub Copilot, Codex, Charlie, Sentry Agent, Factory, ChatPRD, Warp(Oz), Tembo, Cyrus 등 **27개 이상의 서드파티 에이전트**가 등록되어 있고, 전부 같은 방식(이슈 위임)으로 작동한다. 단일 상호작용 규약(세션 + activity) 위에 디렉토리를 얹는 생태계 구조가 실증된 셈이다.
 
-접속 표면은 호스티드 원격 MCP 서버 `https://mcp.linear.app/mcp`(Streamable HTTP, 구형 `/sse`는 deprecated)이고 인증은 **OAuth 2.1 dynamic client registration**(또는 API key/bearer)이다. 읽기 전용은 `/mcp/readonly` 엔드포인트 또는 `read` 스코프로 제한한다. Claude, Cursor, VS Code, Windsurf, Zed, Codex, Jules 등이 네이티브 지원한다.
+접속 표면은 호스티드 원격 MCP 서버 `https://mcp.linear.app/mcp`(Streamable HTTP, 구형 `/sse`는 deprecated)이고 인증은 **OAuth 2.1 dynamic client registration**(또는 API key/bearer)이다. 읽기 전용은 `/mcp/readonly` 엔드포인트 또는 `read` 권한으로 제한한다. Claude, Cursor, VS Code, Windsurf, Zed, Codex, Jules 등이 네이티브 지원한다.
 
 > **NERV 대응.** "호스티드 MCP + OAuth 2.1 + 읽기 전용 변형 엔드포인트" 조합을 그대로 채택하면 Claude Code/Codex 연동이 즉시 열린다(D-05, FR-15). 프로토콜 리비전과 인증 상세는 [2.4 Claude Code/Codex 연동 기술](integration-tech.md), 도구 카탈로그는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md).
 
@@ -131,7 +133,7 @@ Activity 타입은 NERV의 Activity 엔티티([3.3 데이터 모델](../03-propo
 
 Linear는 워크스페이스 레벨 + 팀 레벨의 markdown **"guidance"** 를 에이전트에게 줄 수 있고, 충돌 시 **팀 guidance가 우선**한다. 이는 clemvion이 `clemvion:spec/`의 규약 문서와 훅 코드로 강제하던 것(하네스 훅 약 7,600줄, 최대 단일 훅 1,005줄)을 **플랫폼 설정으로 옮긴 형태**다. 2단계 계층 + 우선순위 규칙이라는 구조는 NERV의 조직/프로젝트 2단계 에이전트 규약 설정으로 그대로 옮길 수 있다(FR-14, FR-15).
 
-- [Getting Started – Linear Developers](https://linear.app/developers/agents) — (확인일 2026-08-13) `actor=app` 설치, `app:assignable`·`app:mentionable` 스코프, 위임 시 세션 자동 생성과 10초 ACK 규칙.
+- [Getting Started – Linear Developers](https://linear.app/developers/agents) — (확인일 2026-08-13) `actor=app` 설치, `app:assignable`·`app:mentionable` 권한, 위임 시 세션 자동 생성과 10초 ACK 규칙.
 - [Developing the Agent Interaction – Linear Developers](https://linear.app/developers/agent-interaction) — (확인일 2026-08-13) 6상태 머신, `created`/`prompted` webhook, `promptContext` 스냅샷, 5종 activity와 ephemeral, 5초/10초 타이밍 규칙.
 - [Interaction Best Practices – Linear Developers](https://linear.app/developers/agent-best-practices) — (확인일 2026-08-13) 10초 ACK·30분 stale, delegate 자기 설정 규칙, 종료 activity의 코멘트 자동 생성, "불변 activity로 대화 재구성".
 - [Our approach to building the Agent Interaction SDK – Linear Blog](https://linear.app/now/our-approach-to-building-the-agent-interaction-sdk) — (2025-08-01) 4대 설계 원칙과 assignee/delegate 분리의 근거.
@@ -157,9 +159,9 @@ Agent HQ는 Anthropic Claude, OpenAI Codex, Google Jules, Cognition Devin, xAI �
 
 진입점은 github.com/copilot의 `/task` 명령, github.com/copilot/agents, GitHub Mobile의 agents 페이지이며 Codespaces·VS Code Insiders·CLI로 이어서 작업할 수 있다. 세션 로그·개요·파일 변경을 한 화면에 통합했고, **실행 중인 세션에 실시간으로 지시를 넣는 스티어링**과 상태 한눈보기 task view를 제공한다.
 
-운용 가이드는 개입의 판단 기준까지 준다 — 여러 리포에 태스크를 병렬 할당하고, 코드가 되기 전의 **추론·행동을 실시간 세션 로그로 관찰**하다가 **실패 테스트·스코프 이탈·의도 오해** 징후가 보이면 일시정지/지시 수정/재시작으로 개입한다. 완료된 작업은 draft PR로 수렴한다.
+운용 가이드는 개입의 판단 기준까지 준다 — 여러 리포에 태스크를 병렬 할당하고, 코드가 되기 전의 **추론·행동을 실시간 세션 로그로 관찰**하다가 **실패 테스트·작업 범위 이탈·의도 오해** 징후가 보이면 일시정지/지시 수정/재시작으로 개입한다. 완료된 작업은 draft PR로 수렴한다.
 
-> **NERV 대응.** 세션 모니터(S5)는 조회 화면이 아니라 **조작 화면**이어야 한다 — 로그 보기·질문 응답·steer·stop이 카드 위에 있어야 한다(FR-08). "스코프 이탈"은 NERV에서 문자 그대로 기계 판정이 가능하다: 클레임 시 선언한 Scope(spec_ids·file_globs)를 벗어난 파일 편집이 훅 텔레메트리로 들어오면 경고를 띄울 수 있다(D-04, [2.4 연동 기술](integration-tech.md)).
+> **NERV 대응.** 세션 모니터(S5)는 조회 화면이 아니라 **조작 화면**이어야 한다 — 로그 보기·질문 응답·steer·stop이 카드 위에 있어야 한다(FR-08). "작업 범위 이탈"은 NERV에서 문자 그대로 기계 판정이 가능하다: 클레임 시 선언한 Scope(spec_ids·file_globs)를 벗어난 파일 편집이 훅 텔레메트리로 들어오면 경고를 띄울 수 있다(D-04, [2.4 연동 기술](integration-tech.md)).
 
 ### 3.3 커밋 → 세션 역링크 — provenance의 검증된 해법
 
@@ -172,7 +174,7 @@ Agent HQ는 Anthropic Claude, OpenAI Codex, Google Jules, Cognition Devin, xAI �
 Copilot이 만든 PR에는 두 개의 하드 룰이 붙는다.
 
 1. **"작업을 지시한 사람의 승인은 필수 승인 수에 포함되지 않는다"(your approval won't count)** — 반드시 다른 리뷰어의 승인이 필요하다.
-2. **에이전트가 푸시한 변경에 대해 GitHub Actions 워크플로는 기본 비활성**이며, 사람이 diff(특히 `.github/workflows` 변경)를 확인한 뒤 **"Approve and run workflows"** 버튼을 눌러야 CI가 돈다.
+2. **에이전트가 푸시한 변경에 대해 GitHub Actions 워크플로우는 기본 비활성**이며, 사람이 diff(특히 `.github/workflows` 변경)를 확인한 뒤 **"Approve and run workflows"** 버튼을 눌러야 CI가 돈다.
 
 수정 요청은 @copilot 멘션 코멘트나 직접 커밋으로 하고, thumbs up/down으로 결과를 평가한다.
 
@@ -200,7 +202,7 @@ Jira 이슈 안에서 Copilot 코딩 에이전트의 진행 상황이 **실시�
 
 - [Introducing Agent HQ: Any agent, any way you work – GitHub Blog](https://github.blog/news-insights/company-news/welcome-home-agents/) — (2025-10-28) 멀티 벤더 에이전트 수용, mission control, Plan Mode, AGENTS.md custom agents, control plane.
 - [A mission control to assign, steer, and track Copilot coding agent tasks – GitHub Changelog](https://github.blog/changelog/2025-10-28-a-mission-control-to-assign-steer-and-track-copilot-coding-agent-tasks/) — (2025-10-28) 진입점, 세션 로그 통합 화면, 실행 중 스티어링.
-- [How to orchestrate agents using mission control – GitHub Blog](https://github.blog/ai-and-ml/github-copilot/how-to-orchestrate-agents-using-mission-control/) — (2025-12-01) 병렬 할당, 조기 개입 판단 기준(실패 테스트·스코프 이탈·의도 오해), draft PR 수렴.
+- [How to orchestrate agents using mission control – GitHub Blog](https://github.blog/ai-and-ml/github-copilot/how-to-orchestrate-agents-using-mission-control/) — (2025-12-01) 병렬 할당, 조기 개입 판단 기준(실패 테스트·작업 범위 이탈·의도 오해), draft PR 수렴.
 - [Tracking GitHub Copilot's sessions – GitHub Docs](https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/tracking-copilots-sessions) — (확인일 2026-08-13) 세션 목록·로그·토큰 사용량, **커밋 메시지의 세션 로그 링크**, prompt box 개입과 Stop session.
 - [About GitHub Copilot cloud agent – GitHub Docs](https://docs.github.com/copilot/concepts/agents/coding-agent/about-coding-agent) — (확인일 2026-08-13) 다중 트리거, Actions 기반 격리 환경, 기본 활성 MCP 서버, ruleset 차단.
 - [Reviewing a pull request created by GitHub Copilot – GitHub Docs](https://docs.github.com/enterprise-cloud@latest/copilot/how-tos/agents/copilot-coding-agent/reviewing-a-pull-request-created-by-copilot) — (확인일 2026-08-13) "지시자의 승인은 무효", "Approve and run workflows" CI 게이트.
@@ -221,7 +223,7 @@ Rovo 에이전트는 "팀원 누구나 부르거나 만들 수 있는 구성 가
 | --- | --- | --- |
 | assignee 필드에 에이전트 추가 | 위임 즉시 | Task delegate 지정(D-08) |
 | 코멘트 @멘션 | 멘션 즉시 | 스펙 코멘트 스레드에서 호출(FR-11, S3) |
-| **워크플로 전환에 에이전트 규칙** | 누구든 상태를 옮기면 | SpecVersion `approved` 전이 시 Task 파생·리뷰 착수(FR-05, D-02) |
+| **워크플로우 전환에 에이전트 규칙** | 누구든 상태를 옮기면 | SpecVersion `approved` 전이 시 Task 파생·리뷰 착수(FR-05, D-02) |
 | **팀 관리 보드의 컬럼에 에이전트 배치** | 카드가 그 컬럼으로 이동하면 | Task가 `ready` 큐에 들어오면 자동 위임(FR-05·FR-06) |
 
 가시성 모델도 독특하다. 에이전트 활동은 작업 항목의 "Agents" 섹션에 표시되는데 **트리거한 사람에게만 보이며**, 사용자가 출력을 조정하고 필요한 입력을 채운 뒤 **draft comment로 전환해 팀에 공유**한다. 즉 **사람 승인 후에만 팀에 공개**된다. 커스텀 에이전트가 어떤 표면에 노출될지는 에이전트 설정(Surfaces)으로 제어하고, 즉석 생성 시에는 Rovo Chat이 초안 계획(draft plan)을 만들고 "Accept and assign"으로 확정한다.
@@ -238,7 +240,7 @@ Notion 3.0의 개인 에이전트는 페이지 생성·편집, 수백 페이지 
 
 MCP 쪽 기여도 크다. Notion은 2025-04 오픈소스 로컬 MCP 서버의 기술 장벽이 높아 호스티드 원격 서버(원클릭 OAuth)로 전환하면서, **REST API를 그대로 노출하지 않고 "Notion-flavored Markdown" 기반으로 생성/수정 툴을 에이전트 대화에 맞게 재설계**했다 — JSON 계층 구조 대비 LLM 토큰당 콘텐츠 밀도를 높이기 위해서다. 공식 툴 목록은 `notion-search` / `notion-fetch` / `notion-create-pages` / `notion-update-page` / `notion-move-pages` / `notion-create-comment` / `notion-get-comments` / `notion-get-users` / `notion-query-data-sources` 등 **검색·조회·생성·수정·코멘트·사용자 조회** 축으로 구성된다.
 
-> **D-09·D-05 대응.** NERV의 스펙 저장 포맷은 markdown이고 메타는 DB 컬럼이다(D-09). MCP 도구 역시 REST 미러가 아니라 **markdown 지향으로 따로 설계**한다 — `nerv_spec_get`은 렌더링된 markdown + 안정 ID를, `nerv_spec_draft_upsert`는 markdown 본문을 받는다(D-05, FR-15). run 단위 로그와 가역성은 NERV에서 **Event(append-only) + SpecVersion 불변 스냅샷**의 조합으로 구현된다(D-10, FR-02, FR-16).
+> **D-09·D-05 대응.** NERV의 스펙 저장 포맷은 markdown이고 메타는 DB 컬럼이다(D-09). MCP 도구 역시 REST 미러가 아니라 **markdown 지향으로 따로 설계**한다 — `nerv_spec_get`은 렌더링된 markdown + 고정 ID를, `nerv_spec_draft_upsert`는 markdown 본문을 받는다(D-05, FR-15). run 단위 로그와 가역성은 NERV에서 **Event(append-only) + SpecVersion 불변 스냅샷**의 조합으로 구현된다(D-10, FR-02, FR-16).
 
 ### 4.3 Asana — 권한 3원칙
 
@@ -250,11 +252,11 @@ Asana는 거버넌스를 전면에 내세운다. AI Teammate는 "다른 팀원�
 
 AI Studio는 인테이크·라우팅·업데이트 자동화를 노코드로 구성하되 분기 로직에 **"Human input" 스텝**을 1급 노드로 넣을 수 있고, MCP와 AI Connectors로 ChatGPT·Claude·Gemini에서 Work Graph를 다루되 **사용자가 이미 볼 수 있는 데이터에만** 접근한다.
 
-> **NFR-03·D-08 대응.** 세 원칙 전부 NERV에 채택된다 — 토큰은 사용자별 발급(PAT)·프로젝트 스코프, 서버는 위임한 사용자의 권한을 넘는 요청을 거부, 모든 상태 전이는 Event로 기록. 워크플로의 "Human input" 스텝은 NERV에서 **Question 엔티티 + 세션 `awaiting_input` 상태**로 구현된다(FR-11, D-13).
+> **NFR-03·D-08 대응.** 세 원칙 전부 NERV에 채택된다 — 토큰은 사용자별 발급(PAT)·프로젝트 소속, 서버는 위임한 사용자의 권한을 넘는 요청을 거부, 모든 상태 전이는 Event로 기록. 워크플로우의 "Human input" 스텝은 NERV에서 **Question 엔티티 + 세션 `awaiting_input` 상태**로 구현된다(FR-11, D-13).
 
 ### 4.4 Slack — 진행 상태 표시를 플랫폼 API로 표준화
 
-Slack의 AI 앱(에이전트)은 상단 바에서 열리는 **스플릿 뷰 컨테이너**에 거주하며 "입력 수신 → 추론 → 툴 호출 → 스트리밍 출력" 루프로 동작한다. 신규 권장 `agent_view`(Messages 탭 타임라인)와 폐기 예정 `assistant_view`(Chat/History 탭)가 있고, 이벤트는 `app_home_opened`/`app_context_changed`/`message.im`(신형) 또는 `assistant_thread_started`/`assistant_thread_context_changed`(구형), 스코프는 `assistant:write`다.
+Slack의 AI 앱(에이전트)은 상단 바에서 열리는 **스플릿 뷰 컨테이너**에 거주하며 "입력 수신 → 추론 → 툴 호출 → 스트리밍 출력" 루프로 동작한다. 신규 권장 `agent_view`(Messages 탭 타임라인)와 폐기 예정 `assistant_view`(Chat/History 탭)가 있고, 이벤트는 `app_home_opened`/`app_context_changed`/`message.im`(신형) 또는 `assistant_thread_started`/`assistant_thread_context_changed`(구형), 권한은 `assistant:write`다.
 
 핵심은 **진행 표시를 개별 에이전트가 각자 구현하지 않게 플랫폼이 API로 제공**한다는 점이다.
 
@@ -266,7 +268,7 @@ Slack의 AI 앱(에이전트)은 상단 바에서 열리는 **스플릿 뷰 컨�
 | `chat.startStream` / `appendStream` / `stopStream` | 응답 스트리밍 | WebSocket 기반 Activity 스트림(NFR-02) |
 | plan/task 디스플레이 모드 | 멀티스텝 추론 진행 표시 | 위임 명세·플랜 승인 뷰(FR-05, D-06) |
 
-디자인 가이드라인도 규범적이다 — LLM 생성물 고지 footer, 썸업/다운 피드백, **출처 인용**, "Slack 데이터를 저장하지 말고 메타데이터만 저장". 2026-02의 Slack MCP 서버와 Real-time Search API는 **"벌크 익스포트 금지, 실시간 질의·권한 필터링·무저장"** 원칙을 채택했고, 권한은 단일 스코프 대신 공개 채널(`search:read.public`)과 비공개 채널·DM(동의 기반)으로 세분화됐다. 내장 Slackbot은 "사용자가 이미 볼 수 있는 정보만" 쓰는 개인 에이전트로 동작하며 서드파티 에이전트와의 공존을 예고한다.
+디자인 가이드라인도 규범적이다 — LLM 생성물 고지 footer, 썸업/다운 피드백, **출처 인용**, "Slack 데이터를 저장하지 말고 메타데이터만 저장". 2026-02의 Slack MCP 서버와 Real-time Search API는 **"벌크 익스포트 금지, 실시간 질의·권한 필터링·무저장"** 원칙을 채택했고, 권한은 단일 권한 대신 공개 채널(`search:read.public`)과 비공개 채널·DM(동의 기반)으로 세분화됐다. 내장 Slackbot은 "사용자가 이미 볼 수 있는 정보만" 쓰는 개인 에이전트로 동작하며 서드파티 에이전트와의 공존을 예고한다.
 
 > **NERV 대응.** (1) "플랫폼이 세션 스레드·상태 UI를 소유하고 에이전트는 이벤트와 API만 다룬다"는 역할 분담을 채택한다 — NERV MCP 도구는 상태를 *보고*할 뿐 UI를 그리지 않는다(FR-08). (2) 내장 에이전트(스펙 도우미)와 외부 Claude Code/Codex의 공존 구도를 전제로 설계한다. (3) 알림 채널로서의 Slack은 **연동 대상**이지 대체 대상이 아니다(FR-12).
 
@@ -276,11 +278,11 @@ Slack의 AI 앱(에이전트)은 상단 바에서 열리는 **스플릿 뷰 컨�
 | --- | --- | --- | --- |
 | Linear | `actor=app` 앱 유저(비과금, assignee 메뉴 노출, 워크스페이스별 고유 ID) | 이슈 할당(위임) 또는 @멘션 → Agent Session 자동 생성 | 사람 assignee 유지 + 에이전트는 `delegate`. "에이전트는 책임을 질 수 없다" 명문화 |
 | GitHub | Copilot·서드파티를 assignee로 선택, audit log에 `actor_is_agent` | 이슈 할당, @copilot 멘션, `/task`, automations | 에이전트가 PR author지만 자기 PR 승인 불가, **지시자 승인도 무효** |
-| Jira/Rovo | assignee 필드의 에이전트 + 에이전트 프로필 | assignee 지정, @멘션, 워크플로 전환, 보드 컬럼 | 출력은 트리거한 사람의 개인 검토 후 팀 공개, 에이전트 머지 금지 |
+| Jira/Rovo | assignee 필드의 에이전트 + 에이전트 프로필 | assignee 지정, @멘션, 워크플로우 전환, 보드 컬럼 | 출력은 트리거한 사람의 개인 검토 후 팀 공개, 에이전트 머지 금지 |
 | Notion | 프로필을 가진 커스텀 에이전트(팀 공유) | 채팅 지시(개인) + 트리거(스케줄/Slack/메일/DB 변경) | 모든 run 로그 + 가역, admin이 생성·접근·비활성화 통제 |
-| Asana | 태스크 할당 가능한 AI Teammate | 태스크 할당, AI Studio 워크플로 스텝 | 권한 상속·비확대, 체크포인트 승인, 전 행동 감사·가역 |
+| Asana | 태스크 할당 가능한 AI Teammate | 태스크 할당, AI Studio 워크플로우 스텝 | 권한 상속·비확대, 체크포인트 승인, 전 행동 감사·가역 |
 | Slack | bot user 기반 AI 앱(전용 컨테이너) + 내장 Slackbot | DM/멘션, 스레드 대화 | 무저장 원칙, 사용자 가시 데이터만 접근 |
-| **NERV(제안)** | 별도 액터 타입 + 사용자별 PAT(프로젝트 스코프), 좌석 미소모 | Task delegate 지정, ready 큐 self-claim(`nerv_task_claim`), 스펙 코멘트 멘션 | 사람 assignee 유지 + 에이전트 delegate(D-08), 산출물은 서버 업로드분만 진실(D-14), Event에 `is_agent` |
+| **NERV(제안)** | 별도 액터 타입 + 사용자별 PAT(프로젝트 소속), 좌석 미소모 | Task delegate 지정, ready 큐 self-claim(`nerv_task_claim`), 스펙 코멘트 멘션 | 사람 assignee 유지 + 에이전트 delegate(D-08), 산출물은 서버 업로드분만 진실(D-14), Event에 `is_agent` |
 
 - [Agents – Rovo Docs (Atlassian Support)](https://support.atlassian.com/rovo/docs/agents/) — (확인일 2026-08-13) 에이전트 3종 분류, 호출 표면, 에이전트 프로필·대화 검토.
 - [Collaborate on work items with AI agents – Jira Cloud Docs](https://support.atlassian.com/jira-software-cloud/docs/collaborate-on-work-items-with-ai-agents/) — (확인일 2026-08-13) 트리거 4표면, "트리거한 사람만 보는 출력 → draft comment로 팀 공개".
@@ -293,10 +295,10 @@ Slack의 AI 앱(에이전트)은 상단 바에서 열리는 **스플릿 뷰 컨�
 - [Notion's hosted MCP server: an inside look – Notion Blog](https://www.notion.com/blog/notions-hosted-mcp-server-an-inside-look) — (2025-07-15) REST 그대로가 아닌 Markdown 지향 툴 재설계, MCP와 REST의 상호보완.
 - [Asana AI & Agentic Work Management](https://asana.com/product/ai) — (확인일 2026-08-13) 프리빌트 AI teammates 30종, AI Studio의 "Human input" 스텝, 사용자 가시 데이터 한정.
 - [Asana AI Teammates](https://asana.com/product/ai/ai-teammates) — (확인일 2026-08-13) 체크포인트 승인, 권한 상속·비확대(never elevate access), 감사·가역성.
-- [Developing AI apps – Slack Developer Docs](https://docs.slack.dev/ai/developing-ai-apps) — (확인일 2026-08-13) 컨테이너·이벤트·스코프, `assistant.threads.*`와 스트리밍 API, 디자인 가이드라인.
+- [Developing AI apps – Slack Developer Docs](https://docs.slack.dev/ai/developing-ai-apps) — (확인일 2026-08-13) 컨테이너·이벤트·권한, `assistant.threads.*`와 스트리밍 API, 디자인 가이드라인.
 - [Developing an agent – Slack Developer Docs](https://docs.slack.dev/ai/developing-agents/) — (확인일 2026-08-13) 응답 루프와 수명주기 관리, 플랫폼이 상태 UI를 소유하는 역할 분담.
 - [Introducing Slackbot, Your Context-Aware AI Agent for Work – Slack Blog](https://slack.com/blog/news/slackbot-context-aware-ai-agent-for-work) — (2026-01 GA, 확인일 2026-08-13) 내장 에이전트와 서드파티 에이전트의 공존 구도.
-- [Announcing the Slack MCP server and Real-time Search API – Slack Developer Changelog](https://docs.slack.dev/changelog/2026/02/17/slack-mcp/) — (2026-02-17) LLM 지향 툴 설계, 무저장·권한 필터링 실시간 질의, 세분화 스코프.
+- [Announcing the Slack MCP server and Real-time Search API – Slack Developer Changelog](https://docs.slack.dev/changelog/2026/02/17/slack-mcp/) — (2026-02-17) LLM 지향 툴 설계, 무저장·권한 필터링 실시간 질의, 세분화 권한.
 
 ---
 
@@ -333,7 +335,7 @@ sequenceDiagram
 
 | 단계 | Linear | GitHub | Atlassian(Jira/Rovo) | Notion · Asana · Slack | **NERV 구현(엔티티 · 번호)** |
 | --- | --- | --- | --- | --- | --- |
-| **① 위임(Delegate)** | 이슈 할당 또는 @멘션 → Agent Session 자동 생성. `app:assignable`/`app:mentionable` 스코프 | 이슈 assignee로 Copilot, @copilot 멘션, `/task`, automations | assignee·@멘션·**워크플로 전환·보드 컬럼** 4표면 | Notion: 스케줄·Slack·메일·캘린더·DB 변경 트리거 / Asana: 태스크 할당·AI Studio 스텝 / Slack: DM·멘션 | Task **delegate** 지정 또는 ready 큐 self-claim(`nerv_task_claim`). 위임 명세 4요소(목표/산출물 형식/도구·출처/경계) 필수 — **FR-05, FR-06, D-04, D-08** |
+| **① 위임(Delegate)** | 이슈 할당 또는 @멘션 → Agent Session 자동 생성. `app:assignable`/`app:mentionable` 권한 | 이슈 assignee로 Copilot, @copilot 멘션, `/task`, automations | assignee·@멘션·**워크플로우 전환·보드 컬럼** 4표면 | Notion: 스케줄·Slack·메일·캘린더·DB 변경 트리거 / Asana: 태스크 할당·AI Studio 스텝 / Slack: DM·멘션 | Task **delegate** 지정 또는 ready 큐 self-claim(`nerv_task_claim`). 위임 명세 4요소(목표/산출물 형식/도구·출처/경계) 필수 — **FR-05, FR-06, D-04, D-08** |
 | **② ACK(접수 신호)** | **10초 내 `thought`** 미방출 시 UI에 무응답 표시 | 👀 리액션·세션 생성으로 접수 표시 | Agents 섹션에 실행 표시 | Slack `setStatus`("thinking…") | 세션 등록(`pending`) 후 첫 Activity로 `active` 전이, 지연은 보드에 노출 — **FR-07, D-13** |
 | **③ 진행 스레드(Progress)** | `thought`/`action` activity 스트림(ephemeral) | 세션 로그(내부 추론·도구·토큰 사용량), mission control 통합 뷰, **실행 중 steer** | Agents 섹션 + 실시간 코드 뷰 + 채팅 패널 | Notion: run 로그 / Slack: 스트리밍·plan·task 모드 | Activity 타임라인(`thought/action`) + 세션 모니터(S5) 실시간 갱신 ≤5s, steer/stop 액션 — **FR-08, NFR-02** |
 | **④ 개입 요청(Elicitation)** | `elicitation` → `awaitingInput` + 자동 코멘트 + Inbox 알림 | PR 코멘트·리뷰 요청, "모호하면 질문" 정책 | "필요한 입력을 채운 뒤 공유" | Asana 체크포인트 / AI Studio "Human input" 스텝 | **Question 엔티티**(선택지 포함) → 세션 `awaiting_input` → 받은 요청(S7) 카드 + 알림. 응답 시 즉시 세션 해제 — **FR-11, FR-12, D-06, D-13** |
@@ -346,7 +348,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | 위임에는 **경계와 기대 산출물**이 명시돼야 한다 | Linear guidance, GitHub AGENTS.md, 위임 명세 4요소 | 같은 일을 두 세션이 다르게 해석(P1·P2) | Task 스키마 필수 필드 미충족 시 `ready` 전이 거부(FR-05) |
 | 접수는 **시간 제한이 있는 신호**여야 한다 | Linear 10초 ACK | 죽은 세션인지 일하는 중인지 구분 불가 | 첫 Activity 지연 노출 + 무활동 30분 `stale`(FR-07, D-13) |
-| 진행은 **결과가 아니라 과정**이 보여야 한다 | GitHub 세션 로그, Linear activity | 스코프 이탈·의도 오해를 완료 후에야 발견 | Activity 스트림 + Scope 겹침 감지(FR-08, D-04) |
+| 진행은 **결과가 아니라 과정**이 보여야 한다 | GitHub 세션 로그, Linear activity | 작업 범위 이탈·의도 오해를 완료 후에야 발견 | Activity 스트림 + Scope 겹침 감지(FR-08, D-04) |
 | 질문은 **세션을 멈추고 사람 수신함으로** 가야 한다 | Linear elicitation, Asana 체크포인트 | 에이전트가 추측으로 진행하거나 무한 대기 | Question → `awaiting_input` → 받은 요청(FR-11, D-06) |
 | 산출물은 **draft 상태로 도착**해야 한다 | 전 플랫폼 공통 | 검토 없이 확정본이 되어 되돌릴 수 없음 | SpecVersion `draft`, PR draft, Finding `open`(FR-02, FR-09) |
 | **지시자 ≠ 승인자**, 위험 행동은 별도 승인 | GitHub | 자기 승인으로 게이트가 형식화 | 승인 권한 분리 + BYPASS 기록(FR-10, FR-11, D-06) |
@@ -377,7 +379,7 @@ sequenceDiagram
 
 ### 6.1 이 문서가 근거를 대는 결정 — D-08
 
-> **D-08 — 행위자 모델: 사람 assignee + 에이전트 delegate 분리.** "에이전트는 책임을 질 수 없다"(Linear). AgentSession은 소유 사용자의 위임 권한으로 행동하고(권한 상속, 절대 비확대 — Asana), UI는 "AI" 배지를, 감사 로그는 `is_agent` 플래그를 강제한다(GitHub). 토큰은 사용자별 발급(PAT)·프로젝트 스코프. 근거는 세 겹이다 — (1) Linear가 이중 필드로 책임 소재를 UI에서 강제한다 (2) Asana가 권한 상속·비확대를 제품 원칙으로 명문화했다 (3) GitHub가 `actor_is_agent`와 "지시자 승인 무효"로 감사·승인 무결성을 동시에 확보했다.
+> **D-08 — 행위자 모델: 사람 assignee + 에이전트 delegate 분리.** "에이전트는 책임을 질 수 없다"(Linear). AgentSession은 소유 사용자의 위임 권한으로 행동하고(권한 상속, 절대 비확대 — Asana), UI는 "AI" 배지를, 감사 로그는 `is_agent` 플래그를 강제한다(GitHub). 토큰은 사용자별 발급(PAT)·프로젝트 소속. 근거는 세 겹이다 — (1) Linear가 이중 필드로 책임 소재를 UI에서 강제한다 (2) Asana가 권한 상속·비확대를 제품 원칙으로 명문화했다 (3) GitHub가 `actor_is_agent`와 "지시자 승인 무효"로 감사·승인 무결성을 동시에 확보했다.
 
 ### 6.2 이 문서가 근거를 대는 결정 — D-13
 
@@ -389,7 +391,7 @@ clemvion과의 대비가 이 결정의 실효를 보여준다. clemvion은 조�
 
 | 검증된 패턴 | 검증한 곳 | NERV 반영 | 번호 |
 | --- | --- | --- | --- |
-| 에이전트 = 별도 액터 타입, 좌석 미소모 | Linear `actor=app` | 에이전트 액터 + 사용자별 PAT(프로젝트 스코프) | FR-14, FR-15, D-08 |
+| 에이전트 = 별도 액터 타입, 좌석 미소모 | Linear `actor=app` | 에이전트 액터 + 사용자별 PAT(프로젝트 소속) | FR-14, FR-15, D-08 |
 | 사람 assignee + 에이전트 delegate | Linear delegate 필드 | Task의 assignee/delegate 이중 필드, "AI" 배지 | FR-05, **D-08** |
 | 세션 = 1급 객체(상태·소유자·입력 스냅샷) | Linear Agent Session, GitHub `agent_session.task` | AgentSession(사용자·hostname·에이전트 종류·상태) 레지스트리 | **FR-07**, D-13 |
 | 6상태 머신 + 응답성 SLA | Linear 6-state, 10초/30분 | `pending→active↔awaiting_input→complete/error/stale` + 하트비트 임계 | **FR-07**, **D-13** |
@@ -401,10 +403,10 @@ clemvion과의 대비가 이 결정의 실효를 보여준다. clemvion은 조�
 | 산출물 ↔ 세션 역링크 | GitHub 커밋 메시지의 세션 로그 링크 | ReviewSession 커밋 스냅샷 + Evidence 그래프 | FR-09, FR-13, D-07 |
 | `actor_is_agent` 감사 + 세션 이벤트 | GitHub control plane | Event 액터의 `is_agent`, 모든 상태 전이 기록 | **FR-16**, D-10 |
 | run 로그 + 가역성 | Notion 3.3 | Event append-only + SpecVersion 불변 스냅샷 | FR-02, FR-16, D-10 |
-| 권한 상속·비확대 | Asana never elevate access | 토큰 스코프, 위임자 권한 초과 요청 거부 | NFR-03, D-08 |
-| 트리거 표면 다양화 | Jira 워크플로 전환·보드 컬럼, Notion 트리거 | 상태 전이 이벤트 → 자동 Task 파생·리뷰 착수 | FR-05, FR-12 |
+| 권한 상속·비확대 | Asana never elevate access | 토큰 권한, 위임자 권한 초과 요청 거부 | NFR-03, D-08 |
+| 트리거 표면 다양화 | Jira 워크플로우 전환·보드 컬럼, Notion 트리거 | 상태 전이 이벤트 → 자동 Task 파생·리뷰 착수 | FR-05, FR-12 |
 | 에이전트 지침의 2단계 계층 | Linear workspace/team guidance | 조직/프로젝트 2단계 에이전트 규약(팀 우선) | FR-14, FR-15 |
-| 호스티드 MCP + OAuth + readonly | Linear MCP, Notion MCP, Slack MCP | 원격 MCP(Streamable HTTP + OAuth 2.1/PAT), 읽기 전용 스코프 | FR-15, **D-05** |
+| 호스티드 MCP + OAuth + readonly | Linear MCP, Notion MCP, Slack MCP | 원격 MCP(Streamable HTTP + OAuth 2.1/PAT), 읽기 전용 권한 | FR-15, **D-05** |
 | 에이전트 지향 markdown 툴 설계 | Notion-flavored Markdown 재설계 | REST 미러가 아닌 markdown 지향 `nerv_spec_*` 도구 | FR-15, D-05, D-09 |
 | 무저장·실시간 질의·권한 필터링 | Slack MCP/RTS 원칙 | 스펙 본문은 질의 시점 권한 필터링, 벌크 익스포트 제한 | NFR-03 |
 
@@ -486,7 +488,7 @@ clemvion과의 대비가 이 결정의 실효를 보여준다. clemvion은 조�
 - [Developing AI apps – Slack Developer Docs](https://docs.slack.dev/ai/developing-ai-apps) — (확인일 2026-08-13) `assistant.threads.*`·스트리밍 API·디자인 가이드라인.
 - [Developing an agent – Slack Developer Docs](https://docs.slack.dev/ai/developing-agents/) — (확인일 2026-08-13) 응답 루프와 플랫폼-에이전트 역할 분담.
 - [Introducing Slackbot, Your Context-Aware AI Agent for Work – Slack Blog](https://slack.com/blog/news/slackbot-context-aware-ai-agent-for-work) — (2026-01 GA, 확인일 2026-08-13) 내장 에이전트와 서드파티의 공존.
-- [Announcing the Slack MCP server and Real-time Search API – Slack Developer Changelog](https://docs.slack.dev/changelog/2026/02/17/slack-mcp/) — (2026-02-17) 무저장·권한 필터링, 세분화 스코프.
+- [Announcing the Slack MCP server and Real-time Search API – Slack Developer Changelog](https://docs.slack.dev/changelog/2026/02/17/slack-mcp/) — (2026-02-17) 무저장·권한 필터링, 세분화 권한.
 
 ### clemvion 실측 근거
 

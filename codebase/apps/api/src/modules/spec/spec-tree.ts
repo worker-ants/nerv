@@ -44,7 +44,7 @@ interface EdgeRef {
   to_id: string;
 }
 
-/** 안정 키(`SPC-…`)와 UUID 를 **둘 다** 받는다 — §1.4b 의 참조 규약이다 */
+/** 고정 ID(`SPC-…`)와 UUID 를 **둘 다** 받는다 — §1.4b 의 참조 규약이다 */
 function findRef<T extends TreeNodeRef>(nodes: readonly T[], ref: string): T | undefined {
   return nodes.find((node) => node.id === ref || node.key === ref);
 }

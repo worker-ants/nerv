@@ -93,7 +93,7 @@ describe('REQ-PLG-003 — A3 도구는 어느 스킬의 allowed-tools 에도 없
     }
   });
 
-  it('사람 전용 스코프 도구도 없다 — 승인·결정은 카탈로그에 도구가 없다', () => {
+  it('사람 전용 권한 도구도 없다 — 승인·결정은 카탈로그에 도구가 없다', () => {
     for (const skill of SKILLS) {
       const frontmatter = file(`skills/${skill}/SKILL.md`).split('---')[1] ?? '';
       expect(frontmatter).not.toContain('nerv_spec_approve');

@@ -50,7 +50,7 @@ export interface ActiveClaimSummary extends Record<string, unknown> {
   task_id: string;
   task_key: string;
   lease_expires_at: string;
-  /** 기준 버전·베이스라인 — 구현 컨텍스트가 읽어야 할 스펙을 못박는다(agent-integration §2.4) */
+  /** 기준 버전·기준선 — 구현 컨텍스트가 읽어야 할 스펙을 못박는다(agent-integration §2.4) */
   source_spec_version_id: string | null;
   baseline_id: string | null;
   baseline: string | null;
@@ -869,7 +869,7 @@ export class SessionService {
        ORDER BY sort_key, key
     `);
 
-    // 내 활성 클레임 — 기준 버전·베이스라인을 함께 싣는다(agent-integration §2.4)
+    // 내 활성 클레임 — 기준 버전·기준선을 함께 싣는다(agent-integration §2.4)
     const { rows: claims } = await this.db.execute<ActiveClaimSummary>(sql`
       SELECT c.id AS claim_id, c.task_id, t.key AS task_key,
              c.lease_expires_at::text AS lease_expires_at,

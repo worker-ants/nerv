@@ -20,8 +20,8 @@ function fastMs(): number {
 /**
  * 할 일이 없을 때의 주기 — 하트비트의 5배(5분). 예전의 고정 주기가 여기로 남았다.
  *
- * **다 채운 뒤에도 1초마다 도는 것은 순수 낭비다.** 할 일이 없어도 한 판은 대상 버전을 전부
- * 훑으며 버전마다 기존 청크 해시를 읽는다 — 140편이면 한 판에 약 142개 질의다. 초당 142
+ * **다 채운 뒤에도 1초마다 도는 것은 순수 낭비다.** 할 일이 없어도 한 버전은 대상 버전을 전부
+ * 훑으며 버전마다 기존 청크 해시를 읽는다 — 140편이면 한 버전에 약 142개 질의다. 초당 142
  * 질의로 "바뀐 것 없음"만 확인하게 두지 않는다.
  */
 function idleMs(): number {
@@ -37,7 +37,7 @@ export class EmbeddingJob {
   readonly dimensions = 1024;
 
   private readonly logger = new Logger(EmbeddingJob.name);
-  /** 다음 판까지의 간격 — 기동 직후는 빠르게(밀린 것이 있다고 보고 확인부터 한다) */
+  /** 다음 버전까지의 간격 — 기동 직후는 빠르게(밀린 것이 있다고 보고 확인부터 한다) */
   private nextEveryMs = fastMs();
 
   constructor(private readonly embeddings: EmbeddingService) {}
@@ -50,12 +50,12 @@ export class EmbeddingJob {
     return this.nextEveryMs;
   }
 
-  /** 이번 판이 실제로 무언가 했나 — 그 답이 다음 주기를 정한다. */
+  /** 이번 버전이 실제로 무언가 했나 — 그 답이 다음 주기를 정한다. */
   private didWork(report: IndexReport): boolean {
     // 시간 상한에서 끊겼다면 남은 일이 있다는 뜻이므로 붙어서 계속한다.
     if (report.stopped_early) return true;
     // 오류는 **물러난다**: 제공자가 죽어 있으면 1초마다 두드려 봐야 같은 실패이고,
-    // 그 사이 다른 잡의 자리만 좁힌다. 다음 판은 5분 뒤에 다시 시도한다.
+    // 그 사이 다른 잡의 자리만 좁힌다. 다음 버전은 5분 뒤에 다시 시도한다.
     if (report.error !== null) return false;
     return report.chunks_embedded > 0 || report.chunks_deleted > 0;
   }

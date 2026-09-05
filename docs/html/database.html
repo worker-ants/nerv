@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>33종</b> — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.29 (2026-09-05)</span>
+      <span>버전 v0.30 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -225,7 +225,7 @@ CREATE TABLE membership (
 
 CREATE TABLE api_token (
   id           uuid PRIMARY KEY,
-  project_id   uuid NOT NULL REFERENCES project(id),  -- 토큰은 항상 프로젝트 스코프
+  project_id   uuid NOT NULL REFERENCES project(id),  -- 토큰은 항상 프로젝트 소속
   user_id      uuid NOT NULL REFERENCES "user"(id),   -- 위임자. 권한은 이 사용자의 부분집합
   name         text NOT NULL,                          -- 예: "노트북 Claude Code"
   token_hash   bytea NOT NULL UNIQUE,                  -- 원문 미저장
@@ -258,7 +258,7 @@ CREATE TABLE invitation (
   <p>근거: data-model §2.2. <code>spec_version.author_session_id</code>·<code>edit_lease_session_id</code> 등이 <code>agent_session</code>을 참조한다 — §2 첫머리의 전진 배치 예외가 여기서 필요해진다.</p>
 
   <pre><code>CREATE TABLE spec (
-  id                 uuid PRIMARY KEY,       -- 안정 ID. 이동·개명해도 참조 불변(D-09)
+  id                 uuid PRIMARY KEY,       -- 고정 ID. 이동·개명해도 참조 불변(D-09)
   project_id         uuid NOT NULL REFERENCES project(id),
   parent_id          uuid REFERENCES spec(id),
   type               spec_type NOT NULL,
@@ -356,7 +356,7 @@ CREATE TABLE spec_comment (                  -- 앵커 스레드 코멘트(FR-11
   resolved_at            timestamptz
 );
 
--- 베이스라인 — 프로젝트 단위 승인 스냅샷 세트(FR-02 확장, 2026-08-21 MVP 포함.
+-- 기준선 — 프로젝트 단위 승인 스냅샷 세트(FR-02 확장, 2026-08-21 MVP 포함.
 -- 규약 정본: spec-workflow §3.6). 생성 후 불변 — 항목 UPDATE/DELETE 경로를 만들지 않는다.
 CREATE TABLE spec_baseline (
   id                 uuid PRIMARY KEY,
@@ -452,7 +452,7 @@ CREATE TABLE spec_baseline_item (            -- junction — project_id 생략 �
   priority               task_priority NOT NULL DEFAULT 'P2',
   source_spec_version_id uuid REFERENCES spec_version(id),  -- 기준 버전(agent-integration §2.4). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)의 zod는 필수
   source_requirement_id  uuid REFERENCES requirement(id),
-  baseline_id            uuid REFERENCES spec_baseline(id), -- 기준 베이스라인(§2.3) — 주변 문서를 읽는 세트
+  baseline_id            uuid REFERENCES spec_baseline(id), -- 기준 기준선(§2.3) — 주변 문서를 읽는 세트
   rebrief_required_at    timestamptz,        -- 기준 버전 superseded 시 서버 세팅, 재브리핑(기준 갱신) 시 해제 — spec-workflow §3.3
   assignee_user_id       uuid REFERENCES "user"(id),        -- 사람 책임자(D-08)
   delegate_session_id    uuid REFERENCES agent_session(id), -- 에이전트 수행 세션
@@ -803,7 +803,7 @@ CREATE UNIQUE INDEX invitation_pending_uq ON invitation (email, coalesce(project
   WHERE accepted_at IS NULL AND revoked_at IS NULL;
 CREATE INDEX invitation_email ON invitation (email);
 
--- **안정 키는 프로젝트 안에서 유일하다**(0009 · api.md §1.4i). 도구 7종·URL·본문 링크가
+-- **고정 ID는 프로젝트 안에서 유일하다**(0009 · api.md §1.4i). 도구 7종·URL·본문 링크가
 -- 전부 이 키로 문서를 가리키므로, 같은 키의 문서 둘이 생기면 하나는 어느 조회에도 걸리지
 -- 않는 유령이 된다. 검사는 흔한 길의 말이고 이 인덱스가 자물쇠다.
 CREATE UNIQUE INDEX spec_key_uq ON spec (project_id, key);
@@ -823,7 +823,7 @@ CREATE INDEX requirement_spec_impl ON requirement (spec_id, impl_status);       
 CREATE INDEX spec_comment_open ON spec_comment (spec_id, status);                  -- 보조: open 코멘트 수
 
 -- 검색 — data-model §5.3(하이브리드)의 렉시컬 축. 파이프라인 정본은 4.4 §2.2b.
--- ① FTS: 영문·안정 ID 토큰. title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
+-- ① FTS: 영문·고정 ID 토큰. title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
 CREATE INDEX spec_version_body_fts ON spec_version USING gin (to_tsvector(&#x27;simple&#x27;, body_md));
 CREATE INDEX spec_title_fts        ON spec         USING gin (to_tsvector(&#x27;simple&#x27;, title));
 -- ② trigram: 한국어 조사 변형·부분 문자열. &#x27;simple&#x27; 토크나이저는 공백 분리라 한국어에서
@@ -980,7 +980,7 @@ CREATE INDEX spec_chunk_embedding_hnsw
 
   <p>운영 규칙(집행 주체는 워커 <code>embedding.job</code> — <a href="codebase.html">4.2</a> §2.2):</p>
   <ol>
-    <li><b>인덱싱 대상은 최신 판만</b> — 스펙별 최신 approved 버전 + 현재 draft 버전. supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 판 검색은 렉시컬로 충분).</li>
+    <li><b>인덱싱 대상은 최신 버전만</b> — 스펙별 최신 approved 버전 + 현재 draft 버전. supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 버전 검색은 렉시컬로 충분).</li>
     <li><b>갱신 트리거</b> — draft 저장 커밋·승인·임포트 배치 후 이벤트를 워커가 소비해 청크 해시 비교 후 변경분만 임베딩한다. approved 본문은 불변이므로 버전당 최대 1회다.</li>
     <li><b>모델 교체</b> — <code>model</code> 컬럼이 다른 행을 새로 쓰고, 전량 재임베딩 완료 후 구 모델 행을 드랍한다(검색은 단일 모델만 질의).</li>
   </ol>
@@ -1073,7 +1073,7 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
   <p><b>Activity 타임라인도 심는다(2026-08-23 정정).</b> 시드가 <code>activity</code> 를 비워 두어 S5 세션 상세의 타임라인이 개발 환경에서 늘 빈 목록이었다 — 그 화면의 값어치가 "사람의 개입이 에이전트의 행동과 같은 줄에 섞여 보이는 것"인데, 중심이 비어 있으면 만들다 만 껍데기로 보인다(실측). 세 세션 모두에 넣고, <code>thought/action/elicitation/response/error</code> <b>5종 어휘를 전부</b> 쓰며, 개입(elicitation·response)은 앞뒤로 action 이 있는 자리에 둔다 — 섞임 자체가 보여 줄 것이기 때문이다. <code>created_at</code> 은 월 파티션 키라(§2.14) 음수 오프셋이 지난달로 넘어가지 않게 이번 달 시작으로 자른다. 도구 이름은 MVP 16종만 쓴다 — 없는 도구를 개발 데이터가 보여 주면 안 된다.</p>
 
-  <p><b>관리자 계정은 등장인물과 분리한다</b>(2026-08-23 추가). 위 다섯(지민·서연·도현·유나·하나)은 각 화면이 비어 보이지 않게 하는 <b>온보딩용 인물</b>이고, <code>admin@example.com</code>은 조직을 세우는 계정이다. 겸하게 두면 두 가지가 어긋난다 — ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin이 모든 자리에 앉아 있게 되고 ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다. 그래서 이 계정만 <b>조직 스코프</b>(<code>project_id NULL</code>) 멤버십을 갖는다 — 프로젝트가 늘어도 한 행이 조직 전체를 관리한다. 이 계정이 없으면 임포트(admin 전용)·게이트 정책·멤버 역할 화면을 시드만으로 시연할 수 없다(실측: clemvion 임포트가 여기서 막혔다).</p>
+  <p><b>관리자 계정은 등장인물과 분리한다</b>(2026-08-23 추가). 위 다섯(지민·서연·도현·유나·하나)은 각 화면이 비어 보이지 않게 하는 <b>온보딩용 인물</b>이고, <code>admin@example.com</code>은 조직을 세우는 계정이다. 겸하게 두면 두 가지가 어긋난다 — ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin이 모든 자리에 앉아 있게 되고 ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다. 그래서 이 계정만 <b>조직 소속</b>(<code>project_id NULL</code>) 멤버십을 갖는다 — 프로젝트가 늘어도 한 행이 조직 전체를 관리한다. 이 계정이 없으면 임포트(admin 전용)·게이트 정책·멤버 역할 화면을 시드만으로 시연할 수 없다(실측: clemvion 임포트가 여기서 막혔다).</p>
 
   <pre><code>BEGIN;
 TRUNCATE organization, "user" CASCADE;   -- FK 연쇄로 전 도메인 테이블 초기화
@@ -1090,7 +1090,7 @@ INSERT INTO organization (id, slug, name) VALUES
 -- admin 은 조직을 세우는 사람이다. 둘을 겸하게 두면 두 가지가 어긋난다:
 --   ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin 이 모든 자리에 앉아 있게 된다
 --   ② 새 조직을 꾸릴 때 &quot;어느 계정이 관리용인가&quot;가 인물 설정에 묻힌다
--- 그래서 조직 스코프(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
+-- 그래서 조직 소속(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
 INSERT INTO &quot;user&quot; (id, email, display_name, state) VALUES
   (&#x27;01990a66-0000-7000-8000-000000000010&#x27;, &#x27;admin@example.com&#x27;,  &#x27;관리자&#x27;, &#x27;active&#x27;),
   (&#x27;01990a66-0000-7000-8000-000000000011&#x27;, &#x27;jimin@example.com&#x27;,  &#x27;지민&#x27;, &#x27;active&#x27;),
@@ -1104,7 +1104,7 @@ INSERT INTO project (id, org_id, slug, key, name, repo_url, default_branch) VALU
    'clemvion', 'CLV', 'clemvion', 'https://git.example.com/nerv/clemvion.git', 'main');
 
 INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES
-  -- 조직 스코프(project_id NULL) — 프로젝트가 늘어도 이 한 행이 조직 전체를 관리한다
+  -- 조직 소속(project_id NULL) — 프로젝트가 늘어도 이 한 행이 조직 전체를 관리한다
   (&#x27;01990a66-0000-7000-8000-000000000030&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, NULL, &#x27;01990a66-0000-7000-8000-000000000010&#x27;, &#x27;admin&#x27;),
   (&#x27;01990a66-0000-7000-8000-000000000031&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, &#x27;01990a66-0000-7000-8000-000000000021&#x27;, &#x27;01990a66-0000-7000-8000-000000000011&#x27;, &#x27;planner&#x27;),
   (&#x27;01990a66-0000-7000-8000-000000000032&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, &#x27;01990a66-0000-7000-8000-000000000021&#x27;, &#x27;01990a66-0000-7000-8000-000000000012&#x27;, &#x27;designer&#x27;),
@@ -1280,17 +1280,17 @@ COMMIT;</code></pre>
     <tr><td><code>REQ-DB-005</code></td><td>WHEN <code>event</code>에 행이 INSERT되고 트랜잭션이 커밋되면 THE SYSTEM SHALL Valkey <code>nerv_events</code> 채널로 <code>{id, type, project_id}</code> JSON을 PUBLISH하고, 롤백 시 발행하지 않는다(§3)</td><td>SUBSCRIBE 클라이언트 붙인 통합 테스트(커밋/롤백 각 1건)</td></tr>
     <tr><td><code>REQ-DB-006</code></td><td>WHEN 위임 명세 4요소 중 하나라도 NULL인 <code>task</code>를 <code>backlog</code>·<code>blocked</code> 밖의 상태로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>4요소 각각 NULL로 4케이스</td></tr>
     <tr><td><code>REQ-DB-007</code></td><td>WHEN <code>spec_impact IS NULL</code>인 <code>task</code>를 <code>done</code>으로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + <code>{"none": true}</code> 통과 1건</td></tr>
-    <tr><td><code>REQ-DB-008</code></td><td>WHEN 베이스라인 생성 트랜잭션에 <code>approved</code>가 아닌 <code>spec_version</code> 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 베이스라인의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 베이스라인 생성으로만 한다</td><td>draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건</td></tr>
+    <tr><td><code>REQ-DB-008</code></td><td>WHEN 기준선 생성 트랜잭션에 <code>approved</code>가 아닌 <code>spec_version</code> 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 기준선의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 기준선 생성으로만 한다</td><td>draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건</td></tr>
     <tr><td><code>REQ-DB-022</code></td><td>WHEN <code>requirement_id</code>·<code>spec_version_id</code>·<code>task_id</code>가 전부 NULL인 <code>evidence</code>를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + 각 앵커 단독 통과 3건</td></tr>
     <tr><td><code>REQ-DB-009</code></td><td>WHEN <code>nerv_ensure_month_partitions(대상 월)</code>을 호출하면 THE SYSTEM SHALL <code>event</code>·<code>activity</code>의 해당 월 파티션과 activity 파티션별 <code>(session_id, seq)</code> unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다</td><td>함수 2회 호출 후 카탈로그 조회</td></tr>
-    <tr><td><code>REQ-DB-010</code></td><td>WHEN 같은 사용자에게 같은 스코프의 <b>같은 역할</b>을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · <code>membership_user_scope_role_uq</code>)</td><td>같은 역할 중복 1건 · 다른 역할 추가 1건</td></tr>
+    <tr><td><code>REQ-DB-010</code></td><td>WHEN 같은 사용자에게 같은 권한의 <b>같은 역할</b>을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · <code>membership_user_scope_role_uq</code>)</td><td>같은 역할 중복 1건 · 다른 역할 추가 1건</td></tr>
     <tr><td><code>REQ-DB-011</code></td><td>WHEN <code>status &lt;&gt; 'draft'</code>인 <code>spec_version</code>에 <code>edit_lease_user_id</code>·<code>edit_lease_session_id</code>·<code>edit_lease_expires_at</code> 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>3필드 각각 1건</td></tr>
     <tr><td><code>REQ-DB-012</code></td><td>WHEN <code>commit_sha</code> 없이 <code>kind='fixed'</code>인 <code>resolution</code>을 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + <code>spec_change</code>에 <code>change_request_id</code> 누락 1건</td></tr>
     <tr><td><code>REQ-DB-013</code></td><td>WHEN <code>nerv_glob_overlap</code>에 두 glob을 넘기면 THE SYSTEM SHALL 보수적 교차 판정을 반환한다 — 최소: (<code>a/**</code>, <code>a/b/c</code>)=true, (<code>a/b/**</code>, <code>a/c/**</code>)=false, (<code>a/*/c</code>, <code>a/x/c</code>)=true</td><td>함수 단위 테스트(위 3케이스 + 동일 문자열 케이스)</td></tr>
     <tr><td><code>REQ-DB-014</code></td><td>WHEN 마이그레이션이 완료되면 THE SYSTEM SHALL <code>pg_trgm</code>·<code>vector</code> 확장과 §2.12의 trigram GIN 3종·§2.15의 HNSW 인덱스를 카탈로그에서 조회 가능하게 한다</td><td>마이그레이션 후 <code>pg_extension</code>·<code>pg_indexes</code> 조회</td></tr>
     <tr><td><code>REQ-DB-015</code></td><td>WHEN 같은 (spec_version_id, anchor, model)로 임베딩이 재기록되면 THE SYSTEM SHALL 유니크 제약으로 중복 행을 차단하고, <code>spec_version</code> 삭제 시 임베딩 행을 CASCADE로 제거한다</td><td>중복 INSERT 1건 + 버전 삭제 후 잔존 행 0 확인</td></tr>
     <tr><td><code>REQ-DB-016</code></td><td>WHEN 한국어 질의(예: "위젯")로 trigram 검색을 실행하면 THE SYSTEM SHALL 조사 변형 본문("위젯을 처음 열면")을 포함한 행을 반환한다 — <code>simple</code> FTS 단독으로는 매칭되지 않는 케이스가 통과 기준이다</td><td>조사 변형 3케이스 질의</td></tr>
-    <tr><td><code>REQ-DB-017</code></td><td>WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 판의 <code>spec_chunk_embedding</code> 행을 제거해 스펙당 인덱싱 판을 최신 approved + 현재 draft 2개 이하로 유지한다</td><td>supersede 후 행 수 확인</td></tr>
+    <tr><td><code>REQ-DB-017</code></td><td>WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 버전의 <code>spec_chunk_embedding</code> 행을 제거해 스펙당 인덱싱 버전을 최신 approved + 현재 draft 2개 이하로 유지한다</td><td>supersede 후 행 수 확인</td></tr>
   </table></div>
 
   <h3>5.2 무결성 규칙 ↔ 구현 위치 전수 대조</h3>

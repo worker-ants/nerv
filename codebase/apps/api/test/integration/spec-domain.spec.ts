@@ -231,7 +231,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
       key: 'SPC-SUMMARY',
       title: '요약',
       type: 'feature',
-      bodyMd: '# 첫 판',
+      bodyMd: '# 첫 버전',
       changeSummary: '첫 초안을 쓴다',
       userId: planner,
     });
@@ -251,7 +251,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
       roles: ['planner'],
       projectId,
       specId,
-      bodyMd: '# 둘째 판',
+      bodyMd: '# 둘째 버전',
       userId: planner,
     });
     expect(await summaryOf()).toBe('첫 초안을 쓴다');
@@ -261,7 +261,7 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
       roles: ['planner'],
       projectId,
       specId,
-      bodyMd: '# 셋째 판',
+      bodyMd: '# 셋째 버전',
       changeSummary: '문장을 고쳤다',
       userId: planner,
     });
@@ -662,9 +662,9 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
   });
 });
 
-// ── E09-S06 베이스라인 ───────────────────────────────────────────────────────
+// ── E09-S06 기준선 ───────────────────────────────────────────────────────
 
-describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
+describe('E09-S06 기준선은 영원히 같은 답을 낸다', () => {
   it('approved 가 아닌 항목이 섞이면 전체를 거부한다 — 부분 성공은 기준선이 아니다', async () => {
     const a = await draft('SPC-BA', '# a');
     await approve(a.versionId);
@@ -716,12 +716,12 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
   });
 
   /**
-   * 소비 축(REQ-API-087) — **베이스라인은 읽힐 때 값이 생긴다.**
+   * 소비 축(REQ-API-087) — **기준선은 읽힐 때 값이 생긴다.**
    *
    * 생성·불변은 2026-08 부터 있었지만 그 세트로 문서를 읽는 길이 없었고, 그래서 실사용
-   * 베이스라인이 **0개**였다(실측 2026-09-04). 여기가 그 길이다.
+   * 기준선이 **0개**였다(실측 2026-09-04). 여기가 그 길이다.
    */
-  it('그 세트가 핀해 둔 판을 읽는다 — 뒤에 새 판이 승인돼도 그대로다', async () => {
+  it('그 세트가 묶어 둔 버전을 읽는다 — 뒤에 새 버전이 승인돼도 그대로다', async () => {
     const v1 = await draft('SPC-READ', '# v1');
     await approve(v1.versionId);
     await baselines.create({
@@ -746,7 +746,7 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
     expect(latest['version_no']).toBe(2);
     expect(latest['body_md']).toBe('# v2');
 
-    // 베이스라인으로 읽으면 그때 그 판이다
+    // 기준선으로 읽으면 그때 그 버전이다
     const pinned = await specs.get({ projectId, specKey: 'SPC-READ', baseline: 'r1' });
     expect(pinned['version_no']).toBe(1);
     expect(pinned['body_md']).toBe('# v1');
@@ -768,7 +768,7 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
       userId: planner,
     });
 
-    // 베이스라인 이후에 생긴 문서
+    // 기준선 이후에 생긴 문서
     const newer = await draft('SPC-NEW', '# new');
     await approve(newer.versionId);
 
@@ -781,7 +781,7 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
    * **오타는 조용히 기본값이 되지 않는다.** 이 저장소가 이미 판정한 규칙이다
    * (REQ-API-082 — "조용한 무시가 500 보다 나쁘다": 사람은 걸러진 화면이라고 믿는다).
    */
-  it('없는 베이스라인 이름은 거부한다 — 조용히 최신을 주지 않는다', async () => {
+  it('없는 기준선 이름은 거부한다 — 조용히 최신을 주지 않는다', async () => {
     const v = await draft('SPC-TYPO', '# x');
     await approve(v.versionId);
     await baselines.create({
@@ -868,7 +868,7 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
     ).rejects.toMatchObject({ details: { kind: 'exclusive_params' } });
   });
 
-  it('같은 이름의 베이스라인을 두 번 만들 수 없다 — 이름이 곧 참조 수단이다', async () => {
+  it('같은 이름의 기준선을 두 번 만들 수 없다 — 이름이 곧 참조 수단이다', async () => {
     const v = await draft('SPC-DUP', '# d');
     await approve(v.versionId);
     await baselines.create({
@@ -947,7 +947,7 @@ describe('E10-S03 코멘트는 앵커를 가진다', () => {
 // ── E09-S10 검색 ─────────────────────────────────────────────────────────────
 
 describe('E09-S10 하이브리드 검색', () => {
-  it('안정 ID 는 전문 검색을 거치지 않고 직행한다', async () => {
+  it('고정 ID 는 전문 검색을 거치지 않고 직행한다', async () => {
     const s = await draft('SPC-CWC-007', '# 웹챗 위젯 임베드\n\n본문', '웹챗 위젯 임베드');
     await approve(s.versionId);
     const result = await search.search({ projectId, query: 'SPC-CWC-007' });
@@ -1026,7 +1026,7 @@ describe('E09-S11 임베딩 파이프라인', () => {
     expect(slugify('A B  C')).toBe('a-b-c');
   });
 
-  it('인덱싱 대상은 최신 approved + 현재 draft 뿐이다 — 과거 판은 렉시컬로 충분하다', async () => {
+  it('인덱싱 대상은 최신 approved + 현재 draft 뿐이다 — 과거 버전은 렉시컬로 충분하다', async () => {
     const v1 = await draft('SPC-IX', '# v1');
     await approve(v1.versionId);
     const v2 = await specs.draftUpsert({
@@ -1167,7 +1167,7 @@ describe('EP-SPEC-06 버전 diff', () => {
     expect(byRef['REQ-DIF-003']).toBe('added');
   });
 
-  it('임의의 두 판을 견준다 — 인접하지 않아도 된다', async () => {
+  it('임의의 두 버전을 견준다 — 인접하지 않아도 된다', async () => {
     const { specId } = await twoVersions();
     await specs.submitReview({
       projectId,
@@ -1179,7 +1179,7 @@ describe('EP-SPEC-06 버전 diff', () => {
       projectId,
       specId,
       baseHash: await hashOf(specId),
-      bodyMd: '# 제목\n\n세 번째 판',
+      bodyMd: '# 제목\n\n세 번째 버전',
       userId: planner,
     });
 
@@ -1192,7 +1192,7 @@ describe('EP-SPEC-06 버전 diff', () => {
     expect(out['from']).toMatchObject({ version_no: 1 });
     expect(out['to']).toMatchObject({ version_no: 3 });
     const body = out['body_diff'] as { op: string; text: string }[];
-    expect(body.filter((l) => l.op === 'add').map((l) => l.text)).toContain('세 번째 판');
+    expect(body.filter((l) => l.op === 'add').map((l) => l.text)).toContain('세 번째 버전');
   });
 
   it('없는 버전을 가리키면 못 찾았다고 말한다 — 조용히 최신을 주지 않는다', async () => {
@@ -1236,8 +1236,8 @@ describe('E04 기준선 — 목록은 그 세트가 담은 것만', () => {
     expect(pinned.map((n) => n.key)).toEqual(['SPC-BL-BEFORE']);
   });
 
-  it('판도 그 세트의 것이다 — 나중 판이 아니라 담을 때의 판을 보인다', async () => {
-    const first = await draft('SPC-BL-VER', '# 첫 판');
+  it('버전도 그 세트의 것이다 — 나중 버전이 아니라 담을 때의 버전을 보인다', async () => {
+    const first = await draft('SPC-BL-VER', '# 첫 버전');
     await approve(first.versionId);
     await baselines.create({
       actor: { userId: planner, isAgent: false },
@@ -1247,13 +1247,13 @@ describe('E04 기준선 — 목록은 그 세트가 담은 것만', () => {
       specVersionIds: [first.versionId],
     });
 
-    // 같은 문서의 다음 판을 승인한다 — 기준선은 그 전 판을 붙들고 있어야 한다
+    // 같은 문서의 다음 버전을 승인한다 — 기준선은 그 전 버전을 붙들고 있어야 한다
     const current = await specs.get({ projectId, specKey: 'SPC-BL-VER' });
     const next = await specs.draftUpsert({
       roles: ['planner'],
       projectId,
       specId: first.specId,
-      bodyMd: '# 둘째 판',
+      bodyMd: '# 둘째 버전',
       baseHash: String(current['content_hash']),
       userId: planner,
     });
