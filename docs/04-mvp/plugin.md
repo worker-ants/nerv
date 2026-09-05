@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **6종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.51 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.51 · 2026-09-05 · HTML 파생본: [plugin.html](../html/plugin.html)
 >
 > v0.51 변경(2026-09-05 — 이름만 있던 인자에 뜻을 준다, 정합성 감사 → 사람 결정): **패키지 0.2.8 → 0.2.9.** `skills/spec` 이 `requirement_id` 를 **쓰라고** 말하게 한다(규약 6) — 어느 요구사항 주변을 뒤질지 알면 그것으로 좁히고, 없는 요구사항은 거절이라 오타를 바로 안다.
 > v0.50 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): **패키지 0.2.7 → 0.2.8.** 새로 생긴 길을 스킬이 **쓰라고** 말하게 한다(규약 6) — `skills/question` 에 "답이 필요 없어졌으면 `nerv_question_cancel` 로 거둔다" 와 폴링 중 `cancelled` 를 만났을 때의 답을, `skills/review` 에 "판단이 내 몫이 아니면 `escalated` + `escalate_reason`, **발견은 열린 채로 남는다**" 를 넣는다. 받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다.

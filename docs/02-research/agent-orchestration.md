@@ -2,7 +2,7 @@
 
 > **요약** — 2025~2026년에 쏟아진 병렬 코딩 에이전트 도구는 **로컬 git worktree 계열**과 **클라우드 VM/컨테이너 계열**로 갈라졌지만, 할당·격리·상태 표시·충돌 방지·사람 개입 5축에서 거의 같은 답으로 수렴했다. 검증된 공통 규격은 원자적 클레임 + 의존성 기반 ready 판정(beads·Claude Code agent teams), 세션 카드 UI(상태·diff 통계·attach), 플랜/리뷰/머지·CI의 3게이트, 위임 명세 4요소다. 반면 필드 데이터는 병렬화의 병목이 코드 생성이 아니라 **리뷰**임을 가리킨다 — 중앙값 PR 리뷰 시간 +441%, 무리뷰 머지 31%, 실용 동시 한계 3~5 에이전트. 게다가 로컬 오케스트레이터는 1년 안에 사라진다(Crystal 2026-02 종료, vibe-kanban sunsetting). 그래서 NERV(가칭)는 특정 도구를 통합하는 대신 **패턴(클레임 API·세션 레지스트리·게이트)을 서버에 표준화**하고 에이전트별 어댑터를 얇게 유지하며, 이 문서가 FR-05~FR-08과 D-04·D-13의 1차 근거를 제공한다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 판: [agent-orchestration.html](../html/agent-orchestration.html)
+> 문서 버전 v0.1 · 2026-08-13 · HTML 파생본: [agent-orchestration.html](../html/agent-orchestration.html)
 
 ---
 

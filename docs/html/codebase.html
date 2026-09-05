@@ -15,6 +15,7 @@
     <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
   </div>
   <a href="index.html">개요 (Executive Summary)</a>
+  <a href="glossary.html">용어 사전</a>
   <div class="nav-group">1부 · 현행 분석</div>
   <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
   <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
@@ -52,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.18 (2026-09-05)</span>
+      <span>버전 v1.19 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -513,6 +514,7 @@
 
   <p><b>번역하지 않는 것 셋.</b> ① 식별자(<code>spec.approved</code>·<code>ready</code>·<code>NERV_FORBIDDEN</code>) — 데이터이고 로그이고 API 값이라 로케일마다 달라지면 화면과 기록이 갈라진다. 번역되는 것은 그 옆의 라벨이다. ② 운영자용 로그·설정 오류 — 저장소 언어(한국어)로 고정한다. ③ DB 에 저장되는 콘텐츠 — 쓰는 시점의 로케일이 데이터에 굳는다.</p>
 
+  <p><b>말투는 읽는 쪽이 정한다.</b> 사람이 보는 화면은 합쇼체(<code>…합니다</code>), 에이전트·CLI 가 받는 것과 생성 문서(<code>mcp.*</code>·<code>agent.*</code>·<code>cli.*</code>·<code>import.*</code>·<code>export.*</code>)는 해라체(<code>…한다</code>)다. 용어와 함께 <a href="glossary.html">용어 사전</a> §3 이 정본이고, 카탈로그 머리 주석이 그것을 규칙 ④ 로 싣는다. <b>규정이 없던 동안 설명·근거를 적는 문장이 문서의 말투를 끌고 들어왔다</b> — 카탈로그를 만든 커밋 자신이 합쇼체 176 · 해라체 7 을 함께 넣었고, 같은 diff 뷰의 나란한 두 줄이 "요구사항은 그대로다" / "본문이 같습니다." 로 갈렸다(2026-09-05 · 화면 아홉 정정).</p>
   <p><b>로케일을 모르는 자리는 키를 들고 있는다.</b> 도메인 서비스가 에러를 던지는 순간에는 요청 로케일을 모른다. 알아야 한다면 판정과 표현이 한 서비스에 섞이고, 그것이 D-05 가 금지하는 것이다. 그래서 <code>NervError</code> 는 문장이 아니라 <code>Message</code>(키 + 값)를 들고, 문장은 로케일을 아는 표면(HTTP 예외 필터·화면)이 마지막에 만든다. 같은 이유로 MCP 도구 정의는 <code>summaryKey</code> 를, zod 스키마의 검증 메시지는 키를 담는다.</p>
 
   <div class="table-wrap"><table>

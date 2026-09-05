@@ -7,7 +7,7 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**33종** — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.29 · 2026-09-05 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.29 · 2026-09-05 · HTML 파생본: [database.html](../html/database.html)
 >
 > v0.29 변경(2026-09-05 — 인계와 포기가 같은 값이 됐다, 정합성 감사 → 사람 결정): `claim_release_reason` 에 **`handoff`·`abandon`** 을 더한다(`0019_release_reason_handoff`). 셋은 부른 쪽이 **고른** 이유이고 `expired`·`conflict` 는 서버가 **판정한** 이유다 — 축이 다르므로 같은 열에 두되 이름으로 드러나게 한다. **`manual` 은 걷지 않고 소급 변환도 하지 않는다**: 옛 행이 그때 무엇을 골랐는지 서버는 모르고, 모르는 것을 채우면 그 행은 사실이 아니게 된다(4.4 v0.87 · REQ-API-107).
 > v0.28 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 판의 `REQ-DB-010` 이 **겸직을 금지로 읽히게** 적고 있었다(2026-08-23 개정 이전 판) — 같은 파일의 인덱스 주석이 "유일성의 축에 역할이 들어간다" 고 적고 있어 **문서가 자기와 모순**됐다. DDL 전문에서 `claim.release_note`·`progress_note`·`agent_session.diff_files`·`activity_summary` 네 열과 §2.12 인덱스 **일곱 개**(안정 키 유일성·멱등 키 경합 판정자 포함)가 빠져 있었다 — DDL 은 축약 대상이 아니라 전문 인용이라 빠진 만큼이 그대로 사실 손실이다.

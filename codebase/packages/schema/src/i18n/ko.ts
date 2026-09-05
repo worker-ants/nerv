@@ -3,11 +3,16 @@
 // 새 문구는 여기에 먼저 쓴다. 다른 로케일은 `Catalog<typeof ko>` 로 같은 키 집합을 강제받으므로
 // 여기에 키를 더하면 나머지가 컴파일 에러로 따라온다 — "번역이 빠진 키"는 존재할 수 없다.
 //
-// 규칙 셋:
+// 규칙 넷:
 //   ① **키는 화면이 아니라 뜻으로 짓는다** — 같은 문장을 두 화면이 쓰면 키도 하나다
 //   ② `{name}` 자리표시자의 이름은 뜻을 담는다(`{0}` 금지) — 번역자가 어순을 바꿀 수 있어야 한다
 //   ③ 상태값·이벤트 이름 같은 **식별자는 번역하지 않는다**(`ready`·`spec.approved`) —
 //      번역되는 것은 그 옆의 설명이다. 식별자가 로케일마다 다르면 로그와 화면이 갈라진다
+//   ④ **말투는 읽는 쪽이 정한다** — 사람이 보는 화면은 합쇼체(`…합니다`), 에이전트·CLI 가
+//      받는 것과 생성 문서(`mcp.*`·`agent.*`·`cli.*`·`import.*`·`export.*`)는 해라체(`…한다`).
+//      규정이 없던 동안 설명·근거를 적는 문장이 문서의 말투를 그대로 끌고 들어와, 같은
+//      다이얼로그의 힌트 셋 중 둘만 해라체이고 나란한 두 줄이 "요구사항은 그대로다" /
+//      "본문이 같습니다." 로 갈렸다(2026-09-05 정정 · 화면 아홉). 용어는 `docs/glossary.md` 가 정본이다
 
 export const ko = {
   // ── 에러 — api.md §1.4 봉투의 message ────────────────────────────────────────
@@ -234,7 +239,7 @@ export const ko = {
   'reviews.filter.tag': '태그',
   'reviews.gate.branch': '브랜치',
   'reviews.gate.empty': '리뷰가 들어온 브랜치가 없습니다.',
-  'reviews.gate.note': '판정을 표시할 뿐 아직 막지는 않는다 — 집행은 FR-10 의 몫이다.',
+  'reviews.gate.note': '판정을 표시할 뿐 아직 막지는 않습니다 — 집행은 FR-10 의 몫입니다.',
   'reviews.gate.resolved': '해소',
   'reviews.gate.review': '커버 리뷰',
   'reviews.gate.shown': '브랜치 {total}개 중 최근 {shown}개',
@@ -255,10 +260,10 @@ export const ko = {
   'reviews.queue.title': '발견 큐',
   'reviews.resolve.cancel': '취소',
   'reviews.resolve.commit': '수정 커밋(commit_sha)',
-  'reviews.resolve.commit_hint': 'fixed 는 검증 가능한 사실이라 커밋을 요구한다.',
+  'reviews.resolve.commit_hint': 'fixed 는 검증 가능한 사실이라 커밋을 요구합니다.',
   'reviews.resolve.done': '처분했습니다.',
   'reviews.resolve.rationale': '근거',
-  'reviews.resolve.rationale_hint': '왜 이렇게 처분하는가 — 유예 근거는 1급 데이터다.',
+  'reviews.resolve.rationale_hint': '왜 이렇게 처분하는지 적습니다 — 유예 근거는 1급 데이터입니다.',
   'reviews.resolve.submit': '처분',
   'reviews.resolve.title': '발견 처분',
   'reviews.short_id': '짧은 id',
@@ -748,7 +753,8 @@ export const ko = {
   // ── 알림 센터 (screens.md §2.9) ─────────────────────────────────────────────
   'notif.empty': '알림이 없습니다.',
   'notif.empty_hint': '스펙 승인·작업 완료·에이전트 질문이 생기면 여기에 쌓입니다.',
-  'notif.lead': '여기 있는 것은 이미 일어난 일이다 — 내 결정을 기다리는 것은 받은 요청에 있다.',
+  'notif.lead':
+    '여기 있는 것은 이미 일어난 일입니다 — 내 결정을 기다리는 것은 받은 요청에 있습니다.',
   'notif.mark_read': '읽음',
   'notif.read': '읽음',
   'notif.title': '알림',
@@ -823,7 +829,7 @@ export const ko = {
   'spec.diff.modified': '변경',
   'spec.diff.removed': '삭제',
   'spec.diff.unchanged': '그대로',
-  'spec.diff.no_requirement_change': '요구사항은 그대로다',
+  'spec.diff.no_requirement_change': '요구사항이 같습니다.',
   'spec.diff.no_body_change': '본문이 같습니다.',
   'spec.diff.show_all': '전체 보기',
   'spec.diff.changed_only': '변경분만',
@@ -837,7 +843,7 @@ export const ko = {
   'spec.version.open': '이 판 전문',
   'spec.editor.source_readonly': '읽기 전용 — 편집은 터미널 경로로',
   'spec.gate_passed': '{tier} — 승인 없이 통과했습니다(이벤트로 기록됨).',
-  'spec.impact_backlinks': '역참조 문서 {count}건 — 승인 시 재확인 요청이 간다',
+  'spec.impact_backlinks': '역참조 문서 {count}건 — 승인 시 재확인 요청이 갑니다',
   'spec.impact_dialog': '검토 요청 영향',
   'spec.impact_send': '검토 요청 보내기',
   'spec.impact_tasks': '파생 Task {count}건 — 기준 버전이 바뀌면 재브리핑',
@@ -886,7 +892,7 @@ export const ko = {
   // ── S4 작업 보드·상세 (screens.md §2.5) ───────────────────────────────────────
   'task.back_to_board': '← 보드',
   'task.blocked_reason': '막힌 사유',
-  'task.blocked_reason_title': '사유 없는 blocked 는 백로그 부패의 씨앗이다',
+  'task.blocked_reason_title': '사유 없는 blocked 는 백로그 부패의 씨앗입니다',
   'task.brief': '위임 명세 4요소',
   'task.brief.boundaries': '④ 경계',
   'task.brief.goal': '① 목표',
@@ -951,7 +957,7 @@ export const ko = {
   'session.no_activity': '아직 활동이 없습니다.',
   'session.no_task': '클레임한 작업 없음',
   'session.scope': '선언 scope',
-  'session.stale_note': '무활동 임계 30:00 초과 → 자동 전이. 클레임은 회수됐다.',
+  'session.stale_note': '무활동 임계 30:00 초과 → 자동 전이. 클레임은 회수됐습니다.',
   'sessions.intervene': '개입',
   'sessions.load_failed': '세션을 불러오지 못했습니다.',
   'sessions.no_sessions': '세션 없음',
@@ -984,7 +990,7 @@ export const ko = {
   'settings.gates.boundaries': '티어 경계 (T1/T2/T3 진입 점수)',
   'settings.gates.boundaries_hint': '4축 합산: 부수효과 · 민감도 · 되돌림 · 폭발 반경',
   'settings.gates.dynamic': '동적 강화',
-  'settings.gates.dynamic_hint': '재시도·롤백 이력이 있으면 티어를 한 단계 올린다',
+  'settings.gates.dynamic_hint': '재시도·롤백 이력이 있으면 티어를 한 단계 올립니다',
   'settings.gates.failopen': 'fail-open 관측 · 표시 전용',
   'settings.gates.failopen_body':
     '연속 {count}회 · {hours}시간 창에서 격상합니다. 판정 불가일 때 막지 않고 진행하되 기록하고, 반복되면 올린다(D-14).',

@@ -2,7 +2,7 @@
 
 > **요약** — 2025년 하반기에 SDD(Spec-Driven Development) 도구가 한꺼번에 쏟아졌고, 1년 만에 GitHub Spec Kit 126,932★·OpenSpec 64,751★·BMAD-METHOD 51,854★ 규모의 생태계가 만들어졌다. 이 도구들은 requirements(EARS)/design/tasks 3분할, 프로젝트 헌법(constitution), ADDED/MODIFIED/REMOVED 델타 스펙, 자기완결 스토리 파일 같은 **재사용할 가치가 충분한 문서 어휘**를 정착시켰다. 그러나 조사한 7개 도구 전부가 "git 저장소 안의 마크다운 + 로컬 CLI/IDE"를 벗어나지 못해 멀티유저 협업·동시성 제어·실시간 상태 가시성이 통째로 비어 있으며, 이는 추정이 아니라 Spec Kit 토론 #497·#2116과 OpenSpec 이슈 #435("closed as not planned")가 남긴 1차 기록으로 확인된다. 동시에 "SDD는 워터폴의 귀환"이라는 실증 비판(한 기능에 8파일 1,300줄, 버그 하나에 16개 acceptance criteria)도 반복 관찰되므로, NERV(가칭)는 이 도구들의 어휘를 DB 엔티티로 승격하되 게이트를 위험도 가변형(D-06)으로 설계해 비판에 제품으로 답해야 한다. 결론적으로 "SDD 도구들의 Linear/GitHub"에 해당하는 협업 계층은 시장에서 명시적으로 요구되었으나 아직 아무도 만들지 않은 자리다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 판: [spec-driven-development.html](../html/spec-driven-development.html)
+> 문서 버전 v0.1 · 2026-08-13 · HTML 파생본: [spec-driven-development.html](../html/spec-driven-development.html)
 
 ---
 
