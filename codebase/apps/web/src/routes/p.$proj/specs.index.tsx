@@ -127,7 +127,12 @@ function SpecListScreen(): React.JSX.Element {
   });
 
   const projectId = project.data?.['id'];
-  const graph = useSpecGraph(proj, typeof projectId === 'string' ? projectId : undefined, archived);
+  const graph = useSpecGraph(
+    proj,
+    typeof projectId === 'string' ? projectId : undefined,
+    archived,
+    baseline,
+  );
 
   // 그래프를 보는 동안에만 화면 높이를 **확정한다**. `min-h` 로 두면 `flex-1` 자식이
   // 내용만큼 자라는데, 이웃 93개짜리 문서를 고르는 순간 패널이 4,771px 이 되고 캔버스도
@@ -137,6 +142,82 @@ function SpecListScreen(): React.JSX.Element {
   // 트리·표는 반대로 **문서가 스크롤한다** — 141줄짜리 목록을 화면에 가두면 스크롤이
   // 두 겹이 되고, 안쪽 스크롤은 바깥 스크롤에 가려 있다는 것 자체가 잘 안 보인다.
   const viewportLocked = submitted.trim() === '' && view === 'graph';
+
+  /**
+   * 트리에만 딸린 조작 — 트리의 필터 줄 맨 앞에 선다(REQ-WEB-140).
+   *
+   * **기준선을 고른 동안에는 그리지 않는다.** 그 세트의 항목은 전부 승인본이라(승인되지 않은
+   * 판은 기준선에 담기지 않는다 — REQ-API-015) 상태로 거를 것이 없고, 고를 수 있는 것처럼
+   * 보였다가 빈 목록을 주는 것이 이 화면이 피해 온 모양이다.
+   */
+  const treeControls =
+    baseline !== undefined ? null : (
+      <>
+        {/* **상태 필터**(§2.4 (3) · REQ-WEB-138). 와이어프레임이 처음부터 그리고 있었는데
+          화면에는 없었다 — 141편짜리 프로젝트에서 "아직 초안인 것" 을 보려면 눈으로 배지를
+          훑는 수밖에 없었다. 트리에만 듣는 조작이라 **트리의 조작 줄**에 산다(REQ-WEB-140):
+          머리의 동작 줄에 두었더니 칸이 둘 더 붙어 트리 탭만 배치가 달라졌다. */}
+        <label
+          className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
+          title={t('specs.status_filter_hint')}
+        >
+          {t('specs.status_filter')}
+          <select
+            data-testid="status-filter"
+            className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
+            value={status ?? ''}
+            onChange={(e) =>
+              void navigate({
+                to: '/p/$proj/specs',
+                params: { proj },
+                search: searchWith({
+                  status: e.target.value === '' ? null : e.target.value,
+                }),
+              })
+            }
+          >
+            <option value="">{t('specs.status_filter_all')}</option>
+            {/* 끝나지 않은 것 — 스킬이 새 스펙 전에 훑는 것과 같은 묶음이다(4.6 §new) */}
+            <option value="draft,in_review">
+              {`${t('status.spec.draft')} + ${t('status.spec.in_review')}`}
+            </option>
+            {SPEC_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {t(statusLabelKey('spec', value))}
+              </option>
+            ))}
+          </select>
+        </label>
+        {/* **종류 필터** — `area` 는 본문 없이 자리만 잡는 종류라, `vision,area` 로 고르면
+          트리의 **뼈대**가 남는다(실측 clemvion: 141편 → 17편). */}
+        <label
+          className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
+          title={t('specs.type_filter_hint')}
+        >
+          {t('specs.type_filter')}
+          <select
+            data-testid="type-filter"
+            className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
+            value={type ?? ''}
+            onChange={(e) =>
+              void navigate({
+                to: '/p/$proj/specs',
+                params: { proj },
+                search: searchWith({ type: e.target.value === '' ? null : e.target.value }),
+              })
+            }
+          >
+            <option value="">{t('specs.status_filter_all')}</option>
+            <option value="vision,area">{t('specs.type_filter_skeleton')}</option>
+            {SPEC_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {t(`specs.type.${value}` as const)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </>
+    );
 
   return (
     <PageBody
@@ -216,73 +297,6 @@ function SpecListScreen(): React.JSX.Element {
             <Button type="button" data-testid="freeze-baseline" onClick={() => setFreezing(true)}>
               {t('specs.freeze')}
             </Button>
-            {/* **상태 필터**(§2.4 (3) · REQ-WEB-138). 와이어프레임이 처음부터 그리고 있었는데
-                화면에는 없었다 — 141편짜리 프로젝트에서 "아직 초안인 것" 을 보려면 눈으로
-                배지를 훑는 수밖에 없었다. 트리에만 그린다: 표·그래프는 다른 축이라 여기서
-                누른 것이 저기서 아무 일도 하지 않으면 그것이 곧 조용한 무시다. */}
-            {view === 'tree' && (
-              <label
-                className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
-                title={t('specs.status_filter_hint')}
-              >
-                {t('specs.status_filter')}
-                <select
-                  data-testid="status-filter"
-                  className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
-                  value={status ?? ''}
-                  onChange={(e) =>
-                    void navigate({
-                      to: '/p/$proj/specs',
-                      params: { proj },
-                      search: searchWith({
-                        status: e.target.value === '' ? null : e.target.value,
-                      }),
-                    })
-                  }
-                >
-                  <option value="">{t('specs.status_filter_all')}</option>
-                  {/* 끝나지 않은 것 — 스킬이 새 스펙 전에 훑는 것과 같은 묶음이다(4.6 §new) */}
-                  <option value="draft,in_review">
-                    {`${t('status.spec.draft')} + ${t('status.spec.in_review')}`}
-                  </option>
-                  {SPEC_STATUSES.map((value) => (
-                    <option key={value} value={value}>
-                      {t(statusLabelKey('spec', value))}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {/* **종류 필터** — `area` 는 본문 없이 자리만 잡는 종류라, `vision,area` 로 고르면
-                트리의 **뼈대**가 남는다(실측 clemvion: 141편 → 17편). */}
-            {view === 'tree' && (
-              <label
-                className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
-                title={t('specs.type_filter_hint')}
-              >
-                {t('specs.type_filter')}
-                <select
-                  data-testid="type-filter"
-                  className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
-                  value={type ?? ''}
-                  onChange={(e) =>
-                    void navigate({
-                      to: '/p/$proj/specs',
-                      params: { proj },
-                      search: searchWith({ type: e.target.value === '' ? null : e.target.value }),
-                    })
-                  }
-                >
-                  <option value="">{t('specs.status_filter_all')}</option>
-                  <option value="vision,area">{t('specs.type_filter_skeleton')}</option>
-                  {SPEC_TYPES.map((value) => (
-                    <option key={value} value={value}>
-                      {t(`specs.type.${value}` as const)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
             {/* **전수의 경계를 화면이 말한다**(REQ-WEB-105). 보관한 문서는 어느 목록에도
                 없어서 키를 아는 사람만 주소로 닿을 수 있었다 — 복구 경로가 없는 것과 같다 */}
             <label
@@ -347,6 +361,8 @@ function SpecListScreen(): React.JSX.Element {
                 includeArchived={archived}
                 statuses={statuses}
                 types={types}
+                controls={treeControls}
+                baseline={baseline}
               />
             </Card>
           ) : graph.data === undefined ? (

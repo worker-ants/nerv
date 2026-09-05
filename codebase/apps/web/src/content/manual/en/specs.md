@@ -27,7 +27,7 @@ The **Status** selector above the list narrows it by status — `draft`, `in rev
 
 The **Type** selector beside it works the same way. Choose `Skeleton (vision + area)` and only the documents that **hold a place** remain, so the shape of the tree is visible at a glance — a project of 141 documents has a skeleton of 17. It is a good way to decide where a new document belongs. Set both and only what matches **both** stays.
 
-Both selectors appear **only on the tree tab** — switch to the table or the relationship graph and they are gone.
+Both selectors appear **only on the tree tab**, in the tree's own control row beside the filter and the expand/collapse buttons — switch to the table or the relationship graph and they are gone.
 
 ## Versions and statuses
 
@@ -39,6 +39,12 @@ Specs are **not edited in place — versions accumulate.** Each version is in on
 - `superseded` — a newer approved version exists. The document remains; the baseline moved.
 - `deprecated` — no longer in use.
 
+**How to see a draft.** One of three ways.
+
+1. Pick `draft` in the **Status** selector above the list — it stays in the address, so a link hands someone the same view.
+2. **A document that has never been approved** opens on its draft.
+3. A document with a newer draft above an approved version opens on the approved one. Then pick the draft in the **Versions** tab on the rail — the list is there regardless of status, and choosing one puts `?v=4` in the address for you to pass on.
+
 The badge at the top is the status of the version you are looking at. If you are reading a `superseded` version, the screen says so first — reading an outdated document as if it were current is the most common accident here.
 
 ## Baselines — reading the set as it was
@@ -47,9 +53,11 @@ Specs run ahead of implementation. While new versions get approved document by d
 
 A **baseline** names that set and freezes it.
 
-- Create one with **[Freeze current set…]** above the list (planner/admin). It captures every spec at its latest approved version as of now.
+- Create one with **[Create baseline…]** above the list (planner/admin). It captures every spec at its latest approved version as of now.
 - **It cannot be changed afterwards.** To change the set, make a new one — that is what makes a given baseline answer the same way whenever you look.
-- Pick one from the **baseline selector** and it stays in the address, following you into the detail view. **Hand someone the link and they see the same set.**
+- Pick one from the **baseline selector** and **the list itself becomes that set** — only the documents it holds, at the revisions it holds them. Documents created after the baseline was made do not appear (if they did, you would read the set as holding them). The choice stays in the address and follows you into the detail view, so **hand someone the link and they see the same set.**
+- While a baseline is chosen the **status and type filters are gone** — everything in the set is approved, so there is nothing to filter by.
+- With nothing chosen the selector reads **No baseline**. Then each document reads at its latest approved version — or, if it has **never been approved, at its current one (the draft)**.
 - A badge at the top of the document says which set you are reading. If that set does not contain this document (one created later), you get the latest version instead, marked **"not in set"** — you are never quietly handed a different version.
 
 Tasks can carry a baseline too, so the agent working on one reads the surrounding documents from that same set.
@@ -126,7 +134,17 @@ Requirements in a spec body are extracted and carry their own implementation sta
 
 Requirement rows are created from the body **when a version is approved**. Writing EARS sentences into a draft is not enough — a draft is not yet a promise. When a sentence drops out of a later revision the row is not deleted; **which revision dropped it** is recorded instead.
 
-Priority starts at `must`, because the EARS line in the body does not carry one. **There is still no path that advances an implementation status**: everything starts at `unimplemented` and stays there, and only projects that came in through the importer carry other values.
+Priority starts at `must`, because the EARS line in the body does not carry one.
+
+**Implementation status is not something a person marks.** The server derives it from the tasks that came out of that requirement.
+
+| Status          | When                                                           |
+| --------------- | -------------------------------------------------------------- |
+| `unimplemented` | Every derived task is `backlog` or `ready`                     |
+| `in_progress`   | At least one is **claimed** or under way                       |
+| `implemented`   | All are `done` **and** there is at least one piece of evidence |
+
+**All done with no evidence stays `in_progress`** — to say it is finished, attach something to show. `verified` is not marked by the server yet: its conditions (a QA verification record, and no open `critical` in that commit range) are not something the data carries today, and marking it without them would make the value mean nothing. Values that came in through the importer are left alone.
 
 The document header also carries a **references updated** badge: it lights when a document this one points at has moved ahead of the version you are reading, and it names which one. It is the server's judgement, not the screen's guess.
 

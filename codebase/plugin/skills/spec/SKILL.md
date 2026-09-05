@@ -113,11 +113,11 @@ allowed-tools:
 ## 서브커맨드
 
 ### new — 새 스펙 초안
-1. `nerv_spec_tree`(`project`, 필요 시 `root`·`depth`·`status`)로 트리 위치를 확인하고,
-   `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을 지어내지 않는다** —
-   트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서 내려갈 간선 수,
-   `1` 이면 뿌리와 그 자식)·`status`(쉼표로 여럿)고 검색은 `q` 다. 응답의 목록은 각각
-   `nodes`·`items` 다.
+1. `nerv_spec_tree`(`project`, 필요 시 `root`·`depth`·`status`·`type`·`baseline`)로 트리
+   위치를 확인하고, `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을
+   지어내지 않는다** — 트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서
+   내려갈 간선 수, `1` 이면 뿌리와 그 자식)·`status`·`type`(쉼표로 여럿)·`baseline`(세트 이름)
+   이고 검색은 `q` 다. 응답의 목록은 각각 `nodes`·`items` 다.
    **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
    그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
    답이다). 걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** —

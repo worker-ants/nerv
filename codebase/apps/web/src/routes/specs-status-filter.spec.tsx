@@ -213,3 +213,91 @@ describe('REQ-WEB-138 종류 필터 — 뼈대만 보기', () => {
     });
   });
 });
+
+/**
+ * **상단 배치는 세 탭이 같아야 한다**(REQ-WEB-140 · 2026-09-05 사람 지적).
+ *
+ * 상태·종류 선택기가 화면 머리의 동작 줄에 있던 동안 칸이 둘 더 붙어 줄이 넘쳤고,
+ * **트리 탭만 표·그래프와 다른 모양**이 됐다. 트리에만 듣는 조작이니 트리의 조작 줄이
+ * 그 자리다 — 그러면 머리의 동작 줄은 어느 탭에서나 같다.
+ */
+describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () => {
+  it('두 선택기는 트리의 조작 줄 안에 있다 — 머리의 동작 줄이 아니다', async () => {
+    const { full } = await renderList('/p/demo/specs');
+    // 트리 컨테이너 안에서 찾을 수 있어야 한다
+    expect(full.getByTestId('status-filter')).toBeDefined();
+    expect(full.getByTestId('type-filter')).toBeDefined();
+    // 그리고 트리 자신의 조작들과 같은 줄에 산다
+    const row = full.getByTestId('status-filter').closest('div');
+    expect(row?.contains(full.getByTestId('tree-expand-all'))).toBe(true);
+    expect(row?.contains(full.getByTestId('tree-count'))).toBe(true);
+  });
+
+  it('머리의 동작 줄에는 세 탭에 공통인 것만 남는다', async () => {
+    await renderList('/p/demo/specs');
+    const actions = screen.getByTestId('new-spec').closest('form');
+    expect(actions).not.toBeNull();
+    for (const id of ['freeze-baseline', 'show-archived']) {
+      expect(actions?.querySelector(`[data-testid="${id}"]`)).not.toBeNull();
+    }
+    // 트리 전용 조작은 그 줄에 없다
+    for (const id of ['status-filter', 'type-filter']) {
+      expect(actions?.querySelector(`[data-testid="${id}"]`)).toBeNull();
+    }
+  });
+
+  it('기준선 선택기의 기본값은 "기준선 없음" 이다 — "현재" 는 목록을 거른다는 인상을 줬다', async () => {
+    // 선택기는 기준선이 하나라도 있어야 그려진다(고를 것이 없는 드롭다운은 자리만 먹는다)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => ({
+        ok: true,
+        status: 200,
+        json: async () =>
+          String(url).includes('/baselines')
+            ? [{ id: 'b-1', name: 'R1', item_count: 3 }]
+            : String(url).includes('/specs/tree')
+              ? NODES
+              : { items: [], memberships: [], count: 0, summary: {} },
+      })),
+    );
+    await renderList('/p/demo/specs');
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('baseline-select').textContent).toContain('기준선 없음');
+    });
+  });
+
+  it('기준선을 고르면 성질 필터를 그리지 않는다 — 그 세트는 전부 승인본이다', async () => {
+    const { full } = await renderList('/p/demo/specs?baseline=R1');
+    expect(full.queryByTestId('status-filter')).toBeNull();
+    expect(full.queryByTestId('type-filter')).toBeNull();
+  });
+
+  it('기준선을 고르면 목록 질의가 그 세트를 묻는다 — 목록도 그 시점이어야 한다', async () => {
+    const seen: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        seen.push(String(url));
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            String(url).includes('/specs/tree')
+              ? NODES
+              : { items: [], memberships: [], count: 0, summary: {} },
+        };
+      }),
+    );
+    await renderList('/p/demo/specs?baseline=R1');
+    await vi.waitFor(() => {
+      expect(seen.some((u) => u.includes('/specs/tree') && u.includes('baseline=R1'))).toBe(true);
+    });
+  });
+
+  it('기준선 생성 단추의 이름이 바뀌었다 — "동결" 은 화면에서 사라졌다', async () => {
+    await renderList('/p/demo/specs');
+    expect(screen.getByTestId('freeze-baseline').textContent).toBe('기준선 생성…');
+    expect(screen.queryByText(/동결/)).toBeNull();
+  });
+});

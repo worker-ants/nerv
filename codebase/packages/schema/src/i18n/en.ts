@@ -324,8 +324,10 @@ export const en = {
   'spec.rail.rel_out': 'References',
   'spec.rail.relations': 'Relations',
   'specs.baseline': 'Baseline',
-  'specs.baseline_current': 'Current (latest approved)',
-  'specs.freeze': 'Freeze current set…',
+  'specs.baseline_current': 'No baseline',
+  'specs.baseline_hint':
+    'A baseline decides which revision of a document you read. With none chosen, each document reads at its latest approved version (or its current one if it has never been approved); choose one and you see only the documents that set holds, at the revisions it holds them.',
+  'specs.freeze': 'Create baseline…',
   'specs.status_filter': 'Status',
   'specs.status_filter_all': 'All',
   'specs.status_filter_hint':
@@ -336,7 +338,7 @@ export const en = {
     'Shows documents of the chosen type plus their ancestors — combined with status, only what matches both stays',
   'specs.freeze_hint':
     'Names and freezes every spec at its latest approved version as of now. It cannot be changed afterwards — to change the set, make a new one.',
-  'specs.freeze_submit': 'Freeze',
+  'specs.freeze_submit': 'Create',
   'specs.baseline_name': 'Baseline name',
   'specs.baseline_name_placeholder': 'e.g. R1 · 2026-09-release',
   'specs.baseline_note': 'Note',
@@ -404,6 +406,8 @@ export const en = {
   'mcp.tool.attach':
     'Attaching a design mock or an output artifact to a spec. **Call this tool twice, uploading the file yourself in between**: (1) call with filename and content_type to get an upload_url, (2) PUT the file to that URL (Content-Type header only), (3) call again with just attachment_id to commit. The commit response carries the url to read it back. Never pass file contents as an argument to this tool',
   'mcp.arg.attachment_id': 'second step — call again with just this after the upload (commit)',
+  'mcp.arg.baseline_tree':
+    'baseline name — returns only the documents that set holds, at the revisions it holds them (nothing outside the set)',
   'mcp.arg.baseline':
     'Baseline name — reads the version that set pinned for this document. Cannot be combined with version',
   'mcp.arg.base_hash':

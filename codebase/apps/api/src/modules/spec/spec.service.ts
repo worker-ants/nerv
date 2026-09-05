@@ -47,6 +47,7 @@ import { SpecCommentService } from './spec-comment.service.js';
 import type { CheckResult } from './spec-check.service.js';
 import { readerHash } from './reader-hash.js';
 import { requirementsOf, specDelta } from './spec-delta.js';
+import { recomputeImplStatus } from './impl-status.js';
 import { neighborhood, pruneTree } from './spec-tree.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
@@ -202,6 +203,31 @@ export class SpecService {
   }
 
   /**
+   * 기준선 이름 → id. **없는 이름은 거절이지 무시가 아니다**(REQ-API-082 와 같은 규율).
+   *
+   * 조용히 기본으로 떨어뜨리면 사람은 그 세트를 읽었다고 믿는다 — `nerv_spec_get` 이
+   * 이미 같은 판정을 하고 있고(§EP-SPEC-03), 목록도 같은 답을 줘야 한다.
+   */
+  private async baselineId(input: {
+    projectId: string;
+    baseline?: string | null;
+  }): Promise<string> {
+    const { rows } = await this.db.execute<{ id: string }>(sql`
+      SELECT id FROM spec_baseline
+       WHERE project_id = ${input.projectId} AND name = ${input.baseline ?? ''}
+    `);
+    const found = rows[0]?.id;
+    if (found === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.baseline_not_found'), {
+        kind: 'invalid_input',
+        field: 'baseline',
+        unknown: [input.baseline],
+      });
+    }
+    return found;
+  }
+
+  /**
    * nerv_spec_tree · EP-SPEC-01
    *
    * `root`(안정 키 또는 UUID)·`depth`·`status`·`type` 으로 좁힐 수 있다. **아무것도 없으면
@@ -223,14 +249,33 @@ export class SpecService {
     statuses?: readonly string[] | null;
     /** 스펙 종류 6종 — `statuses` 와 함께 오면 AND 다(다른 축이므로 서로를 좁힌다) */
     types?: readonly string[] | null;
+    /** 기준선 이름 — 주면 **그 세트가 담은 문서만**, 그때 핀된 판으로 준다(REQ-API-098) */
+    baseline?: string | null;
   }): Promise<SpecTreeNode[]> {
     const archived = input.includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
+
+    // **기준선은 세트다.** 고르면 그 세트가 담은 문서만, 담을 때의 판으로 보여야 한다 —
+    // 그 뒤에 만들어진 문서가 섞이면 그것은 기준선이 아니라 "지금"이다(2026-09-05 사람 지적).
+    // 4.5 §2.4 (4)는 처음부터 그렇게 적고 있었고 목록만 그것을 따르지 않았다.
+    const baselineId = input.baseline == null ? null : await this.baselineId(input);
+    const pinned =
+      baselineId === null
+        ? sql``
+        : sql` AND EXISTS (SELECT 1 FROM spec_baseline_item i
+                            WHERE i.baseline_id = ${baselineId} AND i.spec_id = s.id)`;
+    // 판도 그 세트의 것이다 — 제목·자리는 지금 것이지만 "어느 판인가"는 스냅샷을 따른다
+    const version =
+      baselineId === null
+        ? sql`sv.id = s.current_version_id`
+        : sql`sv.id = (SELECT i.spec_version_id FROM spec_baseline_item i
+                        WHERE i.baseline_id = ${baselineId} AND i.spec_id = s.id)`;
+
     const { rows } = await this.db.execute<SpecTreeNode>(sql`
       SELECT s.id, s.key, s.title, s.type::text AS type, s.parent_id, s.sort_key,
              s.archived_at, sv.status::text AS doc_status, sv.version_no
         FROM spec s
-   LEFT JOIN spec_version sv ON sv.id = s.current_version_id
-       WHERE s.project_id = ${input.projectId}${archived}
+   LEFT JOIN spec_version sv ON ${version}
+       WHERE s.project_id = ${input.projectId}${archived}${pinned}
        ORDER BY s.sort_key, s.key
     `);
     const depth = input.depth ?? null;
@@ -305,6 +350,7 @@ export class SpecService {
     depth?: number | null;
     statuses?: readonly string[] | null;
     types?: readonly string[] | null;
+    baseline?: string | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const nodes = await this.tree(input);
     const visible = new Set(nodes.map((node) => node.id));
@@ -1562,8 +1608,11 @@ export class SpecService {
 
   /**
    * EP-REQ-03 — 증적 등록. CI 가 PAT 로 부르는 경로이기도 하다.
-   * 증적이 붙으면 impl_status 를 자동으로 올리지 **않는다** — 무엇이 구현됐다는 판단은
-   * 사람·게이트의 몫이고, 증적은 그 판단의 재료다(§5.5 "증적 결손"이 그래서 의미를 갖는다).
+   *
+   * **증적 하나로는 아무것도 올라가지 않는다.** 구현 축은 파생값이고(D-03), `implemented` 는
+   * "파생 Task 전부 `done` **그리고** 증적 1건 이상" 둘을 함께 요구한다 — 증적은 그 판단의
+   * 재료이지 판단 자체가 아니다. 그래서 여기서는 **다시 파생할 뿐**이고, 조건이 아직 안 찼으면
+   * 값은 그대로다(2026-09-05 — 파생 경로가 생기기 전까지 이 주석은 "올리지 않는다" 였다).
    */
   async addEvidence(input: {
     projectId: string;
@@ -1582,6 +1631,8 @@ export class SpecService {
               ${input.kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
               ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
     `);
+    // 조건이 다 찼으면 여기서 `implemented` 가 된다 — 안 찼으면 값은 그대로다
+    await recomputeImplStatus(this.db, requirement['id'] as string);
     return { evidence_id: evidenceId, ref: input.ref, kind: input.kind, locator: input.locator };
   }
 

@@ -72,6 +72,7 @@ export class SpecController {
     @Query('depth') depth?: string,
     @Query('status') status?: string,
     @Query('type') type?: string,
+    @Query('baseline') baseline?: string,
   ): Promise<SpecTreeNode[]> {
     return this.specs.tree({
       projectId: projectOf(req),
@@ -85,6 +86,7 @@ export class SpecController {
           : status.split(',').map((value) => value.trim()),
       types:
         type === undefined || type === '' ? null : type.split(',').map((value) => value.trim()),
+      baseline: baseline === undefined || baseline === '' ? null : baseline,
     });
   }
 
@@ -97,10 +99,13 @@ export class SpecController {
   graph(
     @Req() req: ProjectRequest,
     @Query('include_archived') includeArchived?: string,
+    @Query('baseline') baseline?: string,
   ): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     return this.specs.graph({
       projectId: projectOf(req),
       includeArchived: includeArchived === 'true',
+      // 표·그래프도 같은 세트를 봐야 한다 — 탭을 옮겼다고 목록이 달라지면 그것이 혼동이다
+      baseline: baseline === undefined || baseline === '' ? null : baseline,
     });
   }
 

@@ -39,6 +39,7 @@ export class SpecTools implements NervToolProvider {
           depth: { type: 'integer', minimum: 0, description: 'mcp.arg.spec_depth' },
           status: { type: 'string', description: 'mcp.arg.spec_status_filter' },
           type: { type: 'string', description: 'mcp.arg.spec_type_filter' },
+          baseline: { type: 'string', description: 'mcp.arg.baseline_tree' },
           // 관계까지 필요하면 여기서 함께 받는다 — 별도 도구를 만들지 않는 이유는
           // "구조를 달라"는 한 가지 요청이기 때문이다(도구 15종 고정 — scope.md §4.2)
           include_relations: { type: 'boolean', default: false },
@@ -66,6 +67,7 @@ export class SpecTools implements NervToolProvider {
         const statuses = status === null ? null : status.split(',').map((value) => value.trim());
         const type = typeof input['type'] === 'string' ? input['type'] : null;
         const types = type === null ? null : type.split(',').map((value) => value.trim());
+        const baseline = typeof input['baseline'] === 'string' ? input['baseline'] : null;
 
         // 계층(root·depth)과 관계(around·hops)는 **다른 축**이다. 섞어 받으면 "어느 쪽이
         // 이겼나"를 매번 물어야 하고, 그 물음이 생기는 순간 좁히기의 값어치가 사라진다.
@@ -126,10 +128,18 @@ export class SpecTools implements NervToolProvider {
               depth,
               statuses,
               types,
+              baseline,
             }),
           };
         }
-        return this.specs.graph({ projectId: ctx.projectId, root, depth, statuses, types });
+        return this.specs.graph({
+          projectId: ctx.projectId,
+          root,
+          depth,
+          statuses,
+          types,
+          baseline,
+        });
       },
     },
     {

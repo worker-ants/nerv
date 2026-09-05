@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.70 (2026-09-05)</span>
+      <span>버전 v0.72 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -1185,6 +1185,7 @@ export const TaskCreateInput = z.object({
       <tr><td>REQ-WEB-019</td><td>WHEN 세션 카드를 렌더링하면 THE SYSTEM SHALL 사용자·hostname·에이전트 종류·하트비트 상대 시각·리스 잔여·diff 통계를 표기하며, hostname이 없는 세션은 렌더링하지 않는다(ui-wireframes §3.3)</td></tr>
       <tr><td>REQ-WEB-020</td><td>WHEN 세션이 <code>stale</code>로 전이되면 THE SYSTEM SHALL 카드에 회수된 Task ID와 "무활동 임계 30:00 초과 → 자동 전이"를 표시한다(D-13)</td></tr>
       <tr><td>REQ-WEB-116</td><td>WHEN 세션 요약 스트립의 상태를 고르면 THE SYSTEM SHALL 그 상태의 세션만 목록에 담고(서버 질의), 다시 누르면 푼다. WHILE 필터가 켜져 있으면 THE SYSTEM SHALL 요약 숫자는 프로젝트 전체를 유지하고, 결과가 없을 때 "세션 없음"이 아니라 <b>그 상태가 없다</b>고 적는다</td></tr>
+      <tr><td>REQ-WEB-140</td><td>WHILE 스펙 목록의 세 탭(트리·표·관계 그래프) 사이를 오가는 동안 THE SYSTEM SHALL 화면 머리의 동작 줄을 <b>같은 구성으로</b> 유지하고, 그 탭에만 듣는 조작(상태·종류 필터)은 <b>그 탭 자신의 조작 줄</b>에 둔다 — 한 탭에서만 칸이 늘면 줄이 넘쳐 그 탭만 배치가 달라지고, 사람은 탭을 옮길 때마다 눈으로 자리를 다시 찾는다</td></tr>
       <tr><td>REQ-WEB-139</td><td>WHEN 세션 요약 스트립을 렌더링하면 THE SYSTEM SHALL <code>session_state</code> 여섯을 <b>어휘 순서 그대로</b> 표시하고, 그 프로젝트에 하나도 없는 상태도 <code>0</code> 으로 자리를 지키게 하되 물러서 보이고 <b>눌리지 않게</b> 한다 — 있는 것만 그리면 "오류 0건" 과 "오류라는 상태가 없음" 을 구별할 수 없고, 칸이 프로젝트마다·시각마다 자리를 바꿔 앉는다. WHILE 세션이 하나도 없는 동안 THE SYSTEM SHALL 0 여섯 대신 문장(빈 상태)을 보인다</td></tr>
       <tr><td>REQ-WEB-021</td><td>WHEN 사용자가 stop을 실행하면 THE SYSTEM SHALL 확인 다이얼로그에서 사유를 필수로 받고, 처리 후 해당 Task가 <code>ready</code>로 회수된 것을 보드에 반영한다</td></tr>
     </tbody>

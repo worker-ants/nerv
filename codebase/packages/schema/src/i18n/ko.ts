@@ -320,8 +320,10 @@ export const ko = {
   'spec.rail.rel_out': '레퍼런스',
   'spec.rail.relations': '관계',
   'specs.baseline': '기준선',
-  'specs.baseline_current': '현재(최신 승인본)',
-  'specs.freeze': '현재 세트로 동결…',
+  'specs.baseline_current': '기준선 없음',
+  'specs.baseline_hint':
+    '기준선은 문서를 어느 판으로 읽을지 정합니다. 고르지 않으면 각 문서를 최신 승인본으로(승인본이 없으면 지금 판으로) 읽고, 고르면 그 세트가 담은 문서만 그때의 판으로 보입니다.',
+  'specs.freeze': '기준선 생성…',
   'specs.status_filter': '상태',
   'specs.status_filter_all': '전체',
   'specs.status_filter_hint':
@@ -332,7 +334,7 @@ export const ko = {
     '고른 종류의 문서와 그 상위 문서만 보입니다 — 상태와 함께 걸면 둘 다 맞는 것만 남습니다',
   'specs.freeze_hint':
     '지금 시점의 스펙별 최신 승인본 전체를 한 세트로 묶어 이름을 붙입니다. 만든 뒤에는 바꿀 수 없습니다 — 세트를 바꾸려면 새로 만듭니다.',
-  'specs.freeze_submit': '동결',
+  'specs.freeze_submit': '생성',
   'specs.baseline_name': '기준선 이름',
   'specs.baseline_name_placeholder': '예: R1 · 2026-09-릴리스',
   'specs.baseline_note': '메모',
@@ -398,6 +400,8 @@ export const ko = {
   'mcp.arg.attachment_id': '둘째 단계 — 올린 뒤 이것만 실어 다시 부른다(확정)',
   'mcp.arg.baseline':
     '베이스라인 이름 — 그 세트가 이 문서에 핀해 둔 판을 읽는다. version 과 함께 줄 수 없다',
+  'mcp.arg.baseline_tree':
+    '베이스라인 이름 — 주면 그 세트가 담은 문서만, 담을 때의 판으로 온다(세트 밖은 오지 않는다)',
   'mcp.arg.base_hash':
     '내가 보고 쓴 본문의 지문 — nerv_spec_get 응답의 content_hash. 기존 문서를 고칠 때는 필수다',
   'mcp.arg.blocking':

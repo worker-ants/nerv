@@ -110,11 +110,23 @@ export function useSpecTree(
   slug: string,
   projectId?: string,
   includeArchived = false,
+  /**
+   * 기준선 — 고르면 **그 세트가 담은 문서만**, 그때 핀된 판으로 온다(REQ-API-098).
+   *
+   * 기준선은 세트다. 그 뒤에 만들어진 문서가 목록에 섞이면 그것은 기준선이 아니라
+   * "지금" 이고, 보는 사람은 그 세트가 그 문서를 담고 있다고 읽는다.
+   */
+  baseline?: string,
 ): UseQueryResult<Row[]> {
+  const pin = baseline === undefined || baseline === '' ? '' : baseline;
   return useQuery({
-    queryKey: [...queryKeys.projectSpecTree(projectId ?? slug), includeArchived],
+    // 세트가 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다
+    queryKey: [...queryKeys.projectSpecTree(projectId ?? slug), includeArchived, pin],
     queryFn: () =>
-      apiFetch<Row[]>(`/projects/${slug}/specs/tree?include_archived=${String(includeArchived)}`),
+      apiFetch<Row[]>(
+        `/projects/${slug}/specs/tree?include_archived=${String(includeArchived)}` +
+          (pin === '' ? '' : `&baseline=${encodeURIComponent(pin)}`),
+      ),
   });
 }
 
@@ -202,12 +214,16 @@ export function useSpecGraph(
   slug: string,
   projectId: string | undefined,
   includeArchived = false,
+  /** 표·그래프도 같은 세트를 본다 — 탭을 옮겼다고 목록이 달라지면 그것이 혼동이다 */
+  baseline?: string,
 ): UseQueryResult<SpecGraph> {
+  const pin = baseline === undefined || baseline === '' ? '' : baseline;
   return useQuery({
-    queryKey: [...queryKeys.projectSpecGraph(projectId ?? slug), includeArchived],
+    queryKey: [...queryKeys.projectSpecGraph(projectId ?? slug), includeArchived, pin],
     queryFn: () =>
       apiFetch<SpecGraph>(
-        `/projects/${slug}/specs/graph?include_archived=${String(includeArchived)}`,
+        `/projects/${slug}/specs/graph?include_archived=${String(includeArchived)}` +
+          (pin === '' ? '' : `&baseline=${encodeURIComponent(pin)}`),
       ),
     enabled: projectId !== undefined,
   });
