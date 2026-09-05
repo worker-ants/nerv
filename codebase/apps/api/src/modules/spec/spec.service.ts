@@ -47,6 +47,7 @@ import { SpecCommentService } from './spec-comment.service.js';
 import type { CheckResult } from './spec-check.service.js';
 import { readerHash } from './reader-hash.js';
 import { requirementsOf, specDelta } from './spec-delta.js';
+import { recomputeImplStatus } from './impl-status.js';
 import { neighborhood, pruneTree } from './spec-tree.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
@@ -1562,8 +1563,11 @@ export class SpecService {
 
   /**
    * EP-REQ-03 — 증적 등록. CI 가 PAT 로 부르는 경로이기도 하다.
-   * 증적이 붙으면 impl_status 를 자동으로 올리지 **않는다** — 무엇이 구현됐다는 판단은
-   * 사람·게이트의 몫이고, 증적은 그 판단의 재료다(§5.5 "증적 결손"이 그래서 의미를 갖는다).
+   *
+   * **증적 하나로는 아무것도 올라가지 않는다.** 구현 축은 파생값이고(D-03), `implemented` 는
+   * "파생 Task 전부 `done` **그리고** 증적 1건 이상" 둘을 함께 요구한다 — 증적은 그 판단의
+   * 재료이지 판단 자체가 아니다. 그래서 여기서는 **다시 파생할 뿐**이고, 조건이 아직 안 찼으면
+   * 값은 그대로다(2026-09-05 — 파생 경로가 생기기 전까지 이 주석은 "올리지 않는다" 였다).
    */
   async addEvidence(input: {
     projectId: string;
@@ -1582,6 +1586,8 @@ export class SpecService {
               ${input.kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
               ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
     `);
+    // 조건이 다 찼으면 여기서 `implemented` 가 된다 — 안 찼으면 값은 그대로다
+    await recomputeImplStatus(this.db, requirement['id'] as string);
     return { evidence_id: evidenceId, ref: input.ref, kind: input.kind, locator: input.locator };
   }
 

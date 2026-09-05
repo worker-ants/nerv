@@ -17,7 +17,7 @@ Press the **☆** at the right of a row to pin that document (★); press it aga
 
 ## Dialogs and panels
 
-`Esc` closes four places — the **New spec** dialog, the baseline **Freeze** dialog, the **link picker** in a spec body, and the panel for a selected node in the **relationship graph**.
+`Esc` closes four places — the **New spec** dialog, the **Create baseline** dialog, the **link picker** in a spec body, and the panel for a selected node in the **relationship graph**.
 
 In the link picker, `↓` moves down into the results and `Enter` takes the first one.
 

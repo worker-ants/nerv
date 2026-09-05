@@ -213,3 +213,42 @@ describe('REQ-WEB-138 종류 필터 — 뼈대만 보기', () => {
     });
   });
 });
+
+/**
+ * **상단 배치는 세 탭이 같아야 한다**(REQ-WEB-140 · 2026-09-05 사람 지적).
+ *
+ * 상태·종류 선택기가 화면 머리의 동작 줄에 있던 동안 칸이 둘 더 붙어 줄이 넘쳤고,
+ * **트리 탭만 표·그래프와 다른 모양**이 됐다. 트리에만 듣는 조작이니 트리의 조작 줄이
+ * 그 자리다 — 그러면 머리의 동작 줄은 어느 탭에서나 같다.
+ */
+describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () => {
+  it('두 선택기는 트리의 조작 줄 안에 있다 — 머리의 동작 줄이 아니다', async () => {
+    const { full } = await renderList('/p/demo/specs');
+    // 트리 컨테이너 안에서 찾을 수 있어야 한다
+    expect(full.getByTestId('status-filter')).toBeDefined();
+    expect(full.getByTestId('type-filter')).toBeDefined();
+    // 그리고 트리 자신의 조작들과 같은 줄에 산다
+    const row = full.getByTestId('status-filter').closest('div');
+    expect(row?.contains(full.getByTestId('tree-expand-all'))).toBe(true);
+    expect(row?.contains(full.getByTestId('tree-count'))).toBe(true);
+  });
+
+  it('머리의 동작 줄에는 세 탭에 공통인 것만 남는다', async () => {
+    await renderList('/p/demo/specs');
+    const actions = screen.getByTestId('new-spec').closest('form');
+    expect(actions).not.toBeNull();
+    for (const id of ['freeze-baseline', 'show-archived']) {
+      expect(actions?.querySelector(`[data-testid="${id}"]`)).not.toBeNull();
+    }
+    // 트리 전용 조작은 그 줄에 없다
+    for (const id of ['status-filter', 'type-filter']) {
+      expect(actions?.querySelector(`[data-testid="${id}"]`)).toBeNull();
+    }
+  });
+
+  it('기준선 생성 단추의 이름이 바뀌었다 — "동결" 은 화면에서 사라졌다', async () => {
+    await renderList('/p/demo/specs');
+    expect(screen.getByTestId('freeze-baseline').textContent).toBe('기준선 생성…');
+    expect(screen.queryByText(/동결/)).toBeNull();
+  });
+});

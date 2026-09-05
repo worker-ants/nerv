@@ -325,7 +325,7 @@ export const en = {
   'spec.rail.relations': 'Relations',
   'specs.baseline': 'Baseline',
   'specs.baseline_current': 'Current (latest approved)',
-  'specs.freeze': 'Freeze current set…',
+  'specs.freeze': 'Create baseline…',
   'specs.status_filter': 'Status',
   'specs.status_filter_all': 'All',
   'specs.status_filter_hint':
@@ -336,7 +336,7 @@ export const en = {
     'Shows documents of the chosen type plus their ancestors — combined with status, only what matches both stays',
   'specs.freeze_hint':
     'Names and freezes every spec at its latest approved version as of now. It cannot be changed afterwards — to change the set, make a new one.',
-  'specs.freeze_submit': 'Freeze',
+  'specs.freeze_submit': 'Create',
   'specs.baseline_name': 'Baseline name',
   'specs.baseline_name_placeholder': 'e.g. R1 · 2026-09-release',
   'specs.baseline_note': 'Note',

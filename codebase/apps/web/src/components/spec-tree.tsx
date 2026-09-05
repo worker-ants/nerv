@@ -62,6 +62,14 @@ export interface SpecTreeProps {
   statuses?: readonly string[];
   /** 스펙 종류 필터 — `statuses` 와 함께 걸면 **둘 다 맞는 것**만이다(REQ-API-093) */
   types?: readonly string[];
+  /**
+   * 이 트리에만 딸린 조작 — 필터 줄 맨 앞에 선다(REQ-WEB-140).
+   *
+   * 상태·종류 선택기가 화면 머리의 동작 줄에 있던 동안 **트리 탭만 상단 배치가 달랐다**:
+   * 칸이 둘 더 붙어 줄이 넘치면서 표·그래프와 다른 모양이 됐다. 트리에만 듣는 조작이니
+   * 트리의 조작 줄이 그것들의 자리다 — 그러면 머리의 동작 줄은 세 탭이 같아진다.
+   */
+  controls?: React.ReactNode;
 }
 
 /**
@@ -162,6 +170,7 @@ export function SpecTree({
   includeArchived = false,
   statuses,
   types,
+  controls,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId, includeArchived);
@@ -431,7 +440,8 @@ export function SpecTree({
         </div>
       )}
       {variant === 'full' && (
-        <div className="mb-2 flex items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          {controls}
           <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

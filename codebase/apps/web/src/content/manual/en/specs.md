@@ -27,7 +27,7 @@ The **Status** selector above the list narrows it by status — `draft`, `in rev
 
 The **Type** selector beside it works the same way. Choose `Skeleton (vision + area)` and only the documents that **hold a place** remain, so the shape of the tree is visible at a glance — a project of 141 documents has a skeleton of 17. It is a good way to decide where a new document belongs. Set both and only what matches **both** stays.
 
-Both selectors appear **only on the tree tab** — switch to the table or the relationship graph and they are gone.
+Both selectors appear **only on the tree tab**, in the tree's own control row beside the filter and the expand/collapse buttons — switch to the table or the relationship graph and they are gone.
 
 ## Versions and statuses
 
@@ -47,7 +47,7 @@ Specs run ahead of implementation. While new versions get approved document by d
 
 A **baseline** names that set and freezes it.
 
-- Create one with **[Freeze current set…]** above the list (planner/admin). It captures every spec at its latest approved version as of now.
+- Create one with **[Create baseline…]** above the list (planner/admin). It captures every spec at its latest approved version as of now.
 - **It cannot be changed afterwards.** To change the set, make a new one — that is what makes a given baseline answer the same way whenever you look.
 - Pick one from the **baseline selector** and it stays in the address, following you into the detail view. **Hand someone the link and they see the same set.**
 - A badge at the top of the document says which set you are reading. If that set does not contain this document (one created later), you get the latest version instead, marked **"not in set"** — you are never quietly handed a different version.
@@ -126,7 +126,17 @@ Requirements in a spec body are extracted and carry their own implementation sta
 
 Requirement rows are created from the body **when a version is approved**. Writing EARS sentences into a draft is not enough — a draft is not yet a promise. When a sentence drops out of a later revision the row is not deleted; **which revision dropped it** is recorded instead.
 
-Priority starts at `must`, because the EARS line in the body does not carry one. **There is still no path that advances an implementation status**: everything starts at `unimplemented` and stays there, and only projects that came in through the importer carry other values.
+Priority starts at `must`, because the EARS line in the body does not carry one.
+
+**Implementation status is not something a person marks.** The server derives it from the tasks that came out of that requirement.
+
+| Status          | When                                                           |
+| --------------- | -------------------------------------------------------------- |
+| `unimplemented` | Every derived task is `backlog` or `ready`                     |
+| `in_progress`   | At least one is **claimed** or under way                       |
+| `implemented`   | All are `done` **and** there is at least one piece of evidence |
+
+**All done with no evidence stays `in_progress`** — to say it is finished, attach something to show. `verified` is not marked by the server yet: its conditions (a QA verification record, and no open `critical` in that commit range) are not something the data carries today, and marking it without them would make the value mean nothing. Values that came in through the importer are left alone.
 
 The document header also carries a **references updated** badge: it lights when a document this one points at has moved ahead of the version you are reading, and it names which one. It is the server's judgement, not the screen's guess.
 

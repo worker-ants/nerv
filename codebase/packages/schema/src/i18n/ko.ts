@@ -321,7 +321,7 @@ export const ko = {
   'spec.rail.relations': '관계',
   'specs.baseline': '기준선',
   'specs.baseline_current': '현재(최신 승인본)',
-  'specs.freeze': '현재 세트로 동결…',
+  'specs.freeze': '기준선 생성…',
   'specs.status_filter': '상태',
   'specs.status_filter_all': '전체',
   'specs.status_filter_hint':
@@ -332,7 +332,7 @@ export const ko = {
     '고른 종류의 문서와 그 상위 문서만 보입니다 — 상태와 함께 걸면 둘 다 맞는 것만 남습니다',
   'specs.freeze_hint':
     '지금 시점의 스펙별 최신 승인본 전체를 한 세트로 묶어 이름을 붙입니다. 만든 뒤에는 바꿀 수 없습니다 — 세트를 바꾸려면 새로 만듭니다.',
-  'specs.freeze_submit': '동결',
+  'specs.freeze_submit': '생성',
   'specs.baseline_name': '기준선 이름',
   'specs.baseline_name_placeholder': '예: R1 · 2026-09-릴리스',
   'specs.baseline_note': '메모',

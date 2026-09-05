@@ -876,3 +876,96 @@ describe('G2 플랜 승인 — 대형 작업은 착수 전에 사람을 거친�
     return versionId;
   }
 });
+
+/**
+ * **구현 축은 파생값이다**(D-03 · spec-workflow §1.3 — REQ-API-097).
+ *
+ * 그 문장은 처음부터 있었는데 파생하는 코드가 없었다(실측 2026-09-05: `impl_status` 를 바꾸는
+ * UPDATE 가 저장소에 0건). 요구사항은 임포터가 넣어 준 값에 멈춰 있었고, 웹·에이전트로 만든
+ * 요구사항은 영원히 `unimplemented` 였다.
+ */
+describe('구현 축 — 서버가 관계 그래프에서 파생한다', () => {
+  async function reqWithTask(
+    refSuffix: string,
+    taskKey: string,
+  ): Promise<{ reqId: string; taskId: string }> {
+    const specId = newId();
+    const versionId = newId();
+    const specKey = `SPC-IMPL-${refSuffix}`;
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
+      [specId, projectId, specKey],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'approved','# 본문', sha256($3::bytea), $4)`,
+      [versionId, specId, specKey, hana],
+    );
+    const reqId = newId();
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,$4,'WHEN 조건이면 THE SYSTEM SHALL 동작한다','must',$5,$5)`,
+      [reqId, projectId, specId, `REQ-IMPL-${refSuffix}`, versionId],
+    );
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_requirement_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,$3,'ready',$4,'목표','PR','저장소','경계')`,
+      [taskId, projectId, taskKey, reqId],
+    );
+    return { reqId, taskId };
+  }
+
+  const statusOf = async (reqId: string): Promise<string> => {
+    const { rows } = await pool.query<{ s: string }>(
+      `SELECT impl_status::text AS s FROM requirement WHERE id = $1`,
+      [reqId],
+    );
+    return rows[0]?.s ?? '';
+  };
+
+  it('클레임이 `unimplemented → in_progress` 를 만든다', async () => {
+    const { reqId, taskId } = await reqWithTask('A', 'TSK-IMPL-A');
+    expect(await statusOf(reqId)).toBe('unimplemented');
+
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
+    expect(await statusOf(reqId)).toBe('in_progress');
+  });
+
+  it('완료하면 `implemented` 가 된다 — Task 가 전부 done 이고 증적이 붙었을 때', async () => {
+    const { reqId, taskId } = await reqWithTask('B', 'TSK-IMPL-B');
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId: hana,
+      sessionId: sessionHana,
+      specImpact: { none: true },
+      evidence: [{ kind: 'commit', locator: 'abc1234' }],
+    });
+    expect(await statusOf(reqId)).toBe('implemented');
+  });
+
+  it('요구사항에 매이지 않은 Task 는 아무것도 건드리지 않는다', async () => {
+    const loose = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-IMPL-LOOSE','loose','ready','목표','PR','저장소','경계')`,
+      [loose, projectId],
+    );
+    await expect(tasks.claim(claimInput(loose, sessionHana, hana))).resolves.toMatchObject({
+      replayed: false,
+    });
+  });
+
+  it('이미 `verified` 인 행은 내리지 않는다 — 그 칸의 조건은 여기서 판정하지 않는다', async () => {
+    const { reqId, taskId } = await reqWithTask('V', 'TSK-IMPL-V');
+    await pool.query(`UPDATE requirement SET impl_status = 'verified' WHERE id = $1`, [reqId]);
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
+    expect(await statusOf(reqId)).toBe('verified');
+  });
+});

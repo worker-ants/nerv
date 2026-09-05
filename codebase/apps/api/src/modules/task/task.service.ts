@@ -29,6 +29,7 @@ import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
 import { ApprovalService } from '../approval/approval.service.js';
+import { recomputeImplStatus } from '../spec/impl-status.js';
 import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
@@ -790,6 +791,9 @@ export class TaskService {
         ttlSeconds: ttl,
       });
 
+      // 구현 축은 파생값이다(D-03) — 클레임이 `unimplemented → in_progress` 를 만든다
+      await this.refreshImplStatus(tx, task.source_requirement_id);
+
       await emit({
         type: NERV_EVENT.TASK_CLAIMED,
         projectId: task.project_id,
@@ -1048,6 +1052,17 @@ export class TaskService {
    * 정합 결정을 강제 동반"하게 만들면 완료 시점에 아무도 스펙을 보지 않는 사태가 구조적으로
    * 불가능해진다. `none` sentinel 을 허용하되 **선언 자체는 필수**라는 점이 핵심이다.
    */
+  /**
+   * 구현 축을 다시 파생한다(D-03 · spec-workflow §1.3). 규칙은 `impl-status.ts` 한 곳이다.
+   *
+   * 요구사항에 매이지 않은 Task 도 많으므로 `null` 이면 할 일이 없다 — 그때 조용히 지나가는
+   * 것이 맞다(요구사항 없는 작업이 잘못된 것은 아니다).
+   */
+  private async refreshImplStatus(tx: Tx, requirementId: string | null): Promise<void> {
+    if (requirementId === null) return;
+    await recomputeImplStatus(tx, requirementId);
+  }
+
   async transition(input: {
     projectId: string;
     taskId: string;
@@ -1063,8 +1078,14 @@ export class TaskService {
     return this.events.transact(async (tx, emit) => {
       // 키로 왔든 UUID 로 왔든 같은 작업을 가리킨다(§1.4b)
       const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
-      const { rows } = await tx.execute<{ status: string; project_id: string; key: string }>(
-        sql`SELECT status::text AS status, project_id, key FROM task WHERE id = ${taskId} FOR UPDATE`,
+      const { rows } = await tx.execute<{
+        status: string;
+        project_id: string;
+        key: string;
+        source_requirement_id: string | null;
+      }>(
+        sql`SELECT status::text AS status, project_id, key, source_requirement_id
+              FROM task WHERE id = ${taskId} FOR UPDATE`,
       );
       const task = rows[0];
       if (task === undefined || task.project_id !== input.projectId) {
@@ -1133,6 +1154,7 @@ export class TaskService {
           fromState: task.status,
           toState: 'done',
         });
+        await this.refreshImplStatus(tx, task.source_requirement_id);
         return { status: 'done', gate };
       }
 
