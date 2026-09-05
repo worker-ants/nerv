@@ -2,8 +2,9 @@
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **37개 엔티티**(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.9 · 2026-09-05 · HTML 판: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.10 · 2026-09-05 · HTML 판: [data-model.html](../html/data-model.html)
 >
+> v0.10 변경(2026-09-05 — 의미 정본이 값 하나를 모르고 있었다, 정합성 감사): §2.7 `approval.subject_type` 이 다섯 값에서 멈춰 있었다 — `finding` 이 2026-08-23 에 더해졌고(critical 하향 A3 의 승인 카드) 4.3 DDL·enum 은 여섯인데 **의미 정본인 이 표만** 다섯이었다.
 > v0.9 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §2.2 리스 설명의 `base_version` 을 **`base_hash`** 로 고친다. **열 이름 `base_version_id` 는 그대로다** — 걷은 것은 요청 표면의 인자이지 계보 열이 아니다.
 > v0.8 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): 요약의 "29개 엔티티" 를 **37개**(도메인 33 + 인프라 4)로 고친다 — 이 문서가 엔티티 의미의 정본인데 그 수가 여덟 판 낡아 있었고, 4.5·4.8 이 그 수를 그대로 인용하고 있었다.
 > v0.7 변경(2026-09-05 — 죽은 스코프의 마지막 자리, 정합성 감사): §2.9 `api_token.scopes` 의 예시가 `spec:write`·`review:write`·`session:write` 를 들고 있었다 — 어휘에 없는 값 셋이고, [4.3](../04-mvp/database.md) v0.24 가 이미 결함으로 지목한 그것이다. 어휘 정본이 `@nerv/schema` 의 `AGENT_SCOPES`(10종)이라는 사실과 사람 전용 둘은 토큰이 가질 수 없다는 사실을 함께 적는다.
@@ -566,7 +567,7 @@ ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 �
 | --- | --- | --- |
 | `id` | uuid PK | |
 | `project_id` | uuid FK | |
-| `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass` |
+| `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass / **finding**` — 여섯이다. `finding` 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정) |
 | `subject_id` | uuid | 대상 엔티티 ID(다형 참조) |
 | `requested_by_user_id` · `requested_by_session_id` | uuid FK | 지시자 |
 | `assignee_user_id` | uuid FK NULL | 지정 승인자 |

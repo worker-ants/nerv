@@ -15,7 +15,17 @@
 //   finding          라운드를 넘어 하나로 유지되는 지적. `(project, fingerprint)` 가 UNIQUE.
 
 import { Injectable } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/schema';
+import {
+  FINDING_PAGE_LIMIT_DEFAULT,
+  FINDING_PAGE_LIMIT_MAX,
+  GATE_BRANCH_LIMIT_DEFAULT,
+  GATE_BRANCH_LIMIT_MAX,
+  msg,
+  newId,
+  NERV_ERROR,
+  NERV_EVENT,
+  NERV_EVENT_PHASE2,
+} from '@nerv/schema';
 import { changesetHash, findingFingerprint } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import { EventService } from '../event/event.service.js';
@@ -904,7 +914,10 @@ export class ReviewService {
     const tags = (input.tag ?? []).filter((t) => t.trim() !== '');
     // 상한은 계약이 정한다 — clemvion 실측 18,650 발견을 한 응답에 담으면 화면이
     // 3만 픽셀이 된다(실측 2026-08-24). 잘린 사실은 facet 총계가 말한다.
-    const limit = Math.min(Math.max(input.limit ?? FINDING_PAGE, 1), FINDING_PAGE_MAX);
+    const limit = Math.min(
+      Math.max(input.limit ?? FINDING_PAGE_LIMIT_DEFAULT, 1),
+      FINDING_PAGE_LIMIT_MAX,
+    );
 
     // **상한만 있고 커서가 없으면 목록은 벽이다**(2026-09-03 · REQ-API-083).
     // 화면의 [더 보기] 는 200 에서 멈추고 서버도 거기서 끝이라, 열린 발견 18,653건 중
@@ -1052,7 +1065,7 @@ export class ReviewService {
    */
   async gateCoverage(
     projectId: string,
-    limit = GATE_BRANCH_LIMIT,
+    limit = GATE_BRANCH_LIMIT_DEFAULT,
   ): Promise<{ items: Record<string, unknown>[]; total: number }> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       WITH latest AS (
@@ -1121,13 +1134,6 @@ export interface FindingFacets {
 
 /** 필터가 받는 값 — 열거 밖은 버린다(정본: enums.ts `finding_area`) */
 export const FINDING_AREAS = ['codebase', 'spec', 'task', 'process'] as const;
-
-/** 한 화면에 담기는 발견 수. 넘는 것은 필터로 좁힌다 — 무한 스크롤은 답이 아니다 */
-const FINDING_PAGE = 50;
-const FINDING_PAGE_MAX = 200;
-/** 게이트 표의 브랜치 수 — 최근 리뷰 순. clemvion 실측 441개다 */
-const GATE_BRANCH_LIMIT = 20;
-const GATE_BRANCH_LIMIT_MAX = 200;
 
 const FINDING_SEVERITIES = ['critical', 'warning', 'info'] as const;
 const FINDING_STATUSES = ['open', 'fixed', 'dismissed', 'wont_fix'] as const;

@@ -191,6 +191,22 @@ export const PAGE_LIMIT_DEFAULT = 30;
 export const PAGE_LIMIT_MAX = 100;
 
 /**
+ * **발견 큐만 상한이 다르다**(REQ-CB-006 의 예외 — 2026-09-05 에 여기로 올렸다).
+ *
+ * 근거는 규모다: clemvion 소급 적재 실측에서 발견이 **18,650건**이라 30건씩 끊으면
+ * facet 을 좁히기 전에 페이지만 넘기게 된다(4.5 §2.6a). 게이트 표의 브랜치도 같다 —
+ * 실측 441개다.
+ *
+ * **이 값들이 `review.service.ts` 안에 있었다.** 화면이 "더 있다" 를 판단하는 값과
+ * 서버가 자르는 값이 갈리면 마지막 페이지에서 어긋나는데(그것이 위 두 상수를 여기 둔
+ * 이유다), 정작 예외인 쪽이 서비스 파일에 박혀 있어 화면은 그 수를 알 길이 없었다.
+ */
+export const FINDING_PAGE_LIMIT_DEFAULT = 50;
+export const FINDING_PAGE_LIMIT_MAX = 200;
+export const GATE_BRANCH_LIMIT_DEFAULT = 20;
+export const GATE_BRANCH_LIMIT_MAX = 200;
+
+/**
  * S4 작업 보드의 `done` 레인이 기본으로 보여 주는 기간 — screens.md §2.5 의 `done(7d)`.
  *
  * **끝난 일은 시간이 지나면 배경이 된다.** clemvion 실측에서 Task 487건 중 done 이 419건
