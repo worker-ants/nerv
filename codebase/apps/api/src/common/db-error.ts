@@ -23,14 +23,30 @@ const KIND: Record<string, string> = {
   '23502': 'not_null_violation',
   '23514': 'check_violation',
   '22001': 'too_long',
+  // **오타는 서버의 잘못이 아니다**(2026-09-05 · REQ-API-074·082 의 마지막 조각).
+  //
+  // 값이 어휘 밖이면 `::enum` 캐스팅이 22P02 로 죽는데 이 목록에 없어서 **진짜 500** 으로
+  // 나갔다 — 클라이언트는 고칠 수 없는 요청을 재시도한다. 어휘 검사를 미리 두는 것이 더
+  // 친절한 답을 주지만(어느 목록에서 벗어났는지까지 말한다), 그것을 모든 자리에 심기 전까지
+  // **여기가 그물**이다: 남은 자리가 어디든 500 이 아니라 400 이 된다.
+  '22P02': 'invalid_text_representation',
 };
 
-const MESSAGE: Record<string, (fields: string, constraint: string) => Message> = {
-  unique_violation: (fields) => msg('error.db.unique_violation', { fields }),
-  foreign_key_violation: (fields) => msg('error.db.foreign_key_violation', { fields }),
-  not_null_violation: (fields) => msg('error.db.not_null_violation', { fields }),
-  check_violation: (_, constraint) => msg('error.db.check_violation', { constraint }),
-  too_long: (fields) => msg('error.db.too_long', { fields }),
+interface Spoken {
+  fields: string;
+  constraint: string;
+  /** 캐스팅이 실패한 타입 이름(`evidence_kind`·`uuid` …). **값은 여기 들어가지 않는다** */
+  pgType: string;
+}
+
+const MESSAGE: Record<string, (spoken: Spoken) => Message> = {
+  unique_violation: ({ fields }) => msg('error.db.unique_violation', { fields }),
+  foreign_key_violation: ({ fields }) => msg('error.db.foreign_key_violation', { fields }),
+  not_null_violation: ({ fields }) => msg('error.db.not_null_violation', { fields }),
+  check_violation: ({ constraint }) => msg('error.db.check_violation', { constraint }),
+  too_long: ({ fields }) => msg('error.db.too_long', { fields }),
+  invalid_text_representation: ({ pgType }) =>
+    msg('error.db.invalid_text_representation', { type: pgType }),
 };
 
 interface PgFailure {
@@ -39,6 +55,8 @@ interface PgFailure {
   detail?: string;
   column?: string;
   table?: string;
+  /** 22P02 의 유일한 단서다 — 다만 **값이 들어 있으므로** 그대로 내보내지 않는다 */
+  message?: string;
 }
 
 /**
@@ -80,6 +98,22 @@ export function fieldsOf(failure: PgFailure): string[] {
 }
 
 /**
+ * 캐스팅이 실패한 **타입 이름**만 뽑는다 — `invalid input value for enum evidence_kind: "…"`.
+ *
+ * 콜론 앞까지만 읽는 것이 요점이다. 뒤에는 **사용자가 보낸 값**이 그대로 들어 있고, 이 파일의
+ * 규율은 값을 싣지 않는 것이다(맨 위 주석). 타입 이름은 스키마의 사실이라 새는 것이 없다.
+ *
+ * 못 읽으면 빈 문자열이다 — 서버 로케일(`lc_messages`)이 영어가 아니면 그럴 수 있고,
+ * 그때도 "값의 모양이 맞지 않는다" 는 말은 남는다.
+ */
+export function pgTypeOf(failure: PgFailure): string {
+  const matched = /invalid input (?:value for enum|syntax for type) ([^:"]+):/i.exec(
+    failure.message ?? '',
+  );
+  return matched?.[1]?.trim() ?? '';
+}
+
+/**
  * 사람에게 보일 필드 — **범위 열은 뺀다.**
  *
  * `(org_id, key)` 유니크에서 사람이 고른 값은 `key` 하나다. `org_id` 는 그 사람이 지금 있는
@@ -107,11 +141,17 @@ export function dbConstraintError(exception: unknown): NervError | null {
   const fields = fieldsOf(failure);
   const spoken = spokenFields(fields);
   const constraint = failure.constraint ?? '';
-  return new NervError(NERV_ERROR.PRECONDITION, build(spoken.join(', '), constraint), {
-    kind,
-    fields,
-    // 제약 이름은 정확한 손잡이다 — 필드 이름을 못 읽었을 때 남는 유일한 단서이기도 하다
-    constraint,
-    ...(failure.table === undefined ? {} : { table: failure.table }),
-  });
+  const pgType = pgTypeOf(failure);
+  return new NervError(
+    NERV_ERROR.PRECONDITION,
+    build({ fields: spoken.join(', '), constraint, pgType }),
+    {
+      kind,
+      fields,
+      // 제약 이름은 정확한 손잡이다 — 필드 이름을 못 읽었을 때 남는 유일한 단서이기도 하다
+      constraint,
+      ...(pgType === '' ? {} : { pg_type: pgType }),
+      ...(failure.table === undefined ? {} : { table: failure.table }),
+    },
+  );
 }

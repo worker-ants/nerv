@@ -79,6 +79,8 @@ export const en = {
   'error.db.check_violation': 'That value is not allowed — see constraint "{constraint}".',
   'error.db.foreign_key_violation':
     'Nothing to point at — {fields}. Create it first, or use another value.',
+  'error.db.invalid_text_representation':
+    'That value does not match what this field accepts — {type}. Check the allowed values.',
   'error.db.not_null_violation': 'A required value is missing — {fields}.',
   'error.db.too_long': 'That value is too long — {fields}.',
   'error.db.unique_violation': 'Already in use — {fields}. Pick another value.',

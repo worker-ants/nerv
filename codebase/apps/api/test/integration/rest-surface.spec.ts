@@ -1038,6 +1038,29 @@ describe('받은 요청·알림·커버리지 표면', () => {
  * 깨지는 것을 못 본다** — 같은 요청에 두 표면이 다르게 답해도 초록이었다.
  */
 describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC-02)', () => {
+  /**
+   * **안전망**(2026-09-05 · `db-error.ts` 에 22P02 추가).
+   *
+   * 어휘 검사를 아직 두지 않은 자리가 남아 있다 — 그 자리에서 값이 `::enum` 캐스팅으로
+   * 죽으면 22P02 가 나는데, `db-error.ts` 의 SQLSTATE 목록에 없어 **진짜 500** 이었다.
+   * 여기서 확인하는 것은 "그물이 실제로 받는가" 다: 멤버 배정의 `role` 은 서비스까지
+   * 검사 없이 내려가는 자리 중 하나다.
+   */
+  it('어휘 밖 값이 DB 까지 내려가도 500 이 아니라 400 이다', async () => {
+    const res = await call('POST', '/api/v1/orgs/nerv/members', {
+      payload: { email: 'viewer@example.com', role: 'superuser', project: 'clemvion' },
+    });
+    expect(res.status).toBe(400);
+    const body = res.body as Record<string, unknown>;
+    expect(body['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect((body['details'] as Record<string, unknown>)['kind']).toBe(
+      'invalid_text_representation',
+    );
+    expect((body['details'] as Record<string, unknown>)['pg_type']).toBe('member_role');
+    // 값은 나가지 않는다 — Postgres 의 메시지에는 들어 있다
+    expect(JSON.stringify(body['details'])).not.toContain('superuser');
+  });
+
   it('초안 저장이 relations 를 나른다 — 예전에는 성공 응답과 함께 버려졌다', async () => {
     const target = await seedSpec('SPC-TARGET');
     const source = await seedSpec('SPC-SOURCE');

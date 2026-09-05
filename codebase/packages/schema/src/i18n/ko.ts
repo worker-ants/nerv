@@ -80,6 +80,8 @@ export const ko = {
   'error.db.check_violation': '허용되지 않는 값입니다 — 제약 "{constraint}" 을 확인하세요.',
   'error.db.foreign_key_violation':
     '가리키는 대상이 없습니다 — {fields}. 먼저 그것부터 만들거나 값을 바꾸세요.',
+  'error.db.invalid_text_representation':
+    '값의 모양이 이 자리가 받는 것과 맞지 않습니다 — {type}. 허용되는 값을 확인하세요.',
   'error.db.not_null_violation': '빠뜨린 값이 있습니다 — {fields}.',
   'error.db.too_long': '값이 너무 깁니다 — {fields}.',
   'error.db.unique_violation': '이미 쓰이고 있는 값입니다 — {fields}. 다른 값을 쓰세요.',

@@ -72,11 +72,14 @@ const STATUS: Record<NervErrorCode, number> = {
 // `invalid_input` 은 **요청의 모양**이 틀린 것이다 — 같은 요청을 다시 보내도 같은 결과다.
 // §1.4 가 가르는 기준("모양이냐 상태냐")대로 400 이다. 409 로 나가던 동안 웹은 이것을
 // 상태 충돌(다시 시도하면 될 일)과 구별할 수 없었다.
+// `invalid_text_representation`(22P02)도 **모양**이다 — 어휘 밖의 값·잘못된 UUID 는 다시
+// 보내도 같은 결과다(2026-09-05). 이 값이 목록에 없어 진짜 500 으로 나가던 자리를 막는다.
 const BAD_REQUEST_KINDS = new Set([
   'not_null_violation',
   'check_violation',
   'too_long',
   'invalid_input',
+  'invalid_text_representation',
 ]);
 
 export function statusFor(code: NervErrorCode, details: Record<string, unknown>): number {
