@@ -188,12 +188,14 @@ export class TaskController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     projectOf(req);
-    const reason = body['reason'];
     return this.tasks.release({
       actor: claimActor(req),
       claimId: claim,
       userId: principalOf(req).userId,
-      reason: reason === 'done' || reason === 'abandon' ? reason : 'handoff',
+      // **고른 값을 그대로 넘긴다**(2026-09-05 · REQ-API-107). 여기 있던 삼항식이
+      // "셋 중 하나가 아니면 handoff" 로 **조용히 바꾸고** 있었다 — 보낸 쪽은 자기가
+      // 고른 값이 들어갔다고 믿는다. 어휘 판정은 도메인 서비스 한 곳이다(D-05).
+      reason: String(body['reason'] ?? ''),
       // **인수인계 노트도 나른다**(2026-09-05 · REQ-API-081). 저장할 열까지 만들어 두고
       // MCP 만 배선했다 — REST 로 내려놓으면 노트는 남았다고 응답하면서 사라졌다.
       stateNote: str(body['state_note']),

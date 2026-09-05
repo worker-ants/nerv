@@ -244,7 +244,7 @@ export class TaskTools implements NervToolProvider {
       handler: async (input, ctx) =>
         this.tasks.release({
           claimId: String(input['claim_id']),
-          reason: input['reason'] as 'done' | 'handoff' | 'abandon',
+          reason: String(input['reason'] ?? ''),
           userId: ctx.principal.userId,
           stateNote: str(input['state_note']),
           actor: claimActor(ctx),

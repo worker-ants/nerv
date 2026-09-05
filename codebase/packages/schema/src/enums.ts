@@ -74,12 +74,37 @@ export const taskStatus = pgEnum('task_status', [
 export const taskPriority = pgEnum('task_priority', ['P0', 'P1', 'P2', 'P3']);
 export const dependencyKind = pgEnum('dependency_kind', ['blocks', 'relates']);
 export const claimStatus = pgEnum('claim_status', ['active', 'released', 'expired', 'revoked']);
+/**
+ * 클레임을 왜 내려놓았나.
+ *
+ * **입력 셋과 저장 넷이 어긋나 있었다**(2026-09-05 정정 · 사람 결정). 표면은
+ * `done`/`handoff`/`abandon` 을 받는데 저장은 `done` 외를 전부 `manual` 로 뭉쳤다 —
+ * **인계와 포기가 저장에서 구별되지 않았고**, 그 대응이 의도인지 사고인지 말하는
+ * 문장도 어디에도 없었다. 구별을 저장에 남긴다.
+ *
+ * 셋은 사람·에이전트가 **고른** 이유이고, 둘은 서버가 **판정한** 이유다:
+ * `expired` 는 리스가 만료된 것, `conflict` 는 겹침으로 회수된 것이다.
+ * `manual` 은 남긴다 — 옛 행이 그 값을 들고 있고, **과거를 위조하지 않는다.**
+ */
 export const claimReleaseReason = pgEnum('claim_release_reason', [
   'done',
+  'handoff',
+  'abandon',
   'manual',
   'expired',
   'conflict',
 ]);
+
+/**
+ * **부른 쪽이 고를 수 있는 것**은 셋뿐이다 — 나머지 셋은 서버가 판정한 값이다
+ * (`expired` 리스 만료 · `conflict` 겹침 회수 · `manual` 은 2026-09-05 이전의 잔재).
+ *
+ * 표면이 이 목록을 다시 적지 않게 여기 둔다(REQ-CB-006). 예전에는 REST 컨트롤러가
+ * 삼항식으로 "셋 중 하나가 아니면 handoff" 라고 **조용히 바꿔** 놓고 있었다 —
+ * 보낸 쪽은 자기가 고른 값이 들어갔다고 믿는다.
+ */
+export const CLAIM_RELEASE_INPUTS = ['done', 'handoff', 'abandon'] as const;
+export type ClaimReleaseInput = (typeof CLAIM_RELEASE_INPUTS)[number];
 
 // ── 세션·활동 ─────────────────────────────────────────────────────────────
 export const agentType = pgEnum('agent_type', ['claude-code', 'codex', 'web', 'other']);

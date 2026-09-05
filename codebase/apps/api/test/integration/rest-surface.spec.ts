@@ -1114,6 +1114,44 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
     expect(session[0]?.diff_files).toBe(3);
   });
 
+  /**
+   * **인계와 포기는 다른 일이다**(2026-09-05 · REQ-API-107).
+   *
+   * 예전에는 `done` 외를 전부 `manual` 로 뭉쳐 저장에서 구별되지 않았고, REST 는
+   * 그 위에 "셋 중 하나가 아니면 handoff" 라는 **조용한 변환**까지 얹고 있었다.
+   */
+  it.each([
+    ['handoff', 'handoff'],
+    ['abandon', 'abandon'],
+    ['done', 'done'],
+  ])('내려놓기 사유 %s 가 그대로 저장된다', async (sent, stored) => {
+    const { claimId } = await seedActiveClaim();
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/release`, {
+      payload: { reason: sent },
+    });
+    expect(res.status).toBe(201);
+    const { rows } = await pool.query<{ release_reason: string | null }>(
+      `SELECT release_reason::text AS release_reason FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(rows[0]?.release_reason).toBe(stored);
+  });
+
+  it('모르는 사유는 조용히 바뀌지 않고 거절된다', async () => {
+    const { claimId } = await seedActiveClaim();
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/release`, {
+      payload: { reason: 'giveup' },
+    });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({ field: 'reason' });
+    // 클레임은 그대로 살아 있다 — 거절된 요청이 상태를 바꾸면 안 된다
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(rows[0]?.status).toBe('active');
+  });
+
   it('내려놓기가 state_note 를 저장한다 — 다음 사람이 읽을 유일한 문장이다', async () => {
     const { claimId } = await seedActiveClaim();
 

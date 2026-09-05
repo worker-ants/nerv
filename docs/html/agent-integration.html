@@ -52,7 +52,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.21 (2026-09-05)</span>
+      <span>버전 v0.22 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -281,7 +281,7 @@
       </tr>
       <tr>
         <td><code>nerv_task_release</code></td>
-        <td><code>claim_id</code>, <code>reason</code>(done/handoff/abandon), <code>state_note</code> — <b>2026-09-03 배선</b>(<code>claim.release_note</code>)</td><td>Task 최종 상태(<code>claimed → ready</code> 회수 또는 유지), 인수인계 노트</td><td><code>task:update</code></td><td>A2</td><td>세션 종료·작업 전환·중단</td><td>멱등</td>
+        <td><code>claim_id</code>, <code>reason</code>(done/handoff/abandon — <b>고른 값이 그대로 저장된다</b>, 2026-09-05 · 그전에는 셋이 둘로 뭉쳤다), <code>state_note</code> — <b>2026-09-03 배선</b>(<code>claim.release_note</code>)</td><td>Task 최종 상태(<code>claimed → ready</code> 회수 또는 유지), 인수인계 노트</td><td><code>task:update</code></td><td>A2</td><td>세션 종료·작업 전환·중단</td><td>멱등</td>
       </tr>
       <tr>
         <td><code>nerv_review_submit</code></td>
