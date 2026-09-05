@@ -4,7 +4,7 @@
 // 것이 요점 — 관계는 관련성의 근거이지 질의 일치가 아니다. 섞으면 사람은 왜 이게 나왔는지
 // 알 수 없고, 그러면 검색을 믿지 않게 된다.
 
-import { statusLabelKey } from '@nerv/schema';
+import { specVersionStatus, statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { lazy, Suspense, useState } from 'react';
@@ -42,7 +42,9 @@ import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/specs/')({
   // 보관 보기는 **뷰 상태**라 주소에 남는다(§2.4 (3)) — 링크로 건네면 상대도 같은 목록을 본다
-  validateSearch: (search: Record<string, unknown>): { archived?: true; baseline?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { archived?: true; baseline?: string; status?: string } => ({
     ...(search['archived'] === true || search['archived'] === '1'
       ? { archived: true as const }
       : {}),
@@ -50,9 +52,17 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     ...(typeof search['baseline'] === 'string' && search['baseline'] !== ''
       ? { baseline: search['baseline'] }
       : {}),
+    // 상태 필터도 마찬가지다(§2.4 (3) · REQ-WEB-138) — "초안만 모아 둔 목록" 을 링크로 건넨다.
+    // 쉼표 목록인 것은 서버 질의(EP-SPEC-01 `?status=`)와 같은 모양이라 옮겨 적기 쉬워서다.
+    ...(typeof search['status'] === 'string' && search['status'] !== ''
+      ? { status: search['status'] }
+      : {}),
   }),
   component: SpecListScreen,
 });
+
+/** 어휘의 정본은 `@nerv/schema` 의 enum 이다 — 목록을 화면이 새로 만들지 않는다 */
+const SPEC_STATUSES = specVersionStatus.enumValues;
 
 interface SearchResult {
   items: Record<string, unknown>[];
@@ -64,7 +74,8 @@ function SpecListScreen(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
-  const { archived = false, baseline } = Route.useSearch();
+  const { archived = false, baseline, status } = Route.useSearch();
+  const statuses = status === undefined ? [] : status.split(',').filter((value) => value !== '');
   const project = useProject(proj);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -171,6 +182,7 @@ function SpecListScreen(): React.JSX.Element {
                   params: { proj },
                   search: {
                     ...(archived ? { archived: true as const } : {}),
+                    ...(status === undefined ? {} : { status }),
                     ...(name === null ? {} : { baseline: name }),
                   },
                 })
@@ -179,6 +191,45 @@ function SpecListScreen(): React.JSX.Element {
             <Button type="button" data-testid="freeze-baseline" onClick={() => setFreezing(true)}>
               {t('specs.freeze')}
             </Button>
+            {/* **상태 필터**(§2.4 (3) · REQ-WEB-138). 와이어프레임이 처음부터 그리고 있었는데
+                화면에는 없었다 — 141편짜리 프로젝트에서 "아직 초안인 것" 을 보려면 눈으로
+                배지를 훑는 수밖에 없었다. 트리에만 그린다: 표·그래프는 다른 축이라 여기서
+                누른 것이 저기서 아무 일도 하지 않으면 그것이 곧 조용한 무시다. */}
+            {view === 'tree' && (
+              <label
+                className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
+                title={t('specs.status_filter_hint')}
+              >
+                {t('specs.status_filter')}
+                <select
+                  data-testid="status-filter"
+                  className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
+                  value={status ?? ''}
+                  onChange={(e) =>
+                    void navigate({
+                      to: '/p/$proj/specs',
+                      params: { proj },
+                      search: {
+                        ...(archived ? { archived: true as const } : {}),
+                        ...(baseline === undefined ? {} : { baseline }),
+                        ...(e.target.value === '' ? {} : { status: e.target.value }),
+                      },
+                    })
+                  }
+                >
+                  <option value="">{t('specs.status_filter_all')}</option>
+                  {/* 끝나지 않은 것 — 스킬이 새 스펙 전에 훑는 것과 같은 묶음이다(4.6 §new) */}
+                  <option value="draft,in_review">
+                    {`${t('status.spec.draft')} + ${t('status.spec.in_review')}`}
+                  </option>
+                  {SPEC_STATUSES.map((value) => (
+                    <option key={value} value={value}>
+                      {t(statusLabelKey('spec', value))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {/* **전수의 경계를 화면이 말한다**(REQ-WEB-105). 보관한 문서는 어느 목록에도
                 없어서 키를 아는 사람만 주소로 닿을 수 있었다 — 복구 경로가 없는 것과 같다 */}
             <label
@@ -193,7 +244,11 @@ function SpecListScreen(): React.JSX.Element {
                   void navigate({
                     to: '/p/$proj/specs',
                     params: { proj },
-                    search: e.target.checked ? { archived: true } : {},
+                    search: {
+                      ...(e.target.checked ? { archived: true as const } : {}),
+                      ...(status === undefined ? {} : { status }),
+                      ...(baseline === undefined ? {} : { baseline }),
+                    },
                   })
                 }
               />
@@ -241,6 +296,7 @@ function SpecListScreen(): React.JSX.Element {
                 projectId={typeof projectId === 'string' ? projectId : undefined}
                 variant="full"
                 includeArchived={archived}
+                statuses={statuses}
               />
             </Card>
           ) : graph.data === undefined ? (

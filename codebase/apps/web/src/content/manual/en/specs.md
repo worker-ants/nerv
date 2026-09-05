@@ -23,6 +23,8 @@ To see all of them, go to **Specs** in the left menu. That screen is the **compl
 
 Both the tree tab and the table tab print `Showing N of M`. When the two numbers differ, that many are collapsed or filtered out by the tree filter.
 
+The **Status** selector above the list narrows it to one status — `draft`, `in review`, and so on. What stays is **the documents in that status and the ones above them**: the ancestors are not matches, they are there **to hold the place** (without a parent you cannot tell where a document belongs). A branch with nothing matching underneath drops out entirely. The chosen status **stays in the address, so a link hands someone the same list.** The `of M` is the project's document count, unaffected by the filter.
+
 ## Versions and statuses
 
 Specs are **not edited in place — versions accumulate.** Each version is in one of five statuses.

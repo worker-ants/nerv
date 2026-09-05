@@ -1,0 +1,173 @@
+// 스펙 목록의 [상태 ▾] — 걸린 문서와 **그 조상**만 (REQ-WEB-138)
+//
+// 와이어프레임(§2.4)은 처음부터 `[타입 ▾] [상태 ▾]` 를 그리고 있었는데 화면에는 없었다.
+// 141편짜리 프로젝트에서 "아직 초안인 것"을 보려면 배지를 눈으로 훑는 수밖에 없었다.
+//
+// **조상을 함께 남기는 것이 이 필터의 요점이다.** 실측(clemvion): `draft` 26건 중 17건의
+// 부모가 draft 가 아니다 — 부모를 빼면 그 17줄이 자리를 잃고 목록의 위아래가 뒤섞인다.
+// 서버(EP-SPEC-01 `?status=` · REQ-API-092)와 **같은 규칙**이라는 것을 여기서 지킨다.
+
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LocaleProvider } from '../lib/i18n.js';
+import { RealtimeProvider } from '../lib/realtime.js';
+import { routeTree } from '../routeTree.gen';
+
+vi.mock('socket.io-client', () => ({
+  io: () => ({
+    on: () => undefined,
+    onAny: () => undefined,
+    emit: () => undefined,
+    close: () => undefined,
+  }),
+}));
+
+//  뿌리(approved) ─ 가지(approved) ─ 잎(draft)     ← 부모가 draft 가 아닌 자리
+//                 └ 형제(draft)
+//  외딴(approved)                                   ← 걸리는 것이 아래에 하나도 없는 가지
+const NODES = [
+  {
+    id: 'r',
+    key: 'root',
+    title: '뿌리',
+    type: 'area',
+    parent_id: null,
+    doc_status: 'approved',
+    version_no: 1,
+  },
+  {
+    id: 'b',
+    key: 'branch',
+    title: '가지',
+    type: 'feature',
+    parent_id: 'r',
+    doc_status: 'approved',
+    version_no: 1,
+  },
+  {
+    id: 's',
+    key: 'sib',
+    title: '형제',
+    type: 'feature',
+    parent_id: 'r',
+    doc_status: 'draft',
+    version_no: 1,
+  },
+  {
+    id: 'l',
+    key: 'leaf',
+    title: '잎',
+    type: 'feature',
+    parent_id: 'b',
+    doc_status: 'draft',
+    version_no: 1,
+  },
+  {
+    id: 'o',
+    key: 'other',
+    title: '외딴',
+    type: 'area',
+    parent_id: null,
+    doc_status: 'approved',
+    version_no: 1,
+  },
+];
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        String(url).includes('/specs/tree')
+          ? NODES
+          : { items: [], memberships: [], count: 0, summary: {} },
+    })),
+  );
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  cleanup();
+});
+
+async function renderList(path: string) {
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: [path] }),
+  });
+  render(
+    <LocaleProvider locale="ko">
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <RealtimeProvider>
+          <RouterProvider router={router as never} />
+        </RealtimeProvider>
+      </QueryClientProvider>
+    </LocaleProvider>,
+  );
+  await screen.findAllByText('뿌리');
+  // 이 라우트는 트리를 둘 그린다 — 사이드바(rail)가 앞, 전수 목록(full)이 뒤다
+  const trees = screen.getAllByTestId('spec-tree');
+  return { full: within(trees[1]!), router };
+}
+
+describe('REQ-WEB-138 상태 필터 — 걸린 것과 그 조상', () => {
+  it('필터가 없으면 전부 보인다', async () => {
+    const { full } = await renderList('/p/demo/specs');
+    for (const title of ['뿌리', '가지', '형제', '잎', '외딴']) {
+      expect(full.queryByText(title)).not.toBeNull();
+    }
+  });
+
+  it('draft 를 고르면 걸린 둘과 그 조상만 남는다', async () => {
+    const { full } = await renderList('/p/demo/specs?status=draft');
+    expect(full.queryByText('형제')).not.toBeNull();
+    expect(full.queryByText('잎')).not.toBeNull();
+    // 조상은 자리를 지키러 온다 — 이것을 빼면 '잎' 의 부모가 사라진다
+    expect(full.queryByText('뿌리')).not.toBeNull();
+    expect(full.queryByText('가지')).not.toBeNull();
+  });
+
+  it('아래에 걸린 것이 없는 가지는 빈 채로 남지 않는다', async () => {
+    const { full } = await renderList('/p/demo/specs?status=draft');
+    expect(full.queryByText('외딴')).toBeNull();
+  });
+
+  it('접혀 있어도 걸린 것은 보인다 — 접힌 가지에 숨기면 필터가 무의미하다', async () => {
+    const { full } = await renderList('/p/demo/specs?status=draft');
+    fireEvent.click(full.getAllByRole('button', { name: '접기' })[0]!);
+    expect(full.queryByText('잎')).not.toBeNull();
+  });
+
+  it('전체 수는 필터와 무관하다 — "표시 N / 전체 M" 의 M 은 프로젝트의 수다', async () => {
+    const { full } = await renderList('/p/demo/specs?status=draft');
+    expect(full.getByTestId('tree-count').textContent).toContain('5');
+  });
+
+  it('쉼표로 여럿을 받는다 — 서버 질의와 같은 모양이다', async () => {
+    const { full } = await renderList('/p/demo/specs?status=draft,approved');
+    expect(full.queryByText('외딴')).not.toBeNull();
+  });
+
+  it('고르면 주소에 남는다 — 링크로 건네면 상대도 같은 목록을 본다', async () => {
+    const { router } = await renderList('/p/demo/specs');
+    fireEvent.change(screen.getByTestId('status-filter'), { target: { value: 'draft' } });
+    await vi.waitFor(() => {
+      expect(router.state.location.searchStr).toContain('status=draft');
+    });
+  });
+
+  it('보관 보기를 켜도 고른 상태가 날아가지 않는다 — 뷰 상태는 서로를 지운다', async () => {
+    const { router } = await renderList('/p/demo/specs?status=draft');
+    fireEvent.click(screen.getByTestId('show-archived'));
+    await vi.waitFor(() => {
+      expect(router.state.location.searchStr).toContain('status=draft');
+      expect(router.state.location.searchStr).toContain('archived');
+    });
+  });
+});

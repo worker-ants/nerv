@@ -323,6 +323,10 @@ export const en = {
   'specs.baseline': 'Baseline',
   'specs.baseline_current': 'Current (latest approved)',
   'specs.freeze': 'Freeze current set…',
+  'specs.status_filter': 'Status',
+  'specs.status_filter_all': 'All',
+  'specs.status_filter_hint':
+    'Shows documents in the chosen status plus their ancestors — ancestors are there to hold the place',
   'specs.freeze_hint':
     'Names and freezes every spec at its latest approved version as of now. It cannot be changed afterwards — to change the set, make a new one.',
   'specs.freeze_submit': 'Freeze',

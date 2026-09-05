@@ -319,6 +319,10 @@ export const ko = {
   'specs.baseline': '기준선',
   'specs.baseline_current': '현재(최신 승인본)',
   'specs.freeze': '현재 세트로 동결…',
+  'specs.status_filter': '상태',
+  'specs.status_filter_all': '전체',
+  'specs.status_filter_hint':
+    '고른 상태의 문서와 그 상위 문서만 보입니다 — 상위는 자리를 지키러 온 것입니다',
   'specs.freeze_hint':
     '지금 시점의 스펙별 최신 승인본 전체를 한 세트로 묶어 이름을 붙입니다. 만든 뒤에는 바꿀 수 없습니다 — 세트를 바꾸려면 새로 만듭니다.',
   'specs.freeze_submit': '동결',

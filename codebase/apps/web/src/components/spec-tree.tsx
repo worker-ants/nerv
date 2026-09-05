@@ -49,6 +49,17 @@ export interface SpecTreeProps {
   activeKey?: string | undefined;
   /** 보관한 문서까지 담는다 — 전수 목록 화면의 토글이 이것을 켠다(REQ-WEB-105) */
   includeArchived?: boolean;
+  /**
+   * 문서 상태 필터 — 빈 배열·생략이면 거르지 않는다(REQ-WEB-138).
+   *
+   * **서버에도 같은 필터가 있다**(EP-SPEC-01 `?status=` · REQ-API-092)지만 여기서는 쓰지
+   * 않는다: 이 화면은 이미 전 계층을 한 응답으로 받아 두었고(REQ-WEB-044), 서버에 걸러
+   * 달라고 하면 "표시 N / **전체 M**" 의 M 을 알 방법이 사라진다. 걸러진 수와 전체 수를
+   * 함께 적는 줄이 이 화면의 약속이라(§2.4b) 총계를 잃는 쪽을 택하지 않는다.
+   *
+   * 대신 **판정은 서버와 같은 규칙**이다 — 걸린 노드와 그 조상을 남긴다(4.4 REQ-API-092).
+   */
+  statuses?: readonly string[];
 }
 
 /**
@@ -147,6 +158,7 @@ export function SpecTree({
   activeKey,
   heading,
   includeArchived = false,
+  statuses,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId, includeArchived);
@@ -171,6 +183,31 @@ export function SpecTree({
         .map((n) => n.id),
     );
   }, [filter, nodes]);
+
+  /**
+   * 상태 필터 — 걸린 노드와 **그 조상**을 남긴다.
+   *
+   * 조상을 빼면 트리가 끊어진다: 실측(clemvion 141노드) `draft` 26건 중 **17건의 부모가
+   * draft 가 아니다.** 부모 없는 줄은 자리를 잃고 목록의 위아래가 뒤섞인다.
+   */
+  const statusKept = useMemo(() => {
+    if (statuses === undefined || statuses.length === 0) return null;
+    const wanted = new Set(statuses);
+    const matched = new Set(
+      nodes.filter((n) => n.doc_status !== null && wanted.has(n.doc_status)).map((n) => n.id),
+    );
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const kept = new Set(matched);
+    for (const id of matched) {
+      let parent = byId.get(id)?.parent_id ?? null;
+      // 이미 남기기로 한 조상에 닿으면 멈춘다 — 그 위쪽은 그것을 넣은 걸음이 이미 채웠다
+      while (parent !== null && !kept.has(parent)) {
+        kept.add(parent);
+        parent = byId.get(parent)?.parent_id ?? null;
+      }
+    }
+    return kept;
+  }, [statuses, nodes]);
 
   const storageKey = storageKeyFor(projectSlug, variant);
 
@@ -241,10 +278,15 @@ export function SpecTree({
   // 규칙을 쓰면 화면에 적힌 수와 화면에 그린 줄이 어긋난다.
   const childrenToShow = (parentId: string | null): TreeNode[] =>
     (byParent.get(parentId) ?? []).filter(
-      (node) => matches === null || matches.has(node.id) || byParent.has(node.id),
+      (node) =>
+        (matches === null || matches.has(node.id) || byParent.has(node.id)) &&
+        // 상태 필터는 **조상까지 미리 계산해 두었다** — 여기서 "자식이 있으면 남긴다"로
+        // 하면 아래에 걸린 것이 하나도 없는 가지가 빈 채로 남는다
+        (statusKept === null || statusKept.has(node.id)),
     );
   // 필터 중에는 전부 펼친다 — 걸린 노드를 접힌 가지에 숨기면 필터가 무의미하다
-  const isOpenOf = (node: TreeNode): boolean => open.has(node.id) || matches !== null;
+  const isOpenOf = (node: TreeNode): boolean =>
+    open.has(node.id) || matches !== null || statusKept !== null;
 
   // 보이는 노드만 평탄화한다 — 접힌 가지는 리스트에 아예 들어오지 않는다.
   const visible: { node: TreeNode; depth: number }[] = [];
