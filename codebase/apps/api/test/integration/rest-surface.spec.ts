@@ -1476,7 +1476,8 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     const updated = await call('PUT', '/api/v1/projects/clemvion/specs/SPC-PATHS/draft', {
       payload: {
         body_markdown: '# 본문\n\n이어서',
-        base_version: (created.body as Record<string, unknown>)['spec_version_id'],
+        // `base_version` 은 2026-08-30 에 표면에서 걷었다 — 이 검사가 그것을 계속
+        // 보내고 있었고, 서버는 조용히 버렸다. 스키마가 `.strict()` 로 그것을 짚었다.
         base_hash: (created.body as Record<string, unknown>)['content_hash'],
       },
     });

@@ -27,8 +27,20 @@ interface RawReply {
   header(name: string, value: string): RawReply;
   send(body: unknown): unknown;
 }
-import { msg, NERV_ERROR } from '@nerv/schema';
+import {
+  BaselineCreateInput,
+  CommentCreateInput,
+  CommentResolveInput,
+  CommentUpdateInput,
+  EvidenceCreateInput,
+  msg,
+  NERV_ERROR,
+  SpecCreateInput,
+  SpecDraftUpsertInput,
+  SpecMetaUpdateInput,
+} from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { parseBody } from '../../common/parse-body.js';
 import type { Actor } from '../../common/human-only.js';
 import { csv, intParam } from '../../common/query-vocab.js';
 import { principalOf } from '../../common/scope-check.js';
@@ -206,16 +218,17 @@ export class SpecController {
         kind: 'missing',
       });
     }
+    const input = parseBody(SpecCreateInput, body);
     return this.specs.draftUpsert({
       // 역할은 가드가 실어 준 것을 그대로 넘긴다 — 표면은 번역만 하고 판정하지 않는다(D-05)
       roles: principalOf(req).roles,
       projectId: projectOf(req),
       userId: principal.userId,
-      bodyMd: String(body['body_markdown'] ?? body['body_md'] ?? ''),
-      key: String(body['key'] ?? ''),
-      title: String(body['title'] ?? ''),
-      type: String(body['type'] ?? 'feature'),
-      ...(typeof body['parent_id'] === 'string' ? { parentId: body['parent_id'] } : {}),
+      bodyMd: input.body_markdown ?? input.body_md ?? '',
+      key: input.key,
+      title: input.title,
+      type: input.type,
+      ...(input.parent_id == null ? {} : { parentId: input.parent_id }),
     });
   }
 
@@ -233,31 +246,30 @@ export class SpecController {
         kind: 'missing',
       });
     }
+    const input = parseBody(SpecDraftUpsertInput, body);
     return this.specs.draftUpsertByKey({
       projectId: projectOf(req),
       specKey: spec,
       userId: principal.userId,
-      bodyMd: String(body['body_markdown'] ?? body['body_md'] ?? ''),
+      bodyMd: input.body_markdown ?? input.body_md ?? '',
       // 비교-교환의 기준 — 웹도 읽은 지문을 그대로 되돌려 준다(§1.4g)
-      ...(typeof body['base_hash'] === 'string' ? { baseHash: body['base_hash'] } : {}),
-      ...(typeof body['change_summary'] === 'string'
-        ? { changeSummary: body['change_summary'] }
-        : {}),
+      ...(input.base_hash == null ? {} : { baseHash: input.base_hash }),
+      ...(input.change_summary == null ? {} : { changeSummary: input.change_summary }),
       // 리스 인계 — 웹에서 "인계" 를 누른 다음 저장이 이것을 싣는다(§1.4h)
-      ...(body['takeover'] === true ? { takeover: true } : {}),
+      ...(input.takeover === true ? { takeover: true } : {}),
       // **선언 관계도 나른다**(2026-09-05 · REQ-API-043). 전표는 처음부터 이 입력을
       // 적었고 서비스도 받고 있었는데 이 줄이 없어, REST 로 보낸 관계는 오류 없이
       // 버려졌다 — 보낸 쪽은 반영됐다고 믿는다. MCP 는 배선돼 있었으므로 같은 요청에
       // 두 표면이 다르게 답하고 있었다(D-05).
-      ...(Array.isArray(body['relations'])
-        ? {
-            relations: (body['relations'] as Record<string, unknown>[]).map((r) => ({
-              to: String(r['to'] ?? ''),
-              kind: String(r['kind'] ?? ''),
-              ...(typeof r['base_hash'] === 'string' ? { baseHash: r['base_hash'] } : {}),
+      ...(input.relations == null
+        ? {}
+        : {
+            relations: input.relations.map((r) => ({
+              to: r.to,
+              kind: r.kind,
+              ...(r.base_hash == null ? {} : { baseHash: r.base_hash }),
             })),
-          }
-        : {}),
+          }),
     });
   }
 
@@ -333,12 +345,13 @@ export class SpecController {
         kind: 'missing',
       });
     }
+    const evidence = parseBody(EvidenceCreateInput, body);
     return this.specs.addEvidence({
       projectId: projectOf(req),
       ref,
-      kind: String(body['kind'] ?? 'pr'),
-      locator: String(body['locator'] ?? ''),
-      repo: typeof body['repo'] === 'string' ? body['repo'] : null,
+      kind: evidence.kind,
+      locator: evidence.locator,
+      repo: evidence.repo ?? null,
       userId: principal.userId,
     });
   }
@@ -372,11 +385,12 @@ export class SpecController {
         kind: 'missing',
       });
     }
+    const comment = parseBody(CommentCreateInput, body);
     return this.comments.add({
       projectId: projectOf(req),
       specVersionId: ver,
-      anchor: String(body['anchor'] ?? ''),
-      bodyMd: String(body['body_md'] ?? ''),
+      anchor: comment.anchor,
+      bodyMd: comment.body_md,
       userId: principal.userId,
     });
   }
@@ -398,7 +412,7 @@ export class SpecController {
     return this.comments.update({
       projectId: projectOf(req),
       commentId: id,
-      bodyMd: String(body['body_md'] ?? ''),
+      bodyMd: parseBody(CommentUpdateInput, body).body_md,
       userId: principal.userId,
     });
   }
@@ -421,9 +435,8 @@ export class SpecController {
       projectId: projectOf(req),
       commentId: id,
       userId: principal.userId,
-      resolutionNote: typeof body['resolution_note'] === 'string' ? body['resolution_note'] : null,
-      resolvedInVersionId:
-        typeof body['resolved_in_version_id'] === 'string' ? body['resolved_in_version_id'] : null,
+      resolutionNote: parseBody(CommentResolveInput, body).resolution_note ?? null,
+      resolvedInVersionId: parseBody(CommentResolveInput, body).resolved_in_version_id ?? null,
     });
   }
 
@@ -495,16 +508,17 @@ export class SpecController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     const principal = actorOf(req);
+    const meta = parseBody(SpecMetaUpdateInput, body);
     return this.specs.updateMeta({
       actor: actorOf(req),
       projectId: projectOf(req),
       specKey: spec,
       userId: principal.userId,
-      title: typeof body['title'] === 'string' ? body['title'] : null,
-      parentKey: typeof body['parent_key'] === 'string' ? body['parent_key'] : null,
-      detachParent: body['parent_key'] === null,
-      sortKey: typeof body['sort_key'] === 'string' ? body['sort_key'] : null,
-      ownerRole: typeof body['owner_role'] === 'string' ? body['owner_role'] : null,
+      title: meta.title ?? null,
+      parentKey: meta.parent_key ?? null,
+      detachParent: meta.parent_key === null,
+      sortKey: meta.sort_key ?? null,
+      ownerRole: meta.owner_role ?? null,
     });
   }
 
@@ -542,12 +556,13 @@ export class SpecController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     const principal = actorOf(req);
+    const baseline = parseBody(BaselineCreateInput, body);
     return this.baselines.create({
       actor: actorOf(req),
       projectId: projectOf(req),
-      name: String(body['name'] ?? ''),
-      noteMd: typeof body['note_md'] === 'string' ? body['note_md'] : null,
-      specVersionIds: Array.isArray(body['items']) ? (body['items'] as string[]) : null,
+      name: baseline.name,
+      noteMd: baseline.note_md ?? null,
+      specVersionIds: baseline.items ?? null,
       userId: principal.userId,
     });
   }
