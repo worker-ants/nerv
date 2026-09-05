@@ -8,7 +8,7 @@
 // "룸 밖으로는 안 나간다"도 검증되지 않는다.
 
 import { request as httpRequest } from 'node:http';
-import { WS_ERROR_EVENT, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { WS_ERROR_EVENT, NERV_ERROR, NERV_EVENT, newId, sessionState } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -360,6 +360,22 @@ describe('E05-S03 세션 보드 (EP-SES-01)', () => {
 
     const onlyStale = await sessions.board({ projectId, states: ['stale'] });
     expect(onlyStale.every((c) => c.state === 'stale')).toBe(true);
+  });
+
+  /**
+   * **없는 것과 0 인 것은 다르다**(REQ-WEB-139 · 2026-09-05 사람 요청).
+   *
+   * `GROUP BY` 는 그 프로젝트에 실제로 있는 상태만 돌려준다 — 실측(sudoku)에서 응답이
+   * `complete`·`stale` 둘뿐이라 나머지 넷은 화면에 아예 없었고, 보는 사람은 "오류가
+   * 0건" 인지 "오류라는 상태가 없는" 것인지 구별할 수 없었다.
+   */
+  it('요약은 어휘 전부를 어휘 순서로 싣는다 — 0 인 상태도 빠지지 않는다', async () => {
+    const summary = await app.get(SessionService).boardSummary(projectId);
+    expect(Object.keys(summary)).toEqual([...sessionState.enumValues]);
+    // 이 프로젝트에 없는 상태도 자리를 지킨다(빠지지 않고 0 이다)
+    for (const state of sessionState.enumValues) {
+      expect(typeof summary[state]).toBe('number');
+    }
   });
 
   it('REST 표면이 프로젝트 스코프를 판정한다 — 타 프로젝트 토큰은 403', async () => {

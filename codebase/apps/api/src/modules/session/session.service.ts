@@ -664,13 +664,26 @@ export class SessionService {
     return rows;
   }
 
-  /** 요약 스트립 — 상태별 집계(screens.md §2.6) */
+  /**
+   * 요약 스트립 — 상태별 집계(screens.md §2.6 · REQ-WEB-139).
+   *
+   * **0 인 상태도 싣는다.** `GROUP BY` 는 그 프로젝트에 실제로 있는 상태만 돌려주므로,
+   * 예전에는 응답이 어휘의 일부만 말했다(실측 2026-09-05: sudoku 는 `complete`·`stale`
+   * 둘뿐이라 나머지 넷은 화면에 아예 없었다). 그러면 보는 사람은 "오류가 0건" 인지
+   * "오류라는 상태가 없는" 것인지 구별할 수 없다 — **없는 것과 0 인 것은 다르다.**
+   *
+   * 어휘 순서(`session_state`)대로 담는 것도 이 자리의 일이다: `GROUP BY` 는 순서를
+   * 약속하지 않아서, 같은 프로젝트를 다시 열 때 칸이 자리를 바꿔 앉을 수 있었다.
+   */
   async boardSummary(projectId: string): Promise<Record<string, number>> {
     const { rows } = await this.db.execute<{ state: string; n: number }>(sql`
       SELECT state::text AS state, count(*)::int AS n
         FROM agent_session WHERE project_id = ${projectId} GROUP BY state
     `);
-    return Object.fromEntries(rows.map((r) => [r.state, r.n]));
+    const counted = new Map(rows.map((r) => [r.state, r.n]));
+    return Object.fromEntries(
+      sessionState.enumValues.map((state) => [state, counted.get(state) ?? 0]),
+    );
   }
 
   /**

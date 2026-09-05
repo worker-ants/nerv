@@ -7,8 +7,9 @@ updated: 2026-08-29
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.69 · 2026-09-05 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.70 · 2026-09-05 · HTML 판: [screens.html](../html/screens.html)
 >
+> v0.70 변경(2026-09-05 — 있는 상태만 보였다, 사람 요청): **REQ-WEB-139 신설.** 세션 요약 스트립이 `GROUP BY` 결과를 그대로 그려, 그 프로젝트에 없는 상태는 화면에서도 없었다(실측 sudoku: 여섯 중 둘만). **없는 것과 0 인 것은 다르다** — 여섯을 어휘 순서로 늘 싣고, 0 인 칸은 물러서고 눌리지 않는다. 채우는 자리는 서버다: `GROUP BY` 는 순서도 약속하지 않아 칸이 자리를 바꿔 앉을 수 있었다.
 > v0.69 변경(2026-09-05 — 종류 필터도 화면에 둔다, 사람 결정): **REQ-WEB-138 확장.** v0.68 이 "`type` 은 질의에 없어 두지 않는다" 고 적어 둔 것을 사람이 **질의에 더하기로** 결정했다(4.4 REQ-API-093). §2.4 그림의 `[타입 ▾]` 이 이로써 다 채워졌다 — 상태와 같은 규칙(매칭 + 조상, 둘을 함께 걸면 AND)이고, `vision,area` 는 곧 트리의 뼈대다(141편 → 17편).
 > v0.68 변경(2026-09-05 — 와이어프레임이 그리던 상태 필터를 화면에 둔다, 사람 결정): **REQ-WEB-138 신설.** §2.4 그림은 처음부터 `[타입 ▾] [상태 ▾]` 를 그리고 (3) 이 "URL 쿼리로 보존한다" 고 적고 있었는데 **둘 다 화면에 없었다.** 141편짜리 프로젝트에서 "아직 초안인 것" 을 보려면 배지를 눈으로 훑는 수밖에 없었다. 상태 필터를 두고 고른 값을 주소에 남긴다. **조상을 함께 남기는 것이 요점이다** — draft 26건 중 17건의 부모가 draft 가 아니라, 조상을 빼면 그 17줄이 자리를 잃는다(4.4 REQ-API-092 와 같은 규칙). `[타입 ▾]` 은 질의에 `type` 이 없어 이번에 두지 않고 그 사실을 §2.4 에 적었다.
 > v0.67 변경(2026-09-04 — 알림 목록이 두 벌처럼 보였다, 사람 보고): **REQ-WEB-137 신설.** [읽음] 단추를 안 읽은 행에만 그렸는데 `opacity-0` 이어도 **자리는 차지한다** — 그래서 프로젝트·시각 열이 행마다 다른 x 에 앉았다. 보이지 않는 것과 자리를 차지하지 않는 것은 다르다. 동작 칸을 모든 행에 둔다. 함께 **일괄 읽음**을 넣는다(EP-NTF-03): 실측 695건을 한 건씩 지우는 것이 유일한 길이면 그 배지는 지울 수 없는 숫자가 되고, 지울 수 없는 배지는 곧 읽지 않는 배지가 된다.
@@ -977,7 +978,7 @@ export const TaskCreateInput = z.object({
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
-| 세션 보드 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (state 필터: `pending / active / awaiting_input / complete / error / stale`) | 요약 스트립 = 상태별 집계 |
+| 세션 보드 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (state 필터: `pending / active / awaiting_input / complete / error / stale`) | 요약 스트립 = 상태별 집계 — **여섯 전부를 어휘 순서로**, 0 인 상태도 싣는다(REQ-WEB-139) |
 | 세션 상세 | EP-SES-02 `GET /api/v1/projects/{proj}/sessions/{sid}` | `agent_session` 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id |
 | Activity 타임라인 | EP-SES-03 `GET /api/v1/projects/{proj}/sessions/{sid}/activities` (커서) | `thought / action / elicitation / response / error` 5종 — 불변 레코드(D-10) |
 | steer / stop | EP-SES-04 `POST /api/v1/projects/{proj}/sessions/{sid}/steer` (`kind`: steer/stop) | 지시는 다음 `nerv_task_heartbeat` 응답의 `pending`에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내 |
@@ -987,6 +988,7 @@ export const TaskCreateInput = z.object({
 - **액션 4종**: 로그 보기 · attach ↗(세션 상세 딥링크) · steer(중단 없이 지시 큐잉) · stop(확인 + 사유, 클레임 즉시 회수 → Task `ready`). `awaiting_input` 카드는 [질문 열기 ↗]로 받은 요청 딥링크.
 - **폼·검증**: `SessionSteerInput`(`kind`: steer/stop, `message` min 1 — stop의 message가 곧 사유). 스티어 메시지는 승인이 아니다(ui-wireframes §4.2 보안 불변식).
 - **요약 스트립은 필터다**(2026-08-30 — 사람 요청 · REQ-WEB-116). 숫자가 보이면 사람은 그것을 누른다 — 예전에는 눌러도 아무 일이 없어서, "종료 12건"을 보고 그 열둘이 무엇인지 알려면 목록 전체를 훑어야 했다. 거르는 것은 **서버**다(엔드포인트가 처음부터 `?state=` 를 받는다): 목록은 200건에서 잘리므로 화면에서 거르면 "12건"이라 적어 놓고 일부만 보이는 화면이 된다. **숫자는 필터를 따라가지 않는다** — 스트립이 전체 그림이고 목록이 그 조각이라는 관계가 그래야 성립한다. 고른 것을 다시 누르면 풀린다(켜는 길과 끄는 길이 같은 자리다).
+- **0 인 상태도 자리를 지킨다**(2026-09-05 — 사람 요청 · REQ-WEB-139). 집계는 `GROUP BY` 라 그 프로젝트에 **실제로 있는 상태만** 돌아왔다(실측: sudoku 는 `complete` 27 · `stale` 20 둘뿐이라 나머지 넷이 화면에 없었다). 그러면 스트립의 폭과 칸이 프로젝트마다 달라 눈이 매번 자리를 다시 찾고, 무엇보다 **"오류 0건" 과 "오류라는 상태가 없음" 을 구별할 수 없다.** 여섯을 어휘 순서로 싣되(서버가 채운다 — `GROUP BY` 는 순서를 약속하지 않는다) 0 인 칸은 물러서고 눌리지 않는다: 눌러도 빈 목록이 나오는 단추는 두지 않는다.
 - **빈 상태**: 활성 세션 0 — "실행 중인 세션이 없습니다" + 플러그인 온보딩 링크([plugin.md](plugin.md) §4). **걸러서 비어 있는 것은 다르다**: 그때 부트스트랩 안내를 띄우면 사람은 자기가 필터를 켠 사실을 잊고 "세션이 사라졌다"고 읽는다 — "그 상태인 세션이 없습니다" + [전부 보기]다.
 
 | ID | 수용 기준(EARS) |
@@ -994,6 +996,7 @@ export const TaskCreateInput = z.object({
 | REQ-WEB-019 | WHEN 세션 카드를 렌더링하면 THE SYSTEM SHALL 사용자·hostname·에이전트 종류·하트비트 상대 시각·리스 잔여·diff 통계를 표기하며, hostname이 없는 세션은 렌더링하지 않는다(ui-wireframes §3.3) |
 | REQ-WEB-020 | WHEN 세션이 `stale`로 전이되면 THE SYSTEM SHALL 카드에 회수된 Task ID와 "무활동 임계 30:00 초과 → 자동 전이"를 표시한다(D-13) |
 | REQ-WEB-116 | WHEN 세션 요약 스트립의 상태를 고르면 THE SYSTEM SHALL 그 상태의 세션만 목록에 담고(서버 질의), 다시 누르면 푼다. WHILE 필터가 켜져 있으면 THE SYSTEM SHALL 요약 숫자는 프로젝트 전체를 유지하고, 결과가 없을 때 "세션 없음"이 아니라 **그 상태가 없다**고 적는다 |
+| REQ-WEB-139 | WHEN 세션 요약 스트립을 렌더링하면 THE SYSTEM SHALL `session_state` 여섯을 **어휘 순서 그대로** 표시하고, 그 프로젝트에 하나도 없는 상태도 `0` 으로 자리를 지키게 하되 물러서 보이고 **눌리지 않게** 한다 — 있는 것만 그리면 "오류 0건" 과 "오류라는 상태가 없음" 을 구별할 수 없고, 칸이 프로젝트마다·시각마다 자리를 바꿔 앉는다. WHILE 세션이 하나도 없는 동안 THE SYSTEM SHALL 0 여섯 대신 문장(빈 상태)을 보인다 |
 | REQ-WEB-021 | WHEN 사용자가 stop을 실행하면 THE SYSTEM SHALL 확인 다이얼로그에서 사유를 필수로 받고, 처리 후 해당 Task가 `ready`로 회수된 것을 보드에 반영한다 |
 
 ### 2.6a S6 리뷰 센터 — [ui-wireframes §2.6](../03-proposal/ui-wireframes.md) (**Phase 2**, 2026-08-23 신설)

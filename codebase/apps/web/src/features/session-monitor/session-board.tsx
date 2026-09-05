@@ -4,13 +4,16 @@
 // 실시간: project:{id} 룸의 session.* 이벤트가 이 화면의 쿼리를 무효화한다(screens.md §1.4).
 // 재연결하면 전부 재조회한다 — replay 는 없다(D-14).
 
-import { statusLabelKey } from '@nerv/schema';
+import { sessionState, statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { useSessions } from '../../lib/queries.js';
 import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
 import { cn } from '../../lib/utils.js';
 import { Button, EmptyState, Skeleton } from '../../components/ui/primitives.js';
+
+/** 어휘와 **순서**의 정본은 `@nerv/schema` 다 — 화면이 목록을 새로 만들지 않는다 */
+const SESSION_STATES = sessionState.enumValues;
 
 /** 상태 점 — §4.2 매핑의 진한 쪽을 그대로 쓴다(새 색을 만들지 않는다) */
 const SUMMARY_DOT: Record<string, string> = {
@@ -150,6 +153,11 @@ export function SessionBoard({
  *
  * **숫자는 필터를 따라가지 않는다.** 전체 그림이 스트립이고 목록이 그 조각이라,
  * 거를 때마다 숫자가 1로 바뀌면 스트립이 스트립이기를 그만둔다.
+ *
+ * **0 인 상태도 자리를 지킨다**(2026-09-05 사람 요청 · REQ-WEB-139). 있는 것만 그리면
+ * 스트립의 폭과 칸이 프로젝트마다·시각마다 달라져 눈이 매번 자리를 다시 찾아야 하고,
+ * 무엇보다 **"오류 0건" 과 "오류라는 상태가 없음" 을 구별할 수 없다.** 0 인 칸은 누를
+ * 것이 없으므로 물러서고 눌리지 않는다 — 눌러도 빈 목록이 나오는 단추는 두지 않는다.
  */
 export function SessionSummaryStrip({
   summary,
@@ -161,25 +169,38 @@ export function SessionSummaryStrip({
   onSelect?: ((state: string | null) => void) | undefined;
 }): React.JSX.Element {
   const t = useT();
-  const entries = Object.entries(summary).filter(([, n]) => n > 0);
+  const total = Object.values(summary).reduce((sum, n) => sum + n, 0);
+  // 어휘 순서로 놓고, 어휘 밖의 값이 오면 뒤에 붙인다 — 조용히 사라지는 칸을 만들지 않는다
+  const entries: [string, number][] = [
+    ...SESSION_STATES.map((state): [string, number] => [state, summary[state] ?? 0]),
+    ...Object.entries(summary).filter(
+      ([state, n]) => n > 0 && !(SESSION_STATES as readonly string[]).includes(state),
+    ),
+  ];
   return (
     // **배지 나열이 아니라 스트립이다**(2026-08-23 재검토). 상태 배지를 늘어놓으면
     // 숫자가 라벨 뒤에 붙어 작게 읽히고, "지금 몇 개가 도나"는 배지를 하나씩 훑어야
     // 답이 나온다. 큰 숫자 몇 개가 먼저 오는 편이 이 화면의 첫 물음에 맞다.
-    entries.length === 0 ? (
+    // 하나도 없는 프로젝트에 0 을 여섯 개 늘어놓는 것은 답이 아니다 — 그때는 문장이 낫다
+    total === 0 ? (
       <div className="text-xs text-text-faint" data-testid="session-summary">
         {t('sessions.no_sessions')}
       </div>
     ) : (
       // 시안의 세션 스트립은 **점 + 큰 숫자 + 라벨**을 한 줄에 둔다 — 상태의 색은
       // 점이 나르고 숫자는 중립을 지킨다(숫자까지 물들이면 스트립이 신호등이 된다).
+      // 칸이 여섯이라 좁은 화면에서는 넘친다 — 문서를 가로로 밀지 않고 스트립 안에서 민다
       <div
         data-testid="session-summary"
-        className="flex items-center border-y border-border py-[13px]"
+        className="flex items-center overflow-x-auto border-y border-border py-[13px]"
       >
         {entries.map(([state, n], i) => {
           const on = selected === state;
           const label = t(statusLabelKey('session', state));
+          // 고를 수 있는 칸은 **셀 것이 있는** 칸뿐이다
+          const selectable = onSelect !== undefined && n > 0;
+          // 물러서는 이유는 둘인데 결과는 하나다 — 두 클래스가 겹치지 않게 여기서 합친다
+          const dimmed = n === 0 || (onSelect !== undefined && selected !== null && !on);
           return (
             <button
               key={state}
@@ -189,14 +210,14 @@ export function SessionSummaryStrip({
               aria-pressed={on}
               // 고를 수 없으면 단추처럼 굴지 않는다 — 누를 수 있어 보이는데 안 눌리는 것이
               // 가장 나쁘다. onSelect 를 주지 않는 화면(개요 카드)이 그 자리다.
-              disabled={onSelect === undefined}
+              disabled={!selectable}
               onClick={() => onSelect?.(on ? null : state)}
               className={cn(
-                'flex items-center gap-[9px] pr-[30px] transition-opacity',
+                'flex shrink-0 items-center gap-[9px] pr-[30px] transition-opacity',
                 i < entries.length - 1 && 'mr-[30px] border-r border-border',
-                onSelect !== undefined && 'cursor-pointer hover:opacity-100',
+                selectable && 'cursor-pointer hover:opacity-100',
                 // 고른 것만 온전히 보이고 나머지는 물러선다 — 선택이 색이 아니라 **대비**로 읽힌다
-                onSelect !== undefined && selected !== null && !on && 'opacity-45',
+                dimmed && 'opacity-45',
               )}
             >
               <span
