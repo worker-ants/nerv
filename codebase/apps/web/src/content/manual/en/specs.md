@@ -55,7 +55,7 @@ A **baseline** names that set and freezes it.
 
 - Create one with **[Create baseline…]** above the list (planner/admin). It captures every spec at its latest approved version as of now.
 - **It cannot be changed afterwards.** To change the set, make a new one — that is what makes a given baseline answer the same way whenever you look.
-- Pick one from the **baseline selector** and **the list itself becomes that set** — only the documents it holds, at the revisions it holds them. Documents created after the baseline was made do not appear (if they did, you would read the set as holding them). The choice stays in the address and follows you into the detail view, so **hand someone the link and they see the same set.**
+- Pick one from the **baseline selector** and **the list itself becomes that set** — only the documents it holds, at the versions it holds them. Documents created after the baseline was made do not appear (if they did, you would read the set as holding them). The choice stays in the address and follows you into the detail view, so **hand someone the link and they see the same set.**
 - While a baseline is chosen the **status and type filters are gone** — everything in the set is approved, so there is nothing to filter by.
 - With nothing chosen the selector reads **No baseline**. Then each document reads at its latest approved version — or, if it has **never been approved, at its current one (the draft)**.
 - A badge at the top of the document says which set you are reading. If that set does not contain this document (one created later), you get the latest version instead, marked **"not in set"** — you are never quietly handed a different version.
@@ -64,14 +64,14 @@ Tasks can carry a baseline too, so the agent working on one reads the surroundin
 
 ## Comparing versions
 
-The **Versions** tab in the rail holds the **eight most recent** revisions (the count beside the tab name is the total, so on a document past eight the two numbers differ). Two things are possible.
+The **Versions** tab in the rail holds the **eight most recent** versions (the count beside the tab name is the total, so on a document past eight the two numbers differ). Two things are possible.
 
-- **Compare with previous** — one button, the difference against the revision just before.
-- **Pick two** — choose any two revisions in the selects and compare them.
+- **Compare with previous** — one button, the difference against the version just before.
+- **Pick two** — choose any two versions in the selects and compare them.
 
 While comparing you see the **difference**, not the editor. Requirements added or removed come first, body line changes below — that is the order review actually asks about.
 
-**The address is the state.** `?v=3` shows revision 3 in full (read-only), `?diff=v2..v3` shows the difference between two. Copy the URL and the other person sees the same screen — no need to say "look at the third paragraph".
+**The address is the state.** `?v=3` shows version 3 in full (read-only), `?diff=v2..v3` shows the difference between two. Copy the URL and the other person sees the same screen — no need to say "look at the third paragraph".
 
 ## Attachments
 
@@ -81,7 +81,7 @@ The **Attachments** tab in the rail holds mockups and documents. Drag files in o
 - Size: **10MB** per file
 - After uploading, **Insert into body** puts the image at the cursor.
 
-Attachments hang on the **document, not the revision**. Rewriting the draft leaves them in place, and archiving the document takes them along. An external link changes independently of the spec's revisions, so "the screen this revision describes" cannot be recovered later.
+Attachments hang on the **document, not the version**. Rewriting the draft leaves them in place, and archiving the document takes them along. An external link changes independently of the spec's versions, so "the screen this version describes" cannot be recovered later.
 
 Reading also goes through the server — **project members** see them, not whoever has the URL.
 
@@ -106,7 +106,7 @@ If the result holds even one **block**, [Request review] is locked. The server r
 
 When a person does decide, authors cannot approve their own specs — **except in a project with fewer than two members.** Being unable to move at all in a project you work alone in is worse, and anything that passes that way is recorded in the audit log.
 
-To start the next revision from an approved document, press **New draft** in the document header.
+To start the next version from an approved document, press **New draft** in the document header.
 
 ## Comments
 
@@ -132,7 +132,7 @@ Requirements in a spec body are extracted and carry their own implementation sta
 
 **Missing evidence** is "you said it was done and there is nothing to show"; **empty promises** is "you wrote it down and nobody took it". You bring the first down by attaching evidence, the second by making a task and linking it to the requirement (see [Tasks](/help/tasks)).
 
-Requirement rows are created from the body **when a version is approved**. Writing EARS sentences into a draft is not enough — a draft is not yet a promise. When a sentence drops out of a later revision the row is not deleted; **which revision dropped it** is recorded instead.
+Requirement rows are created from the body **when a version is approved**. Writing EARS sentences into a draft is not enough — a draft is not yet a promise. When a sentence drops out of a later version the row is not deleted; **which version dropped it** is recorded instead.
 
 Priority starts at `must`, because the EARS line in the body does not carry one.
 
@@ -166,9 +166,9 @@ The **relations graph** shows the same thing as a picture — the `Relations` ta
 
 **Drag the background to move the view**, scroll to zoom. Dragging inside an area box (the pale rectangle around a group of documents) moves the view too — selecting the box is a **single click**.
 
-The graph's controls sit in the **top-left of the canvas** — scope (whole project / around this doc), area grouping, [Re-layout], and a **`?`** that opens the gesture help. Node and edge counts sit in the bottom-right corner.
+The graph's controls sit in the **top-left of the canvas** — view scope (whole project / around this doc), area grouping, [Re-layout], and a **`?`** that opens the gesture help. Node and edge counts sit in the bottom-right corner.
 
-**Nodes can be dragged.** Use it to pull apart a crowded spot; the new position lives only in this view — it does not change where the document sits in the tree, and redrawing the graph (centre mode, area grouping) restores the computed layout. **[Re-layout]** recomputes the arrangement: every run gives a different picture, which is what untangles a knot — and it is also how you undo your own dragging.
+**Nodes can be dragged.** Use it to pull apart a crowded spot; the new position lives only in this view — it does not change where the document sits in the tree, and redrawing the graph (center mode, area grouping) restores the computed layout. **[Re-layout]** recomputes the arrangement: every run gives a different picture, which is what untangles a knot — and it is also how you undo your own dragging.
 
 Zoomed out, **document names are not drawn.** A hundred labels too small to read cover the picture in smudges — zoom in and the names come back. Area names stay at any zoom.
 

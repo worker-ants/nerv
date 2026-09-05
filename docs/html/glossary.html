@@ -51,9 +51,9 @@
 
   <header class="page-header">
     <h1>용어 사전</h1>
-    <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>한국어 용어의 정본</b>이다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
+    <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>용어의 정본</b>이다 — 한국어와 영어 둘 다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
     <div class="meta-line">
-      <span>버전 v0.2 (2026-09-05)</span>
+      <span>버전 v0.3 (2026-09-05)</span>
       <span>원본: <code>docs/glossary.md</code></span>
       <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
     </div>
@@ -64,7 +64,7 @@
     <ol>
       <li><a href="#sec-0">이 문서의 자리</a></li>
       <li><a href="#sec-1">결정 아홉 (2026-09-05)</a></li>
-      <li><a href="#sec-2">사전</a></li>
+      <li><a href="#sec-2">사전</a> — §2.6 영어</li>
       <li><a href="#sec-3">말투</a></li>
       <li><a href="#sec-4">적용 규칙</a></li>
     </ol>
@@ -81,9 +81,10 @@
   <div class="table-wrap"><table>
     <thead><tr><th>이 문서가 정하는 것</th><th>이 문서가 정하지 않는 것</th></tr></thead>
     <tbody>
-      <tr><td>개념을 <b>한국어로 무엇이라 부를지</b></td><td>그 개념의 <b>정의와 규칙</b> — 각 주제의 정본 문서가 갖는다</td></tr>
+      <tr><td>개념을 <b>한국어와 영어로 무엇이라 부를지</b></td><td>그 개념의 <b>정의와 규칙</b> — 각 주제의 정본 문서가 갖는다</td></tr>
       <tr><td>옛 표현 → 채택어의 <b>치환 방향</b></td><td>상태값의 <b>목록</b> — <a href="pain-points.html">1.2 §4.1</a></td></tr>
       <tr><td>화면·문서의 <b>말투</b></td><td>결정 번호 <code>D-01</code>~<code>D-14</code>, 요구사항 번호 <code>FR</code>/<code>NFR</code> — <a href="pain-points.html">1.2</a></td></tr>
+      <tr><td>영어의 <b>철자 계열과 수식어</b> (§2.6)</td><td>영어의 문법·문장 — 이 사전은 낱말만 본다</td></tr>
       <tr><td>코드 식별자를 <b>번역하지 않는다는 경계</b></td><td>API·DB 의 영문 식별자 자체 — <a href="database.html">4.3</a>·<a href="api.html">4.4</a></td></tr>
     </tbody>
   </table></div>
@@ -208,6 +209,29 @@
       <tr><td><b>활동</b></td><td>activity</td><td><code>activities</code></td><td>프로젝트에서 벌어진 일의 시간순 기록. 감사 로그이자 사람이 읽는 피드다</td></tr>
     </tbody>
   </table></div>
+
+
+  <h3>2.6 영어 — 영문 열도 정본이다 (2026-09-05 신설)</h3>
+  <p>위 표의 <code>영문</code> 열은 <b>참고가 아니라 정본</b>이다. 영문 카탈로그(<code>packages/schema/src/i18n/en.ts</code>)와 제품 매뉴얼 en 이 그것을 따른다. 규칙 셋을 함께 둔다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>규칙</th><th>정한 것</th><th>왜</th></tr></thead>
+    <tbody>
+      <tr><td><b>철자는 -ize 계열</b></td><td><code>organization</code> · <code>center</code> (❌ <code>organisation</code>·<code>centre</code>)</td><td>코드 식별자가 이미 <code>organization</code>·<code>org_id</code>·<code>graph.panel.center</code> 다. 그전에는 카탈로그가 <b>기능 경계로 갈려</b> 있었다 — <code>invite</code>·<code>onboarding</code> 은 -ise, 나머지는 -ize</td></tr>
+      <tr><td><b><code>version</code>, <code>revision</code> 아님</b></td><td>스펙의 한 시점은 <code>version</code></td><td>한국어의 판 → 버전과 같은 결정이고 DB 도 <code>spec_versions</code> 다. <b>MCP 프로토콜의 <code>revision</code> 은 별개</b>라 그대로 둔다(<code>error.mcp.bad_revision</code>)</td></tr>
+      <tr><td><b><code>scope</code> 는 뜻마다 수식어</b></td><td>아래 넷</td><td>한국어는 세 낱말로 갈랐지만 영어의 <code>scope</code> 는 <b>첫 번째 뜻에서 API 식별자 자체</b>라 버릴 수 없다</td></tr>
+    </tbody>
+  </table></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>뜻</th><th>영어</th><th>한국어</th></tr></thead>
+    <tbody>
+      <tr><td>토큰이 할 수 있는 일</td><td><b><code>scope</code></b> (수식어 없음 — <code>AGENT_SCOPES</code>·<code>resource:action</code>)</td><td>권한</td></tr>
+      <tr><td>멤버가 조직 전체인지 프로젝트인지</td><td><b><code>membership scope</code></b></td><td>소속</td></tr>
+      <tr><td>클레임이 선언한 스펙·파일</td><td><b><code>declared scope</code></b></td><td>작업 범위</td></tr>
+      <tr><td>관계 그래프가 보여 주는 폭</td><td><b><code>view scope</code></b></td><td>보기 범위</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>declared scope</code> 는 새로 지은 말이 아니다 — 화면이 이미 <code>session.scope</code> = "Declared scope" 로 쓰고 있었고, 그 수식어를 겹침 문구까지 넓힌 것이다.</p>
+  <p><b>영문 매뉴얼이 화면에 없는 낱말을 쓰지 않는다.</b> <code>reviews.md</code> 가 발견의 처분을 <code>disposition</code> 이라 부른 적이 있는데(넷) 카탈로그에는 0건이었고 화면은 <code>Resolution</code>·<code>Resolve finding</code> 이었다 — 찾는 사람이 찾지 못한다. <b>임포터 리포트의 <code>disposition</code> 필드는 다른 개념</b>이라 그대로 둔다(<code>apps/cli/src/run.ts</code>).</p>
 
   <h2 id="sec-3">3. 말투</h2>
 

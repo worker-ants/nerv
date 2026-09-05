@@ -27,14 +27,14 @@ A task becomes `ready` only when four things are filled in.
 3. **Tools and sources** — what to read, and what to do it with
 4. **Boundaries** — what must not be touched
 
-If any of them is empty the task cannot be claimed. **Large work takes one more step** — four or more tasks from the same spec revision, or a revision graded T3, need **plan approval** before they start (see [Inbox](/help/inbox)). **The base spec version is not one of the four** — when it is set the agent reads that version, and a task without one still reaches `ready`. Agents are instructed not to guess the missing part but to **raise a question** — work started on a guess only reveals the guess was wrong at the end.
+If any of them is empty the task cannot be claimed. **Large work takes one more step** — four or more tasks from the same spec version, or a version graded T3, need **plan approval** before they start (see [Inbox](/help/inbox)). **The base spec version is not one of the four** — when it is set the agent reads that version, and a task without one still reaches `ready`. Agents are instructed not to guess the missing part but to **raise a question** — work started on a guess only reveals the guess was wrong at the end.
 
 ## Claims and leases
 
 Taking a task is a **claim**. A claim carries a 30-minute lease, and the session sends a heartbeat every 60 seconds to keep it alive.
 
 - If heartbeats stop, the lease expires and the task returns to `ready`. This is what stops a dead session from holding work forever.
-- Two sessions touching the same scope register as an **overlap** — but not always a refusal. There are three grades. **Block** happens only when two sessions declare the **same spec document**, and only then is the second claim refused. **Warn** covers documents joined up or down the spec tree, and two tasks from the same requirement; **info** is anything else that grazes. Neither one stops anyone. **Overlapping file paths alone do not block**: refusing every overlap would let one large module serialise the whole project.
+- Two sessions touching the same declared scope register as an **overlap** — but not always a refusal. There are three grades. **Block** happens only when two sessions declare the **same spec document**, and only then is the second claim refused. **Warn** covers documents joined up or down the spec tree, and two tasks from the same requirement; **info** is anything else that grazes. Neither one stops anyone. **Overlapping file paths alone do not block**: refusing every overlap would let one large module serialise the whole project.
 - A claim is usually released by **whoever holds it** — the agent releases it when it finishes or gives up (`nerv_task_release`). There is no revoke button in the UI, so to stop work, **Stop** the session: the claim is released on the spot and the task returns to `ready`.
 - The server allows more than the screen offers — **an admin can release someone else's claim**, and planners and admins can move someone else's task between lanes. Only the door is missing.
 

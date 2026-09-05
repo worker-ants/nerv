@@ -7,7 +7,7 @@ This chapter explains **how the pieces fit together**. The procedure for actuall
 - **MCP tools** — the channel an agent reads and writes NERV through. The server is named `nerv` and the tools are `nerv_*`.
 - **Hooks** — they stream what the agent is doing onto the sessions screen. Where hooks are unavailable the agent posts the events itself.
 - **Skills** — procedures you invoke, like `/nerv:next`. They carry "what to do in what order".
-- **The statusline** — puts your current claim, remaining lease and scope overlaps on the prompt line.
+- **The statusline** — puts your current claim, remaining lease and declared-scope overlaps on the prompt line.
 - **A subagent** — `nerv-spec-writer`, a narrow agent whose only job is drafting specs.
 
 Permissions come from the **token, not the skill.** A skill is convenience and resolution; it cannot get around a server gate.

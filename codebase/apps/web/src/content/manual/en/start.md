@@ -24,13 +24,13 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 | **Reviews**       | What is wrong, and who decides about it               |
 | **Inbox**         | What I have to decide                                 |
 | **Notifications** | What I missed                                         |
-| **Settings**      | Organisations, projects, members, tokens, gate policy |
+| **Settings**      | Organizations, projects, members, tokens, gate policy |
 
-## Two axes of scope — organisation and project
+## Two axes of membership scope — organization and project
 
-The two selects at the left of the header are the scope you are looking at: **organisation → project**, in that order, and the header shows the order plainly. The only organisations you can pick are the ones you belong to.
+The two selects at the left of the header are the membership scope you are looking at: **organization → project**, in that order, and the header shows the order plainly. The only organizations you can pick are the ones you belong to.
 
-Home, inbox, notifications and settings are organisation-wide, so their addresses carry no project. There the header shows the **project you looked at last** — an empty slot reads as "you cannot pick one", which would not be true.
+Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There the header shows the **project you looked at last** — an empty slot reads as "you cannot pick one", which would not be true.
 
 **To get back home, press the `NERV` logo at the top left.** There is no separate menu item for it — the logo is that link.
 
@@ -38,7 +38,7 @@ Home, inbox, notifications and settings are organisation-wide, so their addresse
 
 | Role        | What it can do                                                                         |
 | ----------- | -------------------------------------------------------------------------------------- |
-| `admin`     | Organisations and projects, members, tokens, gate policy, imports                      |
+| `admin`     | Organizations and projects, members, tokens, gate policy, imports                      |
 | `planner`   | Write, submit and **approve** specs of any type, baselines, metadata, resolve findings |
 | `designer`  | Comment and edit drafts, claim and progress tasks. Creates **design** specs only       |
 | `developer` | The same, but creates **convention** and **adr** specs                                 |
@@ -49,12 +49,12 @@ Home, inbox, notifications and settings are organisation-wide, so their addresse
 
 **Resolving a review finding** (fixed, dismissed, won't fix) belongs to admin, planner and qa only. A developer receives findings and fixes them; closing them is someone else's call.
 
-One person can be `admin` in the organisation and `developer` on a project. **Holding both is a union** — you get the permissions of both seats.
+One person can be `admin` in the organization and `developer` on a project. **Holding both is a union** — you get the permissions of both seats.
 
 ## Your first five minutes
 
-0. If you were sent an invitation link, open that first — signing in accepts the invitation. If you do not belong to an organisation yet, signing in takes you to **Get started**, where any invitation waiting for you sits as a card.
-1. Sign in and check that the **organisation and project** in the header are the ones you meant.
+0. If you were sent an invitation link, open that first — signing in accepts the invitation. If you do not belong to an organization yet, signing in takes you to **Get started**, where any invitation waiting for you sits as a card.
+1. Sign in and check that the **organization and project** in the header are the ones you meant.
 2. Skim the **spec tree** on the left. What this project decided to build is in there.
 3. Open **Tasks** and look at the `ready` lane — that is what can be picked up right now.
 4. If you are connecting an agent, issue a token under **Settings → Tokens** and install the plugin — the procedure is in [Installing the plugin](/help/install), what fits together with what is in [Agents](/help/agents).
