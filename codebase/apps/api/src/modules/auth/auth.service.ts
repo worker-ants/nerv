@@ -15,12 +15,13 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  GatePolicySchema,
   isAgentScope,
   isHumanOnlyScope,
+  memberRole,
   msg,
-  newId,
-  GatePolicySchema,
   NERV_ERROR,
+  newId,
   RetentionSchema,
 } from '@nerv/schema';
 import type { AgentScope } from '@nerv/schema';
@@ -36,6 +37,7 @@ import { createBetterAuth } from './better-auth.js';
 import type { NervAuth } from './better-auth.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
 import type { AuthContext } from '../../common/auth.guard.js';
@@ -352,6 +354,8 @@ export class AuthService {
     role: string;
     projectSlug?: string | null;
   }): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-106·112)
+    const role = assertVocab([input.role], memberRole.enumValues, 'role')[0];
     const { rows: orgRows } = await this.db.execute<{ id: string; roles: string[] }>(sql`
       -- **고르지 않고 합친다.** 예전의 "admin 우선 1건" 정렬은 겸직에서 역할 하나만
       -- 남겨 planner+developer 의 절반을 잃는다(0003_multi_role).
@@ -398,7 +402,7 @@ export class AuthService {
     const membershipId = newId();
     const { rows: inserted } = await this.db.execute<Record<string, unknown>>(sql`
       INSERT INTO membership (id, org_id, project_id, user_id, role)
-      VALUES (${membershipId}, ${org.id}, ${projectId}, ${userId}, ${input.role}::member_role)
+      VALUES (${membershipId}, ${org.id}, ${projectId}, ${userId}, ${role}::member_role)
       ON CONFLICT DO NOTHING
       RETURNING id, role::text AS role, user_id, project_id
     `);
@@ -584,9 +588,11 @@ export class AuthService {
     role: string;
     actorRoles: readonly MembershipRole[];
   }): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-106·112)
+    const role = assertVocab([input.role], memberRole.enumValues, 'role')[0];
     this.assertAdmin(input.actorRoles);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
-      UPDATE membership SET role = ${input.role}::member_role WHERE id = ${input.membershipId}
+      UPDATE membership SET role = ${role}::member_role WHERE id = ${input.membershipId}
       RETURNING id, role::text AS role, user_id
     `);
     const updated = rows[0];

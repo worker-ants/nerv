@@ -1061,26 +1061,31 @@ describe('받은 요청·알림·커버리지 표면', () => {
  */
 describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC-02)', () => {
   /**
-   * **안전망**(2026-09-05 · `db-error.ts` 에 22P02 추가).
+   * **어휘 밖 값은 이름을 부르며 거절된다**(2026-09-05 · REQ-API-112).
    *
-   * 어휘 검사를 아직 두지 않은 자리가 남아 있다 — 그 자리에서 값이 `::enum` 캐스팅으로
-   * 죽으면 22P02 가 나는데, `db-error.ts` 의 SQLSTATE 목록에 없어 **진짜 500** 이었다.
-   * 여기서 확인하는 것은 "그물이 실제로 받는가" 다: 멤버 배정의 `role` 은 서비스까지
-   * 검사 없이 내려가는 자리 중 하나다.
+   * 이 검사는 원래 "그물이 받는가" 를 봤다 — `db-error.ts` 에 `22P02` 를 더해
+   * 어휘 검사가 없는 자리도 500 대신 400 이 되게 한 것(REQ-API-106)이 그 그물이다.
+   * 그 뒤 자리마다 `assertVocab` 을 심어(REQ-API-112) **이 경로는 DB 까지 가지 않는다.**
+   *
+   * 그래서 여기서 세는 것을 바꾼다: 400 인 것은 같고, 이제 **어느 필드가 어긋났는지**
+   * 말한다. 그물 자체는 L1(`nerv-exception.filter.spec.ts`)이 세 갈래로 지킨다 —
+   * 그물은 2선이고, 이름을 부르는 것이 1선이다.
    */
-  it('어휘 밖 값이 DB 까지 내려가도 500 이 아니라 400 이다', async () => {
+  it('어휘 밖 값은 400 이고 어느 필드인지 말한다 — 그물이 아니라 검사가 답한다', async () => {
     const res = await call('POST', '/api/v1/orgs/nerv/members', {
       payload: { email: 'viewer@example.com', role: 'superuser', project: 'clemvion' },
     });
     expect(res.status).toBe(400);
     const body = res.body as Record<string, unknown>;
     expect(body['code']).toBe(NERV_ERROR.PRECONDITION);
-    expect((body['details'] as Record<string, unknown>)['kind']).toBe(
-      'invalid_text_representation',
-    );
-    expect((body['details'] as Record<string, unknown>)['pg_type']).toBe('member_role');
-    // 값은 나가지 않는다 — Postgres 의 메시지에는 들어 있다
-    expect(JSON.stringify(body['details'])).not.toContain('superuser');
+    const details = body['details'] as Record<string, unknown>;
+    expect(details['field']).toBe('role');
+    // 무엇을 골라야 하는지 함께 준다 — "잘못된 입력" 만 주면 같은 요청이 다시 온다
+    expect(details['allowed']).toBeDefined();
+    // **보낸 값은 되돌려준다.** `db-error` 가 값을 숨기는 이유(Postgres 의 detail 에는
+    // 남의 행 값이 들어 있다)는 여기 해당하지 않는다 — 이것은 부른 쪽 자신의 입력이고,
+    // 무엇을 보냈는지 알아야 어디를 고칠지 안다.
+    expect(details['unknown']).toEqual(['superuser']);
   });
 
   it('초안 저장이 relations 를 나른다 — 예전에는 성공 응답과 함께 버려졌다', async () => {

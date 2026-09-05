@@ -9,9 +9,10 @@
 // 대신 멈추는 것이 이 기능의 값이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { escalateReason, msg, NERV_ERROR, NERV_EVENT, newId, questionUrgency } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -64,6 +65,11 @@ export class QuestionService {
     /** 답을 이만큼 기다린다(초) — 에이전트에게 서버 push 채널이 없어서 있는 손잡이다 */
     waitSeconds?: number | undefined;
   }): Promise<QuestionResult> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const escalate =
+      input.escalate == null
+        ? null
+        : assertVocab([input.escalate], escalateReason.enumValues, 'escalate')[0];
     // 멱등 키가 있으면 그것으로, 없으면 (세션, 제목)으로 같은 질문을 찾는다
     const { rows: existing } = await this.db.execute<{
       id: string;
@@ -101,10 +107,10 @@ export class QuestionService {
                               escalate, title, body_md, options, urgency, status)
         VALUES (${questionId}, ${input.projectId}, ${input.sessionId}, ${taskId},
                 ${specId}, ${findingId},
-                ${input.escalate ?? null}::escalate_reason,
+                ${escalate}::escalate_reason,
                 ${input.title}, ${input.bodyMd ?? null},
                 ${JSON.stringify(input.options ?? [])}::jsonb,
-                ${urgency}::question_urgency, 'open')
+                ${assertVocab([urgency], questionUrgency.enumValues, 'urgency')[0]}::question_urgency, 'open')
       `);
 
       // blocking 질문은 세션을 세운다 — 임의로 판단하고 진행하지 않는다(P7)

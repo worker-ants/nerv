@@ -5,6 +5,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   CLAIM_RELEASE_INPUTS,
+  evidenceKind,
   LEASE_TTL_SECONDS,
   msg,
   NERV_ERROR,
@@ -12,6 +13,7 @@ import {
   newId,
   PLAN_APPROVAL_SIBLINGS,
   TASK_DONE_WINDOW_DAYS,
+  taskPriority,
   taskStatus,
   text,
 } from '@nerv/schema';
@@ -332,6 +334,8 @@ export class TaskService {
     boundariesMd?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const priority = assertVocab([input.priority ?? 'P2'], taskPriority.enumValues, 'priority')[0];
     // 이름을 id 로 바꾼다 — 없는 이름은 여기서 걸린다(조용히 NULL 로 만들지 않는다).
     const baselineId = await this.baselineIdOf(input.projectId, input.baseline ?? null);
 
@@ -350,7 +354,7 @@ export class TaskService {
                           source_spec_version_id, source_requirement_id, baseline_id,
                           goal_md, output_format_md, tools_sources_md, boundaries_md)
         VALUES (${taskId}, ${input.projectId}, ${key}, ${input.title}, ${input.bodyMd ?? null},
-                'backlog', ${input.priority ?? 'P2'}::task_priority,
+                'backlog', ${priority}::task_priority,
                 ${input.sourceSpecVersionId ?? null}, ${input.sourceRequirementId ?? null},
                 ${baselineId},
                 ${input.goalMd ?? null}, ${input.outputFormatMd ?? null},
@@ -390,6 +394,12 @@ export class TaskService {
     dependsOnKeys?: string[] | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const priorityValue =
+      input.priority == null
+        ? null
+        : assertVocab([input.priority], taskPriority.enumValues, 'priority')[0];
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         id: string;
@@ -421,7 +431,7 @@ export class TaskService {
         UPDATE task
            SET title = coalesce(${input.title ?? null}, title),
                body_md = coalesce(${input.bodyMd ?? null}, body_md),
-               priority = coalesce(${input.priority ?? null}::task_priority, priority),
+               priority = coalesce(${priorityValue}::task_priority, priority),
                goal_md = ${merged.goal_md}, output_format_md = ${merged.output_format_md},
                tools_sources_md = ${merged.tools_sources_md}, boundaries_md = ${merged.boundaries_md},
                assignee_user_id = coalesce(${input.assigneeUserId ?? null}, assignee_user_id),
@@ -1090,6 +1100,8 @@ export class TaskService {
     blockedReason?: string | null;
     evidence?: { kind: string; locator: string }[];
   }): Promise<{ status: string; gate?: { ok: boolean; missing: string[] } }> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const nextStatus = assertVocab([input.status], taskStatus.enumValues, 'status')[0];
     return this.events.transact(async (tx, emit) => {
       // 키로 왔든 UUID 로 왔든 같은 작업을 가리킨다(§1.4b)
       const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
@@ -1137,9 +1149,11 @@ export class TaskService {
       await this.assertMayTransition(tx, taskId, input);
 
       for (const item of input.evidence ?? []) {
+        // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+        const evidence = assertVocab([item.kind], evidenceKind.enumValues, 'kind')[0];
         await tx.execute(sql`
           INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
-          VALUES (${newId()}, ${input.projectId}, ${taskId}, ${item.kind}::evidence_kind,
+          VALUES (${newId()}, ${input.projectId}, ${taskId}, ${evidence}::evidence_kind,
                   ${item.locator}, ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
         `);
       }
@@ -1181,7 +1195,7 @@ export class TaskService {
       }
 
       await tx.execute(sql`
-        UPDATE task SET status = ${input.status}::task_status,
+        UPDATE task SET status = ${nextStatus}::task_status,
                         blocked_reason = ${input.blockedReason ?? null}
          WHERE id = ${taskId}
       `);

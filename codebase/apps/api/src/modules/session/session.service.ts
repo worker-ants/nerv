@@ -8,12 +8,15 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  activityType,
+  agentType,
   msg,
-  newId,
   NERV_ERROR,
   NERV_EVENT,
-  sessionState,
+  newId,
   SESSION_STALE_SECONDS,
+  sessionEndReason,
+  sessionState,
 } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -129,6 +132,8 @@ export class SessionService {
    * 세션이 늘어나면 보드가 유령 세션으로 뒤덮인다.
    */
   async bootstrap(input: BootstrapInput): Promise<BootstrapResult> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const agentTypeValue = assertVocab([input.agentType], agentType.enumValues, 'agent_type')[0];
     const existing = await this.findResumable(input);
 
     if (existing !== null) {
@@ -161,7 +166,7 @@ export class SessionService {
         INSERT INTO agent_session (id, project_id, user_id, agent_type, agent_version, hostname,
                                    cwd, worktree_path, branch, external_session_id, state, model,
                                    last_heartbeat_at)
-        VALUES (${id}, ${input.projectId}, ${input.userId}, ${input.agentType}::agent_type, NULL,
+        VALUES (${id}, ${input.projectId}, ${input.userId}, ${agentTypeValue}::agent_type, NULL,
                 ${input.hostname}, ${input.cwd ?? null}, ${input.worktreePath ?? null},
                 ${input.branch ?? null}, ${input.externalSessionId ?? null}, 'active',
                 ${input.model ?? null}, now())
@@ -196,11 +201,13 @@ export class SessionService {
     toolName?: string | null;
     payload?: Record<string, unknown>;
   }): Promise<{ accepted: boolean }> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const activityTypeValue = assertVocab([input.type], activityType.enumValues, 'type')[0];
     // (session_id, seq) 유일 — 재전송은 조용히 무시한다(멱등, agent-integration §2.3)
     const { rows } = await this.db.execute<{ id: string }>(sql`
       INSERT INTO activity (id, session_id, project_id, seq, type, title, body_md, tool_name, payload)
       VALUES (${newId()}, ${input.sessionId}, ${input.projectId}, ${input.seq.toString()},
-              ${input.type}::activity_type, ${input.title ?? null}, ${input.bodyMd ?? null},
+              ${activityTypeValue}::activity_type, ${input.title ?? null}, ${input.bodyMd ?? null},
               ${input.toolName ?? null}, ${JSON.stringify(input.payload ?? {})}::jsonb)
       ON CONFLICT DO NOTHING
       RETURNING id
@@ -274,6 +281,8 @@ export class SessionService {
     branch?: string | null;
     worktreePath?: string | null;
   }): Promise<{ accepted: boolean }> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const activityTypeValue = assertVocab([input.type], activityType.enumValues, 'type')[0];
     // **번호 매기기와 쓰기가 한 문장이다.** 예전에는 `max(seq)+1` 을 읽고 따로 INSERT 했다 —
     // 훅은 병렬로 도착하고(PostToolUse 는 async 다) 두 요청이 같은 번호를 읽으면 뒤엣것이
     // `(session_id, seq)` 유니크에 걸려 `ON CONFLICT DO NOTHING` 으로 **조용히 사라졌다**.
@@ -286,7 +295,7 @@ export class SessionService {
       return tx.execute<{ id: string }>(sql`
         INSERT INTO activity (id, session_id, project_id, seq, type, title, tool_name, payload)
         SELECT ${newId()}, ${input.sessionId}, ${input.projectId},
-               coalesce(max(seq), 0) + 1, ${input.type}::activity_type,
+               coalesce(max(seq), 0) + 1, ${activityTypeValue}::activity_type,
                ${input.title}, ${input.toolName},
                ${JSON.stringify(input.payload ?? {})}::jsonb
           FROM activity WHERE session_id = ${input.sessionId}
@@ -318,11 +327,13 @@ export class SessionService {
     reason: 'complete' | 'error';
     userId: string;
   }): Promise<{ state: string; reclaimed: number }> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const endReason = assertVocab([input.reason], sessionEndReason.enumValues, 'reason')[0];
     return this.events.transact(async (tx, emit) => {
       await tx.execute(sql`
         UPDATE agent_session
-           SET state = ${input.reason}::session_state, ended_at = now(),
-               end_reason = ${input.reason}::session_end_reason
+           SET state = ${endReason}::session_state, ended_at = now(),
+               end_reason = ${endReason}::session_end_reason
          WHERE id = ${input.sessionId} AND project_id = ${input.projectId}
       `);
 

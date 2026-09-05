@@ -22,10 +22,11 @@ import {
   GATE_BRANCH_LIMIT_DEFAULT,
   GATE_BRANCH_LIMIT_MAX,
   msg,
-  newId,
   NERV_ERROR,
   NERV_EVENT,
   NERV_EVENT_PHASE2,
+  newId,
+  reviewKind,
 } from '@nerv/schema';
 import { changesetHash, findingFingerprint } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
@@ -434,10 +435,13 @@ export class ReviewService {
     input: SubmitInput,
     hash: string,
   ): Promise<{ id: string; roundNo: number; fresh: boolean }> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112).
+    // 세 캐스팅이 이 메서드 안에 있으므로 판정도 여기 한 번이다.
+    const reviewKindValue = assertVocab([input.kind], reviewKind.enumValues, 'kind')[0];
     const { rows: same } = await tx.execute<{ id: string; round_no: number }>(sql`
       SELECT id, round_no FROM review_session
        WHERE project_id = ${input.projectId} AND changeset_hash = decode(${hash}, 'hex')
-         AND kind = ${input.kind}::review_kind
+         AND kind = ${reviewKindValue}::review_kind
        ORDER BY round_no DESC LIMIT 1
     `);
     const existing = same[0];
@@ -448,7 +452,7 @@ export class ReviewService {
     const { rows: prior } = await tx.execute<{ id: string; round_no: number }>(sql`
       SELECT id, round_no FROM review_session
        WHERE project_id = ${input.projectId} AND branch = ${input.branch}
-         AND kind = ${input.kind}::review_kind
+         AND kind = ${reviewKindValue}::review_kind
        ORDER BY round_no DESC, created_at DESC LIMIT 1
     `);
     const previous = prior[0];
@@ -459,7 +463,7 @@ export class ReviewService {
                                   branch, head_sha, base_sha, changeset_hash, round_no,
                                   previous_session_id, state, prompt_blob_uri, prompt_expires_at,
                                   started_at)
-      VALUES (${sessionId}, ${input.projectId}, ${input.kind}::review_kind,
+      VALUES (${sessionId}, ${input.projectId}, ${reviewKindValue}::review_kind,
               ${input.sessionId != null ? 'auto' : 'manual'}::review_trigger,
               ${input.sessionId ?? null}, ${input.taskId ?? null},
               ${input.branch}, ${input.headSha}, ${input.baseSha}, decode(${hash}, 'hex'),

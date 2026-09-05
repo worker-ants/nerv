@@ -9,11 +9,12 @@
 // 닫는 것이 맞고, 지적한 사람이 스스로 닫으면 반영 여부를 아무도 확인하지 않게 된다.
 
 import { Injectable } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { commentStatus, msg, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 
 export interface CommentResult extends Record<string, unknown> {
@@ -102,7 +103,10 @@ export class SpecCommentService {
     status?: 'open' | 'resolved' | null;
   }): Promise<Record<string, unknown>[]> {
     const statusFilter =
-      input.status == null ? sql`` : sql` AND c.status = ${input.status}::comment_status`;
+      input.status == null
+        ? sql``
+        : // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+          sql` AND c.status = ${assertVocab([input.status], commentStatus.enumValues, 'status')[0]}::comment_status`;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT c.id, c.anchor, c.body_md, c.status::text AS status, c.author_user_id,
              c.author_session_id, c.resolved_by_user_id, c.created_at, c.resolved_at,

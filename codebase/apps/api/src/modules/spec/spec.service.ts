@@ -10,19 +10,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   canCreateSpecType,
+  evidenceKind,
   GatePolicySchema,
-  msg,
-  newId,
-  text,
+  implStatus,
   LEASE_HEARTBEAT_GRACE_SECONDS,
   LEASE_TTL_SECONDS,
+  memberRole,
+  msg,
   NERV_ERROR,
   NERV_EVENT,
-  implStatus,
-  memberRole,
+  newId,
   specType,
-  evidenceKind,
   specVersionStatus,
+  text,
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -649,6 +649,9 @@ export class SpecService {
   }
 
   async draftUpsert(input: DraftUpsertInput): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const specTypeValue =
+      input.type === undefined ? null : assertVocab([input.type], specType.enumValues, 'type')[0];
     return this.events.transact(async (tx, emit) => {
       // **키로 왔든 UUID 로 왔든 같은 스펙을 가리킨다**(§1.4b). 예전에는 이 자리가 UUID 만
       // 받았고, 바로 옆 `nerv_spec_get` 은 키만 받았다 — 같은 이름의 인자가 도구마다 다른
@@ -681,7 +684,7 @@ export class SpecService {
         specId = newId();
         await tx.execute(sql`
           INSERT INTO spec (id, project_id, parent_id, type, key, title)
-          VALUES (${specId}, ${input.projectId}, ${parentId}, ${input.type}::spec_type,
+          VALUES (${specId}, ${input.projectId}, ${parentId}, ${specTypeValue}::spec_type,
                   ${input.key}, ${input.title})
         `);
         created = true;

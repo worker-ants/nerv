@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 24종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.90 (2026-09-05)</span>
+      <span>버전 v0.91 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -288,6 +288,23 @@
     <li><b>모르는 오류는 그대로 500 이다.</b> 여기서 아무거나 4xx 로 만들면 서버의 결함이 사용자 잘못으로 둔갑하고, 그 순간 500 이 사라져 아무도 고치지 않는다.</li>
     <li>MCP 에서 특히 중요하다: 예전에는 이런 실패가 <code>NERV_UNAVAILABLE</code>("잠시 뒤 다시")로 나갔고, 그 코드를 받은 에이전트는 <b>영원히 실패할 요청을 재시도</b>한다. 중복 키는 기다린다고 풀리지 않는다.</li>
   </ul>
+
+<h4><code>::enum</code> 캐스팅 전수 점검 (2026-09-05 · REQ-API-112)</h4>
+
+  <p><code>22P02</code> 그물(REQ-API-106)은 <b>남은 자리가 어디든 400 이 되게</b> 한다. 그물이 하지 못하는 것은 <b>어느 목록에서 벗어났는지 말하는 것</b>이라, 자리마다의 어휘 검사를 한 번에 훑었다. <code>${…}::&lt;enum&gt;</code> 꼴 <b>62곳</b>을 전수로 확인한 결과다 — 다음 사람이 다시 세지 않게 남긴다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>부류</th><th>곳</th><th>무엇이 막는가</th></tr></thead>
+    <tbody>
+      <tr><td><b>어휘 검사를 새로 심음</b></td><td>19</td><td><code>assertVocab(…, &lt;enum&gt;.enumValues, '&lt;필드&gt;')</code> — <code>member_role</code>(4) · <code>agent_type</code> · <code>activity_type</code>(2) · <code>session_end_reason</code>(2) · <code>task_priority</code>(2) · <code>task_status</code> · <code>evidence_kind</code> · <code>spec_type</code> · <code>spec_relation_kind</code>(4) · <code>review_kind</code>(3) · <code>approval_decision</code> · <code>comment_status</code> · <code>notification_state</code> · <code>escalate_reason</code> · <code>question_urgency</code></td></tr>
+      <tr><td>이미 검사가 있었음</td><td>6</td><td><code>assertVocab</code> 이 앞에 있던 자리 · <code>resolutionOf</code> 가 판정하는 <code>resolution_kind</code>·<code>finding_status</code> · <code>CLAIM_RELEASE_INPUTS</code></td></tr>
+      <tr><td><b>zod 가 경계에서 막음</b></td><td>7</td><td>임포트 배치(<code>packages/schema/src/zod/import.ts</code> — <code>z.enum</code>). 값이 서비스에 닿기 전에 걸린다</td></tr>
+      <tr><td>리터럴 유니온 타입</td><td>3</td><td><code>approval_subject_type</code> — 시그니처가 값 여섯을 열거한 유니온이라 <b>컴파일러가 막는다</b></td></tr>
+      <tr><td>서버가 만든 값</td><td>27</td><td>삼항 리터럴(<code>'auto'</code>/<code>'manual'</code> · <code>'human'</code>/<code>'agent'</code>) · DB 에서 읽어 되쓰는 값 · 계산된 위험도 · 커서에 담겼던 값</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>요청에서 곧장 오는 캐스팅 중 검사 없는 것은 0곳이다.</b> 이 표의 마지막 두 부류는 값이 요청에서 오지 않으므로 검사를 두지 않는다 — 두면 "이 값이 사용자 입력일 수 있다" 는 잘못된 신호를 남긴다.</p>
 
   <p><b>더 친절한 답이 필요한 자리에는 여전히 미리 확인을 둔다</b> — 프로젝트 slug 가 그렇다(REQ-API-035): 보관된 것이 자리를 쥐고 있다는 사실까지 말해야 "복구"라는 길이 보이고, 그건 제약 위반만 보고는 알 수 없다.</p>
 
@@ -1383,6 +1400,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td>REQ-API-109</td><td>WHEN 열린 질문에 취소가 오면 THE SYSTEM SHALL <b>사람과 그 질문을 만든 세션에만</b> 허용하고 <code>cancelled</code> 로 전이한 뒤 대기 중이던 세션을 깨운다 — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이라, 그 길을 막으면 그 질문이 사람의 수신함에 남는다(2026-09-05)</td><td>세션 자기 취소 1건 · 사람 취소 1건 · 남의 질문 403 1건 · 답변된 질문 400 1건</td></tr>
       <tr><td>REQ-API-110</td><td>WHEN EP-SPEC-02·<code>nerv_spec_search</code> 에 <code>requirement_id</code> 가 오면 THE SYSTEM SHALL <b>그 요구사항이 속한 스펙</b>의 결과만 남기고(키 또는 UUID), 없는 요구사항은 409 <code>not_found</code> 로 거절한다 — 빈 결과로 답하면 오타가 "그 요구사항 주변에는 아무것도 없다" 라는 사실이 되어 돌아온다(2026-09-05)</td><td>키 1건 · UUID 1건 · 없는 요구사항 409 1건</td></tr>
       <tr><td>REQ-API-111</td><td>WHEN 사람 전용 동작(프로젝트 설정·보관·복구 · 스펙 메타·보관·복구 · 기준선 생성 · steer · 받은 요청 조회·결정)이 요청되면 THE SYSTEM SHALL <b>도메인 서비스에서</b> 주체가 에이전트인지 판정해 <code>NERV_HUMAN_ONLY</code> 로 거절하고 <code>details.action</code> 과 대신 갈 <code>web_url</code> 을 함께 준다 — 판정이 표면에만 있으면 새 표면이 생길 때 조용히 열린다(2026-09-05)</td><td>라우트 7종 각 1건 · 게이트를 서비스에서 빼면 전부 실패</td></tr>
+      <tr><td>REQ-API-112</td><td>WHEN 요청에서 온 값이 enum 열에 저장되면 THE SYSTEM SHALL <b>도메인 서비스에서</b> 어휘를 검사해 밖의 값은 400 으로 거절하고 <b>허용 목록과 어긋난 값을 함께</b> 준다 — 그물(REQ-API-106)은 500 을 400 으로 바꿀 뿐이고, 어느 목록에서 벗어났는지 말하지 못하면 클라이언트는 같은 요청을 다시 보낸다(2026-09-05 · 전수 62곳 점검)</td><td>필드명·허용 목록 반환 1건 · 전수 표(§1.4a)</td></tr>
       <tr><td>REQ-API-099</td><td>WHEN EP-SPEC-02·<code>nerv_spec_search</code> 에 <code>type</code>·<code>status</code> 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 <b>자르기 전에</b> 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05)</td><td>종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건</td></tr>
       <tr><td>REQ-API-100</td><td>WHEN EP-SPEC-08 에 <code>relations</code> 가, EP-TASK-07 에 <code>progress</code>·<code>stats</code> 가, EP-TASK-08 에 <code>state_note</code> 가 오면 THE SYSTEM SHALL <b>REST 에서도</b> 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05)</td><td>REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건</td></tr>
       <tr><td>REQ-API-098</td><td>WHEN EP-SPEC-01·19 에 <code>baseline</code> 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 <code>version_no</code>·<code>doc_status</code> 를 <b>그 세트가 핀한 판</b>의 것으로 싣는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL <code>invalid_input</code>(<code>field="baseline"</code>)으로 거절한다. WHILE <code>baseline</code> 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 판으로 준다</td></tr>
