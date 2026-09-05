@@ -246,6 +246,55 @@ describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () 
     }
   });
 
+  it('기준선 선택기의 기본값은 "기준선 없음" 이다 — "현재" 는 목록을 거른다는 인상을 줬다', async () => {
+    // 선택기는 기준선이 하나라도 있어야 그려진다(고를 것이 없는 드롭다운은 자리만 먹는다)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => ({
+        ok: true,
+        status: 200,
+        json: async () =>
+          String(url).includes('/baselines')
+            ? [{ id: 'b-1', name: 'R1', item_count: 3 }]
+            : String(url).includes('/specs/tree')
+              ? NODES
+              : { items: [], memberships: [], count: 0, summary: {} },
+      })),
+    );
+    await renderList('/p/demo/specs');
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('baseline-select').textContent).toContain('기준선 없음');
+    });
+  });
+
+  it('기준선을 고르면 성질 필터를 그리지 않는다 — 그 세트는 전부 승인본이다', async () => {
+    const { full } = await renderList('/p/demo/specs?baseline=R1');
+    expect(full.queryByTestId('status-filter')).toBeNull();
+    expect(full.queryByTestId('type-filter')).toBeNull();
+  });
+
+  it('기준선을 고르면 목록 질의가 그 세트를 묻는다 — 목록도 그 시점이어야 한다', async () => {
+    const seen: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        seen.push(String(url));
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            String(url).includes('/specs/tree')
+              ? NODES
+              : { items: [], memberships: [], count: 0, summary: {} },
+        };
+      }),
+    );
+    await renderList('/p/demo/specs?baseline=R1');
+    await vi.waitFor(() => {
+      expect(seen.some((u) => u.includes('/specs/tree') && u.includes('baseline=R1'))).toBe(true);
+    });
+  });
+
   it('기준선 생성 단추의 이름이 바뀌었다 — "동결" 은 화면에서 사라졌다', async () => {
     await renderList('/p/demo/specs');
     expect(screen.getByTestId('freeze-baseline').textContent).toBe('기준선 생성…');

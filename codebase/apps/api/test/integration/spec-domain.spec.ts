@@ -1103,3 +1103,72 @@ describe('EP-SPEC-06 버전 diff', () => {
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } });
   });
 });
+
+/**
+ * **기준선을 고르면 목록도 그 세트다**(REQ-API-098 · 2026-09-05 사람 지적).
+ *
+ * 4.5 §2.4 (4)는 처음부터 "목록이 그 세트에 핀된 버전 기준으로 렌더된다" 고 적었는데
+ * 목록 질의는 기준선을 아예 받지 않았다. 그래서 기준선을 골라도 **그 뒤에 만들어진 문서가
+ * 함께 보였고**, 보는 사람은 그 세트가 그 문서를 담고 있다고 읽었다.
+ */
+describe('E04 기준선 — 목록은 그 세트가 담은 것만', () => {
+  it('세트 밖의 문서는 목록에 없다 — 기준선 뒤에 만든 것이 섞이지 않는다', async () => {
+    const before = await draft('SPC-BL-BEFORE', '# 먼저 만든 문서');
+    await approve(before.versionId);
+    const set = await baselines.create({
+      projectId,
+      name: 'R-LIST-1',
+      userId: planner,
+      specVersionIds: [before.versionId],
+    });
+    expect(set['name']).toBe('R-LIST-1');
+
+    // 기준선을 만든 **뒤에** 문서를 하나 더 만든다
+    const after = await draft('SPC-BL-AFTER', '# 나중에 만든 문서');
+    await approve(after.versionId);
+
+    const all = await specs.tree({ projectId });
+    expect(all.map((n) => n.key)).toEqual(
+      expect.arrayContaining(['SPC-BL-BEFORE', 'SPC-BL-AFTER']),
+    );
+
+    const pinned = await specs.tree({ projectId, baseline: 'R-LIST-1' });
+    expect(pinned.map((n) => n.key)).toEqual(['SPC-BL-BEFORE']);
+  });
+
+  it('판도 그 세트의 것이다 — 나중 판이 아니라 담을 때의 판을 보인다', async () => {
+    const first = await draft('SPC-BL-VER', '# 첫 판');
+    await approve(first.versionId);
+    await baselines.create({
+      projectId,
+      name: 'R-LIST-2',
+      userId: planner,
+      specVersionIds: [first.versionId],
+    });
+
+    // 같은 문서의 다음 판을 승인한다 — 기준선은 그 전 판을 붙들고 있어야 한다
+    const current = await specs.get({ projectId, specKey: 'SPC-BL-VER' });
+    const next = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: first.specId,
+      bodyMd: '# 둘째 판',
+      baseHash: String(current['content_hash']),
+      userId: planner,
+    });
+    await approve(String(next['spec_version_id']));
+
+    const now = await specs.tree({ projectId, root: 'SPC-BL-VER' });
+    expect(now[0]?.version_no).toBe(2);
+
+    const pinned = await specs.tree({ projectId, root: 'SPC-BL-VER', baseline: 'R-LIST-2' });
+    expect(pinned[0]?.version_no).toBe(1);
+  });
+
+  it('없는 기준선은 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다', async () => {
+    await expect(specs.tree({ projectId, baseline: 'R-NOPE' })).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { field: 'baseline', unknown: ['R-NOPE'] },
+    });
+  });
+});

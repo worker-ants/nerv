@@ -324,7 +324,9 @@ export const en = {
   'spec.rail.rel_out': 'References',
   'spec.rail.relations': 'Relations',
   'specs.baseline': 'Baseline',
-  'specs.baseline_current': 'Current (latest approved)',
+  'specs.baseline_current': 'No baseline',
+  'specs.baseline_hint':
+    'A baseline decides which revision of a document you read. With none chosen, each document reads at its latest approved version (or its current one if it has never been approved); choose one and you see only the documents that set holds, at the revisions it holds them.',
   'specs.freeze': 'Create baseline…',
   'specs.status_filter': 'Status',
   'specs.status_filter_all': 'All',

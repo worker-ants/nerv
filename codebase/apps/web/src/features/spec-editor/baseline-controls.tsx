@@ -53,7 +53,10 @@ export function BaselineSelect({
   if (rows.length === 0) return null;
 
   return (
-    <label className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute">
+    <label
+      className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
+      title={t('specs.baseline_hint')}
+    >
       {t('specs.baseline')}
       <select
         data-testid="baseline-select"

@@ -70,6 +70,8 @@ export interface SpecTreeProps {
    * 트리의 조작 줄이 그것들의 자리다 — 그러면 머리의 동작 줄은 세 탭이 같아진다.
    */
   controls?: React.ReactNode;
+  /** 고른 기준선 — 그 세트가 담은 문서만, 그때의 판으로 그린다(REQ-API-098) */
+  baseline?: string | undefined;
 }
 
 /**
@@ -171,9 +173,10 @@ export function SpecTree({
   statuses,
   types,
   controls,
+  baseline,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
-  const tree = useSpecTree(projectSlug, projectId, includeArchived);
+  const tree = useSpecTree(projectSlug, projectId, includeArchived, baseline);
   const [filter, setFilter] = useState('');
   // null = 아직 정하지 않음. 첫 데이터가 와야 초깃값을 만들 수 있다.
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
