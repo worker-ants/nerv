@@ -5,9 +5,10 @@
 
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
+import { parseBody } from '../../common/parse-body.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
-import { msg, NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR, SessionSteerInput } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { SessionService } from './session.service.js';
 import type { SessionCard } from './session.service.js';
@@ -103,13 +104,13 @@ export class SessionController {
     }
     // 표면은 **주체를 읽어 넘기기만 한다** — 무엇을 막을지는 도메인이 정한다(D-05).
     // 예전에는 이 자리에 게이트가 있었고 서비스는 주체를 받지도 않았다(REQ-API-111).
-    const kind = body['kind'] === 'stop' ? 'stop' : 'steer';
+    const input = parseBody(SessionSteerInput, body);
     return this.sessions.steer({
       actor: { userId: principal.userId, isAgent: principal.isAgent },
       projectId: req.nervProjectId ?? '',
       sessionId: sid,
-      kind,
-      message: String(body['message'] ?? ''),
+      kind: input.kind,
+      message: input.message,
       userId: principal.userId,
       isAdmin: (req.nervRoles ?? []).includes('admin'),
     });
