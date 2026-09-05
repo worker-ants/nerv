@@ -20,6 +20,8 @@ import {
   NERV_EVENT,
   implStatus,
   memberRole,
+  specType,
+  specVersionStatus,
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -149,8 +151,12 @@ export class SpecService {
   /**
    * nerv_spec_tree · EP-SPEC-01
    *
-   * `root`(안정 키 또는 UUID)·`depth` 로 좁힐 수 있다. **둘 다 없으면 전 계층**이다 —
-   * 화면은 그것을 쓴다(screens.md REQ-WEB-044: 깊이는 성능 장치가 아니다).
+   * `root`(안정 키 또는 UUID)·`depth`·`status`·`type` 으로 좁힐 수 있다. **아무것도 없으면
+   * 전 계층**이다 — 화면은 그것을 쓴다(screens.md REQ-WEB-044: 깊이는 성능 장치가 아니다).
+   *
+   * 성질(`status`·`type`)로 거른 결과에는 **조상이 함께 온다**(REQ-API-092·093) — 매칭만
+   * 남기면 부모를 잃은 노드가 생기고, 받는 쪽은 트리를 그릴 수 없다. 조상은 `matched: false`
+   * 로 갈린다. 두 성질을 함께 주면 AND 다.
    *
    * 좁히기 판정이 여기 있는 이유는 표면이 둘이기 때문이다(REST·MCP · D-05). 도구 쪽에
    * 복사하면 두 표면이 같은 인자를 다르게 해석하게 되고, 그때 갈라진 쪽을 아무도 못 본다.
@@ -160,6 +166,10 @@ export class SpecService {
     includeArchived?: boolean;
     root?: string | null;
     depth?: number | null;
+    /** 현재 버전의 문서 상태 — 여럿이면 OR. 어휘 밖은 거절이지 무시가 아니다(REQ-API-074) */
+    statuses?: readonly string[] | null;
+    /** 스펙 종류 6종 — `statuses` 와 함께 오면 AND 다(다른 축이므로 서로를 좁힌다) */
+    types?: readonly string[] | null;
   }): Promise<SpecTreeNode[]> {
     const archived = input.includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
     const { rows } = await this.db.execute<SpecTreeNode>(sql`
@@ -179,7 +189,16 @@ export class SpecService {
         wrong_type: ['depth'],
       });
     }
-    const pruned = pruneTree(rows, { root: input.root ?? null, depth });
+    // 어휘의 정본은 `@nerv/schema` 의 enum 이다 — 목록을 여기에 다시 적지 않는다(D-05)
+    const statuses =
+      input.statuses == null || input.statuses.length === 0
+        ? null
+        : assertVocab([...input.statuses], specVersionStatus.enumValues, 'status');
+    const types =
+      input.types == null || input.types.length === 0
+        ? null
+        : assertVocab([...input.types], specType.enumValues, 'type');
+    const pruned = pruneTree(rows, { root: input.root ?? null, depth, statuses, types });
     // **없는 문서를 가리켰으면 전체를 주지 않는다.** 성공 응답에 전체 트리를 실으면 그것은
     // "그 문서 밑에 이만큼 있다"로 읽힌다 — 오타가 사실이 되는 자리다.
     if (pruned === null) {
@@ -231,6 +250,8 @@ export class SpecService {
     includeArchived?: boolean;
     root?: string | null;
     depth?: number | null;
+    statuses?: readonly string[] | null;
+    types?: readonly string[] | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const nodes = await this.tree(input);
     const visible = new Set(nodes.map((node) => node.id));

@@ -113,11 +113,18 @@ allowed-tools:
 ## 서브커맨드
 
 ### new — 새 스펙 초안
-1. `nerv_spec_tree`(`project`, 필요 시 `root`·`depth`)로 트리 위치를 확인하고,
+1. `nerv_spec_tree`(`project`, 필요 시 `root`·`depth`·`status`)로 트리 위치를 확인하고,
    `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을 지어내지 않는다** —
    트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서 내려갈 간선 수,
-   `1` 이면 뿌리와 그 자식)고 검색은 `q` 다. 응답의 목록은 각각 `nodes`·`items` 다.
+   `1` 이면 뿌리와 그 자식)·`status`(쉼표로 여럿)고 검색은 `q` 다. 응답의 목록은 각각
+   `nodes`·`items` 다.
+   **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
+   그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
+   답이다). 걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** —
+   후보로 세는 것은 `matched` 가 참인 것뿐이다.
 2. 사람과 트리 위치(`parent_id`)·`type`·`title`을 합의한 뒤 본문을 작성한다.
+   자리 후보는 `nerv_spec_tree`(`type: "vision,area"`)로 **뼈대만** 보면 한눈에 든다 —
+   `area` 는 본문 없이 자리를 잡는 종류라, 141편짜리 프로젝트도 뼈대는 17편이다.
 3. `nerv_spec_draft_upsert` — 입력: `parent_id`, `type`, `title`, `body_markdown`,
    `change_summary`(새 스펙이므로 `base_hash` 없음), 필요하면 `relations`, `idempotency_key`.
    **`key` 는 프로젝트 안에서 유일하다** — 이미 쓰이면 `key_taken` 이 온다. 그때 답은 다른

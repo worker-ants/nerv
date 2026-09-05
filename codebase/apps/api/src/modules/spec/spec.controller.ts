@@ -58,10 +58,10 @@ export class SpecController {
   ) {}
 
   /**
-   * EP-SPEC-01 — `SpecTreeQuery(root, depth, include_archived)`.
+   * EP-SPEC-01 — `SpecTreeQuery(root, depth, status, type, include_archived)`.
    *
-   * `root`·`depth` 도 질의로 적혀 있었는데 여기서 읽지 않아 **조용히 버려지고 있었다**
-   * (2026-09-05 · REQ-API-090). 판정은 서비스 한 곳이라 MCP 와 같은 답을 준다(D-05).
+   * 넷 중 셋이 질의로 적혀 있었는데 여기서 읽지 않아 **조용히 버려지고 있었다**
+   * (2026-09-05 · REQ-API-090·092). 판정은 서비스 한 곳이라 MCP 와 같은 답을 준다(D-05).
    */
   @RequireScope('spec:read')
   @Get('specs/tree')
@@ -70,12 +70,21 @@ export class SpecController {
     @Query('include_archived') includeArchived?: string,
     @Query('root') root?: string,
     @Query('depth') depth?: string,
+    @Query('status') status?: string,
+    @Query('type') type?: string,
   ): Promise<SpecTreeNode[]> {
     return this.specs.tree({
       projectId: projectOf(req),
       includeArchived: includeArchived === 'true',
       root: root === undefined || root === '' ? null : root,
       depth: depth === undefined || depth === '' ? null : Number(depth),
+      // 쉼표 목록 — REST 질의와 MCP 인자가 같은 모양이라 사람이 옮겨 적기 쉽다
+      statuses:
+        status === undefined || status === ''
+          ? null
+          : status.split(',').map((value) => value.trim()),
+      types:
+        type === undefined || type === '' ? null : type.split(',').map((value) => value.trim()),
     });
   }
 
