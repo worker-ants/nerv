@@ -16,6 +16,7 @@
 
 import { Injectable } from '@nestjs/common';
 import {
+  ESCALATE_REASONS,
   FINDING_PAGE_LIMIT_DEFAULT,
   FINDING_PAGE_LIMIT_MAX,
   GATE_BRANCH_LIMIT_DEFAULT,
@@ -150,9 +151,20 @@ export type ResolutionKind = 'fixed' | 'deferred' | 'dismissed' | 'escalated' | 
  * 표면은 번역만 하고, 그 번역표는 도메인 쪽에 하나만 둔다(REQ-CB-003 · D-05).
  */
 export const RESOLUTION_OF: Readonly<
-  Record<string, { kind: ResolutionKind; status: 'fixed' | 'dismissed' | 'wont_fix' }>
+  Record<string, { kind: ResolutionKind; status: 'open' | 'fixed' | 'dismissed' | 'wont_fix' }>
 > = {
   fixed: { kind: 'fixed', status: 'fixed' },
+  /**
+   * **사람에게 넘긴다** — 발견은 열린 채로 남는다(2026-09-05 · 사람 결정 · REQ-API-108).
+   *
+   * `escalated` 는 열거에 있었는데 **만드는 경로가 없어** 아무도 쓸 수 없는 값이었다.
+   * 상태를 `open` 으로 두는 이유는 단순하다: 넘긴 것은 해결한 것이 아니다. 큐에서
+   * 사라지면 "누가 보고 있다" 가 "아무도 안 본다" 와 화면에서 같아진다.
+   *
+   * 대신 **왜 넘기는지를 강제한다** — `escalate_reason` 은 clemvion 에서 5개월 검증된
+   * 어휘이고 `resolution` 에 열이 처음부터 있었는데 아무도 채우지 않았다.
+   */
+  escalated: { kind: 'escalated', status: 'open' },
   // **스펙을 고쳐 해결했다.** 발견은 닫히므로 상태는 `fixed` 와 같고, `왜` 를 담는
   // `resolution_kind` 만 다르다 — "이 발견들은 무엇으로 해결됐나" 를 나중에 되묻기 위해서다.
   spec_change: { kind: 'spec_change', status: 'fixed' },
@@ -164,7 +176,7 @@ export const RESOLUTION_OF: Readonly<
 /** 모르는 값은 기각으로 읽지 않는다 — 계약 밖의 값은 입력 오류다. */
 export function resolutionOf(asked: string): {
   kind: ResolutionKind;
-  status: 'fixed' | 'dismissed' | 'wont_fix';
+  status: 'open' | 'fixed' | 'dismissed' | 'wont_fix';
 } {
   const mapped = RESOLUTION_OF[asked];
   if (mapped === undefined) {
@@ -189,14 +201,22 @@ export interface ResolveInput {
    * 에이전트인지가 기준이다 — PAT 는 에이전트 세션 없이도 온다.
    */
   isAgent?: boolean;
-  /** 도구 계약의 `resolution` 값(fixed·spec_change·dismissed·wont_fix)은 표면이 여기로 번역한다 */
+  /** 도구 계약의 `resolution` 값(fixed·spec_change·dismissed·wont_fix·escalated)은 표면이 여기로 번역한다 */
   kind: ResolutionKind;
-  status: 'fixed' | 'dismissed' | 'wont_fix';
+  status: 'open' | 'fixed' | 'dismissed' | 'wont_fix';
   rationale: string;
   commitSha?: string | null;
   changeRequestId?: string | null;
   /** `spec_change` 의 증거 — 무엇을 고쳐서 해결했는가(2026-08-30) */
   specVersionId?: string | null;
+  /**
+   * **`escalated` 의 필수 짝** — 왜 사람을 부르는가(2026-09-05 · REQ-API-108).
+   *
+   * 어휘는 `escalate_reason` 이다: 질문(`question.escalate`)과 같은 것을 쓴다 —
+   * 같은 뜻에 두 어휘를 두면 그 순간부터 둘이 갈라진다(data-model §2.7).
+   * 열은 처음부터 `resolution` 에 있었는데 **아무도 채우지 않았다.**
+   */
+  escalateReason?: string | null;
 }
 
 export interface ResolveResult {
@@ -751,6 +771,12 @@ export class ReviewService {
       }
     }
 
+    // **넘기려면 왜인지 말해야 한다**(REQ-API-108). 사유 없는 에스컬레이션은 큐에
+    // 열린 발견 하나를 남기고 아무 정보도 더하지 않는다 — 그건 처분이 아니라 방치다.
+    if (input.kind === 'escalated') {
+      assertVocab([input.escalateReason ?? ''], ESCALATE_REASONS, 'escalate_reason');
+    }
+
     // **게이트는 트랜잭션 밖이다.** 승인 카드를 만들고 같은 트랜잭션에서 막으면 그 카드도
     // 함께 롤백된다 — 사람의 받은 요청에는 아무것도 뜨지 않고 에이전트만 재시도한다(실측).
     const preflight = await this.loadFinding(input);
@@ -781,10 +807,11 @@ export class ReviewService {
       const resolutionId = newId();
       await tx.execute(sql`
         INSERT INTO resolution (id, finding_id, kind, commit_sha, change_request_id,
-                                spec_version_id, rationale_md, actor_user_id, actor_session_id)
+                                spec_version_id, escalate_reason, rationale_md,
+                                actor_user_id, actor_session_id)
         VALUES (${resolutionId}, ${input.findingId}, ${input.kind}::resolution_kind,
                 ${input.commitSha ?? null}, ${input.changeRequestId ?? null},
-                ${input.specVersionId ?? null},
+                ${input.specVersionId ?? null}, ${input.escalateReason ?? null}::escalate_reason,
                 ${input.rationale}, ${input.userId}, ${input.sessionId ?? null})
       `);
       await tx.execute(sql`

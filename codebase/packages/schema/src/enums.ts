@@ -165,6 +165,21 @@ export const escalateReason = pgEnum('escalate_reason', [
   'sensitive-fix',
 ]);
 
+/**
+ * **부를 수 있는 사유는 다섯이다** — `no` 는 "에스컬레이션 아님" 이라 목록 밖이다.
+ *
+ * 질문(`question.escalate`)과 발견 처분(`resolution.escalate_reason`)이 **같은 어휘를**
+ * 쓴다(data-model §2.7). 표면이 이 목록을 다시 적지 않게 여기 둔다.
+ */
+export const ESCALATE_REASONS = [
+  'spec',
+  'user-decision',
+  'infra',
+  'e2e-fail-3x',
+  'sensitive-fix',
+] as const;
+export type EscalateReason = (typeof ESCALATE_REASONS)[number];
+
 // ── 사람 개입 ─────────────────────────────────────────────────────────────
 export const approvalSubjectType = pgEnum('approval_subject_type', [
   'spec_version',

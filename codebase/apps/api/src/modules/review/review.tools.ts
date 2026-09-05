@@ -116,13 +116,23 @@ export class ReviewTools implements NervToolProvider {
           finding_id: { type: 'string' },
           resolution: {
             type: 'string',
-            enum: ['fixed', 'spec_change', 'dismissed', 'wont_fix'],
+            // `escalated` 는 **사람에게 넘긴다** — 발견은 열린 채로 남는다(2026-09-05 ·
+            // REQ-API-108). 열거에는 처음부터 있었는데 만드는 경로가 없어 아무도
+            // 쓸 수 없는 값이었다. 넘기려면 `escalate_reason` 을 함께 줘야 한다.
+            enum: ['fixed', 'spec_change', 'dismissed', 'wont_fix', 'escalated'],
           },
           commit_sha: { type: 'string', description: 'mcp.arg.commit_sha' },
           // 스펙을 고쳐 해결했을 때의 증거 — `nerv_spec_draft_upsert` 응답의 버전 id
           spec_version_id: { type: 'string', description: 'mcp.arg.resolution_spec_version' },
           change_request_id: { type: 'string' },
           rationale: { type: 'string' },
+          // 질문(`nerv_question_create`)의 `escalate` 와 **같은 어휘**다 —
+          // 같은 뜻에 두 어휘를 두면 그 순간부터 둘이 갈라진다.
+          escalate_reason: {
+            type: 'string',
+            enum: ['spec', 'user-decision', 'infra', 'e2e-fail-3x', 'sensitive-fix'],
+            description: 'mcp.arg.escalate_reason',
+          },
           idempotency_key: { type: 'string' },
         },
         required: ['finding_id', 'resolution', 'rationale'],
@@ -144,10 +154,19 @@ export class ReviewTools implements NervToolProvider {
             typeof input['change_request_id'] === 'string' ? input['change_request_id'] : null,
           specVersionId:
             typeof input['spec_version_id'] === 'string' ? input['spec_version_id'] : null,
+          escalateReason:
+            typeof input['escalate_reason'] === 'string' ? input['escalate_reason'] : null,
         });
         return {
           ...result,
-          next_actions: result.open_remaining > 0 ? ['nerv_finding_resolve'] : ['nerv_task_update'],
+          // 넘긴 발견은 **열린 채로 남는다** — 다음 행동은 그것을 다시 집는 것이
+          // 아니라 사람의 답을 기다리는 것이다(2026-09-05 · REQ-API-108)
+          next_actions:
+            asked === 'escalated'
+              ? ['nerv_task_heartbeat']
+              : result.open_remaining > 0
+                ? ['nerv_finding_resolve']
+                : ['nerv_task_update'],
         };
       },
     },

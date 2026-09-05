@@ -55,6 +55,30 @@ export class ApprovalController {
     });
   }
 
+  /**
+   * EP-QST-03 — 질문 취소. **사람 전용이 아니다**(2026-09-05 · REQ-API-109).
+   *
+   * 사람이 "물을 일이 아니었다" 고 내리거나, **만든 세션이 스스로 답을 찾아** 거둔다.
+   * 후자를 막으면 답이 필요 없어진 질문이 수신함에 남고 사람이 그것을 처리해야 한다.
+   * 누가 부를 수 있는지의 판정은 도메인 서비스에 있다(D-05).
+   */
+  @RequireScope('task:update')
+  @Post('questions/:id/cancel')
+  cancel(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    const principal = req.nervPrincipal;
+    if (principal === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
+    }
+    return this.questions.cancel({
+      projectId: req.nervProjectId ?? '',
+      questionId: id,
+      userId: principal.userId,
+      isAgent: principal.isAgent,
+    });
+  }
+
   /** EP-QST-02 — 질문 답변. 사람 전용 */
   @RequireScope('spec:read')
   @Post('questions/:id/answer')

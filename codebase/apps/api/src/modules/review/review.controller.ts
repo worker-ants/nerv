@@ -114,6 +114,8 @@ export class ReviewController {
       changeRequestId:
         typeof body['change_request_id'] === 'string' ? body['change_request_id'] : null,
       specVersionId: typeof body['spec_version_id'] === 'string' ? body['spec_version_id'] : null,
+      // `escalated` 의 필수 짝 — 왜 사람을 부르는가(2026-09-05 · REQ-API-108)
+      escalateReason: typeof body['escalate_reason'] === 'string' ? body['escalate_reason'] : null,
     });
   }
   /** EP-REV-07 — 발견에 사람의 말을 남긴다(2026-08-30 신설) */

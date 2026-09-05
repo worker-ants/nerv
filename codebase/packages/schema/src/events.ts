@@ -71,6 +71,12 @@ export const NERV_EVENT = {
   QUESTION_CREATED: 'question.created',
   /** ★ EP-APR-03 · EP-QST-02 */
   QUESTION_ANSWERED: 'question.answered',
+  /**
+   * ★ EP-QST-03 — 취소(2026-09-05). 사람이 내리거나 **만든 세션이 스스로** 거둔다.
+   * 답변과 다른 이벤트인 이유는 수신함이 이 둘을 다르게 세기 때문이다:
+   * 답변은 처리된 것이고 취소는 처리할 필요가 없어진 것이다.
+   */
+  QUESTION_CANCELLED: 'question.cancelled',
 
   // ── 게이트 (P1) ──────────────────────────────────────────────────────────
   GATE_BYPASSED: 'gate.bypassed',

@@ -103,6 +103,8 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.APPROVAL_REQUESTED]: inboxAxis,
   [E.QUESTION_CREATED]: inboxAxis,
   [E.QUESTION_ANSWERED]: (e) => [queryKeys.inbox(), queryKeys.projectSessions(e.project_id)],
+  // 취소도 답변과 같은 자리를 바꾼다 — 수신함에서 사라지고, 기다리던 세션이 깨어난다
+  [E.QUESTION_CANCELLED]: (e) => [queryKeys.inbox(), queryKeys.projectSessions(e.project_id)],
 
   // **받은 요청도 함께 되읽는다.** 이 이벤트는 개인 룸으로 오는 유일한 방송이고(api.md §3.3),
   // 다른 프로젝트 화면에 있는 사람에게는 승인 요청·질문이 닿는 유일한 길이다 — 종만

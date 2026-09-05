@@ -5,10 +5,11 @@ updated: 2026-08-22
 ---
 # API 명세
 
-> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **23종**(2026-09-04 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 23종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
+> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.87 · 2026-09-05 · HTML 판: [api.html](../html/api.html)
+> 문서 버전 v0.88 · 2026-09-05 · HTML 판: [api.html](../html/api.html)
 >
+> v0.88 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): **REQ-API-108·109 신설 · EP-QST-03 신설 · 도구 24종.** 열거에는 있는데 **만드는 경로가 없어 아무도 쓸 수 없던 값 둘**에 길을 낸다. ① `resolution_kind.escalated` — 사람에게 넘기는 처분이고 **발견은 열린 채로 남는다**(넘긴 것은 해결한 것이 아니다). `escalate_reason` 을 필수로 요구한다: 사유 없는 에스컬레이션은 큐에 열린 발견 하나를 남기고 아무 정보도 더하지 않는다. 어휘는 질문과 **같은 것**을 쓴다(`resolution.escalate_reason` 열은 처음부터 있었는데 아무도 채우지 않았다). ② `question_status.cancelled` — **사람과 그 질문을 만든 세션 둘 다** 거둘 수 있다. 세션에 길이 필요한 이유는 하나다: 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이다. 그 길을 막으면 그 질문이 사람의 수신함에 남고 사람은 맥락 없이 처리한다. 그래서 **도구가 하나 늘었다**(`nerv_question_cancel` — MVP 22종 · 카탈로그 24종).
 > v0.87 변경(2026-09-05 — 인계와 포기가 같은 값이 됐다, 정합성 감사 → 사람 결정): **REQ-API-107 신설.** EP-TASK-08 의 `reason` 이 **그대로 저장된다.** 그전에는 두 겹으로 뭉개졌다 — 저장이 `done` 외를 전부 `manual` 로 넣었고(인계와 포기가 같은 값), REST 컨트롤러는 그 위에 "셋 중 하나가 아니면 handoff" 라는 **조용한 변환**을 얹고 있었다. 어휘 판정은 도메인 서비스 한 곳이고(D-05 — MCP 는 스키마의 `enum` 으로 거절하고 REST 는 조용히 바꿔서 두 표면이 같은 값에 다르게 답했다), 어휘 밖은 400 이다.
 > v0.86 변경(2026-09-05 — 어휘 밖 값이 진짜 500 이었다, 정합성 감사 → 사람 결정): **REQ-API-106 신설.** §1.4a 의 SQLSTATE 표에 **`22P02`**(값의 모양이 타입과 맞지 않음)를 더한다. 이 코드가 없어서 어휘 검사를 아직 두지 않은 자리마다 오타 하나가 500 으로 나갔다 — 500 은 "서버가 잘못했다, 기다렸다 다시" 라는 뜻이라 **클라이언트가 고칠 수 없는 요청을 재시도**한다. 값은 싣지 않는다: Postgres 의 메시지가 `… enum evidence_kind: "screenshot"` 처럼 값을 포함하므로 **콜론 앞까지만** 읽어 타입 이름만 `details.pg_type` 에 싣는다. **이것은 그물이지 검사가 아니다** — 어느 목록에서 벗어났는지 말하는 것은 자리마다의 `assertVocab` 이 하고, 그 전수 점검이 다음 일이다.
 > v0.85 변경(2026-09-05 — 한 문서에서 번호 하나가 둘이었다, 정합성 감사 → 사람 결정): **초대의 `REQ-API-031`~`034` 를 `102`~`105` 로 옮긴다.** 같은 날(2026-08-27) 두 결정이 같은 번호를 잡았다 — v0.17 보관과 v0.18 초대. **v0.19(08-28)가 이 충돌을 한 번 풀었는데 셋 중 하나(`033`)만 옮기고 멈췄고**, 남은 `031`·`032` 가 그대로 둘씩이었다. **규약 5 를 한 번 깬다** — "기존 번호는 재사용·재배치하지 않는다" 가 정본이지만 둘 다 이미 발급된 번호라 어느 쪽을 옮겨도 재배치다. **선례와 방향이 다르다는 것을 적어 둔다**: v0.19 는 slug(보관) 쪽을 옮겼고 이번에는 초대 쪽을 옮긴다. 기준은 **파장**이다 — 보관 번호는 README v1.36·v2.40 · 이 문서 v0.17·v0.82 · 4.5 v0.29 의 다섯 서술이 그 사건을 가리키고, 초대 번호는 이 문서 §2.1b 안에서만 인용된다. 이후 신규 번호는 `106` 부터다. **이 예외를 선례로 삼지 않는다** — 번호는 발급 시점에 유일해야 하고, 그것을 지키는 검사를 넣는 것이 다음 일이다.
@@ -178,7 +179,7 @@ flowchart LR
 
 - PAT 원문 형식: `nerv_` 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(`api_token.token_hash`), 식별·감사용으로 앞 8자를 `api_token.prefix`에 남긴다([데이터 모델](../03-proposal/data-model.md) §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 **한 번만** 반환된다.
 - 스코프 어휘는 `resource:action` 표기이고 **10종**이다: `spec:read` `spec:draft` `spec:meta` `spec:evidence` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch` `import:write`. `spec:approve`와 `approval:decide`는 **토큰에 부여 자체가 불가능한 사람 전용 스코프**다 — 정책이 아니라 시스템 불변식([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1 ④). 정본은 `@nerv/schema` 의 `AGENT_SCOPES`·`HUMAN_ONLY_SCOPES` 이며, 어느 문서도 이 목록을 다시 적지 않는다.
-- **MCP 도구 대응이 없는 스코프가 셋 있다**(2026-09-04 정정 — 실측). 도구 23종이 쓰는 스코프는 **일곱**이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — `import:write`(§2.10 이관 표면) · `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). `import:write`는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
+- **MCP 도구 대응이 없는 스코프가 셋 있다**(2026-09-04 정정 — 실측). 도구 24종이 쓰는 스코프는 **일곱**이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — `import:write`(§2.10 이관 표면) · `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). `import:write`는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
 - REST 엔드포인트의 인가는 역할 매트릭스([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6)가 정본이다. §2 전표의 "권한" 열은 그 매트릭스의 인용이며, PAT 요청은 역할 판정에 **스코프 검사가 AND로** 추가된다.
 
 ### 1.3a 권한은 라우트가 선언한다 (2026-09-02 신설 — 보안 점검)
@@ -927,6 +928,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-APR-04 | `POST /api/v1/projects/{proj}/gates/bypass` | admin ●, planner(스펙 계열)·developer(코드 계열) ○ | `GateBypassInput`(대상, 사유, 유효 시간) | `ApprovalResult`(is_bypass=true) | `gate.bypassed` |
 | EP-QST-01 | `GET /api/v1/projects/{proj}/questions` | 전 역할 | `QuestionListQuery`(status: open/answered, cursor) | `Page<QuestionResult>`(선택지·대기 세션·경과·**출처**(`spec_key`·`task_key`·`finding_id`)·`escalate`) | — |
 | EP-QST-02 | `POST /api/v1/projects/{proj}/questions/{id}/answer` | 대상 역할 또는 지정자 — 사람 전용 | `QuestionAnswerInput`(answer_key 또는 answer_md) | `QuestionResult`(status=answered) — 내부적으로 ApprovalService.decide(subject=question) 한 경로 | ★`question.answered` |
+| EP-QST-03 | `POST /api/v1/projects/{proj}/questions/{id}/cancel` | 전 역할(`task:update`) — **사람과 그 질문을 만든 세션 둘 다**(2026-09-05 · REQ-API-109). 남의 질문은 사람만 내린다 | — | `QuestionResult`(status=`cancelled`) — 열린 질문에만 걸린다(답이 달렸으면 그 답이 사실이다) | ★`question.cancelled` |
 
 승인 유효성 판정(자기 승인 거부·에이전트 영구 불가·content hash 불일치 = stale 승인 거부)과 SLA·리마인더·만료는 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.3·§2.6 정본을 서버가 그대로 집행한다. MVP 받은 요청 카드는 스펙 승인·플랜·질문 3유형이고 CR·에스컬레이션 카드는 P2다([로드맵](../03-proposal/roadmap.md) FR-11).
 
@@ -1166,6 +1168,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | `approval.requested` | EP-SPEC-10·플랜 승인·BYPASS 요청 | 지정 승인자 `user:{id}` + `project:{id}` | P1 |
 | `question.created` | MCP `nerv_question_create` | 대상 역할/지정자 `user:{id}` + `project:{id}` | P1 |
 | ★`question.answered` | EP-APR-03·EP-QST-02 | 요청 세션 소유자 `user:{id}` + `project:{id}` | P1 |
+| ★`question.cancelled` | EP-QST-03 | 요청 세션 소유자 `user:{id}` + `project:{id}` | P1 |
 | `gate.bypassed` | EP-APR-04 | admin `user:{id}` + `project:{id}` | P1 |
 | `gate.failopen` | 게이트 판정 불가(D-14, [에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3) | `project:{id}` | P1 |
 | ★`import.applied` | EP-IMP-02·03·04 배치 적재(§2.10) | `project:{id}` | P0 |
@@ -1196,9 +1199,9 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 
 ---
 
-## 4. MCP 도구 23종 ↔ 내부 서비스 ↔ REST 대응
+## 4. MCP 도구 24종 ↔ 내부 서비스 ↔ REST 대응
 
-카탈로그는 **23종**이고 단계 분포는 **P0 8 · P1 13 · P2 2**다(2026-09-04 실측 — 도구 레지스트리 기준). P2 둘은 `nerv_review_submit`·`nerv_finding_resolve` 다. [4.1 MVP 범위와 스택 확정](scope.md) 이 적은 **MVP 21종**(P0 8 + P1 13) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
+카탈로그는 **24종**이고 단계 분포는 **P0 8 · P1 14 · P2 2**다(2026-09-05 실측 — 도구 레지스트리 기준). P2 둘은 `nerv_review_submit`·`nerv_finding_resolve` 다. [4.1 MVP 범위와 스택 확정](scope.md) 이 적은 **MVP 21종**(P0 8 + P1 13) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
 
 임포트 표면(§2.10)은 이 표에 없다 — **대응하는 MCP 도구가 없기 때문**이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다([4.7 스펙 임포터](importer.md) §3.6). 에이전트가 관여하는 지점은 도구가 아니라 CLI를 감싸는 스킬 `/nerv:import`다.
 
@@ -1259,6 +1262,8 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-101 | WHEN EP-REQ-03 에 어휘 밖의 `kind` 가 오면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`field: "kind"`)으로 거절한다 — 값이 검사 없이 `::evidence_kind` 로 캐스팅돼 **오타 하나가 22P02(진짜 500)** 로 나가던 자리다(`db-error.ts` 의 SQLSTATE 목록에 22P02 는 없다) | 어휘 밖 400 1건 · 6종 전부 수락 1건 |
 | REQ-API-106 | WHEN 어느 표면이든 값의 모양이 타입과 맞지 않아 DB 가 `22P02` 로 거절하면 THE SYSTEM SHALL 400 `NERV_PRECONDITION`(`kind=invalid_text_representation`, `pg_type`)으로 돌려주고 **요청 값은 응답에 싣지 않는다** — 이 코드가 표에 없어 어휘 밖 값이 진짜 500 으로 나갔고, 500 은 "기다렸다 다시" 라는 뜻이라 클라이언트가 고칠 수 없는 요청을 재시도했다(2026-09-05) | enum 400 1건 · UUID 400 1건 · 로케일 미해독 1건 · L2 표면 1건 |
 | REQ-API-107 | WHEN 클레임 내려놓기에 `reason` 이 오면 THE SYSTEM SHALL 그 값을 **그대로** `release_reason` 에 저장하고, `CLAIM_RELEASE_INPUTS`(done/handoff/abandon) 밖의 값은 400 으로 거절한다 — 그전에는 저장이 `done` 외를 전부 `manual` 로 뭉쳐 **인계와 포기가 구별되지 않았고**, REST 는 그 위에 "셋 중 하나가 아니면 handoff" 라는 조용한 변환까지 얹고 있었다(2026-09-05) | 세 값 각 1건 · 어휘 밖 400 1건(클레임 불변 확인 포함) |
+| REQ-API-108 | WHEN 발견 처분이 `escalated` 로 오면 THE SYSTEM SHALL `escalate_reason` 을 **필수로 요구**하고 처분 레코드를 남기되 **발견의 상태는 `open` 으로 유지한다** — 넘긴 것은 해결한 것이 아니고, 큐에서 사라지면 "누가 보고 있다" 가 "아무도 안 본다" 와 화면에서 같아진다(2026-09-05) | escalated 저장·큐 유지 1건 · 사유 없음 400 1건 · critical 승인 게이트 비적용 1건 |
+| REQ-API-109 | WHEN 열린 질문에 취소가 오면 THE SYSTEM SHALL **사람과 그 질문을 만든 세션에만** 허용하고 `cancelled` 로 전이한 뒤 대기 중이던 세션을 깨운다 — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이라, 그 길을 막으면 그 질문이 사람의 수신함에 남는다(2026-09-05) | 세션 자기 취소 1건 · 사람 취소 1건 · 남의 질문 403 1건 · 답변된 질문 400 1건 |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 핀한 판**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 판으로 준다 |

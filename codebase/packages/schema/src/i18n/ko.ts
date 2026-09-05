@@ -126,6 +126,7 @@ export const ko = {
   'error.question.context_not_found':
     '{field} 를 찾을 수 없습니다 — 출처는 실제 문서·작업·발견을 가리켜야 합니다.',
   'error.question.not_open': '열린 질문이 아닙니다.',
+  'error.question.not_owner': '이 질문을 만든 세션만 취소할 수 있습니다.',
   'error.relation.auto_kind':
     'references 는 본문에서 자동 동기화됩니다 — 손으로 넣으면 다음 저장에 지워집니다.',
   'error.relation.base_hash_required':
@@ -153,6 +154,8 @@ export const ko = {
     'spec_change 처분에는 무엇을 고쳤는지(spec_version_id)가 필요합니다.',
   'error.review.spec_version_unknown': '그 스펙 버전을 이 프로젝트에서 찾을 수 없습니다.',
   'mcp.arg.resolution_spec_version': '스펙을 고쳐 해결했을 때의 증거 — 그 저장의 spec_version_id',
+  'mcp.arg.escalate_reason':
+    '왜 사람을 부르는가 — escalated 처분의 필수 짝. 질문의 escalate 와 같은 어휘다.',
   'mcp.arg.commit_sha': '코드를 고쳐 해결했을 때의 증거 — fixed 에는 필수다',
   'error.review.empty_comment': '빈 코멘트는 남기지 않습니다.',
   'error.spec.base_hash_required':
@@ -504,6 +507,7 @@ export const ko = {
   'event.import.applied': '임포트 적재',
   'event.notification.created': '알림 생성',
   'event.question.answered': '질문에 답변함',
+  'event.question.cancelled': '질문 취소됨',
   'event.question.created': '에이전트 질문',
   'event.session.complete': '세션 종료',
   'event.session.stale': '세션 무응답 — 클레임 회수됨',

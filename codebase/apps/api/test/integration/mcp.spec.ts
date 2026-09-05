@@ -128,13 +128,15 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(String(result['instructions']).length).toBeLessThan(2048);
   });
 
-  it('tools/list 가 23종을 노출한다 — MVP 20(P0 8 + P1 12) + 리뷰 2(P2) + 첨부 읽기 1', async () => {
+  it('tools/list 가 24종을 노출한다 — MVP 22(P0 8 + P1 14) + 리뷰 2(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
-    // 카탈로그가 20인 것은 리뷰 수집(FR-09)이 Phase 2 에서 위에 얹혔기 때문이다 —
-    // 두 수를 섞지 않는다. MVP 는 20 이다 — 2026-08-30 에 16 → 19(Task 를 만들고·읽고·훑는
-    // 셋), 2026-09-01 에 20(`nerv_spec_attach` — 시안을 문서에 매다는 길이 없었다).
-    expect(tools).toHaveLength(23);
+    // 카탈로그와 MVP 를 섞지 않는다 — 리뷰 수집(FR-09) 2종이 Phase 2 에서 위에 얹혔다.
+    // MVP 는 22 다: 2026-08-30 에 16 → 19(Task 를 만들고·읽고·훑는 셋), 09-01 에 20
+    // (`nerv_spec_attach`), 09-04 에 21(`nerv_spec_attachment_read`), 09-05 에 22
+    // (`nerv_question_cancel` — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이다).
+    expect(tools).toHaveLength(24);
+    expect(tools.map((t) => t.name)).toContain('nerv_question_cancel');
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_relate');
     expect(tools.map((t) => t.name)).toContain('nerv_task_get');

@@ -368,6 +368,70 @@ describe('FR-09 처분 — 하향은 사람의 승인을 거친다(A3)', () => {
     expect(out.open_remaining).toBe(0);
   });
 
+  /**
+   * **사람에게 넘긴다 — 발견은 열린 채로 남는다**(2026-09-05 · REQ-API-108).
+   *
+   * `escalated` 는 열거에 있었는데 만드는 경로가 없어 아무도 쓸 수 없는 값이었다.
+   * 상태를 `open` 으로 두는 이유는 단순하다: 넘긴 것은 해결한 것이 아니다.
+   */
+  it('escalated 는 처분을 남기되 발견을 닫지 않는다', async () => {
+    const findingId = await openCritical();
+    const out = await reviews.resolve({
+      projectId,
+      findingId,
+      userId,
+      sessionId: agentSessionId,
+      isAgent: true,
+      kind: 'escalated',
+      status: 'open',
+      rationale: '스펙이 이 경우를 정하지 않았다 — 사람이 정해야 한다',
+      escalateReason: 'spec',
+    });
+    expect(out.status).toBe('open');
+    // 큐에서 사라지지 않는다 — "누가 보고 있다" 가 "아무도 안 본다" 와 같아지면 안 된다
+    expect(out.open_remaining).toBe(1);
+
+    const { rows } = await pool.query<{ kind: string; escalate_reason: string | null }>(
+      `SELECT kind::text AS kind, escalate_reason::text AS escalate_reason
+         FROM resolution WHERE finding_id = $1`,
+      [findingId],
+    );
+    expect(rows[0]?.kind).toBe('escalated');
+    // 열은 처음부터 있었는데 아무도 채우지 않았다
+    expect(rows[0]?.escalate_reason).toBe('spec');
+  });
+
+  it('사유 없는 에스컬레이션은 거절된다 — 그건 처분이 아니라 방치다', async () => {
+    const findingId = await openCritical();
+    await expect(
+      reviews.resolve({
+        projectId,
+        findingId,
+        userId,
+        isAgent: false,
+        kind: 'escalated',
+        status: 'open',
+        rationale: '어렵다',
+      }),
+    ).rejects.toMatchObject({ details: { field: 'escalate_reason' } });
+  });
+
+  it('escalated 는 하향이 아니라 승인 게이트를 타지 않는다 — critical 이어도 통과한다', async () => {
+    const findingId = await openCritical();
+    const out = await reviews.resolve({
+      projectId,
+      findingId,
+      userId,
+      sessionId: agentSessionId,
+      isAgent: true,
+      kind: 'escalated',
+      status: 'open',
+      rationale: '인프라 문제로 보인다',
+      escalateReason: 'infra',
+    });
+    expect(out.status).toBe('open');
+  });
+
   // 2026-08-30 — 처분 근거가 목록 응답에 없어서 화면이 그것을 보일 수 없었다.
   // 근거가 없으면 dismissed 는 **삭제와 구별되지 않는다**.
   it('처분한 발견은 목록이 근거와 처분자를 함께 준다', async () => {

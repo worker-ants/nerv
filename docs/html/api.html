@@ -50,9 +50,9 @@
 
   <header class="page-header">
     <h1>API 명세</h1>
-    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 23종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
+    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 24종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.87 (2026-09-05)</span>
+      <span>버전 v0.88 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -64,7 +64,7 @@
       <li><a href="#sec-1">공통 규약</a></li>
       <li><a href="#sec-2">리소스별 엔드포인트 전표</a></li>
       <li><a href="#sec-3">실시간 채널 계약 — WebSocket + SSE</a></li>
-      <li><a href="#sec-4">MCP 도구 23종 ↔ 내부 서비스 ↔ REST 대응</a></li>
+      <li><a href="#sec-4">MCP 도구 24종 ↔ 내부 서비스 ↔ REST 대응</a></li>
       <li><a href="#sec-5">수용 기준 (REQ-API-*)</a></li>
       <li><a href="#sec-ref">참고 자료</a></li>
     </ol>
@@ -992,6 +992,7 @@
       <tr><td>EP-APR-04</td><td><code>POST /api/v1/projects/{proj}/gates/bypass</code></td><td>admin ●, planner(스펙 계열)·developer(코드 계열) ○</td><td><code>GateBypassInput</code>(대상, 사유, 유효 시간)</td><td><code>ApprovalResult</code>(is_bypass=true)</td><td><code>gate.bypassed</code></td></tr>
       <tr><td>EP-QST-01</td><td><code>GET /api/v1/projects/{proj}/questions</code></td><td>전 역할</td><td><code>QuestionListQuery</code>(status: open/answered, cursor)</td><td><code>Page&lt;QuestionResult&gt;</code>(선택지·대기 세션·경과)</td><td>—</td></tr>
       <tr><td>EP-QST-02</td><td><code>POST /api/v1/projects/{proj}/questions/{id}/answer</code></td><td>대상 역할 또는 지정자 — 사람 전용</td><td><code>QuestionAnswerInput</code>(answer_key 또는 answer_md)</td><td><code>QuestionResult</code>(status=answered) — 내부적으로 ApprovalService.decide(subject=question) 한 경로</td><td>★<code>question.answered</code></td></tr>
+      <tr><td>EP-QST-03</td><td><code>POST /api/v1/projects/{proj}/questions/{id}/cancel</code></td><td>전 역할(<code>task:update</code>) — <b>사람과 그 질문을 만든 세션 둘 다</b>(2026-09-05 · REQ-API-109). 남의 질문은 사람만 내린다</td><td>—</td><td><code>QuestionResult</code>(status=<code>cancelled</code>) — 열린 질문에만 걸린다(답이 달렸으면 그 답이 사실이다)</td><td>★<code>question.cancelled</code></td></tr>
     </tbody>
   </table></div>
 
@@ -1272,6 +1273,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td><code>approval.requested</code></td><td>EP-SPEC-10·플랜 승인·BYPASS 요청</td><td>지정 승인자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>question.created</code></td><td>MCP <code>nerv_question_create</code></td><td>대상 역할/지정자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
       <tr><td>★<code>question.answered</code></td><td>EP-APR-03·EP-QST-02</td><td>요청 세션 소유자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td>★<code>question.cancelled</code></td><td>EP-QST-03</td><td>요청 세션 소유자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>gate.bypassed</code></td><td>EP-APR-04</td><td>admin <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>gate.failopen</code></td><td>게이트 판정 불가(D-14, <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §1.3)</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td>★<code>import.applied</code></td><td>EP-IMP-02·03·04 배치 적재(§2.10)</td><td><code>project:{id}</code></td><td>P0</td></tr>
@@ -1309,9 +1311,9 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
     <li><b>연결 상한</b>: 사용자당 동시 SSE 연결 8개(WS의 project 룸 8개 제한과 같은 값). 초과 시 429 <code>NERV_RATE_LIMIT</code>.</li>
   </ul>
 
-  <h2 id="sec-4">4. MCP 도구 23종 ↔ 내부 서비스 ↔ REST 대응</h2>
+  <h2 id="sec-4">4. MCP 도구 24종 ↔ 내부 서비스 ↔ REST 대응</h2>
 
-  <p>카탈로그는 <b>23종</b>이고 단계 분포는 <b>P0 8 · P1 13 · P2 2</b>다(2026-09-04 실측 — 도구 레지스트리 기준). P2 둘은 <code>nerv_review_submit</code>·<code>nerv_finding_resolve</code> 다. <a href="scope.html">4.1 MVP 범위와 스택 확정</a> 이 적은 <b>MVP 21종</b>(P0 8 + P1 13) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 <a href="agent-integration.html">에이전트 연동 설계</a> §2.3이 정본이고, 이 표는 <b>같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점</b>만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.</p>
+  <p>카탈로그는 <b>24종</b>이고 단계 분포는 <b>P0 8 · P1 14 · P2 2</b>다(2026-09-05 실측 — 도구 레지스트리 기준). P2 둘은 <code>nerv_review_submit</code>·<code>nerv_finding_resolve</code> 다. <a href="scope.html">4.1 MVP 범위와 스택 확정</a> 이 적은 <b>MVP 21종</b>(P0 8 + P1 13) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 <a href="agent-integration.html">에이전트 연동 설계</a> §2.3이 정본이고, 이 표는 <b>같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점</b>만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.</p>
 
   <p>임포트 표면(§2.10)은 이 표에 없다 — <b>대응하는 MCP 도구가 없기 때문</b>이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). 에이전트가 관여하는 지점은 도구가 아니라 CLI를 감싸는 스킬 <code>/nerv:import</code>다.</p>
 
@@ -1377,6 +1379,8 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td>REQ-API-101</td><td>WHEN EP-REQ-03 에 어휘 밖의 <code>kind</code> 가 오면 THE SYSTEM SHALL 400 <code>NERV_PRECONDITION</code>(<code>field: "kind"</code>)으로 거절한다 — 값이 검사 없이 <code>::evidence_kind</code> 로 캐스팅돼 <b>오타 하나가 22P02(진짜 500)</b> 로 나가던 자리다(<code>db-error.ts</code> 의 SQLSTATE 목록에 22P02 는 없다)</td><td>어휘 밖 400 1건 · 6종 전부 수락 1건</td></tr>
       <tr><td>REQ-API-106</td><td>WHEN 어느 표면이든 값의 모양이 타입과 맞지 않아 DB 가 <code>22P02</code> 로 거절하면 THE SYSTEM SHALL 400 <code>NERV_PRECONDITION</code>(<code>kind=invalid_text_representation</code>, <code>pg_type</code>)으로 돌려주고 <b>요청 값은 응답에 싣지 않는다</b> — 이 코드가 표에 없어 어휘 밖 값이 진짜 500 으로 나갔고, 500 은 "기다렸다 다시" 라는 뜻이라 클라이언트가 고칠 수 없는 요청을 재시도했다(2026-09-05)</td><td>enum 400 1건 · UUID 400 1건 · 로케일 미해독 1건 · L2 표면 1건</td></tr>
       <tr><td>REQ-API-107</td><td>WHEN 클레임 내려놓기에 <code>reason</code> 이 오면 THE SYSTEM SHALL 그 값을 <b>그대로</b> <code>release_reason</code> 에 저장하고, <code>CLAIM_RELEASE_INPUTS</code>(done/handoff/abandon) 밖의 값은 400 으로 거절한다 — 그전에는 저장이 <code>done</code> 외를 전부 <code>manual</code> 로 뭉쳐 <b>인계와 포기가 구별되지 않았고</b>, REST 는 그 위에 "셋 중 하나가 아니면 handoff" 라는 조용한 변환까지 얹고 있었다(2026-09-05)</td><td>세 값 각 1건 · 어휘 밖 400 1건(클레임 불변 확인 포함)</td></tr>
+      <tr><td>REQ-API-108</td><td>WHEN 발견 처분이 <code>escalated</code> 로 오면 THE SYSTEM SHALL <code>escalate_reason</code> 을 <b>필수로 요구</b>하고 처분 레코드를 남기되 <b>발견의 상태는 <code>open</code> 으로 유지한다</b> — 넘긴 것은 해결한 것이 아니고, 큐에서 사라지면 "누가 보고 있다" 가 "아무도 안 본다" 와 화면에서 같아진다(2026-09-05)</td><td>escalated 저장·큐 유지 1건 · 사유 없음 400 1건 · critical 승인 게이트 비적용 1건</td></tr>
+      <tr><td>REQ-API-109</td><td>WHEN 열린 질문에 취소가 오면 THE SYSTEM SHALL <b>사람과 그 질문을 만든 세션에만</b> 허용하고 <code>cancelled</code> 로 전이한 뒤 대기 중이던 세션을 깨운다 — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이라, 그 길을 막으면 그 질문이 사람의 수신함에 남는다(2026-09-05)</td><td>세션 자기 취소 1건 · 사람 취소 1건 · 남의 질문 403 1건 · 답변된 질문 400 1건</td></tr>
       <tr><td>REQ-API-099</td><td>WHEN EP-SPEC-02·<code>nerv_spec_search</code> 에 <code>type</code>·<code>status</code> 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 <b>자르기 전에</b> 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05)</td><td>종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건</td></tr>
       <tr><td>REQ-API-100</td><td>WHEN EP-SPEC-08 에 <code>relations</code> 가, EP-TASK-07 에 <code>progress</code>·<code>stats</code> 가, EP-TASK-08 에 <code>state_note</code> 가 오면 THE SYSTEM SHALL <b>REST 에서도</b> 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05)</td><td>REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건</td></tr>
       <tr><td>REQ-API-098</td><td>WHEN EP-SPEC-01·19 에 <code>baseline</code> 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 <code>version_no</code>·<code>doc_status</code> 를 <b>그 세트가 핀한 판</b>의 것으로 싣는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL <code>invalid_input</code>(<code>field="baseline"</code>)으로 거절한다. WHILE <code>baseline</code> 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 판으로 준다</td></tr>

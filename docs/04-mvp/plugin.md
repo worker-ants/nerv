@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **6종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.49 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.50 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.50 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): **패키지 0.2.7 → 0.2.8.** 새로 생긴 길을 스킬이 **쓰라고** 말하게 한다(규약 6) — `skills/question` 에 "답이 필요 없어졌으면 `nerv_question_cancel` 로 거둔다" 와 폴링 중 `cancelled` 를 만났을 때의 답을, `skills/review` 에 "판단이 내 몫이 아니면 `escalated` + `escalate_reason`, **발견은 열린 채로 남는다**" 를 넣는다. 받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다.
 > v0.49 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 판이 **훅 두 변형을 뒤바꿔** 싣고 있었다 — §3.1 `hooks/hooks.json` 자리에 http 변형이, `hooks.http.json` 자리에 command 변형이 있어 **html 만 읽으면 기본 훅이 http 로 읽혔다**(v0.30 의 사람 결정이 파생본에서 뒤집혀 있었다). §1.1 은 더 나빴다: 디렉터리 트리 자리에 statusline 스크립트가, `plugin.json 전문` 라벨 아래에 hooks.json 이 들어 있어 **매니페스트가 html 에 아예 없었다** — "버전이 곧 배달이다" 의 그 버전이 파생본에 없었다는 뜻이다. §1.2 MVP 포함/제외 표(11행)와 **§2.0·§2.1(`skills/next/SKILL.md` 전문)이 통째로 빠져 있어** 목차의 `#sec-2` 가 죽은 링크였다.
 > v0.48 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): §1.1 트리가 `review/SKILL.md` 를 아직 주석 처리된 `(P2)` 로 두고 있었다 — **배포되고 바이트 대조 테스트까지 걸려 있는 파일이다.** 같은 트리의 `hooks/hooks.json` 설명도 `type:"http"` 로 남아 있었다(v0.30 에서 기본을 command 로 바꿨다). 요약과 참고 문헌의 "스킬 5종" 도 6종으로.
 > v0.47 변경(2026-09-05 — 새로 생긴 인자를 스킬이 알아야 한다, 규약 6): **패키지 0.2.6 → 0.2.7.** `nerv_spec_search` 가 `type`·`status` 를 받게 됐으므로(4.4 v0.80 · REQ-API-099) `skills/spec` 이 그것을 **쓰라고** 말하게 한다 — 받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다. 트리와 같은 쉼표 목록 표기라는 것까지 적는다: 같은 뜻의 인자가 도구마다 다른 모양이면 에이전트는 실패로 배운다.
@@ -72,7 +73,7 @@ updated: 2026-08-22
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.7
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.8
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -95,12 +96,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.7)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.8)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -576,6 +577,12 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
    해당 결정에 의존하는 코드를 미리 쓰지 않는다. 하트비트는 유지한다(세션은 죽지 않는다).
 6. `expired`면 질문이 만료된 것이다 — 안전한 기본값을 임의로 고르지 말고, 상황을
    `state_note`에 남겨 `nerv_task_release`(`reason=handoff`)로 인계하거나 사람에게 보고한다.
+7. **답이 필요 없어졌으면 거둔다.** 기다리는 동안 스스로 답을 찾았거나 전제가 사라졌으면
+   `nerv_question_cancel`(`question_id`)로 취소한다 — **그 사실을 아는 것은 물어본 쪽뿐이다.**
+   두지 않으면 그 질문은 사람의 수신함에 남고, 사람은 맥락 없이 그것을 처리해야 한다.
+   취소한 이유는 `nerv_task_update`의 `note`에 남긴다. 남의 질문은 취소할 수 없다.
+8. 폴링 중 `cancelled`가 오면 **사람이 그 질문을 내린 것이다** — 답을 기다리지 말고,
+   무엇을 근거로 진행할지 알 수 없으면 다시 묻지 말고 사람에게 보고하고 멈춘다.
 
 ## 에러 대응
 
@@ -701,6 +708,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 - **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
   중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.
+- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. 그다음 할 일은 그 발견을 다시 집는 것이 아니라 하트비트로 사람의 답을 기다리는 것이다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다.
 - 근거는 어느 처분에나 필수다. 사유 없이 쌓인 유예 목록은 곧 잊힌 목록이 된다.
 
 ### critical 하향은 사람의 몫이다 (A3)
@@ -1432,7 +1440,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 21종(카탈로그 23종)·스킬 6종 범위와 PAT-먼저 인증 결정
+- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 22종(카탈로그 24종)·스킬 6종 범위와 PAT-먼저 인증 결정
 - [4.4 API 명세](api.md) — `/mcp`·`/ingest/hooks/*` 엔드포인트의 요청/응답 계약
 - [4.8 백로그](backlog.md) — 훅 헤더 토큰 주입 실측(E06-S06)·플러그인 v1 스토리·E2E 수용 시나리오
 

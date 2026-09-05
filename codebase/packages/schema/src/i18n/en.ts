@@ -126,6 +126,7 @@ export const en = {
   'error.question.context_not_found':
     'Could not find {field} — the context must point at a real spec, task, or finding.',
   'error.question.not_open': 'That question is not open.',
+  'error.question.not_owner': 'Only the session that created this question can cancel it.',
   'error.relation.auto_kind':
     'references is synced from the body — declaring it by hand is undone on the next save.',
   'error.relation.base_hash_required':
@@ -155,6 +156,8 @@ export const en = {
   'error.review.spec_version_unknown': 'That spec version does not belong to this project.',
   'mcp.arg.resolution_spec_version':
     'evidence when the fix was a spec correction — the spec_version_id of that save',
+  'mcp.arg.escalate_reason':
+    'Why a human is needed — required with the escalated resolution. Same vocabulary as a question escalate.',
   'mcp.arg.commit_sha': 'evidence when the fix was code — required for fixed',
   'error.review.empty_comment': 'An empty comment is not saved.',
   'error.spec.base_hash_required':
@@ -516,6 +519,7 @@ export const en = {
   'event.import.applied': 'Import applied',
   'event.notification.created': 'Notification created',
   'event.question.answered': 'Question answered',
+  'event.question.cancelled': 'Question cancelled',
   'event.question.created': 'Agent question',
   'event.session.complete': 'Session complete',
   'event.session.stale': 'Session went stale — claim reclaimed',

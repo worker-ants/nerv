@@ -617,6 +617,75 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
     expect(poll).toMatchObject({ status: 'answered', answer_key: 'localStorage' });
   });
 
+  /**
+   * **답이 필요 없어졌으면 거둔다**(2026-09-05 · REQ-API-109).
+   *
+   * `cancelled` 는 열거에 있었는데 만드는 경로가 없어 아무도 쓸 수 없는 값이었다.
+   */
+  it('만든 세션이 자기 질문을 거둔다 — 기다리던 세션이 깨어난다', async () => {
+    const created = await questions.create({
+      projectId,
+      sessionId,
+      title: '스스로 푼 질문',
+      urgency: 'blocking',
+    });
+    const result = await questions.cancel({
+      projectId,
+      questionId: created.question_id,
+      userId: planner,
+      sessionId,
+      isAgent: true,
+    });
+    expect(result.status).toBe('cancelled');
+
+    const { rows } = await pool.query<{ status: string; state: string }>(
+      `SELECT q.status::text AS status, s.state::text AS state
+         FROM question q JOIN agent_session s ON s.id = q.agent_session_id
+        WHERE q.id = $1`,
+      [created.question_id],
+    );
+    expect(rows[0]?.status).toBe('cancelled');
+    // 답이 오지 않을 것이 확정됐으므로 멈춰 있을 이유가 없다
+    expect(rows[0]?.state).toBe('active');
+  });
+
+  it('사람은 남의 질문도 내린다 — 세션 소유 판정은 에이전트에게만 걸린다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '사람이 내릴 질문' });
+    const result = await questions.cancel({
+      projectId,
+      questionId: created.question_id,
+      userId: planner,
+      isAgent: false,
+    });
+    expect(result.status).toBe('cancelled');
+  });
+
+  it('남의 질문은 못 거둔다 — 내리는 것은 사람의 몫이다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '남의 질문' });
+    await expect(
+      questions.cancel({
+        projectId,
+        questionId: created.question_id,
+        userId: planner,
+        sessionId: newId(),
+        isAgent: true,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'not_owner' } });
+  });
+
+  it('답이 달린 질문은 취소되지 않는다 — 그 답이 사실이다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '이미 답한 질문' });
+    await questions.answer({ projectId, questionId: created.question_id, userId: planner });
+    await expect(
+      questions.cancel({
+        projectId,
+        questionId: created.question_id,
+        userId: planner,
+        isAgent: false,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'not_open' } });
+  });
+
   it('답변은 하트비트 역채널에 실린다 — 서버→세션의 유일한 보장 채널이다', async () => {
     const created = await questions.create({ projectId, sessionId, title: '역채널 질문' });
     expect(await questions.pendingFor(sessionId)).toHaveLength(0);

@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>6종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.49 (2026-09-05)</span>
+      <span>버전 v0.50 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -78,7 +78,7 @@
   <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
 <pre><code>nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.7
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.8
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -99,7 +99,7 @@
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;nerv&quot;,
   &quot;description&quot;: &quot;NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다&quot;,
-  &quot;version&quot;: &quot;0.2.7&quot;,
+  &quot;version&quot;: &quot;0.2.8&quot;,
   &quot;license&quot;: &quot;Apache-2.0&quot;
 }</code></pre>
 
@@ -556,6 +556,12 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
    해당 결정에 의존하는 코드를 미리 쓰지 않는다. 하트비트는 유지한다(세션은 죽지 않는다).
 6. `expired`면 질문이 만료된 것이다 — 안전한 기본값을 임의로 고르지 말고, 상황을
    `state_note`에 남겨 `nerv_task_release`(`reason=handoff`)로 인계하거나 사람에게 보고한다.
+7. **답이 필요 없어졌으면 거둔다.** 기다리는 동안 스스로 답을 찾았거나 전제가 사라졌으면
+   `nerv_question_cancel`(`question_id`)로 취소한다 — **그 사실을 아는 것은 물어본 쪽뿐이다.**
+   두지 않으면 그 질문은 사람의 수신함에 남고, 사람은 맥락 없이 그것을 처리해야 한다.
+   취소한 이유는 `nerv_task_update`의 `note`에 남긴다. 남의 질문은 취소할 수 없다.
+8. 폴링 중 `cancelled`가 오면 **사람이 그 질문을 내린 것이다** — 답을 기다리지 말고,
+   무엇을 근거로 진행할지 알 수 없으면 다시 묻지 말고 사람에게 보고하고 멈춘다.
 
 ## 에러 대응
 
@@ -673,6 +679,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 - **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
   중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.
+- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. 그다음 할 일은 그 발견을 다시 집는 것이 아니라 하트비트로 사람의 답을 기다리는 것이다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다.
 - 근거는 어느 처분에나 필수다. 사유 없이 쌓인 유예 목록은 곧 잊힌 목록이 된다.
 
 ### critical 하향은 사람의 몫이다 (A3)
@@ -1390,7 +1397,7 @@ log_user_prompt = false</code></pre>
 
   <h3>4부 형제 문서</h3>
   <ul>
-    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 도구 21종(카탈로그 23종)·스킬 6종 범위와 PAT-먼저 인증 결정</li>
+    <li><a href="scope.html">4.1 MVP 범위와 스택 확정</a> — 도구 22종(카탈로그 24종)·스킬 6종 범위와 PAT-먼저 인증 결정</li>
     <li><a href="api.html">4.4 API 명세</a> — <code>/mcp</code>·<code>/ingest/hooks/*</code> 엔드포인트의 요청/응답 계약</li>
     <li><a href="backlog.html">4.8 백로그</a> — 훅 헤더 토큰 주입 실측(E06-S06)·플러그인 v1 스토리·E2E 수용 시나리오</li>
   </ul>
