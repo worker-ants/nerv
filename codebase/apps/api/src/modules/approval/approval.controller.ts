@@ -5,8 +5,15 @@
 // 그래서 결정은 사람 전용이고 에이전트는 도구로도 도달할 수 없다.
 
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { msg, NERV_ERROR } from '@nerv/schema';
+import {
+  ApprovalDecisionInput,
+  GateBypassInput,
+  msg,
+  NERV_ERROR,
+  QuestionAnswerInput,
+} from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { parseBody } from '../../common/parse-body.js';
 import type { Actor } from '../../common/human-only.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRole, RequireScope } from '../../common/route-permission.js';
@@ -47,12 +54,13 @@ export class ApprovalController {
   @Post('gates/bypass')
   bypass(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const { projectId, userId } = human(req);
+    const bypass = parseBody(GateBypassInput, body);
     return this.approvals.bypass({
       projectId,
       subjectType: 'gate_bypass',
-      subjectId: String(body['subject_id'] ?? ''),
+      subjectId: bypass.subject_id,
       userId,
-      reason: String(body['reason'] ?? ''),
+      reason: bypass.reason,
     });
   }
 
@@ -89,12 +97,13 @@ export class ApprovalController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     const { projectId, userId } = human(req);
+    const answer = parseBody(QuestionAnswerInput, body);
     return this.questions.answer({
       projectId,
       questionId: id,
       userId,
-      ...(typeof body['answer_key'] === 'string' ? { answerKey: body['answer_key'] } : {}),
-      ...(typeof body['answer_md'] === 'string' ? { answerMd: body['answer_md'] } : {}),
+      ...(answer.answer_key == null ? {} : { answerKey: answer.answer_key }),
+      ...(answer.answer_md == null ? {} : { answerMd: answer.answer_md }),
     });
   }
 }
@@ -179,16 +188,15 @@ export class ApprovalInboxController {
     // 전역 경로라 프로젝트를 승인 행에서 되찾는다 — 멤버십 검사는 detail 이 이미 한다.
     await this.approvals.detail({ approvalId: id, userId, actor });
     const projectId = await this.approvals.projectOfApproval(id);
+    const input = parseBody(ApprovalDecisionInput, body);
     return this.approvals.decide({
       actor,
       projectId,
       approvalId: id,
       userId,
-      decision: (body['decision'] as ApprovalDecision | undefined) ?? 'comment',
-      ...(typeof body['comment'] === 'string' ? { comment: body['comment'] } : {}),
-      ...(typeof body['seen_content_hash'] === 'string'
-        ? { seenContentHash: body['seen_content_hash'] }
-        : {}),
+      decision: input.decision as ApprovalDecision,
+      ...(input.comment == null ? {} : { comment: input.comment }),
+      ...(input.seen_content_hash == null ? {} : { seenContentHash: input.seen_content_hash }),
     });
   }
 }

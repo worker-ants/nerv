@@ -6,6 +6,8 @@
 
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { intParam } from '../../common/query-vocab.js';
+import { parseBody } from '../../common/parse-body.js';
+import { FindingCommentInput, FindingResolveInput, ReviewSubmitInput } from '@nerv/schema';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -23,26 +25,24 @@ export class ReviewController {
   @Post('reviews')
   submit(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
     const principal = principalOf(req);
-    const reviewer = (body['reviewer'] ?? {}) as { role?: string; risk?: string };
+    const input = parseBody(ReviewSubmitInput, body);
     return this.reviews.submit({
       projectId: req.nervProjectId!,
       userId: principal.userId,
       isAgent: principal.isAgent,
-      branch: String(body['branch'] ?? ''),
-      baseSha: String(body['base_sha'] ?? ''),
-      headSha: String(body['head_sha'] ?? ''),
-      changeset: Array.isArray(body['changeset'])
-        ? (body['changeset'] as unknown[]).filter((v): v is string => typeof v === 'string')
-        : [],
-      kind: (typeof body['kind'] === 'string' ? body['kind'] : 'code') as 'code',
-      taskId: typeof body['task_id'] === 'string' ? body['task_id'] : null,
+      branch: input.branch,
+      baseSha: input.base_sha,
+      headSha: input.head_sha,
+      changeset: input.changeset,
+      kind: input.kind as 'code',
+      taskId: input.task_id ?? null,
       reviewer: {
-        role: String(reviewer.role ?? ''),
-        risk: (reviewer.risk ?? null) as 'low' | null,
+        role: input.reviewer?.role ?? '',
+        risk: (input.reviewer?.risk ?? null) as 'low' | null,
       },
-      summaryMd: typeof body['summary'] === 'string' ? body['summary'] : null,
-      findings: (Array.isArray(body['findings']) ? body['findings'] : []) as SubmitFinding[],
-      payloadRef: typeof body['payload_ref'] === 'string' ? body['payload_ref'] : null,
+      summaryMd: input.summary ?? null,
+      findings: input.findings as unknown as SubmitFinding[],
+      payloadRef: input.payload_ref ?? null,
     });
   }
 
@@ -101,7 +101,8 @@ export class ReviewController {
     const principal = principalOf(req);
     // 번역표는 도메인 쪽 한 벌이다 — 예전에는 여기 3값짜리 사본이 있어서 웹이 보낸
     // `spec_change` 가 `dismissed` 로 접히고 `spec_version_id` 가 버려졌다(REQ-API-060).
-    const mapped = resolutionOf(String(body['resolution'] ?? 'dismissed'));
+    const resolve = parseBody(FindingResolveInput, body);
+    const mapped = resolutionOf(resolve.resolution);
     return this.reviews.resolve({
       projectId: req.nervProjectId!,
       findingId: id,
@@ -131,7 +132,7 @@ export class ReviewController {
       projectId: req.nervProjectId!,
       findingId: id,
       userId: principalOf(req).userId,
-      bodyMd: String(body['body_md'] ?? ''),
+      bodyMd: parseBody(FindingCommentInput, body).body_md,
     });
   }
 
