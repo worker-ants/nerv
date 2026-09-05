@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.46 (2026-09-05)</span>
+      <span>버전 v0.47 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -431,7 +431,8 @@ allowed-tools:
    위치를 확인하고, `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을
    지어내지 않는다** — 트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서
    내려갈 간선 수, `1` 이면 뿌리와 그 자식)·`status`·`type`(쉼표로 여럿)·`baseline`(세트 이름)
-   이고 검색은 `q` 다. 응답의 목록은 각각 `nodes`·`items` 다.
+   이고 검색은 `q` 다(검색도 `type`·`status` 로 좁힌다 — 트리와 같은 쉼표 목록 표기다).
+   응답의 목록은 각각 `nodes`·`items` 다.
    **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
    그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
    답이다). 걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** —

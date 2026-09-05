@@ -319,10 +319,23 @@ export class SpecService {
     includeArchived?: boolean;
     around: string;
     hops: number;
+    /**
+     * 기준선 — **관계 축과 섞이지 않는다**(2026-09-05 · REQ-API-090).
+     *
+     * `around` 는 "어디 근처인가" 를 묻고 기준선은 "어느 시점의 어느 세트인가" 를 정한다.
+     * 좁히기 축이 아니라 스냅샷 선택자라, `root`·`depth` 처럼 배타로 막을 것이 아니라
+     * **함께 적용된다**: 그 세트가 담은 문서들 안에서 중심의 이웃을 준다.
+     *
+     * 이 인자를 도구에 더하면서 여기까지 나르지 않아, `{around, baseline}` 은 거절도
+     * 적용도 되지 않고 조용히 버려졌다 — REQ-API-090 으로 이름 붙인 실패 모양을 그
+     * 두 커밋 뒤에 다시 만든 것이다.
+     */
+    baseline?: string | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const graph = await this.graph({
       projectId: input.projectId,
       ...(input.includeArchived === undefined ? {} : { includeArchived: input.includeArchived }),
+      ...(input.baseline == null ? {} : { baseline: input.baseline }),
     });
     const near = neighborhood(graph, input.around, input.hops);
     if (near === null) {
@@ -889,6 +902,14 @@ export class SpecService {
     baseHash?: string | undefined;
     changeSummary?: string | undefined;
     takeover?: boolean | undefined;
+    /**
+     * 선언 관계 — **REST 도 이것을 나른다**(2026-09-05 · REQ-API-043).
+     *
+     * 전표는 처음부터 이 입력을 적었고 서비스도 받고 있었는데, 컨트롤러가 본문에서
+     * 읽지 않아 REST 로 보낸 관계는 **성공 응답과 함께 버려졌다.** MCP 만 배선돼
+     * 있었으니 D-05("두 표면이 같은 답")가 깨진 자리이기도 하다.
+     */
+    relations?: readonly { to: string; kind: string; baseHash?: string | undefined }[] | undefined;
     userId: string;
     sessionId?: string | null;
   }): Promise<Record<string, unknown>> {
@@ -910,6 +931,7 @@ export class SpecService {
       ...(input.baseHash == null ? {} : { baseHash: input.baseHash }),
       ...(input.changeSummary == null ? {} : { changeSummary: input.changeSummary }),
       ...(input.takeover === true ? { takeover: true } : {}),
+      ...(input.relations === undefined ? {} : { relations: input.relations }),
       ...(input.sessionId == null ? {} : { sessionId: input.sessionId }),
     });
   }

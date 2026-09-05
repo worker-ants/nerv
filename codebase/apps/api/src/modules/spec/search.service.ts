@@ -10,7 +10,9 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
+import { specType, specVersionStatus } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { EmbeddingClient } from './embedding.client.js';
 
@@ -62,6 +64,16 @@ export class SearchService {
     includeArchived?: boolean;
     /** 이 스펙을 참조하는 문서만 — 역참조 필터(EP-SPEC-02) */
     references?: string | null;
+    /**
+     * 문서 종류·상태로 좁힌다 — **전표가 처음부터 적고 있던 필터다**(EP-SPEC-02 ·
+     * 2026-09-05 배선). 두 표면 어디에도 없어서, 이 인자를 보낸 쪽은 걸러지지 않은
+     * 전체를 받고도 걸러졌다고 믿었다.
+     *
+     * 쉼표 목록이고 서로 AND 다 — `nerv_spec_tree` 와 같은 표기·같은 판정을 쓴다.
+     * 어휘 밖 값은 **거절이지 무시가 아니다**(REQ-API-074).
+     */
+    types?: readonly string[] | null;
+    statuses?: readonly string[] | null;
   }): Promise<SearchResult> {
     const query = input.query.trim();
     const limit = Math.min(input.limit ?? 10, 50);
@@ -86,7 +98,25 @@ export class SearchService {
     //    가중합이 성립하지 않는다. 순위 역수 합은 그 비교를 아예 피한다.
     const merged = this.rrf([direct, lexical, semantic]);
 
-    let items = merged.slice(0, limit);
+    // **자르기 전에 거른다.** 뒤에서 거르면 요청한 limit 보다 적게 나오고, 그 부족분이
+    // "더 없다" 로 읽힌다 — 종류·상태는 이미 실려 온 값이라 여기서 판정할 수 있다.
+    // 어휘의 정본은 `@nerv/schema` 의 enum 이다(목록을 여기 다시 적지 않는다).
+    const types =
+      input.types == null || input.types.length === 0
+        ? null
+        : assertVocab([...input.types], specType.enumValues, 'type');
+    const statuses =
+      input.statuses == null || input.statuses.length === 0
+        ? null
+        : assertVocab([...input.statuses], specVersionStatus.enumValues, 'status');
+    const narrowed = merged.filter(
+      (hit) =>
+        (types === null || types.includes(hit.type)) &&
+        // 버전이 없는 노드(임포터의 골격 배치)는 문서 상태가 없다 — 상태로 거르면 빠진다
+        (statuses === null || (hit.doc_status !== null && statuses.includes(hit.doc_status))),
+    );
+
+    let items = narrowed.slice(0, limit);
     if (input.references != null && input.references !== '') {
       items = await this.filterByReference(input.projectId, items, input.references);
     }

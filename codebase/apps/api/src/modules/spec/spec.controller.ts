@@ -29,7 +29,7 @@ interface RawReply {
 }
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
-import { intParam } from '../../common/query-vocab.js';
+import { csv, intParam } from '../../common/query-vocab.js';
 import { principalOf } from '../../common/scope-check.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRoleAndScope, RequireScope } from '../../common/route-permission.js';
@@ -118,6 +118,9 @@ export class SpecController {
     @Query('limit') limit?: string,
     @Query('references') references?: string,
     @Query('include_archived') includeArchived?: string,
+    // 전표가 처음부터 적고 있던 둘 — 여기 없어서 조용히 버려졌다(2026-09-05)
+    @Query('type') type?: string,
+    @Query('status') status?: string,
   ): Promise<unknown> {
     return this.searches.search({
       projectId: projectOf(req),
@@ -125,6 +128,9 @@ export class SpecController {
       includeArchived: includeArchived === 'true',
       ...(limit === undefined ? {} : { limit: Number(limit) }),
       ...(references === undefined ? {} : { references }),
+      // 배열이 아니라 쉼표 목록이다 — `specs/tree` 와 같은 표기다
+      ...(type === undefined ? {} : { types: csv(type) }),
+      ...(status === undefined ? {} : { statuses: csv(status) }),
     });
   }
 
@@ -235,6 +241,19 @@ export class SpecController {
         : {}),
       // 리스 인계 — 웹에서 "인계" 를 누른 다음 저장이 이것을 싣는다(§1.4h)
       ...(body['takeover'] === true ? { takeover: true } : {}),
+      // **선언 관계도 나른다**(2026-09-05 · REQ-API-043). 전표는 처음부터 이 입력을
+      // 적었고 서비스도 받고 있었는데 이 줄이 없어, REST 로 보낸 관계는 오류 없이
+      // 버려졌다 — 보낸 쪽은 반영됐다고 믿는다. MCP 는 배선돼 있었으므로 같은 요청에
+      // 두 표면이 다르게 답하고 있었다(D-05).
+      ...(Array.isArray(body['relations'])
+        ? {
+            relations: (body['relations'] as Record<string, unknown>[]).map((r) => ({
+              to: String(r['to'] ?? ''),
+              kind: String(r['kind'] ?? ''),
+              ...(typeof r['base_hash'] === 'string' ? { baseHash: r['base_hash'] } : {}),
+            })),
+          }
+        : {}),
     });
   }
 

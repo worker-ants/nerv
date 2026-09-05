@@ -161,10 +161,22 @@ export class TaskController {
     @Param('claim') claim: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    // 프로젝트 소속 확인은 가드가 끝냈다 — 여기서는 클레임 ID 만 넘긴다.
+    // 프로젝트 소속 확인은 가드가 끝냈다.
     projectOf(req);
-    void body;
-    return this.tasks.heartbeat({ claimId: claim, actor: claimActor(req) });
+    // **본문을 읽는다**(2026-09-05 · REQ-API-081). 여기 있던 `void body;` 가 전표의
+    // `progress`·`stats`·`lease_seconds` 를 통째로 버렸다 — 서비스는 셋 다 받고 있었고
+    // MCP 만 넘기고 있었다. 세션 카드의 +N −M 이 REST 경로에서만 비던 이유다.
+    const stats = body['stats'];
+    return this.tasks.heartbeat({
+      claimId: claim,
+      actor: claimActor(req),
+      progress: str(body['progress']),
+      stats:
+        typeof stats === 'object' && stats !== null
+          ? (stats as { added?: number; removed?: number; files?: number })
+          : null,
+      ...(typeof body['lease_seconds'] === 'number' ? { leaseSeconds: body['lease_seconds'] } : {}),
+    });
   }
 
   /** EP-TASK-08 */
@@ -182,6 +194,9 @@ export class TaskController {
       claimId: claim,
       userId: principalOf(req).userId,
       reason: reason === 'done' || reason === 'abandon' ? reason : 'handoff',
+      // **인수인계 노트도 나른다**(2026-09-05 · REQ-API-081). 저장할 열까지 만들어 두고
+      // MCP 만 배선했다 — REST 로 내려놓으면 노트는 남았다고 응답하면서 사라졌다.
+      stateNote: str(body['state_note']),
     });
   }
 }

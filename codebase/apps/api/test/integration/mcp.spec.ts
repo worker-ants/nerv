@@ -994,6 +994,45 @@ describe('E03-S03 nerv_spec_tree — 걸러 달라고 한 것은 걸러서 준�
     expect(result['details']).toMatchObject({ field: 'hops', allowed: { minimum: 0, maximum: 3 } });
   });
 
+  /**
+   * **기준선은 좁히기 축이 아니라 스냅샷 선택자다**(2026-09-05 · REQ-API-090).
+   *
+   * `root`·`depth` 는 `around` 와 배타인데 `baseline` 은 아니다 — "어디 근처인가" 와
+   * "어느 세트인가" 는 서로를 배제하지 않는다. 그런데 도구에 `baseline` 을 더하면서
+   * 배타 목록에도 넣지 않고 `neighborhood()` 로 나르지도 않아, `{around, baseline}` 은
+   * **거절도 적용도 되지 않고 조용히 버려졌다** — REQ-API-090 으로 이름 붙인 실패 모양을
+   * 그 두 커밋 뒤에 다시 만든 것이다. 그래서 이 자리에 검사를 둔다.
+   */
+  it('around 와 baseline 은 함께 간다 — 그 세트 안의 이웃만 준다', async () => {
+    const baselineId = newId();
+    await pool.query(
+      `INSERT INTO spec_baseline (id, project_id, name, created_by_user_id) VALUES ($1,$2,'r1',$3)`,
+      [baselineId, projectId, userId],
+    );
+    // 중심만 담고 이웃(TRE-2-SIB)은 담지 않는다 — 기준선이 실제로 걸러야 차이가 보인다
+    await pool.query(
+      `INSERT INTO spec_baseline_item (baseline_id, spec_id, spec_version_id)
+       SELECT $1, id, current_version_id FROM spec WHERE id = $2`,
+      [baselineId, branchId],
+    );
+
+    const near = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', hops: 1 });
+    expect(keys(near)).toEqual(['TRE-2-BRANCH', 'TRE-2-SIB']);
+
+    const pinned = await callTool('nerv_spec_tree', {
+      around: 'TRE-2-BRANCH',
+      hops: 1,
+      baseline: 'r1',
+    });
+    expect(keys(pinned)).toEqual(['TRE-2-BRANCH']);
+  });
+
+  it('없는 기준선은 around 와 함께 와도 거절이다 — 조용한 기본값 낙하가 없다', async () => {
+    const result = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', baseline: 'nope' });
+    expect(result['ok']).toBe(false);
+    expect(result['details']).toMatchObject({ kind: 'invalid_input' });
+  });
+
   it('계층과 관계는 다른 축이다 — around 와 root 를 섞으면 거절한다', async () => {
     const result = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', root: 'TRE-1-ROOT' });
     expect(result['ok']).toBe(false);

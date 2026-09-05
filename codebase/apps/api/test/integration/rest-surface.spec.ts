@@ -4,6 +4,7 @@
 // **번역**이다(REQ-CB-003): 경로·역할 가드·에러 코드가 화면이 기대하는 모양으로 나오는가.
 // 화면(E08)이 이 계약 위에 올라가므로, 여기가 어긋나면 화면은 조용히 빈 상태를 렌더한다.
 
+import { createHash } from 'node:crypto';
 import { NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
@@ -1025,6 +1026,156 @@ describe('받은 요청·알림·커버리지 표면', () => {
     expect(items[0]).toHaveProperty('actor_name');
   });
 });
+
+/**
+ * **REST 가 전표대로 입력을 받는가**(2026-09-05 · 정합성 감사).
+ *
+ * 이 describe 가 없어서 넷이 동시에 새고 있었다 — `relations`·하트비트 본문·`state_note`·
+ * 검색 필터. 넷 다 **서비스는 받고 MCP 만 넘기고** 있었고, REST 컨트롤러가 본문에서 읽지
+ * 않아 조용히 버려졌다. 보낸 쪽은 200 을 받으니 반영됐다고 믿는다.
+ *
+ * MCP 쪽은 `mcp.spec.ts` 가 이미 보고 있었다. 두 표면 중 **한쪽만 보는 검사는 D-05 가
+ * 깨지는 것을 못 본다** — 같은 요청에 두 표면이 다르게 답해도 초록이었다.
+ */
+describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC-02)', () => {
+  it('초안 저장이 relations 를 나른다 — 예전에는 성공 응답과 함께 버려졌다', async () => {
+    const target = await seedSpec('SPC-TARGET');
+    const source = await seedSpec('SPC-SOURCE');
+    const { rows: hash } = await pool.query<{ content_hash: string }>(
+      `SELECT encode(content_hash,'hex') AS content_hash FROM spec_version
+        WHERE spec_id = $1 ORDER BY version_no DESC LIMIT 1`,
+      [target.specId],
+    );
+
+    const res = await call('PUT', `/api/v1/projects/clemvion/specs/SPC-SOURCE/draft`, {
+      payload: {
+        body_markdown: '# 고친 본문',
+        base_hash: source.contentHash,
+        change_summary: '관계를 선언한다',
+        relations: [{ to: 'SPC-TARGET', kind: 'depends_on', base_hash: hash[0]?.content_hash }],
+      },
+    });
+    expect(res.status).toBe(200);
+
+    const { rows } = await pool.query<{ kind: string; to_spec_id: string }>(
+      `SELECT kind::text AS kind, to_spec_id FROM spec_relation
+        WHERE from_spec_id = $1 AND kind = 'depends_on'`,
+      [source.specId],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.to_spec_id).toBe(target.specId);
+  });
+
+  it('하트비트가 본문을 읽는다 — progress·stats·lease_seconds', async () => {
+    const { claimId, sessionId } = await seedActiveClaim();
+
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/heartbeat`, {
+      payload: { progress: '3단계 중 2단계', stats: { added: 42, removed: 7, files: 3 } },
+    });
+    expect(res.status).toBe(201);
+
+    const { rows: claim } = await pool.query<{ progress_note: string | null }>(
+      `SELECT progress_note FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(claim[0]?.progress_note).toBe('3단계 중 2단계');
+
+    // 세션 카드의 +N −M — 실사용 34개가 전부 `+0 −0` 이던 그 자리다
+    const { rows: session } = await pool.query<{
+      diff_added: number;
+      diff_removed: number;
+      diff_files: number;
+    }>(`SELECT diff_added, diff_removed, diff_files FROM agent_session WHERE id = $1`, [sessionId]);
+    expect(session[0]?.diff_added).toBe(42);
+    expect(session[0]?.diff_removed).toBe(7);
+    expect(session[0]?.diff_files).toBe(3);
+  });
+
+  it('내려놓기가 state_note 를 저장한다 — 다음 사람이 읽을 유일한 문장이다', async () => {
+    const { claimId } = await seedActiveClaim();
+
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/release`, {
+      payload: { reason: 'handoff', state_note: '검색 필터까지 했고 requirement_id 가 남았다' },
+    });
+    expect(res.status).toBe(201);
+
+    const { rows } = await pool.query<{ release_note: string | null }>(
+      `SELECT release_note FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(rows[0]?.release_note).toBe('검색 필터까지 했고 requirement_id 가 남았다');
+  });
+
+  it('검색이 type·status 로 좁힌다 — 어휘 밖 값은 거절이지 무시가 아니다', async () => {
+    await seedSpec('SPC-FEAT', { type: 'feature', title: '검색어공통' });
+    await seedSpec('SPC-ADR', { type: 'adr', title: '검색어공통' });
+
+    const all = await call('GET', '/api/v1/projects/clemvion/specs/search?q=검색어공통');
+    const allKeys = ((all.body as Record<string, unknown>)['items'] as { key: string }[]).map(
+      (i) => i.key,
+    );
+    expect(allKeys).toEqual(expect.arrayContaining(['SPC-FEAT', 'SPC-ADR']));
+
+    const only = await call('GET', '/api/v1/projects/clemvion/specs/search?q=검색어공통&type=adr');
+    const keys = ((only.body as Record<string, unknown>)['items'] as { key: string }[]).map(
+      (i) => i.key,
+    );
+    expect(keys).toContain('SPC-ADR');
+    expect(keys).not.toContain('SPC-FEAT');
+
+    // 조용히 버리면 호출자는 "그 종류가 없다" 고 결론짓는다 — 그것이 이 감사의 주제다
+    const bad = await call('GET', '/api/v1/projects/clemvion/specs/search?q=x&status=nope');
+    expect(bad.status).toBe(400);
+    expect((bad.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.PRECONDITION);
+  });
+});
+
+async function seedSpec(
+  key: string,
+  options: { type?: string; title?: string } = {},
+): Promise<{ specId: string; contentHash: string }> {
+  const specId = newId();
+  const versionId = newId();
+  // `content_hash` 는 bytea 다 — 키를 그대로 쓰면 `decode(…,'hex')` 가 'S' 에서 터진다
+  const hash = createHash('sha256').update(key).digest('hex');
+  await pool.query(`INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,$3,$4,$5)`, [
+    specId,
+    projectId,
+    options.type ?? 'feature',
+    key,
+    options.title ?? key,
+  ]);
+  await pool.query(
+    `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+     VALUES ($1,$2,1,'draft',$3, decode($4,'hex'), $5)`,
+    [versionId, specId, `# ${options.title ?? key}`, hash, adminId],
+  );
+  await pool.query(`UPDATE spec SET current_version_id = $1 WHERE id = $2`, [versionId, specId]);
+  return { specId, contentHash: hash };
+}
+
+async function seedActiveClaim(): Promise<{ claimId: string; sessionId: string }> {
+  const sessionId = newId();
+  const taskId = newId();
+  const claimId = newId();
+  await pool.query(
+    `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                       tools_sources_md, boundaries_md)
+     VALUES ($1,$2,$3,'작업','in_progress','목표','PR','도구','경계')`,
+    [taskId, projectId, `TSK-${taskId.slice(0, 4)}`],
+  );
+  await pool.query(
+    `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+     VALUES ($1,$2,$3,'claude-code','mac-07','active')`,
+    [sessionId, projectId, adminId],
+  );
+  await pool.query(
+    `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status, lease_expires_at)
+     VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+    [claimId, projectId, taskId, sessionId, adminId],
+  );
+  return { claimId, sessionId };
+}
 
 async function seedSpecVersion(): Promise<string> {
   const specId = newId();
