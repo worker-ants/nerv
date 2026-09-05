@@ -39,7 +39,7 @@ export class SpecTools implements NervToolProvider {
           depth: { type: 'integer', minimum: 0, description: 'mcp.arg.spec_depth' },
           status: { type: 'string', description: 'mcp.arg.spec_status_filter' },
           type: { type: 'string', description: 'mcp.arg.spec_type_filter' },
-          baseline: { type: 'string', description: 'mcp.arg.baseline' },
+          baseline: { type: 'string', description: 'mcp.arg.baseline_tree' },
           // 관계까지 필요하면 여기서 함께 받는다 — 별도 도구를 만들지 않는 이유는
           // "구조를 달라"는 한 가지 요청이기 때문이다(도구 15종 고정 — scope.md §4.2)
           include_relations: { type: 'boolean', default: false },

@@ -400,6 +400,8 @@ export const ko = {
   'mcp.arg.attachment_id': '둘째 단계 — 올린 뒤 이것만 실어 다시 부른다(확정)',
   'mcp.arg.baseline':
     '베이스라인 이름 — 그 세트가 이 문서에 핀해 둔 판을 읽는다. version 과 함께 줄 수 없다',
+  'mcp.arg.baseline_tree':
+    '베이스라인 이름 — 주면 그 세트가 담은 문서만, 담을 때의 판으로 온다(세트 밖은 오지 않는다)',
   'mcp.arg.base_hash':
     '내가 보고 쓴 본문의 지문 — nerv_spec_get 응답의 content_hash. 기존 문서를 고칠 때는 필수다',
   'mcp.arg.blocking':

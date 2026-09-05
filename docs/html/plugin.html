@@ -52,7 +52,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 5종(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.44 (2026-09-05)</span>
+      <span>버전 v0.45 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -291,6 +291,9 @@ allowed-tools:
      하나의 판이고, 베이스라인은 **그 문서가 참조하는 문서들까지 포함한 세트**다. 세트 없이
      주변 문서를 최신으로 읽으면 내 문서만 그때 것이고 나머지는 지금 것이 된다.
      `version`과 `baseline`은 함께 줄 수 없다(둘 다 주면 거절된다).
+     **트리도 그 세트로 본다** — `nerv_spec_tree`(`baseline=<그 이름>`)는 그 세트가 담은
+     문서만, 담을 때의 판으로 준다. 세트 없이 트리를 보면 그 뒤에 만들어진 문서가 섞여
+     들어와, 그 세트에 있는 문서인 줄 알고 참조하게 된다.
    - 응답의 `baseline_pinned`가 `false`면 **그 세트에 없는 문서**다(나중에 만들어진 것).
      최신 판을 받은 것이므로 그 사실을 알고 읽는다.
 7. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
@@ -424,11 +427,11 @@ allowed-tools:
 ## 서브커맨드
 
 ### new — 새 스펙 초안
-1. `nerv_spec_tree`(`project`, 필요 시 `root`·`depth`·`status`)로 트리 위치를 확인하고,
-   `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을 지어내지 않는다** —
-   트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서 내려갈 간선 수,
-   `1` 이면 뿌리와 그 자식)·`status`(쉼표로 여럿)고 검색은 `q` 다. 응답의 목록은 각각
-   `nodes`·`items` 다.
+1. `nerv_spec_tree`(`project`, 필요 시 `root`·`depth`·`status`·`type`·`baseline`)로 트리
+   위치를 확인하고, `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을
+   지어내지 않는다** — 트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서
+   내려갈 간선 수, `1` 이면 뿌리와 그 자식)·`status`·`type`(쉼표로 여럿)·`baseline`(세트 이름)
+   이고 검색은 `q` 다. 응답의 목록은 각각 `nodes`·`items` 다.
    **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
    그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
    답이다). 걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** —
@@ -1320,7 +1323,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
     <tbody>
       <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: <code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code>) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용)</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
       <tr><td>2</td><td>환경변수</td><td>아래 블록을 저장소 <code>.claude/settings.local.json</code> 의 <code>env</code> 에 둔다 — <b>Claude Code 의 유일한 자리다</b>(§3.3). <code>.nerv/env</code> 는 Codex 폴백이라 지금은 쓰지 않는다</td><td><code>echo $NERV_PROJECT</code> 또는 <code>/mcp</code> 연결 확인</td></tr>
-      <tr><td>3</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add worker-ants/nerv</code> → <code>/plugin install nerv@nerv</code> → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 <code>https://&lt;서버&gt;/plugin/marketplace.json</code> 을 넣는다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.2.4 활성 표시</td></tr>
+      <tr><td>3</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add worker-ants/nerv</code> → <code>/plugin install nerv@nerv</code> → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 <code>https://&lt;서버&gt;/plugin/marketplace.json</code> 을 넣는다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.2.5 활성 표시</td></tr>
       <tr><td>4</td><td>연결 확인</td><td>프로젝트 저장소에서 Claude Code 실행 → <code>/mcp</code></td><td><code>nerv</code> 서버 connected, <code>nerv_*</code> 도구 목록 표시</td></tr>
       <tr><td>5</td><td>첫 부트스트랩</td><td><code>/nerv:next</code> 실행(스킬이 <code>nerv_bootstrap</code>부터 호출한다)</td><td>응답에 <code>session_id</code>·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다</td></tr>
     </tbody>
