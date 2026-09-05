@@ -373,6 +373,8 @@ export const ko = {
     'spec key 또는 UUID — 주면 이 문서에서 관계를 타고 hops 만큼만. root·depth 와 함께 쓰지 않는다',
   'mcp.arg.spec_root': 'spec key 또는 UUID — 주면 그 문서와 그 아래만. 없는 문서면 not_found 다',
   'mcp.arg.spec_depth': '뿌리에서 내려갈 간선 수 — 0 이면 뿌리만, 1 이면 뿌리와 그 자식',
+  'mcp.arg.requirement_scope':
+    '이 요구사항이 속한 스펙으로 좁힌다 — 안정 키(REQ-…) 또는 UUID. 없는 요구사항은 거절이다.',
   'mcp.arg.spec_status_filter':
     '문서 상태 필터 — 쉼표로 여럿(예: draft,in_review). 주지 않으면 전부. 걸러낸 것의 조상은 matched:false 로 함께 온다',
   'mcp.arg.spec_type_filter':
@@ -440,6 +442,7 @@ export const ko = {
     '첨부 스토리지가 설정되지 않았습니다 — 재시도해도 열리지 않습니다.',
   'error.spec.baseline_not_found': '그 이름의 베이스라인이 없습니다.',
   'error.spec.not_found': '스펙을 찾을 수 없습니다.',
+  'error.spec.requirement_not_found': '요구사항을 찾을 수 없습니다.',
   'error.spec.not_in_review': 'in_review 상태가 아닙니다.',
   'error.spec.parent_archived': '부모가 아카이브 상태입니다.',
   'error.spec.title_required': '제목이 필요합니다.',

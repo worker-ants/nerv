@@ -10,7 +10,9 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import { specType, specVersionStatus } from '@nerv/schema';
+import { msg, NERV_ERROR, specType, specVersionStatus } from '@nerv/schema';
+import { entityRef } from '../../common/entity-ref.js';
+import { NervError } from '../../common/nerv-exception.filter.js';
 import { InjectDb } from '../../common/database.module.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -74,6 +76,20 @@ export class SearchService {
      */
     types?: readonly string[] | null;
     statuses?: readonly string[] | null;
+    /**
+     * **이 요구사항 주변에서 찾아라** — 그 요구사항이 속한 스펙으로 좁힌다
+     * (2026-09-05 · 사람 결정 · REQ-API-110).
+     *
+     * 전표는 이 인자를 이름만 적고 **무엇을 거르는지 정하지 않았다.** 그 요구사항을
+     * 앵커로 가진 결과만 주는 읽기도 가능했지만, 그러면 결과가 사실상 한 건이라
+     * 검색이 아니라 조회가 되고 `nerv_spec_get` 이 이미 그 일을 한다 — 같은 일을 두
+     * 도구가 하면 에이전트는 어느 것을 쓸지 매번 판단해야 한다.
+     *
+     * 안정 키(`REQ-…`)와 UUID 를 둘 다 받는다(§1.4b). **없는 요구사항은 빈 결과가
+     * 아니라 거절**이다 — 빈 결과는 "그런 게 없다" 로 읽히고, 그것은 오타를 사실로
+     * 만든다(`around` 와 같은 규율).
+     */
+    requirementRef?: string | null;
   }): Promise<SearchResult> {
     const query = input.query.trim();
     const limit = Math.min(input.limit ?? 10, 50);
@@ -116,7 +132,13 @@ export class SearchService {
         (statuses === null || (hit.doc_status !== null && statuses.includes(hit.doc_status))),
     );
 
-    let items = narrowed.slice(0, limit);
+    // 요구사항으로 좁히는 것도 **자르기 전에** 한다 — 뒤에서 걸면 부족분이 "더 없다" 로 읽힌다
+    const scopedToSpec =
+      input.requirementRef == null || input.requirementRef === ''
+        ? narrowed
+        : await this.filterByRequirement(input.projectId, narrowed, input.requirementRef);
+
+    let items = scopedToSpec.slice(0, limit);
     if (input.references != null && input.references !== '') {
       items = await this.filterByReference(input.projectId, items, input.references);
     }
@@ -240,6 +262,37 @@ export class SearchService {
     return [...acc.values()]
       .map((hit) => ({ ...hit, score: hit.score + (STATUS_BOOST[hit.doc_status ?? ''] ?? 0) }))
       .sort((a, b) => b.score - a.score);
+  }
+
+  /**
+   * 그 요구사항이 **속한 스펙**의 결과만 남긴다(REQ-API-110).
+   *
+   * 없는 요구사항은 `not_found` 다. 빈 결과로 답하면 오타가 "그런 요구사항 주변에는
+   * 아무것도 없다" 라는 사실이 되어 돌아온다 — 이 저장소가 `around` 에서 이미 겪은
+   * 실패 모양이라 같은 규율을 쓴다.
+   */
+  private async filterByRequirement(
+    projectId: string,
+    items: SearchHit[],
+    ref: string,
+  ): Promise<SearchHit[]> {
+    const { id, key } = entityRef(ref);
+    const { rows } = await this.db.execute<{ spec_id: string }>(sql`
+      SELECT spec_id FROM requirement
+       WHERE project_id = ${projectId}
+         AND (${id}::uuid IS NULL OR id = ${id}::uuid)
+         AND (${key}::text IS NULL OR ref = ${key}::text)
+       LIMIT 1
+    `);
+    const specId = rows[0]?.spec_id;
+    if (specId === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.requirement_not_found'), {
+        kind: 'not_found',
+        field: 'requirement_id',
+        requirement: ref,
+      });
+    }
+    return items.filter((i) => i.spec_id === specId);
   }
 
   private async filterByReference(

@@ -266,6 +266,9 @@ export class SpecTools implements NervToolProvider {
           // 다른 모양이면 에이전트는 실패로 배운다.
           type: { type: 'string', description: 'mcp.arg.spec_type_filter' },
           status: { type: 'string', description: 'mcp.arg.spec_status_filter' },
+          // **이 요구사항 주변에서 찾아라** — 안정 키(`REQ-…`)든 UUID 든 받는다(§1.4b).
+          // 없는 요구사항은 빈 결과가 아니라 거절이다: 빈 결과는 오타를 사실로 만든다.
+          requirement_id: { type: 'string', description: 'mcp.arg.requirement_scope' },
         },
         required: ['q'],
       },
@@ -278,6 +281,9 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['references'] === 'string' ? { references: input['references'] } : {}),
           ...(typeof input['type'] === 'string' ? { types: csv(input['type']) } : {}),
           ...(typeof input['status'] === 'string' ? { statuses: csv(input['status']) } : {}),
+          ...(typeof input['requirement_id'] === 'string'
+            ? { requirementRef: input['requirement_id'] }
+            : {}),
         }),
     },
     {

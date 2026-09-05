@@ -1167,6 +1167,60 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
     expect(rows[0]?.release_note).toBe('검색 필터까지 했고 requirement_id 가 남았다');
   });
 
+  /**
+   * **이 요구사항 주변에서 찾아라**(2026-09-05 · REQ-API-110).
+   *
+   * 전표는 이 인자를 이름만 적고 뜻을 정하지 않아 배선을 미뤘던 자리다.
+   */
+  it('requirement_id 는 그 요구사항이 속한 스펙으로 좁힌다 — 키와 UUID 둘 다', async () => {
+    const mine = await seedSpec('SPC-REQOWN', { title: '요구사항주변' });
+    await seedSpec('SPC-OTHER', { title: '요구사항주변' });
+    const { rows: ver } = await pool.query<{ id: string }>(
+      `SELECT id FROM spec_version WHERE spec_id = $1 ORDER BY version_no DESC LIMIT 1`,
+      [mine.specId],
+    );
+    const reqId = newId();
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-SCOPE-001','WHEN … THE SYSTEM SHALL …','must',$4,$4)`,
+      [reqId, projectId, mine.specId, ver[0]?.id],
+    );
+
+    const all = await call('GET', '/api/v1/projects/clemvion/specs/search?q=요구사항주변');
+    const allKeys = ((all.body as Record<string, unknown>)['items'] as { key: string }[]).map(
+      (i) => i.key,
+    );
+    expect(allKeys).toEqual(expect.arrayContaining(['SPC-REQOWN', 'SPC-OTHER']));
+
+    for (const ref of ['REQ-SCOPE-001', reqId]) {
+      const scoped = await call(
+        'GET',
+        `/api/v1/projects/clemvion/specs/search?q=요구사항주변&requirement_id=${ref}`,
+      );
+      const keys = ((scoped.body as Record<string, unknown>)['items'] as { key: string }[]).map(
+        (i) => i.key,
+      );
+      expect(keys).toContain('SPC-REQOWN');
+      expect(keys).not.toContain('SPC-OTHER');
+    }
+
+    // 없는 요구사항은 **빈 결과가 아니라 거절**이다 — 빈 결과는 오타를 사실로 만든다.
+    // 409 인 것은 §1.4 의 기준대로다: 없는 참조는 모양이 아니라 **상태**이고,
+    // 같은 요청이 그 요구사항이 생긴 뒤에는 성공한다.
+    const missing = await call(
+      'GET',
+      '/api/v1/projects/clemvion/specs/search?q=요구사항주변&requirement_id=REQ-NOPE-999',
+    );
+    expect(missing.status).toBe(409);
+    expect((missing.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'not_found',
+      field: 'requirement_id',
+    });
+
+    await pool.query(`DELETE FROM requirement WHERE id = $1`, [reqId]);
+  });
+
   it('증적 종류의 오타는 400 이다 — 22P02 로 죽던 마지막 자리', async () => {
     const spec = await seedSpec('SPC-EV');
     const { rows: ver } = await pool.query<{ id: string }>(

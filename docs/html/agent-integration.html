@@ -52,7 +52,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.23 (2026-09-05)</span>
+      <span>버전 v0.24 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -237,7 +237,7 @@
       </tr>
       <tr>
         <td><code>nerv_spec_search</code></td>
-        <td><b><code>q</code></b>(2026-09-05 정정 — <code>query</code> 가 아니다), <code>type?</code>·<code>status?</code>(쉼표 목록 — 트리와 같은 표기. 2026-09-05 배선), <code>requirement_id?</code>(<b>아직 없다</b> — 전표가 이름만 적고 뜻을 정하지 않아 배선을 미뤘다), <code>references?</code>(이 스펙을 참조하는 문서만 — REST EP-SPEC-02와 동일 필터), <code>limit</code></td><td>매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫 + 관련도) + <b><code>related[]</code></b>(상위 결과의 <code>spec_relation</code> 1-hop — 질의에 없지만 걸려 있는 스펙) + <code>degraded?</code>(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 <a href="api.html">4.4 API 명세</a> §2.2b)</td><td><code>spec:read</code></td><td>A1</td><td>컨텍스트 수집·중복 확인 — <b><code>related[]</code>가 중복 확인의 핵심 입력</b>이다(언급 안 된 인접 스펙)</td><td>읽기 전용</td>
+        <td><b><code>q</code></b>(2026-09-05 정정 — <code>query</code> 가 아니다), <code>type?</code>·<code>status?</code>(쉼표 목록 — 트리와 같은 표기. 2026-09-05 배선), <code>requirement_id?</code>(<b>그 요구사항이 속한 스펙으로 좁힌다</b> — 2026-09-05 · 키 또는 UUID), <code>references?</code>(이 스펙을 참조하는 문서만 — REST EP-SPEC-02와 동일 필터), <code>limit</code></td><td>매칭 스펙·Requirement 발췌(안정 ID + 앵커 + 스니펫 + 관련도) + <b><code>related[]</code></b>(상위 결과의 <code>spec_relation</code> 1-hop — 질의에 없지만 걸려 있는 스펙) + <code>degraded?</code>(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 <a href="api.html">4.4 API 명세</a> §2.2b)</td><td><code>spec:read</code></td><td>A1</td><td>컨텍스트 수집·중복 확인 — <b><code>related[]</code>가 중복 확인의 핵심 입력</b>이다(언급 안 된 인접 스펙)</td><td>읽기 전용</td>
       </tr>
       <tr>
         <td><code>nerv_spec_get</code></td>

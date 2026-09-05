@@ -121,6 +121,7 @@ export class SpecController {
     // 전표가 처음부터 적고 있던 둘 — 여기 없어서 조용히 버려졌다(2026-09-05)
     @Query('type') type?: string,
     @Query('status') status?: string,
+    @Query('requirement_id') requirementId?: string,
   ): Promise<unknown> {
     return this.searches.search({
       projectId: projectOf(req),
@@ -131,6 +132,8 @@ export class SpecController {
       // 배열이 아니라 쉼표 목록이다 — `specs/tree` 와 같은 표기다
       ...(type === undefined ? {} : { types: csv(type) }),
       ...(status === undefined ? {} : { statuses: csv(status) }),
+      // "이 요구사항 주변에서 찾아라" — 그 요구사항이 속한 스펙으로 좁힌다(REQ-API-110)
+      ...(requirementId === undefined ? {} : { requirementRef: requirementId }),
     });
   }
 

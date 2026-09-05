@@ -7,8 +7,9 @@ updated: 2026-08-22
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **6종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.50 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.51 · 2026-09-05 · HTML 판: [plugin.html](../html/plugin.html)
 >
+> v0.51 변경(2026-09-05 — 이름만 있던 인자에 뜻을 준다, 정합성 감사 → 사람 결정): **패키지 0.2.8 → 0.2.9.** `skills/spec` 이 `requirement_id` 를 **쓰라고** 말하게 한다(규약 6) — 어느 요구사항 주변을 뒤질지 알면 그것으로 좁히고, 없는 요구사항은 거절이라 오타를 바로 안다.
 > v0.50 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): **패키지 0.2.7 → 0.2.8.** 새로 생긴 길을 스킬이 **쓰라고** 말하게 한다(규약 6) — `skills/question` 에 "답이 필요 없어졌으면 `nerv_question_cancel` 로 거둔다" 와 폴링 중 `cancelled` 를 만났을 때의 답을, `skills/review` 에 "판단이 내 몫이 아니면 `escalated` + `escalate_reason`, **발견은 열린 채로 남는다**" 를 넣는다. 받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다.
 > v0.49 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 판이 **훅 두 변형을 뒤바꿔** 싣고 있었다 — §3.1 `hooks/hooks.json` 자리에 http 변형이, `hooks.http.json` 자리에 command 변형이 있어 **html 만 읽으면 기본 훅이 http 로 읽혔다**(v0.30 의 사람 결정이 파생본에서 뒤집혀 있었다). §1.1 은 더 나빴다: 디렉터리 트리 자리에 statusline 스크립트가, `plugin.json 전문` 라벨 아래에 hooks.json 이 들어 있어 **매니페스트가 html 에 아예 없었다** — "버전이 곧 배달이다" 의 그 버전이 파생본에 없었다는 뜻이다. §1.2 MVP 포함/제외 표(11행)와 **§2.0·§2.1(`skills/next/SKILL.md` 전문)이 통째로 빠져 있어** 목차의 `#sec-2` 가 죽은 링크였다.
 > v0.48 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): §1.1 트리가 `review/SKILL.md` 를 아직 주석 처리된 `(P2)` 로 두고 있었다 — **배포되고 바이트 대조 테스트까지 걸려 있는 파일이다.** 같은 트리의 `hooks/hooks.json` 설명도 `type:"http"` 로 남아 있었다(v0.30 에서 기본을 command 로 바꿨다). 요약과 참고 문헌의 "스킬 5종" 도 6종으로.
@@ -73,7 +74,7 @@ updated: 2026-08-22
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.8
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.9
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -96,12 +97,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.8)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.9)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -350,7 +351,9 @@ allowed-tools:
    위치를 확인하고, `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을
    지어내지 않는다** — 트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서
    내려갈 간선 수, `1` 이면 뿌리와 그 자식)·`status`·`type`(쉼표로 여럿)·`baseline`(세트 이름)
-   이고 검색은 `q` 다(검색도 `type`·`status` 로 좁힌다 — 트리와 같은 쉼표 목록 표기다).
+   이고 검색은 `q` 다(검색도 `type`·`status` 로 좁힌다 — 트리와 같은 쉼표 목록 표기다.
+   **어느 요구사항 주변을 뒤질지 알면** `requirement_id`(`REQ-…` 또는 UUID)로 그 요구사항이
+   속한 스펙만 남긴다 — 없는 요구사항은 빈 결과가 아니라 거절이라 오타를 바로 안다).
    응답의 목록은 각각 `nodes`·`items` 다.
    **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
    그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은

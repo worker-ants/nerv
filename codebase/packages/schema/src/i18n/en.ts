@@ -380,6 +380,8 @@ export const en = {
     'spec key or UUID — when given, only that document and its descendants. Unknown key is not_found',
   'mcp.arg.spec_depth':
     'edges to descend from the root — 0 is roots only, 1 is roots and their children',
+  'mcp.arg.requirement_scope':
+    'Narrow to the spec this requirement belongs to — stable key (REQ-…) or UUID. Unknown ids are rejected.',
   'mcp.arg.spec_status_filter':
     'document status filter — comma-separated (e.g. draft,in_review). All when omitted. Ancestors of matches come along as matched:false',
   'mcp.arg.spec_type_filter':
@@ -451,6 +453,7 @@ export const en = {
     'Attachment storage is not configured — retrying will not open it.',
   'error.spec.baseline_not_found': 'No baseline by that name.',
   'error.spec.not_found': 'Spec not found.',
+  'error.spec.requirement_not_found': 'Requirement not found.',
   'error.spec.not_in_review': 'Not in review.',
   'error.spec.parent_archived': 'The parent spec is archived.',
   'error.spec.title_required': 'A title is required.',
