@@ -8,7 +8,7 @@ The inbox collects **only what is waiting on your decision**. Count background a
 | **Plan approval** | May this large piece of work start now              |
 | **Question**      | Something an agent could not decide — please answer |
 
-**Plan approval** stands only in front of large work — four or more tasks from the same spec revision, or a revision graded **T3**. Claiming such a task is refused on the spot and this card is created; approve it and the next claim goes through. The point is to look at the design before the code is written, which is why the gate sits right before the start.
+**Plan approval** stands only in front of large work — four or more tasks from the same spec version, or a version graded **T3**. Claiming such a task is refused on the spot and this card is created; approve it and the next claim goes through. The point is to look at the design before the code is written, which is why the gate sits right before the start.
 
 Lowering a `critical` review finding also arrives here as a card (see [Reviews](/help/reviews)).
 
@@ -58,7 +58,7 @@ The shortcuts do nothing while the cursor is in a text field — typing `a` in a
 
 ## Notifications
 
-The notification centre is for **what you missed**. If the inbox is "what I must do", notifications are "what I should know". The unread count sits on the header badge and clears as you read.
+The notification center is for **what you missed**. If the inbox is "what I must do", notifications are "what I should know". The unread count sits on the header badge and clears as you read.
 
 When there are unread ones, a **[Mark all read]** sits beside the count — if clearing them one at a time is the only way, the badge soon becomes a badge nobody reads. It tells you how many it marked. With nothing unread the button is not shown.
 

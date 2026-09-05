@@ -102,12 +102,12 @@ The server builds the catalogue itself, so **there is nothing to edit after you 
 
 Four things get installed.
 
-| What                        | What it does                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------- |
-| Six skills                  | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` |
-| Hooks                       | Stream what the agent does onto the sessions screen                                   |
-| statusline                  | Puts your current claim, remaining lease and scope overlaps on the prompt line        |
-| Subagent `nerv-spec-writer` | A narrow agent whose only job is drafting specs                                       |
+| What                        | What it does                                                                            |
+| --------------------------- | --------------------------------------------------------------------------------------- |
+| Six skills                  | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review`   |
+| Hooks                       | Stream what the agent does onto the sessions screen                                     |
+| statusline                  | Puts your current claim, remaining lease and declared-scope overlaps on the prompt line |
+| Subagent `nerv-spec-writer` | A narrow agent whose only job is drafting specs                                         |
 
 **The `nerv_*` tools are not among those four** — the `.mcp.json` below has to be in place before you have them.
 

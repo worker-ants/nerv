@@ -1,4 +1,4 @@
-The review centre collects the **findings** raised against code and specs. A review is what a machine noticed before a person read it; what to fix is a person's call.
+The review center collects the **findings** raised against code and specs. A review is what a machine noticed before a person read it; what to fix is a person's call.
 
 ## Review sessions and findings
 
@@ -17,20 +17,20 @@ A session goes `running` → `complete`. The input it looked at — branch and c
 
 **File the same change twice under the same kind and there is still one session** — no new one is made; another report joins it. What separates them is the report (the reviewer), not the session, and a round goes up when the branch moves and the change itself differs. So **the same point stays one finding across rounds**, and the card says how many times it was observed and in which recent round.
 
-## Severity and disposition
+## Severity and resolution
 
-Findings carry one of three severities: `critical` · `warning` · `info`. `open` is the **state** nobody has touched yet; the **dispositions** are four.
+Findings carry one of three severities: `critical` · `warning` · `info`. `open` is the **state** nobody has touched yet; the **resolutions** are four.
 
 - **Fixed** (`fixed`) — the code was changed. Record the commit hash with it.
-- **Fixed by changing the spec** (`spec_change`) — the **document** was wrong, not the code. Pick which spec revision resolved it (no need to memorise version numbers — choose from the list).
+- **Fixed by changing the spec** (`spec_change`) — the **document** was wrong, not the code. Pick which spec version resolved it (no need to memorise version numbers — choose from the list).
 - **Dismissed** (`dismissed`) — the finding was wrong, or is not a problem in this context.
 - **Won't fix** (`wont_fix`) — a real problem, but not one being fixed now.
 
 `spec_change` exists for honesty. Recording a documentation fix as `fixed` claims the code was changed; recording it as `dismissed` claims it was a false positive. Neither is true. When someone later asks "what resolved these findings", this distinction is the answer.
 
-**Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens (on a narrow screen the rail folds away). Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the disposition**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog.
+**Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens (on a narrow screen the rail folds away). Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the resolution**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog.
 
-Dispositions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.**
+Resolutions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.**
 
 **Lowering a `critical` is a person's decision.** When an agent tries to move a `critical` finding to `dismissed` or `wont_fix`, it is not applied on the spot — an **approval card** is created instead. There is deliberately no quiet path for making a severe problem disappear.
 
@@ -40,7 +40,7 @@ Severity says how urgent a finding is; **area** says what needs fixing. There ar
 
 - `Codebase` — the implementation is wrong. Fix the code and its tests.
 - `Spec` — the specification is wrong, or has drifted from the implementation. Fix the document; these usually close as `spec_change`.
-- `Task` — the task definition, its scope or its delegation brief is the problem. Fix the task.
+- `Task` — the task definition, its declared scope or its delegation brief is the problem. Fix the task.
 - `Process` — a convention, gate or tool: the way of working itself.
 
 When an agent does not send this value, **the server infers it from what the finding points at**, and the card then says `inferred`. Where you see that mark, read the finding before trusting the classification — the mark exists so a guess never reads as a fact.
