@@ -1,9 +1,9 @@
 // E03-S02 — PAT 발급·검증.
 //
-//   WHEN 폐기된 PAT 또는 스코프 밖 프로젝트로 호출하면,
+//   WHEN 폐기된 PAT 또는 권한 밖 프로젝트로 호출하면,
 //   THE SYSTEM SHALL NERV_UNAUTHENTICATED 또는 NERV_FORBIDDEN 으로 거부한다
 //
-// 토큰은 (사용자, 프로젝트, 역할, 스코프) 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을
+// 토큰은 (사용자, 프로젝트, 역할, 소속) 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을
 // 넘지 못한다(D-08). 그 성질들을 실제 DB 상대로 확인한다 — 해시 저장·원문 미저장 포함.
 
 import { NERV_ERROR, newId } from '@nerv/schema';
@@ -80,7 +80,7 @@ describe('PAT 발급 (EP-TOK-02)', () => {
     expect(dump.rows[0]?.n).toBe(1);
   });
 
-  it('사람 전용 스코프는 부여 자체가 불가능하다 — 정책이 아니라 불변식이다', async () => {
+  it('사람 전용 권한은 부여 자체가 불가능하다 — 정책이 아니라 불변식이다', async () => {
     await expect(
       auth.issueToken({
         projectId,
@@ -95,7 +95,7 @@ describe('PAT 발급 (EP-TOK-02)', () => {
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
   });
 
-  it('알 수 없는 스코프는 거부한다', async () => {
+  it('알 수 없는 권한은 거부한다', async () => {
     await expect(
       auth.issueToken({ projectId, userId, name: 'x', scopes: ['spec:destroy'] }),
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
@@ -188,8 +188,8 @@ describe('PAT 검증', () => {
   });
 });
 
-describe('스코프·프로젝트 경계', () => {
-  it('스코프가 없으면 NERV_FORBIDDEN — 역할 판정에 AND 로 추가된다', async () => {
+describe('권한·프로젝트 경계', () => {
+  it('권한이 없으면 NERV_FORBIDDEN — 역할 판정에 AND 로 추가된다', async () => {
     const issued = await auth.issueToken({ projectId, userId, name: 's', scopes: ['spec:read'] });
     const principal = await auth.verifyPat(issued.token);
 
@@ -199,7 +199,7 @@ describe('스코프·프로젝트 경계', () => {
     );
   });
 
-  it('토큰의 프로젝트 밖은 거부한다 (NFR-03 토큰 프로젝트 스코프)', async () => {
+  it('토큰의 프로젝트 밖은 거부한다 (NFR-03 토큰 프로젝트 소속)', async () => {
     const issued = await auth.issueToken({ projectId, userId, name: 'p', scopes: ['spec:read'] });
     const principal = await auth.verifyPat(issued.token);
 
@@ -228,7 +228,7 @@ describe('멤버십 판정 — 겸직은 합집합, 조직은 경계다 (2026-08
       [newId(), orgUser, projectId],
     );
 
-    // 프로젝트 스코프 행이 하나도 없는데도 admin 이어야 한다 — 화면이 이 사람을
+    // 프로젝트 소속 행이 하나도 없는데도 admin 이어야 한다 — 화면이 이 사람을
     // "아무 역할 없음"으로 읽어 스펙 메타 편집을 잠갔던 것이 사람 보고의 원인이었다.
     expect(await auth.assertMembership(orgUser, projectId)).toEqual(['admin']);
     expect(await auth.assertMembership(orgUser, otherProjectId)).toEqual(['admin']);
@@ -290,7 +290,7 @@ describe('멤버십 판정 — 겸직은 합집합, 조직은 경계다 (2026-08
 describe('조직 경계 — 토큰의 역할·명부·폐기 (2026-09-02 보안 점검)', () => {
   it('PAT 의 역할 산출도 조직을 본다 — 남의 조직 admin 이 이 토큰의 권한이 되지 않는다', async () => {
     // `assertMembership` 은 2026-08-24 에 "조직이 경계다" 로 고쳤는데 `verifyPat` 의
-    // 역할 서브쿼리만 project_id IS NULL 로 남아 있었다. 유효 스코프의 상한이 역할이므로
+    // 역할 서브쿼리만 project_id IS NULL 로 남아 있었다. 유효 권한의 상한이 역할이므로
     // 그 구멍은 그대로 권한이 됐다.
     const otherOrg = newId();
     const crossUser = newId();

@@ -38,7 +38,7 @@ export function exitCode(report: ImportReport): 0 | 1 | 2 {
   return 0;
 }
 
-/** 사람이 읽는 판 — report.md */
+/** 사람이 읽는 버전 — report.md */
 export function renderMarkdown(report: ImportReport): string {
   const lines: string[] = [
     t()('cli.report.title', { profile: report.profile }),
@@ -83,7 +83,7 @@ export function renderMarkdown(report: ImportReport): string {
   return lines.join('\n');
 }
 
-/** 기계가 읽는 판 — report.jsonl (한 줄 한 항목) */
+/** 기계가 읽는 버전 — report.jsonl (한 줄 한 항목) */
 export function renderJsonl(report: ImportReport): string {
   return report.entries.map((e) => JSON.stringify(e)).join('\n');
 }

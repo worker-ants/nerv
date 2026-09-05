@@ -15,6 +15,7 @@
     <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
   </div>
   <a href="index.html">개요 (Executive Summary)</a>
+  <a href="glossary.html">용어 사전</a>
   <div class="nav-group">1부 · 현행 분석</div>
   <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
   <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
@@ -52,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>6종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.51 (2026-09-05)</span>
+      <span>버전 v0.52 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
     </div>
@@ -78,7 +79,7 @@
   <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
 <pre><code>nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.9
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.10
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -99,7 +100,7 @@
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;nerv&quot;,
   &quot;description&quot;: &quot;NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다&quot;,
-  &quot;version&quot;: &quot;0.2.9&quot;,
+  &quot;version&quot;: &quot;0.2.10&quot;,
   &quot;license&quot;: &quot;Apache-2.0&quot;
 }</code></pre>
 
@@ -177,7 +178,7 @@ allowed-tools:
 2. **다른 클레임을 쥐고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
 3. **후보 조회.** `nerv_task_next` — 입력: `project`, `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
-   **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·베이스라인, 권장 scope가 실려 있다.
+   **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·기준선, 권장 scope가 실려 있다.
    - 4요소 중 하나라도 비어 있으면 그 Task는 클레임하지 않는다. `nerv_question_create`로
      빈 요소를 지목해 에스컬레이션한다(/nerv:question 규약).
    - **`handoff_note`가 있으면 먼저 읽는다.** 앞사람이 이 작업을 내려놓으며 남긴 인수인계다
@@ -198,14 +199,14 @@ allowed-tools:
    agent-integration §2.4).
    - **후보에 `baseline`이 실려 있으면 주변 문서도 그 세트로 읽는다** —
      `nerv_spec_get`(`spec_id=&lt;참조할 스펙&gt;`, `baseline=&lt;그 이름&gt;`). 기준 버전은 이 문서
-     하나의 판이고, 베이스라인은 **그 문서가 참조하는 문서들까지 포함한 세트**다. 세트 없이
+     하나의 버전이고, 기준선은 **그 문서가 참조하는 문서들까지 포함한 세트**다. 세트 없이
      주변 문서를 최신으로 읽으면 내 문서만 그때 것이고 나머지는 지금 것이 된다.
      `version`과 `baseline`은 함께 줄 수 없다(둘 다 주면 거절된다).
      **트리도 그 세트로 본다** — `nerv_spec_tree`(`baseline=&lt;그 이름&gt;`)는 그 세트가 담은
-     문서만, 담을 때의 판으로 준다. 세트 없이 트리를 보면 그 뒤에 만들어진 문서가 섞여
+     문서만, 담을 때의 버전으로 준다. 세트 없이 트리를 보면 그 뒤에 만들어진 문서가 섞여
      들어와, 그 세트에 있는 문서인 줄 알고 참조하게 된다.
    - 응답의 `baseline_pinned`가 `false`면 **그 세트에 없는 문서**다(나중에 만들어진 것).
-     최신 판을 받은 것이므로 그 사실을 알고 읽는다.
+     최신 버전을 받은 것이므로 그 사실을 알고 읽는다.
 7. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
    없으면 저장소 규약대로 새 브랜치를 만든다. 이후 /nerv:impl 규약으로 구현을 시작한다
    (하트비트 60초 주기 — 첫 하트비트는 클레임 직후 바로 보낸다).
@@ -280,7 +281,7 @@ allowed-tools:
 
 없으면 무슨 일이 있었는지: 세 세션이 같은 초안을 동시에 고쳤을 때 **셋 다 성공하고 본문에는 하나만 남았다** — 둘은 오류도 경고도 없이 자기 글을 잃었다(실측 2026-08-30).
 
-`content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 싣지 않는다: 견줄 판이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
+`content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 싣지 않는다: 견줄 버전이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
 
 `stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그건 남의 글을 덮어쓰는 것이다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
 
@@ -313,7 +314,7 @@ allowed-tools:
 
 ## 시안·문서는 첨부한다
 
-**디자인 시안이 문서 밖에 있으면 문서가 아니다.** 외부 링크는 스펙의 버전과 무관하게 바뀌므로, "이 판이 말하는 화면" 을 나중에 되짚을 수 없다.
+**디자인 시안이 문서 밖에 있으면 문서가 아니다.** 외부 링크는 스펙의 버전과 무관하게 바뀌므로, "이 버전이 말하는 화면" 을 나중에 되짚을 수 없다.
 
 `nerv_spec_attach` 는 **두 번 부르고, 그 사이에 파일을 직접 올린다**(도구 호출 둘 + PUT 하나 = 세 걸음). 도구가 파일을 나르지 않는 이유는 응답에 그것을 싣지 않기 위해서다 — base64 를 실으면 그 세션의 컨텍스트 예산이 그것으로 찬다.
 
@@ -339,7 +340,7 @@ allowed-tools:
 ### new — 새 스펙 초안
 1. `nerv_spec_tree`(`project`, 필요 시 `root`·`depth`·`status`·`type`·`baseline`)로 트리
    위치를 확인하고, `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을
-   지어내지 않는다** — 트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서
+   지어내지 않는다** — 트리는 `root`(고정 ID 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서
    내려갈 간선 수, `1` 이면 뿌리와 그 자식)·`status`·`type`(쉼표로 여럿)·`baseline`(세트 이름)
    이고 검색은 `q` 다(검색도 `type`·`status` 로 좁힌다 — 트리와 같은 쉼표 목록 표기다.
    **어느 요구사항 주변을 뒤질지 알면** `requirement_id`(`REQ-…` 또는 UUID)로 그 요구사항이
@@ -546,7 +547,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 1. **선택지를 만든다.** `options[]`는 2~4개, 각각 그대로 실행 가능한 수준으로 구체적으로
    쓴다. 자유 서술 답변은 재해석 드리프트가 생기므로 구조화가 기본이다.
    스펙 공백이면 "CR을 제안하고 대기"를 선택지에 포함한다.
-2. **출처를 단다.** `context{spec_id,task_id,finding_id}`에 관련 리소스의 안정 ID를 넣는다.
+2. **출처를 단다.** `context{spec_id,task_id,finding_id}`에 관련 리소스의 고정 ID를 넣는다.
    사람은 에이전트의 요약이 아니라 원문을 보고 판단한다.
 3. `nerv_question_create` — 입력: `question`, `options[]`, `context{…}`, `urgency`,
    `blocking`(기본 true — 게이트 차단 여부), `escalate`, 필요 시 `wait_seconds`(long-poll),
@@ -594,7 +595,7 @@ allowed-tools:
 
 사용법: `/nerv:import &lt;profile&gt; &lt;원본 경로&gt;` — 예: `/nerv:import clemvion ~/src/clemvion`
 
-전제: `NERV_SERVER`·`NERV_TOKEN`(스코프 `import:write`)이 환경에 있고, 대상 프로젝트가
+전제: `NERV_SERVER`·`NERV_TOKEN`(권한 `import:write`)이 환경에 있고, 대상 프로젝트가
 이미 만들어져 있다. 토큰이 없으면 여기서 멈추고 사람에게 발급을 요청한다(온보딩 §4).
 
 ## 절차
@@ -623,7 +624,7 @@ allowed-tools:
 | --- | --- |
 | 종료 코드 2 (abort) | 중단 사유(count-mismatch · map-conflict · id-collision · profile-invalid)를 그대로 보고. **재실행으로 우회하지 않는다** |
 | map-conflict | `nerv import rebuild-map`을 안내한다. 매니페스트 없이 --apply를 반복하지 않는다 |
-| NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 토큰·스코프 문제다. 사람에게 보고하고 권한 확대를 시도하지 않는다 |
+| NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 토큰·권한 문제다. 사람에게 보고하고 권한 확대를 시도하지 않는다 |
 | NERV_UNAVAILABLE | 적재를 부분 반복하지 말고 대기 후 같은 명령을 재실행한다(멱등이 보장한다) |
 
 ## 금지
@@ -1203,7 +1204,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
 
   <h3>3.6 버전이 곧 배달이다 (2026-09-04 신설 — 실사용 보고)</h3>
 
-  <p><b>설치된 플러그인은 <code>version</code> 이 오를 때만 새 사본을 받는다.</b> 같은 버전이면 파일을 고쳐도 이미 설치한 쪽은 옛 판을 계속 읽는다 — 오류도 경고도 없고, <b>자기가 낡았다는 것을 알 방법도 없다.</b></p>
+  <p><b>설치된 플러그인은 <code>version</code> 이 오를 때만 새 사본을 받는다.</b> 같은 버전이면 파일을 고쳐도 이미 설치한 쪽은 옛 버전을 계속 읽는다 — 오류도 경고도 없고, <b>자기가 낡았다는 것을 알 방법도 없다.</b></p>
 
   <p>실제로 그렇게 됐다. 2026-09-04 에 <code>/nerv:spec</code> 스킬에 첨부 되읽기 절을 넣고 버전을 <code>0.2.0</code> 그대로 두었더니, 설치본과 원본이 이렇게 갈렸다(실측 보고).</p>
 
@@ -1241,7 +1242,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
   <div class="table-wrap"><table>
     <thead><tr><th>#</th><th>단계</th><th>명령/행동</th><th>확인 방법</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 스코프는 역할 프리셋 기본값(developer: <code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code>) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용)</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
+      <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 역할 프리셋 기본값(developer: <code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code>) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용)</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
       <tr><td>2</td><td>환경변수</td><td>아래 블록을 저장소 <code>.claude/settings.local.json</code> 의 <code>env</code> 에 둔다 — <b>Claude Code 의 유일한 자리다</b>(§3.3). <code>.nerv/env</code> 는 Codex 폴백이라 지금은 쓰지 않는다</td><td><code>echo $NERV_PROJECT</code> 또는 <code>/mcp</code> 연결 확인</td></tr>
       <tr><td>3</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add worker-ants/nerv</code> → <code>/plugin install nerv@nerv</code> → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 <code>https://&lt;서버&gt;/plugin/marketplace.json</code> 을 넣는다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.2.5 활성 표시</td></tr>
       <tr><td>4</td><td>연결 확인</td><td>프로젝트 저장소에서 Claude Code 실행 → <code>/mcp</code></td><td><code>nerv</code> 서버 connected, <code>nerv_*</code> 도구 목록 표시</td></tr>
@@ -1278,7 +1279,7 @@ export NERV_HOSTNAME="$(hostname -s)"</code></pre>
 
   <ul>
     <li>5단계에서 클레임까지 이어가면 그것이 곧 수용 기준 REQ-PLG-002의 검증 시나리오다(<a href="#sec-6">§6</a>).</li>
-    <li>헤드리스/CI 경로(<code>claude -p</code>)는 PAT를 단일 호출 스코프로 주입하고, 플러그인·MCP 적재는 stream-json의 <code>system/init</code> 메시지로 확인한다.</li>
+    <li>헤드리스/CI 경로(<code>claude -p</code>)는 PAT를 단일 호출 권한으로 주입하고, 플러그인·MCP 적재는 stream-json의 <code>system/init</code> 메시지로 확인한다.</li>
     <li>기획자도 같은 절차다 — 온보딩 후 터미널에서 <code>claude "/nerv:spec edit SPC-CWC-007"</code>로 웹 에디터와 같은 초안을 이어쓴다(리스는 <code>takeover</code> 로 이어받는다 — <a href="ui-wireframes.html">3.6 화면 설계</a> S3 ⑫).</li>
   </ul>
 
@@ -1409,7 +1410,7 @@ log_user_prompt = false</code></pre>
   <p class="src"><a href="https://code.claude.com/docs/en/skills">Extend Claude with skills — Claude Code Docs</a> (2026-08-13 확인): SKILL.md frontmatter(<code>allowed-tools</code>·<code>paths</code>)와 배포 위치(§2).</p>
   <p class="src"><a href="https://agentskills.io/">Agent Skills 오픈 표준 — agentskills.io</a> (2026-08-13 확인): 같은 SKILL.md를 Claude Code와 Codex 양쪽에 배포할 수 있는 근거(§2·§5.1).</p>
   <p class="src"><a href="https://code.claude.com/docs/en/hooks">Hooks reference — Claude Code Docs</a> (2026-08-13 확인): <code>type:"http"</code> 핸들러·헤더·<code>async</code>·차단 의미론(§3.1).</p>
-  <p class="src"><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP — Claude Code Docs</a> (2026-08-13 확인): <code>.mcp.json</code> 스코프·<code>${VAR}</code> 확장·비대화형 모드의 사전 로그인/PAT(§3.3·§4).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP — Claude Code Docs</a> (2026-08-13 확인): <code>.mcp.json</code> 권한·<code>${VAR}</code> 확장·비대화형 모드의 사전 로그인/PAT(§3.3·§4).</p>
   <p class="src"><a href="https://code.claude.com/docs/en/settings">Settings — Claude Code Docs</a> (2026-08-13 확인): 관리형 settings(<code>extraKnownMarketplaces</code>·<code>enabledPlugins</code>·<code>allowedHttpHookUrls</code>)(§1.2·§4).</p>
   <p class="src"><a href="https://code.claude.com/docs/en/statusline">Status line — Claude Code Docs</a> (2026-08-13 확인): <code>statusLine</code> 설정과 stdin 세션 JSON 필드(§3.2).</p>
   <p class="src"><a href="https://code.claude.com/docs/en/headless">Run Claude Code programmatically (headless) — Claude Code Docs</a> (2026-08-13 확인): stream-json <code>system/init</code>으로 MCP·플러그인 적재 확인(§4).</p>

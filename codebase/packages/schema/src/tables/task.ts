@@ -49,7 +49,7 @@ export const task = pgTable(
      */
     sourceSpecVersionId: uuid('source_spec_version_id').references(() => specVersion.id),
     sourceRequirementId: uuid('source_requirement_id').references(() => requirement.id),
-    /** 기준 베이스라인 — 주변 문서를 읽는 세트 */
+    /** 기준 기준선 — 주변 문서를 읽는 세트 */
     baselineId: uuid('baseline_id').references(() => specBaseline.id),
     /** 기준 버전 superseded 시 서버가 세팅, 재브리핑 시 해제(spec-workflow §3.3) */
     rebriefRequiredAt: ts('rebrief_required_at'),

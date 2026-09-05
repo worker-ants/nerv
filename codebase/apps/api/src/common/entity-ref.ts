@@ -12,7 +12,7 @@
 // 것은 키이므로 키가 정본이고, UUID 는 내부 식별자다 — 어느 쪽을 받아도 같은 것을 가리키면
 // 그것으로 충분하다.
 
-/** UUID(v4·v7 등 판 무관) 모양인가 — 값의 **형태**로 가른다. */
+/** UUID(v4·v7 등 버전 무관) 모양인가 — 값의 **형태**로 가른다. */
 export function looksLikeUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
 }
@@ -20,7 +20,7 @@ export function looksLikeUuid(value: string): boolean {
 export interface EntityRef {
   /** UUID 로 보이면 그 값 — 아니면 null */
   id: string | null;
-  /** UUID 가 아니면 그 값(안정 키) — UUID 면 null */
+  /** UUID 가 아니면 그 값(고정 ID) — UUID 면 null */
   key: string | null;
 }
 

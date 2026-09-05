@@ -1,8 +1,10 @@
 # clemvion 하네스 분석 — 1인용 SDD+TDD 하네스가 도달한 곳과 그 상한
 
-> **요약** — `clemvion`은 1인 개발자가 Claude Code 하네스로 SDD(스펙 주도 개발)+TDD를 자동화한 제품 모노레포이며, 규약을 사람의 규율이 아니라 훅·빌드 가드로 기계 강제한다는 점에서 완성도가 매우 높다. 훅 9종·판정 모듈 `_lib` 6종·공용 모듈 `_shared` 4종·워크플로 3종 합계 약 7,600줄이 "리뷰 없이 push 금지", "main 브랜치에서 작업 금지", "완료 plan은 스펙 영향 선언 의무" 같은 규칙을 실제로 차단한다. 그러나 조율에 쓰이는 상태가 전부 gitignored 로컬 파일이라 규칙의 강제력이 **호스트 경계에서 끝나고**, 스펙 동시수정 자동 검출은 "다른 머신·세션이면 로컬에 안 보인다"는 이유로 저장소 스스로 제거했다. 동시에 리뷰 산출물 13,777개(131MB)가 코드와 같은 브랜치에 커밋되면서 `.git` packed blob 바이트의 60%를 차지하고, 한 changeset이 8라운드를 도는 동안 마지막 라운드 리뷰 프롬프트 94파일 중 86개가 이전 리뷰 산출물이 되는 자기증식 루프가 실측됐다. 이 문서는 계승할 자산과 버려야 할 구조를 전부 `clemvion:경로` 근거와 실측치로 분리한다.
+> **요약** — `clemvion`은 1인 개발자가 Claude Code 하네스로 SDD(스펙 주도 개발)+TDD를 자동화한 제품 모노레포이며, 규약을 사람의 규율이 아니라 훅·빌드 가드로 기계 강제한다는 점에서 완성도가 매우 높다. 훅 9종·판정 모듈 `_lib` 6종·공용 모듈 `_shared` 4종·워크플로우 3종 합계 약 7,600줄이 "리뷰 없이 push 금지", "main 브랜치에서 작업 금지", "완료 plan은 스펙 영향 선언 의무" 같은 규칙을 실제로 차단한다. 그러나 조율에 쓰이는 상태가 전부 gitignored 로컬 파일이라 규칙의 강제력이 **호스트 경계에서 끝나고**, 스펙 동시수정 자동 검출은 "다른 머신·세션이면 로컬에 안 보인다"는 이유로 저장소 스스로 제거했다. 동시에 리뷰 산출물 13,777개(131MB)가 코드와 같은 브랜치에 커밋되면서 `.git` packed blob 바이트의 60%를 차지하고, 한 changeset이 8라운드를 도는 동안 마지막 라운드 리뷰 프롬프트 94파일 중 86개가 이전 리뷰 산출물이 되는 자기증식 루프가 실측됐다. 이 문서는 계승할 자산과 버려야 할 구조를 전부 `clemvion:경로` 근거와 실측치로 분리한다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 판: [clemvion-analysis.html](../html/clemvion-analysis.html)
+> 문서 버전 v0.2 · 2026-08-13 · HTML 파생본: [clemvion-analysis.html](../html/clemvion-analysis.html)
+>
+> v0.2 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 
 ---
 
@@ -70,7 +72,7 @@ clemvion의 모든 게이트는 **문서로 시작해서 실패를 겪은 뒤 �
 
 ### 2.2 훅 9종 전수표
 
-`clemvion:.claude/hooks/` 아래 훅 스크립트 9개 + 판정 모듈 `_lib` 6개(공용 모듈 `_shared` 4개·워크플로 3종과 합쳐 약 7,600줄 — §1.3). **차단 조건**과 **우회 수단**을 함께 읽어야 이 하네스의 실제 강제력이 보인다.
+`clemvion:.claude/hooks/` 아래 훅 스크립트 9개 + 판정 모듈 `_lib` 6개(공용 모듈 `_shared` 4개·워크플로우 3종과 합쳐 약 7,600줄 — §1.3). **차단 조건**과 **우회 수단**을 함께 읽어야 이 하네스의 실제 강제력이 보인다.
 
 | # | 훅 파일 | 이벤트 | 목적 | 차단 조건 | 우회 수단 |
 | --- | --- | --- | --- | --- | --- |
@@ -134,14 +136,14 @@ linked worktree(`.git`이 파일), detached HEAD, origin 부재는 모두 허용
 
 이 패턴은 NERV가 그대로 계승할 가치가 있다(§4). 다만 **관측자가 본인 터미널뿐**이라는 점이 한계다(§5.1).
 
-### 2.7 워크플로 3종과 서브에이전트 호출 계약
+### 2.7 워크플로우 3종과 서브에이전트 호출 계약
 
 `clemvion:.claude/workflows/`에 `ai-review.js`(325줄) · `consistency-check.js`(197줄) · `merge-coordinate.js`(202줄)가 있고, 공통 패턴은 4단계다.
 
 1. Python orchestrator `--prepare`(모델 호출 없음)가 diff 코퍼스를 수집해 `review/<종류>/<ts>/_prompts/<agent>.md` + `_retry_state.json` manifest 작성.
-2. main 세션이 manifest를 읽어 워크플로 호출.
+2. main 세션이 manifest를 읽어 워크플로우 호출.
 3. `ai-review.js`는 Route → Review → Summary 3단. **Route 불신 규칙**: `review-router`가 forced 리뷰어를 제외하면 라우팅 결정을 폐기하고 전수 실행한다. 도입 계기는 2026-07-23 사고 — "14개 전부 false, '문서만 변경' 판정, 그런데 changeset에는 새 Python 모듈이 있었다".
-4. Summary 단계는 전 리포트를 **인라인으로** 전달한다. 근거: "워크플로 스크립트에는 파일시스템 접근이 없다" + Write를 건너뛴 리뷰어의 Critical이 사라져 "CRITICAL이 읽히지 않은 채 `BLOCK: NO`가 나온 사례가 한 작업에서 3회" 실측.
+4. Summary 단계는 전 리포트를 **인라인으로** 전달한다. 근거: "워크플로우 스크립트에는 파일시스템 접근이 없다" + Write를 건너뛴 리뷰어의 Critical이 사라져 "CRITICAL이 읽히지 않은 채 `BLOCK: NO`가 나온 사례가 한 작업에서 3회" 실측.
 
 서브에이전트 호출 계약(`clemvion:.claude/docs/subagent-call-contract.md`)은 인자 2줄(`prompt_file=` / `output_file=`)과 반환 1줄(`STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HINT=<sec>`)로 고정돼 있고, "Write 실패 시 success 거짓 보고 절대 금지"를 명시한다. 하네스 자체 가드도 실측돼 있다 — `SUMMARY.md`/`summary.md`/`REPORT.md`/`findings.md` basename은 **어떤 sub-agent도 Write 불가**이며, 그래서 summary 계열은 전문을 반환하고 호출자(main)가 멱등 Write한다.
 
@@ -331,7 +333,7 @@ flowchart TB
 
 1. **키가 로컬 하네스 식별자**: dedup 마커의 키는 `session_id`·`tool_use_id`·브랜치명이다. 다른 머신의 세션은 이 키 공간을 볼 수도 공유할 수도 없다.
 2. **시계가 로컬 파일시스템/경로**: freshness 판정이 세션 디렉토리 경로 타임스탬프·author date·mtime이라 한 checkout 안에서만 정합적이다.
-3. **게이트 스코프가 `git worktree list` 결과** = 이 머신의 checkout 목록. 다른 호스트의 브랜치는 push 게이트의 타깃 열거에 아예 등장하지 않는다.
+3. **게이트 권한이 `git worktree list` 결과** = 이 머신의 checkout 목록. 다른 호스트의 브랜치는 push 게이트의 타깃 열거에 아예 등장하지 않는다.
 4. **훅 미설치 클론이면 규칙 전체가 무효**: 모든 게이트가 "이 머신의 훅"이고, 훅 등록조차 SessionStart 부트스트랩에 의존한다(수동 클론은 별도 setup 필요).
 
 동시성 제어는 전무하며 **의도적으로 포기됐다**: `retry_state`의 atomic replace는 찢어진 읽기만 막고 "동시 writer 간의 lost update는 남는다", fail-open streak도 "read-increment-write에 lock이 없다"("겹친 두 실행이 증가 하나를 잃고 격상을 한 번 늦출 수 있다"), 부트스트랩 npm install도 직접 만든 mkdir lock이 TOCTOU로 "락이 막으려던 바로 그 경합"을 재현해 제거됐다. 전부 "1인 저빈도 로컬" 전제에서 수용한 잔여 리스크이며, n 세션에서는 **상시 발생 조건**이 된다.
@@ -527,5 +529,5 @@ changeset 하나(#1167)가 code review 5회 + consistency 3회 = **8라운드**�
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — D-01 저장 전략과 게이트 판정 API 설계
 - [3.3 데이터 모델](../03-proposal/data-model.md) — clemvion frontmatter → NERV 엔티티 매핑
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — 로컬 하네스에 남길 것과 서버로 옮길 것
-- [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 리뷰 파이프라인·게이트의 플랫폼 판
+- [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 리뷰 파이프라인·게이트의 플랫폼 버전
 - [3.7 로드맵](../03-proposal/roadmap.md) — D-12 점진 이관 계획(FR-17 임포터)

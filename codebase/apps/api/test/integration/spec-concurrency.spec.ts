@@ -409,7 +409,7 @@ describe('같은 사용자 · 다른 세션 — 리스는 세션이 쥔다 (§1.
   });
 });
 
-describe('안정 키는 프로젝트 안에서 유일하다 (2026-08-30 사람 결정)', () => {
+describe('고정 ID는 프로젝트 안에서 유일하다 (2026-08-30 사람 결정)', () => {
   it('이미 쓰이는 키로 만들면 막고, 그 문서를 짚어 준다', async () => {
     const first = await makeSpec('SPC-UNIQ', '# 먼저 쓴 문서');
     const r = await settle([makeSpec('SPC-UNIQ', '# 같은 키로 또 만든다')]);

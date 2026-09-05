@@ -21,7 +21,7 @@ export const invitation = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organization.id),
-    /** NULL = 조직 전역 초대. 값이 있으면 그 프로젝트 스코프로 들어온다 */
+    /** NULL = 조직 전역 초대. 값이 있으면 그 프로젝트 소속으로 들어온다 */
     projectId: uuid('project_id').references(() => project.id),
     /**
      * **초대한 이메일로만 수락된다**(사람 결정 2026-08-27). 토큰만으로 아무 계정이나
@@ -41,7 +41,7 @@ export const invitation = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    // 같은 사람에게 같은 스코프의 초대가 **둘 살아 있지 않게** 한다. 수락·회수된 것은
+    // 같은 사람에게 같은 소속의 초대가 **둘 살아 있지 않게** 한다. 수락·회수된 것은
     // 기록으로 남아야 하므로 부분 인덱스다 — 지우는 대신 상태를 남긴다.
     uniqueIndex('invitation_pending_uq')
       .on(t.email, sql`coalesce(${t.projectId}, ${t.orgId})`)

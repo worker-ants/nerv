@@ -1,15 +1,15 @@
-// PAT 스코프 어휘 — 정본: docs/04-mvp/api.md §1.3 · agent-integration §2.3 "필요 권한" 열
+// PAT 권한 어휘 — 정본: docs/04-mvp/api.md §1.3 · agent-integration §2.3 "필요 권한" 열
 //
 // `resource:action` 표기다. 두 가지가 이 파일의 존재 이유다.
 //
-//   ① **사람 전용 스코프는 토큰에 부여 자체가 불가능하다.** `spec:approve` 와
+//   ① **사람 전용 권한은 토큰에 부여 자체가 불가능하다.** `spec:approve` 와
 //      `approval:decide` 는 정책이 아니라 **시스템 불변식**이다(agent-integration §6.1 ④).
 //      "설정에서 끄면 되는 것"이 아니라 발급 경로에 존재하지 않아야 한다.
-//   ② **MCP 도구 대응이 없는 스코프가 셋 있다** — `import:write`(admin 전용 이관 표면) ·
+//   ② **MCP 도구 대응이 없는 권한이 셋 있다** — `import:write`(admin 전용 이관 표면) ·
 //      `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). 나머지 일곱이 도구 22종을
 //      덮는다. "도구 표와 1:1" 은 그 일곱에 대한 말이고, 이 셋은 REST 축이다(api.md §1.3).
 
-/** 토큰에 부여할 수 있는 스코프. */
+/** 토큰에 부여할 수 있는 권한. */
 export const AGENT_SCOPES = [
   'spec:read',
   'spec:draft',
@@ -48,26 +48,26 @@ export function isHumanOnlyScope(value: string): value is HumanOnlyScope {
  * REST 전용 — MCP 도구 대응이 없다(api.md §1.3).
  *
  * 목록이 `import:write` 하나였던 동안 `spec:meta` 는 어느 쪽에도 없었다 — 도구 22종이
- * 쓰는 스코프는 일곱인데 문서는 "도구 표와 1:1" 이라고 적고 있었다(2026-09-04 실측).
+ * 쓰는 권한은 일곱인데 문서는 "도구 표와 1:1" 이라고 적고 있었다(2026-09-04 실측).
  */
 export const REST_ONLY_SCOPES = ['import:write', 'spec:meta', 'spec:evidence'] as const;
 
 // ── 역할 → 권한 (api.md §2 전표의 "권한" 열) ────────────────────────────────
 //
-// **역할과 스코프를 한 축으로 합친다.** `assertScope` 는 원래 "세션 사용자는 역할
+// **역할과 권한을 한 축으로 합친다.** `assertScope` 는 원래 "세션 사용자는 역할
 // 매트릭스가 판정한다"고 적어 두고 그 매트릭스가 없어, 웹 세션이면 `viewer` 도
-// EP-SPEC-15(메타 편집)·16(아카이브)·12(베이스라인 동결)을 통과했다(실측 2026-08-23).
+// EP-SPEC-15(메타 편집)·16(아카이브)·12(기준선 동결)을 통과했다(실측 2026-08-23).
 //
 // 두 경로가 같은 어휘를 쓰면 판정이 하나가 된다(D-05):
-//   - 세션(쿠키): 역할이 허용하는 스코프
-//   - PAT: 역할이 허용하는 스코프 **AND** 토큰에 실린 스코프 (api.md §1.3 "AND 로 추가")
+//   - 세션(쿠키): 역할이 허용하는 권한
+//   - PAT: 역할이 허용하는 권한 **AND** 토큰에 실린 권한 (api.md §1.3 "AND 로 추가")
 // 토큰이 역할보다 넓을 수 없다는 뜻이다 — 발급 시점의 역할이 상한이다.
 
-/** 사람 전용 스코프까지 포함한 권한 어휘 — 토큰 부여 가능 여부와는 다른 축이다. */
+/** 사람 전용 권한까지 포함한 권한 어휘 — 토큰 부여 가능 여부와는 다른 축이다. */
 export type RoleScope = AgentScope | HumanOnlyScope;
 
 /**
- * 역할이 허용하는 스코프. **`viewer` 는 읽기뿐이다.**
+ * 역할이 허용하는 권한. **`viewer` 는 읽기뿐이다.**
  *
  * `admin` 을 전량으로 두는 것은 정본의 "admin ●"들과 정합한다. 나머지는 전표의
  * 권한 열을 그대로 옮긴 것이고, 근거가 없는 권한은 주지 않는다 — 넓게 열어 두고
@@ -75,7 +75,7 @@ export type RoleScope = AgentScope | HumanOnlyScope;
  */
 export const ROLE_SCOPES: Readonly<Record<string, readonly RoleScope[]>> = {
   admin: [...AGENT_SCOPES, ...HUMAN_ONLY_SCOPES],
-  // 스펙 계열의 주인 — 메타·베이스라인·승인이 여기 있다(EP-SPEC-12·15~17 · EP-APR-03)
+  // 스펙 계열의 주인 — 메타·기준선·승인이 여기 있다(EP-SPEC-12·15~17 · EP-APR-03)
   planner: [
     'spec:read',
     'agent-session:launch',

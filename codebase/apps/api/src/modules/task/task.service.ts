@@ -122,7 +122,7 @@ export class TaskService {
              t.source_spec_version_id, t.baseline_id, bl.name AS baseline,
              -- **기준 문서를 열 수 있게 한다**(REQ-API-081). 조인은 처음부터 있었는데 sv 에서
              -- 아무것도 고르지 않아, 스킬 6단계("기준 버전으로 nerv_spec_get")를 응답만으로는
-             -- 수행할 수 없었다 — id 는 있는데 키와 판 번호가 없었다.
+             -- 수행할 수 없었다 — id 는 있는데 키와 버전 번호가 없었다.
              s.key AS spec_key, sv.version_no,
              -- 앞 사람이 남긴 인수인계 노트 — "왜 내려놨나" 가 후보 목록에서 보여야 한다
              (SELECT c.release_note FROM claim c
@@ -189,7 +189,7 @@ export class TaskService {
     const assignee =
       input.assigneeUserId == null ? sql`` : sql` AND t.assignee_user_id = ${input.assigneeUserId}`;
     // **키든 UUID 든 받는다**(§1.4b). 예전에는 UUID 만 받았는데, 사람과 화면과 도구가
-    // 쓰는 것은 안정 키다 — 키를 넣으면 조용히 0건이 되어 "그 스펙에 Task 가 없다" 로 읽혔다.
+    // 쓰는 것은 고정 ID다 — 키를 넣으면 조용히 0건이 되어 "그 스펙에 Task 가 없다" 로 읽혔다.
     const specRef = entityRef(input.specId ?? null);
     const spec =
       specRef.id === null && specRef.key === null
@@ -321,9 +321,9 @@ export class TaskService {
     sourceSpecVersionId?: string | null;
     sourceRequirementId?: string | null;
     /**
-     * 기준 베이스라인 **이름**(REQ-API-087 · spec-workflow §4.1).
+     * 기준 기준선 **이름**(REQ-API-087 · spec-workflow §4.1).
      *
-     * 기준 버전이 "이 문서의 어느 판" 이라면 베이스라인은 "**주변 문서까지 포함한 어느
+     * 기준 버전이 "이 문서의 어느 버전" 이라면 기준선은 "**주변 문서까지 포함한 어느
      * 세트**" 다. 문서 하나의 핀만으로는 그것이 참조하는 문서들의 기준이 흔들린다.
      */
     baseline?: string | null;
@@ -365,7 +365,7 @@ export class TaskService {
         projectId: input.projectId,
         subjectType: 'task',
         subjectId: taskId,
-        // 화면의 쿼리 키 축은 안정 키다(`CLV-T-…`) — UUID 만 실으면 단건 캐시가
+        // 화면의 쿼리 키 축은 고정 ID다(`CLV-T-…`) — UUID 만 실으면 단건 캐시가
         // 무효화되지 않아 작업 상세가 열린 채로 낡는다(screens.md §1.4)
         subjectKey: key,
         actorUserId: input.userId,
@@ -1261,10 +1261,10 @@ export class TaskService {
 
   /** 표시 키의 접두는 프로젝트 것이다(§5.1). 트랜잭션 안에서 읽어 같은 스냅샷을 본다. */
   /**
-   * 베이스라인 **이름 → id**. 없는 이름은 거부한다.
+   * 기준선 **이름 → id**. 없는 이름은 거부한다.
    *
    * 조용히 NULL 로 만들면 Task 는 만들어지는데 기준 세트가 없다 — 그러면 에이전트는
-   * "베이스라인 맥락" 이라고 지시받고도 최신 판을 읽게 되고, 그것이 정확히 기준선이
+   * "기준선 맥락" 이라고 지시받고도 최신 버전을 읽게 되고, 그것이 정확히 기준선이
    * 막으려던 상황이다(REQ-API-087).
    */
   private async baselineIdOf(projectId: string, name: string | null): Promise<string | null> {

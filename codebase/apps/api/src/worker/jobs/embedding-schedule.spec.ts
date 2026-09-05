@@ -33,7 +33,7 @@ afterEach(() => {
   delete process.env['NERV_EMBED_EVERY_MS'];
 });
 
-describe('주기는 이번 판의 결과가 정한다', () => {
+describe('주기는 이번 버전의 결과가 정한다', () => {
   it('기동 직후에는 빠르다 — 밀린 것이 있는지부터 확인한다', () => {
     expect(jobReturning({}).everyMs).toBe(1000);
   });

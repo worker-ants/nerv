@@ -111,7 +111,7 @@ export function useSpecTree(
   projectId?: string,
   includeArchived = false,
   /**
-   * 기준선 — 고르면 **그 세트가 담은 문서만**, 그때 핀된 판으로 온다(REQ-API-098).
+   * 기준선 — 고르면 **그 세트가 담은 문서만**, 그때 핀된 버전으로 온다(REQ-API-098).
    *
    * 기준선은 세트다. 그 뒤에 만들어진 문서가 목록에 섞이면 그것은 기준선이 아니라
    * "지금" 이고, 보는 사람은 그 세트가 그 문서를 담고 있다고 읽는다.
@@ -131,15 +131,15 @@ export function useSpecTree(
 }
 
 /**
- * 스펙 상세. **키는 안정 키(SPC-…)이고 이벤트 봉투는 UUID 를 싣는다** — 그래서 이 쿼리는
+ * 스펙 상세. **키는 고정 ID(SPC-…)이고 이벤트 봉투는 UUID 를 싣는다** — 그래서 이 쿼리는
  * 이벤트로 직접 무효화되지 않고, 같은 이벤트가 함께 무효화하는 트리(projectSpecTree)의
  * 재조회와 화면 재진입으로 갱신된다. 두 축을 억지로 잇지 않는 편이 낫다: 봉투에 key 를
  * 실으면 이름 변경이 이벤트 계약을 깨고, 화면이 UUID 를 쓰면 URL 이 사람이 못 읽는 것이 된다.
  */
 export function useSpec(slug: string, specKey: string, baseline?: string): UseQueryResult<Row> {
   return useQuery({
-    // 기준선이 다르면 **다른 판**이라 캐시 키가 갈라져야 한다 — 같은 키로 두면
-    // 세트를 바꿔도 앞서 읽은 판이 그대로 보인다
+    // 기준선이 다르면 **다른 버전**이라 캐시 키가 갈라져야 한다 — 같은 키로 두면
+    // 세트를 바꿔도 앞서 읽은 버전이 그대로 보인다
     queryKey: [...queryKeys.spec(specKey), baseline ?? null],
     // **`include=tasks` 를 붙이는 이유**: 영향 미리보기가 파생 Task 수를 세는데, 서버는
     // 요청해야 그것을 싣는다(EP-SPEC-03). 붙이지 않던 동안 그 줄은 언제나 "0건" 이었다 —
@@ -158,9 +158,9 @@ export function useSpec(slug: string, specKey: string, baseline?: string): UseQu
 
 /** EP-SPEC-19 — 전역 그래프. 노드·간선을 한 번에 받는다(끝점 없는 간선을 만들지 않는다) */
 /**
- * **결재가 가리키는 바로 그 판** — 받은 요청의 카드가 연다(REQ-WEB-119).
+ * **결재가 가리키는 바로 그 버전** — 받은 요청의 카드가 연다(REQ-WEB-119).
  *
- * `useSpec` 은 "지금 읽는 사람이 보는 판"(최신 approved, 없으면 현재)을 준다. 결재는
+ * `useSpec` 은 "지금 읽는 사람이 보는 버전"(최신 approved, 없으면 현재)을 준다. 결재는
  * **검토 중인 그 버전**을 두고 하는 결정이라 둘이 다를 수 있다 — 카드가 보여준 것과
  * 승인되는 것이 같아야 한다는 규약(§2.3 지문 대조)과 같은 이유다.
  */
@@ -319,7 +319,7 @@ export interface SessionBoardResponse {
  * 이벤트가 와도 이 쿼리는 갱신되지 않는다.
  */
 /**
- * 세션 판 — `state` 는 **서버가 거른다**(엔드포인트가 처음부터 `?state=` 를 받는다).
+ * 세션 목록 — `state` 는 **서버가 거른다**(엔드포인트가 처음부터 `?state=` 를 받는다).
  *
  * 목록은 200건에서 잘리므로 클라이언트에서 거르면 "종료 12건" 이라 적어 놓고 그중
  * 일부만 보이는 화면이 된다. 요약(`summary`)은 필터와 무관하게 **프로젝트 전체**다 —
@@ -490,7 +490,7 @@ export function useTokens(): UseQueryResult<Row[]> {
  *
  * 알림 테이블을 타지 않는 이유가 있다: `notification.project_id` 는 NOT NULL 인데 조직
  * 초대에는 프로젝트가 없고, 무엇보다 **초대받은 사람은 아직 아무 프로젝트의 멤버가
- * 아니다** — 프로젝트 스코프 알림 목록은 그에게 언제나 비어 있다.
+ * 아니다** — 프로젝트 소속 알림 목록은 그에게 언제나 비어 있다.
  */
 export function useMyInvitations(): UseQueryResult<Row[]> {
   return useQuery({

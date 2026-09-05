@@ -165,12 +165,12 @@ export class SpecService {
    *
    * **초안이 아니라 승인 시점이다.** 초안의 EARS 문장은 아직 약속이 아니고, 이 테이블은
    * 이미 버전 축(`introduced_in_version_id`·`removed_in_version_id`)을 갖고 있어 승인된
-   * 판에 붙이는 것이 자연스럽다.
+   * 버전에 붙이는 것이 자연스럽다.
    *
    * **우선순위는 `must` 로 시작한다.** 본문의 EARS 줄은 그 값을 담지 않아 고를 근거가 없고,
    * 적어 둔 요구사항을 기본으로 낮춰 잡을 이유도 없다(임포터는 프로파일에서 읽는다).
    *
-   * 본문에서 사라진 요구사항은 지우지 않고 **이 판에서 빠졌다고 표시한다** — 기록을 지우는
+   * 본문에서 사라진 요구사항은 지우지 않고 **이 버전에서 빠졌다고 표시한다** — 기록을 지우는
    * 것이 아니라 언제 빠졌는지를 남기는 것이 이 테이블의 축이다.
    */
   private async syncRequirements(
@@ -196,7 +196,7 @@ export class SpecService {
       `);
     }
 
-    // 본문에서 사라진 것 — 지우지 않고 이 판에서 빠졌다고 적는다
+    // 본문에서 사라진 것 — 지우지 않고 이 버전에서 빠졌다고 적는다
     await tx.execute(sql`
       UPDATE requirement
          SET removed_in_version_id = ${input.specVersionId}
@@ -233,7 +233,7 @@ export class SpecService {
   /**
    * nerv_spec_tree · EP-SPEC-01
    *
-   * `root`(안정 키 또는 UUID)·`depth`·`status`·`type` 으로 좁힐 수 있다. **아무것도 없으면
+   * `root`(고정 ID 또는 UUID)·`depth`·`status`·`type` 으로 좁힐 수 있다. **아무것도 없으면
    * 전 계층**이다 — 화면은 그것을 쓴다(screens.md REQ-WEB-044: 깊이는 성능 장치가 아니다).
    *
    * 성질(`status`·`type`)로 거른 결과에는 **조상이 함께 온다**(REQ-API-092·093) — 매칭만
@@ -252,12 +252,12 @@ export class SpecService {
     statuses?: readonly string[] | null;
     /** 스펙 종류 6종 — `statuses` 와 함께 오면 AND 다(다른 축이므로 서로를 좁힌다) */
     types?: readonly string[] | null;
-    /** 기준선 이름 — 주면 **그 세트가 담은 문서만**, 그때 핀된 판으로 준다(REQ-API-098) */
+    /** 기준선 이름 — 주면 **그 세트가 담은 문서만**, 그때 핀된 버전으로 준다(REQ-API-098) */
     baseline?: string | null;
   }): Promise<SpecTreeNode[]> {
     const archived = input.includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
 
-    // **기준선은 세트다.** 고르면 그 세트가 담은 문서만, 담을 때의 판으로 보여야 한다 —
+    // **기준선은 세트다.** 고르면 그 세트가 담은 문서만, 담을 때의 버전으로 보여야 한다 —
     // 그 뒤에 만들어진 문서가 섞이면 그것은 기준선이 아니라 "지금"이다(2026-09-05 사람 지적).
     // 4.5 §2.4 (4)는 처음부터 그렇게 적고 있었고 목록만 그것을 따르지 않았다.
     const baselineId = input.baseline == null ? null : await this.baselineId(input);
@@ -266,7 +266,7 @@ export class SpecService {
         ? sql``
         : sql` AND EXISTS (SELECT 1 FROM spec_baseline_item i
                             WHERE i.baseline_id = ${baselineId} AND i.spec_id = s.id)`;
-    // 판도 그 세트의 것이다 — 제목·자리는 지금 것이지만 "어느 판인가"는 스냅샷을 따른다
+    // 버전도 그 세트의 것이다 — 제목·자리는 지금 것이지만 "어느 판인가"는 스냅샷을 따른다
     const version =
       baselineId === null
         ? sql`sv.id = s.current_version_id`
@@ -382,11 +382,11 @@ export class SpecService {
   /** nerv_spec_get · EP-SPEC-03 — 기준 버전 지정 조회를 지원한다(agent-integration §2.4) */
   async get(input: {
     projectId: string;
-    /** 안정 키(`SPC-…`) 또는 UUID — 둘 다 받는다(§1.4b) */
+    /** 고정 ID(`SPC-…`) 또는 UUID — 둘 다 받는다(§1.4b) */
     specKey: string;
     versionNo?: number | null;
     /**
-     * 베이스라인 이름 — 그 세트가 이 스펙에 핀해 둔 판을 읽는다(REQ-API-087).
+     * 기준선 이름 — 그 세트가 이 스펙에 묶어 둔 버전을 읽는다(REQ-API-087).
      *
      * `versionNo` 와 **배타**다. 둘을 섞으면 "어느 쪽이 이겼나" 를 매번 물어야 하고,
      * 그 물음이 생기는 순간 기준선의 값어치가 사라진다 — 컨트롤러·도구가 거부한다.
@@ -408,7 +408,7 @@ export class SpecService {
     // `nerv_spec_get` 은 **"스펙을 찾을 수 없습니다"** 라고 답했다(실측 2026-08-30:
     // clemvion `channel-web-chat` — 자식 둘을 거느린 영역이 도구로는 읽히지 않았다).
     // 그건 "없다"가 아니라 "아직 본문이 없다"이므로 LEFT JOIN 으로 노드를 돌려준다.
-    // **핀을 먼저 해석한다.** 두 가지를 한 번에 얻는다 — 그 이름의 베이스라인이 있는가,
+    // **핀을 먼저 해석한다.** 두 가지를 한 번에 얻는다 — 그 이름의 기준선이 있는가,
     // 그리고 그것이 이 문서를 담고 있는가.
     //
     // 없는 이름을 조용히 기본값으로 떨어뜨리면 사람은 그 세트를 읽었다고 믿는다 — 이
@@ -437,7 +437,7 @@ export class SpecService {
       pinnedVersionId = pin[0]?.spec_version_id ?? null;
     }
 
-    // 기본(최신 approved) · 버전 지정 · **베이스라인 핀** 세 갈래다.
+    // 기본(최신 approved) · 버전 지정 · **기준선 핀** 세 갈래다.
     //
     // 핀이 없으면 기본으로 떨어진다 — 위에서 해석한 그대로다(`baseline_pinned: false`).
     const latestApproved = sql`coalesce(
@@ -510,11 +510,11 @@ export class SpecService {
       ? await this.attachments.list({ projectId: input.projectId, specKey: String(spec['key']) })
       : undefined;
 
-    // **참조 갱신은 이벤트가 안다**(REQ-WEB-037 · 2026-09-03). 화면은 "앞선 판이 있으면"
+    // **참조 갱신은 이벤트가 안다**(REQ-WEB-037 · 2026-09-03). 화면은 "앞선 버전이 있으면"
     // 으로 판정하고 있었는데 그것은 **모든 초안에서 참이라** 배지가 늘 켜져 있었다
-    // (실측 2026-09-03: 초안 26판 중 26판 점등 — 오탐률 100%). 늘 켜진 경고는 아무도 읽지
+    // (실측 2026-09-03: 초안 26버전 중 26버전 점등 — 오탐률 100%). 늘 켜진 경고는 아무도 읽지
     // 않는다. 서버는 이미 참조 전파에서 `spec.recheck_requested` 를 발행하고 있었으므로
-    // (§3.3 — 이 DB 에 413건), 판정은 **이 판을 마지막으로 쓴 뒤 그 신호가 왔는가** 다.
+    // (§3.3 — 이 DB 에 413건), 판정은 **이 버전을 마지막으로 쓴 뒤 그 신호가 왔는가** 다.
     const { rows: recheck } = await this.db.execute<{ n: number; keys: string[] }>(sql`
       SELECT count(*)::int AS n,
              coalesce(array_agg(DISTINCT src.key) FILTER (WHERE src.key IS NOT NULL), '{}') AS keys
@@ -536,7 +536,7 @@ export class SpecService {
       ...(attachments === undefined ? {} : { attachments }),
       // 배지가 무엇 때문에 켜졌는지까지 준다 — "낡았다" 만으로는 어디를 볼지 모른다
       recheck: { count: recheck[0]?.n ?? 0, specs: recheck[0]?.keys ?? [] },
-      // 기준 버전이 이미 지나간 판이면 표시한다 — 재브리핑의 신호다(§2.4)
+      // 기준 버전이 이미 지나간 버전이면 표시한다 — 재브리핑의 신호다(§2.4)
       basis_superseded: spec['superseded_by_version_id'] != null,
       // **그 세트가 이 문서를 담고 있었는가.** 담고 있지 않으면 최신 approved 로 떨어지는데,
       // 그 사실을 말하지 않으면 읽는 쪽은 기준선을 읽었다고 믿는다.
@@ -558,7 +558,7 @@ export class SpecService {
    */
   /**
    * 이벤트에 실을 **스펙 키**. 봉투의 `subject_id` 는 버전·스펙 UUID 라 화면의 쿼리 키
-   * (안정 키)와 축이 다르다 — 키가 없으면 무효화가 목표를 못 맞춘다(screens.md §1.4).
+   * (고정 ID)와 축이 다르다 — 키가 없으면 무효화가 목표를 못 맞춘다(screens.md §1.4).
    */
   private async keyOfSpec(tx: Tx, specId: string): Promise<string | null> {
     const { rows } = await tx.execute<{ key: string }>(
@@ -622,7 +622,7 @@ export class SpecService {
   }
 
   /**
-   * 안정 키는 프로젝트 안에서 유일하다 — 이미 쓰이고 있으면 만들지 않는다(2026-08-30 사람 결정).
+   * 고정 ID는 프로젝트 안에서 유일하다 — 이미 쓰이고 있으면 만들지 않는다(2026-08-30 사람 결정).
    *
    * **덮어쓰지도, 이어쓰지도 않는다.** 같은 키로 온 생성은 대개 "이미 있는 줄 몰랐다"이고,
    * 그때 조용히 남의 문서에 이어 쓰는 것이 가장 나쁘다. 어느 문서가 그 키를 쥐고 있는지
@@ -669,7 +669,7 @@ export class SpecService {
         }
         // **역할이 타입을 가른다**(EP-SPEC-07). designer 는 design 을, developer 는
         // convention·adr 을 만든다. qa 가 만드는 것은 리뷰이지 스펙이 아니다(2026-08-23).
-        // 스코프(`spec:draft`)는 "초안을 쓸 수 있는가"이고 이것은 "무엇을 시작할 수 있는가"다 —
+        // 권한(`spec:draft`)는 "초안을 쓸 수 있는가"이고 이것은 "무엇을 시작할 수 있는가"다 —
         // 다른 물음이라 따로 판정한다.
         if (!canCreateSpecType(input.roles ?? [], input.type)) {
           throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.spec.type_not_allowed'), {
@@ -1126,7 +1126,7 @@ export class SpecService {
    *
    * 공개 `approve()`/`reject()` 는 스스로 트랜잭션을 연다. 결재 결정과 문서 전이는
    * **한 트랜잭션이어야** 하므로(둘로 나누면 그 사이의 실패가 "결재는 됐는데 문서는
-   * 안 움직인" 상태를 만든다 — 실측된 그 자리다) 트랜잭션을 받는 판을 따로 연다.
+   * 안 움직인" 상태를 만든다 — 실측된 그 자리다) 트랜잭션을 받는 버전을 따로 연다.
    *
    * `assertDifferentApprover` 는 여기서 부르지 않는다: 지시자≠승인자 판정은 결재 쪽이
    * 이미 했고(완화 둘 포함), 두 곳에서 판정하면 규칙이 두 벌이 된다.
@@ -1162,7 +1162,7 @@ export class SpecService {
     });
   }
 
-  /** 같은 이유로 여는 거절 판 — in_review → draft */
+  /** 같은 이유로 여는 거절 버전 — in_review → draft */
   async rejectInTxForApproval(
     tx: Tx,
     emit: Parameters<Parameters<EventService['transact']>[0]>[1],
@@ -1681,7 +1681,7 @@ export class SpecService {
    * EP-MIR-01 — md 미러. **DB 가 진실이고 md 는 그 표현이다**(D-09).
    *
    * 이 표면이 있는 이유는 에이전트·CI·사람이 "그냥 문서를 읽고 싶을 때" REST 봉투를 벗기지
-   * 않아도 되게 하기 위해서다. frontmatter 에 안정 ID·버전·상태·승인자를 실어, 파일로
+   * 않아도 되게 하기 위해서다. frontmatter 에 고정 ID·버전·상태·승인자를 실어, 파일로
    * 저장해도 출처를 잃지 않게 한다.
    */
   async mirrorMarkdown(input: {
@@ -2010,7 +2010,7 @@ export class SpecService {
       }),
       {
         // **이 문서의 첫 approved 판인가**(2026-09-02 사람 결정). 새 문서는 되돌릴 이전
-        // 판이 없어 가역성 0, 아직 아무도 참조하지 않아 파급 0 이라 축이 구조적으로 낮게
+        // 버전이 없어 가역성 0, 아직 아무도 참조하지 않아 파급 0 이라 축이 구조적으로 낮게
         // 나온다 — 요구사항을 새로 세우는 feature 스펙이 3점(T1)으로 사람 없이 통과했다.
         // §2.4 표가 같은 문서에서 "신규 feature 스펙" 을 T2 예시로 드는데도 그랬다.
         firstApprovedVersion: bodies[0]?.base_md == null,

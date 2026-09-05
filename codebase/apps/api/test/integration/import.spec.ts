@@ -1,10 +1,10 @@
 // E07-S04 — 임포트 REST 표면 (EP-IMP-01~05).
 //
-//   REQ-API-017  스코프·역할이 부족한 주체가 호출하면 403 으로 거부하고 **레코드를 만들지 않는다**
+//   REQ-API-017  권한·역할이 부족한 주체가 호출하면 403 으로 거부하고 **레코드를 만들지 않는다**
 //   REQ-API-018  배치 일부 항목이 제약을 위반하면 **그 항목만** 롤백하고 나머지를 커밋한다
 //   성공 기준 0-7  2회 연속 실행의 신규 생성 레코드 0
 //
-// 이 표면만 워크플로 전이 검사를 우회한다(approved 를 승인 없이 만든다). 그래서 문(門)의
+// 이 표면만 워크플로우 전이 검사를 우회한다(approved 를 승인 없이 만든다). 그래서 문(門)의
 // 검증이 곧 이 스위트의 절반이다 — admin AND import:write 가 둘 다 필요하다는 것.
 
 import { NERV_ERROR, newId } from '@nerv/schema';
@@ -96,7 +96,7 @@ const docItem = (key: string, body = `# ${key}\n\nREQ-CWC-031 요구사항 문�
 });
 
 describe('문 — admin AND import:write (REQ-API-017)', () => {
-  it('스코프가 없으면 403 이고 레코드를 만들지 않는다', async () => {
+  it('권한이 없으면 403 이고 레코드를 만들지 않는다', async () => {
     const before = await count('spec');
     const res = await post(
       'specs',
@@ -108,7 +108,7 @@ describe('문 — admin AND import:write (REQ-API-017)', () => {
     expect(await count('spec')).toBe(before);
   });
 
-  it('스코프가 있어도 admin 이 아니면 403 이다 — 둘은 AND 다', async () => {
+  it('권한이 있어도 admin 이 아니면 403 이다 — 둘은 AND 다', async () => {
     const before = await count('spec');
     const res = await post(
       'specs',

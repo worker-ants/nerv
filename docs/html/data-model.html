@@ -15,6 +15,7 @@
     <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
   </div>
   <a href="index.html">개요 (Executive Summary)</a>
+  <a href="glossary.html">용어 사전</a>
   <div class="nav-group">1부 · 현행 분석</div>
   <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
   <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
@@ -52,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>37개 엔티티</b>(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.11 (2026-09-05)</span>
+      <span>버전 v0.12 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
     </div>
@@ -272,10 +273,10 @@
       <tr><td>2</td><td>사용자</td><td><code>user</code></td><td>사람 계정. 에이전트는 별도 계정을 갖지 않는다(D-08)</td><td>FR-14</td></tr>
       <tr><td>3</td><td>프로젝트</td><td><code>project</code></td><td>하나의 제품/저장소 단위. 모든 도메인 데이터의 파티션 키</td><td>FR-14</td></tr>
       <tr><td>4</td><td>멤버십</td><td><code>membership</code></td><td>사용자×(조직 또는 프로젝트) n:n + 역할 6종</td><td>FR-14</td></tr>
-      <tr><td>5</td><td>API 토큰</td><td><code>api_token</code></td><td>사용자별·프로젝트 스코프 에이전트 자격증명</td><td>FR-15 · NFR-03</td></tr>
-      <tr><td>6</td><td>스펙</td><td><code>spec</code></td><td>트리 노드. 타입 6종, 안정 ID 보유</td><td>FR-01</td></tr>
+      <tr><td>5</td><td>API 토큰</td><td><code>api_token</code></td><td>사용자별·프로젝트 소속 에이전트 자격증명</td><td>FR-15 · NFR-03</td></tr>
+      <tr><td>6</td><td>스펙</td><td><code>spec</code></td><td>트리 노드. 타입 6종, 고정 ID 보유</td><td>FR-01</td></tr>
       <tr><td>7</td><td>스펙 버전</td><td><code>spec_version</code></td><td>본문의 불변 스냅샷 + 문서 상태(D-02 문서 축)</td><td>FR-02</td></tr>
-      <tr><td>8</td><td>요구사항</td><td><code>requirement</code></td><td>세분 추적 단위. 안정 ID + 구현 상태(D-02 구현 축)</td><td>FR-03</td></tr>
+      <tr><td>8</td><td>요구사항</td><td><code>requirement</code></td><td>세분 추적 단위. 고정 ID + 구현 상태(D-02 구현 축)</td><td>FR-03</td></tr>
       <tr><td>9</td><td>요구사항 버전</td><td><code>requirement_version</code></td><td>버전×요구사항 델타(ADDED/MODIFIED/REMOVED)</td><td>FR-04</td></tr>
       <tr><td>10</td><td>스펙 관계</td><td><code>spec_relation</code></td><td>스펙 간 참조·정제·중복 관계</td><td>FR-01</td></tr>
       <tr><td>11</td><td>변경 요청</td><td><code>change_request</code></td><td>승인된 스펙에 대한 수정 제안(새 draft 버전 + 델타)</td><td>FR-04</td></tr>
@@ -295,8 +296,8 @@
       <tr><td>25</td><td>이벤트</td><td><code>event</code></td><td>append-only 상태 전이 로그(피드·알림·감사의 원천)</td><td>FR-16</td></tr>
       <tr><td>26</td><td>알림</td><td><code>notification</code></td><td>이벤트에서 파생된 개인별 수신함 항목</td><td>FR-12</td></tr>
       <tr><td>27</td><td>스펙 코멘트</td><td><code>spec_comment</code></td><td>헤딩·요구사항 앵커에 달리는 스레드 코멘트(해소 추적)</td><td>FR-11</td></tr>
-      <tr><td>28</td><td>스펙 베이스라인</td><td><code>spec_baseline</code></td><td>프로젝트의 approved 버전 집합을 이름 붙여 동결한 스냅샷 세트</td><td>FR-02</td></tr>
-      <tr><td>29</td><td>베이스라인 항목</td><td><code>spec_baseline_item</code></td><td>베이스라인×스펙 — 어느 approved 버전이 핀됐는가(스펙당 1개)</td><td>FR-02</td></tr>
+      <tr><td>28</td><td>스펙 기준선</td><td><code>spec_baseline</code></td><td>프로젝트의 approved 버전 집합을 이름 붙여 동결한 스냅샷 세트</td><td>FR-02</td></tr>
+      <tr><td>29</td><td>기준선 항목</td><td><code>spec_baseline_item</code></td><td>기준선×스펙 — 어느 approved 버전이 핀됐는가(스펙당 1개)</td><td>FR-02</td></tr>
     </tbody>
   </table></div>
 
@@ -456,7 +457,7 @@
     <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
     <tbody>
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
-      <tr><td><code>project_id</code></td><td>uuid FK</td><td>토큰은 항상 프로젝트 스코프</td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td>토큰은 항상 프로젝트 소속</td></tr>
       <tr><td><code>user_id</code></td><td>uuid FK</td><td>위임한 사람. 권한은 이 사용자의 부분집합을 넘지 못한다</td></tr>
       <tr><td><code>name</code></td><td>text</td><td>"노트북 Claude Code" 같은 사람용 라벨</td></tr>
       <tr><td><code>token_hash</code></td><td>bytea</td><td>원문 미저장</td></tr>
@@ -473,7 +474,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
     <tbody>
-      <tr><td><code>id</code></td><td>uuid PK</td><td>안정 ID. 문서를 옮기거나 이름을 바꿔도 참조가 깨지지 않는다</td></tr>
+      <tr><td><code>id</code></td><td>uuid PK</td><td>고정 ID. 문서를 옮기거나 이름을 바꿔도 참조가 깨지지 않는다</td></tr>
       <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>parent_id</code></td><td>uuid FK NULL</td><td>트리 부모. 권한·정렬 상속 경로</td></tr>
       <tr><td><code>type</code></td><td>enum</td><td><code>vision / area / feature / design / convention / adr</code></td></tr>
@@ -583,12 +584,12 @@
       <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>name</code></td><td>text</td><td>사람이 붙이는 이름(예: <code>R1</code>, <code>2026-09-릴리스</code>). <code>UNIQUE (project_id, name)</code></td></tr>
       <tr><td><code>note_md</code></td><td>text</td><td>무엇을 위한 동결인가</td></tr>
-      <tr><td><code>created_by_user_id</code></td><td>uuid FK</td><td><b>사람 전용</b> — 베이스라인 동결은 거버넌스 행위라 에이전트 생성 경로(MCP 도구)가 없다. 에이전트는 읽기만 한다(<code>nerv_spec_get</code>의 <code>baseline</code> 인자)</td></tr>
+      <tr><td><code>created_by_user_id</code></td><td>uuid FK</td><td><b>사람 전용</b> — 기준선 동결은 거버넌스 행위라 에이전트 생성 경로(MCP 도구)가 없다. 에이전트는 읽기만 한다(<code>nerv_spec_get</code>의 <code>baseline</code> 인자)</td></tr>
       <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
 
-  <p><b><code>spec_baseline_item</code></b> — 베이스라인×스펙 junction. 스펙당 approved 버전 1개를 핀한다.</p>
+  <p><b><code>spec_baseline_item</code></b> — 기준선×스펙 junction. 스펙당 approved 버전 1개를 묶는다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
@@ -598,7 +599,7 @@
     </tbody>
   </table></div>
 
-  <p>무결성 규칙: 베이스라인은 <b>생성 후 불변</b>이다 — 항목 집합의 추가·교체·삭제는 없고, 세트를 바꾸려면 새 베이스라인을 만든다(approved SpecVersion 불변과 같은 원리). 핀 대상이 나중에 <code>superseded</code>가 되어도 항목은 그대로다 — 그것이 "그때의 세트"를 재현하는 존재 이유다. 참고로 특정 <b>시각</b>의 approved 집합은 베이스라인 없이도 <code>approved_at</code>으로 파생 가능하다(as-of 질의 — <a href="api.html">4.4 API 명세</a>의 manifest 엔드포인트) — 베이스라인은 시각 절단이 아니라 <b>큐레이션된 이름 있는 동결</b>이라는 점이 다르다.</p>
+  <p>무결성 규칙: 기준선은 <b>생성 후 불변</b>이다 — 항목 집합의 추가·교체·삭제는 없고, 세트를 바꾸려면 새 기준선을 만든다(approved SpecVersion 불변과 같은 원리). 핀 대상이 나중에 <code>superseded</code>가 되어도 항목은 그대로다 — 그것이 "그때의 세트"를 재현하는 존재 이유다. 참고로 특정 <b>시각</b>의 approved 집합은 기준선 없이도 <code>approved_at</code>으로 파생 가능하다(as-of 질의 — <a href="api.html">4.4 API 명세</a>의 manifest 엔드포인트) — 기준선은 시각 절단이 아니라 <b>큐레이션된 이름 있는 동결</b>이라는 점이 다르다.</p>
 
   <h3>2.3 변경 요청 — change_request</h3>
   <div class="table-wrap"><table>
@@ -632,7 +633,7 @@
       <tr><td><code>priority</code></td><td>enum</td><td><code>P0 / P1 / P2 / P3</code></td></tr>
       <tr><td><code>source_spec_version_id</code></td><td>uuid FK NULL</td><td>파생 출처 버전 = <b>이 Task의 기준 버전</b>(구현 컨텍스트는 이 불변 스냅샷을 읽는다 — <a href="agent-integration.html">에이전트 연동 설계</a> §2.4 기준 버전 규약). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)은 필수다</td></tr>
       <tr><td><code>source_requirement_id</code></td><td>uuid FK NULL</td><td>파생 출처 요구사항</td></tr>
-      <tr><td><code>baseline_id</code></td><td>uuid FK NULL</td><td>기준 베이스라인(§2.2) — 이 Task가 어느 승인 세트의 맥락에서 파생됐는가. 주변 문서까지 그 세트로 읽는다</td></tr>
+      <tr><td><code>baseline_id</code></td><td>uuid FK NULL</td><td>기준 기준선(§2.2) — 이 Task가 어느 승인 세트의 맥락에서 파생됐는가. 주변 문서까지 그 세트로 읽는다</td></tr>
       <tr><td><code>rebrief_required_at</code></td><td>timestamptz NULL</td><td>기준 버전이 <code>superseded</code>로 전이될 때 서버가 세팅 — <b>재브리핑 필요</b> 플래그의 실물(<a href="spec-workflow.html">스펙 워크플로우</a> §3.3). 사람이 위임 명세를 재확인하고 기준 버전을 갱신하면 해제</td></tr>
       <tr><td><code>assignee_user_id</code></td><td>uuid FK NULL</td><td><b>사람</b> 책임자</td></tr>
       <tr><td><code>delegate_session_id</code></td><td>uuid FK NULL</td><td><b>에이전트</b> 수행 세션</td></tr>
@@ -1234,9 +1235,9 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td>5</td><td>지시자는 자기 요청을 승인할 수 없다</td><td><code>approval</code> 저장 시 검증 + 질의 필터(§4.7)</td></tr>
       <tr><td>6</td><td>모든 상태 전이는 Event를 남긴다</td><td>도메인 서비스 계층에서 전이와 같은 트랜잭션</td></tr>
       <tr><td>7</td><td>severity 변경은 감사 대상이다</td><td><code>finding.severity</code> 변경 시 <code>event</code> 필수, 원값은 <code>raw_severity</code>에 보존</td></tr>
-      <tr><td>8</td><td>모든 도메인 행은 <code>project_id</code>를 갖는다</td><td>NOT NULL + 저장소 계층의 스코프 자동 주입</td></tr>
+      <tr><td>8</td><td>모든 도메인 행은 <code>project_id</code>를 갖는다</td><td>NOT NULL + 저장소 계층의 권한 자동 주입</td></tr>
       <tr><td>9</td><td>편집 리스는 draft 상태에서만 non-NULL이다</td><td><code>spec_version</code> 리스 3필드의 partial index <code>WHERE status='draft'</code> — draft가 아니면 전부 NULL</td></tr>
-      <tr><td>10</td><td>베이스라인은 approved 버전만 담고, 생성 후 불변이다</td><td>생성 트랜잭션에서 항목 전건의 <code>status='approved'</code> 검증 + 항목 UPDATE/DELETE 경로 미제공(변경 = 새 베이스라인 생성)</td></tr>
+      <tr><td>10</td><td>기준선은 approved 버전만 담고, 생성 후 불변이다</td><td>생성 트랜잭션에서 항목 전건의 <code>status='approved'</code> 검증 + 항목 UPDATE/DELETE 경로 미제공(변경 = 새 기준선 생성)</td></tr>
     </tbody>
   </table></div>
 
@@ -1268,7 +1269,7 @@ ORDER BY e.occurred_at;</code></pre>
   <h3>외부 출처 (리서치 노트에서 접속 확인된 URL만)</h3>
   <p class="src"><a href="https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content-versions/">Confluence Cloud REST API — Content versions</a> (2026-08-13 확인): 저장마다 정수 버전, 복원은 새 버전 생성, 이력 자체는 불변. <code>spec_version</code> 인터페이스의 표준 근거(§2.2).</p>
   <p class="src"><a href="https://www.jamasoftware.com/requirements-management-guide/requirements-gathering-and-management-processes/defining-and-implementing-requirements-baselines/">Defining and Implementing Requirements Baselines — Jama Software</a> (2026-08-13 확인): baseline = 합의·검토·승인된 요구사항 집합의 시점 스냅샷. approved SpecVersion의 요구공학 근거(§2.2).</p>
-  <p class="src"><a href="https://www.notion.com/blog/data-model-behind-notion">The data model behind Notion's flexibility — Notion</a> (2021-05-18): 안정 ID와 parent 포인터가 코멘트 앵커·권한 상속의 단위가 된다는 DB 문서 모델의 원형(§1.1 · §2.2).</p>
+  <p class="src"><a href="https://www.notion.com/blog/data-model-behind-notion">The data model behind Notion's flexibility — Notion</a> (2021-05-18): 고정 ID와 parent 포인터가 코멘트 앵커·권한 상속의 단위가 된다는 DB 문서 모델의 원형(§1.1 · §2.2).</p>
   <p class="src"><a href="https://www.notion.com/blog/sharding-postgres-at-notion">Herding elephants: sharding Postgres at Notion — Notion</a> (2021-10-06): workspace ID를 파티션 키로 잡은 이유. NERV의 <code>project_id</code> 규칙 근거(§1.1 · §5.3).</p>
   <p class="src"><a href="https://linear.app/developers/agent-interaction">Developing the Agent Interaction — Linear Developers</a> (2026-08-13 확인): 세션 6상태와 <code>thought/action/elicitation/response/error</code> 타입드 activity. <code>agent_session</code>·<code>activity</code> 설계의 직접 출처(§2.5).</p>
   <p class="src"><a href="https://linear.app/developers/agent-best-practices">Interaction Best Practices — Linear Developers</a> (2026-08-13 확인): 무활동 30분 stale, "대화 재구성은 편집 가능한 코멘트가 아니라 불변 activity로" 권고(§2.5).</p>

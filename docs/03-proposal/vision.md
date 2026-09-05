@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)는 **스펙이 단일 진실이 되고, 에이전트가 조정되고, 사람이 게이트를 지키는** 협업 플랫폼이다. 파일 기반 SDD 도구들은 문서 어휘(requirements/design/tasks·constitution·델타)를 표준화하는 데 성공했지만 멀티유저 조정은 공식적으로 포기했고(Spec Kit #497·#2116, OpenSpec #435 "closed as not planned"), clemvion은 그 상한을 7,600줄 훅과 `review/` 13,777개 md·131MB로 실증했다. 이 문서는 3대 가치와 4개 직군(기획·디자인·개발·QA)의 하루 시나리오, 핵심 여정 3개를 통해 NERV가 화면(S1~S8)과 MCP 도구(`nerv_*`)로 어떻게 작동하는지 보여준다. Build vs Buy 비교는 Linear·Jira·Notion·GitHub Projects·spec-workflow-mcp·Kiro/Spec Kit 어느 것도 **스펙 도메인 모델과 에이전트 조정을 동시에** 제공하지 못한다는 것을 셀별 근거와 함께 정리하고, 스펙·조정·리뷰는 자체 구축하고 git forge·Slack·기존 PM은 연동한다는 결론을 낸다. 성공 지표는 체감이 아니라 이벤트 로그에서 계산되는 계측치(중복 클레임 0건, 무리뷰 머지 0%, git 리뷰 증가 0, 승인 리드타임 p50)로 정의한다.
 >
-> 문서 버전 v0.2 · 2026-09-02 · HTML 판: [vision.html](../html/vision.html)
+> 문서 버전 v0.3 · 2026-09-02 · HTML 파생본: [vision.html](../html/vision.html)
+>
+> v0.3 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
 > v0.2 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 
@@ -36,7 +38,7 @@
 
 - [What's the best way to use spec-kit in a team? (Discussion #497)](https://github.com/github/spec-kit/discussions/497) — (2026-08-13 확인) 공통 베이스에서 분기하면 스펙 폴더 순차 번호가 "자연히 충돌"하고, 두 스펙 계약이 동시에 유효한지 검증할 방법도 "마스터 계약"도 없다는 사용자 보고. 공식 해법 없음.
 - [What best practices exist for concurrent SpecKit development? (Discussion #2116)](https://github.com/github/spec-kit/discussions/2116) — (2026-08-13 확인) 두 사람이 동시에 다음 스펙을 만들면 둘 다 `0004`를 잡는다. `--branch-numbering timestamp` 옵션이 추가됐지만 충돌 완화일 뿐 조정(coordination)이 아니다.
-- [OpenSpec 공식 팀 워크플로 문서](https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md) — (2026-08-13 확인) "One change, one owner" 규율과 일반 git 병합이 충돌 방지책의 전부임을 공식 문서가 자인한다.
+- [OpenSpec 공식 팀 워크플로우 문서](https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md) — (2026-08-13 확인) "One change, one owner" 규율과 일반 git 병합이 충돌 방지책의 전부임을 공식 문서가 자인한다.
 - [OpenSpec Issue #435: Collaboration & Orchestration](https://github.com/Fission-AI/OpenSpec/issues/435) — (2026-08-13 확인) 멀티유저 워크스페이스·RBAC·인라인 코멘트 요청이 **"closed as not planned"** 로 종료. 시장이 요구했고 도구가 구조적으로 거부한 기능 목록이 곧 NERV의 기능 명세다.
 
 그래서 NERV의 자리는 "또 하나의 SDD 도구"가 아니라 **SDD 도구들이 만든 어휘 위의 협업 플랫폼**이다. Linear가 이슈 어휘 위에, GitHub가 git 어휘 위에 협업·상태·출처 계층을 얹은 것과 같은 관계다. 기존 도구와는 경쟁이 아니라 **임포트·연동** 관계로 설정한다(§4.4).
@@ -61,7 +63,7 @@
 - [What METR's Study Missed About AI Productivity in the Wild — Faros AI](https://www.faros.ai/blog/lab-vs-reality-ai-productivity-study-findings) — (2026-03 데이터) 22,000명 개발자·4,000팀 계측에서 PR 크기 +51%, 중앙값 리뷰 시간 **+441%**, **무리뷰(0 review) 머지 31%**(정책이 아니라 리뷰어가 못 따라가서), 개발자당 버그 +54%, PR당 인시던트 3배. 저자는 이를 "Acceleration Whiplash"로 명명한다.
 - [The Human Review Bottleneck — Codex Knowledge Base](https://codex.danielvaughan.com/2026/05/24/human-review-bottleneck-code-review-strategies-agent-output/) — (2026-05-24) PR 생성량 +98%에 리뷰 시간 +91%, AI 생성 PR은 리뷰어 배정까지 4.6배 대기, 리뷰 노력의 69%가 상위 위험 20% PR에 집중. **스펙 검증을 코드 생성 전으로 옮기는 상류 시프트(shift upstream)** 를 명시 권고하고, 생성·검토 에이전트가 같은 훈련 분포면 상관된 실패가 나므로 AI 재검토만으로는 약한 보증이라고 경고한다.
 - [The Complete Guide to Running Parallel AI Coding Agents — Superset](https://superset.sh/blog/parallel-coding-agents-guide) — (2026) 실전 상한은 **동시 3~5 에이전트** — 그 이상은 리뷰 용량 초과로 품질이 "아무도 모르게" 하락한다.
-- [Our plan for running 100 Parallel Coding Agents — Superset](https://superset.sh/blog/roadmap-to-100-agents) — (2026) 대규모 병렬의 전제는 사람 주의력 추가가 아니라 **자동 품질 게이트 + 구조화된 디스패치 + 완료 리뷰 워크플로**. 이 3요소가 정확히 NERV의 게이트(FR-10)·ready 큐(FR-05)·리뷰 수집(FR-09)이다.
+- [Our plan for running 100 Parallel Coding Agents — Superset](https://superset.sh/blog/roadmap-to-100-agents) — (2026) 대규모 병렬의 전제는 사람 주의력 추가가 아니라 **자동 품질 게이트 + 구조화된 디스패치 + 완료 리뷰 워크플로우**. 이 3요소가 정확히 NERV의 게이트(FR-10)·ready 큐(FR-05)·리뷰 수집(FR-09)이다.
 
 따라서 NERV의 판매 명제는 "코드를 더 빨리 만든다"가 아니라 **"더 만들어진 코드를 조직이 감당할 수 있게 한다"** 이다. 이 문서의 성공 지표(§5.2)가 생산량이 아니라 리드타임·무리뷰 비율·재작업으로 구성되는 이유이기도 하다.
 
@@ -91,7 +93,7 @@
 
 **09:10 · [S1 홈 대시보드]** 로그인하면 상단에 숫자 배지 세 개가 보인다. 승인 대기 2건, 답변 대기 질문 1건, 내 프로젝트 카드에 "활성 세션 3". 어젯밤 도현의 에이전트가 남긴 질문이 아직 열려 있다는 게 한눈에 들어온다.
 
-**09:25 · [S3 스펙 상세]** 새 기능 "웹챗 위젯 임베드 v2"를 쓴다. 좌측 트리에서 `7-channel-web-chat` 영역을 고르고 `feature` 타입으로 새 스펙을 만든다. 본문은 markdown 에디터(D-09)이고, 우측 패널에서 요구사항을 EARS 템플릿으로 3개 등록한다 — `WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다` 식이다. 각 요구사항은 서버가 발급한 안정 ID(`REQ-CWC-031`)를 받는다(FR-03).
+**09:25 · [S3 스펙 상세]** 새 기능 "웹챗 위젯 임베드 v2"를 쓴다. 좌측 트리에서 `7-channel-web-chat` 영역을 고르고 `feature` 타입으로 새 스펙을 만든다. 본문은 markdown 에디터(D-09)이고, 우측 패널에서 요구사항을 EARS 템플릿으로 3개 등록한다 — `WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다` 식이다. 각 요구사항은 서버가 발급한 고정 ID(`REQ-CWC-031`)를 받는다(FR-03).
 
 **09:50 · [S3 스펙 상세]** "검토 요청" 버튼. 제출 즉시 자동 사전 검토가 돈다 — clemvion의 consistency-check 5관점(cross-spec/rationale/convention/plan/naming)을 플랫폼 서비스로 옮긴 것이다. 경고 2건: "3-workflow-editor/2-nodes.md의 세션 복원 정의와 문구가 다름", "Rationale 섹션 없음". 지민은 첫 번째를 참조 링크로 바꾸고(중복 서술이 drift의 근원 — D-09) 두 번째를 채운 뒤 다시 제출한다. 문서 상태가 `draft → in_review`로 전이한다(D-02).
 
@@ -115,7 +117,7 @@
 
 **11:20 · [S3 스펙 상세]** 자기 몫을 쓴다. `design` 타입 스펙 "웹챗 위젯 v2 — 상태별 화면"을 만들고, 상위 feature 스펙과 관계를 건다. 본문에는 각 상태의 정의와 토큰 이름을 적고, 상세 시안은 외부 디자인 도구 링크로 건다. 스펙은 markdown이지만 **디자인 결정이 처음으로 스펙 그래프 안의 노드가 된다** — 지금까지 이 정보는 구두 전달 뒤 개발자가 요약해 스펙에 흡수하는 형태였다.
 
-**14:00 · [S7 받은 요청]** 도현의 에이전트가 만든 CR 제안이 도착했다. 구현 중에 발견된 스펙 개선 제안이다(SPEC-DRIFT 역류 경로 — clemvion에서 검증된 패턴을 플랫폼 워크플로로 승격). 델타 뷰가 **ADDED 2 / MODIFIED 1 / REMOVED 0** 으로 표시되고, 서연은 변경분만 읽는다. MODIFIED 한 건이 디자인 토큰 이름을 바꾸는 내용이라 "이 이름은 디자인 시스템과 어긋난다"고 코멘트하고 거절한다(FR-04·FR-11).
+**14:00 · [S7 받은 요청]** 도현의 에이전트가 만든 CR 제안이 도착했다. 구현 중에 발견된 스펙 개선 제안이다(SPEC-DRIFT 역류 경로 — clemvion에서 검증된 패턴을 플랫폼 워크플로우로 승격). 델타 뷰가 **ADDED 2 / MODIFIED 1 / REMOVED 0** 으로 표시되고, 서연은 변경분만 읽는다. MODIFIED 한 건이 디자인 토큰 이름을 바꾸는 내용이라 "이 이름은 디자인 시스템과 어긋난다"고 코멘트하고 거절한다(FR-04·FR-11).
 
 **16:30 · [S5 세션 모니터]** 구현이 어디까지 갔나 궁금해서 세션 보드를 연다. `mac-02 / claude-code / 도현`의 세션이 `active`, 현재 Task "위젯 상태별 렌더링", diff `+218 −34`. 세션 상세의 Activity 타임라인에서 에이전트가 어떤 스펙을 읽고 무엇을 고쳤는지 시간순으로 보인다(FR-08). 서연은 아무것도 클릭하지 않고 닫는다 — 물어보지 않아도 알 수 있다는 것이 이 화면의 값이다.
 
@@ -129,7 +131,7 @@
 
 **09:08 · [`nerv_task_claim`] [S4 작업 보드]** 1순위 Task를 클레임한다. 클레임 요청에는 scope를 선언한다 — `spec_ids: [SPC-CWC-007]`, `file_globs: ["codebase/frontend/src/widget/**"]`. 서버가 **겹침을 감지**한다: *"세션 `linux-ci-01/codex/유나`가 같은 glob을 30분째 점유 중(리스 잔여 8분)"*. 도현은 2순위 Task로 넘어간다. 이 한 번의 응답이 P1·P2를 동시에 막는다 — clemvion이 "다른 머신·세션이면 로컬에 안 보여 신뢰할 수 없다"는 이유로 **의도적으로 제거한** 검출이 서버에서는 자명해진다.
 
-**09:12 · [`nerv_spec_get`] [`nerv_spec_tree`]** 에이전트가 승인된 SpecVersion 본문과 연결 Requirement를 읽는다. 파일 경로가 아니라 안정 ID로 읽으므로 문서를 옮기거나 이름을 바꿔도 참조가 깨지지 않는다(FR-01).
+**09:12 · [`nerv_spec_get`] [`nerv_spec_tree`]** 에이전트가 승인된 SpecVersion 본문과 연결 Requirement를 읽는다. 파일 경로가 아니라 고정 ID로 읽으므로 문서를 옮기거나 이름을 바꿔도 참조가 깨지지 않는다(FR-01).
 
 **09:15~11:40 · 구현** TDD로 구현이 돌아간다. 60초마다 **[`nerv_task_heartbeat`]**. S4 작업 보드의 카드에는 리스 잔여 시간이 줄어드는 게 보이고, S5 세션 모니터에는 diff 통계가 갱신된다(NFR-02, 5초 이내).
 
@@ -288,7 +290,7 @@ Finding이 해소되면 세 가지가 연쇄로 갱신된다.
 
 | 축 | 무엇을 묻는가 | 대응 요구사항 |
 | --- | --- | --- |
-| **A. 스펙 도메인 모델** | 불변 SpecVersion·안정 ID·Requirement 2축 상태·CR 델타가 1급 개념인가 | FR-01~FR-04 |
+| **A. 스펙 도메인 모델** | 불변 SpecVersion·고정 ID·Requirement 2축 상태·CR 델타가 1급 개념인가 | FR-01~FR-04 |
 | **B. 에이전트 조정** | 원자적 클레임·scope 겹침 감지·리스 만료 회수·세션 레지스트리(사용자·hostname)를 제공하는가 | FR-05~FR-08 |
 | **C. 리뷰·게이트·출처** | ReviewSession 커밋 스냅샷·Finding dedup·커버리지 게이트 판정 API가 있는가 | FR-09·FR-10·FR-13 |
 | **D. 직군 참여·승인** | 비개발 직군이 터미널·저장소 없이 승인/코멘트하는가 | FR-11·FR-12·FR-14 |
@@ -299,11 +301,11 @@ Finding이 해소되면 세 가지가 연쇄로 갱신된다.
 
 | 후보 | A. 스펙 도메인 모델 | B. 에이전트 조정 | C. 리뷰·게이트·출처 | D. 직군 참여·승인 | E. 자가호스팅·라이선스 | NERV의 결론 |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Linear** (+ Agents) | ✗ 이슈·프로젝트·문서는 있으나 불변 SpecVersion·Requirement 안정 ID·EARS·ADDED/MODIFIED/REMOVED 델타 개념이 없다. 문서 승인 축(D-02)이 이슈 상태로 뭉개진다 | △ 세션 모델은 업계 최고 수준(6상태 + webhook 5초·최초 activity 10초·무활동 30분 stale SLA)이지만 클레임 단위가 **이슈 할당**이라 `spec_ids·file_globs` scope 겹침 감지·리스 만료 회수는 없다 | ✗ 코딩 세션 diff를 Reviews 탭에서 보지만 ReviewSession 커밋 스냅샷·Finding fingerprint·"커밋 범위 커버리지" 판정 API가 없다 | ○ Inbox(Linear 자체 수신함) 알림·코멘트·delegate 표시가 성숙. 27+ 서드파티 에이전트 디렉토리로 생태계도 검증 | ✗ 상용 SaaS, 자가호스팅 불가 → NFR-01 위배 | **모델을 차용, 도구는 선택적 연동.** assignee/delegate 분리와 6상태+SLA를 D-08·D-13으로 이식. 이미 쓰는 조직에는 Task 미러 |
-| **Jira + Rovo** | ✗ Confluence 문서에 버전은 있으나 Requirement 단위 추적·구현 2축·증적 그래프가 없다. 커스텀 필드로 흉내 내면 FR-13 커버리지가 다시 수동 집계로 회귀 | △ 워크플로 엔진은 강력하고 트리거 표면이 4종(assignee·@멘션·상태 전환·보드 컬럼)이지만, 원자적 클레임·하트비트 리스·hostname 세션 레지스트리 개념이 없다 | △ 워크플로 조건 게이트는 있으나 "이 커밋 범위를 커버하는 해소된 리뷰"라는 판정이 아니다. Jira Coding Agent는 draft PR을 만들고 머지는 사람에게 넘긴다 | ◎ 전 직군이 이미 쓰는 표준. 에이전트 출력을 트리거한 사람만 먼저 보고 draft comment로 팀에 공개하는 단계 공개가 검증됨 | △ 상용, Cloud 중심 | **연동 대상.** 이슈·워크플로는 Jira에, 스펙 도메인은 NERV에. 단계 공개 패턴은 차용 |
-| **Notion** | △ 문서·DB로 흉내는 가능하지만 불변 스냅샷·안정 ID·Requirement 2축은 결국 **사람의 규율**로 남는다. clemvion이 이미 실패한 방식(산문 계약 붕괴 28%) | ✗ 세션·클레임·리스 개념 없음. 커스텀 에이전트 트리거(스케줄·Slack·메일·DB 변경)는 자동화지 조정이 아니다 | ✗ 리뷰 엔티티·게이트 판정 없음 | ◎ 비개발 직군 접근성은 최상 | ✗ 상용 SaaS | **UX와 원칙을 차용.** "모든 run은 로그로 남고 되돌릴 수 있다"(가역성)와 MCP를 Markdown 지향으로 재설계한 교훈을 NERV MCP 설계에 반영 |
+| **Linear** (+ Agents) | ✗ 이슈·프로젝트·문서는 있으나 불변 SpecVersion·Requirement 고정 ID·EARS·ADDED/MODIFIED/REMOVED 델타 개념이 없다. 문서 승인 축(D-02)이 이슈 상태로 뭉개진다 | △ 세션 모델은 업계 최고 수준(6상태 + webhook 5초·최초 activity 10초·무활동 30분 stale SLA)이지만 클레임 단위가 **이슈 할당**이라 `spec_ids·file_globs` scope 겹침 감지·리스 만료 회수는 없다 | ✗ 코딩 세션 diff를 Reviews 탭에서 보지만 ReviewSession 커밋 스냅샷·Finding fingerprint·"커밋 범위 커버리지" 판정 API가 없다 | ○ Inbox(Linear 자체 수신함) 알림·코멘트·delegate 표시가 성숙. 27+ 서드파티 에이전트 디렉토리로 생태계도 검증 | ✗ 상용 SaaS, 자가호스팅 불가 → NFR-01 위배 | **모델을 차용, 도구는 선택적 연동.** assignee/delegate 분리와 6상태+SLA를 D-08·D-13으로 이식. 이미 쓰는 조직에는 Task 미러 |
+| **Jira + Rovo** | ✗ Confluence 문서에 버전은 있으나 Requirement 단위 추적·구현 2축·증적 그래프가 없다. 커스텀 필드로 흉내 내면 FR-13 커버리지가 다시 수동 집계로 회귀 | △ 워크플로우 엔진은 강력하고 트리거 표면이 4종(assignee·@멘션·상태 전환·보드 컬럼)이지만, 원자적 클레임·하트비트 리스·hostname 세션 레지스트리 개념이 없다 | △ 워크플로우 조건 게이트는 있으나 "이 커밋 범위를 커버하는 해소된 리뷰"라는 판정이 아니다. Jira Coding Agent는 draft PR을 만들고 머지는 사람에게 넘긴다 | ◎ 전 직군이 이미 쓰는 표준. 에이전트 출력을 트리거한 사람만 먼저 보고 draft comment로 팀에 공개하는 단계 공개가 검증됨 | △ 상용, Cloud 중심 | **연동 대상.** 이슈·워크플로우는 Jira에, 스펙 도메인은 NERV에. 단계 공개 패턴은 차용 |
+| **Notion** | △ 문서·DB로 흉내는 가능하지만 불변 스냅샷·고정 ID·Requirement 2축은 결국 **사람의 규율**로 남는다. clemvion이 이미 실패한 방식(산문 계약 붕괴 28%) | ✗ 세션·클레임·리스 개념 없음. 커스텀 에이전트 트리거(스케줄·Slack·메일·DB 변경)는 자동화지 조정이 아니다 | ✗ 리뷰 엔티티·게이트 판정 없음 | ◎ 비개발 직군 접근성은 최상 | ✗ 상용 SaaS | **UX와 원칙을 차용.** "모든 run은 로그로 남고 되돌릴 수 있다"(가역성)와 MCP를 Markdown 지향으로 재설계한 교훈을 NERV MCP 설계에 반영 |
 | **GitHub Projects** (+ Agent HQ) | ✗ 이슈·프로젝트 필드는 자유 텍스트. Spec Kit이 `taskstoissues`로 이슈에 내보내는 것은 파일→이슈 변환이지 스펙 모델이 아니다 | △ 이슈 assign 기반. mission control은 **Copilot 클라우드 세션**을 보여줄 뿐, 사내 개발자 머신의 Claude Code/Codex 로컬 세션 레지스트리가 아니다(P8의 핵심). 원자적 클레임·scope 겹침 없음 | ○/✗ 코드 리뷰·CI·감사(`actor_is_agent`, `agent_session.task` 이벤트)·"지시자≠승인자"·"Approve and run workflows"는 그대로 쓸 값어치가 있다. 그러나 스펙 커버리지 게이트는 없고, 리뷰 산출물을 다시 git에 넣으면 P6가 재발한다 | △ 기획·디자인 직군에 GitHub 계정과 개발자 UI를 요구한다 | ○ GHES로 자가호스팅 가능, 상용 | **연동 필수 · 대체 안 함(non-goal).** 코드·PR·CI·웹훅·머지 게이트는 전부 git forge에 맡기고, NERV는 스펙↔PR 링크와 커버리지만 소유 |
-| **spec-workflow-mcp** | ○/✗ requirements/design/tasks 3분할(Kiro 차용)과 `steering/` 문서까지 갖췄으나 전부 **로컬 파일**이라 버전·질의·안정 ID가 없다 | ✗ 계정·권한·원격 접근 개념 자체가 없는 단일 프로젝트 로컬 도구 | △ 승인 라이프사이클(request→feedback→revision→approve)은 있지만 리뷰 수집·게이트 판정은 없다 | ✗ 로컬 웹 대시보드(포트 5000) — 원격 팀 협업이 아니라 "1인+에이전트 협업" | ✗ **GPL-3.0** — 개념 참조는 가능하나 코드 차용 불가. npm 주간 601 다운로드, 마지막 푸시 2026-07-03 | **개념 증명으로만 인용.** "MCP 연동 + 웹 승인 대시보드"가 이미 소규모로 검증됐다는 증거. NERV는 여기에 계정·RBAC·알림·멀티프로젝트·hostname 신원을 더한 형태 |
+| **spec-workflow-mcp** | ○/✗ requirements/design/tasks 3분할(Kiro 차용)과 `steering/` 문서까지 갖췄으나 전부 **로컬 파일**이라 버전·질의·고정 ID가 없다 | ✗ 계정·권한·원격 접근 개념 자체가 없는 단일 프로젝트 로컬 도구 | △ 승인 라이프사이클(request→feedback→revision→approve)은 있지만 리뷰 수집·게이트 판정은 없다 | ✗ 로컬 웹 대시보드(포트 5000) — 원격 팀 협업이 아니라 "1인+에이전트 협업" | ✗ **GPL-3.0** — 개념 참조는 가능하나 코드 차용 불가. npm 주간 601 다운로드, 마지막 푸시 2026-07-03 | **개념 증명으로만 인용.** "MCP 연동 + 웹 승인 대시보드"가 이미 소규모로 검증됐다는 증거. NERV는 여기에 계정·RBAC·알림·멀티프로젝트·hostname 신원을 더한 형태 |
 | **Kiro · Spec Kit** (파일 기반 SDD) | ○/✗ 문서 어휘는 사실상 표준(EARS 3파일, constitution). 그러나 상태는 md 체크박스이고 크로스 스펙 질의가 불가능하다 | ✗ 순차 번호가 동시 작업에서 충돌(#497·#2116, timestamp 옵션은 완화일 뿐). OpenSpec은 "One change, one owner" 규율과 git 충돌 해결에 위임하고 멀티유저 요청(#435)을 not planned로 종료 | ✗ 진행 추적의 상한이 로컬 대시보드(Kiro 태스크 wave 실행, spec-workflow-mcp 진행 바). 리뷰→스펙→구현 체인을 관리하는 도구는 없다 | ✗ IDE·CLI 로컬 뷰. 승인은 "채팅에서 OK" | ○/✗ Spec Kit MIT(126,932 stars)·OpenSpec MIT(64,751 stars), Kiro는 상용(2025-11 GA, Free~$200/월) | **어휘 공급원이자 임포트 대상.** 경쟁이 아니다. 3분할·constitution·델타를 DB 엔티티로 승격하고(FR-01~05), 서버 발급 ID로 번호 충돌을 원천 제거(D-04) |
 
 범례: ◎ 충분 · ○ 부분 충족 · △ 흉내 가능하나 구조적 공백 · ✗ 없음
@@ -392,7 +394,7 @@ Finding이 해소되면 세 가지가 연쇄로 갱신된다.
 
 - [What's the best way to use spec-kit in a team? — Spec Kit Discussion #497](https://github.com/github/spec-kit/discussions/497) — (2026-08-13 확인) 팀 사용 시 스펙 번호 충돌과 마스터 계약 부재가 공식 미해결 과제임을 보여준다.
 - [What best practices exist for concurrent SpecKit development? — Discussion #2116](https://github.com/github/spec-kit/discussions/2116) — (2026-08-13 확인) 동시 작업 시 번호 충돌이 필연이며 timestamp 옵션은 완화책일 뿐임을 보여준다.
-- [OpenSpec 공식 팀 워크플로 문서](https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md) — (2026-08-13 확인) 충돌 방지책이 "One change, one owner" 규율과 git 병합뿐임을 공식 문서가 자인한다.
+- [OpenSpec 공식 팀 워크플로우 문서](https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md) — (2026-08-13 확인) 충돌 방지책이 "One change, one owner" 규율과 git 병합뿐임을 공식 문서가 자인한다.
 - [OpenSpec Issue #435: Collaboration & Orchestration](https://github.com/Fission-AI/OpenSpec/issues/435) — (2026-08-13 확인) 멀티유저 워크스페이스·인라인 코멘트 요청이 "closed as not planned"로 종료됐다.
 - [github/spec-kit 리포지터리](https://github.com/github/spec-kit) — (2026-08-13 확인) MIT·126,932 stars, constitution과 specify/plan/tasks 명령 체인 — NERV가 차용하는 문서 어휘의 출처.
 - [Kiro Specs 공식 문서](https://kiro.dev/docs/specs/) — (2026-08-13 확인) requirements(EARS)/design/tasks 3파일과 태스크 의존성 wave 병렬 실행 — 진행 추적의 시장 상한선이 로컬 IDE 뷰임을 보여준다.
@@ -428,7 +430,7 @@ Finding이 해소되면 세 가지가 연쇄로 갱신된다.
 - [The Human Review Bottleneck — Codex Knowledge Base](https://codex.danielvaughan.com/2026/05/24/human-review-bottleneck-code-review-strategies-agent-output/) — (2026-05-24) 위험 분류(P0~P3)와 상류 시프트 권고, AI 재검토의 상관된 실패 경고 — §2.6·§5.1의 근거.
 - [Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity — METR](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) — (2025-07-10) 체감 +20% vs 실측 −19% — §5.4 측정 원칙의 근거.
 - [The Complete Guide to Running Parallel AI Coding Agents — Superset](https://superset.sh/blog/parallel-coding-agents-guide) — (2026) 동시 3~5 에이전트가 실용 한계 — §5.3 반증 지표.
-- [Our plan for running 100 Parallel Coding Agents — Superset](https://superset.sh/blog/roadmap-to-100-agents) — (2026) 자동 게이트 + 구조화 디스패치 + 완료 리뷰 워크플로 3요소.
+- [Our plan for running 100 Parallel Coding Agents — Superset](https://superset.sh/blog/roadmap-to-100-agents) — (2026) 자동 게이트 + 구조화 디스패치 + 완료 리뷰 워크플로우 3요소.
 - [How Anthropic teams use Claude Code — Claude 블로그](https://claude.com/blog/how-anthropic-teams-use-claude-code) — (2025-07-24) 비개발 직군의 실사용과 "자율 작업 → 최종 정제 전 사람 검토" 교훈 — 페르소나 설계의 방증.
 - [What I Learned Using Specification-Driven Development with Kiro — DEV](https://dev.to/aws-builders/what-i-learned-using-specification-driven-development-with-kiro-pdj) — (확인) acceptance criteria가 스펙에서 가장 가치 있는 부분이라는 실사용 결론 — FR-03의 근거.
 - [The New Code — Sean Grove, AI Engineer 2025](https://www.youtube.com/watch?v=8rABwKRsec4) — (2025) 코드는 스펙의 손실 있는 투영이라는 담론 — 포지셔닝의 배경.

@@ -10,7 +10,7 @@ allowed-tools:
 
 사용법: `/nerv:import <profile> <원본 경로>` — 예: `/nerv:import clemvion ~/src/clemvion`
 
-전제: `NERV_SERVER`·`NERV_TOKEN`(스코프 `import:write`)이 환경에 있고, 대상 프로젝트가
+전제: `NERV_SERVER`·`NERV_TOKEN`(권한 `import:write`)이 환경에 있고, 대상 프로젝트가
 이미 만들어져 있다. 토큰이 없으면 여기서 멈추고 사람에게 발급을 요청한다(온보딩 §4).
 
 ## 절차
@@ -39,7 +39,7 @@ allowed-tools:
 | --- | --- |
 | 종료 코드 2 (abort) | 중단 사유(count-mismatch · map-conflict · id-collision · profile-invalid)를 그대로 보고. **재실행으로 우회하지 않는다** |
 | map-conflict | `nerv import rebuild-map`을 안내한다. 매니페스트 없이 --apply를 반복하지 않는다 |
-| NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 토큰·스코프 문제다. 사람에게 보고하고 권한 확대를 시도하지 않는다 |
+| NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 토큰·권한 문제다. 사람에게 보고하고 권한 확대를 시도하지 않는다 |
 | NERV_UNAVAILABLE | 적재를 부분 반복하지 말고 대기 후 같은 명령을 재실행한다(멱등이 보장한다) |
 
 ## 금지

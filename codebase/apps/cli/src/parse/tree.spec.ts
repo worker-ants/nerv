@@ -59,7 +59,7 @@ describe('area 트리', () => {
       profile,
       [],
     );
-    // frontmatter id 를 선언했으므로 그 안정 ID 를 area 가 승계한다(FR-01)
+    // frontmatter id 를 선언했으므로 그 고정 ID 를 area 가 승계한다(FR-01)
     expect(out.find((i) => i.type === 'area')?.key).toBe('navigation');
     expect(out.filter((i) => i.type === 'area')).toHaveLength(1);
     expect(out.find((i) => i.key === 'login')?.parent_key).toBe('navigation');

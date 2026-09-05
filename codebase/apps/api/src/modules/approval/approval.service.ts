@@ -320,7 +320,7 @@ export class ApprovalService {
     return projectId;
   }
 
-  /** EP-QST-01 — 열린 질문 목록(프로젝트 스코프). */
+  /** EP-QST-01 — 열린 질문 목록(프로젝트 소속). */
   async questions(input: {
     projectId: string;
     status?: 'open' | 'answered' | null;
@@ -392,7 +392,7 @@ export class ApprovalService {
       // **이 결재를 내릴 수 있는 사람인가**(EP-APR-03 "지정 승인자·해당 역할 큐").
       //
       // 예전에는 이 문이 "사람인가" 하나였다 — 전역 경로(`/api/v1/approvals/...`)라
-      // 프로젝트 가드가 스코프를 채우지 않고 지나가고, 서비스는 멤버십만 확인했다.
+      // 프로젝트 가드가 소속을 채우지 않고 지나가고, 서비스는 멤버십만 확인했다.
       // 그래서 `viewer` 도 스펙 승인을 확정할 수 있었다(그 다음은 문서가 approved 다).
       await this.assertMayDecide(input.projectId, input.userId, approval.assignee_user_id);
 

@@ -15,6 +15,7 @@
     <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
   </div>
   <a href="index.html">개요 (Executive Summary)</a>
+  <a href="glossary.html">용어 사전</a>
   <div class="nav-group">1부 · 현행 분석</div>
   <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
   <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
@@ -53,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.74 (2026-09-05)</span>
+      <span>버전 v0.76 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -91,7 +92,7 @@
 
   <h3>1.2 라우트 표 (TanStack Router)</h3>
 
-  <p>파일 기반 라우팅을 쓴다. 전역(조직) 화면과 프로젝트 화면은 최상위 트리가 분리된다 — 이 분리는 ui-wireframes §1.2 IA 트리("전역은 S1·S7·알림·S8, 프로젝트 단위는 S2~S6")의 라우팅 표현이다. 프로젝트 스코프는 URL 두 번째 세그먼트다(ui-wireframes §1.4 URL 규약).</p>
+  <p>파일 기반 라우팅을 쓴다. 전역(조직) 화면과 프로젝트 화면은 최상위 트리가 분리된다 — 이 분리는 ui-wireframes §1.2 IA 트리("전역은 S1·S7·알림·S8, 프로젝트 단위는 S2~S6")의 라우팅 표현이다. 프로젝트 소속은 URL 두 번째 세그먼트다(ui-wireframes §1.4 URL 규약).</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>경로</th><th>화면</th><th>가드</th><th>비고</th></tr></thead>
@@ -113,7 +114,7 @@
       <tr><td><code>/settings/workspace</code></td><td>S8 조직·프로젝트</td><td>admin 외 읽기 전용</td><td>2026-08-24 신설(§2.8)</td></tr>
       <tr><td><code>/settings/members</code></td><td>S8 멤버·역할</td><td>admin 외 읽기 전용</td><td></td></tr>
       <tr><td><code>/settings/tokens</code></td><td>S8 에이전트 토큰</td><td>인증 필요</td><td>본인 토큰 + admin은 전체</td></tr>
-      <tr><td><code>/settings/gates</code></td><td>S8 게이트 정책</td><td><b>사람 전용</b>(<code>HUMAN_ONLY</code> — 토큰으로는 못 바꾼다) + <b>admin 역할</b>. <code>policy:edit</code> 이라는 스코프는 <b>존재한 적 없다</b>(2026-09-05 정정)</td><td></td></tr>
+      <tr><td><code>/settings/gates</code></td><td>S8 게이트 정책</td><td><b>사람 전용</b>(<code>HUMAN_ONLY</code> — 토큰으로는 못 바꾼다) + <b>admin 역할</b>. <code>policy:edit</code> 이라는 권한은 <b>존재한 적 없다</b>(2026-09-05 정정)</td><td></td></tr>
       <tr><td><code>/p/:proj</code></td><td>S2 프로젝트 개요</td><td>프로젝트 멤버십</td><td></td></tr>
       <tr><td><code>/p/:proj/specs</code></td><td>스펙 트리(목록)</td><td>멤버십</td><td>스펙 0건이면 빈 상태 + [+ 새 스펙]</td></tr>
       <tr><td><code>/p/:proj/specs/:spec</code></td><td>S3 스펙 상세</td><td>멤버십</td><td>쿼리: <code>?v=&lt;version_no&gt;</code> <code>?diff=v3..v4</code></td></tr>
@@ -155,7 +156,7 @@
   p.$proj/sessions.index.tsx   S5
   p.$proj/sessions.$session.tsx</code></pre>
 
-  <p>리소스 지목은 항상 안정 ID다(<code>/p/clemvion/specs/SPC-CWC-007</code>) — 경로·제목이 바뀌어도 링크가 깨지지 않는다(FR-01 · D-09). 뷰 상태는 쿼리 문자열로 둬 알림 딥링크에 그대로 붙는다(ui-wireframes §1.4).</p>
+  <p>리소스 지목은 항상 고정 ID다(<code>/p/clemvion/specs/SPC-CWC-007</code>) — 경로·제목이 바뀌어도 링크가 깨지지 않는다(FR-01 · D-09). 뷰 상태는 쿼리 문자열로 둬 알림 딥링크에 그대로 붙는다(ui-wireframes §1.4).</p>
 
   <h3>1.3 앱 셸 레이아웃</h3>
 
@@ -213,7 +214,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>셸 요소</th><th>명세</th></tr></thead>
     <tbody>
-      <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾</b>(2026-08-24 신설 · REQ-WEB-069). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
+      <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>소속 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾</b>(2026-08-24 신설 · REQ-WEB-069). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
       <tr><td>프로젝트 select</td><td>고른 조직의 프로젝트 목록. <b>하나뿐일 때도 select 로 둔다</b>(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(<code>/p/:proj</code>)로 간다. 홈·받은 요청·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 <b>마지막으로 본 프로젝트</b>를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다)</td></tr>
       <tr><td><span class="marker">2</span> 연결 상태 배너</td><td>2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
       <tr><td><span class="marker">3</span> 프로젝트 사이드바</td><td><code>/p/:proj/*</code>에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 로 계획했으나 2026-08-23 에 열렸다 — <b>활성 링크 + 열린 critical 배지</b>다, §2.6a). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1))</td></tr>
@@ -240,8 +241,8 @@
 
   <ul>
     <li><b>호출</b>: <code>⌘K</code>(mac) / <code>Ctrl+K</code> — 전 라우트 공통. 모달, <code>Esc</code> 닫기, <code>↑↓</code> 이동, <code>Enter</code> 이동, 전부 키보드 완결(받은 요청 <code>j/k/a/r/c</code>와 같은 규약).</li>
-    <li><b>동작</b>: 입력 디바운스 후 EP-SPEC-02(하이브리드 — <a href="api.html">4.4</a> §2.2b). 안정 ID 패턴(<code>SPC-</code>·<code>REQ-</code>·<code>TSK-</code>)은 서버 ID 직행과 짝으로 최상위 1건 즉시 표시. 빈 입력 상태에서는 <b>최근 방문</b>(localStorage, 최대 20)과 핀 목록을 보여준다.</li>
-    <li><b>결과 행</b>: 타입 아이콘 · 제목 · 안정 ID · 문서 상태 배지 · 매칭 앵커(선택 시 해당 헤딩으로 스크롤). Task·Requirement 결과는 각각 S4 패널·S3 요구사항 앵커로 딥링크.</li>
+    <li><b>동작</b>: 입력 디바운스 후 EP-SPEC-02(하이브리드 — <a href="api.html">4.4</a> §2.2b). 고정 ID 패턴(<code>SPC-</code>·<code>REQ-</code>·<code>TSK-</code>)은 서버 ID 직행과 짝으로 최상위 1건 즉시 표시. 빈 입력 상태에서는 <b>최근 방문</b>(localStorage, 최대 20)과 핀 목록을 보여준다.</li>
+    <li><b>결과 행</b>: 타입 아이콘 · 제목 · 고정 ID · 문서 상태 배지 · 매칭 앵커(선택 시 해당 헤딩으로 스크롤). Task·Requirement 결과는 각각 S4 패널·S3 요구사항 앵커로 딥링크.</li>
     <li><b>최근·핀</b>: 클라이언트 로컬(localStorage — 뷰 상태 규약(ui-wireframes §1.4)과 같은 등급, 서버 동기화·watch 테이블은 Phase 2). 핀은 스펙 목록·트리에도 ★로 표기.</li>
   </ul>
 
@@ -287,7 +288,7 @@
     <thead><tr><th>어긋난 곳</th><th>무엇이 달랐나</th></tr></thead>
     <tbody>
       <tr><td>룸 join</td><td>개요·세션 두 화면만 했다 — 스펙 화면과 사이드바는 이벤트를 받지 못했다</td></tr>
-      <tr><td>스펙 상세 키</td><td>봉투는 <b>버전 UUID</b>(<code>subject_id</code>)를 싣고 화면 키는 <b>안정 키</b>였다. <code>['spec', &lt;UUID&gt;]</code> 무효화는 <code>['spec','SPC-…']</code> 에 닿지 않는다</td></tr>
+      <tr><td>스펙 상세 키</td><td>봉투는 <b>버전 UUID</b>(<code>subject_id</code>)를 싣고 화면 키는 <b>고정 ID</b>였다. <code>['spec', &lt;UUID&gt;]</code> 무효화는 <code>['spec','SPC-…']</code> 에 닿지 않는다</td></tr>
       <tr><td>사이드바 트리 키</td><td>셸이 <code>projectId</code> 를 안 넘겨 키가 <b>slug</b> 축이었다. 같은 컴포넌트인데 스펙 목록 화면의 트리만 갱신됐다</td></tr>
     </tbody>
   </table></div>
@@ -411,7 +412,7 @@
     </tbody>
   </table></div>
 
-  <h3>1.8 스코프와 권한 판정 (2026-08-24 신설 — 사람 보고)</h3>
+  <h3>1.8 권한과 권한 판정 (2026-08-24 신설 — 사람 보고)</h3>
 
   <p>화면은 권한을 <b>정하지 않는다.</b> 정본은 서버다(<a href="api.html">4.4 API 명세</a> §1.6a). 화면이 하는 일은 서버가 무엇을 허용할지 <b>미리 말해 주는 것</b>뿐이고, 그래서 두 판정은 같은 규칙이어야 한다 — 갈라지면 사람은 화면을 믿는다.</p>
 
@@ -423,7 +424,7 @@
       <tr><td>지금 조직</td><td>내가 속한 첫 조직</td><td><code>lib/scope.ts</code> <code>useScope()</code></td></tr>
       <tr><td>지금 프로젝트</td><td><b>라우트 → 마지막으로 본 것 → 첫 프로젝트</b></td><td>같음 (<code>nerv.last-project</code>)</td></tr>
       <tr><td>조직에서의 역할</td><td>그 조직 멤버십 전부의 합집합</td><td><code>lib/session.ts</code> <code>rolesInOrg()</code></td></tr>
-      <tr><td>프로젝트에서의 역할</td><td>프로젝트 스코프 ∪ <b>같은 조직의</b> 조직 스코프</td><td>같음 <code>rolesInProject()</code></td></tr>
+      <tr><td>프로젝트에서의 역할</td><td>프로젝트 소속 ∪ <b>같은 조직의</b> 조직 소속</td><td>같음 <code>rolesInProject()</code></td></tr>
     </tbody>
   </table></div>
 
@@ -432,7 +433,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
-      <tr><td>REQ-WEB-075</td><td>WHEN 화면이 역할로 조작 가능 여부를 정하면 THE SYSTEM SHALL 서버와 같은 규칙(겸직 합집합 · 조직 스코프 포함 · 조직 경계)으로 판정한다 — 서버가 허용하는 일을 화면이 막지 않는다</td></tr>
+      <tr><td>REQ-WEB-075</td><td>WHEN 화면이 역할로 조작 가능 여부를 정하면 THE SYSTEM SHALL 서버와 같은 규칙(겸직 합집합 · 조직 소속 포함 · 조직 경계)으로 판정한다 — 서버가 허용하는 일을 화면이 막지 않는다</td></tr>
       <tr><td>REQ-WEB-076</td><td>WHEN 조직 전역 화면(홈·받은 요청·알림·설정)이 프로젝트를 필요로 하면 THE SYSTEM SHALL 헤더가 고른 것과 같은 프로젝트를 쓴다(멤버십 행에서 따로 고르지 않는다)</td></tr>
     </tbody>
   </table></div>
@@ -557,7 +558,7 @@
 
   <p><b>부르는 자리와 관리하는 자리가 같아야 한다.</b> 멤버 표는 이미 있는 사람의 역할만 켜고 껐고, 새 사람을 넣는 입력칸이 화면에 아예 없었다 — 서버의 EP-MBR-02 는 기존 사용자만 찾으므로 <b>신규 사용자는 어느 쪽으로도 들어올 수 없었다</b>. 규약의 정본은 <a href="api.html">4.4 API 명세</a> §2.1b.</p>
 
-  <p><b>설정 → 멤버 탭의 초대 구역</b>(admin): 이메일 · 역할 · 스코프(조직 전체 / 프로젝트) → 링크. 그 아래 보낸 초대 목록(대기·수락·회수·만료)과 회수 버튼.</p>
+  <p><b>설정 → 멤버 탭의 초대 구역</b>(admin): 이메일 · 역할 · 소속(조직 전체 / 프로젝트) → 링크. 그 아래 보낸 초대 목록(대기·수락·회수·만료)과 회수 버튼.</p>
 
   <ul>
     <li><b>링크는 만들 때 한 번만 보인다.</b> 서버는 해시만 갖고 있어 다시 보여 줄 수 없다(PAT 와 같은 규율) — 그 사실을 화면이 먼저 말하고 복사 버튼을 붙인다.</li>
@@ -681,9 +682,9 @@
 
   <ul class="wf-legend">
     <li><span class="marker">1</span><span><b>생성 진입점</b> — 권한은 역할 매트릭스(spec-workflow §1.6). 행 클릭은 S3 상세로.</span></li>
-    <li><span class="marker">2</span><span><b>행 = 트리 노드 + 메타</b> — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 <code>SpecTree</code> 공유다(D-05의 프론트 판).</span></li>
+    <li><span class="marker">2</span><span><b>행 = 트리 노드 + 메타</b> — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 <code>SpecTree</code> 공유다(D-05의 프론트 버전).</span></li>
     <li><span class="marker">3</span><span><b>필터 결과 카운트</b> — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약). <b>상태 필터</b>(<code>?status=</code> · REQ-WEB-138 — 2026-09-05 신설)는 고른 상태의 문서와 <b>그 조상</b>을 남긴다: 조상을 빼면 부모 없는 줄이 생기고(실측 clemvion: draft 26건 중 17건의 부모가 draft 가 아니다) 목록의 위아래가 뜻을 잃는다. 아래에 걸린 것이 없는 가지는 통째로 빠진다. 서버에도 같은 필터가 있지만(EP-SPEC-01 <code>?status=</code> · REQ-API-092) <b>화면은 그것을 쓰지 않는다</b> — 이 화면은 이미 전 계층을 한 응답으로 받아 두었고(REQ-WEB-044), 서버에 걸러 달라고 하면 <code>전체 M</code> 을 알 방법이 사라진다. 판정 규칙은 서버와 같다. <b><code>[타입 ▾]</code></b>(<code>?type=</code>)도 같은 규칙이다 — <code>area</code> 는 본문 없이 자리를 잡는 종류라 <code>vision,area</code> 를 고르면 <b>트리의 뼈대</b>가 남는다(실측 clemvion 141편 → 17편). 둘을 함께 걸면 AND 다.</span></li>
-    <li><span class="marker">4</span><span><b>기준선 선택기</b> — EP-SPEC-11 목록 + [기준선 생성…](planner·admin — EP-SPEC-12 다이얼로그). 기본 항목은 <b><code>기준선 없음</code></b> 이다. 고르면 <code>?baseline=</code> 쿼리로 목록이 <b>그 세트가 담은 문서만, 그 세트가 핀한 판으로</b> 렌더된다(spec-workflow §3.6 · REQ-API-098) — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. 그 동안에는 상태·종류 필터를 그리지 않는다(세트 항목은 전부 승인본이라 거를 것이 없다). 새 라우트 없음 — 뷰 상태 쿼리다.</span></li>
+    <li><span class="marker">4</span><span><b>기준선 선택기</b> — EP-SPEC-11 목록 + [기준선 생성…](planner·admin — EP-SPEC-12 다이얼로그). 기본 항목은 <b><code>기준선 없음</code></b> 이다. 고르면 <code>?baseline=</code> 쿼리로 목록이 <b>그 세트가 담은 문서만, 그 세트가 묶어 둔 버전으로</b> 렌더된다(spec-workflow §3.6 · REQ-API-098) — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. 그 동안에는 상태·종류 필터를 그리지 않는다(세트 항목은 전부 승인본이라 거를 것이 없다). 새 라우트 없음 — 뷰 상태 쿼리다.</span></li>
     <li><span class="marker">5</span><span><b>검색 모드</b> — 검색어 입력 시 트리 뷰가 결과 목록으로 전환된다(<code>?q=</code> 뷰 상태). 하이브리드 결과(<a href="api.html">4.4</a> §2.2b)를 <b>관련도 순 + 스펙 단위 그룹핑 + 매칭 앵커 스니펫</b>으로 표시하고, <code>related[]</code>(관계 확장 — 질의 일치가 아니라 상위 결과의 1-hop 이웃)는 <b>"관련 스펙" 별도 섹션</b>으로 구분해 섞지 않는다. <code>degraded: "lexical-only"</code> 수신 시 "의미 검색 일시 중단 — 키워드 결과만" 배너 1줄. 트리 자체를 거르는 <b>트리 필터</b>(클라이언트, 매칭 경로만 펼침)는 <code>/</code> 키로 전환 — 서버 검색과 다른 축이다.</span></li>
   </ul>
 
@@ -697,7 +698,7 @@
       <tr><td>검토 요청</td><td>EP-SPEC-10 <code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td><code>draft → in_review</code> — 성공 시 받은 요청 카드 생성(FR-11)</td></tr>
       <tr><td>코멘트</td><td>EP-CMT-01 <code>GET .../specs/{spec}/comments</code> · EP-CMT-02 <code>POST .../spec-versions/{ver}/comments</code> · EP-CMT-04 <code>POST .../comments/{id}/resolve</code></td><td>앵커: 헤딩 slug 또는 Requirement <code>ref</code>(§3.3)</td></tr>
       <tr><td>우측 패널</td><td>include 응답의 requirement 목록(<code>ref</code>·<code>statement_md</code>·<code>impl_status</code>) · 파생 task 목록</td><td>"관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시. <b>참조 갱신 배지</b>: <code>spec.recheck_requested</code> 수신 시 "참조 스펙에 앞선 버전 존재" 표시(spec-workflow §3.3 참조 문서 전파)</td></tr>
-      <tr><td>베이스라인 조회</td><td>EP-SPEC-11 <code>GET .../baselines</code> · EP-SPEC-13 <code>GET .../baselines/{bl}</code></td><td>버전 피커(<code>VersionPicker</code>)에 베이스라인 항목 — 선택 시 그 세트에 핀된 버전을 표시(<code>?baseline=</code> 쿼리, spec-workflow §3.6)</td></tr>
+      <tr><td>기준선 조회</td><td>EP-SPEC-11 <code>GET .../baselines</code> · EP-SPEC-13 <code>GET .../baselines/{bl}</code></td><td>버전 피커(<code>VersionPicker</code>)에 기준선 항목 — 선택 시 그 세트에 핀된 버전을 표시(<code>?baseline=</code> 쿼리, spec-workflow §3.6)</td></tr>
     </tbody>
   </table></div>
 
@@ -728,10 +729,10 @@
       <tr><td>REQ-WEB-013</td><td>WHEN 저장 요청이 <code>NERV_PRECONDITION</code>(<code>base_hash</code> 불일치 409)으로 실패하면 THE SYSTEM SHALL 로컬 본문을 버리지 않은 채 충돌 다이얼로그(서버 최신 보기·내 본문 복사)를 표시한다</td></tr>
       <tr><td>REQ-WEB-014</td><td>WHEN 사전 검토 결과에 block이 1건 이상이면 THE SYSTEM SHALL [검토 요청] 버튼을 비활성화하고 검사기별 결과와 앵커 위치를 인라인 표시한다</td></tr>
       <tr><td>REQ-WEB-015</td><td>WHEN 본문이 새 버전으로 바뀌어도 THE SYSTEM SHALL 헤딩 slug·Requirement <code>ref</code> 앵커의 코멘트 스레드를 유지 표시한다(D-09)</td></tr>
-      <tr><td>REQ-WEB-037</td><td>WHEN 대상 문서의 <b>현재 판을 마지막으로 쓴 뒤</b> <code>spec.recheck_requested</code>가 그 문서 앞으로 발행됐으면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지를 표시하고 <b>무엇 때문인지</b>(신호를 만든 참조 스펙 키)를 함께 보인다. 판정은 서버가 한다(2026-09-03 정정)</td></tr>
+      <tr><td>REQ-WEB-037</td><td>WHEN 대상 문서의 <b>현재 버전을 마지막으로 쓴 뒤</b> <code>spec.recheck_requested</code>가 그 문서 앞으로 발행됐으면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지를 표시하고 <b>무엇 때문인지</b>(신호를 만든 참조 스펙 키)를 함께 보인다. 판정은 서버가 한다(2026-09-03 정정)</td></tr>
       <tr><td>REQ-WEB-038</td><td>WHEN planner·admin이 메타 다이얼로그에서 부모 이동을 저장하면 THE SYSTEM SHALL EP-SPEC-15로 반영하고, 409 <code>tree_cycle</code> 수신 시 어느 하위 노드로의 이동이 차단됐는지 인라인 표시한다. WHEN 그 외 역할이 열람하면 THE SYSTEM SHALL ⋯ 메뉴의 메타·아카이브 항목을 비활성화한다</td></tr>
       <tr><td>REQ-WEB-039</td><td>WHEN 아카이브 요청이 409 <code>archive_blocked</code>로 실패하면 THE SYSTEM SHALL 차단 사유(미아카이브 하위 노드·활성 클레임 Task) 목록을 다이얼로그에 표시하고 재시도 경로를 안내한다</td></tr>
-      <tr><td>REQ-WEB-040</td><td>WHEN 어느 라우트에서든 <code>⌘K</code>/<code>Ctrl+K</code>를 누르면 THE SYSTEM SHALL 퀵 스위처를 열고, 안정 ID 입력은 최상위 1건 직행·빈 입력은 최근 방문·핀 목록을 표시하며, 마우스 없이 이동을 완결시킨다(§1.3a)</td></tr>
+      <tr><td>REQ-WEB-040</td><td>WHEN 어느 라우트에서든 <code>⌘K</code>/<code>Ctrl+K</code>를 누르면 THE SYSTEM SHALL 퀵 스위처를 열고, 고정 ID 입력은 최상위 1건 직행·빈 입력은 최근 방문·핀 목록을 표시하며, 마우스 없이 이동을 완결시킨다(§1.3a)</td></tr>
       <tr><td>REQ-WEB-041</td><td>WHEN 검색 결과를 표시하면 THE SYSTEM SHALL 관련도 순 본 결과와 <code>related[]</code>(관계 확장)를 시각적으로 구분된 섹션으로 렌더하고, <code>degraded</code> 수신 시 의미 검색 중단 배너를 1줄 표시한다</td></tr>
       <tr><td>REQ-WEB-042</td><td>WHEN S3 상태 패널을 렌더하면 THE SYSTEM SHALL 관계 섹션에 참조함/참조됨(backlink)을 kind와 함께 표시하고, 항목 클릭으로 해당 스펙에 이동시킨다(EP-SPEC-18)</td></tr>
       <tr><td>REQ-WEB-043</td><td>WHEN [검토 요청]을 누르면 THE SYSTEM SHALL 제출 전에 역참조 문서 수·파생 Task 수의 영향 미리보기를 표시한다</td></tr>
@@ -1008,7 +1009,7 @@
 
   <h4>화면 머리의 설명 줄 (2026-08-27 개정 — 사람 지시)</h4>
 
-  <p>같은 진단이 한 줄 더 있었다. <b>제목 아래 설명은 대부분 화면이 이미 보여주는 것을 문장으로 옮겨 적은 것</b>이다 — 스펙 목록의 "한국어로 물어도, 안정 ID로 물어도 찾습니다"는 바로 옆 검색창의 placeholder 와 같은 말이고, 세션의 "누구의 어느 머신이 무엇을 하고 있는지"는 그 아래 표의 열 이름이다. 한 줄이 <b>21~22px + 여백 7px</b>(실측)를 먹고 열 화면에 있다.</p>
+  <p>같은 진단이 한 줄 더 있었다. <b>제목 아래 설명은 대부분 화면이 이미 보여주는 것을 문장으로 옮겨 적은 것</b>이다 — 스펙 목록의 "한국어로 물어도, 고정 ID로 물어도 찾습니다"는 바로 옆 검색창의 placeholder 와 같은 말이고, 세션의 "누구의 어느 머신이 무엇을 하고 있는지"는 그 아래 표의 열 이름이다. 한 줄이 <b>21~22px + 여백 7px</b>(실측)를 먹고 열 화면에 있다.</p>
 
   <p>걷어낸다. 다만 <b>전부는 아니다</b> — 셋은 문장이 아니라 조작의 전제였고, 그것들은 지우는 대신 <b>쓰이는 자리로 내렸다.</b></p>
 
@@ -1017,7 +1018,7 @@
     <tbody>
       <tr><td>"원문은 발급 직후 한 번만 보입니다"</td><td>토큰 <b>발급 버튼 위</b></td><td>화면 머리에 있으면 눈이 버튼까지 내려간 뒤라 이미 늦다</td></tr>
       <tr><td>"MVP 편집 항목은 spec_gate 3키"</td><td>게이트 <b>필드 상자 안</b></td><td>없으면 비활성 필드가 고장으로 읽힌다</td></tr>
-      <tr><td>"여기 있는 것은 이미 일어난 일이다"</td><td>알림 <b>목록 바로 위</b></td><td>알림과 받은 요청의 경계를 세우는 유일한 문장이라 목록을 보며 읽혀야 한다</td></tr>
+      <tr><td>"여기 있는 것은 이미 일어난 일입니다"</td><td>알림 <b>목록 바로 위</b></td><td>알림과 받은 요청의 경계를 세우는 유일한 문장이라 목록을 보며 읽혀야 한다</td></tr>
     </tbody>
   </table></div>
 
@@ -1124,7 +1125,7 @@
   </div>
 
   <ul class="wf-legend">
-    <li><span class="marker">1</span><span><b>상태 + 표시 키</b> — URL로 공유 가능(안정 ID — D-09).</span></li>
+    <li><span class="marker">1</span><span><b>상태 + 표시 키</b> — URL로 공유 가능(고정 ID — D-09).</span></li>
     <li><span class="marker">2</span><span><b>출처 역링크</b> — 유래 SpecVersion(불변 스냅샷)과 Requirement로. "왜 이 작업인가"가 한 클릭. <code>FR-05 · D-03</code></span></li>
     <li><span class="marker">3</span><span><b>위임 명세 4요소</b> — <code>goal_md</code>·<code>output_format_md</code>·<code>tools_sources_md</code>·<code>boundaries_md</code>. 미충족 요소는 ❌ + 인라인 편집(EP-TASK-05). <code>FR-05 · REQ-WEB-016</code></span></li>
     <li><span class="marker">4</span><span><b>활성 클레임</b> — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. <code>FR-06</code>. 출처 줄의 기준 버전(<code>@v4</code>)이 superseded면 <b>재브리핑 배지</b>(⟳ 기준 버전 v4 → 최신 v5)가 뜬다 — <code>rebrief_required_at</code>·spec-workflow §3.3. <code>REQ-WEB-036</code></span></li>
@@ -1228,9 +1229,9 @@ export const TaskCreateInput = z.object({
     <li><b>이미지가 왕복에서 사라지고 있었다</b>(REQ-WEB-126). 편집기에 image 노드가 없어 <code>![…](…)</code> 이 버려졌고, 사람이 문서를 열어 한 글자만 고치면 <b>모든 이미지가 삭제됐다</b>(저장은 성공하면서). <b>테스트가 없어 아무도 못 봤다.</b></li>
     <li><b>세션 레일이 "Bash / Bash" 를 383번 반복했다</b>(2026-09-01 — 사람 보고 · REQ-WEB-123·124). 화면 잘못이 아니라 <b>적재가 그것만 남겼다</b>. 원문 보관으로 정책을 바꾸고 화면은 셋을 한다 — <b>묶고</b> · <b>실패를 튀게 하고</b> · <b>펼치면 원문</b>(접힘이 기본). 권한 때문에 안 왔으면 <b>그 사실을 적는다</b>: 빈칸은 "없다" 로 읽힌다.</li>
     <li><b>한 일이 위, 도구 로그가 아래다</b>(REQ-WEB-124). 첫 물음은 "무슨 도구를 썼나" 가 아니라 <b>"무엇을 하는 중이고 막혀 있나"</b> 다. 궤적은 새로 저장하는 것이 없다 — 이벤트가 이미 세션 id 를 달고 있다.</li>
-    <li><b>버전 목록은 누를 수 있어야 한다</b>(2026-09-01 — 사람 요청 · REQ-WEB-121·122). 서버는 <b>처음부터</b> 이것을 줄 수 있었다 — EP-SPEC-06 이 요구사항 델타와 줄 diff 를 함께 돌려주는데(2026-08-22) 웹이 그 경로를 한 번도 부르지 않았고, 그래서 <b>테스트도 0건</b>이었다. 레일 클릭은 <code>?diff=vN-1..vN</code>, 옆의 [이 판 전문]은 <code>?v=N</code>. 임의의 두 판은 diff 머리의 select 둘로 고른다 — 순서는 <b>항상 오래된 쪽 → 새 쪽</b>으로 정규화한다(뒤집힌 diff 는 "전부 삭제됨" 으로 읽힌다).</li>
+    <li><b>버전 목록은 누를 수 있어야 한다</b>(2026-09-01 — 사람 요청 · REQ-WEB-121·122). 서버는 <b>처음부터</b> 이것을 줄 수 있었다 — EP-SPEC-06 이 요구사항 델타와 줄 diff 를 함께 돌려주는데(2026-08-22) 웹이 그 경로를 한 번도 부르지 않았고, 그래서 <b>테스트도 0건</b>이었다. 레일 클릭은 <code>?diff=vN-1..vN</code>, 옆의 [이 버전 전문]은 <code>?v=N</code>. 임의의 두 버전은 diff 머리의 select 둘로 고른다 — 순서는 <b>항상 오래된 쪽 → 새 쪽</b>으로 정규화한다(뒤집힌 diff 는 "전부 삭제됨" 으로 읽힌다).</li>
     <li><b>요구사항 델타가 본문 diff 보다 앞에 온다</b>(§4.3). 리뷰에서 묻는 것은 "문구가 어떻게 바뀌었나" 가 아니라 <b>"약속이 늘었나 줄었나 달라졌나"</b> 다. <b>기본은 변경분만</b>이고, 접은 자리는 빈칸이 아니라 <b>몇 줄인지</b> 적는다.</li>
-    <li><b>받은 요청에서 문서로 간다</b>(2026-08-31 — 사람 요청 · REQ-WEB-119·120). 결재하려면 본문을 봐야 하는데 카드에는 제목과 키뿐이었고, <b>키는 글자였을 뿐</b>이라 그 문서를 보려면 목록에서 손으로 찾아야 했다. 키를 링크로 만들고 카드 안에서 본문을 펼친다 — <b>펼칠 때 받아 오고</b>, <b>검토 중인 그 판</b>을 받는다(카드가 보여준 것과 승인되는 것이 같아야 한다). 질문 카드의 발견은 <code>?finding=</code> 으로 리뷰 센터의 그 지적을 편다.</li>
+    <li><b>받은 요청에서 문서로 간다</b>(2026-08-31 — 사람 요청 · REQ-WEB-119·120). 결재하려면 본문을 봐야 하는데 카드에는 제목과 키뿐이었고, <b>키는 글자였을 뿐</b>이라 그 문서를 보려면 목록에서 손으로 찾아야 했다. 키를 링크로 만들고 카드 안에서 본문을 펼친다 — <b>펼칠 때 받아 오고</b>, <b>검토 중인 그 버전</b>을 받는다(카드가 보여준 것과 승인되는 것이 같아야 한다). 질문 카드의 발견은 <code>?finding=</code> 으로 리뷰 센터의 그 지적을 편다.</li>
     <li><b>처분은 넷이다</b>(2026-08-30 — 사람 요청 · REQ-WEB-117). 구현이 맞고 스펙이 틀린 지적은 코드가 아니라 문서를 고쳐 닫힌다 — 그 길이 없으면 사람도 에이전트도 남은 값 중 아무거나 고르고, <code>dismissed</code>(오탐이 아니었다)나 <code>wont_fix</code>(고쳤다)가 <b>둘 다 거짓 기록</b>이 된다. 증거는 그 스펙의 <b>지금 버전</b>이라 사람에게 버전 id 를 묻지 않는다: 문서만 고르면 화면이 채운다. 고르개는 본문 링크와 <b>같은 것</b>을 쓴다.</li>
     <li><b>피드백이 기록으로 끝났다</b>(2026-08-30 — 사람 물음). 사람이 할 수 있는 것은 처분 3종뿐이라 "왜 그렇게 봤는지"를 적을 자리가 없었고, 무엇을 적든 <b>지적한 에이전트는 듣지 못했다</b>. 레일에 <b>코멘트</b>를 둔다(REQ-WEB-114) — 그 말은 그 발견을 올린 세션의 하트비트로 돌아간다. 그리고 <b>Task 로 올리는 단추</b>(REQ-WEB-115): <code>wont_fix</code> 는 큐에서 지우는 것이지 잇는 것이 아니라, "나중에 하자"가 갈 곳이 없었다.</li>
     <li><b>한 줄로는 알 수 없다</b>(2026-08-30 — 사람 보고). 카드가 <code>title</code> 만 그렸고 <code>detail_md</code>·<code>suggestion_md</code> 는 화면에 한 번도 나온 적이 없었다 — 에이전트는 처음부터 채워 보내고 있었는데도(sudoku 10/10 · clemvion 18,652/18,654) API 도 실어 주고 있었다. <b>화면만 빠져 있었다.</b> 카드는 접힘이 기본이고 펼치면 내용과 제안이 나온다(REQ-WEB-111). 고른 하나는 오른쪽 레일이 자르지 않고 편다(REQ-WEB-112). 처분한 발견은 <b>근거와 처분자</b>를 함께 적는다: 근거가 없으면 dismissed 는 삭제와 구별되지 않는다.</li>
@@ -1257,7 +1258,7 @@ export const TaskCreateInput = z.object({
       <tr><td><b>REQ-WEB-127</b></td><td>WHILE 연결이 끊겨 있으면 THE SYSTEM SHALL 무제한으로 다시 붙되 간격을 1분 이하로 유지하고, WHEN 다시 붙으면 THE SYSTEM SHALL 끊기기 전에 들어가 있던 룸을 스스로 되찾는다</td></tr>
       <tr><td><b>REQ-WEB-128</b></td><td>WHEN 리뷰 센터를 그리면 THE SYSTEM SHALL 발견의 대상 축(codebase·spec·task·process)으로 거를 수 있게 하고 facet 건수를 같은 응답에서 읽으며, 서버가 유추한 값에는 <b>유추임을 표시</b>한다</td></tr>
       <tr><td><b>REQ-WEB-129</b></td><td>WHEN 스펙 목록을 그리면 THE SYSTEM SHALL <b>새 스펙을 시작하는 진입점</b>을 두고, 키·제목·종류를 받아 초안으로 만든 뒤 그 문서로 이동한다. WHILE 그 대화상자가 열려 있으면 THE SYSTEM SHALL <code>Esc</code> 로 닫는다</td></tr>
-      <tr><td><b>REQ-WEB-130</b></td><td>WHEN 스펙 상세가 approved 판을 보이면 THE SYSTEM SHALL <b>다음 판을 시작하는 진입점</b>을 두고, 지금 읽는 본문과 그 판의 지문으로 새 draft 를 연다. WHILE 승인본을 보고 있으면 THE SYSTEM SHALL 본문 편집을 막는다(D-02)</td></tr>
+      <tr><td><b>REQ-WEB-130</b></td><td>WHEN 스펙 상세가 approved 버전을 보이면 THE SYSTEM SHALL <b>다음 버전을 시작하는 진입점</b>을 두고, 지금 읽는 본문과 그 버전의 지문으로 새 draft 를 연다. WHILE 승인본을 보고 있으면 THE SYSTEM SHALL 본문 편집을 막는다(D-02)</td></tr>
       <tr><td><b>REQ-WEB-131</b></td><td>WHEN 알림 목록 또는 발견 큐가 서버 상한을 넘으면 THE SYSTEM SHALL <code>next_cursor</code>(REQ-API-083)로 다음 쪽을 이어 받는 [더 보기]를 두고, 마지막 쪽에서는 감춘다. WHEN 알림 화면이 안 읽은 수를 보이면 THE SYSTEM SHALL <b>받아 온 쪽이 아니라 서버가 센 수</b>를 쓴다 — 헤더 배지와 같은 수여야 한다</td></tr>
       <tr><td><b>REQ-WEB-132</b></td><td>WHEN 세션 카드를 그리면 THE SYSTEM SHALL 그 세션의 상세(타임라인)로 가는 링크를 <b>화면 폭과 무관하게</b> 둔다 — 곁레일은 넓은 화면의 향상이지 유일한 경로가 아니다</td></tr>
       <tr><td><b>REQ-WEB-133</b></td><td>WHEN 받은 요청의 카드가 이미 결정된 것이면 THE SYSTEM SHALL 결정 단추와 입력 칸을 그리지 않고, 대기 시간 대신 <b>무엇을 언제 결정했는지</b>를 보인다. WHEN 결재 대상이 제목을 갖지 않으면(예: 게이트 우회) THE SYSTEM SHALL 그 종류의 이름을 대신 보인다</td></tr>
@@ -1268,10 +1269,10 @@ export const TaskCreateInput = z.object({
       <tr><td><b>REQ-WEB-138</b></td><td>WHEN 스펙 목록에서 상태·종류 필터를 고르면 THE SYSTEM SHALL 그 값을 <code>?status=</code>·<code>?type=</code> 으로 주소에 남기고(다른 뷰 상태를 지우지 않는다), 목록에 <b>그 성질의 문서와 그 조상만</b> 남긴다(둘을 함께 걸면 AND) — 조상은 자리를 지키러 온 것이라 아래에 걸린 것이 하나도 없는 가지는 남기지 않는다. WHILE 상태 필터가 걸린 동안 THE SYSTEM SHALL 걸린 노드를 접힌 가지에 숨기지 않고, <code>전체 M</code> 은 필터와 무관한 프로젝트의 문서 수로 유지한다 — 총계가 필터를 따라 움직이면 두 수를 함께 적는 뜻이 없어진다</td></tr>
       <tr><td><b>REQ-WEB-136</b></td><td>WHEN planner·admin 이 스펙 목록에서 [현재 세트로 동결…]을 누르면 THE SYSTEM SHALL 이름을 받아 EP-SPEC-12 로 기준선을 만들고, 이름이 비면 누를 수 없게 한다. WHILE 다이얼로그가 열려 있는 동안 THE SYSTEM SHALL 무엇이 담기는지와 <b>되돌릴 수 없다는 사실</b>을 누르기 전에 보인다</td></tr>
       <tr><td><b>REQ-WEB-135</b></td><td>WHEN 스펙 목록에서 기준선을 고르면 THE SYSTEM SHALL 그 이름을 <code>?baseline=</code> 로 주소에 남기고 상세까지 물고 간다 — 링크로 건네면 상대도 같은 세트를 본다. WHILE 기준선으로 읽는 동안 THE SYSTEM SHALL 어느 세트인지와 <b>그 세트가 이 문서를 담고 있는지</b>를 배지로 보인다</td></tr>
-      <tr><td><b>REQ-WEB-134</b></td><td>WHEN 토큰을 발급하면 THE SYSTEM SHALL 화면에서 <b>체크된 것으로 보이는 스코프만</b> 요청 본문에 싣는다 — 역할이 허용하지 않아 잠긴 칸은 초기 선택값이더라도 제외한다</td></tr>
+      <tr><td><b>REQ-WEB-134</b></td><td>WHEN 토큰을 발급하면 THE SYSTEM SHALL 화면에서 <b>체크된 것으로 보이는 권한만</b> 요청 본문에 싣는다 — 역할이 허용하지 않아 잠긴 칸은 초기 선택값이더라도 제외한다</td></tr>
       <tr><td><b>REQ-WEB-124</b></td><td>WHEN 세션 레일을 그리면 THE SYSTEM SHALL <b>한 일</b>(그 세션이 낸 이벤트)을 위에, 도구 로그를 아래에 둔다</td></tr>
-      <tr><td><b>REQ-WEB-121</b></td><td>WHEN 버전 목록에서 한 판을 고르면 THE SYSTEM SHALL 그 판과 직전의 차이를 <code>?diff=vN-1..vN</code> 주소로 열고, 요구사항 델타를 본문 diff보다 <b>먼저</b> 보인다. WHILE 변경분만 보기이면 THE SYSTEM SHALL 안 바뀐 구간을 앞뒤 3줄만 남기고 접으며 <b>몇 줄을 접었는지</b> 적는다</td></tr>
-      <tr><td><b>REQ-WEB-122</b></td><td>WHEN 사람이 diff의 양 끝을 바꾸면 THE SYSTEM SHALL 인접하지 않은 두 판도 견주고 그 선택을 주소에 남긴다(항상 오래된 쪽 → 새 쪽). WHEN <code>?v=&lt;번호&gt;</code> 로 열면 THE SYSTEM SHALL 그 판의 전문을 읽기 전용으로 보이고 현재 판으로 돌아가는 길을 같은 자리에 둔다</td></tr>
+      <tr><td><b>REQ-WEB-121</b></td><td>WHEN 버전 목록에서 한 버전을 고르면 THE SYSTEM SHALL 그 버전과 직전의 차이를 <code>?diff=vN-1..vN</code> 주소로 열고, 요구사항 델타를 본문 diff보다 <b>먼저</b> 보인다. WHILE 변경분만 보기이면 THE SYSTEM SHALL 안 바뀐 구간을 앞뒤 3줄만 남기고 접으며 <b>몇 줄을 접었는지</b> 적는다</td></tr>
+      <tr><td><b>REQ-WEB-122</b></td><td>WHEN 사람이 diff의 양 끝을 바꾸면 THE SYSTEM SHALL 인접하지 않은 두 버전도 견주고 그 선택을 주소에 남긴다(항상 오래된 쪽 → 새 쪽). WHEN <code>?v=&lt;번호&gt;</code> 로 열면 THE SYSTEM SHALL 그 버전의 전문을 읽기 전용으로 보이고 현재 버전으로 돌아가는 길을 같은 자리에 둔다</td></tr>
       <tr><td><b>REQ-WEB-119</b></td><td>WHEN 결재 카드가 스펙을 가리키면 THE SYSTEM SHALL 그 키를 문서 링크로 그리고, 카드 안에서 <b>검토 중인 그 버전의 본문</b>을 펼쳐 볼 수 있게 한다(펼칠 때 받아 온다). WHEN 질문 카드가 발견에서 왔으면 THE SYSTEM SHALL 리뷰 센터의 그 발견으로 가는 링크를 준다</td></tr>
       <tr><td><b>REQ-WEB-120</b></td><td>WHEN 리뷰 센터를 <code>?finding=&lt;id&gt;</code> 로 열면 THE SYSTEM SHALL 그 발견을 레일에 펴고, 기본 필터(열림)에 없으면 상태 필터를 풀어 찾아 준다</td></tr>
       <tr><td><b>REQ-WEB-118</b></td><td>WHEN 결재 카드를 그리면 THE SYSTEM SHALL 승인 단추의 활성 여부를 서버가 준 <code>can_approve</code> 로 정하고, 내가 요청했지만 승인할 수 있는 경우(admin)에는 그 사실을 조용히 적는다. WHEN 요청자가 자기 카드를 보면 THE SYSTEM SHALL 거절은 막지 않는다</td></tr>
@@ -1335,7 +1336,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
 
   <ul>
     <li><b>선택지 = 버튼.</b> 누르면 그 값이 <code>answer_key</code> 로 그대로 간다(EP-QST-02). 답변 칸은 남긴다 — 고르면서 덧붙일 말이 있을 수 있다.</li>
-    <li><b>출처는 링크다.</b> <code>context{spec_id,task_id,finding_id}</code>(<a href="api.html">4.4</a> §1.4d)가 카드에 스펙 키·Task 키로 서고 눌러서 원문으로 간다. Finding 은 안정 키가 없으므로 짧은 id(앞 8자)를 단다.</li>
+    <li><b>출처는 링크다.</b> <code>context{spec_id,task_id,finding_id}</code>(<a href="api.html">4.4</a> §1.4d)가 카드에 스펙 키·Task 키로 서고 눌러서 원문으로 간다. Finding 은 고정 ID가 없으므로 짧은 id(앞 8자)를 단다.</li>
     <li><b>사유는 신원 줄에 붙는다.</b> 다섯 어휘(제품 결정·스펙 공백·인프라·E2E 3회 실패·민감한 수정)는 읽는 사람의 <b>첫 분류</b>다. 없으면 적지 않는다.</li>
     <li>본문이 빈 질문은 <b>빈 회색 띠를 그리지 않는다</b> — 빈 상자는 "무언가 못 불러왔다"로 읽힌다.</li>
   </ul>
@@ -1349,13 +1350,13 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
     <tbody>
       <tr><td>멤버 매트릭스</td><td>EP-MBR-01 <code>GET /api/v1/orgs/{org}/members</code> · EP-MBR-02 <code>POST</code>(기존 사용자 배정 — 초대 메일 발송은 Phase 2, api.md §2.1) · EP-MBR-03 <code>PATCH /api/v1/memberships/{id}</code>(역할)</td><td><code>membership.role</code> 6종: <code>admin / planner / designer / developer / qa / viewer</code>. 사람 × 프로젝트 n:n(FR-14)</td></tr>
-      <tr><td>토큰 목록·발급·폐기</td><td>EP-TOK-01 <code>GET /api/v1/me/tokens</code> · EP-TOK-02 <code>POST /api/v1/me/tokens</code> · EP-TOK-03 <code>DELETE /api/v1/me/tokens/{id}</code> · EP-TOK-04 <code>GET /api/v1/orgs/{org}/tokens</code>(admin 조직 전체)</td><td><code>api_token</code>: 라벨·소유자·프로젝트 스코프·<code>prefix</code>·<code>last_used_at</code>(hostname 포함 표기). admin은 조직 전체 목록 열람</td></tr>
+      <tr><td>토큰 목록·발급·폐기</td><td>EP-TOK-01 <code>GET /api/v1/me/tokens</code> · EP-TOK-02 <code>POST /api/v1/me/tokens</code> · EP-TOK-03 <code>DELETE /api/v1/me/tokens/{id}</code> · EP-TOK-04 <code>GET /api/v1/orgs/{org}/tokens</code>(admin 조직 전체)</td><td><code>api_token</code>: 라벨·소유자·프로젝트 소속·<code>prefix</code>·<code>last_used_at</code>(hostname 포함 표기). admin은 조직 전체 목록 열람</td></tr>
       <tr><td>게이트 정책</td><td>EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code> · EP-PRJ-04 <code>PATCH /api/v1/projects/{proj}</code> (<code>gate_policy</code> — 키 스키마 정본: <a href="api.html">4.4 API 명세</a> §2.1a)</td><td>MVP 편집 항목 = <code>spec_gate.*</code> 2키: 티어 경계(<code>tier_boundaries</code>)·동적 강화(<code>dynamic_escalation</code>). 둘 다 2026-09-02 부터 <b>판정이 실제로 읽는다</b> — 그 전까지 판정은 상수를 썼다. <code>t1_objection_hours</code> 는 같은 날 걷었다. <code>failopen</code>·<code>retention</code>은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수(<a href="codebase.html">4.2</a> §3.2 <code>SESSION_STALE_SECONDS</code>), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화</td></tr>
     </tbody>
   </table></div>
 
   <ul>
-    <li><b>토큰 발급 흐름</b>: 발급 다이얼로그(<code>TokenCreateInput</code>: <code>project</code>·<code>name</code>·<code>scopes[]</code>·<code>expires</code>) → 성공 시 <b>원문 1회 표시</b>(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 <code>prefix</code>만. 스코프 체크박스는 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(10종)를 그대로 쓰고, <code>spec:approve</code>·<code>approval:decide</code>는 <b>체크박스 비활성</b>(사람 전용 — 시스템 불변식). <b>내 역할에 없는 스코프도 보이되 잠긴다</b>(§1.8) — 그리고 <b>잠긴 것은 발급 본문에도 실리지 않는다</b>(REQ-WEB-134 · 2026-09-04): 초기 선택값이 상수라, <code>task:claim</code> 이 없는 역할에게 그 칸이 꺼져 보이면서 본문에는 실려 갔다. 화면이 자기가 한 일을 잘못 말하면 토큰 목록의 스코프 표를 믿을 수 없게 된다.</li>
+    <li><b>토큰 발급 흐름</b>: 발급 다이얼로그(<code>TokenCreateInput</code>: <code>project</code>·<code>name</code>·<code>scopes[]</code>·<code>expires</code>) → 성공 시 <b>원문 1회 표시</b>(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 <code>prefix</code>만. 권한 체크박스는 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(10종)를 그대로 쓰고, <code>spec:approve</code>·<code>approval:decide</code>는 <b>체크박스 비활성</b>(사람 전용 — 시스템 불변식). <b>내 역할에 없는 권한도 보이되 잠긴다</b>(§1.8) — 그리고 <b>잠긴 것은 발급 본문에도 실리지 않는다</b>(REQ-WEB-134 · 2026-09-04): 초기 선택값이 상수라, <code>task:claim</code> 이 없는 역할에게 그 칸이 꺼져 보이면서 본문에는 실려 갔다. 화면이 자기가 한 일을 잘못 말하면 토큰 목록의 권한 표를 믿을 수 없게 된다.</li>
     <li><b>컴포넌트</b>: <code>SettingsTabs</code> · <code>MemberMatrix</code> · <code>MemberAddDialog</code> · <code>TokenTable</code> · <code>TokenIssueDialog</code> · <code>TokenRevealOnce</code> · <code>GatePolicyForm</code> · 권한 비확대 고지문("토큰은 사용자 권한을 상속하며 절대 확대하지 않는다" — NFR-03 · D-08).</li>
     <li><b>빈 상태</b>: 토큰 0개 — 플러그인 온보딩 절차 링크(<a href="plugin.html">plugin.md</a> §4).</li>
   </ul>
@@ -1364,7 +1365,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
       <tr><td>REQ-WEB-026</td><td>WHEN 토큰 발급에 성공하면 THE SYSTEM SHALL 토큰 원문을 1회만 표시하고 이후 목록에는 <code>prefix</code>와 마지막 사용(시각·hostname)만 노출한다(NFR-03)</td></tr>
-      <tr><td>REQ-WEB-027</td><td>WHEN 토큰 스코프 선택 UI를 렌더링하면 THE SYSTEM SHALL <code>spec:approve</code>·<code>approval:decide</code> 체크박스를 항상 비활성으로 표시한다(사람 전용)</td></tr>
+      <tr><td>REQ-WEB-027</td><td>WHEN 토큰 권한 선택 UI를 렌더링하면 THE SYSTEM SHALL <code>spec:approve</code>·<code>approval:decide</code> 체크박스를 항상 비활성으로 표시한다(사람 전용)</td></tr>
       <tr><td>REQ-WEB-028</td><td>WHEN admin이 아닌 사용자가 멤버·역할 탭을 열면 THE SYSTEM SHALL 매트릭스를 읽기 전용으로 표시하고 편집 컨트롤을 비활성화한다(FR-14)</td></tr>
     </tbody>
   </table></div>
@@ -1599,7 +1600,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     <thead><tr><th>앵커 종류</th><th>값</th><th>생존 규칙</th></tr></thead>
     <tbody>
       <tr><td>헤딩 slug</td><td>헤딩 텍스트에서 서버가 발급(정규화 + 충돌 시 <code>-n</code> 접미)</td><td>새 버전에서 같은 slug의 헤딩이 있으면 스레드 유지, 없으면 "앵커 유실" 상태로 문서 상단에 모아 표시</td></tr>
-      <tr><td>Requirement ref</td><td><code>REQ-CWC-031</code> 형식의 안정 ID</td><td>Requirement가 존속하는 한 버전과 무관하게 유지</td></tr>
+      <tr><td>Requirement ref</td><td><code>REQ-CWC-031</code> 형식의 고정 ID</td><td>Requirement가 존속하는 한 버전과 무관하게 유지</td></tr>
     </tbody>
   </table></div>
 
@@ -1636,7 +1637,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
 
   <h3>4.1 색 토큰 — 제안서 팔레트의 Tailwind 이식</h3>
 
-  <p><b>상태 토큰 8종</b>의 원본은 제안서 HTML 공통 팔레트(<code>docs/html/assets/style.css</code>의 CSS 변수)다. Tailwind 테마 토큰으로 1:1 이식하고, 라이트/다크는 CSS 변수 값 교체로 처리한다. <b>전환은 <code>&lt;html data-theme&gt;</code> 이 정한다</b>(2026-08-28 개정 — 사람 요청 §1.7a). 이전 판은 "<code>data-theme</code> 아님 — <code>prefers-color-scheme</code>"이었고 그때는 사람이 고를 수단이 없었다. 이제 <code>prefers-color-scheme</code> 는 <b>고른 값이 없을 때의 기본</b>으로 남는다.</p>
+  <p><b>상태 토큰 8종</b>의 원본은 제안서 HTML 공통 팔레트(<code>docs/html/assets/style.css</code>의 CSS 변수)다. Tailwind 테마 토큰으로 1:1 이식하고, 라이트/다크는 CSS 변수 값 교체로 처리한다. <b>전환은 <code>&lt;html data-theme&gt;</code> 이 정한다</b>(2026-08-28 개정 — 사람 요청 §1.7a). 이전 버전은 "<code>data-theme</code> 아님 — <code>prefers-color-scheme</code>"이었고 그때는 사람이 고를 수단이 없었다. 이제 <code>prefers-color-scheme</code> 는 <b>고른 값이 없을 때의 기본</b>으로 남는다.</p>
 
   <p>중립 램프(표면·텍스트·경계)는 이 이식에서 <b>제외한다</b> — 근거와 값은 §4.4에 있다(2026-08-23 개정). 제안서 사이트는 읽는 문서고 이 앱은 목록·표·편집기라, 같은 중립색이 두 곳에서 같게 읽히지 않는다.</p>
 
@@ -1774,7 +1775,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
     <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — S1~S8 와이어프레임·상태 표현 규칙·인터랙션 규약의 정본. 이 문서의 모든 화면 절이 § 단위로 인용</li>
     <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 37종(도메인 33 + 인프라 4) 필드·enum 값·ID 발급 규칙(§5.1)·<code>spec_comment</code> 앵커(§2.2)</li>
     <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 상태 축 3종·권한 매트릭스(§1.6)·초안 편집 리스(§1.2)·지시자≠승인자(§2.3)·이벤트 이름과 알림 카탈로그(§6.3)</li>
-    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구 카탈로그(§2.3)·하트비트 역채널(§2.4)·토큰 스코프(§6.1)</li>
+    <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구 카탈로그(§2.3)·하트비트 역채널(§2.4)·토큰 권한(§6.1)</li>
     <li><a href="roadmap.html">3.7 로드맵</a> — Phase 1 화면 범위(S1~S5·S7·S8)와 비범위(S6·CR 델타·커버리지 대시보드·Slack), FR-12 P1 인앱</li>
     <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — 이 문서가 번호로 인용한 FR-01~17 · NFR-01~05</li>
     <li><a href="architecture.html">3.2 시스템 아키텍처</a> — 웹앱·WebSocket·이벤트 흐름의 시스템 배경</li>

@@ -33,7 +33,7 @@ export class McpOriginGuard implements CanActivate {
 
   /**
    * 전역 가드로 등록하되 `/mcp` 에만 적용한다 — Origin 검증은 "누가"가 아니라 "어디서"의
-   * 문제라 **인증보다 먼저** 돌아야 하고(DNS 리바인딩 방어), 컨트롤러 스코프 가드는
+   * 문제라 **인증보다 먼저** 돌아야 하고(DNS 리바인딩 방어), 컨트롤러 권한 가드는
    * 전역 AuthGuard 뒤에 실행되어 그 순서를 만들 수 없다. 다른 경로에는 관여하지 않는다.
    */
   canActivate(context: ExecutionContext): boolean {

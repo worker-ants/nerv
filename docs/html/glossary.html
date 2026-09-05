@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>용어 사전 · NERV 제안서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="brand">
+    <div class="logo">N</div>
+    <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
+  </div>
+  <a href="index.html">개요 (Executive Summary)</a>
+  <a href="glossary.html" class="active">용어 사전</a>
+  <div class="nav-group">1부 · 현행 분석</div>
+  <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
+  <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
+  <div class="nav-group">2부 · 리서치</div>
+  <a href="spec-driven-development.html">2.1 Spec-Driven Development</a>
+  <a href="agent-orchestration.html">2.2 병렬 에이전트 오케스트레이션</a>
+  <a href="collab-platforms.html">2.3 협업 플랫폼의 에이전트 통합</a>
+  <a href="integration-tech.html">2.4 Claude Code/Codex 연동 기술</a>
+  <div class="nav-group">3부 · 플랫폼 제안</div>
+  <a href="vision.html">3.1 비전과 핵심 시나리오</a>
+  <a href="architecture.html">3.2 시스템 아키텍처</a>
+  <a href="data-model.html">3.3 데이터 모델</a>
+  <a href="agent-integration.html">3.4 에이전트 연동 설계</a>
+  <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a>
+  <a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a>
+  <a href="roadmap.html">3.7 로드맵</a>
+  <div class="nav-group">4부 · MVP 구체화</div>
+  <a href="scope.html">4.1 MVP 범위와 스택 확정</a>
+  <a href="codebase.html">4.2 코드베이스와 배포</a>
+  <a href="database.html">4.3 데이터베이스 스키마</a>
+  <a href="api.html">4.4 API 명세</a>
+  <a href="screens.html">4.5 화면 명세</a>
+  <a href="plugin.html">4.6 플러그인과 온보딩</a>
+  <a href="importer.html">4.7 스펙 임포터</a>
+  <a href="backlog.html">4.8 백로그</a>
+</nav>
+
+<div class="content">
+<div class="content-inner">
+<main>
+
+  <div class="crumb"><a href="index.html">NERV 제안서</a> / 용어 사전</div>
+
+  <header class="page-header">
+    <h1>용어 사전</h1>
+    <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>한국어 용어의 정본</b>이다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
+    <div class="meta-line">
+      <span>버전 v0.2 (2026-09-05)</span>
+      <span>원본: <code>docs/glossary.md</code></span>
+      <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <b>목차</b>
+    <ol>
+      <li><a href="#sec-0">이 문서의 자리</a></li>
+      <li><a href="#sec-1">결정 아홉 (2026-09-05)</a></li>
+      <li><a href="#sec-2">사전</a></li>
+      <li><a href="#sec-3">말투</a></li>
+      <li><a href="#sec-4">적용 규칙</a></li>
+    </ol>
+  </div>
+
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
+    <b class="title">이 문서가 생긴 이유 — 정본이 선언만 있고 실물이 없었다</b>
+    <p><a href="pain-points.html">1.2 pain-points</a> §4.1 이 "상태 어휘는 <b>용어 사전</b>을 그대로 따른다(재정의 금지)" 고 적어 두었는데 <b>그 문자열이 저장소 전체에서 그 한 줄뿐</b>이었다 — 가리키는 곳에 아무것도 없었다. 그래서 같은 것이 두 이름으로 자랐고(기준선/베이스라인), 한 이름이 세 가지를 가리켰고(스코프), 뜻이 서지 않는 직역이 남았다(안정 ID·리스). 이 문서가 그 자리다.</p>
+  </div></div>
+
+  <h2 id="sec-0">0. 이 문서의 자리</h2>
+
+  <h3>0.1 무엇의 정본인가</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>이 문서가 정하는 것</th><th>이 문서가 정하지 않는 것</th></tr></thead>
+    <tbody>
+      <tr><td>개념을 <b>한국어로 무엇이라 부를지</b></td><td>그 개념의 <b>정의와 규칙</b> — 각 주제의 정본 문서가 갖는다</td></tr>
+      <tr><td>옛 표현 → 채택어의 <b>치환 방향</b></td><td>상태값의 <b>목록</b> — <a href="pain-points.html">1.2 §4.1</a></td></tr>
+      <tr><td>화면·문서의 <b>말투</b></td><td>결정 번호 <code>D-01</code>~<code>D-14</code>, 요구사항 번호 <code>FR</code>/<code>NFR</code> — <a href="pain-points.html">1.2</a></td></tr>
+      <tr><td>코드 식별자를 <b>번역하지 않는다는 경계</b></td><td>API·DB 의 영문 식별자 자체 — <a href="database.html">4.3</a>·<a href="api.html">4.4</a></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>0.2 코드 식별자는 번역 대상이 아니다</h3>
+  <p><code>scope</code> · <code>baseline</code> · <code>lease_expires_at</code> · <code>spec_versions</code> · <code>AGENT_SCOPES</code> 는 <b>API·DB 계약</b>이다. 이 사전이 움직이는 것은 <b>사람과 에이전트가 읽는 한국어</b>뿐이고, 식별자는 그대로 둔다. 그래서 아래 치환표의 어느 행도 마이그레이션을 요구하지 않는다.</p>
+
+  <h3>0.3 우선순위</h3>
+  <p>사람과 에이전트가 <b>읽는 곳이 먼저</b>다 — 화면 문구(<code>packages/schema/src/i18n/ko.ts</code>) · 제품 매뉴얼 · 플러그인 스킬. 명세 md 와 html 파생본은 그 뒤에 따라온다. 스킬은 문서가 아니라 <b>모델이 읽는 규약</b>이라 화면과 같은 무게로 다룬다(<code>AGENTS.md</code> 구현 규약 6).</p>
+
+  <h2 id="sec-1">1. 결정 아홉 (2026-09-05)</h2>
+
+  <h3>1.1 치환표</h3>
+  <p>파급은 실측이다. 구역은 겹치지 않게 나눴고, 다른 말에 박히는 낱말(<code>릴리스</code>·<code>리스트</code>·<code>판단</code>)은 앞뒤를 배제해 셌으며, 생성물(<code>.tsbuild</code>·<code>dist</code>·<code>node_modules</code>)은 세지 않았다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>옛 표현 → 채택어</th><th>화면</th><th>매뉴얼</th><th>스킬</th><th>코드</th><th>명세</th><th>html</th><th>합계</th></tr></thead>
+    <tbody>
+      <tr><td>베이스라인 → <b>기준선</b></td><td>8</td><td>1</td><td>2</td><td>41</td><td>65</td><td>48</td><td>165</td></tr>
+      <tr><td>워크플로 → <b>워크플로우</b></td><td>0</td><td>0</td><td>0</td><td>2</td><td>68</td><td>65</td><td>135</td></tr>
+      <tr><td>스코프 → <b>권한 · 소속 · 작업 범위</b></td><td>11</td><td>10</td><td>3</td><td>154</td><td>206</td><td>167</td><td>551</td></tr>
+      <tr><td>판 → <b>버전</b>(279) · <b>파생본</b>(10)</td><td>13</td><td>29</td><td>5</td><td>111</td><td>86</td><td>45</td><td>289</td></tr>
+      <tr><td>안정 ID · 안정 키 → <b>번호</b>(화면) · <b>고정 ID</b>(그 밖)</td><td>6</td><td>0</td><td>2</td><td>42</td><td>80</td><td>68</td><td>198</td></tr>
+      <tr><td>리스 → <b>남은 시간 · 점유 시간</b> (사람이 읽는 곳만)</td><td>3</td><td>15</td><td>—</td><td>—</td><td>—</td><td>—</td><td>18</td></tr>
+      <tr><td>클레임 → <b>맡음</b> (보드 칸 이름만)</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
+      <tr><td>핀하다 → <b>묶다</b></td><td>1</td><td>0</td><td>0</td><td>3</td><td>6</td><td>5</td><td>15</td></tr>
+      <tr><td><b>합계</b></td><td><b>43</b></td><td><b>55</b></td><td><b>12</b></td><td><b>353</b></td><td><b>511</b></td><td><b>398</b></td><td><b>1,372</b></td></tr>
+    </tbody>
+  </table></div>
+  <p>사람과 에이전트가 읽는 자리는 <b>110곳</b>(화면 43 · 매뉴얼 55 · 스킬 12)이고, 나머지 1,262곳은 코드 주석과 명세·파생본이다.</p>
+  <p><b>이 표는 실제로 옮긴 수다</b>(2026-09-05 반영 완료 — v0.2). 옛 표현은 이 문서의 인용과 <a href="index.html">README</a>·<code>AGENTS.md</code> 의 변경 기록 넷 말고는 저장소에 남아 있지 않다.</p>
+
+  <h3>1.2 부분 채택 셋 — 어디까지인지 못 박는다</h3>
+  <ul>
+    <li><b>리스</b>는 사람이 읽는 20곳만 푼다. 명세·코드 주석·스킬은 <code>lease_expires_at</code> 과 짝을 맞춰 <b>리스를 개념어로 남긴다</b> — 대신 §2.3 이 그 뜻을 한 줄로 정의하는 것이 조건이다.</li>
+    <li><b>클레임</b>은 낱말을 그대로 둔다. 바꾸는 것은 보드 칸 이름 <code>status.task.claimed</code> <b>한 칸</b>이다(§2.3).</li>
+    <li><b>판 → 버전</b>은 <b>버전 뜻에만</b> 적용한다. 판본 뜻은 별도 표제어이고 이번에 <b>HTML 판 → HTML 파생본</b>으로 옮겼다(§2.2).</li>
+  </ul>
+
+  <h3>1.3 이미 끝난 개명</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>옛 이름</th><th>채택어</th><th>결정일</th><th>남은 자리</th></tr></thead>
+    <tbody><tr><td>승인함</td><td><b>받은 요청</b></td><td>2026-08-27 (README v1.45)</td><td>화면·매뉴얼·스킬 0건 · 명세 15곳</td></tr></tbody>
+  </table></div>
+
+  <h2 id="sec-2">2. 사전</h2>
+  <p>한 줄 뜻은 <b>이 저장소 안에서의 쓰임</b>이다. <code>코드</code> 열은 데이터베이스·API 식별자로 번역하지 않는다.</p>
+
+  <h3>2.1 조직 · 사람 · 권한</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>한국어</th><th>영문</th><th>코드</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><b>조직</b></td><td>organization</td><td><code>organizations</code></td><td>테넌트의 가장 바깥 칸. 사람·프로젝트·결제가 여기에 매인다</td></tr>
+      <tr><td><b>프로젝트</b></td><td>project</td><td><code>projects</code></td><td>스펙·작업·리뷰가 사는 단위. 주소의 <code>slug</code> 가 이것을 가리킨다</td></tr>
+      <tr><td><b>역할</b></td><td>role</td><td><code>member_role</code></td><td>사람이 조직·프로젝트에서 무엇을 할 수 있는지 정하는 여섯 값 — <code>admin</code>·<code>planner</code>·<code>designer</code>·<code>developer</code>·<code>qa</code>·<code>viewer</code></td></tr>
+      <tr><td><b>소속</b> ← 스코프</td><td>membership scope</td><td><code>memberships.project_id</code></td><td>멤버가 <b>조직 전체</b>인지 <b>특정 프로젝트</b>인지 — 사람이 어디까지 보이는가</td></tr>
+      <tr><td><b>권한</b> ← 스코프</td><td>scope</td><td><code>AGENT_SCOPES</code>·<code>HUMAN_ONLY_SCOPES</code></td><td>토큰이 할 수 있는 일. <code>resource:action</code> 표기로 10종이고, 그 위에 토큰이 가질 수 없는 <b>사람 전용 권한</b> 둘(<code>spec:approve</code>·<code>approval:decide</code>)이 있다</td></tr>
+      <tr><td><b>토큰</b></td><td>personal access token</td><td><code>agent_tokens</code></td><td>에이전트가 사람을 대신해 들고 다니는 열쇠. 발급 직후 한 번만 원문이 보이고, 역할보다 넓어질 수 없다. 약어 <code>PAT</code> 는 명세에서만 쓰고 화면에는 내지 않는다</td></tr>
+      <tr><td><b>초대</b></td><td>invitation</td><td><code>invitations</code></td><td>이메일·역할·소속을 정해 만든 링크. 받는 사람이 로그인하면 자동으로 수락된다</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>스코프 세 갈래를 나눈 이유.</b> 한 낱말이 같은 설정 화면의 두 탭에서 서로 다른 것을 가리키고 있었다 — 토큰 탭의 "스코프" 는 권한, 멤버 탭의 "스코프" 는 소속이었고, 오류 문구 "이미 같은 스코프의 멤버입니다" 는 그 문장만 보고 어느 쪽인지 알 수 없었다. 세 번째 뜻(클레임의 범위)은 <b>화면이 이미 "범위" 로 갈아탄 뒤</b>였다(<code>event.claim.conflict_warn</code> = "범위 겹침 경고") — 채택어 "작업 범위" 는 새 말이 아니라 그 갈라짐을 사전이 따라잡는 것이다.</p>
+
+  <h3>2.2 스펙</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>한국어</th><th>영문</th><th>코드</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><b>스펙</b></td><td>spec</td><td><code>specs</code></td><td>단일 진실로 관리되는 문서 한 편. 화면 내비게이션의 이름이기도 하다</td></tr>
+      <tr><td><b>버전</b> ← 판</td><td>version</td><td><code>spec_versions</code></td><td>스펙의 한 시점. 초안 → 검토 중 → 승인됨 → 대체됨·폐기됨의 다섯 상태를 갖는다. 승인된 버전은 고칠 수 없고, 고치려면 <b>다음 버전</b>을 시작한다</td></tr>
+      <tr><td><b>판</b></td><td>edition · pass</td><td>—</td><td>두 가지로 남는다 — ① <b>판본</b>: 같은 내용을 다른 형태로 낸 것("전체 화면 판"·"markdown 판"). ② <b>회차</b>: 한 번 도는 것("임베딩 한 판" — <code>NERV_EMBED_PASS_MS</code>). 둘 다 <b>버전과 다른 말</b>이다 — 아래 참고</td></tr>
+      <tr><td><b>요구사항</b></td><td>requirement</td><td><code>requirements</code></td><td>스펙 안의 검증 가능한 한 줄. EARS 문형을 쓰고 <code>REQ-…</code> 번호를 갖는다</td></tr>
+      <tr><td><b>기준선</b> ← 베이스라인</td><td>baseline</td><td><code>baselines</code></td><td>문서를 어느 버전으로 읽을지 정해 둔, 이름 붙은 묶음. 고르지 않으면 각 문서를 최신 승인본으로 읽는다</td></tr>
+      <tr><td><b>워크플로우</b> ← 워크플로</td><td>workflow</td><td><code>spec_version_status</code></td><td>버전이 상태를 옮겨 가는 규칙과, 그 사이에 놓인 승인 게이트</td></tr>
+      <tr><td><b>변경 요청</b></td><td>change request</td><td><code>change_requests</code></td><td>승인된 문서를 고치자는 제안. 위험도(<code>low</code>·<code>normal</code>·<code>high</code>)와 출처(사람·에이전트·스펙 드리프트)를 단다</td></tr>
+      <tr><td><b>고정 ID</b> ← 안정 ID·안정 키</td><td>stable id · stable key</td><td><code>stable_key</code></td><td>문서를 옮기거나 이름을 바꿔도 변하지 않는 값 — <code>SPC-…</code>·<code>REQ-…</code>·<code>TSK-…</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout note"><span class="ico">📐</span><div class="body">
+    <b class="title">"판" 과 "버전" 을 가른 이유</b>
+    <p>전수 323곳 중 <b>34곳이 버전이 아니었다</b> — 판본 뜻 아홉과 <b>회차 뜻 스물다섯</b>이다. 회차 뜻은 반영하면서야 드러났다(<code>임베딩 한 판의 시간 상한</code>) — 기계적으로 밀었다면 "임베딩 한 버전의 시간 상한" 이 됐을 것이다. 판본 뜻의 가장 분명한 증거는 모든 문서의 머리글이다 — <code>&gt; 문서 버전 v0.3 · 2026-09-05 · HTML 판: [...]</code> 은 <b>한 줄 안에 둘이 함께 있고 서로 다른 것을 가리킨다</b>. 일괄 치환하면 "문서 버전 … HTML 버전:" 이 되어 뒤엣것이 무엇인지 알 수 없어진다. 그래서 버전 뜻 <b>279곳</b>만 옮기고, <code>HTML 판</code>·<code>html 판</code> <b>40곳</b>은 <b>"HTML 파생본"</b> 으로 바꿨다 — 이 저장소가 이미 md 를 원본, html 을 파생본이라 부르기 때문이다.</p>
+  </div></div>
+  <p><b>"고정 ID" 와 화면의 "번호".</b> "안정" 은 한국어에서 <i>흔들리지 않는 상태</i>를 뜻해, 실제 뜻인 "옮겨도 변하지 않는 값" 이 이름에서 오지 않았다. 문서가 그 뜻을 <b>매번 다시 설명하던 것</b>이 증거다(<code>database.md</code>: "안정 ID. 이동·개명해도 참조 불변"). <b>화면에서는 "번호" 로 충분하다</b> — 사람은 <code>SPC-…</code> 를 이미 번호로 읽는다. "고정 ID" 는 스펙·요구사항·작업을 아울러야 하는 <b>명세의 개념어</b>다.</p>
+
+  <h3>2.3 작업</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>한국어</th><th>영문</th><th>코드</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><b>작업</b></td><td>task</td><td><code>tasks</code></td><td>사람이나 에이전트가 실제로 수행하는 단위. <code>TSK-…</code> 번호를 갖는다</td></tr>
+      <tr><td><b>클레임</b></td><td>claim</td><td><code>claims</code></td><td>한 세션이 작업을 <b>쥐는 것</b>. 원자적이라 둘이 동시에 같은 작업을 쥘 수 없다(<code>D-04</code>)</td></tr>
+      <tr><td><b>맡음</b> ← 클레임</td><td>claimed</td><td><code>task_status</code></td><td>보드에서 <b>클레임된 상태</b>를 가리키는 칸 이름 — 아래 참고</td></tr>
+      <tr><td><b>리스</b></td><td>lease</td><td><code>lease_expires_at</code></td><td>클레임이 <b>살아 있는 시간</b>. 기본 30분이고, 하트비트로 갱신하지 않으면 만료돼 작업이 풀린다</td></tr>
+      <tr><td><b>남은 시간 · 점유 시간</b> ← 리스</td><td>lease</td><td>—</td><td>사람이 읽는 자리에서 "리스" 대신 쓰는 말. 배지는 "남은 시간 {remaining}", 오류는 "점유 시간이 지났거나…"</td></tr>
+      <tr><td><b>작업 범위</b> ← 스코프</td><td>claim scope</td><td><code>claims.spec_ids</code>·<code>file_globs</code></td><td>클레임이 선언하는 <b>건드릴 스펙과 파일</b>. 겹침 판정의 입력이다</td></tr>
+      <tr><td><b>하트비트</b></td><td>heartbeat</td><td><code>heartbeat_at</code></td><td>세션이 살아 있음을 알리는 주기 신호. 끊기면 무응답으로 넘어가고 클레임이 회수된다</td></tr>
+      <tr><td><b>지문</b></td><td>content hash</td><td><code>content_hash</code></td><td>읽은 내용이 그 사이에 바뀌지 않았음을 확인하는 값. <b>리스가 시간을 지키고 지문이 내용을 지킨다</b></td></tr>
+      <tr><td><b>증적</b></td><td>evidence</td><td><code>evidence_kind</code></td><td>작업이 실제로 끝났음을 가리키는 자료 — 코드 경로·테스트·PR·커밋·리뷰·사용 안내의 여섯 종</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>"클레임" 은 두고 칸 이름만 바꾼 이유.</b> 낱말은 매뉴얼이 뜻을 풀어 주고(<i>"작업을 쥐는 것을 클레임이라고 합니다"</i>) 도구 이름(<code>nerv_task_claim</code>)·상태값·이벤트에 박혀 있어 그대로 둔다. 다만 보드 칸 이름은 이웃 여섯이 모두 상태인데(백로그·준비됨·진행 중·검토 중·완료·막힘) 그 한 칸만 명사였고, 영문은 이미 <code>Claimed</code> 로 상태다.</p>
+  <p><b>"지문" 은 직역이 아니라 고른 은유다.</b> "해시" 와 섞여 쓰이지만 가리키는 층이 다르다 — <b>개념은 지문, 구현은 해시</b>.</p>
+
+  <h3>2.4 리뷰 · 게이트</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>한국어</th><th>영문</th><th>코드</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><b>리뷰</b></td><td>review</td><td><code>reviews</code></td><td>코드·정합성·스펙 커버리지·머지 네 종의 검토. 사람이 아니라 <b>플랫폼의 개체</b>다(<code>D-07</code>)</td></tr>
+      <tr><td><b>발견</b></td><td>finding</td><td><code>findings</code></td><td>리뷰가 집어낸 항목 하나. 심각도 셋(<code>critical</code>·<code>warning</code>·<code>info</code>)과 상태 넷(열림·수정됨·기각·유예)을 갖는다</td></tr>
+      <tr><td><b>처분</b></td><td>resolution</td><td><code>resolution_kind</code></td><td>발견을 어떻게 닫았는지 — 수정·기각·유예·에스컬레이션. 근거를 반드시 적는다</td></tr>
+      <tr><td><b>게이트</b></td><td>gate</td><td><code>gate_policies</code></td><td>사람의 승인이 있어야 지날 수 있는 지점. 위험 신호가 쌓이면 티어가 오른다</td></tr>
+      <tr><td><b>에스컬레이션</b></td><td>escalate</td><td><code>escalate_reason</code></td><td>에이전트가 스스로 판단하지 않고 사람에게 올리는 것. 사유 다섯 중 하나를 단다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.5 승인 · 소통</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>한국어</th><th>영문</th><th>코드</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><b>받은 요청</b> ← 승인함</td><td>inbox</td><td><code>approvals</code></td><td>내 결정을 기다리는 것들이 모이는 곳. <b>알림과 다르다</b> — 알림은 이미 일어난 일이다</td></tr>
+      <tr><td><b>승인</b></td><td>approval</td><td><code>approval_decision</code></td><td>사람만 내릴 수 있는 결정 — 승인·반려·코멘트. 토큰에 위임되지 않는다(<code>D-08</code>)</td></tr>
+      <tr><td><b>질문</b></td><td>question</td><td><code>questions</code></td><td>에이전트가 막혔을 때 사람에게 묻는 것. 사람이 답하거나, <b>만든 세션이 스스로 취소</b>할 수 있다</td></tr>
+      <tr><td><b>알림</b></td><td>notification</td><td><code>notifications</code></td><td>이미 일어난 일을 알리는 것. 즉시와 모아 보기 두 등급이 있다</td></tr>
+      <tr><td><b>세션</b></td><td>agent session</td><td><code>agent_sessions</code></td><td>에이전트가 일하는 한 번의 회차. 대기·활동 중·응답 대기·무응답·종료·오류의 여섯 상태. 사람의 로그인 세션과 이름이 겹치므로 <b>명세에서는 "에이전트 세션" 으로 늘여 쓴다</b></td></tr>
+      <tr><td><b>활동</b></td><td>activity</td><td><code>activities</code></td><td>프로젝트에서 벌어진 일의 시간순 기록. 감사 로그이자 사람이 읽는 피드다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-3">3. 말투</h2>
+
+  <h3>3.1 규칙</h3>
+  <p><b>읽는 쪽이 정한다.</b></p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>읽는 쪽</th><th>말투</th><th>키</th></tr></thead>
+    <tbody>
+      <tr><td>사람이 보는 화면</td><td><b>합쇼체</b> (<code>…합니다</code>)</td><td>아래 둘을 뺀 전부</td></tr>
+      <tr><td>에이전트·CLI 가 받는 것</td><td><b>해라체</b> (<code>…한다</code>)</td><td><code>mcp.*</code> · <code>agent.*</code> · <code>cli.*</code> · <code>import.*</code></td></tr>
+      <tr><td>생성 문서</td><td><b>해라체</b></td><td><code>export.*</code> (예: <code>llms.txt</code>)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.2 왜 규칙이 필요했나</h3>
+  <p>규정이 저장소 어디에도 없었다 — <code>docs/</code>·매뉴얼·<code>AGENTS.md</code>·카탈로그 머리 주석 모두. 카탈로그는 규칙 셋(키 짓기·자리표시자·식별자 비번역)을 적어 두었는데 <b>말투만 빠져 있었고</b>, 그래서 설명·근거를 적는 문장이 문서의 말투를 그대로 끌고 들어왔다. 자국은 <b>화면 아홉</b>이었고, 의도가 아니라는 근거는 넷이다.</p>
+  <ol>
+    <li><b>같은 슬롯의 다수가 반대편이다.</b> 흐린 주석 자리(faint·mute·hint·title)의 한국어 153건 중 합쇼체 67 · 해라체 8. 주석의 말투였다면 이 비가 나오지 않는다.</li>
+    <li><b>같은 컴포넌트 안에서 갈렸다.</b> <code>resolve-dialog.tsx</code> 의 <code>Field hint</code> 셋 중 둘만 해라체였고, <code>ko.ts</code> 의 <b>나란한 두 줄</b>이 <code>'요구사항은 그대로다'</code> / <code>'본문이 같습니다.'</code> 였다(같은 diff 뷰의 같은 자리).</li>
+    <li><b>영문과 상관관계가 없다.</b> 해라체 여덟 중 여섯의 영문이 이웃과 같은 문장형(대문자+마침표)이었고, 반대로 합쇼체인 <code>reviews.resolve.spec_hint</code> 의 영문은 소문자·마침표 없음이었다. 두 언어가 함께 지키는 규칙이 아니었다.</li>
+    <li><b>도입 커밋이 스스로 섞였다.</b> 카탈로그를 만든 커밋(<code>06ec9fca</code> — i18n 전면 적용)이 그 한 커밋에서 <b>합쇼체 176 · 해라체 7</b> 을 함께 넣었다. 규칙이었다면 그 커밋이 지켰다.</li>
+  </ol>
+
+  <h3>3.3 고치지 않은 셋</h3>
+  <p><code>import.requirement_not_found</code> · <code>import.task_not_found</code> 는 <b>웹이 그리지 않는다</b> — <code>apps/cli/src/run.ts</code> 가 <code>item.detail ?? t('cli.reason.load_failed')</code> 로 소비하므로 <code>cli.reason.*</code> 열아홉과 같은 자리다. <code>export.index_lead</code> 는 <code>llms.txt</code> 에 쓰이는 문서 본문이다. 셋 다 §3.1 의 규칙대로 해라체가 맞다.</p>
+
+  <h2 id="sec-4">4. 적용 규칙</h2>
+
+  <h3>4.1 일괄 치환이 안 되는 넷</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>낱말</th><th>박혀 있는 곳</th><th>거르는 법</th></tr></thead>
+    <tbody>
+      <tr><td>리스</td><td>릴<b>리스</b> · <b>리스</b>트 · 휴<b>리스</b>틱</td><td>앞의 <code>릴</code>·<code>휴</code>, 뒤의 <code>트</code>·<code>틱</code> 을 배제한다. 배제 전 950건 → 후 796건</td></tr>
+      <tr><td>워크플로</td><td><b>워크플로</b>우 의 앞부분</td><td>뒤에 <code>우</code> 가 오지 않는 것만 고른다</td></tr>
+      <tr><td>판</td><td><b>판</b>단 · <b>판</b>정 · <b>판</b>별 · 재<b>판</b> · 출<b>판</b></td><td>앞뒤가 한글이 아니거나 조사가 붙은 것만 고른다. 그러고도 판본 뜻이 남으므로 §2.2 를 함께 본다</td></tr>
+      <tr><td>클레임</td><td>—</td><td>바꾸는 것은 <code>status.task.claimed</code> <b>한 칸</b>이다. 나머지 944곳은 그대로 둔다</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>조사가 함께 바뀐다.</b> <code>스코프</code>는 모음으로 끝나고 <code>권한</code>·<code>소속</code>은 자음으로 끝난다 — <code>스코프를</code>→<code>권한을</code> · <code>스코프는</code>→<code>권한은</code> · <code>스코프가</code>→<code>권한이</code> · <code>스코프와</code>→<code>권한과</code> · <code>스코프로</code>→<code>권한으로</code>. 낱말만 바꾸면 <code>소속를</code> 같은 것이 남는다. <code>판</code>→<code>버전</code>, <code>베이스라인</code>→<code>기준선</code> 은 둘 다 자음으로 끝나 조사가 그대로다.</p>
+  <p><b>문서 자신의 변경 기록을 조심한다.</b> 옛 표현을 <i>인용하는</i> 문장이 있다 — "기준선/베이스라인 165곳", "판 → 버전", "한 이름이 세 가지를 가리켰다(스코프)". 일괄 치환은 그것도 바꾸어 <b>기록이 자기가 무엇을 고쳤는지 말하지 못하게</b> 만든다. 이 사전과 <a href="index.html">README</a>·<code>AGENTS.md</code> 의 해당 줄은 치환에서 뺀다.</p>
+  <p>측정에서 <b>생성물은 뺀다</b> — <code>.tsbuild</code>·<code>dist</code>·<code>node_modules</code>. 넣고 세면 몇 건씩 부푼다.</p>
+
+  <h3>4.2 규약이 요구하는 동반 변경</h3>
+  <ol>
+    <li><b>md 와 html 은 같은 커밋에서</b>(<a href="index.html">README</a> 관리 규약 1). 파생본 400곳이 뒤처지면 그 자체가 결함이다.</li>
+    <li><b>매뉴얼은 ko·en 두 벌</b>(<code>AGENTS.md</code> 구현 규약 5). 영문은 일관되므로 대개 손댈 것이 없지만, <b>장 제목이 바뀌면 카탈로그의 <code>help.ch.*</code></b> 도 함께 간다 — <code>manual.spec.ts</code> 가 본다.</li>
+    <li><b>스킬을 건드리면 버전을 올린다</b>(<code>AGENTS.md</code> 구현 규약 6 · <code>REQ-PLG-017</code>). <code>plugin.json</code> 의 <code>version</code>, 카탈로그 둘, <code>plugin/README.md</code>, 매뉴얼 ko·en 이 한 묶음이다. <b>같은 버전이면 이미 설치한 쪽은 옛 사본을 계속 읽는다.</b></li>
+    <li><b><code>SKILL.md</code> 와 <a href="plugin.html">4.6 플러그인</a>은 바이트 대조된다</b> — 한쪽만 고치면 <code>plugin-package.spec.ts</code> 가 막는다.</li>
+    <li><b>표제어를 더하거나 채택어를 바꾸면</b> 이 문서의 버전과 <a href="index.html">README</a> 의 문서 버전을 올린다(관리 규약 4).</li>
+  </ol>
+
+  <h2 id="sec-ref">참고 자료</h2>
+  <ul>
+    <li><a href="pain-points.html">1.2 문제 정의와 요구사항</a> — 상태값 목록·결정 번호·FR/NFR 의 정본. 이 사전은 그 값들을 <b>무엇이라 부를지</b>만 정한다</li>
+    <li><a href="screens.html">4.5 화면 명세</a> — 화면 문구의 배치와 수용 기준. 문구 자체의 원본은 <code>packages/schema/src/i18n/ko.ts</code> 다</li>
+    <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — 스킬 전문. 스킬은 문서가 아니라 모델이 읽는 규약이라 화면과 같은 무게로 다룬다</li>
+  </ul>
+
+  <footer class="page-footer">
+    <span>← <a href="index.html">이전: 개요</a></span>
+    <span><a href="index.html">목차</a></span>
+    <span><a href="clemvion-analysis.html">다음: 1.1 clemvion 하네스 분석</a> →</span>
+  </footer>
+
+</main>
+</div>
+</div>
+
+</div>
+</body>
+</html>

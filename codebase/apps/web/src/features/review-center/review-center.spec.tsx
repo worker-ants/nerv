@@ -309,7 +309,7 @@ describe('S6 게이트 현황 — 면제가 조용히 일어나지 않는다 (RE
 
   it('막지는 않는다고 화면이 말한다 — 표시와 집행을 섞지 않는다', async () => {
     await renderCenter();
-    expect(screen.getByText(/아직 막지는 않는다/)).toBeDefined();
+    expect(screen.getByText(/아직 막지는 않습니다/)).toBeDefined();
   });
 
   it('잘랐으면 잘랐다고 말한다 — clemvion 실측 441 브랜치 (REQ-WEB-067)', async () => {

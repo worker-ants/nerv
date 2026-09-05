@@ -7,13 +7,15 @@ updated: 2026-08-22
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**33종** — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.29 · 2026-09-05 · HTML 판: [database.html](../html/database.html)
+> 문서 버전 v0.30 · 2026-09-05 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.30 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
 > v0.29 변경(2026-09-05 — 인계와 포기가 같은 값이 됐다, 정합성 감사 → 사람 결정): `claim_release_reason` 에 **`handoff`·`abandon`** 을 더한다(`0019_release_reason_handoff`). 셋은 부른 쪽이 **고른** 이유이고 `expired`·`conflict` 는 서버가 **판정한** 이유다 — 축이 다르므로 같은 열에 두되 이름으로 드러나게 한다. **`manual` 은 걷지 않고 소급 변환도 하지 않는다**: 옛 행이 그때 무엇을 골랐는지 서버는 모르고, 모르는 것을 채우면 그 행은 사실이 아니게 된다(4.4 v0.87 · REQ-API-107).
-> v0.28 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 판의 `REQ-DB-010` 이 **겸직을 금지로 읽히게** 적고 있었다(2026-08-23 개정 이전 판) — 같은 파일의 인덱스 주석이 "유일성의 축에 역할이 들어간다" 고 적고 있어 **문서가 자기와 모순**됐다. DDL 전문에서 `claim.release_note`·`progress_note`·`agent_session.diff_files`·`activity_summary` 네 열과 §2.12 인덱스 **일곱 개**(안정 키 유일성·멱등 키 경합 판정자 포함)가 빠져 있었다 — DDL 은 축약 대상이 아니라 전문 인용이라 빠진 만큼이 그대로 사실 손실이다.
-> v0.27 변경(2026-09-05 — 이 문서를 그대로 실행하면 고친 결함이 되살아났다, 정합성 감사): 이 문서는 머리에서 "SQL 을 그대로 실행하면 스키마가 선다" 를 목표로 적는데 두 자리가 그것을 배신하고 있었다. ① §2.7 의 `resolution_spec_change_cr_ck` 가 **완화 이전 판**이었다 — v0.15(2026-08-30)가 "CR 또는 스펙 버전 둘 중 하나면 통과한다" 고 선언해 놓고 본문 DDL 을 고치지 않았다. 이 문서로 스키마를 세우면 **`spec_change` 처분이 다시 닿을 수 없는 값이 된다.** ② §4 개발 씨앗이 `spec:write`·`review:write`·`session:write` 를 심고 있었다 — **셋 다 어휘에 없다**(`0018_prune_dead_scopes` 가 걷어낸 값이고, v0.24 가 그것을 결함으로 이미 지목했다). 0018 은 심긴 행을 청소할 뿐이라 이 씨앗을 다시 쓰면 그대로 재발한다. §2.9 의 열 주석도 같은 값을 예시로 들고 있었다. 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES` 다.
-> v0.25 변경(2026-09-04 — 번호 하나가 둘이었다): **`REQ-DB-008` 이 서로 다른 두 요구사항에 붙어 있었다** — 베이스라인 불변과 `evidence` 앵커 CHECK. 규약 5 는 번호의 재사용을 금지한다. 인용 관계로 갈랐다: 베이스라인 쪽은 DDL 주석·[4.4](api.md) REQ-API-015·`packages/schema/src/tables/spec.ts` **세 곳에서 인용**되고 있어 008 을 유지하고, 인용이 0건인 `evidence` 쪽에 끝번호 **REQ-DB-022** 를 준다. **`REQ-DB-020` 은 배정된 적이 없다**(2026-09-04 이력 확인): `f9a35d8` 이 그 시점 끝번호 019 다음에 021 을 부여하면서 건너뛴 것이고, 저장소 어디에도 그 번호를 쓴 흔적이 없다 — 예약도 폐기도 아니다. 그래도 채우지 않는다. 규약이 "끝번호에 추가" 라고 적고, 지금 메우면 번호가 시간 순서를 잃는다.
-> v0.24 변경(2026-09-04 — 토큰에 남아 있던 죽은 스코프): `0018_prune_dead_scopes` 는 열을 더하지 않고 **값을 걷는다.** 개발 씨앗이 `spec:write`·`review:write`·`session:write` 를 심고 있었고 셋 다 어휘에 없어 `verifyPat` 이 사용 시점에 조용히 버렸다 — 권한은 새지 않았지만 설정 화면의 토큰 표가 그 값을 그대로 보여줘 **사람은 그 토큰이 쓰기 권한을 가졌다고 읽었다.** 발급 경로는 이미 `isAgentScope` 로 거르므로 남은 것은 과거의 잔재다. 지우는 것은 값이 아니라 설명이다(4.4 v0.64 REQ-API-085).
+> v0.28 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 파생본의 `REQ-DB-010` 이 **겸직을 금지로 읽히게** 적고 있었다(2026-08-23 개정 이전 버전) — 같은 파일의 인덱스 주석이 "유일성의 축에 역할이 들어간다" 고 적고 있어 **문서가 자기와 모순**됐다. DDL 전문에서 `claim.release_note`·`progress_note`·`agent_session.diff_files`·`activity_summary` 네 열과 §2.12 인덱스 **일곱 개**(고정 ID 유일성·멱등 키 경합 판정자 포함)가 빠져 있었다 — DDL 은 축약 대상이 아니라 전문 인용이라 빠진 만큼이 그대로 사실 손실이다.
+> v0.27 변경(2026-09-05 — 이 문서를 그대로 실행하면 고친 결함이 되살아났다, 정합성 감사): 이 문서는 머리에서 "SQL 을 그대로 실행하면 스키마가 선다" 를 목표로 적는데 두 자리가 그것을 배신하고 있었다. ① §2.7 의 `resolution_spec_change_cr_ck` 가 **완화 이전 버전**이었다 — v0.15(2026-08-30)가 "CR 또는 스펙 버전 둘 중 하나면 통과한다" 고 선언해 놓고 본문 DDL 을 고치지 않았다. 이 문서로 스키마를 세우면 **`spec_change` 처분이 다시 닿을 수 없는 값이 된다.** ② §4 개발 씨앗이 `spec:write`·`review:write`·`session:write` 를 심고 있었다 — **셋 다 어휘에 없다**(`0018_prune_dead_scopes` 가 걷어낸 값이고, v0.24 가 그것을 결함으로 이미 지목했다). 0018 은 심긴 행을 청소할 뿐이라 이 씨앗을 다시 쓰면 그대로 재발한다. §2.9 의 열 주석도 같은 값을 예시로 들고 있었다. 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES` 다.
+> v0.25 변경(2026-09-04 — 번호 하나가 둘이었다): **`REQ-DB-008` 이 서로 다른 두 요구사항에 붙어 있었다** — 기준선 불변과 `evidence` 앵커 CHECK. 규약 5 는 번호의 재사용을 금지한다. 인용 관계로 갈랐다: 기준선 쪽은 DDL 주석·[4.4](api.md) REQ-API-015·`packages/schema/src/tables/spec.ts` **세 곳에서 인용**되고 있어 008 을 유지하고, 인용이 0건인 `evidence` 쪽에 끝번호 **REQ-DB-022** 를 준다. **`REQ-DB-020` 은 배정된 적이 없다**(2026-09-04 이력 확인): `f9a35d8` 이 그 시점 끝번호 019 다음에 021 을 부여하면서 건너뛴 것이고, 저장소 어디에도 그 번호를 쓴 흔적이 없다 — 예약도 폐기도 아니다. 그래도 채우지 않는다. 규약이 "끝번호에 추가" 라고 적고, 지금 메우면 번호가 시간 순서를 잃는다.
+> v0.24 변경(2026-09-04 — 토큰에 남아 있던 죽은 권한): `0018_prune_dead_scopes` 는 열을 더하지 않고 **값을 걷는다.** 개발 씨앗이 `spec:write`·`review:write`·`session:write` 를 심고 있었고 셋 다 어휘에 없어 `verifyPat` 이 사용 시점에 조용히 버렸다 — 권한은 새지 않았지만 설정 화면의 토큰 표가 그 값을 그대로 보여줘 **사람은 그 토큰이 쓰기 권한을 가졌다고 읽었다.** 발급 경로는 이미 `isAgentScope` 로 거르므로 남은 것은 과거의 잔재다. 지우는 것은 값이 아니라 설명이다(4.4 v0.64 REQ-API-085).
 > v0.23 변경(2026-09-03 — 받는 척하던 인자에 자리를 준다): 열 셋을 더한다(`0017_handoff_note`). `claim.release_note` 는 `nerv_task_release(state_note)` 의 인수인계 노트다 — **세션 타임라인이 아니라 클레임에** 붙는 이유는 다음 사람이 `nerv_task_next` 로 후보를 볼 때 거기서 읽어야 하기 때문이다. `claim.progress_note` 는 하트비트의 한 줄 요약(LWW — 이력이 아니라 '지금 무엇을 하는 중인가'). `agent_session.diff_files` 는 `stats` 의 셋째 값이다 — 줄 수만으로는 '한 파일을 크게' 와 '여러 파일을 조금' 이 같아 보인다. 계약 정본은 [4.4](api.md) §1.4e(REQ-API-081).
 > v0.22 변경(2026-09-02 — 사람 결정): §2.14 의 미구현(12개월 `DETACH`)에 **재검토 트리거를 숫자로** 적었다 — 파티션 24개 또는 `event` 1천만 행. "급하지 않다"는 판단은 있었는데 언제 다시 볼지가 없었고, 트리거 없는 유예는 유예가 아니라 망각이다. `0016` 은 걷어낸 정책 키를 저장된 값에서 지운다.
 > v0.21 변경(2026-09-02 — 계약의 실물화): **`idempotency_key` 신설**(0015 · §2.3b · 도메인 33종). [4.4](api.md) §1.5 가 "같은 저장소" 라고 적어 둔 그 저장소가 없었다 — 헤더도 도구 인자도 받기만 하고 버려졌고, 같은 클레임이 두 번 만들어졌다. 행에 `project_id` 가 없는 이유는 주체가 프로젝트가 아니라 자격증명이라서다.
@@ -31,7 +33,7 @@ updated: 2026-08-22
 >
 > v0.11 변경(2026-08-27 — 조직 초대, 사람 결정): **`invitation` 테이블 신설**(0006) — 테넌시가 6종, 도메인 전체가 **30종**이 된다. 초대는 레코드여야 한다: 초대받은 사람이 아직 가입하지 않았으면 `user` 행이 없어 membership 을 만들 수 없고, 만료·회수는 상태를 가진 것만이 가질 수 있으며, "누가 누구를 언제 불렀나"는 감사 대상이다(FR-16). 토큰은 **해시만**(PAT 와 같은 컬럼 형태), 대기 중 초대의 유일성은 **부분 인덱스**로 잡는다 — 수락·회수된 것은 기록으로 남으므로 지우지 않는다. 계약은 [4.4](api.md) §2.1b.
 >
-> v0.10 변경(2026-08-27 — 선언과 실물이 어긋나 있었다): `membership` 고유 인덱스의 축을 **실물에 맞춘다**. 0003_multi_role 이 raw SQL 로 (사용자, 스코프) → (사용자, 스코프, 역할)로 바꿨는데 §2.1 DDL·§2.12·drizzle 테이블 선언·스냅샷 5개가 옛 축에 머물러 있었다 — 선언상으로는 "한 스코프에 역할 하나"였고, 이 표를 누가 건드리는 순간 생성된 마이그레이션이 **겸직을 도로 막았을 것이다**(REQ-DB-010 은 이미 새 축을 적고 있었으므로 문서 안에서도 갈라져 있었다). 0005 는 조건부 SQL 이라 기존 DB 에서는 아무 일도 하지 않는다 — 이 마이그레이션이 하는 일은 스냅샷을 실물에 맞추는 것이다.
+> v0.10 변경(2026-08-27 — 선언과 실물이 어긋나 있었다): `membership` 고유 인덱스의 축을 **실물에 맞춘다**. 0003_multi_role 이 raw SQL 로 (사용자, 소속) → (사용자, 소속, 역할)로 바꿨는데 §2.1 DDL·§2.12·drizzle 테이블 선언·스냅샷 5개가 옛 축에 머물러 있었다 — 선언상으로는 "한 소속에 역할 하나"였고, 이 표를 누가 건드리는 순간 생성된 마이그레이션이 **겸직을 도로 막았을 것이다**(REQ-DB-010 은 이미 새 축을 적고 있었으므로 문서 안에서도 갈라져 있었다). 0005 는 조건부 SQL 이라 기존 DB 에서는 아무 일도 하지 않는다 — 이 마이그레이션이 하는 일은 스냅샷을 실물에 맞추는 것이다.
 >
 > v0.9 변경(2026-08-23 — 리뷰 수집 착수): `approval_subject_type` 에 **`finding`** 추가(§2.1 · 마이그레이션 `0004_finding_approval`). `nerv_finding_resolve(critical → dismissed/wont_fix)` 는 A3라 사람의 승인함을 거치는데 카드가 붙을 자리가 열거에 없었다 — 리뷰 표면이 Phase 2 라 빠져 있던 것이다. 테이블·엔티티 수는 불변(29종). 곁가지로 **drizzle 스냅샷 체인의 파손을 고쳤다**: `0003_multi_role` 이 손으로 쓰인 마이그레이션이라 `meta/0003_snapshot.json` 이 0002 의 복사본(같은 `id`·`prevId`)으로 들어가 있었고, 그 때문에 `pnpm db:generate` 가 **collision 으로 죽어 CI 의 "생성물 정합" 잡이 이미 빨간 상태였다**. 0003·0004 스냅샷을 다시 세웠고 이제 `db:generate` 는 변경 0건으로 끝난다.
 >
@@ -196,7 +198,7 @@ CREATE TABLE membership (
 
 CREATE TABLE api_token (
   id           uuid PRIMARY KEY,
-  project_id   uuid NOT NULL REFERENCES project(id),  -- 토큰은 항상 프로젝트 스코프
+  project_id   uuid NOT NULL REFERENCES project(id),  -- 토큰은 항상 프로젝트 소속
   user_id      uuid NOT NULL REFERENCES "user"(id),   -- 위임자. 권한은 이 사용자의 부분집합
   name         text NOT NULL,                          -- 예: "노트북 Claude Code"
   token_hash   bytea NOT NULL UNIQUE,                  -- 원문 미저장
@@ -236,7 +238,7 @@ CREATE TABLE invitation (
 
 ```sql
 CREATE TABLE spec (
-  id                 uuid PRIMARY KEY,       -- 안정 ID. 이동·개명해도 참조 불변(D-09)
+  id                 uuid PRIMARY KEY,       -- 고정 ID. 이동·개명해도 참조 불변(D-09)
   project_id         uuid NOT NULL REFERENCES project(id),
   parent_id          uuid REFERENCES spec(id),
   type               spec_type NOT NULL,
@@ -336,7 +338,7 @@ CREATE TABLE spec_comment (                  -- 앵커 스레드 코멘트(FR-11
   resolved_at            timestamptz
 );
 
--- 베이스라인 — 프로젝트 단위 승인 스냅샷 세트(FR-02 확장, 2026-08-21 MVP 포함.
+-- 기준선 — 프로젝트 단위 승인 스냅샷 세트(FR-02 확장, 2026-08-21 MVP 포함.
 -- 규약 정본: spec-workflow §3.6). 생성 후 불변 — 항목 UPDATE/DELETE 경로를 만들지 않는다.
 CREATE TABLE spec_baseline (
   id                 uuid PRIMARY KEY,
@@ -440,7 +442,7 @@ CREATE TABLE task (
   priority               task_priority NOT NULL DEFAULT 'P2',
   source_spec_version_id uuid REFERENCES spec_version(id),  -- 기준 버전(agent-integration §2.4). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)의 zod는 필수
   source_requirement_id  uuid REFERENCES requirement(id),
-  baseline_id            uuid REFERENCES spec_baseline(id), -- 기준 베이스라인(§2.3) — 주변 문서를 읽는 세트
+  baseline_id            uuid REFERENCES spec_baseline(id), -- 기준 기준선(§2.3) — 주변 문서를 읽는 세트
   rebrief_required_at    timestamptz,        -- 기준 버전 superseded 시 서버 세팅, 재브리핑(기준 갱신) 시 해제 — spec-workflow §3.3
   assignee_user_id       uuid REFERENCES "user"(id),        -- 사람 책임자(D-08)
   delegate_session_id    uuid REFERENCES agent_session(id), -- 에이전트 수행 세션
@@ -805,7 +807,7 @@ CREATE UNIQUE INDEX invitation_pending_uq ON invitation (email, coalesce(project
   WHERE accepted_at IS NULL AND revoked_at IS NULL;
 CREATE INDEX invitation_email ON invitation (email);
 
--- **안정 키는 프로젝트 안에서 유일하다**(0009 · api.md §1.4i). 도구 7종·URL·본문 링크가
+-- **고정 ID는 프로젝트 안에서 유일하다**(0009 · api.md §1.4i). 도구 7종·URL·본문 링크가
 -- 전부 이 키로 문서를 가리키므로, 같은 키의 문서 둘이 생기면 하나는 어느 조회에도 걸리지
 -- 않는 유령이 된다. 검사는 흔한 길의 말이고 이 인덱스가 자물쇠다.
 CREATE UNIQUE INDEX spec_key_uq ON spec (project_id, key);
@@ -825,7 +827,7 @@ CREATE INDEX requirement_spec_impl ON requirement (spec_id, impl_status);       
 CREATE INDEX spec_comment_open ON spec_comment (spec_id, status);                  -- 보조: open 코멘트 수
 
 -- 검색 — data-model §5.3(하이브리드)의 렉시컬 축. 파이프라인 정본은 4.4 §2.2b.
--- ① FTS: 영문·안정 ID 토큰. title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
+-- ① FTS: 영문·고정 ID 토큰. title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
 CREATE INDEX spec_version_body_fts ON spec_version USING gin (to_tsvector('simple', body_md));
 CREATE INDEX spec_title_fts        ON spec         USING gin (to_tsvector('simple', title));
 -- ② trigram: 한국어 조사 변형·부분 문자열. 'simple' 토크나이저는 공백 분리라 한국어에서
@@ -988,7 +990,7 @@ CREATE INDEX spec_chunk_embedding_hnsw
 
 운영 규칙(집행 주체는 워커 `embedding.job` — [4.2](codebase.md) §2.2):
 
-1. **인덱싱 대상은 최신 판만** — 스펙별 최신 approved 버전 + 현재 draft 버전. supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 판 검색은 렉시컬로 충분).
+1. **인덱싱 대상은 최신 버전만** — 스펙별 최신 approved 버전 + 현재 draft 버전. supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 버전 검색은 렉시컬로 충분).
 2. **갱신 트리거** — draft 저장 커밋·승인·임포트 배치 후 이벤트를 워커가 소비해 청크 해시 비교 후 변경분만 임베딩한다. approved 본문은 불변이므로 버전당 최대 1회다.
 3. **모델 교체** — `model` 컬럼이 다른 행을 새로 쓰고, 전량 재임베딩 완료 후 구 모델 행을 드랍한다(검색은 단일 모델만 질의).
 
@@ -1082,7 +1084,7 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
 **Activity 타임라인도 심는다(2026-08-23 정정).** 시드가 `activity` 를 비워 두어 S5 세션 상세의 타임라인이 개발 환경에서 늘 빈 목록이었다 — 그 화면의 값어치가 "사람의 개입이 에이전트의 행동과 같은 줄에 섞여 보이는 것"인데, 중심이 비어 있으면 만들다 만 껍데기로 보인다(실측). 세 세션 모두에 넣고, `thought/action/elicitation/response/error` **5종 어휘를 전부** 쓰며, 개입(elicitation·response)은 앞뒤로 action 이 있는 자리에 둔다 — 섞임 자체가 보여 줄 것이기 때문이다. `created_at` 은 월 파티션 키라(§2.14) 음수 오프셋이 지난달로 넘어가지 않게 이번 달 시작으로 자른다. 도구 이름은 MVP 16종만 쓴다 — 없는 도구를 개발 데이터가 보여 주면 안 된다.
 
-**관리자 계정은 등장인물과 분리한다**(2026-08-23 추가). 위 다섯(지민·서연·도현·유나·하나)은 각 화면이 비어 보이지 않게 하는 **온보딩용 인물**이고, `admin@example.com`은 조직을 세우는 계정이다. 겸하게 두면 두 가지가 어긋난다 — ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin이 모든 자리에 앉아 있게 되고 ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다. 그래서 이 계정만 **조직 스코프**(`project_id NULL`) 멤버십을 갖는다 — 프로젝트가 늘어도 한 행이 조직 전체를 관리한다. 이 계정이 없으면 임포트(admin 전용)·게이트 정책·멤버 역할 화면을 시드만으로 시연할 수 없다(실측: clemvion 임포트가 여기서 막혔다).
+**관리자 계정은 등장인물과 분리한다**(2026-08-23 추가). 위 다섯(지민·서연·도현·유나·하나)은 각 화면이 비어 보이지 않게 하는 **온보딩용 인물**이고, `admin@example.com`은 조직을 세우는 계정이다. 겸하게 두면 두 가지가 어긋난다 — ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin이 모든 자리에 앉아 있게 되고 ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다. 그래서 이 계정만 **조직 소속**(`project_id NULL`) 멤버십을 갖는다 — 프로젝트가 늘어도 한 행이 조직 전체를 관리한다. 이 계정이 없으면 임포트(admin 전용)·게이트 정책·멤버 역할 화면을 시드만으로 시연할 수 없다(실측: clemvion 임포트가 여기서 막혔다).
 
 ```sql
 BEGIN;
@@ -1100,7 +1102,7 @@ INSERT INTO organization (id, slug, name) VALUES
 -- admin 은 조직을 세우는 사람이다. 둘을 겸하게 두면 두 가지가 어긋난다:
 --   ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin 이 모든 자리에 앉아 있게 된다
 --   ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다
--- 그래서 조직 스코프(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
+-- 그래서 조직 소속(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
 INSERT INTO "user" (id, email, display_name, state) VALUES
   ('01990a66-0000-7000-8000-000000000010', 'admin@example.com',  '관리자', 'active'),
   ('01990a66-0000-7000-8000-000000000011', 'jimin@example.com',  '지민', 'active'),
@@ -1114,7 +1116,7 @@ INSERT INTO project (id, org_id, slug, key, name, repo_url, default_branch) VALU
    'clemvion', 'CLV', 'clemvion', 'https://git.example.com/nerv/clemvion.git', 'main');
 
 INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES
-  -- 조직 스코프(project_id NULL) — 프로젝트가 늘어도 이 한 행이 조직 전체를 관리한다
+  -- 조직 소속(project_id NULL) — 프로젝트가 늘어도 이 한 행이 조직 전체를 관리한다
   ('01990a66-0000-7000-8000-000000000030', '01990a66-0000-7000-8000-000000000001', NULL, '01990a66-0000-7000-8000-000000000010', 'admin'),
   ('01990a66-0000-7000-8000-000000000031', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000011', 'planner'),
   ('01990a66-0000-7000-8000-000000000032', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000012', 'designer'),
@@ -1293,19 +1295,19 @@ COMMIT;
 | REQ-DB-005 | WHEN `event`에 행이 INSERT되고 트랜잭션이 커밋되면 THE SYSTEM SHALL Valkey `nerv_events` 채널로 `{id, type, project_id}` JSON을 PUBLISH하고, 롤백 시 발행하지 않는다(§3) | SUBSCRIBE 클라이언트 붙인 통합 테스트(커밋/롤백 각 1건) |
 | REQ-DB-006 | WHEN 위임 명세 4요소 중 하나라도 NULL인 `task`를 `backlog`·`blocked` 밖의 상태로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 4요소 각각 NULL로 4케이스 |
 | REQ-DB-007 | WHEN `spec_impact IS NULL`인 `task`를 `done`으로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + `{"none": true}` 통과 1건 |
-| REQ-DB-008 | WHEN 베이스라인 생성 트랜잭션에 `approved`가 아닌 `spec_version` 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 베이스라인의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 베이스라인 생성으로만 한다 | draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건 |
+| REQ-DB-008 | WHEN 기준선 생성 트랜잭션에 `approved`가 아닌 `spec_version` 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 기준선의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 기준선 생성으로만 한다 | draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건 |
 | REQ-DB-022 | WHEN `requirement_id`·`spec_version_id`·`task_id`가 전부 NULL인 `evidence`를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + 각 앵커 단독 통과 3건 |
 | REQ-DB-009 | WHEN `nerv_ensure_month_partitions(대상 월)`을 호출하면 THE SYSTEM SHALL `event`·`activity`의 해당 월 파티션과 activity 파티션별 `(session_id, seq)` unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다 | 함수 2회 호출 후 카탈로그 조회 |
-| REQ-DB-010 | WHEN 같은 사용자에게 같은 스코프의 **같은 역할**을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · `membership_user_scope_role_uq`) | 같은 역할 중복 1건 · 다른 역할 추가 1건 |
+| REQ-DB-010 | WHEN 같은 사용자에게 같은 권한의 **같은 역할**을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · `membership_user_scope_role_uq`) | 같은 역할 중복 1건 · 다른 역할 추가 1건 |
 | REQ-DB-011 | WHEN `status <> 'draft'`인 `spec_version`에 `edit_lease_user_id`·`edit_lease_session_id`·`edit_lease_expires_at` 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 3필드 각각 1건 |
 | REQ-DB-012 | WHEN `commit_sha` 없이 `kind='fixed'`인 `resolution`을 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + `spec_change`에 `change_request_id` 누락 1건 |
 | REQ-DB-013 | WHEN `nerv_glob_overlap`에 두 glob을 넘기면 THE SYSTEM SHALL 보수적 교차 판정을 반환한다 — 최소: (`a/**`, `a/b/c`)=true, (`a/b/**`, `a/c/**`)=false, (`a/*/c`, `a/x/c`)=true | 함수 단위 테스트(위 3케이스 + 동일 문자열 케이스) |
 | REQ-DB-014 | WHEN 마이그레이션이 완료되면 THE SYSTEM SHALL `pg_trgm`·`vector` 확장과 §2.12의 trigram GIN 3종·§2.15의 HNSW 인덱스를 카탈로그에서 조회 가능하게 한다 | 마이그레이션 후 `pg_extension`·`pg_indexes` 조회 |
 | REQ-DB-015 | WHEN 같은 (spec_version_id, anchor, model)로 임베딩이 재기록되면 THE SYSTEM SHALL 유니크 제약으로 중복 행을 차단하고, `spec_version` 삭제 시 임베딩 행을 CASCADE로 제거한다 | 중복 INSERT 1건 + 버전 삭제 후 잔존 행 0 확인 |
 | REQ-DB-016 | WHEN 한국어 질의(예: "위젯")로 trigram 검색을 실행하면 THE SYSTEM SHALL 조사 변형 본문("위젯을 처음 열면")을 포함한 행을 반환한다 — `simple` FTS 단독으로는 매칭되지 않는 케이스가 통과 기준이다 | 조사 변형 3케이스 질의 |
-| REQ-DB-017 | WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 판의 `spec_chunk_embedding` 행을 제거해 스펙당 인덱싱 판을 최신 approved + 현재 draft 2개 이하로 유지한다 | supersede 후 행 수 확인 |
+| REQ-DB-017 | WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 버전의 `spec_chunk_embedding` 행을 제거해 스펙당 인덱싱 버전을 최신 approved + 현재 draft 2개 이하로 유지한다 | supersede 후 행 수 확인 |
 
-**한 사람이 한 스코프에서 역할을 여럿 가진다(2026-08-23 — `0003_multi_role`).** 근거는 실측이다: clemvion 의 `owner:` 라벨에 `planner/developer`·`project-planner + developer` 같은 복합 표기가 20건 있다. 겸직이 예외가 아니라 흔한 형태인데 모델이 담지 못해 임포트에서 배정 87건이 미결로 갔다.
+**한 사람이 한 소속에서 역할을 여럿 가진다(2026-08-23 — `0003_multi_role`).** 근거는 실측이다: clemvion 의 `owner:` 라벨에 `planner/developer`·`project-planner + developer` 같은 복합 표기가 20건 있다. 겸직이 예외가 아니라 흔한 형태인데 모델이 담지 못해 임포트에서 배정 87건이 미결로 갔다.
 
 - **배열이 아니라 행이다.** `roles member_role[]` 한 칸으로 두면 조인은 줄지만 "누가 언제 무슨 역할을 받았는가"가 사라진다. 부여마다 행이면 `created_at` 이 살아 있고 회수도 행 삭제다 — 마이그레이션은 유일 인덱스 교체뿐이다.
 - **판정은 합집합이다.** 코드 곳곳에 있던 "admin 우선 1건" 정렬은 겸직에서 역할 절반을 잃는다 — 그 절반에 admin 이 있으면 권한이 조용히 사라진다. 고르는 자리를 전부 합치는 자리로 바꿨다([4.4 API 명세](api.md) §1.6a).

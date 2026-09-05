@@ -266,7 +266,7 @@ export class SpecTools implements NervToolProvider {
           // 다른 모양이면 에이전트는 실패로 배운다.
           type: { type: 'string', description: 'mcp.arg.spec_type_filter' },
           status: { type: 'string', description: 'mcp.arg.spec_status_filter' },
-          // **이 요구사항 주변에서 찾아라** — 안정 키(`REQ-…`)든 UUID 든 받는다(§1.4b).
+          // **이 요구사항 주변에서 찾아라** — 고정 ID(`REQ-…`)든 UUID 든 받는다(§1.4b).
           // 없는 요구사항은 빈 결과가 아니라 거절이다: 빈 결과는 오타를 사실로 만든다.
           requirement_id: { type: 'string', description: 'mcp.arg.requirement_scope' },
         },
@@ -299,7 +299,7 @@ export class SpecTools implements NervToolProvider {
           spec_id: { type: 'string', description: 'spec key (SPC-…) or UUID' },
           version: { type: 'integer' },
           // **주변 문서를 그 세트로 읽는다**(REQ-API-087 · spec-workflow §3.6).
-          // Task 가 베이스라인 맥락이면 `nerv_task_next` 응답이 이 이름을 실어 준다.
+          // Task 가 기준선 맥락이면 `nerv_task_next` 응답이 이 이름을 실어 준다.
           baseline: { type: 'string', description: 'mcp.arg.baseline' },
           // 곁들여 실을 것 — `requirements` 는 늘 실리므로 여기서는 나머지만 고른다.
           // 목록 밖 값은 400 이다: 조용히 버리면 호출자가 그 기능이 **없다**고 결론짓는다

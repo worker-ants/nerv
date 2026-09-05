@@ -3,7 +3,7 @@
 //   ① 웹 세션 : better-auth 세션 쿠키 — 브라우저 SPA (E08-S01 에서 배선)
 //   ② PAT     : Authorization: Bearer — 에이전트(MCP)·CI·외부 연동·md 미러
 //
-// PAT 는 **(사용자, 프로젝트, 역할, 스코프) 튜플에 바인딩**되고 권한은 소유 사용자의
+// PAT 는 **(사용자, 프로젝트, 역할, 소속) 튜플에 바인딩**되고 권한은 소유 사용자의
 // 부분집합을 넘지 못한다(D-08). 에이전트는 사용자가 아니다 — 항상 사람의 위임으로 존재한다.
 //
 // ※ 구현 근거 하나를 남긴다. 4.1 §2.1 은 PAT 를 "better-auth api-key 플러그인 기반"이라 적었고
@@ -50,14 +50,14 @@ export interface Principal {
   displayName: string;
   /** PAT 로 들어온 요청인가 — 감사의 is_agent 와 이어진다(FR-16) */
   isAgent: boolean;
-  /** PAT 는 항상 프로젝트 스코프다. 세션 쿠키는 프로젝트가 없다(요청 경로가 정한다) */
+  /** PAT 는 항상 프로젝트 소속다. 세션 쿠키는 프로젝트가 없다(요청 경로가 정한다) */
   projectId: string | null;
   /**
    * **겸직은 합집합이다.** 하나를 고르면 planner+developer 중 하나가 사라진다.
    * 세션 주체는 비어 있다가 ProjectAccessGuard 가 채운다 — 프로젝트를 알아야 정해진다.
    */
   roles: MembershipRole[];
-  /** 역할이 허용하는 스코프 ∩ (PAT 이면) 토큰 스코프 — 유효 권한 */
+  /** 역할이 허용하는 권한 ∩ (PAT 이면) 토큰 권한 — 유효 권한 */
   scopes: string[];
   tokenId: string | null;
 }
@@ -93,7 +93,7 @@ export class AuthService {
 
   /**
    * PAT 발급. 원문은 **이 응답에서 한 번만** 나간다 — 서버는 해시만 보관한다.
-   * 사람 전용 스코프는 요청에 섞여도 부여하지 않는다(불변식 — api.md §1.3).
+   * 사람 전용 권한은 요청에 섞여도 부여하지 않는다(불변식 — api.md §1.3).
    */
   /** EP-AUTH-01 — 프로필 + 멤버십·역할 목록. 웹 셸의 첫 질문("나는 누구이고 무엇을 볼 수 있나")의 답이다. */
   async me(userId: string): Promise<Record<string, unknown>> {
@@ -108,7 +108,7 @@ export class AuthService {
       });
     }
     const { rows: memberships } = await this.db.execute<Record<string, unknown>>(sql`
-      -- 겸직은 **행 여럿**이다(0003_multi_role). 스코프 단위로 묶어 역할을 배열로 준다 —
+      -- 겸직은 **행 여럿**이다(0003_multi_role). 소속 단위로 묶어 역할을 배열로 준다 —
       -- 화면이 "하나 고르기"를 하면 planner+developer 중 하나가 조용히 사라진다.
       SELECT min(m.id::text) AS id, array_agg(DISTINCT m.role::text ORDER BY m.role::text) AS roles,
              o.id AS org_id, o.slug AS org_slug, o.name AS org_name,
@@ -759,9 +759,9 @@ export class AuthService {
   /**
    * 웹 세션 검증 — better-auth 가 쿠키를 해독하고 세션 행을 확인한다(E08-S01).
    *
-   * **사람의 principal 에는 스코프가 없다.** 스코프는 PAT 를 좁히기 위한 장치이고(D-08),
-   * 사람의 권한은 `membership.role` 이 정한다 — 여기서 스코프를 만들어 붙이면 역할과
-   * 스코프라는 두 개의 권한 축이 생기고 둘이 어긋나는 날이 온다.
+   * **사람의 principal 에는 권한이 없다.** 권한은 PAT 를 좁히기 위한 장치이고(D-08),
+   * 사람의 권한은 `membership.role` 이 정한다 — 여기서 권한을 만들어 붙이면 역할과
+   * 권한라는 두 개의 권한 축이 생기고 둘이 어긋나는 날이 온다.
    */
   async verifySession(cookieHeader: string): Promise<Principal> {
     const auth = this.betterAuth;
@@ -785,7 +785,7 @@ export class AuthService {
       isAgent: false,
       projectId: null,
       // 세션은 요청 경로가 프로젝트를 정하므로 여기서는 비어 있다 —
-      // ProjectAccessGuard 가 멤버십을 읽어 역할·스코프를 채운다.
+      // ProjectAccessGuard 가 멤버십을 읽어 역할·소속을 채운다.
       roles: [],
       scopes: [],
       tokenId: null,
@@ -825,7 +825,7 @@ export class AuthService {
              -- **조직도 함께 본다**(2026-09-02). assertMembership 은 2026-08-24 에
              -- "조직이 경계다" 로 고쳤는데 이 서브쿼리만 project_id IS NULL 로 남아,
              -- 다른 조직의 조직 전역 멤버십이 이 토큰의 역할로 딸려 들어왔다 — 그리고
-             -- 유효 스코프의 상한이 역할이므로 그대로 권한이 됐다.
+             -- 유효 권한의 상한이 역할이므로 그대로 권한이 됐다.
              (SELECT array_agg(DISTINCT m.role::text) FROM membership m
                WHERE m.user_id = t.user_id
                  AND m.org_id = p.org_id
@@ -899,7 +899,7 @@ export class AuthService {
       projectId: token.project_id,
       roles: token.roles ?? [],
       // **토큰이 역할보다 넓을 수 없다.** 발급 뒤 역할이 낮아졌다면 낮아진 쪽을 따른다 —
-      // 토큰에 박힌 스코프만 보면 강등이 반영되지 않는다.
+      // 토큰에 박힌 권한만 보면 강등이 반영되지 않는다.
       scopes: (token.scopes ?? []).filter((s) => scopesForRoles(token.roles ?? []).has(s as never)),
       tokenId: token.id,
     };
@@ -910,7 +910,7 @@ export class AuthService {
    * 표면마다 따로 구현하면 어딘가는 느슨해진다.
    */
   async assertMembership(userId: string, projectId: string): Promise<MembershipRole[]> {
-    // **하나만 고르지 않는다.** 프로젝트 스코프와 조직 스코프 양쪽의 역할을 합친다 —
+    // **하나만 고르지 않는다.** 프로젝트 소속과 조직 소속 양쪽의 역할을 합친다 —
     // 조직 admin 이면서 프로젝트 developer 인 사람은 둘 다여야 맞다.
     //
     // **조직이 경계다**(2026-08-24 정정). `project_id IS NULL` 만 보고 `org_id` 를 보지
@@ -938,7 +938,7 @@ export class AuthService {
     assertScopeOf(principal, required);
   }
 
-  /** 토큰이 붙은 프로젝트 밖을 건드리려 할 때 — 스코프 밖 프로젝트는 거부다. */
+  /** 토큰이 붙은 프로젝트 밖을 건드리려 할 때 — 권한 밖 프로젝트는 거부다. */
   assertProjectScope(principal: Principal, projectId: string): void {
     if (principal.projectId !== null && principal.projectId !== projectId) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.project_out_of_scope'), {

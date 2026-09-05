@@ -59,7 +59,7 @@ describe('pruneTree — depth', () => {
 });
 
 describe('pruneTree — root', () => {
-  it('안정 키로 그 문서와 아래를 준다', () => {
+  it('고정 ID로 그 문서와 아래를 준다', () => {
     expect(keys(pruneTree(NODES, { root: 'SUD-CHILD-0' }))).toEqual([
       'SUD-CHILD-0',
       'SUD-GC-0',

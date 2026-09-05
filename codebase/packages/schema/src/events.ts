@@ -37,7 +37,7 @@ export const NERV_EVENT = {
   /** ★ EP-CMT-04 */
   COMMENT_RESOLVED: 'comment.resolved',
 
-  // ── 베이스라인 (P1) ──────────────────────────────────────────────────────
+  // ── 기준선 (P1) ──────────────────────────────────────────────────────
   /** ★ EP-SPEC-12 */
   BASELINE_CREATED: 'baseline.created',
 

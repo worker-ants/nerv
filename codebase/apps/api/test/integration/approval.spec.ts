@@ -242,7 +242,7 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
       requestedByUserId: planner,
     });
 
-    // 전역 경로(`/api/v1/approvals/{id}/decision`)라 프로젝트 가드가 스코프를 채우지 않고
+    // 전역 경로(`/api/v1/approvals/{id}/decision`)라 프로젝트 가드가 소속을 채우지 않고
     // 지나간다 — 판정은 서비스가 한다(D-05).
     await expect(
       approvals.decide({

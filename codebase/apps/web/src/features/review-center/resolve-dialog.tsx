@@ -46,7 +46,7 @@ export function ResolveDialog({
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
 
-  // 증거는 그 스펙의 **지금 버전**이다 — 발견이 달고 있는 버전은 고치기 **전**의 판이다
+  // 증거는 그 스펙의 **지금 버전**이다 — 발견이 달고 있는 버전은 고치기 **전**의 버전이다
   const picked = useSpec(projectSlug, action === 'spec_change' ? specKey : '');
   const specVersionId =
     typeof picked.data?.['version_id'] === 'string' ? picked.data['version_id'] : '';

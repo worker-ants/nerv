@@ -5,6 +5,6 @@ export const Route = createFileRoute('/o/$org')({ component: OrgSwitch });
 
 function OrgSwitch(): React.JSX.Element {
   // MVP 는 사용자 1인당 조직이 사실상 하나라 전환은 즉시 리다이렉트다.
-  // 조직 스코프를 로컬에 기억시키는 것은 다중 조직 요구가 실제로 생길 때 넣는다.
+  // 조직 소속을 로컬에 기억시키는 것은 다중 조직 요구가 실제로 생길 때 넣는다.
   return <Navigate to="/" />;
 }

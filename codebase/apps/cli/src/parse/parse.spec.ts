@@ -50,7 +50,7 @@ describe('status 2축 분해 (§2.3)', () => {
 describe('요구사항 추출 휴리스틱 (§2.5)', () => {
   const pattern = '[A-Z]+-[A-Z]+-\\d+';
 
-  it('안정 ID 를 앵커로 문장을 떼어낸다', () => {
+  it('고정 ID 를 앵커로 문장을 떼어낸다', () => {
     const body =
       '- REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다';
     const [requirement] = extractRequirements(body, pattern);

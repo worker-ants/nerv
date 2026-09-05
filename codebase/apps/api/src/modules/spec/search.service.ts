@@ -85,7 +85,7 @@ export class SearchService {
      * 검색이 아니라 조회가 되고 `nerv_spec_get` 이 이미 그 일을 한다 — 같은 일을 두
      * 도구가 하면 에이전트는 어느 것을 쓸지 매번 판단해야 한다.
      *
-     * 안정 키(`REQ-…`)와 UUID 를 둘 다 받는다(§1.4b). **없는 요구사항은 빈 결과가
+     * 고정 ID(`REQ-…`)와 UUID 를 둘 다 받는다(§1.4b). **없는 요구사항은 빈 결과가
      * 아니라 거절**이다 — 빈 결과는 "그런 게 없다" 로 읽히고, 그것은 오타를 사실로
      * 만든다(`around` 와 같은 규율).
      */
@@ -95,7 +95,7 @@ export class SearchService {
     const limit = Math.min(input.limit ?? 10, 50);
     if (query === '') return { items: [], related: [], degraded: null };
 
-    // ① ID 직행 — 안정 ID 는 전문 검색을 거치지 않는다. 사람도 에이전트도 ID 를 칠 때는
+    // ① ID 직행 — 고정 ID 는 전문 검색을 거치지 않는다. 사람도 에이전트도 ID 를 칠 때는
     //    "찾아줘"가 아니라 "열어줘"라는 뜻이다.
     const direct = await this.byStableId(input.projectId, query);
 

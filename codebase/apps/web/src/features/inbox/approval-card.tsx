@@ -322,7 +322,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
       {/* **문서를 여기서 연다**(2026-08-31 — 사람 요청). 결재하려면 본문을 봐야 하는데
           카드에는 제목과 키뿐이었다 — 다른 탭에서 열고 돌아오는 왕복이 승인 병목(P4)이다.
           **목록을 무겁게 하지 않으려고 펼칠 때 받아 온다**: 결재 목록에 본문을 싣는 것과
-          펼친 하나를 받는 것은 다른 비용이다. 그리고 **검토 중인 그 판**을 받는다 —
+          펼친 하나를 받는 것은 다른 비용이다. 그리고 **검토 중인 그 버전**을 받는다 —
           카드가 보여준 것과 승인되는 것이 같아야 한다(§2.3). */}
       {!(compact ?? false) && !isQuestion && subjectLink !== null && (
         <div className="mt-2">

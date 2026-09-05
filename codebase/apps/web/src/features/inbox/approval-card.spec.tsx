@@ -184,7 +184,7 @@ describe('문서로 가는 길 (REQ-WEB-119)', () => {
 
     fireEvent.click(screen.getByTestId('toggle-body'));
     await waitFor(() => expect(screen.getByTestId('subject-body').textContent).toContain('본문'));
-    // **검토 중인 그 판**을 받는다 — 카드가 보여준 것과 승인되는 것이 같아야 한다
+    // **검토 중인 그 버전**을 받는다 — 카드가 보여준 것과 승인되는 것이 같아야 한다
     expect(calls.some((u) => u.includes('/specs/SUD-CONV-DOCS?v=1'))).toBe(true);
     vi.unstubAllGlobals();
   });

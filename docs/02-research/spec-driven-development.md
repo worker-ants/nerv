@@ -2,7 +2,9 @@
 
 > **요약** — 2025년 하반기에 SDD(Spec-Driven Development) 도구가 한꺼번에 쏟아졌고, 1년 만에 GitHub Spec Kit 126,932★·OpenSpec 64,751★·BMAD-METHOD 51,854★ 규모의 생태계가 만들어졌다. 이 도구들은 requirements(EARS)/design/tasks 3분할, 프로젝트 헌법(constitution), ADDED/MODIFIED/REMOVED 델타 스펙, 자기완결 스토리 파일 같은 **재사용할 가치가 충분한 문서 어휘**를 정착시켰다. 그러나 조사한 7개 도구 전부가 "git 저장소 안의 마크다운 + 로컬 CLI/IDE"를 벗어나지 못해 멀티유저 협업·동시성 제어·실시간 상태 가시성이 통째로 비어 있으며, 이는 추정이 아니라 Spec Kit 토론 #497·#2116과 OpenSpec 이슈 #435("closed as not planned")가 남긴 1차 기록으로 확인된다. 동시에 "SDD는 워터폴의 귀환"이라는 실증 비판(한 기능에 8파일 1,300줄, 버그 하나에 16개 acceptance criteria)도 반복 관찰되므로, NERV(가칭)는 이 도구들의 어휘를 DB 엔티티로 승격하되 게이트를 위험도 가변형(D-06)으로 설계해 비판에 제품으로 답해야 한다. 결론적으로 "SDD 도구들의 Linear/GitHub"에 해당하는 협업 계층은 시장에서 명시적으로 요구되었으나 아직 아무도 만들지 않은 자리다.
 >
-> 문서 버전 v0.1 · 2026-08-13 · HTML 판: [spec-driven-development.html](../html/spec-driven-development.html)
+> 문서 버전 v0.2 · 2026-08-13 · HTML 파생본: [spec-driven-development.html](../html/spec-driven-development.html)
+>
+> v0.2 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 
 ---
 
@@ -49,7 +51,7 @@ NERV는 이 중 **spec-anchored**를 기본값으로 삼는다. 스펙은 살아
 
 Kiro가 다시 끌어올린 EARS(Easy Approach to Requirements Syntax)는 AI 시대의 발명이 아니다. Rolls-Royce의 Alistair Mavin이 항공 엔진 제어 소프트웨어의 인증 요구사항을 분석하다 도출해 RE'09 학회에서 발표한 표기법으로, `WHILE <전제조건>, WHEN <트리거>, the <시스템> SHALL <응답>` 형태로 자연어 요구사항의 모호성을 줄인다. Airbus·Bosch·NASA·Intel 등 안전 필수 분야에서 쓰이던 것이 LLM 시대에 "테스트로 변환 가능한 문장"이라는 새 효용을 얻었다.
 
-NERV에서 EARS는 문서 서식이 아니라 **Requirement 엔티티의 입력 템플릿**이다(FR-03). 요구사항을 문장 단위로 쪼개 안정 ID(`REQ-NAV-012` 형식)를 부여하고 구현 상태를 개별 추적하려면, 애초에 한 문장이 하나의 검증 가능한 조건이어야 하기 때문이다.
+NERV에서 EARS는 문서 서식이 아니라 **Requirement 엔티티의 입력 템플릿**이다(FR-03). 요구사항을 문장 단위로 쪼개 고정 ID(`REQ-NAV-012` 형식)를 부여하고 구현 상태를 개별 추적하려면, 애초에 한 문장이 하나의 검증 가능한 조건이어야 하기 때문이다.
 
 - [EARS 공식 가이드 (Alistair Mavin)](https://alistairmavin.com/ears/) — (2026-08-13 확인) EARS의 기원(RE'09), 문형 구조, 항공·자동차·반도체 산업 채택 사례.
 
@@ -67,9 +69,9 @@ NERV에서 EARS는 문서 서식이 아니라 **Requirement 엔티티의 입력 
 | **AWS Kiro** | `.kiro/specs/{스펙명}/` 정확히 3파일 — `requirements.md`(user story + EARS AC, 버그는 `bugfix.md`) · `design.md`(아키텍처·시퀀스·에러) · `tasks.md` | **도구군 최고 수준.** in-progress/completed 실시간 표시 · 의존성 그래프로 wave 병렬 실행 · 단 개인 IDE 로컬 뷰 | "공유 아티팩트"라 부르지만 공유 수단은 git 커밋뿐 · 실시간 편집·승인·알림 없음 | 상용(비공개, AWS) | 2025-07-14 프리뷰 → 2025-11 GA · Pro $20/1,000크레딧 ~ Power $200/10,000 · 초과 $0.04 |
 | **OpenSpec** | 3공간 — `specs/`(현재 진실) · `changes/`(proposal + 델타 + design + tasks) · `changes/archive/`. 델타는 **ADDED / MODIFIED / REMOVED** 접두사 | `tasks.md` 체크리스트 · `/opsx:verify` · `/opsx:archive` · 상태 = 폴더 위치 + 체크박스 | git 규약 의존 자인 · "One change, one owner" 규약뿐 · Stores(베타)는 읽기 전용 · 협업 요청 #435 **not planned** | MIT | 64,751★ / 4,462 fork · npm 주간 367,356 다운로드(2026-08-03~09) |
 | **Tessl** | 컴포넌트 설명 + 테스트 링크된 capabilities + API 정의 · generation / usage 2종 · 코드에 `// GENERATED FROM SPEC - DO NOT EDIT` | 태스크 개념 없음 — **링크된 테스트 통과 = 구현 완료** | Spec Registry 중앙 저장·버전 관리(10,000+ usage spec) + 조직 내부 공유 · 실시간 편집·승인은 없음 | 상용 SaaS | $125M 조달($500M+ 밸류) · Registry 오픈 베타 · Framework 클로즈드 베타 |
-| **BMAD-METHOD** | 4단계(Analysis→Planning→Solutioning→Implementation) · 34+ 워크플로 · 12+ 페르소나 · 핵심 단위 = 자기완결 **스토리 파일**(아키텍처 컨텍스트·지침·근거·테스트 기준 내장) | `sprint-status.yaml`(스토리 상태·준비도) · 공식 문서가 "대시보드가 아니라 아티팩트 기반 진행"이라 명시 | '팀' = AI 페르소나 팀 · 사람 간 동시 작업 없음(웹 UI 기획 / IDE 구현 2단 분리) | MIT (+TRADEMARK 별도 · API 표기 NOASSERTION) | 51,854★ / 5,932 fork · 리포 생성 2025-04-13 |
+| **BMAD-METHOD** | 4단계(Analysis→Planning→Solutioning→Implementation) · 34+ 워크플로우 · 12+ 페르소나 · 핵심 단위 = 자기완결 **스토리 파일**(아키텍처 컨텍스트·지침·근거·테스트 기준 내장) | `sprint-status.yaml`(스토리 상태·준비도) · 공식 문서가 "대시보드가 아니라 아티팩트 기반 진행"이라 명시 | '팀' = AI 페르소나 팀 · 사람 간 동시 작업 없음(웹 UI 기획 / IDE 구현 2단 분리) | MIT (+TRADEMARK 별도 · API 표기 NOASSERTION) | 51,854★ / 5,932 fork · 리포 생성 2025-04-13 |
 | **Agent OS** | 3층 — Standards(`/discover-standards`) · Product(`/plan-product` → mission·roadmap·tech-stack) · Specs(`/shape-spec`). 전부 `agent-os/` 마크다운 | **없음** (roadmap.md 갱신 수준) | 없음 — 표준을 에이전트 컨텍스트에 주입하는 것이 목적 | MIT | 5,263★ / 825 fork · 마지막 푸시 2026-05-05 |
-| **spec-workflow-mcp** | `.spec-workflow/` — `approvals/`·`archive/`·`specs/`·`steering/`(비전·기술 결정)·`templates/` · requirements→design→tasks 순차(Kiro 모델 차용) | 실시간 웹 대시보드(:5000) 진행 바·태스크 상태·검색 가능 구현 로그 · VSCode 확장 | **승인 워크플로 내장**(생성→승인 요청→코멘트→수정→승인) · 계정·권한·원격 접근 없음 = "1인 + 에이전트" | **GPL-3.0** (카피레프트 — 개념만 참조) | 4,291★ / 354 fork · npm 주간 601 · 마지막 푸시 2026-07-03 |
+| **spec-workflow-mcp** | `.spec-workflow/` — `approvals/`·`archive/`·`specs/`·`steering/`(비전·기술 결정)·`templates/` · requirements→design→tasks 순차(Kiro 모델 차용) | 실시간 웹 대시보드(:5000) 진행 바·태스크 상태·검색 가능 구현 로그 · VSCode 확장 | **승인 워크플로우 내장**(생성→승인 요청→코멘트→수정→승인) · 계정·권한·원격 접근 없음 = "1인 + 에이전트" | **GPL-3.0** (카피레프트 — 개념만 참조) | 4,291★ / 354 fork · npm 주간 601 · 마지막 푸시 2026-07-03 |
 
 ### 2.2 GitHub Spec Kit — 생태계 최대, 그러나 철저히 파일·브랜치 기반
 
@@ -98,28 +100,28 @@ OpenSpec의 발명은 **"현재 상태"와 "변경 diff"를 문서 수준에서 
 
 이것은 사실상 문서로 구현한 버전 관리 시스템이며, NERV의 SpecVersion(불변 스냅샷)과 ChangeRequest(델타 리뷰)의 문서적 원형이다(D-02, FR-02/FR-04). 결정적 차이는 병합과 충돌 검출의 주체다 — OpenSpec은 그것을 git과 사람에게 맡기고, NERV는 서버가 수행한다.
 
-그 위임을 OpenSpec 공식 팀 워크플로 문서가 스스로 밝힌다. 도구는 `openspec/` 아래 마크다운을 읽고 쓸 뿐 커밋·브랜치·푸시를 하지 않으며, 충돌 방지 수단은 "변경 폴더 하나에 소유자 한 명"(One change, one owner)이라는 **규약**과 평범한 git 병합뿐이다. 공유되는 `specs/`를 두 변경이 동시에 건드리면 그냥 git 충돌이 난다.
+그 위임을 OpenSpec 공식 팀 워크플로우 문서가 스스로 밝힌다. 도구는 `openspec/` 아래 마크다운을 읽고 쓸 뿐 커밋·브랜치·푸시를 하지 않으며, 충돌 방지 수단은 "변경 폴더 하나에 소유자 한 명"(One change, one owner)이라는 **규약**과 평범한 git 병합뿐이다. 공유되는 `specs/`를 두 변경이 동시에 건드리면 그냥 git 충돌이 난다.
 
 - [Fission-AI/OpenSpec 리포지터리](https://github.com/Fission-AI/OpenSpec) — (2026-08-13 확인) MIT·64.7k★, specs/changes/archive 3공간과 델타 접두사, `/opsx:explore→propose→apply→verify→archive` 명령 체인, Stores 베타(플랫폼팀 소유·제품팀 읽기 전용).
-- [OpenSpec 공식 팀 워크플로 문서 (team-workflow.md)](https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md) — (2026-08-13 확인) 도구가 git 조작을 하지 않는다는 선언과 "One change, one owner" 규약 의존을 명문화.
+- [OpenSpec 공식 팀 워크플로우 문서 (team-workflow.md)](https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md) — (2026-08-13 확인) 도구가 git 조작을 하지 않는다는 선언과 "One change, one owner" 규약 의존을 명문화.
 
 ### 2.5 Tessl — 중앙 레지스트리라는 유일한 이탈
 
 Tessl은 스펙을 컴포넌트 설명 + 테스트가 링크된 capabilities + API 정의로 정의하고, 생성된 코드 파일에 편집 금지 마커를 박아 스펙:코드 1:1을 강제한다. 진행 상태를 따로 관리하지 않는 대신 **capability에 링크된 테스트가 통과하면 그것이 구현 완료**라는 정의를 택했다 — NERV의 증적(Evidence) 개념, 즉 Requirement ↔ 테스트·PR·커밋 연결(FR-13)과 발상이 같다.
 
-가장 눈여겨볼 점은 Spec Registry다. 10,000+ 오픈소스 라이브러리의 usage spec을 중앙에서 버전 관리하고 조직 내부 스펙도 공유한다 — 조사한 도구 중 유일하게 "스펙이 리포 밖에 산다". 다만 이는 패키지 레지스트리 모델이지 협업 워크스페이스가 아니어서, 승인·코멘트·실시간 상태는 없다. NERV는 이 중앙화 발상을 Organization 스코프의 스펙 공유·안정 ID 참조로 흡수한다(FR-14, D-09).
+가장 눈여겨볼 점은 Spec Registry다. 10,000+ 오픈소스 라이브러리의 usage spec을 중앙에서 버전 관리하고 조직 내부 스펙도 공유한다 — 조사한 도구 중 유일하게 "스펙이 리포 밖에 산다". 다만 이는 패키지 레지스트리 모델이지 협업 워크스페이스가 아니어서, 승인·코멘트·실시간 상태는 없다. NERV는 이 중앙화 발상을 Organization 권한의 스펙 공유·고정 ID 참조로 흡수한다(FR-14, D-09).
 
 - [Tessl launches spec-driven development tools (공식 블로그)](https://tessl.io/blog/tessl-launches-spec-driven-framework-and-registry) — (2025-09-23 게시) Framework(스펙 → 에이전트 구현 → 테스트 가드레일)와 Registry(10,000+ specs) 발표, 스펙 3요소 구조.
 - [Tessl raises $125M at $500M+ valuation (TechCrunch)](https://techcrunch.com/2024/11/14/tessl-raises-125m-at-at-500m-valuation-to-build-ai-that-writes-and-maintains-code/) — (2024-11-14 게시) Snyk 창업자 Guy Podjarny 설립, boldstart·GV Seed $25M + Index Ventures Series A $100M.
 
 ### 2.6 BMAD-METHOD — 직군 페르소나와 자기완결 스토리 파일
 
-BMAD는 방법론에 가깝다. Analyst·PM·Architect·Scrum Master·Dev·QA/Test Architect·UX 등 12+ 페르소나가 4단계 34+ 워크플로를 돌며 brief → PRD → architecture → story → code로 이어지는 문서 체인을 만든다. Planning 단계의 산출물은 구현 전에 잠기는 "canonical technical contract"로 취급된다.
+BMAD는 방법론에 가깝다. Analyst·PM·Architect·Scrum Master·Dev·QA/Test Architect·UX 등 12+ 페르소나가 4단계 34+ 워크플로우를 돌며 brief → PRD → architecture → story → code로 이어지는 문서 체인을 만든다. Planning 단계의 산출물은 구현 전에 잠기는 "canonical technical contract"로 취급된다.
 
 핵심 단위인 **스토리 파일**은 아키텍처 컨텍스트·구현 지침·결정 근거·테스트 기준을 한 파일에 전부 담은 자기완결 작업 패키지다. 이것이 NERV Task의 위임 명세 4요소(목표 / 산출물 형식 / 도구·출처 / 경계, FR-05)의 방법론적 조상이다. 다만 BMAD의 '팀'은 AI 페르소나 팀이지 사람의 팀이 아니고, 상태는 `sprint-status.yaml`이라는 파일 하나에 산다. NERV는 페르소나 분업을 **역할(Role) 기반 권한과 직군별 화면**으로, yaml 상태를 **DB 상태 머신**으로 옮긴다.
 
 - [bmad-code-org/BMAD-METHOD 리포지터리](https://github.com/bmad-code-org/BMAD-METHOD) — (2026-08-13 확인) MIT + 상표 별도, 51.9k★, 4단계 전달 모델과 확장 모듈 생태계.
-- [BMAD Method Workflow Map (공식 문서)](https://docs.bmad-method.org/reference/workflow-map/) — (2026-08-13 확인) 34+ 워크플로 맵, `sprint-status.yaml` 기반 상태 추적, "아티팩트 기반 진행" 명시.
+- [BMAD Method Workflow Map (공식 문서)](https://docs.bmad-method.org/reference/workflow-map/) — (2026-08-13 확인) 34+ 워크플로우 맵, `sprint-status.yaml` 기반 상태 추적, "아티팩트 기반 진행" 명시.
 
 ### 2.7 Agent OS — 표준 주입 계층
 
@@ -165,13 +167,13 @@ flowchart LR
 | 패턴 | 원산지 | 무엇이 좋은가 | NERV에서의 형태 |
 | --- | --- | --- | --- |
 | **requirements / design / tasks 3분할** | Kiro (Spec Kit·spec-workflow-mcp가 사실상 동일 채택) | "무엇을·왜"와 "어떻게"와 "실행 단위"를 분리해 각각을 다른 사람이 다른 시점에 검토할 수 있게 함 | Spec 타입 `feature`·`design` + Requirement 엔티티 + Task 파생 (FR-01/FR-03/FR-05) |
-| **EARS 요구사항 문형** | Kiro (기원은 Rolls-Royce/RE'09) | 한 문장 = 하나의 검증 가능한 조건 → 테스트·추적의 최소 단위가 생김 | Requirement 입력 템플릿·린터, 안정 ID 부여 (FR-03) |
+| **EARS 요구사항 문형** | Kiro (기원은 Rolls-Royce/RE'09) | 한 문장 = 하나의 검증 가능한 조건 → 테스트·추적의 최소 단위가 생김 | Requirement 입력 템플릿·린터, 고정 ID 부여 (FR-03) |
 | **constitution / standards 주입** | Spec Kit, Agent OS | 프로젝트 불변 원칙을 매 스펙 생성 시 재입력하지 않아도 됨 | 스펙 타입 `convention`·`vision`, `nerv_bootstrap`이 세션 시작 시 주입 (D-05, FR-15) |
 | **델타 스펙(ADDED/MODIFIED/REMOVED)** | OpenSpec | 검토 대상이 문서 전체가 아니라 변경분으로 줄어 리뷰 피로가 급감 | ChangeRequest + SpecVersion 불변 스냅샷 + 델타 리뷰 뷰 (D-02, FR-02/FR-04) |
 | **자기완결 스토리 파일** | BMAD | 에이전트가 컨텍스트를 스스로 재수집하지 않아도 되고, 작업의 경계가 명시됨 | Task의 위임 명세 4요소: 목표 / 산출물 형식 / 도구·출처 / 경계 (FR-05) |
 | **태스크 의존성 그래프와 wave 병렬 실행** | Kiro | 무엇을 지금 시작해도 되는지 계산으로 답함 | TaskDependency + ready 큐 + 원자적 클레임·리스 (D-04, FR-05/FR-06) |
 | **승인 라이프사이클(요청→피드백→수정→승인)** | spec-workflow-mcp (개념만) | 에이전트 산출물에 사람의 결재점을 만듦 | 받은 요청(Inbox) 카드 + Approval 엔티티 + 알림 (FR-11/FR-12) |
-| **중앙 스펙 레지스트리** | Tessl | 스펙을 리포 경계 밖에서 버전 관리·재사용 | Organization 스코프 공유와 안정 ID 참조 (FR-14, D-09) |
+| **중앙 스펙 레지스트리** | Tessl | 스펙을 리포 경계 밖에서 버전 관리·재사용 | Organization 권한 공유와 고정 ID 참조 (FR-14, D-09) |
 | **테스트 링크 = 구현 상태** | Tessl | 자기보고가 아니라 산출물이 상태를 결정 | Evidence(Requirement ↔ 코드·테스트·PR·커밋), 커버리지 대시보드 (FR-13, D-14) |
 
 여기서 **버리는 것**도 분명하다. 순차 폴더 번호(Spec Kit 001, 002…)는 서버 발급 해시 ID로, 폴더 위치·체크박스·yaml로 표현된 상태는 DB 상태 머신으로 대체된다(D-01, D-04). 문서 어휘는 차용하고 저장·조정 메커니즘은 전부 갈아엎는다는 것이 NERV의 기본 자세다.
@@ -300,13 +302,13 @@ Yuval Yeret의 반론이 이 진영의 대표다. 워터폴이 무너진 이유�
 
 | 차용 대상 | 출처 도구 | NERV에서의 형태 | 결정·요구사항 | 반영 문서 |
 | --- | --- | --- | --- | --- |
-| requirements(EARS)/design/tasks 3분할 | Kiro | Spec 타입 + Requirement 엔티티(EARS 템플릿·안정 ID) + Task 파생 | D-02, D-03, FR-01/03/05 | [데이터 모델](../03-proposal/data-model.md), [스펙 워크플로우](../03-proposal/spec-workflow.md) |
+| requirements(EARS)/design/tasks 3분할 | Kiro | Spec 타입 + Requirement 엔티티(EARS 템플릿·고정 ID) + Task 파생 | D-02, D-03, FR-01/03/05 | [데이터 모델](../03-proposal/data-model.md), [스펙 워크플로우](../03-proposal/spec-workflow.md) |
 | constitution · standards 주입 | Spec Kit, Agent OS | 스펙 타입 `convention`·`vision` + `nerv_bootstrap` 세션 시작 주입 | D-05, FR-01, FR-15 | [에이전트 연동 설계](../03-proposal/agent-integration.md) |
 | ADDED/MODIFIED/REMOVED 델타 | OpenSpec | ChangeRequest + SpecVersion 불변 스냅샷 + 델타 리뷰 뷰 | D-02, FR-02, FR-04 | [스펙 워크플로우](../03-proposal/spec-workflow.md), [데이터 모델](../03-proposal/data-model.md) |
 | 자기완결 스토리 파일 | BMAD | Task 위임 명세 4요소(목표/산출물 형식/도구·출처/경계) | FR-05 | [스펙 워크플로우](../03-proposal/spec-workflow.md) |
 | 의존성 그래프 · wave 병렬 실행 | Kiro | TaskDependency + ready 큐 + 원자적 클레임·리스 | D-04, FR-05, FR-06 | [스펙 워크플로우](../03-proposal/spec-workflow.md), [시스템 아키텍처](../03-proposal/architecture.md) |
 | MCP 연동 + 웹 대시보드 승인 | spec-workflow-mcp (개념만, GPL-3.0) | tools-first 원격 MCP + 받은 요청(Inbox) + 알림 | D-05, FR-11, FR-12, FR-15 | [에이전트 연동 설계](../03-proposal/agent-integration.md), [Claude Code/Codex 연동 기술](integration-tech.md) |
-| 중앙 스펙 레지스트리 | Tessl | Organization 스코프 공유 + 안정 ID 참조(경로·앵커 아님) | D-09, FR-14 | [데이터 모델](../03-proposal/data-model.md) |
+| 중앙 스펙 레지스트리 | Tessl | Organization 권한 공유 + 고정 ID 참조(경로·앵커 아님) | D-09, FR-14 | [데이터 모델](../03-proposal/data-model.md) |
 | 테스트 링크 = 구현 상태 | Tessl | Evidence(Requirement ↔ 코드·테스트·PR·커밋) + 커버리지 대시보드 | D-14, FR-13 | [데이터 모델](../03-proposal/data-model.md), [스펙 워크플로우](../03-proposal/spec-workflow.md) |
 | 단계별 인간 체크포인트 | Spec Kit | 표준 게이트 4+1, 위험도 가변 + 기록되는 BYPASS | D-06, FR-10, FR-11 | [스펙 워크플로우](../03-proposal/spec-workflow.md) |
 | 스펙 변경 훅(이벤트 자동화) | Kiro | 서버 Event → 구독 규칙 → 알림·자동 검증 | D-10, FR-12, FR-16 | [시스템 아키텍처](../03-proposal/architecture.md) |
@@ -351,12 +353,12 @@ Yuval Yeret의 반론이 이 진영의 대표다. 워터폴이 무너진 이유�
 - [Kiro Feature Specs 문서](https://kiro.dev/docs/specs/feature-specs/) — (2026-08-13 확인) EARS acceptance criteria 예시와 추적성 강조.
 - [Introducing Kiro (공식 블로그)](https://kiro.dev/blog/introducing-kiro/) — (2025-07-14) 스펙 생성 흐름과 파일 이벤트 훅.
 - [Fission-AI/OpenSpec 리포지터리](https://github.com/Fission-AI/OpenSpec) — (2026-08-13 확인) MIT, 64,751★, specs/changes/archive 델타 모델과 Stores 베타.
-- [OpenSpec 공식 팀 워크플로 문서 (team-workflow.md)](https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md) — (2026-08-13 확인) "One change, one owner" 규약과 git 의존의 공식 자인.
+- [OpenSpec 공식 팀 워크플로우 문서 (team-workflow.md)](https://github.com/Fission-AI/OpenSpec/blob/main/docs/team-workflow.md) — (2026-08-13 확인) "One change, one owner" 규약과 git 의존의 공식 자인.
 - [OpenSpec Issue #435: Collaboration & Orchestration](https://github.com/Fission-AI/OpenSpec/issues/435) — (2026-08-13 확인) **멀티유저 공백 1차 출처 ③** 협업 기능 요청의 "not planned" 종료.
 - [Tessl launches spec-driven development tools (공식 블로그)](https://tessl.io/blog/tessl-launches-spec-driven-framework-and-registry) — (2025-09-23) Framework와 Spec Registry(10,000+ specs).
 - [Tessl raises $125M at $500M+ valuation (TechCrunch)](https://techcrunch.com/2024/11/14/tessl-raises-125m-at-at-500m-valuation-to-build-ai-that-writes-and-maintains-code/) — (2024-11-14) 펀딩 규모와 투자자.
 - [bmad-code-org/BMAD-METHOD 리포지터리](https://github.com/bmad-code-org/BMAD-METHOD) — (2026-08-13 확인) MIT + 상표, 51,854★, 4단계 전달 모델.
-- [BMAD Method Workflow Map (공식 문서)](https://docs.bmad-method.org/reference/workflow-map/) — (2026-08-13 확인) 34+ 워크플로와 `sprint-status.yaml` 상태 추적.
+- [BMAD Method Workflow Map (공식 문서)](https://docs.bmad-method.org/reference/workflow-map/) — (2026-08-13 확인) 34+ 워크플로우와 `sprint-status.yaml` 상태 추적.
 - [Agent OS 공식 사이트](https://buildermethods.com/agent-os) — (2026-08-13 확인) standards/product/specs 3층 구조.
 - [Pimzino/spec-workflow-mcp 리포지터리](https://github.com/Pimzino/spec-workflow-mcp) — (2026-08-13 확인) GPL-3.0, MCP + 대시보드 승인 라이프사이클.
 

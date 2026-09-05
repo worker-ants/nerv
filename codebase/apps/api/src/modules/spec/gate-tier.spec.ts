@@ -60,9 +60,9 @@ describe('4축 → 티어 (§2.4 표)', () => {
   });
 });
 
-describe('첫 승인 판은 티어를 올린다 (2026-09-02 사람 결정)', () => {
+describe('첫 승인 버전은 티어를 올린다 (2026-09-02 사람 결정)', () => {
   // 새 feature 스펙: 부작용 2(요구사항 추가) + 민감도 1(feature) + 가역성 0 + 파급 0 = 3점.
-  // 되돌릴 이전 판이 없고 아직 아무도 참조하지 않아 두 축이 구조적으로 0 이다.
+  // 되돌릴 이전 버전이 없고 아직 아무도 참조하지 않아 두 축이 구조적으로 0 이다.
   const newFeatureSpec = (): ReturnType<typeof axes> => axes(2, 1, 0, 0);
 
   it('신호가 없으면 3점은 T1 — 사람 없이 통과한다', () => {
@@ -71,15 +71,15 @@ describe('첫 승인 판은 티어를 올린다 (2026-09-02 사람 결정)', () 
     expect(decision.autoPass).toBe(true);
   });
 
-  it('첫 판이면 T2 로 올라간다 — §2.4 표의 "신규 feature 스펙" 예시와 맞는다', () => {
+  it('첫 버전이면 T2 로 올라간다 — §2.4 표의 "신규 feature 스펙" 예시와 맞는다', () => {
     const decision = decideGate(newFeatureSpec(), { firstApprovedVersion: true });
     expect(decision.tier).toBe('T2');
     expect(decision.autoPass).toBe(false);
     expect(decision.requiredApprovers).toBe(1);
-    expect(decision.rationale).toContain('첫 승인 판');
+    expect(decision.rationale).toContain('첫 승인 버전');
   });
 
-  it('둘째 판부터는 올리지 않는다 — 문서당 한 번이다', () => {
+  it('둘째 버전부터는 올리지 않는다 — 문서당 한 번이다', () => {
     expect(decideGate(newFeatureSpec(), { firstApprovedVersion: false }).tier).toBe('T1');
   });
 });

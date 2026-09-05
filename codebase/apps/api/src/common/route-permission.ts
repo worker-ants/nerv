@@ -9,7 +9,7 @@
 // 권한을 **선언해야 하고**, 선언이 없으면 `ProjectAccessGuard` 가 요청을 거절한다(fail-closed).
 // 새 라우트를 열면 다음 테스트 실행에서 즉시 드러난다 — 조용히 열려 있는 대신에.
 //
-// 두 축을 그대로 옮긴다. 전표가 스코프로 적은 것(`task:claim`)은 `@RequireScope`,
+// 두 축을 그대로 옮긴다. 전표가 권한으로 적은 것(`task:claim`)은 `@RequireScope`,
 // 역할로 적은 것(planner·developer·admin)은 `@RequireRole` 이다. 소유권 조건
 // ("클레임 보유자", "작성자 본인")은 여기서 판정할 수 없다 — 그것은 도메인 서비스의 몫이고
 // 이 선언은 그 앞의 문턱이다.
@@ -29,7 +29,7 @@ export interface RoutePermission {
   roles?: readonly string[];
 }
 
-/** 전표가 스코프로 적은 권한. 여럿이면 **하나라도** 있으면 통과다. */
+/** 전표가 권한으로 적은 권한. 여럿이면 **하나라도** 있으면 통과다. */
 export const RequireScope = (...scopes: RoleScope[]): MethodDecorator =>
   SetMetadata(ROUTE_PERMISSION, { scopes } satisfies RoutePermission);
 
@@ -37,7 +37,7 @@ export const RequireScope = (...scopes: RoleScope[]): MethodDecorator =>
 export const RequireRole = (...roles: string[]): MethodDecorator =>
   SetMetadata(ROUTE_PERMISSION, { roles } satisfies RoutePermission);
 
-/** 역할과 스코프를 **함께** 요구한다(EP-IMP-* 의 `admin AND import:write`). */
+/** 역할과 권한을 **함께** 요구한다(EP-IMP-* 의 `admin AND import:write`). */
 export const RequireRoleAndScope = (roles: string[], ...scopes: RoleScope[]): MethodDecorator =>
   SetMetadata(ROUTE_PERMISSION, { roles, scopes } satisfies RoutePermission);
 

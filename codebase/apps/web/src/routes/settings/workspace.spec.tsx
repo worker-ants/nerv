@@ -75,7 +75,7 @@ beforeEach(() => localStorage.clear());
 
 describe('권한 — 겸직은 합집합이다', () => {
   it('프로젝트에서 planner 여도 조직 admin 이면 고칠 수 있다', () => {
-    // `primaryMembership` 은 프로젝트 스코프를 먼저 고른다 — 그 한 행만 보면 조직
+    // `primaryMembership` 은 프로젝트 소속을 먼저 고른다 — 그 한 행만 보면 조직
     // admin 인 사람이 조직 설정에서 잠긴다(실측 2026-08-24).
     expect(rolesInOrg(ME as never, 'default')).toContain('admin');
     expect(rolesInOrg(ME as never, 'other')).toEqual([]);

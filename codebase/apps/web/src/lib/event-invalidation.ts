@@ -21,7 +21,7 @@ type KeyBuilder = (e: NervEventEnvelope) => NervQueryKey[];
 /**
  * 스펙 축 — **키로 잡는다**(2026-08-29 정정).
  *
- * 화면의 쿼리 키는 안정 키(`SPC-…`)인데 봉투의 `subject_id` 는 버전·스펙 UUID 라
+ * 화면의 쿼리 키는 고정 ID(`SPC-…`)인데 봉투의 `subject_id` 는 버전·스펙 UUID 라
  * 축이 달랐다. `['spec', <버전UUID>]` 를 무효화해도 `['spec','SPC-CWC-007']` 에는 닿지
  * 않는다 — 그래서 상세 화면이 **한 번도** 다시 읽히지 않았다. 서버가 `subject_key` 를
  * 싣게 됐으므로(api.md §3.3) 그것을 쓰고, 없으면 예전대로 id 로 떨어진다.
@@ -37,8 +37,8 @@ const specAxis: KeyBuilder = (e) => {
     queryKeys.projectSpecGraph(e.project_id),
   ];
 };
-// 코멘트·Task 도 **같은 축**이다(2026-09-02). 스펙 축만 2026-08-29 에 안정 키로 옮겼고
-// 나머지는 UUID 로 남아 있었다 — 화면의 키는 안정 키라 코멘트가 달려도, Task 가 done 이
+// 코멘트·Task 도 **같은 축**이다(2026-09-02). 스펙 축만 2026-08-29 에 고정 ID로 옮겼고
+// 나머지는 UUID 로 남아 있었다 — 화면의 키는 고정 ID라 코멘트가 달려도, Task 가 done 이
 // 돼도 단건 캐시는 한 번도 무효화되지 않았다(서버가 그 이벤트에 키를 싣게 됐다).
 const specComments: KeyBuilder = (e) => [queryKeys.specComments(e.subject_key ?? e.subject_id)];
 const taskAxis: KeyBuilder = (e) => [

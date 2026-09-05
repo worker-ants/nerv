@@ -1,4 +1,4 @@
-// 임베딩 파이프라인 — 헤딩 청크 · 변경분만 재임베딩 · 최신 판만 유지 (E09-S11)
+// 임베딩 파이프라인 — 헤딩 청크 · 변경분만 재임베딩 · 최신 버전만 유지 (E09-S11)
 // 정본: database.md §2.15(REQ-DB-014·015·017) · codebase.md §5.2a(REQ-CB-020·021)
 //
 // 세 규칙이 이 파일의 전부다.
@@ -6,7 +6,7 @@
 //      쓰므로 검색 결과에서 코멘트 위치로 바로 갈 수 있다.
 //   ② **변경분만** — chunk_hash 비교로 무변경 재임베딩을 막는다. approved 본문은 불변이라
 //      버전당 최대 1회다. 이게 없으면 저장할 때마다 문서 전체를 다시 임베딩하게 된다.
-//   ③ **최신 판만** — 스펙별 최신 approved + 현재 draft. 과거 판 검색은 렉시컬로 충분하고,
+//   ③ **최신 버전만** — 스펙별 최신 approved + 현재 draft. 과거 버전 검색은 렉시컬로 충분하고,
 //      전 버전 임베딩은 비용 대비 무가치다.
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -28,7 +28,7 @@ export interface IndexReport {
   chunks_unchanged: number;
   chunks_deleted: number;
   versions_pruned: number;
-  /** 시간 상한에서 멈췄나 — 실패가 아니라 "이번 판은 여기까지"다 */
+  /** 시간 상한에서 멈췄나 — 실패가 아니라 "이번 버전은 여기까지"다 */
   stopped_early: boolean;
   error: string | null;
 }
@@ -165,7 +165,7 @@ export class EmbeddingService {
   }
 
   /**
-   * 한 판 돌린다. 제공자가 죽어 있으면 **아무것도 적재하지 않고** 보고만 한다 —
+   * 한 버전 돌린다. 제공자가 죽어 있으면 **아무것도 적재하지 않고** 보고만 한다 —
    * 검색은 렉시컬로 degrade 되지만(REQ-API-026), 인덱스에 반쪽짜리를 남기지는 않는다.
    */
   async runOnce(
@@ -267,7 +267,7 @@ export class EmbeddingService {
     return report;
   }
 
-  /** 규칙 ③의 집행 — 최신 판이 아니게 된 버전의 임베딩 행을 지운다(supersede·draft 폐기). */
+  /** 규칙 ③의 집행 — 최신이 아니게 된 버전의 임베딩 행을 지운다(supersede·draft 폐기). */
   private async pruneStaleVersions(projectId: string | null): Promise<number> {
     const scope = projectId == null ? sql`` : sql` AND s.project_id = ${projectId}`;
     const { rows } = await this.db.execute<{ id: string }>(sql`

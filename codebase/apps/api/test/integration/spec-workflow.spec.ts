@@ -168,28 +168,28 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     });
 
     // 부작용 2(요구사항 추가) + 민감도 1(feature) = 3점. 축만으로는 T1(자동 통과)이지만
-    // **첫 승인 판**이라 한 단계 올라 T2 다(2026-09-02 사람 결정) — §2.4 표가 같은 문서에서
+    // **첫 승인 버전**이라 한 단계 올라 T2 다(2026-09-02 사람 결정) — §2.4 표가 같은 문서에서
     // "신규 feature 스펙"을 T2 예시로 들고 있는데 축이 그 예시에 닿지 못했다.
     expect(submitted.gate.score).toBe(3);
     expect(submitted.gate.tier).toBe('T2');
     expect(submitted.gate.autoPass).toBe(false);
     expect(submitted.status).toBe('in_review');
     expect(submitted.approval_id).not.toBeNull();
-    expect(submitted.gate.rationale).toContain('첫 승인 판');
+    expect(submitted.gate.rationale).toContain('첫 승인 버전');
   });
 
-  it('둘째 판부터는 축이 정한 대로다 — 가산은 문서당 한 번이다', async () => {
+  it('둘째 버전부터는 축이 정한 대로다 — 가산은 문서당 한 번이다', async () => {
     const key = `SPC-2ND-${newId().slice(-4).toUpperCase()}`;
     const first = await specs.draftUpsert({
       roles: ['planner'],
       projectId,
       key,
-      title: '둘째 판',
+      title: '둘째 버전',
       type: 'feature',
-      bodyMd: '# 둘째 판\n\n본문만 있는 문서',
+      bodyMd: '# 둘째 버전\n\n본문만 있는 문서',
       userId: planner,
     });
-    // 첫 판을 통과시켜 approved 기준을 만든다(T0 + 첫 판 가산 = T1, 자동 통과)
+    // 첫 버전을 통과시켜 approved 기준을 만든다(T0 + 첫 버전 가산 = T1, 자동 통과)
     const firstResult = await specs.submitReview({
       projectId,
       specVersionId: first['spec_version_id'] as string,
@@ -197,13 +197,13 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     });
     expect(firstResult.status).toBe('approved');
 
-    // 같은 문서의 다음 판 — 문구만 고친다. 이제 기준이 있으므로 가산이 붙지 않는다.
+    // 같은 문서의 다음 버전 — 문구만 고친다. 이제 기준이 있으므로 가산이 붙지 않는다.
     const second = await specs.draftUpsert({
       roles: ['planner'],
       projectId,
       specId: first['spec_id'] as string,
       baseHash: await hashOf(first['spec_id'] as string),
-      bodyMd: '# 둘째 판\n\n본문만 있는 문서 (문구 정리)',
+      bodyMd: '# 둘째 버전\n\n본문만 있는 문서 (문구 정리)',
       userId: planner,
     });
     const secondResult = await specs.submitReview({
@@ -212,10 +212,10 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
       userId: planner,
     });
     expect(secondResult.status).toBe('approved');
-    expect(secondResult.gate.rationale).not.toContain('첫 승인 판');
+    expect(secondResult.gate.rationale).not.toContain('첫 승인 버전');
   });
 
-  it('프로젝트가 동적 강화를 끄면 첫 판 가산도 붙지 않는다', async () => {
+  it('프로젝트가 동적 강화를 끄면 첫 버전 가산도 붙지 않는다', async () => {
     await pool.query(
       `UPDATE project SET gate_policy = jsonb_build_object('spec_gate',
          jsonb_build_object('dynamic_escalation', false)) WHERE id = $1`,
@@ -491,7 +491,7 @@ describe('버전이 없는 골격 노드도 문서다 (§1.4i)', () => {
     const r = await specs.get({ projectId, specKey: 'SPC-EMPTY' });
     expect(r['key']).toBe('SPC-EMPTY');
     expect(r['body_md']).toBe('');
-    // 견줄 판이 없다는 것을 지문이 그대로 말한다 — 가짜 값을 지어내게 하지 않는다
+    // 견줄 버전이 없다는 것을 지문이 그대로 말한다 — 가짜 값을 지어내게 하지 않는다
     expect(r['content_hash']).toBeNull();
     expect(r['version_id']).toBeNull();
   });
@@ -682,8 +682,8 @@ describe('E09-S07 재브리핑·참조 전파 (§3.3)', () => {
   /**
    * 배지의 판정은 서버가 한다(REQ-WEB-037 · 2026-09-03).
    *
-   * 화면이 "참조하는 approved 문서가 있고 내가 초안이면" 으로 켜던 동안 **초안 26판 중
-   * 26판에서 배지가 켜져 있었다**(실측). 늘 켜진 경고는 아무도 읽지 않는다.
+   * 화면이 "참조하는 approved 문서가 있고 내가 초안이면" 으로 켜던 동안 **초안 26버전 중
+   * 26버전에서 배지가 켜져 있었다**(실측). 늘 켜진 경고는 아무도 읽지 않는다.
    */
   it('참조 갱신은 신호가 온 문서에서만 켜진다 — 그리고 무엇 때문인지 말한다', async () => {
     const target = await newDraft('SPC-MOVED');
@@ -924,7 +924,7 @@ describe('E04 요구사항 행 — 승인이 본문에서 뽑는다', () => {
     expect((await refsOf('REQ-PRO-')).map((r) => r.ref)).toEqual(['REQ-PRO-001']);
   });
 
-  it('다음 판에서 빠지면 지우지 않고 **언제 빠졌는지**를 남긴다', async () => {
+  it('다음 버전에서 빠지면 지우지 않고 **언제 빠졌는지**를 남긴다', async () => {
     const key = 'SPC-REQ-C';
     const { specId, versionId } = await newDraft(
       key,

@@ -147,7 +147,7 @@ function SpecListScreen(): React.JSX.Element {
    * 트리에만 딸린 조작 — 트리의 필터 줄 맨 앞에 선다(REQ-WEB-140).
    *
    * **기준선을 고른 동안에는 그리지 않는다.** 그 세트의 항목은 전부 승인본이라(승인되지 않은
-   * 판은 기준선에 담기지 않는다 — REQ-API-015) 상태로 거를 것이 없고, 고를 수 있는 것처럼
+   * 버전은 기준선에 담기지 않는다 — REQ-API-015) 상태로 거를 것이 없고, 고를 수 있는 것처럼
    * 보였다가 빈 목록을 주는 것이 이 화면이 피해 온 모양이다.
    */
   const treeControls =
@@ -281,8 +281,8 @@ function SpecListScreen(): React.JSX.Element {
             >
               {t('specs.new')}
             </Button>
-            {/* 기준선 — 고르면 목록·상세가 그 세트의 판을 읽는다(REQ-WEB-135).
-             **이 자리가 없어서 실사용 베이스라인이 0개였다**(실측 2026-09-04) */}
+            {/* 기준선 — 고르면 목록·상세가 그 세트의 버전을 읽는다(REQ-WEB-135).
+             **이 자리가 없어서 실사용 기준선이 0개였다**(실측 2026-09-04) */}
             <BaselineSelect
               projectSlug={proj}
               value={baseline ?? null}

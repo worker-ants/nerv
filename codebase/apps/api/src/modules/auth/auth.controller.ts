@@ -192,7 +192,7 @@ export class AuthController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     const principal = principalOf(req);
-    // PAT 가 PAT 를 발급하는 경로는 막는다 — 스코프 상속의 사슬이 사람에서 시작해야 한다(D-08).
+    // PAT 가 PAT 를 발급하는 경로는 막는다 — 권한 상속의 사슬이 사람에서 시작해야 한다(D-08).
     if (principal.isAgent) {
       throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.token_issue'), {
         kind: 'human_only',
@@ -225,7 +225,7 @@ export class AuthController {
   }
 }
 
-/** 프로젝트 스코프가 필요한 조직 설정 표면 — 가드가 역할을 실어 온다. */
+/** 프로젝트 소속이 필요한 조직 설정 표면 — 가드가 역할을 실어 온다. */
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
 export class ProjectController {

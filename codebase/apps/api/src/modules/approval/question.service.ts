@@ -204,7 +204,7 @@ export class QuestionService {
     return this.resolveRef(tx, projectId, ref, 'spec', 'spec');
   }
 
-  /** Finding 은 안정 키가 없다 — UUID 로만 가리킨다(리뷰 센터도 짧은 id 를 보여줄 뿐이다) */
+  /** Finding 은 고정 ID가 없다 — UUID 로만 가리킨다(리뷰 센터도 짧은 id 를 보여줄 뿐이다) */
   private async resolveFindingId(
     tx: Tx,
     projectId: string,

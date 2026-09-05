@@ -15,6 +15,7 @@
     <div><b>NERV 플랫폼 제안서</b><small>AI 에이전트 협업 플랫폼</small></div>
   </div>
   <a href="index.html">개요 (Executive Summary)</a>
+  <a href="glossary.html">용어 사전</a>
   <div class="nav-group">1부 · 현행 분석</div>
   <a href="clemvion-analysis.html">1.1 clemvion 하네스 분석</a>
   <a href="pain-points.html">1.2 문제 정의와 요구사항</a>
@@ -52,7 +53,7 @@
     <h1>Claude Code/Codex 연동 기술 — 표면 목록과 NERV 결선도</h1>
     <p class="lead">Claude Code는 훅 31종·MCP 클라이언트·스킬·서브에이전트·플러그인·헤드리스·Agent SDK·OTel까지 여덟 개의 공식 연동 표면을 열어두고 있고, 그중 <code>type:"http"</code> 훅 하나만으로 세션 전 생명주기를 래퍼 스크립트 없이 NERV 수집 엔드포인트로 직접 POST할 수 있다. Codex도 거의 대칭이지만 <b>MCP의 resources·prompts·elicitation을 소비하지 못하고, 마켓플레이스급 일괄 배포 체계가 없으며, cloud 태스크 생성 API가 문서화되어 있지 않다</b> — 이 격차가 D-05의 tools-first 설계를 강제한다. FR-15와 D-05의 1차 근거.</p>
     <div class="meta-line">
-      <span>버전 v0.2 (2026-09-04)</span>
+      <span>버전 v0.3 (2026-09-04)</span>
       <span>원본: <code>docs/02-research/integration-tech.md</code></span>
       <span>1차 소스: 웹 딥리서치 노트 1건(공식 문서 26개 출처, 확인일 2026-08-13)</span>
     </div>
@@ -86,7 +87,7 @@
     <tbody>
       <tr><td><b>Hooks (31종 이벤트)</b></td><td>수명주기 이벤트마다 셸/HTTP/MCP 툴/LLM/서브에이전트 핸들러 실행</td><td>수집 + 제어</td><td>AgentSession 등록·종료, Activity 스트림, 클레임 scope 위반 실시간 차단, Stop 게이트 (FR-07·FR-08·FR-10)</td></tr>
       <tr><td><b>MCP 클라이언트</b></td><td>원격/로컬 MCP 서버의 tools·resources·prompts 소비</td><td>공급</td><td><code>nerv_*</code> 도구로 스펙 조회·Task 클레임·리뷰 제출 (FR-01·FR-05·FR-09)</td></tr>
-      <tr><td><b>Skills (SKILL.md)</b></td><td>절차를 md 한 파일로 규격화, 자동/수동 트리거</td><td>배포</td><td>NERV 워크플로(스펙 작성·구현·리뷰) 절차 배포. Codex와 <b>같은 파일</b> 재사용</td></tr>
+      <tr><td><b>Skills (SKILL.md)</b></td><td>절차를 md 한 파일로 규격화, 자동/수동 트리거</td><td>배포</td><td>NERV 워크플로우(스펙 작성·구현·리뷰) 절차 배포. Codex와 <b>같은 파일</b> 재사용</td></tr>
       <tr><td><b>Sub-agents</b></td><td>역할별 격리 실행 단위(<code>.claude/agents/*.md</code>)</td><td>배포 + 수집</td><td>리뷰어·스펙 검증자 역할 배포, <code>SubagentStart/Stop</code>으로 역할별 활동 추적</td></tr>
       <tr><td><b>Plugins + 마켓플레이스</b></td><td>스킬·에이전트·훅·<code>.mcp.json</code>을 한 번들로 묶어 git으로 배포</td><td>배포</td><td>NERV 클라이언트 v1의 유일한 배포 단위. 관리형 settings로 조직 강제 활성화 (FR-15)</td></tr>
       <tr><td><b>Headless</b> (<code>claude -p</code>, stream-json)</td><td>비대화형 실행·재개·JSON 스트림</td><td>공급 + 수집</td><td>서버가 워커 세션을 기동/재개, <code>system/init</code>으로 "NERV 플러그인이 실제 로드됐는지" 검증</td></tr>
@@ -183,7 +184,7 @@
   </div>
 
   <p class="src"><a href="https://code.claude.com/docs/en/hooks">Hooks reference — Claude Code Docs</a> (확인일 2026-08-13): 31종 이벤트·공통 페이로드·핸들러 5종의 1차 출처.</p>
-  <p class="src"><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP — Claude Code Docs</a> (확인일 2026-08-13): 트랜스포트·스코프·인증·프리미티브 소비 방식.</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP — Claude Code Docs</a> (확인일 2026-08-13): 트랜스포트·권한·인증·프리미티브 소비 방식.</p>
 
   <h3 id="sec-1-2">1.2 Hooks — 수집의 1차 표면</h3>
 
@@ -285,7 +286,7 @@
 
   <h3 id="sec-1-3">1.3 MCP 클라이언트 — 스펙·작업 공급 표면</h3>
 
-  <p>트랜스포트는 stdio(로컬), <b>HTTP(권장, <code>streamable-http</code> 별칭 허용)</b>, SSE(deprecated), WebSocket(<code>type:"ws"</code>, JSON 설정 전용·OAuth 불가)이다. 스코프는 local(<code>~/.claude.json</code>, 프로젝트별) · project(<code>.mcp.json</code>, 커밋 공유) · user(전역) 3종이고 우선순위는 local &gt; project &gt; user &gt; plugin &gt; claude.ai 커넥터다. <code>.mcp.json</code>은 <code>command/args/env/url/headers</code>에서 <code>${VAR}</code>/<code>${VAR:-default}</code> 확장을 지원한다.</p>
+  <p>트랜스포트는 stdio(로컬), <b>HTTP(권장, <code>streamable-http</code> 별칭 허용)</b>, SSE(deprecated), WebSocket(<code>type:"ws"</code>, JSON 설정 전용·OAuth 불가)이다. 권한은 local(<code>~/.claude.json</code>, 프로젝트별) · project(<code>.mcp.json</code>, 커밋 공유) · user(전역) 3종이고 우선순위는 local &gt; project &gt; user &gt; plugin &gt; claude.ai 커넥터다. <code>.mcp.json</code>은 <code>command/args/env/url/headers</code>에서 <code>${VAR}</code>/<code>${VAR:-default}</code> 확장을 지원한다.</p>
 
 <pre><code>{
   "mcpServers": {
@@ -302,7 +303,7 @@
     <tbody>
       <tr><td>tools</td><td><code>tools/list</code>·<code>tools/call</code></td><td><code>nerv_task_claim</code>·<code>nerv_spec_get</code> 등 <b>모든 핵심 동작</b>(Codex 호환의 유일한 공통분모)</td></tr>
       <tr><td>resources</td><td><code>@server:protocol://path</code> 멘션으로 프롬프트 첨부</td><td><code>nerv://spec/{project}/{id}</code>로 승인된 SpecVersion 첨부 — Claude 전용 향상</td></tr>
-      <tr><td>prompts</td><td><code>/mcp__nerv__&lt;prompt&gt;</code> 슬래시 명령</td><td>"스펙 리뷰 시작" 같은 정형 워크플로 — Claude 전용 향상</td></tr>
+      <tr><td>prompts</td><td><code>/mcp__nerv__&lt;prompt&gt;</code> 슬래시 명령</td><td>"스펙 리뷰 시작" 같은 정형 워크플로우 — Claude 전용 향상</td></tr>
       <tr><td>elicitation</td><td>서버가 mid-task로 구조화 입력(form)·URL 승인을 요청, <code>Elicitation</code> 훅으로 자동 응답 가능</td><td>클레임 충돌 시 "어느 Task로 갈지" 즉시 질의 — Claude 전용 향상</td></tr>
       <tr><td>tool search</td><td>툴 정의 기본 지연 로딩(서버 <code>instructions</code> 2KB가 검색 힌트), <code>alwaysLoad:true</code> 또는 툴별 <code>_meta["anthropic/alwaysLoad"]</code></td><td><code>nerv_bootstrap</code>·<code>nerv_task_next</code>만 상시 로딩, 나머지는 지연</td></tr>
       <tr><td>출력 한도</td><td>기본 25,000 토큰(<code>MAX_MCP_OUTPUT_TOKENS</code>), 툴별 <code>_meta["anthropic/maxResultSizeChars"]</code>(최대 50만자)</td><td>스펙 트리·리뷰 목록 응답에 페이지네이션 강제</td></tr>
@@ -311,7 +312,7 @@
     </tbody>
   </table></div>
 
-  <p>인증은 401/403 시 <code>/mcp</code> 또는 <code>claude mcp login &lt;name&gt;</code>(v2.1.186+)으로 브라우저 OAuth를 수행하며 <b>Dynamic Client Registration + CIMD 자동 발견</b>을 지원한다. 미지원 서버는 <code>--client-id/--client-secret/--callback-port</code>로 사전 등록 자격증명을 쓴다(secret은 macOS 키체인). <code>oauth.scopes</code>로 스코프 고정, <code>authServerMetadataUrl</code>로 발견 체인 오버라이드가 가능하고, OAuth 대신 <code>headers</code>(정적 Bearer) 또는 <code>headersHelper</code>(연결 시마다 셸로 동적 헤더 생성, 401/403 시 자동 재실행)도 공식 경로다. 비대화형(<code>claude -p</code>)에서는 OAuth 플로우를 띄울 수 없으므로 <b>사전 로그인이 필수</b>다 — CI·서버 워커 설계의 제약 조건이다. 조직 통제는 <code>managed-mcp.json</code> + <code>allowedMcpServers</code>/<code>deniedMcpServers</code>로 한다.</p>
+  <p>인증은 401/403 시 <code>/mcp</code> 또는 <code>claude mcp login &lt;name&gt;</code>(v2.1.186+)으로 브라우저 OAuth를 수행하며 <b>Dynamic Client Registration + CIMD 자동 발견</b>을 지원한다. 미지원 서버는 <code>--client-id/--client-secret/--callback-port</code>로 사전 등록 자격증명을 쓴다(secret은 macOS 키체인). <code>oauth.scopes</code>로 권한 고정, <code>authServerMetadataUrl</code>로 발견 체인 오버라이드가 가능하고, OAuth 대신 <code>headers</code>(정적 Bearer) 또는 <code>headersHelper</code>(연결 시마다 셸로 동적 헤더 생성, 401/403 시 자동 재실행)도 공식 경로다. 비대화형(<code>claude -p</code>)에서는 OAuth 플로우를 띄울 수 없으므로 <b>사전 로그인이 필수</b>다 — CI·서버 워커 설계의 제약 조건이다. 조직 통제는 <code>managed-mcp.json</code> + <code>allowedMcpServers</code>/<code>deniedMcpServers</code>로 한다.</p>
 
   <h3 id="sec-1-4">1.4 Skills — 절차의 배포 포맷</h3>
 
@@ -440,7 +441,7 @@
     <tbody>
       <tr><td>Tools</td><td>모델</td><td><code>nerv_bootstrap</code>, <code>nerv_spec_search/get/tree</code>, <code>nerv_task_next/claim/heartbeat/update/release</code>, <code>nerv_review_submit</code>, <code>nerv_finding_resolve</code>, <code>nerv_question_create</code>, <code>nerv_session_event</code></td><td><span class="badge approved">가능</span></td></tr>
       <tr><td>Resources</td><td>앱</td><td><code>nerv://spec/{project}/{id}</code> 승인된 SpecVersion 본문, 리소스 템플릿·자동완성</td><td><span class="badge blocked">불가</span></td></tr>
-      <tr><td>Prompts</td><td>사용자</td><td><code>/mcp__nerv__spec_review</code> 같은 정형 워크플로 슬래시 명령</td><td><span class="badge blocked">불가</span></td></tr>
+      <tr><td>Prompts</td><td>사용자</td><td><code>/mcp__nerv__spec_review</code> 같은 정형 워크플로우 슬래시 명령</td><td><span class="badge blocked">불가</span></td></tr>
       <tr><td>Elicitation</td><td>클라이언트</td><td>클레임 충돌·모호한 요구사항의 즉시 질의</td><td><span class="badge blocked">불가</span></td></tr>
       <tr><td>Tasks(확장)</td><td>서버</td><td>사람 승인 대기 게이트를 <code>input_required</code> 상태로 모델링</td><td><span class="badge draft">미확인</span></td></tr>
     </tbody>
@@ -450,7 +451,7 @@
 
   <h3 id="sec-2-2">2.2 Streamable HTTP 리비전 변화 — 2026-07-28의 무세션화</h3>
 
-  <p>표준 트랜스포트는 stdio와 Streamable HTTP(단일 MCP 엔드포인트에 요청당 POST, 응답은 JSON 또는 요청 스코프 SSE 스트림)다. <b>2026-07-28 리비전에는 파괴적 변경이 있다.</b></p>
+  <p>표준 트랜스포트는 stdio와 Streamable HTTP(단일 MCP 엔드포인트에 요청당 POST, 응답은 JSON 또는 요청 권한 SSE 스트림)다. <b>2026-07-28 리비전에는 파괴적 변경이 있다.</b></p>
 
   <div class="diagram">
     <svg viewBox="0 0 880 250" role="img" aria-label="MCP Streamable HTTP 구 리비전과 2026-07-28 리비전의 차이 비교도">
@@ -484,7 +485,7 @@
       <rect x="740" y="46" width="110" height="38" rx="8" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="795" y="70" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11.5">MCP 서버</text>
       <line x1="525" y1="110" x2="795" y2="110" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#arr2a)"/>
-      <text x="660" y="103" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">POST /mcp (요청 스코프 SSE) · 무세션</text>
+      <text x="660" y="103" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">POST /mcp (요청 권한 SSE) · 무세션</text>
       <line x1="525" y1="148" x2="795" y2="148" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#arr2a)"/>
       <text x="660" y="141" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="11">subscriptions/listen → 응답 스트림으로 알림</text>
       <line x1="525" y1="186" x2="795" y2="186" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#arr2a)"/>
@@ -517,10 +518,10 @@
 
   <ul>
     <li><b>정식 경로</b> — NERV IdP가 PRM(9728) + AS metadata(8414) + CIMD + PKCE + resource indicator를 구현하면 Claude Code(<code>/mcp</code>, <code>claude mcp login</code>)와 Codex(<code>codex mcp login</code>) 양쪽에서 무설정 로그인이 된다.</li>
-    <li><b>저비용 대안(MVP)</b> — Claude는 <code>headers</code>(정적 Bearer)/<code>headersHelper</code>(동적), Codex는 <code>bearer_token_env_var</code>/<code>http_headers</code>로 NERV 발급 PAT를 주입한다. D-08의 "토큰은 사용자별 발급, 프로젝트 스코프" 원칙은 두 경로 모두에서 지켜진다.</li>
+    <li><b>저비용 대안(MVP)</b> — Claude는 <code>headers</code>(정적 Bearer)/<code>headersHelper</code>(동적), Codex는 <code>bearer_token_env_var</code>/<code>http_headers</code>로 NERV 발급 PAT를 주입한다. D-08의 "토큰은 사용자별 발급, 프로젝트 소속" 원칙은 두 경로 모두에서 지켜진다.</li>
   </ul>
 
-  <p>스코프 설계는 D-08(권한 상속, 절대 비확대)을 따른다 — 에이전트 토큰은 위임한 사람의 권한을 넘을 수 없고, 403 step-up 챌린지로 부족한 권한을 사후 요구하는 흐름은 "사람에게 물어보라"는 신호로 사용한다.</p>
+  <p>권한 설계는 D-08(권한 상속, 절대 비확대)을 따른다 — 에이전트 토큰은 위임한 사람의 권한을 넘을 수 없고, 403 step-up 챌린지로 부족한 권한을 사후 요구하는 흐름은 "사람에게 물어보라"는 신호로 사용한다.</p>
 
   <h3 id="sec-2-4">2.4 Skills over MCP — 중기 관전 포인트</h3>
 
@@ -571,7 +572,7 @@ log_user_prompt = false</code></pre>
 
 <h3 id="sec-3-2">3.2 hooks 11종 — 같은 계열, 좁은 표면</h3>
 
-  <p>Codex도 수명주기 훅을 지원한다(2026년 상반기 추가). 이벤트는 세션 수준 <code>SessionStart</code>/<code>SessionEnd</code>/<code>SubagentStart</code>, 턴 수준 <code>PreToolUse</code>/<code>PermissionRequest</code>/<code>PostToolUse</code>/<code>PreCompact</code>/<code>PostCompact</code>/<code>UserPromptSubmit</code>/<code>SubagentStop</code>/<code>Stop</code> — <b>총 11종</b>이다. 공통 페이로드는 <code>session_id</code>, <code>hook_event_name</code>, <code>transcript_path</code>, <code>cwd</code>, <code>model</code>이고 턴 스코프에서는 <code>turn_id</code>·<code>permission_mode</code>가 붙는다. 차단은 exit 2 + stderr 또는 JSON <code>{"decision":"block","reason":...}</code>이며 <b><code>PreToolUse</code>가 사실상 유일한 실질 차단 이벤트</b>다(PostToolUse는 결과 대체).</p>
+  <p>Codex도 수명주기 훅을 지원한다(2026년 상반기 추가). 이벤트는 세션 수준 <code>SessionStart</code>/<code>SessionEnd</code>/<code>SubagentStart</code>, 턴 수준 <code>PreToolUse</code>/<code>PermissionRequest</code>/<code>PostToolUse</code>/<code>PreCompact</code>/<code>PostCompact</code>/<code>UserPromptSubmit</code>/<code>SubagentStop</code>/<code>Stop</code> — <b>총 11종</b>이다. 공통 페이로드는 <code>session_id</code>, <code>hook_event_name</code>, <code>transcript_path</code>, <code>cwd</code>, <code>model</code>이고 턴 권한에서는 <code>turn_id</code>·<code>permission_mode</code>가 붙는다. 차단은 exit 2 + stderr 또는 JSON <code>{"decision":"block","reason":...}</code>이며 <b><code>PreToolUse</code>가 사실상 유일한 실질 차단 이벤트</b>다(PostToolUse는 결과 대체).</p>
 
   <p>설정 위치는 <code>~/.codex/hooks.json</code>·<code>~/.codex/config.toml [hooks]</code>(유저), <code>&lt;repo&gt;/.codex/hooks.json</code>(프로젝트, 신뢰 필요), 플러그인 매니페스트, 관리형(MDM/<code>requirements.toml</code>)이며 <b>비관리형 훅은 <code>/hooks</code>로 검토·승인해야 활성화</b>된다. 문서상 Codex 훅 핸들러는 command 중심이므로 <code>type:"http"</code> 같은 직결 경로가 없다 — NERV는 얇은 포워더 스크립트를 온보딩에 동봉한다.</p>
 
@@ -607,9 +608,9 @@ exit 0</code></pre>
 
   <h3 id="sec-3-4">3.4 비대화형 실행과 SDK</h3>
 
-  <p><code>codex exec "task"</code>는 TUI 없이 단일 세션을 완주한다. <code>--json</code>은 <code>thread.started</code>/<code>turn.started</code>/<code>item.completed</code>/<code>turn.failed</code> 등 ThreadEvent JSONL 스트림을 주고, <code>--output-schema &lt;schema.json&gt;</code> 구조화 출력, <code>-o/--output-last-message</code>, <code>codex exec resume --last | &lt;SESSION_ID&gt;</code>로 다단계 파이프라인, <code>--sandbox workspace-write|danger-full-access</code>, <code>--ephemeral</code>을 지원한다. CI에서는 <code>CODEX_API_KEY</code>를 단일 호출 스코프로 주입하는 것이 권장된다.</p>
+  <p><code>codex exec "task"</code>는 TUI 없이 단일 세션을 완주한다. <code>--json</code>은 <code>thread.started</code>/<code>turn.started</code>/<code>item.completed</code>/<code>turn.failed</code> 등 ThreadEvent JSONL 스트림을 주고, <code>--output-schema &lt;schema.json&gt;</code> 구조화 출력, <code>-o/--output-last-message</code>, <code>codex exec resume --last | &lt;SESSION_ID&gt;</code>로 다단계 파이프라인, <code>--sandbox workspace-write|danger-full-access</code>, <code>--ephemeral</code>을 지원한다. CI에서는 <code>CODEX_API_KEY</code>를 단일 호출 권한으로 주입하는 것이 권장된다.</p>
 
-  <p>SDK는 TypeScript <code>@openai/codex-sdk</code>(Node 18+)·Python <code>openai-codex</code>(3.10+)이며 <code>startThread()</code>/<code>resumeThread(threadId)</code>/<code>run(prompt)</code>, 이벤트 스트리밍, 구조화 출력, 샌드박스 프리셋을 제공한다. 특히 <b>exec 옵션으로 세션 스코프 <code>mcpServers</code>를 주입</b>할 수 있어 전역 등록 없이 NERV MCP를 붙일 수 있다 — 서버측 자동화를 듀얼 엔진으로 짜는 근거다.</p>
+  <p>SDK는 TypeScript <code>@openai/codex-sdk</code>(Node 18+)·Python <code>openai-codex</code>(3.10+)이며 <code>startThread()</code>/<code>resumeThread(threadId)</code>/<code>run(prompt)</code>, 이벤트 스트리밍, 구조화 출력, 샌드박스 프리셋을 제공한다. 특히 <b>exec 옵션으로 세션 권한 <code>mcpServers</code>를 주입</b>할 수 있어 전역 등록 없이 NERV MCP를 붙일 수 있다 — 서버측 자동화를 듀얼 엔진으로 짜는 근거다.</p>
 
   <h3 id="sec-3-5">3.5 AGENTS.md — 프로젝트 지침의 표준 타깃</h3>
 
@@ -632,7 +633,7 @@ exit 0</code></pre>
     <tbody>
       <tr><td>MCP tools 소비</td><td><span class="badge approved">지원</span></td><td><span class="badge approved">지원</span></td><td><b>공통분모</b> — 핵심 기능 전부 tools로(D-05)</td></tr>
       <tr><td>MCP <b>resources</b></td><td><span class="badge approved">지원</span> <code>@nerv:…</code> 멘션</td><td><span class="badge blocked">미지원</span></td><td>스펙 본문은 <code>nerv_spec_get</code> <b>툴</b>로도 반드시 제공</td></tr>
-      <tr><td>MCP <b>prompts</b></td><td><span class="badge approved">지원</span> <code>/mcp__nerv__…</code></td><td><span class="badge blocked">미지원</span></td><td>정형 워크플로는 SKILL.md로 이중 배포</td></tr>
+      <tr><td>MCP <b>prompts</b></td><td><span class="badge approved">지원</span> <code>/mcp__nerv__…</code></td><td><span class="badge blocked">미지원</span></td><td>정형 워크플로우는 SKILL.md로 이중 배포</td></tr>
       <tr><td><b>elicitation</b></td><td><span class="badge approved">지원</span> form/URL 모드 + <code>Elicitation</code> 훅</td><td><span class="badge blocked">미지원</span></td><td>질문은 <code>nerv_question_create</code> + 폴링 툴로 대체(세션은 <code>awaiting_input</code>)</td></tr>
       <tr><td><code>requiresUserInteraction</code> 승인 강제</td><td><span class="badge approved">지원</span> (v2.1.199+)</td><td><span class="badge blocked">미지원</span></td><td>Codex는 서버측 승인 게이트로만 강제 — 도구 호출을 대기 상태로 두고 사람 결재</td></tr>
       <tr><td>channels(서버→세션 push)</td><td><span class="badge approved">지원</span> <code>claude/channel</code></td><td><span class="badge blocked">미지원</span></td><td>Codex는 폴링 주기(예: 하트비트 60s)에 승인 결과를 회수</td></tr>
@@ -641,7 +642,7 @@ exit 0</code></pre>
       <tr><td>턴 완료 알림</td><td><code>Stop</code> 훅</td><td><code>Stop</code> 훅 + <b><code>notify</code></b>(agent-turn-complete)</td><td>양쪽 다 "턴 종료" 이벤트 확보</td></tr>
       <tr><td>OTel export</td><td><span class="badge approved">지원</span> 메트릭 8종 + 이벤트 13종+</td><td><span class="badge approved">지원</span> <code>codex.*</code> 이벤트</td><td>같은 collector로 수집, 스키마만 어댑터</td></tr>
       <tr><td>비대화형 실행</td><td><code>claude -p</code>, stream-json, <code>--resume</code></td><td><code>codex exec --json</code>, <code>resume</code></td><td>워커 기동 인터페이스 대칭</td></tr>
-      <tr><td>공식 SDK</td><td><code>@anthropic-ai/claude-agent-sdk</code> / <code>claude-agent-sdk</code></td><td><code>@openai/codex-sdk</code> / <code>openai-codex</code>(세션 스코프 <code>mcpServers</code> 주입)</td><td>서버측 자동화 듀얼 엔진</td></tr>
+      <tr><td>공식 SDK</td><td><code>@anthropic-ai/claude-agent-sdk</code> / <code>claude-agent-sdk</code></td><td><code>@openai/codex-sdk</code> / <code>openai-codex</code>(세션 권한 <code>mcpServers</code> 주입)</td><td>서버측 자동화 듀얼 엔진</td></tr>
       <tr><td>스킬(SKILL.md)</td><td><span class="badge approved">지원</span></td><td><span class="badge approved">지원</span> (agentskills.io 표준)</td><td><b>같은 파일 재사용</b></td></tr>
       <tr><td>프로젝트 지침</td><td>CLAUDE.md (AGENTS.md 미인식, #6235)</td><td><b>AGENTS.md 네이티브</b></td><td>AGENTS.md 단일 소스 + <code>@AGENTS.md</code> import</td></tr>
       <tr><td><b>일괄 배포</b></td><td><span class="badge approved">지원</span> 마켓플레이스 + 관리형 settings 강제 설치</td><td><span class="badge blocked">마켓플레이스 부재</span> (훅은 MDM/<code>requirements.toml</code>로 관리형 배포 가능)</td><td>Codex는 저장소 온보딩 스크립트(<code>.codex/config.toml</code>+<code>hooks.json</code>+AGENTS.md)</td></tr>
@@ -817,7 +818,7 @@ exit 0</code></pre>
   <h3 id="ref-1">Claude Code 공식 문서 (확인일 2026-08-13)</h3>
   <ul>
     <li><a href="https://code.claude.com/docs/en/hooks">Hooks reference</a> — 31종 이벤트, 공통 페이로드(<code>session_id</code>/<code>prompt_id</code>/<code>transcript_path</code>/<code>cwd</code>), exit 2 차단 규약, 핸들러 5종(<code>command</code>/<code>http</code>/<code>mcp_tool</code>/<code>prompt</code>/<code>agent</code>).</li>
-    <li><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP</a> — 트랜스포트·스코프 3종·<code>.mcp.json</code> 변수 확장·OAuth(DCR/CIMD)·<code>headersHelper</code>·tool search·<code>requiresUserInteraction</code>·channels.</li>
+    <li><a href="https://code.claude.com/docs/en/mcp">Connect Claude Code to tools via MCP</a> — 트랜스포트·권한 3종·<code>.mcp.json</code> 변수 확장·OAuth(DCR/CIMD)·<code>headersHelper</code>·tool search·<code>requiresUserInteraction</code>·channels.</li>
     <li><a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> — SKILL.md frontmatter 전 필드와 로딩 위치.</li>
     <li><a href="https://code.claude.com/docs/en/sub-agents">Create custom subagents</a> — 서브에이전트 정의, 플러그인 배포 시 <code>hooks</code>/<code>mcpServers</code>/<code>permissionMode</code> 무시.</li>
     <li><a href="https://code.claude.com/docs/en/plugins">Create plugins</a> — 플러그인 구성요소와 마켓플레이스 배포 절차.</li>
@@ -835,7 +836,7 @@ exit 0</code></pre>
     <li><a href="https://learn.chatgpt.com/docs/hooks">Codex hooks</a> — 11종 이벤트·페이로드·<code>/hooks</code> 승인.</li>
     <li><a href="https://learn.chatgpt.com/docs/config-file/config-advanced">Codex 고급 설정</a> — <code>notify</code> 페이로드, <code>[otel]</code> 이벤트.</li>
     <li><a href="https://learn.chatgpt.com/docs/non-interactive-mode">Codex 비대화형 실행</a> — <code>codex exec --json</code> ThreadEvent.</li>
-    <li><a href="https://learn.chatgpt.com/docs/codex-sdk">Codex SDK</a> — 세션 스코프 <code>mcpServers</code> 주입.</li>
+    <li><a href="https://learn.chatgpt.com/docs/codex-sdk">Codex SDK</a> — 세션 권한 <code>mcpServers</code> 주입.</li>
     <li><a href="https://learn.chatgpt.com/docs/cloud">Codex cloud</a> — 진입 경로, 태스크 생성 API 미문서화.</li>
   </ul>
 

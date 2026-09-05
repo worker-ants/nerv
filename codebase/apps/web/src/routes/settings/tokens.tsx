@@ -3,7 +3,7 @@
 // **원문은 발급 응답에서 한 번만 보인다.** 다시 볼 수 없다는 사실을 화면이 분명히 말해야
 // 하고(그러지 않으면 사람은 창을 닫고 다시 찾는다), 목록에는 prefix 만 남는다.
 //
-// 스코프는 **사람 권한의 부분집합**을 넘지 못한다(D-08). 두 종류가 잠긴다.
+// 권한은 **사람 권한의 부분집합**을 넘지 못한다(D-08). 두 종류가 잠긴다.
 //   ① 사람 전용(`spec:approve`·`approval:decide`) — 누구도 토큰에 실을 수 없다
 //   ② **내 역할 밖** — 예를 들어 developer 의 `review:resolve`(2026-09-02 사람 결정)
 //
@@ -56,7 +56,7 @@ function TokensTab(): React.JSX.Element {
   // **화면이 보여준 것과 발급되는 것이 같아야 한다**(2026-09-04 · 실측).
   // 초기값이 상수라, 역할에 `task:claim` 이 없는 사람에게는 그 칸이 잠긴 채 **체크 해제로**
   // 보이는데 본문에는 실려 갔다. 사용 시점에 역할과 교집합을 내므로 권한이 새지는 않았지만,
-  // 발급된 토큰의 스코프 표는 그 사람이 고른 적 없는 값을 보여줬다.
+  // 발급된 토큰의 권한 표는 그 사람이 고른 적 없는 값을 보여줬다.
   const granted = scopes.filter((scope) => myScopes.has(scope as never));
 
   const issue = useMutation({
@@ -106,7 +106,7 @@ function TokensTab(): React.JSX.Element {
         <fieldset className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
           <legend className="sr-only">{t('settings.members.scope')}</legend>
           {AGENT_SCOPES.map((scope) => {
-            // 내 역할에 없는 스코프는 **보이되 잠긴다**. 사람 전용 스코프와 같은 규율이다 —
+            // 내 역할에 없는 권한은 **보이되 잠긴다**. 사람 전용 권한과 같은 규율이다 —
             // 목록에서 빼면 "왜 이건 못 주지"가 화면 밖에 남는다.
             const mine = myScopes.has(scope);
             return (
@@ -133,7 +133,7 @@ function TokensTab(): React.JSX.Element {
               </label>
             );
           })}
-          {/* 사람 전용 스코프는 **숨기지 않고 비활성으로 보인다**(REQ-WEB-027 · D-08).
+          {/* 사람 전용 권한은 **숨기지 않고 비활성으로 보인다**(REQ-WEB-027 · D-08).
               목록에서 빼버리면 "왜 승인 권한을 토큰에 못 주지?"라는 질문이 화면 밖에 남고,
               그 답이 어디에도 없다. 보이되 고를 수 없는 것이 규칙을 가르친다. */}
           {HUMAN_ONLY_SCOPES.map((scope) => (
