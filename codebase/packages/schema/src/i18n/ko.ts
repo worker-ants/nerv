@@ -108,7 +108,7 @@ export const ko = {
   'error.invite.revoked': '회수된 초대입니다.',
   'error.org.missing_fields': '조직 slug 와 이름이 필요합니다.',
   'error.org.not_empty':
-    '프로젝트가 남아 있는 조직은 지울 수 없습니다 — 먼저 프로젝트를 보관하세요.',
+    '프로젝트가 있는 조직은 지울 수 없습니다. 보관해도 마찬가지입니다 — 보관한 프로젝트도 여기서는 남아 있는 것으로 셉니다.',
   'error.org.not_found': '조직을 찾을 수 없습니다.',
   'error.project.missing_fields': 'slug·key·name 이 필요합니다.',
   'error.plugin.no_archive': '플러그인 아카이브가 배포에 포함되지 않았습니다.',

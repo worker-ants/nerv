@@ -108,7 +108,7 @@ export const en = {
   'error.invite.revoked': 'That invitation was revoked.',
   'error.org.missing_fields': 'An organization needs a slug and a name.',
   'error.org.not_empty':
-    'An organization with projects cannot be deleted — archive its projects first.',
+    'An organization that has projects cannot be deleted. Archiving does not change that — an archived project still counts here.',
   'error.org.not_found': 'Organization not found.',
   'error.project.missing_fields': 'slug, key and name are required.',
   'error.plugin.no_archive': 'The plugin archive is not part of this deployment.',
