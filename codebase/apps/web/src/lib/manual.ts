@@ -95,6 +95,10 @@ const ROUTE_CHAPTERS: readonly (readonly [RegExp, string])[] = [
   [/^\/p\/[^/]+\/reviews(\/|$)/, 'reviews'],
   [/^\/(inbox|notifications)(\/|$)/, 'inbox'],
   [/^\/settings(\/|$)/, 'settings'],
+  // 프로젝트 개요(`/p/:proj`)는 **맨 아래**다 — 위의 하위 화면들이 먼저 맞아야 한다.
+  // 그 화면의 구현 현황 다섯 숫자(특히 `증적 결손`·`빈 약속`)를 설명하는 자리가
+  // 스펙 장이라 거기로 보낸다. 대응이 없으면 "이 화면 도움말" 자체가 뜨지 않는다.
+  [/^\/p\/[^/]+(\/|$)/, 'specs'],
 ];
 
 export function chapterForRoute(pathname: string): string | null {

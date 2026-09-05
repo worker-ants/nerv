@@ -94,13 +94,21 @@ describe('화면 → 장', () => {
     ['/inbox', 'inbox'],
     ['/notifications', 'inbox'],
     ['/settings/tokens', 'settings'],
+    // 프로젝트 개요 — 그 화면의 구현 현황 다섯 숫자를 설명하는 자리가 스펙 장이다
+    ['/p/clemvion', 'specs'],
   ])('%s → %s 장', (path, chapter) => {
     expect(chapterForRoute(path)).toBe(chapter);
     expect(findChapter(chapter)).toBeDefined();
   });
 
   it('짚어 줄 장이 없으면 null 이다 — 아무 데나 보내느니 그 항목을 안 보이는 편이 낫다', () => {
+    // 홈은 첫 장이 곧 답이라 "제품 매뉴얼" 항목이 이미 같은 곳으로 간다
     expect(chapterForRoute('/')).toBeNull();
-    expect(chapterForRoute('/p/clemvion')).toBeNull();
+    expect(chapterForRoute('/login')).toBeNull();
+  });
+
+  it('하위 화면이 개요보다 먼저 맞는다 — 순서가 뒤집히면 전부 스펙 장으로 간다', () => {
+    expect(chapterForRoute('/p/clemvion/tasks')).toBe('tasks');
+    expect(chapterForRoute('/p/clemvion/sessions')).toBe('sessions');
   });
 });

@@ -19,7 +19,9 @@ The role matters: **a token can never be broader than the role.** As a `viewer` 
 **Settings → Tokens → Issue.** Name it after the machine that will use it (something like `mac-02/claude-code`).
 
 - The token value is shown **once, right after issuing**. Close the dialog and it is gone — you would have to issue another.
-- Scopes start with **`spec:read` and `task:claim` ticked, nothing else** (whichever your role lacks starts off — a locked box is never issued behind your back). There are no role presets — tick what you need. To run tasks through the plugin add `task:update` and `agent-session:launch`; to write drafts add `spec:draft`; to file reviews add `review:submit`.
+- **A token belongs to one project.** It is issued for the project selected in the header and works only there — several projects mean several tokens. With no project selected, the issue button stays disabled.
+- Scopes start with **`spec:read` and `task:claim` ticked, nothing else** (whichever your role lacks starts off — a locked box is never issued behind your back). There are no role presets — tick what you need.
+- **`agent-session:launch` is not optional.** `nerv_bootstrap` requires that scope, so without it steps 4 and 5 below are blocked from the start. Those three are the real minimum. Above them, add `task:update` to run tasks, `spec:draft` to write drafts, `review:submit` to file reviews.
 - **A token never reaches wider than your role.** Scopes your role does not hold appear **dimmed and locked**. `review:resolve`, for instance, belongs to admin, planner and qa, so it is locked for a `developer`. They stay visible for the same reason the human-only scopes do: why you cannot grant it belongs on the screen.
 - If your role widens later, **the tokens you already issued follow immediately.** No need to reissue.
 - `spec:approve` and `approval:decide` are locked checkboxes — approval is something a person does, so it cannot ride on a token.
@@ -94,15 +96,20 @@ The server builds the catalogue itself, so **there is nothing to edit after you 
 
 > If the install is refused with `Archive URLs must use https://…`, this server is **not on https, or is on an internal address**. Adding the marketplace succeeding and the install failing is the expected shape of that problem — ask an administrator to check the server's public URL setting.
 
+**Two things have to be there already** — the hook forwarder uses `curl`, and the statusline and outbox use `jq`. Without them nothing errors; they simply **do nothing, quietly.**
+
 > To pick up a new version, run `/plugin marketplace update`. You only get a new copy when an administrator bumps the plugin version — at the same version you keep the copy you already have.
 
-Three things get installed.
+Four things get installed.
 
-| What       | What it does                                                                          |
-| ---------- | ------------------------------------------------------------------------------------- |
-| Six skills | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` |
-| Hooks      | Stream what the agent does onto the sessions screen                                   |
-| statusline | Puts your current claim, remaining lease and scope overlaps on the prompt line        |
+| What                        | What it does                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| Six skills                  | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` |
+| Hooks                       | Stream what the agent does onto the sessions screen                                   |
+| statusline                  | Puts your current claim, remaining lease and scope overlaps on the prompt line        |
+| Subagent `nerv-spec-writer` | A narrow agent whose only job is drafting specs                                       |
+
+**The `nerv_*` tools are not among those four** — the `.mcp.json` below has to be in place before you have them.
 
 **The MCP server is separate.** Its address and token differ per project, so the plugin does not ship it — put a `.mcp.json` at your repository root. Without that file you have no `nerv_*` tools.
 
@@ -171,7 +178,9 @@ Claude Code does not read `AGENTS.md` on its own yet, so if both tools share the
 - **Claude Code**: run it inside the project repository and type `/mcp`. The `nerv` server should be connected and the `nerv_*` tools listed.
 - **Codex**: start a session and call `nerv_bootstrap`. The response carries a `session_id` and the gate policy.
 
-Either way, it is only really connected once **your session card appears on the sessions screen**. If you see the tools but no session, `nerv_bootstrap` has not been called yet.
+Either way, it is only really connected once **your session card appears on the sessions screen**.
+
+In Claude Code the card appears **before** `nerv_bootstrap` is called — the session-start hook registers it directly. So if you have the tools but no card, look at **the hook**: an empty token, a missing `curl`, or a server it could not reach. The forwarder fails silently, so nothing is printed.
 
 ## 5. Your first task
 
@@ -189,7 +198,8 @@ The skill calls `nerv_bootstrap` first, recommends the next task, and takes you 
 | Cannot reach the server                   | A typo in `url`, or you are off the internal network — check the address with your administrator                                                                     |
 | `NERV_UNAUTHENTICATED`                    | `NERV_TOKEN` is empty or was revoked. Issue a new one under Settings → Tokens                                                                                        |
 | `NERV_FORBIDDEN`, missing scope           | The token's scopes are too narrow, or the role it was issued under cannot do that                                                                                    |
-| Tools work but the project is not visible | `X-NERV-Project` (or `NERV_PROJECT`) is wrong, or you are not a member of that project                                                                               |
+| Tools work but the project is not visible | **That token was issued for a different project.** The project is bound into the token and no header changes it — issue a new token in the project you want          |
+| No session card appears                   | The hook could not reach the server — check `NERV_TOKEN`, `NERV_SERVER` and `curl`. Hooks fail silently                                                              |
 | Requesting review just fails              | That is an A3 tool — a person has to press it on the web (see [Inbox](/help/inbox))                                                                                  |
 | `NERV_RATE_LIMIT`                         | Too frequent — 300 requests per minute per token, 120 for hooks per session. Wait the `retry_after_s` from the response. Do not work around it with parallel retries |
 | The session goes `stale`                  | Heartbeats stopped. After 30 minutes the claim is reclaimed (see [Sessions](/help/sessions))                                                                         |
