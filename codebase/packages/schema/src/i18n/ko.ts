@@ -323,6 +323,10 @@ export const ko = {
   'specs.status_filter_all': '전체',
   'specs.status_filter_hint':
     '고른 상태의 문서와 그 상위 문서만 보입니다 — 상위는 자리를 지키러 온 것입니다',
+  'specs.type_filter': '종류',
+  'specs.type_filter_skeleton': '뼈대(비전 + 영역)',
+  'specs.type_filter_hint':
+    '고른 종류의 문서와 그 상위 문서만 보입니다 — 상태와 함께 걸면 둘 다 맞는 것만 남습니다',
   'specs.freeze_hint':
     '지금 시점의 스펙별 최신 승인본 전체를 한 세트로 묶어 이름을 붙입니다. 만든 뒤에는 바꿀 수 없습니다 — 세트를 바꾸려면 새로 만듭니다.',
   'specs.freeze_submit': '동결',
@@ -361,6 +365,8 @@ export const ko = {
   'mcp.arg.spec_depth': '뿌리에서 내려갈 간선 수 — 0 이면 뿌리만, 1 이면 뿌리와 그 자식',
   'mcp.arg.spec_status_filter':
     '문서 상태 필터 — 쉼표로 여럿(예: draft,in_review). 주지 않으면 전부. 걸러낸 것의 조상은 matched:false 로 함께 온다',
+  'mcp.arg.spec_type_filter':
+    '스펙 종류 필터 — 쉼표로 여럿(예: vision,area 면 트리의 뼈대만). status 와 함께 주면 둘 다 맞는 것',
   'mcp.arg.scope': '이 작업이 건드릴 스펙·파일. 겹침 판정의 입력이다',
   'mcp.arg.relations':
     '선언 관계 — 정제·선행 같은 판단. 본문 링크가 만드는 references 와 다른 축이고, 주지 않으면 건드리지 않는다',

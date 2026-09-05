@@ -38,6 +38,7 @@ export class SpecTools implements NervToolProvider {
           root: { type: 'string', description: 'mcp.arg.spec_root' },
           depth: { type: 'integer', minimum: 0, description: 'mcp.arg.spec_depth' },
           status: { type: 'string', description: 'mcp.arg.spec_status_filter' },
+          type: { type: 'string', description: 'mcp.arg.spec_type_filter' },
           // 관계까지 필요하면 여기서 함께 받는다 — 별도 도구를 만들지 않는 이유는
           // "구조를 달라"는 한 가지 요청이기 때문이다(도구 15종 고정 — scope.md §4.2)
           include_relations: { type: 'boolean', default: false },
@@ -63,11 +64,13 @@ export class SpecTools implements NervToolProvider {
         // 배열이 아니라 쉼표 목록이다 — `nerv_task_list`(`status`) 와 같은 표기다
         const status = typeof input['status'] === 'string' ? input['status'] : null;
         const statuses = status === null ? null : status.split(',').map((value) => value.trim());
+        const type = typeof input['type'] === 'string' ? input['type'] : null;
+        const types = type === null ? null : type.split(',').map((value) => value.trim());
 
         // 계층(root·depth)과 관계(around·hops)는 **다른 축**이다. 섞어 받으면 "어느 쪽이
         // 이겼나"를 매번 물어야 하고, 그 물음이 생기는 순간 좁히기의 값어치가 사라진다.
         //
-        // `status` 는 성질의 축이라 계층과는 함께 쓰지만 `around` 와는 쓰지 않는다
+        // `status`·`type` 은 성질의 축이라 계층과는 함께 쓰지만 `around` 와는 쓰지 않는다
         // (2026-09-05 사람 결정): 관계 이웃에는 **조상이라는 것이 없어서**, 같은 인자가
         // 모드에 따라 다른 뜻이 된다.
         const crossed =
@@ -77,6 +80,7 @@ export class SpecTools implements NervToolProvider {
                 ...(root !== null ? ['root'] : []),
                 ...(depth !== null ? ['depth'] : []),
                 ...(statuses !== null ? ['status'] : []),
+                ...(types !== null ? ['type'] : []),
               ]
             : [];
         if (crossed.length > 1) {
@@ -116,10 +120,16 @@ export class SpecTools implements NervToolProvider {
         }
         if (!withRelations) {
           return {
-            nodes: await this.specs.tree({ projectId: ctx.projectId, root, depth, statuses }),
+            nodes: await this.specs.tree({
+              projectId: ctx.projectId,
+              root,
+              depth,
+              statuses,
+              types,
+            }),
           };
         }
-        return this.specs.graph({ projectId: ctx.projectId, root, depth, statuses });
+        return this.specs.graph({ projectId: ctx.projectId, root, depth, statuses, types });
       },
     },
     {

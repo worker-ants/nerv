@@ -1,4 +1,4 @@
-// 스펙 목록의 [상태 ▾] — 걸린 문서와 **그 조상**만 (REQ-WEB-138)
+// 스펙 목록의 [상태 ▾]·[종류 ▾] — 걸린 문서와 **그 조상**만 (REQ-WEB-138)
 //
 // 와이어프레임(§2.4)은 처음부터 `[타입 ▾] [상태 ▾]` 를 그리고 있었는데 화면에는 없었다.
 // 141편짜리 프로젝트에서 "아직 초안인 것"을 보려면 배지를 눈으로 훑는 수밖에 없었다.
@@ -168,6 +168,48 @@ describe('REQ-WEB-138 상태 필터 — 걸린 것과 그 조상', () => {
     await vi.waitFor(() => {
       expect(router.state.location.searchStr).toContain('status=draft');
       expect(router.state.location.searchStr).toContain('archived');
+    });
+  });
+});
+
+describe('REQ-WEB-138 종류 필터 — 뼈대만 보기', () => {
+  it('area 만 고르면 뼈대가 남는다 — 본문 있는 문서는 빠진다', async () => {
+    const { full } = await renderList('/p/demo/specs?type=area');
+    expect(full.queryByText('뿌리')).not.toBeNull();
+    expect(full.queryByText('외딴')).not.toBeNull();
+    expect(full.queryByText('형제')).toBeNull();
+    expect(full.queryByText('잎')).toBeNull();
+  });
+
+  it('feature 를 고르면 그 조상(area)이 따라온다', async () => {
+    const { full } = await renderList('/p/demo/specs?type=feature');
+    expect(full.queryByText('잎')).not.toBeNull();
+    expect(full.queryByText('가지')).not.toBeNull();
+    // 아래에 feature 가 하나도 없는 '외딴' 은 빠진다
+    expect(full.queryByText('외딴')).toBeNull();
+  });
+
+  it('상태와 함께 걸면 둘 다 맞는 것만 남는다', async () => {
+    const { full } = await renderList('/p/demo/specs?type=area&status=draft');
+    // area 이면서 draft 인 것은 없다 — 조상으로 남을 이유도 없다
+    expect(full.queryByText('뿌리')).toBeNull();
+    expect(full.queryByText('외딴')).toBeNull();
+  });
+
+  it('고르면 주소에 남고 상태를 지우지 않는다 — 넷이 서로를 지우지 않는다', async () => {
+    const { router } = await renderList('/p/demo/specs?status=draft');
+    fireEvent.change(screen.getByTestId('type-filter'), { target: { value: 'feature' } });
+    await vi.waitFor(() => {
+      expect(router.state.location.searchStr).toContain('type=feature');
+      expect(router.state.location.searchStr).toContain('status=draft');
+    });
+  });
+
+  it('되돌리면 필터가 주소에서 빠진다 — 빈 값이 남으면 링크가 거짓말을 한다', async () => {
+    const { router } = await renderList('/p/demo/specs?type=area');
+    fireEvent.change(screen.getByTestId('type-filter'), { target: { value: '' } });
+    await vi.waitFor(() => {
+      expect(router.state.location.searchStr).not.toContain('type=');
     });
   });
 });

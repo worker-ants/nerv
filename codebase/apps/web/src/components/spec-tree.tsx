@@ -60,6 +60,8 @@ export interface SpecTreeProps {
    * 대신 **판정은 서버와 같은 규칙**이다 — 걸린 노드와 그 조상을 남긴다(4.4 REQ-API-092).
    */
   statuses?: readonly string[];
+  /** 스펙 종류 필터 — `statuses` 와 함께 걸면 **둘 다 맞는 것**만이다(REQ-API-093) */
+  types?: readonly string[];
 }
 
 /**
@@ -159,6 +161,7 @@ export function SpecTree({
   heading,
   includeArchived = false,
   statuses,
+  types,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId, includeArchived);
@@ -185,16 +188,23 @@ export function SpecTree({
   }, [filter, nodes]);
 
   /**
-   * 상태 필터 — 걸린 노드와 **그 조상**을 남긴다.
+   * 성질 필터(상태·종류) — 걸린 노드와 **그 조상**을 남긴다. 둘 다 걸리면 AND 다.
    *
    * 조상을 빼면 트리가 끊어진다: 실측(clemvion 141노드) `draft` 26건 중 **17건의 부모가
    * draft 가 아니다.** 부모 없는 줄은 자리를 잃고 목록의 위아래가 뒤섞인다.
    */
   const statusKept = useMemo(() => {
-    if (statuses === undefined || statuses.length === 0) return null;
-    const wanted = new Set(statuses);
+    const wantedStatus = statuses !== undefined && statuses.length > 0 ? new Set(statuses) : null;
+    const wantedType = types !== undefined && types.length > 0 ? new Set(types) : null;
+    if (wantedStatus === null && wantedType === null) return null;
     const matched = new Set(
-      nodes.filter((n) => n.doc_status !== null && wanted.has(n.doc_status)).map((n) => n.id),
+      nodes
+        .filter(
+          (n) =>
+            (wantedStatus === null || (n.doc_status !== null && wantedStatus.has(n.doc_status))) &&
+            (wantedType === null || wantedType.has(n.type)),
+        )
+        .map((n) => n.id),
     );
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const kept = new Set(matched);
@@ -207,7 +217,7 @@ export function SpecTree({
       }
     }
     return kept;
-  }, [statuses, nodes]);
+  }, [statuses, types, nodes]);
 
   const storageKey = storageKeyFor(projectSlug, variant);
 

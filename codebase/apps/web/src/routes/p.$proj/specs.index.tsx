@@ -4,7 +4,7 @@
 // 것이 요점 — 관계는 관련성의 근거이지 질의 일치가 아니다. 섞으면 사람은 왜 이게 나왔는지
 // 알 수 없고, 그러면 검색을 믿지 않게 된다.
 
-import { specVersionStatus, statusLabelKey } from '@nerv/schema';
+import { specType, specVersionStatus, statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { lazy, Suspense, useState } from 'react';
@@ -44,7 +44,7 @@ export const Route = createFileRoute('/p/$proj/specs/')({
   // 보관 보기는 **뷰 상태**라 주소에 남는다(§2.4 (3)) — 링크로 건네면 상대도 같은 목록을 본다
   validateSearch: (
     search: Record<string, unknown>,
-  ): { archived?: true; baseline?: string; status?: string } => ({
+  ): { archived?: true; baseline?: string; status?: string; type?: string } => ({
     ...(search['archived'] === true || search['archived'] === '1'
       ? { archived: true as const }
       : {}),
@@ -57,12 +57,16 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     ...(typeof search['status'] === 'string' && search['status'] !== ''
       ? { status: search['status'] }
       : {}),
+    ...(typeof search['type'] === 'string' && search['type'] !== ''
+      ? { type: search['type'] }
+      : {}),
   }),
   component: SpecListScreen,
 });
 
 /** 어휘의 정본은 `@nerv/schema` 의 enum 이다 — 목록을 화면이 새로 만들지 않는다 */
 const SPEC_STATUSES = specVersionStatus.enumValues;
+const SPEC_TYPES = specType.enumValues;
 
 interface SearchResult {
   items: Record<string, unknown>[];
@@ -74,8 +78,33 @@ function SpecListScreen(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
-  const { archived = false, baseline, status } = Route.useSearch();
+  const { archived = false, baseline, status, type } = Route.useSearch();
   const statuses = status === undefined ? [] : status.split(',').filter((value) => value !== '');
+  const types = type === undefined ? [] : type.split(',').filter((value) => value !== '');
+  /**
+   * 뷰 상태는 **서로를 지우지 않는다** — 하나를 바꿀 때 나머지를 그대로 싣는다.
+   *
+   * 손으로 펼쳐 적던 동안 실제로 지워지고 있었다: 보관 토글이 고른 기준선을 날렸다.
+   * 넷이 되면 손으로는 반드시 하나를 빠뜨린다. `null` 은 "지운다", 생략은 "그대로".
+   */
+  const searchWith = (patch: {
+    archived?: boolean;
+    baseline?: string | null;
+    status?: string | null;
+    type?: string | null;
+  }): { archived?: true; baseline?: string; status?: string; type?: string } => {
+    const pick = (next: string | null | undefined, now: string | undefined): string | undefined =>
+      next === undefined ? now : (next ?? undefined);
+    const nextBaseline = pick(patch.baseline, baseline);
+    const nextStatus = pick(patch.status, status);
+    const nextType = pick(patch.type, type);
+    return {
+      ...((patch.archived ?? archived) ? { archived: true as const } : {}),
+      ...(nextBaseline === undefined || nextBaseline === '' ? {} : { baseline: nextBaseline }),
+      ...(nextStatus === undefined || nextStatus === '' ? {} : { status: nextStatus }),
+      ...(nextType === undefined || nextType === '' ? {} : { type: nextType }),
+    };
+  };
   const project = useProject(proj);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -180,11 +209,7 @@ function SpecListScreen(): React.JSX.Element {
                 void navigate({
                   to: '/p/$proj/specs',
                   params: { proj },
-                  search: {
-                    ...(archived ? { archived: true as const } : {}),
-                    ...(status === undefined ? {} : { status }),
-                    ...(name === null ? {} : { baseline: name }),
-                  },
+                  search: searchWith({ baseline: name }),
                 })
               }
             />
@@ -209,11 +234,9 @@ function SpecListScreen(): React.JSX.Element {
                     void navigate({
                       to: '/p/$proj/specs',
                       params: { proj },
-                      search: {
-                        ...(archived ? { archived: true as const } : {}),
-                        ...(baseline === undefined ? {} : { baseline }),
-                        ...(e.target.value === '' ? {} : { status: e.target.value }),
-                      },
+                      search: searchWith({
+                        status: e.target.value === '' ? null : e.target.value,
+                      }),
                     })
                   }
                 >
@@ -225,6 +248,36 @@ function SpecListScreen(): React.JSX.Element {
                   {SPEC_STATUSES.map((value) => (
                     <option key={value} value={value}>
                       {t(statusLabelKey('spec', value))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {/* **종류 필터** — `area` 는 본문 없이 자리만 잡는 종류라, `vision,area` 로 고르면
+                트리의 **뼈대**가 남는다(실측 clemvion: 141편 → 17편). */}
+            {view === 'tree' && (
+              <label
+                className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
+                title={t('specs.type_filter_hint')}
+              >
+                {t('specs.type_filter')}
+                <select
+                  data-testid="type-filter"
+                  className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
+                  value={type ?? ''}
+                  onChange={(e) =>
+                    void navigate({
+                      to: '/p/$proj/specs',
+                      params: { proj },
+                      search: searchWith({ type: e.target.value === '' ? null : e.target.value }),
+                    })
+                  }
+                >
+                  <option value="">{t('specs.status_filter_all')}</option>
+                  <option value="vision,area">{t('specs.type_filter_skeleton')}</option>
+                  {SPEC_TYPES.map((value) => (
+                    <option key={value} value={value}>
+                      {t(`specs.type.${value}` as const)}
                     </option>
                   ))}
                 </select>
@@ -244,11 +297,7 @@ function SpecListScreen(): React.JSX.Element {
                   void navigate({
                     to: '/p/$proj/specs',
                     params: { proj },
-                    search: {
-                      ...(e.target.checked ? { archived: true as const } : {}),
-                      ...(status === undefined ? {} : { status }),
-                      ...(baseline === undefined ? {} : { baseline }),
-                    },
+                    search: searchWith({ archived: e.target.checked }),
                   })
                 }
               />
@@ -297,6 +346,7 @@ function SpecListScreen(): React.JSX.Element {
                 variant="full"
                 includeArchived={archived}
                 statuses={statuses}
+                types={types}
               />
             </Card>
           ) : graph.data === undefined ? (

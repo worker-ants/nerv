@@ -327,6 +327,10 @@ export const en = {
   'specs.status_filter_all': 'All',
   'specs.status_filter_hint':
     'Shows documents in the chosen status plus their ancestors — ancestors are there to hold the place',
+  'specs.type_filter': 'Type',
+  'specs.type_filter_skeleton': 'Skeleton (vision + area)',
+  'specs.type_filter_hint':
+    'Shows documents of the chosen type plus their ancestors — combined with status, only what matches both stays',
   'specs.freeze_hint':
     'Names and freezes every spec at its latest approved version as of now. It cannot be changed afterwards — to change the set, make a new one.',
   'specs.freeze_submit': 'Freeze',
@@ -368,6 +372,8 @@ export const en = {
     'edges to descend from the root — 0 is roots only, 1 is roots and their children',
   'mcp.arg.spec_status_filter':
     'document status filter — comma-separated (e.g. draft,in_review). All when omitted. Ancestors of matches come along as matched:false',
+  'mcp.arg.spec_type_filter':
+    'spec type filter — comma-separated (e.g. vision,area for the skeleton of the tree). Combined with status, both must match',
   'mcp.arg.scope': 'Specs and files this work will touch — the input to overlap detection',
   'mcp.arg.relations':
     'Declared relations — judgements like refines/depends_on. A different axis from the references that body links create; omit it and nothing is touched',

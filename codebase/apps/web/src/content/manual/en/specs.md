@@ -25,6 +25,8 @@ Both the tree tab and the table tab print `Showing N of M`. When the two numbers
 
 The **Status** selector above the list narrows it to one status — `draft`, `in review`, and so on. What stays is **the documents in that status and the ones above them**: the ancestors are not matches, they are there **to hold the place** (without a parent you cannot tell where a document belongs). A branch with nothing matching underneath drops out entirely. The chosen status **stays in the address, so a link hands someone the same list.** The `of M` is the project's document count, unaffected by the filter.
 
+The **Type** selector beside it works the same way. Choose `Skeleton (vision + area)` and only the documents that **hold a place** remain, so the shape of the tree is visible at a glance — a project of 141 documents has a skeleton of 17. It is a good way to decide where a new document belongs. Set both and only what matches **both** stays.
+
 ## Versions and statuses
 
 Specs are **not edited in place — versions accumulate.** Each version is in one of five statuses.

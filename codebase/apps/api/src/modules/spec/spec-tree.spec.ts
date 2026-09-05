@@ -12,20 +12,22 @@ interface Node {
   key: string;
   parent_id: string | null;
   doc_status: string | null;
+  type: string;
 }
 
 /** 보고에 나온 모양 그대로 — 뿌리 하나(VISION) 아래 자식 여덟, 그중 하나에 손자 둘 */
 const NODES: Node[] = [
-  { id: 'u-vision', key: 'SUD-VISION', parent_id: null, doc_status: 'approved' },
+  { id: 'u-vision', key: 'SUD-VISION', parent_id: null, doc_status: 'approved', type: 'vision' },
   ...Array.from({ length: 8 }, (_, i) => ({
     id: `u-child-${String(i)}`,
     key: `SUD-CHILD-${String(i)}`,
     parent_id: 'u-vision',
     doc_status: 'approved',
+    type: 'area',
   })),
   // 손자 둘은 상태가 갈린다 — 조상(approved 부모·조부모)을 채우는 경로가 여기서 보인다
-  { id: 'u-gc-0', key: 'SUD-GC-0', parent_id: 'u-child-0', doc_status: 'draft' },
-  { id: 'u-gc-1', key: 'SUD-GC-1', parent_id: 'u-child-0', doc_status: null },
+  { id: 'u-gc-0', key: 'SUD-GC-0', parent_id: 'u-child-0', doc_status: 'draft', type: 'feature' },
+  { id: 'u-gc-1', key: 'SUD-GC-1', parent_id: 'u-child-0', doc_status: null, type: 'feature' },
 ];
 
 const keys = (nodes: Node[] | null): string[] => (nodes ?? []).map((node) => node.key);
@@ -165,7 +167,7 @@ describe('pruneTree — status', () => {
     // GC-1(null) 아래에 draft 를 하나 매단다: 부모가 null 이어도 자리는 있어야 한다
     const deeper: Node[] = [
       ...NODES,
-      { id: 'u-ggc', key: 'SUD-GGC', parent_id: 'u-gc-1', doc_status: 'draft' },
+      { id: 'u-ggc', key: 'SUD-GGC', parent_id: 'u-gc-1', doc_status: 'draft', type: 'feature' },
     ];
     const nodes = pruneTree(deeper, { statuses: ['draft'] }) ?? [];
     const gc1 = nodes.find((node) => node.key === 'SUD-GC-1');
@@ -192,5 +194,49 @@ describe('pruneTree — status', () => {
     // root 로 좁히면 그 범위의 조상까지만 채운다 — VISION 은 밖이라 오지 않는다
     const scoped = pruneTree(NODES, { root: 'SUD-CHILD-0', statuses: ['draft'] }) ?? [];
     expect(scoped.map((node) => node.key)).toEqual(['SUD-CHILD-0', 'SUD-GC-0']);
+  });
+});
+
+/**
+ * 종류 필터(REQ-API-093) — 상태와 **같은 축**이라 규칙도 같다: 매칭 + 조상.
+ *
+ * `area` 는 본문 없이 자리를 잡는 종류라 `vision,area` 는 곧 **트리의 뼈대**다
+ * (실측 clemvion 141편 → 17편 · sudoku 18편 → 5편).
+ */
+describe('pruneTree — type', () => {
+  it('뼈대만 고르면 뼈대가 남는다', () => {
+    const nodes = pruneTree(NODES, { types: ['vision', 'area'] }) ?? [];
+    expect(nodes).toHaveLength(9);
+    expect(nodes.every((node) => node.matched === true)).toBe(true);
+  });
+
+  it('잎 종류를 고르면 그 조상이 따라온다 — 상태와 같은 규칙이다', () => {
+    const nodes = pruneTree(NODES, { types: ['feature'] }) ?? [];
+    expect(nodes.map((node) => node.key)).toEqual([
+      'SUD-VISION',
+      'SUD-CHILD-0',
+      'SUD-GC-0',
+      'SUD-GC-1',
+    ]);
+    expect(nodes.filter((node) => node.matched === true)).toHaveLength(2);
+  });
+
+  it('상태와 함께 주면 AND 다 — 둘 다 맞는 것만 센다', () => {
+    const nodes = pruneTree(NODES, { types: ['feature'], statuses: ['draft'] }) ?? [];
+    // GC-0 만 둘 다 맞는다(GC-1 은 feature 지만 상태가 없다)
+    expect(nodes.filter((node) => node.matched === true).map((node) => node.key)).toEqual([
+      'SUD-GC-0',
+    ]);
+  });
+
+  it('한쪽만 맞는 것은 매칭이 아니다 — 조상으로도 남을 이유가 없으면 빠진다', () => {
+    const nodes = pruneTree(NODES, { types: ['area'], statuses: ['draft'] }) ?? [];
+    expect(nodes).toEqual([]);
+  });
+
+  it('빈 목록은 거르지 않는다 — 상태만 걸린 것과 같은 답이다', () => {
+    expect(pruneTree(NODES, { types: [], statuses: ['draft'] })).toEqual(
+      pruneTree(NODES, { statuses: ['draft'] }),
+    );
   });
 });

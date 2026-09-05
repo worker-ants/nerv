@@ -7,9 +7,9 @@
 // 성공하면, 틀렸다는 사실을 알아챌 자리가 어디에도 없다(REQ-API-082 와 같은 규율:
 // **조용한 무시가 500 보다 나쁘다**).
 //
-// `status` 는 그 넷과 **다른 축**이다(2026-09-05 사람 결정 · REQ-API-092). 계층은 자리를
-// 말하고 상태는 성질을 말한다 — 그래서 `root`·`depth` 와는 함께 쓰고, 관계 축인 `around`
-// 와는 쓰지 않는다.
+// `status`·`type` 은 그 넷과 **다른 축**이다(2026-09-05 사람 결정 · REQ-API-092·093).
+// 계층은 자리를 말하고 이 둘은 성질을 말한다 — 그래서 `root`·`depth` 와는 함께 쓰고,
+// 관계 축인 `around` 와는 쓰지 않는다. 둘을 함께 주면 AND 다.
 //
 // 판정은 순수 함수로 둔다 — 트리 모양은 DB 없이 판별할 수 있고, 그래야 L1 이 본다.
 
@@ -20,8 +20,24 @@ interface TreeNodeRef {
   parent_id: string | null;
 }
 
-/** 상태로 거를 때만 보는 것 — 현재 버전이 없는 스펙은 `null` 이라 어느 상태에도 안 든다 */
-type StatusNode = TreeNodeRef & { doc_status?: string | null };
+/** 성질로 거를 때만 보는 것 — 현재 버전이 없는 스펙은 `doc_status` 가 `null` 이다 */
+type FilterNode = TreeNodeRef & { doc_status?: string | null; type?: string };
+
+/** 성질 필터 — 각 축은 `null` 이면 "거르지 않는다" 고, 둘 다 있으면 AND 다 */
+interface Attributes {
+  statuses?: readonly string[] | null;
+  types?: readonly string[] | null;
+}
+
+function isMatch(node: FilterNode, attributes: Attributes): boolean {
+  const statuses = attributes.statuses ?? null;
+  const types = attributes.types ?? null;
+  // 현재 버전이 없는 스펙은 어느 상태에도 들지 않는다 — 그것 하나를 위해 어휘를 늘리지 않는다
+  if (statuses !== null && (node.doc_status == null || !statuses.includes(node.doc_status))) {
+    return false;
+  }
+  return types === null || (node.type != null && types.includes(node.type));
+}
 
 interface EdgeRef {
   from_id: string;
@@ -65,7 +81,7 @@ function withDescendants<T extends TreeNodeRef>(nodes: readonly T[], start: T): 
 }
 
 /**
- * 상태로 거르되 **조상을 함께 남긴다**(2026-09-05 사람 결정 — 안 B).
+ * 성질로 거르되 **조상을 함께 남긴다**(2026-09-05 사람 결정 — 안 B).
  *
  * 매칭된 것만 남기면 트리가 끊어진다. 실측(clemvion 141노드): `status=draft` 26건 중
  * **17건의 부모가 draft 가 아니다** — 부모를 빼면 그 17건의 `parent_id` 가 결과에 없는
@@ -75,14 +91,12 @@ function withDescendants<T extends TreeNodeRef>(nodes: readonly T[], start: T): 
  * 조상을 채우는 값은 **노드 3개**다(26 → 29 · 전체 141). 대신 조상은 걸러낸 결과가
  * 아니므로 `matched` 로 가른다 — 그러지 않으면 "draft 29건" 으로 읽힌다.
  */
-function markMatches<T extends StatusNode>(
+function markMatches<T extends FilterNode>(
   scoped: readonly T[],
-  statuses: readonly string[],
+  attributes: Attributes,
 ): (T & { matched: boolean })[] {
   const matched = new Set(
-    scoped
-      .filter((node) => node.doc_status != null && statuses.includes(node.doc_status))
-      .map((node) => node.id),
+    scoped.filter((node) => isMatch(node, attributes)).map((node) => node.id),
   );
   const byId = new Map(scoped.map((node) => [node.id, node]));
   const kept = new Set(matched);
@@ -100,24 +114,26 @@ function markMatches<T extends StatusNode>(
 }
 
 /**
- * `root` 아래로 좁히고 `depth` 까지만 남긴다. 순서는 건드리지 않는다(질의의 sort_key·key).
+ * `root` 아래로 좁히고 `depth` 까지만, 그리고 성질(`statuses`·`types`)로 거른다.
+ * 순서는 건드리지 않는다(질의의 sort_key·key).
  *
  * `depth` 는 **뿌리에서 내려온 간선 수**다 — `0` 이면 뿌리만, `1` 이면 뿌리와 그 자식.
  * `root` 를 주면 그 문서가 유일한 뿌리다.
  *
- * 순서는 **자리 → 깊이 → 상태**다. 계층으로 잘라낸 범위 안에서 상태를 거르고, 조상도
+ * 순서는 **자리 → 깊이 → 성질**이다. 계층으로 잘라낸 범위 안에서 성질을 거르고, 조상도
  * 그 범위 안에서만 채운다 — 잘라낸 밖에서 조상을 끌어오면 `depth` 가 뜻을 잃는다.
  *
- * @returns 걸러낸 노드(`statuses` 를 주면 노드마다 `matched`). `root` 가 이 프로젝트에
+ * @returns 걸러낸 노드(성질 필터를 주면 노드마다 `matched`). `root` 가 이 프로젝트에
  *          없으면 `null`(부르는 쪽이 not_found 로 만든다)
  */
-export function pruneTree<T extends StatusNode>(
+export function pruneTree<T extends FilterNode>(
   nodes: readonly T[],
-  options: { root?: string | null; depth?: number | null; statuses?: readonly string[] | null },
+  options: { root?: string | null; depth?: number | null } & Attributes,
 ): (T & { matched?: boolean })[] | null {
   const root = options.root ?? null;
   const depth = options.depth ?? null;
   const statuses = options.statuses ?? null;
+  const types = options.types ?? null;
 
   let scoped: readonly T[] = nodes;
   let level: Set<string>;
@@ -145,8 +161,10 @@ export function pruneTree<T extends StatusNode>(
   }
 
   // 빈 목록은 "거르지 않는다" 다 — 아무것도 고르지 않은 필터는 필터가 아니다
-  if (statuses === null || statuses.length === 0) return [...scoped];
-  return markMatches(scoped, statuses);
+  const wantedStatuses = statuses !== null && statuses.length > 0 ? statuses : null;
+  const wantedTypes = types !== null && types.length > 0 ? types : null;
+  if (wantedStatuses === null && wantedTypes === null) return [...scoped];
+  return markMatches(scoped, { statuses: wantedStatuses, types: wantedTypes });
 }
 
 /**
