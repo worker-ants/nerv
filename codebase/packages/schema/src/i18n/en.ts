@@ -42,6 +42,8 @@ export const en = {
   'error.attachment.storage_off': 'Attachment storage is not configured.',
   'error.auth.missing': 'Not signed in.',
   'error.auth.no_role': 'Your role could not be determined.',
+  'error.auth.project_mismatch':
+    'X-NERV-Project does not match this token’s project — the header says {header}, the token says {token}. Correct whichever is wrong.',
   'error.auth.not_member': 'You are not a member of this project.',
   'error.auth.not_registered': 'That user has not signed up.',
   'error.auth.not_registered_hint':

@@ -739,7 +739,7 @@ export class AuthService {
    */
   async verify(auth: AuthContext): Promise<Principal> {
     if (auth.kind === 'session') return this.verifySession(auth.credential);
-    return this.verifyPat(auth.credential, auth.hostname ?? null);
+    return this.verifyPat(auth.credential, auth.hostname ?? null, auth.projectSlug ?? null);
   }
 
   /**
@@ -778,7 +778,12 @@ export class AuthService {
     };
   }
 
-  async verifyPat(raw: string, hostname: string | null = null): Promise<Principal> {
+  async verifyPat(
+    raw: string,
+    hostname: string | null = null,
+    /** `X-NERV-Project` — 실려 왔을 때만 토큰의 프로젝트와 견준다(REQ-API-094) */
+    projectSlug: string | null = null,
+  ): Promise<Principal> {
     if (!raw.startsWith(TOKEN_PREFIX)) {
       // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       throw unauthenticated('토큰 형식이 아닙니다.');
@@ -792,11 +797,13 @@ export class AuthService {
       display_name: string;
       token_hash: Buffer | string;
       scopes: string[];
+      project_slug: string;
       expires_at: string | null;
       revoked_at: string | null;
       roles: MembershipRole[] | null;
     }>(sql`
-      SELECT t.id, t.project_id, t.user_id, u.display_name, t.token_hash, t.scopes,
+      SELECT t.id, t.project_id, p.slug AS project_slug,
+             t.user_id, u.display_name, t.token_hash, t.scopes,
              t.expires_at, t.revoked_at,
              -- 토큰 주체의 역할 **전부**. 하나만 뽑던 자리다 — 겸직이면 절반을 잃고,
              -- 그 절반에 admin 이 있으면 조용히 권한이 사라진다(0003_multi_role).
@@ -840,6 +847,23 @@ export class AuthService {
         kind: 'no_membership',
         project_id: token.project_id,
       });
+    }
+
+    // **오배치를 잡는다**(REQ-API-094 · 2026-09-05 사람 결정). 헤더는 권한의 근거가 아니고
+    // 앞으로도 아니다 — 프로젝트는 토큰에 박혀 있다. 그런데 부르는 쪽이 다른 프로젝트를
+    // 적어 두었다면 그 설정이 잘못된 것이고, 조용히 토큰 쪽으로 진행하면 **엉뚱한
+    // 프로젝트에 쓰게 된다.** 헤더가 실려 왔을 때만 견주고, 오류가 두 값을 모두 말한다 —
+    // 어느 쪽을 고쳐야 하는지는 그 둘을 나란히 봐야 안다.
+    if (projectSlug !== null && projectSlug !== token.project_slug) {
+      throw new NervError(
+        NERV_ERROR.FORBIDDEN,
+        msg('error.auth.project_mismatch', { header: projectSlug, token: token.project_slug }),
+        {
+          kind: 'project_mismatch',
+          header: projectSlug,
+          token: token.project_slug,
+        },
+      );
     }
 
     // last_used 갱신은 감사용이라 실패해도 요청을 막지 않는다.

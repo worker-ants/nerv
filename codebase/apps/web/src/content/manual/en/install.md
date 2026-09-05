@@ -199,6 +199,7 @@ The skill calls `nerv_bootstrap` first, recommends the next task, and takes you 
 | `NERV_UNAUTHENTICATED`                    | `NERV_TOKEN` is empty or was revoked. Issue a new one under Settings → Tokens                                                                                        |
 | `NERV_FORBIDDEN`, missing scope           | The token's scopes are too narrow, or the role it was issued under cannot do that                                                                                    |
 | Tools work but the project is not visible | **That token was issued for a different project.** The project is bound into the token and no header changes it — issue a new token in the project you want          |
+| `project_mismatch`                        | `X-NERV-Project` and the token's project disagree. The error prints both values — correct whichever is wrong                                                         |
 | No session card appears                   | The hook could not reach the server — check `NERV_TOKEN`, `NERV_SERVER` and `curl`. Hooks fail silently                                                              |
 | Requesting review just fails              | That is an A3 tool — a person has to press it on the web (see [Inbox](/help/inbox))                                                                                  |
 | `NERV_RATE_LIMIT`                         | Too frequent — 300 requests per minute per token, 120 for hooks per session. Wait the `retry_after_s` from the response. Do not work around it with parallel retries |

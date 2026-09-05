@@ -46,6 +46,8 @@ export const ko = {
   'error.attachment.storage_off': '첨부 저장소가 설정되지 않았습니다.',
   'error.auth.missing': '자격증명이 없습니다.',
   'error.auth.no_role': '역할이 확인되지 않았습니다.',
+  'error.auth.project_mismatch':
+    'X-NERV-Project 가 이 토큰의 프로젝트와 다릅니다 — 헤더는 {header}, 토큰은 {token} 입니다. 둘 중 맞는 쪽으로 고치세요.',
   'error.auth.not_member': '프로젝트 멤버가 아닙니다.',
   'error.auth.not_registered': '가입한 사용자가 아닙니다.',
   'error.auth.not_registered_hint': 'MVP 초대는 기존 사용자 배정입니다 — 먼저 가입해야 합니다.',
