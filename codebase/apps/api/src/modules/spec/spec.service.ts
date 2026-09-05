@@ -21,6 +21,7 @@ import {
   implStatus,
   memberRole,
   specType,
+  evidenceKind,
   specVersionStatus,
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
@@ -1646,11 +1647,15 @@ export class SpecService {
     sessionId?: string | null;
   }): Promise<Record<string, unknown>> {
     const requirement = await this.requirement({ projectId: input.projectId, ref: input.ref });
+    // **모르는 값은 거절이지 500 이 아니다**(REQ-API-074 · 2026-09-05). REST 는 `kind` 를
+    // 그대로 넘겼고 여기서 `::evidence_kind` 로 캐스팅돼, 오타 하나가 22P02 로 죽었다 —
+    // `db-error.ts` 가 다루는 SQLSTATE 목록에 22P02 는 없다(진짜 500 으로 나간다).
+    const kind = assertVocab([input.kind], evidenceKind.enumValues, 'kind')[0];
     const evidenceId = newId();
     await this.db.execute(sql`
       INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source)
       VALUES (${evidenceId}, ${input.projectId}, ${requirement['id'] as string},
-              ${input.kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
+              ${kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
               ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
     `);
     // 조건이 다 찼으면 여기서 `implemented` 가 된다 — 안 찼으면 값은 그대로다

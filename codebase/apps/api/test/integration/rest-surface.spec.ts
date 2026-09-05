@@ -1106,6 +1106,51 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
     expect(rows[0]?.release_note).toBe('검색 필터까지 했고 requirement_id 가 남았다');
   });
 
+  it('증적 종류의 오타는 400 이다 — 22P02 로 죽던 마지막 자리', async () => {
+    const spec = await seedSpec('SPC-EV');
+    const { rows: ver } = await pool.query<{ id: string }>(
+      `SELECT id FROM spec_version WHERE spec_id = $1 ORDER BY version_no DESC LIMIT 1`,
+      [spec.specId],
+    );
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-EV-001','WHEN … THE SYSTEM SHALL …','must',$4,$4)`,
+      [newId(), projectId, spec.specId, ver[0]?.id],
+    );
+
+    // EP-REQ-03 은 역할 AND `spec:evidence` 다 — adminToken 에는 그 스코프가 없다(§1.3b)
+    const ciToken = (
+      await app.get(AuthService).issueToken({
+        projectId,
+        userId: adminId,
+        name: 'ci-evidence-vocab',
+        scopes: ['spec:evidence'],
+      })
+    ).token;
+
+    const bad = await call('POST', '/api/v1/projects/clemvion/requirements/REQ-EV-001/evidence', {
+      token: ciToken,
+      payload: { kind: 'screenshot', locator: 'x' },
+    });
+    // `db-error.ts` 가 다루는 SQLSTATE 에 22P02 가 없어 진짜 500 으로 나가던 자리다
+    expect(bad.status).toBe(400);
+    expect((bad.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect((bad.body as Record<string, unknown>)['details']).toMatchObject({ field: 'kind' });
+
+    const ok = await call('POST', '/api/v1/projects/clemvion/requirements/REQ-EV-001/evidence', {
+      token: ciToken,
+      payload: { kind: 'user_guide', locator: 'docs/manual/ko/specs.md' },
+    });
+    // 어휘에 있는 여섯 종은 전부 받는다 — 전표가 넷만 적고 있었다(§2.5 EP-REQ-03)
+    expect(ok.status).toBeLessThan(300);
+
+    // 이 스위트는 requirement 를 비우지 않는다 — 남기면 커버리지 테스트가 세는 수가 달라진다
+    await pool.query(`DELETE FROM evidence WHERE requirement_id IN
+                        (SELECT id FROM requirement WHERE ref = 'REQ-EV-001')`);
+    await pool.query(`DELETE FROM requirement WHERE ref = 'REQ-EV-001'`);
+  });
+
   it('검색이 type·status 로 좁힌다 — 어휘 밖 값은 거절이지 무시가 아니다', async () => {
     await seedSpec('SPC-FEAT', { type: 'feature', title: '검색어공통' });
     await seedSpec('SPC-ADR', { type: 'adr', title: '검색어공통' });
