@@ -875,3 +875,86 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
     }
   });
 });
+
+/**
+ * **본문의 요구사항이 행이 된다**(REQ-API-096 · 2026-09-05 사람 결정).
+ *
+ * 감사 전까지 `requirement` 를 만드는 코드는 임포터 하나뿐이었다. 그래서 웹·에이전트로 쓴
+ * 스펙에는 요구사항이 없었고, 프로젝트 화면의 구현 현황이 **영원히 0** 이었다.
+ */
+describe('E04 요구사항 행 — 승인이 본문에서 뽑는다', () => {
+  async function approved(key: string, lines: string[]): Promise<string> {
+    const body = ['# 제목', '', ...lines].join('\n');
+    const { specId, versionId } = await newDraft(key, body);
+    await raiseTier(specId);
+    await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+    await specs.approve({ projectId, specVersionId: versionId, approverUserId: reviewer });
+    return versionId;
+  }
+
+  async function refsOf(prefix: string): Promise<{ ref: string; removed: string | null }[]> {
+    const { rows } = await pool.query<{ ref: string; removed: string | null }>(
+      `SELECT ref, removed_in_version_id AS removed FROM requirement
+        WHERE project_id = $1 AND ref LIKE $2 ORDER BY ref`,
+      [projectId, `${prefix}%`],
+    );
+    return rows;
+  }
+
+  it('EARS 줄이 요구사항 행이 된다 — 우선순위는 must, 구현 상태는 미구현으로 시작한다', async () => {
+    await approved('SPC-REQ-A', [
+      '- REQ-AAA-001 WHEN 사용자가 저장하면 THE SYSTEM SHALL 본문을 남긴다',
+      '- REQ-AAA-002 WHEN 사용자가 지우면 THE SYSTEM SHALL 되돌릴 수 있게 한다',
+    ]);
+    const { rows } = await pool.query<{ ref: string; priority: string; impl_status: string }>(
+      `SELECT ref, priority::text AS priority, impl_status::text AS impl_status FROM requirement
+        WHERE project_id = $1 AND ref LIKE 'REQ-AAA-%' ORDER BY ref`,
+      [projectId],
+    );
+    expect(rows.map((r) => r.ref)).toEqual(['REQ-AAA-001', 'REQ-AAA-002']);
+    expect(rows[0]?.priority).toBe('must');
+    expect(rows[0]?.impl_status).toBe('unimplemented');
+  });
+
+  it('EARS 가 아닌 문단은 요구사항이 아니다 — 산문을 요구사항으로 만들지 않는다', async () => {
+    await approved('SPC-REQ-PROSE', [
+      '이 문서는 무엇을 만들지 적는다. REQ 라는 말이 문장에 나와도 요구사항은 아니다.',
+      '- REQ-PRO-001 WHEN 조건이면 THE SYSTEM SHALL 동작한다',
+    ]);
+    expect((await refsOf('REQ-PRO-')).map((r) => r.ref)).toEqual(['REQ-PRO-001']);
+  });
+
+  it('다음 판에서 빠지면 지우지 않고 **언제 빠졌는지**를 남긴다', async () => {
+    const key = 'SPC-REQ-C';
+    const { specId, versionId } = await newDraft(
+      key,
+      [
+        '# 제목',
+        '',
+        '- REQ-CCC-001 WHEN 남는다면 THE SYSTEM SHALL 남는다',
+        '- REQ-CCC-002 WHEN 빠진다면 THE SYSTEM SHALL 표시된다',
+      ].join('\n'),
+    );
+    await raiseTier(specId);
+    await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+    await specs.approve({ projectId, specVersionId: versionId, approverUserId: reviewer });
+    expect((await refsOf('REQ-CCC-')).every((r) => r.removed === null)).toBe(true);
+
+    const current = await specs.get({ projectId, specKey: key });
+    const next = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      bodyMd: ['# 제목', '', '- REQ-CCC-001 WHEN 남는다면 THE SYSTEM SHALL 남는다'].join('\n'),
+      baseHash: String(current['content_hash']),
+      userId: planner,
+    });
+    const v2 = String(next['spec_version_id']);
+    await specs.submitReview({ projectId, specVersionId: v2, userId: planner });
+    await specs.approve({ projectId, specVersionId: v2, approverUserId: reviewer });
+
+    const rows = await refsOf('REQ-CCC-');
+    expect(rows.find((r) => r.ref === 'REQ-CCC-001')?.removed).toBeNull();
+    expect(rows.find((r) => r.ref === 'REQ-CCC-002')?.removed).toBe(v2);
+  });
+});
