@@ -14,6 +14,7 @@ import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
+import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
 import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
@@ -58,6 +59,9 @@ beforeAll(async () => {
     events,
     new QuestionService(events, drizzleDb),
     new SessionService(events, drizzleDb),
+    // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트는 그 게이트에 닿지 않지만
+    // 서비스는 들고 있어야 한다(AuthService 는 이 경로에서 쓰이지 않는다)
+    new ApprovalService(events, specs, null as never, drizzleDb),
     drizzleDb,
   );
   await seed();

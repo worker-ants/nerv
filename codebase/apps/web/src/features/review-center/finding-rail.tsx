@@ -25,11 +25,15 @@ export function FindingRail({
   projectSlug,
   projectId,
   canResolve,
+  canPromote,
 }: {
   finding: Row;
   projectSlug: string;
   projectId?: string | undefined;
+  /** 처분과 **코멘트** 둘 다의 기준 — 서버가 코멘트에도 `review:resolve` 를 요구한다 */
   canResolve: boolean;
+  /** 승격은 작업을 만드는 일이라 `task:update` 가 기준이다(처분과 다른 축) */
+  canPromote: boolean;
 }): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
@@ -175,7 +179,8 @@ export function FindingRail({
           <button
             type="button"
             data-testid="comment-submit"
-            disabled={draft.trim() === '' || add.isPending}
+            disabled={!canResolve || draft.trim() === '' || add.isPending}
+            title={canResolve ? undefined : t('reviews.no_permission')}
             onClick={() => add.mutate(draft)}
             className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-50"
           >
@@ -185,8 +190,8 @@ export function FindingRail({
           <button
             type="button"
             data-testid="promote-task"
-            disabled={!canResolve || promoted || promote.isPending}
-            title={canResolve ? undefined : t('reviews.no_permission')}
+            disabled={!canPromote || promoted || promote.isPending}
+            title={canPromote ? undefined : t('reviews.no_permission')}
             onClick={() => promote.mutate()}
             className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-50"
           >

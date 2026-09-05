@@ -15,6 +15,14 @@ export const LEASE_TTL_SECONDS = 1800;
  * 스펙당 **합계는 제한하지 않는다** — 시안이 쌓이는 것은 문서가 자라는 것이다.
  * 정본: docs/04-mvp/api.md §2.10
  */
+/**
+ * **플랜 승인 게이트가 서는 파생 Task 수**(G2 · D-06 ② — spec-workflow §5 표).
+ *
+ * "파생 Task 4건 이상이거나 T3 티어 스펙에서 나온 대형 작업은 착수 전 플랜 승인을 받는다."
+ * 수를 여기 두는 것은 게이트가 서는 자리와 그 수를 아는 곳이 갈라지지 않게 하기 위해서다.
+ */
+export const PLAN_APPROVAL_SIBLINGS = 4;
+
 export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 
 /**

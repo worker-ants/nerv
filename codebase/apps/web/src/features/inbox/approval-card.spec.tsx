@@ -30,12 +30,12 @@ afterEach(cleanup);
  * 링크가 라우터를 못 찾아 터지고, 그것을 피하려고 링크를 걷으면 정작 검사할 것이 사라진다.
  * 실제 routeTree 를 쓰지 않는 이유는 이 파일이 **카드 하나**를 보기 때문이다.
  */
-async function renderCard(card: Record<string, unknown>): Promise<void> {
+async function renderCard(card: Record<string, unknown>, active = false): Promise<void> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const rootRoute = createRootRoute({
     component: () => (
       <RealtimeProvider>
-        <ApprovalCard card={card} />
+        <ApprovalCard card={card} active={active} />
       </RealtimeProvider>
     ),
   });
@@ -203,5 +203,63 @@ describe('문서로 가는 길 (REQ-WEB-119)', () => {
     const href = screen.getByTestId('finding-link').getAttribute('href');
     expect(href).toContain('/p/sudoku/reviews');
     expect(href).toContain('finding=0f3a91c2-7d10-4b55-9a3e-1c2d3e4f5a6b');
+  });
+});
+
+/**
+ * 결정된 카드에서 키가 살아 있던 자리(2026-09-05 감사 · 06).
+ *
+ * 단추는 `decided === null` 일 때만 그려지는데 키 핸들러는 그 값을 보지 않아,
+ * 처리됨 탭에서 `a` 를 누르면 요청이 나가고 `already_decided` 오류 토스트가 떴다.
+ * 이 파일 자신이 "누를 수 있는 것은 할 수 있다는 뜻이어야 한다" 고 적어 둔 규율이다.
+ */
+describe('처리됨 탭 — 단추가 없으면 키도 없다', () => {
+  const decidedCard = {
+    id: 'ap-decided',
+    subject_type: 'spec_version',
+    subject_key: 'SPC-CWC-007',
+    requested_at: new Date().toISOString(),
+    can_approve: true,
+    decision: 'approve',
+    decided_at: new Date().toISOString(),
+  };
+
+  it('결정된 카드에서 `a` 는 아무 요청도 보내지 않는다', async () => {
+    const fetchMock = vi.fn(async (_url: unknown) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    await renderCard(decidedCard, true);
+
+    fireEvent.keyDown(window, { key: 'a' });
+    fireEvent.keyDown(window, { key: 'r' });
+
+    // **기다렸다가 센다.** 뮤테이션은 비동기라 누른 직후에 세면 언제나 0이고,
+    // 그러면 이 테스트는 결함이 있어도 통과한다(실제로 처음에 그랬다).
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const calls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(calls.filter((u) => u.includes('/approvals/'))).toEqual([]);
+    vi.unstubAllGlobals();
+  });
+
+  it('아직 안 정한 카드에서는 `a` 가 그대로 듣는다 — 조건을 너무 넓게 걸지 않았다', async () => {
+    const fetchMock = vi.fn(async (_url: unknown) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { decision: _d, decided_at: _t, ...pending } = decidedCard;
+    await renderCard({ ...pending, id: 'ap-pending' }, true);
+
+    fireEvent.keyDown(window, { key: 'a' });
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(calls.some((u) => u.includes('/approvals/'))).toBe(true);
+    });
+    vi.unstubAllGlobals();
   });
 });

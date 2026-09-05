@@ -46,6 +46,8 @@ export const ko = {
   'error.attachment.storage_off': '첨부 저장소가 설정되지 않았습니다.',
   'error.auth.missing': '자격증명이 없습니다.',
   'error.auth.no_role': '역할이 확인되지 않았습니다.',
+  'error.auth.project_mismatch':
+    'X-NERV-Project 가 이 토큰의 프로젝트와 다릅니다 — 헤더는 {header}, 토큰은 {token} 입니다. 둘 중 맞는 쪽으로 고치세요.',
   'error.auth.not_member': '프로젝트 멤버가 아닙니다.',
   'error.auth.not_registered': '가입한 사용자가 아닙니다.',
   'error.auth.not_registered_hint': 'MVP 초대는 기존 사용자 배정입니다 — 먼저 가입해야 합니다.',
@@ -108,7 +110,7 @@ export const ko = {
   'error.invite.revoked': '회수된 초대입니다.',
   'error.org.missing_fields': '조직 slug 와 이름이 필요합니다.',
   'error.org.not_empty':
-    '프로젝트가 남아 있는 조직은 지울 수 없습니다 — 먼저 프로젝트를 보관하세요.',
+    '프로젝트가 있는 조직은 지울 수 없습니다. 보관해도 마찬가지입니다 — 보관한 프로젝트도 여기서는 남아 있는 것으로 셉니다.',
   'error.org.not_found': '조직을 찾을 수 없습니다.',
   'error.project.missing_fields': 'slug·key·name 이 필요합니다.',
   'error.plugin.no_archive': '플러그인 아카이브가 배포에 포함되지 않았습니다.',
@@ -130,6 +132,7 @@ export const ko = {
     '상대 문서가 그 사이 바뀌었습니다 — 다시 읽고 관계가 여전히 맞는지 확인하세요.',
   'inbox.card.decided_at': '{decision} · {when}',
   'inbox.subject.gate_bypass': '게이트 우회 요청',
+  'inbox.subject.plan': '플랜 승인 요청',
   'mcp.arg.relation_base_hash':
     '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
@@ -436,6 +439,8 @@ export const ko = {
   'error.task.blocked_reason_required': 'blocked 에는 사유가 필요합니다.',
   'error.task.delegation_incomplete': '위임 명세 4요소가 비어 있습니다: {missing}',
   'error.task.done_gate': 'done 게이트를 충족하지 못했습니다.',
+  'error.task.plan_approval_required':
+    '이 작업은 착수 전에 플랜 승인이 필요합니다 — 받은 요청에 카드를 만들었으니 승인 뒤 다시 클레임하세요.',
   'error.task.done_is_final': '완료된 작업은 이 경로로 되돌리지 않습니다.',
   'error.task.not_assignee': '이 작업의 담당자가 아닙니다.',
   'error.task.not_found': '작업을 찾을 수 없습니다.',
@@ -1013,6 +1018,8 @@ export const ko = {
   'switcher.label': '빠른 이동',
   'switcher.no_results': '결과가 없습니다 — 다른 표현으로 찾아보세요.',
   'switcher.placeholder': '스펙·작업 검색 또는 안정 ID (SPC-… · TSK-…)',
+  'switcher.pin': '목록 위에 고정',
+  'switcher.unpin': '고정 해제',
   'switcher.recent': '최근 방문한 문서가 여기 쌓입니다.',
   // ── 실시간 연결 배너 (screens.md §1.4) ─────────────────────────────────────────
   'realtime.offline': '오프라인 — 캐시된 읽기 전용입니다. 복구되면 자동으로 동기화합니다.',

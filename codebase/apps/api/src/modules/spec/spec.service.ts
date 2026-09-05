@@ -26,7 +26,7 @@ import {
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { sqlSeconds } from '../../common/sql-array.js';
+import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -147,6 +147,59 @@ export class SpecService {
     private readonly attachments: AttachmentService,
     @InjectDb() private readonly db: NervDb,
   ) {}
+
+  /**
+   * **본문의 요구사항을 행으로 만든다**(REQ-API-096 · 2026-09-05 사람 결정).
+   *
+   * 이 자리가 없던 동안 `requirement` 행을 만드는 코드는 **임포터 하나뿐**이었다(실측
+   * 2026-09-05). 그래서 웹이나 에이전트로 쓴 스펙에는 요구사항이 없었고, 프로젝트 화면의
+   * 구현 현황은 그 프로젝트에서 **영원히 0** 이었다 — 화면 하나가 통째로 죽어 있던 것이다.
+   *
+   * **추출기는 새로 만들지 않는다.** 저장 응답의 델타가 이미 `requirementsOf()` 로 본문의
+   * EARS 줄을 읽고 있다 — 같은 것을 여기서 쓴다. 두 벌이면 "무엇이 요구사항인가" 의 정의가
+   * 갈라지고, 그때 화면의 수와 델타의 수가 서로 다른 말을 한다.
+   *
+   * **초안이 아니라 승인 시점이다.** 초안의 EARS 문장은 아직 약속이 아니고, 이 테이블은
+   * 이미 버전 축(`introduced_in_version_id`·`removed_in_version_id`)을 갖고 있어 승인된
+   * 판에 붙이는 것이 자연스럽다.
+   *
+   * **우선순위는 `must` 로 시작한다.** 본문의 EARS 줄은 그 값을 담지 않아 고를 근거가 없고,
+   * 적어 둔 요구사항을 기본으로 낮춰 잡을 이유도 없다(임포터는 프로파일에서 읽는다).
+   *
+   * 본문에서 사라진 요구사항은 지우지 않고 **이 판에서 빠졌다고 표시한다** — 기록을 지우는
+   * 것이 아니라 언제 빠졌는지를 남기는 것이 이 테이블의 축이다.
+   */
+  private async syncRequirements(
+    tx: Tx,
+    input: { projectId: string; specId: string; specVersionId: string },
+  ): Promise<void> {
+    const { rows } = await tx.execute<{ body_md: string }>(
+      sql`SELECT body_md FROM spec_version WHERE id = ${input.specVersionId}`,
+    );
+    const found = requirementsOf(rows[0]?.body_md ?? '');
+
+    for (const [ref, statement] of found) {
+      await tx.execute(sql`
+        INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                 introduced_in_version_id, current_version_id)
+        VALUES (${newId()}, ${input.projectId}, ${input.specId}, ${ref}, ${statement},
+                'must'::requirement_priority, ${input.specVersionId}, ${input.specVersionId})
+        ON CONFLICT (project_id, ref) DO UPDATE
+              SET statement_md = ${statement},
+                  current_version_id = ${input.specVersionId},
+                  -- 빠졌다가 돌아온 요구사항은 다시 살아 있는 것으로 본다
+                  removed_in_version_id = NULL
+      `);
+    }
+
+    // 본문에서 사라진 것 — 지우지 않고 이 판에서 빠졌다고 적는다
+    await tx.execute(sql`
+      UPDATE requirement
+         SET removed_in_version_id = ${input.specVersionId}
+       WHERE spec_id = ${input.specId} AND removed_in_version_id IS NULL
+         AND NOT (ref = ANY(${sqlArray([...found.keys()], 'text')}))
+    `);
+  }
 
   /**
    * nerv_spec_tree · EP-SPEC-01
@@ -1909,6 +1962,12 @@ export class SpecService {
     await tx.execute(
       sql`UPDATE spec SET current_version_id = ${input.specVersionId} WHERE id = ${input.specId}`,
     );
+
+    await this.syncRequirements(tx, {
+      projectId: input.projectId,
+      specId: input.specId,
+      specVersionId: input.specVersionId,
+    });
 
     await emit({
       type: NERV_EVENT.SPEC_APPROVED,

@@ -83,10 +83,13 @@ const GATE = { items: GATE_ROWS, total: 441 };
 
 /** 처분 호출을 잡아 두는 곳 — 무엇을 보냈는지가 검사 대상이다 */
 let posted: { url: string; body: unknown }[] = [];
+/** 이 사람의 역할 — 권한 축이 둘로 갈리는 것을 보려면 갈아 끼울 수 있어야 한다 */
+let roles: string[] = ['qa'];
 
 beforeEach(() => {
   localStorage.clear();
   posted = [];
+  roles = ['qa'];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
@@ -141,7 +144,7 @@ beforeEach(() => {
                 id: 'u-1',
                 display_name: '규아',
                 memberships: [
-                  { org_slug: 'nerv', project_slug: 'clemvion', roles: ['qa'], project_id: 'p-1' },
+                  { org_slug: 'nerv', project_slug: 'clemvion', roles, project_id: 'p-1' },
                 ],
               }
             : path.includes('/projects/clemvion')
@@ -424,5 +427,35 @@ describe('스펙 정정으로 닫기 (REQ-WEB-117)', () => {
       resolution: 'spec_change',
       spec_version_id: 'v-77',
     });
+  });
+});
+
+/**
+ * 승격의 권한 축(2026-09-05 감사 · 07).
+ *
+ * 서버는 `task:update` 를 요구하는데 화면은 `review:resolve` 로 잠가서, **developer 는
+ * 권한이 있는데 누를 수 없었다.** 지적을 받은 사람이 그것을 자기 백로그로 넘기지 못하면
+ * 옮기는 일이 처분 권한을 가진 세 역할에게 몰린다.
+ */
+describe('승격은 처분과 다른 축이다 (07)', () => {
+  it('developer 는 처분은 못 해도 승격은 한다', async () => {
+    roles = ['developer'];
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+    const rail = await screen.findByTestId('finding-rail');
+
+    expect(within(rail).getByTestId('promote-task').hasAttribute('disabled')).toBe(false);
+    // 처분 쪽은 그대로 잠겨 있어야 한다 — 한쪽을 열면서 다른 쪽까지 열지 않았다
+    const cards = screen.getAllByTestId('finding-card');
+    expect(within(cards[0]!).getByTestId('resolve-fixed').hasAttribute('disabled')).toBe(true);
+  });
+
+  it('viewer 는 둘 다 못 한다 — `task:update` 가 없는 역할이다', async () => {
+    roles = ['viewer'];
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+    const rail = await screen.findByTestId('finding-rail');
+
+    expect(within(rail).getByTestId('promote-task').hasAttribute('disabled')).toBe(true);
   });
 });

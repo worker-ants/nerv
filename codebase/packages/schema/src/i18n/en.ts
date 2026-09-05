@@ -42,6 +42,8 @@ export const en = {
   'error.attachment.storage_off': 'Attachment storage is not configured.',
   'error.auth.missing': 'Not signed in.',
   'error.auth.no_role': 'Your role could not be determined.',
+  'error.auth.project_mismatch':
+    'X-NERV-Project does not match this token’s project — the header says {header}, the token says {token}. Correct whichever is wrong.',
   'error.auth.not_member': 'You are not a member of this project.',
   'error.auth.not_registered': 'That user has not signed up.',
   'error.auth.not_registered_hint':
@@ -108,7 +110,7 @@ export const en = {
   'error.invite.revoked': 'That invitation was revoked.',
   'error.org.missing_fields': 'An organization needs a slug and a name.',
   'error.org.not_empty':
-    'An organization with projects cannot be deleted — archive its projects first.',
+    'An organization that has projects cannot be deleted. Archiving does not change that — an archived project still counts here.',
   'error.org.not_found': 'Organization not found.',
   'error.project.missing_fields': 'slug, key and name are required.',
   'error.plugin.no_archive': 'The plugin archive is not part of this deployment.',
@@ -130,6 +132,7 @@ export const en = {
     'The target document changed in the meantime — read it again and confirm the relation still holds.',
   'inbox.card.decided_at': '{decision} · {when}',
   'inbox.subject.gate_bypass': 'Gate bypass request',
+  'inbox.subject.plan': 'Plan approval request',
   'mcp.arg.relation_base_hash':
     'fingerprint of the target document — content_hash from nerv_spec_get. required when adding a relation',
   'mcp.arg.takeover':
@@ -447,6 +450,8 @@ export const en = {
   'error.task.blocked_reason_required': 'Blocking a task requires a reason.',
   'error.task.delegation_incomplete': 'The delegation brief is incomplete: {missing}',
   'error.task.done_gate': 'The done gate is not satisfied.',
+  'error.task.plan_approval_required':
+    'This task needs plan approval before it can be started — a card is waiting in the inbox; claim it again once approved.',
   'error.task.done_is_final': 'A finished task is not reopened through this path.',
   'error.task.not_assignee': 'You are not the assignee of this task.',
   'error.task.not_found': 'Task not found.',
@@ -1035,6 +1040,8 @@ export const en = {
   'switcher.label': 'Quick switcher',
   'switcher.no_results': 'No results — try different words.',
   'switcher.placeholder': 'Search specs and tasks, or paste a stable ID (SPC-…, TSK-…)',
+  'switcher.pin': 'Pin to the top',
+  'switcher.unpin': 'Unpin',
   'switcher.recent': 'Recently visited documents collect here.',
   // ── 실시간 연결 배너 (screens.md §1.4) ─────────────────────────────────────────
   'realtime.offline': 'Offline — read-only from cache. It syncs again once the connection returns.',

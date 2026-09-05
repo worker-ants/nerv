@@ -6,6 +6,7 @@
 //
 // 이 화면이 대체하는 것은 clemvion 의 `review/**` md 13,777개(131MB)다.
 
+import { scopesForRoles } from '@nerv/schema';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
@@ -79,6 +80,10 @@ function ReviewCenter(): React.JSX.Element {
   const { orgSlug } = useScope(proj);
   const roles = rolesInProject(me.data, orgSlug, proj);
   const canResolve = roles.some((r) => RESOLVER_ROLES.includes(r));
+  // **승격은 처분이 아니라 작업을 만드는 일이다.** 서버가 요구하는 것도 `task:update` 인데
+  // 화면만 `review:resolve` 로 잠가서, developer 는 권한이 있는데 누를 수 없었다 —
+  // 지적을 받은 사람이 그것을 자기 백로그로 넘기지 못하던 자리다(2026-09-05 감사).
+  const canPromote = scopesForRoles(roles).has('task:update');
 
   // facet 은 필터에만 달렸으므로 첫 쪽의 것이 전체를 말한다 — 쪽마다 다시 세지 않는다
   const facets = queue.data?.pages[0]?.facets;
@@ -249,6 +254,7 @@ function ReviewCenter(): React.JSX.Element {
                 projectSlug={proj}
                 projectId={id}
                 canResolve={canResolve}
+                canPromote={canPromote}
               />
             </div>
           </aside>

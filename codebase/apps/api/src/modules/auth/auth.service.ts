@@ -200,8 +200,17 @@ export class AuthService {
    *
    * 프로젝트가 하나라도 남아 있으면 거부한다. 조직 아래에는 스펙·Task·리뷰·이벤트가
    * 달려 있고, 그것을 지우는 것은 감사 기록(FR-16 append-only)을 지우는 일이다 —
-   * "정리"처럼 보이는 한 번의 클릭으로 일어나서는 안 된다. 프로젝트를 먼저 **보관**한
-   * 뒤 지우게 하면, 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계가 하나 선다.
+   * "정리"처럼 보이는 한 번의 클릭으로 일어나서는 안 된다.
+   *
+   * **보관은 이 조건을 만족시키지 못한다**(2026-09-05 감사 · 사람 결정). 이 주석은 한동안
+   * "먼저 보관하면 지울 수 있다" 고 적고 있었지만 아래 질의에 `archived_at` 필터가 없어
+   * 보관본도 그대로 세었고, 화면에는 프로젝트를 지우는 수단이 아예 없다. **코드가 하지
+   * 않는 일을 설계라고 적는 것이 결함이라** 문구를 사실에 맞췄다.
+   *
+   * 필터를 더하는 쪽은 한 줄로 보이지만 그 뒤에 결정이 하나 더 있다 — 보관된 프로젝트의
+   * 행을 함께 지우면 감사 기록을 지우는 일이고, 남기면 조직 없는 고아가 된다(프로젝트를
+   * 가리키는 FK 가 22곳이다). 그 결정의 무게에 비해 "빈 조직을 지운다" 는 드문 일이라,
+   * 지금은 **거절의 이유를 정확히 말하는 것**까지만 한다.
    */
   async deleteOrg(input: { userId: string; orgSlug: string }): Promise<{ deleted: true }> {
     const orgId = await this.assertOrgAdmin(input.userId, input.orgSlug);
@@ -730,7 +739,7 @@ export class AuthService {
    */
   async verify(auth: AuthContext): Promise<Principal> {
     if (auth.kind === 'session') return this.verifySession(auth.credential);
-    return this.verifyPat(auth.credential, auth.hostname ?? null);
+    return this.verifyPat(auth.credential, auth.hostname ?? null, auth.projectSlug ?? null);
   }
 
   /**
@@ -769,7 +778,12 @@ export class AuthService {
     };
   }
 
-  async verifyPat(raw: string, hostname: string | null = null): Promise<Principal> {
+  async verifyPat(
+    raw: string,
+    hostname: string | null = null,
+    /** `X-NERV-Project` — 실려 왔을 때만 토큰의 프로젝트와 견준다(REQ-API-094) */
+    projectSlug: string | null = null,
+  ): Promise<Principal> {
     if (!raw.startsWith(TOKEN_PREFIX)) {
       // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그(REQ-CB-022)
       throw unauthenticated('토큰 형식이 아닙니다.');
@@ -783,11 +797,13 @@ export class AuthService {
       display_name: string;
       token_hash: Buffer | string;
       scopes: string[];
+      project_slug: string;
       expires_at: string | null;
       revoked_at: string | null;
       roles: MembershipRole[] | null;
     }>(sql`
-      SELECT t.id, t.project_id, t.user_id, u.display_name, t.token_hash, t.scopes,
+      SELECT t.id, t.project_id, p.slug AS project_slug,
+             t.user_id, u.display_name, t.token_hash, t.scopes,
              t.expires_at, t.revoked_at,
              -- 토큰 주체의 역할 **전부**. 하나만 뽑던 자리다 — 겸직이면 절반을 잃고,
              -- 그 절반에 admin 이 있으면 조용히 권한이 사라진다(0003_multi_role).
@@ -831,6 +847,23 @@ export class AuthService {
         kind: 'no_membership',
         project_id: token.project_id,
       });
+    }
+
+    // **오배치를 잡는다**(REQ-API-094 · 2026-09-05 사람 결정). 헤더는 권한의 근거가 아니고
+    // 앞으로도 아니다 — 프로젝트는 토큰에 박혀 있다. 그런데 부르는 쪽이 다른 프로젝트를
+    // 적어 두었다면 그 설정이 잘못된 것이고, 조용히 토큰 쪽으로 진행하면 **엉뚱한
+    // 프로젝트에 쓰게 된다.** 헤더가 실려 왔을 때만 견주고, 오류가 두 값을 모두 말한다 —
+    // 어느 쪽을 고쳐야 하는지는 그 둘을 나란히 봐야 안다.
+    if (projectSlug !== null && projectSlug !== token.project_slug) {
+      throw new NervError(
+        NERV_ERROR.FORBIDDEN,
+        msg('error.auth.project_mismatch', { header: projectSlug, token: token.project_slug }),
+        {
+          kind: 'project_mismatch',
+          header: projectSlug,
+          token: token.project_slug,
+        },
+      );
     }
 
     // last_used 갱신은 감사용이라 실패해도 요청을 막지 않는다.

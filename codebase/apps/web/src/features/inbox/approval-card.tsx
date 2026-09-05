@@ -182,6 +182,11 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
     const onKey = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement | null;
       if (target !== null && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+      // **단추와 같은 조건이다.** 결정된 카드에서는 단추가 사라지는데 키는 살아 있어,
+      // `a` 를 누르면 요청이 나가고 `already_decided` 오류 토스트가 떴다 — 이 파일이
+      // 아래에서 "누를 수 있는 것은 할 수 있다는 뜻이어야 한다" 고 적어 두고 키에는
+      // 적용하지 않은 자리다(2026-09-05 감사).
+      if (decided !== null) return;
       if (e.key === 'a' && !isQuestion && canApprove) decide.mutate('approve');
       if (e.key === 'r' && !isQuestion) decide.mutate('reject');
       if (e.key === 'c') {
@@ -191,7 +196,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, card, decide, isQuestion]);
+  }, [active, card, decide, isQuestion, decided]);
 
   return (
     <article

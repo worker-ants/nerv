@@ -124,7 +124,9 @@ Requirements in a spec body are extracted and carry their own implementation sta
 
 **Missing evidence** is "you said it was done and there is nothing to show"; **empty promises** is "you wrote it down and nobody took it". You bring the first down by attaching evidence, the second by making a task and linking it to the requirement (see [Tasks](/help/tasks)).
 
-**Requirement rows exist today only in projects that came in through the importer.** Writing EARS sentences into a spec from the web or from an agent does not create them, and there is no path yet that advances an implementation status — in those projects every number on this screen stays at zero.
+Requirement rows are created from the body **when a version is approved**. Writing EARS sentences into a draft is not enough — a draft is not yet a promise. When a sentence drops out of a later revision the row is not deleted; **which revision dropped it** is recorded instead.
+
+Priority starts at `must`, because the EARS line in the body does not carry one. **There is still no path that advances an implementation status**: everything starts at `unimplemented` and stays there, and only projects that came in through the importer carry other values.
 
 The document header also carries a **references updated** badge: it lights when a document this one points at has moved ahead of the version you are reading, and it names which one. It is the server's judgement, not the screen's guess.
 

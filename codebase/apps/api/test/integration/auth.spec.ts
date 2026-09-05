@@ -446,6 +446,56 @@ describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 
     });
   });
 
+  /**
+   * `X-NERV-Project` — 오배치를 잡는다(REQ-API-094 · 2026-09-05 사람 결정).
+   *
+   * 이 헤더는 명세가 "토큰의 프로젝트와 대조" 라고 적어 두었는데 **서버가 어디서도 읽지
+   * 않았다**(2026-09-05 감사 · `apps/api/src` 전체 grep 0건). 그래서 매뉴얼의 진단표는
+   * 아무 일도 안 하는 헤더를 고치라고 사람을 보내고 있었다.
+   *
+   * 권한의 근거는 지금도 토큰이다 — 헤더는 **틀렸을 때 멈추는** 장치일 뿐이다.
+   */
+  describe('X-NERV-Project — 권한의 근거가 아니라 오배치 검사다', () => {
+    it('헤더가 없으면 지금처럼 통과한다 — 배포된 설정을 막지 않는다', async () => {
+      const { token } = await auth.issueToken({
+        projectId,
+        userId,
+        name: 'no-header',
+        scopes: ['spec:read'],
+      });
+      await expect(auth.verifyPat(token)).resolves.toMatchObject({ isAgent: true });
+    });
+
+    it('헤더가 토큰의 프로젝트와 같으면 통과한다', async () => {
+      const { token } = await auth.issueToken({
+        projectId,
+        userId,
+        name: 'same-header',
+        scopes: ['spec:read'],
+      });
+      await expect(auth.verifyPat(token, null, 'clemvion')).resolves.toMatchObject({
+        isAgent: true,
+      });
+    });
+
+    it('어긋나면 거절하고 **두 값을 모두** 말한다 — 어느 쪽을 고칠지는 나란히 봐야 안다', async () => {
+      const { token } = await auth.issueToken({
+        projectId,
+        userId,
+        name: 'wrong-header',
+        scopes: ['spec:read'],
+      });
+      await expect(auth.verifyPat(token, null, 'some-other-project')).rejects.toMatchObject({
+        code: NERV_ERROR.FORBIDDEN,
+        details: {
+          kind: 'project_mismatch',
+          header: 'some-other-project',
+          token: 'clemvion',
+        },
+      });
+    });
+  });
+
   it('빈 조직은 지워진다', async () => {
     await auth.createOrg({ userId, slug: 'empty', name: '빈 조직' });
     await expect(auth.deleteOrg({ userId, orgSlug: 'empty' })).resolves.toEqual({ deleted: true });

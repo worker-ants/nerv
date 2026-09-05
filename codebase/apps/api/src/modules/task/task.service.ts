@@ -12,6 +12,7 @@ import {
   TASK_DONE_WINDOW_DAYS,
   taskStatus,
   text,
+  PLAN_APPROVAL_SIBLINGS,
 } from '@nerv/schema';
 import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
 import { displayKey } from '@nerv/schema/keys';
@@ -27,6 +28,7 @@ import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
+import { ApprovalService } from '../approval/approval.service.js';
 import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
@@ -97,6 +99,8 @@ export class TaskService {
     private readonly questions: QuestionService,
     // 지시 역채널 — 세션이 그것을 들고 있다(SessionModule → TaskModule 방향은 없어 순환이 아니다)
     private readonly sessions: SessionService,
+    // 플랜 승인 카드를 만드는 자리 — 결재를 만드는 규칙은 저 서비스 한 곳이다(D-05)
+    private readonly approvals: ApprovalService,
     @InjectDb() private readonly db: NervDb,
   ) {}
 
@@ -577,8 +581,110 @@ export class TaskService {
     return out;
   }
 
+  /**
+   * **플랜 승인 게이트**(G2 · D-06 ② — spec-workflow §5 표 · REQ-API-095).
+   *
+   * 조건은 정본이 정한 둘이다: **파생 Task 4건 이상**이거나 **T3 티어 스펙에서 나온 작업**.
+   * 위치도 정본이 정한 자리다 — `ready → claimed`, 즉 **착수 전**이다. 코드 2,000줄이
+   * 쓰이기 전 설계 단계에서 잡자는 것이 이 게이트의 값어치다.
+   *
+   * **fail-open 이다**(같은 표): 판정이 실패하면 막지 않고 통과시키되 그 사실을 남긴다.
+   * 게이트가 죽었다고 일이 멈추면, 다음에 사람이 하는 일은 게이트를 끄는 것이다.
+   *
+   * 기준 버전이 없는 작업은 판단할 근거가 없으므로 게이트도 걸지 않는다.
+   */
+  private async assertPlanApproved(input: ClaimInput): Promise<void> {
+    // 참조를 여기서 한 번 더 푼다(키·UUID 둘 다) — 권위 있는 해소는 트랜잭션 안에 그대로
+    // 있으므로, 여기서 못 찾으면 조용히 지나가고 그쪽이 제대로 된 오류를 낸다.
+    const parsed = entityRef(input.taskId);
+    const { rows: taskRows } = await this.db.execute<{
+      id: string;
+      project_id: string;
+      source_spec_version_id: string | null;
+    }>(
+      parsed.id !== null
+        ? sql`SELECT id, project_id, source_spec_version_id FROM task
+               WHERE project_id = ${input.projectId} AND id = ${parsed.id}`
+        : sql`SELECT id, project_id, source_spec_version_id FROM task
+               WHERE project_id = ${input.projectId} AND key = ${parsed.key ?? ''}`,
+    );
+    const task = taskRows[0];
+    if (task === undefined) return; // 없는 작업은 트랜잭션 안에서 제대로 거절된다
+    const taskId = task.id;
+
+    const gate = await this.planGate({
+      projectId: task.project_id,
+      taskId,
+      sourceSpecVersionId: task.source_spec_version_id,
+    });
+    if (!gate.required) return;
+
+    // 카드를 **먼저 만든다** — 거절만 하고 결재를 만들지 않으면 사람이 승인할 자리가 없다.
+    // `request()` 는 같은 대상에 두 장을 만들지 않으므로 다시 클레임해도 카드는 하나다.
+    const card = await this.approvals.request({
+      projectId: task.project_id,
+      subjectType: 'plan',
+      subjectId: taskId,
+      requestedByUserId: input.userId,
+    });
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.plan_approval_required'), {
+      kind: 'plan_approval_required',
+      approval_id: card.approval_id,
+      reason: gate.reason,
+    });
+  }
+
+  private async planGate(input: {
+    projectId: string;
+    taskId: string;
+    sourceSpecVersionId: string | null;
+  }): Promise<{ required: boolean; reason: string | null }> {
+    if (input.sourceSpecVersionId === null) return { required: false, reason: null };
+    try {
+      // 이미 승인된 플랜이 있으면 통과한다 — 게이트는 한 번 지나면 다시 서지 않는다
+      const { rows: approved } = await this.db.execute<{ id: string }>(sql`
+        SELECT id FROM approval
+         WHERE project_id = ${input.projectId} AND subject_type = 'plan'::approval_subject_type
+           AND subject_id = ${input.taskId} AND decision = 'approve'::approval_decision
+         LIMIT 1
+      `);
+      if (approved.length > 0) return { required: false, reason: null };
+
+      const { rows } = await this.db.execute<{ siblings: number; tier: string | null }>(sql`
+        SELECT (SELECT count(*)::int FROM task t
+                 WHERE t.source_spec_version_id = ${input.sourceSpecVersionId}) AS siblings,
+               -- 티어는 열이 아니라 **승인 경로가 남긴 이벤트**에 있다(append-only).
+               -- 판정 시점의 값을 그대로 읽는 것이라 다시 계산하는 것보다 정확하다.
+               (SELECT e.payload->>'gate_tier' FROM event e
+                 WHERE e.subject_type = 'spec_version' AND e.subject_id = ${input.sourceSpecVersionId}
+                   AND e.payload ? 'gate_tier'
+                 ORDER BY e.occurred_at DESC LIMIT 1) AS tier
+      `);
+      const siblings = rows[0]?.siblings ?? 0;
+      const tier = rows[0]?.tier ?? null;
+      if (siblings >= PLAN_APPROVAL_SIBLINGS) {
+        return { required: true, reason: 'derived_tasks' };
+      }
+      if (tier === 'T3') return { required: true, reason: 'tier_t3' };
+      return { required: false, reason: null };
+    } catch (error) {
+      // **통과 + 기록**(fail-open). 막지 않는 대신 왜 판정하지 못했는지를 남긴다.
+      this.logger.warn(`플랜 승인 게이트 판정 실패 — task=${input.taskId}: ${String(error)}`);
+      return { required: false, reason: null };
+    }
+  }
+
   async claim(input: ClaimInput): Promise<ClaimResult> {
     const ttl = input.leaseSeconds ?? LEASE_TTL_SECONDS;
+
+    // **플랜 승인 게이트는 트랜잭션 밖이다**(G2 · D-06 ② · REQ-API-095).
+    //
+    // 안에서 카드를 만들고 던지면 **그 카드도 함께 롤백된다** — 거절만 남고 승인할 자리는
+    // 없어 그 작업이 영영 막힌다. 같은 함정을 아래 차단 판정이 이미 적어 두고 있다
+    // ("차단도 사실이므로 기록한다. 롤백되므로 이 이벤트는 별도 트랜잭션에서 남긴다").
+    //
+    // 권위 있는 상태 검사는 그대로 트랜잭션 안에 있다 — 여기서는 **게이트만** 본다.
+    await this.assertPlanApproved(input);
 
     return this.events.transact(async (tx, emit) => {
       // 0) 대상 행 잠금 — 키로 왔으면 먼저 UUID 로 바꾼다(§1.4b)
@@ -594,6 +700,7 @@ export class TaskService {
         status: string;
         project_id: string;
         source_requirement_id: string | null;
+        source_spec_version_id: string | null;
         goal_md: string | null;
         output_format_md: string | null;
         tools_sources_md: string | null;

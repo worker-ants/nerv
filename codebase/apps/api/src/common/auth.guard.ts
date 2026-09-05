@@ -29,6 +29,14 @@ export interface AuthContext {
   credential: string;
   /** `X-NERV-Host` — **표시용**이다. 헤더는 신뢰할 수 없으므로 권한 판정에 쓰지 않는다 */
   hostname?: string | undefined;
+  /**
+   * `X-NERV-Project` — **권한의 근거가 아니라 오배치 검사용**이다(REQ-API-094).
+   *
+   * 프로젝트는 PAT 에 박혀 있고 그것이 유일한 근거다. 이 헤더는 부르는 쪽이 "나는 이
+   * 프로젝트에 말하고 있다" 고 적어 둔 것이라, 토큰과 어긋나면 **설정이 잘못된 것**이다.
+   * 그때 조용히 토큰 쪽으로 진행하면 엉뚱한 프로젝트에 쓰게 된다 — 그래서 거절한다.
+   */
+  projectSlug?: string | undefined;
 }
 
 /** 요청에서 자격증명의 형태만 뽑는다. 검증하지 않는다. */
@@ -38,7 +46,13 @@ export function extractCredential(headers: Record<string, string | undefined>): 
     const credential = authorization.slice('Bearer '.length).trim();
     if (credential !== '') {
       const host = headers['x-nerv-host'];
-      return { kind: 'pat', credential, ...(host === undefined ? {} : { hostname: host }) };
+      const project = headers['x-nerv-project'];
+      return {
+        kind: 'pat',
+        credential,
+        ...(host === undefined ? {} : { hostname: host }),
+        ...(project === undefined || project.trim() === '' ? {} : { projectSlug: project.trim() }),
+      };
     }
   }
   const cookie = headers['cookie'];

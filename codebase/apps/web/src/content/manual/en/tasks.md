@@ -27,7 +27,7 @@ A task becomes `ready` only when four things are filled in.
 3. **Tools and sources** — what to read, and what to do it with
 4. **Boundaries** — what must not be touched
 
-If any of them is empty the task cannot be claimed. **The base spec version is not one of the four** — when it is set the agent reads that version, and a task without one still reaches `ready`. Agents are instructed not to guess the missing part but to **raise a question** — work started on a guess only reveals the guess was wrong at the end.
+If any of them is empty the task cannot be claimed. **Large work takes one more step** — four or more tasks from the same spec revision, or a revision graded T3, need **plan approval** before they start (see [Inbox](/help/inbox)). **The base spec version is not one of the four** — when it is set the agent reads that version, and a task without one still reaches `ready`. Agents are instructed not to guess the missing part but to **raise a question** — work started on a guess only reveals the guess was wrong at the end.
 
 ## Claims and leases
 
