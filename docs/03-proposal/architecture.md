@@ -2,8 +2,10 @@
 
 > **요약** — NERV(가칭)는 웹앱(Vite + React SPA), API + MCP 게이트웨이(NestJS), 훅 수집기, Postgres, Valkey(실시간 방송 MQ), 이벤트·알림 워커의 여섯 덩어리와 git forge·Slack 연동으로 구성된다. 가장 중요한 결정은 저장 전략(D-01)이다: **스펙과 리뷰 산출물의 단일 진실은 플랫폼 DB**이고, git에는 사람이 읽고 grep할 수 있는 **read-only markdown 미러**와 포인터만 남기며, 에이전트는 markdown으로 읽되 **쓰기는 MCP/API 한 경로로만** 한다. 근거는 추정이 아니라 실측이다 — clemvion에서 리뷰 이력 blob 60.7MB가 `.git` packed blob 바이트의 60%를 차지했고(`review/` 산출물은 markdown 13,777개·131MB), 리뷰가 코드와 같은 브랜치에 커밋되어 다음 리뷰의 입력이 되는 자기증식 루프(한 changeset 8라운드, 마지막 라운드 프롬프트 94파일 중 86개가 이전 리뷰 산출물)가 관측됐다. 이 문서는 컴포넌트별 책임, 저장 전략, 핵심 데이터 흐름 4종(스펙 승인 · 작업 클레임 · 세션 하트비트/stale · 리뷰 수집→게이트 판정), 기술 스택(D-11) 대안 비교, 멀티테넌시·보안·성능·백업·로컬 폴백(NFR-05)까지를 구현 착수가 가능한 수준으로 기술한다.
 >
-> 문서 버전 v0.2 · 2026-08-21 · HTML 판: [architecture.html](../html/architecture.html)
+> 문서 버전 v0.3 · 2026-09-05 · HTML 판: [architecture.html](../html/architecture.html)
 
+> v0.3 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §3 시퀀스와 §4 산문의 저장 전제조건을 `base_version` 에서 **`base_hash`(본문 지문)** 로 고친다 — 4.4 §1.4g 가 2026-08-30 에 표면에서 걷은 이름이다. `base_version_id` 열은 그대로다(파생 계보는 서버가 채운다).
+>
 ---
 
 ## 1. 아키텍처 개요
@@ -184,9 +186,9 @@ sequenceDiagram
   participant MIR as git 미러
   actor R as 리뷰어
   P->>W: 스펙 초안 편집 - markdown
-  W->>A: 초안 저장 - base_version 전제조건 포함
+  W->>A: 초안 저장 - base_hash 전제조건 포함
   A->>DB: SpecVersion draft upsert + Event
-  Note over A,DB: base_version 불일치면 409 - 서버 rebase 후 재시도
+  Note over A,DB: base_hash 불일치면 409 - 서버 rebase 후 재시도
   P->>W: 검토 요청
   W->>A: 검토 제출
   A->>DB: draft → in_review + 리뷰어 자동 지정 + Approval pending
@@ -203,7 +205,7 @@ sequenceDiagram
   K->>P: Notification - 대기 중 세션에 승인 결과 전달
 ```
 
-핵심은 세 가지다. **불변 스냅샷** — 승인은 새 버전을 발행하고 이전 approved는 `superseded`가 된다(복원도 새 버전 생성, Confluence 모델). **낙관적 동시성** — 저장 요청은 `base_version`을 전제조건으로 받고 불일치 시 409를 돌려 재시도하게 한다. CRDT 없이 이 모델로 충분한 이유는 §4.2. **파생 계산** — 승인 순간 Requirement 델타로부터 Task가 자동 생성되므로, "승인했는데 아무도 몰라서 아무 일도 안 일어나는" 공백이 사라진다.
+핵심은 세 가지다. **불변 스냅샷** — 승인은 새 버전을 발행하고 이전 approved는 `superseded`가 된다(복원도 새 버전 생성, Confluence 모델). **낙관적 동시성** — 저장 요청은 `base_hash`(본문 지문)를 전제조건으로 받고 불일치 시 409를 돌려 재시도하게 한다. CRDT 없이 이 모델로 충분한 이유는 §4.2. **파생 계산** — 승인 순간 Requirement 델타로부터 Task가 자동 생성되므로, "승인했는데 아무도 몰라서 아무 일도 안 일어나는" 공백이 사라진다.
 
 ### 3.2 작업 클레임과 겹침 검사 (FR-05 · FR-06 · D-04)
 

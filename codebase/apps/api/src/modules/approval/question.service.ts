@@ -9,9 +9,10 @@
 // 대신 멈추는 것이 이 기능의 값이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
+import { escalateReason, msg, NERV_ERROR, NERV_EVENT, newId, questionUrgency } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -64,6 +65,11 @@ export class QuestionService {
     /** 답을 이만큼 기다린다(초) — 에이전트에게 서버 push 채널이 없어서 있는 손잡이다 */
     waitSeconds?: number | undefined;
   }): Promise<QuestionResult> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const escalate =
+      input.escalate == null
+        ? null
+        : assertVocab([input.escalate], escalateReason.enumValues, 'escalate')[0];
     // 멱등 키가 있으면 그것으로, 없으면 (세션, 제목)으로 같은 질문을 찾는다
     const { rows: existing } = await this.db.execute<{
       id: string;
@@ -101,10 +107,10 @@ export class QuestionService {
                               escalate, title, body_md, options, urgency, status)
         VALUES (${questionId}, ${input.projectId}, ${input.sessionId}, ${taskId},
                 ${specId}, ${findingId},
-                ${input.escalate ?? null}::escalate_reason,
+                ${escalate}::escalate_reason,
                 ${input.title}, ${input.bodyMd ?? null},
                 ${JSON.stringify(input.options ?? [])}::jsonb,
-                ${urgency}::question_urgency, 'open')
+                ${assertVocab([urgency], questionUrgency.enumValues, 'urgency')[0]}::question_urgency, 'open')
       `);
 
       // blocking 질문은 세션을 세운다 — 임의로 판단하고 진행하지 않는다(P7)
@@ -254,6 +260,73 @@ export class QuestionService {
       );
     }
     return id;
+  }
+
+  /**
+   * EP-QST-03 취소 — **사람과 그 질문을 만든 세션 둘 다** 할 수 있다
+   * (2026-09-05 · 사람 결정 · REQ-API-109).
+   *
+   * `cancelled` 는 열거에 있었는데 **만드는 경로가 없어** 아무도 쓸 수 없는 값이었다.
+   * 필요한 자리는 둘이다: 사람이 "이건 물을 일이 아니었다" 고 판단할 때, 그리고
+   * **세션이 스스로 답을 찾았을 때**. 후자를 막으면 답이 필요 없어진 질문이 수신함에
+   * 영원히 남고, 사람은 그것을 처리해야 한다 — 물어본 쪽만이 그 사실을 안다.
+   *
+   * 취소는 **열린 질문에만** 걸린다. 이미 답이 달렸으면 그 답이 사실이므로 되돌리지
+   * 않는다(`not_open`).
+   */
+  async cancel(input: {
+    projectId: string;
+    questionId: string;
+    userId: string;
+    /** 부른 주체가 에이전트 세션이면 그 id — 사람이면 `null` */
+    sessionId?: string | null;
+    isAgent?: boolean;
+  }): Promise<{ status: string; session_id: string }> {
+    return this.events.transact(async (tx, emit) => {
+      const { rows: found } = await tx.execute<{ agent_session_id: string; status: string }>(sql`
+        SELECT agent_session_id, status::text AS status FROM question
+         WHERE id = ${input.questionId} AND project_id = ${input.projectId}
+         FOR UPDATE
+      `);
+      const current = found[0];
+      if (current === undefined || current.status !== 'open') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.question.not_open'), {
+          kind: 'not_open',
+          ...(current === undefined ? {} : { status: current.status }),
+        });
+      }
+
+      // **판정은 여기 한 곳이다**(D-05). 에이전트가 부른 것이면 자기가 만든 질문만
+      // 취소할 수 있다 — 남의 질문을 내리는 것은 사람의 몫이다.
+      if (input.isAgent === true && current.agent_session_id !== (input.sessionId ?? '')) {
+        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.question.not_owner'), {
+          kind: 'not_owner',
+        });
+      }
+
+      await tx.execute(sql`
+        UPDATE question SET status = 'cancelled', answered_at = now()
+         WHERE id = ${input.questionId}
+      `);
+
+      // 답을 기다리느라 멈춰 있던 세션을 깨운다 — 답이 오지 않을 것이 확정됐다
+      await tx.execute(sql`
+        UPDATE agent_session SET state = 'active'
+         WHERE id = ${current.agent_session_id} AND state = 'awaiting_input'
+      `);
+
+      await emit({
+        type: NERV_EVENT.QUESTION_CANCELLED,
+        projectId: input.projectId,
+        subjectType: 'question',
+        subjectId: input.questionId,
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId ?? null,
+        isAgent: input.isAgent ?? false,
+      });
+
+      return { status: 'cancelled', session_id: current.agent_session_id };
+    });
   }
 
   /**

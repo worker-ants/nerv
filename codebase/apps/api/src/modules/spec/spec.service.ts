@@ -10,18 +10,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   canCreateSpecType,
+  evidenceKind,
   GatePolicySchema,
-  msg,
-  newId,
-  text,
+  implStatus,
   LEASE_HEARTBEAT_GRACE_SECONDS,
   LEASE_TTL_SECONDS,
+  memberRole,
+  msg,
   NERV_ERROR,
   NERV_EVENT,
-  implStatus,
-  memberRole,
+  newId,
   specType,
   specVersionStatus,
+  text,
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -31,6 +32,8 @@ import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertHuman } from '../../common/human-only.js';
+import type { Actor } from '../../common/human-only.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { AttachmentService } from './attachment.service.js';
 
@@ -319,10 +322,23 @@ export class SpecService {
     includeArchived?: boolean;
     around: string;
     hops: number;
+    /**
+     * 기준선 — **관계 축과 섞이지 않는다**(2026-09-05 · REQ-API-090).
+     *
+     * `around` 는 "어디 근처인가" 를 묻고 기준선은 "어느 시점의 어느 세트인가" 를 정한다.
+     * 좁히기 축이 아니라 스냅샷 선택자라, `root`·`depth` 처럼 배타로 막을 것이 아니라
+     * **함께 적용된다**: 그 세트가 담은 문서들 안에서 중심의 이웃을 준다.
+     *
+     * 이 인자를 도구에 더하면서 여기까지 나르지 않아, `{around, baseline}` 은 거절도
+     * 적용도 되지 않고 조용히 버려졌다 — REQ-API-090 으로 이름 붙인 실패 모양을 그
+     * 두 커밋 뒤에 다시 만든 것이다.
+     */
+    baseline?: string | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const graph = await this.graph({
       projectId: input.projectId,
       ...(input.includeArchived === undefined ? {} : { includeArchived: input.includeArchived }),
+      ...(input.baseline == null ? {} : { baseline: input.baseline }),
     });
     const near = neighborhood(graph, input.around, input.hops);
     if (near === null) {
@@ -633,6 +649,9 @@ export class SpecService {
   }
 
   async draftUpsert(input: DraftUpsertInput): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const specTypeValue =
+      input.type === undefined ? null : assertVocab([input.type], specType.enumValues, 'type')[0];
     return this.events.transact(async (tx, emit) => {
       // **키로 왔든 UUID 로 왔든 같은 스펙을 가리킨다**(§1.4b). 예전에는 이 자리가 UUID 만
       // 받았고, 바로 옆 `nerv_spec_get` 은 키만 받았다 — 같은 이름의 인자가 도구마다 다른
@@ -665,7 +684,7 @@ export class SpecService {
         specId = newId();
         await tx.execute(sql`
           INSERT INTO spec (id, project_id, parent_id, type, key, title)
-          VALUES (${specId}, ${input.projectId}, ${parentId}, ${input.type}::spec_type,
+          VALUES (${specId}, ${input.projectId}, ${parentId}, ${specTypeValue}::spec_type,
                   ${input.key}, ${input.title})
         `);
         created = true;
@@ -889,6 +908,14 @@ export class SpecService {
     baseHash?: string | undefined;
     changeSummary?: string | undefined;
     takeover?: boolean | undefined;
+    /**
+     * 선언 관계 — **REST 도 이것을 나른다**(2026-09-05 · REQ-API-043).
+     *
+     * 전표는 처음부터 이 입력을 적었고 서비스도 받고 있었는데, 컨트롤러가 본문에서
+     * 읽지 않아 REST 로 보낸 관계는 **성공 응답과 함께 버려졌다.** MCP 만 배선돼
+     * 있었으니 D-05("두 표면이 같은 답")가 깨진 자리이기도 하다.
+     */
+    relations?: readonly { to: string; kind: string; baseHash?: string | undefined }[] | undefined;
     userId: string;
     sessionId?: string | null;
   }): Promise<Record<string, unknown>> {
@@ -910,6 +937,7 @@ export class SpecService {
       ...(input.baseHash == null ? {} : { baseHash: input.baseHash }),
       ...(input.changeSummary == null ? {} : { changeSummary: input.changeSummary }),
       ...(input.takeover === true ? { takeover: true } : {}),
+      ...(input.relations === undefined ? {} : { relations: input.relations }),
       ...(input.sessionId == null ? {} : { sessionId: input.sessionId }),
     });
   }
@@ -1222,6 +1250,8 @@ export class SpecService {
    * 자기 자신·자기 하위로의 이동은 트리를 사이클로 만들므로 409 다.
    */
   async updateMeta(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     specKey: string;
     title?: string | null;
@@ -1232,6 +1262,7 @@ export class SpecService {
     ownerRole?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'project_admin', '/settings');
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
 
@@ -1300,10 +1331,13 @@ export class SpecService {
    * 둘 다 "차단 사유 목록"으로 돌려준다. 무엇을 정리해야 하는지 모르는 거부는 벽일 뿐이다.
    */
   async archive(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     specKey: string;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'project_admin', '/settings');
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
 
@@ -1344,10 +1378,13 @@ export class SpecService {
 
   /** EP-SPEC-17 — 복원. 부모가 아카이브 상태면 거부한다(복원해도 보이지 않는다). */
   async restore(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     specKey: string;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'project_admin', '/settings');
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
       if (spec.parent_id !== null) {
@@ -1624,11 +1661,15 @@ export class SpecService {
     sessionId?: string | null;
   }): Promise<Record<string, unknown>> {
     const requirement = await this.requirement({ projectId: input.projectId, ref: input.ref });
+    // **모르는 값은 거절이지 500 이 아니다**(REQ-API-074 · 2026-09-05). REST 는 `kind` 를
+    // 그대로 넘겼고 여기서 `::evidence_kind` 로 캐스팅돼, 오타 하나가 22P02 로 죽었다 —
+    // `db-error.ts` 가 다루는 SQLSTATE 목록에 22P02 는 없다(진짜 500 으로 나간다).
+    const kind = assertVocab([input.kind], evidenceKind.enumValues, 'kind')[0];
     const evidenceId = newId();
     await this.db.execute(sql`
       INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source)
       VALUES (${evidenceId}, ${input.projectId}, ${requirement['id'] as string},
-              ${input.kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
+              ${kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
               ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
     `);
     // 조건이 다 찼으면 여기서 `implemented` 가 된다 — 안 찼으면 값은 그대로다

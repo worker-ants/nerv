@@ -127,6 +127,7 @@ describe('결정은 대상을 움직인다 (REQ-API-063)', () => {
     });
 
     await approvals.decide({
+      actor: { userId: planner, isAgent: false },
       projectId,
       approvalId: approval_id,
       userId: reviewer,
@@ -158,6 +159,7 @@ describe('결정은 대상을 움직인다 (REQ-API-063)', () => {
     });
 
     await approvals.decide({
+      actor: { userId: planner, isAgent: false },
       projectId,
       approvalId: approval_id,
       userId: reviewer,
@@ -176,6 +178,7 @@ describe('결정은 대상을 움직인다 (REQ-API-063)', () => {
     });
 
     await approvals.decide({
+      actor: { userId: planner, isAgent: false },
       projectId,
       approvalId: approval_id,
       userId: reviewer,
@@ -209,6 +212,7 @@ describe('결정은 대상을 움직인다 (REQ-API-063)', () => {
     });
     await expect(
       approvals.decide({
+        actor: { userId: planner, isAgent: false },
         projectId,
         approvalId: approval_id,
         userId: reviewer,
@@ -241,7 +245,13 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
     // 전역 경로(`/api/v1/approvals/{id}/decision`)라 프로젝트 가드가 스코프를 채우지 않고
     // 지나간다 — 판정은 서비스가 한다(D-05).
     await expect(
-      approvals.decide({ projectId, approvalId, userId: viewer, decision: 'approve' }),
+      approvals.decide({
+        actor: { userId: planner, isAgent: false },
+        projectId,
+        approvalId,
+        userId: viewer,
+        decision: 'approve',
+      }),
     ).rejects.toMatchObject({
       code: NERV_ERROR.FORBIDDEN,
       details: { kind: 'missing_scope', required: ['approval:decide'] },
@@ -256,7 +266,13 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
 
     // planner 는 같은 카드를 결재한다
     await expect(
-      approvals.decide({ projectId, approvalId, userId: reviewer, decision: 'approve' }),
+      approvals.decide({
+        actor: { userId: planner, isAgent: false },
+        projectId,
+        approvalId,
+        userId: reviewer,
+        decision: 'approve',
+      }),
     ).resolves.toMatchObject({ decision: 'approve' });
   });
 
@@ -269,6 +285,7 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
     });
     await expect(
       approvals.decide({
+        actor: { userId: planner, isAgent: false },
         projectId,
         approvalId: approval_id,
         userId: planner,
@@ -288,7 +305,13 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
       requestedByUserId: planner,
     });
     await expect(
-      approvals.decide({ projectId, approvalId: approval_id, userId: planner, decision: 'reject' }),
+      approvals.decide({
+        actor: { userId: planner, isAgent: false },
+        projectId,
+        approvalId: approval_id,
+        userId: planner,
+        decision: 'reject',
+      }),
     ).resolves.toMatchObject({ decision: 'reject' });
   });
 
@@ -335,7 +358,13 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
     expect(card).toMatchObject({ self_requested: true, can_approve: true });
 
     await expect(
-      approvals.decide({ projectId, approvalId: approval_id, userId: admin, decision: 'approve' }),
+      approvals.decide({
+        actor: { userId: planner, isAgent: false },
+        projectId,
+        approvalId: approval_id,
+        userId: admin,
+        decision: 'approve',
+      }),
     ).resolves.toMatchObject({ decision: 'approve' });
 
     // **감사에 남는다.** 예외를 허용하는 것과 그것을 감추는 것은 다른 일이다
@@ -365,6 +394,7 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
     });
     await expect(
       approvals.decide({
+        actor: { userId: planner, isAgent: false },
         projectId,
         approvalId: approval_id,
         userId: orgAdmin,
@@ -385,6 +415,7 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
     expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(1);
 
     await approvals.decide({
+      actor: { userId: planner, isAgent: false },
       projectId,
       approvalId: approval_id,
       userId: reviewer,
@@ -459,6 +490,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
 
     await expect(
       approvals.decide({
+        actor: { userId: planner, isAgent: false },
         projectId,
         approvalId: approval_id,
         userId: reviewer,
@@ -480,6 +512,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
 
     await expect(
       approvals.decide({
+        actor: { userId: planner, isAgent: false },
         projectId,
         approvalId: approval_id,
         userId: reviewer,
@@ -497,6 +530,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
       requestedByUserId: planner,
     });
     await approvals.decide({
+      actor: { userId: planner, isAgent: false },
       projectId,
       approvalId: approval_id,
       userId: reviewer,
@@ -504,6 +538,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
     });
     await expect(
       approvals.decide({
+        actor: { userId: planner, isAgent: false },
         projectId,
         approvalId: approval_id,
         userId: reviewer,
@@ -521,6 +556,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
     });
     await expect(
       approvals.decide({
+        actor: { userId: planner, isAgent: false },
         projectId,
         approvalId: approval_id,
         userId: planner,
@@ -530,6 +566,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
 
     await expect(
       approvals.decide({
+        actor: { userId: planner, isAgent: false },
         projectId,
         approvalId: approval_id,
         userId: planner,
@@ -615,6 +652,75 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
 
     const poll = await questions.create({ projectId, sessionId, title: '답변 받을 질문' });
     expect(poll).toMatchObject({ status: 'answered', answer_key: 'localStorage' });
+  });
+
+  /**
+   * **답이 필요 없어졌으면 거둔다**(2026-09-05 · REQ-API-109).
+   *
+   * `cancelled` 는 열거에 있었는데 만드는 경로가 없어 아무도 쓸 수 없는 값이었다.
+   */
+  it('만든 세션이 자기 질문을 거둔다 — 기다리던 세션이 깨어난다', async () => {
+    const created = await questions.create({
+      projectId,
+      sessionId,
+      title: '스스로 푼 질문',
+      urgency: 'blocking',
+    });
+    const result = await questions.cancel({
+      projectId,
+      questionId: created.question_id,
+      userId: planner,
+      sessionId,
+      isAgent: true,
+    });
+    expect(result.status).toBe('cancelled');
+
+    const { rows } = await pool.query<{ status: string; state: string }>(
+      `SELECT q.status::text AS status, s.state::text AS state
+         FROM question q JOIN agent_session s ON s.id = q.agent_session_id
+        WHERE q.id = $1`,
+      [created.question_id],
+    );
+    expect(rows[0]?.status).toBe('cancelled');
+    // 답이 오지 않을 것이 확정됐으므로 멈춰 있을 이유가 없다
+    expect(rows[0]?.state).toBe('active');
+  });
+
+  it('사람은 남의 질문도 내린다 — 세션 소유 판정은 에이전트에게만 걸린다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '사람이 내릴 질문' });
+    const result = await questions.cancel({
+      projectId,
+      questionId: created.question_id,
+      userId: planner,
+      isAgent: false,
+    });
+    expect(result.status).toBe('cancelled');
+  });
+
+  it('남의 질문은 못 거둔다 — 내리는 것은 사람의 몫이다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '남의 질문' });
+    await expect(
+      questions.cancel({
+        projectId,
+        questionId: created.question_id,
+        userId: planner,
+        sessionId: newId(),
+        isAgent: true,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'not_owner' } });
+  });
+
+  it('답이 달린 질문은 취소되지 않는다 — 그 답이 사실이다', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '이미 답한 질문' });
+    await questions.answer({ projectId, questionId: created.question_id, userId: planner });
+    await expect(
+      questions.cancel({
+        projectId,
+        questionId: created.question_id,
+        userId: planner,
+        isAgent: false,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'not_open' } });
   });
 
   it('답변은 하트비트 역채널에 실린다 — 서버→세션의 유일한 보장 채널이다', async () => {
@@ -890,7 +996,13 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
     await notifications.route();
 
     const before = {
-      cards: (await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).length,
+      cards: (
+        await approvals.inboxGlobal({
+          actor: { userId: planner, isAgent: false },
+          userId: reviewer,
+          state: 'pending',
+        })
+      ).length,
       feed: (await notifications.list({ userId: reviewer })).items.length,
       unread: await notifications.unreadCount(reviewer),
     };
@@ -898,15 +1010,27 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
     expect(before.feed).toBeGreaterThan(0);
 
     await archive(true);
-    expect(await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).toHaveLength(0);
+    expect(
+      await approvals.inboxGlobal({
+        actor: { userId: planner, isAgent: false },
+        userId: reviewer,
+        state: 'pending',
+      }),
+    ).toHaveLength(0);
     expect((await notifications.list({ userId: reviewer })).items).toHaveLength(0);
     // **배지와 목록이 같은 조건으로 센다**(REQ-WEB-035) — 어긋나면 지울 수 없는 숫자가 남는다
     expect(await notifications.unreadCount(reviewer)).toBe(0);
 
     await archive(false);
-    expect((await approvals.inboxGlobal({ userId: reviewer, state: 'pending' })).length).toBe(
-      before.cards,
-    );
+    expect(
+      (
+        await approvals.inboxGlobal({
+          actor: { userId: planner, isAgent: false },
+          userId: reviewer,
+          state: 'pending',
+        })
+      ).length,
+    ).toBe(before.cards);
     expect((await notifications.list({ userId: reviewer })).items.length).toBe(before.feed);
     expect(await notifications.unreadCount(reviewer)).toBe(before.unread);
   });

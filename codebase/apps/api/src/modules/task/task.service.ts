@@ -4,15 +4,18 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  msg,
-  newId,
+  CLAIM_RELEASE_INPUTS,
+  evidenceKind,
   LEASE_TTL_SECONDS,
+  msg,
   NERV_ERROR,
   NERV_EVENT,
+  newId,
+  PLAN_APPROVAL_SIBLINGS,
   TASK_DONE_WINDOW_DAYS,
+  taskPriority,
   taskStatus,
   text,
-  PLAN_APPROVAL_SIBLINGS,
 } from '@nerv/schema';
 import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
 import { displayKey } from '@nerv/schema/keys';
@@ -331,6 +334,8 @@ export class TaskService {
     boundariesMd?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const priority = assertVocab([input.priority ?? 'P2'], taskPriority.enumValues, 'priority')[0];
     // 이름을 id 로 바꾼다 — 없는 이름은 여기서 걸린다(조용히 NULL 로 만들지 않는다).
     const baselineId = await this.baselineIdOf(input.projectId, input.baseline ?? null);
 
@@ -349,7 +354,7 @@ export class TaskService {
                           source_spec_version_id, source_requirement_id, baseline_id,
                           goal_md, output_format_md, tools_sources_md, boundaries_md)
         VALUES (${taskId}, ${input.projectId}, ${key}, ${input.title}, ${input.bodyMd ?? null},
-                'backlog', ${input.priority ?? 'P2'}::task_priority,
+                'backlog', ${priority}::task_priority,
                 ${input.sourceSpecVersionId ?? null}, ${input.sourceRequirementId ?? null},
                 ${baselineId},
                 ${input.goalMd ?? null}, ${input.outputFormatMd ?? null},
@@ -389,6 +394,12 @@ export class TaskService {
     dependsOnKeys?: string[] | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const priorityValue =
+      input.priority == null
+        ? null
+        : assertVocab([input.priority], taskPriority.enumValues, 'priority')[0];
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         id: string;
@@ -420,7 +431,7 @@ export class TaskService {
         UPDATE task
            SET title = coalesce(${input.title ?? null}, title),
                body_md = coalesce(${input.bodyMd ?? null}, body_md),
-               priority = coalesce(${input.priority ?? null}::task_priority, priority),
+               priority = coalesce(${priorityValue}::task_priority, priority),
                goal_md = ${merged.goal_md}, output_format_md = ${merged.output_format_md},
                tools_sources_md = ${merged.tools_sources_md}, boundaries_md = ${merged.boundaries_md},
                assignee_user_id = coalesce(${input.assigneeUserId ?? null}, assignee_user_id),
@@ -981,7 +992,14 @@ export class TaskService {
   /** 클레임 해제 — reason 에 따라 Task 를 ready 로 회수하거나 그대로 둔다. */
   async release(input: {
     claimId: string;
-    reason: 'done' | 'handoff' | 'abandon';
+    /**
+     * **부른 쪽이 고른 이유** — 어휘는 `CLAIM_RELEASE_INPUTS` 셋이다.
+     *
+     * 판정이 여기 있는 이유는 표면이 둘이기 때문이다(D-05). REST 는 예전에
+     * `셋 중 하나가 아니면 handoff` 라는 삼항식으로 **조용히 바꾸고** 있었고,
+     * MCP 는 스키마의 `enum` 으로 거절했다 — 같은 값에 두 표면이 다르게 답했다.
+     */
+    reason: string;
     userId: string;
     /**
      * 인수인계 노트(REQ-API-081). 카탈로그는 처음부터 이 입력과 "인수인계 노트" 출력을
@@ -993,6 +1011,8 @@ export class TaskService {
     actor: ClaimActor;
   }): Promise<{ taskStatus: string; state_note: string | null }> {
     await this.assertClaimOwner(input.claimId, input.actor, 'release');
+    // 어휘의 정본은 `@nerv/schema` 다 — 목록을 여기 다시 적지 않는다
+    const reason = assertVocab([input.reason], CLAIM_RELEASE_INPUTS, 'reason')[0];
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         task_id: string;
@@ -1002,7 +1022,12 @@ export class TaskService {
       }>(sql`
         UPDATE claim
            SET status = 'released', released_at = now(),
-               release_reason = ${input.reason === 'done' ? 'done' : 'manual'},
+               -- **고른 이유가 그대로 남는다**(2026-09-05 · REQ-API-107). 예전에는
+               -- done 외를 전부 manual 로 뭉쳐 **인계와 포기가 같은 값**이 됐다 — 다음
+               -- 사람이 "왜 내려놨나" 를 물으면 답할 수 있는 것은 노트뿐이었고, 노트를
+               -- 안 남기면 그것도 없었다. 서버가 판정하는 expired·conflict 와 축이
+               -- 다르므로, 부른 쪽이 고른 값은 고른 대로 들어간다.
+               release_reason = ${reason}::claim_release_reason,
                -- 빈 노트로 앞의 노트를 지우지 않는다 — 인계는 덧쓰기가 아니라 남기는 일이다
                release_note = coalesce(${input.stateNote ?? null}::text, release_note)
          WHERE id = ${input.claimId} AND status = 'active'
@@ -1018,7 +1043,7 @@ export class TaskService {
 
       // done 이 아니면 Task 를 ready 로 되돌린다 — 산출물·Activity 는 보존한다(§4.5)
       let taskStatus = 'unchanged';
-      if (input.reason !== 'done') {
+      if (reason !== 'done') {
         const { rows: t } = await tx.execute<{ status: string }>(sql`
           UPDATE task SET status = 'ready', delegate_session_id = NULL
            WHERE id = ${claim.task_id} AND status IN ('claimed', 'in_progress')
@@ -1035,7 +1060,7 @@ export class TaskService {
         actorUserId: input.userId,
         actorSessionId: claim.agent_session_id,
         isAgent: claim.agent_session_id !== null,
-        payload: { reason: input.reason },
+        payload: { reason },
       });
 
       return { taskStatus, state_note: claim.release_note };
@@ -1075,6 +1100,8 @@ export class TaskService {
     blockedReason?: string | null;
     evidence?: { kind: string; locator: string }[];
   }): Promise<{ status: string; gate?: { ok: boolean; missing: string[] } }> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const nextStatus = assertVocab([input.status], taskStatus.enumValues, 'status')[0];
     return this.events.transact(async (tx, emit) => {
       // 키로 왔든 UUID 로 왔든 같은 작업을 가리킨다(§1.4b)
       const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
@@ -1122,9 +1149,11 @@ export class TaskService {
       await this.assertMayTransition(tx, taskId, input);
 
       for (const item of input.evidence ?? []) {
+        // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+        const evidence = assertVocab([item.kind], evidenceKind.enumValues, 'kind')[0];
         await tx.execute(sql`
           INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
-          VALUES (${newId()}, ${input.projectId}, ${taskId}, ${item.kind}::evidence_kind,
+          VALUES (${newId()}, ${input.projectId}, ${taskId}, ${evidence}::evidence_kind,
                   ${item.locator}, ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
         `);
       }
@@ -1166,7 +1195,7 @@ export class TaskService {
       }
 
       await tx.execute(sql`
-        UPDATE task SET status = ${input.status}::task_status,
+        UPDATE task SET status = ${nextStatus}::task_status,
                         blocked_reason = ${input.blockedReason ?? null}
          WHERE id = ${taskId}
       `);

@@ -52,7 +52,7 @@
     <h1>시스템 아키텍처</h1>
     <p class="lead">웹앱 · API/MCP 게이트웨이 · 훅 수집기 · Postgres · Valkey(실시간 방송 MQ) · 이벤트 워커의 여섯 덩어리로 구성된 NERV의 시스템 구조와, 가장 중요한 결정인 저장 전략(D-01) — <b>DB 단일 진실 + markdown 미러 + read-only git export</b> — 그리고 핵심 데이터 흐름 4종, 기술 스택 대안 비교, 보안·성능·운영 설계.</p>
     <div class="meta-line">
-      <span>버전 v0.2 (2026-08-21)</span>
+      <span>버전 v0.3 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/architecture.md</code></span>
       <span>주로 다루는 결정: D-01 · D-10 · D-11 · D-14</span>
     </div>
@@ -389,7 +389,7 @@
     <thead><tr><th>#</th><th>주체 → 대상</th><th>동작</th></tr></thead>
     <tbody>
       <tr><td>1</td><td>기획자 → 웹앱</td><td>스펙 초안을 markdown으로 편집</td></tr>
-      <tr><td>2</td><td>웹앱 → API</td><td>초안 저장 — <code>base_version</code>을 전제조건으로 전달</td></tr>
+      <tr><td>2</td><td>웹앱 → API</td><td>초안 저장 — <code>base_hash</code>(본문 지문)를 전제조건으로 전달</td></tr>
       <tr><td>3</td><td>API → Postgres</td><td>SpecVersion <span class="badge draft">draft</span> upsert + Event. <b>버전 불일치면 409</b> → 서버 rebase 후 재시도</td></tr>
       <tr><td>4</td><td>기획자 → API</td><td>검토 요청 제출</td></tr>
       <tr><td>5</td><td>API → Postgres</td><td><span class="badge draft">draft</span> → <span class="badge review">in_review</span>, 역할·영역 기반 리뷰어 자동 지정, Approval 생성</td></tr>
@@ -402,7 +402,7 @@
       <tr><td>12</td><td>워커 → git 미러</td><td>markdown 미러 갱신 + git export push</td></tr>
     </tbody>
   </table></div>
-  <p>핵심은 셋이다. <b>불변 스냅샷</b> — 승인은 새 버전을 발행하고 이전 approved는 superseded가 된다(복원도 새 버전 생성, Confluence 모델). <b>낙관적 동시성</b> — 저장 요청은 <code>base_version</code>을 전제조건으로 받고 불일치 시 409로 재시도하게 한다. <b>파생 계산</b> — 승인 순간 Task가 자동 생성되므로 "승인했는데 아무도 몰라서 아무 일도 안 일어나는" 공백이 사라진다.</p>
+  <p>핵심은 셋이다. <b>불변 스냅샷</b> — 승인은 새 버전을 발행하고 이전 approved는 superseded가 된다(복원도 새 버전 생성, Confluence 모델). <b>낙관적 동시성</b> — 저장 요청은 <code>base_hash</code>(본문 지문)를 전제조건으로 받고 불일치 시 409로 재시도하게 한다. <b>파생 계산</b> — 승인 순간 Task가 자동 생성되므로 "승인했는데 아무도 몰라서 아무 일도 안 일어나는" 공백이 사라진다.</p>
 
   <h3>3.2 작업 클레임과 겹침 검사</h3>
   <p class="src">관련: FR-05 · FR-06 · D-04</p>

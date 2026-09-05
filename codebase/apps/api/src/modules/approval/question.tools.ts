@@ -82,5 +82,37 @@ export class QuestionTools implements NervToolProvider {
         });
       },
     },
+    {
+      /**
+       * **답이 필요 없어졌으면 거둔다**(2026-09-05 · 사람 결정 · REQ-API-109).
+       *
+       * `cancelled` 는 열거에 있었는데 만드는 경로가 없어 아무도 쓸 수 없었다. 세션에
+       * 이 길이 필요한 이유는 하나다 — **답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐**
+       * 이다. 막으면 그 질문이 사람의 수신함에 남고, 사람은 맥락 없이 그것을 처리한다.
+       *
+       * 남의 질문은 못 거둔다. 그 판정은 도메인 서비스에 있다(D-05).
+       */
+      name: 'nerv_question_cancel',
+      tier: 'A2',
+      phase: 'P1',
+      summaryKey: 'mcp.tool.escalate',
+      scope: 'task:update',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          question_id: { type: 'string' },
+          idempotency_key: { type: 'string' },
+        },
+        required: ['question_id'],
+      },
+      handler: async (input, ctx) =>
+        this.questions.cancel({
+          projectId: ctx.projectId,
+          questionId: String(input['question_id'] ?? ''),
+          userId: ctx.principal.userId,
+          sessionId: requireSession(ctx),
+          isAgent: true,
+        }),
+    },
   ];
 }

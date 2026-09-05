@@ -7,8 +7,10 @@ updated: 2026-08-29
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.72 · 2026-09-05 · HTML 판: [screens.html](../html/screens.html)
+> 문서 버전 v0.74 · 2026-09-05 · HTML 판: [screens.html](../html/screens.html)
 >
+> v0.74 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): ① html 판의 §2.4 기준선 서술이 개정 전 판이었다("기준선 없음"도, "그 세트가 담은 문서만"(REQ-API-098)도 없었다) — 마지막 두 커밋이 html 을 버전 줄만 고쳤다. ② html 툴바 목업이 필터 셋을 **화면 머리 줄**에 그려 **같은 파일의 REQ-WEB-140 과 반대**였다. ③ §1.6 커버리지 표는 "이 표에 '없음' 이 생기면 결함이다" 라 적어 두고 `/signup`·`/invite/:token`·`/help`·`/help/:chapter` **넷이 비어 있었다**. ④ 존재한 적 없는 스코프 `policy:edit` 을 게이트 정책의 권한으로 적던 것을 실물(사람 전용 + admin 역할)로 고친다. ⑤ `/p/:proj/coverage` 는 "라우트만 예약" 이라 적혀 있었으나 라우트 파일도 없다.
+> v0.73 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): ① 사이드바의 "리뷰 탭은 Phase 2 — 비활성 + 툴팁" 을 현황으로 고친다(활성 링크 + 열린 critical 배지 — `app-shell.tsx` 의 주석이 이미 그렇게 적고 있었다). ② §1.6 커버리지 표의 "S8 설정 3탭" 을 **4탭**으로 고친다 — `/settings/workspace` 가 있다.
 > v0.72 변경(2026-09-05 — 기준선을 골라도 목록이 그 세트가 아니었다, 사람 지적): §2.4 (4) 는 처음부터 "목록이 그 세트에 핀된 버전 기준으로 렌더된다" 고 적었는데 **구현이 목록에 걸지 않았다**(4.4 REQ-API-098 에서 고쳤다). 문서가 옳았고 코드가 뒤처진 자리다. 함께 두 가지를 적는다 — 선택기의 기본 항목은 **`기준선 없음`** 이고(`현재(최신 승인본)` 은 목록을 거른다는 인상을 주는 데다 승인본이 없을 때를 말하지 않았다), **기준선을 고른 동안에는 상태·종류 필터를 그리지 않는다**(그 세트의 항목은 전부 승인본이라 거를 것이 없다 — REQ-API-015).
 > v0.71 변경(2026-09-05 — 트리 탭만 상단 배치가 달랐다, 사람 지적): **REQ-WEB-140 신설 · 동결 → 기준선 생성.** v0.68 이 넣은 상태·종류 선택기가 화면 머리의 동작 줄에 붙으면서 칸이 둘 늘었고, 줄이 넘쳐 **트리 탭만 표·그래프와 다른 모양**이 됐다. 두 선택기는 트리에만 듣는 조작이니 **트리의 조작 줄**(트리 필터·펼치기·접기·표시 N/전체 M)이 그 자리다 — 그러면 머리의 동작 줄은 어느 탭에서나 같다. 곁들여 `[현재 세트로 동결…]` 을 **`[기준선 생성…]`** 으로 고쳤다(en: `Create baseline…`): 그 단추가 만드는 것이 기준선인데 이름은 그 행위의 부작용을 말하고 있었다.
 > v0.70 변경(2026-09-05 — 있는 상태만 보였다, 사람 요청): **REQ-WEB-139 신설.** 세션 요약 스트립이 `GROUP BY` 결과를 그대로 그려, 그 프로젝트에 없는 상태는 화면에서도 없었다(실측 sudoku: 여섯 중 둘만). **없는 것과 0 인 것은 다르다** — 여섯을 어휘 순서로 늘 싣고, 0 인 칸은 물러서고 눌리지 않는다. 채우는 자리는 서버다: `GROUP BY` 는 순서도 약속하지 않아 칸이 자리를 바꿔 앉을 수 있었다.
@@ -149,7 +151,7 @@ updated: 2026-08-29
 | `/settings/workspace` | S8 조직·프로젝트 | admin 외 읽기 전용 | 2026-08-24 신설(§2.8) |
 | `/settings/members` | S8 멤버·역할 | admin 외 읽기 전용 | |
 | `/settings/tokens` | S8 에이전트 토큰 | 인증 필요 | 본인 토큰 + admin은 전체 |
-| `/settings/gates` | S8 게이트 정책 | `policy:edit`은 admin 전용 | |
+| `/settings/gates` | S8 게이트 정책 | **사람 전용**(`HUMAN_ONLY` — 토큰으로는 못 바꾼다) + **admin 역할**. `policy:edit` 이라는 스코프는 **존재한 적 없다**(2026-09-05 정정) | |
 | `/p/:proj` | S2 프로젝트 개요 | 프로젝트 멤버십 | |
 | `/p/:proj/specs` | 스펙 트리(목록) | 멤버십 | 스펙 0건이면 빈 상태 + [+ 새 스펙] |
 | `/p/:proj/specs/:spec` | S3 스펙 상세 | 멤버십 | 쿼리: `?v=<version_no>` `?diff=v3..v4` |
@@ -216,7 +218,7 @@ apps/web/src/routes/
 | --- | --- |
 | 전역 헤더 | **스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾**(2026-08-24 신설 · REQ-WEB-069). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 **내 결정을 기다리는 것만** 센다(spec-workflow §6.6 원칙 3) |
 | 프로젝트 select | 고른 조직의 프로젝트 목록. **하나뿐일 때도 select 로 둔다**(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(`/p/:proj`)로 간다. 홈·받은 요청·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 **마지막으로 본 프로젝트**를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다) |
-| 프로젝트 사이드바 | `/p/:proj/*`에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 — 비활성 + 툴팁). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1)) |
+| 프로젝트 사이드바 | `/p/:proj/*`에서만 렌더. 상단: 개요·스펙·작업·세션·리뷰 탭(리뷰 탭은 Phase 2 로 계획했으나 2026-08-23 에 열렸다 — **활성 링크 + 열린 critical 배지**다, §2.6a). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1)) |
 | 연결 상태 배너 | 2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = `NERV_UNAVAILABLE`): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14) |
 | 토스트 스택 | `claim.conflict_warn` 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1) |
 
@@ -307,7 +309,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | --- | --- |
 | `NERV_UNAUTHENTICATED` | `/login`으로 리다이렉트(원래 경로 보존) |
 | `NERV_FORBIDDEN` | 버튼 비활성 + 사유 툴팁(숨기지 않는다 — ui-wireframes §1.5) |
-| `NERV_PRECONDITION` | `base_version` 불일치 409 — S3 저장 충돌 다이얼로그(§3.4) |
+| `NERV_PRECONDITION` | `base_hash` 불일치 409(본문 지문 — 2026-08-30 개정) — S3 저장 충돌 다이얼로그(§3.4) |
 | `NERV_CONFLICT_SCOPE` | 클레임 겹침 모달 — 상대 세션의 사용자·hostname·scope 표시 |
 | `NERV_LEASE_EXPIRED` | 리스 만료 배너 + 재클레임 안내 |
 | `NERV_DRAFT_LEASED` | S3 읽기 전용 전환 + 보유자 배지 + [인계 요청] 버튼(§3.4) |
@@ -334,11 +336,14 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | (전 라우트 공통) | 앱 셸 | **이 문서 §1.3** (html 판은 렌더링 목업) |
 | `/login` | 로그인 | **이 문서 §2.1** |
 | `/onboarding` | 온보딩 | **이 문서 §2.1** |
+| `/signup` | 가입(셸 밖) | **이 문서 §2.1** (로그인과 같은 그림 계열 — 2026-09-05 추가) |
+| `/invite/:token` | 초대 링크 수락(셸 밖·공개) | **이 문서 §2.1** (2026-09-05 추가) |
+| `/help` · `/help/:chapter` | 제품 매뉴얼(10장 · ko·en) | **이 문서 §2.10** (2026-09-05 추가 — 이 표에 "없음"이 생기면 결함이라 적어 두고 넷이 비어 있었다) |
 | `/` | S1 홈 대시보드 | ui-wireframes §2.1 |
 | `/o/:org` | 조직 전환 | 화면 없음(컨텍스트 전환 후 즉시 리다이렉트) — 그림 비대상 |
 | `/inbox` | S7 받은 요청 | ui-wireframes §2.7 (고충실도) |
 | `/notifications` | 알림 센터 | **이 문서 §2.9** |
-| `/settings/members` · `/tokens` · `/gates` | S8 설정 3탭 | ui-wireframes §2.8 (멤버·토큰·게이트 정책 3탭 합성 — 연동 탭은 Phase 2 비활성) |
+| `/settings/members` · `/tokens` · `/gates` · `/settings/workspace` | S8 설정 **4탭** | ui-wireframes §2.8 (멤버·토큰·게이트 정책 3탭 합성 + 워크스페이스 탭 — 2026-09-05 현황 정정. 연동 탭은 Phase 2) |
 | `/p/:proj` | S2 프로젝트 개요 | ui-wireframes §2.2 |
 | `/p/:proj/specs` | 스펙 목록(트리 전체 화면) | **이 문서 §2.4** |
 | `/p/:proj/specs/:spec` | S3 스펙 상세 | ui-wireframes §2.3 (고충실도) |
@@ -347,7 +352,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `/p/:proj/sessions` | S5 세션 모니터 | ui-wireframes §2.5 (고충실도) |
 | `/p/:proj/sessions/:session` | 세션 상세(Activity 타임라인) | ui-wireframes §2.5 둘째 그림(`S-8f31` 상세 — 탭·타임라인·산출물 역링크) |
 | `/p/:proj/reviews` | **§2.6a**(2026-08-23 신설) | 그림의 정본은 ui-wireframes §2.6이고, 라우트·데이터 소스·수용 기준은 §2.6a가 소유한다 |
-| `/p/:proj/coverage` · `/crs/:cr` | Phase 2(라우트만 예약) | 커버리지·CR 델타는 Phase 2 착수 시 작성 |
+| `/p/:proj/coverage` · `/crs/:cr` | Phase 2(**미착수** — 라우트 파일도 아직 없다, 2026-09-05 확인) | 커버리지·CR 델타는 Phase 2 착수 시 작성 |
 
 ### 1.7 언어 전환 (2026-08-23 신설)
 
@@ -580,7 +585,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | --- | --- | --- |
 | 본문 + 메타 | EP-SPEC-03 `GET /api/v1/projects/{proj}/specs/{spec}` (`include[]`: requirements·tasks·comments) | 기본 버전은 최신 `approved` — draft는 명시 선택(`?v=`) |
 | 버전 목록·diff | EP-SPEC-04 `GET /api/v1/projects/{proj}/specs/{spec}/versions` · EP-SPEC-06 `GET .../specs/{spec}/diff` | `?diff=v3..v4` 뷰 상태 → EP-SPEC-06(from, to)으로 조회. 표기는 ui-wireframes §4.3 |
-| 초안 저장 | EP-SPEC-08 `PUT /api/v1/projects/{proj}/specs/{spec}/draft` (draft upsert — `base_version` 전제조건) | `nerv_spec_draft_upsert`와 같은 서비스·같은 zod 스키마(D-05) |
+| 초안 저장 | EP-SPEC-08 `PUT /api/v1/projects/{proj}/specs/{spec}/draft` (draft upsert — `base_hash` 전제조건) | `nerv_spec_draft_upsert`와 같은 서비스·같은 zod 스키마(D-05) |
 | 사전 검토 | EP-SPEC-09 `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 5검사기 결과(warning/block + 앵커) — `nerv_spec_check`와 동일 |
 | 검토 요청 | EP-SPEC-10 `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | `draft → in_review` — 성공 시 받은 요청 카드 생성(FR-11) |
 | 코멘트 | EP-CMT-01 `GET .../specs/{spec}/comments` · EP-CMT-02 `POST .../spec-versions/{ver}/comments` · EP-CMT-04 `POST .../comments/{id}/resolve` | 앵커: 헤딩 slug 또는 Requirement `ref`(§3.3) |
@@ -597,7 +602,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
   전체 탭은 **역참조 무리 → 구분선 → 레퍼런스 무리** 순으로 놓는다. 화살표 표식만으로는 무리가 바뀐 자리를 눈이 알아채지 못한다(한쪽이 비면 나눌 것이 없으므로 선도 없다). 역참조 설명("고치면 흔들리는 문서")은 그 무리의 **머리**에 단다 — 꼬리에 달면 스무 줄을 다 내려간 뒤에야 무엇을 읽은 것인지 알게 된다. 그 설명은 역참조가 **보이는 목록에 있을 때만** 성립하므로 레퍼런스 탭에서는 달지 않는다.
 - **영향 미리보기**: [검토 요청] 확인 다이얼로그에 "이 문서를 참조하는 문서 N건 · 파생 Task M건에 영향" 1줄 + 목록 펼침(EP-SPEC-18 역참조 + 파생 Task 카운트). 승인 후 `spec.recheck_requested` 전파의 사전 뷰다.
 - **메타 편집·아카이브**(planner·admin — `spec:meta`): 상단 ⋯ 메뉴 → 메타 다이얼로그(`SpecMetaDialog`: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(`archive_blocked`) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = `?include_archived=true`), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.
-- **폼·검증**: `SpecDraftUpsertInput`(zod — `packages/schema`, MCP 도구 인자와 공유): `body_markdown`·`base_version`·`change_summary`(min 1), 새 스펙 생성은 `SpecCreateInput`(`parent_id`·`type` 6종 enum·`title` min 1·`body_markdown`). 코멘트 `CommentCreateInput`: `anchor`(min 1)·`body_md`(min 1).
+- **폼·검증**: `SpecDraftUpsertInput`(zod — `packages/schema`, MCP 도구 인자와 공유): `body_markdown`·`base_hash`·`change_summary`(min 1), 새 스펙 생성은 `SpecCreateInput`(`parent_id`·`type` 6종 enum·`title` min 1·`body_markdown`). 코멘트 `CommentCreateInput`: `anchor`(min 1)·`body_md`(min 1).
 - **빈 상태**: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크.
 
 #### 제목은 화면을 떠나지 않는다 (2026-08-27 개정 — 사람 요청)
@@ -610,7 +615,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | --- | --- |
 | REQ-WEB-011 | WHEN 스펙 상세를 열면 THE SYSTEM SHALL 최신 `approved` 버전을 기본 표시하고, draft 열람은 명시적 버전 선택으로만 허용한다(D-02) |
 | REQ-WEB-012 | WHEN 다른 사용자가 편집 리스를 보유한 draft를 열면 THE SYSTEM SHALL 에디터를 읽기 전용으로 전환하고 보유자(사용자·표면·최신 갱신)와 [인계 요청] 버튼을 표시한다(`NERV_DRAFT_LEASED`) |
-| REQ-WEB-013 | WHEN 저장 요청이 `NERV_PRECONDITION`(base_version 불일치 409)으로 실패하면 THE SYSTEM SHALL 로컬 본문을 버리지 않은 채 충돌 다이얼로그(서버 최신 보기·내 본문 복사)를 표시한다 |
+| REQ-WEB-013 | WHEN 저장 요청이 `NERV_PRECONDITION`(`base_hash` 불일치 409)으로 실패하면 THE SYSTEM SHALL 로컬 본문을 버리지 않은 채 충돌 다이얼로그(서버 최신 보기·내 본문 복사)를 표시한다 |
 | REQ-WEB-014 | WHEN 사전 검토 결과에 block이 1건 이상이면 THE SYSTEM SHALL [검토 요청] 버튼을 비활성화하고 검사기별 결과와 앵커 위치를 인라인 표시한다 |
 | REQ-WEB-015 | WHEN 본문이 새 버전으로 바뀌어도 THE SYSTEM SHALL 헤딩 slug·Requirement `ref` 앵커의 코멘트 스레드를 유지 표시한다(D-09) |
 | REQ-WEB-037 | WHEN 대상 문서의 **현재 판을 마지막으로 쓴 뒤** `spec.recheck_requested`가 그 문서 앞으로 발행됐으면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지를 표시하고 **무엇 때문인지**(신호를 만든 참조 스펙 키)를 함께 보인다. 판정은 서버가 하고 화면은 그 값만 읽는다(2026-09-03 정정) |
@@ -1317,7 +1322,7 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 | 같은 사용자, 다른 표면 | **다른 자리다** — 리스 보유자는 `(user, session)` 이라 세션 없는 웹 탭과 터미널 세션이 서로를 막는다(2026-08-30 개정). 터미널은 `takeover: true` 로 이어받고, 웹 에디터는 읽기 전용 + "터미널 세션 `<hostname>/<agent_type>`이 이어쓰는 중" 배지와 **[이어받기]** 버튼을 보인다 |
 | 다른 사용자 | 읽기 전용 + 보유자 배지 + [인계 요청](보유자 알림, 승인 시 이전). 에이전트 upsert는 `NERV_DRAFT_LEASED` 하드 차단 |
 | 해제 | 검토 요청 성공 · 에디터 닫기 · TTL 만료 |
-| 최후 방어선 | 리스와 무관하게 저장은 `base_version` 전제조건을 갖는다 — 409는 §1.5의 `NERV_PRECONDITION` 다이얼로그 |
+| 최후 방어선 | 리스와 무관하게 저장은 `base_hash` 전제조건을 갖는다 — 409는 §1.5의 `NERV_PRECONDITION` 다이얼로그 |
 
 터미널 이어쓰기 카드(S3 하단)는 복사용 명령 한 줄이다: `claude "/nerv:spec edit SPC-CWC-007"`. 스펙을 쓰는 에이전트 세션도 S5 세션 보드에 뜬다 — 기획자의 작성 세션이 팀 시야 밖에 있는 사각은 없다(spec-workflow §1.2).
 
@@ -1446,7 +1451,7 @@ v0.5까지 §4는 **색만** 정했다. 그러니 표면의 밝기·라운드·�
 ### 이 문서가 인용한 정본 문서
 
 - [3.6 화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md) — S1~S8 와이어프레임·상태 표현 규칙·인터랙션 규약의 정본. 이 문서의 모든 화면 절이 § 단위로 인용
-- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드·enum 값·ID 발급 규칙(§5.1)·`spec_comment` 앵커(§2.2)
+- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 37종(도메인 33 + 인프라 4) 필드·enum 값·ID 발급 규칙(§5.1)·`spec_comment` 앵커(§2.2)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 상태 축 3종·권한 매트릭스(§1.6)·초안 편집 리스(§1.2)·지시자≠승인자(§2.3)·이벤트 이름과 알림 카탈로그(§6.3)
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — `nerv_*` 도구 카탈로그(§2.3)·하트비트 역채널(§2.4)·토큰 스코프(§6.1)
 - [3.7 로드맵](../03-proposal/roadmap.md) — Phase 1 화면 범위(S1~S5·S7·S8)와 비범위(S6·CR 델타·커버리지 대시보드·Slack), FR-12 P1 인앱

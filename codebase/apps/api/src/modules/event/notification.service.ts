@@ -8,10 +8,17 @@
 // 이 파일이 하는 일은 그 선별이다.
 
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { EVENTS_CHANNEL, NERV_EVENT_PHASE2, NERV_EVENT, newId } from '@nerv/schema';
+import {
+  EVENTS_CHANNEL,
+  NERV_EVENT,
+  NERV_EVENT_PHASE2,
+  newId,
+  notificationState,
+} from '@nerv/schema';
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { ValkeyService } from './valkey.service.js';
 
@@ -277,7 +284,10 @@ export class NotificationService {
     before?: string | null;
   }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
     const stateFilter =
-      input.state == null ? sql`` : sql` AND n.state = ${input.state}::notification_state`;
+      input.state == null
+        ? sql``
+        : // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+          sql` AND n.state = ${assertVocab([input.state], notificationState.enumValues, 'state')[0]}::notification_state`;
     // strict 비교라 같은 시각의 행을 건너뛸 수 있다 — 알림은 초 단위로 몰리지 않으므로
     // 여기서는 감수하고, 정확한 페이지네이션이 필요해지면 (created_at, id) 복합 커서로 간다.
     const beforeFilter =

@@ -285,3 +285,15 @@ export type ImportReviewBatchInput = z.infer<typeof importReviewBatchInputSchema
 export type ImportBatchResult = z.infer<typeof importBatchResultSchema>;
 export type ImportItemResult = z.infer<typeof importItemResultSchema>;
 export type ImportItemState = z.infer<typeof importItemStateSchema>;
+
+// ── 전표가 쓰는 이름 ────────────────────────────────────────────────────────
+//
+// §1.7 은 "요청 열은 zod 스키마 이름이고 export 와 1:1" 이라 못 박는다. 이 파일은
+// `…Schema` 접미사를 쓰고 전표는 안 쓴다 — **둘 다 옳게 만드는 값싼 길**은 별칭이다.
+// `contract.spec.ts` 가 이 1:1 을 센다(REQ-API-113).
+
+export const ImportPreflightInput = importPreflightInputSchema;
+export const ImportSpecBatchInput = importSpecBatchInputSchema;
+export const ImportTaskBatchInput = importTaskBatchInputSchema;
+export const ImportLinkBatchInput = importLinkBatchInputSchema;
+export const ImportReviewBatchInput = importReviewBatchInputSchema;

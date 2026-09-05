@@ -77,9 +77,12 @@ export const ko = {
   'error.comment.body_required': '본문이 필요합니다.',
   'error.comment.not_found': '코멘트를 찾을 수 없습니다.',
   'error.human_only.approve': '승인은 사람만 할 수 있습니다.',
+  'error.human_only.baseline': '기준선 생성은 사람만 할 수 있습니다.',
   'error.db.check_violation': '허용되지 않는 값입니다 — 제약 "{constraint}" 을 확인하세요.',
   'error.db.foreign_key_violation':
     '가리키는 대상이 없습니다 — {fields}. 먼저 그것부터 만들거나 값을 바꾸세요.',
+  'error.db.invalid_text_representation':
+    '값의 모양이 이 자리가 받는 것과 맞지 않습니다 — {type}. 허용되는 값을 확인하세요.',
   'error.db.not_null_violation': '빠뜨린 값이 있습니다 — {fields}.',
   'error.db.too_long': '값이 너무 깁니다 — {fields}.',
   'error.db.unique_violation': '이미 쓰이고 있는 값입니다 — {fields}. 다른 값을 쓰세요.',
@@ -124,6 +127,7 @@ export const ko = {
   'error.question.context_not_found':
     '{field} 를 찾을 수 없습니다 — 출처는 실제 문서·작업·발견을 가리켜야 합니다.',
   'error.question.not_open': '열린 질문이 아닙니다.',
+  'error.question.not_owner': '이 질문을 만든 세션만 취소할 수 있습니다.',
   'error.relation.auto_kind':
     'references 는 본문에서 자동 동기화됩니다 — 손으로 넣으면 다음 저장에 지워집니다.',
   'error.relation.base_hash_required':
@@ -151,6 +155,8 @@ export const ko = {
     'spec_change 처분에는 무엇을 고쳤는지(spec_version_id)가 필요합니다.',
   'error.review.spec_version_unknown': '그 스펙 버전을 이 프로젝트에서 찾을 수 없습니다.',
   'mcp.arg.resolution_spec_version': '스펙을 고쳐 해결했을 때의 증거 — 그 저장의 spec_version_id',
+  'mcp.arg.escalate_reason':
+    '왜 사람을 부르는가 — escalated 처분의 필수 짝. 질문의 escalate 와 같은 어휘다.',
   'mcp.arg.commit_sha': '코드를 고쳐 해결했을 때의 증거 — fixed 에는 필수다',
   'error.review.empty_comment': '빈 코멘트는 남기지 않습니다.',
   'error.spec.base_hash_required':
@@ -368,6 +374,8 @@ export const ko = {
     'spec key 또는 UUID — 주면 이 문서에서 관계를 타고 hops 만큼만. root·depth 와 함께 쓰지 않는다',
   'mcp.arg.spec_root': 'spec key 또는 UUID — 주면 그 문서와 그 아래만. 없는 문서면 not_found 다',
   'mcp.arg.spec_depth': '뿌리에서 내려갈 간선 수 — 0 이면 뿌리만, 1 이면 뿌리와 그 자식',
+  'mcp.arg.requirement_scope':
+    '이 요구사항이 속한 스펙으로 좁힌다 — 안정 키(REQ-…) 또는 UUID. 없는 요구사항은 거절이다.',
   'mcp.arg.spec_status_filter':
     '문서 상태 필터 — 쉼표로 여럿(예: draft,in_review). 주지 않으면 전부. 걸러낸 것의 조상은 matched:false 로 함께 온다',
   'mcp.arg.spec_type_filter':
@@ -435,6 +443,7 @@ export const ko = {
     '첨부 스토리지가 설정되지 않았습니다 — 재시도해도 열리지 않습니다.',
   'error.spec.baseline_not_found': '그 이름의 베이스라인이 없습니다.',
   'error.spec.not_found': '스펙을 찾을 수 없습니다.',
+  'error.spec.requirement_not_found': '요구사항을 찾을 수 없습니다.',
   'error.spec.not_in_review': 'in_review 상태가 아닙니다.',
   'error.spec.parent_archived': '부모가 아카이브 상태입니다.',
   'error.spec.title_required': '제목이 필요합니다.',
@@ -502,6 +511,7 @@ export const ko = {
   'event.import.applied': '임포트 적재',
   'event.notification.created': '알림 생성',
   'event.question.answered': '질문에 답변함',
+  'event.question.cancelled': '질문 취소됨',
   'event.question.created': '에이전트 질문',
   'event.session.complete': '세션 종료',
   'event.session.stale': '세션 무응답 — 클레임 회수됨',

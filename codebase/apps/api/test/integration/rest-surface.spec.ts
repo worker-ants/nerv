@@ -4,6 +4,7 @@
 // **번역**이다(REQ-CB-003): 경로·역할 가드·에러 코드가 화면이 기대하는 모양으로 나오는가.
 // 화면(E08)이 이 계약 위에 올라가므로, 여기가 어긋나면 화면은 조용히 빈 상태를 렌더한다.
 
+import { createHash } from 'node:crypto';
 import { NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
@@ -156,7 +157,12 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
 
     // 사람 경로의 성공은 서비스가 지킨다 — 표면은 번역만 한다(D-05).
     const saved = (
-      await app.get(AuthService).updateProject({ projectId, roles: ['admin'], gatePolicy: policy })
+      await app.get(AuthService).updateProject({
+        projectId,
+        roles: ['admin'],
+        actor: { userId: adminId, isAgent: false },
+        gatePolicy: policy,
+      })
     )['gate_policy'] as Record<string, unknown>;
     expect((saved['spec_gate'] as Record<string, unknown>)['tier_boundaries']).toEqual([2, 4, 7]);
   });
@@ -167,6 +173,7 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
       app.get(AuthService).updateProject({
         projectId,
         roles: ['admin'],
+        actor: { userId: adminId, isAgent: false },
         gatePolicy: { spec_gate: { tier_boundries: [1, 2, 3] } },
       }),
     ).rejects.toMatchObject({
@@ -510,9 +517,14 @@ describe('세션 steer (EP-SES-04)', () => {
 
     // 서비스 경로로 사람이 눌렀을 때의 결과를 확인한다
     const { SessionService } = await import('../../src/modules/session/session.service.js');
-    const stopped = await app
-      .get(SessionService)
-      .steer({ projectId, sessionId, kind: 'stop', message: '중단', userId: adminId });
+    const stopped = await app.get(SessionService).steer({
+      actor: { userId: adminId, isAgent: false },
+      projectId,
+      sessionId,
+      kind: 'stop',
+      message: '중단',
+      userId: adminId,
+    });
     expect(stopped.reclaimed).toBe(1);
 
     const { rows } = await pool.query<{ status: string }>(
@@ -539,6 +551,7 @@ describe('세션 steer (EP-SES-04)', () => {
       title: '파일 수정',
     });
     await sessions.steer({
+      actor: { userId: adminId, isAgent: false },
       projectId,
       sessionId,
       kind: 'steer',
@@ -890,11 +903,19 @@ describe('세션 지시는 소유자·admin 만 (EP-SES-04)', () => {
     const sessions = app.get(SessionService);
 
     await expect(
-      sessions.steer({ projectId, sessionId, kind: 'stop', message: '중단', userId: viewerId }),
+      sessions.steer({
+        actor: { userId: adminId, isAgent: false },
+        projectId,
+        sessionId,
+        kind: 'stop',
+        message: '중단',
+        userId: viewerId,
+      }),
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_owner' } });
 
     // admin 은 된다(전표의 "세션 소유자·admin")
     const ok = await sessions.steer({
+      actor: { userId: adminId, isAgent: false },
       projectId,
       sessionId,
       kind: 'steer',
@@ -924,7 +945,9 @@ describe('받은 요청·알림·커버리지 표면', () => {
 
     const { ApprovalService: Service } =
       await import('../../src/modules/approval/approval.service.js');
-    const items = await app.get(Service).inboxGlobal({ userId: adminId });
+    const items = await app
+      .get(Service)
+      .inboxGlobal({ userId: adminId, actor: { userId: adminId, isAgent: false } });
     expect(items).toHaveLength(1);
     expect(items[0]?.['project_slug']).toBe('clemvion');
     expect(items[0]).toHaveProperty('waiting_seconds');
@@ -1026,6 +1049,382 @@ describe('받은 요청·알림·커버리지 표면', () => {
   });
 });
 
+/**
+ * **REST 가 전표대로 입력을 받는가**(2026-09-05 · 정합성 감사).
+ *
+ * 이 describe 가 없어서 넷이 동시에 새고 있었다 — `relations`·하트비트 본문·`state_note`·
+ * 검색 필터. 넷 다 **서비스는 받고 MCP 만 넘기고** 있었고, REST 컨트롤러가 본문에서 읽지
+ * 않아 조용히 버려졌다. 보낸 쪽은 200 을 받으니 반영됐다고 믿는다.
+ *
+ * MCP 쪽은 `mcp.spec.ts` 가 이미 보고 있었다. 두 표면 중 **한쪽만 보는 검사는 D-05 가
+ * 깨지는 것을 못 본다** — 같은 요청에 두 표면이 다르게 답해도 초록이었다.
+ */
+describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC-02)', () => {
+  /**
+   * **어휘 밖 값은 이름을 부르며 거절된다**(2026-09-05 · REQ-API-112).
+   *
+   * 이 검사는 원래 "그물이 받는가" 를 봤다 — `db-error.ts` 에 `22P02` 를 더해
+   * 어휘 검사가 없는 자리도 500 대신 400 이 되게 한 것(REQ-API-106)이 그 그물이다.
+   * 그 뒤 자리마다 `assertVocab` 을 심어(REQ-API-112) **이 경로는 DB 까지 가지 않는다.**
+   *
+   * 그래서 여기서 세는 것을 바꾼다: 400 인 것은 같고, 이제 **어느 필드가 어긋났는지**
+   * 말한다. 그물 자체는 L1(`nerv-exception.filter.spec.ts`)이 세 갈래로 지킨다 —
+   * 그물은 2선이고, 이름을 부르는 것이 1선이다.
+   */
+  it('어휘 밖 값은 400 이고 어느 필드인지 말한다 — 그물이 아니라 검사가 답한다', async () => {
+    const res = await call('POST', '/api/v1/orgs/nerv/members', {
+      payload: { email: 'viewer@example.com', role: 'superuser', project: 'clemvion' },
+    });
+    expect(res.status).toBe(400);
+    const body = res.body as Record<string, unknown>;
+    expect(body['code']).toBe(NERV_ERROR.PRECONDITION);
+    const details = body['details'] as Record<string, unknown>;
+    expect(details['field']).toBe('role');
+    // 무엇을 골라야 하는지 함께 준다 — "잘못된 입력" 만 주면 같은 요청이 다시 온다
+    expect(details['allowed']).toBeDefined();
+    // **보낸 값은 되돌려준다.** `db-error` 가 값을 숨기는 이유(Postgres 의 detail 에는
+    // 남의 행 값이 들어 있다)는 여기 해당하지 않는다 — 이것은 부른 쪽 자신의 입력이고,
+    // 무엇을 보냈는지 알아야 어디를 고칠지 안다.
+    expect(details['unknown']).toEqual(['superuser']);
+  });
+
+  it('초안 저장이 relations 를 나른다 — 예전에는 성공 응답과 함께 버려졌다', async () => {
+    const target = await seedSpec('SPC-TARGET');
+    const source = await seedSpec('SPC-SOURCE');
+    const { rows: hash } = await pool.query<{ content_hash: string }>(
+      `SELECT encode(content_hash,'hex') AS content_hash FROM spec_version
+        WHERE spec_id = $1 ORDER BY version_no DESC LIMIT 1`,
+      [target.specId],
+    );
+
+    const res = await call('PUT', `/api/v1/projects/clemvion/specs/SPC-SOURCE/draft`, {
+      payload: {
+        body_markdown: '# 고친 본문',
+        base_hash: source.contentHash,
+        change_summary: '관계를 선언한다',
+        relations: [{ to: 'SPC-TARGET', kind: 'depends_on', base_hash: hash[0]?.content_hash }],
+      },
+    });
+    expect(res.status).toBe(200);
+
+    const { rows } = await pool.query<{ kind: string; to_spec_id: string }>(
+      `SELECT kind::text AS kind, to_spec_id FROM spec_relation
+        WHERE from_spec_id = $1 AND kind = 'depends_on'`,
+      [source.specId],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.to_spec_id).toBe(target.specId);
+  });
+
+  it('하트비트가 본문을 읽는다 — progress·stats·lease_seconds', async () => {
+    const { claimId, sessionId } = await seedActiveClaim();
+
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/heartbeat`, {
+      payload: { progress: '3단계 중 2단계', stats: { added: 42, removed: 7, files: 3 } },
+    });
+    expect(res.status).toBe(201);
+
+    const { rows: claim } = await pool.query<{ progress_note: string | null }>(
+      `SELECT progress_note FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(claim[0]?.progress_note).toBe('3단계 중 2단계');
+
+    // 세션 카드의 +N −M — 실사용 34개가 전부 `+0 −0` 이던 그 자리다
+    const { rows: session } = await pool.query<{
+      diff_added: number;
+      diff_removed: number;
+      diff_files: number;
+    }>(`SELECT diff_added, diff_removed, diff_files FROM agent_session WHERE id = $1`, [sessionId]);
+    expect(session[0]?.diff_added).toBe(42);
+    expect(session[0]?.diff_removed).toBe(7);
+    expect(session[0]?.diff_files).toBe(3);
+  });
+
+  /**
+   * **인계와 포기는 다른 일이다**(2026-09-05 · REQ-API-107).
+   *
+   * 예전에는 `done` 외를 전부 `manual` 로 뭉쳐 저장에서 구별되지 않았고, REST 는
+   * 그 위에 "셋 중 하나가 아니면 handoff" 라는 **조용한 변환**까지 얹고 있었다.
+   */
+  it.each([
+    ['handoff', 'handoff'],
+    ['abandon', 'abandon'],
+    ['done', 'done'],
+  ])('내려놓기 사유 %s 가 그대로 저장된다', async (sent, stored) => {
+    const { claimId } = await seedActiveClaim();
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/release`, {
+      payload: { reason: sent },
+    });
+    expect(res.status).toBe(201);
+    const { rows } = await pool.query<{ release_reason: string | null }>(
+      `SELECT release_reason::text AS release_reason FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(rows[0]?.release_reason).toBe(stored);
+  });
+
+  it('모르는 사유는 조용히 바뀌지 않고 거절된다', async () => {
+    const { claimId } = await seedActiveClaim();
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/release`, {
+      payload: { reason: 'giveup' },
+    });
+    expect(res.status).toBe(400);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({ field: 'reason' });
+    // 클레임은 그대로 살아 있다 — 거절된 요청이 상태를 바꾸면 안 된다
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(rows[0]?.status).toBe('active');
+  });
+
+  it('내려놓기가 state_note 를 저장한다 — 다음 사람이 읽을 유일한 문장이다', async () => {
+    const { claimId } = await seedActiveClaim();
+
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/release`, {
+      payload: { reason: 'handoff', state_note: '검색 필터까지 했고 requirement_id 가 남았다' },
+    });
+    expect(res.status).toBe(201);
+
+    const { rows } = await pool.query<{ release_note: string | null }>(
+      `SELECT release_note FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(rows[0]?.release_note).toBe('검색 필터까지 했고 requirement_id 가 남았다');
+  });
+
+  /**
+   * **이 요구사항 주변에서 찾아라**(2026-09-05 · REQ-API-110).
+   *
+   * 전표는 이 인자를 이름만 적고 뜻을 정하지 않아 배선을 미뤘던 자리다.
+   */
+  it('requirement_id 는 그 요구사항이 속한 스펙으로 좁힌다 — 키와 UUID 둘 다', async () => {
+    const mine = await seedSpec('SPC-REQOWN', { title: '요구사항주변' });
+    await seedSpec('SPC-OTHER', { title: '요구사항주변' });
+    const { rows: ver } = await pool.query<{ id: string }>(
+      `SELECT id FROM spec_version WHERE spec_id = $1 ORDER BY version_no DESC LIMIT 1`,
+      [mine.specId],
+    );
+    const reqId = newId();
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-SCOPE-001','WHEN … THE SYSTEM SHALL …','must',$4,$4)`,
+      [reqId, projectId, mine.specId, ver[0]?.id],
+    );
+
+    const all = await call('GET', '/api/v1/projects/clemvion/specs/search?q=요구사항주변');
+    const allKeys = ((all.body as Record<string, unknown>)['items'] as { key: string }[]).map(
+      (i) => i.key,
+    );
+    expect(allKeys).toEqual(expect.arrayContaining(['SPC-REQOWN', 'SPC-OTHER']));
+
+    for (const ref of ['REQ-SCOPE-001', reqId]) {
+      const scoped = await call(
+        'GET',
+        `/api/v1/projects/clemvion/specs/search?q=요구사항주변&requirement_id=${ref}`,
+      );
+      const keys = ((scoped.body as Record<string, unknown>)['items'] as { key: string }[]).map(
+        (i) => i.key,
+      );
+      expect(keys).toContain('SPC-REQOWN');
+      expect(keys).not.toContain('SPC-OTHER');
+    }
+
+    // 없는 요구사항은 **빈 결과가 아니라 거절**이다 — 빈 결과는 오타를 사실로 만든다.
+    // 409 인 것은 §1.4 의 기준대로다: 없는 참조는 모양이 아니라 **상태**이고,
+    // 같은 요청이 그 요구사항이 생긴 뒤에는 성공한다.
+    const missing = await call(
+      'GET',
+      '/api/v1/projects/clemvion/specs/search?q=요구사항주변&requirement_id=REQ-NOPE-999',
+    );
+    expect(missing.status).toBe(409);
+    expect((missing.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'not_found',
+      field: 'requirement_id',
+    });
+
+    await pool.query(`DELETE FROM requirement WHERE id = $1`, [reqId]);
+  });
+
+  it('증적 종류의 오타는 400 이다 — 22P02 로 죽던 마지막 자리', async () => {
+    const spec = await seedSpec('SPC-EV');
+    const { rows: ver } = await pool.query<{ id: string }>(
+      `SELECT id FROM spec_version WHERE spec_id = $1 ORDER BY version_no DESC LIMIT 1`,
+      [spec.specId],
+    );
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-EV-001','WHEN … THE SYSTEM SHALL …','must',$4,$4)`,
+      [newId(), projectId, spec.specId, ver[0]?.id],
+    );
+
+    // EP-REQ-03 은 역할 AND `spec:evidence` 다 — adminToken 에는 그 스코프가 없다(§1.3b)
+    const ciToken = (
+      await app.get(AuthService).issueToken({
+        projectId,
+        userId: adminId,
+        name: 'ci-evidence-vocab',
+        scopes: ['spec:evidence'],
+      })
+    ).token;
+
+    const bad = await call('POST', '/api/v1/projects/clemvion/requirements/REQ-EV-001/evidence', {
+      token: ciToken,
+      payload: { kind: 'screenshot', locator: 'x' },
+    });
+    // `db-error.ts` 가 다루는 SQLSTATE 에 22P02 가 없어 진짜 500 으로 나가던 자리다
+    expect(bad.status).toBe(400);
+    expect((bad.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect((bad.body as Record<string, unknown>)['details']).toMatchObject({ field: 'kind' });
+
+    const ok = await call('POST', '/api/v1/projects/clemvion/requirements/REQ-EV-001/evidence', {
+      token: ciToken,
+      payload: { kind: 'user_guide', locator: 'docs/manual/ko/specs.md' },
+    });
+    // 어휘에 있는 여섯 종은 전부 받는다 — 전표가 넷만 적고 있었다(§2.5 EP-REQ-03)
+    expect(ok.status).toBeLessThan(300);
+
+    // 이 스위트는 requirement 를 비우지 않는다 — 남기면 커버리지 테스트가 세는 수가 달라진다
+    await pool.query(`DELETE FROM evidence WHERE requirement_id IN
+                        (SELECT id FROM requirement WHERE ref = 'REQ-EV-001')`);
+    await pool.query(`DELETE FROM requirement WHERE ref = 'REQ-EV-001'`);
+  });
+
+  it('검색이 type·status 로 좁힌다 — 어휘 밖 값은 거절이지 무시가 아니다', async () => {
+    await seedSpec('SPC-FEAT', { type: 'feature', title: '검색어공통' });
+    await seedSpec('SPC-ADR', { type: 'adr', title: '검색어공통' });
+
+    const all = await call('GET', '/api/v1/projects/clemvion/specs/search?q=검색어공통');
+    const allKeys = ((all.body as Record<string, unknown>)['items'] as { key: string }[]).map(
+      (i) => i.key,
+    );
+    expect(allKeys).toEqual(expect.arrayContaining(['SPC-FEAT', 'SPC-ADR']));
+
+    const only = await call('GET', '/api/v1/projects/clemvion/specs/search?q=검색어공통&type=adr');
+    const keys = ((only.body as Record<string, unknown>)['items'] as { key: string }[]).map(
+      (i) => i.key,
+    );
+    expect(keys).toContain('SPC-ADR');
+    expect(keys).not.toContain('SPC-FEAT');
+
+    // 조용히 버리면 호출자는 "그 종류가 없다" 고 결론짓는다 — 그것이 이 감사의 주제다
+    const bad = await call('GET', '/api/v1/projects/clemvion/specs/search?q=x&status=nope');
+    expect(bad.status).toBe(400);
+    expect((bad.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.PRECONDITION);
+  });
+});
+
+/**
+ * **사람 전용 라우트가 하나도 빠지지 않았는가**(2026-09-05 · REQ-API-111).
+ *
+ * 게이트가 표면에만 있던 동안 실제 위험은 "새 표면이 생겼는데 붙이는 것을 잊는다" 였다.
+ * 판정을 도메인으로 옮긴 지금도 **넘기는 것을 잊으면** 같은 구멍이 난다 — 그래서 표면
+ * 쪽에서 한 번 더 센다: 아래 목록의 라우트는 전부 에이전트 PAT 에 `HUMAN_ONLY` 로 답해야 한다.
+ *
+ * 목록에 새 줄을 더하는 것은 사람의 일이지만, **있는 줄이 조용히 열리는 것**은 이 검사가 막는다.
+ */
+describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', () => {
+  // 이 스위트는 **자기 상태를 스스로 세운다** — 앞선 검사가 프로젝트를 보관해 두면
+  // 가드가 먼저 400 으로 막아 게이트에 닿지도 못한다(그러면 이 검사는 아무것도 세지 않는다).
+  // **한 번만 세운다.** 이 스위트의 호출은 전부 게이트에서 막히므로 아무것도 바꾸지
+  // 못한다 — 매번 지웠다 만들면 그 정리가 FK 순서를 어겨 검사보다 먼저 실패한다.
+  beforeAll(async () => {
+    await seedSpec('SPC-HUMAN');
+  });
+
+  // 앞선 검사가 프로젝트를 보관해 두면 가드가 먼저 400 으로 막아 게이트에 닿지 못한다.
+  beforeEach(async () => {
+    await pool.query(`UPDATE project SET archived_at = NULL WHERE id = $1`, [projectId]);
+  });
+
+  it.each([
+    // 본문 없는 POST 라도 `{}` 를 보낸다 — `call()` 이 content-type 을 늘 붙이므로
+    // 빈 본문은 Fastify 가 게이트에 닿기 전에 400 으로 막는다(그러면 아무것도 못 센다).
+    ['POST', '/api/v1/projects/clemvion/archive', {}],
+    ['POST', '/api/v1/projects/clemvion/restore', {}],
+    ['PATCH', '/api/v1/projects/clemvion', { name: '새 이름' }],
+    ['POST', '/api/v1/projects/clemvion/specs/SPC-HUMAN/archive', {}],
+    ['POST', '/api/v1/projects/clemvion/specs/SPC-HUMAN/restore', {}],
+    ['PATCH', '/api/v1/projects/clemvion/specs/SPC-HUMAN', { title: '새 제목' }],
+    ['GET', '/api/v1/approvals', undefined],
+  ] as const)('%s %s 는 에이전트 토큰에 HUMAN_ONLY 로 답한다', async (method, url, payload) => {
+    // adminToken 은 PAT 다 — PAT 주체는 에이전트다(사람은 세션 쿠키로 온다)
+    const res = await call(method as 'GET' | 'POST' | 'PATCH', url, {
+      ...(payload === undefined ? {} : { payload }),
+    });
+    const body = res.body as Record<string, unknown>;
+    expect(res.status).toBe(403);
+    expect(body['code']).toBe(NERV_ERROR.HUMAN_ONLY);
+    // 막기만 하고 길을 안 주면 에이전트는 같은 호출을 재시도한다
+    expect((body['details'] as Record<string, unknown>)['action']).toBeDefined();
+  });
+
+  /**
+   * **기준선은 더 앞에서 막힌다.** `spec:approve` 는 `HUMAN_ONLY_SCOPES` 라 토큰에
+   * 부여 자체가 불가능하고(§1.3), 그래서 스코프 가드가 사람 전용 게이트보다 먼저 답한다.
+   *
+   * 그것이 더 강한 보장이라 그대로 둔다 — 다만 **막히는 이유가 다르다는 사실**을 여기
+   * 적어 둔다. 적지 않으면 다음 사람이 "왜 이것만 목록에 없나" 를 다시 조사해야 한다.
+   */
+  it('기준선 생성은 스코프 단계에서 막힌다 — 사람 전용 스코프는 토큰이 가질 수 없다', async () => {
+    const res = await call('POST', '/api/v1/projects/clemvion/baselines', {
+      payload: { name: 'r-human' },
+    });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.FORBIDDEN);
+  });
+});
+
+async function seedSpec(
+  key: string,
+  options: { type?: string; title?: string } = {},
+): Promise<{ specId: string; contentHash: string }> {
+  const specId = newId();
+  const versionId = newId();
+  // `content_hash` 는 bytea 다 — 키를 그대로 쓰면 `decode(…,'hex')` 가 'S' 에서 터진다
+  const hash = createHash('sha256').update(key).digest('hex');
+  await pool.query(`INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,$3,$4,$5)`, [
+    specId,
+    projectId,
+    options.type ?? 'feature',
+    key,
+    options.title ?? key,
+  ]);
+  await pool.query(
+    `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+     VALUES ($1,$2,1,'draft',$3, decode($4,'hex'), $5)`,
+    [versionId, specId, `# ${options.title ?? key}`, hash, adminId],
+  );
+  await pool.query(`UPDATE spec SET current_version_id = $1 WHERE id = $2`, [versionId, specId]);
+  return { specId, contentHash: hash };
+}
+
+async function seedActiveClaim(): Promise<{ claimId: string; sessionId: string }> {
+  const sessionId = newId();
+  const taskId = newId();
+  const claimId = newId();
+  await pool.query(
+    `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                       tools_sources_md, boundaries_md)
+     VALUES ($1,$2,$3,'작업','in_progress','목표','PR','도구','경계')`,
+    [taskId, projectId, `TSK-${taskId.slice(0, 4)}`],
+  );
+  await pool.query(
+    `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+     VALUES ($1,$2,$3,'claude-code','mac-07','active')`,
+    [sessionId, projectId, adminId],
+  );
+  await pool.query(
+    `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status, lease_expires_at)
+     VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+    [claimId, projectId, taskId, sessionId, adminId],
+  );
+  return { claimId, sessionId };
+}
+
 async function seedSpecVersion(): Promise<string> {
   const specId = newId();
   const versionId = newId();
@@ -1077,7 +1476,8 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     const updated = await call('PUT', '/api/v1/projects/clemvion/specs/SPC-PATHS/draft', {
       payload: {
         body_markdown: '# 본문\n\n이어서',
-        base_version: (created.body as Record<string, unknown>)['spec_version_id'],
+        // `base_version` 은 2026-08-30 에 표면에서 걷었다 — 이 검사가 그것을 계속
+        // 보내고 있었고, 서버는 조용히 버렸다. 스키마가 `.strict()` 로 그것을 짚었다.
         base_hash: (created.body as Record<string, unknown>)['content_hash'],
       },
     });

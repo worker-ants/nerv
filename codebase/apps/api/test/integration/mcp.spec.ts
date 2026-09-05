@@ -128,13 +128,15 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(String(result['instructions']).length).toBeLessThan(2048);
   });
 
-  it('tools/list 가 23종을 노출한다 — MVP 20(P0 8 + P1 12) + 리뷰 2(P2) + 첨부 읽기 1', async () => {
+  it('tools/list 가 24종을 노출한다 — MVP 22(P0 8 + P1 14) + 리뷰 2(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
-    // 카탈로그가 20인 것은 리뷰 수집(FR-09)이 Phase 2 에서 위에 얹혔기 때문이다 —
-    // 두 수를 섞지 않는다. MVP 는 20 이다 — 2026-08-30 에 16 → 19(Task 를 만들고·읽고·훑는
-    // 셋), 2026-09-01 에 20(`nerv_spec_attach` — 시안을 문서에 매다는 길이 없었다).
-    expect(tools).toHaveLength(23);
+    // 카탈로그와 MVP 를 섞지 않는다 — 리뷰 수집(FR-09) 2종이 Phase 2 에서 위에 얹혔다.
+    // MVP 는 22 다: 2026-08-30 에 16 → 19(Task 를 만들고·읽고·훑는 셋), 09-01 에 20
+    // (`nerv_spec_attach`), 09-04 에 21(`nerv_spec_attachment_read`), 09-05 에 22
+    // (`nerv_question_cancel` — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이다).
+    expect(tools).toHaveLength(24);
+    expect(tools.map((t) => t.name)).toContain('nerv_question_cancel');
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_relate');
     expect(tools.map((t) => t.name)).toContain('nerv_task_get');
@@ -992,6 +994,45 @@ describe('E03-S03 nerv_spec_tree — 걸러 달라고 한 것은 걸러서 준�
     const result = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', hops: 9 });
     expect(result['ok']).toBe(false);
     expect(result['details']).toMatchObject({ field: 'hops', allowed: { minimum: 0, maximum: 3 } });
+  });
+
+  /**
+   * **기준선은 좁히기 축이 아니라 스냅샷 선택자다**(2026-09-05 · REQ-API-090).
+   *
+   * `root`·`depth` 는 `around` 와 배타인데 `baseline` 은 아니다 — "어디 근처인가" 와
+   * "어느 세트인가" 는 서로를 배제하지 않는다. 그런데 도구에 `baseline` 을 더하면서
+   * 배타 목록에도 넣지 않고 `neighborhood()` 로 나르지도 않아, `{around, baseline}` 은
+   * **거절도 적용도 되지 않고 조용히 버려졌다** — REQ-API-090 으로 이름 붙인 실패 모양을
+   * 그 두 커밋 뒤에 다시 만든 것이다. 그래서 이 자리에 검사를 둔다.
+   */
+  it('around 와 baseline 은 함께 간다 — 그 세트 안의 이웃만 준다', async () => {
+    const baselineId = newId();
+    await pool.query(
+      `INSERT INTO spec_baseline (id, project_id, name, created_by_user_id) VALUES ($1,$2,'r1',$3)`,
+      [baselineId, projectId, userId],
+    );
+    // 중심만 담고 이웃(TRE-2-SIB)은 담지 않는다 — 기준선이 실제로 걸러야 차이가 보인다
+    await pool.query(
+      `INSERT INTO spec_baseline_item (baseline_id, spec_id, spec_version_id)
+       SELECT $1, id, current_version_id FROM spec WHERE id = $2`,
+      [baselineId, branchId],
+    );
+
+    const near = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', hops: 1 });
+    expect(keys(near)).toEqual(['TRE-2-BRANCH', 'TRE-2-SIB']);
+
+    const pinned = await callTool('nerv_spec_tree', {
+      around: 'TRE-2-BRANCH',
+      hops: 1,
+      baseline: 'r1',
+    });
+    expect(keys(pinned)).toEqual(['TRE-2-BRANCH']);
+  });
+
+  it('없는 기준선은 around 와 함께 와도 거절이다 — 조용한 기본값 낙하가 없다', async () => {
+    const result = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', baseline: 'nope' });
+    expect(result['ok']).toBe(false);
+    expect(result['details']).toMatchObject({ kind: 'invalid_input' });
   });
 
   it('계층과 관계는 다른 축이다 — around 와 root 를 섞으면 거절한다', async () => {

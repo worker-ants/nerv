@@ -8,10 +8,11 @@ import { newId } from '@nerv/schema';
 import { RATE_LIMIT_PAT_PER_MIN } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
+import { RATE_WINDOW_SECONDS } from '../../src/common/rate-limit.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -60,6 +61,33 @@ async function get(bearer: string): Promise<{ status: number; headers: Record<st
 }
 
 describe('쿼터 — PAT 토큰당 한도가 실제로 걸린다', () => {
+  /**
+   * **창을 고정한다** (2026-09-05 — 흔들리던 검사를 고친다).
+   *
+   * 한도는 고정 60초 창이다(`RATE_WINDOW_SECONDS`). 300건을 쏘는 동안 분 경계를 넘으면
+   * 카운터가 리셋되고 301번째가 통과한다 — 이 검사는 **실행 시각에 따라** 초록이었다가
+   * 빨강이었다. 실제로 전체 실행에서 한 번 실패하고 재실행에서 통과했다.
+   *
+   * 흔들리는 검사는 고쳐지지 않는다. 다음 사람은 그것을 "가끔 그러는 것" 으로 배우고,
+   * **진짜 회귀가 그 소음 속에 숨는다.**
+   *
+   * 서비스는 `hit(subject, now)` 로 시간을 인자로 받지만 **가드는 그것을 넘기지 않는다** —
+   * HTTP 경로를 있는 그대로 검증하는 것이 이 L2 의 요점이라 가드를 바꾸지 않고 `Date` 만
+   * 얼린다. 얼리는 시각은 **창의 시작**이라, 300건이 실제로 몇 초가 걸리든 한 창 안이다.
+   * 타이머는 얼리지 않는다(`toFake: ['Date']`) — pg 풀과 fastify 는 실제 타이머로 돈다.
+   */
+  beforeEach(() => {
+    const windowMs = RATE_WINDOW_SECONDS * 1000;
+    vi.useFakeTimers({
+      toFake: ['Date'],
+      now: Math.floor(Date.now() / windowMs) * windowMs,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it(`${RATE_LIMIT_PAT_PER_MIN}건까지는 통과하고 그 다음이 429다`, async () => {
     let last = { status: 0, headers: {} as Record<string, unknown> };
     for (let i = 0; i < RATE_LIMIT_PAT_PER_MIN; i += 1) {
@@ -71,9 +99,13 @@ describe('쿼터 — PAT 토큰당 한도가 실제로 걸린다', () => {
 
     const over = await get(token);
     expect(over.status).toBe(429);
-    // 재시도 시각이 없으면 클라이언트는 즉시 되돌아와 같은 429 를 받는다(§1.4)
-    expect(Number(over.headers['retry-after'])).toBeGreaterThan(0);
-  }, 60_000);
+    // 창을 시작점에 얼렸으므로 남은 시간은 **정확히 한 창**이다. 예전에는 `> 0` 만 봤는데,
+    // 그 느슨함이 창 계산이 틀려도 통과하게 뒀다(§1.4 — 0 은 "지금 다시" 라는 뜻이라
+    // 클라이언트를 곧장 다음 429 로 보낸다).
+    expect(Number(over.headers['retry-after'])).toBe(RATE_WINDOW_SECONDS);
+    // **타임아웃도 창보다 넉넉해야 한다.** 재현 실험에서 301건이 56초 걸린 적이 있다 —
+    // 60초로 두면 창을 고쳐 놓고 타임아웃으로 다시 흔들린다. 같은 종류의 실패다.
+  }, 180_000);
 
   it('다른 토큰은 남의 소진에 걸리지 않는다', async () => {
     const fresh = (

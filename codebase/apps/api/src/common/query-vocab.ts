@@ -15,6 +15,20 @@ import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from './nerv-exception.filter.js';
 
 /**
+ * 쉼표 목록 → 값 배열. 빈 항목은 버린다 — 트레일링 콤마가 어휘 오류가 되면 안 된다.
+ *
+ * **한 자리에 두는 이유는 `assertVocab` 과 같다.** 이 표기(`?status=draft,approved`)는
+ * 트리·검색·목록에서 함께 쓰는데, 표면마다 따로 쪼개면 어느 한쪽만 공백을 다듬거나
+ * 빈 항목을 남기게 되고 그 차이는 **어휘 오류로 위장해서** 나타난다.
+ */
+export function csv(value: string): string[] {
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+}
+
+/**
  * 어휘 안의 값만 통과시킨다. 어긋나면 **무엇이 어긋났고 무엇이 허용인지** 함께 준다 —
  * "잘못된 입력" 만 돌려주면 클라이언트는 같은 요청을 반복한다.
  */

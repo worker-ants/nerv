@@ -10,9 +10,10 @@
 // 것은 정상적인 집필 순서다.
 
 import { Injectable } from '@nestjs/common';
-import { msg, newId, NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR, newId, specRelationKind } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -116,6 +117,8 @@ export class SpecRelationService {
     remove: boolean;
     baseHash?: string | undefined;
   }): Promise<{ ok: true; from: string; to: string; kind: string; removed: boolean }> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+    const relKind = assertVocab([input.kind], specRelationKind.enumValues, 'kind')[0];
     if (input.kind === 'references') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.auto_kind'), {
         kind: 'auto_managed',
@@ -160,12 +163,12 @@ export class SpecRelationService {
       await this.db.execute(sql`
         DELETE FROM spec_relation
          WHERE project_id = ${input.projectId} AND from_spec_id = ${fromId}
-           AND to_spec_id = ${toId} AND kind = ${input.kind}::spec_relation_kind
+           AND to_spec_id = ${toId} AND kind = ${relKind}::spec_relation_kind
       `);
     } else {
       await this.db.execute(sql`
         INSERT INTO spec_relation (id, project_id, from_spec_id, to_spec_id, kind)
-        VALUES (${newId()}, ${input.projectId}, ${fromId}, ${toId}, ${input.kind}::spec_relation_kind)
+        VALUES (${newId()}, ${input.projectId}, ${fromId}, ${toId}, ${relKind}::spec_relation_kind)
         ON CONFLICT DO NOTHING
       `);
     }
@@ -350,7 +353,10 @@ export class SpecRelationService {
     const specId = await this.specIdOf(input.projectId, input.specKey);
     const direction = input.direction ?? 'both';
     const kindFilter =
-      input.kind == null ? sql`` : sql` AND r.kind = ${input.kind}::spec_relation_kind`;
+      input.kind == null
+        ? sql``
+        : // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
+          sql` AND r.kind = ${assertVocab([input.kind], specRelationKind.enumValues, 'kind')[0]}::spec_relation_kind`;
     const limit = Math.min(input.limit ?? 50, 200);
 
     const outQ = sql`

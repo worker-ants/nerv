@@ -1,9 +1,14 @@
 # 데이터 모델
 
-> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 29개 엔티티의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
+> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **37개 엔티티**(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.6 · 2026-09-02 · HTML 판: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.11 · 2026-09-05 · HTML 판: [data-model.html](../html/data-model.html)
 >
+> v0.11 변경(2026-09-05 — 인계와 포기가 같은 값이 됐다, 정합성 감사 → 사람 결정): §2.5 `claim.release_reason` 의 값 목록을 여섯으로 고치고, **두 축**(부른 쪽이 고른 셋 · 서버가 판정한 둘)을 명기한다. 넷만 적혀 있던 동안 인계와 포기가 저장에서 구별되지 않았다(4.3 v0.29).
+> v0.10 변경(2026-09-05 — 의미 정본이 값 하나를 모르고 있었다, 정합성 감사): §2.7 `approval.subject_type` 이 다섯 값에서 멈춰 있었다 — `finding` 이 2026-08-23 에 더해졌고(critical 하향 A3 의 승인 카드) 4.3 DDL·enum 은 여섯인데 **의미 정본인 이 표만** 다섯이었다.
+> v0.9 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §2.2 리스 설명의 `base_version` 을 **`base_hash`** 로 고친다. **열 이름 `base_version_id` 는 그대로다** — 걷은 것은 요청 표면의 인자이지 계보 열이 아니다.
+> v0.8 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): 요약의 "29개 엔티티" 를 **37개**(도메인 33 + 인프라 4)로 고친다 — 이 문서가 엔티티 의미의 정본인데 그 수가 여덟 판 낡아 있었고, 4.5·4.8 이 그 수를 그대로 인용하고 있었다.
+> v0.7 변경(2026-09-05 — 죽은 스코프의 마지막 자리, 정합성 감사): §2.9 `api_token.scopes` 의 예시가 `spec:write`·`review:write`·`session:write` 를 들고 있었다 — 어휘에 없는 값 셋이고, [4.3](../04-mvp/database.md) v0.24 가 이미 결함으로 지목한 그것이다. 어휘 정본이 `@nerv/schema` 의 `AGENT_SCOPES`(10종)이라는 사실과 사람 전용 둘은 토큰이 가질 수 없다는 사실을 함께 적는다.
 > v0.6 변경(2026-09-02 — 사람 결정): **`in_review` 는 선택 단계다.** Task 전이 표는 `in_review → done` 만 적었는데 배포된 `/nerv:impl` 은 `in_progress → done` 으로 곧장 가고 서버도 막지 않았다 — 셋이 서로 다른 말을 하고 있었다. 표를 실물에 맞춘다: `done` 의 실질 조건(증적 · `spec_impact`)은 게이트가 이미 강제하고, `in_review` 를 필수로 만들면 아무것도 막지 못하는 형식 단계가 생긴다.
 > v0.5 변경(2026-08-30 — 초안이 언제 바뀌었는지, 사람 결정): `spec_version` 에 `updated_at` 을 더한다(§2.7). draft 는 같은 행을 덮어쓰므로 `created_at` 은 "언제 만들었나"에만 답한다. DDL 정본은 [4.3](../04-mvp/database.md) §2.8.
 >
@@ -210,7 +215,7 @@ stateDiagram-v2
 | `name` | text | "노트북 Claude Code" 같은 사람용 라벨 |
 | `token_hash` | bytea | 원문 미저장 |
 | `prefix` | text | 앞 8자(식별·감사용) |
-| `scopes` | text[] | `spec:read`, `spec:write`, `task:claim`, `review:write`, `session:write` … |
+| `scopes` | text[] | `spec:read`, `spec:draft`, `task:claim`, `task:update` … — 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES`(10종)이고, 사람 전용 둘(`spec:approve`·`approval:decide`)은 토큰이 가질 수 없다(2026-09-05 정정) |
 | `expires_at` · `revoked_at` · `last_used_at` | timestamptz | |
 
 권한 비확대는 스키마가 아니라 정책으로 강제하지만, `user_id`를 필수 FK로 두는 것이 그 정책의 데이터 기반이다 — Asana가 AI Teammate에 대해 "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다"고 명시한 원칙과 같다.
@@ -249,7 +254,7 @@ stateDiagram-v2
 | `submitted_at` · `approved_at` | timestamptz | |
 | `approved_by_user_id` | uuid FK NULL | 결재자. `approval`에도 남지만 조회 편의로 비정규화 |
 | `superseded_by_version_id` | uuid FK NULL | 후속 버전 |
-| `edit_lease_user_id` | uuid FK NULL | 초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — `base_version_id` 409는 그대로 최후 방어선이다 |
+| `edit_lease_user_id` | uuid FK NULL | 초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — `base_hash_id` 409는 그대로 최후 방어선이다 |
 | `edit_lease_session_id` | uuid FK NULL | 보유 표면. 에이전트 세션이면 그 세션, NULL = 웹 |
 | `edit_lease_expires_at` | timestamptz NULL | 리스 만료. TTL 30분 — Task 클레임 리스·stale 임계와 같은 상수 |
 | `updated_at` | timestamptz | 본문이 **바뀐** 시각(저장된 시각이 아니다). draft 는 같은 행을 덮어쓰므로 `created_at` 만으로는 "언제 바뀌었나"에 답하지 못한다 — 요약만 고치는 저장·리스 갱신에는 움직이지 않는다 |
@@ -418,7 +423,7 @@ stateDiagram-v2
 | `acquired_at` | timestamptz | |
 | `lease_expires_at` | timestamptz | TTL 리스. 하트비트로 연장 |
 | `last_heartbeat_at` | timestamptz | |
-| `released_at` · `release_reason` | timestamptz · enum | `done / manual / expired / conflict` |
+| `released_at` · `release_reason` | timestamptz · enum | **부른 쪽이 고른 셋** `done / handoff / abandon` + **서버가 판정한 둘** `expired`(리스 만료) / `conflict`(겹침 회수) + `manual`(2026-09-05 이전의 잔재 — 그때는 `done` 외를 전부 이 값으로 뭉쳤다). 축이 다르므로 같은 열에 두되 어느 쪽이 쓴 값인지가 이름으로 드러난다 |
 
 제약: `CREATE UNIQUE INDEX ON claim (task_id) WHERE status = 'active'` — 두 세션이 같은 작업을 잡는 것이 데이터베이스 수준에서 불가능해진다. 상태 전이와 assignee 설정이 한 트랜잭션이므로 경합은 하나만 통과하고 나머지는 충돌 응답을 받는다.
 
@@ -563,7 +568,7 @@ ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 �
 | --- | --- | --- |
 | `id` | uuid PK | |
 | `project_id` | uuid FK | |
-| `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass` |
+| `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass / **finding**` — 여섯이다. `finding` 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정) |
 | `subject_id` | uuid | 대상 엔티티 ID(다형 참조) |
 | `requested_by_user_id` · `requested_by_session_id` | uuid FK | 지시자 |
 | `assignee_user_id` | uuid FK NULL | 지정 승인자 |

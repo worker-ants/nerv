@@ -53,7 +53,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.72 (2026-09-05)</span>
+      <span>버전 v0.74 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -100,6 +100,9 @@
       <tr><td><code>/signup</code></td><td>가입</td><td>비인증 전용(셸 밖)</td><td>가입 직후 온보딩으로 — 2026-08-27 신설</td></tr>
       <tr><td><code>/invite/:token</code></td><td>초대 링크</td><td><b>공개</b>(셸 밖)</td><td>로그인 전에도 열린다 — 2026-08-27 신설(§2.1b)</td></tr>
       <tr><td><code>/onboarding</code></td><td>온보딩</td><td>인증 필요</td><td>소속 조직 0개일 때만 진입</td></tr>
+      <tr><td><code>/signup</code></td><td>가입(셸 밖)</td><td><b>이 문서 §2.1</b> (로그인과 같은 그림 계열 — 2026-09-05 추가)</td></tr>
+      <tr><td><code>/invite/:token</code></td><td>초대 링크 수락(셸 밖·공개)</td><td><b>이 문서 §2.1</b> (2026-09-05 추가)</td></tr>
+      <tr><td><code>/help</code> · <code>/help/:chapter</code></td><td>제품 매뉴얼(10장 · ko·en)</td><td><b>이 문서 §2.10</b> (2026-09-05 추가 — 이 표에 "없음"이 생기면 결함이라 적어 두고 넷이 비어 있었다)</td></tr>
       <tr><td><code>/</code></td><td>S1 홈 대시보드</td><td>인증 필요</td><td>활성 조직 컨텍스트</td></tr>
       <tr><td><code>/o/:org</code></td><td>조직 전환</td><td>인증 필요</td><td>컨텍스트 전환 후 <code>/</code>로 리다이렉트(멀티 조직)</td></tr>
       <tr><td><code>/inbox</code></td><td>S7 받은 요청</td><td>인증 필요</td><td>조직 전역 — 받은 요청은 하나(FR-14)</td></tr>
@@ -110,7 +113,7 @@
       <tr><td><code>/settings/workspace</code></td><td>S8 조직·프로젝트</td><td>admin 외 읽기 전용</td><td>2026-08-24 신설(§2.8)</td></tr>
       <tr><td><code>/settings/members</code></td><td>S8 멤버·역할</td><td>admin 외 읽기 전용</td><td></td></tr>
       <tr><td><code>/settings/tokens</code></td><td>S8 에이전트 토큰</td><td>인증 필요</td><td>본인 토큰 + admin은 전체</td></tr>
-      <tr><td><code>/settings/gates</code></td><td>S8 게이트 정책</td><td><code>policy:edit</code>은 admin 전용</td><td></td></tr>
+      <tr><td><code>/settings/gates</code></td><td>S8 게이트 정책</td><td><b>사람 전용</b>(<code>HUMAN_ONLY</code> — 토큰으로는 못 바꾼다) + <b>admin 역할</b>. <code>policy:edit</code> 이라는 스코프는 <b>존재한 적 없다</b>(2026-09-05 정정)</td><td></td></tr>
       <tr><td><code>/p/:proj</code></td><td>S2 프로젝트 개요</td><td>프로젝트 멤버십</td><td></td></tr>
       <tr><td><code>/p/:proj/specs</code></td><td>스펙 트리(목록)</td><td>멤버십</td><td>스펙 0건이면 빈 상태 + [+ 새 스펙]</td></tr>
       <tr><td><code>/p/:proj/specs/:spec</code></td><td>S3 스펙 상세</td><td>멤버십</td><td>쿼리: <code>?v=&lt;version_no&gt;</code> <code>?diff=v3..v4</code></td></tr>
@@ -213,7 +216,7 @@
       <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>스코프 두 축이 순서대로 선다: 조직 ▾ → 프로젝트 ▾</b>(2026-08-24 신설 · REQ-WEB-069). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3)</td></tr>
       <tr><td>프로젝트 select</td><td>고른 조직의 프로젝트 목록. <b>하나뿐일 때도 select 로 둔다</b>(사람 판단 2026-08-24 — "예외 케이스가 없는 쪽이 직관적"). 고르면 그 프로젝트 개요(<code>/p/:proj</code>)로 간다. 홈·받은 요청·알림은 조직 전역이라 라우트에 프로젝트가 없다 — 그때는 <b>마지막으로 본 프로젝트</b>를 보인다(기억하지 않으면 칸이 비고, 빈 칸은 "선택할 수 없다"로 읽힌다)</td></tr>
       <tr><td><span class="marker">2</span> 연결 상태 배너</td><td>2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
-      <tr><td><span class="marker">3</span> 프로젝트 사이드바</td><td><code>/p/:proj/*</code>에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 — 비활성 + 툴팁). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1))</td></tr>
+      <tr><td><span class="marker">3</span> 프로젝트 사이드바</td><td><code>/p/:proj/*</code>에서만 렌더. 상단: 개요·스펙·작업·세션 탭(리뷰 탭은 Phase 2 로 계획했으나 2026-08-23 에 열렸다 — <b>활성 링크 + 열린 critical 배지</b>다, §2.6a). 하단: 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1))</td></tr>
       <tr><td><span class="marker">4</span> 토스트 스택</td><td><code>claim.conflict_warn</code> 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 + 되돌리기 링크 — ui-wireframes §4.1)</td></tr>
     </tbody>
   </table></div>
@@ -320,7 +323,7 @@
     <tbody>
       <tr><td><code>NERV_UNAUTHENTICATED</code></td><td><code>/login</code>으로 리다이렉트(원래 경로 보존)</td></tr>
       <tr><td><code>NERV_FORBIDDEN</code></td><td>버튼 비활성 + 사유 툴팁(숨기지 않는다 — ui-wireframes §1.5)</td></tr>
-      <tr><td><code>NERV_PRECONDITION</code></td><td><code>base_version</code> 불일치 409 — S3 저장 충돌 다이얼로그(§3.4)</td></tr>
+      <tr><td><code>NERV_PRECONDITION</code></td><td><code>base_hash</code> 불일치 409(본문 지문 — 2026-08-30 개정) — S3 저장 충돌 다이얼로그(§3.4)</td></tr>
       <tr><td><code>NERV_CONFLICT_SCOPE</code></td><td>클레임 겹침 모달 — 상대 세션의 사용자·hostname·scope 표시</td></tr>
       <tr><td><code>NERV_LEASE_EXPIRED</code></td><td>리스 만료 배너 + 재클레임 안내</td></tr>
       <tr><td><code>NERV_DRAFT_LEASED</code></td><td>S3 읽기 전용 전환 + 보유자 배지 + [인계 요청] 버튼(§3.4)</td></tr>
@@ -357,7 +360,7 @@
       <tr><td><code>/o/:org</code></td><td>조직 전환</td><td>화면 없음(컨텍스트 전환 후 즉시 리다이렉트) — 그림 비대상</td></tr>
       <tr><td><code>/inbox</code></td><td>S7 받은 요청</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.7 (고충실도)</td></tr>
       <tr><td><code>/notifications</code></td><td>알림 센터</td><td><b>이 문서 §2.9</b></td></tr>
-      <tr><td><code>/settings/members</code> · <code>/tokens</code> · <code>/gates</code></td><td>S8 설정 3탭</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.8 (멤버·토큰·게이트 정책 3탭 합성 — 연동 탭은 Phase 2 비활성)</td></tr>
+      <tr><td><code>/settings/members</code> · <code>/tokens</code> · <code>/gates</code></td><td>S8 설정 <b>4탭</b>(멤버·토큰·게이트 정책 + 워크스페이스 — 2026-09-05 현황 정정)</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.8 (멤버·토큰·게이트 정책 3탭 합성 — 연동 탭은 Phase 2 비활성)</td></tr>
       <tr><td><code>/p/:proj</code></td><td>S2 프로젝트 개요</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.2</td></tr>
       <tr><td><code>/p/:proj/specs</code></td><td>스펙 목록(트리 전체 화면)</td><td><b>이 문서 §2.4</b></td></tr>
       <tr><td><code>/p/:proj/specs/:spec</code></td><td>S3 스펙 상세</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.3 (고충실도)</td></tr>
@@ -366,7 +369,7 @@
       <tr><td><code>/p/:proj/sessions</code></td><td>S5 세션 모니터</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.5 (고충실도)</td></tr>
       <tr><td><code>/p/:proj/sessions/:session</code></td><td>세션 상세(Activity 타임라인)</td><td><a href="ui-wireframes.html">ui-wireframes</a> §2.5 둘째 그림(<code>S-8f31</code> 상세 — 탭·타임라인·산출물 역링크)</td></tr>
       <tr><td><code>/p/:proj/reviews</code></td><td><b>§2.6a</b>(2026-08-23 신설)</td><td>그림의 정본은 <a href="ui-wireframes.html">ui-wireframes</a> §2.6이고, 라우트·데이터 소스·수용 기준은 §2.6a가 소유한다</td></tr>
-      <tr><td><code>/p/:proj/coverage</code> · <code>/crs/:cr</code></td><td>Phase 2(라우트만 예약)</td><td>커버리지·CR 델타는 Phase 2 착수 시 작성</td></tr>
+      <tr><td><code>/p/:proj/coverage</code> · <code>/crs/:cr</code></td><td>Phase 2(<b>미착수</b> — 라우트 파일도 아직 없다, 2026-09-05 확인)</td><td>커버리지·CR 델타는 Phase 2 착수 시 작성</td></tr>
     </tbody>
   </table></div>
 
@@ -648,9 +651,19 @@
       <div class="wf-main">
         <div class="wf-topbar">
           <span class="ttl">스펙</span>
-          <span class="wf-input">🔍 검색…</span>
-          <span class="wf-btn ghost">타입 ▾</span><span class="wf-btn ghost">상태 ▾</span><span class="wf-btn ghost">베이스라인 ▾</span><span class="marker">4</span>
           <span class="wf-btn primary">+ 새 스펙</span><span class="marker">1</span>
+          <span class="wf-btn ghost">기준선 ▾</span><span class="marker">4</span>
+          <span class="wf-btn ghost">기준선 생성…</span>
+          <span class="wf-btn ghost">보관</span>
+          <span class="wf-input">🔍 검색…</span>
+        </div>
+        <!-- 그 탭에만 듣는 조작은 그 탭 자신의 조작 줄에 둔다(REQ-WEB-140) -->
+        <div class="wf-topbar">
+          <span class="sub">트리 탭</span>
+          <span class="wf-btn ghost">상태 ▾</span><span class="wf-btn ghost">종류 ▾</span>
+          <span class="wf-btn ghost">트리 필터</span>
+          <span class="wf-btn ghost">펼치기</span><span class="wf-btn ghost">접기</span>
+          <span class="sub">표시 N/전체 M</span><span class="marker">3</span>
         </div>
         <div class="wf-panel">
           <div class="wf-row"><span class="grow"><b>▾ 1-product-vision</b></span></div>
@@ -670,7 +683,7 @@
     <li><span class="marker">1</span><span><b>생성 진입점</b> — 권한은 역할 매트릭스(spec-workflow §1.6). 행 클릭은 S3 상세로.</span></li>
     <li><span class="marker">2</span><span><b>행 = 트리 노드 + 메타</b> — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 <code>SpecTree</code> 공유다(D-05의 프론트 판).</span></li>
     <li><span class="marker">3</span><span><b>필터 결과 카운트</b> — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약). <b>상태 필터</b>(<code>?status=</code> · REQ-WEB-138 — 2026-09-05 신설)는 고른 상태의 문서와 <b>그 조상</b>을 남긴다: 조상을 빼면 부모 없는 줄이 생기고(실측 clemvion: draft 26건 중 17건의 부모가 draft 가 아니다) 목록의 위아래가 뜻을 잃는다. 아래에 걸린 것이 없는 가지는 통째로 빠진다. 서버에도 같은 필터가 있지만(EP-SPEC-01 <code>?status=</code> · REQ-API-092) <b>화면은 그것을 쓰지 않는다</b> — 이 화면은 이미 전 계층을 한 응답으로 받아 두었고(REQ-WEB-044), 서버에 걸러 달라고 하면 <code>전체 M</code> 을 알 방법이 사라진다. 판정 규칙은 서버와 같다. <b><code>[타입 ▾]</code></b>(<code>?type=</code>)도 같은 규칙이다 — <code>area</code> 는 본문 없이 자리를 잡는 종류라 <code>vision,area</code> 를 고르면 <b>트리의 뼈대</b>가 남는다(실측 clemvion 141편 → 17편). 둘을 함께 걸면 AND 다.</span></li>
-    <li><span class="marker">4</span><span><b>베이스라인 선택기</b> — EP-SPEC-11 목록 + [현재 세트로 동결…](planner·admin — EP-SPEC-12 다이얼로그). 베이스라인을 고르면 <code>?baseline=</code> 쿼리로 목록이 그 세트에 핀된 버전 기준으로 렌더된다(spec-workflow §3.6). 새 라우트 없음 — 뷰 상태 쿼리다.</span></li>
+    <li><span class="marker">4</span><span><b>기준선 선택기</b> — EP-SPEC-11 목록 + [기준선 생성…](planner·admin — EP-SPEC-12 다이얼로그). 기본 항목은 <b><code>기준선 없음</code></b> 이다. 고르면 <code>?baseline=</code> 쿼리로 목록이 <b>그 세트가 담은 문서만, 그 세트가 핀한 판으로</b> 렌더된다(spec-workflow §3.6 · REQ-API-098) — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. 그 동안에는 상태·종류 필터를 그리지 않는다(세트 항목은 전부 승인본이라 거를 것이 없다). 새 라우트 없음 — 뷰 상태 쿼리다.</span></li>
     <li><span class="marker">5</span><span><b>검색 모드</b> — 검색어 입력 시 트리 뷰가 결과 목록으로 전환된다(<code>?q=</code> 뷰 상태). 하이브리드 결과(<a href="api.html">4.4</a> §2.2b)를 <b>관련도 순 + 스펙 단위 그룹핑 + 매칭 앵커 스니펫</b>으로 표시하고, <code>related[]</code>(관계 확장 — 질의 일치가 아니라 상위 결과의 1-hop 이웃)는 <b>"관련 스펙" 별도 섹션</b>으로 구분해 섞지 않는다. <code>degraded: "lexical-only"</code> 수신 시 "의미 검색 일시 중단 — 키워드 결과만" 배너 1줄. 트리 자체를 거르는 <b>트리 필터</b>(클라이언트, 매칭 경로만 펼침)는 <code>/</code> 키로 전환 — 서버 검색과 다른 축이다.</span></li>
   </ul>
 
@@ -679,7 +692,7 @@
     <tbody>
       <tr><td>본문 + 메타</td><td>EP-SPEC-03 <code>GET /api/v1/projects/{proj}/specs/{spec}</code> (<code>include[]</code>: requirements·tasks·comments)</td><td>기본 버전은 최신 <code>approved</code> — draft는 명시 선택(<code>?v=</code>)</td></tr>
       <tr><td>버전 목록·diff</td><td>EP-SPEC-04 <code>GET /api/v1/projects/{proj}/specs/{spec}/versions</code> · EP-SPEC-06 <code>GET .../specs/{spec}/diff</code></td><td><code>?diff=v3..v4</code> 뷰 상태 → EP-SPEC-06(from, to)으로 조회. 표기는 ui-wireframes §4.3</td></tr>
-      <tr><td>초안 저장</td><td>EP-SPEC-08 <code>PUT /api/v1/projects/{proj}/specs/{spec}/draft</code> (draft upsert — <code>base_version</code> 전제조건)</td><td><code>nerv_spec_draft_upsert</code>와 같은 서비스·같은 zod 스키마(D-05)</td></tr>
+      <tr><td>초안 저장</td><td>EP-SPEC-08 <code>PUT /api/v1/projects/{proj}/specs/{spec}/draft</code> (draft upsert — <code>base_hash</code> 전제조건)</td><td><code>nerv_spec_draft_upsert</code>와 같은 서비스·같은 zod 스키마(D-05)</td></tr>
       <tr><td>사전 검토</td><td>EP-SPEC-09 <code>GET /api/v1/projects/{proj}/spec-versions/{ver}/check</code></td><td>5검사기 결과(warning/block + 앵커) — <code>nerv_spec_check</code>와 동일</td></tr>
       <tr><td>검토 요청</td><td>EP-SPEC-10 <code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td><code>draft → in_review</code> — 성공 시 받은 요청 카드 생성(FR-11)</td></tr>
       <tr><td>코멘트</td><td>EP-CMT-01 <code>GET .../specs/{spec}/comments</code> · EP-CMT-02 <code>POST .../spec-versions/{ver}/comments</code> · EP-CMT-04 <code>POST .../comments/{id}/resolve</code></td><td>앵커: 헤딩 slug 또는 Requirement <code>ref</code>(§3.3)</td></tr>
@@ -697,7 +710,7 @@
     <li><b>관계 안은 방향으로 가른다</b>(2026-08-24 신설 — 사람 지시): 레일의 <code>관계</code> 탭 아래에 <b>전체 · 역참조 · 레퍼런스</b> 하위 탭을 두고 각각 건수를 단다. 두 방향은 <b>다른 질문</b>이기 때문이다 — 역참조는 "이 문서를 고치면 무엇이 흔들리나", 레퍼런스는 "이 문서가 무엇에 기대나". 한 목록에 섞이면(실측: <code>0-overview</code> 50건 = 역참조 22 + 레퍼런스 28) 둘 중 하나를 보려고 전체를 훑어야 한다. 건수는 <b>누르기 전에</b> 보인다 — 빈 탭을 열어 보게 하지 않는다. 전체 탭은 <b>역참조 무리 → 구분선 → 레퍼런스 무리</b> 순으로 놓는다: 화살표 표식만으로는 무리가 바뀐 자리를 눈이 알아채지 못한다(한쪽이 비면 나눌 것이 없으므로 선도 없다). 역참조 설명("고치면 흔들리는 문서")은 그 무리의 <b>머리</b>에 단다 — 꼬리에 달면 스무 줄을 다 내려간 뒤에야 무엇을 읽은 것인지 알게 된다. 그 설명은 역참조가 <b>보이는 목록에 있을 때만</b> 성립하므로 레퍼런스 탭에서는 달지 않는다.</li>
     <li><b>영향 미리보기</b>: [검토 요청] 확인 다이얼로그에 "이 문서를 참조하는 문서 N건 · 파생 Task M건에 영향" 1줄 + 목록 펼침(EP-SPEC-18 역참조 + 파생 Task 카운트). 승인 후 <code>spec.recheck_requested</code> 전파의 사전 뷰다.</li>
     <li><b>메타 편집·아카이브</b>(planner·admin — <code>spec:meta</code>): 상단 ⋯ 메뉴 → 메타 다이얼로그(<code>SpecMetaDialog</code>: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(<code>archive_blocked</code>) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = <code>?include_archived=true</code>), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"(<a href="importer.html">4.7 스펙 임포터</a> §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.</li>
-    <li><b>폼·검증</b>: <code>SpecDraftUpsertInput</code>(zod — <code>packages/schema</code>, MCP 도구 인자와 공유): <code>body_markdown</code>·<code>base_version</code>·<code>change_summary</code>(min 1), 새 스펙 생성은 <code>SpecCreateInput</code>(<code>parent_id</code>·<code>type</code> 6종 enum·<code>title</code> min 1·<code>body_markdown</code>). 코멘트 <code>CommentCreateInput</code>: <code>anchor</code>(min 1)·<code>body_md</code>(min 1).</li>
+    <li><b>폼·검증</b>: <code>SpecDraftUpsertInput</code>(zod — <code>packages/schema</code>, MCP 도구 인자와 공유): <code>body_markdown</code>·<code>base_hash</code>·<code>change_summary</code>(min 1), 새 스펙 생성은 <code>SpecCreateInput</code>(<code>parent_id</code>·<code>type</code> 6종 enum·<code>title</code> min 1·<code>body_markdown</code>). 코멘트 <code>CommentCreateInput</code>: <code>anchor</code>(min 1)·<code>body_md</code>(min 1).</li>
     <li><b>빈 상태</b>: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크.</li>
   </ul>
 
@@ -712,7 +725,7 @@
     <tbody>
       <tr><td>REQ-WEB-011</td><td>WHEN 스펙 상세를 열면 THE SYSTEM SHALL 최신 <code>approved</code> 버전을 기본 표시하고, draft 열람은 명시적 버전 선택으로만 허용한다(D-02)</td></tr>
       <tr><td>REQ-WEB-012</td><td>WHEN 다른 사용자가 편집 리스를 보유한 draft를 열면 THE SYSTEM SHALL 에디터를 읽기 전용으로 전환하고 보유자(사용자·표면·최신 갱신)와 [인계 요청] 버튼을 표시한다(<code>NERV_DRAFT_LEASED</code>)</td></tr>
-      <tr><td>REQ-WEB-013</td><td>WHEN 저장 요청이 <code>NERV_PRECONDITION</code>(base_version 불일치 409)으로 실패하면 THE SYSTEM SHALL 로컬 본문을 버리지 않은 채 충돌 다이얼로그(서버 최신 보기·내 본문 복사)를 표시한다</td></tr>
+      <tr><td>REQ-WEB-013</td><td>WHEN 저장 요청이 <code>NERV_PRECONDITION</code>(<code>base_hash</code> 불일치 409)으로 실패하면 THE SYSTEM SHALL 로컬 본문을 버리지 않은 채 충돌 다이얼로그(서버 최신 보기·내 본문 복사)를 표시한다</td></tr>
       <tr><td>REQ-WEB-014</td><td>WHEN 사전 검토 결과에 block이 1건 이상이면 THE SYSTEM SHALL [검토 요청] 버튼을 비활성화하고 검사기별 결과와 앵커 위치를 인라인 표시한다</td></tr>
       <tr><td>REQ-WEB-015</td><td>WHEN 본문이 새 버전으로 바뀌어도 THE SYSTEM SHALL 헤딩 slug·Requirement <code>ref</code> 앵커의 코멘트 스레드를 유지 표시한다(D-09)</td></tr>
       <tr><td>REQ-WEB-037</td><td>WHEN 대상 문서의 <b>현재 판을 마지막으로 쓴 뒤</b> <code>spec.recheck_requested</code>가 그 문서 앞으로 발행됐으면 THE SYSTEM SHALL S3 상태 패널에 참조 갱신 배지를 표시하고 <b>무엇 때문인지</b>(신호를 만든 참조 스펙 키)를 함께 보인다. 판정은 서버가 한다(2026-09-03 정정)</td></tr>
@@ -1604,7 +1617,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
       <tr><td>같은 사용자, 다른 표면</td><td><b>다른 자리다</b> — 리스 보유자는 <code>(user, session)</code> 이라 세션 없는 웹 탭과 터미널 세션이 서로를 막는다(2026-08-30 개정). 터미널은 <code>takeover: true</code> 로 이어받고, 웹 에디터는 읽기 전용 + 배지와 <b>[이어받기]</b> 버튼을 보인다</td></tr>
       <tr><td>다른 사용자</td><td>읽기 전용 + 보유자 배지 + [인계 요청](보유자 알림, 승인 시 이전). 에이전트 upsert는 <code>NERV_DRAFT_LEASED</code> 하드 차단</td></tr>
       <tr><td>해제</td><td>검토 요청 성공 · 에디터 닫기 · TTL 만료</td></tr>
-      <tr><td>최후 방어선</td><td>리스와 무관하게 저장은 <code>base_version</code> 전제조건을 갖는다 — 409는 §1.5의 <code>NERV_PRECONDITION</code> 다이얼로그</td></tr>
+      <tr><td>최후 방어선</td><td>리스와 무관하게 저장은 <code>base_hash</code> 전제조건을 갖는다 — 409는 §1.5의 <code>NERV_PRECONDITION</code> 다이얼로그</td></tr>
     </tbody>
   </table></div>
 
@@ -1759,7 +1772,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <h3>이 문서가 인용한 정본 문서</h3>
   <ul>
     <li><a href="ui-wireframes.html">3.6 화면 설계 (와이어프레임)</a> — S1~S8 와이어프레임·상태 표현 규칙·인터랙션 규약의 정본. 이 문서의 모든 화면 절이 § 단위로 인용</li>
-    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 29종 필드·enum 값·ID 발급 규칙(§5.1)·<code>spec_comment</code> 앵커(§2.2)</li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 37종(도메인 33 + 인프라 4) 필드·enum 값·ID 발급 규칙(§5.1)·<code>spec_comment</code> 앵커(§2.2)</li>
     <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 상태 축 3종·권한 매트릭스(§1.6)·초안 편집 리스(§1.2)·지시자≠승인자(§2.3)·이벤트 이름과 알림 카탈로그(§6.3)</li>
     <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — <code>nerv_*</code> 도구 카탈로그(§2.3)·하트비트 역채널(§2.4)·토큰 스코프(§6.1)</li>
     <li><a href="roadmap.html">3.7 로드맵</a> — Phase 1 화면 범위(S1~S5·S7·S8)와 비범위(S6·CR 델타·커버리지 대시보드·Slack), FR-12 P1 인앱</li>

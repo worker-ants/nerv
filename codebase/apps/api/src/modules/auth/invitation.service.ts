@@ -10,13 +10,14 @@
 //   ② **7일**이면 만료된다(`INVITATION_TTL_DAYS`) — 되찾는 길(재발급)이 있으므로 짧게.
 
 import { Inject, Injectable } from '@nestjs/common';
-import { INVITATION_TTL_DAYS, msg, newId, NERV_ERROR } from '@nerv/schema';
+import { INVITATION_TTL_DAYS, memberRole, msg, NERV_ERROR, newId } from '@nerv/schema';
 import type { MembershipRole } from './auth.service.js';
 import { randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { AuthService, hashToken } from './auth.service.js';
 
 /** 링크에 실리는 값 — 주소에 그대로 들어가므로 url-safe 여야 한다 */
@@ -55,6 +56,8 @@ export class InvitationService {
     role: MembershipRole;
     projectSlug?: string | null;
   }): Promise<Record<string, unknown>> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-106·112)
+    const role = assertVocab([input.role], memberRole.enumValues, 'role')[0];
     const org = await this.assertOrgAdmin(input.actorUserId, input.orgSlug);
     const email = input.email.trim();
     if (email === '') {
@@ -70,7 +73,7 @@ export class InvitationService {
         JOIN "user" u ON u.id = m.user_id
        WHERE u.email = ${email} AND m.org_id = ${org.id}
          AND (${projectId}::uuid IS NULL OR m.project_id = ${projectId} OR m.project_id IS NULL)
-         AND m.role = ${input.role}::member_role
+         AND m.role = ${role}::member_role
     `);
     if ((already[0]?.n ?? 0) > 0) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.invite.already_member', { email }), {
@@ -93,7 +96,7 @@ export class InvitationService {
     await this.db.execute(sql`
       INSERT INTO invitation
         (id, org_id, project_id, email, role, token_hash, invited_by_user_id, expires_at)
-      VALUES (${id}, ${org.id}, ${projectId}, ${email}, ${input.role}::member_role,
+      VALUES (${id}, ${org.id}, ${projectId}, ${email}, ${role}::member_role,
               ${hashToken(token)}, ${input.actorUserId},
               now() + ${`${INVITATION_TTL_DAYS} days`}::interval)
     `);

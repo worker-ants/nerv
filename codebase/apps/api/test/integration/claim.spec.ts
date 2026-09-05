@@ -339,6 +339,7 @@ describe('E04-S03 하트비트·리스 연장', () => {
     const taskId = await makeTask('TSK-steer');
     const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
     await sessions.steer({
+      actor: { userId: hana, isAgent: false },
       projectId,
       sessionId: sessionHana,
       kind: 'steer',
@@ -371,6 +372,7 @@ describe('E04-S03 하트비트·리스 연장', () => {
       answerMd: '그렇게 하자',
     });
     await sessions.steer({
+      actor: { userId: hana, isAgent: false },
       projectId,
       sessionId: sessionHana,
       kind: 'steer',

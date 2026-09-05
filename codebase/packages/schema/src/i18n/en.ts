@@ -76,9 +76,12 @@ export const en = {
   'error.comment.body_required': 'A body is required.',
   'error.comment.not_found': 'Comment not found.',
   'error.human_only.approve': 'Only humans can approve.',
+  'error.human_only.baseline': 'Only a person can create a baseline.',
   'error.db.check_violation': 'That value is not allowed — see constraint "{constraint}".',
   'error.db.foreign_key_violation':
     'Nothing to point at — {fields}. Create it first, or use another value.',
+  'error.db.invalid_text_representation':
+    'That value does not match what this field accepts — {type}. Check the allowed values.',
   'error.db.not_null_violation': 'A required value is missing — {fields}.',
   'error.db.too_long': 'That value is too long — {fields}.',
   'error.db.unique_violation': 'Already in use — {fields}. Pick another value.',
@@ -124,6 +127,7 @@ export const en = {
   'error.question.context_not_found':
     'Could not find {field} — the context must point at a real spec, task, or finding.',
   'error.question.not_open': 'That question is not open.',
+  'error.question.not_owner': 'Only the session that created this question can cancel it.',
   'error.relation.auto_kind':
     'references is synced from the body — declaring it by hand is undone on the next save.',
   'error.relation.base_hash_required':
@@ -153,6 +157,8 @@ export const en = {
   'error.review.spec_version_unknown': 'That spec version does not belong to this project.',
   'mcp.arg.resolution_spec_version':
     'evidence when the fix was a spec correction — the spec_version_id of that save',
+  'mcp.arg.escalate_reason':
+    'Why a human is needed — required with the escalated resolution. Same vocabulary as a question escalate.',
   'mcp.arg.commit_sha': 'evidence when the fix was code — required for fixed',
   'error.review.empty_comment': 'An empty comment is not saved.',
   'error.spec.base_hash_required':
@@ -375,6 +381,8 @@ export const en = {
     'spec key or UUID — when given, only that document and its descendants. Unknown key is not_found',
   'mcp.arg.spec_depth':
     'edges to descend from the root — 0 is roots only, 1 is roots and their children',
+  'mcp.arg.requirement_scope':
+    'Narrow to the spec this requirement belongs to — stable key (REQ-…) or UUID. Unknown ids are rejected.',
   'mcp.arg.spec_status_filter':
     'document status filter — comma-separated (e.g. draft,in_review). All when omitted. Ancestors of matches come along as matched:false',
   'mcp.arg.spec_type_filter':
@@ -446,6 +454,7 @@ export const en = {
     'Attachment storage is not configured — retrying will not open it.',
   'error.spec.baseline_not_found': 'No baseline by that name.',
   'error.spec.not_found': 'Spec not found.',
+  'error.spec.requirement_not_found': 'Requirement not found.',
   'error.spec.not_in_review': 'Not in review.',
   'error.spec.parent_archived': 'The parent spec is archived.',
   'error.spec.title_required': 'A title is required.',
@@ -514,6 +523,7 @@ export const en = {
   'event.import.applied': 'Import applied',
   'event.notification.created': 'Notification created',
   'event.question.answered': 'Question answered',
+  'event.question.cancelled': 'Question cancelled',
   'event.question.created': 'Agent question',
   'event.session.complete': 'Session complete',
   'event.session.stale': 'Session went stale — claim reclaimed',

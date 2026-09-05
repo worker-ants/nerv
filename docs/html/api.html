@@ -50,9 +50,9 @@
 
   <header class="page-header">
     <h1>API 명세</h1>
-    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 23종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
+    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 24종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.79 (2026-09-05)</span>
+      <span>버전 v0.92 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -64,7 +64,7 @@
       <li><a href="#sec-1">공통 규약</a></li>
       <li><a href="#sec-2">리소스별 엔드포인트 전표</a></li>
       <li><a href="#sec-3">실시간 채널 계약 — WebSocket + SSE</a></li>
-      <li><a href="#sec-4">MCP 도구 23종 ↔ 내부 서비스 ↔ REST 대응</a></li>
+      <li><a href="#sec-4">MCP 도구 24종 ↔ 내부 서비스 ↔ REST 대응</a></li>
       <li><a href="#sec-5">수용 기준 (REQ-API-*)</a></li>
       <li><a href="#sec-ref">참고 자료</a></li>
     </ol>
@@ -248,7 +248,7 @@
     <tbody>
       <tr><td><code>NERV_UNAUTHENTICATED</code></td><td>401</td><td>세션 쿠키 없음·만료, PAT 폐기·만료</td></tr>
       <tr><td><code>NERV_FORBIDDEN</code></td><td>403</td><td>역할 미충족, PAT 스코프 부족, 지시자≠승인자 위반</td></tr>
-      <tr><td><code>NERV_PRECONDITION</code></td><td>400 / 409</td><td>400: zod 스키마 위반(<code>details.issues</code>) · <b>입력 모양을 어긴 DB 제약</b>(§1.4a) · 409: <code>base_version</code> 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치, <b>중복 값·없는 참조</b>(§1.4a)</td></tr>
+      <tr><td><code>NERV_PRECONDITION</code></td><td>400 / 409</td><td>400: zod 스키마 위반(<code>details.issues</code>) · <b>입력 모양을 어긴 DB 제약</b>(§1.4a) · 409: 본문 지문(<code>base_hash</code>) 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치, <b>중복 값·없는 참조</b>(§1.4a)</td></tr>
       <tr><td><code>NERV_CONFLICT_SCOPE</code></td><td>409</td><td>클레임 scope 겹침 <code>block</code> 판정</td></tr>
       <tr><td><code>NERV_LEASE_EXPIRED</code></td><td>409</td><td>리스 만료 후 상태 변경 시도</td></tr>
       <tr><td><code>NERV_DRAFT_LEASED</code></td><td>409</td><td>다른 사용자가 초안 편집 리스 보유</td></tr>
@@ -273,6 +273,7 @@
       <tr><td><code>23502</code></td><td>빠뜨린 값</td><td><code>not_null_violation</code></td><td>400</td></tr>
       <tr><td><code>23514</code></td><td>허용되지 않는 값</td><td><code>check_violation</code></td><td>400</td></tr>
       <tr><td><code>22001</code></td><td>너무 긴 값</td><td><code>too_long</code></td><td>400</td></tr>
+      <tr><td><code>22P02</code></td><td><b>값의 모양이 타입과 맞지 않음</b> — 어휘 밖 enum · 잘못된 UUID</td><td><code>invalid_text_representation</code></td><td>400</td></tr>
     </tbody>
   </table></div>
 
@@ -282,9 +283,28 @@
     <li><code>details</code> 에 <b><code>fields</code></b>(제약이 건 열 전부) · <b><code>constraint</code></b> · <code>table</code> 을 싣는다. 사람에게 보이는 문장은 그중 <b><code>_id</code> 로 끝나지 않는 열</b>만 부른다 — <code>(org_id, key)</code> 유니크에서 사람이 고른 값은 <code>key</code> 하나이고, 범위 열까지 부르면 무엇을 고치라는 것인지 흐려진다.</li>
     <li><b>값은 싣지 않는다.</b> Postgres 의 <code>detail</code> 에는 충돌한 값이 들어 있는데(<code>Key (key)=(nerv)</code>) 그대로 돌려주면 남의 행 값이 새는 자리가 된다. 나가는 것은 이름뿐이다.</li>
     <li>필드 이름은 <code>detail</code> 에서 읽으므로 서버 로케일(<code>lc_messages</code>)이 영어가 아니면 못 읽을 수 있다. 그때는 <code>fields</code> 가 비고 <b>제약 이름만</b> 남는다 — 이름이라도 있는 편이 "internal error" 보다 낫다.</li>
+    <li><b><code>22P02</code> 는 그물이다</b>(2026-09-05 · REQ-API-106). 값이 어휘 밖이면 <code>::enum</code> 캐스팅이 여기서 죽는데 이 표에 없어서 <b>진짜 500</b> 으로 나갔다 — 클라이언트는 고칠 수 없는 요청을 재시도한다. 어휘 검사를 미리 두는 쪽이 더 친절한 답을 주지만(어느 목록에서 벗어났는지까지 말한다), 그것을 모든 자리에 심기 전까지 남은 자리가 어디든 400 이 되게 한다.</li>
+    <li><b><code>22P02</code> 에서도 값은 싣지 않는다.</b> Postgres 의 메시지는 <code>invalid input value for enum evidence_kind: "screenshot"</code> 처럼 <b>값을 포함한다.</b> 콜론 <b>앞까지만</b> 읽어 타입 이름(<code>details.pg_type</code>)만 싣는다 — 타입 이름은 스키마의 사실이라 새는 것이 없다. 서버 로케일이 영어가 아니면 못 읽고, 그때도 400 은 유지된다.</li>
     <li><b>모르는 오류는 그대로 500 이다.</b> 여기서 아무거나 4xx 로 만들면 서버의 결함이 사용자 잘못으로 둔갑하고, 그 순간 500 이 사라져 아무도 고치지 않는다.</li>
     <li>MCP 에서 특히 중요하다: 예전에는 이런 실패가 <code>NERV_UNAVAILABLE</code>("잠시 뒤 다시")로 나갔고, 그 코드를 받은 에이전트는 <b>영원히 실패할 요청을 재시도</b>한다. 중복 키는 기다린다고 풀리지 않는다.</li>
   </ul>
+
+<h4><code>::enum</code> 캐스팅 전수 점검 (2026-09-05 · REQ-API-112)</h4>
+
+  <p><code>22P02</code> 그물(REQ-API-106)은 <b>남은 자리가 어디든 400 이 되게</b> 한다. 그물이 하지 못하는 것은 <b>어느 목록에서 벗어났는지 말하는 것</b>이라, 자리마다의 어휘 검사를 한 번에 훑었다. <code>${…}::&lt;enum&gt;</code> 꼴 <b>62곳</b>을 전수로 확인한 결과다 — 다음 사람이 다시 세지 않게 남긴다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>부류</th><th>곳</th><th>무엇이 막는가</th></tr></thead>
+    <tbody>
+      <tr><td><b>어휘 검사를 새로 심음</b></td><td>19</td><td><code>assertVocab(…, &lt;enum&gt;.enumValues, '&lt;필드&gt;')</code> — <code>member_role</code>(4) · <code>agent_type</code> · <code>activity_type</code>(2) · <code>session_end_reason</code>(2) · <code>task_priority</code>(2) · <code>task_status</code> · <code>evidence_kind</code> · <code>spec_type</code> · <code>spec_relation_kind</code>(4) · <code>review_kind</code>(3) · <code>approval_decision</code> · <code>comment_status</code> · <code>notification_state</code> · <code>escalate_reason</code> · <code>question_urgency</code></td></tr>
+      <tr><td>이미 검사가 있었음</td><td>6</td><td><code>assertVocab</code> 이 앞에 있던 자리 · <code>resolutionOf</code> 가 판정하는 <code>resolution_kind</code>·<code>finding_status</code> · <code>CLAIM_RELEASE_INPUTS</code></td></tr>
+      <tr><td><b>zod 가 경계에서 막음</b></td><td>7</td><td>임포트 배치(<code>packages/schema/src/zod/import.ts</code> — <code>z.enum</code>). 값이 서비스에 닿기 전에 걸린다</td></tr>
+      <tr><td>리터럴 유니온 타입</td><td>3</td><td><code>approval_subject_type</code> — 시그니처가 값 여섯을 열거한 유니온이라 <b>컴파일러가 막는다</b></td></tr>
+      <tr><td>서버가 만든 값</td><td>27</td><td>삼항 리터럴(<code>'auto'</code>/<code>'manual'</code> · <code>'human'</code>/<code>'agent'</code>) · DB 에서 읽어 되쓰는 값 · 계산된 위험도 · 커서에 담겼던 값</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>요청에서 곧장 오는 캐스팅 중 검사 없는 것은 0곳이다.</b> 이 표의 마지막 두 부류는 값이 요청에서 오지 않으므로 검사를 두지 않는다 — 두면 "이 값이 사용자 입력일 수 있다" 는 잘못된 신호를 남긴다.</p>
 
   <p><b>더 친절한 답이 필요한 자리에는 여전히 미리 확인을 둔다</b> — 프로젝트 slug 가 그렇다(REQ-API-035): 보관된 것이 자리를 쥐고 있다는 사실까지 말해야 "복구"라는 길이 보이고, 그건 제약 위반만 보고는 알 수 없다.</p>
 
@@ -531,6 +551,12 @@
 
   <p>곁가지 정정: <code>invalid_input</code> 은 요청의 <b>모양</b>이 틀린 것이라 §1.4 의 기준("모양이냐 상태냐")대로 <b>400</b> 이다. 409 로 나가던 동안 화면은 이것을 "지금은 안 되지만 나중에는 될 일"(상태 충돌)과 구별할 수 없었다.</p>
 
+  <p><b>한 자리만 고쳤던 것이 드러났다</b>(2026-09-03 · 라이브 실측 — REQ-API-082). 위 규칙은 EP-SES-01 에만 적용돼 있었고, 같은 모양의 자리 넷은 값을 그대로 <code>::enum</code> 으로 캐스팅하거나 <code>Number()</code> 의 <code>NaN</code> 을 SQL 에 실어 <b>사용자의 오타가 500</b> 이 됐다: <code>?status=doing</code> · <code>?impl_status=nope</code> · <code>?v=abc</code> · <code>events?limit=abc</code>. 그리고 발견 큐(<code>?severity=HIGH</code>)는 반대 방향으로 어긋나 있었다 — 200 을 주면서 <b>필터를 조용히 버렸다.</b> 조용한 무시가 더 나쁘다: 500 은 실패를 알려 주지만 무시는 걸러진 화면이라고 믿게 만든다.</p>
+
+  <p>판정은 이제 한 곳이다(<code>common/query-vocab.ts</code>) — 어휘의 정본은 언제나 <code>@nerv/schema</code> 의 enum 이고, 표면은 그것을 다시 적지 않는다(D-05).</p>
+
+  <p><b>예외 원문은 나가지 않는다.</b> MCP 표면은 실패한 도구의 예외 메시지를 <code>details.detail</code> 에 그대로 실었는데, drizzle 의 예외 메시지는 <b>SQL 전문</b>이라 오타 하나가 스키마와 질의를 돌려주는 창이 됐다. 원인은 운영자 로그에 남고 모델에게는 "다시 시도할 수 있는 실패" 라는 사실만 준다.</p>
+
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
@@ -665,7 +691,8 @@
 
   <p>목록 응답은 전부 커서 방식이다. 오프셋 페이지네이션은 제공하지 않는다.</p>
   <ul>
-    <li>요청: <code>?cursor=&lt;opaque&gt;&amp;limit=&lt;n&gt;</code> — <code>limit</code> 기본 30·최대 100.</li>
+    <li>요청: <code>?cursor=&lt;opaque&gt;&amp;limit=&lt;n&gt;</code> — <code>limit</code> 기본 30·최대 100(<code>PAGE_LIMIT_DEFAULT</code>·<code>PAGE_LIMIT_MAX</code>).</li>
+    <li><b>예외 하나: 발견 큐와 게이트 표</b>(2026-09-05 명기). 발견은 기본 50·최대 200, 게이트 표의 브랜치는 기본 20·최대 200 이다 — 근거는 규모다(소급 적재 실측 발견 <b>18,650건</b>·브랜치 <b>441개</b>, <a href="screens.html">4.5</a> §2.6a). 30건씩 끊으면 facet 으로 좁히기 전에 페이지만 넘긴다. 값의 정본은 <code>@nerv/schema</code> 의 <code>FINDING_PAGE_LIMIT_*</code>·<code>GATE_BRANCH_LIMIT_*</code> 다 — <b>그전에는 <code>review.service.ts</code> 안에 박혀 있어 화면이 그 수를 알 길이 없었다</b>(REQ-CB-006 이 상수를 공유하라고 한 바로 그 이유다).</li>
     <li>응답 봉투: <code>{ "items": [...], "next_cursor": "&lt;opaque&gt;" | null }</code>.</li>
     <li>커서는 (정렬 키, id)를 인코딩한 불투명 문자열이며 클라이언트는 해석하지 않는다. 정렬 기준은 엔드포인트별로 §2 전표에 명시한다(기본: 생성 역순, 이벤트 피드는 <code>occurred_at DESC</code>).</li>
   </ul>
@@ -727,10 +754,14 @@
       <tr><td>EP-AUTH-01</td><td><code>GET /api/v1/me</code></td><td>로그인 사용자</td><td>—</td><td><code>MeResult</code>(프로필 + 멤버십·역할 목록)</td><td>—</td></tr>
       <tr><td>EP-ORG-01</td><td><code>GET /api/v1/orgs</code></td><td>로그인 사용자</td><td>—</td><td><code>Page&lt;OrgSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-ORG-02</td><td><code>GET /api/v1/orgs/{org}</code></td><td>조직 멤버</td><td>—</td><td><code>OrgResult</code></td><td>—</td></tr>
+      <tr><td>EP-ORG-03</td><td><code>POST /api/v1/orgs</code></td><td>로그인 사용자</td><td><code>OrgCreateInput</code>(slug, name)</td><td><code>OrgResult</code> — 만든 사람이 그 조직의 <b>admin</b> 이 된다</td><td>—</td></tr>
+      <tr><td>EP-ORG-04</td><td><code>PATCH /api/v1/orgs/{org}</code></td><td>admin</td><td><code>OrgUpdateInput</code>(name)</td><td><code>OrgResult</code> — <b>slug 는 바꾸지 않는다</b>(링크의 축 · D-09)</td><td>—</td></tr>
+      <tr><td>EP-ORG-05</td><td><code>DELETE /api/v1/orgs/{org}</code></td><td>admin</td><td>—</td><td><code>{deleted:true}</code> — <b>프로젝트가 하나라도 있으면 409</b>. 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계(프로젝트 보관)를 세운다</td><td>—</td></tr>
       <tr><td>EP-PRJ-01</td><td><code>GET /api/v1/orgs/{org}/projects</code></td><td>조직 멤버</td><td>—</td><td><code>Page&lt;ProjectSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-PRJ-02</td><td><code>POST /api/v1/orgs/{org}/projects</code></td><td>admin</td><td><code>ProjectCreateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.created</code></td></tr>
       <tr><td>EP-PRJ-03</td><td><code>GET /api/v1/projects/{proj}</code></td><td>프로젝트 멤버</td><td>—</td><td><code>ProjectResult</code>(게이트 정책 <code>gate_policy</code>·보존 <code>retention</code>·활성 세션/승인 대기 카운트 포함)</td><td>—</td></tr>
       <tr><td>EP-PRJ-04</td><td><code>PATCH /api/v1/projects/{proj}</code></td><td>admin <b>· 사람 전용</b>(§1.3b — 토큰은 403 <code>NERV_HUMAN_ONLY</code>) (게이트 정책·위험도 임계는 admin 전용 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6 매트릭스)</td><td><code>ProjectUpdateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.updated</code></td></tr>
+      <tr><td>EP-PRJ-05</td><td><code>POST /api/v1/projects/{proj}/archive</code> · <code>/restore</code></td><td>admin <b>· 사람 전용</b>(§1.3b)</td><td>—</td><td><code>ProjectResult</code> — <b>지우지 않고 보관한다</b>(<code>archived_at</code>). 목록에서 빠지되 주소는 살아 있다(EP-SPEC-16·17 과 같은 규약). EP-PRJ-01 은 <code>include_archived=true</code> 로만 보관분을 준다</td><td>—</td></tr>
       <tr><td>EP-MBR-01</td><td><code>GET /api/v1/orgs/{org}/members</code></td><td>조직 멤버</td><td>—</td><td><code>Page&lt;MemberResult&gt;</code></td><td>—</td></tr>
       <tr><td>EP-MBR-02</td><td><code>POST /api/v1/orgs/{org}/members</code></td><td>admin</td><td><code>MemberAddInput</code>(user + org/project 스코프 + <code>role</code>)</td><td><code>MemberResult</code></td><td>★<code>member.added</code></td></tr>
       <tr><td>EP-MBR-03</td><td><code>PATCH /api/v1/memberships/{id}</code></td><td>admin</td><td><code>MemberUpdateInput</code>(role 변경)</td><td><code>MemberResult</code></td><td>★<code>member.updated</code></td></tr>
@@ -775,15 +806,15 @@
     <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
     <tbody>
       <tr><td>EP-SPEC-01</td><td><code>GET /api/v1/projects/{proj}/specs/tree</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecTreeQuery</code>(root, depth, status, type, include_archived — 기본 false, REQ-API-022 · root·depth 는 REQ-API-090 · status·type 은 REQ-API-092·093)</td><td><code>SpecTreeResult</code>(id·title·type·문서 상태·현재 버전·<code>archived_at</code>)</td><td>—</td></tr>
-      <tr><td>EP-SPEC-02</td><td><code>GET /api/v1/projects/{proj}/specs/search</code></td><td>전 역할</td><td><code>SpecSearchQuery</code>(query, type, status, requirement_id, <b>references</b>(이 스펙을 참조하는 문서만), include_archived — 기본 false(REQ-API-022), limit)</td><td><code>SpecSearchResult</code>(안정 ID + 앵커 + 스니펫 + 관련도, <b><code>related[]</code></b> 1-hop 관계 확장 그룹, <b><code>degraded?</code></b> — 파이프라인은 §2.2b)</td><td>—</td></tr>
+      <tr><td>EP-SPEC-02</td><td><code>GET /api/v1/projects/{proj}/specs/search</code></td><td>전 역할</td><td><code>SpecSearchQuery</code>(<b>q</b>(질의 — 인자 이름은 <code>query</code> 가 아니다), type·status(쉼표 목록 — 2026-09-05 배선 · REQ-API-099. 어휘 밖은 400), requirement_id(<b>그 요구사항이 속한 스펙으로 좁힌다</b> — 2026-09-05 배선 · REQ-API-110. 키 또는 UUID, 없는 요구사항은 빈 결과가 아니라 409), <b>references</b>(이 스펙을 참조하는 문서만), include_archived — 기본 false(REQ-API-022), limit)</td><td><code>SpecSearchResult</code>(안정 ID + 앵커 + 스니펫 + 관련도, <b><code>related[]</code></b> 1-hop 관계 확장 그룹, <b><code>degraded?</code></b> — 파이프라인은 §2.2b)</td><td>—</td></tr>
       <tr><td>EP-SPEC-03</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}</code></td><td>전 역할</td><td><code>SpecGetQuery</code>(<code>version</code> 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, <code>baseline</code> 이름으로 세트 조회 가능(<code>version</code>과 배타), <code>include</code>(쉼표 구분) — 구현: tasks·comments/<b>relations</b>(양방향 요약 — 총계 + 상위 20, 전량·커서는 EP-SPEC-18))</td><td><code>SpecGetResult</code>(+<code>basis_superseded?</code> — 요청 버전이 superseded면 최신 approved 번호와 함께 표시)</td><td>—</td></tr>
       <tr><td>EP-SPEC-04</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions</code></td><td>전 역할</td><td>—</td><td><code>Page&lt;SpecVersionSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-SPEC-05</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}</code></td><td>전 역할</td><td>—</td><td><code>SpecVersionResult</code>(불변 스냅샷 — 같은 <code>{no}</code>는 영원히 같은 응답)</td><td>—</td></tr>
       <tr><td>EP-SPEC-06</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/diff</code></td><td>전 역할</td><td><code>SpecDiffQuery</code>(from, to)</td><td><code>SpecDiffResult</code>(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff)</td><td>—</td></tr>
       <tr><td>EP-SPEC-07</td><td><code>POST /api/v1/projects/{proj}/specs</code></td><td>planner·admin ●, designer(design)·developer(convention/adr) ○, <b>qa ✗</b>(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. <code>spec:draft</code> 는 유지)</td><td><code>SpecCreateInput</code>(parent_id, type, title, body_markdown)</td><td><code>SpecDraftResult</code>(spec + draft v1) — <b>보관된 부모 아래에는 만들지 못한다</b>: 409 <code>NERV_PRECONDITION</code>(<code>details.kind="parent_archived"</code>, REQ-API-039)</td><td><code>spec.draft_created</code></td></tr>
-      <tr><td>EP-SPEC-08</td><td><code>PUT /api/v1/projects/{proj}/specs/{spec}/draft</code></td><td>EP-SPEC-07과 동일(<code>spec:draft</code>)</td><td><code>SpecDraftUpsertInput</code>(body_markdown, <b>base_version</b>, change_summary)</td><td><code>SpecDraftResult</code>(version, 델타 요약, 검증 경고, <code>web_url</code>)</td><td>새 draft 버전 생성 시 <code>spec.draft_created</code>, 같은 draft 재저장은 이벤트 없음(리스 갱신만)</td></tr>
+      <tr><td>EP-SPEC-08</td><td><code>PUT /api/v1/projects/{proj}/specs/{spec}/draft</code></td><td>EP-SPEC-07과 동일(<code>spec:draft</code>)</td><td><code>SpecDraftUpsertInput</code>(body_markdown, <b>base_hash</b>(2026-08-30 — <code>base_version</code> 은 표면에서 걷었다: 계보는 서버가 채운다, §1.4i), change_summary, <b>relations</b>(선언 관계 — 2026-09-05 배선 · REQ-API-043. 그전에는 REST 만 이것을 읽지 않아 관계가 성공 응답과 함께 버려졌다))</td><td><code>SpecDraftResult</code>(version, 델타 요약, 검증 경고, <code>web_url</code>)</td><td>새 draft 버전 생성 시 <code>spec.draft_created</code>, <b>같은 draft 재저장은 <code>spec.draft_updated</code></b>(2026-08-29 개정 — 예전에는 "이벤트 없음(리스 갱신만)"이었다. 에이전트가 스펙을 쓰는 방식이 대부분 이 경로라, 본문이 바뀌어도 화면이 새로고침 전에는 알 수 없었다)</td></tr>
       <tr><td>EP-SPEC-09</td><td><code>GET /api/v1/projects/{proj}/spec-versions/{ver}/check</code></td><td>전 역할(읽기 전용 셀프서비스)</td><td>—</td><td><code>SpecCheckResult</code>(5검사기별 warning/block + 앵커 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §2.1)</td><td>—</td></tr>
-      <tr><td>EP-SPEC-10</td><td><code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td>작성자 본인 또는 planner</td><td><code>SpecSubmitInput</code>(reviewer_hint, note)</td><td><code>SpecSubmitResult</code>(approval_id[], 지정 리뷰어·SLA)</td><td><code>spec.submitted</code> + <code>approval.requested</code></td></tr>
+      <tr><td>EP-SPEC-10</td><td><code>POST /api/v1/projects/{proj}/spec-versions/{ver}/submit</code></td><td>작성자 본인 또는 planner</td><td><b>본문 없음</b> — <code>reviewer_hint</code>·<code>note</code> 는 2026-09-03 에 걷었다(리뷰어 지정은 게이트가 §6.3 규칙으로 정하고, 변경 요약은 초안의 <code>change_summary_md</code> 가 이미 나른다). 이 행이 그 뒤로도 둘을 적고 있었고 2026-09-05 에 스키마 대조 검사가 짚었다</td><td><code>SpecSubmitResult</code>(approval_id[], 지정 리뷰어·SLA)</td><td><code>spec.submitted</code> + <code>approval.requested</code></td></tr>
       <tr><td>EP-CMT-01</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/comments</code></td><td>전 역할</td><td><code>CommentListQuery</code>(status: open/resolved)</td><td><code>Page&lt;CommentResult&gt;</code></td><td>—</td></tr>
       <tr><td>EP-CMT-02</td><td><code>POST /api/v1/projects/{proj}/spec-versions/{ver}/comments</code></td><td>전 역할(viewer 포함 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6 "스펙 조회·코멘트")</td><td><code>CommentCreateInput</code>(anchor: 헤딩 slug 또는 REQ ref, body_md)</td><td><code>CommentResult</code></td><td><code>spec.comment_added</code></td></tr>
       <tr><td>EP-CMT-03</td><td><code>PATCH /api/v1/projects/{proj}/comments/{id}</code></td><td>작성자 본인</td><td><code>CommentUpdateInput</code>(body_md)</td><td><code>CommentResult</code></td><td>—</td></tr>
@@ -796,7 +827,7 @@
       <tr><td>EP-SPEC-16</td><td><code>POST /api/v1/projects/{proj}/specs/{spec}/archive</code></td><td>planner·admin (<code>spec:meta</code>)</td><td>—</td><td><code>SpecResult</code>(<code>archived_at</code> 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409(<code>details.kind="archive_blocked"</code>, 차단 사유 목록)</td><td>★<code>spec.archived</code></td></tr>
       <tr><td>EP-SPEC-17</td><td><code>POST /api/v1/projects/{proj}/specs/{spec}/restore</code></td><td>planner·admin (<code>spec:meta</code>)</td><td>—</td><td><code>SpecResult</code>(<code>archived_at</code> NULL) — 부모가 아카이브 상태면 409(<code>details.kind="parent_archived"</code>)</td><td>★<code>spec.restored</code></td></tr>
       <tr><td>EP-SPEC-18</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/relations</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecRelationQuery</code>(direction: out/in/both 기본 both, kind?, cursor)</td><td><code>Page&lt;SpecRelationEntry&gt;</code>(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — <b>역참조(backlink)가 1급이다</b>: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널(<a href="screens.html">4.5 화면 명세</a> §2.4)과 영향 미리보기의 데이터 소스</td><td>—</td></tr>
-      <tr><td>EP-SPEC-19</td><td><code>GET /api/v1/projects/{proj}/specs/graph</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecGraphQuery</code>(include_archived — 기본 false)</td><td><code>SpecGraphResult</code>(<code>nodes[]</code> 트리와 같은 모양 + <code>edges[]</code> from_id·to_id·kind) — <td>전역 관계 그래프 — 노드(트리와 같은 모양) + 간선을 <b>한 응답</b>으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 <a href="screens.html">4.5</a> §2.4a</td></tr>
+      <tr><td>EP-SPEC-19</td><td><code>GET /api/v1/projects/{proj}/specs/graph</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecGraphQuery</code>(include_archived — 기본 false)</td><td><code>SpecGraphResult</code>(<code>nodes[]</code> 트리와 같은 모양 + <code>edges[]</code> from_id·to_id·kind) — 전역 관계 그래프를 <b>한 응답</b>으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 <a href="screens.html">4.5</a> §2.4a</td><td>—</td></tr>
     </tbody>
   </table></div>
 
@@ -873,7 +904,7 @@
     <tbody>
       <tr><td>EP-REQ-01</td><td><code>GET /api/v1/projects/{proj}/requirements</code></td><td>전 역할</td><td><code>RequirementListQuery</code>(spec, impl_status, cursor)</td><td><code>Page&lt;RequirementResult&gt;</code>(<code>ref</code>·<code>statement_md</code>·<code>impl_status</code>·연결 Task/Evidence 수)</td><td>—</td></tr>
       <tr><td>EP-REQ-02</td><td><code>GET /api/v1/projects/{proj}/requirements/{ref}</code></td><td>전 역할</td><td>—</td><td><code>RequirementDetailResult</code>(버전 이력 + 파생 Task + Evidence)</td><td>—</td></tr>
-      <tr><td>EP-REQ-03</td><td><code>POST /api/v1/projects/{proj}/requirements/{ref}/evidence</code></td><td>developer·qa·admin <b>AND <code>spec:evidence</code></b> (CI는 PAT — §1.3b)</td><td><code>EvidenceCreateInput</code>(kind: code_path/test/pr/commit, locator, repo)</td><td><code>EvidenceResult</code></td><td>★<code>evidence.added</code></td></tr>
+      <tr><td>EP-REQ-03</td><td><code>POST /api/v1/projects/{proj}/requirements/{ref}/evidence</code></td><td>developer·qa·admin <b>AND <code>spec:evidence</code></b> (CI는 PAT — §1.3b)</td><td><code>EvidenceCreateInput</code>(kind: <b>6종</b> <code>code_path</code>/<code>test</code>/<code>pr</code>/<code>commit</code>/<code>review</code>/<code>user_guide</code> — 어휘 정본은 <code>evidence_kind</code> enum 이고 밖의 값은 400 이다(2026-09-05 · REQ-API-101. 그전에는 검사 없이 캐스팅돼 오타가 500 이었다), locator, repo)</td><td><code>EvidenceResult</code></td><td>★<code>evidence.added</code></td></tr>
     </tbody>
   </table></div>
 
@@ -891,7 +922,7 @@
       <tr><td>EP-TASK-05</td><td><code>PATCH /api/v1/projects/{proj}/tasks/{task}</code></td><td>planner·developer·admin <b>AND <code>task:update</code></b></td><td><code>TaskUpdateInput</code>(위임 명세·priority·의존)</td><td><code>TaskResult</code> — 위임 명세 4요소 충족 + 의존 해소 시 서버가 <code>ready</code> 승격</td><td><code>task.ready</code>(승격 시)</td></tr>
       <tr><td>EP-TASK-06</td><td><code>POST /api/v1/projects/{proj}/tasks/{task}/claim</code></td><td>viewer 제외 전 역할(<code>task:claim</code>)</td><td><code>TaskClaimInput</code>(scope{spec_ids, file_globs}, branch, worktree, lease_seconds)</td><td><code>TaskClaimResult</code>(claim_id, lease_expires_at, warnings[]) — 겹침 <code>block</code>이면 409 <code>NERV_CONFLICT_SCOPE</code></td><td><code>task.claimed</code> / <code>claim.conflict_warn</code> / <code>claim.conflict_blocked</code></td></tr>
       <tr><td>EP-TASK-07</td><td><code>POST /api/v1/projects/{proj}/claims/{claim}/heartbeat</code></td><td>클레임 보유자</td><td><code>HeartbeatInput</code>(progress, stats{added, removed, files})</td><td><code>HeartbeatResult</code>(새 lease_expires_at + pending 질문 답변·steer/stop 지시)</td><td>— (이벤트 없음 — <code>last_heartbeat_at</code> 갱신만)</td></tr>
-      <tr><td>EP-TASK-08</td><td><code>POST /api/v1/projects/{proj}/claims/{claim}/release</code></td><td>클레임 보유자 또는 admin</td><td><code>ClaimReleaseInput</code>(reason: done/handoff/abandon, state_note)</td><td><code>ClaimReleaseResult</code>(Task 최종 상태 — <code>claimed → ready</code> 회수 또는 유지)</td><td>★<code>claim.released</code> + <code>task.ready</code>(회수 시)</td></tr>
+      <tr><td>EP-TASK-08</td><td><code>POST /api/v1/projects/{proj}/claims/{claim}/release</code></td><td>클레임 보유자 또는 admin</td><td><code>ClaimReleaseInput</code>(reason: <b>done/handoff/abandon — 어휘 밖은 400</b> 이다(2026-09-05 · REQ-API-107. 그전에는 REST 가 "셋 중 하나가 아니면 handoff" 로 조용히 바꿨고, 저장은 <code>done</code> 외를 전부 <code>manual</code> 로 뭉쳤다), state_note)</td><td><code>ClaimReleaseResult</code>(Task 최종 상태 — <code>claimed → ready</code> 회수 또는 유지)</td><td>★<code>claim.released</code> + <code>task.ready</code>(회수 시)</td></tr>
       <tr><td>EP-TASK-09</td><td><code>POST /api/v1/projects/{proj}/tasks/{task}/transition</code></td><td>담당자·planner·admin(<code>task:update</code>)</td><td><code>TaskTransitionInput</code>(status, note, evidence{commit_sha, pr_url, test_ids}, blocked_reason)</td><td><code>TaskResult</code> 또는 409(게이트 거부 사유 — FR-10)</td><td><code>task.blocked</code> · <code>task.done</code> · 기타 전이는 ★<code>task.updated</code>(payload에 from/to)</td></tr>
     </tbody>
   </table></div>
@@ -978,6 +1009,7 @@
       <tr><td>EP-APR-04</td><td><code>POST /api/v1/projects/{proj}/gates/bypass</code></td><td>admin ●, planner(스펙 계열)·developer(코드 계열) ○</td><td><code>GateBypassInput</code>(대상, 사유, 유효 시간)</td><td><code>ApprovalResult</code>(is_bypass=true)</td><td><code>gate.bypassed</code></td></tr>
       <tr><td>EP-QST-01</td><td><code>GET /api/v1/projects/{proj}/questions</code></td><td>전 역할</td><td><code>QuestionListQuery</code>(status: open/answered, cursor)</td><td><code>Page&lt;QuestionResult&gt;</code>(선택지·대기 세션·경과)</td><td>—</td></tr>
       <tr><td>EP-QST-02</td><td><code>POST /api/v1/projects/{proj}/questions/{id}/answer</code></td><td>대상 역할 또는 지정자 — 사람 전용</td><td><code>QuestionAnswerInput</code>(answer_key 또는 answer_md)</td><td><code>QuestionResult</code>(status=answered) — 내부적으로 ApprovalService.decide(subject=question) 한 경로</td><td>★<code>question.answered</code></td></tr>
+      <tr><td>EP-QST-03</td><td><code>POST /api/v1/projects/{proj}/questions/{id}/cancel</code></td><td>전 역할(<code>task:update</code>) — <b>사람과 그 질문을 만든 세션 둘 다</b>(2026-09-05 · REQ-API-109). 남의 질문은 사람만 내린다</td><td>—</td><td><code>QuestionResult</code>(status=<code>cancelled</code>) — 열린 질문에만 걸린다(답이 달렸으면 그 답이 사실이다)</td><td>★<code>question.cancelled</code></td></tr>
     </tbody>
   </table></div>
 
@@ -985,7 +1017,7 @@
 
   <h3 id="ep-rev">2.6a 리뷰·발견 (S6 — <b>Phase 2</b>, 2026-08-23 착수)</h3>
 
-  <p>리뷰 수집(FR-09)은 MVP 범위가 아니다(<a href="scope.html">4.1 범위</a> §5 착수 기록). 서버·도구가 먼저 들어왔고 S6 화면은 아직 없다 — 이 전표는 <b>도구 2종과 같은 서비스</b>를 가리키는 REST 표면이다(D-05).</p>
+  <p>리뷰 수집(FR-09)은 MVP 범위 밖으로 계획했으나 <b>지금은 화면까지 들어와 있다</b>(2026-09-05 현황 정정 · <a href="scope.html">4.1 범위</a> §5 착수 기록). 서버·도구가 먼저였고 S6 리뷰 센터는 라우트·사이드바 탭·배지·facet·처분·코멘트·승격까지 동작한다 — 이 전표는 <b>도구 2종과 같은 서비스</b>를 가리키는 REST 표면이다(D-05).</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
@@ -1011,7 +1043,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
     <tbody>
-      <tr><td>EP-EVT-01</td><td><code>GET /api/v1/projects/{proj}/events</code></td><td>전 역할(<code>audit:read</code>는 조직 전역 감사 조회에만 요구)</td><td><code>EventListQuery</code>(since, type[], subject_type, subject_id, cursor) — <code>occurred_at DESC</code></td><td><code>Page&lt;EventResult&gt;</code>(actor{user, session, is_agent}·from/to state·payload — <a href="data-model.html">3.3 데이터 모델</a> §2.9)</td><td>—</td></tr>
+      <tr><td>EP-EVT-01</td><td><code>GET /api/v1/projects/{proj}/events</code></td><td>전 역할(<code>spec:read</code>) — <code>audit:read</code> 라는 스코프는 <b>존재한 적 없다</b>(2026-09-05 정정)</td><td><code>EventListQuery</code>(since, type[], subject_type, subject_id, cursor) — <code>occurred_at DESC</code></td><td><code>Page&lt;EventResult&gt;</code>(actor{user, session, is_agent}·from/to state·payload — <a href="data-model.html">3.3 데이터 모델</a> §2.9)</td><td>—</td></tr>
       <tr><td>EP-NTF-01</td><td><code>GET /api/v1/me/notifications</code></td><td>본인</td><td><code>NotificationListQuery</code>(state: unread/read, cursor)</td><td><code>Page&lt;NotificationResult&gt;</code></td><td>—</td></tr>
       <tr><td>EP-NTF-02</td><td><code>POST /api/v1/me/notifications/{id}/read</code></td><td>본인</td><td>—</td><td><code>{ok:true}</code></td><td>—</td></tr>
       <tr><td>EP-NTF-03</td><td><code>POST /api/v1/me/notifications/read-all</code></td><td>본인</td><td>—</td><td><code>{ok:true, marked:&lt;수&gt;}</code> — <b>몇 건을 읽었는지 말한다</b></td><td>—</td></tr>
@@ -1136,10 +1168,10 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th><th>검증</th></tr></thead>
     <tbody>
-      <tr><td>REQ-API-031</td><td>WHEN 초대를 만들면 THE SYSTEM SHALL 토큰 원문을 그 응답에서만 반환하고 저장은 해시로 한다</td><td>생성 1건 + DB 조회</td></tr>
-      <tr><td>REQ-API-032</td><td>WHEN 초대받은 이메일과 다른 계정이 수락을 시도하면 THE SYSTEM SHALL 403 <code>NERV_FORBIDDEN</code>(<code>kind=email_mismatch</code>)으로 거부한다</td><td>다른 계정 1건</td></tr>
-      <tr><td>REQ-API-033</td><td>WHILE 초대가 만료·회수·수락 상태이면 THE SYSTEM SHALL 수락을 거부하고 그 상태를 사유로 말한다</td><td>세 상태 각 1건</td></tr>
-      <tr><td>REQ-API-034</td><td>WHEN 같은 스코프·같은 이메일로 초대를 다시 만들면 THE SYSTEM SHALL 앞의 대기 초대를 회수하고 새 토큰을 발급한다</td><td>재발급 1건</td></tr>
+      <tr><td>REQ-API-102</td><td>WHEN 초대를 만들면 THE SYSTEM SHALL 토큰 원문을 그 응답에서만 반환하고 저장은 해시로 한다</td><td>생성 1건 + DB 조회</td></tr>
+      <tr><td>REQ-API-103</td><td>WHEN 초대받은 이메일과 다른 계정이 수락을 시도하면 THE SYSTEM SHALL 403 <code>NERV_FORBIDDEN</code>(<code>kind=email_mismatch</code>)으로 거부한다</td><td>다른 계정 1건</td></tr>
+      <tr><td>REQ-API-104</td><td>WHILE 초대가 만료·회수·수락 상태이면 THE SYSTEM SHALL 수락을 거부하고 그 상태를 사유로 말한다</td><td>세 상태 각 1건</td></tr>
+      <tr><td>REQ-API-105</td><td>WHEN 같은 스코프·같은 이메일로 초대를 다시 만들면 THE SYSTEM SHALL 앞의 대기 초대를 회수하고 새 토큰을 발급한다</td><td>재발급 1건</td></tr>
     </tbody>
   </table></div>
 
@@ -1258,6 +1290,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td><code>approval.requested</code></td><td>EP-SPEC-10·플랜 승인·BYPASS 요청</td><td>지정 승인자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>question.created</code></td><td>MCP <code>nerv_question_create</code></td><td>대상 역할/지정자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
       <tr><td>★<code>question.answered</code></td><td>EP-APR-03·EP-QST-02</td><td>요청 세션 소유자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td>★<code>question.cancelled</code></td><td>EP-QST-03</td><td>요청 세션 소유자 <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>gate.bypassed</code></td><td>EP-APR-04</td><td>admin <code>user:{id}</code> + <code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>gate.failopen</code></td><td>게이트 판정 불가(D-14, <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §1.3)</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td>★<code>import.applied</code></td><td>EP-IMP-02·03·04 배치 적재(§2.10)</td><td><code>project:{id}</code></td><td>P0</td></tr>
@@ -1295,9 +1328,9 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
     <li><b>연결 상한</b>: 사용자당 동시 SSE 연결 8개(WS의 project 룸 8개 제한과 같은 값). 초과 시 429 <code>NERV_RATE_LIMIT</code>.</li>
   </ul>
 
-  <h2 id="sec-4">4. MCP 도구 23종 ↔ 내부 서비스 ↔ REST 대응</h2>
+  <h2 id="sec-4">4. MCP 도구 24종 ↔ 내부 서비스 ↔ REST 대응</h2>
 
-  <p>카탈로그는 <b>23종</b>이고 단계 분포는 <b>P0 8 · P1 13 · P2 2</b>다(2026-09-04 실측 — 도구 레지스트리 기준). P2 둘은 <code>nerv_review_submit</code>·<code>nerv_finding_resolve</code> 다. <a href="scope.html">4.1 MVP 범위와 스택 확정</a> 이 적은 <b>MVP 21종</b>(P0 8 + P1 13) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 <a href="agent-integration.html">에이전트 연동 설계</a> §2.3이 정본이고, 이 표는 <b>같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점</b>만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.</p>
+  <p>카탈로그는 <b>24종</b>이고 단계 분포는 <b>P0 8 · P1 14 · P2 2</b>다(2026-09-05 실측 — 도구 레지스트리 기준). P2 둘은 <code>nerv_review_submit</code>·<code>nerv_finding_resolve</code> 다. <a href="scope.html">4.1 MVP 범위와 스택 확정</a> 이 적은 <b>MVP 21종</b>(P0 8 + P1 13) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 <a href="agent-integration.html">에이전트 연동 설계</a> §2.3이 정본이고, 이 표는 <b>같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점</b>만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.</p>
 
   <p>임포트 표면(§2.10)은 이 표에 없다 — <b>대응하는 MCP 도구가 없기 때문</b>이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). 에이전트가 관여하는 지점은 도구가 아니라 CLI를 감싸는 스킬 <code>/nerv:import</code>다.</p>
 
@@ -1312,7 +1345,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td><code>nerv_task_claim</code></td><td>A2</td><td><code>TaskService.claim</code></td><td>EP-TASK-06</td><td>겹침 판정·원자 전환이 이 메서드 안 — 표면 무관 동일</td></tr>
       <tr><td><code>nerv_task_heartbeat</code></td><td>A1</td><td><code>TaskService.heartbeat</code></td><td>EP-TASK-07</td><td>응답의 <code>pending</code> 역채널 포함</td></tr>
       <tr><td><code>nerv_task_release</code></td><td>A2</td><td><code>TaskService.release</code></td><td>EP-TASK-08</td><td></td></tr>
-      <tr><td><code>nerv_spec_draft_upsert</code></td><td>A2</td><td><code>SpecService.draftUpsert</code></td><td>EP-SPEC-07·08</td><td><code>base_version</code> 409·초안 편집 리스가 이 메서드 안. 메타 필드(parent_id·type·title)는 생성에서만 소비 — 기존 spec에 다른 값이 오면 409(§2.2). 메타 수정은 EP-SPEC-15 전용(도구 없음)</td></tr>
+      <tr><td><code>nerv_spec_draft_upsert</code></td><td>A2</td><td><code>SpecService.draftUpsert</code></td><td>EP-SPEC-07·08</td><td><code>base_hash</code> 비교-교환·초안 편집 리스가 이 메서드 안. 메타 필드(parent_id·type·title)는 생성에서만 소비 — 기존 spec에 다른 값이 오면 409(§2.2). 메타 수정은 EP-SPEC-15 전용(도구 없음)</td></tr>
       <tr><td><code>nerv_spec_submit_review</code></td><td><b>A3</b></td><td><code>SpecService.submitReview</code> → <code>ApprovalService.request</code></td><td>EP-SPEC-10</td><td>pending Approval 재사용(카드 중복 금지) — 표면 무관</td></tr>
       <tr><td><code>nerv_spec_check</code></td><td>A1</td><td><code>SpecService.check</code></td><td>EP-SPEC-09</td><td>5검사기 서비스 호출</td></tr>
       <tr><td><code>nerv_spec_comment_resolve</code></td><td>A2</td><td><code>SpecService.resolveComment</code></td><td>EP-CMT-04</td><td></td></tr>
@@ -1360,6 +1393,17 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td>REQ-API-012</td><td>WHEN 쿼터를 초과한 요청이 오면 THE SYSTEM SHALL HTTP 429 <code>NERV_RATE_LIMIT</code>과 <code>retry_after_s</code>·<code>Retry-After</code> 헤더를 함께 반환한다</td><td>버스트 요청</td></tr>
       <tr><td>REQ-API-013</td><td>WHEN 미인증 요청이 <code>/sse/*</code>에 오면 THE SYSTEM SHALL HTTP 401 <code>NERV_UNAUTHENTICATED</code>로 거부하고, WHEN 비멤버 사용자 또는 타 프로젝트 PAT가 EP-SSE-01을 요청하면 THE SYSTEM SHALL HTTP 403 <code>NERV_FORBIDDEN</code>으로 스트림을 열지 않는다</td><td>쿠키 없음·타 프로젝트 PAT 각 1케이스</td></tr>
       <tr><td>REQ-API-014</td><td>WHILE SSE 스트림이 열려 있는 동안, THE SYSTEM SHALL 25초 주기의 코멘트 라인(<code>: ping</code>)을 송신해 프록시 유휴 타임아웃을 방지한다</td><td>60초 무이벤트 구간에서 keep-alive 2회 이상 수신</td></tr>
+      <tr><td>REQ-API-101</td><td>WHEN EP-REQ-03 에 어휘 밖의 <code>kind</code> 가 오면 THE SYSTEM SHALL 400 <code>NERV_PRECONDITION</code>(<code>field: "kind"</code>)으로 거절한다 — 값이 검사 없이 <code>::evidence_kind</code> 로 캐스팅돼 <b>오타 하나가 22P02(진짜 500)</b> 로 나가던 자리다(<code>db-error.ts</code> 의 SQLSTATE 목록에 22P02 는 없다)</td><td>어휘 밖 400 1건 · 6종 전부 수락 1건</td></tr>
+      <tr><td>REQ-API-106</td><td>WHEN 어느 표면이든 값의 모양이 타입과 맞지 않아 DB 가 <code>22P02</code> 로 거절하면 THE SYSTEM SHALL 400 <code>NERV_PRECONDITION</code>(<code>kind=invalid_text_representation</code>, <code>pg_type</code>)으로 돌려주고 <b>요청 값은 응답에 싣지 않는다</b> — 이 코드가 표에 없어 어휘 밖 값이 진짜 500 으로 나갔고, 500 은 "기다렸다 다시" 라는 뜻이라 클라이언트가 고칠 수 없는 요청을 재시도했다(2026-09-05)</td><td>enum 400 1건 · UUID 400 1건 · 로케일 미해독 1건 · L2 표면 1건</td></tr>
+      <tr><td>REQ-API-107</td><td>WHEN 클레임 내려놓기에 <code>reason</code> 이 오면 THE SYSTEM SHALL 그 값을 <b>그대로</b> <code>release_reason</code> 에 저장하고, <code>CLAIM_RELEASE_INPUTS</code>(done/handoff/abandon) 밖의 값은 400 으로 거절한다 — 그전에는 저장이 <code>done</code> 외를 전부 <code>manual</code> 로 뭉쳐 <b>인계와 포기가 구별되지 않았고</b>, REST 는 그 위에 "셋 중 하나가 아니면 handoff" 라는 조용한 변환까지 얹고 있었다(2026-09-05)</td><td>세 값 각 1건 · 어휘 밖 400 1건(클레임 불변 확인 포함)</td></tr>
+      <tr><td>REQ-API-108</td><td>WHEN 발견 처분이 <code>escalated</code> 로 오면 THE SYSTEM SHALL <code>escalate_reason</code> 을 <b>필수로 요구</b>하고 처분 레코드를 남기되 <b>발견의 상태는 <code>open</code> 으로 유지한다</b> — 넘긴 것은 해결한 것이 아니고, 큐에서 사라지면 "누가 보고 있다" 가 "아무도 안 본다" 와 화면에서 같아진다(2026-09-05)</td><td>escalated 저장·큐 유지 1건 · 사유 없음 400 1건 · critical 승인 게이트 비적용 1건</td></tr>
+      <tr><td>REQ-API-109</td><td>WHEN 열린 질문에 취소가 오면 THE SYSTEM SHALL <b>사람과 그 질문을 만든 세션에만</b> 허용하고 <code>cancelled</code> 로 전이한 뒤 대기 중이던 세션을 깨운다 — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이라, 그 길을 막으면 그 질문이 사람의 수신함에 남는다(2026-09-05)</td><td>세션 자기 취소 1건 · 사람 취소 1건 · 남의 질문 403 1건 · 답변된 질문 400 1건</td></tr>
+      <tr><td>REQ-API-110</td><td>WHEN EP-SPEC-02·<code>nerv_spec_search</code> 에 <code>requirement_id</code> 가 오면 THE SYSTEM SHALL <b>그 요구사항이 속한 스펙</b>의 결과만 남기고(키 또는 UUID), 없는 요구사항은 409 <code>not_found</code> 로 거절한다 — 빈 결과로 답하면 오타가 "그 요구사항 주변에는 아무것도 없다" 라는 사실이 되어 돌아온다(2026-09-05)</td><td>키 1건 · UUID 1건 · 없는 요구사항 409 1건</td></tr>
+      <tr><td>REQ-API-111</td><td>WHEN 사람 전용 동작(프로젝트 설정·보관·복구 · 스펙 메타·보관·복구 · 기준선 생성 · steer · 받은 요청 조회·결정)이 요청되면 THE SYSTEM SHALL <b>도메인 서비스에서</b> 주체가 에이전트인지 판정해 <code>NERV_HUMAN_ONLY</code> 로 거절하고 <code>details.action</code> 과 대신 갈 <code>web_url</code> 을 함께 준다 — 판정이 표면에만 있으면 새 표면이 생길 때 조용히 열린다(2026-09-05)</td><td>라우트 7종 각 1건 · 게이트를 서비스에서 빼면 전부 실패</td></tr>
+      <tr><td>REQ-API-112</td><td>WHEN 요청에서 온 값이 enum 열에 저장되면 THE SYSTEM SHALL <b>도메인 서비스에서</b> 어휘를 검사해 밖의 값은 400 으로 거절하고 <b>허용 목록과 어긋난 값을 함께</b> 준다 — 그물(REQ-API-106)은 500 을 400 으로 바꿀 뿐이고, 어느 목록에서 벗어났는지 말하지 못하면 클라이언트는 같은 요청을 다시 보낸다(2026-09-05 · 전수 62곳 점검)</td><td>필드명·허용 목록 반환 1건 · 전수 표(§1.4a)</td></tr>
+      <tr><td>REQ-API-113</td><td>WHEN 전표가 요청 스키마 이름을 인용하면 THE SYSTEM SHALL 그 이름이 <code>@nerv/schema</code> 의 export 로 <b>실재하게</b> 하고, 그 1:1 을 검사로 센다 — §1.7 의 선언이 오랫동안 거짓이었고(인용하는 이름 대부분이 코드 어디에도 없었다), <b>틀린 문서는 확신을 준다</b>(2026-09-05)</td><td>전표 <code>*Input</code> 33종 전수 대조 1건 · 세는 대상이 0 이 아닌지 1건</td></tr>
+      <tr><td>REQ-API-099</td><td>WHEN EP-SPEC-02·<code>nerv_spec_search</code> 에 <code>type</code>·<code>status</code> 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 <b>자르기 전에</b> 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05)</td><td>종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건</td></tr>
+      <tr><td>REQ-API-100</td><td>WHEN EP-SPEC-08 에 <code>relations</code> 가, EP-TASK-07 에 <code>progress</code>·<code>stats</code> 가, EP-TASK-08 에 <code>state_note</code> 가 오면 THE SYSTEM SHALL <b>REST 에서도</b> 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05)</td><td>REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건</td></tr>
       <tr><td>REQ-API-098</td><td>WHEN EP-SPEC-01·19 에 <code>baseline</code> 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 <code>version_no</code>·<code>doc_status</code> 를 <b>그 세트가 핀한 판</b>의 것으로 싣는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL <code>invalid_input</code>(<code>field="baseline"</code>)으로 거절한다. WHILE <code>baseline</code> 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 판으로 준다</td></tr>
       <tr><td>REQ-API-097</td><td>WHEN 파생 Task 가 클레임되거나 전이하거나 그 요구사항에 증적이 등록되면 THE SYSTEM SHALL 그 Requirement 의 <code>impl_status</code> 를 <b>다시 파생한다</b> — 하나 이상이 <code>claimed</code>/<code>in_progress</code>/<code>in_review</code> 면 <code>in_progress</code>, 전부 <code>done</code> <b>이고</b> 증적 1건 이상이면 <code>implemented</code>, 그 밖에는 <code>unimplemented</code> 다. WHILE 이미 <code>verified</code> 인 동안, 그리고 파생 Task 가 하나도 없는 동안 THE SYSTEM SHALL 값을 바꾸지 않는다</td></tr>
       <tr><td>REQ-API-096</td><td>WHEN SpecVersion 이 <code>approved</code> 로 전이하면 THE SYSTEM SHALL 그 본문에서 요구사항 줄(<code>REQ-…</code> + EARS)을 읽어 <code>requirement</code> 행을 만들거나 갱신하고, <b>본문에서 사라진 요구사항은 지우지 않고</b> <code>removed_in_version_id</code> 에 그 판을 적는다. WHILE 본문이 우선순위를 담지 않는 동안 THE SYSTEM SHALL <code>must</code> 로 시작한다. <b>추출은 저장 응답의 델타와 같은 함수를 쓴다</b> — 두 벌이면 요구사항의 정의가 갈라진다</td></tr>

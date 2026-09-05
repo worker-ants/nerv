@@ -52,7 +52,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 20종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.16 (2026-09-04)</span>
+      <span>버전 v0.19 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: draft</span>
     </div>
@@ -141,7 +141,7 @@
       <tr><td>기능(FR-01~17)</td><td>포함 ● 8 · 부분 ◐ 7 · 제외 ○ 2</td><td>§3.2</td></tr>
       <tr><td>비기능(NFR-01~05)</td><td>포함 ● 3 · 부분 ◐ 2</td><td>§3.4</td></tr>
       <tr><td>화면</td><td>S1~S5·S7·S8 + 로그인/온보딩 = 8</td><td>§4.1</td></tr>
-      <tr><td>MCP 도구</td><td>21종 = P0 8종 + P1 13종</td><td>§4.2</td></tr>
+      <tr><td>MCP 도구</td><td>22종 = P0 8종 + P1 14종</td><td>§4.2</td></tr>
       <tr><td>플러그인 스킬</td><td>4종</td><td>§4.3</td></tr>
     </tbody>
   </table></div>
@@ -240,13 +240,13 @@
       <tr><td>FR-06</td><td>원자적 클레임·리스</td><td>●</td><td>●</td><td>●</td><td><b>P0의 핵심 검증 대상.</b> 원자 클레임, scope(spec_ids·file_globs) 겹침 감지, 리스 TTL 30분·하트비트 60초·만료 자동 회수. P1에서 초안 편집 리스(문서 축, D-04 확장, 같은 TTL 30분)</td><td>—</td></tr>
       <tr><td>FR-07</td><td>세션 레지스트리</td><td>●</td><td>◐</td><td>●</td><td>등록·하트비트·상태 머신(<code>pending→active↔awaiting_input→complete/error/stale</code>, stale 임계 30분)(P0), 사용자·hostname·에이전트 종류 전체 뷰(P1)</td><td>—</td></tr>
       <tr><td>FR-08</td><td>활동 스트림·미션 컨트롤</td><td>●</td><td>○</td><td>●</td><td>typed Activity 타임라인, 전역 보드, steer/stop(P1)</td><td>—</td></tr>
-      <tr><td>FR-09</td><td>리뷰 수집</td><td>○</td><td>○</td><td>○</td><td>—</td><td>ReviewSession→Finding→Resolution 전부 Phase 2. <b>서버·도구는 2026-08-23 착수 완료</b>(§5 착수 기록) — S6 화면과 <code>/nerv:review</code> 스킬은 남아 있다</td></tr>
+      <tr><td>FR-09</td><td>리뷰 수집</td><td>○</td><td>○</td><td>○</td><td>—</td><td>ReviewSession→Finding→Resolution 은 Phase 2 로 계획했으나 <b>2026-08-23 이후 전부 들어왔다</b>(§5 착수 기록) — 서버·도구·REST 7종·S6 리뷰 센터 화면·<code>/nerv:review</code> 스킬(패키지에 배포됨)·소급 임포터까지. 남은 것은 게이트의 리뷰 커버리지 조건이다(FR-10 행)</td></tr>
       <tr><td>FR-10</td><td>게이트 판정 API</td><td>◐</td><td>○</td><td>◐</td><td>Task <code>done</code> 전이 조건 판정</td><td>리뷰 커버리지 조건·커밋 범위 판정은 Phase 2</td></tr>
       <tr><td>FR-11</td><td>받은 요청(Inbox)</td><td>◐</td><td>○</td><td>◐</td><td>스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트</td><td>CR·에스컬레이션 카드(5유형 완성)는 Phase 2</td></tr>
       <tr><td>FR-12</td><td>알림</td><td>◐</td><td>○</td><td>◐</td><td>인앱 알림</td><td>Slack·메일·다이제스트는 Phase 2</td></tr>
       <tr><td>FR-13</td><td>증적·커버리지</td><td>◐</td><td>○</td><td>◐</td><td>PR·커밋 웹훅 수신, Task↔PR 링크</td><td>커버리지 계산·대시보드는 Phase 2</td></tr>
       <tr><td>FR-14</td><td>멀티테넌시</td><td>●</td><td>◐</td><td>●</td><td>Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정)</td><td>—</td></tr>
-      <tr><td>FR-15</td><td>에이전트 연동</td><td>◐</td><td>◐</td><td>◐</td><td>MCP tools P0 8종 + P1 13종 = <b>21종</b>(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + <code>.mcp.json</code>), 훅 수집기</td><td>Codex 완전 지원·<code>AGENTS.md</code> 배포·OAuth 2.1은 Phase 2(§5)</td></tr>
+      <tr><td>FR-15</td><td>에이전트 연동</td><td>◐</td><td>◐</td><td>◐</td><td>MCP tools P0 8종 + P1 14종 = <b>22종</b>(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + <code>.mcp.json</code>), 훅 수집기</td><td>Codex 완전 지원·<code>AGENTS.md</code> 배포·OAuth 2.1은 Phase 2(§5)</td></tr>
       <tr><td>FR-16</td><td>감사 로그</td><td>●</td><td>◐</td><td>●</td><td>append-only Event 전 상태 전이 + <code>is_agent</code> 액터 구분(P0), 엔티티별 이력 재구성 뷰(P1)</td><td>—</td></tr>
       <tr><td>FR-17</td><td>clemvion 임포트</td><td>◐</td><td>◐</td><td>◐</td><td>spec 임포터(P0: <code>spec/</code> 384 md 중 순수 135 md) → plan 임포터(P1: <code>plan/</code> 450 md). 멱등 재실행. 도구는 <b>프로파일 기반 범용 임포터</b>이고 clemvion은 그 내장 프로파일이다 — 실행은 원본 체크아웃 장비의 CLI(<code>@nerv/cli</code>)가 임포트 API(EP-IMP-01~05)를 호출하는 형태(<a href="importer.html">4.7 스펙 임포터</a> §1.4·§3.2) + 래퍼 스킬 <code>/nerv:import</code>(§4.3)</td><td>review 소급 임포트는 Phase 2. SoT는 MVP 기간 내내 git(컷오버는 Phase 2 M1부터 — 로드맵 §7.2). 양방향 동기화·서버 주도 원격 저장소 clone은 하지 않는다(§5)</td></tr>
     </tbody>
@@ -259,7 +259,7 @@
   <ul>
     <li>웹과 에이전트는 같은 <code>draft</code> SpecVersion을 번갈아 잡는 <b>두 개의 입력 장치</b>다. 초안 편집 리스 TTL 30분(Task 클레임 리스와 같은 상수), 표면 간 이동은 <code>takeover</code> 로 <b>명시 인계</b>(2026-08-30 개정 — 보유자는 <code>(user, session)</code>), 리스를 쥔 자리가 아니면 <code>NERV_DRAFT_LEASED</code>(<a href="agent-integration.html">에이전트 연동 설계</a> §2.7).</li>
     <li>별도 FR 추가 없이 <b>FR-01·FR-06·FR-11의 기존 범위 안</b>이다. 대응 도구는 <code>nerv_spec_draft_upsert</code>·<code>nerv_spec_check</code>·<code>nerv_spec_comment_resolve</code>·<code>nerv_spec_submit_review</code>(모두 P1 — §4.2).</li>
-    <li>검증은 로드맵 성공 기준 1-11(기획자 웹·터미널 왕복 — 리스 인계·<code>base_version</code> 충돌 0 실증) 그대로다. 재현 절차는 <a href="backlog.html">4.8 백로그</a>의 E2E 수용 시나리오에 둔다.</li>
+    <li>검증은 로드맵 성공 기준 1-11(기획자 웹·터미널 왕복 — 리스 인계·<code>base_hash</code> 충돌 0 실증) 그대로다. 재현 절차는 <a href="backlog.html">4.8 백로그</a>의 E2E 수용 시나리오에 둔다.</li>
   </ul>
 
   <h3>3.4 비기능 요구사항 범위 표</h3>
@@ -285,7 +285,7 @@
       <tr><td>클레임 리스 TTL</td><td><b>30분</b></td><td>Task 클레임 리스·초안 편집 리스 <b>동일 상수</b>(D-04 문서 축 확장)</td></tr>
       <tr><td>하트비트 주기</td><td><b>60초</b></td><td><code>nerv_task_heartbeat</code> — 응답은 서버→세션 역채널을 겸한다</td></tr>
       <tr><td>세션 stale 임계</td><td><b>30분</b></td><td>무활동 초과 시 <code>stale</code> 자동 전이 + 클레임 자동 회수(D-13)</td></tr>
-      <tr><td>리뷰 프롬프트 blob TTL</td><td>30일</td><td><b>MVP 범위 아님</b> — Phase 2 리뷰 수집(FR-09)부터 적용, 참고로만 기재</td></tr>
+      <tr><td>리뷰 프롬프트 blob TTL</td><td>30일</td><td><b>집행된다</b>(2026-09-05 현황 정정) — <code>retention.job.ts</code> 가 <code>REVIEW_PROMPT_BLOB_TTL_DAYS</code> 로 <code>prompt_blob_uri</code> 를 비운다. 예전 표기는 "MVP 범위 아님 · 참고로만 기재" 였다</td></tr>
     </tbody>
   </table></div>
 
@@ -315,9 +315,9 @@
     <p><a href="roadmap.html">로드맵</a> §3.2(v0.1 · 2026-08-13)는 "S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2"로 적었다. 이 중 <b>S8 게이트 정책 탭의 스펙 게이트(T0~T3 티어 매핑) 부분을 MVP로 앞당긴다</b>(2026-08-21, 로드맵 §3.2 표기 대체. 근거: 로드맵 §3.5 '저위험 자동 통과 경로를 첫날부터 켠다'). git 연동·리뷰 게이트 정책 탭은 로드맵대로 Phase 2다.</p>
   </div></div>
 
-  <h3>4.2 MCP 도구 범위 — 21종 (P0 8종 + P1 13종)</h3>
+  <h3>4.2 MCP 도구 범위 — 22종 (P0 8종 + P1 14종)</h3>
 
-  <p>도구 정의(입력·출력·권한·멱등성)는 <a href="agent-integration.html">에이전트 연동 설계</a> §2.3 카탈로그가 정본이며, 여기서는 이름·티어·Phase 배정만 인용한다. <b>MVP = 21종, 그 위에 Phase 2 리뷰 2종이 얹혀 카탈로그는 23종이다.</b></p>
+  <p>도구 정의(입력·출력·권한·멱등성)는 <a href="agent-integration.html">에이전트 연동 설계</a> §2.3 카탈로그가 정본이며, 여기서는 이름·티어·Phase 배정만 인용한다. <b>MVP = 22종, 그 위에 Phase 2 리뷰 2종이 얹혀 카탈로그는 24종이다.</b></p>
   <p><b>15종 → 16종 (2026-08-23 확정 — 사람 확인)</b>: <code>nerv_spec_relate</code> 1종을 더한다. 근거는 관계의 성질이다 — 본문이 이미 가리키는 참조(<code>references</code>)는 저장 시 자동 동기화되지만(REQ-API-024), "이 스펙이 저것을 정제한다(<code>refines</code>)"·"선행 의존이다(<code>depends_on</code>)"는 <b>문서를 읽어야 아는 판단</b>이다. 그 판단을 사람이 UI로 수백 편에 손으로 넣는 것은 현실적이지 않고(clemvion 130편·간선 1,253이 실측), 에이전트가 문서를 읽으며 채우는 것이 맞다. 읽기(전역 그래프·이웃 조회)는 새 도구를 만들지 않고 <code>nerv_spec_tree</code>의 <code>include_relations</code>·<code>around</code>·<code>hops</code> 옵션으로 접었다 — "구조를 달라"는 한 가지 요청이기 때문이다.</p>
 
 
@@ -381,7 +381,7 @@
       <tr><td><code>/nerv:review</code> 스킬</td><td><b>Phase 2 · 2026-08-23 배포 완료</b></td><td><a href="plugin.html">4.6 플러그인</a> §2.6. MVP 약속은 스킬 5종 그대로다</td></tr>
       <tr><td>Codex 완전 지원</td><td>Phase 2</td><td>P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·<code>AGENTS.md</code> 배포는 Phase 2. MVP는 <code>config.toml</code>·<code>AGENTS.md</code> <b>초안 제공</b>까지 — 경계는 <a href="plugin.html">4.6 플러그인과 온보딩</a> §5</td></tr>
       <tr><td>CR 델타 UI 고도화</td><td>Phase 2</td><td>FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지</td></tr>
-      <tr><td>실시간 공동 편집(CRDT)</td><td>Phase 3+ (착수 조건: 409 재시도 주 20건 이상)</td><td>서버 권위 + <code>base_version</code> 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2)</td></tr>
+      <tr><td>실시간 공동 편집(CRDT)</td><td>Phase 3+ (착수 조건: 409 재시도 주 20건 이상)</td><td>서버 권위 + <code>base_hash</code> 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2)</td></tr>
       <tr><td>OAuth 2.1 리소스 서버</td><td>Phase 2</td><td>2026-08-20 인증 확정(better-auth)으로 이동 — §2.1 콜아웃 참조. MVP 에이전트 인증은 PAT</td></tr>
       <tr><td>임포트 양방향 동기화 · 서버 주도 저장소 clone</td><td>Phase 3+ (착수 조건부)</td><td>임포트는 복제이고 SoT는 git이다(§6.1-5). 서버는 대상 저장소에 접근하지 않는다 — 파일을 읽는 쪽이 파일 있는 장비라는 것이 임포터 구조의 전제다(<a href="importer.html">4.7 스펙 임포터</a> §3.2)</td></tr>
       <tr><td>임포트 MCP 도구</td><td>— (계획 없음)</td><td>결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. 에이전트 경로는 스킬 <code>/nerv:import</code>뿐(§4.2·§4.3)</td></tr>
@@ -452,9 +452,9 @@
   <ul>
     <li><a href="codebase.html">4.2 코드베이스와 배포</a> — §2.1 배포 규약의 실물(트리·compose·k8s)</li>
     <li><a href="database.html">4.3 데이터베이스 스키마</a> — 확정 스택(Postgres+Drizzle)의 DDL 실물</li>
-    <li><a href="api.html">4.4 API 명세</a> — 도구 16종 ↔ REST 대응, HTTP md 미러</li>
+    <li><a href="api.html">4.4 API 명세</a> — 도구 22종 ↔ REST 대응, HTTP md 미러</li>
     <li><a href="screens.html">4.5 화면 명세</a> — §4.1 화면 범위의 데이터·상태·컴포넌트 명세</li>
-    <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — §4.3 스킬 5종 전문과 Codex 경계</li>
+    <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — §2 스킬 6종 전문과 Codex 경계</li>
     <li><a href="importer.html">4.7 스펙 임포터</a> — FR-17 ◐ 범위의 파싱·멱등 규칙</li>
     <li><a href="backlog.html">4.8 백로그</a> — §6.2 스파이크 E06과 운영 Postgres 확인 태스크</li>
   </ul>

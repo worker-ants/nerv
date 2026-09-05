@@ -15,7 +15,19 @@
 //   finding          라운드를 넘어 하나로 유지되는 지적. `(project, fingerprint)` 가 UNIQUE.
 
 import { Injectable } from '@nestjs/common';
-import { msg, newId, NERV_ERROR, NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/schema';
+import {
+  ESCALATE_REASONS,
+  FINDING_PAGE_LIMIT_DEFAULT,
+  FINDING_PAGE_LIMIT_MAX,
+  GATE_BRANCH_LIMIT_DEFAULT,
+  GATE_BRANCH_LIMIT_MAX,
+  msg,
+  NERV_ERROR,
+  NERV_EVENT,
+  NERV_EVENT_PHASE2,
+  newId,
+  reviewKind,
+} from '@nerv/schema';
 import { changesetHash, findingFingerprint } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import { EventService } from '../event/event.service.js';
@@ -140,9 +152,20 @@ export type ResolutionKind = 'fixed' | 'deferred' | 'dismissed' | 'escalated' | 
  * 표면은 번역만 하고, 그 번역표는 도메인 쪽에 하나만 둔다(REQ-CB-003 · D-05).
  */
 export const RESOLUTION_OF: Readonly<
-  Record<string, { kind: ResolutionKind; status: 'fixed' | 'dismissed' | 'wont_fix' }>
+  Record<string, { kind: ResolutionKind; status: 'open' | 'fixed' | 'dismissed' | 'wont_fix' }>
 > = {
   fixed: { kind: 'fixed', status: 'fixed' },
+  /**
+   * **사람에게 넘긴다** — 발견은 열린 채로 남는다(2026-09-05 · 사람 결정 · REQ-API-108).
+   *
+   * `escalated` 는 열거에 있었는데 **만드는 경로가 없어** 아무도 쓸 수 없는 값이었다.
+   * 상태를 `open` 으로 두는 이유는 단순하다: 넘긴 것은 해결한 것이 아니다. 큐에서
+   * 사라지면 "누가 보고 있다" 가 "아무도 안 본다" 와 화면에서 같아진다.
+   *
+   * 대신 **왜 넘기는지를 강제한다** — `escalate_reason` 은 clemvion 에서 5개월 검증된
+   * 어휘이고 `resolution` 에 열이 처음부터 있었는데 아무도 채우지 않았다.
+   */
+  escalated: { kind: 'escalated', status: 'open' },
   // **스펙을 고쳐 해결했다.** 발견은 닫히므로 상태는 `fixed` 와 같고, `왜` 를 담는
   // `resolution_kind` 만 다르다 — "이 발견들은 무엇으로 해결됐나" 를 나중에 되묻기 위해서다.
   spec_change: { kind: 'spec_change', status: 'fixed' },
@@ -154,7 +177,7 @@ export const RESOLUTION_OF: Readonly<
 /** 모르는 값은 기각으로 읽지 않는다 — 계약 밖의 값은 입력 오류다. */
 export function resolutionOf(asked: string): {
   kind: ResolutionKind;
-  status: 'fixed' | 'dismissed' | 'wont_fix';
+  status: 'open' | 'fixed' | 'dismissed' | 'wont_fix';
 } {
   const mapped = RESOLUTION_OF[asked];
   if (mapped === undefined) {
@@ -179,14 +202,22 @@ export interface ResolveInput {
    * 에이전트인지가 기준이다 — PAT 는 에이전트 세션 없이도 온다.
    */
   isAgent?: boolean;
-  /** 도구 계약의 `resolution` 값(fixed·spec_change·dismissed·wont_fix)은 표면이 여기로 번역한다 */
+  /** 도구 계약의 `resolution` 값(fixed·spec_change·dismissed·wont_fix·escalated)은 표면이 여기로 번역한다 */
   kind: ResolutionKind;
-  status: 'fixed' | 'dismissed' | 'wont_fix';
+  status: 'open' | 'fixed' | 'dismissed' | 'wont_fix';
   rationale: string;
   commitSha?: string | null;
   changeRequestId?: string | null;
   /** `spec_change` 의 증거 — 무엇을 고쳐서 해결했는가(2026-08-30) */
   specVersionId?: string | null;
+  /**
+   * **`escalated` 의 필수 짝** — 왜 사람을 부르는가(2026-09-05 · REQ-API-108).
+   *
+   * 어휘는 `escalate_reason` 이다: 질문(`question.escalate`)과 같은 것을 쓴다 —
+   * 같은 뜻에 두 어휘를 두면 그 순간부터 둘이 갈라진다(data-model §2.7).
+   * 열은 처음부터 `resolution` 에 있었는데 **아무도 채우지 않았다.**
+   */
+  escalateReason?: string | null;
 }
 
 export interface ResolveResult {
@@ -404,10 +435,13 @@ export class ReviewService {
     input: SubmitInput,
     hash: string,
   ): Promise<{ id: string; roundNo: number; fresh: boolean }> {
+    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112).
+    // 세 캐스팅이 이 메서드 안에 있으므로 판정도 여기 한 번이다.
+    const reviewKindValue = assertVocab([input.kind], reviewKind.enumValues, 'kind')[0];
     const { rows: same } = await tx.execute<{ id: string; round_no: number }>(sql`
       SELECT id, round_no FROM review_session
        WHERE project_id = ${input.projectId} AND changeset_hash = decode(${hash}, 'hex')
-         AND kind = ${input.kind}::review_kind
+         AND kind = ${reviewKindValue}::review_kind
        ORDER BY round_no DESC LIMIT 1
     `);
     const existing = same[0];
@@ -418,7 +452,7 @@ export class ReviewService {
     const { rows: prior } = await tx.execute<{ id: string; round_no: number }>(sql`
       SELECT id, round_no FROM review_session
        WHERE project_id = ${input.projectId} AND branch = ${input.branch}
-         AND kind = ${input.kind}::review_kind
+         AND kind = ${reviewKindValue}::review_kind
        ORDER BY round_no DESC, created_at DESC LIMIT 1
     `);
     const previous = prior[0];
@@ -429,7 +463,7 @@ export class ReviewService {
                                   branch, head_sha, base_sha, changeset_hash, round_no,
                                   previous_session_id, state, prompt_blob_uri, prompt_expires_at,
                                   started_at)
-      VALUES (${sessionId}, ${input.projectId}, ${input.kind}::review_kind,
+      VALUES (${sessionId}, ${input.projectId}, ${reviewKindValue}::review_kind,
               ${input.sessionId != null ? 'auto' : 'manual'}::review_trigger,
               ${input.sessionId ?? null}, ${input.taskId ?? null},
               ${input.branch}, ${input.headSha}, ${input.baseSha}, decode(${hash}, 'hex'),
@@ -741,6 +775,12 @@ export class ReviewService {
       }
     }
 
+    // **넘기려면 왜인지 말해야 한다**(REQ-API-108). 사유 없는 에스컬레이션은 큐에
+    // 열린 발견 하나를 남기고 아무 정보도 더하지 않는다 — 그건 처분이 아니라 방치다.
+    if (input.kind === 'escalated') {
+      assertVocab([input.escalateReason ?? ''], ESCALATE_REASONS, 'escalate_reason');
+    }
+
     // **게이트는 트랜잭션 밖이다.** 승인 카드를 만들고 같은 트랜잭션에서 막으면 그 카드도
     // 함께 롤백된다 — 사람의 받은 요청에는 아무것도 뜨지 않고 에이전트만 재시도한다(실측).
     const preflight = await this.loadFinding(input);
@@ -771,10 +811,11 @@ export class ReviewService {
       const resolutionId = newId();
       await tx.execute(sql`
         INSERT INTO resolution (id, finding_id, kind, commit_sha, change_request_id,
-                                spec_version_id, rationale_md, actor_user_id, actor_session_id)
+                                spec_version_id, escalate_reason, rationale_md,
+                                actor_user_id, actor_session_id)
         VALUES (${resolutionId}, ${input.findingId}, ${input.kind}::resolution_kind,
                 ${input.commitSha ?? null}, ${input.changeRequestId ?? null},
-                ${input.specVersionId ?? null},
+                ${input.specVersionId ?? null}, ${input.escalateReason ?? null}::escalate_reason,
                 ${input.rationale}, ${input.userId}, ${input.sessionId ?? null})
       `);
       await tx.execute(sql`
@@ -904,7 +945,10 @@ export class ReviewService {
     const tags = (input.tag ?? []).filter((t) => t.trim() !== '');
     // 상한은 계약이 정한다 — clemvion 실측 18,650 발견을 한 응답에 담으면 화면이
     // 3만 픽셀이 된다(실측 2026-08-24). 잘린 사실은 facet 총계가 말한다.
-    const limit = Math.min(Math.max(input.limit ?? FINDING_PAGE, 1), FINDING_PAGE_MAX);
+    const limit = Math.min(
+      Math.max(input.limit ?? FINDING_PAGE_LIMIT_DEFAULT, 1),
+      FINDING_PAGE_LIMIT_MAX,
+    );
 
     // **상한만 있고 커서가 없으면 목록은 벽이다**(2026-09-03 · REQ-API-083).
     // 화면의 [더 보기] 는 200 에서 멈추고 서버도 거기서 끝이라, 열린 발견 18,653건 중
@@ -1052,7 +1096,7 @@ export class ReviewService {
    */
   async gateCoverage(
     projectId: string,
-    limit = GATE_BRANCH_LIMIT,
+    limit = GATE_BRANCH_LIMIT_DEFAULT,
   ): Promise<{ items: Record<string, unknown>[]; total: number }> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       WITH latest AS (
@@ -1121,13 +1165,6 @@ export interface FindingFacets {
 
 /** 필터가 받는 값 — 열거 밖은 버린다(정본: enums.ts `finding_area`) */
 export const FINDING_AREAS = ['codebase', 'spec', 'task', 'process'] as const;
-
-/** 한 화면에 담기는 발견 수. 넘는 것은 필터로 좁힌다 — 무한 스크롤은 답이 아니다 */
-const FINDING_PAGE = 50;
-const FINDING_PAGE_MAX = 200;
-/** 게이트 표의 브랜치 수 — 최근 리뷰 순. clemvion 실측 441개다 */
-const GATE_BRANCH_LIMIT = 20;
-const GATE_BRANCH_LIMIT_MAX = 200;
 
 const FINDING_SEVERITIES = ['critical', 'warning', 'info'] as const;
 const FINDING_STATUSES = ['open', 'fixed', 'dismissed', 'wont_fix'] as const;

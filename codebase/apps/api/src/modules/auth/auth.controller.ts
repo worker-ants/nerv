@@ -15,8 +15,20 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { msg, NERV_ERROR } from '@nerv/schema';
+import {
+  MemberAddInput,
+  MemberUpdateInput,
+  msg,
+  NERV_ERROR,
+  OrgCreateInput,
+  OrgUpdateInput,
+  ProjectCreateInput,
+  ProjectUpdateInput,
+  TokenCreateInput,
+} from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { parseBody } from '../../common/parse-body.js';
+import type { Actor } from '../../common/human-only.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { MemberOnly, RequireRole } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -48,10 +60,11 @@ export class AuthController {
   /** EP-ORG-03 — 조직 생성. 만든 사람이 그 조직의 admin 이 된다 */
   @Post('orgs')
   createOrg(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+    const input = parseBody(OrgCreateInput, body);
     return this.auth.createOrg({
       userId: principalOf(req).userId,
-      slug: String(body['slug'] ?? ''),
-      name: String(body['name'] ?? ''),
+      slug: input.slug,
+      name: input.name,
     });
   }
 
@@ -62,10 +75,11 @@ export class AuthController {
     @Param('org') org: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
+    const input = parseBody(OrgUpdateInput, body);
     return this.auth.updateOrg({
       userId: principalOf(req).userId,
       orgSlug: org,
-      name: String(body['name'] ?? ''),
+      name: input.name,
     });
   }
 
@@ -82,13 +96,14 @@ export class AuthController {
     @Param('org') org: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
+    const input = parseBody(ProjectCreateInput, body);
     return this.auth.createProject({
       userId: principalOf(req).userId,
       orgSlug: org,
-      slug: String(body['slug'] ?? ''),
-      key: String(body['key'] ?? ''),
-      name: String(body['name'] ?? ''),
-      description: str(body['description']),
+      slug: input.slug,
+      key: input.key,
+      name: input.name,
+      description: input.description ?? null,
     });
   }
 
@@ -99,12 +114,13 @@ export class AuthController {
     @Param('org') org: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
+    const input = parseBody(MemberAddInput, body);
     return this.auth.addMember({
       actorUserId: principalOf(req).userId,
       orgSlug: org,
-      email: String(body['email'] ?? ''),
-      role: String(body['role'] ?? 'viewer'),
-      projectSlug: str(body['project']),
+      email: input.email,
+      role: input.role,
+      projectSlug: input.project ?? null,
     });
   }
 
@@ -123,9 +139,10 @@ export class AuthController {
   ): Promise<unknown> {
     const principal = principalOf(req);
     await this.auth.assertAdminOfMembership(id, principal.userId);
+    const input = parseBody(MemberUpdateInput, body);
     return this.auth.updateMembership({
       membershipId: id,
-      role: String(body['role'] ?? ''),
+      role: input.role,
       // 앞의 assertAdminOfMembership 이 이미 admin 임을 확인했다
       actorRoles: ['admin'],
     });
@@ -182,20 +199,21 @@ export class AuthController {
         web_url: '/settings/tokens',
       });
     }
-    const project = await this.auth.resolveProject(String(body['project'] ?? ''));
+    const input = parseBody(TokenCreateInput, body);
+    const project = await this.auth.resolveProject(input.project);
     if (project === null) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',
-        project: body['project'],
+        project: input.project,
       });
     }
     await this.auth.assertMembership(principal.userId, project.id);
     return this.auth.issueToken({
       projectId: project.id,
       userId: principal.userId,
-      name: String(body['name'] ?? 'agent'),
-      scopes: Array.isArray(body['scopes']) ? (body['scopes'] as string[]) : [],
-      expiresAt: typeof body['expires_at'] === 'string' ? new Date(body['expires_at']) : null,
+      name: input.name,
+      scopes: input.scopes,
+      expiresAt: input.expires_at == null ? null : new Date(input.expires_at),
     });
   }
 
@@ -224,8 +242,8 @@ export class ProjectController {
   @RequireRole('admin')
   @Post('archive')
   archive(@Req() req: ProjectRequest): Promise<unknown> {
-    humanOnly(req);
     return this.auth.setProjectArchived({
+      actor: actorOf(req),
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
       archived: true,
@@ -235,8 +253,8 @@ export class ProjectController {
   @RequireRole('admin')
   @Post('restore')
   restore(@Req() req: ProjectRequest): Promise<unknown> {
-    humanOnly(req);
     return this.auth.setProjectArchived({
+      actor: actorOf(req),
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
       archived: false,
@@ -247,22 +265,19 @@ export class ProjectController {
   @RequireRole('admin')
   @Patch()
   update(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
-    humanOnly(req);
+    const input = parseBody(ProjectUpdateInput, body);
     return this.auth.updateProject({
+      actor: actorOf(req),
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
-      name: str(body['name']),
-      description: str(body['description']),
-      repoUrl: str(body['repo_url']),
-      defaultBranch: str(body['default_branch']),
-      gatePolicy: (body['gate_policy'] ?? null) as Record<string, unknown> | null,
-      retention: (body['retention'] ?? null) as Record<string, unknown> | null,
+      name: input.name ?? null,
+      description: input.description ?? null,
+      repoUrl: input.repo_url ?? null,
+      defaultBranch: input.default_branch ?? null,
+      gatePolicy: input.gate_policy ?? null,
+      retention: input.retention ?? null,
     });
   }
-}
-
-function str(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
 }
 
 export function principalOf(req: ProjectRequest): Principal {
@@ -281,13 +296,18 @@ export function principalOf(req: ProjectRequest): Principal {
  * 그것이 우회로가 된다: 면제를 못 받는 에이전트가 정책 자체를 낮추면 되기 때문이다.
  * 보관·복구를 함께 막는 것은 프로젝트를 목록에서 지우는 일이 같은 무게라서다.
  */
-function humanOnly(req: ProjectRequest): void {
-  if (principalOf(req).isAgent) {
-    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.project_admin'), {
-      kind: 'human_only',
-      web_url: '/settings',
-    });
+/**
+ * 표면은 **주체를 읽어 넘기기만 한다** — 무엇을 막을지는 도메인이 정한다(D-05).
+ *
+ * 예전에는 여기 `humanOnly(req)` 가 있었고 서비스는 주체를 받지도 않았다: 다른 표면이
+ * 같은 메서드를 부르면 게이트가 없다는 뜻이었다(2026-09-05 · REQ-API-111).
+ */
+function actorOf(req: ProjectRequest): Actor {
+  const principal = req.nervPrincipal;
+  if (principal === undefined) {
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
+  return { userId: principal.userId, isAgent: principal.isAgent };
 }
 
 function rolesOf(req: ProjectRequest): readonly MembershipRole[] {

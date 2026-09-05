@@ -179,6 +179,42 @@ describe('DB 무결성 위반은 이유가 된다 (§1.4a)', () => {
     expect(error?.details['constraint']).toBe('project_org_key_uq');
   });
 
+  /**
+   * **오타는 서버의 잘못이 아니다**(2026-09-05 · REQ-API-074·082 의 마지막 조각).
+   *
+   * 어휘 밖 값이 `::enum` 캐스팅에서 22P02 로 죽는데 이 목록에 없어 **진짜 500** 으로
+   * 나갔다 — 클라이언트는 고칠 수 없는 요청을 재시도한다.
+   */
+  it('어휘 밖 값은 400 이고 **어느 타입**인지 말한다 — 값은 싣지 않는다', () => {
+    const error = dbConstraintError(
+      wrapped({
+        code: '22P02',
+        message: 'invalid input value for enum evidence_kind: "screenshot"',
+      }),
+    );
+    expect(error).not.toBeNull();
+    expect(error?.details['kind']).toBe('invalid_text_representation');
+    expect(error?.details['pg_type']).toBe('evidence_kind');
+    // 콜론 뒤에 있는 것은 **사용자가 보낸 값**이다 — 나가면 안 된다
+    expect(JSON.stringify(error?.details)).not.toContain('screenshot');
+    expect(statusFor(error!.code, error!.details)).toBe(400);
+  });
+
+  it('잘못된 UUID 도 같은 길로 400 이 된다', () => {
+    const error = dbConstraintError(
+      wrapped({ code: '22P02', message: 'invalid input syntax for type uuid: "abc"' }),
+    );
+    expect(error?.details['pg_type']).toBe('uuid');
+    expect(JSON.stringify(error?.details)).not.toContain('abc');
+  });
+
+  it('서버 로케일 때문에 타입 이름을 못 읽어도 400 은 유지한다', () => {
+    const error = dbConstraintError(wrapped({ code: '22P02', message: '입력 구문이 잘못됨' }));
+    expect(error?.details['kind']).toBe('invalid_text_representation');
+    expect(error?.details['pg_type']).toBeUndefined();
+    expect(statusFor(error!.code, error!.details)).toBe(400);
+  });
+
   it('**모르는 오류는 그대로 500 이다** — 서버 결함을 사용자 잘못으로 둔갑시키지 않는다', () => {
     expect(dbConstraintError(new Error('boom'))).toBeNull();
     expect(dbConstraintError(wrapped({ code: '42P01' }))).toBeNull(); // 없는 테이블 = 우리 잘못

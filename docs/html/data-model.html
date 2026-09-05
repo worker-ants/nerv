@@ -50,9 +50,9 @@
 
   <header class="page-header">
     <h1>데이터 모델</h1>
-    <p class="lead">NERV가 Postgres에 담을 29개 엔티티의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
+    <p class="lead">NERV가 Postgres에 담을 <b>37개 엔티티</b>(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-09-02)</span>
+      <span>버전 v0.11 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
     </div>
@@ -461,7 +461,7 @@
       <tr><td><code>name</code></td><td>text</td><td>"노트북 Claude Code" 같은 사람용 라벨</td></tr>
       <tr><td><code>token_hash</code></td><td>bytea</td><td>원문 미저장</td></tr>
       <tr><td><code>prefix</code></td><td>text</td><td>앞 8자(식별·감사용)</td></tr>
-      <tr><td><code>scopes</code></td><td>text[]</td><td><code>spec:read</code>, <code>spec:write</code>, <code>task:claim</code>, <code>review:write</code>, <code>session:write</code> …</td></tr>
+      <tr><td><code>scopes</code></td><td>text[]</td><td><code>spec:read</code>, <code>spec:draft</code>, <code>task:claim</code>, <code>task:update</code> … — 어휘 정본은 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(10종)이고, 사람 전용 둘(<code>spec:approve</code>·<code>approval:decide</code>)은 토큰이 가질 수 없다(2026-09-05 정정)</td></tr>
       <tr><td><code>expires_at</code> · <code>revoked_at</code> · <code>last_used_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
@@ -503,7 +503,7 @@
       <tr><td><code>submitted_at</code> · <code>approved_at</code></td><td>timestamptz</td><td></td></tr>
       <tr><td><code>approved_by_user_id</code></td><td>uuid FK NULL</td><td>결재자. <code>approval</code>에도 남지만 조회 편의로 비정규화</td></tr>
       <tr><td><code>superseded_by_version_id</code></td><td>uuid FK NULL</td><td>후속 버전</td></tr>
-      <tr><td><code>edit_lease_user_id</code></td><td>uuid FK NULL</td><td>초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — <code>base_version_id</code> 409는 그대로 최후 방어선이다</td></tr>
+      <tr><td><code>edit_lease_user_id</code></td><td>uuid FK NULL</td><td>초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — <code>base_hash_id</code> 409는 그대로 최후 방어선이다</td></tr>
       <tr><td><code>edit_lease_session_id</code></td><td>uuid FK NULL</td><td>보유 표면. 에이전트 세션이면 그 세션, NULL = 웹</td></tr>
       <tr><td><code>edit_lease_expires_at</code></td><td>timestamptz NULL</td><td>리스 만료. TTL 30분 — Task 클레임 리스·stale 임계와 같은 상수</td></tr>
       <tr><td><code>updated_at</code></td><td>timestamptz</td><td>본문이 <b>바뀐</b> 시각(저장된 시각이 아니다). draft 는 같은 행을 덮어쓰므로 <code>created_at</code> 만으로는 "언제 바뀌었나"에 답하지 못한다</td></tr>
@@ -692,7 +692,7 @@
       <tr><td><code>acquired_at</code></td><td>timestamptz</td><td></td></tr>
       <tr><td><code>lease_expires_at</code></td><td>timestamptz</td><td>TTL 리스. 하트비트로 연장</td></tr>
       <tr><td><code>last_heartbeat_at</code></td><td>timestamptz</td><td></td></tr>
-      <tr><td><code>released_at</code> · <code>release_reason</code></td><td>timestamptz · enum</td><td><code>done / manual / expired / conflict</code></td></tr>
+      <tr><td><code>released_at</code> · <code>release_reason</code></td><td>timestamptz · enum</td><td><b>부른 쪽이 고른 셋</b> <code>done / handoff / abandon</code> + <b>서버가 판정한 둘</b> <code>expired</code>(리스 만료) / <code>conflict</code>(겹침 회수) + <code>manual</code>(2026-09-05 이전의 잔재 — 그때는 <code>done</code> 외를 전부 이 값으로 뭉쳤다). 축이 다르므로 같은 열에 두되 어느 쪽이 쓴 값인지가 이름으로 드러난다</td></tr>
     </tbody>
   </table></div>
   <p><b>제약:</b> <code>CREATE UNIQUE INDEX ON claim (task_id) WHERE status = 'active'</code> — 두 세션이 같은 작업을 잡는 것이 데이터베이스 수준에서 불가능해진다. 상태 전이와 assignee 설정이 한 트랜잭션이므로 경합은 하나만 통과하고 나머지는 충돌 응답을 받는다.</p>
@@ -864,7 +864,7 @@
     <tbody>
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
       <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
-      <tr><td><code>subject_type</code></td><td>enum</td><td><code>spec_version / change_request / plan / question / gate_bypass</code></td></tr>
+      <tr><td><code>subject_type</code></td><td>enum</td><td><code>spec_version / change_request / plan / question / gate_bypass / <b>finding</b></code> — 여섯이다. <code>finding</code> 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정)</td></tr>
       <tr><td><code>subject_id</code></td><td>uuid</td><td>대상 엔티티 ID(다형 참조)</td></tr>
       <tr><td><code>requested_by_user_id</code> · <code>requested_by_session_id</code></td><td>uuid FK</td><td>지시자</td></tr>
       <tr><td><code>assignee_user_id</code></td><td>uuid FK NULL</td><td>지정 승인자</td></tr>

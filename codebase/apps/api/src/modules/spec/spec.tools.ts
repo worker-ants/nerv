@@ -7,6 +7,7 @@
 import { Injectable } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { csv } from '../../common/query-vocab.js';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { SearchService } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
@@ -64,9 +65,9 @@ export class SpecTools implements NervToolProvider {
         const withRelations = input['include_relations'] === true;
         // 배열이 아니라 쉼표 목록이다 — `nerv_task_list`(`status`) 와 같은 표기다
         const status = typeof input['status'] === 'string' ? input['status'] : null;
-        const statuses = status === null ? null : status.split(',').map((value) => value.trim());
+        const statuses = status === null ? null : csv(status);
         const type = typeof input['type'] === 'string' ? input['type'] : null;
-        const types = type === null ? null : type.split(',').map((value) => value.trim());
+        const types = type === null ? null : csv(type);
         const baseline = typeof input['baseline'] === 'string' ? input['baseline'] : null;
 
         // 계층(root·depth)과 관계(around·hops)는 **다른 축**이다. 섞어 받으면 "어느 쪽이
@@ -116,6 +117,10 @@ export class SpecTools implements NervToolProvider {
             projectId: ctx.projectId,
             around,
             hops: hops ?? 1,
+            // **기준선은 관계 축과 함께 간다**(2026-09-05 · REQ-API-090). 좁히기 축이
+            // 아니라 스냅샷 선택자라 배타 목록에 넣지 않는다 — 넣지도 나르지도 않아
+            // 조용히 버려지던 것이 이 자리다.
+            baseline,
           });
           // 관계를 청하지 않았으면 간선은 싣지 않는다 — 중심 지정은 좁히기지 관계 요청이 아니다
           return withRelations ? near : { nodes: near.nodes };
@@ -256,6 +261,14 @@ export class SpecTools implements NervToolProvider {
           q: { type: 'string' },
           limit: { type: 'integer' },
           references: { type: 'string' },
+          // 전표(EP-SPEC-02)가 처음부터 적고 있던 둘 — 두 표면 어디에도 없었다(2026-09-05).
+          // `nerv_spec_tree` 와 같은 쉼표 목록 표기를 쓴다: 같은 뜻의 인자가 도구마다
+          // 다른 모양이면 에이전트는 실패로 배운다.
+          type: { type: 'string', description: 'mcp.arg.spec_type_filter' },
+          status: { type: 'string', description: 'mcp.arg.spec_status_filter' },
+          // **이 요구사항 주변에서 찾아라** — 안정 키(`REQ-…`)든 UUID 든 받는다(§1.4b).
+          // 없는 요구사항은 빈 결과가 아니라 거절이다: 빈 결과는 오타를 사실로 만든다.
+          requirement_id: { type: 'string', description: 'mcp.arg.requirement_scope' },
         },
         required: ['q'],
       },
@@ -266,6 +279,11 @@ export class SpecTools implements NervToolProvider {
           query: String(input['q'] ?? ''),
           ...(typeof input['limit'] === 'number' ? { limit: input['limit'] } : {}),
           ...(typeof input['references'] === 'string' ? { references: input['references'] } : {}),
+          ...(typeof input['type'] === 'string' ? { types: csv(input['type']) } : {}),
+          ...(typeof input['status'] === 'string' ? { statuses: csv(input['status']) } : {}),
+          ...(typeof input['requirement_id'] === 'string'
+            ? { requirementRef: input['requirement_id'] }
+            : {}),
         }),
     },
     {
