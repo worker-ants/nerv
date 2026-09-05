@@ -36,6 +36,8 @@ import { createBetterAuth } from './better-auth.js';
 import type { NervAuth } from './better-auth.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertHuman } from '../../common/human-only.js';
+import type { Actor } from '../../common/human-only.js';
 import type { AuthContext } from '../../common/auth.guard.js';
 
 /** membership.role 정본 — docs/03-proposal/data-model.md §2.1 */
@@ -242,7 +244,10 @@ export class AuthService {
     projectId: string;
     roles: readonly MembershipRole[];
     archived: boolean;
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · `common/human-only.ts`) */
+    actor: Actor;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'project_admin', '/settings');
     this.assertAdmin(input.roles);
     await this.db.execute(sql`
       UPDATE project SET archived_at = ${input.archived ? sql`now()` : sql`NULL`}
@@ -512,6 +517,8 @@ export class AuthService {
   async updateProject(input: {
     projectId: string;
     roles: readonly MembershipRole[];
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · `common/human-only.ts`) */
+    actor: Actor;
     name?: string | null;
     description?: string | null;
     repoUrl?: string | null;
@@ -519,6 +526,7 @@ export class AuthService {
     gatePolicy?: Record<string, unknown> | null;
     retention?: Record<string, unknown> | null;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'project_admin', '/settings');
     if ((input.gatePolicy != null || input.retention != null) && !input.roles.includes('admin')) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only_policy'), {
         kind: 'role_required',

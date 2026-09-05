@@ -29,6 +29,7 @@ interface RawReply {
 }
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import type { Actor } from '../../common/human-only.js';
 import { csv, intParam } from '../../common/query-vocab.js';
 import { principalOf } from '../../common/scope-check.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
@@ -493,8 +494,9 @@ export class SpecController {
     @Param('spec') spec: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    const principal = requireHuman(req);
+    const principal = actorOf(req);
     return this.specs.updateMeta({
+      actor: actorOf(req),
       projectId: projectOf(req),
       specKey: spec,
       userId: principal.userId,
@@ -510,8 +512,9 @@ export class SpecController {
   @RequireScope('spec:meta')
   @Post('specs/:spec/archive')
   archive(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
-    const principal = requireHuman(req);
+    const principal = actorOf(req);
     return this.specs.archive({
+      actor: actorOf(req),
       projectId: projectOf(req),
       specKey: spec,
       userId: principal.userId,
@@ -522,8 +525,9 @@ export class SpecController {
   @RequireScope('spec:meta')
   @Post('specs/:spec/restore')
   restore(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
-    const principal = requireHuman(req);
+    const principal = actorOf(req);
     return this.specs.restore({
+      actor: actorOf(req),
       projectId: projectOf(req),
       specKey: spec,
       userId: principal.userId,
@@ -537,8 +541,9 @@ export class SpecController {
     @Req() req: ProjectRequest,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    const principal = requireHuman(req);
+    const principal = actorOf(req);
     return this.baselines.create({
+      actor: actorOf(req),
       projectId: projectOf(req),
       name: String(body['name'] ?? ''),
       noteMd: typeof body['note_md'] === 'string' ? body['note_md'] : null,
@@ -654,17 +659,16 @@ function projectOf(req: ProjectRequest): string {
   return projectId;
 }
 
-/** 사람 전용 액션의 문 — A4 는 도구가 없고 웹에서 사람만 한다(agent-integration §2.2). */
-function requireHuman(req: ProjectRequest): { userId: string } {
+/**
+ * 표면은 **주체를 읽어 넘기기만 한다** — 무엇을 막을지는 도메인이 정한다(D-05).
+ *
+ * 예전에는 여기 `requireHuman(req)` 이 있었고 서비스는 주체를 받지도 않았다: 다른 표면이
+ * 같은 메서드를 부르면 게이트가 없다는 뜻이었다(2026-09-05 · REQ-API-111).
+ */
+function actorOf(req: ProjectRequest): Actor & { userId: string } {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
     throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
-  if (principal.isAgent) {
-    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.approve'), {
-      kind: 'human_only',
-      web_url: '/inbox',
-    });
-  }
-  return { userId: principal.userId };
+  return { userId: principal.userId, isAgent: principal.isAgent };
 }

@@ -7,6 +7,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import type { Actor } from '../../common/human-only.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRole, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -99,22 +100,36 @@ export class ApprovalController {
 }
 
 /**
- * 사람 전용 문. `approval:decide` 는 토큰에 부여 자체가 불가능한 스코프라(api.md §1.3)
- * 에이전트는 여기 도달할 수 없어야 한다 — 도달하면 딥링크와 함께 되돌려 보낸다.
+ * **전역 경로의 주체** — 경로에 프로젝트가 없다(`/api/v1/inbox`).
+ *
+ * `human()` 과 나뉜 이유가 이것이다: 그쪽은 프로젝트 경로용이라 `nervProjectId` 를
+ * 요구하고, 전역 승인함에는 그 값이 없다. 하나로 합치면 전역 라우트가 401 이 된다.
  */
-function human(req: ProjectRequest): { projectId: string; userId: string } {
+function globalActor(req: ProjectRequest): Actor {
+  const principal = req.nervPrincipal;
+  if (principal === undefined) {
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
+  }
+  return { userId: principal.userId, isAgent: principal.isAgent };
+}
+
+/**
+ * 프로젝트 경로의 주체 — 게이트는 여기 없다(D-05 · REQ-API-111).
+ *
+ * 예전 이름은 `human()` 이었고 이 자리에서 에이전트를 막았다. 막는 것은 도메인의 몫이라
+ * 옮겼고, 남은 일은 요청에서 **누가·어느 프로젝트인가**를 읽는 번역뿐이다.
+ */
+function human(req: ProjectRequest): { projectId: string; userId: string; actor: Actor } {
   const principal = req.nervPrincipal;
   const projectId = req.nervProjectId;
   if (principal === undefined || projectId === undefined) {
     throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
-  if (principal.isAgent) {
-    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.inbox_decide'), {
-      kind: 'human_only',
-      web_url: '/inbox',
-    });
-  }
-  return { projectId, userId: principal.userId };
+  return {
+    projectId,
+    userId: principal.userId,
+    actor: { userId: principal.userId, isAgent: principal.isAgent },
+  };
 }
 
 /**
@@ -135,8 +150,11 @@ export class ApprovalInboxController {
     @Query('state') state?: string,
     @Query('project') project?: string,
   ): Promise<unknown> {
+    const actor = globalActor(req);
+    const userId = actor.userId;
     return this.approvals.inboxGlobal({
-      userId: humanUser(req),
+      actor,
+      userId,
       state: state === 'decided' ? 'decided' : 'pending',
       projectSlug: project ?? null,
     });
@@ -145,7 +163,8 @@ export class ApprovalInboxController {
   /** EP-APR-02 */
   @Get(':id')
   detail(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
-    return this.approvals.detail({ approvalId: id, userId: humanUser(req) });
+    const actor = globalActor(req);
+    return this.approvals.detail({ approvalId: id, userId: actor.userId, actor });
   }
 
   /** EP-APR-03 — 결정. **사람 전용**이고, 지시자≠승인자 판정은 서비스 안에 있다 */
@@ -155,11 +174,13 @@ export class ApprovalInboxController {
     @Param('id') id: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    const userId = humanUser(req);
+    const actor = globalActor(req);
+    const userId = actor.userId;
     // 전역 경로라 프로젝트를 승인 행에서 되찾는다 — 멤버십 검사는 detail 이 이미 한다.
-    await this.approvals.detail({ approvalId: id, userId });
+    await this.approvals.detail({ approvalId: id, userId, actor });
     const projectId = await this.approvals.projectOfApproval(id);
     return this.approvals.decide({
+      actor,
       projectId,
       approvalId: id,
       userId,
@@ -170,18 +191,4 @@ export class ApprovalInboxController {
         : {}),
     });
   }
-}
-
-function humanUser(req: ProjectRequest): string {
-  const principal = req.nervPrincipal;
-  if (principal === undefined) {
-    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
-  }
-  if (principal.isAgent) {
-    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.inbox'), {
-      kind: 'human_only',
-      web_url: '/inbox',
-    });
-  }
-  return principal.userId;
 }

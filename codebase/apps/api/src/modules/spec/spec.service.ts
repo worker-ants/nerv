@@ -32,6 +32,8 @@ import { entityRef } from '../../common/entity-ref.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertHuman } from '../../common/human-only.js';
+import type { Actor } from '../../common/human-only.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { AttachmentService } from './attachment.service.js';
 
@@ -1245,6 +1247,8 @@ export class SpecService {
    * 자기 자신·자기 하위로의 이동은 트리를 사이클로 만들므로 409 다.
    */
   async updateMeta(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     specKey: string;
     title?: string | null;
@@ -1255,6 +1259,7 @@ export class SpecService {
     ownerRole?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'project_admin', '/settings');
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
 
@@ -1323,10 +1328,13 @@ export class SpecService {
    * 둘 다 "차단 사유 목록"으로 돌려준다. 무엇을 정리해야 하는지 모르는 거부는 벽일 뿐이다.
    */
   async archive(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     specKey: string;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'project_admin', '/settings');
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
 
@@ -1367,10 +1375,13 @@ export class SpecService {
 
   /** EP-SPEC-17 — 복원. 부모가 아카이브 상태면 거부한다(복원해도 보이지 않는다). */
   async restore(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     specKey: string;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'project_admin', '/settings');
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
       if (spec.parent_id !== null) {

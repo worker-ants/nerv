@@ -101,14 +101,11 @@ export class SessionController {
         kind: 'missing',
       });
     }
-    if (principal.isAgent) {
-      throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.steer'), {
-        kind: 'human_only',
-        web_url: `/p/${String(req.params?.['proj'] ?? '')}/sessions`,
-      });
-    }
+    // 표면은 **주체를 읽어 넘기기만 한다** — 무엇을 막을지는 도메인이 정한다(D-05).
+    // 예전에는 이 자리에 게이트가 있었고 서비스는 주체를 받지도 않았다(REQ-API-111).
     const kind = body['kind'] === 'stop' ? 'stop' : 'steer';
     return this.sessions.steer({
+      actor: { userId: principal.userId, isAgent: principal.isAgent },
       projectId: req.nervProjectId ?? '',
       sessionId: sid,
       kind,

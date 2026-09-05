@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import type { Actor } from '../../common/human-only.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { MemberOnly, RequireRole } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -224,8 +225,8 @@ export class ProjectController {
   @RequireRole('admin')
   @Post('archive')
   archive(@Req() req: ProjectRequest): Promise<unknown> {
-    humanOnly(req);
     return this.auth.setProjectArchived({
+      actor: actorOf(req),
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
       archived: true,
@@ -235,8 +236,8 @@ export class ProjectController {
   @RequireRole('admin')
   @Post('restore')
   restore(@Req() req: ProjectRequest): Promise<unknown> {
-    humanOnly(req);
     return this.auth.setProjectArchived({
+      actor: actorOf(req),
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
       archived: false,
@@ -247,8 +248,8 @@ export class ProjectController {
   @RequireRole('admin')
   @Patch()
   update(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
-    humanOnly(req);
     return this.auth.updateProject({
+      actor: actorOf(req),
       projectId: req.nervProjectId ?? '',
       roles: rolesOf(req),
       name: str(body['name']),
@@ -281,13 +282,18 @@ export function principalOf(req: ProjectRequest): Principal {
  * 그것이 우회로가 된다: 면제를 못 받는 에이전트가 정책 자체를 낮추면 되기 때문이다.
  * 보관·복구를 함께 막는 것은 프로젝트를 목록에서 지우는 일이 같은 무게라서다.
  */
-function humanOnly(req: ProjectRequest): void {
-  if (principalOf(req).isAgent) {
-    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.project_admin'), {
-      kind: 'human_only',
-      web_url: '/settings',
-    });
+/**
+ * 표면은 **주체를 읽어 넘기기만 한다** — 무엇을 막을지는 도메인이 정한다(D-05).
+ *
+ * 예전에는 여기 `humanOnly(req)` 가 있었고 서비스는 주체를 받지도 않았다: 다른 표면이
+ * 같은 메서드를 부르면 게이트가 없다는 뜻이었다(2026-09-05 · REQ-API-111).
+ */
+function actorOf(req: ProjectRequest): Actor {
+  const principal = req.nervPrincipal;
+  if (principal === undefined) {
+    throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });
   }
+  return { userId: principal.userId, isAgent: principal.isAgent };
 }
 
 function rolesOf(req: ProjectRequest): readonly MembershipRole[] {

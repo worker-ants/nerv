@@ -157,7 +157,12 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
 
     // 사람 경로의 성공은 서비스가 지킨다 — 표면은 번역만 한다(D-05).
     const saved = (
-      await app.get(AuthService).updateProject({ projectId, roles: ['admin'], gatePolicy: policy })
+      await app.get(AuthService).updateProject({
+        projectId,
+        roles: ['admin'],
+        actor: { userId: adminId, isAgent: false },
+        gatePolicy: policy,
+      })
     )['gate_policy'] as Record<string, unknown>;
     expect((saved['spec_gate'] as Record<string, unknown>)['tier_boundaries']).toEqual([2, 4, 7]);
   });
@@ -168,6 +173,7 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
       app.get(AuthService).updateProject({
         projectId,
         roles: ['admin'],
+        actor: { userId: adminId, isAgent: false },
         gatePolicy: { spec_gate: { tier_boundries: [1, 2, 3] } },
       }),
     ).rejects.toMatchObject({
@@ -511,9 +517,14 @@ describe('세션 steer (EP-SES-04)', () => {
 
     // 서비스 경로로 사람이 눌렀을 때의 결과를 확인한다
     const { SessionService } = await import('../../src/modules/session/session.service.js');
-    const stopped = await app
-      .get(SessionService)
-      .steer({ projectId, sessionId, kind: 'stop', message: '중단', userId: adminId });
+    const stopped = await app.get(SessionService).steer({
+      actor: { userId: adminId, isAgent: false },
+      projectId,
+      sessionId,
+      kind: 'stop',
+      message: '중단',
+      userId: adminId,
+    });
     expect(stopped.reclaimed).toBe(1);
 
     const { rows } = await pool.query<{ status: string }>(
@@ -540,6 +551,7 @@ describe('세션 steer (EP-SES-04)', () => {
       title: '파일 수정',
     });
     await sessions.steer({
+      actor: { userId: adminId, isAgent: false },
       projectId,
       sessionId,
       kind: 'steer',
@@ -891,11 +903,19 @@ describe('세션 지시는 소유자·admin 만 (EP-SES-04)', () => {
     const sessions = app.get(SessionService);
 
     await expect(
-      sessions.steer({ projectId, sessionId, kind: 'stop', message: '중단', userId: viewerId }),
+      sessions.steer({
+        actor: { userId: adminId, isAgent: false },
+        projectId,
+        sessionId,
+        kind: 'stop',
+        message: '중단',
+        userId: viewerId,
+      }),
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_owner' } });
 
     // admin 은 된다(전표의 "세션 소유자·admin")
     const ok = await sessions.steer({
+      actor: { userId: adminId, isAgent: false },
       projectId,
       sessionId,
       kind: 'steer',
@@ -925,7 +945,9 @@ describe('받은 요청·알림·커버리지 표면', () => {
 
     const { ApprovalService: Service } =
       await import('../../src/modules/approval/approval.service.js');
-    const items = await app.get(Service).inboxGlobal({ userId: adminId });
+    const items = await app
+      .get(Service)
+      .inboxGlobal({ userId: adminId, actor: { userId: adminId, isAgent: false } });
     expect(items).toHaveLength(1);
     expect(items[0]?.['project_slug']).toBe('clemvion');
     expect(items[0]).toHaveProperty('waiting_seconds');
@@ -1287,6 +1309,67 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
     const bad = await call('GET', '/api/v1/projects/clemvion/specs/search?q=x&status=nope');
     expect(bad.status).toBe(400);
     expect((bad.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.PRECONDITION);
+  });
+});
+
+/**
+ * **사람 전용 라우트가 하나도 빠지지 않았는가**(2026-09-05 · REQ-API-111).
+ *
+ * 게이트가 표면에만 있던 동안 실제 위험은 "새 표면이 생겼는데 붙이는 것을 잊는다" 였다.
+ * 판정을 도메인으로 옮긴 지금도 **넘기는 것을 잊으면** 같은 구멍이 난다 — 그래서 표면
+ * 쪽에서 한 번 더 센다: 아래 목록의 라우트는 전부 에이전트 PAT 에 `HUMAN_ONLY` 로 답해야 한다.
+ *
+ * 목록에 새 줄을 더하는 것은 사람의 일이지만, **있는 줄이 조용히 열리는 것**은 이 검사가 막는다.
+ */
+describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', () => {
+  // 이 스위트는 **자기 상태를 스스로 세운다** — 앞선 검사가 프로젝트를 보관해 두면
+  // 가드가 먼저 400 으로 막아 게이트에 닿지도 못한다(그러면 이 검사는 아무것도 세지 않는다).
+  // **한 번만 세운다.** 이 스위트의 호출은 전부 게이트에서 막히므로 아무것도 바꾸지
+  // 못한다 — 매번 지웠다 만들면 그 정리가 FK 순서를 어겨 검사보다 먼저 실패한다.
+  beforeAll(async () => {
+    await seedSpec('SPC-HUMAN');
+  });
+
+  // 앞선 검사가 프로젝트를 보관해 두면 가드가 먼저 400 으로 막아 게이트에 닿지 못한다.
+  beforeEach(async () => {
+    await pool.query(`UPDATE project SET archived_at = NULL WHERE id = $1`, [projectId]);
+  });
+
+  it.each([
+    // 본문 없는 POST 라도 `{}` 를 보낸다 — `call()` 이 content-type 을 늘 붙이므로
+    // 빈 본문은 Fastify 가 게이트에 닿기 전에 400 으로 막는다(그러면 아무것도 못 센다).
+    ['POST', '/api/v1/projects/clemvion/archive', {}],
+    ['POST', '/api/v1/projects/clemvion/restore', {}],
+    ['PATCH', '/api/v1/projects/clemvion', { name: '새 이름' }],
+    ['POST', '/api/v1/projects/clemvion/specs/SPC-HUMAN/archive', {}],
+    ['POST', '/api/v1/projects/clemvion/specs/SPC-HUMAN/restore', {}],
+    ['PATCH', '/api/v1/projects/clemvion/specs/SPC-HUMAN', { title: '새 제목' }],
+    ['GET', '/api/v1/approvals', undefined],
+  ] as const)('%s %s 는 에이전트 토큰에 HUMAN_ONLY 로 답한다', async (method, url, payload) => {
+    // adminToken 은 PAT 다 — PAT 주체는 에이전트다(사람은 세션 쿠키로 온다)
+    const res = await call(method as 'GET' | 'POST' | 'PATCH', url, {
+      ...(payload === undefined ? {} : { payload }),
+    });
+    const body = res.body as Record<string, unknown>;
+    expect(res.status).toBe(403);
+    expect(body['code']).toBe(NERV_ERROR.HUMAN_ONLY);
+    // 막기만 하고 길을 안 주면 에이전트는 같은 호출을 재시도한다
+    expect((body['details'] as Record<string, unknown>)['action']).toBeDefined();
+  });
+
+  /**
+   * **기준선은 더 앞에서 막힌다.** `spec:approve` 는 `HUMAN_ONLY_SCOPES` 라 토큰에
+   * 부여 자체가 불가능하고(§1.3), 그래서 스코프 가드가 사람 전용 게이트보다 먼저 답한다.
+   *
+   * 그것이 더 강한 보장이라 그대로 둔다 — 다만 **막히는 이유가 다르다는 사실**을 여기
+   * 적어 둔다. 적지 않으면 다음 사람이 "왜 이것만 목록에 없나" 를 다시 조사해야 한다.
+   */
+  it('기준선 생성은 스코프 단계에서 막힌다 — 사람 전용 스코프는 토큰이 가질 수 없다', async () => {
+    const res = await call('POST', '/api/v1/projects/clemvion/baselines', {
+      payload: { name: 'r-human' },
+    });
+    expect(res.status).toBe(403);
+    expect((res.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.FORBIDDEN);
   });
 });
 

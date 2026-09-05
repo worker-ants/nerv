@@ -153,6 +153,7 @@ describe('EP-SPEC-15 owner_role (2026-09-03)', () => {
   it('소유 역할을 저장한다 — 그리고 같은 요청의 다른 필드를 잃지 않는다', async () => {
     const { specId } = await draft('SPC-OWNER', '# 소유');
     const updated = await specs.updateMeta({
+      actor: { userId: planner, isAgent: false },
       projectId,
       specKey: 'SPC-OWNER',
       userId: planner,
@@ -172,6 +173,7 @@ describe('EP-SPEC-15 owner_role (2026-09-03)', () => {
     await draft('SPC-OWNER-BAD', '# 소유');
     await expect(
       specs.updateMeta({
+        actor: { userId: planner, isAgent: false },
         projectId,
         specKey: 'SPC-OWNER-BAD',
         userId: planner,
@@ -481,6 +483,7 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
     });
 
     await specs.updateMeta({
+      actor: { userId: planner, isAgent: false },
       projectId,
       specKey: 'SPC-CH',
       title: '새 제목',
@@ -507,10 +510,22 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
   it('자기 하위로의 이동은 409 — 트리가 사이클이 되면 렌더도 순회도 멈추지 않는다', async () => {
     const root = await draft('SPC-R', '# r');
     await draft('SPC-KID', '# k');
-    await specs.updateMeta({ projectId, specKey: 'SPC-KID', parentKey: 'SPC-R', userId: planner });
+    await specs.updateMeta({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-KID',
+      parentKey: 'SPC-R',
+      userId: planner,
+    });
 
     await expect(
-      specs.updateMeta({ projectId, specKey: 'SPC-R', parentKey: 'SPC-KID', userId: planner }),
+      specs.updateMeta({
+        actor: { userId: planner, isAgent: false },
+        projectId,
+        specKey: 'SPC-R',
+        parentKey: 'SPC-KID',
+        userId: planner,
+      }),
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION, details: { kind: 'tree_cycle' } });
     expect(root.specId).toBeDefined();
   });
@@ -518,10 +533,21 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
   it('살아 있는 하위 노드·활성 클레임이 있으면 아카이브를 막고 사유를 열거한다', async () => {
     await draft('SPC-BOX', '# box');
     await draft('SPC-IN', '# in');
-    await specs.updateMeta({ projectId, specKey: 'SPC-IN', parentKey: 'SPC-BOX', userId: planner });
+    await specs.updateMeta({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-IN',
+      parentKey: 'SPC-BOX',
+      userId: planner,
+    });
 
     const error = (await specs
-      .archive({ projectId, specKey: 'SPC-BOX', userId: planner })
+      .archive({
+        actor: { userId: planner, isAgent: false },
+        projectId,
+        specKey: 'SPC-BOX',
+        userId: planner,
+      })
       .catch((e: unknown) => e)) as { details: Record<string, unknown> };
     expect(error.details['kind']).toBe('archive_blocked');
     expect(error.details['blockers']).toEqual([{ kind: 'child_spec', key: 'SPC-IN' }]);
@@ -530,7 +556,12 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
   it('아카이브는 삭제가 아니다 — 기본 트리에서만 빠진다', async () => {
     await draft('SPC-OLD', '# old');
     await draft('SPC-LIVE', '# live');
-    await specs.archive({ projectId, specKey: 'SPC-OLD', userId: planner });
+    await specs.archive({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-OLD',
+      userId: planner,
+    });
 
     expect((await specs.tree({ projectId })).map((n) => n.key)).not.toContain('SPC-OLD');
     const withArchived = await specs.tree({ projectId, includeArchived: true });
@@ -541,7 +572,12 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
     expect(withArchived.find((n) => n.key === 'SPC-OLD')?.archived_at).not.toBeNull();
     expect(withArchived.find((n) => n.key === 'SPC-LIVE')?.archived_at).toBeNull();
 
-    await specs.restore({ projectId, specKey: 'SPC-OLD', userId: planner });
+    await specs.restore({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-OLD',
+      userId: planner,
+    });
     expect((await specs.tree({ projectId })).map((n) => n.key)).toContain('SPC-OLD');
   });
 
@@ -550,7 +586,12 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
   // 목록에 없으면 열람도 없다([4.5](screens.md) §2.4b) — 만들 수 없어야 한다.
   it('보관된 부모 아래에는 만들 수 없다 — 어느 목록에도 없는 문서가 된다', async () => {
     await draft('SPC-DEADBOX', '# box');
-    await specs.archive({ projectId, specKey: 'SPC-DEADBOX', userId: planner });
+    await specs.archive({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-DEADBOX',
+      userId: planner,
+    });
 
     await expect(
       specs.draftUpsert({
@@ -569,10 +610,16 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
   it('보관된 부모로 옮길 수도 없다 — 옮기는 것은 만드는 것과 같은 결과다', async () => {
     await draft('SPC-DEADBOX2', '# box');
     await draft('SPC-MOVER', '# mover');
-    await specs.archive({ projectId, specKey: 'SPC-DEADBOX2', userId: planner });
+    await specs.archive({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-DEADBOX2',
+      userId: planner,
+    });
 
     await expect(
       specs.updateMeta({
+        actor: { userId: planner, isAgent: false },
         projectId,
         specKey: 'SPC-MOVER',
         parentKey: 'SPC-DEADBOX2',
@@ -585,16 +632,32 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
     await draft('SPC-PBOX', '# p');
     await draft('SPC-PKID', '# k');
     await specs.updateMeta({
+      actor: { userId: planner, isAgent: false },
       projectId,
       specKey: 'SPC-PKID',
       parentKey: 'SPC-PBOX',
       userId: planner,
     });
-    await specs.archive({ projectId, specKey: 'SPC-PKID', userId: planner });
-    await specs.archive({ projectId, specKey: 'SPC-PBOX', userId: planner });
+    await specs.archive({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-PKID',
+      userId: planner,
+    });
+    await specs.archive({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-PBOX',
+      userId: planner,
+    });
 
     await expect(
-      specs.restore({ projectId, specKey: 'SPC-PKID', userId: planner }),
+      specs.restore({
+        actor: { userId: planner, isAgent: false },
+        projectId,
+        specKey: 'SPC-PKID',
+        userId: planner,
+      }),
     ).rejects.toMatchObject({ details: { kind: 'parent_archived' } });
   });
 });
@@ -609,6 +672,7 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
 
     await expect(
       baselines.create({
+        actor: { userId: planner, isAgent: false },
         projectId,
         name: 'r1',
         specVersionIds: [a.versionId, b.versionId],
@@ -622,7 +686,12 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
   it('핀된 버전이 superseded 가 되어도 조회 결과는 그대로다', async () => {
     const v1 = await draft('SPC-PIN', '# v1');
     await approve(v1.versionId);
-    await baselines.create({ projectId, name: 'r1', userId: planner });
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'r1',
+      userId: planner,
+    });
 
     // v2 승인 — v1 은 superseded 가 된다
     const v2 = await specs.draftUpsert({
@@ -655,7 +724,12 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
   it('그 세트가 핀해 둔 판을 읽는다 — 뒤에 새 판이 승인돼도 그대로다', async () => {
     const v1 = await draft('SPC-READ', '# v1');
     await approve(v1.versionId);
-    await baselines.create({ projectId, name: 'r1', userId: planner });
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'r1',
+      userId: planner,
+    });
 
     const v2 = await specs.draftUpsert({
       baseHash: await hashOf(v1.specId),
@@ -687,7 +761,12 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
   it('그 세트에 없는 문서는 기본으로 떨어지되 그 사실을 말한다', async () => {
     const older = await draft('SPC-OLD', '# old');
     await approve(older.versionId);
-    await baselines.create({ projectId, name: 'r1', userId: planner });
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'r1',
+      userId: planner,
+    });
 
     // 베이스라인 이후에 생긴 문서
     const newer = await draft('SPC-NEW', '# new');
@@ -705,7 +784,12 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
   it('없는 베이스라인 이름은 거부한다 — 조용히 최신을 주지 않는다', async () => {
     const v = await draft('SPC-TYPO', '# x');
     await approve(v.versionId);
-    await baselines.create({ projectId, name: 'r1', userId: planner });
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'r1',
+      userId: planner,
+    });
 
     await expect(
       specs.get({ projectId, specKey: 'SPC-TYPO', baseline: 'r2' }),
@@ -763,7 +847,12 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
   it('manifest 는 baseline 이름 또는 as_of 중 하나로만 본다', async () => {
     const v = await draft('SPC-MAN', '# m');
     await approve(v.versionId);
-    await baselines.create({ projectId, name: 'r1', userId: planner });
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'r1',
+      userId: planner,
+    });
 
     const byName = await baselines.manifest({ projectId, baselineName: 'r1' });
     expect(byName['source']).toBe('baseline');
@@ -782,9 +871,19 @@ describe('E09-S06 베이스라인은 영원히 같은 답을 낸다', () => {
   it('같은 이름의 베이스라인을 두 번 만들 수 없다 — 이름이 곧 참조 수단이다', async () => {
     const v = await draft('SPC-DUP', '# d');
     await approve(v.versionId);
-    await baselines.create({ projectId, name: 'r1', userId: planner });
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'r1',
+      userId: planner,
+    });
     await expect(
-      baselines.create({ projectId, name: 'r1', userId: planner }),
+      baselines.create({
+        actor: { userId: planner, isAgent: false },
+        projectId,
+        name: 'r1',
+        userId: planner,
+      }),
     ).rejects.toMatchObject({
       details: { kind: 'duplicate_name' },
     });
@@ -1116,6 +1215,7 @@ describe('E04 기준선 — 목록은 그 세트가 담은 것만', () => {
     const before = await draft('SPC-BL-BEFORE', '# 먼저 만든 문서');
     await approve(before.versionId);
     const set = await baselines.create({
+      actor: { userId: planner, isAgent: false },
       projectId,
       name: 'R-LIST-1',
       userId: planner,
@@ -1140,6 +1240,7 @@ describe('E04 기준선 — 목록은 그 세트가 담은 것만', () => {
     const first = await draft('SPC-BL-VER', '# 첫 판');
     await approve(first.versionId);
     await baselines.create({
+      actor: { userId: planner, isAgent: false },
       projectId,
       name: 'R-LIST-2',
       userId: planner,

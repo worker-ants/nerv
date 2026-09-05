@@ -437,6 +437,7 @@ describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 
 
     // **보관은 삭제가 아니다** — 보관해도 프로젝트는 남으므로 조직은 여전히 못 지운다
     await auth.setProjectArchived({
+      actor: { userId, isAgent: false },
       projectId: String(project['id']),
       roles: ['admin'],
       archived: true,
@@ -520,7 +521,12 @@ describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 
       );
 
     expect(await listed(false)).toContain('to-archive');
-    await auth.setProjectArchived({ projectId, roles: ['admin'], archived: true });
+    await auth.setProjectArchived({
+      actor: { userId, isAgent: false },
+      projectId,
+      roles: ['admin'],
+      archived: true,
+    });
     expect(await listed(false)).not.toContain('to-archive');
     expect(await listed(true)).toContain('to-archive');
     // 주소를 아는 사람은 그대로 들어간다 — 보관은 숨김이지 삭제가 아니다.
@@ -534,7 +540,12 @@ describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 
     expect(await auth.resolveProject('to-archive')).toMatchObject({ id: projectId, key: 'ARC' });
     expect((await auth.resolveProject('to-archive'))?.archivedAt).not.toBeNull();
 
-    await auth.setProjectArchived({ projectId, roles: ['admin'], archived: false });
+    await auth.setProjectArchived({
+      actor: { userId, isAgent: false },
+      projectId,
+      roles: ['admin'],
+      archived: false,
+    });
     expect(await listed(false)).toContain('to-archive');
     expect((await auth.resolveProject('to-archive'))?.archivedAt).toBeNull();
   });
@@ -594,6 +605,7 @@ describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 
     // 보관한 것이 자리를 쥐고 있으면 **그 사실을 말해야** 복구라는 길이 보인다 —
     // 예전에는 유니크 제약 위반이 그대로 올라와 "internal error" 였다.
     await auth.setProjectArchived({
+      actor: { userId, isAgent: false },
       projectId: String(made['id']),
       roles: ['admin'],
       archived: true,
@@ -606,7 +618,12 @@ describe('EP-ORG-03~05 · EP-PRJ-05 — 조직·프로젝트 관리 (2026-08-24 
 
   it('admin 이 아니면 보관할 수 없다', async () => {
     await expect(
-      auth.setProjectArchived({ projectId, roles: ['developer'], archived: true }),
+      auth.setProjectArchived({
+        actor: { userId, isAgent: false },
+        projectId,
+        roles: ['developer'],
+        archived: true,
+      }),
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
   });
 });

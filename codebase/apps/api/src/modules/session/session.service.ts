@@ -21,6 +21,8 @@ import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertHuman } from '../../common/human-only.js';
+import type { Actor } from '../../common/human-only.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 
@@ -375,6 +377,8 @@ export class SessionService {
    * stop 을 누르는 가장 흔한 이유이기 때문이다(ui-wireframes §4.2).
    */
   async steer(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     sessionId: string;
     kind: 'steer' | 'stop';
@@ -383,6 +387,7 @@ export class SessionService {
     /** 전표의 "세션 소유자·admin"(EP-SES-04). 없으면 소유자 판정만 한다 */
     isAdmin?: boolean;
   }): Promise<{ ok: true; kind: string; reclaimed: number }> {
+    assertHuman(input.actor, 'steer');
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{ id: string; user_id: string; state: string }>(sql`
         SELECT id, user_id, state::text AS state FROM agent_session

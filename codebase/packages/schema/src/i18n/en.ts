@@ -76,6 +76,7 @@ export const en = {
   'error.comment.body_required': 'A body is required.',
   'error.comment.not_found': 'Comment not found.',
   'error.human_only.approve': 'Only humans can approve.',
+  'error.human_only.baseline': 'Only a person can create a baseline.',
   'error.db.check_violation': 'That value is not allowed — see constraint "{constraint}".',
   'error.db.foreign_key_violation':
     'Nothing to point at — {fields}. Create it first, or use another value.',

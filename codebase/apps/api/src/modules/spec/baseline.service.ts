@@ -15,6 +15,8 @@ import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertHuman } from '../../common/human-only.js';
+import type { Actor } from '../../common/human-only.js';
 import { EventService } from '../event/event.service.js';
 
 export interface BaselineSummary extends Record<string, unknown> {
@@ -52,12 +54,15 @@ export class BaselineService {
    * "이 베이스라인에 뭐가 빠졌는지"를 매번 확인해야 하고, 그 순간 기준선의 값어치가 사라진다.
    */
   async create(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     name: string;
     noteMd?: string | null;
     specVersionIds?: string[] | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'baseline', '/settings');
     if (input.name.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.baseline.name_required'), {
         kind: 'missing_name',

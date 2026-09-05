@@ -17,6 +17,8 @@ import type { SQL } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertHuman } from '../../common/human-only.js';
+import type { Actor } from '../../common/human-only.js';
 import { EventService } from '../event/event.service.js';
 import { SpecService } from '../spec/spec.service.js';
 import { AuthService } from '../auth/auth.service.js';
@@ -182,10 +184,13 @@ export class ApprovalService {
    * 들고 온다 — 대기 시간이 보이지 않으면 승인은 조용히 늦어진다(P4).
    */
   async inboxGlobal(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     userId: string;
     state?: 'pending' | 'decided' | null;
     projectSlug?: string | null;
   }): Promise<Record<string, unknown>[]> {
+    assertHuman(input.actor, 'inbox', '/inbox');
     const decided = input.state === 'decided';
     const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
     const projectFilter =
@@ -261,7 +266,13 @@ export class ApprovalService {
   }
 
   /** EP-APR-02 — 카드 하나의 전량(대상 원문 포함). 결정 화면이 이걸로 렌더한다. */
-  async detail(input: { approvalId: string; userId: string }): Promise<Record<string, unknown>> {
+  async detail(input: {
+    approvalId: string;
+    userId: string;
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
+  }): Promise<Record<string, unknown>> {
+    assertHuman(input.actor, 'inbox', '/inbox');
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT a.id, a.project_id, a.subject_type::text AS subject_type, a.subject_id,
              a.decision::text AS decision, a.comment_md, a.requested_at, a.decided_at,
@@ -340,6 +351,8 @@ export class ApprovalService {
    * 형식이 되는 지점이다(승인 만료 윈도우·스테일 승인 거부 — agent-integration §2.2 근거).
    */
   async decide(input: {
+    /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
+    actor: Actor;
     projectId: string;
     approvalId: string;
     userId: string;
@@ -348,6 +361,7 @@ export class ApprovalService {
     /** 카드를 연 시점의 내용 지문. 없으면 검사하지 않는다(코멘트 결정 등) */
     seenContentHash?: string | null;
   }): Promise<{ decision: ApprovalDecision; subject_type: string; subject_id: string }> {
+    assertHuman(input.actor, 'inbox_decide', '/inbox');
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         id: string;
