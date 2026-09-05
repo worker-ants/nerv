@@ -17,7 +17,7 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 | Screen            | The question it answers                               |
 | ----------------- | ----------------------------------------------------- |
 | **Home**          | How many decisions are waiting on me right now        |
-| **Project**       | How far along is this project (coverage, activity)    |
+| **Project**       | How far along is this project (progress, activity)    |
 | **Specs**         | What did we decide to build                           |
 | **Tasks**         | Who is doing what, and what is stuck                  |
 | **Sessions**      | What is an agent actually doing right now             |
@@ -30,7 +30,7 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 
 The two selects at the left of the header are the scope you are looking at: **organisation → project**, in that order, and the header shows the order plainly. The only organisations you can pick are the ones you belong to.
 
-Home, inbox and notifications are organisation-wide, so their addresses carry no project. There the header shows the **project you looked at last** — an empty slot reads as "you cannot pick one", which would not be true.
+Home, inbox, notifications and settings are organisation-wide, so their addresses carry no project. There the header shows the **project you looked at last** — an empty slot reads as "you cannot pick one", which would not be true.
 
 **To get back home, press the `NERV` logo at the top left.** There is no separate menu item for it — the logo is that link.
 
@@ -43,9 +43,9 @@ Home, inbox and notifications are organisation-wide, so their addresses carry no
 | `designer`  | Comment and edit drafts, claim and progress tasks. Creates **design** specs only       |
 | `developer` | The same, but creates **convention** and **adr** specs                                 |
 | `qa`        | The same, plus **resolving findings**. Creates no new specs                            |
-| `viewer`    | Read                                                                                   |
+| `viewer`    | Read + **comment**                                                                     |
 
-**Which spec types a role may create differs by role.** admin and planner have no limit; designer creates `design`; developer creates `convention` and `adr`. qa creates none — what qa produces is a **review**, not a spec. All five roles still comment on other people's drafts and resolve those comments.
+**Which spec types a role may create differs by role.** admin and planner have no limit; designer creates `design`; developer creates `convention` and `adr`. qa creates none — what qa produces is a **review**, not a spec. **Even a viewer comments** — raising a point is participation, not a permission, so `spec:read` is enough. **Resolving** a comment is the job of the five roles that can write drafts.
 
 **Resolving a review finding** (fixed, dismissed, won't fix) belongs to admin, planner and qa only. A developer receives findings and fixes them; closing them is someone else's call.
 
@@ -53,8 +53,9 @@ One person can be `admin` in the organisation and `developer` on a project. **Ho
 
 ## Your first five minutes
 
+0. If you were sent an invitation link, open that first — signing in accepts the invitation. If you do not belong to an organisation yet, signing in takes you to **Get started**, where any invitation waiting for you sits as a card.
 1. Sign in and check that the **organisation and project** in the header are the ones you meant.
 2. Skim the **spec tree** on the left. What this project decided to build is in there.
 3. Open **Tasks** and look at the `ready` lane — that is what can be picked up right now.
-4. If you are connecting an agent, issue a token under **Settings → Tokens** and install the plugin (see [Agents](/help/agents)).
-5. When you are lost, press **⌘K**. It finds specs, tasks and screens by name.
+4. If you are connecting an agent, issue a token under **Settings → Tokens** and install the plugin — the procedure is in [Installing the plugin](/help/install), what fits together with what is in [Agents](/help/agents).
+5. To find a document, press **⌘K**. It finds **specs and requirements** by name — not screens or settings — and it only works **inside a project**.

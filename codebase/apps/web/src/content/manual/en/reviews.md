@@ -11,7 +11,11 @@ One review run is one **review session**, and findings live inside it. There are
 | `spec_coverage` | Whether what the spec asked for was actually built |
 | `merge`         | The last check before merging                      |
 
-A session goes `running` → `complete` (or `failed`). The input it looked at — branch and commit — is attached to the session, so two reviews of the same change stay distinguishable.
+These four are set when a review is **filed**, and they never appear on screen — they are not an axis the queue filters on.
+
+A session goes `running` → `complete`. The input it looked at — branch and commit — is attached to the session.
+
+**File the same change twice under the same kind and there is still one session** — no new one is made; another report joins it. What separates them is the report (the reviewer), not the session, and a round goes up when the branch moves and the change itself differs. So **the same point stays one finding across rounds**, and the card says how many times it was observed and in which recent round.
 
 ## Severity and disposition
 
@@ -24,9 +28,9 @@ Findings carry one of three severities: `critical` · `warning` · `info`. `open
 
 `spec_change` exists for honesty. Recording a documentation fix as `fixed` claims the code was changed; recording it as `dismissed` claims it was a false positive. Neither is true. When someone later asks "what resolved these findings", this distinction is the answer.
 
-**Findings take comments.** They flow separately from the disposition, so the person who raised it and the person fixing it talk in the same place. From here a finding can also be **promoted to a task**: what cannot be fixed now moves to the backlog.
+**Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens (on a narrow screen the rail folds away). Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the disposition**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog.
 
-Dispositions are made by roles holding `review:resolve` — admin, planner and qa.
+Dispositions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.**
 
 **Lowering a `critical` is a person's decision.** When an agent tries to move a `critical` finding to `dismissed` or `wont_fix`, it is not applied on the spot — an **approval card** is created instead. There is deliberately no quiet path for making a severe problem disappear.
 
@@ -43,11 +47,21 @@ When an agent does not send this value, **the server infers it from what the fin
 
 ## Filters
 
-Narrow the list with the four filters at the top — **severity, area, status and tag**. The number beside each value tells you in advance how many match. So that an empty list is never ambiguous between "there are none" and "they were filtered out", the screen also states **M of N**.
+Narrow the list with the filters in the **left column** — **severity, area, status**, plus **tag** when tagged findings exist. The number beside each value tells you in advance how many match (on a narrow screen the filters move above the list).
+
+**The default shows only `open`.** That is why a finding you have disposed of is not there; change the status filter to see it. Open a single finding by link from elsewhere and, if it falls outside the default, the screen **drops the status filter once by itself** — so following a link never lands you on an empty page.
+
+**The status filter has no `spec_change` value.** A finding closed by fixing the spec is stored as `fixed`; what it was resolved with is written on the rail.
+
+When the list hits its ceiling and is cut short, the screen states **M of N**. On a result of zero that line gives way to the empty-state message instead.
 
 ## Gate coverage
 
-A gate is the rule that decides whether a change may go out. The coverage table shows what each gate actually covers — a rule that checks nothing is only stamping things as passed.
+A gate is the rule that decides whether a change may go out. **One row is one branch**, carrying the reviews that covered it, the resolved ratio and the verdict — a rule that checks nothing is only stamping things as passed. The last 20 branches are shown.
+
+**The table reports the verdict; it does not block yet.** Enforcement belongs to a later stage, so a red verdict stops nothing today — the screen says as much above the table.
+
+For a branch that was bypassed, **who bypassed it, when and why** unfolds beneath its row. That a bypass never happens quietly is itself the job of this table.
 
 ## The sidebar badge
 

@@ -23,9 +23,11 @@ To see all of them, go to **Specs** in the left menu. That screen is the **compl
 
 Both the tree tab and the table tab print `Showing N of M`. When the two numbers differ, that many are collapsed or filtered out by the tree filter.
 
-The **Status** selector above the list narrows it to one status — `draft`, `in review`, and so on. What stays is **the documents in that status and the ones above them**: the ancestors are not matches, they are there **to hold the place** (without a parent you cannot tell where a document belongs). A branch with nothing matching underneath drops out entirely. The chosen status **stays in the address, so a link hands someone the same list.** The `of M` is the project's document count, unaffected by the filter.
+The **Status** selector above the list narrows it by status — `draft`, `in review`, or the two together. What stays is **the documents in that status and the ones above them**: the ancestors are not matches, they are there **to hold the place** (without a parent you cannot tell where a document belongs). A branch with nothing matching underneath drops out entirely. The chosen status **stays in the address, so a link hands someone the same list.** The `of M` is the project's document count, unaffected by the filter.
 
 The **Type** selector beside it works the same way. Choose `Skeleton (vision + area)` and only the documents that **hold a place** remain, so the shape of the tree is visible at a glance — a project of 141 documents has a skeleton of 17. It is a good way to decide where a new document belongs. Set both and only what matches **both** stays.
+
+Both selectors appear **only on the tree tab** — switch to the table or the relationship graph and they are gone.
 
 ## Versions and statuses
 
@@ -54,7 +56,7 @@ Tasks can carry a baseline too, so the agent working on one reads the surroundin
 
 ## Comparing versions
 
-The **Versions** tab in the rail stacks every revision. Two things are possible.
+The **Versions** tab in the rail holds the **eight most recent** revisions (the count beside the tab name is the total, so on a document past eight the two numbers differ). Two things are possible.
 
 - **Compare with previous** — one button, the difference against the revision just before.
 - **Pick two** — choose any two revisions in the selects and compare them.
@@ -67,7 +69,7 @@ While comparing you see the **difference**, not the editor. Requirements added o
 
 The **Attachments** tab in the rail holds mockups and documents. Drag files in or pick them.
 
-- Formats: PNG · JPEG · GIF · WebP · SVG · PDF
+- Nine formats — images `png` · `jpeg` · `gif` · `webp` · `svg`, documents `pdf` · `html` · `txt`, and `zip` archives.
 - Size: **10MB** per file
 - After uploading, **Insert into body** puts the image at the cursor.
 
@@ -79,32 +81,56 @@ Reading also goes through the server — **project members** see them, not whoev
 
 If two people edit one document at once, one person's writing disappears. So editing takes a **lease**.
 
-- Starting an edit takes a 30-minute lease. It renews itself while you type.
-- If someone else holds it, the screen turns **read-only** and names the holder.
-- You can **request a handover**. The request arrives on their screen.
+- The lease is taken on your **first save**, not when you open the document (30 minutes), and it renews itself while you type.
+- Which means **you also find out someone else holds it by saving.** A save on a document held by someone else is refused; the screen then turns read-only and names the holder.
+- A **Take over** button sits right there. It does not send a request — pressing it **takes the lease on the spot**, and nothing arrives on the other person's screen. It is the way out of a lease held by a session that has died.
 - If you walk away, the lease expires and the next person can take it.
 
-If the base version changed while you were writing, the save is refused: the screen offers your text **so you can copy it** and then reloads the newest version. Nothing is silently overwritten.
+If the base version changed while you were writing, the save is refused and the screen hands your text back. **You choose the next step** — **Copy** takes your writing with you, **Reload** brings in the newest version. Nothing is overwritten quietly, and nothing is discarded quietly either.
 
 ## Checks and submission
 
-When a draft is ready, run the **checks**. The checkers look for contradictions between documents, broken chains of rationale, and empty promises. Results appear next to the body.
+The checks are not something you press — they run **automatically** when you open the document, and the result sits **above** the body as a `Pre-review` panel. The checkers look for contradictions between documents, broken chains of rationale, and empty promises.
 
-**Request review** moves the version to `in_review` and creates a card in the inbox. Authors cannot approve their own specs.
+If the result holds even one **block**, [Request review] is locked. The server refuses it too, so fix what is blocking first.
+
+**Requesting review does not always reach a person.** A gate grades the document, and at the low grades (T0, T1) it goes **straight to `approved`** with no approval step — the screen says the gate passed. A card appears in the inbox at T2 and T3 (grades are in the [settings](/help/settings) chapter).
+
+When a person does decide, authors cannot approve their own specs — **except in a project with fewer than two members.** Being unable to move at all in a project you work alone in is worse, and anything that passes that way is recorded in the audit log.
+
+To start the next revision from an approved document, press **New draft** in the document header.
 
 ## Comments
 
-Select a passage and comment on it — comments **attach to a sentence, not to a document**. Close a comment as `resolved` once it has been addressed. If open comments remain, the submit screen tells you how many.
+Comments belong to **a place, not to the document as a whole**. You do not drag over the text to leave one, though: you type the **anchor** into the comment box — a heading slug (say `3-input`) or a requirement number (`REQ-…`). Close a comment as `resolved` once it has been addressed.
+
+Leaving a comment needs only **`spec:read`** — a viewer can raise one. Closing it is for the roles that can write drafts.
+
+What the confirmation dialog counts before you submit is not comments but **how many documents reference this one and how many tasks came out of it** — so you see what an approval will shake.
 
 ## Requirements
 
 Requirements in a spec body are extracted and carry their own implementation status: `unimplemented` → `in_progress` → `implemented` → `verified`. Priorities are `must` · `should` · `could`.
 
-These statuses are what produce **coverage** on the project screen. That axis only moves when tasks are linked to requirements (see [Tasks](/help/tasks)).
+**Progress** on the project screen counts these statuses. Of its five numbers, the last two are the point of the screen.
+
+| Number               | What it counts                                            |
+| -------------------- | --------------------------------------------------------- |
+| Requirements         | Every live requirement                                    |
+| Implemented          | `implemented` or `verified`                               |
+| Verified             | `verified`                                                |
+| **Missing evidence** | Called `implemented` with **no evidence attached at all** |
+| **Empty promises**   | Still unimplemented with **no task taking it on**         |
+
+**Missing evidence** is "you said it was done and there is nothing to show"; **empty promises** is "you wrote it down and nobody took it". You bring the first down by attaching evidence, the second by making a task and linking it to the requirement (see [Tasks](/help/tasks)).
+
+**Requirement rows exist today only in projects that came in through the importer.** Writing EARS sentences into a spec from the web or from an agent does not create them, and there is no path yet that advances an implementation status — in those projects every number on this screen stays at zero.
+
+The document header also carries a **references updated** badge: it lights when a document this one points at has moved ahead of the version you are reading, and it names which one. It is the server's judgement, not the screen's guess.
 
 ## Relations and backlinks
 
-When a document refers to another in its body, a `references` relation is created **automatically**. The other relations — `refines` · `depends_on` · `duplicates` · `supersedes` — are judgements you only make by reading, so a person or an agent declares them.
+Write another document as a **link** in the body and a `references` relation is created **automatically**. Link means a **Markdown link** — a title in square brackets followed by the address in parentheses. A spec key typed into prose as plain text creates nothing. Only the places where a person pressed "this is that document" are counted. The other relations — `refines` · `depends_on` · `duplicates` · `supersedes` — are judgements you only make by reading, so a person or an agent declares them.
 
 The **Relations** tab in the right rail shows both, and its sub-tabs split them by direction — because the two directions ask different questions.
 
@@ -127,6 +153,8 @@ The graph's controls sit in the **top-left of the canvas** — scope (whole proj
 Zoomed out, **document names are not drawn.** A hundred labels too small to read cover the picture in smudges — zoom in and the names come back. Area names stay at any zoom.
 
 ## Archiving
+
+Archiving can be **refused** — a document with live children, or with a task of its own that someone is holding, is blocked. The screen then lists what blocked it.
 
 Archiving is **not deletion.** The document drops out of lists and the tree but its address still works, and links pointing at it stay alive. A spec is the record of what was decided and why — delete it and that record is gone.
 
