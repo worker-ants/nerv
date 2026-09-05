@@ -52,7 +52,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-09-04)</span>
+      <span>버전 v0.7 (2026-09-05)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
     </div>
@@ -184,7 +184,7 @@
       <tr><td>타인 차단</td><td>리스를 쥔 <code>(user, session)</code> 이 아닌 upsert 는 <code>NERV_DRAFT_LEASED</code>(하드 차단) — 응답이 보유자와 함께 <code>takeover</code> 경로를 알린다. 웹은 읽기 전용 + [이어받기] 버튼이 그 인자를 싣는다</td></tr>
       <tr><td>만료</td><td>TTL <b>30분</b> — Task 클레임 리스·stale 임계와 같은 상수를 쓴다(§4.5, 새 상수를 만들지 않는다)</td></tr>
       <tr><td>해제</td><td><code>nerv_spec_submit_review</code> 성공 · 웹 에디터 닫기 · <code>SessionEnd</code> 훅 · TTL 만료</td></tr>
-      <tr><td>최후 방어선</td><td><b><code>base_version</code> 409는 그대로 유지한다.</b> 리스는 1차 사전 조정(작업 낭비 방지)이고, 409는 데이터 유실 방지다 — 역할이 다르므로 둘 다 필요하다</td></tr>
+      <tr><td>최후 방어선</td><td><b><code>base_hash</code> 409는 그대로 유지한다.</b> 리스는 1차 사전 조정(작업 낭비 방지)이고, 409는 데이터 유실 방지다 — 역할이 다르므로 둘 다 필요하다</td></tr>
     </tbody>
   </table></div>
 

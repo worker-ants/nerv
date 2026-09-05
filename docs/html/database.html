@@ -52,7 +52,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>33종</b> — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.27 (2026-09-05)</span>
+      <span>버전 v0.28 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -490,15 +490,17 @@ CREATE TABLE claim (                          -- D-04의 실체. nerv_task_claim
   project_id       uuid NOT NULL REFERENCES project(id), -- §1.1 예외 1 — 겹침 검사의 스캔 축
   task_id          uuid NOT NULL REFERENCES task(id),
   agent_session_id uuid REFERENCES agent_session(id),    -- 사람이 직접 잡으면 NULL
-  user_id          uuid NOT NULL REFERENCES "user"(id),  -- 책임자(세션 소유자)
-  status           claim_status NOT NULL DEFAULT 'active',
-  scope_spec_ids   uuid[]  NOT NULL DEFAULT '{}',        -- 이 작업이 건드릴 스펙
-  scope_file_globs text[]  NOT NULL DEFAULT '{}',        -- 이 작업이 건드릴 파일
+  user_id          uuid NOT NULL REFERENCES &quot;user&quot;(id),  -- 책임자(세션 소유자)
+  status           claim_status NOT NULL DEFAULT &#x27;active&#x27;,
+  scope_spec_ids   uuid[]  NOT NULL DEFAULT &#x27;{}&#x27;,        -- 이 작업이 건드릴 스펙
+  scope_file_globs text[]  NOT NULL DEFAULT &#x27;{}&#x27;,        -- 이 작업이 건드릴 파일
   acquired_at      timestamptz NOT NULL DEFAULT now(),
   lease_expires_at timestamptz NOT NULL,                 -- TTL 30분, 하트비트 60초로 연장
   last_heartbeat_at timestamptz NOT NULL DEFAULT now(),
   released_at      timestamptz,
   release_reason   claim_release_reason,
+  release_note     text,                                 -- 인수인계 노트(2026-09-03 · REQ-API-081)
+  progress_note    text,                                 -- 하트비트의 한 줄 진행 요약(LWW)
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 -- "한 Task에 활성 클레임은 하나"는 §2.12의 partial unique — claim_task_active_uq</code></pre>
@@ -510,7 +512,7 @@ CREATE TABLE claim (                          -- D-04의 실체. nerv_task_claim
   <pre><code>CREATE TABLE agent_session (
   id                  uuid PRIMARY KEY,
   project_id          uuid NOT NULL REFERENCES project(id),
-  user_id             uuid NOT NULL REFERENCES "user"(id), -- 소유자(권한 상속 원천)
+  user_id             uuid NOT NULL REFERENCES &quot;user&quot;(id), -- 소유자(권한 상속 원천)
   agent_type          agent_type NOT NULL,
   agent_version       text,
   hostname            text NOT NULL,          -- 누구의 어느 머신인가 — P8의 핵심 필드
@@ -518,7 +520,7 @@ CREATE TABLE claim (                          -- D-04의 실체. nerv_task_claim
   worktree_path       text,
   branch              text,
   external_session_id text,                   -- 하네스 발급 세션 ID(훅 페이로드 조인 키)
-  state               session_state NOT NULL DEFAULT 'pending',
+  state               session_state NOT NULL DEFAULT &#x27;pending&#x27;,
   model               text,
   started_at          timestamptz NOT NULL DEFAULT now(),
   last_heartbeat_at   timestamptz,
@@ -526,9 +528,13 @@ CREATE TABLE claim (                          -- D-04의 실체. nerv_task_claim
   end_reason          session_end_reason,
   diff_added          int NOT NULL DEFAULT 0, -- 세션 카드의 +N −M
   diff_removed        int NOT NULL DEFAULT 0,
-  token_usage         jsonb NOT NULL DEFAULT '{}',
+  diff_files          int NOT NULL DEFAULT 0, -- 하트비트 stats 의 셋째 값(2026-09-03)
+  token_usage         jsonb NOT NULL DEFAULT &#x27;{}&#x27;,
   current_task_id     uuid,                   -- 조회 편의 비정규화(진실은 claim). FK는 §2.11
   created_at          timestamptz NOT NULL DEFAULT now()
+  -- 보존 잡이 Activity 를 지우기 전에 **접어 두는** 도구 횟수(0012 · REQ-API-067).
+  -- 지우고 나면 &quot;이 세션이 무엇을 얼마나 했나&quot; 를 답할 근거가 사라진다.
+  activity_summary   jsonb NOT NULL DEFAULT &#x27;{}&#x27;,
 );
 
 CREATE TABLE activity (                       -- 타입드 불변 로그. 편집 가능한 코멘트와 분리
@@ -785,9 +791,28 @@ ALTER TABLE agent_session
   <p>data-model §5.3 표의 전량 + 보조 인덱스(표에 없는 것은 주석에 <code>보조</code>로 표기). 도메인 조회 인덱스는 예외 없이 <code>(project_id, …)</code> 복합으로 시작한다.</p>
 
   <pre><code>-- 테넌시
--- 유일성의 축에 <b>역할이 들어간다</b>(0003_multi_role · REQ-DB-010) — 겸직이 흔한 형태다
+-- 유일성의 축에 **역할이 들어간다**(0003_multi_role · REQ-DB-010) — 겸직이 흔한 형태다
 CREATE UNIQUE INDEX membership_user_scope_role_uq ON membership (user_id, coalesce(project_id, org_id), role);
 CREATE INDEX api_token_project_user ON api_token (project_id, user_id);            -- 보조: S8 토큰 목록
+
+-- 대기 중 초대는 (이메일 × 대상)당 하나다 — 수락·회수된 것은 기록이라 지우지 않으므로
+-- 전체 unique 가 아니라 부분 unique 다(0006).
+CREATE UNIQUE INDEX invitation_pending_uq ON invitation (email, coalesce(project_id, org_id))
+  WHERE accepted_at IS NULL AND revoked_at IS NULL;
+CREATE INDEX invitation_email ON invitation (email);
+
+-- **안정 키는 프로젝트 안에서 유일하다**(0009 · api.md §1.4i). 도구 7종·URL·본문 링크가
+-- 전부 이 키로 문서를 가리키므로, 같은 키의 문서 둘이 생기면 하나는 어느 조회에도 걸리지
+-- 않는 유령이 된다. 검사는 흔한 길의 말이고 이 인덱스가 자물쇠다.
+CREATE UNIQUE INDEX spec_key_uq ON spec (project_id, key);
+
+-- 멱등 키: (주체, 키)가 자리이고 **이 인덱스가 경합의 판정자다**(api.md §1.5).
+-- 먼저 SELECT 하고 없으면 INSERT 하는 순서로는 동시 요청 둘이 나란히 통과한다.
+CREATE UNIQUE INDEX idempotency_key_uq ON idempotency_key (subject, key);
+CREATE INDEX idempotency_key_created ON idempotency_key (created_at);   -- 24시간 만료 스캔
+
+CREATE INDEX attachment_spec ON attachment (spec_id, created_at);
+CREATE UNIQUE INDEX attachment_storage_key_uq ON attachment (storage_key);   -- 같은 오브젝트를 두 행이 가리키지 않는다
 
 -- 스펙
 CREATE INDEX spec_tree ON spec (project_id, parent_id, sort_key);                  -- 보조: 트리 렌더
@@ -797,20 +822,20 @@ CREATE INDEX spec_comment_open ON spec_comment (spec_id, status);               
 
 -- 검색 — data-model §5.3(하이브리드)의 렉시컬 축. 파이프라인 정본은 4.4 §2.2b.
 -- ① FTS: 영문·안정 ID 토큰. title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
-CREATE INDEX spec_version_body_fts ON spec_version USING gin (to_tsvector('simple', body_md));
-CREATE INDEX spec_title_fts        ON spec         USING gin (to_tsvector('simple', title));
--- ② trigram: 한국어 조사 변형·부분 문자열. 'simple' 토크나이저는 공백 분리라 한국어에서
---    "위젯"≠"위젯을"이 된다 — trigram이 이 갭을 막는다(REQ-DB-016). 형태소 분석기는 도입하지 않는다.
+CREATE INDEX spec_version_body_fts ON spec_version USING gin (to_tsvector(&#x27;simple&#x27;, body_md));
+CREATE INDEX spec_title_fts        ON spec         USING gin (to_tsvector(&#x27;simple&#x27;, title));
+-- ② trigram: 한국어 조사 변형·부분 문자열. &#x27;simple&#x27; 토크나이저는 공백 분리라 한국어에서
+--    &quot;위젯&quot;≠&quot;위젯을&quot;이 된다 — trigram이 이 갭을 막는다(REQ-DB-016). 형태소 분석기는 도입하지 않는다.
 CREATE INDEX spec_version_body_trgm ON spec_version USING gin (body_md gin_trgm_ops);
 CREATE INDEX spec_title_trgm        ON spec         USING gin (title gin_trgm_ops);
 CREATE INDEX requirement_statement_trgm ON requirement USING gin (statement_md gin_trgm_ops); -- EARS 문장 검색(4.4 §2.2b)
 
 -- 작업·클레임
 CREATE INDEX task_ready_queue ON task (project_id, status, priority);              -- ready 큐(§4.5)
-CREATE UNIQUE INDEX claim_task_active_uq ON claim (task_id) WHERE status = 'active'; -- 중복 클레임 차단(규칙 2)
+CREATE UNIQUE INDEX claim_task_active_uq ON claim (task_id) WHERE status = &#x27;active&#x27;; -- 중복 클레임 차단(규칙 2)
 CREATE INDEX claim_scope_specs_gin ON claim USING gin (scope_spec_ids);            -- 겹침 검사(§4.6)
 CREATE INDEX claim_scope_globs_gin ON claim USING gin (scope_file_globs);
-CREATE INDEX claim_project_active  ON claim (project_id) WHERE status = 'active';  -- 보조: 겹침 스캔 축
+CREATE INDEX claim_project_active  ON claim (project_id) WHERE status = &#x27;active&#x27;;  -- 보조: 겹침 스캔 축
 
 -- 세션·활동
 CREATE INDEX agent_session_board ON agent_session (project_id, state, last_heartbeat_at); -- S5 보드 + stale 스캔
@@ -1256,7 +1281,7 @@ COMMIT;</code></pre>
     <tr><td><code>REQ-DB-008</code></td><td>WHEN 베이스라인 생성 트랜잭션에 <code>approved</code>가 아닌 <code>spec_version</code> 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 베이스라인의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 베이스라인 생성으로만 한다</td><td>draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건</td></tr>
     <tr><td><code>REQ-DB-022</code></td><td>WHEN <code>requirement_id</code>·<code>spec_version_id</code>·<code>task_id</code>가 전부 NULL인 <code>evidence</code>를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + 각 앵커 단독 통과 3건</td></tr>
     <tr><td><code>REQ-DB-009</code></td><td>WHEN <code>nerv_ensure_month_partitions(대상 월)</code>을 호출하면 THE SYSTEM SHALL <code>event</code>·<code>activity</code>의 해당 월 파티션과 activity 파티션별 <code>(session_id, seq)</code> unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다</td><td>함수 2회 호출 후 카탈로그 조회</td></tr>
-    <tr><td><code>REQ-DB-010</code></td><td>WHEN 같은 사용자를 같은 스코프(<code>coalesce(project_id, org_id)</code> 동일)에 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다</td><td>프로젝트 중복·조직 전역 중복 각 1건</td></tr>
+    <tr><td><code>REQ-DB-010</code></td><td>WHEN 같은 사용자에게 같은 스코프의 <b>같은 역할</b>을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · <code>membership_user_scope_role_uq</code>)</td><td>같은 역할 중복 1건 · 다른 역할 추가 1건</td></tr>
     <tr><td><code>REQ-DB-011</code></td><td>WHEN <code>status &lt;&gt; 'draft'</code>인 <code>spec_version</code>에 <code>edit_lease_user_id</code>·<code>edit_lease_session_id</code>·<code>edit_lease_expires_at</code> 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>3필드 각각 1건</td></tr>
     <tr><td><code>REQ-DB-012</code></td><td>WHEN <code>commit_sha</code> 없이 <code>kind='fixed'</code>인 <code>resolution</code>을 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + <code>spec_change</code>에 <code>change_request_id</code> 누락 1건</td></tr>
     <tr><td><code>REQ-DB-013</code></td><td>WHEN <code>nerv_glob_overlap</code>에 두 glob을 넘기면 THE SYSTEM SHALL 보수적 교차 판정을 반환한다 — 최소: (<code>a/**</code>, <code>a/b/c</code>)=true, (<code>a/b/**</code>, <code>a/c/**</code>)=false, (<code>a/*/c</code>, <code>a/x/c</code>)=true</td><td>함수 단위 테스트(위 3케이스 + 동일 문자열 케이스)</td></tr>

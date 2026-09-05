@@ -52,7 +52,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 20종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.17 (2026-09-05)</span>
+      <span>버전 v0.18 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: draft</span>
     </div>
@@ -259,7 +259,7 @@
   <ul>
     <li>웹과 에이전트는 같은 <code>draft</code> SpecVersion을 번갈아 잡는 <b>두 개의 입력 장치</b>다. 초안 편집 리스 TTL 30분(Task 클레임 리스와 같은 상수), 표면 간 이동은 <code>takeover</code> 로 <b>명시 인계</b>(2026-08-30 개정 — 보유자는 <code>(user, session)</code>), 리스를 쥔 자리가 아니면 <code>NERV_DRAFT_LEASED</code>(<a href="agent-integration.html">에이전트 연동 설계</a> §2.7).</li>
     <li>별도 FR 추가 없이 <b>FR-01·FR-06·FR-11의 기존 범위 안</b>이다. 대응 도구는 <code>nerv_spec_draft_upsert</code>·<code>nerv_spec_check</code>·<code>nerv_spec_comment_resolve</code>·<code>nerv_spec_submit_review</code>(모두 P1 — §4.2).</li>
-    <li>검증은 로드맵 성공 기준 1-11(기획자 웹·터미널 왕복 — 리스 인계·<code>base_version</code> 충돌 0 실증) 그대로다. 재현 절차는 <a href="backlog.html">4.8 백로그</a>의 E2E 수용 시나리오에 둔다.</li>
+    <li>검증은 로드맵 성공 기준 1-11(기획자 웹·터미널 왕복 — 리스 인계·<code>base_hash</code> 충돌 0 실증) 그대로다. 재현 절차는 <a href="backlog.html">4.8 백로그</a>의 E2E 수용 시나리오에 둔다.</li>
   </ul>
 
   <h3>3.4 비기능 요구사항 범위 표</h3>
@@ -381,7 +381,7 @@
       <tr><td><code>/nerv:review</code> 스킬</td><td><b>Phase 2 · 2026-08-23 배포 완료</b></td><td><a href="plugin.html">4.6 플러그인</a> §2.6. MVP 약속은 스킬 5종 그대로다</td></tr>
       <tr><td>Codex 완전 지원</td><td>Phase 2</td><td>P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·<code>AGENTS.md</code> 배포는 Phase 2. MVP는 <code>config.toml</code>·<code>AGENTS.md</code> <b>초안 제공</b>까지 — 경계는 <a href="plugin.html">4.6 플러그인과 온보딩</a> §5</td></tr>
       <tr><td>CR 델타 UI 고도화</td><td>Phase 2</td><td>FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지</td></tr>
-      <tr><td>실시간 공동 편집(CRDT)</td><td>Phase 3+ (착수 조건: 409 재시도 주 20건 이상)</td><td>서버 권위 + <code>base_version</code> 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2)</td></tr>
+      <tr><td>실시간 공동 편집(CRDT)</td><td>Phase 3+ (착수 조건: 409 재시도 주 20건 이상)</td><td>서버 권위 + <code>base_hash</code> 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2)</td></tr>
       <tr><td>OAuth 2.1 리소스 서버</td><td>Phase 2</td><td>2026-08-20 인증 확정(better-auth)으로 이동 — §2.1 콜아웃 참조. MVP 에이전트 인증은 PAT</td></tr>
       <tr><td>임포트 양방향 동기화 · 서버 주도 저장소 clone</td><td>Phase 3+ (착수 조건부)</td><td>임포트는 복제이고 SoT는 git이다(§6.1-5). 서버는 대상 저장소에 접근하지 않는다 — 파일을 읽는 쪽이 파일 있는 장비라는 것이 임포터 구조의 전제다(<a href="importer.html">4.7 스펙 임포터</a> §3.2)</td></tr>
       <tr><td>임포트 MCP 도구</td><td>— (계획 없음)</td><td>결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. 에이전트 경로는 스킬 <code>/nerv:import</code>뿐(§4.2·§4.3)</td></tr>

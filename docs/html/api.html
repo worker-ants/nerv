@@ -52,7 +52,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 23종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.81 (2026-09-05)</span>
+      <span>버전 v0.82 (2026-09-05)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -248,7 +248,7 @@
     <tbody>
       <tr><td><code>NERV_UNAUTHENTICATED</code></td><td>401</td><td>세션 쿠키 없음·만료, PAT 폐기·만료</td></tr>
       <tr><td><code>NERV_FORBIDDEN</code></td><td>403</td><td>역할 미충족, PAT 스코프 부족, 지시자≠승인자 위반</td></tr>
-      <tr><td><code>NERV_PRECONDITION</code></td><td>400 / 409</td><td>400: zod 스키마 위반(<code>details.issues</code>) · <b>입력 모양을 어긴 DB 제약</b>(§1.4a) · 409: <code>base_version</code> 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치, <b>중복 값·없는 참조</b>(§1.4a)</td></tr>
+      <tr><td><code>NERV_PRECONDITION</code></td><td>400 / 409</td><td>400: zod 스키마 위반(<code>details.issues</code>) · <b>입력 모양을 어긴 DB 제약</b>(§1.4a) · 409: 본문 지문(<code>base_hash</code>) 불일치, 게이트 전이 조건 미충족, 멱등 키 본문 불일치, <b>중복 값·없는 참조</b>(§1.4a)</td></tr>
       <tr><td><code>NERV_CONFLICT_SCOPE</code></td><td>409</td><td>클레임 scope 겹침 <code>block</code> 판정</td></tr>
       <tr><td><code>NERV_LEASE_EXPIRED</code></td><td>409</td><td>리스 만료 후 상태 변경 시도</td></tr>
       <tr><td><code>NERV_DRAFT_LEASED</code></td><td>409</td><td>다른 사용자가 초안 편집 리스 보유</td></tr>
@@ -531,6 +531,12 @@
 
   <p>곁가지 정정: <code>invalid_input</code> 은 요청의 <b>모양</b>이 틀린 것이라 §1.4 의 기준("모양이냐 상태냐")대로 <b>400</b> 이다. 409 로 나가던 동안 화면은 이것을 "지금은 안 되지만 나중에는 될 일"(상태 충돌)과 구별할 수 없었다.</p>
 
+  <p><b>한 자리만 고쳤던 것이 드러났다</b>(2026-09-03 · 라이브 실측 — REQ-API-082). 위 규칙은 EP-SES-01 에만 적용돼 있었고, 같은 모양의 자리 넷은 값을 그대로 <code>::enum</code> 으로 캐스팅하거나 <code>Number()</code> 의 <code>NaN</code> 을 SQL 에 실어 <b>사용자의 오타가 500</b> 이 됐다: <code>?status=doing</code> · <code>?impl_status=nope</code> · <code>?v=abc</code> · <code>events?limit=abc</code>. 그리고 발견 큐(<code>?severity=HIGH</code>)는 반대 방향으로 어긋나 있었다 — 200 을 주면서 <b>필터를 조용히 버렸다.</b> 조용한 무시가 더 나쁘다: 500 은 실패를 알려 주지만 무시는 걸러진 화면이라고 믿게 만든다.</p>
+
+  <p>판정은 이제 한 곳이다(<code>common/query-vocab.ts</code>) — 어휘의 정본은 언제나 <code>@nerv/schema</code> 의 enum 이고, 표면은 그것을 다시 적지 않는다(D-05).</p>
+
+  <p><b>예외 원문은 나가지 않는다.</b> MCP 표면은 실패한 도구의 예외 메시지를 <code>details.detail</code> 에 그대로 실었는데, drizzle 의 예외 메시지는 <b>SQL 전문</b>이라 오타 하나가 스키마와 질의를 돌려주는 창이 됐다. 원인은 운영자 로그에 남고 모델에게는 "다시 시도할 수 있는 실패" 라는 사실만 준다.</p>
+
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
@@ -727,10 +733,14 @@
       <tr><td>EP-AUTH-01</td><td><code>GET /api/v1/me</code></td><td>로그인 사용자</td><td>—</td><td><code>MeResult</code>(프로필 + 멤버십·역할 목록)</td><td>—</td></tr>
       <tr><td>EP-ORG-01</td><td><code>GET /api/v1/orgs</code></td><td>로그인 사용자</td><td>—</td><td><code>Page&lt;OrgSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-ORG-02</td><td><code>GET /api/v1/orgs/{org}</code></td><td>조직 멤버</td><td>—</td><td><code>OrgResult</code></td><td>—</td></tr>
+      <tr><td>EP-ORG-03</td><td><code>POST /api/v1/orgs</code></td><td>로그인 사용자</td><td><code>OrgCreateInput</code>(slug, name)</td><td><code>OrgResult</code> — 만든 사람이 그 조직의 <b>admin</b> 이 된다</td><td>—</td></tr>
+      <tr><td>EP-ORG-04</td><td><code>PATCH /api/v1/orgs/{org}</code></td><td>admin</td><td><code>OrgUpdateInput</code>(name)</td><td><code>OrgResult</code> — <b>slug 는 바꾸지 않는다</b>(링크의 축 · D-09)</td><td>—</td></tr>
+      <tr><td>EP-ORG-05</td><td><code>DELETE /api/v1/orgs/{org}</code></td><td>admin</td><td>—</td><td><code>{deleted:true}</code> — <b>프로젝트가 하나라도 있으면 409</b>. 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계(프로젝트 보관)를 세운다</td><td>—</td></tr>
       <tr><td>EP-PRJ-01</td><td><code>GET /api/v1/orgs/{org}/projects</code></td><td>조직 멤버</td><td>—</td><td><code>Page&lt;ProjectSummary&gt;</code></td><td>—</td></tr>
       <tr><td>EP-PRJ-02</td><td><code>POST /api/v1/orgs/{org}/projects</code></td><td>admin</td><td><code>ProjectCreateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.created</code></td></tr>
       <tr><td>EP-PRJ-03</td><td><code>GET /api/v1/projects/{proj}</code></td><td>프로젝트 멤버</td><td>—</td><td><code>ProjectResult</code>(게이트 정책 <code>gate_policy</code>·보존 <code>retention</code>·활성 세션/승인 대기 카운트 포함)</td><td>—</td></tr>
       <tr><td>EP-PRJ-04</td><td><code>PATCH /api/v1/projects/{proj}</code></td><td>admin <b>· 사람 전용</b>(§1.3b — 토큰은 403 <code>NERV_HUMAN_ONLY</code>) (게이트 정책·위험도 임계는 admin 전용 — <a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.6 매트릭스)</td><td><code>ProjectUpdateInput</code></td><td><code>ProjectResult</code></td><td>★<code>project.updated</code></td></tr>
+      <tr><td>EP-PRJ-05</td><td><code>POST /api/v1/projects/{proj}/archive</code> · <code>/restore</code></td><td>admin <b>· 사람 전용</b>(§1.3b)</td><td>—</td><td><code>ProjectResult</code> — <b>지우지 않고 보관한다</b>(<code>archived_at</code>). 목록에서 빠지되 주소는 살아 있다(EP-SPEC-16·17 과 같은 규약). EP-PRJ-01 은 <code>include_archived=true</code> 로만 보관분을 준다</td><td>—</td></tr>
       <tr><td>EP-MBR-01</td><td><code>GET /api/v1/orgs/{org}/members</code></td><td>조직 멤버</td><td>—</td><td><code>Page&lt;MemberResult&gt;</code></td><td>—</td></tr>
       <tr><td>EP-MBR-02</td><td><code>POST /api/v1/orgs/{org}/members</code></td><td>admin</td><td><code>MemberAddInput</code>(user + org/project 스코프 + <code>role</code>)</td><td><code>MemberResult</code></td><td>★<code>member.added</code></td></tr>
       <tr><td>EP-MBR-03</td><td><code>PATCH /api/v1/memberships/{id}</code></td><td>admin</td><td><code>MemberUpdateInput</code>(role 변경)</td><td><code>MemberResult</code></td><td>★<code>member.updated</code></td></tr>
@@ -796,7 +806,7 @@
       <tr><td>EP-SPEC-16</td><td><code>POST /api/v1/projects/{proj}/specs/{spec}/archive</code></td><td>planner·admin (<code>spec:meta</code>)</td><td>—</td><td><code>SpecResult</code>(<code>archived_at</code> 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409(<code>details.kind="archive_blocked"</code>, 차단 사유 목록)</td><td>★<code>spec.archived</code></td></tr>
       <tr><td>EP-SPEC-17</td><td><code>POST /api/v1/projects/{proj}/specs/{spec}/restore</code></td><td>planner·admin (<code>spec:meta</code>)</td><td>—</td><td><code>SpecResult</code>(<code>archived_at</code> NULL) — 부모가 아카이브 상태면 409(<code>details.kind="parent_archived"</code>)</td><td>★<code>spec.restored</code></td></tr>
       <tr><td>EP-SPEC-18</td><td><code>GET /api/v1/projects/{proj}/specs/{spec}/relations</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecRelationQuery</code>(direction: out/in/both 기본 both, kind?, cursor)</td><td><code>Page&lt;SpecRelationEntry&gt;</code>(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — <b>역참조(backlink)가 1급이다</b>: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널(<a href="screens.html">4.5 화면 명세</a> §2.4)과 영향 미리보기의 데이터 소스</td><td>—</td></tr>
-      <tr><td>EP-SPEC-19</td><td><code>GET /api/v1/projects/{proj}/specs/graph</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecGraphQuery</code>(include_archived — 기본 false)</td><td><code>SpecGraphResult</code>(<code>nodes[]</code> 트리와 같은 모양 + <code>edges[]</code> from_id·to_id·kind) — <td>전역 관계 그래프 — 노드(트리와 같은 모양) + 간선을 <b>한 응답</b>으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 <a href="screens.html">4.5</a> §2.4a</td></tr>
+      <tr><td>EP-SPEC-19</td><td><code>GET /api/v1/projects/{proj}/specs/graph</code></td><td>전 역할(<code>spec:read</code>)</td><td><code>SpecGraphQuery</code>(include_archived — 기본 false)</td><td><code>SpecGraphResult</code>(<code>nodes[]</code> 트리와 같은 모양 + <code>edges[]</code> from_id·to_id·kind) — 전역 관계 그래프를 <b>한 응답</b>으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 <a href="screens.html">4.5</a> §2.4a</td><td>—</td></tr>
     </tbody>
   </table></div>
 
@@ -1011,7 +1021,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>메서드 · 경로</th><th>권한</th><th>요청</th><th>응답</th><th>발생 이벤트</th></tr></thead>
     <tbody>
-      <tr><td>EP-EVT-01</td><td><code>GET /api/v1/projects/{proj}/events</code></td><td>전 역할(<code>audit:read</code>는 조직 전역 감사 조회에만 요구)</td><td><code>EventListQuery</code>(since, type[], subject_type, subject_id, cursor) — <code>occurred_at DESC</code></td><td><code>Page&lt;EventResult&gt;</code>(actor{user, session, is_agent}·from/to state·payload — <a href="data-model.html">3.3 데이터 모델</a> §2.9)</td><td>—</td></tr>
+      <tr><td>EP-EVT-01</td><td><code>GET /api/v1/projects/{proj}/events</code></td><td>전 역할(<code>spec:read</code>) — <code>audit:read</code> 라는 스코프는 <b>존재한 적 없다</b>(2026-09-05 정정)</td><td><code>EventListQuery</code>(since, type[], subject_type, subject_id, cursor) — <code>occurred_at DESC</code></td><td><code>Page&lt;EventResult&gt;</code>(actor{user, session, is_agent}·from/to state·payload — <a href="data-model.html">3.3 데이터 모델</a> §2.9)</td><td>—</td></tr>
       <tr><td>EP-NTF-01</td><td><code>GET /api/v1/me/notifications</code></td><td>본인</td><td><code>NotificationListQuery</code>(state: unread/read, cursor)</td><td><code>Page&lt;NotificationResult&gt;</code></td><td>—</td></tr>
       <tr><td>EP-NTF-02</td><td><code>POST /api/v1/me/notifications/{id}/read</code></td><td>본인</td><td>—</td><td><code>{ok:true}</code></td><td>—</td></tr>
       <tr><td>EP-NTF-03</td><td><code>POST /api/v1/me/notifications/read-all</code></td><td>본인</td><td>—</td><td><code>{ok:true, marked:&lt;수&gt;}</code> — <b>몇 건을 읽었는지 말한다</b></td><td>—</td></tr>
@@ -1312,7 +1322,7 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
       <tr><td><code>nerv_task_claim</code></td><td>A2</td><td><code>TaskService.claim</code></td><td>EP-TASK-06</td><td>겹침 판정·원자 전환이 이 메서드 안 — 표면 무관 동일</td></tr>
       <tr><td><code>nerv_task_heartbeat</code></td><td>A1</td><td><code>TaskService.heartbeat</code></td><td>EP-TASK-07</td><td>응답의 <code>pending</code> 역채널 포함</td></tr>
       <tr><td><code>nerv_task_release</code></td><td>A2</td><td><code>TaskService.release</code></td><td>EP-TASK-08</td><td></td></tr>
-      <tr><td><code>nerv_spec_draft_upsert</code></td><td>A2</td><td><code>SpecService.draftUpsert</code></td><td>EP-SPEC-07·08</td><td><code>base_version</code> 409·초안 편집 리스가 이 메서드 안. 메타 필드(parent_id·type·title)는 생성에서만 소비 — 기존 spec에 다른 값이 오면 409(§2.2). 메타 수정은 EP-SPEC-15 전용(도구 없음)</td></tr>
+      <tr><td><code>nerv_spec_draft_upsert</code></td><td>A2</td><td><code>SpecService.draftUpsert</code></td><td>EP-SPEC-07·08</td><td><code>base_hash</code> 비교-교환·초안 편집 리스가 이 메서드 안. 메타 필드(parent_id·type·title)는 생성에서만 소비 — 기존 spec에 다른 값이 오면 409(§2.2). 메타 수정은 EP-SPEC-15 전용(도구 없음)</td></tr>
       <tr><td><code>nerv_spec_submit_review</code></td><td><b>A3</b></td><td><code>SpecService.submitReview</code> → <code>ApprovalService.request</code></td><td>EP-SPEC-10</td><td>pending Approval 재사용(카드 중복 금지) — 표면 무관</td></tr>
       <tr><td><code>nerv_spec_check</code></td><td>A1</td><td><code>SpecService.check</code></td><td>EP-SPEC-09</td><td>5검사기 서비스 호출</td></tr>
       <tr><td><code>nerv_spec_comment_resolve</code></td><td>A2</td><td><code>SpecService.resolveComment</code></td><td>EP-CMT-04</td><td></td></tr>
