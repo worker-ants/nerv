@@ -268,3 +268,63 @@ describe('스트립은 필터다 (REQ-WEB-116)', () => {
     expect(screen.getByTestId('session-filter-active').hasAttribute('disabled')).toBe(true);
   });
 });
+
+// 2026-09-05 사람 요청 — 스트립에 **있는 상태만** 보였다(실측: sudoku 는 종료·무응답 둘뿐이라
+// 나머지 넷은 화면에 아예 없었다). 그러면 폭과 칸이 프로젝트마다 달라 눈이 자리를 다시 찾아야
+// 하고, 무엇보다 "오류 0건" 과 "오류라는 상태가 없음" 을 구별할 수 없다.
+describe('0 인 상태도 자리를 지킨다 (REQ-WEB-139)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stub(summary: Record<string, number>): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [base], summary, next_cursor: null }),
+      })),
+    );
+  }
+
+  it('여섯 상태가 모두 보인다 — 응답에 없는 것은 0 으로', async () => {
+    stub({ complete: 27, stale: 20 });
+    await renderBoard({ onStateChange: vi.fn() });
+    const strip = within(await screen.findByTestId('session-summary'));
+    for (const label of ['대기', '활동 중', '응답 대기', '종료', '오류', '무응답']) {
+      expect(strip.getByText(label)).toBeDefined();
+    }
+    expect(strip.getByTestId('session-filter-error').textContent).toContain('0');
+  });
+
+  it('어휘 순서로 앉는다 — GROUP BY 는 순서를 약속하지 않는다', async () => {
+    stub({ stale: 20, complete: 27 });
+    await renderBoard({ onStateChange: vi.fn() });
+    const strip = await screen.findByTestId('session-summary');
+    const order = [...strip.querySelectorAll('[data-testid^="session-filter-"]')].map((el) =>
+      el.getAttribute('data-testid'),
+    );
+    expect(order).toEqual([
+      'session-filter-pending',
+      'session-filter-active',
+      'session-filter-awaiting_input',
+      'session-filter-complete',
+      'session-filter-error',
+      'session-filter-stale',
+    ]);
+  });
+
+  it('0 인 칸은 눌리지 않는다 — 눌러도 빈 목록인 단추는 두지 않는다', async () => {
+    stub({ complete: 27, stale: 20 });
+    await renderBoard({ onStateChange: vi.fn() });
+    await screen.findByTestId('session-summary');
+    expect(screen.getByTestId('session-filter-error').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('session-filter-complete').hasAttribute('disabled')).toBe(false);
+  });
+
+  it('어휘 밖의 값이 와도 사라지지 않는다 — 조용히 없어지는 칸을 만들지 않는다', async () => {
+    stub({ complete: 1, hibernating: 2 });
+    await renderBoard({ onStateChange: vi.fn() });
+    const strip = within(await screen.findByTestId('session-summary'));
+    expect(strip.getByTestId('session-filter-hibernating').textContent).toContain('2');
+  });
+});

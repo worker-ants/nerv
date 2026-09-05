@@ -32,7 +32,7 @@ Two things make it readable.
 
 Expanding a line shows the **raw payload** (tool input and response). Raw payloads are visible **only to the session's owner and to admins** — secrets are masked at ingest, but masking is never perfect, so the audience is narrowed too. Everyone else sees the title, the outcome and the tool name.
 
-The **summary strip** at the top is both a count and a filter — press a number and only sessions in that state remain.
+The **summary strip** at the top is both a count and a filter — press a number and only sessions in that state remain. **All six states always hold their place**: a state with nothing in it still shows, dimmed, as `0`, and a `0` cannot be pressed because there is nothing to show. Drawing only what exists would leave you unable to tell "no errors" from "no such state", and the columns would move around from one visit to the next.
 
 ## Messages and stopping
 
