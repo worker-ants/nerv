@@ -132,6 +132,7 @@ export const ko = {
     '상대 문서가 그 사이 바뀌었습니다 — 다시 읽고 관계가 여전히 맞는지 확인하세요.',
   'inbox.card.decided_at': '{decision} · {when}',
   'inbox.subject.gate_bypass': '게이트 우회 요청',
+  'inbox.subject.plan': '플랜 승인 요청',
   'mcp.arg.relation_base_hash':
     '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
@@ -438,6 +439,8 @@ export const ko = {
   'error.task.blocked_reason_required': 'blocked 에는 사유가 필요합니다.',
   'error.task.delegation_incomplete': '위임 명세 4요소가 비어 있습니다: {missing}',
   'error.task.done_gate': 'done 게이트를 충족하지 못했습니다.',
+  'error.task.plan_approval_required':
+    '이 작업은 착수 전에 플랜 승인이 필요합니다 — 받은 요청에 카드를 만들었으니 승인 뒤 다시 클레임하세요.',
   'error.task.done_is_final': '완료된 작업은 이 경로로 되돌리지 않습니다.',
   'error.task.not_assignee': '이 작업의 담당자가 아닙니다.',
   'error.task.not_found': '작업을 찾을 수 없습니다.',

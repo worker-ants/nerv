@@ -5,7 +5,10 @@ The inbox collects **only what is waiting on your decision**. Count background a
 | Card              | What it asks                                        |
 | ----------------- | --------------------------------------------------- |
 | **Spec approval** | May this version become the baseline                |
+| **Plan approval** | May this large piece of work start now              |
 | **Question**      | Something an agent could not decide — please answer |
+
+**Plan approval** stands only in front of large work — four or more tasks from the same spec revision, or a revision graded **T3**. Claiming such a task is refused on the spot and this card is created; approve it and the next claim goes through. The point is to look at the design before the code is written, which is why the gate sits right before the start.
 
 Lowering a `critical` review finding also arrives here as a card (see [Reviews](/help/reviews)).
 

@@ -15,6 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
+import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
@@ -61,7 +62,11 @@ beforeAll(async () => {
   // 하트비트 역채널은 이 스위트의 관심사가 아니다 — 질문이 없으면 빈 목록이다.
   questions = new QuestionService(events, drizzleDb);
   sessions = new SessionService(events, drizzleDb);
-  tasks = new TaskService(claims, events, questions, sessions, drizzleDb);
+  // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트도 그 서비스를 들고 있어야 한다
+  // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트는 그 게이트에 닿지 않지만
+  // 서비스는 들고 있어야 한다(SpecService·AuthService 는 이 경로에서 쓰이지 않는다)
+  const approvals = new ApprovalService(events, null as never, null as never, drizzleDb);
+  tasks = new TaskService(claims, events, questions, sessions, approvals, drizzleDb);
 
   await seed();
 });
@@ -749,3 +754,125 @@ async function seed(): Promise<void> {
   }
   void sql;
 }
+
+/**
+ * **플랜 승인 게이트**(G2 · D-06 ② · REQ-API-095 — 2026-09-05 사람 결정: 구현한다).
+ *
+ * 정본이 정한 조건 둘 — **파생 Task 4건 이상** 또는 **T3 티어 스펙**. 위치도 정본이 정한
+ * 자리다(`ready → claimed`, 착수 전). 감사 전까지 `'plan'` 결재를 만드는 호출자가 저장소에
+ * 하나도 없어, 명세가 MVP 3유형으로 적은 카드가 실물로는 존재하지 않았다.
+ */
+describe('G2 플랜 승인 — 대형 작업은 착수 전에 사람을 거친다', () => {
+  async function makeTask(key: string, specVersionId: string | null): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,$3,'ready',$4,'목표','PR','저장소','건드리지 않을 것')`,
+      [id, projectId, key, specVersionId],
+    );
+    return id;
+  }
+
+  it('파생 Task 가 넷이 되면 막고, 그 자리에서 카드를 만든다', async () => {
+    const version = await makeApprovedSpecVersion('SPC-PLAN-A');
+    const first = await makeTask('TSK-PLAN-1', version);
+    for (const key of ['TSK-PLAN-2', 'TSK-PLAN-3', 'TSK-PLAN-4']) await makeTask(key, version);
+
+    await expect(tasks.claim(claimInput(first, sessionHana, hana))).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'plan_approval_required', reason: 'derived_tasks' },
+    });
+
+    // **카드가 남아 있어야 한다** — 거절만 하고 결재를 만들지 않으면 그 작업은 영영 막힌다
+    const { rows } = await pool.query(
+      `SELECT id FROM approval WHERE subject_type = 'plan' AND subject_id = $1`,
+      [first],
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it('다시 클레임해도 카드는 하나다 — 막힐 때마다 쌓이면 받은 요청이 못 쓰게 된다', async () => {
+    const version = await makeApprovedSpecVersion('SPC-PLAN-B');
+    const first = await makeTask('TSK-DUP-1', version);
+    for (const key of ['TSK-DUP-2', 'TSK-DUP-3', 'TSK-DUP-4']) await makeTask(key, version);
+
+    for (let i = 0; i < 3; i += 1) {
+      await expect(tasks.claim(claimInput(first, sessionHana, hana))).rejects.toMatchObject({
+        details: { kind: 'plan_approval_required' },
+      });
+    }
+    const { rows } = await pool.query(
+      `SELECT id FROM approval WHERE subject_type = 'plan' AND subject_id = $1`,
+      [first],
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it('승인되면 지나간다 — 게이트는 한 번 지나면 다시 서지 않는다', async () => {
+    const version = await makeApprovedSpecVersion('SPC-PLAN-C');
+    const first = await makeTask('TSK-OK-1', version);
+    for (const key of ['TSK-OK-2', 'TSK-OK-3', 'TSK-OK-4']) await makeTask(key, version);
+
+    await expect(tasks.claim(claimInput(first, sessionHana, hana))).rejects.toMatchObject({
+      details: { kind: 'plan_approval_required' },
+    });
+
+    await pool.query(
+      `UPDATE approval SET decision = 'approve', decided_at = now()
+        WHERE subject_type = 'plan' AND subject_id = $1`,
+      [first],
+    );
+    await expect(tasks.claim(claimInput(first, sessionHana, hana))).resolves.toMatchObject({
+      replayed: false,
+    });
+  });
+
+  it('셋까지는 그냥 지나간다 — 게이트는 "대형" 에만 선다', async () => {
+    const version = await makeApprovedSpecVersion('SPC-SMALL');
+    const only = await makeTask('TSK-SMALL-1', version);
+    for (const key of ['TSK-SMALL-2', 'TSK-SMALL-3']) await makeTask(key, version);
+
+    await expect(tasks.claim(claimInput(only, sessionHana, hana))).resolves.toMatchObject({
+      replayed: false,
+    });
+  });
+
+  it('기준 버전이 없는 작업은 판단할 근거가 없어 걸지 않는다', async () => {
+    const loose = await makeTask('TSK-LOOSE', null);
+    await expect(tasks.claim(claimInput(loose, sessionHana, hana))).resolves.toMatchObject({
+      replayed: false,
+    });
+  });
+
+  it('T3 스펙에서 나온 작업은 파생이 하나여도 막는다', async () => {
+    const version = await makeApprovedSpecVersion('SPC-T3', 'T3');
+    const lone = await makeTask('TSK-T3-1', version);
+    await expect(tasks.claim(claimInput(lone, sessionHana, hana))).rejects.toMatchObject({
+      details: { kind: 'plan_approval_required', reason: 'tier_t3' },
+    });
+  });
+
+  /** 승인된 판 하나 — 티어를 주면 그 판정을 이벤트로 남긴다(실제 승인 경로가 그렇게 한다) */
+  async function makeApprovedSpecVersion(key: string, tier?: string): Promise<string> {
+    const specId = newId();
+    const versionId = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
+      [specId, projectId, key],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'approved','# 본문', sha256($3::bytea), $4)`,
+      [versionId, specId, key, hana],
+    );
+    if (tier !== undefined) {
+      await pool.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, payload)
+         VALUES ($1,$2,'spec.submitted','spec_version',$3,$4::jsonb)`,
+        [newId(), projectId, versionId, JSON.stringify({ gate_tier: tier })],
+      );
+    }
+    return versionId;
+  }
+});

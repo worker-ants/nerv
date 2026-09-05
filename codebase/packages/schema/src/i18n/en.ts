@@ -132,6 +132,7 @@ export const en = {
     'The target document changed in the meantime — read it again and confirm the relation still holds.',
   'inbox.card.decided_at': '{decision} · {when}',
   'inbox.subject.gate_bypass': 'Gate bypass request',
+  'inbox.subject.plan': 'Plan approval request',
   'mcp.arg.relation_base_hash':
     'fingerprint of the target document — content_hash from nerv_spec_get. required when adding a relation',
   'mcp.arg.takeover':
@@ -449,6 +450,8 @@ export const en = {
   'error.task.blocked_reason_required': 'Blocking a task requires a reason.',
   'error.task.delegation_incomplete': 'The delegation brief is incomplete: {missing}',
   'error.task.done_gate': 'The done gate is not satisfied.',
+  'error.task.plan_approval_required':
+    'This task needs plan approval before it can be started — a card is waiting in the inbox; claim it again once approved.',
   'error.task.done_is_final': 'A finished task is not reopened through this path.',
   'error.task.not_assignee': 'You are not the assignee of this task.',
   'error.task.not_found': 'Task not found.',
