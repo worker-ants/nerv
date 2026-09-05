@@ -104,7 +104,8 @@ export const claimReleaseReason = pgEnum('claim_release_reason', [
  * 보낸 쪽은 자기가 고른 값이 들어갔다고 믿는다.
  */
 export const CLAIM_RELEASE_INPUTS = ['done', 'handoff', 'abandon'] as const;
-export type ClaimReleaseInput = (typeof CLAIM_RELEASE_INPUTS)[number];
+/** 이름은 `ClaimReleaseReason` 이다 — `ClaimReleaseInput` 은 전표가 요청 스키마에 쓰는 이름이다(§1.7) */
+export type ClaimReleaseReason = (typeof CLAIM_RELEASE_INPUTS)[number];
 
 // ── 세션·활동 ─────────────────────────────────────────────────────────────
 export const agentType = pgEnum('agent_type', ['claude-code', 'codex', 'web', 'other']);

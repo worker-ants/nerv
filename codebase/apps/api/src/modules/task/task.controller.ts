@@ -4,8 +4,18 @@
 // TaskService 한 곳에 있다 — 클레임 원자성·done 게이트가 REST 와 MCP 에서 갈라질 수 없는 이유다(D-05).
 
 import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { msg, NERV_ERROR } from '@nerv/schema';
+import {
+  ClaimReleaseInput,
+  HeartbeatInput,
+  msg,
+  NERV_ERROR,
+  TaskClaimInput,
+  TaskCreateInput,
+  TaskTransitionInput,
+  TaskUpdateInput,
+} from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { parseBody } from '../../common/parse-body.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRoleAndScope, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -68,19 +78,20 @@ export class TaskController {
   @RequireRoleAndScope(['planner', 'developer', 'admin', 'qa'], 'task:update')
   @Post('tasks')
   create(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+    const input = parseBody(TaskCreateInput, body);
     return this.tasks.create({
       projectId: projectOf(req),
       userId: principalOf(req).userId,
-      title: String(body['title'] ?? ''),
-      bodyMd: str(body['body_md']),
-      sourceSpecVersionId: str(body['source_spec_version_id']),
-      baseline: str(body['baseline']),
-      sourceRequirementId: str(body['source_requirement_id']),
-      priority: str(body['priority']),
-      goalMd: str(body['goal_md']),
-      outputFormatMd: str(body['output_format_md']),
-      toolsSourcesMd: str(body['tools_sources_md']),
-      boundariesMd: str(body['boundaries_md']),
+      title: input.title,
+      bodyMd: input.body_md ?? null,
+      sourceSpecVersionId: input.source_spec_version_id ?? null,
+      baseline: input.baseline ?? null,
+      sourceRequirementId: input.source_requirement_id ?? null,
+      priority: input.priority ?? null,
+      goalMd: input.goal_md ?? null,
+      outputFormatMd: input.output_format_md ?? null,
+      toolsSourcesMd: input.tools_sources_md ?? null,
+      boundariesMd: input.boundaries_md ?? null,
     });
   }
 
@@ -92,19 +103,20 @@ export class TaskController {
     @Param('task') task: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
+    const input = parseBody(TaskUpdateInput, body);
     return this.tasks.update({
       projectId: projectOf(req),
       taskKey: task,
       userId: principalOf(req).userId,
-      title: str(body['title']),
-      bodyMd: str(body['body_md']),
-      priority: str(body['priority']),
-      goalMd: str(body['goal_md']),
-      outputFormatMd: str(body['output_format_md']),
-      toolsSourcesMd: str(body['tools_sources_md']),
-      boundariesMd: str(body['boundaries_md']),
-      assigneeUserId: str(body['assignee_user_id']),
-      dependsOnKeys: Array.isArray(body['depends_on']) ? (body['depends_on'] as string[]) : null,
+      title: input.title ?? null,
+      bodyMd: input.body_md ?? null,
+      priority: input.priority ?? null,
+      goalMd: input.goal_md ?? null,
+      outputFormatMd: input.output_format_md ?? null,
+      toolsSourcesMd: input.tools_sources_md ?? null,
+      boundariesMd: input.boundaries_md ?? null,
+      assigneeUserId: input.assignee_user_id ?? null,
+      dependsOnKeys: input.depends_on ?? null,
     });
   }
 
@@ -116,17 +128,16 @@ export class TaskController {
     @Param('task') task: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
+    const input = parseBody(TaskTransitionInput, body);
     return this.tasks.transition({
       roles: req.nervRoles ?? [],
       projectId: projectOf(req),
       taskId: task,
-      status: String(body['status'] ?? ''),
+      status: input.status,
       userId: principalOf(req).userId,
-      blockedReason: str(body['blocked_reason']),
-      specImpact: (body['spec_impact'] ?? null) as Record<string, unknown> | null,
-      ...(Array.isArray(body['evidence'])
-        ? { evidence: body['evidence'] as { kind: string; locator: string }[] }
-        : {}),
+      blockedReason: input.blocked_reason ?? null,
+      specImpact: input.spec_impact ?? null,
+      ...(input.evidence == null ? {} : { evidence: input.evidence }),
     });
   }
 
@@ -138,18 +149,15 @@ export class TaskController {
     @Param('task') task: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    const scope = (body['scope'] ?? {}) as Record<string, unknown>;
+    const input = parseBody(TaskClaimInput, body);
     return this.tasks.claim({
       projectId: projectOf(req),
       taskId: task,
       userId: principalOf(req).userId,
-      sessionId: str(body['session_id']),
+      sessionId: input.session_id ?? null,
       // branch·worktree 는 클레임이 아니라 세션의 속성이다(agent_session) — 부트스트랩이 싣는다.
-      scope: {
-        specIds: Array.isArray(scope['spec_ids']) ? (scope['spec_ids'] as string[]) : [],
-        fileGlobs: Array.isArray(scope['file_globs']) ? (scope['file_globs'] as string[]) : [],
-      },
-      ...(typeof body['lease_seconds'] === 'number' ? { leaseSeconds: body['lease_seconds'] } : {}),
+      scope: { specIds: input.scope.spec_ids, fileGlobs: input.scope.file_globs },
+      ...(input.lease_seconds == null ? {} : { leaseSeconds: input.lease_seconds }),
     });
   }
 
@@ -166,16 +174,20 @@ export class TaskController {
     // **본문을 읽는다**(2026-09-05 · REQ-API-081). 여기 있던 `void body;` 가 전표의
     // `progress`·`stats`·`lease_seconds` 를 통째로 버렸다 — 서비스는 셋 다 받고 있었고
     // MCP 만 넘기고 있었다. 세션 카드의 +N −M 이 REST 경로에서만 비던 이유다.
-    const stats = body['stats'];
+    const input = parseBody(HeartbeatInput, body);
     return this.tasks.heartbeat({
       claimId: claim,
       actor: claimActor(req),
-      progress: str(body['progress']),
+      progress: input.progress ?? null,
       stats:
-        typeof stats === 'object' && stats !== null
-          ? (stats as { added?: number; removed?: number; files?: number })
-          : null,
-      ...(typeof body['lease_seconds'] === 'number' ? { leaseSeconds: body['lease_seconds'] } : {}),
+        input.stats == null
+          ? null
+          : {
+              ...(input.stats.added == null ? {} : { added: input.stats.added }),
+              ...(input.stats.removed == null ? {} : { removed: input.stats.removed }),
+              ...(input.stats.files == null ? {} : { files: input.stats.files }),
+            },
+      ...(input.lease_seconds == null ? {} : { leaseSeconds: input.lease_seconds }),
     });
   }
 
@@ -188,6 +200,7 @@ export class TaskController {
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
     projectOf(req);
+    const release = parseBody(ClaimReleaseInput, body);
     return this.tasks.release({
       actor: claimActor(req),
       claimId: claim,
@@ -195,16 +208,12 @@ export class TaskController {
       // **고른 값을 그대로 넘긴다**(2026-09-05 · REQ-API-107). 여기 있던 삼항식이
       // "셋 중 하나가 아니면 handoff" 로 **조용히 바꾸고** 있었다 — 보낸 쪽은 자기가
       // 고른 값이 들어갔다고 믿는다. 어휘 판정은 도메인 서비스 한 곳이다(D-05).
-      reason: String(body['reason'] ?? ''),
+      reason: release.reason,
       // **인수인계 노트도 나른다**(2026-09-05 · REQ-API-081). 저장할 열까지 만들어 두고
       // MCP 만 배선했다 — REST 로 내려놓으면 노트는 남았다고 응답하면서 사라졌다.
-      stateNote: str(body['state_note']),
+      stateNote: release.state_note ?? null,
     });
   }
-}
-
-function str(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
 }
 
 function projectOf(req: ProjectRequest): string {

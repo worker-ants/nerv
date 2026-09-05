@@ -6,5 +6,6 @@
 
 export * from './import.js';
 export * from './spec.js';
+export * from './task.js';
 export * from './tenancy.js';
 export * from './policy.js';
