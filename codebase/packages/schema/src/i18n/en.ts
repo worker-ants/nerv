@@ -356,7 +356,12 @@ export const en = {
     'Whose machine this is — one of the three identity fields on the session board',
   'mcp.arg.external_session_id': 'Harness session id — the idempotency key for repeat calls',
   'mcp.arg.event_seq': 'Monotonic within the session — the idempotency key for resends',
-  'mcp.arg.around': 'spec key — when given, only the neighbourhood of this document',
+  'mcp.arg.around':
+    'spec key or UUID — when given, only this document and its relations within hops. Not combined with root/depth',
+  'mcp.arg.spec_root':
+    'spec key or UUID — when given, only that document and its descendants. Unknown key is not_found',
+  'mcp.arg.spec_depth':
+    'edges to descend from the root — 0 is roots only, 1 is roots and their children',
   'mcp.arg.scope': 'Specs and files this work will touch — the input to overlap detection',
   'mcp.arg.relations':
     'Declared relations — judgements like refines/depends_on. A different axis from the references that body links create; omit it and nothing is touched',

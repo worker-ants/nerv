@@ -351,7 +351,10 @@ export const ko = {
   'mcp.arg.hostname': '누구의 어느 머신인가 — 세션 보드의 신원 3요소',
   'mcp.arg.external_session_id': '하네스 세션 ID — 재호출 멱등 키',
   'mcp.arg.event_seq': '세션 내 단조 증가 — 재전송 멱등 키',
-  'mcp.arg.around': 'spec key — 주면 이 문서 주변만',
+  'mcp.arg.around':
+    'spec key 또는 UUID — 주면 이 문서에서 관계를 타고 hops 만큼만. root·depth 와 함께 쓰지 않는다',
+  'mcp.arg.spec_root': 'spec key 또는 UUID — 주면 그 문서와 그 아래만. 없는 문서면 not_found 다',
+  'mcp.arg.spec_depth': '뿌리에서 내려갈 간선 수 — 0 이면 뿌리만, 1 이면 뿌리와 그 자식',
   'mcp.arg.scope': '이 작업이 건드릴 스펙·파일. 겹침 판정의 입력이다',
   'mcp.arg.relations':
     '선언 관계 — 정제·선행 같은 판단. 본문 링크가 만드는 references 와 다른 축이고, 주지 않으면 건드리지 않는다',

@@ -45,6 +45,7 @@ import { SpecCommentService } from './spec-comment.service.js';
 import type { CheckResult } from './spec-check.service.js';
 import { readerHash } from './reader-hash.js';
 import { requirementsOf, specDelta } from './spec-delta.js';
+import { neighborhood, pruneTree } from './spec-tree.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
 
@@ -145,8 +146,21 @@ export class SpecService {
     @InjectDb() private readonly db: NervDb,
   ) {}
 
-  /** nerv_spec_tree · EP-SPEC-01 */
-  async tree(input: { projectId: string; includeArchived?: boolean }): Promise<SpecTreeNode[]> {
+  /**
+   * nerv_spec_tree · EP-SPEC-01
+   *
+   * `root`(안정 키 또는 UUID)·`depth` 로 좁힐 수 있다. **둘 다 없으면 전 계층**이다 —
+   * 화면은 그것을 쓴다(screens.md REQ-WEB-044: 깊이는 성능 장치가 아니다).
+   *
+   * 좁히기 판정이 여기 있는 이유는 표면이 둘이기 때문이다(REST·MCP · D-05). 도구 쪽에
+   * 복사하면 두 표면이 같은 인자를 다르게 해석하게 되고, 그때 갈라진 쪽을 아무도 못 본다.
+   */
+  async tree(input: {
+    projectId: string;
+    includeArchived?: boolean;
+    root?: string | null;
+    depth?: number | null;
+  }): Promise<SpecTreeNode[]> {
     const archived = input.includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
     const { rows } = await this.db.execute<SpecTreeNode>(sql`
       SELECT s.id, s.key, s.title, s.type::text AS type, s.parent_id, s.sort_key,
@@ -156,7 +170,52 @@ export class SpecService {
        WHERE s.project_id = ${input.projectId}${archived}
        ORDER BY s.sort_key, s.key
     `);
-    return rows;
+    const depth = input.depth ?? null;
+    // 음수·소수·NaN 은 "뿌리만" 으로 조용히 떨어진다 — 잘못 적은 질의가 빈 트리로 보인다
+    if (depth !== null && (!Number.isInteger(depth) || depth < 0)) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'depth',
+        wrong_type: ['depth'],
+      });
+    }
+    const pruned = pruneTree(rows, { root: input.root ?? null, depth });
+    // **없는 문서를 가리켰으면 전체를 주지 않는다.** 성공 응답에 전체 트리를 실으면 그것은
+    // "그 문서 밑에 이만큼 있다"로 읽힌다 — 오타가 사실이 되는 자리다.
+    if (pruned === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+        kind: 'not_found',
+        field: 'root',
+        spec: input.root,
+      });
+    }
+    return pruned;
+  }
+
+  /**
+   * EP-SPEC-19 — 중심에서 hop 이내의 부분 그래프(`nerv_spec_tree` 의 `around`·`hops`).
+   *
+   * 관계 간선을 타고 퍼진다 — 계층(`root`·`depth`)과는 **다른 축**이라 섞어 받지 않는다.
+   */
+  async neighborhood(input: {
+    projectId: string;
+    includeArchived?: boolean;
+    around: string;
+    hops: number;
+  }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
+    const graph = await this.graph({
+      projectId: input.projectId,
+      ...(input.includeArchived === undefined ? {} : { includeArchived: input.includeArchived }),
+    });
+    const near = neighborhood(graph, input.around, input.hops);
+    if (near === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+        kind: 'not_found',
+        field: 'around',
+        spec: input.around,
+      });
+    }
+    return near;
   }
 
   /**
@@ -170,6 +229,8 @@ export class SpecService {
   async graph(input: {
     projectId: string;
     includeArchived?: boolean;
+    root?: string | null;
+    depth?: number | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const nodes = await this.tree(input);
     const visible = new Set(nodes.map((node) => node.id));

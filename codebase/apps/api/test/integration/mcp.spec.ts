@@ -9,6 +9,9 @@
 // 실제 HTTP 로 돈다 — 가드 순서(Origin → 인증)·스코프 검사·구조화 에러가 배선된 상태로만
 // 의미가 있기 때문이다. Phase 0 성공 기준 0-8(tools-only 완주)의 재현이기도 하다.
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { AGENT_SCOPES, NERV_ERROR, REST_ONLY_SCOPES, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
@@ -786,6 +789,209 @@ describe('E03-S03 모르는 인자 — 성공해도 버렸다고 말한다', () 
     });
     const result = await callTool('nerv_spec_tree', { session_id: boot['session_id'] });
     expect(result['ignored_args']).toBeUndefined();
+  });
+});
+
+/**
+ * 걸러 주는 인자 — 스키마에 있고 핸들러에는 없던 넷(REQ-API-090).
+ *
+ * 실측 2026-09-05(sudoku · 실사용 보고): `root`·`depth`·`around`·`hops` 를 무엇으로 줘도
+ * 프로젝트 전체 18개가 그대로 왔다. **없는 문서를 `root` 로 줘도 `ok:true` 였다** — 그리고
+ * 스킬은 그 인자를 `root_spec_id` 라는 없는 이름으로 적고 있어서, 옳은 이름을 쓴 세션과
+ * 틀린 이름을 쓴 세션의 응답이 **같았다.** 어긋남을 알아챌 자리가 어디에도 없었다.
+ */
+/**
+ * 유령 인자를 **기계가 잡는다**(REQ-API-091 · AGENTS.md 규약 6).
+ *
+ * 스킬이 지시하는 인자가 도구 스키마에 실재하는가 — 이 저장소가 네 번 겪은 실패다.
+ * 2026-09-05 실사용 보고가 둘을 더 찾았다: `nerv_spec_search`(`query`)는 실제로는 `q` 고
+ * `nerv_spec_tree`(`root_spec_id`)는 실제로는 `root` 였다. 앞의 것은 시끄럽게 실패해
+ * 세션이 스스로 회복했지만, 뒤의 것은 **서버가 `root` 마저 무시하고 있어서** 틀린 이름을
+ * 쓴 세션과 옳은 이름을 쓴 세션의 응답이 같았다 — 둘이 서로를 가렸다.
+ *
+ * 사람의 눈으로 대조하는 일을 여기 옮긴다. 손으로 하는 교차 검사는 하기로 정해 두어도
+ * 하지 않는 날이 오고, 그날은 아무 소리도 나지 않는다.
+ */
+describe('E03-S03 스킬이 부르는 인자가 도구에 실재하는가', () => {
+  /** `` `nerv_x`(`a`, `b=값`) `` 표기에서 인자 이름만 줍는다 — 값(`=`·`:` 뒤)은 버린다 */
+  const CALL = /`(nerv_[a-z_]+)`\(([^)]*)\)/g;
+  const TOKEN = /`([^`]+)`/g;
+
+  it('스킬 6종의 도구 호출 표기를 tools/list 스키마와 대조한다', async () => {
+    const { body } = await rpc('tools/list');
+    const tools = (
+      body['result'] as { tools: { name: string; inputSchema: Record<string, unknown> }[] }
+    ).tools;
+    const known = new Map<string, Set<string>>();
+    for (const tool of tools) {
+      const properties = (tool.inputSchema['properties'] ?? {}) as Record<
+        string,
+        { enum?: unknown[] }
+      >;
+      const names = new Set(Object.keys(properties));
+      // **값도 이름처럼 보인다** — `nerv_finding_resolve`(`dismissed`) 의 `dismissed` 는
+      // 인자가 아니라 `resolution` 의 값이다. 어휘에 있는 값은 유령이 아니다.
+      for (const property of Object.values(properties)) {
+        for (const value of property.enum ?? []) if (typeof value === 'string') names.add(value);
+      }
+      // 봉투 인자는 표면이 읽는다(tool-input.ts ENVELOPE_ARGS)
+      names.add('session_id').add('idempotency_key');
+      known.set(tool.name, names);
+    }
+
+    const skillsDir = join(dirname(fileURLToPath(import.meta.url)), '../../../../plugin/skills');
+    const ghosts: string[] = [];
+    let checked = 0;
+    for (const skill of readdirSync(skillsDir)) {
+      const body_ = readFileSync(join(skillsDir, skill, 'SKILL.md'), 'utf8');
+      for (const call of body_.matchAll(CALL)) {
+        const tool = call[1] ?? '';
+        const schema = known.get(tool);
+        if (schema === undefined) {
+          ghosts.push(`${skill}: ${tool} 이라는 도구가 없다`);
+          continue;
+        }
+        for (const token of (call[2] ?? '').matchAll(TOKEN)) {
+          const name = (token[1] ?? '').split(/[=:]/)[0]?.trim() ?? '';
+          if (!/^[a-z][a-z0-9_]*$/.test(name)) continue;
+          checked += 1;
+          if (!schema.has(name)) ghosts.push(`${skill}: ${tool}(${name})`);
+        }
+      }
+    }
+    // 정규식이 아무것도 못 줍고 통과하는 일이 없게 — 빈 검사는 검사가 아니다
+    expect(checked).toBeGreaterThan(40);
+    expect(ghosts).toEqual([]);
+  });
+});
+
+describe('E03-S03 nerv_spec_tree — 걸러 달라고 한 것은 걸러서 준다', () => {
+  const keys = (result: Record<string, unknown>): string[] =>
+    (result['nodes'] as { key: string }[]).map((node) => node.key);
+
+  let rootId = '';
+  let branchId = '';
+  let leafId = '';
+  let siblingId = '';
+
+  beforeAll(async () => {
+    const make = async (key: string, parent: string | null): Promise<string> => {
+      const id = newId();
+      await pool.query(
+        `INSERT INTO spec (id, project_id, type, key, title, parent_id)
+         VALUES ($1,$2,'feature',$3,$4,$5)`,
+        [id, projectId, key, key, parent],
+      );
+      return id;
+    };
+    // TRE-1-ROOT ─ TRE-2-BRANCH ─ TRE-3-LEAF
+    //            └ TRE-2-SIB
+    rootId = await make('TRE-1-ROOT', null);
+    branchId = await make('TRE-2-BRANCH', rootId);
+    siblingId = await make('TRE-2-SIB', rootId);
+    leafId = await make('TRE-3-LEAF', branchId);
+    await pool.query(
+      `INSERT INTO spec_relation (id, project_id, from_spec_id, to_spec_id, kind)
+       VALUES ($1,$2,$3,$4,'depends_on')`,
+      [newId(), projectId, branchId, siblingId],
+    );
+  });
+
+  it('root 는 그 문서와 그 아래만 준다 — 안정 키로', async () => {
+    const result = await callTool('nerv_spec_tree', { root: 'TRE-2-BRANCH' });
+    expect(keys(result)).toEqual(['TRE-2-BRANCH', 'TRE-3-LEAF']);
+  });
+
+  it('root 는 UUID 로도 같다 — 참조는 둘 다 받는다(§1.4b)', async () => {
+    const byId = await callTool('nerv_spec_tree', { root: branchId });
+    expect(keys(byId)).toEqual(['TRE-2-BRANCH', 'TRE-3-LEAF']);
+  });
+
+  it('root + depth:0 은 그 하나다', async () => {
+    const result = await callTool('nerv_spec_tree', { root: 'TRE-1-ROOT', depth: 0 });
+    expect(keys(result)).toEqual(['TRE-1-ROOT']);
+  });
+
+  it('root + depth:1 은 그 자식까지 — 손자는 빠진다', async () => {
+    const result = await callTool('nerv_spec_tree', { root: 'TRE-1-ROOT', depth: 1 });
+    expect(keys(result)).toEqual(['TRE-1-ROOT', 'TRE-2-BRANCH', 'TRE-2-SIB']);
+  });
+
+  it('없는 문서를 root 로 주면 not_found 다 — 전체 트리를 주지 않는다', async () => {
+    const result = await callTool('nerv_spec_tree', { root: 'TRE-NOPE-XXX' });
+    expect(result['ok']).toBe(false);
+    expect(result['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect(result['details']).toMatchObject({ kind: 'not_found', field: 'root' });
+  });
+
+  it('걸러진 트리는 전체보다 작다 — 같으면 걸러지지 않은 것이다', async () => {
+    const all = await callTool('nerv_spec_tree', {});
+    const scoped = await callTool('nerv_spec_tree', { root: 'TRE-1-ROOT' });
+    expect(keys(all).length).toBeGreaterThan(keys(scoped).length);
+    expect(keys(scoped)).toHaveLength(4);
+  });
+
+  it('around 는 관계 이웃이다 — hops:0 이면 중심 하나', async () => {
+    const centre = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', hops: 0 });
+    expect(keys(centre)).toEqual(['TRE-2-BRANCH']);
+    const near = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', hops: 1 });
+    expect(keys(near)).toEqual(['TRE-2-BRANCH', 'TRE-2-SIB']);
+  });
+
+  it('around 는 UUID 도 받고, 없는 중심은 not_found 다', async () => {
+    expect(keys(await callTool('nerv_spec_tree', { around: leafId, hops: 0 }))).toEqual([
+      'TRE-3-LEAF',
+    ]);
+    const missing = await callTool('nerv_spec_tree', { around: 'TRE-NOPE-XXX' });
+    expect(missing['ok']).toBe(false);
+    expect(missing['details']).toMatchObject({ kind: 'not_found', field: 'around' });
+  });
+
+  it('관계를 청하지 않았으면 간선은 싣지 않는다 — 청하면 좁혀진 간선이 온다', async () => {
+    const plain = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', hops: 1 });
+    expect(plain['edges']).toBeUndefined();
+    const withEdges = await callTool('nerv_spec_tree', {
+      around: 'TRE-2-BRANCH',
+      hops: 1,
+      include_relations: true,
+    });
+    expect(withEdges['edges']).toEqual([
+      { from_id: branchId, to_id: siblingId, kind: 'depends_on' },
+    ]);
+  });
+
+  it('include_relations 는 root 와 함께 좁혀진다 — 노드 밖 간선은 남지 않는다', async () => {
+    const result = await callTool('nerv_spec_tree', {
+      root: 'TRE-2-BRANCH',
+      include_relations: true,
+    });
+    expect(keys(result)).toEqual(['TRE-2-BRANCH', 'TRE-3-LEAF']);
+    // TRE-2-SIB 이 밖에 있으므로 그 간선은 빠진다
+    expect(result['edges']).toEqual([]);
+  });
+
+  it('hops 만 주면 거절한다 — 아무 일도 안 하고 성공하는 것이 ① 그 자체다', async () => {
+    const result = await callTool('nerv_spec_tree', { hops: 2 });
+    expect(result['ok']).toBe(false);
+    expect(result['details']).toMatchObject({ kind: 'invalid_input', requires: ['around'] });
+  });
+
+  it('스키마가 적어 둔 범위대로 거절한다 — maximum:3 이 장식이 아니게', async () => {
+    const result = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', hops: 9 });
+    expect(result['ok']).toBe(false);
+    expect(result['details']).toMatchObject({ field: 'hops', allowed: { minimum: 0, maximum: 3 } });
+  });
+
+  it('계층과 관계는 다른 축이다 — around 와 root 를 섞으면 거절한다', async () => {
+    const result = await callTool('nerv_spec_tree', { around: 'TRE-2-BRANCH', root: 'TRE-1-ROOT' });
+    expect(result['ok']).toBe(false);
+    expect(result['details']).toMatchObject({ conflict: ['around', 'root'] });
+  });
+
+  it('스키마 밖의 이름은 여전히 유령이라고 말한다 — root_spec_id 가 그것이었다', async () => {
+    const result = await callTool('nerv_spec_tree', { root_spec_id: 'TRE-1-ROOT' });
+    expect(result['ok']).toBe(true);
+    expect(result['ignored_args']).toEqual(['root_spec_id']);
   });
 });
 

@@ -113,8 +113,10 @@ allowed-tools:
 ## 서브커맨드
 
 ### new — 새 스펙 초안
-1. `nerv_spec_tree`(`project`, 필요 시 `root_spec_id`·`depth`)로 트리 위치를 확인하고,
-   `nerv_spec_search`(`query`)로 중복 스펙이 없는지 확인한다.
+1. `nerv_spec_tree`(`project`, 필요 시 `root`·`depth`)로 트리 위치를 확인하고,
+   `nerv_spec_search`(`q`)로 중복 스펙이 없는지 확인한다. **인자 이름을 지어내지 않는다** —
+   트리는 `root`(안정 키 또는 UUID — 그 문서와 그 아래만)·`depth`(뿌리에서 내려갈 간선 수,
+   `1` 이면 뿌리와 그 자식)고 검색은 `q` 다. 응답의 목록은 각각 `nodes`·`items` 다.
 2. 사람과 트리 위치(`parent_id`)·`type`·`title`을 합의한 뒤 본문을 작성한다.
 3. `nerv_spec_draft_upsert` — 입력: `parent_id`, `type`, `title`, `body_markdown`,
    `change_summary`(새 스펙이므로 `base_hash` 없음), 필요하면 `relations`, `idempotency_key`.
