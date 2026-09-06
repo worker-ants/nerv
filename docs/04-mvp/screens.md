@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-SCREENS
 status: draft
-updated: 2026-08-29
+updated: 2026-09-06
 ---
 # 화면 명세
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.77 · 2026-09-06 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v0.78 · 2026-09-06 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v0.78 변경(2026-09-06 — 명세가 화면·매뉴얼과 반대로 적은 자리, 정합성 대조 → 사람 지시): **편집 리스 세 줄 · S3 미구현 넷 · 낡은 수 다섯.** ① §3.4 편집 리스가 "에디터를 **여는 순간** 획득"·"[**인계 요청**](보유자 알림, 승인 시 이전)" 이라 적고 있었다 — 실물은 **처음 저장할 때** 잡히고 **[인계]는 그 자리에서 가져간다**(요청도 알림도 없다). **매뉴얼 ko·en 이 처음부터 그렇게 적고 있었고 명세만 반대였다** — 명세만 읽은 사람은 남의 초안을 한 번 눌러 빼앗을 수 있다는 사실을 모르고, 되돌리면 그대로 회귀한다. 잔여 2분 호박색은 S4 에만 있다. ② §2.4 S3 의 컴포넌트 넷(`SourceViewToggle`·`RequirementPanel`·`DerivedTaskPanel`·터미널 이어쓰기 카드)이 **저장소에 없다** — 지우지 않고 **○ 미구현**으로 표기했다(§3.2 규칙 2·REQ-WEB-031 이 인용하는 소스 보기가 그 넷에 든다). ③ 낡은 수 다섯: S2 구현 현황 카드 지표 4칸 → **다섯**(`evidence_missing`·`empty_promises` — 정본 4.4 와 매뉴얼은 이미 그렇게 적는다), 받은 요청 카드 유형 3종 → **5종**(`finding`·`gate_bypass`), 설정 탭 3종 → **4탭**, `membership.role`(단수) → `roles`(같은 문서 §1.8 이 스스로 "존재하지도 않는 필드" 라 적던 이름이다), EP-APR-01 의 유형 필터(서버가 읽지 않는다). ④ §2.6 steer/stop 절이 **권한을 한 글자도 적지 않았다** — 서버는 세션 소유자·admin 만 허용하는데 화면은 누구에게나 활성이라, 남의 세션에 중단 사유까지 적은 뒤 403 을 본다. 권한을 명시하고 화면 배선은 열린 자리로 남긴다.
 >
 > v0.77 변경(2026-09-06 — 배경 없는 다이얼로그, 사람 보고): **REQ-WEB-032 확장.** 기준선 생성 다이얼로그가 뒤의 관계 그래프를 그대로 비쳤다 — `bg-surface` 를 쓰는데 `--color-surface` 가 **없는 토큰**이라 Tailwind 가 아무 CSS 도 내지 않았다(빌드 산출물에서 `.bg-surface` 규칙 **0개** 확인). 같은 자리가 셀렉트 셋에 더 있었고(한 손이 같은 날 쓴 넷), 새 검사가 **둘을 더 짚었다** — `text-status-warn`(실재는 `status-danger`·31:1)과 `text-accent`(실재는 `status-action`·17:1). 다이얼로그를 형제 셋의 관례(`bg-bg-elev`·`shadow-modal`·`bg-text/20` 백드롭)에 맞췄다. **곁들여 `[기준선 생성…]` 의 말줄임표를 걷었다** — 이 카탈로그에서 `…` 는 다른 여섯 곳 모두 **진행 중**을 뜻하는데(만드는 중… · 불러오는 중…) 이 하나만 "누르면 다이얼로그가 열린다" 는 다른 관례를 불렀고, 그 관례는 이 저장소 어디에도 없다. 게다가 같은 키를 **다이얼로그 자신의 제목**이 함께 써서 이미 열린 창의 제목에까지 붙어 있었다(4.5 §2.4 · 매뉴얼 ko·en).
 >
@@ -468,7 +470,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 
 1. **조직 생성**(`OrgCreateForm`) — better-auth organization 플러그인 경로. 첫 프로젝트를 같이 만든다.
 2. **초대 수락**(`InviteAcceptCard`) — 조직 생성과 배타적 분기. MVP 초대는 기존 사용자 배정이다(메일 발송은 Phase 2 — api.md §2.1).
-3. **역할 확인** — `membership.role` 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.
+3. **역할 확인** — `membership.roles`(복수 — 겸직이 있으므로 합집합이다, §1.8) 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.
 4. **다음 행동** — 역할별 첫 화면 규칙(ui-wireframes §1.5, qa는 MVP에서 작업 보드로)대로 착지 링크. 에이전트 연결(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4로 링크만 둔다.
 
 - **컴포넌트**: `LoginForm` · `InviteAcceptCard` · `OrgCreateForm`. 폼은 react-hook-form + zod(`LoginInput`: email 형식, password min 8).
@@ -544,7 +546,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
 | 스펙 트리 + 상태 배지 | EP-SPEC-01 `GET /api/v1/projects/{proj}/specs/tree` | 노드: id·title·type(6종)·현재 버전 문서 상태 — `nerv_spec_tree`와 같은 서비스(D-05) |
-| 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 전체·영역별 카운트(`unimplemented / in_progress / implemented / verified`). Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
+| 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 다섯 칸이다(2026-09-06 현황 — `api.md` §2.9 와 매뉴얼이 이미 그렇게 적는다): `total` · `implemented` · `verified` · **`evidence_missing`** · **`empty_promises`**. 영역별 분해는 아직 없다. Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
 | 활성 세션 스트립 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (state 필터) | 미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3)) |
 | 최근 이벤트 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` (커서 페이지네이션) | 항목마다 `is_agent` 아이콘 구분(D-08) |
 
@@ -599,9 +601,9 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 기준선 조회 | EP-SPEC-11 `GET .../baselines` · EP-SPEC-13 `GET .../baselines/{bl}` | 버전 피커(`VersionPicker`)에 기준선 항목 — 선택 시 그 세트에 핀된 버전을 표시(`?baseline=` 쿼리, spec-workflow §3.6) |
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → `['spec', specId]`, `spec.comment_added`·`comment.resolved` → `['spec', specId, 'comments']`, `task.*` → 파생 Task 패널.
-- **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `SourceViewToggle`(read-only md) · `CommentThread` · `EditLeaseBadge` · `RequirementPanel` · `DerivedTaskPanel` · `SpecMetaDialog` · `ArchiveConfirmDialog` · `RelationPanel` · `ImpactPreview` · `QuickSwitcher`(§1.3a) · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
+- **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `CommentThread` · `EditLeaseBadge` · `SpecMetaDialog` · `ArchiveConfirmDialog` · `RelationPanel` · `ImpactPreview` · `QuickSwitcher`(§1.3a) · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
 - **버튼 상태**: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 받은 요청 카드에서 한다(S7).
-- **터미널 이어쓰기**: 복사용 명령 `claude "/nerv:spec edit SPC-CWC-007"` 카드(ui-wireframes §2.3 (12)). 반대 방향은 `nerv_spec_draft_upsert` 응답의 `web_url` 딥링크가 이 화면으로 온다.
+- **터미널 이어쓰기**(○ **미구현** — 2026-09-06 실측): 복사용 명령 `claude "/nerv:spec edit SPC-CWC-007"` 카드(ui-wireframes §2.3 (12)). 반대 방향은 `nerv_spec_draft_upsert` 응답의 `web_url` 딥링크가 이 화면으로 온다.
 - **관계 패널**(상태 패널 내 섹션): EP-SPEC-18(direction=both) — **참조함 N / 참조됨 N**(backlink)을 kind 배지와 함께 목록으로, 클릭 시 해당 스펙으로 이동. 20건 초과는 [전체 보기]로 커서 페이지네이션 확장. 참조 갱신 배지(REQ-WEB-037)는 이 섹션 머리에 흡수된다 — "무엇이 낡았나"가 배지가 아니라 목록으로 보인다. 관계 데이터는 저장 시 자동 추출(REQ-API-024)이라 사람이 관리하지 않는다.
 - **관계 안은 방향으로 가른다**(2026-08-24 신설 — 사람 지시): 레일의 `관계` 탭 아래에 **전체 · 역참조 · 레퍼런스** 하위 탭을 두고 각각 건수를 단다. 두 방향은 **다른 질문**이기 때문이다 — 역참조는 "이 문서를 고치면 무엇이 흔들리나", 레퍼런스는 "이 문서가 무엇에 기대나". 한 목록에 섞이면(실측: `0-overview` 50건 = 역참조 22 + 레퍼런스 28) 둘 중 하나를 보려고 전체를 훑어야 한다. 건수는 **누르기 전에** 보인다 — 빈 탭을 열어 보게 하지 않는다.
 
@@ -609,7 +611,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 - **영향 미리보기**: [검토 요청] 확인 다이얼로그에 "이 문서를 참조하는 문서 N건 · 파생 Task M건에 영향" 1줄 + 목록 펼침(EP-SPEC-18 역참조 + 파생 Task 카운트). 승인 후 `spec.recheck_requested` 전파의 사전 뷰다.
 - **메타 편집·아카이브**(planner·admin — `spec:meta`): 상단 ⋯ 메뉴 → 메타 다이얼로그(`SpecMetaDialog`: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(`archive_blocked`) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = `?include_archived=true`), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.
 - **폼·검증**: `SpecDraftUpsertInput`(zod — `packages/schema`, MCP 도구 인자와 공유): `body_markdown`·`base_hash`·`change_summary`(min 1), 새 스펙 생성은 `SpecCreateInput`(`parent_id`·`type` 6종 enum·`title` min 1·`body_markdown`). 코멘트 `CommentCreateInput`: `anchor`(min 1)·`body_md`(min 1).
-- **빈 상태**: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크.
+- **빈 상태**: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크. ○ **미구현** — 아래 넷이 아직 없다(2026-09-06 실측): `SourceViewToggle`(read-only md) · `RequirementPanel`(요구사항 목록) · `DerivedTaskPanel`(파생 Task) · 터미널 이어쓰기 카드. §3.2 규칙 2·REQ-WEB-031 이 "저장 실패 시 **소스 보기와 함께** 실패 리포트" 라고 적은 그 소스 보기가 이 넷에 든다.
 
 #### 제목은 화면을 떠나지 않는다 (2026-08-27 개정 — 사람 요청)
 
@@ -995,7 +997,7 @@ export const TaskCreateInput = z.object({
 | 세션 보드 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (state 필터: `pending / active / awaiting_input / complete / error / stale`) | 요약 스트립 = 상태별 집계 — **여섯 전부를 어휘 순서로**, 0 인 상태도 싣는다(REQ-WEB-139) |
 | 세션 상세 | EP-SES-02 `GET /api/v1/projects/{proj}/sessions/{sid}` | `agent_session` 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id |
 | Activity 타임라인 | EP-SES-03 `GET /api/v1/projects/{proj}/sessions/{sid}/activities` (커서) | `thought / action / elicitation / response / error` 5종 — 불변 레코드(D-10) |
-| steer / stop | EP-SES-04 `POST /api/v1/projects/{proj}/sessions/{sid}/steer` (`kind`: steer/stop) | 지시는 다음 `nerv_task_heartbeat` 응답의 `pending`에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내 |
+| steer / stop | EP-SES-04 `POST /api/v1/projects/{proj}/sessions/{sid}/steer` (`kind`: steer/stop) — **권한은 세션 소유자·admin 이다**(2026-09-06 보완: 이 절이 권한을 한 글자도 적지 않아 화면이 누구에게나 활성으로 그리고 있다. §1.8·REQ-WEB-003 은 "화면은 서버가 허용할 것을 미리 말한다" 이므로 **화면 쪽 배선은 열린 자리다**) | 지시는 다음 `nerv_task_heartbeat` 응답의 `pending`에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내 |
 
 - **실시간**: `project:{id}` 룸 — `session.started` `session.stale` `session.complete` `session.steered` → 보드, Activity 스트림·하트비트/diff 갱신도 같은 룸으로 흐른다(알림 아님 — spec-workflow §6.3). 하트비트 표기는 상대 시각만(ui-wireframes §3.3).
 - **컴포넌트**: `SessionBoard` · `SessionCard` · `SessionSummaryStrip` · `ActivityTimeline` · `ScopeChips`(spec_ids + file_globs) · `SteerDialog` · `StopDialog`(사유 필수) · `FailOpenBanner`(게이트 판정 실패 카운터 — 판정 자체는 Phase 2, 배너 컴포넌트는 자리 확보).
@@ -1090,11 +1092,11 @@ export const TaskCreateInput = z.object({
 
 ### 2.7 S7 받은 요청 — [ui-wireframes §2.7](../03-proposal/ui-wireframes.md)
 
-MVP 카드 유형은 3종이다 — **스펙 승인 · 플랜 승인 · 질문**(로드맵 §3: CR·에스컬레이션 유형은 Phase 2). 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.
+MVP 카드 유형은 **5종**이다(2026-09-06 현황) — **스펙 승인 · 플랜 승인 · 질문 · 발견(`finding`) · 게이트 면제(`gate_bypass`)**. 어휘 정본은 `approval_subject_type` 6종이고 CR 유형만 Phase 2 로 남았다. 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
-| 대기 목록 | EP-APR-01 `GET /api/v1/approvals` (state=pending · 유형/프로젝트 필터 — 받은 요청 목록) | `approval.subject_type`: `spec_version / plan / question`(MVP) — data-model §2.7 |
+| 대기 목록 | EP-APR-01 `GET /api/v1/approvals` (state=pending · 프로젝트 필터 — 유형 필터는 서버가 읽지 않는다) | `approval.subject_type`: `spec_version / plan / question / finding / gate_bypass`(MVP · 2026-09-06 현황) — data-model §2.7 |
 | 결정 | EP-APR-03 `POST /api/v1/approvals/{id}/decision` | `decision`: `approve / reject / comment`(spec-workflow §2.5) |
 | 질문 답변 | EP-QST-02 `POST /api/v1/projects/{proj}/questions/{id}/answer` | `answer_key`(선택지) 또는 `answer_md` — 내부적으로 승인 결정과 한 경로(api.md §2.6) |
 | 카드 본문 | EP-APR-01 응답 `ApprovalCard`에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지) | 요약문이 아니라 **원문 우선**(spec-workflow §6.4 — OWASP ASI09 방어) |
@@ -1133,7 +1135,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
 
 ### 2.8 S8 설정 — [ui-wireframes §2.8](../03-proposal/ui-wireframes.md)
 
-MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(GitHub·Slack) 탭은 Phase 2(로드맵 §3.2 — "S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2") — 탭 자리만 비활성 표기. 게이트 정책 탭 중 스펙 게이트(T0~T3) 부분의 MVP 앞당김은 [scope.md](scope.md) §4.1의 supersession 콜아웃이 확정한다(근거: 로드맵 §3.5 저위험 자동 통과 첫날부터).
+MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 게이트 정책**(2026-09-06 현황 — 같은 문서 §1.2·§1.8 은 이미 4탭을 적고 있었다). 연동(GitHub·Slack) 탭은 Phase 2(로드맵 §3.2 — "S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2") — 탭 자리만 비활성 표기. 게이트 정책 탭 중 스펙 게이트(T0~T3) 부분의 MVP 앞당김은 [scope.md](scope.md) §4.1의 supersession 콜아웃이 확정한다(근거: 로드맵 §3.5 저위험 자동 통과 첫날부터).
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
@@ -1323,10 +1325,10 @@ MVP 탭: **멤버·역할 / 에이전트 토큰 / 게이트 정책**. 연동(Git
 
 | 순간 | UI |
 | --- | --- |
-| 획득 | draft 에디터를 여는 순간 자동 획득 — 별도 버튼 없음. 상단에 `✏️ 편집 중 — <사용자> · 웹 · 방금` 배지 |
-| 갱신 | 저장 시 + 에디터가 열려 있는 동안 60초 주기 갱신(하트비트 상수 재사용). 리스 잔여 2분 미만이면 배지를 호박색으로 전환(S4 리스 표시 임계와 동일) |
+| 획득 | **처음 저장할 때** 잡힌다(2026-09-06 정정 — 예전에는 "에디터를 여는 순간" 이라 적었고 매뉴얼은 처음부터 저장 기준으로 설명하고 있었다). 별도 버튼 없음. 상단에 `✏️ 편집 중 — <사용자> · 웹 · 방금` 배지 |
+| 갱신 | 저장 시 + 에디터가 열려 있는 동안 60초 주기 갱신(하트비트 상수 재사용). 리스 잔여 2분 미만의 호박색 전환은 **S4 보드에만 있다** — S3 배지에는 임계 로직이 없다(2026-09-06 실측 · 열린 자리) |
 | 같은 사용자, 다른 표면 | **다른 자리다** — 리스 보유자는 `(user, session)` 이라 세션 없는 웹 탭과 터미널 세션이 서로를 막는다(2026-08-30 개정). 터미널은 `takeover: true` 로 이어받고, 웹 에디터는 읽기 전용 + "터미널 세션 `<hostname>/<agent_type>`이 이어쓰는 중" 배지와 **[이어받기]** 버튼을 보인다 |
-| 다른 사용자 | 읽기 전용 + 보유자 배지 + [인계 요청](보유자 알림, 승인 시 이전). 에이전트 upsert는 `NERV_DRAFT_LEASED` 하드 차단 |
+| 다른 사용자 | 읽기 전용 + 보유자 배지 + **[인계]** — 누르면 **그 자리에서 가져온다**(2026-09-06 정정: 요청도 알림도 없다. 매뉴얼 ko·en 이 처음부터 그렇게 적고 있었다). 에이전트 upsert는 `NERV_DRAFT_LEASED` 하드 차단 |
 | 해제 | 검토 요청 성공 · 에디터 닫기 · TTL 만료 |
 | 최후 방어선 | 리스와 무관하게 저장은 `base_hash` 전제조건을 갖는다 — 409는 §1.5의 `NERV_PRECONDITION` 다이얼로그 |
 

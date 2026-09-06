@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **23종**(2026-09-04 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.25 · 2026-09-05 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.26 · 2026-09-06 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.26 변경(2026-09-06 — 카탈로그가 정본인데 실물과 달랐다, 정합성 대조 → 사람 지시): **§3.3 전문 중복 제거 · §2.3 카탈로그 다섯 자리 정정.** ① §3.3 이 `hooks.json` **전문을 한 벌 더 싣고** 있었고, 기본 변형이 `command` 로 바뀐 뒤에도 `type:"http"` 판을 보여 주었다 — 훅 계약의 정본으로 인용되는 자리가 **배포되지 않는 변형**을 싣고 있었다는 뜻이다. 전문의 정본은 [4.6](../04-mvp/plugin.md) §3.1 하나로 두고(그 절만 패키지와 바이트 대조된다) 여기서는 모양과 근거만 인용한다. ② `nerv_task_update` 에 **`spec_impact` 를 싣고 `note` 를 걷는다** — `done` 전이의 필수 입력이 표에 없어 **카탈로그만 보고 부른 세션은 작업을 끝낼 방법이 없었고**, `note` 는 스키마에 없어 조용히 버려진다. ③ `nerv_task_claim` 의 `branch?`·`worktree?` 를 걷는다(v0.10 이 걷었다고 적어 놓고 표에 남아 있었다). ④ `nerv_review_submit` 의 실제 필수는 넷이고 `repo`·`round_of`·`reviewer.name` 은 스키마에 없다 — "`session_id` 를 명시 입력으로 받는다, 이 도구만 예외" 는 정확히 반대였다. ⑤ `nerv_task_get`·`nerv_task_list` 권한 `spec:read` → **`task:claim`**(그 표를 보고 `spec:read` 만 켠 토큰은 403 을 받는다). 곁들여 `_meta` 어노테이션 이름을 실물(`nerv/tier`·`nerv/scope`)로 고쳤다 — `anthropic/requiresUserInteraction` 은 저장소 어디에도 없다.
 >
 > v0.25 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -143,16 +145,16 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `nerv_spec_comment_resolve` | `comment_id`, `resolution_note?`, `resolved_in_version_id?` | 코멘트 새 상태(open→resolved), 남은 open 코멘트 수 | `spec:draft` | A2 | 코멘트 반영 직후 | 멱등 — (comment_id, resolved) 재호출은 no-op |
 | `nerv_spec_relate` | `from`(spec key), `to`(spec key), `kind`(refines/depends_on/duplicates/supersedes), `remove?` | 선언된 관계와 반대 방향 이웃, 순환 거부 사유 | `spec:draft` | A2 | 문서를 읽고 관계를 선언할 때 | 멱등 — 같은 (from, to, kind) 재호출은 no-op. `remove:true`가 되돌리는 경로다 |
 | `nerv_task_next` | `project`, `limit` (2026-09-03 정정 — `role`·`capabilities` 는 걷는다: Task 에 역할·역량 축이 없다) | ready Task 후보 + **위임 명세 4요소**(목표·산출물 형식·도구/출처·경계) + **기준 SpecVersion(`spec_key`·`version_no`)** + 앞 사람의 `handoff_note` | `task:claim` | A1 | 클레임 직전 | 읽기 전용(후보 순서는 시점 의존) |
-| `nerv_task_claim` | `task_id`(키 또는 UUID), `scope{spec_ids,file_globs}`(스펙은 키 또는 UUID), `branch?`, `worktree?`, `lease_seconds?` | `claim_id`, `lease_expires_at`, 겹침 경고 또는 `NERV_CONFLICT_SCOPE`(상대 세션·사용자·hostname·scope) | `task:claim` | A2 | 작업 착수 | 멱등 — 같은 세션 재호출은 기존 claim 반환(리스 연장 없음). 타 세션은 409 |
+| `nerv_task_claim` | `task_id`(키 또는 UUID), `scope{spec_ids,file_globs}`(스펙은 키 또는 UUID), `lease_seconds?` (2026-09-06 정정 — `branch`·`worktree` 는 v0.10 에서 걷었는데 이 표에 남아 있었다: 세션의 속성이라 훅이 헤더로 싣는다) | `claim_id`, `lease_expires_at`, 겹침 경고 또는 `NERV_CONFLICT_SCOPE`(상대 세션·사용자·hostname·scope) | `task:claim` | A2 | 작업 착수 | 멱등 — 같은 세션 재호출은 기존 claim 반환(리스 연장 없음). 타 세션은 409 |
 | `nerv_task_heartbeat` | `claim_id`, `progress?`(LWW), `stats?{added,removed,files}`, `lease_seconds?` — **2026-09-03 배선** | 새 `lease_expires_at`, **pending 질문 답변·알림·steer/stop 지시·기준 버전 변경 알림(`basis_superseded` — 재브리핑 대기)** | `task:update` | A1 | **60초 주기** | 자연 멱등(LWW) |
-| `nerv_task_update` | `task_id`, `status`, `note`, **`evidence[]{kind,locator}`**(2026-08-30 개정 — REQ-API-056. 한 Task 가 커밋·PR·테스트를 여럿 남기므로 목록이다), `blocked_reason?` | 새 상태 또는 게이트 거부 사유(FR-10) | `task:update` | A2(`done` 시도는 서버 게이트, 정책에 따라 A3) | 상태 변화 시점 | 멱등 — 같은 목표 상태로의 재호출은 no-op 성공 |
+| `nerv_task_update` | `task_id`, `status`, **`evidence[]{kind,locator}`**(2026-08-30 개정 — REQ-API-056. 한 Task 가 커밋·PR·테스트를 여럿 남기므로 목록이다), `blocked_reason?`, **`spec_impact{changed[],none}`**(2026-09-06 보완 — `done` 전이의 **필수 입력**이다: 비면 서버가 거부한다. 이 표에 없어서 카탈로그만 보고 부른 세션은 작업을 끝낼 방법이 없었다) — `note` 는 **없다**(스키마에 없어 조용히 버려진다) | 새 상태 또는 게이트 거부 사유(FR-10) | `task:update` | A2(`done` 시도는 서버 게이트, 정책에 따라 A3) | 상태 변화 시점 | 멱등 — 같은 목표 상태로의 재호출은 no-op 성공 |
 | `nerv_task_release` | `claim_id`, `reason`(done/handoff/abandon — **고른 값이 그대로 저장된다**, 2026-09-05 · 그전에는 셋이 둘로 뭉쳤다), `state_note` — **2026-09-03 배선**(`claim.release_note`) | Task 최종 상태(`claimed → ready` 회수 또는 유지), 인수인계 노트 | `task:update` | A2 | 세션 종료·작업 전환·중단 | 멱등 |
-| `nerv_review_submit` | `repo`, `branch`, `base_sha`, `head_sha`, `changeset[]`, `kind`, `session_id`, `round_of`, `reviewer{name,role}`, `summary`, `findings[]{severity,title,body,file,line,requirement_id?}`, `task_id?`, `payload_ref?` | `review_session_id`, 신규/중복 finding 분류(fingerprint), 이월된 미해결 목록 | `review:submit` | A2 | 리뷰 완료 직후 — **파일 커밋 대신** | 멱등 — 멱등 키 + fingerprint dedup. 같은 커밋·리뷰어 재제출은 라운드 추가 없이 병합 |
+| `nerv_review_submit` | **필수** `branch`, `base_sha`, `head_sha`, `reviewer{role, risk?}` · 선택 `changeset[]`, `kind`, `summary`, `task_id?`(리뷰를 Task 에 잇는 유일한 인자), `payload_ref?`, `findings[]{severity,title,body,suggestion?,file,line,area?,category?,requirement_id?}` (2026-09-06 정정 — `repo`·`round_of`·`reviewer.name` 셋은 스키마에 없고, `session_id` 도 명시 입력이 아니라 봉투 인자다) | `review_session_id`, 신규/중복 finding 분류(fingerprint), 이월된 미해결 목록 | `review:submit` | A2 | 리뷰 완료 직후 — **파일 커밋 대신** | 멱등 — 멱등 키 + fingerprint dedup. 같은 커밋·리뷰어 재제출은 라운드 추가 없이 병합 |
 | `nerv_finding_resolve` | `finding_id`, `resolution`(fixed/**spec_change**/dismissed/wont_fix/**escalated** — 2026-09-05 · REQ-API-108), `commit_sha?`, **`spec_version_id?`**(spec_change 의 근거), **`escalate_reason?`**(escalated 의 **필수** 짝 — 질문과 같은 어휘), `rationale` | Finding 새 상태, 승인 필요 여부, 잔여 미해결 수 | `review:resolve` | A2 / **critical → dismissed·wont_fix는 A3** | 수정 커밋 후 또는 판단 후 | 멱등 — (finding_id, resolution, commit_sha) |
 | `nerv_question_create` | `question`, `options[]?`, `context{spec_id?,task_id?,finding_id?}`, `urgency`, `blocking`(기본 true — 게이트 차단 여부), `escalate?`(user-decision/spec/infra/e2e-fail-3x/sensitive-fix), `wait_seconds?` | `question_id`, `status`(**`open`**/`answered`/`expired` — 2026-09-05 정정. `pending` 은 이 축의 값이 아니다: 그 이름은 **하트비트 응답의 `pending[]` 역채널**에만 쓴다. 스킬이 둘을 섞어 적어 폴링 조건이 영영 참이 되지 않았다), 답변·결정자 | `task:update`(생성만, 결정은 사람) | A2 | 판단 불가·경계 이탈·게이트 필요 | **멱등 재호출이 곧 폴링** — 같은 멱등 키면 같은 질문의 현재 상태 반환(§4.4) |
 | `nerv_question_cancel` | `question_id` | 취소된 질문의 상태와 대기 세션 | `task:update` | A2 | **답이 필요 없어졌을 때** — 스스로 답을 찾았거나 전제가 사라졌을 때. 그 사실을 아는 것은 물어본 쪽뿐이라 세션에 이 길이 필요하다(2026-09-05 · REQ-API-109). 남의 질문은 못 거둔다 | 멱등 — 이미 취소면 `not_open` |
-| `nerv_task_get` | `task_id`(키 또는 UUID) | 위임 명세 4요소 + 기준 SpecVersion·기준선 + 활성 클레임·의존 | `spec:read` | A1 | 클레임 전후 "이 작업이 무엇인가" | 읽기 전용 |
-| `nerv_task_list` | `project`, `status?`, `assignee?`, `limit?` | Task 목록(상태·담당·리스 잔여) | `spec:read` | A1 | **"지금 무엇이 도는가"** — 세 번째 물음(2026-08-30) | 읽기 전용 |
+| `nerv_task_get` | `task_id`(키 또는 UUID) | 위임 명세 4요소 + 기준 SpecVersion·기준선 + 활성 클레임·의존 | `task:claim` | A1 | 클레임 전후 "이 작업이 무엇인가" | 읽기 전용 |
+| `nerv_task_list` | `project`, `status?`, `assignee?`, `spec?`, `cursor?`, `limit?`, `include_archived?` | Task 목록(상태·담당·리스 잔여) | `task:claim` | A1 | **"지금 무엇이 도는가"** — 세 번째 물음(2026-08-30) | 읽기 전용 |
 | `nerv_task_create` | `title`, `goal_md?`, `output_format_md?`, `tools_sources_md?`, `boundaries_md?`, `source_spec_version_id?`, `priority?` | `task_id`, `key`, 상태(4요소가 차면 서버가 `ready` 로 승격) | `task:update` | A2 | 스펙에서 작업을 떼어낼 때 | 멱등 키 지원 |
 | `nerv_spec_attach` | `spec_id`, `filename`, `content_type`, `bytes` → (1단계) `upload_url`·`attachment_id`, (2단계) `attachment_id` 확정 | 첨부 메타. **presigned 2단계**이고 확정은 실제 업로드를 확인한 뒤에만 통과한다 | `spec:draft` | A2 | 시안·문서를 스펙에 붙일 때 | 확정 재호출은 no-op |
 | `nerv_spec_attachment_read` | `attachment_id` | 첨부 본문. **텍스트만**(`text/*`)이고 `ATTACHMENT_READ_MAX_BYTES` 를 넘으면 자르되 `truncated:true` 로 말한다. 그림·PDF·zip 은 거부하고 **받는 주소**를 준다 | `spec:read` | A1 | Bash 가 없는 세션이 첨부를 되읽을 때 — 있으면 목록의 `url` 로 받는 것이 기본이다 | 읽기 전용 |
@@ -302,6 +304,10 @@ nerv-plugin/
 
 ### 3.3 훅 설정 (`hooks/hooks.json`)
 
+**전문의 정본은 [4.6 플러그인과 온보딩](../04-mvp/plugin.md) §3.1 이다** — 그 절만 패키지 파일과 바이트 대조된다(`plugin/plugin-package.spec.ts`). 여기서는 계약의 모양만 인용한다. 예전에는 이 절이 전문을 한 벌 더 싣고 있었고, **기본 변형이 `command` 로 바뀐 뒤에도 `type:"http"` 판을 계속 보여 주었다**(2026-09-03 결정 · 2026-09-06 정정) — 훅 계약의 정본으로 인용되는 자리가 배포되지 않는 변형을 싣고 있었다는 뜻이다.
+
+**기본 변형은 `command` 다.** 포워더(`bin/nerv-hook-forward`)가 훅 본문을 받아 서버로 보낸다.
+
 ```json
 {
   "hooks": {
@@ -309,95 +315,16 @@ nerv-plugin/
       {
         "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
-          {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session",
-            "headers": {
-              "Authorization": "Bearer ${NERV_TOKEN}",
-              "X-NERV-Project": "${NERV_PROJECT}",
-              "X-NERV-Host": "${NERV_HOSTNAME}",
-              "X-NERV-Agent": "claude-code"
-            },
-            "allowedEnvVars": ["NERV_TOKEN", "NERV_PROJECT", "NERV_HOSTNAME"],
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
-            "timeout": 20
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit|Bash",
-        "hooks": [
-          {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/tool",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true,
-            "timeout": 3
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/subagent",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/subagent",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"],
-            "async": true
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/stop",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"],
-            "timeout": 8
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session-end",
-            "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
-            "allowedEnvVars": ["NERV_TOKEN"]
-          }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" session", "timeout": 5 }
         ]
       }
     ]
   }
 }
 ```
+
+`command` 를 기본으로 둔 근거는 셋이다 — 훅 `url` 은 `${VAR}` 확장을 받지 않아 `http` 변형은 **서버 주소가 파일에 박히고**(그래서 실사용자가 패키지를 포크했다), `async` 가 command 전용이며, 포워더가 작업 디렉터리 안에서 도니 `git rev-parse` 로 브랜치·워크트리를 읽어 헤더에 실을 수 있다. `http` 변형은 `hooks/hooks.http.json` 으로 함께 배포한다 — 고르는 기준과 그 대가는 [4.6](../04-mvp/plugin.md) §3.1 이 정본이다.
+
 
 | 훅 | NERV 용도 | 응답으로 하는 일 |
 | --- | --- | --- |
@@ -427,7 +354,7 @@ nerv-plugin/
 
 > **주의 — Phase 0 실측 항목.** 훅 `headers` 값의 환경변수 확장(`${NERV_TOKEN}`)은 `.mcp.json`에서는 공식 지원이 확인되지만 훅 헤더에서의 동작은 1차 문서에서 형태까지 확인하지 못했다([2.4 연동 기술](../02-research/integration-tech.md) §4.5의 미확인 항목과 동일). 확장이 불가하면 `command` 핸들러 래퍼(`bin/nerv-hook-forward`)가 토큰을 주입하는 경로로 폴백한다 — Codex와 같은 바이너리를 쓰므로 추가 비용이 없다.
 
-> **확장의 경계**(2026-09-03 실측 정정). 위 미확인 항목의 절반이 확정됐다 — 훅 `headers` 는 `${VAR}` 확장을 받고 **`url` 은 받지 않는다.** `.mcp.json` 의 `url` 은 받는다(`${VAR:-기본값}` 형태까지). 그래서 서버 주소가 `nerv.example.com` 이 아닌 배치에서 MCP 는 파일 하나로 되지만 훅은 `command` 핸들러(`bin/nerv-hook-forward`)를 거쳐야 한다. 그 변형을 [4.6 플러그인](../04-mvp/plugin.md) §3.1 이 파일로 싣는다 — 대가는 `allowedHttpHookUrls`(§6.4)가 그 훅들을 덮지 않는다는 것이고, 어느 변형을 기본으로 삼을지는 **사람 결정으로 열려 있다.**
+> **확장의 경계**(2026-09-03 실측 정정). 위 미확인 항목의 절반이 확정됐다 — 훅 `headers` 는 `${VAR}` 확장을 받고 **`url` 은 받지 않는다.** `.mcp.json` 의 `url` 은 받는다(`${VAR:-기본값}` 형태까지). 그래서 서버 주소가 `nerv.example.com` 이 아닌 배치에서 MCP 는 파일 하나로 되지만 훅은 `command` 핸들러(`bin/nerv-hook-forward`)를 거쳐야 한다. 그 변형을 [4.6 플러그인](../04-mvp/plugin.md) §3.1 이 파일로 싣는다 — 대가는 `allowedHttpHookUrls`(§6.4)가 그 훅들을 덮지 않는다는 것이고, 어느 변형을 기본으로 삼을지는 **2026-09-03 에 `command` 로 결정됐다**(§3.3).
 
 ### 3.4 MCP 설정과 강제 배포
 
@@ -779,7 +706,7 @@ MCP 사양 자체가 "도구 설명은 신뢰된 서버가 아니면 untrusted�
 
 ### 6.4 승인 강제 도구 지정
 
-A3 도구에는 `_meta["anthropic/requiresUserInteraction"]: true`를 단다. 이 어노테이션이 붙은 도구는 **모든 permission 모드에서 매 호출 사람 승인이 강제**된다 — `bypassPermissions`에서도 예외가 없다.
+A3 도구에는 티어를 `_meta` 에 실어 보낸다 — **실물의 이름은 `nerv/tier`·`nerv/scope` 다**(2026-09-06 정정: `anthropic/requiresUserInteraction` 은 저장소 어디에도 없다. 클라이언트 표준 어노테이션이 확정되면 그때 함께 싣는다). 이 어노테이션이 붙은 도구는 **모든 permission 모드에서 매 호출 사람 승인이 강제**된다 — `bypassPermissions`에서도 예외가 없다.
 
 | 도구/조건 | Claude Code | Codex | 서버 |
 | --- | --- | --- | --- |

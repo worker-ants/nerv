@@ -2,7 +2,9 @@
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **37개 엔티티**(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.12 · 2026-09-05 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.13 · 2026-09-06 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.13 변경(2026-09-06 — 의미 정본이 제약을 반대로 적고 있었다, 정합성 대조 → 사람 지시): **제약 둘 · 필드 셋 · 엔티티 넷.** ① `membership` 유일성 축에 **`role` 이 들어간다**(`0003_multi_role`) — 이 문서가 적은 `UNIQUE (user_id, coalesce(project_id, org_id))` 를 그대로 걸면 2026-08-23 확정된 **겸직이 DB 에서 차단된다**(실측 20건). ② `spec.key` 를 "변경 가능, 참조 키 아님" 이라 적고 있었다 — 2026-08-30 에 **프로젝트 안에서 유일**해졌고(`0009_spec_key_unique`) 도구 7종·URL·본문 링크가 이 키로 문서를 가리킨다. 4.3 은 이미 정정했는데 의미 정본만 반대로 남아 있었다. ③ `finding` 필드표에 **`area`·`area_inferred`·`promoted_task_id`** 를 더한다 — `area` 는 NOT NULL 이고 `category`(무슨 종류)와 **다른 축**(무엇을 고칠 것)인데 정본이 그 구별을 정의하지 않았다. ④ 엔티티 표가 29행에서 멈춰 있어 **요약(37)과 표(29)가 서로 다른 말을** 했다 — `attachment`·`finding_comment`·`invitation`·`activity_summary` 를 30~33 으로 더하고, 인프라 4종을 합쳐 37 이 되는 셈을 표 아래 적었다.
 >
 > v0.12 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -122,6 +124,12 @@ erDiagram
 | 27 | 스펙 코멘트 | `spec_comment` | 헤딩·요구사항 앵커에 달리는 스레드 코멘트(해소 추적) | FR-11 |
 | 28 | 스펙 기준선 | `spec_baseline` | 프로젝트의 approved 버전 집합을 이름 붙여 동결한 스냅샷 세트 | FR-02 |
 | 29 | 기준선 항목 | `spec_baseline_item` | 기준선×스펙 — 어느 approved 버전이 핀됐는가(스펙당 1개) | FR-02 |
+| 30 | 스펙 첨부 | `attachment` | 스펙 버전에 매다는 시안·문서(2026-09-01 신설 · `0013_attachment`) | FR-01 |
+| 31 | 발견 코멘트 | `finding_comment` | 발견 하나에 달리는 스레드(2026-09-01 · `0010_finding_comment`) | FR-09 |
+| 32 | 조직 초대 | `invitation` | 조직 가입 초대 링크와 만료(2026-08-27 · `0006_invitation`) | P8 |
+| 33 | 활동 요약 | `activity_summary` | 보존 잡이 Activity 를 지우기 전에 접어 두는 도구 횟수(`0012` · 세션 카드의 근거) | FR-08 |
+
+위 **33종이 도메인 엔티티**이고, 여기에 인프라 4종(`auth_session`·`auth_account`·`auth_verification`·`idempotency_key`)이 더해져 테이블은 **37개**다 — [4.3 데이터베이스 스키마](../04-mvp/database.md)의 DDL 개수와 같다. (2026-09-06 보완: 30~33 이 표에 없어 이 문서가 요약에서는 37, 표에서는 29 를 말하고 있었다.)
 
 > **근거 · 2축 분리가 필요한 이유.** clemvion의 `status`는 5값(`backlog`/`spec-only`/`partial`/`implemented`/`archived`)이지만 **전부 구현 축**이고 **문서 단위**다. 그 결과 (a) 초안/검토중/승인이라는 문서 상태가 존재하지 않아 "이게 합의된 내용인가"를 물을 수 없었고, (b) 1,750줄 문서(`clemvion:spec/5-system/4-execution-engine.md`)에 상태 값이 하나뿐이라 `code:` glob이 매치되면 통과해 요구사항 단위 미구현이 통과했다 — 실제 사고: "spec이 `필수`로 약속한 update dedup이 통째로 미구현"(CCH-SE-02). 요구사항별 상태를 대신하던 수동 ✅ 마크는 한 영역 131개 대 다른 영역 0개로 관행이 갈라져 이미 붕괴해 있었다.
 
@@ -205,7 +213,7 @@ stateDiagram-v2
 | `role` | enum | `admin / planner / designer / developer / qa / viewer` |
 | `created_at` | timestamptz | |
 
-제약: `UNIQUE (user_id, coalesce(project_id, org_id))` 표현식 인덱스로 중복 배정을 막는다. 한 사용자가 여러 프로젝트에, 한 프로젝트가 여러 사용자에 속하는 n:n이 P8의 직접 해소다.
+제약: `UNIQUE (user_id, coalesce(project_id, org_id), role)` 표현식 인덱스로 중복 배정을 막는다 — **축에 `role` 이 들어간다**(2026-09-06 정정 · `0003_multi_role`): 겸직이 확정되면서(2026-08-23 · 실측 20건) 한 사람이 같은 프로젝트에서 두 역할을 가질 수 있고, `role` 없는 축을 그대로 걸면 그 겸직이 DB 에서 차단된다. 한 사용자가 여러 프로젝트에, 한 프로젝트가 여러 사용자에 속하는 n:n이 P8의 직접 해소다.
 
 **`api_token`**
 
@@ -232,7 +240,7 @@ stateDiagram-v2
 | `project_id` | uuid FK | |
 | `parent_id` | uuid FK NULL | 트리 부모. 권한·정렬 상속 경로 |
 | `type` | enum | `vision / area / feature / design / convention / adr` |
-| `key` | text | 프로젝트 내 사람이 읽는 slug(예: `channel-web-chat`). 변경 가능, 참조 키 아님 |
+| `key` | text | 프로젝트 내 사람이 읽는 고정 ID(예: `channel-web-chat`). **프로젝트 안에서 유일하다**(`spec_key_uq` · `0009_spec_key_unique` · 2026-08-30 결정) — 도구 7종·URL·본문 링크가 이 키로 문서를 가리키므로 참조 키다. (2026-09-06 정정: 예전에는 "변경 가능, 참조 키 아님" 이라 적혀 있었다.) |
 | `title` | text | |
 | `sort_key` | text | 형제 정렬(clemvion의 `0-`/`1-` 정수 접두 규약을 데이터로 흡수) |
 | `current_version_id` | uuid FK NULL | 최신 `approved` 버전(없으면 최신 `draft`) |
@@ -529,6 +537,8 @@ Activity는 **불변**이다. 편집 가능한 코멘트와 분리하라는 것�
 | `file_path` · `line_start` · `symbol` | text · int · text | 코드 위치 |
 | `spec_version_id` · `requirement_id` | uuid FK NULL | **출처**: 어느 스펙·요구사항 근거인가 |
 | `status` | enum | `open / fixed / dismissed / wont_fix` |
+| `area` · `area_inferred` | enum · bool | **어디에 대한 지적인가**(`codebase / spec / task / process` · `0014_finding_area`). `category`(무슨 종류인가)와 **다른 축**이다 — 지적한 쪽이 가장 잘 알므로 받되, 주지 않으면 서버가 출처로 추론하고 그 사실을 `area_inferred` 로 남긴다. NOT NULL(기본 `codebase`) |
+| `promoted_task_id` | uuid FK NULL | 이 발견에서 승격된 Task(`0010_finding_comment`) |
 | `first_session_id` · `last_session_id` | uuid FK | 처음·마지막으로 보인 리뷰 세션 |
 | `occurrence_count` | int | 반복 재확인 횟수 |
 

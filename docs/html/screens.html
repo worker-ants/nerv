@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.77 (2026-09-06)</span>
+      <span>버전 v0.78 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -516,7 +516,7 @@
   <ul class="wf-legend">
     <li><span class="marker">1</span><span><b>조직 생성</b>(<code>OrgCreateForm</code>) — better-auth organization 플러그인 경로. 첫 프로젝트를 같이 만든다. 소속 조직 0개일 때만 진입한다(<code>REQ-WEB-006</code>).</span></li>
     <li><span class="marker">2</span><span><b>초대 수락</b>(<code>InviteAcceptCard</code>) — 조직 생성과 배타적 분기. MVP 초대는 기존 사용자 배정이다(메일 발송은 Phase 2 — api.md §2.1).</span></li>
-    <li><span class="marker">3</span><span><b>역할 확인</b> — <code>membership.role</code> 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.</span></li>
+    <li><span class="marker">3</span><span><b>역할 확인</b> — <code>membership.roles</code>(복수 — 겸직이 있으므로 합집합이다, §1.8) 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.</span></li>
     <li><span class="marker">4</span><span><b>다음 행동</b> — 역할별 첫 화면 규칙(ui-wireframes §1.5, qa는 MVP에서 작업 보드로)대로 착지 링크. 에이전트 연결(PAT 발급→플러그인 설치)은 <a href="plugin.html">plugin.md</a> §4로 링크만 둔다.</span></li>
   </ul>
 
@@ -620,7 +620,7 @@
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
     <tbody>
       <tr><td>스펙 트리 + 상태 배지</td><td>EP-SPEC-01 <code>GET /api/v1/projects/{proj}/specs/tree</code></td><td>노드: id·title·type(6종)·현재 버전 문서 상태 — <code>nerv_spec_tree</code>와 같은 서비스(D-05)</td></tr>
-      <tr><td>구현 현황 카드</td><td>EP-COV-01 <code>GET /api/v1/projects/{proj}/coverage</code> (requirement <code>impl_status</code> 집계)</td><td>MVP는 전체·영역별 카운트(<code>unimplemented / in_progress / implemented / verified</code>). Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위)</td></tr>
+      <tr><td>구현 현황 카드</td><td>EP-COV-01 <code>GET /api/v1/projects/{proj}/coverage</code> (requirement <code>impl_status</code> 집계)</td><td>MVP는 다섯 칸이다(2026-09-06 현황 — <a href="api.html">4.4</a> §2.9 와 매뉴얼이 이미 그렇게 적는다): <code>total</code> · <code>implemented</code> · <code>verified</code> · <b><code>evidence_missing</code></b> · <b><code>empty_promises</code></b>. 영역별 분해는 아직 없다. Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위)</td></tr>
       <tr><td>활성 세션 스트립</td><td>EP-SES-01 <code>GET /api/v1/projects/{proj}/sessions</code> (state 필터)</td><td>미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3))</td></tr>
       <tr><td>최근 이벤트</td><td>EP-EVT-01 <code>GET /api/v1/projects/{proj}/events</code> (커서 페이지네이션)</td><td>항목마다 <code>is_agent</code> 아이콘 구분(D-08)</td></tr>
     </tbody>
@@ -704,15 +704,15 @@
 
   <ul>
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → <code>['spec', specId]</code>, <code>spec.comment_added</code>·<code>comment.resolved</code> → <code>['spec', specId, 'comments']</code>, <code>task.*</code> → 파생 Task 패널.</li>
-    <li><b>컴포넌트</b>: <code>SpecTree</code> · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>SpecEditor</code>(TipTap — §3) · <code>SourceViewToggle</code>(read-only md) · <code>CommentThread</code> · <code>EditLeaseBadge</code> · <code>RequirementPanel</code> · <code>DerivedTaskPanel</code> · <code>SpecMetaDialog</code> · <code>ArchiveConfirmDialog</code> · <code>RelationPanel</code> · <code>ImpactPreview</code> · <code>QuickSwitcher</code>(§1.3a) · <code>StatusPanel</code> · <code>SubmitReviewButton</code> · <code>TerminalHandoffCard</code>.</li>
+    <li><b>컴포넌트</b>: <code>SpecTree</code> · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>SpecEditor</code>(TipTap — §3) · <code>CommentThread</code> · <code>EditLeaseBadge</code> · <code>SpecMetaDialog</code> · <code>ArchiveConfirmDialog</code> · <code>RelationPanel</code> · <code>ImpactPreview</code> · <code>QuickSwitcher</code>(§1.3a) · <code>StatusPanel</code> · <code>SubmitReviewButton</code> · <code>TerminalHandoffCard</code>.</li>
     <li><b>버튼 상태</b>: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 받은 요청 카드에서 한다(S7).</li>
-    <li><b>터미널 이어쓰기</b>: 복사용 명령 <code>claude "/nerv:spec edit SPC-CWC-007"</code> 카드(ui-wireframes §2.3 (12)). 반대 방향은 <code>nerv_spec_draft_upsert</code> 응답의 <code>web_url</code> 딥링크가 이 화면으로 온다.</li>
+    <li><b>터미널 이어쓰기</b>(○ <b>미구현</b> — 2026-09-06 실측): 복사용 명령 <code>claude "/nerv:spec edit SPC-CWC-007"</code> 카드(ui-wireframes §2.3 (12)). 반대 방향은 <code>nerv_spec_draft_upsert</code> 응답의 <code>web_url</code> 딥링크가 이 화면으로 온다.</li>
     <li><b>관계 패널</b>(상태 패널 내 섹션): EP-SPEC-18(direction=both) — <b>참조함 N / 참조됨 N</b>(backlink)을 kind 배지와 함께 목록으로, 클릭 시 해당 스펙으로 이동. 20건 초과는 [전체 보기]로 커서 페이지네이션 확장. 참조 갱신 배지(REQ-WEB-037)는 이 섹션 머리에 흡수된다 — "무엇이 낡았나"가 배지가 아니라 목록으로 보인다. 관계 데이터는 <b>본문의 링크에서</b> 저장 시 자동 추출된다(REQ-API-024 — 2026-08-30 개정: 산문에 적힌 키는 세지 않는다). 사람이 관계를 따로 관리하지는 않지만, <b>가리킬 문서는 링크로 적어야</b> 한다.</li>
     <li><b>관계 안은 방향으로 가른다</b>(2026-08-24 신설 — 사람 지시): 레일의 <code>관계</code> 탭 아래에 <b>전체 · 역참조 · 레퍼런스</b> 하위 탭을 두고 각각 건수를 단다. 두 방향은 <b>다른 질문</b>이기 때문이다 — 역참조는 "이 문서를 고치면 무엇이 흔들리나", 레퍼런스는 "이 문서가 무엇에 기대나". 한 목록에 섞이면(실측: <code>0-overview</code> 50건 = 역참조 22 + 레퍼런스 28) 둘 중 하나를 보려고 전체를 훑어야 한다. 건수는 <b>누르기 전에</b> 보인다 — 빈 탭을 열어 보게 하지 않는다. 전체 탭은 <b>역참조 무리 → 구분선 → 레퍼런스 무리</b> 순으로 놓는다: 화살표 표식만으로는 무리가 바뀐 자리를 눈이 알아채지 못한다(한쪽이 비면 나눌 것이 없으므로 선도 없다). 역참조 설명("고치면 흔들리는 문서")은 그 무리의 <b>머리</b>에 단다 — 꼬리에 달면 스무 줄을 다 내려간 뒤에야 무엇을 읽은 것인지 알게 된다. 그 설명은 역참조가 <b>보이는 목록에 있을 때만</b> 성립하므로 레퍼런스 탭에서는 달지 않는다.</li>
     <li><b>영향 미리보기</b>: [검토 요청] 확인 다이얼로그에 "이 문서를 참조하는 문서 N건 · 파생 Task M건에 영향" 1줄 + 목록 펼침(EP-SPEC-18 역참조 + 파생 Task 카운트). 승인 후 <code>spec.recheck_requested</code> 전파의 사전 뷰다.</li>
     <li><b>메타 편집·아카이브</b>(planner·admin — <code>spec:meta</code>): 상단 ⋯ 메뉴 → 메타 다이얼로그(<code>SpecMetaDialog</code>: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(<code>archive_blocked</code>) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = <code>?include_archived=true</code>), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"(<a href="importer.html">4.7 스펙 임포터</a> §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.</li>
     <li><b>폼·검증</b>: <code>SpecDraftUpsertInput</code>(zod — <code>packages/schema</code>, MCP 도구 인자와 공유): <code>body_markdown</code>·<code>base_hash</code>·<code>change_summary</code>(min 1), 새 스펙 생성은 <code>SpecCreateInput</code>(<code>parent_id</code>·<code>type</code> 6종 enum·<code>title</code> min 1·<code>body_markdown</code>). 코멘트 <code>CommentCreateInput</code>: <code>anchor</code>(min 1)·<code>body_md</code>(min 1).</li>
-    <li><b>빈 상태</b>: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크.</li>
+    <li><b>빈 상태</b>: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크. ○ <b>미구현</b> — 아래 넷이 아직 없다(2026-09-06 실측): <code>SourceViewToggle</code>(read-only md) · <code>RequirementPanel</code> · <code>DerivedTaskPanel</code> · 터미널 이어쓰기 카드. §3.2 규칙 2·REQ-WEB-031 이 "저장 실패 시 <b>소스 보기와 함께</b> 실패 리포트" 라고 적은 그 소스 보기가 이 넷에 든다.</li>
   </ul>
 
   <h4>제목은 화면을 떠나지 않는다 (2026-08-27 개정 — 사람 요청)</h4>
@@ -1179,7 +1179,7 @@ export const TaskCreateInput = z.object({
       <tr><td>세션 보드</td><td>EP-SES-01 <code>GET /api/v1/projects/{proj}/sessions</code> (state 필터: <code>pending / active / awaiting_input / complete / error / stale</code>)</td><td>요약 스트립 = 상태별 집계 — <b>여섯 전부를 어휘 순서로</b>, 0 인 상태도 싣는다(REQ-WEB-139)</td></tr>
       <tr><td>세션 상세</td><td>EP-SES-02 <code>GET /api/v1/projects/{proj}/sessions/{sid}</code></td><td><code>agent_session</code> 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id</td></tr>
       <tr><td>Activity 타임라인</td><td>EP-SES-03 <code>GET /api/v1/projects/{proj}/sessions/{sid}/activities</code> (커서)</td><td><code>thought / action / elicitation / response / error</code> 5종 — 불변 레코드(D-10)</td></tr>
-      <tr><td>steer / stop</td><td>EP-SES-04 <code>POST /api/v1/projects/{proj}/sessions/{sid}/steer</code> (<code>kind</code>: steer/stop)</td><td>지시는 다음 <code>nerv_task_heartbeat</code> 응답의 <code>pending</code>에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내</td></tr>
+      <tr><td>steer / stop</td><td>EP-SES-04 <code>POST /api/v1/projects/{proj}/sessions/{sid}/steer</code> (<code>kind</code>: steer/stop) — <b>권한은 세션 소유자·admin 이다</b>(2026-09-06 보완: 이 절이 권한을 한 글자도 적지 않아 화면이 누구에게나 활성으로 그리고 있다. §1.8·REQ-WEB-003 은 "화면은 서버가 허용할 것을 미리 말한다" 이므로 <b>화면 쪽 배선은 열린 자리다</b>)</td><td>지시는 다음 <code>nerv_task_heartbeat</code> 응답의 <code>pending</code>에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내</td></tr>
     </tbody>
   </table></div>
 
@@ -1291,12 +1291,12 @@ export const TaskCreateInput = z.object({
 
   <h3>2.7 S7 받은 요청 — <a href="ui-wireframes.html">ui-wireframes §2.7</a></h3>
 
-  <p>MVP 카드 유형은 3종이다 — <b>스펙 승인 · 플랜 승인 · 질문</b>(로드맵 §3: CR·에스컬레이션 유형은 Phase 2). 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.</p>
+  <p>MVP 카드 유형은 <b>5종</b>이다(2026-09-06 현황) — <b>스펙 승인 · 플랜 승인 · 질문 · 발견(<code>finding</code>) · 게이트 면제(<code>gate_bypass</code>)</b>. 어휘 정본은 <code>approval_subject_type</code> 6종이고 CR 유형만 Phase 2 로 남았다. 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
     <tbody>
-      <tr><td>대기 목록</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending · 유형/프로젝트 필터 — 받은 요청 목록)</td><td><code>approval.subject_type</code>: <code>spec_version / plan / question</code>(MVP) — data-model §2.7</td></tr>
+      <tr><td>대기 목록</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending · 유형/프로젝트 필터 — 받은 요청 목록)</td><td><code>approval.subject_type</code>: <code>spec_version / plan / question / finding / gate_bypass</code>(MVP · 2026-09-06 현황) — data-model §2.7</td></tr>
       <tr><td>결정</td><td>EP-APR-03 <code>POST /api/v1/approvals/{id}/decision</code></td><td><code>decision</code>: <code>approve / reject / comment</code>(spec-workflow §2.5)</td></tr>
       <tr><td>질문 답변</td><td>EP-QST-02 <code>POST /api/v1/projects/{proj}/questions/{id}/answer</code></td><td><code>answer_key</code>(선택지) 또는 <code>answer_md</code> — 내부적으로 승인 결정과 한 경로(api.md §2.6)</td></tr>
       <tr><td>카드 본문</td><td>EP-APR-01 응답 <code>ApprovalCard</code>에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지)</td><td>요약문이 아니라 <b>원문 우선</b>(spec-workflow §6.4 — OWASP ASI09 방어)</td></tr>
@@ -1344,7 +1344,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
 
   <h3>2.8 S8 설정 — <a href="ui-wireframes.html">ui-wireframes §2.8</a></h3>
 
-  <p>MVP 탭: <b>멤버·역할 / 에이전트 토큰 / 게이트 정책</b>. 연동(GitHub·Slack) 탭은 Phase 2(로드맵 §3.2 — "S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2") — 탭 자리만 비활성 표기. 게이트 정책 탭 중 스펙 게이트(T0~T3) 부분의 MVP 앞당김은 <a href="scope.html">scope.md</a> §4.1의 supersession 콜아웃이 확정한다(근거: 로드맵 §3.5 저위험 자동 통과 첫날부터).</p>
+  <p>MVP 탭 <b>4종</b>: <b>워크스페이스 / 멤버·역할 / 에이전트 토큰 / 게이트 정책</b>(2026-09-06 현황 — 같은 문서 §1.2·§1.8 은 이미 4탭을 적고 있었다). 연동(GitHub·Slack) 탭은 Phase 2(로드맵 §3.2 — "S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2") — 탭 자리만 비활성 표기. 게이트 정책 탭 중 스펙 게이트(T0~T3) 부분의 MVP 앞당김은 <a href="scope.html">scope.md</a> §4.1의 supersession 콜아웃이 확정한다(근거: 로드맵 §3.5 저위험 자동 통과 첫날부터).</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
@@ -1613,10 +1613,10 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <div class="table-wrap"><table>
     <thead><tr><th>순간</th><th>UI</th></tr></thead>
     <tbody>
-      <tr><td>획득</td><td>draft 에디터를 여는 순간 자동 획득 — 별도 버튼 없음. 상단에 <code>✏️ 편집 중 — &lt;사용자&gt; · 웹 · 방금</code> 배지</td></tr>
-      <tr><td>갱신</td><td>저장 시 + 에디터가 열려 있는 동안 60초 주기 갱신(하트비트 상수 재사용). 리스 잔여 2분 미만이면 배지를 호박색으로 전환(S4 리스 표시 임계와 동일)</td></tr>
+      <tr><td>획득</td><td><b>처음 저장할 때</b> 잡힌다(2026-09-06 정정 — 예전에는 "에디터를 여는 순간" 이라 적었고 매뉴얼은 처음부터 저장 기준으로 설명하고 있었다). 별도 버튼 없음. 상단에 <code>✏️ 편집 중 — &lt;사용자&gt; · 웹 · 방금</code> 배지</td></tr>
+      <tr><td>갱신</td><td>저장 시 + 에디터가 열려 있는 동안 60초 주기 갱신(하트비트 상수 재사용). 리스 잔여 2분 미만의 호박색 전환은 <b>S4 보드에만 있다</b> — S3 배지에는 임계 로직이 없다(2026-09-06 실측 · 열린 자리)</td></tr>
       <tr><td>같은 사용자, 다른 표면</td><td><b>다른 자리다</b> — 리스 보유자는 <code>(user, session)</code> 이라 세션 없는 웹 탭과 터미널 세션이 서로를 막는다(2026-08-30 개정). 터미널은 <code>takeover: true</code> 로 이어받고, 웹 에디터는 읽기 전용 + 배지와 <b>[이어받기]</b> 버튼을 보인다</td></tr>
-      <tr><td>다른 사용자</td><td>읽기 전용 + 보유자 배지 + [인계 요청](보유자 알림, 승인 시 이전). 에이전트 upsert는 <code>NERV_DRAFT_LEASED</code> 하드 차단</td></tr>
+      <tr><td>다른 사용자</td><td>읽기 전용 + 보유자 배지 + <b>[인계]</b> — 누르면 <b>그 자리에서 가져온다</b>(2026-09-06 정정: 요청도 알림도 없다. 매뉴얼 ko·en 이 처음부터 그렇게 적고 있었다). 에이전트 upsert는 <code>NERV_DRAFT_LEASED</code> 하드 차단</td></tr>
       <tr><td>해제</td><td>검토 요청 성공 · 에디터 닫기 · TTL 만료</td></tr>
       <tr><td>최후 방어선</td><td>리스와 무관하게 저장은 <code>base_hash</code> 전제조건을 갖는다 — 409는 §1.5의 <code>NERV_PRECONDITION</code> 다이얼로그</td></tr>
     </tbody>

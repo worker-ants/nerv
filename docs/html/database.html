@@ -51,9 +51,9 @@
 
   <header class="page-header">
     <h1>데이터베이스 스키마</h1>
-    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>33종</b> — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
+    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 33종</b> — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 37개</b>다 — 도메인 33 + 인프라 4(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>·<code>spec_chunk_embedding</code>, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.30 (2026-09-05)</span>
+      <span>버전 v0.32 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -111,7 +111,7 @@
     <li><b>타입 표기는 Postgres</b>(<code>uuid</code> · <code>text</code> · <code>timestamptz</code> · <code>jsonb</code> · <code>text[]</code> · <code>bytea</code> · <code>citext</code>). 확장 <code>citext</code>(user.email), <code>pgcrypto</code>(시드의 sha256 계산)를 사용한다.</li>
     <li><b>모든 테이블은 별도 표기가 없으면</b> <code>id uuid PRIMARY KEY</code>(서버 발급 UUIDv7, 클라이언트 발급 금지 — data-model §5.1)와 <code>created_at timestamptz NOT NULL DEFAULT now()</code>를 갖는다. <code>id</code>에 DB DEFAULT를 두지 않는 것은 의도다 — 발급 주체는 앱 계층 하나뿐이어야 한다.</li>
     <li><b>예외</b>: <code>requirement_version</code>·<code>task_dependency</code>는 복합 PK, <code>event</code>는 <code>PRIMARY KEY (id, occurred_at)</code>(월 파티션 키 포함, <code>created_at</code> 없음 — <code>occurred_at</code>이 그 역할), <code>activity</code>는 <code>PRIMARY KEY (id, created_at)</code>(같은 이유).</li>
-    <li><b>삭제는 아카이브</b>(<code>archived_at</code> 류)가 원칙이므로 모든 FK는 <code>ON DELETE</code> 기본(NO ACTION)이다. CASCADE는 한 곳도 없다.</li>
+    <li><b>삭제는 아카이브</b>(<code>archived_at</code> 류)가 원칙이므로 <b>도메인 테이블</b>의 FK는 전부 <code>ON DELETE</code> 기본(NO ACTION)이다. CASCADE 는 <b>파생·인프라 세 곳에만</b> 있다(2026-09-06 명시 — 예전에는 "한 곳도 없다" 고 적어 같은 문서 §2.15·§2.16 이 그것을 반박하고 있었다): <code>spec_chunk_embedding</code> · <code>auth_session</code> · <code>auth_account</code>.</li>
     <li><b>이름 규약</b>: 테이블은 snake_case 단수(data-model 표기 그대로, <code>user</code>는 예약어라 <code>"user"</code>로 인용), enum 타입은 <code>&lt;의미&gt;_&lt;축&gt;</code>(예: <code>spec_version_status</code>), 제약은 <code>&lt;테이블&gt;_&lt;의미&gt;_uq/ck/fk</code>.</li>
     <li><b>enum 값 문자열은 data-model 필드 표와 문자 단위로 일치</b>한다 — <code>claude-code</code>처럼 하이픈이 든 값도 그대로 enum 라벨이다.</li>
   </ul>
@@ -146,7 +146,10 @@ CREATE TYPE task_priority           AS ENUM ('P0', 'P1', 'P2', 'P3');
 CREATE TYPE dependency_kind         AS ENUM ('blocks', 'relates');
 CREATE TYPE claim_status            AS ENUM ('active', 'released', 'expired', 'revoked');
 CREATE TYPE claim_release_reason    AS ENUM ('done', 'handoff', 'abandon',   -- 부른 쪽이 고른 셋
-                                            'manual', 'expired', 'conflict'); -- manual 은 2026-09-05 이전의 잔재, 뒤 둘은 서버 판정
+                                            'manual', 'expired', 'conflict'); -- 앞 셋은 부른 쪽이 고르고 뒤 셋은 서버가 판정한다.
+--   manual 은 **아직 쓰인다**(2026-09-06 실측 정정): 세션 종료와 웹의 강제 정지가
+--   활성 클레임을 이 값으로 회수한다 — 인계도 포기도 아닌, 아직 이름이 없는 회수다.
+--   conflict 는 반대로 **쓰는 곳이 한 곳도 없다**.
 CREATE TYPE agent_type              AS ENUM ('claude-code', 'codex', 'web', 'other');
 CREATE TYPE session_state           AS ENUM ('pending', 'active', 'awaiting_input', 'complete', 'error', 'stale');
 CREATE TYPE session_end_reason      AS ENUM ('complete', 'error', 'stopped', 'stale');
@@ -533,10 +536,10 @@ CREATE TABLE claim (                          -- D-04의 실체. nerv_task_claim
   diff_files          int NOT NULL DEFAULT 0, -- 하트비트 stats 의 셋째 값(2026-09-03)
   token_usage         jsonb NOT NULL DEFAULT &#x27;{}&#x27;,
   current_task_id     uuid,                   -- 조회 편의 비정규화(진실은 claim). FK는 §2.11
-  created_at          timestamptz NOT NULL DEFAULT now()
+  created_at          timestamptz NOT NULL DEFAULT now(),
   -- 보존 잡이 Activity 를 지우기 전에 **접어 두는** 도구 횟수(0012 · REQ-API-067).
   -- 지우고 나면 &quot;이 세션이 무엇을 얼마나 했나&quot; 를 답할 근거가 사라진다.
-  activity_summary   jsonb NOT NULL DEFAULT &#x27;{}&#x27;,
+  activity_summary    jsonb NOT NULL DEFAULT &#x27;{}&#x27;
 );
 
 CREATE TABLE activity (                       -- 타입드 불변 로그. 편집 가능한 코멘트와 분리
@@ -774,7 +777,7 @@ CREATE TABLE notification (
 
   <h3>2.11 순환 참조 FK</h3>
 
-  <p>세 쌍이 서로를 가리키므로 테이블 생성 뒤 ALTER로 건다.</p>
+  <p>서로를 가리키는 자리는 테이블 생성 뒤 ALTER 로 건다. **아래 셋은 이름이 규약을 따르는 것들이고, 나머지 넷**(`spec_version_change_request_fk`·`spec_version_base_version_fk`·`spec_version_superseded_by_fk`·`review_session_previous_fk`)**은 각 테이블 안에 인라인 `REFERENCES` 로 적혀 있다**(2026-09-06 명시) — 실물은 일곱 다 ALTER 이고, 인라인으로 세우면 제약 이름이 `spec_parent_id_fkey` 류로 달라져 이후 마이그레이션의 `DROP CONSTRAINT &lt;이름&gt;` 이 **문서로 세운 DB 에서만** 실패한다.</p>
 
   <pre><code>ALTER TABLE spec
   ADD CONSTRAINT spec_current_version_fk
@@ -881,7 +884,9 @@ CREATE TRIGGER spec_version_freeze
   BEFORE UPDATE ON spec_version
   FOR EACH ROW EXECUTE FUNCTION nerv_spec_version_freeze();
 
--- updated_at 자동 갱신 (updated_at 컬럼을 가진 테이블은 task 하나)
+-- updated_at 자동 갱신 (**트리거가 붙은** 테이블은 task 하나 — 2026-09-06 명시.
+--  컬럼 자체는 spec_version(0008)·"user"·auth 3종에도 있고 그 값들은 앱이 움직인다:
+--  spec_version.updated_at 에 이 트리거를 달면 "본문이 바뀔 때만" 이라는 0008 의 구별이 사라진다)
 CREATE OR REPLACE FUNCTION nerv_touch_updated_at() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -1083,7 +1088,11 @@ SELECT nerv_ensure_month_partitions((current_date - interval '1 month')::date);
 
 -- 테넌시 ---------------------------------------------------------------
 INSERT INTO organization (id, slug, name) VALUES
-  ('01990a66-0000-7000-8000-000000000001', 'nerv', 'NERV');
+  -- 조직명은 **제품명이 아니다**(2026-08-24 정정). 헤더가 로고(제품)와 조직 select 를
+  -- 나란히 두는데 둘 다 'NERV' 면 같은 이름이 두 번 서서 중복으로 읽힌다 — 시드의
+  -- 조직은 "기본 조직"일 뿐이므로 그렇게 부른다. **slug 는 `SEED_ORG_SLUG` 가 정본이다**
+  -- (packages/schema/src/constants.ts) — 재적재 안전장치가 이 값으로 자기 시드를 알아본다.
+  ('01990a66-0000-7000-8000-000000000001', 'default', 'default');
 
 -- **관리자는 온보딩 인물과 분리한다.** 아래 다섯은 화면을 채우기 위한 등장인물이고
 -- (기획자·디자이너·개발자 — 각 화면이 비어 보이지 않게 하는 것이 목적이다),

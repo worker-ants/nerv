@@ -53,7 +53,7 @@
     <h1>에이전트 연동 설계</h1>
     <p class="lead">Claude Code와 Codex를 NERV에 붙이는 세 층 — MCP 도구(데이터), 훅 텔레메트리(관측·제어), 플러그인·AGENTS.md(배포) — 을 <code>nerv_*</code> 도구 22종의 계약과 실제 설정 파일 수준으로 확정한다.</p>
     <div class="meta-line">
-      <span>버전 v0.25 (2026-09-05)</span>
+      <span>버전 v0.26 (2026-09-06)</span>
       <span>원본: <code>docs/03-proposal/agent-integration.md</code></span>
     </div>
   </header>
@@ -270,7 +270,7 @@
       </tr>
       <tr>
         <td><code>nerv_task_claim</code></td>
-        <td><code>task_id</code>(키 또는 UUID), <code>scope{spec_ids,file_globs}</code>(스펙은 키 또는 UUID), <code>branch?</code>, <code>worktree?</code>, <code>lease_seconds?</code></td><td><code>claim_id</code>, <code>lease_expires_at</code>, 겹침 경고 또는 <code>NERV_CONFLICT_SCOPE</code>(상대 세션·사용자·hostname·scope)</td><td><code>task:claim</code></td><td>A2</td><td>작업 착수</td><td>멱등 — 같은 세션 재호출은 기존 claim 반환(리스 연장 없음). 타 세션은 409</td>
+        <td><code>task_id</code>(키 또는 UUID), <code>scope{spec_ids,file_globs}</code>(스펙은 키 또는 UUID), <code>lease_seconds?</code> (2026-09-06 정정 — <code>branch</code>·<code>worktree</code> 는 v0.10 에서 걷었는데 이 표에 남아 있었다: 세션의 속성이라 훅이 헤더로 싣는다)</td><td><code>claim_id</code>, <code>lease_expires_at</code>, 겹침 경고 또는 <code>NERV_CONFLICT_SCOPE</code>(상대 세션·사용자·hostname·scope)</td><td><code>task:claim</code></td><td>A2</td><td>작업 착수</td><td>멱등 — 같은 세션 재호출은 기존 claim 반환(리스 연장 없음). 타 세션은 409</td>
       </tr>
       <tr>
         <td><code>nerv_task_heartbeat</code></td>
@@ -278,7 +278,7 @@
       </tr>
       <tr>
         <td><code>nerv_task_update</code></td>
-        <td><code>task_id</code>, <code>status</code>, <code>note</code>, <b><code>evidence[]{kind,locator}</code></b>(2026-08-30 개정 — REQ-API-056. 한 Task 가 커밋·PR·테스트를 여럿 남기므로 목록이다), <code>blocked_reason?</code></td><td>새 상태 또는 게이트 거부 사유(FR-10)</td><td><code>task:update</code></td><td>A2(<code>done</code> 시도는 서버 게이트, 정책에 따라 A3)</td><td>상태 변화 시점</td><td>멱등 — 같은 목표 상태로의 재호출은 no-op 성공</td>
+        <td><code>task_id</code>, <code>status</code>, <b><code>evidence[]{kind,locator}</code></b>(2026-08-30 개정 — REQ-API-056. 한 Task 가 커밋·PR·테스트를 여럿 남기므로 목록이다), <code>blocked_reason?</code>, <b><code>spec_impact{changed[],none}</code></b>(2026-09-06 보완 — <code>done</code> 전이의 <b>필수 입력</b>이다: 비면 서버가 거부한다. 이 표에 없어서 카탈로그만 보고 부른 세션은 작업을 끝낼 방법이 없었다) — <code>note</code> 는 <b>없다</b>(스키마에 없어 조용히 버려진다)</td><td>새 상태 또는 게이트 거부 사유(FR-10)</td><td><code>task:update</code></td><td>A2(<code>done</code> 시도는 서버 게이트, 정책에 따라 A3)</td><td>상태 변화 시점</td><td>멱등 — 같은 목표 상태로의 재호출은 no-op 성공</td>
       </tr>
       <tr>
         <td><code>nerv_task_release</code></td>
@@ -286,7 +286,7 @@
       </tr>
       <tr>
         <td><code>nerv_review_submit</code></td>
-        <td><code>repo</code>, <code>branch</code>, <code>base_sha</code>, <code>head_sha</code>, <code>changeset[]</code>, <code>kind</code>, <code>session_id</code>, <code>round_of</code>, <code>reviewer{name,role}</code>, <code>summary</code>, <code>findings[]{severity,title,body,file,line,requirement_id?}</code>, <code>task_id?</code>, <code>payload_ref?</code></td><td><code>review_session_id</code>, 신규/중복 finding 분류(fingerprint), 이월된 미해결 목록</td><td><code>review:submit</code></td><td>A2</td><td>리뷰 완료 직후 — <b>파일 커밋 대신</b></td><td>멱등 — 멱등 키 + fingerprint dedup. 같은 커밋·리뷰어 재제출은 라운드 추가 없이 병합</td>
+        <td><b>필수</b> <code>branch</code>, <code>base_sha</code>, <code>head_sha</code>, <code>reviewer{role, risk?}</code> · 선택 <code>changeset[]</code>, <code>kind</code>, <code>summary</code>, <code>task_id?</code>(리뷰를 Task 에 잇는 유일한 인자), <code>payload_ref?</code>, <code>findings[]{severity,title,body,suggestion?,file,line,area?,category?,requirement_id?}</code> (2026-09-06 정정 — <code>repo</code>·<code>round_of</code>·<code>reviewer.name</code> 셋은 스키마에 없고, <code>session_id</code> 도 명시 입력이 아니라 봉투 인자다)</td><td><code>review_session_id</code>, 신규/중복 finding 분류(fingerprint), 이월된 미해결 목록</td><td><code>review:submit</code></td><td>A2</td><td>리뷰 완료 직후 — <b>파일 커밋 대신</b></td><td>멱등 — 멱등 키 + fingerprint dedup. 같은 커밋·리뷰어 재제출은 라운드 추가 없이 병합</td>
       </tr>
       <tr>
         <td><code>nerv_finding_resolve</code></td>
@@ -300,10 +300,10 @@
         <td><code>nerv_question_cancel</code></td><td><code>question_id</code></td><td>취소된 질문의 상태와 대기 세션</td><td><code>task:update</code></td><td>A2</td><td><b>답이 필요 없어졌을 때</b> — 스스로 답을 찾았거나 전제가 사라졌을 때. 그 사실을 아는 것은 물어본 쪽뿐이라 세션에 이 길이 필요하다(2026-09-05 · REQ-API-109). 남의 질문은 못 거둔다</td><td>멱등 — 이미 취소면 <code>not_open</code></td>
       </tr>
             <tr><td><code>nerv_task_get</code></td>
-        <td><code>task_id</code>(키 또는 UUID)</td><td>위임 명세 4요소 + 기준 SpecVersion·기준선 + 활성 클레임·의존</td><td><code>spec:read</code></td><td>A1</td><td>클레임 전후 "이 작업이 무엇인가"</td><td>읽기 전용</td>
+        <td><code>task_id</code>(키 또는 UUID)</td><td>위임 명세 4요소 + 기준 SpecVersion·기준선 + 활성 클레임·의존</td><td><code>task:claim</code></td><td>A1</td><td>클레임 전후 "이 작업이 무엇인가"</td><td>읽기 전용</td>
       </tr>
       <tr><td><code>nerv_task_list</code></td>
-        <td><code>project</code>, <code>status?</code>, <code>assignee?</code>, <code>limit?</code></td><td>Task 목록(상태·담당·리스 잔여)</td><td><code>spec:read</code></td><td>A1</td><td><b>"지금 무엇이 도는가"</b> — 세 번째 물음(2026-08-30)</td><td>읽기 전용</td>
+        <td><code>project</code>, <code>status?</code>, <code>assignee?</code>, <code>spec?</code>, <code>cursor?</code>, <code>limit?</code>, <code>include_archived?</code></td><td>Task 목록(상태·담당·리스 잔여)</td><td><code>task:claim</code></td><td>A1</td><td><b>"지금 무엇이 도는가"</b> — 세 번째 물음(2026-08-30)</td><td>읽기 전용</td>
       </tr>
       <tr><td><code>nerv_task_create</code></td>
         <td><code>title</code>, <code>goal_md?</code>, <code>output_format_md?</code>, <code>tools_sources_md?</code>, <code>boundaries_md?</code>, <code>source_spec_version_id?</code>, <code>priority?</code></td><td><code>task_id</code>, <code>key</code>, 상태(4요소가 차면 서버가 <code>ready</code> 로 승격)</td><td><code>task:update</code></td><td>A2</td><td>스펙에서 작업을 떼어낼 때</td><td>멱등 키 지원</td>
@@ -470,100 +470,21 @@
   <p>스킬 frontmatter의 <code>allowed-tools</code>로 해당 턴 동안 <code>nerv_*</code> 도구를 무승인 허용하되, <b>A3 도구는 목록에서 제외</b>해 승인 강제를 유지한다.</p>
 
   <h3 id="sec-3-3">3.3 훅 설정 (<code>hooks/hooks.json</code>)</h3>
+  <p><b>전문의 정본은 <a href="plugin.html">4.6 플러그인과 온보딩</a> §3.1 이다</b> — 그 절만 패키지 파일과 바이트 대조된다(<code>plugin/plugin-package.spec.ts</code>). 여기서는 계약의 모양만 인용한다. 예전에는 이 절이 전문을 한 벌 더 싣고 있었고, <b>기본 변형이 <code>command</code> 로 바뀐 뒤에도 <code>type:"http"</code> 판을 계속 보여 주었다</b>(2026-09-03 결정 · 2026-09-06 정정) — 훅 계약의 정본으로 인용되는 자리가 배포되지 않는 변형을 싣고 있었다는 뜻이다.</p>
+  <p><b>기본 변형은 <code>command</code> 다.</b> 포워더(<code>bin/nerv-hook-forward</code>)가 훅 본문을 받아 서버로 보낸다.</p>
 <pre><code>{
   &quot;hooks&quot;: {
     &quot;SessionStart&quot;: [
       {
         &quot;matcher&quot;: &quot;startup|resume|clear|compact|fork&quot;,
         &quot;hooks&quot;: [
-          {
-            &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session&quot;,
-            &quot;headers&quot;: {
-              &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot;,
-              &quot;X-NERV-Project&quot;: &quot;${NERV_PROJECT}&quot;,
-              &quot;X-NERV-Host&quot;: &quot;${NERV_HOSTNAME}&quot;,
-              &quot;X-NERV-Agent&quot;: &quot;claude-code&quot;
-            },
-            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;, &quot;NERV_PROJECT&quot;, &quot;NERV_HOSTNAME&quot;],
-            &quot;timeout&quot;: 5
-          },
-          {
-            &quot;type&quot;: &quot;command&quot;,
-            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\&quot; flush&quot;,
-            &quot;timeout&quot;: 20
-          }
-        ]
-      }
-    ],
-    &quot;PostToolUse&quot;: [
-      {
-        &quot;matcher&quot;: &quot;Write|Edit|MultiEdit|Bash&quot;,
-        &quot;hooks&quot;: [
-          {
-            &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/tool&quot;,
-            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
-            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
-            &quot;async&quot;: true,
-            &quot;timeout&quot;: 3
-          }
-        ]
-      }
-    ],
-    &quot;SubagentStart&quot;: [
-      {
-        &quot;hooks&quot;: [
-          {
-            &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
-            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
-            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
-            &quot;async&quot;: true
-          }
-        ]
-      }
-    ],
-    &quot;SubagentStop&quot;: [
-      {
-        &quot;hooks&quot;: [
-          {
-            &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
-            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
-            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
-            &quot;async&quot;: true
-          }
-        ]
-      }
-    ],
-    &quot;Stop&quot;: [
-      {
-        &quot;hooks&quot;: [
-          {
-            &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/stop&quot;,
-            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
-            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
-            &quot;timeout&quot;: 8
-          }
-        ]
-      }
-    ],
-    &quot;SessionEnd&quot;: [
-      {
-        &quot;hooks&quot;: [
-          {
-            &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session-end&quot;,
-            &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
-            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;]
-          }
+          { &quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\&quot; session&quot;, &quot;timeout&quot;: 5 }
         ]
       }
     ]
   }
 }</code></pre>
+  <p><code>command</code> 를 기본으로 둔 근거는 셋이다 — 훅 <code>url</code> 은 <code>${VAR}</code> 확장을 받지 않아 <code>http</code> 변형은 <b>서버 주소가 파일에 박히고</b>(그래서 실사용자가 패키지를 포크했다), <code>async</code> 가 command 전용이며, 포워더가 작업 디렉터리 안에서 도니 <code>git rev-parse</code> 로 브랜치·워크트리를 읽어 헤더에 실을 수 있다. <code>http</code> 변형은 <code>hooks/hooks.http.json</code> 으로 함께 배포한다 — 고르는 기준과 그 대가는 <a href="plugin.html">4.6</a> §3.1 이 정본이다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>훅</th><th>NERV 용도</th><th>응답으로 하는 일</th></tr></thead>
@@ -998,7 +919,7 @@ log_user_prompt = false</code></pre>
   <p class="src"><a href="https://modelcontextprotocol.io/specification/2025-11-25">MCP 사양 (2025-11-25) — Security and Trust &amp; Safety</a> (2026-08-13 확인): User Consent and Control, Tool Safety(도구 설명은 신뢰된 서버가 아니면 untrusted로 취급), 구현자가 견고한 동의·인가 플로우를 앱에 내장할 것.</p>
 
   <h3 id="sec-6-4">6.4 승인 강제 도구 지정</h3>
-  <p>A3 도구에는 <code>_meta["anthropic/requiresUserInteraction"]: true</code>를 단다. 이 어노테이션이 붙은 도구는 <b>모든 permission 모드에서 매 호출 사람 승인이 강제</b>된다 — <code>bypassPermissions</code>에서도 예외가 없다.</p>
+  <p>A3 도구에는 티어를 <code>_meta</code> 에 실어 보낸다 — <b>실물의 이름은 <code>nerv/tier</code>·<code>nerv/scope</code> 다</b>(2026-09-06 정정: <code>anthropic/requiresUserInteraction</code> 은 저장소 어디에도 없다. 클라이언트 표준 어노테이션이 확정되면 그때 함께 싣는다). 이 어노테이션이 붙은 도구는 <b>모든 permission 모드에서 매 호출 사람 승인이 강제</b>된다 — <code>bypassPermissions</code>에서도 예외가 없다.</p>
   <div class="table-wrap"><table>
     <thead><tr><th>도구 / 조건</th><th>Claude Code</th><th>Codex</th><th>서버</th></tr></thead>
     <tbody>

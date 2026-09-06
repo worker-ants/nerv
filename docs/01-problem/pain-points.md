@@ -2,7 +2,9 @@
 
 > **요약** — 이 문서는 1인용 Claude Code 하네스 `clemvion`을 여러 세션·여러 사람으로 확장할 때 반복해서 무너지는 지점 여덟 가지(P1~P8)를 **증상 → 실측/사례 근거 → 근본 원인** 3단으로 정리한다. 근거는 추정이 아니라 실측이다: 리뷰 산출물 markdown 13,777개(131MB)가 git packed blob 바이트의 60%를 차지하고, 산문으로만 강제되던 리뷰 의무는 575개 세션 중 160건(28%)에서 이미 무너져 있었으며, 스펙 동시수정 자동 검출은 "다른 머신·세션이면 로컬에 보이지 않는다"는 이유로 저장소 스스로 제거했다. 여덟 문제는 증상이 다르지만 원인은 하나로 수렴한다 — **파일과 git을 협업 데이터베이스로 쓴 대가**이며, 7,600줄에 이르는 하네스 훅 코드가 그 청구서다. 문서 후반은 이 문제들을 해소하기 위한 기능 요구사항 FR-01~FR-17과 비기능 요구사항 NFR-01~NFR-05를 각각 한 줄 수용 기준과 함께 정의한다.
 >
-> 문서 버전 v0.5 · 2026-09-05 · HTML 파생본: [pain-points.html](../html/pain-points.html)
+> 문서 버전 v0.6 · 2026-09-06 · HTML 파생본: [pain-points.html](../html/pain-points.html)
+>
+> v0.6 변경(2026-09-06 — 상태 어휘 정본에 구멍이 넷 있었다, 정합성 대조 → 사람 지시): §4.1 상태 어휘 표에 **Question · Claim 회수 사유 · Finding 처분·대상 축 · Approval 대상** 넉 줄을 더한다. 이 표가 상태값 목록의 단일 기준인데 그 넷이 없었고, **실제 사고가 정확히 그 구멍에서 났다** — `skills/question` 이 오지 않을 값 `pending` 을 기다린 것은 `question_status` 행이 여기 없어 아무도 대조할 수 없었기 때문이다(2026-09-05 · v2.37). 나머지 다섯(SpecVersion·Requirement·Task·AgentSession·Finding)은 코드와 정확히 일치함을 확인했다.
 >
 > v0.5 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -284,6 +286,10 @@ flowchart LR
 | Task | `backlog → ready → claimed → in_progress → in_review → done` (+`blocked`) |
 | AgentSession | `pending → active ↔ awaiting_input → complete / error / stale` |
 | Finding | severity `critical / warning / info` (+`spec_drift` 태그) · 상태 `open → fixed / dismissed / wont_fix` |
+| Question | `open → answered / cancelled / expired` (2026-09-06 보완 — 이 행이 없던 동안 스킬이 오지 않을 값 `pending` 을 기다렸다) |
+| Claim 회수 사유 | `done / handoff / abandon`(부른 쪽이 고른다) · `expired / conflict / manual`(서버가 판정한다) |
+| Finding 처분 | `fixed / spec_change / dismissed / wont_fix / escalated` · 대상 축 `area`: `codebase / spec / task / process` |
+| Approval 대상 | `spec_version / change_request / plan / question / finding / gate_bypass` |
 
 ### 4.2 기능 요구사항 (FR-01 ~ FR-17)
 

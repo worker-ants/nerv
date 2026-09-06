@@ -1,13 +1,17 @@
 ---
 id: SPC-MVP-DATABASE
 status: draft
-updated: 2026-08-22
+updated: 2026-09-06
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**33종** — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 33종** — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 33 + 인프라 4(`auth_session`·`auth_account`·`auth_verification`·`spec_chunk_embedding`, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.30 · 2026-09-05 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.32 · 2026-09-06 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.32 변경(2026-09-06 — 전역 규약이 자기 문서 안에서 반박되고 있었다, 정합성 대조 → 사람 지시): **넷을 사실에 맞춘다.** ① §1.3 "CASCADE 는 **한 곳도 없다**" 를 같은 문서 §2.15·§2.16 이 부정하고 있었다 — 도메인 테이블에는 없고 **파생·인프라 세 곳에 의도적 예외**가 있다(`spec_chunk_embedding`·`auth_session`·`auth_account`). 예외를 인정하지 않는 전역 규약은 예외를 만든 사람을 규약 위반으로 만들고 규약의 신뢰를 깎는다. ② §2.13 "`updated_at` 컬럼을 가진 테이블은 task 하나" 는 0008 이후 거짓이다 — **트리거가 붙은** 것이 하나이고 컬럼은 여섯에 있다. 이 문장을 읽고 `spec_version.updated_at` 에 트리거를 다는 순간 0008 이 만든 구별(무변경 저장에는 안 움직인다)이 사라진다. ③ `claim_release_reason` 주석의 "`manual` 은 2026-09-05 이전의 잔재" 가 **사실이 아니다** — 세션 종료와 웹의 강제 정지가 오늘도 이 값으로 회수하고, 반대로 `conflict` 는 쓰는 곳이 한 곳도 없다(실측). 0019 가 가른 셋과 그 둘을 어떻게 맞출지는 **코드 쪽 결정으로 열어 둔다**. ④ 계수 표기 — 요약이 "엔티티 33종" 만 적어 `CREATE TABLE` 37개와 어긋나 보였다(도메인 33 + 인프라 4 를 명시). §2.16·참고 자료의 "29종" 도 함께 고쳤다. ⑤ §2.11 "세 쌍" 이 실물의 절반이었다 — 나머지 넷은 인라인 `REFERENCES` 로 적혀 있어 문서대로 세우면 **제약 이름이 달라진다**(이후 `DROP CONSTRAINT` 가 문서로 세운 DB 에서만 실패한다).
+>
+> v0.31 변경(2026-09-06 — 이 문서로는 스키마가 서지 않았다, 정합성 대조 → 사람 지시): **§2.6 DDL 문법 오류와 §4 시드의 조직 slug 를 고친다.** ① `agent_session` 의 `created_at` 뒤에 **쉼표가 없고** 주석 두 줄 뒤 `activity_summary` 뒤에는 **쉼표가 남은 채** `);` 로 닫혀 있었다 — 0012 를 본문에 옮겨 적은 v0.20 이 만든 자리다. 이 문서가 선언한 유일한 목표는 "이 SQL 을 그대로 실행하면 MVP 스키마가 선다"(§ 요약)인데 **테이블 하나가 통째로 실패했다.** v0.27 이 같은 종류를 이미 두 번 잡았으므로 이번에는 **전 `CREATE TABLE` 블록의 쉼표를 기계로 훑고** 고쳤다(나머지는 이상 없음). ② 시드의 조직이 `('…001', 'nerv', 'NERV')` 였다 — 실물은 `('…001', 'default', 'default')` 이고 그 값의 정본은 `SEED_ORG_SLUG` 다. **이 값은 이미 한 번 사고를 냈다**: 조직을 `nerv` → `default` 로 바꾸자 재적재 안전장치가 자기 시드의 조직을 남의 조직으로 보고 거부했다(코드 주석의 실측 기록). 문서를 정본으로 시드를 다시 쓰면 그 사고가 그대로 재발한다. 이유 주석도 실물에서 함께 가져왔다. **새 요구사항은 없다** — 코드가 옳고 문서가 낡은 자리다.
 >
 > v0.30 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -41,7 +45,7 @@ updated: 2026-08-22
 >
 > v0.5 변경(2026-08-22 — 구현 착수 중 발견): **인증 인프라 테이블 3종 신설**(§2.16 — `auth_session`·`auth_account`·`auth_verification` + `"user"` 2컬럼). 확정 스택(better-auth)이 요구하는 물리 테이블인데 §2 DDL 전문에 빠져 있어 웹 세션 인증을 구현할 수 없었다 — 도메인 엔티티가 아니므로 **29종 카운트는 그대로**다. 같은 절에서 organization 플러그인 미사용을 확정한다(조직·멤버십의 정본이 도메인 테이블이라 이중 저장이 된다). REQ-DB-018·019 추가.
 >
-> v0.4 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1 MVP 범위와 스택 확정](scope.md) §2.1): ① 확장 2종 추가 — `pg_trgm`(한국어·부분 일치)·`vector`(pgvector) ② **검색 인덱스 테이블 `spec_chunk_embedding` 신설**(§2.15) — 도메인 엔티티가 아니라 재생성 가능한 파생 데이터라 **엔티티 29종 카운트에 들지 않는다** ③ trigram GIN 인덱스(§2.12)·HNSW 인덱스(§2.15) — 병합 랭킹(RRF)은 [4.4 API 명세](api.md) §2.2b 소관 ④ REQ-DB-014~017. 검색 파이프라인 정본은 [4.4 API 명세](api.md) §2.2b.
+> v0.4 변경(2026-08-22 — 하이브리드 검색 MVP 확정, [4.1 MVP 범위와 스택 확정](scope.md) §2.1): ① 확장 2종 추가 — `pg_trgm`(한국어·부분 일치)·`vector`(pgvector) ② **검색 인덱스 테이블 `spec_chunk_embedding` 신설**(§2.15) — 도메인 엔티티가 아니라 재생성 가능한 파생 데이터라 **엔티티 33종(도메인) 카운트에 들지 않는다** ③ trigram GIN 인덱스(§2.12)·HNSW 인덱스(§2.15) — 병합 랭킹(RRF)은 [4.4 API 명세](api.md) §2.2b 소관 ④ REQ-DB-014~017. 검색 파이프라인 정본은 [4.4 API 명세](api.md) §2.2b.
 
 ---
 
@@ -80,7 +84,7 @@ updated: 2026-08-22
 - **타입 표기는 Postgres**(`uuid` · `text` · `timestamptz` · `jsonb` · `text[]` · `bytea` · `citext`). 확장 `citext`(user.email), `pgcrypto`(시드의 sha256 계산)를 사용한다.
 - **모든 테이블은 별도 표기가 없으면** `id uuid PRIMARY KEY`(서버 발급 UUIDv7, 클라이언트 발급 금지 — data-model §5.1)와 `created_at timestamptz NOT NULL DEFAULT now()`를 갖는다. `id`에 DB DEFAULT를 두지 않는 것은 의도다 — 발급 주체는 앱 계층 하나뿐이어야 한다.
 - **예외**: `requirement_version`·`task_dependency`는 복합 PK, `event`는 `PRIMARY KEY (id, occurred_at)`(월 파티션 키 포함, `created_at` 없음 — `occurred_at`이 그 역할), `activity`는 `PRIMARY KEY (id, created_at)`(같은 이유).
-- **삭제는 아카이브**(`archived_at` 류)가 원칙이므로 모든 FK는 `ON DELETE` 기본(NO ACTION)이다. CASCADE는 한 곳도 없다.
+- **삭제는 아카이브**(`archived_at` 류)가 원칙이므로 **도메인 테이블**의 FK는 전부 `ON DELETE` 기본(NO ACTION)이다. CASCADE 는 **파생·인프라 세 곳에만** 있다(2026-09-06 명시 — 예전에는 "한 곳도 없다" 고 적어 같은 문서 §2.15·§2.16 이 그것을 반박하고 있었다): `spec_chunk_embedding`(본문에서 파생된 청크라 원본이 사라지면 함께 사라진다) · `auth_session` · `auth_account`.
 - **이름 규약**: 테이블은 snake_case 단수(data-model 표기 그대로, `user`는 예약어라 `"user"`로 인용), enum 타입은 `<의미>_<축>`(예: `spec_version_status`), 제약은 `<테이블>_<의미>_uq/ck/fk`.
 - **enum 값 문자열은 data-model 필드 표와 문자 단위로 일치**한다 — `claude-code`처럼 하이픈이 든 값도 그대로 enum 라벨이다.
 
@@ -117,7 +121,10 @@ CREATE TYPE task_priority           AS ENUM ('P0', 'P1', 'P2', 'P3');
 CREATE TYPE dependency_kind         AS ENUM ('blocks', 'relates');
 CREATE TYPE claim_status            AS ENUM ('active', 'released', 'expired', 'revoked');
 CREATE TYPE claim_release_reason    AS ENUM ('done', 'handoff', 'abandon',   -- 부른 쪽이 고른 셋
-                                            'manual', 'expired', 'conflict'); -- manual 은 2026-09-05 이전의 잔재, 뒤 둘은 서버 판정
+                                            'manual', 'expired', 'conflict'); -- 앞 셋은 부른 쪽이 고르고 뒤 셋은 서버가 판정한다.
+--   manual 은 **아직 쓰인다**(2026-09-06 실측 정정): 세션 종료와 웹의 강제 정지가
+--   활성 클레임을 이 값으로 회수한다 — 인계도 포기도 아닌, 아직 이름이 없는 회수다.
+--   conflict 는 반대로 **쓰는 곳이 한 곳도 없다**.
 CREATE TYPE agent_type              AS ENUM ('claude-code', 'codex', 'web', 'other');
 CREATE TYPE session_state           AS ENUM ('pending', 'active', 'awaiting_input', 'complete', 'error', 'stale');
 CREATE TYPE session_end_reason      AS ENUM ('complete', 'error', 'stopped', 'stale');
@@ -525,10 +532,10 @@ CREATE TABLE agent_session (
   diff_files          int NOT NULL DEFAULT 0, -- 하트비트 stats 의 셋째 값(2026-09-03)
   token_usage         jsonb NOT NULL DEFAULT '{}',
   current_task_id     uuid,                   -- 조회 편의 비정규화(진실은 claim). FK는 §2.11
-  created_at          timestamptz NOT NULL DEFAULT now()
+  created_at          timestamptz NOT NULL DEFAULT now(),
   -- 보존 잡이 Activity 를 지우기 전에 **접어 두는** 도구 횟수(0012 · REQ-API-067).
   -- 지우고 나면 "이 세션이 무엇을 얼마나 했나" 를 답할 근거가 사라진다.
-  activity_summary   jsonb NOT NULL DEFAULT '{}',
+  activity_summary    jsonb NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE activity (                       -- 타입드 불변 로그. 편집 가능한 코멘트와 분리
@@ -775,7 +782,7 @@ CREATE TABLE notification (
 
 ### 2.11 순환 참조 FK
 
-세 쌍이 서로를 가리키므로 테이블 생성 뒤 ALTER로 건다.
+서로를 가리키는 자리는 테이블 생성 뒤 ALTER 로 건다. **아래 셋은 이름이 규약을 따르는 것들이고, 나머지 넷**(`spec_version_change_request_fk`·`spec_version_base_version_fk`·`spec_version_superseded_by_fk`·`review_session_previous_fk`)**은 각 테이블 안에 인라인 `REFERENCES` 로 적혀 있다**(2026-09-06 명시) — 실물은 일곱 다 ALTER 이고, 인라인으로 세우면 제약 이름이 `spec_parent_id_fkey` 류로 달라져 이후 마이그레이션의 `DROP CONSTRAINT <이름>` 이 **문서로 세운 DB 에서만** 실패한다.
 
 ```sql
 ALTER TABLE spec
@@ -887,7 +894,9 @@ CREATE TRIGGER spec_version_freeze
   BEFORE UPDATE ON spec_version
   FOR EACH ROW EXECUTE FUNCTION nerv_spec_version_freeze();
 
--- updated_at 자동 갱신 (updated_at 컬럼을 가진 테이블은 task 하나)
+-- updated_at 자동 갱신 (**트리거가 붙은** 테이블은 task 하나 — 2026-09-06 명시.
+--  컬럼 자체는 spec_version(0008)·"user"·auth 3종에도 있고 그 값들은 앱이 움직인다:
+--  spec_version.updated_at 에 이 트리거를 달면 "본문이 바뀔 때만" 이라는 0008 의 구별이 사라진다)
 CREATE OR REPLACE FUNCTION nerv_touch_updated_at() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -1095,7 +1104,11 @@ SELECT nerv_ensure_month_partitions((current_date - interval '1 month')::date);
 
 -- 테넌시 ---------------------------------------------------------------
 INSERT INTO organization (id, slug, name) VALUES
-  ('01990a66-0000-7000-8000-000000000001', 'nerv', 'NERV');
+  -- 조직명은 **제품명이 아니다**(2026-08-24 정정). 헤더가 로고(제품)와 조직 select 를
+  -- 나란히 두는데 둘 다 'NERV' 면 같은 이름이 두 번 서서 중복으로 읽힌다 — 시드의
+  -- 조직은 "기본 조직"일 뿐이므로 그렇게 부른다. **slug 는 `SEED_ORG_SLUG` 가 정본이다**
+  -- (packages/schema/src/constants.ts) — 재적재 안전장치가 이 값으로 자기 시드를 알아본다.
+  ('01990a66-0000-7000-8000-000000000001', 'default', 'default');
 
 -- **관리자는 온보딩 인물과 분리한다.** 아래 다섯은 화면을 채우기 위한 등장인물이고
 -- (기획자·디자이너·개발자 — 각 화면이 비어 보이지 않게 하는 것이 목적이다),
@@ -1336,7 +1349,7 @@ data-model §5.5의 9규칙이 어디서 강제되는지의 최종 답이다. "�
 
 ### 정본 문서 (이 문서가 인용만 하는 것)
 
-- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드 의미·상태 머신·인덱스 §5.3·무결성 규칙 §5.5·보존 정책 §5.4. **이 문서의 모든 테이블·컬럼 이름의 원천**
+- [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 33종(도메인) 필드 의미·상태 머신·인덱스 §5.3·무결성 규칙 §5.5·보존 정책 §5.4. **이 문서의 모든 테이블·컬럼 이름의 원천**
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 이벤트 이름 정본(§6), 클레임 의사코드(§4.4), 초안 편집 리스 규약(§1.2), 소규모 완화(§2.3)
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — DDL 주석이 인용한 `nerv_*` 도구 계약(§2)과 ingest 멱등 키
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — Valkey pub/sub 팬아웃 구조(§4.4), 저장 전략 D-01, 보존 2층 구조(§2.5)

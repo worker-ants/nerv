@@ -53,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>37개 엔티티</b>(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.12 (2026-09-05)</span>
+      <span>버전 v0.13 (2026-09-06)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
     </div>
@@ -298,8 +298,13 @@
       <tr><td>27</td><td>스펙 코멘트</td><td><code>spec_comment</code></td><td>헤딩·요구사항 앵커에 달리는 스레드 코멘트(해소 추적)</td><td>FR-11</td></tr>
       <tr><td>28</td><td>스펙 기준선</td><td><code>spec_baseline</code></td><td>프로젝트의 approved 버전 집합을 이름 붙여 동결한 스냅샷 세트</td><td>FR-02</td></tr>
       <tr><td>29</td><td>기준선 항목</td><td><code>spec_baseline_item</code></td><td>기준선×스펙 — 어느 approved 버전이 핀됐는가(스펙당 1개)</td><td>FR-02</td></tr>
+      <tr><td>30</td><td>스펙 첨부</td><td><code>attachment</code></td><td>스펙 버전에 매다는 시안·문서(2026-09-01 신설 · <code>0013_attachment</code>)</td><td>FR-01</td></tr>
+      <tr><td>31</td><td>발견 코멘트</td><td><code>finding_comment</code></td><td>발견 하나에 달리는 스레드(2026-09-01 · <code>0010_finding_comment</code>)</td><td>FR-09</td></tr>
+      <tr><td>32</td><td>조직 초대</td><td><code>invitation</code></td><td>조직 가입 초대 링크와 만료(2026-08-27 · <code>0006_invitation</code>)</td><td>P8</td></tr>
+      <tr><td>33</td><td>활동 요약</td><td><code>activity_summary</code></td><td>보존 잡이 Activity 를 지우기 전에 접어 두는 도구 횟수(<code>0012</code> · 세션 카드의 근거)</td><td>FR-08</td></tr>
     </tbody>
-  </table></div>
+  </table>
+  <p>위 <b>33종이 도메인 엔티티</b>이고, 여기에 인프라 4종(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>·<code>idempotency_key</code>)이 더해져 테이블은 <b>37개</b>다 — <a href="database.html">4.3 데이터베이스 스키마</a>의 DDL 개수와 같다. (2026-09-06 보완: 30~33 이 표에 없어 이 문서가 요약에서는 37, 표에서는 29 를 말하고 있었다.)</p></div>
 
   <div class="callout evidence"><span class="ico">📊</span><div class="body">
     <b class="title">근거 · 2축 분리가 필요한 이유</b>
@@ -450,7 +455,7 @@
       <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
-  <p>제약: <code>UNIQUE (user_id, coalesce(project_id, org_id))</code> 표현식 인덱스로 중복 배정을 막는다. 한 사용자가 여러 프로젝트에, 한 프로젝트가 여러 사용자에 속하는 n:n이 P8의 직접 해소다.</p>
+  <p>제약: <code>UNIQUE (user_id, coalesce(project_id, org_id), role)</code> 표현식 인덱스로 중복 배정을 막는다 — <b>축에 <code>role</code> 이 들어간다</b>(2026-09-06 정정 · <code>0003_multi_role</code>): 겸직이 확정되면서(2026-08-23 · 실측 20건) 한 사람이 같은 프로젝트에서 두 역할을 가질 수 있고, <code>role</code> 없는 축을 그대로 걸면 그 겸직이 DB 에서 차단된다. 한 사용자가 여러 프로젝트에, 한 프로젝트가 여러 사용자에 속하는 n:n이 P8의 직접 해소다.</p>
 
   <h4><code>api_token</code></h4>
   <div class="table-wrap"><table>
@@ -478,7 +483,7 @@
       <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>parent_id</code></td><td>uuid FK NULL</td><td>트리 부모. 권한·정렬 상속 경로</td></tr>
       <tr><td><code>type</code></td><td>enum</td><td><code>vision / area / feature / design / convention / adr</code></td></tr>
-      <tr><td><code>key</code></td><td>text</td><td>프로젝트 내 사람이 읽는 slug. 변경 가능, 참조 키 아님</td></tr>
+      <tr><td><code>key</code></td><td>text</td><td>프로젝트 내 사람이 읽는 고정 ID. <b>프로젝트 안에서 유일하다</b>(<code>spec_key_uq</code> · <code>0009_spec_key_unique</code> · 2026-08-30 결정) — 도구 7종·URL·본문 링크가 이 키로 문서를 가리키므로 참조 키다. (2026-09-06 정정: 예전에는 "변경 가능, 참조 키 아님" 이라 적혀 있었다.)</td></tr>
       <tr><td><code>title</code></td><td>text</td><td></td></tr>
       <tr><td><code>sort_key</code></td><td>text</td><td>형제 정렬(clemvion의 <code>0-</code>/<code>1-</code> 정수 접두 규약을 데이터로 흡수)</td></tr>
       <tr><td><code>current_version_id</code></td><td>uuid FK NULL</td><td>최신 <code>approved</code> 버전(없으면 최신 <code>draft</code>)</td></tr>
@@ -820,6 +825,8 @@
       <tr><td><code>file_path</code> · <code>line_start</code> · <code>symbol</code></td><td>text · int · text</td><td>코드 위치</td></tr>
       <tr><td><code>spec_version_id</code> · <code>requirement_id</code></td><td>uuid FK NULL</td><td><b>출처</b>: 어느 스펙·요구사항 근거인가</td></tr>
       <tr><td><code>status</code></td><td>enum</td><td><code>open / fixed / dismissed / wont_fix</code></td></tr>
+      <tr><td><code>area</code> · <code>area_inferred</code></td><td>enum · bool</td><td><b>어디에 대한 지적인가</b>(<code>codebase / spec / task / process</code> · <code>0014_finding_area</code>). <code>category</code>(무슨 종류인가)와 <b>다른 축</b>이다 — 지적한 쪽이 가장 잘 알므로 받되, 주지 않으면 서버가 출처로 추론하고 그 사실을 <code>area_inferred</code> 로 남긴다. NOT NULL(기본 <code>codebase</code>)</td></tr>
+      <tr><td><code>promoted_task_id</code></td><td>uuid FK NULL</td><td>이 발견에서 승격된 Task(<code>0010_finding_comment</code>)</td></tr>
       <tr><td><code>first_session_id</code> · <code>last_session_id</code></td><td>uuid FK</td><td>처음·마지막으로 보인 리뷰 세션</td></tr>
       <tr><td><code>occurrence_count</code></td><td>int</td><td>반복 재확인 횟수</td></tr>
     </tbody>

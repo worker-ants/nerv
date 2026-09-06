@@ -4,7 +4,7 @@
 
 파일 기반 1인용 SDD 하네스(clemvion)가 로컬 git 아키텍처의 상한에 막혀 포기한 것 — 다른 머신·세션의 스펙 충돌 검출, 살아 있는 세션 레지스트리, 리뷰 이력의 저장소 비대화 — 이 그대로 이 제품의 기능 목록이다. 근거와 실측은 [1.1 clemvion 분석](docs/01-problem/clemvion-analysis.md)·[1.2 문제 정의](docs/01-problem/pain-points.md)에 있다.
 
-- 문서 21편(1~3부 13편 + 4부 MVP 명세 8편): [docs/README.md](docs/README.md) — 사람이 읽기 좋은 HTML 판은 [docs/html/index.html](docs/html/index.html)
+- 문서 22편(1~3부 13편 + 4부 MVP 명세 8편 + [용어 사전](docs/glossary.md)): [docs/README.md](docs/README.md) — 사람이 읽기 좋은 HTML 파생본은 [docs/html/index.html](docs/html/index.html)
 - 에이전트 작업 규약 정본: [AGENTS.md](AGENTS.md) (Claude Code는 [CLAUDE.md](CLAUDE.md)가 이 파일을 import한다)
 - 문서·커밋 메시지 언어는 **한국어**다.
 
@@ -23,11 +23,11 @@
 
 | 워크스페이스 | 무엇을 하나 |
 | --- | --- |
-| `apps/web` | Vite + React SPA — 홈·프로젝트·스펙·작업 보드·세션 모니터·승인함·설정, 제품 매뉴얼(`src/content/manual/`, ko·en 두 벌) |
+| `apps/web` | Vite + React SPA — 홈·프로젝트·스펙·작업 보드·세션 모니터·**받은 요청**·리뷰 센터·설정, 제품 매뉴얼(`src/content/manual/`, ko·en 두 벌) |
 | `apps/api` | NestJS(Fastify) — REST `/api/v1` · MCP 게이트웨이 · WebSocket · SSE · 훅 수집기. **표면 넷이 같은 도메인 서비스를 DI로 공유한다**(D-05) |
 | `apps/cli` | `nerv import …` — 프로파일 기반 스펙 임포터. 컨테이너가 아니라 **원본 체크아웃이 있는 장비에 설치되는 클라이언트**다 |
 | `packages/schema` | 타입·상수의 단일 정본 — drizzle 테이블 · zod · 이벤트 이름 · 에러 코드 · 문구 카탈로그. 상수를 다른 곳에 하드코딩하지 않는다 |
-| `plugin` | Claude Code 플러그인 — 스킬 5종(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:import`) · hooks · `.mcp.json` · Codex 초안 |
+| `plugin` | Claude Code 플러그인 — 스킬 6종(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:import`·`/nerv:review`) · hooks(기본은 `command` 변형) · statusline · Codex 초안. **`.mcp.json` 은 담지 않는다** — 서버 주소·토큰은 프로젝트마다 다르고 플러그인은 여러 프로젝트가 공유하는 물건이라, 그 파일은 쓰는 쪽 저장소가 갖는 템플릿이다(REQ-PLG-001) |
 
 ## 빠른 시작
 
@@ -63,7 +63,9 @@ pnpm dev                        # 빌드 감시 + API(:8080) + 웹(:5173). 워�
 | `pnpm test` | L1 단위 — 전 워크스페이스 |
 | `pnpm test:integration` | L2 통합 — **실제 Postgres 상대**. 무게중심이 여기다 |
 | `pnpm test:e2e` | L3 — E2E 전용 스택을 띄우고 API 시나리오 A~E + 브라우저 |
-| `pnpm lint` · `pnpm typecheck` · `pnpm format` | eslint · `tsc -b` · prettier |
+| **`pnpm preflight`** | **push 전에 이것 하나.** CI 의 `check` 잡 여덟 단계를 같은 순서로 돈다(`--l2` 로 L2 까지) — [AGENTS.md](AGENTS.md) 구현 규약 7 |
+| `pnpm hooks:install` | 위 검사를 push 때 자동으로 (옵트인 · 해제는 `-u`). **훅은 게이트가 아니다** — 진짜 게이트는 CI 다 |
+| `pnpm lint` · `pnpm typecheck` · `pnpm format` · `format:check` | eslint · `tsc -b` · prettier |
 | `pnpm db:generate` · `pnpm db:migrate` · `pnpm db:seed` | 마이그레이션 생성·적용·시드 |
 | `pnpm e2e:up` · `pnpm e2e:down` | E2E 전용 스택(세션마다 포트를 잡는다 — 개발 데이터를 건드리지 않는다) |
 | `pnpm compose:up` · `compose:infra` · `compose:down` | 로컬 스택 |
@@ -89,7 +91,7 @@ TypeScript · pnpm workspace / Vite + React SPA · TanStack Router·Query · Tai
 - **경계 규칙** — `apps/*` 간 직접 import 금지(공유는 `packages/schema` 경유), 표면은 번역만 하고 판정은 도메인 서비스 한 곳에서, 상수·이벤트 이름·에러 코드는 `@nerv/schema`에서만 가져온다.
 - **동시성은 mock으로 검증하지 않는다** — 클레임 원자성·scope 겹침·리스 만료는 L2(실제 Postgres)가 본다.
 - **도움말은 변경과 같은 커밋에서 갱신한다** — 화면의 동작·상태값·단축키·CLI 명령·역할과 권한·기본값이 바뀌었는데 매뉴얼(`apps/web/src/content/manual/`, ko·en)이 그대로면 결함이다. 없는 문서는 사람을 헤매게 하지만 **틀린 문서는 확신을 준다**.
-- **git** — Conventional Commits(`feat|fix|docs|refactor|test|chore(scope)`), 구현 코드는 브랜치 + PR이고 `main` 직접 push 금지. PR 본문에 Task ID(`TSK-…`)와 스펙 안정 ID(`SPC-…`·`REQ-…`)를 남긴다.
+- **git** — Conventional Commits(`feat|fix|docs|refactor|test|chore(scope)`), 구현 코드는 브랜치 + PR이고 `main` 직접 push 금지. PR 본문에 Task ID(`TSK-…`)와 스펙 고정 ID(`SPC-…`·`REQ-…`)를 남긴다.
 - **임의 결정 금지** — 스택 변경·범위 조정·새 결정(D-번호·FR/NFR 추가)은 사람의 확인 없이 하지 않는다.
 
 ## 라이선스

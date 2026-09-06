@@ -53,7 +53,7 @@
     <h1>문제 정의와 요구사항</h1>
     <p class="lead">1인용 Claude Code 하네스 <code>clemvion</code>이 여러 세션·여러 사람으로 확장될 때 반복해서 무너지는 지점 여덟 가지(P1~P8)를 증상 → 실측 근거 → 근본 원인으로 정리하고, 이를 해소하기 위한 요구사항 FR-01~FR-17 · NFR-01~NFR-05를 수용 기준과 함께 정의한다.</p>
     <div class="meta-line">
-      <span>버전 v0.5 (2026-09-05)</span>
+      <span>버전 v0.6 (2026-09-06)</span>
       <span>원본: <code>docs/01-problem/pain-points.md</code></span>
       <span>이 문서가 정의하는 FR/NFR 번호를 전 문서가 인용한다</span>
     </div>
@@ -475,6 +475,8 @@
 
   <h2 id="sec-4">4. 문제 → 요구사항 매핑</h2>
 
+  <h3 id="sec-4-1">4.1 읽는 법 (중요)</h3>
+
   <div class="callout warn"><span class="ico">⚠️</span><div class="body">
     <b class="title">읽는 법 (중요)</b>
     <p>아래 <b>FR-01~FR-17 / NFR-01~NFR-05 번호와 이름은 제안서 전체의 공통 참조</b>다. 다른 문서는 이 번호를 그대로 인용하며 <b>재정의하거나 번호를 바꾸지 않는다</b>. 각 항목의 <b>수용 기준(acceptance)</b>은 "이것이 되면 요구사항이 충족됐다고 본다"를 한 줄로 적은 것이며, 구현 방식은 규정하지 않는다. 우선순위와 단계 배치는 <a href="roadmap.html">로드맵</a>이 Phase 0~3으로 정한다.</p>
@@ -489,10 +491,14 @@
       <tr><td>Task</td><td><code>backlog → ready → claimed → in_progress → in_review → done</code> (+<code>blocked</code>)</td></tr>
       <tr><td>AgentSession</td><td><code>pending → active ↔ awaiting_input → complete / error / stale</code></td></tr>
       <tr><td>Finding</td><td>severity <code>critical / warning / info</code> (+<code>spec_drift</code> 태그) · 상태 <code>open → fixed / dismissed / wont_fix</code></td></tr>
+      <tr><td>Question</td><td><code>open → answered / cancelled / expired</code> (2026-09-06 보완 — 이 행이 없던 동안 스킬이 오지 않을 값 <code>pending</code> 을 기다렸다)</td></tr>
+      <tr><td>Claim 회수 사유</td><td><code>done / handoff / abandon</code>(부른 쪽이 고른다) · <code>expired / conflict / manual</code>(서버가 판정한다)</td></tr>
+      <tr><td>Finding 처분</td><td><code>fixed / spec_change / dismissed / wont_fix / escalated</code> · 대상 축 <code>area</code>: <code>codebase / spec / task / process</code></td></tr>
+      <tr><td>Approval 대상</td><td><code>spec_version / change_request / plan / question / finding / gate_bypass</code></td></tr>
     </tbody>
   </table></div>
 
-  <h3 id="sec-4-2">4.1 기능 요구사항 (FR-01 ~ FR-17)</h3>
+  <h3 id="sec-4-2">4.2 기능 요구사항 (FR-01 ~ FR-17)</h3>
   <div class="table-wrap"><table>
     <thead><tr><th>번호</th><th>요구사항</th><th>수용 기준 (acceptance)</th></tr></thead>
     <tbody>
@@ -516,7 +522,7 @@
     </tbody>
   </table></div>
 
-  <h3 id="sec-4-3">4.2 비기능 요구사항 (NFR-01 ~ NFR-05)</h3>
+  <h3 id="sec-4-3">4.3 비기능 요구사항 (NFR-01 ~ NFR-05)</h3>
   <div class="table-wrap"><table>
     <thead><tr><th>번호</th><th>요구사항</th><th>수용 기준 (acceptance)</th></tr></thead>
     <tbody>
@@ -528,7 +534,7 @@
     </tbody>
   </table></div>
 
-  <h3 id="sec-4-4">4.3 P ↔ FR/NFR 커버리지</h3>
+  <h3 id="sec-4-4">4.4 P ↔ FR/NFR 커버리지</h3>
   <div class="table-wrap"><table>
     <thead><tr><th>문제</th><th>해소하는 요구사항</th><th>관련 설계 결정</th><th>어떻게 해소되는가</th></tr></thead>
     <tbody>
@@ -543,7 +549,7 @@
     </tbody>
   </table></div>
 
-  <h3 id="sec-4-5">4.4 요구사항이 곧바로 반박하는 비판</h3>
+  <h3 id="sec-4-5">4.5 요구사항이 곧바로 반박하는 비판</h3>
   <p>SDD에는 "워터폴의 귀환"이라는 유력한 비판이 있다. 날짜 표시 기능 하나에 8개 파일·1,300줄이 생성되고, 버그 하나에 16개 수용 기준이 붙는 실사용 관찰이 근거다. 반론 측은 "워터폴이 실패한 것은 스펙 때문이 아니라 스펙이 틀렸음을 발견하는 비용이 파국적이었기 때문이며, 재생성 비용이 0에 수렴하면 경제학이 바뀐다"고 말한다.</p>
   <p>NERV는 어느 한쪽 편을 들지 않고 <b>정책으로 답한다</b>. 저위험 변경(오탈자 등)은 자동 통과 경로를 두고, 고위험 변경만 사람 승인 큐로 보낸다(D-06). FR-10의 면제 기록과 FR-12의 중요도 라우팅이 그 정책의 실행 수단이다. 리뷰 부담을 줄이는 UX(델타만 보여주는 CR 뷰 = FR-04, 자동 요약)가 채택 성패를 가른다는 점은 리서치가 반복해서 지적하는 바다.</p>
 

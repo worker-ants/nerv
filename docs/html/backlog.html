@@ -53,7 +53,7 @@
     <h1>백로그</h1>
     <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
     <div class="meta-line">
-      <span>버전 v0.14 (2026-09-05)</span>
+      <span>버전 v0.15 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 14 · 스토리 62 · E2E 시나리오 5</span>
     </div>
@@ -76,7 +76,7 @@
   <h3>1.1 ID·상태·표기 규약</h3>
   <ul>
     <li><b>에픽/스토리 ID</b> — <code>E01-S01</code> 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.</li>
-    <li><b>상태 어휘</b> — 스토리는 Task 축 상태 머신(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.4)의 어휘를 그대로 쓴다: <code>backlog → ready → claimed → in_progress → in_review → done</code>, 예외 상태 <code>blocked</code>(사유 코드 필수). 이 문서의 모든 스토리는 현재 <code>backlog</code>다.</li>
+    <li><b>상태 어휘</b> — 스토리는 Task 축 상태 머신(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.4)의 어휘를 그대로 쓴다: <code>backlog → ready → claimed → in_progress → in_review → done</code>, 예외 상태 <code>blocked</code>(사유 코드 필수). <b>스토리별 현재 상태는 §1.4 가 정본이다</b> — 2026-09-06 실측으로 <code>done</code> 64 · 부분 10 · <code>backlog</code> 0 이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 <code>backlog</code>다" 를 그대로 두어 <b>74개 중 73개에 대해 거짓인 문장</b>이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)</li>
     <li><b>근거</b> — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호(<a href="pain-points.html">1.2 문제 정의와 요구사항</a> §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.</li>
     <li><b>EARS 수용 기준</b> — 행동 요구는 <code>WHEN … THE SYSTEM SHALL …</code> 형식으로 쓴다. 스토리당 1~3개.</li>
     <li><b>의존</b> — 의존 스토리 ID를 표기한다. 의존이 <code>done</code>이 아니면 해당 스토리는 <code>ready</code>로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).</li>
@@ -86,7 +86,73 @@
   <p>이 백로그는 NERV 가동 후 <b>첫 임포트 대상</b>이다. 도그푸딩 임포트는 P1이다(<a href="importer.html">4.7 스펙 임포터</a> §1.1) — <code>docs/04-mvp/*.md</code> 문서 세트의 Spec 적재는 nerv-docs 프로파일(importer §5.1)로, 이 문서의 에픽·스토리 → Task 적재는 P1 plan 임포터와 같은 경로(E11 시점)로 수행한다. 문서 머리의 frontmatter(<code>id: SPC-MVP-BACKLOG</code>)가 <a href="importer.html">4.7 스펙 임포터</a> §5의 임포트 규격을 따르는 이유다. 임포트 이후 이 md는 read-only 미러가 되고 SoT는 서버다(D-01 · <a href="roadmap.html">3.7 로드맵</a> §7.4).</p>
 
   <h3>1.3 범위 경계</h3>
-  <p>이 백로그는 MVP = Phase 0 + Phase 1만 다룬다(<a href="scope.html">4.1 MVP 범위와 스택 확정</a> §3). Phase 2 항목(리뷰 수집·게이트 판정 완성·S6 리뷰 센터·<code>nerv_review_submit</code>/<code>nerv_finding_resolve</code>·<code>/nerv:review</code>·Codex 완전 지원·review 임포터)은 로드맵 §4가 정본이며 여기 스토리로 분해하지 않는다.</p>
+  <p>이 백로그는 MVP = Phase 0 + Phase 1만 다룬다(<a href="scope.html">4.1 MVP 범위와 스택 확정</a> §3). Phase 2 항목은 로드맵 §4가 정본이며 여기 스토리로 분해하지 않는다 — <b>다만 그중 여섯은 이미 들어와 있다</b>(2026-09-06 정정): 리뷰 수집·S6 리뷰 센터·<code>nerv_review_submit</code>/<code>nerv_finding_resolve</code>·<code>/nerv:review</code>·review 임포터. 앞당겨 구현한 근거는 <a href="scope.html">4.1 범위</a> §5 의 착수 기록이고, 실물의 자리는 §1.4 의 "스토리가 없는 구현" 표다. 여전히 분해하지 않는 것은 <b>게이트 판정 완성</b>(FR-10 둘째 단 — 화면은 판정을 표시할 뿐 아직 막지 않는다)과 <b>Codex 완전 지원</b>이다.</p>
+
+
+  <h3>1.4 구현 현황 (2026-09-06 실측)</h3>
+  <p><b>스토리별 상태의 정본은 이 절이다.</b> 세는 법은 하나다 — 스토리의 EARS 수용 기준을 만족하는 실물이 저장소에 있으면 <code>done</code>, 일부만 있으면 <b>부분</b>이고 그때는 <i>남은 것</i>을 반드시 적는다. 근거는 파일 경로다.</p>
+  <table>
+    <thead><tr><th>에픽</th><th><code>done</code></th><th>부분</th><th>대표 근거</th></tr></thead>
+    <tbody>
+      <tr><td>E01 저장소 부트스트랩</td><td>5</td><td>—</td><td><code>codebase/pnpm-workspace.yaml</code> · <code>apps/api/src/main.ts</code> · <code>.github/workflows/ci.yml</code></td></tr>
+      <tr><td>E02 스키마·마이그레이션</td><td>4</td><td>—</td><td><code>packages/schema/src/tables/</code> (테이블 37) · <code>drizzle/0000</code>~<code>0019</code> · <code>event.service.ts</code></td></tr>
+      <tr><td>E03 MCP 최소 서버 + PAT</td><td>3</td><td>1</td><td><code>mcp/mcp.controller.ts</code> · <code>*.tools.ts</code>(도구 24) · <code>packages/schema/src/errors.ts</code></td></tr>
+      <tr><td>E04 클레임·리스 엔진</td><td>5</td><td>—</td><td><code>task.service.ts</code>(FOR UPDATE) · <code>claim.service.ts</code> · <code>worker/advisory-lock.ts</code></td></tr>
+      <tr><td>E05 세션 보드 최소</td><td>4</td><td>—</td><td><code>session.service.ts</code> · <code>event/ws.gateway.ts</code> · <code>event/sse.controller.ts</code></td></tr>
+      <tr><td>E06 스파이크 + 확인·실측</td><td>3</td><td>4</td><td><code>test/integration/spike-realtime.spec.ts</code> · <code>apps/web/.spike/tiptap-roundtrip.md</code></td></tr>
+      <tr><td>E07 spec 임포터 v0</td><td>4</td><td>1</td><td><code>apps/cli/src/profiles/</code> · <code>report/index.ts</code> · <code>modules/import/import.controller.ts</code></td></tr>
+      <tr><td>E08 웹 화면</td><td>8</td><td>2</td><td><code>routes/p.$proj/specs.$spec.tsx</code>(버전 diff) · <code>steer-panel.tsx</code> · <code>quick-switcher.tsx</code></td></tr>
+      <tr><td>E09 스펙 워크플로우·승인 게이트</td><td>11</td><td>1</td><td><code>0000_init.sql</code>(동결 트리거) · <code>spec/gate-tier.ts</code> · <code>spec/search.service.ts</code>(RRF)</td></tr>
+      <tr><td>E10 기획자 터미널 경로</td><td>4</td><td>—</td><td><code>spec.service.ts</code>(<code>NERV_DRAFT_LEASED</code>·takeover) · <code>spec-comment.service.ts</code></td></tr>
+      <tr><td>E11 plan 임포터</td><td>2</td><td>—</td><td><code>apps/cli/src/parse/plan.ts</code> · <code>apps/cli/src/run.ts</code></td></tr>
+      <tr><td>E12 플러그인 v1 + 훅 수집기</td><td>5</td><td>1</td><td><code>plugin/skills/</code>(6종) · <code>session/ingest.controller.ts</code> · <code>plugin/bin/nerv-outbox</code></td></tr>
+      <tr><td>E13 받은 요청·질문·알림</td><td>3</td><td>—</td><td><code>approval.service.ts</code>(<code>content_hash</code> stale) · <code>question.service.ts</code> · <code>notification.service.ts</code></td></tr>
+      <tr><td>E14 운영·연동</td><td>3</td><td>—</td><td><code>deploy/k8s/base/</code> · <code>deploy/scripts/nerv-backup.sh</code> + <code>restore-roundtrip.spec.ts</code> · <code>task/webhook.service.ts</code></td></tr>
+      <tr><td><b>합계</b></td><td><b>64</b></td><td><b>10</b></td><td><code>backlog</code> 0</td></tr>
+    </tbody>
+  </table>
+  <p>§5 의 <b>E2E 수용 시나리오 A~E 도 다섯 전부 실물</b>이다 — <code>apps/api/test/e2e/scenario-a-c.spec.ts</code> · <code>scenario-d-e.spec.ts</code>.</p>
+
+  <h4>부분 구현 열 — 남은 것을 적어 둔다</h4>
+  <p>"완료"로 뭉뚱그리면 남은 절반이 영영 보이지 않는다. E09-S06 이 정확히 그 상태였다(서버 축만 있고 읽는 길과 만드는 문이 없어 실사용 기준선이 0개였다).</p>
+  <table>
+    <thead><tr><th>ID</th><th>들어온 것</th><th><b>남은 것</b></th></tr></thead>
+    <tbody>
+      <tr><td>E03-S02</td><td>PAT 해시 저장·프로젝트 소속·검증</td><td>better-auth <b>api-key 플러그인 대신 자체 <code>api_token</code> 테이블</b>(이탈 근거는 <code>auth.service.ts</code> 머리 주석) · <b>발급 CLI 없음</b>(웹 설정 화면이 유일한 발급 경로)</td></tr>
+      <tr><td>E06-S03</td><td>마이그레이션 파이프라인 양쪽 경로가 실제로 돈다</td><td><b>스파이크 리포트 자체</b>(후보 2안 비교·롤백 절차·선정 근거)</td></tr>
+      <tr><td>E06-S04</td><td>리비전 협상·병행 서빙 코드</td><td>Claude Code·Codex <b>두 클라이언트 실측 리포트</b></td></tr>
+      <tr><td>E06-S06</td><td>degrade 경로·1024차원 검증</td><td><b>3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정</b>(<a href="api.html">4.4 API</a>가 임베딩 p95 를 아직 보류로 둔다)</td></tr>
+      <tr><td>E06-S07</td><td>command 폴백이 기본 변형으로 배포됨</td><td>기록된 근거는 훅 <code>url</code> 의 <code>${VAR}</code> <b>미</b>확장이지 <b><code>headers</code> 확장 자체의 실측이 아니다</b>(<a href="plugin.html">4.6 플러그인</a> §3.1이 아직 "1차 문서에서 확인 못함"이라 적는다)</td></tr>
+      <tr><td>E07-S05</td><td><code>apps/cli</code> 워크스페이스·bin·멱등 키 재시도</td><td><b><code>nerv import</code> 서브커맨드가 없다</b> — bin 은 <code>nerv</code> 이고 <code>parseArgs</code> 는 <code>spec</code> · <code>plan</code> · <code>review</code> · <code>docs</code> · <code>rebuild-map</code> 만 받는다. 실제로 도는 형태는 <code>nerv spec …</code> 인데 <a href="importer.html">4.7 임포터</a> §3.1·<code>skills/import</code>·<b>CLI 자신의 usage 문구</b> 셋이 <code>nerv import</code> 를 말한다</td></tr>
+      <tr><td>E08-S05</td><td>칸반 레인·위임 명세 4요소 zod 폼</td><td><b>승인된 SpecVersion 에서 파생하는 웹 경로</b> — <code>delegation-form.tsx</code> 의 스키마에 <code>source_spec_version_id</code> 가 없어 파생은 REST·MCP 로만 된다</td></tr>
+      <tr><td>E08-S10</td><td>가상 스크롤·필터·관계 패널·degraded 배너</td><td><b><code>depth</code> 지연 로드</b> — 서버는 그 인자를 받는데 <code>useSpecTree</code> 가 넘기지 않는다</td></tr>
+      <tr><td>E09-S03</td><td>지시자≠승인자 차단</td><td><b>리뷰어 자동 지정</b> — <code>ApprovalService.request()</code> 를 부르는 곳이 <code>assigneeUserId</code> 를 넘기지 않아 결재 카드는 언제나 <code>assignee_user_id = NULL</code> 로 만들어진다(그 열이 채워지는 것은 결재 시점의 <code>COALESCE</code> 뿐이라 <i>지정</i>이 아니라 <i>기록</i>이다)</td></tr>
+      <tr><td>E12-S03</td><td>statusline · 마켓플레이스 · 관리형 settings</td><td>수용 기준의 <b>"활성화 여부를 서버에서 확인"</b>(플러그인 버전 보고) 경로. ※ <code>.mcp.json</code> 미동봉은 남은 것이 아니라 <b>결정</b>이다(REQ-PLG-001 개정 — 패키지 테스트가 부재를 강제한다)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리</h4>
+  <p>아래는 <b>구현됐는데 이 문서에 스토리가 없다.</b> 백로그가 "무엇을 만들 것인가"의 목록이라면, 만든 것이 목록에 없다는 것은 그 목록이 더 이상 저장소를 설명하지 않는다는 뜻이다.</p>
+  <table>
+    <thead><tr><th>무엇</th><th>실물</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>리뷰 수집 전체(FR-09)</td><td><code>modules/review/</code> · <code>routes/p.$proj/reviews.index.tsx</code> · <code>review.tools.ts</code> · <code>skills/review/</code> · <code>cli/src/parse/review.ts</code></td><td>§1.3 이 "분해하지 않는다"고 적은 여섯 중 다섯이 여기다</td></tr>
+      <tr><td>스펙 첨부</td><td><code>attachment</code> 테이블 · <code>nerv_spec_attach</code> · <code>nerv_spec_attachment_read</code></td><td>2026-09-01·09-04 도입</td></tr>
+      <tr><td>조직 초대</td><td><code>modules/auth/invitation.controller.ts</code> · <code>routes/invite.$token.tsx</code> · <code>0006_invitation</code></td><td></td></tr>
+      <tr><td>제품 매뉴얼 <code>/help</code></td><td><code>apps/web/src/content/manual/{ko,en}/</code> 10장 × 2 · <code>routes/help/</code></td><td>AGENTS.md 구현 규약 5 가 요구하는 산출물이다</td></tr>
+      <tr><td>md 미러 export 잡</td><td><code>worker/jobs/export.job.ts</code></td><td>코드가 스스로 "P1 후반"이라 적는다</td></tr>
+      <tr><td><code>nerv_question_cancel</code></td><td><code>modules/approval/question.tools.ts</code></td><td>2026-09-05 신설</td></tr>
+      <tr><td><code>pnpm preflight</code> · <code>hooks:install</code></td><td><code>codebase/scripts/preflight.mjs</code> · <code>install-hooks.mjs</code></td><td>규약 7 이 커밋 전 필수로 지정한 도구</td></tr>
+    </tbody>
+  </table>
+
+  <h4>이 절은 언제 갱신되는가</h4>
+  <ul>
+    <li><b>스토리를 끝내면 같은 커밋에서 이 표를 고친다.</b> 나중에 몰아서 세면 그 사이의 커밋들은 자기가 무엇을 바꿨는지 말하지 않는다 — 실제로 §1.1 의 "모든 스토리는 현재 <code>backlog</code>다" 가 2주간 그렇게 남았다.</li>
+    <li><b>부분으로 두려면 <i>남은 것</i>을 함께 적는다.</b> 남은 것을 적지 않은 부분 표기는 "완료"와 구별되지 않는다.</li>
+    <li><b>스토리 없이 들어온 구현은 셋째 표에 한 줄로 남긴다.</b> 그 줄이 쌓이면 에픽을 새로 여는 신호다(번호는 재사용하지 않고 끝번호에 더한다 — §1.1).</li>
+    <li>이 문서가 <b>첫 임포트 대상</b>이라는 것이 규율의 이유다(§1.2). 임포트는 여기 적힌 상태를 그대로 Task 74건의 초기 상태로 옮긴다 — 틀린 상태로 적재되면 <b>이미 끝난 일을 에이전트가 다시 클레임한다.</b></li>
+  </ul>
 
   <h2 id="sec-2">2. Phase 0 에픽 — 조정이 되는가 (W1~W3)</h2>
 
@@ -110,7 +176,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
     <tbody>
-      <tr><td><code>E02-S01</code></td><td>drizzle 테이블 29종 선언 — <code>organization</code>부터 <code>spec_baseline_item</code>까지, zod 스키마·파생 타입 공유</td><td><a href="data-model.html">3.3 데이터 모델</a> §1.3 · <a href="database.html">4.3 데이터베이스 스키마</a> §2</td><td>WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL data-model.md의 29개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다</td><td>E01-S01 · E06-S03</td></tr>
+      <tr><td><code>E02-S01</code></td><td>drizzle 테이블 선언(<b>착수 당시 29종 → 현재 37종</b> — 2026-09-06 실측) — <code>organization</code>부터 <code>spec_baseline_item</code>까지, zod 스키마·파생 타입 공유</td><td><a href="data-model.html">3.3 데이터 모델</a> §1.3 · <a href="database.html">4.3 데이터베이스 스키마</a> §2</td><td>WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL data-model.md의 29개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다</td><td>E01-S01 · E06-S03</td></tr>
       <tr><td><code>E02-S02</code></td><td>초기 스냅샷 마이그레이션 + 왕복 멱등 — compose는 기동 시, k8s는 Job으로 적용</td><td><a href="database.html">4.3 데이터베이스 스키마</a> §1·§5</td><td>WHEN 같은 마이그레이션을 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행을 스키마 변경 0으로 종료한다</td><td>E02-S01</td></tr>
       <tr><td><code>E02-S03</code></td><td>이벤트 방송 규약 — Valkey pub/sub 채널 <code>nerv_events</code>, 페이로드 JSON(event id·type·project_id), EventService 커밋 후 발행</td><td><a href="database.html">4.3 데이터베이스 스키마</a> §3 · <a href="architecture.html">3.2 시스템 아키텍처</a> §1(D-10)</td><td>WHEN <code>event</code> 테이블에 행이 삽입되고 트랜잭션이 커밋되면, THE SYSTEM SHALL Valkey <code>nerv_events</code> 채널로 event id·type·project_id를 PUBLISH한다(롤백 시 발행 없음)</td><td>E02-S01</td></tr>
       <tr><td><code>E02-S04</code></td><td>개발 시드 한 벌 — 프로젝트 clemvion, <code>SPC-CWC-007</code>·<code>REQ-CWC-031</code>, CLV-T-0CFQC2(하나/mac-07)·CLV-T-1KTDCK(도현/mac-02)·CLV-T-TRA25N(유나/linux-ci-01/codex), 세션 S-b7e9</td><td><a href="database.html">4.3 데이터베이스 스키마</a> §4</td><td>WHEN 시드 스크립트를 실행하면, THE SYSTEM SHALL 예시 데이터 한 벌을 멱등하게 적재한다(재실행 시 신규 레코드 0)</td><td>E02-S02</td></tr>
@@ -252,10 +318,10 @@
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
     <tbody>
       <tr><td><code>E12-S01</code></td><td>스킬 4종 SKILL.md — <code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code>(임포터 스킬은 E12-S05). bootstrap→claim→하트비트 60초→질문 에스컬레이션 프로토콜과 스펙 본문 비신뢰 규약 포함, A3 도구는 allowed-tools 제외</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §2 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.2</td><td>WHEN 신규 세션이 문서 없이 스킬 안내만으로 진행하면, THE SYSTEM SHALL <code>nerv_bootstrap</code>→<code>nerv_task_next</code>→<code>nerv_task_claim</code> 첫 클레임까지 도달시킨다</td><td>E10-S02</td></tr>
-      <tr><td><code>E12-S02</code></td><td>hooks.json + ingest 엔드포인트 — <code>type:"http"</code> 훅(SessionStart/PostToolUse/Stop/SessionEnd) 수신, 세션 등록·activity 적재 자동화</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §3 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3 · <a href="roadmap.html">3.7 로드맵</a> §3.3</td><td>WHEN 훅 이벤트가 도착하면, THE SYSTEM SHALL 세션 등록·activity 적재에 반영하고 미인증 이벤트를 거부한다</td><td>E05-S01</td></tr>
-      <tr><td><code>E12-S03</code></td><td><code>.mcp.json</code> + statusline + 마켓플레이스 배포 — 관리형 settings 강제 활성화</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.4~3.5 · <a href="roadmap.html">3.7 로드맵</a> §3.4(1-10)</td><td>WHEN 관리형 settings로 플러그인이 배포되면, THE SYSTEM SHALL 파일럿 참여 호스트의 활성화 여부를 서버에서 확인 가능하게 한다(목표 100%)</td><td>E12-S01 · E12-S02</td></tr>
+      <tr><td><code>E12-S02</code></td><td>hooks.json + ingest 엔드포인트 — 훅(SessionStart/PostToolUse/Stop/SessionEnd) 수신. <b>기본 변형은 <code>type:"command"</code> 다</b>(2026-09-03 결정 · 4.6 §3.1 — <code>type:"http"</code> 는 별도 파일 <code>hooks.http.json</code> 이다), 세션 등록·activity 적재 자동화</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §3 · <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.3 · <a href="roadmap.html">3.7 로드맵</a> §3.3</td><td>WHEN 훅 이벤트가 도착하면, THE SYSTEM SHALL 세션 등록·activity 적재에 반영하고 미인증 이벤트를 거부한다</td><td>E05-S01</td></tr>
+      <tr><td><code>E12-S03</code></td><td>statusline + 마켓플레이스 배포 — 관리형 settings 강제 활성화. <b><code>.mcp.json</code> 은 패키지에 담지 않는다</b>(2026-09-04 REQ-PLG-001 개정 — 그 파일은 쓰는 쪽 저장소가 갖는 템플릿이다)</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.4~3.5 · <a href="roadmap.html">3.7 로드맵</a> §3.4(1-10)</td><td>WHEN 관리형 settings로 플러그인이 배포되면, THE SYSTEM SHALL 파일럿 참여 호스트의 활성화 여부를 서버에서 확인 가능하게 한다(목표 100%)</td><td>E12-S01 · E12-S02</td></tr>
       <tr><td><code>E12-S04</code></td><td>사람 온보딩 절차 — PAT 발급(S8)→플러그인 설치→<code>nerv_bootstrap</code> 확인, 단계별 명령 문서화</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §4</td><td>WHEN 신규 참여자가 온보딩 절차를 따르면, THE SYSTEM SHALL 단계별 명령만으로 첫 <code>nerv_bootstrap</code> 성공까지 도달시킨다</td><td>E08-S08 · E12-S03</td></tr>
-      <tr><td><code>E12-S05</code></td><td><b><code>/nerv:import</code> 스킬</b> — 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → <code>--apply</code> → 멱등 재실행 검증. MCP 도구가 아니라 로컬 CLI를 실행한다(도구 16종 불변)</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §2.5 · <a href="importer.html">4.7 스펙 임포터</a> §3.6</td><td>WHEN 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 <code>--apply</code>를 실행한다(REQ-IMP-017)</td><td>E07-S05 · E12-S01</td></tr>
+      <tr><td><code>E12-S05</code></td><td><b><code>/nerv:import</code> 스킬</b> — 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → <code>--apply</code> → 멱등 재실행 검증. MCP 도구가 아니라 로컬 CLI를 실행한다(도구 카탈로그 불변 — MCP 도구가 아니다)</td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §2.5 · <a href="importer.html">4.7 스펙 임포터</a> §3.6</td><td>WHEN 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 <code>--apply</code>를 실행한다(REQ-IMP-017)</td><td>E07-S05 · E12-S01</td></tr>
       <tr><td><code>E12-S06</code></td><td>오프라인 폴백 실물 — <code>.nerv/cache/</code>·<code>.nerv/outbox/</code> 레이아웃·큐 파일 형식·flush(oldest-first·원 멱등 키)·SessionEnd 잔량 보고·<code>.gitignore</code></td><td><a href="plugin.html">4.6 플러그인과 온보딩</a> §3.4(REQ-PLG-011~013) · NFR-05</td><td>WHEN 쓰기 도구가 <code>NERV_UNAVAILABLE</code>을 받으면, THE SYSTEM SHALL outbox에 멱등 키와 함께 큐잉하고 복구 후 flush에서 중복 레코드 0을 유지한다</td><td>E12-S01</td></tr>
     </tbody>
   </table></div>

@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 **조정(충돌 제거) → 가시성(세션·커버리지) → 거버넌스(승인·게이트) → 고도화**로 고정하고, Phase 0 PoC(2~3주) · Phase 1 MVP(4~6주) · Phase 2(4~6주) · Phase 3+(착수 조건 기반)로 나눈다. 각 Phase는 기간·범위(FR 번호)·산출물과 함께 **수치로 된 종료 조건**을 갖고, 그 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다(예: Phase 0은 두 호스트·세 세션 동시 작업에서 중복 클레임 0건). clemvion 이관은 D-12에 따라 **기계 산출물 먼저 → 스펙 → 사람 워크플로우 → 실시간**의 순서로 진행하며, 대상 규모는 `spec/` 384 md · `plan/` 450 md · `review/` 13,777 md(131MB)다. 마지막으로 도입 실패·규약 미준수·플랫폼 다운·리뷰 피로·벤더 API 변화 다섯 가지 리스크에 각각 계측 신호와 완화 수단을 붙였다.
 >
-> 문서 버전 v0.4 · 2026-09-05 · HTML 파생본: [roadmap.html](../html/roadmap.html)
+> 문서 버전 v0.5 · 2026-09-06 · HTML 파생본: [roadmap.html](../html/roadmap.html)
+>
+> v0.5 변경(2026-09-06 — 2026-09-05 현황화에서 이 문서만 빠졌다, 정합성 대조 → 사람 지시): **일곱 자리를 현재 상태로.** v2.39 가 "Phase 표기를 현황으로" 아홉 문서를 고칠 때 이 문서는 그 목록에 없었다. ① 플러그인 v1 행의 "스킬 **4종** · `type:"http"` · `.mcp.json` 번들" — 셋 다 틀렸다(6종 · 기본은 `command` · `.mcp.json` 은 담지 않는다). ② 인증 행의 "OAuth 2.1 로 **승격**" — 2026-08-20 에 better-auth 로 확정되며 OAuth 2.1 은 Phase 2 로 옮겼고, [4.1](../04-mvp/scope.md) §2.1 콜아웃이 "로드맵 표기 하나를 대체한다" 고 선언했는데 **여기 본문에는 그 사실이 없었다.** ③ 도구 "7종"·"카탈로그 18종"·"스킬 4종 → 5종" 을 현황(24종·6종)과 함께 적는다. ④ plan 임포트를 **`ready` 로 적재한다**고 적고 있었다 — REQ-IMP-009 는 "`ready` 로는 절대 적재하지 않는다" 이고, 바로 아래 문단이 이미 그 이유를 적고 있어 **한 문단 안에서 모순**이었다. ⑤ 폐기된 `provenance_incomplete` 규칙을 정본처럼 계속 적고 있었다(코드베이스 전체 0건).
 >
 > v0.4 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -172,8 +174,8 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 | 세션 모니터 | **FR-07 · FR-08 ●** | S5 미션 컨트롤 — hostname·에이전트 종류·6상태·현재 Task·diff 통계·steer/stop |
 | 받은 요청 + 인앱 알림 | FR-11 ◐ / FR-12 ◐ | 스펙 승인·플랜 승인·질문 3유형(CR·에스컬레이션은 Phase 2), 원클릭 승인/거절/코멘트 |
 | GitHub 연동 | FR-13 ◐ / FR-10 ◐ | PR·커밋 웹훅 수신, Task↔PR 링크, Task `done` 전이 조건(리뷰 커버리지 조건은 제외) |
-| Claude Code 플러그인 v1 | FR-15 ◐ | 스킬 `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` 4종(`/nerv:review`는 Phase 2) + `hooks.json`(SessionStart/PostToolUse/Stop/SessionEnd `type:"http"`) + `.mcp.json` 번들, 사내 마켓플레이스 배포 |
-| 인증 | NFR-03 ● | OAuth 2.1(RFC 9728 PRM + PKCE + RFC 8707)로 승격, PAT는 비대화형 대안으로 유지. 토큰 발급·폐기 UI는 S8 에이전트 토큰 탭 |
+| Claude Code 플러그인 v1 | FR-15 ◐ | 스킬 `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` **6종**(2026-09-06 현황 — `/nerv:review` 는 2026-08-23 에 앞당겨 배포됐다) + `hooks.json`(SessionStart/PostToolUse/SubagentStart·Stop/Stop/SessionEnd — **기본 변형은 `type:"command"` 다**, 2026-09-03 결정) + statusline. **`.mcp.json` 은 번들하지 않는다**(2026-09-04 REQ-PLG-001 개정 — 쓰는 쪽 저장소가 갖는 템플릿이다), 사내 마켓플레이스 배포 |
+| 인증 | NFR-03 ● | **better-auth 세션 + PAT 2경로**(2026-08-20 확정 — [4.1 범위](../04-mvp/scope.md) §2.1). OAuth 2.1(RFC 9728 PRM + PKCE + RFC 8707)은 **Phase 2 로 옮겼다**(2026-09-06 현황 정정 — 그 결정이 이 표에 오지 않아 여기만 "승격" 이라 적고 있었다). 토큰 발급·폐기 UI는 S8 에이전트 토큰 탭 |
 | 멀티테넌시 | **FR-14 ●** | Organization/Project/User n:n, 역할 6종 권한이 API·UI 양쪽에서 강제. 관리 UI는 S8 멤버·역할 탭 |
 | 감사 로그 | **FR-16 ●** | 전 상태 전이 + `is_agent` 액터 구분 + 엔티티별 이력 재구성 뷰 |
 | plan 임포터 | FR-17 ◐ | `plan/` 450 md → Task(§7.3) |
@@ -186,8 +188,8 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 ### 3.3 산출물
 
 1. 웹앱(Vite + React SPA) — S1·S2·S3·S4·S5·S7·S8(멤버·역할, 에이전트 토큰 탭).
-2. API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(7종: `nerv_spec_draft_upsert` · `nerv_spec_check` · `nerv_spec_comment_resolve` · `nerv_spec_submit_review` · `nerv_task_update` · `nerv_question_create` · `nerv_session_event`).
-3. **NERV 플러그인 v1**(Claude Code) — 스킬·서브에이전트·훅·`.mcp.json` 번들 + 관리형 settings 배포 가이드.
+2. API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(P1 에 7종을 더하는 계획이었다: `nerv_spec_draft_upsert` · `nerv_spec_check` · `nerv_spec_comment_resolve` · `nerv_spec_submit_review` · `nerv_task_update` · `nerv_question_create` · `nerv_session_event`). **현황은 카탈로그 24종**(P0 8 · P1 14 · P2 2 — 2026-09-06 실측).
+3. **NERV 플러그인 v1**(Claude Code) — 스킬·서브에이전트·훅·statusline + 관리형 settings 배포 가이드. (`.mcp.json` 은 번들하지 않는다 — 2026-09-04 개정.)
 4. 훅 수집기 — `type:"http"` 이벤트 수신 엔드포인트(세션 등록·활동 스트림 자동화).
 5. plan 임포터 + owner 자유 텍스트 → 사용자 계정 수동 매핑 테이블.
 6. 백업·복구 절차서와 왕복 검증 로그.
@@ -241,7 +243,7 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 
 ### 4.3 산출물
 
-1. `nerv_review_submit` · `nerv_finding_resolve` 도구(카탈로그 18종 완성)와 fingerprint 알고리즘 명세 + `/nerv:review` 스킬 추가(플러그인 스킬 4종 → 5종).
+1. `nerv_review_submit` · `nerv_finding_resolve` 도구와 fingerprint 알고리즘 명세 + `/nerv:review` 스킬 추가. **셋 다 2026-08-23 에 앞당겨 들어왔다**([4.1 범위](../04-mvp/scope.md) §5 착수 기록) — 카탈로그는 그 뒤로도 자라 2026-09-06 실측 **24종**, 스킬은 **6종**이다.
 2. 게이트 판정 API + git forge 머지 게이트 연동(훅 미설치 클론·타 호스트 push 구멍을 서버가 막는다).
 3. S6 리뷰 센터 · 커버리지 대시보드 · S8 연동·게이트 정책 탭.
 4. Codex 온보딩 번들(`AGENTS.md` · `.codex/config.toml` · `hooks.json`) — SKILL.md는 오픈 표준이라 양쪽 재사용.
@@ -381,7 +383,7 @@ flowchart LR
 - `worktree` / `started` / `owner` → Task의 격리 정보·시작일·담당. **`owner`는 신원이 아니다**(실측 분포: developer 17 / project-planner 8 / planner 5 / `developer (TBD)` 2 / `developer (다음 진입자)` 1) — 자유 텍스트 → 사용자 계정 수동 매핑 테이블을 만들고, 매핑 불가 항목은 `unassigned`로 임포트한 뒤 사람이 배정한다.
 - 체크박스 목록 → Task 체크리스트 또는 하위 Task(분해 기준은 임포트 옵션).
 - `priority`(15/34만 선언) → 우선순위 필드. 미선언은 null로 두고 추정하지 않는다.
-- `in-progress`(62) → `ready`/`in_progress`, `complete`(387) → `done`, `research`(1) → Task가 아닌 참고 문서로 분류.
+- `in-progress`(62) → `in_progress`, `complete`(387) → `done`, `research`(1) → Task가 아닌 참고 문서로 분류. **`ready` 로는 적재하지 않는다**(2026-09-06 정정 · REQ-IMP-009 — `ready` 는 위임 명세 4요소가 찬 상태이고 그 넷은 소급 생성하지 않는다: 바로 아래 문단이 이미 그렇게 적고 있었다).
 - 미착수 sentinel `(unstarted)` 13건 → `backlog`.
 - **위임 명세 4요소는 소급 생성하지 않는다.** 옛 Task를 다시 착수할 때 명세를 채워야 `ready`로 전이한다(FR-05).
 
@@ -389,7 +391,7 @@ flowchart LR
 
 - **대상**: 커밋된 SUMMARY·RESOLUTION(결론). `_prompts/`(리뷰 전체의 ~70%, 이미 gitignored)는 이관하지 않는다 — "커밋 해시 + 스킬로 재생성 가능"이라는 clemvion 자신의 판단을 그대로 따른다.
 - **세션 시각**: 경로 타임스탬프(`review/<종류>/Y/m/d/H_M_S`) → `created_at`.
-- **입력 스냅샷**: `meta.json`에 커밋 SHA·diff base·브랜치 **필드 자체가 없다**(표본 200개 SUMMARY 중 47개만 산문에 해시 언급). 임포트 시 NULL + `provenance_incomplete` 플래그를 세우고, 이 플래그가 붙은 세션은 게이트 판정 입력으로 쓰지 않는다.
+- **입력 스냅샷**: `meta.json`에 커밋 SHA·diff base·브랜치 **필드 자체가 없다**(표본 200개 SUMMARY 중 47개만 산문에 해시 언급). 임포트 시 **`base_sha`·`head_sha` 를 필수로 받는다**(2026-09-06 정정 · [4.7 임포터](../04-mvp/importer.md) §2.7 v0.9 가 옛 규칙을 정정했고 `provenance_incomplete` 플래그는 만들지 않았다). 예전 서술은 NULL + `provenance_incomplete` 플래그였고, 이 플래그가 붙은 세션은 게이트 판정 입력으로 쓰지 않는다.
 - **Finding**: SUMMARY 표의 행 번호 `#n`은 세션-로컬 표시 번호로만 보존하고 전역 ID를 새로 발급한다. 소급 fingerprint 계산은 **advisory**로만 사용(정확도가 낮다).
 - **Resolution**: `fix(scope): SUMMARY#<n>` 커밋 규약과 `_resolution_state.json.commits_made[{sha,summary_id}]`가 이미 구조화돼 있어 커밋 FK로 승격 가능하다.
 - **멱등성**: `(source_path, content_hash)`를 키로 재실행 시 중복 생성 0.
