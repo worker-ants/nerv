@@ -19,7 +19,7 @@ references:
 >
 > 문서 버전 v1.28 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
 >
-> v1.28 변경(2026-09-06 — 문서 간 참조를 검사가 본다, 사람 지시): **REQ-CB-030 신설 · 게이트 열 → 열하나.** ① **문서 간 참조 게이트**를 CI 와 `preflight` 에 더한다(`scripts/check-doc-links.mjs`) — 죽은 링크(md 링크 · html href·앵커) · frontmatter `references`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 "참조하는 문서" 줄 · 링크 없는 문서 인용("[4.4](api.md) §1.6") 넷을 센다. 사람 쪽 규율은 [docs/README](../README.md) 관리 규약과 `AGENTS.md` 문서 작업 규약 7 이 맡는다. 첫 실행(`--fix`)이 맨 참조 **md 281곳 · html 23곳**을 링크로 바꿨고 23편 전부에 역참조 목록이 생겼다. ② §1.1 트리·§4.5 CI 전문·§5.1 표가 **이미 도는 게이트 둘**(md ↔ html · `.env` 전표)을 빠뜨리고 "여덟 단계" 라 적고 있었다 — 열한 단계로 고친다. ③ 파생본 머리 넷(4.1·4.3·4.4·4.5)이 `status: draft` 라 적고 있었다 — 원본은 09-06 부터 `approved` 다.
+> v1.28 변경(2026-09-06 — 문서 간 참조를 검사가 본다, 사람 지시): **REQ-CB-030 신설 · 게이트 열 → 열하나.** ① **문서 간 참조 게이트**를 CI 와 `preflight` 에 더한다(`scripts/check-doc-links.mjs`) — 죽은 링크(md 링크 · html href·앵커) · frontmatter `references`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 "참조하는 문서" 줄 · 링크 없는 문서 인용(`4.4 §1.6` · `4.4 v0.87`) · 링크 뒤 절의 실재(`§N.N`) 다섯을 센다. `--where <문서>` 는 그 문서를 인용하는 자리(파일:줄 · 절)를 나열한다. 사람 쪽 규율은 [docs/README](../README.md) 관리 규약과 `AGENTS.md` 문서 작업 규약 7 이 맡는다. 첫 실행(`--fix`)이 맨 참조 **md 443곳 · html 23곳**을 링크로 바꿨고 23편 전부에 역참조 목록이 생겼으며, 절 실재 검사가 [docs/README](../README.md) 결정 표의 죽은 절 인용 셋(D-05·D-11·D-13)을 짚었다. ② §1.1 트리·§4.5 CI 전문·§5.1 표가 **이미 도는 게이트 둘**(md ↔ html · `.env` 전표)을 빠뜨리고 "여덟 단계" 라 적고 있었다 — 열한 단계로 고친다. ③ 파생본 머리 넷(4.1·4.3·4.4·4.5)이 `status: draft` 라 적고 있었다 — 원본은 09-06 부터 `approved` 다. ④ 외부 URL 은 **야간 레인의 `link-check` 잡**(lychee · 루트 `lychee.toml`)이 본다 — PR 레인이 아니다. 네트워크 흔들림을 머지 게이트에 두면 "원래 나던 빨강" 이 된다(규약 7).
 >
 > v1.27 변경(2026-09-06 — e2e 를 PR 레인에 넣는다, 사람 결정): §4.3·§4.5 — `e2e` 잡의 `if: github.event_name != 'pull_request'` 를 걷는다. **검사는 머지 전에 도는 것만 검사다.** 그 조건 때문에 L3 파손이 **머지된 뒤에야** 드러났다 — PR #1 은 `check`·`integration` 이 초록이고 로컬 `pnpm preflight` 도 초록이었는데 머지 커밋의 e2e 가 빨갰다(원인: `nerv import <kind>` 를 실재하게 하면서 시나리오 E 의 호출 세 곳을 같이 안 고쳤다). 규약 7 이 적은 "로컬 초록이 CI 초록이 아니다" 의 그 자리인데, 이번 원인은 속도가 아니라 **레인**이었다. 비용은 **5m31s** 다(2026-09-06 PR #5 실측 — 테스트 자체는 3분 남짓이고 나머지는 체크아웃·`pnpm install`·`pnpm build`·docker build·브라우저 설치다). 세 잡이 병렬이라 **PR 전체 대기 시간이 1m27s → 5m31s** 로 늘어난다. PR 은 `cancel-in-progress` 라 재푸시가 쌓이지는 않는다. **드래프트를 건너뛰지 않는 것도 의도다** — 건너뛰려면 `ready_for_review` 를 트리거에 더해야 하고, 잊으면 "ready 로 바꿨는데 한 번도 안 돈" 상태가 생긴다. 그 모양이 정확히 이번에 고치는 결함이다. `preflight` 는 여전히 L3 를 돌리지 않는다(compose 스택이 필요하다) — 그 사실과 로컬에서 보는 법을 §4.3 과 `AGENTS.md` 에 적었다.
 >
@@ -38,9 +38,9 @@ references:
 > v1.20 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
 > v1.19 변경(2026-09-05 — 카탈로그에 말투 규칙이 없었다, 용어 검토 → 사람 결정): §3.4 에 **말투 규칙**을 넣는다(화면은 합쇼체, 에이전트·CLI·생성 문서는 해라체). 카탈로그는 규칙 셋(키 짓기·자리표시자·식별자 비번역)을 적어 두었는데 **말투만 빠져 있었고**, 그래서 문서를 쓰던 손이 화면 문구 아홉에 그대로 이어졌다. 정본은 [용어 사전](../glossary.md) §3 이고 이 문서와 카탈로그 주석이 인용한다.
-> v1.18 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): 아키텍처 그림의 도구 수를 22종으로(4.1 v0.19).
+> v1.18 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): 아키텍처 그림의 도구 수를 22종으로([4.1](scope.md) v0.19).
 > v1.17 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 파생본의 CI 워크플로우 전문에서 **배포 산출물 정합 단계와 postgresql-client-17 설치·빌드 단계가 빠져 있었는데, 바로 아래 산문은 그 단계들을 설명하고 있었다** — 설명은 있고 실물은 없는 상태였다. 환경변수 전표의 `NERV_S3_REGION`·`NERV_EXPORT_DIR` 두 행도 없었다.
-> v1.16 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): ① `ReviewModule` 행의 `(P2)` 둘을 실물로 고친다 — 도구 2종·REST 7종이 있다. ② 플러그인 트리에서 `.mcp.json` 을 걷는다(4.6 v0.38 이 패키지에서 뺐고 이 트리만 남아 있었다). 훅은 두 변형, 스킬은 6종이다. ③ 아키텍처 그림의 도구 수를 21종으로.
+> v1.16 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): ① `ReviewModule` 행의 `(P2)` 둘을 실물로 고친다 — 도구 2종·REST 7종이 있다. ② 플러그인 트리에서 `.mcp.json` 을 걷는다([4.6](plugin.md) v0.38 이 패키지에서 뺐고 이 트리만 남아 있었다). 훅은 두 변형, 스킬은 6종이다. ③ 아키텍처 그림의 도구 수를 21종으로.
 > v1.15 변경(2026-09-04 — 돌지 않던 검사, 사람 지시): **REQ-CB-028 신설.** CI 의 check 잡이 `pnpm lint`·`tsc -b` 만 부르고 **`pnpm format:check` 는 부르지 않았다** — 그 스크립트는 처음부터 있었는데, 그래서 7개 파일이 서식 실패인 채로 이틀을 지나며 그 사이의 커밋들을 받았다(2026-09-02 → 09-04). 아무도 몰라서가 아니라 **아무도 돌리지 않아서**다. 같은 뿌리의 앞선 사례가 이 문서에 이미 적혀 있다 — 게이트가 `pnpm test` 뒤에 있어 21회 연속 skipped 됐던 일. 검사는 **돌 때만** 검사다. 사람이 지키는 쪽은 `AGENTS.md` 구현 규약 7 이 맡는다.
 > v1.14 변경(2026-09-04 — 플러그인 아카이브가 빌드 산출물이 된다): `scripts/pack-plugin.mjs` 가 `plugin/` 을 `plugin-dist/<이름>-<버전>.zip` 으로 묶고(`pnpm pack:plugin`), 이미지 빌드가 같은 명령을 돌려 `/app/plugin-dist` 에 심는다(`NERV_PLUGIN_DIST`). 서버가 그것을 `GET /plugin/...` 로 서빙한다([4.4](api.md) §2.11 · [4.6](plugin.md) §3.5). 앞문 둘(nginx `location /plugin/` · Ingress `path: /plugin`)에 경로를 열었다 — 열지 않으면 마켓플레이스가 SPA 의 index.html 을 **200 인 채로** 받는다.
 > v1.13 변경(2026-09-02 — 라이선스): 저장소를 **Apache License 2.0** 으로 공개한다. §1 트리에 루트의 `LICENSE`·`NOTICE` 를 넣었다 — `LICENSE` 는 원문 그대로 두고(부록의 자리표시자를 채우면 자동 판별기가 Apache-2.0 으로 읽지 못한다) 저작권 표기는 `NOTICE` 가 진다. 파일마다 라이선스 헤더는 붙이지 않는다(사람 결정).
@@ -94,6 +94,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
   .claude-plugin/               # 마켓플레이스 카탈로그 — Claude Code 가 **저장소 루트에서만** 찾는다
                                 #   (REQ-CB-015 의 "저장소 메타 파일" — 배치 원칙의 예외가 아니라 그 정의 안이다)
   .github/workflows/ci.yml      # §4.5 전문 — 같은 이유로 저장소 루트다
+  lychee.toml                   # 외부 URL 생존 검사 설정 — 야간 link-check 잡이 읽는다(관리 규약의 근거 규율)
   .dockerignore                 # 이미지 빌드 컨텍스트(= 저장소 루트) 제외 목록 (§5.3·§6.1)
   CLAUDE.md                     # Claude Code 진입점 — @AGENTS.md import만 한다
   docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 스펙 임포터 §5)
@@ -113,7 +114,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
       check-backlog-status.mjs  #   4.8 §1.4 현황 표가 스토리와 맞는가 (REQ-CB-029)
       check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1)
       check-env-table.mjs       #   §5.2 전표와 코드가 읽는 변수가 맞는가
-      check-doc-links.mjs       #   문서 간 링크·역참조·맨 참조 (REQ-CB-030) — `--fix` 가 역참조를 다시 쓴다
+      check-doc-links.mjs       #   문서 간 링크·역참조·맨 참조·절 실재 (REQ-CB-030) — `--fix` 가 역참조를 다시 쓴다
       pack-plugin.mjs           #   플러그인 zip — 이미지 빌드가 /plugin-dist 에 심는다 (§6.1)
       dev.mjs · e2e-stack.mjs   #   개발 루프 · E2E 전용 스택(세션별 포트)
       install-hooks.mjs         #   pre-push 훅 설치 (옵트인 — 게이트가 아니다)
@@ -695,6 +696,15 @@ jobs:
         run: pnpm e2e:logs
       - if: always()
         run: pnpm e2e:down
+  link-check:                  # 야간만 — 외부 URL 생존(lychee · 루트 lychee.toml). PR 레인에 두면 네트워크 흔들림이 "원래 나던 빨강" 이 된다
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config lychee.toml --no-progress 'docs/**/*.md' README.md AGENTS.md
+          fail: true
 ```
 
 **게이트는 테스트보다 앞이다**(2026-09-02 — 실측 정정). 예전 순서는 `pnpm test` → 배포 산출물 정합 → schema drift 였다. 그런데 L1 두 스위트가 Valkey 없이는 영원히 매달려(§2.1 구독) CI 는 도입일부터 **21회 연속 실패**했고, 그동안 뒤의 두 단계는 `if:` 가 없어 매번 skipped 됐다 — 이 문서가 "CI 가 강제한다"고 적은 REQ-CB-007·018·010 이 **한 번도 실행된 적이 없었다**는 뜻이다. 순서를 뒤집으면 테스트가 깨져도 드리프트는 잡힌다. (2026-09-02 이 트리에서 세 검사를 손으로 돌려 통과를 확인했다.)
@@ -906,7 +916,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-026** | WHILE 임베딩 한 판이 시간 상한을 넘기면, THE SYSTEM SHALL 그 판을 멈추고 진행 상황을 보고하며 다음 틱에서 남은 문서부터 이어간다 — 다른 잡의 주기를 굶기지 않는다. |
 | **REQ-CB-028** | WHEN PR 의 check 잡이 돌면 THE SYSTEM SHALL `pnpm format:check` 를 실행하고, 서식이 어긋난 파일이 하나라도 있으면 **실패한다** — 돌지 않는 검사는 없는 검사다: 이 스크립트는 처음부터 있었는데 CI 가 부르지 않아 7개 파일이 이틀간(2026-09-02 → 09-04) 실패한 채로 그 사이 커밋들을 받았다 | 서식이 어긋난 파일 1개를 넣은 PR 이 check 에서 실패 |
 | **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
-| **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `references` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
+| **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `references` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 
 ---
@@ -1694,5 +1704,6 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — 컴포넌트 책임·배포 원형(§4.4)
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 카탈로그·훅·ingest의 정본
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드 의미의 정본
+
 
 

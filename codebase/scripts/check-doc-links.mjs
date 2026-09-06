@@ -11,10 +11,12 @@
 //   ② 역참조 — 각 md 의 frontmatter `references` 가 **그 문서를 링크하는 문서의 목록**과 같은가
 //              (링크에서 계산한다 — 사람이 적는 목록은 첫날부터 낡는다)
 //   ③ 파생본 — html 머리(`.meta-line`)의 `참조하는 문서` 가 md 의 `references` 와 같은 집합인가
-//   ④ 맨 참조 — 링크 없는 문서 인용(`4.4 §1.6` · `api.md`)이 본문에 남아 있지 않은가
+//   ④ 맨 참조 — 링크 없는 문서 인용(`4.4 §1.6` · `4.4 v0.87` · `api.md`)이 본문에 남아 있지 않은가
+//   ⑤ 절 실재 — 링크 뒤의 `§N.N` 이 대상 문서의 절 번호로 실재하는가
 //
-// 사용: node scripts/check-doc-links.mjs          — 검사
-//       node scripts/check-doc-links.mjs --fix    — 맨 참조를 링크로 바꾸고 ②·③ 을 다시 쓴다(①은 사람이 고친다)
+// 사용: node scripts/check-doc-links.mjs                 — 검사
+//       node scripts/check-doc-links.mjs --fix           — 맨 참조를 링크로 바꾸고 ②·③ 을 다시 쓴다(①·⑤는 사람이 고친다)
+//       node scripts/check-doc-links.mjs --where 04-mvp/api.md  — 그 문서를 인용하는 자리(파일:줄 · 절)를 나열한다
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -25,6 +27,9 @@ const HTML = resolve(DOCS, 'html');
 /** docs/ 밖에서 문서를 인용하는 둘 — 규약 정본과 저장소 첫 화면. 역참조에 `../` 로 들어간다 */
 const ROOT_SOURCES = ['AGENTS.md', 'README.md'].map((f) => resolve(REPO, f));
 const fix = process.argv.includes('--fix');
+/** `--where <docs 기준 경로>` — 그 문서를 인용하는 자리(파일:줄 · 절)를 읽기 전용으로 출력한다 */
+const whereAt = process.argv.indexOf('--where');
+const where = whereAt === -1 ? null : process.argv[whereAt + 1];
 const fail = [];
 const fixed = [];
 
@@ -129,10 +134,10 @@ function segmentHtml(html) {
 
 // -- 맨 참조 --------------------------------------------------------------------------
 //
-// `4.4 §1.6` · `4.7 스펙 임포터 §5` · `api.md §3.2` — 번호·이름은 사람에게는 인용이지만 도구에게는
+// `4.4 §1.6` · `4.4 v0.87` · `4.7 스펙 임포터 §5` · `api.md §3.2` — 번호·이름은 사람에게는 인용이지만 도구에게는
 // 그냥 글자다. 링크로 바꾸면 ① 이 죽음을 잡고 ② 가 역참조를 센다.
 const BARE_NUMBER =
-  /(?<![\d.\w§#/\-~])([1-4]\.[1-8])((?: (?:[가-힣]{2,}|[A-Z][A-Za-z]*)){0,3}) (?=§)/g;
+  /(?<![\d.\w§#/\-~])([1-4]\.[1-8])((?: (?:[가-힣]{2,}|[A-Z][A-Za-z]*)){0,3}) (?=§|v\d)/g;
 const BARE_FILE = /(?<![\w/.-])([a-z][a-z-]*\.md)(?![\w/-])/g;
 
 /**
@@ -313,12 +318,34 @@ if (fix) {
   }
 }
 
+/** 문서의 절 번호 집합(`## 2.` · `### 2.4` · 코드 블록 밖) — 없는 문서는 null */
+const headingCache = new Map();
+function headingsOf(abs) {
+  if (!headingCache.has(abs)) {
+    let set = null;
+    if (exists(abs)) {
+      const { body } = splitFrontmatter(readFileSync(abs, 'utf8'));
+      set = new Set();
+      for (const seg of segmentMarkdown(body)) {
+        if (!seg.prose) continue;
+        for (const m of seg.text.matchAll(/^#{2,4} (\d+(?:\.\d+)*)\.?(?=\s)/gm)) set.add(m[1]);
+      }
+    }
+    headingCache.set(abs, set);
+  }
+  return headingCache.get(abs);
+}
+
 // -- ② 역참조 ------------------------------------------------------------------------------
 const backlinks = new Map(mdFiles.map((f) => [docRel(f), new Set()]));
 for (const src of [...mdFiles, ...ROOT_SOURCES]) {
   const { body } = splitFrontmatter(readFileSync(src, 'utf8'));
   const from = src.startsWith(DOCS) ? docRel(src) : `../${relative(REPO, src)}`;
-  for (const seg of segmentMarkdown(body)) {
+  const segs = segmentMarkdown(body);
+  let line = 1;
+  for (const [i, seg] of segs.entries()) {
+    const at = line;
+    line += (seg.text.match(/\n/g) ?? []).length;
     if (seg.prose || !seg.text.startsWith('[')) continue;
     const target = /\]\(([^)\s#]+)/.exec(seg.text)?.[1];
     if (target === undefined || !target.endsWith('.md') || /^https?:/.test(target)) continue;
@@ -326,8 +353,21 @@ for (const src of [...mdFiles, ...ROOT_SOURCES]) {
     if (!abs.startsWith(DOCS)) continue;
     const to = docRel(abs);
     if (backlinks.has(to) && to !== from) backlinks.get(to).add(from);
+    // 링크 바로 뒤의 `§N.N` — 그 절이 대상 문서에 실재하는가. 링크는 살아 있는데 절만 옮겨진
+    // 자리가 실제로 있었다(§2.3→§2.4 · §2.11→§2.8). 절 번호는 이 저장소의 정체성이라 싸게 잡힌다.
+    const section = /^ ?§(\d+(?:\.\d+)*)/.exec(segs[i + 1]?.text ?? '')?.[1];
+    const headings = section === undefined ? null : headingsOf(abs);
+    if (section !== undefined && headings !== null && !headings.has(section)) {
+      fail.push(`${relative(REPO, src)}:${at}: ${to} 에 §${section} 이 없다`);
+    }
+    if (where !== null && to === where) {
+      console.log(
+        `${relative(REPO, src)}:${at}  ${seg.text.slice(0, 60)}${section ? ` §${section}` : ''}`,
+      );
+    }
   }
 }
+if (where !== null) process.exit(0);
 for (const md of mdFiles) {
   const rel = docRel(md);
   const expected = [...backlinks.get(rel)].sort(byDocOrder);
@@ -412,5 +452,5 @@ if (fail.length > 0) {
   process.exit(1);
 }
 console.log(
-  `문서 간 참조 - md ${mdFiles.length}편 · html ${htmlFiles.length}편 (죽은 링크 · 역참조 · 파생본 머리 · 맨 참조)`,
+  `문서 간 참조 - md ${mdFiles.length}편 · html ${htmlFiles.length}편 (죽은 링크 · 역참조 · 파생본 머리 · 맨 참조 · 절 실재)`,
 );

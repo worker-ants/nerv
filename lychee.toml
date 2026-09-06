@@ -1,0 +1,15 @@
+# 외부 URL 생존 검사 — 근거 규율(AGENTS.md 문서 작업 규약 3 · docs/README.md 관리 규약)의 "접속 확인된 것만" 을
+# 실을 때 한 번이 아니라 **매일** 본다. PR 레인이 아니라 야간 레인이다 — 네트워크 흔들림은 "원래 나던 빨강" 이 된다.
+# 사용: lychee --config lychee.toml 'docs/**/*.md' README.md AGENTS.md   (CI 의 link-check 잡이 부른다)
+cache = true
+max_cache_age = "1d"
+max_concurrency = 8
+max_retries = 2
+timeout = 20
+# 429 는 살아 있는 서버의 거절이다 · 403 은 봇 차단이 흔해 죽은 것으로 세지 않는다(사람이 열어 본다)
+accept = ["200..=299", "403", "429"]
+# 파생본은 원본과 같은 URL 을 싣는다 — 두 번 세지 않는다
+exclude_path = ["docs/html"]
+# 예시·플레이스홀더 주소
+exclude = ["^https?://localhost", "^https?://127\\.0\\.0\\.1", "^https?://<", "^https?://example\\.com", "^https?://nerv\\.example"]
+user_agent = "Mozilla/5.0 (compatible; nerv-docs-link-check)"
