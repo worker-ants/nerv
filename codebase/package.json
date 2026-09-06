@@ -25,6 +25,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -b",
+    "preflight": "node scripts/preflight.mjs",
+    "hooks:install": "node scripts/install-hooks.mjs",
     "db:generate": "pnpm --filter @nerv/schema db:generate",
     "db:migrate": "node --env-file-if-exists=.env apps/api/dist/migrate.js",
     "db:seed": "node --env-file-if-exists=.env apps/api/dist/seed.js",

@@ -80,7 +80,15 @@ jobs:
         run: pnpm db:generate && git diff --exit-code -- packages/schema/drizzle
 
       # 테스트는 게이트 뒤다(위 주석) — 여기서 실패해도 드리프트 검사는 이미 돌았다.
+      #
+      # **md 왕복 스파이크는 레인이 둘이다**(roundtrip-spike.spec.ts).
+      # 그 검사는 `docs/**/*.md` 전수를 각각 두 번 왕복해 **문서가 늘면 그만큼 느려진다** —
+      # 고정 상한 30초를 다섯 번 넘겨 main 을 빨갛게 만들었다(2026-09-05~06).
+      # 전수는 **머지 전에 보는 레인**(pull_request · merge_group)과 야간에서만 돌리고,
+      # main 푸시 레인은 등간격 표본 6편만 본다. 상한은 표본 수에 비례해 계산된다.
       - run: pnpm test
+        env:
+          NERV_ROUNDTRIP_FULL: ${{ (github.event_name == 'push' && '0') || '1' }}
 
   integration:
     name: integration (L2 · 실제 Postgres)
