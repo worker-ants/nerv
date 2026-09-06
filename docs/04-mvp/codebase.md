@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.24 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.25 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.25 변경(2026-09-06 — 반쪽 가드를 기록한다, 정합성 대조 → 사람 지시): §4.5 lint 규칙 목록에 **REQ-CB-003 가드가 반쪽이라는 사실**을 적는다. 실제로 막는 것은 `drizzle-orm` 뿐이고, 함께 적힌 `@nerv/schema/tables` 는 그 패키지의 `exports` 에 없어 애초에 import 할 수 없다 — 테이블 심볼은 본 배럴이 재수출하므로 그 길로 오면 규칙이 아무 말도 하지 않는다. 위반은 현재 0건이지만 **막힌다고 적어 두면 다음 사람은 규칙이 지켜 준다고 믿는다.** 곁들여 CI `check` 잡이 **아홉**이 됐다(md ↔ html 정합 신설 — 관리 규약 1 을 기계가 본다).
 >
 > v1.24 변경(2026-09-06 — 전수라 적은 표가 전수가 아니었다 둘, 정합성 대조 → 사람 지시): ① §2.3 "29종 **전수** 배정" 이 전수가 아니었다 — `attachment`·`finding_comment`·`invitation`·`activity_summary` 의 소유 모듈이 어디서도 정해지지 않았다. 넷을 배정하고(각각 Spec·Review·Auth·Session), **모듈이 소유하지 않는 넷**(`idempotency_key` 는 횡단 인프라, `spec_chunk_embedding` 은 파생 인덱스, 인증 3종은 better-auth 소유)이 왜 표 밖인지 적었다. ② §3.2 상수 전표가 **13개만 싣고 18개가 빠져 있었다** — `MAX_REQUEST_BODY_BYTES` 는 정작 §5.4 주석이 그 이름을 인용하는 상수다. `constants.ts` 의 export 전수로 채웠다. 곁들여 `EP-IMP-01~05` → `01~06`.
 >
@@ -493,7 +495,7 @@ zod 스키마의 검증 메시지는 키를 담는다.
 
 - ESLint(flat config) + Prettier. 규칙 조정은 루트 한 곳에서만.
 - 경계 규칙 2종을 lint로 강제한다: ① `apps/*` 간 import 금지(REQ-CB-001) ② `apps/*` 안에서 도메인 상수·이벤트 이름 리터럴 하드코딩 금지(REQ-CB-006 — `no-restricted-syntax`로 `NERV_`·이벤트 이름 패턴 검사).
-- 표면 파일(`*.controller.ts`·`*.tools.ts`·`*.gateway.ts`)에서 drizzle 객체 직접 import 금지 — 표면은 서비스만 호출한다(REQ-CB-003의 lint 표현).
+- 표면 파일(`*.controller.ts`·`*.tools.ts`·`*.gateway.ts`)에서 drizzle 객체 직접 import 금지 — 표면은 서비스만 호출한다(REQ-CB-003의 lint 표현). **이 가드는 반쪽이다**(2026-09-06 기록): 실제로 막는 것은 `drizzle-orm` 이고, 함께 적힌 `@nerv/schema/tables` 는 그 패키지의 `exports` 에 없어 애초에 import 할 수 없다 — 테이블 심볼은 본 배럴이 재수출하므로 그 길로 오면 규칙이 아무 말도 하지 않는다. 위반은 현재 0건이고 쿼리를 짜려면 `drizzle-orm` 이 필요해 실질적인 문은 좁지만, **막힌다고 적어 두면 다음 사람은 규칙이 지켜 준다고 믿는다.**
 
 
 ### 4.2a 문구 하드코딩 금지의 강제 (2026-08-23 신설)

@@ -81,6 +81,14 @@ jobs:
       - name: 백로그 현황 정합
         run: node scripts/check-backlog-status.mjs
 
+      # **md 가 원본이고 html 은 파생본이다**(docs/README.md 관리 규약 1). 그 규약은
+      # 2026-09-06 까지 사람 규율뿐이었고, 그래서 어긋났다 — v2.40 이 여덟 자리를 손으로
+      # 고쳤고(버전 줄만 고치고 절·표·DDL 을 빠뜨린 커밋이 열한 개였다), v0.82 는 파생본의
+      # 전표에서 네 행이 통째로 빠져 **같은 문서 안의 참조가 죽어 있던** 것을 고쳤다.
+      # 세는 것은 넷이다: 파일 짝 · 버전(목차의 버전 열 포함) · 절 번호 · 본문의 고정 ID.
+      - name: md ↔ html 정합
+        run: node scripts/check-md-html.mjs
+
       - name: schema drift
         # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제.
         # 선언만 바꾸고 drizzle/*.sql 을 빠뜨린 PR 은 여기서 멈춘다.

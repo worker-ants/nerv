@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.24 (2026-09-06)</span>
+      <span>버전 v1.25 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -568,7 +568,7 @@
   <ul>
     <li>ESLint(flat config) + Prettier. 규칙 조정은 루트 한 곳에서만.</li>
     <li>경계 규칙 2종을 lint로 강제한다: ① <code>apps/*</code> 간 import 금지(REQ-CB-001) ② <code>apps/*</code> 안에서 도메인 상수·이벤트 이름 리터럴 하드코딩 금지(REQ-CB-006 — <code>no-restricted-syntax</code>로 <code>NERV_</code>·이벤트 이름 패턴 검사).</li>
-    <li>표면 파일(<code>*.controller.ts</code>·<code>*.tools.ts</code>·<code>*.gateway.ts</code>)에서 drizzle 객체 직접 import 금지 — 표면은 서비스만 호출한다(REQ-CB-003의 lint 표현).</li>
+    <li>표면 파일(<code>*.controller.ts</code>·<code>*.tools.ts</code>·<code>*.gateway.ts</code>)에서 drizzle 객체 직접 import 금지 — 표면은 서비스만 호출한다(REQ-CB-003의 lint 표현). <b>이 가드는 반쪽이다</b>(2026-09-06 기록): 실제로 막는 것은 <code>drizzle-orm</code> 이고, 함께 적힌 <code>@nerv/schema/tables</code> 는 그 패키지의 <code>exports</code> 에 없어 애초에 import 할 수 없다 — 테이블 심볼은 본 배럴이 재수출하므로 그 길로 오면 규칙이 아무 말도 하지 않는다. 위반은 현재 0건이고 쿼리를 짜려면 <code>drizzle-orm</code> 이 필요해 실질적인 문은 좁지만, <b>막힌다고 적어 두면 다음 사람은 규칙이 지켜 준다고 믿는다.</b></li>
   </ul>
 
     <h3>4.2a 문구 하드코딩 금지의 강제 (2026-08-23 신설)</h3>

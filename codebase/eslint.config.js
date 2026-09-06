@@ -30,7 +30,19 @@ const CROSS_APP_IMPORTS = {
     'REQ-CB-001: apps/* 간 직접 import 는 금지다. 공유 계약(zod 스키마·타입·상수)은 @nerv/schema 를 거친다.',
 };
 
-/** REQ-CB-003 — 표면 파일에서의 저장 계층 직접 접근 차단 패턴 */
+/**
+ * REQ-CB-003 — 표면 파일에서의 저장 계층 직접 접근 차단 패턴.
+ *
+ * **이 가드는 반쪽이다**(2026-09-06 · 기록). 실제로 막는 것은 `drizzle-orm` 뿐이다 —
+ * `@nerv/schema/tables` 는 그 패키지의 `exports` 에 **없어서** 애초에 import 할 수 없고,
+ * 테이블 심볼은 본 배럴(`@nerv/schema`)이 재수출한다(`src/index.ts` 의 `export *`).
+ * 표면이 그 배럴에서 테이블을 꺼내 오면 이 규칙은 아무 말도 하지 않는다.
+ *
+ * 지금 위반은 0건이고, 쿼리를 짜려면 `drizzle-orm` 이 필요하므로 실질적인 문은 여전히
+ * 좁다. 그래도 **막힌다고 적어 두면 다음 사람은 규칙이 지켜 준다고 믿는다** — 믿게 두는
+ * 것이 뚫린 것보다 나쁘다. 남은 반쪽을 닫으려면 테이블 export 이름을 `importNames` 로
+ * 열거해야 하고, 그 목록은 테이블이 늘 때마다 조용히 낡는다. 그래서 지금은 **적어 둔다.**
+ */
 const SURFACE_FORBIDDEN_IMPORTS = {
   group: ['drizzle-orm', 'drizzle-orm/*', '@nerv/schema/tables', '@nerv/schema/tables/*'],
   message:

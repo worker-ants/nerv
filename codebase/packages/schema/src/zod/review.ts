@@ -54,7 +54,7 @@ export const ReviewSubmitInput = z
   .strict();
 
 /**
- * EP-REV-03 — 처분.
+ * EP-REV-02 — 처분.
  *
  * `escalate_reason` 은 `escalated` 의 **필수 짝**이고 그 판정은 도메인이 한다
  * (REQ-API-108 — 사유 없는 에스컬레이션은 처분이 아니라 방치다).

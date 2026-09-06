@@ -121,7 +121,7 @@ export class ReviewController {
       escalateReason: typeof body['escalate_reason'] === 'string' ? body['escalate_reason'] : null,
     });
   }
-  /** EP-REV-07 — 발견에 사람의 말을 남긴다(2026-08-30 신설) */
+  /** EP-REV-05 · EP-REV-06 — 발견에 사람의 말을 남기고 읽는다(2026-08-30 신설) */
   @RequireScope('review:resolve')
   @Post('findings/:id/comments')
   comment(
@@ -144,7 +144,7 @@ export class ReviewController {
     return this.reviews.comments({ projectId: req.nervProjectId!, findingId: id });
   }
 
-  /** EP-REV-08 — 발견을 Task 로 올린다(2026-08-30 신설 · REQ-API-059) */
+  /** EP-REV-07 — 발견을 Task 로 올린다(2026-08-30 신설 · REQ-API-059) */
   @RequireScope('task:update')
   @Post('findings/:id/task')
   promote(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {

@@ -13,7 +13,7 @@
 
 import { z } from 'zod';
 
-/** EP-ORG-01 */
+/** EP-ORG-03 */
 export const OrgCreateInput = z
   .object({
     slug: z.string().min(1),

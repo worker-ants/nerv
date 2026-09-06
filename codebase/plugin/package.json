@@ -4,7 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "NERV Claude Code 플러그인 — 스킬 5종·훅·statusline (docs/04-mvp/plugin.md 정본)",
+  "description": "NERV Claude Code 플러그인 — 스킬 5종·훅·statusline·서브에이전트 (docs/04-mvp/plugin.md 정본)",
   "scripts": {
     "test": "vitest run"
   },
