@@ -53,7 +53,7 @@ Specs run ahead of implementation. While new versions get approved document by d
 
 A **baseline** names that set and freezes it.
 
-- Create one with **[Create baseline…]** above the list (planner/admin). It captures every spec at its latest approved version as of now.
+- Create one with **[Create baseline]** above the list (planner/admin). It captures every spec at its latest approved version as of now.
 - **It cannot be changed afterwards.** To change the set, make a new one — that is what makes a given baseline answer the same way whenever you look.
 - Pick one from the **baseline selector** and **the list itself becomes that set** — only the documents it holds, at the versions it holds them. Documents created after the baseline was made do not appear (if they did, you would read the set as holding them). The choice stays in the address and follows you into the detail view, so **hand someone the link and they see the same set.**
 - While a baseline is chosen the **status and type filters are gone** — everything in the set is approved, so there is nothing to filter by.

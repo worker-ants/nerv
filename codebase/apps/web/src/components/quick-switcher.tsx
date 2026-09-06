@@ -205,7 +205,7 @@ export function QuickSwitcher({
                 aria-pressed={isPinned(hit)}
                 title={t(isPinned(hit) ? 'switcher.unpin' : 'switcher.pin')}
                 onClick={() => setPins(togglePin(hit))}
-                className="shrink-0 px-3 py-2 text-sm text-text-faint hover:text-text aria-pressed:text-accent"
+                className="shrink-0 px-3 py-2 text-sm text-text-faint hover:text-text aria-pressed:text-status-action"
               >
                 <span aria-hidden="true">{isPinned(hit) ? '★' : '☆'}</span>
                 <span className="sr-only">

@@ -297,7 +297,7 @@ describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () 
 
   it('기준선 생성 단추의 이름이 바뀌었다 — "동결" 은 화면에서 사라졌다', async () => {
     await renderList('/p/demo/specs');
-    expect(screen.getByTestId('freeze-baseline').textContent).toBe('기준선 생성…');
+    expect(screen.getByTestId('freeze-baseline').textContent).toBe('기준선 생성');
     expect(screen.queryByText(/동결/)).toBeNull();
   });
 });
