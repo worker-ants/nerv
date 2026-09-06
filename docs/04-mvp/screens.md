@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.78 · 2026-09-06 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v0.79 · 2026-09-06 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v0.79 변경(2026-09-06 — 문서로는 미구현을 셀 수 없었다, 정합성 대조 → 사람 지시): **§1.9 신설 · §2.6a 화면별 색인.** ① 이 문서가 부르는 컴포넌트 이름 **94개 중 저장소에 그 이름으로 있는 것은 32개**다. 이름이 다르면 "없는 것" 과 "이름만 다른 것" 을 구분할 수 없어 **문서로는 미구현을 셀 수 없다.** §1.9 가 넷으로 가른다 — 이름만 다른 것(대응표) · TipTap 노드 · zod 스키마 이름 · **기능째 없는 것 열아홉**. 이름은 맞추지 않는다(코드를 바꾸거나 인용 수십 곳을 깨는 대신 대응을 한 곳에서 밝힌다). ② §2.6a 표에 다른 화면의 수용 기준 **23개**가 신설 순서대로 쌓여 있었다 — 화면별 문서인데 자기 화면 절에 자기 약속이 없다. 번호는 재배치하지 않고(규약 5) 화면별 색인을 두고 각 화면 절에 소재를 한 줄씩 적었다.
 >
 > v0.78 변경(2026-09-06 — 명세가 화면·매뉴얼과 반대로 적은 자리, 정합성 대조 → 사람 지시): **편집 리스 세 줄 · S3 미구현 넷 · 낡은 수 다섯.** ① §3.4 편집 리스가 "에디터를 **여는 순간** 획득"·"[**인계 요청**](보유자 알림, 승인 시 이전)" 이라 적고 있었다 — 실물은 **처음 저장할 때** 잡히고 **[인계]는 그 자리에서 가져간다**(요청도 알림도 없다). **매뉴얼 ko·en 이 처음부터 그렇게 적고 있었고 명세만 반대였다** — 명세만 읽은 사람은 남의 초안을 한 번 눌러 빼앗을 수 있다는 사실을 모르고, 되돌리면 그대로 회귀한다. 잔여 2분 호박색은 S4 에만 있다. ② §2.4 S3 의 컴포넌트 넷(`SourceViewToggle`·`RequirementPanel`·`DerivedTaskPanel`·터미널 이어쓰기 카드)이 **저장소에 없다** — 지우지 않고 **○ 미구현**으로 표기했다(§3.2 규칙 2·REQ-WEB-031 이 인용하는 소스 보기가 그 넷에 든다). ③ 낡은 수 다섯: S2 구현 현황 카드 지표 4칸 → **다섯**(`evidence_missing`·`empty_promises` — 정본 4.4 와 매뉴얼은 이미 그렇게 적는다), 받은 요청 카드 유형 3종 → **5종**(`finding`·`gate_bypass`), 설정 탭 3종 → **4탭**, `membership.role`(단수) → `roles`(같은 문서 §1.8 이 스스로 "존재하지도 않는 필드" 라 적던 이름이다), EP-APR-01 의 유형 필터(서버가 읽지 않는다). ④ §2.6 steer/stop 절이 **권한을 한 글자도 적지 않았다** — 서버는 세션 소유자·admin 만 허용하는데 화면은 누구에게나 활성이라, 남의 세션에 중단 사유까지 적은 뒤 403 을 본다. 권한을 명시하고 화면 배선은 열린 자리로 남긴다.
 >
@@ -410,6 +412,37 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | REQ-WEB-075 | WHEN 화면이 역할로 조작 가능 여부를 정하면 THE SYSTEM SHALL 서버와 같은 규칙(겸직 합집합 · 조직 소속 포함 · 조직 경계)으로 판정한다 — 서버가 허용하는 일을 화면이 막지 않는다 |
 | REQ-WEB-076 | WHEN 조직 전역 화면(홈·받은 요청·알림·설정)이 프로젝트를 필요로 하면 THE SYSTEM SHALL 헤더가 고른 것과 같은 프로젝트를 쓴다(멤버십 행에서 따로 고르지 않는다) |
 
+### 1.9 컴포넌트 이름 — 명세와 저장소의 대응 (2026-09-06 신설)
+
+**이 문서가 부르는 컴포넌트 이름은 대부분 저장소의 이름이 아니다.** 실측 94개 중 저장소에 그 이름으로 있는 것은 32개뿐이다. 이름이 다르면 **"없는 것"과 "이름만 다른 것"을 구분할 수 없어 문서로는 미구현을 셀 수 없다** — 그것이 이 절의 이유다. 넷으로 가른다.
+
+**① 이름만 다르고 실물이 있다** — 명세 이름은 그대로 두되(다른 절이 인용한다) 여기서 짝을 밝힌다.
+
+| 명세가 부르는 이름 | 저장소의 실물 |
+| --- | --- |
+| `SpecApprovalCard` · `PlanApprovalCard` · `QuestionCard` | `ApprovalCard`(`features/inbox/approval-card.tsx` — 카드 유형을 `subject_type` 으로 가른다) |
+| `FindingQueue` · `FindingFilters` | `FindingCard` + `FindingRail`(`features/review-center/`) |
+| `GateCoverageTable` | `GateCoverage` |
+| `SessionStrip` · `SessionSteerInput` · `SteerDialog` · `StopDialog` | `SessionSummaryStrip` · `SteerPanel`(`features/session-monitor/`) |
+| `ActivityTimeline` | `ActivityRail` |
+| `TaskDetailPanel` · `TaskCreateDialog` | `DelegationForm`(`features/task-board/`) + 라우트 `p.$proj/tasks.$task.tsx` |
+| `SpecMetaDialog` | `MetaDialog` |
+| `NewSpecButton` | `NewSpecDialog` |
+| `RelationPanel` | `RelationTabs` |
+| `SettingsTabs` | 라우트 레이아웃 `routes/settings/route.tsx` |
+| `NotificationFeed` · `NotificationRow` | 라우트 `routes/notifications.tsx`(전용 컴포넌트 없음) |
+| `MemberMatrix` · `MemberAddDialog` · `TokenTable` · `TokenIssueDialog` · `TokenRevealOnce` · `GatePolicyForm` | 라우트 `routes/settings/{members,tokens,gates}.tsx`(전용 컴포넌트 없음) |
+| `LoginForm` · `OrgCreateForm` · `InviteAcceptCard` | 라우트 `routes/{login,onboarding,invite.$token}.tsx` + `InvitationCards` |
+| `TodayStrip` · `EventFeed` · `ProjectCard` | 라우트 `routes/index.tsx`(전용 컴포넌트 없음) |
+
+**② 우리 컴포넌트가 아니다** — TipTap 노드 이름이다(§3): `Heading` · `Paragraph` · `BulletList` · `OrderedList` · `ListItem` · `Blockquote` · `HorizontalRule`.
+
+**③ 컴포넌트가 아니라 zod 스키마 이름이다** — 정본은 `@nerv/schema` 이고 [4.4 API 명세](api.md) §1.7 이 규약이다: `SpecCreateInput` · `SpecDraftUpsertInput` · `TokenCreateInput` · `CommentCreateInput`. ※ `LoginInput` 은 **어디에도 없다** — §2.1 이 "react-hook-form + zod(`LoginInput`: password min 8)" 이라 적지만 로그인 화면은 평범한 `useState` 다.
+
+**④ 기능째 없다**(○ 미구현 — 2026-09-06 실측): `SourceViewToggle` · `RequirementPanel` · `DerivedTaskPanel` · `TerminalHandoffCard`(§2.4) · `FailOpenBanner` · `ScopeChips`(§2.6) · `ImplStatusCard`(§2.3) · `VersionPicker` · `DiffToggle` · `EditLeaseBadge` · `CommentThread`(§2.4 — 기능은 라우트 안에 인라인) · `ImpactPreview` · `ArchiveConfirmDialog` · `BlockedLane` · `InboxFilterRail` · `ProcessedTrail` · `SlaBadge` · `StatusPanel` · `SubmitReviewButton`.
+
+> **이름을 맞추지 않는 이유.** 저장소 쪽 이름을 명세에 맞춰 바꾸면 코드 변경이 되고, 명세 쪽을 바꾸면 다른 절 수십 곳의 인용이 깨진다. 이름은 그대로 두고 **대응을 한 곳에서 밝히는 편**이 싸다 — 그 대신 이 표가 낡으면 다시 셀 수 없게 되므로, 컴포넌트를 더하거나 이름을 바꾸면 여기도 고친다.
+
 ---
 
 ## 2. 화면별 명세
@@ -560,6 +593,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | REQ-WEB-010 | WHEN 이벤트 피드 항목을 렌더링하면 THE SYSTEM SHALL `event.is_agent` 값에 따라 사람/에이전트 아이콘을 구분 표기한다(FR-16 · D-08) |
 
 ### 2.4 S3 스펙 상세 — [ui-wireframes §2.3](../03-proposal/ui-wireframes.md)
+
+> **이 화면의 수용 기준 일부가 §2.6a 표에 있다**(신설 순서로 쌓인 결과 — 2026-09-06 색인): REQ-WEB-068 · 121 · 122 · 125 · 126 · 130.
 
 3열 레이아웃(좌 트리 · 중앙 본문 · 우 상태 패널). 에디터 상세 규약은 §3에 있다.
 
@@ -740,6 +775,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | REQ-WEB-108 | WHEN 사이드바에 스펙 트리를 렌더하면 THE SYSTEM SHALL 그 프로젝트의 모든 문서를 펼친 상태로 표시하고, 목록만 제 상자 안에서 스크롤하며 구역 머리와 건수는 고정한다 |
 
 ### 2.4c 스펙 표 (2026-08-23 신설)
+
+> **스펙 목록의 수용 기준 일부가 §2.6a 표에 있다**(2026-09-06 색인): REQ-WEB-129 · 135 · 136 · 138.
 
 같은 목록의 세 번째 탭이다. **트리는 "어디 있나"에 답하고 표는 "어디가 비었나"에 답한다** — 130편을 계층으로 훑으면 아무도 참조하지 않는 문서가 가지 속에 묻힌다. 열(제목·종류·상태·역참조 수·경로)은 정렬 가능하고, 역참조 0은 흐리게 그려 눈이 먼저 찾게 한다.
 
@@ -990,6 +1027,8 @@ export const TaskCreateInput = z.object({
 
 ### 2.6 S5 세션 모니터 — [ui-wireframes §2.5](../03-proposal/ui-wireframes.md)
 
+> **이 화면의 수용 기준 일부가 §2.6a 표에 있다**(2026-09-06 색인): REQ-WEB-123 · 124 · 132.
+
 세션 카드 필수 표기는 와이어프레임 규약 그대로다 — 신원 3요소(사용자·hostname·에이전트 종류) · 클레임한 Task와 유래 스펙 · 하트비트/리스 잔여/경과 · 브랜치/diff 통계 · 선언 scope · 액션.
 
 | 화면 요소 | 데이터 소스 | 비고 |
@@ -1090,7 +1129,22 @@ export const TaskCreateInput = z.object({
 | REQ-WEB-069 | WHILE 로그인 상태이면 THE SYSTEM SHALL 전역 헤더에 조직·프로젝트 선택을 **두 축 순서대로** 표시하고, 라우트에 프로젝트가 없는 화면에서는 마지막으로 본 프로젝트를 보인다 — 선택지가 하나뿐이어도 select 형태를 유지한다 |
 | REQ-WEB-068 | WHEN 본문이 빈 스펙을 열면 THE SYSTEM SHALL 빈 화면 대신 **왜 비었는지**를 적는다 — `area` 는 디렉터리를 묶는 노드이고 원본에 개요 문서가 없으면 본문이 없는 것이 정상이다(4.7 §2.2). 그 밖의 타입은 "본문 없음"으로 구분해 적는다 |
 
+> **이 표는 S6 것만이 아니다 — 화면별 색인**(2026-09-06 신설). 2026-09-01~09-05 에 더한 수용 기준이 신설 순서대로 이 표에 쌓여, **다른 화면의 약속 23개가 여기 들어와 있다.** 화면별 문서인데 자기 화면 절에 자기 약속이 없으면 그 화면을 고치는 사람이 찾지 못한다. 번호는 재배치하지 않고(규약 5) 여기서 소재를 밝힌다 — 각 화면 절에도 같은 줄을 두었다.
+>
+> | 화면 | 이 표에 있는 그 화면의 수용 기준 |
+> | --- | --- |
+> | **S6 리뷰 센터**(이 절) | REQ-WEB-061~067 · 111 · 112 · 114 · 115 · 117 · 120 · 128 |
+> | S3 스펙 상세(§2.4) | REQ-WEB-068 · 121 · 122 · 125 · 126 · 130 |
+> | S5 세션 모니터(§2.6) | REQ-WEB-123 · 124 · 132 |
+> | S7 받은 요청(§2.7) | REQ-WEB-118 · 119 · 133 |
+> | S8 설정(§2.8) | REQ-WEB-070 · 083 · 134 |
+> | 스펙 목록(§2.4c) | REQ-WEB-129 · 135 · 136 · 138 |
+> | 알림 센터(§2.9) | REQ-WEB-131 · 137 |
+> | 앱 셸·실시간(§1.3·§1.4) | REQ-WEB-069 · 127 |
+
 ### 2.7 S7 받은 요청 — [ui-wireframes §2.7](../03-proposal/ui-wireframes.md)
+
+> **이 화면의 수용 기준 일부가 §2.6a 표에 있다**(2026-09-06 색인): REQ-WEB-118 · 119 · 133.
 
 MVP 카드 유형은 **5종**이다(2026-09-06 현황) — **스펙 승인 · 플랜 승인 · 질문 · 발견(`finding`) · 게이트 면제(`gate_bypass`)**. 어휘 정본은 `approval_subject_type` 6종이고 CR 유형만 Phase 2 로 남았다. 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.
 
@@ -1135,6 +1189,8 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
 
 ### 2.8 S8 설정 — [ui-wireframes §2.8](../03-proposal/ui-wireframes.md)
 
+> **이 화면의 수용 기준 일부가 §2.6a 표에 있다**(2026-09-06 색인): REQ-WEB-070 · 083 · 134.
+
 MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 게이트 정책**(2026-09-06 현황 — 같은 문서 §1.2·§1.8 은 이미 4탭을 적고 있었다). 연동(GitHub·Slack) 탭은 Phase 2(로드맵 §3.2 — "S6 리뷰 센터와 S8의 연동·게이트 정책 탭은 Phase 2") — 탭 자리만 비활성 표기. 게이트 정책 탭 중 스펙 게이트(T0~T3) 부분의 MVP 앞당김은 [scope.md](scope.md) §4.1의 supersession 콜아웃이 확정한다(근거: 로드맵 §3.5 저위험 자동 통과 첫날부터).
 
 | 화면 요소 | 데이터 소스 | 비고 |
@@ -1154,6 +1210,8 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 | REQ-WEB-028 | WHEN admin이 아닌 사용자가 멤버·역할 탭을 열면 THE SYSTEM SHALL 매트릭스를 읽기 전용으로 표시하고 편집 컨트롤을 비활성화한다(FR-14) |
 
 ### 2.9 알림 센터 (`/notifications`)
+
+> **이 화면의 수용 기준 일부가 §2.6a 표에 있다**(2026-09-06 색인): REQ-WEB-131 · 137.
 
 인앱 알림 피드다(FR-12 ◐ — Slack·메일·다이제스트는 Phase 2). 받은 요청과 역할이 다르다 — **받은 요청은 "내 결정을 기다리는 것", 알림은 "내가 알아야 하는 것"**(spec-workflow §6.6 원칙 3). 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 

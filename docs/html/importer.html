@@ -53,7 +53,7 @@
     <h1>스펙 임포터</h1>
     <p class="lead">기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 <b>프로파일 기반 범용 임포터</b>의 확정판. 대상별 차이는 프로파일(§1.4)이 흡수하고 엔진은 하나다 — 내장 프로파일은 <code>clemvion</code>(FR-17 대상: 순수 스펙 135 md + plan 450 md)과 <code>nerv-docs</code>(도그푸딩) 2종이며, 다른 저장소는 프로파일 파일을 얹는다. 실행 모델은 <b>읽기는 클라이언트, 쓰기는 API</b>(2026-08-22 확정) — 원본 체크아웃이 있는 장비의 CLI가 파싱·리포트를 만들고(dry-run은 서버 없이 완결), <code>--apply</code>만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. 수용 기준은 REQ-IMP-001~017.</p>
     <div class="meta-line">
-      <span>버전 v0.16 (2026-09-06)</span>
+      <span>버전 v0.17 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
     </div>
@@ -260,7 +260,9 @@ task:                        # plan 프로파일(P1) — §2.6
     <p>문서 단위 값 하나를 요구사항 단위로 자동 분해할 수는 없다(로드맵 §7.3(1) 손실 주의). 1,750줄 문서에 status 값이 하나뿐이어서 <code>CCH-SE-02</code>("spec이 <code>필수</code>로 약속한 update dedup이 통째로 미구현")가 통과한 것이 D-02의 기원 사고다. 그래서 <code>partial</code> 문서에서 나온 모든 Requirement 행은 <b>수동 확인 큐</b>(리포트의 manual 분류, §4.1)에 올라가고, 사람이 요구사항 단위로 확정한다. 임포터는 이 확정을 대신하지 않는다.</p>
   </div></div>
 
-  <p>approved 버전의 결재 메타는 위조하지 않는다: <code>spec_version.approved_at</code> = 임포트 실행 시각(플랫폼 관점의 적재 시점), <code>approved_by_user_id</code> = NULL(소급 결재자 없음), <code>author_user_id</code> = 적재에 사용한 PAT의 소유자(§3.2 — CLI가 실행자를 자칭하지 않는다), <code>author_session_id</code> = NULL. 이후의 편집은 임포트가 아니라 정상 워크플로우(draft → in_review → approved, <a href="spec-workflow.html">3.5 스펙 워크플로우</a> 정본)를 탄다.</p>
+  <p>approved 버전의 결재 메타는 <b>적재 시점의 사실만</b> 적는다: <code>spec_version.approved_at</code> = 임포트 실행 시각(플랫폼 관점의 적재 시점), <b><code>approved_by_user_id</code> = 적재에 사용한 PAT 의 소유자</b>, <code>author_user_id</code> = 같은 사람(§3.2 — CLI 가 실행자를 자칭하지 않는다), <code>author_session_id</code> = NULL.</p>
+  <div class="callout warn"><span class="ico">⚠️</span><div class="body"><b class="title">왜 NULL 이 아닌가 (2026-09-06 결정 — 사람 판단)</b><p>예전에는 "결재 메타를 위조하지 않는다: <code>approved_by_user_id</code> = NULL(소급 결재자 없음)" 이라 적었고 구현은 처음부터 실행자를 적고 있었다. 둘 중 실행자를 택한다 — <b>원본에 그 정보가 없으면 되찾을 방법이 없고</b>, NULL 은 "승인 절차를 거쳤는데 누구인지 모른다" 로도 읽혀 오히려 사실을 덜 말한다. 적재는 실제로 그 PAT 소유자의 권한으로 일어난 일이므로 그 사람을 적는 편이 감사에 가깝다. <b>소급이라는 사실은 별도로 남는다</b> — 같은 트랜잭션이 <code>import.applied</code> 이벤트에 <code>actor_user_id</code>·<code>profile</code>·<code>root_commit</code>·건수를 적재하므로(§3.5), "이 승인이 게이트를 거친 것인가 임포트가 채운 것인가" 는 그 이벤트로 판별한다. <b>남는 한계도 적어 둔다</b>: <code>spec_version</code> 행 자체에는 임포트 표시가 없어, 이벤트를 보지 않고 결재 이력만 세는 질의는 소급 적재분을 정상 승인으로 센다. 그 구별이 필요해지면 열을 더하는 것이 다음 결정이다.</p></div></div>
+  <p> 이후의 편집은 임포트가 아니라 정상 워크플로우(draft → in_review → approved, <a href="spec-workflow.html">3.5 스펙 워크플로우</a> 정본)를 탄다.</p>
 
   <h3>2.4 본문 처리 — 원문 보존이 제1규칙</h3>
 

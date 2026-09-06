@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.23 (2026-09-06)</span>
+      <span>버전 v1.24 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~021</span>
     </div>
@@ -128,7 +128,7 @@
           profiles/             # 내장 프로파일 — clemvion.yaml · nerv-docs.yaml (4.7 §1.4)
           parse/                # 스캔 · frontmatter · 요구사항 추출 · 링크 해소 (4.7 §2)
           report/               # report.md · report.jsonl · 매니페스트 (4.7 §3.3·§4.1)
-          client/               # EP-IMP-01~05 HTTP 클라이언트 — PAT · Idempotency-Key 재시도
+          client/               # EP-IMP-01~06 HTTP 클라이언트 — PAT · Idempotency-Key 재시도
     packages/
       schema/                   # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
                                 #   임포트 배치 · 프로파일 zod 스키마도 여기가 정본 (apps/api ↔ apps/cli 공유 계약)
@@ -169,7 +169,7 @@
     <tbody>
       <tr><td><code>apps/web</code></td><td><code>@nerv/web</code></td><td>S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화</td><td>비즈니스 규칙 판정(전부 API에 위임 — <a href="architecture.html">3.2</a> §1.3)</td></tr>
       <tr><td><code>apps/api</code></td><td><code>@nerv/api</code></td><td>REST + MCP + WebSocket + SSE + ingest 다섯 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리)</td><td>스키마·타입 선언(<code>@nerv/schema</code>에서만 import)</td></tr>
-      <tr><td><code>apps/cli</code></td><td><code>@nerv/cli</code></td><td>임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~05 호출(<a href="importer.html">4.7 스펙 임포터</a> §3)</td><td>DB 접속(<code>DATABASE_URL</code> 미사용·DB 드라이버 미의존), 도메인 판정</td></tr>
+      <tr><td><code>apps/cli</code></td><td><code>@nerv/cli</code></td><td>임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~06 호출(<a href="importer.html">4.7 스펙 임포터</a> §3)</td><td>DB 접속(<code>DATABASE_URL</code> 미사용·DB 드라이버 미의존), 도메인 판정</td></tr>
       <tr><td><code>packages/schema</code></td><td><code>@nerv/schema</code></td><td>drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, 마이그레이션 파일</td><td>런타임 로직(순수 선언 + 마이그레이터만)</td></tr>
     <tr><td><code>plugin</code></td><td><code>@nerv/plugin</code></td><td>에이전트 호스트에 <b>배포되는 파일 묶음</b> — 스킬 6종·훅·MCP 설정·statusline·서브에이전트(<a href="plugin.html">4.6 플러그인과 온보딩</a> §1~§3 전문의 실물)</td><td>빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 <code>pnpm test</code>에 태우기 위해서다</td></tr>
       <tr><td><code>deploy/*</code>(저장소 루트)</td><td>—</td><td>compose·Dockerfile·kustomize 산출물. 이 문서가 정본</td><td>애플리케이션 코드</td></tr>
@@ -367,7 +367,7 @@
       question.service.ts        # 질문 생성 · 폴링 · awaiting_input 전이
       approval.controller.ts
       question.tools.ts          # MCP — nerv_question_create
-    import/                      # ImportModule — EP-IMP-01~05 (4.4 §2.10). 소급 적재 전용 경로
+    import/                      # ImportModule — EP-IMP-01~06 (4.4 §2.10). 소급 적재 전용 경로
       import.module.ts
       import.service.ts          # 자연 키 대조 · 배치 upsert · 전이 검사 우회(이 모듈에서만) · import.applied 이벤트
       import.controller.ts       # REST — preflight · specs · tasks · links · map
@@ -409,18 +409,20 @@
   <p>테이블 이름의 의미 정본은 <a href="data-model.html">3.3 데이터 모델</a>, DDL 정본은 <a href="database.html">4.3 데이터베이스 스키마</a>, 도구 정의 정본은 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2, REST 경로 정본은 <a href="api.html">4.4 API 명세</a>다. 이 표는 배치만 확정한다.</p>
 
   <div class="table-wrap"><table>
-    <thead><tr><th>Nest 모듈</th><th>소유 테이블 (29종 전수 배정)</th><th>MCP 도구 (Phase)</th><th>REST 프리픽스</th></tr></thead>
+    <thead><tr><th>Nest 모듈</th><th>소유 테이블 (도메인 33종 전수 배정 · 2026-09-06 실측)</th><th>MCP 도구 (Phase)</th><th>REST 프리픽스</th></tr></thead>
     <tbody>
-      <tr><td><code>AuthModule</code></td><td><code>organization</code> <code>user</code> <code>project</code> <code>membership</code> <code>api_token</code></td><td>—</td><td><code>/api/v1/auth</code> · <code>/api/v1/orgs</code> · <code>/api/v1/projects</code></td></tr>
-      <tr><td><code>SpecModule</code></td><td><code>spec</code> <code>spec_version</code> <code>requirement</code> <code>requirement_version</code> <code>spec_relation</code> <code>spec_comment</code> <code>change_request</code> <code>spec_baseline</code> <code>spec_baseline_item</code></td><td><code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code>(P0) · <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code>(P1)</td><td><code>…/projects/{p}/specs</code> · <code>…/projects/{p}/baselines</code></td></tr>
+      <tr><td><code>AuthModule</code></td><td><code>organization</code> <code>user</code> <code>project</code> <code>membership</code> <code>api_token</code> <b><code>invitation</code></b></td><td>—</td><td><code>/api/v1/auth</code> · <code>/api/v1/orgs</code> · <code>/api/v1/projects</code></td></tr>
+      <tr><td><code>SpecModule</code></td><td><code>spec</code> <code>spec_version</code> <code>requirement</code> <code>requirement_version</code> <code>spec_relation</code> <code>spec_comment</code> <code>change_request</code> <code>spec_baseline</code> <code>spec_baseline_item</code> <b><code>attachment</code></b></td><td><code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code>(P0) · <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code>(P1)</td><td><code>…/projects/{p}/specs</code> · <code>…/projects/{p}/baselines</code></td></tr>
       <tr><td><code>TaskModule</code></td><td><code>task</code> <code>task_dependency</code> <code>claim</code> <code>evidence</code></td><td><code>nerv_task_next</code> <code>nerv_task_claim</code> <code>nerv_task_heartbeat</code> <code>nerv_task_release</code>(P0) · <code>nerv_task_update</code>(P1)</td><td><code>…/projects/{p}/tasks</code></td></tr>
-      <tr><td><code>SessionModule</code></td><td><code>agent_session</code> <code>activity</code></td><td><code>nerv_bootstrap</code>(P0) · <code>nerv_session_event</code>(P1)</td><td><code>…/projects/{p}/sessions</code> + <code>/ingest/hooks/*</code></td></tr>
+      <tr><td><code>SessionModule</code></td><td><code>agent_session</code> <code>activity</code> <b><code>activity_summary</code></b></td><td><code>nerv_bootstrap</code>(P0) · <code>nerv_session_event</code>(P1)</td><td><code>…/projects/{p}/sessions</code> + <code>/ingest/hooks/*</code></td></tr>
       <tr><td><code>ApprovalModule</code></td><td><code>approval</code> <code>question</code></td><td><code>nerv_question_create</code>(P1)</td><td><code>…/projects/{p}/approvals</code> · <code>…/questions</code></td></tr>
-      <tr><td><code>ReviewModule</code></td><td><code>review_session</code> <code>reviewer_report</code> <code>finding</code> <code>finding_occurrence</code> <code>resolution</code></td><td><code>nerv_review_submit</code> <code>nerv_finding_resolve</code></td><td><code>…/projects/{p}/reviews</code> 계열 7종</td></tr>
+      <tr><td><code>ReviewModule</code></td><td><code>review_session</code> <code>reviewer_report</code> <code>finding</code> <code>finding_occurrence</code> <code>resolution</code> <b><code>finding_comment</code></b></td><td><code>nerv_review_submit</code> <code>nerv_finding_resolve</code></td><td><code>…/projects/{p}/reviews</code> 계열 7종</td></tr>
       <tr><td><code>EventModule</code></td><td><code>event</code> <code>notification</code></td><td>—</td><td><code>…/projects/{p}/events</code> + WebSocket · SSE(<code>/sse/*</code>)</td></tr>
       <tr><td><code>ImportModule</code></td><td>(소유 테이블 없음 — Spec·Task 계열에 소급 적재)</td><td>— (도구 없음 — <a href="importer.html">4.7 스펙 임포터</a> §3.6)</td><td><code>…/projects/{p}/import/*</code></td></tr>
     </tbody>
   </table></div>
+
+  <p><b>모듈이 소유하지 않는 넷</b>(2026-09-06 명시 — 예전에는 "29종 전수 배정" 이라 적고 실제로는 넷이 어느 모듈에도 없었다). <code>idempotency_key</code> 는 <b>횡단 인프라</b>라 <code>common/idempotency.*</code> 가 소유하고 모듈에 붙지 않는다(멱등은 표면의 성질이지 도메인의 성질이 아니다). <code>spec_chunk_embedding</code> 은 <b>파생 인덱스</b>라 소유자가 아니라 워커 잡(<code>embedding.job.ts</code>)이 갱신한다. 인증 인프라 3종(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>)은 better-auth 가 소유한다 — 우리 모듈이 읽지도 쓰지도 않는다. <b>넷은 도메인 33종 밖이고, 그래서 위 표의 검산 대상이 아니다.</b></p>
 
   <p>합계 검산(2026-09-06 실측): <b>카탈로그 24종</b> = P0 8 · P1 14 · P2 2 — 정본은 <a href="agent-integration.html">3.4</a> §2.3 이고 MVP 범위(22종)는 <a href="scope.html">4.1</a> §4.2 다. 예전에는 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이라 적혀 있었다. 기준선은 새 도구 없이 기존 도구의 입력 확장(<code>nerv_spec_get</code>의 <code>baseline</code>)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = <b>29종</b>.</p>
 
@@ -478,7 +480,7 @@
 
   <h3>3.2 상수 전표 (constants.ts)</h3>
 
-  <p>수치의 정본은 각 열의 문서다. 코드에서는 이 파일 외의 하드코딩을 금지한다.</p>
+  <p>수치의 정본은 각 열의 문서다. 코드에서는 이 파일 외의 하드코딩을 금지한다. <b>이 표는 <code>constants.ts</code> 의 export 전수다</b>(2026-09-06 — 예전에는 13개만 싣고 18개가 빠져 있었다).</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>상수</th><th>값</th><th>근거 정본</th></tr></thead>
@@ -494,6 +496,21 @@
       <tr><td><code>IDEMPOTENCY_TTL_HOURS</code></td><td><code>24</code></td><td><a href="api.html">4.4 API 명세</a> §1.5 — 멱등 키 보존. 그보다 오래 남은 키의 재생은 재시도가 아니라 사고다</td></tr>
       <tr><td><code>MAX_PROJECT_ROOMS</code></td><td><code>8</code></td><td>같은 문서 §3.2 — 연결당 join 가능한 project 룸. <b>웹과 API 에 각각 박혀 있던 것을 모았다</b>(2026-09-02)</td></tr>
       <tr><td><code>MAX_SSE_PER_USER</code></td><td><code>8</code></td><td>같은 문서 §3.5 — 사용자당 동시 SSE 연결. 세는 단위는 파드다</td></tr>
+      <tr><td><code>MAX_REQUEST_BODY_BYTES</code></td><td><code>16 * 1024 * 1024</code> (16 MiB)</td><td>앞문(nginx <code>client_max_body_size</code>·Ingress <code>proxy-body-size</code>)이 이 값과 같아야 한다 — §5.4 주석이 이 이름을 인용한다. 앞문이 좁으면 서버의 상한은 선언일 뿐이다</td></tr>
+      <tr><td><code>ATTACHMENT_MAX_BYTES</code></td><td><code>10 * 1024 * 1024</code></td><td>스펙 첨부 한 건의 상한 — <a href="api.html">4.4 API 명세</a> EP-SPEC-21</td></tr>
+      <tr><td><code>ATTACHMENT_READ_MAX_BYTES</code></td><td><code>32 * 1024</code></td><td><code>nerv_spec_attachment_read</code> 의 텍스트 상한. 자르면 잘랐다고 말한다(<code>truncated</code>)</td></tr>
+      <tr><td><code>LEASE_HEARTBEAT_GRACE_SECONDS</code></td><td><code>HEARTBEAT_INTERVAL_SECONDS * 3</code> (180초)</td><td>하트비트를 몇 번 놓쳐야 죽은 것으로 보는가 — 상수에서 파생시켜 둘이 따로 움직이지 않게 한다</td></tr>
+      <tr><td><code>PLAN_APPROVAL_SIBLINGS</code></td><td><code>4</code></td><td>플랜 승인 게이트 G2 의 형제 수 임계 — <a href="api.html">4.4 API 명세</a> §2.7</td></tr>
+      <tr><td><code>PARTITION_MONTHS_AHEAD</code></td><td><code>3</code></td><td><code>event</code>·<code>activity</code> 월 파티션 선생성 창 — <a href="database.html">4.3</a> §2.14 · REQ-DB-021. 이 창이 비면 INSERT 가 실패한다</td></tr>
+      <tr><td><code>TASK_DONE_WINDOW_DAYS</code></td><td><code>7</code></td><td>보관 보기 토글의 기준 — <code>done_at</code> 이 이보다 오래된 done 은 기본 목록에서 빠진다(<a href="screens.html">4.5</a> §2.5)</td></tr>
+      <tr><td><code>INVITATION_TTL_DAYS</code></td><td><code>7</code></td><td>조직 초대 링크 수명 — <a href="api.html">4.4 API 명세</a> §2.1b</td></tr>
+      <tr><td><code>PAGE_LIMIT_DEFAULT</code> · <code>PAGE_LIMIT_MAX</code></td><td><code>30</code> · <code>100</code></td><td>페이지 상한 전역 규칙 — <a href="api.html">4.4 API 명세</a> §1.6</td></tr>
+      <tr><td><code>FINDING_PAGE_LIMIT_DEFAULT</code> · <code>_MAX</code></td><td><code>50</code> · <code>200</code></td><td>발견 큐의 <b>예외</b>(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05)</td></tr>
+      <tr><td><code>GATE_BRANCH_LIMIT_DEFAULT</code> · <code>_MAX</code></td><td><code>20</code> · <code>200</code></td><td>게이트 표의 브랜치 — 같은 예외(실측 441개)</td></tr>
+      <tr><td><code>RATE_LIMIT_AUTH_PER_MIN</code> · <code>_SIGN_IN_PER_MIN</code></td><td><code>30</code> · <code>10</code></td><td>인증 경로의 별도 한도 — <a href="api.html">4.4 API 명세</a> §1.8</td></tr>
+      <tr><td><code>WS_ERROR_EVENT</code></td><td><code>'nerv:error'</code></td><td>WebSocket 오류 프레임 이름 — 웹과 게이트웨이가 같은 리터럴을 봐야 한다</td></tr>
+      <tr><td><code>DISPLAY_KEY_PATTERN</code></td><td>정규식 리터럴</td><td>본문에서 Task·Spec 키를 알아보는 패턴 — 화면의 자동 링크와 서버의 참조 추출이 같은 것을 쓴다</td></tr>
+      <tr><td><code>SEED_ORG_SLUG</code></td><td><code>'default'</code></td><td>개발 시드의 조직 slug — <b>재적재 안전장치가 이 값으로 자기 시드를 알아본다</b>(<a href="database.html">4.3</a> §4)</td></tr>
       <tr><td><code>WORKER_ADVISORY_LOCK_KEY</code></td><td>프로젝트 전역 단일 키(bigint 리터럴 1개)</td><td>§6.3 — 워커 단일 실행</td></tr>
     </tbody>
   </table></div>

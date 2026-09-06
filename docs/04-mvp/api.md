@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.96 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v0.97 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+>
+> v0.97 변경(2026-09-06 — "필수" 라 읽으면 서버가 막아 준다고 믿는다, 정합성 대조 → 사람 지시): §1.5 와 §2.10 이 `Idempotency-Key` 를 **"필수"** 라 적었는데 인터셉터는 **키가 없으면 그대로 통과시킨다**. 받되 요구하지는 않는다는 것을 두 자리에 명시했다 — 키를 싣는 것은 부르는 쪽의 책임이고(임포터 CLI 는 배치마다 싣는다 · REQ-API-019), 키 없이 배치를 재전송하면 중복 적재가 그대로 일어난다. **강제로 바꿀지는 코드 쪽 결정으로 남긴다.**
 >
 > v0.96 변경(2026-09-06 — 전표가 실물보다 좁거나 넓었다, 정합성 대조 → 사람 지시): **엔드포인트 열 정의 · 유령 질의 열 자리 · 이벤트 셋 · §1.7 선언.** 새 요구사항은 없다 — 코드가 옳고 전표가 낡거나 비어 있던 자리다. ① **정의 없는 번호를 정의한다**: `EP-SPEC-20`·`21`·`22` 는 REQ-API-088·089 가 "그것과 같은 정의" 라고 가리키는데 **정의하는 행이 없었고**(v0.82 가 고친 EP-PRJ-05 와 같은 모양이 셋 더 있었다), 첨부 삭제는 번호조차 없었다 → `EP-SPEC-20~23`. ② **미문서화 REST 여섯**에 번호를 준다 — 발견 코멘트·조회·Task 승격(`EP-REV-05~07`), 프로젝트 받은 요청(`EP-APR-05`), 세션 궤적(`EP-SES-05` — REQ-API-068 이 요구하는 기능인데 계약 행이 없었다), 안 읽은 수(`EP-NTF-04`). ※ 코드 주석은 이 셋을 `EP-REV-07`·`08` 로, zod 는 `EP-REV-05` 로 서로 다르게 부르고 있다 — **코드 주석 정렬은 남은 일**이다. ③ **유령 질의 인자 열 자리**를 실물로 고친다(`ApprovalListQuery`·`SessionListQuery`·`ActivityListQuery`·`EventListQuery`·`NotificationListQuery`·`TokenAdminListQuery`·`ImportMapQuery`·`BaselineListQuery`·`RequirementListQuery`·`SpecRelationQuery`) — 커서 이름이 `before` 인 자리와 **커서가 아예 없는 자리**를 구별해 적었다. `EP-SPEC-03` 의 질의 이름은 `version` 이 아니라 **`v`** 다(`?version=3` 은 조용히 무시되고 최신본이 온다 — 거절이 아니라 **틀린 성공**이다). ④ **이미 구현된 것을 "없다"고 적던 자리**: `EP-SPEC-01` 의 `baseline`·`around`·`hops`, `EP-REV-02` 의 `escalated`. 반대로 `EP-TASK-01` 의 `priority` 필터는 **없다**. ⑤ §3.3 "실시간 채널 **전수** 목록" 에 `evidence.added`·`review.submitted`·`finding.commented` 를 더한다 — `events.ts` 가 이 표를 정본으로 지목하는데 전수가 아니었다. ⑥ §4 표에 `nerv_question_cancel` 행을 더하고(제목은 24종인데 표는 23행이었다) `nerv_task_get` 의 REST 짝을 `EP-TASK-02` → **`EP-TASK-04`** 로 고친다. 머리의 산술도 맞췄다(21종·P1 13 → 22종·P1 14). ⑦ §1.7 이 "요청·응답 열은 zod export 와 1:1" 이라 적었는데 **질의 열(`*Query`) 22종은 코드에 실재하지 않는다** — 검사(`contract.spec.ts`)가 세는 것은 `*Input` 뿐이라 그 차이를 적지 않아 선언이 두 번째로 거짓이었다. 무엇이 1:1 이고 무엇이 표기인지 갈랐다. ⑧ §2.8 미러 frontmatter 예시가 `nerv_id`·`approved_by` 를 적고 있었다 — 실물은 `id`·`title`·`type`·`version`·`status`·`requirements`·`basis_superseded` 다(미러는 파서의 계약이라 키 이름이 곧 계약이다).
 >
@@ -646,7 +648,7 @@ HTTP 상태 매핑:
 
 ### 1.5 멱등 키 — `Idempotency-Key` 헤더
 
-상태를 바꾸는 모든 REST 요청(POST·PUT·PATCH·DELETE)은 `Idempotency-Key` 헤더를 받는다. MCP의 A2 이상 도구가 받는 `idempotency_key` 입력([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 4)과 **같은 저장소**를 쓴다 — 오프라인 아웃박스가 큐잉한 쓰기가 MCP로 재전송되든 REST로 재전송되든 한 번만 실행된다.
+상태를 바꾸는 모든 REST 요청(POST·PUT·PATCH·DELETE)은 `Idempotency-Key` 헤더를 **받는다** — 받되 **요구하지는 않는다**(2026-09-06 명시): 헤더가 없으면 인터셉터가 그대로 통과시키고 멱등 보장도 없다. MCP의 A2 이상 도구가 받는 `idempotency_key` 입력([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 4)과 **같은 저장소**를 쓴다 — 오프라인 아웃박스가 큐잉한 쓰기가 MCP로 재전송되든 REST로 재전송되든 한 번만 실행된다.
 
 | 규칙 | 내용 |
 | --- | --- |
@@ -1046,7 +1048,7 @@ basis_superseded: false
 - **권한**: 전 행 admin **AND** PAT 권한 `import:write`(§1.3). 세션 쿠키로도 호출 가능하지만 정상 호출자는 CLI다.
 - **소급 적재의 성질**: 이 경로만 워크플로우 전이 검사를 우회한다(`approved` 버전·`done` Task를 승인·게이트 없이 생성). 스키마 제약(approved 본문 불변 트리거·`UNIQUE (project_id, ref)`·partial unique)은 예외 없이 그대로 적용된다 — 위반은 그 **항목**의 실패이고 배치 전체를 되돌리지 않는다.
 - **트랜잭션 단위**: 배치는 전송 단위일 뿐이다. `import/specs`의 `kind=document`는 **파일 1건 = 트랜잭션 1건**, `kind=structure`와 `import/links`는 배치 1건이 트랜잭션 1건이다(임포터 §3.5).
-- **멱등**: 전 행 `Idempotency-Key` 필수(§1.5). 같은 키 재전송은 최초 응답 재생이며 레코드를 다시 만들지 않는다.
+- **멱등**: 전 행이 `Idempotency-Key` 를 받는다(§1.5) — 같은 키 재전송은 최초 응답 재생이며 레코드를 다시 만들지 않는다. **서버는 키 없는 요청을 거절하지 않는다**(2026-09-06 명시 — 예전에는 "필수" 라 적었고 인터셉터는 키가 없으면 그냥 지나간다). 키를 싣는 것은 **부르는 쪽의 책임**이고, 임포터 CLI 는 배치마다 싣는다(REQ-API-019). 키 없이 배치를 재전송하면 중복 적재가 그대로 일어난다 — "필수" 라 읽은 사람은 서버가 막아 준다고 믿는다.
 
 | ID | 메서드 · 경로 | 권한 | 요청(zod) | 응답(zod) | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |

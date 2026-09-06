@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.23 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.24 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.24 변경(2026-09-06 — 전수라 적은 표가 전수가 아니었다 둘, 정합성 대조 → 사람 지시): ① §2.3 "29종 **전수** 배정" 이 전수가 아니었다 — `attachment`·`finding_comment`·`invitation`·`activity_summary` 의 소유 모듈이 어디서도 정해지지 않았다. 넷을 배정하고(각각 Spec·Review·Auth·Session), **모듈이 소유하지 않는 넷**(`idempotency_key` 는 횡단 인프라, `spec_chunk_embedding` 은 파생 인덱스, 인증 3종은 better-auth 소유)이 왜 표 밖인지 적었다. ② §3.2 상수 전표가 **13개만 싣고 18개가 빠져 있었다** — `MAX_REQUEST_BODY_BYTES` 는 정작 §5.4 주석이 그 이름을 인용하는 상수다. `constants.ts` 의 export 전수로 채웠다. 곁들여 `EP-IMP-01~05` → `01~06`.
 >
 > v1.23 변경(2026-09-06 — 남은 전문 둘과 전표 넷, 정합성 대조 → 사람 지시): **REQ-CB-029 신설 · 게이트 일곱 → 여덟.** ① **백로그 현황 정합 게이트**를 CI 와 `preflight` 에 더한다(`scripts/check-backlog-status.mjs`) — [4.8](backlog.md) §1.4 의 표가 실제 스토리와 어긋나면 막는다. "모든 스토리는 현재 `backlog`다" 가 **74개 중 73개에 대해 거짓**인 채로 2주를 보냈고(2026-08-22 → 09-06), 백로그는 첫 임포트 대상이라 그 상태가 그대로 Task 의 초기 상태가 된다. 사람 쪽 규율은 `AGENTS.md` 문서 작업 규약 6 이 맡는다. ② **§5.3 compose · §6.2 kustomization 전문을 실물 전량으로 교체**한다 — compose 는 v1.6 이 "이제 바이트 단위로 일치한다" 고 선언한 뒤 6줄이 갈렸고(`NERV_S3_PUBLIC_ENDPOINT`·`NERV_GITHUB_WEBHOOK_SECRET`), kustomization "전문" 에는 **backup 리소스와 `configMapGenerator` 가 통째로 없었다**(CI 가 강제하는 사본 쌍의 근거가 정본에 없던 셈이다). ③ **§1.1 트리**에 실재하는 것을 싣는다 — `scripts/` 여섯(같은 문서가 세 곳에서 인용한다) · `tsconfig.json`(솔루션) · 루트 `README.md`·`.claude-plugin/`·`.github/` · `deploy/scripts/` · `docker-compose.e2e.yml`. ④ **§5.1 스크립트 표**가 여덟을 빠뜨렸다 — `preflight`·`hooks:install`·`typecheck`·`format`·`format:check`·`pack:plugin`·`e2e:logs`·`e2e:env`. 규약 7 이 커밋 전 필수로 지정한 명령이 정본 표에 없었다. ⑤ **§5.2 전표**: `NERV_S3_ENDPOINT` 행이 **둘이었고 "필수" 열이 서로 달랐다**(하나를 걷었다), `NERV_LOG_LEVEL` 은 소비자를 "api · worker" 라 적는데 **읽는 코드가 한 곳도 없다**(배선하거나 행을 걷는 것은 열린 자리다), `NERV_SEED_PASSWORD`·`NERV_SHOT_DIR`·`NERV_SHOT_SCHEME` 은 코드가 읽는데 전표에 없었다. ⑥ **§2.3 합계 검산**이 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이었다 — 실측 24종(P0 8 · P1 14 · P2 2). ※ 남은 것: §2.3 의 테이블 배정이 여전히 전수가 아니다(`attachment`·`finding_comment`·`invitation`·`idempotency_key` 의 소유 모듈이 정해지지 않았다) — **모듈 경계 결정이 필요해 열어 둔다.**
 >
@@ -112,7 +114,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
           profiles/             # 내장 프로파일 — clemvion.yaml · nerv-docs.yaml (4.7 §1.4)
           parse/                # 스캔 · frontmatter · 요구사항 추출 · 링크 해소 (4.7 §2)
           report/               # report.md · report.jsonl · 매니페스트 (4.7 §3.3·§4.1)
-          client/               # EP-IMP-01~05 HTTP 클라이언트 — PAT · Idempotency-Key 재시도
+          client/               # EP-IMP-01~06 HTTP 클라이언트 — PAT · Idempotency-Key 재시도
     packages/
       schema/                   # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
                                 #   임포트 배치 · 프로파일 zod 스키마도 여기가 정본 (apps/api ↔ apps/cli 공유 계약)
@@ -150,7 +152,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | --- | --- | --- | --- |
 | `apps/web` | `@nerv/web` | S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화 | 비즈니스 규칙 판정(전부 API에 위임 — [3.2](../03-proposal/architecture.md) §1.3) |
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
-| `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~05 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
+| `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~06 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
 | `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터 + 번역기만 — §3.4가 근거) |
 | `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 6종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
@@ -283,7 +285,7 @@ apps/api/src/
       question.service.ts        # 질문 생성 · 폴링 · awaiting_input 전이
       approval.controller.ts
       question.tools.ts          # MCP — nerv_question_create
-    import/                      # ImportModule — EP-IMP-01~05 (4.4 §2.10). 소급 적재 전용 경로
+    import/                      # ImportModule — EP-IMP-01~06 (4.4 §2.10). 소급 적재 전용 경로
       import.module.ts
       import.service.ts          # 자연 키 대조 · 배치 upsert · 전이 검사 우회(이 모듈에서만) · import.applied 이벤트
       import.controller.ts       # REST — preflight · specs · tasks · links · map
@@ -322,18 +324,20 @@ apps/api/src/
 
 테이블 이름의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md), DDL 정본은 [4.3 데이터베이스 스키마](database.md), 도구 정의 정본은 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2, REST 경로 정본은 [4.4 API 명세](api.md)다. 이 표는 배치만 확정한다.
 
-| Nest 모듈 | 소유 테이블 (29종 전수 배정) | MCP 도구 (Phase) | REST 프리픽스 |
+| Nest 모듈 | 소유 테이블 (도메인 33종 전수 배정 · 2026-09-06 실측) | MCP 도구 (Phase) | REST 프리픽스 |
 | --- | --- | --- | --- |
-| `AuthModule` | `organization` `user` `project` `membership` `api_token` | — | `/api/v1/auth` · `/api/v1/orgs` · `/api/v1/projects` |
-| `SpecModule` | `spec` `spec_version` `requirement` `requirement_version` `spec_relation` `spec_comment` `change_request` `spec_baseline` `spec_baseline_item` | `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get`(P0) · `nerv_spec_draft_upsert` `nerv_spec_submit_review` `nerv_spec_check` `nerv_spec_comment_resolve`(P1) | `…/projects/{p}/specs` · `…/projects/{p}/baselines` |
+| `AuthModule` | `organization` `user` `project` `membership` `api_token` **`invitation`** | — | `/api/v1/auth` · `/api/v1/orgs` · `/api/v1/projects` |
+| `SpecModule` | `spec` `spec_version` `requirement` `requirement_version` `spec_relation` `spec_comment` `change_request` `spec_baseline` `spec_baseline_item` **`attachment`** | `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get`(P0) · `nerv_spec_draft_upsert` `nerv_spec_submit_review` `nerv_spec_check` `nerv_spec_comment_resolve`(P1) | `…/projects/{p}/specs` · `…/projects/{p}/baselines` |
 | `TaskModule` | `task` `task_dependency` `claim` `evidence` | `nerv_task_next` `nerv_task_claim` `nerv_task_heartbeat` `nerv_task_release`(P0) · `nerv_task_update`(P1) | `…/projects/{p}/tasks` |
-| `SessionModule` | `agent_session` `activity` | `nerv_bootstrap`(P0) · `nerv_session_event`(P1) | `…/projects/{p}/sessions` + `/ingest/hooks/*` |
+| `SessionModule` | `agent_session` `activity` **`activity_summary`** | `nerv_bootstrap`(P0) · `nerv_session_event`(P1) | `…/projects/{p}/sessions` + `/ingest/hooks/*` |
 | `ApprovalModule` | `approval` `question` | `nerv_question_create`(P1) | `…/projects/{p}/approvals` · `…/questions` |
-| `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` | `nerv_review_submit` `nerv_finding_resolve` | `…/projects/{p}/reviews` 계열 7종 |
+| `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` **`finding_comment`** | `nerv_review_submit` `nerv_finding_resolve` | `…/projects/{p}/reviews` 계열 7종 |
 | `EventModule` | `event` `notification` | — | `…/projects/{p}/events` + WebSocket · SSE(`/sse/*`) |
 | `ImportModule` | (소유 테이블 없음 — Spec·Task 계열에 소급 적재) | — (도구 없음 — [4.7 스펙 임포터](importer.md) §3.6) | `…/projects/{p}/import/*` |
 
-`ImportModule`은 테이블을 소유하지 않고 `SpecModule`·`TaskModule`의 저장 계층에 소급 적재만 한다 — 그래서 29종 배정은 변하지 않는다. 워크플로우 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 권한이 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
+`ImportModule`은 테이블을 소유하지 않고 `SpecModule`·`TaskModule`의 저장 계층에 소급 적재만 한다 — 그래서 배정은 변하지 않는다.
+
+**모듈이 소유하지 않는 넷**(2026-09-06 명시 — 예전에는 "29종 전수 배정" 이라 적고 실제로는 넷이 어느 모듈에도 없었다). `idempotency_key` 는 **횡단 인프라**라 `common/idempotency.*` 가 소유하고 모듈에 붙지 않는다(멱등은 표면의 성질이지 도메인의 성질이 아니다). `spec_chunk_embedding` 은 **파생 인덱스**라 소유자가 아니라 워커 잡(`embedding.job.ts`)이 갱신한다. 인증 인프라 3종(`auth_session`·`auth_account`·`auth_verification`)은 better-auth 가 소유한다 — 우리 모듈이 읽지도 쓰지도 않는다. **넷은 도메인 33종 밖이고, 그래서 위 표의 검산 대상이 아니다.** 워크플로우 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 권한이 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
 
 합계 검산(2026-09-06 실측): **카탈로그 24종** = P0 8 · P1 14 · P2 2 — 정본은 [3.4](../03-proposal/agent-integration.md) §2.3 이고 MVP 범위(22종)는 [4.1](scope.md) §4.2 다. 예전에는 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이라 적혀 있었다. 기준선은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
 
@@ -394,7 +398,7 @@ packages/schema/
 
 ### 3.2 상수 전표 (`constants.ts`)
 
-수치의 정본은 각 열의 문서다. 코드에서는 이 파일 외의 하드코딩을 금지한다.
+수치의 정본은 각 열의 문서다. 코드에서는 이 파일 외의 하드코딩을 금지한다. **이 표는 `constants.ts` 의 export 전수다**(2026-09-06 — 예전에는 13개만 싣고 18개가 빠져 있었다: 근거 정본이 표에서 추적되지 않는 상수가 그만큼 있었다는 뜻이다).
 
 | 상수 | 값 | 근거 정본 |
 | --- | --- | --- |
@@ -410,6 +414,21 @@ packages/schema/
 | `IDEMPOTENCY_TTL_HOURS` | `24` | [4.4 API 명세](api.md) §1.5 — 멱등 키 보존. 그보다 오래 남은 키의 재생은 재시도가 아니라 사고다 |
 | `MAX_PROJECT_ROOMS` | `8` | 같은 문서 §3.2 — 연결당 join 가능한 project 룸. **웹과 API 에 각각 박혀 있던 것을 모았다**(2026-09-02): 사본이 어긋나면 클라이언트는 시도하고 서버는 거절하는데 그 거절이 버그처럼 보인다 |
 | `MAX_SSE_PER_USER` | `8` | 같은 문서 §3.5 — 사용자당 동시 SSE 연결. 세는 단위는 파드다(열린 소켓이 파드의 자원이라) |
+| `MAX_REQUEST_BODY_BYTES` | `16 * 1024 * 1024` (16 MiB) | 앞문(nginx `client_max_body_size`·Ingress `proxy-body-size`)이 이 값과 같아야 한다 — §5.4 주석이 이 이름을 인용한다. 앞문이 좁으면 서버의 상한은 선언일 뿐이다 |
+| `ATTACHMENT_MAX_BYTES` | `10 * 1024 * 1024` | 스펙 첨부 한 건의 상한 — [4.4 API 명세](api.md) EP-SPEC-21 |
+| `ATTACHMENT_READ_MAX_BYTES` | `32 * 1024` | `nerv_spec_attachment_read` 의 텍스트 상한. 자르면 잘랐다고 말한다(`truncated`) |
+| `LEASE_HEARTBEAT_GRACE_SECONDS` | `HEARTBEAT_INTERVAL_SECONDS * 3` (180초) | 하트비트를 몇 번 놓쳐야 죽은 것으로 보는가 — 상수에서 파생시켜 둘이 따로 움직이지 않게 한다 |
+| `PLAN_APPROVAL_SIBLINGS` | `4` | 플랜 승인 게이트 G2 의 형제 수 임계 — [4.4 API 명세](api.md) §2.7 |
+| `PARTITION_MONTHS_AHEAD` | `3` | `event`·`activity` 월 파티션 선생성 창 — [4.3](database.md) §2.14 · REQ-DB-021. 이 창이 비면 INSERT 가 실패한다 |
+| `TASK_DONE_WINDOW_DAYS` | `7` | 보관 보기 토글의 기준 — `done_at` 이 이보다 오래된 done 은 기본 목록에서 빠진다([4.5](screens.md) §2.5) |
+| `INVITATION_TTL_DAYS` | `7` | 조직 초대 링크 수명 — [4.4 API 명세](api.md) §2.1b |
+| `PAGE_LIMIT_DEFAULT` · `PAGE_LIMIT_MAX` | `30` · `100` | 페이지 상한 전역 규칙 — [4.4 API 명세](api.md) §1.6 |
+| `FINDING_PAGE_LIMIT_DEFAULT` · `_MAX` | `50` · `200` | 발견 큐의 **예외**(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05) |
+| `GATE_BRANCH_LIMIT_DEFAULT` · `_MAX` | `20` · `200` | 게이트 표의 브랜치 — 같은 예외(실측 441개) |
+| `RATE_LIMIT_AUTH_PER_MIN` · `_SIGN_IN_PER_MIN` | `30` · `10` | 인증 경로의 별도 한도 — [4.4 API 명세](api.md) §1.8 |
+| `WS_ERROR_EVENT` | `'nerv:error'` | WebSocket 오류 프레임 이름 — 웹과 게이트웨이가 같은 리터럴을 봐야 한다 |
+| `DISPLAY_KEY_PATTERN` | 정규식 리터럴 | 본문에서 Task·Spec 키를 알아보는 패턴 — 화면의 자동 링크와 서버의 참조 추출이 같은 것을 쓴다 |
+| `SEED_ORG_SLUG` | `'default'` | 개발 시드의 조직 slug — **재적재 안전장치가 이 값으로 자기 시드를 알아본다**([4.3](database.md) §4) |
 
 | ID | 요구(EARS) |
 | --- | --- |
