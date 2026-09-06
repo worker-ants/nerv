@@ -1,3 +1,26 @@
+---
+references:
+  - 01-problem/clemvion-analysis.md
+  - 01-problem/pain-points.md
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/architecture.md
+  - 03-proposal/data-model.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/database.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/plugin.md
+  - 04-mvp/backlog.md
+  - README.md
+---
 # 에이전트 연동 설계
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **23종**(2026-09-04 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
@@ -23,11 +46,11 @@
 > v0.14 변경(2026-09-04 — 권한 어휘를 사실에 맞춘다, 실측): ③ 의 "§2.3 도구 표와 1:1" 은 사실이 아니었다 — 도구 23종이 쓰는 권한은 **일곱**이고, `spec:meta`·`import:write`·신설 `spec:evidence` 는 REST 축이다. §6.1 의 발급 화면 그림도 **존재하지 않는 권한 둘**(`policy:edit`·`audit:read`)을 그리고 있었다. 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES` 이고 구현 규약은 [4.4](../04-mvp/api.md) §1.3·§1.3b(REQ-API-085)다.
 > v0.13 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): §3.3 에 `X-NERV-Branch`·`X-NERV-Worktree` 를 더했다. 세션 신원의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다(실측). 훅은 작업 디렉터리에서 도니까 포워더가 git 에게 직접 묻는다 — detached HEAD 면 보내지 않는다. 이 경로는 command 변형에만 있다(http 훅의 `headers` 는 상수·`${VAR}` 뿐이다). 구현 규약 정본은 [4.4](../04-mvp/api.md) §2.5b(REQ-API-084).
 > v0.12 변경(2026-09-03 — 통제의 적용 범위 정정): §6.4 의 훅 URL 통제가 `type:"http"` 훅에만 걸린다는 사실을 명시했다. NERV 의 기본 훅이 command 변형으로 바뀌었으므로(4.6 v0.30 · 사람 결정) 그 목록은 NERV 자신의 훅을 덮지 않는다 — 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다. `hooks` 키가 관리형 파일에서도 유효하다는 것도 함께 적었다.
-> v0.11 변경(2026-09-03 — 확장의 경계): 훅 `url` 은 `${VAR}` 확장을 받지 않고 `headers` 만 받는다는 것을 §3.3 에 적었다. `.mcp.json` 의 `url` 은 받는다. 이 비대칭이 배포 변형 둘의 이유다(4.6 §3.1).
+> v0.11 변경(2026-09-03 — 확장의 경계): 훅 `url` 은 `${VAR}` 확장을 받지 않고 `headers` 만 받는다는 것을 §3.3 에 적었다. `.mcp.json` 의 `url` 은 받는다. 이 비대칭이 배포 변형 둘의 이유다([4.6](../04-mvp/plugin.md) §3.1).
 > v0.10 변경(2026-09-03 — 받는 척하던 인자들, 실측): 카탈로그가 적고 있던 인자 열한 종이 도구 스키마에 없거나 저장할 자리가 없어 **성공 응답과 함께 버려지고 있었다**(4.4 v0.57 REQ-API-080 이 그 사실을 드러냈다). 일곱을 실물로 만들고 넷은 표에서 걷었다. 실물: `state_note`(`claim.release_note` — 후보 목록의 `handoff_note` 로 다음 사람에게 간다) · `progress`(LWW) · `stats{added,removed,files}`(세션 카드의 +N −M 이 34개 세션 전부 0이던 원인) · `include[tasks,comments]` · `resolved_in_version_id` · `lease_seconds` · 후보의 `spec_key`·`version_no`. 걷은 것: `repo{}`(실물은 평면 `branch`·`worktree_path`) · `role`·`capabilities`(Task 에 그 축이 없다) · 클레임의 `branch`·`worktree`(세션이 등록한다) · `note`·`reviewer_hint`(리뷰어 지정은 게이트 §6.3 이 정한다) · `baseline`(Phase 2).
 > v0.9 변경(2026-09-03 — 채택 규칙을 좁힌다, 사람 결정): §2.4 의 훅 세션 채택에서 `cwd` 를 필수로 하고, 후보가 여럿일 때 **마지막 활동 시각**으로 고르도록 확정했다. 구현 규약 정본은 [4.4](../04-mvp/api.md) §1.4c(REQ-API-079).
 > v0.8 변경(2026-09-03 — 훅 평면과 세션 평면이 갈라져 있었다): 기본 설치의 **첫 클레임이 막히고 있었다.** `SessionStart` 훅이 세션 A 를, 스킬의 `nerv_bootstrap` 이 세션 B 를 만들어 살아 있는 세션이 둘이 되고, `nerv_task_claim` 은 `session_ambiguous` 로 거부됐다 — 실측(2026-09-03): 실사용 세션 34개가 만든 클레임이 **0건**. 세 가지를 §2.4·§3.3에 못 박았다. ① **훅 세션 채택** — bootstrap 이 id 없이 오면 같은 사람·hostname·cwd 의 살아 있는 훅 세션을 채택하고 훅이 모르는 `branch`·`worktree_path`·`model` 을 빈 자리에만 채운다(반대편은 막혀 있다 — 하네스가 모델에게 `session_id` 를 주지 않는다). ② **`hookSpecificOutput` 래퍼** — 최상위 `additionalContext` 는 훅 문서가 "조용히 무시한다"고 못 박은 자리라 세션 37개 내내 주입이 닿지 않았다. ③ **`stop_hook_active` 면 즉시 허용** — 우리 문제 정의([1.2](../01-problem/clemvion-analysis.md) §3)가 이미 적어 둔 anti-wedge 를 서버가 되풀이하고 있었다.
-> v0.7 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
+> v0.7 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · [3.5](spec-workflow.md) §1.2 · [4.4](../04-mvp/api.md) §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.6 변경(2026-08-30 — 표에만 있고 도구에는 없던 입력, 사람 결정): `nerv_question_create` 의 `context`·`escalate`·`blocking`·`wait_seconds` 는 이 표와 스킬이 지시하면서 도구가 받지 않던 것들이다 — 이제 받는다. `blocking` 과 `urgency` 가 같은 축이라는 것을 §2.4에 적었다. 처리 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.4d(REQ-API-042).
 >
 > v0.5 변경(2026-08-29 — 세션 규약을 §2.4에 명문화, 실측 보고): 이 문서의 카탈로그가 `nerv_bootstrap` 외의 도구에 `session_id` 를 적지 않는 것은 **생략이 아니라 규약**이다 — 세션은 서버가 해소한다. 그 절반이 구현돼 있지 않아 `nerv_question_create`·`nerv_task_claim`·`nerv_session_event` 가 스키마대로 부르면 언제나 실패하고 있었다. 규약과 예외(모호할 때의 `session_id`)를 §2.4에 적었다. 구현 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.4c(REQ-API-040·041).
@@ -162,7 +185,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `nerv_spec_attachment_read` | `attachment_id` | 첨부 본문. **텍스트만**(`text/*`)이고 `ATTACHMENT_READ_MAX_BYTES` 를 넘으면 자르되 `truncated:true` 로 말한다. 그림·PDF·zip 은 거부하고 **받는 주소**를 준다 | `spec:read` | A1 | Bash 가 없는 세션이 첨부를 되읽을 때 — 있으면 목록의 `url` 로 받는 것이 기본이다 | 읽기 전용 |
 | `nerv_session_event` | `event_seq`, `type`(thought/action/elicitation/response/error), `payload`, `ts` | ack + 서버 지시(steer/stop) | `agent-session:launch`(자기 세션) | A1 | 훅이 없는 실행 환경의 폴백, 굵직한 마일스톤 | 멱등 — (session_id, event_seq) 유니크, 재전송 안전 |
 
-**카탈로그가 실물보다 좁았다**(2026-09-02 정정). scope.md §4.2 와 api.md §4 가 "도구 정의의 정본" 으로 이 표를 가리키는데, 표는 18종(2026-08-30)에서 멈춰 있었다 — `nerv_task_get`·`nerv_task_list`·`nerv_task_create`·`nerv_spec_attach` 가 빠졌고, `nerv_spec_draft_upsert` 의 입력은 이미 걷어낸 `base_version` 을, `nerv_task_update` 의 증적은 옛 모양을, `nerv_finding_resolve` 의 처분은 3값을 적고 있었다. 정본을 보고 스킬·클라이언트를 쓰는 사람이 **없는 인자를 싣는다** — README v1.66/v1.69 가 기록한 "스킬과 스키마가 어긋나면 지시를 따른 쪽이 손해" 그대로다. 위 표는 코드의 `inputSchema` 를 근거로 맞췄다.
+**카탈로그가 실물보다 좁았다**(2026-09-02 정정). [scope.md](../04-mvp/scope.md) §4.2 와 [api.md](../04-mvp/api.md) §4 가 "도구 정의의 정본" 으로 이 표를 가리키는데, 표는 18종(2026-08-30)에서 멈춰 있었다 — `nerv_task_get`·`nerv_task_list`·`nerv_task_create`·`nerv_spec_attach` 가 빠졌고, `nerv_spec_draft_upsert` 의 입력은 이미 걷어낸 `base_version` 을, `nerv_task_update` 의 증적은 옛 모양을, `nerv_finding_resolve` 의 처분은 3값을 적고 있었다. 정본을 보고 스킬·클라이언트를 쓰는 사람이 **없는 인자를 싣는다** — README v1.66/v1.69 가 기록한 "스킬과 스키마가 어긋나면 지시를 따른 쪽이 손해" 그대로다. 위 표는 코드의 `inputSchema` 를 근거로 맞췄다.
 
 ### 2.4 핵심 도구의 보충 규약
 
@@ -794,3 +817,4 @@ Claude Code의 권한 평가 순서(훅 → deny → ask 강제 레인 → 권�
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 역할별 권한 표와 게이트가 걸리는 지점
 - [3.6 화면 설계](../03-proposal/ui-wireframes.md) — S5 세션 모니터·S7 받은 요청·S8 토큰 화면의 상세 와이어프레임
 - [3.7 로드맵](../03-proposal/roadmap.md) — Phase 0에서 실측 확정할 항목(훅 헤더 토큰 주입·Codex hooks 스키마)과 배포 순서
+

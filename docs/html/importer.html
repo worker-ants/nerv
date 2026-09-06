@@ -56,6 +56,7 @@
       <span>버전 v0.21 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
+      <span class="refs">참조하는 문서: <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
     </div>
   </header>
 
@@ -294,7 +295,7 @@ task:                        # plan 프로파일(P1) — §2.6
   <p>✅ 마크는 읽지 않는다(§2.3 — 폐기). 상태 컬럼이 아예 없는 영역(<code>3-workflow-editor</code>·<code>7-channel-web-chat</code>)과 131개가 칠해진 영역(<code>2-navigation</code>)이 공존하는 표기를 신뢰할 수 없기 때문이며, 커버리지는 이후 관계에서 계산된다(D-03, FR-13).</p>
 
   <h3>2.6a 임포트한 Task 의 위임 명세 — 출처를 적는다 (2026-08-22 구현 중 확정)</h3>
-  <p>DDL 의 <code>task_delegation_spec_ck</code>(4.3 §2.5)는 <code>backlog</code>·<code>blocked</code> <b>밖의 모든 상태</b>에 위임 명세 4요소를 요구한다. 그런데 임포트한 Task 에는 그 근거가 없다 — 원본 <code>plan/</code> 에는 위임 명세라는 개념 자체가 없고, <code>complete/</code> 387건은 <code>done</code> 으로 적재된다(§2.6). 그대로 두면 387건이 전부 CHECK 위반으로 실패한다(구현 중 실측).</p>
+  <p>DDL 의 <code>task_delegation_spec_ck</code>(<a href="database.html">4.3</a> §2.5)는 <code>backlog</code>·<code>blocked</code> <b>밖의 모든 상태</b>에 위임 명세 4요소를 요구한다. 그런데 임포트한 Task 에는 그 근거가 없다 — 원본 <code>plan/</code> 에는 위임 명세라는 개념 자체가 없고, <code>complete/</code> 387건은 <code>done</code> 으로 적재된다(§2.6). 그대로 두면 387건이 전부 CHECK 위반으로 실패한다(구현 중 실측).</p>
   <p><b>해법: 지어내지 않고 출처를 적는다.</b> 4요소 자리에 고정 문자열 <code>(임포트 — 원본에 위임 명세 없음)</code> 을 넣는다.</p>
   <ul>
     <li>목표·산출물을 그럴듯하게 지어내면 그 Task 는 "근거가 있는 것처럼" 보인다 — provenance 추적(P5)이 무너지는 지점이다. 사실을 적으면 그 자리가 비어 있었다는 것 자체가 데이터로 남는다.</li>

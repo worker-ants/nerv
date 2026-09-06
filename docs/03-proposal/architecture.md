@@ -1,3 +1,24 @@
+---
+references:
+  - 01-problem/clemvion-analysis.md
+  - 01-problem/pain-points.md
+  - 02-research/spec-driven-development.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/data-model.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/database.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/backlog.md
+  - README.md
+---
 # 시스템 아키텍처
 
 > **요약** — NERV(가칭)는 웹앱(Vite + React SPA), API + MCP 게이트웨이(NestJS), 훅 수집기, Postgres, Valkey(실시간 방송 MQ), 이벤트·알림 워커의 여섯 덩어리와 git forge·Slack 연동으로 구성된다. 가장 중요한 결정은 저장 전략(D-01)이다: **스펙과 리뷰 산출물의 단일 진실은 플랫폼 DB**이고, git에는 사람이 읽고 grep할 수 있는 **read-only markdown 미러**와 포인터만 남기며, 에이전트는 markdown으로 읽되 **쓰기는 MCP/API 한 경로로만** 한다. 근거는 추정이 아니라 실측이다 — clemvion에서 리뷰 이력 blob 60.7MB가 `.git` packed blob 바이트의 60%를 차지했고(`review/` 산출물은 markdown 13,777개·131MB), 리뷰가 코드와 같은 브랜치에 커밋되어 다음 리뷰의 입력이 되는 자기증식 루프(한 changeset 8라운드, 마지막 라운드 프롬프트 94파일 중 86개가 이전 리뷰 산출물)가 관측됐다. 이 문서는 컴포넌트별 책임, 저장 전략, 핵심 데이터 흐름 4종(스펙 승인 · 작업 클레임 · 세션 하트비트/stale · 리뷰 수집→게이트 판정), 기술 스택(D-11) 대안 비교, 멀티테넌시·보안·성능·백업·로컬 폴백(NFR-05)까지를 구현 착수가 가능한 수준으로 기술한다.
@@ -8,7 +29,7 @@
 >
 > v0.4 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
-> v0.3 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §3 시퀀스와 §4 산문의 저장 전제조건을 `base_version` 에서 **`base_hash`(본문 지문)** 로 고친다 — 4.4 §1.4g 가 2026-08-30 에 표면에서 걷은 이름이다. `base_version_id` 열은 그대로다(파생 계보는 서버가 채운다).
+> v0.3 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §3 시퀀스와 §4 산문의 저장 전제조건을 `base_version` 에서 **`base_hash`(본문 지문)** 로 고친다 — [4.4](../04-mvp/api.md) §1.4g 가 2026-08-30 에 표면에서 걷은 이름이다. `base_version_id` 열은 그대로다(파생 계보는 서버가 채운다).
 >
 ---
 
@@ -517,3 +538,4 @@ Organization > Project > Membership 3계층이고 사용자와 프로젝트는 n
 - [3.5 스펙 워크플로우와 거버넌스](spec-workflow.md) — §3의 흐름을 역할·권한·게이트 규칙으로 확장
 - [3.6 화면 설계](ui-wireframes.md) — §1.3의 웹앱이 렌더링하는 S1~S8 화면
 - [3.7 로드맵](roadmap.md) — 이 아키텍처의 단계별 구축 순서와 clemvion 마이그레이션(D-12)
+

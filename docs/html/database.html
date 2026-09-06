@@ -55,8 +55,9 @@
     <div class="meta-line">
       <span>버전 v0.35 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
-      <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
+      <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
+      <span class="refs">참조하는 문서: <a href="data-model.html">3.3</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
     </div>
   </header>
 
@@ -82,7 +83,7 @@
     <tr><td>테이블·컬럼·타입·제약의 <b>DDL 표현</b></td><td><b>이 문서</b></td><td>§2 전문. 컬럼명은 data-model 필드 표와 1:1 — 예: <code>review_session</code>은 <code>head_sha</code>/<code>base_sha</code>, <code>spec_version</code>은 <code>edit_lease_user_id</code>/<code>edit_lease_session_id</code>/<code>edit_lease_expires_at</code> 3필드와 <code>author_session_id</code></td></tr>
     <tr><td>이벤트 이름(<code>&lt;리소스&gt;.&lt;동사&gt;</code>)</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6</td><td><code>event.type</code> 값으로 인용만 한다(<code>spec.approved</code> · <code>task.claimed</code> · <code>session.stale</code> …)</td></tr>
     <tr><td><code>nerv_*</code> 도구가 읽고 쓰는 계약</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2</td><td>DDL 주석에서 도구 이름을 인용만 한다</td></tr>
-    <tr><td>REST·WS가 반환하는 필드</td><td><a href="api.html">4.4 API 명세</a></td><td>api.md가 이 문서의 컬럼명을 그대로 쓴다(교차 정합 규칙)</td></tr>
+    <tr><td>REST·WS가 반환하는 필드</td><td><a href="api.html">4.4 API 명세</a></td><td><a href="api.html">api.md</a>가 이 문서의 컬럼명을 그대로 쓴다(교차 정합 규칙)</td></tr>
   </table></div>
 
   <div class="callout note"><span class="ico">ℹ️</span><div class="body">
@@ -380,7 +381,7 @@ CREATE TABLE spec_baseline_item (            -- junction — project_id 생략 �
 
     <h3>2.3a 첨부 — attachment (2026-09-01 신설)</h3>
 
-  <p>근거: api.md §2.10. <b>파일은 오브젝트 스토리지에, 메타는 여기.</b> 첨부는 버전이 아니라 <b>문서에</b> 매단다 — 초안이 덮어써지는 동안에도 시안은 남아야 하고, 문서를 보관하면 함께 따라가야 한다.</p>
+  <p>근거: <a href="api.html">api.md</a> §2.10. <b>파일은 오브젝트 스토리지에, 메타는 여기.</b> 첨부는 버전이 아니라 <b>문서에</b> 매단다 — 초안이 덮어써지는 동안에도 시안은 남아야 하고, 문서를 보관하면 함께 따라가야 한다.</p>
 
   <pre><code class="language-sql">CREATE TABLE attachment (
   id                     uuid PRIMARY KEY,

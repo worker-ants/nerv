@@ -53,10 +53,11 @@
     <h1>화면 명세</h1>
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
-      <span>SPC-MVP-SCREENS · status: draft</span>
+      <span>SPC-MVP-SCREENS · status: approved</span>
       <span>버전 v0.83 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
+      <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
     </div>
   </header>
 
@@ -80,7 +81,7 @@
     <tbody>
       <tr><td>화면 레이아웃·와이어프레임·인터랙션 원칙 — <b>S1~S8</b></td><td><a href="ui-wireframes.html">3.6 화면 설계</a> S1~S8</td><td>그림 재작성 금지 — 각 절에서 해당 §를 링크 인용</td></tr>
       <tr><td>와이어프레임 — <b>S 번호가 없는 MVP 화면</b>(앱 셸·로그인·온보딩·알림 센터)과 <b>하위 뷰</b>(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)</td><td><b>이 문서</b>(§1.3·§2)</td><td>3.6에 대응 그림이 없어 여기서 신규 작성한다. 상위 화면의 레이아웃 규약(3열 구성·상태 표기·인터랙션 원칙)은 3.6을 따르며 어기지 않는다</td></tr>
-      <tr><td>REST·WebSocket 계약</td><td><a href="api.html">4.4 API 명세</a></td><td>엔드포인트를 <b>ID(EP-*)와 메서드·경로</b>로 인용(권한·스키마·발생 이벤트는 api.md가 확정)</td></tr>
+      <tr><td>REST·WebSocket 계약</td><td><a href="api.html">4.4 API 명세</a></td><td>엔드포인트를 <b>ID(EP-*)와 메서드·경로</b>로 인용(권한·스키마·발생 이벤트는 <a href="api.html">api.md</a>가 확정)</td></tr>
       <tr><td>엔티티 필드·상태 값</td><td><a href="data-model.html">3.3 데이터 모델</a></td><td>테이블·컬럼·enum 문자열을 그대로 사용</td></tr>
       <tr><td>상태 전이·권한·이벤트 이름</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a></td><td><code>&lt;리소스&gt;.&lt;동사&gt;</code> 이벤트 이름을 그대로 사용</td></tr>
       <tr><td>MCP 도구 이름·인자</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2</td><td><code>nerv_*</code> 도구명을 그대로 사용</td></tr>
@@ -251,12 +252,12 @@
   <p>WebSocket은 NestJS <code>@WebSocketGateway</code>(socket.io 어댑터, websocket 전송만)이고, 핸드셰이크 인증·룸 join 규약·이벤트 전체 목록의 정본은 <a href="api.html">api.md</a> §3이다. 클라이언트 계약은 세 줄이다.</p>
 
   <ol>
-    <li><b>룸 2종</b> — <code>user:{id}</code>는 연결 성공 시 서버가 자동 join, <code>project:{id}</code>는 프로젝트 화면 진입 시 클라이언트가 join emit(서버가 멤버십 검사, 이탈 시 leave — api.md §3.2).</li>
+    <li><b>룸 2종</b> — <code>user:{id}</code>는 연결 성공 시 서버가 자동 join, <code>project:{id}</code>는 프로젝트 화면 진입 시 클라이언트가 join emit(서버가 멤버십 검사, 이탈 시 leave — <a href="api.html">api.md</a> §3.2).</li>
     <li><b>이벤트는 무효화 신호다.</b> 이벤트 봉투에는 식별자만 있고 본문이 없다 — 수신하면 해당 TanStack Query 키를 invalidate하고 재조회한다(진실은 DB, D-14).</li>
-    <li><b>재연결 = 전체 재조회.</b> 끊겼다 붙으면 활성 화면의 쿼리를 전부 무효화한다. 이벤트 재전송(replay)은 없다(api.md §3.4).</li>
+    <li><b>재연결 = 전체 재조회.</b> 끊겼다 붙으면 활성 화면의 쿼리를 전부 무효화한다. 이벤트 재전송(replay)은 없다(<a href="api.html">api.md</a> §3.4).</li>
   </ol>
 
-  <p>쿼리 키 규약과 이벤트 매핑 — 이벤트 이름은 <a href="spec-workflow.html">spec-workflow</a> §6.3 정본 + <a href="api.html">api.md</a> §3.3에서 추가 확정된 이벤트(★)를 그대로 쓴다. api.md §3.4가 위임한 "이벤트 → 화면 Query 무효화" 매핑의 정의가 이 표다.</p>
+  <p>쿼리 키 규약과 이벤트 매핑 — 이벤트 이름은 <a href="spec-workflow.html">spec-workflow</a> §6.3 정본 + <a href="api.html">api.md</a> §3.3에서 추가 확정된 이벤트(★)를 그대로 쓴다. <a href="api.html">api.md</a> §3.4가 위임한 "이벤트 → 화면 Query 무효화" 매핑의 정의가 이 표다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>이벤트(<code>&lt;리소스&gt;.&lt;동사&gt;</code>)</th><th>무효화하는 쿼리 키</th><th>수신 룸</th></tr></thead>
@@ -469,7 +470,7 @@
 
   <h2 id="sec-2">2. 화면별 명세</h2>
 
-  <p>각 절의 형식: <b>데이터 소스</b>(api.md 리소스+동사 인용) → <b>실시간</b> → <b>핵심 컴포넌트</b> → <b>폼·검증</b>(zod, <code>packages/schema</code> 공유) → <b>상태·수용 기준</b>. S1~S8 와이어프레임 그림은 <a href="ui-wireframes.html">ui-wireframes.md</a>의 해당 §를 보고, 그 문서에 없는 화면·하위 뷰의 그림은 각 절 안에 둔다(§1.6 표).</p>
+  <p>각 절의 형식: <b>데이터 소스</b>(<a href="api.html">api.md</a> 리소스+동사 인용) → <b>실시간</b> → <b>핵심 컴포넌트</b> → <b>폼·검증</b>(zod, <code>packages/schema</code> 공유) → <b>상태·수용 기준</b>. S1~S8 와이어프레임 그림은 <a href="ui-wireframes.html">ui-wireframes.md</a>의 해당 §를 보고, 그 문서에 없는 화면·하위 뷰의 그림은 각 절 안에 둔다(§1.6 표).</p>
 
   <h3>2.1 로그인 · 온보딩</h3>
 
@@ -544,7 +545,7 @@
 
   <ul class="wf-legend">
     <li><span class="marker">1</span><span><b>조직 생성</b>(<code>OrgCreateForm</code>) — better-auth organization 플러그인 경로. 첫 프로젝트를 같이 만든다. 소속 조직 0개일 때만 진입한다(<code>REQ-WEB-006</code>).</span></li>
-    <li><span class="marker">2</span><span><b>초대 수락</b>(<code>InviteAcceptCard</code>) — 조직 생성과 배타적 분기. MVP 초대는 기존 사용자 배정이다(메일 발송은 Phase 2 — api.md §2.1).</span></li>
+    <li><span class="marker">2</span><span><b>초대 수락</b>(<code>InviteAcceptCard</code>) — 조직 생성과 배타적 분기. MVP 초대는 기존 사용자 배정이다(메일 발송은 Phase 2 — <a href="api.html">api.md</a> §2.1).</span></li>
     <li><span class="marker">3</span><span><b>역할 확인</b> — <code>membership.roles</code>(복수 — 겸직이 있으므로 합집합이다, §1.8) 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.</span></li>
     <li><span class="marker">4</span><span><b>다음 행동</b> — 역할별 첫 화면 규칙(ui-wireframes §1.5, qa는 MVP에서 작업 보드로)대로 착지 링크. 에이전트 연결(PAT 발급→플러그인 설치)은 <a href="plugin.html">plugin.md</a> §4로 링크만 둔다.</span></li>
   </ul>
@@ -1325,7 +1326,7 @@ export const TaskCreateInput = z.object({
       <tr><td><b>REQ-WEB-070</b></td><td>WHEN admin 이 프로젝트를 치우면 THE SYSTEM SHALL <b>보관</b>하고(삭제하지 않는다) 목록에서만 뺀다 — 주소로는 그대로 닿는다. WHEN 조직을 지우려 하면 THE SYSTEM SHALL 프로젝트가 남아 있는 동안 거부하고 그 이유를 <b>누르기 전에</b> 화면에 적어 둔다</td></tr>
       <tr><td>REQ-WEB-083</td><td>WHEN 조직·프로젝트 탭에서 <b>보관 보기</b>를 켜면 THE SYSTEM SHALL 보관한 프로젝트까지 목록에 담고 각 줄에 복구 경로를 준다 — 복구는 볼 수 있어야 할 수 있다</td></tr>
       <tr><td><b>REQ-WEB-069</b></td><td>WHILE 로그인 상태이면 THE SYSTEM SHALL 전역 헤더에 조직·프로젝트 선택을 <b>두 축 순서대로</b> 표시하고, 라우트에 프로젝트가 없는 화면에서는 마지막으로 본 프로젝트를 보인다 — 선택지가 하나뿐이어도 select 형태를 유지한다</td></tr>
-      <tr><td><b>REQ-WEB-068</b></td><td>WHEN 본문이 빈 스펙을 열면 THE SYSTEM SHALL 빈 화면 대신 <b>왜 비었는지</b>를 적는다 — <code>area</code>는 디렉터리를 묶는 노드이고 원본에 개요 문서가 없으면 본문이 없는 것이 정상이다(4.7 §2.2). 그 밖의 타입은 "본문 없음"으로 구분해 적는다</td></tr>
+      <tr><td><b>REQ-WEB-068</b></td><td>WHEN 본문이 빈 스펙을 열면 THE SYSTEM SHALL 빈 화면 대신 <b>왜 비었는지</b>를 적는다 — <code>area</code>는 디렉터리를 묶는 노드이고 원본에 개요 문서가 없으면 본문이 없는 것이 정상이다(<a href="importer.html">4.7</a> §2.2). 그 밖의 타입은 "본문 없음"으로 구분해 적는다</td></tr>
     </tbody>
   </table></div>
 
@@ -1357,7 +1358,7 @@ export const TaskCreateInput = z.object({
     <tbody>
       <tr><td>대기 목록</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending · 유형/프로젝트 필터 — 받은 요청 목록)</td><td><code>approval.subject_type</code>: <code>spec_version / plan / question / finding / gate_bypass</code>(MVP · 2026-09-06 현황) — data-model §2.7</td></tr>
       <tr><td>결정</td><td>EP-APR-03 <code>POST /api/v1/approvals/{id}/decision</code></td><td><code>decision</code>: <code>approve / reject / comment</code>(spec-workflow §2.5)</td></tr>
-      <tr><td>질문 답변</td><td>EP-QST-02 <code>POST /api/v1/projects/{proj}/questions/{id}/answer</code></td><td><code>answer_key</code>(선택지) 또는 <code>answer_md</code> — 내부적으로 승인 결정과 한 경로(api.md §2.6)</td></tr>
+      <tr><td>질문 답변</td><td>EP-QST-02 <code>POST /api/v1/projects/{proj}/questions/{id}/answer</code></td><td><code>answer_key</code>(선택지) 또는 <code>answer_md</code> — 내부적으로 승인 결정과 한 경로(<a href="api.html">api.md</a> §2.6)</td></tr>
       <tr><td>카드 본문</td><td>EP-APR-01 응답 <code>ApprovalCard</code>에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지)</td><td>요약문이 아니라 <b>원문 우선</b>(spec-workflow §6.4 — OWASP ASI09 방어)</td></tr>
     </tbody>
   </table></div>
@@ -1409,7 +1410,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <div class="table-wrap"><table>
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
     <tbody>
-      <tr><td>멤버 매트릭스</td><td>EP-MBR-01 <code>GET /api/v1/orgs/{org}/members</code> · EP-MBR-02 <code>POST</code>(기존 사용자 배정 — 초대 메일 발송은 Phase 2, api.md §2.1) · EP-MBR-03 <code>PATCH /api/v1/memberships/{id}</code>(역할)</td><td><code>membership.role</code> 6종: <code>admin / planner / designer / developer / qa / viewer</code>. 사람 × 프로젝트 n:n(FR-14)</td></tr>
+      <tr><td>멤버 매트릭스</td><td>EP-MBR-01 <code>GET /api/v1/orgs/{org}/members</code> · EP-MBR-02 <code>POST</code>(기존 사용자 배정 — 초대 메일 발송은 Phase 2, <a href="api.html">api.md</a> §2.1) · EP-MBR-03 <code>PATCH /api/v1/memberships/{id}</code>(역할)</td><td><code>membership.role</code> 6종: <code>admin / planner / designer / developer / qa / viewer</code>. 사람 × 프로젝트 n:n(FR-14)</td></tr>
       <tr><td>토큰 목록·발급·폐기</td><td>EP-TOK-01 <code>GET /api/v1/me/tokens</code> · EP-TOK-02 <code>POST /api/v1/me/tokens</code> · EP-TOK-03 <code>DELETE /api/v1/me/tokens/{id}</code> · EP-TOK-04 <code>GET /api/v1/orgs/{org}/tokens</code>(admin 조직 전체)</td><td><code>api_token</code>: 라벨·소유자·프로젝트 소속·<code>prefix</code>·<code>last_used_at</code>(hostname 포함 표기). admin은 조직 전체 목록 열람</td></tr>
       <tr><td>게이트 정책</td><td>EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code> · EP-PRJ-04 <code>PATCH /api/v1/projects/{proj}</code> (<code>gate_policy</code> — 키 스키마 정본: <a href="api.html">4.4 API 명세</a> §2.1a)</td><td>MVP 편집 항목 = <code>spec_gate.*</code> 2키: 티어 경계(<code>tier_boundaries</code>)·동적 강화(<code>dynamic_escalation</code>). 둘 다 2026-09-02 부터 <b>판정이 실제로 읽는다</b> — 그 전까지 판정은 상수를 썼다. <code>t1_objection_hours</code> 는 같은 날 걷었다. <code>failopen</code>·<code>retention</code>은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수(<a href="codebase.html">4.2</a> §3.2 <code>SESSION_STALE_SECONDS</code>), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화</td></tr>
     </tbody>

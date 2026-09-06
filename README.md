@@ -12,7 +12,7 @@
 
 | 구역 | 무엇이 있나 |
 | --- | --- |
-| [`docs/`](docs/) | 제안서·MVP 명세. **md가 원본, `docs/html/`은 파생본** — 한쪽만 고치면 결함이다 |
+| [`docs/`](docs/) | 제안서·MVP 명세. **md가 원본, `docs/html/`은 파생본** — 한쪽만 고치면 결함이다. 문서 간 인용은 인라인 링크로, 역참조는 각 문서 frontmatter `references` 가 든다(도구가 계산한다 — [AGENTS.md](AGENTS.md) 문서 작업 규약 7) |
 | [`codebase/`](codebase/) | 애플리케이션·패키지 코드. **pnpm 모노레포 루트가 여기다**(REQ-CB-015) — `pnpm`·`docker compose` 명령은 이 디렉터리에서 실행한다 |
 | [`deploy/`](deploy/) | 배포 산출물 — compose · Dockerfile · nginx · kustomize(base/overlays) |
 | 루트 | 이 README와 규약·메타 파일(`AGENTS.md`·`CLAUDE.md`·`.github/`·`LICENSE`·`NOTICE`)만 둔다 |

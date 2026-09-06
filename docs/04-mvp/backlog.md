@@ -2,6 +2,16 @@
 id: SPC-MVP-BACKLOG
 status: approved
 updated: 2026-09-06
+references:
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/plugin.md
+  - 04-mvp/importer.md
+  - README.md
+  - ../README.md
+  - ../AGENTS.md
 ---
 # 백로그
 
@@ -11,7 +21,7 @@ updated: 2026-09-06
 >
 > v0.21 변경(2026-09-06 — 스토리 없이 들어온 구현 셋): §1.4 셋째 표에 **임포트 매니페스트·`rebuild-map`** · **리포트 계약(규칙 슬러그·`warn`)** · **자라는 목록의 커서**를 더한다. 셋 다 정본이 계약으로 적어 두고 코드에 없던 자리이고, 어느 스토리에도 속하지 않는다.
 >
-> v0.20 변경(2026-09-06 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **막힘의 해소 조건 파생**을 더한다. 정본(3.5 §2)이 요구하던 "해소 조건" 을 열이 아니라 파생으로 답한 자리이고(4.4 REQ-API-118), 어느 스토리에도 속하지 않는다.
+> v0.20 변경(2026-09-06 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **막힘의 해소 조건 파생**을 더한다. 정본([3.5](../03-proposal/spec-workflow.md) §2)이 요구하던 "해소 조건" 을 열이 아니라 파생으로 답한 자리이고(4.4 REQ-API-118), 어느 스토리에도 속하지 않는다.
 >
 > v0.19 변경(2026-09-06 — 스토리 없이 들어온 구현 둘): §1.4 셋째 표에 **`.env` 전표 정합 게이트**와 **로그 수준 배선**을 더한다. 둘 다 [4.2](codebase.md) §5.2 가 계약으로 적어 두고 코드에 없던 자리이고, 어느 스토리에도 속하지 않는다.
 >
@@ -27,8 +37,8 @@ updated: 2026-09-06
 >
 > v0.13 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): E12 배포 평면 서술의 "스킬 5종(`/nerv:review`는 Phase 2)·`.mcp.json` 번들" 을 현황으로 고치고(6종 · `.mcp.json` 은 패키지에 없다), 참고 문헌의 엔티티 수를 37종으로.
 > v0.12 변경(2026-09-04 — E09-S06 완료 표기): 기준선 스토리의 남은 절반(소비 축·웹 UI)을 구현했다. 서버 축(테이블·EP-SPEC-11~14)은 이미 있었고 **읽는 길과 만드는 문이 없어** 실사용 기준선이 0개였다(4.4 v0.66 · 4.5 v0.66).
-> v0.11 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
-> v0.10 변경(2026-08-30 — 표기 결함 정정, 사람 결정): **`E06-S06` 이 둘이었다** — 임베딩 스파이크와 훅 헤더 실측이 같은 번호를 썼다. 다른 문서 네 곳이 임베딩 쪽을 가리키므로 훅 실측을 **`E06-S07`** 로 옮긴다(번호는 재사용하지 않고 끝번호에 더한다). 곁들여 §2.6 제목과 의존 그래프 노드의 낡은 수("스파이크 4종")를 실제와 맞췄다. **E10-S02 의 수용 기준을 `base_version` → `base_hash` 로** 고쳤다(4.4 §1.4g·§1.4i).
+> v0.11 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · [3.5](../03-proposal/spec-workflow.md) §1.2 · [4.4](api.md) §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
+> v0.10 변경(2026-08-30 — 표기 결함 정정, 사람 결정): **`E06-S06` 이 둘이었다** — 임베딩 스파이크와 훅 헤더 실측이 같은 번호를 썼다. 다른 문서 네 곳이 임베딩 쪽을 가리키므로 훅 실측을 **`E06-S07`** 로 옮긴다(번호는 재사용하지 않고 끝번호에 더한다). 곁들여 §2.6 제목과 의존 그래프 노드의 낡은 수("스파이크 4종")를 실제와 맞췄다. **E10-S02 의 수용 기준을 `base_version` → `base_hash` 로** 고쳤다([4.4](api.md) §1.4g·§1.4i).
 > v0.8 변경(2026-08-22): 배포 산출물 위치 개정([4.2](codebase.md) v0.8 · REQ-CB-015) 반영 — E01-S01 스토리의 트리 서술을 2구역(코드 `codebase/` · 배포 `deploy/`)으로 갱신. 스토리 수·의존·수용 기준 불변.
 >
 > v0.7 변경(2026-08-22): 임베딩 제공자 추상화([4.2](codebase.md) §5.2a) 반영 — E06-S06을 3프로필 스모크로, E09-S11에 제공자 클라이언트·1024차원 검증 추가. 재검토에서 발견된 표기 결함 정정(E06 스파이크 4종 → 5종, W2 테이블 수 27 → 29).
@@ -155,7 +165,7 @@ Postgres + Drizzle. `packages/schema`가 테이블·zod·파생 타입의 단일
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
-| E02-S01 | drizzle 테이블 선언(**착수 당시 29종 → 현재 37종** — 2026-09-06 실측) — `organization`부터 `spec_baseline_item`까지, zod 스키마·파생 타입 공유 | [3.3 데이터 모델](../03-proposal/data-model.md) §1.3 · [4.3 데이터베이스 스키마](database.md) §2 | WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL data-model.md의 29개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다 | E01-S01 · E06-S03 |
+| E02-S01 | drizzle 테이블 선언(**착수 당시 29종 → 현재 37종** — 2026-09-06 실측) — `organization`부터 `spec_baseline_item`까지, zod 스키마·파생 타입 공유 | [3.3 데이터 모델](../03-proposal/data-model.md) §1.3 · [4.3 데이터베이스 스키마](database.md) §2 | WHEN drizzle-kit이 DDL을 생성하면, THE SYSTEM SHALL [data-model.md](../03-proposal/data-model.md)의 29개 테이블·컬럼명과 1:1 일치하는 스키마를 산출한다 | E01-S01 · E06-S03 |
 | E02-S02 | 초기 스냅샷 마이그레이션 + 왕복 멱등 — compose는 기동 시, k8s는 Job으로 적용 | [4.3 데이터베이스 스키마](database.md) §1·§5 | WHEN 같은 마이그레이션을 2회 연속 실행하면, THE SYSTEM SHALL 두 번째 실행을 스키마 변경 0으로 종료한다 | E02-S01 |
 | E02-S03 | 이벤트 방송 규약 — Valkey pub/sub 채널 `nerv_events`, 페이로드 JSON(event id·type·project_id), EventService 커밋 후 발행 | [4.3 데이터베이스 스키마](database.md) §3 · [3.2 시스템 아키텍처](../03-proposal/architecture.md) §1(D-10) | WHEN `event` 테이블에 행이 삽입되고 트랜잭션이 커밋되면, THE SYSTEM SHALL Valkey `nerv_events` 채널로 event id·type·project_id를 PUBLISH한다(롤백 시 발행 없음) | E02-S01 |
 | E02-S04 | 개발 시드 한 벌 — 프로젝트 clemvion, `SPC-CWC-007`·`REQ-CWC-031`, CLV-T-0CFQC2(하나/mac-07)·CLV-T-1KTDCK(도현/mac-02)·CLV-T-TRA25N(유나/linux-ci-01/codex), 세션 S-b7e9 | [4.3 데이터베이스 스키마](database.md) §4 | WHEN 시드 스크립트를 실행하면, THE SYSTEM SHALL 예시 데이터 한 벌을 멱등하게 적재한다(재실행 시 신규 레코드 0) | E02-S02 |
@@ -289,7 +299,7 @@ Claude Code 배포 평면. 스킬 6종(`/nerv:review` 포함 — 2026-08-23 배�
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
 | E12-S01 | 스킬 4종 SKILL.md — `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question`(임포터 스킬은 E12-S05). bootstrap→claim→하트비트 60초→질문 에스컬레이션 프로토콜과 스펙 본문 비신뢰 규약 포함, A3 도구는 allowed-tools 제외 | [4.6 플러그인과 온보딩](plugin.md) §2 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.2 | WHEN 신규 세션이 문서 없이 스킬 안내만으로 진행하면, THE SYSTEM SHALL `nerv_bootstrap`→`nerv_task_next`→`nerv_task_claim` 첫 클레임까지 도달시킨다 | E10-S02 |
-| E12-S02 | hooks.json + ingest 엔드포인트 — 훅(SessionStart/PostToolUse/Stop/SessionEnd) 수신. **기본 변형은 `type:"command"` 다**(2026-09-03 결정 · 4.6 §3.1 — `type:"http"` 는 별도 파일 `hooks.http.json` 이다), 세션 등록·activity 적재 자동화 | [4.6 플러그인과 온보딩](plugin.md) §3 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3 · [3.7 로드맵](../03-proposal/roadmap.md) §3.3 | WHEN 훅 이벤트가 도착하면, THE SYSTEM SHALL 세션 등록·activity 적재에 반영하고 미인증 이벤트를 거부한다 | E05-S01 |
+| E12-S02 | hooks.json + ingest 엔드포인트 — 훅(SessionStart/PostToolUse/Stop/SessionEnd) 수신. **기본 변형은 `type:"command"` 다**(2026-09-03 결정 · [4.6](plugin.md) §3.1 — `type:"http"` 는 별도 파일 `hooks.http.json` 이다), 세션 등록·activity 적재 자동화 | [4.6 플러그인과 온보딩](plugin.md) §3 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3 · [3.7 로드맵](../03-proposal/roadmap.md) §3.3 | WHEN 훅 이벤트가 도착하면, THE SYSTEM SHALL 세션 등록·activity 적재에 반영하고 미인증 이벤트를 거부한다 | E05-S01 |
 | E12-S03 | statusline + 마켓플레이스 배포 — 관리형 settings 강제 활성화. **`.mcp.json` 은 패키지에 담지 않는다**(2026-09-04 REQ-PLG-001 개정 — 그 파일은 쓰는 쪽 저장소가 갖는 템플릿이다) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.4~3.5 · [3.7 로드맵](../03-proposal/roadmap.md) §3.4(1-10) | WHEN 관리형 settings로 플러그인이 배포되면, THE SYSTEM SHALL 파일럿 참여 호스트의 활성화 여부를 서버에서 확인 가능하게 한다(목표 100%) | E12-S01 · E12-S02 |
 | E12-S04 | 사람 온보딩 절차 — PAT 발급(S8)→플러그인 설치→`nerv_bootstrap` 확인, 단계별 명령 문서화 | [4.6 플러그인과 온보딩](plugin.md) §4 | WHEN 신규 참여자가 온보딩 절차를 따르면, THE SYSTEM SHALL 단계별 명령만으로 첫 `nerv_bootstrap` 성공까지 도달시킨다 | E08-S08 · E12-S03 |
 | E12-S05 | **`/nerv:import` 스킬** — **2026-09-06 걷어냄**([4.6](plugin.md) §2.5): 만들었고 배포했으나 플러그인이 배달하지 않는 CLI 를 부르는 스킬이라 설치한 쪽에서 쓸 수 없었다. 스토리는 `done` 으로 둔다(만든 것은 사실이고, 걷은 것은 그 뒤의 범위 결정이다). 원래 내용: — 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → `--apply` → 멱등 재실행 검증. MCP 도구가 아니라 로컬 CLI를 실행한다(도구 카탈로그 불변 — MCP 도구가 아니다) | [4.6 플러그인과 온보딩](plugin.md) §2.5 · [4.7 스펙 임포터](importer.md) §3.6 | WHEN 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 `--apply`를 실행한다(REQ-IMP-017) | E07-S05 · E12-S01 |
@@ -457,3 +467,4 @@ W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 37종(도메인 33 + 인프라 4) 필드 의미의 정본(E02의 대상).
 - [3.6 화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md) — E08 화면 스토리의 그림 정본.
 - [4.1 MVP 범위와 스택 확정](scope.md) · [4.2 코드베이스와 배포](codebase.md) · [4.3 데이터베이스 스키마](database.md) · [4.4 API 명세](api.md) · [4.5 화면 명세](screens.md) · [4.6 플러그인과 온보딩](plugin.md) · [4.7 스펙 임포터](importer.md) — 4부 형제 문서. 각 스토리의 구현 명세 정본.
+

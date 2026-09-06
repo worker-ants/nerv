@@ -1,3 +1,26 @@
+---
+references:
+  - 01-problem/clemvion-analysis.md
+  - 01-problem/pain-points.md
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/architecture.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/database.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - README.md
+---
 # 데이터 모델
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **37개 엔티티**(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.

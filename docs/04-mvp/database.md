@@ -2,10 +2,22 @@
 id: SPC-MVP-DATABASE
 status: approved
 updated: 2026-09-06
+references:
+  - 03-proposal/data-model.md
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - glossary.md
+  - README.md
+  - ../README.md
+  - ../AGENTS.md
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 33종** — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 33 + 인프라 4(`auth_session`·`auth_account`·`auth_verification`·`spec_chunk_embedding`, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 33종** — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 33 + 인프라 4(`auth_session`·`auth_account`·`auth_verification`·`spec_chunk_embedding`, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
 > 문서 버전 v0.35 · 2026-09-06 · HTML 파생본: [database.html](../html/database.html)
 >
@@ -65,7 +77,7 @@ updated: 2026-09-06
 | 테이블·컬럼·타입·제약의 **DDL 표현** | **이 문서** | §2 전문. 컬럼명은 data-model 필드 표와 1:1 — 예: `review_session`은 `head_sha`/`base_sha`, `spec_version`은 `edit_lease_user_id`/`edit_lease_session_id`/`edit_lease_expires_at` 3필드와 `author_session_id` |
 | 이벤트 이름(`<리소스>.<동사>`) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6 | `event.type` 값으로 인용만 한다(`spec.approved` · `task.claimed` · `session.stale` …) |
 | `nerv_*` 도구가 읽고 쓰는 계약 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2 | DDL 주석에서 도구 이름을 인용만 한다 |
-| REST·WS가 반환하는 필드 | [4.4 API 명세](api.md) | api.md가 이 문서의 컬럼명을 그대로 쓴다(교차 정합 규칙) |
+| REST·WS가 반환하는 필드 | [4.4 API 명세](api.md) | [api.md](api.md)가 이 문서의 컬럼명을 그대로 쓴다(교차 정합 규칙) |
 
 두 가지 예외만 이 문서가 추가한다. 어느 쪽도 data-model 필드의 이름·의미를 바꾸지 않는다.
 
@@ -373,7 +385,7 @@ CREATE TABLE spec_baseline_item (            -- junction — project_id 생략 �
 
 ### 2.3a 첨부 — attachment (2026-09-01 신설)
 
-근거: api.md §2.10. **파일은 오브젝트 스토리지에, 메타는 여기.** 첨부는 버전이 아니라 **문서에** 매단다 — 초안이 덮어써지는 동안에도 시안은 남아야 하고, 문서를 보관하면 함께 따라가야 한다.
+근거: [api.md](api.md) §2.10. **파일은 오브젝트 스토리지에, 메타는 여기.** 첨부는 버전이 아니라 **문서에** 매단다 — 초안이 덮어써지는 동안에도 시안은 남아야 하고, 문서를 보관하면 함께 따라가야 한다.
 
 ```sql
 CREATE TABLE attachment (
@@ -1555,3 +1567,4 @@ data-model §5.5의 9규칙이 어디서 강제되는지의 최종 답이다. "�
 - [Herding elephants: sharding Postgres at Notion — Notion](https://www.notion.com/blog/sharding-postgres-at-notion) — (2021-10-06) workspace ID 파티션 키. `(project_id, …)` 인덱스 규칙과 파티션 전략의 근거(data-model §5.3 재인용)
 - [Confluence Cloud REST API — Content versions](https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content-versions/) — (2026-08-13 확인) 정수 버전·복원은 새 버전·이력 불변. `spec_version_freeze` 트리거가 강제하는 인터페이스(data-model §2.2 재인용)
 - [Event Sourcing Pattern — Microsoft Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing) — (2026-03-27 갱신) 이벤트 로그와 개인정보의 충돌 경고 — `event.payload`에 ID 참조만 두는 근거(data-model §5.4 재인용)
+

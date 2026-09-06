@@ -2,6 +2,20 @@
 id: SPC-MVP-PLUGIN
 status: approved
 updated: 2026-09-06
+references:
+  - 02-research/integration-tech.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - glossary.md
+  - README.md
+  - ../README.md
+  - ../AGENTS.md
 ---
 # 플러그인과 온보딩
 
@@ -21,7 +35,7 @@ updated: 2026-09-06
 >
 > v0.54 변경(2026-09-06 — 패키지 문서가 기본 훅을 반대로 말했다, 정합성 대조 → 사람 지시): **`plugin/README.md` 셋 · 수용 기준 셋.** ① README 가 훅을 `type:"http"` 라 적고 있었다 — 기본 변형은 2026-09-03 부터 `command` 다. 그 절은 **재동기화 절차**라 틀린 대로 따라 하면 사본 저장소의 훅이 반대로 깔린다. ② 설치 절차가 `.mcp.json` 단계 없이 `/mcp connected` 확인으로 넘어갔다 — 플러그인은 그 파일을 담지 않으므로(REQ-PLG-001 개정) 그 순서로는 4단계가 성립하지 않는다. 단계를 넣고 GitHub 경로도 함께 적었다. ③ `package.json` 의 `description` 이 "스킬 5종·**MCP 설정**" 이었다(v2.26 이 플러그인 `description` 에서 고친 것과 같은 거짓이 여기 남아 있었다). ④ 수용 기준 REQ-PLG-001·003·006 이 "skills 5종"·"4개 SKILL.md" 로 세고 있었다 — 문자 그대로 수행하면 **`review` 스킬이 A3 부재·비신뢰 문장 검사에서 빠진다**. 패키지 버전은 이 변경 묶음에서 이미 0.2.13 로 올렸다.
 >
-> v0.53 변경(2026-09-06 — 편집 경로의 첫 호출이 매번 거절됐다, 정합성 대조 → 사람 지시): **패키지 0.2.10 → 0.2.13.** `skills/spec` 의 `edit` 절차 1단계가 `nerv_spec_get`(`include=["comments","requirements"]`) 였는데 서버 어휘는 `tasks`·`comments`·`attachments` 셋뿐이라 `assertVocab` 이 **400** 을 낸다 — 즉 **스펙 편집 경로의 첫 호출이 통째로 거절돼 왔다.** `tool-input.ts` 는 배열 안쪽 값을 보지 않아 표면에서 걸리지 않고 서비스에서 터지므로 `ignored_args` 로도 드러나지 않았다. 어휘를 `["comments"]` 로 고치고, **어휘가 셋뿐이며 요구사항은 늘 실려 온다는 것**을 같은 줄에 적는다 — 3.4 §2.3 이 이미 그렇게 적고 있었고 스킬만 몰랐다. §2.2 전문과 `SKILL.md` 는 바이트 대조 대상이라 같이 고쳤다. 곁들여 **§4 온보딩 표의 버전 표기가 `v0.2.5` 에 멈춰 있던 것**을 함께 맞춘다 — §3.6 이 "맞출 자리 여섯"을 적어 두었는데 버전 게이트는 `plugin.json` 이 올랐는지만 보고 패키지 테스트는 카탈로그 둘만 대조해 **문서 자신은 아무도 보지 않는 자리**였다.
+> v0.53 변경(2026-09-06 — 편집 경로의 첫 호출이 매번 거절됐다, 정합성 대조 → 사람 지시): **패키지 0.2.10 → 0.2.13.** `skills/spec` 의 `edit` 절차 1단계가 `nerv_spec_get`(`include=["comments","requirements"]`) 였는데 서버 어휘는 `tasks`·`comments`·`attachments` 셋뿐이라 `assertVocab` 이 **400** 을 낸다 — 즉 **스펙 편집 경로의 첫 호출이 통째로 거절돼 왔다.** `tool-input.ts` 는 배열 안쪽 값을 보지 않아 표면에서 걸리지 않고 서비스에서 터지므로 `ignored_args` 로도 드러나지 않았다. 어휘를 `["comments"]` 로 고치고, **어휘가 셋뿐이며 요구사항은 늘 실려 온다는 것**을 같은 줄에 적는다 — [3.4](../03-proposal/agent-integration.md) §2.3 이 이미 그렇게 적고 있었고 스킬만 몰랐다. §2.2 전문과 `SKILL.md` 는 바이트 대조 대상이라 같이 고쳤다. 곁들여 **§4 온보딩 표의 버전 표기가 `v0.2.5` 에 멈춰 있던 것**을 함께 맞춘다 — §3.6 이 "맞출 자리 여섯"을 적어 두었는데 버전 게이트는 `plugin.json` 이 올랐는지만 보고 패키지 테스트는 카탈로그 둘만 대조해 **문서 자신은 아무도 보지 않는 자리**였다.
 >
 > v0.52 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -44,24 +58,24 @@ updated: 2026-09-06
 > v0.35 변경(2026-09-04 — GitHub 경로를 연다, 사람 결정): 저장소 루트에 `.claude-plugin/marketplace.json` 을 두어 `/plugin marketplace add worker-ants/nerv` 로 설치된다. **서버도 인증서도 필요 없는 가장 싼 경로**다 — 웹 서빙(§3.5)은 https·비-루프백·신뢰된 CA 셋을 다 요구하는데(2026-09-04 실측: `NODE_EXTRA_CA_CERTS` 까지 있어야 설치된다) GitHub 은 그중 아무것도 요구하지 않는다. 루트에 두는 이유는 Claude Code 가 카탈로그를 **저장소 루트에서만** 찾기 때문이다: git URL 의 `#` 는 경로가 아니라 브랜치 ref 라 `#codebase/plugin` 은 `Remote branch not found` 로 끝난다(실측). 카탈로그 셋의 이름·`source` 대응표와 REQ-CB-015 정합 근거를 §3.5 에 적었다.
 > v0.34 변경(2026-09-04 — 첨부 절차가 실사용에서 막혔다): 실사용 세션이 1단계에서 `NERV_UNAVAILABLE`(`kind:'internal'`)을 받고 멈췄다. 원인은 서버의 스토리지 설정 누락인데 **에러가 그것을 말하지 않아** 에이전트가 일시 장애로 읽었다 — 스킬의 대응표가 그 코드를 outbox 큐잉으로 적고 있어 영원히 재시도하는 모양이었다. `/nerv:spec` 대응표에 **`storage_unconfigured` 면 큐잉하지 않는다**를 못 박고, 받는 형식을 아홉으로 적었다(그림 다섯 · 문서 셋 · 묶음 하나). 그림이 아닌 첨부는 본문에 이미지가 아니라 **링크**로 넣는다. 곁들여 `nerv_spec_attach` 의 **도구 설명 자체가 두 단계를 말하게** 했다 — 스킬 없이 도구만 보고 부르는 에이전트가 파일을 실을 자리를 찾다 헤맸다(4.4 v0.67).
 > v0.33 변경(2026-09-04 — 프롬프트가 서버를 따라오지 못한 자리 넷): 스킬은 **모델이 읽는 규약**이라 서버가 앞서가면 그 차이가 그대로 행동의 결함이 된다. ① `/nerv:next` 3번이 후보에 기준선이 실린다고 적고 6번은 **그것으로 무엇을 하라는 말이 없었다** — 주변 문서를 `baseline` 으로 읽는 지시를 넣었다(4.4 REQ-API-087). ② 4번의 "브랜치·워크트리는 `nerv_bootstrap` 이 등록한다" 를 **훅이 git 에게 직접 묻는다**로 고쳤다(REQ-API-084) — 예전 문장은 모델이 자기가 실어야 하는 값으로 읽게 했고, 실사용 세션 34개가 전부 NULL 이던 이유가 그것이다. ③ `handoff_note` 를 읽으라는 말이 없었다 — **다음 사람에게 가라고 만든 값**인데(REQ-API-081) 아무도 읽지 않으면 앞사람이 해 본 것을 되풀이한다. ④ `ignored_args`(REQ-API-080)를 `/nerv:next`·`/nerv:impl` 에 적었다: 호출은 성공했는데 인자가 버려진 상태를 조용히 넘기지 않게 한다.
-> v0.32 변경(2026-09-04 — 플랫폼이 자기 플러그인을 서빙한다, 사람 결정): **§3.5 신설.** 서버가 `GET /plugin/marketplace.json` 으로 카탈로그를, `GET /plugin/<이름>-<버전>.zip` 으로 아카이브를 준다(4.4 §2.11 · REQ-API-086). 카탈로그의 주소는 그 서버의 `NERV_PUBLIC_URL` 이라 **받는 쪽이 고칠 것이 없다** — v0.29 가 기록한 포크의 원인이 사라진다. git 경로(`.claude-plugin/marketplace.json`)는 폐쇄망 폴백으로 그대로 남는다. 설치 경로가 셋이 되어 §4 온보딩 3단계에 표를 둔다.
+> v0.32 변경(2026-09-04 — 플랫폼이 자기 플러그인을 서빙한다, 사람 결정): **§3.5 신설.** 서버가 `GET /plugin/marketplace.json` 으로 카탈로그를, `GET /plugin/<이름>-<버전>.zip` 으로 아카이브를 준다([4.4](api.md) §2.11 · REQ-API-086). 카탈로그의 주소는 그 서버의 `NERV_PUBLIC_URL` 이라 **받는 쪽이 고칠 것이 없다** — v0.29 가 기록한 포크의 원인이 사라진다. git 경로(`.claude-plugin/marketplace.json`)는 폐쇄망 폴백으로 그대로 남는다. 설치 경로가 셋이 되어 §4 온보딩 3단계에 표를 둔다.
 > v0.31 변경(2026-09-03 — 브랜치는 git 이 말한다, 사람 결정): `bin/nerv-hook-forward` 가 `session`·`tool` 엔드포인트에 `X-NERV-Branch`·`X-NERV-Worktree` 를 붙인다(§3.3). 세션의 그 두 값은 `nerv_bootstrap` 인자로만 올 수 있었고 모델이 실어 준 적이 없어 **실사용 세션 34개 전부 NULL** 이었다 — 훅은 작업 디렉터리에서 도니까 `git rev-parse` 로 직접 읽는다. detached HEAD·비-git 디렉터리면 보내지 않는다. http 변형에는 이 경로가 없다(헤더가 상수라 git 을 부를 자리가 없다).
 > v0.30 변경(2026-09-03 — 기본 변형을 command 로, 사람 결정): `hooks/hooks.json` 이 이제 `bin/nerv-hook-forward` 를 거치는 command 변형이고 http 변형은 `hooks/hooks.http.json` 으로 남는다. 이유 셋: 훅 `url` 은 `${VAR}` 확장을 안 받아 http 는 주소가 박히고, `async` 가 command 전용이라 http 는 `PostToolUse` 가 매 도구 호출마다 동기로 기다리며, hostname 폴백이 포워더에만 있다. 대가는 `allowedHttpHookUrls` 가 기본 훅을 덮지 않는 것이고, 그 성질이 필요하면 http 변형을 쓰거나 관리형 settings 로 훅을 내린다.
 > v0.29 변경(2026-09-03 — 포크 없이 배포되게, 사람 결정 대기): 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다(실측). 셋을 고친다. ① `.mcp.json` 의 `url` 이 `${NERV_SERVER:-…}` 를 읽는다 — 기본값은 그대로다. ② **`hooks/hooks.command.json` 을 파일로 넣는다** — 주의 문단이 말만 하던 변형이다(훅 `url` 은 `${VAR}` 확장을 받지 않는다). ③ http 변형에서 `async` 를 걷고(command 전용 필드라 조용히 무시됐다) 상한 없던 훅에 `timeout` 을 준다 — 기본값 10분은 텔레메트리 평면의 상한이 아니다. **어느 변형을 기본으로 삼을지는 사람 결정으로 남긴다** — command 로 통일하면 `allowedHttpHookUrls`(§6.4)가 NERV 훅을 덮지 않는다.
 > v0.28 변경(2026-09-03 — 스킬이 없는 인자를 부르고 있었다): 스킬 문장을 도구 실물에 맞췄다. `repo{}` → 평면 `branch`·`worktree_path`, `nerv_task_next` 의 `role`·`capabilities` 삭제, 클레임의 `branch`·`worktree` 삭제(세션이 등록한다), `nerv_spec_submit_review` 의 `note`·`reviewer_hint` 삭제, 기준 문서 열기를 후보 응답의 `spec_key`·`version_no` 로 고쳤다. 정본은 [3.4](../03-proposal/agent-integration.md) §2.3.
 > v0.27 변경(2026-09-03 — 포워더가 응답을 버리고 있었다): `bin/nerv-hook-forward` 가 서버 응답을 `/dev/null` 로 보내고 있어 `command` 폴백 설치에서는 `SessionStart` 주입도 `Stop` 의 종료 차단도 모델에 닿지 않았다 — 실측한 유일한 실사용 설치가 그 경로였다. 이제 JSON 응답을 stdout 으로 흘린다(§3.1).
 > v0.26 변경(2026-09-02 — 라이선스): 플러그인 매니페스트에 `"license": "Apache-2.0"` 을 더했다(§1.1). 플러그인은 저장소 밖으로 따로 배포되므로 매니페스트가 자기 배포 조건을 말해야 한다. (이 줄에 매니페스트 파일명을 그대로 쓰지 않는 이유가 있다 — `plugin-package.spec.ts` 는 문서에서 **그 이름 다음에 오는 첫 코드 펜스**를 전문으로 읽는다. 머리말이 같은 문자열을 먼저 쓰면 검사가 엉뚱한 펜스를 본다.)
-> v0.25 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
+> v0.25 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · [3.5](../03-proposal/spec-workflow.md) §1.2 · [4.4](api.md) §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.24 변경(2026-09-01 — 사람 보고의 곁가지): `SessionStart` 훅이 **outbox 를 먼저 비운다**(§3.4 · REQ-PLG-016). flush 주체가 "다음 스킬 턴" 뿐이라, 서버가 죽은 동안 큐잉하고 세션을 끝내면 그 쓰기가 언제 갈지 아무도 몰랐다.
 >
 > v0.23 변경(2026-09-01 — 도구 1종 신설 반영): `skills/spec` 에 **"시안·문서는 첨부한다"** 절(§2.2) — `nerv_spec_attach` 의 2단계 절차와, 확정 뒤 **본문에 이미지로 넣으라는** 지시다. 매달기만 하고 본문에 안 넣으면 문서를 읽는 사람은 그 그림을 못 본다.
 > v0.22 변경(2026-08-30 — 처분에 정직한 길을 준다): `skills/review` 의 처분 절차를 **코드/스펙 두 갈래**로 가른다(§2.6). 스펙을 고쳐 해결했으면 `spec_change` + `spec_version_id` 이고, 커밋이 없다고 `dismissed`·`wont_fix` 로 닫지 않는다 — 둘 다 거짓이 된다(4.4 REQ-API-060).
-> v0.21 변경(2026-08-30 — 도구 1종 추가 반영): `skills/impl`·`skills/next` 의 allowed-tools 에 **`nerv_task_list`** 와 그 쓰임(상태·담당·스펙 필터, 보관은 기본으로 빠진다)을 적는다(4.1 §4.2).
+> v0.21 변경(2026-08-30 — 도구 1종 추가 반영): `skills/impl`·`skills/next` 의 allowed-tools 에 **`nerv_task_list`** 와 그 쓰임(상태·담당·스펙 필터, 보관은 기본으로 빠진다)을 적는다([4.1](scope.md) §4.2).
 > v0.20 변경(2026-08-30 — 피드백 흐름 반영): `skills/impl` 의 하트비트 `pending` 처리에 **`finding_commented`** 를 더하고(§2.3), `skills/review` 에 그 말에 **처분으로 답한다**는 절차와 **`body`·`suggestion` 을 채운다**는 지시를 넣는다(§2.6). 읽고 아무것도 하지 않는 것이 가장 나쁘다 — 사람은 답을 기다린다.
-> v0.19 변경(2026-08-30 — 도구 2종 신설 반영): `skills/impl` 의 allowed-tools 에 **`nerv_task_get`·`nerv_task_create`**, `skills/next` 에 `nerv_task_get` 을 더한다(4.1 §4.2). 이번 작업 밖의 별도 건을 **Task 로 남기는 절차**를 적었다 — 4요소를 못 채우면 `backlog` 에 남고 사람이 마저 채운다. 잊는 것보다 낫다.
-> v0.18 변경(2026-08-30 — 아무도 다른 길을 말해 주지 않았다): `skills/spec` 과 `nerv-spec-writer` 에 **"다이어그램은 mermaid 로"** 절을 넣는다(§2.2). 에이전트가 스펙에 아스키 아트를 그리고 있었다 — 시킨 대로 한 결과다. 저장 쪽은 이미 무손실이었고(왕복 실측) 빠져 있던 것은 그리는 쪽과 **말해 주는 쪽**이다(4.5 §3.1b · REQ-WEB-113).
+> v0.19 변경(2026-08-30 — 도구 2종 신설 반영): `skills/impl` 의 allowed-tools 에 **`nerv_task_get`·`nerv_task_create`**, `skills/next` 에 `nerv_task_get` 을 더한다([4.1](scope.md) §4.2). 이번 작업 밖의 별도 건을 **Task 로 남기는 절차**를 적었다 — 4요소를 못 채우면 `backlog` 에 남고 사람이 마저 채운다. 잊는 것보다 낫다.
+> v0.18 변경(2026-08-30 — 아무도 다른 길을 말해 주지 않았다): `skills/spec` 과 `nerv-spec-writer` 에 **"다이어그램은 mermaid 로"** 절을 넣는다(§2.2). 에이전트가 스펙에 아스키 아트를 그리고 있었다 — 시킨 대로 한 결과다. 저장 쪽은 이미 무손실이었고(왕복 실측) 빠져 있던 것은 그리는 쪽과 **말해 주는 쪽**이다([4.5](screens.md) §3.1b · REQ-WEB-113).
 > v0.17 변경(2026-08-30 — 스킬이 틀린 모양을 가르치고 있었다): `skills/impl` 의 `evidence` 예시가 `commit_sha·pr_url·test_ids` 였는데 **서버 계약은 `[{kind, locator}]` 배열**이다 — 그 모양으로 보낸 증적은 한 건도 저장되지 않고 done 게이트가 "증적 없음" 으로 막는다. 모양·`kind` 여섯 값·`spec_impact` 선언·`status` 일곱 값을 적었다. 서버에 없는 `note` 인자도 걷었다(§2.3).
-> v0.16 변경(2026-08-30 — 결함 정정 후속): `skills/spec` 과 `nerv-spec-writer` 가 **`content_hash` 가 null 인 문서**(본문이 아직 없는 묶음 노드)를 말한다 — 그때는 `base_hash` 를 싣지 않는다(4.4 §1.4i · REQ-API-054). 서버는 고쳤는데 스킬이 그 경우를 몰라 에이전트가 "지문이 없다"에서 멈출 수 있었다.
+> v0.16 변경(2026-08-30 — 결함 정정 후속): `skills/spec` 과 `nerv-spec-writer` 가 **`content_hash` 가 null 인 문서**(본문이 아직 없는 묶음 노드)를 말한다 — 그때는 `base_hash` 를 싣지 않는다([4.4](api.md) §1.4i · REQ-API-054). 서버는 고쳤는데 스킬이 그 경우를 몰라 에이전트가 "지문이 없다"에서 멈출 수 있었다.
 > v0.15 변경(2026-08-30 — 사람 결정 후속): `skills/spec` 과 `nerv-spec-writer` 에서 **`base_version` 을 걷고**(전제조건은 `base_hash` 하나다), **`key_taken`** 을 에러 표에 더한다 — 그 답은 키를 바꾸는 것이 아니라 **그 문서를 읽고 이어 쓰는 것**이다(§2.2).
 > v0.14 변경(2026-08-30 — 리스는 신호이고 지문이 자물쇠다): `skills/spec` 과 `nerv-spec-writer` 에 **세션 리스와 `takeover`**, **선언 관계의 상대 `base_hash`** 를 적는다(§2.2). `NERV_DRAFT_LEASED` 는 이제 **같은 사람이어도** 온다 — 보유자가 세션이기 때문이다. 에러 표에 `relation_base_hash_required`·`stale_relation_target` 을 더했다.
 > v0.13 변경(2026-08-30 — 내가 보고 쓴 것을 밝힌다): `skills/spec` 에 **`base_hash` 절**을 넣는다(§2.2). 기존 문서를 고칠 때는 필수이고, `stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다** — 그건 남의 글을 덮어쓰는 것이라 다시 읽고 그 위에 다시 얹는다. 에러 표에 `stale_body`·`base_hash_required` 를 더했다.
@@ -866,7 +880,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 근거 셋. ① 훅 `url` 은 `${VAR}` 확장을 받지 않으므로(headers 만 받는다) http 변형은 서버 주소가 파일에 박힌다 — 포워더는 `NERV_SERVER` 와 `.nerv/env` 를 읽으므로 어느 주소든 무설정으로 간다. ② **`async` 는 command 전용 필드다**(공식 문서 확인). http 훅은 전부 동기라 `PostToolUse` 가 `Write|Edit|MultiEdit|Bash` **매 호출마다** 최대 `timeout` 만큼 기다린다 — 서버가 느려지는 순간 훅이 "텔레메트리 평면" 이기를 그만둔다(정본 §3.3 이 선언한 성질이다). ③ 포워더에는 `hostname -s` 폴백이 있다(http 훅에는 없어 `NERV_HOSTNAME` 미설정 시 빈 hostname 으로 세션이 만들어졌다).
 
-**대가는 하나다.** `allowedHttpHookUrls`(3.4 §6.4)는 http 훅에만 걸리므로 기본 변형의 훅을 덮지 않는다 — command 훅에 대한 동등한 통제는 공식 문서에 없다. 그 성질이 필요한 조직은 둘 중 하나를 쓴다: **①** `hooks/hooks.http.json` 을 `hooks/hooks.json` 자리에 두거나, **②** 관리형 settings 로 훅 정의 자체를 내린다(`hooks` 키는 관리형 파일에서도 유효하다 — 관리형 > 프로젝트 > 유저). ②가 더 강하다: 조직의 URL 과 allowlist 를 함께 못 박고 플러그인 기본값을 이긴다.
+**대가는 하나다.** `allowedHttpHookUrls`([3.4](../03-proposal/agent-integration.md) §6.4)는 http 훅에만 걸리므로 기본 변형의 훅을 덮지 않는다 — command 훅에 대한 동등한 통제는 공식 문서에 없다. 그 성질이 필요한 조직은 둘 중 하나를 쓴다: **①** `hooks/hooks.http.json` 을 `hooks/hooks.json` 자리에 두거나, **②** 관리형 settings 로 훅 정의 자체를 내린다(`hooks` 키는 관리형 파일에서도 유효하다 — 관리형 > 프로젝트 > 유저). ②가 더 강하다: 조직의 URL 과 allowlist 를 함께 못 박고 플러그인 기본값을 이긴다.
 
 덧붙여 **"셸을 실행하지 않는다" 는 위안은 어느 변형에도 없었다** — http 변형의 SessionStart 에도 `bin/nerv-outbox flush` 가 command 훅으로 이미 들어 있다. 바뀐 것은 위험의 종류가 아니라 범위다.
 
@@ -1494,3 +1508,4 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 - `clemvion:.claude/docs/subagent-call-contract.md` — 리뷰어가 자기 리포트를 파일로 쓰지 못하게 하는 report-file 가드 → §2.3 "리뷰 산출물 커밋 금지" 규약의 출처
 - `clemvion:.claude/statusline.sh` — 가시성이 로컬 터미널 1줄에 갇힌 형태 → §3.2 "서버 사실의 로컬 투영" 재정의의 출처
 - ESCALATE 매트릭스(user-decision/spec/infra/e2e-fail-3x/sensitive-fix) → §2.4 트리거 목록으로 이식
+

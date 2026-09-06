@@ -1,3 +1,24 @@
+---
+references:
+  - 01-problem/pain-points.md
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/architecture.md
+  - 03-proposal/data-model.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/scope.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/plugin.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - README.md
+---
 # 화면 설계 (와이어프레임)
 
 > **요약** — NERV(가칭)의 웹 화면 8종(S1 홈 대시보드 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S6 리뷰 센터 · S7 받은 요청 · S8 설정·멤버)을 정보 구조·와이어프레임·상태 표현 규칙·인터랙션 규약 수준까지 확정한다. 설계의 축은 하나다 — **화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.** 세션 카드에는 업계 관례(상태·diff 통계·브랜치·activity feed·attach)에 더해 NERV의 차별 요소인 **hostname·에이전트 종류·하트비트·클레임한 Task·리스 잔여**를 필수로 표기해, clemvion에서 "다른 머신·세션이면 로컬에 안 보여" 사라졌던 정보를 화면 위로 끌어올린다. 기획자·디자이너가 터미널 없이 스펙을 쓰고 승인하며(P7), QA가 원시 diff 대신 정리된 finding을 보고 위험을 판단하며, 개발자가 죽은 세션을 사람 눈으로 감시하지 않는 것 — 이 세 가지가 화면이 증명해야 할 명제다. 이 문서의 HTML 파생본은 모든 화면을 실제 UI로 렌더링한 쇼케이스다.
@@ -8,7 +29,7 @@
 >
 > v0.3 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
-> v0.2 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
+> v0.2 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · [3.5](spec-workflow.md) §1.2 · [4.4](../04-mvp/api.md) §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 
 ---
 
@@ -689,3 +710,4 @@ S2 커버리지 게이지  ─클릭─▶  영역별 목록  ─클릭─▶  R
 - [3.4 에이전트 연동 설계](agent-integration.md) — 세션 카드의 값을 채우는 훅·MCP 도구 명세
 - [3.5 스펙 워크플로우와 거버넌스](spec-workflow.md) — S3·S7의 전이 조건과 알림 규칙
 - [3.7 로드맵](roadmap.md) — 화면별 구축 순서(Phase 0 세션 보드 읽기 전용 → Phase 1 S1~S5·S7 → Phase 2 S6)
+

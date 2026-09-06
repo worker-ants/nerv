@@ -1,3 +1,28 @@
+---
+references:
+  - 01-problem/clemvion-analysis.md
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/architecture.md
+  - 03-proposal/data-model.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/scope.md
+  - 04-mvp/database.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - glossary.md
+  - README.md
+  - ../README.md
+  - ../AGENTS.md
+---
 # 문제 정의와 요구사항
 
 > **요약** — 이 문서는 1인용 Claude Code 하네스 `clemvion`을 여러 세션·여러 사람으로 확장할 때 반복해서 무너지는 지점 여덟 가지(P1~P8)를 **증상 → 실측/사례 근거 → 근본 원인** 3단으로 정리한다. 근거는 추정이 아니라 실측이다: 리뷰 산출물 markdown 13,777개(131MB)가 git packed blob 바이트의 60%를 차지하고, 산문으로만 강제되던 리뷰 의무는 575개 세션 중 160건(28%)에서 이미 무너져 있었으며, 스펙 동시수정 자동 검출은 "다른 머신·세션이면 로컬에 보이지 않는다"는 이유로 저장소 스스로 제거했다. 여덟 문제는 증상이 다르지만 원인은 하나로 수렴한다 — **파일과 git을 협업 데이터베이스로 쓴 대가**이며, 7,600줄에 이르는 하네스 훅 코드가 그 청구서다. 문서 후반은 이 문제들을 해소하기 위한 기능 요구사항 FR-01~FR-17과 비기능 요구사항 NFR-01~NFR-05를 각각 한 줄 수용 기준과 함께 정의한다.

@@ -2,12 +2,24 @@
 id: SPC-MVP-CODEBASE
 status: approved
 updated: 2026-09-06
+references:
+  - 04-mvp/scope.md
+  - 04-mvp/database.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - README.md
+  - ../README.md
+  - ../AGENTS.md
 ---
 # 코드베이스와 배포
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.27 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.28 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.28 변경(2026-09-06 — 문서 간 참조를 검사가 본다, 사람 지시): **REQ-CB-030 신설 · 게이트 열 → 열하나.** ① **문서 간 참조 게이트**를 CI 와 `preflight` 에 더한다(`scripts/check-doc-links.mjs`) — 죽은 링크(md 링크 · html href·앵커) · frontmatter `references`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 "참조하는 문서" 줄 · 링크 없는 문서 인용("[4.4](api.md) §1.6") 넷을 센다. 사람 쪽 규율은 [docs/README](../README.md) 관리 규약과 `AGENTS.md` 문서 작업 규약 7 이 맡는다. 첫 실행(`--fix`)이 맨 참조 **md 281곳 · html 23곳**을 링크로 바꿨고 23편 전부에 역참조 목록이 생겼다. ② §1.1 트리·§4.5 CI 전문·§5.1 표가 **이미 도는 게이트 둘**(md ↔ html · `.env` 전표)을 빠뜨리고 "여덟 단계" 라 적고 있었다 — 열한 단계로 고친다. ③ 파생본 머리 넷(4.1·4.3·4.4·4.5)이 `status: draft` 라 적고 있었다 — 원본은 09-06 부터 `approved` 다.
 >
 > v1.27 변경(2026-09-06 — e2e 를 PR 레인에 넣는다, 사람 결정): §4.3·§4.5 — `e2e` 잡의 `if: github.event_name != 'pull_request'` 를 걷는다. **검사는 머지 전에 도는 것만 검사다.** 그 조건 때문에 L3 파손이 **머지된 뒤에야** 드러났다 — PR #1 은 `check`·`integration` 이 초록이고 로컬 `pnpm preflight` 도 초록이었는데 머지 커밋의 e2e 가 빨갰다(원인: `nerv import <kind>` 를 실재하게 하면서 시나리오 E 의 호출 세 곳을 같이 안 고쳤다). 규약 7 이 적은 "로컬 초록이 CI 초록이 아니다" 의 그 자리인데, 이번 원인은 속도가 아니라 **레인**이었다. 비용은 **5m31s** 다(2026-09-06 PR #5 실측 — 테스트 자체는 3분 남짓이고 나머지는 체크아웃·`pnpm install`·`pnpm build`·docker build·브라우저 설치다). 세 잡이 병렬이라 **PR 전체 대기 시간이 1m27s → 5m31s** 로 늘어난다. PR 은 `cancel-in-progress` 라 재푸시가 쌓이지는 않는다. **드래프트를 건너뛰지 않는 것도 의도다** — 건너뛰려면 `ready_for_review` 를 트리거에 더해야 하고, 잊으면 "ready 로 바꿨는데 한 번도 안 돈" 상태가 생긴다. 그 모양이 정확히 이번에 고치는 결함이다. `preflight` 는 여전히 L3 를 돌리지 않는다(compose 스택이 필요하다) — 그 사실과 로컬에서 보는 법을 §4.3 과 `AGENTS.md` 에 적었다.
 >
@@ -30,11 +42,11 @@ updated: 2026-09-06
 > v1.17 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 파생본의 CI 워크플로우 전문에서 **배포 산출물 정합 단계와 postgresql-client-17 설치·빌드 단계가 빠져 있었는데, 바로 아래 산문은 그 단계들을 설명하고 있었다** — 설명은 있고 실물은 없는 상태였다. 환경변수 전표의 `NERV_S3_REGION`·`NERV_EXPORT_DIR` 두 행도 없었다.
 > v1.16 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): ① `ReviewModule` 행의 `(P2)` 둘을 실물로 고친다 — 도구 2종·REST 7종이 있다. ② 플러그인 트리에서 `.mcp.json` 을 걷는다(4.6 v0.38 이 패키지에서 뺐고 이 트리만 남아 있었다). 훅은 두 변형, 스킬은 6종이다. ③ 아키텍처 그림의 도구 수를 21종으로.
 > v1.15 변경(2026-09-04 — 돌지 않던 검사, 사람 지시): **REQ-CB-028 신설.** CI 의 check 잡이 `pnpm lint`·`tsc -b` 만 부르고 **`pnpm format:check` 는 부르지 않았다** — 그 스크립트는 처음부터 있었는데, 그래서 7개 파일이 서식 실패인 채로 이틀을 지나며 그 사이의 커밋들을 받았다(2026-09-02 → 09-04). 아무도 몰라서가 아니라 **아무도 돌리지 않아서**다. 같은 뿌리의 앞선 사례가 이 문서에 이미 적혀 있다 — 게이트가 `pnpm test` 뒤에 있어 21회 연속 skipped 됐던 일. 검사는 **돌 때만** 검사다. 사람이 지키는 쪽은 `AGENTS.md` 구현 규약 7 이 맡는다.
-> v1.14 변경(2026-09-04 — 플러그인 아카이브가 빌드 산출물이 된다): `scripts/pack-plugin.mjs` 가 `plugin/` 을 `plugin-dist/<이름>-<버전>.zip` 으로 묶고(`pnpm pack:plugin`), 이미지 빌드가 같은 명령을 돌려 `/app/plugin-dist` 에 심는다(`NERV_PLUGIN_DIST`). 서버가 그것을 `GET /plugin/...` 로 서빙한다(4.4 §2.11 · 4.6 §3.5). 앞문 둘(nginx `location /plugin/` · Ingress `path: /plugin`)에 경로를 열었다 — 열지 않으면 마켓플레이스가 SPA 의 index.html 을 **200 인 채로** 받는다.
+> v1.14 변경(2026-09-04 — 플러그인 아카이브가 빌드 산출물이 된다): `scripts/pack-plugin.mjs` 가 `plugin/` 을 `plugin-dist/<이름>-<버전>.zip` 으로 묶고(`pnpm pack:plugin`), 이미지 빌드가 같은 명령을 돌려 `/app/plugin-dist` 에 심는다(`NERV_PLUGIN_DIST`). 서버가 그것을 `GET /plugin/...` 로 서빙한다([4.4](api.md) §2.11 · [4.6](plugin.md) §3.5). 앞문 둘(nginx `location /plugin/` · Ingress `path: /plugin`)에 경로를 열었다 — 열지 않으면 마켓플레이스가 SPA 의 index.html 을 **200 인 채로** 받는다.
 > v1.13 변경(2026-09-02 — 라이선스): 저장소를 **Apache License 2.0** 으로 공개한다. §1 트리에 루트의 `LICENSE`·`NOTICE` 를 넣었다 — `LICENSE` 는 원문 그대로 두고(부록의 자리표시자를 채우면 자동 판별기가 Apache-2.0 으로 읽지 못한다) 저작권 표기는 `NOTICE` 가 진다. 파일마다 라이선스 헤더는 붙이지 않는다(사람 결정).
 > v1.12 변경(2026-09-02 — 계약의 실물화): §3.2 상수 전표에 세 줄을 더한다(`IDEMPOTENCY_TTL_HOURS`·`MAX_PROJECT_ROOMS`·`MAX_SSE_PER_USER`). 룸 상한 `8` 은 웹의 `ws.ts` 와 API 의 `fanout.service.ts` 에 각각 박혀 있었고 SSE 상한이 세 번째 사본이 될 참이었다 — REQ-CB-006 이 금지하는 바로 그 모양이다.
 > v1.11 변경(2026-09-02 — CI 복구): §4.5 를 실물에 맞춘다. **게이트를 테스트 앞으로** 옮겼다 — CI 가 도입 이래 21회 연속 실패하는 동안 배포 산출물 정합·schema drift 는 매번 skipped 됐고, 그래서 REQ-CB-007·018·010 은 한 번도 실행된 적이 없었다. integration 에 pg17 클라이언트, e2e 에 `pnpm build`, `concurrency` 는 PR 에서만 취소.
-> v1.10 변경(2026-09-02 — 정합 점검): §2.2 잡 목록에 **`partition.job.ts`** 를 더한다 — 4.3 §2.14 가 워커 잡으로 약속한 월 파티션 선생성이고, 없는 동안 서버는 마이그레이션 두 달 뒤에 멈추는 상태였다(REQ-DB-021).
+> v1.10 변경(2026-09-02 — 정합 점검): §2.2 잡 목록에 **`partition.job.ts`** 를 더한다 — [4.3](database.md) §2.14 가 워커 잡으로 약속한 월 파티션 선생성이고, 없는 동안 서버는 마이그레이션 두 달 뒤에 멈추는 상태였다(REQ-DB-021).
 > v1.9 변경(2026-08-29 — 기동 로그의 대부분이 경고였다, 사람 보고): §4.3 에 라우트 생성 제외 규칙. 화면 테스트를 `src/routes/` 안에 두는 관례를 TanStack Router 플러그인이 "Route 를 export 하지 않는 라우트 파일"로 읽어 파일마다 12줄씩 경고했다(실측 7개 파일 84줄). `routeFileIgnorePattern` 으로 제외한다 — `routeTree.gen.ts` 는 바이트 단위로 동일하다.
 >
 > v1.8 변경(2026-08-28 — 임베딩 주기를 일감이 정한다, 사람 결정): §5.2b 에 적응형 주기(REQ-CB-027) + `.env` 전표 2키(`NERV_EMBED_EVERY_MS`·`NERV_WORKER_TICK_MS`). 한 버전 상한(20초)을 두자 이번엔 **고정 5분 주기**가 병목이 됐다 — 가동률 6.7% 라 140편을 채우는 데 몇 시간이다. 그렇다고 1초 고정은 다 채운 뒤에도 초당 142 질의로 "바뀐 것 없음"만 확인한다. 그래서 **이 잡만 주기가 변한다**: 일했으면 1초, 아무것도 안 했거나 오류면 5분. 틱 해상도도 1초로 내렸다(락은 한 번 잡으면 계속 보유하므로 틱은 싸다).
@@ -96,9 +108,12 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
     .env.example                # §5.2 전표의 실물 — 값 없는 키 목록 + 주석
     tsconfig.json               # 솔루션 파일 — CI·preflight 의 `tsc -b` 진입점
     scripts/                    # 저장소 운영 스크립트 (§5.1 명령 표가 부른다)
-      preflight.mjs             #   CI check 잡 여덟 단계를 같은 순서로 (AGENTS.md 규약 7)
+      preflight.mjs             #   CI check 잡 열한 단계를 같은 순서로 (AGENTS.md 규약 7)
       check-plugin-version.mjs  #   배달되는 파일이 바뀌면 version 도 올랐는가 (REQ-PLG-017)
       check-backlog-status.mjs  #   4.8 §1.4 현황 표가 스토리와 맞는가 (REQ-CB-029)
+      check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1)
+      check-env-table.mjs       #   §5.2 전표와 코드가 읽는 변수가 맞는가
+      check-doc-links.mjs       #   문서 간 링크·역참조·맨 참조 (REQ-CB-030) — `--fix` 가 역참조를 다시 쓴다
       pack-plugin.mjs           #   플러그인 zip — 이미지 빌드가 /plugin-dist 에 심는다 (§6.1)
       dev.mjs · e2e-stack.mjs   #   개발 루프 · E2E 전용 스택(세션별 포트)
       install-hooks.mjs         #   pre-push 훅 설치 (옵트인 — 게이트가 아니다)
@@ -603,7 +618,7 @@ concurrency:                   # PR 만 취소한다 — main·야간이 서로�
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  check:                       # 매 PR — **여덟 단계**. `pnpm preflight` 가 이것을 같은 순서로 비춘다
+  check:                       # 매 PR — **열한 단계**. `pnpm preflight` 가 이것을 같은 순서로 비춘다
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -625,6 +640,12 @@ jobs:
           kubectl kustomize deploy/k8s/overlays/prod > /dev/null
       - name: 백로그 현황 정합   # 4.8 §1.4 의 표가 실제 스토리와 맞는가(REQ-CB-029)
         run: node scripts/check-backlog-status.mjs
+      - name: md ↔ html 정합     # 파일 짝 · 버전 · 절 번호 · 본문의 고정 ID(관리 규약 1)
+        run: node scripts/check-md-html.mjs
+      - name: .env 전표 정합     # 전표가 소비자를 적으면 계약이다 — 유령 설정을 잡는다(§5.2)
+        run: node scripts/check-env-table.mjs
+      - name: 문서 간 참조       # 죽은 링크 · frontmatter references · 파생본 머리 · 맨 참조(REQ-CB-030)
+        run: node scripts/check-doc-links.mjs
       - name: schema drift     # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제
         run: pnpm db:generate && git diff --exit-code -- packages/schema/drizzle
       - run: pnpm test         # md 왕복은 레인이 둘이다 — 머지 전 레인만 전수를 본다
@@ -736,7 +757,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `pnpm dev:api` | **API 만** — 빌드 감시 + api(:8080) |
 | `pnpm dev:web` | **웹 만** — Vite(:5173). API 는 프록시 건너편에 있으면 된다(컨테이너든 다른 터미널이든) |
 | `pnpm dev:worker` | **워커 만** — 빌드 감시 + 워커 |
-| **`pnpm preflight`** | **push 전에 이것 하나** — CI `check` 잡 여덟 단계를 같은 순서로. `--l2` 로 L2 까지(`.env` 를 스스로 읽는다), `--fast` 는 게이트 넷을 건너뛴다(push 전에는 쓰지 않는다) |
+| **`pnpm preflight`** | **push 전에 이것 하나** — CI `check` 잡 열한 단계를 같은 순서로. `--l2` 로 L2 까지(`.env` 를 스스로 읽는다), `--fast` 는 게이트 일곱을 건너뛴다(push 전에는 쓰지 않는다) |
 | `pnpm hooks:install` | 위를 pre-push 훅으로 (옵트인 · 해제 `-u`). **훅은 게이트가 아니다** — `--no-verify` 로 우회된다 |
 | `pnpm build` | 전 워크스페이스 일괄 + **`pnpm pack:plugin`**(플러그인 zip — 이미지가 `/plugin-dist` 에 심는다) |
 | `pnpm test` / `pnpm lint` / `pnpm typecheck` | L1 전량 / eslint / `tsc -b`(솔루션 파일) |
@@ -773,14 +794,14 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `POSTGRES_PORT` | | `5432` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 DB 접근 |
 | `DATABASE_URL` | dev 루프 시 | `postgres://nerv:<pw>@localhost:5432/nerv` | api · worker · migrate · drizzle-kit | compose 내부에서는 `postgres` 호스트로 자동 조립 |
 | `NERV_API_PORT` | | `8080` | api | |
-| `NERV_PUBLIC_URL` | | `http://localhost:8080` | api(세션 쿠키·CORS 기준 · **플러그인 카탈로그의 주소** 4.4 §2.11) · web(`/mcp` Origin 1차 검증) | 경로 없는 오리진만 |
+| `NERV_PUBLIC_URL` | | `http://localhost:8080` | api(세션 쿠키·CORS 기준 · **플러그인 카탈로그의 주소** [4.4](api.md) §2.11) · web(`/mcp` Origin 1차 검증) | 경로 없는 오리진만 |
 | `NERV_PLUGIN_DIST` | | (실행 파일 기준 `plugin-dist/`) | api(플러그인 아카이브를 읽는 자리) | 이미지가 `ENV` 로 준다 — 경로를 실행 위치로 추측하지 않는다 |
 | `NERV_TRUSTED_ORIGINS` | | (비움) | api(better-auth) | baseURL 밖에서 화면을 띄울 때만 추가(쉼표 구분) — CSRF 방어선이라 기본은 비운다. 개발 루프는 화면이 Vite(:5173)·API 가 :8080 이라 오리진이 달라 `http://localhost:5173` 이 필요하다. compose 는 둘이 같아 불요 |
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
 | `VALKEY_PORT` | | `6379` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 Valkey 접근 |
 | `NERV_VALKEY_URL` | dev 루프 시 | `redis://localhost:6379` | api · worker | 실시간 방송 MQ(§2.1). compose 내부에서는 `redis://valkey:6379`로 자동 조립(Valkey는 RESP 프로토콜 — `redis://` 스킴) |
 | `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090/v1` | api(질의 임베딩) · worker(`embedding.job`) | **OpenAI 호환 base URL(`/v1`까지)** — 프로필 §5.2a. compose 내부 기본은 `http://embed:11434/v1`. 무응답 시 검색은 렉시컬 degrade(REQ-API-026) |
-| `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | `/v1/embeddings`의 `model` 인자 · 재임베딩 관리(`spec_chunk_embedding.model` — 4.3 §2.15) | 제공자·모델 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
+| `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | `/v1/embeddings`의 `model` 인자 · 재임베딩 관리(`spec_chunk_embedding.model` — [4.3](database.md) §2.15) | 제공자·모델 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
 | `NERV_EMBED_API_KEY` | 외부 제공자 시 | — | `Authorization: Bearer` 헤더 | **secret** — 로컬 TEI는 불요. k8s는 `nerv-secrets`(§6.2) |
 | `NERV_EMBED_PORT` | | `8090` | compose 포트 노출(127.0.0.1 한정) | 로컬 프로필 전용 |
 | `NERV_EMBED_TIMEOUT_MS` | | `30000` | 제공자 한 요청의 상한 | **가장 느린 프로필이 기준이다** — 아래 §5.2b |
@@ -818,8 +839,8 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **스테이징** | LM Studio(OpenAI 호환 서버) | `http://<lmstudio-host>:1234/v1` | bge-m3 계열(GGUF) | 1024차원 확인 후 사용. `embed` 서비스 미기동 |
 | **운영** | OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | **`dimensions: 1024` 필수**(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021). `NERV_EMBED_API_KEY` 필수 |
 
-- **차원은 전 프로필 1024 고정**이다 — `spec_chunk_embedding.embedding vector(1024)`(4.3 §2.15)와 HNSW 인덱스가 차원에 묶이므로, 1024를 내지 못하는 제공자·모델은 프로필로 쓸 수 없다(REQ-CB-021이 적재 시 검증).
-- **환경 간 벡터는 호환되지 않는다** — 모델이 다르면 벡터 공간이 다르다. 각 환경의 인덱스는 자기 `model` 값에 묶이고(4.3 §2.15 규칙 3), 프로필 전환은 전량 재임베딩이다. DB를 환경 간 복사하는 경우(스테이징 복제 등)에도 임베딩 행은 버리고 재생성한다.
+- **차원은 전 프로필 1024 고정**이다 — `spec_chunk_embedding.embedding vector(1024)`([4.3](database.md) §2.15)와 HNSW 인덱스가 차원에 묶이므로, 1024를 내지 못하는 제공자·모델은 프로필로 쓸 수 없다(REQ-CB-021이 적재 시 검증).
+- **환경 간 벡터는 호환되지 않는다** — 모델이 다르면 벡터 공간이 다르다. 각 환경의 인덱스는 자기 `model` 값에 묶이고([4.3](database.md) §2.15 규칙 3), 프로필 전환은 전량 재임베딩이다. DB를 환경 간 복사하는 경우(스테이징 복제 등)에도 임베딩 행은 버리고 재생성한다.
 - **로컬 프로필의 첫 기동은 모델을 받는다**(~1.2GB). ollama 는 요청 시 자동으로 받지 않으므로(실측: `model not found, try pulling it first`) `embed` 서비스가 기동 직후 한 번 `pull` 하고, **모델이 실제로 응답할 때만 healthy** 로 표시한다 — 서버만 떠 있는 상태를 준비됐다고 부르면 그 사이의 임베딩이 전부 조용히 실패한다.
 
 #### 점화 기록 — 로컬 프로필의 이미지 교체 (2026-08-23)
@@ -885,6 +906,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-026** | WHILE 임베딩 한 판이 시간 상한을 넘기면, THE SYSTEM SHALL 그 판을 멈추고 진행 상황을 보고하며 다음 틱에서 남은 문서부터 이어간다 — 다른 잡의 주기를 굶기지 않는다. |
 | **REQ-CB-028** | WHEN PR 의 check 잡이 돌면 THE SYSTEM SHALL `pnpm format:check` 를 실행하고, 서식이 어긋난 파일이 하나라도 있으면 **실패한다** — 돌지 않는 검사는 없는 검사다: 이 스크립트는 처음부터 있었는데 CI 가 부르지 않아 7개 파일이 이틀간(2026-09-02 → 09-04) 실패한 채로 그 사이 커밋들을 받았다 | 서식이 어긋난 파일 1개를 넣은 PR 이 check 에서 실패 |
 | **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
+| **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `references` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 
 ---
@@ -1620,7 +1642,7 @@ patches:
 | **Postgres** | `pg_dump -Fc`(custom format) → 오브젝트 스토리지 업로드. cron Job(`nerv-backup`) | 일 1회 · 보존 14일 | 유일한 SoT — 스펙·Task·이벤트 전부. RPO = 24h 시작값(파일럿 규모 NFR-04에서 수용, 실측 후 조정) |
 | **MinIO** | 버킷 미러(`mc mirror`) | 선택 — 주 1회 | 내용물이 리뷰 프롬프트 blob(TTL 30일·재생성 가능 — D-07)뿐이라 유실 허용. 절차만 두고 기본 off |
 | **Valkey** | 백업하지 않는다 | — | 무영속 방송 버스 — 유실 시 클라이언트 재조회로 복구(D-14, [4.4](api.md) §3.4) |
-| **embed 모델 캐시**(로컬 프로필 시) | 백업하지 않는다 | — | 모델 가중치는 재다운로드, `spec_chunk_embedding`은 재임베딩으로 재생성(4.3 §2.15). 외부 제공자 프로필은 해당 없음 |
+| **embed 모델 캐시**(로컬 프로필 시) | 백업하지 않는다 | — | 모델 가중치는 재다운로드, `spec_chunk_embedding`은 재임베딩으로 재생성([4.3](database.md) §2.15). 외부 제공자 프로필은 해당 없음 |
 
 절차의 실물은 `deploy/scripts/nerv-backup.sh`(①)·`deploy/scripts/nerv-restore.sh`(①+⑤ 검증)이고, k8s 에서는 `base/backup/cronjob.yaml`(CronJob `nerv-backup` — 일 1회)이 같은 스크립트를 configMap 으로 마운트해 돈다. **검증이 절차의 일부다**: 복원 스크립트는 복원 후 원본과의 **실제 행 수**를 대조하고(통계 뷰 `n_live_tup` 이 아니다 — 복원 직후에는 통계가 비어 있어 "손실 0"과 "아직 세지 않았다"를 구분할 수 없다), 불일치면 비영 종료한다. 왕복 자체는 L2 테스트(`restore-roundtrip.spec.ts`)가 매 PR 에 재현한다.
 
@@ -1640,7 +1662,7 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 
 | ID | 요구(EARS) |
 | --- | --- |
-| **REQ-CB-019** | WHEN 백업본으로 §6.5 절차 ①~⑤를 실행하면, THE SYSTEM SHALL 추가 수동 개입 없이 로그인·스펙 조회·클레임이 동작하는 인스턴스에 도달하고, 백업 시각 이전 커밋 데이터의 손실 0을 행 수 대조로 검증 가능하게 한다(성공 기준 1-9). `spec_chunk_embedding`은 복원 대상이 아니어도 무방하다 — 재임베딩으로 재생성한다(4.3 §2.15). |
+| **REQ-CB-019** | WHEN 백업본으로 §6.5 절차 ①~⑤를 실행하면, THE SYSTEM SHALL 추가 수동 개입 없이 로그인·스펙 조회·클레임이 동작하는 인스턴스에 도달하고, 백업 시각 이전 커밋 데이터의 손실 0을 행 수 대조로 검증 가능하게 한다(성공 기준 1-9). `spec_chunk_embedding`은 복원 대상이 아니어도 무방하다 — 재임베딩으로 재생성한다([4.3](database.md) §2.15). |
 | **REQ-CB-020** | WHEN 임베딩(질의·인덱싱)이 수행될 때, THE SYSTEM SHALL `NERV_EMBED_URL`에 대한 **OpenAI 호환 `/v1/embeddings` 단일 클라이언트**만 사용하고 제공자별 분기·전용 SDK를 두지 않는다 — 제공자(자가호스팅/LM Studio/OpenAI)는 env 3키로만 결정되며 코드 기본값은 자가호스팅이다(§5.2a — 2026-08-22 개정: "자가호스팅만" 조항은 같은 날 폐기, 외부 전송은 운영 주체의 env 명시 선택). |
 | **REQ-CB-021** | WHEN 임베딩 응답의 벡터 차원이 1024가 아니면, THE SYSTEM SHALL 해당 배치를 적재하지 않고 오류로 기록한다 — OpenAI 프로필은 요청에 `dimensions: 1024`를 항상 포함한다(§5.2a). |
 
@@ -1672,3 +1694,5 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 - [3.2 시스템 아키텍처](../03-proposal/architecture.md) — 컴포넌트 책임·배포 원형(§4.4)
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 카탈로그·훅·ingest의 정본
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 29종 필드 의미의 정본
+
+

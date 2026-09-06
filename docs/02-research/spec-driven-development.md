@@ -1,3 +1,15 @@
+---
+references:
+  - 01-problem/pain-points.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/data-model.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/roadmap.md
+  - README.md
+---
 # Spec-Driven Development — 도구 생태계와 구조적 공백
 
 > **요약** — 2025년 하반기에 SDD(Spec-Driven Development) 도구가 한꺼번에 쏟아졌고, 1년 만에 GitHub Spec Kit 126,932★·OpenSpec 64,751★·BMAD-METHOD 51,854★ 규모의 생태계가 만들어졌다. 이 도구들은 requirements(EARS)/design/tasks 3분할, 프로젝트 헌법(constitution), ADDED/MODIFIED/REMOVED 델타 스펙, 자기완결 스토리 파일 같은 **재사용할 가치가 충분한 문서 어휘**를 정착시켰다. 그러나 조사한 7개 도구 전부가 "git 저장소 안의 마크다운 + 로컬 CLI/IDE"를 벗어나지 못해 멀티유저 협업·동시성 제어·실시간 상태 가시성이 통째로 비어 있으며, 이는 추정이 아니라 Spec Kit 토론 #497·#2116과 OpenSpec 이슈 #435("closed as not planned")가 남긴 1차 기록으로 확인된다. 동시에 "SDD는 워터폴의 귀환"이라는 실증 비판(한 기능에 8파일 1,300줄, 버그 하나에 16개 acceptance criteria)도 반복 관찰되므로, NERV(가칭)는 이 도구들의 어휘를 DB 엔티티로 승격하되 게이트를 위험도 가변형(D-06)으로 설계해 비판에 제품으로 답해야 한다. 결론적으로 "SDD 도구들의 Linear/GitHub"에 해당하는 협업 계층은 시장에서 명시적으로 요구되었으나 아직 아무도 만들지 않은 자리다.
@@ -70,7 +82,7 @@ NERV에서 EARS는 문서 서식이 아니라 **Requirement 엔티티의 입력 
 | **OpenSpec** | 3공간 — `specs/`(현재 진실) · `changes/`(proposal + 델타 + design + tasks) · `changes/archive/`. 델타는 **ADDED / MODIFIED / REMOVED** 접두사 | `tasks.md` 체크리스트 · `/opsx:verify` · `/opsx:archive` · 상태 = 폴더 위치 + 체크박스 | git 규약 의존 자인 · "One change, one owner" 규약뿐 · Stores(베타)는 읽기 전용 · 협업 요청 #435 **not planned** | MIT | 64,751★ / 4,462 fork · npm 주간 367,356 다운로드(2026-08-03~09) |
 | **Tessl** | 컴포넌트 설명 + 테스트 링크된 capabilities + API 정의 · generation / usage 2종 · 코드에 `// GENERATED FROM SPEC - DO NOT EDIT` | 태스크 개념 없음 — **링크된 테스트 통과 = 구현 완료** | Spec Registry 중앙 저장·버전 관리(10,000+ usage spec) + 조직 내부 공유 · 실시간 편집·승인은 없음 | 상용 SaaS | $125M 조달($500M+ 밸류) · Registry 오픈 베타 · Framework 클로즈드 베타 |
 | **BMAD-METHOD** | 4단계(Analysis→Planning→Solutioning→Implementation) · 34+ 워크플로우 · 12+ 페르소나 · 핵심 단위 = 자기완결 **스토리 파일**(아키텍처 컨텍스트·지침·근거·테스트 기준 내장) | `sprint-status.yaml`(스토리 상태·준비도) · 공식 문서가 "대시보드가 아니라 아티팩트 기반 진행"이라 명시 | '팀' = AI 페르소나 팀 · 사람 간 동시 작업 없음(웹 UI 기획 / IDE 구현 2단 분리) | MIT (+TRADEMARK 별도 · API 표기 NOASSERTION) | 51,854★ / 5,932 fork · 리포 생성 2025-04-13 |
-| **Agent OS** | 3층 — Standards(`/discover-standards`) · Product(`/plan-product` → mission·roadmap·tech-stack) · Specs(`/shape-spec`). 전부 `agent-os/` 마크다운 | **없음** (roadmap.md 갱신 수준) | 없음 — 표준을 에이전트 컨텍스트에 주입하는 것이 목적 | MIT | 5,263★ / 825 fork · 마지막 푸시 2026-05-05 |
+| **Agent OS** | 3층 — Standards(`/discover-standards`) · Product(`/plan-product` → mission·roadmap·tech-stack) · Specs(`/shape-spec`). 전부 `agent-os/` 마크다운 | **없음** ([roadmap.md](../03-proposal/roadmap.md) 갱신 수준) | 없음 — 표준을 에이전트 컨텍스트에 주입하는 것이 목적 | MIT | 5,263★ / 825 fork · 마지막 푸시 2026-05-05 |
 | **spec-workflow-mcp** | `.spec-workflow/` — `approvals/`·`archive/`·`specs/`·`steering/`(비전·기술 결정)·`templates/` · requirements→design→tasks 순차(Kiro 모델 차용) | 실시간 웹 대시보드(:5000) 진행 바·태스크 상태·검색 가능 구현 로그 · VSCode 확장 | **승인 워크플로우 내장**(생성→승인 요청→코멘트→수정→승인) · 계정·권한·원격 접근 없음 = "1인 + 에이전트" | **GPL-3.0** (카피레프트 — 개념만 참조) | 4,291★ / 354 fork · npm 주간 601 · 마지막 푸시 2026-07-03 |
 
 ### 2.2 GitHub Spec Kit — 생태계 최대, 그러나 철저히 파일·브랜치 기반
@@ -374,3 +386,4 @@ Yuval Yeret의 반론이 이 진영의 대표다. 워터폴이 무너진 이유�
 - [1.1 clemvion 하네스 분석](../01-problem/clemvion-analysis.md) · [1.2 문제 정의와 요구사항](../01-problem/pain-points.md)
 - [2.2 병렬 에이전트 오케스트레이션](agent-orchestration.md) · [2.3 협업 플랫폼의 에이전트 통합](collab-platforms.md) · [2.4 Claude Code/Codex 연동 기술](integration-tech.md)
 - [3.1 비전과 핵심 시나리오](../03-proposal/vision.md) · [3.2 시스템 아키텍처](../03-proposal/architecture.md) · [3.3 데이터 모델](../03-proposal/data-model.md) · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) · [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) · [3.6 화면 설계](../03-proposal/ui-wireframes.md) · [3.7 로드맵](../03-proposal/roadmap.md)
+

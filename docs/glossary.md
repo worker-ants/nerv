@@ -1,3 +1,30 @@
+---
+references:
+  - 01-problem/clemvion-analysis.md
+  - 01-problem/pain-points.md
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/architecture.md
+  - 03-proposal/data-model.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/database.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/plugin.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - README.md
+  - ../README.md
+  - ../AGENTS.md
+---
 # 용어 사전
 
 > **요약** — 이 문서는 NERV 문서 세트·화면 문구·매뉴얼·스킬이 공유하는 **용어의 정본**이다 — 한국어와 영어 둘 다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 **치환되는 옛 표현**과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다. 상태값의 목록과 결정 번호(D-01~D-14)·요구사항 번호(FR/NFR)는 여기가 아니라 [1.2 문제 정의와 요구사항](01-problem/pain-points.md)이 정본이고, 이 문서는 그 값들을 **무엇이라 부를지**만 정한다.
