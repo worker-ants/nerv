@@ -7,7 +7,9 @@ updated: 2026-08-28
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.20 · 2026-09-05 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.21 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.21 변경(2026-09-06 — CI 가 다섯 번 같은 자리에서 빨갰다, 사람 지적): **`pnpm preflight` 신설 · md 왕복 레인 분리.** 실패는 전부 하나였다 — `roundtrip-spike.spec.ts` 의 **30초 타임아웃**(9/5 네 건 + 9/6 한 건). 로컬 10.7초 / CI 3.9배라 여유가 남지 않았고, 그 검사는 `docs/**/*.md` **전수를 두 번** 왕복해 **문서가 늘면 그만큼 느려진다** — 이번 주에 문서 21편에 변경 기록을 더하고 사전을 신설하면서 여유를 더 깎았다. **상한만 올리면 다시 온다**: 비용이 자라는 검사에 고정 상한을 둔 것이 원인이다. 레인을 갈라 머지 전 레인만 전수를 보고 푸시 레인은 표본 6편을 본다(상한은 표본 수에 비례). 곁들여 `slice(0, 30)` 을 걷었다 — 문서가 31편이 되면 새 문서가 **조용히** 검사 밖으로 나가던 자리다. 그리고 **로컬 검사가 CI 의 부분집합이었다**: 규약 7 의 네 명령 밖에 게이트 셋이 더 있어, 넷만 돌린 사람은 그 셋을 한 번도 돌리지 않고 push 했다 — `preflight` 가 일곱을 같은 순서로 돈다.
 >
 > v1.20 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -519,6 +521,10 @@ E2E는 개발 스택과 **완전히 분리된 compose 파일**(`deploy/compose/d
 | L2 통합 | Vitest | `apps/api/test/integration/` | 도메인 서비스 + 실제 Postgres(compose의 `postgres` 사용) — **클레임 원자성 동시 호출, scope 겹침, base_hash 비교-교환, 리스 만료**. 임베딩은 결정적 **OpenAI 호환 스텁 서버**(테스트 픽스처 — 단일 계약(REQ-CB-020)이라 스텁도 같은 표면이다)로 검증하고 실모델 품질은 E06-S06·스테이징 소관 | `pnpm test:integration` (매 PR) |
 | L3 계약/E2E | Vitest(API·MCP·WS) + Playwright(웹) | `apps/api/test/e2e/` + `apps/web/test/e2e/` | **E2E 전용 compose 스택**(`deploy/compose/docker-compose.e2e.yml`) 기동 후 REST·MCP·WS·브라우저 시나리오 — [4.8 백로그](backlog.md) §5의 E2E 수용 시나리오가 케이스 정본 | `pnpm e2e:up && pnpm test:e2e` (머지 전·야간) |
 
+**로컬에서는 `pnpm preflight` 하나로 CI 의 `check` 잡을 그대로 돌린다**(2026-09-06 신설 · `scripts/preflight.mjs`). 규약이 오래 적어 온 네 명령은 CI 가 보는 일곱의 **일부**였다 — 플러그인 버전 게이트·배포 산출물 정합·schema drift 가 로컬에서 빠져 있었다. 순서도 CI 와 같다(게이트가 테스트 앞). `--l2` 로 L2 까지, `pnpm hooks:install` 로 push 때 자동 실행(옵트인 · `--no-verify` 로 우회되므로 **게이트가 아니다**).
+
+**다만 로컬 초록이 CI 초록은 아니다.** md 왕복 스파이크가 로컬 10.7초였는데 CI 는 같은 스위트를 3.9배로 돌아 고정 상한 30초를 넘겼고, **다섯 번 같은 자리에서** main 을 빨갛게 만들었다(2026-09-05~06). 비용이 문서 수와 함께 자라는 검사에 고정 상한을 둔 것이 원인이라 **레인을 갈랐다** — 머지 전 레인(`pull_request`·`merge_group`·야간)만 전수를 보고, main 푸시 레인은 등간격 표본 6편만 본다. 상한도 표본 수에 비례한다. 표본을 앞에서 자르지 않고 **등간격으로 솎는** 이유는 앞 N 편이 1부만 보기 때문이고, 옛 `slice(0, 30)` 은 문서가 31편이 되는 순간 새 문서를 **조용히** 표본 밖으로 내보내던 자리라 함께 걷었다.
+
 L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시 클레임·게이트 판정)는 mock으로 검증되지 않는다 — 트랜잭션·행 잠금·부분 인덱스가 실제로 동작하는 DB를 상대로만 의미가 있다.
 
 **소스 옆에 둔다는 규칙에는 웹의 라우트 폴더도 포함된다** — 화면 테스트는 그 화면 파일 옆(`src/routes/**/*.spec.tsx`)에 산다. 대신 라우트 생성기가 그것을 **라우트로 오해한다**: TanStack Router 플러그인은 `src/routes/` 안의 모든 파일에서 `Route` export 를 찾고, 없으면 파일마다 12줄짜리 경고를 찍는다(2026-08-29 실측 — 7개 파일 84줄이 기동 로그의 대부분이었다). 경고가 소음이 되면 **진짜 경고가 그 속에 묻힌다.** `vite.config.ts` 의 `routeFileIgnorePattern: '\\.spec\\.tsx?$'` 로 테스트를 생성 대상에서 뺀다 — 생성된 `routeTree.gen.ts` 는 바이트 단위로 동일하다(빠지는 라우트가 없다는 뜻이다).
@@ -559,7 +565,9 @@ jobs:
           kubectl kustomize deploy/k8s/overlays/prod > /dev/null
       - name: schema drift     # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제
         run: pnpm db:generate && git diff --exit-code -- packages/schema/drizzle
-      - run: pnpm test
+      - run: pnpm test         # md 왕복은 레인이 둘이다 — 머지 전 레인만 전수를 본다
+        env:
+          NERV_ROUNDTRIP_FULL: ${{ (github.event_name == 'push' && '0') || '1' }}
   integration:                 # 매 PR — L2 (무게중심)
     runs-on: ubuntu-latest
     services:

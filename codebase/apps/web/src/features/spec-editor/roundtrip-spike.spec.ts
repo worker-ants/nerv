@@ -27,8 +27,14 @@ interface Finding {
   detail: string;
 }
 
-/** 표본 수집 — 하위 디렉터리까지, html 파생본은 제외한다(md 가 원본이다). */
-function sampleDocuments(limit = 30): { file: string; body: string }[] {
+/**
+ * 표본 수집 — 하위 디렉터리까지, html 파생본은 제외한다(md 가 원본이다).
+ *
+ * **`slice(0, 30)` 을 걷었다**(2026-09-06). 문서가 30편을 넘는 순간 새 문서가 조용히
+ * 표본 밖으로 나가고, 검사는 그대로 통과한다 — 줄어든 커버리지는 아무 소리도 내지 않는다.
+ * 대신 **레인으로 가른다**: 전수는 느린 레인이 돌고 빠른 레인은 고르게 솎은 표본을 본다.
+ */
+function allDocuments(): { file: string; body: string }[] {
   const files: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -39,14 +45,26 @@ function sampleDocuments(limit = 30): { file: string; body: string }[] {
     }
   };
   walk(DOCS_ROOT);
-  return files
-    .sort()
-    .slice(0, limit)
-    .map((path) => ({
-      file: path.slice(DOCS_ROOT.length + 1),
-      body: readFileSync(path, 'utf8'),
-    }));
+  return files.sort().map((path) => ({
+    file: path.slice(DOCS_ROOT.length + 1),
+    body: readFileSync(path, 'utf8'),
+  }));
 }
+
+/**
+ * 빠른 레인의 표본 — **고르게 솎는다**(앞에서 자르지 않는다).
+ *
+ * 앞 N 편을 쓰면 `01-problem/` 만 보게 되고 4부는 한 번도 안 본다. 등간격으로 뽑으면
+ * 문서가 늘어도 **전 구역을 계속 지난다** — 표본 수는 그대로라 시간은 늘지 않는다.
+ */
+function spread<T>(items: T[], count: number): T[] {
+  if (items.length <= count) return items;
+  const step = items.length / count;
+  return Array.from({ length: count }, (_, i) => items[Math.floor(i * step)] as T);
+}
+
+/** 전수 레인은 명시적으로 켠다 — CI 의 `pull_request`·야간 레인이 켠다(ci.yml). */
+const FULL = process.env['NERV_ROUNDTRIP_FULL'] === '1';
 
 /** md → 문서 → md. 에디터 없이 파서·시리얼라이저만 쓴다(브라우저 불요). */
 function roundTripOnce(markdown: string): string {
@@ -58,50 +76,72 @@ function roundTripOnce(markdown: string): string {
 }
 
 describe('E06-S02 — md 왕복 실측', () => {
-  it('표본 문서에서 2회 왕복이 안정적이다(수렴) — 저장이 diff 를 만들지 않는다', () => {
-    const samples = sampleDocuments();
-    expect(samples.length).toBeGreaterThan(0);
+  // **레인이 둘이다**(2026-09-06 — CI 가 다섯 번 같은 자리에서 타임아웃).
+  //
+  // 이 검사는 `docs/**/*.md` 전수를 각각 **두 번** 왕복한다 — 문서가 늘면 그만큼 느려진다.
+  // 로컬 10.7초였고 CI 는 같은 스위트를 3.9배로 돌아 30초 상한을 넘겼다. 상한만 올리면
+  // 문서가 더 늘었을 때 또 온다: **비용이 자라는 검사에 고정 상한을 두는 것이 원인**이다.
+  //
+  // 그래서 시간이 문서 수에 비례하지 않는 레인을 따로 둔다.
+  //   · 빠른 레인(기본) — 등간격 표본 6편. 카나리아다: 터지는지, 손실 유형이 아는 것인지만 본다
+  //   · 전수 레인(`NERV_ROUNDTRIP_FULL=1`) — 판정 기준인 **비율 0.85** 는 여기서만 잰다
+  //
+  // 상한도 표본 수에 맞춰 계산한다 — 다음 사람이 문서를 늘려도 상한이 따라 자란다.
+  const samples = FULL ? allDocuments() : spread(allDocuments(), 6);
+  const budgetMs = 5_000 + samples.length * 4_000;
 
-    const findings: Finding[] = [];
-    let stable = 0;
+  it(
+    FULL
+      ? '전 문서에서 2회 왕복이 안정적이다(수렴) — 저장이 diff 를 만들지 않는다'
+      : '표본 문서에서 2회 왕복이 안정적이다(수렴) — 저장이 diff 를 만들지 않는다',
+    () => {
+      expect(samples.length).toBeGreaterThan(0);
 
-    for (const sample of samples) {
-      const first = roundTripOnce(sample.body);
-      const second = roundTripOnce(first);
-      // **수렴이 판정 기준이다.** 원문과 1회차가 다른 것은 정규화이고(리스트 마커·공백),
-      // 1회차와 2회차가 다르면 직렬화가 안정적이지 않다는 뜻이라 저장할 때마다 diff 가 생긴다.
-      if (normalize(first) === normalize(second)) {
-        stable += 1;
-      } else {
-        findings.push({
-          file: sample.file,
-          kind: 'unstable-serialization',
-          detail: firstDifference(normalize(first), normalize(second)),
-        });
+      const findings: Finding[] = [];
+      let stable = 0;
+
+      for (const sample of samples) {
+        const first = roundTripOnce(sample.body);
+        const second = roundTripOnce(first);
+        // **수렴이 판정 기준이다.** 원문과 1회차가 다른 것은 정규화이고(리스트 마커·공백),
+        // 1회차와 2회차가 다르면 직렬화가 안정적이지 않다는 뜻이라 저장할 때마다 diff 가 생긴다.
+        if (normalize(first) === normalize(second)) {
+          stable += 1;
+        } else {
+          findings.push({
+            file: sample.file,
+            kind: 'unstable-serialization',
+            detail: firstDifference(normalize(first), normalize(second)),
+          });
+        }
       }
-    }
 
-    // 리포트를 남긴다 — 스파이크의 산출물은 통과 여부가 아니라 비교표다
-    mkdirSync(REPORT_DIR, { recursive: true });
-    writeFileSync(
-      join(REPORT_DIR, 'tiptap-roundtrip.md'),
-      renderReport(samples.length, stable, findings),
-      'utf8',
-    );
+      // 리포트를 남긴다 — 스파이크의 산출물은 통과 여부가 아니라 비교표다
+      mkdirSync(REPORT_DIR, { recursive: true });
+      writeFileSync(
+        join(REPORT_DIR, 'tiptap-roundtrip.md'),
+        renderReport(samples.length, stable, findings),
+        'utf8',
+      );
 
-    // **비율로 고정한다.** 절대 건수를 쓰면 문서를 한 편 쓸 때마다 이 테스트가 흔들린다
-    // (실제로 트리거 점화 기록을 쓰자마자 표본이 늘며 깨졌다 — 그 기록 자체가 손실 유형인
-    // "표 + 인용문"을 담고 있었다). 스파이크의 판정은 "어느 수준을 유지하는가"이고,
-    // 그 아래로 내려가면 직렬화가 더 나빠졌다는 뜻이라 막는다.
-    //
-    // 100% 를 기대값으로 쓰지 않는 이유는 그것이 측정이 아니라 소원이기 때문이다. 현재 실측은
-    // 90% 안팎이고 손실 유형 2종은 loss-probe.spec.ts 가 최소 재현으로 고정한다.
-    // 손실이 데이터에 도달하지는 않는다 — 저장 게이트가 불안정 직렬화를 차단한다(REQ-WEB-031).
-    // 스택 교체(Milkdown) 판단은 사람의 몫이라 scope.md §2 에 트리거 점화만 기록했다.
-    expect(stable / samples.length).toBeGreaterThanOrEqual(0.85);
-    expect(findings.every((f) => f.kind === 'unstable-serialization')).toBe(true);
-    // 22문서 × 2회 파싱이라 기본 5초로는 모자란다 — 스파이크는 원래 느린 측정이다
-  }, 30_000);
+      // **비율로 고정한다.** 절대 건수를 쓰면 문서를 한 편 쓸 때마다 이 테스트가 흔들린다
+      // (실제로 트리거 점화 기록을 쓰자마자 표본이 늘며 깨졌다 — 그 기록 자체가 손실 유형인
+      // "표 + 인용문"을 담고 있었다). 스파이크의 판정은 "어느 수준을 유지하는가"이고,
+      // 그 아래로 내려가면 직렬화가 더 나빠졌다는 뜻이라 막는다.
+      //
+      // 100% 를 기대값으로 쓰지 않는 이유는 그것이 측정이 아니라 소원이기 때문이다. 현재 실측은
+      // 90% 안팎이고 손실 유형 2종은 loss-probe.spec.ts 가 최소 재현으로 고정한다.
+      // 손실이 데이터에 도달하지는 않는다 — 저장 게이트가 불안정 직렬화를 차단한다(REQ-WEB-031).
+      // 스택 교체(Milkdown) 판단은 사람의 몫이라 scope.md §2 에 트리거 점화만 기록했다.
+      //
+      // **비율은 전수 레인에서만 잰다.** 표본 6편에서 0.85 는 "6편 중 5.1편" 이라
+      // 한 편만 불안정해도 깨진다 — 측정이 아니라 주사위가 된다. 빠른 레인이 지키는 것은
+      // **손실 유형이 아는 것뿐인가**이고, 모르는 유형이 나오면 그때 전수 레인이 답한다.
+      if (FULL) expect(stable / samples.length).toBeGreaterThanOrEqual(0.85);
+      expect(findings.every((f) => f.kind === 'unstable-serialization')).toBe(true);
+    },
+    budgetMs,
+  );
 
   it('화이트리스트 노드는 구조가 보존된다 — heading·list·table·code·quote·link·hr', () => {
     const source = [
