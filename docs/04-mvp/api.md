@@ -2,7 +2,7 @@
 id: SPC-MVP-API
 status: approved
 updated: 2026-09-06
-references:
+referenced_by:
   - 03-proposal/vision.md
   - 03-proposal/architecture.md
   - 03-proposal/data-model.md

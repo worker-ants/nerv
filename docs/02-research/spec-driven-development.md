@@ -1,5 +1,5 @@
 ---
-references:
+referenced_by:
   - 01-problem/pain-points.md
   - 02-research/agent-orchestration.md
   - 02-research/collab-platforms.md

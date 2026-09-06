@@ -2,7 +2,7 @@
 id: SPC-MVP-CODEBASE
 status: approved
 updated: 2026-09-06
-references:
+referenced_by:
   - 04-mvp/scope.md
   - 04-mvp/database.md
   - 04-mvp/api.md
@@ -19,7 +19,7 @@ references:
 >
 > 문서 버전 v1.28 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
 >
-> v1.28 변경(2026-09-06 — 문서 간 참조를 검사가 본다, 사람 지시): **REQ-CB-030 신설 · 게이트 열 → 열하나.** ① **문서 간 참조 게이트**를 CI 와 `preflight` 에 더한다(`scripts/check-doc-links.mjs`) — 죽은 링크(md 링크 · html href·앵커) · frontmatter `references`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 "참조하는 문서" 줄 · 링크 없는 문서 인용(`4.4 §1.6` · `4.4 v0.87`) · 링크 뒤 절의 실재(`§N.N`) 다섯을 센다. `--where <문서>` 는 그 문서를 인용하는 자리(파일:줄 · 절)를 나열한다. 사람 쪽 규율은 [docs/README](../README.md) 관리 규약과 `AGENTS.md` 문서 작업 규약 7 이 맡는다. 첫 실행(`--fix`)이 맨 참조 **md 443곳 · html 23곳**을 링크로 바꿨고 23편 전부에 역참조 목록이 생겼으며, 절 실재 검사가 [docs/README](../README.md) 결정 표의 죽은 절 인용 셋(D-05·D-11·D-13)을 짚었다. ② §1.1 트리·§4.5 CI 전문·§5.1 표가 **이미 도는 게이트 둘**(md ↔ html · `.env` 전표)을 빠뜨리고 "여덟 단계" 라 적고 있었다 — 열한 단계로 고친다. ③ 파생본 머리 넷(4.1·4.3·4.4·4.5)이 `status: draft` 라 적고 있었다 — 원본은 09-06 부터 `approved` 다. ④ 외부 URL 은 **야간 레인의 `link-check` 잡**(lychee · 루트 `lychee.toml`)이 본다 — PR 레인이 아니다. 네트워크 흔들림을 머지 게이트에 두면 "원래 나던 빨강" 이 된다(규약 7).
+> v1.28 변경(2026-09-06 — 문서 간 참조를 검사가 본다, 사람 지시): **REQ-CB-030 신설 · 게이트 열 → 열하나.** ① **문서 간 참조 게이트**를 CI 와 `preflight` 에 더한다(`scripts/check-doc-links.mjs`) — 죽은 링크(md 링크 · html href·앵커) · frontmatter `referenced_by`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 "참조하는 문서" 줄 · 링크 없는 문서 인용(`4.4 §1.6` · `4.4 v0.87`) · 링크 뒤 절의 실재(`§N.N`) 다섯을 센다. `--where <문서>` 는 그 문서를 인용하는 자리(파일:줄 · 절)를 나열한다. 사람 쪽 규율은 [docs/README](../README.md) 관리 규약과 `AGENTS.md` 문서 작업 규약 7 이 맡는다. 첫 실행(`--fix`)이 맨 참조 **md 443곳 · html 23곳**을 링크로 바꿨고 23편 전부에 역참조 목록이 생겼으며, 절 실재 검사가 [docs/README](../README.md) 결정 표의 죽은 절 인용 셋(D-05·D-11·D-13)을 짚었다. ② §1.1 트리·§4.5 CI 전문·§5.1 표가 **이미 도는 게이트 둘**(md ↔ html · `.env` 전표)을 빠뜨리고 "여덟 단계" 라 적고 있었다 — 열한 단계로 고친다. ③ 파생본 머리 넷(4.1·4.3·4.4·4.5)이 `status: draft` 라 적고 있었다 — 원본은 09-06 부터 `approved` 다. ④ 외부 URL 은 **야간 레인의 `link-check` 잡**(lychee · 루트 `lychee.toml`)이 본다 — PR 레인이 아니다. 네트워크 흔들림을 머지 게이트에 두면 "원래 나던 빨강" 이 된다(규약 7). ⑤ 역참조 키는 `references` 가 아니라 **`referenced_by`** 다(같은 날 사람 결정 — 수동형이 역참조라는 선례를 따른다).
 >
 > v1.27 변경(2026-09-06 — e2e 를 PR 레인에 넣는다, 사람 결정): §4.3·§4.5 — `e2e` 잡의 `if: github.event_name != 'pull_request'` 를 걷는다. **검사는 머지 전에 도는 것만 검사다.** 그 조건 때문에 L3 파손이 **머지된 뒤에야** 드러났다 — PR #1 은 `check`·`integration` 이 초록이고 로컬 `pnpm preflight` 도 초록이었는데 머지 커밋의 e2e 가 빨갰다(원인: `nerv import <kind>` 를 실재하게 하면서 시나리오 E 의 호출 세 곳을 같이 안 고쳤다). 규약 7 이 적은 "로컬 초록이 CI 초록이 아니다" 의 그 자리인데, 이번 원인은 속도가 아니라 **레인**이었다. 비용은 **5m31s** 다(2026-09-06 PR #5 실측 — 테스트 자체는 3분 남짓이고 나머지는 체크아웃·`pnpm install`·`pnpm build`·docker build·브라우저 설치다). 세 잡이 병렬이라 **PR 전체 대기 시간이 1m27s → 5m31s** 로 늘어난다. PR 은 `cancel-in-progress` 라 재푸시가 쌓이지는 않는다. **드래프트를 건너뛰지 않는 것도 의도다** — 건너뛰려면 `ready_for_review` 를 트리거에 더해야 하고, 잊으면 "ready 로 바꿨는데 한 번도 안 돈" 상태가 생긴다. 그 모양이 정확히 이번에 고치는 결함이다. `preflight` 는 여전히 L3 를 돌리지 않는다(compose 스택이 필요하다) — 그 사실과 로컬에서 보는 법을 §4.3 과 `AGENTS.md` 에 적었다.
 >
@@ -645,7 +645,7 @@ jobs:
         run: node scripts/check-md-html.mjs
       - name: .env 전표 정합     # 전표가 소비자를 적으면 계약이다 — 유령 설정을 잡는다(§5.2)
         run: node scripts/check-env-table.mjs
-      - name: 문서 간 참조       # 죽은 링크 · frontmatter references · 파생본 머리 · 맨 참조(REQ-CB-030)
+      - name: 문서 간 참조       # 죽은 링크 · frontmatter referenced_by · 파생본 머리 · 맨 참조(REQ-CB-030)
         run: node scripts/check-doc-links.mjs
       - name: schema drift     # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제
         run: pnpm db:generate && git diff --exit-code -- packages/schema/drizzle
@@ -916,7 +916,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-026** | WHILE 임베딩 한 판이 시간 상한을 넘기면, THE SYSTEM SHALL 그 판을 멈추고 진행 상황을 보고하며 다음 틱에서 남은 문서부터 이어간다 — 다른 잡의 주기를 굶기지 않는다. |
 | **REQ-CB-028** | WHEN PR 의 check 잡이 돌면 THE SYSTEM SHALL `pnpm format:check` 를 실행하고, 서식이 어긋난 파일이 하나라도 있으면 **실패한다** — 돌지 않는 검사는 없는 검사다: 이 스크립트는 처음부터 있었는데 CI 가 부르지 않아 7개 파일이 이틀간(2026-09-02 → 09-04) 실패한 채로 그 사이 커밋들을 받았다 | 서식이 어긋난 파일 1개를 넣은 PR 이 check 에서 실패 |
 | **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
-| **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `references` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
+| **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `referenced_by` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 
 ---

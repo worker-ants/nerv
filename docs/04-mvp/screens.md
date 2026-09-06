@@ -2,7 +2,7 @@
 id: SPC-MVP-SCREENS
 status: approved
 updated: 2026-09-06
-references:
+referenced_by:
   - 03-proposal/spec-workflow.md
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md

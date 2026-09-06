@@ -1,4 +1,4 @@
-// 문서 간 참조가 살아 있는가 — 죽은 링크 · 역참조(frontmatter `references`) · 맨 참조
+// 문서 간 참조가 살아 있는가 — 죽은 링크 · 역참조(frontmatter `referenced_by`) · 맨 참조
 // (AGENTS.md 문서 작업 규약 7 · docs/README.md 관리 규약 · REQ-CB-030)
 //
 // 문서가 늘수록 문서 간 정합이 깨진다. 이 저장소는 그것을 세 가지 모양으로 겪었다 — 정본이라
@@ -8,9 +8,9 @@
 //
 // 이 스크립트가 세는 것은 넷이다.
 //   ① 죽은 링크 — md 의 상대 링크가 실재하는 파일을 가리키는가 · html 의 href/앵커(`#sec-N`)가 실재하는가
-//   ② 역참조 — 각 md 의 frontmatter `references` 가 **그 문서를 링크하는 문서의 목록**과 같은가
+//   ② 역참조 — 각 md 의 frontmatter `referenced_by` 가 **그 문서를 링크하는 문서의 목록**과 같은가
 //              (링크에서 계산한다 — 사람이 적는 목록은 첫날부터 낡는다)
-//   ③ 파생본 — html 머리(`.meta-line`)의 `참조하는 문서` 가 md 의 `references` 와 같은 집합인가
+//   ③ 파생본 — html 머리(`.meta-line`)의 `참조하는 문서` 가 md 의 `referenced_by` 와 같은 집합인가
 //   ④ 맨 참조 — 링크 없는 문서 인용(`4.4 §1.6` · `4.4 v0.87` · `api.md`)이 본문에 남아 있지 않은가
 //   ⑤ 절 실재 — 링크 뒤의 `§N.N` 이 대상 문서의 절 번호로 실재하는가
 //
@@ -186,25 +186,25 @@ function splitFrontmatter(source) {
 function readReferences(head) {
   if (head === null) return null;
   const lines = head.split('\n');
-  const at = lines.findIndex((l) => /^references:/.test(l));
+  const at = lines.findIndex((l) => /^referenced_by:/.test(l));
   if (at === -1) return null;
   const items = [];
   for (let i = at + 1; i < lines.length && /^\s+-\s/.test(lines[i]); i += 1) {
     items.push(lines[i].replace(/^\s+-\s+/, '').trim());
   }
-  return /^references:\s*\[\s*\]/.test(lines[at]) ? [] : items;
+  return /^referenced_by:\s*\[\s*\]/.test(lines[at]) ? [] : items;
 }
 function writeReferences(head, refs) {
   const kept = [];
   const lines = (head ?? '').split('\n').filter((l) => l !== '');
   for (let i = 0; i < lines.length; i += 1) {
-    if (/^references:/.test(lines[i])) {
+    if (/^referenced_by:/.test(lines[i])) {
       while (i + 1 < lines.length && /^\s+-\s/.test(lines[i + 1])) i += 1;
       continue;
     }
     kept.push(lines[i]);
   }
-  kept.push(refs.length === 0 ? 'references: []' : 'references:');
+  kept.push(refs.length === 0 ? 'referenced_by: []' : 'referenced_by:');
   for (const r of refs) kept.push(`  - ${r}`);
   return kept.join('\n');
 }
@@ -378,12 +378,12 @@ for (const md of mdFiles) {
   if (!same) {
     if (fix) {
       writeFileSync(md, `---\n${writeReferences(head, expected)}\n---\n${body}`);
-      fixed.push(`${relative(REPO, md)}: references ${expected.length}편으로`);
+      fixed.push(`${relative(REPO, md)}: referenced_by ${expected.length}편으로`);
     } else {
       fail.push(
         actual === null
-          ? `${relative(REPO, md)}: frontmatter 에 references 가 없다 (인용 ${expected.length}편)`
-          : `${relative(REPO, md)}: references 가 낡았다 - 있어야 할 것 ${expected.length}편, 적힌 것 ${actual.length}편` +
+          ? `${relative(REPO, md)}: frontmatter 에 referenced_by 가 없다 (인용 ${expected.length}편)`
+          : `${relative(REPO, md)}: referenced_by 가 낡았다 - 있어야 할 것 ${expected.length}편, 적힌 것 ${actual.length}편` +
               ` (빠짐: ${expected.filter((e) => !actual.includes(e)).join(' · ') || '-'} / 남음: ${actual.filter((a) => !expected.includes(a)).join(' · ') || '-'})`,
       );
     }
@@ -409,7 +409,7 @@ for (const md of mdFiles) {
       fail.push(
         inHtml === null
           ? `docs/html/${htmlNameFor(md)}: 머리에 '참조하는 문서' 줄이 없다`
-          : `docs/html/${htmlNameFor(md)}: '참조하는 문서' 가 md 의 references 와 다르다`,
+          : `docs/html/${htmlNameFor(md)}: '참조하는 문서' 가 md 의 referenced_by 와 다르다`,
       );
     }
   }

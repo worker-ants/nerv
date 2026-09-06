@@ -2,7 +2,7 @@
 id: SPC-MVP-SCOPE
 status: approved
 updated: 2026-09-06
-references:
+referenced_by:
   - 03-proposal/architecture.md
   - 03-proposal/data-model.md
   - 03-proposal/agent-integration.md

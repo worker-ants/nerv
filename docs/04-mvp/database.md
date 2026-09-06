@@ -2,7 +2,7 @@
 id: SPC-MVP-DATABASE
 status: approved
 updated: 2026-09-06
-references:
+referenced_by:
   - 03-proposal/data-model.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md

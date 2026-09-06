@@ -104,7 +104,7 @@ jobs:
       # **문서가 늘수록 문서 간 정합이 먼저 깨진다**(AGENTS.md 문서 작업 규약 7 · REQ-CB-030).
       # 링크 없는 번호 인용("4.4 §1.6")은 도구가 따라갈 수 없어 깨져도 아무도 모르고, 사람이
       # 적는 역참조 목록은 첫날부터 낡는다. 세는 것은 넷이다: 죽은 링크(md 링크 · html href·앵커) ·
-      # frontmatter `references`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 같은 줄 · 맨 참조.
+      # frontmatter `referenced_by`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 같은 줄 · 맨 참조.
       - name: 문서 간 참조
         run: node scripts/check-doc-links.mjs
 

@@ -1,5 +1,5 @@
 ---
-references:
+referenced_by:
   - 01-problem/clemvion-analysis.md
   - 01-problem/pain-points.md
   - 02-research/spec-driven-development.md

@@ -1,5 +1,5 @@
 ---
-references:
+referenced_by:
   - 02-research/spec-driven-development.md
   - 02-research/agent-orchestration.md
   - 02-research/collab-platforms.md

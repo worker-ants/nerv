@@ -2,7 +2,7 @@
 id: SPC-MVP-IMPORTER
 status: approved
 updated: 2026-09-06
-references:
+referenced_by:
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md

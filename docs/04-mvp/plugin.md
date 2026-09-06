@@ -2,7 +2,7 @@
 id: SPC-MVP-PLUGIN
 status: approved
 updated: 2026-09-06
-references:
+referenced_by:
   - 02-research/integration-tech.md
   - 03-proposal/agent-integration.md
   - 03-proposal/roadmap.md
