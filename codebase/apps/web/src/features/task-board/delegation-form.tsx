@@ -9,6 +9,7 @@
 // 모르면 리뷰가 그 판단을 대신하게 되고, 그때는 이미 코드가 쓰인 뒤다.
 
 import { useT } from '../../lib/i18n.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -48,6 +49,7 @@ export function DelegationForm({
   const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const existing = useTask(projectSlug, taskKey ?? '');
 
   // exactOptionalPropertyTypes 아래에서는 `values: undefined` 를 넘길 수 없다 —
@@ -100,7 +102,7 @@ export function DelegationForm({
       });
       onDone();
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   return (

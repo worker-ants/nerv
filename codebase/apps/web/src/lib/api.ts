@@ -40,6 +40,39 @@ export interface RequestOptions {
 
 const BASE = '/api/v1';
 
+/**
+ * 플랫폼에 닿는가 — 배너 2단계의 ②를 켜는 스위치다(screens.md §1.3 · NFR-05).
+ *
+ * **판정의 축은 "서버가 답했는가" 다.** 4xx·5xx 는 서버가 *답한* 것이므로 닿은 것이고,
+ * `fetch` 가 거절하는 것(네트워크 단절·프록시 다운)만 못 닿은 것이다. 상태 코드로
+ * 판정하면 403 하나가 화면 전체를 오프라인으로 만든다.
+ *
+ * 구독자는 `RealtimeProvider` 하나다 — 배너는 앱 셸에 하나뿐이라 상태도 하나여야 한다.
+ * 배너 문구·분기·폴백 폴링은 2026-09-06 까지 전부 있었고 **켜는 곳만 없었다**: REST 가
+ * 죽어도 화면은 "실시간 갱신 중단" 만 말하고 캐시된 읽기 전용이라는 사실을 알리지 않았다.
+ */
+type ReachabilityListener = (reachable: boolean) => void;
+const reachabilityListeners = new Set<ReachabilityListener>();
+let lastReachable: boolean | null = null;
+
+export function onReachabilityChange(listener: ReachabilityListener): () => void {
+  reachabilityListeners.add(listener);
+  return () => reachabilityListeners.delete(listener);
+}
+
+/** 값이 바뀔 때만 알린다 — 매 요청마다 setState 를 부르면 화면이 통째로 다시 그려진다 */
+function reportReachable(reachable: boolean): void {
+  if (lastReachable === reachable) return;
+  lastReachable = reachable;
+  for (const listener of reachabilityListeners) listener(reachable);
+}
+
+/** 테스트가 모듈 상태를 되돌린다 — 남으면 다음 테스트가 앞 테스트의 판정을 물려받는다 */
+export function resetReachabilityForTesting(): void {
+  lastReachable = null;
+  reachabilityListeners.clear();
+}
+
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, idempotencyKey, signal } = options;
 
@@ -51,13 +84,22 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (idempotencyKey !== undefined) headers['Idempotency-Key'] = idempotencyKey;
 
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    credentials: 'include',
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    ...(signal === undefined ? {} : { signal }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      credentials: 'include',
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(signal === undefined ? {} : { signal }),
+    });
+  } catch (error) {
+    // **취소는 단절이 아니다.** 화면을 떠나며 abort 한 요청까지 오프라인으로 세면
+    // 라우팅할 때마다 배너가 깜빡인다.
+    if (!(error instanceof Error && error.name === 'AbortError')) reportReachable(false);
+    throw error;
+  }
+  reportReachable(true);
 
   if (!res.ok) throw new NervApiError(res.status, await readErrorBody(res));
   if (res.status === 204) return undefined as T;

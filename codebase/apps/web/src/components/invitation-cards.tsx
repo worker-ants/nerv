@@ -9,6 +9,7 @@
 // 아직 아무 프로젝트의 멤버가 아니라, 프로젝트 소속 알림 목록은 그에게 늘 비어 있다.
 
 import { useT } from '../lib/i18n.js';
+import { useApiError } from '../lib/api-errors.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { apiFetch } from '../lib/api.js';
@@ -31,6 +32,7 @@ export function InvitationCards({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
 
   const accept = useMutation({
     // 카드는 **id 로** 수락한다 — 토큰은 해시만 저장되므로 화면이 그것을 알 길이 없다.
@@ -44,7 +46,7 @@ export function InvitationCards({
       pushToast({ tone: 'ok', message: t('invite.accepted_toast', { org }) });
       void navigate({ to: '/' });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const pending = rows(invitations.data);

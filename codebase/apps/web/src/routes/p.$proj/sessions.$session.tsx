@@ -11,6 +11,7 @@ import { SteerPanel } from '../../features/session-monitor/steer-panel.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
 import { rows, useSessionDetail, useSessionTimeline } from '../../lib/queries.js';
+import { useCanIntervene } from '../../lib/scope.js';
 import {
   Card,
   EmptyState,
@@ -39,6 +40,7 @@ function SessionDetail(): React.JSX.Element {
 
   const data = detail.data ?? {};
   const state = String(data['state'] ?? '');
+  const canIntervene = useCanIntervene(proj, data['user_id']);
   const usage = (data['token_usage'] ?? {}) as Record<string, unknown>;
 
   return (
@@ -88,7 +90,12 @@ function SessionDetail(): React.JSX.Element {
 
         <Card>
           <SectionTitle>{t('sessions.intervene')}</SectionTitle>
-          <SteerPanel projectSlug={proj} sessionId={session} state={state} />
+          <SteerPanel
+            projectSlug={proj}
+            sessionId={session}
+            state={state}
+            canIntervene={canIntervene}
+          />
         </Card>
 
         <section>

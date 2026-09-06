@@ -14,7 +14,8 @@ import { TASK_TOKEN } from '../../components/status-token.js';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
-import { rows, useProject, useTask } from '../../lib/queries.js';
+import { rows, useMe, useProject, useTask } from '../../lib/queries.js';
+import { useApiError } from '../../lib/api-errors.js';
 import {
   Button,
   Card,
@@ -35,8 +36,10 @@ function TaskDetail(): React.JSX.Element {
   const { proj, task } = Route.useParams();
   const detail = useTask(proj, task);
   const project = useProject(proj);
+  const me = useMe();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
 
   const [specImpactNone, setSpecImpactNone] = useState(true);
   const [specImpactNote, setSpecImpactNote] = useState('');
@@ -49,6 +52,60 @@ function TaskDetail(): React.JSX.Element {
   const data = detail.data ?? {};
   const status = String(data['status'] ?? '');
   const projectId = project.data?.['id'];
+  const meId = me.data?.id;
+
+  /**
+   * 지금 살아 있는 내 클레임 — 있으면 [클레임 해제], 없으면 [클레임] 이다.
+   *
+   * 상세가 싣는 클레임 이력은 최근 10건이라 **상태를 봐야 한다**: 지나간 `released` 를
+   * 살아 있는 것으로 읽으면 잡을 수 있는 작업에 해제 버튼이 붙는다.
+   */
+  const myClaim = rows(data['claims']).find(
+    (c) => c['status'] === 'active' && c['user_id'] === meId,
+  );
+  const heldByOther = rows(data['claims']).some(
+    (c) => c['status'] === 'active' && c['user_id'] !== meId,
+  );
+
+  const claim = useMutation({
+    // **웹에서도 잡을 수 있어야 한다**(screens.md:903 화면 요소 "사람 클레임").
+    // 이 문이 없는 동안 MCP·CLI 를 쓰지 않는 역할에게 보드는 읽기 전용이었다 — 서버는
+    // 처음부터 세션 쿠키로도 `task:claim` 을 내주고 있었다(project-access.guard).
+    mutationFn: () =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/tasks/${String(data['id'])}/claim`, {
+        method: 'POST',
+        // 사람 클레임에는 세션이 없다 — 범위는 이 작업의 출처 스펙 하나다.
+        // 파일 글롭은 **비운다**: 사람이 무엇을 만질지 서버가 추정하면 안 된다.
+        body: {
+          scope: {
+            spec_ids: typeof data['source_spec_id'] === 'string' ? [data['source_spec_id']] : [],
+            file_globs: [],
+          },
+        },
+        idempotencyKey: `claim-${String(data['id'])}`,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.task(task) });
+      pushToast({ tone: 'ok', message: t('task.claim_ok') });
+    },
+    onError: onApiError,
+  });
+
+  const release = useMutation({
+    mutationFn: (reason: 'handoff' | 'abandon') =>
+      apiFetch<Record<string, unknown>>(
+        `/projects/${proj}/claims/${String(myClaim?.['id'])}/release`,
+        {
+          method: 'POST',
+          body: { reason },
+        },
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.task(task) });
+      pushToast({ tone: 'ok', message: t('task.release_ok') });
+    },
+    onError: onApiError,
+  });
 
   const transition = useMutation({
     mutationFn: (next: 'done' | 'blocked' | 'in_progress') =>
@@ -117,6 +174,68 @@ function TaskDetail(): React.JSX.Element {
       />
 
       <div className="flex flex-col gap-4">
+        {/* **"왜 이 작업인가" 가 화면에 있어야 한다**(FR-05 · D-03 · screens.md:900,912,931,934).
+            서버는 출처 스펙·기준 버전·의존·재브리핑을 처음부터 실어 보냈고 화면이 그리지
+            않았다 — 그 사이 이 화면은 "무엇을 하라" 만 말하고 "무엇에 근거해" 는 말하지
+            않았다. 근거 없는 지시가 P1(맥락 유실)의 다른 이름이다. */}
+        <Card>
+          <SectionTitle>{t('task.basis')}</SectionTitle>
+          <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
+            <Element label={t('task.basis.spec')}>
+              {typeof data['spec_key'] === 'string' ? (
+                <Link
+                  to="/p/$proj/specs/$spec"
+                  params={{ proj, spec: String(data['source_spec_id'] ?? data['spec_key']) }}
+                  className="text-link hover:underline"
+                >
+                  <Mono>{String(data['spec_key'])}</Mono>
+                  {data['basis_version_no'] != null && ` v${String(data['basis_version_no'])}`}
+                </Link>
+              ) : (
+                '—'
+              )}
+              {/* 기준 버전이 밀려났다는 사실은 **링크 옆에** 붙는다 — 별도 카드로 두면
+                  근거를 보는 사람과 경고를 보는 사람이 갈린다 */}
+              {data['basis_superseded'] === true && (
+                <span data-testid="basis-superseded" className="ml-2 text-xs text-status-danger">
+                  {t('task.basis.superseded')}
+                </span>
+              )}
+            </Element>
+            <Element label={t('task.basis.requirement')}>
+              {typeof data['source_requirement_id'] === 'string' ? (
+                <Mono>{data['source_requirement_id']}</Mono>
+              ) : (
+                '—'
+              )}
+            </Element>
+            <Element label={t('task.basis.dependencies')}>
+              {rows(data['dependencies']).length === 0
+                ? t('common.none')
+                : rows(data['dependencies']).map((dep) => (
+                    <Link
+                      key={String(dep['key'])}
+                      to="/p/$proj/tasks/$task"
+                      params={{ proj, task: String(dep['key']) }}
+                      className="mr-2 text-link hover:underline"
+                    >
+                      <Mono>{String(dep['key'])}</Mono>
+                      <span className="ml-1 text-xs text-text-mute">{String(dep['status'])}</span>
+                    </Link>
+                  ))}
+            </Element>
+            <Element label={t('task.basis.rebrief')}>
+              {data['rebrief_required_at'] == null ? (
+                t('common.none')
+              ) : (
+                <span data-testid="rebrief-required" className="text-status-waiting">
+                  {t('task.basis.rebrief_required')}
+                </span>
+              )}
+            </Element>
+          </div>
+        </Card>
+
         <Card>
           <SectionTitle>{t('task.brief')}</SectionTitle>
           <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
@@ -135,6 +254,46 @@ function TaskDetail(): React.JSX.Element {
 
         <Card>
           <SectionTitle>{t('task.claims')}</SectionTitle>
+          {/* **웹에서도 잡고 놓을 수 있다**(screens.md:903·926). 이 두 버튼이 없는 동안
+              MCP·CLI 를 쓰지 않는 역할에게 보드는 읽기 전용이었다 — 서버는 세션 쿠키로도
+              `task:claim` 을 내주고 있었으므로 빠져 있던 것은 문뿐이다. */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {myClaim === undefined ? (
+              <>
+                <Button
+                  data-testid="claim-task"
+                  variant="primary"
+                  disabled={claim.isPending || heldByOther || status === 'done'}
+                  onClick={() => claim.mutate()}
+                >
+                  {t('task.claim')}
+                </Button>
+                {heldByOther && (
+                  <span className="text-xs text-text-faint">{t('task.claim_held')}</span>
+                )}
+              </>
+            ) : (
+              <>
+                {/* 인계와 포기는 **저장에서도 다른 값**이다(마이그레이션 0019) —
+                    화면이 하나로 뭉치면 "왜 내려놨나" 가 다시 사라진다 */}
+                <Button
+                  data-testid="release-handoff"
+                  disabled={release.isPending}
+                  onClick={() => release.mutate('handoff')}
+                >
+                  {t('task.release_handoff')}
+                </Button>
+                <Button
+                  data-testid="release-abandon"
+                  variant="danger"
+                  disabled={release.isPending}
+                  onClick={() => release.mutate('abandon')}
+                >
+                  {t('task.release_abandon')}
+                </Button>
+              </>
+            )}
+          </div>
           <ul className="flex flex-col gap-1">
             {rows(data['claims']).map((claim) => (
               <li key={String(claim['id'])} className="flex flex-wrap items-center gap-2 text-xs">

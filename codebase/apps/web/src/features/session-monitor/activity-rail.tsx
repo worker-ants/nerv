@@ -18,6 +18,7 @@ import type { Row } from '../../lib/queries.js';
 import { Avatar, SectionLabel, Skeleton } from '../../components/ui/primitives.js';
 import { SteerPanel } from './steer-panel.js';
 import { relativeTime } from './format.js';
+import { useCanIntervene } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import type { SessionCard } from './types.js';
 
@@ -44,6 +45,7 @@ export function ActivityRail({
   const items = rows(timeline.data);
   const groups = groupRuns(items);
   const trajectory = useSessionTrajectory(projectSlug, card.id);
+  const canIntervene = useCanIntervene(projectSlug, card.user_id);
   const [open, setOpen] = useState<string | null>(null);
 
   return (
@@ -67,7 +69,12 @@ export function ActivityRail({
 
       {/* 개입은 레일에 있다 — 보고 있는 세션에 지시하는 것이 자연스러운 동선이다 */}
       <div className="mt-4">
-        <SteerPanel projectSlug={projectSlug} sessionId={card.id} state={card.state} />
+        <SteerPanel
+          projectSlug={projectSlug}
+          sessionId={card.id}
+          state={card.state}
+          canIntervene={canIntervene}
+        />
       </div>
 
       {/* **위에는 한 일, 아래에 도구 로그**(2026-09-01 · REQ-WEB-124). 이 화면의 첫 물음은

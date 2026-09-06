@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { rows, useMe, useProjects } from './queries.js';
+import { rolesInProject } from './session.js';
 
 export interface Scope {
   orgSlug: string | null;
@@ -33,7 +34,11 @@ export function useScope(routeProjectSlug?: string | undefined): Scope {
     for (const m of me.data?.memberships ?? []) seen.set(m.org_slug, m.org_name);
     return [...seen].map(([slug, name]) => ({ slug, name }));
   }, [me.data]);
-  const currentOrg = orgs[0] ?? null;
+  // **고른 조직을 기억한다.** 2026-09-06 까지 여기가 `orgs[0]` 고정이라, 조직이 둘인
+  // 사용자가 헤더에서 두 번째를 고르면 `/o/:org` 가 홈으로 보내고 홈은 다시 첫 조직을
+  // 그렸다 — **아무 일도 일어나지 않은 것처럼 보였다**(screens.md:151 대조).
+  const rememberedOrg = useLastOrg();
+  const currentOrg = orgs.find((o) => o.slug === rememberedOrg) ?? orgs[0] ?? null;
 
   const projects = rows(useProjects(currentOrg?.slug ?? null).data);
   const remembered = useLastProject(routeProjectSlug);
@@ -52,6 +57,22 @@ export function useScope(routeProjectSlug?: string | undefined): Scope {
 }
 
 /**
+ * 이 세션에 개입할 수 있는가 — **세션 소유자와 admin 뿐이다**(EP-SES-04 · api.md §2.5).
+ *
+ * §1.8("화면은 서버가 허용할 것을 미리 말한다")이 요구하는 자리다. 2026-09-06 까지 steer
+ * 패널은 누구에게나 활성이었고, 남의 세션에 **중단 사유까지 적은 뒤** 403 을 받았다.
+ *
+ * 역할은 `rolesInProject` 가 판정한다 — 조직 단위 멤버십까지 합집합으로 보는 그 규칙을
+ * 여기서 다시 쓰면 그때마다 조금씩 다르게 틀린다(이 파일 머리말이 적은 그 사고다).
+ */
+export function useCanIntervene(projectSlug: string | null, sessionUserId: unknown): boolean {
+  const me = useMe();
+  const { orgSlug } = useScope(projectSlug ?? undefined);
+  if (rolesInProject(me.data, orgSlug, projectSlug).includes('admin')) return true;
+  return typeof sessionUserId === 'string' && sessionUserId === me.data?.id;
+}
+
+/**
  * 마지막으로 본 프로젝트를 기억한다.
  *
  * 홈·받은 요청·알림·설정은 조직 전역이라 라우트에 프로젝트가 없다. 기억이 없으면 그 화면들에서
@@ -62,6 +83,32 @@ export function useScope(routeProjectSlug?: string | undefined): Scope {
  * 읽기·쓰기 모두 실패를 삼키고 `null` 로 떨어진다.
  */
 const LAST_PROJECT_KEY = 'nerv.last-project';
+const LAST_ORG_KEY = 'nerv.last-org';
+
+/**
+ * 고른 조직을 적어 둔다 — `/o/:org` 가 부른다.
+ *
+ * 조직 전환은 화면이 없다(§1.6: "컨텍스트만 바꾸고 홈으로"). 그 컨텍스트를 어디에도
+ * 적지 않으면 전환은 리다이렉트만 남고 **바뀐 것이 없다.**
+ */
+export function rememberOrg(slug: string): void {
+  try {
+    localStorage.setItem(LAST_ORG_KEY, slug);
+  } catch {
+    // 기억하지 못해도 화면은 돈다 — 첫 조직으로 떨어질 뿐이다
+  }
+}
+
+function useLastOrg(): string | null {
+  const [remembered] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(LAST_ORG_KEY);
+    } catch {
+      return null;
+    }
+  });
+  return remembered;
+}
 
 function useLastProject(projectSlug: string | undefined): string | null {
   const [remembered, setRemembered] = useState<string | null>(() => {

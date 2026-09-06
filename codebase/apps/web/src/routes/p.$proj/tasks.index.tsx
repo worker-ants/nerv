@@ -6,7 +6,7 @@
 
 import { statusLabelKey, TASK_DONE_WINDOW_DAYS } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { DelegationForm } from '../../features/task-board/delegation-form.js';
 import { leaseRemaining, relativeTime } from '../../features/session-monitor/format.js';
@@ -23,7 +23,33 @@ import {
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 
-export const Route = createFileRoute('/p/$proj/tasks/')({ component: TaskBoard });
+export const Route = createFileRoute('/p/$proj/tasks/')({
+  /**
+   * 보드의 필터는 **주소에 있다**(screens.md:164 — `?spec=` `?assignee=` `?ai=1`).
+   *
+   * 2026-09-06 까지 넷 다 컴포넌트 state 였다: **"이 스펙의 작업만" 을 링크로 건넬 수
+   * 없었고** 새로고침 한 번에 필터가 풀렸다. 서버는 `spec`·`assignee` 를 처음부터 받고
+   * 있었으므로(`task.controller.ts`) 빠져 있던 것은 화면이 그것을 주소에서 읽는 일뿐이다.
+   *
+   * `?ai=1`(에이전트가 도는 작업만)은 **아직 없다** — 서버에 그 필터가 없어서, 화면에서
+   * 흉내 내면 한 페이지 안의 카드만 걸러 "없음" 을 사실처럼 보이게 한다.
+   */
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { spec?: string; assignee?: string; backlog?: true; archived?: true } => ({
+    ...(typeof search['spec'] === 'string' && search['spec'] !== ''
+      ? { spec: search['spec'] }
+      : {}),
+    ...(typeof search['assignee'] === 'string' && search['assignee'] !== ''
+      ? { assignee: search['assignee'] }
+      : {}),
+    ...(search['backlog'] === true || search['backlog'] === '1' ? { backlog: true as const } : {}),
+    ...(search['archived'] === true || search['archived'] === '1'
+      ? { archived: true as const }
+      : {}),
+  }),
+  component: TaskBoard,
+});
 
 /**
  * 레인 — screens.md §2.5.
@@ -76,19 +102,37 @@ function TaskBoard(): React.JSX.Element {
   const me = useMe();
   const projectId = project.data?.['id'];
   const [editing, setEditing] = useState<string | null>(null);
+  const navigate = useNavigate();
   // 백로그와 보관은 **끄고 시작한다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
-  const [showBacklog, setShowBacklog] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  const {
+    spec,
+    assignee,
+    backlog: showBacklog = false,
+    archived: showArchived = false,
+  } = Route.useSearch();
   const id = typeof projectId === 'string' ? projectId : undefined;
+  const filters = spec === undefined ? {} : { spec };
+  /** 뷰 상태는 서로를 지우지 않는다 — 하나를 바꿀 때 나머지를 그대로 싣는다 */
+  const searchWith = (patch: {
+    backlog?: boolean;
+    archived?: boolean;
+  }): { spec?: string; assignee?: string; backlog?: true; archived?: true } => ({
+    ...(spec === undefined ? {} : { spec }),
+    ...(assignee === undefined ? {} : { assignee }),
+    ...((patch.backlog ?? showBacklog) ? { backlog: true as const } : {}),
+    ...((patch.archived ?? showArchived) ? { archived: true as const } : {}),
+  });
+  const toBoard = (search: ReturnType<typeof searchWith>): void =>
+    void navigate({ to: '/p/$proj/tasks', params: { proj }, search });
 
   const lanes = [...(showBacklog ? (['backlog'] as const) : []), ...LANES];
 
   // 요약 숫자 — **레인과 같은 쿼리 키를 쓴다.** React Query 가 같은 키를 합쳐 주므로
   // 레인이 이미 부른 것을 다시 부르지 않는다. 한 페이지를 채웠으면 `+` 를 붙인다:
   // 그냥 30 이라고 적으면 사람은 그것이 전부라고 읽는다.
-  const inProgress = useTaskLane(proj, id, 'in_progress');
-  const ready = useTaskLane(proj, id, 'ready');
-  const blocked = useTaskLane(proj, id, 'blocked');
+  const inProgress = useTaskLane(proj, id, 'in_progress', filters);
+  const ready = useTaskLane(proj, id, 'ready', filters);
+  const blocked = useTaskLane(proj, id, 'blocked', filters);
   // **"내 담당"이 없으면 이 줄은 절반만 답한다** — 조직 전체가 몇 개를 돌리는지는
   // 알려 주는데 "그중 내가 쥔 것"은 카드를 뒤져야 나온다(시안 대조 2026-08-23).
   const meId = typeof me.data?.id === 'string' ? me.data.id : undefined;
@@ -97,6 +141,7 @@ function TaskBoard(): React.JSX.Element {
   // 실측: 담당이 있는 Task 3건(ready 2 · blocked 1)이 세 사람 모두에게 0으로 보였다.
   // 라벨이 "내 담당" 인데 값이 "내가 지금 붙잡고 있는 것" 이면 둘은 다른 질문이다.
   const mine = useTaskLane(proj, meId === undefined ? undefined : id, MINE_LANES, {
+    ...filters,
     ...(meId === undefined ? {} : { assignee: meId }),
   });
   const count = (q: ReturnType<typeof useTaskLane>): string => {
@@ -144,13 +189,13 @@ function TaskBoard(): React.JSX.Element {
             <FilterToggle
               testId="filter-backlog"
               on={showBacklog}
-              onClick={() => setShowBacklog(!showBacklog)}
+              onClick={() => toBoard(searchWith({ backlog: !showBacklog }))}
               label={t('tasks.filter.backlog')}
             />
             <FilterToggle
               testId="filter-archived"
               on={showArchived}
-              onClick={() => setShowArchived(!showArchived)}
+              onClick={() => toBoard(searchWith({ archived: !showArchived }))}
               label={t('tasks.filter.archived')}
               title={t('tasks.filter.archived_title', { days: TASK_DONE_WINDOW_DAYS })}
             />
@@ -168,6 +213,8 @@ function TaskBoard(): React.JSX.Element {
             projectId={id}
             lane={lane}
             includeArchived={showArchived}
+            filters={filters}
+            assignee={assignee}
             onEdit={setEditing}
           />
         ))}
@@ -216,17 +263,23 @@ function Lane({
   projectId,
   lane,
   includeArchived,
+  filters,
+  assignee,
   onEdit,
 }: {
   proj: string;
   projectId: string | undefined;
   lane: Lane;
   includeArchived: boolean;
+  filters: { spec?: string };
+  assignee: string | undefined;
   onEdit: (key: string) => void;
 }): React.JSX.Element {
   const t = useT();
   // 창은 done 에만 의미가 있다 — 다른 레인에 실어 보내면 쿼리 키만 둘로 갈라진다
   const query = useTaskLane(proj, projectId, lane, {
+    ...filters,
+    ...(assignee === undefined ? {} : { assignee }),
     includeArchived: lane === 'done' && includeArchived,
   });
   // 막힘은 **흐르지 않는 일**이다 — 같은 가로줄에 있되 레인 자체가 그렇게 보여야 한다

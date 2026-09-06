@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.79 (2026-09-06)</span>
+      <span>버전 v0.80 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -317,7 +317,7 @@
     </tbody>
   </table></div>
 
-  <p><b>NERV_* 에러 코드 → UI 매핑.</b> REST 에러 포맷은 MCP와 같은 코드 체계를 재사용한다(<a href="api.html">api.md</a> §1 · <a href="agent-integration.html">agent-integration</a> §2.7).</p>
+  <p><b>NERV_* 에러 코드 → UI 매핑.</b> REST 에러 포맷은 MCP와 같은 코드 체계를 재사용한다(<a href="api.html">api.md</a> §1 · <a href="agent-integration.html">agent-integration</a> §2.7). 판정은 <b>한 곳</b>이다 — <code>lib/api-errors.ts</code> 의 <code>describeApiError()</code> 가 봉투 하나를 이 표의 동작으로 옮기고, 화면은 <code>useApiError()</code> 한 줄로 그것을 받는다(2026-09-06 배선). 그 전에는 코드를 보는 자리가 저장소 전체에 셋뿐이었고 나머지 여덟은 일반 에러 카드로 떨어졌다 — 봉투가 실어 오는 <code>retry_after_s</code>·<code>next_actions</code> 는 파싱만 되고 참조가 0건이었다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>코드</th><th>UI 동작</th></tr></thead>
@@ -462,7 +462,9 @@
   </table>
   <p><b>② 우리 컴포넌트가 아니다</b> — TipTap 노드 이름이다(§3): <code>Heading</code> · <code>Paragraph</code> · <code>BulletList</code> · <code>OrderedList</code> · <code>ListItem</code> · <code>Blockquote</code> · <code>HorizontalRule</code>.</p>
   <p><b>③ 컴포넌트가 아니라 zod 스키마 이름이다</b> — 정본은 <code>@nerv/schema</code> 이고 <a href="api.html">4.4 API 명세</a> §1.7 이 규약이다: <code>SpecCreateInput</code> · <code>SpecDraftUpsertInput</code> · <code>TokenCreateInput</code> · <code>CommentCreateInput</code>. ※ <code>LoginInput</code> 은 <b>어디에도 없다</b> — §2.1 이 "react-hook-form + zod(<code>LoginInput</code>: password min 8)" 이라 적지만 로그인 화면은 평범한 <code>useState</code> 다.</p>
-  <p><b>④ 기능째 없다</b>(○ 미구현 — 2026-09-06 실측): <code>SourceViewToggle</code> · <code>RequirementPanel</code> · <code>DerivedTaskPanel</code> · <code>TerminalHandoffCard</code>(§2.4) · <code>FailOpenBanner</code> · <code>ScopeChips</code>(§2.6) · <code>ImplStatusCard</code>(§2.3) · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>EditLeaseBadge</code> · <code>CommentThread</code>(§2.4 — 기능은 라우트 안에 인라인) · <code>ImpactPreview</code> · <code>ArchiveConfirmDialog</code> · <code>BlockedLane</code> · <code>InboxFilterRail</code> · <code>ProcessedTrail</code> · <code>SlaBadge</code> · <code>StatusPanel</code> · <code>SubmitReviewButton</code>.</p>
+  <p><b>④ 기능째 없다</b>(○ 미구현 — 2026-09-06 실측): <code>FailOpenBanner</code> · <code>ScopeChips</code>(§2.6) · <code>ImplStatusCard</code>(§2.3) · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>EditLeaseBadge</code> · <code>CommentThread</code>(§2.4 — 기능은 라우트 안에 인라인) · <code>ImpactPreview</code> · <code>ArchiveConfirmDialog</code> · <code>BlockedLane</code> · <code>InboxFilterRail</code> · <code>ProcessedTrail</code> · <code>SlaBadge</code> · <code>StatusPanel</code> · <code>SubmitReviewButton</code>.</p>
+
+  <p><b>④-1 2026-09-06 에 들어온 것</b>: <code>SourceViewToggle</code>·<code>SourceView</code>(<code>features/spec-editor/source-view.tsx</code>) · <code>RequirementPanel</code>·<code>DerivedTaskPanel</code>(<code>requirement-panel.tsx</code>) · <code>TerminalHandoffCard</code>(<code>terminal-handoff.tsx</code>) — 넷 다 §2.4 가 이름까지 적어 두고 저장소에는 없던 것들이다.</p>
   <div class="callout"><div class="body"><b class="title">이름을 맞추지 않는 이유</b><p>저장소 쪽 이름을 명세에 맞춰 바꾸면 코드 변경이 되고, 명세 쪽을 바꾸면 다른 절 수십 곳의 인용이 깨진다. 이름은 그대로 두고 <b>대응을 한 곳에서 밝히는 편</b>이 싸다 — 그 대신 이 표가 낡으면 다시 셀 수 없게 되므로, 컴포넌트를 더하거나 이름을 바꾸면 여기도 고친다.</p></div></div>
 
   <h2 id="sec-2">2. 화면별 명세</h2>
@@ -734,13 +736,15 @@
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → <code>['spec', specId]</code>, <code>spec.comment_added</code>·<code>comment.resolved</code> → <code>['spec', specId, 'comments']</code>, <code>task.*</code> → 파생 Task 패널.</li>
     <li><b>컴포넌트</b>: <code>SpecTree</code> · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>SpecEditor</code>(TipTap — §3) · <code>CommentThread</code> · <code>EditLeaseBadge</code> · <code>SpecMetaDialog</code> · <code>ArchiveConfirmDialog</code> · <code>RelationPanel</code> · <code>ImpactPreview</code> · <code>QuickSwitcher</code>(§1.3a) · <code>StatusPanel</code> · <code>SubmitReviewButton</code> · <code>TerminalHandoffCard</code>.</li>
     <li><b>버튼 상태</b>: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 받은 요청 카드에서 한다(S7).</li>
-    <li><b>터미널 이어쓰기</b>(○ <b>미구현</b> — 2026-09-06 실측): 복사용 명령 <code>claude "/nerv:spec edit SPC-CWC-007"</code> 카드(ui-wireframes §2.3 (12)). 반대 방향은 <code>nerv_spec_draft_upsert</code> 응답의 <code>web_url</code> 딥링크가 이 화면으로 온다.</li>
+    <li><b>터미널 이어쓰기</b>: 복사용 명령 <code>claude "/nerv:spec edit SPC-CWC-007"</code> 카드(ui-wireframes §2.3 (12)) — 레일 바닥에 선다(<code>TerminalHandoffCard</code>). 반대 방향은 <code>nerv_spec_draft_upsert</code> 응답의 <code>web_url</code> 딥링크가 이 화면으로 온다.</li>
     <li><b>관계 패널</b>(상태 패널 내 섹션): EP-SPEC-18(direction=both) — <b>참조함 N / 참조됨 N</b>(backlink)을 kind 배지와 함께 목록으로, 클릭 시 해당 스펙으로 이동. 20건 초과는 [전체 보기]로 커서 페이지네이션 확장. 참조 갱신 배지(REQ-WEB-037)는 이 섹션 머리에 흡수된다 — "무엇이 낡았나"가 배지가 아니라 목록으로 보인다. 관계 데이터는 <b>본문의 링크에서</b> 저장 시 자동 추출된다(REQ-API-024 — 2026-08-30 개정: 산문에 적힌 키는 세지 않는다). 사람이 관계를 따로 관리하지는 않지만, <b>가리킬 문서는 링크로 적어야</b> 한다.</li>
     <li><b>관계 안은 방향으로 가른다</b>(2026-08-24 신설 — 사람 지시): 레일의 <code>관계</code> 탭 아래에 <b>전체 · 역참조 · 레퍼런스</b> 하위 탭을 두고 각각 건수를 단다. 두 방향은 <b>다른 질문</b>이기 때문이다 — 역참조는 "이 문서를 고치면 무엇이 흔들리나", 레퍼런스는 "이 문서가 무엇에 기대나". 한 목록에 섞이면(실측: <code>0-overview</code> 50건 = 역참조 22 + 레퍼런스 28) 둘 중 하나를 보려고 전체를 훑어야 한다. 건수는 <b>누르기 전에</b> 보인다 — 빈 탭을 열어 보게 하지 않는다. 전체 탭은 <b>역참조 무리 → 구분선 → 레퍼런스 무리</b> 순으로 놓는다: 화살표 표식만으로는 무리가 바뀐 자리를 눈이 알아채지 못한다(한쪽이 비면 나눌 것이 없으므로 선도 없다). 역참조 설명("고치면 흔들리는 문서")은 그 무리의 <b>머리</b>에 단다 — 꼬리에 달면 스무 줄을 다 내려간 뒤에야 무엇을 읽은 것인지 알게 된다. 그 설명은 역참조가 <b>보이는 목록에 있을 때만</b> 성립하므로 레퍼런스 탭에서는 달지 않는다.</li>
     <li><b>영향 미리보기</b>: [검토 요청] 확인 다이얼로그에 "이 문서를 참조하는 문서 N건 · 파생 Task M건에 영향" 1줄 + 목록 펼침(EP-SPEC-18 역참조 + 파생 Task 카운트). 승인 후 <code>spec.recheck_requested</code> 전파의 사전 뷰다.</li>
     <li><b>메타 편집·아카이브</b>(planner·admin — <code>spec:meta</code>): 상단 ⋯ 메뉴 → 메타 다이얼로그(<code>SpecMetaDialog</code>: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(<code>archive_blocked</code>) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = <code>?include_archived=true</code>), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"(<a href="importer.html">4.7 스펙 임포터</a> §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.</li>
     <li><b>폼·검증</b>: <code>SpecDraftUpsertInput</code>(zod — <code>packages/schema</code>, MCP 도구 인자와 공유): <code>body_markdown</code>·<code>base_hash</code>·<code>change_summary</code>(min 1), 새 스펙 생성은 <code>SpecCreateInput</code>(<code>parent_id</code>·<code>type</code> 6종 enum·<code>title</code> min 1·<code>body_markdown</code>). 코멘트 <code>CommentCreateInput</code>: <code>anchor</code>(min 1)·<code>body_md</code>(min 1).</li>
-    <li><b>빈 상태</b>: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크. ○ <b>미구현</b> — 아래 넷이 아직 없다(2026-09-06 실측): <code>SourceViewToggle</code>(read-only md) · <code>RequirementPanel</code> · <code>DerivedTaskPanel</code> · 터미널 이어쓰기 카드. §3.2 규칙 2·REQ-WEB-031 이 "저장 실패 시 <b>소스 보기와 함께</b> 실패 리포트" 라고 적은 그 소스 보기가 이 넷에 든다.</li>
+    <li><b>요구사항과 파생 Task</b>(레일 <code>요구사항</code> 탭 — 2026-09-06 배선): <code>RequirementPanel</code> 이 EP-REQ-01 로 이 문서의 요구사항을 싣고 각 행에 파생 Task·증적 수를 단다 — <b>Task 도 증적도 0 인 "빈 약속"은 붉게 세운다</b>(FR-13: 커버리지 숫자는 몇 건인지만 말하고 <i>어느 요구사항인지</i>는 말하지 못한다). 그 아래 <code>DerivedTaskPanel</code> 이 EP-TASK-01 <code>?spec=</code> 으로 흐르는 작업(ready·in_progress·blocked)을 싣고, [보드에서 전체 보기]는 <b>같은 서버 필터</b>를 쓰는 <code>/p/:proj/tasks?spec=</code> 로 간다.</li>
+    <li><b>소스 보기</b>(<code>SourceViewToggle</code>): 원문 md 를 그대로 보이는 read-only 뷰. §3.2 규칙 2·REQ-WEB-031 의 "저장 실패 시 <b>소스 보기와 함께</b> 실패 리포트" 가 이것이다 — 왕복 검증이 실패하면 리포트 안에 토글이 함께 뜬다. 에디터가 못 그리는 것이 정확히 저장을 막는 것이라, 그때 필요한 것은 렌더링이 아니라 바이트다.</li>
+    <li><b>빈 상태</b>: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 안내 링크.</li>
   </ul>
 
   <h4>제목은 화면을 떠나지 않는다 (2026-08-27 개정 — 사람 요청)</h4>
@@ -1114,7 +1118,7 @@
       <tr><td>작업 상세 패널</td><td>EP-TASK-04 <code>GET /api/v1/projects/{proj}/tasks/{task}</code></td><td>위임 명세·활성 클레임·의존·Evidence — 보드 위 오버레이(<code>/p/:proj/tasks/:task</code>, URL 공유 가능). 그림은 아래(§1.6)</td></tr>
       <tr><td>Task 파생·생성</td><td>EP-TASK-03 <code>POST /api/v1/projects/{proj}/tasks</code></td><td>승인된 SpecVersion에서만 파생 — 버튼은 approved 아닌 스펙에서 비활성(D-02)</td></tr>
       <tr><td>위임 명세 편집</td><td>EP-TASK-05 <code>PATCH /api/v1/projects/{proj}/tasks/{task}</code></td><td>4요소: <code>goal_md</code>·<code>output_format_md</code>·<code>tools_sources_md</code>·<code>boundaries_md</code>(data-model §2.4). 충족 시 서버가 <code>ready</code> 승격</td></tr>
-      <tr><td>사람 클레임</td><td>EP-TASK-06 <code>POST /api/v1/projects/{proj}/tasks/{task}/claim</code></td><td><code>claim.agent_session_id</code> NULL — <code>nerv_task_claim</code>과 같은 서비스·같은 겹침 판정</td></tr>
+      <tr><td>사람 클레임</td><td>EP-TASK-06 <code>POST /api/v1/projects/{proj}/tasks/{task}/claim</code></td><td><code>claim.agent_session_id</code> NULL — <code>nerv_task_claim</code>과 같은 서비스·같은 겹침 판정. <b>2026-09-06 배선</b>: 작업 상세의 [클레임]/[인계]/[포기]. 범위는 이 작업의 출처 스펙 하나이고 파일 글롭은 <b>비운다</b>(사람이 무엇을 만질지 서버가 추정하지 않는다)</td></tr>
       <tr><td>상태 전이</td><td>EP-TASK-09 <code>POST /api/v1/projects/{proj}/tasks/{task}/transition</code></td><td>서버 가드 거부 시 사유를 그대로 카드 툴팁으로</td></tr>
     </tbody>
   </table></div>
@@ -1163,6 +1167,8 @@
     <li><span class="marker">7</span><span><b>전이 버튼</b> — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003).</span></li>
   </ul>
 
+  <blockquote><p><b>근거 카드</b>(2026-09-06 배선): 상세 머리에 <code>근거 — 왜 이 작업인가</code> 카드가 선다 — 출처 스펙(+기준 버전, superseded 면 그 사실) · 출처 요구사항 · 의존 Task 링크 · 재브리핑 필요 여부. 서버는 이 넷을 EP-TASK-04 응답에 처음부터 싣고 있었고 화면이 그리지 않았다. 근거 없는 지시가 P1(맥락 유실)의 다른 이름이다. <b>다만 재브리핑을 <i>해소하는</i> 경로는 없다</b> — REQ-WEB-036 은 "기준 버전 갱신(EP-TASK-05) 경로를 제공한다" 고 요구하는데 <code>rebrief_required_at</code> 을 <b>세우는 코드만 있고 지우는 코드가 없다</b>(<code>spec.service.ts</code> 가 <code>now()</code> 로 세운다). 화면에 버튼을 두려면 서버 쪽 동작을 먼저 정해야 하므로(새 요구사항이다) 배지까지만 그리고 남겨 둔다.</p></blockquote>
+
   <ul>
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>task.ready</code> <code>task.claimed</code> <code>task.blocked</code> <code>task.done</code> <code>task.created</code> <code>task.updated</code> <code>claim.released</code> → 보드 재조회. 리스 카운트다운은 클라이언트 시계.</li>
     <li><b>컴포넌트</b>: <code>TaskBoard</code> · <code>TaskCard</code>(위임 명세 체크 표시·리스 카운트다운·세션 상태 dot → S5 딥링크) · <code>TaskDetailPanel</code> · <code>TaskCreateDialog</code> · <code>BlockedLane</code>.</li>
@@ -1209,7 +1215,7 @@ export const TaskCreateInput = z.object({
       <tr><td>세션 보드</td><td>EP-SES-01 <code>GET /api/v1/projects/{proj}/sessions</code> (state 필터: <code>pending / active / awaiting_input / complete / error / stale</code>)</td><td>요약 스트립 = 상태별 집계 — <b>여섯 전부를 어휘 순서로</b>, 0 인 상태도 싣는다(REQ-WEB-139)</td></tr>
       <tr><td>세션 상세</td><td>EP-SES-02 <code>GET /api/v1/projects/{proj}/sessions/{sid}</code></td><td><code>agent_session</code> 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id</td></tr>
       <tr><td>Activity 타임라인</td><td>EP-SES-03 <code>GET /api/v1/projects/{proj}/sessions/{sid}/activities</code> (커서)</td><td><code>thought / action / elicitation / response / error</code> 5종 — 불변 레코드(D-10)</td></tr>
-      <tr><td>steer / stop</td><td>EP-SES-04 <code>POST /api/v1/projects/{proj}/sessions/{sid}/steer</code> (<code>kind</code>: steer/stop) — <b>권한은 세션 소유자·admin 이다</b>(2026-09-06 보완: 이 절이 권한을 한 글자도 적지 않아 화면이 누구에게나 활성으로 그리고 있다. §1.8·REQ-WEB-003 은 "화면은 서버가 허용할 것을 미리 말한다" 이므로 <b>화면 쪽 배선은 열린 자리다</b>)</td><td>지시는 다음 <code>nerv_task_heartbeat</code> 응답의 <code>pending</code>에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내</td></tr>
+      <tr><td>steer / stop</td><td>EP-SES-04 <code>POST /api/v1/projects/{proj}/sessions/{sid}/steer</code> (<code>kind</code>: steer/stop) — <b>권한은 세션 소유자·admin 이다.</b> 화면도 그렇게 그린다(2026-09-06 배선): 소유자·admin 이 아니면 입력칸과 두 버튼이 잠기고 <b>왜 잠겼는지</b>를 말한다(§1.8·REQ-WEB-003). 끝난 세션과 남의 세션은 <b>다른 문구</b>다 — 기다리면 되는 일과 아닌 일은 다르다. 소유 판정의 축은 목록·상세가 함께 싣는 <code>user_id</code> 다</td><td>지시는 다음 <code>nerv_task_heartbeat</code> 응답의 <code>pending</code>에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내</td></tr>
     </tbody>
   </table></div>
 

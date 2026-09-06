@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.17 · 2026-09-06 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.18 · 2026-09-06 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.18 변경(2026-09-06 — 스토리 없이 들어온 구현 셋): §1.4 셋째 표에 **에러 코드 → UI 매핑 한 곳** · **S3 우측 레일 넷** · **웹 클레임·근거 카드**를 더한다. 셋 다 [4.5](screens.md)가 이름까지 적어 두고 저장소에는 없던 자리이고, 어느 스토리에도 속하지 않는다(E08 의 남은 둘은 그대로다).
 >
 > v0.17 변경(2026-09-06 — E07-S05 의 남은 것이 닫혔다): `nerv import <kind>` 서브커맨드가 실재하게 됐다(정본·usage 문구·이 문서가 말하던 형태였고 파서만 몰랐다). E07 을 done 5 · 부분 0 으로, 합계를 **done 65 · 부분 9** 로 고치고 부분 표에서 그 행을 걷었다.
 >
@@ -106,6 +108,9 @@ updated: 2026-09-06
 | md 미러 export 잡 | `worker/jobs/export.job.ts` | 코드가 스스로 "P1 후반"이라 적는다 |
 | `nerv_question_cancel` | `modules/approval/question.tools.ts` | 2026-09-05 신설 |
 | `pnpm preflight` · `hooks:install` | `codebase/scripts/preflight.mjs` · `install-hooks.mjs` | 규약 7 이 커밋 전 필수로 지정한 도구 |
+| 에러 코드 → UI 매핑 한 곳 | `apps/web/src/lib/api-errors.ts`(`describeApiError` · `useApiError`) | [4.5](screens.md) §1.5 표가 "모든 화면의 기본값" 으로 선언된 계약인데 코드를 보는 자리가 셋뿐이었다(2026-09-06) |
+| S3 우측 레일 넷 | `features/spec-editor/{requirement-panel,source-view,terminal-handoff}.tsx` | [4.5](screens.md) §2.4 가 이름까지 적어 두고 저장소에 없던 것들(2026-09-06) |
+| 웹 클레임·근거 카드 | `routes/p.$proj/tasks.$task.tsx` | [4.5](screens.md) §2.5 화면 요소 "사람 클레임"·출처 역링크(2026-09-06) |
 
 #### 이 절은 언제 갱신되는가
 

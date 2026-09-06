@@ -10,6 +10,7 @@
 // 이라, 사람에게 버전 id 를 묻지 않고 문서만 고르게 한다(REQ-WEB-117).
 
 import { useEffect, useState } from 'react';
+import { useApiError } from '../../lib/api-errors.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { useT } from '../../lib/i18n.js';
@@ -45,6 +46,7 @@ export function ResolveDialog({
   const [picking, setPicking] = useState(false);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
 
   // 증거는 그 스펙의 **지금 버전**이다 — 발견이 달고 있는 버전은 고치기 **전**의 버전이다
   const picked = useSpec(projectSlug, action === 'spec_change' ? specKey : '');
@@ -73,7 +75,7 @@ export function ResolveDialog({
       pushToast({ tone: 'ok', message: t('reviews.resolve.done') });
       onDone();
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   // 서버도 같은 것을 막지만(EP-REV-02) 버튼이 먼저 막아야 사람이 왕복하지 않는다

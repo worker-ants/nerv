@@ -10,6 +10,7 @@
 // 보관)를 하나 세운다.
 
 import { useT } from '../../lib/i18n.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -87,6 +88,7 @@ function OrgSection({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const [draft, setDraft] = useState(name);
   const [confirming, setConfirming] = useState(false);
 
@@ -97,7 +99,7 @@ function OrgSection({
       void queryClient.invalidateQueries({ queryKey: ['me'] });
       pushToast({ tone: 'ok', message: t('settings.workspace.org_renamed') });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const remove = useMutation({
@@ -270,6 +272,7 @@ function ProjectForm({
   onDone: () => void;
 }): React.JSX.Element {
   const t = useT();
+  const onApiError = useApiError();
   const { pushToast } = useRealtime();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -285,7 +288,7 @@ function ProjectForm({
       pushToast({ tone: 'ok', message: t('settings.workspace.project_created') });
       onDone();
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   // **이름에서 slug·key 를 만들어 준다.** 셋을 손으로 채우게 하면 사람은 매번 같은

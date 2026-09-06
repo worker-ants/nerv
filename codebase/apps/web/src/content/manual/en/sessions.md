@@ -44,7 +44,7 @@ The **summary strip** at the top is both a count and a filter — press a number
 
 ## Instructions and stopping
 
-Under **Intervene** on the card are two buttons — [Send instruction] and [Stop]. **Both are for the session's owner and for admins only** (the buttons show on someone else's session too, but pressing them is refused). An agent token cannot do either — this is a person's move.
+Under **Intervene** on the card are two buttons — [Send instruction] and [Stop]. **Both are for the session's owner and for admins only.** On someone else's session they are **disabled from the start**, with the reason spelled out beside them — so you never write out a stop reason and only then get refused. An agent token cannot do either — this is a person's move.
 
 **Send instruction** tells a running agent to change direction. It does not interrupt immediately — it rides along on the agent's next **heartbeat**. The same instruction is never delivered twice.
 

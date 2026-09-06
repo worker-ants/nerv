@@ -7,6 +7,7 @@
 // 그 그림을 못 본다. 붙여넣을 마크다운을 한 번에 넣어 준다.
 
 import { useRef, useState } from 'react';
+import { useApiError } from '../../lib/api-errors.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useSpecAttachments } from '../../lib/queries.js';
@@ -33,6 +34,7 @@ export function AttachmentPanel({
   const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const attachments = useSpecAttachments(projectSlug, specKey);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -54,7 +56,7 @@ export function AttachmentPanel({
       void queryClient.invalidateQueries({ queryKey: ['spec', specKey, 'attachments'] });
       pushToast({ tone: 'ok', message: t('spec.attach.done') });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const remove = useMutation({

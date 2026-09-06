@@ -5,6 +5,7 @@
 // 기능이 없다고 생각하고, 그 오해는 관리자에게 문의로 돌아온다.
 
 import { useT } from '../../lib/i18n.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -76,6 +77,7 @@ function MembersTab(): React.JSX.Element {
   const members = useMembers(orgSlug);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   // **하나를 고르지 않는다.** 겸직이면 planner+developer 중 하나가 사라진다(0003_multi_role).
   // 조직 권한은 그 조직의 멤버십 **전부**를 합쳐 본다 — 한 행만 보면 조직 admin 이면서
   // 프로젝트에서 planner 인 사람이 admin 이 아니게 된다.
@@ -102,7 +104,7 @@ function MembersTab(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'members'] });
       pushToast({ tone: 'ok', message: t('settings.members.role_changed') });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   return (
@@ -204,8 +206,8 @@ function InviteSection({
   canInvite: boolean;
 }): React.JSX.Element {
   const t = useT();
+  const onApiError = useApiError();
   const queryClient = useQueryClient();
-  const { pushToast } = useRealtime();
   const invitations = useOrgInvitations(canInvite ? orgSlug : null);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
@@ -230,13 +232,13 @@ function InviteSection({
       setEmail('');
       refresh();
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const revoke = useMutation({
     mutationFn: (id: string) => apiFetch(`/invitations/${id}`, { method: 'DELETE' }),
     onSuccess: refresh,
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   if (!canInvite) return <></>;

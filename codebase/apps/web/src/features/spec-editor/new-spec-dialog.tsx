@@ -8,6 +8,7 @@
 // 여기서 시작하고, 여기가 없으면 그 사람에게 이 제품은 읽기 전용이다.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useApiError } from '../../lib/api-errors.js';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
@@ -29,6 +30,7 @@ export function NewSpecDialog({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const [key, setKey] = useState('');
   const [title, setTitle] = useState('');
   const [type, setType] = useState<string>('feature');
@@ -66,7 +68,7 @@ export function NewSpecDialog({
         params: { proj: projectSlug, spec: String(result['key'] ?? key.trim()) },
       });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const ready = key.trim() !== '' && title.trim() !== '';

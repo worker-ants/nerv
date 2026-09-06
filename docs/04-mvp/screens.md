@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.79 · 2026-09-06 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v0.80 · 2026-09-06 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v0.80 변경(2026-09-06 — 명세만 있던 화면 요소를 배선했다, 정합성 대조 → 사람 지시): **S3 레일 넷 · 에러 매핑 여덟 · steer 권한 · 연결 배너 스위치 · URL 상태 셋 · 웹 클레임과 근거 카드.** 전부 "명세가 적어 두었는데 코드에 없던" 자리다. ① **§1.5 에러 코드 → UI 매핑**은 "모든 화면의 기본값" 으로 선언된 계약인데 코드를 보는 자리가 저장소 전체에 **셋뿐**이었다 — 나머지 여덟이 일반 에러 카드로 떨어져 서버가 왜 막았는지가 화면에서 사라졌고, 봉투의 `retry_after_s`·`next_actions` 는 파싱만 되고 참조가 0건이었다. 판정을 한 곳(`describeApiError`)에 두고 열세 화면이 `useApiError()` 한 줄로 받는다. ② **§2.4 S3 의 컴포넌트 넷**(`SourceViewToggle`·`RequirementPanel`·`DerivedTaskPanel`·터미널 이어쓰기)을 만들었다 — REQ-WEB-031 이 요구하는 "저장 실패 시 **소스 보기와 함께**" 의 그 소스 보기가 없어 차단만 있고 볼 것이 없었고, D-03·FR-13 의 축(약속 ↔ 지키는 일)이 화면 어디에도 없었다. **빈 약속**(Task 도 증적도 0)은 붉게 선다. ③ **§2.6 steer/stop** — 서버는 세션 소유자·admin 만 허용하는데 화면이 누구에게나 활성이라 **중단 사유까지 적은 뒤** 403 을 받았다. 목록·상세가 `user_id` 를 함께 싣고 화면이 미리 잠근다(§1.8). ④ **§1.3 연결 배너 2단계의 ②** — 문구·분기·폴백 폴링이 다 있었고 **켜는 곳만 없어서**(`setOffline` 호출부 0건) REST 가 죽어도 화면은 "실시간 갱신 중단" 만 말했다. 판정의 축은 "서버가 답했는가" 다 — 403 은 답한 것이다. ⑤ **URL 상태 셋**(§2.4(3)·:164·:151) — 스펙 검색어·보드 필터가 컴포넌트 state 라 "이 스펙의 작업만" 을 링크로 건넬 수 없었고, 조직 전환은 `<Navigate to="/" />` 하나에 `orgs[0]` 고정이라 **두 번째 조직을 고르면 아무 일도 일어나지 않았다.** `?ai=1` 은 서버에 그 필터가 없어 남겨 둔다. ⑥ **§2.5 사람 클레임과 근거 카드** — 웹만으로 작업을 잡거나 놓을 수 없었고, "왜 이 작업인가"(출처 스펙·요구사항·의존·재브리핑)를 서버가 이미 실어 보내는데 화면이 그리지 않았다. **재브리핑을 해소하는 서버 경로는 없다**(세우는 코드만 있다) — 새 요구사항이라 남겨 두고 그 사실을 적었다.
 >
 > v0.79 변경(2026-09-06 — 문서로는 미구현을 셀 수 없었다, 정합성 대조 → 사람 지시): **§1.9 신설 · §2.6a 화면별 색인.** ① 이 문서가 부르는 컴포넌트 이름 **94개 중 저장소에 그 이름으로 있는 것은 32개**다. 이름이 다르면 "없는 것" 과 "이름만 다른 것" 을 구분할 수 없어 **문서로는 미구현을 셀 수 없다.** §1.9 가 넷으로 가른다 — 이름만 다른 것(대응표) · TipTap 노드 · zod 스키마 이름 · **기능째 없는 것 열아홉**. 이름은 맞추지 않는다(코드를 바꾸거나 인용 수십 곳을 깨는 대신 대응을 한 곳에서 밝힌다). ② §2.6a 표에 다른 화면의 수용 기준 **23개**가 신설 순서대로 쌓여 있었다 — 화면별 문서인데 자기 화면 절에 자기 약속이 없다. 번호는 재배치하지 않고(규약 5) 화면별 색인을 두고 각 화면 절에 소재를 한 줄씩 적었다.
 >
@@ -313,7 +315,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 빈 | "막다른 길 금지"(ui-wireframes §3.4) — 빈 문구 + 다음 행동 링크 1개 이상 |
 | 에러 | 인라인 에러 카드 + [다시 시도]. 전역 토스트로 중복 알리지 않는다 |
 
-**NERV_* 에러 코드 → UI 매핑.** REST 에러 포맷은 MCP와 같은 코드 체계를 재사용한다([api.md](api.md) §1 · [agent-integration](../03-proposal/agent-integration.md) §2.7).
+**NERV_* 에러 코드 → UI 매핑.** REST 에러 포맷은 MCP와 같은 코드 체계를 재사용한다([api.md](api.md) §1 · [agent-integration](../03-proposal/agent-integration.md) §2.7). 판정은 **한 곳**이다 — `lib/api-errors.ts` 의 `describeApiError()` 가 봉투 하나를 이 표의 동작으로 옮기고, 화면은 `useApiError()` 한 줄로 그것을 받는다(2026-09-06 배선). 그 전에는 코드를 보는 자리가 저장소 전체에 셋뿐이었고 나머지 여덟은 일반 에러 카드로 떨어졌다 — 봉투가 실어 오는 `retry_after_s`·`next_actions` 는 파싱만 되고 참조가 0건이었다.
 
 | 코드 | UI 동작 |
 | --- | --- |
@@ -439,7 +441,9 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 
 **③ 컴포넌트가 아니라 zod 스키마 이름이다** — 정본은 `@nerv/schema` 이고 [4.4 API 명세](api.md) §1.7 이 규약이다: `SpecCreateInput` · `SpecDraftUpsertInput` · `TokenCreateInput` · `CommentCreateInput`. ※ `LoginInput` 은 **어디에도 없다** — §2.1 이 "react-hook-form + zod(`LoginInput`: password min 8)" 이라 적지만 로그인 화면은 평범한 `useState` 다.
 
-**④ 기능째 없다**(○ 미구현 — 2026-09-06 실측): `SourceViewToggle` · `RequirementPanel` · `DerivedTaskPanel` · `TerminalHandoffCard`(§2.4) · `FailOpenBanner` · `ScopeChips`(§2.6) · `ImplStatusCard`(§2.3) · `VersionPicker` · `DiffToggle` · `EditLeaseBadge` · `CommentThread`(§2.4 — 기능은 라우트 안에 인라인) · `ImpactPreview` · `ArchiveConfirmDialog` · `BlockedLane` · `InboxFilterRail` · `ProcessedTrail` · `SlaBadge` · `StatusPanel` · `SubmitReviewButton`.
+**④ 기능째 없다**(○ 미구현 — 2026-09-06 실측): `FailOpenBanner` · `ScopeChips`(§2.6) · `ImplStatusCard`(§2.3) · `VersionPicker` · `DiffToggle` · `EditLeaseBadge` · `CommentThread`(§2.4 — 기능은 라우트 안에 인라인) · `ImpactPreview` · `ArchiveConfirmDialog` · `BlockedLane` · `InboxFilterRail` · `ProcessedTrail` · `SlaBadge` · `StatusPanel` · `SubmitReviewButton`.
+
+**④-1 2026-09-06 에 들어온 것**: `SourceViewToggle`·`SourceView`(`features/spec-editor/source-view.tsx`) · `RequirementPanel`·`DerivedTaskPanel`(`requirement-panel.tsx`) · `TerminalHandoffCard`(`terminal-handoff.tsx`) — 넷 다 §2.4 가 이름까지 적어 두고 저장소에는 없던 것들이다.
 
 > **이름을 맞추지 않는 이유.** 저장소 쪽 이름을 명세에 맞춰 바꾸면 코드 변경이 되고, 명세 쪽을 바꾸면 다른 절 수십 곳의 인용이 깨진다. 이름은 그대로 두고 **대응을 한 곳에서 밝히는 편**이 싸다 — 그 대신 이 표가 낡으면 다시 셀 수 없게 되므로, 컴포넌트를 더하거나 이름을 바꾸면 여기도 고친다.
 
@@ -638,7 +642,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 - **실시간**: `project:{id}` 룸 — `spec.*` → `['spec', specId]`, `spec.comment_added`·`comment.resolved` → `['spec', specId, 'comments']`, `task.*` → 파생 Task 패널.
 - **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `CommentThread` · `EditLeaseBadge` · `SpecMetaDialog` · `ArchiveConfirmDialog` · `RelationPanel` · `ImpactPreview` · `QuickSwitcher`(§1.3a) · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
 - **버튼 상태**: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 받은 요청 카드에서 한다(S7).
-- **터미널 이어쓰기**(○ **미구현** — 2026-09-06 실측): 복사용 명령 `claude "/nerv:spec edit SPC-CWC-007"` 카드(ui-wireframes §2.3 (12)). 반대 방향은 `nerv_spec_draft_upsert` 응답의 `web_url` 딥링크가 이 화면으로 온다.
+- **터미널 이어쓰기**: 복사용 명령 `claude "/nerv:spec edit SPC-CWC-007"` 카드(ui-wireframes §2.3 (12)) — 레일 바닥에 선다(`TerminalHandoffCard`). 반대 방향은 `nerv_spec_draft_upsert` 응답의 `web_url` 딥링크가 이 화면으로 온다.
 - **관계 패널**(상태 패널 내 섹션): EP-SPEC-18(direction=both) — **참조함 N / 참조됨 N**(backlink)을 kind 배지와 함께 목록으로, 클릭 시 해당 스펙으로 이동. 20건 초과는 [전체 보기]로 커서 페이지네이션 확장. 참조 갱신 배지(REQ-WEB-037)는 이 섹션 머리에 흡수된다 — "무엇이 낡았나"가 배지가 아니라 목록으로 보인다. 관계 데이터는 저장 시 자동 추출(REQ-API-024)이라 사람이 관리하지 않는다.
 - **관계 안은 방향으로 가른다**(2026-08-24 신설 — 사람 지시): 레일의 `관계` 탭 아래에 **전체 · 역참조 · 레퍼런스** 하위 탭을 두고 각각 건수를 단다. 두 방향은 **다른 질문**이기 때문이다 — 역참조는 "이 문서를 고치면 무엇이 흔들리나", 레퍼런스는 "이 문서가 무엇에 기대나". 한 목록에 섞이면(실측: `0-overview` 50건 = 역참조 22 + 레퍼런스 28) 둘 중 하나를 보려고 전체를 훑어야 한다. 건수는 **누르기 전에** 보인다 — 빈 탭을 열어 보게 하지 않는다.
 
@@ -646,7 +650,9 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 - **영향 미리보기**: [검토 요청] 확인 다이얼로그에 "이 문서를 참조하는 문서 N건 · 파생 Task M건에 영향" 1줄 + 목록 펼침(EP-SPEC-18 역참조 + 파생 Task 카운트). 승인 후 `spec.recheck_requested` 전파의 사전 뷰다.
 - **메타 편집·아카이브**(planner·admin — `spec:meta`): 상단 ⋯ 메뉴 → 메타 다이얼로그(`SpecMetaDialog`: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(`archive_blocked`) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다. 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = `?include_archived=true`), 단건 진입 시 상단 배너 + [복원](EP-SPEC-17)을 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.
 - **폼·검증**: `SpecDraftUpsertInput`(zod — `packages/schema`, MCP 도구 인자와 공유): `body_markdown`·`base_hash`·`change_summary`(min 1), 새 스펙 생성은 `SpecCreateInput`(`parent_id`·`type` 6종 enum·`title` min 1·`body_markdown`). 코멘트 `CommentCreateInput`: `anchor`(min 1)·`body_md`(min 1).
-- **빈 상태**: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 템플릿 안내 링크. ○ **미구현** — 아래 넷이 아직 없다(2026-09-06 실측): `SourceViewToggle`(read-only md) · `RequirementPanel`(요구사항 목록) · `DerivedTaskPanel`(파생 Task) · 터미널 이어쓰기 카드. §3.2 규칙 2·REQ-WEB-031 이 "저장 실패 시 **소스 보기와 함께** 실패 리포트" 라고 적은 그 소스 보기가 이 넷에 든다.
+- **요구사항과 파생 Task**(레일 `요구사항` 탭 — 2026-09-06 배선): `RequirementPanel` 이 EP-REQ-01 로 이 문서의 요구사항을 싣고 각 행에 파생 Task·증적 수를 단다 — **Task 도 증적도 0 인 "빈 약속"은 붉게 세운다**(FR-13: 커버리지 숫자는 몇 건인지만 말하고 *어느 요구사항인지*는 말하지 못한다). 그 아래 `DerivedTaskPanel` 이 EP-TASK-01 `?spec=` 으로 흐르는 작업(ready·in_progress·blocked)을 싣고, [보드에서 전체 보기]는 **같은 서버 필터**를 쓰는 `/p/:proj/tasks?spec=` 로 간다.
+- **소스 보기**(`SourceViewToggle`): 원문 md 를 그대로 보이는 read-only 뷰. §3.2 규칙 2·REQ-WEB-031 의 "저장 실패 시 **소스 보기와 함께** 실패 리포트" 가 이것이다 — 왕복 검증이 실패하면 리포트 안에 토글이 함께 뜬다. 에디터가 못 그리는 것이 정확히 저장을 막는 것이라, 그때 필요한 것은 렌더링이 아니라 바이트다.
+- **빈 상태**: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 안내 링크.
 
 #### 제목은 화면을 떠나지 않는다 (2026-08-27 개정 — 사람 요청)
 
@@ -939,7 +945,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 작업 상세 패널 | EP-TASK-04 `GET /api/v1/projects/{proj}/tasks/{task}` | 위임 명세·활성 클레임·의존·Evidence — 보드 위 오버레이(`/p/:proj/tasks/:task`, URL 공유 가능). 그림은 아래(§1.6) |
 | Task 파생·생성 | EP-TASK-03 `POST /api/v1/projects/{proj}/tasks` | 승인된 SpecVersion에서만 파생 — 버튼은 approved 아닌 스펙에서 비활성(D-02) |
 | 위임 명세 편집 | EP-TASK-05 `PATCH /api/v1/projects/{proj}/tasks/{task}` | 4요소: `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`(data-model §2.4). 충족 시 서버가 `ready` 승격 |
-| 사람 클레임 | EP-TASK-06 `POST /api/v1/projects/{proj}/tasks/{task}/claim` | `claim.agent_session_id` NULL — `nerv_task_claim`과 같은 서비스·같은 겹침 판정 |
+| 사람 클레임 | EP-TASK-06 `POST /api/v1/projects/{proj}/tasks/{task}/claim` | `claim.agent_session_id` NULL — `nerv_task_claim`과 같은 서비스·같은 겹침 판정. **2026-09-06 배선**: 작업 상세의 [클레임]/[인계]/[포기]. 범위는 이 작업의 출처 스펙 하나이고 파일 글롭은 **비운다**(사람이 무엇을 만질지 서버가 추정하지 않는다) |
 | 상태 전이 | EP-TASK-09 `POST /api/v1/projects/{proj}/tasks/{task}/transition` | 서버 가드 거부 시 사유를 그대로 카드 툴팁으로 |
 
 **하위 뷰: 작업 상세 패널** (`/p/:proj/tasks/:task`) — 보드 위 오버레이. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
@@ -970,6 +976,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 2. **출처 역링크** — 유래 SpecVersion(불변 스냅샷)과 Requirement로. "왜 이 작업인가"가 한 클릭. `FR-05 · D-03`
 3. **위임 명세 4요소** — `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`. 미충족 요소는 ❌ + 인라인 편집(EP-TASK-05). `FR-05 · REQ-WEB-016`
 4. **활성 클레임** — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. `FR-06`. 출처 줄의 기준 버전(`@v4`)이 superseded면 **재브리핑 배지**(⟳ 기준 버전 v4 → 최신 v5)가 뜬다 — `rebrief_required_at`·spec-workflow §3.3. `REQ-WEB-036`
+
+> **근거 카드**(2026-09-06 배선): 상세 머리에 `근거 — 왜 이 작업인가` 카드가 선다 — 출처 스펙(+기준 버전, superseded 면 그 사실) · 출처 요구사항 · 의존 Task 링크 · 재브리핑 필요 여부. 서버는 이 넷을 EP-TASK-04 응답에 처음부터 싣고 있었고 화면이 그리지 않았다. 근거 없는 지시가 P1(맥락 유실)의 다른 이름이다. **다만 재브리핑을 *해소하는* 경로는 없다** — REQ-WEB-036 은 "기준 버전 갱신(EP-TASK-05) 경로를 제공한다" 고 요구하는데 `rebrief_required_at` 을 **세우는 코드만 있고 지우는 코드가 없다**(`spec.service.ts` 가 `now()` 로 세운다). 화면에 버튼을 두려면 서버 쪽 동작을 먼저 정해야 하므로(새 요구사항이다) 배지까지만 그리고 남겨 둔다.
 5. **의존 그래프** — 미해소 의존은 ready 불가 사유로 표기. `FR-05`
 6. **Evidence** — PR·커밋 링크(FR-13). 리뷰 커버리지 표시는 Phase 2.
 7. **전이 버튼** — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003).
@@ -1036,7 +1044,7 @@ export const TaskCreateInput = z.object({
 | 세션 보드 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (state 필터: `pending / active / awaiting_input / complete / error / stale`) | 요약 스트립 = 상태별 집계 — **여섯 전부를 어휘 순서로**, 0 인 상태도 싣는다(REQ-WEB-139) |
 | 세션 상세 | EP-SES-02 `GET /api/v1/projects/{proj}/sessions/{sid}` | `agent_session` 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id |
 | Activity 타임라인 | EP-SES-03 `GET /api/v1/projects/{proj}/sessions/{sid}/activities` (커서) | `thought / action / elicitation / response / error` 5종 — 불변 레코드(D-10) |
-| steer / stop | EP-SES-04 `POST /api/v1/projects/{proj}/sessions/{sid}/steer` (`kind`: steer/stop) — **권한은 세션 소유자·admin 이다**(2026-09-06 보완: 이 절이 권한을 한 글자도 적지 않아 화면이 누구에게나 활성으로 그리고 있다. §1.8·REQ-WEB-003 은 "화면은 서버가 허용할 것을 미리 말한다" 이므로 **화면 쪽 배선은 열린 자리다**) | 지시는 다음 `nerv_task_heartbeat` 응답의 `pending`에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내 |
+| steer / stop | EP-SES-04 `POST /api/v1/projects/{proj}/sessions/{sid}/steer` (`kind`: steer/stop) — **권한은 세션 소유자·admin 이다.** 화면도 그렇게 그린다(2026-09-06 배선): 소유자·admin 이 아니면 입력칸과 두 버튼이 잠기고 **왜 잠겼는지**를 말한다(§1.8·REQ-WEB-003). 끝난 세션과 남의 세션은 **다른 문구**다 — 기다리면 되는 일과 아닌 일은 다르다. 소유 판정의 축은 목록·상세가 함께 싣는 `user_id` 다 | 지시는 다음 `nerv_task_heartbeat` 응답의 `pending`에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내 |
 
 - **실시간**: `project:{id}` 룸 — `session.started` `session.stale` `session.complete` `session.steered` → 보드, Activity 스트림·하트비트/diff 갱신도 같은 룸으로 흐른다(알림 아님 — spec-workflow §6.3). 하트비트 표기는 상대 시각만(ui-wireframes §3.3).
 - **컴포넌트**: `SessionBoard` · `SessionCard` · `SessionSummaryStrip` · `ActivityTimeline` · `ScopeChips`(spec_ids + file_globs) · `SteerDialog` · `StopDialog`(사유 필수) · `FailOpenBanner`(게이트 판정 실패 카운터 — 판정 자체는 Phase 2, 배너 컴포넌트는 자리 확보).

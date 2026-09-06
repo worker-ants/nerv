@@ -19,6 +19,7 @@ import {
 import type { Socket } from 'socket.io-client';
 import { NERV_EVENT } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
+import { onReachabilityChange } from './api.js';
 import { useMe } from './queries.js';
 import { connectNervSocket, forgetRooms, joinProjectRoom, leaveProjectRoom } from './ws.js';
 import { invalidationKeysFor } from './event-invalidation.js';
@@ -173,6 +174,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
     };
     // userId 가 바뀌면(로그인·로그아웃·계정 전환) 소켓을 새로 만든다
   }, [onEvent, queryClient, userId]);
+
+  // 배너 ②를 켜는 유일한 자리(§1.3). 폴백 폴링이 계속 돌므로 되살아나는 것도 여기서 본다.
+  useEffect(() => onReachabilityChange((reachable) => setOffline(!reachable)), []);
 
   const joinProject = useCallback((projectId: string) => {
     // 소켓이 아직 없어도 **기억은 남긴다** — 붙는 순간 `connect` 핸들러가 되찾는다.

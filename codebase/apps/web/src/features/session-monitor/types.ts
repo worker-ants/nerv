@@ -5,6 +5,8 @@
 
 export interface SessionCard {
   id: string;
+  /** 세션 주인 — 개입(steer/stop)을 화면에서 미리 가리는 축이다(EP-SES-04 · §1.8) */
+  user_id: string;
   user_name: string;
   hostname: string;
   agent_type: string;

@@ -5,11 +5,18 @@
 // 답하지 못하는 편집기는 문서를 고치게 만들지 말아야 한다.
 
 import { useT } from '../../lib/i18n.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
+import {
+  DerivedTaskPanel,
+  RequirementPanel,
+} from '../../features/spec-editor/requirement-panel.js';
+import { SourceView, SourceViewToggle } from '../../features/spec-editor/source-view.js';
+import { TerminalHandoffCard } from '../../features/spec-editor/terminal-handoff.js';
 import { VersionDiff } from '../../features/spec-editor/version-diff.js';
 import { AttachmentPanel } from '../../features/spec-editor/attachment-panel.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
@@ -31,6 +38,7 @@ import {
   useSpecDiff,
   useSpecVersion,
   useSpecAttachments,
+  useRequirements,
   useSpecVersions,
 } from '../../lib/queries.js';
 import type { RoundTripResult } from '../../features/spec-editor/editor.js';
@@ -83,10 +91,12 @@ function SpecDetail(): React.JSX.Element {
   const { proj, spec } = Route.useParams();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const me = useMe();
   const { orgSlug } = useScope(proj);
   const detail = useSpec(proj, spec, Route.useSearch().baseline);
   const versions = useSpecVersions(proj, spec);
+  const requirements = useRequirements(proj, spec);
   const comments = useSpecComments(proj, spec);
   const relations = useSpecRelations(proj, spec);
   const attachments = useSpecAttachments(proj, spec);
@@ -114,9 +124,17 @@ function SpecDetail(): React.JSX.Element {
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
   // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다
-  const [railTab, setRailTab] = useState<'relations' | 'versions' | 'attachments' | 'comments'>(
-    'relations',
-  );
+  const [railTab, setRailTab] = useState<
+    'relations' | 'requirements' | 'versions' | 'attachments' | 'comments'
+  >('relations');
+  /**
+   * 소스 보기 — 원문 md 를 그대로 본다(REQ-WEB-031 · §3.2 규칙 2).
+   *
+   * 왕복 검증이 실패하면 **자동으로 켠다.** "저장을 막았습니다" 만 띄우고 무엇이
+   * 문제인지 볼 길을 주지 않으면 사람은 그 자리에서 막힌다 — 에디터가 못 그리는 것이
+   * 정확히 저장을 막는 것이라, 그때 필요한 것은 렌더링이 아니라 바이트다.
+   */
+  const [sourceView, setSourceView] = useState(false);
   // 관계 안의 두 방향은 **다른 질문**이다: 역참조는 "고치면 무엇이 흔들리나",
   // 레퍼런스는 "이 문서가 무엇에 기대나". 섞어 놓으면 둘 다 훑어야 답이 나온다.
   const [relTab, setRelTab] = useState<RelationDirection>('all');
@@ -209,7 +227,7 @@ function SpecDetail(): React.JSX.Element {
         message: t('spec.new_draft_started', { version: String(result['version_no'] ?? '') }),
       });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const save = useMutation({
@@ -272,7 +290,7 @@ function SpecDetail(): React.JSX.Element {
             : t('spec.submit_done'),
       });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   // **복구는 이 화면에만 있다**(REQ-WEB-105). 보관한 문서는 목록·트리에서 빠지므로
@@ -543,7 +561,12 @@ function SpecDetail(): React.JSX.Element {
             data-testid="roundtrip-error"
             className="mb-2 rounded-nerv border border-status-danger bg-status-danger-soft px-3 py-2 text-sm text-status-danger"
           >
-            {t('spec.roundtrip_unstable')}
+            <p>{t('spec.roundtrip_unstable')}</p>
+            {/* **리포트와 소스를 같이 낸다**(REQ-WEB-031). 막았다는 말만 남기면 사람은
+                무엇을 고쳐야 하는지 알 길이 없다 */}
+            <div className="mt-1.5">
+              <SourceViewToggle on={sourceView} onToggle={() => setSourceView(!sourceView)} />
+            </div>
           </div>
         )}
 
@@ -666,7 +689,9 @@ function SpecDetail(): React.JSX.Element {
             초기화이고(실측으로 갈라 확인했다), 이 `key` 가 막는 것은 다른 것이다:
             TipTap 인스턴스가 살아남으면 **되돌리기 이력도 살아남아** 문서 B 에서 ⌘Z 를
             누르면 문서 A 의 글이 돌아온다. 이력은 문서에 속한다. */}
-        {compare === null && viewing === null && (
+        {compare === null && viewing === null && sourceView && <SourceView body={draft ?? body} />}
+
+        {compare === null && viewing === null && !sourceView && (
           <SpecEditor
             key={spec}
             value={draft ?? body}
@@ -791,6 +816,9 @@ function SpecDetail(): React.JSX.Element {
           {(
             [
               ['relations', t('spec.rail.relations'), relationItems.length],
+              // **약속이 레일의 두 번째 질문이다** — "이 문서가 무엇을 약속했고 누가
+              // 지키고 있나"(D-03 · FR-13). 그 답이 화면 어디에도 없었다.
+              ['requirements', t('spec.requirements'), rows(requirements.data).length],
               ['versions', t('spec.versions'), rows(versions.data).length],
               ['attachments', t('spec.attachments'), rows(attachments.data).length],
               ['comments', t('spec.comments'), rows(comments.data).length],
@@ -961,6 +989,18 @@ function SpecDetail(): React.JSX.Element {
             />
           )}
 
+          {railTab === 'requirements' && (
+            <div className="flex flex-col gap-3">
+              <RequirementPanel projectSlug={proj} specKey={spec} />
+              <section className="border-t border-border pt-2">
+                <p className="px-1 pb-1 text-2xs tracking-wide text-text-faint uppercase">
+                  {t('spec.derived_tasks')}
+                </p>
+                <DerivedTaskPanel projectSlug={proj} projectId={projectUuid} specKey={spec} />
+              </section>
+            </div>
+          )}
+
           {railTab === 'comments' && (
             <div className="px-2">
               <CommentList
@@ -972,6 +1012,10 @@ function SpecDetail(): React.JSX.Element {
             </div>
           )}
         </div>
+
+        {/* **나가는 문**(§2.4 · ui-wireframes §2.3 (12)). 들어오는 문은 이미 있었다 —
+            `nerv_spec_draft_upsert` 응답의 `web_url` 이 이 화면으로 데려온다. */}
+        <TerminalHandoffCard specKey={spec} />
 
         <section className="mt-4 border-t border-border px-2 pt-3 text-2xs text-text-faint">
           {me.data !== undefined && t('spec.viewer', { name: me.data.display_name })}

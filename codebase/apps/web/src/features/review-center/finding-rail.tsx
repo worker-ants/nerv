@@ -7,6 +7,7 @@
 // 새 엔드포인트를 만들지 않는다: 목록 응답이 이미 이 전부를 싣고 있다.
 
 import { statusLabelKey } from '@nerv/schema';
+import { useApiError } from '../../lib/api-errors.js';
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -38,6 +39,7 @@ export function FindingRail({
   const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const findingId = String(finding['id']);
   const [draft, setDraft] = useState('');
   const comments = useFindingComments(projectSlug, findingId);
@@ -52,7 +54,7 @@ export function FindingRail({
       setDraft('');
       void queryClient.invalidateQueries({ queryKey: ['finding', findingId, 'comments'] });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const promote = useMutation({
@@ -73,7 +75,7 @@ export function FindingRail({
             : t('reviews.promoted_already'),
       });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
   const promoted = typeof finding['promoted_task_key'] === 'string';
   const severity = String(finding['severity']);

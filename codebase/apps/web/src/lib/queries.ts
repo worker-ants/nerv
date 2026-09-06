@@ -278,25 +278,45 @@ export function useTaskLane(
   slug: string,
   projectId: string | undefined,
   lane: string,
-  options?: { includeArchived?: boolean; assignee?: string },
+  options?: { includeArchived?: boolean; assignee?: string; spec?: string },
 ): UseQueryResult<{ items: Row[]; next_cursor: string | null }> {
   const refetchInterval = useLivePolling();
   const archived = options?.includeArchived === true;
   const assignee = options?.assignee ?? '';
+  // **서버는 이 인자를 처음부터 받고 있었다**(EP-TASK-01 `?spec=`) — 넘기는 곳만 없어서
+  // "이 스펙의 작업만" 을 링크로 건넬 수 없었다(2026-09-06 대조 · screens.md:164).
+  const spec = options?.spec ?? '';
   return useQuery({
     // **slug 로 대신 잡지 않는다.** projectId 는 프로젝트 조회가 끝나야 오는데, 그때
     // 키가 slug → id 로 바뀌면 새 쿼리가 되어 레인이 빈 채로 한 번 더 그려진다 —
     // 화면에서는 목록이 나타났다 사라졌다 다시 나타나는 깜빡임이다(실측 2026-08-23).
     // 무효화가 project_id 로 키를 만드므로(event-invalidation.ts) id 축이 정답이고,
     // 오기 전까지는 아예 부르지 않는다.
-    queryKey: [...queryKeys.projectTasks(projectId ?? ''), lane, archived, assignee],
+    queryKey: [...queryKeys.projectTasks(projectId ?? ''), lane, archived, assignee, spec],
     queryFn: () =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(
         `/projects/${slug}/tasks?status=${lane}` +
           (archived ? '&include_archived=true' : '') +
-          (assignee === '' ? '' : `&assignee=${encodeURIComponent(assignee)}`),
+          (assignee === '' ? '' : `&assignee=${encodeURIComponent(assignee)}`) +
+          (spec === '' ? '' : `&spec=${encodeURIComponent(spec)}`),
       ),
     enabled: projectId !== undefined,
+    refetchInterval,
+  });
+}
+
+/**
+ * 이 문서가 약속한 것 — EP-REQ-01.
+ *
+ * 화면이 이 질문을 하지 않던 동안 D-03·FR-13 의 축(약속 ↔ 그것을 지키는 일)이
+ * 프로젝트 개요의 숫자로만 존재했다 — **어느 요구사항인지**는 아무 화면도 말하지 않았다.
+ */
+export function useRequirements(slug: string, specKey: string): UseQueryResult<Row[]> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.spec(specKey), 'requirements'],
+    queryFn: () =>
+      apiFetch<Row[]>(`/projects/${slug}/requirements?spec=${encodeURIComponent(specKey)}`),
     refetchInterval,
   });
 }
