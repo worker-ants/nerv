@@ -6,6 +6,9 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_question_create
   - mcp__nerv__nerv_question_cancel
   - mcp__plugin_nerv_nerv__nerv_question_cancel
+  - Bash(nerv-outbox:*)
+  - Read(.nerv/**)
+  - Write(.nerv/**)
 ---
 
 # /nerv:question — 에스컬레이션

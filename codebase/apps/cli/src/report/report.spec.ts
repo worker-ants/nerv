@@ -30,13 +30,23 @@ describe('리포트', () => {
     expect(
       exitCode({
         ...base,
-        entries: [{ file: 'a.md', line: 3, reason: 'x', disposition: 'manual' }],
+        entries: [
+          { file: 'a.md', line: 3, rule: 'req-id-duplicate', reason: 'x', disposition: 'manual' },
+        ],
       }),
     ).toBe(1);
     expect(
       exitCode({
         ...base,
-        entries: [{ file: '(집계)', line: null, reason: 'x', disposition: 'aborted' }],
+        entries: [
+          {
+            file: '(집계)',
+            line: null,
+            rule: 'req-id-duplicate',
+            reason: 'x',
+            disposition: 'aborted',
+          },
+        ],
       }),
     ).toBe(2);
   });
@@ -48,6 +58,7 @@ describe('리포트', () => {
         {
           file: 'spec/a.md',
           line: 12,
+          rule: 'req-id-duplicate',
           reason: 'status_map 에 없는 값: weird',
           disposition: 'manual',
         },
@@ -72,8 +83,8 @@ describe('리포트', () => {
     const jsonl = renderJsonl({
       ...base,
       entries: [
-        { file: 'a.md', line: 1, reason: 'r1', disposition: 'skipped' },
-        { file: 'b.md', line: 2, reason: 'r2', disposition: 'manual' },
+        { file: 'a.md', line: 1, rule: 'req-id-duplicate', reason: 'r1', disposition: 'skipped' },
+        { file: 'b.md', line: 2, rule: 'req-id-duplicate', reason: 'r2', disposition: 'manual' },
       ],
     });
     const lines = jsonl.split('\n');

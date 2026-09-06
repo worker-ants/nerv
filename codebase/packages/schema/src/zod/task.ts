@@ -51,6 +51,16 @@ export const TaskUpdateInput = z
     boundaries_md: z.string().nullish(),
     assignee_user_id: z.string().nullish(),
     depends_on: z.array(z.string()).nullish(),
+    /**
+     * 재브리핑 — **기준 SpecVersion 을 최신 승인본으로 옮기고 플래그를 지운다**
+     * (2026-09-06 · REQ-WEB-036 이 요구하던 EP-TASK-05 경로 · REQ-API-121).
+     *
+     * `rebrief_required_at` 은 세우는 코드만 있고 **지우는 코드가 없었다** — 화면은 배지를
+     * 보이는데 그것을 해소할 길이 어디에도 없었다. 플래그만 지우는 선택지도 있었지만
+     * ("봤다") 그러면 Task 는 여전히 옛 버전을 가리켜 다음 사람이 같은 배지를 다시 본다.
+     * **재브리핑의 뜻은 기준을 옮기는 것**이다.
+     */
+    rebrief: z.literal(true).nullish(),
   })
   .strict();
 

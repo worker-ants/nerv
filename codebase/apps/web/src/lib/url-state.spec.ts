@@ -45,6 +45,13 @@ describe('작업 보드의 주소', () => {
     expect(parseBoard({ assignee: 'u-1' })).toMatchObject({ assignee: 'u-1' });
   });
 
+  it('`?ai=1` 을 읽는다 — 에이전트 세션이 쥔 것만(REQ-API-122)', () => {
+    // 뜻이 못 박혀 있다: `delegate_session_id` 가 있는 것이지 사람이 담당인 것이 아니다.
+    // 정의를 적지 않으면 같은 이름이 두 뜻을 갖는다(이 저장소의 "스코프" 사건).
+    expect(parseBoard({ ai: '1' })).toMatchObject({ ai: true });
+    expect(parseBoard({ ai: '0' })).not.toHaveProperty('ai');
+  });
+
   it('보기 토글도 주소에 남는다 — 새로고침이 필터를 풀지 않는다', () => {
     expect(parseBoard({ backlog: '1', archived: '1' })).toMatchObject({
       backlog: true,

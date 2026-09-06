@@ -103,7 +103,7 @@ function SessionDetail(): React.JSX.Element {
               "왜 방향을 틀었나"가 위아래로 읽힌다 */}
           <SectionTitle>Activity</SectionTitle>
           <ol className="flex flex-col border-l border-border pl-3">
-            {rows(timeline.data).map((item) => (
+            {rows(timeline.data?.items).map((item) => (
               <li key={String(item['id'])} className="relative py-1.5 text-sm">
                 <span
                   aria-hidden="true"
@@ -127,7 +127,7 @@ function SessionDetail(): React.JSX.Element {
               </li>
             ))}
           </ol>
-          {rows(timeline.data).length === 0 && (
+          {rows(timeline.data?.items).length === 0 && (
             <EmptyState icon="·" title={t('session.no_activity')} />
           )}
         </section>

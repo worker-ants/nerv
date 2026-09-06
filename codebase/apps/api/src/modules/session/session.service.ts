@@ -18,6 +18,7 @@ import {
   sessionEndReason,
   sessionState,
 } from '@nerv/schema';
+import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
@@ -532,7 +533,17 @@ export class SessionService {
     /** 보는 사람 — 원문 열람 판정의 축이다. 주지 않으면 요약만 준다 */
     userId?: string | null;
     limit?: number;
-  }): Promise<Record<string, unknown>[]> {
+    cursor?: string | undefined;
+  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
+    /**
+     * **커서를 준다**(2026-09-06 · REQ-API-120). 예전에는 `LIMIT min(limit??200,500)` 에
+     * 봉투도 커서도 없었다 — 문서 자신이 적어 둔 **443건 세션**이 200 에서 잘렸고, 화면은
+     * 그 사실을 표시하지 않아 **"이게 전부" 라고 말했다.** 세션 초반이 영영 닿지 않는다.
+     *
+     * 발견 큐가 이미 같은 결함을 닫았다(REQ-WEB-067) — 같은 자리가 하나 더 있었을 뿐이다.
+     */
+    const limit = pageLimit(input.limit);
+    const before = decodeCursor(input.cursor)?.[0] ?? null;
     // **원문은 세션 본인과 admin 만 본다**(2026-09-01 사람 결정 · REQ-API-066).
     //
     // 마스킹은 휴리스틱이라 완벽하지 않다 — 이름도 모양도 없는 비밀은 못 잡는다. 그래서
@@ -560,10 +571,17 @@ export class SessionService {
        CROSS JOIN viewer v
        WHERE se.project_id = ${input.projectId}
          AND (se.id::text = ${input.sessionId} OR se.external_session_id = ${input.sessionId})
+         ${before === null ? sql`` : sql`AND a.seq < ${before}`}
        ORDER BY a.seq DESC
-       LIMIT ${Math.min(input.limit ?? 200, 500)}
+       LIMIT ${limit + 1}
     `);
-    return rows.reverse();
+
+    // **한 장 더 읽어 다음이 있는지 안다**(§1.6). 세어서 자르지 않으면 "마지막 쪽인가" 를
+    // 알 길이 없고, 그러면 화면은 [더 보기] 를 영원히 보이거나 영원히 감춘다.
+    const page = rows.slice(0, limit);
+    const next = rows.length > limit ? encodeCursor([Number(page.at(-1)?.['seq'] ?? 0)]) : null;
+    // 오름차순으로 되돌린다 — 읽는 사람은 시간 순으로 본다. 커서는 내림차순 축이다.
+    return { items: page.reverse(), next_cursor: next };
   }
 
   /**
@@ -657,7 +675,16 @@ export class SessionService {
    * 리스 잔여는 서버가 남은 초를 주고 카운트다운은 클라이언트 시계가 한다(screens.md §1.4) —
    * 매초 서버에 묻지 않기 위해서다.
    */
-  async board(input: { projectId: string; states?: string[] }): Promise<SessionCard[]> {
+  async board(input: {
+    projectId: string;
+    states?: string[];
+    limit?: number;
+    cursor?: string | undefined;
+  }): Promise<{ items: SessionCard[]; next_cursor: string | null }> {
+    // 커서를 준다(2026-09-06 · REQ-API-120). 예전에는 `LIMIT 200` 에 `next_cursor: null`
+    // **고정**이라, 세션이 200을 넘는 순간 응답이 "이게 전부" 라고 거짓을 말했다.
+    const limit = pageLimit(input.limit);
+    const before = decodeCursor(input.cursor);
     const states = assertSessionStates(input.states ?? []);
     const stateFilter =
       states.length === 0 ? sql`` : sql` AND s.state = ANY(${sqlArray(states, 'session_state')})`;
@@ -678,10 +705,16 @@ export class SessionService {
    LEFT JOIN claim c ON c.agent_session_id = s.id AND c.status = 'active'
    LEFT JOIN task t ON t.id = c.task_id
        WHERE s.project_id = ${input.projectId}${stateFilter}
+         ${before === null ? sql`` : sql`AND s.started_at < ${String(before[0])}`}
        ORDER BY s.last_heartbeat_at DESC NULLS LAST, s.started_at DESC
-       LIMIT 200
+       LIMIT ${limit + 1}
     `);
-    return rows;
+    const items = rows.slice(0, limit);
+    return {
+      items,
+      next_cursor:
+        rows.length > limit ? encodeCursor([String(items.at(-1)?.started_at ?? '')]) : null,
+    };
   }
 
   /**

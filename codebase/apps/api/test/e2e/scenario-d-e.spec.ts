@@ -201,6 +201,7 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
   const cliDir = join(import.meta.dirname, '../../../cli');
   let fixtureRoot: string;
   let reportDir: string;
+  let mapPath: string;
 
   beforeAll(() => {
     if (!AVAILABLE) return;
@@ -222,6 +223,7 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
       `---\nid: SPC-CWC-099\nstatus: 알수없음\n---\n# 알 수 없는 상태\n`,
     );
     reportDir = mkdtempSync(join(tmpdir(), 'nerv-report-'));
+    mapPath = join(mkdtempSync(join(tmpdir(), 'nerv-map-')), 'nerv-import.map.json');
   });
 
   /**
@@ -298,9 +300,9 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
     expect(report).toContain('status_map 에 없는 값');
   });
 
-  it('2·3단계 — --apply 로 적재하면 원문이 보존된다 (정보 손실 0)', async () => {
-    const token = jiminToken;
-    await runCli([
+  /** `--apply` 한 벌 — 매니페스트 경로까지 같은 것을 쓴다(§3.3) */
+  function applyArgs(): string[] {
+    return [
       'import',
       'spec',
       '--root',
@@ -311,12 +313,54 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
       writeProfile(fixtureRoot),
       '--report-dir',
       reportDir,
+      '--map',
+      mapPath,
       '--server',
       stack.baseUrl,
       '--token',
-      token,
+      jiminToken,
       '--apply',
+    ];
+  }
+
+  it('2단계 — **남의 데이터 위에 적재하지 않는다**(map-conflict · §3.3)', async () => {
+    // 시나리오 D 가 `SPC-CWC-007` 을 **사람 손으로** 만들었고(에디터 경로), 픽스처가 같은
+    // 키를 쓴다. 매니페스트가 없으면 임포터는 그것이 자기가 넣은 것인지 알 수 없다 —
+    // 그때 덮어쓰는 것이 이 게이트가 막는 바로 그 일이다.
+    // `runCli` 는 비영 종료를 **던지지 않고 출력으로 돌려준다**(위 헬퍼) — 중단도 출력에 남는다
+    await runCli(applyArgs());
+
+    const report = readFileSync(join(reportDir, 'report.md'), 'utf8');
+    expect(report).toContain('map-conflict');
+    // 중단이므로 **아무것도 들어가지 않았다** — 절반을 덮어쓰고 멈추는 것이 더 나쁘다
+    expect(await countEvents(stack, NERV_EVENT.IMPORT_APPLIED)).toBe(0);
+  });
+
+  it('3단계 — rebuild-map 이 되돌려 준다. 그다음 적재는 원문을 보존한다 (정보 손실 0)', async () => {
+    // 문서가 안내하는 복구 경로 그대로다: 매니페스트를 서버에서 되짓고(EP-IMP-05) 다시 민다.
+    await runCli([
+      'import',
+      'rebuild-map',
+      '--root',
+      fixtureRoot,
+      '--project',
+      'clemvion',
+      '--profile-file',
+      writeProfile(fixtureRoot),
+      '--report-dir',
+      reportDir,
+      '--map',
+      mapPath,
+      '--server',
+      stack.baseUrl,
+      '--token',
+      jiminToken,
     ]);
+    // **되짓기는 적재가 아니다** — 이 명령이 임포트를 수행하던 것이 2026-09-06 의 결함이다
+    expect(await countEvents(stack, NERV_EVENT.IMPORT_APPLIED)).toBe(0);
+    expect(JSON.parse(readFileSync(mapPath, 'utf8'))['items'].length).toBeGreaterThan(0);
+
+    await runCli(applyArgs());
 
     const { rows } = await stack.pool.query<{ key: string; body_md: string }>(
       `SELECT s.key, sv.body_md FROM spec s JOIN spec_version sv ON sv.id = s.current_version_id
@@ -332,23 +376,9 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
 
   it('4단계 — 2회 연속 실행의 신규 레코드가 0이다 (성공 기준 0-7)', async () => {
     const before = await countSpecs();
-    await runCli([
-      'import',
-      'spec',
-      '--root',
-      fixtureRoot,
-      '--project',
-      'clemvion',
-      '--profile-file',
-      writeProfile(fixtureRoot),
-      '--report-dir',
-      reportDir,
-      '--server',
-      stack.baseUrl,
-      '--token',
-      jiminToken,
-      '--apply',
-    ]);
+    // **같은 매니페스트로 다시 민다** — 3단계가 남긴 것이라 이번에는 map-conflict 가 없다.
+    // 그것이 §3.3 이 말하는 "매니페스트는 캐시" 의 뜻이다: 있으면 재실행이 조용히 지나간다.
+    await runCli(applyArgs());
     expect(await countSpecs()).toBe(before);
   });
 

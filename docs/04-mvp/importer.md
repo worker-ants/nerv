@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — 이 문서는 기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 **프로파일 기반 임포터**를 구현 착수 가능한 수준으로 확정한다. 임포터는 특정 저장소 전용이 아니다 — 스캔 글롭·제외 규칙·frontmatter 매핑·트리 규칙·기대 집계를 선언한 **프로파일**(§1.4)이 대상별 차이를 흡수하고, 엔진은 프로파일만 해석한다. 내장 프로파일은 `clemvion`(FR-17의 대상 — 순수 스펙 135 md + plan 450 md)과 `nerv-docs`(도그푸딩 — §5) 2종이며, 다른 저장소는 프로파일 파일을 얹어 같은 엔진을 재사용한다. 실행 모델은 **읽기는 클라이언트, 쓰기는 API**다(2026-08-22 확정 — §3.2): 원본 체크아웃이 있는 장비에서 `nerv import` CLI가 스캔·파싱·검증·리포트·매니페스트를 만들고(dry-run은 서버 없이 완결), `--apply`만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. **서버가 원본 파일에 접근할 수 있다는 전제를 두지 않는 것**이 이 구조의 이유다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 수용 기준은 REQ-IMP-001~017 — 프로파일 기대 집계에 대한 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
 >
-> 문서 버전 v0.20 · 2026-09-06 · HTML 파생본: [importer.html](../html/importer.html)
+> 문서 버전 v0.21 · 2026-09-06 · HTML 파생본: [importer.html](../html/importer.html)
+>
+> v0.21 변경(2026-09-06 — §3.3 이 계획이었다, 사람 결정): **매니페스트 구현 · `map-conflict` 점화 · 리포트 계약 · 유령 플래그 폐기.** ① §3.3 전체가 **계획이었다** — `--map` 은 파싱만 됐고 매니페스트를 읽거나 쓰는 코드가 0곳이었으며, `rebuild-map` 은 분기가 없어 **spec 임포트로 떨어졌다**("다시 짓는다" 는 이름의 명령이 적재를 했다). 실물로 만들었고(`apps/cli/src/manifest.ts`), 그래서 **`map-conflict` 를 켰다** — 이 게이트는 매니페스트가 있어야 성립한다. L3 시나리오 E 가 전체 경로를 돈다(중단 → `rebuild-map` → 적재). ② **리포트 계약**(§4.1): `rule` 슬러그와 `hint` 를 싣고 **`warn` 등급**을 더했다 — 그 등급이 없어 `research-doc`·`dist-mismatch` 가 `skipped` 로 섞여 **정상 실행이 종료 코드 1** 을 냈다. ③ **유령 플래그 둘 폐기**(`--rewrite-links`·`--split-checkboxes`) — 읽는 코드가 없어 주면 조용히 버려졌다. 없는 손잡이를 전표에 두지 않는다. ④ frontmatter 가 없는 문서에 `frontmatter-missing`(warn)을 남긴다 — 도그푸딩 대상 13편이 아무 말 없이 기본값으로 들어가고 있었다.
 >
 > v0.20 변경(2026-09-06 — 4부 frontmatter 를 approved 로, 사람 결정): **REQ-IMP-010 개정.** 4부 8편의 frontmatter 가 전부 `status: draft` 였다 — 이 문서 세트는 가동 후 **첫 임포트 대상**이라(§5), 그대로 돌리면 플랫폼의 첫 화면이 **자기 명세를 미승인이라고 말한다.** `status` 는 문서 축이고, 4부는 AGENTS.md 가 "확정 스택은 재논의하지 않는다" 고 못 박고 `docs/README.md` 가 "구현에 바로 착수하려면 4부만 읽어도 되도록 쓰였다" 고 선언하는 문서다 — 그것이 `approved` 의 뜻이다. **프로파일이 덮어쓰는 길은 택하지 않았다**: 원본이 적은 값을 임포터가 갈아 끼우면 §2.4 의 원문 보존 제1규칙과 부딪힌다. 구현 축은 별개다 — `status_map` 이 `approved: {doc:"approved", impl:"unimplemented"}` 이므로 요구사항은 여전히 미구현으로 적재되고, 그 축을 답하는 것은 [4.8](backlog.md) §1.4 다.
 >
@@ -348,10 +350,10 @@ CHECK 위반으로 실패한다(구현 중 실측).
 nerv import spec  --profile clemvion --root <체크아웃 경로> --project <프로젝트 slug>
                   [--server <base URL>] [--token <PAT>]        # --apply 시 필수, env NERV_SERVER/NERV_TOKEN 가능
                   [--apply] [--map <매니페스트 경로>] [--report-dir <디렉터리>]
-                  [--rewrite-links] [--batch-size <n>]
+                  [--batch-size <n>]
 
 nerv import plan  --profile clemvion --root <경로> --project <slug>
-                  [--apply] [--map …] [--report-dir …] [--owner-map <owners.yaml>] [--split-checkboxes]
+                  [--apply] [--map …] [--report-dir …] [--owner-map <owners.json>]
 
 nerv import review --profile clemvion --root <경로> --project <slug>              # §2.7 (Phase 2)
                   [--apply] [--report-dir …] [--batch-size <n>]
@@ -372,8 +374,8 @@ nerv import rebuild-map --profile <p> --root <경로> --project <slug> --map <�
 | `--map` | 멱등 매니페스트 파일(§3.3) | `./nerv-import.map.json` |
 | `--report-dir` | 리포트 출력 위치(§4.1 — `report.md` + `report.jsonl`) | `./nerv-import-report/` |
 | `--owner-map` | plan `owner:` 라벨 → **사용자 UUID** 수동 매핑(**JSON** — `{ "developer": "<user-uuid>" }`). 없으면 전건 unassigned. (2026-09-06 정정: 예전에는 "이메일(yaml)" 이라 적었고 그대로 넘기면 파싱 예외 또는 FK 위반으로 전건 실패한다) | 없음 |
-| `--rewrite-links` | 원문 버전 위에 링크 재작성 버전을 추가(§2.4) — ○ **미구현**(2026-09-06 실측: `parseArgs` 가 이 이름을 읽지 않아 주면 조용히 버려진다) | off |
-| `--split-checkboxes` | plan 체크박스를 하위 Task로 분해 — ○ **미구현**(위와 같다) | off |
+| ~~`--rewrite-links`~~ | **폐기**(2026-09-06) — 읽는 코드가 없어 주면 조용히 버려졌다. 유령 인자를 전표에 두는 것은 없는 손잡이를 있다고 적는 일이다. 링크 재작성이 필요해지면 그때 새로 정한다 | — |
+| ~~`--split-checkboxes`~~ | **폐기**(2026-09-06) — 위와 같다 | — |
 | `--batch-size` | EP-IMP-02/03 한 배치의 파일 수(§3.5) | 50 |
 
 종료 코드: `0` = 실패 0건 완료 · `1` = 완료했으나 실패·수동 확인 항목 존재(리포트 확인) · `2` = 중단(abort — §4.1).
@@ -413,9 +415,12 @@ nerv import rebuild-map --profile <p> --root <경로> --project <slug> --map <�
 
 **서버가 진실이고 매니페스트는 캐시다.** 매니페스트를 잃어버려도 중복 적재로 이어지지 않는다 — `--apply` 시 임포터는 자연 키(`(project, spec.key)`, `(project_id, requirement.ref)`)를 **EP-IMP-01 preflight**로 서버에 먼저 대조하고, 매니페스트 없이 동일 키가 이미 존재하면 **중단**하며 `nerv import rebuild-map`을 안내한다. `rebuild-map`은 **EP-IMP-05**(자연 키 → UUID 대조표)로 매니페스트를 서버에서 재구성한다(Task는 자연 키가 없어 제목 매칭으로 후보를 제시하고, 모호 항목은 수동 확인 큐로).
 
+> **매니페스트가 실물이 됐다**(2026-09-06 · `apps/cli/src/manifest.ts`). 2026-09-06 까지 이 절 전체가 계획이었다 — `--map` 은 파싱만 됐고 매니페스트를 읽거나 쓰는 코드가 **0곳**이었으며, `rebuild-map` 은 분기가 없어 **spec 임포트로 떨어졌다**("다시 짓는다" 는 이름의 명령이 적재를 했다). 이제 `--apply` 가 끝나면 적재한 항목을 적고, 다음 실행이 그것을 먼저 읽는다.
+>
+> **그래서 `map-conflict` 를 켰다.** 이 게이트는 매니페스트가 있어야 성립한다 — 서버에 이미 있는 키가 *우리가 넣은 것*인지 *남이 넣은 것*인지 가릴 수 있어야 하기 때문이다. L3 시나리오 E 가 그 전체 경로를 돈다: 사람이 에디터로 만든 스펙 위에서 임포트가 **중단**하고 → `rebuild-map` 이 서버에서 매니페스트를 되짓고 → 다시 밀면 적재된다. **되짓기는 적재가 아니다**(그 실행의 `import.applied` 이벤트는 0건이다).
 > **`content_hash` 의 축은 본문이다**(2026-09-06 정정). 서버가 견주는 값은 `sha256(body_md)` — frontmatter 를 뺀 본문 해시다(REQ-IMP-002). CLI 는 2026-09-06 까지 **파일 전문 해시**를 보내고 있었고, 두 값은 같아질 수가 없어 `unchanged` 판정이 한 번도 나오지 않았다. 자연 키도 같은 모양으로 어긋나 있었다 — 적재는 `keyFromPath(…)` 로 만든 키를 쓰고 preflight 는 파일 경로를 물어, frontmatter `id` 가 없는 파일은 이미 적재돼 있어도 언제나 `new` 로 돌아왔다. 게다가 CLI 는 preflight **응답을 받아서 버렸다** — 서버가 계산한 세 판정이 아무 일도 하지 않는 값이었다. 셋을 고쳐 이제 무변경 본문은 다시 보내지 않고, 그 수가 리포트 머리에 선다.
 >
-> **아직 남은 것: `map-conflict` 는 매니페스트가 있어야 성립한다.** "매니페스트 없이 동일 키 실존이면 중단" 은 *우리가 넣은 것*과 *남이 넣은 것*을 가릴 수 있을 때만 옳은데, 매니페스트를 쓰는 코드가 아직 없다(`--map` 인자는 받기만 한다). 지금 이 중단을 켜면 정상 재실행이 전부 중단된다 — 매니페스트(E12)와 같이 켠다.
+> **`map-conflict` 는 2026-09-06 에 켜졌다** — 매니페스트가 실물이 되면서다(§3.3). 정상 재실행이 조용히 지나가는 이유가 그 캐시다: 우리가 넣은 키는 매니페스트에 있으므로 중단 대상이 아니다.
 
 ### 3.4 재실행 규칙 — 변경분만
 
@@ -497,7 +502,7 @@ MCP 도구도 추가하지 않는다 — 임포트를 도구 호출 단위로 �
 | --- | --- |
 | `file` · `line` | 원본 파일 경로(루트 상대)와 줄 번호(파일 단위 문제는 line null) |
 | `rule` | 규칙 슬러그(아래 표) |
-| `class` | **`abort`(중단)** / **`skip`(건너뜀)** / **`manual`(수동 확인)** / **`warn`(경고)** 4분류. abort는 실행 전체를 멈추고, skip은 그 항목만 제외하고 계속하며, manual은 적재는 하되 사람 확정이 필요한 큐, warn은 정보성이다 |
+| `class` | **`abort`(중단)** / **`skip`(건너뜀)** / **`manual`(수동 확인)** / **`warn`(경고)** 4분류(2026-09-06 구현 — 그 전에는 `warn` 이 없어 `research-doc`·`dist-mismatch` 가 `skipped` 로 섞여 **정상 실행이 종료 코드 1** 을 냈다). abort는 실행 전체를 멈추고, skip은 그 항목만 제외하고 계속하며, manual은 적재는 하되 사람 확정이 필요한 큐, warn은 정보성이다 |
 | `detail` · `hint` | 사유와 권장 조치 |
 
 규칙 전표:

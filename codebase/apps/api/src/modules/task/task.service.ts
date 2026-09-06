@@ -171,6 +171,8 @@ export class TaskService {
     projectId: string;
     statuses?: string[] | null;
     assigneeUserId?: string | null;
+    /** `?ai=1` — 에이전트 세션이 쥔 것만(`delegate_session_id`) */
+    agentOnly?: boolean;
     specId?: string | null;
     includeArchived?: boolean;
     limit?: number;
@@ -189,6 +191,15 @@ export class TaskService {
           )})`;
     const assignee =
       input.assigneeUserId == null ? sql`` : sql` AND t.assignee_user_id = ${input.assigneeUserId}`;
+    /**
+     * `?ai=1` — **에이전트 세션이 쥐고 있는 작업**(2026-09-06 · REQ-API-122).
+     *
+     * 뜻을 못 박는다: `delegate_session_id` 가 있는 것이지 `assignee_user_id` 로 사람이
+     * 지정된 것이 아니다. 보드가 답하는 물음이 **"지금 무엇이 도는가"** 이기 때문이고,
+     * 정의를 적어 두지 않으면 같은 이름이 두 뜻을 갖게 된다 — 이 저장소가 "스코프" 에서
+     * 한 이름이 세 가지를 가리키는 것을 이미 겪었다.
+     */
+    const agent = input.agentOnly !== true ? sql`` : sql` AND t.delegate_session_id IS NOT NULL`;
     // **키든 UUID 든 받는다**(§1.4b). 예전에는 UUID 만 받았는데, 사람과 화면과 도구가
     // 쓰는 것은 고정 ID다 — 키를 넣으면 조용히 0건이 되어 "그 스펙에 Task 가 없다" 로 읽혔다.
     const specRef = entityRef(input.specId ?? null);
@@ -244,7 +255,7 @@ export class TaskService {
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN claim c ON c.task_id = t.id AND c.status = 'active'
-       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${spec}${archived}${seek}
+       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${agent}${spec}${archived}${seek}
        ORDER BY t.priority, t.updated_at DESC, t.id
        LIMIT ${limit + 1}
     `);
@@ -491,9 +502,10 @@ export class TaskService {
     boundariesMd?: string | null;
     assigneeUserId?: string | null;
     dependsOnKeys?: string[] | null;
+    /** 기준 버전을 최신 승인본으로 옮기고 재브리핑 플래그를 지운다(REQ-API-121) */
+    rebrief?: boolean | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
-    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
     const priorityValue =
       input.priority == null
@@ -537,6 +549,32 @@ export class TaskService {
                updated_at = now()
          WHERE id = ${task.id}
       `);
+
+      /**
+       * **재브리핑 — 기준을 옮기고 플래그를 지운다**(REQ-API-121).
+       *
+       * 옮길 곳이 없으면(기준 버전이 없거나 이미 최신이면) 플래그만 지운다 — 그때는
+       * "확인했다" 가 사실의 전부이기 때문이다. 옮길 곳이 있으면 **최신 승인본**으로 간다:
+       * 재브리핑을 누른 사람은 그 버전을 읽고 누른 것이고, 중간 버전을 고를 이유가 없다.
+       *
+       * 위임 명세 4요소는 **건드리지 않는다.** 그것은 옛 버전 기준으로 쓰였을 수 있지만,
+       * 서버가 다시 쓸 수는 없다 — 사람이 같은 화면에서 고치라고 폼이 열려 있다.
+       */
+      if (input.rebrief === true) {
+        await tx.execute(sql`
+          UPDATE task t
+             SET source_spec_version_id = coalesce(
+                   (SELECT v.id FROM spec_version v
+                     WHERE v.spec_id = (SELECT sv.spec_id FROM spec_version sv
+                                         WHERE sv.id = t.source_spec_version_id)
+                       AND v.status = 'approved'
+                     ORDER BY v.version_no DESC LIMIT 1),
+                   t.source_spec_version_id),
+                 rebrief_required_at = NULL,
+                 updated_at = now()
+           WHERE t.id = ${task.id}
+        `);
+      }
 
       if (input.dependsOnKeys != null) {
         await tx.execute(sql`DELETE FROM task_dependency WHERE task_id = ${task.id}`);
@@ -1090,12 +1128,56 @@ export class TaskService {
     // 걷어 오는 `takePendingInstructions` 를 **아무도 부르지 않았다** — 화면은 "다음
     // 하트비트에 전달됩니다" 라고 약속하는데 그 하트비트가 지시를 싣지 않았다.
     // 보낸 사람은 보냈다고 믿고, 에이전트는 영영 듣지 못한다.
-    const [answers, instructions] = await Promise.all([
+    /**
+     * **기준 버전이 밀려났다는 신호도 여기로 온다**(2026-09-06 · REQ-API-119).
+     *
+     * `skills/impl` 은 하트비트 `pending` 에서 `basis_superseded` 를 기다리라고 오래
+     * 적어 왔는데 **그 종류가 실제로는 없었다** — 값은 `nerv_spec_get` 응답 필드이자 Task
+     * 후보 열일 뿐이었고, 구현 중인 에이전트에게 닿는 길이 없었다. 그래서 "스펙이 구현보다
+     * 앞서갈 때 옛 기준으로 계속 구현하는 것을 막는 장치" 가 **오지 않는 신호를 기다리고**
+     * 있었다(규약 6 의 유령 응답 필드, 세 번째).
+     *
+     * 원천은 이미 있다 — `rebrief_required_at` 을 세우는 코드가 `spec.service` 에 있고
+     * `task.rebrief_required` 이벤트도 난다. 하트비트는 **그 사실을 클레임한 세션에게**
+     * 실어 나른다: 이벤트는 화면이 받고, 에이전트가 보장받는 채널은 이것뿐이다.
+     */
+    const [answers, instructions, basis] = await Promise.all([
       this.questions.pendingFor(sessionId),
       this.sessions.takePendingInstructions(sessionId),
+      this.supersededBasisFor(input.claimId),
     ]);
-    // 지시가 앞이다 — stop 은 지금 하던 것을 멈추라는 말이라 답변보다 먼저 읽혀야 한다
-    return { leaseExpiresAt, pending: [...instructions, ...answers], scopeOverlaps };
+    // 지시가 앞이다 — stop 은 지금 하던 것을 멈추라는 말이라 답변보다 먼저 읽혀야 한다.
+    // 기준 드리프트는 그다음이다: 멈추라는 말보다 급하지 않지만 답변보다는 앞선다 —
+    // 답을 받아 재개하는 순간 그 답이 옛 기준 위에 얹히면 안 되기 때문이다.
+    return {
+      leaseExpiresAt,
+      pending: [...instructions, ...basis, ...answers],
+      scopeOverlaps,
+    };
+  }
+
+  /**
+   * 이 클레임의 기준 SpecVersion 이 밀려났는가 — 밀려났으면 하트비트 `pending` 한 줄.
+   *
+   * **매번 같은 것을 다시 싣는다.** 질문 답변은 한 번 전달되면 끝이지만(`delivered`),
+   * 기준 드리프트는 **상태**다 — 사람이 재브리핑할 때까지 사실로 남고, 그동안 세션이
+   * 재시작해도 알아야 한다. 지우는 것은 사람의 재브리핑이지 전달이 아니다.
+   */
+  private async supersededBasisFor(claimId: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT 'basis_superseded' AS kind, t.id AS task_id, t.key AS task_key,
+             s.key AS spec_key, sv.version_no AS basis_version_no,
+             (SELECT max(v.version_no) FROM spec_version v
+               WHERE v.spec_id = s.id AND v.status = 'approved') AS latest_version_no,
+             t.rebrief_required_at::text AS rebrief_required_at
+        FROM claim c
+        JOIN task t ON t.id = c.task_id
+        JOIN spec_version sv ON sv.id = t.source_spec_version_id
+        JOIN spec s ON s.id = sv.spec_id
+       WHERE c.id = ${claimId} AND c.status = 'active'
+         AND (sv.status = 'superseded' OR t.rebrief_required_at IS NOT NULL)
+    `);
+    return rows;
   }
 
   /**

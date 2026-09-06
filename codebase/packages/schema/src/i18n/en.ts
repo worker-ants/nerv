@@ -25,17 +25,25 @@ export const en = {
   'blocked.dependency_broken': 'A dependency broke',
   'blocked.external': 'Something outside the repo',
   'blocked.spec_conflict': 'Conflicts with the base spec',
+  'cli.reason.frontmatter_missing':
+    'No frontmatter — the document status falls back to the default (it is not a chosen value)',
+  'cli.reason.map_conflict':
+    'The server already has this natural key and the manifest does not know it ({key}) — refusing to load on top of someone else’s data. Rebuild the manifest with `nerv import rebuild-map`',
   'cli.reason.plan_many_refs':
     'The body names {count} requirements — the document does not say which one it implements, so no link is made',
   'cli.reason.plan_no_done_at':
     'Could not recover the completion time from git — it falls back to the import time (blurring the archive window)',
   'cli.reason.plan_spec_unresolved':
     'Could not resolve the spec this plan points at — it loads without a basis version ({paths})',
+  'cli.reason.rebuild_needs_server':
+    'rebuild-map rebuilds from the server — it needs --server and --token',
   'cli.reason.review_no_snapshot':
     'The review is not committed, so no input snapshot (head_sha) could be recovered — skipped',
   'cli.reason.review_tableless':
     'The SUMMARY is prose, not a findings table — the session is loaded but findings need a human read',
   'cli.reason.review_total': 'review_total mismatch — expected {expected}, actual {actual}',
+  'cli.report.action.warn': 'warn',
+  'cli.report.col_rule': 'Rule',
   'common.copied': 'Copied',
   'common.copy': 'Copy',
   'common.create': 'Create',
@@ -166,6 +174,7 @@ export const en = {
   'mcp.arg.takeover':
     'seize an edit lease held by someone else — the way out when a dead session still holds it',
   'session.detail': 'Details',
+  'session.timeline_truncated': 'There is earlier activity — showing the most recent first',
   'spec.derived_tasks': 'Derived tasks',
   'spec.derived_tasks.all': 'See all on the board',
   'spec.derived_tasks.empty': 'No tasks have come out of this document yet',
@@ -398,7 +407,11 @@ export const en = {
   'task.basis': 'Basis — why this task',
   'task.basis.dependencies': 'Depends on',
   'task.basis.rebrief': 'Rebrief',
+  'task.basis.rebrief_action': 'Update basis',
+  'task.basis.rebrief_ok': 'Basis moved to the latest approved version',
   'task.basis.rebrief_required': 'The basis spec changed — check the brief again',
+  'task.basis.rebrief_title':
+    'Moves the basis SpecVersion to the latest approved one and clears the rebrief flag — the brief itself is untouched, so amend it here if it needs to change',
   'task.basis.requirement': 'Source requirement',
   'task.basis.spec': 'Source spec',
   'task.basis.superseded': 'The basis version was superseded',
@@ -418,6 +431,9 @@ export const en = {
   'task.release_abandon': 'Abandon',
   'task.release_handoff': 'Hand off',
   'task.release_ok': 'Task released',
+  'tasks.filter.ai': 'Agent',
+  'tasks.filter.ai_title':
+    'Only work an agent session is holding — a different axis from who is assigned',
   'tasks.lane_more': '+{count} more',
   'webhook.skip.no_task_key': 'No task key found in the branch, title, or body.',
   'webhook.skip.no_locator': 'No URL or SHA to record as evidence.',

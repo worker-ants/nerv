@@ -278,7 +278,7 @@ export function useTaskLane(
   slug: string,
   projectId: string | undefined,
   lane: string,
-  options?: { includeArchived?: boolean; assignee?: string; spec?: string },
+  options?: { includeArchived?: boolean; assignee?: string; spec?: string; ai?: boolean },
 ): UseQueryResult<{ items: Row[]; next_cursor: string | null }> {
   const refetchInterval = useLivePolling();
   const archived = options?.includeArchived === true;
@@ -286,19 +286,22 @@ export function useTaskLane(
   // **서버는 이 인자를 처음부터 받고 있었다**(EP-TASK-01 `?spec=`) — 넘기는 곳만 없어서
   // "이 스펙의 작업만" 을 링크로 건넬 수 없었다(2026-09-06 대조 · screens.md:164).
   const spec = options?.spec ?? '';
+  /** `?ai=1` — 에이전트 세션이 쥔 것만(REQ-API-122). 서버가 판정한다 */
+  const ai = options?.ai === true;
   return useQuery({
     // **slug 로 대신 잡지 않는다.** projectId 는 프로젝트 조회가 끝나야 오는데, 그때
     // 키가 slug → id 로 바뀌면 새 쿼리가 되어 레인이 빈 채로 한 번 더 그려진다 —
     // 화면에서는 목록이 나타났다 사라졌다 다시 나타나는 깜빡임이다(실측 2026-08-23).
     // 무효화가 project_id 로 키를 만드므로(event-invalidation.ts) id 축이 정답이고,
     // 오기 전까지는 아예 부르지 않는다.
-    queryKey: [...queryKeys.projectTasks(projectId ?? ''), lane, archived, assignee, spec],
+    queryKey: [...queryKeys.projectTasks(projectId ?? ''), lane, archived, assignee, spec, ai],
     queryFn: () =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(
         `/projects/${slug}/tasks?status=${lane}` +
           (archived ? '&include_archived=true' : '') +
           (assignee === '' ? '' : `&assignee=${encodeURIComponent(assignee)}`) +
-          (spec === '' ? '' : `&spec=${encodeURIComponent(spec)}`),
+          (spec === '' ? '' : `&spec=${encodeURIComponent(spec)}`) +
+          (ai ? '&ai=1' : ''),
       ),
     enabled: projectId !== undefined,
     refetchInterval,
@@ -381,11 +384,23 @@ export function useSessionDetail(slug: string, sessionId: string): UseQueryResul
   });
 }
 
-export function useSessionTimeline(slug: string, sessionId: string): UseQueryResult<Row[]> {
+/**
+ * 세션 타임라인 — **봉투다**(2026-09-06 · REQ-API-120).
+ *
+ * 예전에는 맨 배열이었고 서버가 200건에서 잘랐는데 **잘렸다는 사실이 어디에도 없었다** —
+ * 443건 세션의 초반이 영영 닿지 않는데 화면은 "이게 전부" 라고 말했다.
+ */
+export function useSessionTimeline(
+  slug: string,
+  sessionId: string,
+): UseQueryResult<{ items: Row[]; next_cursor: string | null }> {
   const refetchInterval = useLivePolling();
   return useQuery({
     queryKey: [...queryKeys.session(sessionId), 'activities'],
-    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/sessions/${sessionId}/activities`),
+    queryFn: () =>
+      apiFetch<{ items: Row[]; next_cursor: string | null }>(
+        `/projects/${slug}/sessions/${sessionId}/activities`,
+      ),
     refetchInterval,
   });
 }

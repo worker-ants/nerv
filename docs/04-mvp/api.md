@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.1 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.2 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.2 변경(2026-09-06 — 남은 열한 건, 사람 결정): **REQ-API-119~122 신설 · §1.6 개정.** ① **§1.6 의 "목록 응답은 전부 커서" 가 거짓이었다** — 커서를 만드는 곳은 `task` 하나였고 나머지는 맨 배열이거나 `next_cursor: null` **고정**이었다(응답이 "이게 전부" 라고 말하는 것이라 없는 것보다 나쁘다). 경계를 **자라는 목록 vs 유한 목록**으로 다시 적고, activity·event·session 에 봉투와 커서를 붙였다(REQ-API-120 — 실측 443건 세션이 200 에서 잘리고 있었다). 유한 목록에 커서를 붙이지 않는 것도 결정이다: 문서 하나의 코멘트 20건에 왕복을 두면 값 없는 복잡도만 남는다. ② **하트비트가 `basis_superseded` 를 싣는다**(REQ-API-119) — 스킬이 오래 기다려 온 신호인데 **원천은 있고 닿는 길만 없었다**. 전달로 소멸하지 않는다: 기준 드리프트는 사람이 재브리핑할 때까지 남는 상태다. ③ **`EP-TASK-05` 의 `rebrief`**(REQ-API-121) — `rebrief_required_at` 을 세우는 코드만 있고 지우는 코드가 없어 배지를 끌 길이 없었다. 기준을 **최신 승인본으로 옮긴다**(플래그만 지우면 Task 가 옛 버전을 가리켜 같은 배지를 다시 본다). ④ **`EP-TASK-01` 의 `?ai=1`**(REQ-API-122) — 뜻을 `delegate_session_id` 로 못 박았다.
 >
 > v1.1 변경(2026-09-06 — 해소 조건은 파생이다, 사람 결정): **REQ-API-118 신설 · `EP-TASK-04` 응답 확장.** 정본([3.5](../03-proposal/spec-workflow.md) §2)이 `blocked` 진입에 요구하던 "해소 조건" 을 **저장이 아니라 파생**으로 답한다 — `blocked_resolution{reason, source, satisfied, pending[]}`. 사유마다 해소 원천이 이미 저장에 있어(질문·의존·기준 버전) 열을 더하면 **같은 사실에 포인터가 둘**이 되고, 그 열은 넷 중 하나에만 맞는다. `satisfied` 가 **`null` 인 것은 "아니다" 가 아니라 "서버가 판정할 수 없다"** 이며(`external` · 기준 버전이 멀쩡한 `spec_conflict`), 둘을 같은 값으로 적으면 화면이 판정이 있었다고 읽는다.
 >
@@ -675,7 +677,13 @@ HTTP 상태 매핑:
 
 ### 1.6 커서 페이지네이션
 
-목록 응답은 전부 커서 방식이다. 오프셋 페이지네이션은 제공하지 않는다.
+**자라는 목록은 커서 방식이다**(2026-09-06 개정 · REQ-API-120). 오프셋 페이지네이션은 제공하지 않는다.
+
+경계는 **목록이 자라는가**다. 자라는 것 — `activity` · `event` · `notification` · `finding` · `task` · `session` — 은 `{items, next_cursor}` 봉투로 답한다. 유한한 것 — 한 문서에 매인 기준선·코멘트·관계·버전 — 은 커서 대신 **총계**(`{items, total}`)를 준다.
+
+> **"전부 커서" 는 2026-09-06 까지 거짓이었다.** 실제로 커서를 만드는 곳은 `task` 하나였고 나머지는 맨 배열이거나 `next_cursor: null` 고정이었다 — 그 고정값은 응답이 **"이게 전부" 라고 말하는 것**이라 없는 것보다 나쁘다. 실측: 세션 activity 는 443건인데 200 에서 잘렸고 화면은 그 사실을 표시하지 않았다.
+>
+> 반대로 전수 커서도 옳지 않다. 문서 하나의 코멘트 20건에 커서 왕복을 두면 값 없는 복잡도만 남는다 — 총계가 답할 질문에 커서를 붙이는 것은 계약을 늘리는 일이지 정확하게 만드는 일이 아니다. **경계를 적는 것**이 "전부" 라고 적는 것보다 정직하다.
 
 - 요청: `?cursor=<opaque>&limit=<n>` — `limit` 기본 30·최대 100(`PAGE_LIMIT_DEFAULT`·`PAGE_LIMIT_MAX`).
 - **예외 하나: 발견 큐와 게이트 표**(2026-09-05 명기). 발견은 기본 50·최대 200, 게이트 표의 브랜치는 기본 20·최대 200 이다 — 근거는 규모다(소급 적재 실측 발견 **18,650건**·브랜치 **441개**, [4.5](screens.md) §2.6a). 30건씩 끊으면 facet 으로 좁히기 전에 페이지만 넘긴다. 값의 정본은 `@nerv/schema` 의 `FINDING_PAGE_LIMIT_*`·`GATE_BRANCH_LIMIT_*` 다 — **그전에는 `review.service.ts` 안에 박혀 있어 화면이 그 수를 알 길이 없었다**(REQ-CB-006 이 상수를 공유하라고 한 바로 그 이유다).
@@ -886,11 +894,11 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-TASK-01 | `GET /api/v1/projects/{proj}/tasks` | 전 역할 | `TaskListQuery`(status[], assignee, spec — **`priority` 필터는 없다**(2026-09-06 정정: 서비스가 그 인자를 받지 않는다), **include_archived**(기본 false — `done_at` 이 `TASK_DONE_WINDOW_DAYS` 를 지난 done 을 포함, [4.5 화면 명세](screens.md) §2.5), cursor, limit) | `Page<TaskSummary>`(보드 레인용 — 정렬 `priority ASC, updated_at DESC, id ASC`) | — |
+| EP-TASK-01 | `GET /api/v1/projects/{proj}/tasks` | 전 역할 | `TaskListQuery`(status[], assignee, spec, **`ai`**(=`1` 이면 `delegate_session_id` 가 있는 것만 — 에이전트 세션이 쥔 것이지 사람이 담당인 것이 아니다 · REQ-API-122) — **`priority` 필터는 없다**(2026-09-06 정정: 서비스가 그 인자를 받지 않는다), **include_archived**(기본 false — `done_at` 이 `TASK_DONE_WINDOW_DAYS` 를 지난 done 을 포함, [4.5 화면 명세](screens.md) §2.5), cursor, limit) | `Page<TaskSummary>`(보드 레인용 — 정렬 `priority ASC, updated_at DESC, id ASC`) | — |
 | EP-TASK-02 | `GET /api/v1/projects/{proj}/tasks/next` | task:claim 보유 역할 | `TaskNextQuery`(role, spec_id, limit) | `TaskNextResult`(ready 후보 + **위임 명세 4요소** + 권장 scope) | — |
 | EP-TASK-03 | `POST /api/v1/projects/{proj}/tasks` | planner·developer·admin ●, qa ○ **AND `task:update`**(MCP `nerv_task_create` 와 같은 권한 — §1.3b) | `TaskCreateInput`(title, body_md, source_spec_version_id, source_requirement_id, **baseline**(이름 — 주변 문서까지 포함한 기준 세트), 위임 명세 4필드, priority) | `TaskResult`(status=backlog) | ★`task.created` |
 | EP-TASK-04 | `GET /api/v1/projects/{proj}/tasks/{task}` | 전 역할 | — | `TaskDetailResult`(위임 명세·활성 클레임·의존·Evidence·**`blocked_resolution`** — 막힌 Task 에만 실린다. `{reason, source, satisfied, pending[]}` 이고 **저장하는 열이 아니라 파생**이다(REQ-API-118). `satisfied: null` 은 "아니다" 가 아니라 **서버가 판정할 수 없다**는 뜻이다) | — |
-| EP-TASK-05 | `PATCH /api/v1/projects/{proj}/tasks/{task}` | planner·developer·admin **AND `task:update`** | `TaskUpdateInput`(위임 명세·priority·의존) | `TaskResult` — 위임 명세 4요소 충족 + 의존 해소 시 서버가 `ready` 승격 | `task.ready`(승격 시) |
+| EP-TASK-05 | `PATCH /api/v1/projects/{proj}/tasks/{task}` | planner·developer·admin **AND `task:update`** | `TaskUpdateInput`(위임 명세·priority·의존·**`rebrief`** — `true` 면 기준 SpecVersion 을 최신 승인본으로 옮기고 재브리핑 표시를 지운다 · REQ-API-121) | `TaskResult` — 위임 명세 4요소 충족 + 의존 해소 시 서버가 `ready` 승격 | `task.ready`(승격 시) |
 | EP-TASK-06 | `POST /api/v1/projects/{proj}/tasks/{task}/claim` | viewer 제외 전 역할(`task:claim`) | `TaskClaimInput`(session_id?, scope{spec_ids, file_globs}, lease_seconds?) — **`branch`·`worktree` 는 이 전표에 없다**: 그 둘은 클레임이 아니라 세션의 속성이고 훅이 `X-NERV-Branch`·`X-NERV-Worktree` 로 싣는다(§2.5b · REQ-API-079) | `TaskClaimResult`(claim_id, lease_expires_at, warnings[]) — 겹침 `block`이면 409 `NERV_CONFLICT_SCOPE` | `task.claimed` / `claim.conflict_warn` / `claim.conflict_blocked` |
 | EP-TASK-07 | `POST /api/v1/projects/{proj}/claims/{claim}/heartbeat` | 클레임 보유자 | `HeartbeatInput`(progress, stats{added, removed, files}) | `HeartbeatResult`(새 `lease_expires_at` + `pending` 질문 답변·steer/stop 지시 + **`scope_overlaps`** — 지금 내 범위와 겹치는 활성 클레임 수(block·warn만). 클레임 응답의 겹침은 *잡던 순간*의 사실이라 statusline 은 이 값을 쓴다 · REQ-API-116) | — (이벤트 없음 — `last_heartbeat_at` 갱신만) |
 | EP-TASK-08 | `POST /api/v1/projects/{proj}/claims/{claim}/release` | 클레임 보유자 또는 admin | `ClaimReleaseInput`(reason: **done/handoff/abandon — 어휘 밖은 400** 이다(2026-09-05 · REQ-API-107. 그전에는 REST 가 "셋 중 하나가 아니면 handoff" 로 조용히 바꿨고, 저장은 `done` 외를 전부 `manual` 로 뭉쳤다), state_note) | `ClaimReleaseResult`(Task 최종 상태 — `claimed → ready` 회수 또는 유지) | ★`claim.released` + `task.ready`(회수 시) |
@@ -1326,6 +1334,10 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-116 | WHEN EP-TASK-07 하트비트가 응답하면 THE SYSTEM SHALL `scope_overlaps`(지금 그 클레임의 범위와 겹치는 활성 클레임 수 — `block`·`warn`만)를 함께 준다 — 스킬·문서·statusline 셋이 이 값을 쓰라고 적어 두고 **응답에 없어서** 상태줄의 그 칸이 영원히 0 이었다(규약 6 의 "유령 응답 필드"). 겹침은 시간이 지나며 생기므로 클레임 시점 값으로는 답이 되지 않는다. 판정은 클레임과 **같은 함수**를 쓴다(D-05) |
 | REQ-API-117 | WHEN EP-TASK-09 또는 `nerv_task_update` 가 `blocked_reason` 을 받으면 THE SYSTEM SHALL `@nerv/schema` 의 `BLOCKED_REASONS` 4종 밖의 값을 400 으로 거절한다 — 어휘가 코드에 없으면 임포터·MCP·웹이 각자 다른 문자열을 넣고 **화면의 필터가 그 순간부터 사실을 못 센다**. 판정은 도메인 한 곳이다: MCP 는 인자를 문자열로 실어 오므로 zod 만으로는 그 경로가 열린 채로 남는다 |
 | REQ-API-118 | WHEN EP-TASK-04 가 `blocked_reason` 을 가진 Task 를 반환하면 THE SYSTEM SHALL 무엇이 그것을 풀어 주는지를 **파생해** `blocked_resolution` 으로 함께 준다 — `awaiting_answer`→열린 `question`, `dependency_broken`→`task_dependency(kind='blocks')` 중 미완, `spec_conflict`→기준 버전의 supersede·재브리핑. **저장하는 열을 두지 않는다**: 해소 원천이 이미 저장에 있어 열을 더하면 같은 사실에 포인터가 둘이 되고, 그 열은 넷 중 하나에만 맞는다. 판정할 원천이 없는 사유(`external`·기준 버전이 멀쩡한 `spec_conflict`)는 `satisfied` 를 **`null`** 로 준다 — "아니다" 와 "모른다" 를 같은 값으로 적으면 화면이 판정이 있었다고 읽는다 |
+| REQ-API-119 | WHEN 클레임의 기준 SpecVersion 이 `superseded` 이거나 재브리핑이 걸려 있으면 THE SYSTEM SHALL EP-TASK-07 하트비트 `pending` 에 `basis_superseded` 항목을 싣는다(`spec_key`·`basis_version_no`·`latest_version_no`) — 스킬이 오래 기다려 온 신호이고, **원천은 이미 있었는데 에이전트에게 닿는 길만 없었다**. 질문 답변과 달리 이 항목은 전달로 소멸하지 않는다: 기준 드리프트는 사람이 재브리핑할 때까지 남는 **상태**다 |
+| REQ-API-120 | WHEN 목록 응답이 **자라는 목록**(activity · event · session)이면 THE SYSTEM SHALL `{items, next_cursor}` 봉투로 답하고 다음 쪽의 커서를 준다 — 유한 목록(기준선·코멘트·관계·버전)은 커서 대신 총계를 준다(§1.6 개정). 자라는 목록에 고정 상한만 두면 언젠가 **"이게 전부" 라는 거짓**을 말한다: 실측 443건 세션이 200 에서 잘리고 있었다 |
+| REQ-API-121 | WHEN EP-TASK-05 가 `rebrief: true` 를 받으면 THE SYSTEM SHALL Task 의 기준 SpecVersion 을 그 스펙의 **최신 승인본**으로 옮기고 `rebrief_required_at` 을 지운다 — 위임 명세 4요소는 건드리지 않는다(옛 기준으로 쓰였을 수 있으나 서버가 다시 쓸 수는 없다). 플래그만 지우면 Task 가 여전히 옛 버전을 가리켜 **다음 사람이 같은 배지를 다시 본다** |
+| REQ-API-122 | WHEN EP-TASK-01 에 `?ai=1` 이 오면 THE SYSTEM SHALL `delegate_session_id` 가 있는 Task 만 준다 — **에이전트 세션이 쥔 것**이지 사람이 담당으로 지정된 것이 아니다. 뜻을 못 박지 않으면 같은 이름이 두 뜻을 갖는다 |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 묶어 둔 버전**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다 |

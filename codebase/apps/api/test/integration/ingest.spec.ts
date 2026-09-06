@@ -563,9 +563,11 @@ describe('원문 열람 — 세션 본인과 admin 만 (REQ-API-066)', () => {
   }
 
   async function timelineFor(viewer: string | null): Promise<Record<string, unknown>[]> {
-    return app
+    // 봉투가 됐다(2026-09-06 · REQ-API-120) — 이 검사가 보는 것은 여전히 행이다
+    const { items } = await app
       .get(SessionService)
       .timeline({ projectId, sessionId: EXTERNAL_SESSION, userId: viewer });
+    return items;
   }
 
   it('세션 본인은 원문을 본다', async () => {

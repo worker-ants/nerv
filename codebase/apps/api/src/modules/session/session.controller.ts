@@ -24,7 +24,13 @@ export class SessionController {
   async board(
     @Req() req: ProjectRequest,
     @Query('state') state?: string,
-  ): Promise<{ items: SessionCard[]; summary: Record<string, number>; next_cursor: null }> {
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ): Promise<{
+    items: SessionCard[];
+    summary: Record<string, number>;
+    next_cursor: string | null;
+  }> {
     const projectId = req.nervProjectId ?? '';
     // 표면은 쪼개고 다듬기만 한다 — 어휘 판정은 서비스가 한다(D-05).
     const states =
@@ -34,12 +40,18 @@ export class SessionController {
             .split(',')
             .map((s) => s.trim())
             .filter((s) => s !== '');
-    const [items, summary] = await Promise.all([
-      this.sessions.board({ projectId, states }),
+    const [board, summary] = await Promise.all([
+      this.sessions.board({
+        projectId,
+        states,
+        ...(limit === undefined ? {} : { limit: Number(limit) }),
+        ...(cursor === undefined ? {} : { cursor }),
+      }),
       this.sessions.boardSummary(projectId),
     ]);
-    // 커서 페이지네이션 봉투(api.md §1.6) — 세션 수는 목표 규모에서 한 페이지에 들어간다
-    return { items, summary, next_cursor: null };
+    // 커서 페이지네이션 봉투(api.md §1.6). **`null` 고정이 아니다**(2026-09-06 · REQ-API-120)
+    // — 세션은 프로젝트 수명과 함께 자라므로 "한 페이지에 들어간다" 는 언젠가 거짓이 된다.
+    return { items: board.items, summary, next_cursor: board.next_cursor };
   }
 
   /** EP-SES-03 — seq 순 타임라인 */
@@ -49,6 +61,7 @@ export class SessionController {
     @Req() req: ProjectRequest,
     @Param('sid') sid: string,
     @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ): Promise<unknown> {
     return this.sessions.timeline({
       projectId: req.nervProjectId ?? '',
@@ -56,6 +69,7 @@ export class SessionController {
       // 원문 열람 판정의 축 — 에이전트 토큰이면 그 세션 사용자다(REQ-API-066)
       userId: req.nervPrincipal?.userId ?? null,
       ...(limit === undefined ? {} : { limit: Number(limit) }),
+      ...(cursor === undefined ? {} : { cursor }),
     });
   }
 
