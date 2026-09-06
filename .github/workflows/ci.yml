@@ -4,7 +4,7 @@
 # REQ-CB-015 의 "저장소 메타 파일"에 해당하며 codebase/ 배치 원칙의 예외가 아니라 그 정의 안이다.
 #
 # 잡 3종은 테스트 3계층(§4.3)과 1:1 이다.
-#   check       매 PR — lint · typecheck · 서식 · L1 + 스키마 드리프트 검사
+#   check       매 PR — lint · typecheck · 서식 · 게이트 넷 · L1
 #   integration 매 PR — L2(실제 Postgres). 이 코드베이스의 무게중심이다
 #   e2e         merge_group + 야간 — L3(compose 스택 상대)
 name: ci
@@ -73,6 +73,13 @@ jobs:
           diff deploy/scripts/nerv-backup.sh deploy/k8s/base/backup/nerv-backup.sh
           kubectl kustomize deploy/k8s/overlays/dev > /dev/null
           kubectl kustomize deploy/k8s/overlays/prod > /dev/null
+
+      # **백로그가 저장소를 설명하는가**(AGENTS.md 문서 작업 규약 6 · REQ-CB-029).
+      # 4.8 §1.4 의 현황 표가 실제 스토리와 어긋나면 막는다 — 그 문서는 첫 임포트 대상이라
+      # 틀린 상태가 그대로 Task 의 초기 상태가 된다. 2026-08-22~09-06 에 "모든 스토리는
+      # 현재 backlog 다" 가 74개 중 73개에 대해 거짓인 채로 남아 있었다.
+      - name: 백로그 현황 정합
+        run: node scripts/check-backlog-status.mjs
 
       - name: schema drift
         # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제.
