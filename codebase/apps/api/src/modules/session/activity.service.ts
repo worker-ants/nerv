@@ -28,7 +28,8 @@ export class ActivityService {
     sessionId: string;
     userId?: string | null;
     limit?: number;
-  }): Promise<Record<string, unknown>[]> {
+    cursor?: string | undefined;
+  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
     return this.sessions.timeline(input);
   }
 }

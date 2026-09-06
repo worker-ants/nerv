@@ -18,6 +18,9 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
   - mcp__plugin_nerv_nerv__nerv_question_create
+  - Bash(nerv-outbox:*)
+  - Read(.nerv/**)
+  - Write(.nerv/**)
 ---
 
 # /nerv:impl — 구현 루프
@@ -43,10 +46,13 @@ allowed-tools:
   - steer 지시 → 지시를 다음 행동에 즉시 반영.
   - stop 지시 → 현재 편집을 안전 지점까지 마무리하고
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.
-  - `basis_superseded`(기준 버전 변경 알림) → **임의로 최신 버전으로 갈아타지 않는다.**
-    내 Requirement가 MODIFIED/REMOVED면 `nerv_task_update`(`status=blocked`,
-    `blocked_reason=spec_conflict`) 또는 /nerv:question 으로 확인을 구하고, 아니면
-    기준 버전대로 계속 진행하며 사람의 재브리핑을 기다린다(agent-integration §2.4).
+  - `basis_superseded`(기준 버전이 밀려났다 — `spec_key`·`basis_version_no`·`latest_version_no`
+    가 함께 온다) → **임의로 최신 버전으로 갈아타지 않는다.** `nerv_spec_get`(`spec_id`,
+    `version=<latest_version_no>`)로 새 버전을 읽어 내 Requirement 가 MODIFIED/REMOVED 인지 본다.
+    그렇다면 `nerv_task_update`(`status=blocked`, `blocked_reason=spec_conflict`) 또는
+    /nerv:question 으로 확인을 구하고, 아니면 기준 버전대로 계속 진행하며 사람의 재브리핑을
+    기다린다(agent-integration §2.4). **이 항목은 사라지지 않는다** — 전달되면 끝나는 답변과
+    달리 기준 드리프트는 사람이 재브리핑할 때까지 남는 **상태**라 매 하트비트에 다시 온다.
 - 응답 요약(`task_id` · `status` · `lease_expires_at` · `scope_overlaps`)을
   `.nerv/cache/claim.json`에 **응답의 키 이름 그대로** 기록한다 — statusline이 이 파일만 읽는다.
   `scope_overlaps`는 **지금** 내 범위와 겹치는 활성 클레임 수(block·warn)다. 클레임 응답의

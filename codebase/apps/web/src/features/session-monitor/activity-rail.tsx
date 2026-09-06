@@ -42,7 +42,9 @@ export function ActivityRail({
 }): React.JSX.Element {
   const t = useT();
   const timeline = useSessionTimeline(projectSlug, card.id);
-  const items = rows(timeline.data);
+  const items = rows(timeline.data?.items);
+  /** 앞이 더 있는가 — 서버가 `next_cursor` 로 답한다(REQ-API-120) */
+  const truncated = timeline.data?.next_cursor != null;
   const groups = groupRuns(items);
   const trajectory = useSessionTrajectory(projectSlug, card.id);
   const canIntervene = useCanIntervene(projectSlug, card.user_id);
@@ -108,6 +110,13 @@ export function ActivityRail({
       <SectionLabel className="mt-4 mb-2.5">{t('sessions.rail.activity')}</SectionLabel>
       {timeline.isLoading && <Skeleton rows={4} />}
       <ol className="min-h-0 flex-1 overflow-y-auto pl-[3px]">
+        {/* **잘렸다는 것을 말한다.** 예전에는 200건에서 조용히 잘리고 화면이 "이게 전부"
+            라고 말했다 — 443건 세션의 초반이 영영 닿지 않았다(REQ-API-120). */}
+        {truncated && (
+          <li data-testid="timeline-truncated" className="pb-2 text-xs text-text-faint">
+            {t('session.timeline_truncated')}
+          </li>
+        )}
         {groups.map((group, i) => (
           <ActivityRow
             key={group.key}

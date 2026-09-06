@@ -16,6 +16,9 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_question_create
   - mcp__plugin_nerv_nerv__nerv_question_create
+  - Bash(nerv-outbox:*)
+  - Read(.nerv/**)
+  - Write(.nerv/**)
 ---
 
 # /nerv:next — 다음 할 일 받아 클레임
@@ -29,8 +32,6 @@ allowed-tools:
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
-   - 응답의 정책 버전이 이 플러그인이 가정한 규약과 다르면, 진행은 하되 사용자에게
-     플러그인 재설치를 안내한다(서버가 policy.stale 이벤트를 남긴다).
 2. **다른 클레임을 쥐고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
 3. **후보 조회.** `nerv_task_next` — 입력: `project`, `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와

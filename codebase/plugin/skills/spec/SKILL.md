@@ -24,6 +24,10 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_spec_comment_resolve
   - mcp__nerv__nerv_question_create
   - mcp__plugin_nerv_nerv__nerv_question_create
+  - Bash(nerv-outbox:*)
+  - Bash(curl -sL "$NERV_SERVER*)
+  - Read(.nerv/**)
+  - Write(.nerv/**)
 ---
 
 # /nerv:spec — 스펙 조회 · 초안 · 검토 요청

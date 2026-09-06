@@ -34,17 +34,25 @@ export const ko = {
   'blocked.dependency_broken': '선행 의존이 깨짐',
   'blocked.external': '저장소 밖의 사정',
   'blocked.spec_conflict': '기준 스펙과 어긋남',
+  'cli.reason.frontmatter_missing':
+    'frontmatter 가 없다 — 문서 축은 기본값으로 적재된다(고른 값이 아니다)',
+  'cli.reason.map_conflict':
+    '매니페스트에 없는데 서버에 같은 자연 키가 있다({key}) — 남의 데이터 위에 적재하지 않는다. `nerv import rebuild-map` 으로 매니페스트를 되짓는다',
   'cli.reason.plan_many_refs':
     '본문이 요구사항 {count}건을 언급한다 — 무엇을 구현한 것인지 문서가 말하지 않아 링크하지 않는다',
   'cli.reason.plan_no_done_at':
     '완료 시각을 git 에서 되찾지 못했다 — 적재 시각으로 채워진다(보관 창 판정이 흐려진다)',
   'cli.reason.plan_spec_unresolved':
     '계획이 가리키는 스펙을 찾지 못했다 — 기준 버전 없이 적재된다 ({paths})',
+  'cli.reason.rebuild_needs_server':
+    'rebuild-map 은 서버에서 되짓는 명령이다 — --server 와 --token 이 필요하다',
   'cli.reason.review_no_snapshot':
     '리뷰가 커밋되지 않아 입력 스냅샷(head_sha)을 되찾지 못했다 — 건너뜀',
   'cli.reason.review_tableless':
     'SUMMARY 가 표 형식이 아니라 발견을 추출하지 못했다 — 세션만 적재, 원문 확인 필요',
   'cli.reason.review_total': 'review_total 불일치 — 기대 {expected} · 실제 {actual}',
+  'cli.report.action.warn': '경고',
+  'cli.report.col_rule': '규칙',
   'common.copied': '복사했습니다',
   'common.copy': '복사',
   'common.create': '만들기',
@@ -170,6 +178,7 @@ export const ko = {
     '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
   'session.detail': '상세',
+  'session.timeline_truncated': '앞쪽 활동이 더 있습니다 — 최근 것부터 보이는 중입니다',
   'spec.derived_tasks': '파생 Task',
   'spec.derived_tasks.all': '보드에서 전체 보기',
   'spec.derived_tasks.empty': '이 문서에서 나온 작업이 아직 없습니다',
@@ -400,7 +409,11 @@ export const ko = {
   'task.basis': '근거 — 왜 이 작업인가',
   'task.basis.dependencies': '의존',
   'task.basis.rebrief': '재브리핑',
+  'task.basis.rebrief_action': '기준 갱신',
+  'task.basis.rebrief_ok': '기준 버전을 최신 승인본으로 옮겼습니다',
   'task.basis.rebrief_required': '기준 스펙이 바뀌었습니다 — 지시를 다시 확인하세요',
+  'task.basis.rebrief_title':
+    '기준 SpecVersion 을 최신 승인본으로 옮기고 재브리핑 표시를 지웁니다 — 위임 명세는 그대로이니 필요하면 함께 고칩니다',
   'task.basis.requirement': '출처 요구사항',
   'task.basis.spec': '출처 스펙',
   'task.basis.superseded': '기준 버전이 밀려났습니다',
@@ -420,6 +433,9 @@ export const ko = {
   'task.release_abandon': '포기',
   'task.release_handoff': '인계',
   'task.release_ok': '작업을 내려놓았습니다',
+  'tasks.filter.ai': '에이전트',
+  'tasks.filter.ai_title':
+    '에이전트 세션이 쥐고 있는 작업만 — 사람이 담당으로 지정된 것과는 다른 축입니다',
   'tasks.lane_more': '+{count}개 더',
   'webhook.skip.no_task_key': 'Task 키(TSK-…)를 브랜치·제목·본문에서 찾지 못했습니다.',
   'webhook.skip.no_locator': '증적으로 남길 URL·SHA 가 없습니다.',

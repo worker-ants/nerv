@@ -121,7 +121,11 @@ export class EventService {
     subjectId?: string | null;
     limit?: number;
     before?: string | null;
-  }): Promise<Record<string, unknown>[]> {
+  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
+    // **봉투를 준다**(2026-09-06 · REQ-API-120). 커서(`before`)는 처음부터 있었는데 응답이
+    // 맨 배열이라 **"다음이 있는가" 를 클라이언트가 알 길이 없었다** — 전표는 `Page<X>` 라
+    // 적고 있었으니 §1.6 선언이 이 자리에서도 거짓이었다.
+    const limit = Math.min(input.limit ?? 50, 200);
     const types = input.types ?? null;
     const typeFilter =
       types === null || types.length === 0
@@ -144,9 +148,14 @@ export class EventService {
    LEFT JOIN agent_session se ON se.id = e.actor_session_id
        WHERE e.project_id = ${input.projectId}${typeFilter}${subject}${before}
        ORDER BY e.occurred_at DESC
-       LIMIT ${Math.min(input.limit ?? 50, 200)}
+       LIMIT ${limit + 1}
     `);
-    return rows;
+    const items = rows.slice(0, limit);
+    // 커서 이름이 `before` 다 — 이 목록의 축이 시각이기 때문이고, 전표도 그렇게 적는다
+    return {
+      items,
+      next_cursor: rows.length > limit ? String(items.at(-1)?.['occurred_at'] ?? '') : null,
+    };
   }
 
   /**

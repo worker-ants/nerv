@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: draft</span>
-      <span>버전 v0.82 (2026-09-06)</span>
+      <span>버전 v0.83 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
     </div>
@@ -118,7 +118,7 @@
       <tr><td><code>/p/:proj</code></td><td>S2 프로젝트 개요</td><td>프로젝트 멤버십</td><td></td></tr>
       <tr><td><code>/p/:proj/specs</code></td><td>스펙 트리(목록)</td><td>멤버십</td><td>스펙 0건이면 빈 상태 + [+ 새 스펙]</td></tr>
       <tr><td><code>/p/:proj/specs/:spec</code></td><td>S3 스펙 상세</td><td>멤버십</td><td>쿼리: <code>?v=&lt;version_no&gt;</code> <code>?diff=v3..v4</code></td></tr>
-      <tr><td><code>/p/:proj/tasks</code></td><td>S4 작업 보드</td><td>멤버십</td><td>쿼리: <code>?spec=</code> <code>?assignee=</code> <code>?ai=1</code></td></tr>
+      <tr><td><code>/p/:proj/tasks</code></td><td>S4 작업 보드</td><td>멤버십</td><td>쿼리: <code>?spec=</code> <code>?assignee=</code> <code>?ai=1</code>(<b>에이전트 세션이 쥔 것</b> — <code>delegate_session_id</code> 이지 사람 담당이 아니다 · 4.4 REQ-API-122) <code>?backlog=1</code> <code>?archived=1</code></td></tr>
       <tr><td><code>/p/:proj/tasks/:task</code></td><td>작업 상세(오버레이 패널)</td><td>멤버십</td><td>보드 위 패널 — URL 공유 가능</td></tr>
       <tr><td><code>/p/:proj/sessions</code></td><td>S5 세션 모니터</td><td>멤버십</td><td></td></tr>
       <tr><td><code>/p/:proj/sessions/:session</code></td><td>세션 상세(Activity 타임라인)</td><td>멤버십</td><td></td></tr>
@@ -736,6 +736,7 @@
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → <code>['spec', specId]</code>, <code>spec.comment_added</code>·<code>comment.resolved</code> → <code>['spec', specId, 'comments']</code>, <code>task.*</code> → 파생 Task 패널.</li>
     <li><b>컴포넌트</b>: <code>SpecTree</code> · <code>VersionPicker</code> · <code>DiffToggle</code> · <code>SpecEditor</code>(TipTap — §3) · <code>CommentThread</code> · <code>EditLeaseBadge</code> · <code>SpecMetaDialog</code> · <code>ArchiveConfirmDialog</code> · <code>RelationPanel</code> · <code>ImpactPreview</code> · <code>QuickSwitcher</code>(§1.3a) · <code>StatusPanel</code> · <code>SubmitReviewButton</code> · <code>TerminalHandoffCard</code>.</li>
     <li><b>버튼 상태</b>: [검토 요청]은 사전 검토 BLOCK 존재 시 비활성 + 결과 인라인(spec-workflow §2.1). [CR 제안]은 Phase 2 — 비활성 + "Phase 2" 툴팁(로드맵 §3 비범위). 승인/거절은 이 화면이 아니라 받은 요청 카드에서 한다(S7).</li>
+    <li><b>세션 타임라인은 잘렸다는 것을 말한다</b>(2026-09-06 · 4.4 REQ-API-120). <code>EP-SES-03</code> 이 <code>{items, next_cursor}</code> 봉투를 주고, <code>next_cursor</code> 가 있으면 레일 머리에 "앞쪽 활동이 더 있습니다" 가 선다. 그 전에는 200건에서 조용히 잘리고 화면이 <b>"이게 전부" 라고 말했다</b> — 이 문서 자신이 443건 세션을 실측으로 적어 두었다.</li>
     <li><b>터미널 이어쓰기</b>: 복사용 명령 <code>claude "/nerv:spec edit SPC-CWC-007"</code> 카드(ui-wireframes §2.3 (12)) — 레일 바닥에 선다(<code>TerminalHandoffCard</code>). 반대 방향은 <code>nerv_spec_draft_upsert</code> 응답의 <code>web_url</code> 딥링크가 이 화면으로 온다.</li>
     <li><b>관계 패널</b>(상태 패널 내 섹션): EP-SPEC-18(direction=both) — <b>참조함 N / 참조됨 N</b>(backlink)을 kind 배지와 함께 목록으로, 클릭 시 해당 스펙으로 이동. 20건 초과는 [전체 보기]로 커서 페이지네이션 확장. 참조 갱신 배지(REQ-WEB-037)는 이 섹션 머리에 흡수된다 — "무엇이 낡았나"가 배지가 아니라 목록으로 보인다. 관계 데이터는 <b>본문의 링크에서</b> 저장 시 자동 추출된다(REQ-API-024 — 2026-08-30 개정: 산문에 적힌 키는 세지 않는다). 사람이 관계를 따로 관리하지는 않지만, <b>가리킬 문서는 링크로 적어야</b> 한다.</li>
     <li><b>관계 안은 방향으로 가른다</b>(2026-08-24 신설 — 사람 지시): 레일의 <code>관계</code> 탭 아래에 <b>전체 · 역참조 · 레퍼런스</b> 하위 탭을 두고 각각 건수를 단다. 두 방향은 <b>다른 질문</b>이기 때문이다 — 역참조는 "이 문서를 고치면 무엇이 흔들리나", 레퍼런스는 "이 문서가 무엇에 기대나". 한 목록에 섞이면(실측: <code>0-overview</code> 50건 = 역참조 22 + 레퍼런스 28) 둘 중 하나를 보려고 전체를 훑어야 한다. 건수는 <b>누르기 전에</b> 보인다 — 빈 탭을 열어 보게 하지 않는다. 전체 탭은 <b>역참조 무리 → 구분선 → 레퍼런스 무리</b> 순으로 놓는다: 화살표 표식만으로는 무리가 바뀐 자리를 눈이 알아채지 못한다(한쪽이 비면 나눌 것이 없으므로 선도 없다). 역참조 설명("고치면 흔들리는 문서")은 그 무리의 <b>머리</b>에 단다 — 꼬리에 달면 스무 줄을 다 내려간 뒤에야 무엇을 읽은 것인지 알게 된다. 그 설명은 역참조가 <b>보이는 목록에 있을 때만</b> 성립하므로 레퍼런스 탭에서는 달지 않는다.</li>
@@ -1170,7 +1171,7 @@
   <blockquote><p><b>막힘 사유는 고르는 것이다</b>(2026-09-06 · REQ-API-117). <code>blocked</code> 전이의 사유 칸은 자유 텍스트가 아니라 어휘 4종(<code>awaiting_answer</code>·<code>dependency_broken</code>·<code>spec_conflict</code>·<code>external</code>)의 셀렉트다 — 같은 뜻을 사람마다 다른 문자열로 적으면 <b>막힘을 세는 순간 그 수가 사실이 아니게 된다</b>. 어휘의 정본은 <code>@nerv/schema</code> 의 <code>BLOCKED_REASONS</code> 이고 화면은 그것을 그린다(§1.8 — 화면은 서버가 받을 것만 보인다).</p>
   <p><b>그리고 무엇이 되면 풀리는지를 화면이 말한다</b>(REQ-API-118). 상세에 <code>막힘 — 무엇이 되면 풀리는가</code> 카드가 서고, 서버가 파생해 보낸 <code>blocked_resolution</code> 을 그대로 그린다 — 아직 막고 있는 것들(열린 질문 · 미완 선행 Task · 밀려난 기준 버전)을 링크로, 다 풀렸으면 <b>"이제 풀 수 있습니다"</b> 배지를. 그 배지가 필요한 이유는 <code>blocked_reason</code> 을 <b>아무도 자동으로 지우지 않기</b> 때문이다: 의존이 끝나도 사람이 다시 눌러야 풀리는데, 그 사실을 화면이 말하지 않으면 아무도 누르지 않는다. <code>satisfied: null</code>(서버가 판정할 수 없는 사유)은 목록 대신 <b>왜 판정할 수 없는지</b>를 적는다 — "아직 막혀 있다" 와 같은 회색으로 그리면 사람은 판정이 있었다고 읽는다.</p></blockquote>
 
-  <blockquote><p><b>근거 카드</b>(2026-09-06 배선): 상세 머리에 <code>근거 — 왜 이 작업인가</code> 카드가 선다 — 출처 스펙(+기준 버전, superseded 면 그 사실) · 출처 요구사항 · 의존 Task 링크 · 재브리핑 필요 여부. 서버는 이 넷을 EP-TASK-04 응답에 처음부터 싣고 있었고 화면이 그리지 않았다. 근거 없는 지시가 P1(맥락 유실)의 다른 이름이다. <b>다만 재브리핑을 <i>해소하는</i> 경로는 없다</b> — REQ-WEB-036 은 "기준 버전 갱신(EP-TASK-05) 경로를 제공한다" 고 요구하는데 <code>rebrief_required_at</code> 을 <b>세우는 코드만 있고 지우는 코드가 없다</b>(<code>spec.service.ts</code> 가 <code>now()</code> 로 세운다). 화면에 버튼을 두려면 서버 쪽 동작을 먼저 정해야 하므로(새 요구사항이다) 배지까지만 그리고 남겨 둔다.</p></blockquote>
+  <blockquote><p><b>근거 카드</b>(2026-09-06 배선): 상세 머리에 <code>근거 — 왜 이 작업인가</code> 카드가 선다 — 출처 스펙(+기준 버전, superseded 면 그 사실) · 출처 요구사항 · 의존 Task 링크 · 재브리핑 필요 여부. 서버는 이 넷을 EP-TASK-04 응답에 처음부터 싣고 있었고 화면이 그리지 않았다. 근거 없는 지시가 P1(맥락 유실)의 다른 이름이다. <b>재브리핑을 해소하는 경로도 생겼다</b>(2026-09-06 · 4.4 REQ-API-121) — 배지 옆의 [기준 갱신]이 <code>EP-TASK-05</code>(<code>rebrief: true</code>)를 불러 기준 SpecVersion 을 <b>최신 승인본으로 옮기고</b> 플래그를 지운다. 플래그만 지우면 Task 가 여전히 옛 버전을 가리켜 <b>다음 사람이 같은 배지를 다시 본다</b>. 위임 명세 4요소는 건드리지 않는다 — 옛 기준으로 쓰였을 수 있지만 서버가 다시 쓸 수는 없고, 같은 화면에 고칠 폼이 열려 있다.</p></blockquote>
 
   <ul>
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>task.ready</code> <code>task.claimed</code> <code>task.blocked</code> <code>task.done</code> <code>task.created</code> <code>task.updated</code> <code>claim.released</code> → 보드 재조회. 리스 카운트다운은 클라이언트 시계.</li>

@@ -96,6 +96,19 @@ function TaskDetail(): React.JSX.Element {
     onError: onApiError,
   });
 
+  const rebrief = useMutation({
+    mutationFn: () =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/tasks/${String(data['id'])}`, {
+        method: 'PATCH',
+        body: { rebrief: true },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.task(task) });
+      pushToast({ tone: 'ok', message: t('task.basis.rebrief_ok') });
+    },
+    onError: onApiError,
+  });
+
   const release = useMutation({
     mutationFn: (reason: 'handoff' | 'abandon') =>
       apiFetch<Record<string, unknown>>(
@@ -233,8 +246,22 @@ function TaskDetail(): React.JSX.Element {
               {data['rebrief_required_at'] == null ? (
                 t('common.none')
               ) : (
-                <span data-testid="rebrief-required" className="text-status-waiting">
-                  {t('task.basis.rebrief_required')}
+                <span className="flex flex-wrap items-center gap-2">
+                  <span data-testid="rebrief-required" className="text-status-waiting">
+                    {t('task.basis.rebrief_required')}
+                  </span>
+                  {/* **배지를 해소하는 문**(2026-09-06 · REQ-API-121). 오래 배지만 있고
+                      그것을 끄는 길이 없었다 — 기준을 최신 승인본으로 옮기고 플래그를
+                      지운다. "봤다" 표시가 아니라 **기준을 옮기는 것**이 재브리핑의 뜻이다. */}
+                  <Button
+                    size="sm"
+                    data-testid="rebrief"
+                    disabled={rebrief.isPending}
+                    onClick={() => rebrief.mutate()}
+                    title={t('task.basis.rebrief_title')}
+                  >
+                    {t('task.basis.rebrief_action')}
+                  </Button>
                 </span>
               )}
             </Element>

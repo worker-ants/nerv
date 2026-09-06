@@ -337,7 +337,8 @@ describe('E05-S03 세션 보드 (EP-SES-01)', () => {
       scope: { specIds: [], fileGlobs: ['codebase/loader/**'] },
     });
 
-    const cards = await sessions.board({ projectId });
+    // 봉투가 됐다(2026-09-06 · REQ-API-120) — 세션도 자라는 목록이라 커서를 준다
+    const { items: cards } = await sessions.board({ projectId });
     const card = cards.find((c) => c.id === boot.session_id);
 
     expect(card).toMatchObject({
@@ -359,7 +360,7 @@ describe('E05-S03 세션 보드 (EP-SES-01)', () => {
     expect(summary['active']).toBeGreaterThan(0);
 
     const onlyStale = await sessions.board({ projectId, states: ['stale'] });
-    expect(onlyStale.every((c) => c.state === 'stale')).toBe(true);
+    expect(onlyStale.items.every((c) => c.state === 'stale')).toBe(true);
   });
 
   /**

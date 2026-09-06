@@ -571,8 +571,10 @@ describe('세션 steer (EP-SES-04)', () => {
     });
 
     const res = await call('GET', `/api/v1/projects/clemvion/sessions/${sessionId}/activities`);
-    const items = res.body as Record<string, unknown>[];
-    expect(items.map((i) => i['type'])).toEqual(['action', 'elicitation']);
+    // **봉투다**(2026-09-06 · REQ-API-120) — 200건에서 조용히 잘리던 자리라 커서가 붙었다
+    const body = res.body as { items: Record<string, unknown>[]; next_cursor: string | null };
+    expect(body.items.map((i) => i['type'])).toEqual(['action', 'elicitation']);
+    expect(body.next_cursor).toBeNull();
 
     // 지시는 한 번만 전달된다 — 두 번 주면 에이전트가 같은 지시를 두 번 따른다
     expect(await sessions.takePendingInstructions(sessionId)).toHaveLength(1);
@@ -1114,7 +1116,8 @@ describe('받은 요청·알림·커버리지 표면', () => {
   it('이벤트 피드는 사람/에이전트를 구분해 싣는다 (FR-16 · D-08)', async () => {
     await call('POST', '/api/v1/projects/clemvion/tasks', { payload: { title: '이벤트용' } });
     const res = await call('GET', '/api/v1/projects/clemvion/events');
-    const items = res.body as Record<string, unknown>[];
+    // 전표가 `Page<X>` 라 적던 것이 이제 사실이다(REQ-API-120)
+    const { items } = res.body as { items: Record<string, unknown>[]; next_cursor: string | null };
     expect(items.length).toBeGreaterThan(0);
     expect(items[0]).toHaveProperty('is_agent');
     expect(items[0]).toHaveProperty('actor_name');

@@ -5,13 +5,31 @@ import { t } from '../i18n.js';
 // 보존한다(정보 손실 0). 이 규칙이 있는 이유는 임포트가 한 번에 끝나지 않기 때문이다 —
 // 실패 항목을 수동 확인 큐로 처리하고 재실행해서 전수에 도달하는 것이 정상 경로다(시나리오 E).
 
-export type Disposition = 'skipped' | 'aborted' | 'manual';
+/**
+ * 4분류다 — `abort`(중단) · `skip`(건너뜀) · `manual`(수동 확인) · `warn`(정보성).
+ *
+ * **`warn` 이 2026-09-06 까지 없었다.** 그래서 `research-doc`(참고 문서라 Task 를 만들지
+ * 않는다)·`dist-mismatch`(분포가 기대와 다르다) 처럼 **아무것도 잘못되지 않은 항목**이
+ * `skipped` 로 섞였고, 종료 코드가 1(실패·수동 확인 있음)이 됐다 — 정상 실행이 실패로
+ * 보고되면 그 코드는 게이트로 쓸 수 없다.
+ */
+export type Disposition = 'skipped' | 'aborted' | 'manual' | 'warn';
 
 export interface ReportEntry {
   file: string;
   line: number | null;
+  /**
+   * 규칙 슬러그 — §4.1 전표의 이름이다(`req-id-duplicate` · `map-conflict` …).
+   *
+   * **`report.jsonl` 을 기계가 읽는다는 전제가 이 필드에 걸려 있다.** 2026-09-06 까지
+   * 슬러그 23종이 코드에 하나도 없어 전부 자유 문장이었고, 그러면 재실행 큐를 자동으로
+   * 분류할 수 없다 — 사람이 매번 문장을 읽어 고르게 된다.
+   */
+  rule: string;
   reason: string;
   disposition: Disposition;
+  /** 권장 조치 — 사유가 "무엇이" 라면 이것은 "그래서 무엇을 하라" 다 */
+  hint?: string;
   /** 원문 조각 — 정보 손실 0 을 위해 남긴다 */
   excerpt?: string;
 }
@@ -39,10 +57,16 @@ export function conversionRate(report: ImportReport): number {
   return report.scanned === 0 ? 1 : report.converted / report.scanned;
 }
 
-/** 종료 코드 — 0 완료 · 1 실패·수동 확인 있음 · 2 중단(§3.1) */
+/**
+ * 종료 코드 — 0 완료 · 1 실패·수동 확인 있음 · 2 중단(§3.1).
+ *
+ * **`warn` 은 1 을 만들지 않는다.** 정보성 항목이 종료 코드를 올리면 "참고 문서가 하나
+ * 있었다" 만으로 실행이 실패가 된다 — 그 코드를 게이트로 쓰는 쪽은 늘 빨강을 보게 되고,
+ * 늘 빨간 신호는 이미 신호가 아니다.
+ */
 export function exitCode(report: ImportReport): 0 | 1 | 2 {
   if (report.entries.some((e) => e.disposition === 'aborted')) return 2;
-  if (report.entries.length > 0) return 1;
+  if (report.entries.some((e) => e.disposition !== 'warn')) return 1;
   return 0;
 }
 
@@ -83,12 +107,13 @@ export function renderMarkdown(report: ImportReport): string {
   lines.push(
     t()('cli.report.failures'),
     '',
-    `| ${t()('cli.report.col_file')} | ${t()('cli.report.col_line')} | ${t()('cli.report.col_action')} | ${t()('cli.report.col_reason')} |`,
-    '| --- | --- | --- | --- |',
+    `| ${t()('cli.report.col_file')} | ${t()('cli.report.col_line')} | ${t()('cli.report.col_rule')} | ${t()('cli.report.col_action')} | ${t()('cli.report.col_reason')} |`,
+    '| --- | --- | --- | --- | --- |',
   );
   for (const entry of report.entries) {
     lines.push(
-      `| \`${entry.file}\` | ${entry.line ?? '—'} | ${label(entry.disposition)} | ${entry.reason} |`,
+      `| \`${entry.file}\` | ${entry.line ?? '—'} | \`${entry.rule}\` | ${label(entry.disposition)} | ` +
+        `${entry.reason}${entry.hint === undefined ? '' : ` — ${entry.hint}`} |`,
     );
   }
   return lines.join('\n');
@@ -107,5 +132,7 @@ function label(disposition: Disposition): string {
       return t()('cli.report.action.aborted');
     case 'manual':
       return t()('cli.report.action.manual');
+    case 'warn':
+      return t()('cli.report.action.warn');
   }
 }

@@ -6,6 +6,9 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_review_submit
   - mcp__nerv__nerv_finding_resolve
   - mcp__plugin_nerv_nerv__nerv_finding_resolve
+  - Bash(nerv-outbox:*)
+  - Read(.nerv/**)
+  - Write(.nerv/**)
 ---
 
 # /nerv:review — 리뷰 제출과 발견 처분

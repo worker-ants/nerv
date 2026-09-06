@@ -29,6 +29,14 @@ import { addedAtMap, snapshotMap, snapshotOf } from './parse/git.js';
 import { parseFrontmatter, splitStatus } from './parse/frontmatter.js';
 import { extractRequirements } from './parse/requirements.js';
 import { scan } from './parse/scan.js';
+import {
+  emptyManifest,
+  knows,
+  manifestFromServerMap,
+  readManifest,
+  writeManifest,
+} from './manifest.js';
+import type { Manifest, ManifestItem } from './manifest.js';
 import type { ScannedFile } from './parse/scan.js';
 import { loadBuiltin, loadProfileFile } from './profiles/index.js';
 import type { ImportReport, ReportEntry } from './report/index.js';
@@ -43,6 +51,9 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
   // plan 패스는 스펙과 다른 트리를 읽고 다른 표면에 쓴다(EP-IMP-03) — 여기서 갈린다.
   if (options.command === 'plan') return runPlanImport(options, profile);
   if (options.command === 'review') return runReviewImport(options, profile);
+  // **`rebuild-map` 은 적재하지 않는다.** 2026-09-06 까지 이 분기가 없어 spec 경로로
+  // 떨어졌다 — "다시 짓는다" 는 이름의 명령이 임포트를 수행하고 있었다(§3.3).
+  if (options.command === 'rebuild-map') return runRebuildMap(options, profile);
 
   const files = scan(options.root, profile.scan.spec, profile.scan.exclude);
   const entries: ReportEntry[] = [];
@@ -78,6 +89,11 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
       project: options.project,
     });
 
+    // **매니페스트를 먼저 읽는다**(§3.3). 없으면 없는 것이지 실패가 아니다 — 첫 실행에는
+    // 당연히 없다. 있으면 "우리가 넣은 것" 의 목록이고, 그것이 `map-conflict` 의 축이다.
+    const manifest =
+      readManifest(options.mapPath) ?? emptyManifest(profile.profile, options.project);
+
     // preflight — 서버 쓰기 0. 무엇이 이미 있고 무엇이 그대로인지 먼저 묻는다(§3.3·§3.4)
     const preflight = await client.preflight({
       profile: profile.profile,
@@ -99,6 +115,29 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
     // **실패 표에 넣지 않는다.** 무변경은 재실행의 정상이지 실패가 아니고, 엔트리로 올리면
     // 멱등 재실행이 종료 코드 1(실패·수동 확인 있음)을 내게 된다 — 게이트가 뒤집힌다.
     report.unchanged = unchanged.size;
+
+    /**
+     * **`map-conflict` — 매니페스트 없이 남의 데이터 위에 적재하지 않는다**(§3.3 · §4.1).
+     *
+     * 이 게이트는 매니페스트가 있어야 성립한다: 서버에 이미 있는 키가 *우리가 넣은 것*인지
+     * *남이 넣은 것*인지 가릴 수 있어야 하기 때문이다. 그래서 2026-09-06 PR #1 에서는 켜지
+     * 않고 남겼고, 매니페스트가 생긴 지금 켠다.
+     *
+     * abort 다 — 그 항목만 건너뛰는 것으로는 부족하다. 남의 프로젝트 위에 절반을 덮어쓰고
+     * 멈추는 것이 아무것도 안 하고 멈추는 것보다 나쁘다. 되찾는 길은 `rebuild-map` 이다.
+     */
+    for (const item of preflight.items) {
+      if (item.state === 'new' || knows(manifest, item.natural_key)) continue;
+      entries.push({
+        file: item.source_path,
+        line: null,
+        rule: 'map-conflict',
+
+        reason: t()('cli.reason.map_conflict', { key: item.natural_key }),
+        disposition: 'aborted',
+      });
+    }
+    if (entries.some((e) => e.disposition === 'aborted')) return report;
 
     if (options.apply) {
       // ① 트리 골격 → ② 본문 순서. 부모가 먼저 있어야 자식이 붙는다
@@ -131,15 +170,83 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
           entries.push({
             file: item.source_path,
             line: null,
+            rule: 'server-rejected',
             reason: item.detail ?? t()('cli.reason.load_failed'),
             disposition: 'manual',
           });
+          continue;
         }
+        // **적재한 것을 매니페스트에 적는다**(§3.3). 이 기록이 다음 실행의 `map-conflict`
+        // 판정 축이고, 링크 재작성·`spec_impact` 경로 변환이 쓰는 별칭 표다.
+        upsertManifestItem(manifest, {
+          source_path: item.source_path,
+          kind: 'spec',
+          natural_key:
+            loadable.find((l) => l.source_path === item.source_path)?.key ?? item.source_path,
+          ...(item.spec_id === undefined ? {} : { spec_id: item.spec_id }),
+          ...(item.spec_version_id === undefined ? {} : { spec_version_id: item.spec_version_id }),
+          ...(item.requirement_refs === undefined ? {} : { requirements: item.requirement_refs }),
+        });
       }
+      manifest.root_commit = report.rootCommit;
+      writeManifest(options.mapPath, manifest);
     }
   }
 
   return report;
+}
+
+/**
+ * `nerv import rebuild-map` — 서버에서 매니페스트를 되짓는다(EP-IMP-05 · §3.3).
+ *
+ * **적재하지 않는다.** 이 명령의 존재 이유가 그것이다: 매니페스트를 잃은 사람이
+ * `map-conflict` 로 막혔을 때 되찾는 길이고, 그 자리에서 임포트가 돌면 막은 뜻이 사라진다.
+ * 2026-09-06 까지 분기가 없어 정확히 그 일이 일어나고 있었다.
+ */
+async function runRebuildMap(options: CliOptions, profile: ImportProfile): Promise<ImportReport> {
+  const entries: ReportEntry[] = [];
+  const report: ImportReport = {
+    profile: profile.profile,
+    root: options.root,
+    rootCommit: null,
+    scanned: 0,
+    converted: 0,
+    entries,
+    expectation: [],
+  };
+
+  if (options.server === undefined || options.token === undefined) {
+    // 서버에서 되짓는 명령이라 서버가 없으면 할 일이 없다 — dry-run 이 성립하지 않는다
+    entries.push({
+      file: t()('cli.report.aggregate'),
+      line: null,
+      rule: 'server-unauthorized',
+
+      reason: t()('cli.reason.rebuild_needs_server'),
+      disposition: 'aborted',
+    });
+    return report;
+  }
+
+  const client = new ImportClient({
+    server: options.server,
+    token: options.token,
+    project: options.project,
+  });
+  const { items } = await client.map();
+  const manifest = manifestFromServerMap(profile.profile, options.project, items);
+  writeManifest(options.mapPath, manifest);
+
+  report.scanned = items.length;
+  report.converted = manifest.items.length;
+  return report;
+}
+
+/** 매니페스트는 자연 키로 유일하다 — 재실행은 덮어쓴다(추가가 아니다) */
+function upsertManifestItem(manifest: Manifest, item: ManifestItem): void {
+  const at = manifest.items.findIndex((i) => i.natural_key === item.natural_key);
+  if (at === -1) manifest.items.push(item);
+  else manifest.items[at] = { ...manifest.items[at], ...item };
 }
 
 /**
@@ -180,8 +287,11 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       entries.push({
         file: file.path,
         line: null,
+        rule: 'research-doc',
         reason: classified.note ?? t()('cli.reason.reference_doc'),
-        disposition: 'skipped',
+        // **잘못된 것이 없다.** 참고 문서는 Task 를 만들지 않는 것이 정상이라 `warn` 이다 —
+        // `skipped` 로 두면 정상 실행이 종료 코드 1 을 낸다(§4.1 의 4분류).
+        disposition: 'warn',
       });
       statusCounts['reference'] = (statusCounts['reference'] ?? 0) + 1;
       continue;
@@ -190,7 +300,13 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
     const task = classified.task;
     statusCounts[task.status] = (statusCounts[task.status] ?? 0) + 1;
     for (const warning of task.warnings) {
-      entries.push({ file: file.path, line: null, reason: warning, disposition: 'manual' });
+      entries.push({
+        file: file.path,
+        line: null,
+        rule: 'pending-plan-unresolved',
+        reason: warning,
+        disposition: 'manual',
+      });
     }
     if (task.assignee_user_id === null && task.owner_label !== null) {
       statusCounts['unassigned'] = (statusCounts['unassigned'] ?? 0) + 1;
@@ -204,6 +320,8 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       entries.push({
         file: task.source_path,
         line: null,
+        rule: 'pending-plan-unresolved',
+
         reason: t()('cli.reason.plan_spec_unresolved', { paths: task.spec_paths.join(', ') }),
         disposition: 'skipped',
       });
@@ -220,6 +338,8 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       entries.push({
         file: task.source_path,
         line: null,
+        rule: 'link-unresolved',
+
         reason: t()('cli.reason.plan_many_refs', { count: task.requirement_refs.length }),
         disposition: 'manual',
       });
@@ -231,6 +351,8 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       entries.push({
         file: task.source_path,
         line: null,
+        rule: 'owner-unmapped',
+
         reason: t()('cli.reason.plan_no_done_at'),
         disposition: 'manual',
       });
@@ -290,6 +412,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
           entries.push({
             file: item.source_path,
             line: null,
+            rule: 'server-rejected',
             reason: item.detail ?? t()('cli.reason.load_failed'),
             disposition: 'skipped',
           });
@@ -302,6 +425,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
         entries.push({
           file: item.source_path,
           line: null,
+          rule: 'server-rejected',
           reason: item.detail ?? t()('cli.reason.load_failed'),
           disposition: 'manual',
         });
@@ -364,6 +488,8 @@ async function runReviewImport(options: CliOptions, profile: ImportProfile): Pro
       entries.push({
         file: file.path,
         line: null,
+        rule: 'server-rejected',
+
         reason: t()('cli.reason.review_no_snapshot'),
         disposition: 'skipped',
       });
@@ -380,6 +506,8 @@ async function runReviewImport(options: CliOptions, profile: ImportProfile): Pro
       entries.push({
         file: file.path,
         line: null,
+        rule: 'server-rejected',
+
         reason: t()('cli.reason.review_tableless'),
         disposition: 'manual',
       });
@@ -425,6 +553,7 @@ async function runReviewImport(options: CliOptions, profile: ImportProfile): Pro
         entries.push({
           file: item.source_path,
           line: null,
+          rule: 'server-rejected',
           reason: item.detail ?? t()('cli.reason.load_failed'),
           disposition: 'manual',
         });
@@ -521,6 +650,8 @@ function checkReviewExpectations(
       entries.push({
         file: t()('cli.report.aggregate'),
         line: null,
+        rule: 'count-mismatch',
+
         reason: t()('cli.reason.review_total', { expected, actual: scanned }),
         disposition: 'aborted',
       });
@@ -547,6 +678,8 @@ function checkPlanExpectations(
       entries.push({
         file: t()('cli.report.aggregate'),
         line: null,
+        rule: 'count-mismatch',
+
         reason: t()('cli.reason.plan_total', { expected: expect.plan_total, actual: scanned }),
         disposition: 'aborted',
       });
@@ -572,12 +705,28 @@ function convert(
   const rawStatus = typeof frontmatter['status'] === 'string' ? frontmatter['status'] : undefined;
   if (rawStatus !== undefined) statusCounts[rawStatus] = (statusCounts[rawStatus] ?? 0) + 1;
 
+  // **frontmatter 가 없다는 사실을 조용히 넘기지 않는다**(§5.1 · `frontmatter-missing`).
+  // 그 문서들은 `status` 가 없어 기본값(draft)으로 들어가는데, 아무 말도 없으면 사람은
+  // 자기가 고른 값이라고 읽는다. `skip` 이 아니라 **`warn`** 인 이유는 적재 자체는 정상
+  // 이기 때문이다 — 도그푸딩 대상 13편이 정확히 이 경우다.
+  if (rawStatus === undefined) {
+    entries.push({
+      file: file.path,
+      line: null,
+      rule: 'frontmatter-missing',
+      reason: t()('cli.reason.frontmatter_missing'),
+      disposition: 'warn',
+    });
+  }
+
   const status = splitStatus(rawStatus, profile.frontmatter.status_map);
   if (rawStatus !== undefined && status === null) {
     // 매핑에 없는 값을 기본값으로 넘기지 않는다 — 그러면 117/17/1 집계가 조용히 틀어진다
     entries.push({
       file: file.path,
       line: null,
+      rule: 'status-unknown',
+
       reason: t()('cli.reason.unknown_status', { value: rawStatus }),
       disposition: 'manual',
     });
@@ -626,6 +775,8 @@ function requirementsOf(
     entries.push({
       file: file.path,
       line: duplicate.line,
+      rule: 'req-id-duplicate',
+
       reason: t()('cli.reason.req_id_duplicate', { ref: duplicate.ref }),
       disposition: 'manual',
     });
@@ -634,6 +785,8 @@ function requirementsOf(
     entries.push({
       file: file.path,
       line: requirement.line,
+      rule: 'req-priority-missing',
+
       reason: t()('cli.reason.req_priority_missing', { ref: requirement.ref }),
       disposition: 'manual',
     });
@@ -645,6 +798,8 @@ function requirementsOf(
     entries.push({
       file: file.path,
       line: null,
+      rule: 'impl-status-doc-copied',
+
       reason: t()('cli.reason.impl_status_doc_copied', { count: requirements.length }),
       disposition: 'manual',
     });
@@ -742,6 +897,8 @@ function checkExpectations(
       entries.push({
         file: t()('cli.report.aggregate'),
         line: null,
+        rule: 'count-mismatch',
+
         reason: t()('cli.reason.spec_total', { expected: expect.spec_total, actual: scanned }),
         disposition: 'aborted',
       });
@@ -757,6 +914,8 @@ function checkExpectations(
       entries.push({
         file: t()('cli.report.aggregate'),
         line: null,
+        rule: 'dist-mismatch',
+
         reason: t()('cli.reason.status_dist', { status, expected, actual }),
         disposition: 'skipped',
       });
@@ -864,6 +1023,8 @@ function withoutDuplicateTaskKeys(
       entries.push({
         file: path,
         line: null,
+        rule: 'id-collision',
+
         reason: t()('cli.reason.duplicate_key', { key, count: paths.length }),
         disposition: 'aborted',
       });
@@ -895,6 +1056,8 @@ function withoutDuplicateKeys(
       entries.push({
         file: path,
         line: null,
+        rule: 'id-collision',
+
         reason: t()('cli.reason.duplicate_key', { key, count: paths.length }),
         disposition: 'aborted',
       });
@@ -1011,6 +1174,8 @@ function buildAreaTree(
     entries.push({
       file: dir,
       line: null,
+      rule: 'title-missing',
+
       reason: t()('cli.reason.area_without_body', { file: bodyFile ?? '' }),
       disposition: 'manual',
     });

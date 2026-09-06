@@ -35,6 +35,7 @@ export class TaskController {
     @Query('status') status?: string,
     @Query('assignee') assignee?: string,
     @Query('spec') spec?: string,
+    @Query('ai') ai?: string,
     @Query('include_archived') includeArchived?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
@@ -44,6 +45,9 @@ export class TaskController {
       statuses: status === undefined || status === '' ? null : status.split(','),
       assigneeUserId: assignee ?? null,
       specId: spec ?? null,
+      // `?ai=1` — 에이전트가 쥔 것만(REQ-API-122). 문자 '1' 하나만 참이다: 뜻이 흔들리면
+      // 필터가 언제 켜지는지 부르는 쪽마다 달라진다.
+      agentOnly: ai === '1',
       // 기본은 **닫혀 있다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
       includeArchived: includeArchived === 'true',
       ...(limit === undefined ? {} : { limit: Number(limit) }),
@@ -117,6 +121,7 @@ export class TaskController {
       boundariesMd: input.boundaries_md ?? null,
       assigneeUserId: input.assignee_user_id ?? null,
       dependsOnKeys: input.depends_on ?? null,
+      rebrief: input.rebrief ?? null,
     });
   }
 

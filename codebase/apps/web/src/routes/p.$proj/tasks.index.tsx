@@ -36,13 +36,14 @@ export const Route = createFileRoute('/p/$proj/tasks/')({
    */
   validateSearch: (
     search: Record<string, unknown>,
-  ): { spec?: string; assignee?: string; backlog?: true; archived?: true } => ({
+  ): { spec?: string; assignee?: string; ai?: true; backlog?: true; archived?: true } => ({
     ...(typeof search['spec'] === 'string' && search['spec'] !== ''
       ? { spec: search['spec'] }
       : {}),
     ...(typeof search['assignee'] === 'string' && search['assignee'] !== ''
       ? { assignee: search['assignee'] }
       : {}),
+    ...(search['ai'] === true || search['ai'] === '1' ? { ai: true as const } : {}),
     ...(search['backlog'] === true || search['backlog'] === '1' ? { backlog: true as const } : {}),
     ...(search['archived'] === true || search['archived'] === '1'
       ? { archived: true as const }
@@ -107,18 +108,24 @@ function TaskBoard(): React.JSX.Element {
   const {
     spec,
     assignee,
+    ai: agentOnly = false,
     backlog: showBacklog = false,
     archived: showArchived = false,
   } = Route.useSearch();
   const id = typeof projectId === 'string' ? projectId : undefined;
-  const filters = spec === undefined ? {} : { spec };
+  const filters = {
+    ...(spec === undefined ? {} : { spec }),
+    ...(agentOnly ? { ai: true } : {}),
+  };
   /** 뷰 상태는 서로를 지우지 않는다 — 하나를 바꿀 때 나머지를 그대로 싣는다 */
   const searchWith = (patch: {
     backlog?: boolean;
     archived?: boolean;
-  }): { spec?: string; assignee?: string; backlog?: true; archived?: true } => ({
+    ai?: boolean;
+  }): { spec?: string; assignee?: string; ai?: true; backlog?: true; archived?: true } => ({
     ...(spec === undefined ? {} : { spec }),
     ...(assignee === undefined ? {} : { assignee }),
+    ...((patch.ai ?? agentOnly) ? { ai: true as const } : {}),
     ...((patch.backlog ?? showBacklog) ? { backlog: true as const } : {}),
     ...((patch.archived ?? showArchived) ? { archived: true as const } : {}),
   });
@@ -191,6 +198,13 @@ function TaskBoard(): React.JSX.Element {
               on={showBacklog}
               onClick={() => toBoard(searchWith({ backlog: !showBacklog }))}
               label={t('tasks.filter.backlog')}
+            />
+            <FilterToggle
+              testId="filter-ai"
+              on={agentOnly}
+              onClick={() => toBoard(searchWith({ ai: !agentOnly }))}
+              label={t('tasks.filter.ai')}
+              title={t('tasks.filter.ai_title')}
             />
             <FilterToggle
               testId="filter-archived"
@@ -271,7 +285,7 @@ function Lane({
   projectId: string | undefined;
   lane: Lane;
   includeArchived: boolean;
-  filters: { spec?: string };
+  filters: { spec?: string; ai?: boolean };
   assignee: string | undefined;
   onEdit: (key: string) => void;
 }): React.JSX.Element {
