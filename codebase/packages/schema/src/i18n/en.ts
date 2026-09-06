@@ -333,7 +333,7 @@ export const en = {
   'specs.baseline_current': 'No baseline',
   'specs.baseline_hint':
     'A baseline decides which version of a document you read. With none chosen, each document reads at its latest approved version (or its current one if it has never been approved); choose one and you see only the documents that set holds, at the versions it holds them.',
-  'specs.freeze': 'Create baseline…',
+  'specs.freeze': 'Create baseline',
   'specs.status_filter': 'Status',
   'specs.status_filter_all': 'All',
   'specs.status_filter_hint':

@@ -60,7 +60,7 @@ export function BaselineSelect({
       {t('specs.baseline')}
       <select
         data-testid="baseline-select"
-        className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
+        className="rounded-nerv border border-border bg-bg-elev px-1.5 py-1 text-xs"
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
       >
@@ -116,14 +116,14 @@ export function FreezeDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-text/20 p-4 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-label={t('specs.freeze')}
         data-testid="freeze-dialog"
-        className="w-full max-w-md rounded-nerv border border-border bg-surface p-4"
+        className="w-full max-w-md rounded-nerv-lg border border-border bg-bg-elev p-5 shadow-modal"
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <h2 className="mb-1 text-sm font-semibold">{t('specs.freeze')}</h2>
@@ -147,7 +147,7 @@ export function FreezeDialog({
         />
 
         {freeze.isError && (
-          <p className="mb-2 text-xs text-status-warn">{(freeze.error as Error).message}</p>
+          <p className="mb-2 text-xs text-status-danger">{(freeze.error as Error).message}</p>
         )}
 
         <div className="flex justify-end gap-2">

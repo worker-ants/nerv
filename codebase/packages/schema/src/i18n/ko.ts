@@ -334,7 +334,7 @@ export const ko = {
   'specs.baseline_current': '기준선 없음',
   'specs.baseline_hint':
     '기준선은 문서를 어느 버전으로 읽을지 정합니다. 고르지 않으면 각 문서를 최신 승인본으로(승인본이 없으면 지금 버전으로) 읽고, 고르면 그 세트가 담은 문서만 그때의 버전으로 보입니다.',
-  'specs.freeze': '기준선 생성…',
+  'specs.freeze': '기준선 생성',
   'specs.status_filter': '상태',
   'specs.status_filter_all': '전체',
   'specs.status_filter_hint':

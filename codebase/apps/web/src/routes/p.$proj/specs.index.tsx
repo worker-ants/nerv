@@ -164,7 +164,7 @@ function SpecListScreen(): React.JSX.Element {
           {t('specs.status_filter')}
           <select
             data-testid="status-filter"
-            className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
+            className="rounded-nerv border border-border bg-bg-elev px-1.5 py-1 text-xs"
             value={status ?? ''}
             onChange={(e) =>
               void navigate({
@@ -197,7 +197,7 @@ function SpecListScreen(): React.JSX.Element {
           {t('specs.type_filter')}
           <select
             data-testid="type-filter"
-            className="rounded-nerv border border-border bg-surface px-1.5 py-1 text-xs"
+            className="rounded-nerv border border-border bg-bg-elev px-1.5 py-1 text-xs"
             value={type ?? ''}
             onChange={(e) =>
               void navigate({
