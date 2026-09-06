@@ -1126,6 +1126,7 @@ export const en = {
   'cli.err.apply_needs_server': '--apply needs --server and --token (or NERV_SERVER/NERV_TOKEN).',
   'cli.err.owner_map_shape': 'owner-map must be a JSON object — e.g. "label": "user id"',
   'cli.err.owner_map_value': 'The owner-map entry "{label}" is not a user id string.',
+  'cli.err.needs_import': "Missing 'import' — run it as: nerv import {command} …",
   'cli.err.profile_conflict': '--profile and --profile-file cannot be used together.',
   'cli.err.profile_schema': 'Profile failed schema validation ({path}): {issues}',
   'cli.err.profile_yaml': 'Could not parse the profile YAML: {content}',
@@ -1141,6 +1142,11 @@ export const en = {
   'cli.reason.owner_unmapped':
     'No owner mapping for "{label}" — loaded as unassigned, assign it by hand',
   'cli.reason.plan_total': 'plan_total mismatch — expected {expected}, got {actual}',
+  'cli.reason.impl_status_doc_copied':
+    "Copied from the document's status — the impl status of {count} requirements needs confirming one by one",
+  'cli.reason.req_id_duplicate':
+    'Second definition of the same ref — only the first row is loaded ({ref})',
+  'cli.reason.req_priority_missing': 'Priority not stated — loaded as NULL ({ref})',
   'cli.reason.reference_doc': 'Reference document',
   'cli.reason.research_dir': 'research/ — classified as reference (no task created)',
   'cli.reason.spec_impact_paths':

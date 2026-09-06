@@ -31,15 +31,26 @@ export interface CliOptions {
   batchSize: number;
 }
 
+const COMMANDS = ['spec', 'plan', 'review', 'docs', 'rebuild-map'] as const;
+
+function isCommand(value: string | undefined): value is CliOptions['command'] {
+  return (COMMANDS as readonly (string | undefined)[]).includes(value);
+}
+
 export function parseArgs(argv: string[]): CliOptions {
-  const [command, ...rest] = argv;
-  if (
-    command !== 'spec' &&
-    command !== 'plan' &&
-    command !== 'review' &&
-    command !== 'docs' &&
-    command !== 'rebuild-map'
-  ) {
+  // **`import` 은 생략할 수 없다.** 정본(importer.md §3.1)·이 파일의 머리말·CLI 자신의
+  // usage 문구가 전부 `nerv import spec …` 이라고 말하는데 파서만 그 낱말을 몰랐다 —
+  // 지시대로 친 사람은 usage 에러를 받고, **그 에러가 다시 되지 않는 형태를 알려 줬다**
+  // (2026-09-06 대조). 두 형태를 다 받으면 같은 것에 이름이 둘이 된다(사전 §1 의 이유).
+  const [group, ...tail] = argv;
+  if (group !== 'import') {
+    // 옛 형태(`nerv spec …`)를 친 사람에게는 usage 만 던지지 않고 무엇이 빠졌는지 말한다
+    throw new Error(
+      isCommand(group) ? t()('cli.err.needs_import', { command: group }) : t()('cli.usage'),
+    );
+  }
+  const [command, ...rest] = tail;
+  if (!isCommand(command)) {
     throw new Error(t()('cli.usage'));
   }
 

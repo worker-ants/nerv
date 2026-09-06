@@ -1110,6 +1110,7 @@ export const ko = {
     '--apply 에는 --server 와 --token(또는 env NERV_SERVER/NERV_TOKEN)이 필요합니다.',
   'cli.err.owner_map_shape': 'owner-map 은 JSON 객체여야 합니다 — 예: "라벨": "사용자 id"',
   'cli.err.owner_map_value': 'owner-map 항목 "{label}" 의 값이 사용자 id 문자열이 아닙니다.',
+  'cli.err.needs_import': "'import' 이 빠졌습니다 — nerv import {command} … 형태로 실행합니다.",
   'cli.err.profile_conflict': '--profile 과 --profile-file 은 함께 쓸 수 없습니다.',
   'cli.err.profile_schema': '프로파일 스키마 위반 ({path}): {issues}',
   'cli.err.profile_yaml': '프로파일 YAML 을 해석하지 못했습니다: {content}',
@@ -1124,6 +1125,10 @@ export const ko = {
   'cli.reason.no_worktree': 'worktree 미선언 — backlog 로 적재',
   'cli.reason.owner_unmapped': 'owner 매핑 없음: "{label}" — unassigned 로 적재 후 수동 배정',
   'cli.reason.plan_total': 'plan_total 불일치 — 기대 {expected} · 실제 {actual}',
+  'cli.reason.impl_status_doc_copied':
+    '문서 status 복사값 — 요구사항 {count}건의 구현 상태를 건별로 확정해야 한다',
+  'cli.reason.req_id_duplicate': '같은 ref 의 두 번째 정의 — 첫 행만 적재({ref})',
+  'cli.reason.req_priority_missing': '우선순위 미표기 — NULL 로 적재({ref})',
   'cli.reason.reference_doc': '참고 문서',
   'cli.reason.research_dir': 'research/ — 참고 문서로 분류(Task 미생성)',
   'cli.reason.spec_impact_paths': 'spec_impact 경로 {count}건 — 해소 실패 시 수동 확인 큐로 간다',

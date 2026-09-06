@@ -25,6 +25,14 @@ export interface ImportReport {
   entries: ReportEntry[];
   /** 기대 집계 대조 결과 — 프로파일이 expect 를 선언한 경우에만(REQ-IMP-016) */
   expectation: { field: string; expected: number; actual: number; ok: boolean }[];
+  /**
+   * preflight 가 `unchanged` 로 답해 본문을 다시 보내지 않은 파일 수(§3.4).
+   *
+   * **실패가 아니라 재실행의 정상이다** — 그래서 `entries` 가 아니라 여기에 센다.
+   * 이 수가 재실행에서 0 이면 멱등이 깨진 것이고(REQ-IMP-004), 그 사실은 표가 아니라
+   * 이 한 줄에서 먼저 보인다.
+   */
+  unchanged?: number;
 }
 
 export function conversionRate(report: ImportReport): number {
@@ -46,6 +54,9 @@ export function renderMarkdown(report: ImportReport): string {
     t()('cli.report.source', { root: report.root }) +
       (report.rootCommit === null ? '' : ` (\`${report.rootCommit}\`)`),
     `- 스캔 ${report.scanned}건 · 변환 ${report.converted}건 · 자동 변환율 ${(conversionRate(report) * 100).toFixed(1)}%`,
+    ...(report.unchanged === undefined
+      ? []
+      : [`- 무변경 ${report.unchanged}건 — 본문을 다시 보내지 않았다(§3.4)`]),
     '',
   ];
 

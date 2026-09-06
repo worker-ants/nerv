@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 33종** — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 33 + 인프라 4(`auth_session`·`auth_account`·`auth_verification`·`spec_chunk_embedding`, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.33 · 2026-09-06 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.34 · 2026-09-06 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.34 변경(2026-09-06 — 규칙을 적을 자리가 없었다, 정합성 대조 → 사람 지시): `requirement.priority` 의 `NOT NULL` 을 걷는다(마이그레이션 `0020`). [4.7 임포터](importer.md) §2.5 규칙 4 가 "우선순위 미표기는 NULL 로 두고 추정하지 않는다" 를 요구하는데 열이 그것을 받지 못해 임포터가 전건 `must` 를 넣고 있었다. **NULL 은 `must` 의 축약이 아니라 표기가 없었다는 사실**이다.
 >
 > v0.33 변경(2026-09-06 — 시드 전문이 실물의 절반이었다, 정합성 대조 → 사람 지시): §4 개발 시드 SQL 을 **실물 전량으로 교체**한다(191줄 → 373줄). 바로 옆 산문이 "Activity 타임라인도 심는다"·"S6 리뷰 센터(열린 발견 3 · 브랜치 2 · 면제 1 · 라운드 체인)" 라고 적는데 **SQL 에는 `activity`·`review_session`·`reviewer_report`·`finding`·`resolution`·`approval` INSERT 가 한 줄도 없었다.** 겸직 membership 행(0003 의 실증)도 빠져 있었다. v0.28 이 §2 DDL 에 적용한 규칙 — "축약 대상이 아니라 전문 인용이라 빠진 만큼이 그대로 사실 손실이다" — 을 §4 에도 적용한다. 이 시드를 정본으로 다시 쓰면 S5 타임라인과 S6 리뷰 센터가 다시 빈 화면이 된다(2026-08-23 에 이미 고친 결함이다).
 >
@@ -299,7 +301,7 @@ CREATE TABLE requirement (                   -- 구현 추적의 단위(D-03)
   ref                      text NOT NULL,    -- 안정 표시 ID(예: REQ-CWC-031)
   statement_md             text NOT NULL,    -- EARS 권장
   acceptance_md            text,
-  priority                 requirement_priority NOT NULL,
+  priority                 requirement_priority,  -- NULL = 표기가 없었다(추정 금지 — [4.7 임포터](importer.md) §2.5 규칙 4)
   impl_status              impl_status NOT NULL DEFAULT 'unimplemented',
   introduced_in_version_id uuid NOT NULL REFERENCES spec_version(id),
   current_version_id       uuid NOT NULL REFERENCES spec_version(id),

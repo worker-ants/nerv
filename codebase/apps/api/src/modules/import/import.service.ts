@@ -431,16 +431,31 @@ export class ImportService {
     for (const requirement of item.requirements) {
       const reqId = newId();
       const { rows } = await tx.execute<{ id: string }>(sql`
-        INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority, impl_status,
+        INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, acceptance_md,
+                                 priority, impl_status,
                                  introduced_in_version_id, current_version_id)
         VALUES (${reqId}, ${actor.projectId}, ${specId}, ${requirement.ref}, ${requirement.text},
+                ${requirement.acceptance_md},
                 ${requirement.priority}::requirement_priority, ${requirement.impl_status}::impl_status,
                 ${versionId}, ${versionId})
-        ON CONFLICT (project_id, ref) DO UPDATE SET current_version_id = ${versionId}
+        ON CONFLICT (project_id, ref) DO UPDATE
+          SET current_version_id = ${versionId},
+              acceptance_md = COALESCE(EXCLUDED.acceptance_md, requirement.acceptance_md)
         RETURNING id
       `);
       const id = rows[0]?.id;
-      if (id !== undefined) refs[requirement.ref] = id;
+      if (id === undefined) continue;
+      refs[requirement.ref] = id;
+
+      // **버전 델타는 임포터가 만든다**(§2.5 규칙 7). 이 행이 없으면 스펙 비교 화면의
+      // 요구사항 축이 통째로 비고, 조회는 본문 재파싱으로 물러난다(spec.service 의 델타 주석).
+      await tx.execute(sql`
+        INSERT INTO requirement_version (requirement_id, spec_version_id, change_kind,
+                                         statement_md, ordinal)
+        VALUES (${id}, ${versionId}, ${reqId === id ? 'added' : 'modified'}::change_kind,
+                ${requirement.text}, ${requirement.ordinal})
+        ON CONFLICT (requirement_id, spec_version_id) DO NOTHING
+      `);
     }
 
     for (const evidence of item.evidence) {

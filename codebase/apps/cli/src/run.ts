@@ -20,6 +20,7 @@ import type {
   ImportTaskItem,
 } from '@nerv/schema';
 import { ImportClient } from './client/index.js';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { classifyPlan } from './parse/plan.js';
@@ -77,16 +78,27 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
       project: options.project,
     });
 
-    // preflight — 서버 쓰기 0. 자연 키 충돌을 미리 본다
-    await client.preflight({
+    // preflight — 서버 쓰기 0. 무엇이 이미 있고 무엇이 그대로인지 먼저 묻는다(§3.3·§3.4)
+    const preflight = await client.preflight({
       profile: profile.profile,
       kind: 'spec',
       items: files.map((f) => ({
         source_path: f.path,
-        natural_key: naturalKey(f),
-        content_hash: f.contentHash,
+        natural_key: specKeyOf(f, profile),
+        content_hash: bodyHash(f),
       })),
     });
+
+    // **답을 쓴다.** 예전에는 이 응답을 받아서 버렸다 — 서버는 세 판정을 계산했고 CLI 는
+    // 전건을 그대로 다시 보냈다. 재실행이 "바뀌지 않은 것은 건너뛴다"(REQ-IMP-004)를 못
+    // 하던 이유의 절반이 이것이고(나머지 절반은 해시 축 — `bodyHash` 주석), 그 사이
+    // 판정은 **계산만 되고 아무 일도 하지 않는 값**이었다.
+    const unchanged = new Set(
+      preflight.items.filter((i) => i.state === 'unchanged').map((i) => i.source_path),
+    );
+    // **실패 표에 넣지 않는다.** 무변경은 재실행의 정상이지 실패가 아니고, 엔트리로 올리면
+    // 멱등 재실행이 종료 코드 1(실패·수동 확인 있음)을 내게 된다 — 게이트가 뒤집힌다.
+    report.unchanged = unchanged.size;
 
     if (options.apply) {
       // ① 트리 골격 → ② 본문 순서. 부모가 먼저 있어야 자식이 붙는다
@@ -97,7 +109,10 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
         await client.specs({ profile: profile.profile, kind: 'structure', items: chunk });
       }
       const applied: ImportBatchResult['items'] = [];
-      for (const chunk of chunked(loadable, options.batchSize)) {
+      // 본문은 **바뀐 것만** 보낸다. 골격은 부모가 먼저 있어야 하므로 전건을 보낸다
+      // (upsert 라 무해하다) — 몸집을 키우는 것은 본문이다.
+      const changed = loadable.filter((item) => !unchanged.has(item.source_path));
+      for (const chunk of chunked(changed, options.batchSize)) {
         // 문서는 **파일 1건 = 트랜잭션 1건**이라(§3.5) 순서가 결과를 바꾸지 않는다
         applied.push(
           ...(await client.specs({ profile: profile.profile, kind: 'document', items: chunk }))
@@ -552,14 +567,7 @@ function convert(
   statusCounts: Record<string, number>,
 ): ImportSpecItem | null {
   const { frontmatter, body } = parseFrontmatter(file.content);
-  const rawId = frontmatter['id'];
-  // **폴백은 경로다.** 파일명만 쓰면 디렉터리가 다른 동명 파일이 같은 키를 갖고, upsert 가
-  // 서로를 덮어쓴다 — clemvion 은 `_product-overview.md` 7건 · `0-common.md` 7건이라
-  // 136건이 127노드로 줄고 9건이 조용히 사라졌다(실측 2026-08-23). 경로는 유일하다.
-  const key =
-    typeof rawId === 'string' && rawId !== ''
-      ? rawId
-      : keyFromPath(relativeToScanRoot(file.path, profile));
+  const key = specKeyOf(file, profile);
 
   const rawStatus = typeof frontmatter['status'] === 'string' ? frontmatter['status'] : undefined;
   if (rawStatus !== undefined) statusCounts[rawStatus] = (statusCounts[rawStatus] ?? 0) + 1;
@@ -590,14 +598,66 @@ function convert(
     body_md: body,
     doc_status: (status?.doc ?? 'draft') as ImportSpecItem['doc_status'],
     sort_key: sortKeyOf(basename(file.path)),
-    requirements: extractRequirements(body, profile.requirement.id_pattern).map((r) => ({
-      ref: r.ref,
-      text: r.text,
-      priority: 'must' as const,
-      impl_status: (status?.impl ?? 'unimplemented') as 'unimplemented',
-    })),
+    requirements: requirementsOf(file, body, profile, status?.impl ?? 'unimplemented', entries),
     evidence: [],
   };
+}
+
+/**
+ * 요구사항 추출 + 그 과정에서 생긴 수동 확인 큐(§2.5 · §4.1).
+ *
+ * **정의를 가진 파일이 따로 있으면 거기서만 읽는다**(규칙 1). clemvion 은
+ * `_product-overview.md` 가 그 파일이고, 프로파일이 `tree.area_body_file` 로 선언한다.
+ * 선언이 없는 프로파일(nerv-docs)은 모든 파일의 표를 읽는다 — 정의 파일이 따로 없다는 뜻이다.
+ */
+function requirementsOf(
+  file: ScannedFile,
+  body: string,
+  profile: ImportProfile,
+  implStatus: string,
+  entries: ReportEntry[],
+): ImportSpecItem['requirements'] {
+  const bodyFile = profile.tree.area_body_file;
+  if (bodyFile !== undefined && basename(file.path) !== bodyFile) return [];
+
+  const { requirements, duplicates } = extractRequirements(body, profile.requirement.id_pattern);
+
+  for (const duplicate of duplicates) {
+    entries.push({
+      file: file.path,
+      line: duplicate.line,
+      reason: t()('cli.reason.req_id_duplicate', { ref: duplicate.ref }),
+      disposition: 'manual',
+    });
+  }
+  for (const requirement of requirements.filter((r) => r.priority === null)) {
+    entries.push({
+      file: file.path,
+      line: requirement.line,
+      reason: t()('cli.reason.req_priority_missing', { ref: requirement.ref }),
+      disposition: 'manual',
+    });
+  }
+  // 문서 status 복사값의 요구사항 단위 확정(§2.3 · `impl-status-doc-copied`). 구현 축이
+  // `in_progress` 라는 것은 **일부만 됐다**는 뜻이고, 그 한 값을 모든 요구사항에 복사한
+  // 순간 어떤 행은 반드시 틀린다 — 어느 행인지는 문서가 답하지 못한다.
+  if (implStatus === 'in_progress' && requirements.length > 0) {
+    entries.push({
+      file: file.path,
+      line: null,
+      reason: t()('cli.reason.impl_status_doc_copied', { count: requirements.length }),
+      disposition: 'manual',
+    });
+  }
+
+  return requirements.map((r) => ({
+    ref: r.ref,
+    text: r.text,
+    acceptance_md: r.acceptance,
+    priority: r.priority,
+    impl_status: implStatus as 'unimplemented',
+    ordinal: r.ordinal,
+  }));
 }
 
 function extractTitle(body: string): string | null {
@@ -628,11 +688,36 @@ function resolveType(path: string, profile: ImportProfile): string {
   return profile.tree.leaf_type;
 }
 
-function naturalKey(file: ScannedFile): string {
+/**
+ * 멱등 키의 축은 (파일 경로 + frontmatter id) 다(§3.3).
+ *
+ * **적재하는 키와 preflight 가 묻는 키는 같아야 한다.** 서버는 이 값을 `spec.key` 로 찾는데
+ * (`import.service.preflight`), 예전에는 frontmatter id 가 없는 파일에 대해 적재는
+ * `keyFromPath(…)` 를, 조회는 `file.path` 를 썼다 — 축이 어긋나 그 파일들은 이미 적재돼
+ * 있어도 언제나 `new` 로 돌아왔다. 두 자리가 같은 함수를 부르게 해서 다시 어긋나지 않게 한다.
+ */
+function specKeyOf(file: ScannedFile, profile: ImportProfile): string {
   const { frontmatter } = parseFrontmatter(file.content);
   const id = frontmatter['id'];
-  // 멱등 키의 축은 (파일 경로 + frontmatter id) 다(§3.3)
-  return typeof id === 'string' && id !== '' ? id : file.path;
+  // **폴백은 경로다.** 파일명만 쓰면 디렉터리가 다른 동명 파일이 같은 키를 갖고, upsert 가
+  // 서로를 덮어쓴다 — clemvion 은 `_product-overview.md` 7건 · `0-common.md` 7건이라
+  // 136건이 127노드로 줄고 9건이 조용히 사라졌다(실측 2026-08-23). 경로는 유일하다.
+  return typeof id === 'string' && id !== ''
+    ? id
+    : keyFromPath(relativeToScanRoot(file.path, profile));
+}
+
+/**
+ * preflight 가 보내는 해시 — **본문 해시다.** 파일 전문 해시가 아니다.
+ *
+ * 서버가 견주는 것은 `spec_version.content_hash = sha256(body_md)` 이고 `body_md` 는
+ * frontmatter 를 뺀 본문이다(REQ-IMP-002). CLI 는 파일 전문(`scan.contentHash`)을 보내고
+ * 있었으므로 두 값은 **같아질 수가 없었고**, `unchanged` 판정이 영구히 나오지 않았다 —
+ * 재실행이 "바뀌지 않은 것은 건너뛴다"(REQ-IMP-004)를 못 하던 이유다.
+ */
+function bodyHash(file: ScannedFile): string {
+  const { body } = parseFrontmatter(file.content);
+  return createHash('sha256').update(body, 'utf8').digest('hex');
 }
 
 /**

@@ -47,30 +47,78 @@ describe('status 2축 분해 (§2.3)', () => {
   });
 });
 
-describe('요구사항 추출 휴리스틱 (§2.5)', () => {
+describe('요구사항 추출 — 표의 행이 정의다 (§2.5)', () => {
   const pattern = '[A-Z]+-[A-Z]+-\\d+';
+  const table = (...rows: string[]): string =>
+    ['| ID | 설명 | 우선순위 |', '| --- | --- | --- |', ...rows].join('\n');
 
-  it('고정 ID 를 앵커로 문장을 떼어낸다', () => {
-    const body =
-      '- REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다';
-    const [requirement] = extractRequirements(body, pattern);
+  it('표의 행에서 ref·설명·우선순위를 떼어낸다', () => {
+    const body = table(
+      '| **REQ-CWC-031** | WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다 | 필수 |',
+    );
+    const [requirement] = extractRequirements(body, pattern).requirements;
     expect(requirement?.ref).toBe('REQ-CWC-031');
     expect(requirement?.text).toContain('WHEN 방문자가');
-    expect(requirement?.line).toBe(1);
+    expect(requirement?.priority).toBe('must');
+    expect(requirement?.ordinal).toBe(0);
+    expect(requirement?.line).toBe(3);
   });
 
-  it('같은 ID 가 여러 번 나와도 하나로 센다', () => {
-    const body = 'REQ-A-1 첫 언급\n다시 REQ-A-1 참조';
-    expect(extractRequirements(body, pattern)).toHaveLength(1);
+  it('**산문의 등장은 참조일 뿐이다** — 행을 만들지 않는다(규칙 1)', () => {
+    // 이 구분이 없으면 참조가 전부 요구사항으로 승격되고 요구사항 수 자체가 부풀어 오른다
+    const body = ['본문에서 REQ-CWC-031 을 지킨다고 적어 두었다.', '', table()].join('\n');
+    expect(extractRequirements(body, pattern).requirements).toEqual([]);
   });
 
-  it('줄 번호를 남긴다 — 리포트가 파일·줄·사유를 적어야 한다(§4.1)', () => {
-    const body = '머리말\n\nREQ-B-2 두 번째';
-    expect(extractRequirements(body, pattern)[0]?.line).toBe(3);
+  it('**미표기 우선순위는 null 이다** — must 로 지어내지 않는다(규칙 4)', () => {
+    const body = table('| REQ-A-1 | 설명 | |');
+    expect(extractRequirements(body, pattern).requirements[0]?.priority).toBeNull();
+  });
+
+  it('권장은 should 로 옮긴다(데이터 모델 §2.2 매핑)', () => {
+    const body = table('| REQ-A-1 | 설명 | 권장 |');
+    expect(extractRequirements(body, pattern).requirements[0]?.priority).toBe('should');
+  });
+
+  it('수용 기준 열이 따로 있으면 그 셀을 나눠 담는다(규칙 2)', () => {
+    const body = [
+      '| ID | 설명 | 수용 기준 |',
+      '| --- | --- | --- |',
+      '| REQ-A-1 | 대화 복원 | WHEN 위젯을 열면 THE SYSTEM SHALL … |',
+    ].join('\n');
+    const [requirement] = extractRequirements(body, pattern).requirements;
+    expect(requirement?.text).toBe('대화 복원');
+    expect(requirement?.acceptance).toContain('THE SYSTEM SHALL');
+  });
+
+  it('설명 셀이 따로 없는 두 칸 표는 그 한 셀이 설명이다 — 같은 문장을 두 열에 앉히지 않는다', () => {
+    const body = [
+      '| ID | 수용 기준 (EARS) |',
+      '| --- | --- |',
+      '| **REQ-IMP-001** | WHEN … THE SYSTEM SHALL … |',
+    ].join('\n');
+    const [requirement] = extractRequirements(body, pattern).requirements;
+    expect(requirement?.text).toContain('THE SYSTEM SHALL');
+    expect(requirement?.acceptance).toBeNull();
+  });
+
+  it('같은 ref 의 두 번째 행은 적재하지 않고 수동 확인 큐로 올린다(규칙 6)', () => {
+    const body = table('| REQ-A-1 | 첫 정의 | 필수 |', '| REQ-A-1 | 둘째 정의 | 권장 |');
+    const { requirements, duplicates } = extractRequirements(body, pattern);
+    expect(requirements).toHaveLength(1);
+    expect(requirements[0]?.text).toBe('첫 정의');
+    expect(duplicates).toEqual([{ ref: 'REQ-A-1', line: 4 }]);
+  });
+
+  it('이스케이프한 파이프는 셀을 가르지 않는다 — 갈리면 열 역할이 밀린다', () => {
+    const body = table('| REQ-A-1 | `spec\\|plan` 을 받는다 | 필수 |');
+    const [requirement] = extractRequirements(body, pattern).requirements;
+    expect(requirement?.text).toContain('spec|plan');
+    expect(requirement?.priority).toBe('must');
   });
 
   it('ID 가 없으면 빈 배열 — 없는 것을 지어내지 않는다', () => {
-    expect(extractRequirements('요구사항 ID 가 없는 문서', pattern)).toEqual([]);
+    expect(extractRequirements('요구사항 ID 가 없는 문서', pattern).requirements).toEqual([]);
   });
 });
 

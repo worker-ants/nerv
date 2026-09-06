@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.16 · 2026-09-06 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.17 · 2026-09-06 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.17 변경(2026-09-06 — E07-S05 의 남은 것이 닫혔다): `nerv import <kind>` 서브커맨드가 실재하게 됐다(정본·usage 문구·이 문서가 말하던 형태였고 파서만 몰랐다). E07 을 done 5 · 부분 0 으로, 합계를 **done 65 · 부분 9** 로 고치고 부분 표에서 그 행을 걷었다.
 >
 > v0.16 변경(2026-09-06 — E12-S05 의 산출물을 걷었다, 사람 결정): `/nerv:import` 스킬을 플러그인에서 뺐다([4.6](plugin.md) §2.5). **스토리는 `done` 으로 둔다** — 만든 것은 사실이고 걷은 것은 그 뒤의 범위 결정이라, 상태를 되돌리면 "만든 적 없다" 가 되어 §1.4 가 기록해야 할 것을 잃는다. 대신 스토리 행에 걷어낸 사실과 근거를 적었다.
 >
@@ -63,7 +65,7 @@ updated: 2026-09-06
 | E04 클레임·리스 엔진 | 5 | — | `task.service.ts`(FOR UPDATE) · `claim.service.ts` · `worker/advisory-lock.ts` |
 | E05 세션 보드 최소 | 4 | — | `session.service.ts` · `event/ws.gateway.ts` · `event/sse.controller.ts` |
 | E06 스파이크 + 확인·실측 | 3 | 4 | `test/integration/spike-realtime.spec.ts` · `apps/web/.spike/tiptap-roundtrip.md` |
-| E07 spec 임포터 v0 | 4 | 1 | `apps/cli/src/profiles/` · `report/index.ts` · `modules/import/import.controller.ts` |
+| E07 spec 임포터 v0 | 5 | — | `apps/cli/src/profiles/` · `report/index.ts` · `modules/import/import.controller.ts` |
 | E08 웹 화면 | 8 | 2 | `routes/p.$proj/specs.$spec.tsx`(버전 diff) · `steer-panel.tsx` · `quick-switcher.tsx` |
 | E09 스펙 워크플로우·승인 게이트 | 11 | 1 | `0000_init.sql`(동결 트리거) · `spec/gate-tier.ts` · `spec/search.service.ts`(RRF) |
 | E10 기획자 터미널 경로 | 4 | — | `spec.service.ts`(`NERV_DRAFT_LEASED`·takeover) · `spec-comment.service.ts` |
@@ -71,7 +73,7 @@ updated: 2026-09-06
 | E12 플러그인 v1 + 훅 수집기 | 5 | 1 | `plugin/skills/`(6종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` |
 | E13 받은 요청·질문·알림 | 3 | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
 | E14 운영·연동 | 3 | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` |
-| **합계** | **64** | **10** | `backlog` 0 |
+| **합계** | **65** | **9** | `backlog` 0 |
 
 §5 의 **E2E 수용 시나리오 A~E 도 다섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts`.
 
@@ -86,7 +88,6 @@ updated: 2026-09-06
 | E06-S04 | 리비전 협상·병행 서빙 코드 | Claude Code·Codex **두 클라이언트 실측 리포트** |
 | E06-S06 | degrade 경로·1024차원 검증 | **3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정**([4.4 API](api.md)가 임베딩 p95 를 아직 보류로 둔다) |
 | E06-S07 | command 폴백이 기본 변형으로 배포됨 | 기록된 근거는 훅 `url` 의 `${VAR}` **미**확장이지 **`headers` 확장 자체의 실측이 아니다**([4.6 플러그인](plugin.md) §3.1이 아직 "1차 문서에서 확인 못함"이라 적는다) |
-| E07-S05 | `apps/cli` 워크스페이스·bin·멱등 키 재시도 | **`nerv import` 서브커맨드가 없다** — bin 은 `nerv` 이고 `parseArgs` 는 `spec` · `plan` · `review` · `docs` · `rebuild-map` 만 받는다. 실제로 도는 형태는 `nerv spec …` 인데 [4.7 임포터](importer.md) §3.1·`skills/import`·**CLI 자신의 usage 문구** 셋이 `nerv import` 를 말한다 |
 | E08-S05 | 칸반 레인·위임 명세 4요소 zod 폼 | **승인된 SpecVersion 에서 파생하는 웹 경로** — `delegation-form.tsx` 의 스키마에 `source_spec_version_id` 가 없어 파생은 REST·MCP 로만 된다 |
 | E08-S10 | 가상 스크롤·필터·관계 패널·degraded 배너 | **`depth` 지연 로드** — 서버는 그 인자를 받는데 `useSpecTree` 가 넘기지 않는다 |
 | E09-S03 | 지시자≠승인자 차단 | **리뷰어 자동 지정** — `ApprovalService.request()` 를 부르는 곳이 `assigneeUserId` 를 넘기지 않아 결재 카드는 언제나 `assignee_user_id = NULL` 로 만들어진다(그 열이 채워지는 것은 결재 시점의 `COALESCE` 뿐이라 *지정*이 아니라 *기록*이다) |

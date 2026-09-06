@@ -53,7 +53,7 @@
     <h1>백로그</h1>
     <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
     <div class="meta-line">
-      <span>버전 v0.16 (2026-09-06)</span>
+      <span>버전 v0.17 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 14 · 스토리 62 · E2E 시나리오 5</span>
     </div>
@@ -100,7 +100,7 @@
       <tr><td>E04 클레임·리스 엔진</td><td>5</td><td>—</td><td><code>task.service.ts</code>(FOR UPDATE) · <code>claim.service.ts</code> · <code>worker/advisory-lock.ts</code></td></tr>
       <tr><td>E05 세션 보드 최소</td><td>4</td><td>—</td><td><code>session.service.ts</code> · <code>event/ws.gateway.ts</code> · <code>event/sse.controller.ts</code></td></tr>
       <tr><td>E06 스파이크 + 확인·실측</td><td>3</td><td>4</td><td><code>test/integration/spike-realtime.spec.ts</code> · <code>apps/web/.spike/tiptap-roundtrip.md</code></td></tr>
-      <tr><td>E07 spec 임포터 v0</td><td>4</td><td>1</td><td><code>apps/cli/src/profiles/</code> · <code>report/index.ts</code> · <code>modules/import/import.controller.ts</code></td></tr>
+      <tr><td>E07 spec 임포터 v0</td><td>5</td><td>—</td><td><code>apps/cli/src/profiles/</code> · <code>report/index.ts</code> · <code>modules/import/import.controller.ts</code></td></tr>
       <tr><td>E08 웹 화면</td><td>8</td><td>2</td><td><code>routes/p.$proj/specs.$spec.tsx</code>(버전 diff) · <code>steer-panel.tsx</code> · <code>quick-switcher.tsx</code></td></tr>
       <tr><td>E09 스펙 워크플로우·승인 게이트</td><td>11</td><td>1</td><td><code>0000_init.sql</code>(동결 트리거) · <code>spec/gate-tier.ts</code> · <code>spec/search.service.ts</code>(RRF)</td></tr>
       <tr><td>E10 기획자 터미널 경로</td><td>4</td><td>—</td><td><code>spec.service.ts</code>(<code>NERV_DRAFT_LEASED</code>·takeover) · <code>spec-comment.service.ts</code></td></tr>
@@ -108,7 +108,7 @@
       <tr><td>E12 플러그인 v1 + 훅 수집기</td><td>5</td><td>1</td><td><code>plugin/skills/</code>(6종) · <code>session/ingest.controller.ts</code> · <code>plugin/bin/nerv-outbox</code></td></tr>
       <tr><td>E13 받은 요청·질문·알림</td><td>3</td><td>—</td><td><code>approval.service.ts</code>(<code>content_hash</code> stale) · <code>question.service.ts</code> · <code>notification.service.ts</code></td></tr>
       <tr><td>E14 운영·연동</td><td>3</td><td>—</td><td><code>deploy/k8s/base/</code> · <code>deploy/scripts/nerv-backup.sh</code> + <code>restore-roundtrip.spec.ts</code> · <code>task/webhook.service.ts</code></td></tr>
-      <tr><td><b>합계</b></td><td><b>64</b></td><td><b>10</b></td><td><code>backlog</code> 0</td></tr>
+      <tr><td><b>합계</b></td><td><b>65</b></td><td><b>9</b></td><td><code>backlog</code> 0</td></tr>
     </tbody>
   </table>
   <p>§5 의 <b>E2E 수용 시나리오 A~E 도 다섯 전부 실물</b>이다 — <code>apps/api/test/e2e/scenario-a-c.spec.ts</code> · <code>scenario-d-e.spec.ts</code>.</p>
@@ -123,7 +123,6 @@
       <tr><td>E06-S04</td><td>리비전 협상·병행 서빙 코드</td><td>Claude Code·Codex <b>두 클라이언트 실측 리포트</b></td></tr>
       <tr><td>E06-S06</td><td>degrade 경로·1024차원 검증</td><td><b>3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정</b>(<a href="api.html">4.4 API</a>가 임베딩 p95 를 아직 보류로 둔다)</td></tr>
       <tr><td>E06-S07</td><td>command 폴백이 기본 변형으로 배포됨</td><td>기록된 근거는 훅 <code>url</code> 의 <code>${VAR}</code> <b>미</b>확장이지 <b><code>headers</code> 확장 자체의 실측이 아니다</b>(<a href="plugin.html">4.6 플러그인</a> §3.1이 아직 "1차 문서에서 확인 못함"이라 적는다)</td></tr>
-      <tr><td>E07-S05</td><td><code>apps/cli</code> 워크스페이스·bin·멱등 키 재시도</td><td><b><code>nerv import</code> 서브커맨드가 없다</b> — bin 은 <code>nerv</code> 이고 <code>parseArgs</code> 는 <code>spec</code> · <code>plan</code> · <code>review</code> · <code>docs</code> · <code>rebuild-map</code> 만 받는다. 실제로 도는 형태는 <code>nerv spec …</code> 인데 <a href="importer.html">4.7 임포터</a> §3.1·<code>skills/import</code>·<b>CLI 자신의 usage 문구</b> 셋이 <code>nerv import</code> 를 말한다</td></tr>
       <tr><td>E08-S05</td><td>칸반 레인·위임 명세 4요소 zod 폼</td><td><b>승인된 SpecVersion 에서 파생하는 웹 경로</b> — <code>delegation-form.tsx</code> 의 스키마에 <code>source_spec_version_id</code> 가 없어 파생은 REST·MCP 로만 된다</td></tr>
       <tr><td>E08-S10</td><td>가상 스크롤·필터·관계 패널·degraded 배너</td><td><b><code>depth</code> 지연 로드</b> — 서버는 그 인자를 받는데 <code>useSpecTree</code> 가 넘기지 않는다</td></tr>
       <tr><td>E09-S03</td><td>지시자≠승인자 차단</td><td><b>리뷰어 자동 지정</b> — <code>ApprovalService.request()</code> 를 부르는 곳이 <code>assigneeUserId</code> 를 넘기지 않아 결재 카드는 언제나 <code>assignee_user_id = NULL</code> 로 만들어진다(그 열이 채워지는 것은 결재 시점의 <code>COALESCE</code> 뿐이라 <i>지정</i>이 아니라 <i>기록</i>이다)</td></tr>
