@@ -53,7 +53,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 24종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.97 (2026-09-06)</span>
+      <span>버전 v0.98 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
     </div>
@@ -1310,7 +1310,7 @@ basis_superseded: false
       <tr><td>★<code>import.applied</code></td><td>EP-IMP-02·03·04 배치 적재(§2.10)</td><td><code>project:{id}</code></td><td>P0</td></tr>
       <tr><td>★<code>notification.created</code></td><td>알림 파생(배지 카운트 갱신용)</td><td><code>user:{id}</code></td><td>P1</td></tr>
       <tr><td><code>finding.opened</code> · <code>finding.resolved</code> · <code>cr.opened</code></td><td>리뷰·CR — <b>Phase 2</b>(S6·review 도구 2종과 함께)</td><td><code>project:{id}</code></td><td>P2</td></tr>
-      <tr><td><code>evidence.added</code></td><td>증적 등록 — <b>웹훅 경로에서만 발행된다</b>(2026-09-06 실측: 증적 등록 서비스는 이벤트를 내지 않는다)</td><td><code>project:{id}</code></td><td>P1</td></tr>
+      <tr><td><code>evidence.added</code></td><td>증적 등록 — REST·MCP·웹훅 세 경로 모두(2026-09-06 배선 · REQ-API-115)</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>review.submitted</code></td><td>리뷰 라운드 제출 — S6 가 새로고침 없이 알게 하려고 신설(v0.41)</td><td><code>project:{id}</code></td><td>P2</td></tr>
       <tr><td><code>finding.commented</code></td><td>발견 코멘트(EP-REV-05)</td><td><code>project:{id}</code></td><td>P2</td></tr>
     </tbody>
@@ -1421,6 +1421,7 @@ basis_superseded: false
       <tr><td>REQ-API-112</td><td>WHEN 요청에서 온 값이 enum 열에 저장되면 THE SYSTEM SHALL <b>도메인 서비스에서</b> 어휘를 검사해 밖의 값은 400 으로 거절하고 <b>허용 목록과 어긋난 값을 함께</b> 준다 — 그물(REQ-API-106)은 500 을 400 으로 바꿀 뿐이고, 어느 목록에서 벗어났는지 말하지 못하면 클라이언트는 같은 요청을 다시 보낸다(2026-09-05 · 전수 62곳 점검)</td><td>필드명·허용 목록 반환 1건 · 전수 표(§1.4a)</td></tr>
       <tr><td>REQ-API-113</td><td>WHEN 전표가 요청 스키마 이름을 인용하면 THE SYSTEM SHALL 그 이름이 <code>@nerv/schema</code> 의 export 로 <b>실재하게</b> 하고, 그 1:1 을 검사로 센다 — §1.7 의 선언이 오랫동안 거짓이었고(인용하는 이름 대부분이 코드 어디에도 없었다), <b>틀린 문서는 확신을 준다</b>(2026-09-05)</td><td>전표 <code>*Input</code> 33종 전수 대조 1건 · 세는 대상이 0 이 아닌지 1건</td></tr>
       <tr><td>REQ-API-114</td><td>WHEN EP-REV-01 이 발견의 <code>body</code>·<code>suggestion</code> 을 받으면 THE SYSTEM SHALL <b>REST 와 MCP 가 같은 번역기를 거쳐</b> <code>body_md</code>·<code>suggestion_md</code> 로 저장한다 — 번역이 MCP 쪽에만 있어 <b>REST 로 올린 리뷰는 지적 본문과 제안이 전부 NULL 이었고</b>(타입은 맞아 컴파일도 검사도 통과했다), 발견의 본문이 없으면 그 발견은 게이트의 근거가 되지 못한다(D-05 · 2026-09-06)</td><td>REST 제출 → <code>detail_md</code>·<code>suggestion_md</code>·<code>file_path</code>·<code>line_start</code> 저장 1건(L2, 실제 HTTP)</td></tr>
+      <tr><td>REQ-API-115</td><td>WHEN EP-REQ-03 이 증적을 적재하면 THE SYSTEM SHALL 같은 트랜잭션에서 ★<code>evidence.added</code> 를 발행한다(<code>subject_type=requirement</code>) — 전표가 발생 이벤트를 적으면 그것이 계약인데 이 경로는 INSERT 만 하고 있었고, 같은 이름을 내는 곳은 GitHub 웹훅 하나였다: 증적이 실시간으로 화면에 닿지 않고 감사 축(FR-16)에도 남지 않았다(2026-09-06)</td><td>REST 증적 등록 후 <code>event</code> 한 행 1건(L2)</td></tr>
       <tr><td>REQ-API-099</td><td>WHEN EP-SPEC-02·<code>nerv_spec_search</code> 에 <code>type</code>·<code>status</code> 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 <b>자르기 전에</b> 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05)</td><td>종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건</td></tr>
       <tr><td>REQ-API-100</td><td>WHEN EP-SPEC-08 에 <code>relations</code> 가, EP-TASK-07 에 <code>progress</code>·<code>stats</code> 가, EP-TASK-08 에 <code>state_note</code> 가 오면 THE SYSTEM SHALL <b>REST 에서도</b> 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05)</td><td>REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건</td></tr>
       <tr><td>REQ-API-098</td><td>WHEN EP-SPEC-01·19 에 <code>baseline</code> 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 <code>version_no</code>·<code>doc_status</code> 를 <b>그 세트가 묶어 둔 버전</b>의 것으로 싣는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL <code>invalid_input</code>(<code>field="baseline"</code>)으로 거절한다. WHILE <code>baseline</code> 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다</td></tr>

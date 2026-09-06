@@ -21,6 +21,10 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 1. **범위 확정** — `base_sha`·`head_sha`·`branch`·검토한 파일 목록(`changeset`). 넷 다 필수 입력이다. `changeset`이 같고 커밋이 같으면 서버는 **같은 라운드**로 합친다(재제출이 라운드를 늘리지 않는다).
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
 3. **`nerv_review_submit`** — `reviewer{role, risk}`, `summary`, `findings[]`.
+   - **어느 작업의 리뷰인지 알면 `task_id` 를 싣는다.** 그것이 리뷰를 Task 에 잇는 유일한 인자다 —
+     빠지면 서버는 이 리뷰가 무엇에 대한 것인지 알 길이 없다.
+   - `kind` 는 `code`(기본)·`consistency`·`spec_coverage`·`merge` 다. 코드가 아니라 문서 정합을
+     본 라운드면 `consistency` 로 밝힌다 — 게이트의 커버리지 판정이 종류를 본다.
    - `severity`는 `critical`/`warning`/`info` 셋뿐이다. **막아야 하는 것만 critical**이다 — 전부 critical이면 게이트가 의미를 잃는다.
    - **`body`와 `suggestion`을 채운다.** 제목은 손잡이일 뿐이라, 그것만으로는 사람이
      무엇을 말하는지 알 수 없다 — `body`는 왜 문제인가, `suggestion`은 무엇을 하면 되는가다.

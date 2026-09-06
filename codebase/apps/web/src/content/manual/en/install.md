@@ -90,7 +90,7 @@ Two lines inside Claude Code.
 
 To take what this server ships instead, change only the first line — `add https://<this server>/plugin/marketplace.json`. They are **two transports for the same marketplace**, so the install command is unchanged (don't register both at once).
 
-Then **restart**. You should see `nerv` v0.2.12 listed as active under `/plugin`.
+Then **restart**. You should see `nerv` v0.2.13 listed as active under `/plugin`.
 
 The server builds the catalogue itself, so **there is nothing to edit after you install** — its own address is already in there. If your deployment uses an internal git marketplace instead, put that git URL in and install `nerv@nerv-internal`.
 

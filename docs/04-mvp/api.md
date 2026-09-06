@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.97 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v0.98 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+>
+> v0.98 변경(2026-09-06 — 전표가 적은 이벤트가 나지 않았다, 정합성 대조 → 사람 지시): **REQ-API-115 신설.** EP-REQ-03 은 발생 이벤트 열에 처음부터 ★`evidence.added` 를 적었는데 그 경로는 **INSERT 만 하고 이벤트를 내지 않았다** — 같은 이름을 내는 곳은 GitHub 웹훅 하나였다. 증적이 실시간으로 화면에 닿지 않았고 감사 축(FR-16)에도 남지 않았다. 같은 트랜잭션에서 발행하도록 배선하고(`subject_type=requirement`) L2 가 지킨다. §3.3 표의 주석도 "웹훅 경로에서만" 에서 세 경로로 고쳤다.
 >
 > v0.97 변경(2026-09-06 — "필수" 라 읽으면 서버가 막아 준다고 믿는다, 정합성 대조 → 사람 지시): §1.5 와 §2.10 이 `Idempotency-Key` 를 **"필수"** 라 적었는데 인터셉터는 **키가 없으면 그대로 통과시킨다**. 받되 요구하지는 않는다는 것을 두 자리에 명시했다 — 키를 싣는 것은 부르는 쪽의 책임이고(임포터 CLI 는 배치마다 싣는다 · REQ-API-019), 키 없이 배치를 재전송하면 중복 적재가 그대로 일어난다. **강제로 바꿀지는 코드 쪽 결정으로 남긴다.**
 >
@@ -1215,7 +1217,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | ★`import.applied` | EP-IMP-02·03·04 배치 적재(§2.10) | `project:{id}` | P0 |
 | ★`notification.created` | 알림 파생(배지 카운트 갱신용) | `user:{id}` | P1 |
 | `finding.opened` · `finding.resolved` · `cr.opened` | 리뷰·CR(2026-08-23 구현 — `cr.opened` 만 Phase 2 로 남았다) | `project:{id}` | P2 |
-| `evidence.added` | 증적 등록 — **웹훅 경로에서만 발행된다**(2026-09-06 실측: `spec.service.ts` 의 증적 등록은 이벤트를 내지 않는다 · 아래 주의) | `project:{id}` | P1 |
+| `evidence.added` | 증적 등록 — REST·MCP·웹훅 세 경로 모두(2026-09-06 배선 · REQ-API-115) | `project:{id}` | P1 |
 | `review.submitted` | 리뷰 라운드 제출 — S6 가 새로고침 없이 알게 하려고 신설(v0.41) | `project:{id}` | P2 |
 | `finding.commented` | 발견 코멘트(EP-REV-05) | `project:{id}` | P2 |
 
@@ -1314,6 +1316,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-112 | WHEN 요청에서 온 값이 enum 열에 저장되면 THE SYSTEM SHALL **도메인 서비스에서** 어휘를 검사해 밖의 값은 400 으로 거절하고 **허용 목록과 어긋난 값을 함께** 준다 — 그물(REQ-API-106)은 500 을 400 으로 바꿀 뿐이고, 어느 목록에서 벗어났는지 말하지 못하면 클라이언트는 같은 요청을 다시 보낸다(2026-09-05 · 전수 62곳 점검) | 필드명·허용 목록 반환 1건 · 전수 표(§1.4a) |
 | REQ-API-113 | WHEN 전표가 요청 스키마 이름을 인용하면 THE SYSTEM SHALL 그 이름이 `@nerv/schema` 의 export 로 **실재하게** 하고, 그 1:1 을 검사로 센다 — §1.7 의 선언이 오랫동안 거짓이었고(인용하는 이름 대부분이 코드 어디에도 없었다), **틀린 문서는 확신을 준다**(2026-09-05) | 전표 `*Input` 33종 전수 대조 1건 · 세는 대상이 0 이 아닌지 1건 |
 | REQ-API-114 | WHEN EP-REV-01 이 발견의 `body`·`suggestion` 을 받으면 THE SYSTEM SHALL **REST 와 MCP 가 같은 번역기를 거쳐** `body_md`·`suggestion_md` 로 저장한다 — 번역이 MCP 쪽에만 있어 **REST 로 올린 리뷰는 지적 본문과 제안이 전부 NULL 이었고**(타입은 맞아 컴파일도 검사도 통과했다), 발견의 본문이 없으면 그 발견은 게이트의 근거가 되지 못한다(D-05 · 2026-09-06) | REST 제출 → `detail_md`·`suggestion_md`·`file_path`·`line_start` 저장 1건(L2, 실제 HTTP) |
+| REQ-API-115 | WHEN EP-REQ-03 이 증적을 적재하면 THE SYSTEM SHALL 같은 트랜잭션에서 ★`evidence.added` 를 발행한다(`subject_type=requirement`) — 전표가 발생 이벤트를 적으면 그것이 계약인데 이 경로는 INSERT 만 하고 있었고, 같은 이름을 내는 곳은 GitHub 웹훅 하나였다: 증적이 실시간으로 화면에 닿지 않고 감사 축(FR-16)에도 남지 않았다(2026-09-06) | REST 증적 등록 후 `event` 한 행 1건(L2) |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 묶어 둔 버전**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다 |

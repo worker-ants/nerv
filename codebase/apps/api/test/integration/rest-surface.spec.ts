@@ -886,6 +886,19 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
     );
     expect(allowed.status).toBeLessThan(300);
 
+    // **전표가 발생 이벤트를 적으면 그것이 계약이다**(REQ-API-115). EP-REQ-03 은 처음부터
+    // ★`evidence.added` 를 적었는데 이 경로는 INSERT 만 하고 이벤트를 내지 않았다 — 증적이
+    // 실시간으로 화면에 닿지 않았고 감사 축(FR-16)에도 남지 않았다.
+    const { rows: evt } = await pool.query<{ subject_type: string; payload: { kind: string } }>(
+      `SELECT subject_type, payload FROM event
+        WHERE project_id = $1 AND type = 'evidence.added'
+        ORDER BY occurred_at DESC LIMIT 1`,
+      [projectId],
+    );
+    expect(evt).toHaveLength(1);
+    expect(evt[0]?.subject_type).toBe('requirement');
+    expect(evt[0]?.payload?.kind).toBe('pr');
+
     // 이 스위트는 requirement 를 비우지 않는다 — 남기면 커버리지 테스트가 세는 수가 달라진다
     await pool.query(`DELETE FROM evidence WHERE requirement_id IN
                         (SELECT id FROM requirement WHERE ref = 'REQ-EVD-1')`);
