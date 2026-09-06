@@ -53,7 +53,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 20종으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.21 (2026-09-06)</span>
+      <span>버전 v0.22 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: draft</span>
     </div>
@@ -143,7 +143,7 @@
       <tr><td>비기능(NFR-01~05)</td><td>포함 ● 3 · 부분 ◐ 2</td><td>§3.4</td></tr>
       <tr><td>화면</td><td>S1~S5·S7·S8 + 로그인/온보딩 = 8</td><td>§4.1</td></tr>
       <tr><td>MCP 도구</td><td>22종 = P0 8종 + P1 14종</td><td>§4.2</td></tr>
-      <tr><td>플러그인 스킬</td><td>6종(MVP 약속 5종 + Phase 2 <code>/nerv:review</code> 가 2026-08-23 앞당겨 들어왔다)</td><td>§4.3</td></tr>
+      <tr><td>플러그인 스킬</td><td>5종 — MVP 약속 다섯 중 <code>/nerv:import</code> 가 걷히고(2026-09-06) Phase 2 <code>/nerv:review</code> 가 앞당겨 들어왔다</td><td>§4.3</td></tr>
     </tbody>
   </table></div>
 
@@ -249,7 +249,7 @@
       <tr><td>FR-14</td><td>멀티테넌시</td><td>●</td><td>◐</td><td>●</td><td>Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정)</td><td>—</td></tr>
       <tr><td>FR-15</td><td>에이전트 연동</td><td>◐</td><td>◐</td><td>◐</td><td>MCP tools P0 8종 + P1 14종 = <b>22종</b>(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + statusline — <code>.mcp.json</code> 은 담지 않는다, 2026-09-04 REQ-PLG-001 개정), 훅 수집기</td><td>Codex 완전 지원·<code>AGENTS.md</code> 배포·OAuth 2.1은 Phase 2(§5)</td></tr>
       <tr><td>FR-16</td><td>감사 로그</td><td>●</td><td>◐</td><td>●</td><td>append-only Event 전 상태 전이 + <code>is_agent</code> 액터 구분(P0), 엔티티별 이력 재구성 뷰(P1)</td><td>—</td></tr>
-      <tr><td>FR-17</td><td>clemvion 임포트</td><td>◐</td><td>◐</td><td>◐</td><td>spec 임포터(P0: <code>spec/</code> 384 md 중 순수 135 md) → plan 임포터(P1: <code>plan/</code> 450 md). 멱등 재실행. 도구는 <b>프로파일 기반 범용 임포터</b>이고 clemvion은 그 내장 프로파일이다 — 실행은 원본 체크아웃 장비의 CLI(<code>@nerv/cli</code>)가 임포트 API(EP-IMP-01~05)를 호출하는 형태(<a href="importer.html">4.7 스펙 임포터</a> §1.4·§3.2) + 래퍼 스킬 <code>/nerv:import</code>(§4.3)</td><td>review 소급 임포트는 Phase 2. SoT는 MVP 기간 내내 git(컷오버는 Phase 2 M1부터 — 로드맵 §7.2). 양방향 동기화·서버 주도 원격 저장소 clone은 하지 않는다(§5)</td></tr>
+      <tr><td>FR-17</td><td>clemvion 임포트</td><td>◐</td><td>◐</td><td>◐</td><td>spec 임포터(P0: <code>spec/</code> 384 md 중 순수 135 md) → plan 임포터(P1: <code>plan/</code> 450 md). 멱등 재실행. 도구는 <b>프로파일 기반 범용 임포터</b>이고 clemvion은 그 내장 프로파일이다 — 실행은 원본 체크아웃 장비의 CLI(<code>@nerv/cli</code>)가 임포트 API(EP-IMP-01~06)를 호출하는 형태(<a href="importer.html">4.7 스펙 임포터</a> §1.4·§3.2) — <b>래퍼 스킬은 2026-09-06 에 걷었다</b>(§4.3)</td><td>review 소급 임포트는 Phase 2. SoT는 MVP 기간 내내 git(컷오버는 Phase 2 M1부터 — 로드맵 §7.2). 양방향 동기화·서버 주도 원격 저장소 clone은 하지 않는다(§5)</td></tr>
     </tbody>
   </table></div>
 
@@ -351,11 +351,11 @@
     </tbody>
   </table></div>
 
-  <p>임포트에는 <b>MCP 도구를 만들지 않는다.</b> 전수 계정·바이트 보존·멱등 재실행(REQ-IMP-001~004)이 재현돼야 하는 결정적 ETL이라 LLM이 매개하는 도구 호출로 쪼개지 않는다 — 에이전트가 관여하는 지점은 CLI를 감싸는 스킬 <code>/nerv:import</code>뿐이다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). 임포트가 도구 수를 늘리지 않는 이유가 이것이다.</p>
+  <p>임포트에는 <b>MCP 도구를 만들지 않는다.</b> 전수 계정·바이트 보존·멱등 재실행(REQ-IMP-001~004)이 재현돼야 하는 결정적 ETL이라 LLM이 매개하는 도구 호출로 쪼개지 않는다 — <b>에이전트가 관여하는 지점은 없다</b>(2026-09-06 — 래퍼 스킬을 걷었다). 임포트는 원본 체크아웃이 있는 장비에서 사람이 도는 운영 작업이다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). 임포트가 도구 수를 늘리지 않는 이유가 이것이다.</p>
 
   <p>티어 표기는 도구 위험 티어 <b>A1~A4</b>다. 스펙 변경 게이트 티어 <b>T0~T3</b>(<a href="spec-workflow.html">스펙 워크플로우와 거버넌스</a> §2.4)와는 <b>다른 축</b>이므로 혼용하지 않는다. MCP 도구 ↔ 내부 서비스 ↔ REST 대응 표는 <a href="api.html">4.4 API 명세</a> §4가 소유한다.</p>
 
-  <h3>4.3 플러그인 스킬 범위 — MVP 약속 5종 · 패키지 6종</h3>
+  <h3>4.3 플러그인 스킬 범위 — 패키지 5종</h3>
 
   <div class="table-wrap"><table>
     <thead><tr><th>스킬</th><th>MVP</th><th>책임(<a href="agent-integration.html">에이전트 연동 설계</a> §3.2 인용)</th></tr></thead>
@@ -364,8 +364,8 @@
       <tr><td><code>/nerv:spec</code></td><td>●</td><td>스펙 초안·CR 작성 경로</td></tr>
       <tr><td><code>/nerv:impl</code></td><td>●</td><td>클레임한 Task의 구현 절차</td></tr>
       <tr><td><code>/nerv:question</code></td><td>●</td><td>질문 에스컬레이션·폴링</td></tr>
-      <tr><td><code>/nerv:import</code></td><td>●</td><td><b>2026-08-22 추가</b> — 임포터 CLI 래퍼: 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → <code>--apply</code> → 멱등 재실행 검증. 대상 저장소를 가리지 않는다(프로파일만 바뀐다 — <a href="importer.html">4.7 스펙 임포터</a> §3.6)</td></tr>
-      <tr><td><code>/nerv:review</code></td><td>○</td><td><b>Phase 2 · 2026-08-23 배포</b>(<a href="plugin.html">4.6 플러그인</a> §2.6) — 리뷰 제출과 발견 처분. <b>MVP 약속은 5종 그대로</b>이고 패키지가 6종이 된 것이다</td></tr>
+      <tr><td><s><code>/nerv:import</code></s></td><td>✗</td><td><b>2026-09-06 걷어냄</b>(<a href="plugin.html">4.6 플러그인</a> §2.5) — 배달되지 않는 CLI 를 부르는 스킬이었다. 임포트 절차의 정본은 <a href="importer.html">4.7</a> §3.6 의 <b>운영자 절차</b>다. 옛 근거: 2026-08-22 추가 — 임포터 CLI 래퍼: 프로파일 선택 → dry-run → 리포트 요약 → 사람 승인 → <code>--apply</code> → 멱등 재실행 검증. 대상 저장소를 가리지 않는다(프로파일만 바뀐다 — <a href="importer.html">4.7 스펙 임포터</a> §3.6)</td></tr>
+      <tr><td><code>/nerv:review</code></td><td>○</td><td><b>Phase 2 · 2026-08-23 배포</b>(<a href="plugin.html">4.6 플러그인</a> §2.6) — 리뷰 제출과 발견 처분. <b>패키지는 5종이다</b>(2026-09-06 — <code>/nerv:review</code> 가 들어오고 <code>/nerv:import</code> 가 걷혔다)</td></tr>
     </tbody>
   </table></div>
 
@@ -386,7 +386,7 @@
       <tr><td>실시간 공동 편집(CRDT)</td><td>Phase 3+ (착수 조건: 409 재시도 주 20건 이상)</td><td>서버 권위 + <code>base_hash</code> 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2)</td></tr>
       <tr><td>OAuth 2.1 리소스 서버</td><td>Phase 2</td><td>2026-08-20 인증 확정(better-auth)으로 이동 — §2.1 콜아웃 참조. MVP 에이전트 인증은 PAT</td></tr>
       <tr><td>임포트 양방향 동기화 · 서버 주도 저장소 clone</td><td>Phase 3+ (착수 조건부)</td><td>임포트는 복제이고 SoT는 git이다(§6.1-5). 서버는 대상 저장소에 접근하지 않는다 — 파일을 읽는 쪽이 파일 있는 장비라는 것이 임포터 구조의 전제다(<a href="importer.html">4.7 스펙 임포터</a> §3.2)</td></tr>
-      <tr><td>임포트 MCP 도구</td><td>— (계획 없음)</td><td>결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. 에이전트 경로는 스킬 <code>/nerv:import</code>뿐(§4.2·§4.3)</td></tr>
+      <tr><td>임포트 MCP 도구</td><td>— (계획 없음)</td><td>결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. <b>에이전트 경로는 없다</b>(2026-09-06 — 래퍼 스킬을 걷었다 · <a href="plugin.html">4.6</a> §2.5). 임포트는 원본 체크아웃이 있는 장비에서 <b>사람이 도는 운영 작업</b>이다(<a href="importer.html">4.7</a> §3.6)</td></tr>
       <tr><td>외부 검색엔진(Elasticsearch 등)</td><td>— (계획 없음, §2.2 트리거로만)</td><td>Postgres 하이브리드(FTS+trgm+pgvector)로 목표 규모(NFR-04) 충분. 운영 컴포넌트 +1의 비용이 이득을 넘는다</td></tr>
       <tr><td>OpenAI 호환이 아닌 임베딩 SDK 직결(Voyage 전용 SDK 등)</td><td>— (계획 없음)</td><td>제공자는 OpenAI 호환 <code>/v1/embeddings</code> 단일 계약만(REQ-CB-020) — 제공자별 분기 코드를 만들지 않는다. ※ 외부 제공자 사용 시 스펙 본문이 그 제공자에 전송된다 — 기밀 등급이 높은 프로젝트는 자가호스팅 프로필을 쓰는 것이 운영 권고다</td></tr>
       <tr><td>서버 watch 테이블</td><td>Phase 2</td><td>워치 서버 동기화는 알림 확장과 함께. ※ <b>전역 관계 그래프 뷰는 이 행에서 빠졌다</b>(2026-08-23 정정) — 2026-08-23 v1.8에서 MVP로 들어왔는데(§2.4a 신설 · REQ-WEB-050·051) 이 행이 낡은 채 남아 있었다</td></tr>

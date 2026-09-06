@@ -53,7 +53,7 @@
     <h1>로드맵</h1>
     <p class="lead">NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 <b>조정 → 가시성 → 거버넌스 → 고도화</b>로 고정하고, 각 Phase에 기간·범위(FR 번호)·산출물과 함께 <b>수치로 된 종료 조건</b>을 붙인다. 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-09-06)</span>
+      <span>버전 v0.7 (2026-09-06)</span>
       <span>원본: <code>docs/03-proposal/roadmap.md</code></span>
       <span>주로 다루는 결정: D-12 · D-06 · D-14</span>
     </div>
@@ -358,7 +358,7 @@
       <tr><td>세션 모니터</td><td><b>FR-07 · FR-08 ●</b></td><td>S5 미션 컨트롤 — hostname·에이전트 종류·6상태·현재 Task·diff 통계·steer/stop</td></tr>
       <tr><td>받은 요청 + 인앱 알림</td><td>FR-11 ◐ / FR-12 ◐</td><td>스펙 승인·플랜 승인·질문 3유형(CR·에스컬레이션은 Phase 2), 원클릭 승인/거절/코멘트</td></tr>
       <tr><td>GitHub 연동</td><td>FR-13 ◐ / FR-10 ◐</td><td>PR·커밋 웹훅 수신, Task↔PR 링크, Task <code>done</code> 전이 조건(리뷰 커버리지 조건은 제외)</td></tr>
-      <tr><td>Claude Code 플러그인 v1</td><td>FR-15 ◐</td><td>스킬 <code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:import</code> <code>/nerv:review</code> <b>6종</b>(2026-09-06 현황 — <code>/nerv:review</code> 는 2026-08-23 에 앞당겨 배포됐다) + <code>hooks.json</code>(SessionStart/PostToolUse/SubagentStart·Stop/Stop/SessionEnd — <b>기본 변형은 <code>type:"command"</code> 다</b>, 2026-09-03 결정) + statusline. <b><code>.mcp.json</code> 은 번들하지 않는다</b>(2026-09-04 REQ-PLG-001 개정 — 쓰는 쪽 저장소가 갖는 템플릿이다), 사내 마켓플레이스 배포</td></tr>
+      <tr><td>Claude Code 플러그인 v1</td><td>FR-15 ◐</td><td>스킬 <code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code> <b>5종</b>(2026-09-06 현황 — <code>/nerv:review</code> 는 2026-08-23 에 앞당겨 배포됐고, <code>/nerv:import</code> 는 2026-09-06 에 걷었다) + <code>hooks.json</code>(SessionStart/PostToolUse/SubagentStart·Stop/Stop/SessionEnd — <b>기본 변형은 <code>type:"command"</code> 다</b>, 2026-09-03 결정) + statusline. <b><code>.mcp.json</code> 은 번들하지 않는다</b>(2026-09-04 REQ-PLG-001 개정 — 쓰는 쪽 저장소가 갖는 템플릿이다), 사내 마켓플레이스 배포</td></tr>
       <tr><td>인증</td><td>NFR-03 ●</td><td><b>better-auth 세션 + PAT 2경로</b>(2026-08-20 확정 — <a href="scope.html">4.1 범위</a> §2.1). OAuth 2.1(RFC 9728 PRM + PKCE + RFC 8707)은 <b>Phase 2 로 옮겼다</b>(2026-09-06 현황 정정 — 그 결정이 이 표에 오지 않아 여기만 "승격" 이라 적고 있었다). 토큰 발급·폐기 UI는 S8 에이전트 토큰 탭</td></tr>
       <tr><td>멀티테넌시</td><td><b>FR-14 ●</b></td><td>Organization/Project/User n:n, 역할 6종 권한이 API·UI 양쪽에서 강제. 관리 UI는 S8 멤버·역할 탭</td></tr>
       <tr><td>감사 로그</td><td><b>FR-16 ●</b></td><td>전 상태 전이 + <code>is_agent</code> 액터 구분 + 엔티티별 이력 재구성 뷰</td></tr>

@@ -26,14 +26,13 @@ What an agent may do is decided by **the token** (issuing one is step 1 of [Inst
 
 ## Skills
 
-| Skill            | What it does                                       |
-| ---------------- | -------------------------------------------------- |
-| `/nerv:next`     | Recommend and claim the next task                  |
-| `/nerv:spec`     | Write a spec draft or change request               |
-| `/nerv:impl`     | The implementation procedure for a claimed task    |
-| `/nerv:question` | Raise a question and wait for the answer           |
-| `/nerv:import`   | Bring an existing repository's documents into NERV |
-| `/nerv:review`   | Submit reviews and dispose of findings             |
+| Skill            | What it does                                    |
+| ---------------- | ----------------------------------------------- |
+| `/nerv:next`     | Recommend and claim the next task               |
+| `/nerv:spec`     | Write a spec draft or change request            |
+| `/nerv:impl`     | The implementation procedure for a claimed task |
+| `/nerv:question` | Raise a question and wait for the answer        |
+| `/nerv:review`   | Submit reviews and dispose of findings          |
 
 ## Tool tiers
 

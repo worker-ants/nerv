@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 **조정(충돌 제거) → 가시성(세션·커버리지) → 거버넌스(승인·게이트) → 고도화**로 고정하고, Phase 0 PoC(2~3주) · Phase 1 MVP(4~6주) · Phase 2(4~6주) · Phase 3+(착수 조건 기반)로 나눈다. 각 Phase는 기간·범위(FR 번호)·산출물과 함께 **수치로 된 종료 조건**을 갖고, 그 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다(예: Phase 0은 두 호스트·세 세션 동시 작업에서 중복 클레임 0건). clemvion 이관은 D-12에 따라 **기계 산출물 먼저 → 스펙 → 사람 워크플로우 → 실시간**의 순서로 진행하며, 대상 규모는 `spec/` 384 md · `plan/` 450 md · `review/` 13,777 md(131MB)다. 마지막으로 도입 실패·규약 미준수·플랫폼 다운·리뷰 피로·벤더 API 변화 다섯 가지 리스크에 각각 계측 신호와 완화 수단을 붙였다.
 >
-> 문서 버전 v0.6 · 2026-09-06 · HTML 파생본: [roadmap.html](../html/roadmap.html)
+> 문서 버전 v0.7 · 2026-09-06 · HTML 파생본: [roadmap.html](../html/roadmap.html)
+>
+> v0.7 변경(2026-09-06 — 스킬 목록 갱신, 사람 결정): 플러그인 v1 행의 스킬 목록에서 `/nerv:import` 를 뺀다(6종 → **5종**) — 배달되지 않는 CLI 를 부르는 스킬이라 걷었다([4.6](../04-mvp/plugin.md) §2.5).
 >
 > v0.6 변경(2026-09-06 — 게이트를 두고 기록할 자리를 두지 않았다, 정합성 대조 → 사람 지시): §1.4 에 **판정 기록 표**를 더한다(규칙 5). 규칙 1 이 "미달이 하나라도 있으면 Go 판정을 내리지 않는다" 인데 **G0·G1 의 판정 기록이 저장소 어디에도 없었고**(`Go 판정` 문자열 전수 검색 결과 이 문서 밖 0건) 그 사이 Phase 1·2 작업이 진행됐다. 빈 칸은 "판정하지 않았다" 는 뜻이고 "통과했겠지" 와 구별된다. **소급 판정은 하지 않는다** — 다음 게이트부터 채우고, G0·G1 의 소급 판정 여부는 사람 결정으로 남긴다.
 >
@@ -188,7 +190,7 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 | 세션 모니터 | **FR-07 · FR-08 ●** | S5 미션 컨트롤 — hostname·에이전트 종류·6상태·현재 Task·diff 통계·steer/stop |
 | 받은 요청 + 인앱 알림 | FR-11 ◐ / FR-12 ◐ | 스펙 승인·플랜 승인·질문 3유형(CR·에스컬레이션은 Phase 2), 원클릭 승인/거절/코멘트 |
 | GitHub 연동 | FR-13 ◐ / FR-10 ◐ | PR·커밋 웹훅 수신, Task↔PR 링크, Task `done` 전이 조건(리뷰 커버리지 조건은 제외) |
-| Claude Code 플러그인 v1 | FR-15 ◐ | 스킬 `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:import` `/nerv:review` **6종**(2026-09-06 현황 — `/nerv:review` 는 2026-08-23 에 앞당겨 배포됐다) + `hooks.json`(SessionStart/PostToolUse/SubagentStart·Stop/Stop/SessionEnd — **기본 변형은 `type:"command"` 다**, 2026-09-03 결정) + statusline. **`.mcp.json` 은 번들하지 않는다**(2026-09-04 REQ-PLG-001 개정 — 쓰는 쪽 저장소가 갖는 템플릿이다), 사내 마켓플레이스 배포 |
+| Claude Code 플러그인 v1 | FR-15 ◐ | 스킬 `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` **5종**(2026-09-06 현황 — `/nerv:review` 는 2026-08-23 에 앞당겨 배포됐고, `/nerv:import` 는 2026-09-06 에 걷었다) + `hooks.json`(SessionStart/PostToolUse/SubagentStart·Stop/Stop/SessionEnd — **기본 변형은 `type:"command"` 다**, 2026-09-03 결정) + statusline. **`.mcp.json` 은 번들하지 않는다**(2026-09-04 REQ-PLG-001 개정 — 쓰는 쪽 저장소가 갖는 템플릿이다), 사내 마켓플레이스 배포 |
 | 인증 | NFR-03 ● | **better-auth 세션 + PAT 2경로**(2026-08-20 확정 — [4.1 범위](../04-mvp/scope.md) §2.1). OAuth 2.1(RFC 9728 PRM + PKCE + RFC 8707)은 **Phase 2 로 옮겼다**(2026-09-06 현황 정정 — 그 결정이 이 표에 오지 않아 여기만 "승격" 이라 적고 있었다). 토큰 발급·폐기 UI는 S8 에이전트 토큰 탭 |
 | 멀티테넌시 | **FR-14 ●** | Organization/Project/User n:n, 역할 6종 권한이 API·UI 양쪽에서 강제. 관리 UI는 S8 멤버·역할 탭 |
 | 감사 로그 | **FR-16 ●** | 전 상태 전이 + `is_agent` 액터 구분 + 엔티티별 이력 재구성 뷰 |

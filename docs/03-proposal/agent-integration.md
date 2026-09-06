@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **23종**(2026-09-04 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.26 · 2026-09-06 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.27 · 2026-09-06 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.27 변경(2026-09-06 — 스킬 6종 → 5종, 사람 결정): §3.2 제목을 고친다 — `/nerv:import` 를 걷었다([4.6](../04-mvp/plugin.md) §2.5). 이 문서의 §3.2 표는 처음부터 다섯 행이었다(그 스킬이 표에 없었다) — 제목만 실물과 어긋나 있었다.
 >
 > v0.26 변경(2026-09-06 — 카탈로그가 정본인데 실물과 달랐다, 정합성 대조 → 사람 지시): **§3.3 전문 중복 제거 · §2.3 카탈로그 다섯 자리 정정.** ① §3.3 이 `hooks.json` **전문을 한 벌 더 싣고** 있었고, 기본 변형이 `command` 로 바뀐 뒤에도 `type:"http"` 판을 보여 주었다 — 훅 계약의 정본으로 인용되는 자리가 **배포되지 않는 변형**을 싣고 있었다는 뜻이다. 전문의 정본은 [4.6](../04-mvp/plugin.md) §3.1 하나로 두고(그 절만 패키지와 바이트 대조된다) 여기서는 모양과 근거만 인용한다. ② `nerv_task_update` 에 **`spec_impact` 를 싣고 `note` 를 걷는다** — `done` 전이의 필수 입력이 표에 없어 **카탈로그만 보고 부른 세션은 작업을 끝낼 방법이 없었고**, `note` 는 스키마에 없어 조용히 버려진다. ③ `nerv_task_claim` 의 `branch?`·`worktree?` 를 걷는다(v0.10 이 걷었다고 적어 놓고 표에 남아 있었다). ④ `nerv_review_submit` 의 실제 필수는 넷이고 `repo`·`round_of`·`reviewer.name` 은 스키마에 없다 — "`session_id` 를 명시 입력으로 받는다, 이 도구만 예외" 는 정확히 반대였다. ⑤ `nerv_task_get`·`nerv_task_list` 권한 `spec:read` → **`task:claim`**(그 표를 보고 `spec:read` 만 켠 토큰은 403 을 받는다). 곁들여 `_meta` 어노테이션 이름을 실물(`nerv/tier`·`nerv/scope`)로 고쳤다 — `anthropic/requiresUserInteraction` 은 저장소 어디에도 없다.
 >
@@ -290,7 +292,7 @@ nerv-plugin/
 - [Create custom subagents — Claude Code Docs](https://code.claude.com/docs/en/sub-agents) (2026-08-13 확인): 플러그인 배포 시 `hooks`/`mcpServers`/`permissionMode` frontmatter 무시, `SubagentStart`/`SubagentStop` 훅의 `agent_id`/`agent_type`.
 - [Agent Skills 오픈 표준 — agentskills.io](https://agentskills.io/) (2026-08-13 확인): SKILL.md를 40여 개 도구가 지원 — Claude Code와 Codex에 같은 파일을 배포할 수 있는 근거.
 
-### 3.2 스킬 6종의 책임
+### 3.2 스킬 5종의 책임
 
 | 스킬 | 트리거 | 하는 일 | 호출 도구 |
 | --- | --- | --- | --- |

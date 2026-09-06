@@ -27,7 +27,7 @@
 | `apps/api` | NestJS(Fastify) — REST `/api/v1` · MCP 게이트웨이 · WebSocket · SSE · 훅 수집기. **표면 넷이 같은 도메인 서비스를 DI로 공유한다**(D-05) |
 | `apps/cli` | `nerv import …` — 프로파일 기반 스펙 임포터. 컨테이너가 아니라 **원본 체크아웃이 있는 장비에 설치되는 클라이언트**다 |
 | `packages/schema` | 타입·상수의 단일 정본 — drizzle 테이블 · zod · 이벤트 이름 · 에러 코드 · 문구 카탈로그. 상수를 다른 곳에 하드코딩하지 않는다 |
-| `plugin` | Claude Code 플러그인 — 스킬 6종(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:import`·`/nerv:review`) · hooks(기본은 `command` 변형) · statusline · Codex 초안. **`.mcp.json` 은 담지 않는다** — 서버 주소·토큰은 프로젝트마다 다르고 플러그인은 여러 프로젝트가 공유하는 물건이라, 그 파일은 쓰는 쪽 저장소가 갖는 템플릿이다(REQ-PLG-001) |
+| `plugin` | Claude Code 플러그인 — 스킬 5종(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`) · hooks(기본은 `command` 변형) · statusline · Codex 초안. **`.mcp.json` 은 담지 않는다** — 서버 주소·토큰은 프로젝트마다 다르고 플러그인은 여러 프로젝트가 공유하는 물건이라, 그 파일은 쓰는 쪽 저장소가 갖는 템플릿이다(REQ-PLG-001) |
 
 ## 빠른 시작
 

@@ -53,7 +53,7 @@
     <h1>스펙 임포터</h1>
     <p class="lead">기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 <b>프로파일 기반 범용 임포터</b>의 확정판. 대상별 차이는 프로파일(§1.4)이 흡수하고 엔진은 하나다 — 내장 프로파일은 <code>clemvion</code>(FR-17 대상: 순수 스펙 135 md + plan 450 md)과 <code>nerv-docs</code>(도그푸딩) 2종이며, 다른 저장소는 프로파일 파일을 얹는다. 실행 모델은 <b>읽기는 클라이언트, 쓰기는 API</b>(2026-08-22 확정) — 원본 체크아웃이 있는 장비의 CLI가 파싱·리포트를 만들고(dry-run은 서버 없이 완결), <code>--apply</code>만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. 수용 기준은 REQ-IMP-001~017.</p>
     <div class="meta-line">
-      <span>버전 v0.17 (2026-09-06)</span>
+      <span>버전 v0.18 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
     </div>
@@ -605,15 +605,13 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
     <tbody><tr><td>REQ-IMP-018</td><td>WHEN CLI 가 출력·리포트를 만들 때 THE SYSTEM SHALL 환경변수로 정한 로케일의 문구를 쓰고, 미지원 값이면 기본 로케일로 떨어진다</td></tr></tbody>
   </table></div>
 
-  <h3>3.6 래퍼 스킬 — <code>/nerv:import</code></h3>
+  <h3>3.6 실행 주체 — 운영자 절차 (2026-09-06 개정 · 래퍼 스킬을 걷었다)</h3>
+  <p>CLI 가 엔진이고, 그 위에 <b>사람이 읽는 절차</b>가 있다. 예전에는 그 절차를 플러그인 스킬(<code>/nerv:import</code>)이 배달했는데 <b>2026-09-06 에 걷어냈다</b> — 스킬이 지시하는 <code>nerv</code> 를 설치한 쪽이 손에 넣을 길이 없었고(패키지가 <code>private</code> 이며 플러그인 zip 에 없다), 제3의 저장소가 쓸 프로파일이 0개라 스킬의 1단계가 곧 종착점이었다. 근거 전문은 <a href="plugin.html">4.6 플러그인과 온보딩</a> §2.5.</p>
+  <p><b>절차는 그대로다</b> — 실행하는 것이 스킬이 아니라 사람일 뿐이다: <b>① 프로파일 선택 → ② dry-run 실행 → ③ 리포트 확인(abort/skip/manual/warn 건수와 상위 사유) → ④ 판단 → ⑤ <code>--apply</code> → ⑥ 재실행으로 멱등 검증(신규 0)</b>.</p>
+  <p><b>그 절차를 지키는 것은 프롬프트가 아니라 도구다.</b> <code>--apply</code> 없이는 dry-run 이 기본이고(§3.1), 종료 코드가 셋이며(<code>0</code>/<code>1</code>/<code>2</code>), <code>manual</code> 큐가 사람이 결정할 것을 따로 모은다(§4.1). <b>결정적 ETL 을 LLM 이 대신 수행하지 않는다</b>는 원칙은 스킬이 아니라 이 설계가 지킨다.</p>
+  <p>MCP 도구도 추가하지 않는다 — 임포트를 도구 호출 단위로 쪼개면 전수 계정·멱등 검증이 재현되지 않기 때문이다(<a href="scope.html">4.1 MVP 범위와 스택 확정</a> §4.2·§5).</p>
 
-  <p>CLI가 엔진이고, 스킬은 그 위의 사람 UX다. <b>결정적 ETL을 LLM이 대신 수행하지 않는다</b> — 스킬은 CLI를 실행하고, 리포트를 사람이 읽을 수 있게 요약하며, <code>manual</code> 큐(§4.1의 15종 규칙)를 사람에게 넘기는 절차만 담당한다. 그래서 이 스킬은 임포트 대상을 가리지 않는다 — 프로파일 이름만 바뀐다.</p>
-
-  <p>절차는 고정이다: <b>① 프로파일 선택 → ② dry-run 실행 → ③ 리포트 요약 제시(abort/skip/manual/warn 건수와 상위 사유) → ④ 사람 확인 → ⑤ <code>--apply</code> → ⑥ 재실행으로 멱등 검증(신규 0)</b>. <code>--apply</code>는 사람의 명시적 승인 없이 실행하지 않는다(REQ-IMP-017) — 적재는 A3 성격의 행위다. 리포트 수치는 CLI 산출물을 그대로 인용하고 스킬이 재계산·요약 왜곡을 하지 않는다.</p>
-
-  <p>SKILL.md 전문은 <a href="plugin.html">4.6 플러그인과 온보딩</a> §2.5가 소유한다. MCP 도구는 추가하지 않는다 — 임포트는 도구 호출 단위로 쪼개면 전수 계정·멱등 검증이 재현되지 않기 때문이며, MVP 도구 수를 임포트가 늘리지 않는다(<a href="scope.html">4.1 MVP 범위와 스택 확정</a> §4.2).</p>
-
-  <h2 id="sec-4">4. 실패 리포트와 수용 기준</h2>
+<h2 id="sec-4">4. 실패 리포트와 수용 기준</h2>
 
   <h3>4.1 리포트 형식</h3>
 
@@ -691,7 +689,7 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
       <tr><td><b>REQ-IMP-014</b></td><td>WHEN <code>import:write</code> 권한이 없는 토큰 또는 admin이 아닌 역할이 EP-IMP-*를 호출하면, THE SYSTEM SHALL 403 <code>NERV_FORBIDDEN</code>으로 거부하고 어떤 레코드도 만들지 않는다</td></tr>
       <tr><td><b>REQ-IMP-015</b></td><td>WHEN <code>--profile-file</code>로 사용자 정의 프로파일이 주어지면, THE SYSTEM SHALL 프로파일 스키마를 검증한 뒤 내장 프로파일과 동일한 엔진·리포트 규칙·멱등 규칙을 적용한다 — 대상 저장소별 분기 코드를 두지 않는다</td></tr>
       <tr><td><b>REQ-IMP-016</b></td><td>WHEN 프로파일이 <code>expect.spec_total</code>을 선언하지 않으면, THE SYSTEM SHALL <code>count-mismatch</code> 중단을 적용하지 않고 스캔 총수와 분류별 집계를 리포트에 계정한다(전수 계정 자체는 REQ-IMP-001과 동일하게 유지된다)</td></tr>
-      <tr><td><b>REQ-IMP-017</b></td><td>WHEN <code>/nerv:import</code> 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 <code>--apply</code>를 실행하고, 사람의 명시적 승인 없이 적재하지 않는다</td></tr>
+      <tr><td><s><b>REQ-IMP-017</b></s></td><td><s>WHEN <code>/nerv:import</code> 스킬이 실행되면 …</s> — <b>폐기</b>(2026-09-06 · 래퍼 스킬을 걷었다 · §3.6). 번호는 재사용하지 않는다. 이 요구가 지키려던 것(사람 승인 없이 적재하지 않는다)은 CLI 가 <code>--apply</code> 플래그와 dry-run 기본값으로 강제한다(REQ-IMP-013)</td></tr>
     </tbody>
   </table></div>
 
@@ -773,7 +771,7 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
     <li><a href="codebase.html">4.2 코드베이스와 배포</a> — <code>apps/cli</code>(<code>@nerv/cli</code>)의 모노레포 배치·빌드·배포 형태와 <code>apps/api</code>의 <code>ImportModule</code></li>
     <li><a href="database.html">4.3 데이터베이스 스키마</a> — 임포터가 그대로 받는 DDL 제약(트리거·유니크)과 개발 시드</li>
     <li><a href="api.html">4.4 API 명세</a> — 임포트 REST 표면 EP-IMP-01~06(§2.10)의 계약 정본, <code>import:write</code> 권한, <code>NERV_*</code> 에러 코드 체계(리포트 어휘와 다른 층임을 §4.1이 명시)</li>
-    <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — 래퍼 스킬 <code>/nerv:import</code>의 SKILL.md 전문(§2.5)</li>
+    <li><a href="plugin.html">4.6 플러그인과 온보딩</a> — 래퍼 스킬을 걷어낸 근거(§2.5)</li>
     <li><a href="backlog.html">4.8 백로그</a> — 임포터 스토리 분해와 E2E 수용 시나리오(135 md 전수), 스토리 자체가 임포트 대상(§5.1)</li>
   </ul>
 

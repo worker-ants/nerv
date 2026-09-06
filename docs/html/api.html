@@ -1349,7 +1349,7 @@ basis_superseded: false
 
   <p>카탈로그는 <b>24종</b>이고 단계 분포는 <b>P0 8 · P1 14 · P2 2</b>다(2026-09-05 실측 — 도구 레지스트리 기준). P2 둘은 <code>nerv_review_submit</code>·<code>nerv_finding_resolve</code> 다. <a href="scope.html">4.1 MVP 범위와 스택 확정</a> 이 적은 <b>MVP 22종</b>(P0 8 + P1 14) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 <a href="agent-integration.html">에이전트 연동 설계</a> §2.3이 정본이고, 이 표는 <b>같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점</b>만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.</p>
 
-  <p>임포트 표면(§2.10)은 이 표에 없다 — <b>대응하는 MCP 도구가 없기 때문</b>이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). 에이전트가 관여하는 지점은 도구가 아니라 CLI를 감싸는 스킬 <code>/nerv:import</code>다.</p>
+  <p>임포트 표면(§2.10)은 이 표에 없다 — <b>대응하는 MCP 도구가 없기 때문</b>이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). <b>에이전트가 관여하는 지점이 없다<b>(2026-09-06 — 래퍼 스킬을 걷었다 · [4.6](plugin.md) §2.5). 임포트는 사람이 도는 운영 작업이다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>MCP 도구</th><th>티어</th><th>내부 서비스 메서드</th><th>REST 대응</th><th>비고</th></tr></thead>
