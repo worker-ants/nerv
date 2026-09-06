@@ -1,6 +1,6 @@
 ---
 id: SPC-MVP-SCOPE
-status: draft
+status: approved
 updated: 2026-09-06
 ---
 # MVP 범위와 스택 확정

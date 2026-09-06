@@ -14,6 +14,7 @@ import { AuthService } from './modules/auth/auth.service.js';
 import { McpOriginGuard } from './common/mcp-origin.guard.js';
 import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
+import { logLevelsFromEnv } from './common/log-level.js';
 import { RateLimitGuard } from './common/rate-limit.guard.js';
 import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
 
@@ -25,6 +26,9 @@ export async function createApp(): Promise<NestFastifyApplication> {
     new FastifyAdapter({ bodyLimit: MAX_REQUEST_BODY_BYTES }),
     {
       rawBody: true,
+      // 전표(§5.2)가 소비자를 "api · worker" 라 적어 둔 변수다 — 2026-09-06 까지
+      // 읽는 코드가 없어 값을 바꿔도 아무 일이 없었다.
+      logger: logLevelsFromEnv(),
     },
   );
 

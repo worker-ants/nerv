@@ -8,6 +8,7 @@
 // 스키마가 있으면 "받는다고 적어 두고 안 읽는" 코드가 눈에 띈다.
 
 import { z } from 'zod';
+import { BLOCKED_REASONS } from '../enums.js';
 
 /** 증적 한 줄 — 한 Task 가 커밋·PR·테스트를 여럿 남기므로 목록이다(REQ-API-056) */
 export const TaskEvidenceInput = z
@@ -53,12 +54,21 @@ export const TaskUpdateInput = z
   })
   .strict();
 
-/** EP-TASK-09 — 상태 전이. `done` 은 서버 게이트를 탄다(FR-10) */
+/**
+ * EP-TASK-09 — 상태 전이. `done` 은 서버 게이트를 탄다(FR-10).
+ *
+ * **`note` 는 2026-09-06 에 걷었다**(사람 결정). 전표와 이 스키마에 있었는데 컨트롤러가
+ * 넘기지 않고 서비스가 받지 않아 **받고 버려지고 있었다** — 400 도 아니고 저장도 아닌
+ * 조용한 성공이라, 에이전트는 노트를 남겼다고 믿고 서버에는 그 노트가 없었다.
+ * 전이의 사유를 남기는 칸은 이미 둘이고(`blocked_reason` · `spec_impact`), 셋째 칸이
+ * 무엇을 답하는지는 정해진 적이 없다. `.strict()` 덕분에 이제 `note` 는 **400 이다** —
+ * 조용한 성공보다 명시적 거절이 낫다.
+ */
 export const TaskTransitionInput = z
   .object({
     status: z.string().min(1),
-    note: z.string().nullish(),
-    blocked_reason: z.string().nullish(),
+    /** 어휘는 `@nerv/schema` 가 정본이다(REQ-CB-006) — 표면이 목록을 다시 적지 않는다 */
+    blocked_reason: z.enum(BLOCKED_REASONS).nullish(),
     spec_impact: z.record(z.string(), z.unknown()).nullish(),
     evidence: z.array(TaskEvidenceInput).nullish(),
   })

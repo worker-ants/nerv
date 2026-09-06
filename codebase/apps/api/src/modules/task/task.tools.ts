@@ -2,6 +2,7 @@
 // 클레임 엔진은 E04 에서 구현됐고 L2 가 지킨다 — 여기는 번역만 한다(REQ-CB-003).
 
 import { Injectable } from '@nestjs/common';
+import { BLOCKED_REASONS } from '@nerv/schema';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { requireSession } from '../session/session.tools.js';
 import { TaskService } from './task.service.js';
@@ -217,11 +218,7 @@ export class TaskTools implements NervToolProvider {
             ? { leaseSeconds: input['lease_seconds'] }
             : {}),
         });
-        return {
-          lease_expires_at: beat.leaseExpiresAt.toISOString(),
-          // 서버 → 세션 방향의 유일한 보장된 채널이다(agent-integration §2.4)
-          pending: beat.pending,
-        };
+        return TaskService.toHeartbeatResult(beat);
       },
     },
     {
@@ -284,7 +281,13 @@ export class TaskTools implements NervToolProvider {
               },
             },
           },
-          blocked_reason: { type: 'string', description: 'mcp.arg.blocked_reason' },
+          blocked_reason: {
+            type: 'string',
+            // **어휘를 스키마에 싣는다.** 적지 않으면 모델이 자연어 문장을 넣고, 그것은
+            // 도메인에서 거절되거나(지금) 저장돼 필터를 망친다(2026-09-06 이전).
+            enum: [...BLOCKED_REASONS],
+            description: 'mcp.arg.blocked_reason',
+          },
           // **모양을 적는다.** done 게이트는 "비어 있지 않은 객체"만 보는데, 그것만으로는
           // 무엇을 넣어야 할지 알 수 없다 — 열쇠 이름을 적어야 계약이 된다.
           spec_impact: {

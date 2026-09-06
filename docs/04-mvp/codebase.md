@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-CODEBASE
-status: draft
+status: approved
 updated: 2026-09-06
 ---
 # 코드베이스와 배포
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.25 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.26 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.26 변경(2026-09-06 — 유령 설정을 배선하고 게이트를 세운다, 사람 결정): **`NERV_LOG_LEVEL` 배선 · CI 게이트 아홉 → 열.** §5.2 전표가 이 변수의 소비자를 "api · worker" 라 적어 두고 **읽는 코드가 0건**이었다 — 운영자가 값을 바꿔도 아무 일이 없었고, 장애 때 로그를 늘릴 손잡이가 실은 재배포뿐이었다. 두 진입점이 `common/log-level.ts` 한 함수로 읽는다(고른 수준과 **그보다 심각한 것**을 켠다 · `info`·`warning`·`trace`·`critical` 은 별칭 — compose·k8s 가 이미 `info` 를 넘긴다 · 모르는 값은 기본으로 떨어지되 한 줄 남긴다). 그리고 **같은 부류가 다시 생기지 않게 검사를 세웠다**(`scripts/check-env-table.mjs`) — 코드가 읽는 변수가 전표에 있는가 · `.env.example` 의 키가 전표에 있는가 · 한 변수가 두 행에 나오지 않는가 · **전표가 소비자를 `api`·`worker`·`web` 이라 적은 변수를 그 코드가 실제로 읽는가**. 마지막 하나가 유령 설정을 잡는 축이다.
 >
 > v1.25 변경(2026-09-06 — 반쪽 가드를 기록한다, 정합성 대조 → 사람 지시): §4.5 lint 규칙 목록에 **REQ-CB-003 가드가 반쪽이라는 사실**을 적는다. 실제로 막는 것은 `drizzle-orm` 뿐이고, 함께 적힌 `@nerv/schema/tables` 는 그 패키지의 `exports` 에 없어 애초에 import 할 수 없다 — 테이블 심볼은 본 배럴이 재수출하므로 그 길로 오면 규칙이 아무 말도 하지 않는다. 위반은 현재 0건이지만 **막힌다고 적어 두면 다음 사람은 규칙이 지켜 준다고 믿는다.** 곁들여 CI `check` 잡이 **아홉**이 됐다(md ↔ html 정합 신설 — 관리 규약 1 을 기계가 본다).
 >
@@ -797,7 +799,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_FORCE_PATH_STYLE` | | `true` | api · worker | minio 호환 |
 | `NERV_HTTP_PORT` | | `8080` | compose `web` 공개 포트 | |
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |
-| `NERV_LOG_LEVEL` | | `info` | **없음** | 2026-09-06 실측 — compose·k8s 가 이 값을 넘기지만 **읽는 코드가 한 곳도 없다**. 전표가 소비자를 적으면 그것이 계약이므로, 배선하거나 이 행을 걷어야 한다(열린 자리) |
+| `NERV_LOG_LEVEL` | | `log`(=`info`) | api · worker | 두 진입점이 `common/log-level.ts` 한 함수로 읽는다(2026-09-06 배선). 고른 수준과 **그보다 심각한 것**을 켠다 — `verbose` · `debug` · `log` · `warn` · `error` · `fatal`. `info`·`warning`·`trace`·`critical` 은 별칭으로 받는다(compose·k8s 가 이미 `info` 를 넘긴다). 모르는 값은 기본으로 떨어지되 **한 줄 남긴다** — 오타로 로그가 꺼지면 그 사실을 알려 줄 로그도 없다 |
 
 **에이전트 장비 쪽 변수는 이 전표가 아니다.** `NERV_TOKEN`(PAT)·`NERV_PROJECT`·`NERV_HOSTNAME`은 세션이 도는 개발자 장비의 환경이며, 정본은 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3·§4.1, 발급·설치 절차는 [4.6 플러그인과 온보딩](plugin.md)이다.
 

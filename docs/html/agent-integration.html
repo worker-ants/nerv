@@ -550,7 +550,7 @@
   <h3 id="sec-3-5">3.5 statusline — 클레임을 터미널에 되돌려주기</h3>
   <p>statusline 스크립트는 stdin으로 세션 JSON(<code>session_id</code>, <code>workspace.*</code>, <code>cost.*</code>, <code>context_window.used_percentage</code>, <code>pr.*</code>)을 받는다. NERV는 이를 <b>수집이 아니라 표시</b>에 쓴다 — 네트워크 왕복 없이 <code>.nerv/cache/claim.json</code>(하트비트 응답이 갱신)만 읽어 렌더한다.</p>
 <pre><code>◆ NERV clemvion · TASK-142 in_progress · 리스 12:40 남음 · scope 겹침 0
-  opus · ctx 38% · $2.14 · claude/spec-nav-integration ↑3 · 미해소 finding 1(warning)</code></pre>
+  opus · ctx 38% · $2.14 · claude/spec-nav-integration ↑3</code></pre>
   <p>clemvion의 statusline은 "가시성 대시보드가 로컬 터미널 1줄에 갇힌" 형태였다(<code>clemvion:.claude/statusline.sh</code>). NERV에서는 같은 1줄이 <b>서버가 아는 사실의 로컬 투영</b>이 된다 — 전체 조망은 S5 세션 모니터가 담당한다.</p>
 
   <h3 id="sec-3-6">3.6 세션 수명주기 시퀀스</h3>

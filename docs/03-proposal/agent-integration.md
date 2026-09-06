@@ -389,7 +389,7 @@ statusline 스크립트는 stdin으로 세션 JSON(`session_id`, `workspace.*`, 
 
 ```text
 ◆ NERV clemvion · TASK-142 in_progress · 리스 12:40 남음 · scope 겹침 0
-  opus · ctx 38% · $2.14 · claude/spec-nav-integration ↑3 · 미해소 finding 1(warning)
+  opus · ctx 38% · $2.14 · claude/spec-nav-integration ↑3
 ```
 
 clemvion의 statusline은 "가시성 대시보드가 로컬 터미널 1줄에 갇힌" 형태였다(`clemvion:.claude/statusline.sh`). NERV에서는 같은 1줄이 **서버가 아는 사실의 로컬 투영**이 된다 — 전체 조망은 S5 세션 모니터가 담당한다.

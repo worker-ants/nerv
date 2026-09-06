@@ -11,6 +11,7 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   newId,
+  BLOCKED_REASONS,
   PLAN_APPROVAL_SIBLINGS,
   TASK_DONE_WINDOW_DAYS,
   taskPriority,
@@ -855,12 +856,19 @@ export class TaskService {
     claimId: string,
     actor: ClaimActor,
     action: 'heartbeat' | 'release',
-  ): Promise<{ agentSessionId: string | null }> {
+  ): Promise<{
+    agentSessionId: string | null;
+    scopeSpecIds: string[];
+    scopeFileGlobs: string[];
+  }> {
     const { rows } = await this.db.execute<{
       project_id: string;
       user_id: string;
       agent_session_id: string | null;
-    }>(sql`SELECT project_id, user_id, agent_session_id FROM claim WHERE id = ${claimId}`);
+      scope_spec_ids: string[] | null;
+      scope_file_globs: string[] | null;
+    }>(sql`SELECT project_id, user_id, agent_session_id, scope_spec_ids, scope_file_globs
+             FROM claim WHERE id = ${claimId}`);
     const claim = rows[0];
     if (claim === undefined || claim.project_id !== actor.projectId) {
       // 남의 프로젝트 클레임은 **없는 것**이다 — 존재를 알려 주지 않는다
@@ -879,7 +887,34 @@ export class TaskService {
         claim_id: claimId,
       });
     }
-    return { agentSessionId: claim.agent_session_id };
+    return {
+      agentSessionId: claim.agent_session_id,
+      scopeSpecIds: claim.scope_spec_ids ?? [],
+      scopeFileGlobs: claim.scope_file_globs ?? [],
+    };
+  }
+
+  /**
+   * 전표가 적은 이름으로 옮긴다 — `HeartbeatResult`(EP-TASK-07 · api.md §2.4).
+   *
+   * **두 표면이 같은 번역기를 쓴다**(D-05). 이 저장소는 번역을 한 표면에만 두었다가 이미
+   * 한 번 손해를 봤다: 리뷰 제출의 `body`→`body_md` 가 MCP 쪽에만 있어 REST 로 올린
+   * 지적의 본문이 전부 NULL 이었다(REQ-API-114). 게다가 REST 는 서비스 객체를 그대로
+   * 돌려주고 있어서 **전표가 `lease_expires_at` 이라 적은 키를 `leaseExpiresAt` 으로**
+   * 내보내고 있었다 — 소비자가 MCP 뿐이라 드러나지 않았을 뿐이다.
+   */
+  static toHeartbeatResult(beat: {
+    leaseExpiresAt: Date;
+    pending: unknown[];
+    scopeOverlaps: number;
+  }): { lease_expires_at: string; pending: unknown[]; scope_overlaps: number } {
+    return {
+      lease_expires_at: beat.leaseExpiresAt.toISOString(),
+      // 서버 → 세션 방향의 유일한 보장된 채널이다(agent-integration §2.4)
+      pending: beat.pending,
+      // 지금 내 범위와 겹치는 활성 클레임 수(block·warn만) — statusline 이 읽는다
+      scope_overlaps: beat.scopeOverlaps,
+    };
   }
 
   /**
@@ -896,12 +931,35 @@ export class TaskService {
     progress?: string | null;
     /** 세션 카드의 +N −M — 카탈로그가 처음부터 적고 있던 셋(REQ-API-081) */
     stats?: { added?: number; removed?: number; files?: number } | null;
-  }): Promise<{ leaseExpiresAt: Date; pending: unknown[] }> {
+  }): Promise<{ leaseExpiresAt: Date; pending: unknown[]; scopeOverlaps: number }> {
     const owned = await this.assertClaimOwner(input.claimId, input.actor, 'heartbeat');
 
     const leaseExpiresAt = await this.db.transaction(async (tx) =>
       this.claims.renewLease(tx, input.claimId, input.leaseSeconds),
     );
+
+    /**
+     * **겹침 수는 하트비트가 답한다**(2026-09-06 · 사람 결정 · REQ-API-116).
+     *
+     * 클레임 응답에도 겹침이 오지만 그것은 **잡던 순간의 사실**이다 — 겹침은 시간이
+     * 지나며 생긴다(다른 세션이 나중에 같은 범위를 잡는다). 클레임 시점 값을 캐시에
+     * 박아 두면 상태줄이 옛날 사실을 계속 보이게 되고, 그것은 0 보다 나쁘다.
+     *
+     * 스킬·문서·statusline 셋이 이 값을 쓰라고 적어 두고 **응답에 없어서** 상태줄의
+     * 그 칸이 영원히 0 이었다(규약 6 이 이름 붙인 "유령 응답 필드"). 판정은 클레임과
+     * **같은 함수**를 쓴다 — 겹침을 두 곳에서 세면 두 수가 갈라진다(D-05).
+     *
+     * `info` 는 세지 않는다. 한 줄짜리 상태줄에서 "그 밖의 스침"까지 세면 숫자가 늘
+     * 켜져 있어 아무것도 알리지 못한다 — 세는 것은 막힘(block)과 경고(warn)다.
+     */
+    const overlaps = await this.db.transaction(async (tx) =>
+      this.claims.detectOverlaps(tx, {
+        projectId: input.actor.projectId,
+        sessionId: owned.agentSessionId,
+        scope: { specIds: owned.scopeSpecIds, fileGlobs: owned.scopeFileGlobs },
+      }),
+    );
+    const scopeOverlaps = overlaps.filter((o) => o.severity !== 'info').length;
 
     if (input.progress != null && input.progress !== '') {
       await this.db.execute(
@@ -912,7 +970,7 @@ export class TaskService {
     // 역채널 — 답변된 질문을 여기 싣는다. Claude 의 channel capability 는 향상이고
     // 하트비트가 정본이다(Codex 에는 채널이 없다). 여기 실리지 않으면 에이전트는 모른다.
     const sessionId = owned.agentSessionId;
-    if (sessionId === null) return { leaseExpiresAt, pending: [] };
+    if (sessionId === null) return { leaseExpiresAt, pending: [], scopeOverlaps };
 
     // **세션 카드의 +N −M 이 여기서 채워진다.** 열은 처음부터 있었고 읽는 화면도 있었는데
     // 쓰는 곳이 없어 실사용 세션 34개 전부 `+0 −0` 이었다(실측 2026-09-03). 하트비트는
@@ -939,7 +997,7 @@ export class TaskService {
       this.sessions.takePendingInstructions(sessionId),
     ]);
     // 지시가 앞이다 — stop 은 지금 하던 것을 멈추라는 말이라 답변보다 먼저 읽혀야 한다
-    return { leaseExpiresAt, pending: [...instructions, ...answers] };
+    return { leaseExpiresAt, pending: [...instructions, ...answers], scopeOverlaps };
   }
 
   /**
@@ -1192,6 +1250,12 @@ export class TaskService {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.blocked_reason_required'), {
           kind: 'blocked_reason_required',
         });
+      }
+      // **어휘 판정은 도메인 한 곳이다**(D-05). REST 는 zod 가 먼저 보지만 MCP 는 인자를
+      // 문자열로 그대로 실어 오므로(`task.tools.ts`), 여기서 보지 않으면 도구 경로로 들어온
+      // 아무 문자열이 저장된다 — 그러면 화면의 blocked 필터가 그 순간부터 사실을 못 센다.
+      if (input.blockedReason != null && input.blockedReason !== '') {
+        assertVocab([input.blockedReason], BLOCKED_REASONS, 'blocked_reason');
       }
 
       await tx.execute(sql`
