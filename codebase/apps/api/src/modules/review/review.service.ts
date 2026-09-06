@@ -62,6 +62,41 @@ export interface SubmitFinding {
 }
 
 /**
+ * 표면이 받은 발견을 **저장 형태로 옮긴다** — REST·MCP 가 이 하나를 쓴다(D-05).
+ *
+ * 계약의 이름과 열의 이름이 다르다: 부르는 쪽은 `body`·`suggestion` 을 보내고 저장은
+ * `body_md`·`suggestion_md` 다. 예전에는 이 번역이 **MCP 쪽에만** 있었고 REST 컨트롤러는
+ * 캐스팅만 했다 — 타입은 맞았으므로 컴파일도 검사도 통과했고, 그래서 **REST 로 올린
+ * 리뷰는 지적 본문과 제안이 전부 NULL 로 저장됐다.** 같은 요청에 두 표면이 다르게 답한
+ * 것이라 D-05 가 깨진 자리다(REQ-API-114). 번역을 한 곳에 두면 다음에 필드가 늘어도
+ * 한쪽만 늘어나지 않는다.
+ */
+export function toSubmitFindings(value: unknown): SubmitFinding[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((raw) => {
+    const f = raw as Record<string, unknown>;
+    return {
+      severity: (f['severity'] ?? 'info') as 'info',
+      title: String(f['title'] ?? ''),
+      body_md: typeof f['body'] === 'string' ? f['body'] : null,
+      suggestion_md: typeof f['suggestion'] === 'string' ? f['suggestion'] : null,
+      category: typeof f['category'] === 'string' ? f['category'] : null,
+      file: typeof f['file'] === 'string' ? f['file'] : null,
+      line: typeof f['line'] === 'number' ? f['line'] : null,
+      symbol: typeof f['symbol'] === 'string' ? f['symbol'] : null,
+      requirement_id: typeof f['requirement_id'] === 'string' ? f['requirement_id'] : null,
+      spec_version_id: typeof f['spec_version_id'] === 'string' ? f['spec_version_id'] : null,
+      // 선언된 area 만 받는다 — 모르는 값은 안 준 것으로 보고 서버가 추론한다.
+      // 어휘는 아래 `FINDING_AREAS` 하나다(REQ-CB-006 — 예전에는 도구 파일이 같은 배열을
+      // 따로 들고 있었다).
+      area: (FINDING_AREAS as readonly string[]).includes(String(f['area']))
+        ? (f['area'] as SubmitFinding['area'])
+        : null,
+    };
+  });
+}
+
+/**
  * 출처로 유추하는 규칙 — 정본: api.md §2.11.
  *
  * **선언이 언제나 이긴다.** 추론은 안 준 값을 채우는 것이지 준 값을 고치는 것이 아니다.

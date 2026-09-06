@@ -7,11 +7,7 @@
 import { Injectable } from '@nestjs/common';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { ReviewService } from './review.service.js';
-import { resolutionOf } from './review.service.js';
-import type { SubmitFinding } from './review.service.js';
-
-/** 선언된 area 만 받는다 — 모르는 값은 안 준 것으로 보고 서버가 추론한다 */
-const AREAS = ['codebase', 'spec', 'task', 'process'];
+import { resolutionOf, toSubmitFindings } from './review.service.js';
 
 @Injectable()
 export class ReviewTools implements NervToolProvider {
@@ -91,7 +87,7 @@ export class ReviewTools implements NervToolProvider {
             risk: (reviewer.risk ?? null) as 'low' | null,
           },
           summaryMd: typeof input['summary'] === 'string' ? input['summary'] : null,
-          findings: asFindings(input['findings']),
+          findings: toSubmitFindings(input['findings']),
           payloadRef: typeof input['payload_ref'] === 'string' ? input['payload_ref'] : null,
         });
         return {
@@ -175,24 +171,4 @@ export class ReviewTools implements NervToolProvider {
 
 function asStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-}
-
-function asFindings(value: unknown): SubmitFinding[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((raw) => {
-    const f = raw as Record<string, unknown>;
-    return {
-      severity: (f['severity'] ?? 'info') as 'info',
-      title: String(f['title'] ?? ''),
-      body_md: typeof f['body'] === 'string' ? f['body'] : null,
-      suggestion_md: typeof f['suggestion'] === 'string' ? f['suggestion'] : null,
-      category: typeof f['category'] === 'string' ? f['category'] : null,
-      file: typeof f['file'] === 'string' ? f['file'] : null,
-      line: typeof f['line'] === 'number' ? f['line'] : null,
-      symbol: typeof f['symbol'] === 'string' ? f['symbol'] : null,
-      requirement_id: typeof f['requirement_id'] === 'string' ? f['requirement_id'] : null,
-      spec_version_id: typeof f['spec_version_id'] === 'string' ? f['spec_version_id'] : null,
-      area: AREAS.includes(String(f['area'])) ? (f['area'] as SubmitFinding['area']) : null,
-    };
-  });
 }

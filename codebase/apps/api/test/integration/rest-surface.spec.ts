@@ -21,6 +21,7 @@ let app: NestFastifyApplication;
 let adminToken: string;
 let viewerToken: string;
 let narrowToken: string;
+let reviewToken: string;
 let projectId: string;
 let orgId: string;
 let adminId: string;
@@ -52,6 +53,16 @@ beforeAll(async () => {
         'task:update',
         'review:resolve',
       ],
+    })
+  ).token;
+  // 리뷰 제출은 `review:submit` 이 따로 있다 — adminToken 에 얹지 않는다.
+  // 얹으면 권한 집행을 보는 다른 검사들이 "어느 축이 통과시켰는가" 를 구별하지 못한다.
+  reviewToken = (
+    await auth.issueToken({
+      projectId,
+      userId: adminId,
+      name: 'admin-review-pat',
+      scopes: ['spec:read', 'review:submit'],
     })
   ).token;
   // **역할은 admin, 권한은 읽기뿐.** 역할만 보던 자리를 잡아내려면 이 조합이 필요하다 —
@@ -566,6 +577,54 @@ describe('세션 steer (EP-SES-04)', () => {
     // 지시는 한 번만 전달된다 — 두 번 주면 에이전트가 같은 지시를 두 번 따른다
     expect(await sessions.takePendingInstructions(sessionId)).toHaveLength(1);
     expect(await sessions.takePendingInstructions(sessionId)).toHaveLength(0);
+  });
+});
+
+describe('리뷰 제출 REST — 지적 본문이 저장까지 간다 (EP-REV-01 · REQ-API-114)', () => {
+  // **표면마다 번역이 따로 있으면 한쪽만 낡는다.** 계약은 `body`·`suggestion` 으로 오고
+  // 저장 열은 `body_md`·`suggestion_md` 인데, 그 번역이 MCP 쪽에만 있었고 REST 컨트롤러는
+  // 타입만 맞춰 캐스팅했다 — 컴파일도 lint 도 통과했고 **REST 로 올린 리뷰의 지적 본문과
+  // 제안은 전부 NULL 로 저장됐다.** 서비스를 직접 부르는 L2 는 이미 `body_md` 를 넘기고
+  // 있어 이 자리를 지나쳤다. 그래서 이 검사는 **실제 HTTP 로** 돈다.
+  it('body·suggestion 이 detail_md·suggestion_md 로 저장된다', async () => {
+    const res = await call('POST', '/api/v1/projects/clemvion/reviews', {
+      token: reviewToken,
+      payload: {
+        branch: 'feat/rest-review',
+        base_sha: 'base-rest',
+        head_sha: 'head-rest',
+        reviewer: { role: 'qa', risk: 'low' },
+        findings: [
+          {
+            severity: 'warning',
+            title: '요청 로거가 Authorization 헤더를 통째로 찍는다',
+            body: '마스킹 없이 토큰 원문이 로그에 남는다.',
+            suggestion: '헤더 화이트리스트를 두고 나머지는 가린다.',
+            file: 'apps/api/src/main.ts',
+            line: 42,
+          },
+        ],
+      },
+    });
+    expect(res.status).toBe(201);
+
+    const { rows } = await pool.query<{
+      detail_md: string | null;
+      suggestion_md: string | null;
+      file_path: string | null;
+      line_start: number | null;
+    }>(
+      `SELECT detail_md, suggestion_md, file_path, line_start
+         FROM finding
+        WHERE project_id = $1 AND title = $2`,
+      [projectId, '요청 로거가 Authorization 헤더를 통째로 찍는다'],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.detail_md).toBe('마스킹 없이 토큰 원문이 로그에 남는다.');
+    expect(rows[0]?.suggestion_md).toBe('헤더 화이트리스트를 두고 나머지는 가린다.');
+    // 같은 매퍼가 옮기는 나머지 필드도 함께 본다 — 한 칸만 고치고 끝내지 않기 위해서다
+    expect(rows[0]?.file_path).toBe('apps/api/src/main.ts');
+    expect(rows[0]?.line_start).toBe(42);
   });
 });
 

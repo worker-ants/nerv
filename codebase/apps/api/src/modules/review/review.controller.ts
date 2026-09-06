@@ -12,8 +12,7 @@ import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { principalOf } from '../../common/scope-check.js';
-import { ReviewService, resolutionOf } from './review.service.js';
-import type { SubmitFinding } from './review.service.js';
+import { ReviewService, resolutionOf, toSubmitFindings } from './review.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
@@ -41,7 +40,10 @@ export class ReviewController {
         risk: (input.reviewer?.risk ?? null) as 'low' | null,
       },
       summaryMd: input.summary ?? null,
-      findings: input.findings as unknown as SubmitFinding[],
+      // **캐스팅이 아니라 번역이다**(REQ-API-114). 계약은 `body`·`suggestion` 으로 오고
+      // 저장은 `body_md`·`suggestion_md` 다 — 예전에는 여기서 타입만 맞춰 넘겨 REST 로 올린
+      // 리뷰의 지적 본문이 전부 NULL 이었다. MCP 와 같은 매퍼를 쓴다.
+      findings: toSubmitFindings(input.findings),
       payloadRef: input.payload_ref ?? null,
     });
   }
