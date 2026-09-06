@@ -137,8 +137,10 @@ allowed-tools:
    그리고 **무엇이 바뀌었는지**다.
 
 ### edit — 초안 이어쓰기·피드백 반영
-1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments","requirements"]`)로
-   최신 본문과 open 코멘트를 읽는다. 응답의 `content_hash` 를 `base_hash` 로 쓴다 —
+1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments"]`)로
+   최신 본문과 open 코멘트를 읽는다. **`include` 의 어휘는 `tasks`·`comments`·`attachments`
+   셋뿐이고 그 밖의 값은 400 이다** — 요구사항은 늘 실려 오므로 달라고 하지 않는다.
+   응답의 `content_hash` 를 `base_hash` 로 쓴다 —
    **저장에 싣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
    아는 사실이라 묻지 않는다.
 2. 수정안을 만들어 사람에게 확인받고 `nerv_spec_draft_upsert`(`spec_id`, `base_hash`,

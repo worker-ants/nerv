@@ -1,10 +1,10 @@
 {
   "name": "@nerv/plugin",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "NERV Claude Code 플러그인 — 스킬 5종·훅·MCP 설정·statusline (docs/04-mvp/plugin.md 정본)",
+  "description": "NERV Claude Code 플러그인 — 스킬 6종·훅·statusline (docs/04-mvp/plugin.md 정본)",
   "scripts": {
     "test": "vitest run"
   },
