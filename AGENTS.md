@@ -53,7 +53,7 @@ nerv/
 
 - 커밋: Conventional Commits — `feat|fix|docs|refactor|test|chore(scope)`. scope 는 워크스페이스 이름(`api`·`web`·`schema`·`deploy`), 문서 작업은 `docs:`.
 - 구현 코드는 브랜치(`feat/…`·`fix/…`) + PR 필수, `main` 직접 push 금지([4.2](docs/04-mvp/codebase.md) §4.4). 문서 커밋은 현행 관례상 `main` 직접 커밋을 허용한다.
-- PR 본문에 관련 Task ID(`TSK-…`)와 스펙 고정 ID(`SPC-…`·`REQ-…`)를 남긴다.
+- PR 본문에 관련 Task 키(`<PRJ>-T-…` — 표시 키 규칙은 [3.3 데이터 모델](docs/03-proposal/data-model.md) §5.1)와 스펙 키·요구사항 번호(`REQ-…`)를 남긴다.
 
 ## 에이전트 행동 원칙
 

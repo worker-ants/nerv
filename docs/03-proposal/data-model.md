@@ -20,6 +20,7 @@ references:
   - 04-mvp/importer.md
   - 04-mvp/backlog.md
   - README.md
+  - ../AGENTS.md
 ---
 # 데이터 모델
 
