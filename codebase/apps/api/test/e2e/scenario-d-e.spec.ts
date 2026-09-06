@@ -274,6 +274,11 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
 
   it('0단계 — --server 없이 dry-run 이 완주한다 (REQ-IMP-011)', async () => {
     const out = await runCli([
+      // **`import` 을 생략하지 않는다** — 정본(4.7 §3.1)·백로그·CLI 자신의 usage 문구가
+      // 말하는 형태가 이것이고, 2026-09-06 에 파서가 그 낱말을 알게 됐다. 이 검사가
+      // 옛 형태를 부르고 있어서 **L3 만 빨갛게 됐다**: PR 레인에서 e2e 는 skip 이라
+      // preflight 도 PR 도 초록이었고, main 머지 커밋에서야 드러났다.
+      'import',
       'spec',
       '--root',
       fixtureRoot,
@@ -296,6 +301,7 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
   it('2·3단계 — --apply 로 적재하면 원문이 보존된다 (정보 손실 0)', async () => {
     const token = jiminToken;
     await runCli([
+      'import',
       'spec',
       '--root',
       fixtureRoot,
@@ -327,6 +333,7 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
   it('4단계 — 2회 연속 실행의 신규 레코드가 0이다 (성공 기준 0-7)', async () => {
     const before = await countSpecs();
     await runCli([
+      'import',
       'spec',
       '--root',
       fixtureRoot,
