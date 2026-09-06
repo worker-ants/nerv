@@ -53,7 +53,7 @@
     <h1>스펙 임포터</h1>
     <p class="lead">기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 <b>프로파일 기반 범용 임포터</b>의 확정판. 대상별 차이는 프로파일(§1.4)이 흡수하고 엔진은 하나다 — 내장 프로파일은 <code>clemvion</code>(FR-17 대상: 순수 스펙 135 md + plan 450 md)과 <code>nerv-docs</code>(도그푸딩) 2종이며, 다른 저장소는 프로파일 파일을 얹는다. 실행 모델은 <b>읽기는 클라이언트, 쓰기는 API</b>(2026-08-22 확정) — 원본 체크아웃이 있는 장비의 CLI가 파싱·리포트를 만들고(dry-run은 서버 없이 완결), <code>--apply</code>만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. 수용 기준은 REQ-IMP-001~017.</p>
     <div class="meta-line">
-      <span>버전 v0.19 (2026-09-06)</span>
+      <span>버전 v0.20 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/importer.md</code></span>
       <span>주로 다루는 것: FR-17 · D-12 · REQ-IMP-001~017</span>
     </div>
@@ -662,6 +662,7 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
       <tr><td><code>code-glob-no-match</code></td><td><span class="badge impl">manual</span></td><td><code>code:</code> glob 실존 검사 미매치 — <code>evidence.stale=true</code>(§2.3)</td></tr>
       <tr><td><code>pending-plan-unresolved</code></td><td><span class="badge impl">manual</span></td><td><code>pending_plans</code> 경로가 아직 Task로 해소되지 않음(P0에서는 전건 발생, P1에서 해소)</td></tr>
       <tr><td><code>owner-unmapped</code></td><td><span class="badge impl">manual</span></td><td><code>--owner-map</code>에 없는 owner 라벨 — assignee NULL 적재(§2.6)</td></tr>
+      <tr><td><code>blocked-reason-unknown</code></td><td><span class="badge impl">manual</span></td><td>원본의 막힘 사유가 어휘 4종(<code>BLOCKED_REASONS</code>) 밖 — NULL 적재. 임포터·MCP·웹이 각자 다른 문자열을 넣으면 화면의 막힘 필터가 사실을 못 센다(4.4 REQ-API-117)</td></tr>
       <tr><td><code>worktree-dead</code></td><td><span class="badge review">warn</span></td><td>plan <code>worktree:</code> 디렉터리가 현재 실존하지 않음(§2.6)</td></tr>
       <tr><td><code>source-deleted</code></td><td><span class="badge review">warn</span></td><td>재실행 시 원본 파일 소멸(§3.4)</td></tr>
       <tr><td><code>research-doc</code></td><td><span class="badge review">warn</span></td><td><code>plan/research/</code> — Task 미생성, 참고 문서 분류(§2.6)</td></tr>
@@ -687,7 +688,7 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
       <tr><td><b>REQ-IMP-007</b></td><td>WHEN 항목 1건이 자동 변환에 실패하면, THE SYSTEM SHALL 파일·줄·규칙·분류(abort/skip/manual/warn)를 리포트에 남기고, skip이면 다음 항목 처리를 계속한다</td></tr>
       <tr><td><b>REQ-IMP-008</b></td><td>WHEN plan의 <code>owner:</code> 라벨이 <code>--owner-map</code>에 없으면, THE SYSTEM SHALL <code>assignee_user_id</code>를 NULL로 적재하고 추정 배정하지 않는다</td></tr>
       <tr><td><b>REQ-IMP-009</b></td><td>WHEN 과거 plan을 Task로 적재하면, THE SYSTEM SHALL <code>claim</code>·<code>agent_session</code> 레코드를 생성하지 않고 <code>ready</code> 상태로 적재하지 않는다</td></tr>
-      <tr><td><b>REQ-IMP-010</b></td><td>WHEN nerv-docs 프로파일로 <code>docs/</code>를 임포트하면, THE SYSTEM SHALL 4부 8편을 frontmatter <code>status: draft</code> 그대로 draft SpecVersion으로 적재하고, 본문에 정의된 <code>REQ-*</code> ID를 requirement로 추출한다</td></tr>
+      <tr><td><b>REQ-IMP-010</b>(2026-09-06 개정)</td><td>WHEN nerv-docs 프로파일로 <code>docs/</code>를 임포트하면, THE SYSTEM SHALL 4부 8편을 <b>frontmatter 의 <code>status</code> 그대로</b>(현재 <code>approved</code>) SpecVersion으로 적재하고, 본문에 정의된 <code>REQ-*</code> ID를 requirement로 추출한다. <b>원본이 적은 값을 프로파일이 덮어쓰지 않는다</b> — 덮어쓰면 §2.4 의 원문 보존 제1규칙과 부딪힌다</td></tr>
       <tr><td><b>REQ-IMP-011</b></td><td>WHILE <code>--apply</code>가 지정되지 않은 동안, THE SYSTEM SHALL <code>--server</code> 없이도 스캔·파싱·검증·리포트·매니페스트 초안을 완주한다 — dry-run은 네트워크·서버·DB 어느 것에도 의존하지 않는다</td></tr>
       <tr><td><b>REQ-IMP-012</b></td><td>WHEN 임포터가 적재를 수행할 때, THE SYSTEM SHALL <code>DATABASE_URL</code>을 사용하지 않고 <code>import:write</code> 권한 PAT로 EP-IMP-01~<b>06</b>만 호출한다 — CLI는 DB 드라이버를 의존성으로 갖지 않는다</td></tr>
       <tr><td><b>REQ-IMP-013</b></td><td>WHEN 배치 전송이 타임아웃·네트워크 오류로 재시도되면, THE SYSTEM SHALL 같은 <code>Idempotency-Key</code>로 재전송해 중복 레코드를 0건 생성한다</td></tr>
@@ -713,7 +714,7 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
     <tbody>
       <tr><td>스캔</td><td><code>docs/**/*.md</code>(html 파생본은 제외 — md가 관리 원본)</td></tr>
       <tr><td>트리</td><td>디렉터리 구조 그대로 — <code>01-problem/</code>·<code>02-research/</code>·<code>03-proposal/</code>·<code>04-mvp/</code> → <code>area</code> 노드 4개, <code>README.md</code> → <code>vision</code>, 각 문서 → <code>design</code></td></tr>
-      <tr><td>frontmatter</td><td>4부 공통 규격 <code>id</code>(<code>SPC-MVP-&lt;SLUG&gt;</code>) / <code>status</code> / <code>updated</code> — <code>id</code> → <code>spec.key</code>, <code>status: draft</code> → <code>spec_version.status='draft'</code>, <code>updated</code> → 매니페스트 보존(서버 시각을 위조하지 않는다)</td></tr>
+      <tr><td>frontmatter</td><td>4부 공통 규격 <code>id</code>(<code>SPC-MVP-&lt;SLUG&gt;</code>) / <code>status</code> / <code>updated</code> — <code>id</code> → <code>spec.key</code>, <code>status</code> → <code>spec_version.status</code>(2026-09-06 현재 8편 모두 <code>approved</code>), <code>updated</code> → 매니페스트 보존(서버 시각을 위조하지 않는다)</td></tr>
       <tr><td>frontmatter 없는 기존 13편</td><td><code>frontmatter-missing</code>을 skip이 아니라 <b>warn</b>으로 낮추고 문서 버전 줄(<code>문서 버전 v0.1 · …</code>)에서 메타를 읽는 보조 규칙 적용, <code>status</code>는 <code>approved</code>(합의 완료된 제안서)</td></tr>
       <tr><td>요구사항</td><td>§2.5와 같은 휴리스틱 — <code>REQ-CB-###</code>·<code>REQ-DB-###</code>·<code>REQ-API-###</code>·<code>REQ-WEB-###</code>·<code>REQ-PLG-###</code>·<code>REQ-IMP-###</code>가 전부 <code>[A-Z]+-[A-Z]+-\d+</code>에 매칭된다. 이 문서의 REQ-IMP-001~010도 자기 자신에 의해 추출된다</td></tr>
       <tr><td>상호 링크</td><td>상대링크 → <code>spec_relation(kind='references')</code> — 아직 없는 형제 문서 링크는 <code>link-unresolved</code>로 리포트에 남고, 문서 세트가 완성되면 재실행이 해소한다</td></tr>
@@ -723,7 +724,7 @@ nerv import rebuild-map --profile &lt;p&gt; --root &lt;경로&gt; --project &lt;
 
   <h3>5.2 frontmatter가 이 규격인 이유</h3>
 
-  <p>4부 문서 머리의 <code>id: SPC-MVP-&lt;SLUG&gt;</code> / <code>status: draft</code> / <code>updated:</code> 세 필드는 장식이 아니라 <b>임포터 입력 규격</b>이다. clemvion frontmatter(<code>id</code>/<code>status</code>/<code>code</code>/<code>pending_plans</code>)가 그 하네스의 기계 강제 대상이었듯, 이 문서 세트의 frontmatter는 nerv-docs 프로파일의 파싱 대상이다. 문서를 쓰는 순간 임포트 가능성이 확보되고, 임포트 후에는 이 문서들의 개정이 NERV의 정상 워크플로우(draft → in_review → approved)를 타게 된다 — 스펙 플랫폼의 스펙이 스펙 플랫폼 안에서 관리되는 상태가 도그푸딩의 완성이다.</p>
+  <p>4부 문서 머리의 <code>id: SPC-MVP-&lt;SLUG&gt;</code> / <code>status</code> / <code>updated:</code> 세 필드는 장식이 아니라 <b>임포터 입력 규격</b>이다. clemvion frontmatter(<code>id</code>/<code>status</code>/<code>code</code>/<code>pending_plans</code>)가 그 하네스의 기계 강제 대상이었듯, 이 문서 세트의 frontmatter는 nerv-docs 프로파일의 파싱 대상이다. 문서를 쓰는 순간 임포트 가능성이 확보되고, 임포트 후에는 이 문서들의 개정이 NERV의 정상 워크플로우(draft → in_review → approved)를 타게 된다 — 스펙 플랫폼의 스펙이 스펙 플랫폼 안에서 관리되는 상태가 도그푸딩의 완성이다.</p>
 
   <h3>5.3 매니페스트 실물 예시 (nerv-docs)</h3>
 

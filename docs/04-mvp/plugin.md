@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-PLUGIN
-status: draft
+status: approved
 updated: 2026-09-06
 ---
 # 플러그인과 온보딩
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.56 · 2026-09-06 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.57 · 2026-09-06 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.57 변경(2026-09-06 — 유령 응답 필드 둘을 갈랐다, 사람 결정): **패키지 0.2.13 → 0.2.14.** 스킬과 §3 이 *"응답 요약(scope 겹침 수 · 미해소 finding 수)을 `.nerv/cache/claim.json` 에 기록한다"* 고 지시하는데 하트비트 응답에는 그 둘이 **없었다** — statusline 의 두 칸이 영원히 0 이었다(규약 6 의 "유령 응답 필드"). 둘을 다르게 처리한다. **`scope_overlaps` 는 서버가 답하게 했다**(4.4 REQ-API-116) — 겹침은 시간이 지나며 생기므로 클레임 시점 값을 캐시에 박아 두면 상태줄이 옛날 사실을 계속 보인다. **`findings_open` 은 걷었다** — 그 숫자가 무엇을 세는지(내가 올린 것인가 · 이 브랜치의 것인가 · 이 Task 범위의 것인가)가 정해진 적이 없고, 정의 없는 숫자는 유령 필드를 유령 숫자로 바꾸는 것뿐이다. 곁들여 파생본의 statusline 전문이 2026-09-02 의 BSD `date` 수정을 받지 못한 채였던 것도 맞췄다.
 >
 > v0.56 변경(2026-09-06 — 스킬이 지시하는 도구가 목록에 없었다, 정합성 대조 → 사람 지시): **패키지 0.2.12 → 0.2.13.** ① `allowed-tools` 에 없는 도구 셋을 더한다 — `nerv_question_cancel`(question §2.4 7단계) · `nerv_finding_resolve`(impl 하트비트 pending) · `nerv_spec_attachment_read`(spec 첨부 되읽기). 이 저장소는 목록에서 빠진 것을 **매 호출 사람 승인**으로 설계했으므로(REQ-PLG-003), A2·A1 도구 셋이 의도 없이 그 레인에 있었다 — 프런트매터 세 줄이 빠진 결과다. ② **서버가 낸 길 넷을 스킬이 알게 한다**(규약 6-① — "받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다"): `nerv_spec_tree` 의 `around`·`hops`·`include_relations`(전역 그래프는 141노드·1,253간선이라 중심 주변만 보는 길이다) · `nerv_spec_search` 의 `references` · `nerv_review_submit` 의 `task_id`(리뷰를 Task 에 잇는 유일한 인자다)·`kind` · 클레임·하트비트의 `lease_seconds`. §2 전문은 `SKILL.md` 에서 기계로 동기했다(바이트 대조 47/47).
 >
@@ -84,7 +86,7 @@ updated: 2026-09-06
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.13
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.14
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -106,12 +108,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.13)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.14)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -499,8 +501,10 @@ allowed-tools:
     내 Requirement가 MODIFIED/REMOVED면 `nerv_task_update`(`status=blocked`,
     `blocked_reason=spec_conflict`) 또는 /nerv:question 으로 확인을 구하고, 아니면
     기준 버전대로 계속 진행하며 사람의 재브리핑을 기다린다(agent-integration §2.4).
-- 응답 요약(task_id · status · lease_expires_at · scope 겹침 수 · 미해소 finding 수)을
-  `.nerv/cache/claim.json`에 기록한다 — statusline이 이 파일만 읽는다.
+- 응답 요약(`task_id` · `status` · `lease_expires_at` · `scope_overlaps`)을
+  `.nerv/cache/claim.json`에 **응답의 키 이름 그대로** 기록한다 — statusline이 이 파일만 읽는다.
+  `scope_overlaps`는 **지금** 내 범위와 겹치는 활성 클레임 수(block·warn)다. 클레임 응답의
+  겹침은 *잡던 순간*의 사실이므로 그것을 캐시에 박아 두지 않는다 — 겹침은 뒤에 생긴다.
 - 리스 TTL은 30분(하트비트 30회분 여유)이다. 일시적 네트워크 실패로 하트비트가 몇 번
   빠져도 작업은 회수되지 않는다 — 조용히 재시도하되 30분 무활동이면 세션은 stale로
   전이되고 클레임이 회수된다.
@@ -950,8 +954,7 @@ statusline은 **수집이 아니라 표시**다. 네트워크 왕복 없이 두 
 | `claim_id` | string | `nerv_task_claim` 응답 |
 | `status` | string | 마지막 `nerv_task_update`의 상태 |
 | `lease_expires_at` | string(ISO 8601) | 마지막 하트비트 응답 |
-| `scope_overlaps` | number | 하트비트 응답의 겹침 알림 수 |
-| `findings_open` | number | 하트비트 응답의 미해소 finding 수(P2 전까지 0) |
+| `scope_overlaps` | number | **지금** 내 범위와 겹치는 활성 클레임 수(block·warn) — 하트비트 응답이 매번 다시 센다(2026-09-06 · REQ-API-116). 클레임 응답의 겹침은 *잡던 순간*의 사실이라 캐시에 박아 두지 않는다 |
 | `updated_at` | string(ISO 8601) | 파일 갱신 시각 |
 
 `statusline/nerv-statusline.sh` 전문:
@@ -983,7 +986,10 @@ task="$(jq -r '.task_id // "?"' "$cache")"
 st="$(jq -r '.status // "?"' "$cache")"
 exp="$(jq -r '.lease_expires_at // empty' "$cache")"
 ov="$(jq -r '.scope_overlaps // 0' "$cache")"
-fnd="$(jq -r '.findings_open // 0' "$cache")"
+# **`findings_open` 은 걷었다**(2026-09-06 · 사람 결정). 어느 응답에도 없는 값이라 이 칸은
+# 영원히 0 이었고, 그 숫자가 무엇을 세는지(내가 올린 것인가 · 이 브랜치의 것인가 · 이 Task
+# 범위의 것인가)도 정해진 적이 없다. 정의 없는 숫자를 상태줄에 올리면 유령 필드를 유령
+# 숫자로 바꾸는 것뿐이다. `scope_overlaps` 는 반대로 **하트비트가 실제로 답하게 했다**.
 
 remain="--:--"
 if [[ -n "$exp" ]]; then
@@ -1003,15 +1009,15 @@ fi
 
 printf '◆ NERV %s · %s %s · 리스 %s 남음 · scope 겹침 %s\n' \
   "${NERV_PROJECT:-?}" "$task" "$st" "$remain" "$ov"
-printf '  %s · ctx %s%%%s · 미해소 finding %s\n' \
-  "$model" "$ctx" "${cost:+ · \$$cost}" "$fnd"
+printf '  %s · ctx %s%%%s\n' \
+  "$model" "$ctx" "${cost:+ · \$$cost}"
 ```
 
 렌더 예(예시 데이터 한 벌 — 도현/mac-02 세션):
 
 ```text
 ◆ NERV clemvion · CLV-T-1KTDCK in_progress · 리스 12:40 남음 · scope 겹침 0
-  opus · ctx 38% · $2.14 · 미해소 finding 0
+  opus · ctx 38% · $2.14
 ```
 
 ### 3.3 `.mcp.json` 템플릿과 환경변수 전표
@@ -1274,7 +1280,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
 | 2 | 환경변수 | 아래 블록을 저장소 `.claude/settings.local.json` 의 `env` 에 둔다 — **Claude Code 의 유일한 자리다**(§3.3). `.nerv/env` 는 Codex 폴백이라 지금은 쓰지 않는다 | `/mcp` 연결 확인 |
 | 2a | MCP 설정 | 저장소 루트에 `.mcp.json` 을 둔다(§3.3 템플릿 그대로). **플러그인은 이 파일을 담지 않는다** — 서버 주소·토큰이 프로젝트마다 다르기 때문이다 | `/mcp` 에 `nerv` connected |
-| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.2.13 활성 표시 |
+| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.2.14 활성 표시 |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
 

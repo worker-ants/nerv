@@ -89,6 +89,12 @@ jobs:
       - name: md ↔ html 정합
         run: node scripts/check-md-html.mjs
 
+      # **전표가 소비자를 적으면 그것이 계약이다**(4.2 §5.2). `NERV_LOG_LEVEL` 은 소비자를
+      # "api · worker" 라 적어 두고 읽는 코드가 **0건**이었다 — 운영자가 값을 바꿔도 아무 일이
+      # 일어나지 않는 유령 설정이다. 반대 방향(코드가 읽는데 전표에 없다)도 함께 본다.
+      - name: .env 전표 정합
+        run: node scripts/check-env-table.mjs
+
       - name: schema drift
         # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제.
         # 선언만 바꾸고 drizzle/*.sql 을 빠뜨린 PR 은 여기서 멈춘다.

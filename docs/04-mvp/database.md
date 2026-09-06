@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-DATABASE
-status: draft
+status: approved
 updated: 2026-09-06
 ---
 # 데이터베이스 스키마
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 33종** — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 33 + 인프라 4(`auth_session`·`auth_account`·`auth_verification`·`spec_chunk_embedding`, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.34 · 2026-09-06 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.35 · 2026-09-06 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.35 변경(2026-09-06 — 결정 다섯을 닫는다, 사람 결정): **마이그레이션 `0021`.** `claim_release_reason` 에 서버 판정 값 둘을 더한다 — `session_end`(세션이 끝나며 회수) · `stopped`(사람이 중단해 회수). 0019 가 인계와 포기를 갈랐는데 **같은 결함이 두 경로에 그대로 남아** 둘 다 `manual` 이었다. `handoff`·`abandon` 에 얹지 않는 이유는 그 둘이 **고른** 값이고 이 둘은 **판정된** 값이기 때문이다 — 축이 다른 것을 같은 이름에 넣으면 0019 가 고친 오류를 반대 방향으로 반복한다. `manual` 은 걷지 않고(과거를 위조하지 않는다), `conflict` 는 남기되 **생산자가 없다는 사실**을 `enums.ts` 가 적는다 — 이 설계에서 겹침은 회수가 아니라 거절이다(D-04).
 >
 > v0.34 변경(2026-09-06 — 규칙을 적을 자리가 없었다, 정합성 대조 → 사람 지시): `requirement.priority` 의 `NOT NULL` 을 걷는다(마이그레이션 `0020`). [4.7 임포터](importer.md) §2.5 규칙 4 가 "우선순위 미표기는 NULL 로 두고 추정하지 않는다" 를 요구하는데 열이 그것을 받지 못해 임포터가 전건 `must` 를 넣고 있었다. **NULL 은 `must` 의 축약이 아니라 표기가 없었다는 사실**이다.
 >

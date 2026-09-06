@@ -175,20 +175,24 @@ export class TaskController {
     // `progress`·`stats`·`lease_seconds` 를 통째로 버렸다 — 서비스는 셋 다 받고 있었고
     // MCP 만 넘기고 있었다. 세션 카드의 +N −M 이 REST 경로에서만 비던 이유다.
     const input = parseBody(HeartbeatInput, body);
-    return this.tasks.heartbeat({
-      claimId: claim,
-      actor: claimActor(req),
-      progress: input.progress ?? null,
-      stats:
-        input.stats == null
-          ? null
-          : {
-              ...(input.stats.added == null ? {} : { added: input.stats.added }),
-              ...(input.stats.removed == null ? {} : { removed: input.stats.removed }),
-              ...(input.stats.files == null ? {} : { files: input.stats.files }),
-            },
-      ...(input.lease_seconds == null ? {} : { leaseSeconds: input.lease_seconds }),
-    });
+    // **두 표면이 같은 번역기를 쓴다**(D-05). 예전에는 서비스 객체를 그대로 돌려줘
+    // 전표가 `lease_expires_at` 이라 적은 키가 REST 에서만 `leaseExpiresAt` 이었다.
+    return this.tasks
+      .heartbeat({
+        claimId: claim,
+        actor: claimActor(req),
+        progress: input.progress ?? null,
+        stats:
+          input.stats == null
+            ? null
+            : {
+                ...(input.stats.added == null ? {} : { added: input.stats.added }),
+                ...(input.stats.removed == null ? {} : { removed: input.stats.removed }),
+                ...(input.stats.files == null ? {} : { files: input.stats.files }),
+              },
+        ...(input.lease_seconds == null ? {} : { leaseSeconds: input.lease_seconds }),
+      })
+      .then((beat) => TaskService.toHeartbeatResult(beat));
   }
 
   /** EP-TASK-08 */

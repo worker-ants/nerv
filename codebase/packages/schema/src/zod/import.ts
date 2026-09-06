@@ -5,6 +5,7 @@
 // 서버는 프로파일도 파싱 규칙도 모른다 — 이미 판정된 결과만 받는다.
 
 import { z } from 'zod';
+import { BLOCKED_REASONS } from '../enums.js';
 
 /** 프로파일 — **클라이언트 것이다.** 서버는 이름만 기록한다(importer.md §1.4 경계 1). */
 export const importProfileSchema = z.object({
@@ -172,7 +173,14 @@ export const importTaskItemSchema = z.object({
   assignee_user_id: z.string().nullable().optional(),
   source_spec_key: z.string().nullable().optional(),
   depends_on: z.array(z.string()).default([]),
-  blocked_reason: z.string().nullable().optional(),
+  /**
+   * 막힘 사유 — **어휘는 하나다**(`BLOCKED_REASONS` · REQ-API-117).
+   *
+   * 임포터도 예외가 아니다: 세 표면(임포터·MCP·웹)이 각자 다른 문자열을 넣으면 화면의
+   * 막힘 필터가 그 순간부터 사실을 못 센다. 원본이 어휘 밖의 말을 적었으면 **NULL 로
+   * 두고 수동 확인 큐로 올린다** — 지어내지 않는 것이 §2.5 규칙 4 와 같은 원칙이다.
+   */
+  blocked_reason: z.enum(BLOCKED_REASONS).nullable().optional(),
   /**
    * 완료 시각 — **적재 시각이 아니다**(2026-08-24 신설).
    *

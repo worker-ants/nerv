@@ -337,8 +337,11 @@ export class SessionService {
          WHERE id = ${input.sessionId} AND project_id = ${input.projectId}
       `);
 
+      // **세션이 끝나서 회수된 것이다** — 사람이 고른 이유가 아니다(2026-09-06 · 0021).
+      // 2026-09-06 까지 이 자리와 stop 회수가 둘 다 `manual` 이라, 0019 가 갈라 놓은
+      // "왜 내려놨나" 가 이 두 경로에서만 답을 못 하고 있었다.
       const { rows: released } = await tx.execute<{ id: string; task_id: string }>(sql`
-        UPDATE claim SET status = 'released', released_at = now(), release_reason = 'manual'
+        UPDATE claim SET status = 'released', released_at = now(), release_reason = 'session_end'
          WHERE agent_session_id = ${input.sessionId} AND status = 'active'
         RETURNING id, task_id
       `);
@@ -433,8 +436,9 @@ export class SessionService {
 
       let reclaimed = 0;
       if (input.kind === 'stop') {
+        // **사람이 중단해서 회수된 것이다** — 그 세션이 고른 이유가 아니다(0021).
         const { rows: released } = await tx.execute<{ id: string; task_id: string }>(sql`
-          UPDATE claim SET status = 'released', released_at = now(), release_reason = 'manual'
+          UPDATE claim SET status = 'released', released_at = now(), release_reason = 'stopped'
            WHERE agent_session_id = ${session.id} AND status = 'active'
           RETURNING id, task_id
         `);

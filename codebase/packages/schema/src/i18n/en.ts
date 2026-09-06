@@ -21,6 +21,10 @@ export const en = {
   'apierr.unauthenticated': 'You need to sign in',
   'apierr.unavailable': 'Could not reach the server — you are seeing cached content',
   'apierr.unknown': 'Unknown error',
+  'blocked.awaiting_answer': 'Waiting on an answer',
+  'blocked.dependency_broken': 'A dependency broke',
+  'blocked.external': 'Something outside the repo',
+  'blocked.spec_conflict': 'Conflicts with the base spec',
   'cli.reason.plan_many_refs':
     'The body names {count} requirements — the document does not say which one it implements, so no link is made',
   'cli.reason.plan_no_done_at':

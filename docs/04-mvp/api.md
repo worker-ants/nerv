@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-API
-status: draft
+status: approved
 updated: 2026-09-06
 ---
 # API 명세
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.99 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.0 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.0 변경(2026-09-06 — 결정 다섯을 닫는다, 사람 결정): **REQ-API-116·117 신설 · `EP-TASK-07` 응답 확장 · `EP-TASK-09` 의 `note` 폐기.** ① 하트비트가 **`scope_overlaps`** 를 준다(REQ-API-116) — 스킬·문서·statusline 셋이 이 값을 쓰라고 적어 두고 응답에 없어서 상태줄의 그 칸이 **영원히 0** 이었다. 겹침은 시간이 지나며 생기므로 클레임 시점 값으로는 답이 되지 않고, 판정은 클레임과 **같은 함수**를 쓴다(D-05). 곁들여 REST 가 서비스 객체를 그대로 돌려주며 전표가 `lease_expires_at` 이라 적은 키를 **`leaseExpiresAt`** 으로 내보내던 것을 공통 번역기로 고쳤다. ② `blocked_reason` 이 **어휘 4종**으로 좁혀진다(REQ-API-117) — `z.string()` 이라 아무 문자열이나 들어왔고, 그러면 화면의 필터가 그 순간부터 사실을 못 센다. MCP 는 인자를 문자열로 실어 오므로 **판정은 도메인 한 곳**이다. ③ **`note` 를 걷는다** — 전표와 스키마에 있었는데 컨트롤러가 넘기지 않고 서비스가 받지 않아 **받고 버려지고** 있었다(400 도 아니고 저장도 아닌 조용한 성공). 전이의 사유를 남기는 칸은 이미 둘이고 셋째 칸이 무엇을 답하는지는 정해진 적이 없다 — `.strict()` 덕분에 이제 명시적 400 이다.
 >
 > v0.99 변경(2026-09-06 — 계약이 실물보다 좁았다, 정합성 대조 → 사람 지시): `EP-IMP-02` 의 `requirements[]` 열에 **`acceptance_md`** 와 **`ordinal`** 을 더하고 `priority` 가 **null 을 받는다**는 사실을 적는다([4.7 임포터](importer.md) §2.5 규칙 2·4·7). 새 요구사항은 없다 — 규칙이 요구하던 것을 계약이 나르지 않고 있던 자리다.
 >
@@ -888,9 +890,9 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-TASK-04 | `GET /api/v1/projects/{proj}/tasks/{task}` | 전 역할 | — | `TaskDetailResult`(위임 명세·활성 클레임·의존·Evidence) | — |
 | EP-TASK-05 | `PATCH /api/v1/projects/{proj}/tasks/{task}` | planner·developer·admin **AND `task:update`** | `TaskUpdateInput`(위임 명세·priority·의존) | `TaskResult` — 위임 명세 4요소 충족 + 의존 해소 시 서버가 `ready` 승격 | `task.ready`(승격 시) |
 | EP-TASK-06 | `POST /api/v1/projects/{proj}/tasks/{task}/claim` | viewer 제외 전 역할(`task:claim`) | `TaskClaimInput`(session_id?, scope{spec_ids, file_globs}, lease_seconds?) — **`branch`·`worktree` 는 이 전표에 없다**: 그 둘은 클레임이 아니라 세션의 속성이고 훅이 `X-NERV-Branch`·`X-NERV-Worktree` 로 싣는다(§2.5b · REQ-API-079) | `TaskClaimResult`(claim_id, lease_expires_at, warnings[]) — 겹침 `block`이면 409 `NERV_CONFLICT_SCOPE` | `task.claimed` / `claim.conflict_warn` / `claim.conflict_blocked` |
-| EP-TASK-07 | `POST /api/v1/projects/{proj}/claims/{claim}/heartbeat` | 클레임 보유자 | `HeartbeatInput`(progress, stats{added, removed, files}) | `HeartbeatResult`(새 lease_expires_at + pending 질문 답변·steer/stop 지시) | — (이벤트 없음 — `last_heartbeat_at` 갱신만) |
+| EP-TASK-07 | `POST /api/v1/projects/{proj}/claims/{claim}/heartbeat` | 클레임 보유자 | `HeartbeatInput`(progress, stats{added, removed, files}) | `HeartbeatResult`(새 `lease_expires_at` + `pending` 질문 답변·steer/stop 지시 + **`scope_overlaps`** — 지금 내 범위와 겹치는 활성 클레임 수(block·warn만). 클레임 응답의 겹침은 *잡던 순간*의 사실이라 statusline 은 이 값을 쓴다 · REQ-API-116) | — (이벤트 없음 — `last_heartbeat_at` 갱신만) |
 | EP-TASK-08 | `POST /api/v1/projects/{proj}/claims/{claim}/release` | 클레임 보유자 또는 admin | `ClaimReleaseInput`(reason: **done/handoff/abandon — 어휘 밖은 400** 이다(2026-09-05 · REQ-API-107. 그전에는 REST 가 "셋 중 하나가 아니면 handoff" 로 조용히 바꿨고, 저장은 `done` 외를 전부 `manual` 로 뭉쳤다), state_note) | `ClaimReleaseResult`(Task 최종 상태 — `claimed → ready` 회수 또는 유지) | ★`claim.released` + `task.ready`(회수 시) |
-| EP-TASK-09 | `POST /api/v1/projects/{proj}/tasks/{task}/transition` | 담당자·planner·admin(`task:update`) | `TaskTransitionInput`(status, note, evidence{commit_sha, pr_url, test_ids}, blocked_reason) | `TaskResult` 또는 409(게이트 거부 사유 — FR-10) | `task.blocked` · `task.done` · 기타 전이는 ★`task.updated`(payload에 from/to) |
+| EP-TASK-09 | `POST /api/v1/projects/{proj}/tasks/{task}/transition` | 담당자·planner·admin(`task:update`) | `TaskTransitionInput`(status, evidence{commit_sha, pr_url, test_ids}, blocked_reason — **어휘 4종**(`awaiting_answer`·`dependency_broken`·`spec_conflict`·`external`)이고 `@nerv/schema` 의 `BLOCKED_REASONS` 가 정본이다. ~~`note`~~ 는 **2026-09-06 걷었다** — 받고 버려지던 필드라 이제 `.strict()` 가 400 을 낸다) | `TaskResult` 또는 409(게이트 거부 사유 — FR-10) | `task.blocked` · `task.done` · 기타 전이는 ★`task.updated`(payload에 from/to) |
 
 클레임의 원자성·겹침 판정 알고리즘·`severity_of` 규칙은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §4.4가 정본이다. `done` 전이는 같은 문서 §4.6의 6조건 판정이며, **MVP(P1)에서는 리뷰 커버리지 조건(1~3)을 제외한 조건(4 Evidence·5 `spec_impact` 선언·6 테스트 증적)만 검사**한다([로드맵](../03-proposal/roadmap.md) FR-10 — 리뷰 커버리지는 P2). 리스 상수는 TTL 30분·하트비트 60초([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §4.5).
 
@@ -1319,6 +1321,8 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-113 | WHEN 전표가 요청 스키마 이름을 인용하면 THE SYSTEM SHALL 그 이름이 `@nerv/schema` 의 export 로 **실재하게** 하고, 그 1:1 을 검사로 센다 — §1.7 의 선언이 오랫동안 거짓이었고(인용하는 이름 대부분이 코드 어디에도 없었다), **틀린 문서는 확신을 준다**(2026-09-05) | 전표 `*Input` 33종 전수 대조 1건 · 세는 대상이 0 이 아닌지 1건 |
 | REQ-API-114 | WHEN EP-REV-01 이 발견의 `body`·`suggestion` 을 받으면 THE SYSTEM SHALL **REST 와 MCP 가 같은 번역기를 거쳐** `body_md`·`suggestion_md` 로 저장한다 — 번역이 MCP 쪽에만 있어 **REST 로 올린 리뷰는 지적 본문과 제안이 전부 NULL 이었고**(타입은 맞아 컴파일도 검사도 통과했다), 발견의 본문이 없으면 그 발견은 게이트의 근거가 되지 못한다(D-05 · 2026-09-06) | REST 제출 → `detail_md`·`suggestion_md`·`file_path`·`line_start` 저장 1건(L2, 실제 HTTP) |
 | REQ-API-115 | WHEN EP-REQ-03 이 증적을 적재하면 THE SYSTEM SHALL 같은 트랜잭션에서 ★`evidence.added` 를 발행한다(`subject_type=requirement`) — 전표가 발생 이벤트를 적으면 그것이 계약인데 이 경로는 INSERT 만 하고 있었고, 같은 이름을 내는 곳은 GitHub 웹훅 하나였다: 증적이 실시간으로 화면에 닿지 않고 감사 축(FR-16)에도 남지 않았다(2026-09-06) | REST 증적 등록 후 `event` 한 행 1건(L2) |
+| REQ-API-116 | WHEN EP-TASK-07 하트비트가 응답하면 THE SYSTEM SHALL `scope_overlaps`(지금 그 클레임의 범위와 겹치는 활성 클레임 수 — `block`·`warn`만)를 함께 준다 — 스킬·문서·statusline 셋이 이 값을 쓰라고 적어 두고 **응답에 없어서** 상태줄의 그 칸이 영원히 0 이었다(규약 6 의 "유령 응답 필드"). 겹침은 시간이 지나며 생기므로 클레임 시점 값으로는 답이 되지 않는다. 판정은 클레임과 **같은 함수**를 쓴다(D-05) |
+| REQ-API-117 | WHEN EP-TASK-09 또는 `nerv_task_update` 가 `blocked_reason` 을 받으면 THE SYSTEM SHALL `@nerv/schema` 의 `BLOCKED_REASONS` 4종 밖의 값을 400 으로 거절한다 — 어휘가 코드에 없으면 임포터·MCP·웹이 각자 다른 문자열을 넣고 **화면의 필터가 그 순간부터 사실을 못 센다**. 판정은 도메인 한 곳이다: MCP 는 인자를 문자열로 실어 오므로 zod 만으로는 그 경로가 열린 채로 남는다 |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 묶어 둔 버전**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다 |

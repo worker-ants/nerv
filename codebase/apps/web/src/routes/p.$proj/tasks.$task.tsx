@@ -4,7 +4,7 @@
 // 증적. 조건 5(스펙 영향)가 clemvion 에서 가장 잘 작동한 규칙의 이식이라, "없음"도 명시적으로
 // 고르게 만든다. 빈 선언을 허용하면 규칙이 사라진다.
 
-import { statusLabelKey } from '@nerv/schema';
+import { BLOCKED_REASONS, blockedReasonLabelKey, statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -371,12 +371,23 @@ function TaskDetail(): React.JSX.Element {
                 {t('task.to_done')}
               </Button>
               <span aria-hidden="true" className="h-5 w-px bg-border" />
-              <Input
+              {/* **자유 텍스트가 아니라 어휘 4종이다**(2026-09-06 · REQ-API-117). 예전에는
+                  아무 문장이나 받아 서버에 그대로 실었고, 그러면 막힘 필터가 그 순간부터
+                  사실을 못 센다 — 같은 뜻을 사람마다 다른 문자열로 적기 때문이다.
+                  고르는 것으로 바꾸면 화면이 서버가 받을 것만 보인다(§1.8). */}
+              <Select
                 value={blockedReason}
                 onChange={(e) => setBlockedReason(e.target.value)}
-                placeholder={t('task.blocked_reason')}
+                aria-label={t('task.blocked_reason')}
                 className="w-56"
-              />
+              >
+                <option value="">{t('task.blocked_reason')}</option>
+                {BLOCKED_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {t(blockedReasonLabelKey(reason))}
+                  </option>
+                ))}
+              </Select>
               <Button
                 variant="danger"
                 disabled={blockedReason.trim() === '' || transition.isPending}

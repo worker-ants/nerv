@@ -24,7 +24,10 @@ task="$(jq -r '.task_id // "?"' "$cache")"
 st="$(jq -r '.status // "?"' "$cache")"
 exp="$(jq -r '.lease_expires_at // empty' "$cache")"
 ov="$(jq -r '.scope_overlaps // 0' "$cache")"
-fnd="$(jq -r '.findings_open // 0' "$cache")"
+# **`findings_open` 은 걷었다**(2026-09-06 · 사람 결정). 어느 응답에도 없는 값이라 이 칸은
+# 영원히 0 이었고, 그 숫자가 무엇을 세는지(내가 올린 것인가 · 이 브랜치의 것인가 · 이 Task
+# 범위의 것인가)도 정해진 적이 없다. 정의 없는 숫자를 상태줄에 올리면 유령 필드를 유령
+# 숫자로 바꾸는 것뿐이다. `scope_overlaps` 는 반대로 **하트비트가 실제로 답하게 했다**.
 
 remain="--:--"
 if [[ -n "$exp" ]]; then
@@ -44,5 +47,5 @@ fi
 
 printf '◆ NERV %s · %s %s · 리스 %s 남음 · scope 겹침 %s\n' \
   "${NERV_PROJECT:-?}" "$task" "$st" "$remain" "$ov"
-printf '  %s · ctx %s%%%s · 미해소 finding %s\n' \
-  "$model" "$ctx" "${cost:+ · \$$cost}" "$fnd"
+printf '  %s · ctx %s%%%s\n' \
+  "$model" "$ctx" "${cost:+ · \$$cost}"

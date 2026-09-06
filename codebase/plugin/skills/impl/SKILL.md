@@ -47,8 +47,10 @@ allowed-tools:
     내 Requirement가 MODIFIED/REMOVED면 `nerv_task_update`(`status=blocked`,
     `blocked_reason=spec_conflict`) 또는 /nerv:question 으로 확인을 구하고, 아니면
     기준 버전대로 계속 진행하며 사람의 재브리핑을 기다린다(agent-integration §2.4).
-- 응답 요약(task_id · status · lease_expires_at · scope 겹침 수 · 미해소 finding 수)을
-  `.nerv/cache/claim.json`에 기록한다 — statusline이 이 파일만 읽는다.
+- 응답 요약(`task_id` · `status` · `lease_expires_at` · `scope_overlaps`)을
+  `.nerv/cache/claim.json`에 **응답의 키 이름 그대로** 기록한다 — statusline이 이 파일만 읽는다.
+  `scope_overlaps`는 **지금** 내 범위와 겹치는 활성 클레임 수(block·warn)다. 클레임 응답의
+  겹침은 *잡던 순간*의 사실이므로 그것을 캐시에 박아 두지 않는다 — 겹침은 뒤에 생긴다.
 - 리스 TTL은 30분(하트비트 30회분 여유)이다. 일시적 네트워크 실패로 하트비트가 몇 번
   빠져도 작업은 회수되지 않는다 — 조용히 재시도하되 30분 무활동이면 세션은 stale로
   전이되고 클레임이 회수된다.

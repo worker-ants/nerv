@@ -27,3 +27,15 @@ export type StatusLabelKey = MessageKey & `status.${string}`;
 export function statusLabelKey(entity: LabeledEntity, value: string): StatusLabelKey {
   return `status.${entity}.${value}` as StatusLabelKey;
 }
+
+/**
+ * 막힘 사유 라벨 — 값은 식별자이고 사람에게 보일 말은 카탈로그에 있다.
+ *
+ * 어휘 자체의 정본은 `enums.ts` 의 `BLOCKED_REASONS` 다(REQ-CB-006). 여기 있는 것은
+ * 그 값에서 **기계적으로** 문구 키를 얻는 규칙이고, 표를 두 벌 관리하지 않기 위해서다.
+ */
+export type BlockedReasonLabelKey = MessageKey & `blocked.${string}`;
+
+export function blockedReasonLabelKey(reason: string): BlockedReasonLabelKey {
+  return `blocked.${reason}` as BlockedReasonLabelKey;
+}

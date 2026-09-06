@@ -1,13 +1,15 @@
 ---
 id: SPC-MVP-BACKLOG
-status: draft
+status: approved
 updated: 2026-09-06
 ---
 # 백로그
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.18 · 2026-09-06 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.19 · 2026-09-06 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.19 변경(2026-09-06 — 스토리 없이 들어온 구현 둘): §1.4 셋째 표에 **`.env` 전표 정합 게이트**와 **로그 수준 배선**을 더한다. 둘 다 [4.2](codebase.md) §5.2 가 계약으로 적어 두고 코드에 없던 자리이고, 어느 스토리에도 속하지 않는다.
 >
 > v0.18 변경(2026-09-06 — 스토리 없이 들어온 구현 셋): §1.4 셋째 표에 **에러 코드 → UI 매핑 한 곳** · **S3 우측 레일 넷** · **웹 클레임·근거 카드**를 더한다. 셋 다 [4.5](screens.md)가 이름까지 적어 두고 저장소에는 없던 자리이고, 어느 스토리에도 속하지 않는다(E08 의 남은 둘은 그대로다).
 >
@@ -111,6 +113,8 @@ updated: 2026-09-06
 | 에러 코드 → UI 매핑 한 곳 | `apps/web/src/lib/api-errors.ts`(`describeApiError` · `useApiError`) | [4.5](screens.md) §1.5 표가 "모든 화면의 기본값" 으로 선언된 계약인데 코드를 보는 자리가 셋뿐이었다(2026-09-06) |
 | S3 우측 레일 넷 | `features/spec-editor/{requirement-panel,source-view,terminal-handoff}.tsx` | [4.5](screens.md) §2.4 가 이름까지 적어 두고 저장소에 없던 것들(2026-09-06) |
 | 웹 클레임·근거 카드 | `routes/p.$proj/tasks.$task.tsx` | [4.5](screens.md) §2.5 화면 요소 "사람 클레임"·출처 역링크(2026-09-06) |
+| `.env` 전표 정합 게이트 | `codebase/scripts/check-env-table.mjs` | 전표가 소비자를 적으면 계약인데 `NERV_LOG_LEVEL` 은 읽는 코드가 0건이었다(2026-09-06 · [4.2](codebase.md) §5.2) |
+| 로그 수준 배선 | `apps/api/src/common/log-level.ts` | 두 진입점이 같은 함수로 읽는다 — 장애 때 로그를 늘릴 손잡이가 재배포뿐이었다(2026-09-06) |
 
 #### 이 절은 언제 갱신되는가
 

@@ -30,6 +30,10 @@ export const ko = {
   'apierr.unauthenticated': '로그인이 필요합니다',
   'apierr.unavailable': '서버에 닿지 못했습니다 — 캐시된 내용을 보고 있습니다',
   'apierr.unknown': '알 수 없는 오류입니다',
+  'blocked.awaiting_answer': '답변 대기',
+  'blocked.dependency_broken': '선행 의존이 깨짐',
+  'blocked.external': '저장소 밖의 사정',
+  'blocked.spec_conflict': '기준 스펙과 어긋남',
   'cli.reason.plan_many_refs':
     '본문이 요구사항 {count}건을 언급한다 — 무엇을 구현한 것인지 문서가 말하지 않아 링크하지 않는다',
   'cli.reason.plan_no_done_at':

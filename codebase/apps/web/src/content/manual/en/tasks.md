@@ -16,6 +16,8 @@ Lanes are task statuses.
 
 `in_review` is an **optional** step. Use it on a shared board when you want "the work is out, nobody has checked it yet" to be visible. Going straight from `in_progress` to `done` is fine — what actually gates completion is the evidence and the spec impact, not the lane.
 
+**A blocked reason is picked from four** — waiting on an answer, a dependency broke, conflicts with the base spec, something outside the repo. It is not a free-text box: when the same situation is written differently by different people, **counting how many tasks are blocked stops being true.** Anything more to say goes in a comment or a question.
+
 By default `backlog` is folded away; **Show backlog** brings it back. The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
 
 ## The four parts of a brief
