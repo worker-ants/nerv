@@ -56,6 +56,7 @@
       <span>버전 v0.59 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
+      <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
     </div>
   </header>
 
@@ -839,7 +840,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
   <h4><code>hooks/hooks.http.json</code> 전문 — 관리형 URL 통제가 필요할 때 (2026-09-03)</h4>
   <p><b>기본을 바꾼 이유</b>(2026-09-03 · 사람 결정). 실측: 실제로 도는 유일한 설치가 <code>.mcp.json</code> 을 손으로 다시 쓰고 훅 6종을 손으로 갈아 끼웠다 — <b>패키지가 배포 가능한 물건이 아니면 사람은 포크한다.</b> 그래서 <code>hooks/hooks.json</code>(기본)은 이제 <code>bin/nerv-hook-forward</code> 를 거치는 command 변형이고, http 변형은 <code>hooks/hooks.http.json</code> 으로 남는다.</p>
   <p>근거 셋. ① 훅 <code>url</code> 은 <code>${VAR}</code> 확장을 받지 않으므로 http 변형은 서버 주소가 파일에 박힌다. ② <b><code>async</code> 는 command 전용 필드다</b>(공식 문서 확인) — http 훅은 전부 동기라 <code>PostToolUse</code> 가 <b>매 도구 호출마다</b> 최대 <code>timeout</code> 만큼 기다린다. ③ 포워더에는 <code>hostname -s</code> 폴백이 있다.</p>
-  <p><b>대가는 하나다.</b> <code>allowedHttpHookUrls</code>(3.4 §6.4)는 http 훅에만 걸리므로 기본 변형의 훅을 덮지 않는다 — command 훅의 동등한 통제는 공식 문서에 없다. 그 성질이 필요한 조직은 http 변형을 쓰거나 <b>관리형 settings 로 훅 정의 자체를 내린다</b>(<code>hooks</code> 키는 관리형 파일에서도 유효하다). 후자가 더 강하다.</p>
+  <p><b>대가는 하나다.</b> <code>allowedHttpHookUrls</code>(<a href="agent-integration.html">3.4</a> §6.4)는 http 훅에만 걸리므로 기본 변형의 훅을 덮지 않는다 — command 훅의 동등한 통제는 공식 문서에 없다. 그 성질이 필요한 조직은 http 변형을 쓰거나 <b>관리형 settings 로 훅 정의 자체를 내린다</b>(<code>hooks</code> 키는 관리형 파일에서도 유효하다). 후자가 더 강하다.</p>
   <p>덧붙여 <b>"셸을 실행하지 않는다" 는 위안은 어느 변형에도 없었다</b> — http 변형의 SessionStart 에도 <code>bin/nerv-outbox flush</code> 가 command 훅으로 이미 들어 있다. 바뀐 것은 위험의 종류가 아니라 범위다.</p>
   <pre><code class="language-json">{
   &quot;$comment&quot;: &quot;http 변형 — allowedHttpHookUrls 로 훅 URL 을 묶어야 할 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가는 4.6 §3.1 이 적는다.&quot;,

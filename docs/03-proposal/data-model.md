@@ -1,3 +1,27 @@
+---
+referenced_by:
+  - 01-problem/clemvion-analysis.md
+  - 01-problem/pain-points.md
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/architecture.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/database.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - README.md
+  - ../AGENTS.md
+---
 # 데이터 모델
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **37개 엔티티**(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
@@ -8,7 +32,7 @@
 >
 > v0.12 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
-> v0.11 변경(2026-09-05 — 인계와 포기가 같은 값이 됐다, 정합성 감사 → 사람 결정): §2.5 `claim.release_reason` 의 값 목록을 여섯으로 고치고, **두 축**(부른 쪽이 고른 셋 · 서버가 판정한 둘)을 명기한다. 넷만 적혀 있던 동안 인계와 포기가 저장에서 구별되지 않았다(4.3 v0.29).
+> v0.11 변경(2026-09-05 — 인계와 포기가 같은 값이 됐다, 정합성 감사 → 사람 결정): §2.5 `claim.release_reason` 의 값 목록을 여섯으로 고치고, **두 축**(부른 쪽이 고른 셋 · 서버가 판정한 둘)을 명기한다. 넷만 적혀 있던 동안 인계와 포기가 저장에서 구별되지 않았다([4.3](../04-mvp/database.md) v0.29).
 > v0.10 변경(2026-09-05 — 의미 정본이 값 하나를 모르고 있었다, 정합성 감사): §2.7 `approval.subject_type` 이 다섯 값에서 멈춰 있었다 — `finding` 이 2026-08-23 에 더해졌고(critical 하향 A3 의 승인 카드) 4.3 DDL·enum 은 여섯인데 **의미 정본인 이 표만** 다섯이었다.
 > v0.9 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §2.2 리스 설명의 `base_version` 을 **`base_hash`** 로 고친다. **열 이름 `base_version_id` 는 그대로다** — 걷은 것은 요청 표면의 인자이지 계보 열이 아니다.
 > v0.8 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): 요약의 "29개 엔티티" 를 **37개**(도메인 33 + 인프라 4)로 고친다 — 이 문서가 엔티티 의미의 정본인데 그 수가 여덟 버전 낡아 있었고, 4.5·4.8 이 그 수를 그대로 인용하고 있었다.
@@ -1032,3 +1056,4 @@ fingerprint = sha256(
 - [3.5 스펙 워크플로우와 거버넌스](spec-workflow.md) — §1.4 상태 머신의 전이 조건·권한·게이트 규칙
 - [3.6 화면 설계 (와이어프레임)](ui-wireframes.md) — §4의 질의가 그리는 S1~S8 화면
 - [3.7 로드맵](roadmap.md) — §3 매핑을 실행하는 임포터와 clemvion 마이그레이션 계획(D-12)
+

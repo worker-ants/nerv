@@ -2,10 +2,22 @@
 id: SPC-MVP-DATABASE
 status: approved
 updated: 2026-09-06
+referenced_by:
+  - 03-proposal/data-model.md
+  - 04-mvp/scope.md
+  - 04-mvp/codebase.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - glossary.md
+  - README.md
+  - ../README.md
+  - ../AGENTS.md
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 33종** — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 33 + 인프라 4(`auth_session`·`auth_account`·`auth_verification`·`spec_chunk_embedding`, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 data-model.md이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 33종** — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 33 + 인프라 4(`auth_session`·`auth_account`·`auth_verification`·`spec_chunk_embedding`, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
 > 문서 버전 v0.35 · 2026-09-06 · HTML 파생본: [database.html](../html/database.html)
 >
@@ -21,11 +33,11 @@ updated: 2026-09-06
 >
 > v0.30 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
-> v0.29 변경(2026-09-05 — 인계와 포기가 같은 값이 됐다, 정합성 감사 → 사람 결정): `claim_release_reason` 에 **`handoff`·`abandon`** 을 더한다(`0019_release_reason_handoff`). 셋은 부른 쪽이 **고른** 이유이고 `expired`·`conflict` 는 서버가 **판정한** 이유다 — 축이 다르므로 같은 열에 두되 이름으로 드러나게 한다. **`manual` 은 걷지 않고 소급 변환도 하지 않는다**: 옛 행이 그때 무엇을 골랐는지 서버는 모르고, 모르는 것을 채우면 그 행은 사실이 아니게 된다(4.4 v0.87 · REQ-API-107).
+> v0.29 변경(2026-09-05 — 인계와 포기가 같은 값이 됐다, 정합성 감사 → 사람 결정): `claim_release_reason` 에 **`handoff`·`abandon`** 을 더한다(`0019_release_reason_handoff`). 셋은 부른 쪽이 **고른** 이유이고 `expired`·`conflict` 는 서버가 **판정한** 이유다 — 축이 다르므로 같은 열에 두되 이름으로 드러나게 한다. **`manual` 은 걷지 않고 소급 변환도 하지 않는다**: 옛 행이 그때 무엇을 골랐는지 서버는 모르고, 모르는 것을 채우면 그 행은 사실이 아니게 된다([4.4](api.md) v0.87 · REQ-API-107).
 > v0.28 변경(2026-09-05 — 파생본이 원본과 다른 말을 하고 있었다, 정합성 감사): html 파생본의 `REQ-DB-010` 이 **겸직을 금지로 읽히게** 적고 있었다(2026-08-23 개정 이전 버전) — 같은 파일의 인덱스 주석이 "유일성의 축에 역할이 들어간다" 고 적고 있어 **문서가 자기와 모순**됐다. DDL 전문에서 `claim.release_note`·`progress_note`·`agent_session.diff_files`·`activity_summary` 네 열과 §2.12 인덱스 **일곱 개**(고정 ID 유일성·멱등 키 경합 판정자 포함)가 빠져 있었다 — DDL 은 축약 대상이 아니라 전문 인용이라 빠진 만큼이 그대로 사실 손실이다.
 > v0.27 변경(2026-09-05 — 이 문서를 그대로 실행하면 고친 결함이 되살아났다, 정합성 감사): 이 문서는 머리에서 "SQL 을 그대로 실행하면 스키마가 선다" 를 목표로 적는데 두 자리가 그것을 배신하고 있었다. ① §2.7 의 `resolution_spec_change_cr_ck` 가 **완화 이전 버전**이었다 — v0.15(2026-08-30)가 "CR 또는 스펙 버전 둘 중 하나면 통과한다" 고 선언해 놓고 본문 DDL 을 고치지 않았다. 이 문서로 스키마를 세우면 **`spec_change` 처분이 다시 닿을 수 없는 값이 된다.** ② §4 개발 씨앗이 `spec:write`·`review:write`·`session:write` 를 심고 있었다 — **셋 다 어휘에 없다**(`0018_prune_dead_scopes` 가 걷어낸 값이고, v0.24 가 그것을 결함으로 이미 지목했다). 0018 은 심긴 행을 청소할 뿐이라 이 씨앗을 다시 쓰면 그대로 재발한다. §2.9 의 열 주석도 같은 값을 예시로 들고 있었다. 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES` 다.
 > v0.25 변경(2026-09-04 — 번호 하나가 둘이었다): **`REQ-DB-008` 이 서로 다른 두 요구사항에 붙어 있었다** — 기준선 불변과 `evidence` 앵커 CHECK. 규약 5 는 번호의 재사용을 금지한다. 인용 관계로 갈랐다: 기준선 쪽은 DDL 주석·[4.4](api.md) REQ-API-015·`packages/schema/src/tables/spec.ts` **세 곳에서 인용**되고 있어 008 을 유지하고, 인용이 0건인 `evidence` 쪽에 끝번호 **REQ-DB-022** 를 준다. **`REQ-DB-020` 은 배정된 적이 없다**(2026-09-04 이력 확인): `f9a35d8` 이 그 시점 끝번호 019 다음에 021 을 부여하면서 건너뛴 것이고, 저장소 어디에도 그 번호를 쓴 흔적이 없다 — 예약도 폐기도 아니다. 그래도 채우지 않는다. 규약이 "끝번호에 추가" 라고 적고, 지금 메우면 번호가 시간 순서를 잃는다.
-> v0.24 변경(2026-09-04 — 토큰에 남아 있던 죽은 권한): `0018_prune_dead_scopes` 는 열을 더하지 않고 **값을 걷는다.** 개발 씨앗이 `spec:write`·`review:write`·`session:write` 를 심고 있었고 셋 다 어휘에 없어 `verifyPat` 이 사용 시점에 조용히 버렸다 — 권한은 새지 않았지만 설정 화면의 토큰 표가 그 값을 그대로 보여줘 **사람은 그 토큰이 쓰기 권한을 가졌다고 읽었다.** 발급 경로는 이미 `isAgentScope` 로 거르므로 남은 것은 과거의 잔재다. 지우는 것은 값이 아니라 설명이다(4.4 v0.64 REQ-API-085).
+> v0.24 변경(2026-09-04 — 토큰에 남아 있던 죽은 권한): `0018_prune_dead_scopes` 는 열을 더하지 않고 **값을 걷는다.** 개발 씨앗이 `spec:write`·`review:write`·`session:write` 를 심고 있었고 셋 다 어휘에 없어 `verifyPat` 이 사용 시점에 조용히 버렸다 — 권한은 새지 않았지만 설정 화면의 토큰 표가 그 값을 그대로 보여줘 **사람은 그 토큰이 쓰기 권한을 가졌다고 읽었다.** 발급 경로는 이미 `isAgentScope` 로 거르므로 남은 것은 과거의 잔재다. 지우는 것은 값이 아니라 설명이다([4.4](api.md) v0.64 REQ-API-085).
 > v0.23 변경(2026-09-03 — 받는 척하던 인자에 자리를 준다): 열 셋을 더한다(`0017_handoff_note`). `claim.release_note` 는 `nerv_task_release(state_note)` 의 인수인계 노트다 — **세션 타임라인이 아니라 클레임에** 붙는 이유는 다음 사람이 `nerv_task_next` 로 후보를 볼 때 거기서 읽어야 하기 때문이다. `claim.progress_note` 는 하트비트의 한 줄 요약(LWW — 이력이 아니라 '지금 무엇을 하는 중인가'). `agent_session.diff_files` 는 `stats` 의 셋째 값이다 — 줄 수만으로는 '한 파일을 크게' 와 '여러 파일을 조금' 이 같아 보인다. 계약 정본은 [4.4](api.md) §1.4e(REQ-API-081).
 > v0.22 변경(2026-09-02 — 사람 결정): §2.14 의 미구현(12개월 `DETACH`)에 **재검토 트리거를 숫자로** 적었다 — 파티션 24개 또는 `event` 1천만 행. "급하지 않다"는 판단은 있었는데 언제 다시 볼지가 없었고, 트리거 없는 유예는 유예가 아니라 망각이다. `0016` 은 걷어낸 정책 키를 저장된 값에서 지운다.
 > v0.21 변경(2026-09-02 — 계약의 실물화): **`idempotency_key` 신설**(0015 · §2.3b · 도메인 33종). [4.4](api.md) §1.5 가 "같은 저장소" 라고 적어 둔 그 저장소가 없었다 — 헤더도 도구 인자도 받기만 하고 버려졌고, 같은 클레임이 두 번 만들어졌다. 행에 `project_id` 가 없는 이유는 주체가 프로젝트가 아니라 자격증명이라서다.
@@ -65,7 +77,7 @@ updated: 2026-09-06
 | 테이블·컬럼·타입·제약의 **DDL 표현** | **이 문서** | §2 전문. 컬럼명은 data-model 필드 표와 1:1 — 예: `review_session`은 `head_sha`/`base_sha`, `spec_version`은 `edit_lease_user_id`/`edit_lease_session_id`/`edit_lease_expires_at` 3필드와 `author_session_id` |
 | 이벤트 이름(`<리소스>.<동사>`) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6 | `event.type` 값으로 인용만 한다(`spec.approved` · `task.claimed` · `session.stale` …) |
 | `nerv_*` 도구가 읽고 쓰는 계약 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2 | DDL 주석에서 도구 이름을 인용만 한다 |
-| REST·WS가 반환하는 필드 | [4.4 API 명세](api.md) | api.md가 이 문서의 컬럼명을 그대로 쓴다(교차 정합 규칙) |
+| REST·WS가 반환하는 필드 | [4.4 API 명세](api.md) | [api.md](api.md)가 이 문서의 컬럼명을 그대로 쓴다(교차 정합 규칙) |
 
 두 가지 예외만 이 문서가 추가한다. 어느 쪽도 data-model 필드의 이름·의미를 바꾸지 않는다.
 
@@ -373,7 +385,7 @@ CREATE TABLE spec_baseline_item (            -- junction — project_id 생략 �
 
 ### 2.3a 첨부 — attachment (2026-09-01 신설)
 
-근거: api.md §2.10. **파일은 오브젝트 스토리지에, 메타는 여기.** 첨부는 버전이 아니라 **문서에** 매단다 — 초안이 덮어써지는 동안에도 시안은 남아야 하고, 문서를 보관하면 함께 따라가야 한다.
+근거: [api.md](api.md) §2.10. **파일은 오브젝트 스토리지에, 메타는 여기.** 첨부는 버전이 아니라 **문서에** 매단다 — 초안이 덮어써지는 동안에도 시안은 남아야 하고, 문서를 보관하면 함께 따라가야 한다.
 
 ```sql
 CREATE TABLE attachment (
@@ -1555,3 +1567,5 @@ data-model §5.5의 9규칙이 어디서 강제되는지의 최종 답이다. "�
 - [Herding elephants: sharding Postgres at Notion — Notion](https://www.notion.com/blog/sharding-postgres-at-notion) — (2021-10-06) workspace ID 파티션 키. `(project_id, …)` 인덱스 규칙과 파티션 전략의 근거(data-model §5.3 재인용)
 - [Confluence Cloud REST API — Content versions](https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content-versions/) — (2026-08-13 확인) 정수 버전·복원은 새 버전·이력 불변. `spec_version_freeze` 트리거가 강제하는 인터페이스(data-model §2.2 재인용)
 - [Event Sourcing Pattern — Microsoft Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing) — (2026-03-27 갱신) 이벤트 로그와 개인정보의 충돌 경고 — `event.payload`에 ID 참조만 두는 근거(data-model §5.4 재인용)
+
+

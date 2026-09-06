@@ -2,6 +2,21 @@
 id: SPC-MVP-SCOPE
 status: approved
 updated: 2026-09-06
+referenced_by:
+  - 03-proposal/architecture.md
+  - 03-proposal/data-model.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/codebase.md
+  - 04-mvp/database.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/plugin.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - README.md
+  - ../README.md
+  - ../AGENTS.md
 ---
 # MVP 범위와 스택 확정
 
@@ -15,11 +30,11 @@ updated: 2026-09-06
 >
 > v0.20 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
-> v0.19 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): **§4.2 도구 21종 → 22종.** `nerv_question_cancel` 을 더한다 — `question_status.cancelled` 는 열거에 있었는데 만드는 경로가 없었고, **세션이 자기 질문을 거두는 유일한 길**이 MCP 다. 카탈로그는 24종이 된다(4.4 v0.88 · REQ-API-109).
-> v0.18 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §3.3 성공 기준과 §5 비범위의 `base_version` 을 **`base_hash`** 로 고친다(4.4 §1.4g).
+> v0.19 변경(2026-09-05 — 만들 수 없는 값 둘에 길을 낸다, 정합성 감사 → 사람 결정): **§4.2 도구 21종 → 22종.** `nerv_question_cancel` 을 더한다 — `question_status.cancelled` 는 열거에 있었는데 만드는 경로가 없었고, **세션이 자기 질문을 거두는 유일한 길**이 MCP 다. 카탈로그는 24종이 된다([4.4](api.md) v0.88 · REQ-API-109).
+> v0.18 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): §3.3 성공 기준과 §5 비범위의 `base_version` 을 **`base_hash`** 로 고친다([4.4](api.md) §1.4g).
 > v0.17 변경(2026-09-05 — Phase 표기를 현황으로, 정합성 감사 → 사람 결정): FR-09 행이 "S6 화면과 `/nerv:review` 스킬은 남아 있다" 라 적고 있었는데 **둘 다 들어와 있다** — 서버·도구·REST 7종·화면·스킬·소급 임포터까지. 리뷰 프롬프트 blob TTL 도 "MVP 범위 아님 · 참고로만 기재" 였으나 `retention.job.ts` 가 실제로 집행한다. 참고 문헌의 도구·스킬 수도 실물(21종 · 6종)로 고친다. **남은 Phase 2 는 게이트의 리뷰 커버리지 조건이다.**
 > v0.16 변경(2026-09-04 — 사람 결정): **`nerv_spec_attachment_read` 추가로 20종 → 21종**(§4.2). 올리는 길만 있고 **되읽는 길이 없었다** — 실사용 에이전트가 첨부 3건을 올려 두고 확인하지 못해 스토리지를 직접 두드리다 403 을 받았다. 되읽는 기본 길은 첨부 목록이 함께 주는 `url` 이고(REQ-API-089), 이 도구는 Bash 가 없는 세션의 좁은 길이다 — 응답에 파일을 싣지 않는 것이 2단계 업로드의 이유였으므로 예외를 텍스트·상한으로 좁혔다.
-> v0.15 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · 3.5 §1.2 · 4.4 §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
+> v0.15 변경(2026-09-02 — 정본 정합): 리스 인계 표기를 정본에 맞춘다(2026-09-02 · [3.5](../03-proposal/spec-workflow.md) §1.2 · [4.4](api.md) §1.4h): 2026-08-30 에 보유자를 `(user, session)` 으로 좁히고 인계를 `takeover` 로 명시화했는데, 그 개정이 이 문서까지 오지 않아 여전히 "같은 사용자면 자동 인계" 라고 적고 있었다. **L3 시나리오 D 가 그 문장대로 쓰여 있었고 그래서 실패했다** — 에이전트 규약(3.4)은 아예 "이 에러는 오지 않는다" 고 적어, 그 말을 믿은 에이전트는 웹이 열어 둔 초안 앞에서 멈춘다.
 > v0.14 변경(2026-09-01 — 사람 결정): **`nerv_spec_attach` 추가로 19종 → 20종**(§4.2). 디자인 시안을 문서에 매다는 길이 없었다 — 외부 링크는 스펙의 버전과 무관하게 바뀌어 "이 버전이 말하는 화면" 을 되짚을 수 없다.
 > v0.13 변경(2026-08-30 — 사람 요청): **`nerv_task_list` 추가로 18종 → 19종**(§4.2). `next` 는 `ready` 만 주고 `get` 은 아는 하나만 준다 — "이 프로젝트에 지금 무엇이 도는가" 는 셋째 물음이다.
 > v0.12 변경(2026-08-30 — 사람 결정): **MCP 도구 16종 → 18종**(§4.2). `nerv_task_get`·`nerv_task_create` 를 더한다 — REST 에는 Task 의 생성·조회가 처음부터 있었는데 MCP 에는 없어서, 에이전트가 **자기가 클레임할 다음 것만** 볼 수 있었고 별도 건을 남길 방법이 없었다. 스킬은 5종 그대로다.
@@ -106,7 +121,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 
 | 계층 | 확정 | 결정일 | 핵심 규약 |
 | --- | --- | --- | --- |
-| 언어/모노레포 | TypeScript + pnpm workspace — **구현 코드는 전부 저장소 `codebase/` 하위**. 워크스페이스 4종: `apps/web` · `apps/api` · `apps/cli` · `packages/schema` | 2026-08-13 (3부 원안) · 코드 위치 2026-08-21 · `apps/cli` 2026-08-22 | Turborepo는 빌드 시간이 아플 때 도입(트리거만 기록). 모노레포 루트 = `codebase/`([4.2 코드베이스와 배포](codebase.md) §1, REQ-CB-015). `apps/cli`(`@nerv/cli` — 임포터)는 컨테이너가 아니라 **원본 체크아웃이 있는 장비에 설치되는 클라이언트**다(codebase.md §1.3, REQ-CB-016·017) |
+| 언어/모노레포 | TypeScript + pnpm workspace — **구현 코드는 전부 저장소 `codebase/` 하위**. 워크스페이스 4종: `apps/web` · `apps/api` · `apps/cli` · `packages/schema` | 2026-08-13 (3부 원안) · 코드 위치 2026-08-21 · `apps/cli` 2026-08-22 | Turborepo는 빌드 시간이 아플 때 도입(트리거만 기록). 모노레포 루트 = `codebase/`([4.2 코드베이스와 배포](codebase.md) §1, REQ-CB-015). `apps/cli`(`@nerv/cli` — 임포터)는 컨테이너가 아니라 **원본 체크아웃이 있는 장비에 설치되는 클라이언트**다([codebase.md](codebase.md) §1.3, REQ-CB-016·017) |
 | 웹 | **Vite + React SPA** | 2026-08-14 | 정적 자산 배포. SSR 없음 |
 | API | **NestJS(Fastify 어댑터)** | 2026-08-14 | REST·MCP·WebSocket이 **같은 도메인 서비스를 DI로 공유**(D-05). 게이트 판정이 표면마다 갈라지는 것이 최악의 실패 |
 | DB | **Postgres** + **Drizzle** | Postgres 2026-08-13 · Drizzle 2026-08-20 | 스키마는 `packages/schema`에 TS로 선언, drizzle-kit 마이그레이션. 복잡 질의는 raw `sql` 1급 |
@@ -114,7 +129,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 인증 | **better-auth** | 2026-08-20 | organization 플러그인(조직·멤버십), api-key 플러그인 기반 PAT(해시 저장·프로젝트 소속). OAuth 2.1 리소스 서버는 Phase 2 |
 | 실시간 | **WebSocket + SSE 다중 채널**, 방송 MQ **Valkey pub/sub** (NestJS `@WebSocketGateway` socket.io + `@Sse()` 스트림) | WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21 | WS(`/ws`)는 웹 SPA 전용 — **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요), 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. SSE(`/sse/*`)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증([4.4 API 명세](api.md) §3.5). 팬아웃: EventService가 커밋 후 Valkey `nerv_events`에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
 | 에디터 | **TipTap + markdown 직렬화** | 2026-08-20 | 지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글 |
-| 그래프 시각화 | **Cytoscape.js + fcose** — 스펙 관계 그래프(4.5 §2.4a) | 2026-08-23 | compound(영역 묶음) 레이아웃이 도입 이유다 — 자체 구현하면 그것이 곧 레이아웃 엔진을 쓰는 일이 된다. MIT · 코어 의존 0. gzip 172KB라 **탭 진입 시 지연 로드**한다(목록 청크 552KB → 5KB 실측). 재검토 트리거: 노드 1,000을 넘어 canvas 렌더가 버거워지면 WebGL(sigma)로 옮긴다 |
+| 그래프 시각화 | **Cytoscape.js + fcose** — 스펙 관계 그래프([4.5](screens.md) §2.4a) | 2026-08-23 | compound(영역 묶음) 레이아웃이 도입 이유다 — 자체 구현하면 그것이 곧 레이아웃 엔진을 쓰는 일이 된다. MIT · 코어 의존 0. gzip 172KB라 **탭 진입 시 지연 로드**한다(목록 청크 552KB → 5KB 실측). 재검토 트리거: 노드 1,000을 넘어 canvas 렌더가 버거워지면 WebGL(sigma)로 옮긴다 |
 | MCP | MCP TypeScript SDK | 2026-08-13 (3부 원안) | 2026-07-28 리비전 기준 구현 + 구 리비전(2025-03-26~2025-11-25) 병행 서빙(D-11) |
 | 프론트 세부 | TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod | 2026-08-13 (3부 원안) | zod 스키마는 `packages/schema` 공유. WebSocket 이벤트 → Query 무효화 |
 | 테스트 | **Vitest**(L1 단위·L2 통합·L3 API E2E) + **Playwright**(L3 웹 E2E) | 2026-08-22 | 3계층 배치·명령·무게중심(L2)은 [4.2 코드베이스와 배포](codebase.md) §4.3 정본. L2는 mock 없이 실제 Postgres 상대(동시성 검증은 mock 금지 — AGENTS.md 규약과 동일). Playwright는 웹 E2E에만 — API 시나리오는 Vitest가 compose 스택 상대로 돈다 |
@@ -377,3 +392,5 @@ SKILL.md **5종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 - [4.6 플러그인과 온보딩](plugin.md) — §2 스킬 6종 전문과 Codex 경계
 - [4.7 스펙 임포터](importer.md) — FR-17 ◐ 범위의 파싱·멱등 규칙
 - [4.8 백로그](backlog.md) — §6.2 스파이크 E06과 운영 Postgres 확인 태스크
+
+

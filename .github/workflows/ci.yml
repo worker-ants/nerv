@@ -101,6 +101,13 @@ jobs:
       - name: .env 전표 정합
         run: node scripts/check-env-table.mjs
 
+      # **문서가 늘수록 문서 간 정합이 먼저 깨진다**(AGENTS.md 문서 작업 규약 7 · REQ-CB-030).
+      # 링크 없는 번호 인용("4.4 §1.6")은 도구가 따라갈 수 없어 깨져도 아무도 모르고, 사람이
+      # 적는 역참조 목록은 첫날부터 낡는다. 세는 것은 넷이다: 죽은 링크(md 링크 · html href·앵커) ·
+      # frontmatter `referenced_by`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 같은 줄 · 맨 참조.
+      - name: 문서 간 참조
+        run: node scripts/check-doc-links.mjs
+
       - name: schema drift
         # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제.
         # 선언만 바꾸고 drizzle/*.sql 을 빠뜨린 PR 은 여기서 멈춘다.
@@ -214,3 +221,17 @@ jobs:
       - name: E2E 스택 정리
         if: always()
         run: pnpm e2e:down
+
+  # 외부 URL 생존 — 근거 규율("접속 확인된 것만 싣는다")은 실을 때 한 번만 지켜지고 그 뒤 죽은
+  # URL 은 근거로 남는다. 야간 레인에서만 돈다: 네트워크 흔들림을 PR 레인에 두면 "원래 나던
+  # 빨강" 이 된다(구현 규약 7). 설정은 저장소 루트 lychee.toml.
+  link-check:
+    name: 외부 URL 생존 (야간)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config lychee.toml --no-progress 'docs/**/*.md' README.md AGENTS.md
+          fail: true

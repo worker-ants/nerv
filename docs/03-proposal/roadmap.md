@@ -1,3 +1,26 @@
+---
+referenced_by:
+  - 01-problem/clemvion-analysis.md
+  - 01-problem/pain-points.md
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/architecture.md
+  - 03-proposal/data-model.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
+  - 04-mvp/scope.md
+  - 04-mvp/api.md
+  - 04-mvp/screens.md
+  - 04-mvp/plugin.md
+  - 04-mvp/importer.md
+  - 04-mvp/backlog.md
+  - README.md
+  - ../README.md
+---
 # 로드맵
 
 > **요약** — NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 **조정(충돌 제거) → 가시성(세션·커버리지) → 거버넌스(승인·게이트) → 고도화**로 고정하고, Phase 0 PoC(2~3주) · Phase 1 MVP(4~6주) · Phase 2(4~6주) · Phase 3+(착수 조건 기반)로 나눈다. 각 Phase는 기간·범위(FR 번호)·산출물과 함께 **수치로 된 종료 조건**을 갖고, 그 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다(예: Phase 0은 두 호스트·세 세션 동시 작업에서 중복 클레임 0건). clemvion 이관은 D-12에 따라 **기계 산출물 먼저 → 스펙 → 사람 워크플로우 → 실시간**의 순서로 진행하며, 대상 규모는 `spec/` 384 md · `plan/` 450 md · `review/` 13,777 md(131MB)다. 마지막으로 도입 실패·규약 미준수·플랫폼 다운·리뷰 피로·벤더 API 변화 다섯 가지 리스크에 각각 계측 신호와 완화 수단을 붙였다.
@@ -12,8 +35,8 @@
 >
 > v0.4 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
-> v0.3 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): 성공 기준 1-11 의 `base_version` 충돌을 **`base_hash` 충돌**로 고친다(4.4 §1.4g).
-> v0.2 변경(2026-08-22): 4부 확정을 역반영 — Phase 0·1 범위 표에 **하이브리드 검색**(FTS+pg_trgm → 벡터·RRF·관계 확장 완성, 임베딩 제공자는 env 프로필)과 **탐색 UI**(퀵 스위처·관계 패널) 표기를 추가했다. 상세 정본은 [4.1 MVP 범위와 스택 확정](../04-mvp/scope.md) §2.1 · [4.4 API 명세](../04-mvp/api.md) §2.2b. FR 판정(●◐○)과 Phase 배분은 변경 없다 — 표기 보완이다. (인증 표기는 4.1 §2.1 콜아웃이 이미 대체: OAuth 2.1은 Phase 2, MVP는 PAT.)
+> v0.3 변경(2026-09-05 — 걷어낸 인자를 현재처럼 적고 있었다, 정합성 감사): 성공 기준 1-11 의 `base_version` 충돌을 **`base_hash` 충돌**로 고친다([4.4](../04-mvp/api.md) §1.4g).
+> v0.2 변경(2026-08-22): 4부 확정을 역반영 — Phase 0·1 범위 표에 **하이브리드 검색**(FTS+pg_trgm → 벡터·RRF·관계 확장 완성, 임베딩 제공자는 env 프로필)과 **탐색 UI**(퀵 스위처·관계 패널) 표기를 추가했다. 상세 정본은 [4.1 MVP 범위와 스택 확정](../04-mvp/scope.md) §2.1 · [4.4 API 명세](../04-mvp/api.md) §2.2b. FR 판정(●◐○)과 Phase 배분은 변경 없다 — 표기 보완이다. (인증 표기는 [4.1](../04-mvp/scope.md) §2.1 콜아웃이 이미 대체: OAuth 2.1은 Phase 2, MVP는 PAT.)
 
 ---
 
@@ -523,3 +546,4 @@ clemvion은 이미 `review/` 전체를 gitignore 처리했다가 **2일 만에 �
 - [3.4 에이전트 연동 설계](agent-integration.md) — Phase 0~2에서 늘어나는 MCP 도구 카탈로그와 배포 번들
 - [3.5 스펙 워크플로우와 거버넌스](spec-workflow.md) — Phase 1 승인 흐름·Phase 2 게이트 판정의 규칙 정의
 - [3.6 화면 설계 (와이어프레임)](ui-wireframes.md) — Phase 1(S1~S5·S7·S8 멤버·토큰 탭) · Phase 2(S6 · S8 연동·게이트 정책 탭)로 나뉘는 화면 구축 순서
+

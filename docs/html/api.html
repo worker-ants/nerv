@@ -51,11 +51,12 @@
 
   <header class="page-header">
     <h1>API 명세</h1>
-    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 24종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 3.4 §2, 이벤트 이름은 3.5 §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
+    <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 24종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 <a href="agent-integration.html">3.4</a> §2, 이벤트 이름은 <a href="spec-workflow.html">3.5</a> §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
       <span>버전 v1.2 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
-      <span>ID: <code>SPC-MVP-API</code> · status: draft</span>
+      <span>ID: <code>SPC-MVP-API</code> · status: approved</span>
+      <span class="refs">참조하는 문서: <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
     </div>
   </header>
 
@@ -1354,7 +1355,7 @@ basis_superseded: false
 
   <p>카탈로그는 <b>24종</b>이고 단계 분포는 <b>P0 8 · P1 14 · P2 2</b>다(2026-09-05 실측 — 도구 레지스트리 기준). P2 둘은 <code>nerv_review_submit</code>·<code>nerv_finding_resolve</code> 다. <a href="scope.html">4.1 MVP 범위와 스택 확정</a> 이 적은 <b>MVP 22종</b>(P0 8 + P1 14) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 <a href="agent-integration.html">에이전트 연동 설계</a> §2.3이 정본이고, 이 표는 <b>같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점</b>만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.</p>
 
-  <p>임포트 표면(§2.10)은 이 표에 없다 — <b>대응하는 MCP 도구가 없기 때문</b>이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). <b>에이전트가 관여하는 지점이 없다<b>(2026-09-06 — 래퍼 스킬을 걷었다 · [4.6](plugin.md) §2.5). 임포트는 사람이 도는 운영 작업이다.</p>
+  <p>임포트 표면(§2.10)은 이 표에 없다 — <b>대응하는 MCP 도구가 없기 때문</b>이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다(<a href="importer.html">4.7 스펙 임포터</a> §3.6). <b>에이전트가 관여하는 지점이 없다<b>(2026-09-06 — 래퍼 스킬을 걷었다 · [4.6](<a href="plugin.html">plugin.md</a>) §2.5). 임포트는 사람이 도는 운영 작업이다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>MCP 도구</th><th>티어</th><th>내부 서비스 메서드</th><th>REST 대응</th><th>비고</th></tr></thead>

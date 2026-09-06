@@ -1,3 +1,16 @@
+---
+referenced_by:
+  - 01-problem/pain-points.md
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/integration-tech.md
+  - 03-proposal/vision.md
+  - 03-proposal/data-model.md
+  - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
+  - 03-proposal/roadmap.md
+  - README.md
+---
 # 협업 플랫폼의 에이전트 통합 — "에이전트=팀원" 모델의 사실상 표준
 
 > **요약** — Linear·GitHub·Atlassian·Notion·Asana·Slack 6개 협업 플랫폼은 2025~2026년에 각자 AI 에이전트를 제품에 들였지만, 결론은 네 가지 패턴으로 수렴했다: ① 에이전트는 **별도 액터 타입**이되 사람과 같은 표면(할당·멘션)에 노출되고 책임은 사람에게 남는다 ② 작업 단위는 **세션(Session)이라는 1급 객체**이며 상태 머신 + 타입드 로그 + 산출물 역링크를 갖는다 ③ 산출물은 **항상 draft로 수렴**하고 "지시자≠승인자" 같은 승인 무결성 규칙이 붙는다 ④ 외부 에이전트 진입로는 **MCP + 이벤트 webhook**으로 표준화되고 관리자는 감사·allowlist·즉시 비활성화를 쥔다. 가장 정교하게 문서화된 규격은 Linear의 **세션 6상태 + 응답성 SLA(5초/10초/30분)와 5종 typed activity**이고, 가장 강한 거버넌스 축은 GitHub의 **`actor_is_agent` 감사 로그와 커밋→세션 역링크**다. 그러나 6개 플랫폼 중 어느 것도 **스펙·요구사항 도메인**을 모델링하지 않는다 — 이것이 NERV(가칭)가 상호작용 규약은 그대로 차용하되 스펙 도메인과 조정 계층은 자체 구축해야 하는 이유이며, 이 문서는 D-08·D-13과 FR-07·FR-08·FR-11·FR-16의 1차 근거다.

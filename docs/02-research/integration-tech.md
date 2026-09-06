@@ -1,3 +1,14 @@
+---
+referenced_by:
+  - 02-research/spec-driven-development.md
+  - 02-research/agent-orchestration.md
+  - 02-research/collab-platforms.md
+  - 03-proposal/architecture.md
+  - 03-proposal/agent-integration.md
+  - 03-proposal/roadmap.md
+  - 04-mvp/plugin.md
+  - README.md
+---
 # Claude Code/Codex 연동 기술 — 표면 목록과 NERV 결선도
 
 > **요약** — Claude Code는 훅 31종·MCP 클라이언트·스킬·서브에이전트·플러그인·헤드리스·Agent SDK·OTel까지 여덟 개의 공식 연동 표면을 열어두고 있고, 그중 `type:"http"` 훅 하나만으로 세션 전 생명주기를 래퍼 스크립트 없이 NERV(가칭) 수집 엔드포인트로 직접 POST할 수 있다. Codex도 MCP·훅(11종)·notify·OTel·비대화형 실행·AGENTS.md에서 거의 대칭이지만 **MCP의 resources·prompts·elicitation을 소비하지 못하고, 플러그인 마켓플레이스급 일괄 배포 체계가 없으며, cloud 태스크 생성 API가 문서화되어 있지 않다.** 이 격차가 D-05의 tools-first 설계를 강제한다 — 스펙 조회·클레임·리뷰 제출 같은 핵심 동작은 전부 MCP tools로 만들고 resources/prompts/elicitation/channels는 Claude 전용 향상으로만 얹는다. 수집은 훅(실시간 제어)과 OTel(정량 관측)의 이중 파이프라인으로 가되, 훅 페이로드의 `prompt_id`와 OTel 이벤트의 `prompt.id`가 같은 UUID라는 공식 조인 키가 있어 두 평면을 하나의 AgentSession으로 합칠 수 있다. 이 문서는 FR-15와 D-05의 1차 근거이며, 실제 도구 카탈로그·플러그인 구성·세션 시퀀스는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md)로 이어진다.
