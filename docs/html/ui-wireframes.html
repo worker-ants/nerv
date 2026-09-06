@@ -53,7 +53,7 @@
     <h1>화면 설계 (와이어프레임)</h1>
     <p class="lead">NERV 웹 화면 8종의 정보 구조 · 고충실도 와이어프레임 · 상태 표현 규칙 · 인터랙션 규약. 설계의 축은 하나다 — <b>화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.</b></p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-09-02)</span>
+      <span>버전 v0.4 (2026-09-06)</span>
       <span>원본: <code>docs/03-proposal/ui-wireframes.md</code></span>
       <span>주로 다루는 결정: D-02 · D-06 · D-08 · D-13 · D-14</span>
     </div>
@@ -167,7 +167,7 @@
       <rect x="396" y="328" width="410" height="32" rx="8" fill="var(--bg-elev)" stroke="var(--border)"/>
       <text x="410" y="348" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/sessions · /sessions/S-8f31 (Activity 타임라인)</text>
       <rect x="396" y="358" width="410" height="32" rx="8" fill="var(--bg-elev)" stroke="var(--border)"/>
-      <text x="410" y="378" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/reviews · /findings/FND-4a19 · /gates</text>
+      <text x="410" y="378" fill="var(--text-mute)" font-family="var(--font)" font-size="11">/reviews (발견 상세·게이트 현황은 그 안이다)</text>
 
       <text x="396" y="60" fill="var(--text)" font-family="var(--font)" font-size="11.5" font-weight="700">왜 받은 요청이 전역인가</text>
       <text x="396" y="80" fill="var(--text-mute)" font-family="var(--font)" font-size="11">사람은 여러 프로젝트에 속하지만 받은 요청은 하나여야 한다(FR-14).</text>
@@ -297,6 +297,14 @@
   <p>권한은 버튼을 <b>숨기지 않고 비활성화</b>한다. 숨기면 "이 작업을 누가 할 수 있는가"를 사람이 다시 물어야 하고, 그 질문의 답이 없던 것이 clemvion의 <code>owner</code> 자유 텍스트 문제였다(P7·FR-14).</p>
 
   <h2 id="sec-2">2. 화면별 와이어프레임 (S1~S8)</h2>
+
+  <h3 id="sec-2-0">2.0 읽는 법</h3>
+
+  <ul>
+    <li>각 화면 아래의 <code>(n)</code> 마커는 legend의 번호와 대응하고, legend 항목 끝에 관련 <b>FR/D 번호</b>를 붙였다.</li>
+    <li>아스키 아트는 레이아웃과 정보 우선순위를 정의할 뿐 최종 비주얼이 아니다 — 이 문서가 그 고충실도 렌더링이다.</li>
+    <li>예시 데이터는 <a href="vision.html">비전과 핵심 시나리오</a>의 페르소나(지민·서연·도현·하나·유나)와 동일한 인물·호스트·수치를 쓴다.</li>
+  </ul>
 
   <h3>2.1 S1 홈 대시보드</h3>
 

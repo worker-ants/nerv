@@ -1,13 +1,21 @@
 ---
 id: SPC-MVP-IMPORTER
 status: draft
-updated: 2026-08-22
+updated: 2026-09-06
 ---
 # 스펙 임포터
 
 > **요약** — 이 문서는 기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 **프로파일 기반 임포터**를 구현 착수 가능한 수준으로 확정한다. 임포터는 특정 저장소 전용이 아니다 — 스캔 글롭·제외 규칙·frontmatter 매핑·트리 규칙·기대 집계를 선언한 **프로파일**(§1.4)이 대상별 차이를 흡수하고, 엔진은 프로파일만 해석한다. 내장 프로파일은 `clemvion`(FR-17의 대상 — 순수 스펙 135 md + plan 450 md)과 `nerv-docs`(도그푸딩 — §5) 2종이며, 다른 저장소는 프로파일 파일을 얹어 같은 엔진을 재사용한다. 실행 모델은 **읽기는 클라이언트, 쓰기는 API**다(2026-08-22 확정 — §3.2): 원본 체크아웃이 있는 장비에서 `nerv import` CLI가 스캔·파싱·검증·리포트·매니페스트를 만들고(dry-run은 서버 없이 완결), `--apply`만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. **서버가 원본 파일에 접근할 수 있다는 전제를 두지 않는 것**이 이 구조의 이유다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 수용 기준은 REQ-IMP-001~017 — 프로파일 기대 집계에 대한 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
 >
-> 문서 버전 v0.15 · 2026-09-05 · HTML 파생본: [importer.html](../html/importer.html)
+> 문서 버전 v0.19 · 2026-09-06 · HTML 파생본: [importer.html](../html/importer.html)
+>
+> v0.19 변경(2026-09-06 — 규칙이 코드에 없었다, 정합성 대조 → 사람 지시): **§2.5 규칙 1·4·7 과 §3.4 를 실물에 맞춘다.** ① 규칙 1(정의는 표의 행)이 코드에 없어 **본문 산문의 참조가 전부 요구사항으로 승격**되고 있었다 — 파서가 표만 읽게 고쳤고, 정의 파일이 따로 있는 프로파일은 `tree.area_body_file` 로 그것을 말한다. ② 규칙 4 의 "미표기는 NULL" 은 **열이 `NOT NULL` 이라 적을 자리가 없었다**(전건 `must` 적재 — 규칙이 금지한 추정을 규칙을 어겨서가 아니라 자리가 없어서 하고 있었다). 마이그레이션 `0020` 이 제약을 풀었고 `req-priority-missing` 이 이제 실제로 발생한다. ③ 규칙 2 의 `acceptance_md` 와 규칙 7 의 `requirement_version` 이 계약·서버에 없었다 — 둘 다 배선했다(`ordinal` 은 "표 내" 가 아니라 **문서 내** 정의 순서다: 표가 여럿인 문서에서 겹치기 때문). ④ §3.4 — `content_hash` 축이 파일 전문 vs 본문으로 어긋나 `unchanged` 가 영원히 나오지 않았고, 자연 키도 같은 모양으로 어긋났으며, preflight **응답은 받아서 버려지고 있었다**. 셋을 고쳤다. `map-conflict` 는 매니페스트가 있어야 옳아서 아직 켜지 않는다 — 남았다고 적었다.
+>
+> v0.18 변경(2026-09-06 — 래퍼 스킬을 걷었다, 사람 결정): §3.6 을 **운영자 절차**로 고쳐 쓴다. 절차 자체(프로파일 → dry-run → 리포트 → 판단 → `--apply` → 멱등 검증)는 그대로이고 **실행하는 것이 스킬이 아니라 사람**이다. 그 절차를 지키는 것은 프롬프트가 아니라 도구라는 것도 적었다 — dry-run 기본값·종료 코드 셋·`manual` 큐가 이미 강제한다. **REQ-IMP-017**("스킬이 실행되면 사람 승인 없이 적재하지 않는다")은 **폐기**한다: 대상이 사라졌고, 그 요구가 지키려던 것은 REQ-IMP-013 이 도구로 지킨다. 번호는 재사용하지 않는다. 근거 전문은 [4.6](plugin.md) §2.5.
+>
+> v0.17 변경(2026-09-06 — 소급 결재자를 어떻게 적을지 정한다, 사람 판단): §2.3 이 "결재 메타를 위조하지 않는다: `approved_by_user_id` = NULL" 이라 적었고 구현은 처음부터 **적재에 쓴 PAT 소유자**를 적고 있었다. 둘 중 **실행자를 택한다** — 원본에 그 정보가 없으면 되찾을 방법이 없고, NULL 은 "승인 절차를 거쳤는데 누구인지 모른다" 로도 읽혀 오히려 사실을 덜 말한다. 소급이라는 사실은 `import.applied` 이벤트(`actor_user_id`·`profile`·`root_commit`)가 따로 남긴다. **남는 한계도 적었다**: `spec_version` 행에는 임포트 표시가 없어 이벤트를 보지 않고 결재 이력만 세는 질의는 소급분을 정상 승인으로 센다.
+>
+> v0.16 변경(2026-09-06 — 유령 플래그와 어긋난 기대치, 정합성 대조 → 사람 지시): **옵션 셋 · 기대 집계 · EP 범위.** ① `--rewrite-links`·`--split-checkboxes` 는 기본값까지 적혀 있는데 **`parseArgs` 가 그 이름을 읽지 않는다** — 주면 조용히 버려지고 사람은 링크 재작성본이 얹혔다고 믿는다. ○ 미구현으로 표기했다. ② `--owner-map` 은 "사용자 **이메일** 수동 매핑(**yaml**)" 이라 적었는데 실물은 **JSON · 사용자 UUID** 다 — 문서대로 yaml 을 넘기면 파싱 예외로 즉사하고, 이메일을 적으면 FK 위반으로 전건 실패한다. ③ 기대 집계가 abort 의 기준인데 **배포된 프로파일은 더 나중 실측을 들고 있다**(2026-08-23 · spec 136 · implemented 93 · plan 485). 어느 쪽이 틀린 것이 아니라 **측정 시점이 다르다** — 판정은 프로파일 값이 한다는 것을 명시했다. ④ `EP-IMP-01~05` 가 여섯 자리에 남아 있었다 — 리뷰 패스(`EP-IMP-06`)가 2026-08-24 에 더해졌고, REQ-IMP-012 는 그대로 두면 구현을 위반으로 만든다. ※ 남은 것(코드 쪽 결정이 필요해 열어 둔다): **`nerv import` 서브커맨드 부재**(실제로 도는 형태는 `nerv spec …` 인데 §3.1·스킬·CLI 자신의 usage 문구가 `nerv import` 를 말한다) · 매니페스트·`rebuild-map` 미구현 · preflight 응답 미사용 · `approved_by_user_id` 에 PAT 소유자를 적는 것 · 리포트의 `rule`/`hint`/`warn` 부재 · `nerv-docs` 프로파일의 §5.1 규칙 넷.
 >
 > v0.15 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -134,7 +142,7 @@ task:                        # plan 프로파일(P1) — §2.6
 | spec 스캔 | `spec/**/*.md` — 384 md |
 | spec 제외 | 기계생성 API 카탈로그 249 md(제외 글롭은 프로파일에 명시 고정) — 커밋 해시로 재생성 가능한 기계 산출물은 옮기지 않는다. `_prompts/`를 git에서 뺀 clemvion 자신의 판단, 그리고 "결론 영구·입력 휘발"(D-07)과 같은 원칙 |
 | plan 스캔 | `plan/{in-progress,complete,research}/**/*.md` — 450 md |
-| 기대 집계 | 적재 대상 총수 **135** — 불일치 시 **중단(abort)**. status 분포 **117/17/1** — 불일치 시 경고(warn) |
+| 기대 집계 | 적재 대상 총수 **135** — 불일치 시 **중단(abort)**. status 분포 **117/17/1** — 불일치 시 경고(warn). ※ **배포된 프로파일은 더 나중 실측을 들고 있다**(`profiles/clemvion.ts` — clemvion `04fe5962f` · 2026-08-23: spec 136 · implemented 93 / partial 17 / backlog 1 · plan 485 · review 1,984). abort 가 견주는 것은 **그 값**이고, 여기 수치는 [1.1](../01-problem/clemvion-analysis.md)의 2026-08-13 실측이다 — 원본이 움직인 만큼 다르다 |
 
 > **파싱 규칙 · frontmatter는 문서 선두 블록만 센다.** 단순 `grep '^status:'` 라인 집계는 **118/18/1/1(합 138)** 로 부풀려진다 — 규약 문서 `clemvion:spec/conventions/spec-impl-evidence.md`(5회)와 `clemvion:spec/conventions/swagger.md`(2회)가 **본문에 예시 frontmatter를 담고 있기 때문**이다. 임포터의 파서는 파일 첫 줄이 `---`일 때 그 블록 하나만 frontmatter로 취급하고, 본문 중간의 코드펜스·인용 예시는 절대 세지 않는다. 올바르게 파싱하면 117/17/1이고 합이 정확히 135로 맞는다([1.1 분석](../01-problem/clemvion-analysis.md) §3.1). 기대 집계를 프로파일에 선언해 두는 이유가 이것이다 — **측정 방법이 흔들리는 수치(P4)를 임포터가 재생산하면 안 된다.**
 
@@ -190,7 +198,9 @@ task:                        # plan 프로파일(P1) — §2.6
 
 > **손실 주의 — 구현 축 초기값은 문서 status의 복사본이다.** 문서 단위 값 하나를 요구사항 단위로 자동 분해할 수는 없다(로드맵 §7.3(1) 손실 주의). 1,750줄 문서에 status 값이 하나뿐이어서 `CCH-SE-02`("spec이 `필수`로 약속한 update dedup이 통째로 미구현")가 통과한 것이 D-02의 기원 사고다. 그래서 `partial` 문서에서 나온 모든 Requirement 행은 **수동 확인 큐**(리포트의 manual 분류, §4.1)에 올라가고, 사람이 요구사항 단위로 확정한다. 임포터는 이 확정을 대신하지 않는다.
 
-approved 버전의 결재 메타는 위조하지 않는다: `spec_version.approved_at` = 임포트 실행 시각(플랫폼 관점의 적재 시점), `approved_by_user_id` = NULL(소급 결재자 없음), `author_user_id` = 적재에 사용한 PAT의 소유자(§3.2 — CLI가 실행자를 자칭하지 않는다), `author_session_id` = NULL. 이후의 편집은 임포트가 아니라 정상 워크플로우(draft → in_review → approved, [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) 정본)를 탄다.
+approved 버전의 결재 메타는 **적재 시점의 사실만** 적는다: `spec_version.approved_at` = 임포트 실행 시각(플랫폼 관점의 적재 시점), **`approved_by_user_id` = 적재에 사용한 PAT 의 소유자**, `author_user_id` = 같은 사람(§3.2 — CLI 가 실행자를 자칭하지 않는다), `author_session_id` = NULL.
+
+> **왜 NULL 이 아닌가**(2026-09-06 결정 — 사람 판단). 예전에는 "결재 메타를 위조하지 않는다: `approved_by_user_id` = NULL(소급 결재자 없음)" 이라 적었고 구현은 처음부터 실행자를 적고 있었다. 둘 중 실행자를 택한다 — **원본에 그 정보가 없으면 되찾을 방법이 없고**, NULL 은 "승인 절차를 거쳤는데 누구인지 모른다" 로도 읽혀 오히려 사실을 덜 말한다. 적재는 실제로 그 PAT 소유자의 권한으로 일어난 일이므로 그 사람을 적는 편이 감사에 가깝다. **소급이라는 사실은 별도로 남는다** — 같은 트랜잭션이 `import.applied` 이벤트에 `actor_user_id`·`profile`·`root_commit`·건수를 적재하므로(§3.5), "이 승인이 게이트를 거친 것인가 임포트가 채운 것인가" 는 그 이벤트로 판별한다. **남는 한계도 적어 둔다**: `spec_version` 행 자체에는 임포트 표시가 없어, 이벤트를 보지 않고 결재 이력만 세는 질의는 소급 적재분을 정상 승인으로 센다. 그 구별이 필요해지면 열을 더하는 것이 다음 결정이다. 이후의 편집은 임포트가 아니라 정상 워크플로우(draft → in_review → approved, [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) 정본)를 탄다.
 
 ### 2.4 본문 처리 — 원문 보존이 제1규칙
 
@@ -204,13 +214,15 @@ clemvion의 요구사항 ID는 `NAV-WF-01` · `ED-CV-01` · `ND-AG-24` · `CCH-S
 
 | # | 규칙 |
 | --- | --- |
-| 1 | **정의 위치** — `_product-overview.md` 본문 표의 행 중 정규식 `[A-Z]+-[A-Z]+-\d+`에 매칭되는 ID 토큰을 가진 행만 정의로 취급한다. 본문 다른 곳의 등장은 참조일 뿐이며 행을 만들지 않는다 |
+| 1 | **정의 위치** — `_product-overview.md` 본문 표의 행 중 정규식 `[A-Z]+-[A-Z]+-\d+`에 매칭되는 ID 토큰을 가진 행만 정의로 취급한다. 본문 다른 곳의 등장은 참조일 뿐이며 행을 만들지 않는다. **정의를 가진 파일을 프로파일이 `tree.area_body_file` 로 선언하면 그 파일에서만 읽고**, 선언이 없는 프로파일(nerv-docs)은 모든 파일의 표를 읽는다 — 정의 파일이 따로 없다는 뜻이기 때문이다 |
 | 2 | **필드** — `requirement.ref` ← ID 원문(임포트 원본 어휘 계승 — 데이터 모델 §5.1 "요구사항 ref: `REQ-<영역>-<번호>` 또는 임포트 원본(`NAV-WF-01`)"). `statement_md` ← 행의 설명 셀 원문. `acceptance_md` ← 수용 기준 셀이 있으면 그 원문 — **EARS 정규화는 자동으로 하지 않는다**(사람 확인, 로드맵 §7.3(1)) |
 | 3 | **소속** — `requirement.spec_id` = 그 `_product-overview.md`를 본문으로 갖는 area 노드. feature 단위 재배치가 필요해 보이는 행은 수동 확인 큐로 |
-| 4 | **우선순위** — 필수→`must`, 권장→`should`(데이터 모델 §2.2의 매핑). 미표기는 NULL로 두고 추정하지 않는다 — plan `priority` 미선언을 null로 두는 로드맵 §7.3(2)와 같은 원칙 |
+| 4 | **우선순위** — 필수→`must`, 권장→`should`, 선택→`could`(데이터 모델 §2.2의 매핑). 미표기는 NULL로 두고 추정하지 않는다 — plan `priority` 미선언을 null로 두는 로드맵 §7.3(2)와 같은 원칙. 열 이름(`우선순위`/`priority`)이 있으면 그 셀만 보고, 없으면 어휘가 통째로 든 셀을 찾는다 |
 | 5 | **구현 상태** — `impl_status` 초기값은 소속 문서의 status 복사(§2.3 분해 표), `partial` 유래는 전건 수동 확인 큐 |
 | 6 | **중복 ref** — `UNIQUE (project_id, ref)` 위반이 되는 두 번째 정의 행은 건너뛰고(첫 행 적재) 수동 확인 큐로 |
-| 7 | **버전 델타** — `requirement.introduced_in_version_id` = `current_version_id` = 이번 임포트 버전. `requirement_version` 행은 `change_kind='added'`, `ordinal` = 표 내 순서, `statement_md` = 시점 스냅샷 |
+| 7 | **버전 델타** — `requirement.introduced_in_version_id` = `current_version_id` = 이번 임포트 버전. `requirement_version` 행은 `change_kind='added'`(재실행에서 기존 ref 를 다시 만나면 `modified`), `ordinal` = **문서 내 정의 순서**(표가 여럿이면 이어서 센다 — 표마다 0부터 세면 한 문서 안에서 순서가 겹쳐 정렬이 답을 못 낸다), `statement_md` = 시점 스냅샷 |
+
+> **`priority` 열은 2026-09-06 까지 `NOT NULL` 이었다.** 규칙 4 가 "미표기는 NULL" 을 요구하는데 저장이 그것을 받지 못했고, 임포터는 전건 `must` 를 넣고 있었다 — 원본에 우선순위가 적힌 적 없는 요구사항이 저장에서 "필수" 가 됐다는 뜻이다. 규칙이 금지한 추정을 **규칙을 어겨서가 아니라 적을 자리가 없어서** 하고 있었고, 그래서 `req-priority-missing`(class manual)도 한 번도 발생할 수 없었다. 마이그레이션 `0020` 이 제약을 풀었다.
 
 ✅ 마크는 읽지 않는다(§2.3 — 폐기). 상태 컬럼이 아예 없는 영역(`3-workflow-editor`·`7-channel-web-chat`)과 131개가 칠해진 영역(`2-navigation`)이 공존하는 표기를 신뢰할 수 없기 때문이며, 커버리지는 이후 관계에서 계산된다(D-03, FR-13).
 
@@ -357,9 +369,9 @@ nerv import rebuild-map --profile <p> --root <경로> --project <slug> --map <�
 | `--profile-file` | 사용자 정의 프로파일 yaml(§1.4). `--profile`(내장 이름)과 배타 | 없음 |
 | `--map` | 멱등 매니페스트 파일(§3.3) | `./nerv-import.map.json` |
 | `--report-dir` | 리포트 출력 위치(§4.1 — `report.md` + `report.jsonl`) | `./nerv-import-report/` |
-| `--owner-map` | plan `owner:` 라벨 → 사용자 이메일 수동 매핑(yaml). 없으면 전건 unassigned | 없음 |
-| `--rewrite-links` | 원문 버전 위에 링크 재작성 버전을 추가(§2.4) | off |
-| `--split-checkboxes` | plan 체크박스를 하위 Task로 분해 | off |
+| `--owner-map` | plan `owner:` 라벨 → **사용자 UUID** 수동 매핑(**JSON** — `{ "developer": "<user-uuid>" }`). 없으면 전건 unassigned. (2026-09-06 정정: 예전에는 "이메일(yaml)" 이라 적었고 그대로 넘기면 파싱 예외 또는 FK 위반으로 전건 실패한다) | 없음 |
+| `--rewrite-links` | 원문 버전 위에 링크 재작성 버전을 추가(§2.4) — ○ **미구현**(2026-09-06 실측: `parseArgs` 가 이 이름을 읽지 않아 주면 조용히 버려진다) | off |
+| `--split-checkboxes` | plan 체크박스를 하위 Task로 분해 — ○ **미구현**(위와 같다) | off |
 | `--batch-size` | EP-IMP-02/03 한 배치의 파일 수(§3.5) | 50 |
 
 종료 코드: `0` = 실패 0건 완료 · `1` = 완료했으나 실패·수동 확인 항목 존재(리포트 확인) · `2` = 중단(abort — §4.1).
@@ -373,7 +385,7 @@ nerv import rebuild-map --profile <p> --root <경로> --project <slug> --map <�
 | | 어디서 도는가 | 무엇을 하는가 | 무엇을 하지 않는가 |
 | --- | --- | --- | --- |
 | **`@nerv/cli`** (`nerv import`) | 체크아웃이 있는 장비 — 개발자 노트북·이관 담당자 워크스테이션·CI 러너 | 스캔·파싱·규칙 판정·리포트(§4.1)·매니페스트(§3.3)·배치 조립·전송 | DB 접속(`DATABASE_URL` 미사용), 도메인 판정(`ready` 승격·게이트 판정은 전부 서버) |
-| **`ImportModule`** (`apps/api`) | 서버 | EP-IMP-01~05 수신 → 도메인 서비스·저장 계층으로 upsert, 자연 키 조회, 트랜잭션·제약 강제, 감사 이벤트 | 원본 파일 접근, 프로파일 해석, 리포트 생성 |
+| **`ImportModule`** (`apps/api`) | 서버 | EP-IMP-01~**06** 수신(리뷰 패스가 2026-08-24 에 더해졌다) → 도메인 서비스·저장 계층으로 upsert, 자연 키 조회, 트랜잭션·제약 강제, 감사 이벤트 | 원본 파일 접근, 프로파일 해석, 리포트 생성 |
 
 인증·권한은 기존 체계를 그대로 쓴다 — PAT Bearer + **`import:write` 권한**, 역할은 admin([4.4 API 명세](api.md) §1.3·§2.10). 토큰 소유자가 곧 적재 레코드의 작성자다.
 
@@ -398,6 +410,10 @@ nerv import rebuild-map --profile <p> --root <경로> --project <slug> --map <�
 | `aliases` | 원본 경로·id → NERV UUID 별칭 표 — 이후 링크 재작성·plan `spec_impact` 경로 변환이 이 표를 쓴다 |
 
 **서버가 진실이고 매니페스트는 캐시다.** 매니페스트를 잃어버려도 중복 적재로 이어지지 않는다 — `--apply` 시 임포터는 자연 키(`(project, spec.key)`, `(project_id, requirement.ref)`)를 **EP-IMP-01 preflight**로 서버에 먼저 대조하고, 매니페스트 없이 동일 키가 이미 존재하면 **중단**하며 `nerv import rebuild-map`을 안내한다. `rebuild-map`은 **EP-IMP-05**(자연 키 → UUID 대조표)로 매니페스트를 서버에서 재구성한다(Task는 자연 키가 없어 제목 매칭으로 후보를 제시하고, 모호 항목은 수동 확인 큐로).
+
+> **`content_hash` 의 축은 본문이다**(2026-09-06 정정). 서버가 견주는 값은 `sha256(body_md)` — frontmatter 를 뺀 본문 해시다(REQ-IMP-002). CLI 는 2026-09-06 까지 **파일 전문 해시**를 보내고 있었고, 두 값은 같아질 수가 없어 `unchanged` 판정이 한 번도 나오지 않았다. 자연 키도 같은 모양으로 어긋나 있었다 — 적재는 `keyFromPath(…)` 로 만든 키를 쓰고 preflight 는 파일 경로를 물어, frontmatter `id` 가 없는 파일은 이미 적재돼 있어도 언제나 `new` 로 돌아왔다. 게다가 CLI 는 preflight **응답을 받아서 버렸다** — 서버가 계산한 세 판정이 아무 일도 하지 않는 값이었다. 셋을 고쳐 이제 무변경 본문은 다시 보내지 않고, 그 수가 리포트 머리에 선다.
+>
+> **아직 남은 것: `map-conflict` 는 매니페스트가 있어야 성립한다.** "매니페스트 없이 동일 키 실존이면 중단" 은 *우리가 넣은 것*과 *남이 넣은 것*을 가릴 수 있을 때만 옳은데, 매니페스트를 쓰는 코드가 아직 없다(`--map` 인자는 받기만 한다). 지금 이 중단을 켜면 정상 재실행이 전부 중단된다 — 매니페스트(E12)와 같이 켠다.
 
 ### 3.4 재실행 규칙 — 변경분만
 
@@ -452,13 +468,15 @@ CLI 는 **서버 없이도 돈다**(dry-run 은 `--server` 없이 완주한다 �
 | REQ-IMP-021 | WHEN 배치 항목 수가 계약 상한을 넘으면 THE SYSTEM SHALL 상한 이하로 나눠 보낸다 — 요청받은 크기가 더 커도 그렇다(§2.6c) |
 | REQ-IMP-022 | WHEN 서버가 표시 키를 발급하면 THE SYSTEM SHALL 데이터 모델 §5.1 형식(`<project.key>-<타입>-<base32 6자>`)을 쓴다 — 생성 경로가 달라도 같다(§2.6b) |
 
-### 3.6 래퍼 스킬 — `/nerv:import`
+### 3.6 실행 주체 — 운영자 절차 (2026-09-06 개정 · 래퍼 스킬을 걷었다)
 
-CLI가 엔진이고, 스킬은 그 위의 사람 UX다. **결정적 ETL을 LLM이 대신 수행하지 않는다** — 스킬은 CLI를 실행하고, 리포트를 사람이 읽을 수 있게 요약하며, `manual` 큐(§4.1의 15종 규칙)를 사람에게 넘기는 절차만 담당한다. 그래서 이 스킬은 임포트 대상을 가리지 않는다 — 프로파일 이름만 바뀐다.
+CLI 가 엔진이고, 그 위에 **사람이 읽는 절차**가 있다. 예전에는 그 절차를 플러그인 스킬(`/nerv:import`)이 배달했는데 **2026-09-06 에 걷어냈다** — 스킬이 지시하는 `nerv` 를 설치한 쪽이 손에 넣을 길이 없었고(패키지가 `private` 이며 플러그인 zip 에 없다), 제3의 저장소가 쓸 프로파일이 0개라 스킬의 1단계가 곧 종착점이었다. 근거 전문은 [4.6 플러그인과 온보딩](plugin.md) §2.5.
 
-절차는 고정이다: **① 프로파일 선택 → ② dry-run 실행 → ③ 리포트 요약 제시(abort/skip/manual/warn 건수와 상위 사유) → ④ 사람 확인 → ⑤ `--apply` → ⑥ 재실행으로 멱등 검증(신규 0)**. `--apply`는 사람의 명시적 승인 없이 실행하지 않는다(REQ-IMP-017) — 적재는 A3 성격의 행위다. 리포트 수치는 CLI 산출물을 그대로 인용하고 스킬이 재계산·요약 왜곡을 하지 않는다.
+**절차는 그대로다** — 실행하는 것이 스킬이 아니라 사람일 뿐이다: **① 프로파일 선택 → ② dry-run 실행 → ③ 리포트 확인(abort/skip/manual/warn 건수와 상위 사유) → ④ 판단 → ⑤ `--apply` → ⑥ 재실행으로 멱등 검증(신규 0)**.
 
-SKILL.md 전문은 [4.6 플러그인과 온보딩](plugin.md) §2.5가 소유한다. MCP 도구는 추가하지 않는다 — 임포트는 도구 호출 단위로 쪼개면 전수 계정·멱등 검증이 재현되지 않기 때문이며, MVP 도구 수를 임포트가 늘리지 않는다([4.1 MVP 범위와 스택 확정](scope.md) §4.2).
+**그 절차를 지키는 것은 프롬프트가 아니라 도구다.** `--apply` 없이는 dry-run 이 기본이고(§3.1), 종료 코드가 셋이며(`0`/`1`/`2`), `manual` 큐가 사람이 결정할 것을 따로 모은다(§4.1). **결정적 ETL 을 LLM 이 대신 수행하지 않는다**는 원칙은 스킬이 아니라 이 설계가 지킨다.
+
+MCP 도구도 추가하지 않는다 — 임포트를 도구 호출 단위로 쪼개면 전수 계정·멱등 검증이 재현되지 않기 때문이다([4.1 MVP 범위와 스택 확정](scope.md) §4.2·§5).
 
 ---
 
@@ -526,12 +544,12 @@ SKILL.md 전문은 [4.6 플러그인과 온보딩](plugin.md) §2.5가 소유한
 | **REQ-IMP-009** | WHEN 과거 plan을 Task로 적재하면, THE SYSTEM SHALL `claim`·`agent_session` 레코드를 생성하지 않고 `ready` 상태로 적재하지 않는다 |
 | **REQ-IMP-010** | WHEN nerv-docs 프로파일로 `docs/`를 임포트하면, THE SYSTEM SHALL 4부 8편을 frontmatter `status: draft` 그대로 draft SpecVersion으로 적재하고, 본문에 정의된 `REQ-*` ID를 requirement로 추출한다 |
 | **REQ-IMP-011** | WHILE `--apply`가 지정되지 않은 동안, THE SYSTEM SHALL `--server` 없이도 스캔·파싱·검증·리포트·매니페스트 초안을 완주한다 — dry-run은 네트워크·서버·DB 어느 것에도 의존하지 않는다 |
-| **REQ-IMP-012** | WHEN 임포터가 적재를 수행할 때, THE SYSTEM SHALL `DATABASE_URL`을 사용하지 않고 `import:write` 권한 PAT로 EP-IMP-01~05만 호출한다 — CLI는 DB 드라이버를 의존성으로 갖지 않는다 |
+| **REQ-IMP-012** | WHEN 임포터가 적재를 수행할 때, THE SYSTEM SHALL `DATABASE_URL`을 사용하지 않고 `import:write` 권한 PAT로 EP-IMP-01~**06**만 호출한다 — CLI는 DB 드라이버를 의존성으로 갖지 않는다 |
 | **REQ-IMP-013** | WHEN 배치 전송이 타임아웃·네트워크 오류로 재시도되면, THE SYSTEM SHALL 같은 `Idempotency-Key`로 재전송해 중복 레코드를 0건 생성한다 |
 | **REQ-IMP-014** | WHEN `import:write` 권한이 없는 토큰 또는 admin이 아닌 역할이 EP-IMP-*를 호출하면, THE SYSTEM SHALL 403 `NERV_FORBIDDEN`으로 거부하고 어떤 레코드도 만들지 않는다 |
 | **REQ-IMP-015** | WHEN `--profile-file`로 사용자 정의 프로파일이 주어지면, THE SYSTEM SHALL 프로파일 스키마를 검증한 뒤 내장 프로파일과 동일한 엔진·리포트 규칙·멱등 규칙을 적용한다 — 대상 저장소별 분기 코드를 두지 않는다 |
 | **REQ-IMP-016** | WHEN 프로파일이 `expect.spec_total`을 선언하지 않으면, THE SYSTEM SHALL `count-mismatch` 중단을 적용하지 않고 스캔 총수와 분류별 집계를 리포트에 계정한다(전수 계정 자체는 REQ-IMP-001과 동일하게 유지된다) |
-| **REQ-IMP-017** | WHEN `/nerv:import` 스킬이 실행되면, THE SYSTEM SHALL dry-run 리포트를 사람에게 제시한 뒤에만 `--apply`를 실행하고, 사람의 명시적 승인 없이 적재하지 않는다 |
+| ~~**REQ-IMP-017**~~ | ~~WHEN `/nerv:import` 스킬이 실행되면 …~~ — **폐기**(2026-09-06 · 래퍼 스킬을 걷었다 · §3.6). 번호는 재사용하지 않는다. 이 요구가 지키려던 것(사람 승인 없이 적재하지 않는다)은 CLI 가 `--apply` 플래그와 dry-run 기본값으로 강제한다(REQ-IMP-013) |
 
 ### 4.3 Phase 0 종료 조건과의 관계
 
@@ -611,6 +629,6 @@ NERV의 제안서·MVP 문서(`docs/`)는 NERV가 가동되면 **첫 번째로 �
 - [4.1 MVP 범위와 스택 확정](scope.md) — 이 임포터가 속한 MVP 범위(FR-17 P0·P1 배정)
 - [4.2 코드베이스와 배포](codebase.md) — `apps/cli`(`@nerv/cli`)의 모노레포 배치·빌드·배포 형태와 `apps/api`의 `ImportModule`
 - [4.3 데이터베이스 스키마](database.md) — 임포터가 그대로 받는 DDL 제약(트리거·유니크)과 개발 시드
-- [4.4 API 명세](api.md) — 임포트 REST 표면 EP-IMP-01~05(§2.10)의 계약 정본, `import:write` 권한, `NERV_*` 에러 코드 체계(리포트 어휘와 다른 층임을 §4.1이 명시)
-- [4.6 플러그인과 온보딩](plugin.md) — 래퍼 스킬 `/nerv:import`의 SKILL.md 전문(§2.5)
+- [4.4 API 명세](api.md) — 임포트 REST 표면 EP-IMP-01~06(§2.10)의 계약 정본, `import:write` 권한, `NERV_*` 에러 코드 체계(리포트 어휘와 다른 층임을 §4.1이 명시)
+- [4.6 플러그인과 온보딩](plugin.md) — 래퍼 스킬을 걷어낸 근거(§2.5)
 - [4.8 백로그](backlog.md) — 임포터 스토리 분해와 E2E 수용 시나리오(135 md 전수), 스토리 자체가 임포트 대상(§5.1)

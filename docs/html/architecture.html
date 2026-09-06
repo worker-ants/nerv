@@ -53,7 +53,7 @@
     <h1>시스템 아키텍처</h1>
     <p class="lead">웹앱 · API/MCP 게이트웨이 · 훅 수집기 · Postgres · Valkey(실시간 방송 MQ) · 이벤트 워커의 여섯 덩어리로 구성된 NERV의 시스템 구조와, 가장 중요한 결정인 저장 전략(D-01) — <b>DB 단일 진실 + markdown 미러 + read-only git export</b> — 그리고 핵심 데이터 흐름 4종, 기술 스택 대안 비교, 보안·성능·운영 설계.</p>
     <div class="meta-line">
-      <span>버전 v0.4 (2026-09-05)</span>
+      <span>버전 v0.5 (2026-09-06)</span>
       <span>원본: <code>docs/03-proposal/architecture.md</code></span>
       <span>주로 다루는 결정: D-01 · D-10 · D-11 · D-14</span>
     </div>
@@ -144,7 +144,7 @@
 
       <rect x="300" y="156" width="270" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
       <text x="435" y="180" text-anchor="middle" fill="var(--accent-text)" font-family="var(--font)" font-size="12.5" font-weight="700">API + MCP 게이트웨이 (NestJS)</text>
-      <text x="435" y="198" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">REST · Streamable HTTP · OAuth 2.1 · 게이트 판정</text>
+      <text x="435" y="198" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="11">REST · Streamable HTTP · better-auth + PAT · 게이트 판정</text>
 
       <rect x="596" y="156" width="258" height="62" rx="10" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="725" y="180" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">훅 수집기</text>

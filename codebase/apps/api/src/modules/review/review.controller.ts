@@ -12,8 +12,7 @@ import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { principalOf } from '../../common/scope-check.js';
-import { ReviewService, resolutionOf } from './review.service.js';
-import type { SubmitFinding } from './review.service.js';
+import { ReviewService, resolutionOf, toSubmitFindings } from './review.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
@@ -41,7 +40,10 @@ export class ReviewController {
         risk: (input.reviewer?.risk ?? null) as 'low' | null,
       },
       summaryMd: input.summary ?? null,
-      findings: input.findings as unknown as SubmitFinding[],
+      // **캐스팅이 아니라 번역이다**(REQ-API-114). 계약은 `body`·`suggestion` 으로 오고
+      // 저장은 `body_md`·`suggestion_md` 다 — 예전에는 여기서 타입만 맞춰 넘겨 REST 로 올린
+      // 리뷰의 지적 본문이 전부 NULL 이었다. MCP 와 같은 매퍼를 쓴다.
+      findings: toSubmitFindings(input.findings),
       payloadRef: input.payload_ref ?? null,
     });
   }
@@ -119,7 +121,7 @@ export class ReviewController {
       escalateReason: typeof body['escalate_reason'] === 'string' ? body['escalate_reason'] : null,
     });
   }
-  /** EP-REV-07 — 발견에 사람의 말을 남긴다(2026-08-30 신설) */
+  /** EP-REV-05 · EP-REV-06 — 발견에 사람의 말을 남기고 읽는다(2026-08-30 신설) */
   @RequireScope('review:resolve')
   @Post('findings/:id/comments')
   comment(
@@ -142,7 +144,7 @@ export class ReviewController {
     return this.reviews.comments({ projectId: req.nervProjectId!, findingId: id });
   }
 
-  /** EP-REV-08 — 발견을 Task 로 올린다(2026-08-30 신설 · REQ-API-059) */
+  /** EP-REV-07 — 발견을 Task 로 올린다(2026-08-30 신설 · REQ-API-059) */
   @RequireScope('task:update')
   @Post('findings/:id/task')
   promote(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {

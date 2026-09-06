@@ -1,4 +1,4 @@
-// Task·클레임 표면의 요청 스키마 — 정본: api.md §2.3 (EP-TASK)
+// Task·클레임 표면의 요청 스키마 — 정본: api.md §2.4 (EP-TASK)
 //
 // 규율은 `tenancy.ts` 와 같다: `.strict()` 로 알 수 없는 키를 거절하고, 어휘(enum)는
 // 도메인이 본다(REQ-API-112). 여기서 보는 것은 **모양**이다.
@@ -53,7 +53,7 @@ export const TaskUpdateInput = z
   })
   .strict();
 
-/** EP-TASK-06 — 상태 전이. `done` 은 서버 게이트를 탄다(FR-10) */
+/** EP-TASK-09 — 상태 전이. `done` 은 서버 게이트를 탄다(FR-10) */
 export const TaskTransitionInput = z
   .object({
     status: z.string().min(1),
@@ -72,7 +72,7 @@ export const ClaimScopeInput = z
   })
   .strict();
 
-/** EP-TASK-04 — 클레임 */
+/** EP-TASK-06 — 클레임 */
 export const TaskClaimInput = z
   .object({
     session_id: z.string().nullish(),

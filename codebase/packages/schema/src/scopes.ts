@@ -6,7 +6,7 @@
 //      `approval:decide` 는 정책이 아니라 **시스템 불변식**이다(agent-integration §6.1 ④).
 //      "설정에서 끄면 되는 것"이 아니라 발급 경로에 존재하지 않아야 한다.
 //   ② **MCP 도구 대응이 없는 권한이 셋 있다** — `import:write`(admin 전용 이관 표면) ·
-//      `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). 나머지 일곱이 도구 22종을
+//      `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). 나머지 일곱이 도구 24종을
 //      덮는다. "도구 표와 1:1" 은 그 일곱에 대한 말이고, 이 셋은 REST 축이다(api.md §1.3).
 
 /** 토큰에 부여할 수 있는 권한. */
@@ -47,7 +47,7 @@ export function isHumanOnlyScope(value: string): value is HumanOnlyScope {
 /**
  * REST 전용 — MCP 도구 대응이 없다(api.md §1.3).
  *
- * 목록이 `import:write` 하나였던 동안 `spec:meta` 는 어느 쪽에도 없었다 — 도구 22종이
+ * 목록이 `import:write` 하나였던 동안 `spec:meta` 는 어느 쪽에도 없었다 — 도구 24종이
  * 쓰는 권한은 일곱인데 문서는 "도구 표와 1:1" 이라고 적고 있었다(2026-09-04 실측).
  */
 export const REST_ONLY_SCOPES = ['import:write', 'spec:meta', 'spec:evidence'] as const;

@@ -1,20 +1,20 @@
-# nerv-plugin v0.2.10
+# nerv-plugin v0.2.13
 
 NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md)**
 이고, 이 디렉터리는 그 문서 §1~§3 전문의 실물이다 — 두 쪽이 다르면 문서가 옳고 여기가 결함이다.
 
 ## 무엇이 들어 있나
 
-| 경로                                                      | 역할                                             | 정본           |
-| --------------------------------------------------------- | ------------------------------------------------ | -------------- |
-| `.claude-plugin/plugin.json`                              | 매니페스트                                       | §1.1           |
-| `.claude-plugin/marketplace.json`                         | 사내 마켓플레이스 등록                           | §1.2 배포 경로 |
-| `hooks/hooks.json`                                        | 훅 이벤트 6종(`type:"http"`) — 세션 시작은 둘    | §3.1           |
-| `skills/{next,spec,impl,question,import,review}/SKILL.md` | 스킬 6종(MVP 약속은 5종 · `review` 는 P2 배포분) | §2.1~§2.6      |
-| `agents/nerv-spec-writer.md`                              | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음) | §1.1           |
-| `statusline/nerv-statusline.sh`                           | 클레임·리스·겹침 표시                            | §3.2           |
-| `bin/nerv-hook-forward`                                   | 훅 헤더 토큰 확장이 안 되는 호스트용 폴백        | §3.1 주의      |
-| `bin/nerv-outbox`                                         | 오프라인 쓰기 큐(enqueue·flush·status)           | §3.4           |
+| 경로                                               | 역할                                                                     | 정본           |
+| -------------------------------------------------- | ------------------------------------------------------------------------ | -------------- |
+| `.claude-plugin/plugin.json`                       | 매니페스트                                                               | §1.1           |
+| `.claude-plugin/marketplace.json`                  | 사내 마켓플레이스 등록                                                   | §1.2 배포 경로 |
+| `hooks/hooks.json`                                 | 훅 이벤트 6종(**기본은 `type:"command"`**) — 세션 시작은 둘              | §3.1           |
+| `skills/{next,spec,impl,question,review}/SKILL.md` | 스킬 5종(`review` 는 P2 배포분 · `import` 는 2026-09-06 걷음 — 4.6 §2.5) | §2.1~§2.6      |
+| `agents/nerv-spec-writer.md`                       | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음)                         | §1.1           |
+| `statusline/nerv-statusline.sh`                    | 클레임·리스·겹침 표시                                                    | §3.2           |
+| `bin/nerv-hook-forward`                            | 훅 헤더 토큰 확장이 안 되는 호스트용 폴백                                | §3.1 주의      |
+| `bin/nerv-outbox`                                  | 오프라인 쓰기 큐(enqueue·flush·status)                                   | §3.4           |
 
 ## 설계에서 물러서지 않는 두 가지
 
@@ -36,8 +36,12 @@ export NERV_HOSTNAME="$(hostname -s)"
 # 3) 플러그인 설치 (관리 기기는 관리형 settings 로 자동)
 #    /plugin marketplace add <사내 마켓플레이스 git URL>
 #    /plugin install nerv@nerv-internal   → 재시작
-# 4) /mcp 로 nerv 서버 connected 확인
-# 5) /nerv:next 실행 — 스킬이 nerv_bootstrap 부터 호출한다
+#    (GitHub 경로는 /plugin marketplace add worker-ants/nerv → /plugin install nerv@nerv)
+# 4) 작업 저장소에 .mcp.json 을 둔다 — **플러그인은 이 파일을 담지 않는다**(REQ-PLG-001 개정,
+#    2026-09-04). 서버 주소·프로젝트는 저장소마다 다르고, 플러그인이 준 파일은 그 저장소의
+#    settings.local.json env 를 읽지 못해 언제나 기본값으로 떨어졌다. 전문은 4.6 §3.3.
+# 5) /mcp 로 nerv 서버 connected 확인
+# 6) /nerv:next 실행 — 스킬이 nerv_bootstrap 부터 호출한다
 ```
 
 설치 시 작업 저장소의 `.gitignore` 에 `.nerv/` 를 추가한다(REQ-PLG-013) — 캐시·큐가 커밋되면
@@ -49,9 +53,11 @@ export NERV_HOSTNAME="$(hostname -s)"
 그 저장소로 복사해** 쓴다. 그때 갈리는 것이 셋이다.
 
 - **훅과 statusline은 사본이 아니다.** 그 저장소의 `.claude/settings.json` 이 이 디렉터리의
-  스크립트를 **절대 경로로** 부르므로 원본이 바뀌면 저절로 따라온다. 대신 `type` 이 다르다 —
-  원본은 `type:"http"` 이고, 토큰을 주입해야 하는 그쪽은 `bin/nerv-hook-forward` 를 부르는
-  `type:"command"` 다. 그래서 **훅 목록만은 손으로 옮긴다.**
+  스크립트를 **절대 경로로** 부르므로 원본이 바뀌면 저절로 따라온다. 훅 목록만은 손으로 옮긴다 —
+  **기본 변형은 `type:"command"`**(`bin/nerv-hook-forward` 를 부른다)이고, `type:"http"` 판이
+  필요하면 `hooks/hooks.http.json` 을 쓴다. 고르는 기준과 그 대가는 4.6 §3.1 이 정본이다.
+  (2026-09-06 정정 — 이 절이 오래 원본을 `type:"http"` 라 적고 있었다: 틀린 대로 따라 하면
+  사본 저장소의 훅이 반대로 깔린다.)
 - **한 이벤트에 훅이 여럿일 수 있다.** `SessionStart` 가 그렇다(세션 적재 + `nerv-outbox flush`,
   2026-09-01). 이벤트 이름만 보고 "이미 있다" 고 넘기면 늘어난 쪽을 놓친다 — 대조는 이벤트가
   아니라 **훅 항목 수**로 한다.

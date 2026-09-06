@@ -143,7 +143,15 @@ export const requirement = pgTable(
     /** EARS 권장 */
     statementMd: text('statement_md').notNull(),
     acceptanceMd: text('acceptance_md'),
-    priority: requirementPriority('priority').notNull(),
+    /**
+     * **NULL 은 "표기가 없었다" 는 사실이다** — `must` 의 축약이 아니다(2026-09-06).
+     *
+     * 임포터는 원본에 우선순위 표기가 없는 요구사항을 만난다. 그때 `must` 를 넣으면
+     * 지어낸 값이 사실과 구별되지 않고, 뒤에 오는 사람은 그것을 원본의 선언으로 읽는다.
+     * 임포터 §2.5 규칙 4 가 "미표기는 NULL 로 두고 추정하지 않는다" 를 요구하는 이유이고,
+     * `assignee_user_id` 를 추정 배정하지 않는 REQ-IMP-008 과 같은 원칙이다.
+     */
+    priority: requirementPriority('priority'),
     implStatus: implStatus('impl_status').notNull().default('unimplemented'),
     introducedInVersionId: uuid('introduced_in_version_id')
       .notNull()

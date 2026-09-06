@@ -13,6 +13,7 @@
 // 화면이 말해 주는 것과 저장을 좁히는 것은 다른 일이다.
 
 import { useT } from '../../lib/i18n.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -42,6 +43,7 @@ function TokensTab(): React.JSX.Element {
   const tokens = useTokens();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   // 발급 대상 프로젝트는 **헤더에서 고른 프로젝트**다. 예전에는 멤버십 한 행의
   // `project_slug` 를 썼고, 조직 단위 멤버십만 가진 admin 은 그 값이 `null` 이라
   // 발급 버튼이 영영 비활성이었다(실측 2026-08-24).
@@ -69,7 +71,7 @@ function TokensTab(): React.JSX.Element {
       setIssued(result.token);
       void queryClient.invalidateQueries({ queryKey: ['me', 'tokens'] });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const revoke = useMutation({

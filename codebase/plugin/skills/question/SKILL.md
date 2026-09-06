@@ -4,6 +4,8 @@ description: 판단 불가·경계 이탈·게이트 필요 상황의 에스컬�
 allowed-tools:
   - mcp__nerv__nerv_question_create
   - mcp__plugin_nerv_nerv__nerv_question_create
+  - mcp__nerv__nerv_question_cancel
+  - mcp__plugin_nerv_nerv__nerv_question_cancel
 ---
 
 # /nerv:question — 에스컬레이션

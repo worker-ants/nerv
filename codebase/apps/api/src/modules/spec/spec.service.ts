@@ -1666,15 +1666,30 @@ export class SpecService {
     // `db-error.ts` 가 다루는 SQLSTATE 목록에 22P02 는 없다(진짜 500 으로 나간다).
     const kind = assertVocab([input.kind], evidenceKind.enumValues, 'kind')[0];
     const evidenceId = newId();
-    await this.db.execute(sql`
-      INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source)
-      VALUES (${evidenceId}, ${input.projectId}, ${requirement['id'] as string},
-              ${kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
-              ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
-    `);
-    // 조건이 다 찼으면 여기서 `implemented` 가 된다 — 안 찼으면 값은 그대로다
-    await recomputeImplStatus(this.db, requirement['id'] as string);
-    return { evidence_id: evidenceId, ref: input.ref, kind: input.kind, locator: input.locator };
+    // **전표가 발생 이벤트를 적으면 그것이 계약이다**(REQ-API-115). EP-REQ-03 은 처음부터
+    // ★`evidence.added` 를 적었는데 이 경로는 INSERT 만 하고 이벤트를 내지 않았다 —
+    // 같은 이름을 내는 곳은 GitHub 웹훅 하나였다. 증적이 실시간으로 화면에 닿지 않았고
+    // 감사 축(FR-16)에도 남지 않았다.
+    return this.events.transact(async (tx, emit) => {
+      await tx.execute(sql`
+        INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source)
+        VALUES (${evidenceId}, ${input.projectId}, ${requirement['id'] as string},
+                ${kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
+                ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
+      `);
+      // 조건이 다 찼으면 여기서 `implemented` 가 된다 — 안 찼으면 값은 그대로다
+      await recomputeImplStatus(tx, requirement['id'] as string);
+      await emit({
+        type: NERV_EVENT.EVIDENCE_ADDED,
+        projectId: input.projectId,
+        subjectType: 'requirement',
+        subjectId: requirement['id'] as string,
+        actorUserId: input.userId,
+        isAgent: input.sessionId != null,
+        payload: { ref: input.ref, kind, locator: input.locator, repo: input.repo ?? null },
+      });
+      return { evidence_id: evidenceId, ref: input.ref, kind: input.kind, locator: input.locator };
+    });
   }
 
   /**

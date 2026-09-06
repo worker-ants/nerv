@@ -6,6 +6,7 @@
 // 이 구분을 숨기면 사람은 steer 를 누르고 즉시 멈추길 기대하다 다시 누르게 된다.
 
 import { useT } from '../../lib/i18n.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
@@ -17,17 +18,34 @@ export interface SteerPanelProps {
   projectSlug: string;
   sessionId: string;
   state: string;
+  /**
+   * 세션 소유자이거나 admin 인가 — **서버가 그 둘에게만 이 문을 연다**(EP-SES-04).
+   *
+   * 화면은 서버가 허용할 것을 미리 말한다(§1.8 · REQ-WEB-003). 이 축이 없던 동안 패널은
+   * 누구에게나 활성이었고, 남의 세션에 **중단 사유까지 적은 뒤** 403 을 받았다 —
+   * 되돌릴 수 없는 버튼일수록 누르기 전에 말해야 한다.
+   */
+  canIntervene: boolean;
 }
 
-export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): React.JSX.Element {
+export function SteerPanel({
+  projectSlug,
+  sessionId,
+  state,
+  canIntervene,
+}: SteerPanelProps): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const [message, setMessage] = useState('');
   // stop 은 남의 작업을 끊는 행위다 — 확인 단계와 사유를 함께 요구한다(REQ-WEB-021).
   // 사유가 없으면 상대 세션의 사람은 "왜 끊겼는지" 모른 채 다시 시작하게 된다.
   const [confirming, setConfirming] = useState(false);
   const finished = ['complete', 'error'].includes(state);
+  // 끝난 세션과 남의 세션은 **막는 이유가 다르다** — 같은 disabled 로 뭉치면 사람은
+  // "기다리면 되나" 와 "나는 못 하나" 를 구별할 수 없다. 문구가 그것을 가른다.
+  const blocked = finished || !canIntervene;
 
   const send = useMutation({
     mutationFn: (kind: 'steer' | 'stop') =>
@@ -46,7 +64,7 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
           kind === 'stop' ? t('steer.stopped', { count: result.reclaimed }) : t('steer.sent'),
       });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   return (
@@ -55,13 +73,13 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder={t('steer.placeholder')}
-        disabled={finished}
+        disabled={blocked}
         aria-label={t('steer.label')}
       />
       <div className="flex items-center gap-2">
         <Button
           size="sm"
-          disabled={finished || send.isPending || message.trim() === ''}
+          disabled={blocked || send.isPending || message.trim() === ''}
           onClick={() => send.mutate('steer')}
           title={t('steer.send_title')}
         >
@@ -71,13 +89,18 @@ export function SteerPanel({ projectSlug, sessionId, state }: SteerPanelProps): 
           size="sm"
           variant="danger"
           data-testid="stop-button"
-          disabled={finished || send.isPending}
+          disabled={blocked || send.isPending}
           onClick={() => setConfirming(true)}
           title={t('steer.stop_title')}
         >
           {t('steer.stop')}
         </Button>
         {finished && <span className="text-xs text-text-faint">{t('steer.finished')}</span>}
+        {!finished && !canIntervene && (
+          <span data-testid="steer-forbidden" className="text-xs text-text-faint">
+            {t('steer.not_owner')}
+          </span>
+        )}
       </div>
 
       {confirming && (

@@ -7,10 +7,11 @@
 // "어느 머신의 누구를 멈춰 세우고 있나"가 답변 우선순위를 정하기 때문이다.
 
 import { useT } from '../../lib/i18n.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { relativeTime } from '../../lib/format.js';
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Translator } from '@nerv/schema';
+import type { MessageKey, Translator } from '@nerv/schema';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
@@ -21,6 +22,31 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { Button, Mono, Textarea } from '../../components/ui/primitives.js';
 
 export type Decision = 'approve' | 'reject' | 'comment';
+
+/**
+ * 제목 재료가 없는 대상의 이름(REQ-WEB-133 — "제목이 없으면 그 종류의 이름").
+ *
+ * 목록 질의는 `spec_version` 에만 제목을 JOIN 하므로(`approval.service.ts`) **플랜·발견·
+ * 게이트 우회 카드는 제목 없이 온다.** 2026-09-06 까지 폴백이 `gate_bypass` 하나뿐이라
+ * 나머지가 **"(제목 없음)"** 으로 떴다 — 매뉴얼이 "큰 작업 앞에 선다" 고 설명하는 플랜
+ * 승인 카드가 그것이었고, `inbox.subject.plan` 은 카탈로그에 있으면서 참조가 0건이었다.
+ *
+ * `approval_subject_type` 전 값을 여기서 갖는다. 값이 늘면 **타입이 먼저 막는다** —
+ * 조용히 "(제목 없음)" 으로 떨어지지 않게 하는 것이 이 표의 목적이다.
+ */
+const SUBJECT_FALLBACK = {
+  spec_version: 'inbox.subject.spec_version',
+  change_request: 'inbox.subject.change_request',
+  plan: 'inbox.subject.plan',
+  question: 'inbox.subject.question',
+  gate_bypass: 'inbox.subject.gate_bypass',
+  finding: 'inbox.subject.finding',
+} as const satisfies Record<string, MessageKey>;
+
+export function subjectFallback(t: Translator, subjectType: unknown): string {
+  const key = SUBJECT_FALLBACK[subjectType as keyof typeof SUBJECT_FALLBACK];
+  return key === undefined ? t('inbox.card.untitled') : t(key);
+}
 
 export function waitedLabel(t: Translator, seconds: number): string {
   if (seconds < 60) return t('inbox.waited.just_now');
@@ -77,6 +103,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
   const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const [comment, setComment] = useState('');
   const [reasonRequired, setReasonRequired] = useState(false);
   const commentRef = useRef<HTMLTextAreaElement>(null);
@@ -130,7 +157,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
         }),
       });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   const decide = useMutation({
@@ -174,7 +201,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
           : t('inbox.card.decided', { decision: decisionLabel(t, decision) }),
       });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   useEffect(() => {
@@ -232,11 +259,9 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
           {String(
             card['title'] ??
               card['spec_title'] ??
-              // 게이트 우회는 스펙도 Task 도 아니라 제목 재료가 없다 — 그래도 "(제목 없음)"
-              // 은 사람에게 아무것도 말하지 않는다(실측 2026-09-03: 처리됨 카드가 그랬다)
-              (card['subject_type'] === 'gate_bypass'
-                ? t('inbox.subject.gate_bypass')
-                : t('inbox.card.untitled')),
+              // "(제목 없음)" 은 사람에게 아무것도 말하지 않는다(실측 2026-09-03: 처리됨
+              // 카드가 그랬다) — 종류의 이름이라도 말한다.
+              subjectFallback(t, card['subject_type']),
           )}
         </span>
         <span className="shrink-0 text-xs text-text-mute">

@@ -231,7 +231,7 @@ export class TaskService {
       SELECT t.id, t.key, t.title, t.status::text AS status, t.priority::text AS priority,
              t.assignee_user_id, u.display_name AS assignee_name,
              t.rebrief_required_at, t.blocked_reason, t.updated_at,
-             s.key AS spec_key, sv.version_no AS basis_version_no,
+             s.key AS spec_key, s.id AS source_spec_id, sv.version_no AS basis_version_no,
              (sv.status = 'superseded') AS basis_superseded,
              c.id AS claim_id, c.agent_session_id AS claim_session_id, c.lease_expires_at,
              (t.goal_md IS NOT NULL AND t.output_format_md IS NOT NULL

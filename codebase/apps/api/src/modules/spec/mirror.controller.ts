@@ -1,4 +1,4 @@
-// md 미러 — GET /api/projects/{p}/specs/{id}.md · /api/projects/{p}/llms.txt (api.md §2.11)
+// md 미러 — GET /api/projects/{p}/specs/{id}.md · /api/projects/{p}/llms.txt (api.md §2.8)
 //
 // `/api/v1` 이 아니라 `/api` 다 — 버전 없는 **읽기 전용 표현 경로**이고, 계약이 아니라
 // 파일처럼 다뤄지길 의도한 것이다(URL 이 곧 문서 주소가 된다).

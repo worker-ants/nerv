@@ -51,9 +51,9 @@
 
   <header class="page-header">
     <h1>데이터베이스 스키마</h1>
-    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>33종</b> — 2026-09-02 실측)를 Postgres DDL 전문으로 옮긴다. 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
+    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 33종</b> — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 37개</b>다 — 도메인 33 + 인프라 4(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>·<code>spec_chunk_embedding</code>, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.30 (2026-09-05)</span>
+      <span>버전 v0.34 (2026-09-06)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: draft</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -111,7 +111,7 @@
     <li><b>타입 표기는 Postgres</b>(<code>uuid</code> · <code>text</code> · <code>timestamptz</code> · <code>jsonb</code> · <code>text[]</code> · <code>bytea</code> · <code>citext</code>). 확장 <code>citext</code>(user.email), <code>pgcrypto</code>(시드의 sha256 계산)를 사용한다.</li>
     <li><b>모든 테이블은 별도 표기가 없으면</b> <code>id uuid PRIMARY KEY</code>(서버 발급 UUIDv7, 클라이언트 발급 금지 — data-model §5.1)와 <code>created_at timestamptz NOT NULL DEFAULT now()</code>를 갖는다. <code>id</code>에 DB DEFAULT를 두지 않는 것은 의도다 — 발급 주체는 앱 계층 하나뿐이어야 한다.</li>
     <li><b>예외</b>: <code>requirement_version</code>·<code>task_dependency</code>는 복합 PK, <code>event</code>는 <code>PRIMARY KEY (id, occurred_at)</code>(월 파티션 키 포함, <code>created_at</code> 없음 — <code>occurred_at</code>이 그 역할), <code>activity</code>는 <code>PRIMARY KEY (id, created_at)</code>(같은 이유).</li>
-    <li><b>삭제는 아카이브</b>(<code>archived_at</code> 류)가 원칙이므로 모든 FK는 <code>ON DELETE</code> 기본(NO ACTION)이다. CASCADE는 한 곳도 없다.</li>
+    <li><b>삭제는 아카이브</b>(<code>archived_at</code> 류)가 원칙이므로 <b>도메인 테이블</b>의 FK는 전부 <code>ON DELETE</code> 기본(NO ACTION)이다. CASCADE 는 <b>파생·인프라 세 곳에만</b> 있다(2026-09-06 명시 — 예전에는 "한 곳도 없다" 고 적어 같은 문서 §2.15·§2.16 이 그것을 반박하고 있었다): <code>spec_chunk_embedding</code> · <code>auth_session</code> · <code>auth_account</code>.</li>
     <li><b>이름 규약</b>: 테이블은 snake_case 단수(data-model 표기 그대로, <code>user</code>는 예약어라 <code>"user"</code>로 인용), enum 타입은 <code>&lt;의미&gt;_&lt;축&gt;</code>(예: <code>spec_version_status</code>), 제약은 <code>&lt;테이블&gt;_&lt;의미&gt;_uq/ck/fk</code>.</li>
     <li><b>enum 값 문자열은 data-model 필드 표와 문자 단위로 일치</b>한다 — <code>claude-code</code>처럼 하이픈이 든 값도 그대로 enum 라벨이다.</li>
   </ul>
@@ -146,7 +146,10 @@ CREATE TYPE task_priority           AS ENUM ('P0', 'P1', 'P2', 'P3');
 CREATE TYPE dependency_kind         AS ENUM ('blocks', 'relates');
 CREATE TYPE claim_status            AS ENUM ('active', 'released', 'expired', 'revoked');
 CREATE TYPE claim_release_reason    AS ENUM ('done', 'handoff', 'abandon',   -- 부른 쪽이 고른 셋
-                                            'manual', 'expired', 'conflict'); -- manual 은 2026-09-05 이전의 잔재, 뒤 둘은 서버 판정
+                                            'manual', 'expired', 'conflict'); -- 앞 셋은 부른 쪽이 고르고 뒤 셋은 서버가 판정한다.
+--   manual 은 **아직 쓰인다**(2026-09-06 실측 정정): 세션 종료와 웹의 강제 정지가
+--   활성 클레임을 이 값으로 회수한다 — 인계도 포기도 아닌, 아직 이름이 없는 회수다.
+--   conflict 는 반대로 **쓰는 곳이 한 곳도 없다**.
 CREATE TYPE agent_type              AS ENUM ('claude-code', 'codex', 'web', 'other');
 CREATE TYPE session_state           AS ENUM ('pending', 'active', 'awaiting_input', 'complete', 'error', 'stale');
 CREATE TYPE session_end_reason      AS ENUM ('complete', 'error', 'stopped', 'stale');
@@ -308,7 +311,7 @@ CREATE TABLE requirement (                   -- 구현 추적의 단위(D-03)
   ref                      text NOT NULL,    -- 안정 표시 ID(예: REQ-CWC-031)
   statement_md             text NOT NULL,    -- EARS 권장
   acceptance_md            text,
-  priority                 requirement_priority NOT NULL,
+  priority                 requirement_priority,  -- NULL = 표기가 없었다(추정 금지 — <a href="importer.html">4.7 임포터</a> §2.5 규칙 4)
   impl_status              impl_status NOT NULL DEFAULT 'unimplemented',
   introduced_in_version_id uuid NOT NULL REFERENCES spec_version(id),
   current_version_id       uuid NOT NULL REFERENCES spec_version(id),
@@ -533,10 +536,10 @@ CREATE TABLE claim (                          -- D-04의 실체. nerv_task_claim
   diff_files          int NOT NULL DEFAULT 0, -- 하트비트 stats 의 셋째 값(2026-09-03)
   token_usage         jsonb NOT NULL DEFAULT &#x27;{}&#x27;,
   current_task_id     uuid,                   -- 조회 편의 비정규화(진실은 claim). FK는 §2.11
-  created_at          timestamptz NOT NULL DEFAULT now()
+  created_at          timestamptz NOT NULL DEFAULT now(),
   -- 보존 잡이 Activity 를 지우기 전에 **접어 두는** 도구 횟수(0012 · REQ-API-067).
   -- 지우고 나면 &quot;이 세션이 무엇을 얼마나 했나&quot; 를 답할 근거가 사라진다.
-  activity_summary   jsonb NOT NULL DEFAULT &#x27;{}&#x27;,
+  activity_summary    jsonb NOT NULL DEFAULT &#x27;{}&#x27;
 );
 
 CREATE TABLE activity (                       -- 타입드 불변 로그. 편집 가능한 코멘트와 분리
@@ -774,7 +777,7 @@ CREATE TABLE notification (
 
   <h3>2.11 순환 참조 FK</h3>
 
-  <p>세 쌍이 서로를 가리키므로 테이블 생성 뒤 ALTER로 건다.</p>
+  <p>서로를 가리키는 자리는 테이블 생성 뒤 ALTER 로 건다. **아래 셋은 이름이 규약을 따르는 것들이고, 나머지 넷**(`spec_version_change_request_fk`·`spec_version_base_version_fk`·`spec_version_superseded_by_fk`·`review_session_previous_fk`)**은 각 테이블 안에 인라인 `REFERENCES` 로 적혀 있다**(2026-09-06 명시) — 실물은 일곱 다 ALTER 이고, 인라인으로 세우면 제약 이름이 `spec_parent_id_fkey` 류로 달라져 이후 마이그레이션의 `DROP CONSTRAINT &lt;이름&gt;` 이 **문서로 세운 DB 에서만** 실패한다.</p>
 
   <pre><code>ALTER TABLE spec
   ADD CONSTRAINT spec_current_version_fk
@@ -881,7 +884,9 @@ CREATE TRIGGER spec_version_freeze
   BEFORE UPDATE ON spec_version
   FOR EACH ROW EXECUTE FUNCTION nerv_spec_version_freeze();
 
--- updated_at 자동 갱신 (updated_at 컬럼을 가진 테이블은 task 하나)
+-- updated_at 자동 갱신 (**트리거가 붙은** 테이블은 task 하나 — 2026-09-06 명시.
+--  컬럼 자체는 spec_version(0008)·"user"·auth 3종에도 있고 그 값들은 앱이 움직인다:
+--  spec_version.updated_at 에 이 트리거를 달면 "본문이 바뀔 때만" 이라는 0008 의 구별이 사라진다)
 CREATE OR REPLACE FUNCTION nerv_touch_updated_at() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -1075,7 +1080,18 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
   <p><b>관리자 계정은 등장인물과 분리한다</b>(2026-08-23 추가). 위 다섯(지민·서연·도현·유나·하나)은 각 화면이 비어 보이지 않게 하는 <b>온보딩용 인물</b>이고, <code>admin@example.com</code>은 조직을 세우는 계정이다. 겸하게 두면 두 가지가 어긋난다 — ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin이 모든 자리에 앉아 있게 되고 ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다. 그래서 이 계정만 <b>조직 소속</b>(<code>project_id NULL</code>) 멤버십을 갖는다 — 프로젝트가 늘어도 한 행이 조직 전체를 관리한다. 이 계정이 없으면 임포트(admin 전용)·게이트 정책·멤버 역할 화면을 시드만으로 시연할 수 없다(실측: clemvion 임포트가 여기서 막혔다).</p>
 
-  <pre><code>BEGIN;
+  <pre><code>-- 개발 시드 — 정본: docs/04-mvp/database.md §4
+--
+-- **개발 전용이다.** TRUNCATE 후 재삽입하므로 몇 번을 실행해도 같은 상태다(REQ-DB-002).
+-- UUID 는 가독성을 위한 고정값이고(UUIDv7 형식), 표시 문자열은 각 테이블의
+-- key(spec·task) · ref(requirement) · external_session_id(agent_session)로 심는다.
+--
+-- 이 한 벌로 S1 홈(질문 배지 1) · S3 스펙 상세(SPC-CWC-007 v4 + REQ-CWC-031) ·
+-- S4 작업 보드(in_progress 2 · blocked 1) · S5 세션 모니터(active 2 · awaiting_input 1) ·
+-- S6 리뷰 센터(열린 발견 3 · 브랜치 2 · 면제 1) · S7 승인함(질문 카드 1)이
+-- 전부 비어 있지 않게 뜬다.
+
+BEGIN;
 TRUNCATE organization, "user" CASCADE;   -- FK 연쇄로 전 도메인 테이블 초기화
 
 -- 월초 실행 대비 — 시드 이벤트의 과거 시각(최대 2일 전)이 지난달 파티션에 떨어질 수 있다
@@ -1083,21 +1099,24 @@ SELECT nerv_ensure_month_partitions((current_date - interval '1 month')::date);
 
 -- 테넌시 ---------------------------------------------------------------
 INSERT INTO organization (id, slug, name) VALUES
-  ('01990a66-0000-7000-8000-000000000001', 'nerv', 'NERV');
+  -- 조직명은 **제품명이 아니다**(2026-08-24 정정). 헤더가 로고(제품)와 조직 select 를
+  -- 나란히 두는데 둘 다 'NERV' 면 같은 이름이 두 번 서서 중복으로 읽힌다 — 시드의
+  -- 조직은 "기본 조직"일 뿐이므로 그렇게 부른다.
+  ('01990a66-0000-7000-8000-000000000001', 'default', 'default');
 
 -- **관리자는 온보딩 인물과 분리한다.** 아래 다섯은 화면을 채우기 위한 등장인물이고
 -- (기획자·디자이너·개발자 — 각 화면이 비어 보이지 않게 하는 것이 목적이다),
 -- admin 은 조직을 세우는 사람이다. 둘을 겸하게 두면 두 가지가 어긋난다:
 --   ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin 이 모든 자리에 앉아 있게 된다
---   ② 새 조직을 꾸릴 때 &quot;어느 계정이 관리용인가&quot;가 인물 설정에 묻힌다
+--   ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다
 -- 그래서 조직 소속(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
-INSERT INTO &quot;user&quot; (id, email, display_name, state) VALUES
-  (&#x27;01990a66-0000-7000-8000-000000000010&#x27;, &#x27;admin@example.com&#x27;,  &#x27;관리자&#x27;, &#x27;active&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000011&#x27;, &#x27;jimin@example.com&#x27;,  &#x27;지민&#x27;, &#x27;active&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000012&#x27;, &#x27;seoyeon@example.com&#x27;,&#x27;서연&#x27;, &#x27;active&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000013&#x27;, &#x27;dohyun@example.com&#x27;, &#x27;도현&#x27;, &#x27;active&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000014&#x27;, &#x27;yuna@example.com&#x27;,   &#x27;유나&#x27;, &#x27;active&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000015&#x27;, &#x27;hana@example.com&#x27;,   &#x27;하나&#x27;, &#x27;active&#x27;);
+INSERT INTO "user" (id, email, display_name, state) VALUES
+  ('01990a66-0000-7000-8000-000000000010', 'admin@example.com',  '관리자', 'active'),
+  ('01990a66-0000-7000-8000-000000000011', 'jimin@example.com',  '지민', 'active'),
+  ('01990a66-0000-7000-8000-000000000012', 'seoyeon@example.com','서연', 'active'),
+  ('01990a66-0000-7000-8000-000000000013', 'dohyun@example.com', '도현', 'active'),
+  ('01990a66-0000-7000-8000-000000000014', 'yuna@example.com',   '유나', 'active'),
+  ('01990a66-0000-7000-8000-000000000015', 'hana@example.com',   '하나', 'active');
 
 INSERT INTO project (id, org_id, slug, key, name, repo_url, default_branch) VALUES
   ('01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000001',
@@ -1105,21 +1124,27 @@ INSERT INTO project (id, org_id, slug, key, name, repo_url, default_branch) VALU
 
 INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES
   -- 조직 소속(project_id NULL) — 프로젝트가 늘어도 이 한 행이 조직 전체를 관리한다
-  (&#x27;01990a66-0000-7000-8000-000000000030&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, NULL, &#x27;01990a66-0000-7000-8000-000000000010&#x27;, &#x27;admin&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000031&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, &#x27;01990a66-0000-7000-8000-000000000021&#x27;, &#x27;01990a66-0000-7000-8000-000000000011&#x27;, &#x27;planner&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000032&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, &#x27;01990a66-0000-7000-8000-000000000021&#x27;, &#x27;01990a66-0000-7000-8000-000000000012&#x27;, &#x27;designer&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000033&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, &#x27;01990a66-0000-7000-8000-000000000021&#x27;, &#x27;01990a66-0000-7000-8000-000000000013&#x27;, &#x27;developer&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000034&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, &#x27;01990a66-0000-7000-8000-000000000021&#x27;, &#x27;01990a66-0000-7000-8000-000000000014&#x27;, &#x27;developer&#x27;),
-  (&#x27;01990a66-0000-7000-8000-000000000035&#x27;, &#x27;01990a66-0000-7000-8000-000000000001&#x27;, &#x27;01990a66-0000-7000-8000-000000000021&#x27;, &#x27;01990a66-0000-7000-8000-000000000015&#x27;, &#x27;developer&#x27;);
+  ('01990a66-0000-7000-8000-000000000030', '01990a66-0000-7000-8000-000000000001', NULL, '01990a66-0000-7000-8000-000000000010', 'admin'),
+  ('01990a66-0000-7000-8000-000000000031', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000011', 'planner'),
+  ('01990a66-0000-7000-8000-000000000032', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000012', 'designer'),
+  ('01990a66-0000-7000-8000-000000000033', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000013', 'developer'),
+  ('01990a66-0000-7000-8000-000000000034', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000014', 'developer'),
+  ('01990a66-0000-7000-8000-000000000035', '01990a66-0000-7000-8000-000000000001', '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000015', 'developer');
+
+-- **겸직 한 벌**(0003_multi_role). clemvion 실측에서 `planner/developer`·
+-- `project-planner + developer` 같은 복합 표기가 20건이었다 — 예외가 아니라 흔한 형태다.
+-- 지민은 planner 이면서 developer 다: 화면과 판정이 "하나 고르기"로 되돌아가면 여기서 깨진다.
+INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES
+  ('01990a66-0000-7000-8000-000000000036', '01990a66-0000-7000-8000-000000000001',
+   '01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000011', 'developer');
 
 INSERT INTO api_token (id, project_id, user_id, name, token_hash, prefix, scopes) VALUES
   ('01990a66-0000-7000-8000-000000000036', '01990a66-0000-7000-8000-000000000021',
    '01990a66-0000-7000-8000-000000000015', '노트북 Claude Code',
    digest('dev-seed-token-hana', 'sha256'), 'nrv_dev1',
-   -- **어휘에 있는 값만 심는다**(2026-09-05 정정 — 0018_prune_dead_scopes).
-   -- 예전 씨앗은 spec:write·review:write·session:write 를 심었고 셋 다 어휘에
-   -- 없어 verifyPat 이 사용 시점에 조용히 버렸다 — 설정 화면에만 남았다.
-   -- 어휘 정본은 @nerv/schema 의 AGENT_SCOPES 한 곳이다.
+   -- 어휘에 있는 값만 심는다 — 하나는 clemvion 의 developer 다(2026-09-04 정정).
+   -- 예전 씨앗은 spec:write·review:write·session:write 를 심었고, 셋 다 어휘에 없어
+   -- 사용 시점에 버려지면서 설정 화면에만 남아 있었다.
    ARRAY['spec:read', 'spec:draft', 'task:claim', 'task:update', 'review:submit',
          'agent-session:launch']);
 
@@ -1138,14 +1163,17 @@ INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, branch
    'S-b7e9', 'active', now() - interval '48 minutes', now() - interval '41 seconds', 12, 0);
 
 -- 스펙 트리 ------------------------------------------------------------
+-- sort_key 는 **폭을 고정한다**(4.7 §2.2 — `0` + 6자리 zero-pad, 접두 없으면 `1`).
+-- 임포터가 만드는 값과 같은 규약이어야 한 트리 안에서 섞이지 않는다: 옛 표기 '7' 은
+-- 텍스트 정렬에서 임포트한 '0000007' 보다 뒤로 가 노드 하나가 엉뚱한 자리에 선다(실측).
 INSERT INTO spec (id, project_id, parent_id, type, key, title, sort_key) VALUES
   ('01990a66-0000-7000-8000-000000000041', '01990a66-0000-7000-8000-000000000021', NULL,
-   'area', 'channel-web-chat', '채널 · 웹챗', '7'),
+   'area', 'channel-web-chat', '채널 · 웹챗', '0000007'),
   -- 표시 ID(SPC-*)를 key로 심는다 — 웹 라우트 /p/clemvion/specs/SPC-CWC-007 정합
   ('01990a66-0000-7000-8000-000000000042', '01990a66-0000-7000-8000-000000000021',
-   '01990a66-0000-7000-8000-000000000041', 'feature', 'SPC-CWC-007', '웹챗 위젯 임베드 v2', '2'),
+   '01990a66-0000-7000-8000-000000000041', 'feature', 'SPC-CWC-007', '웹챗 위젯 임베드 v2', '0000002'),
   ('01990a66-0000-7000-8000-000000000043', '01990a66-0000-7000-8000-000000000021',
-   '01990a66-0000-7000-8000-000000000041', 'feature', 'SPC-CWC-012', '세션 복원 API', '3');
+   '01990a66-0000-7000-8000-000000000041', 'feature', 'SPC-CWC-012', '세션 복원 API', '0000003');
 
 INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
                           author_user_id, approved_at, approved_by_user_id,
@@ -1185,6 +1213,9 @@ INSERT INTO requirement_version (requirement_id, spec_version_id, change_kind, s
    'WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다', 1);
 
 -- 작업 + 클레임 (S4 보드 한 벌) ------------------------------------------
+-- `blocked_reason` 은 **사람이 읽는 문장**이다(자유 텍스트). 코드처럼 생긴 값을 넣으면
+-- 화면에 그대로 찍혀 "awaiting_answer" 가 사용자에게 보인다(실측 2026-08-23) —
+-- 막힌 이유를 읽으려는 사람에게 그 토큰은 아무것도 말해 주지 않는다.
 INSERT INTO task (id, project_id, key, title, status, priority,
                   source_spec_version_id, source_requirement_id,
                   assignee_user_id, delegate_session_id,
@@ -1201,7 +1232,7 @@ INSERT INTO task (id, project_id, key, title, status, priority,
    '01990a66-0000-7000-8000-000000000053', NULL,
    '01990a66-0000-7000-8000-000000000014', '01990a66-0000-7000-8000-000000000082',
    'SPC-CWC-012 v1의 세션 복원 API 구현', 'PR 1건 + 통합 테스트',
-   'nerv_spec_get으로 SPC-CWC-012 v1 로드', '백엔드 세션 복원 경로만.', 'awaiting_answer'),
+   'nerv_spec_get으로 SPC-CWC-012 v1 로드', '백엔드 세션 복원 경로만.', '유나의 질문(스토리지 선택)에 답이 오기 전에는 계약을 못 정한다'),
   ('01990a66-0000-7000-8000-000000000073', '01990a66-0000-7000-8000-000000000021',
    'CLV-T-0CFQC2', '스니펫 로더 캐시 헤더', 'in_progress', 'P2',
    '01990a66-0000-7000-8000-000000000052', NULL,
@@ -1231,7 +1262,7 @@ INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status,
    ARRAY['01990a66-0000-7000-8000-000000000042']::uuid[],
    ARRAY['codebase/frontend/src/loader/**'], now() + interval '21 minutes');
 
--- 질문 (S-2d04는 awaiting_input — S7 받은 요청 카드) --------------------------
+-- 질문 (S-2d04는 awaiting_input — S7 승인함 카드) --------------------------
 INSERT INTO question (id, project_id, agent_session_id, task_id, title, body_md,
                       options, urgency, status) VALUES
   ('01990a66-0000-7000-8000-0000000000a1', '01990a66-0000-7000-8000-000000000021',
@@ -1239,6 +1270,166 @@ INSERT INTO question (id, project_id, agent_session_id, task_id, title, body_md,
    '스토리지 선택',
    '임베드 위젯의 세션 복원을 localStorage로 할지 서버 세션으로 할지 — 스펙에 명시 없음',
    '["localStorage", "서버 세션", "스펙에 남길 질문"]', 'blocking', 'open');
+
+-- Activity 타임라인 (§2.6 · S5 세션 상세 — ui-wireframes §2.5 둘째 그림) ------
+--
+-- 이 화면의 값어치는 **사람의 개입이 에이전트의 행동과 같은 줄에 섞이는 것**인데,
+-- 시드가 이 테이블을 비워 두어 개발 환경에서는 늘 빈 목록이었다(실측 2026-08-23).
+-- 화면의 중심이 비어 있으면 "안 만든 껍데기"로 보인다.
+--
+-- `created_at` 은 **월 파티션 키**다(§2.14). 초기 스냅샷은 이번 달과 다음 달만 만들므로
+-- 월초에 시드를 돌리면 음수 오프셋이 지난달로 넘어가 파티션이 없어 실패한다 —
+-- 그래서 이번 달 시작으로 자른다. 순서는 `seq` 가 정하니 잘려도 이야기는 안 흐트러진다.
+--
+-- 도구 이름은 **MVP 16종**만 쓴다(scope.md §4.2). 와이어프레임에는 `nerv_review_submit`
+-- 이 있으나 그것은 Phase 2 라, 없는 도구를 개발 데이터가 보여 주면 안 된다.
+INSERT INTO activity (id, session_id, project_id, seq, type, title, body_md, tool_name, created_at)
+SELECT v.id::uuid, v.session_id::uuid, '01990a66-0000-7000-8000-000000000021'::uuid,
+       v.seq, v.type::activity_type, v.title, v.body_md, v.tool_name,
+       greatest(now() - (v.ago_min || ' minutes')::interval, date_trunc('month', now()))
+  FROM (VALUES
+    -- S-8f31 · 도현 · mac-02 — 클레임부터 질문·응답까지 한 줄기로 읽힌다
+    ('01990a66-0000-7000-8000-0000000000c1', '01990a66-0000-7000-8000-000000000081', 1,
+     'thought', 'ready 큐 1순위 확인, scope 겹침 없음', NULL, NULL, 151),
+    ('01990a66-0000-7000-8000-0000000000c2', '01990a66-0000-7000-8000-000000000081', 2,
+     'action', 'nerv_task_next → 후보 3건', '기준 SpecVersion 포함', 'nerv_task_next', 150),
+    ('01990a66-0000-7000-8000-0000000000c3', '01990a66-0000-7000-8000-000000000081', 3,
+     'action', 'nerv_task_claim(CLV-T-1KTDCK) → ok · 리스 30:00', NULL, 'nerv_task_claim', 149),
+    ('01990a66-0000-7000-8000-0000000000c4', '01990a66-0000-7000-8000-000000000081', 4,
+     'action', 'nerv_spec_get(SPC-CWC-007@v4) · REQ 3건 로드', NULL, 'nerv_spec_get', 145),
+    ('01990a66-0000-7000-8000-0000000000c5', '01990a66-0000-7000-8000-000000000081', 5,
+     'thought', '위젯 상태 4종 중 empty·error 를 먼저 구현', NULL, NULL, 120),
+    -- 사람이 끼어드는 지점 — 이 두 줄이 위아래 행동 사이에 섞여야 화면이 제 일을 한다
+    ('01990a66-0000-7000-8000-0000000000c6', '01990a66-0000-7000-8000-000000000081', 6,
+     'elicitation', '"세션 복원 저장소" → 질문 생성, awaiting_input', '스펙에 명시 없음 — 사람 판단 필요', 'nerv_question_create', 96),
+    ('01990a66-0000-7000-8000-0000000000c7', '01990a66-0000-7000-8000-000000000081', 7,
+     'response', '지민 응답 (B) 서버 세션 → active 복귀', NULL, NULL, 65),
+    ('01990a66-0000-7000-8000-0000000000c8', '01990a66-0000-7000-8000-000000000081', 8,
+     'action', 'nerv_task_heartbeat → pending 0', NULL, 'nerv_task_heartbeat', 8),
+    -- S-2d04 · codex · linux-ci-01 — **왜 stale 인지가 마지막 줄에 있다**
+    ('01990a66-0000-7000-8000-0000000000d1', '01990a66-0000-7000-8000-000000000082', 1,
+     'action', 'nerv_task_claim(CLV-T-TRA25N) → ok · 리스 30:00', NULL, 'nerv_task_claim', 80),
+    ('01990a66-0000-7000-8000-0000000000d2', '01990a66-0000-7000-8000-000000000082', 2,
+     'thought', '세션 복원 API 계약부터 확정한다', NULL, NULL, 74),
+    ('01990a66-0000-7000-8000-0000000000d3', '01990a66-0000-7000-8000-000000000082', 3,
+     'elicitation', '"스토리지 선택" → 질문 생성, blocking', 'localStorage / 서버 세션', 'nerv_question_create', 70),
+    ('01990a66-0000-7000-8000-0000000000d4', '01990a66-0000-7000-8000-000000000082', 4,
+     'error', '답을 기다리다 하트비트 끊김 — 무활동 30분 초과', '리스가 회수됐다(D-13)', NULL, 33),
+    -- S-b7e9 · 하나 · mac-07
+    ('01990a66-0000-7000-8000-0000000000e1', '01990a66-0000-7000-8000-000000000083', 1,
+     'action', 'nerv_task_claim(CLV-T-0CFQC2) → ok', NULL, 'nerv_task_claim', 48),
+    ('01990a66-0000-7000-8000-0000000000e2', '01990a66-0000-7000-8000-000000000083', 2,
+     'action', 'nerv_spec_get(SPC-CWC-007@v4) · 캐시 헤더 절 확인', NULL, 'nerv_spec_get', 45),
+    ('01990a66-0000-7000-8000-0000000000e3', '01990a66-0000-7000-8000-000000000083', 3,
+     'thought', 'max-age 와 stale-while-revalidate 를 나눠 둔다', NULL, NULL, 40)
+  ) AS v(id, session_id, seq, type, title, body_md, tool_name, ago_min);
+
+-- 리뷰 (S6 리뷰 센터 — screens.md §2.6a) -----------------------------------
+--
+-- **화면마다 데이터 있음 경로가 뜬다**는 검사에 S6 이 새로 들어왔다. 비워 두면
+-- 리뷰 센터가 개발 환경에서 늘 빈 목록이고, 그 화면의 값어치가 "원시 diff 대신
+-- 정리된 finding" 인데 정리된 것이 없으면 만들다 만 껍데기로 보인다.
+--
+-- 한 벌의 모양: 브랜치 둘 × 라운드 체인(1→2) — 통과 하나와 대기 하나를 함께 보여
+-- 게이트 판정 3종 중 둘이 화면에 뜨게 한다. 발견 3건은 severity 3종을 채우고,
+-- 그중 하나는 **2라운드에서 다시 관측된 같은 지적**이다(fingerprint dedup 표기).
+INSERT INTO review_session (id, project_id, kind, "trigger", agent_session_id, task_id,
+                            branch, head_sha, base_sha, changeset_hash, file_count, round_no,
+                            previous_session_id, state, risk, block, started_at, completed_at)
+VALUES
+  ('01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-000000000021',
+   'code', 'auto', '01990a66-0000-7000-8000-000000000081',
+   '01990a66-0000-7000-8000-000000000071',
+   'feature/widget-v2', '9a41c2f0e1', '3d90f1aabb', decode(repeat('a1', 32), 'hex'), 4, 1,
+   NULL, 'complete', 'high', true, now() - interval '5 hours', now() - interval '5 hours'),
+  ('01990a66-0000-7000-8000-0000000000f2', '01990a66-0000-7000-8000-000000000021',
+   'code', 'auto', '01990a66-0000-7000-8000-000000000081',
+   '01990a66-0000-7000-8000-000000000071',
+   'feature/widget-v2', '7b22ce90aa', '9a41c2f0e1', decode(repeat('a2', 32), 'hex'), 2, 2,
+   '01990a66-0000-7000-8000-0000000000f1', 'complete', 'medium', true,
+   now() - interval '90 minutes', now() - interval '88 minutes'),
+  ('01990a66-0000-7000-8000-0000000000f3', '01990a66-0000-7000-8000-000000000021',
+   'consistency', 'manual', NULL, NULL,
+   'feat/session-restore', '5c31aa7b02', '3d90f1aabb', decode(repeat('a3', 32), 'hex'), 3, 1,
+   NULL, 'complete', 'low', false, now() - interval '2 days', now() - interval '2 days');
+
+INSERT INTO reviewer_report (id, review_session_id, role, risk, body_md, has_report) VALUES
+  ('01990a66-0000-7000-8000-0000000000f4', '01990a66-0000-7000-8000-0000000000f1',
+   'security', 'high', '세션 복원 경로의 저장 매체를 봤다. 토큰이 평문으로 남는다.', true),
+  ('01990a66-0000-7000-8000-0000000000f5', '01990a66-0000-7000-8000-0000000000f1',
+   'requirement', 'medium', 'REQ-CWC-031 의 오프라인 배너 문구가 구현과 다르다.', true),
+  ('01990a66-0000-7000-8000-0000000000f6', '01990a66-0000-7000-8000-0000000000f2',
+   'security', 'medium', '토큰 저장은 그대로다. 캐시 헤더가 새로 걸린다.', true),
+  ('01990a66-0000-7000-8000-0000000000f7', '01990a66-0000-7000-8000-0000000000f3',
+   'cross-spec', 'low', '스펙 간 모순 없음.', true);
+
+-- fingerprint 는 실제 알고리즘의 산출이 아니라 **고정값**이다(시드는 재현이 목적이다).
+-- 실물 값은 @nerv/schema/keys 의 findingFingerprint 가 만든다.
+INSERT INTO finding (id, project_id, fingerprint, severity, tags, category, title, detail_md,
+                     suggestion_md, file_path, line_start, symbol, spec_version_id,
+                     requirement_id, status, first_session_id, last_session_id,
+                     occurrence_count, created_at) VALUES
+  ('01990a66-0000-7000-8000-0000000000f8', '01990a66-0000-7000-8000-000000000021',
+   decode(repeat('b1', 32), 'hex'), 'critical', '{}', 'security',
+   '세션 토큰이 localStorage 에 평문 저장',
+   'XSS 한 번이면 그대로 새어 나간다. 서버 세션 쿠키로 옮겨야 한다.',
+   'httpOnly 쿠키 + 서버 세션으로 전환',
+   'codebase/frontend/src/widget/session.ts', 88, 'restoreSession',
+   '01990a66-0000-7000-8000-000000000052', '01990a66-0000-7000-8000-000000000061',
+   'open', '01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-0000000000f2',
+   2, now() - interval '5 hours'),
+  ('01990a66-0000-7000-8000-0000000000f9', '01990a66-0000-7000-8000-000000000021',
+   decode(repeat('b2', 32), 'hex'), 'warning', '{spec_drift}', 'requirement',
+   '오프라인 재시도 배너 문구가 스펙과 다르다',
+   '구현이 더 정확하다 — 스펙 쪽을 CR 로 보정하는 편이 맞다.',
+   NULL, 'codebase/frontend/src/widget/offline-banner.tsx', 24, NULL,
+   '01990a66-0000-7000-8000-000000000052', '01990a66-0000-7000-8000-000000000061',
+   'open', '01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-0000000000f1',
+   1, now() - interval '5 hours'),
+  ('01990a66-0000-7000-8000-0000000000fa', '01990a66-0000-7000-8000-000000000021',
+   decode(repeat('b3', 32), 'hex'), 'info', '{}', 'convention',
+   '로더 캐시 헤더 TTL 미지정',
+   NULL, 'max-age 와 stale-while-revalidate 를 나눠 적는다',
+   'codebase/frontend/src/widget/loader.ts', 12, NULL, NULL, NULL,
+   'open', '01990a66-0000-7000-8000-0000000000f2', '01990a66-0000-7000-8000-0000000000f2',
+   1, now() - interval '90 minutes'),
+  ('01990a66-0000-7000-8000-0000000000fb', '01990a66-0000-7000-8000-000000000021',
+   decode(repeat('b4', 32), 'hex'), 'warning', '{}', 'cross-spec',
+   '복원 실패 시 재시도 횟수가 스펙에 없다',
+   NULL, NULL, 'codebase/frontend/src/widget/session.ts', 141, NULL,
+   NULL, NULL,
+   'fixed', '01990a66-0000-7000-8000-0000000000f3', '01990a66-0000-7000-8000-0000000000f3',
+   1, now() - interval '2 days');
+
+-- 출현 — 같은 지적이 2라운드에 다시 보인 것이 dedup 표기의 근거다(occurrence_count 2)
+INSERT INTO finding_occurrence (id, finding_id, review_session_id, reviewer_report_id,
+                                round_no, display_no, raw_severity) VALUES
+  ('01990a66-0000-7000-8000-0000000000fc', '01990a66-0000-7000-8000-0000000000f8',
+   '01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-0000000000f4', 1, 1, 'critical'),
+  ('01990a66-0000-7000-8000-0000000000fd', '01990a66-0000-7000-8000-0000000000f8',
+   '01990a66-0000-7000-8000-0000000000f2', '01990a66-0000-7000-8000-0000000000f6', 2, 1, 'warning'),
+  ('01990a66-0000-7000-8000-0000000000fe', '01990a66-0000-7000-8000-0000000000f9',
+   '01990a66-0000-7000-8000-0000000000f1', '01990a66-0000-7000-8000-0000000000f5', 1, 2, 'warning'),
+  ('01990a66-0000-7000-8000-0000000000ff', '01990a66-0000-7000-8000-0000000000fa',
+   '01990a66-0000-7000-8000-0000000000f2', '01990a66-0000-7000-8000-0000000000f6', 2, 2, 'info'),
+  ('01990a66-0000-7000-8000-000000000f01', '01990a66-0000-7000-8000-0000000000fb',
+   '01990a66-0000-7000-8000-0000000000f3', '01990a66-0000-7000-8000-0000000000f7', 1, 1, 'warning');
+
+-- 2라운드에서 critical 이 warning 으로 내려왔다(raw_severity 대조로 감사한다).
+-- finding.severity 는 처음 값을 지킨다 — 리뷰어가 자기 지적을 조용히 낮추지 못한다.
+
+INSERT INTO resolution (id, finding_id, kind, commit_sha, rationale_md, actor_user_id) VALUES
+  ('01990a66-0000-7000-8000-000000000f02', '01990a66-0000-7000-8000-0000000000fb',
+   'fixed', 'e91ba7c2', '재시도 3회 + 지수 백오프로 구현하고 스펙에 절을 추가했다.',
+   '01990a66-0000-7000-8000-000000000015');
+
+-- 게이트 면제 — **면제도 결재 레코드다**(FR-10). 리뷰 세션을 주체로 붙는다
+INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                      decision, decided_at, is_bypass, bypass_reason) VALUES
+  ('01990a66-0000-7000-8000-000000000f03', '01990a66-0000-7000-8000-000000000021',
+   'gate_bypass', '01990a66-0000-7000-8000-0000000000f3',
+   '01990a66-0000-7000-8000-000000000015', 'approve', now() - interval '1 day', true,
+   '핫픽스 배포, 사후 리뷰 예약');
 
 -- 이벤트 (커밋 후 EventService가 §3 규약으로 nerv_events에 PUBLISH) ---------
 INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, actor_session_id,
@@ -1255,7 +1446,7 @@ INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, actor_sessi
    '01990a66-0000-7000-8000-000000000082', true, 'question',
    '01990a66-0000-7000-8000-0000000000a1', NULL, NULL);
 
--- 알림 (question.created → 지민 받은 요청, critical 티어라 immediate) ----------
+-- 알림 (question.created → 지민 승인함, critical 티어라 immediate) ----------
 INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state) VALUES
   ('01990a66-0000-7000-8000-0000000000c1', '01990a66-0000-7000-8000-000000000021',
    '01990a66-0000-7000-8000-000000000011', '01990a66-0000-7000-8000-0000000000b3',

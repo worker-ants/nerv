@@ -44,10 +44,14 @@ export const Route = createFileRoute('/p/$proj/specs/')({
   // 보관 보기는 **뷰 상태**라 주소에 남는다(§2.4 (3)) — 링크로 건네면 상대도 같은 목록을 본다
   validateSearch: (
     search: Record<string, unknown>,
-  ): { archived?: true; baseline?: string; status?: string; type?: string } => ({
+  ): { archived?: true; baseline?: string; q?: string; status?: string; type?: string } => ({
     ...(search['archived'] === true || search['archived'] === '1'
       ? { archived: true as const }
       : {}),
+    // **검색어도 뷰 상태다**(§2.4 (3) · screens.md:583 — "검색·타입·상태 필터는 URL 쿼리로
+    // 보존"). 컴포넌트 state 로 두면 "이 검색 결과를 봐 달라" 를 링크로 건넬 수 없고,
+    // 새로고침 한 번에 사라진다 — 상태·타입은 이미 주소에 있는데 검색어만 빠져 있었다.
+    ...(typeof search['q'] === 'string' && search['q'] !== '' ? { q: search['q'] } : {}),
     // 고른 기준선도 **뷰 상태**다 — 링크로 건네면 상대도 같은 세트를 본다(REQ-WEB-135)
     ...(typeof search['baseline'] === 'string' && search['baseline'] !== ''
       ? { baseline: search['baseline'] }
@@ -78,7 +82,7 @@ function SpecListScreen(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
-  const { archived = false, baseline, status, type } = Route.useSearch();
+  const { archived = false, baseline, q, status, type } = Route.useSearch();
   const statuses = status === undefined ? [] : status.split(',').filter((value) => value !== '');
   const types = type === undefined ? [] : type.split(',').filter((value) => value !== '');
   /**
@@ -90,24 +94,29 @@ function SpecListScreen(): React.JSX.Element {
   const searchWith = (patch: {
     archived?: boolean;
     baseline?: string | null;
+    q?: string | null;
     status?: string | null;
     type?: string | null;
-  }): { archived?: true; baseline?: string; status?: string; type?: string } => {
+  }): { archived?: true; baseline?: string; q?: string; status?: string; type?: string } => {
     const pick = (next: string | null | undefined, now: string | undefined): string | undefined =>
       next === undefined ? now : (next ?? undefined);
     const nextBaseline = pick(patch.baseline, baseline);
+    const nextQuery = pick(patch.q, q);
     const nextStatus = pick(patch.status, status);
     const nextType = pick(patch.type, type);
     return {
       ...((patch.archived ?? archived) ? { archived: true as const } : {}),
       ...(nextBaseline === undefined || nextBaseline === '' ? {} : { baseline: nextBaseline }),
+      ...(nextQuery === undefined || nextQuery === '' ? {} : { q: nextQuery }),
       ...(nextStatus === undefined || nextStatus === '' ? {} : { status: nextStatus }),
       ...(nextType === undefined || nextType === '' ? {} : { type: nextType }),
     };
   };
   const project = useProject(proj);
-  const [query, setQuery] = useState('');
-  const [submitted, setSubmitted] = useState('');
+  // 입력 중인 글자는 화면의 것이고, **보낸 검색어는 주소의 것**이다. 링크가 가리키는 것은
+  // 누가 무엇을 타이핑하던 중인지가 아니라 어떤 결과를 보라는 것이다.
+  const submitted = q ?? '';
+  const [query, setQuery] = useState(submitted);
   // 트리와 그래프는 **같은 질문의 두 답**이다 — 계층으로 찾을 때와 관계로 찾을 때.
   // 다른 라우트로 가르면 둘을 오가며 비교할 수 없다.
   const [view, setView] = useState<'tree' | 'table' | 'graph'>('tree');
@@ -268,7 +277,11 @@ function SpecListScreen(): React.JSX.Element {
             className="flex items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              setSubmitted(query);
+              void navigate({
+                to: '/p/$proj/specs',
+                params: { proj },
+                search: searchWith({ q: query === '' ? null : query }),
+              });
             }}
           >
             {/* **만드는 문이 목록에 있다**(2026-09-03 신설 · REQ-WEB-043). 읽을 수는 있는데
@@ -329,7 +342,11 @@ function SpecListScreen(): React.JSX.Element {
                 variant="ghost"
                 onClick={() => {
                   setQuery('');
-                  setSubmitted('');
+                  void navigate({
+                    to: '/p/$proj/specs',
+                    params: { proj },
+                    search: searchWith({ q: null }),
+                  });
                 }}
               >
                 {t('specs.back_to_tree')}

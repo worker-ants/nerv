@@ -109,10 +109,22 @@ export const IMPORT_BATCH_MAX = 200;
 export const importRequirementSchema = z.object({
   ref: z.string().min(1),
   text: z.string().min(1),
-  priority: z.enum(['must', 'should', 'could']).default('must'),
+  /**
+   * 수용 기준 셀의 원문 — **EARS 정규화는 자동으로 하지 않는다**(importer.md §2.5 규칙 2).
+   * 수용 기준 열이 따로 없으면 null 이다: 설명 셀을 복사해 두 벌로 만들지 않는다.
+   */
+  acceptance_md: z.string().nullable().default(null),
+  /**
+   * **미표기는 null 이다**(§2.5 규칙 4). 기본값을 `must` 로 두면 표기가 없던 행과 필수라고
+   * 적힌 행이 저장에서 같아지고, 그 순간 "추정하지 않는다" 는 규칙이 코드에서 사라진다.
+   * CLI 는 null 을 보낼 때 `req-priority-missing` 을 수동 확인 큐에 함께 올린다(§4.1).
+   */
+  priority: z.enum(['must', 'should', 'could']).nullable().default(null),
   impl_status: z
     .enum(['unimplemented', 'in_progress', 'implemented', 'verified'])
     .default('unimplemented'),
+  /** 문서 내 정의 순서 — `requirement_version.ordinal` 이 된다(§2.5 규칙 7) */
+  ordinal: z.number().int().nonnegative().default(0),
 });
 
 export const importSpecItemSchema = z.object({

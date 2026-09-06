@@ -2,7 +2,9 @@
 
 > **요약** — NERV(가칭)의 웹 화면 8종(S1 홈 대시보드 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S6 리뷰 센터 · S7 받은 요청 · S8 설정·멤버)을 정보 구조·와이어프레임·상태 표현 규칙·인터랙션 규약 수준까지 확정한다. 설계의 축은 하나다 — **화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.** 세션 카드에는 업계 관례(상태·diff 통계·브랜치·activity feed·attach)에 더해 NERV의 차별 요소인 **hostname·에이전트 종류·하트비트·클레임한 Task·리스 잔여**를 필수로 표기해, clemvion에서 "다른 머신·세션이면 로컬에 안 보여" 사라졌던 정보를 화면 위로 끌어올린다. 기획자·디자이너가 터미널 없이 스펙을 쓰고 승인하며(P7), QA가 원시 diff 대신 정리된 finding을 보고 위험을 판단하며, 개발자가 죽은 세션을 사람 눈으로 감시하지 않는 것 — 이 세 가지가 화면이 증명해야 할 명제다. 이 문서의 HTML 파생본은 모든 화면을 실제 UI로 렌더링한 쇼케이스다.
 >
-> 문서 버전 v0.3 · 2026-09-02 · HTML 파생본: [ui-wireframes.html](../html/ui-wireframes.html)
+> 문서 버전 v0.4 · 2026-09-06 · HTML 파생본: [ui-wireframes.html](../html/ui-wireframes.html)
+>
+> v0.4 변경(2026-09-06 — IA 가 없는 주소를 가리켰다, 정합성 대조 → 사람 지시): §1.2 IA 트리의 드릴다운 주소 넷이 라우트에 없다 — `/p/{proj}/coverage` · `/p/{proj}/findings/{id}` · `/p/{proj}/gates` · `/settings/integrations`. **기능은 구현돼 있고 주소만 다르다**: 커버리지는 S2 안에, 발견 상세와 게이트 현황은 S6 리뷰 센터 안에 있다(연동 탭만 Phase 2 라 정상 미래형이다). IA 표가 정본처럼 읽혀 화면 명세·매뉴얼이 없는 링크를 인용할 여지가 있어 자리로 고쳤다.
 >
 > v0.3 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -39,7 +41,7 @@ NERV
 ├── 알림 센터                              /notifications
 ├── 프로젝트                               /p/{project}
 │   ├── S2 프로젝트 개요                   /p/clemvion
-│   │   └── 커버리지 드릴다운              /p/clemvion/coverage
+│   │   └── 커버리지 드릴다운              (S2 안 · 전용 라우트 없음)
 │   ├── S3 스펙                            /p/clemvion/specs
 │   │   ├── 스펙 상세                      /p/clemvion/specs/SPC-CWC-007
 │   │   ├── 버전 diff                      /p/clemvion/specs/SPC-CWC-007?diff=v3..v4
@@ -49,12 +51,12 @@ NERV
 │   ├── S5 세션 모니터 (미션 컨트롤)       /p/clemvion/sessions
 │   │   └── 세션 상세 (Activity 타임라인)  /p/clemvion/sessions/S-8f31
 │   └── S6 리뷰 센터                       /p/clemvion/reviews
-│       ├── finding 상세                   /p/clemvion/findings/FND-4a19
-│       └── 게이트 현황                    /p/clemvion/gates
+│       ├── finding 상세                   (S6 안 · 전용 라우트 없음)
+│       └── 게이트 현황                    (S6 안 · 전용 라우트 없음)
 └── S8 설정                                /settings
     ├── 멤버·역할 (n:n)                    /settings/members
     ├── 에이전트 토큰                      /settings/tokens
-    ├── 연동 (GitHub · Slack)              /settings/integrations
+    ├── 연동 (GitHub · Slack)              (Phase 2 — 라우트 없음)
     └── 게이트 정책                        /settings/gates
 ```
 

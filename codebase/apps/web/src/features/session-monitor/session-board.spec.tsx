@@ -31,6 +31,7 @@ afterEach(cleanup);
 
 const base: Card = {
   id: 's-1',
+  user_id: 'u-1',
   user_name: '도현',
   hostname: 'mac-02',
   agent_type: 'claude-code',

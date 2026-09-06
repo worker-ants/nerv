@@ -21,6 +21,7 @@ let app: NestFastifyApplication;
 let adminToken: string;
 let viewerToken: string;
 let narrowToken: string;
+let reviewToken: string;
 let projectId: string;
 let orgId: string;
 let adminId: string;
@@ -52,6 +53,16 @@ beforeAll(async () => {
         'task:update',
         'review:resolve',
       ],
+    })
+  ).token;
+  // 리뷰 제출은 `review:submit` 이 따로 있다 — adminToken 에 얹지 않는다.
+  // 얹으면 권한 집행을 보는 다른 검사들이 "어느 축이 통과시켰는가" 를 구별하지 못한다.
+  reviewToken = (
+    await auth.issueToken({
+      projectId,
+      userId: adminId,
+      name: 'admin-review-pat',
+      scopes: ['spec:read', 'review:submit'],
     })
   ).token;
   // **역할은 admin, 권한은 읽기뿐.** 역할만 보던 자리를 잡아내려면 이 조합이 필요하다 —
@@ -569,6 +580,54 @@ describe('세션 steer (EP-SES-04)', () => {
   });
 });
 
+describe('리뷰 제출 REST — 지적 본문이 저장까지 간다 (EP-REV-01 · REQ-API-114)', () => {
+  // **표면마다 번역이 따로 있으면 한쪽만 낡는다.** 계약은 `body`·`suggestion` 으로 오고
+  // 저장 열은 `body_md`·`suggestion_md` 인데, 그 번역이 MCP 쪽에만 있었고 REST 컨트롤러는
+  // 타입만 맞춰 캐스팅했다 — 컴파일도 lint 도 통과했고 **REST 로 올린 리뷰의 지적 본문과
+  // 제안은 전부 NULL 로 저장됐다.** 서비스를 직접 부르는 L2 는 이미 `body_md` 를 넘기고
+  // 있어 이 자리를 지나쳤다. 그래서 이 검사는 **실제 HTTP 로** 돈다.
+  it('body·suggestion 이 detail_md·suggestion_md 로 저장된다', async () => {
+    const res = await call('POST', '/api/v1/projects/clemvion/reviews', {
+      token: reviewToken,
+      payload: {
+        branch: 'feat/rest-review',
+        base_sha: 'base-rest',
+        head_sha: 'head-rest',
+        reviewer: { role: 'qa', risk: 'low' },
+        findings: [
+          {
+            severity: 'warning',
+            title: '요청 로거가 Authorization 헤더를 통째로 찍는다',
+            body: '마스킹 없이 토큰 원문이 로그에 남는다.',
+            suggestion: '헤더 화이트리스트를 두고 나머지는 가린다.',
+            file: 'apps/api/src/main.ts',
+            line: 42,
+          },
+        ],
+      },
+    });
+    expect(res.status).toBe(201);
+
+    const { rows } = await pool.query<{
+      detail_md: string | null;
+      suggestion_md: string | null;
+      file_path: string | null;
+      line_start: number | null;
+    }>(
+      `SELECT detail_md, suggestion_md, file_path, line_start
+         FROM finding
+        WHERE project_id = $1 AND title = $2`,
+      [projectId, '요청 로거가 Authorization 헤더를 통째로 찍는다'],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.detail_md).toBe('마스킹 없이 토큰 원문이 로그에 남는다.');
+    expect(rows[0]?.suggestion_md).toBe('헤더 화이트리스트를 두고 나머지는 가린다.');
+    // 같은 매퍼가 옮기는 나머지 필드도 함께 본다 — 한 칸만 고치고 끝내지 않기 위해서다
+    expect(rows[0]?.file_path).toBe('apps/api/src/main.ts');
+    expect(rows[0]?.line_start).toBe(42);
+  });
+});
+
 describe('리뷰 처분 REST — 웹이 보내는 값이 그대로 저장된다 (EP-REV-02)', () => {
   it('`spec_change` 가 `dismissed` 로 접히지 않고 근거 버전이 남는다', async () => {
     // 웹 리뷰 센터의 처분 대화상자가 실제로 보내는 모양이다. 예전에는 REST 컨트롤러가
@@ -826,6 +885,19 @@ describe('라우트 권한 집행 (§2 전표의 권한 열)', () => {
       { token: ciToken, payload: { kind: 'pr', locator: 'https://example.com/pr/1' } },
     );
     expect(allowed.status).toBeLessThan(300);
+
+    // **전표가 발생 이벤트를 적으면 그것이 계약이다**(REQ-API-115). EP-REQ-03 은 처음부터
+    // ★`evidence.added` 를 적었는데 이 경로는 INSERT 만 하고 이벤트를 내지 않았다 — 증적이
+    // 실시간으로 화면에 닿지 않았고 감사 축(FR-16)에도 남지 않았다.
+    const { rows: evt } = await pool.query<{ subject_type: string; payload: { kind: string } }>(
+      `SELECT subject_type, payload FROM event
+        WHERE project_id = $1 AND type = 'evidence.added'
+        ORDER BY occurred_at DESC LIMIT 1`,
+      [projectId],
+    );
+    expect(evt).toHaveLength(1);
+    expect(evt[0]?.subject_type).toBe('requirement');
+    expect(evt[0]?.payload?.kind).toBe('pr');
 
     // 이 스위트는 requirement 를 비우지 않는다 — 남기면 커버리지 테스트가 세는 수가 달라진다
     await pool.query(`DELETE FROM evidence WHERE requirement_id IN

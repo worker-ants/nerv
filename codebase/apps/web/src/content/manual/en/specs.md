@@ -132,9 +132,11 @@ Requirements in a spec body are extracted and carry their own implementation sta
 
 **Missing evidence** is "you said it was done and there is nothing to show"; **empty promises** is "you wrote it down and nobody took it". You bring the first down by attaching evidence, the second by making a task and linking it to the requirement (see [Tasks](/help/tasks)).
 
+**Which requirement it is, you read on the document.** The project screen's numbers only say how many. The **Requirements** tab on the right of a spec lists that document's requirements one per line, each with its derived-task and evidence counts — and a line where both are zero stands out in **red**. Below it, **Derived tasks** shows the work that came out of this document and is still moving (`ready`, `in_progress`, `blocked`); [See all on the board] opens the task board with the same filter applied.
+
 Requirement rows are created from the body **when a version is approved**. Writing EARS sentences into a draft is not enough — a draft is not yet a promise. When a sentence drops out of a later version the row is not deleted; **which version dropped it** is recorded instead.
 
-Priority starts at `must`, because the EARS line in the body does not carry one.
+Priority starts at `must`, because the EARS line in the body does not carry one. Imported requirements are different: when the source states no priority, it is **left empty** (the screen says "no priority"). Filling in `must` for something the source never said would read as if the source had said it.
 
 **Implementation status is not something a person marks.** The server derives it from the tasks that came out of that requirement.
 

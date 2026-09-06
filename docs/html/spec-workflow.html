@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.8 (2026-09-05)</span>
+      <span>버전 v0.9 (2026-09-06)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
     </div>
@@ -941,7 +941,7 @@ SELECT EXISTS (
       <tr><td>Finding · Resolution · verdict · 입력 스냅샷 메타</td><td>영구</td><td>Postgres</td></tr>
       <tr><td>ReviewerReport 본문</td><td>영구(압축)</td><td>Postgres</td></tr>
       <tr><td>리뷰 프롬프트 페이로드 · 중간 로그(<code>review_session.prompt_blob_uri</code>)</td><td>TTL 30일(설정)</td><td>오브젝트 스토리지</td></tr>
-      <tr><td>세션 Activity 원문</td><td>TTL 180일, 요약은 영구</td><td>혼합</td></tr>
+      <tr><td>세션 Activity 원문</td><td>TTL <b>90일</b>(정책 기본값 <code>activity_days</code> — <a href="api.html">4.4 API</a> §1.6a), 요약은 영구(<code>activity_summary</code>)</td><td>혼합</td></tr>
     </tbody>
   </table></div>
 

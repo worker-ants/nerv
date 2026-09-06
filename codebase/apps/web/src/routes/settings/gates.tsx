@@ -5,6 +5,7 @@
 // 둘 중 하나만 있으면 게이트가 우회 가능해지거나 사용자가 이유 없이 막힌다.
 
 import { useT } from '../../lib/i18n.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -38,6 +39,7 @@ function GatesTab(): React.JSX.Element {
   const project = useProject(slug);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   // `membership?.role` 은 **없는 필드**였다(멤버십이 나르는 것은 `roles` 배열이다).
   // `Membership` 이 `Record<string, unknown>` 을 확장해 타입이 잡지 못했고, 그래서
   // 이 탭은 누구에게나 읽기 전용이었다 — admin 에게도.
@@ -69,7 +71,7 @@ function GatesTab(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: queryKeys.project(slug) });
       pushToast({ tone: 'ok', message: t('settings.gates.saved') });
     },
-    onError: (error: Error) => pushToast({ tone: 'warn', message: error.message }),
+    onError: onApiError,
   });
 
   return (

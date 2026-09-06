@@ -37,7 +37,9 @@ function file(path: string): string {
 
 // `review` 는 P2 스킬이고 2026-08-23 에 패키지에 들어왔다(4.6 §2.6).
 // **MVP 약속은 여전히 5종**이다 — 6번째는 Phase 2 가 위에 얹힌 것이다.
-const SKILLS = ['next', 'spec', 'impl', 'question', 'import', 'review'] as const;
+// `import` 는 2026-09-06 에 걷었다 — 플러그인이 배달하지 않는 CLI(`@nerv/cli` 는 private)를
+// 부르는 스킬이라 설치한 쪽에서는 첫 Bash 호출이 해석되지 않았다. 근거와 선택지는 4.6 §2.5.
+const SKILLS = ['next', 'spec', 'impl', 'question', 'review'] as const;
 
 describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', () => {
   it.each(SKILLS)('skills/%s/SKILL.md', (skill) => {

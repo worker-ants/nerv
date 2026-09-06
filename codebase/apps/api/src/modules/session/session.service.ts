@@ -659,7 +659,7 @@ export class SessionService {
       states.length === 0 ? sql`` : sql` AND s.state = ANY(${sqlArray(states, 'session_state')})`;
 
     const { rows } = await this.db.execute<SessionCard>(sql`
-      SELECT s.id, u.display_name AS user_name, s.hostname,
+      SELECT s.id, s.user_id, u.display_name AS user_name, s.hostname,
              s.agent_type::text AS agent_type, s.state::text AS state,
              s.branch, s.diff_added, s.diff_removed,
              s.last_heartbeat_at::text AS last_heartbeat_at,

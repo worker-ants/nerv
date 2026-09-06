@@ -11,7 +11,7 @@ import {
   createRouter,
 } from '@tanstack/react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApprovalCard, waitedLabel } from './approval-card.js';
+import { ApprovalCard, subjectFallback, waitedLabel } from './approval-card.js';
 import { RealtimeProvider } from '../../lib/realtime.js';
 
 vi.mock('socket.io-client', () => ({
@@ -261,5 +261,27 @@ describe('처리됨 탭 — 단추가 없으면 키도 없다', () => {
       expect(calls.some((u) => u.includes('/approvals/'))).toBe(true);
     });
     vi.unstubAllGlobals();
+  });
+});
+
+describe('제목 없는 대상의 이름 (REQ-WEB-133)', () => {
+  // 목록 질의는 `spec_version` 에만 제목을 JOIN 한다 — 나머지는 제목 없이 온다.
+  // 2026-09-06 까지 폴백이 `gate_bypass` 하나뿐이라 플랜 결재 카드가 "(제목 없음)" 이었다.
+  it.each([
+    ['plan', '플랜'],
+    ['finding', '발견'],
+    ['gate_bypass', '게이트'],
+    ['change_request', '변경'],
+    ['question', '질문'],
+    ['spec_version', '스펙'],
+  ])('%s 은 종류의 이름을 말한다', (subjectType, word) => {
+    const label = subjectFallback(ko, subjectType);
+    expect(label).toContain(word);
+    expect(label).not.toBe(ko('inbox.card.untitled'));
+  });
+
+  it('모르는 종류만 "(제목 없음)" 이다 — 아는 것을 그리로 흘리지 않는다', () => {
+    expect(subjectFallback(ko, 'nonsense')).toBe(ko('inbox.card.untitled'));
+    expect(subjectFallback(ko, undefined)).toBe(ko('inbox.card.untitled'));
   });
 });

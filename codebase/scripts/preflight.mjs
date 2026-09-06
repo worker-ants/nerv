@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // push 전 로컬 검사 — CI 의 `check` 잡을 **그대로** 비춘다 (.github/workflows/ci.yml)
 //
-// 규약 7 은 네 명령을 적는다(`typecheck · lint · format:check · test`). 그런데 CI 는 **일곱**을
-// 돌린다 — 플러그인 버전 게이트 · 배포 산출물 정합 · schema drift 가 더 있다. 로컬에서 넷만
-// 돌리고 초록을 본 사람은 나머지 셋을 **한 번도 돌리지 않은 채** push 하게 된다.
+// 규약 7 은 네 명령을 적는다(`typecheck · lint · format:check · test`). 그런데 CI 는 **아홉**을
+// 돌린다 — 플러그인 버전 게이트 · 배포 산출물 정합 · 백로그 현황 정합 · md ↔ html 정합 ·
+// schema drift 가 더 있다. 로컬에서 넷만 돌리고 초록을 본 사람은 나머지 다섯을 **한 번도
+// 돌리지 않은 채** push 하게 된다.
 //
 // 이 파일이 하는 일은 그 차이를 없애는 것이다. **순서도 CI 와 같다** — CI 가 게이트를 테스트
 // 앞에 둔 이유가 있고(테스트가 깨져도 드리프트는 잡힌다) 여기서 순서를 바꾸면 그 이유가 죽는다.
@@ -67,6 +68,18 @@ const steps = [
         'kubectl kustomize deploy/k8s/overlays/prod > /dev/null',
       ].join(' && '),
     ],
+  },
+  {
+    name: '백로그 현황 정합',
+    gate: true,
+    cmd: 'node',
+    argv: ['scripts/check-backlog-status.mjs'],
+  },
+  {
+    name: 'md ↔ html 정합',
+    gate: true,
+    cmd: 'node',
+    argv: ['scripts/check-md-html.mjs'],
   },
   {
     name: 'schema drift',

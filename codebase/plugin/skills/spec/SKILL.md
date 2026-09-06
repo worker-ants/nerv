@@ -16,6 +16,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_spec_relate
   - mcp__nerv__nerv_spec_attach
   - mcp__plugin_nerv_nerv__nerv_spec_attach
+  - mcp__nerv__nerv_spec_attachment_read
+  - mcp__plugin_nerv_nerv__nerv_spec_attachment_read
   - mcp__nerv__nerv_spec_check
   - mcp__plugin_nerv_nerv__nerv_spec_check
   - mcp__nerv__nerv_spec_comment_resolve
@@ -121,6 +123,10 @@ allowed-tools:
    **어느 요구사항 주변을 뒤질지 알면** `requirement_id`(`REQ-…` 또는 UUID)로 그 요구사항이
    속한 스펙만 남긴다 — 없는 요구사항은 빈 결과가 아니라 거절이라 오타를 바로 안다).
    응답의 목록은 각각 `nodes`·`items` 다.
+   **전역 그래프는 크다**(clemvion 실측 141노드·1,253간선) — 어느 문서의 주변만 보면 될 때는
+   `around`(중심 스펙)와 `hops`(그 중심에서 몇 간선까지 · 기본 1)로 좁히고, 간선까지 받으려면
+   `include_relations: true` 를 준다. `around` 는 `root`·`depth` 와 다른 축이고 조상을 싣지 않는다.
+   검색에서 **이미 어떤 문서를 알고 그것을 가리키는 쪽을 찾을 때**는 `references`(스펙 키)를 쓴다.
    **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
    그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
    답이다). 걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** —
@@ -137,8 +143,10 @@ allowed-tools:
    그리고 **무엇이 바뀌었는지**다.
 
 ### edit — 초안 이어쓰기·피드백 반영
-1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments","requirements"]`)로
-   최신 본문과 open 코멘트를 읽는다. 응답의 `content_hash` 를 `base_hash` 로 쓴다 —
+1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments"]`)로
+   최신 본문과 open 코멘트를 읽는다. **`include` 의 어휘는 `tasks`·`comments`·`attachments`
+   셋뿐이고 그 밖의 값은 400 이다** — 요구사항은 늘 실려 오므로 달라고 하지 않는다.
+   응답의 `content_hash` 를 `base_hash` 로 쓴다 —
    **저장에 싣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
    아는 사실이라 묻지 않는다.
 2. 수정안을 만들어 사람에게 확인받고 `nerv_spec_draft_upsert`(`spec_id`, `base_hash`,

@@ -1,13 +1,25 @@
 ---
 id: SPC-MVP-API
 status: draft
-updated: 2026-08-22
+updated: 2026-09-06
 ---
 # API 명세
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 3.4 §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v0.93 · 2026-09-05 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v0.99 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+>
+> v0.99 변경(2026-09-06 — 계약이 실물보다 좁았다, 정합성 대조 → 사람 지시): `EP-IMP-02` 의 `requirements[]` 열에 **`acceptance_md`** 와 **`ordinal`** 을 더하고 `priority` 가 **null 을 받는다**는 사실을 적는다([4.7 임포터](importer.md) §2.5 규칙 2·4·7). 새 요구사항은 없다 — 규칙이 요구하던 것을 계약이 나르지 않고 있던 자리다.
+>
+> v0.98 변경(2026-09-06 — 전표가 적은 이벤트가 나지 않았다, 정합성 대조 → 사람 지시): **REQ-API-115 신설.** EP-REQ-03 은 발생 이벤트 열에 처음부터 ★`evidence.added` 를 적었는데 그 경로는 **INSERT 만 하고 이벤트를 내지 않았다** — 같은 이름을 내는 곳은 GitHub 웹훅 하나였다. 증적이 실시간으로 화면에 닿지 않았고 감사 축(FR-16)에도 남지 않았다. 같은 트랜잭션에서 발행하도록 배선하고(`subject_type=requirement`) L2 가 지킨다. §3.3 표의 주석도 "웹훅 경로에서만" 에서 세 경로로 고쳤다.
+>
+> v0.97 변경(2026-09-06 — "필수" 라 읽으면 서버가 막아 준다고 믿는다, 정합성 대조 → 사람 지시): §1.5 와 §2.10 이 `Idempotency-Key` 를 **"필수"** 라 적었는데 인터셉터는 **키가 없으면 그대로 통과시킨다**. 받되 요구하지는 않는다는 것을 두 자리에 명시했다 — 키를 싣는 것은 부르는 쪽의 책임이고(임포터 CLI 는 배치마다 싣는다 · REQ-API-019), 키 없이 배치를 재전송하면 중복 적재가 그대로 일어난다. **강제로 바꿀지는 코드 쪽 결정으로 남긴다.**
+>
+> v0.96 변경(2026-09-06 — 전표가 실물보다 좁거나 넓었다, 정합성 대조 → 사람 지시): **엔드포인트 열 정의 · 유령 질의 열 자리 · 이벤트 셋 · §1.7 선언.** 새 요구사항은 없다 — 코드가 옳고 전표가 낡거나 비어 있던 자리다. ① **정의 없는 번호를 정의한다**: `EP-SPEC-20`·`21`·`22` 는 REQ-API-088·089 가 "그것과 같은 정의" 라고 가리키는데 **정의하는 행이 없었고**(v0.82 가 고친 EP-PRJ-05 와 같은 모양이 셋 더 있었다), 첨부 삭제는 번호조차 없었다 → `EP-SPEC-20~23`. ② **미문서화 REST 여섯**에 번호를 준다 — 발견 코멘트·조회·Task 승격(`EP-REV-05~07`), 프로젝트 받은 요청(`EP-APR-05`), 세션 궤적(`EP-SES-05` — REQ-API-068 이 요구하는 기능인데 계약 행이 없었다), 안 읽은 수(`EP-NTF-04`). ※ 코드 주석은 이 셋을 `EP-REV-07`·`08` 로, zod 는 `EP-REV-05` 로 서로 다르게 부르고 있다 — **코드 주석 정렬은 남은 일**이다. ③ **유령 질의 인자 열 자리**를 실물로 고친다(`ApprovalListQuery`·`SessionListQuery`·`ActivityListQuery`·`EventListQuery`·`NotificationListQuery`·`TokenAdminListQuery`·`ImportMapQuery`·`BaselineListQuery`·`RequirementListQuery`·`SpecRelationQuery`) — 커서 이름이 `before` 인 자리와 **커서가 아예 없는 자리**를 구별해 적었다. `EP-SPEC-03` 의 질의 이름은 `version` 이 아니라 **`v`** 다(`?version=3` 은 조용히 무시되고 최신본이 온다 — 거절이 아니라 **틀린 성공**이다). ④ **이미 구현된 것을 "없다"고 적던 자리**: `EP-SPEC-01` 의 `baseline`·`around`·`hops`, `EP-REV-02` 의 `escalated`. 반대로 `EP-TASK-01` 의 `priority` 필터는 **없다**. ⑤ §3.3 "실시간 채널 **전수** 목록" 에 `evidence.added`·`review.submitted`·`finding.commented` 를 더한다 — `events.ts` 가 이 표를 정본으로 지목하는데 전수가 아니었다. ⑥ §4 표에 `nerv_question_cancel` 행을 더하고(제목은 24종인데 표는 23행이었다) `nerv_task_get` 의 REST 짝을 `EP-TASK-02` → **`EP-TASK-04`** 로 고친다. 머리의 산술도 맞췄다(21종·P1 13 → 22종·P1 14). ⑦ §1.7 이 "요청·응답 열은 zod export 와 1:1" 이라 적었는데 **질의 열(`*Query`) 22종은 코드에 실재하지 않는다** — 검사(`contract.spec.ts`)가 세는 것은 `*Input` 뿐이라 그 차이를 적지 않아 선언이 두 번째로 거짓이었다. 무엇이 1:1 이고 무엇이 표기인지 갈랐다. ⑧ §2.8 미러 frontmatter 예시가 `nerv_id`·`approved_by` 를 적고 있었다 — 실물은 `id`·`title`·`type`·`version`·`status`·`requirements`·`basis_superseded` 다(미러는 파서의 계약이라 키 이름이 곧 계약이다).
+>
+> v0.95 변경(2026-09-06 — 표면마다 번역이 따로 있으면 한쪽만 낡는다, 정합성 대조 → 사람 지시): **REQ-API-114 신설.** EP-REV-01 의 계약은 발견을 `body`·`suggestion` 으로 받고 저장 열은 `body_md`·`suggestion_md` 인데, 그 **번역이 MCP 쪽에만 있었다** — REST 컨트롤러는 `input.findings as unknown as SubmitFinding[]` 로 타입만 맞춰 넘겼고, 타입이 맞았으므로 컴파일도 lint 도 통과했다. 결과는 **REST 로 올린 리뷰의 지적 본문과 제안이 전부 NULL** 이다. 같은 요청에 두 표면이 다르게 답한 것이라 **D-05 가 깨진 자리**이고, 발견의 본문이 없으면 그 발견은 게이트의 근거가 되지 못한다. 번역기를 서비스로 옮겨 두 표면이 그 하나를 쓴다(`toSubmitFindings`) — 다음에 필드가 늘어도 한쪽만 늘어나지 않는다. **검사가 이 자리를 지나쳤던 이유도 함께 적는다**: L2 가 서비스를 직접 부르며 `body_md` 를 넘기고 있어 컨트롤러의 번역을 한 번도 지나지 않았다. 새 검사는 **실제 HTTP 로** 돈다.
+>
+> v0.94 변경(2026-09-06 — 전표의 필드 이름이 스키마와 달랐다, 정합성 대조 → 사람 지시): **요청 필드 여섯 자리를 실물 이름으로 고친다.** 요청 스키마는 전부 `.strict()` 라 이름이 틀리면 무시가 아니라 **400** 이다 — 그런데 전표가 적은 이름 다섯이 `packages/schema/src/zod/*.ts` 와 달랐고, EP-TASK-06 은 **복사해 쓰라고 실어 둔 예시 JSON 자체가 그대로 400** 이었다. ① EP-SPEC-07 에 **필수 `key`** 를 싣는다(REQ-API-052 의 유일성 입력인데 전표에 없어서, 전표대로 만들면 필수 인자 누락이었다). ② EP-SPEC-15 `parent_id` → **`parent_key`**, 그리고 `parent_key: null` 이 "부모에서 떼기"라는 것 — 키를 아예 주지 않는 것과 다르다 — 을 함께 적는다. ③ EP-TASK-06 에서 `branch`·`worktree` 를 걷는다: 그 둘은 클레임이 아니라 **세션의 속성**이고 훅이 헤더로 싣는다(REQ-API-079). 예시 JSON 에서도 뺐다. ④ EP-APR-03 `comment_md` → **`comment`**, 그리고 stale 승인을 막는 축인 **`seen_content_hash`** 를 싣는다 — 결재는 사람의 유일한 게이트인데 그 입구의 필드 이름이 문서와 달랐고, 막는 축은 전표에 아예 없었다. ⑤ EP-APR-04 는 필드 이름을 하나도 적지 않고 "대상·사유·유효 시간"이라 적었다 — 실물은 **`subject_id`·`reason`** 이고 **유효 시간은 받지 않는다**(면제도 결재 레코드라 되돌리는 것은 만료가 아니라 새 결정이다). **새 요구사항은 없다** — 코드가 옳고 전표가 낡은 자리다.
 >
 > v0.93 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -640,7 +652,7 @@ HTTP 상태 매핑:
 
 ### 1.5 멱등 키 — `Idempotency-Key` 헤더
 
-상태를 바꾸는 모든 REST 요청(POST·PUT·PATCH·DELETE)은 `Idempotency-Key` 헤더를 받는다. MCP의 A2 이상 도구가 받는 `idempotency_key` 입력([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 4)과 **같은 저장소**를 쓴다 — 오프라인 아웃박스가 큐잉한 쓰기가 MCP로 재전송되든 REST로 재전송되든 한 번만 실행된다.
+상태를 바꾸는 모든 REST 요청(POST·PUT·PATCH·DELETE)은 `Idempotency-Key` 헤더를 **받는다** — 받되 **요구하지는 않는다**(2026-09-06 명시): 헤더가 없으면 인터셉터가 그대로 통과시키고 멱등 보장도 없다. MCP의 A2 이상 도구가 받는 `idempotency_key` 입력([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 4)과 **같은 저장소**를 쓴다 — 오프라인 아웃박스가 큐잉한 쓰기가 MCP로 재전송되든 REST로 재전송되든 한 번만 실행된다.
 
 | 규칙 | 내용 |
 | --- | --- |
@@ -684,7 +696,9 @@ HTTP 상태 매핑:
 
 ### 1.7 요청/응답 표기와 엔드포인트 ID
 
-- §2 전표의 요청·응답 열은 **zod 스키마 이름**이다. 스키마는 `packages/schema`가 export하는 이름과 1:1이며(공유 규칙은 [4.2 코드베이스와 배포](codebase.md) §3), 서버(NestJS 파이프)와 웹(react-hook-form + zod)이 같은 스키마로 검증한다.
+- §2 전표의 **요청 본문 열(`*Input`)** 은 zod 스키마 이름이고 `packages/schema` 가 export 하는 이름과 **1:1 이며 검사가 그것을 센다**(REQ-API-113 · `zod/contract.spec.ts`). 공유 규칙은 [4.2 코드베이스와 배포](codebase.md) §3.
+- **질의 열(`*Query`)은 이름일 뿐 export 가 아니다**(2026-09-06 명시). 질의는 컨트롤러가 `@Query()` 로 받고 zod 를 거치지 않으므로 그 이름들은 코드에 실재하지 않는다 — v0.92 가 "요청·질의 스키마" 를 1:1 이라 적었지만 실제로 검사가 세는 것은 `*Input` 뿐이었고, 그 차이를 적지 않아 **선언이 두 번째로 거짓**이 됐다. 질의 열은 **읽는 사람을 위한 표기**이고, 실제로 무엇을 받는지는 각 행에 적는다.
+- 응답 열(`*Result`)도 런타임 파싱하지 않는다 — 서버가 만드는 것이라 스키마가 막을 실수가 적고, 이름은 계약의 이름으로 남는다.
 - 목록 응답의 `Page<X>`는 §1.6 봉투에 `items: X[]`를 담는 제네릭 표기다.
 - 엔드포인트는 고정 ID **`EP-<영역>-<번호>`** 를 갖는다. [4.5 화면 명세](screens.md) 등 다른 문서는 경로 문자열이 아니라 이 ID로 인용한다 — 경로가 바뀌어도 참조가 깨지지 않게 하기 위해서다(D-09와 같은 원리).
 - 이벤트 열에서 **★ 표시는 이 문서가 신설하는 이벤트 이름**이다 — `<리소스>.<동사>` 규약([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6.1)을 따르되 같은 문서 §6.3 알림 카탈로그에 없는 이름으로, 전부 알림을 만들지 않는 low/무티어 기록용이다. 무표시 이름은 전부 정본 인용이다.
@@ -729,7 +743,7 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | EP-TOK-01 | `GET /api/v1/me/tokens` | 본인 | — | `Page<TokenSummary>`(prefix·scopes·last_used_at, 원문 없음) | — |
 | EP-TOK-02 | `POST /api/v1/me/tokens` | 본인(역할이 허용하는 권한의 부분집합만) | `TokenCreateInput`(project, name, scopes[], expires) | `TokenCreateResult`(**원문 1회 반환**) — 발급은 역할과 교집합하지 않고 저장한다. 상한은 §1.6a 대로 **검증 시점**에 걸린다: 발급 때 잘라 두면 나중에 역할이 넓어져도 토큰이 좁은 채로 남는다. 화면은 역할 밖 권한을 **보이되 잠근다**(2026-09-02 사람 결정 — 켜 놓고 쓸 수 없는 토큰이 나오던 자리다) | ★`token.created` |
 | EP-TOK-03 | `DELETE /api/v1/me/tokens/{id}` | 본인 또는 admin | — | `{ok:true}`(즉시 폐기, `revoked_at` 기록) | ★`token.revoked` |
-| EP-TOK-04 | `GET /api/v1/orgs/{org}/tokens` | admin | `TokenAdminListQuery`(project, user, cursor) | `Page<TokenAdminSummary>`(소유자·prefix·scopes·last_used_at, 원문 없음) — S8 admin의 조직 전체 토큰 표([화면 설계](../03-proposal/ui-wireframes.md) §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝 | — |
+| EP-TOK-04 | `GET /api/v1/orgs/{org}/tokens` | admin | `TokenAdminListQuery` — 질의 인자는 **없다**(2026-09-06 정정: `project`·`user`·`cursor` 는 컨트롤러가 읽지 않는다) | `Page<TokenAdminSummary>`(소유자·prefix·scopes·last_used_at, 원문 없음) — S8 admin의 조직 전체 토큰 표([화면 설계](../03-proposal/ui-wireframes.md) §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝 | — |
 
 #### 2.1a `gate_policy` · `retention` 키 스키마
 
@@ -766,13 +780,13 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-SPEC-01 | `GET /api/v1/projects/{proj}/specs/tree` | 전 역할(`spec:read`) | `SpecTreeQuery`(root, depth, status, type, include_archived — 기본 false, REQ-API-022 · root·depth 는 REQ-API-090 · status·type 은 REQ-API-092·093) | `SpecTreeResult`(id·title·type·문서 상태·현재 버전·`archived_at`) | — |
+| EP-SPEC-01 | `GET /api/v1/projects/{proj}/specs/tree` | 전 역할(`spec:read`) | `SpecTreeQuery`(root, depth, status, type, around, hops, include_relations, **baseline**(v0.79 배선 · REQ-API-098), include_archived — 기본 false, REQ-API-022 · root·depth 는 REQ-API-090 · status·type 은 REQ-API-092·093) | `SpecTreeResult`(id·title·type·문서 상태·현재 버전·`archived_at`) | — |
 | EP-SPEC-02 | `GET /api/v1/projects/{proj}/specs/search` | 전 역할 | `SpecSearchQuery`(**q**(질의 — 인자 이름은 `query` 가 아니다), type·status(쉼표 목록 — 2026-09-05 배선 · REQ-API-099. 어휘 밖은 400), requirement_id(**그 요구사항이 속한 스펙으로 좁힌다** — 2026-09-05 배선 · REQ-API-110. 키 또는 UUID, 없는 요구사항은 빈 결과가 아니라 409), **references**(이 스펙을 참조하는 문서만), include_archived — 기본 false(REQ-API-022), limit) | `SpecSearchResult`(고정 ID + 앵커 + 스니펫 + 관련도, **`related[]`** 1-hop 관계 확장 그룹, **`degraded?`** — 파이프라인은 §2.2b) | — |
-| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(`version` 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `include` 쉼표 구분 — **구현: `tasks`·`comments`**(`requirements` 는 늘 실린다). `relations` 요약은 Phase 2. **`baseline`**(그 세트가 이 문서에 묶어 둔 버전 — `version` 과 배타, REQ-API-087)) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시, +`recheck{count,specs[]}` — 이 버전을 마지막으로 쓴 뒤 온 참조 갱신 신호와 그 출처 스펙 키, REQ-WEB-037) | — |
+| EP-SPEC-03 | `GET /api/v1/projects/{proj}/specs/{spec}` | 전 역할 | `SpecGetQuery`(**`v`** — 전표가 오래 `version` 이라 적었는데 실제 파라미터는 `v` 다: `?version=3` 은 조용히 무시되고 최신본이 온다. 기본 approved 최신 — Task 컨텍스트에서는 기준 버전 지정, `include` 쉼표 구분 — **구현: `tasks`·`comments`**(`requirements` 는 늘 실린다). `relations` 요약은 Phase 2. **`baseline`**(그 세트가 이 문서에 묶어 둔 버전 — `version` 과 배타, REQ-API-087)) | `SpecGetResult`(+`basis_superseded?` — 요청 버전이 superseded면 최신 approved 번호와 함께 표시, +`recheck{count,specs[]}` — 이 버전을 마지막으로 쓴 뒤 온 참조 갱신 신호와 그 출처 스펙 키, REQ-WEB-037) | — |
 | EP-SPEC-04 | `GET /api/v1/projects/{proj}/specs/{spec}/versions` | 전 역할 | — | `Page<SpecVersionSummary>` | — |
 | EP-SPEC-05 | `GET /api/v1/projects/{proj}/specs/{spec}/versions/{no}` | 전 역할 | — | `SpecVersionResult`(불변 스냅샷 — 같은 `{no}`는 영원히 같은 응답) | — |
 | EP-SPEC-06 | `GET /api/v1/projects/{proj}/specs/{spec}/diff` | 전 역할 | `SpecDiffQuery`(from, to) | `SpecDiffResult`(requirement_version 기반 ADDED/MODIFIED/REMOVED/unchanged 델타 + 본문 diff) | — |
-| EP-SPEC-07 | `POST /api/v1/projects/{proj}/specs` | planner·admin ●, designer(design)·developer(convention/adr) ○, **qa ✗**(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. `spec:draft` 는 유지 — 코멘트 해소·초안 편집의 몫) | `SpecCreateInput`(parent_id, type, title, body_markdown) | `SpecDraftResult`(spec + draft v1) — **보관된 부모 아래에는 만들지 못한다**: 409 `NERV_PRECONDITION`(`details.kind="parent_archived"`, REQ-API-039) | `spec.draft_created` |
+| EP-SPEC-07 | `POST /api/v1/projects/{proj}/specs` | planner·admin ●, designer(design)·developer(convention/adr) ○, **qa ✗**(2026-08-23 확정 — qa 가 만드는 것은 리뷰이지 스펙이 아니고, 리뷰 표면은 Phase 2 다. `spec:draft` 는 유지 — 코멘트 해소·초안 편집의 몫) | `SpecCreateInput`(**key**(고정 ID · 필수 — REQ-API-052 의 유일성 입력이다), title, type, body_markdown 또는 옛 이름 body_md, parent_id?) | `SpecDraftResult`(spec + draft v1) — **보관된 부모 아래에는 만들지 못한다**: 409 `NERV_PRECONDITION`(`details.kind="parent_archived"`, REQ-API-039) | `spec.draft_created` |
 | EP-SPEC-08 | `PUT /api/v1/projects/{proj}/specs/{spec}/draft` | EP-SPEC-07과 동일(`spec:draft`) | `SpecDraftUpsertInput`(body_markdown, **base_hash**, change_summary, **relations**(선언 관계 — 2026-09-05 배선 · REQ-API-043. 그전에는 REST 만 이것을 읽지 않아 관계가 성공 응답과 함께 버려졌다)) | `SpecDraftResult`(version, 델타 요약, 검증 경고, `web_url`) | 새 draft 버전 생성 시 `spec.draft_created`, **같은 draft 재저장은 `spec.draft_updated`**(2026-08-29 개정 — 예전에는 "이벤트 없음(리스 갱신만)"이었다. 에이전트가 스펙을 쓰는 방식이 대부분 이 경로라, 본문이 바뀌어도 화면이 새로고침 전에는 알 수 없었다. 저장 빈도는 자동 저장 주기(60초)라 방송이 넘치지 않는다) |
 | EP-SPEC-09 | `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 전 역할(읽기 전용 셀프서비스) | — | `SpecCheckResult`(5검사기별 warning/block + 앵커 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.1) | — |
 | EP-SPEC-10 | `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | 작성자 본인 또는 planner | **본문 없음** — `reviewer_hint`·`note` 는 2026-09-03 에 걷었다(리뷰어 지정은 게이트가 §6.3 규칙으로 정하고, 변경 요약은 초안의 `change_summary_md` 가 이미 나른다). 이 행이 그 뒤로도 둘을 적고 있었고 2026-09-05 에 스키마 대조 검사가 짚었다 | `SpecSubmitResult`(approval_id[], 지정 리뷰어·SLA) | `spec.submitted` + `approval.requested` |
@@ -780,15 +794,19 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-CMT-02 | `POST /api/v1/projects/{proj}/spec-versions/{ver}/comments` | 전 역할(viewer 포함 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6 "스펙 조회·코멘트") | `CommentCreateInput`(anchor: 헤딩 slug 또는 REQ ref, body_md) | `CommentResult` | `spec.comment_added` |
 | EP-CMT-03 | `PATCH /api/v1/projects/{proj}/comments/{id}` | 작성자 본인 | `CommentUpdateInput`(body_md) | `CommentResult` | — |
 | EP-CMT-04 | `POST /api/v1/projects/{proj}/comments/{id}/resolve` | `spec:draft` 보유 역할 | `CommentResolveInput`(resolution_note, resolved_in_version_id) | `CommentResult`(open→resolved, 남은 open 수) | ★`comment.resolved` |
-| EP-SPEC-11 | `GET /api/v1/projects/{proj}/baselines` | 전 역할(`spec:read`) | `BaselineListQuery`(cursor) | `Page<BaselineSummary>`(name·note·항목 수·created_by·created_at) | — |
+| EP-SPEC-11 | `GET /api/v1/projects/{proj}/baselines` | 전 역할(`spec:read`) | `BaselineListQuery` — 질의 인자 없음. 응답은 **배열**이다(커서 아님 · §1.6 예외) | `Page<BaselineSummary>`(name·note·항목 수·created_by·created_at) | — |
 | EP-SPEC-12 | `POST /api/v1/projects/{proj}/baselines` | planner·admin — **사람 전용**(PAT 불가, 기준선 동결은 거버넌스 행위 — [스펙 워크플로우](../03-proposal/spec-workflow.md) §3.6) | `BaselineCreateInput`(name, note_md, items[]? — 생략 시 스펙별 최신 approved 전체) | `BaselineResult` — approved 아닌 항목 포함 시 409 `NERV_PRECONDITION` | ★`baseline.created` |
 | EP-SPEC-13 | `GET /api/v1/projects/{proj}/baselines/{bl}` | 전 역할 | — | `BaselineDetailResult`(항목 전량: spec_id·key·title·핀 버전·현재 최신 approved와의 차이 표시) — 불변, 같은 `{bl}`은 영원히 같은 세트 | — |
 | EP-SPEC-14 | `GET /api/v1/projects/{proj}/specs/manifest` | 전 역할(`spec:read`, PAT 허용) | `ManifestQuery`(`as_of?` timestamptz 또는 `baseline?` 이름 — 둘 다 생략 시 현재) | `SpecManifestResult`(spec_id→{version_no, status, approved_at} 전량 — git export `manifest.json`의 API 버전, [아키텍처](../03-proposal/architecture.md) §2.4b) | — |
-| EP-SPEC-15 | `PATCH /api/v1/projects/{proj}/specs/{spec}` | planner·admin (`spec:meta`) | `SpecMetaUpdateInput`(title?, parent_id?, sort_key?, owner_role? — 전 필드 선택, 최소 1개) | `SpecResult` — parent_id 이동은 사이클(자기 자신·자기 하위로 이동) 시 409 `NERV_PRECONDITION`(`details.kind="tree_cycle"`), 보관된 부모로의 이동도 409(`parent_archived`, REQ-API-039) | ★`spec.meta_updated`(payload에 변경 필드 목록) |
+| EP-SPEC-15 | `PATCH /api/v1/projects/{proj}/specs/{spec}` | planner·admin (`spec:meta`) | `SpecMetaUpdateInput`(title?, **parent_key**?, sort_key?, owner_role? — 전 필드 선택, 최소 1개. `parent_key: null` 은 **부모에서 떼기**이고 키를 아예 주지 않는 것과 다르다) | `SpecResult` — parent_key 이동은 사이클(자기 자신·자기 하위로 이동) 시 409 `NERV_PRECONDITION`(`details.kind="tree_cycle"`), 보관된 부모로의 이동도 409(`parent_archived`, REQ-API-039) | ★`spec.meta_updated`(payload에 변경 필드 목록) |
 | EP-SPEC-16 | `POST /api/v1/projects/{proj}/specs/{spec}/archive` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` 세팅) — 미아카이브 하위 노드 또는 활성 클레임이 걸린 파생 Task 존재 시 409 `NERV_PRECONDITION`(`details.kind="archive_blocked"`, 차단 사유 목록) | ★`spec.archived` |
 | EP-SPEC-17 | `POST /api/v1/projects/{proj}/specs/{spec}/restore` | planner·admin (`spec:meta`) | — | `SpecResult`(`archived_at` NULL) — 부모가 아카이브 상태면 409(`details.kind="parent_archived"`) | ★`spec.restored` |
-| EP-SPEC-18 | `GET /api/v1/projects/{proj}/specs/{spec}/relations` | 전 역할(`spec:read`) | `SpecRelationQuery`(direction: out/in/both 기본 both, kind?, cursor) | `Page<SpecRelationEntry>`(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — **역참조(backlink)가 1급이다**: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널([4.5 화면 명세](screens.md) §2.4)과 영향 미리보기의 데이터 소스 | — |
+| EP-SPEC-18 | `GET /api/v1/projects/{proj}/specs/{spec}/relations` | 전 역할(`spec:read`) | `SpecRelationQuery`(direction: out/in/both 기본 both, kind?) — 응답은 `{items, total}` 이다(**커서 아님** · §1.6 예외) | `Page<SpecRelationEntry>`(kind·방향·상대 스펙 id/key/title/문서 상태/현재 버전) — **역참조(backlink)가 1급이다**: 수정 전 "누가 나를 참조하나"의 조회 경로, S3 관계 패널([4.5 화면 명세](screens.md) §2.4)과 영향 미리보기의 데이터 소스 | — |
 | EP-SPEC-19 | `GET /api/v1/projects/{proj}/specs/graph` | 전 역할(`spec:read`) | `SpecGraphQuery`(include_archived — 기본 false) | `SpecGraphResult`(`nodes[]` 트리와 같은 모양 + `edges[]` from_id·to_id·kind) — 전역 관계 그래프를 **한 응답**으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 [4.5](screens.md) §2.4a | — |
+| EP-SPEC-20 | `GET /api/v1/projects/{proj}/specs/{spec}/attachments` | 전 역할(`spec:read`) | — | `AttachmentListResult`(항목마다 `id`·`filename`·`content_type`·`bytes`·**`url`**(받는 주소 — REQ-API-089)) | — |
+| EP-SPEC-21 | `POST /api/v1/projects/{proj}/specs/{spec}/attachments` | `spec:draft` | **multipart** — 2단계(등록 → 확정). 화이트리스트: 이미지·`text/html`·`text/plain`·`text/markdown`·`application/pdf`·`application/zip` | `AttachmentResult`(확정 응답도 목록과 **같은 `url` 을 준다** — REQ-API-089) | ★`spec.attachment_added` |
+| EP-SPEC-22 | `GET /api/v1/projects/{proj}/attachments/{id}` | 전 역할(`spec:read`) | — | 파일 본문 — 내려받기는 `CSP: sandbox` + `nosniff` 를 건다 | — |
+| EP-SPEC-23 | `DELETE /api/v1/projects/{proj}/attachments/{id}` | `spec:draft` | — | `204` | ★`spec.attachment_removed` |
 
 스펙 **승인·거절 엔드포인트는 이 절에 없다.** `in_review → approved/rejected` 전이는 받은 요청의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 `nerv_spec_approve`가 존재하지 않는 것([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.
 
@@ -854,7 +872,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-REQ-01 | `GET /api/v1/projects/{proj}/requirements` | 전 역할 | `RequirementListQuery`(spec, impl_status, cursor) | `Page<RequirementResult>`(`ref`·`statement_md`·`impl_status`·연결 Task/Evidence 수) | — |
+| EP-REQ-01 | `GET /api/v1/projects/{proj}/requirements` | 전 역할 | `RequirementListQuery`(spec, impl_status — **커서 없음**, cursor) | `Page<RequirementResult>`(`ref`·`statement_md`·`impl_status`·연결 Task/Evidence 수) | — |
 | EP-REQ-02 | `GET /api/v1/projects/{proj}/requirements/{ref}` | 전 역할 | — | `RequirementDetailResult`(버전 이력 + 파생 Task + Evidence) | — |
 | EP-REQ-03 | `POST /api/v1/projects/{proj}/requirements/{ref}/evidence` | developer·qa·admin **AND `spec:evidence`** (CI는 PAT — §1.3b) | `EvidenceCreateInput`(kind: **6종** `code_path`/`test`/`pr`/`commit`/`review`/`user_guide` — 어휘 정본은 `evidence_kind` enum 이고 밖의 값은 400 이다(2026-09-05 · REQ-API-101. 그전에는 검사 없이 캐스팅돼 오타가 500 이었다), locator, repo) | `EvidenceResult` | ★`evidence.added` |
 
@@ -864,12 +882,12 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-TASK-01 | `GET /api/v1/projects/{proj}/tasks` | 전 역할 | `TaskListQuery`(status[], assignee, spec, priority, **include_archived**(기본 false — `done_at` 이 `TASK_DONE_WINDOW_DAYS` 를 지난 done 을 포함, [4.5 화면 명세](screens.md) §2.5), cursor, limit) | `Page<TaskSummary>`(보드 레인용 — 정렬 `priority ASC, updated_at DESC, id ASC`) | — |
+| EP-TASK-01 | `GET /api/v1/projects/{proj}/tasks` | 전 역할 | `TaskListQuery`(status[], assignee, spec — **`priority` 필터는 없다**(2026-09-06 정정: 서비스가 그 인자를 받지 않는다), **include_archived**(기본 false — `done_at` 이 `TASK_DONE_WINDOW_DAYS` 를 지난 done 을 포함, [4.5 화면 명세](screens.md) §2.5), cursor, limit) | `Page<TaskSummary>`(보드 레인용 — 정렬 `priority ASC, updated_at DESC, id ASC`) | — |
 | EP-TASK-02 | `GET /api/v1/projects/{proj}/tasks/next` | task:claim 보유 역할 | `TaskNextQuery`(role, spec_id, limit) | `TaskNextResult`(ready 후보 + **위임 명세 4요소** + 권장 scope) | — |
 | EP-TASK-03 | `POST /api/v1/projects/{proj}/tasks` | planner·developer·admin ●, qa ○ **AND `task:update`**(MCP `nerv_task_create` 와 같은 권한 — §1.3b) | `TaskCreateInput`(title, body_md, source_spec_version_id, source_requirement_id, **baseline**(이름 — 주변 문서까지 포함한 기준 세트), 위임 명세 4필드, priority) | `TaskResult`(status=backlog) | ★`task.created` |
 | EP-TASK-04 | `GET /api/v1/projects/{proj}/tasks/{task}` | 전 역할 | — | `TaskDetailResult`(위임 명세·활성 클레임·의존·Evidence) | — |
 | EP-TASK-05 | `PATCH /api/v1/projects/{proj}/tasks/{task}` | planner·developer·admin **AND `task:update`** | `TaskUpdateInput`(위임 명세·priority·의존) | `TaskResult` — 위임 명세 4요소 충족 + 의존 해소 시 서버가 `ready` 승격 | `task.ready`(승격 시) |
-| EP-TASK-06 | `POST /api/v1/projects/{proj}/tasks/{task}/claim` | viewer 제외 전 역할(`task:claim`) | `TaskClaimInput`(scope{spec_ids, file_globs}, branch, worktree, lease_seconds) | `TaskClaimResult`(claim_id, lease_expires_at, warnings[]) — 겹침 `block`이면 409 `NERV_CONFLICT_SCOPE` | `task.claimed` / `claim.conflict_warn` / `claim.conflict_blocked` |
+| EP-TASK-06 | `POST /api/v1/projects/{proj}/tasks/{task}/claim` | viewer 제외 전 역할(`task:claim`) | `TaskClaimInput`(session_id?, scope{spec_ids, file_globs}, lease_seconds?) — **`branch`·`worktree` 는 이 전표에 없다**: 그 둘은 클레임이 아니라 세션의 속성이고 훅이 `X-NERV-Branch`·`X-NERV-Worktree` 로 싣는다(§2.5b · REQ-API-079) | `TaskClaimResult`(claim_id, lease_expires_at, warnings[]) — 겹침 `block`이면 409 `NERV_CONFLICT_SCOPE` | `task.claimed` / `claim.conflict_warn` / `claim.conflict_blocked` |
 | EP-TASK-07 | `POST /api/v1/projects/{proj}/claims/{claim}/heartbeat` | 클레임 보유자 | `HeartbeatInput`(progress, stats{added, removed, files}) | `HeartbeatResult`(새 lease_expires_at + pending 질문 답변·steer/stop 지시) | — (이벤트 없음 — `last_heartbeat_at` 갱신만) |
 | EP-TASK-08 | `POST /api/v1/projects/{proj}/claims/{claim}/release` | 클레임 보유자 또는 admin | `ClaimReleaseInput`(reason: **done/handoff/abandon — 어휘 밖은 400** 이다(2026-09-05 · REQ-API-107. 그전에는 REST 가 "셋 중 하나가 아니면 handoff" 로 조용히 바꿨고, 저장은 `done` 외를 전부 `manual` 로 뭉쳤다), state_note) | `ClaimReleaseResult`(Task 최종 상태 — `claimed → ready` 회수 또는 유지) | ★`claim.released` + `task.ready`(회수 시) |
 | EP-TASK-09 | `POST /api/v1/projects/{proj}/tasks/{task}/transition` | 담당자·planner·admin(`task:update`) | `TaskTransitionInput`(status, note, evidence{commit_sha, pr_url, test_ids}, blocked_reason) | `TaskResult` 또는 409(게이트 거부 사유 — FR-10) | `task.blocked` · `task.done` · 기타 전이는 ★`task.updated`(payload에 from/to) |
@@ -882,7 +900,6 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 // POST /api/v1/projects/clemvion/tasks/CLV-T-1KTDCK/claim   (도현 · mac-02)
 {
   "scope": { "spec_ids": ["SPC-CWC-007"], "file_globs": ["codebase/frontend/src/widget/**"] },
-  "branch": "claude/widget-render",
   "lease_seconds": 1800
 }
 // 200 — 겹침 warn 통과 (양쪽 세션에 claim.conflict_warn 알림)
@@ -901,10 +918,11 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-SES-01 | `GET /api/v1/projects/{proj}/sessions` | 전 역할 | `SessionListQuery`(state[], user, cursor) | `Page<SessionSummary>`(user·hostname·agent_type·state·현재 Task·diff·last_heartbeat — [데이터 모델](../03-proposal/data-model.md) §4.2 질의) | — |
+| EP-SES-01 | `GET /api/v1/projects/{proj}/sessions` | 전 역할 | `SessionListQuery`(state[] — **`user`·`cursor` 는 읽지 않는다**, 2026-09-06 정정. 응답에 `summary`(상태별 수 여섯)가 함께 실린다) | `Page<SessionSummary>`(user·hostname·agent_type·state·현재 Task·diff·last_heartbeat — [데이터 모델](../03-proposal/data-model.md) §4.2 질의) | — |
 | EP-SES-02 | `GET /api/v1/projects/{proj}/sessions/{sid}` | 전 역할 | — | `SessionDetailResult`(실행 컨텍스트·클레임 이력·토큰 사용량) | — |
-| EP-SES-03 | `GET /api/v1/projects/{proj}/sessions/{sid}/activities` | 전 역할 | `ActivityListQuery`(cursor, type[]) | `Page<ActivityResult>`(seq 순 타임라인, `thought/action/elicitation/response/error`) | — |
+| EP-SES-03 | `GET /api/v1/projects/{proj}/sessions/{sid}/activities` | 전 역할 | `ActivityListQuery`(**`limit` 뿐** — 커서·`type[]` 은 읽지 않는다(2026-09-06 정정). 상한 200(최대 500)에서 **말없이 잘린다** — 실측 443건 세션이 있어 세션 초반이 닿지 않는다. type[]) | `Page<ActivityResult>`(seq 순 타임라인, `thought/action/elicitation/response/error`) | — |
 | EP-SES-04 | `POST /api/v1/projects/{proj}/sessions/{sid}/steer` | 세션 소유자·admin | `SessionSteerInput`(kind: steer/stop, message) | `{ok:true}` — steer: 지시는 다음 하트비트 응답의 `pending`으로 전달([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4 역채널). stop: 지시 전달과 별개로 서버가 **즉시** 활성 클레임을 회수하고 Task를 `claimed/in_progress → ready`로 되돌린다([화면 설계](../03-proposal/ui-wireframes.md) §4.2) | ★`session.steered` · stop 시 ★`claim.released` + `task.ready` |
+| EP-SES-05 | `GET /api/v1/projects/{proj}/sessions/{sid}/trajectory` | 전 역할 | — | 세션의 도구 호출 궤적(REQ-API-068 이 요구하는 것) | — |
 
 세션의 생성·상태 전이는 REST가 아니라 훅 ingest(§2.9)와 MCP `nerv_bootstrap`이 만든다. REST 표면은 조회와 steer만 갖는다 — 세션은 에이전트의 실행 사실이지 웹에서 만드는 리소스가 아니기 때문이다.
 
@@ -942,10 +960,11 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-APR-01 | `GET /api/v1/approvals` | 로그인 사용자(본인 관련만) | `ApprovalListQuery`(state: pending/decided/expired, project, subject_type, subject_id, cursor) | `Page<ApprovalCard>`(대상 원문 델타·영향 분석 포함 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6.4 카드 3유형) | — |
+| EP-APR-01 | `GET /api/v1/approvals` | 로그인 사용자(본인 관련만) | `ApprovalListQuery`(state: pending/decided, project — **`expired`·`subject_type`·`subject_id`·`cursor` 는 읽지 않는다**(2026-09-06 정정). 목록은 100건에서 잘린다) | `Page<ApprovalCard>`(대상 원문 델타·영향 분석 포함 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6.4 카드 3유형) | — |
 | EP-APR-02 | `GET /api/v1/approvals/{id}` | 관련자 | — | `ApprovalDetailResult` | — |
-| EP-APR-03 | `POST /api/v1/approvals/{id}/decision` | 지정 승인자·해당 역할 큐 — **사람 전용**, 지시자≠승인자 판정([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.3 5규칙) | `ApprovalDecisionInput`(decision: approve/reject/comment, comment_md) | `ApprovalResult` | 대상이 spec_version이면 `spec.approved`(+이전 버전 `spec.superseded`) / `spec.rejected` · 대상이 question이면 ★`question.answered` |
-| EP-APR-04 | `POST /api/v1/projects/{proj}/gates/bypass` | admin ●, planner(스펙 계열)·developer(코드 계열) ○ | `GateBypassInput`(대상, 사유, 유효 시간) | `ApprovalResult`(is_bypass=true) | `gate.bypassed` |
+| EP-APR-03 | `POST /api/v1/approvals/{id}/decision` | 지정 승인자·해당 역할 큐 — **사람 전용**, 지시자≠승인자 판정([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §2.3 5규칙) | `ApprovalDecisionInput`(decision: approve/reject/comment, **comment**, **seen_content_hash**(무엇을 보고 승인했는가 — 본문이 그 뒤 바뀌었으면 그 승인은 다른 문서에 대한 것이라 막힌다)) | `ApprovalResult` | 대상이 spec_version이면 `spec.approved`(+이전 버전 `spec.superseded`) / `spec.rejected` · 대상이 question이면 ★`question.answered` |
+| EP-APR-04 | `POST /api/v1/projects/{proj}/gates/bypass` | admin ●, planner(스펙 계열)·developer(코드 계열) ○ | `GateBypassInput`(**subject_id**, **reason**) — 유효 시간은 받지 않는다: 면제도 결재 레코드라 되돌리는 것은 만료가 아니라 새 결정이다 | `ApprovalResult`(is_bypass=true) | `gate.bypassed` |
+| EP-APR-05 | `GET /api/v1/projects/{proj}/inbox` | 로그인 사용자(본인 관련만) | — | 그 프로젝트의 받은 요청(결재 + 질문) — S7 이 프로젝트 안에서 읽는 곳 | — |
 | EP-QST-01 | `GET /api/v1/projects/{proj}/questions` | 전 역할 | `QuestionListQuery`(status: open/answered, cursor) | `Page<QuestionResult>`(선택지·대기 세션·경과·**출처**(`spec_key`·`task_key`·`finding_id`)·`escalate`) | — |
 | EP-QST-02 | `POST /api/v1/projects/{proj}/questions/{id}/answer` | 대상 역할 또는 지정자 — 사람 전용 | `QuestionAnswerInput`(answer_key 또는 answer_md) | `QuestionResult`(status=answered) — 내부적으로 ApprovalService.decide(subject=question) 한 경로 | ★`question.answered` |
 | EP-QST-03 | `POST /api/v1/projects/{proj}/questions/{id}/cancel` | 전 역할(`task:update`) — **사람과 그 질문을 만든 세션 둘 다**(2026-09-05 · REQ-API-109). 남의 질문은 사람만 내린다 | — | `QuestionResult`(status=`cancelled`) — 열린 질문에만 걸린다(답이 달렸으면 그 답이 사실이다) | ★`question.cancelled` |
@@ -959,9 +978,12 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
 | EP-REV-01 | `POST /api/v1/projects/{proj}/reviews` | `review:submit` | `ReviewSubmitInput`(branch, base_sha, head_sha, changeset[], kind, task_id?, reviewer{role, risk}, summary, findings[]{severity, title, body, suggestion, category, file, line, symbol, requirement_id?, spec_version_id?}, payload_ref?) | `ReviewSubmitResult`(review_session_id, round_no, merged_into_existing_session, findings_new[], findings_merged[], carried_over[], block) | 새로 열린 발견마다 `finding.opened` |
-| EP-REV-02 | `POST /api/v1/projects/{proj}/findings/{id}/resolve` | `review:resolve` | `FindingResolveInput`(resolution: fixed/**spec_change**/dismissed/wont_fix, commit_sha?, **spec_version_id?**(spec_change 의 근거 — REQ-API-060), change_request_id?, rationale) — 계약 밖의 값은 400 `invalid_input` 이다(기각으로 접지 않는다) | `FindingResolveResult`(finding_id, status, resolution_id, open_remaining) | `finding.resolved` · 에이전트의 critical 하향이면 먼저 `approval.requested` |
+| EP-REV-02 | `POST /api/v1/projects/{proj}/findings/{id}/resolve` | `review:resolve` | `FindingResolveInput`(resolution: fixed/**spec_change**/dismissed/wont_fix/**escalated**(2026-09-05 · REQ-API-108 — `escalate_reason` 이 그 필수 짝이다), commit_sha?, **spec_version_id?**(spec_change 의 근거 — REQ-API-060), change_request_id?, rationale) — 계약 밖의 값은 400 `invalid_input` 이다(기각으로 접지 않는다) | `FindingResolveResult`(finding_id, status, resolution_id, open_remaining) | `finding.resolved` · 에이전트의 critical 하향이면 먼저 `approval.requested` |
 | EP-REV-03 | `GET /api/v1/projects/{proj}/findings` | `spec:read` | `FindingListQuery`(`severity[]`·`status[]`·`area[]`·`tag[]`·`limit`) | `FindingListResult`(`items[]` — severity·category·위치·occurrence_count + 마지막 세션의 head_sha·branch·round_no + 유래 스펙/Requirement, `facets{severity,status,area,tag}`) | — |
 | EP-REV-04 | `GET /api/v1/projects/{proj}/gates/reviews` | `spec:read` | — | `GateCoverageResult[]`(branch, 커버 리뷰(head_sha·round_no·완료 시각), 해소 `resolved/total`, 판정 `passed`/`pending`/`uncovered`, 면제(`is_bypass` 결재의 사람·시각·사유)) | — |
+| EP-REV-05 | `POST /api/v1/projects/{proj}/findings/{id}/comments` | `review:submit` | `FindingCommentInput`(body_md) | `FindingCommentResult` | ★`finding.commented` |
+| EP-REV-06 | `GET /api/v1/projects/{proj}/findings/{id}/comments` | 전 역할(`spec:read`) | — | 코멘트 목록(오름차순) | — |
+| EP-REV-07 | `POST /api/v1/projects/{proj}/findings/{id}/task` | `task:update` | — | 승격된 `task_id`(`finding.promoted_task_id` 에 기록) | `task.created` |
 
 세 가지가 이 표면의 계약이다.
 
@@ -974,10 +996,11 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-EVT-01 | `GET /api/v1/projects/{proj}/events` | 전 역할(`spec:read`) — `audit:read` 라는 권한은 **존재한 적 없다**(2026-09-05 정정) | `EventListQuery`(since, type[], subject_type, subject_id, cursor) — `occurred_at DESC` | `Page<EventResult>`(actor{user, session, is_agent}·from/to state·payload — [데이터 모델](../03-proposal/data-model.md) §2.9) | — |
-| EP-NTF-01 | `GET /api/v1/me/notifications` | 본인 | `NotificationListQuery`(state: unread/read, cursor) | `Page<NotificationResult>` | — |
+| EP-EVT-01 | `GET /api/v1/projects/{proj}/events` | 전 역할(`spec:read`) — `audit:read` 라는 권한은 **존재한 적 없다**(2026-09-05 정정) | `EventListQuery`(type, subject_id, **`before`·`limit`** — `since`·`subject_type` 은 읽지 않고 커서 이름은 `before` 다, 2026-09-06 정정) — `occurred_at DESC` | `Page<EventResult>`(actor{user, session, is_agent}·from/to state·payload — [데이터 모델](../03-proposal/data-model.md) §2.9) | — |
+| EP-NTF-01 | `GET /api/v1/me/notifications` | 본인 | `NotificationListQuery`(state: unread/read, **`before`·`limit`** — 커서 이름은 `before` 다) | `Page<NotificationResult>` | — |
 | EP-NTF-02 | `POST /api/v1/me/notifications/{id}/read` | 본인 | — | `{ok:true}` | — |
 | EP-NTF-03 | `POST /api/v1/me/notifications/read-all` | 본인 | — | `{ok:true, marked:<수>}` — **몇 건을 읽었는지 말한다**(조용히 0 이 되는 목록은 사고처럼 보인다) | — |
+| EP-NTF-04 | `GET /api/v1/me/notifications/unread-count` | 본인 | — | 안 읽은 수 — **배지가 받아 온 목록 안에서 세지 않게** 서버가 센다(2026-09-03) | — |
 | EP-COV-01 | `GET /api/v1/projects/{proj}/coverage` | 전 역할 | `CoverageQuery`(spec) | `CoverageResult`(스펙별 구현/검증 커버리지·증적 결손·빈 약속 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §5.5 산식) | — |
 
 EP-COV-01은 **계약 선점**이다 — 커버리지 계산은 P2([로드맵](../03-proposal/roadmap.md) FR-13)이므로 MVP 응답에서는 커버리지 수치 필드가 `null`일 수 있고, Requirement·Evidence 개수 같은 원자료 필드만 채워진다. S2가 게이지를 그릴 때 `null`은 "집계 준비 중"으로 렌더한다.
@@ -995,11 +1018,13 @@ EP-COV-01은 **계약 선점**이다 — 커버리지 계산은 P2([로드맵](.
 
 ```markdown
 ---
-nerv_id: SPC-CWC-007
+id: SPC-CWC-007
+title: 웹 채팅 채널
+type: feature
 version: 4
 status: approved
-approved_by: 지민
 requirements: [REQ-CWC-031, REQ-CWC-032]
+basis_superseded: false
 ---
 # 임베드 위젯
 …
@@ -1027,16 +1052,16 @@ requirements: [REQ-CWC-031, REQ-CWC-032]
 - **권한**: 전 행 admin **AND** PAT 권한 `import:write`(§1.3). 세션 쿠키로도 호출 가능하지만 정상 호출자는 CLI다.
 - **소급 적재의 성질**: 이 경로만 워크플로우 전이 검사를 우회한다(`approved` 버전·`done` Task를 승인·게이트 없이 생성). 스키마 제약(approved 본문 불변 트리거·`UNIQUE (project_id, ref)`·partial unique)은 예외 없이 그대로 적용된다 — 위반은 그 **항목**의 실패이고 배치 전체를 되돌리지 않는다.
 - **트랜잭션 단위**: 배치는 전송 단위일 뿐이다. `import/specs`의 `kind=document`는 **파일 1건 = 트랜잭션 1건**, `kind=structure`와 `import/links`는 배치 1건이 트랜잭션 1건이다(임포터 §3.5).
-- **멱등**: 전 행 `Idempotency-Key` 필수(§1.5). 같은 키 재전송은 최초 응답 재생이며 레코드를 다시 만들지 않는다.
+- **멱등**: 전 행이 `Idempotency-Key` 를 받는다(§1.5) — 같은 키 재전송은 최초 응답 재생이며 레코드를 다시 만들지 않는다. **서버는 키 없는 요청을 거절하지 않는다**(2026-09-06 명시 — 예전에는 "필수" 라 적었고 인터셉터는 키가 없으면 그냥 지나간다). 키를 싣는 것은 **부르는 쪽의 책임**이고, 임포터 CLI 는 배치마다 싣는다(REQ-API-019). 키 없이 배치를 재전송하면 중복 적재가 그대로 일어난다 — "필수" 라 읽은 사람은 서버가 막아 준다고 믿는다.
 
 | ID | 메서드 · 경로 | 권한 | 요청(zod) | 응답(zod) | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
 | EP-IMP-01 | `POST /api/v1/projects/{proj}/import/preflight` | admin + `import:write` | `ImportPreflightInput`(profile, root_commit?, kind: spec/plan, items[]{source_path, natural_key, content_hash}) | `ImportPreflightResult`(항목별 `state`: `new`/`unchanged`/`changed`/`conflict` + 기존 `spec_id`·`version_no`) — 쓰기 0 | — |
-| EP-IMP-02 | `POST /api/v1/projects/{proj}/import/specs` | admin + `import:write` | `ImportSpecBatchInput`(profile, kind: structure/document, items[]{source_path, key, parent_key?, type, title, body_md, doc_status, **sort_key**(형제 정렬 — 값을 만드는 것은 CLI 다. 서버는 판정 없이 적재하고 **최초 적재에서만** 쓴다. 규칙 정본 [4.7 스펙 임포터](importer.md) §2.2), requirements[]{ref, text, priority?, impl_status}, evidence[]}) | `ImportBatchResult`(항목별 `ok`/`error{code, details}` + 생성 `spec_id`·`spec_version_id`·`requirement` ref→UUID 맵) | ★`import.applied` |
+| EP-IMP-02 | `POST /api/v1/projects/{proj}/import/specs` | admin + `import:write` | `ImportSpecBatchInput`(profile, kind: structure/document, items[]{source_path, key, parent_key?, type, title, body_md, doc_status, **sort_key**(형제 정렬 — 값을 만드는 것은 CLI 다. 서버는 판정 없이 적재하고 **최초 적재에서만** 쓴다. 규칙 정본 [4.7 스펙 임포터](importer.md) §2.2), requirements[]{ref, text, **acceptance_md?**(수용 기준 셀 원문 — EARS 정규화는 하지 않는다), priority?(**미표기는 null** — 표기가 없던 행을 `must` 로 채우지 않는다), impl_status, **ordinal**(문서 내 정의 순서 — `requirement_version` 이 이 값으로 만들어진다)}, evidence[]}) | `ImportBatchResult`(항목별 `ok`/`error{code, details}` + 생성 `spec_id`·`spec_version_id`·`requirement` ref→UUID 맵) | ★`import.applied` |
 | EP-IMP-03 | `POST /api/v1/projects/{proj}/import/tasks` | admin + `import:write` | `ImportTaskBatchInput`(profile, items[]{source_path, title, body_md, status, assignee_user_id?, source_spec_key?, depends_on[]}) — `ready` 상태와 위임 명세 4요소는 받지 않는다(임포터 REQ-IMP-009) | `ImportBatchResult` | ★`import.applied` |
 | EP-IMP-04 | `POST /api/v1/projects/{proj}/import/links` | admin + `import:write` | `ImportLinkBatchInput`(profile, relations[]{from_key, to_key, kind}, pending[]{requirement_ref, task_source_path}) | `ImportBatchResult` — 해소 실패는 오류가 아니라 항목별 `skipped` | ★`import.applied` |
 | EP-IMP-06 | `POST /api/v1/projects/{proj}/import/reviews` | admin + `import:write` | `ImportReviewBatchInput`(items[]{source_path, kind, branch, base_sha, head_sha, changeset[], reviewed_at?, block, reports[]{role, risk, body_md}, findings[]{severity, category, title, detail_md, suggestion_md, file, line, tags[]}}) | `ImportBatchResult` | — (**임포트는 이벤트를 내지 않는다** — 과거 리뷰 수만 건이 알림이 되면 사람이 알림을 끈다) |
-| EP-IMP-05 | `GET /api/v1/projects/{proj}/import/map` | admin + `import:write` | `ImportMapQuery`(kind?, cursor) | `Page<ImportMapEntry>`(자연 키 → `spec_id`/`task_id`/`requirement` UUID + `content_hash` + `version_no`) — `nerv import rebuild-map`의 소스 | — |
+| EP-IMP-05 | `GET /api/v1/projects/{proj}/import/map` | admin + `import:write` | `ImportMapQuery` — 질의 인자는 **없다**(2026-09-06 정정) | `Page<ImportMapEntry>`(자연 키 → `spec_id`/`task_id`/`requirement` UUID + `content_hash` + `version_no`) — `nerv import rebuild-map`의 소스 | — |
 
 `import.applied` 이벤트는 배치당 1건이며 payload에 프로파일 이름·`root_commit`·처리 건수(ok/error/skipped)를 담는다. **알림은 만들지 않는다**(§3.3 표) — 감사(FR-16)와 화면 갱신용이다.
 
@@ -1193,7 +1218,10 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | `gate.failopen` | 게이트 판정 불가(D-14, [에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3) | `project:{id}` | P1 |
 | ★`import.applied` | EP-IMP-02·03·04 배치 적재(§2.10) | `project:{id}` | P0 |
 | ★`notification.created` | 알림 파생(배지 카운트 갱신용) | `user:{id}` | P1 |
-| `finding.opened` · `finding.resolved` · `cr.opened` | 리뷰·CR — **Phase 2**(S6·review 도구 2종과 함께) | `project:{id}` | P2 |
+| `finding.opened` · `finding.resolved` · `cr.opened` | 리뷰·CR(2026-08-23 구현 — `cr.opened` 만 Phase 2 로 남았다) | `project:{id}` | P2 |
+| `evidence.added` | 증적 등록 — REST·MCP·웹훅 세 경로 모두(2026-09-06 배선 · REQ-API-115) | `project:{id}` | P1 |
+| `review.submitted` | 리뷰 라운드 제출 — S6 가 새로고침 없이 알게 하려고 신설(v0.41) | `project:{id}` | P2 |
+| `finding.commented` | 발견 코멘트(EP-REV-05) | `project:{id}` | P2 |
 
 ### 3.4 재연결·무효화·keep-alive (WS·SSE 공통)
 
@@ -1221,9 +1249,9 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 
 ## 4. MCP 도구 24종 ↔ 내부 서비스 ↔ REST 대응
 
-카탈로그는 **24종**이고 단계 분포는 **P0 8 · P1 14 · P2 2**다(2026-09-05 실측 — 도구 레지스트리 기준). P2 둘은 `nerv_review_submit`·`nerv_finding_resolve` 다. [4.1 MVP 범위와 스택 확정](scope.md) 이 적은 **MVP 21종**(P0 8 + P1 13) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
+카탈로그는 **24종**이고 단계 분포는 **P0 8 · P1 14 · P2 2**다(2026-09-05 실측 — 도구 레지스트리 기준). P2 둘은 `nerv_review_submit`·`nerv_finding_resolve` 다. [4.1 MVP 범위와 스택 확정](scope.md) 이 적은 **MVP 22종**(P0 8 + P1 14) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
 
-임포트 표면(§2.10)은 이 표에 없다 — **대응하는 MCP 도구가 없기 때문**이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다([4.7 스펙 임포터](importer.md) §3.6). 에이전트가 관여하는 지점은 도구가 아니라 CLI를 감싸는 스킬 `/nerv:import`다.
+임포트 표면(§2.10)은 이 표에 없다 — **대응하는 MCP 도구가 없기 때문**이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다([4.7 스펙 임포터](importer.md) §3.6). **에이전트가 관여하는 지점이 없다**(2026-09-06 — 래퍼 스킬을 걷었다 · [4.6](plugin.md) §2.5). 임포트는 사람이 도는 운영 작업이다.
 
 | MCP 도구 | 티어 | 내부 서비스 메서드 | REST 대응 | 비고 |
 | --- | --- | --- | --- | --- |
@@ -1239,12 +1267,13 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | `nerv_spec_submit_review` | **A3** | `SpecService.submitReview` → `ApprovalService.request` | EP-SPEC-10 | pending Approval 재사용(카드 중복 금지) — 표면 무관 |
 | `nerv_spec_check` | A1 | `SpecService.check` | EP-SPEC-09 | 5검사기 서비스 호출 |
 | `nerv_spec_comment_resolve` | A2 | `SpecService.resolveComment` | EP-CMT-04 | |
-| `nerv_task_get` | A1 | `TaskService.get` | EP-TASK-02 | 2026-08-30 신설 — MCP 에 Task 단건 조회가 없어 `nerv_task_next`(클레임 후보)만 볼 수 있었다. 키·UUID 둘 다 받는다(§1.4b) |
+| `nerv_task_get` | A1 | `TaskService.get` | EP-TASK-04 | 2026-08-30 신설 — MCP 에 Task 단건 조회가 없어 `nerv_task_next`(클레임 후보)만 볼 수 있었다. 키·UUID 둘 다 받는다(§1.4b) |
 | `nerv_task_list` | A1 | `TaskService.list` | EP-TASK-01 | 2026-08-30 신설 — 상태·담당·스펙으로 거르고 커서로 넘긴다. `spec` 은 키·UUID 둘 다(§1.4b — 예전에는 UUID 만 받아 키를 넣으면 조용히 0건이었다) |
 | `nerv_task_create` | A2 | `TaskService.create` | EP-TASK-03 | 2026-08-30 신설 — 위임 명세 4요소가 차야 서버가 `ready` 로 올린다(D-09). 만들자마자 집어 갈 수 있는 것이 아니다 |
 | `nerv_task_update` | A2(정책상 done은 A3) | `TaskService.transition` | EP-TASK-09 | done 게이트 판정 단일 지점 |
 | `nerv_spec_relate` | A2 | `SpecRelationService.declare` | — (관계 선언은 에이전트 전용 — 사람의 경로는 본문 참조 자동 동기화(REQ-API-024)와 S3 관계 패널 조회다) | 문서를 읽어야 아는 판단(`refines`·`depends_on`)을 채우는 도구. `references`는 본문에서 자동 동기화되므로 이 도구가 거부한다 |
 | `nerv_question_create` | A2 | `QuestionService.create` | — (질문 생성은 에이전트 전용. 사람의 답변이 EP-QST-02) | 멱등 재호출 = 폴링 규약은 MCP 표면 정의. 입력 전부(`context`·`escalate`·`blocking`·`wait_seconds`)를 받는다 — §1.4d |
+| `nerv_question_cancel` | A2 | `QuestionService.cancel` | EP-QST-03 | 2026-09-05 신설 — 열거에 있는데 만드는 경로가 없던 값(`cancelled`)에 길을 냈다 |
 | `nerv_spec_attach` | A2 | `AttachmentService.insert` → `.commit` | §1.4k(사람 경로는 서버 경유 업로드) | presigned 2단계. 확정은 **실제 업로드를 확인한 뒤에만** 통과한다(REQ-API-071) |
 | `nerv_spec_attachment_read` | A1 | `AttachmentService.read` | §1.4k 내려받기와 같은 오브젝트 | 2026-09-04 신설 — **텍스트만·상한 있음**. 되읽는 기본 길은 목록의 `url` 이고 이것은 Bash 가 없는 세션의 좁은 길이다(REQ-API-089) |
 | `nerv_review_submit` | A2 | `ReviewService.submit` | EP-REV-01 | P2. 라운드 병합·fingerprint dedup 이 이 메서드 안 — 표면 무관 |
@@ -1288,6 +1317,8 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-111 | WHEN 사람 전용 동작(프로젝트 설정·보관·복구 · 스펙 메타·보관·복구 · 기준선 생성 · steer · 받은 요청 조회·결정)이 요청되면 THE SYSTEM SHALL **도메인 서비스에서** 주체가 에이전트인지 판정해 `NERV_HUMAN_ONLY` 로 거절하고 `details.action` 과 대신 갈 `web_url` 을 함께 준다 — 판정이 표면에만 있으면 새 표면이 생길 때 조용히 열린다(2026-09-05) | 라우트 7종 각 1건 · 게이트를 서비스에서 빼면 전부 실패 |
 | REQ-API-112 | WHEN 요청에서 온 값이 enum 열에 저장되면 THE SYSTEM SHALL **도메인 서비스에서** 어휘를 검사해 밖의 값은 400 으로 거절하고 **허용 목록과 어긋난 값을 함께** 준다 — 그물(REQ-API-106)은 500 을 400 으로 바꿀 뿐이고, 어느 목록에서 벗어났는지 말하지 못하면 클라이언트는 같은 요청을 다시 보낸다(2026-09-05 · 전수 62곳 점검) | 필드명·허용 목록 반환 1건 · 전수 표(§1.4a) |
 | REQ-API-113 | WHEN 전표가 요청 스키마 이름을 인용하면 THE SYSTEM SHALL 그 이름이 `@nerv/schema` 의 export 로 **실재하게** 하고, 그 1:1 을 검사로 센다 — §1.7 의 선언이 오랫동안 거짓이었고(인용하는 이름 대부분이 코드 어디에도 없었다), **틀린 문서는 확신을 준다**(2026-09-05) | 전표 `*Input` 33종 전수 대조 1건 · 세는 대상이 0 이 아닌지 1건 |
+| REQ-API-114 | WHEN EP-REV-01 이 발견의 `body`·`suggestion` 을 받으면 THE SYSTEM SHALL **REST 와 MCP 가 같은 번역기를 거쳐** `body_md`·`suggestion_md` 로 저장한다 — 번역이 MCP 쪽에만 있어 **REST 로 올린 리뷰는 지적 본문과 제안이 전부 NULL 이었고**(타입은 맞아 컴파일도 검사도 통과했다), 발견의 본문이 없으면 그 발견은 게이트의 근거가 되지 못한다(D-05 · 2026-09-06) | REST 제출 → `detail_md`·`suggestion_md`·`file_path`·`line_start` 저장 1건(L2, 실제 HTTP) |
+| REQ-API-115 | WHEN EP-REQ-03 이 증적을 적재하면 THE SYSTEM SHALL 같은 트랜잭션에서 ★`evidence.added` 를 발행한다(`subject_type=requirement`) — 전표가 발생 이벤트를 적으면 그것이 계약인데 이 경로는 INSERT 만 하고 있었고, 같은 이름을 내는 곳은 GitHub 웹훅 하나였다: 증적이 실시간으로 화면에 닿지 않고 감사 축(FR-16)에도 남지 않았다(2026-09-06) | REST 증적 등록 후 `event` 한 행 1건(L2) |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 묶어 둔 버전**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다 |
@@ -1335,7 +1366,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 확정 스택(NestJS·socket.io·better-auth·실시간 WebSocket + SSE·방송 MQ Valkey)과 MVP 도구 16종 범위
+- [4.1 MVP 범위와 스택 확정](scope.md) — 확정 스택(NestJS·socket.io·better-auth·실시간 WebSocket + SSE·방송 MQ Valkey)과 MVP 도구 22종 범위(카탈로그 24종)
 - [4.2 코드베이스와 배포](codebase.md) — §2 모듈 맵(표면↔서비스 주입 구조의 실물)·§3 `packages/schema` zod 공유 규칙·§5.4/§6.3 SSE 프록시 규약
 - [4.3 데이터베이스 스키마](database.md) — §3 이벤트 방송 규약(Valkey `nerv_events` 채널·페이로드)
 - [4.5 화면 명세](screens.md) — 엔드포인트 ID 인용처, 이벤트→Query 무효화 매핑

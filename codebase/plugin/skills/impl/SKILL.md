@@ -10,6 +10,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_task_list
   - mcp__nerv__nerv_task_update
   - mcp__plugin_nerv_nerv__nerv_task_update
+  - mcp__nerv__nerv_finding_resolve
+  - mcp__plugin_nerv_nerv__nerv_finding_resolve
   - mcp__nerv__nerv_task_create
   - mcp__plugin_nerv_nerv__nerv_task_create
   - mcp__nerv__nerv_task_release
@@ -28,6 +30,9 @@ allowed-tools:
   가능하면 `stats{added,removed,files}`. 타이머가 없으므로 이렇게 근사한다:
   **도구 호출·작업 단위 경계마다 마지막 하트비트 시각을 확인하고, 60초가 지났으면
   다음 행동 전에 하트비트를 먼저 보낸다.** 첫 하트비트는 클레임 직후다.
+- **한 번의 행동이 60초를 훌쩍 넘을 것을 알면** 클레임·하트비트에 `lease_seconds` 로 더 긴
+  리스를 요청한다(기본 1800초). 늘리는 것은 남에게 그만큼 오래 잠긴다는 뜻이라, 필요한 만큼만
+  달라고 한다 — 끝나면 `nerv_task_release` 로 곧바로 놓는다.
 - 하트비트 응답은 리스 연장(`lease_expires_at` 갱신)이자 **서버 → 세션 유일 보장 채널**이다.
   응답의 `pending`을 즉시 처리한다:
   - 질문 답변 도착 → 답변 내용대로 재개.
