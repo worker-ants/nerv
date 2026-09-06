@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.57 · 2026-09-06 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.58 · 2026-09-06 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.58 변경(2026-09-06 — 서버가 낸 길을 스킬이 알게 한다, 사람 결정): **패키지 0.2.14 → 0.2.15.** `skills/impl` 에 둘을 적는다 — ① `blocked_reason` 은 **어휘 넷** 중 하나이고 그 밖은 400 이다(4.4 REQ-API-117), ② **막힌 Task 를 다시 잡을 때 `nerv_task_get` 의 `blocked_resolution` 을 먼저 읽는다**(REQ-API-118). 규약 6-① 이 이름 붙인 자리다 — 받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다. **`satisfied: true` 면 이미 풀린 것**이라 `in_progress` 전이가 `blocked_reason` 을 지우고(서버는 자동으로 지우지 않는다), **`null` 은 "아니다" 가 아니라 "서버가 모른다"** 이므로 사람에게 묻는다.
 >
 > v0.57 변경(2026-09-06 — 유령 응답 필드 둘을 갈랐다, 사람 결정): **패키지 0.2.13 → 0.2.14.** 스킬과 §3 이 *"응답 요약(scope 겹침 수 · 미해소 finding 수)을 `.nerv/cache/claim.json` 에 기록한다"* 고 지시하는데 하트비트 응답에는 그 둘이 **없었다** — statusline 의 두 칸이 영원히 0 이었다(규약 6 의 "유령 응답 필드"). 둘을 다르게 처리한다. **`scope_overlaps` 는 서버가 답하게 했다**(4.4 REQ-API-116) — 겹침은 시간이 지나며 생기므로 클레임 시점 값을 캐시에 박아 두면 상태줄이 옛날 사실을 계속 보인다. **`findings_open` 은 걷었다** — 그 숫자가 무엇을 세는지(내가 올린 것인가 · 이 브랜치의 것인가 · 이 Task 범위의 것인가)가 정해진 적이 없고, 정의 없는 숫자는 유령 필드를 유령 숫자로 바꾸는 것뿐이다. 곁들여 파생본의 statusline 전문이 2026-09-02 의 BSD `date` 수정을 받지 못한 채였던 것도 맞췄다.
 >
@@ -86,7 +88,7 @@ updated: 2026-09-06
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.14
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.15
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -108,12 +110,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.14)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.15)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -514,7 +516,14 @@ allowed-tools:
 - 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`) 호출.
 - 스펙에 없는 결정이 필요하거나 scope 경계를 벗어나야 하면 **추측하지 말고**
   /nerv:question 규약으로 `nerv_question_create`. blocking 질문이면 답변까지 구현을 멈춘다.
-- 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`).
+- 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`). **사유는 넷 중 하나다** —
+  `awaiting_answer` · `dependency_broken` · `spec_conflict` · `external`. 어휘 밖의 문장은 400 이다.
+- **막힌 Task 를 다시 잡을 때는 `nerv_task_get` 의 `blocked_resolution` 을 먼저 읽는다.**
+  서버가 "무엇이 되면 풀리는가" 를 파생해 준다 — `satisfied: true` 면 막고 있던 것이 이미
+  풀린 것이므로 `nerv_task_update`(`status=in_progress`)로 진행한다(그 전이가 `blocked_reason`
+  을 지운다. 서버는 그것을 자동으로 지우지 않는다). `satisfied: false` 면 `pending` 이
+  무엇을 기다리는지 말해 준다 — 그것을 건너뛰고 시작하지 않는다. **`satisfied: null` 은
+  "아니다" 가 아니라 "서버가 판정할 수 없다"** 이므로(`external` 등) 사람에게 묻는다.
 - 완료 시 `nerv_task_update`(`task_id`, `status=done`, `evidence`) —
   **증적 없는 done 시도는 하지 않는다.** "다 했습니다"는 증거가 아니다 — 판정은 서버가
   evidence로 한다.
@@ -1280,7 +1289,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
 | 2 | 환경변수 | 아래 블록을 저장소 `.claude/settings.local.json` 의 `env` 에 둔다 — **Claude Code 의 유일한 자리다**(§3.3). `.nerv/env` 는 Codex 폴백이라 지금은 쓰지 않는다 | `/mcp` 연결 확인 |
 | 2a | MCP 설정 | 저장소 루트에 `.mcp.json` 을 둔다(§3.3 템플릿 그대로). **플러그인은 이 파일을 담지 않는다** — 서버 주소·토큰이 프로젝트마다 다르기 때문이다 | `/mcp` 에 `nerv` connected |
-| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.2.14 활성 표시 |
+| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.2.15 활성 표시 |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
 

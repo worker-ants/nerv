@@ -296,7 +296,7 @@ export class TaskService {
        WHERE c.task_id = ${taskId} ORDER BY c.acquired_at DESC LIMIT 10
     `);
     const { rows: deps } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT d.depends_on_task_id, dt.key, dt.title, dt.status::text AS status
+      SELECT d.depends_on_task_id, d.kind::text AS kind, dt.key, dt.title, dt.status::text AS status
         FROM task_dependency d JOIN task dt ON dt.id = d.depends_on_task_id
        WHERE d.task_id = ${taskId}
     `);
@@ -305,7 +305,105 @@ export class TaskService {
         FROM evidence WHERE task_id = ${taskId} ORDER BY created_at
     `);
 
-    return { ...task, claims, dependencies: deps, evidence };
+    return {
+      ...task,
+      claims,
+      dependencies: deps,
+      evidence,
+      blocked_resolution: await this.blockedResolution(taskId, task, deps),
+    };
+  }
+
+  /**
+   * 무엇이 되면 이 작업이 풀리는가 — **파생이다. 저장하는 열이 아니다**
+   * (2026-09-06 사람 결정 · REQ-API-118).
+   *
+   * 정본([3.5 스펙 워크플로우](spec-workflow.md) §2)은 `blocked` 진입에 "사유 코드와
+   * **해소 조건**을 필수로 받는다" 고 적는다. 사유 코드는 어휘 4종으로 닫혔는데
+   * (REQ-API-117), 해소 조건은 받을 열이 없었다.
+   *
+   * **열을 만들지 않은 이유.** 사유마다 해소 원천이 **이미 저장에 있다** — 질문은
+   * `question.task_id`, 의존은 `task_dependency`, 기준 버전은 `rebrief_required_at`.
+   * 여기에 `blocked_resolution_task_id` 같은 열을 하나 더 두면 **같은 사실에 포인터가
+   * 둘**이 되고 둘은 언젠가 갈라진다(기준선/베이스라인 165곳 · 스코프 한 이름 세 뜻이
+   * 그 자국이다). 게다가 그 열은 넷 중 하나에만 맞고 나머지 셋에는 NULL 이 들어간다 —
+   * **넷 중 셋이 비는 열은 계약이 아니라 흔적**이다.
+   *
+   * 파생이라 얻는 것이 하나 더 있다: 서버가 **"이제 풀 수 있다" 를 판정할 수 있다.**
+   * 지금은 `blocked_reason` 을 아무도 자동으로 지우지 않아, 선행 의존이 `done` 이 되어도
+   * 사람이 손으로 전이를 다시 눌러야 풀린다 — 화면이 그것을 말해 줄 수 있게 된다.
+   *
+   * **`satisfied: null` 은 "아니다" 가 아니라 "서버가 판정할 수 없다" 다.** `external`
+   * 은 저장소 밖의 사정이라 파생할 원천이 없고, `spec_conflict` 는 기준 버전이 밀려나
+   * 있지 **않으면** 서버가 아는 신호가 없다(스펙이 틀렸다는 판단은 사람의 것이다).
+   * 모르는 것을 `false` 로 적으면 화면은 그것을 "아직 막혀 있다" 로 읽는다.
+   */
+  private async blockedResolution(
+    taskId: string,
+    task: Record<string, unknown>,
+    deps: Record<string, unknown>[],
+  ): Promise<Record<string, unknown> | null> {
+    const reason = task['blocked_reason'];
+    if (typeof reason !== 'string' || reason === '') return null;
+
+    if (reason === 'awaiting_answer') {
+      const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+        SELECT id, title, status::text AS status, urgency::text AS urgency
+          FROM question WHERE task_id = ${taskId} AND status = 'open'
+         ORDER BY created_at
+      `);
+      return {
+        reason,
+        source: 'question',
+        satisfied: rows.length === 0,
+        pending: rows.map((q) => ({ kind: 'question', ...q })),
+      };
+    }
+
+    if (reason === 'dependency_broken') {
+      // **`blocks` 만 센다** — ready 판정이 보는 것과 같은 조건이다(`next()`).
+      // 두 자리가 다른 조건을 쓰면 화면이 "풀 수 있다" 는데 큐는 안 올려 준다.
+      const pending = deps.filter((d) => d['kind'] === 'blocks' && d['status'] !== 'done');
+      return {
+        reason,
+        source: 'task_dependency',
+        satisfied: pending.length === 0,
+        pending: pending.map((d) => ({
+          kind: 'task',
+          id: d['depends_on_task_id'],
+          key: d['key'],
+          title: d['title'],
+          status: d['status'],
+        })),
+      };
+    }
+
+    if (reason === 'spec_conflict') {
+      const superseded = task['basis_superseded'] === true;
+      const rebrief = task['rebrief_required_at'] != null;
+      if (!superseded && !rebrief) {
+        // 기준 버전이 멀쩡한데 스펙과 어긋난다는 것은 **사람의 판단**이다 — 서버는 모른다
+        return { reason, source: null, satisfied: null, pending: [] };
+      }
+      return {
+        reason,
+        source: 'spec_version',
+        satisfied: false,
+        pending: [
+          {
+            kind: 'spec_version',
+            id: task['source_spec_version_id'],
+            key: task['spec_key'],
+            version_no: task['basis_version_no'],
+            superseded,
+            rebrief_required: rebrief,
+          },
+        ],
+      };
+    }
+
+    // external — 저장소 밖의 사정이라 가리킬 것이 없다. 자유 텍스트가 정직한 유일한 자리다
+    return { reason, source: null, satisfied: null, pending: [] };
   }
 
   /**

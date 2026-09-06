@@ -60,7 +60,14 @@ allowed-tools:
 - 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`) 호출.
 - 스펙에 없는 결정이 필요하거나 scope 경계를 벗어나야 하면 **추측하지 말고**
   /nerv:question 규약으로 `nerv_question_create`. blocking 질문이면 답변까지 구현을 멈춘다.
-- 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`).
+- 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`). **사유는 넷 중 하나다** —
+  `awaiting_answer` · `dependency_broken` · `spec_conflict` · `external`. 어휘 밖의 문장은 400 이다.
+- **막힌 Task 를 다시 잡을 때는 `nerv_task_get` 의 `blocked_resolution` 을 먼저 읽는다.**
+  서버가 "무엇이 되면 풀리는가" 를 파생해 준다 — `satisfied: true` 면 막고 있던 것이 이미
+  풀린 것이므로 `nerv_task_update`(`status=in_progress`)로 진행한다(그 전이가 `blocked_reason`
+  을 지운다. 서버는 그것을 자동으로 지우지 않는다). `satisfied: false` 면 `pending` 이
+  무엇을 기다리는지 말해 준다 — 그것을 건너뛰고 시작하지 않는다. **`satisfied: null` 은
+  "아니다" 가 아니라 "서버가 판정할 수 없다"** 이므로(`external` 등) 사람에게 묻는다.
 - 완료 시 `nerv_task_update`(`task_id`, `status=done`, `evidence`) —
   **증적 없는 done 시도는 하지 않는다.** "다 했습니다"는 증거가 아니다 — 판정은 서버가
   evidence로 한다.

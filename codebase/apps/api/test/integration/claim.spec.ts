@@ -86,6 +86,9 @@ beforeEach(async () => {
   // 증적은 Task 를 참조한다 — 먼저 지우지 않으면 done 전이를 만든 테스트 뒤로
   // 이 스위트 전체가 FK 위반으로 무너진다
   await pool.query('DELETE FROM evidence');
+  // 질문도 Task 를 참조한다 — 막힘의 해소 조건(REQ-API-118)이 그 관계를 읽으므로
+  // 이 스위트가 질문을 만든다. 증적과 같은 이유로 Task 보다 먼저 지운다.
+  await pool.query('DELETE FROM question');
   await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM event');
 });
@@ -969,5 +972,113 @@ describe('구현 축 — 서버가 관계 그래프에서 파생한다', () => {
     await pool.query(`UPDATE requirement SET impl_status = 'verified' WHERE id = $1`, [reqId]);
     await tasks.claim(claimInput(taskId, sessionHana, hana));
     expect(await statusOf(reqId)).toBe('verified');
+  });
+});
+
+// ── 막힘의 해소 조건 — **파생이다** (REQ-API-118 · 2026-09-06) ─────────────
+//
+// 정본(3.5 §2)은 `blocked` 진입에 "사유 코드와 **해소 조건**을 필수로 받는다" 고 적는데,
+// 해소 조건을 담을 열이 없었다. 열을 만들지 않고 **파생**하기로 했다 — 사유마다 해소
+// 원천이 이미 저장에 있고(질문·의존·기준 버전), 열을 하나 더 두면 같은 사실에 포인터가
+// 둘이 되기 때문이다. 여기서 보는 것은 그 파생이 **실제 데이터 위에서** 맞는가다.
+
+describe('막힘의 해소 조건 (REQ-API-118)', () => {
+  /**
+   * `blocked` 는 사유와 **한 문장에서** 들어가야 한다 — `task_blocked_reason_ck` 가
+   * "blocked 인데 사유가 없는 행"을 막는다. 사유 없는 blocked 는 백로그 부패의 씨앗이라는
+   * 규칙이 CHECK 로도 서 있는 것이고, 그래서 두 단계로 나눠 넣을 수 없다.
+   */
+  async function blockedTask(key: string, reason: string): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, blocked_reason,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,$3,'blocked',$4,'목표','PR 1건','nerv_spec_get','경계')`,
+      [id, projectId, key, reason],
+    );
+    return id;
+  }
+
+  async function resolutionOf(taskId: string): Promise<Record<string, unknown>> {
+    const key = await scalarText(`SELECT key FROM task WHERE id='${taskId}'`);
+    const detail = await tasks.get({ projectId, taskKey: key ?? '' });
+    return detail['blocked_resolution'] as Record<string, unknown>;
+  }
+
+  it('막히지 않은 Task 는 해소 조건이 없다 — 없는 것을 만들어 보이지 않는다', async () => {
+    const id = await makeTask('CLV-T-BLK000');
+    const key = await scalarText(`SELECT key FROM task WHERE id='${id}'`);
+    expect((await tasks.get({ projectId, taskKey: key ?? '' }))['blocked_resolution']).toBeNull();
+  });
+
+  it('awaiting_answer — 열린 질문이 남아 있으면 아직이고, 답하면 풀 수 있다', async () => {
+    const taskId = await blockedTask('CLV-T-BLK001', 'awaiting_answer');
+    const qid = newId();
+    await pool.query(
+      `INSERT INTO question (id, project_id, agent_session_id, task_id, title, urgency, status)
+       VALUES ($1,$2,$3,$4,'탭 최대 개수?','blocking','open')`,
+      [qid, projectId, sessionHana, taskId],
+    );
+
+    const before = await resolutionOf(taskId);
+    expect(before['source']).toBe('question');
+    expect(before['satisfied']).toBe(false);
+    expect((before['pending'] as unknown[]).length).toBe(1);
+
+    // **답이 오면 서버가 안다** — `blocked_reason` 은 그대로인데도 "풀 수 있다" 가 뜬다.
+    // 그 값을 아무도 자동으로 지우지 않는다는 것이 이 파생이 필요한 이유다.
+    await pool.query(`UPDATE question SET status='answered' WHERE id=$1`, [qid]);
+    const after = await resolutionOf(taskId);
+    expect(after['satisfied']).toBe(true);
+    expect(after['pending']).toEqual([]);
+    expect(await scalarText(`SELECT blocked_reason FROM task WHERE id='${taskId}'`)).toBe(
+      'awaiting_answer',
+    );
+  });
+
+  it('dependency_broken — **`blocks` 만 센다**. ready 판정이 보는 조건과 같아야 한다', async () => {
+    const taskId = await blockedTask('CLV-T-BLK002', 'dependency_broken');
+    const blocker = await makeTask('CLV-T-BLK002A');
+    const related = await makeTask('CLV-T-BLK002B');
+    await pool.query(
+      `INSERT INTO task_dependency (task_id, depends_on_task_id, kind) VALUES ($1,$2,'blocks'),($1,$3,'relates')`,
+      [taskId, blocker, related],
+    );
+
+    const before = await resolutionOf(taskId);
+    expect(before['satisfied']).toBe(false);
+    // `relates` 는 세지 않는다 — 세면 화면이 "아직 막혀 있다" 고 말하는데 큐는 올려 준다
+    expect((before['pending'] as { key: string }[]).map((p) => p.key)).toEqual(['CLV-T-BLK002A']);
+
+    // `done` 은 완료 시각·스펙 영향과 함께 들어간다(`task_done_at_ck`·`task_done_spec_impact_ck`)
+    // — 게이트가 요구하는 것을 CHECK 도 요구한다. 여기서는 그 게이트를 지나지 않으므로 직접 채운다.
+    await pool.query(
+      `UPDATE task SET status='done', done_at=now(), spec_impact='{"none":true}'::jsonb WHERE id=$1`,
+      [blocker],
+    );
+    expect((await resolutionOf(taskId))['satisfied']).toBe(true);
+  });
+
+  it('spec_conflict — 기준 버전이 멀쩡하면 **서버는 모른다**(null 이지 false 가 아니다)', async () => {
+    const taskId = await blockedTask('CLV-T-BLK003', 'spec_conflict');
+    const res = await resolutionOf(taskId);
+    // 스펙이 틀렸다는 판단은 사람의 것이다. 모르는 것을 false 로 적으면 화면은 그것을
+    // "아직 막혀 있다" 로 읽고, 사람은 서버가 판정했다고 믿는다.
+    expect(res['satisfied']).toBeNull();
+    expect(res['source']).toBeNull();
+  });
+
+  it('spec_conflict — 재브리핑이 걸려 있으면 그것이 막고 있는 것이다', async () => {
+    const taskId = await blockedTask('CLV-T-BLK004', 'spec_conflict');
+    await pool.query(`UPDATE task SET rebrief_required_at = now() WHERE id = $1`, [taskId]);
+    const res = await resolutionOf(taskId);
+    expect(res['satisfied']).toBe(false);
+    expect((res['pending'] as { kind: string }[])[0]?.kind).toBe('spec_version');
+  });
+
+  it('external — 가리킬 것이 없다. 그것이 사실이므로 그렇게 답한다', async () => {
+    const res = await resolutionOf(await blockedTask('CLV-T-BLK005', 'external'));
+    expect(res['satisfied']).toBeNull();
+    expect(res['pending']).toEqual([]);
   });
 });

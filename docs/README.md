@@ -4,7 +4,9 @@
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v2.64 · 2026-09-06 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v2.65 · 2026-09-06 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v2.65 변경(2026-09-06 — 해소 조건은 열이 아니라 파생이다, 사람 결정): **REQ-API-118 신설 · 플러그인 0.2.15 · 정본 [3.5](03-proposal/spec-workflow.md) 개정.** 직전 묶음에서 `blocked_reason` 의 **어휘**는 닫았는데(REQ-API-117) 정본이 함께 요구하는 **"해소 조건"** 이 남아 있었다. 그것을 담을 열은 만들어진 적이 없고, **만들지 않기로 했다.** 사유마다 해소 원천이 **이미 저장에 있기 때문**이다 — `awaiting_answer`→`question.task_id` · `dependency_broken`→`task_dependency` · `spec_conflict`→`rebrief_required_at`. 열을 하나 더 두면 같은 사실에 포인터가 둘이 되고 둘은 언젠가 갈라진다(기준선/베이스라인 165곳이 그 자국이다). 게다가 그 열은 **넷 중 하나에만 맞아** 나머지 셋에는 NULL 이 들어간다 — 넷 중 셋이 비는 열은 계약이 아니라 흔적이다. 서버가 `EP-TASK-04` 응답에 `blocked_resolution` 을 파생해 싣고([4.4](04-mvp/api.md) v1.1), 화면이 `막힘 — 무엇이 되면 풀리는가` 카드로 그린다([4.5](04-mvp/screens.md) v0.82). **`satisfied: null` 은 "아니다" 가 아니라 "서버가 판정할 수 없다"** 다(`external` · 기준 버전이 멀쩡한 `spec_conflict`). 파생이라 얻는 것이 하나 더 있다 — `blocked_reason` 은 아무도 자동으로 지우지 않아 의존이 끝나도 사람이 다시 눌러야 풀리는데, 파생값이 그 순간 **"이제 풀 수 있습니다"** 를 말한다. 스킬도 그것을 읽는다([4.6](04-mvp/plugin.md) v0.58 · 0.2.15).
 >
 > v2.64 변경(2026-09-06 — 결정 여섯을 닫는다, 사람 결정): **마이그레이션 `0021` · REQ-API-116·117 신설 · REQ-IMP-010 개정 · 플러그인 0.2.14 · CI 게이트 아홉 → 열.** 2026-09-06 대조가 남긴 "어느 쪽이 옳은가만 정하면 되는 다섯"(+곁들이 하나)을 권장안대로 닫았다. ① **`release_reason`** — `nerv_session_end` 와 사람의 중단이 둘 다 `manual` 이라 0019 가 고친 결함이 두 경로에 그대로 남아 있었다. **서버가 판정한 값 둘**(`session_end`·`stopped`)을 더한다 — `handoff`·`abandon` 은 *고른* 값이라 거기 얹으면 같은 오류를 반대 방향으로 반복한다([4.3](04-mvp/database.md) v0.35). `conflict` 는 남기되 **생산자가 없다는 사실**을 코드가 적는다(겹침은 회수가 아니라 거절이다). ② **4부 frontmatter** 8편을 `approved` 로 — 이 문서 세트는 첫 임포트 대상이라 `draft` 로 두면 플랫폼의 첫 화면이 **자기 명세를 미승인이라 말한다**. 프로파일이 덮어쓰는 길은 원문 보존 제1규칙과 부딪혀 택하지 않았다([4.7](04-mvp/importer.md) v0.20 · REQ-IMP-010 개정). ③ **하트비트의 두 유령 필드**를 갈랐다 — `scope_overlaps` 는 **서버가 답하게** 하고(겹침은 시간이 지나며 생기므로 클레임 시점 값으로는 답이 안 된다), `findings_open` 은 **걷었다**(무엇을 세는지가 정해진 적이 없다 · [4.6](04-mvp/plugin.md) v0.57 · 0.2.14). ④ **`EP-TASK-09` 의 `note`** 를 걷는다 — 받고 버려지던 필드라 `.strict()` 가 이제 400 을 낸다. 저장할 자리가 없는 칸을 살리는 것보다 **조용한 성공을 명시적 거절로** 바꾸는 편이 낫다. ⑤ **`blocked_reason` 어휘 4종**을 `@nerv/schema` 상수 + zod + 도메인 판정으로 강제한다(REQ-API-117) — 열은 아직 `text` 다: 정본이 함께 요구하는 "해소 조건" 의 뜻이 정해지기 전에 열을 만들면 `note` 와 같은 운명이 된다. ⑥ **`NERV_LOG_LEVEL`** 을 배선하고([4.2](04-mvp/codebase.md) v1.26), 같은 부류가 다시 생기지 않게 **`.env` 전표 정합 게이트**를 세웠다 — 전표가 소비자를 `api`·`worker` 라 적은 변수를 그 코드가 실제로 읽는지까지 본다.
 >
@@ -324,7 +326,7 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [3.2 시스템 아키텍처](03-proposal/architecture.md) | `v0.5` | 컴포넌트 구성(웹·API·MCP 게이트웨이·훅 수집기·DB·워커), **저장 전략(DB 단일 진실 + md 미러 + git export)**, 데이터 흐름 시퀀스 4종, 기술 스택 선정·대안 비교, 보안·확장 |
 | [3.3 데이터 모델](03-proposal/data-model.md) | `v0.13` | ERD 전체와 엔티티 상세(Spec/SpecVersion/Requirement, Task/Claim, AgentSession/Activity, ReviewSession/Finding, Approval/Question, Event…), clemvion frontmatter 매핑, 검증 질의 |
 | [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.27` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
-| [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | `v0.9` | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
+| [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | `v0.10` | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
 | [3.6 화면 설계](03-proposal/ui-wireframes.md) | `v0.4` | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·받은 요청·설정) — HTML 파생본은 실제 렌더링 목업 |
 | [3.7 로드맵](03-proposal/roadmap.md) | `v0.7` | Phase 0 PoC(조정 검증) → 1 MVP → 2 리뷰·연동 확장 → 3 고도화, 각 단계 성공 기준·리스크·clemvion 마이그레이션 계획 |
 
@@ -335,11 +337,11 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.22` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
 | [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.26` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.35` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
-| [4.4 API 명세](04-mvp/api.md) | `v1.0` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
-| [4.5 화면 명세](04-mvp/screens.md) | `v0.81` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.57` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
+| [4.4 API 명세](04-mvp/api.md) | `v1.1` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
+| [4.5 화면 명세](04-mvp/screens.md) | `v0.82` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.58` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.20` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v0.19` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v0.20` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

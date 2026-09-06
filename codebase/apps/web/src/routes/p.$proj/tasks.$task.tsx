@@ -53,6 +53,11 @@ function TaskDetail(): React.JSX.Element {
   const status = String(data['status'] ?? '');
   const projectId = project.data?.['id'];
   const meId = me.data?.id;
+  /** 무엇이 되면 풀리는가 — 서버가 파생해 보낸다(REQ-API-118). 막히지 않았으면 null */
+  const blocked =
+    typeof data['blocked_resolution'] === 'object' && data['blocked_resolution'] !== null
+      ? (data['blocked_resolution'] as Record<string, unknown>)
+      : null;
 
   /**
    * 지금 살아 있는 내 클레임 — 있으면 [클레임 해제], 없으면 [클레임] 이다.
@@ -235,6 +240,64 @@ function TaskDetail(): React.JSX.Element {
             </Element>
           </div>
         </Card>
+
+        {/* **막힘은 사유만으로 끝나지 않는다.** 정본(3.5 §2)이 "사유 코드와 **해소 조건**을
+            필수로 받는다" 고 적는데 해소 조건을 담을 열이 없었다 — 서버가 그것을 **파생**해
+            보낸다(REQ-API-118). 화면이 할 일은 "무엇이 되면 풀리는가" 를 그대로 보이는 것과,
+            **이미 풀렸다는 사실을 말해 주는 것**이다: `blocked_reason` 은 아무도 자동으로
+            지우지 않아서, 의존이 끝나도 사람이 다시 눌러야 풀린다. */}
+        {blocked !== null && (
+          <Card>
+            <SectionTitle>{t('task.blocked.title')}</SectionTitle>
+            <div className="flex flex-col gap-2 text-sm">
+              <p>
+                <span className="font-medium">
+                  {t(blockedReasonLabelKey(String(blocked['reason'])))}
+                </span>
+                {blocked['satisfied'] === true && (
+                  <span
+                    data-testid="blocked-satisfied"
+                    className="ml-2 rounded-nerv-sm bg-status-ok-soft px-1.5 py-0.5 text-xs text-status-ok"
+                  >
+                    {t('task.blocked.satisfied')}
+                  </span>
+                )}
+              </p>
+              {/* **`null` 은 "아니다" 가 아니라 "서버가 모른다" 다.** 그 둘을 같은 회색으로
+                  그리면 사람은 판정이 있었다고 읽는다 */}
+              {blocked['satisfied'] === null ? (
+                <p className="text-xs text-text-mute">{t('task.blocked.human_only')}</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {rows(blocked['pending']).map((item, i) => (
+                    <li key={`${String(item['kind'])}-${i}`} className="flex items-center gap-1.5">
+                      {item['kind'] === 'task' ? (
+                        <Link
+                          to="/p/$proj/tasks/$task"
+                          params={{ proj, task: String(item['key']) }}
+                          className="text-link hover:underline"
+                        >
+                          <Mono>{String(item['key'])}</Mono>
+                        </Link>
+                      ) : (
+                        <Mono>{String(item['key'] ?? item['id'] ?? '')}</Mono>
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-xs text-text-mute">
+                        {String(item['title'] ?? '')}
+                      </span>
+                      <span className="text-2xs text-text-ghost">
+                        {String(item['status'] ?? '')}
+                      </span>
+                    </li>
+                  ))}
+                  {rows(blocked['pending']).length === 0 && (
+                    <li className="text-xs text-text-faint">{t('task.blocked.nothing_pending')}</li>
+                  )}
+                </ul>
+              )}
+            </div>
+          </Card>
+        )}
 
         <Card>
           <SectionTitle>{t('task.brief')}</SectionTitle>

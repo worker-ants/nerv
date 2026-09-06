@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.9 (2026-09-06)</span>
+      <span>버전 v0.10 (2026-09-06)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
     </div>
@@ -310,7 +310,10 @@
     <div class="cap">그림 3. Task 축 상태도. <code>blocked</code>는 별도 축이 아니라 어느 상태에서든 드나드는 예외 상태다.</div>
   </div>
 
-  <p><code>blocked</code> 진입 시 사유 코드(<code>awaiting_answer</code> / <code>dependency_broken</code> / <code>spec_conflict</code> / <code>external</code>)와 해소 조건을 필수로 받는다 — clemvion의 <code>(unstarted)</code> sentinel이 "placeholder는 어떤 worktree와도 매칭되지 않아 plan이 게이트에서 사라진다"는 이유로 가드에 거부당한 것과 같은 원리다. 사유 없는 blocked는 백로그 부패의 씨앗이다.</p>
+  <p><code>blocked</code> 진입 시 <b>사유 코드</b>(<code>awaiting_answer</code> / <code>dependency_broken</code> / <code>spec_conflict</code> / <code>external</code>)를 필수로 받는다 — clemvion의 <code>(unstarted)</code> sentinel이 "placeholder는 어떤 worktree와도 매칭되지 않아 plan이 게이트에서 사라진다"는 이유로 가드에 거부당한 것과 같은 원리다. 사유 없는 blocked는 백로그 부패의 씨앗이다.</p>
+
+  <blockquote><p><b>해소 조건은 받지 않는다 — 파생한다</b>(2026-09-06 결정 · REQ-API-118). 이 문장은 오래 "사유 코드와 <b>해소 조건</b>을 필수로 받는다" 였는데, 해소 조건을 담을 열이 만들어진 적이 없다. 만들지 않기로 했다: <b>사유마다 해소 원천이 이미 저장에 있기 때문</b>이다 — <code>awaiting_answer</code> 는 <code>question.task_id</code>, <code>dependency_broken</code> 은 <code>task_dependency</code>, <code>spec_conflict</code> 는 <code>rebrief_required_at</code>. 열을 하나 더 두면 같은 사실에 포인터가 둘이 되고 둘은 언젠가 갈라진다(기준선/베이스라인 165곳이 그 자국이다). 게다가 그 열은 넷 중 하나에만 맞고 나머지 셋에는 NULL 이 들어간다 — <b>넷 중 셋이 비는 열은 계약이 아니라 흔적</b>이다. 서버는 <code>EP-TASK-04</code> 응답에 <code>blocked_resolution</code> 을 파생해 실어 준다(<code>satisfied</code> · <code>pending[]</code>). <code>external</code> 은 저장소 밖이라 파생할 원천이 없고, 그때 <code>satisfied</code> 는 <b><code>false</code> 가 아니라 <code>null</code></b> 이다 — "아니다" 와 "서버가 판정할 수 없다" 는 다른 말이다.</p>
+  <p>파생이라 얻는 것이 하나 더 있다. <code>blocked_reason</code> 은 <b>아무도 자동으로 지우지 않아서</b>, 선행 의존이 <code>done</code> 이 되어도 사람이 손으로 전이를 다시 눌러야 풀린다. 파생값은 그 순간 <code>satisfied: true</code> 가 되므로 <b>화면이 "이제 풀 수 있습니다" 를 말할 수 있다</b> — 자동 해소로 가는 길이 여기서 열린다.</p></blockquote>
 
   <h3>1.5 세 축이 만나는 지점</h3>
 
