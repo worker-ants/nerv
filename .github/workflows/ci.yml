@@ -4,16 +4,22 @@
 # REQ-CB-015 의 "저장소 메타 파일"에 해당하며 codebase/ 배치 원칙의 예외가 아니라 그 정의 안이다.
 #
 # 잡 3종은 테스트 3계층(§4.3)과 1:1 이다.
-#   check       매 PR — lint · typecheck · 서식 · 게이트 넷 · L1
+#   check       매 PR — lint · typecheck · 서식 · 게이트 여섯 · L1
 #   integration 매 PR — L2(실제 Postgres). 이 코드베이스의 무게중심이다
-#   e2e         merge_group + 야간 — L3(compose 스택 상대)
+#   e2e         매 PR + merge_group + 야간 — L3(compose 스택 상대)
+#
+# **셋 다 머지 전에 돈다**(2026-09-06 개정). e2e 는 오래 `merge_group + 야간` 뿐이었고,
+# 그래서 L3 파손이 **머지된 뒤에야** 드러났다 — 실제로 그렇게 됐다: PR #1 은 두 잡이 초록,
+# 로컬 `pnpm preflight` 도 초록이었는데 머지 커밋의 e2e 가 빨갰다. 규약 7 이 적은
+# "로컬 초록이 CI 초록을 뜻하지 않는다" 의 그 자리인데 원인이 속도가 아니라 **레인**이었다.
+# 그 빨강은 다음 사람에게 배경이 된다 — 그러라고 세운 검사가 아니다.
 name: ci
 
 on:
   pull_request:
   push:
     branches: [main]
-  merge_group:
+  merge_group:                 # 머지 전 레인 — 세 잡 모두. e2e 는 PR 에서도 돈다(2026-09-06)
   schedule:
     # 야간 E2E (UTC 18:00 = KST 03:00)
     - cron: '0 18 * * *'
@@ -164,8 +170,17 @@ jobs:
 
   e2e:
     name: e2e (L3 · compose 스택)
-    # PR 마다 돌리지 않는다 — merge_group 과 야간 스케줄에서만(§4.3)
-    if: github.event_name != 'pull_request'
+    # **매 PR 에서도 돈다**(2026-09-06 개정 · §4.3). 예전에는 `merge_group` 과 야간에서만
+    # 돌았고, 그래서 이 잡이 잡는 부류의 파손은 **머지된 뒤에만** 드러났다.
+    #
+    # 비용은 **5m31s** 다(2026-09-06 PR #5 실측 — 테스트 자체는 3분 남짓이고 나머지는
+    # 체크아웃·`pnpm install`·`pnpm build`·docker build·브라우저 설치다). 세 잡이 병렬이라
+    # PR 전체 대기 시간이 1m27s → 5m31s 로 늘어난다. PR 은 `cancel-in-progress` 라
+    # 재푸시가 쌓이지는 않는다.
+    #
+    # 드래프트를 건너뛰지 않는 것도 의도다 — 건너뛰려면 `ready_for_review` 를 트리거에 더해야 하고,
+    # 잊으면 "드래프트를 ready 로 바꿨는데 한 번도 안 돈" 상태가 생긴다. 지금 고치는 결함이
+    # 정확히 그 모양이다.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

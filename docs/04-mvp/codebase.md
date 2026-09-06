@@ -7,7 +7,9 @@ updated: 2026-09-06
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.26 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.27 · 2026-09-06 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.27 변경(2026-09-06 — e2e 를 PR 레인에 넣는다, 사람 결정): §4.3·§4.5 — `e2e` 잡의 `if: github.event_name != 'pull_request'` 를 걷는다. **검사는 머지 전에 도는 것만 검사다.** 그 조건 때문에 L3 파손이 **머지된 뒤에야** 드러났다 — PR #1 은 `check`·`integration` 이 초록이고 로컬 `pnpm preflight` 도 초록이었는데 머지 커밋의 e2e 가 빨갰다(원인: `nerv import <kind>` 를 실재하게 하면서 시나리오 E 의 호출 세 곳을 같이 안 고쳤다). 규약 7 이 적은 "로컬 초록이 CI 초록이 아니다" 의 그 자리인데, 이번 원인은 속도가 아니라 **레인**이었다. 비용은 **5m31s** 다(2026-09-06 PR #5 실측 — 테스트 자체는 3분 남짓이고 나머지는 체크아웃·`pnpm install`·`pnpm build`·docker build·브라우저 설치다). 세 잡이 병렬이라 **PR 전체 대기 시간이 1m27s → 5m31s** 로 늘어난다. PR 은 `cancel-in-progress` 라 재푸시가 쌓이지는 않는다. **드래프트를 건너뛰지 않는 것도 의도다** — 건너뛰려면 `ready_for_review` 를 트리거에 더해야 하고, 잊으면 "ready 로 바꿨는데 한 번도 안 돈" 상태가 생긴다. 그 모양이 정확히 이번에 고치는 결함이다. `preflight` 는 여전히 L3 를 돌리지 않는다(compose 스택이 필요하다) — 그 사실과 로컬에서 보는 법을 §4.3 과 `AGENTS.md` 에 적었다.
 >
 > v1.26 변경(2026-09-06 — 유령 설정을 배선하고 게이트를 세운다, 사람 결정): **`NERV_LOG_LEVEL` 배선 · CI 게이트 아홉 → 열.** §5.2 전표가 이 변수의 소비자를 "api · worker" 라 적어 두고 **읽는 코드가 0건**이었다 — 운영자가 값을 바꿔도 아무 일이 없었고, 장애 때 로그를 늘릴 손잡이가 실은 재배포뿐이었다. 두 진입점이 `common/log-level.ts` 한 함수로 읽는다(고른 수준과 **그보다 심각한 것**을 켠다 · `info`·`warning`·`trace`·`critical` 은 별칭 — compose·k8s 가 이미 `info` 를 넘긴다 · 모르는 값은 기본으로 떨어지되 한 줄 남긴다). 그리고 **같은 부류가 다시 생기지 않게 검사를 세웠다**(`scripts/check-env-table.mjs`) — 코드가 읽는 변수가 전표에 있는가 · `.env.example` 의 키가 전표에 있는가 · 한 변수가 두 행에 나오지 않는가 · **전표가 소비자를 `api`·`worker`·`web` 이라 적은 변수를 그 코드가 실제로 읽는가**. 마지막 하나가 유령 설정을 잡는 축이다.
 >
@@ -562,11 +564,15 @@ E2E는 개발 스택과 **완전히 분리된 compose 파일**(`deploy/compose/d
 | --- | --- | --- | --- | --- |
 | L1 단위 | Vitest | 소스 옆 `*.spec.ts` | 순수 로직 — zod 스키마, 델타 계산, fingerprint | `pnpm test` (매 PR) |
 | L2 통합 | Vitest | `apps/api/test/integration/` | 도메인 서비스 + 실제 Postgres(compose의 `postgres` 사용) — **클레임 원자성 동시 호출, scope 겹침, base_hash 비교-교환, 리스 만료**. 임베딩은 결정적 **OpenAI 호환 스텁 서버**(테스트 픽스처 — 단일 계약(REQ-CB-020)이라 스텁도 같은 표면이다)로 검증하고 실모델 품질은 E06-S06·스테이징 소관 | `pnpm test:integration` (매 PR) |
-| L3 계약/E2E | Vitest(API·MCP·WS) + Playwright(웹) | `apps/api/test/e2e/` + `apps/web/test/e2e/` | **E2E 전용 compose 스택**(`deploy/compose/docker-compose.e2e.yml`) 기동 후 REST·MCP·WS·브라우저 시나리오 — [4.8 백로그](backlog.md) §5의 E2E 수용 시나리오가 케이스 정본 | `pnpm e2e:up && pnpm test:e2e` (머지 전·야간) |
+| L3 계약/E2E | Vitest(API·MCP·WS) + Playwright(웹) | `apps/api/test/e2e/` + `apps/web/test/e2e/` | **E2E 전용 compose 스택**(`deploy/compose/docker-compose.e2e.yml`) 기동 후 REST·MCP·WS·브라우저 시나리오 — [4.8 백로그](backlog.md) §5의 E2E 수용 시나리오가 케이스 정본 | `pnpm e2e:up && pnpm test:e2e` (**매 PR** · 머지 전 · 야간 — 2026-09-06 개정) |
 
 **로컬에서는 `pnpm preflight` 하나로 CI 의 `check` 잡을 그대로 돌린다**(2026-09-06 신설 · `scripts/preflight.mjs`). 규약이 오래 적어 온 네 명령은 CI 가 보는 여덟의 **일부**였다 — 플러그인 버전 게이트·배포 산출물 정합·백로그 현황 정합·schema drift 가 로컬에서 빠져 있었다. 순서도 CI 와 같다(게이트가 테스트 앞). `--l2` 로 L2 까지, `pnpm hooks:install` 로 push 때 자동 실행(옵트인 · `--no-verify` 로 우회되므로 **게이트가 아니다**).
 
 **다만 로컬 초록이 CI 초록은 아니다.** md 왕복 스파이크가 로컬 10.7초였는데 CI 는 같은 스위트를 3.9배로 돌아 고정 상한 30초를 넘겼고, **다섯 번 같은 자리에서** main 을 빨갛게 만들었다(2026-09-05~06). 비용이 문서 수와 함께 자라는 검사에 고정 상한을 둔 것이 원인이라 **레인을 갈랐다** — 머지 전 레인(`pull_request`·`merge_group`·야간)만 전수를 보고, main 푸시 레인은 등간격 표본 6편만 본다. 상한도 표본 수에 비례한다. 표본을 앞에서 자르지 않고 **등간격으로 솎는** 이유는 앞 N 편이 1부만 보기 때문이고, 옛 `slice(0, 30)` 은 문서가 31편이 되는 순간 새 문서를 **조용히** 표본 밖으로 내보내던 자리라 함께 걷었다.
+
+> **레인이 다른 것도 "로컬 초록이 CI 초록이 아닌" 이유다**(2026-09-06 추가). 위의 것은 *속도* 때문이었는데, 같은 결과를 **레인** 이 낸 적이 있다: `e2e` 잡이 `merge_group` 과 야간에서만 돌아 **PR 에서는 skip** 이었고, 그래서 L3 파손이 머지된 뒤에야 드러났다 — PR #1 은 두 잡이 초록이고 `pnpm preflight` 도 초록이었는데 머지 커밋의 e2e 가 빨갰다. **e2e 를 PR 레인에도 넣었다.** 비용은 **5m31s** 다(2026-09-06 PR #5 실측 — 테스트 자체는 3분 남짓이고 나머지는 체크아웃·`pnpm install`·`pnpm build`·docker build·브라우저 설치다). 세 잡이 병렬이라 **PR 전체 대기 시간이 1m27s → 5m31s** 로 늘어난다. PR 은 `cancel-in-progress` 라 재푸시가 쌓이지는 않는다. 드래프트를 건너뛰지 않는 것도 의도다 — 건너뛰려면 `ready_for_review` 를 트리거에 더해야 하고, 잊으면 "ready 로 바꿨는데 한 번도 안 돈" 상태가 생긴다. 그 모양이 바로 이번에 고치는 결함이다.
+>
+> **`preflight` 는 여전히 L3 를 돌리지 않는다.** compose 스택이 필요하기 때문이고, 그 사실은 그대로다 — 다만 이제 **CI 가 머지 전에 본다.** 로컬에서 보고 싶으면 `pnpm e2e:up && pnpm test:e2e && pnpm e2e:down` 이다.
 
 L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시 클레임·게이트 판정)는 mock으로 검증되지 않는다 — 트랜잭션·행 잠금·부분 인덱스가 실제로 동작하는 DB를 상대로만 의미가 있다.
 
@@ -590,7 +596,7 @@ name: ci
 on:
   pull_request:
   push: { branches: [main] }
-  merge_group:                 # 머지 전 레인 — e2e 와 md 전수 왕복이 여기서 돈다
+  merge_group:                 # 머지 전 레인 — 세 잡 모두 (e2e 는 2026-09-06 부터 PR 에서도 돈다)
   schedule: [{ cron: '0 18 * * *' }]   # 야간(KST 03:00)
 defaults: { run: { working-directory: codebase } }
 concurrency:                   # PR 만 취소한다 — main·야간이 서로를 죽이면 "검증된 적 없는 커밋"이 생긴다
@@ -646,8 +652,7 @@ jobs:
         env:
           DATABASE_URL: "postgres://postgres:ci@localhost:5432/postgres"
           NERV_VALKEY_URL: "redis://localhost:6379"
-  e2e:                         # merge_group + 야간 — L3
-    if: github.event_name != 'pull_request'
+  e2e:                         # 매 PR + merge_group + 야간 — L3 (2026-09-06: PR 레인 추가)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
