@@ -4,10 +4,11 @@
 // 만드는 코드가 저장소에 0곳이었고, `--map` 은 파싱만 됐다. 여기서 보는 것은 그 캐시가
 // **`map-conflict` 의 축으로 쓸 만한가** 다 — 우리가 넣은 것과 남이 넣은 것을 가르는 일.
 
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { runImport } from './run.js';
 import {
   emptyManifest,
   knows,
@@ -70,5 +71,62 @@ describe('매니페스트 (§3.3)', () => {
 
   it('자연 키가 없는 행은 버린다 — 키 없는 항목은 무엇도 가리키지 못한다', () => {
     expect(manifestFromServerMap('p', 'x', [{ kind: 'spec', id: 'u1' }]).items).toEqual([]);
+  });
+});
+
+/**
+ * **원문 해시는 둘이다**(2026-09-07 · REQ-IMP-030).
+ *
+ * 목표 2("원문 해시를 매니페스트에")가 본문에 대해서만 참이었다 — `updated:` 하나 고친
+ * 재실행이 무변경으로 읽히고, 매니페스트가 적어 둔 보존 값은 옛것으로 남는다.
+ */
+describe('매니페스트가 frontmatter 를 기억한다 (REQ-IMP-030)', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'nerv-manifest-'));
+    mkdirSync(join(root, 'docs'), { recursive: true });
+    writeFileSync(
+      join(root, 'docs', 'a.md'),
+      '---\nid: SPC-A\nstatus: approved\nupdated: 2026-09-07\nowner_hint: 지민\n---\n\n# A\n\n본문\n',
+    );
+  });
+
+  it('본문 해시와 frontmatter 해시를 따로 적고, 보존 키와 버린 키를 가른다', async () => {
+    vi.stubGlobal('fetch', async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        String(url).includes('preflight')
+          ? { items: [] }
+          : { items: [{ source_path: 'docs/a.md', status: 'ok', spec_id: 's-1' }] },
+    }));
+    const mapPath = join(root, 'map.json');
+    await runImport({
+      command: 'spec',
+      root,
+      project: 'p',
+      apply: true,
+      batchSize: 50,
+      reportDir: join(root, 'report'),
+      mapPath,
+      profile: 'nerv-docs',
+      server: 'http://stub',
+      token: 'nerv_x',
+    });
+    vi.unstubAllGlobals();
+
+    const manifest = JSON.parse(readFileSync(mapPath, 'utf8')) as {
+      items: Record<string, unknown>[];
+    };
+    const item = manifest.items.find((i) => i['source_path'] === 'docs/a.md');
+    expect(item?.['content_hash']).toMatch(/^[0-9a-f]{64}$/);
+    expect(item?.['frontmatter_hash']).toMatch(/^[0-9a-f]{64}$/);
+    // 둘은 다른 값이다 — 같으면 한쪽이 다른 쪽을 베낀 것이다
+    expect(item?.['frontmatter_hash']).not.toBe(item?.['content_hash']);
+    // 되돌릴 때 필요한 값은 남기고
+    expect(item?.['frontmatter']).toEqual({ updated: '2026-09-07' });
+    // 옮기지도 남기지도 않은 키는 **무엇이었는지** 적어 둔다
+    expect(item?.['unmapped_keys']).toEqual(['owner_hint']);
   });
 });

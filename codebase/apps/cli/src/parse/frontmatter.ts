@@ -7,13 +7,29 @@ export interface ParsedDocument {
   frontmatter: Record<string, string | string[]>;
   /** 원문 그대로 — 손대지 않는다 */
   body: string;
+  /**
+   * 선두 블록의 **원문** — 매니페스트가 해시로 남긴다(§3.3).
+   *
+   * 본문 해시만으로는 "frontmatter 만 바뀐 재실행" 을 무변경으로 읽는다 — `updated:` 하나
+   * 고친 문서가 그렇다. 블록이 없으면 `null` 이고, 그것도 사실이다.
+   */
+  raw: string | null;
+  /**
+   * `---` 로 열렸는데 **닫히지 않았다.**
+   *
+   * 예전에는 이 경우 조용히 전체를 본문으로 돌렸다 — 사람이 오타를 낸 문서가 아무 말 없이
+   * "frontmatter 없는 문서" 로 적재됐고, 그 문서의 `id` 는 경로에서 지어졌다.
+   */
+  unparsable: boolean;
 }
 
 export function parseFrontmatter(content: string): ParsedDocument {
-  if (!content.startsWith('---')) return { frontmatter: {}, body: content };
+  if (!content.startsWith('---')) {
+    return { frontmatter: {}, body: content, raw: null, unparsable: false };
+  }
 
   const end = content.indexOf('\n---', 3);
-  if (end === -1) return { frontmatter: {}, body: content };
+  if (end === -1) return { frontmatter: {}, body: content, raw: null, unparsable: true };
 
   const raw = content.slice(4, end);
   const body = content.slice(end + 4).replace(/^\n/, '');
@@ -36,7 +52,7 @@ export function parseFrontmatter(content: string): ParsedDocument {
     frontmatter[key] = value === undefined || value === '' ? [] : unquote(value);
   }
 
-  return { frontmatter, body };
+  return { frontmatter, body, raw, unparsable: false };
 }
 
 function unquote(value: string): string {

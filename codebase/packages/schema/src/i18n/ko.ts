@@ -64,6 +64,13 @@ export const ko = {
   'cli.hint.server_unauthorized':
     '토큰을 다시 발급하고 `import:write` 권한이 있는지 확인한다 — 권한을 넓히려 재시도하지 않는다',
   'cli.hint.status_unknown': '원본의 status 값을 어휘 안의 값으로 고친다',
+  'cli.hint.frontmatter_unmapped':
+    '옮길 값이면 프로파일의 매핑에, 되돌릴 때만 필요한 값이면 `preserve` 에 적는다',
+  'cli.hint.frontmatter_unparsable': '선두 블록을 `---` 로 닫는다 — 그 전까지는 적재하지 않는다',
+  'cli.reason.frontmatter_unmapped':
+    '프로파일이 모르는 frontmatter 키가 있다({keys}) — 적재되지도 보존되지도 않는다',
+  'cli.reason.frontmatter_unparsable':
+    'frontmatter 가 `---` 로 열렸는데 닫히지 않았다 — 조용히 본문으로 읽으면 원본의 고정 ID 를 잃는다',
   'cli.reason.frontmatter_missing':
     'frontmatter 가 없다 — 문서 축은 기본값으로 적재된다(고른 값이 아니다)',
   'cli.reason.map_conflict':
@@ -72,6 +79,8 @@ export const ko = {
     '본문이 요구사항 {count}건을 언급한다 — 무엇을 구현한 것인지 문서가 말하지 않아 링크하지 않는다',
   'cli.reason.plan_no_done_at':
     '완료 시각을 git 에서 되찾지 못했다 — 적재 시각으로 채워진다(보관 창 판정이 흐려진다)',
+  'cli.reason.plan_source_in_progress':
+    '원본이 진행 중이었다(worktree: {worktree}) — 클레임 없는 진행 중을 만들지 않으려고 backlog 로 적재한다',
   'cli.reason.plan_spec_unresolved':
     '계획이 가리키는 스펙을 찾지 못했다 — 기준 버전 없이 적재된다 ({paths})',
   'cli.reason.rebuild_needs_server':

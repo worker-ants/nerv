@@ -27,6 +27,27 @@ export interface ManifestItem {
   spec_version_id?: string;
   task_id?: string;
   content_hash?: string;
+  /**
+   * 선두 frontmatter 블록의 해시 — **본문 해시와 따로 센다**(§3.3 · REQ-IMP-030).
+   *
+   * 본문만 해싱하면 `updated:` 하나 고친 재실행이 무변경으로 읽히고, 매니페스트가 적어 둔
+   * 보존 값은 옛것으로 남는다. 목표는 "원문 해시를 매니페스트에" 였는데 그것이 본문에
+   * 대해서만 참이었다.
+   */
+  frontmatter_hash?: string;
+  /**
+   * 프로파일이 `preserve` 로 선언한 키의 값 — NERV 필드로 옮길 자리가 없지만 **원본으로
+   * 되돌릴 때 필요한** 것들(이 저장소의 `updated`·`referenced_by`). 잃으면 md 로 다시 쓸 수
+   * 없다(정보 손실 0 · §2.4).
+   */
+  frontmatter?: Record<string, string | string[]>;
+  /**
+   * 프로파일이 모르는 frontmatter 키 — 적재되지도 보존되지도 않은 것들.
+   *
+   * 조용히 버리면 다음 사람은 그 키가 원본에 있었다는 사실조차 모른다. 리포트에는
+   * `frontmatter-unmapped`(warn)로 뜨고, 여기에는 무엇이었는지가 남는다.
+   */
+  unmapped_keys?: string[];
   /** 추출된 `requirement.ref` → UUID */
   requirements?: Record<string, string>;
 }

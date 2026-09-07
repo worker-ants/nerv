@@ -59,6 +59,14 @@ export const en = {
   'cli.hint.server_unauthorized':
     'Reissue the token and check it carries `import:write` — do not retry to widen the scope',
   'cli.hint.status_unknown': 'Fix the source status to a value inside the vocabulary',
+  'cli.hint.frontmatter_unmapped':
+    'Map the value in the profile if it should load, or list it under `preserve` if it is only needed to write the source back',
+  'cli.hint.frontmatter_unparsable':
+    'Close the leading block with `---`; until then the file does not load',
+  'cli.reason.frontmatter_unmapped':
+    'Front matter keys the profile does not know ({keys}) — neither loaded nor preserved',
+  'cli.reason.frontmatter_unparsable':
+    'The front matter opens with `---` but never closes — reading it as body would lose the source stable ID',
   'cli.reason.frontmatter_missing':
     'No frontmatter — the document status falls back to the default (it is not a chosen value)',
   'cli.reason.map_conflict':
@@ -67,6 +75,8 @@ export const en = {
     'The body names {count} requirements — the document does not say which one it implements, so no link is made',
   'cli.reason.plan_no_done_at':
     'Could not recover the completion time from git — it falls back to the import time (blurring the archive window)',
+  'cli.reason.plan_source_in_progress':
+    'The source was in progress (worktree: {worktree}) — loaded as backlog so no unclaimed in-progress task is created',
   'cli.reason.plan_spec_unresolved':
     'Could not resolve the spec this plan points at — it loads without a basis version ({paths})',
   'cli.reason.rebuild_needs_server':

@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 32 + **부속 5**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.39 · 2026-09-07 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.40 · 2026-09-07 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.40 변경(2026-09-07 — 아무 데도 없는 Task 24건, 개선 계획 일곱째 스프린트 · 사람 결정): **마이그레이션 0025 — 임포트가 만든 고아 진행 중을 backlog 로.** `claimed`/`in_progress` 인데 활성 클레임이 없는 Task 24건이 있었다(실측 2026-09-06). 그 Task 들은 **아무 데도 없다**: 큐(ready)에도 안 보이고, 활성 클레임이 없으니 리스 만료로 회수되지도 않으며, 세션 보드에도 뜨지 않는다 — 상태만 "진행 중" 이라 사람은 누군가 하고 있다고 읽는다. `ready` 가 아니라 `backlog` 인 이유는 4요소가 placeholder 라서다: ready 로 올리면 근거 없는 브리프가 에이전트 큐에 들어간다(REQ-IMP-009 와 같은 원칙). **placeholder 문자열은 지우지 않는다** — 그것이 "임포트로 들어왔고 명세가 없다" 는 유일한 표시이고, backlog 는 4요소 CHECK 의 대상이 아니다. 데이터 마이그레이션이라 스키마 스냅샷 대조로는 무엇을 했는지 알 수 없어 L2 가 따로 태운다([4.7](importer.md) REQ-IMP-031).
 >
 > v0.39 변경(2026-09-07 — 고른 적 없는 값이 고른 것으로 보였다, 개선 계획 여섯째 스프린트 · 사람 결정): **마이그레이션 0024 — `task.priority` 를 NULL 허용으로.** 원본 계획 문서는 우선순위를 적지 않는데 열이 `NOT NULL DEFAULT 'P2'` 라 임포트 481건이 전부 `P2` 로 적재됐고, 보드는 그것을 **사람이 고른 값**으로 그렸다. 0020 이 `requirement.priority` 에서 한 판단과 같다 — NULL 은 `P2` 의 축약이 아니라 **표기가 없었다는 사실**이고, 정렬에서는 뒤로 간다(`ORDER BY` ASC 의 기본이 NULLS LAST 다). 커서도 그 정렬을 술어로 그대로 쓴다: 행 비교(`>`)는 NULL 앞에서 UNKNOWN 이라 미표기 무리를 통째로 잃는다([4.7](importer.md) REQ-IMP-027).
 >

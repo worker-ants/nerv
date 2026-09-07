@@ -21,7 +21,7 @@ referenced_by:
 >
 > 문서 버전 v0.22 · 2026-09-07 · HTML 파생본: [importer.html](../html/importer.html)
 >
-> v0.22 변경(2026-09-07 — 등급이 이름만 남아 있었다, 개선 계획 여섯째 스프린트): **REQ-IMP-023~028 신설 · REQ-IMP-020 정정 · §4.1 전표 여섯 행.** ① **abort 게이트가 spec 패스에만 있었다** — plan·review 는 `aborted` 항목을 리포트에 적은 뒤 **그대로 전송**했다. 중단이라 적어 놓고 중단하지 않으면 그 등급은 이름만 남는다. ② **전표와 코드가 세 자리 갈려 있었다**(`dist-mismatch`·`status-unknown`·`title-missing`) — 전표가 warn 이라 적은 것을 코드가 `skipped` 로 내면 정상 실행이 종료 코드 1 이 되고, 그 코드를 게이트로 쓰는 쪽은 늘 빨강을 본다. 이제 L1 이 이 문서를 읽어 대조한다. 슬러그 오용 다섯 자리(`link-unresolved` 가 참조 과다에, `owner-unmapped` 가 완료 시각 미복구에 …)도 함께 고쳤다 — 슬러그로 재실행 큐를 고를 수 없던 이유다. ③ **`hint` 는 선언만 있고 채우는 코드가 0곳이었다.** ④ 가장 흔한 실패 둘(토큰 만료·프로파일 오타)이 리포트 없이 종료 코드 1 로 죽었다 — 이 CLI 의 어휘에서 1 은 "완료했으나 수동 확인" 이다. ⑤ `id-collision` 의 class 를 skip 으로 정정한다(사람 결정) — 코드는 처음부터 항목만 빼고 계속했다. ⑥ **`root_commit` 이 세 리포트에서 `null` 고정**이었다 — 렌더러는 그 필드를 그리고 있었으므로 사람은 커밋 없는 임포트 기록을 읽었다. ⑦ **파서가 계산한 셋(`started`·`priority`·`spec_impact`)을 계약에 실을 자리가 없어 버리고 있었다** — 서버는 그때마다 기본값을 채웠고 화면은 그 기본값을 사람이 고른 값으로 그렸다. 특히 done 의 `{"none": true}` 는 "영향 없음을 확인했다" 는 선언이라 지어 넣으면 거짓 부정이다(사람 결정 — `{"unknown": true}` 로). 우선순위 미표기를 NULL 로 두기 위해 [4.3](database.md) 0024 를 함께 낸다(사람 결정).
+> v0.22 변경(2026-09-07 — 등급이 이름만 남아 있었다, 개선 계획 여섯째 스프린트): **REQ-IMP-023~031 신설 · REQ-IMP-020 정정 · §4.1 전표 여덟 행 · §2.6 매핑 · §3.3·§5.1 실물화.** ① **abort 게이트가 spec 패스에만 있었다** — plan·review 는 `aborted` 항목을 리포트에 적은 뒤 **그대로 전송**했다. 중단이라 적어 놓고 중단하지 않으면 그 등급은 이름만 남는다. ② **전표와 코드가 세 자리 갈려 있었다**(`dist-mismatch`·`status-unknown`·`title-missing`) — 전표가 warn 이라 적은 것을 코드가 `skipped` 로 내면 정상 실행이 종료 코드 1 이 되고, 그 코드를 게이트로 쓰는 쪽은 늘 빨강을 본다. 이제 L1 이 이 문서를 읽어 대조한다. 슬러그 오용 다섯 자리(`link-unresolved` 가 참조 과다에, `owner-unmapped` 가 완료 시각 미복구에 …)도 함께 고쳤다 — 슬러그로 재실행 큐를 고를 수 없던 이유다. ③ **`hint` 는 선언만 있고 채우는 코드가 0곳이었다.** ④ 가장 흔한 실패 둘(토큰 만료·프로파일 오타)이 리포트 없이 종료 코드 1 로 죽었다 — 이 CLI 의 어휘에서 1 은 "완료했으나 수동 확인" 이다. ⑤ `id-collision` 의 class 를 skip 으로 정정한다(사람 결정) — 코드는 처음부터 항목만 빼고 계속했다. ⑥ **`root_commit` 이 세 리포트에서 `null` 고정**이었다 — 렌더러는 그 필드를 그리고 있었으므로 사람은 커밋 없는 임포트 기록을 읽었다. ⑦ **파서가 계산한 셋(`started`·`priority`·`spec_impact`)을 계약에 실을 자리가 없어 버리고 있었다** — 서버는 그때마다 기본값을 채웠고 화면은 그 기본값을 사람이 고른 값으로 그렸다. 특히 done 의 `{"none": true}` 는 "영향 없음을 확인했다" 는 선언이라 지어 넣으면 거짓 부정이다(사람 결정 — `{"unknown": true}` 로). 우선순위 미표기를 NULL 로 두기 위해 [4.3](database.md) 0024 를 함께 낸다(사람 결정). ⑧ **§1.4 의 유일한 프로파일 예시가 첫 인라인 맵에서 죽었다** — `JSON.parse` 는 따옴표 없는 키를 받지 않는다. 문서가 보여 주는 대로 쓴 사람은 자기 파일이 잘못됐다고 읽는다. ⑨ **매니페스트가 frontmatter 를 기억하지 않았다** — 목표 2("원문 해시를 매니페스트에")가 본문에 대해서만 참이었고, 옮기지도 보존하지도 않은 키는 흔적 없이 사라졌다. ⑩ **nerv-docs 프로파일이 §5.1 과 다섯 자리에서 달랐다**(README 제외 · 잎 종류 · `status` 기본값 · 보존 키 · 요구사항 정규식) — 이 저장소 자신의 문서를 옮기는 프로파일이고, 첫 임포트의 결과가 그대로 Task 의 초기 상태가 된다. ⑪ **임포트가 만든 진행 중은 아무도 하지 않는 진행 중이었다**(사람 결정) — 활성 클레임이 없어 큐에도 안 보이고 회수되지도 않는데 상태만 "진행 중" 이라 사람은 누군가 하고 있다고 읽는다(실측 24건). 매핑을 `backlog + warn` 으로 바꾸고 이미 들어온 행은 [4.3](database.md) 0025 로 되돌린다.
 >
 > v0.21 변경(2026-09-06 — §3.3 이 계획이었다, 사람 결정): **매니페스트 구현 · `map-conflict` 점화 · 리포트 계약 · 유령 플래그 폐기.** ① §3.3 전체가 **계획이었다** — `--map` 은 파싱만 됐고 매니페스트를 읽거나 쓰는 코드가 0곳이었으며, `rebuild-map` 은 분기가 없어 **spec 임포트로 떨어졌다**("다시 짓는다" 는 이름의 명령이 적재를 했다). 실물로 만들었고(`apps/cli/src/manifest.ts`), 그래서 **`map-conflict` 를 켰다** — 이 게이트는 매니페스트가 있어야 성립한다. L3 시나리오 E 가 전체 경로를 돈다(중단 → `rebuild-map` → 적재). ② **리포트 계약**(§4.1): `rule` 슬러그와 `hint` 를 싣고 **`warn` 등급**을 더했다 — 그 등급이 없어 `research-doc`·`dist-mismatch` 가 `skipped` 로 섞여 **정상 실행이 종료 코드 1** 을 냈다. ③ **유령 플래그 둘 폐기**(`--rewrite-links`·`--split-checkboxes`) — 읽는 코드가 없어 주면 조용히 버려졌다. 없는 손잡이를 전표에 두지 않는다. ④ frontmatter 가 없는 문서에 `frontmatter-missing`(warn)을 남긴다 — 도그푸딩 대상 13편이 아무 말 없이 기본값으로 들어가고 있었다.
 >
@@ -268,7 +268,7 @@ CHECK 위반으로 실패한다(구현 중 실측).
 | clemvion | NERV | 임포터 규칙 |
 | --- | --- | --- |
 | md 파일 1건 | `task` 1행 | `plan/research/`(1건)는 Task를 만들지 않고 리포트에 "참고 문서" 분류만 남긴다(로드맵 §7.3(2)). 클러스터(하위 디렉터리 28건)의 묶음 정보는 매니페스트에 기록하되 Task 간 관계는 만들지 않는다 — 관계 추정 금지 |
-| 디렉터리 + `worktree:` | `task.status` | `complete/` → `done`(+`done_at`=임포트 시각), `in-progress/` + `worktree: (unstarted)`(13/34) → `backlog`, `in-progress/` + worktree 값 있음 → `in_progress`. **`ready`로는 절대 적재하지 않는다** — 위임 명세 4요소를 소급 생성하지 않으므로(FR-05) `backlog → ready` 전이 조건을 만족할 수 없다 |
+| 디렉터리 + `worktree:` | `task.status` | `complete/` → `done`(+`done_at`=임포트 시각), `in-progress/` + `worktree: (unstarted)`(13/34) → `backlog`, `in-progress/` + worktree 값 있음 → **`backlog` + warn**(2026-09-07 개정 · 사람 결정 · REQ-IMP-031: 원본의 worktree 는 "그 저장소에서 누군가 작업 중이었다" 는 사실이지 **이 플랫폼의 세션이 그 Task 를 쥐고 있다**는 뜻이 아니다. `in_progress` 로 적재하면 활성 클레임 없는 진행 중이 되고, 그 Task 는 큐에도 안 보이고 리스 만료로 회수되지도 않는다 — 실측 24건이 그 상태였다). **`ready`로는 절대 적재하지 않는다** — 위임 명세 4요소를 소급 생성하지 않으므로(FR-05) `backlog → ready` 전이 조건을 만족할 수 없다 |
 | `started:` | `task.created_at` | 데이터 모델 §3.2의 매핑. 값 없음·placeholder면 파일의 git 최초 커밋 시각이 아니라 **NULL 계열로 두지 않고** 임포트 시각 + 리포트 warn(시각 추정 금지) |
 | `owner:`(자유 텍스트) | `task.assignee_user_id` | **owner는 신원이 아니다** — 최상위 34건의 실측 분포: `developer` 17 / `project-planner` 8 / `planner` 5 / `developer (TBD)` 2 / `사용자 본인 / planner` 1 / `developer (다음 진입자)` 1. CLI `--owner-map`(라벨→이메일 수동 매핑 테이블)으로만 배정하고, **매핑 불가 항목은 assignee NULL(unassigned)로 적재 후 사람이 배정한다**(로드맵 §7.3(2)) |
 | `priority:`(P1~P3, 15/34만 선언) | `task.priority` | 선언된 것만. "미선언은 null로 두고 추정하지 않는다"(로드맵 §7.3(2)) |
@@ -424,8 +424,10 @@ nerv import rebuild-map --profile <p> --root <경로> --project <slug> --map <�
 | --- | --- |
 | `profile` · `project` · `root_commit` | 프로파일, 대상 프로젝트, 스캔 시점 원본의 git HEAD SHA |
 | `items[]` | 항목별: `source_path`, `kind`(spec/plan), 원본 frontmatter `id`, 생성된 `spec.id`/`task.id`(UUID), 최신 `spec_version.id`, `content_hash`, 추출된 `requirement.ref` → UUID 맵 |
-| `unresolved` | 미해소 `pending_plans` 경로 목록(P1에서 해소), 해소 실패 링크 |
-| `aliases` | 원본 경로·id → NERV UUID 별칭 표 — 이후 링크 재작성·plan `spec_impact` 경로 변환이 이 표를 쓴다 |
+| `items[].frontmatter_hash` | 선두 frontmatter 블록의 해시 — **본문 해시와 따로 센다**(2026-09-07 신설 · REQ-IMP-030). 본문만 세면 `updated:` 하나 고친 재실행이 무변경으로 읽히고 보존 값이 옛것으로 남는다 |
+| `items[].frontmatter` | 프로파일이 `preserve` 로 선언한 키의 값 — NERV 필드로 옮길 자리가 없지만 **원본으로 되돌릴 때 필요한** 것들(nerv-docs 의 `updated`·`referenced_by`). 잃으면 md 로 다시 쓸 수 없다(정보 손실 0 · §2.4) |
+| `items[].unmapped_keys` | 프로파일이 모르는 키 — **적재되지도 보존되지도 않은** 것들. 조용히 버리면 다음 사람은 그 키가 원본에 있었다는 사실조차 모른다(리포트에는 `frontmatter-unmapped` warn) |
+| `unresolved` | 미해소 `pending_plans` 경로 목록(P1에서 해소), 해소 실패 링크 — **문자열 배열**이다(2026-09-07 정정: 객체 표기는 실물과 달랐다) |
 
 **서버가 진실이고 매니페스트는 캐시다.** 매니페스트를 잃어버려도 중복 적재로 이어지지 않는다 — `--apply` 시 임포터는 자연 키(`(project, spec.key)`, `(project_id, requirement.ref)`)를 **EP-IMP-01 preflight**로 서버에 먼저 대조하고, 매니페스트 없이 동일 키가 이미 존재하면 **중단**하며 `nerv import rebuild-map`을 안내한다. `rebuild-map`은 **EP-IMP-05**(자연 키 → UUID 대조표)로 매니페스트를 서버에서 재구성한다(Task는 자연 키가 없어 제목 매칭으로 후보를 제시하고, 모호 항목은 수동 확인 큐로).
 
@@ -493,6 +495,9 @@ CLI 는 **서버 없이도 돈다**(dry-run 은 `--server` 없이 완주한다 �
 | REQ-IMP-026 | WHEN 임포트가 리포트를 내면 THE SYSTEM SHALL 스캔 뿌리의 현재 커밋(`root_commit`)을 리포트·매니페스트에 적고 적재 요청에도 실어 보낸다 — 세 리포트가 이 값을 `null` 로 고정한 채 렌더까지 하고 있어(2026-09-07 실측) 사람은 **커밋 없는 임포트 기록**을 읽었고 재실행 때 무엇을 읽었는지 되짚을 근거가 없었다. WHERE 스캔 뿌리가 git 저장소가 아니면 THE SYSTEM SHALL `null` 로 둔다 — 체크아웃 사본이 아닌 트리를 임포트하는 것은 정상이다(§5 0단계) | git 뿌리 1건(40자 SHA) · 비-git 뿌리 1건(null) |
 | REQ-IMP-027 | WHEN 계획이 우선순위·시작 시각을 선언하면 THE SYSTEM SHALL 그것을 적재 계약에 실어 `task.priority`·`task.created_at` 으로 적는다. WHERE 원본이 우선순위를 적지 않으면 THE SYSTEM SHALL **NULL 로 둔다**(마이그레이션 0024) — `P2` 로 채우면 고른 적 없는 값이 보드에서 **사람이 고른 값**으로 보인다. WHILE 목록이 우선순위로 정렬되는 동안 THE SYSTEM SHALL 미표기를 맨 뒤에 두고 커서도 그 정렬을 그대로 따른다 | 선언·미표기 각 1건 · 미표기 무리가 커서로 잃히지 않는다 |
 | REQ-IMP-028 | WHEN `done` 상태의 계획을 적재하는데 스펙 영향 선언이 없으면 THE SYSTEM SHALL `{"unknown": true}` 로 적는다 — `{"none": true}` 는 "영향 없음을 **확인했다**" 는 사람의 선언이라 임포터가 지어 넣으면 거짓 부정이다(사람 결정). WHERE 원본이 계산된 선언을 실어 보내면 THE SYSTEM SHALL 그 값을 그대로 적는다. WHILE done 게이트가 그 값을 보는 동안 THE SYSTEM SHALL 키 이름이 아니라 비어 있지 않음만 본다 — 판정은 달라지지 않는다 | 선언 있음·없음·done 아님 세 갈래 |
+| REQ-IMP-031 | WHEN 원본 계획이 진행 중 디렉터리에 worktree 값을 갖고 있으면 THE SYSTEM SHALL **`backlog`** 로 적재하고 그 사실을 리포트에 `warn` 으로 남긴다 — 활성 클레임 없는 `in_progress`·`claimed` 는 만들지 않는다(REQ-IMP-009 의 확장). WHERE 그런 행이 이미 적재돼 있으면 THE SYSTEM SHALL 마이그레이션 0025 로 되돌린다(위임 명세가 placeholder 이고 활성 클레임이 없는 것만 · 멱등) — placeholder 문자열은 지우지 않는다: 그것이 "임포트로 들어왔고 명세가 없다" 는 유일한 표시다 | 매핑 1건(backlog + worktree 가 리포트에) · 0025 L2(고아만 되돌리고 사람이 쓴 것은 그대로) |
+| REQ-IMP-029 | WHEN `--profile-file` 이 YAML 을 가리키면 THE SYSTEM SHALL 프로파일이 실제로 쓰는 부분집합 — 중첩 맵 · 블록 리스트(`- item`) · **따옴표 없는 인라인 맵·배열** · 스칼라 — 을 읽고, 그 밖의 문법은 조용히 넘기지 않고 `profile-invalid` 로 중단한다. WHILE §1.4 가 프로파일 예시를 보여 주는 동안 THE SYSTEM SHALL 그 예시가 실제로 읽히는지를 L1 이 확인한다 — 문서가 보여 주는 대로 쓴 사람은 자기 파일이 잘못됐다고 읽는다 | §1.4 예시 파싱 1건 · 인라인 맵·배열·블록 리스트 3건 · 범위 밖 던지기 1건 |
+| REQ-IMP-030 | WHEN 스펙을 적재하고 매니페스트를 쓰면 THE SYSTEM SHALL 본문 해시와 **선두 frontmatter 블록의 해시를 따로** 적고, 프로파일이 `preserve` 로 선언한 키의 값과 **모르는 키의 이름**을 함께 남긴다(`frontmatter-unmapped` warn). WHEN 선두 블록이 `---` 로 열렸는데 닫히지 않으면 THE SYSTEM SHALL `frontmatter-unparsable` 로 그 파일을 빼고 계속한다 — 조용히 본문으로 읽으면 원본의 고정 ID 를 잃는다. WHERE 프로파일이 `status_default` 를 선언하면 THE SYSTEM SHALL `status` 없는 문서에 그 값을 쓴다 | 해시 둘·보존·미매핑 1건 · nerv-docs 규칙 넷 |
 | REQ-IMP-022 | WHEN 서버가 표시 키를 발급하면 THE SYSTEM SHALL 데이터 모델 §5.1 형식(`<project.key>-<타입>-<base32 6자>`)을 쓴다 — 생성 경로가 달라도 같다(§2.6b) |
 
 ### 3.6 실행 주체 — 운영자 절차 (2026-09-06 개정 · 래퍼 스킬을 걷었다)
@@ -537,7 +542,8 @@ MCP 도구도 추가하지 않는다 — 임포트를 도구 호출 단위로 �
 | `id-collision` | skip | 같은 프로젝트에서 frontmatter `id` 충돌(§2.2) — **그 항목만 빼고 계속한다**(2026-09-07 정정 · 사람 결정). class 는 종료 코드와 재실행 큐를 가르는 축이라 뜻이 하나여야 하고, `abort` 의 뜻은 **실행 전체 중단**이다. 코드는 처음부터 항목만 빼고 계속했는데 등급만 abort 였다 — 신호는 남는다: skip 도 종료 코드 1 이다 |
 | `dist-mismatch` | warn | status 분포 ≠ 117/17/1 |
 | `frontmatter-missing` | warn | 제외 글롭 밖 파일에 선두 frontmatter 블록이 없음 — **적재는 한다**(문서 축이 기본값으로 떨어진다 · 2026-09-07 정정 · 사람 결정). skip 으로 바꾸면 재실행마다 적재 집합이 달라진다 |
-| `frontmatter-unparsable` | skip | 선두 블록이 `---` 로 열렸는데 닫히지 않음(YAML 파싱 실패) |
+| `frontmatter-unparsable` | skip | 선두 블록이 `---` 로 열렸는데 닫히지 않음(YAML 파싱 실패) — 조용히 본문으로 읽으면 원본의 고정 ID 를 잃는다 |
+| `frontmatter-unmapped` | warn | 프로파일이 모르는 frontmatter 키 — 적재되지도 `preserve` 되지도 않았다. 무엇을 잃었는지는 매니페스트 `unmapped_keys` 에 남는다(§3.3) |
 | `status-unknown` | skip | 5값(`backlog`/`spec-only`/`partial`/`implemented`/`archived`) 외의 값 |
 | `impl-status-doc-copied` | manual | `partial` 문서 유래 Requirement 전건 — 문서 status 복사값의 요구사항 단위 확정 필요(§2.3) |
 | `req-id-duplicate` | manual | `UNIQUE (project_id, ref)` 충돌 — 첫 정의만 적재(§2.5) |
@@ -603,10 +609,10 @@ NERV의 제안서·MVP 문서(`docs/`)는 NERV가 가동되면 **첫 번째로 �
 | 항목 | 규칙 |
 | --- | --- |
 | 스캔 | `docs/**/*.md`(html 파생본은 제외 — md가 관리 원본) |
-| 트리 | 디렉터리 구조 그대로 — `01-problem/`·`02-research/`·`03-proposal/`·`04-mvp/` → `area` 노드 4개, `README.md` → `vision`, 각 문서 → `design` |
+| 트리 | 디렉터리 구조 그대로 — `01-problem/`·`02-research/`·`03-proposal/`·`04-mvp/` → `area` 노드 4개, `README.md` → `vision`(2026-09-07 배선 — 프로파일이 README 를 **제외**하고 있었다), 각 문서 → `design` |
 | frontmatter | 4부 공통 규격 `id`(`SPC-MVP-<SLUG>`) / `status` / `updated` — `id` → `spec.key`, `status` → `spec_version.status`(2026-09-06 현재 8편 모두 `approved`), `updated` → 매니페스트 보존(서버 시각을 위조하지 않는다) |
-| frontmatter 없는 기존 13편 | `frontmatter-missing`을 skip이 아니라 **warn**으로 낮추고 문서 버전 줄(`문서 버전 v0.1 · …`)에서 메타를 읽는 보조 규칙 적용, `status`는 `approved`(합의 완료된 제안서) |
-| 요구사항 | §2.5와 같은 휴리스틱 — `REQ-CB-###`·`REQ-DB-###`·`REQ-API-###`·`REQ-WEB-###`·`REQ-PLG-###`·`REQ-IMP-###`가 전부 `[A-Z]+-[A-Z]+-\d+`에 매칭된다. 이 문서의 REQ-IMP-001~010도 자기 자신에 의해 추출된다 |
+| `status` 없는 15편 | 2026-09-07 실측 정정 — **23편 전부 frontmatter 를 갖고**(예전 표기 '없는 13편' 은 낡았다) 그중 15편에 `status` 가 없다. `frontmatter-missing` 은 skip 이 아니라 **warn** 이고, 프로파일의 `status_default: approved` 가 그 자리를 채운다 — 기본이 draft 면 승인된 정본 15편이 초안으로 적재된다. 문서 버전 줄(`문서 버전 v0.1 · …`)에서 메타를 읽는 보조 규칙 적용, `status`는 `approved`(합의 완료된 제안서) |
+| 요구사항 | 이 프로파일은 **`REQ-[A-Z]+-\d+`** 를 쓴다(2026-09-07 정정 — 예전 표기 `[A-Z]+-[A-Z]+-\d+` 는 기본값이고, 그것을 이 문서에 쓰면 전표의 `EP-IMP-01`·`SPC-MVP-API` 까지 요구사항으로 승격시킨다). `REQ-CB-###`·`REQ-DB-###`·`REQ-API-###`·`REQ-WEB-###`·`REQ-PLG-###`·`REQ-IMP-###` 가 전부 매칭되고, 이 문서의 REQ-IMP-* 도 자기 자신에 의해 추출된다 |
 | 상호 링크 | 상대링크 → `spec_relation(kind='references')` — 아직 없는 형제 문서 링크는 `link-unresolved`로 리포트에 남고, 문서 세트가 완성되면 재실행이 해소한다 |
 | backlog | [4.8 백로그](backlog.md)의 스토리(`E01-S01` 형식)는 Task 적재 후보다 — 스토리 블록 파싱 규칙은 백로그 문서의 형식 정의를 따르고, P1 plan 임포터와 같은 경로로 적재한다 |
 
