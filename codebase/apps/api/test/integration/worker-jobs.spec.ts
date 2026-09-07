@@ -369,4 +369,97 @@ describe('보존 — 지우기 전에 접는다 (REQ-API-067)', () => {
     );
     expect(left[0]?.n).toBe('1');
   });
+
+  /**
+   * **접기는 키별 합산이다**(2026-09-07 · REQ-CB-032). 예전에는 jsonb `||` 였는데 그 연산자는
+   * 같은 키를 덮어쓴다 — 활동이 컷오프를 여러 실행에 걸쳐 넘는 세션(길게 사는 세션의 정상
+   * 모양이다)은 두 번째 실행에서 첫 집계가 통째로 사라지고 마지막 몫만 남았다. 수가 남아
+   * 있으니 아무도 눈치채지 못한다: 규모를 남기려고 접는 것인데 규모가 틀린다.
+   */
+  it('두 번에 걸쳐 접어도 횟수가 더해진다 — 덮어쓰지 않는다', async () => {
+    const pool = poolA;
+    const orgId = newId();
+    const projectId = newId();
+    const userId = newId();
+    const sessionId = newId();
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'roll','R2')`, [orgId]);
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'roll@example.com','합산','active')`,
+      [userId],
+    );
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'roll','ROL','roll')`,
+      [projectId, orgId],
+    );
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-roll','complete')`,
+      [sessionId, projectId, userId],
+    );
+    // 월 파티션 — 두 판이 걸치는 달을 미리 만든다
+    for (const days of [100, 95, 0]) {
+      await pool.query(
+        `SELECT nerv_ensure_month_partitions(date_trunc('month', now() - make_interval(days => $1))::date)`,
+        [days],
+      );
+    }
+    // 첫 판 — 100일 전 Bash 2건
+    for (const i of [1, 2]) {
+      await pool.query(
+        `INSERT INTO activity (id, session_id, project_id, seq, type, title, tool_name, created_at)
+         VALUES ($1,$2,$3,$4,'action','Bash','Bash', now() - interval '100 days')`,
+        [newId(), sessionId, projectId, i],
+      );
+    }
+    await new RetentionJob(drizzle(pool)).run();
+
+    // 둘째 판 — 그 사이 또 다른 활동이 컷오프를 넘었다(같은 도구 이름)
+    for (const i of [3, 4, 5]) {
+      await pool.query(
+        `INSERT INTO activity (id, session_id, project_id, seq, type, title, tool_name, created_at)
+         VALUES ($1,$2,$3,$4,'action','Bash','Bash', now() - interval '95 days')`,
+        [newId(), sessionId, projectId, i],
+      );
+    }
+    await new RetentionJob(drizzle(pool)).run();
+
+    const { rows } = await pool.query<{ activity_summary: Record<string, number> }>(
+      `SELECT activity_summary FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    // `||` 였다면 3 이다 — 첫 판의 2 가 사라진다
+    expect(rows[0]?.activity_summary).toMatchObject({ Bash: 5 });
+  });
+
+  /**
+   * **행에 적힌 만료도 만료다**(REQ-CB-032). `prompt_expires_at` 은 삽입 시점에 채워지는데
+   * 아무도 읽지 않아 "만료를 정하는 값" 이 아니라 흔적이었다 — 둘 중 먼저 오는 쪽이 만료다.
+   */
+  it('정책이 아직 남았어도 prompt_expires_at 이 지났으면 blob 을 만료시킨다', async () => {
+    const pool = poolA;
+    const orgId = newId();
+    const projectId = newId();
+    const reviewId = newId();
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'blob','B')`, [orgId]);
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'blob','BLB','blob')`,
+      [projectId, orgId],
+    );
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, kind, "trigger", branch, head_sha, base_sha,
+                                   changeset_hash, round_no, state, prompt_blob_uri,
+                                   prompt_expires_at, created_at)
+       VALUES ($1,$2,'consistency','manual','main','a1b2c3d','0000000',
+               decode(md5('x'),'hex'), 1, 'running', 's3://nerv-blobs/p.json',
+               now() - interval '1 hour', now() - interval '1 day')`,
+      [reviewId, projectId],
+    );
+    const report = await new RetentionJob(drizzle(pool)).run();
+    expect(report.blobs_expired).toBeGreaterThan(0);
+    const { rows } = await pool.query<{ prompt_blob_uri: string | null }>(
+      `SELECT prompt_blob_uri FROM review_session WHERE id = $1`,
+      [reviewId],
+    );
+    expect(rows[0]?.prompt_blob_uri).toBeNull();
+  });
 });

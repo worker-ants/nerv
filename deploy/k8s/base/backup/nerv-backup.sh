@@ -10,7 +10,10 @@
 # 스크립트도 §6.5 표도 "MinIO 내용물은 재생성 가능한 리뷰 프롬프트 blob 뿐" 이라는 옛
 # 전제를 들고 있었다 — 그대로 복원하면 `attachment` 행은 전부 살아나고 파일은 전부
 # 404 인데, 검증은 행 수만 세므로 "손실 0" 이라고 말한다. `mc` 가 있으면 버킷을 함께
-# 미러하고, 없으면 **그 사실을 크게 알린다**(조용히 건너뛰는 것이 가장 나쁘다).
+# 미러하고, **없으면 실패한다**(2026-09-07 · REQ-CB-031). 경고 한 줄은 CronJob 로그에서
+# 아무도 읽지 않는다 — S3 가 설정된 배치에서 첨부 없는 백업은 백업이 아니므로 종료 코드로
+# 말한다. 스토리지를 아예 안 쓰는 배치(엔드포인트 없음)와 **일부러 건너뛰는 배치**
+# (`NERV_BACKUP_SKIP_BLOBS=1`)만 통과한다 — 그 둘은 결정이지 사고가 아니다.
 #
 # custom format(-Fc)을 쓰는 이유는 복원 시 선택적 제외가 가능하기 때문이다 —
 # 임베딩 테이블을 빼고 복원해도 시스템이 성립한다.
@@ -40,10 +43,16 @@ echo "backup: ${dump} (${size} bytes)"
 bucket="${NERV_S3_BUCKET:-nerv-blobs}"
 blob_dir="${out_dir}/blobs"
 if [[ -z "${NERV_S3_ENDPOINT:-}" ]]; then
-  echo "backup: NERV_S3_ENDPOINT 가 없어 첨부를 백업하지 않았습니다 — 복원해도 시안은 돌아오지 않습니다" >&2
+  echo "backup: NERV_S3_ENDPOINT 가 없어 첨부를 백업하지 않았습니다 — 이 배치는 오브젝트 스토리지를 쓰지 않습니다" >&2
+elif [[ "${NERV_BACKUP_SKIP_BLOBS:-}" == "1" ]]; then
+  echo "backup: NERV_BACKUP_SKIP_BLOBS=1 — 첨부를 명시적으로 건너뜁니다(복원해도 시안은 돌아오지 않습니다)" >&2
 elif ! command -v mc >/dev/null 2>&1; then
-  echo "backup: mc 가 없어 첨부를 백업하지 않았습니다 — 복원해도 시안은 돌아오지 않습니다" >&2
+  echo "backup: mc 가 없습니다 — S3 가 설정된 배치에서 첨부 없는 백업은 백업이 아닙니다." >&2
+  echo "backup: mc 를 심거나(k8s: initContainer) NERV_BACKUP_SKIP_BLOBS=1 로 명시하십시오." >&2
+  exit 2
 else
+  # 읽기 전용 루트 FS 에서도 돌게 — mc 는 설정 디렉터리를 쓴다
+  export MC_CONFIG_DIR="${MC_CONFIG_DIR:-/tmp/.mc}"
   mc alias set nerv-backup-src "$NERV_S3_ENDPOINT" \
     "${NERV_S3_ACCESS_KEY:-}" "${NERV_S3_SECRET_KEY:-}" >/dev/null
   mkdir -p "$blob_dir"

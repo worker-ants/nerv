@@ -53,7 +53,7 @@
     <h1>백로그</h1>
     <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
     <div class="meta-line">
-      <span>버전 v0.25 (2026-09-07)</span>
+      <span>버전 v0.26 (2026-09-07)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 14 · 스토리 62 · E2E 시나리오 5</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -155,6 +155,7 @@
       <tr><td>커서가 정렬 키와 같아진다</td><td><code>common/cursor.ts</code> · <code>event.service.ts</code> · <code>notification.service.ts</code> · <code>session.service.ts</code> · <code>test/integration/cursor-seek.spec.ts</code></td><td>같은 시각의 행이 쪽 경계에서 사라지고 세션은 겹쳤다 — 웹의 &quot;최근 활동&quot; 회귀도 함께(2026-09-07 · <a href="api.html">4.4</a> REQ-API-124)</td></tr>
       <tr><td>조직 경계 — 알림 수신자·소규모 완화 count</td><td><code>notification.service.ts</code>(<code>approvalTargets</code>·<code>roleQueue</code>) · <code>approval.service.ts</code>(<code>canApproveSql</code>·<code>assertSelfApprovalAllowed</code>)</td><td><code>project_id IS NULL</code> 을 조직 없이 세던 자리 셋 — 다른 조직으로 알림이 샜다(2026-09-07 · <a href="api.html">4.4</a> REQ-API-125)</td></tr>
       <tr><td>질의 어휘를 접지 않는다</td><td><code>common/query-vocab.ts</code> 를 쓰는 다섯 표면 · <code>event.service.ts</code>(<code>type</code>) · <code>enums.ts</code>(파생 어휘 둘)</td><td><code>?status=cancelled</code> 가 열린 목록을 200 으로 돌려주던 자리(2026-09-07 · <a href="api.html">4.4</a> REQ-API-126)</td></tr>
+      <tr><td>첨부 백업·보존 접기·blob 만료</td><td><code>deploy/scripts/nerv-backup.sh</code> · <code>deploy/k8s/base/backup/cronjob.yaml</code> · <code>worker/jobs/retention.job.ts</code></td><td>백업이 첨부를 한 번도 담지 않았고 접기가 같은 키를 덮어썼다(2026-09-07 · <a href="codebase.html">4.2</a> REQ-CB-031·032)</td></tr>
       <tr><td>자라는 목록의 커서</td><td><code>session.service.ts</code> · <code>event.service.ts</code></td><td>activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120)</td></tr>
     </tbody>
   </table>
