@@ -111,6 +111,7 @@ export const ko = {
   'error.comment.not_found': '코멘트를 찾을 수 없습니다.',
   'error.human_only.approve': '승인은 사람만 할 수 있습니다.',
   'error.human_only.baseline': '기준선 생성은 사람만 할 수 있습니다.',
+  'error.human_only.bypass': '게이트 면제는 사람만 할 수 있습니다.',
   'error.db.check_violation': '허용되지 않는 값입니다 — 제약 "{constraint}" 을 확인하세요.',
   'error.db.foreign_key_violation':
     '가리키는 대상이 없습니다 — {fields}. 먼저 그것부터 만들거나 값을 바꾸세요.',

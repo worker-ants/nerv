@@ -372,6 +372,7 @@ describe('E04-S03 하트비트·리스 연장', () => {
       projectId,
       questionId: asked.question_id,
       userId: hana,
+      actor: { userId: hana, isAgent: false },
       answerMd: '그렇게 하자',
     });
     await sessions.steer({

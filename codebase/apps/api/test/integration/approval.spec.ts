@@ -23,6 +23,11 @@ import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
+/** 사람 주체 — 받은 요청·면제·답변은 사람 전용이다(REQ-API-123) */
+const person = (userId: string) => ({ userId, isAgent: false });
+/** 에이전트 주체 — 같은 자리에서 막히는지 보는 쪽 */
+const agent = (userId: string) => ({ userId, isAgent: true });
+
 let db: ScratchDb;
 let pool: pg.Pool;
 let approvals: ApprovalService;
@@ -322,14 +327,14 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
       subjectId: newId(),
       requestedByUserId: planner,
     });
-    const mine = (await approvals.inbox({ projectId, userId: planner })).find(
-      (c) => c.id === approval_id,
-    );
+    const mine = (
+      await approvals.inbox({ projectId, userId: planner, actor: person(planner) })
+    ).find((c) => c.id === approval_id);
     expect(mine).toMatchObject({ self_requested: true, can_approve: false });
 
-    const others = (await approvals.inbox({ projectId, userId: reviewer })).find(
-      (c) => c.id === approval_id,
-    );
+    const others = (
+      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })
+    ).find((c) => c.id === approval_id);
     expect(others).toMatchObject({ self_requested: false, can_approve: true });
   });
 
@@ -352,7 +357,7 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
     });
 
     // 화면도 같은 답을 받는다 — 단추를 끌지 말지는 서버가 정한다
-    const card = (await approvals.inbox({ projectId, userId: admin })).find(
+    const card = (await approvals.inbox({ projectId, userId: admin, actor: person(admin) })).find(
       (c) => c.id === approval_id,
     );
     expect(card).toMatchObject({ self_requested: true, can_approve: true });
@@ -412,7 +417,9 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
       subjectId: newId(),
       requestedByUserId: planner,
     });
-    expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(1);
+    expect(
+      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) }),
+    ).toHaveLength(1);
 
     await approvals.decide({
       actor: { userId: planner, isAgent: false },
@@ -421,7 +428,9 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
       userId: reviewer,
       decision: 'approve',
     });
-    expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(0);
+    expect(
+      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) }),
+    ).toHaveLength(0);
   });
 
   it('지정 승인자가 있으면 그 사람에게만 보인다', async () => {
@@ -432,8 +441,12 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
       requestedByUserId: planner,
       assigneeUserId: reviewer,
     });
-    expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(1);
-    expect(await approvals.inbox({ projectId, userId: planner })).toHaveLength(0);
+    expect(
+      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) }),
+    ).toHaveLength(1);
+    expect(
+      await approvals.inbox({ projectId, userId: planner, actor: person(planner) }),
+    ).toHaveLength(0);
   });
 
   it('카드가 self_requested 를 표시한다 — 내가 올린 것을 내가 승인할 수 없음을 UI 가 안다', async () => {
@@ -443,7 +456,7 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
       subjectId: newId(),
       requestedByUserId: planner,
     });
-    const [card] = await approvals.inbox({ projectId, userId: planner });
+    const [card] = await approvals.inbox({ projectId, userId: planner, actor: person(planner) });
     expect(card?.self_requested).toBe(true);
   });
 
@@ -464,7 +477,17 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
 
     expect(second.approval_id).toBe(first.approval_id);
     expect(second.reused).toBe(true);
-    expect(await approvals.inbox({ projectId, userId: reviewer })).toHaveLength(1);
+    expect(
+      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) }),
+    ).toHaveLength(1);
+  });
+});
+
+describe('E13-S01 프로젝트 받은 요청도 사람 전용이다 (REQ-API-123)', () => {
+  it('에이전트 주체는 프로젝트 받은 요청을 읽지 못한다 — 전역 경로와 같은 규칙', async () => {
+    await expect(
+      approvals.inbox({ projectId, userId: reviewer, actor: agent(reviewer) }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.HUMAN_ONLY });
   });
 });
 
@@ -479,7 +502,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
       requestedByUserId: planner,
     });
 
-    const [card] = await approvals.inbox({ projectId, userId: reviewer });
+    const [card] = await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) });
     const seen = card?.content_hash as string;
 
     // 사람이 카드를 보는 동안 초안이 바뀐다
@@ -508,7 +531,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
       subjectId: versionId,
       requestedByUserId: planner,
     });
-    const [card] = await approvals.inbox({ projectId, userId: reviewer });
+    const [card] = await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) });
 
     await expect(
       approvals.decide({
@@ -584,9 +607,35 @@ describe('E13-S01 게이트 면제 — 면제도 결재 레코드다 (FR-10)', (
         subjectType: 'gate_bypass',
         subjectId: newId(),
         userId: planner,
+        actor: person(planner),
         reason: '  ',
       }),
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+
+  /**
+   * 2026-09-07(REQ-API-123) — 역할 문턱은 PAT 도 지난다. 게이트는 사유 검사보다 앞이라
+   * 에이전트 호출은 DB 를 한 번도 건드리지 않는다: 레코드도 이벤트도 남지 않아야 한다.
+   */
+  it('에이전트는 면제를 만들 수 없다 — 레코드도 이벤트도 남지 않는다', async () => {
+    await expect(
+      approvals.bypass({
+        projectId,
+        subjectType: 'gate_bypass',
+        subjectId: newId(),
+        userId: planner,
+        actor: agent(planner),
+        reason: '릴리스 임박',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.HUMAN_ONLY });
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM approval WHERE is_bypass`,
+    );
+    expect(rows[0]?.n).toBe(0);
+    const events = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM event WHERE type = 'gate.bypassed'`,
+    );
+    expect(events.rows[0]?.n).toBe(0);
   });
 
   it('면제는 레코드와 이벤트를 남긴다 — 기록되지 않는 면제는 구멍이다', async () => {
@@ -595,6 +644,7 @@ describe('E13-S01 게이트 면제 — 면제도 결재 레코드다 (FR-10)', (
       subjectType: 'gate_bypass',
       subjectId: newId(),
       userId: planner,
+      actor: person(planner),
       reason: '릴리스 임박 — 팀장 구두 승인',
     });
     const { rows } = await pool.query<{ n: number }>(
@@ -640,6 +690,7 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
       projectId,
       questionId: created.question_id,
       userId: planner,
+      actor: person(planner),
       answerKey: 'localStorage',
       answerMd: 'localStorage 로 간다',
     });
@@ -712,7 +763,12 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
 
   it('답이 달린 질문은 취소되지 않는다 — 그 답이 사실이다', async () => {
     const created = await questions.create({ projectId, sessionId, title: '이미 답한 질문' });
-    await questions.answer({ projectId, questionId: created.question_id, userId: planner });
+    await questions.answer({
+      projectId,
+      questionId: created.question_id,
+      userId: planner,
+      actor: person(planner),
+    });
     await expect(
       questions.cancel({
         projectId,
@@ -723,6 +779,35 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
     ).rejects.toMatchObject({ details: { kind: 'not_open' } });
   });
 
+  /**
+   * 2026-09-07(REQ-API-123) — `spec:read` 는 모든 PAT 가 가진 값이라 권한 축이 에이전트를
+   * 거르지 못했다. 질문에 답하는 것은 사람 개입 게이트 그 자체다(P7): 자기 질문에 자기가
+   * 답하면 그 게이트가 없는 것과 같고, 감사에는 사람이 답한 것으로 남는다.
+   */
+  it('에이전트는 답할 수 없다 — 질문은 열린 채, 세션은 그대로', async () => {
+    const created = await questions.create({ projectId, sessionId, title: '에이전트 답변 시도' });
+    await pool.query(`UPDATE agent_session SET state = 'awaiting_input' WHERE id = $1`, [
+      sessionId,
+    ]);
+    await expect(
+      questions.answer({
+        projectId,
+        questionId: created.question_id,
+        userId: planner,
+        actor: agent(planner),
+        answerKey: 'yes',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.HUMAN_ONLY, details: { action: 'inbox_decide' } });
+    const { rows } = await pool.query<{ status: string; state: string }>(
+      `SELECT q.status::text AS status, s.state::text AS state
+         FROM question q JOIN agent_session s ON s.id = q.agent_session_id
+        WHERE q.id = $1`,
+      [created.question_id],
+    );
+    expect(rows[0]).toMatchObject({ status: 'open', state: 'awaiting_input' });
+    expect(await questions.pendingFor(sessionId)).toHaveLength(0);
+  });
+
   it('답변은 하트비트 역채널에 실린다 — 서버→세션의 유일한 보장 채널이다', async () => {
     const created = await questions.create({ projectId, sessionId, title: '역채널 질문' });
     expect(await questions.pendingFor(sessionId)).toHaveLength(0);
@@ -731,6 +816,7 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
       projectId,
       questionId: created.question_id,
       userId: planner,
+      actor: person(planner),
       answerKey: 'yes',
     });
     const pending = await questions.pendingFor(sessionId);
@@ -744,6 +830,7 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
       projectId,
       questionId: created.question_id,
       userId: planner,
+      actor: person(planner),
       answerKey: 'a',
     });
     await expect(
@@ -751,6 +838,7 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
         projectId,
         questionId: created.question_id,
         userId: planner,
+        actor: person(planner),
         answerKey: 'b',
       }),
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
@@ -856,6 +944,7 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
         projectId,
         questionId: created.question_id,
         userId: planner,
+        actor: person(planner),
         answerKey: 'late-yes',
       });
     }, 1500);

@@ -1425,6 +1425,11 @@ describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', 
     ['POST', '/api/v1/projects/clemvion/specs/SPC-HUMAN/restore', {}],
     ['PATCH', '/api/v1/projects/clemvion/specs/SPC-HUMAN', { title: '새 제목' }],
     ['GET', '/api/v1/approvals', undefined],
+    // 2026-09-07 — 전표가 사람 전용이라 적어 두고 도메인 판정이 없던 셋(REQ-API-123).
+    // 답변은 질문이 없어도 게이트가 먼저 답한다 — 그것이 검사 대상이다.
+    ['GET', '/api/v1/projects/clemvion/inbox', undefined],
+    ['POST', '/api/v1/projects/clemvion/gates/bypass', { subject_id: newId(), reason: '검사' }],
+    ['POST', `/api/v1/projects/clemvion/questions/${newId()}/answer`, { answer_key: 'a' }],
   ] as const)('%s %s 는 에이전트 토큰에 HUMAN_ONLY 로 답한다', async (method, url, payload) => {
     // adminToken 은 PAT 다 — PAT 주체는 에이전트다(사람은 세션 쿠키로 온다)
     const res = await call(method as 'GET' | 'POST' | 'PATCH', url, {
@@ -1435,6 +1440,24 @@ describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', 
     expect(body['code']).toBe(NERV_ERROR.HUMAN_ONLY);
     // 막기만 하고 길을 안 주면 에이전트는 같은 호출을 재시도한다
     expect((body['details'] as Record<string, unknown>)['action']).toBeDefined();
+  });
+
+  /**
+   * **어느 문턱이 막았는가.** 답변 라우트의 권한은 `spec:read` 이고 그것은 **모든 PAT 가
+   * 가진 값**이라 권한 축은 에이전트를 거르지 못한다 — 2026-09-06 대조가 짚은 자리다.
+   * 읽기 권한뿐인 토큰으로 불러 `missing_scope` 가 아니라 `human_only` 가 나오는 것을
+   * 본다: 그것이 "판정이 도메인에 있다" 의 증거다(REQ-API-123).
+   */
+  it('답변은 권한이 아니라 사람 전용 게이트에서 막힌다 — spec:read 만 가진 토큰도', async () => {
+    const res = await call('POST', `/api/v1/projects/clemvion/questions/${newId()}/answer`, {
+      token: narrowToken,
+      payload: { answer_key: 'a' },
+    });
+    const body = res.body as Record<string, unknown>;
+    expect(res.status).toBe(403);
+    expect(body['code']).toBe(NERV_ERROR.HUMAN_ONLY);
+    expect((body['details'] as Record<string, unknown>)['kind']).toBe('human_only');
+    expect((body['details'] as Record<string, unknown>)['action']).toBe('inbox_decide');
   });
 
   /**

@@ -15,6 +15,8 @@ import { InjectDb } from '../../common/database.module.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { entityRef } from '../../common/entity-ref.js';
+import { assertHuman } from '../../common/human-only.js';
+import type { Actor } from '../../common/human-only.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
 
@@ -330,16 +332,23 @@ export class QuestionService {
   }
 
   /**
-   * EP-QST-02 답변 — **사람이 한다.** 답변이 들어오면 세션을 다시 깨우고,
-   * 그 답은 다음 하트비트 응답의 pending 으로도 전달된다(역채널 — agent-integration §2.4).
+   * EP-QST-02 답변 — **사람이 한다. 판정은 여기다**(D-05 · REQ-API-123). 답변이 들어오면
+   * 세션을 다시 깨우고, 그 답은 다음 하트비트 응답의 pending 으로도 전달된다(역채널 —
+   * agent-integration §2.4).
+   *
+   * 권한 문턱(`spec:read`)은 모든 PAT 가 가진 값이라 에이전트를 거르지 못한다 — 질문에
+   * 답하는 것은 사람 개입 게이트 그 자체이고(P7), 자기 질문에 자기가 답하면 그 게이트가
+   * 없는 것과 같다. `cancel()` 과 마찬가지로 주체를 받아 여기서 가른다.
    */
   async answer(input: {
     projectId: string;
     questionId: string;
     userId: string;
+    actor: Actor;
     answerKey?: string | null;
     answerMd?: string | null;
   }): Promise<{ status: string; session_id: string }> {
+    assertHuman(input.actor, 'inbox_decide', '/inbox');
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{ agent_session_id: string; status: string }>(sql`
         UPDATE question
@@ -368,7 +377,7 @@ export class QuestionService {
         subjectType: 'question',
         subjectId: input.questionId,
         actorUserId: input.userId,
-        isAgent: false,
+        isAgent: input.actor.isAgent,
       });
 
       return { status: 'answered', session_id: question.agent_session_id };

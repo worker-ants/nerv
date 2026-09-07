@@ -155,7 +155,13 @@ export class ApprovalService {
    * EP-APR-01 받은 요청 — **내 결정을 기다리는 것만** 센다(§6.6 원칙 3).
    * 나머지는 피드다. 이 구분이 없으면 배지 숫자가 의미를 잃고 받은 요청이 두 번째 받은편지함이 된다.
    */
-  async inbox(input: { projectId: string; userId: string }): Promise<InboxCard[]> {
+  async inbox(input: {
+    projectId: string;
+    userId: string;
+    /** 사람 전용 게이트의 축 — 전역 경로(EP-APR-01)와 같은 규칙이다(D-05 · REQ-API-123) */
+    actor: Actor;
+  }): Promise<InboxCard[]> {
+    assertHuman(input.actor, 'inbox', '/inbox');
     const { rows } = await this.db.execute<InboxCard>(sql`
       SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
              s.key AS subject_key,
@@ -466,6 +472,10 @@ export class ApprovalService {
   /**
    * EP-APR-04 게이트 면제 — **면제도 결재 레코드다**(FR-10).
    * 사유가 없으면 CHECK 가 막는다(4.3 §2.8). 기록되지 않는 면제는 면제가 아니라 구멍이다.
+   *
+   * **사람 전용이고 판정은 여기다**(REQ-API-123). 역할 문턱(`@RequireRole`)만으로는 막히지
+   * 않는다 — PAT 도 소유자의 멤버십 역할로 그 문턱을 지난다(`project-access.guard.ts`).
+   * 게이트가 사유 검사보다 앞이라 에이전트 호출은 DB 를 한 번도 건드리지 않는다.
    */
   async bypass(input: {
     projectId: string;
@@ -473,7 +483,9 @@ export class ApprovalService {
     subjectId: string;
     userId: string;
     reason: string;
+    actor: Actor;
   }): Promise<{ approval_id: string }> {
+    assertHuman(input.actor, 'bypass');
     if (input.reason.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.waiver_reason_required'), {
         kind: 'bypass_reason_required',
@@ -493,7 +505,7 @@ export class ApprovalService {
         subjectType: 'approval',
         subjectId: approvalId,
         actorUserId: input.userId,
-        isAgent: false,
+        isAgent: input.actor.isAgent,
         payload: { reason: input.reason },
       });
       return { approval_id: approvalId };
