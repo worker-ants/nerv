@@ -101,7 +101,7 @@ const NO_HARDCODED_CONTRACT_LITERALS = [
     // 정규식이 모르고 있었다 — 위반이 0건이라 드러나지 않았을 뿐이다. 이제 그 차이를
     // `packages/schema/src/events.spec.ts` 의 L1 이 센다(이 파일을 읽어 전수 대조한다).
     selector:
-      'Literal[value=/^(spec|task|claim|session|approval|question|gate|comment|baseline|import|notification|finding|cr|evidence|review)\\.(draft_created|draft_updated|submitted|rejected|approved|superseded|deprecated|comment_added|commented|meta_updated|archived|restored|recheck_requested|resolved|created|cancelled|ready|claimed|blocked|done|rebrief_required|updated|conflict_warn|conflict_blocked|released|started|stale|complete|steered|requested|answered|bypassed|failopen|applied|opened|added)$/]',
+      'Literal[value=/^(spec|task|claim|session|approval|question|gate|comment|baseline|import|notification|finding|cr|evidence|review)\\.(draft_created|draft_updated|submitted|rejected|approved|superseded|deprecated|comment_added|commented|meta_updated|archived|restored|recheck_requested|resolved|created|cancelled|ready|claimed|blocked|done|rebrief_required|updated|conflict_warn|conflict_blocked|released|started|stale|complete|steered|requested|answered|bypassed|failopen|applied|opened|added|decided)$/]',
     message:
       'REQ-CB-006: 이벤트 이름은 @nerv/schema 의 NERV_EVENT 에서 import 한다 (하드코딩 금지).',
   },

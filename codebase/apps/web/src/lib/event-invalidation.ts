@@ -101,6 +101,8 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.SESSION_STEERED]: sessionAxis,
 
   [E.APPROVAL_REQUESTED]: inboxAxis,
+  // 결정이 나면 카드는 수신함에서 사라진다 — 대상(스펙)은 자기 이벤트가 따로 바꾼다
+  [E.APPROVAL_DECIDED]: inboxAxis,
   [E.QUESTION_CREATED]: inboxAxis,
   [E.QUESTION_ANSWERED]: (e) => [queryKeys.inbox(), queryKeys.projectSessions(e.project_id)],
   // 취소도 답변과 같은 자리를 바꾼다 — 수신함에서 사라지고, 기다리던 세션이 깨어난다

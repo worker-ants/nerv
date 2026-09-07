@@ -1039,6 +1039,12 @@ export class SpecService {
           specVersionId: input.specVersionId,
           specId: version.spec_id,
           approverUserId: null,
+          // 사람이 승인한 것은 아니지만 **누가 제출했는지는 안다**(REQ-API-128)
+          actor: {
+            userId: input.userId,
+            sessionId: input.sessionId ?? null,
+            isAgent: input.sessionId != null,
+          },
           gate,
         });
         return {
@@ -1115,6 +1121,7 @@ export class SpecService {
         specVersionId: input.specVersionId,
         specId: version.spec_id,
         approverUserId: input.approverUserId,
+        actor: { userId: input.approverUserId, sessionId: null, isAgent: false },
         gate,
       });
       return { status: 'approved' };
@@ -1152,6 +1159,7 @@ export class SpecService {
       specVersionId: input.specVersionId,
       specId: version.spec_id,
       approverUserId: input.approverUserId,
+      actor: { userId: input.approverUserId, sessionId: null, isAgent: false },
       gate: await this.assessGate(
         tx,
         input.projectId,
@@ -2050,6 +2058,15 @@ export class SpecService {
       specVersionId: string;
       specId: string;
       approverUserId: string | null;
+      /**
+       * **누구의 제출이 통과했는가**(2026-09-07 · REQ-API-128).
+       *
+       * `approverUserId` 는 "누가 승인했나" 이고 자동 통과(T0·T1)에서는 정당하게 NULL 이다 —
+       * 사람이 승인하지 않았다는 사실이 참이기 때문이다. 그런데 이벤트의 액터까지 NULL 이면
+       * 실데이터 승인 65건 중 56건이 **누가 일으켰는지 말하지 못한다**(FR-16). 둘은 다른
+       * 물음이라 자리를 나눈다: 액터는 그 제출을 한 사람·세션이다.
+       */
+      actor: { userId: string | null; sessionId: string | null; isAgent: boolean };
       gate: GateDecision;
     },
   ): Promise<void> {
@@ -2082,8 +2099,9 @@ export class SpecService {
       subjectType: 'spec_version',
       subjectId: input.specVersionId,
       subjectKey: await this.keyOfVersion(tx, input.specVersionId),
-      actorUserId: input.approverUserId,
-      isAgent: false,
+      actorUserId: input.actor.userId,
+      actorSessionId: input.actor.sessionId,
+      isAgent: input.actor.isAgent,
       fromState: 'in_review',
       toState: 'approved',
       payload: { gate_tier: input.gate.tier, auto_passed: input.gate.autoPass },
@@ -2095,8 +2113,9 @@ export class SpecService {
         projectId: input.projectId,
         subjectType: 'spec_version',
         subjectId: old.id,
-        actorUserId: input.approverUserId,
-        isAgent: false,
+        actorUserId: input.actor.userId,
+        actorSessionId: input.actor.sessionId,
+        isAgent: input.actor.isAgent,
         fromState: 'approved',
         toState: 'superseded',
       });
@@ -2113,7 +2132,9 @@ export class SpecService {
           projectId: input.projectId,
           subjectType: 'task',
           subjectId: task.id,
-          isAgent: false,
+          actorUserId: input.actor.userId,
+          actorSessionId: input.actor.sessionId,
+          isAgent: input.actor.isAgent,
         });
       }
     }

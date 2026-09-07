@@ -817,8 +817,27 @@ export class TaskService {
       if (tier === 'T3') return { required: true, reason: 'tier_t3' };
       return { required: false, reason: null };
     } catch (error) {
-      // **통과 + 기록**(fail-open). 막지 않는 대신 왜 판정하지 못했는지를 남긴다.
+      // **통과 + 기록**(fail-open · D-14). 막지 않는 대신 왜 판정하지 못했는지를 남긴다 —
+      // 2026-09-07 까지 그 "기록" 이 로그 한 줄이었고, `gate.failopen` 은 카탈로그에만
+      // 있고 내는 곳이 없었다. 게이트가 판정하지 못한 채 통과시킨 것은 **감사가 알아야
+      // 할 사실**이다: 그것이 fail-open 을 허용하는 조건이었다(D-14 — 통과·관측·격상).
       this.logger.warn(`플랜 승인 게이트 판정 실패 — task=${input.taskId}: ${String(error)}`);
+      await this.events
+        .transact(async (_tx, emit) =>
+          emit({
+            type: NERV_EVENT.GATE_FAILOPEN,
+            projectId: input.projectId,
+            subjectType: 'task',
+            subjectId: input.taskId,
+            actorUserId: null,
+            isAgent: false,
+            payload: { gate: 'plan_approval', error: String(error) },
+          }),
+        )
+        // 기록에 실패해도 통과는 통과다 — fail-open 의 뜻이 그것이다
+        .catch((emitError: unknown) => {
+          this.logger.warn(`fail-open 기록 실패: ${String(emitError)}`);
+        });
       return { required: false, reason: null };
     }
   }
@@ -853,6 +872,36 @@ export class TaskService {
     // 권위 있는 상태 검사는 그대로 트랜잭션 안에 있다 — 여기서는 **게이트만** 본다.
     await this.assertPlanApproved(input);
 
+    try {
+      return await this.claimInTx(input, ttl);
+    } catch (error) {
+      // **차단도 사실이다**(2026-09-07 · REQ-API-128). 위 주석이 "차단도 사실이므로
+      // 기록한다 · 롤백되므로 별도 트랜잭션에서 남긴다" 고 적어 두었는데 **그 별도
+      // 트랜잭션이 없었다** — `claim.conflict_blocked` 는 알림 카탈로그에 critical 로
+      // 올라 있고 화면 무효화 맵에도 있는데 **내는 곳이 0** 이었다. 막힌 쪽은 409 로
+      // 알지만, 알아야 할 사람은 **먼저 잡고 있던 쪽**이다: 자기 범위에 남이 부딪혔다는
+      // 사실을 모르면 조정이 일어나지 않는다.
+      if (error instanceof NervError && error.code === NERV_ERROR.CONFLICT_SCOPE) {
+        const details = error.details as { task_id?: string; overlaps?: unknown };
+        await this.events.transact(async (_tx, emit) =>
+          emit({
+            type: NERV_EVENT.CLAIM_CONFLICT_BLOCKED,
+            projectId: input.projectId,
+            subjectType: 'task',
+            subjectId: String(details.task_id ?? input.taskId),
+            actorUserId: input.userId,
+            actorSessionId: input.sessionId,
+            isAgent: input.sessionId !== null,
+            payload: { overlaps: details.overlaps ?? [] },
+          }),
+        );
+      }
+      throw error;
+    }
+  }
+
+  /** 클레임의 트랜잭션 본체 — 차단 이벤트를 밖에서 남기려고 갈랐다(위 주석) */
+  private async claimInTx(input: ClaimInput, ttl: number): Promise<ClaimResult> {
     return this.events.transact(async (tx, emit) => {
       // 0) 대상 행 잠금 — 키로 왔으면 먼저 UUID 로 바꾼다(§1.4b)
       const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
@@ -929,6 +978,7 @@ export class TaskService {
         this.logger.warn(`클레임 차단 — task=${taskId} 겹침 ${blocking.length}건`);
         throw new NervError(NERV_ERROR.CONFLICT_SCOPE, msg('error.claim.scope_conflict'), {
           kind: 'scope_conflict',
+          task_id: taskId,
           overlaps: blocking.map(toDetail),
         });
       }

@@ -541,6 +541,20 @@ describe('E09-S04 위험도 가변 게이트 (D-06)', () => {
     expect(rows[0]?.payload).toMatchObject({ auto_passed: true });
   });
 
+  it('자동 통과도 누가 일으켰는지 말한다 — 승인자는 비어도 액터는 비지 않는다 (REQ-API-128)', async () => {
+    const { versionId } = await newDraft('SPC-T0-ACTOR', '# 오탈자 정정 둘');
+    await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+
+    // 승인자가 NULL 인 것은 참이다 — 사람이 승인하지 않았다. 액터가 NULL 인 것은 거짓이다.
+    const { rows } = await pool.query<{ actor: string | null; approver: string | null }>(
+      `SELECT e.actor_user_id AS actor, v.approved_by_user_id AS approver
+         FROM event e JOIN spec_version v ON v.id = e.subject_id
+        WHERE e.type = 'spec.approved' AND e.subject_id = $1`,
+      [versionId],
+    );
+    expect(rows[0]).toMatchObject({ actor: planner, approver: null });
+  });
+
   it('참조가 많으면 티어가 올라가 승인 대기로 간다', async () => {
     const { specId, versionId } = await newDraft('SPC-T2');
     await raiseTier(specId, versionId);

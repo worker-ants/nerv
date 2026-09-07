@@ -573,6 +573,7 @@ export const ko = {
   'mcp.tool.spec_explore': '스펙 탐색 시작',
   'mcp.tool.start_work': '작업 착수',
   // ── 이벤트 — 알림·활동 피드가 같은 문구를 쓴다 ───────────────────────────────────────────
+  'event.approval.decided': '결재를 결정함',
   'event.approval.requested': '승인 요청',
   'event.baseline.created': '기준선 생성',
   'event.claim.conflict_blocked': '범위 겹침으로 클레임 거부',

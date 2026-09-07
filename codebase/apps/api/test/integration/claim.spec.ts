@@ -14,6 +14,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
+import { NotificationService } from '../../src/modules/event/notification.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
@@ -27,6 +28,7 @@ let pool: pg.Pool;
 let tasks: TaskService;
 let claims: ClaimService;
 let events: EventService;
+let notifications: NotificationService;
 let questions: QuestionService;
 let sessions: SessionService;
 let drizzleDb: ReturnType<typeof drizzle>;
@@ -58,6 +60,7 @@ beforeAll(async () => {
     failureCount: 0,
   } as unknown as ValkeyService;
   events = new EventService(drizzleDb, silentValkey);
+  notifications = new NotificationService(drizzleDb, silentValkey);
 
   claims = new ClaimService();
   // 하트비트 역채널은 이 스위트의 관심사가 아니다 — 질문이 없으면 빈 목록이다.
@@ -92,6 +95,12 @@ beforeEach(async () => {
   await pool.query('DELETE FROM question');
   await pool.query('DELETE FROM task');
   await pool.query('TRUNCATE event');
+  // 세션도 되돌린다 — 리스 만료·유휴 회수 테스트가 세션을 stale 로 만들고 가는데,
+  // 겹침 판정은 살아있는 세션의 클레임만 본다(claim.service#activeClaims).
+  // 되돌리지 않으면 앞선 테스트가 뒤 테스트의 겹침을 조용히 없앤다(실측 — 단독 실행만 통과).
+  await pool.query(
+    `UPDATE agent_session SET state='active', last_heartbeat_at=now(), ended_at=NULL`,
+  );
 });
 
 // ── E04-S01 원자적 클레임 ───────────────────────────────────────────────────
@@ -524,6 +533,42 @@ describe('회수·해제가 남기는 사실 (REQ-API-127)', () => {
         claimInput(taskId, sessionHana, hana, { specIds: [], fileGlobs: ['cap/**'] }, 7200),
       ),
     ).rejects.toBeDefined();
+  });
+});
+
+/**
+ * **차단도 사실이다**(2026-09-07 · REQ-API-128). `claim.conflict_blocked` 는 알림 카탈로그에
+ * critical 로 올라 있고 화면 무효화 맵에도 있는데 **내는 곳이 0** 이었다 — 막힌 쪽은 409 로
+ * 알지만, 알아야 할 사람은 먼저 잡고 있던 쪽이다.
+ */
+describe('차단이 남기는 사실 (REQ-API-128)', () => {
+  it('겹침으로 막히면 claim.conflict_blocked 가 남고 먼저 잡은 사람에게 알림이 간다', async () => {
+    const first = await makeTask('CLV-T-CF0001');
+    const second = await makeTask('CLV-T-CF0002');
+    await tasks.claim(claimInput(first, sessionHana, hana, { specIds: [specA], fileGlobs: [] }));
+    await pool.query('TRUNCATE event');
+
+    await expect(
+      tasks.claim(claimInput(second, sessionDohyun, dohyun, { specIds: [specA], fileGlobs: [] })),
+    ).rejects.toMatchObject({ code: NERV_ERROR.CONFLICT_SCOPE });
+
+    // 클레임은 롤백돼도 **차단은 남는다** — 별도 트랜잭션이라 그렇다
+    const { rows } = await pool.query<{ type: string; subject_id: string; actor: string | null }>(
+      `SELECT type, subject_id, actor_user_id AS actor FROM event WHERE type = $1`,
+      [NERV_EVENT.CLAIM_CONFLICT_BLOCKED],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ subject_id: second, actor: dohyun });
+    expect(await count(`SELECT count(*)::int AS n FROM claim WHERE status='active'`)).toBe(1);
+
+    // 알려야 할 사람은 **먼저 잡고 있던 쪽**이다 — 막힌 쪽은 409 로 이미 안다
+    expect(await notifications.route()).toBeGreaterThan(0);
+    const { rows: notified } = await pool.query<{ user_id: string }>(
+      `SELECT DISTINCT n.user_id FROM notification n JOIN event e ON e.id = n.event_id
+        WHERE e.type = $1`,
+      [NERV_EVENT.CLAIM_CONFLICT_BLOCKED],
+    );
+    expect(notified.map((n) => n.user_id)).toEqual([hana]);
   });
 });
 

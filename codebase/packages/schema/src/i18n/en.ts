@@ -579,6 +579,7 @@ export const en = {
   'mcp.tool.spec_explore': 'Starting to explore specs',
   'mcp.tool.start_work': 'Starting work',
   // ── 이벤트 — 알림·활동 피드가 같은 문구를 쓴다 ───────────────────────────────────────────
+  'event.approval.decided': 'Approval decided',
   'event.approval.requested': 'Approval requested',
   'event.baseline.created': 'Baseline created',
   'event.claim.conflict_blocked': 'Claim blocked by declared-scope overlap',

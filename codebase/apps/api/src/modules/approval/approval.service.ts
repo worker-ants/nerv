@@ -474,15 +474,24 @@ export class ApprovalService {
       await this.applyToSubject(tx, emit, input, approval);
 
       await emit({
-        type: NERV_EVENT.QUESTION_ANSWERED,
+        // **결재는 결재다**(2026-09-07 · REQ-API-128). 대상이 질문이든 스펙이든 이 자리가
+        // 남기는 사실은 "결재가 결정됐다" 이고, 질문에 답한 사실은 `QuestionService` 가
+        // 자기 자리에서 남긴다 — 하나의 이름이 둘을 가리키면 어느 쪽도 셀 수 없다.
+        type: NERV_EVENT.APPROVAL_DECIDED,
         projectId: input.projectId,
         subjectType: 'approval',
         subjectId: input.approvalId,
         actorUserId: input.userId,
         isAgent: false,
+        toState: input.decision,
         // **자기 승인은 그 사실을 남긴다.** 규칙의 예외를 허용하는 것과 그것을 감추는 것은
         // 다른 일이다 — 감사가 나중에 "이 결재는 한 사람이 양쪽에 섰다" 를 셀 수 있어야 한다.
-        payload: { decision: input.decision, ...(selfApprove ? { self_approved: true } : {}) },
+        payload: {
+          decision: input.decision,
+          subject_type: approval.subject_type,
+          subject_id: approval.subject_id,
+          ...(selfApprove ? { self_approved: true } : {}),
+        },
       });
 
       return {

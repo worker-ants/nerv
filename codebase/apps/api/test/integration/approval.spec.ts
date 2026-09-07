@@ -4,7 +4,7 @@
 // 그러려면 승인이 여기서 되는 것만으로 부족하고 **여기서만** 되어야 한다 —
 // 그 성질을 검증하는 것이 이 스위트의 절반이다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
@@ -406,6 +406,50 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
         decision: 'approve',
       }),
     ).resolves.toMatchObject({ decision: 'approve' });
+  });
+});
+
+/**
+ * **결재는 결재다**(2026-09-07 · REQ-API-128). 결정이 남긴 이벤트가 `question.answered`
+ * 였다 — 질문에 답한 적이 없는데 답한 것으로 세였고, 결재를 세려는 쪽은 셀 것이 없었다.
+ */
+describe('결재가 남기는 사실 (REQ-API-128)', () => {
+  it('결정하면 approval.decided 가 남는다 — 질문에 답한 것으로 세지 않는다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'reject',
+      comment: '근거가 얇다',
+    });
+
+    const { rows } = await pool.query<{
+      type: string;
+      actor: string | null;
+      to_state: string | null;
+      payload: { decision?: string; subject_type?: string };
+    }>(
+      `SELECT type, actor_user_id AS actor, to_state, payload FROM event
+        WHERE subject_id = $1 AND subject_type = 'approval' AND type <> 'approval.requested'`,
+      [approval_id],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      type: NERV_EVENT.APPROVAL_DECIDED,
+      actor: reviewer,
+      to_state: 'reject',
+    });
+    expect(rows[0]?.payload).toMatchObject({ decision: 'reject', subject_type: 'plan' });
+    expect(await pool.query(`SELECT 1 FROM event WHERE type = 'question.answered'`)).toMatchObject({
+      rowCount: 0,
+    });
   });
 });
 
