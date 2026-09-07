@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.32 · 2026-09-07 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.33 · 2026-09-07 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.33 변경(2026-09-07 — 로컬 초록이 CI 빨강이었다, 실측): **새 요구사항 없음 — 플러그인 버전 게이트가 작업 트리를 본다.** 이 게이트는 변경을 `base...HEAD` 로만 셌다 — **커밋 범위라 작업 트리의 변경이 보이지 않는다.** `preflight` 는 보통 커밋 **전에** 도므로 로컬에서는 초록이고 CI 에서만 빨간 자리가 생겼다(2026-09-07 실측: `plugin/README.md` 를 고치고 버전을 안 올린 채 로컬 초록을 봤다). 커밋한 것과 아직 안 한 것을 **함께** 세고, 버전도 같은 시점(작업 트리 파일)에서 읽는다 — CI 에서는 체크아웃이 곧 HEAD 라 답이 같다. 규약 7 이 적은 "로컬 초록이 CI 초록을 뜻하지 않는다" 는 없앨 수 없는 부류(느린 기계)와 없앨 수 있는 부류가 있고, 이것은 후자였다.
 >
 > v1.32 변경(2026-09-07 — "전문" 이 전수가 아니었다, 개선 계획 여덟째 스프린트): **새 요구사항 없음 — §2.2 트리 재생성 · §1.2 두 자리 정정.** ① §2.2 는 스스로 "트리 전문" 이라 적는데 **51개 파일을 몰랐다** — 모듈 넷(`plugin`·`review`·`invitation`·`webhook`)이 통째로 빠져 있었고, 이번 여덟 스프린트가 만든 판정 단위(`approval-policy`·`impl-status`·`untrusted`·`cursor`)도 없었다. 트리가 전수가 아니면 "여기 없는 것은 없는 것" 이라는 읽기가 틀리고, 실제로 그 읽기로 같은 판정이 두 번 만들어졌다. **L1 이 이제 양방향으로 대조한다**(실물에 있는데 트리에 없는 것 · 트리에 있는데 실물에 없는 것). ② `pnpm-workspace.yaml` 전문이 `plugin` 과 `onlyBuiltDependencies` 를 몰랐고, `plugin` 워크스페이스 행이 "스킬 6종" 이라 적었다(`/nerv:import` 는 2026-09-06 에 걷었다 — 5종이다).
 >

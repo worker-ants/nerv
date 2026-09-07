@@ -80,7 +80,7 @@
   <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
 <pre><code>nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.21
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.22
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -100,7 +100,7 @@
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;nerv&quot;,
   &quot;description&quot;: &quot;NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다&quot;,
-  &quot;version&quot;: &quot;0.2.21&quot;,
+  &quot;version&quot;: &quot;0.2.22&quot;,
   &quot;license&quot;: &quot;Apache-2.0&quot;
 }</code></pre>
 
