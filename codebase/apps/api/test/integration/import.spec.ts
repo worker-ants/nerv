@@ -311,6 +311,82 @@ describe('EP-IMP-03 tasks — ready 는 받지 않는다 (REQ-IMP-009)', () => {
     expect((await at('방금 끝난 일')).getTime()).toBeGreaterThan(new Date(longAgo).getTime());
   });
 
+  /**
+   * **계산해 놓고 버리던 셋**(2026-09-07 · REQ-IMP-027·028).
+   *
+   * 파서는 `started:`·`priority:`·`spec_impact:` 를 원본에서 읽어 놓고 계약에 실을 자리가
+   * 없어 흘렸다. 서버는 그때마다 기본값을 채웠고 — `priority` 는 `P2`, 생성 시각은 `now()`,
+   * done 의 스펙 영향은 `{"none": true}` — 화면은 그 기본값을 **사람이 고른 값**으로 그렸다.
+   * 특히 `{"none": true}` 는 "영향 없음을 **확인했다**" 는 선언이라 지어 넣으면 거짓 부정이다.
+   */
+  it('원본이 적은 우선순위·생성 시각·스펙 영향이 그대로 적재된다', async () => {
+    const created = '2026-05-11T02:00:00.000Z';
+    await post('tasks', {
+      profile: 'clemvion',
+      items: [
+        {
+          source_path: 'plan/complete/declared.md',
+          title: '선언된 계획',
+          status: 'done',
+          priority: 'P0',
+          created_at: created,
+          spec_impact: { changed: ['SPC-A'] },
+        },
+        { source_path: 'plan/complete/silent.md', title: '말 없는 계획', status: 'done' },
+        { source_path: 'plan/backlog/silent2.md', title: '말 없는 백로그', status: 'backlog' },
+      ],
+    });
+
+    const row = async (title: string): Promise<Record<string, unknown>> => {
+      const { rows } = await pool.query<Record<string, unknown>>(
+        `SELECT priority::text AS priority, created_at, spec_impact FROM task WHERE title = $1`,
+        [title],
+      );
+      return rows[0]!;
+    };
+
+    const declared = await row('선언된 계획');
+    expect(declared['priority']).toBe('P0');
+    expect((declared['created_at'] as Date).toISOString()).toBe(created);
+    expect(declared['spec_impact']).toEqual({ changed: ['SPC-A'] });
+
+    // **미표기는 NULL 이다**(0024) — `P2` 로 채우면 고른 적 없는 값이 고른 것으로 보인다
+    const silent = await row('말 없는 계획');
+    expect(silent['priority']).toBeNull();
+    // done 인데 선언이 없으면 "모른다" 다 — "영향 없음" 이 아니다
+    expect(silent['spec_impact']).toEqual({ unknown: true });
+    // done 이 아니면 아예 비어 있다
+    expect((await row('말 없는 백로그'))['spec_impact']).toBeNull();
+  });
+
+  it('우선순위 미표기는 목록 정렬에서 뒤로 가고 커서가 그 무리를 잃지 않는다', async () => {
+    await post('tasks', {
+      profile: 'clemvion',
+      items: [
+        { source_path: 'plan/o/a.md', title: '정렬 P0', status: 'backlog', priority: 'P0' },
+        { source_path: 'plan/o/b.md', title: '정렬 미표기1', status: 'backlog' },
+        { source_path: 'plan/o/c.md', title: '정렬 미표기2', status: 'backlog' },
+      ],
+    });
+
+    const { TaskService } = await import('../../src/modules/task/task.service.js');
+    const tasks = app.get(TaskService);
+    const first = await tasks.list({ projectId, limit: 1 });
+    expect((first.items[0] as Record<string, unknown>)['priority']).toBe('P0');
+
+    // **커서가 NULL 무리를 통째로 잃지 않는다.** 행 비교(`>`)는 NULL 앞에서 UNKNOWN 이라
+    // 남은 쪽이 영영 안 나온다 — 정렬(NULLS LAST)을 술어로 그대로 써야 한다.
+    const seen: string[] = [];
+    let cursor = first.next_cursor;
+    for (let page = 0; page < 10 && cursor !== null; page += 1) {
+      const next = await tasks.list({ projectId, limit: 1, cursor });
+      for (const item of next.items) seen.push(String((item as Record<string, unknown>)['title']));
+      cursor = next.next_cursor;
+    }
+    expect(seen).toContain('정렬 미표기1');
+    expect(seen).toContain('정렬 미표기2');
+  });
+
   it('보관 창 밖의 done 은 기본 목록에서 빠지고 include_archived 로만 나온다', async () => {
     await post('tasks', {
       profile: 'clemvion',

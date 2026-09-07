@@ -374,6 +374,15 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       depends_on: [],
       ...(specKey === undefined ? {} : { source_spec_key: specKey }),
       ...(doneAt === null ? {} : { done_at: doneAt }),
+      // **계산해 놓고 버리던 셋**(2026-09-07 · REQ-IMP-027·028). 파서는 이 값들을 원본에서
+      // 읽어 놓고 계약에 실을 자리가 없어 흘렸다 — 서버는 그때마다 기본값을 채웠고,
+      // 화면은 그 기본값을 **사람이 고른 값**으로 그렸다.
+      //
+      // 미표기는 보내지 않는다: 여기서 `null` 을 명시하는 것과 키를 빼는 것은 서버에서
+      // 같은 결과(NULL·now())이지만, **없는 것을 없다고 적는 편**이 계약을 읽는 쪽에 낫다.
+      ...(task.priority === null ? {} : { priority: task.priority as ImportTaskItem['priority'] }),
+      ...(task.started === null ? {} : { created_at: task.started }),
+      ...(task.spec_impact === null ? {} : { spec_impact: task.spec_impact }),
     });
   }
 

@@ -169,6 +169,13 @@
       "when": 1788751595745,
       "tag": "0023_claim_release_stale",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788778904680,
+      "tag": "0024_task_priority_nullable",
+      "breakpoints": true
     }
   ]
 }

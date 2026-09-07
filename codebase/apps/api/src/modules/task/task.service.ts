@@ -164,6 +164,7 @@ export class TaskService {
          AND NOT EXISTS (
            SELECT 1 FROM claim c WHERE c.task_id = t.id AND c.status = 'active'
          )
+       -- 미표기(NULL)는 맨 뒤다 — PG 의 ASC 기본이 NULLS LAST 이고 그것이 우리가 원하는 것이다
        ORDER BY t.priority ASC, t.created_at ASC
        LIMIT ${limit}
     `);
@@ -241,15 +242,29 @@ export class TaskService {
     // 커서가 어느 쪽을 가리키는지 정해지지 않아 한 건이 영영 안 나오거나 두 번 나온다.
     // priority 는 **enum 으로 견준다** — `ORDER BY` 가 보는 것이 열거 순서이므로,
     // 텍스트로 견주면 값 이름이 바뀌는 날 정렬과 커서가 조용히 갈라진다.
+    //
+    // **우선순위는 NULL 일 수 있다**(2026-09-07 · 0024). 미표기는 `P2` 의 축약이 아니라
+    // 표기가 없었다는 사실이고, `ORDER BY t.priority` 는 그것을 맨 뒤로 보낸다(PG 의 ASC
+    // 기본이 NULLS LAST 다). 커서도 **그 정렬을 술어로 그대로** 써야 한다 — 행 비교
+    // (`>`)는 NULL 앞에서 UNKNOWN 이 되어 남은 쪽을 통째로 잃는다.
     const after = decodeCursor(input.cursor);
+    const afterPriority = after === null || after[0] === null ? null : String(after[0]);
+    const tail =
+      after === null
+        ? sql``
+        : sql`(t.updated_at < ${String(after[1])}::timestamptz
+            OR (t.updated_at = ${String(after[1])}::timestamptz
+                AND t.id > ${String(after[2])}::uuid))`;
     const seek =
       after === null
         ? sql``
-        : sql` AND (t.priority > ${String(after[0])}::task_priority
-                OR (t.priority = ${String(after[0])}::task_priority
-                    AND (t.updated_at < ${String(after[1])}::timestamptz
-                     OR (t.updated_at = ${String(after[1])}::timestamptz
-                         AND t.id > ${String(after[2])}::uuid))))`;
+        : afterPriority === null
+          ? // 이미 NULL 무리 안이다 — 그 뒤는 같은 무리의 나머지뿐이다
+            sql` AND t.priority IS NULL AND ${tail}`
+          : // NULL 은 모든 값보다 뒤이므로 **무조건** 다음 쪽에 든다
+            sql` AND (t.priority IS NULL
+                  OR t.priority > ${afterPriority}::task_priority
+                  OR (t.priority = ${afterPriority}::task_priority AND ${tail}))`;
     const limit = pageLimit(input.limit);
 
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
@@ -278,7 +293,8 @@ export class TaskService {
     const next =
       rows.length > limit && last !== undefined
         ? encodeCursor([
-            String(last['priority']),
+            // 미표기는 커서에서도 NULL 이다 — 문자열 'null' 로 접으면 다음 쪽이 어긋난다
+            last['priority'] == null ? null : String(last['priority']),
             new Date(String(last['updated_at'])).toISOString(),
             String(last['id']),
           ])

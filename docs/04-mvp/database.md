@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 32 + **부속 5**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.38 · 2026-09-07 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.39 · 2026-09-07 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.39 변경(2026-09-07 — 고른 적 없는 값이 고른 것으로 보였다, 개선 계획 여섯째 스프린트 · 사람 결정): **마이그레이션 0024 — `task.priority` 를 NULL 허용으로.** 원본 계획 문서는 우선순위를 적지 않는데 열이 `NOT NULL DEFAULT 'P2'` 라 임포트 481건이 전부 `P2` 로 적재됐고, 보드는 그것을 **사람이 고른 값**으로 그렸다. 0020 이 `requirement.priority` 에서 한 판단과 같다 — NULL 은 `P2` 의 축약이 아니라 **표기가 없었다는 사실**이고, 정렬에서는 뒤로 간다(`ORDER BY` ASC 의 기본이 NULLS LAST 다). 커서도 그 정렬을 술어로 그대로 쓴다: 행 비교(`>`)는 NULL 앞에서 UNKNOWN 이라 미표기 무리를 통째로 잃는다([4.7](importer.md) REQ-IMP-027).
 >
 > v0.37 변경(2026-09-07 — DDL 정본이 실물보다 좁거나 넓었다, 개선 계획 첫 스프린트): **새 요구사항 없음 — 코드가 옳고 문서가 낡은 자리 다섯이다.** ① §2.1 `claim_release_reason` 이 여섯 값만 적고 있었다 — 0021 이 더한 **`session_end`·`stopped`** 가 빠져 있었고, 주석은 `manual` 이 "아직 쓰인다" 고 적었는데 그 둘이 들어오며 **manual 의 생산자는 사라졌다**. 값마다 생산자를 전수로 적는다(`manual`·`conflict` 는 **생산자 없음** — 겹침은 회수가 아니라 거절이다). ② §2.11 이 "나머지 넷" 이라며 든 목록에 `spec_version_change_request_fk` 가 **중복**이었고 실물의 **`spec_parent_fk`** 가 빠져 있었다(같은 문단이 예시로 `spec_parent_id_fkey` 를 들면서 그 제약을 놓쳤다). 일곱 개 전문을 싣고, §2.3·§2.7 의 인라인 `REFERENCES` 넷을 걷었다 — **그 절이 스스로 경고한 자리**다(인라인으로 세우면 제약 이름이 달라져 이후 `DROP CONSTRAINT` 가 문서로 세운 DB 에서만 실패한다). ③ §3.2 방송 페이로드가 `{id, type, project_id}` 셋이었다 — 실물은 **봉투 아홉(+`recipient_user_ids`)** 이고, 셋만으로는 받는 쪽이 무엇을 무효화할지도 누가 한 일인지도 알 수 없다. REQ-DB-005 도 같이 고쳤다. ④ REQ-DB-012 의 검증 방법이 **0011 완화 이전** 규칙이었다(`spec_change` 에 `change_request_id` 단독 필수) — 실제 CHECK 는 `change_request_id` **또는** `spec_version_id` 이고, 거부 케이스는 "둘 다 NULL" 이다. 본문 DDL 은 v0.27 이 이미 고쳤는데 수용 기준만 남아 있었다. ⑤ §2.14 "아직 없는 것" 에 **보존 정책 셋**을 더한다 — `notification` 180일 · `reviewer_report.body_md` 365일 압축 · `spec_version` draft 90일 압축은 `RetentionSchema` 에 키조차 없고 `retention.job.ts` 가 집행하는 것은 둘뿐이다. ⑥ **계수 — 도메인 33 → 32.** v0.32 가 37 을 "도메인 33 + 인프라 4" 로 쪼갰는데 그 33 은 엔티티 수가 아니라 **§2.2~§2.10 의 테이블 수**였다(`idempotency_key` 를 도메인으로 세고 있었다). 3.3 의 엔티티 지도에 그 행은 없다 — 프로젝트에 매이지 않아 `project_id` 도 없는 요청 배관이다. **도메인 32 + 부속 5**(auth 셋 · `spec_chunk_embedding` · `idempotency_key`)로 통일하고 3.3 과 같은 셈을 쓴다.
 >
@@ -481,7 +483,7 @@ CREATE TABLE task (
   title                  text NOT NULL,
   body_md                text,
   status                 task_status NOT NULL DEFAULT 'backlog',
-  priority               task_priority NOT NULL DEFAULT 'P2',
+  priority               task_priority DEFAULT 'P2',            -- 미표기는 NULL (0024 · 2026-09-07)
   source_spec_version_id uuid REFERENCES spec_version(id),  -- 기준 버전(agent-integration §2.4). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)의 zod는 필수
   source_requirement_id  uuid REFERENCES requirement(id),
   baseline_id            uuid REFERENCES spec_baseline(id), -- 기준 기준선(§2.3) — 주변 문서를 읽는 세트
