@@ -15,6 +15,58 @@ import { t } from '../i18n.js';
  */
 export type Disposition = 'skipped' | 'aborted' | 'manual' | 'warn';
 
+/**
+ * **규칙 전표는 한 곳에 있다** — 정본은 [4.7 스펙 임포터](../../../../../docs/04-mvp/importer.md)
+ * §4.1 이고, 이 상수가 그 표의 코드 쪽 짝이다.
+ *
+ * 세 가지가 여기 걸려 있다. ① `rule` 이 이 키들의 **유니온**이라 오타가 컴파일에 걸린다 —
+ * 2026-09-07 까지 자유 문자열이라 같은 뜻에 다른 슬러그가 쓰였고(`link-unresolved` 가 참조
+ * 과다에, `owner-unmapped` 가 완료 시각 미복구에), 그러면 재실행 큐를 슬러그로 고를 수 없다.
+ * ② 등급이 여기 적힌 것과 다르면 L1 이 잡는다 — 전표는 warn 이라 적는데 코드가 `skipped` 를
+ * 내면 정상 실행이 종료 코드 1 이 된다. ③ 힌트 키가 여기 있으므로 `hint` 를 채우는 곳도
+ * 하나다 — 그 필드는 오래 **선언만 있고 채우는 코드가 없었다**.
+ */
+export const RULES = {
+  // abort — 실행 전체를 멈춘다. 절반을 덮어쓰고 멈추는 것이 아무것도 안 하고 멈추는 것보다 나쁘다
+  'count-mismatch': 'aborted',
+  'map-conflict': 'aborted',
+  'server-unauthorized': 'aborted',
+  'profile-invalid': 'aborted',
+  // skip — 그 항목만 빼고 계속한다. 종료 코드는 1 이라 신호는 남는다
+  'id-collision': 'skipped',
+  'status-unknown': 'skipped',
+  'server-rejected': 'skipped',
+  'plan-spec-unresolved': 'skipped',
+  'review-no-snapshot': 'skipped',
+  // manual — 사람이 봐야 끝난다(재실행 큐)
+  'impl-status-doc-copied': 'manual',
+  'req-id-duplicate': 'manual',
+  'req-priority-missing': 'manual',
+  'pending-plan-unresolved': 'manual',
+  'plan-many-refs': 'manual',
+  'done-at-unrecovered': 'manual',
+  'area-body-missing': 'manual',
+  'review-tableless': 'manual',
+  // warn — 아무것도 잘못되지 않았다. **종료 코드를 올리지 않는다**
+  'dist-mismatch': 'warn',
+  'frontmatter-missing': 'warn',
+  'research-doc': 'warn',
+} as const satisfies Record<string, Disposition>;
+
+export type Rule = keyof typeof RULES;
+
+/**
+ * 권장 조치 — 사유가 "무엇이" 라면 이것은 "그래서 무엇을 하라" 다.
+ *
+ * 카탈로그에 문구가 없으면 `undefined` 다: 힌트가 없는 것은 결함이 아니지만, **없는 키를
+ * 그대로 찍는 것**은 결함이다(카탈로그 폴백이 키 문자열을 돌려주므로 사람이 그것을 읽는다).
+ */
+export function hintFor(rule: Rule): string | undefined {
+  const key = `cli.hint.${rule.replaceAll('-', '_')}`;
+  const rendered = t()(key as never);
+  return rendered === key ? undefined : rendered;
+}
+
 export interface ReportEntry {
   file: string;
   line: number | null;
@@ -25,7 +77,7 @@ export interface ReportEntry {
    * 슬러그 23종이 코드에 하나도 없어 전부 자유 문장이었고, 그러면 재실행 큐를 자동으로
    * 분류할 수 없다 — 사람이 매번 문장을 읽어 고르게 된다.
    */
-  rule: string;
+  rule: Rule;
   reason: string;
   disposition: Disposition;
   /** 권장 조치 — 사유가 "무엇이" 라면 이것은 "그래서 무엇을 하라" 다 */
@@ -68,6 +120,24 @@ export function exitCode(report: ImportReport): 0 | 1 | 2 {
   if (report.entries.some((e) => e.disposition === 'aborted')) return 2;
   if (report.entries.some((e) => e.disposition !== 'warn')) return 1;
   return 0;
+}
+
+/**
+ * 힌트를 채운다 — **끝에서 한 번**(2026-09-07 · REQ-IMP-024).
+ *
+ * 항목을 만드는 자리가 스무 곳이라 거기마다 채우면 언젠가 한 곳이 빠지고, 빠진 것은
+ * "이 규칙에는 힌트가 없다" 와 구별되지 않는다. 이미 채워진 힌트는 건드리지 않는다 —
+ * 그 자리에서만 아는 맥락이 있을 수 있다.
+ */
+export function withHints(report: ImportReport): ImportReport {
+  return {
+    ...report,
+    entries: report.entries.map((e) => {
+      if (e.hint !== undefined) return e;
+      const hint = hintFor(e.rule);
+      return hint === undefined ? e : { ...e, hint };
+    }),
+  };
 }
 
 /** 사람이 읽는 버전 — report.md */

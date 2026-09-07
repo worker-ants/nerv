@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — 이 문서는 기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 **프로파일 기반 임포터**를 구현 착수 가능한 수준으로 확정한다. 임포터는 특정 저장소 전용이 아니다 — 스캔 글롭·제외 규칙·frontmatter 매핑·트리 규칙·기대 집계를 선언한 **프로파일**(§1.4)이 대상별 차이를 흡수하고, 엔진은 프로파일만 해석한다. 내장 프로파일은 `clemvion`(FR-17의 대상 — 순수 스펙 135 md + plan 450 md)과 `nerv-docs`(도그푸딩 — §5) 2종이며, 다른 저장소는 프로파일 파일을 얹어 같은 엔진을 재사용한다. 실행 모델은 **읽기는 클라이언트, 쓰기는 API**다(2026-08-22 확정 — §3.2): 원본 체크아웃이 있는 장비에서 `nerv import` CLI가 스캔·파싱·검증·리포트·매니페스트를 만들고(dry-run은 서버 없이 완결), `--apply`만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. **서버가 원본 파일에 접근할 수 있다는 전제를 두지 않는 것**이 이 구조의 이유다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 수용 기준은 REQ-IMP-001~017 — 프로파일 기대 집계에 대한 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
 >
-> 문서 버전 v0.21 · 2026-09-06 · HTML 파생본: [importer.html](../html/importer.html)
+> 문서 버전 v0.22 · 2026-09-07 · HTML 파생본: [importer.html](../html/importer.html)
+>
+> v0.22 변경(2026-09-07 — 등급이 이름만 남아 있었다, 개선 계획 여섯째 스프린트): **REQ-IMP-023·024·025·026 신설 · REQ-IMP-020 정정 · §4.1 전표 여섯 행.** ① **abort 게이트가 spec 패스에만 있었다** — plan·review 는 `aborted` 항목을 리포트에 적은 뒤 **그대로 전송**했다. 중단이라 적어 놓고 중단하지 않으면 그 등급은 이름만 남는다. ② **전표와 코드가 세 자리 갈려 있었다**(`dist-mismatch`·`status-unknown`·`title-missing`) — 전표가 warn 이라 적은 것을 코드가 `skipped` 로 내면 정상 실행이 종료 코드 1 이 되고, 그 코드를 게이트로 쓰는 쪽은 늘 빨강을 본다. 이제 L1 이 이 문서를 읽어 대조한다. 슬러그 오용 다섯 자리(`link-unresolved` 가 참조 과다에, `owner-unmapped` 가 완료 시각 미복구에 …)도 함께 고쳤다 — 슬러그로 재실행 큐를 고를 수 없던 이유다. ③ **`hint` 는 선언만 있고 채우는 코드가 0곳이었다.** ④ 가장 흔한 실패 둘(토큰 만료·프로파일 오타)이 리포트 없이 종료 코드 1 로 죽었다 — 이 CLI 의 어휘에서 1 은 "완료했으나 수동 확인" 이다. ⑤ `id-collision` 의 class 를 skip 으로 정정한다(사람 결정) — 코드는 처음부터 항목만 빼고 계속했다. ⑥ **`root_commit` 이 세 리포트에서 `null` 고정**이었다 — 렌더러는 그 필드를 그리고 있었으므로 사람은 커밋 없는 임포트 기록을 읽었다.
 >
 > v0.21 변경(2026-09-06 — §3.3 이 계획이었다, 사람 결정): **매니페스트 구현 · `map-conflict` 점화 · 리포트 계약 · 유령 플래그 폐기.** ① §3.3 전체가 **계획이었다** — `--map` 은 파싱만 됐고 매니페스트를 읽거나 쓰는 코드가 0곳이었으며, `rebuild-map` 은 분기가 없어 **spec 임포트로 떨어졌다**("다시 짓는다" 는 이름의 명령이 적재를 했다). 실물로 만들었고(`apps/cli/src/manifest.ts`), 그래서 **`map-conflict` 를 켰다** — 이 게이트는 매니페스트가 있어야 성립한다. L3 시나리오 E 가 전체 경로를 돈다(중단 → `rebuild-map` → 적재). ② **리포트 계약**(§4.1): `rule` 슬러그와 `hint` 를 싣고 **`warn` 등급**을 더했다 — 그 등급이 없어 `research-doc`·`dist-mismatch` 가 `skipped` 로 섞여 **정상 실행이 종료 코드 1** 을 냈다. ③ **유령 플래그 둘 폐기**(`--rewrite-links`·`--split-checkboxes`) — 읽는 코드가 없어 주면 조용히 버려졌다. 없는 손잡이를 전표에 두지 않는다. ④ frontmatter 가 없는 문서에 `frontmatter-missing`(warn)을 남긴다 — 도그푸딩 대상 13편이 아무 말 없이 기본값으로 들어가고 있었다.
 >
@@ -483,8 +485,12 @@ CLI 는 **서버 없이도 돈다**(dry-run 은 `--server` 없이 완주한다 �
 | --- | --- |
 | REQ-IMP-018 | WHEN CLI 가 출력·리포트를 만들 때 THE SYSTEM SHALL 환경변수로 정한 로케일의 문구를 쓰고, 미지원 값이면 기본 로케일로 떨어진다 |
 | REQ-IMP-019 | WHEN 원본 파일·디렉터리 이름이 정수 접두를 가지면 THE SYSTEM SHALL 폭을 고정한 `sort_key` 를 계약에 실어 형제 순서를 원본과 같게 만든다(§2.2) |
-| REQ-IMP-020 | WHEN 서로 다른 원본 파일이 같은 키를 받으면(스펙 `key`·Task 표시 ID **두 축 모두**) THE SYSTEM SHALL 그 항목들을 적재에서 빼고 리포트에 `aborted` 로 남긴다 — 덮어쓰지 않는다(§2.6b). 2026-08-30 부터 스펙 키는 서버에서도 유일하다([4.4 API 명세](api.md) §1.4i) — CLI 의 이 걸러내기가 그 제약을 만나기 **전에** 사람이 읽을 수 있는 리포트를 만든다 |
+| REQ-IMP-020 | WHEN 서로 다른 원본 파일이 같은 키를 받으면(스펙 `key`·Task 표시 ID **두 축 모두**) THE SYSTEM SHALL 그 항목들을 적재에서 빼고 리포트에 **`skipped`** 로 남긴다 — 덮어쓰지 않는다(§2.6b · 2026-09-07 정정: 예전에는 `aborted` 라 적었는데 코드는 항목만 빼고 계속했다. class 는 종료 코드와 재실행 큐를 가르는 축이라 뜻이 하나여야 한다 — `aborted` 는 실행 전체 중단이다). 2026-08-30 부터 스펙 키는 서버에서도 유일하다([4.4 API 명세](api.md) §1.4i) — CLI 의 이 걸러내기가 그 제약을 만나기 **전에** 사람이 읽을 수 있는 리포트를 만든다 |
 | REQ-IMP-021 | WHEN 배치 항목 수가 계약 상한을 넘으면 THE SYSTEM SHALL 상한 이하로 나눠 보낸다 — 요청받은 크기가 더 커도 그렇다(§2.6c) |
+| REQ-IMP-023 | WHILE `--apply` 로 적재하는 동안 THE SYSTEM SHALL **세 패스 모두**(spec·plan·review) 전송 **전에** `aborted` 항목이 있는지 보고, 있으면 아무것도 보내지 않고 리포트를 낸다 — 중단이라 적어 놓고 중단하지 않으면 그 등급은 이름만 남는다. 2026-09-07 까지 게이트는 spec 패스에만 있었고 plan·review 는 `aborted` 를 적은 채 그대로 보냈다 | 각 패스 L1: `count-mismatch` 를 세우고 전송 0건·종료 코드 2 |
+| REQ-IMP-024 | WHILE §4.1 의 규칙 전표가 슬러그와 class 를 선언하는 동안 THE SYSTEM SHALL 코드의 규칙 상수(`report/index.ts` `RULES`)가 같은 집합을 같은 등급으로 선언하고 그 대조를 L1 이 강제한다. WHEN 리포트 항목을 낼 때 THE SYSTEM SHALL 규칙에 대응하는 권장 조치(`hint`)를 **끝에서 한 번** 채운다 — 항목을 만드는 자리마다 채우면 빠진 자리가 "힌트가 없는 규칙" 과 구별되지 않는다 | 전표 파싱 대조 L1 · 힌트가 카탈로그 키를 그대로 내지 않는다 |
+| REQ-IMP-025 | WHEN 서버가 401·403 으로 답하거나 프로파일을 읽지 못하면 THE SYSTEM SHALL 그 사실을 `server-unauthorized`·`profile-invalid` 항목 하나로 담은 리포트를 쓰고 **종료 코드 2**로 끝낸다 — 예외로 그대로 죽으면 종료 코드가 1 이 되고, 그것은 이 CLI 의 어휘에서 "완료했으나 수동 확인" 이다. WHERE 그 밖의 예외이면 THE SYSTEM SHALL 삼키지 않는다 — 모르는 실패를 아는 실패처럼 적는 것이 더 나쁘다 | 모르는 프로파일 · 401 각 1건: 종료 코드 2 · `report.jsonl` 에 그 슬러그 |
+| REQ-IMP-026 | WHEN 임포트가 리포트를 내면 THE SYSTEM SHALL 스캔 뿌리의 현재 커밋(`root_commit`)을 리포트·매니페스트에 적고 적재 요청에도 실어 보낸다 — 세 리포트가 이 값을 `null` 로 고정한 채 렌더까지 하고 있어(2026-09-07 실측) 사람은 **커밋 없는 임포트 기록**을 읽었고 재실행 때 무엇을 읽었는지 되짚을 근거가 없었다. WHERE 스캔 뿌리가 git 저장소가 아니면 THE SYSTEM SHALL `null` 로 둔다 — 체크아웃 사본이 아닌 트리를 임포트하는 것은 정상이다(§5 0단계) | git 뿌리 1건(40자 SHA) · 비-git 뿌리 1건(null) |
 | REQ-IMP-022 | WHEN 서버가 표시 키를 발급하면 THE SYSTEM SHALL 데이터 모델 §5.1 형식(`<project.key>-<타입>-<base32 6자>`)을 쓴다 — 생성 경로가 달라도 같다(§2.6b) |
 
 ### 3.6 실행 주체 — 운영자 절차 (2026-09-06 개정 · 래퍼 스킬을 걷었다)
@@ -526,9 +532,10 @@ MCP 도구도 추가하지 않는다 — 임포트를 도구 호출 단위로 �
 | `map-conflict` | abort | 매니페스트 없이 서버에 동일 자연 키 실존 — EP-IMP-01 preflight 판정(§3.3) |
 | `server-unauthorized` | abort | 토큰 없음·만료 또는 `import:write` 권한 부족(401/403 — §3.2). 권한 확대를 시도하지 않는다 |
 | `server-rejected` | skip | 서버가 그 항목을 제약 위반으로 거부(응답의 `NERV_*` 코드와 함께 기록 — §3.2(2)). 배치의 나머지 항목은 계속된다 |
-| `id-collision` | abort | 같은 프로젝트에서 frontmatter `id` 충돌(§2.2) |
+| `id-collision` | skip | 같은 프로젝트에서 frontmatter `id` 충돌(§2.2) — **그 항목만 빼고 계속한다**(2026-09-07 정정 · 사람 결정). class 는 종료 코드와 재실행 큐를 가르는 축이라 뜻이 하나여야 하고, `abort` 의 뜻은 **실행 전체 중단**이다. 코드는 처음부터 항목만 빼고 계속했는데 등급만 abort 였다 — 신호는 남는다: skip 도 종료 코드 1 이다 |
 | `dist-mismatch` | warn | status 분포 ≠ 117/17/1 |
-| `frontmatter-missing` / `frontmatter-unparsable` | skip | 제외 글롭 밖 파일에 선두 frontmatter 블록이 없거나 YAML 파싱 실패 |
+| `frontmatter-missing` | warn | 제외 글롭 밖 파일에 선두 frontmatter 블록이 없음 — **적재는 한다**(문서 축이 기본값으로 떨어진다 · 2026-09-07 정정 · 사람 결정). skip 으로 바꾸면 재실행마다 적재 집합이 달라진다 |
+| `frontmatter-unparsable` | skip | 선두 블록이 `---` 로 열렸는데 닫히지 않음(YAML 파싱 실패) |
 | `status-unknown` | skip | 5값(`backlog`/`spec-only`/`partial`/`implemented`/`archived`) 외의 값 |
 | `impl-status-doc-copied` | manual | `partial` 문서 유래 Requirement 전건 — 문서 status 복사값의 요구사항 단위 확정 필요(§2.3) |
 | `req-id-duplicate` | manual | `UNIQUE (project_id, ref)` 충돌 — 첫 정의만 적재(§2.5) |
@@ -544,6 +551,14 @@ MCP 도구도 추가하지 않는다 — 임포트를 도구 호출 단위로 �
 | `source-deleted` | warn | 재실행 시 원본 파일 소멸(§3.4) |
 | `research-doc` | warn | `plan/research/` — Task 미생성, 참고 문서 분류(§2.6) |
 | `title-missing` | warn | 첫 `# ` 헤딩 없음 — 파일명으로 대체(§2.2) |
+| `area-body-missing` | manual | 영역 디렉터리에 본문 파일이 없음 — 노드만 만든다(§2.2) |
+| `plan-spec-unresolved` | skip | 계획이 가리키는 스펙 경로를 이번 스캔에서 찾지 못함 — 기준 버전 없이 적재(§2.6) |
+| `plan-many-refs` | manual | 계획 본문이 요구사항을 여럿 언급 — 무엇을 구현한 것인지 정해지지 않아 링크하지 않는다(§2.6) |
+| `done-at-unrecovered` | manual | 완료 시각을 git 에서 되찾지 못함 — 적재 시각으로 떨어진다(보관 창 판정이 흐려진다 · §2.6) |
+| `review-no-snapshot` | skip | 리뷰가 커밋되지 않아 입력 스냅샷(`head_sha`)을 되찾지 못함(§2.7) |
+| `review-tableless` | manual | 산문 형식 SUMMARY — 세션은 남기되 발견은 사람이 옮긴다(§2.7) |
+
+**이 표는 코드와 대조된다**(2026-09-07 · REQ-IMP-024). `apps/cli/src/report/index.ts` 의 `RULES` 가 같은 집합을 같은 등급으로 선언하고 L1 이 이 문서를 읽어 맞춘다 — 전표가 warn 이라 적은 것을 코드가 `skipped` 로 내면 정상 실행이 종료 코드 1 이 되고, 그 코드를 게이트로 쓰는 쪽은 늘 빨강을 본다. 실제로 세 자리가 갈려 있었다.
 
 이 슬러그들은 임포터 리포트 어휘이며, REST의 `NERV_*` 에러 코드 체계([4.4 API 명세](api.md) 정본)와는 다른 층이다 — 리포트는 실행 산출물이지 API 응답이 아니다.
 

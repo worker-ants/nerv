@@ -12,7 +12,10 @@ import { join } from 'node:path';
 import { t } from './i18n.js';
 import { parseOwnerMap } from './parse/plan.js';
 import { runImport } from './run.js';
-import { exitCode, renderJsonl, renderMarkdown } from './report/index.js';
+import { exitCode, renderJsonl, renderMarkdown, withHints } from './report/index.js';
+import { ImportApiError } from './client/index.js';
+import { ProfileError } from './profiles/index.js';
+import type { ImportReport } from './report/index.js';
 
 export interface CliOptions {
   command: 'spec' | 'plan' | 'review' | 'docs' | 'rebuild-map';
@@ -107,9 +110,48 @@ export function parseArgs(argv: string[]): CliOptions {
   return options;
 }
 
+/**
+ * **리포트 없이 죽지 않는다**(2026-09-07 · REQ-IMP-025).
+ *
+ * 가장 흔한 실패 둘 — 토큰 만료·권한 부족(401/403)과 프로파일 이름 오타 — 이 예외로
+ * 그대로 나가면 종료 코드 1 이 되고, 그것은 이 CLI 의 어휘에서 **"완료했으나 수동 확인"**
+ * 이다. 아무것도 적재되지 않았는데 그렇게 읽히면 다음 사람은 report 를 뒤진다. 둘 다
+ * 중단(2)이고, 그 사실이 리포트에 한 줄로 남아야 한다.
+ *
+ * 그 밖의 예외는 그대로 던진다 — 모르는 실패를 아는 실패처럼 적는 것이 더 나쁘다.
+ */
+function failureReport(options: CliOptions, error: unknown): ImportReport {
+  const rule =
+    error instanceof ImportApiError && (error.status === 401 || error.status === 403)
+      ? ('server-unauthorized' as const)
+      : error instanceof ProfileError
+        ? ('profile-invalid' as const)
+        : null;
+  if (rule === null) throw error;
+  return {
+    profile: options.profile ?? options.profileFile ?? '',
+    root: options.root,
+    rootCommit: null,
+    scanned: 0,
+    converted: 0,
+    entries: [
+      {
+        file: options.profileFile ?? options.root,
+        line: null,
+        rule,
+        reason: error instanceof Error ? error.message : String(error),
+        disposition: 'aborted',
+      },
+    ],
+    expectation: [],
+  };
+}
+
 export async function main(argv: string[]): Promise<number> {
   const options = parseArgs(argv);
-  const report = await runImport(options);
+  const report = withHints(
+    await runImport(options).catch((error) => failureReport(options, error)),
+  );
 
   mkdirSync(options.reportDir, { recursive: true });
   writeFileSync(join(options.reportDir, 'report.md'), renderMarkdown(report), 'utf8');

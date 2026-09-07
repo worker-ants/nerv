@@ -25,6 +25,40 @@ export const en = {
   'blocked.dependency_broken': 'A dependency broke',
   'blocked.external': 'Something outside the repo',
   'blocked.spec_conflict': 'Conflicts with the base spec',
+  'cli.hint.area_body_missing':
+    'Add a body file to the area directory, or confirm the node is meant to have none',
+  'cli.hint.count_mismatch':
+    'Check the expected total in the profile and whether --root and the exclude globs match — a different count means you are reading a different tree',
+  'cli.hint.dist_mismatch':
+    'Only the distribution differs from what was expected — align `expect` in the profile with reality or leave it',
+  'cli.hint.done_at_unrecovered':
+    'Write the completion time in the source if it matters — the retention window falls back to load time',
+  'cli.hint.frontmatter_missing':
+    'The document axis loads with defaults — write frontmatter in the source if you need a chosen value',
+  'cli.hint.id_collision':
+    'Change the stable ID on one of the two documents — both cannot load under the same key',
+  'cli.hint.impl_status_doc_copied':
+    'Settle the implementation status per requirement — this value was copied from the document status',
+  'cli.hint.map_conflict': 'Run `nerv import rebuild-map` to rebuild the manifest, then run again',
+  'cli.hint.pending_plan_unresolved': 'Run again once that plan has loaded as a Task',
+  'cli.hint.plan_many_refs': 'Name the single requirement this plan implements in its body',
+  'cli.hint.plan_spec_unresolved':
+    'Check that the referenced path is in this scan — running the spec pass first resolves it',
+  'cli.hint.profile_invalid':
+    'Fix the profile name or file — stopping before the run is cheaper than loading everything through a wrong mapping',
+  'cli.hint.req_id_duplicate':
+    'Move one of the duplicate requirement IDs to a new number — only the first definition loaded',
+  'cli.hint.req_priority_missing': 'Write the priority in the source — it loaded as NULL',
+  'cli.hint.research_doc': 'A reference document, so no Task was made — nothing to do',
+  'cli.hint.review_no_snapshot':
+    'Commit the review and run again — a review without a snapshot cannot be taken',
+  'cli.hint.review_tableless':
+    'This SUMMARY is prose — a person reads it and moves the findings into the table',
+  'cli.hint.server_rejected':
+    'Read the code in `details`, fix the source, and run again — the rest of the batch loaded',
+  'cli.hint.server_unauthorized':
+    'Reissue the token and check it carries `import:write` — do not retry to widen the scope',
+  'cli.hint.status_unknown': 'Fix the source status to a value inside the vocabulary',
   'cli.reason.frontmatter_missing':
     'No frontmatter — the document status falls back to the default (it is not a chosen value)',
   'cli.reason.map_conflict':
