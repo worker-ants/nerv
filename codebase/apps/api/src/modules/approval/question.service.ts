@@ -33,6 +33,15 @@ export interface QuestionResult extends Record<string, unknown> {
   status: string;
   answer_key: string | null;
   answer_md: string | null;
+  /**
+   * **누가 언제 정했는가**(2026-09-07 · REQ-API-135).
+   *
+   * `answered_by_user_id` 는 처음부터 저장됐는데 어느 응답에도 실리지 않았다 — 스킬과
+   * 카탈로그는 "답변·결정자를 확인" 하라고 말하고 있었다. 답변도 사람이 쓴 텍스트라(§6.3)
+   * 누가 정한 것인지가 그 텍스트를 어떻게 읽을지를 바꾼다. 새 질문에서는 둘 다 null 이다.
+   */
+  answered_by: string | null;
+  answered_at: string | null;
   /** 이 호출이 새 질문을 만들었는가 — false 면 폴링이었다 */
   created: boolean;
 }
@@ -78,19 +87,29 @@ export class QuestionService {
       status: string;
       answer_key: string | null;
       answer_md: string | null;
+      answered_by: string | null;
+      answered_at: string | null;
     }>(sql`
-      SELECT id, status::text AS status, answer_key, answer_md
-        FROM question
-       WHERE project_id = ${input.projectId} AND agent_session_id = ${input.sessionId}
-         AND title = ${input.title}
-       ORDER BY asked_at DESC LIMIT 1
+      SELECT q.id, q.status::text AS status, q.answer_key, q.answer_md,
+             u.display_name AS answered_by, q.answered_at::text AS answered_at
+        FROM question q
+   LEFT JOIN "user" u ON u.id = q.answered_by_user_id
+       WHERE q.project_id = ${input.projectId} AND q.agent_session_id = ${input.sessionId}
+         AND q.title = ${input.title}
+       ORDER BY q.asked_at DESC LIMIT 1
     `);
     const found = existing[0];
     if (found !== undefined) {
       // 폴링 — 새 카드를 만들지 않는다. 받은 요청이 같은 질문으로 덮이지 않게.
       const settled = await this.waitForAnswer(
         found.id,
-        { status: found.status, answer_key: found.answer_key, answer_md: found.answer_md },
+        {
+          status: found.status,
+          answer_key: found.answer_key,
+          answer_md: found.answer_md,
+          answered_by: found.answered_by,
+          answered_at: found.answered_at,
+        },
         input.waitSeconds,
       );
       return { ...settled, question_id: found.id, created: false };
@@ -138,6 +157,8 @@ export class QuestionService {
         status: 'open',
         answer_key: null,
         answer_md: null,
+        answered_by: null,
+        answered_at: null,
         created: true,
       };
     });
@@ -145,7 +166,13 @@ export class QuestionService {
     // 만들자마자 기다릴 수도 있다 — blocking 질문에서는 그것이 자연스러운 흐름이다
     const settled = await this.waitForAnswer(
       made.question_id,
-      { status: made.status, answer_key: made.answer_key, answer_md: made.answer_md },
+      {
+        status: made.status,
+        answer_key: made.answer_key,
+        answer_md: made.answer_md,
+        answered_by: made.answered_by,
+        answered_at: made.answered_at,
+      },
       input.waitSeconds,
     );
     return { ...made, ...settled };
@@ -161,9 +188,14 @@ export class QuestionService {
    */
   private async waitForAnswer(
     questionId: string,
-    current: Pick<QuestionResult, 'status' | 'answer_key' | 'answer_md'>,
+    current: Pick<
+      QuestionResult,
+      'status' | 'answer_key' | 'answer_md' | 'answered_by' | 'answered_at'
+    >,
     seconds: number | undefined,
-  ): Promise<Pick<QuestionResult, 'status' | 'answer_key' | 'answer_md'>> {
+  ): Promise<
+    Pick<QuestionResult, 'status' | 'answer_key' | 'answer_md' | 'answered_by' | 'answered_at'>
+  > {
     const budget = Math.min(Math.max(Math.floor(seconds ?? 0), 0), MAX_WAIT_SECONDS);
     // 이미 답이 있으면 기다릴 것이 없다 — 부른 쪽이 들고 온 값이 그대로 답이다
     if (budget === 0 || current.status !== 'open') return current;
@@ -171,22 +203,38 @@ export class QuestionService {
     let status: string = current.status;
     let answerKey = current.answer_key;
     let answerMd = current.answer_md;
+    let answeredBy = current.answered_by;
+    let answeredAt = current.answered_at;
     for (let waited = 0; status === 'open' && waited < budget; waited += 1) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       const { rows } = await this.db.execute<{
         status: string;
         answer_key: string | null;
         answer_md: string | null;
+        answered_by: string | null;
+        answered_at: string | null;
       }>(sql`
-        SELECT status::text AS status, answer_key, answer_md FROM question WHERE id = ${questionId}
+        SELECT q.status::text AS status, q.answer_key, q.answer_md,
+               u.display_name AS answered_by, q.answered_at::text AS answered_at
+          FROM question q
+     LEFT JOIN "user" u ON u.id = q.answered_by_user_id
+         WHERE q.id = ${questionId}
       `);
       const row = rows[0];
       if (row === undefined) break;
       status = row.status;
       answerKey = row.answer_key;
       answerMd = row.answer_md;
+      answeredBy = row.answered_by;
+      answeredAt = row.answered_at;
     }
-    return { status, answer_key: answerKey, answer_md: answerMd };
+    return {
+      status,
+      answer_key: answerKey,
+      answer_md: answerMd,
+      answered_by: answeredBy,
+      answered_at: answeredAt,
+    };
   }
 
   /** 출처의 Task — 키든 UUID 든(§1.4b). 못 찾으면 조용히 버리지 않고 말한다 */
@@ -390,12 +438,14 @@ export class QuestionService {
    */
   async pendingFor(sessionId: string): Promise<Record<string, unknown>[]> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT 'question_answered' AS kind, id AS question_id, title,
-             answer_key, answer_md, answered_at::text AS answered_at
-        FROM question
-       WHERE agent_session_id = ${sessionId} AND status = 'answered'
-         AND answered_at > now() - interval '1 hour'
-       ORDER BY answered_at DESC LIMIT 10
+      SELECT 'question_answered' AS kind, q.id AS question_id, q.title,
+             q.answer_key, q.answer_md, q.answered_at::text AS answered_at,
+             u.display_name AS answered_by
+        FROM question q
+   LEFT JOIN "user" u ON u.id = q.answered_by_user_id
+       WHERE q.agent_session_id = ${sessionId} AND q.status = 'answered'
+         AND q.answered_at > now() - interval '1 hour'
+       ORDER BY q.answered_at DESC LIMIT 10
     `);
 
     // **사람 → 에이전트 역채널의 둘째 종류**(2026-08-30 · REQ-API-058).

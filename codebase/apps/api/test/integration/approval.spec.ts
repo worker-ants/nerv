@@ -702,6 +702,119 @@ describe('E13-S01 게이트 면제 — 면제도 결재 레코드다 (FR-10)', (
   });
 });
 
+/**
+ * **결정은 요청한 세션에게 돌아간다**(2026-09-07 · REQ-API-133·134 · FR-11).
+ *
+ * A3 승인을 기다리는 에이전트는 승인이 나도 그것을 들을 길이 없었다 — 서버→세션 방향의
+ * 보장 채널은 하트비트 하나인데(§2.4) 결재 결정이 거기 실리지 않았고, 기다리는 세션은
+ * S5 에 `active` 로 보였다. 실데이터 결재 11건 중 4건이 세션 기원이다.
+ */
+describe('승인은 요청한 세션에게 돌아간다 (REQ-API-133·134)', () => {
+  async function sessionApproval(): Promise<string> {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+      requestedBySessionId: sessionId,
+    });
+    await pool.query(`UPDATE agent_session SET state = 'awaiting_input' WHERE id = $1`, [
+      sessionId,
+    ]);
+    return approval_id;
+  }
+
+  async function stateOfSession(): Promise<string | null> {
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    return rows[0]?.state ?? null;
+  }
+
+  it('결정이 세션을 깨우고 그 사실이 역채널에 실린다', async () => {
+    const approvalId = await sessionApproval();
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId,
+      userId: reviewer,
+      decision: 'approve',
+    });
+
+    expect(await stateOfSession()).toBe('active');
+    const pending = await approvals.pendingDecisionsFor(sessionId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({
+      kind: 'approval_decided',
+      approval_id: approvalId,
+      subject_type: 'plan',
+      decision: 'approve',
+    });
+  });
+
+  it('다른 대기 사유가 남아 있으면 깨우지 않는다 — 열린 blocking 질문', async () => {
+    const approvalId = await sessionApproval();
+    await questions.create({
+      projectId,
+      sessionId,
+      title: '이것도 정해 주세요',
+      urgency: 'blocking',
+    });
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId,
+      userId: reviewer,
+      decision: 'approve',
+    });
+
+    expect(await stateOfSession()).toBe('awaiting_input');
+  });
+
+  it('결정되지 않은 다른 결재가 남아 있어도 깨우지 않는다', async () => {
+    const first = await sessionApproval();
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+      requestedBySessionId: sessionId,
+    });
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: first,
+      userId: reviewer,
+      decision: 'approve',
+    });
+
+    expect(await stateOfSession()).toBe('awaiting_input');
+  });
+
+  it('세션이 올린 것이 아니면 아무 세션도 건드리지 않는다', async () => {
+    await pool.query(`UPDATE agent_session SET state = 'awaiting_input' WHERE id = $1`, [
+      sessionId,
+    ]);
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+
+    expect(await stateOfSession()).toBe('awaiting_input');
+    expect(await approvals.pendingDecisionsFor(sessionId)).toEqual([]);
+  });
+});
+
 describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
   it('blocking 질문은 세션을 awaiting_input 으로 세운다 (P7)', async () => {
     await questions.create({

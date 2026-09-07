@@ -555,6 +555,43 @@ describe('E09-S04 위험도 가변 게이트 (D-06)', () => {
     expect(rows[0]).toMatchObject({ actor: planner, approver: null });
   });
 
+  /**
+   * **기다리는 세션은 기다린다고 말한다**(2026-09-07 · REQ-API-134 · FR-11).
+   * `awaiting_input` 을 세우는 자리는 질문 하나뿐이라, T2·T3 제출을 올린 세션은 사람의
+   * 결재를 기다리는 동안 S5 에 `active` 로 보였다.
+   */
+  it('세션의 T2 제출은 그 세션을 awaiting_input 으로 세운다', async () => {
+    const sessionId = await makeSession();
+    const { specId, versionId } = await newDraft('SPC-T2-SESSION');
+    await raiseTier(specId, versionId);
+
+    const result = await specs.submitReview({
+      projectId,
+      specVersionId: versionId,
+      sessionId,
+      userId: planner,
+    });
+    expect(result.status).toBe('in_review');
+    expect(await sessionState(sessionId)).toBe('awaiting_input');
+  });
+
+  it('자동 통과와 사람 제출은 세션 상태를 건드리지 않는다', async () => {
+    const sessionId = await makeSession();
+    const auto = await newDraft('SPC-T0-SESSION', '# 오탈자 정정 셋');
+    await specs.submitReview({
+      projectId,
+      specVersionId: auto.versionId,
+      sessionId,
+      userId: planner,
+    });
+    expect(await sessionState(sessionId)).toBe('active');
+
+    const human = await newDraft('SPC-T2-HUMAN');
+    await raiseTier(human.specId, human.versionId);
+    await specs.submitReview({ projectId, specVersionId: human.versionId, userId: planner });
+    expect(await sessionState(sessionId)).toBe('active');
+  });
+
   it('참조가 많으면 티어가 올라가 승인 대기로 간다', async () => {
     const { specId, versionId } = await newDraft('SPC-T2');
     await raiseTier(specId, versionId);
@@ -730,6 +767,25 @@ describe('E09-S07 재브리핑·참조 전파 (§3.3)', () => {
  * 게이트 티어를 T2 이상으로 올린다 — 자동 통과를 피하려는 장치다.
  * 참조 6건(영향 범위 2점) + 요구사항 1건(부작용 1점) + feature(민감도 1점) = 4점 → T2.
  */
+/** 이 스위트에는 세션이 없다 — 상태 전이를 보는 검사만 하나 만들어 쓴다 */
+async function makeSession(): Promise<string> {
+  const id = newId();
+  await pool.query(
+    `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+     VALUES ($1,$2,$3,'claude-code','mac-spec','active')`,
+    [id, projectId, planner],
+  );
+  return id;
+}
+
+async function sessionState(sessionId: string): Promise<string | null> {
+  const { rows } = await pool.query<{ state: string }>(
+    `SELECT state::text AS state FROM agent_session WHERE id = $1`,
+    [sessionId],
+  );
+  return rows[0]?.state ?? null;
+}
+
 async function raiseTier(specId: string, versionId?: string): Promise<void> {
   if (versionId !== undefined) {
     await pool.query(

@@ -94,6 +94,8 @@ beforeEach(async () => {
   // 질문도 Task 를 참조한다 — 막힘의 해소 조건(REQ-API-118)이 그 관계를 읽으므로
   // 이 스위트가 질문을 만든다. 증적과 같은 이유로 Task 보다 먼저 지운다.
   await pool.query('DELETE FROM question');
+  // 결재도 지운다 — 하트비트 역채널이 1시간 창으로 읽으므로 앞 테스트의 결정이 따라온다
+  await pool.query('DELETE FROM approval');
   await pool.query('DELETE FROM task');
   await pool.query('TRUNCATE event');
   // 세션도 되돌린다 — 리스 만료·유휴 회수 테스트가 세션을 stale 로 만들고 가는데,
@@ -400,6 +402,83 @@ describe('E04-S03 하트비트·리스 연장', () => {
       'steer',
       'question_answered',
     ]);
+  });
+
+  /**
+   * **결재 결정도 역채널을 탄다**(2026-09-07 · REQ-API-133). 이 채널이 없던 동안
+   * `NERV_APPROVAL_REQUIRED` 는 "하트비트로 확인하라" 는 다음 행동을 주면서 정작 하트비트에
+   * 그 결과를 싣지 않았다 — 있는 것처럼 말하는 채널이 없는 채널보다 나쁘다.
+   */
+  it('결재 결정이 답변 앞에 실리고, 지시와 달리 창이 닫힐 때까지 다시 실린다', async () => {
+    const taskId = await makeTask('CLV-T-HB0001');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    const asked = await questions.create({
+      projectId,
+      sessionId: sessionHana,
+      title: '이 스펙으로 진행할까요?',
+    });
+    await questions.answer({
+      projectId,
+      questionId: asked.question_id,
+      userId: hana,
+      actor: { userId: hana, isAgent: false },
+      answerMd: '그렇게 하자',
+    });
+    // 이 세션이 올린 결재가 방금 승인됐다 — 결재 서비스의 판정 경로는 approval.spec 이 본다
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                             requested_by_session_id, assignee_user_id, decision, decided_at)
+       VALUES ($1,$2,'plan',$3,$4,$5,$6,'approve', now())`,
+      [newId(), projectId, newId(), hana, sessionHana, dohyun],
+    );
+    await sessions.steer({
+      actor: { userId: hana, isAgent: false },
+      projectId,
+      sessionId: sessionHana,
+      kind: 'steer',
+      message: '승인 났으니 이어 가라',
+      userId: hana,
+    });
+
+    const beat = await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) });
+    expect(beat.pending.map((p) => (p as Record<string, unknown>)['kind'])).toEqual([
+      'steer',
+      'approval_decided',
+      'question_answered',
+    ]);
+    expect(beat.pending[1]).toMatchObject({ decision: 'approve', decided_by: '도현' });
+
+    // 지시는 한 번이고 결재·답변은 창이 닫힐 때까지 남는다 — 하트비트는 유실될 수 있는
+    // 호출이라, 한 번 싣고 지우면 그 결정은 아무도 모르는 결정이 된다
+    const again = await tasks.heartbeat({
+      claimId: claim.claimId,
+      actor: actor(sessionHana, hana),
+    });
+    expect(again.pending.map((p) => (p as Record<string, unknown>)['kind'])).toEqual([
+      'approval_decided',
+      'question_answered',
+    ]);
+  });
+
+  it('답변은 누가 언제 정했는지도 싣는다 (REQ-API-135)', async () => {
+    const taskId = await makeTask('CLV-T-HB0002');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    const asked = await questions.create({
+      projectId,
+      sessionId: sessionHana,
+      title: '어느 쪽으로 갈까요?',
+    });
+    await questions.answer({
+      projectId,
+      questionId: asked.question_id,
+      userId: dohyun,
+      actor: { userId: dohyun, isAgent: false },
+      answerMd: '왼쪽',
+    });
+
+    const beat = await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) });
+    expect(beat.pending[0]).toMatchObject({ kind: 'question_answered', answered_by: '도현' });
+    expect((beat.pending[0] as Record<string, unknown>)['answered_at']).toEqual(expect.any(String));
   });
 
   it('만료된 리스로 하트비트하면 NERV_LEASE_EXPIRED', async () => {

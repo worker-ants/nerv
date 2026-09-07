@@ -937,6 +937,17 @@ export class ReviewService {
         subjectId: approvalId,
         payload: { subject_type: 'finding', reason: 'critical_downgrade' },
       });
+
+      // **기다리는 세션은 기다린다고 말한다**(2026-09-07 · REQ-API-134 · FR-11). 여기가
+      // `NERV_APPROVAL_REQUIRED` 를 던지는 유일한 자리인데 세션은 `active` 로 남아 있어서,
+      // S5 를 보는 사람은 **누가 무엇을 기다리는지** 알 수 없었다. 결정이 나면 `decide()` 가
+      // 되돌리고 그 사실이 하트비트로 이 세션에 온다(REQ-API-133).
+      if (input.sessionId != null) {
+        await tx.execute(sql`
+          UPDATE agent_session SET state = 'awaiting_input'
+           WHERE id = ${input.sessionId} AND state IN ('pending', 'active')
+        `);
+      }
       return { approved: false, id: approvalId };
     });
 

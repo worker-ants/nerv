@@ -781,6 +781,8 @@ export class TaskService {
       subjectType: 'plan',
       subjectId: taskId,
       requestedByUserId: input.userId,
+      // 막힌 것은 이 세션이다 — 승인이 나면 그 사실이 하트비트로 여기로 온다(REQ-API-133)
+      requestedBySessionId: input.sessionId ?? null,
     });
     throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.plan_approval_required'), {
       kind: 'plan_approval_required',
@@ -1215,17 +1217,20 @@ export class TaskService {
      * `task.rebrief_required` 이벤트도 난다. 하트비트는 **그 사실을 클레임한 세션에게**
      * 실어 나른다: 이벤트는 화면이 받고, 에이전트가 보장받는 채널은 이것뿐이다.
      */
-    const [answers, instructions, basis] = await Promise.all([
+    const [answers, instructions, basis, decisions] = await Promise.all([
       this.questions.pendingFor(sessionId),
       this.sessions.takePendingInstructions(sessionId),
       this.supersededBasisFor(input.claimId),
+      this.approvals.pendingDecisionsFor(sessionId),
     ]);
     // 지시가 앞이다 — stop 은 지금 하던 것을 멈추라는 말이라 답변보다 먼저 읽혀야 한다.
     // 기준 드리프트는 그다음이다: 멈추라는 말보다 급하지 않지만 답변보다는 앞선다 —
     // 답을 받아 재개하는 순간 그 답이 옛 기준 위에 얹히면 안 되기 때문이다.
+    // **결재 결정은 답변 앞이다**(2026-09-07 · REQ-API-133): 승인이 났으면 재개는 그 위에서
+    // 시작해야 하고, 거절이면 답변을 읽어 이어 갈 일 자체가 없어진다.
     return {
       leaseExpiresAt,
-      pending: [...instructions, ...basis, ...answers],
+      pending: [...instructions, ...basis, ...decisions, ...answers],
       scopeOverlaps,
     };
   }

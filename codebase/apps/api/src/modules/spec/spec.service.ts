@@ -1073,6 +1073,19 @@ export class SpecService {
         payload: { gate_tier: gate.tier, required_approvers: gate.requiredApprovers },
       });
 
+      // **기다리는 세션은 기다린다고 말한다**(2026-09-07 · REQ-API-134 · FR-11).
+      //
+      // `awaiting_input` 을 세우는 자리는 질문 하나뿐이었다. 그래서 T2·T3 제출을 올린
+      // 에이전트 세션은 사람의 결재를 기다리는 동안 S5 에 **`active`** 로 보였다 — 화면은
+      // 일하고 있는 세션과 사람을 기다리는 세션을 구별하지 못했고, 그 구별이 P7 이 세우려던
+      // 것이다. 결정이 나면 `decide()` 가 되돌린다.
+      if (input.sessionId != null) {
+        await tx.execute(sql`
+          UPDATE agent_session SET state = 'awaiting_input'
+           WHERE id = ${input.sessionId} AND state IN ('pending', 'active')
+        `);
+      }
+
       // T2·T3 은 받은 요청이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다
       return { status: 'in_review', gate, approval_id: approvalId, web_url: '/inbox' };
     });
