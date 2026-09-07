@@ -89,7 +89,13 @@ export function classifyPlan(
     status = 'backlog';
     if (worktree === null) warnings.push(t()('cli.reason.no_worktree'));
   } else {
-    status = 'in_progress';
+    // **임포트가 만든 진행 중은 아무도 하지 않는 진행 중이다**(2026-09-07 · 사람 결정 ·
+    // REQ-IMP-031). 원본의 worktree 는 "그 저장소에서 누군가 작업 중이었다" 는 사실이지
+    // 이 플랫폼의 세션이 그 Task 를 쥐고 있다는 뜻이 아니다 — 그렇게 적재하면 **활성
+    // 클레임 없는 `in_progress`** 가 되고(실측 24건), 그 Task 는 큐에도 안 보이고
+    // 리스 만료로 회수되지도 않는다. 사실은 리포트에 남기고 상태는 `backlog` 다.
+    status = 'backlog';
+    warnings.push(t()('cli.reason.plan_source_in_progress', { worktree }));
   }
 
   const startedRaw = input.frontmatter['started'];

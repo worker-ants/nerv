@@ -9,7 +9,8 @@
 // 그래서 적용된 스키마의 사실을 직접 조회해 고정한다.
 
 import { randomUUID } from 'node:crypto';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { PARTITION_MONTHS_AHEAD } from '@nerv/schema';
 import { migrationsFolder, runMigrations } from '@nerv/schema/migrate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -299,3 +300,72 @@ async function seedTenancy(c: import('pg').Client): Promise<{
   );
   return { orgId, userId, projectId };
 }
+
+/**
+ * **0025 는 데이터 마이그레이션이다** — 스키마가 아니라 사실을 고친다(2026-09-07 · 사람 결정).
+ *
+ * 임포트가 만든 `claimed`/`in_progress` 24건에 활성 클레임이 없었다. 그 Task 들은
+ * **아무 데도 없다**: 큐에도 안 보이고, 활성 클레임이 없으니 리스 만료로 회수되지도
+ * 않으며, 세션 보드에도 뜨지 않는다 — 상태만 "진행 중" 이라 사람은 누군가 하고 있다고
+ * 읽는다. 스키마 스냅샷 대조로는 이런 마이그레이션이 무엇을 했는지 알 수 없어 여기서 태운다.
+ */
+describe('0025 — 임포트가 만든 고아 진행 중을 backlog 로 (사람 결정)', () => {
+  const PLACEHOLDER = '(임포트 — 원본에 위임 명세 없음)';
+
+  async function seedTask(
+    client: Parameters<Parameters<typeof withClient>[1]>[0],
+    key: string,
+    status: string,
+    goal: string,
+  ): Promise<string> {
+    const id = randomUUID();
+    await client.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1, (SELECT id FROM project LIMIT 1), $2, $2, $3::task_status, $4, $4, $4, $4)`,
+      [id, key, status, goal],
+    );
+    return id;
+  }
+
+  it('클레임 없는 placeholder 진행 중만 되돌린다 — 나머지는 손대지 않는다', async () => {
+    const fresh = await createScratchDb('nerv_orphan');
+    try {
+      await runMigrations(fresh.url);
+      const result = await withClient(fresh.url, async (client) => {
+        await client.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'o','O')`, [
+          randomUUID(),
+        ]);
+        await client.query(
+          `INSERT INTO project (id, org_id, slug, key, name)
+           VALUES ($1,(SELECT id FROM organization LIMIT 1),'p','P','P')`,
+          [randomUUID()],
+        );
+        const orphan = await seedTask(client, 'P-T-ORPHAN', 'in_progress', PLACEHOLDER);
+        // 사람이 쓴 브리프를 가진 진행 중 — 임포트가 만든 것이 아니다
+        const authored = await seedTask(client, 'P-T-REAL', 'in_progress', '진짜 목표');
+
+        // 0025 를 손으로 다시 돌린다(마이그레이션은 이미 적용됐고, 멱등을 함께 본다)
+        const sql = readFileSync(
+          join(migrationsFolder(), '0025_orphan_imported_tasks.sql'),
+          'utf8',
+        );
+        await client.query(sql);
+        await client.query(sql); // 두 번째는 0건이어야 한다
+
+        const { rows } = await client.query<{ id: string; status: string }>(
+          `SELECT id, status::text AS status FROM task WHERE id = ANY($1)`,
+          [[orphan, authored]],
+        );
+        return { orphan, authored, rows };
+      });
+
+      const statusOf = (id: string): string => result.rows.find((r) => r.id === id)?.status ?? '';
+      expect(statusOf(result.orphan)).toBe('backlog');
+      // 사람이 쓴 것은 건드리지 않는다 — 이 마이그레이션의 대상은 placeholder 뿐이다
+      expect(statusOf(result.authored)).toBe('in_progress');
+    } finally {
+      await fresh.drop();
+    }
+  });
+});

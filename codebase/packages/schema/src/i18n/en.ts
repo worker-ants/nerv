@@ -75,6 +75,8 @@ export const en = {
     'The body names {count} requirements — the document does not say which one it implements, so no link is made',
   'cli.reason.plan_no_done_at':
     'Could not recover the completion time from git — it falls back to the import time (blurring the archive window)',
+  'cli.reason.plan_source_in_progress':
+    'The source was in progress (worktree: {worktree}) — loaded as backlog so no unclaimed in-progress task is created',
   'cli.reason.plan_spec_unresolved':
     'Could not resolve the spec this plan points at — it loads without a basis version ({paths})',
   'cli.reason.rebuild_needs_server':
