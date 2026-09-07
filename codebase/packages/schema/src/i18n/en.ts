@@ -824,6 +824,7 @@ export const en = {
   'inbox.card.quorum': '{given}/{required} approved',
   'inbox.card.quorum_pending': 'Still needs {n} more approval from {role} — not final yet.',
   'inbox.card.role_queue': '{role} queue',
+  'inbox.card.role_queue_any': 'another approver',
   'inbox.card.cannot_approve.author': 'You wrote this draft — someone else has to approve it.',
   'inbox.card.cannot_approve.session_owner':
     'Your session wrote this draft — someone else has to approve it.',

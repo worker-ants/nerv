@@ -32,6 +32,8 @@ Answering **wakes the session immediately.**
 
 **The inbox only shows what is waiting on you.** Cards used to be visible to every member, which made them read as your own work even without the right to decide — now they reach the assignee, that discipline, the default queue and admins.
 
+**The most sensitive documents need two people.** A top-tier (T3) document is confirmed only when **two different people** approve it, and the second seat belongs to the discipline that owns that document type. The card shows how many of how many (`1/2`), and after the first approval **the document is still in review** — approving says so instead of pretending it is done. One person cannot fill both seats.
+
 An approval card offers three things: **approve, reject, comment**. **A rejection requires a reason** — without one the requester cannot tell what to do next. A comment does not force one, though for the same reason it is better to give one.
 
 **A question card is different** — it has one button, [Send answer], and `a` and `r` do nothing there.

@@ -214,8 +214,24 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
         idempotencyKey: `decision-${id}-${decision}`,
       });
     },
-    onSuccess: (_result, decision) => {
+    onSuccess: (result, decision) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inbox() });
+      // **아직 확정이 아니면 그렇게 말한다**(2026-09-07 · REQ-WEB-146). T3 는 서로 다른
+      // 두 사람이 승인해야 문서가 움직이는데, "승인했습니다" 만 뜨면 승인자는 자기가
+      // 마지막 결재라고 믿는다 — 그것이 게이트가 조용히 약해지는 자리다.
+      const quorum = (
+        result as { quorum?: { given: number; required: number; satisfied: boolean } }
+      )?.quorum;
+      if (!isQuestion && decision === 'approve' && quorum?.satisfied === false) {
+        pushToast({
+          tone: 'warn',
+          message: t('inbox.card.quorum_pending', {
+            n: quorum.required - quorum.given,
+            role: String(card['assignee_role'] ?? t('inbox.card.role_queue_any')),
+          }),
+        });
+        return;
+      }
       // 처리됨 트레일 — 3분 유지(ui-wireframes §4.1)
       pushToast({
         tone: 'ok',
@@ -293,6 +309,25 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
         <span className="shrink-0 text-xs text-text-mute">
           {String(card['project_slug'] ?? '')}
         </span>
+        {/* **몇 명 중 몇 명인지 보인다**(2026-09-07 · REQ-WEB-146). T3 는 서로 다른 두 사람이
+            승인해야 확정되는데, 카드가 그 사실을 말하지 않으면 첫 승인자는 자기가 마지막
+            결재라고 믿는다 — 조용히 약해진 게이트는 없는 게이트보다 나쁘다. */}
+        {Number(card['approvals_required'] ?? 1) > 1 && (
+          <span
+            data-testid="quorum"
+            className="shrink-0 rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 text-xs font-medium text-status-waiting"
+          >
+            {t('inbox.card.quorum', {
+              given: Number(card['approvals_given'] ?? 0),
+              required: Number(card['approvals_required'] ?? 1),
+            })}
+          </span>
+        )}
+        {typeof card['assignee_role'] === 'string' && (
+          <span data-testid="role-queue" className="shrink-0 text-xs text-text-faint">
+            {t('inbox.card.role_queue', { role: card['assignee_role'] })}
+          </span>
+        )}
         {/* 기다린 시간은 **오래될수록 눈에 띄어야 한다** — 한 시간 넘게 묵은 요청이
             방금 온 요청과 같은 회색이면 목록의 순서만으로는 묻힌다 */}
         {/* **결정된 카드는 기다리는 중이 아니다**(2026-09-03). 처리됨 탭에서도 대기 시간이

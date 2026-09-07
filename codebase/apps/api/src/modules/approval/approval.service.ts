@@ -25,8 +25,10 @@ import { sql } from 'drizzle-orm';
 import {
   DECIDER_ROLES,
   canApproveReasonSql,
+  quorumSql,
   canApproveSql,
   eligibleSql,
+  quorumColumnsSql,
   selfKindOf,
 } from './approval-policy.js';
 import { InjectDb } from '../../common/database.module.js';
@@ -133,16 +135,33 @@ export class ApprovalService {
     tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
     emit: Parameters<Parameters<EventService['transact']>[0]>[1],
     input: { projectId: string; userId: string; decision: ApprovalDecision; comment?: string },
-    approval: { subject_type: string; subject_id: string },
-  ): Promise<void> {
-    if (approval.subject_type !== 'spec_version') return;
+    approval: { subject_type: string; subject_id: string; submitted_at?: string | null },
+  ): Promise<{ given: number; required: number; satisfied: boolean } | null> {
+    if (approval.subject_type !== 'spec_version') return null;
     if (input.decision === 'approve') {
+      // **정족수 집계는 직렬화한다**(2026-09-07 · REQ-API-140). 두 승인이 동시에 들어오면
+      // 각자 "나까지 1건" 을 세고 **아무도 전이하지 않는** 경합이 생긴다 — 대상 행을 먼저
+      // 잠가 한 줄로 세운다. 잠그는 것이 결재 행이 아니라 문서인 이유는, 세는 대상이
+      // 그 문서의 슬롯 전부이기 때문이다.
+      await tx.execute(
+        sql`SELECT id FROM spec_version WHERE id = ${approval.subject_id} FOR UPDATE`,
+      );
+      const { rows: counted } = await tx.execute<{ required: number; given: number }>(
+        quorumSql(approval.subject_id, approval.submitted_at ?? null),
+      );
+      const required = counted[0]?.required ?? 1;
+      const given = counted[0]?.given ?? 0;
+      if (given < required) {
+        // **아직 확정이 아니다.** 이 자리가 없던 동안 첫 승인이 문서를 approved 로 옮겼고,
+        // T3 의 "서로 다른 2인" 은 문서에만 적혀 있는 약속이었다(실측 3건 모두 1인 승인).
+        return { given, required, satisfied: false };
+      }
       await this.specs.approveInTxForApproval(tx, emit, {
         projectId: input.projectId,
         specVersionId: approval.subject_id,
         approverUserId: input.userId,
       });
-      return;
+      return { given, required, satisfied: true };
     }
     // **`comment` 도 문서를 움직인다** — 되돌려 놓는다(2026-09-02).
     //
@@ -164,6 +183,7 @@ export class ApprovalService {
         ...(input.decision === 'comment' ? { asComment: true } : {}),
       });
     }
+    return null;
   }
 
   /**
@@ -187,6 +207,7 @@ export class ApprovalService {
              a.assignee_role::text AS assignee_role,
              ${canApproveSql(input.userId)},
              ${canApproveReasonSql(input.userId)},
+             ${quorumColumnsSql()},
              encode(sv.content_hash, 'hex') AS content_hash
         FROM approval a
         JOIN "user" u ON u.id = a.requested_by_user_id
@@ -235,6 +256,7 @@ export class ApprovalService {
              a.assignee_role::text AS assignee_role,
              ${canApproveSql(input.userId)},
              ${canApproveReasonSql(input.userId)},
+             ${quorumColumnsSql()},
              s.key AS spec_key, s.title AS spec_title, sv.version_no,
              encode(sv.content_hash, 'hex') AS content_hash,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
@@ -321,6 +343,7 @@ export class ApprovalService {
              a.assignee_role::text AS assignee_role,
              ${canApproveSql(input.userId)},
              ${canApproveReasonSql(input.userId)},
+             ${quorumColumnsSql()},
              s.key AS spec_key, s.title AS spec_title, sv.version_no, sv.body_md,
              sv.change_summary_md, encode(sv.content_hash, 'hex') AS content_hash
         FROM approval a
@@ -414,7 +437,13 @@ export class ApprovalService {
     comment?: string;
     /** 카드를 연 시점의 내용 지문. 없으면 검사하지 않는다(코멘트 결정 등) */
     seenContentHash?: string | null;
-  }): Promise<{ decision: ApprovalDecision; subject_type: string; subject_id: string }> {
+  }): Promise<{
+    decision: ApprovalDecision;
+    subject_type: string;
+    subject_id: string;
+    /** 정족수 — 스펙 승인에만 있다. `satisfied: false` 면 **아직 확정이 아니다** */
+    quorum?: { given: number; required: number; satisfied: boolean };
+  }> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
     const decision = assertVocab([input.decision], approvalDecision.enumValues, 'decision')[0];
     assertHuman(input.actor, 'inbox_decide', '/inbox');
@@ -499,6 +528,27 @@ export class ApprovalService {
       }
       const selfApprove = selfKind !== null && input.decision === 'approve';
 
+      // **한 사람은 한 번**(2026-09-07 · REQ-API-140). 정족수가 "서로 다른 사용자 2인" 인데
+      // 같은 사람이 슬롯 둘을 채우면 그 게이트는 이름만 남는다. 라운드 경계는
+      // `submitted_at` 이라, 거절 뒤 다시 제출하면 옛 승인은 세지 않는다.
+      if (input.decision === 'approve') {
+        const { rows: mine } = await tx.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n FROM approval prev
+           WHERE prev.subject_type = ${approval.subject_type}
+             AND prev.subject_id = ${approval.subject_id}
+             AND prev.decision = 'approve' AND prev.assignee_user_id = ${input.userId}
+             AND NOT prev.is_bypass
+             AND (${approval.submitted_at}::timestamptz IS NULL
+                  OR prev.decided_at >= ${approval.submitted_at}::timestamptz)
+        `);
+        if ((mine[0]?.n ?? 0) > 0) {
+          throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.already_approved'), {
+            kind: 'already_approved',
+            subject_id: approval.subject_id,
+          });
+        }
+      }
+
       await tx.execute(sql`
         UPDATE approval
            SET decision = ${decision}::approval_decision,
@@ -517,7 +567,7 @@ export class ApprovalService {
       //
       // **같은 트랜잭션이다.** 웹이 두 번 부르게 하면 그 사이의 실패가 정확히 이 상태를
       // 다시 만들고, 판정이 표면으로 새어 나간다(D-05).
-      await this.applyToSubject(tx, emit, input, approval);
+      const quorum = await this.applyToSubject(tx, emit, input, approval);
 
       // **결정을 요청한 세션에게 돌려준다**(2026-09-07 · REQ-API-133 · FR-11).
       //
@@ -571,6 +621,7 @@ export class ApprovalService {
         decision: input.decision,
         subject_type: approval.subject_type,
         subject_id: approval.subject_id,
+        ...(quorum === null ? {} : { quorum }),
       };
     });
   }

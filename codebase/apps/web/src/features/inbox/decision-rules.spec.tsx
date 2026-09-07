@@ -29,14 +29,24 @@ vi.mock('socket.io-client', () => ({
 }));
 
 let posted: { url: string; body: unknown }[] = [];
+/** 결정 응답의 정족수 — 검사마다 갈아 끼운다 */
+let quorumResponse: { given: number; required: number; satisfied: boolean } | null = null;
 
 beforeEach(() => {
   posted = [];
+  quorumResponse = null;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: { body?: string }) => {
       posted.push({ url, body: init?.body === undefined ? null : JSON.parse(init.body) });
-      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          ...(quorumResponse === null ? {} : { quorum: quorumResponse }),
+        }),
+      };
     }),
   );
 });
@@ -231,5 +241,34 @@ describe('REQ-WEB-145 — 못 누르는 이유를 말한다', () => {
     renderCard({ ...APPROVAL, can_approve: true, can_approve_reason: null });
     expect(screen.queryByTestId('self-requested-note')).toBeNull();
     expect((screen.getByTestId('approve') as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+/**
+ * **정족수는 카드에 보인다**(2026-09-07 · REQ-WEB-146). 서버가 n/2 와 확정 여부를 준다 —
+ * 화면이 그것을 말하지 않으면 첫 승인자는 자기가 마지막 결재라고 믿는다.
+ */
+describe('REQ-WEB-146 — 몇 명 중 몇 명인지 말한다', () => {
+  it('필요 승인이 둘이면 1/2 를 그리고 직군 큐를 표기한다', () => {
+    renderCard({
+      ...APPROVAL,
+      approvals_required: 2,
+      approvals_given: 1,
+      assignee_role: 'developer',
+    });
+    expect(screen.getByTestId('quorum').textContent).toContain('1/2');
+    expect(screen.getByTestId('role-queue').textContent).toContain('developer');
+  });
+
+  it('한 명이면 배지를 그리지 않는다 — 언제나 1/1 은 소음이다', () => {
+    renderCard({ ...APPROVAL, approvals_required: 1, approvals_given: 0 });
+    expect(screen.queryByTestId('quorum')).toBeNull();
+  });
+
+  it('승인했는데 아직 확정이 아니면 그렇게 말한다', async () => {
+    quorumResponse = { given: 1, required: 2, satisfied: false };
+    renderCard({ ...APPROVAL, approvals_required: 2, approvals_given: 0 });
+    fireEvent.click(screen.getByTestId('approve'));
+    await waitFor(() => expect(screen.getByTestId('toast').textContent).toContain('더 필요합니다'));
   });
 });

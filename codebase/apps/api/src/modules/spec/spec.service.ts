@@ -20,12 +20,14 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   newId,
+  SPEC_APPROVER_ROLES,
   SPEC_SUBMIT_ROLES,
   specType,
   specVersionStatus,
   text,
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
+import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
@@ -1076,13 +1078,16 @@ export class SpecService {
         };
       }
 
-      // T2·T3 — 승인 대기. pending Approval 을 재사용해 카드 중복을 막는다(§2.5)
-      const approvalId = await this.ensurePendingApproval(tx, {
+      // T2·T3 — 승인 대기. 필요 수만큼 **슬롯**을 세우고, 남아 있는 대기 슬롯은 재사용한다(§2.5)
+      const cards = await this.ensurePendingApproval(tx, {
         projectId: input.projectId,
         specVersionId: input.specVersionId,
+        specType: version.spec_type,
         requestedByUserId: input.userId,
         requestedBySessionId: input.sessionId ?? null,
+        requiredApprovers: gate.requiredApprovers,
       });
+      const approvalId = cards.approvalId;
       await emit({
         type: NERV_EVENT.APPROVAL_REQUESTED,
         projectId: input.projectId,
@@ -1091,7 +1096,17 @@ export class SpecService {
         actorUserId: input.userId,
         actorSessionId: input.sessionId ?? null,
         isAgent: input.sessionId != null,
-        payload: { gate_tier: gate.tier, required_approvers: gate.requiredApprovers },
+        payload: {
+          gate_tier: gate.tier,
+          required_approvers: cards.slots,
+          // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
+          // 게이트가 있다고 믿는 사람에게 없는 게이트를 주는 것과 같다
+          ...(cards.relaxed ? { quorum_relaxed: true, quorum_wanted: gate.requiredApprovers } : {}),
+          ...(cards.slots > 1 && cards.roleSlot === null && SPEC_APPROVER_ROLES[version.spec_type]
+            ? { role_slot_fallback: SPEC_APPROVER_ROLES[version.spec_type] }
+            : {}),
+          ...(cards.roleSlot === null ? {} : { role_slot: cards.roleSlot }),
+        },
       });
 
       // **기다리는 세션은 기다린다고 말한다**(2026-09-07 · REQ-API-134 · FR-11).
@@ -2107,26 +2122,72 @@ export class SpecService {
     input: {
       projectId: string;
       specVersionId: string;
+      specType: string;
       requestedByUserId: string;
       requestedBySessionId: string | null;
+      /** 필요 승인자 수 — 게이트가 정한다(T3 는 2, 그 밖은 1) */
+      requiredApprovers: number;
     },
-  ): Promise<string> {
-    const { rows: existing } = await tx.execute<{ id: string }>(sql`
-      SELECT id FROM approval
+  ): Promise<{ approvalId: string; slots: number; roleSlot: string | null; relaxed: boolean }> {
+    const { rows: existing } = await tx.execute<{ id: string; assignee_role: string | null }>(sql`
+      SELECT id, assignee_role::text AS assignee_role FROM approval
        WHERE project_id = ${input.projectId} AND subject_type = 'spec_version'
          AND subject_id = ${input.specVersionId} AND decision IS NULL
+       ORDER BY assignee_role NULLS FIRST
     `);
-    const found = existing[0]?.id;
-    if (found !== undefined) return found;
 
-    const approvalId = newId();
-    await tx.execute(sql`
-      INSERT INTO approval (id, project_id, subject_type, subject_id,
-                            requested_by_user_id, requested_by_session_id)
-      VALUES (${approvalId}, ${input.projectId}, 'spec_version', ${input.specVersionId},
-              ${input.requestedByUserId}, ${input.requestedBySessionId})
+    // **필요한 만큼만 채운다.** 재제출로 다시 들어와도 남아 있는 대기 슬롯을 세고 부족분만
+    // 만든다 — 그래야 §2.5 의 "카드가 중복 생성되지 않는다" 가 슬롯 모델에서도 참이다.
+    const slotRole = SPEC_APPROVER_ROLES[input.specType] ?? null;
+    const wanted = Math.max(1, input.requiredApprovers);
+    // **승인 가능한 사람이 필요 수보다 적으면 그 수만큼만 세운다**(§2.3 소규모 완화).
+    // 이 완화가 없으면 사람이 둘뿐인 프로젝트에서 T3 문서는 영영 닫히지 않는다.
+    const { rows: pool } = await tx.execute<{ n: number }>(sql`
+      SELECT count(DISTINCT m.user_id)::int AS n FROM membership m
+        JOIN project p ON p.id = ${input.projectId}
+       WHERE m.org_id = p.org_id AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role::text IN (${sql.join(
+           DECIDER_ROLES.map((r) => sql`${r}`),
+           sql`, `,
+         )}${slotRole === null ? sql`` : sql`, ${slotRole}`})
+         AND m.user_id <> ${input.requestedByUserId}
     `);
-    return approvalId;
+    const approvable = pool[0]?.n ?? 0;
+    const required = Math.max(1, Math.min(wanted, approvable === 0 ? 1 : approvable));
+    const relaxed = required < wanted;
+
+    // 슬롯 2 이후는 문서 타입의 직군 큐다. 그 역할의 멤버가 0명이면 기본 큐로 **강등**한다 —
+    // 승인자를 산출할 수 없다고 제출을 막으면, 직군이 비어 있는 팀은 그 타입의 문서를
+    // 영영 확정하지 못한다(§2.3 이 완화를 문장으로 적어 둔 자리다).
+    let roleSlot: string | null = slotRole;
+    if (slotRole !== null && required > 1) {
+      const { rows: members } = await tx.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM membership m
+          JOIN project p ON p.id = ${input.projectId}
+         WHERE m.org_id = p.org_id AND (m.project_id = p.id OR m.project_id IS NULL)
+           AND m.role::text = ${slotRole}
+      `);
+      if ((members[0]?.n ?? 0) === 0) {
+        this.logger.warn(`직군 슬롯 강등 — ${slotRole} 멤버가 없다. 기본 큐로 세운다`);
+        roleSlot = null;
+      }
+    }
+
+    let first = existing[0]?.id ?? null;
+    for (let i = existing.length; i < required; i += 1) {
+      const approvalId = newId();
+      // 슬롯 1 은 기본 큐(NULL), 둘째부터가 직군 슬롯이다
+      const role = i === 0 ? null : roleSlot;
+      await tx.execute(sql`
+        INSERT INTO approval (id, project_id, subject_type, subject_id,
+                              requested_by_user_id, requested_by_session_id, assignee_role)
+        VALUES (${approvalId}, ${input.projectId}, 'spec_version', ${input.specVersionId},
+                ${input.requestedByUserId}, ${input.requestedBySessionId},
+                ${role}::member_role)
+      `);
+      first ??= approvalId;
+    }
+    return { approvalId: first!, slots: required, roleSlot, relaxed };
   }
 
   /**

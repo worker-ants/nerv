@@ -817,6 +817,7 @@ export const ko = {
   'inbox.card.quorum': '{given}/{required} 승인',
   'inbox.card.quorum_pending': '{role} {n}인의 승인이 더 필요합니다 — 아직 확정되지 않았습니다.',
   'inbox.card.role_queue': '{role} 큐 결재',
+  'inbox.card.role_queue_any': '다른 승인자',
   'inbox.card.cannot_approve.author': '내가 쓴 초안입니다 — 다른 승인자가 처리해야 합니다.',
   'inbox.card.cannot_approve.session_owner':
     '내 세션이 쓴 초안입니다 — 다른 승인자가 처리해야 합니다.',

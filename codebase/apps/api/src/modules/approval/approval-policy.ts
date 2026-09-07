@@ -181,3 +181,45 @@ export function selfKindOf(
   if (row.author_owner_user_id === userId) return 'session_owner';
   return null;
 }
+
+/**
+ * **정족수는 슬롯을 센다**(2026-09-07 · REQ-API-140).
+ *
+ * 필요 수(`approvals_required`)는 이번 라운드에 만들어진 결재 행의 수이고, 채운 수
+ * (`approvals_given`)는 이번 라운드에 `approve` 를 낸 **서로 다른 사용자**의 수다.
+ * 라운드 경계는 `spec_version.submitted_at` 이라, 거절 뒤 고쳐 다시 제출하면 옛 승인은
+ * 그 시각보다 앞이라 자연히 빠진다 — 정족수 테이블을 따로 두지 않는 이유가 그것이다.
+ *
+ * 면제(`is_bypass`)는 세지 않는다. 면제는 게이트를 지나가는 것이지 승인이 아니다.
+ */
+export function quorumSql(subjectId: string, submittedAt: string | null): SQL {
+  const round =
+    submittedAt === null
+      ? sql``
+      : sql` AND (q.requested_at >= ${submittedAt}::timestamptz
+                  OR q.decided_at >= ${submittedAt}::timestamptz)`;
+  return sql`
+    SELECT count(*)::int AS required,
+           count(DISTINCT q.assignee_user_id) FILTER (WHERE q.decision = 'approve')::int AS given
+      FROM approval q
+     WHERE q.subject_type = 'spec_version' AND q.subject_id = ${subjectId}
+       AND NOT q.is_bypass${round}
+  `;
+}
+
+/**
+ * 목록·상세가 카드에 싣는 정족수 두 값 — `approval a` · `sv` 조인을 전제로 한 상관 서브쿼리다.
+ * 값이 없으면(스펙이 아닌 대상) 각각 1·0 이다.
+ */
+export function quorumColumnsSql(): SQL {
+  return sql`
+    COALESCE((SELECT count(*)::int FROM approval q
+               WHERE q.subject_type = a.subject_type AND q.subject_id = a.subject_id
+                 AND NOT q.is_bypass
+                 AND (sv.submitted_at IS NULL OR q.requested_at >= sv.submitted_at
+                      OR q.decided_at >= sv.submitted_at)), 1) AS approvals_required,
+    COALESCE((SELECT count(DISTINCT q.assignee_user_id)::int FROM approval q
+               WHERE q.subject_type = a.subject_type AND q.subject_id = a.subject_id
+                 AND q.decision = 'approve' AND NOT q.is_bypass
+                 AND (sv.submitted_at IS NULL OR q.decided_at >= sv.submitted_at)), 0) AS approvals_given`;
+}
