@@ -108,9 +108,10 @@ export class NotificationService {
         type: string;
         actor_user_id: string | null;
         subject_id: string;
+        payload: Record<string, unknown> | null;
         occurred_at: string;
       }>(sql`
-        SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_id,
+        SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_id, e.payload,
                e.occurred_at::text AS occurred_at
           FROM event e
          WHERE NOT EXISTS (SELECT 1 FROM notification n WHERE n.event_id = e.id)
@@ -202,13 +203,43 @@ export class NotificationService {
     actor_user_id: string | null;
     type: string;
     subject_id: string;
+    payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
     if (event.type === NERV_EVENT.APPROVAL_REQUESTED) {
       const targeted = await this.approvalTargets(event);
       // 지정이 없는 승인 요청만 역할 큐로 내려간다
       if (targeted !== null) return targeted;
     }
+    if (
+      event.type === NERV_EVENT.CLAIM_CONFLICT_BLOCKED ||
+      event.type === NERV_EVENT.CLAIM_CONFLICT_WARN
+    ) {
+      return this.conflictTargets(event);
+    }
     return this.roleQueue(event);
+  }
+
+  /**
+   * 겹침을 알려야 할 사람은 **먼저 잡고 있던 쪽**이다(2026-09-07 · REQ-API-128).
+   *
+   * 막힌 쪽은 409 로 이미 안다 — 그쪽에 알림을 또 보내는 것은 소음이다. 모르는 것은
+   * 자기 범위에 남이 부딪혔다는 사실이고, 그것을 모르면 조정이 일어나지 않는다.
+   * 역할 큐로 흩뿌리지 않는 이유도 같다: admin·planner 는 이 겹침의 당사자가 아니다.
+   */
+  private conflictTargets(event: {
+    actor_user_id: string | null;
+    payload?: Record<string, unknown> | null;
+  }): string[] {
+    const payload = event.payload ?? {};
+    const raw = Array.isArray(payload['overlaps'])
+      ? (payload['overlaps'] as unknown[])
+      : payload['overlap'] === undefined
+        ? []
+        : [payload['overlap']];
+    const holders = raw
+      .map((o) => (o as { user_id?: unknown }).user_id)
+      .filter((id): id is string => typeof id === 'string' && id !== event.actor_user_id);
+    return [...new Set(holders)];
   }
 
   /**

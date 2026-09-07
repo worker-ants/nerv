@@ -102,6 +102,8 @@ export const ko = {
   'error.baseline.not_approved': 'approved 가 아닌 버전이 포함돼 있습니다 — 전체를 거부합니다.',
   'error.baseline.not_found': '기준선을 찾을 수 없습니다.',
   'error.claim.lease_expired': '점유 시간이 지났거나 활성 클레임이 아닙니다.',
+  'error.claim.lease_too_long':
+    '리스는 최대 {max}초입니다 — 더 긴 값은 조정 규칙을 바꾸는 일이라 받지 않습니다.',
   'error.claim.not_active': '활성 클레임이 아닙니다.',
   'error.claim.not_owner': '이 클레임의 보유자가 아닙니다.',
   'error.claim.scope_conflict': '같은 스펙 문서를 다른 세션이 이미 잡고 있습니다.',
@@ -177,6 +179,8 @@ export const ko = {
   'inbox.subject.spec_version': '스펙 승인 요청',
   'mcp.arg.relation_base_hash':
     '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
+  'mcp.arg.lease_seconds':
+    '리스 길이(초) — 최대 1800. 더 긴 값은 거절한다: 자동 회수까지의 시간을 늘리는 것은 조정 규칙을 바꾸는 일이다.',
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
   'session.detail': '상세',
   'session.timeline_more': '앞쪽 활동 더 보기',
@@ -471,6 +475,8 @@ export const ko = {
   'mcp.arg.cursor': '다음 쪽 — 앞 응답의 next_cursor 를 그대로 싣는다',
   'mcp.arg.evidence':
     '증적 — done 게이트가 요구한다. kind 는 code_path·test·pr·commit·review·user_guide',
+  'mcp.arg.status':
+    '옮길 상태 — claimed 는 없다(nerv_task_claim 만이 만든다). in_progress·in_review·done 은 살아 있는 내 클레임이 있을 때만 받는다',
   'mcp.arg.blocked_reason': '막힌 이유 — status=blocked 면 필수다',
   'mcp.arg.spec_impact':
     '스펙에 미친 영향 — done 게이트의 필수 선언이다. 바꾼 스펙이 있으면 changed 에 스펙 키 배열을, 없으면 none 을 true 로 준다',
@@ -524,6 +530,8 @@ export const ko = {
   'error.spec.title_required': '제목이 필요합니다.',
   'error.spec.version_missing': '요청한 버전이 없습니다.',
   'error.spec.version_not_found': '버전을 찾을 수 없습니다.',
+  'error.task.claim_required': '이 작업의 살아 있는 클레임이 없습니다 — 먼저 클레임한다.',
+  'error.task.dependencies_pending': '선행 작업이 끝나지 않았습니다: {pending}',
   'error.task.blocked_reason_required': 'blocked 에는 사유가 필요합니다.',
   'error.task.delegation_incomplete': '위임 명세 4요소가 비어 있습니다: {missing}',
   'error.task.done_gate': 'done 게이트를 충족하지 못했습니다.',
@@ -532,6 +540,8 @@ export const ko = {
   'error.task.done_is_final': '완료된 작업은 이 경로로 되돌리지 않습니다.',
   'error.task.not_assignee': '이 작업의 담당자가 아닙니다.',
   'error.task.not_found': '작업을 찾을 수 없습니다.',
+  'error.task.release_required': '활성 클레임이 걸려 있습니다 — 먼저 해제하거나 세션을 중단합니다.',
+  'error.task.transition_not_allowed': '{from} 에서 {to} 로는 이 경로로 옮기지 않습니다.',
   'error.task.not_ready': '작업이 ready 가 아닙니다({status}).',
   'error.webhook.bad_signature': '서명이 일치하지 않습니다.',
   'error.webhook.no_secret': '웹훅 시크릿이 설정되지 않았습니다.',
@@ -569,6 +579,7 @@ export const ko = {
   'mcp.tool.spec_explore': '스펙 탐색 시작',
   'mcp.tool.start_work': '작업 착수',
   // ── 이벤트 — 알림·활동 피드가 같은 문구를 쓴다 ───────────────────────────────────────────
+  'event.approval.decided': '결재를 결정함',
   'event.approval.requested': '승인 요청',
   'event.baseline.created': '기준선 생성',
   'event.claim.conflict_blocked': '범위 겹침으로 클레임 거부',
@@ -986,8 +997,11 @@ export const ko = {
   'task.spec_impact_note': '"없음"도 명시적으로 고릅니다. 빈 선언을 허용하면 규칙이 사라집니다',
   'task.spec_impact_placeholder': '어떤 스펙이 어떻게 바뀌어야 하는지',
   'task.status_changed': '상태를 {status} 로 바꿨습니다.',
+  'task.done_needs_claim': '완료로 옮기려면 내 클레임이 있거나 담당자·planner·admin 이어야 합니다.',
   'task.to_blocked': '막힘으로 전이',
   'task.to_done': '완료로 전이',
+  'task.to_backlog': '백로그로 되돌리기',
+  'task.to_ready': '준비됨으로 되돌리기',
   'task.transition_missing': '(누락: {missing})',
   'task.transition_rejected': '전이 거부 — {message}',
   'tasks.basis_superseded': '기준 버전 갱신됨',

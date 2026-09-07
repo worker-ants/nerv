@@ -1409,9 +1409,11 @@ describe('E03-S04 에러 규약 — 구조화 결과', () => {
     const taskId = newId();
     await pool.query(
       `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md, tools_sources_md, boundaries_md)
-       VALUES ($1,$2,'TSK-evi','증적','in_progress','목표','PR','nerv_spec_get','경계')`,
+       VALUES ($1,$2,'TSK-evi','증적','ready','목표','PR','nerv_spec_get','경계')`,
       [taskId, projectId],
     );
+    // 세션의 done 은 살아 있는 자기 클레임을 요구한다(REQ-API-129) — 잡고 닫는다
+    await callTool('nerv_task_claim', { session_id: boot['session_id'], task_id: taskId });
 
     const done = await callTool('nerv_task_update', {
       session_id: boot['session_id'],
@@ -1432,6 +1434,47 @@ describe('E03-S04 에러 규약 — 구조화 결과', () => {
       'commit:a1b2c3d',
       'test:spec-concurrency.spec.ts',
     ]);
+  });
+
+  // **표면은 판정을 다시 구현하지 않는다**(D-05 · 2026-09-07 · REQ-API-129·132).
+  it('클레임 없는 세션의 done 은 막히고, 다시 잡으라고 말한다', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-12',
+      external_session_id: 'S-noclaim',
+    });
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-noclaim','클레임 없음','ready','목표','PR','nerv_spec_get','경계')`,
+      [taskId, projectId],
+    );
+
+    const result = await callTool('nerv_task_update', {
+      session_id: boot['session_id'],
+      task_id: taskId,
+      status: 'done',
+      evidence: [{ kind: 'commit', locator: 'f00ba12' }],
+      spec_impact: { none: true },
+    });
+    expect(result).toMatchObject({ ok: false, code: NERV_ERROR.LEASE_EXPIRED });
+    expect(result['details']).toMatchObject({ kind: 'no_active_claim', reclaimable: true });
+    expect(result['next_actions']).toContain('nerv_task_claim');
+  });
+
+  it('claimed 는 도구 스키마에 없다 — 인자 단계에서 막힌다', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-13',
+      external_session_id: 'S-claimedarg',
+    });
+    const result = await callTool('nerv_task_update', {
+      session_id: boot['session_id'],
+      task_id: newId(),
+      status: 'claimed',
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect(result['details']).toMatchObject({ kind: 'invalid_input' });
   });
 
   // 2026-08-30 사람 결정 — MCP 표면이 REST 의 **부분집합**이었다: 만들기·읽기가 없었다.

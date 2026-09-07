@@ -401,12 +401,14 @@ export class ApprovalService {
         subject_type: string;
         subject_id: string;
         requested_by_user_id: string;
+        requested_by_session_id: string | null;
         assignee_user_id: string | null;
         decision: string | null;
         content_hash: string | null;
       }>(sql`
         SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
-               a.requested_by_user_id, a.assignee_user_id, a.decision::text AS decision,
+               a.requested_by_user_id, a.requested_by_session_id,
+               a.assignee_user_id, a.decision::text AS decision,
                encode(sv.content_hash, 'hex') AS content_hash
           FROM approval a
      LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
@@ -473,16 +475,52 @@ export class ApprovalService {
       // 다시 만들고, 판정이 표면으로 새어 나간다(D-05).
       await this.applyToSubject(tx, emit, input, approval);
 
+      // **결정을 요청한 세션에게 돌려준다**(2026-09-07 · REQ-API-133 · FR-11).
+      //
+      // 이 자리는 오래 결재 행만 고쳤다. 그래서 A3 승인을 기다리는 에이전트는 승인이 나도
+      // **영영 듣지 못했다** — 서버→세션 방향의 보장 채널은 하트비트 하나인데(§2.4) 결재
+      // 결정이 거기 실리지 않았기 때문이다. 실데이터 결재 11건 중 4건이 세션 기원이었다.
+      //
+      // 깨우는 조건이 둘 더 있다: **다른 대기 사유가 남아 있으면 깨우지 않는다.** 열린
+      // blocking 질문이나 아직 결정되지 않은 다른 결재가 있으면 그 세션은 여전히 사람을
+      // 기다리는 중이고, 여기서 `active` 로 돌려놓으면 S5 는 일하고 있는 세션으로 그린다.
+      if (approval.requested_by_session_id !== null) {
+        await tx.execute(sql`
+          UPDATE agent_session SET state = 'active'
+           WHERE id = ${approval.requested_by_session_id}
+             AND state = 'awaiting_input'
+             AND NOT EXISTS (
+               SELECT 1 FROM question q
+                WHERE q.agent_session_id = ${approval.requested_by_session_id}
+                  AND q.status = 'open' AND q.urgency = 'blocking'
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM approval a2
+                WHERE a2.requested_by_session_id = ${approval.requested_by_session_id}
+                  AND a2.id <> ${input.approvalId} AND a2.decision IS NULL
+             )
+        `);
+      }
+
       await emit({
-        type: NERV_EVENT.QUESTION_ANSWERED,
+        // **결재는 결재다**(2026-09-07 · REQ-API-128). 대상이 질문이든 스펙이든 이 자리가
+        // 남기는 사실은 "결재가 결정됐다" 이고, 질문에 답한 사실은 `QuestionService` 가
+        // 자기 자리에서 남긴다 — 하나의 이름이 둘을 가리키면 어느 쪽도 셀 수 없다.
+        type: NERV_EVENT.APPROVAL_DECIDED,
         projectId: input.projectId,
         subjectType: 'approval',
         subjectId: input.approvalId,
         actorUserId: input.userId,
         isAgent: false,
+        toState: input.decision,
         // **자기 승인은 그 사실을 남긴다.** 규칙의 예외를 허용하는 것과 그것을 감추는 것은
         // 다른 일이다 — 감사가 나중에 "이 결재는 한 사람이 양쪽에 섰다" 를 셀 수 있어야 한다.
-        payload: { decision: input.decision, ...(selfApprove ? { self_approved: true } : {}) },
+        payload: {
+          decision: input.decision,
+          subject_type: approval.subject_type,
+          subject_id: approval.subject_id,
+          ...(selfApprove ? { self_approved: true } : {}),
+        },
       });
 
       return {
@@ -491,6 +529,39 @@ export class ApprovalService {
         subject_id: approval.subject_id,
       };
     });
+  }
+
+  /**
+   * **하트비트 역채널에 실을 결재 결정**(2026-09-07 · REQ-API-133).
+   *
+   * 질문 답변과 같은 창(1시간)·같은 상한(10건)이고, 같은 규율이다: **전달로 소멸하지
+   * 않는다.** 하트비트는 유실될 수 있는 호출이라 한 번 실어 보내고 지우면 그 결정은
+   * 아무도 모르는 결정이 된다 — 창이 닫힐 때까지 매번 다시 싣고, 중복 처리는 에이전트가
+   * 멱등으로 감당한다(`question_answered` 가 이미 그 규약이다).
+   *
+   * 이 채널이 없던 동안 `NERV_APPROVAL_REQUIRED` 는 "하트비트로 확인하라" 는 다음 행동을
+   * 주면서 정작 하트비트에 그 결과를 싣지 않았다 — 있는 것처럼 말하는 채널이 없는 채널보다
+   * 나쁘다.
+   */
+  async pendingDecisionsFor(sessionId: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT 'approval_decided' AS kind, a.id AS approval_id,
+             a.subject_type::text AS subject_type, a.subject_id,
+             a.decision::text AS decision, a.comment_md,
+             a.decided_at::text AS decided_at, u.display_name AS decided_by,
+             COALESCE(s.key, t.key, f.title) AS subject_key
+        FROM approval a
+   LEFT JOIN "user" u ON u.id = a.assignee_user_id
+   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+   LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN task t ON t.id = a.subject_id AND a.subject_type = 'plan'
+   LEFT JOIN finding f ON f.id = a.subject_id AND a.subject_type = 'finding'
+       WHERE a.requested_by_session_id = ${sessionId}
+         AND a.decision IS NOT NULL
+         AND a.decided_at > now() - interval '1 hour'
+       ORDER BY a.decided_at DESC LIMIT 10
+    `);
+    return rows;
   }
 
   /**
@@ -542,6 +613,11 @@ export class ApprovalService {
     subjectType: 'spec_version' | 'change_request' | 'plan' | 'question';
     subjectId: string;
     requestedByUserId: string;
+    /**
+     * **누가 기다리고 있는가**(2026-09-07 · REQ-API-133). 이 값이 비어 있으면 결정이 나도
+     * 돌려줄 곳이 없다 — 하트비트 역채널은 이 열로 수신자를 찾는다.
+     */
+    requestedBySessionId?: string | null;
     assigneeUserId?: string | null;
   }): Promise<{ approval_id: string; reused: boolean }> {
     return this.events.transact(async (tx, emit) => {
@@ -555,9 +631,11 @@ export class ApprovalService {
 
       const approvalId = newId();
       await tx.execute(sql`
-        INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id, assignee_user_id)
+        INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                              requested_by_session_id, assignee_user_id)
         VALUES (${approvalId}, ${input.projectId}, ${input.subjectType}::approval_subject_type,
-                ${input.subjectId}, ${input.requestedByUserId}, ${input.assigneeUserId ?? null})
+                ${input.subjectId}, ${input.requestedByUserId},
+                ${input.requestedBySessionId ?? null}, ${input.assigneeUserId ?? null})
       `);
       await emit({
         type: NERV_EVENT.APPROVAL_REQUESTED,

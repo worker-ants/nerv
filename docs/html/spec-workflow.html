@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.10 (2026-09-06)</span>
+      <span>버전 v0.11 (2026-09-07)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -301,6 +301,10 @@
       <rect x="702" y="214" width="118" height="50" rx="10" fill="var(--teal-soft)" stroke="var(--teal)"/>
       <text x="761" y="244" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">done</text>
 
+      <!-- in_progress → done (in_review 는 선택 — 2026-09-02 결정, 아래 인용 참조) -->
+      <path d="M582,134 C582,196 640,200 698,225" fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar3)"/>
+      <text x="600" y="212" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">게이트 통과 (in_review 는 선택)</text>
+
       <!-- blocked -->
       <rect x="330" y="214" width="140" height="50" rx="10" fill="var(--danger-soft)" stroke="var(--danger)"/>
       <text x="400" y="244" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">blocked</text>
@@ -310,6 +314,8 @@
     </svg>
     <div class="cap">그림 3. Task 축 상태도. <code>blocked</code>는 별도 축이 아니라 어느 상태에서든 드나드는 예외 상태다.</div>
   </div>
+
+  <blockquote><p><b>그래프 자체는 강제하지 않는다</b>(<a href="data-model.html">3.3 데이터 모델</a> §2.4 · 2026-09-02 결정). 강제하는 것은 <b>문지기 여덟</b>이다 — 어휘 · 담당자 · 리스 만료 · <code>done</code> 최종 · <b>세션의 리스 구속 목표 셋</b>(<code>in_progress</code>·<code>in_review</code>·<code>done</code>) · <b><code>ready</code> 판정</b>(4요소·의존) · <b><code>claimed</code> 는 클레임으로만</b> · <b>활성 클레임이 걸린 <code>ready</code>·<code>backlog</code> 는 해제 먼저</b>(<a href="api.html">4.4 API 명세</a> REQ-API-129~132 — 뒤의 넷이 2026-09-07 에 섰다). 문지기를 늘린 것이지 경로 그래프를 강제하기로 바꾼 것이 아니다.</p></blockquote>
 
   <p><code>blocked</code> 진입 시 <b>사유 코드</b>(<code>awaiting_answer</code> / <code>dependency_broken</code> / <code>spec_conflict</code> / <code>external</code>)를 필수로 받는다 — clemvion의 <code>(unstarted)</code> sentinel이 "placeholder는 어떤 worktree와도 매칭되지 않아 plan이 게이트에서 사라진다"는 이유로 가드에 거부당한 것과 같은 원리다. 사유 없는 blocked는 백로그 부패의 씨앗이다.</p>
 
@@ -323,7 +329,7 @@
     <tbody>
       <tr><td>스펙 승인</td><td><code>in_review → approved</code></td><td>새 Requirement가 <code>unimplemented</code>로 등록</td><td>파생 Task가 <code>backlog</code>로 생성</td></tr>
       <tr><td>클레임</td><td>변화 없음</td><td><code>unimplemented → in_progress</code></td><td><code>ready → claimed</code></td></tr>
-      <tr><td>Task 완료</td><td>변화 없음</td><td><code>in_progress → implemented</code> (Evidence 조건)</td><td><code>in_review → done</code></td></tr>
+      <tr><td>Task 완료</td><td>변화 없음</td><td><code>in_progress → implemented</code> (Evidence 조건)</td><td><code>in_progress</code>·<code>in_review → done</code></td></tr>
       <tr><td>QA 검증</td><td>변화 없음</td><td><code>implemented → verified</code></td><td>변화 없음</td></tr>
       <tr><td>CR 승인(MODIFIED)</td><td>새 버전 <code>approved</code>, 이전 <code>superseded</code></td><td>해당 REQ <code>verified/implemented → in_progress</code></td><td>관련 Task 재개 또는 신설</td></tr>
     </tbody>
@@ -818,7 +824,7 @@ FUNCTION severity_of(spec_hit, file_hit, t_new, c_old):
 
   <h3>4.6 done 전이 조건 <span class="badge human">FR-10</span></h3>
 
-  <p><code>in_review → done</code>은 아래를 <b>전부</b> 만족할 때만 허용된다. 판정은 서버 질의 한 번이다.</p>
+  <p><code>in_progress</code>·<code>in_review → done</code> 은 아래를 <b>전부</b> 만족할 때만 허용된다(2026-09-02 결정 — <code>in_review</code> 를 거치는 것은 선택이다). 판정은 서버 질의 한 번이다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>#</th><th>조건</th><th>clemvion 대응물</th></tr></thead>

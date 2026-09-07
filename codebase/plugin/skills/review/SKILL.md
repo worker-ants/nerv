@@ -53,7 +53,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 ### critical 하향은 사람의 몫이다 (A3)
 
-`critical` 발견을 `dismissed`/`wont_fix`로 옮기는 호출은 `NERV_APPROVAL_REQUIRED`로 되돌아오고, 서버가 승인 카드를 만든다. **그때 할 일은 재시도가 아니라 사람에게 알리는 것이다** — 응답의 `approval_id`와 함께 "critical 하향에 승인이 필요하다"를 보고하고 멈춘다. 승인이 나면 같은 호출이 통과한다.
+`critical` 발견을 `dismissed`/`wont_fix`로 옮기는 호출은 `NERV_APPROVAL_REQUIRED`로 되돌아오고, 서버가 승인 카드를 만든다. **그때 할 일은 재시도가 아니라 사람에게 알리는 것이다** — 응답의 `approval_id`와 함께 "critical 하향에 승인이 필요하다"를 보고하고 멈춘다. 카드가 열려 있는 동안 이 세션은 `awaiting_input` 이고, **결정은 하트비트 `pending` 의 `approval_decided`(`subject_type: finding`)로 온다** — `approve` 면 같은 호출을 같은 인자로 다시 부르고, `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다.
 
 이 게이트가 있는 이유는 실측이다: clemvion에서 checker의 CRITICAL을 `BLOCK: NO`로 하향한 모순이 732건 중 24건(3.3%) 관측됐다. 에이전트가 자기 리뷰의 심각도를 스스로 낮출 수 있으면 게이트는 형식이 된다.
 

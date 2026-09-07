@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.14 · 2026-09-07 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.15 · 2026-09-07 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.15 변경(2026-09-07 — 문지기 넷이 더 섰다, 개선 계획 둘째 스프린트): **새 결정 없음 — 2026-09-02 의 "경로 그래프는 강제하지 않는다" 는 그대로다.** §2.4 전이 규칙 표에 행 둘(`claimed`·`in_progress → ready`·`backlog` · `ready` 도착 판정)을 더하고, 문지기 셋·넷을 적던 두 문장을 **여덟**로 고쳐 쓴다([4.4](../04-mvp/api.md) REQ-API-129~132).
 >
 > v0.14 변경(2026-09-07 — 의미 정본이 열 여덟과 제약 하나를 몰랐다, 개선 계획 첫 스프린트): **새 요구사항 없음 — 코드가 옳고 문서가 낡은 자리 다섯이다.** ① **§1.3 의 33번째가 엔티티가 아니었다** — `activity_summary` 는 테이블이 아니라 `agent_session` 의 jsonb 열(`0012`)이다. 도메인 **32** + 부속 **5**(auth 셋 · `spec_chunk_embedding` · `idempotency_key`) = 37 로 [4.3 데이터베이스 스키마](../04-mvp/database.md)와 셈을 맞췄다(그쪽은 반대 방향으로 틀려 `idempotency_key` 를 도메인으로 세고 있었다). ② **필드표가 마이그레이션 다섯이 더한 열을 몰랐다** — `api_token.last_used_hostname`(`0002`) · `resolution.spec_version_id`(`0011`) · `agent_session.activity_summary`(`0012`)·`diff_files`(`0017`) · `claim.release_note`·`progress_note`(`0017`)·`project_id`, 그리고 `requirement.priority` 가 **NULL 을 받는다**는 사실(`0020` — NULL 은 `must` 의 축약이 아니라 "표기가 없었다" 는 사실이다). ③ **`spec_version.base_version_id` 의 뜻을 바로잡는다** — "낙관적 동시성의 전제조건, 불일치 시 409" 라 적었는데 그 축은 **`base_hash`** 이고 이 열은 서버가 직전 버전으로 채우는 **계보**다. 둘을 같은 칸으로 읽으면 "계보를 보내야 동시성 검사가 된다" 는 반대 결론이 나온다. ④ **§5.5 규칙 9 는 partial index 가 아니라 CHECK 다**(`spec_version_lease_draft_only_ck`) — 인덱스는 유일성을 강제하지 조건부 NULL 을 강제하지 못하므로, 문서대로 세우면 그 규칙이 DB 에서 사라진다. ⑤ **§5.4 보존 정책 중 넷은 집행되지 않는다**(`notification` 180일 · `reviewer_report` 365일 압축 · `spec_version` draft 90일 압축 · `event` 12개월 콜드) — 표는 약속이고 그 사실을 표 아래에 적었다. 곁들여 §2.6 에 **표면의 `resolution` 어휘 ↔ 저장 두 축**의 번역을 적는다(표면의 `wont_fix` 는 `kind='deferred'` + `status='wont_fix'` 이고 `resolution_kind` 에 `wont_fix` 라는 값은 없다).
 >
@@ -426,19 +428,20 @@ stateDiagram-v2
 | 전이 | 조건 | 강제 지점 |
 | --- | --- | --- |
 | `backlog → ready` | 위임 명세 4요소가 모두 NOT NULL + 선행 의존성 없음/해소 | API 검증(FR-05) |
-| `ready → claimed` | `nerv_task_claim` 트랜잭션 성공(scope 겹침 통과) | partial unique 인덱스(FR-06) |
+| `ready → claimed` | `nerv_task_claim` 트랜잭션 성공(scope 겹침 통과) | partial unique 인덱스(FR-06) · **EP-TASK-09 로는 불가**(`transition_not_allowed` — 2026-09-07) |
 | `claimed → in_progress` | 세션의 첫 `action` Activity 또는 명시 전이 | 서버 |
 | `in_progress → in_review` | 산출물(PR/커밋) Evidence 1건 이상 | API 검증 |
 | `in_progress`·`in_review → done` | 게이트 통과(증적 1건 이상) **AND** `spec_impact` NOT NULL | 게이트 API(FR-10) |
+| `claimed`·`in_progress → ready`·`backlog` | 활성 클레임 없음(있으면 `release_required`) · `ready` 는 위임 명세 4요소와 선행 의존 판정을 함께 지난다 | API 검증(2026-09-07 · REQ-API-131·132) |
 | `* → blocked` | 질문 미해결·의존성 역행 | 서버·수동 |
 
-**전이의 문지기는 세 가지다**(2026-09-02 — 정합 점검). 구현은 위 표를 강제하지 않고 있었고, 그중 셋을 채웠다: ① **어휘** — 입력을 그대로 `::task_status` 로 캐스팅해 오타가 500(22P02)이 됐다(이제 400 `invalid_input`). ② **담당자** — 활성 클레임을 다른 세션이 쥐고 있어도 상태를 옮길 수 있었다(이제 보유자 또는 planner·admin). ③ **리스** — 내 리스가 만료돼 그 사이 다른 세션이 같은 Task 를 잡았어도 `done` 으로 옮길 수 있었다(이제 `NERV_LEASE_EXPIRED`). 더해 **done 은 이 문으로 되돌아오지 않는다** — 게이트를 통과해 닫힌 상태를 되살리는 것은 새 결정이다.
+**전이의 문지기는 여덟이다**(2026-09-02 셋 · 2026-09-07 다섯 — [4.4](../04-mvp/api.md) REQ-API-129~132). 구현은 위 표를 강제하지 않고 있었고, 그중 셋을 채웠다: ① **어휘** — 입력을 그대로 `::task_status` 로 캐스팅해 오타가 500(22P02)이 됐다(이제 400 `invalid_input`). ② **담당자** — 활성 클레임을 다른 세션이 쥐고 있어도 상태를 옮길 수 있었다(이제 보유자 또는 planner·admin). ③ **리스** — 내 리스가 만료돼 그 사이 다른 세션이 같은 Task 를 잡았어도 `done` 으로 옮길 수 있었다(이제 `NERV_LEASE_EXPIRED`). 더해 **done 은 이 문으로 되돌아오지 않는다** — 게이트를 통과해 닫힌 상태를 되살리는 것은 새 결정이다.
 
 **`in_review` 는 선택 단계다**(2026-09-02 · 사람 확정). 표는 `in_review → done` 만 적었는데 배포된 구현 루프(`/nerv:impl`)는 `in_progress → done` 으로 곧장 가고 서버도 경로를 막지 않았다 — 셋이 서로 다른 말을 하고 있었다. **표를 실물에 맞춘다.**
 
 이유는 `done` 의 실질 조건을 이미 게이트가 강제하기 때문이다: 증적 1건 이상과 `spec_impact` 가 없으면 `done` 으로 갈 수 없다. `in_review` 를 필수로 만들면 혼자 일하는 사람이 자기 작업을 `in_review` 로 옮겼다가 곧바로 `done` 으로 옮기는 형식 단계가 생기고, 그 단계는 아무것도 막지 못한다. 실제 리뷰가 붙는 곳은 FR-09 리뷰 세션이며 그것은 Task 상태와 **다른 축**이다.
 
-`in_review` 는 여러 사람이 보는 보드에서 "산출물은 나왔고 아직 확인 전"을 구분하고 싶을 때 쓴다. 경로 그래프는 계속 강제하지 않는다 — 강제하는 것은 어휘·담당자·리스, 그리고 `done` 이 최종이라는 사실 넷이다.
+`in_review` 는 여러 사람이 보는 보드에서 "산출물은 나왔고 아직 확인 전"을 구분하고 싶을 때 쓴다. 경로 그래프는 계속 강제하지 않는다 — 강제하는 것은 **여덟**이다(2026-09-07 에 넷이 더 섰다): 어휘 · 담당자 · 리스 만료 · `done` 이 최종이라는 사실 · **세션의 리스 구속 목표 셋**(`in_progress`·`in_review`·`done` 은 살아 있는 자기 클레임 필요) · **`ready` 판정**(4요소·선행 의존) · **`claimed` 는 클레임으로만** · **활성 클레임이 걸린 `ready`·`backlog` 는 해제 먼저**. 결정을 뒤집은 것이 아니라 문지기를 늘린 것이다.
 
 `spec_impact`를 done 전제조건으로 둔 것은 clemvion의 Gate C(`spec-plan-completion.test.ts`) 이식이다. 그쪽은 완료 plan의 frontmatter에 영향 스펙 목록 또는 `none` sentinel을 요구했고, 이 게이트가 "작업 완료가 스펙 정합 결정을 강제 동반"하게 만든 좋은 패턴이었다.
 

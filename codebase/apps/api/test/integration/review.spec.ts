@@ -17,6 +17,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
+import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -24,6 +25,7 @@ let db: ScratchDb;
 let pool: pg.Pool;
 let app: NestFastifyApplication;
 let reviews: ReviewService;
+let approvals: ApprovalService;
 let questions: QuestionService;
 let projectId: string;
 let userId: string;
@@ -41,6 +43,7 @@ beforeAll(async () => {
   await app.init();
   reviews = app.get(ReviewService);
   questions = app.get(QuestionService);
+  approvals = app.get(ApprovalService);
 });
 
 afterAll(async () => {
@@ -571,6 +574,53 @@ describe('FR-09 처분 — 하향은 사람의 승인을 거친다(A3)', () => {
     // 막혔으므로 발견은 그대로 열려 있다
     const { rows: f } = await pool.query('SELECT status::text AS s FROM finding');
     expect(f[0].s).toBe('open');
+  });
+
+  /**
+   * **승인이 나면 에이전트가 그것을 듣는다**(2026-09-07 · REQ-API-133·134). 이 경로가
+   * `NERV_APPROVAL_REQUIRED` 를 던지는 유일한 자리인데, 세션은 `active` 로 남고 결정은
+   * 돌아가지 않아 **승인돼도 에이전트가 영영 못 듣는** 죽은 경로였다.
+   */
+  it('막힌 세션은 awaiting_input 이고, 승인이 나면 깨어나 그 사실을 역채널로 받는다', async () => {
+    const findingId = await openCritical();
+    await expect(
+      reviews.resolve({
+        projectId,
+        findingId,
+        userId,
+        sessionId: agentSessionId,
+        isAgent: true,
+        kind: 'deferred',
+        status: 'wont_fix',
+        rationale: '다음 스프린트에 본다',
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.APPROVAL_REQUIRED });
+
+    const stateNow = async (): Promise<string | undefined> =>
+      (
+        await pool.query<{ s: string }>(
+          `SELECT state::text AS s FROM agent_session WHERE id = $1`,
+          [agentSessionId],
+        )
+      ).rows[0]?.s;
+    expect(await stateNow()).toBe('awaiting_input');
+
+    const { rows: cards } = await pool.query<{ id: string; sid: string | null }>(
+      `SELECT id, requested_by_session_id AS sid FROM approval WHERE subject_id = $1`,
+      [findingId],
+    );
+    expect(cards[0]?.sid).toBe(agentSessionId);
+
+    await pool.query(`UPDATE approval SET decision = 'approve', decided_at = now() WHERE id = $1`, [
+      cards[0]?.id,
+    ]);
+    // 깨우는 것은 `decide()` 의 일이라 여기서는 역채널이 그 결정을 싣는지만 본다
+    const pending = await approvals.pendingDecisionsFor(agentSessionId);
+    expect(pending[0]).toMatchObject({
+      kind: 'approval_decided',
+      subject_type: 'finding',
+      decision: 'approve',
+    });
   });
 
   it('재호출이 카드를 늘리지 않는다', async () => {

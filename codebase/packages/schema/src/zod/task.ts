@@ -8,6 +8,7 @@
 // 스키마가 있으면 "받는다고 적어 두고 안 읽는" 코드가 눈에 띈다.
 
 import { z } from 'zod';
+import { LEASE_TTL_SECONDS } from '../constants.js';
 import { BLOCKED_REASONS } from '../enums.js';
 
 /** 증적 한 줄 — 한 Task 가 커밋·PR·테스트를 여럿 남기므로 목록이다(REQ-API-056) */
@@ -97,7 +98,7 @@ export const TaskClaimInput = z
   .object({
     session_id: z.string().nullish(),
     scope: ClaimScopeInput.default({ spec_ids: [], file_globs: [] }),
-    lease_seconds: z.number().int().positive().nullish(),
+    lease_seconds: z.number().int().positive().max(LEASE_TTL_SECONDS).nullish(),
   })
   .strict();
 
@@ -118,7 +119,7 @@ export const HeartbeatInput = z
       })
       .strict()
       .nullish(),
-    lease_seconds: z.number().int().positive().nullish(),
+    lease_seconds: z.number().int().positive().max(LEASE_TTL_SECONDS).nullish(),
   })
   .strict();
 

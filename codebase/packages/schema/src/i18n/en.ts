@@ -96,6 +96,8 @@ export const en = {
     'It contains versions that are not approved — the whole request is rejected.',
   'error.baseline.not_found': 'Baseline not found.',
   'error.claim.lease_expired': 'The lease expired, or this is not an active claim.',
+  'error.claim.lease_too_long':
+    'A lease can be at most {max} seconds — a longer one changes the coordination rule, so it is refused.',
   'error.claim.not_active': 'Not an active claim.',
   'error.claim.not_owner': 'You do not hold this claim.',
   'error.claim.scope_conflict': 'Another session already holds the same spec document.',
@@ -172,6 +174,8 @@ export const en = {
   'inbox.subject.spec_version': 'Spec approval request',
   'mcp.arg.relation_base_hash':
     'fingerprint of the target document — content_hash from nerv_spec_get. required when adding a relation',
+  'mcp.arg.lease_seconds':
+    'Lease length in seconds — 1800 max. Longer values are rejected: stretching the time to automatic reclaim changes the coordination rule.',
   'mcp.arg.takeover':
     'seize an edit lease held by someone else — the way out when a dead session still holds it',
   'session.detail': 'Details',
@@ -473,6 +477,8 @@ export const en = {
   'mcp.arg.cursor': 'next page — pass the next_cursor from the previous response',
   'mcp.arg.evidence':
     'evidence — required by the done gate. kind is one of code_path/test/pr/commit/review/user_guide',
+  'mcp.arg.status':
+    'target status — claimed is not one (only nerv_task_claim creates it). in_progress/in_review/done are accepted only while you hold a live claim',
   'mcp.arg.blocked_reason': 'why it is blocked — required when status=blocked',
   'mcp.arg.spec_impact':
     'impact on specs — required by the done gate. put spec keys in changed, or set none to true when nothing moved',
@@ -529,6 +535,8 @@ export const en = {
   'error.spec.title_required': 'A title is required.',
   'error.spec.version_missing': 'The requested version does not exist.',
   'error.spec.version_not_found': 'Version not found.',
+  'error.task.claim_required': 'You hold no live claim on this task — claim it first.',
+  'error.task.dependencies_pending': 'Blocking tasks are not finished yet: {pending}',
   'error.task.blocked_reason_required': 'Blocking a task requires a reason.',
   'error.task.delegation_incomplete': 'The delegation brief is incomplete: {missing}',
   'error.task.done_gate': 'The done gate is not satisfied.',
@@ -537,6 +545,8 @@ export const en = {
   'error.task.done_is_final': 'A finished task is not reopened through this path.',
   'error.task.not_assignee': 'You are not the assignee of this task.',
   'error.task.not_found': 'Task not found.',
+  'error.task.release_required': 'An active claim is held — release it or stop the session first.',
+  'error.task.transition_not_allowed': '{from} does not move to {to} through this path.',
   'error.task.not_ready': 'The task is not ready ({status}).',
   'error.webhook.bad_signature': 'Signature mismatch.',
   'error.webhook.no_secret': 'The webhook secret is not configured.',
@@ -575,6 +585,7 @@ export const en = {
   'mcp.tool.spec_explore': 'Starting to explore specs',
   'mcp.tool.start_work': 'Starting work',
   // ── 이벤트 — 알림·활동 피드가 같은 문구를 쓴다 ───────────────────────────────────────────
+  'event.approval.decided': 'Approval decided',
   'event.approval.requested': 'Approval requested',
   'event.baseline.created': 'Baseline created',
   'event.claim.conflict_blocked': 'Claim blocked by declared-scope overlap',
@@ -999,8 +1010,12 @@ export const en = {
     'You pick "none" on purpose — an empty declaration would hollow out the rule',
   'task.spec_impact_placeholder': 'Which spec has to change, and how',
   'task.status_changed': 'Status changed to {status}.',
+  'task.done_needs_claim':
+    'Moving to done needs your own claim, or the assignee, planner or admin role.',
   'task.to_blocked': 'Move to blocked',
   'task.to_done': 'Move to done',
+  'task.to_backlog': 'Send back to backlog',
+  'task.to_ready': 'Send back to ready',
   'task.transition_missing': ' (missing: {missing})',
   'task.transition_rejected': 'Transition rejected — {message}',
   'tasks.basis_superseded': 'Basis version moved',

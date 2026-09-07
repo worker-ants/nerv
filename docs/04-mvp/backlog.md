@@ -17,7 +17,19 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.27 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.33 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.33 변경(2026-09-07 — 둘째 스프린트 ⑥): §1.4 셋째 표에 **스킬이 가르치는 길** 한 줄([4.6](plugin.md) 패키지 0.2.19).
+>
+> v0.32 변경(2026-09-07 — 둘째 스프린트 ⑤): §1.4 셋째 표에 **승인 역채널** 한 줄([4.4](api.md) REQ-API-133~135).
+>
+> v0.31 변경(2026-09-07 — 둘째 스프린트 ④): §1.4 셋째 표에 **고아 작업을 되돌리는 문** 한 줄([4.5](screens.md) REQ-WEB-144).
+>
+> v0.30 변경(2026-09-07 — 둘째 스프린트 ③): §1.4 셋째 표에 **전이의 문지기** 한 줄([4.4](api.md) REQ-API-129~132). E09-S05 의 수용 기준 "유효한 리스 없이 `nerv_task_update(status=done)` 이 호출되면 거부한다" 가 이 커밋에서 참이 됐다 — 그전까지 이 스토리는 그 조건이 **무검사**인 채로 `done` 이었다.
+>
+> v0.29 변경(2026-09-07 — 둘째 스프린트 ②): §1.4 셋째 표에 **차단·결재가 남기는 사실** 한 줄([4.4](api.md) REQ-API-128).
+>
+> v0.28 변경(2026-09-07 — 둘째 스프린트 ①): §1.4 셋째 표에 **회수·해제 이벤트** 한 줄([4.4](api.md) REQ-API-127).
 >
 > v0.27 변경(2026-09-07 — 첫 스프린트 ⑥): §1.4 셋째 표에 **append-only 트리거** 한 줄([4.3](database.md) REQ-DB-023).
 >
@@ -150,6 +162,12 @@ referenced_by:
 | 질의 어휘를 접지 않는다 | `common/query-vocab.ts` 를 쓰는 다섯 표면 · `event.service.ts`(`type`) · `enums.ts`(파생 어휘 둘) | `?status=cancelled` 가 열린 목록을 200 으로 돌려주던 자리(2026-09-07 · [4.4](api.md) REQ-API-126) |
 | 첨부 백업·보존 접기·blob 만료 | `deploy/scripts/nerv-backup.sh` · `deploy/k8s/base/backup/cronjob.yaml` · `worker/jobs/retention.job.ts` | 백업이 첨부를 한 번도 담지 않았고 접기가 같은 키를 덮어썼다(2026-09-07 · [4.2](codebase.md) REQ-CB-031·032) |
 | 감사 로그 append-only 트리거 | `drizzle/0022_event_append_only.sql` · `test/integration/event-broadcast.spec.ts` | FR-16 의 불변성이 코드 규약뿐이었다(2026-09-07 · [4.3](database.md) REQ-DB-023) |
+| 회수·해제가 남기는 사실 | `claim.service.ts`(`reclaimExpired`·`releaseBySession`·`finalize`) · `session.service.ts` 세 경로 · `drizzle/0023` | 리스 만료 회수가 이벤트 0건이었고 stale 은 클레임을 건드리지 않았다(2026-09-07 · [4.4](api.md) REQ-API-127) |
+| 차단·결재가 남기는 사실 | `task.service.ts`(`claimInTx` 별도 트랜잭션 · `gate.failopen`) · `approval.service.ts` · `spec.service.ts`(`approveInTx` 액터) · `notification.service.ts`(겹침 수신자) | 카탈로그에 critical 로 올라 있는 차단 이벤트를 내는 곳이 0 이었고, 결재 결정이 `question.answered` 로 남았다(2026-09-07 · [4.4](api.md) REQ-API-128) |
+| 전이의 문지기 | `task.service.ts`(`assertMayTransition`·`transition` 의 ready 판정·`activeClaimOf`) · `task.tools.ts` · `constants.ts`(`TASK_TRANSITION_TARGETS`·`TASK_LEASE_BOUND_TARGETS`·`isDelegationFilled`) | 활성 클레임이 없으면 판정을 건너뛰어 **리스 없는 done 이 무검사**였다(2026-09-07 · [4.4](api.md) REQ-API-129~132) |
+| 고아 작업을 되돌리는 문 | `routes/p.$proj/tasks.$task.tsx` · `routes/task-detail-transitions.spec.tsx` | 임포트가 만든 클레임 없는 `in_progress` 가 큐에도 안 보이고 잡을 수도 없었다(2026-09-07 · [4.5](screens.md) REQ-WEB-144) |
+| 승인 역채널 | `approval.service.ts`(`pendingDecisionsFor`·깨우기) · `task.service.ts`(하트비트) · `spec.service.ts`·`review.service.ts`(대기 세우기) · `question.service.ts`(`answered_by`) | A3 승인이 나도 요청한 세션은 영영 듣지 못했고, 기다리는 세션이 화면에 `active` 로 보였다(2026-09-07 · [4.4](api.md) REQ-API-133~135) |
+| 스킬이 가르치는 길 | `plugin/skills/*/SKILL.md` 다섯 · `plugin/codex/config.toml` · `plugin/managed-settings.example.json` | 허용 목록에 없는 도구를 부르게 하고, 없는 폴링을 가르치고, 약속한 캐시 파일을 아무도 쓰지 않았다(2026-09-07 · [4.6](plugin.md) v0.62) |
 | 자라는 목록의 커서 | `session.service.ts` · `event.service.ts` | activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120) |
 
 #### 이 절은 언제 갱신되는가

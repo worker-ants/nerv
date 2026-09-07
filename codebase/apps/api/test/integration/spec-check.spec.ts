@@ -58,7 +58,7 @@ beforeAll(async () => {
     new ClaimService(),
     events,
     new QuestionService(events, drizzleDb),
-    new SessionService(events, drizzleDb),
+    new SessionService(events, drizzleDb, new ClaimService()),
     // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트는 그 게이트에 닿지 않지만
     // 서비스는 들고 있어야 한다(AuthService 는 이 경로에서 쓰이지 않는다)
     new ApprovalService(events, specs, null as never, drizzleDb),
@@ -235,6 +235,9 @@ describe('E09-S05 done 게이트 (FR-10 · §4.6)', () => {
         taskId,
         status: 'done',
         userId: planner,
+        // 사람 경로의 done 은 담당자·클레임 보유자·planner·admin 만이다(REQ-API-130) —
+        // 이 스위트가 보려는 것은 게이트이므로 역할을 명시한다
+        roles: ['planner'],
         evidence: [{ kind: 'pr', locator: 'https://pr/1' }],
       })
       .catch((e: unknown) => e)) as { details: Record<string, unknown> };
@@ -249,6 +252,9 @@ describe('E09-S05 done 게이트 (FR-10 · §4.6)', () => {
         taskId,
         status: 'done',
         userId: planner,
+        // 사람 경로의 done 은 담당자·클레임 보유자·planner·admin 만이다(REQ-API-130) —
+        // 이 스위트가 보려는 것은 게이트이므로 역할을 명시한다
+        roles: ['planner'],
         specImpact: { none: true },
       })
       .catch((e: unknown) => e)) as { details: Record<string, unknown> };
@@ -263,6 +269,9 @@ describe('E09-S05 done 게이트 (FR-10 · §4.6)', () => {
         taskId,
         status: 'done',
         userId: planner,
+        // 사람 경로의 done 은 담당자·클레임 보유자·planner·admin 만이다(REQ-API-130) —
+        // 이 스위트가 보려는 것은 게이트이므로 역할을 명시한다
+        roles: ['planner'],
         specImpact: { none: true },
         evidence: [{ kind: 'pr', locator: 'https://pr/2' }],
       }),

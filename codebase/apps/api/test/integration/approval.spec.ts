@@ -4,7 +4,7 @@
 // 그러려면 승인이 여기서 되는 것만으로 부족하고 **여기서만** 되어야 한다 —
 // 그 성질을 검증하는 것이 이 스위트의 절반이다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
@@ -409,6 +409,50 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
   });
 });
 
+/**
+ * **결재는 결재다**(2026-09-07 · REQ-API-128). 결정이 남긴 이벤트가 `question.answered`
+ * 였다 — 질문에 답한 적이 없는데 답한 것으로 세였고, 결재를 세려는 쪽은 셀 것이 없었다.
+ */
+describe('결재가 남기는 사실 (REQ-API-128)', () => {
+  it('결정하면 approval.decided 가 남는다 — 질문에 답한 것으로 세지 않는다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'reject',
+      comment: '근거가 얇다',
+    });
+
+    const { rows } = await pool.query<{
+      type: string;
+      actor: string | null;
+      to_state: string | null;
+      payload: { decision?: string; subject_type?: string };
+    }>(
+      `SELECT type, actor_user_id AS actor, to_state, payload FROM event
+        WHERE subject_id = $1 AND subject_type = 'approval' AND type <> 'approval.requested'`,
+      [approval_id],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      type: NERV_EVENT.APPROVAL_DECIDED,
+      actor: reviewer,
+      to_state: 'reject',
+    });
+    expect(rows[0]?.payload).toMatchObject({ decision: 'reject', subject_type: 'plan' });
+    expect(await pool.query(`SELECT 1 FROM event WHERE type = 'question.answered'`)).toMatchObject({
+      rowCount: 0,
+    });
+  });
+});
+
 describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원칙 3)', () => {
   it('결정되지 않은 카드만 온다 — 처리한 것은 사라진다', async () => {
     const { approval_id } = await approvals.request({
@@ -655,6 +699,119 @@ describe('E13-S01 게이트 면제 — 면제도 결재 레코드다 (FR-10)', (
       `SELECT count(*)::int AS n FROM event WHERE type = 'gate.bypassed'`,
     );
     expect(events.rows[0]?.n).toBe(1);
+  });
+});
+
+/**
+ * **결정은 요청한 세션에게 돌아간다**(2026-09-07 · REQ-API-133·134 · FR-11).
+ *
+ * A3 승인을 기다리는 에이전트는 승인이 나도 그것을 들을 길이 없었다 — 서버→세션 방향의
+ * 보장 채널은 하트비트 하나인데(§2.4) 결재 결정이 거기 실리지 않았고, 기다리는 세션은
+ * S5 에 `active` 로 보였다. 실데이터 결재 11건 중 4건이 세션 기원이다.
+ */
+describe('승인은 요청한 세션에게 돌아간다 (REQ-API-133·134)', () => {
+  async function sessionApproval(): Promise<string> {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+      requestedBySessionId: sessionId,
+    });
+    await pool.query(`UPDATE agent_session SET state = 'awaiting_input' WHERE id = $1`, [
+      sessionId,
+    ]);
+    return approval_id;
+  }
+
+  async function stateOfSession(): Promise<string | null> {
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    return rows[0]?.state ?? null;
+  }
+
+  it('결정이 세션을 깨우고 그 사실이 역채널에 실린다', async () => {
+    const approvalId = await sessionApproval();
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId,
+      userId: reviewer,
+      decision: 'approve',
+    });
+
+    expect(await stateOfSession()).toBe('active');
+    const pending = await approvals.pendingDecisionsFor(sessionId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({
+      kind: 'approval_decided',
+      approval_id: approvalId,
+      subject_type: 'plan',
+      decision: 'approve',
+    });
+  });
+
+  it('다른 대기 사유가 남아 있으면 깨우지 않는다 — 열린 blocking 질문', async () => {
+    const approvalId = await sessionApproval();
+    await questions.create({
+      projectId,
+      sessionId,
+      title: '이것도 정해 주세요',
+      urgency: 'blocking',
+    });
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId,
+      userId: reviewer,
+      decision: 'approve',
+    });
+
+    expect(await stateOfSession()).toBe('awaiting_input');
+  });
+
+  it('결정되지 않은 다른 결재가 남아 있어도 깨우지 않는다', async () => {
+    const first = await sessionApproval();
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+      requestedBySessionId: sessionId,
+    });
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: first,
+      userId: reviewer,
+      decision: 'approve',
+    });
+
+    expect(await stateOfSession()).toBe('awaiting_input');
+  });
+
+  it('세션이 올린 것이 아니면 아무 세션도 건드리지 않는다', async () => {
+    await pool.query(`UPDATE agent_session SET state = 'awaiting_input' WHERE id = $1`, [
+      sessionId,
+    ]);
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: approval_id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+
+    expect(await stateOfSession()).toBe('awaiting_input');
+    expect(await approvals.pendingDecisionsFor(sessionId)).toEqual([]);
   });
 });
 

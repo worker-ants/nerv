@@ -35,6 +35,7 @@ import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
+import { ClaimService } from '../task/claim.service.js';
 
 export type AgentKind = 'claude-code' | 'codex' | 'web' | 'other';
 
@@ -129,6 +130,8 @@ export class SessionService {
   constructor(
     private readonly events: EventService,
     @InjectDb() private readonly db: NervDb,
+    /** 회수 규칙은 한 곳이다 — 세션 끝·중단·stale 셋이 같은 메서드를 쓴다(D-05) */
+    private readonly claims: ClaimService,
   ) {}
 
   /**
@@ -345,29 +348,14 @@ export class SessionService {
       `);
 
       // **세션이 끝나서 회수된 것이다** — 사람이 고른 이유가 아니다(2026-09-06 · 0021).
-      // 2026-09-06 까지 이 자리와 stop 회수가 둘 다 `manual` 이라, 0019 가 갈라 놓은
-      // "왜 내려놨나" 가 이 두 경로에서만 답을 못 하고 있었다.
-      const { rows: released } = await tx.execute<{ id: string; task_id: string }>(sql`
-        UPDATE claim SET status = 'released', released_at = now(), release_reason = 'session_end'
-         WHERE agent_session_id = ${input.sessionId} AND status = 'active'
-        RETURNING id, task_id
-      `);
-      for (const claim of released) {
-        await tx.execute(sql`
-          UPDATE task SET status = 'ready', delegate_session_id = NULL, updated_at = now()
-           WHERE id = ${claim.task_id} AND status IN ('claimed', 'in_progress')
-        `);
-        await emit({
-          type: NERV_EVENT.CLAIM_RELEASED,
-          projectId: input.projectId,
-          subjectType: 'claim',
-          subjectId: claim.id,
-          actorUserId: input.userId,
-          actorSessionId: input.sessionId,
-          isAgent: true,
-          payload: { reason: 'session_end' },
-        });
-      }
+      // 회수 자체는 `ClaimService` 한 곳이 한다(2026-09-07): 예전에는 이 자리·stop·stale 이
+      // 각자 SQL 을 들고 있어 `task.ready` 가 stop 에서만 났고 stale 은 클레임을 아예
+      // 건드리지 않았다 — 같은 사실을 세 자리에 적으면 언젠가 한 자리만 고친다.
+      const released = await this.claims.releaseBySession(tx, emit, {
+        sessionId: input.sessionId,
+        reason: 'session_end',
+        actor: { userId: input.userId, isAgent: true },
+      });
 
       await emit({
         type: input.reason === 'error' ? NERV_EVENT.SESSION_COMPLETE : NERV_EVENT.SESSION_COMPLETE,
@@ -444,35 +432,13 @@ export class SessionService {
       let reclaimed = 0;
       if (input.kind === 'stop') {
         // **사람이 중단해서 회수된 것이다** — 그 세션이 고른 이유가 아니다(0021).
-        const { rows: released } = await tx.execute<{ id: string; task_id: string }>(sql`
-          UPDATE claim SET status = 'released', released_at = now(), release_reason = 'stopped'
-           WHERE agent_session_id = ${session.id} AND status = 'active'
-          RETURNING id, task_id
-        `);
-        for (const claim of released) {
-          await tx.execute(sql`
-            UPDATE task SET status = 'ready', updated_at = now()
-             WHERE id = ${claim.task_id} AND status IN ('claimed', 'in_progress')
-          `);
-          await emit({
-            type: NERV_EVENT.CLAIM_RELEASED,
-            projectId: input.projectId,
-            subjectType: 'claim',
-            subjectId: claim.id,
-            actorUserId: input.userId,
-            isAgent: false,
-            payload: { reason: 'stopped_by_human' },
-          });
-          await emit({
-            type: NERV_EVENT.TASK_READY,
-            projectId: input.projectId,
-            subjectType: 'task',
-            subjectId: claim.task_id,
-            actorUserId: input.userId,
-            isAgent: false,
-            toState: 'ready',
-          });
-        }
+        // 페이로드의 사유도 DB 어휘와 같은 값이다(2026-09-07): `stopped_by_human` 은
+        // 저장 어느 곳에도 없는 이름이라, 그 값으로 세는 소비자는 0을 센다.
+        const released = await this.claims.releaseBySession(tx, emit, {
+          sessionId: session.id,
+          reason: 'stopped',
+          actor: { userId: input.userId, isAgent: false },
+        });
         reclaimed = released.length;
       }
 
@@ -656,6 +622,15 @@ export class SessionService {
       `);
 
       for (const session of rows) {
+        // **stale 전이는 클레임 회수를 함께 한다**(2026-09-07 · D-13 · REQ-API-127).
+        // 이 메서드의 제목이 처음부터 "stale 전이 + 클레임 회수" 였는데 뒤엣것이 없었다 —
+        // 세션이 사라졌는데 리스는 최대 30분 더 살아 있어, 그 창에서 멀쩡한 클레임이
+        // 막혔다(리스 만료가 stale 임계와 같은 값이라는 **우연**에 기대고 있었다).
+        const released = await this.claims.releaseBySession(tx, emit, {
+          sessionId: session.id,
+          reason: 'stale',
+          actor: { userId: session.user_id, isAgent: true },
+        });
         await emit({
           type: NERV_EVENT.SESSION_STALE,
           projectId: session.project_id,
@@ -665,6 +640,7 @@ export class SessionService {
           actorSessionId: session.id,
           isAgent: true,
           toState: 'stale',
+          payload: { reclaimed: released.length },
         });
       }
       return rows.length;

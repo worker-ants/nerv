@@ -2,7 +2,7 @@
 // 클레임 엔진은 E04 에서 구현됐고 L2 가 지킨다 — 여기는 번역만 한다(REQ-CB-003).
 
 import { Injectable } from '@nestjs/common';
-import { BLOCKED_REASONS } from '@nerv/schema';
+import { BLOCKED_REASONS, LEASE_TTL_SECONDS, TASK_TRANSITION_TARGETS } from '@nerv/schema';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { requireSession } from '../session/session.tools.js';
 import { TaskService } from './task.service.js';
@@ -164,7 +164,12 @@ export class TaskTools implements NervToolProvider {
               file_globs: { type: 'array', items: { type: 'string' } },
             },
           },
-          lease_seconds: { type: 'integer' },
+          lease_seconds: {
+            type: 'integer',
+            minimum: 1,
+            maximum: LEASE_TTL_SECONDS,
+            description: 'mcp.arg.lease_seconds',
+          },
           session_id: { type: 'string', description: 'mcp.arg.session_id' },
           idempotency_key: { type: 'string' },
         },
@@ -204,7 +209,12 @@ export class TaskTools implements NervToolProvider {
           progress: { type: 'string' },
           // 카탈로그(3.4 §2.3)가 처음부터 적고 있던 셋 — 스키마에도 없어 조용히 버려졌다
           stats: { type: 'object' },
-          lease_seconds: { type: 'integer' },
+          lease_seconds: {
+            type: 'integer',
+            minimum: 1,
+            maximum: LEASE_TTL_SECONDS,
+            description: 'mcp.arg.lease_seconds',
+          },
         },
         required: ['claim_id'],
       },
@@ -259,9 +269,13 @@ export class TaskTools implements NervToolProvider {
           task_id: { type: 'string', description: 'task key (CLV-T-…) or UUID' },
           // **허용값을 적는다.** 열거가 없으면 에이전트는 상태 이름을 지어내고, 그 실패는
           // "전이 불가" 로 보여 스펙 문제처럼 읽힌다(2026-08-30 사람 보고)
+          // **`claimed` 는 여기 없다**(2026-09-07 · REQ-API-132) — 그 상태는 `nerv_task_claim`
+          // 만이 만든다. 스키마는 모델이 읽는 계약이라, 목표값으로 노출되어 있는 동안은
+          // 클레임 행 없는 `claimed` 를 만드는 길이 열려 있는 것과 같다.
           status: {
             type: 'string',
-            enum: ['backlog', 'ready', 'claimed', 'in_progress', 'in_review', 'done', 'blocked'],
+            description: 'mcp.arg.status',
+            enum: [...TASK_TRANSITION_TARGETS],
           },
           // **핸들러는 처음부터 이 셋을 읽고 있었는데 스키마에 없었다** — `nerv_question_create`
           // 와 같은 결함이다. 도구는 스키마를 읽으므로, 적지 않은 입력은 실리지 않는다.

@@ -6,7 +6,7 @@
 // 동시성은 mock 으로 검증하지 않는다(codebase.md §4.3). 여기서 도는 것은 실제 Postgres 의
 // 행 잠금·조건부 UPDATE·부분 unique 다 — 그 셋이 함께 동작해야 "중복 클레임 0건"이 성립한다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
@@ -14,11 +14,13 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
+import { NotificationService } from '../../src/modules/event/notification.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
+import { IMPORTED_DELEGATION } from '../../src/modules/import/import.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -26,6 +28,8 @@ let db: ScratchDb;
 let pool: pg.Pool;
 let tasks: TaskService;
 let claims: ClaimService;
+let events: EventService;
+let notifications: NotificationService;
 let questions: QuestionService;
 let sessions: SessionService;
 let drizzleDb: ReturnType<typeof drizzle>;
@@ -56,12 +60,13 @@ beforeAll(async () => {
     subscribe: async () => undefined,
     failureCount: 0,
   } as unknown as ValkeyService;
-  const events = new EventService(drizzleDb, silentValkey);
+  events = new EventService(drizzleDb, silentValkey);
+  notifications = new NotificationService(drizzleDb, silentValkey);
 
   claims = new ClaimService();
   // 하트비트 역채널은 이 스위트의 관심사가 아니다 — 질문이 없으면 빈 목록이다.
   questions = new QuestionService(events, drizzleDb);
-  sessions = new SessionService(events, drizzleDb);
+  sessions = new SessionService(events, drizzleDb, new ClaimService());
   // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트도 그 서비스를 들고 있어야 한다
   // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트는 그 게이트에 닿지 않지만
   // 서비스는 들고 있어야 한다(SpecService·AuthService 는 이 경로에서 쓰이지 않는다)
@@ -89,8 +94,16 @@ beforeEach(async () => {
   // 질문도 Task 를 참조한다 — 막힘의 해소 조건(REQ-API-118)이 그 관계를 읽으므로
   // 이 스위트가 질문을 만든다. 증적과 같은 이유로 Task 보다 먼저 지운다.
   await pool.query('DELETE FROM question');
+  // 결재도 지운다 — 하트비트 역채널이 1시간 창으로 읽으므로 앞 테스트의 결정이 따라온다
+  await pool.query('DELETE FROM approval');
   await pool.query('DELETE FROM task');
   await pool.query('TRUNCATE event');
+  // 세션도 되돌린다 — 리스 만료·유휴 회수 테스트가 세션을 stale 로 만들고 가는데,
+  // 겹침 판정은 살아있는 세션의 클레임만 본다(claim.service#activeClaims).
+  // 되돌리지 않으면 앞선 테스트가 뒤 테스트의 겹침을 조용히 없앤다(실측 — 단독 실행만 통과).
+  await pool.query(
+    `UPDATE agent_session SET state='active', last_heartbeat_at=now(), ended_at=NULL`,
+  );
 });
 
 // ── E04-S01 원자적 클레임 ───────────────────────────────────────────────────
@@ -391,6 +404,83 @@ describe('E04-S03 하트비트·리스 연장', () => {
     ]);
   });
 
+  /**
+   * **결재 결정도 역채널을 탄다**(2026-09-07 · REQ-API-133). 이 채널이 없던 동안
+   * `NERV_APPROVAL_REQUIRED` 는 "하트비트로 확인하라" 는 다음 행동을 주면서 정작 하트비트에
+   * 그 결과를 싣지 않았다 — 있는 것처럼 말하는 채널이 없는 채널보다 나쁘다.
+   */
+  it('결재 결정이 답변 앞에 실리고, 지시와 달리 창이 닫힐 때까지 다시 실린다', async () => {
+    const taskId = await makeTask('CLV-T-HB0001');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    const asked = await questions.create({
+      projectId,
+      sessionId: sessionHana,
+      title: '이 스펙으로 진행할까요?',
+    });
+    await questions.answer({
+      projectId,
+      questionId: asked.question_id,
+      userId: hana,
+      actor: { userId: hana, isAgent: false },
+      answerMd: '그렇게 하자',
+    });
+    // 이 세션이 올린 결재가 방금 승인됐다 — 결재 서비스의 판정 경로는 approval.spec 이 본다
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                             requested_by_session_id, assignee_user_id, decision, decided_at)
+       VALUES ($1,$2,'plan',$3,$4,$5,$6,'approve', now())`,
+      [newId(), projectId, newId(), hana, sessionHana, dohyun],
+    );
+    await sessions.steer({
+      actor: { userId: hana, isAgent: false },
+      projectId,
+      sessionId: sessionHana,
+      kind: 'steer',
+      message: '승인 났으니 이어 가라',
+      userId: hana,
+    });
+
+    const beat = await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) });
+    expect(beat.pending.map((p) => (p as Record<string, unknown>)['kind'])).toEqual([
+      'steer',
+      'approval_decided',
+      'question_answered',
+    ]);
+    expect(beat.pending[1]).toMatchObject({ decision: 'approve', decided_by: '도현' });
+
+    // 지시는 한 번이고 결재·답변은 창이 닫힐 때까지 남는다 — 하트비트는 유실될 수 있는
+    // 호출이라, 한 번 싣고 지우면 그 결정은 아무도 모르는 결정이 된다
+    const again = await tasks.heartbeat({
+      claimId: claim.claimId,
+      actor: actor(sessionHana, hana),
+    });
+    expect(again.pending.map((p) => (p as Record<string, unknown>)['kind'])).toEqual([
+      'approval_decided',
+      'question_answered',
+    ]);
+  });
+
+  it('답변은 누가 언제 정했는지도 싣는다 (REQ-API-135)', async () => {
+    const taskId = await makeTask('CLV-T-HB0002');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    const asked = await questions.create({
+      projectId,
+      sessionId: sessionHana,
+      title: '어느 쪽으로 갈까요?',
+    });
+    await questions.answer({
+      projectId,
+      questionId: asked.question_id,
+      userId: dohyun,
+      actor: { userId: dohyun, isAgent: false },
+      answerMd: '왼쪽',
+    });
+
+    const beat = await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) });
+    expect(beat.pending[0]).toMatchObject({ kind: 'question_answered', answered_by: '도현' });
+    expect((beat.pending[0] as Record<string, unknown>)['answered_at']).toEqual(expect.any(String));
+  });
+
   it('만료된 리스로 하트비트하면 NERV_LEASE_EXPIRED', async () => {
     const taskId = await makeTask('TSK-expired');
     const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
@@ -416,8 +506,8 @@ describe('E04-S04 만료 자동 회수 (성공 기준 0-4)', () => {
       [claim.claimId],
     );
 
-    const reclaimed = await drizzleDb.transaction(async (tx) => claims.reclaimExpired(tx));
-    expect(reclaimed).toBe(1);
+    const reclaimed = await events.transact(async (tx, emit) => claims.reclaimExpired(tx, emit));
+    expect(reclaimed).toHaveLength(1);
 
     expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('ready');
     expect(await scalarText(`SELECT status::text FROM claim WHERE id='${claim.claimId}'`)).toBe(
@@ -461,11 +551,114 @@ describe('E04-S04 만료 자동 회수 (성공 기준 0-4)', () => {
   });
 });
 
+/**
+ * **회수도 상태 전이다**(2026-09-07 · REQ-API-127 · FR-16). 여기까지 회수 경로는 아무 흔적을
+ * 남기지 않았다 — 실데이터에서 회수 3건에 `claim.%` 이벤트 0건이었다. 사람이 내려놓은 것은
+ * 이벤트를 남기고 서버가 뺏은 것은 남기지 않는다면, 감사에 남는 것은 덜 중요한 쪽이다.
+ */
+describe('회수·해제가 남기는 사실 (REQ-API-127)', () => {
+  it('만료 회수는 claim.released 와 task.ready 를 남긴다 — 액터는 쥐고 있던 세션이다', async () => {
+    const taskId = await makeTask('CLV-T-EV0001');
+    const claim = await tasks.claim(
+      claimInput(taskId, sessionHana, hana, { specIds: [], fileGlobs: ['ev/**'] }),
+    );
+    await pool.query(
+      `UPDATE claim SET lease_expires_at = now() - interval '1 second' WHERE id=$1`,
+      [claim.claimId],
+    );
+    await pool.query('TRUNCATE event');
+
+    const reclaimed = await events.transact(async (tx, emit) => claims.reclaimExpired(tx, emit));
+    expect(reclaimed).toHaveLength(1);
+
+    const { rows } = await pool.query<{ type: string; is_agent: boolean; actor: string | null }>(
+      `SELECT type, is_agent, actor_session_id AS actor FROM event ORDER BY type`,
+    );
+    expect(rows.map((r) => r.type)).toEqual([NERV_EVENT.CLAIM_RELEASED, NERV_EVENT.TASK_READY]);
+    // 리스를 놓친 것은 **그 세션의 일**이다 — 서버를 액터로 적으면 피드에서 줄이 끊긴다
+    expect(rows.every((r) => r.is_agent && r.actor === sessionHana)).toBe(true);
+  });
+
+  it('세션이 stale 이 되면 클레임도 함께 회수된다 — 리스 만료를 기다리지 않는다', async () => {
+    const taskId = await makeTask('CLV-T-EV0002');
+    const claim = await tasks.claim(
+      claimInput(taskId, sessionHana, hana, { specIds: [], fileGlobs: ['stale/**'] }, 1800),
+    );
+    // 세션만 오래 조용하게 만든다 — 리스는 아직 30분 남아 있다
+    await pool.query(
+      `UPDATE agent_session SET last_heartbeat_at = now() - interval '2 hours' WHERE id=$1`,
+      [sessionHana],
+    );
+    await pool.query('TRUNCATE event');
+
+    expect(await sessions.markStale()).toBeGreaterThan(0);
+
+    const { rows } = await pool.query<{ status: string; reason: string | null }>(
+      `SELECT status::text AS status, release_reason::text AS reason FROM claim WHERE id=$1`,
+      [claim.claimId],
+    );
+    expect(rows[0]).toMatchObject({ status: 'released', reason: 'stale' });
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('ready');
+    const { rows: kinds } = await pool.query<{ type: string }>(
+      `SELECT DISTINCT type FROM event ORDER BY type`,
+    );
+    expect(kinds.map((k) => k.type)).toContain(NERV_EVENT.CLAIM_RELEASED);
+    expect(kinds.map((k) => k.type)).toContain(NERV_EVENT.TASK_READY);
+  });
+
+  it('리스 상한을 넘기면 거절한다 — 조용히 깎지 않는다', async () => {
+    const taskId = await makeTask('CLV-T-EV0003');
+    await expect(
+      tasks.claim(
+        claimInput(taskId, sessionHana, hana, { specIds: [], fileGlobs: ['cap/**'] }, 7200),
+      ),
+    ).rejects.toBeDefined();
+  });
+});
+
+/**
+ * **차단도 사실이다**(2026-09-07 · REQ-API-128). `claim.conflict_blocked` 는 알림 카탈로그에
+ * critical 로 올라 있고 화면 무효화 맵에도 있는데 **내는 곳이 0** 이었다 — 막힌 쪽은 409 로
+ * 알지만, 알아야 할 사람은 먼저 잡고 있던 쪽이다.
+ */
+describe('차단이 남기는 사실 (REQ-API-128)', () => {
+  it('겹침으로 막히면 claim.conflict_blocked 가 남고 먼저 잡은 사람에게 알림이 간다', async () => {
+    const first = await makeTask('CLV-T-CF0001');
+    const second = await makeTask('CLV-T-CF0002');
+    await tasks.claim(claimInput(first, sessionHana, hana, { specIds: [specA], fileGlobs: [] }));
+    await pool.query('TRUNCATE event');
+
+    await expect(
+      tasks.claim(claimInput(second, sessionDohyun, dohyun, { specIds: [specA], fileGlobs: [] })),
+    ).rejects.toMatchObject({ code: NERV_ERROR.CONFLICT_SCOPE });
+
+    // 클레임은 롤백돼도 **차단은 남는다** — 별도 트랜잭션이라 그렇다
+    const { rows } = await pool.query<{ type: string; subject_id: string; actor: string | null }>(
+      `SELECT type, subject_id, actor_user_id AS actor FROM event WHERE type = $1`,
+      [NERV_EVENT.CLAIM_CONFLICT_BLOCKED],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ subject_id: second, actor: dohyun });
+    expect(await count(`SELECT count(*)::int AS n FROM claim WHERE status='active'`)).toBe(1);
+
+    // 알려야 할 사람은 **먼저 잡고 있던 쪽**이다 — 막힌 쪽은 409 로 이미 안다
+    expect(await notifications.route()).toBeGreaterThan(0);
+    const { rows: notified } = await pool.query<{ user_id: string }>(
+      `SELECT DISTINCT n.user_id FROM notification n JOIN event e ON e.id = n.event_id
+        WHERE e.type = $1`,
+      [NERV_EVENT.CLAIM_CONFLICT_BLOCKED],
+    );
+    expect(notified.map((n) => n.user_id)).toEqual([hana]);
+  });
+});
+
 describe('전이의 주인 (EP-TASK-09)', () => {
   it('남의 클레임이 걸린 Task 는 옮기지 못한다 — planner·admin 은 예외다', async () => {
     const taskId = await makeTask('TSK-tr-own');
     await tasks.claim(claimInput(taskId, sessionHana, hana));
 
+    // 세션 경로는 **자기 클레임이 없다**로 막힌다(REQ-API-129) — 남의 것이 걸려 있으니
+    // 다시 잡을 수도 없다(reclaimable=false)
     await expect(
       tasks.transition({
         projectId,
@@ -473,6 +666,20 @@ describe('전이의 주인 (EP-TASK-09)', () => {
         status: 'in_progress',
         userId: dohyun,
         sessionId: sessionDohyun,
+        roles: ['developer'],
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.LEASE_EXPIRED,
+      details: { kind: 'no_active_claim', reclaimable: false },
+    });
+
+    // 사람 경로는 담당자 판정으로 막힌다 — 같은 거절이지만 다른 물음이다
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'in_progress',
+        userId: dohyun,
         roles: ['developer'],
       }),
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_assignee' } });
@@ -520,17 +727,205 @@ describe('전이의 주인 (EP-TASK-09)', () => {
 
   it('done 은 이 문으로 되돌아오지 않는다', async () => {
     const taskId = await makeTask('TSK-tr-done');
+    // 리스 없이 done 으로 가던 준비 단계였다(REQ-API-129 이후로는 그 길이 없다) — 잡고 닫는다
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
     await tasks.transition({
       projectId,
       taskId,
       status: 'done',
       userId: hana,
+      sessionId: sessionHana,
       specImpact: { none: true },
       evidence: [{ kind: 'pr', locator: 'https://pr/2' }],
     });
     await expect(
       tasks.transition({ projectId, taskId, status: 'in_progress', userId: hana }),
     ).rejects.toMatchObject({ details: { kind: 'not_allowed' } });
+  });
+});
+
+/**
+ * **전이의 문지기**(2026-09-07 · REQ-API-129~132). 문서 셋이 "유효한 리스 없는 done 은
+ * 거부" 를 약속하는 동안 서버는 활성 클레임이 *아예 없으면* 판정을 건너뛰었다 — 리스가
+ * 없다는 것이 거부가 아니라 무검사였다. `ready` 도 도착지가 아니라 판정이다.
+ */
+describe('전이의 문지기 (REQ-API-129~132)', () => {
+  it('세션은 자기 클레임 없이 done 으로 못 간다 — 다시 잡을 수 있다고 알려 준다', async () => {
+    const taskId = await makeTask('CLV-T-GK0001');
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: hana,
+        sessionId: sessionHana,
+        specImpact: { none: true },
+        evidence: [{ kind: 'pr', locator: 'https://pr/9' }],
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.LEASE_EXPIRED,
+      details: { kind: 'no_active_claim', reclaimable: true },
+    });
+    // 거절이 저장을 남기지 않는다 — 증적도 함께 롤백된다
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('ready');
+    expect(await count(`SELECT count(*)::int AS n FROM evidence WHERE task_id='${taskId}'`)).toBe(
+      0,
+    );
+  });
+
+  it('리스가 만료된 세션도 못 간다 — 그래도 다시 잡을 수는 있다', async () => {
+    const taskId = await makeTask('CLV-T-GK0002');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await pool.query(
+      `UPDATE claim SET lease_expires_at = now() - interval '1 minute' WHERE id=$1`,
+      [claim.claimId],
+    );
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'in_progress',
+        userId: hana,
+        sessionId: sessionHana,
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.LEASE_EXPIRED,
+      details: { kind: 'lease_expired', reclaimable: true },
+    });
+  });
+
+  it('고아 in_progress 는 되찾을 수 없다고 답한다 — 사람이 되돌려야 하는 자리다', async () => {
+    const taskId = await makeTask('CLV-T-GK0003', { status: 'in_progress' });
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: hana,
+        sessionId: sessionHana,
+        specImpact: { none: true },
+        evidence: [{ kind: 'pr', locator: 'https://pr/8' }],
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'no_active_claim', reclaimable: false } });
+  });
+
+  it('사람의 done 은 넷에게만 열린다 — 담당자·클레임 보유자·planner·admin', async () => {
+    const outsider = await makeTask('CLV-T-GK0004');
+    const done = {
+      status: 'done',
+      specImpact: { none: true },
+      evidence: [{ kind: 'pr' as const, locator: 'https://pr/7' }],
+    };
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId: outsider,
+        userId: dohyun,
+        roles: ['developer'],
+        ...done,
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_assignee' } });
+
+    // 담당자면 역할이 없어도 닫는다
+    const mine = await makeTask('CLV-T-GK0005');
+    await pool.query(`UPDATE task SET assignee_user_id=$1 WHERE id=$2`, [dohyun, mine]);
+    await expect(
+      tasks.transition({ projectId, taskId: mine, userId: dohyun, roles: ['developer'], ...done }),
+    ).resolves.toMatchObject({ status: 'done' });
+
+    // planner 는 남의 작업도 닫는다
+    const others = await makeTask('CLV-T-GK0006');
+    await expect(
+      tasks.transition({ projectId, taskId: others, userId: dohyun, roles: ['planner'], ...done }),
+    ).resolves.toMatchObject({ status: 'done' });
+  });
+
+  it('claimed 는 이 문으로 들어가지 않는다 — 갈 길을 알려 준다', async () => {
+    const taskId = await makeTask('CLV-T-GK0007');
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'claimed', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'transition_not_allowed', from: 'ready', to: 'claimed' },
+    });
+    // 어휘 밖의 값은 여전히 어휘 오류다 — 둘은 다른 물음이다
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'doing', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({ details: { kind: 'invalid_input', field: 'status' } });
+  });
+
+  it('클레임이 걸린 채로는 ready·backlog 로 되돌리지 못한다 — 먼저 놓는다', async () => {
+    const taskId = await makeTask('CLV-T-GK0008');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    for (const status of ['ready', 'backlog']) {
+      await expect(
+        tasks.transition({ projectId, taskId, status, userId: hana, roles: ['planner'] }),
+      ).rejects.toMatchObject({
+        code: NERV_ERROR.PRECONDITION,
+        details: { kind: 'release_required', claim_id: claim.claimId },
+      });
+    }
+    // 놓고 나면 열린다 — 해제가 이미 ready 로 되돌려 놓는다
+    await tasks.release({
+      claimId: claim.claimId,
+      reason: 'handoff',
+      userId: hana,
+      actor: { projectId, userId: hana, sessionId: sessionHana, isAdmin: false },
+    });
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('ready');
+  });
+
+  it('ready 는 도착지가 아니라 판정이다 — 4요소가 비면 무엇이 빈지 말한다', async () => {
+    const taskId = await makeTask('CLV-T-GK0009', { status: 'backlog' });
+    await pool.query(`UPDATE task SET boundaries_md = NULL WHERE id=$1`, [taskId]);
+    const error = (await tasks
+      .transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] })
+      .catch((e: unknown) => e)) as { details: { kind: string; missing: { field: string }[] } };
+    expect(error.details.kind).toBe('delegation_spec_incomplete');
+    expect(error.details.missing.map((m) => m.field)).toEqual(['boundaries_md']);
+  });
+
+  it('임포트 자리표시자는 빈 것이다 — 채워진 척하는 값이 큐를 통과하지 않는다', async () => {
+    const taskId = await makeTask('CLV-T-GK0010', { status: 'backlog' });
+    await pool.query(`UPDATE task SET goal_md = $1 WHERE id=$2`, [IMPORTED_DELEGATION, taskId]);
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({ details: { kind: 'delegation_spec_incomplete' } });
+  });
+
+  it('선행 작업이 남아 있으면 큐에 들어가지 않는다 — 어느 것인지 말한다', async () => {
+    const blocker = await makeTask('CLV-T-GK0011', { status: 'backlog' });
+    const taskId = await makeTask('CLV-T-GK0012', { status: 'backlog' });
+    await pool.query(
+      `INSERT INTO task_dependency (task_id, depends_on_task_id, kind) VALUES ($1,$2,'blocks')`,
+      [taskId, blocker],
+    );
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({
+      details: { kind: 'dependencies_pending', pending: ['CLV-T-GK0011'] },
+    });
+  });
+
+  it('ready 로 돌아가면 막힘 사유가 지워지고 task.ready 가 남는다', async () => {
+    const taskId = await makeTask('CLV-T-GK0013');
+    // blocked 는 사유와 함께여야 저장된다(CHECK) — 한 문장으로 세운다
+    await pool.query(
+      `UPDATE task SET status='blocked', blocked_reason='awaiting_answer' WHERE id=$1`,
+      [taskId],
+    );
+    await pool.query('TRUNCATE event');
+
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] }),
+    ).resolves.toMatchObject({ status: 'ready' });
+
+    expect(await scalarText(`SELECT blocked_reason FROM task WHERE id='${taskId}'`)).toBeNull();
+    const { rows } = await pool.query<{ type: string; to_state: string | null }>(
+      `SELECT type, to_state FROM event WHERE subject_id = $1`,
+      [taskId],
+    );
+    expect(rows).toMatchObject([{ type: NERV_EVENT.TASK_READY, to_state: 'ready' }]);
   });
 });
 

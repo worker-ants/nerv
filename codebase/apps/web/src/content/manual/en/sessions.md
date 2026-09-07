@@ -10,14 +10,14 @@ The card carries four more things — the **remaining lease** (it changes colour
 
 ## Statuses
 
-| Status           | Meaning                                    |
-| ---------------- | ------------------------------------------ |
-| `pending`        | Getting ready to start                     |
-| `active`         | Running                                    |
-| `awaiting_input` | **Waiting on a person** — a question is up |
-| `complete`       | Finished                                   |
-| `error`          | Ended in failure                           |
-| `stale`          | No word for over 30 minutes                |
+| Status           | Meaning                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `pending`        | Getting ready to start                                                                                                               |
+| `active`         | Running                                                                                                                              |
+| `awaiting_input` | **Waiting on a person** — a question is up, or a review request or `critical` downgrade this session raised is waiting on a decision |
+| `complete`       | Finished                                                                                                                             |
+| `error`          | Ended in failure                                                                                                                     |
+| `stale`          | No word for over 30 minutes                                                                                                          |
 
 `stale` does not mean "failed", it means **"unknown"**. The machine may have slept, the network may have dropped, the process may have died — the screen cannot tell which, so it says only what it knows.
 
@@ -64,5 +64,7 @@ An agent raises a question wherever it cannot decide. There are two urgencies.
 
 - `blocking` — it will not proceed until answered. The session goes to `awaiting_input`.
 - `normal` — it keeps going while it waits.
+
+**Review requests (T2/T3) and `critical` downgrades park a session the same way.** Decide in the inbox and that session picks the result up on its next heartbeat and carries on — unless something else is still pending for it (an unanswered question, another undecided request), in which case it keeps waiting.
 
 Questions arrive **as cards in the inbox** (see [Inbox and notifications](/help/inbox)). Write an answer and that session picks up where it left off.

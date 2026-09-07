@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.10 · 2026-09-06 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.11 · 2026-09-07 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.11 변경(2026-09-07 — 정본이 서로 다른 말을 하고 있었다): **새 결정 없음 — 정본 간 불일치 해소다.** 상태도가 `in_review → done` 하나만 그리는데 [3.3 데이터 모델](data-model.md) §2.4 는 2026-09-02 에 "경로 그래프는 강제하지 않는다" 로 고쳐졌다 — 3.5 만 남아 있었다. 간선 둘(`in_progress → done` · `blocked → in_progress`)을 그리고, **강제하는 문지기가 여덟**임을 그림 아래에 적는다([4.4](../04-mvp/api.md) REQ-API-129~132 가 그중 넷을 신설했다).
 >
 > v0.10 변경(2026-09-06 — 해소 조건은 받지 않고 파생한다, 사람 결정): §2 의 `blocked` 진입 규약에서 **"해소 조건을 필수로 받는다"** 를 걷고 파생으로 바꾼다(4.4 REQ-API-118). 그 조건을 담을 열은 **만들어진 적이 없다** — 그리고 만들지 않기로 했다: 사유마다 해소 원천이 **이미 저장에 있기 때문**이다(`question.task_id` · `task_dependency` · `rebrief_required_at`). 열을 하나 더 두면 같은 사실에 포인터가 둘이 되고, 그 열은 넷 중 하나에만 맞아 나머지 셋에는 NULL 이 들어간다. 서버가 `EP-TASK-04` 응답에 `blocked_resolution` 을 파생해 실어 준다 — 그리고 **`satisfied: null` 은 "아니다" 가 아니라 "서버가 판정할 수 없다"** 다. 곁들여 파생이라 얻는 것: `blocked_reason` 을 아무도 자동으로 지우지 않으므로, 파생값이 **"이제 풀 수 있다" 를 화면이 말하게** 한다.
 >
@@ -137,11 +139,15 @@ stateDiagram-v2
     in_progress --> in_review: PR 생성 · nerv_review_submit
     in_review --> in_progress: finding 재작업
     in_review --> done: 게이트 통과 FR-10
+    in_progress --> done: 게이트 통과 FR-10 (in_review 는 선택)
     ready --> blocked: 차단 사유 등록
     in_progress --> blocked: 질문 · 의존 붕괴
     blocked --> ready: 차단 해소
+    blocked --> in_progress: 차단 해소 · 활성 클레임 보유
     done --> [*]
 ```
+
+> **그래프 자체는 강제하지 않는다**([3.3 데이터 모델](data-model.md) §2.4 · 2026-09-02 결정). 강제하는 것은 **문지기 여덟**이다 — 어휘 · 담당자 · 리스 만료 · `done` 최종 · **세션의 리스 구속 목표 셋**(`in_progress`·`in_review`·`done`) · **`ready` 판정**(4요소·의존) · **`claimed` 는 클레임으로만** · **활성 클레임이 걸린 `ready`·`backlog` 는 해제 먼저**([4.4 API 명세](../04-mvp/api.md) REQ-API-129~132 — 뒤의 넷이 2026-09-07 에 섰다). 문지기를 늘린 것이지 경로 그래프를 강제하기로 바꾼 것이 아니다.
 
 `blocked`는 별도 축이 아니라 어느 상태에서든 들어가고 나올 수 있는 예외 상태다. 진입 시 **사유 코드**(`awaiting_answer` / `dependency_broken` / `spec_conflict` / `external`)를 필수로 받는다 — clemvion의 `(unstarted)` sentinel이 "placeholder는 어떤 worktree와도 매칭되지 않아 plan이 게이트에서 사라진다"는 이유로 가드에 거부당한 것과 같은 원리로, 사유 없는 blocked는 백로그 부패의 씨앗이기 때문이다.
 
@@ -155,7 +161,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | 스펙 승인 | `in_review → approved` | 새 Requirement가 `unimplemented`로 등록 | 파생 Task가 `backlog`로 생성 |
 | 클레임 | 변화 없음 | `unimplemented → in_progress` | `ready → claimed` |
-| Task 완료 | 변화 없음 | `in_progress → implemented` (Evidence 조건) | `in_review → done` |
+| Task 완료 | 변화 없음 | `in_progress → implemented` (Evidence 조건) | `in_progress`·`in_review → done` |
 | QA 검증 | 변화 없음 | `implemented → verified` | 변화 없음 |
 | CR 승인(MODIFIED) | 새 버전 `approved`, 이전 `superseded` | 해당 REQ `verified/implemented → in_progress` | 관련 Task 재개 또는 신설 |
 
@@ -521,7 +527,7 @@ clemvion의 GC reaper는 "merge는 대부분 GitHub 웹에서 일어나 로컬�
 
 ### 4.6 done 전이 조건 (FR-10 게이트)
 
-`in_review → done`은 아래를 **전부** 만족할 때만 허용된다. 판정은 서버 질의 한 번이다.
+`in_progress`·`in_review → done` 은 아래를 **전부** 만족할 때만 허용된다(2026-09-02 결정 — `in_review` 를 거치는 것은 선택이다). 판정은 서버 질의 한 번이다.
 
 | # | 조건 | clemvion 대응물 |
 | --- | --- | --- |
