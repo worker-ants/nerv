@@ -35,6 +35,7 @@ export const RULES = {
   // skip — 그 항목만 빼고 계속한다. 종료 코드는 1 이라 신호는 남는다
   'id-collision': 'skipped',
   'status-unknown': 'skipped',
+  'frontmatter-unparsable': 'skipped',
   'server-rejected': 'skipped',
   'plan-spec-unresolved': 'skipped',
   'review-no-snapshot': 'skipped',
@@ -51,6 +52,7 @@ export const RULES = {
   'dist-mismatch': 'warn',
   'frontmatter-missing': 'warn',
   'research-doc': 'warn',
+  'frontmatter-unmapped': 'warn',
 } as const satisfies Record<string, Disposition>;
 
 export type Rule = keyof typeof RULES;

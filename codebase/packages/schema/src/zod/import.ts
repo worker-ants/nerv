@@ -51,6 +51,21 @@ export const importProfileSchema = z.object({
     status_map: z.record(z.string(), z.object({ doc: z.string(), impl: z.string() })),
     code: z.string().optional(),
     pending_plans: z.string().optional(),
+    /**
+     * 원본에 `status` 가 없을 때 쓸 문서 축 값(importer.md §5.1).
+     *
+     * **없으면 draft 다.** 이 저장소의 문서 23편은 전부 frontmatter 를 갖지만 그중 15편에
+     * `status` 가 없다(2026-09-07 실측) — 기본이 draft 면 승인된 정본 15편이 초안으로
+     * 적재되고, 그러면 첫 임포트의 결과가 사실과 다르다.
+     */
+    status_default: z.string().optional(),
+    /**
+     * 적재하지는 않지만 **매니페스트에 남길** frontmatter 키(importer.md §3.3).
+     *
+     * 이 저장소의 `updated`·`referenced_by` 가 그런 값이다 — NERV 의 필드로 옮길 자리가
+     * 없지만 원본으로 되돌릴 때 필요하고, 잃으면 md 로 다시 쓸 수 없다(정보 손실 0).
+     */
+    preserve: z.array(z.string()).default([]),
   }),
   requirement: z
     .object({ id_pattern: z.string().default('[A-Z]+-[A-Z]+-\\d+') })

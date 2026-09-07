@@ -65,6 +65,8 @@ export const clemvionProfile: ImportProfile = {
     },
     code: 'evidence.code_path',
     pending_plans: 'requirement.pending_task_links',
+    // clemvion frontmatter 에는 되돌릴 때만 필요한 값이 없다 — 전부 NERV 필드로 옮겨진다
+    preserve: [],
   },
   requirement: { id_pattern: '[A-Z]+-[A-Z]+-\\d+' },
   task: {

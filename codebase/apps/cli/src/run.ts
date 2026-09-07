@@ -189,11 +189,20 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
         }
         // **적재한 것을 매니페스트에 적는다**(§3.3). 이 기록이 다음 실행의 `map-conflict`
         // 판정 축이고, 링크 재작성·`spec_impact` 경로 변환이 쓰는 별칭 표다.
+        const scanned = files.find((f) => f.path === item.source_path);
+        const front = scanned === undefined ? null : parseFrontmatter(scanned.content);
         upsertManifestItem(manifest, {
           source_path: item.source_path,
           kind: 'spec',
           natural_key:
             loadable.find((l) => l.source_path === item.source_path)?.key ?? item.source_path,
+          // **원문 해시는 둘이다**(REQ-IMP-030) — 본문만 세면 `updated:` 하나 고친 재실행이
+          // 무변경으로 읽히고, 보존 값은 옛것으로 남는다.
+          ...(scanned === undefined ? {} : { content_hash: bodyHash(scanned) }),
+          ...(front?.raw == null
+            ? {}
+            : { frontmatter_hash: createHash('sha256').update(front.raw, 'utf8').digest('hex') }),
+          ...(front === null ? {} : preservedOf(front.frontmatter, profile)),
           ...(item.spec_id === undefined ? {} : { spec_id: item.spec_id }),
           ...(item.spec_version_id === undefined ? {} : { spec_version_id: item.spec_version_id }),
           ...(item.requirement_refs === undefined ? {} : { requirements: item.requirement_refs }),
@@ -738,16 +747,30 @@ function convert(
   entries: ReportEntry[],
   statusCounts: Record<string, number>,
 ): ImportSpecItem | null {
-  const { frontmatter, body } = parseFrontmatter(file.content);
+  const parsed = parseFrontmatter(file.content);
+  const { frontmatter, body } = parsed;
   const key = specKeyOf(file, profile);
+
+  // **닫히지 않은 frontmatter 는 조용히 넘기지 않는다**(REQ-IMP-030). 예전에는 전체를
+  // 본문으로 돌렸고, 사람이 오타를 낸 문서가 "frontmatter 없는 문서" 로 적재되면서 `id` 가
+  // 경로에서 지어졌다 — 원본에 있던 고정 ID 를 잃은 채로.
+  if (parsed.unparsable) {
+    entries.push({
+      file: file.path,
+      line: null,
+      rule: 'frontmatter-unparsable',
+      reason: t()('cli.reason.frontmatter_unparsable'),
+      disposition: 'skipped',
+    });
+    return null;
+  }
 
   const rawStatus = typeof frontmatter['status'] === 'string' ? frontmatter['status'] : undefined;
   if (rawStatus !== undefined) statusCounts[rawStatus] = (statusCounts[rawStatus] ?? 0) + 1;
 
-  // **frontmatter 가 없다는 사실을 조용히 넘기지 않는다**(§5.1 · `frontmatter-missing`).
-  // 그 문서들은 `status` 가 없어 기본값(draft)으로 들어가는데, 아무 말도 없으면 사람은
-  // 자기가 고른 값이라고 읽는다. `skip` 이 아니라 **`warn`** 인 이유는 적재 자체는 정상
-  // 이기 때문이다 — 도그푸딩 대상 13편이 정확히 이 경우다.
+  // **status 가 없다는 사실을 조용히 넘기지 않는다**(§5.1 · `frontmatter-missing`).
+  // 아무 말도 없으면 사람은 적재된 값을 자기가 고른 값이라고 읽는다. `skip` 이 아니라
+  // **`warn`** 인 이유는 적재 자체는 정상이기 때문이다 — 이 저장소의 15편이 그 경우다.
   if (rawStatus === undefined) {
     entries.push({
       file: file.path,
@@ -758,7 +781,10 @@ function convert(
     });
   }
 
-  const status = splitStatus(rawStatus, profile.frontmatter.status_map);
+  // 프로파일이 기본값을 선언했으면 그것이 "없을 때의 값" 이다 — 없으면 draft 로 떨어진다.
+  // 이 저장소의 승인된 정본 15편이 초안으로 적재되던 자리다(§5.1 · REQ-IMP-030).
+  const effectiveStatus = rawStatus ?? profile.frontmatter.status_default;
+  const status = splitStatus(effectiveStatus, profile.frontmatter.status_map);
   if (rawStatus !== undefined && status === null) {
     // 매핑에 없는 값을 기본값으로 넘기지 않는다 — 그러면 117/17/1 집계가 조용히 틀어진다
     entries.push({
@@ -770,6 +796,19 @@ function convert(
       disposition: 'skipped',
     });
     return null;
+  }
+
+  // **버린 키를 적어 둔다**(REQ-IMP-030). 조용히 버리면 다음 사람은 그 키가 원본에
+  // 있었다는 사실조차 모른다 — 무엇을 잃었는지 아는 것이 정보 손실 0 의 실무적 최소치다.
+  const unmapped = preservedOf(frontmatter, profile).unmapped_keys ?? [];
+  if (unmapped.length > 0) {
+    entries.push({
+      file: file.path,
+      line: null,
+      rule: 'frontmatter-unmapped',
+      reason: t()('cli.reason.frontmatter_unmapped', { keys: unmapped.join(', ') }),
+      disposition: 'warn',
+    });
   }
 
   const title = extractTitle(body) ?? key;
@@ -1302,4 +1341,36 @@ function joinPosix(base: string, relative: string): string {
     else segments.push(part);
   }
   return segments.join('/');
+}
+
+/**
+ * 매니페스트에 남길 frontmatter — **옮긴 것과 버린 것을 가른다**(§3.3 · REQ-IMP-030).
+ *
+ * `preserve` 는 NERV 필드로 옮길 자리가 없지만 원본으로 되돌릴 때 필요한 값이고,
+ * `unmapped_keys` 는 **적재되지도 보존되지도 않은** 키다 — 조용히 버리면 다음 사람은 그
+ * 키가 원본에 있었다는 사실조차 모른다. 무엇을 잃었는지 적어 두는 것이 정보 손실 0 의
+ * 실무적 최소치다.
+ */
+function preservedOf(
+  frontmatter: Record<string, string | string[]>,
+  profile: ImportProfile,
+): Pick<ManifestItem, 'frontmatter' | 'unmapped_keys'> {
+  const preserve = profile.frontmatter.preserve;
+  const known = new Set([
+    'id',
+    'status',
+    ...preserve,
+    ...(profile.frontmatter.code === undefined ? [] : ['code']),
+    ...(profile.frontmatter.pending_plans === undefined ? [] : ['pending_plans']),
+  ]);
+  const kept: Record<string, string | string[]> = {};
+  for (const key of preserve) {
+    const value = frontmatter[key];
+    if (value !== undefined) kept[key] = value;
+  }
+  const unmapped = Object.keys(frontmatter).filter((k) => !known.has(k));
+  return {
+    ...(Object.keys(kept).length === 0 ? {} : { frontmatter: kept }),
+    ...(unmapped.length === 0 ? {} : { unmapped_keys: unmapped }),
+  };
 }
