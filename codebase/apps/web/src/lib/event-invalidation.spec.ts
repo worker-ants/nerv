@@ -121,3 +121,26 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     for (const name of NO_SCREEN_YET) expect(mapped.has(name)).toBe(false);
   });
 });
+
+/**
+ * **표가 스스로 정본이라 선언했는데 실물의 절반을 몰랐다**(2026-09-07 실측).
+ *
+ * screens.md §1.4 는 머리말에서 "이벤트 매핑" 의 정의라고 적는다. 그런데 MAP 이 다루는
+ * 49종 중 18종이 표에 없었다 — 표를 보고 "이 이벤트는 화면을 갱신하지 않는다" 고 읽은
+ * 사람은 틀린 결론에 이르고, 그 결론으로 다음 화면을 설계한다.
+ *
+ * 수를 세지 않고 **이름을 맞춘다**: 수는 늘 때마다 무엇이 틀렸는지 말해 주지 않는다.
+ */
+describe('§1.4 표가 MAP 전수를 안다 (screens.md)', () => {
+  it('MAP 이 다루는 이벤트가 전부 표에 있다', async () => {
+    // 웹 검사는 vite 위에서 돌아 `import.meta.url` 이 `/@fs/…` 다 — 저장소 경로는 cwd 로 잡는다
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const doc = readFileSync(resolve(process.cwd(), '../../../docs/04-mvp/screens.md'), 'utf8');
+    const start = doc.indexOf('### 1.4');
+    const table = doc.slice(start, doc.indexOf('### 1.5', start));
+    const declared = new Set(table.match(/[a-z_]+\.[a-z_]+/g) ?? []);
+    const missing = mappedEventNames().filter((name) => !declared.has(name));
+    expect(missing).toEqual([]);
+  });
+});

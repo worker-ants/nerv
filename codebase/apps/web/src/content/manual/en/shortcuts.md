@@ -36,7 +36,7 @@ They do nothing while the cursor is in a text field.
 
 **On an approval you raised yourself, `a` does not open** — the rule that stops you approving your own work — **a draft you wrote, or one your session wrote, counts the same**, with exceptions for admins and for projects with fewer than two members (see [Inbox](/help/inbox)).
 
-Otherwise, pressing `a` without the permission to decide does not pass quietly — **the server refuses it.** The same is true of cards in the Decided tab: the buttons are gone but the keys are still live.
+Otherwise, pressing `a` without the permission to decide does not pass quietly — **the server refuses it.** **On cards in the Decided tab neither the buttons nor the keys do anything** — a card that has already been decided ignores `a`, `r` and `c` (what you can press should be what you can do).
 
 ## Language
 

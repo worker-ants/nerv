@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.31 · 2026-09-07 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.32 · 2026-09-07 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.32 변경(2026-09-07 — "전문" 이 전수가 아니었다, 개선 계획 여덟째 스프린트): **새 요구사항 없음 — §2.2 트리 재생성 · §1.2 두 자리 정정.** ① §2.2 는 스스로 "트리 전문" 이라 적는데 **51개 파일을 몰랐다** — 모듈 넷(`plugin`·`review`·`invitation`·`webhook`)이 통째로 빠져 있었고, 이번 여덟 스프린트가 만든 판정 단위(`approval-policy`·`impl-status`·`untrusted`·`cursor`)도 없었다. 트리가 전수가 아니면 "여기 없는 것은 없는 것" 이라는 읽기가 틀리고, 실제로 그 읽기로 같은 판정이 두 번 만들어졌다. **L1 이 이제 양방향으로 대조한다**(실물에 있는데 트리에 없는 것 · 트리에 있는데 실물에 없는 것). ② `pnpm-workspace.yaml` 전문이 `plugin` 과 `onlyBuiltDependencies` 를 몰랐고, `plugin` 워크스페이스 행이 "스킬 6종" 이라 적었다(`/nerv:import` 는 2026-09-06 에 걷었다 — 5종이다).
 >
 > v1.31 변경(2026-09-07 — 잔재 걷기와 손잡이 하나, 개선 계획 넷째 스프린트): **REQ-CB-035 신설 · §5.2 전표 한 행.** SSE keep-alive 주기가 상수였다 — 앞문의 유휴 타임아웃이 25초보다 짧으면 스트림이 조용히 끊기는데 고칠 수단이 재배포뿐이었다(`NERV_LOG_LEVEL` 이 같은 이유로 배선된 자리다). 손잡이로 꺼내면서 **계약도 함께 태운다**: `: ping` 코멘트가 아니라 `event: ping` 메시지라는 사실을 L2 가 실제 스트림에서 본다 — 문서만 고친 정정(v1.7)은 다음에 또 갈린다. 곁들여 접두 잔재를 걷었다(카탈로그의 검색·스위처 안내 문구가 `SPC-…`·`TSK-…` 를 규칙처럼 보이게 하고 있었다 — 표시 키 접두는 프로젝트가 정한다) 와 낡은 주석 넷(done 게이트의 "FR-09 는 Phase 2" · 미러 frontmatter 의 "승인자" · `requirement_statement_trgm` 의 문서 결함 메모 · `preflight` 의 게이트 수).
 >
@@ -182,7 +184,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
 | `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~06 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
 | `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터 + 번역기만 — §3.4가 근거) |
-| `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 6종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
+| `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 5종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
 의존 방향은 한쪽뿐이다: `apps/* → packages/schema`. `apps/web ↔ apps/api ↔ apps/cli` 간 직접 import는 금지하며 공유 계약(zod 스키마·타입·상수)은 전부 `@nerv/schema`를 거친다. `apps/cli`가 `apps/api`의 서비스를 import하지 않는다는 것이 REQ-CB-001의 적용례다 — CLI는 API의 클라이언트일 뿐 같은 프로세스가 아니다.
@@ -197,8 +199,16 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 
 ```yaml
 packages:
-  - "apps/*"
-  - "packages/*"
+  # 플러그인은 빌드 산출물이 아니라 배포되는 파일 묶음이다 — 워크스페이스로 두는 이유는
+  # 문서 대조 테스트(REQ-PLG-001)를 `pnpm test` 한 줄에 태우기 위해서다.
+  - plugin
+  - 'apps/*'
+  - 'packages/*'
+
+# 빌드 스크립트 실행을 허용하는 의존성 화이트리스트(pnpm 10) —
+# 승인하지 않으면 esbuild 바이너리가 설치되지 않아 vitest·vite 가 동작하지 않는다.
+onlyBuiltDependencies:
+  - esbuild
 ```
 
 ### 1.3 `apps/cli` — 컨테이너가 아니라 배포되는 클라이언트
@@ -271,79 +281,132 @@ flowchart TB
 
 ### 2.2 `apps/api/src` 트리 전문
 
+**전수다**(2026-09-07 재생성 — 검사 파일 제외). 이 트리는 오래 "전문" 이라 적고 **51개 파일을 몰랐다**: 모듈 넷(`plugin`·`review`·`invitation`·`webhook`)이 통째로 빠져 있었고, 새로 생긴 판정 단위(`approval-policy`·`impl-status`·`untrusted`·`cursor`)도 없었다. 트리가 전수가 아니면 "여기 없는 것은 없는 것" 이라는 읽기가 틀린다.
+
 ```text
 apps/api/src/
-  main.ts                        # HTTP 엔트리 — Nest(Fastify) 부트스트랩: REST + MCP + WS + SSE + ingest
-  worker.ts                      # 워커 엔트리 — 같은 AppModule 조립에서 HTTP 표면 제외, 잡 러너만 (REQ-CB-005)
-  migrate.ts                     # drizzle 마이그레이션 적용 후 종료 — compose 기동·k8s Job 공용 엔트리 (§5.3·§6.3)
   app.module.ts
-  common/                        # 횡단 관심사 — 가드 · 인터셉터 · 필터
-    auth.guard.ts                # 세션 쿠키(better-auth) / PAT Bearer 2경로 판별
-    project-scope.interceptor.ts # 요청 컨텍스트의 project_id 자동 주입 — 권한 없는 질의 컴파일 불가 원칙
-    mcp-origin.guard.ts          # /mcp Origin 검증의 최종 강제 지점 (REQ-CB-013)
-    nerv-exception.filter.ts     # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
+  main.ts        # HTTP 엔트리 — Nest(Fastify) 부트스트랩: REST + MCP + WS + SSE + ingest
+  migrate.ts     # drizzle 마이그레이션 적용 후 종료 — compose 기동·k8s Job 공용 엔트리 (§5.3·§6.3)
+  seed.ts        # 개발 시드 — 자격증명을 도메인 행과 함께 심는다
+  worker.ts      # 워커 엔트리 — 같은 AppModule 조립에서 HTTP 표면 제외, 잡 러너만 (REQ-CB-005)
+  common/
+    auth.guard.ts                 # 세션 쿠키(better-auth) / PAT Bearer 2경로 판별
+    cursor.ts                     # 커서 인코딩·유한 목록 봉투 — 정렬 키 전부와 id 를 담는다 (api.md §1.6 · REQ-API-124)
+    database.module.ts            # drizzle 풀 주입 — 표면이 커넥션을 직접 열지 않는다
+    db-error.ts                   # PG SQLSTATE → NERV_* 번역 — 제약 위반이 500 이 되지 않게
+    entity-ref.ts                 # 키·UUID 둘 다 받는 참조 해석 (api.md §1.4b)
+    human-only.ts                 # 사람 전용 판정 — 역할 문턱이 아니라 도메인의 것이다 (REQ-API-123)
+    idempotency.interceptor.ts    # Idempotency-Key 공통 처리 (api.md §1.5)
+    idempotency.service.ts        # 멱등 저장소 — 표면 공용
+    log-level.ts                  # 두 진입점이 같은 함수로 읽는다 (NERV_LOG_LEVEL · §5.2)
+    mcp-origin.guard.ts           # /mcp Origin 검증의 최종 강제 지점 (REQ-CB-013)
+    nerv-exception.filter.ts      # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
+    parse-body.ts                 # zod 검증 한 곳 — .strict() 위반은 400 이다
+    project-access.guard.ts       # 프로젝트 경로 접근 판정 — slug 해소 + 권한 + 멤버십 (REQ-API-152)
+    project-scope.interceptor.ts  # 요청 컨텍스트의 project_id 자동 주입 — 권한 없는 질의 컴파일 불가 원칙
+    query-vocab.ts                # 질의 어휘 판정 — 어휘 밖은 400 이지 기본값이 아니다 (REQ-API-126)
+    rate-limit.guard.ts           # 분당 상한 (NFR-04)
+    rate-limit.service.ts         # 상한 계수기 — Valkey
+    route-permission.ts           # 라우트 권한 선언 — 선언 없는 라우트는 거절이다 (REQ-API-075)
+    scope-check.ts                # 권한 판정 정본 — 표면은 위임만 한다 (D-05)
+    sql-array.ts                  # 배열 바인딩 — 문자열 이어붙이기를 막는다
+    storage.service.ts            # S3 클라이언트 · presigned URL — 공개 주소 경고 (REQ-CB-034)
+  mcp/
+    mcp.controller.ts  # POST /mcp — Streamable HTTP, 신·구 리비전 병행 협상
+    tool-context.ts    # 도구 호출의 주체·세션·멱등 키
+    tool-input.ts      # 도구 입력 검증 — 모르는 인자는 ignored_args 로 되돌린다
+    tool-registry.ts   # modules/**/*.tools.ts 수집 · zod 입력 검증 · idempotency_key 공통 처리
+    untrusted.ts       # MCP 응답의 비신뢰 경계 — 표면에서만 감싼다 (REQ-API-153)
   modules/
-    auth/                        # AuthModule
-      auth.module.ts
-      auth.service.ts            # better-auth(organization·api-key 플러그인) 래핑, 멤버십·역할 조회
-      auth.controller.ts         # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
-    spec/                        # SpecModule
-      spec.module.ts
-      spec.service.ts            # 초안 upsert · base_hash 비교-교환 · 편집 리스 · 전이 · 사전 검토
-      spec-comment.service.ts
-      baseline.service.ts        # 기준선 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
-      spec.controller.ts         # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest
-      spec.tools.ts              # MCP — nerv_spec_* 7종 (§2.3 표)
-    task/                        # TaskModule
-      task.module.ts
-      task.service.ts            # 상태 전이 · 위임 명세 · 증적(evidence)
-      claim.service.ts           # 원자적 클레임 · scope 겹침 검사 · 리스 연장 (D-04)
-      task.controller.ts
-      task.tools.ts              # MCP — nerv_task_* 5종
-    session/                     # SessionModule
-      session.module.ts
-      session.service.ts         # AgentSession 수명주기 (pending→active→…)
-      activity.service.ts        # Activity 적재
-      session.controller.ts      # REST — 보드 · 상세 · activity
-      session.tools.ts           # MCP — nerv_bootstrap · nerv_session_event
-      ingest.controller.ts       # POST /ingest/hooks/{session,tool,subagent,stop,session-end}
-    approval/                    # ApprovalModule
-      approval.module.ts
-      approval.service.ts        # 받은 요청 — 결정 · 지시자≠승인자 검사
-      question.service.ts        # 질문 생성 · 폴링 · awaiting_input 전이
+    approval/
+      approval-policy.ts      # 결재 판정 한 벌 — 3축·정족수·역할 큐가 같은 술어를 쓴다
       approval.controller.ts
-      question.tools.ts          # MCP — nerv_question_create
-    import/                      # ImportModule — EP-IMP-01~06 (4.4 §2.10). 소급 적재 전용 경로
+      approval.module.ts
+      approval.service.ts     # 받은 요청 — 결정 · 지시자≠승인자 검사
+      question.service.ts     # 질문 생성 · 폴링 · awaiting_input 전이
+      question.tools.ts       # MCP — nerv_question_create
+    auth/
+      auth.controller.ts        # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
+      auth.module.ts
+      auth.service.ts           # better-auth(organization·api-key 플러그인) 래핑, 멤버십·역할 조회
+      better-auth.ts            # better-auth 배선 — 세션 쿠키 경로
+      invitation.controller.ts  # 조직 초대 표면
+      invitation.service.ts     # 초대 발급·수락 — 자동 수락 경로는 없다
+    event/
+      event-core.module.ts         # 의존 없는 핵 — 순환을 감추는 대신 갈라냈다 (REQ-API-151)
+      event-subscriber.service.ts  # 파드별 SUBSCRIBE nerv_events → 자기 소켓·SSE 스트림 emit
+      event.controller.ts          # REST — 이벤트 피드 · 알림
+      event.module.ts
+      event.service.ts             # event 행 삽입(도메인 트랜잭션 안) + 커밋 후 Valkey PUBLISH (REQ-CB-004)
+      fanout.service.ts            # 룸 계산 + 구독자 팬아웃 (WS·SSE 공용)
+      notification.service.ts
+      sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
+      sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
+      valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리
+      ws.gateway.ts                # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
+    import/
+      import.controller.ts  # REST — preflight · specs · tasks · links · map
       import.module.ts
-      import.service.ts          # 자연 키 대조 · 배치 upsert · 전이 검사 우회(이 모듈에서만) · import.applied 이벤트
-      import.controller.ts       # REST — preflight · specs · tasks · links · map
-    review/                      # ReviewModule — 도구 2종·REST 7종 구현됨(2026-08-23~ · Phase 2 로 계획했던 것)
+      import.service.ts     # 자연 키 대조 · 배치 upsert · 전이 검사 우회(이 모듈에서만) · import.applied 이벤트
+    plugin/
+      plugin.controller.ts  # 무인증 카탈로그·zip 서빙 (api.md §2.11)
+      plugin.module.ts
+      plugin.paths.ts       # 아카이브 위치 — NERV_PLUGIN_DIST
+      plugin.service.ts     # 마켓플레이스 JSON 조립
+    review/
+      review.controller.ts  # 리뷰 수집·발견 큐 표면 (FR-09)
       review.module.ts
       review.service.ts
-    event/                       # EventModule
-      event.module.ts
-      event.service.ts           # event 행 삽입(도메인 트랜잭션 안) + 커밋 후 Valkey PUBLISH (REQ-CB-004)
-      notification.service.ts
-      event.controller.ts        # REST — 이벤트 피드 · 알림
-      ws.gateway.ts              # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
-      sse.controller.ts          # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
-      valkey.service.ts          # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리
-      event-subscriber.service.ts # 파드별 SUBSCRIBE nerv_events → 자기 소켓·SSE 스트림 emit
-  mcp/
-    mcp.controller.ts            # POST /mcp — Streamable HTTP, 신·구 리비전 병행 협상
-    tool-registry.ts             # modules/**/*.tools.ts 수집 · zod 입력 검증 · idempotency_key 공통 처리
+      review.tools.ts       # MCP nerv_review_* 2종 (P2)
+    session/
+      activity.service.ts    # Activity 적재
+      hook-summary.ts        # 훅 페이로드 → 한 줄 요약 (REQ-API-065)
+      ingest.controller.ts   # POST /ingest/hooks/{session,tool,subagent,stop,session-end}
+      session.controller.ts  # REST — 보드 · 상세 · activity
+      session.module.ts
+      session.service.ts     # AgentSession 수명주기 (pending→active→…)
+      session.tools.ts       # MCP — nerv_bootstrap · nerv_session_event
+    spec/
+      attachment.service.ts     # 스펙 첨부 — 2단계 업로드 (api.md §1.4k)
+      baseline.service.ts       # 기준선 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
+      embedding.client.ts       # OpenAI 호환 /v1/embeddings 단일 계약 (REQ-CB-020·033)
+      embedding.service.ts      # 청크 · 재임베딩 잡
+      gate-tier.ts              # 게이트 티어 판정 — 축 셋 + 동적 강화 (spec-workflow §2.4)
+      impl-status.ts            # 구현 축 파생 — 증적 술어 한 벌 (D-03 · REQ-API-097)
+      mirror.controller.ts      # markdown 미러 — 버전 프리픽스 없이 불변 (§2.8)
+      reader-hash.ts            # 읽은 것의 지문 — base_hash 의 재료 (§1.4g)
+      search.service.ts         # 하이브리드 검색 — ID 직행 · 렉시컬 · 벡터 RRF (§2.2b)
+      spec-check.service.ts     # 사전 검토 — 제출 게이트의 근거를 미리 보인다
+      spec-comment.service.ts
+      spec-delta.ts             # 요구사항 델타 추출 — 저장 응답과 승인이 같은 함수를 쓴다
+      spec-relation.service.ts  # 관계·역참조 — 상한 없는 유한 목록 (REQ-API-155)
+      spec-tree.ts              # 트리 조립 — 기준선 세트 반영
+      spec.controller.ts        # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest
+      spec.module.ts
+      spec.service.ts           # 초안 upsert · base_hash 비교-교환 · 편집 리스 · 전이 · 사전 검토
+      spec.tools.ts             # MCP — nerv_spec_* 7종 (§2.3 표)
+    task/
+      claim.module.ts
+      claim.service.ts       # 원자적 클레임 · scope 겹침 검사 · 리스 연장 (D-04)
+      task.controller.ts
+      task.module.ts
+      task.service.ts        # 상태 전이 · 위임 명세 · 증적(evidence)
+      task.tools.ts          # MCP — nerv_task_* 5종
+      webhook.controller.ts  # GitHub 웹훅 ingest — HMAC (EP-WHK-01)
+      webhook.service.ts     # 서명 검증 + Task 키 매칭 (FR-13)
   worker/
+    advisory-lock.ts  # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)
+    job-runner.ts     # 잡 루프 — advisory lock 아래에서 하나만 돈다
     worker.module.ts
-    advisory-lock.ts             # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)
     jobs/
-      lease-reaper.job.ts        # 만료 리스 회수 — claimed → ready
-      session-stale.job.ts       # 무활동 30분(STALE) 세션 전이 + 클레임 회수 (D-13)
-      notification.job.ts        # event → notification 라우팅 (인앱, Slack·메일은 P2)
-      export.job.ts              # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
-      partition.job.ts           # event·activity 월 파티션 선생성 — 하루 1회 (4.3 §2.14, REQ-DB-021)
-      retention.job.ts           # blob TTL 30일 · Activity 보존 정책 집행
-      embedding.job.ts           # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
-                                 #   **주기가 변하는 유일한 잡** — 일감 있으면 1초, 없으면 5분 (§5.2b · REQ-CB-027)
+      embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
+      export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
+      lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
+      notification.job.ts   # event → notification 라우팅 (인앱, Slack·메일은 P2)
+      partition.job.ts      # event·activity 월 파티션 선생성 — 하루 1회 (4.3 §2.14, REQ-DB-021)
+      retention.job.ts      # blob TTL 30일 · Activity 보존 정책 집행
+      session-stale.job.ts  # 무활동 30분(STALE) 세션 전이 + 클레임 회수 (D-13)
 ```
 
 **ingest는 별도 프로세스가 아니라 컨트롤러다.** [3.2](../03-proposal/architecture.md) §4.4의 compose 그림은 `nerv-ingest`를 별도 서비스로 뒀지만, MVP 배포 단위는 이미지 3종(`nerv-api`·`nerv-worker`·`nerv-web`)으로 확정한다([4.1 MVP 범위와 스택 확정](scope.md)). ingest는 `SessionModule`의 컨트롤러로 `nerv-api`에 실리되 모듈 경계가 분리돼 있으므로, 훅 볼륨이 API 지연에 영향을 주는 시점(재검토 트리거)에 같은 이미지의 별도 Deployment로 뗀다 — 코드 변경 없이 라우팅만 바뀐다.

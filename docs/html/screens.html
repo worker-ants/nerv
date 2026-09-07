@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v0.90 (2026-09-07)</span>
+      <span>버전 v0.91 (2026-09-07)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -275,7 +275,17 @@
       <tr><td>★<code>question.answered</code></td><td><code>['inbox']</code> · <code>['project', projId, 'sessions']</code>(세션 재개 반영)</td><td><code>user:{id}</code> + <code>project:{id}</code></td></tr>
       <tr><td>★<code>notification.created</code></td><td><code>['me', 'notifications']</code> + 헤더 알림 배지</td><td><code>user:{id}</code></td></tr>
       <tr><td><code>gate.bypassed</code> · <code>gate.failopen</code></td><td><code>['project', projId, 'events']</code> + 게이트 배너/카운터</td><td><code>project:{id}</code>(bypassed는 admin <code>user:{id}</code>에도)</td></tr>
-      <tr><td><code>finding.opened</code> <code>finding.resolved</code> <code>cr.opened</code></td><td>— Phase 2(S6·CR)</td><td>—</td></tr>
+      <tr><td>★<code>spec.meta_updated</code> ★<code>spec.archived</code> ★<code>spec.restored</code></td><td>스펙 축과 같다 — <code>['spec', specKey]</code> · <code>['spec', specKey, 'versions']</code> · <code>['project', projId, 'spec-tree']</code> · <code>['project', projId, 'spec-graph']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td>★<code>spec.attachment_added</code> ★<code>spec.attachment_removed</code></td><td><code>['project', projId, 'spec-tree']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td>★<code>evidence.added</code></td><td><code>['task', taskKey]</code> · <code>['project', projId, 'tasks']</code> · <code>['project', projId, 'coverage']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td>★<code>approval.decided</code></td><td><code>['inbox']</code> + 헤더 배지</td><td><code>user:{id}</code> + <code>project:{id}</code></td></tr>
+      <tr><td>★<code>question.cancelled</code></td><td><code>['inbox']</code> · <code>['project', projId, 'sessions']</code></td><td><code>user:{id}</code> + <code>project:{id}</code></td></tr>
+      <tr><td>★<code>import.applied</code></td><td><code>['project', projId, 'spec-tree']</code> · <code>['project', projId, 'tasks']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td>★<code>project.created</code> ★<code>project.updated</code> ★<code>project.archived</code> ★<code>project.restored</code></td><td><code>['project', projId]</code>(설정 변경·보관·복원) · <code>['project', projId, 'events']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td>★<code>member.added</code> ★<code>member.updated</code> ★<code>member.removed</code></td><td><code>['project', projId, 'events']</code> — 감사 피드가 곧 그 사실이 보이는 자리다</td><td><code>project:{id}</code></td></tr>
+      <tr><td>★<code>token.created</code> ★<code>token.revoked</code></td><td><code>['me', 'tokens']</code> · <code>['project', projId, 'events']</code></td><td><code>project:{id}</code></td></tr>
+      <tr><td><code>review.submitted</code> <code>finding.opened</code> <code>finding.resolved</code> <code>finding.commented</code></td><td><code>['project', projId, 'findings']</code> · <code>['project', projId, 'gate-coverage']</code> · <code>['finding', findingId, 'comments']</code> — <b>Phase 2 인데 배선은 들어와 있다</b>(2026-08-23~24 · §2.6a · REQ-WEB-066)</td><td><code>project:{id}</code></td></tr>
+      <tr><td><code>cr.opened</code></td><td>— 화면 없음(CR 은 Phase 2 이고 아직 소비자가 없다)</td><td>—</td></tr>
     </tbody>
   </table></div>
 
@@ -1187,18 +1197,26 @@
 
   <p><b>폼·검증</b> — 위임 명세 4요소는 zod로도 강제한다(서버 검증의 프론트 미러):</p>
 
-<pre><code>// packages/schema — TaskCreateInput (발췌)
-export const TaskCreateInput = z.object({
-  title: z.string().min(1),
-  body_md: z.string().optional(),
-  source_spec_version_id: z.string().uuid(),
-  source_requirement_id: z.string().uuid().optional(),
-  priority: z.enum(['P0', 'P1', 'P2', 'P3']),
-  goal_md: z.string().min(1, '목표(REQ ID 포함)는 필수'),
-  output_format_md: z.string().min(1, '산출물 형식은 필수'),
-  tools_sources_md: z.string().min(1, '도구·출처는 필수'),
-  boundaries_md: z.string().min(1, '경계는 필수'),
-});</code></pre>
+<pre><code>// packages/schema/src/zod/task.ts — TaskCreateInput (2026-09-07 실물 대조)
+//
+// **표면은 4요소를 필수로 받지 않는다.** 이 발췌는 오래 `min(1, '목표는 필수')` 를
+// 보여 줬는데, 그것은 스키마가 아니라 **화면의 판정**이다(폼이 막는다). 서버가 4요소를
+// 요구하는 자리는 생성이 아니라 `ready` 전이다 — backlog 로는 비어 있는 채로 들어올 수
+// 있어야 임포트가 성립한다(REQ-IMP-009).
+export const TaskCreateInput = z
+  .object({
+    title: z.string().min(1),
+    body_md: z.string().nullish(),
+    source_spec_version_id: z.string().nullish(),
+    baseline: z.string().nullish(),
+    source_requirement_id: z.string().nullish(),
+    priority: z.string().nullish(),
+    goal_md: z.string().nullish(),
+    output_format_md: z.string().nullish(),
+    tools_sources_md: z.string().nullish(),
+    boundaries_md: z.string().nullish(),
+  })
+  .strict();   // 모르는 키는 400 — 조용히 버리지 않는다</code></pre>
 
   <ul>
     <li><b>done 전이</b>: MVP의 서버 게이트는 <code>spec_impact</code> 선언 + Evidence 연결이다. 리뷰 커버리지 판정(FR-10 게이트 전체)은 Phase 2(로드맵 §3 비범위) — 카드의 "리뷰 n/n" 표시는 Phase 2에 함께 온다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다.</li>
@@ -1285,7 +1303,7 @@ export const TaskCreateInput = z.object({
     <li><b>빈 상태</b>: 열린 발견 0 — "열린 발견이 없습니다" + <code>nerv_review_submit</code> 안내(막다른 길 금지 — §1.5).</li>
     <li><b>어디에 대한 지적인가로 거른다</b>(2026-09-01 — 사람 요청 · REQ-WEB-128). severity(얼마나 급한가)·category(무슨 종류인가) 옆에 <b>무엇을 고쳐야 하는가</b>의 축을 둔다 — 필터 넷(codebase·spec·task·process)은 <a href="api.html">4.4</a> §2.11 의 정의를 그대로 쓴다. 값을 <b>서버가 유추했으면 카드가 그렇게 적는다</b>: 밝히지 않으면 사람은 그것을 지적한 쪽이 정한 값으로 읽고, 짐작을 근거로 다음 행동을 고른다.</li>
     <li><b>재연결은 붙는 것으로 끝나지 않는다</b>(2026-09-01 — 사람 보고 · REQ-WEB-127). 서버를 재기동하면 "재연결이 안 된다"고 보였는데, 소켓은 사실 붙고 있었다 — 붙은 뒤 <b>어느 룸에도 없었을</b> 뿐이다. join 은 화면 effect 가 했고 그 effect 는 <code>projectId</code> 가 바뀔 때만 돌기 때문이다. 이벤트 0건은 사람 눈에 끊긴 것과 같다. <b>룸은 연결의 성질이지 화면의 성질이 아니다</b> — 연결이 그것을 기억하고 스스로 되찾는다. 재시도는 무제한이고 간격은 1분에서 멈춘다(사람 결정). 흔들림(jitter)을 남기는 이유는 서버가 살아난 순간 모든 클라이언트가 동시에 덮치지 않게 하기 위해서다.</li>
-    <li><b>시안은 문서에 매단다</b>(2026-09-01 — 사람 요청 · REQ-WEB-125). 레일에 첨부 탭을 두고 이미지는 미리보기로 그린다 — 시안은 파일 이름이 아니라 그림으로 알아본다. 올린 뒤 <b>본문에 넣는 길을 같은 자리에</b> 둔다.</li>
+    <li><b>시안은 문서에 매단다</b>(2026-09-01 — 사람 요청 · REQ-WEB-125). 레일에 첨부 탭을 두고 이미지는 미리보기로 그린다 — 시안은 파일 이름이 아니라 그림으로 알아본다. 올린 뒤 <b>본문에 넣는 길을 같은 자리에</b> 둔다. <b>넣는 문법은 종류가 정한다</b>(2026-09-07 · 사람 결정) — 그림은 <code>![…](…)</code>, 그 밖은 <code>[…](…)</code> 다. 모든 파일에 이미지 문법을 넣던 동안 PDF·CSV 를 삽입하면 본문에 <b>깨진 이미지 자리</b>가 생겼고, 누른 사람은 자기가 잘못 올렸다고 읽었다.</li>
     <li><b>이미지가 왕복에서 사라지고 있었다</b>(REQ-WEB-126). 편집기에 image 노드가 없어 <code>![…](…)</code> 이 버려졌고, 사람이 문서를 열어 한 글자만 고치면 <b>모든 이미지가 삭제됐다</b>(저장은 성공하면서). <b>테스트가 없어 아무도 못 봤다.</b></li>
     <li><b>세션 레일이 "Bash / Bash" 를 383번 반복했다</b>(2026-09-01 — 사람 보고 · REQ-WEB-123·124). 화면 잘못이 아니라 <b>적재가 그것만 남겼다</b>. 원문 보관으로 정책을 바꾸고(4.4 REQ-API-065) 화면은 셋을 한다 — <b>묶고</b> · <b>실패를 튀게 하고</b> · <b>펼치면 원문</b>(접힘이 기본). 권한 때문에 안 왔으면 <b>그 사실을 적는다</b>: 빈칸은 "없다" 로 읽힌다.</li>
     <li><b>한 일이 위, 도구 로그가 아래다</b>(REQ-WEB-124). 첫 물음은 "무슨 도구를 썼나" 가 아니라 <b>"무엇을 하는 중이고 막혀 있나"</b> 다. 궤적은 새로 저장하는 것이 없다 — 이벤트가 이미 세션 id 를 달고 있다.</li>
@@ -1391,12 +1409,20 @@ export const TaskCreateInput = z.object({
 
   <p><b>폼·검증</b>:</p>
 
-<pre><code>// packages/schema — ApprovalDecisionInput (발췌)
-export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
-  z.object({ decision: z.literal('approve'), comment_md: z.string().optional() }),
-  z.object({ decision: z.literal('reject'),  comment_md: z.string().min(1, '거절 사유는 필수') }),
-  z.object({ decision: z.literal('comment'), comment_md: z.string().min(1) }),
-]);</code></pre>
+<pre><code>// packages/schema/src/zod/review.ts — ApprovalDecisionInput (2026-09-07 실물 대조)
+//
+// 이 발췌는 오래 `discriminatedUnion` 과 `comment_md` 를 보여 줬는데 **둘 다 실물이
+// 아니다**: 필드 이름은 `comment` 이고, 스키마는 결정 값으로 분기하지 않는다.
+// **거절 사유 필수는 현재 화면(`approval-card.tsx`)만 지킨다** — 서버 쪽 검사는 열린
+// 결정이다. 문서가 스키마에 있다고 적어 두면 다른 표면(MCP·CLI)이 그것을 믿는다.
+export const ApprovalDecisionInput = z
+  .object({
+    decision: z.string().default('comment'),
+    comment: z.string().nullish(),
+    // 무엇을 보고 결정했는가 — 그 사이 본문이 바뀌었으면 서버가 막는다(§1.4g 와 같은 축)
+    seen_content_hash: z.string().nullish(),
+  })
+  .strict();</code></pre>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
@@ -1726,7 +1752,7 @@ export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
   <div class="table-wrap"><table>
     <thead><tr><th>Tailwind 토큰</th><th>원본 변수</th><th>라이트</th><th>다크</th><th>행동 축 의미(ui-wireframes §3.1)</th></tr></thead>
     <tbody>
-      <tr><td><code>status.idle</code></td><td><code>--gray-soft</code> 계열</td><td><code>#eceef2</code> (텍스트 <code>#5b667a</code>)</td><td><code>#232837</code> (<code>#a3adc2</code>)</td><td>회색 — 아직 아무 일도 없음</td></tr>
+      <tr><td><code>status.idle</code></td><td><code>--gray-soft</code> 계열</td><td><code>#f1f1ef</code> (텍스트 <code>#787774</code>)</td><td><code>#2a2a2a</code> (<code>#9b9a97</code>)</td><td>회색 — 아직 아무 일도 없음. <b>§4.4 중립 램프에서 파생한다</b>(2026-09-07 실물 대조 — 이 행이 오래 램프 밖의 값을 적고 있었고, 그 값은 저장소 어디에도 없다)</td></tr>
       <tr><td><code>status.action</code></td><td><code>--accent</code></td><td><code>#4f46e5</code></td><td><code>#818cf8</code></td><td>남색 — 사람의 행동 대기</td></tr>
       <tr><td><code>status.waiting</code></td><td><code>--warn</code></td><td><code>#b45309</code></td><td><code>#fbbf24</code></td><td>호박 — 검토·응답 대기</td></tr>
       <tr><td><code>status.agent</code></td><td><code>--purple</code></td><td><code>#7c3aed</code></td><td><code>#c4b5fd</code></td><td>보라 — 에이전트 점유·수행 중</td></tr>

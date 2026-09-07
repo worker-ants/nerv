@@ -79,7 +79,7 @@ The **Attachments** tab in the rail holds mockups and documents. Drag files in o
 
 - Nine formats — images `png` · `jpeg` · `gif` · `webp` · `svg`, documents `pdf` · `html` · `txt`, and `zip` archives.
 - Size: **10MB** per file
-- After uploading, **Insert into body** puts the image at the cursor.
+- After uploading, **Insert into body** puts it at the cursor — images as images, everything else as a **link**.
 
 Attachments hang on the **document, not the version**. Rewriting the draft leaves them in place, and archiving the document takes them along. An external link changes independently of the spec's versions, so "the screen this version describes" cannot be recovered later.
 

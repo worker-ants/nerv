@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.49 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.50 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.50 변경(2026-09-07 — 여덟째 스프린트): §1.4 셋째 표에 **정본 표와 실물의 대조 게이트 둘** 한 줄. E12 배포 평면 서술의 "스킬 6종" 을 5종으로 고친다(`/nerv:import` 는 2026-09-06 에 걷었다).
 >
 > v0.49 변경(2026-09-07 — 일곱째 스프린트 ①): §1.4 셋째 표에 **프로파일 YAML 부분집합 · 매니페스트의 frontmatter** 한 줄([4.7](importer.md) REQ-IMP-029·030).
 >
@@ -209,6 +211,7 @@ referenced_by:
 | done 게이트 정책 · 리뷰 링크 | `zod/policy.ts`(`done_gate`) · `task.service.ts`(`assertDoneGate`) · `evidence-locator.ts`(신설) · `review.service.ts`(활성 클레임에서 task_id) | 게이트가 자기 신고 문자열 1건으로 열렸고 리뷰 1,992건 중 Task 링크가 2건이었다(2026-09-07 · [4.4](api.md) REQ-API-146~148) |
 | 알림 등급·수신자 | `notification.service.ts`(등급 필터·둘로 세기·owner_role 수신자) · `event.controller.ts` · `app-shell.tsx`·`routes/notifications.tsx` | 배지가 배경 활동까지 세어 결정 99건이 767건에 묻혔다(2026-09-07 · [4.4](api.md) REQ-API-149·150) |
 | 권한·토큰의 감사 | `event/event-core.module.ts`(신설) · `auth.service.ts`·`invitation.service.ts`·`attachment.service.ts` · `events.ts` | FR-16 이 요구하는 축이 멤버십·토큰·프로젝트 변경에서 비어 있었다(2026-09-07 · [4.4](api.md) REQ-API-151) |
+| 정본 표와 실물의 대조 게이트 둘 | `apps/web/src/lib/event-invalidation.spec.ts` · `apps/api/src/tree-canon.spec.ts` | [4.5](screens.md) §1.4 는 MAP 49종 중 18종을, [4.2](codebase.md) §2.2 는 51개 파일을 몰랐다 — 사람이 손으로 쓰는 표는 코드가 자랄 때 조용히 낡는다 |
 | 프로파일 YAML 부분집합 · 매니페스트의 frontmatter | `cli/src/profiles/index.ts`(인라인 토크나이저·블록 리스트) · `profiles/nerv-docs.ts` · `parse/frontmatter.ts`(`raw`·`unparsable`) · `manifest.ts` · `run.ts`(`preservedOf`) | §1.4 의 유일한 예시가 첫 인라인 맵에서 죽었다 · 원문 해시가 본문에만 있었다 · nerv-docs 가 §5.1 과 다섯 자리 달랐다([4.7](importer.md) REQ-IMP-029·030) |
 | 임포터의 abort 게이트 · 규칙 전표 대조 · 계약 세 열 | `cli/src/run.ts`(`halted`) · `report/index.ts`(`RULES`·`hintFor`·`withHints`) · `index.ts`(`failureReport`) · `parse/git.ts`(`headOf`) | 중단이라 적어 놓고 plan·review 는 그대로 전송했다 · 전표와 코드의 등급이 세 자리 갈렸다 · `hint` 는 채우는 코드가 0곳이었다 · `root_commit` 은 `null` 고정이었다 · 파서가 계산한 셋(우선순위·시작 시각·스펙 영향)을 계약에 실을 자리가 없어 버렸다([4.7](importer.md) REQ-IMP-023~028 · 0024) |
 | 유한 목록의 총계 · 관계 상한 제거 | `common/cursor.ts`(`finiteList`) · `spec.controller.ts` 세 핸들러 · `spec-relation.service.ts` · `queries.ts`·`baseline-controls.tsx` | 넷 중 셋이 맨 배열이었고 관계는 `LIMIT 51` 이라 `total` 이 자른 수였다 — 웹은 "역참조 50 · 레퍼런스 0" 을 그렸다([4.4](api.md) REQ-API-155) |
@@ -378,7 +381,7 @@ MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터�
 
 ### 3.5 E12 — 플러그인 v1 + 훅 수집기
 
-Claude Code 배포 평면. 스킬 6종(`/nerv:review` 포함 — 2026-08-23 배포)·훅 번들과 사내 마켓플레이스 배포(성공 기준 1-10).
+Claude Code 배포 평면. 스킬 5종(`/nerv:review` 포함 — 2026-08-23 배포 · `/nerv:import` 는 2026-09-06 에 걷었다)·훅 번들과 사내 마켓플레이스 배포(성공 기준 1-10).
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
