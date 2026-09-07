@@ -355,6 +355,8 @@ export class SpecController {
       locator: evidence.locator,
       repo: evidence.repo ?? null,
       userId: principal.userId,
+      // 검증 서명의 축은 역할이다(REQ-API-143) — 표면은 나르기만 한다
+      roles: principal.roles,
     });
   }
 

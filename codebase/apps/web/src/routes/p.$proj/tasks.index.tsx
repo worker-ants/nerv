@@ -37,7 +37,18 @@ export const Route = createFileRoute('/p/$proj/tasks/')({
    */
   validateSearch: (
     search: Record<string, unknown>,
-  ): { spec?: string; assignee?: string; ai?: true; backlog?: true; archived?: true } => ({
+  ): {
+    spec?: string;
+    assignee?: string;
+    ai?: true;
+    backlog?: true;
+    archived?: true;
+    /** S3 의 "이 버전에서 파생" — 주소가 폼의 초기값이다(REQ-WEB-147) */
+    from_version?: string;
+    from_spec?: string;
+    from_version_no?: string;
+    requirement?: string;
+  } => ({
     ...(typeof search['spec'] === 'string' && search['spec'] !== ''
       ? { spec: search['spec'] }
       : {}),
@@ -48,6 +59,18 @@ export const Route = createFileRoute('/p/$proj/tasks/')({
     ...(search['backlog'] === true || search['backlog'] === '1' ? { backlog: true as const } : {}),
     ...(search['archived'] === true || search['archived'] === '1'
       ? { archived: true as const }
+      : {}),
+    ...(typeof search['from_version'] === 'string' && search['from_version'] !== ''
+      ? { from_version: search['from_version'] }
+      : {}),
+    ...(typeof search['from_spec'] === 'string' && search['from_spec'] !== ''
+      ? { from_spec: search['from_spec'] }
+      : {}),
+    ...(typeof search['from_version_no'] === 'string' && search['from_version_no'] !== ''
+      ? { from_version_no: search['from_version_no'] }
+      : {}),
+    ...(typeof search['requirement'] === 'string' && search['requirement'] !== ''
+      ? { requirement: search['requirement'] }
       : {}),
   }),
   component: TaskBoard,
@@ -112,7 +135,24 @@ function TaskBoard(): React.JSX.Element {
     ai: agentOnly = false,
     backlog: showBacklog = false,
     archived: showArchived = false,
+    from_version: fromVersion,
+    from_spec: fromSpec,
+    from_version_no: fromVersionNo,
+    requirement: fromRequirement,
   } = Route.useSearch();
+  /**
+   * **S3 에서 온 파생**(REQ-WEB-147). 스펙 상세의 "이 버전에서 파생" 이 주소로 보낸 값이
+   * 그대로 폼의 초기값이 된다 — 그래야 링크를 공유해도 같은 화면이 열린다(D-09).
+   */
+  const derived =
+    fromVersion === undefined || fromSpec === undefined
+      ? null
+      : {
+          specKey: fromSpec,
+          versionId: fromVersion,
+          versionNo: Number(fromVersionNo ?? 0),
+          ...(fromRequirement === undefined ? {} : { requirementId: fromRequirement }),
+        };
   const id = typeof projectId === 'string' ? projectId : undefined;
   const filters = {
     ...(spec === undefined ? {} : { spec }),
@@ -174,12 +214,18 @@ function TaskBoard(): React.JSX.Element {
         }
       />
 
-      {editing !== null && (
+      {(editing !== null || derived !== null) && (
         <div className="mb-4">
           <DelegationForm
             projectSlug={proj}
-            taskKey={editing === 'new' ? null : editing}
-            onDone={() => setEditing(null)}
+            taskKey={editing === 'new' || editing === null ? null : editing}
+            {...(derived === null ? {} : { initial: derived })}
+            onDone={() => {
+              setEditing(null);
+              // 폼을 닫으면 주소도 닫는다 — 남겨 두면 새로고침이 같은 폼을 다시 연다
+              // 파생 인자만 털어 낸다 — 나머지 뷰 상태(필터·토글)는 그대로 둔다
+              if (derived !== null) toBoard(searchWith({}));
+            }}
           />
         </div>
       )}

@@ -47,6 +47,7 @@ function taskDetail(over: Record<string, unknown> = {}): Record<string, unknown>
     assignee_user_id: null,
     claims: [],
     evidence: [],
+    reviews: [],
     ...over,
   };
 }
@@ -172,5 +173,65 @@ describe('되돌리기와 완료 잠금 (REQ-WEB-141)', () => {
     await renderDetail();
     const done = screen.getByText(ko['task.to_done']).closest('button');
     expect(done?.disabled).toBe(false);
+  });
+});
+
+/**
+ * **근거는 사람 말로, 리뷰는 양방향으로**(2026-09-07 · REQ-WEB-148). 요구사항 칸이 UUID
+ * 원문을 그리고 리뷰가 어디에도 없던 자리다 — 근거 칸이 있어도 근거가 되지 않았다.
+ */
+describe('REQ-WEB-148 — 근거·클레임·리뷰 카드', () => {
+  it('요구사항은 고정 ID 와 문장으로 보인다 — UUID 가 아니다', async () => {
+    detail = taskDetail({
+      source_requirement_id: '01a00000-0000-7000-8000-0000000000rq',
+      source_requirement_ref: 'REQ-CWC-007',
+      source_requirement_statement: 'WHEN 세션이 끊기면 THE SYSTEM SHALL 클레임을 회수한다',
+    });
+    await renderDetail();
+    const ref = await screen.findByTestId('requirement-ref');
+    expect(ref.textContent).toContain('REQ-CWC-007');
+    expect(screen.getByText(/클레임을 회수한다/)).toBeTruthy();
+  });
+
+  it('리뷰가 없으면 없다고 말한다 — 빈 칸이 아니라 문장이다', async () => {
+    await renderDetail();
+    expect(screen.getByText('이 작업을 지난 리뷰가 없습니다.')).toBeTruthy();
+  });
+
+  it('리뷰의 열린 critical 은 눈에 띈다', async () => {
+    detail = taskDetail({
+      reviews: [
+        {
+          id: 'rs1',
+          kind: 'code',
+          branch: 'feat/x',
+          round_no: 2,
+          state: 'completed',
+          open_critical: 3,
+        },
+      ],
+    });
+    await renderDetail();
+    expect((await screen.findByTestId('review-open-critical')).textContent).toContain('3');
+  });
+
+  it('활성 클레임은 남은 리스와 선언한 범위를 보인다', async () => {
+    detail = taskDetail({
+      claims: [
+        {
+          id: 'c1',
+          status: 'active',
+          user_id: OTHER,
+          hostname: 'mac-07',
+          agent_type: 'claude-code',
+          lease_expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          scope_spec_ids: ['SPC-CWC-007'],
+          scope_file_globs: ['apps/web/**'],
+        },
+      ],
+    });
+    await renderDetail();
+    expect((await screen.findByTestId('claim-lease')).textContent).toMatch(/0[45]:/);
+    expect(screen.getByTestId('claim-scope').textContent).toContain('apps/web/**');
   });
 });

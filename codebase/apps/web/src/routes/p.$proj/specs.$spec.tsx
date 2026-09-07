@@ -991,7 +991,19 @@ function SpecDetail(): React.JSX.Element {
 
           {railTab === 'requirements' && (
             <div className="flex flex-col gap-3">
-              <RequirementPanel projectSlug={proj} specKey={spec} />
+              <RequirementPanel
+                projectSlug={proj}
+                specKey={spec}
+                {...(typeof detail.data?.['version_id'] === 'string'
+                  ? {
+                      version: {
+                        id: String(detail.data['version_id']),
+                        versionNo: Number(detail.data['version_no'] ?? 0),
+                        status: String(detail.data['doc_status'] ?? ''),
+                      },
+                    }
+                  : {})}
+              />
               <section className="border-t border-border pt-2">
                 <p className="px-1 pb-1 text-2xs tracking-wide text-text-faint uppercase">
                   {t('spec.derived_tasks')}

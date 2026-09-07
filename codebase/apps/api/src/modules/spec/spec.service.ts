@@ -1581,7 +1581,11 @@ export class SpecService {
              r.impl_status::text AS impl_status, r.verified_at,
              s.key AS spec_key, s.title AS spec_title,
              (SELECT count(*) FROM task t WHERE t.source_requirement_id = r.id)::int AS task_count,
-             (SELECT count(*) FROM evidence e WHERE e.requirement_id = r.id)::int AS evidence_count
+             -- 파생과 같은 술어다(REQ-API-141) — 요구사항에 직접 붙은 것과 파생 Task 의 것
+             (SELECT count(*) FROM evidence e
+               WHERE e.requirement_id = r.id
+                  OR e.task_id IN (SELECT t2.id FROM task t2 WHERE t2.source_requirement_id = r.id)
+             )::int AS evidence_count
         FROM requirement r JOIN spec s ON s.id = r.spec_id
        WHERE r.project_id = ${input.projectId}
          AND r.removed_in_version_id IS NULL${specFilter}${statusFilter}
@@ -1639,6 +1643,12 @@ export class SpecService {
     repo?: string | null;
     userId: string;
     sessionId?: string | null;
+    /**
+     * **검증은 역할이 있는 사람이 한다**(2026-09-07 · REQ-API-143). `kind=test` 증적을
+     * qa·admin 이 올리면 그 자리에서 검증 서명이 붙고, 그 뒤 파생이 `verified` 를 판정한다 —
+     * 그 길이 없어 QA 페르소나의 유일한 판정에 도달할 방법이 없었다.
+     */
+    roles?: readonly string[];
   }): Promise<Record<string, unknown>> {
     const requirement = await this.requirement({ projectId: input.projectId, ref: input.ref });
     // **모르는 값은 거절이지 500 이 아니다**(REQ-API-074 · 2026-09-05). REST 는 `kind` 를
@@ -1651,11 +1661,19 @@ export class SpecService {
     // 같은 이름을 내는 곳은 GitHub 웹훅 하나였다. 증적이 실시간으로 화면에 닿지 않았고
     // 감사 축(FR-16)에도 남지 않았다.
     return this.events.transact(async (tx, emit) => {
+      // 검증 서명 — `test` 증적을 qa·admin 이 올린 경우에만. 에이전트 세션이 올린 것은
+      // 서명이 아니다(자기 산출물을 자기가 검증했다고 말하는 것과 같다).
+      const verifies =
+        kind === 'test' &&
+        input.sessionId == null &&
+        (input.roles ?? []).some((r) => r === 'qa' || r === 'admin');
       await tx.execute(sql`
-        INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source)
+        INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source,
+                              verified_by, verified_at)
         VALUES (${evidenceId}, ${input.projectId}, ${requirement['id'] as string},
                 ${kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
-                ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
+                ${input.sessionId == null ? 'human' : 'agent'}::evidence_source,
+                ${verifies ? input.userId : null}, ${verifies ? sql`now()` : sql`NULL`})
       `);
       // 조건이 다 찼으면 여기서 `implemented` 가 된다 — 안 찼으면 값은 그대로다
       await recomputeImplStatus(tx, requirement['id'] as string);
@@ -1668,7 +1686,14 @@ export class SpecService {
         isAgent: input.sessionId != null,
         payload: { ref: input.ref, kind, locator: input.locator, repo: input.repo ?? null },
       });
-      return { evidence_id: evidenceId, ref: input.ref, kind: input.kind, locator: input.locator };
+      return {
+        evidence_id: evidenceId,
+        ref: input.ref,
+        kind: input.kind,
+        locator: input.locator,
+        // 검증 서명이 붙었는지 부른 쪽이 안다 — 붙지 않았으면 왜인지 사람이 판단한다
+        verified: verifies,
+      };
     });
   }
 

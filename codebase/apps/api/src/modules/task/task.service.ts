@@ -296,10 +296,14 @@ export class TaskService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.*, t.status::text AS status, t.priority::text AS priority,
              s.key AS spec_key, sv.version_no AS basis_version_no,
-             (sv.status = 'superseded') AS basis_superseded
+             (sv.status = 'superseded') AS basis_superseded,
+             -- **근거는 사람 말로 보여야 한다**(2026-09-07 · REQ-API-142). 화면이 UUID 원문을
+             -- 그리던 자리다 — 요구사항의 고정 ID(REQ-…)가 사람이 아는 이름이다.
+             r.ref AS source_requirement_ref, r.statement_md AS source_requirement_statement
         FROM task t
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN requirement r ON r.id = t.source_requirement_id
        WHERE t.project_id = ${input.projectId} AND ${taskMatch(input.taskKey)}
     `);
     const task = rows[0];
@@ -313,9 +317,24 @@ export class TaskService {
     const taskId = task['id'] as string;
     const { rows: claims } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT c.id, c.agent_session_id, c.status::text AS status, c.lease_expires_at, c.acquired_at,
-             se.external_session_id, se.hostname, se.agent_type::text AS agent_type, c.user_id
+             se.external_session_id, se.hostname, se.agent_type::text AS agent_type, c.user_id,
+             -- 선언한 범위 — 겹침 판정이 보는 것이 무엇인지 사람도 봐야 한다(SCR-07)
+             c.scope_spec_ids, c.scope_file_globs
         FROM claim c LEFT JOIN agent_session se ON se.id = c.agent_session_id
        WHERE c.task_id = ${taskId} ORDER BY c.acquired_at DESC LIMIT 10
+    `);
+    // **리뷰는 Task 에서 보인다**(2026-09-07 · REQ-API-142 · FR-13 양방향 드릴다운).
+    // 리뷰 → Task 방향은 있었는데 그 반대가 응답에 없어, 작업 상세에서 "이 작업이 리뷰를
+    // 지났는가" 를 알 길이 없었다 — done 게이트가 그것을 조건으로 삼는데도 그랬다.
+    const { rows: reviews } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT rs.id, rs.kind::text AS kind, rs.branch, rs.head_sha, rs.round_no,
+             rs.state::text AS state, rs.completed_at,
+             (SELECT count(*)::int FROM finding f
+               WHERE f.last_session_id = rs.id AND f.severity = 'critical' AND f.status = 'open'
+             ) AS open_critical
+        FROM review_session rs
+       WHERE rs.task_id = ${taskId}
+       ORDER BY rs.round_no DESC LIMIT 10
     `);
     const { rows: deps } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT d.depends_on_task_id, d.kind::text AS kind, dt.key, dt.title, dt.status::text AS status
@@ -330,6 +349,7 @@ export class TaskService {
     return {
       ...task,
       claims,
+      reviews,
       dependencies: deps,
       evidence,
       blocked_resolution: await this.blockedResolution(taskId, task, deps),
