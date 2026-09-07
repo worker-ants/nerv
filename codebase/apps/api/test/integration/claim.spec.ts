@@ -20,6 +20,7 @@ import { ApprovalService } from '../../src/modules/approval/approval.service.js'
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
+import { IMPORTED_DELEGATION } from '../../src/modules/import/import.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -577,6 +578,8 @@ describe('전이의 주인 (EP-TASK-09)', () => {
     const taskId = await makeTask('TSK-tr-own');
     await tasks.claim(claimInput(taskId, sessionHana, hana));
 
+    // 세션 경로는 **자기 클레임이 없다**로 막힌다(REQ-API-129) — 남의 것이 걸려 있으니
+    // 다시 잡을 수도 없다(reclaimable=false)
     await expect(
       tasks.transition({
         projectId,
@@ -584,6 +587,20 @@ describe('전이의 주인 (EP-TASK-09)', () => {
         status: 'in_progress',
         userId: dohyun,
         sessionId: sessionDohyun,
+        roles: ['developer'],
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.LEASE_EXPIRED,
+      details: { kind: 'no_active_claim', reclaimable: false },
+    });
+
+    // 사람 경로는 담당자 판정으로 막힌다 — 같은 거절이지만 다른 물음이다
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'in_progress',
+        userId: dohyun,
         roles: ['developer'],
       }),
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_assignee' } });
@@ -631,17 +648,205 @@ describe('전이의 주인 (EP-TASK-09)', () => {
 
   it('done 은 이 문으로 되돌아오지 않는다', async () => {
     const taskId = await makeTask('TSK-tr-done');
+    // 리스 없이 done 으로 가던 준비 단계였다(REQ-API-129 이후로는 그 길이 없다) — 잡고 닫는다
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
     await tasks.transition({
       projectId,
       taskId,
       status: 'done',
       userId: hana,
+      sessionId: sessionHana,
       specImpact: { none: true },
       evidence: [{ kind: 'pr', locator: 'https://pr/2' }],
     });
     await expect(
       tasks.transition({ projectId, taskId, status: 'in_progress', userId: hana }),
     ).rejects.toMatchObject({ details: { kind: 'not_allowed' } });
+  });
+});
+
+/**
+ * **전이의 문지기**(2026-09-07 · REQ-API-129~132). 문서 셋이 "유효한 리스 없는 done 은
+ * 거부" 를 약속하는 동안 서버는 활성 클레임이 *아예 없으면* 판정을 건너뛰었다 — 리스가
+ * 없다는 것이 거부가 아니라 무검사였다. `ready` 도 도착지가 아니라 판정이다.
+ */
+describe('전이의 문지기 (REQ-API-129~132)', () => {
+  it('세션은 자기 클레임 없이 done 으로 못 간다 — 다시 잡을 수 있다고 알려 준다', async () => {
+    const taskId = await makeTask('CLV-T-GK0001');
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: hana,
+        sessionId: sessionHana,
+        specImpact: { none: true },
+        evidence: [{ kind: 'pr', locator: 'https://pr/9' }],
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.LEASE_EXPIRED,
+      details: { kind: 'no_active_claim', reclaimable: true },
+    });
+    // 거절이 저장을 남기지 않는다 — 증적도 함께 롤백된다
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('ready');
+    expect(await count(`SELECT count(*)::int AS n FROM evidence WHERE task_id='${taskId}'`)).toBe(
+      0,
+    );
+  });
+
+  it('리스가 만료된 세션도 못 간다 — 그래도 다시 잡을 수는 있다', async () => {
+    const taskId = await makeTask('CLV-T-GK0002');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await pool.query(
+      `UPDATE claim SET lease_expires_at = now() - interval '1 minute' WHERE id=$1`,
+      [claim.claimId],
+    );
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'in_progress',
+        userId: hana,
+        sessionId: sessionHana,
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.LEASE_EXPIRED,
+      details: { kind: 'lease_expired', reclaimable: true },
+    });
+  });
+
+  it('고아 in_progress 는 되찾을 수 없다고 답한다 — 사람이 되돌려야 하는 자리다', async () => {
+    const taskId = await makeTask('CLV-T-GK0003', { status: 'in_progress' });
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: hana,
+        sessionId: sessionHana,
+        specImpact: { none: true },
+        evidence: [{ kind: 'pr', locator: 'https://pr/8' }],
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'no_active_claim', reclaimable: false } });
+  });
+
+  it('사람의 done 은 넷에게만 열린다 — 담당자·클레임 보유자·planner·admin', async () => {
+    const outsider = await makeTask('CLV-T-GK0004');
+    const done = {
+      status: 'done',
+      specImpact: { none: true },
+      evidence: [{ kind: 'pr' as const, locator: 'https://pr/7' }],
+    };
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId: outsider,
+        userId: dohyun,
+        roles: ['developer'],
+        ...done,
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'not_assignee' } });
+
+    // 담당자면 역할이 없어도 닫는다
+    const mine = await makeTask('CLV-T-GK0005');
+    await pool.query(`UPDATE task SET assignee_user_id=$1 WHERE id=$2`, [dohyun, mine]);
+    await expect(
+      tasks.transition({ projectId, taskId: mine, userId: dohyun, roles: ['developer'], ...done }),
+    ).resolves.toMatchObject({ status: 'done' });
+
+    // planner 는 남의 작업도 닫는다
+    const others = await makeTask('CLV-T-GK0006');
+    await expect(
+      tasks.transition({ projectId, taskId: others, userId: dohyun, roles: ['planner'], ...done }),
+    ).resolves.toMatchObject({ status: 'done' });
+  });
+
+  it('claimed 는 이 문으로 들어가지 않는다 — 갈 길을 알려 준다', async () => {
+    const taskId = await makeTask('CLV-T-GK0007');
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'claimed', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'transition_not_allowed', from: 'ready', to: 'claimed' },
+    });
+    // 어휘 밖의 값은 여전히 어휘 오류다 — 둘은 다른 물음이다
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'doing', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({ details: { kind: 'invalid_input', field: 'status' } });
+  });
+
+  it('클레임이 걸린 채로는 ready·backlog 로 되돌리지 못한다 — 먼저 놓는다', async () => {
+    const taskId = await makeTask('CLV-T-GK0008');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    for (const status of ['ready', 'backlog']) {
+      await expect(
+        tasks.transition({ projectId, taskId, status, userId: hana, roles: ['planner'] }),
+      ).rejects.toMatchObject({
+        code: NERV_ERROR.PRECONDITION,
+        details: { kind: 'release_required', claim_id: claim.claimId },
+      });
+    }
+    // 놓고 나면 열린다 — 해제가 이미 ready 로 되돌려 놓는다
+    await tasks.release({
+      claimId: claim.claimId,
+      reason: 'handoff',
+      userId: hana,
+      actor: { projectId, userId: hana, sessionId: sessionHana, isAdmin: false },
+    });
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('ready');
+  });
+
+  it('ready 는 도착지가 아니라 판정이다 — 4요소가 비면 무엇이 빈지 말한다', async () => {
+    const taskId = await makeTask('CLV-T-GK0009', { status: 'backlog' });
+    await pool.query(`UPDATE task SET boundaries_md = NULL WHERE id=$1`, [taskId]);
+    const error = (await tasks
+      .transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] })
+      .catch((e: unknown) => e)) as { details: { kind: string; missing: { field: string }[] } };
+    expect(error.details.kind).toBe('delegation_spec_incomplete');
+    expect(error.details.missing.map((m) => m.field)).toEqual(['boundaries_md']);
+  });
+
+  it('임포트 자리표시자는 빈 것이다 — 채워진 척하는 값이 큐를 통과하지 않는다', async () => {
+    const taskId = await makeTask('CLV-T-GK0010', { status: 'backlog' });
+    await pool.query(`UPDATE task SET goal_md = $1 WHERE id=$2`, [IMPORTED_DELEGATION, taskId]);
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({ details: { kind: 'delegation_spec_incomplete' } });
+  });
+
+  it('선행 작업이 남아 있으면 큐에 들어가지 않는다 — 어느 것인지 말한다', async () => {
+    const blocker = await makeTask('CLV-T-GK0011', { status: 'backlog' });
+    const taskId = await makeTask('CLV-T-GK0012', { status: 'backlog' });
+    await pool.query(
+      `INSERT INTO task_dependency (task_id, depends_on_task_id, kind) VALUES ($1,$2,'blocks')`,
+      [taskId, blocker],
+    );
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({
+      details: { kind: 'dependencies_pending', pending: ['CLV-T-GK0011'] },
+    });
+  });
+
+  it('ready 로 돌아가면 막힘 사유가 지워지고 task.ready 가 남는다', async () => {
+    const taskId = await makeTask('CLV-T-GK0013');
+    // blocked 는 사유와 함께여야 저장된다(CHECK) — 한 문장으로 세운다
+    await pool.query(
+      `UPDATE task SET status='blocked', blocked_reason='awaiting_answer' WHERE id=$1`,
+      [taskId],
+    );
+    await pool.query('TRUNCATE event');
+
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] }),
+    ).resolves.toMatchObject({ status: 'ready' });
+
+    expect(await scalarText(`SELECT blocked_reason FROM task WHERE id='${taskId}'`)).toBeNull();
+    const { rows } = await pool.query<{ type: string; to_state: string | null }>(
+      `SELECT type, to_state FROM event WHERE subject_id = $1`,
+      [taskId],
+    );
+    expect(rows).toMatchObject([{ type: NERV_EVENT.TASK_READY, to_state: 'ready' }]);
   });
 });
 

@@ -64,7 +64,8 @@ allowed-tools:
 
 ## 진행·상태 전이
 
-- 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`) 호출.
+- 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`) 호출 — **클레임 응답의
+  `claim_id` 를 받지 못한 채로는 부르지 않는다.**
 - 스펙에 없는 결정이 필요하거나 scope 경계를 벗어나야 하면 **추측하지 말고**
   /nerv:question 규약으로 `nerv_question_create`. blocking 질문이면 답변까지 구현을 멈춘다.
 - 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`). **사유는 넷 중 하나다** —
@@ -93,10 +94,18 @@ allowed-tools:
 - `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
   `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
   "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.
-- `status` 는 `backlog`·`ready`·`claimed`·`in_progress`·`in_review`·`done`·`blocked`
-  일곱뿐이다.
+- `nerv_task_update` 의 `status` 는 여섯이다 — `backlog`·`ready`·`in_progress`·
+  `in_review`·`done`·`blocked`. **`claimed` 는 없다**: 그 상태는 `nerv_task_claim` 만이
+  만든다.
   done 전이는 서버 게이트를 지나며 정책에 따라 사람 승인(A3)이 걸릴 수 있다.
   게이트 거부 응답이 오면 사유를 사람에게 그대로 보고한다(우회하지 않는다).
+- **`in_progress`·`in_review`·`done` 은 살아 있는 내 클레임이 있을 때만 부른다.**
+  `NERV_LEASE_EXPIRED`(`details.kind` 가 `no_active_claim` 또는 `lease_expired`)가 오면
+  `details.reclaimable` 을 본다 — `true` 면 `nerv_task_claim` 으로 다시 잡고 이어 가고,
+  `false` 면 그 Task 는 지금 잡을 수 없으므로 산출물만 제출하고 사람에게 보고한다.
+- `ready` 로 되돌리는 것도 판정을 지난다 — 위임 명세 4요소가 비어 있거나(`missing`)
+  선행 작업이 남아 있으면(`pending`) 거부된다. 활성 클레임이 걸린 Task 는 `ready`·
+  `backlog` 로 옮기기 전에 `nerv_task_release` 로 먼저 놓는다(`release_required`).
 - 작업을 끝냈거나 세션을 접으면 `nerv_task_release`(`claim_id`,
   `reason=done|handoff|abandon`, `state_note`에 인수인계 노트).
 

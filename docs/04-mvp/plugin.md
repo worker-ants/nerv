@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.60 · 2026-09-07 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.61 · 2026-09-07 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.61 변경(2026-09-07 — 없어진 목표값과 유령 인자, 개선 계획 둘째 스프린트): **패키지 0.2.17 → 0.2.18.** ① `skills/impl` 의 "`status` 는 일곱뿐이다" 가 거짓이 됐다 — `nerv_task_update` 의 목표는 여섯이고 `claimed` 는 `nerv_task_claim` 만이 만든다(REQ-API-132). 없어진 값을 계속 말하는 문장은 모델을 그쪽으로 끈다. ② **`reclaimable` 을 쓰라고 말한다.** 리스 구속 목표 셋(`in_progress`·`in_review`·`done`)이 거부되면 그 한 값이 "다시 잡고 이어 갈까, 접고 보고할까" 를 정한다 — 받는다고만 적고 무엇을 하라는 말이 없으면 그 기능은 없는 것과 같다(REQ-API-129). ③ `ready` 되돌리기의 판정(4요소·의존·`release_required`)과 착수의 `claim_id` 전제를 적는다. ④ **유령 인자 하나**: `skills/question` 이 "취소 이유는 `nerv_task_update` 의 `note` 에 남긴다" 고 지시했는데 `note` 는 2026-09-06 에 걷힌 인자다 — 그 문장을 걷었다(`nerv_question_cancel` 에는 사유 칸이 없다).
 >
 > v0.60 변경(2026-09-07 — 리스 상한을 스킬이 안다, 개선 계획 둘째 스프린트): **패키지 0.2.16 → 0.2.17.** `lease_seconds` 는 이제 **상한이 1800초이고 넘기면 거절된다**([4.4](api.md) REQ-API-127) — 예전 문장은 "더 긴 리스를 요청한다" 였고, 그대로 따르면 요청이 400 으로 막힌다. 서버가 조용히 깎지 않기로 한 결정(REQ-API-112 와 같은 축)이라 스킬도 그 사실을 알아야 한다.
 >
@@ -106,7 +108,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.17
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.18
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -128,12 +130,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.17)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.18)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -543,7 +545,8 @@ allowed-tools:
 
 ## 진행·상태 전이
 
-- 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`) 호출.
+- 착수 시점에 `nerv_task_update`(`task_id`, `status=in_progress`) 호출 — **클레임 응답의
+  `claim_id` 를 받지 못한 채로는 부르지 않는다.**
 - 스펙에 없는 결정이 필요하거나 scope 경계를 벗어나야 하면 **추측하지 말고**
   /nerv:question 규약으로 `nerv_question_create`. blocking 질문이면 답변까지 구현을 멈춘다.
 - 차단됐으면 `nerv_task_update`(`status=blocked`, `blocked_reason`). **사유는 넷 중 하나다** —
@@ -572,10 +575,18 @@ allowed-tools:
 - `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
   `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
   "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.
-- `status` 는 `backlog`·`ready`·`claimed`·`in_progress`·`in_review`·`done`·`blocked`
-  일곱뿐이다.
+- `nerv_task_update` 의 `status` 는 여섯이다 — `backlog`·`ready`·`in_progress`·
+  `in_review`·`done`·`blocked`. **`claimed` 는 없다**: 그 상태는 `nerv_task_claim` 만이
+  만든다.
   done 전이는 서버 게이트를 지나며 정책에 따라 사람 승인(A3)이 걸릴 수 있다.
   게이트 거부 응답이 오면 사유를 사람에게 그대로 보고한다(우회하지 않는다).
+- **`in_progress`·`in_review`·`done` 은 살아 있는 내 클레임이 있을 때만 부른다.**
+  `NERV_LEASE_EXPIRED`(`details.kind` 가 `no_active_claim` 또는 `lease_expired`)가 오면
+  `details.reclaimable` 을 본다 — `true` 면 `nerv_task_claim` 으로 다시 잡고 이어 가고,
+  `false` 면 그 Task 는 지금 잡을 수 없으므로 산출물만 제출하고 사람에게 보고한다.
+- `ready` 로 되돌리는 것도 판정을 지난다 — 위임 명세 4요소가 비어 있거나(`missing`)
+  선행 작업이 남아 있으면(`pending`) 거부된다. 활성 클레임이 걸린 Task 는 `ready`·
+  `backlog` 로 옮기기 전에 `nerv_task_release` 로 먼저 놓는다(`release_required`).
 - 작업을 끝냈거나 세션을 접으면 `nerv_task_release`(`claim_id`,
   `reason=done|handoff|abandon`, `state_note`에 인수인계 노트).
 
@@ -653,7 +664,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 7. **답이 필요 없어졌으면 거둔다.** 기다리는 동안 스스로 답을 찾았거나 전제가 사라졌으면
    `nerv_question_cancel`(`question_id`)로 취소한다 — **그 사실을 아는 것은 물어본 쪽뿐이다.**
    두지 않으면 그 질문은 사람의 수신함에 남고, 사람은 맥락 없이 그것을 처리해야 한다.
-   취소한 이유는 `nerv_task_update`의 `note`에 남긴다. 남의 질문은 취소할 수 없다.
+   남의 질문은 취소할 수 없다.
 8. 폴링 중 `cancelled`가 오면 **사람이 그 질문을 내린 것이다** — 답을 기다리지 말고,
    무엇을 근거로 진행할지 알 수 없으면 다시 묻지 말고 사람에게 보고하고 멈춘다.
 

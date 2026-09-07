@@ -3,6 +3,9 @@
 // 이 파일 밖에서의 하드코딩은 lint 로 금지한다(REQ-CB-006).
 // 각 값의 근거 정본은 주석의 문서 링크다 — 여기서 새 값을 만들지 않는다.
 
+import { en } from './i18n/en.js';
+import { ko } from './i18n/ko.js';
+
 /**
  * 클레임 리스 TTL — 30분.
  * Task 클레임 리스와 초안 편집 리스가 **같은 상수**를 쓴다(D-04 문서 축 확장).
@@ -259,3 +262,52 @@ export const SEED_ORG_SLUG = 'default';
  * 사는 열쇠다.
  */
 export const INVITATION_TTL_DAYS = 7;
+
+/**
+ * **`nerv_task_update`·EP-TASK-09 가 받는 목표 상태 여섯**(2026-09-07 · REQ-API-129~132).
+ *
+ * `claimed` 가 빠져 있다. 그 상태로 가는 길은 원자적 클레임 하나뿐이고(`nerv_task_claim` —
+ * [3.5 spec-workflow](../../../../docs/03-proposal/spec-workflow.md) §1.4), 상태를 직접 쓰는
+ * 문이 열려 있으면 "활성 소유자는 한 명" 이 상태 축에서만 무너진다 — 클레임 행 없이 `claimed`
+ * 인 Task 는 아무도 쥐지 않았는데 아무도 잡을 수 없는 Task 다.
+ */
+export const TASK_TRANSITION_TARGETS = [
+  'backlog',
+  'ready',
+  'in_progress',
+  'in_review',
+  'done',
+  'blocked',
+] as const;
+
+/**
+ * **세션(에이전트) 경로가 살아 있는 자기 클레임 없이는 갈 수 없는 목표 셋**.
+ *
+ * 문서 셋이 이미 이것을 약속하고 있었다([3.4 agent-integration](../../../../docs/03-proposal/agent-integration.md)
+ * §2.7 · [4.8 백로그](../../../../docs/04-mvp/backlog.md) E09-S05 수용 기준 · 4.4 REQ-API-005).
+ * 그런데 서버는 활성 클레임이 **아예 없으면** 판정을 건너뛰었다 — 리스가 없으면 거부가 아니라
+ * 무검사였다. 사람 경로는 다른 규칙이다(담당자·클레임 보유자·planner·admin).
+ */
+export const TASK_LEASE_BOUND_TARGETS = ['in_progress', 'in_review', 'done'] as const;
+
+/**
+ * **위임 명세 4요소가 실제로 채워졌는가**(2026-09-07 · REQ-API-131).
+ *
+ * 빈 문자열만 보면 안 된다. 임포터는 원본에 위임 명세가 없을 때 자리표시자를 넣는데
+ * (`import.delegation_missing` — 로케일마다 다른 문자열이다), 그 값은 공백이 아니라서
+ * "채워졌다" 로 세어졌다. 그래서 임포트된 Task 의 제목만 고쳐도 `ready` 로 튀고,
+ * 에이전트는 **무엇을 하라는 말이 한 줄도 없는** 작업을 받는다. 자리표시자는 빈 것이다.
+ *
+ * 두 로케일 값을 모두 본다 — 적재한 사람의 로케일이 판정하는 사람의 로케일과 같다는
+ * 보장이 없다.
+ */
+export function isDelegationFilled(value: string | null | undefined): boolean {
+  if (value == null) return false;
+  const trimmed = value.trim();
+  if (trimmed === '') return false;
+  return !DELEGATION_PLACEHOLDERS.has(trimmed);
+}
+
+const DELEGATION_PLACEHOLDERS = new Set(
+  [ko['import.delegation_missing'], en['import.delegation_missing']].map((v) => v.trim()),
+);

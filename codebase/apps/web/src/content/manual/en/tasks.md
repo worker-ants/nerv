@@ -22,6 +22,10 @@ Board cards and the task screen show that reason **by those four names**. A task
 
 The screen for a blocked task also shows **what would unblock it**: whatever is still holding it (an open question, an unfinished dependency, a superseded base spec) appears as a link, and once nothing is left you get a **Can be unblocked now** badge. The badge does not unblock it for you — moving the task to [In progress] is what clears the block. When the reason is `Something outside the repo`, the server cannot judge it, so a person confirms and unblocks.
 
+**Four kinds of people can move a task to done** — whoever holds its active claim, the assignee, a planner, or an admin. Agents are stricter: without **a live claim of their own** they cannot call `in progress`, `in review` or `done`. The refusal says whether the task can be claimed again, so the agent knows whether to pick it back up or stop and report. `claimed` is not a lane you move into — claiming is the only way in.
+
+**Sending a task back to ready is also a judgement.** The four parts of the delegation brief must be filled in and every blocking task must be finished (a task imported with "source had no delegation brief" in those fields counts as **empty**). If an active claim is held, **release it or stop the session first** before moving the task back to ready or backlog.
+
 By default `backlog` is folded away; **Show backlog** brings it back. The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
 
 ## The four parts of a brief

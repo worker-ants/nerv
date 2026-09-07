@@ -12,7 +12,10 @@ import {
   NERV_EVENT,
   newId,
   BLOCKED_REASONS,
+  isDelegationFilled,
   PLAN_APPROVAL_SIBLINGS,
+  TASK_LEASE_BOUND_TARGETS,
+  TASK_TRANSITION_TARGETS,
   TASK_DONE_WINDOW_DAYS,
   taskPriority,
   taskStatus,
@@ -64,6 +67,14 @@ export interface ClaimResult {
   warnings: Overlap[];
   /** 같은 세션의 재호출이면 기존 클레임을 그대로 돌려준다(멱등, 리스 연장 없음) */
   replayed: boolean;
+}
+
+/** 전이 판정이 읽는 활성 클레임 한 행 — 보유자·세션·리스 만료 여부만 본다. */
+interface ActiveClaimGuard extends Record<string, unknown> {
+  id: string;
+  agent_session_id: string | null;
+  user_id: string;
+  expired: boolean;
 }
 
 export interface ReadyCandidate extends Record<string, unknown> {
@@ -589,12 +600,10 @@ export class TaskService {
 
       // 승격 판정 — backlog 에서만 올라간다. 이미 진행 중인 작업의 상태를 여기서 되돌리지 않는다.
       let promoted = false;
-      const complete = Object.values(merged).every((v) => v !== null && v.trim() !== '');
+      // 자리표시자는 빈 것이다(REQ-API-131) — 임포트된 Task 의 제목만 고쳐도 ready 로 튀던 자리
+      const complete = Object.values(merged).every((v) => isDelegationFilled(v));
       if (task.status === 'backlog' && complete) {
-        const { rows: blocking } = await tx.execute<{ key: string }>(sql`
-          SELECT dt.key FROM task_dependency d JOIN task dt ON dt.id = d.depends_on_task_id
-           WHERE d.task_id = ${task.id} AND dt.status <> 'done'
-        `);
+        const blocking = await this.pendingDependencies(tx, task.id);
         if (blocking.length === 0) {
           await tx.execute(sql`UPDATE task SET status = 'ready' WHERE id = ${task.id}`);
           promoted = true;
@@ -650,10 +659,7 @@ export class TaskService {
         ['boundaries_md', text('task.field.boundaries')],
       ] as const
     )
-      .filter(([field]) => {
-        const value = task[field];
-        return value === null || value.trim() === '';
-      })
+      .filter(([field]) => !isDelegationFilled(task[field]))
       .map(([field, label]) => ({ field, label }));
 
     if (missing.length > 0) {
@@ -1249,50 +1255,120 @@ export class TaskService {
   }
 
   /**
-   * **이 Task 를 옮길 수 있는 사람인가**(EP-TASK-09 "담당자·planner·admin").
+   * **이 Task 를 옮길 수 있는 사람인가**(EP-TASK-09 · 2026-09-07 개정 · REQ-API-129·130).
    *
    * 예전에는 아무 검사가 없었다 — 활성 클레임을 다른 세션이 쥐고 있어도, 내 리스가 이미
    * 만료돼 그 사이 다른 세션이 같은 Task 를 잡았어도, `done` 으로 옮길 수 있었다.
    * 그러면 "활성 소유자는 한 명" 이라는 클레임 모델의 전제가 상태 축에서 무너진다.
    *
-   * 활성 클레임이 없으면 판정하지 않는다 — 아직 아무도 잡지 않은 Task 를 사람이 옮기는
-   * 것은 정상 경로다(위임 명세를 채우고 backlog 를 정리하는 일).
+   * **그 뒤로도 구멍이 하나 남아 있었다**: 활성 클레임이 *아예 없으면* 이 함수는 그대로
+   * 돌아갔다(`if (claim === undefined) return`). 리스가 없다는 것이 거부가 아니라 무검사였던
+   * 것이다 — 문서 셋이 "유효한 리스 없는 `done` 은 거부" 를 약속하는 동안(agent-integration
+   * §2.7 · 백로그 E09-S05 수용 기준 · REQ-API-005) 서버는 클레임을 한 번도 쥐지 않은 세션의
+   * `done` 을 받았다. 두 경로를 나눠 판정한다.
+   *
+   * - **세션(에이전트) 경로** — `in_progress`·`in_review`·`done`(`TASK_LEASE_BOUND_TARGETS`)
+   *   으로 가려면 **그 세션이 쥔 살아 있는 클레임**이 있어야 한다. 없으면 `no_active_claim`,
+   *   만료면 `lease_expired`, 둘 다 `details.reclaimable` 을 함께 준다 — 다시 잡고 이어 갈 수
+   *   있는지를 모델이 그 값 하나로 판단한다(REQ-API-005).
+   * - **사람 경로** — `done` 은 활성 클레임 보유자·담당자·planner·admin 만(사람 결정
+   *   2026-09-07). 사람에게 리스를 요구하지 않는 이유는 사람이 리스를 쥐는 문이 없기
+   *   때문이고, 아무에게나 열어 두지 않는 이유는 `done` 이 증적·스펙 영향을 채우고 닫는
+   *   상태이기 때문이다.
+   *
+   * 나머지 목표(`backlog`·`ready`·`blocked`)에는 기존 판정만 선다 — 남의 클레임이 걸린 Task
+   * 는 담당자·planner·admin 만 옮긴다.
    */
   private async assertMayTransition(
-    tx: Tx,
-    taskId: string,
+    task: { id: string; status: string; assignee_user_id: string | null },
+    claim: ActiveClaimGuard | undefined,
     input: { userId: string; sessionId?: string | null; roles?: readonly string[] },
+    target: string,
   ): Promise<void> {
-    const { rows } = await tx.execute<{
-      agent_session_id: string | null;
-      user_id: string;
-      expired: boolean;
-    }>(sql`
-      SELECT agent_session_id, user_id, lease_expires_at <= now() AS expired
-        FROM claim WHERE task_id = ${taskId} AND status = 'active' LIMIT 1
-    `);
-    const claim = rows[0];
+    // planner·admin 은 남의 작업도 정리할 수 있다(전표의 "담당자·planner·admin")
+    const privileged = (input.roles ?? []).some((r) => r === 'planner' || r === 'admin');
+    const leaseBound = (TASK_LEASE_BOUND_TARGETS as readonly string[]).includes(target);
+    // **되찾을 수 있는가**(REQ-API-005 의 `reclaimable` 실물). 살아 있는 클레임이 없고,
+    // 다시 잡으면 잡히는 상태여야 참이다 — 지금 `ready` 이거나, 만료된 리스가 걸려 있어
+    // `claim()` 이 그것을 회수하고 잡을 수 있는 경우다(그 회수는 클레임의 첫 단계다).
+    // 클레임 없이 `in_progress` 인 고아 Task 는 **거짓**이다: 다시 잡을 길이 없고 사람이
+    // 되돌려야 한다. 모델은 이 한 값으로 "이어 갈까 접을까" 를 정한다.
+    const live = claim !== undefined && !claim.expired;
+    const reclaimable = !live && (task.status === 'ready' || claim !== undefined);
+
+    if (input.sessionId != null && leaseBound) {
+      const mineAndLive =
+        claim !== undefined && claim.agent_session_id === input.sessionId && !claim.expired;
+      if (!mineAndLive) {
+        const expiredMine = claim !== undefined && claim.agent_session_id === input.sessionId;
+        throw new NervError(
+          NERV_ERROR.LEASE_EXPIRED,
+          expiredMine ? msg('error.claim.lease_expired') : msg('error.task.claim_required'),
+          {
+            kind: expiredMine ? 'lease_expired' : 'no_active_claim',
+            task_id: task.id,
+            reclaimable,
+          },
+        );
+      }
+      return;
+    }
+
+    if (input.sessionId == null && target === 'done') {
+      const allowed =
+        privileged ||
+        task.assignee_user_id === input.userId ||
+        (claim !== undefined && claim.user_id === input.userId);
+      if (!allowed) {
+        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.task.not_assignee'), {
+          kind: 'not_assignee',
+          task_id: task.id,
+        });
+      }
+      return;
+    }
+
     if (claim === undefined) return;
 
     const mine =
       (input.sessionId != null && claim.agent_session_id === input.sessionId) ||
       claim.user_id === input.userId;
-    // planner·admin 은 남의 작업도 정리할 수 있다(전표의 "담당자·planner·admin")
-    const privileged = (input.roles ?? []).some((r) => r === 'planner' || r === 'admin');
 
     if (!mine && !privileged) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.task.not_assignee'), {
         kind: 'not_assignee',
-        task_id: taskId,
+        task_id: task.id,
       });
     }
     // 만료된 리스로는 옮기지 못한다 — 그 사이 다른 세션이 이 Task 를 잡았을 수 있다
     if (mine && !privileged && claim.expired) {
       throw new NervError(NERV_ERROR.LEASE_EXPIRED, msg('error.claim.lease_expired'), {
         kind: 'lease_expired',
-        task_id: taskId,
+        task_id: task.id,
+        reclaimable,
       });
     }
+  }
+
+  /**
+   * 아직 끝나지 않은 선행 작업의 키 — 승격(`update()`)과 전이(`transition()`)가 같은 질의를 쓴다.
+   * 둘이 따로 적으면 한쪽만 조건이 바뀌고, 그때 Task 는 문에 따라 다른 답을 받는다.
+   */
+  private async pendingDependencies(tx: Tx, taskId: string): Promise<string[]> {
+    const { rows } = await tx.execute<{ key: string }>(sql`
+      SELECT dt.key FROM task_dependency d JOIN task dt ON dt.id = d.depends_on_task_id
+       WHERE d.task_id = ${taskId} AND dt.status <> 'done'
+    `);
+    return rows.map((r) => r.key);
+  }
+
+  /** 전이 판정이 보는 활성 클레임 한 행 — 한 번 읽어 세 판정이 나눠 쓴다. */
+  private async activeClaimOf(tx: Tx, taskId: string): Promise<ActiveClaimGuard | undefined> {
+    const { rows } = await tx.execute<ActiveClaimGuard>(sql`
+      SELECT id, agent_session_id, user_id, lease_expires_at <= now() AS expired
+        FROM claim WHERE task_id = ${taskId} AND status = 'active' LIMIT 1
+    `);
+    return rows[0];
   }
 
   /** 클레임 해제 — reason 에 따라 Task 를 ready 로 회수하거나 그대로 둔다. */
@@ -1406,8 +1482,6 @@ export class TaskService {
     blockedReason?: string | null;
     evidence?: { kind: string; locator: string }[];
   }): Promise<{ status: string; gate?: { ok: boolean; missing: string[] } }> {
-    // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
-    const nextStatus = assertVocab([input.status], taskStatus.enumValues, 'status')[0];
     return this.events.transact(async (tx, emit) => {
       // 키로 왔든 UUID 로 왔든 같은 작업을 가리킨다(§1.4b)
       const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
@@ -1416,8 +1490,14 @@ export class TaskService {
         project_id: string;
         key: string;
         source_requirement_id: string | null;
+        assignee_user_id: string | null;
+        goal_md: string | null;
+        output_format_md: string | null;
+        tools_sources_md: string | null;
+        boundaries_md: string | null;
       }>(
-        sql`SELECT status::text AS status, project_id, key, source_requirement_id
+        sql`SELECT status::text AS status, project_id, key, source_requirement_id,
+                   assignee_user_id, goal_md, output_format_md, tools_sources_md, boundaries_md
               FROM task WHERE id = ${taskId} FOR UPDATE`,
       );
       const task = rows[0];
@@ -1431,16 +1511,27 @@ export class TaskService {
         return { status: task.status };
       }
 
+      // **`claimed` 는 어휘에는 있고 이 문에는 없다**(2026-09-07 · REQ-API-132). 그 상태로
+      // 가는 길은 원자적 클레임 하나뿐이라(`claim()`), 상태만 써 넣으면 **클레임 행 없이
+      // `claimed` 인 Task** 가 된다 — 아무도 쥐지 않았는데 `next()` 에도 안 보이고 잡을 수도
+      // 없는 Task 다. "모르는 값"(어휘 오류)과는 다른 답을 준다: 갈 길이 따로 있다는 말이다.
+      if (input.status === 'claimed') {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.task.transition_not_allowed', { from: task.status, to: input.status }),
+          {
+            kind: 'transition_not_allowed',
+            from: task.status,
+            to: input.status,
+            next_actions: ['nerv_task_claim'],
+          },
+        );
+      }
       // **어휘 안의 값만 받는다.** 예전에는 입력을 그대로 `::task_status` 로 캐스팅해
       // 오타 하나가 500(22P02)이 됐다 — 그것은 "그런 상태는 없다" 가 아니라 서버 오류다.
-      if (!(taskStatus.enumValues as readonly string[]).includes(input.status)) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
-          kind: 'invalid_input',
-          field: 'status',
-          allowed: taskStatus.enumValues,
-          value: input.status,
-        });
-      }
+      // `?? input.status` 는 도달하지 않는다 — 통과한 값이 그대로 배열의 첫 항목이다
+      const nextStatus =
+        assertVocab([input.status], TASK_TRANSITION_TARGETS, 'status')[0] ?? input.status;
 
       // **끝난 일은 조용히 되살아나지 않는다.** done 은 게이트를 통과해 닫힌 상태이고
       // (증적·spec_impact) 그것을 지나 되돌리는 것은 새 결정이라 이 문으로 하지 않는다.
@@ -1452,7 +1543,26 @@ export class TaskService {
         });
       }
 
-      await this.assertMayTransition(tx, taskId, input);
+      // 활성 클레임 한 행을 여기서 한 번 읽고 세 판정이 나눠 쓴다(문지기·해제 요구·ready 판정)
+      const claim = await this.activeClaimOf(tx, taskId);
+      await this.assertMayTransition(
+        { id: taskId, status: task.status, assignee_user_id: task.assignee_user_id },
+        claim,
+        input,
+        nextStatus,
+      );
+
+      // **되돌리려면 먼저 놓는다**(2026-09-07 · REQ-API-132). 활성 클레임이 걸린 Task 의
+      // 상태만 `ready`·`backlog` 로 바꾸면 클레임 행은 그대로 살아 있다 — 그 Task 는 큐에
+      // 있는 것처럼 보이지만 다음 클레임은 부분 unique(`claim_task_active_uq`)에 걸려
+      // 500 이 된다. 놓는 문은 이미 둘 있다(해제 · 세션 중단).
+      if (claim !== undefined && (nextStatus === 'ready' || nextStatus === 'backlog')) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.release_required'), {
+          kind: 'release_required',
+          task_id: taskId,
+          claim_id: claim.id,
+        });
+      }
 
       for (const item of input.evidence ?? []) {
         // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
@@ -1491,6 +1601,42 @@ export class TaskService {
         });
         await this.refreshImplStatus(tx, task.source_requirement_id);
         return { status: 'done', gate };
+      }
+
+      // **`ready` 는 도착지가 아니라 판정이다**(2026-09-07 · REQ-API-131). 큐에 들어간다는 것은
+      // 아무 세션이나 집어 갈 수 있다는 뜻이라, 위임 명세 4요소와 선행 의존이 여기서 선다 —
+      // `update()` 의 승격 경로만 그것을 보고 이 문은 그대로 통과시켰다. 4요소가 빈 채로
+      // 들어간 Task 는 DB CHECK 가 막긴 했지만 돌아오는 것은 제약 이름뿐이라(400), 무엇을
+      // 채워야 하는지 아무도 알 수 없었다.
+      if (nextStatus === 'ready') {
+        this.assertDelegationSpec(task);
+        const pending = await this.pendingDependencies(tx, taskId);
+        if (pending.length > 0) {
+          throw new NervError(
+            NERV_ERROR.PRECONDITION,
+            msg('error.task.dependencies_pending', { pending: pending.join(', ') }),
+            { kind: 'dependencies_pending', pending },
+          );
+        }
+        // 큐로 돌아가는 것이므로 막힘 사유와 위임 세션을 함께 지운다 — 남겨 두면 다음 사람이
+        // 이미 해소된 사유를 읽는다
+        await tx.execute(sql`
+          UPDATE task SET status = 'ready', blocked_reason = NULL, delegate_session_id = NULL
+           WHERE id = ${taskId}
+        `);
+        await emit({
+          type: NERV_EVENT.TASK_READY,
+          projectId: input.projectId,
+          subjectType: 'task',
+          subjectId: taskId,
+          subjectKey: task.key,
+          actorUserId: input.userId,
+          actorSessionId: input.sessionId ?? null,
+          isAgent: input.sessionId != null,
+          fromState: task.status,
+          toState: 'ready',
+        });
+        return { status: 'ready' };
       }
 
       if (input.status === 'blocked' && (input.blockedReason ?? '').trim() === '') {

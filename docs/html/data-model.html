@@ -53,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.14 (2026-09-07)</span>
+      <span>버전 v0.15 (2026-09-07)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -661,20 +661,21 @@
     <thead><tr><th>전이</th><th>조건</th><th>강제 지점</th></tr></thead>
     <tbody>
       <tr><td><code>backlog → ready</code></td><td>위임 명세 4요소가 모두 NOT NULL + 선행 의존성 없음/해소</td><td>API 검증(FR-05)</td></tr>
-      <tr><td><code>ready → claimed</code></td><td><code>nerv_task_claim</code> 트랜잭션 성공(scope 겹침 통과)</td><td>partial unique 인덱스(FR-06)</td></tr>
+      <tr><td><code>ready → claimed</code></td><td><code>nerv_task_claim</code> 트랜잭션 성공(scope 겹침 통과)</td><td>partial unique 인덱스(FR-06) · <b>EP-TASK-09 로는 불가</b>(<code>transition_not_allowed</code> — 2026-09-07)</td></tr>
       <tr><td><code>claimed → in_progress</code></td><td>세션의 첫 <code>action</code> Activity 또는 명시 전이</td><td>서버</td></tr>
       <tr><td><code>in_progress → in_review</code></td><td>산출물(PR/커밋) Evidence 1건 이상</td><td>API 검증</td></tr>
       <tr><td><code>in_progress</code>·<code>in_review → done</code></td><td>게이트 통과(증적 1건 이상) <b>AND</b> <code>spec_impact</code> NOT NULL</td><td>게이트 API(FR-10)</td></tr>
+      <tr><td><code>claimed</code>·<code>in_progress → ready</code>·<code>backlog</code></td><td>활성 클레임 없음(있으면 <code>release_required</code>) · <code>ready</code> 는 위임 명세 4요소와 선행 의존 판정을 함께 지난다</td><td>API 검증(2026-09-07 · REQ-API-131·132)</td></tr>
       <tr><td><code>* → blocked</code></td><td>질문 미해결·의존성 역행</td><td>서버·수동</td></tr>
     </tbody>
   </table></div>
-    <p><b>전이의 문지기는 세 가지다</b>(2026-09-02 — 정합 점검). 구현은 위 표를 강제하지 않고 있었고, 그중 셋을 채웠다: ① <b>어휘</b> — 입력을 그대로 <code>::task_status</code> 로 캐스팅해 오타가 500 이 됐다(이제 400 <code>invalid_input</code>). ② <b>담당자</b> — 활성 클레임을 다른 세션이 쥐고 있어도 상태를 옮길 수 있었다(이제 보유자 또는 planner·admin). ③ <b>리스</b> — 만료된 리스로도 <code>done</code> 으로 옮길 수 있었다(이제 <code>NERV_LEASE_EXPIRED</code>). 더해 <b>done 은 이 문으로 되돌아오지 않는다</b>.</p>
+    <p><b>전이의 문지기는 여덟이다</b>(2026-09-02 셋 · 2026-09-07 다섯 — <a href="api.html">4.4</a> REQ-API-129~132). 구현은 위 표를 강제하지 않고 있었고, 그중 셋을 채웠다: ① <b>어휘</b> — 입력을 그대로 <code>::task_status</code> 로 캐스팅해 오타가 500 이 됐다(이제 400 <code>invalid_input</code>). ② <b>담당자</b> — 활성 클레임을 다른 세션이 쥐고 있어도 상태를 옮길 수 있었다(이제 보유자 또는 planner·admin). ③ <b>리스</b> — 만료된 리스로도 <code>done</code> 으로 옮길 수 있었다(이제 <code>NERV_LEASE_EXPIRED</code>). 더해 <b>done 은 이 문으로 되돌아오지 않는다</b>.</p>
 
   <p><b><code>in_review</code> 는 선택 단계다</b>(2026-09-02 · 사람 확정). 표는 <code>in_review → done</code> 만 적었는데 배포된 구현 루프(<code>/nerv:impl</code>)는 <code>in_progress → done</code> 으로 곧장 가고 서버도 경로를 막지 않았다 — 셋이 서로 다른 말을 하고 있었다. <b>표를 실물에 맞춘다.</b></p>
 
   <p>이유는 <code>done</code> 의 실질 조건을 이미 게이트가 강제하기 때문이다: 증적 1건 이상과 <code>spec_impact</code> 가 없으면 <code>done</code> 으로 갈 수 없다. <code>in_review</code> 를 필수로 만들면 혼자 일하는 사람이 자기 작업을 <code>in_review</code> 로 옮겼다가 곧바로 <code>done</code> 으로 옮기는 형식 단계가 생기고, 그 단계는 아무것도 막지 못한다. 실제 리뷰가 붙는 곳은 FR-09 리뷰 세션이며 그것은 Task 상태와 <b>다른 축</b>이다.</p>
 
-  <p><code>in_review</code> 는 여러 사람이 보는 보드에서 "산출물은 나왔고 아직 확인 전"을 구분하고 싶을 때 쓴다. 경로 그래프는 계속 강제하지 않는다 — 강제하는 것은 어휘·담당자·리스, 그리고 <code>done</code> 이 최종이라는 사실 넷이다.</p>
+  <p><code>in_review</code> 는 여러 사람이 보는 보드에서 "산출물은 나왔고 아직 확인 전"을 구분하고 싶을 때 쓴다. 경로 그래프는 계속 강제하지 않는다 — 강제하는 것은 <b>여덟</b>이다(2026-09-07 에 넷이 더 섰다): 어휘 · 담당자 · 리스 만료 · <code>done</code> 이 최종이라는 사실 · <b>세션의 리스 구속 목표 셋</b>(<code>in_progress</code>·<code>in_review</code>·<code>done</code> 은 살아 있는 자기 클레임 필요) · <b><code>ready</code> 판정</b>(4요소·선행 의존) · <b><code>claimed</code> 는 클레임으로만</b> · <b>활성 클레임이 걸린 <code>ready</code>·<code>backlog</code> 는 해제 먼저</b>. 결정을 뒤집은 것이 아니라 문지기를 늘린 것이다.</p>
 
 <p><code>spec_impact</code>를 done 전제조건으로 둔 것은 clemvion의 Gate C(<code>spec-plan-completion.test.ts</code>) 이식이다. 그쪽은 완료 plan의 frontmatter에 영향 스펙 목록 또는 <code>none</code> sentinel을 요구했고, 이 게이트가 "작업 완료가 스펙 정합 결정을 강제 동반"하게 만든 좋은 패턴이었다.</p>
 

@@ -475,6 +475,8 @@ export const ko = {
   'mcp.arg.cursor': '다음 쪽 — 앞 응답의 next_cursor 를 그대로 싣는다',
   'mcp.arg.evidence':
     '증적 — done 게이트가 요구한다. kind 는 code_path·test·pr·commit·review·user_guide',
+  'mcp.arg.status':
+    '옮길 상태 — claimed 는 없다(nerv_task_claim 만이 만든다). in_progress·in_review·done 은 살아 있는 내 클레임이 있을 때만 받는다',
   'mcp.arg.blocked_reason': '막힌 이유 — status=blocked 면 필수다',
   'mcp.arg.spec_impact':
     '스펙에 미친 영향 — done 게이트의 필수 선언이다. 바꾼 스펙이 있으면 changed 에 스펙 키 배열을, 없으면 none 을 true 로 준다',
@@ -528,6 +530,8 @@ export const ko = {
   'error.spec.title_required': '제목이 필요합니다.',
   'error.spec.version_missing': '요청한 버전이 없습니다.',
   'error.spec.version_not_found': '버전을 찾을 수 없습니다.',
+  'error.task.claim_required': '이 작업의 살아 있는 클레임이 없습니다 — 먼저 클레임한다.',
+  'error.task.dependencies_pending': '선행 작업이 끝나지 않았습니다: {pending}',
   'error.task.blocked_reason_required': 'blocked 에는 사유가 필요합니다.',
   'error.task.delegation_incomplete': '위임 명세 4요소가 비어 있습니다: {missing}',
   'error.task.done_gate': 'done 게이트를 충족하지 못했습니다.',
@@ -536,6 +540,8 @@ export const ko = {
   'error.task.done_is_final': '완료된 작업은 이 경로로 되돌리지 않습니다.',
   'error.task.not_assignee': '이 작업의 담당자가 아닙니다.',
   'error.task.not_found': '작업을 찾을 수 없습니다.',
+  'error.task.release_required': '활성 클레임이 걸려 있습니다 — 먼저 해제하거나 세션을 중단합니다.',
+  'error.task.transition_not_allowed': '{from} 에서 {to} 로는 이 경로로 옮기지 않습니다.',
   'error.task.not_ready': '작업이 ready 가 아닙니다({status}).',
   'error.webhook.bad_signature': '서명이 일치하지 않습니다.',
   'error.webhook.no_secret': '웹훅 시크릿이 설정되지 않았습니다.',
@@ -991,8 +997,11 @@ export const ko = {
   'task.spec_impact_note': '"없음"도 명시적으로 고릅니다. 빈 선언을 허용하면 규칙이 사라집니다',
   'task.spec_impact_placeholder': '어떤 스펙이 어떻게 바뀌어야 하는지',
   'task.status_changed': '상태를 {status} 로 바꿨습니다.',
+  'task.done_needs_claim': '완료로 옮기려면 내 클레임이 있거나 담당자·planner·admin 이어야 합니다.',
   'task.to_blocked': '막힘으로 전이',
   'task.to_done': '완료로 전이',
+  'task.to_backlog': '백로그로 되돌리기',
+  'task.to_ready': '준비됨으로 되돌리기',
   'task.transition_missing': '(누락: {missing})',
   'task.transition_rejected': '전이 거부 — {message}',
   'tasks.basis_superseded': '기준 버전 갱신됨',
