@@ -208,16 +208,23 @@ describe.skipIf(!AVAILABLE)('시나리오 C — 리스 만료 자동 회수 (성
     const staled = await stack.app.get(SessionService).markStale();
     expect(staled).toBeGreaterThan(0);
 
-    // 회수는 워커의 lease-reaper 잡이 한다. 그 잡은 ClaimService.reclaimExpired 한 줄이고
-    // (worker-jobs.spec.ts 가 그것을 지킨다), 클레임 경로도 같은 메서드를 먼저 부른다 —
-    // 회수 규칙이 두 벌이 아니라는 것이 D-05 의 실물이다.
+    // **stale 전이가 곧 회수다**(2026-09-07 · REQ-API-127). 예전에는 세션만 stale 로 바꾸고
+    // 클레임은 리스 만료를 기다렸다 — 세션이 사라져도 리스는 최대 30분 더 살아 있어 그 창에서
+    // 멀쩡한 클레임이 겹침으로 막혔다. 이제 `markStale` 이 그 자리에서 회수한다.
+    const { rows: released } = await stack.pool.query<{ reason: string | null }>(
+      `SELECT release_reason::text AS reason FROM claim WHERE task_id = $1 AND status = 'released'`,
+      [taskId],
+    );
+    expect(released.map((r) => r.reason)).toEqual(['stale']);
+
+    // lease-reaper 잡은 같은 메서드를 부른다(worker-jobs.spec.ts 가 그것을 지킨다) — 이미
+    // 회수된 것을 두 번 놓지 않는다. 회수 규칙이 두 벌이 아니라는 것이 D-05 의 실물이다.
     const { ClaimService } = await import('../../src/modules/task/claim.service.js');
     const { EventService } = await import('../../src/modules/event/event.service.js');
-    // 회수는 이벤트를 남긴다(REQ-API-127) — 그래서 `EventService.transact` 로 연다
     const reclaimedClaims = await stack.app
       .get(EventService)
       .transact(async (tx, emit) => stack.app.get(ClaimService).reclaimExpired(tx, emit));
-    expect(reclaimedClaims.length).toBeGreaterThan(0);
+    expect(reclaimedClaims).toEqual([]);
 
     const { rows } = await stack.pool.query<{ status: string; claims: number }>(
       `SELECT t.status::text AS status,
