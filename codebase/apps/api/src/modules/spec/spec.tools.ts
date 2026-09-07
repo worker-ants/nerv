@@ -224,7 +224,11 @@ export class SpecTools implements NervToolProvider {
       handler: async (input, ctx) => {
         const attachmentId = input['attachment_id'];
         if (typeof attachmentId === 'string' && attachmentId !== '') {
-          return this.attachments.commit({ projectId: ctx.projectId, attachmentId });
+          return this.attachments.commit({
+            projectId: ctx.projectId,
+            attachmentId,
+            actor: { userId: ctx.principal.userId, sessionId: ctx.sessionId ?? null },
+          });
         }
         const specKey = String(input['spec_id'] ?? '');
         const filename = String(input['filename'] ?? '');

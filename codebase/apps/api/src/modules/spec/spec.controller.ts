@@ -664,7 +664,12 @@ export class SpecController {
   @RequireScope('spec:draft')
   @Delete('attachments/:id')
   removeAttachment(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
-    return this.attachments_.remove({ projectId: projectOf(req), attachmentId: id });
+    return this.attachments_.remove({
+      projectId: projectOf(req),
+      attachmentId: id,
+      // 누가 뗐는지가 감사의 질문이다(REQ-API-151) — REST 는 사람 경로다
+      actor: { userId: principalOf(req).userId, sessionId: null },
+    });
   }
 }
 

@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.40 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.41 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.41 변경(2026-09-07 — 감사 축): §1.4 셋째 표에 **권한·토큰의 감사** 한 줄([4.4](api.md) REQ-API-151).
 >
 > v0.40 변경(2026-09-07 — 셋째 스프린트 ⑦): §1.4 셋째 표에 **알림 등급·수신자** 한 줄([4.4](api.md) REQ-API-149·150).
 >
@@ -189,6 +191,7 @@ referenced_by:
 | EARS 작성 표면 | `spec-check.service.ts`(0건 경고) · `spec.service.ts`·`spec.controller.ts`(EP-REQ-04) · `plugin/skills/spec`(형식 절) | 형식이 정규식 한 줄에만 있어 승인본 65건에 요구사항이 0건이었다(2026-09-07 · [4.4](api.md) REQ-API-144·145) |
 | done 게이트 정책 · 리뷰 링크 | `zod/policy.ts`(`done_gate`) · `task.service.ts`(`assertDoneGate`) · `evidence-locator.ts`(신설) · `review.service.ts`(활성 클레임에서 task_id) | 게이트가 자기 신고 문자열 1건으로 열렸고 리뷰 1,992건 중 Task 링크가 2건이었다(2026-09-07 · [4.4](api.md) REQ-API-146~148) |
 | 알림 등급·수신자 | `notification.service.ts`(등급 필터·둘로 세기·owner_role 수신자) · `event.controller.ts` · `app-shell.tsx`·`routes/notifications.tsx` | 배지가 배경 활동까지 세어 결정 99건이 767건에 묻혔다(2026-09-07 · [4.4](api.md) REQ-API-149·150) |
+| 권한·토큰의 감사 | `event/event-core.module.ts`(신설) · `auth.service.ts`·`invitation.service.ts`·`attachment.service.ts` · `events.ts` | FR-16 이 요구하는 축이 멤버십·토큰·프로젝트 변경에서 비어 있었다(2026-09-07 · [4.4](api.md) REQ-API-151) |
 | 자라는 목록의 커서 | `session.service.ts` · `event.service.ts` | activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120) |
 
 #### 이 절은 언제 갱신되는가

@@ -21,6 +21,7 @@ import {
   memberRole,
   msg,
   NERV_ERROR,
+  NERV_EVENT,
   newId,
   RetentionSchema,
 } from '@nerv/schema';
@@ -30,7 +31,9 @@ import type { RoleScope } from '@nerv/schema';
 import { sqlArray } from '../../common/sql-array.js';
 import { assertScope as assertScopeOf } from '../../common/scope-check.js';
 import { sql } from 'drizzle-orm';
-import { Inject } from '@nestjs/common';
+import { Inject, Optional } from '@nestjs/common';
+import { EventService } from '../event/event.service.js';
+import type { NervEventName } from '@nerv/schema';
 import type pg from 'pg';
 import { InjectDb, NERV_PG_POOL } from '../../common/database.module.js';
 import { createBetterAuth } from './better-auth.js';
@@ -81,6 +84,12 @@ export class AuthService {
 
   constructor(
     @InjectDb() private readonly db: NervDb,
+    /**
+     * 감사 축(REQ-API-151) — 권한·토큰·프로젝트의 변경이 이벤트를 남긴다.
+     * `@Optional()` 인 이유는 이 서비스를 **테스트가 직접 만들기** 때문이다(모듈 없이).
+     * 없으면 남기지 않고 지나간다 — 감사가 없다고 인증이 멈추면 그것이 더 나쁘다.
+     */
+    @Optional() private readonly events?: EventService,
     @Inject(NERV_PG_POOL) pool?: pg.Pool,
   ) {
     if (pool !== undefined) this.betterAuth = createBetterAuth(pool);
@@ -255,6 +264,13 @@ export class AuthService {
       UPDATE project SET archived_at = ${input.archived ? sql`now()` : sql`NULL`}
        WHERE id = ${input.projectId}
     `);
+    await this.audit({
+      projectId: input.projectId,
+      type: input.archived ? NERV_EVENT.PROJECT_ARCHIVED : NERV_EVENT.PROJECT_RESTORED,
+      subjectType: 'project',
+      subjectId: input.projectId,
+      actorUserId: input.actor.userId,
+    });
     return this.project(input.projectId);
   }
 
@@ -335,10 +351,29 @@ export class AuthService {
       VALUES (${projectId}, ${org.id}, ${input.slug}, ${input.key}, ${input.name},
               ${input.description ?? null})
     `);
+    const membershipId = newId();
     await this.db.execute(sql`
       INSERT INTO membership (id, org_id, project_id, user_id, role)
-      VALUES (${newId()}, ${org.id}, ${projectId}, ${input.userId}, 'admin')
+      VALUES (${membershipId}, ${org.id}, ${projectId}, ${input.userId}, 'admin')
     `);
+    // 프로젝트가 생겼다는 사실과 **첫 admin 이 누구인가**는 다른 물음이라 둘 다 남긴다
+    await this.audit({
+      projectId,
+      type: NERV_EVENT.PROJECT_CREATED,
+      subjectType: 'project',
+      subjectId: projectId,
+      actorUserId: input.userId,
+      payload: { org_id: org.id, slug: input.slug },
+    });
+    await this.audit({
+      projectId,
+      type: NERV_EVENT.MEMBER_ADDED,
+      subjectType: 'membership',
+      subjectId: membershipId,
+      actorUserId: input.userId,
+      toState: 'admin',
+      payload: { user_id: input.userId, org_id: org.id },
+    });
     return this.project(projectId);
   }
 
@@ -409,6 +444,20 @@ export class AuthService {
     if (inserted[0] === undefined) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.duplicate'), {
         kind: 'duplicate_membership',
+      });
+    }
+    // **조직 단위 멤버십은 남기지 않는다**(사람 결정 · `event.project_id` 가 NOT NULL 이다).
+    // 담으려면 그 열을 nullable 로 바꾸는 결정이 먼저다 — 지금 억지로 아무 프로젝트에 적으면
+    // 그 프로젝트의 감사에 남의 사실이 섞인다.
+    if (projectId !== null) {
+      await this.audit({
+        projectId,
+        type: NERV_EVENT.MEMBER_ADDED,
+        subjectType: 'membership',
+        subjectId: membershipId,
+        actorUserId: input.actorUserId,
+        toState: role,
+        payload: { user_id: userId, org_id: org.id },
       });
     }
     return inserted[0];
@@ -557,6 +606,30 @@ export class AuthService {
              retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention)
        WHERE id = ${input.projectId}
     `);
+    // **무엇이 바뀌었는지만 남긴다** — 정책 본문은 싣지 않는다(게이트 정책은 크고, 그 값은
+    // 프로젝트 행이 이미 가지고 있다). 감사가 묻는 것은 "누가 언제 게이트를 건드렸나" 다.
+    const fields = (
+      [
+        ['name', input.name],
+        ['description', input.description],
+        ['repo_url', input.repoUrl],
+        ['default_branch', input.defaultBranch],
+        ['gate_policy', input.gatePolicy],
+        ['retention', input.retention],
+      ] as const
+    )
+      .filter(([, value]) => value != null)
+      .map(([field]) => field);
+    if (fields.length > 0) {
+      await this.audit({
+        projectId: input.projectId,
+        type: NERV_EVENT.PROJECT_UPDATED,
+        subjectType: 'project',
+        subjectId: input.projectId,
+        actorUserId: input.actor.userId,
+        payload: { fields },
+      });
+    }
     return this.project(input.projectId);
   }
 
@@ -587,13 +660,17 @@ export class AuthService {
     membershipId: string;
     role: string;
     actorRoles: readonly MembershipRole[];
+    /** 감사 축 — 누가 올렸는가(REQ-API-151) */
+    actorUserId?: string;
   }): Promise<Record<string, unknown>> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-106·112)
     const role = assertVocab([input.role], memberRole.enumValues, 'role')[0];
     this.assertAdmin(input.actorRoles);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
-      UPDATE membership SET role = ${role}::member_role WHERE id = ${input.membershipId}
-      RETURNING id, role::text AS role, user_id
+      UPDATE membership m SET role = ${role}::member_role
+       WHERE m.id = ${input.membershipId}
+      RETURNING m.id, m.role::text AS role, m.user_id, m.project_id,
+                (SELECT prev.role::text FROM membership prev WHERE prev.id = m.id) AS from_role
     `);
     const updated = rows[0];
     if (updated === undefined) {
@@ -601,16 +678,82 @@ export class AuthService {
         kind: 'not_found',
       });
     }
+    // **권한 상승이 보이는 자리다** — from/to 가 역할이라 "누가 언제 admin 이 됐나" 를 센다
+    if (typeof updated['project_id'] === 'string' && input.actorUserId !== undefined) {
+      await this.audit({
+        projectId: updated['project_id'],
+        type: NERV_EVENT.MEMBER_UPDATED,
+        subjectType: 'membership',
+        subjectId: input.membershipId,
+        actorUserId: input.actorUserId,
+        fromState: typeof updated['from_role'] === 'string' ? updated['from_role'] : null,
+        toState: role,
+        payload: { user_id: updated['user_id'] },
+      });
+    }
     return updated;
+  }
+
+  /**
+   * **감사 한 줄**(2026-09-07 · REQ-API-151). 이 서비스의 변경은 도메인 트랜잭션이 아니라
+   * 이미 커밋된 사실이라, 이벤트는 그 뒤에 따로 낸다 — 실패해도 인증·권한 자체는 되돌리지
+   * 않는다(감사가 없다고 로그인이 멈추면 그것이 더 나쁘다). 대신 실패를 삼키지는 않는다:
+   * 로그에 남겨 다음 사람이 그 구멍을 본다.
+   */
+  private async audit(input: {
+    projectId: string;
+    type: NervEventName;
+    subjectType: string;
+    subjectId: string;
+    actorUserId: string;
+    fromState?: string | null | undefined;
+    toState?: string | null | undefined;
+    payload?: Record<string, unknown>;
+  }): Promise<void> {
+    if (this.events === undefined) return;
+    try {
+      await this.events.transact(async (_tx, emit) => {
+        await emit({
+          type: input.type,
+          projectId: input.projectId,
+          subjectType: input.subjectType,
+          subjectId: input.subjectId,
+          actorUserId: input.actorUserId,
+          isAgent: false,
+          ...(input.fromState == null ? {} : { fromState: input.fromState }),
+          ...(input.toState == null ? {} : { toState: input.toState }),
+          ...(input.payload === undefined ? {} : { payload: input.payload }),
+        });
+      });
+    } catch (error) {
+      this.logger.warn(`감사 이벤트를 남기지 못했다(${input.type}): ${String(error)}`);
+    }
   }
 
   /** EP-MBR-04 */
   async removeMembership(input: {
     membershipId: string;
     actorRoles: readonly MembershipRole[];
+    /** 감사 축 — 누가 내렸는가(REQ-API-151) */
+    actorUserId?: string;
   }): Promise<{ ok: true }> {
     this.assertAdmin(input.actorRoles);
-    await this.db.execute(sql`DELETE FROM membership WHERE id = ${input.membershipId}`);
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      DELETE FROM membership WHERE id = ${input.membershipId}
+      RETURNING project_id, user_id, role::text AS role, org_id
+    `);
+    const removed = rows[0];
+    if (removed !== undefined && typeof removed['project_id'] === 'string' && input.actorUserId) {
+      await this.audit({
+        projectId: removed['project_id'],
+        type: NERV_EVENT.MEMBER_REMOVED,
+        subjectType: 'membership',
+        subjectId: input.membershipId,
+        actorUserId: input.actorUserId,
+        fromState: typeof removed['role'] === 'string' ? removed['role'] : null,
+        payload: { user_id: removed['user_id'], org_id: removed['org_id'] },
+      });
+    }
     return { ok: true };
   }
 
@@ -717,6 +860,17 @@ export class AuthService {
               ${input.expiresAt ?? null})
     `);
 
+    // **토큰 발급은 감사의 첫 질문이다**(REQ-API-151). 값은 남기지 않는다 — 접두·권한·만료가
+    // 감사가 묻는 것이고, 원문은 이 응답 뒤로 어디에도 없다.
+    await this.audit({
+      projectId: input.projectId,
+      type: NERV_EVENT.TOKEN_CREATED,
+      subjectType: 'api_token',
+      subjectId: tokenId,
+      actorUserId: input.userId,
+      payload: { prefix, scopes, expires_at: input.expiresAt?.toISOString() ?? null },
+    });
+
     return { tokenId, token: raw, prefix, scopes };
   }
 
@@ -728,7 +882,11 @@ export class AuthService {
    * 연락하는 것뿐이다.
    */
   async revokeToken(tokenId: string, userId: string): Promise<void> {
-    const { rows } = await this.db.execute<{ id: string }>(sql`
+    const { rows } = await this.db.execute<{
+      id: string;
+      project_id: string;
+      user_id: string;
+    }>(sql`
       UPDATE api_token t SET revoked_at = now()
        WHERE t.id = ${tokenId} AND t.revoked_at IS NULL
          AND (t.user_id = ${userId}
@@ -737,12 +895,25 @@ export class AuthService {
                          WHERE m.user_id = ${userId} AND m.role = 'admin'
                            AND m.org_id = p.org_id
                            AND (m.project_id = p.id OR m.project_id IS NULL)))
-      RETURNING t.id
+      RETURNING t.id, t.project_id, t.user_id
     `);
     if (rows.length === 0) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.token_not_found'), {
         kind: 'not_found',
         token_id: tokenId,
+      });
+    }
+    const revoked = rows[0];
+    if (revoked !== undefined) {
+      // 폐기한 사람이 액터다 — 소유자와 다를 수 있고(admin 이 유출된 토큰을 끊는다),
+      // 그 구별이 감사가 답해야 하는 것이다
+      await this.audit({
+        projectId: revoked.project_id,
+        type: NERV_EVENT.TOKEN_REVOKED,
+        subjectType: 'api_token',
+        subjectId: tokenId,
+        actorUserId: userId,
+        payload: { owner_user_id: revoked.user_id },
       });
     }
   }

@@ -26,6 +26,12 @@ export const queryKeys = {
 
   task: (taskId: string) => ['task', taskId] as const,
   session: (sessionId: string) => ['session', sessionId] as const,
+  /**
+   * 감사 축이 무효화하는 자리(2026-09-07 · REQ-API-151). 설정 화면들이 각자 적어 쓰던
+   * 배열을 여기로 모은다 — 키가 두 벌이면 실시간 갱신이 조용히 죽는다(이 파일의 존재 이유).
+   */
+  myTokens: () => ['me', 'tokens'] as const,
+  orgMembers: (orgSlug: string) => ['org', orgSlug, 'members'] as const,
 } as const;
 
 export type NervQueryKey = readonly unknown[];

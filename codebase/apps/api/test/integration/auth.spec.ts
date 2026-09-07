@@ -6,13 +6,15 @@
 // 토큰은 (사용자, 프로젝트, 역할, 소속) 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을
 // 넘지 못한다(D-08). 그 성질들을 실제 DB 상대로 확인한다 — 해시 저장·원문 미저장 포함.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, newId, NERV_EVENT } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AuthService, hashToken } from '../../src/modules/auth/auth.service.js';
 import { dbConstraintError } from '../../src/common/db-error.js';
+import { EventService } from '../../src/modules/event/event.service.js';
+import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -28,7 +30,12 @@ beforeAll(async () => {
   db = await createScratchDb('nerv_auth');
   await runMigrations(db.url);
   pool = new pg.Pool({ connectionString: db.url });
-  auth = new AuthService(drizzle(pool));
+  // 감사 축을 보려면 이벤트 서비스를 함께 준다(REQ-API-151) — 없으면 조용히 지나간다
+  const silent = {
+    publish: async () => false,
+    subscribe: async () => undefined,
+  } as unknown as ValkeyService;
+  auth = new AuthService(drizzle(pool), new EventService(drizzle(pool), silent));
   await seed();
 });
 
@@ -657,3 +664,94 @@ async function seed(): Promise<void> {
     [newId(), orgId, projectId, userId],
   );
 }
+
+/**
+ * **권한 상승과 토큰 발급은 보안 조사의 첫 질문이다**(2026-09-07 · REQ-API-151 · FR-16).
+ * "누가 언제 이 사람을 admin 으로 올렸나" · "이 토큰은 누가 발급했나" — 답할 표가 없었다.
+ */
+describe('감사 축 — 권한·토큰·프로젝트 (REQ-API-151)', () => {
+  async function eventsOf(type: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await pool.query<Record<string, unknown>>(
+      `SELECT type, subject_type, subject_id, actor_user_id, from_state, to_state, payload
+         FROM event WHERE type = $1 ORDER BY occurred_at DESC`,
+      [type],
+    );
+    return rows;
+  }
+
+  it('토큰 발급과 폐기가 남는다 — 값은 남기지 않는다', async () => {
+    await pool.query('TRUNCATE event');
+    const issued = await auth.issueToken({
+      projectId,
+      userId,
+      name: '감사 토큰',
+      scopes: ['spec:read'],
+    });
+
+    const created = await eventsOf(NERV_EVENT.TOKEN_CREATED);
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ subject_type: 'api_token', actor_user_id: userId });
+    const payload = created[0]?.['payload'] as Record<string, unknown>;
+    expect(payload['scopes']).toEqual(['spec:read']);
+    // 원문은 어디에도 없다 — 접두만이 감사가 묻는 것이다
+    expect(JSON.stringify(payload)).not.toContain(issued.token);
+
+    await auth.revokeToken(issued.tokenId, userId);
+    const revoked = await eventsOf(NERV_EVENT.TOKEN_REVOKED);
+    expect(revoked).toHaveLength(1);
+    expect((revoked[0]?.['payload'] as Record<string, unknown>)['owner_user_id']).toBe(userId);
+  });
+
+  it('역할 변경이 from/to 와 함께 남는다 — 권한 상승이 보이는 자리다', async () => {
+    await pool.query('TRUNCATE event');
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM membership WHERE user_id = $1 AND project_id = $2`,
+      [userId, projectId],
+    );
+    const membershipId = rows[0]!.id;
+    const before = await pool.query<{ role: string }>(
+      `SELECT role::text AS role FROM membership WHERE id = $1`,
+      [membershipId],
+    );
+
+    await auth.updateMembership({
+      membershipId,
+      role: 'admin',
+      actorRoles: ['admin'],
+      actorUserId: userId,
+    });
+
+    const updated = await eventsOf(NERV_EVENT.MEMBER_UPDATED);
+    expect(updated).toHaveLength(1);
+    expect(updated[0]).toMatchObject({
+      subject_type: 'membership',
+      subject_id: membershipId,
+      actor_user_id: userId,
+      from_state: before.rows[0]!.role,
+      to_state: 'admin',
+    });
+  });
+
+  it('멤버 제거도 남는다 — 어떤 역할이 사라졌는지까지', async () => {
+    await pool.query('TRUNCATE event');
+    const membershipId = newId();
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id=$2),$2,$3,'developer')`,
+      [membershipId, projectId, outsiderId],
+    );
+
+    await auth.removeMembership({ membershipId, actorRoles: ['admin'], actorUserId: userId });
+
+    const removed = await eventsOf(NERV_EVENT.MEMBER_REMOVED);
+    expect(removed).toHaveLength(1);
+    expect(removed[0]).toMatchObject({ from_state: 'developer', actor_user_id: userId });
+  });
+
+  it('감사가 없다고 인증이 멈추지 않는다 — 이벤트 서비스가 없어도 발급은 된다', async () => {
+    const bare = new AuthService(drizzle(pool));
+    await expect(
+      bare.issueToken({ projectId, userId, name: '무감사', scopes: ['spec:read'] }),
+    ).resolves.toMatchObject({ prefix: expect.any(String) });
+  });
+});

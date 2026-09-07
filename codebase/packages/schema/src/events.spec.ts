@@ -27,7 +27,11 @@ describe('이벤트 이름 카탈로그', () => {
       'finding',
       'gate',
       'import',
+      // 테넌시·권한·토큰 — 2026-09-07 에 들어왔다(REQ-API-151). 권한 상승과 토큰 발급이
+      // 감사 축 밖에 있던 자리라, 접두 셋이 정당한 확장이다.
+      'member',
       'notification',
+      'project',
       'question',
       // `review` 는 2026-08-30 에 들어왔다 — 라운드가 들어온 사실 자체를 알린다
       // (`finding.opened` 는 **새** 발견에만 나므로 0건·병합 라운드는 조용했다)
@@ -35,6 +39,7 @@ describe('이벤트 이름 카탈로그', () => {
       'session',
       'spec',
       'task',
+      'token',
     ]);
   });
 

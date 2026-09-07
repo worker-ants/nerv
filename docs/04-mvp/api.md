@@ -26,7 +26,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.18 · 2026-09-07 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.19 · 2026-09-07 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.19 변경(2026-09-07 — 권한 상승이 감사 밖에 있었다): **REQ-API-151 신설 · §3.3 이벤트 열둘.** FR-16 은 "모든 상태 전이가 액터와 함께 append-only 로 남는다" 인데 **멤버십·토큰·프로젝트 변경은 그 축 밖**이었다 — "누가 언제 이 사람을 admin 으로 올렸나", "이 토큰은 누가 발급했나" 는 보안 조사의 첫 질문이고, 답할 표가 없었다. `project.*`(4) · `member.*`(3) · `token.*`(2) · `spec.attachment_*`(2)를 신설한다. **프로젝트 범위의 사실부터 남긴다**(사람 결정) — `event.project_id` 가 NOT NULL 이라 조직 단위 멤버십과 조직 자체의 변경은 담기지 않는다. 담으려면 그 열을 nullable 로 바꾸는 결정이 먼저다. 토큰 이벤트에 **값은 없다**: 접두·권한·만료가 감사가 묻는 것이고 원문은 발급 응답 뒤로 어디에도 없다. 감사 실패가 인증을 멈추지는 않는다 — 이벤트는 커밋된 사실 뒤에 따로 내고, 실패는 로그로 남긴다.
 >
 > v1.18 변경(2026-09-07 — 결정이 배경 활동에 묻혔다, 개선 계획 셋째 스프린트): **REQ-API-149·150 신설 · EP-NTF-01·EP-NTF-04 개정.** ① 서버는 티어로 `immediate`/`digest` 를 갈라 저장하는데 **표면이 그 축을 주지 않았다** — 안 읽은 767건 중 결정이 필요한 것은 99건인데 배지는 767 을 셌고(FR-12 가 배지에 요구하는 것이 정확히 그 구별이다), 목록에는 등급 필터가 없었다. `?importance=` 와 `{count, immediate}` 로 그 축을 연다. ② **재확인 요청은 그 문서의 주인에게 간다** — §3.3 룸 표가 "대상 문서 owner" 라 적었는데 admin·planner 큐로 흩뿌려져, recheck 1,336건이 결정 19건을 덮었다. `owner_role` 이 없으면 기본 큐로 간다(아무에게도 가지 않는 것보다 낫다).
 >
@@ -1289,6 +1291,10 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | `gate.failopen` | 게이트 판정 불가(D-14, [에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3) — 제출 경로가 실제로 낸다(2026-09-07 · REQ-API-128) | `project:{id}` | P1 |
 | ★`import.applied` | EP-IMP-02·03·04 배치 적재(§2.10) | `project:{id}` | P0 |
 | ★`notification.created` | 알림 파생(배지 카운트 갱신용) | `user:{id}` | P1 |
+| ★`project.created` · ★`project.updated` · ★`project.archived` · ★`project.restored` | 프로젝트 생성·설정 변경·보관·복원(2026-09-07 · REQ-API-151 — `updated` 는 바뀐 **키 목록**만 싣는다) | `project:{id}` | P1 |
+| ★`member.added` · ★`member.updated` · ★`member.removed` | 멤버십 변경 — `from_state`·`to_state` 가 역할이다(권한 상승이 보이는 자리 · 조직 단위 멤버십은 담기지 않는다) | `project:{id}` | P1 |
+| ★`token.created` · ★`token.revoked` | PAT 발급·폐기 — **값은 남기지 않는다**(접두·권한·만료만) | `project:{id}` | P1 |
+| ★`spec.attachment_added` · ★`spec.attachment_removed` | 첨부 확정·삭제 — S3 는 자기에게 무엇이 올라왔는지 알려 주지 못한다 | `project:{id}` | P2 |
 | `finding.opened` · `finding.resolved` · `cr.opened` | 리뷰·CR(2026-08-23 구현 — `cr.opened` 만 Phase 2 로 남았다) | `project:{id}` | P2 |
 | `evidence.added` | 증적 등록 — REST·MCP·웹훅 세 경로 모두(2026-09-06 배선 · REQ-API-115) | `project:{id}` | P1 |
 | `review.submitted` | 리뷰 라운드 제출 — S6 가 새로고침 없이 알게 하려고 신설(v0.41) | `project:{id}` | P2 |
@@ -1425,6 +1431,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-148 | WHEN 리뷰가 제출되는데 `task_id` 가 없고 세션이 활성 클레임을 쥐고 있으면 THE SYSTEM SHALL 그 Task 로 잇고 응답에 `task_id` 를 싣는다. WHERE `task_id` 가 명시되면 THE SYSTEM SHALL 그 값을 쓴다 | 클레임의 Task 로 채워짐 · 명시가 이김 |
 | REQ-API-149 | WHEN 알림 목록(EP-NTF-01)에 `importance` 가 오면 THE SYSTEM SHALL 그 등급만 반환하고(어휘 밖은 400), WHEN 안 읽은 수(EP-NTF-04)를 조회하면 THE SYSTEM SHALL 전체와 `immediate` 둘을 반환한다 | `?importance=immediate` 는 그 등급만 · `urgent` 는 400 · 수는 둘 |
 | REQ-API-150 | WHEN `spec.recheck_requested` 알림을 파생하면 THE SYSTEM SHALL 그 스펙의 `owner_role` 보유자에게 보내고, WHERE `owner_role` 이 비어 있으면 THE SYSTEM SHALL 기본 역할 큐로 보낸다 | owner_role 이 qa 면 qa 에게만 |
+| REQ-API-151 | WHEN 프로젝트·멤버십·토큰·첨부가 만들어지거나 바뀌거나 지워지면 THE SYSTEM SHALL 그 사실을 액터와 함께 이벤트로 남긴다(역할 변경은 `from_state`·`to_state` 에 역할을, 토큰은 접두·권한·만료만). WHERE 그 변경이 프로젝트에 속하지 않으면(조직 단위 멤버십) THE SYSTEM SHALL 남기지 않는다. WHERE 이벤트 기록이 실패하면 THE SYSTEM SHALL 원래 변경을 되돌리지 않고 로그에 남긴다 | 토큰 발급·폐기가 남고 값은 없다 · 역할 변경의 from/to · 멤버 제거의 from · 이벤트 서비스가 없어도 발급은 된다 |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 묶어 둔 버전**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다 |

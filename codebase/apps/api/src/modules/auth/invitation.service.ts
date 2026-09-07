@@ -9,8 +9,9 @@
 //      아무나 들어온다. 토큰만으로 받아 주면 그 링크가 곧 조직의 열쇠가 된다.
 //   ② **7일**이면 만료된다(`INVITATION_TTL_DAYS`) — 되찾는 길(재발급)이 있으므로 짧게.
 
-import { Inject, Injectable } from '@nestjs/common';
-import { INVITATION_TTL_DAYS, memberRole, msg, NERV_ERROR, newId } from '@nerv/schema';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { INVITATION_TTL_DAYS, memberRole, msg, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { EventService } from '../event/event.service.js';
 import type { MembershipRole } from './auth.service.js';
 import { randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -38,9 +39,13 @@ export interface InvitationRow extends Record<string, unknown> {
 
 @Injectable()
 export class InvitationService {
+  private readonly logger = new Logger(InvitationService.name);
+
   constructor(
     @InjectDb() private readonly db: NervDb,
     @Inject(AuthService) private readonly auth: AuthService,
+    /** 감사 축(REQ-API-151) — 테스트가 이 서비스를 직접 만들므로 없을 수 있다 */
+    @Optional() private readonly events?: EventService,
   ) {}
 
   /**
@@ -190,18 +195,44 @@ export class InvitationService {
       });
     }
 
+    const membershipId = newId();
+    let created: { project_id: string | null; role: string } | undefined;
     await this.db.transaction(async (tx: NervDb) => {
-      await tx.execute(sql`
+      const { rows } = await tx.execute<{ project_id: string | null; role: string }>(sql`
         INSERT INTO membership (id, org_id, project_id, user_id, role)
-        SELECT ${newId()}, i.org_id, i.project_id, ${input.userId}, i.role
+        SELECT ${membershipId}, i.org_id, i.project_id, ${input.userId}, i.role
           FROM invitation i WHERE i.id = ${invite.id}
         ON CONFLICT DO NOTHING
+        RETURNING project_id, role::text AS role
       `);
+      created = rows[0];
       await tx.execute(sql`
         UPDATE invitation SET accepted_at = now(), accepted_user_id = ${input.userId}
          WHERE id = ${invite.id}
       `);
     });
+
+    // **초대 수락도 멤버십을 만든다**(2026-09-07 · REQ-API-151). `addMember` 와 같은 사실이
+    // 다른 문으로 들어올 뿐이라, 감사에는 같은 이름으로 남는다 — 어느 문으로 들어왔는지는
+    // 페이로드가 말한다. 조직 단위 초대는 프로젝트가 없어 남기지 않는다.
+    if (created?.project_id != null && this.events !== undefined) {
+      try {
+        await this.events.transact(async (_tx, emit) => {
+          await emit({
+            type: NERV_EVENT.MEMBER_ADDED,
+            projectId: created!.project_id!,
+            subjectType: 'membership',
+            subjectId: membershipId,
+            actorUserId: input.userId,
+            isAgent: false,
+            toState: created!.role,
+            payload: { user_id: input.userId, via: 'invitation', invitation_id: invite.id },
+          });
+        });
+      } catch (error) {
+        this.logger.warn(`감사 이벤트를 남기지 못했다(member.added): ${String(error)}`);
+      }
+    }
 
     return { org_slug: invite.org_slug, project_slug: invite.project_slug, role: invite.role };
   }
