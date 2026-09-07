@@ -34,7 +34,7 @@ They do nothing while the cursor is in a text field.
 
 **On a question card, `a` and `r` are inert.** A question is answered, not approved or rejected, so only `c` opens.
 
-**On an approval you raised yourself, `a` does not open** — the rule that stops you approving your own request, with exceptions for admins and for projects with fewer than two members (see [Inbox](/help/inbox)).
+**On an approval you raised yourself, `a` does not open** — the rule that stops you approving your own work — **a draft you wrote, or one your session wrote, counts the same**, with exceptions for admins and for projects with fewer than two members (see [Inbox](/help/inbox)).
 
 Otherwise, pressing `a` without the permission to decide does not pass quietly — **the server refuses it.** The same is true of cards in the Decided tab: the buttons are gone but the keys are still live.
 

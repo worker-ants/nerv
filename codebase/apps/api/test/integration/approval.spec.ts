@@ -23,6 +23,12 @@ import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
+/** 한 줄 세기 — 이벤트·행 수를 보는 자리가 여럿이다 */
+async function count(query: string): Promise<number> {
+  const { rows } = await pool.query<{ n: number }>(query);
+  return rows[0]?.n ?? 0;
+}
+
 /** 사람 주체 — 받은 요청·면제·답변은 사람 전용이다(REQ-API-123) */
 const person = (userId: string) => ({ userId, isAgent: false });
 /** 에이전트 주체 — 같은 자리에서 막히는지 보는 쪽 */
@@ -36,6 +42,10 @@ let questions: QuestionService;
 let projectId: string;
 let planner: string;
 let reviewer: string;
+let designer: string;
+let developer: string;
+let qa: string;
+let viewer: string;
 let sessionId: string;
 
 beforeAll(async () => {
@@ -298,7 +308,9 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
       }),
     ).rejects.toMatchObject({
       code: NERV_ERROR.FORBIDDEN,
-      details: { kind: 'self_approval', allowed_roles: ['admin'] },
+      // 대신 누를 수 있는 사람을 말한다 — 목록의 정본은 `ROLE_SCOPES` 다(2026-09-07 ·
+      // 그전에는 admin 만 적어, planner 가 있는데도 없다고 말했다)
+      details: { kind: 'self_approval', allowed_roles: ['admin', 'planner'] },
     });
   });
 
@@ -450,6 +462,429 @@ describe('결재가 남기는 사실 (REQ-API-128)', () => {
     expect(await pool.query(`SELECT 1 FROM event WHERE type = 'question.answered'`)).toMatchObject({
       rowCount: 0,
     });
+  });
+});
+
+/**
+ * **지시자≠승인자는 세 축이다**(2026-09-07 · REQ-API-136 · spec-workflow §2.3).
+ *
+ * 요청자만 비교하던 동안 구멍이 있었다: 작성자가 남에게 제출을 부탁하면 요청자는 그 남이
+ * 되고, 작성자는 자기 초안을 자기 손으로 승인할 수 있었다.
+ */
+describe('지시자≠승인자 세 축 (REQ-API-136)', () => {
+  /** 남이 제출한 초안 — 요청자와 작성자가 다른 상황을 만든다 */
+  async function draftSubmittedByOther(
+    key: string,
+    authorUserId: string,
+    authorSessionId: string | null = null,
+  ): Promise<{ versionId: string; approvalId: string }> {
+    const created = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key,
+      title: key,
+      type: 'feature',
+      bodyMd: `# ${key}\n\n본문`,
+      userId: authorUserId,
+    });
+    const versionId = created['spec_version_id'] as string;
+    if (authorSessionId !== null) {
+      await pool.query(`UPDATE spec_version SET author_session_id = $1 WHERE id = $2`, [
+        authorSessionId,
+        versionId,
+      ]);
+    }
+    await pool.query(
+      `UPDATE spec_version SET status='in_review', submitted_at = now(),
+              edit_lease_user_id = NULL, edit_lease_session_id = NULL, edit_lease_expires_at = NULL
+        WHERE id = $1`,
+      [versionId],
+    );
+    // 제출한 사람은 reviewer 다 — 요청자 축은 그 사람이 된다
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: reviewer,
+    });
+    return { versionId, approvalId: approval_id };
+  }
+
+  it('남이 제출해 줘도 작성자는 자기 초안을 승인하지 못한다', async () => {
+    const { approvalId } = await draftSubmittedByOther('SPC-AXIS-AUTHOR', planner);
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'self_approval', self_kind: 'author' },
+    });
+
+    // 거절·코멘트는 여전히 할 수 있다 — 막는 것은 승인뿐이다
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId,
+        userId: planner,
+        decision: 'comment',
+        comment: '내가 쓴 것이지만 이 부분은 다시 본다',
+      }),
+    ).resolves.toMatchObject({ decision: 'comment' });
+  });
+
+  it('내 세션이 쓴 초안도 내 것이다 — 자기가 시킨 것을 자기가 통과시키지 않는다', async () => {
+    const { approvalId } = await draftSubmittedByOther(
+      'SPC-AXIS-SESSION',
+      reviewer,
+      sessionId, // sessionId 의 소유자는 planner 다
+    );
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'self_approval', self_kind: 'session_owner' },
+    });
+  });
+
+  it('카드가 이유를 함께 준다 — 잠긴 단추에는 이유가 있어야 한다', async () => {
+    const { approvalId } = await draftSubmittedByOther('SPC-AXIS-REASON', planner);
+    const mine = (
+      await approvals.inbox({ projectId, userId: planner, actor: person(planner) })
+    ).find((c) => c.id === approvalId);
+    expect(mine).toMatchObject({ can_approve: false, can_approve_reason: 'author' });
+
+    const theirs = (
+      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })
+    ).find((c) => c.id === approvalId);
+    // 요청자 축 — 제출한 사람은 reviewer 다
+    expect(theirs).toMatchObject({ can_approve: false, can_approve_reason: 'self_requested' });
+  });
+});
+
+/**
+ * **T3 는 서로 다른 두 사람이다**(2026-09-07 · REQ-API-140 · spec-workflow §1.2).
+ *
+ * 문서는 그 약속을 오래 적어 두었는데 서버는 **첫 approve 로 전이**했다 — 실측 T3 승인
+ * 3건 모두 1인 승인이었고, 카드에는 n/2 표시가 없어 승인자는 자기가 마지막 결재라고 믿었다.
+ */
+describe('T3 정족수 (REQ-API-140)', () => {
+  /** convention + 참조 6 + 첫 버전 → 4축 6점 = T3 */
+  async function t3Submitted(key: string): Promise<{ versionId: string }> {
+    const created = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key,
+      title: key,
+      type: 'convention',
+      bodyMd: `# ${key}\n\n- REQ-${key.slice(-4)}-001 WHEN 조건이면 THE SYSTEM SHALL 동작한다`,
+      userId: planner,
+    });
+    const specId = created['spec_id'] as string;
+    const versionId = created['spec_version_id'] as string;
+    for (let i = 0; i < 6; i += 1) {
+      const otherId = newId();
+      await pool.query(
+        `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
+        [otherId, projectId, `SPC-REF-${key.slice(-4)}-${i}`],
+      );
+      await pool.query(
+        `INSERT INTO spec_relation (id, project_id, from_spec_id, to_spec_id, kind)
+         VALUES ($1,$2,$3,$4,'references')`,
+        [newId(), projectId, otherId, specId],
+      );
+    }
+    const result = await specs.submitReview({
+      projectId,
+      specVersionId: versionId,
+      userId: planner,
+      roles: ['planner'],
+    });
+    expect(result.gate.tier).toBe('T3');
+    expect(result.status).toBe('in_review');
+    return { versionId };
+  }
+
+  async function slots(versionId: string): Promise<{ id: string; role: string | null }[]> {
+    const { rows } = await pool.query<{ id: string; role: string | null }>(
+      `SELECT id, assignee_role::text AS role FROM approval
+        WHERE subject_id = $1 AND decision IS NULL ORDER BY assignee_role NULLS FIRST`,
+      [versionId],
+    );
+    return rows;
+  }
+
+  async function statusOfVersion(versionId: string): Promise<string | null> {
+    const { rows } = await pool.query<{ s: string }>(
+      `SELECT status::text AS s FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    return rows[0]?.s ?? null;
+  }
+
+  it('슬롯 둘이 서고 하나는 문서 타입의 직군 큐다', async () => {
+    const { versionId } = await t3Submitted('SPC-QUORUM-1');
+    expect((await slots(versionId)).map((r) => r.role)).toEqual([null, 'developer']);
+
+    // 슬롯마다 이벤트가 하나씩이다 — 알림 수신자가 그 행의 지정·직군으로 갈리기 때문이다.
+    // 같은 트랜잭션이라 `occurred_at` 이 같으니 순서가 아니라 **집합**으로 본다.
+    const { rows } = await pool.query<{ payload: Record<string, unknown> }>(
+      `SELECT e.payload FROM event e JOIN approval a ON a.id = e.subject_id
+        WHERE e.type = 'approval.requested' AND a.subject_id = $1`,
+      [versionId],
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.payload['required_approvers'] === 2)).toBe(true);
+    expect(new Set(rows.map((r) => r.payload['role_slot'] ?? null))).toEqual(
+      new Set([null, 'developer']),
+    );
+  });
+
+  it('둘째 슬롯의 직군에게도 알림이 간다 — 안 누르면 문서는 확정되지 않는다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const { versionId } = await t3Submitted('SPC-QUORUM-7');
+    expect(await notifications.route()).toBeGreaterThan(0);
+
+    const { rows } = await pool.query<{ user_id: string; role: string | null }>(
+      `SELECT DISTINCT n.user_id, a.assignee_role::text AS role
+         FROM notification n
+         JOIN event e ON e.id = n.event_id
+         JOIN approval a ON a.id = e.subject_id
+        WHERE e.type = 'approval.requested' AND a.subject_id = $1`,
+      [versionId],
+    );
+    // 직군 슬롯의 알림은 그 직군에게만 간다
+    expect(rows.filter((r) => r.role === 'developer').map((r) => r.user_id)).toEqual([developer]);
+    // 기본 슬롯은 결재 큐로 간다(요청자 자신은 빠진다)
+    expect(rows.filter((r) => r.role === null).map((r) => r.user_id)).toContain(reviewer);
+  });
+
+  it('카드가 몇 명 중 몇 명인지 싣는다 — 화면이 그 값을 그린다', async () => {
+    const { versionId } = await t3Submitted('SPC-QUORUM-6');
+    const [first] = await slots(versionId);
+    const before = (
+      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })
+    ).find((c) => c.id === first!.id);
+    expect(before).toMatchObject({ approvals_required: 2, approvals_given: 0 });
+
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: first!.id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    const after = (
+      await approvals.inbox({ projectId, userId: developer, actor: person(developer) })
+    ).find((c) => c['assignee_role'] === 'developer');
+    expect(after).toMatchObject({ approvals_required: 2, approvals_given: 1 });
+  });
+
+  it('첫 승인은 문서를 옮기지 않는다 — 승인자는 자기가 마지막이라고 믿는다', async () => {
+    const { versionId } = await t3Submitted('SPC-QUORUM-2');
+    const [first, second] = await slots(versionId);
+
+    const one = await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: first!.id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    expect(one.quorum).toMatchObject({ given: 1, required: 2, satisfied: false });
+    expect(await statusOfVersion(versionId)).toBe('in_review');
+
+    const two = await approvals.decide({
+      actor: person(developer),
+      projectId,
+      approvalId: second!.id,
+      userId: developer,
+      decision: 'approve',
+    });
+    expect(two.quorum).toMatchObject({ given: 2, required: 2, satisfied: true });
+    expect(await statusOfVersion(versionId)).toBe('approved');
+    expect(await count(`SELECT count(*)::int AS n FROM event WHERE type = 'spec.approved'`)).toBe(
+      1,
+    );
+  });
+
+  it('한 사람이 두 슬롯을 채우지 못한다 — "서로 다른 사용자" 가 그 뜻이다', async () => {
+    // 슬롯 둘 다에 자격이 있는 사람이라야 이 규칙이 시험된다 — admin 이 그 자리다
+    // (planner 는 developer 슬롯에서 역할 큐로 먼저 막힌다)
+    const admin = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'boss@example.com','대표','active')`,
+      [admin],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id = $2),$2,$3,'admin')`,
+      [newId(), projectId, admin],
+    );
+    const { versionId } = await t3Submitted('SPC-QUORUM-3');
+    const [first, second] = await slots(versionId);
+    await approvals.decide({
+      actor: person(admin),
+      projectId,
+      approvalId: first!.id,
+      userId: admin,
+      decision: 'approve',
+    });
+    await expect(
+      approvals.decide({
+        actor: person(admin),
+        projectId,
+        approvalId: second!.id,
+        userId: admin,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'already_approved' },
+    });
+    expect(await statusOfVersion(versionId)).toBe('in_review');
+  });
+
+  it('동시에 승인해도 전이는 한 번이다 — 각자 1을 세고 아무도 안 옮기는 일이 없다', async () => {
+    const { versionId } = await t3Submitted('SPC-QUORUM-4');
+    const [first, second] = await slots(versionId);
+
+    const results = await Promise.allSettled([
+      approvals.decide({
+        actor: person(reviewer),
+        projectId,
+        approvalId: first!.id,
+        userId: reviewer,
+        decision: 'approve',
+      }),
+      approvals.decide({
+        actor: person(developer),
+        projectId,
+        approvalId: second!.id,
+        userId: developer,
+        decision: 'approve',
+      }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(2);
+    expect(await statusOfVersion(versionId)).toBe('approved');
+    expect(await count(`SELECT count(*)::int AS n FROM event WHERE type = 'spec.approved'`)).toBe(
+      1,
+    );
+  });
+
+  it('거절이 라운드를 닫는다 — 남은 슬롯은 대기 목록에 없고 재제출은 0부터 센다', async () => {
+    const { versionId } = await t3Submitted('SPC-QUORUM-5');
+    const [first, second] = await slots(versionId);
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: first!.id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    await approvals.decide({
+      actor: person(developer),
+      projectId,
+      approvalId: second!.id,
+      userId: developer,
+      decision: 'reject',
+      comment: '규약을 더 좁혀야 한다',
+    });
+    expect(await statusOfVersion(versionId)).toBe('draft');
+
+    // 남은 슬롯은 없다(둘 다 결정됐다) — 그리고 문서가 draft 라 대기 목록에도 없다
+    const cards = await approvals.inboxGlobal({ actor: person(reviewer), userId: reviewer });
+    expect(cards.filter((c) => c['subject_id'] === versionId)).toEqual([]);
+
+    // 다시 제출하면 새 라운드다 — 옛 approve 는 세지 않는다
+    await specs.submitReview({
+      projectId,
+      specVersionId: versionId,
+      userId: planner,
+      roles: ['planner'],
+    });
+    const fresh = await slots(versionId);
+    expect(fresh).toHaveLength(2);
+    const again = await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: fresh[0]!.id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    expect(again.quorum).toMatchObject({ given: 1, required: 2, satisfied: false });
+  });
+});
+
+describe('내 큐만 온다 (REQ-API-137)', () => {
+  it('결재권이 없는 사람의 받은 요청에는 카드가 없다', async () => {
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    expect(await approvals.inbox({ projectId, userId: viewer, actor: person(viewer) })).toEqual([]);
+    expect(await approvals.inbox({ projectId, userId: qa, actor: person(qa) })).toEqual([]);
+    // 기본 큐(admin·planner)에는 온다
+    expect(
+      (await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })).length,
+    ).toBe(1);
+  });
+
+  it('직군 슬롯은 그 직군에게만 간다 — planner 도 대신 내리지 못한다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: reviewer,
+      assigneeRole: 'designer',
+    });
+
+    const forDesigner = (
+      await approvals.inbox({ projectId, userId: designer, actor: person(designer) })
+    ).find((c) => c.id === approval_id);
+    expect(forDesigner).toMatchObject({ can_approve: true, assignee_role: 'designer' });
+
+    expect(
+      (await approvals.inbox({ projectId, userId: planner, actor: person(planner) })).find(
+        (c) => c.id === approval_id,
+      ),
+    ).toBeUndefined();
+
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId: approval_id,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'not_in_role_queue', role: 'designer' },
+    });
+
+    await expect(
+      approvals.decide({
+        actor: person(designer),
+        projectId,
+        approvalId: approval_id,
+        userId: designer,
+        decision: 'approve',
+      }),
+    ).resolves.toMatchObject({ decision: 'approve' });
   });
 });
 
@@ -1376,6 +1811,10 @@ async function seed(): Promise<void> {
   projectId = newId();
   planner = newId();
   reviewer = newId();
+  designer = newId();
+  developer = newId();
+  qa = newId();
+  viewer = newId();
   sessionId = newId();
   await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'nerv','NERV')`, [orgId]);
   for (const [id, email, name] of [
@@ -1395,6 +1834,23 @@ async function seed(): Promise<void> {
     await pool.query(
       `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
       [newId(), orgId, projectId, user],
+    );
+  }
+  // 직군 넷 — 매트릭스의 ○(지정 시)와 역할 큐를 보려면 그 역할의 사람이 있어야 한다
+  for (const [id, email, name, role] of [
+    [designer, 'dana@example.com', '다나', 'designer'],
+    [developer, 'minu@example.com', '민우', 'developer'],
+    [qa, 'sora@example.com', '소라', 'qa'],
+    [viewer, 'hyun@example.com', '현', 'viewer'],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,$3,'active')`,
+      [id, email, name],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,$2,$3,$4,$5::member_role)`,
+      [newId(), orgId, projectId, id, role],
     );
   }
   await pool.query(

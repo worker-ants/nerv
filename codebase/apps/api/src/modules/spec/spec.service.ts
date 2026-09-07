@@ -20,11 +20,15 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   newId,
+  SPEC_APPROVER_ROLES,
+  SPEC_SUBMIT_ROLES,
   specType,
   specVersionStatus,
   text,
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
+import { DECIDER_ROLES } from '../approval/approval-policy.js';
+import { evidenceExistsSql } from './impl-status.js';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
@@ -954,6 +958,8 @@ export class SpecService {
     specVersionId: string;
     userId: string;
     sessionId?: string | null;
+    /** 제출 권한의 축 — 표면이 실어 준다(2026-09-07 · REQ-API-139) */
+    roles?: readonly string[];
   }): Promise<{
     status: string;
     gate: GateDecision;
@@ -967,8 +973,10 @@ export class SpecService {
         spec_id: string;
         status: string;
         spec_type: string;
+        author_user_id: string;
       }>(sql`
-        SELECT sv.id, sv.spec_id, sv.status::text AS status, s.type::text AS spec_type
+        SELECT sv.id, sv.spec_id, sv.status::text AS status, s.type::text AS spec_type,
+               sv.author_user_id
           FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
          WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
          FOR UPDATE OF sv
@@ -988,6 +996,22 @@ export class SpecService {
             status: version.status,
           },
         );
+      }
+
+      // **제출은 작성자 본인 또는 planner·admin 이다**(2026-09-07 · REQ-API-139).
+      //
+      // 이 문이 없던 동안 아무나 남의 초안을 제출할 수 있었고, 그것이 지시자≠승인자 규칙의
+      // 구멍이었다: 남이 제출해 주면 요청자는 그 남이 되고 **작성자는 자기 초안을 승인**할
+      // 수 있었다. 세 축 판정(REQ-API-136)이 그 뒷문을 닫았고, 이 문은 앞문을 닫는다.
+      if (
+        version.author_user_id !== input.userId &&
+        !(input.roles ?? []).some((r) => (SPEC_SUBMIT_ROLES as readonly string[]).includes(r))
+      ) {
+        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.spec.submit_not_author'), {
+          kind: 'not_author',
+          author_user_id: version.author_user_id,
+          allowed_roles: SPEC_SUBMIT_ROLES,
+        });
       }
 
       // 사전 검토 — block 이 있으면 제출 자체가 막힌다(§1.2 전이 가드).
@@ -1055,23 +1079,44 @@ export class SpecService {
         };
       }
 
-      // T2·T3 — 승인 대기. pending Approval 을 재사용해 카드 중복을 막는다(§2.5)
-      const approvalId = await this.ensurePendingApproval(tx, {
+      // T2·T3 — 승인 대기. 필요 수만큼 **슬롯**을 세우고, 남아 있는 대기 슬롯은 재사용한다(§2.5)
+      const cards = await this.ensurePendingApproval(tx, {
         projectId: input.projectId,
         specVersionId: input.specVersionId,
+        specType: version.spec_type,
         requestedByUserId: input.userId,
         requestedBySessionId: input.sessionId ?? null,
+        requiredApprovers: gate.requiredApprovers,
       });
-      await emit({
-        type: NERV_EVENT.APPROVAL_REQUESTED,
-        projectId: input.projectId,
-        subjectType: 'approval',
-        subjectId: approvalId,
-        actorUserId: input.userId,
-        actorSessionId: input.sessionId ?? null,
-        isAgent: input.sessionId != null,
-        payload: { gate_tier: gate.tier, required_approvers: gate.requiredApprovers },
-      });
+      const approvalId = cards.approvalId;
+      // **슬롯마다 낸다**(2026-09-07). 알림 수신자는 그 결재 행의 지정·직군으로 정해지므로
+      // (`notification.service#approvalTargets`) 첫 슬롯만 이벤트를 내면 둘째 자리의 직군은
+      // 자기 카드가 생긴 것을 모른다 — 그 사람이 누르지 않으면 문서는 확정되지 않는다.
+      for (const slot of cards.created.length > 0
+        ? cards.created
+        : [{ id: approvalId, role: null }])
+        await emit({
+          type: NERV_EVENT.APPROVAL_REQUESTED,
+          projectId: input.projectId,
+          subjectType: 'approval',
+          subjectId: slot.id,
+          actorUserId: input.userId,
+          actorSessionId: input.sessionId ?? null,
+          isAgent: input.sessionId != null,
+          payload: {
+            gate_tier: gate.tier,
+            required_approvers: cards.slots,
+            // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
+            // 게이트가 있다고 믿는 사람에게 없는 게이트를 주는 것과 같다
+            ...(cards.relaxed
+              ? { quorum_relaxed: true, quorum_wanted: gate.requiredApprovers }
+              : {}),
+            ...(cards.slots > 1 && cards.roleSlot === null && SPEC_APPROVER_ROLES[version.spec_type]
+              ? { role_slot_fallback: SPEC_APPROVER_ROLES[version.spec_type] }
+              : {}),
+            ...(slot.role === null ? {} : { role_slot: slot.role }),
+          },
+        });
 
       // **기다리는 세션은 기다린다고 말한다**(2026-09-07 · REQ-API-134 · FR-11).
       //
@@ -1088,56 +1133,6 @@ export class SpecService {
 
       // T2·T3 은 받은 요청이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다
       return { status: 'in_review', gate, approval_id: approvalId, web_url: '/inbox' };
-    });
-  }
-
-  /**
-   * 승인 — **사람 전용**이다(A4). 지시자≠승인자를 여기서 강제한다(D-06 · §2.3).
-   * 소규모 완화(멤버 2인 미만이면 차단 대신 감사 이벤트)는 정본이 정한 예외다.
-   */
-  async approve(input: {
-    projectId: string;
-    specVersionId: string;
-    approverUserId: string;
-  }): Promise<{ status: string }> {
-    return this.events.transact(async (tx, emit) => {
-      const { rows } = await tx.execute<{
-        spec_id: string;
-        status: string;
-        author_user_id: string;
-        spec_type: string;
-      }>(sql`
-        SELECT sv.spec_id, sv.status::text AS status, sv.author_user_id, s.type::text AS spec_type
-          FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
-         WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
-         FOR UPDATE OF sv
-      `);
-      const version = rows[0];
-      if (version === undefined || version.status !== 'in_review') {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_in_review'), {
-          kind: 'not_in_review',
-          status: version?.status ?? null,
-        });
-      }
-
-      await this.assertDifferentApprover(tx, input, version.author_user_id);
-
-      const gate = await this.assessGate(
-        tx,
-        input.projectId,
-        version.spec_id,
-        version.spec_type,
-        input.specVersionId,
-      );
-      await this.approveInTx(tx, emit, {
-        projectId: input.projectId,
-        specVersionId: input.specVersionId,
-        specId: version.spec_id,
-        approverUserId: input.approverUserId,
-        actor: { userId: input.approverUserId, sessionId: null, isAgent: false },
-        gate,
-      });
-      return { status: 'approved' };
     });
   }
 
@@ -1214,44 +1209,6 @@ export class SpecService {
       fromState: 'in_review',
       toState: 'draft',
       payload: { comment: input.comment },
-    });
-  }
-
-  /** 거절 — in_review → draft. 리스는 다시 열린다. */
-  async reject(input: {
-    projectId: string;
-    specVersionId: string;
-    reviewerUserId: string;
-    comment: string;
-  }): Promise<{ status: string }> {
-    return this.events.transact(async (tx, emit) => {
-      // **프로젝트가 경계다.** 예전에는 이 UPDATE 만 `spec` 조인이 없어, 다른 프로젝트의
-      // in_review 버전 id 를 실으면 그 문서가 draft 로 되돌아갔다(같은 파일의
-      // `approve`·`submitReview`·`rejectInTxForApproval` 은 전부 조인하고 있었다).
-      const { rows } = await tx.execute<{ id: string }>(sql`
-        UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
-          FROM spec s
-         WHERE sv.id = ${input.specVersionId} AND sv.status = 'in_review'
-           AND s.id = sv.spec_id AND s.project_id = ${input.projectId}
-        RETURNING sv.id
-      `);
-      if (rows.length === 0) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_in_review'), {
-          kind: 'not_in_review',
-        });
-      }
-      await emit({
-        type: NERV_EVENT.SPEC_REJECTED,
-        projectId: input.projectId,
-        subjectType: 'spec_version',
-        subjectId: input.specVersionId,
-        subjectKey: await this.keyOfVersion(tx, input.specVersionId),
-        actorUserId: input.reviewerUserId,
-        fromState: 'in_review',
-        toState: 'draft',
-        payload: { comment: input.comment },
-      });
-      return { status: 'draft' };
     });
   }
 
@@ -1552,9 +1509,11 @@ export class SpecService {
              count(*) FILTER (WHERE r.impl_status IN ('implemented', 'verified'))::int AS implemented,
              count(*) FILTER (WHERE r.impl_status = 'verified')::int AS verified,
              count(*) FILTER (WHERE r.impl_status = 'in_progress')::int AS in_progress,
+             -- **파생과 같은 술어로 센다**(2026-09-07 · REQ-API-141). 여기만 요구사항에 직접
+             -- 붙은 증적을 봐서, 정상 경로(증적은 Task 에 붙는다)로 끝낸 요구사항을
+             -- 대시보드가 "증적 결손" 으로 찍었다 — 파생은 implemented 라고 말하는 동안.
              count(*) FILTER (
-               WHERE r.impl_status = 'implemented'
-                 AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.requirement_id = r.id)
+               WHERE r.impl_status = 'implemented' AND NOT ${evidenceExistsSql()}
              )::int AS evidence_missing,
              count(*) FILTER (
                WHERE r.impl_status = 'unimplemented'
@@ -2168,59 +2127,87 @@ export class SpecService {
     }
   }
 
-  /**
-   * 지시자≠승인자 (D-06 · §2.3).
-   * **CHECK 로 내리지 않은 이유**가 여기 있다 — 소규모 완화가 있어서다: 멤버가 2인 미만이면
-   * 차단 대신 통과시키고 감사 이벤트를 남긴다. 하드 제약이면 1인 팀이 아무것도 승인할 수 없다.
-   */
-  private async assertDifferentApprover(
-    tx: Tx,
-    input: { projectId: string; approverUserId: string },
-    authorUserId: string,
-  ): Promise<void> {
-    if (input.approverUserId !== authorUserId) return;
-
-    const { rows } = await tx.execute<{ n: number }>(sql`
-      SELECT count(DISTINCT user_id)::int AS n FROM membership
-       WHERE project_id = ${input.projectId} OR project_id IS NULL
-    `);
-    const members = rows[0]?.n ?? 1;
-    if (members < 2) {
-      this.logger.warn(`소규모 완화 — 멤버 ${members}인이라 자기 승인을 허용한다(감사 기록됨)`);
-      return;
-    }
-    throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.self_approve_spec'), {
-      kind: 'self_approval',
-      author_user_id: authorUserId,
-    });
-  }
-
   /** pending Approval 재사용 — 같은 초안을 다시 제출해도 카드가 늘지 않는다(§2.5). */
   private async ensurePendingApproval(
     tx: Tx,
     input: {
       projectId: string;
       specVersionId: string;
+      specType: string;
       requestedByUserId: string;
       requestedBySessionId: string | null;
+      /** 필요 승인자 수 — 게이트가 정한다(T3 는 2, 그 밖은 1) */
+      requiredApprovers: number;
     },
-  ): Promise<string> {
-    const { rows: existing } = await tx.execute<{ id: string }>(sql`
-      SELECT id FROM approval
+  ): Promise<{
+    approvalId: string;
+    slots: number;
+    roleSlot: string | null;
+    relaxed: boolean;
+    /** 이번 호출이 **새로 만든** 슬롯 — 알림은 이 목록으로 나간다 */
+    created: { id: string; role: string | null }[];
+  }> {
+    const { rows: existing } = await tx.execute<{ id: string; assignee_role: string | null }>(sql`
+      SELECT id, assignee_role::text AS assignee_role FROM approval
        WHERE project_id = ${input.projectId} AND subject_type = 'spec_version'
          AND subject_id = ${input.specVersionId} AND decision IS NULL
+       ORDER BY assignee_role NULLS FIRST
     `);
-    const found = existing[0]?.id;
-    if (found !== undefined) return found;
 
-    const approvalId = newId();
-    await tx.execute(sql`
-      INSERT INTO approval (id, project_id, subject_type, subject_id,
-                            requested_by_user_id, requested_by_session_id)
-      VALUES (${approvalId}, ${input.projectId}, 'spec_version', ${input.specVersionId},
-              ${input.requestedByUserId}, ${input.requestedBySessionId})
+    // **필요한 만큼만 채운다.** 재제출로 다시 들어와도 남아 있는 대기 슬롯을 세고 부족분만
+    // 만든다 — 그래야 §2.5 의 "카드가 중복 생성되지 않는다" 가 슬롯 모델에서도 참이다.
+    const slotRole = SPEC_APPROVER_ROLES[input.specType] ?? null;
+    const wanted = Math.max(1, input.requiredApprovers);
+    // **승인 가능한 사람이 필요 수보다 적으면 그 수만큼만 세운다**(§2.3 소규모 완화).
+    // 이 완화가 없으면 사람이 둘뿐인 프로젝트에서 T3 문서는 영영 닫히지 않는다.
+    const { rows: pool } = await tx.execute<{ n: number }>(sql`
+      SELECT count(DISTINCT m.user_id)::int AS n FROM membership m
+        JOIN project p ON p.id = ${input.projectId}
+       WHERE m.org_id = p.org_id AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role::text IN (${sql.join(
+           DECIDER_ROLES.map((r) => sql`${r}`),
+           sql`, `,
+         )}${slotRole === null ? sql`` : sql`, ${slotRole}`})
+         AND m.user_id <> ${input.requestedByUserId}
     `);
-    return approvalId;
+    const approvable = pool[0]?.n ?? 0;
+    const required = Math.max(1, Math.min(wanted, approvable === 0 ? 1 : approvable));
+    const relaxed = required < wanted;
+
+    // 슬롯 2 이후는 문서 타입의 직군 큐다. 그 역할의 멤버가 0명이면 기본 큐로 **강등**한다 —
+    // 승인자를 산출할 수 없다고 제출을 막으면, 직군이 비어 있는 팀은 그 타입의 문서를
+    // 영영 확정하지 못한다(§2.3 이 완화를 문장으로 적어 둔 자리다).
+    let roleSlot: string | null = slotRole;
+    if (slotRole !== null && required > 1) {
+      const { rows: members } = await tx.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM membership m
+          JOIN project p ON p.id = ${input.projectId}
+         WHERE m.org_id = p.org_id AND (m.project_id = p.id OR m.project_id IS NULL)
+           AND m.role::text = ${slotRole}
+      `);
+      if ((members[0]?.n ?? 0) === 0) {
+        this.logger.warn(`직군 슬롯 강등 — ${slotRole} 멤버가 없다. 기본 큐로 세운다`);
+        roleSlot = null;
+      }
+    }
+
+    let first = existing[0]?.id ?? null;
+    const created: { id: string; role: string | null }[] = [];
+    for (let i = existing.length; i < required; i += 1) {
+      const approvalId = newId();
+      // 슬롯 1 은 기본 큐(NULL), 둘째부터가 직군 슬롯이다
+      const role = i === 0 ? null : roleSlot;
+      await tx.execute(sql`
+        INSERT INTO approval (id, project_id, subject_type, subject_id,
+                              requested_by_user_id, requested_by_session_id, assignee_role)
+        VALUES (${approvalId}, ${input.projectId}, 'spec_version', ${input.specVersionId},
+                ${input.requestedByUserId}, ${input.requestedBySessionId},
+                ${role}::member_role)
+      `);
+      created.push({ id: approvalId, role });
+      first ??= approvalId;
+    }
+    return { approvalId: first!, slots: required, roleSlot, relaxed, created };
   }
 
   /**

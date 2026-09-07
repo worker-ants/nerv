@@ -1431,12 +1431,21 @@ export class TaskService {
       // done 이 아니면 Task 를 ready 로 되돌린다 — 산출물·Activity 는 보존한다(§4.5)
       let taskStatus = 'unchanged';
       if (reason !== 'done') {
-        const { rows: t } = await tx.execute<{ status: string }>(sql`
-          UPDATE task SET status = 'ready', delegate_session_id = NULL
-           WHERE id = ${claim.task_id} AND status IN ('claimed', 'in_progress')
-          RETURNING status::text AS status
-        `);
+        const { rows: t } = await tx.execute<{
+          status: string;
+          source_requirement_id: string | null;
+        }>(
+          sql`
+            UPDATE task SET status = 'ready', delegate_session_id = NULL
+             WHERE id = ${claim.task_id} AND status IN ('claimed', 'in_progress')
+            RETURNING status::text AS status, source_requirement_id
+          `,
+        );
         taskStatus = t[0]?.status ?? 'unchanged';
+        // **회수도 구현 축을 움직인다**(2026-09-07 · REQ-API-141). 놓아 준 Task 가 ready 로
+        // 돌아가면 그 요구사항은 더 이상 `in_progress` 가 아닐 수 있다 — 재파생하지 않으면
+        // 아무도 하지 않는 일이 대시보드에서 계속 진행 중이다.
+        if (t[0] !== undefined) await this.refreshImplStatus(tx, t[0].source_requirement_id);
       }
 
       await emit({
@@ -1641,6 +1650,7 @@ export class TaskService {
           fromState: task.status,
           toState: 'ready',
         });
+        await this.refreshImplStatus(tx, task.source_requirement_id);
         return { status: 'ready' };
       }
 
@@ -1674,6 +1684,10 @@ export class TaskService {
         fromState: task.status,
         toState: input.status,
       });
+      // **전이하면 구현 축도 움직인다**(REQ-API-097 · 2026-09-07 보완). done 만 재파생하고
+      // 있었는데, `in_progress`·`blocked` 로 옮겨도 그 요구사항의 상태는 달라진다 — 재파생을
+      // 빠뜨리면 대시보드는 옛 값을 계속 말한다.
+      await this.refreshImplStatus(tx, task.source_requirement_id);
       return { status: input.status };
     });
   }

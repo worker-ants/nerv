@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.11 · 2026-09-07 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.12 · 2026-09-07 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.12 변경(2026-09-07 — verified 가 실물이 됐다, 개선 계획 셋째 스프린트): **새 결정 없음 — §1.3 의 파생 규칙표가 이제 전부 구현이다.** `verified` 칸은 오래 "스키마가 담지 못한다" 는 이유로 파생되지 않았는데 열은 처음부터 있었다(`evidence.verified_by`·`finding.requirement_id`). 표의 "해당 커밋 범위" 축만 아직 없어 **요구사항 단위**로 본다는 단서를 표 아래에 적는다([4.4](../04-mvp/api.md) REQ-API-141).
 >
 > v0.11 변경(2026-09-07 — 정본이 서로 다른 말을 하고 있었다): **새 결정 없음 — 정본 간 불일치 해소다.** 상태도가 `in_review → done` 하나만 그리는데 [3.3 데이터 모델](data-model.md) §2.4 는 2026-09-02 에 "경로 그래프는 강제하지 않는다" 로 고쳐졌다 — 3.5 만 남아 있었다. 간선 둘(`in_progress → done` · `blocked → in_progress`)을 그리고, **강제하는 문지기가 여덟**임을 그림 아래에 적는다([4.4](../04-mvp/api.md) REQ-API-129~132 가 그중 넷을 신설했다).
 >
@@ -120,7 +122,9 @@ stateDiagram-v2
 | `unimplemented` | 연결된 Task가 없거나 전부 `backlog`/`ready` |
 | `in_progress` | 파생 Task 중 하나 이상이 `claimed`/`in_progress`/`in_review` |
 | `implemented` | 파생 Task 전부 `done` **그리고** Evidence(코드 경로·커밋·PR) 1건 이상 연결 |
-| `verified` | `implemented` + QA 역할의 검증 Evidence(테스트 통과 기록) 1건 이상, 해당 커밋 범위에 open `critical` finding 0 |
+| `verified` | `implemented` + 검증자가 서명한 Evidence(`kind=test` · `verified_by`) 1건 이상, 그 요구사항에 open `critical` finding 0 |
+
+> **`verified` 의 범위는 요구사항이다**(2026-09-07 구현). 표가 적은 "해당 커밋 범위" 는 커밋과 발견을 잇는 축이 Phase 2 라 아직 없다 — 지금은 그 요구사항에 열린 `critical` 이 없는지를 본다. 강등도 하지 않는다: 이미 `verified` 인 행은 내리지 않으므로 발견 하나가 열릴 때마다 검증 사실이 지워졌다 붙는 일이 없다.
 
 강등(→ `in_progress`)은 CR이 그 요구사항을 MODIFIED로 표시할 때 자동으로 일어난다. clemvion이 `CCH-SE-02`를 놓친 사각 — "문서는 implemented인데 그 안의 한 요구사항은 미구현" — 은 상태의 단위를 요구사항으로 내리는 것만으로 사라진다.
 

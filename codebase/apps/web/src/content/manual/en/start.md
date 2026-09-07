@@ -36,14 +36,16 @@ Home, inbox, notifications and settings are organization-wide, so their addresse
 
 ## Roles
 
-| Role        | What it can do                                                                         |
-| ----------- | -------------------------------------------------------------------------------------- |
-| `admin`     | Organizations and projects, members, tokens, gate policy, imports                      |
-| `planner`   | Write, submit and **approve** specs of any type, baselines, metadata, resolve findings |
-| `designer`  | Comment and edit drafts, claim and progress tasks. Creates **design** specs only       |
-| `developer` | The same, but creates **convention** and **adr** specs                                 |
-| `qa`        | The same, plus **resolving findings**. Creates no new specs                            |
-| `viewer`    | Read + **comment**                                                                     |
+| Role        | What it can do                                                                                              |
+| ----------- | ----------------------------------------------------------------------------------------------------------- |
+| `admin`     | Organizations and projects, members, tokens, gate policy, imports                                           |
+| `planner`   | Write, **submit others' drafts**, **approve** specs of any type, baselines, metadata, findings              |
+| `designer`  | Comment and edit drafts, claim and progress tasks. Creates **design** specs; **assigned approvals** on them |
+| `developer` | The same, but creates **convention** and **adr** specs; **assigned approvals** on those                     |
+| `qa`        | The same, plus **resolving findings** and **assigned approvals** on `feature` specs                         |
+| `viewer`    | Read + **comment**                                                                                          |
+
+**“Assigned approvals” only apply when a card names that discipline.** A designer does not decide every `design` document — a T3 document names its second approver by discipline, and that card goes to them (see [Inbox](/help/inbox)).
 
 **Which spec types a role may create differs by role.** admin and planner have no limit; designer creates `design`; developer creates `convention` and `adr`. qa creates none — what qa produces is a **review**, not a spec. **Even a viewer comments** — raising a point is participation, not a permission, so `spec:read` is enough. **Resolving** a comment is the job of the five roles that can write drafts.
 

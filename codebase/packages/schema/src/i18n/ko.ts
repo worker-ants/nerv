@@ -58,10 +58,13 @@ export const ko = {
   'common.create': '만들기',
   'common.delete': '삭제',
   'common.edit': '편집',
+  'error.approval.already_approved':
+    '이 문서에 이미 승인했습니다 — 둘째 승인은 다른 사람의 몫입니다.',
   'error.approval.already_decided': '이미 결정된 항목입니다.',
   'error.approval.content_changed': '카드를 연 뒤 내용이 바뀌었습니다.',
   'error.approval.not_assignee': '지정된 승인자가 아닙니다.',
   'error.approval.not_found': '승인 항목을 찾을 수 없습니다.',
+  'error.approval.not_in_role_queue': '{role} 큐의 결재입니다.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
   'error.auth.admin_only': 'admin 만 할 수 있습니다.',
   'error.auth.admin_only_import': '임포트는 admin 만 가능합니다.',
@@ -90,6 +93,9 @@ export const ko = {
   'error.auth.scope_missing': '권한이 부족합니다: {scope}',
   'error.auth.self_approve': '요청자는 자기 요청을 승인할 수 없습니다.',
   'error.auth.self_approve_spec': '작성자는 자기 스펙을 승인할 수 없습니다.',
+  'error.auth.self_approve_author': '작성자는 자기 초안을 승인할 수 없습니다.',
+  'error.auth.self_approve_session_owner':
+    '이 초안은 당신의 세션이 작성했습니다 — 다른 승인자가 필요합니다.',
   'error.auth.session_invalid': '세션이 유효하지 않습니다.',
   'error.auth.token_not_found': '폐기할 토큰이 없습니다.',
   'error.auth.unavailable': '인증 서비스가 준비되지 않았습니다.',
@@ -514,6 +520,7 @@ export const ko = {
   'error.spec.missing_fields': '새 스펙에는 key·title·type 이 필요합니다.',
   'error.spec.no_changes': '변경할 필드가 없습니다.',
   'error.spec.not_draft': 'draft 가 아닙니다({status}).',
+  'error.spec.submit_not_author': '제출은 작성자 본인 또는 planner·admin 만 할 수 있습니다.',
   'error.spec.empty_body':
     '빈 본문으로 덮어쓸 수 없습니다 — 본문을 실어 보내세요(초안은 이전 본문을 남기지 않습니다).',
   'error.spec.stale_body':
@@ -807,6 +814,17 @@ export const ko = {
   'inbox.card.hide_body': '본문 접기',
   'inbox.card.body_failed': '본문을 불러오지 못했습니다.',
   'inbox.card.body_empty': '본문이 비어 있습니다.',
+  'inbox.card.quorum': '{given}/{required} 승인',
+  'inbox.card.quorum_pending': '{role} {n}인의 승인이 더 필요합니다 — 아직 확정되지 않았습니다.',
+  'inbox.card.role_queue': '{role} 큐 결재',
+  'inbox.card.role_queue_any': '다른 승인자',
+  'inbox.card.cannot_approve.author': '내가 쓴 초안입니다 — 다른 승인자가 처리해야 합니다.',
+  'inbox.card.cannot_approve.session_owner':
+    '내 세션이 쓴 초안입니다 — 다른 승인자가 처리해야 합니다.',
+  'inbox.card.cannot_approve.missing_role': '이 결재를 내릴 역할이 아닙니다.',
+  'inbox.card.cannot_approve.already_approved':
+    '이미 승인했습니다 — 둘째 승인은 다른 사람의 몫입니다.',
+  'inbox.card.cannot_approve.not_assignee': '지정된 승인자가 아닙니다.',
   'inbox.card.self_requested': '내가 요청한 항목입니다 — 다른 승인자가 처리해야 합니다.',
   'inbox.card.self_requested_admin':
     '내가 요청한 항목입니다 — admin 이라 직접 결재할 수 있습니다(감사에 남습니다).',

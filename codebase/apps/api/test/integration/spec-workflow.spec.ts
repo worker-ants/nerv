@@ -18,6 +18,8 @@ import { SpecRelationService } from '../../src/modules/spec/spec-relation.servic
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
 import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
+import { ApprovalService } from '../../src/modules/approval/approval.service.js';
+import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -28,6 +30,7 @@ let specs: SpecService;
 let projectId: string;
 let planner: string;
 let reviewer: string;
+let approvals: ApprovalService;
 
 beforeAll(async () => {
   db = await createScratchDb('nerv_spec');
@@ -39,14 +42,18 @@ beforeAll(async () => {
   } as unknown as ValkeyService;
   const drizzleDb = drizzle(pool);
   const attachments = new AttachmentService(null as never, drizzleDb);
+  const events = new EventService(drizzleDb, silentValkey);
   specs = new SpecService(
-    new EventService(drizzleDb, silentValkey),
+    events,
     new SpecCheckService(drizzleDb),
     new SpecRelationService(drizzleDb),
-    new SpecCommentService(new EventService(drizzleDb, silentValkey), drizzleDb),
+    new SpecCommentService(events, drizzleDb),
     attachments,
     drizzleDb,
   );
+  // **판정은 결재 쪽 한 곳이다**(2026-09-07 · D-05). `SpecService.approve/reject` 는
+  // 테스트만 부르던 두 번째 구현이라 지웠다 — 이 스위트도 사람이 쓰는 문으로 들어간다.
+  approvals = new ApprovalService(events, specs, new AuthService(drizzleDb), drizzleDb);
   await seed();
 });
 
@@ -65,6 +72,43 @@ beforeEach(async () => {
   await pool.query('DELETE FROM spec');
   await pool.query('TRUNCATE event');
 });
+
+/** 사람이 쓰는 문 — 제출이 만든 슬롯을 찾아 결정한다(SpecService.approve/reject 대체). */
+const person = (userId: string) => ({ userId, isAgent: false });
+
+async function countApprovals(): Promise<number> {
+  const { rows } = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM approval`);
+  return rows[0]?.n ?? 0;
+}
+
+async function pendingSlots(versionId: string): Promise<{ id: string; role: string | null }[]> {
+  const { rows } = await pool.query<{ id: string; role: string | null }>(
+    `SELECT id, assignee_role::text AS role FROM approval
+      WHERE subject_id = $1 AND decision IS NULL ORDER BY assignee_role NULLS FIRST`,
+    [versionId],
+  );
+  return rows;
+}
+
+async function decideOn(
+  versionId: string,
+  userId: string,
+  decision: 'approve' | 'reject' | 'comment',
+  comment?: string,
+  slot = 0,
+): Promise<unknown> {
+  const slots = await pendingSlots(versionId);
+  const card = slots[slot];
+  if (card === undefined) throw new Error(`대기 중인 결재 슬롯이 없다 — version=${versionId}`);
+  return approvals.decide({
+    actor: person(userId),
+    projectId,
+    approvalId: card.id,
+    userId,
+    decision,
+    ...(comment === undefined ? {} : { comment }),
+  });
+}
 
 async function newDraft(
   key = 'SPC-CWC-007',
@@ -253,10 +297,12 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     // 다른 프로젝트의 id 로 같은 버전을 거절해 본다 — 예전에는 UPDATE 가 spec 조인 없이
     // `spec_version.id` 만 보고 있어서 통과했다(그리고 이벤트는 남의 프로젝트에 남았다).
     await expect(
-      specs.reject({
+      approvals.decide({
+        actor: person(reviewer),
         projectId: newId(),
-        specVersionId: versionId,
-        reviewerUserId: reviewer,
+        approvalId: (await pendingSlots(versionId))[0]!.id,
+        userId: reviewer,
+        decision: 'reject',
         comment: '남의 문서',
       }),
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
@@ -273,12 +319,7 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     // 참조를 만들어 T2 이상으로 올린다(자동 통과를 피한다)
     await raiseTier(specId, versionId);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
-    await specs.reject({
-      projectId,
-      specVersionId: versionId,
-      reviewerUserId: reviewer,
-      comment: '보완 필요',
-    });
+    await decideOn(versionId, reviewer, 'reject', '보완 필요');
 
     const { rows } = await pool.query<{ status: string }>(
       `SELECT status::text AS status FROM spec_version WHERE id = $1`,
@@ -615,22 +656,81 @@ describe('E09-S04 위험도 가변 게이트 (D-06)', () => {
       userId: planner,
     });
 
-    // 거절 후 재제출
-    await specs.reject({
-      projectId,
-      specVersionId: versionId,
-      reviewerUserId: reviewer,
-      comment: 'x',
-    });
+    // 제출은 문서를 in_review 로 옮기므로 결정 전에는 다시 제출할 수 없다 — 재제출은
+    // 거절로 draft 가 되돌아온 뒤의 이야기다.
+    await expect(
+      specs.submitReview({ projectId, specVersionId: versionId, userId: planner }),
+    ).rejects.toMatchObject({ details: { kind: 'not_draft' } });
+    expect(await countApprovals()).toBe(1);
+
+    // **거절 뒤 재제출은 새 카드다**(2026-09-07 정정). 결정된 카드는 그 라운드의 사실이라
+    // 다시 쓰지 않는다 — 재사용하면 한 행이 두 라운드의 결정을 가리키게 되고, 정족수의
+    // 라운드 경계(`submitted_at`)가 뜻을 잃는다. 지켜야 하는 것은 **대기 카드가 둘이 되지
+    // 않는 것**이고(§2.5), 그것이 아래 단언이다.
+    await decideOn(versionId, reviewer, 'reject', 'x');
     const second = await specs.submitReview({
       projectId,
       specVersionId: versionId,
       userId: planner,
     });
+    expect(second.approval_id).not.toBe(first.approval_id);
+    expect((await pendingSlots(versionId)).length).toBe(1);
+    const { rows: decided } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM approval WHERE decision = 'reject'`,
+    );
+    expect(decided[0]?.n).toBe(1);
+  });
+});
 
-    expect(second.approval_id).toBe(first.approval_id);
-    const { rows } = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM approval`);
-    expect(rows[0]?.n).toBe(1);
+/**
+ * **제출은 작성자 본인 또는 planner·admin 이다**(2026-09-07 · REQ-API-139).
+ * 이 문이 없던 동안 아무나 남의 초안을 제출할 수 있었고, 그것이 지시자≠승인자의 앞문이었다.
+ */
+describe('제출 권한 (REQ-API-139)', () => {
+  it('작성자도 planner 도 아닌 사람은 제출하지 못한다 — 초안은 그대로 draft 다', async () => {
+    const { versionId } = await newDraft('SPC-SUBMIT-GATE');
+    await expect(
+      specs.submitReview({
+        projectId,
+        specVersionId: versionId,
+        userId: reviewer,
+        roles: ['developer'],
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'not_author', allowed_roles: ['admin', 'planner'] },
+    });
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    expect(rows[0]?.status).toBe('draft');
+  });
+
+  it('planner 는 남의 초안도 제출한다 — 그 사실이 요청자로 남는다', async () => {
+    const { specId, versionId } = await newDraft('SPC-SUBMIT-PLANNER');
+    await raiseTier(specId, versionId); // 자동 통과를 피해 결재 경로를 본다
+    await expect(
+      specs.submitReview({
+        projectId,
+        specVersionId: versionId,
+        userId: reviewer,
+        roles: ['planner'],
+      }),
+    ).resolves.toMatchObject({ status: 'in_review' });
+  });
+
+  it('작성자 본인은 역할이 없어도 제출한다', async () => {
+    const { specId, versionId } = await newDraft('SPC-SUBMIT-AUTHOR');
+    await raiseTier(specId, versionId); // 자동 통과를 피해 결재 경로를 본다
+    await expect(
+      specs.submitReview({
+        projectId,
+        specVersionId: versionId,
+        userId: planner,
+        roles: ['developer'],
+      }),
+    ).resolves.toMatchObject({ status: 'in_review' });
   });
 });
 
@@ -640,9 +740,12 @@ describe('E09-S03 지시자≠승인자 (D-06 · §2.3)', () => {
     await raiseTier(specId, versionId);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
 
-    await expect(
-      specs.approve({ projectId, specVersionId: versionId, approverUserId: planner }),
-    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
+    await expect(decideOn(versionId, planner, 'approve')).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      // 이 사람은 요청자이자 작성자다 — 축은 요청자가 먼저다(작성자 축은 남이 제출한
+      // 경우에 뜻이 있고, 그 경우는 '제출과 승인' 스위트가 본다)
+      details: { kind: 'self_approval', self_kind: 'requester' },
+    });
   });
 
   it('다른 사람은 승인할 수 있다', async () => {
@@ -650,9 +753,9 @@ describe('E09-S03 지시자≠승인자 (D-06 · §2.3)', () => {
     await raiseTier(specId, versionId);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
 
-    await expect(
-      specs.approve({ projectId, specVersionId: versionId, approverUserId: reviewer }),
-    ).resolves.toMatchObject({ status: 'approved' });
+    await expect(decideOn(versionId, reviewer, 'approve')).resolves.toMatchObject({
+      decision: 'approve',
+    });
   });
 
   it('멤버가 2인 미만이면 자기 승인을 허용한다 — 소규모 완화(§2.3)', async () => {
@@ -661,9 +764,9 @@ describe('E09-S03 지시자≠승인자 (D-06 · §2.3)', () => {
     await raiseTier(specId, versionId);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
 
-    await expect(
-      specs.approve({ projectId, specVersionId: versionId, approverUserId: planner }),
-    ).resolves.toMatchObject({ status: 'approved' });
+    await expect(decideOn(versionId, planner, 'approve')).resolves.toMatchObject({
+      decision: 'approve',
+    });
 
     // 복구
     await pool.query(
@@ -958,7 +1061,7 @@ describe('E04 요구사항 행 — 승인이 본문에서 뽑는다', () => {
     const { specId, versionId } = await newDraft(key, body);
     await raiseTier(specId);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
-    await specs.approve({ projectId, specVersionId: versionId, approverUserId: reviewer });
+    await decideOn(versionId, reviewer, 'approve');
     return versionId;
   }
 
@@ -1007,7 +1110,7 @@ describe('E04 요구사항 행 — 승인이 본문에서 뽑는다', () => {
     );
     await raiseTier(specId);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
-    await specs.approve({ projectId, specVersionId: versionId, approverUserId: reviewer });
+    await decideOn(versionId, reviewer, 'approve');
     expect((await refsOf('REQ-CCC-')).every((r) => r.removed === null)).toBe(true);
 
     const current = await specs.get({ projectId, specKey: key });
@@ -1021,7 +1124,7 @@ describe('E04 요구사항 행 — 승인이 본문에서 뽑는다', () => {
     });
     const v2 = String(next['spec_version_id']);
     await specs.submitReview({ projectId, specVersionId: v2, userId: planner });
-    await specs.approve({ projectId, specVersionId: v2, approverUserId: reviewer });
+    await decideOn(v2, reviewer, 'approve');
 
     const rows = await refsOf('REQ-CCC-');
     expect(rows.find((r) => r.ref === 'REQ-CCC-001')?.removed).toBeNull();

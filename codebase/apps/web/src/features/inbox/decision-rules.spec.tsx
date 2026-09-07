@@ -29,14 +29,24 @@ vi.mock('socket.io-client', () => ({
 }));
 
 let posted: { url: string; body: unknown }[] = [];
+/** 결정 응답의 정족수 — 검사마다 갈아 끼운다 */
+let quorumResponse: { given: number; required: number; satisfied: boolean } | null = null;
 
 beforeEach(() => {
   posted = [];
+  quorumResponse = null;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: { body?: string }) => {
       posted.push({ url, body: init?.body === undefined ? null : JSON.parse(init.body) });
-      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          ...(quorumResponse === null ? {} : { quorum: quorumResponse }),
+        }),
+      };
     }),
   );
 });
@@ -187,5 +197,78 @@ describe('질문의 선택지는 누를 수 있어야 한다', () => {
   it('선택지가 없으면 버튼 줄도 없다 — 빈 줄은 고를 것이 있다는 거짓말이다', () => {
     renderCard({ ...card, options: [] });
     expect(screen.queryByTestId('question-options')).toBeNull();
+  });
+});
+
+/**
+ * **잠긴 단추에는 이유가 있어야 한다**(2026-09-07 · REQ-WEB-145 · screens §1.5).
+ * 서버가 `can_approve_reason` 을 주고 화면은 그것을 문장으로 바꾼다 — 화면이 규칙을 다시
+ * 구현하면 두 벌이 되고, 두 벌이 되면 잠긴 단추와 서버의 답이 갈라진다.
+ */
+describe('REQ-WEB-145 — 못 누르는 이유를 말한다', () => {
+  const locked = (reason: string): Record<string, unknown> => ({
+    ...APPROVAL,
+    can_approve: false,
+    can_approve_reason: reason,
+  });
+
+  it('내가 쓴 초안이면 그렇게 말한다 — 요청자 문구가 아니다', () => {
+    renderCard(locked('author'));
+    expect(screen.getByTestId('self-requested-note').textContent).toContain('내가 쓴 초안');
+    const approve = screen.getByTestId('approve') as HTMLButtonElement;
+    expect(approve.disabled).toBe(true);
+    expect(approve.title).toContain('내가 쓴 초안');
+  });
+
+  it('내 세션이 쓴 초안이면 그렇게 말한다', () => {
+    renderCard(locked('session_owner'));
+    expect(screen.getByTestId('self-requested-note').textContent).toContain('내 세션이 쓴 초안');
+  });
+
+  it('역할이 아니면 역할 이야기를 한다 — 자기 요청 문구를 보이지 않는다', () => {
+    renderCard(locked('missing_role'));
+    const note = screen.getByTestId('self-requested-note').textContent ?? '';
+    expect(note).toContain('역할');
+    expect(note).not.toContain('요청한');
+  });
+
+  it('이미 승인했으면 둘째 승인이 남의 몫임을 말한다', () => {
+    renderCard(locked('already_approved'));
+    expect(screen.getByTestId('self-requested-note').textContent).toContain('이미 승인');
+  });
+
+  it('누를 수 있으면 잠금 문구가 없다', () => {
+    renderCard({ ...APPROVAL, can_approve: true, can_approve_reason: null });
+    expect(screen.queryByTestId('self-requested-note')).toBeNull();
+    expect((screen.getByTestId('approve') as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+/**
+ * **정족수는 카드에 보인다**(2026-09-07 · REQ-WEB-146). 서버가 n/2 와 확정 여부를 준다 —
+ * 화면이 그것을 말하지 않으면 첫 승인자는 자기가 마지막 결재라고 믿는다.
+ */
+describe('REQ-WEB-146 — 몇 명 중 몇 명인지 말한다', () => {
+  it('필요 승인이 둘이면 1/2 를 그리고 직군 큐를 표기한다', () => {
+    renderCard({
+      ...APPROVAL,
+      approvals_required: 2,
+      approvals_given: 1,
+      assignee_role: 'developer',
+    });
+    expect(screen.getByTestId('quorum').textContent).toContain('1/2');
+    expect(screen.getByTestId('role-queue').textContent).toContain('developer');
+  });
+
+  it('한 명이면 배지를 그리지 않는다 — 언제나 1/1 은 소음이다', () => {
+    renderCard({ ...APPROVAL, approvals_required: 1, approvals_given: 0 });
+    expect(screen.queryByTestId('quorum')).toBeNull();
+  });
+
+  it('승인했는데 아직 확정이 아니면 그렇게 말한다', async () => {
+    quorumResponse = { given: 1, required: 2, satisfied: false };
+    renderCard({ ...APPROVAL, approvals_required: 2, approvals_given: 0 });
+    fireEvent.click(screen.getByTestId('approve'));
+    await waitFor(() => expect(screen.getByTestId('toast').textContent).toContain('더 필요합니다'));
   });
 });

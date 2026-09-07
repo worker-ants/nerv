@@ -49,10 +49,13 @@ export const en = {
   'common.create': 'Create',
   'common.delete': 'Delete',
   'common.edit': 'Edit',
+  'error.approval.already_approved':
+    "You already approved this document — the second approval is someone else's.",
   'error.approval.already_decided': 'This item has already been decided.',
   'error.approval.content_changed': 'The content changed after you opened this card.',
   'error.approval.not_assignee': 'You are not the designated approver.',
   'error.approval.not_found': 'Approval item not found.',
+  'error.approval.not_in_role_queue': 'This approval belongs to the {role} queue.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
   'error.auth.admin_only': 'Only admins can do this.',
   'error.auth.admin_only_import': 'Only admins can run imports.',
@@ -83,6 +86,9 @@ export const en = {
   'error.auth.scope_missing': 'Missing scope: {scope}',
   'error.auth.self_approve': 'Requesters cannot approve their own requests.',
   'error.auth.self_approve_spec': 'Authors cannot approve their own specs.',
+  'error.auth.self_approve_author': 'Authors cannot approve their own draft.',
+  'error.auth.self_approve_session_owner':
+    'Your session wrote this draft — it needs a different approver.',
   'error.auth.session_invalid': 'This session is no longer valid.',
   'error.auth.token_not_found': 'No such token to revoke.',
   'error.auth.unavailable': 'The authentication service is not ready.',
@@ -518,6 +524,7 @@ export const en = {
   'error.spec.missing_fields': 'A new spec needs key, title and type.',
   'error.spec.no_changes': 'Nothing to change.',
   'error.spec.not_draft': 'Not a draft ({status}).',
+  'error.spec.submit_not_author': 'Only the author, a planner or an admin can submit for review.',
   'error.spec.empty_body':
     'A draft cannot be overwritten with an empty body — send the body (a draft keeps no previous copy).',
   'error.spec.stale_body':
@@ -814,6 +821,17 @@ export const en = {
   'inbox.card.hide_body': 'Hide content',
   'inbox.card.body_failed': 'Could not load the content.',
   'inbox.card.body_empty': 'The document is empty.',
+  'inbox.card.quorum': '{given}/{required} approved',
+  'inbox.card.quorum_pending': 'Still needs {n} more approval from {role} — not final yet.',
+  'inbox.card.role_queue': '{role} queue',
+  'inbox.card.role_queue_any': 'another approver',
+  'inbox.card.cannot_approve.author': 'You wrote this draft — someone else has to approve it.',
+  'inbox.card.cannot_approve.session_owner':
+    'Your session wrote this draft — someone else has to approve it.',
+  'inbox.card.cannot_approve.missing_role': 'Your role cannot decide this approval.',
+  'inbox.card.cannot_approve.already_approved':
+    "You already approved it — the second approval is someone else's.",
+  'inbox.card.cannot_approve.not_assignee': 'You are not the assigned approver.',
   'inbox.card.self_requested': 'You requested this — someone else has to approve it.',
   'inbox.card.self_requested_admin':
     'You requested this — as an admin you can decide it yourself (it is recorded).',

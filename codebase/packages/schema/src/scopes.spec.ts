@@ -6,7 +6,10 @@ import {
   AGENT_SCOPES,
   HUMAN_ONLY_SCOPES,
   ROLE_SCOPES,
+  SPEC_APPROVER_ROLES,
+  SPEC_SUBMIT_ROLES,
   canCreateSpecType,
+  rolesWithScope,
   isAgentScope,
   isHumanOnlyScope,
   scopesForRoles,
@@ -90,5 +93,34 @@ describe('역할 → 권한 매트릭스 (0003_multi_role)', () => {
     expect(scopesForRoles(['qa']).has('spec:draft')).toBe(true);
     // 겸직이면 어느 한쪽이 만들 수 있으면 만들 수 있다
     expect(canCreateSpecType(['designer', 'developer'], 'adr')).toBe(true);
+  });
+
+  // **역할 큐와 직군 슬롯**(2026-09-07 · REQ-API-136·138). 매트릭스와 코드가 어긋난 것이
+  // 발견의 핵심이라 그 대응표 자체를 검사가 센다.
+  it('approval:decide 큐는 ROLE_SCOPES 에서 파생된다 — 목록을 두 벌로 적지 않는다', () => {
+    expect(rolesWithScope('approval:decide').sort()).toEqual(['admin', 'planner']);
+    expect(rolesWithScope('approval:decide')).not.toContain('viewer');
+    // 파생이므로 역할에 권한을 더하면 큐가 따라 넓어진다 — 그것이 한 벌이라는 뜻이다
+    for (const role of rolesWithScope('review:resolve')) {
+      expect(scopesForRoles([role]).has('review:resolve')).toBe(true);
+    }
+  });
+
+  it('둘째 승인자 직군은 스펙 타입 여섯 전부에 있고 매트릭스의 ○ 열과 같다', () => {
+    expect(Object.keys(SPEC_APPROVER_ROLES).sort()).toEqual(
+      ['adr', 'area', 'convention', 'design', 'feature', 'vision'].sort(),
+    );
+    expect(SPEC_APPROVER_ROLES['design']).toBe('designer');
+    expect(SPEC_APPROVER_ROLES['feature']).toBe('qa');
+    expect(SPEC_APPROVER_ROLES['convention']).toBe('developer');
+    expect(SPEC_APPROVER_ROLES['adr']).toBe('developer');
+    // 값은 실재하는 역할이어야 한다 — 없는 역할을 슬롯에 적으면 그 카드는 아무에게도 안 간다
+    for (const role of Object.values(SPEC_APPROVER_ROLES)) {
+      expect(ROLE_SCOPES[role]).toBeDefined();
+    }
+  });
+
+  it('제출은 작성자 본인 또는 planner·admin 이다', () => {
+    expect([...SPEC_SUBMIT_ROLES].sort()).toEqual(['admin', 'planner']);
   });
 });

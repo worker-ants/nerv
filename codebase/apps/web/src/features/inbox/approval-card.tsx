@@ -125,6 +125,32 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
     typeof card['can_approve'] === 'boolean'
       ? card['can_approve']
       : card['self_requested'] !== true;
+  /**
+   * **왜 못 누르는가**(2026-09-07 · REQ-WEB-145). 서버가 이유를 함께 준다 —
+   * 화면은 그것을 문장으로 바꾸기만 한다. 이유 없는 잠긴 단추는 고장 난 화면으로 읽힌다.
+   */
+  const lockReason = ((): string | null => {
+    if (canApprove || isQuestion) return null;
+    const reason = card['can_approve_reason'];
+    switch (reason) {
+      case 'author':
+        return t('inbox.card.cannot_approve.author');
+      case 'session_owner':
+        return t('inbox.card.cannot_approve.session_owner');
+      case 'missing_role':
+      case 'not_in_role_queue':
+        return t('inbox.card.cannot_approve.missing_role');
+      case 'already_approved':
+        return t('inbox.card.cannot_approve.already_approved');
+      case 'not_assignee':
+        return t('inbox.card.cannot_approve.not_assignee');
+      case 'self_requested':
+        return t('inbox.card.self_requested');
+      default:
+        // 서버가 이유를 주지 않는 옛 응답 — 예전 문구로 물러선다
+        return card['self_requested'] === true ? t('inbox.card.self_requested') : null;
+    }
+  })();
   const id = String(card['id']);
   const context = questionContext(card);
   // 선택지는 서버가 jsonb 로 준다 — 배열이 아니면 없는 것으로 본다(카드 하나가 목록을 죽이지 않게)
@@ -188,8 +214,24 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
         idempotencyKey: `decision-${id}-${decision}`,
       });
     },
-    onSuccess: (_result, decision) => {
+    onSuccess: (result, decision) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inbox() });
+      // **아직 확정이 아니면 그렇게 말한다**(2026-09-07 · REQ-WEB-146). T3 는 서로 다른
+      // 두 사람이 승인해야 문서가 움직이는데, "승인했습니다" 만 뜨면 승인자는 자기가
+      // 마지막 결재라고 믿는다 — 그것이 게이트가 조용히 약해지는 자리다.
+      const quorum = (
+        result as { quorum?: { given: number; required: number; satisfied: boolean } }
+      )?.quorum;
+      if (!isQuestion && decision === 'approve' && quorum?.satisfied === false) {
+        pushToast({
+          tone: 'warn',
+          message: t('inbox.card.quorum_pending', {
+            n: quorum.required - quorum.given,
+            role: String(card['assignee_role'] ?? t('inbox.card.role_queue_any')),
+          }),
+        });
+        return;
+      }
       // 처리됨 트레일 — 3분 유지(ui-wireframes §4.1)
       pushToast({
         tone: 'ok',
@@ -267,6 +309,25 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
         <span className="shrink-0 text-xs text-text-mute">
           {String(card['project_slug'] ?? '')}
         </span>
+        {/* **몇 명 중 몇 명인지 보인다**(2026-09-07 · REQ-WEB-146). T3 는 서로 다른 두 사람이
+            승인해야 확정되는데, 카드가 그 사실을 말하지 않으면 첫 승인자는 자기가 마지막
+            결재라고 믿는다 — 조용히 약해진 게이트는 없는 게이트보다 나쁘다. */}
+        {Number(card['approvals_required'] ?? 1) > 1 && (
+          <span
+            data-testid="quorum"
+            className="shrink-0 rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 text-xs font-medium text-status-waiting"
+          >
+            {t('inbox.card.quorum', {
+              given: Number(card['approvals_given'] ?? 0),
+              required: Number(card['approvals_required'] ?? 1),
+            })}
+          </span>
+        )}
+        {typeof card['assignee_role'] === 'string' && (
+          <span data-testid="role-queue" className="shrink-0 text-xs text-text-faint">
+            {t('inbox.card.role_queue', { role: card['assignee_role'] })}
+          </span>
+        )}
         {/* 기다린 시간은 **오래될수록 눈에 띄어야 한다** — 한 시간 넘게 묵은 요청이
             방금 온 요청과 같은 회색이면 목록의 순서만으로는 묻힌다 */}
         {/* **결정된 카드는 기다리는 중이 아니다**(2026-09-03). 처리됨 탭에서도 대기 시간이
@@ -438,7 +499,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
       {/* **판정은 서버가 한다**(`can_approve`) — 완화가 둘로 늘면서(소규모·admin) 화면이
           규칙을 다시 구현하면 두 벌이 되고, 두 벌이 되면 언젠가 한쪽만 고친다.
           내가 요청한 것인데 승인도 가능하면 그 사실만 조용히 적는다(admin 이 그 자리다). */}
-      {card['self_requested'] === true && !isQuestion && (
+      {!isQuestion && (card['self_requested'] === true || lockReason !== null) && (
         <p
           data-testid="self-requested-note"
           className={cn(
@@ -448,7 +509,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
               : 'bg-status-waiting-soft text-status-waiting',
           )}
         >
-          {canApprove ? t('inbox.card.self_requested_admin') : t('inbox.card.self_requested')}
+          {canApprove ? t('inbox.card.self_requested_admin') : lockReason}
         </p>
       )}
 
@@ -479,7 +540,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
                 data-testid="approve"
                 disabled={decide.isPending || !canApprove}
                 onClick={() => decide.mutate('approve')}
-                title={canApprove ? undefined : t('inbox.card.self_requested_title')}
+                title={canApprove ? undefined : (lockReason ?? undefined)}
               >
                 {t('inbox.key.approve')}
               </Button>

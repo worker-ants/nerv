@@ -17,7 +17,13 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.33 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.36 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.36 변경(2026-09-07 — 셋째 스프린트 ③): §1.4 셋째 표에 **구현 축 파생** 한 줄([4.4](api.md) REQ-API-141).
+>
+> v0.35 변경(2026-09-07 — 셋째 스프린트 ②): §1.4 셋째 표에 **T3 정족수** 한 줄([4.4](api.md) REQ-API-140).
+>
+> v0.34 변경(2026-09-07 — 셋째 스프린트 ①): §1.4 셋째 표에 **결재 판정 한 벌** 한 줄([4.4](api.md) REQ-API-136~139).
 >
 > v0.33 변경(2026-09-07 — 둘째 스프린트 ⑥): §1.4 셋째 표에 **스킬이 가르치는 길** 한 줄([4.6](plugin.md) 패키지 0.2.19).
 >
@@ -168,6 +174,9 @@ referenced_by:
 | 고아 작업을 되돌리는 문 | `routes/p.$proj/tasks.$task.tsx` · `routes/task-detail-transitions.spec.tsx` | 임포트가 만든 클레임 없는 `in_progress` 가 큐에도 안 보이고 잡을 수도 없었다(2026-09-07 · [4.5](screens.md) REQ-WEB-144) |
 | 승인 역채널 | `approval.service.ts`(`pendingDecisionsFor`·깨우기) · `task.service.ts`(하트비트) · `spec.service.ts`·`review.service.ts`(대기 세우기) · `question.service.ts`(`answered_by`) | A3 승인이 나도 요청한 세션은 영영 듣지 못했고, 기다리는 세션이 화면에 `active` 로 보였다(2026-09-07 · [4.4](api.md) REQ-API-133~135) |
 | 스킬이 가르치는 길 | `plugin/skills/*/SKILL.md` 다섯 · `plugin/codex/config.toml` · `plugin/managed-settings.example.json` | 허용 목록에 없는 도구를 부르게 하고, 없는 폴링을 가르치고, 약속한 캐시 파일을 아무도 쓰지 않았다(2026-09-07 · [4.6](plugin.md) v0.62) |
+| 결재 판정 한 벌 | `approval/approval-policy.ts`(신설) · `approval.service.ts` · `spec.service.ts`(제출 권한 · approve/reject 삭제) · `scopes.ts` | 같은 물음을 셋이 각자 답해 목록과 결정이 갈라졌고, 남이 제출해 주면 작성자가 자기 초안을 승인할 수 있었다(2026-09-07 · [4.4](api.md) REQ-API-136~139) |
+| T3 정족수 | `spec.service.ts`(`ensurePendingApproval` 슬롯) · `approval.service.ts`(`applyToSubject` 집계) · `approval-policy.ts`(`quorumSql`) · `approval-card.tsx` | 첫 승인이 곧 확정이라 T3 게이트가 1인으로 닫혔다(실측 3건 · 2026-09-07 · [4.4](api.md) REQ-API-140) |
+| 구현 축 파생 — verified·술어 한 벌 | `spec/impl-status.ts`(`verified` 분기 · `evidenceExistsSql`) · `task.service.ts`·`claim.service.ts`(회수·전이 재파생) · `spec.service.ts`(커버리지 술어) | `verified` 로 갈 길이 없었고 증적 술어가 두 벌이라 대시보드와 요구사항이 다른 말을 했다(2026-09-07 · [4.4](api.md) REQ-API-141) |
 | 자라는 목록의 커서 | `session.service.ts` · `event.service.ts` | activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120) |
 
 #### 이 절은 언제 갱신되는가
