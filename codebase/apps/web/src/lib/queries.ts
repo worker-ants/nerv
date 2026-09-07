@@ -334,6 +334,8 @@ export function useTask(slug: string, taskKey: string): UseQueryResult<Row> {
 export interface SessionBoardResponse {
   items: Row[];
   summary: Record<string, number>;
+  /** 다음 쪽 — null 이면 끝이다(§1.6). 컨트롤러는 처음부터 주고 있었다 */
+  next_cursor: string | null;
 }
 
 /**
@@ -412,11 +414,22 @@ export function useCoverage(slug: string, projectId?: string): UseQueryResult<Ro
   });
 }
 
+/**
+ * 최근 이벤트 — **응답은 봉투다**(`{items, next_cursor}` · REQ-API-120).
+ *
+ * 2026-09-06 에 서버가 봉투를 씌웠는데 이 훅은 맨 배열을 기대하고 있었다 — 홈·프로젝트
+ * 개요의 "최근 이벤트" 가 그날부터 **빈 목록**이었다(배열이 아닌 값에 `rows()` 가 `[]` 를
+ * 준다). 화면은 오류도 빈 상태도 아닌 "아무 일도 없었다" 를 보여 준다 — 가장 나쁜 모양이다.
+ *
+ * `select` 로 `items` 를 풀어 호출부(`rows(events.data)`)를 그대로 둔다.
+ */
 export function useEvents(slug: string, projectId?: string): UseQueryResult<Row[]> {
   const refetchInterval = useLivePolling();
   return useQuery({
     queryKey: queryKeys.projectEvents(projectId ?? slug),
-    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/events?limit=30`),
+    queryFn: () =>
+      apiFetch<{ items: Row[]; next_cursor: string | null }>(`/projects/${slug}/events?limit=30`),
+    select: (data) => data.items,
     refetchInterval,
   });
 }

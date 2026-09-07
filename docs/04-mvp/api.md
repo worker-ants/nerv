@@ -26,7 +26,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.3 · 2026-09-06 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.4 · 2026-09-07 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.4 변경(2026-09-07 — 커서가 정렬 키와 달랐다, 개선 계획 첫 스프린트): **REQ-API-124 신설 · §1.6 개정 · 전표 네 행.** 자라는 목록 셋의 커서가 §1.6 이 적은 "(정렬 키, id)" 가 아니었다. ① **이벤트·알림**은 시각 하나로 seek 해서 **같은 시각의 행이 쪽 경계에 걸리면 남은 것이 어느 쪽에도 나오지 않았다** — 한 트랜잭션이 여러 건을 내는 것이 이 저장소의 흔한 모양이라 실측 1,322건 중 **332건(25%)** 이 같은 `(project_id, occurred_at)` 이었다. 알림의 주석은 "감수한다" 였는데 REQ-API-083 이 그 목록에도 이미 "겹치지도 빠뜨리지도 않는 다음 쪽" 을 약속하고 있었다. ② **세션 보드는 커서 열과 정렬 열이 아예 달랐다**(`started_at` 으로 seek · `last_heartbeat_at` 으로 정렬) — 나중에 시작했지만 하트비트가 오래된 세션(유령 세션의 전형)이 2쪽에서 빠지고 다른 세션은 두 번 나왔다(실측 47건·limit 10 에서 각 1건). 하트비트는 NULL 을 허용하므로 행 비교 대신 NULLS LAST 정렬을 술어로 그대로 쓴다. ③ **커서가 불투명해진다** — 시각 그대로 새어 나가면 클라이언트가 그 구조를 읽고 정렬을 바꿀 자유가 사라진다. 옛 형식은 한 릴리스 동안 받고, 해독되지 않는 커서는 **처음부터**다(예전에는 `::timestamptz` 캐스팅에서 22007 로 죽어 진짜 500 이었다). ④ **웹의 회귀 하나**: v1.2 가 이벤트에 봉투를 씌웠는데 `useEvents` 는 맨 배열을 기대해 홈·프로젝트 개요의 "최근 활동" 이 그날부터 **빈 목록**이었다 — 오류도 빈 상태도 아닌 "아무 일도 없었다" 라 사람은 그것을 사실로 읽는다. ⑤ 전표의 낡은 서술을 함께 고친다(`EP-SES-01` 의 "cursor 는 읽지 않는다"·`EP-SES-03` 의 "상한 200(최대 500)에서 말없이 잘린다" — v1.2 이후 거짓이다).
 >
 > v1.3 변경(2026-09-07 — "사람 전용" 이 역할 문턱뿐이었다, 개선 계획 첫 스프린트): **REQ-API-123 신설 · REQ-API-111 열거 개정 · §1.3b 정정 · 전표 세 행.** 전표가 사람 전용이라 적은 셋 — `EP-QST-02` 답변 · `EP-APR-04` 게이트 면제 · `EP-APR-05` 프로젝트 받은 요청 — 에 **도메인 판정이 없었다.** 역할 문턱(`@RequireRole`)만으로는 막히지 않는다: PAT 도 소유자의 멤버십 역할로 그 문턱을 지나고(`project-access.guard.ts`), 답변의 권한 문턱 `spec:read` 는 **모든 PAT 가 가진 값**이다. 결과는 둘이다 — 에이전트 토큰이 **자기 질문에 자기가 답하고** 자기 브랜치의 게이트를 면제할 수 있었고, 그 이벤트는 `is_agent: false` 로 남아 **감사에는 사람이 한 일로** 적혔다(FR-16). 셋 다 `assertHuman` 을 도메인에 넣고 `is_agent` 를 주체에서 읽는다. 면제는 사유 검사보다 **앞**이라 에이전트 호출은 DB 를 건드리지 않는다. **§1.3b 의 근거 문장도 정정한다** — EP-PRJ-04·05 를 사람 전용으로 옮긴 근거가 "게이트 면제는 이미 사람 전용이었다" 였는데, 그것이 2026-09-07 까지 **역할 문턱뿐**이었다. 검증은 라우트 7종 → **10종**이고, `spec:read` 만 가진 토큰이 `missing_scope` 가 아니라 `human_only` 로 막히는 것을 함께 본다.
 >
@@ -709,7 +711,9 @@ HTTP 상태 매핑:
 - 요청: `?cursor=<opaque>&limit=<n>` — `limit` 기본 30·최대 100(`PAGE_LIMIT_DEFAULT`·`PAGE_LIMIT_MAX`).
 - **예외 하나: 발견 큐와 게이트 표**(2026-09-05 명기). 발견은 기본 50·최대 200, 게이트 표의 브랜치는 기본 20·최대 200 이다 — 근거는 규모다(소급 적재 실측 발견 **18,650건**·브랜치 **441개**, [4.5](screens.md) §2.6a). 30건씩 끊으면 facet 으로 좁히기 전에 페이지만 넘긴다. 값의 정본은 `@nerv/schema` 의 `FINDING_PAGE_LIMIT_*`·`GATE_BRANCH_LIMIT_*` 다 — **그전에는 `review.service.ts` 안에 박혀 있어 화면이 그 수를 알 길이 없었다**(REQ-CB-006 이 상수를 공유하라고 한 바로 그 이유다).
 - 응답 봉투: `{ "items": [...], "next_cursor": "<opaque>" | null }`.
-- 커서는 (정렬 키, id)를 인코딩한 불투명 문자열이며 클라이언트는 해석하지 않는다. 정렬 기준은 엔드포인트별로 §2 전표에 명시한다(기본: 생성 역순, 이벤트 피드는 `occurred_at DESC`).
+- 커서는 (정렬 키, id)를 인코딩한 불투명 문자열이며 클라이언트는 해석하지 않는다. 정렬 기준은 엔드포인트별로 §2 전표에 명시한다(기본: 생성 역순, 이벤트 피드는 `occurred_at DESC, id DESC`).
+- **커서에 담기는 것은 정렬 키 *전부* 와 id 다**(2026-09-07 · REQ-API-124). 시각 하나로 seek 하면 같은 시각의 행이 쪽 경계에 걸릴 때 남은 것이 어느 쪽에도 나오지 않고, 커서 열이 정렬 열과 다르면 항목이 겹치거나 빠진다 — 셋 다 실측으로 재현됐다. 정렬 키에 NULL 이 허용되면(세션의 `last_heartbeat_at`) 행 비교 대신 그 정렬을 술어로 그대로 쓴다.
+- **해독되지 않는 커서는 처음부터다** — 400 도 500 도 아니다. 낡은 커서 하나가 화면을 통째로 깨뜨리는 것보다 첫 쪽을 보여 주는 편이 낫다. 옛 형식(맨 타임스탬프)은 한 릴리스 동안 받는다.
 
 ### 1.6a 역할 → 권한 (2026-08-23 신설)
 
@@ -951,9 +955,9 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-SES-01 | `GET /api/v1/projects/{proj}/sessions` | 전 역할 | `SessionListQuery`(state[] — **`user`·`cursor` 는 읽지 않는다**, 2026-09-06 정정. 응답에 `summary`(상태별 수 여섯)가 함께 실린다) | `Page<SessionSummary>`(user·hostname·agent_type·state·현재 Task·diff·last_heartbeat — [데이터 모델](../03-proposal/data-model.md) §4.2 질의) | — |
+| EP-SES-01 | `GET /api/v1/projects/{proj}/sessions` | 전 역할 | `SessionListQuery`(state[] · **`cursor`·`limit`**(2026-09-07 정정 — v1.2 가 봉투를 준 뒤로 커서를 읽는다. `user` 는 여전히 읽지 않는다). 응답에 `summary`(상태별 수 여섯)가 함께 실린다) — 정렬은 `last_heartbeat_at DESC NULLS LAST, started_at DESC, id DESC` 이고 커서가 그 셋을 담는다(REQ-API-124) | `Page<SessionSummary>`(user·hostname·agent_type·state·현재 Task·diff·last_heartbeat — [데이터 모델](../03-proposal/data-model.md) §4.2 질의) | — |
 | EP-SES-02 | `GET /api/v1/projects/{proj}/sessions/{sid}` | 전 역할 | — | `SessionDetailResult`(실행 컨텍스트·클레임 이력·토큰 사용량) | — |
-| EP-SES-03 | `GET /api/v1/projects/{proj}/sessions/{sid}/activities` | 전 역할 | `ActivityListQuery`(**`limit` 뿐** — 커서·`type[]` 은 읽지 않는다(2026-09-06 정정). 상한 200(최대 500)에서 **말없이 잘린다** — 실측 443건 세션이 있어 세션 초반이 닿지 않는다. type[]) | `Page<ActivityResult>`(seq 순 타임라인, `thought/action/elicitation/response/error`) | — |
+| EP-SES-03 | `GET /api/v1/projects/{proj}/sessions/{sid}/activities` | 전 역할 | `ActivityListQuery`(**`cursor`·`limit`**(2026-09-07 정정 — 상한 30/100 의 봉투를 준다. `type[]` 은 여전히 읽지 않는다)) | `Page<ActivityResult>`(seq 순 타임라인, `thought/action/elicitation/response/error`) | — |
 | EP-SES-04 | `POST /api/v1/projects/{proj}/sessions/{sid}/steer` | 세션 소유자·admin | `SessionSteerInput`(kind: steer/stop, message) | `{ok:true}` — steer: 지시는 다음 하트비트 응답의 `pending`으로 전달([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4 역채널). stop: 지시 전달과 별개로 서버가 **즉시** 활성 클레임을 회수하고 Task를 `claimed/in_progress → ready`로 되돌린다([화면 설계](../03-proposal/ui-wireframes.md) §4.2) | ★`session.steered` · stop 시 ★`claim.released` + `task.ready` |
 | EP-SES-05 | `GET /api/v1/projects/{proj}/sessions/{sid}/trajectory` | 전 역할 | — | 세션의 도구 호출 궤적(REQ-API-068 이 요구하는 것) | — |
 
@@ -1029,8 +1033,8 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-EVT-01 | `GET /api/v1/projects/{proj}/events` | 전 역할(`spec:read`) — `audit:read` 라는 권한은 **존재한 적 없다**(2026-09-05 정정) | `EventListQuery`(type, subject_id, **`before`·`limit`** — `since`·`subject_type` 은 읽지 않고 커서 이름은 `before` 다, 2026-09-06 정정) — `occurred_at DESC` | `Page<EventResult>`(actor{user, session, is_agent}·from/to state·payload — [데이터 모델](../03-proposal/data-model.md) §2.9) | — |
-| EP-NTF-01 | `GET /api/v1/me/notifications` | 본인 | `NotificationListQuery`(state: unread/read, **`before`·`limit`** — 커서 이름은 `before` 다) | `Page<NotificationResult>` | — |
+| EP-EVT-01 | `GET /api/v1/projects/{proj}/events` | 전 역할(`spec:read`) — `audit:read` 라는 권한은 **존재한 적 없다**(2026-09-05 정정) | `EventListQuery`(type, subject_id, **`before`·`limit`** — `since`·`subject_type` 은 읽지 않고 커서 이름은 `before` 다, 2026-09-06 정정. 값은 **불투명**이고 `(occurred_at, id)` 를 담는다 · REQ-API-124) — `occurred_at DESC, id DESC` | `Page<EventResult>`(actor{user, session, is_agent}·from/to state·payload — [데이터 모델](../03-proposal/data-model.md) §2.9) | — |
+| EP-NTF-01 | `GET /api/v1/me/notifications` | 본인 | `NotificationListQuery`(state: unread/read, **`before`·`limit`** — 커서 이름은 `before` 다. 값은 불투명하고 `(created_at, id)` 를 담는다 · REQ-API-124) | `Page<NotificationResult>` | — |
 | EP-NTF-02 | `POST /api/v1/me/notifications/{id}/read` | 본인 | — | `{ok:true}` | — |
 | EP-NTF-03 | `POST /api/v1/me/notifications/read-all` | 본인 | — | `{ok:true, marked:<수>}` — **몇 건을 읽었는지 말한다**(조용히 0 이 되는 목록은 사고처럼 보인다) | — |
 | EP-NTF-04 | `GET /api/v1/me/notifications/unread-count` | 본인 | — | 안 읽은 수 — **배지가 받아 온 목록 안에서 세지 않게** 서버가 센다(2026-09-03) | — |
@@ -1360,6 +1364,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-121 | WHEN EP-TASK-05 가 `rebrief: true` 를 받으면 THE SYSTEM SHALL Task 의 기준 SpecVersion 을 그 스펙의 **최신 승인본**으로 옮기고 `rebrief_required_at` 을 지운다 — 위임 명세 4요소는 건드리지 않는다(옛 기준으로 쓰였을 수 있으나 서버가 다시 쓸 수는 없다). 플래그만 지우면 Task 가 여전히 옛 버전을 가리켜 **다음 사람이 같은 배지를 다시 본다** |
 | REQ-API-122 | WHEN EP-TASK-01 에 `?ai=1` 이 오면 THE SYSTEM SHALL `delegate_session_id` 가 있는 Task 만 준다 — **에이전트 세션이 쥔 것**이지 사람이 담당으로 지정된 것이 아니다. 뜻을 못 박지 않으면 같은 이름이 두 뜻을 갖는다 |
 | REQ-API-123 | WHEN 사람 전용으로 선언된 경로(EP-QST-02 답변 · EP-APR-04 게이트 면제 · EP-APR-05 프로젝트 받은 요청)에 **에이전트 주체**가 오면 THE SYSTEM SHALL 도메인 서비스에서 `NERV_HUMAN_ONLY` 로 거절하고 아무 상태도 바꾸지 않으며, 사람이 한 동작의 이벤트는 `is_agent` 를 **주체에서 읽어** 기록한다 — 역할·권한 문턱은 PAT 를 거르지 못한다(PAT 도 소유자의 멤버십 역할을 쓰고 `spec:read` 는 모든 PAT 가 가진다) | 라우트 3종 각 1건(`spec:read` 만 가진 토큰은 `missing_scope` 가 아니라 `human_only`) · 면제 거절 뒤 `approval`·`event` 0행 · 답변 거절 뒤 질문은 `open`·세션은 `awaiting_input` |
+| REQ-API-124 | WHEN 자라는 목록(EP-EVT-01 · EP-NTF-01 · EP-SES-01)의 다음 쪽을 커서로 요청하면 THE SYSTEM SHALL **정렬 키 전부와 id** 를 담은 불투명 커서로 seek 하여 어떤 항목도 겹치거나 빠지지 않게 하고, 해독되지 않는 커서는 **처음부터**로 답한다(400·500 이 아니다) | 같은 시각의 행 다섯을 `limit 2` 로 끝까지 넘겨 전량이 정확히 한 번씩 · 하트비트가 뒤섞인 세션 일곱도 같게 · `next_cursor` 는 `Date.parse` 가 NaN · 망가진 커서에 200 |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 묶어 둔 버전**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다 |

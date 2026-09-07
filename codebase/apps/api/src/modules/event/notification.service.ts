@@ -18,6 +18,7 @@ import {
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
+import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { ValkeyService } from './valkey.service.js';
@@ -288,12 +289,20 @@ export class NotificationService {
         ? sql``
         : // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
           sql` AND n.state = ${assertVocab([input.state], notificationState.enumValues, 'state')[0]}::notification_state`;
-    // strict 비교라 같은 시각의 행을 건너뛸 수 있다 — 알림은 초 단위로 몰리지 않으므로
-    // 여기서는 감수하고, 정확한 페이지네이션이 필요해지면 (created_at, id) 복합 커서로 간다.
+    // **커서는 (created_at, id) 다**(§1.6 · REQ-API-124). 예전 주석은 "같은 시각의 행을
+    // 건너뛸 수 있지만 감수한다" 였는데, REQ-API-083 이 이 목록에도 "겹치지도 빠뜨리지도
+    // 않는 다음 쪽" 을 이미 약속하고 있었다 — 감수는 요구사항과 어긋난 채였다.
+    // 한 이벤트가 여러 수신자에게 파생되면 같은 `created_at` 이 여럿이다.
+    const cursor = decodeCursor(input.before ?? undefined);
+    const cursorAt = cursorTimestamp(cursor?.[0]);
+    const cursorRowId = cursorId(cursor?.[1]);
+    const legacyAt = cursor === null ? cursorTimestamp(input.before) : null;
     const beforeFilter =
-      input.before == null || input.before === ''
-        ? sql``
-        : sql` AND n.created_at < ${input.before}::timestamptz`;
+      cursorAt !== null && cursorRowId !== null
+        ? sql` AND (n.created_at, n.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
+        : legacyAt !== null
+          ? sql` AND n.created_at < ${legacyAt}::timestamptz`
+          : sql``;
     const limit = Math.min(input.limit ?? 50, 200);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT n.id, n.state::text AS state, n.importance::text AS importance,
@@ -313,7 +322,7 @@ export class NotificationService {
        WHERE n.user_id = ${input.userId}${stateFilter}${beforeFilter}
          -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
          AND p.archived_at IS NULL
-       ORDER BY n.created_at DESC
+       ORDER BY n.created_at DESC, n.id DESC
        LIMIT ${limit + 1}
     `);
     // 한 건 더 받아 **다음 쪽이 있는지**를 안다 — 총계를 세면 매 요청이 전량 스캔이다
@@ -321,7 +330,10 @@ export class NotificationService {
     const last = items[items.length - 1];
     return {
       items,
-      next_cursor: rows.length > limit && last !== undefined ? String(last['created_at']) : null,
+      next_cursor:
+        rows.length > limit && last !== undefined
+          ? encodeCursor([String(last['created_at']), String(last['id'])])
+          : null,
     };
   }
 

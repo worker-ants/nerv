@@ -18,7 +18,13 @@ import {
   sessionEndReason,
   sessionState,
 } from '@nerv/schema';
-import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
+import {
+  cursorId,
+  cursorTimestamp,
+  decodeCursor,
+  encodeCursor,
+  pageLimit,
+} from '../../common/cursor.js';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
@@ -684,10 +690,31 @@ export class SessionService {
     // 커서를 준다(2026-09-06 · REQ-API-120). 예전에는 `LIMIT 200` 에 `next_cursor: null`
     // **고정**이라, 세션이 200을 넘는 순간 응답이 "이게 전부" 라고 거짓을 말했다.
     const limit = pageLimit(input.limit);
-    const before = decodeCursor(input.cursor);
     const states = assertSessionStates(input.states ?? []);
     const stateFilter =
       states.length === 0 ? sql`` : sql` AND s.state = ANY(${sqlArray(states, 'session_state')})`;
+
+    // **커서는 정렬 키 전부와 id 다**(§1.6 · REQ-API-124). 예전 커서는 `started_at` 하나였는데
+    // 정렬은 `last_heartbeat_at` 이라, 나중에 시작했지만 하트비트가 오래된 세션 — 유령 세션의
+    // 전형 — 이 2쪽에서 빠지고 다른 세션은 두 번 나왔다(실측 47건·limit 10 에서 각 1건).
+    //
+    // 행 비교 `(a,b,c) < (x,y,z)` 는 NULL 을 다루지 못한다(하트비트가 없는 세션이 있다).
+    // 그래서 NULLS LAST 정렬을 술어 둘로 그대로 쓴다: 하트비트가 있는 자리에서 시작하면
+    // "더 오래된 하트비트 · 하트비트 없음 · 같은 하트비트의 뒷줄" 셋이 남는다.
+    const cursor = decodeCursor(input.cursor);
+    const cursorStartedAt = cursorTimestamp(cursor?.[1]);
+    const cursorRowId = cursorId(cursor?.[2]);
+    const cursorHeartbeat = cursorTimestamp(cursor?.[0]);
+    const seek =
+      cursor === null || cursorStartedAt === null || cursorRowId === null
+        ? sql``
+        : cursorHeartbeat === null
+          ? sql` AND s.last_heartbeat_at IS NULL
+                 AND (s.started_at, s.id) < (${cursorStartedAt}::timestamptz, ${cursorRowId}::uuid)`
+          : sql` AND (s.last_heartbeat_at < ${cursorHeartbeat}::timestamptz
+                      OR s.last_heartbeat_at IS NULL
+                      OR (s.last_heartbeat_at = ${cursorHeartbeat}::timestamptz
+                          AND (s.started_at, s.id) < (${cursorStartedAt}::timestamptz, ${cursorRowId}::uuid)))`;
 
     const { rows } = await this.db.execute<SessionCard>(sql`
       SELECT s.id, s.user_id, u.display_name AS user_name, s.hostname,
@@ -704,16 +731,18 @@ export class SessionService {
         JOIN "user" u ON u.id = s.user_id
    LEFT JOIN claim c ON c.agent_session_id = s.id AND c.status = 'active'
    LEFT JOIN task t ON t.id = c.task_id
-       WHERE s.project_id = ${input.projectId}${stateFilter}
-         ${before === null ? sql`` : sql`AND s.started_at < ${String(before[0])}`}
-       ORDER BY s.last_heartbeat_at DESC NULLS LAST, s.started_at DESC
+       WHERE s.project_id = ${input.projectId}${stateFilter}${seek}
+       ORDER BY s.last_heartbeat_at DESC NULLS LAST, s.started_at DESC, s.id DESC
        LIMIT ${limit + 1}
     `);
     const items = rows.slice(0, limit);
+    const last = items.at(-1);
     return {
       items,
       next_cursor:
-        rows.length > limit ? encodeCursor([String(items.at(-1)?.started_at ?? '')]) : null,
+        rows.length > limit && last !== undefined
+          ? encodeCursor([last.last_heartbeat_at ?? null, last.started_at, last.id])
+          : null,
     };
   }
 
