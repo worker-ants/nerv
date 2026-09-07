@@ -327,6 +327,32 @@ describe('SSE 계약 (EP-SSE-01·02 · api.md §3.5)', () => {
     expect(typeof wire['subject_id']).toBe('string');
   });
 
+  /**
+   * **keep-alive 는 코멘트 라인이 아니다**(2026-09-07 · REQ-CB-035 · api.md §3.5).
+   *
+   * 전표가 §3.4·§3.5·REQ-API-014 세 자리에서 `: ping` 코멘트라 적고 있었는데, 스트림을
+   * rxjs 로 흘리므로 Nest 는 코멘트가 아니라 **메시지**로 내보낸다. `: ping` 을 기다리도록
+   * 쓴 클라이언트는 25초마다 알 수 없는 이벤트를 받는다 — 문서만 고치면 다시 갈리므로
+   * 여기서 태운다(주기를 낮춰야 태울 수 있어 상수를 손잡이로 바꿨다).
+   */
+  it('keep-alive 는 event: ping · data: {} 메시지다', async () => {
+    const saved = process.env['NERV_SSE_KEEPALIVE_MS'];
+    process.env['NERV_SSE_KEEPALIVE_MS'] = '80';
+    try {
+      const res = await request('/sse/projects/clemvion', { authorization: `Bearer ${token}` });
+      expect(res.status).toBe(200);
+      const text = await res.until((t) => t.includes('event: ping'));
+      res.close();
+      expect(text).toContain('event: ping');
+      expect(text).toContain('data: {}');
+      // 코멘트 라인이 아니다 — 그렇게 기다리는 클라이언트는 아무것도 받지 못한다
+      expect(text.split('\n').some((line) => line.startsWith(': '))).toBe(false);
+    } finally {
+      if (saved === undefined) delete process.env['NERV_SSE_KEEPALIVE_MS'];
+      else process.env['NERV_SSE_KEEPALIVE_MS'] = saved;
+    }
+  });
+
   it('/sse/me 는 본인 스트림을 연다', async () => {
     const res = await request('/sse/me', { authorization: `Bearer ${token}` });
     expect(res.status).toBe(200);

@@ -1744,7 +1744,8 @@ export class SpecService {
    * EP-MIR-01 — md 미러. **DB 가 진실이고 md 는 그 표현이다**(D-09).
    *
    * 이 표면이 있는 이유는 에이전트·CI·사람이 "그냥 문서를 읽고 싶을 때" REST 봉투를 벗기지
-   * 않아도 되게 하기 위해서다. frontmatter 에 고정 ID·버전·상태·승인자를 실어, 파일로
+   * 않아도 되게 하기 위해서다. frontmatter 에 고정 ID·제목·타입·버전·상태·요구사항 ref·
+   * `basis_superseded` 를 실어(승인자는 싣지 않는다 — 2026-09-07 정정), 파일로
    * 저장해도 출처를 잃지 않게 한다.
    */
   async mirrorMarkdown(input: {

@@ -223,6 +223,44 @@ describe('E09-S09 본문에서 참조 관계를 뽑는다', () => {
     expect(after.items.map((i) => i['key'])).toEqual(['SPC-A']);
   });
 
+  /**
+   * **관계 목록에는 상한이 없다**(2026-09-07 · REQ-API-155).
+   *
+   * 예전에는 `LIMIT 51` 뒤 `rows.length` 라 `total = min(총계, 51)` 이었고, 정렬이
+   * `direction` 먼저라 'in' 이 'out' 을 통째로 밀어냈다 — 관계가 50건을 넘는 문서에서
+   * 웹은 **"역참조 50 · 레퍼런스 0"** 을 그렸다(실측 data-model: in 50 · out 43).
+   * "이걸 고치면 무엇이 흔들리나" 에 답하려고 만든 화면이 흔들리는 것 절반을 숨겼다.
+   */
+  it('역참조 60건도 전부 나온다 — 상한이 방향 하나를 통째로 밀어내지 않는다', async () => {
+    const target = await draft('SPC-HUB', '# 허브');
+    for (let i = 0; i < 60; i += 1) {
+      await draft(`SPC-REF-${String(i).padStart(2, '0')}`, `# 참조 ${i}\n\n[허브](SPC-HUB)`);
+    }
+    // 허브도 하나를 가리킨다 — 'out' 이 밀려나는지 보려면 양방향이 있어야 한다
+    await draft('SPC-DOWN', '# 하류');
+    await specs.draftUpsert({
+      baseHash: await hashOf(target.specId),
+      roles: ['planner'],
+      projectId,
+      specId: target.specId,
+      bodyMd: '# 허브\n\n[하류](SPC-DOWN) 로 이어진다',
+      userId: planner,
+    });
+
+    const both = await relations.list({ projectId, specKey: 'SPC-HUB', direction: 'both' });
+    expect(both.total).toBe(61);
+    expect(both.items).toHaveLength(61);
+    expect(both.items.filter((r) => r['direction'] === 'in')).toHaveLength(60);
+    // 상한이 있으면 이 줄이 0 이 된다 — 'in' 이 정렬에서 앞이기 때문이다
+    expect(both.items.filter((r) => r['direction'] === 'out')).toHaveLength(1);
+
+    // 요약(EP-SPEC-03 include=relations)의 수도 자른 수가 아니라 총계다
+    const summary = await relations.summary({ projectId, specKey: 'SPC-HUB' });
+    expect(summary.in_count).toBe(60);
+    expect(summary.out_count).toBe(1);
+    expect(summary.items).toHaveLength(20);
+  });
+
   // ── 이력 (2026-08-30 — draft 는 덮어써지므로 저장하는 그 순간이 유일한 기록이다) ──
   it('무엇을 왜 바꿨나가 버전에 남는다 — 주지 않으면 앞의 것을 지우지 않는다', async () => {
     const made = await specs.draftUpsert({

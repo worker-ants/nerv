@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.30 · 2026-09-07 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.31 · 2026-09-07 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.31 변경(2026-09-07 — 잔재 걷기와 손잡이 하나, 개선 계획 넷째 스프린트): **REQ-CB-035 신설 · §5.2 전표 한 행.** SSE keep-alive 주기가 상수였다 — 앞문의 유휴 타임아웃이 25초보다 짧으면 스트림이 조용히 끊기는데 고칠 수단이 재배포뿐이었다(`NERV_LOG_LEVEL` 이 같은 이유로 배선된 자리다). 손잡이로 꺼내면서 **계약도 함께 태운다**: `: ping` 코멘트가 아니라 `event: ping` 메시지라는 사실을 L2 가 실제 스트림에서 본다 — 문서만 고친 정정(v1.7)은 다음에 또 갈린다. 곁들여 접두 잔재를 걷었다(카탈로그의 검색·스위처 안내 문구가 `SPC-…`·`TSK-…` 를 규칙처럼 보이게 하고 있었다 — 표시 키 접두는 프로젝트가 정한다) 와 낡은 주석 넷(done 게이트의 "FR-09 는 Phase 2" · 미러 frontmatter 의 "승인자" · `requirement_statement_trgm` 의 문서 결함 메모 · `preflight` 의 게이트 수).
 >
 > v1.30 변경(2026-09-07 — 추정이 판정이었다, 개선 계획 넷째 스프린트): **REQ-CB-033·034 신설 · §5.2 전표 두 행 · §5.2a 운영 행 · §5.3·§5.4 전문.** ① **임베딩 차원 상수가 두 벌이었다** — `embedding.client.ts` 가 `EMBEDDING_DIMENSIONS = 1024` 를 다시 선언해, 스키마의 `vector(N)` 을 바꾸는 날 API 의 검사만 옛 값으로 남아 **모든 배치가 거절된다**(REQ-CB-006 이 금지한 재선언이다). ② **`dimensions` 전송을 주소로 추정했다** — 코드 주석이 스스로 그렇게 적고 있었고, Azure OpenAI·LiteLLM·사내 게이트웨이 뒤의 `text-embedding-3-small` 은 그 주소가 아니라 1536 차원이 돌아와 **검색이 오류 없이 렉시컬로 degrade** 했다. `NERV_EMBED_SEND_DIMENSIONS` 로 명시한다 — **운영 OpenAI 배치는 이 값을 켜야 한다**(사람 확인 · 켜지 않으면 다음 배치부터 전량 거절). ③ **공개 S3 주소로 `https://…/s3` 를 예시로 걸고 있었다** — presigned URL 은 SigV4 로 경로까지 서명하므로 앞문이 접두를 벗기면 서명이 깨지고, 벗기지 않으면 MinIO 가 그 아래에서 S3 API 를 서빙하지 않는다. 문서대로 설정한 배치에서 PUT 은 SPA 의 index.html 을 200 으로 받았다. **별도 호스트**로 고치고, 앞문에 `/s3/` 를 여는 것이 고치는 길이 아님을 nginx 템플릿 주석에 남긴다.
 >
@@ -840,6 +842,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_FORCE_PATH_STYLE` | | `true` | api · worker | minio 호환 |
 | `NERV_HTTP_PORT` | | `8080` | compose `web` 공개 포트 | |
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |
+| `NERV_SSE_KEEPALIVE_MS` | | `25000` | api(`sse.controller.ts`) | SSE keep-alive 주기(§3.5 · REQ-CB-035). **앞문의 유휴 타임아웃이 이 값보다 짧으면 스트림이 조용히 끊긴다** — 그때 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다(`NERV_LOG_LEVEL` 과 같은 이유로 상수에서 꺼냈다). 값이 없거나 양수가 아니면 기본값이다. L2 가 이 값을 낮춰 keep-alive 형식(`event: ping` · `data: {}`)을 실제로 태운다 |
 | `NERV_LOG_LEVEL` | | `log`(=`info`) | api · worker | 두 진입점이 `common/log-level.ts` 한 함수로 읽는다(2026-09-06 배선). 고른 수준과 **그보다 심각한 것**을 켠다 — `verbose` · `debug` · `log` · `warn` · `error` · `fatal`. `info`·`warning`·`trace`·`critical` 은 별칭으로 받는다(compose·k8s 가 이미 `info` 를 넘긴다). 모르는 값은 기본으로 떨어지되 **한 줄 남긴다** — 오타로 로그가 꺼지면 그 사실을 알려 줄 로그도 없다 |
 
 **에이전트 장비 쪽 변수는 이 전표가 아니다.** `NERV_TOKEN`(PAT)·`NERV_PROJECT`·`NERV_HOSTNAME`은 세션이 도는 개발자 장비의 환경이며, 정본은 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3·§4.1, 발급·설치 절차는 [4.6 플러그인과 온보딩](plugin.md)이다.
@@ -926,6 +929,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다 | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL |
 | **REQ-CB-033** | WHEN 임베딩 요청을 만들면 THE SYSTEM SHALL `dimensions` 를 실을지를 **`NERV_EMBED_SEND_DIMENSIONS` 에서만** 읽고 제공자 주소로 추정하지 않는다 — 게이트웨이 뒤의 같은 모델은 주소가 다르고, 절단이 빠지면 오류 없이 다른 차원이 돌아와 **검색이 조용히 렉시컬로 degrade** 한다. WHILE 차원을 검사하는 동안 THE SYSTEM SHALL 그 값을 `@nerv/schema` 의 `EMBEDDING_DIMENSIONS`(DDL 이 쓰는 그 상수)에서 읽고 재선언하지 않는다(REQ-CB-006) |
 | **REQ-CB-034** | WHILE `NERV_S3_PUBLIC_ENDPOINT` 가 설정된 동안 THE SYSTEM SHALL 그 주소에 경로가 있으면 기동 로그로 경고한다 — presigned 서명은 경로를 포함하므로 접두 프록시(`https://…/s3`) 뒤의 S3 는 `SignatureDoesNotMatch` 로 끝나고, 배포 산출물은 그 자리에 **별도 호스트**를 적는다. WHERE 앞문(nginx·Ingress)에 S3 경로를 여는 것은 금지다 — 기술적으로 막힌 길이라 다음 사람이 그것을 고치는 길로 믿지 않게 주석으로 남긴다 |
+| **REQ-CB-035** | WHILE SSE 스트림이 열려 있는 동안 THE SYSTEM SHALL keep-alive 를 **`event: ping` · `data: {}` 메시지**로 보내고(코멘트 라인 `: ping` 이 아니다 — rxjs 로 흘리므로 Nest 가 메시지로 낸다), 그 주기를 `NERV_SSE_KEEPALIVE_MS` 로 바꿀 수 있게 한다 — 앞문의 유휴 타임아웃이 더 짧은 배치에서 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 
 ---

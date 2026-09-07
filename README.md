@@ -91,7 +91,7 @@ TypeScript · pnpm workspace / Vite + React SPA · TanStack Router·Query · Tai
 - **경계 규칙** — `apps/*` 간 직접 import 금지(공유는 `packages/schema` 경유), 표면은 번역만 하고 판정은 도메인 서비스 한 곳에서, 상수·이벤트 이름·에러 코드는 `@nerv/schema`에서만 가져온다.
 - **동시성은 mock으로 검증하지 않는다** — 클레임 원자성·scope 겹침·리스 만료는 L2(실제 Postgres)가 본다.
 - **도움말은 변경과 같은 커밋에서 갱신한다** — 화면의 동작·상태값·단축키·CLI 명령·역할과 권한·기본값이 바뀌었는데 매뉴얼(`apps/web/src/content/manual/`, ko·en)이 그대로면 결함이다. 없는 문서는 사람을 헤매게 하지만 **틀린 문서는 확신을 준다**.
-- **git** — Conventional Commits(`feat|fix|docs|refactor|test|chore(scope)`), 구현 코드는 브랜치 + PR이고 `main` 직접 push 금지. PR 본문에 Task ID(`TSK-…`)와 스펙 고정 ID(`SPC-…`·`REQ-…`)를 남긴다.
+- **git** — Conventional Commits(`feat|fix|docs|refactor|test|chore(scope)`), 구현 코드는 브랜치 + PR이고 `main` 직접 push 금지. PR 본문에 Task 표시 키(`<PRJ>-T-…`)와 스펙 키·요구사항 ref 를 남긴다(접두는 프로젝트가 정한다 — [3.3](docs/03-proposal/data-model.md) §5.1).
 - **임의 결정 금지** — 스택 변경·범위 조정·새 결정(D-번호·FR/NFR 추가)은 사람의 확인 없이 하지 않는다.
 
 ## 라이선스

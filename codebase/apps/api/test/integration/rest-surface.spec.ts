@@ -1676,6 +1676,24 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     expect(body).not.toContain('nerv:spec');
   });
 
+  /**
+   * **유한 목록은 총계를 준다**(2026-09-07 · REQ-API-155). §1.6 이 그렇게 정한 뒤에도 넷 중
+   * 셋이 맨 배열이었다 — 배열은 화면에서 "이게 전부인가" 를 물을 자리를 없앤다.
+   */
+  it.each([
+    ['버전', '/api/v1/projects/clemvion/specs/SPC-PATHS/versions'],
+    ['코멘트', '/api/v1/projects/clemvion/specs/SPC-PATHS/comments'],
+    ['기준선', '/api/v1/projects/clemvion/baselines'],
+    ['관계', '/api/v1/projects/clemvion/specs/SPC-PATHS/relations'],
+  ])('%s 목록은 {items,total} 이고 total 이 실제 건수다', async (_name, url) => {
+    const res = await call('GET', url);
+    expect(res.status).toBe(200);
+    const body = res.body as { items: unknown[]; total: number };
+    expect(Array.isArray(body.items)).toBe(true);
+    // 상한이 없으므로 total 은 자른 수가 아니라 **실제 건수**다
+    expect(body.total).toBe(body.items.length);
+  });
+
   it('EP-SPEC-05 — 버전 스냅샷은 같은 번호에 같은 응답이다', async () => {
     const res = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS/versions/1');
     expect(res.status).toBe(200);

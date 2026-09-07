@@ -255,7 +255,8 @@ describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () 
         status: 200,
         json: async () =>
           String(url).includes('/baselines')
-            ? [{ id: 'b-1', name: 'R1', item_count: 3 }]
+            ? // 유한 목록이라 봉투다(REQ-API-155)
+              { items: [{ id: 'b-1', name: 'R1', item_count: 3 }], total: 1 }
             : String(url).includes('/specs/tree')
               ? NODES
               : { items: [], memberships: [], count: 0, summary: {} },

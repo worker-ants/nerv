@@ -53,6 +53,7 @@ import { SpecCommentService } from './spec-comment.service.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import { AttachmentService } from './attachment.service.js';
 import { StorageService } from '../../common/storage.service.js';
+import { finiteList } from '../../common/cursor.js';
 import { SpecService } from './spec.service.js';
 import type { SpecGraphEdge, SpecTreeNode } from './spec.service.js';
 
@@ -153,8 +154,8 @@ export class SpecController {
   /** EP-SPEC-11 */
   @RequireScope('spec:read')
   @Get('baselines')
-  listBaselines(@Req() req: ProjectRequest): Promise<unknown> {
-    return this.baselines.list(projectOf(req));
+  async listBaselines(@Req() req: ProjectRequest): Promise<unknown> {
+    return finiteList(await this.baselines.list(projectOf(req)));
   }
 
   /** EP-SPEC-14 — baseline 이름 또는 as_of 시각 중 하나(배타) */
@@ -381,16 +382,18 @@ export class SpecController {
   /** EP-CMT-01 */
   @RequireScope('spec:read')
   @Get('specs/:spec/comments')
-  commentList(
+  async commentList(
     @Req() req: ProjectRequest,
     @Param('spec') spec: string,
     @Query('status') status?: string,
   ): Promise<unknown> {
-    return this.comments.list({
-      projectId: projectOf(req),
-      specKey: spec,
-      status: status ?? null,
-    });
+    return finiteList(
+      await this.comments.list({
+        projectId: projectOf(req),
+        specKey: spec,
+        status: status ?? null,
+      }),
+    );
   }
 
   /** EP-CMT-02 — viewer 도 쓴다. 지적은 권한이 아니라 참여다 */
@@ -465,8 +468,8 @@ export class SpecController {
   /** EP-SPEC-04 */
   @RequireScope('spec:read')
   @Get('specs/:spec/versions')
-  versions(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
-    return this.specs.versions({ projectId: projectOf(req), specKey: spec });
+  async versions(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+    return finiteList(await this.specs.versions({ projectId: projectOf(req), specKey: spec }));
   }
 
   /** EP-SPEC-05 — 불변 스냅샷. 같은 `{no}` 는 영원히 같은 응답이다 */

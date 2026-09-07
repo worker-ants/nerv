@@ -241,17 +241,27 @@ export interface SpecGraph {
   edges: GraphEdge[];
 }
 
+/**
+ * **유한 목록은 봉투로 온다**(2026-09-07 · REQ-API-155 — `{items, total}`).
+ *
+ * 자라지 않는 목록이라 커서가 아니라 총계다. 훅이 `items` 를 풀어 주므로 부르는 쪽의
+ * `rows(...)` 는 그대로 산다 — 봉투를 화면마다 풀면 그때마다 조금씩 다르게 푼다.
+ */
 export function useSpecVersions(slug: string, specKey: string): UseQueryResult<Row[]> {
   return useQuery({
     queryKey: queryKeys.specVersions(specKey),
-    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/specs/${specKey}/versions`),
+    queryFn: () =>
+      apiFetch<{ items: Row[]; total: number }>(`/projects/${slug}/specs/${specKey}/versions`),
+    select: (data) => data.items,
   });
 }
 
 export function useSpecComments(slug: string, specKey: string): UseQueryResult<Row[]> {
   return useQuery({
     queryKey: queryKeys.specComments(specKey),
-    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/specs/${specKey}/comments`),
+    queryFn: () =>
+      apiFetch<{ items: Row[]; total: number }>(`/projects/${slug}/specs/${specKey}/comments`),
+    select: (data) => data.items,
   });
 }
 
@@ -264,10 +274,14 @@ export function useSpecCheck(slug: string, versionId: string | null): UseQueryRe
   });
 }
 
-export function useSpecRelations(slug: string, specKey: string): UseQueryResult<{ items: Row[] }> {
+export function useSpecRelations(
+  slug: string,
+  specKey: string,
+): UseQueryResult<{ items: Row[]; total: number }> {
   return useQuery({
     queryKey: [...queryKeys.spec(specKey), 'relations'],
-    queryFn: () => apiFetch<{ items: Row[] }>(`/projects/${slug}/specs/${specKey}/relations`),
+    queryFn: () =>
+      apiFetch<{ items: Row[]; total: number }>(`/projects/${slug}/specs/${specKey}/relations`),
   });
 }
 
@@ -353,20 +367,43 @@ export interface SessionBoardResponse {
 /**
  * 세션 목록 — `state` 는 **서버가 거른다**(엔드포인트가 처음부터 `?state=` 를 받는다).
  *
- * 목록은 200건에서 잘리므로 클라이언트에서 거르면 "종료 12건" 이라 적어 놓고 그중
+ * 목록은 서버 상한에서 잘리므로 클라이언트에서 거르면 "종료 12건" 이라 적어 놓고 그중
  * 일부만 보이는 화면이 된다. 요약(`summary`)은 필터와 무관하게 **프로젝트 전체**다 —
  * 스트립이 전체 그림이고 목록이 그 조각이라는 관계가 그래야 성립한다.
+ *
+ * **커서로 이어 받는다**(2026-09-07 · REQ-WEB-150). 컨트롤러는 `cursor` 를 처음부터 주고
+ * 있었는데 웹은 어디서도 보내지 않아, 보드는 기본 30건에서 벽이었다 — 그 벽은 오류도 빈
+ * 상태도 아니라 **"이게 전부"** 로 읽힌다(REQ-API-120 이 활동 목록에서 막은 것과 같은
+ * 모양이다). 알림·발견 큐가 이미 같은 자리를 [더 보기]로 닫아 두었다.
  */
 export function useSessions(
   slug: string,
   projectId?: string,
   state?: string | null,
-): UseQueryResult<SessionBoardResponse> {
+): UseInfiniteQueryResult<SessionBoardResponse> {
   const refetchInterval = useLivePolling();
-  const query = state == null || state === '' ? '' : `?state=${encodeURIComponent(state)}`;
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [...queryKeys.projectSessions(projectId ?? slug), state ?? 'all'],
-    queryFn: () => apiFetch<SessionBoardResponse>(`/projects/${slug}/sessions${query}`),
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams();
+      if (state != null && state !== '') params.set('state', state);
+      if (pageParam !== null) params.set('cursor', String(pageParam));
+      const query = params.toString();
+      return apiFetch<SessionBoardResponse>(
+        `/projects/${slug}/sessions${query === '' ? '' : `?${query}`}`,
+      );
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
+    // **쪽을 이어 붙여 한 목록으로 준다.** 부르는 쪽 셋(보드·개요·세션 화면)이 `items` 를
+    // 그대로 읽으므로 평탄화는 여기서 한다 — 화면마다 펴면 그때마다 조금씩 다르게 편다.
+    // 요약은 필터·쪽과 무관한 **프로젝트 전체**라 첫 쪽 것이 정본이다(스트립이 전체 그림이고
+    // 목록이 그 조각이라는 관계가 그래야 성립한다).
+    select: (data: InfiniteData<SessionBoardResponse>) => ({
+      items: data.pages.flatMap((page) => page.items),
+      summary: data.pages[0]?.summary ?? {},
+      next_cursor: data.pages[data.pages.length - 1]?.next_cursor ?? null,
+    }),
     refetchInterval,
   });
 }

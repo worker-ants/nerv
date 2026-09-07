@@ -83,9 +83,13 @@ beforeEach(() => {
                 { org_slug: 'nerv', org_name: 'NERV', project_slug: 'clemvion', roles: ['admin'] },
               ],
             }
-          : path.includes('/projects')
-            ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
-            : { items: [], summary: {}, next_cursor: null, memberships: [], count: 0 };
+          : // **목록 경로를 프로젝트 목록보다 먼저 본다** — `/projects/clemvion/sessions` 도
+            // `/projects` 를 포함하므로, 순서를 바꾸면 세션 보드가 맨 배열을 받는다.
+            path.includes('/sessions')
+            ? { items: [], summary: {}, next_cursor: null }
+            : path.includes('/projects')
+              ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
+              : { items: [], summary: {}, next_cursor: null, memberships: [], count: 0 };
       return { ok: true, status: 200, json: async () => json };
     }),
   );
