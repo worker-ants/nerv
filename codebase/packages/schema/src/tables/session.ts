@@ -2,7 +2,7 @@
 // DDL 정본: docs/04-mvp/database.md §2.6 · 필드 의미: data-model §2.5
 //
 // **생성 순서 예외**: spec_version · task · claim · change_request 가 agent_session 을 FK 로
-// 참조하므로 0001 에서는 테넌시 직후로 전진 배치한다(database.md §2 첫머리).
+// 참조하므로 0000 에서는 테넌시 직후로 전진 배치한다(database.md §2 첫머리).
 // activity 는 월 파티션이라 PK 가 (id, created_at) 복합이다 — 파티션 키가 PK 에 포함돼야 한다.
 
 import { sql } from 'drizzle-orm';

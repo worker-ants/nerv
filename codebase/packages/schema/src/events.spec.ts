@@ -4,6 +4,7 @@
 //
 // event.type · socket.io 이벤트 이름 · SSE 의 event: 필드가 같은 문자열을 쓴다.
 
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { NERV_EVENT, NERV_EVENT_NAMES, NERV_EVENT_PHASE2 } from './events.js';
 
@@ -58,5 +59,29 @@ describe('이벤트 이름 카탈로그', () => {
 
   it('이름은 중복되지 않는다', () => {
     expect(new Set(NERV_EVENT_NAMES).size).toBe(NERV_EVENT_NAMES.length);
+  });
+});
+
+/**
+ * **가드가 반쪽이면 지켜 준다고 믿게 된다**(2026-09-07 · REQ-CB-003 이 같은 이유로 문서에
+ * 적힌 것과 같은 부류다).
+ *
+ * `eslint.config.js` 의 `no-restricted-syntax` 정규식은 이벤트 이름의 하드코딩을 막는데,
+ * 그 정규식이 **카탈로그의 일부만** 알고 있었다(42종 중 다섯을 몰랐다 — 실측 2026-09-07).
+ * 위반이 0건이라 아무도 몰랐을 뿐이고, 그 다섯 중 하나를 누가 문자열로 적으면 lint 는
+ * 조용히 통과시킨다. 규칙이 있다는 사실이 오히려 사람을 안심시키는 자리다.
+ */
+describe('lint 가드가 카탈로그 전수를 안다 (REQ-CB-006)', () => {
+  it('eslint.config.js 의 이벤트 이름 정규식이 NERV_EVENT_NAMES 를 모두 잡는다', () => {
+    const config = readFileSync(
+      new URL('../../../eslint.config.js', import.meta.url).pathname,
+      'utf8',
+    );
+    // 설정 안의 셀렉터는 JS 문자열이라 `\\.` 로 적혀 있다 — 읽어 온 텍스트에서 되돌린다
+    const selector = /Literal\[value=\/(\^\([\s\S]+?\)\$)\/\]/.exec(config)?.[1];
+    expect(selector).toBeDefined();
+    const pattern = new RegExp(String(selector).replaceAll('\\\\', '\\'));
+    const unknown = NERV_EVENT_NAMES.filter((name) => !pattern.test(name));
+    expect(unknown).toEqual([]);
   });
 });

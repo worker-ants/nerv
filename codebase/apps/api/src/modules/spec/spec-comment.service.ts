@@ -77,7 +77,7 @@ export class SpecCommentService {
         projectId: input.projectId,
         subjectType: 'spec',
         subjectId: specId,
-        // **화면이 무효화할 키를 싣는다.** 화면의 쿼리 키 축은 고정 ID(`SPC-…`)인데
+        // **화면이 무효화할 키를 싣는다.** 화면의 쿼리 키 축은 고정 ID(스펙 키 — 형식은 프로젝트가 정한다)인데
         // 이벤트는 UUID 만 실어, 코멘트가 달려도 열어 둔 문서가 갱신되지 않았다 —
         // WS 가 붙어 있으니 폴백 폴링도 돌지 않아 새로고침 전까지 조용했다.
         subjectKey: await keyOfSpec(tx, specId),

@@ -165,7 +165,7 @@ export const en = {
     'The target document changed in the meantime — read it again and confirm the relation still holds.',
   'inbox.card.decided_at': '{decision} · {when}',
   'inbox.subject.change_request': 'Change request',
-  'inbox.subject.finding': 'Review finding disposition request',
+  'inbox.subject.finding': 'Review finding resolution request',
   'inbox.subject.gate_bypass': 'Gate bypass request',
   'inbox.subject.plan': 'Plan approval request',
   'inbox.subject.question': 'Agent question',
@@ -175,7 +175,7 @@ export const en = {
   'mcp.arg.takeover':
     'seize an edit lease held by someone else — the way out when a dead session still holds it',
   'session.detail': 'Details',
-  'session.timeline_truncated': 'There is earlier activity — showing the most recent first',
+  'session.timeline_more': 'Load earlier activity',
   'spec.derived_tasks': 'Derived tasks',
   'spec.derived_tasks.all': 'See all on the board',
   'spec.derived_tasks.empty': 'No tasks have come out of this document yet',
@@ -727,7 +727,8 @@ export const en = {
   'invite.title': 'Invitations',
   'login.email': 'Email',
   'login.no_account': 'No account? Sign up ▸',
-  'login.invite_note': 'Here from an invite link? Signing in accepts it automatically.',
+  'login.invite_note':
+    'Here from an invite link? Sign in, then press Accept on the invitation card.',
   'login.password': 'Password',
   'login.submit': 'Sign in',
   'login.submitting': 'Checking…',
@@ -1023,7 +1024,6 @@ export const en = {
   'tasks.summary.blocked': 'Blocked',
   'tasks.title': 'Task board',
   // ── S5 세션 모니터 (screens.md §2.6) ─────────────────────────────────────────
-  'session.activity': 'Activity',
   'session.back_to_board': '← Session board',
   'session.branch': 'branch',
   'session.claim_history': 'Claim history',

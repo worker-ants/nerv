@@ -382,7 +382,7 @@ export class SpecService {
   /** nerv_spec_get · EP-SPEC-03 — 기준 버전 지정 조회를 지원한다(agent-integration §2.4) */
   async get(input: {
     projectId: string;
-    /** 고정 ID(`SPC-…`) 또는 UUID — 둘 다 받는다(§1.4b) */
+    /** 고정 ID(스펙 키 — 형식은 프로젝트가 정한다) 또는 UUID — 둘 다 받는다(§1.4b) */
     specKey: string;
     versionNo?: number | null;
     /**

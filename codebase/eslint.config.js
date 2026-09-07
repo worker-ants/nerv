@@ -96,8 +96,12 @@ const NO_HARDCODED_CONTRACT_LITERALS = [
     // 동사 집합을 **열거한다**. `<리소스>.<아무거나>` 로 두면 `spec.key`(프로파일 필드 매핑)
     // 같은 무관한 문자열까지 잡는다 — 실측으로 오탐이 나서 좁혔다. 카탈로그에 동사가 늘면
     // 여기도 함께 늘린다(그 수고가 곧 "이벤트 이름은 정본이 있다"의 값이다).
+    //
+    // **가드가 반쪽이면 지켜 준다고 믿게 된다**(2026-09-07). 카탈로그 42종 중 다섯을 이
+    // 정규식이 모르고 있었다 — 위반이 0건이라 드러나지 않았을 뿐이다. 이제 그 차이를
+    // `packages/schema/src/events.spec.ts` 의 L1 이 센다(이 파일을 읽어 전수 대조한다).
     selector:
-      'Literal[value=/^(spec|task|claim|session|approval|question|gate|comment|baseline|import|notification|finding|cr)\\.(draft_created|submitted|rejected|approved|superseded|deprecated|comment_added|meta_updated|archived|restored|recheck_requested|resolved|created|ready|claimed|blocked|done|rebrief_required|updated|conflict_warn|conflict_blocked|released|started|stale|complete|steered|requested|answered|bypassed|failopen|applied|opened)$/]',
+      'Literal[value=/^(spec|task|claim|session|approval|question|gate|comment|baseline|import|notification|finding|cr|evidence|review)\\.(draft_created|draft_updated|submitted|rejected|approved|superseded|deprecated|comment_added|commented|meta_updated|archived|restored|recheck_requested|resolved|created|cancelled|ready|claimed|blocked|done|rebrief_required|updated|conflict_warn|conflict_blocked|released|started|stale|complete|steered|requested|answered|bypassed|failopen|applied|opened|added)$/]',
     message:
       'REQ-CB-006: 이벤트 이름은 @nerv/schema 의 NERV_EVENT 에서 import 한다 (하드코딩 금지).',
   },
