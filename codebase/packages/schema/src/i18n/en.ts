@@ -111,6 +111,8 @@ export const en = {
   'error.comment.anchor_required': 'An anchor is required.',
   'error.comment.body_required': 'A body is required.',
   'error.comment.not_found': 'Comment not found.',
+  'error.evidence.locator_shape':
+    'The evidence locator does not match the expected shape ({kind}) — a commit is a 7-40 character hash, a PR is an absolute URL.',
   'error.human_only.approve': 'Only humans can approve.',
   'error.human_only.baseline': 'Only a person can create a baseline.',
   'error.human_only.bypass': 'Only a person can bypass a gate.',
@@ -442,6 +444,9 @@ export const en = {
   'task.field.tools_sources': 'Tools and sources',
   'task.field.boundaries': 'Boundaries',
   'task.missing.spec_impact': 'spec_impact — the changed spec ids, or the none marker',
+  'task.missing.evidence_source': 'no evidence from CI or a person',
+  'task.missing.review_coverage': 'no review has covered this task',
+  'task.missing.open_critical': 'the review still has open criticals',
   'task.missing.evidence': 'evidence (at least one implementation record)',
   'task.release_abandon': 'Abandon',
   'task.release_handoff': 'Hand off',

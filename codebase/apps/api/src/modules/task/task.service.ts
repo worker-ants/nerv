@@ -12,6 +12,8 @@ import {
   NERV_EVENT,
   newId,
   BLOCKED_REASONS,
+  checkEvidenceLocator,
+  GatePolicySchema,
   isDelegationFilled,
   PLAN_APPROVAL_SIBLINGS,
   TASK_LEASE_BOUND_TARGETS,
@@ -1601,6 +1603,21 @@ export class TaskService {
       for (const item of input.evidence ?? []) {
         // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
         const evidence = assertVocab([item.kind], evidenceKind.enumValues, 'kind')[0];
+        // **형식도 어휘다**(2026-09-07 · REQ-API-147). 커밋 자리에 "다 했습니다" 가 들어가면
+        // 게이트는 통과하지만 증적은 아무것도 가리키지 않는다 — 그것이 자기 신고다.
+        const shape = checkEvidenceLocator(evidence ?? item.kind, item.locator);
+        if (!shape.ok) {
+          throw new NervError(
+            NERV_ERROR.PRECONDITION,
+            msg('error.evidence.locator_shape', { kind: item.kind }),
+            {
+              kind: 'invalid_input',
+              field: 'locator',
+              evidence_kind: item.kind,
+              reason: shape.reason,
+            },
+          );
+        }
         await tx.execute(sql`
           INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
           VALUES (${newId()}, ${input.projectId}, ${taskId}, ${evidence}::evidence_kind,
@@ -1729,13 +1746,56 @@ export class TaskService {
       missing.push(text('task.missing.spec_impact'));
     }
 
-    // 조건 4 — Requirement ↔ 구현 Evidence 1건 이상
-    const { rows } = await tx.execute<{ n: number }>(
-      sql`SELECT count(*)::int AS n FROM evidence WHERE task_id = ${input.taskId}`,
+    // **강화는 프로젝트가 켠다**(2026-09-07 · REQ-API-146). 기본은 오늘과 같다 —
+    // 서버가 일괄로 켜면 오늘 통과하던 작업이 내일 막히고, 그 이유를 아무도 고르지 않았다.
+    const { rows: policyRows } = await tx.execute<{ gate_policy: unknown }>(
+      sql`SELECT gate_policy FROM project WHERE id = ${input.projectId}`,
     );
-    if ((rows[0]?.n ?? 0) === 0) missing.push(text('task.missing.evidence'));
+    const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
+    const policy = parsed.success
+      ? parsed.data.done_gate
+      : { evidence_source: 'any' as const, review_coverage: false };
 
-    // 조건 1~3(리뷰 커버리지)은 FR-09 가 Phase 2 라 판정 대상이 아니다 — 없는 것을 요구하지 않는다
+    // 조건 4 — Requirement ↔ 구현 Evidence 1건 이상.
+    // `ci_or_human` 이면 **에이전트가 스스로 올린 것은 세지 않는다** — 자기 신고 문자열
+    // 하나로 닫히는 게이트는 산문 규약과 같다.
+    const sourceFilter =
+      policy.evidence_source === 'ci_or_human' ? sql` AND source IN ('ci', 'human')` : sql``;
+    const { rows } = await tx.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM evidence
+           WHERE task_id = ${input.taskId}${sourceFilter}`,
+    );
+    if ((rows[0]?.n ?? 0) === 0) {
+      missing.push(
+        policy.evidence_source === 'ci_or_human'
+          ? text('task.missing.evidence_source')
+          : text('task.missing.evidence'),
+      );
+    }
+
+    // 조건 1~3 — 리뷰 커버리지. FR-10 이 오래 이월해 온 조건이고, 이제 **정책으로 켠다**.
+    // 면제(`gate_bypass` 결재)가 있으면 둘 다 넘어간다 — 면제는 기록된 예외다(FR-10).
+    if (policy.review_coverage) {
+      const { rows: waived } = await tx.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM approval
+         WHERE is_bypass AND subject_type = 'gate_bypass' AND subject_id = ${input.taskId}
+      `);
+      if ((waived[0]?.n ?? 0) === 0) {
+        const { rows: reviews } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
+          SELECT count(*)::int AS rounds,
+                 COALESCE(sum((SELECT count(*) FROM finding f
+                                WHERE f.last_session_id = rs.id
+                                  AND f.severity = 'critical' AND f.status = 'open')), 0)::int
+                   AS open_critical
+            FROM review_session rs
+           WHERE rs.task_id = ${input.taskId} AND rs.state <> 'running'
+        `);
+        if ((reviews[0]?.rounds ?? 0) === 0) missing.push(text('task.missing.review_coverage'));
+        else if ((reviews[0]?.open_critical ?? 0) > 0) {
+          missing.push(text('task.missing.open_critical'));
+        }
+      }
+    }
     return { ok: missing.length === 0, missing };
   }
 

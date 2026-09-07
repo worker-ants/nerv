@@ -117,6 +117,8 @@ export const ko = {
   'error.comment.anchor_required': '앵커가 필요합니다.',
   'error.comment.body_required': '본문이 필요합니다.',
   'error.comment.not_found': '코멘트를 찾을 수 없습니다.',
+  'error.evidence.locator_shape':
+    '증적 위치의 형식이 맞지 않습니다({kind}) — 커밋은 7~40자리 해시, PR 은 절대 URL 입니다.',
   'error.human_only.approve': '승인은 사람만 할 수 있습니다.',
   'error.human_only.baseline': '기준선 생성은 사람만 할 수 있습니다.',
   'error.human_only.bypass': '게이트 면제는 사람만 할 수 있습니다.',
@@ -444,6 +446,9 @@ export const ko = {
   'task.field.tools_sources': '도구·출처',
   'task.field.boundaries': '경계',
   'task.missing.spec_impact': 'spec_impact — 변경된 스펙 ID 목록, 없으면 none 표시',
+  'task.missing.evidence_source': 'CI 또는 사람이 올린 증적이 없습니다',
+  'task.missing.review_coverage': '이 작업을 지난 리뷰가 없습니다',
+  'task.missing.open_critical': '리뷰에 열린 critical 이 남아 있습니다',
   'task.missing.evidence': 'evidence (구현 증적 1건 이상)',
   'task.release_abandon': '포기',
   'task.release_handoff': '인계',

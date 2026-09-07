@@ -25,6 +25,23 @@ export const GatePolicySchema = z
       })
       .strict()
       .default({ tier_boundaries: [2, 4, 6], dynamic_escalation: true }),
+    /**
+     * **done 게이트의 강화는 프로젝트가 켠다**(2026-09-07 · REQ-API-146).
+     *
+     * 기본은 둘 다 꺼져 있다 — 게이트를 서버가 일괄로 켜면 오늘 통과하던 작업이 내일
+     * 막히고, 그 이유를 아무도 고르지 않았다. 켜는 것은 그 프로젝트의 결정이다(D-14 의
+     * "정책은 명시적으로"). `review_coverage` 는 FR-10 이 오래 이월해 온 조건이고,
+     * `evidence_source` 는 자기 신고 문자열 하나로 done 이 되는 자리를 좁힌다.
+     */
+    done_gate: z
+      .object({
+        /** `any`(기본) · `ci_or_human` — 에이전트가 스스로 올린 증적만으로는 닫지 못한다 */
+        evidence_source: z.enum(['any', 'ci_or_human']).default('any'),
+        /** 켜면 그 Task 를 지난 리뷰 라운드와 열린 critical 0 을 함께 본다 */
+        review_coverage: z.boolean().default(false),
+      })
+      .strict()
+      .default({ evidence_source: 'any', review_coverage: false }),
     failopen: z
       .object({
         /** 연속 fail-open 판정 격상 임계 — D-14 는 "허용하되 관측하고 격상한다"이다 */
