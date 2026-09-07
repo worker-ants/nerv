@@ -17,7 +17,8 @@ import { z } from 'zod';
 import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
-import { useTask } from '../../lib/queries.js';
+import { rows, useRequirements, useSpecTree, useSpecVersions, useTask } from '../../lib/queries.js';
+import { useState } from 'react';
 import type { MessageKey, Translator } from '@nerv/schema';
 import { Button, Field, Input, Select, Textarea } from '../../components/ui/primitives.js';
 
@@ -31,6 +32,14 @@ export const delegationSchema = z.object({
   tools_sources_md: z.string().trim().min(1, 'task.form.err.tools'),
   boundaries_md: z.string().trim().min(1, 'task.form.err.boundaries'),
   priority: z.enum(['P0', 'P1', 'P2', 'P3']),
+  /**
+   * **출처는 가치 사슬의 첫 고리다**(2026-09-07 · REQ-WEB-147). 웹에서 만든 Task 는 이 두
+   * 값을 실을 수 없어 요구사항에 이어지지 않았고(실데이터 487건 중 출처 없음 214건),
+   * 그러면 근거 카드는 비고 구현 축은 그 작업을 세지 못한다. 선택이다 — 스펙 없는 "별도 건"
+   * 을 남기는 길은 남겨 둔다(스킬이 그렇게 지시한다).
+   */
+  source_spec_version_id: z.string().nullish(),
+  source_requirement_id: z.string().nullish(),
 });
 
 export type DelegationInput = z.infer<typeof delegationSchema>;
@@ -39,12 +48,15 @@ export interface DelegationFormProps {
   projectSlug: string;
   taskKey: string | null;
   onDone: () => void;
+  /** S3 에서 "이 버전에서 파생" 으로 들어온 경우 — 피커 대신 고정 표기다 */
+  initial?: { specKey: string; versionId: string; versionNo: number; requirementId?: string };
 }
 
 export function DelegationForm({
   projectSlug,
   taskKey,
   onDone,
+  initial,
 }: DelegationFormProps): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
@@ -75,21 +87,45 @@ export function DelegationForm({
       tools_sources_md: '',
       boundaries_md: '',
       priority: 'P2',
+      source_spec_version_id: initial?.versionId ?? null,
+      source_requirement_id: initial?.requirementId ?? null,
     },
     ...(loaded === null ? {} : { values: loaded }),
   });
 
+  // 출처 피커 — 스펙을 고르면 그 문서의 **승인본만** 버전 목록에 선다(D-02: 승인되지 않은
+  // 버전에서 일을 파생하면 그 일은 아직 합의되지 않은 약속 위에 선다).
+  const [sourceSpec, setSourceSpec] = useState(initial?.specKey ?? '');
+  const specs = useSpecTree(projectSlug);
+  const versions = useSpecVersions(projectSlug, sourceSpec);
+  const requirements = useRequirements(projectSlug, sourceSpec);
+  const approved = rows(versions.data).filter((v) => v['status'] === 'approved');
+  const locked = initial !== undefined;
+
   const save = useMutation({
     mutationFn: async (input: DelegationInput) => {
+      const {
+        source_spec_version_id: version,
+        source_requirement_id: requirement,
+        ...rest
+      } = input;
       if (taskKey === null) {
         return apiFetch<Record<string, unknown>>(`/projects/${projectSlug}/tasks`, {
           method: 'POST',
-          body: input,
+          body: {
+            ...rest,
+            ...(version == null || version === '' ? {} : { source_spec_version_id: version }),
+            ...(requirement == null || requirement === ''
+              ? {}
+              : { source_requirement_id: requirement }),
+          },
         });
       }
+      // 수정은 출처를 바꾸지 않는다 — EP-TASK-05 가 받지 않는 값이고, 파생의 근거를
+      // 나중에 갈아 끼우는 것은 다른 결정이다.
       return apiFetch<Record<string, unknown>>(`/projects/${projectSlug}/tasks/${taskKey}`, {
         method: 'PATCH',
-        body: input,
+        body: rest,
       });
     },
     onSuccess: (result) => {
@@ -119,6 +155,74 @@ export function DelegationForm({
         {t('task.form.lead_pre')} <code className="font-mono">ready</code>
         {t('task.form.lead_post')}
       </p>
+      {/* **출처 — 가치 사슬의 첫 고리**(REQ-WEB-147). S3 에서 왔으면 고정 표기이고,
+          아니면 승인본만 고를 수 있는 피커 셋이다. 선택이라 비워도 저장된다. */}
+      {taskKey === null && (
+        <div
+          data-testid="task-source"
+          className="flex flex-col gap-2 rounded-nerv-sm bg-bg-sunken p-3"
+        >
+          <p className="text-xs font-medium text-text">{t('task.form.source')}</p>
+          {locked ? (
+            <p data-testid="source-locked" className="text-xs text-text-mute">
+              {t('task.form.source_locked', {
+                spec: initial.specKey,
+                version: String(initial.versionNo),
+              })}
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Select
+                aria-label={t('task.form.source_spec')}
+                data-testid="source-spec"
+                value={sourceSpec}
+                onChange={(e) => {
+                  setSourceSpec(e.target.value);
+                  form.setValue('source_spec_version_id', null);
+                  form.setValue('source_requirement_id', null);
+                }}
+                className="w-52"
+              >
+                <option value="">{t('task.form.source_none')}</option>
+                {rows(specs.data).map((sp) => (
+                  <option key={String(sp['key'])} value={String(sp['key'])}>
+                    {String(sp['key'])}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                aria-label={t('task.form.source_version')}
+                data-testid="source-version"
+                disabled={sourceSpec === ''}
+                {...form.register('source_spec_version_id')}
+                className="w-52"
+              >
+                <option value="">{t('task.form.source_none')}</option>
+                {approved.map((v) => (
+                  <option key={String(v['id'])} value={String(v['id'])}>
+                    v{String(v['version_no'])}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                aria-label={t('task.form.source_requirement')}
+                data-testid="source-requirement"
+                disabled={sourceSpec === ''}
+                {...form.register('source_requirement_id')}
+                className="w-60"
+              >
+                <option value="">{t('task.form.source_none')}</option>
+                {rows(requirements.data).map((r) => (
+                  <option key={String(r['id'])} value={String(r['id'])}>
+                    {String(r['ref'])}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+          <p className="text-xs text-text-faint">{t('task.form.source_hint')}</p>
+        </div>
+      )}
       <Field
         label={t('task.form.title')}
         error={fieldError(t, form.formState.errors.title?.message)}

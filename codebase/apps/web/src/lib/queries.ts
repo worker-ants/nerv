@@ -81,27 +81,34 @@ export function useInbox(state: 'pending' | 'decided' = 'pending'): UseQueryResu
  * 안 읽은 알림 479건 중 **429건에 웹에서 닿을 수 없었다** — 헤더 배지는 진짜 수를 보이는데
  * 목록은 50 에서 끝나므로 화면이 자기 배지와 어긋났다.
  */
-export function useNotifications(): UseInfiniteQueryResult<
-  InfiniteData<{ items: Row[]; next_cursor: string | null }>
-> {
+export function useNotifications(
+  /** 등급 축 — `immediate` 만 보면 결정이 필요한 것만 남는다(REQ-WEB-149) */
+  importance?: 'immediate' | 'digest',
+): UseInfiniteQueryResult<InfiniteData<{ items: Row[]; next_cursor: string | null }>> {
   const refetchInterval = useLivePolling();
   return useInfiniteQuery({
-    queryKey: queryKeys.myNotifications(),
-    queryFn: ({ pageParam }) =>
-      apiFetch<{ items: Row[]; next_cursor: string | null }>(
-        `/me/notifications${pageParam === null ? '' : `?before=${encodeURIComponent(String(pageParam))}`}`,
-      ),
+    // 등급이 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다
+    queryKey: [...queryKeys.myNotifications(), importance ?? 'all'],
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams();
+      if (pageParam !== null) params.set('before', String(pageParam));
+      if (importance !== undefined) params.set('importance', importance);
+      const query = params.toString();
+      return apiFetch<{ items: Row[]; next_cursor: string | null }>(
+        `/me/notifications${query === '' ? '' : `?${query}`}`,
+      );
+    },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
     refetchInterval,
   });
 }
 
-export function useUnreadCount(): UseQueryResult<{ count: number }> {
+export function useUnreadCount(): UseQueryResult<{ count: number; immediate: number }> {
   const refetchInterval = useLivePolling();
   return useQuery({
     queryKey: [...queryKeys.myNotifications(), 'unread'],
-    queryFn: () => apiFetch<{ count: number }>('/me/notifications/unread-count'),
+    queryFn: () => apiFetch<{ count: number; immediate: number }>('/me/notifications/unread-count'),
     refetchInterval,
   });
 }

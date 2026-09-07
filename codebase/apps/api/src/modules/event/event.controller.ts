@@ -47,11 +47,14 @@ export class EventController {
     @Query('state') state?: string,
     @Query('limit') limit?: string,
     @Query('before') before?: string,
+    @Query('importance') importance?: string,
   ): Promise<unknown> {
     return this.notifications.list({
       userId: userOf(req),
       state: state ?? null,
       before: before ?? null,
+      // 등급 축 — 결정이 필요한 것만 보는 길이다(REQ-API-149)
+      importance: importance ?? null,
       // 커서가 없으면 목록은 50 에서 끝나는 벽이다(REQ-API-083)
       ...((): { limit?: number } => {
         const parsed = intParam(limit, 'limit');
@@ -60,10 +63,13 @@ export class EventController {
     });
   }
 
-  /** 헤더 배지 — 안 읽은 수만 따로 센다(매 렌더에 목록 전량을 읽지 않기 위해) */
+  /**
+   * 헤더 배지 — 안 읽은 수만 따로 센다(매 렌더에 목록 전량을 읽지 않기 위해).
+   * **둘을 준다**(2026-09-07 · REQ-API-149): 전체와 즉시 알림. 배지는 뒤엣것을 쓴다.
+   */
   @Get('me/notifications/unread-count')
-  async unreadCount(@Req() req: ProjectRequest): Promise<{ count: number }> {
-    return { count: await this.notifications.unreadCount(userOf(req)) };
+  async unreadCount(@Req() req: ProjectRequest): Promise<{ count: number; immediate: number }> {
+    return this.notifications.unreadCount(userOf(req));
   }
 
   /** EP-NTF-02 */

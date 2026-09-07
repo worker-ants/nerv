@@ -226,6 +226,187 @@ describe('E09-S02 제출 게이트 — 검사가 제출을 막는다', () => {
  * 담지 못한다" 고 적혀 있었는데 열은 처음부터 있었다(`evidence.verified_by` ·
  * `finding.requirement_id`) — QA 페르소나의 유일한 판정에 길이 없었다.
  */
+/**
+ * **EARS 를 배울 자리**(2026-09-07 · REQ-API-144·145). 형식을 어긴 줄은 잡으면서 줄이 아예
+ * 없는 것은 잡지 않았고(sudoku 승인본 65건에 요구사항 0건), 다음 번호를 발급하는 자리도
+ * 없었다 — 비전이 "서버가 발급한 고정 ID" 를 적어 두었는데.
+ */
+/**
+ * **게이트 강화는 프로젝트가 켠다**(2026-09-07 · REQ-API-146·147). 기본은 오늘과 같다 —
+ * 서버가 일괄로 켜면 오늘 통과하던 작업이 내일 막히고, 그 이유를 아무도 고르지 않았다.
+ */
+describe('done 게이트 정책 (REQ-API-146·147)', () => {
+  async function policy(done: Record<string, unknown> | null): Promise<void> {
+    await pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify(done === null ? {} : { done_gate: done }),
+      projectId,
+    ]);
+  }
+
+  async function taskWithEvidence(key: string, source: string): Promise<string> {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'작업','in_progress','목표','PR','도구','경계')`,
+      [taskId, projectId, key],
+    );
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'commit','a1b2c3d',$4::evidence_source)`,
+      [newId(), projectId, taskId, source],
+    );
+    return taskId;
+  }
+
+  it('기본 정책에서는 에이전트 증적 하나로 닫힌다 — 오늘과 같다', async () => {
+    await policy(null);
+    const taskId = await taskWithEvidence('TSK-GATE-DEF', 'agent');
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        specImpact: { none: true },
+      }),
+    ).resolves.toMatchObject({ status: 'done' });
+  });
+
+  it('ci_or_human 을 켜면 에이전트 자기 신고로는 닫히지 않는다', async () => {
+    await policy({ evidence_source: 'ci_or_human', review_coverage: false });
+    const taskId = await taskWithEvidence('TSK-GATE-SRC', 'agent');
+    const error = (await tasks
+      .transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        specImpact: { none: true },
+      })
+      .catch((e: unknown) => e)) as { details: { missing: string[] } };
+    expect(error.details.missing.join()).toContain('CI');
+
+    // 사람이 올린 증적이 있으면 통과한다
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'pr','https://git.example.com/pr/1','human')`,
+      [newId(), projectId, taskId],
+    );
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        specImpact: { none: true },
+      }),
+    ).resolves.toMatchObject({ status: 'done' });
+  });
+
+  it('review_coverage 를 켜면 리뷰 없이 닫히지 않고, 면제는 넘어간다', async () => {
+    await policy({ evidence_source: 'any', review_coverage: true });
+    const taskId = await taskWithEvidence('TSK-GATE-REV', 'human');
+    const error = (await tasks
+      .transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        specImpact: { none: true },
+      })
+      .catch((e: unknown) => e)) as { details: { missing: string[] } };
+    expect(error.details.missing.join()).toContain('리뷰');
+
+    // 면제는 기록된 예외다(FR-10) — 있으면 넘어간다
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                             is_bypass, bypass_reason)
+       VALUES ($1,$2,'gate_bypass',$3,$4,true,'긴급 배포')`,
+      [newId(), projectId, taskId, planner],
+    );
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        specImpact: { none: true },
+      }),
+    ).resolves.toMatchObject({ status: 'done' });
+  });
+
+  it('증적 위치의 형식이 틀리면 거절한다 — 커밋 자리의 "다 했습니다" 를 막는다', async () => {
+    await policy(null);
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-GATE-SHAPE','작업','in_progress','목표','PR','도구','경계')`,
+      [taskId, projectId],
+    );
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        specImpact: { none: true },
+        evidence: [{ kind: 'commit', locator: '다 했습니다' }],
+      }),
+    ).rejects.toMatchObject({
+      details: { kind: 'invalid_input', field: 'locator', reason: 'commit_shape' },
+    });
+  });
+});
+
+describe('요구사항 작성 표면 (REQ-API-144·145)', () => {
+  it('요구사항이 한 줄도 없는 feature 문서는 경고를 받는다', async () => {
+    const { versionId } = await draft('SPC-EMPTY-REQ', '# 문서\n\n본문만 있고 약속이 없다');
+    const result = await checks.check({ projectId, specVersionId: versionId });
+    const shape = result.findings.filter((f) => f.checker === 'requirement-shape');
+    expect(shape).toHaveLength(1);
+    expect(shape[0]).toMatchObject({ severity: 'warning', anchor: null });
+    // 경고지 차단이 아니다 — 임포트한 문서가 전부 막히면 이관 자체가 멈춘다
+    expect(result.verdict).not.toBe('block');
+  });
+
+  it('요구사항이 있으면 그 경고는 없다', async () => {
+    const { versionId } = await draft(
+      'SPC-HAS-REQ',
+      '# 문서\n\n- REQ-HAS-001 WHEN 조건이면 THE SYSTEM SHALL 동작한다',
+    );
+    const result = await checks.check({ projectId, specVersionId: versionId });
+    expect(result.findings.filter((f) => f.checker === 'requirement-shape')).toEqual([]);
+  });
+
+  it('다음 ID 는 서버가 발급한다 — 접두의 최대 번호 다음이다', async () => {
+    const first = await specs.nextRequirementRef({ projectId, prefix: 'NEW' });
+    expect(first.ref).toBe('REQ-NEW-001');
+
+    const { specId, versionId } = await draft('SPC-REF-SEQ', '# 문서');
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-NEW-007','문장','must',$4,$4)`,
+      [newId(), projectId, specId, versionId],
+    );
+    expect((await specs.nextRequirementRef({ projectId, prefix: 'new' })).ref).toBe('REQ-NEW-008');
+  });
+
+  it('접두가 어휘 밖이면 거절한다 — 조용히 고쳐 주지 않는다', async () => {
+    await expect(specs.nextRequirementRef({ projectId, prefix: '' })).rejects.toMatchObject({
+      details: { kind: 'invalid_input', field: 'prefix' },
+    });
+  });
+});
+
 describe('구현 축 파생 — verified 와 회수 (REQ-API-141)', () => {
   async function requirementWithTask(
     ref: string,

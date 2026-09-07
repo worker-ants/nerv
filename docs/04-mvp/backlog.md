@@ -17,7 +17,15 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.36 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.40 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.40 변경(2026-09-07 — 셋째 스프린트 ⑦): §1.4 셋째 표에 **알림 등급·수신자** 한 줄([4.4](api.md) REQ-API-149·150).
+>
+> v0.39 변경(2026-09-07 — 셋째 스프린트 ⑥): §1.4 셋째 표에 **done 게이트 정책** 한 줄([4.4](api.md) REQ-API-146~148). E09-S05 의 '남은 것' 에서 리뷰 커버리지가 빠진다 — 이제 정책으로 켠다.
+>
+> v0.38 변경(2026-09-07 — 셋째 스프린트 ⑤): §1.4 셋째 표에 **EARS 작성 표면** 한 줄([4.4](api.md) REQ-API-144·145).
+>
+> v0.37 변경(2026-09-07 — 셋째 스프린트 ④): §1.4 셋째 표에 **웹의 Task 파생 문** 한 줄([4.5](screens.md) REQ-WEB-147·148).
 >
 > v0.36 변경(2026-09-07 — 셋째 스프린트 ③): §1.4 셋째 표에 **구현 축 파생** 한 줄([4.4](api.md) REQ-API-141).
 >
@@ -177,6 +185,10 @@ referenced_by:
 | 결재 판정 한 벌 | `approval/approval-policy.ts`(신설) · `approval.service.ts` · `spec.service.ts`(제출 권한 · approve/reject 삭제) · `scopes.ts` | 같은 물음을 셋이 각자 답해 목록과 결정이 갈라졌고, 남이 제출해 주면 작성자가 자기 초안을 승인할 수 있었다(2026-09-07 · [4.4](api.md) REQ-API-136~139) |
 | T3 정족수 | `spec.service.ts`(`ensurePendingApproval` 슬롯) · `approval.service.ts`(`applyToSubject` 집계) · `approval-policy.ts`(`quorumSql`) · `approval-card.tsx` | 첫 승인이 곧 확정이라 T3 게이트가 1인으로 닫혔다(실측 3건 · 2026-09-07 · [4.4](api.md) REQ-API-140) |
 | 구현 축 파생 — verified·술어 한 벌 | `spec/impl-status.ts`(`verified` 분기 · `evidenceExistsSql`) · `task.service.ts`·`claim.service.ts`(회수·전이 재파생) · `spec.service.ts`(커버리지 술어) | `verified` 로 갈 길이 없었고 증적 술어가 두 벌이라 대시보드와 요구사항이 다른 말을 했다(2026-09-07 · [4.4](api.md) REQ-API-141) |
+| 웹의 Task 파생 문 · 근거 카드 | `features/task-board/delegation-form.tsx` · `features/spec-editor/requirement-panel.tsx` · `routes/p.$proj/tasks.index.tsx`·`tasks.$task.tsx` · `lib/clock.ts` · `task.service.ts`(상세) | 웹에서 만든 Task 가 어느 요구사항도 책임지지 않았고(487건 중 214건) 상세는 근거를 UUID 로 그렸다(2026-09-07 · [4.5](screens.md) REQ-WEB-147·148) |
+| EARS 작성 표면 | `spec-check.service.ts`(0건 경고) · `spec.service.ts`·`spec.controller.ts`(EP-REQ-04) · `plugin/skills/spec`(형식 절) | 형식이 정규식 한 줄에만 있어 승인본 65건에 요구사항이 0건이었다(2026-09-07 · [4.4](api.md) REQ-API-144·145) |
+| done 게이트 정책 · 리뷰 링크 | `zod/policy.ts`(`done_gate`) · `task.service.ts`(`assertDoneGate`) · `evidence-locator.ts`(신설) · `review.service.ts`(활성 클레임에서 task_id) | 게이트가 자기 신고 문자열 1건으로 열렸고 리뷰 1,992건 중 Task 링크가 2건이었다(2026-09-07 · [4.4](api.md) REQ-API-146~148) |
+| 알림 등급·수신자 | `notification.service.ts`(등급 필터·둘로 세기·owner_role 수신자) · `event.controller.ts` · `app-shell.tsx`·`routes/notifications.tsx` | 배지가 배경 활동까지 세어 결정 99건이 767건에 묻혔다(2026-09-07 · [4.4](api.md) REQ-API-149·150) |
 | 자라는 목록의 커서 | `session.service.ts` · `event.service.ts` | activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120) |
 
 #### 이 절은 언제 갱신되는가

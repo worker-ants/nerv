@@ -62,6 +62,9 @@ beforeEach(async () => {
   await pool.query('UPDATE finding SET promoted_task_id = NULL');
   await pool.query('DELETE FROM finding');
   await pool.query('DELETE FROM evidence');
+  // 클레임과 리뷰 라운드가 Task 를 참조한다 — Task 보다 먼저 놓는다
+  await pool.query('DELETE FROM claim');
+  await pool.query('UPDATE review_session SET task_id = NULL');
   await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM reviewer_report');
   await pool.query('UPDATE review_session SET previous_session_id = NULL');
@@ -998,5 +1001,83 @@ describe('발견의 대상 축 (REQ-API-073)', () => {
 
     const onlySpec = await reviews.findings({ projectId, status: ['open'], area: ['spec'] });
     expect(onlySpec.items.map((f) => f['title'])).toEqual(['문서']);
+  });
+});
+
+/**
+ * **리뷰는 그 세션이 쥔 Task 의 리뷰다**(2026-09-07 · REQ-API-148). 실데이터 리뷰 1,992건 중
+ * `task_id` 가 있는 것은 2건(시드)이라, done 게이트의 리뷰 커버리지를 켜도 판정할 데이터가
+ * 없었다 — 리뷰가 Task 에 이어지지 않으면 그 조건은 언제나 "리뷰 없음" 이다.
+ */
+describe('리뷰가 Task 에 이어진다 (REQ-API-148)', () => {
+  it('명시하지 않으면 활성 클레임의 Task 로 채운다', async () => {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-REVLINK','작업','in_progress','목표','PR','도구','경계')`,
+      [taskId, projectId],
+    );
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status,
+                          lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+      [newId(), projectId, taskId, agentSessionId, userId],
+    );
+
+    const result = await reviews.submit({
+      projectId,
+      userId,
+      sessionId: agentSessionId,
+      kind: 'code',
+      branch: 'feat/link',
+      headSha: 'aaa111',
+      baseSha: 'bbb222',
+      reviewer: { role: 'code', risk: 'low' },
+      findings: [],
+    });
+    expect(result.task_id).toBe(taskId);
+
+    const { rows } = await pool.query<{ task_id: string | null }>(
+      `SELECT task_id FROM review_session WHERE id = $1`,
+      [result.review_session_id],
+    );
+    expect(rows[0]?.task_id).toBe(taskId);
+  });
+
+  it('명시한 값이 이긴다 — 다른 Task 의 리뷰도 올릴 수 있다', async () => {
+    const held = newId();
+    const other = newId();
+    for (const [id, key] of [
+      [held, 'TSK-HELD'],
+      [other, 'TSK-OTHER'],
+    ] as const) {
+      await pool.query(
+        `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                           tools_sources_md, boundaries_md)
+         VALUES ($1,$2,$3,'작업','in_progress','목표','PR','도구','경계')`,
+        [id, projectId, key],
+      );
+    }
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status,
+                          lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+      [newId(), projectId, held, agentSessionId, userId],
+    );
+
+    const result = await reviews.submit({
+      projectId,
+      userId,
+      sessionId: agentSessionId,
+      taskId: other,
+      kind: 'code',
+      branch: 'feat/explicit',
+      headSha: 'ccc333',
+      baseSha: 'ddd444',
+      reviewer: { role: 'code', risk: 'low' },
+      findings: [],
+    });
+    expect(result.task_id).toBe(other);
   });
 });

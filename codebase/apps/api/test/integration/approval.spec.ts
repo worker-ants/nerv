@@ -1710,7 +1710,7 @@ describe('E13-S03 인앱 알림 — 결정이 필요한 것만 (§6.2·§6.6)', 
       [newId(), projectId, reviewer, newId()],
     );
     await notifications.route();
-    expect(await notifications.unreadCount(planner)).toBeGreaterThan(0);
+    expect((await notifications.unreadCount(planner)).count).toBeGreaterThan(0);
   });
 });
 
@@ -1758,7 +1758,7 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
         })
       ).length,
       feed: (await notifications.list({ userId: reviewer })).items.length,
-      unread: await notifications.unreadCount(reviewer),
+      unread: (await notifications.unreadCount(reviewer)).count,
     };
     expect(before.cards).toBeGreaterThan(0);
     expect(before.feed).toBeGreaterThan(0);
@@ -1773,7 +1773,7 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
     ).toHaveLength(0);
     expect((await notifications.list({ userId: reviewer })).items).toHaveLength(0);
     // **배지와 목록이 같은 조건으로 센다**(REQ-WEB-035) — 어긋나면 지울 수 없는 숫자가 남는다
-    expect(await notifications.unreadCount(reviewer)).toBe(0);
+    expect((await notifications.unreadCount(reviewer)).count).toBe(0);
 
     await archive(false);
     expect(
@@ -1786,7 +1786,7 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
       ).length,
     ).toBe(before.cards);
     expect((await notifications.list({ userId: reviewer })).items.length).toBe(before.feed);
-    expect(await notifications.unreadCount(reviewer)).toBe(before.unread);
+    expect((await notifications.unreadCount(reviewer)).count).toBe(before.unread);
   });
 });
 
@@ -1859,3 +1859,63 @@ async function seed(): Promise<void> {
     [sessionId, projectId, planner],
   );
 }
+
+/**
+ * **결정이 필요한 것과 배경 활동을 나눈다**(2026-09-07 · REQ-API-149·150 · FR-12).
+ * 서버는 티어로 갈라 저장하는데 표면이 그 축을 주지 않았고, 재확인 요청은 문서의 주인이
+ * 아니라 역할 큐로 흩뿌려졌다 — 실측 recheck 1,336건이 결정 19건을 덮었다.
+ */
+describe('알림의 등급과 수신자 (REQ-API-149·150)', () => {
+  it('안 읽은 수를 등급으로 나눠 준다 — 배지는 앞엣것을 쓴다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent,
+                          subject_type, subject_id)
+       VALUES ($1,$2,now(),'question.created',$3,true,'question',$4)`,
+      [newId(), projectId, planner, newId()],
+    );
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent,
+                          subject_type, subject_id)
+       VALUES ($1,$2,now(),'task.ready',$3,false,'task',$4)`,
+      [newId(), projectId, planner, newId()],
+    );
+    expect(await notifications.route()).toBeGreaterThan(0);
+
+    const counted = await notifications.unreadCount(reviewer);
+    expect(counted.count).toBeGreaterThan(counted.immediate);
+    expect(counted.immediate).toBeGreaterThan(0);
+
+    // 목록도 그 축으로 좁힌다
+    const onlyImmediate = await notifications.list({ userId: reviewer, importance: 'immediate' });
+    expect(onlyImmediate.items.length).toBe(counted.immediate);
+    // 어휘 밖의 값은 접지 않고 거절한다(REQ-API-126)
+    await expect(
+      notifications.list({ userId: reviewer, importance: 'urgent' }),
+    ).rejects.toMatchObject({ details: { kind: 'invalid_input', field: 'importance' } });
+  });
+
+  it('재확인 요청은 그 문서의 주인 역할에게 간다 — 없으면 기본 큐다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const specId = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title, owner_role)
+       VALUES ($1,$2,'feature','SPC-OWNED','주인 있는 문서','qa')`,
+      [specId, projectId],
+    );
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent,
+                          subject_type, subject_id)
+       VALUES ($1,$2,now(),'spec.recheck_requested',$3,false,'spec',$4)`,
+      [newId(), projectId, planner, specId],
+    );
+    expect(await notifications.route()).toBeGreaterThan(0);
+
+    const { rows } = await pool.query<{ user_id: string }>(
+      `SELECT DISTINCT n.user_id FROM notification n
+         JOIN event e ON e.id = n.event_id
+        WHERE e.type = 'spec.recheck_requested'`,
+    );
+    expect(rows.map((r) => r.user_id)).toEqual([qa]);
+  });
+});

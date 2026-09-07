@@ -1564,6 +1564,37 @@ export class SpecService {
     };
   }
 
+  /**
+   * EP-REQ-04 — **다음 요구사항 ID 는 서버가 발급한다**(2026-09-07 · REQ-API-145).
+   *
+   * [3.1 비전](../../../../docs/03-proposal/vision.md)이 "서버가 발급한 고정 ID" 를 적어 두었는데
+   * 발급하는 자리가 없었다. 사람과 에이전트가 각자 다음 번호를 세면 같은 번호가 둘 나오고
+   * (그때는 `requirement-shape` 가 중복으로 막는다), 막힌 쪽은 다시 세어야 한다.
+   *
+   * 접두는 부르는 쪽이 정한다(보통 스펙 키의 가운데 토막) — 서버는 그 접두의 최대 번호에
+   * 1을 더한다. **예약하지 않는다**: 이 값은 제안이고, 실제 소유는 승인된 본문이 정한다.
+   */
+  async nextRequirementRef(input: {
+    projectId: string;
+    prefix: string;
+  }): Promise<{ ref: string; prefix: string }> {
+    const prefix = input.prefix.trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9]{0,15}$/.test(prefix)) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'prefix',
+        value: input.prefix,
+      });
+    }
+    const { rows } = await this.db.execute<{ max: number | null }>(sql`
+      SELECT max(substring(ref from '[0-9]+$')::int) AS max
+        FROM requirement
+       WHERE project_id = ${input.projectId} AND ref LIKE ${`REQ-${prefix}-%`}
+    `);
+    const next = (rows[0]?.max ?? 0) + 1;
+    return { ref: `REQ-${prefix}-${String(next).padStart(3, '0')}`, prefix };
+  }
+
   /** EP-REQ-01 */
   async requirements(input: {
     projectId: string;
@@ -1581,7 +1612,11 @@ export class SpecService {
              r.impl_status::text AS impl_status, r.verified_at,
              s.key AS spec_key, s.title AS spec_title,
              (SELECT count(*) FROM task t WHERE t.source_requirement_id = r.id)::int AS task_count,
-             (SELECT count(*) FROM evidence e WHERE e.requirement_id = r.id)::int AS evidence_count
+             -- 파생과 같은 술어다(REQ-API-141) — 요구사항에 직접 붙은 것과 파생 Task 의 것
+             (SELECT count(*) FROM evidence e
+               WHERE e.requirement_id = r.id
+                  OR e.task_id IN (SELECT t2.id FROM task t2 WHERE t2.source_requirement_id = r.id)
+             )::int AS evidence_count
         FROM requirement r JOIN spec s ON s.id = r.spec_id
        WHERE r.project_id = ${input.projectId}
          AND r.removed_in_version_id IS NULL${specFilter}${statusFilter}
@@ -1639,6 +1674,12 @@ export class SpecService {
     repo?: string | null;
     userId: string;
     sessionId?: string | null;
+    /**
+     * **검증은 역할이 있는 사람이 한다**(2026-09-07 · REQ-API-143). `kind=test` 증적을
+     * qa·admin 이 올리면 그 자리에서 검증 서명이 붙고, 그 뒤 파생이 `verified` 를 판정한다 —
+     * 그 길이 없어 QA 페르소나의 유일한 판정에 도달할 방법이 없었다.
+     */
+    roles?: readonly string[];
   }): Promise<Record<string, unknown>> {
     const requirement = await this.requirement({ projectId: input.projectId, ref: input.ref });
     // **모르는 값은 거절이지 500 이 아니다**(REQ-API-074 · 2026-09-05). REST 는 `kind` 를
@@ -1651,11 +1692,19 @@ export class SpecService {
     // 같은 이름을 내는 곳은 GitHub 웹훅 하나였다. 증적이 실시간으로 화면에 닿지 않았고
     // 감사 축(FR-16)에도 남지 않았다.
     return this.events.transact(async (tx, emit) => {
+      // 검증 서명 — `test` 증적을 qa·admin 이 올린 경우에만. 에이전트 세션이 올린 것은
+      // 서명이 아니다(자기 산출물을 자기가 검증했다고 말하는 것과 같다).
+      const verifies =
+        kind === 'test' &&
+        input.sessionId == null &&
+        (input.roles ?? []).some((r) => r === 'qa' || r === 'admin');
       await tx.execute(sql`
-        INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source)
+        INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source,
+                              verified_by, verified_at)
         VALUES (${evidenceId}, ${input.projectId}, ${requirement['id'] as string},
                 ${kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
-                ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
+                ${input.sessionId == null ? 'human' : 'agent'}::evidence_source,
+                ${verifies ? input.userId : null}, ${verifies ? sql`now()` : sql`NULL`})
       `);
       // 조건이 다 찼으면 여기서 `implemented` 가 된다 — 안 찼으면 값은 그대로다
       await recomputeImplStatus(tx, requirement['id'] as string);
@@ -1668,7 +1717,14 @@ export class SpecService {
         isAgent: input.sessionId != null,
         payload: { ref: input.ref, kind, locator: input.locator, repo: input.repo ?? null },
       });
-      return { evidence_id: evidenceId, ref: input.ref, kind: input.kind, locator: input.locator };
+      return {
+        evidence_id: evidenceId,
+        ref: input.ref,
+        kind: input.kind,
+        locator: input.locator,
+        // 검증 서명이 붙었는지 부른 쪽이 안다 — 붙지 않았으면 왜인지 사람이 판단한다
+        verified: verifies,
+      };
     });
   }
 

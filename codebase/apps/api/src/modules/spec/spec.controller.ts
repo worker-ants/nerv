@@ -322,6 +322,24 @@ export class SpecController {
     });
   }
 
+  /**
+   * EP-REQ-04 — 다음 요구사항 ID(2026-09-07 · REQ-API-145).
+   *
+   * **`:ref` 보다 위에 있어야 한다.** 아래에 두면 `next-ref` 가 ref 로 잡혀 "그런 요구사항이
+   * 없다" 가 된다 — 경로 우선순위는 선언 순서다.
+   */
+  @RequireScope('spec:read')
+  @Get('requirements/next-ref')
+  nextRequirementRef(
+    @Req() req: ProjectRequest,
+    @Query('prefix') prefix?: string,
+  ): Promise<unknown> {
+    return this.specs.nextRequirementRef({
+      projectId: projectOf(req),
+      prefix: prefix ?? '',
+    });
+  }
+
   /** EP-REQ-02 */
   @RequireScope('spec:read')
   @Get('requirements/:ref')
@@ -355,6 +373,8 @@ export class SpecController {
       locator: evidence.locator,
       repo: evidence.repo ?? null,
       userId: principal.userId,
+      // 검증 서명의 축은 역할이다(REQ-API-143) — 표면은 나르기만 한다
+      roles: principal.roles,
     });
   }
 

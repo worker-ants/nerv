@@ -20,9 +20,15 @@ import type { StatusToken } from '../../components/status-badge.js';
 export function RequirementPanel({
   projectSlug,
   specKey,
+  /**
+   * 지금 보고 있는 버전 — **승인본에서만 파생한다**(D-02 · REQ-WEB-147). 승인되지 않은
+   * 버전에서 일을 파생하면 그 일은 아직 합의되지 않은 약속 위에 선다.
+   */
+  version,
 }: {
   projectSlug: string;
   specKey: string;
+  version?: { id: string; versionNo: number; status: string };
 }): React.JSX.Element {
   const t = useT();
   const query = useRequirements(projectSlug, specKey);
@@ -71,6 +77,30 @@ export function RequirementPanel({
             >
               {t('spec.requirements.counts', { tasks, evidence })}
             </p>
+            {/* **가치 사슬의 첫 고리**(REQ-WEB-147) — 약속에서 일로 가는 문이 화면에 없어,
+                웹에서 만든 Task 는 어느 요구사항도 책임지지 않았다(실측 487건 중 214건). */}
+            {version !== undefined && version.status === 'approved' ? (
+              <Link
+                data-testid="derive-task"
+                to="/p/$proj/tasks"
+                params={{ proj: projectSlug }}
+                search={{
+                  from_version: version.id,
+                  from_spec: specKey,
+                  from_version_no: String(version.versionNo),
+                  requirement: String(r['id']),
+                }}
+                className="text-2xs text-link hover:underline"
+              >
+                {t('spec.requirements.derive_task')}
+              </Link>
+            ) : (
+              version !== undefined && (
+                <span className="text-2xs text-text-ghost">
+                  {t('spec.requirements.derive_disabled')}
+                </span>
+              )
+            )}
           </li>
         );
       })}

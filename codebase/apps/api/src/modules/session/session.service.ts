@@ -102,8 +102,10 @@ export interface SessionCard extends Record<string, unknown> {
   task_key: string | null;
   task_title: string | null;
   claim_id: string | null;
-  /** 남은 초 — 카운트다운은 클라이언트 시계가 한다(screens.md §1.4) */
+  /** 남은 초 — 호환으로 남긴다. 카운트다운은 아래 만료 시각으로 센다(screens.md §1.4) */
   lease_remaining_seconds: number | null;
+  /** 리스 만료 시각 — 클라이언트 시계가 이 값으로 센다(2026-09-07 · REQ-API-142) */
+  lease_expires_at: string | null;
   scope_spec_ids: string[];
   scope_file_globs: string[];
 }
@@ -701,6 +703,10 @@ export class SessionService {
              t.id AS task_id, t.key AS task_key, t.title AS task_title,
              c.id AS claim_id,
              GREATEST(0, EXTRACT(EPOCH FROM (c.lease_expires_at - now()))::int) AS lease_remaining_seconds,
+             -- **카운트다운은 만료 시각으로 센다**(2026-09-07 · REQ-API-142). 서버가 준
+             -- "남은 초" 는 받은 순간에 이미 낡는다 — 화면이 그 값을 1초마다 그리면 시간이
+             -- 멈춘 것처럼 보이고, 재조회 때마다 튄다. 남은 초는 호환으로 남긴다.
+             c.lease_expires_at::text AS lease_expires_at,
              coalesce(c.scope_spec_ids, '{}')::text[]  AS scope_spec_ids,
              coalesce(c.scope_file_globs, '{}')::text[] AS scope_file_globs
         FROM agent_session s

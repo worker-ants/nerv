@@ -18,6 +18,7 @@ import {
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
+import { notificationImportance } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
@@ -217,7 +218,37 @@ export class NotificationService {
     ) {
       return this.conflictTargets(event);
     }
+    if (event.type === NERV_EVENT.SPEC_RECHECK_REQUESTED) {
+      const owners = await this.specOwnerTargets(event);
+      if (owners !== null) return owners;
+    }
     return this.roleQueue(event);
+  }
+
+  /**
+   * **재확인 요청은 그 문서의 주인에게 간다**(2026-09-07 · REQ-API-150 · api.md §3.3 룸 표가
+   * "대상 문서 owner" 라 적은 자리다).
+   *
+   * 역할 큐로 흩뿌리던 동안 recheck 1,336건이 admin·planner 의 목록을 채웠고, 결정이 필요한
+   * 19건이 그 안에 묻혔다. 문서에 주인 역할이 없으면(`owner_role IS NULL`) 기본 큐로 간다 —
+   * 아무에게도 가지 않는 것보다 낫다.
+   */
+  private async specOwnerTargets(event: {
+    project_id: string;
+    actor_user_id: string | null;
+    subject_id: string;
+  }): Promise<string[] | null> {
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT m.user_id
+        FROM spec s
+        JOIN project p ON p.id = s.project_id
+        JOIN membership m ON m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role = s.owner_role
+       WHERE s.id = ${event.subject_id} AND s.owner_role IS NOT NULL
+         ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
+    `);
+    return rows.length === 0 ? null : rows.map((r) => r.user_id);
   }
 
   /**
@@ -336,12 +367,22 @@ export class NotificationService {
     limit?: number;
     /** 이 시각보다 **앞선** 것 — 목록의 마지막 항목이 다음 쪽의 시작이다 */
     before?: string | null;
+    /**
+     * **등급으로 나눠 본다**(2026-09-07 · REQ-API-149). 서버는 티어로 immediate/digest 를
+     * 갈라 저장하는데 표면이 그 축을 받지 않아, 결정이 필요한 19건이 배경 활동 1,336건에
+     * 묻혔다(FR-12 가 배지에 요구하는 것이 정확히 그 구별이다).
+     */
+    importance?: string | null;
   }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
     const stateFilter =
       input.state == null
         ? sql``
         : // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
           sql` AND n.state = ${assertVocab([input.state], notificationState.enumValues, 'state')[0]}::notification_state`;
+    const importanceFilter =
+      input.importance == null
+        ? sql``
+        : sql` AND n.importance = ${assertVocab([input.importance], notificationImportance.enumValues, 'importance')[0]}::notification_importance`;
     // **커서는 (created_at, id) 다**(§1.6 · REQ-API-124). 예전 주석은 "같은 시각의 행을
     // 건너뛸 수 있지만 감수한다" 였는데, REQ-API-083 이 이 목록에도 "겹치지도 빠뜨리지도
     // 않는 다음 쪽" 을 이미 약속하고 있었다 — 감수는 요구사항과 어긋난 채였다.
@@ -372,7 +413,7 @@ export class NotificationService {
    LEFT JOIN spec_version sv ON sv.id = e.subject_id AND e.subject_type = 'spec_version'
    LEFT JOIN spec s ON s.id = coalesce(sv.spec_id, CASE WHEN e.subject_type = 'spec' THEN e.subject_id END)
    LEFT JOIN task t ON t.id = e.subject_id AND e.subject_type = 'task'
-       WHERE n.user_id = ${input.userId}${stateFilter}${beforeFilter}
+       WHERE n.user_id = ${input.userId}${stateFilter}${importanceFilter}${beforeFilter}
          -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
          AND p.archived_at IS NULL
        ORDER BY n.created_at DESC, n.id DESC
@@ -424,12 +465,21 @@ export class NotificationService {
    * 프로젝트를 목록에서만 빼고 여기서 빼지 않으면 "안 읽음 3"인데 목록은 비어 있는
    * 상태가 되고, 그때 배지는 지울 수 없는 숫자가 된다.
    */
-  async unreadCount(userId: string): Promise<number> {
-    const { rows } = await this.db.execute<{ n: number }>(sql`
-      SELECT count(*)::int AS n FROM notification notif
+  /**
+   * 읽지 않은 수 — **둘로 준다**(2026-09-07 · REQ-API-149).
+   *
+   * 배지가 전체 unread 를 세면 실측 767건 중 결정이 필요한 99건이 그 안에 묻힌다(FR-12).
+   * 서버는 티어로 이미 갈라 저장하고 있었다 — 표면이 그 축을 돌려주지 않았을 뿐이다.
+   * 전체 수도 함께 준다: 목록은 둘 다 보이고, 배지는 앞엣것만 쓴다.
+   */
+  async unreadCount(userId: string): Promise<{ count: number; immediate: number }> {
+    const { rows } = await this.db.execute<{ n: number; immediate: number }>(sql`
+      SELECT count(*)::int AS n,
+             count(*) FILTER (WHERE notif.importance = 'immediate')::int AS immediate
+        FROM notification notif
         JOIN project p ON p.id = notif.project_id
        WHERE notif.user_id = ${userId} AND notif.state = 'unread' AND p.archived_at IS NULL
     `);
-    return rows[0]?.n ?? 0;
+    return { count: rows[0]?.n ?? 0, immediate: rows[0]?.immediate ?? 0 };
   }
 }

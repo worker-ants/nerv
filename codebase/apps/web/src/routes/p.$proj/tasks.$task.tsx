@@ -22,6 +22,8 @@ import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rows, useMe, useProject, useTask } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
+import { secondsUntil, useNow } from '../../lib/clock.js';
+import { leaseRemaining } from '../../features/session-monitor/format.js';
 import { useScope } from '../../lib/scope.js';
 import { useApiError } from '../../lib/api-errors.js';
 import {
@@ -46,6 +48,7 @@ function TaskDetail(): React.JSX.Element {
   const project = useProject(proj);
   const me = useMe();
   const { orgSlug } = useScope(proj);
+  const now = useNow();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
@@ -260,8 +263,20 @@ function TaskDetail(): React.JSX.Element {
                 </span>
               )}
             </Element>
+            {/* **UUID 는 사람이 아는 이름이 아니다**(2026-09-07 · REQ-WEB-148). 서버가
+                고정 ID(REQ-…)와 문장을 함께 실어 준다 — 원문을 그리면 사람은 그것이 무엇을
+                가리키는지 알 수 없고, 그래서 근거 칸이 있어도 근거가 되지 않았다. */}
             <Element label={t('task.basis.requirement')}>
-              {typeof data['source_requirement_id'] === 'string' ? (
+              {typeof data['source_requirement_ref'] === 'string' ? (
+                <span data-testid="requirement-ref" className="flex flex-col gap-0.5">
+                  <Mono>{String(data['source_requirement_ref'])}</Mono>
+                  {typeof data['source_requirement_statement'] === 'string' && (
+                    <span className="line-clamp-2 text-xs text-text-mute">
+                      {String(data['source_requirement_statement'])}
+                    </span>
+                  )}
+                </span>
+              ) : typeof data['source_requirement_id'] === 'string' ? (
                 <Mono>{data['source_requirement_id']}</Mono>
               ) : (
                 '—'
@@ -429,16 +444,42 @@ function TaskDetail(): React.JSX.Element {
             )}
           </div>
           <ul className="flex flex-col gap-1">
-            {rows(data['claims']).map((claim) => (
-              <li key={String(claim['id'])} className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="font-medium">{String(claim['status'])}</span>
-                <span className="font-mono">
-                  {String(claim['hostname'] ?? t('task.claim_human'))}
-                </span>
-                <span className="text-text-mute">{String(claim['agent_type'] ?? '')}</span>
-                <Mono>{String(claim['external_session_id'] ?? '')}</Mono>
-              </li>
-            ))}
+            {rows(data['claims']).map((claim) => {
+              const remaining =
+                claim['status'] === 'active' ? secondsUntil(claim['lease_expires_at'], now) : null;
+              const scope = [
+                ...(Array.isArray(claim['scope_spec_ids'])
+                  ? (claim['scope_spec_ids'] as string[])
+                  : []),
+                ...(Array.isArray(claim['scope_file_globs'])
+                  ? (claim['scope_file_globs'] as string[])
+                  : []),
+              ];
+              return (
+                <li key={String(claim['id'])} className="flex flex-col gap-0.5 text-xs">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{String(claim['status'])}</span>
+                    <span className="font-mono">
+                      {String(claim['hostname'] ?? t('task.claim_human'))}
+                    </span>
+                    <span className="text-text-mute">{String(claim['agent_type'] ?? '')}</span>
+                    <Mono>{String(claim['external_session_id'] ?? '')}</Mono>
+                    {/* **리스는 흐른다**(SCR-06) — 만료 시각에서 매초 다시 센다 */}
+                    {remaining !== null && (
+                      <span data-testid="claim-lease" className="text-text-faint">
+                        {t('task.claim_lease', { remaining: leaseRemaining(t, remaining) })}
+                      </span>
+                    )}
+                  </span>
+                  {/* 선언한 범위 — 겹침 판정이 보는 것이 무엇인지 사람도 봐야 한다 */}
+                  {scope.length > 0 && (
+                    <span data-testid="claim-scope" className="text-2xs text-text-ghost">
+                      {t('task.claim_scope')}: {scope.join(' · ')}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
             {rows(data['claims']).length === 0 && (
               <li className="text-sm text-text-faint">{t('common.none')}</li>
             )}
@@ -560,6 +601,35 @@ function TaskDetail(): React.JSX.Element {
             ))}
             {rows(data['evidence']).length === 0 && (
               <li className="text-sm text-text-faint">{t('common.not_yet')}</li>
+            )}
+          </ul>
+        </Card>
+
+        {/* **리뷰는 Task 에서도 보인다**(2026-09-07 · REQ-WEB-148 · FR-13 양방향 드릴다운).
+            리뷰 → Task 방향만 있어서, 작업 상세에서 "이 작업이 리뷰를 지났는가" 를 알 길이
+            없었다 — done 게이트가 그것을 조건으로 삼는데도 그랬다. */}
+        <Card>
+          <SectionTitle>{t('task.reviews')}</SectionTitle>
+          <ul className="flex flex-col">
+            {rows(data['reviews']).map((r) => (
+              <li
+                key={String(r['id'])}
+                data-testid="task-review"
+                className="flex flex-wrap items-center gap-2 border-b border-border py-1.5 text-xs last:border-0"
+              >
+                <Mono>{String(r['branch'])}</Mono>
+                <span className="text-text-faint">
+                  {String(r['kind'])} · R{String(r['round_no'])} · {String(r['state'])}
+                </span>
+                {Number(r['open_critical'] ?? 0) > 0 && (
+                  <span data-testid="review-open-critical" className="text-status-danger">
+                    {t('task.reviews.open_critical', { n: Number(r['open_critical']) })}
+                  </span>
+                )}
+              </li>
+            ))}
+            {rows(data['reviews']).length === 0 && (
+              <li className="text-sm text-text-faint">{t('task.reviews.none')}</li>
             )}
           </ul>
         </Card>

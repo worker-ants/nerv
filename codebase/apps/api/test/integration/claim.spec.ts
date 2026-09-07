@@ -90,6 +90,9 @@ beforeEach(async () => {
   await pool.query('DELETE FROM task_dependency');
   // 증적은 Task 를 참조한다 — 먼저 지우지 않으면 done 전이를 만든 테스트 뒤로
   // 이 스위트 전체가 FK 위반으로 무너진다
+  // 리뷰 라운드도 Task 를 참조한다 — 증적·질문과 같은 이유로 Task 보다 먼저 지운다
+  await pool.query('DELETE FROM finding');
+  await pool.query('DELETE FROM review_session');
   await pool.query('DELETE FROM evidence');
   // 질문도 Task 를 참조한다 — 막힘의 해소 조건(REQ-API-118)이 그 관계를 읽으므로
   // 이 스위트가 질문을 만든다. 증적과 같은 이유로 Task 보다 먼저 지운다.
@@ -749,6 +752,55 @@ describe('전이의 주인 (EP-TASK-09)', () => {
  * 거부" 를 약속하는 동안 서버는 활성 클레임이 *아예 없으면* 판정을 건너뛰었다 — 리스가
  * 없다는 것이 거부가 아니라 무검사였다. `ready` 도 도착지가 아니라 판정이다.
  */
+/**
+ * **상세는 근거를 사람 말로 준다**(2026-09-07 · REQ-API-142). 요구사항은 UUID 로, 리뷰는
+ * 어디에도 없이 나가고 있었다 — 근거 칸이 있어도 근거가 되지 않는다.
+ */
+describe('작업 상세가 싣는 것 (REQ-API-142)', () => {
+  it('출처 요구사항은 고정 ID·문장으로, 클레임은 범위와 함께, 리뷰는 함께 온다', async () => {
+    const taskId = await makeTask('CLV-T-DT0001');
+    const requirementId = newId();
+    const versionId = newId();
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'approved','# 본문', sha256($3::bytea), $4)`,
+      [versionId, specA, 'CLV-T-DT0001', hana],
+    );
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-CWC-042','WHEN 조건이면 THE SYSTEM SHALL 동작한다','must',$4,$4)`,
+      [requirementId, projectId, specA, versionId],
+    );
+    await pool.query(`UPDATE task SET source_requirement_id = $1 WHERE id = $2`, [
+      requirementId,
+      taskId,
+    ]);
+    await tasks.claim(
+      claimInput(taskId, sessionHana, hana, { specIds: [specA], fileGlobs: ['apps/web/**'] }),
+    );
+    const reviewId = newId();
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, task_id, kind, trigger, branch, head_sha,
+                                   base_sha, changeset_hash, state)
+       VALUES ($1,$2,$3,'code','manual','feat/x','abc','def',$4::bytea,'complete')`,
+      [reviewId, projectId, taskId, Buffer.from('cs')],
+    );
+
+    const detail = await tasks.get({ projectId, taskKey: 'CLV-T-DT0001' });
+    expect(detail['source_requirement_ref']).toBe('REQ-CWC-042');
+    expect(String(detail['source_requirement_statement'])).toContain('THE SYSTEM SHALL');
+
+    const claims = detail['claims'] as Record<string, unknown>[];
+    expect(claims[0]?.['scope_file_globs']).toEqual(['apps/web/**']);
+    expect(claims[0]?.['lease_expires_at']).toBeDefined();
+
+    const reviews = detail['reviews'] as Record<string, unknown>[];
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]).toMatchObject({ branch: 'feat/x', open_critical: 0 });
+  });
+});
+
 describe('전이의 문지기 (REQ-API-129~132)', () => {
   it('세션은 자기 클레임 없이 done 으로 못 간다 — 다시 잡을 수 있다고 알려 준다', async () => {
     const taskId = await makeTask('CLV-T-GK0001');

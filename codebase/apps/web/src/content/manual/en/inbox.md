@@ -62,6 +62,8 @@ The shortcuts do nothing while the cursor is in a text field — typing `a` in a
 
 ## Notifications
 
+**The badge counts only what needs a decision.** Notifications come in two grades — waiting on you (approval requests, questions, scope conflicts) and background activity (spec rechecks, tasks becoming ready). The header number counts the first kind only, and the notification centre can narrow to [Needs a decision]. Without that split, the few urgent ones are buried under hundreds of background events.
+
 The notification center is for **what you missed**. If the inbox is "what I must do", notifications are "what I should know". The unread count sits on the header badge and clears as you read.
 
 When there are unread ones, a **[Mark all read]** sits beside the count — if clearing them one at a time is the only way, the badge soon becomes a badge nobody reads. It tells you how many it marked. With nothing unread the button is not shown.

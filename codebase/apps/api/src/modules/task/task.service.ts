@@ -12,6 +12,8 @@ import {
   NERV_EVENT,
   newId,
   BLOCKED_REASONS,
+  checkEvidenceLocator,
+  GatePolicySchema,
   isDelegationFilled,
   PLAN_APPROVAL_SIBLINGS,
   TASK_LEASE_BOUND_TARGETS,
@@ -296,10 +298,14 @@ export class TaskService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.*, t.status::text AS status, t.priority::text AS priority,
              s.key AS spec_key, sv.version_no AS basis_version_no,
-             (sv.status = 'superseded') AS basis_superseded
+             (sv.status = 'superseded') AS basis_superseded,
+             -- **근거는 사람 말로 보여야 한다**(2026-09-07 · REQ-API-142). 화면이 UUID 원문을
+             -- 그리던 자리다 — 요구사항의 고정 ID(REQ-…)가 사람이 아는 이름이다.
+             r.ref AS source_requirement_ref, r.statement_md AS source_requirement_statement
         FROM task t
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN requirement r ON r.id = t.source_requirement_id
        WHERE t.project_id = ${input.projectId} AND ${taskMatch(input.taskKey)}
     `);
     const task = rows[0];
@@ -313,9 +319,24 @@ export class TaskService {
     const taskId = task['id'] as string;
     const { rows: claims } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT c.id, c.agent_session_id, c.status::text AS status, c.lease_expires_at, c.acquired_at,
-             se.external_session_id, se.hostname, se.agent_type::text AS agent_type, c.user_id
+             se.external_session_id, se.hostname, se.agent_type::text AS agent_type, c.user_id,
+             -- 선언한 범위 — 겹침 판정이 보는 것이 무엇인지 사람도 봐야 한다(SCR-07)
+             c.scope_spec_ids, c.scope_file_globs
         FROM claim c LEFT JOIN agent_session se ON se.id = c.agent_session_id
        WHERE c.task_id = ${taskId} ORDER BY c.acquired_at DESC LIMIT 10
+    `);
+    // **리뷰는 Task 에서 보인다**(2026-09-07 · REQ-API-142 · FR-13 양방향 드릴다운).
+    // 리뷰 → Task 방향은 있었는데 그 반대가 응답에 없어, 작업 상세에서 "이 작업이 리뷰를
+    // 지났는가" 를 알 길이 없었다 — done 게이트가 그것을 조건으로 삼는데도 그랬다.
+    const { rows: reviews } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT rs.id, rs.kind::text AS kind, rs.branch, rs.head_sha, rs.round_no,
+             rs.state::text AS state, rs.completed_at,
+             (SELECT count(*)::int FROM finding f
+               WHERE f.last_session_id = rs.id AND f.severity = 'critical' AND f.status = 'open'
+             ) AS open_critical
+        FROM review_session rs
+       WHERE rs.task_id = ${taskId}
+       ORDER BY rs.round_no DESC LIMIT 10
     `);
     const { rows: deps } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT d.depends_on_task_id, d.kind::text AS kind, dt.key, dt.title, dt.status::text AS status
@@ -330,6 +351,7 @@ export class TaskService {
     return {
       ...task,
       claims,
+      reviews,
       dependencies: deps,
       evidence,
       blocked_resolution: await this.blockedResolution(taskId, task, deps),
@@ -1581,6 +1603,21 @@ export class TaskService {
       for (const item of input.evidence ?? []) {
         // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
         const evidence = assertVocab([item.kind], evidenceKind.enumValues, 'kind')[0];
+        // **형식도 어휘다**(2026-09-07 · REQ-API-147). 커밋 자리에 "다 했습니다" 가 들어가면
+        // 게이트는 통과하지만 증적은 아무것도 가리키지 않는다 — 그것이 자기 신고다.
+        const shape = checkEvidenceLocator(evidence ?? item.kind, item.locator);
+        if (!shape.ok) {
+          throw new NervError(
+            NERV_ERROR.PRECONDITION,
+            msg('error.evidence.locator_shape', { kind: item.kind }),
+            {
+              kind: 'invalid_input',
+              field: 'locator',
+              evidence_kind: item.kind,
+              reason: shape.reason,
+            },
+          );
+        }
         await tx.execute(sql`
           INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
           VALUES (${newId()}, ${input.projectId}, ${taskId}, ${evidence}::evidence_kind,
@@ -1709,13 +1746,56 @@ export class TaskService {
       missing.push(text('task.missing.spec_impact'));
     }
 
-    // 조건 4 — Requirement ↔ 구현 Evidence 1건 이상
-    const { rows } = await tx.execute<{ n: number }>(
-      sql`SELECT count(*)::int AS n FROM evidence WHERE task_id = ${input.taskId}`,
+    // **강화는 프로젝트가 켠다**(2026-09-07 · REQ-API-146). 기본은 오늘과 같다 —
+    // 서버가 일괄로 켜면 오늘 통과하던 작업이 내일 막히고, 그 이유를 아무도 고르지 않았다.
+    const { rows: policyRows } = await tx.execute<{ gate_policy: unknown }>(
+      sql`SELECT gate_policy FROM project WHERE id = ${input.projectId}`,
     );
-    if ((rows[0]?.n ?? 0) === 0) missing.push(text('task.missing.evidence'));
+    const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
+    const policy = parsed.success
+      ? parsed.data.done_gate
+      : { evidence_source: 'any' as const, review_coverage: false };
 
-    // 조건 1~3(리뷰 커버리지)은 FR-09 가 Phase 2 라 판정 대상이 아니다 — 없는 것을 요구하지 않는다
+    // 조건 4 — Requirement ↔ 구현 Evidence 1건 이상.
+    // `ci_or_human` 이면 **에이전트가 스스로 올린 것은 세지 않는다** — 자기 신고 문자열
+    // 하나로 닫히는 게이트는 산문 규약과 같다.
+    const sourceFilter =
+      policy.evidence_source === 'ci_or_human' ? sql` AND source IN ('ci', 'human')` : sql``;
+    const { rows } = await tx.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM evidence
+           WHERE task_id = ${input.taskId}${sourceFilter}`,
+    );
+    if ((rows[0]?.n ?? 0) === 0) {
+      missing.push(
+        policy.evidence_source === 'ci_or_human'
+          ? text('task.missing.evidence_source')
+          : text('task.missing.evidence'),
+      );
+    }
+
+    // 조건 1~3 — 리뷰 커버리지. FR-10 이 오래 이월해 온 조건이고, 이제 **정책으로 켠다**.
+    // 면제(`gate_bypass` 결재)가 있으면 둘 다 넘어간다 — 면제는 기록된 예외다(FR-10).
+    if (policy.review_coverage) {
+      const { rows: waived } = await tx.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM approval
+         WHERE is_bypass AND subject_type = 'gate_bypass' AND subject_id = ${input.taskId}
+      `);
+      if ((waived[0]?.n ?? 0) === 0) {
+        const { rows: reviews } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
+          SELECT count(*)::int AS rounds,
+                 COALESCE(sum((SELECT count(*) FROM finding f
+                                WHERE f.last_session_id = rs.id
+                                  AND f.severity = 'critical' AND f.status = 'open')), 0)::int
+                   AS open_critical
+            FROM review_session rs
+           WHERE rs.task_id = ${input.taskId} AND rs.state <> 'running'
+        `);
+        if ((reviews[0]?.rounds ?? 0) === 0) missing.push(text('task.missing.review_coverage'));
+        else if ((reviews[0]?.open_critical ?? 0) > 0) {
+          missing.push(text('task.missing.open_critical'));
+        }
+      }
+    }
     return { ok: missing.length === 0, missing };
   }
 

@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.62 · 2026-09-07 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.63 · 2026-09-07 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.63 변경(2026-09-07 — EARS 를 배울 자리가 없었다, 개선 계획 셋째 스프린트): **패키지 0.2.19 → 0.2.20.** `skills/spec` 에 **요구사항 줄의 형식** 절을 신설한다 — 형식(`REQ-…` + WHEN/WHILE/IF … THE SYSTEM SHALL …)과 **ID 를 서버가 발급한다**(EP-REQ-04)는 사실, 그리고 **한 줄도 없으면 경고**라는 것(2026-09-07 · REQ-API-144·145). 이 절이 없는 동안 형식은 정규식 한 줄에만 있었고, 실측 승인본 65건에 요구사항이 0건이었다 — 스킬이 말하지 않은 형식은 모델에게 없는 형식이다.
 >
 > v0.62 변경(2026-09-07 — 스킬이 없는 길을 가르치고 있었다, 개선 계획 둘째 스프린트): **패키지 0.2.18 → 0.2.19.** 여덟 자리에서 스킬이 지시하는 것과 서버·패키지가 실제로 하는 것을 다시 맞춘다. ① **`allowed-tools` 누락 셋** — `next` 의 6단계(`nerv_spec_get`·`nerv_spec_tree`)와 `impl` 의 `basis_superseded` 처리, `question` 의 6·7단계(`nerv_task_release`·`nerv_task_update`)가 목록에 없는 도구를 부른다. 매 클레임마다 승인 프롬프트가 뜨고 헤드리스에서는 거부된다. ② **없는 폴링을 가르쳤다** — `spec` 은 `nerv_spec_submit_review` 가 `NERV_APPROVAL_REQUIRED` 를 낸다고 적었는데 그 도구는 성공 응답에 `approval_id` 를 싣고, 승인을 읽는 도구는 24종 중 하나도 없다. `impl` 의 "폴링" 과 `review` 의 "보고 후 멈춤" 이 같은 코드에 반대를 지시하고 있었다. 셋 다 **하트비트 `approval_decided`**(2026-09-07 신설 · [4.4](api.md) REQ-API-133)로 통일한다. ③ **§3.4 가 약속한 캐시 파일 둘**(`context-pack.json`·`specs/*.md`)을 쓰라는 문장이 어느 스킬에도 없었다 — 오프라인 폴백이 읽을 사본이 만들어진 적이 없다. ④ **`claim.json` 의 출처**를 값마다 적는다: 하트비트 응답에는 `task_id` 도 `status` 도 없다. ⑤ **Codex `notify` 를 끈다** — 수신 엔드포인트가 서버에 없어 매 턴 404 가 exit 0 으로 삼켜진다. ⑥ **관리형 statusline 경로**를 실측 경로(`plugins/cache/<마켓플레이스>/<플러그인>/<버전>/`)로 고친다 — 예시대로 두면 실행되지 않는다. ⑦ `question` 이 답변의 `answered_by`·`answered_at` 을 확인하게 한다(REQ-API-135).
 >
@@ -110,7 +112,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.19
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.20
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -132,12 +134,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.19)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.20)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -442,6 +444,16 @@ allowed-tools:
    사람에게 보여준다.
 4. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
    `resolved_in_version_id`)로 닫는다. 반영하지 않기로 한 코멘트는 닫지 말고 사유를 보고한다.
+
+### 요구사항 줄의 형식 — 이것이 문서의 값어치다
+
+`feature` 스펙 본문에는 **요구사항 줄**이 있어야 한다. 형식은 하나다 —
+`- REQ-<접두>-<번호 3자리> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다`.
+
+- **ID 는 서버가 발급한다.** 다음 번호는 EP-REQ-04(`requirements/next-ref`)가 준다. 직접 세지 않는다: 같은 번호를 둘이 세면 `requirement-shape` 가 중복으로 막는다. 접두는 보통 스펙 키의 가운데 토막이다(`SPC-CWC-007` → `CWC`).
+- **문형은 WHEN·WHILE·IF 셋 중 하나로 시작해 THE SYSTEM SHALL 로 잇는다.** 어긴 줄은 경고다.
+- **한 줄도 없으면 그것도 경고다**(2026-09-07). 약속을 적지 않은 문서는 지켜졌는지 물을 수 없고, 구현 축은 셀 것이 없다. 승인본 65건에 요구사항 0건이던 실측이 그 자리다.
+- 규약·ADR·영역 문서(`convention`·`adr`·`area`·`vision`)는 요구사항이 없는 것이 정상이라 이 경고를 받지 않는다.
 
 ### check — 사전 검토 셀프서비스
 `nerv_spec_check`(`spec_version_id`) — 5검사기(cross-spec / rationale-continuity /

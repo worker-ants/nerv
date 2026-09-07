@@ -85,7 +85,7 @@ export class SpecCheckService {
       ...(await this.crossSpec(input.projectId, version.spec_id, version.body_md)),
       ...(await this.rationaleContinuity(input.projectId, version.body_md)),
       ...(await this.conventionCompliance(input.projectId, version.spec_type, version.body_md)),
-      ...this.requirementShape(version.body_md),
+      ...this.requirementShape(version.spec_type, version.body_md),
       ...(await this.taskCoherence(version.spec_id)),
     ];
 
@@ -234,7 +234,7 @@ export class SpecCheckService {
    * EARS 템플릿·ID 형식·중복 ID — 요구사항이 1급 엔티티라 파싱이 아니라 검증이다.
    * **중복 ID 는 block 이다**: 같은 ref 가 두 번 정의되면 어느 쪽이 진짜인지 알 수 없다.
    */
-  private requirementShape(body: string): CheckFinding[] {
+  private requirementShape(specType: string, body: string): CheckFinding[] {
     const findings: CheckFinding[] = [];
     const seen = new Map<string, number>();
 
@@ -265,6 +265,24 @@ export class SpecCheckService {
       }
       void index;
     });
+
+    // **요구사항이 하나도 없는 feature 문서는 조용히 통과했다**(2026-09-07 · REQ-API-144).
+    //
+    // 형식을 어긴 줄은 잡으면서 **줄이 아예 없는 것**은 잡지 않았다. 그래서 sudoku 승인본
+    // 65건에 요구사항이 0건이다 — 문서는 승인됐고 구현 축은 셀 것이 없다. 약속을 적지
+    // 않은 문서는 지켜졌는지 물을 수 없다.
+    //
+    // `convention`·`adr`·`area`·`vision` 은 제외한다: 그 문서들은 규약과 배경을 적는 자리라
+    // 요구사항이 없는 것이 정상이고, 거기까지 경고하면 경고가 소음이 된다.
+    if (specType === 'feature' && seen.size === 0) {
+      findings.push({
+        checker: 'requirement-shape',
+        // 경고다 — 임포트한 문서가 전부 막히면 이관 자체가 멈춘다
+        severity: 'warning',
+        message: text('check.no_requirements'),
+        anchor: null,
+      });
+    }
 
     for (const [ref, count] of seen) {
       if (count > 1) {

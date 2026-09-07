@@ -39,6 +39,10 @@ A task becomes `ready` only when four things are filled in.
 
 If any of them is empty the task cannot be claimed. **Large work takes one more step** — four or more tasks from the same spec version, or a version graded T3, need **plan approval** before they start (see [Inbox](/help/inbox)). **The base spec version is not one of the four** — when it is set the agent reads that version, and a task without one still reaches `ready`. Agents are instructed not to guess the missing part but to **raise a question** — work started on a guess only reveals the guess was wrong at the end.
 
+**Tasks are derived from approved versions.** On a spec's requirement row, [Create a task from this requirement] opens the new-task form with the source filled in. Opening the form directly lets you pick spec, version and requirement — and the version list shows **approved versions only** (work derived from an unapproved document stands on a promise nobody agreed to yet). The source is optional, but with it set that requirement's implementation status follows this task.
+
+The task screen shows that basis in human terms: the requirement's stable ID and sentence, the active claim's remaining lease and declared scope, and the reviews that covered this task (open criticals in red).
+
 ## Claims and leases
 
 Taking a task is a **claim**. A claim carries a 30-minute lease, and the session sends a heartbeat every 60 seconds to keep it alive.

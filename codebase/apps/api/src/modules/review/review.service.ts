@@ -158,6 +158,8 @@ export interface SubmitResult {
   /** 이월된 미해결 — 이 리뷰가 아니라 **이 프로젝트**의 열린 발견이다 */
   carried_over: readonly { id: string; severity: string; title: string }[];
   block: boolean;
+  /** 이 리뷰가 이어진 Task — 명시하지 않았으면 활성 클레임에서 채운다(REQ-API-148) */
+  task_id: string | null;
 }
 
 export interface IngestInput {
@@ -378,6 +380,7 @@ export class ReviewService {
         findings_merged: mergedIds,
         carried_over: carried,
         block,
+        task_id: session.taskId ?? null,
       };
     });
   }
@@ -469,7 +472,7 @@ export class ReviewService {
     tx: Tx,
     input: SubmitInput,
     hash: string,
-  ): Promise<{ id: string; roundNo: number; fresh: boolean }> {
+  ): Promise<{ id: string; roundNo: number; fresh: boolean; taskId?: string | null }> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112).
     // 세 캐스팅이 이 메서드 안에 있으므로 판정도 여기 한 번이다.
     const reviewKindValue = assertVocab([input.kind], reviewKind.enumValues, 'kind')[0];
@@ -481,7 +484,15 @@ export class ReviewService {
     `);
     const existing = same[0];
     if (existing !== undefined) {
-      return { id: existing.id, roundNo: existing.round_no, fresh: false };
+      const { rows: linked } = await tx.execute<{ task_id: string | null }>(
+        sql`SELECT task_id FROM review_session WHERE id = ${existing.id}`,
+      );
+      return {
+        id: existing.id,
+        roundNo: existing.round_no,
+        fresh: false,
+        taskId: linked[0]?.task_id ?? null,
+      };
     }
 
     const { rows: prior } = await tx.execute<{ id: string; round_no: number }>(sql`
@@ -493,6 +504,21 @@ export class ReviewService {
     const previous = prior[0];
     const sessionId = newId();
     const roundNo = (previous?.round_no ?? 0) + 1;
+
+    // **리뷰는 그 세션이 쥔 Task 의 리뷰다**(2026-09-07 · REQ-API-148). 명시하지 않으면
+    // 활성 클레임에서 채운다 — 실데이터 리뷰 1,992건 중 `task_id` 가 있는 것은 2건(시드)이라,
+    // done 게이트의 리뷰 커버리지를 켜도 판정할 데이터가 없었다. 명시한 값이 언제나 이긴다:
+    // 다른 Task 의 리뷰를 올릴 수 있어야 하기 때문이다.
+    let taskId = input.taskId ?? null;
+    if (taskId === null && input.sessionId != null) {
+      const { rows: claimed } = await tx.execute<{ task_id: string }>(sql`
+        SELECT task_id FROM claim
+         WHERE agent_session_id = ${input.sessionId} AND status = 'active'
+           AND lease_expires_at > now()
+         ORDER BY acquired_at DESC LIMIT 1
+      `);
+      taskId = claimed[0]?.task_id ?? null;
+    }
     await tx.execute(sql`
       INSERT INTO review_session (id, project_id, kind, "trigger", agent_session_id, task_id,
                                   branch, head_sha, base_sha, changeset_hash, round_no,
@@ -500,14 +526,14 @@ export class ReviewService {
                                   started_at)
       VALUES (${sessionId}, ${input.projectId}, ${reviewKindValue}::review_kind,
               ${input.sessionId != null ? 'auto' : 'manual'}::review_trigger,
-              ${input.sessionId ?? null}, ${input.taskId ?? null},
+              ${input.sessionId ?? null}, ${taskId},
               ${input.branch}, ${input.headSha}, ${input.baseSha}, decode(${hash}, 'hex'),
               ${roundNo}, ${previous?.id ?? null}, 'running'::review_state,
               ${input.payloadRef ?? null},
               ${input.payloadRef == null ? null : sql`now() + interval '30 days'`},
               coalesce(${input.reviewedAt ?? null}::timestamptz, now()))
     `);
-    return { id: sessionId, roundNo, fresh: true };
+    return { id: sessionId, roundNo, fresh: true, taskId };
   }
 
   /**
