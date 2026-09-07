@@ -19,14 +19,17 @@ referenced_by:
   - 04-mvp/screens.md
   - 04-mvp/importer.md
   - 04-mvp/backlog.md
+  - glossary.md
   - README.md
   - ../AGENTS.md
 ---
 # 데이터 모델
 
-> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **37개 엔티티**(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
+> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.13 · 2026-09-06 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.14 · 2026-09-07 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.14 변경(2026-09-07 — 의미 정본이 열 여덟과 제약 하나를 몰랐다, 개선 계획 첫 스프린트): **새 요구사항 없음 — 코드가 옳고 문서가 낡은 자리 다섯이다.** ① **§1.3 의 33번째가 엔티티가 아니었다** — `activity_summary` 는 테이블이 아니라 `agent_session` 의 jsonb 열(`0012`)이다. 도메인 **32** + 부속 **5**(auth 셋 · `spec_chunk_embedding` · `idempotency_key`) = 37 로 [4.3 데이터베이스 스키마](../04-mvp/database.md)와 셈을 맞췄다(그쪽은 반대 방향으로 틀려 `idempotency_key` 를 도메인으로 세고 있었다). ② **필드표가 마이그레이션 다섯이 더한 열을 몰랐다** — `api_token.last_used_hostname`(`0002`) · `resolution.spec_version_id`(`0011`) · `agent_session.activity_summary`(`0012`)·`diff_files`(`0017`) · `claim.release_note`·`progress_note`(`0017`)·`project_id`, 그리고 `requirement.priority` 가 **NULL 을 받는다**는 사실(`0020` — NULL 은 `must` 의 축약이 아니라 "표기가 없었다" 는 사실이다). ③ **`spec_version.base_version_id` 의 뜻을 바로잡는다** — "낙관적 동시성의 전제조건, 불일치 시 409" 라 적었는데 그 축은 **`base_hash`** 이고 이 열은 서버가 직전 버전으로 채우는 **계보**다. 둘을 같은 칸으로 읽으면 "계보를 보내야 동시성 검사가 된다" 는 반대 결론이 나온다. ④ **§5.5 규칙 9 는 partial index 가 아니라 CHECK 다**(`spec_version_lease_draft_only_ck`) — 인덱스는 유일성을 강제하지 조건부 NULL 을 강제하지 못하므로, 문서대로 세우면 그 규칙이 DB 에서 사라진다. ⑤ **§5.4 보존 정책 중 넷은 집행되지 않는다**(`notification` 180일 · `reviewer_report` 365일 압축 · `spec_version` draft 90일 압축 · `event` 12개월 콜드) — 표는 약속이고 그 사실을 표 아래에 적었다. 곁들여 §2.6 에 **표면의 `resolution` 어휘 ↔ 저장 두 축**의 번역을 적는다(표면의 `wont_fix` 는 `kind='deferred'` + `status='wont_fix'` 이고 `resolution_kind` 에 `wont_fix` 라는 값은 없다).
 >
 > v0.13 변경(2026-09-06 — 의미 정본이 제약을 반대로 적고 있었다, 정합성 대조 → 사람 지시): **제약 둘 · 필드 셋 · 엔티티 넷.** ① `membership` 유일성 축에 **`role` 이 들어간다**(`0003_multi_role`) — 이 문서가 적은 `UNIQUE (user_id, coalesce(project_id, org_id))` 를 그대로 걸면 2026-08-23 확정된 **겸직이 DB 에서 차단된다**(실측 20건). ② `spec.key` 를 "변경 가능, 참조 키 아님" 이라 적고 있었다 — 2026-08-30 에 **프로젝트 안에서 유일**해졌고(`0009_spec_key_unique`) 도구 7종·URL·본문 링크가 이 키로 문서를 가리킨다. 4.3 은 이미 정정했는데 의미 정본만 반대로 남아 있었다. ③ `finding` 필드표에 **`area`·`area_inferred`·`promoted_task_id`** 를 더한다 — `area` 는 NOT NULL 이고 `category`(무슨 종류)와 **다른 축**(무엇을 고칠 것)인데 정본이 그 구별을 정의하지 않았다. ④ 엔티티 표가 29행에서 멈춰 있어 **요약(37)과 표(29)가 서로 다른 말을** 했다 — `attachment`·`finding_comment`·`invitation`·`activity_summary` 를 30~33 으로 더하고, 인프라 4종을 합쳐 37 이 되는 셈을 표 아래 적었다.
 >
@@ -151,9 +154,12 @@ erDiagram
 | 30 | 스펙 첨부 | `attachment` | 스펙 버전에 매다는 시안·문서(2026-09-01 신설 · `0013_attachment`) | FR-01 |
 | 31 | 발견 코멘트 | `finding_comment` | 발견 하나에 달리는 스레드(2026-09-01 · `0010_finding_comment`) | FR-09 |
 | 32 | 조직 초대 | `invitation` | 조직 가입 초대 링크와 만료(2026-08-27 · `0006_invitation`) | P8 |
-| 33 | 활동 요약 | `activity_summary` | 보존 잡이 Activity 를 지우기 전에 접어 두는 도구 횟수(`0012` · 세션 카드의 근거) | FR-08 |
 
-위 **33종이 도메인 엔티티**이고, 여기에 인프라 4종(`auth_session`·`auth_account`·`auth_verification`·`idempotency_key`)이 더해져 테이블은 **37개**다 — [4.3 데이터베이스 스키마](../04-mvp/database.md)의 DDL 개수와 같다. (2026-09-06 보완: 30~33 이 표에 없어 이 문서가 요약에서는 37, 표에서는 29 를 말하고 있었다.)
+위 **32종이 도메인 엔티티**이고, 여기에 **부속 5종**이 더해져 테이블은 **37개**다 — [4.3 데이터베이스 스키마](../04-mvp/database.md)의 `CREATE TABLE` 개수와 같다. 부속은 better-auth 가 소유하는 셋(`auth_session`·`auth_account`·`auth_verification`) · 재생성 가능한 검색 인덱스(`spec_chunk_embedding` — §5.3) · 요청 배관(`idempotency_key` — 주체가 프로젝트가 아니라 자격증명이라 `project_id` 조차 없다)이다.
+
+> **33 → 32**(2026-09-07 정정). 이 표는 33행이었고 그 33번째가 `activity_summary` 였는데, 그것은 **테이블이 아니라 `agent_session` 의 jsonb 열**이다(`0012` — 보존 잡이 Activity 원문을 지우기 전에 도구별 횟수를 접어 두는 자리이고, 의미는 §2.5 의 필드표에 있다). 열을 엔티티로 세면 두 가지가 함께 틀린다 — 엔티티 수와, 그 수에서 빼기로 계산하던 부속 수다. 4.3 은 반대 방향으로 틀려 있었다(`idempotency_key` 를 도메인으로 세고 `spec_chunk_embedding` 을 인프라로 셌다): **32 + 5 = 37** 로 두 문서를 맞췄다.
+>
+> (2026-09-06 보완: 30~33 이 표에 없어 이 문서가 요약에서는 37, 표에서는 29 를 말하고 있었다.)
 
 > **근거 · 2축 분리가 필요한 이유.** clemvion의 `status`는 5값(`backlog`/`spec-only`/`partial`/`implemented`/`archived`)이지만 **전부 구현 축**이고 **문서 단위**다. 그 결과 (a) 초안/검토중/승인이라는 문서 상태가 존재하지 않아 "이게 합의된 내용인가"를 물을 수 없었고, (b) 1,750줄 문서(`clemvion:spec/5-system/4-execution-engine.md`)에 상태 값이 하나뿐이라 `code:` glob이 매치되면 통과해 요구사항 단위 미구현이 통과했다 — 실제 사고: "spec이 `필수`로 약속한 update dedup이 통째로 미구현"(CCH-SE-02). 요구사항별 상태를 대신하던 수동 ✅ 마크는 한 영역 131개 대 다른 영역 0개로 관행이 갈라져 이미 붕괴해 있었다.
 
@@ -251,6 +257,7 @@ stateDiagram-v2
 | `prefix` | text | 앞 8자(식별·감사용) |
 | `scopes` | text[] | `spec:read`, `spec:draft`, `task:claim`, `task:update` … — 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES`(10종)이고, 사람 전용 둘(`spec:approve`·`approval:decide`)은 토큰이 가질 수 없다(2026-09-05 정정) |
 | `expires_at` · `revoked_at` · `last_used_at` | timestamptz | |
+| `last_used_hostname` | text NULL | 마지막으로 쓰인 머신(`X-NERV-Host`, `0002`). 헤더 값이라 **신뢰하지 않으며 권한 판정이 아니라 표시 전용**이다 — 유출 판단의 첫 단서다(NFR-03) |
 
 권한 비확대는 스키마가 아니라 정책으로 강제하지만, `user_id`를 필수 FK로 두는 것이 그 정책의 데이터 기반이다 — Asana가 AI Teammate에 대해 "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다"고 명시한 원칙과 같다.
 
@@ -281,7 +288,7 @@ stateDiagram-v2
 | `status` | enum | `draft / in_review / approved / superseded / deprecated` |
 | `body_md` | text | 본문(markdown 우선, D-09) |
 | `content_hash` | bytea | `sha256(body_md)`. 무변경 저장 차단·중복 감지 |
-| `base_version_id` | uuid FK NULL | 낙관적 동시성의 전제조건. 불일치 시 409 |
+| `base_version_id` | uuid FK NULL | **파생 계보다 — 어느 버전에서 갈라져 나왔는가.** 서버가 직전 `version_no` 로 채우고 부른 쪽은 주지 않는다(2026-08-30 사람 결정). 2026-09-07 정정: 이 열을 "낙관적 동시성의 전제조건, 불일치 시 409" 라 적어 왔는데 **그 축은 `base_hash` 다** — 부른 쪽은 "무엇을 보고 썼는가" 를 `content_hash` 의 지문으로 말하고, 서버가 그것을 현재 값과 비교-교환한다. 둘을 같은 칸으로 읽으면 "계보를 보내지 않으면 동시성 검사가 안 된다" 는 반대 결론이 나온다 |
 | `change_summary_md` | text | 이 버전이 무엇을 바꿨는가(사람이 읽는 요약) |
 | `author_user_id` · `author_session_id` | uuid FK | 사람과 에이전트를 함께 기록 |
 | `change_request_id` | uuid FK NULL | CR에서 파생된 버전이면 그 CR |
@@ -304,7 +311,7 @@ stateDiagram-v2
 | `ref` | text | 안정 표시 ID(예: `REQ-NAV-012`). `UNIQUE (project_id, ref)` |
 | `statement_md` | text | EARS 템플릿 권장 |
 | `acceptance_md` | text | 수용 기준 |
-| `priority` | enum | `must / should / could`(clemvion의 필수/권장 매핑) |
+| `priority` | enum **NULL 허용** | `must / should / could`(clemvion의 필수/권장 매핑). **NULL 은 `must` 의 축약이 아니라 "원본에 표기가 없었다" 는 사실**이다(`0020` · 2026-09-06). 그전에는 NOT NULL 이라 임포터가 전건 `must` 를 넣었고, 뒤에 오는 사람은 그것을 원본의 선언으로 읽었다 |
 | `impl_status` | enum | `unimplemented / in_progress / implemented / verified` |
 | `introduced_in_version_id` | uuid FK | 이 요구사항이 처음 등장한 SpecVersion |
 | `current_version_id` | uuid FK | 최신 본문을 담은 SpecVersion |
@@ -448,6 +455,7 @@ stateDiagram-v2
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
 | `id` | uuid PK | |
+| `project_id` | uuid FK | 모든 도메인 행이 갖는다(§5.5 규칙 8) |
 | `task_id` | uuid FK | |
 | `agent_session_id` | uuid FK NULL | 사람이 직접 잡으면 NULL |
 | `user_id` | uuid FK | 책임자(세션 소유자) |
@@ -457,7 +465,9 @@ stateDiagram-v2
 | `acquired_at` | timestamptz | |
 | `lease_expires_at` | timestamptz | TTL 리스. 하트비트로 연장 |
 | `last_heartbeat_at` | timestamptz | |
-| `released_at` · `release_reason` | timestamptz · enum | **부른 쪽이 고른 셋** `done / handoff / abandon` + **서버가 판정한 둘** `expired`(리스 만료) / `conflict`(겹침 회수) + `manual`(2026-09-05 이전의 잔재 — 그때는 `done` 외를 전부 이 값으로 뭉쳤다). 축이 다르므로 같은 열에 두되 어느 쪽이 쓴 값인지가 이름으로 드러난다 |
+| `released_at` · `release_reason` | timestamptz · enum | **부른 쪽이 고른 셋** `done / handoff / abandon`(표면이 받는 값은 이 셋뿐이다) + **서버가 판정한 셋** `expired`(리스 만료) · `session_end`(세션 종료로 회수) · `stopped`(사람이 중단해 회수) + **생산자가 없는 둘** `manual`(`0021` 이전의 잔재 — 그때 `session_end`·`stopped` 두 경로가 이 값으로 뭉쳐 있었다)·`conflict`(이 설계에서 겹침은 회수가 아니라 **거절**이다 — 두 번째 클레임이 막히고 첫 번째가 남는다). 축이 다르므로 같은 열에 두되 어느 쪽이 쓴 값인지가 이름으로 드러난다. 값 목록의 정본은 [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4.1 이고 DDL 은 [4.3 데이터베이스 스키마](../04-mvp/database.md) §2.1 이다 |
+| `release_note` | text NULL | **인수인계 노트**(`0017`). `nerv_task_release(state_note)` 가 채운다 — 세션 타임라인이 아니라 **클레임에** 붙는 이유는 다음 사람이 `nerv_task_next` 후보 목록에서 그것을 읽어야 하기 때문이다 |
+| `progress_note` | text NULL | 하트비트의 한 줄 진행 요약(`0017` · LWW — 이력이 아니라 "지금 무엇을 하는 중인가") |
 
 제약: `CREATE UNIQUE INDEX ON claim (task_id) WHERE status = 'active'` — 두 세션이 같은 작업을 잡는 것이 데이터베이스 수준에서 불가능해진다. 상태 전이와 assignee 설정이 한 트랜잭션이므로 경합은 하나만 통과하고 나머지는 충돌 응답을 받는다.
 
@@ -480,9 +490,10 @@ stateDiagram-v2
 | `model` | text | |
 | `started_at` · `last_heartbeat_at` · `ended_at` | timestamptz | |
 | `end_reason` | enum NULL | `complete / error / stopped / stale` |
-| `diff_added` · `diff_removed` | int | 세션 카드의 +N −M 표시 |
+| `diff_added` · `diff_removed` · `diff_files` | int | 세션 카드의 +N −M 표시. `diff_files`(`0017`)가 셋째 값인 이유는 줄 수만으로 "한 파일을 크게" 와 "여러 파일을 조금" 이 같아 보이기 때문이다 |
 | `token_usage` | jsonb | 훅·OTel 수집치 |
 | `current_task_id` | uuid FK NULL | 조회 편의 비정규화(진실은 `claim`) |
+| `activity_summary` | jsonb NOT NULL `{}` | **원문이 사라진 뒤에도 남는 것**(`0012`). 보존 잡이 90일 지난 `activity` 를 지우기 전에 도구별 횟수를 여기 접는다 — 빈 레일은 "기록이 없다" 와 "아무것도 안 했다" 를 구별하지 못한다. **테이블이 아니라 `agent_session` 의 열**이다(2026-09-07 정정 — §1.3 이 이것을 33번째 엔티티로 세고 있었다) |
 
 상태 전이는 D-13 그대로다: `pending → active ↔ awaiting_input → complete / error / stale`. `stale`은 사람이 아니라 워커가 만든다 — 무활동 임계(기본 30분) 초과 시 자동 전이하고 보유 클레임을 회수한다. 임계값은 Linear의 Agent Session 규약(무활동 30분 stale)과 같은 값이다.
 
@@ -588,11 +599,14 @@ Activity는 **불변**이다. 편집 가능한 코멘트와 분리하라는 것�
 | `finding_id` | uuid FK | |
 | `kind` | enum | `fixed / deferred / dismissed / escalated / spec_change` |
 | `commit_sha` | text NULL | `fixed`일 때 필수 |
-| `change_request_id` | uuid FK NULL | `spec_change`일 때 |
+| `change_request_id` | uuid FK NULL | `spec_change` 의 증거 — 둘 중 하나면 된다 |
+| `spec_version_id` | uuid FK NULL | **스펙을 고쳐 해결한 증거**(`0011` · 2026-08-30). 커밋이 코드 쪽 증거이듯 이것이 문서 쪽 증거다. CHECK 는 `spec_change` 에 `change_request_id` **또는** 이 열을 요구한다 — 그전에는 CR 만 인정했고 CR 을 만드는 코드가 없어 `spec_change` 자체가 **닿을 수 없는 값**이었다 |
 | `escalate_reason` | enum NULL | `no / spec / user-decision / infra / e2e-fail-3x / sensitive-fix` |
 | `rationale_md` | text | **유예 근거는 1급 데이터** |
 | `actor_user_id` · `actor_session_id` | uuid FK | |
 | `created_at` | timestamptz | |
+
+**표면의 `resolution` 어휘와 저장의 두 축은 이름이 다르다**(2026-09-07 명시). `EP-REV-02`·`nerv_finding_resolve` 가 받는 값은 다섯(`fixed`·`spec_change`·`dismissed`·`wont_fix`·`escalated`)이고, 서버는 그것을 **`resolution.kind`(무엇으로 해결했나)** 와 **`finding.status`(그래서 발견은 어떻게 됐나)** 두 축으로 번역한다. 엇갈리는 자리가 둘이다 — 표면의 **`wont_fix` 는 `kind='deferred'` + `status='wont_fix'`** 이고(`resolution_kind` 에 `wont_fix` 라는 값은 없다), **`escalated` 는 `status` 를 `open` 으로 남긴다**(넘긴 것은 해결한 것이 아니다). 번역표는 도메인 한 곳이다 — 표면마다 사본을 두면 한쪽만 낡는다.
 
 ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 이식한다. `rationale_md`가 중요한 이유도 실측이다 — `SNAPSHOT_CACHE_MAX_ENTRIES` 유예 건이 `14_01_46`/`17_15_21`/`18_19_33` 세 세션에서 반복 재확인되며 매번 새 표 행으로 재서술됐다. "새 근거 없이 재상정하지 않음" 규칙이 산문 인용으로만 유지되던 것을, finding 1건 + resolution 여러 건의 관계로 바꾼다.
 
@@ -979,6 +993,17 @@ fingerprint = sha256(
 | `event` | 영구(월 파티션, 12개월 후 콜드) | FR-16 감사 |
 | `notification` | 180일 | 파생 데이터. 원천은 `event` |
 
+**집행되는 것은 둘뿐이다**(2026-09-07 실측 — 표는 약속이고 이 문단이 현재다). 보존 잡(`retention`)이 실제로 도는 줄은 `activity`(프로젝트 정책 `activity_days`, 기본 90일 — 지우기 전에 `agent_session.activity_summary` 로 접는다)와 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 먼저 오는 쪽)다. 프로젝트 정책 스키마(`RetentionSchema`)의 키도 그 둘뿐이라 나머지는 정책으로 적을 자리조차 없다.
+
+| 약속한 줄 | 상태 |
+| --- | --- |
+| `notification` 180일 | **집행 없음** — 파생 데이터인데 영구히 쌓인다 |
+| `reviewer_report.body_md` 365일 후 압축 | **집행 없음** — 이 표에서 가장 큰 축이었다(세션당 66KB × 월 ~434 세션) |
+| `spec_version`(draft 중간 저장) 90일 후 압축 | **집행 없음** — approved 는 영구·불변이 맞고 이 줄은 draft 만의 이야기다 |
+| `event` 12개월 후 콜드(`DETACH`) | **집행 없음** — 파티션 분리 잡이 없다([4.3 데이터베이스 스키마](../04-mvp/database.md) §2.14) |
+
+넷 다 **이월**이며 그 사실을 여기 적는 이유는, 있다고 적힌 보존 정책이 감사·용량 계획의 입력이 되기 때문이다 — 거짓이면 두 계산이 함께 틀린다.
+
 개인정보는 `event.payload`에 직접 넣지 않고 사용자 ID 참조만 둔다 — 이벤트 로그와 삭제권의 충돌은 이벤트 소싱 패턴이 공식적으로 경고하는 지점이다.
 
 ### 5.5 스키마가 강제하는 무결성 규칙
@@ -995,7 +1020,7 @@ fingerprint = sha256(
 | 6 | 모든 상태 전이는 Event를 남긴다 | 도메인 서비스 계층에서 전이와 같은 트랜잭션 |
 | 7 | severity 변경은 감사 대상이다 | `finding.severity` 변경 시 `event` 필수, 원값은 `raw_severity`에 보존 |
 | 8 | 모든 도메인 행은 `project_id`를 갖는다 | NOT NULL + 저장소 계층의 권한 자동 주입 |
-| 9 | 편집 리스는 draft 상태에서만 non-NULL이다 | `spec_version` 리스 3필드의 partial index `WHERE status='draft'` — draft가 아니면 전부 NULL |
+| 9 | 편집 리스는 draft 상태에서만 non-NULL이다 | **CHECK 제약** `spec_version_lease_draft_only_ck` — `status = 'draft' OR (리스 3필드가 전부 NULL)`. 2026-09-07 정정: 이 칸이 "partial index" 라 적고 있었는데 인덱스는 **유일성**을 강제하지 실물의 조건부 NULL 을 강제하지 못한다 — 문서대로 세우면 규칙 9 가 DB 에서 사라진다 |
 | 10 | 기준선은 approved 버전만 담고, 생성 후 불변이다 | 생성 트랜잭션에서 항목 전건의 `status='approved'` 검증 + 항목 UPDATE/DELETE 경로 미제공(변경 = 새 기준선 생성) |
 
 ---

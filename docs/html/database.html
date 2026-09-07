@@ -51,9 +51,9 @@
 
   <header class="page-header">
     <h1>데이터베이스 스키마</h1>
-    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 33종</b> — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 37개</b>다 — 도메인 33 + 인프라 4(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>·<code>spec_chunk_embedding</code>, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
+    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 37개</b>다 — 도메인 32 + <b>부속 5</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>39종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.36 (2026-09-07)</span>
+      <span>버전 v0.37 (2026-09-07)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -79,7 +79,7 @@
 
   <div class="table-wrap"><table>
     <tr><th>무엇</th><th>정본</th><th>이 문서의 역할</th></tr>
-    <tr><td>엔티티 33종 필드의 <b>의미</b>·상태 머신·관계</td><td><a href="data-model.html">3.3 데이터 모델</a></td><td>재서술하지 않는다. 각 절에 원문 § 링크만 남긴다</td></tr>
+    <tr><td>엔티티 32종 필드의 <b>의미</b>·상태 머신·관계</td><td><a href="data-model.html">3.3 데이터 모델</a></td><td>재서술하지 않는다. 각 절에 원문 § 링크만 남긴다</td></tr>
     <tr><td>테이블·컬럼·타입·제약의 <b>DDL 표현</b></td><td><b>이 문서</b></td><td>§2 전문. 컬럼명은 data-model 필드 표와 1:1 — 예: <code>review_session</code>은 <code>head_sha</code>/<code>base_sha</code>, <code>spec_version</code>은 <code>edit_lease_user_id</code>/<code>edit_lease_session_id</code>/<code>edit_lease_expires_at</code> 3필드와 <code>author_session_id</code></td></tr>
     <tr><td>이벤트 이름(<code>&lt;리소스&gt;.&lt;동사&gt;</code>)</td><td><a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6</td><td><code>event.type</code> 값으로 인용만 한다(<code>spec.approved</code> · <code>task.claimed</code> · <code>session.stale</code> …)</td></tr>
     <tr><td><code>nerv_*</code> 도구가 읽고 쓰는 계약</td><td><a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2</td><td>DDL 주석에서 도구 이름을 인용만 한다</td></tr>
@@ -119,7 +119,7 @@
 
   <h2 id="sec-2">2. 전체 DDL</h2>
 
-  <p>서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 33종(초기 29 + <code>invitation</code>·<code>attachment</code>·<code>idempotency_key</code> · 그리고 §2.3a·§2.3b) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — <code>agent_session</code>(§2.6)은 <code>spec_version</code>·<code>task</code>·<code>claim</code>·<code>change_request</code>가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.</p>
+  <p>서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 33개(도메인 32 + 부속 <code>idempotency_key</code> 1 — §2.3a·§2.3b 포함) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — <code>agent_session</code>(§2.6)은 <code>spec_version</code>·<code>task</code>·<code>claim</code>·<code>change_request</code>가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.</p>
 
   <h3>2.1 확장과 enum 39종</h3>
 
@@ -146,11 +146,20 @@ CREATE TYPE task_status             AS ENUM ('backlog', 'ready', 'claimed', 'in_
 CREATE TYPE task_priority           AS ENUM ('P0', 'P1', 'P2', 'P3');
 CREATE TYPE dependency_kind         AS ENUM ('blocks', 'relates');
 CREATE TYPE claim_status            AS ENUM ('active', 'released', 'expired', 'revoked');
-CREATE TYPE claim_release_reason    AS ENUM ('done', 'handoff', 'abandon',   -- 부른 쪽이 고른 셋
-                                            'manual', 'expired', 'conflict'); -- 앞 셋은 부른 쪽이 고르고 뒤 셋은 서버가 판정한다.
---   manual 은 **아직 쓰인다**(2026-09-06 실측 정정): 세션 종료와 웹의 강제 정지가
---   활성 클레임을 이 값으로 회수한다 — 인계도 포기도 아닌, 아직 이름이 없는 회수다.
---   conflict 는 반대로 **쓰는 곳이 한 곳도 없다**.
+CREATE TYPE claim_release_reason    AS ENUM ('done', 'handoff', 'abandon',   -- 부른 쪽이 고른 셋(CLAIM_RELEASE_INPUTS)
+                                            'manual', 'expired',
+                                            'session_end', 'stopped',       -- 0021 신설
+                                            'conflict');
+-- 값마다 **생산자**를 적는다(2026-09-07 전수 확인 — 정본은 `@nerv/schema` 의 enums.ts).
+--   done · handoff · abandon : 부른 쪽이 고른다(EP-TASK-08 · nerv_task_release). 표면이 받는 것은 이 셋뿐이다.
+--   expired                  : 리스 만료 — lease-reaper 잡(claim.service.ts).
+--   session_end              : 세션이 끝나며 회수(nerv_session_end · session.service.ts).
+--   stopped                  : 사람이 세션을 중단해 회수(EP-SES-04 · session.service.ts).
+--   manual                   : **생산자 없음** — 0021 이전의 잔재다. 그때는 session_end·stopped 두 경로가
+--                              이 값으로 뭉쳐 있었다. 걷지 않는 이유는 옛 행이 이 값을 들고 있기 때문이고,
+--                              **과거를 위조하지 않는다**(0019 가 manual 을 소급 변환하지 않은 것과 같은 판단).
+--   conflict                 : **생산자 없음** — 이 설계에서 겹침은 회수가 아니라 **거절**이다.
+--                              두 번째 클레임이 NERV_CONFLICT_SCOPE 로 막히고 첫 번째는 그대로 남는다(D-04).
 CREATE TYPE agent_type              AS ENUM ('claude-code', 'codex', 'web', 'other');
 CREATE TYPE session_state           AS ENUM ('pending', 'active', 'awaiting_input', 'complete', 'error', 'stale');
 CREATE TYPE session_end_reason      AS ENUM ('complete', 'error', 'stopped', 'stale');
@@ -264,7 +273,7 @@ CREATE TABLE invitation (
   <pre><code>CREATE TABLE spec (
   id                 uuid PRIMARY KEY,       -- 고정 ID. 이동·개명해도 참조 불변(D-09)
   project_id         uuid NOT NULL REFERENCES project(id),
-  parent_id          uuid REFERENCES spec(id),
+  parent_id          uuid,                    -- FK는 §2.11(자기 참조) — 인라인으로 세우면 제약 이름이 달라진다
   type               spec_type NOT NULL,
   key                text NOT NULL,          -- 사람이 읽는 slug(예: channel-web-chat). 참조 키 아님
   title              text NOT NULL,
@@ -282,7 +291,7 @@ CREATE TABLE spec_version (                  -- 불변 스냅샷. 가변 구간�
   status                    spec_version_status NOT NULL DEFAULT 'draft',
   body_md                   text NOT NULL,
   content_hash              bytea NOT NULL,  -- sha256(body_md). 무변경 저장 차단
-  base_version_id           uuid REFERENCES spec_version(id), -- 파생 계보 — 시스템이 채운다(§1.4i)
+  base_version_id           uuid,            -- 파생 계보 — 시스템이 채운다(§1.4i). FK는 §2.11(자기 참조)
   change_summary_md         text,
   author_user_id            uuid NOT NULL REFERENCES "user"(id),
   author_session_id         uuid REFERENCES agent_session(id), -- 에이전트 작성이면 세션(D-08 쌍 기록)
@@ -290,7 +299,7 @@ CREATE TABLE spec_version (                  -- 불변 스냅샷. 가변 구간�
   submitted_at              timestamptz,
   approved_at               timestamptz,
   approved_by_user_id       uuid REFERENCES "user"(id),
-  superseded_by_version_id  uuid REFERENCES spec_version(id),
+  superseded_by_version_id  uuid,            -- FK는 §2.11(자기 참조)
   edit_lease_user_id        uuid REFERENCES "user"(id),        -- 초안 편집 리스 보유자
   edit_lease_session_id     uuid REFERENCES agent_session(id), -- 보유 표면. NULL = 웹
   edit_lease_expires_at     timestamptz,                        -- TTL 30분(공용 상수)
@@ -577,7 +586,7 @@ CREATE TABLE activity (                       -- 타입드 불변 로그. 편집
   changeset_hash      bytea NOT NULL,            -- 라운드 동일성 판정
   file_count          int NOT NULL DEFAULT 0,
   round_no            int NOT NULL DEFAULT 1,
-  previous_session_id uuid REFERENCES review_session(id), -- 라운드 체인
+  previous_session_id uuid,                  -- 라운드 체인. FK는 §2.11(자기 참조)
   routing             jsonb NOT NULL DEFAULT '{}',
   forced_roles        text[] NOT NULL DEFAULT '{}',
   forced_coverage_ok  boolean NOT NULL DEFAULT false,
@@ -778,7 +787,9 @@ CREATE TABLE notification (
 
   <h3>2.11 순환 참조 FK</h3>
 
-  <p>서로를 가리키는 자리는 테이블 생성 뒤 ALTER 로 건다. **아래 셋은 이름이 규약을 따르는 것들이고, 나머지 넷**(`spec_version_change_request_fk`·`spec_version_base_version_fk`·`spec_version_superseded_by_fk`·`review_session_previous_fk`)**은 각 테이블 안에 인라인 `REFERENCES` 로 적혀 있다**(2026-09-06 명시) — 실물은 일곱 다 ALTER 이고, 인라인으로 세우면 제약 이름이 `spec_parent_id_fkey` 류로 달라져 이후 마이그레이션의 `DROP CONSTRAINT &lt;이름&gt;` 이 **문서로 세운 DB 에서만** 실패한다.</p>
+  <p>서로를(또는 자기 자신을) 가리키는 자리는 테이블 생성 뒤 ALTER 로 건다. <b>일곱 개이고 전문을 아래에 싣는다</b>(2026-09-07 정정 — 앞선 서술은 셋만 싣고 "나머지 넷" 을 열거했는데 그 넷에 <code>spec_version_change_request_fk</code> 가 <b>중복</b>으로 들어가 있었고 실물의 <code>spec_parent_fk</code> 가 빠져 있었다. 같은 문단이 예시로 <code>spec_parent_id_fkey</code> 를 들면서 정작 그 제약을 목록에서 놓친 자리다).</p>
+
+  <p>제약 이름이 규약을 따라야 하는 이유가 이 절의 존재 이유다 — 인라인 <code>REFERENCES</code> 로 세우면 Postgres 가 <code>spec_parent_id_fkey</code> 류의 이름을 붙이고, 이후 마이그레이션의 <code>DROP CONSTRAINT &lt;이름&gt;</code> 이 <b>문서로 세운 DB 에서만</b> 실패한다. 그래서 §2.3·§2.7 의 해당 열은 인라인 <code>REFERENCES</code> 없이 선언하고 여기서 건다.</p>
 
   <pre><code>ALTER TABLE spec
   ADD CONSTRAINT spec_current_version_fk
@@ -787,6 +798,22 @@ CREATE TABLE notification (
 ALTER TABLE spec_version
   ADD CONSTRAINT spec_version_change_request_fk
   FOREIGN KEY (change_request_id) REFERENCES change_request(id);
+
+ALTER TABLE spec_version
+  ADD CONSTRAINT spec_version_base_version_fk
+  FOREIGN KEY (base_version_id) REFERENCES spec_version(id);
+
+ALTER TABLE spec_version
+  ADD CONSTRAINT spec_version_superseded_by_fk
+  FOREIGN KEY (superseded_by_version_id) REFERENCES spec_version(id);
+
+ALTER TABLE spec
+  ADD CONSTRAINT spec_parent_fk
+  FOREIGN KEY (parent_id) REFERENCES spec(id);
+
+ALTER TABLE review_session
+  ADD CONSTRAINT review_session_previous_fk
+  FOREIGN KEY (previous_session_id) REFERENCES review_session(id);
 
 ALTER TABLE agent_session
   ADD CONSTRAINT agent_session_current_task_fk
@@ -973,6 +1000,18 @@ SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);<
 
   <p><b>아직 없는 것</b>: 12개월 지난 <code>event</code> 파티션의 <code>DETACH</code>, 보존 기간을 넘긴 <code>activity</code> 파티션의 드랍. 아래 문단이 워커 잡으로 약속하지만 구현은 없다 — 파티션은 계속 쌓인다. 지금 규모에서 급하지 않아 남겨 두되, <b>문서가 있다고 말하지 않게</b> 여기에 적는다.</p>
 
+  <p><b>보존 정책도 절반만 집행된다</b>(2026-09-07 확인 — 실측). <a href="data-model.html">3.3 데이터 모델</a> §5.4 의 표는 아홉 줄인데 <code>retention</code> 잡이 집행하는 것은 <b>둘</b>이다 — <code>activity</code> 원문(<code>activity_days</code>, 기본 90일 · 지우기 전에 <code>agent_session.activity_summary</code> 로 접는다)과 <code>review_session.prompt_blob_uri</code>(<code>prompt_blob_ttl_days</code>, 기본 30일 · 행의 <code>prompt_expires_at</code> 과 <b>먼저 오는 쪽</b>). 프로젝트 정책 스키마(<code>RetentionSchema</code>)의 키도 그 <b>둘뿐</b>이라, 나머지는 정책으로 적을 자리조차 없다.</p>
+
+  <div class="table-wrap"><table>
+    <tr><th>§5.4 가 약속한 것</th><th>상태</th><th>그래서 지금</th></tr>
+    <tr><td><code>notification</code> 180일</td><td><b>집행 없음</b></td><td>파생 데이터인데 영구히 쌓인다. 원천(<code>event</code>)이 영구라 재생성 가능하다는 것이 원래 근거였다</td></tr>
+    <tr><td><code>reviewer_report.body_md</code> 365일 후 요약 압축</td><td><b>집행 없음</b></td><td>clemvion 실측 세션당 66KB × 월 ~434 세션 — 압축이 이 표에서 가장 큰 축이었다</td></tr>
+    <tr><td><code>spec_version</code>(draft 중간 저장) 90일 후 압축</td><td><b>집행 없음</b></td><td>approved 는 영구·불변이 맞고, 이 줄은 <b>draft 만</b>의 이야기다</td></tr>
+    <tr><td><code>event</code> 12개월 후 콜드(<code>DETACH</code>)</td><td><b>집행 없음</b></td><td>위 문단과 같은 자리다</td></tr>
+  </table></div>
+
+  <p>셋 다 <b>이월</b>이다. 여기에 적는 이유는 §2.14 가 이미 세운 규율과 같다 — 있다고 적힌 보존 정책은 감사·용량 계획의 입력이 되고, 그것이 거짓이면 두 계산이 함께 틀린다.</p>
+
   <p><b>재검토 트리거</b>(2026-09-02 · 사람 확정): <code>event</code>·<code>activity</code> 의 파티션 수가 <b>24개</b>를 넘거나 <code>event</code> 행이 <b>1천만</b>을 넘으면 착수한다. "급하지 않다"는 판단은 있었는데 <b>언제 다시 볼지가 없었다</b> — 트리거 없는 유예는 유예가 아니라 망각이다.</p>
 
   <div class="table-wrap"><table>
@@ -986,7 +1025,7 @@ SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);<
 
   <h3>2.15 검색 인덱스 테이블 — <code>spec_chunk_embedding</code> (도메인 엔티티 아님)</h3>
 
-  <p><b>이 테이블은 데이터 모델의 엔티티가 아니다.</b> 원문(<code>spec_version.body_md</code>)에서 언제든 재생성 가능한 <b>검색 인덱스의 물리 테이블</b>이며(D-07 "결론 영구·입력 휘발"과 같은 축 — 이쪽은 "원본 영구·인덱스 파생"), 엔티티 33종 카운트·<a href="data-model.html">3.3 데이터 모델</a>의 ERD에 들지 않는다. 백업 대상에서도 제외 가능하다(<a href="codebase.html">4.2</a> §6.5 — 유실 시 재임베딩).</p>
+  <p><b>이 테이블은 데이터 모델의 엔티티가 아니다.</b> 원문(<code>spec_version.body_md</code>)에서 언제든 재생성 가능한 <b>검색 인덱스의 물리 테이블</b>이며(D-07 "결론 영구·입력 휘발"과 같은 축 — 이쪽은 "원본 영구·인덱스 파생"), 엔티티 32종 카운트·<a href="data-model.html">3.3 데이터 모델</a>의 ERD에 들지 않는다. 백업 대상에서도 제외 가능하다(<a href="codebase.html">4.2</a> §6.5 — 유실 시 재임베딩).</p>
 
 <pre><code>CREATE TABLE spec_chunk_embedding (
   id               uuid PRIMARY KEY,
@@ -1011,7 +1050,7 @@ CREATE INDEX spec_chunk_embedding_hnsw
 
   <h3>2.16 인증 인프라 테이블 — better-auth 소유 (도메인 엔티티 아님)</h3>
 
-  <p><code>spec_chunk_embedding</code>(§2.15)과 같은 등급이다 — <b>확정 스택(<a href="scope.html">4.1</a> §2.1의 better-auth)이 자기 동작을 위해 요구하는 물리 테이블</b>이며 엔티티 33종 카운트·<a href="data-model.html">3.3 데이터 모델</a>의 ERD에 들지 않는다. 세션 행을 전부 지워도 사람은 다시 로그인하면 되고 도메인 데이터는 하나도 잃지 않는다.</p>
+  <p><code>spec_chunk_embedding</code>(§2.15)과 같은 등급이다 — <b>확정 스택(<a href="scope.html">4.1</a> §2.1의 better-auth)이 자기 동작을 위해 요구하는 물리 테이블</b>이며 엔티티 32종 카운트·<a href="data-model.html">3.3 데이터 모델</a>의 ERD에 들지 않는다. 세션 행을 전부 지워도 사람은 다시 로그인하면 되고 도메인 데이터는 하나도 잃지 않는다.</p>
 
 <pre><code>CREATE TABLE auth_session (                  -- 웹 세션 쿠키의 실체 (api.md §1.3 인증 ①)
   id         uuid PRIMARY KEY,
@@ -1078,9 +1117,32 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
   <pre><code>채널:    nerv_events            (단일 채널 — 필터링은 수신측 몫. 상수 정본: @nerv/schema EVENTS_CHANNEL)
 발행:    EventService — event 행 INSERT를 담은 트랜잭션 커밋 직후 PUBLISH.
          롤백된 트랜잭션은 발행 지점에 도달하지 않으므로 방송되지 않는다.
-페이로드: JSON — 참조만 담는다. 상세는 수신자가 재조회한다(개인정보 금지 유지).</code></pre>
+페이로드: JSON 봉투 — 참조만 담는다. 상세는 수신자가 재조회한다(개인정보 금지 유지).
+         타입 정본은 @nerv/schema 의 NervEventEnvelope 이고, WS·SSE 두 표면이 이것을 그대로 흘린다.</code></pre>
 
-  <pre><code>{ "id": "01991f2a-…", "type": "spec.approved", "project_id": "…" }</code></pre>
+  <pre><code>{
+  "id": "01991f2a-…",
+  "type": "spec.approved",
+  "project_id": "…",
+  "subject_type": "spec_version",
+  "subject_id": "…",
+  "subject_key": "CLV-S-ZWHNB0",
+  "actor_user_id": "…",
+  "is_agent": false,
+  "occurred_at": "2026-09-07T04:21:33.812Z",
+  "recipient_user_ids": ["…"]
+}</code></pre>
+
+  <p><b>봉투는 셋이 아니라 아홉(+1)이다</b>(2026-09-07 정정 — 이 절이 오래 <code>{id, type, project_id}</code> 만 실었다). 셋만으로는 받는 쪽이 아무것도 하지 못한다:</p>
+
+  <ul>
+    <li><code>subject_type</code>·<code>subject_id</code>·<code>subject_key</code> — <b>무엇에 대한 일인가.</b> 화면의 쿼리 키 축이 표시 키라 <code>subject_key</code> 가 없으면 무효화할 대상을 찾지 못한다.</li>
+    <li><code>actor_user_id</code>·<code>is_agent</code> — <b>누가 했는가.</b> 받는 쪽이 "내가 방금 한 일" 과 "남이 한 일" 을 갈라야 한다. 이것이 없으면 화면은 자기 저장에도 "바뀌었습니다" 를 띄우고, 그 소음이 알림 자체를 못 믿게 만든다(D-08 표기 규약).</li>
+    <li><code>occurred_at</code> — ISO 8601.</li>
+    <li><code>recipient_user_ids</code>는 <b>방송 전용</b>이라 <code>event</code> 행에는 없다(그래서 +1 이다). 봉투를 받은 파드가 이 목록의 <code>user:{id}</code> 룸에도 흘린다 — 이 필드가 없던 동안 <code>user:{id}</code> 룸과 <code>GET /sse/me</code> 로는 아무것도 나가지 않았다(2026-09-02 정정).</li>
+  </ul>
+
+  <p><code>payload</code>·<code>from_state</code>·<code>to_state</code>·<code>request_id</code> 는 <b>행에만 있고 봉투에는 없다</b> — 본문을 싣지 않는다는 이 절의 규약이 거기서 지켜진다.</p>
 
   <h3>3.3 수신자 계약</h3>
 
@@ -1487,7 +1549,7 @@ COMMIT;</code></pre>
     <tr><td><code>REQ-DB-002</code></td><td>WHEN 스키마 적용 후 <code>pnpm db:seed</code>를 2회 실행하면 THE SYSTEM SHALL 두 번 모두 성공하고 §4의 동일한 데이터 상태를 재현한다</td><td>시드 2회 후 행 수·키 스냅샷 비교</td></tr>
     <tr><td><code>REQ-DB-003</code></td><td>WHEN <code>status &lt;&gt; 'draft'</code>인 <code>spec_version</code>의 <code>body_md</code> 또는 <code>content_hash</code>를 UPDATE하면 THE SYSTEM SHALL 예외를 발생시키고 변경을 거부한다</td><td>트리거 테스트(approved·in_review·superseded 각 1건)</td></tr>
     <tr><td><code>REQ-DB-004</code></td><td>WHEN 한 <code>task</code>에 <code>status='active'</code>인 <code>claim</code>이 있는 상태에서 두 번째 active claim을 INSERT하면 THE SYSTEM SHALL unique 위반으로 거부한다</td><td>동시 INSERT 2건 경쟁 테스트 — 정확히 1건 성공</td></tr>
-    <tr><td><code>REQ-DB-005</code></td><td>WHEN <code>event</code>에 행이 INSERT되고 트랜잭션이 커밋되면 THE SYSTEM SHALL Valkey <code>nerv_events</code> 채널로 <code>{id, type, project_id}</code> JSON을 PUBLISH하고, 롤백 시 발행하지 않는다(§3)</td><td>SUBSCRIBE 클라이언트 붙인 통합 테스트(커밋/롤백 각 1건)</td></tr>
+    <tr><td><code>REQ-DB-005</code></td><td>WHEN <code>event</code>에 행이 INSERT되고 트랜잭션이 커밋되면 THE SYSTEM SHALL Valkey <code>nerv_events</code> 채널로 <b>§3.2 의 봉투 전체</b>(<code>id</code>·<code>type</code>·<code>project_id</code>·<code>subject_type</code>·<code>subject_id</code>·<code>subject_key</code>·<code>actor_user_id</code>·<code>is_agent</code>·<code>occurred_at</code>, 개인 룸 수신자가 있으면 <code>recipient_user_ids</code>)를 JSON 으로 PUBLISH하고, 롤백 시 발행하지 않는다(§3). 본문(<code>payload</code>·<code>from_state</code>·<code>to_state</code>)은 싣지 않는다 — 상세는 수신자가 자기 권한으로 재조회한다</td><td>SUBSCRIBE 클라이언트 붙인 통합 테스트(커밋/롤백 각 1건) + 수신 봉투의 키 집합 대조</td></tr>
     <tr><td><code>REQ-DB-006</code></td><td>WHEN 위임 명세 4요소 중 하나라도 NULL인 <code>task</code>를 <code>backlog</code>·<code>blocked</code> 밖의 상태로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>4요소 각각 NULL로 4케이스</td></tr>
     <tr><td><code>REQ-DB-007</code></td><td>WHEN <code>spec_impact IS NULL</code>인 <code>task</code>를 <code>done</code>으로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + <code>{"none": true}</code> 통과 1건</td></tr>
     <tr><td><code>REQ-DB-008</code></td><td>WHEN 기준선 생성 트랜잭션에 <code>approved</code>가 아닌 <code>spec_version</code> 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 기준선의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 기준선 생성으로만 한다</td><td>draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건</td></tr>
@@ -1496,7 +1558,7 @@ COMMIT;</code></pre>
     <tr><td><code>REQ-DB-009</code></td><td>WHEN <code>nerv_ensure_month_partitions(대상 월)</code>을 호출하면 THE SYSTEM SHALL <code>event</code>·<code>activity</code>의 해당 월 파티션과 activity 파티션별 <code>(session_id, seq)</code> unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다</td><td>함수 2회 호출 후 카탈로그 조회</td></tr>
     <tr><td><code>REQ-DB-010</code></td><td>WHEN 같은 사용자에게 같은 권한의 <b>같은 역할</b>을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · <code>membership_user_scope_role_uq</code>)</td><td>같은 역할 중복 1건 · 다른 역할 추가 1건</td></tr>
     <tr><td><code>REQ-DB-011</code></td><td>WHEN <code>status &lt;&gt; 'draft'</code>인 <code>spec_version</code>에 <code>edit_lease_user_id</code>·<code>edit_lease_session_id</code>·<code>edit_lease_expires_at</code> 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>3필드 각각 1건</td></tr>
-    <tr><td><code>REQ-DB-012</code></td><td>WHEN <code>commit_sha</code> 없이 <code>kind='fixed'</code>인 <code>resolution</code>을 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다</td><td>부정 1건 + <code>spec_change</code>에 <code>change_request_id</code> 누락 1건</td></tr>
+    <tr><td><code>REQ-DB-012</code></td><td>WHEN <code>commit_sha</code> 없이 <code>kind='fixed'</code>인 <code>resolution</code>을 INSERT하면 THE SYSTEM SHALL CHECK(<code>resolution_fixed_commit_ck</code>) 위반으로 거부한다. WHEN <code>kind='spec_change'</code> 인데 <code>change_request_id</code>·<code>spec_version_id</code> 가 <b>둘 다</b> NULL 이면 THE SYSTEM SHALL CHECK(<code>resolution_spec_change_cr_ck</code>) 위반으로 거부한다 — <b>둘 중 하나면 통과</b>다(0011 완화 · 2026-09-07 정정: 앞선 검증 방법이 <code>change_request_id</code> 단독 필수라는 완화 이전 규칙을 적고 있었다)</td><td><code>fixed</code> + commit_sha NULL 1건 · <code>spec_change</code> + 둘 다 NULL 1건 거부 + <code>change_request_id</code> 만 / <code>spec_version_id</code> 만 각 1건 통과</td></tr>
     <tr><td><code>REQ-DB-013</code></td><td>WHEN <code>nerv_glob_overlap</code>에 두 glob을 넘기면 THE SYSTEM SHALL 보수적 교차 판정을 반환한다 — 최소: (<code>a/**</code>, <code>a/b/c</code>)=true, (<code>a/b/**</code>, <code>a/c/**</code>)=false, (<code>a/*/c</code>, <code>a/x/c</code>)=true</td><td>함수 단위 테스트(위 3케이스 + 동일 문자열 케이스)</td></tr>
     <tr><td><code>REQ-DB-014</code></td><td>WHEN 마이그레이션이 완료되면 THE SYSTEM SHALL <code>pg_trgm</code>·<code>vector</code> 확장과 §2.12의 trigram GIN 3종·§2.15의 HNSW 인덱스를 카탈로그에서 조회 가능하게 한다</td><td>마이그레이션 후 <code>pg_extension</code>·<code>pg_indexes</code> 조회</td></tr>
     <tr><td><code>REQ-DB-015</code></td><td>WHEN 같은 (spec_version_id, anchor, model)로 임베딩이 재기록되면 THE SYSTEM SHALL 유니크 제약으로 중복 행을 차단하고, <code>spec_version</code> 삭제 시 임베딩 행을 CASCADE로 제거한다</td><td>중복 INSERT 1건 + 버전 삭제 후 잔존 행 0 확인</td></tr>
@@ -1525,7 +1587,7 @@ COMMIT;</code></pre>
 
   <h3>정본 문서 (이 문서가 인용만 하는 것)</h3>
   <ul>
-    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 33종 필드 의미·상태 머신·인덱스 §5.3·무결성 규칙 §5.5·보존 정책 §5.4. <b>이 문서의 모든 테이블·컬럼 이름의 원천</b></li>
+    <li><a href="data-model.html">3.3 데이터 모델</a> — 엔티티 32종(도메인) 필드 의미·상태 머신·인덱스 §5.3·무결성 규칙 §5.5·보존 정책 §5.4. <b>이 문서의 모든 테이블·컬럼 이름의 원천</b></li>
     <li><a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> — 이벤트 이름 정본(§6), 클레임 의사코드(§4.4), 초안 편집 리스 규약(§1.2), 소규모 완화(§2.3)</li>
     <li><a href="agent-integration.html">3.4 에이전트 연동 설계</a> — DDL 주석이 인용한 <code>nerv_*</code> 도구 계약(§2)과 ingest 멱등 키</li>
     <li><a href="architecture.html">3.2 시스템 아키텍처</a> — Valkey pub/sub 팬아웃 구조(§4.4), 저장 전략 D-01, 보존 2층 구조(§2.5)</li>
