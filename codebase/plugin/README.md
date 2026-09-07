@@ -1,4 +1,4 @@
-# nerv-plugin v0.2.21
+# nerv-plugin v0.2.22
 
 NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md)**
 이고, 이 디렉터리는 그 문서 §1~§3 전문의 실물이다 — 두 쪽이 다르면 문서가 옳고 여기가 결함이다.
@@ -15,6 +15,10 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 | `statusline/nerv-statusline.sh`                    | 클레임·리스·겹침 표시                                                    | §3.2           |
 | `bin/nerv-hook-forward`                            | 훅 헤더 토큰 확장이 안 되는 호스트용 폴백                                | §3.1 주의      |
 | `bin/nerv-outbox`                                  | 오프라인 쓰기 큐(enqueue·flush·status)                                   | §3.4           |
+| `hooks/hooks.http.json`                            | 훅 헤더 토큰 확장이 되는 호스트용 변형(`type:"http"`)                    | §3.1           |
+| `codex/config.toml`                                | Codex 용 MCP 접속 템플릿 — 자동 생성·갱신은 Phase 2 다                   | §5.2           |
+| `codex/AGENTS.md`                                  | Codex 세션이 읽는 규약 — 스킬과 같은 절차를 문장으로                     | §5.3           |
+| `managed-settings.example.json`                    | 조직 관리형 설정 예시(마켓플레이스·허용 도구)                            | §3.5           |
 
 ## 설계에서 물러서지 않는 두 가지
 

@@ -13,6 +13,7 @@
 //   판정도 없다. CI 는 항상 준다.
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..', '..'); // 저장소 루트
@@ -30,9 +31,19 @@ if (base === undefined || base === '') {
 
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
 
-const changed = git('diff', '--name-only', `${base}...HEAD`, '--', PLUGIN_DIR)
-  .split('\n')
-  .filter((f) => f !== '' && !NOT_SHIPPED.some((re) => re.test(f)));
+// **커밋한 것과 아직 커밋하지 않은 것을 함께 본다**(2026-09-07 정정).
+//
+// 예전에는 `base...HEAD` 만 봤다 — 커밋 범위라 **작업 트리의 변경이 보이지 않는다.**
+// `preflight` 는 보통 커밋 **전에** 돌므로, 로컬에서는 초록이고 CI 에서만 빨간 자리가
+// 생겼다(실측 2026-09-07: `plugin/README.md` 를 고치고 버전을 안 올린 채 초록을 봤다).
+// 규약 7 이 "로컬 초록이 CI 초록을 뜻하지 않는다" 고 적은 그 부류이고, 여기서는 그 차이를
+// 없앨 수 있다: CI 에는 커밋되지 않은 변경이 없으므로 합집합은 CI 에서 같은 답을 준다.
+const changed = [
+  ...git('diff', '--name-only', `${base}...HEAD`, '--', PLUGIN_DIR).split('\n'),
+  ...git('diff', '--name-only', base, '--', PLUGIN_DIR).split('\n'),
+].filter(
+  (f, at, all) => f !== '' && all.indexOf(f) === at && !NOT_SHIPPED.some((re) => re.test(f)),
+);
 
 if (changed.length === 0) {
   console.log('플러그인 패키지 변경 없음');
@@ -48,7 +59,10 @@ const versionAt = (ref) => {
 };
 
 const before = versionAt(base);
-const after = JSON.parse(git('show', `HEAD:${MANIFEST}`)).version;
+// **지금 파일의 버전**을 본다 — 변경 감지가 작업 트리를 보므로 버전도 같은 시점을 봐야
+// 한다. `HEAD:` 로 읽으면 "README 는 고쳤고 버전도 올렸는데 아직 커밋 전" 인 상태가
+// 실패로 나온다. CI 에서는 체크아웃이 곧 HEAD 라 답이 같다.
+const after = JSON.parse(readFileSync(resolve(ROOT, MANIFEST), 'utf8')).version;
 
 if (before === null || before !== after) {
   console.log(`플러그인 ${before ?? '(신설)'} → ${after} · 변경 ${changed.length}건`);

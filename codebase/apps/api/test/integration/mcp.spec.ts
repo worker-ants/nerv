@@ -128,6 +128,58 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(String(result['instructions']).length).toBeLessThan(2048);
   });
 
+  /**
+   * **카탈로그가 도구를 설명한다면 그 설명이 도구와 같아야 한다**(2026-09-07).
+   *
+   * [3.4](../../../../../docs/03-proposal/agent-integration.md) §2.3 은 도구 카탈로그의
+   * 정본이고 모델이 그것을 읽고 설계된다. 그런데 실측으로 네 자리가 갈려 있었다 —
+   * `nerv_spec_attach` 의 `bytes`(받은 적 없다) · `nerv_session_event` 의 `ts`(서버가 적는다) ·
+   * `nerv_spec_relate` 의 `base_hash`(필수인데 없었다) · `nerv_bootstrap` 의 자율성 레벨과
+   * 컨텍스트 팩 ETag(도입되지 않았다). **문서에만 있는 인자는 스킬이 그것을 쓰라고
+   * 말하게 만들고, 그 호출은 `ignored_args` 로 조용히 버려진다.**
+   *
+   * 이름을 전수 대조하지 않고 **두 방향의 거짓말**만 본다: 문서에 있는데 스키마에 없는
+   * 인자와, 스키마의 필수인데 문서가 모르는 인자.
+   */
+  it('카탈로그의 인자가 도구 스키마와 어긋나지 않는다 (agent-integration §2.3)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const doc = readFileSync(
+      new URL('../../../../../docs/03-proposal/agent-integration.md', import.meta.url).pathname,
+      'utf8',
+    );
+    const { body } = await rpc('tools/list');
+    const tools = (
+      body['result'] as {
+        tools: { name: string; inputSchema: { properties?: Record<string, unknown> } }[];
+      }
+    ).tools;
+
+    for (const tool of tools) {
+      const row = doc.split('\n').find((l) => l.startsWith(`| \`${tool.name}\``));
+      if (row === undefined) continue; // 카탈로그가 아직 적지 않은 도구는 이 검사의 대상이 아니다
+      // 정정 주석은 **없는 것을 없다고 적는 자리**다("`repo` 는 스키마에 없고 …" ·
+      // "`ts` 는 받지 않는다") — 거기서 이름을 주우면 정정이 곧 위반으로 읽힌다.
+      // 주석은 날짜(`(2026-…`)나 사이줄표로 시작하고, `→` 뒤는 **출력**이다 — 인자 열은
+      // 그 앞까지만 본다.
+      // 덜 보는 쪽으로 틀리는 것은 괜찮다: 이 검사가 잡으려는 것은 **유령 인자**다.
+      const column = row.split('|')[2] ?? '';
+      const note = Math.min(
+        ...[/\(20\d\d-/, / — /, /→/].map((re) => {
+          const at = column.search(re);
+          return at === -1 ? column.length : at;
+        }),
+      );
+      const input = column.slice(0, note);
+      const known = new Set(Object.keys(tool.inputSchema.properties ?? {}));
+      // 행의 인자 열에서 백틱으로 감싼 소문자 이름만 본다 — 산문은 세지 않는다
+      const named = [...input.matchAll(/`([a-z][a-z0-9_]*)\??`/g)].map((m) => m[1] as string);
+      const ghosts = named.filter(
+        (n) => !known.has(n) && !['spec', 'task', 'session', 'project'].includes(n),
+      );
+      expect(ghosts, `${tool.name}: 카탈로그에만 있는 인자`).toEqual([]);
+    }
+  });
+
   it('tools/list 가 24종을 노출한다 — MVP 22(P0 8 + P1 14) + 리뷰 2(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;

@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **23종**(2026-09-04 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.30 · 2026-09-07 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.31 · 2026-09-07 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.31 변경(2026-09-07 — 카탈로그가 도구를 잘못 설명했다, 개선 계획 아홉째 스프린트): **새 요구사항 없음 — §2.3 카탈로그 네 행 · 정책 버전 표기.** 이 카탈로그는 **모델이 읽는 정본**이고, 문서에만 있는 인자는 스킬이 그것을 쓰라고 말하게 만들며 그 호출은 `ignored_args` 로 조용히 버려진다. 네 자리가 갈려 있었다 — `nerv_spec_attach` 의 `bytes`(받은 적 없다) · `nerv_session_event` 의 `ts`(시각은 서버가 적는다)와 "서버 지시" 응답(그 채널은 하트비트다) · `nerv_spec_relate` 의 `base_hash`(**필수인데 카탈로그에 없었다**) · `nerv_bootstrap` 의 자율성 레벨·컨텍스트 팩 ETag(도입되지 않았다). **L2 가 이제 카탈로그와 도구 스키마를 대조한다.** 곁들여 **정책 버전** 개념을 미도입으로 표기한다 — `policy.stale` 이벤트도 카탈로그에 없고, 강제는 규약 비교가 아니라 서버 게이트가 한다.
 >
 > v0.30 변경(2026-09-07 — §6.3 이 서류상 방어였다, 개선 계획 넷째 스프린트): **점화 기록** — 이 절이 2026-08 부터 "모든 도구 응답에서 사용자 생성 본문을 경계로 감싼다" 고 적고 배포된 스킬 다섯이 그 문장을 반복했는데, **서버 어디에도 래핑이 없었다**(2026-09-07 실측 · 유령 응답 필드). 모델은 스킬이 말한 대로 경계를 찾고 찾지 못하면 본문을 그냥 읽으므로, 인젝션 방어가 통째로 없었던 것에 더해 **없는 규약을 가르치고 있었다.** ① 을 실물 목록으로 바꾸고(정본은 [4.4](../04-mvp/api.md) REQ-API-153), "필드 값 전체가 경계다" 와 **감싸지 않는 것 둘**(사람의 지시 · REST·미러)을 명시하며, 저장 시 포장 거절을 ③ 으로 신설한다.
 >
@@ -106,7 +108,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | (a) 데이터 — MCP | 에이전트 → NERV | 동기 요청/응답, **상태를 바꾸는 유일한 경로** | FR-01·FR-05·FR-06·FR-09·FR-15 | 작업 진행 불가 → 로컬 폴백 캐시로 읽기만(NFR-05) |
 | (b) 텔레메트리 — 훅/OTel | 에이전트 → NERV(훅은 응답으로 제어) | 훅은 즉시·차단 가능, OTel은 단방향 관측 | FR-07·FR-08·FR-12·FR-16 | 세션 관측이 저해상도로 낮아질 뿐, 게이트는 서버가 유지 |
-| (c) 배포 — 플러그인/AGENTS.md | NERV → 에이전트 | 규약·스킬·설정의 일괄 전달 | FR-15 | 개별 세션이 구버전 규약으로 동작 → `nerv_bootstrap` 응답의 정책 버전으로 감지 |
+| (c) 배포 — 플러그인/AGENTS.md | NERV → 에이전트 | 규약·스킬·설정의 일괄 전달 | FR-15 | 개별 세션이 구버전 규약으로 동작 → **감지 수단은 아직 없다**(2026-09-07 실측 — 정책 버전 개념이 서버에 없다. `nerv_bootstrap` 은 `gate_policy` 본문을 주고, 규약의 버전은 플러그인 매니페스트에만 있다). 이월 |
 
 세 평면의 분리가 중요한 이유는 **강제력의 위치**다. clemvion은 규칙을 전부 로컬 훅에 두었고, 그래서 훅 미설치 클론 하나면 규칙 전체가 무효였다. NERV에서 (b)와 (c)는 편의와 해상도를 담당하고, **강제는 (a)의 서버 판정에만 존재한다.**
 
@@ -129,7 +131,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | MCP 게이트웨이 무응답 | 로컬 캐시로 읽기 계속, 쓰기는 `.nerv/outbox/`에 멱등 키와 함께 큐잉 | `gate.failopen` 이벤트 | 신규 클레임 발급 정지 — 조정 행위는 낙관적으로 진행하지 않는다 |
 | 훅 POST 실패 | 세션 진행(차단 안 함) | ingest 누락 카운터 | 연속 3회 초과 시 세션 카드에 "관측 저해상도" 배지 |
 | 훅이 아예 없는 환경 | `nerv_session_event`로 굵직한 마일스톤만 보고 | `execution_env=cloud` 표기 | 해당 세션은 저해상도 추적 대상으로 분류(§5.5) |
-| 정책 버전 불일치 | 진행 허용 + 경고 | `policy.stale` 이벤트 | 배포 평면 재설치 안내 |
+| ~~정책 버전 불일치~~ | — | — | **미도입**(2026-09-07 실측): 정책 버전도 `policy.stale` 이벤트도 서버에 없다. 강제는 규약 비교가 아니라 **서버 게이트**가 한다 — 구버전 플러그인이 낡은 절차를 밟아도 판정은 서버에서 같다. 감지·안내는 이월([4.6](../04-mvp/plugin.md) REQ-PLG-009) |
 
 ---
 
@@ -166,7 +168,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 | 도구 | 입력(주요) | 출력 | 필요 권한 | 티어 | 호출 시점 | 멱등성 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `nerv_bootstrap` | `project`, `agent_type`, `hostname`, `cwd`, `branch?`, `worktree_path?`, `model?`, `external_session_id?`, `resume_session_id?` | `session_id`, 규약 스펙(convention/vision) 요약, 내 활성 클레임(**Task 기준 버전·기준선 포함**), 게이트 정책·자율성 레벨, 컨텍스트 팩 ETag | `spec:read` + `agent-session:launch`(자기 세션) | A1 | 세션 시작 직후 **첫 도구 호출** | 멱등 — 같은 `session_id`/`resume_session_id`면 동일 스냅샷 반환. 둘 다 없으면 **같은 사람·hostname·cwd 의 살아 있는 훅 세션을 채택한다**(2026-09-03 · §2.4) |
+| `nerv_bootstrap` | `project`, `agent_type`, `hostname`, `cwd`, `branch?`, `worktree_path?`, `model?`, `external_session_id?`, `resume_session_id?` | `session_id`, `resumed`, `project`, `conventions`(규약 스펙 요약), `active_claims`(**Task 기준 버전·기준선 포함**), `gate_policy`, `constants`(리스 TTL·하트비트 주기) — 2026-09-07 실물 대조. **자율성 레벨과 컨텍스트 팩 ETag 는 없다**(도입되지 않았다) | `spec:read` + `agent-session:launch`(자기 세션) | A1 | 세션 시작 직후 **첫 도구 호출** | 멱등 — 같은 `session_id`/`resume_session_id`면 동일 스냅샷 반환. 둘 다 없으면 **같은 사람·hostname·cwd 의 살아 있는 훅 세션을 채택한다**(2026-09-03 · §2.4) |
 | `nerv_spec_tree` | `project`, **`root?`**(키 또는 UUID — 2026-09-05 정정: `root_spec_id` 는 실재한 적 없는 이름이다), `depth?`, `status?`·`type?`(**쉼표 목록** — 일치 노드와 **그 조상**만 남고 노드마다 `matched` 가 붙는다. 어휘 밖 값은 거절이지 무시가 아니다 — REQ-API-074), `baseline?`(그 세트가 담은 문서만, 담을 때 핀된 버전 — REQ-API-098), `include_relations?` / 또는 **`around?`·`hops?`**(관계 이웃 · `hops` 0~3, 기본 1) — **계층 축(`root`·`depth`)과 관계 축(`around`)은 배타다**(함께 오면 400) | 스펙 노드 트리(id·title·type·문서 상태·현재 버전) — 성질 필터를 주면 노드마다 `matched`. 없는 `root`·`around` 는 **빈 트리가 아니라 `not_found`** 다(REQ-API-090) | `spec:read` | A1 | 스펙 탐색 시작 | 읽기 전용 |
 | `nerv_spec_search` | **`q`**(2026-09-05 정정 — `query` 가 아니다), `type?`·`status?`(쉼표 목록 — 트리와 같은 표기. 2026-09-05 배선), `requirement_id?`(**그 요구사항이 속한 스펙으로 좁힌다** — 2026-09-05 · 키 또는 UUID), `references?`(이 스펙을 참조하는 문서만 — REST EP-SPEC-02와 동일 필터), `limit` | 매칭 스펙·Requirement 발췌(고정 ID + 앵커 + 스니펫 + 관련도) + **`related[]`**(상위 결과의 `spec_relation` 1-hop — 질의에 없지만 걸려 있는 스펙) + `degraded?`(임베딩 불가 시 렉시컬 전용 표기) — 검색은 하이브리드(렉시컬+벡터 RRF)이며 방식 선택 입력은 없다(서버 내부 판정, 2026-08-22 확정 — 파이프라인 정본 [4.4 API 명세](../04-mvp/api.md) §2.2b) | `spec:read` | A1 | 컨텍스트 수집·중복 확인 — **`related[]`가 중복 확인의 핵심 입력**이다(언급 안 된 인접 스펙) | 읽기 전용 |
 | `nerv_spec_get` | `spec_id`(키 또는 UUID — [4.4](../04-mvp/api.md) §1.4b), `version?`(기본 approved 최신 — **Task 컨텍스트에서는 기준 버전을 지정한다**, §2.4), `include[]`(**구현: `tasks`·`comments`·`attachments`** — 목록 밖의 값은 400 이다(2026-09-04 · REQ-API-088). `requirements` 는 늘 실린다. `reviews`·`relations` 요약은 Phase 2. **`baseline?`** 은 그 세트가 이 문서에 묶어 둔 버전을 읽는다(`version` 과 배타 — 4.4 REQ-API-087, 2026-09-04 구현)) | 본문 markdown(비신뢰 래핑, §6.3) + 메타 + Requirement 목록 + 파생 Task + **`basis_superseded?`**(요청 버전이 superseded면 최신 approved 버전 번호와 함께 표시) | `spec:read` | A1 | 구현 착수 전, 리뷰 전 | 읽기 전용 — `version`/`baseline` 지정 시 불변 스냅샷이라 결과 고정 |
@@ -174,7 +176,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `nerv_spec_submit_review` | `spec_version_id` (2026-09-03 정정 — `note`·`reviewer_hint` 는 걷는다: 리뷰어 지정은 게이트가 §6.3 규칙으로 정하고, 변경 요약은 초안의 `change_summary_md` 가 이미 나른다) | `approval_id[]`, `draft → in_review` 전이 결과, 지정 리뷰어·SLA, `web_url`(S3 딥링크) | `spec:draft`(+제출) | **A3** | 초안 완료 후 사람 검토 요청 | 멱등 — 같은 `spec_version_id`의 pending Approval을 재사용(받은 요청 카드 중복 생성 금지) |
 | `nerv_spec_check` | `spec_version_id` | 5검사기(cross-spec/rationale-continuity/convention-compliance/requirement-shape/task-coherence)별 결과 — warning/block + 앵커 위치 | `spec:read` | A1 | 초안 저장 후·제출 전 아무 때나 | 읽기 전용 |
 | `nerv_spec_comment_resolve` | `comment_id`, `resolution_note?`, `resolved_in_version_id?` | 코멘트 새 상태(open→resolved), 남은 open 코멘트 수 | `spec:draft` | A2 | 코멘트 반영 직후 | 멱등 — (comment_id, resolved) 재호출은 no-op |
-| `nerv_spec_relate` | `from`(spec key), `to`(spec key), `kind`(refines/depends_on/duplicates/supersedes), `remove?` | 선언된 관계와 반대 방향 이웃, 순환 거부 사유 | `spec:draft` | A2 | 문서를 읽고 관계를 선언할 때 | 멱등 — 같은 (from, to, kind) 재호출은 no-op. `remove:true`가 되돌리는 경로다 |
+| `nerv_spec_relate` | `from`(spec key), `to`(spec key), `kind`(refines/depends_on/duplicates/supersedes), **`base_hash`**(추가 시 필수 — 상대 문서를 읽었다는 증거다. 없으면 `relation_base_hash_required`), `remove?` | 선언된 관계와 반대 방향 이웃, 순환 거부 사유 | `spec:draft` | A2 | 문서를 읽고 관계를 선언할 때 | 멱등 — 같은 (from, to, kind) 재호출은 no-op. `remove:true`가 되돌리는 경로다 |
 | `nerv_task_next` | `project`, `limit` (2026-09-03 정정 — `role`·`capabilities` 는 걷는다: Task 에 역할·역량 축이 없다) | ready Task 후보 + **위임 명세 4요소**(목표·산출물 형식·도구/출처·경계) + **기준 SpecVersion(`spec_key`·`version_no`)** + 앞 사람의 `handoff_note` | `task:claim` | A1 | 클레임 직전 | 읽기 전용(후보 순서는 시점 의존) |
 | `nerv_task_claim` | `task_id`(키 또는 UUID), `scope{spec_ids,file_globs}`(스펙은 키 또는 UUID), `lease_seconds?` (2026-09-06 정정 — `branch`·`worktree` 는 v0.10 에서 걷었는데 이 표에 남아 있었다: 세션의 속성이라 훅이 헤더로 싣는다) | `claim_id`, `lease_expires_at`, 겹침 경고 또는 `NERV_CONFLICT_SCOPE`(상대 세션·사용자·hostname·scope) | `task:claim` | A2 | 작업 착수 | 멱등 — 같은 세션 재호출은 기존 claim 반환(리스 연장 없음). 타 세션은 409 |
 | `nerv_task_heartbeat` | `claim_id`, `progress?`(LWW), `stats?{added,removed,files}`, `lease_seconds?` — **2026-09-03 배선** | 새 `lease_expires_at`, **pending 네 종류** — `steer|stop` 지시 → `basis_superseded`(재브리핑 대기) → `approval_decided`(2026-09-07 · 결재 결정) → `question_answered`(답변). 지시만 한 번 실리고 나머지 셋은 1시간 창 동안 다시 실린다 | `task:update` | A1 | **60초 주기** | 자연 멱등(LWW) |
@@ -187,9 +189,9 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `nerv_task_get` | `task_id`(키 또는 UUID) | 위임 명세 4요소 + 기준 SpecVersion·기준선 + 활성 클레임·의존 | `task:claim` | A1 | 클레임 전후 "이 작업이 무엇인가" | 읽기 전용 |
 | `nerv_task_list` | `project`, `status?`, `assignee?`, `spec?`, `cursor?`, `limit?`, `include_archived?` | Task 목록(상태·담당·리스 잔여) | `task:claim` | A1 | **"지금 무엇이 도는가"** — 세 번째 물음(2026-08-30) | 읽기 전용 |
 | `nerv_task_create` | `title`, `goal_md?`, `output_format_md?`, `tools_sources_md?`, `boundaries_md?`, `source_spec_version_id?`, `priority?` | `task_id`, `key`, 상태(4요소가 차면 서버가 `ready` 로 승격) | `task:update` | A2 | 스펙에서 작업을 떼어낼 때 | 멱등 키 지원 |
-| `nerv_spec_attach` | `spec_id`, `filename`, `content_type`, `bytes` → (1단계) `upload_url`·`attachment_id`, (2단계) `attachment_id` 확정 | 첨부 메타. **presigned 2단계**이고 확정은 실제 업로드를 확인한 뒤에만 통과한다 | `spec:draft` | A2 | 시안·문서를 스펙에 붙일 때 | 확정 재호출은 no-op |
+| `nerv_spec_attach` | (1단계) `spec_id`, `filename`, `content_type` → `upload_url`·`attachment_id` · (2단계) `attachment_id` → 확정. **파일 바이트는 받지 않는다**(2026-09-07 실물 대조 — 파일은 presigned URL 로 올라가고 MCP 응답에 싣지 않는 것이 이 2단계의 이유다) | 첨부 메타. **presigned 2단계**이고 확정은 실제 업로드를 확인한 뒤에만 통과한다 | `spec:draft` | A2 | 시안·문서를 스펙에 붙일 때 | 확정 재호출은 no-op |
 | `nerv_spec_attachment_read` | `attachment_id` | 첨부 본문. **텍스트만**(`text/*`)이고 `ATTACHMENT_READ_MAX_BYTES` 를 넘으면 자르되 `truncated:true` 로 말한다. 그림·PDF·zip 은 거부하고 **받는 주소**를 준다 | `spec:read` | A1 | Bash 가 없는 세션이 첨부를 되읽을 때 — 있으면 목록의 `url` 로 받는 것이 기본이다 | 읽기 전용 |
-| `nerv_session_event` | `event_seq`, `type`(thought/action/elicitation/response/error), `payload`, `ts` | ack + 서버 지시(steer/stop) | `agent-session:launch`(자기 세션) | A1 | 훅이 없는 실행 환경의 폴백, 굵직한 마일스톤 | 멱등 — (session_id, event_seq) 유니크, 재전송 안전 |
+| `nerv_session_event` | `event_seq`, `type`(thought/action/elicitation/response/error), `title?`, `body_md?`, `tool_name?`, `payload?` — **시각은 받지 않는다**(서버가 적는다) | `{accepted}` — **서버 지시(steer/stop)는 이 응답으로 오지 않는다**(그 채널은 하트비트다 · §2.4) | `agent-session:launch`(자기 세션) | A1 | 훅이 없는 실행 환경의 폴백, 굵직한 마일스톤 | 멱등 — (session_id, event_seq) 유니크, 재전송 안전 |
 
 **카탈로그가 실물보다 좁았다**(2026-09-02 정정). [scope.md](../04-mvp/scope.md) §4.2 와 [api.md](../04-mvp/api.md) §4 가 "도구 정의의 정본" 으로 이 표를 가리키는데, 표는 18종(2026-08-30)에서 멈춰 있었다 — `nerv_task_get`·`nerv_task_list`·`nerv_task_create`·`nerv_spec_attach` 가 빠졌고, `nerv_spec_draft_upsert` 의 입력은 이미 걷어낸 `base_version` 을, `nerv_task_update` 의 증적은 옛 모양을, `nerv_finding_resolve` 의 처분은 3값을 적고 있었다. 정본을 보고 스킬·클라이언트를 쓰는 사람이 **없는 인자를 싣는다** — README v1.66/v1.69 가 기록한 "스킬과 스키마가 어긋나면 지시를 따른 쪽이 손해" 그대로다. 위 표는 코드의 `inputSchema` 를 근거로 맞췄다.
 
@@ -297,7 +299,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 · 정책 버전
+  .claude-plugin/plugin.json      # 매니페스트 · 버전(REQ-PLG-017 — 버전이 곧 배달이다)
   hooks/hooks.json                # type:"http" 훅 (§3.3)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임
@@ -757,7 +759,7 @@ Claude Code의 권한 평가 순서(훅 → deny → ask 강제 레인 → 권�
 - **훅 URL 통제** — `allowedHttpHookUrls`로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. **적용 범위는 `type:"http"` 훅뿐이다**(2026-09-03 정정 — 공식 문서 확인). NERV 의 기본 훅은 `command` 변형이므로 이 목록이 그것들을 덮지 않고, command 훅에 대한 동등한 통제는 문서에 없다. 그 성질이 필요한 배치는 둘 중 하나다: `hooks/hooks.http.json` 을 기본 자리에 두거나, **관리형 settings 로 훅 정의 자체를 내린다**(`hooks` 키는 관리형 파일에서도 유효하며 플러그인 기본값을 이긴다 — §3.4의 강제력 등급이 그대로 적용된다). 어느 쪽이든 가장 강한 강제는 서버 게이트 판정이다(D-14).
 - **ingest 인증 필수** — 토큰 없는 이벤트는 버린다. hostname은 헤더(`X-NERV-Host`)로, MCP 경로에서는 `nerv_bootstrap` 인자로 받는다.
 - **민감정보 최소화** — OTel의 프롬프트·툴 상세는 기본 마스킹이며 opt-in으로만 켠다. 리뷰 프롬프트 페이로드는 TTL 오브젝트에 두고 결론만 영구 보존한다(D-07).
-- **감사 스키마** — `actor{type,id,is_agent}` · `action`(`spec.approved`·`session.started` 식) · `targets[]` · `context` · 정책 버전. 승인 이벤트에는 **평가된 정책 버전**을 반드시 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하기 위해서다.
+- **감사 스키마** — `actor{type,id,is_agent}` · `action`(`spec.approved`·`session.started` 식) · `targets[]` · `context`. 승인 이벤트에는 **그때의 판정 근거**를 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하기 위해서다. 실물 payload 는 `gate_tier`·`gate_score`·`auto_passed` 이고(2026-09-07 실측), 판정 전체(`GateDecision`)를 싣는 것과 정책 버전 개념은 이월이다.
 
 ---
 
