@@ -131,7 +131,7 @@ export function useSpecTree(
 }
 
 /**
- * 스펙 상세. **키는 고정 ID(SPC-…)이고 이벤트 봉투는 UUID 를 싣는다** — 그래서 이 쿼리는
+ * 스펙 상세. **키는 고정 ID(스펙 키)이고 이벤트 봉투는 UUID 를 싣는다** — 그래서 이 쿼리는
  * 이벤트로 직접 무효화되지 않고, 같은 이벤트가 함께 무효화하는 트리(projectSpecTree)의
  * 재조회와 화면 재진입으로 갱신된다. 두 축을 억지로 잇지 않는 편이 낫다: 봉투에 key 를
  * 실으면 이름 변경이 이벤트 계약을 깨고, 화면이 UUID 를 쓰면 URL 이 사람이 못 읽는 것이 된다.
@@ -334,6 +334,8 @@ export function useTask(slug: string, taskKey: string): UseQueryResult<Row> {
 export interface SessionBoardResponse {
   items: Row[];
   summary: Record<string, number>;
+  /** 다음 쪽 — null 이면 끝이다(§1.6). 컨트롤러는 처음부터 주고 있었다 */
+  next_cursor: string | null;
 }
 
 /**
@@ -385,24 +387,42 @@ export function useSessionDetail(slug: string, sessionId: string): UseQueryResul
 }
 
 /**
- * 세션 타임라인 — **봉투다**(2026-09-06 · REQ-API-120).
+ * 세션 타임라인 — **커서로 이어 받는다**(2026-09-07 · EP-SES-03 · REQ-WEB-141).
  *
- * 예전에는 맨 배열이었고 서버가 200건에서 잘랐는데 **잘렸다는 사실이 어디에도 없었다** —
- * 443건 세션의 초반이 영영 닿지 않는데 화면은 "이게 전부" 라고 말했다.
+ * 2026-09-06 에 봉투가 생기면서(REQ-API-120) 화면은 "앞쪽이 더 있다" 고 **말만** 했다.
+ * 잘렸다고 알리는 것과 거기로 가는 길을 주는 것은 다른 일이다 — 443건 세션의 초반은
+ * 여전히 닿지 않았고, 알림·발견 큐가 이미 같은 자리를 [더 보기]로 닫아 두었다
+ * (REQ-WEB-131). 그래서 알림과 **같은 모양**의 무한 쿼리로 바꾼다.
+ *
+ * **쪽은 과거로 간다.** 서버는 `seq DESC` 로 seek 하고 한 쪽 안에서만 오름차순으로
+ * 되돌려 주므로, 두 번째 쪽은 첫 쪽보다 **더 오래된** 것이다. 시간 순으로 읽으려면
+ * 쪽을 뒤집어 이어 붙여야 한다 — `flatTimeline()` 이 그 한 줄이고, 호출부가 각자
+ * 하면 어느 화면 하나는 시간이 거꾸로 흐른다.
  */
-export function useSessionTimeline(
+export function useSessionTimelinePages(
   slug: string,
   sessionId: string,
-): UseQueryResult<{ items: Row[]; next_cursor: string | null }> {
+): UseInfiniteQueryResult<InfiniteData<{ items: Row[]; next_cursor: string | null }>> {
   const refetchInterval = useLivePolling();
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [...queryKeys.session(sessionId), 'activities'],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(
-        `/projects/${slug}/sessions/${sessionId}/activities`,
+        `/projects/${slug}/sessions/${sessionId}/activities` +
+          (pageParam === null ? '' : `?cursor=${encodeURIComponent(String(pageParam))}`),
       ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor ?? null,
+    enabled: sessionId !== '',
     refetchInterval,
   });
+}
+
+/** 받아 온 쪽들을 **시간 순 한 줄로** — 뒤 쪽일수록 과거라 뒤집어 잇는다 */
+export function flatTimeline(
+  data: InfiniteData<{ items: Row[]; next_cursor: string | null }> | undefined,
+): Row[] {
+  return [...(data?.pages ?? [])].reverse().flatMap((page) => rows(page.items));
 }
 
 export function useCoverage(slug: string, projectId?: string): UseQueryResult<Row> {
@@ -412,11 +432,22 @@ export function useCoverage(slug: string, projectId?: string): UseQueryResult<Ro
   });
 }
 
+/**
+ * 최근 이벤트 — **응답은 봉투다**(`{items, next_cursor}` · REQ-API-120).
+ *
+ * 2026-09-06 에 서버가 봉투를 씌웠는데 이 훅은 맨 배열을 기대하고 있었다 — 홈·프로젝트
+ * 개요의 "최근 이벤트" 가 그날부터 **빈 목록**이었다(배열이 아닌 값에 `rows()` 가 `[]` 를
+ * 준다). 화면은 오류도 빈 상태도 아닌 "아무 일도 없었다" 를 보여 준다 — 가장 나쁜 모양이다.
+ *
+ * `select` 로 `items` 를 풀어 호출부(`rows(events.data)`)를 그대로 둔다.
+ */
 export function useEvents(slug: string, projectId?: string): UseQueryResult<Row[]> {
   const refetchInterval = useLivePolling();
   return useQuery({
     queryKey: queryKeys.projectEvents(projectId ?? slug),
-    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/events?limit=30`),
+    queryFn: () =>
+      apiFetch<{ items: Row[]; next_cursor: string | null }>(`/projects/${slug}/events?limit=30`),
+    select: (data) => data.items,
     refetchInterval,
   });
 }

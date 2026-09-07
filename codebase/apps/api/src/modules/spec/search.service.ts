@@ -30,7 +30,18 @@ const STATUS_BOOST: Record<string, number> = {
   deprecated: -0.02,
 };
 
-const STABLE_ID_RE = /\b(SPC|REQ|TSK)-[A-Z0-9]+(?:-[A-Z0-9]+)*\b/i;
+/**
+ * **질의가 키처럼 생겼는가** — 접두는 보지 않는다(2026-09-07 · REQ-WEB-141 의 짝).
+ *
+ * 예전에는 `SPC-`·`REQ-`·`TSK-` 접두를 규칙으로 삼았는데, 표시 키 형식은 2026-08-23 에
+ * `<PRJ>-<타입>-<base32 6>` 로 바뀌었다([3.3 데이터 모델](../../../../../docs/03-proposal/data-model.md) §5.1).
+ * 실데이터에서 그 접두에 맞는 키는 task 0/487 · spec 2/159 라, 사람이 실제 키(`CLV-T-ZWHNB0`)를
+ * 치면 ID 직행이 한 번도 걸리지 않았다 — 검색이 아는 유일한 정확 경로가 죽어 있었다.
+ *
+ * 그래서 **모양만 본다**: 대문자·숫자 토막이 하이픈으로 이어진 것. 일반 문장에 세 열 조회를
+ * 붙이지 않기 위한 게이트일 뿐이고, 판정은 열과의 정확 일치가 한다.
+ */
+const KEY_SHAPE_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/i;
 
 export interface SearchHit extends Record<string, unknown> {
   spec_id: string;
@@ -41,6 +52,13 @@ export interface SearchHit extends Record<string, unknown> {
   anchor: string | null;
   snippet: string;
   score: number;
+  /**
+   * 무엇에 맞았나 — `spec` · `requirement` · `task`.
+   *
+   * 화면이 어디로 보낼지를 정하는 값이다. 예전에는 키 접두(`TSK-`)로 갈랐는데 그 접두가
+   * 실데이터에 없어(0/487) 모든 결과가 스펙으로 갔다.
+   */
+  kind?: 'spec' | 'requirement' | 'task';
   /** 이 결과가 어느 경로로 들어왔나 — 디버깅이 아니라 신뢰의 문제다 */
   matched_by: string[];
 }
@@ -155,25 +173,34 @@ export class SearchService {
 
   // ── 단계별 ────────────────────────────────────────────────────────────────
 
+  /**
+   * ID 직행 — **키 세 열과 정확 일치**다(2026-09-07). Task 도 여기 들어온다: 사람이 커밋
+   * 메시지에서 본 키(`CLV-T-ZWHNB0`)를 그대로 치는 것이 이 경로의 가장 흔한 쓰임인데
+   * 그때까지 task 는 어느 열도 보지 않았다.
+   */
   private async byStableId(projectId: string, query: string): Promise<SearchHit[]> {
-    const match = STABLE_ID_RE.exec(query);
-    if (match === null) return [];
-    const id = match[0].toUpperCase();
+    const id = query.trim().toUpperCase();
+    if (!KEY_SHAPE_RE.test(id)) return [];
 
     const { rows } = await this.db.execute<SearchHit>(sql`
       SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type,
              sv.status::text AS doc_status, NULL::text AS anchor,
-             left(coalesce(sv.body_md, ''), 200) AS snippet
+             left(coalesce(sv.body_md, ''), 200) AS snippet, 'spec' AS kind
         FROM spec s
    LEFT JOIN spec_version sv ON sv.id = s.current_version_id
        WHERE s.project_id = ${projectId} AND s.key = ${id}
        UNION ALL
       SELECT s.id, s.key, s.title, s.type::text, sv.status::text, r.ref AS anchor,
-             r.statement_md AS snippet
+             r.statement_md AS snippet, 'requirement' AS kind
         FROM requirement r
         JOIN spec s ON s.id = r.spec_id
    LEFT JOIN spec_version sv ON sv.id = s.current_version_id
        WHERE r.project_id = ${projectId} AND r.ref = ${id} AND r.removed_in_version_id IS NULL
+       UNION ALL
+      SELECT t.id, t.key, t.title, t.status::text, NULL::text, NULL::text,
+             left(coalesce(t.body_md, ''), 200), 'task' AS kind
+        FROM task t
+       WHERE t.project_id = ${projectId} AND t.key = ${id}
     `);
     return rows.map((r) => ({ ...r, score: 1, matched_by: ['id'] }));
   }

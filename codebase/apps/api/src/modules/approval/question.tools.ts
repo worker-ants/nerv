@@ -41,7 +41,7 @@ export class QuestionTools implements NervToolProvider {
             type: 'object',
             description: 'mcp.arg.question_context',
             properties: {
-              spec_id: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+              spec_id: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
               task_id: { type: 'string', description: 'task key (CLV-T-…) or UUID' },
               finding_id: { type: 'string', description: 'finding UUID' },
             },

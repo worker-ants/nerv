@@ -32,13 +32,21 @@ export interface Actor {
  * "사람만 할 수 있다" 는 말은 **무엇을 대신 하라는 안내**가 붙어야 쓸모가 있다.
  */
 export type HumanOnlyAction =
-  'project_admin' | 'inbox' | 'inbox_decide' | 'approve' | 'steer' | 'baseline' | 'token_issue';
+  | 'project_admin'
+  | 'inbox'
+  | 'inbox_decide'
+  | 'approve'
+  | 'bypass'
+  | 'steer'
+  | 'baseline'
+  | 'token_issue';
 
 const MESSAGE = {
   project_admin: 'error.human_only.project_admin',
   inbox: 'error.human_only.inbox',
   inbox_decide: 'error.human_only.inbox_decide',
   approve: 'error.human_only.approve',
+  bypass: 'error.human_only.bypass',
   steer: 'error.human_only.steer',
   baseline: 'error.human_only.baseline',
   token_issue: 'error.human_only.token_issue',

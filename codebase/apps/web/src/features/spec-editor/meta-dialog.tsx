@@ -146,7 +146,7 @@ export function MetaDialog({
               value={parentKey}
               onChange={(e) => setParentKey(e.target.value)}
               disabled={!canEdit}
-              placeholder="SPC-…"
+              placeholder="KEY-…"
               className="font-mono"
             />
           </Field>

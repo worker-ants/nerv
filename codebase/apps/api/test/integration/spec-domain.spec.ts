@@ -87,7 +87,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM spec_version');
   await pool.query('DELETE FROM spec');
   await pool.query('DELETE FROM notification');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
 });
 
 async function draft(
@@ -953,6 +953,30 @@ describe('E09-S10 하이브리드 검색', () => {
     const result = await search.search({ projectId, query: 'SPC-CWC-007' });
     expect(result.items[0]?.key).toBe('SPC-CWC-007');
     expect(result.items[0]?.matched_by).toContain('id');
+  });
+
+  /**
+   * **접두가 아니라 키다**(2026-09-07). 예전에는 `SPC-`·`REQ-`·`TSK-` 접두를 ID 직행의
+   * 규칙으로 삼았는데, 표시 키 형식은 2026-08-23 에 `<PRJ>-<타입>-<base32 6>` 로 바뀌었다 —
+   * 실데이터에서 그 접두를 가진 Task 는 **한 건도 없었다**(0/487). 사람이 커밋 메시지에서
+   * 본 키를 그대로 치는 것이 이 경로의 가장 흔한 쓰임인데 그때 아무것도 걸리지 않았다.
+   */
+  it('접두 없는 키도 직행한다 — Task 키까지 같은 경로다', async () => {
+    const s = await draft('SUD-DSN-UI', '# 화면\n\n본문', '화면 설계');
+    await approve(s.versionId);
+    const bySpec = await search.search({ projectId, query: 'SUD-DSN-UI' });
+    expect(bySpec.items[0]?.key).toBe('SUD-DSN-UI');
+    expect(bySpec.items[0]?.matched_by).toContain('id');
+    expect(bySpec.items[0]?.['kind']).toBe('spec');
+
+    const taskKey = 'CLV-T-ZWHNB0';
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status) VALUES ($1,$2,$3,'위젯 렌더링','backlog')`,
+      [newId(), projectId, taskKey],
+    );
+    const byTask = await search.search({ projectId, query: taskKey });
+    expect(byTask.items[0]?.key).toBe(taskKey);
+    expect(byTask.items[0]?.['kind']).toBe('task');
   });
 
   it('한국어 조사 변형을 trgm 이 잡는다 — simple 토크나이저만으로는 "위젯"≠"위젯을" 이다', async () => {

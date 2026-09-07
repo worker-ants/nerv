@@ -30,30 +30,36 @@ export class ApprovalController {
     private readonly questions: QuestionService,
   ) {}
 
-  /** 프로젝트 소속 받은 요청 — S2·S4 의 사이드 패널용. 전역 받은 요청은 EP-APR-01 이다 */
+  /**
+   * 프로젝트 소속 받은 요청 — S2·S4 의 사이드 패널용. 전역 받은 요청은 EP-APR-01 이다.
+   * **사람 전용이고 판정은 서비스에 있다**(REQ-API-123).
+   */
   @RequireScope('spec:read')
   @Get('inbox')
   inbox(@Req() req: ProjectRequest): Promise<InboxCard[]> {
-    const { projectId, userId } = human(req);
-    return this.approvals.inbox({ projectId, userId });
+    const { projectId, userId, actor } = human(req);
+    return this.approvals.inbox({ projectId, userId, actor });
   }
 
-  /** EP-QST-01 — 열린 질문 목록 */
+  /** EP-QST-01 — 질문 목록(기본 `open` · 어휘 판정은 서비스가 한다 · REQ-API-126) */
   @RequireScope('spec:read')
   @Get('questions')
   questionList(@Req() req: ProjectRequest, @Query('status') status?: string): Promise<unknown> {
     const { projectId } = human(req);
     return this.approvals.questions({
       projectId,
-      status: status === 'answered' ? 'answered' : 'open',
+      status: status ?? null,
     });
   }
 
-  /** EP-APR-04 — 게이트 면제. 면제도 결재 레코드다(FR-10) */
+  /**
+   * EP-APR-04 — 게이트 면제. 면제도 결재 레코드다(FR-10).
+   * **사람 전용이고 판정은 서비스에 있다**(REQ-API-123 — 역할 문턱은 PAT 도 지난다).
+   */
   @RequireRole('admin', 'planner', 'developer')
   @Post('gates/bypass')
   bypass(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
-    const { projectId, userId } = human(req);
+    const { projectId, userId, actor } = human(req);
     const bypass = parseBody(GateBypassInput, body);
     return this.approvals.bypass({
       projectId,
@@ -61,6 +67,7 @@ export class ApprovalController {
       subjectId: bypass.subject_id,
       userId,
       reason: bypass.reason,
+      actor,
     });
   }
 
@@ -88,7 +95,7 @@ export class ApprovalController {
     });
   }
 
-  /** EP-QST-02 — 질문 답변. 사람 전용 */
+  /** EP-QST-02 — 질문 답변. **사람 전용이고 판정은 서비스에 있다**(REQ-API-123) */
   @RequireScope('spec:read')
   @Post('questions/:id/answer')
   answer(
@@ -96,12 +103,13 @@ export class ApprovalController {
     @Param('id') id: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    const { projectId, userId } = human(req);
+    const { projectId, userId, actor } = human(req);
     const answer = parseBody(QuestionAnswerInput, body);
     return this.questions.answer({
       projectId,
       questionId: id,
       userId,
+      actor,
       ...(answer.answer_key == null ? {} : { answerKey: answer.answer_key }),
       ...(answer.answer_md == null ? {} : { answerMd: answer.answer_md }),
     });
@@ -164,7 +172,7 @@ export class ApprovalInboxController {
     return this.approvals.inboxGlobal({
       actor,
       userId,
-      state: state === 'decided' ? 'decided' : 'pending',
+      state: state ?? null,
       projectSlug: project ?? null,
     });
   }

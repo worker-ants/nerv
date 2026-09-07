@@ -11,10 +11,12 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import { EVENTS_CHANNEL, newId } from '@nerv/schema';
+import { EVENTS_CHANNEL, NERV_EVENT_NAMES, newId } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { event } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
+import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { ValkeyService } from './valkey.service.js';
 
@@ -126,17 +128,38 @@ export class EventService {
     // 맨 배열이라 **"다음이 있는가" 를 클라이언트가 알 길이 없었다** — 전표는 `Page<X>` 라
     // 적고 있었으니 §1.6 선언이 이 자리에서도 거짓이었다.
     const limit = Math.min(input.limit ?? 50, 200);
-    const types = input.types ?? null;
+    // 카탈로그 밖의 이름은 **거절이다**(REQ-API-126). 예전에는 그대로 `IN` 에 실려
+    // `?type=spec.aproved` 가 빈 목록을 200 으로 돌려줬다 — 오타가 "그런 일이 없었다" 로
+    // 읽히는 자리다. 이벤트 이름의 정본은 `@nerv/schema` 의 카탈로그다(REQ-CB-006).
+    const types =
+      input.types == null || input.types.length === 0
+        ? null
+        : assertVocab(input.types, NERV_EVENT_NAMES, 'type');
     const typeFilter =
-      types === null || types.length === 0
+      types === null
         ? sql``
         : sql` AND e.type IN (${sql.join(
             types.map((t) => sql`${t}`),
             sql`, `,
           )})`;
     const subject = input.subjectId == null ? sql`` : sql` AND e.subject_id = ${input.subjectId}`;
+    // **커서는 (occurred_at, id) 다**(§1.6 · REQ-API-124). 시각 하나로만 seek 하면 같은 시각의
+    // 행이 쪽 경계에 걸릴 때 남은 것이 어느 쪽에도 나오지 않는다 — 한 트랜잭션이 여러 건을
+    // 내는 이벤트가 흔해서 실측 1,322건 중 332건(25%)이 같은 (project, occurred_at) 이었다.
+    // `id` 는 uuidv7 이라 같은 ms 안에서도 삽입 순서다(ids.ts).
+    //
+    // 옛 형식(맨 타임스탬프)도 한 릴리스 동안 받는다 — 그 커서를 들고 있는 클라이언트에게
+    // 500 이나 빈 목록을 주는 것보다 낫다. 다음 대조에서 걷는다.
+    const cursor = decodeCursor(input.before ?? undefined);
+    const cursorAt = cursorTimestamp(cursor?.[0]);
+    const cursorRowId = cursorId(cursor?.[1]);
+    const legacyAt = cursor === null ? cursorTimestamp(input.before) : null;
     const before =
-      input.before == null ? sql`` : sql` AND e.occurred_at < ${input.before}::timestamptz`;
+      cursorAt !== null && cursorRowId !== null
+        ? sql` AND (e.occurred_at, e.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
+        : legacyAt !== null
+          ? sql` AND e.occurred_at < ${legacyAt}::timestamptz`
+          : sql``;
 
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT e.id, e.type, e.subject_type::text AS subject_type, e.subject_id,
@@ -147,14 +170,19 @@ export class EventService {
    LEFT JOIN "user" u ON u.id = e.actor_user_id
    LEFT JOIN agent_session se ON se.id = e.actor_session_id
        WHERE e.project_id = ${input.projectId}${typeFilter}${subject}${before}
-       ORDER BY e.occurred_at DESC
+       ORDER BY e.occurred_at DESC, e.id DESC
        LIMIT ${limit + 1}
     `);
     const items = rows.slice(0, limit);
-    // 커서 이름이 `before` 다 — 이 목록의 축이 시각이기 때문이고, 전표도 그렇게 적는다
+    const last = items.at(-1);
+    // 커서 이름이 `before` 다 — 이 목록의 축이 시각이기 때문이고, 전표도 그렇게 적는다.
+    // 값은 **불투명**이다(§1.6): 정렬 기준을 바꿀 자유를 서버가 갖기 위해서다.
     return {
       items,
-      next_cursor: rows.length > limit ? String(items.at(-1)?.['occurred_at'] ?? '') : null,
+      next_cursor:
+        rows.length > limit && last !== undefined
+          ? encodeCursor([String(last['occurred_at']), String(last['id'])])
+          : null,
     };
   }
 

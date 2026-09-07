@@ -51,12 +51,12 @@
 
   <header class="page-header">
     <h1>데이터 모델</h1>
-    <p class="lead">NERV가 Postgres에 담을 <b>37개 엔티티</b>(도메인 33 + 인프라 4 — 2026-09-05 현황 정정. 처음 29개로 적었고 그 뒤 여덟이 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
+    <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.13 (2026-09-06)</span>
+      <span>버전 v0.14 (2026-09-07)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
-      <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
+      <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
     </div>
   </header>
 
@@ -302,10 +302,12 @@
       <tr><td>30</td><td>스펙 첨부</td><td><code>attachment</code></td><td>스펙 버전에 매다는 시안·문서(2026-09-01 신설 · <code>0013_attachment</code>)</td><td>FR-01</td></tr>
       <tr><td>31</td><td>발견 코멘트</td><td><code>finding_comment</code></td><td>발견 하나에 달리는 스레드(2026-09-01 · <code>0010_finding_comment</code>)</td><td>FR-09</td></tr>
       <tr><td>32</td><td>조직 초대</td><td><code>invitation</code></td><td>조직 가입 초대 링크와 만료(2026-08-27 · <code>0006_invitation</code>)</td><td>P8</td></tr>
-      <tr><td>33</td><td>활동 요약</td><td><code>activity_summary</code></td><td>보존 잡이 Activity 를 지우기 전에 접어 두는 도구 횟수(<code>0012</code> · 세션 카드의 근거)</td><td>FR-08</td></tr>
     </tbody>
   </table>
-  <p>위 <b>33종이 도메인 엔티티</b>이고, 여기에 인프라 4종(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>·<code>idempotency_key</code>)이 더해져 테이블은 <b>37개</b>다 — <a href="database.html">4.3 데이터베이스 스키마</a>의 DDL 개수와 같다. (2026-09-06 보완: 30~33 이 표에 없어 이 문서가 요약에서는 37, 표에서는 29 를 말하고 있었다.)</p></div>
+  <p>위 <b>32종이 도메인 엔티티</b>이고, 여기에 <b>부속 5종</b>이 더해져 테이블은 <b>37개</b>다 — <a href="database.html">4.3 데이터베이스 스키마</a>의 <code>CREATE TABLE</code> 개수와 같다. 부속은 better-auth 가 소유하는 셋(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>) · 재생성 가능한 검색 인덱스(<code>spec_chunk_embedding</code> — §5.3) · 요청 배관(<code>idempotency_key</code> — 주체가 프로젝트가 아니라 자격증명이라 <code>project_id</code> 조차 없다)이다.</p>
+
+  <blockquote><p><b>33 → 32</b>(2026-09-07 정정). 이 표는 33행이었고 그 33번째가 <code>activity_summary</code> 였는데, 그것은 <b>테이블이 아니라 <code>agent_session</code> 의 jsonb 열</b>이다(<code>0012</code> — 보존 잡이 Activity 원문을 지우기 전에 도구별 횟수를 접어 두는 자리이고, 의미는 §2.5 의 필드표에 있다). 열을 엔티티로 세면 두 가지가 함께 틀린다 — 엔티티 수와, 그 수에서 빼기로 계산하던 부속 수다. 4.3 은 반대 방향으로 틀려 있었다(<code>idempotency_key</code> 를 도메인으로 세고 <code>spec_chunk_embedding</code> 을 인프라로 셌다): <b>32 + 5 = 37</b> 로 두 문서를 맞췄다.</p>
+  <p>(2026-09-06 보완: 30~33 이 표에 없어 이 문서가 요약에서는 37, 표에서는 29 를 말하고 있었다.)</p></blockquote></div>
 
   <div class="callout evidence"><span class="ico">📊</span><div class="body">
     <b class="title">근거 · 2축 분리가 필요한 이유</b>
@@ -470,6 +472,7 @@
       <tr><td><code>prefix</code></td><td>text</td><td>앞 8자(식별·감사용)</td></tr>
       <tr><td><code>scopes</code></td><td>text[]</td><td><code>spec:read</code>, <code>spec:draft</code>, <code>task:claim</code>, <code>task:update</code> … — 어휘 정본은 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(10종)이고, 사람 전용 둘(<code>spec:approve</code>·<code>approval:decide</code>)은 토큰이 가질 수 없다(2026-09-05 정정)</td></tr>
       <tr><td><code>expires_at</code> · <code>revoked_at</code> · <code>last_used_at</code></td><td>timestamptz</td><td></td></tr>
+      <tr><td><code>last_used_hostname</code></td><td>text NULL</td><td>마지막으로 쓰인 머신(<code>X-NERV-Host</code>, <code>0002</code>). 헤더 값이라 <b>신뢰하지 않으며 권한 판정이 아니라 표시 전용</b>이다 — 유출 판단의 첫 단서다(NFR-03)</td></tr>
     </tbody>
   </table></div>
   <p>권한 비확대는 스키마가 아니라 정책으로 강제하지만, <code>user_id</code>를 필수 FK로 두는 것이 그 정책의 데이터 기반이다 — Asana가 AI Teammate에 대해 "사용자와 동일한 권한을 상속하고 절대 확대하지 않는다"고 명시한 원칙과 같다.</p>
@@ -503,7 +506,7 @@
       <tr><td><code>status</code></td><td>enum</td><td><code>draft / in_review / approved / superseded / deprecated</code></td></tr>
       <tr><td><code>body_md</code></td><td>text</td><td>본문(markdown 우선, D-09)</td></tr>
       <tr><td><code>content_hash</code></td><td>bytea</td><td><code>sha256(body_md)</code>. 무변경 저장 차단·중복 감지</td></tr>
-      <tr><td><code>base_version_id</code></td><td>uuid FK NULL</td><td>낙관적 동시성의 전제조건. 불일치 시 409</td></tr>
+      <tr><td><code>base_version_id</code></td><td>uuid FK NULL</td><td><b>파생 계보다 — 어느 버전에서 갈라져 나왔는가.</b> 서버가 직전 <code>version_no</code> 로 채우고 부른 쪽은 주지 않는다(2026-08-30 사람 결정). 2026-09-07 정정: 이 열을 "낙관적 동시성의 전제조건, 불일치 시 409" 라 적어 왔는데 <b>그 축은 <code>base_hash</code> 다</b> — 부른 쪽은 "무엇을 보고 썼는가" 를 <code>content_hash</code> 의 지문으로 말하고, 서버가 그것을 현재 값과 비교-교환한다. 둘을 같은 칸으로 읽으면 "계보를 보내지 않으면 동시성 검사가 안 된다" 는 반대 결론이 나온다</td></tr>
       <tr><td><code>change_summary_md</code></td><td>text</td><td>이 버전이 무엇을 바꿨는가(사람이 읽는 요약)</td></tr>
       <tr><td><code>author_user_id</code> · <code>author_session_id</code></td><td>uuid FK</td><td>사람과 에이전트를 함께 기록</td></tr>
       <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td>CR에서 파생된 버전이면 그 CR</td></tr>
@@ -527,7 +530,7 @@
       <tr><td><code>ref</code></td><td>text</td><td>안정 표시 ID(예: <code>REQ-NAV-012</code>). <code>UNIQUE (project_id, ref)</code></td></tr>
       <tr><td><code>statement_md</code></td><td>text</td><td>EARS 템플릿 권장</td></tr>
       <tr><td><code>acceptance_md</code></td><td>text</td><td>수용 기준</td></tr>
-      <tr><td><code>priority</code></td><td>enum</td><td><code>must / should / could</code>(clemvion의 필수/권장 매핑)</td></tr>
+      <tr><td><code>priority</code></td><td>enum <b>NULL 허용</b></td><td><code>must / should / could</code>(clemvion의 필수/권장 매핑). <b>NULL 은 <code>must</code> 의 축약이 아니라 "원본에 표기가 없었다" 는 사실</b>이다(<code>0020</code> · 2026-09-06). 그전에는 NOT NULL 이라 임포터가 전건 <code>must</code> 를 넣었고, 뒤에 오는 사람은 그것을 원본의 선언으로 읽었다</td></tr>
       <tr><td><code>impl_status</code></td><td>enum</td><td><code>unimplemented / in_progress / implemented / verified</code></td></tr>
       <tr><td><code>introduced_in_version_id</code></td><td>uuid FK</td><td>이 요구사항이 처음 등장한 SpecVersion</td></tr>
       <tr><td><code>current_version_id</code></td><td>uuid FK</td><td>최신 본문을 담은 SpecVersion</td></tr>
@@ -690,6 +693,7 @@
     <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
     <tbody>
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td>모든 도메인 행이 갖는다(§5.5 규칙 8)</td></tr>
       <tr><td><code>task_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>agent_session_id</code></td><td>uuid FK NULL</td><td>사람이 직접 잡으면 NULL</td></tr>
       <tr><td><code>user_id</code></td><td>uuid FK</td><td>책임자(세션 소유자)</td></tr>
@@ -699,7 +703,9 @@
       <tr><td><code>acquired_at</code></td><td>timestamptz</td><td></td></tr>
       <tr><td><code>lease_expires_at</code></td><td>timestamptz</td><td>TTL 리스. 하트비트로 연장</td></tr>
       <tr><td><code>last_heartbeat_at</code></td><td>timestamptz</td><td></td></tr>
-      <tr><td><code>released_at</code> · <code>release_reason</code></td><td>timestamptz · enum</td><td><b>부른 쪽이 고른 셋</b> <code>done / handoff / abandon</code> + <b>서버가 판정한 둘</b> <code>expired</code>(리스 만료) / <code>conflict</code>(겹침 회수) + <code>manual</code>(2026-09-05 이전의 잔재 — 그때는 <code>done</code> 외를 전부 이 값으로 뭉쳤다). 축이 다르므로 같은 열에 두되 어느 쪽이 쓴 값인지가 이름으로 드러난다</td></tr>
+      <tr><td><code>released_at</code> · <code>release_reason</code></td><td>timestamptz · enum</td><td><b>부른 쪽이 고른 셋</b> <code>done / handoff / abandon</code>(표면이 받는 값은 이 셋뿐이다) + <b>서버가 판정한 셋</b> <code>expired</code>(리스 만료) · <code>session_end</code>(세션 종료로 회수) · <code>stopped</code>(사람이 중단해 회수) + <b>생산자가 없는 둘</b> <code>manual</code>(<code>0021</code> 이전의 잔재 — 그때 <code>session_end</code>·<code>stopped</code> 두 경로가 이 값으로 뭉쳐 있었다)·<code>conflict</code>(이 설계에서 겹침은 회수가 아니라 <b>거절</b>이다 — 두 번째 클레임이 막히고 첫 번째가 남는다). 축이 다르므로 같은 열에 두되 어느 쪽이 쓴 값인지가 이름으로 드러난다. 값 목록의 정본은 <a href="pain-points.html">1.2 문제 정의와 요구사항</a> §4.1 이고 DDL 은 <a href="database.html">4.3 데이터베이스 스키마</a> §2.1 이다</td></tr>
+      <tr><td><code>release_note</code></td><td>text NULL</td><td><b>인수인계 노트</b>(<code>0017</code>). <code>nerv_task_release(state_note)</code> 가 채운다 — 세션 타임라인이 아니라 <b>클레임에</b> 붙는 이유는 다음 사람이 <code>nerv_task_next</code> 후보 목록에서 그것을 읽어야 하기 때문이다</td></tr>
+      <tr><td><code>progress_note</code></td><td>text NULL</td><td>하트비트의 한 줄 진행 요약(<code>0017</code> · LWW — 이력이 아니라 "지금 무엇을 하는 중인가")</td></tr>
     </tbody>
   </table></div>
   <p><b>제약:</b> <code>CREATE UNIQUE INDEX ON claim (task_id) WHERE status = 'active'</code> — 두 세션이 같은 작업을 잡는 것이 데이터베이스 수준에서 불가능해진다. 상태 전이와 assignee 설정이 한 트랜잭션이므로 경합은 하나만 통과하고 나머지는 충돌 응답을 받는다.</p>
@@ -729,9 +735,10 @@
       <tr><td><code>model</code></td><td>text</td><td></td></tr>
       <tr><td><code>started_at</code> · <code>last_heartbeat_at</code> · <code>ended_at</code></td><td>timestamptz</td><td></td></tr>
       <tr><td><code>end_reason</code></td><td>enum NULL</td><td><code>complete / error / stopped / stale</code></td></tr>
-      <tr><td><code>diff_added</code> · <code>diff_removed</code></td><td>int</td><td>세션 카드의 +N −M 표시</td></tr>
+      <tr><td><code>diff_added</code> · <code>diff_removed</code> · <code>diff_files</code></td><td>int</td><td>세션 카드의 +N −M 표시. <code>diff_files</code>(<code>0017</code>)가 셋째 값인 이유는 줄 수만으로 "한 파일을 크게" 와 "여러 파일을 조금" 이 같아 보이기 때문이다</td></tr>
       <tr><td><code>token_usage</code></td><td>jsonb</td><td>훅·OTel 수집치</td></tr>
       <tr><td><code>current_task_id</code></td><td>uuid FK NULL</td><td>조회 편의 비정규화(진실은 <code>claim</code>)</td></tr>
+      <tr><td><code>activity_summary</code></td><td>jsonb NOT NULL <code>{}</code></td><td><b>원문이 사라진 뒤에도 남는 것</b>(<code>0012</code>). 보존 잡이 90일 지난 <code>activity</code> 를 지우기 전에 도구별 횟수를 여기 접는다 — 빈 레일은 "기록이 없다" 와 "아무것도 안 했다" 를 구별하지 못한다. <b>테이블이 아니라 <code>agent_session</code> 의 열</b>이다(2026-09-07 정정 — §1.3 이 이것을 33번째 엔티티로 세고 있었다)</td></tr>
     </tbody>
   </table></div>
   <p>상태 전이는 D-13 그대로다: <code>pending → active ↔ awaiting_input → complete / error / stale</code>. <code>stale</code>은 사람이 아니라 워커가 만든다 — 무활동 임계(기본 30분) 초과 시 자동 전이하고 보유 클레임을 회수한다. 임계값은 Linear의 Agent Session 규약(무활동 30분 stale)과 같은 값이다.</p>
@@ -856,13 +863,16 @@
       <tr><td><code>finding_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>kind</code></td><td>enum</td><td><code>fixed / deferred / dismissed / escalated / spec_change</code></td></tr>
       <tr><td><code>commit_sha</code></td><td>text NULL</td><td><code>fixed</code>일 때 필수</td></tr>
-      <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td><code>spec_change</code>일 때</td></tr>
+      <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td><code>spec_change</code> 의 증거 — 둘 중 하나면 된다</td></tr>
+      <tr><td><code>spec_version_id</code></td><td>uuid FK NULL</td><td><b>스펙을 고쳐 해결한 증거</b>(<code>0011</code> · 2026-08-30). 커밋이 코드 쪽 증거이듯 이것이 문서 쪽 증거다. CHECK 는 <code>spec_change</code> 에 <code>change_request_id</code> <b>또는</b> 이 열을 요구한다 — 그전에는 CR 만 인정했고 CR 을 만드는 코드가 없어 <code>spec_change</code> 자체가 <b>닿을 수 없는 값</b>이었다</td></tr>
       <tr><td><code>escalate_reason</code></td><td>enum NULL</td><td><code>no / spec / user-decision / infra / e2e-fail-3x / sensitive-fix</code></td></tr>
       <tr><td><code>rationale_md</code></td><td>text</td><td><b>유예 근거는 1급 데이터</b></td></tr>
       <tr><td><code>actor_user_id</code> · <code>actor_session_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
+  <p><b>표면의 <code>resolution</code> 어휘와 저장의 두 축은 이름이 다르다</b>(2026-09-07 명시). <code>EP-REV-02</code>·<code>nerv_finding_resolve</code> 가 받는 값은 다섯(<code>fixed</code>·<code>spec_change</code>·<code>dismissed</code>·<code>wont_fix</code>·<code>escalated</code>)이고, 서버는 그것을 <b><code>resolution.kind</code>(무엇으로 해결했나)</b> 와 <b><code>finding.status</code>(그래서 발견은 어떻게 됐나)</b> 두 축으로 번역한다. 엇갈리는 자리가 둘이다 — 표면의 <b><code>wont_fix</code> 는 <code>kind='deferred'</code> + <code>status='wont_fix'</code></b> 이고(<code>resolution_kind</code> 에 <code>wont_fix</code> 라는 값은 없다), <b><code>escalated</code> 는 <code>status</code> 를 <code>open</code> 으로 남긴다</b>(넘긴 것은 해결한 것이 아니다). 번역표는 도메인 한 곳이다 — 표면마다 사본을 두면 한쪽만 낡는다.</p>
+
   <p>ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 이식한다. <code>rationale_md</code>가 중요한 이유도 실측이다 — <code>SNAPSHOT_CACHE_MAX_ENTRIES</code> 유예 건이 <code>14_01_46</code>/<code>17_15_21</code>/<code>18_19_33</code> 세 세션에서 반복 재확인되며 매번 새 표 행으로 재서술됐다. "새 근거 없이 재상정하지 않음" 규칙이 산문 인용으로만 유지되던 것을, finding 1건 + resolution 여러 건의 관계로 바꾼다.</p>
 
   <h3>2.7 사람 개입 — approval · question</h3>
@@ -1230,6 +1240,18 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td><code>notification</code></td><td>180일</td><td>파생 데이터. 원천은 <code>event</code></td></tr>
     </tbody>
   </table></div>
+  <p><b>집행되는 것은 둘뿐이다</b>(2026-09-07 실측 — 표는 약속이고 이 문단이 현재다). 보존 잡(<code>retention</code>)이 실제로 도는 줄은 <code>activity</code>(프로젝트 정책 <code>activity_days</code>, 기본 90일 — 지우기 전에 <code>agent_session.activity_summary</code> 로 접는다)와 <code>review_session.prompt_blob_uri</code>(<code>prompt_blob_ttl_days</code>, 기본 30일 · 행의 <code>prompt_expires_at</code> 과 먼저 오는 쪽)다. 프로젝트 정책 스키마(<code>RetentionSchema</code>)의 키도 그 둘뿐이라 나머지는 정책으로 적을 자리조차 없다.</p>
+
+  <div class="table-wrap"><table>
+    <tr><th>약속한 줄</th><th>상태</th></tr>
+    <tr><td><code>notification</code> 180일</td><td><b>집행 없음</b> — 파생 데이터인데 영구히 쌓인다</td></tr>
+    <tr><td><code>reviewer_report.body_md</code> 365일 후 압축</td><td><b>집행 없음</b> — 이 표에서 가장 큰 축이었다(세션당 66KB × 월 ~434 세션)</td></tr>
+    <tr><td><code>spec_version</code>(draft 중간 저장) 90일 후 압축</td><td><b>집행 없음</b> — approved 는 영구·불변이 맞고 이 줄은 draft 만의 이야기다</td></tr>
+    <tr><td><code>event</code> 12개월 후 콜드(<code>DETACH</code>)</td><td><b>집행 없음</b> — 파티션 분리 잡이 없다(<a href="database.html">4.3 데이터베이스 스키마</a> §2.14)</td></tr>
+  </table></div>
+
+  <p>넷 다 <b>이월</b>이며 그 사실을 여기 적는 이유는, 있다고 적힌 보존 정책이 감사·용량 계획의 입력이 되기 때문이다 — 거짓이면 두 계산이 함께 틀린다.</p>
+
   <p>개인정보는 <code>event.payload</code>에 직접 넣지 않고 사용자 ID 참조만 둔다 — 이벤트 로그와 삭제권의 충돌은 이벤트 소싱 패턴이 공식적으로 경고하는 지점이다.</p>
 
   <h3>5.5 스키마가 강제하는 무결성 규칙</h3>
@@ -1245,7 +1267,7 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td>6</td><td>모든 상태 전이는 Event를 남긴다</td><td>도메인 서비스 계층에서 전이와 같은 트랜잭션</td></tr>
       <tr><td>7</td><td>severity 변경은 감사 대상이다</td><td><code>finding.severity</code> 변경 시 <code>event</code> 필수, 원값은 <code>raw_severity</code>에 보존</td></tr>
       <tr><td>8</td><td>모든 도메인 행은 <code>project_id</code>를 갖는다</td><td>NOT NULL + 저장소 계층의 권한 자동 주입</td></tr>
-      <tr><td>9</td><td>편집 리스는 draft 상태에서만 non-NULL이다</td><td><code>spec_version</code> 리스 3필드의 partial index <code>WHERE status='draft'</code> — draft가 아니면 전부 NULL</td></tr>
+      <tr><td>9</td><td>편집 리스는 draft 상태에서만 non-NULL이다</td><td><b>CHECK 제약</b> <code>spec_version_lease_draft_only_ck</code> — <code>status = 'draft' OR (리스 3필드가 전부 NULL)</code>. 2026-09-07 정정: 이 칸이 "partial index" 라 적고 있었는데 인덱스는 <b>유일성</b>을 강제하지 실물의 조건부 NULL 을 강제하지 못한다 — 문서대로 세우면 규칙 9 가 DB 에서 사라진다</td></tr>
       <tr><td>10</td><td>기준선은 approved 버전만 담고, 생성 후 불변이다</td><td>생성 트랜잭션에서 항목 전건의 <code>status='approved'</code> 검증 + 항목 UPDATE/DELETE 경로 미제공(변경 = 새 기준선 생성)</td></tr>
     </tbody>
   </table></div>

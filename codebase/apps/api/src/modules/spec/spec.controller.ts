@@ -367,7 +367,7 @@ export class SpecController {
     return this.comments.list({
       projectId: projectOf(req),
       specKey: spec,
-      status: status === 'resolved' ? 'resolved' : status === 'open' ? 'open' : null,
+      status: status ?? null,
     });
   }
 
@@ -487,7 +487,7 @@ export class SpecController {
     return this.relations.list({
       projectId: projectOf(req),
       specKey: spec,
-      direction: direction === 'out' || direction === 'in' ? direction : 'both',
+      direction: direction ?? null,
       kind: kind ?? null,
     });
   }

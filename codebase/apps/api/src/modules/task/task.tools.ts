@@ -73,7 +73,7 @@ export class TaskTools implements NervToolProvider {
           // 배열이 아니라 쉼표 목록이다 — REST 질의와 같은 모양이라 사람이 옮겨 적기 쉽다
           status: { type: 'string', description: 'mcp.arg.task_status_filter' },
           assignee: { type: 'string', description: 'user UUID' },
-          spec: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+          spec: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
           // 기본은 **닫혀 있다** — 보관한 것까지 함께 오면 목록이 목록이기를 그만둔다
           include_archived: { type: 'boolean', default: false },
           limit: { type: 'integer', minimum: 1, maximum: 100 },
@@ -159,7 +159,7 @@ export class TaskTools implements NervToolProvider {
             properties: {
               spec_ids: {
                 type: 'array',
-                items: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+                items: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
               },
               file_globs: { type: 'array', items: { type: 'string' } },
             },

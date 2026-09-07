@@ -10,7 +10,16 @@
 // OWASP ASI09 가 명명한 공격 표면이고, 원문 우선 표시가 그에 대한 구조적 방어다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { approvalDecision, msg, NERV_ERROR, NERV_EVENT, newId, scopesForRoles } from '@nerv/schema';
+import {
+  APPROVAL_INBOX_STATES,
+  approvalDecision,
+  msg,
+  NERV_ERROR,
+  NERV_EVENT,
+  newId,
+  questionStatus,
+  scopesForRoles,
+} from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -59,8 +68,9 @@ function canApproveSql(userId: string): SQL {
                   AND (m.project_id = a.project_id
                        OR (m.project_id IS NULL AND m.org_id = (
                              SELECT org_id FROM project WHERE id = a.project_id))))
-    OR (SELECT count(DISTINCT user_id) FROM membership
-         WHERE project_id = a.project_id OR project_id IS NULL) < 2
+    OR (SELECT count(DISTINCT m.user_id) FROM membership m
+         WHERE m.org_id = (SELECT org_id FROM project WHERE id = a.project_id)
+           AND (m.project_id = a.project_id OR m.project_id IS NULL)) < 2
   ) AS can_approve`;
 }
 
@@ -155,7 +165,13 @@ export class ApprovalService {
    * EP-APR-01 받은 요청 — **내 결정을 기다리는 것만** 센다(§6.6 원칙 3).
    * 나머지는 피드다. 이 구분이 없으면 배지 숫자가 의미를 잃고 받은 요청이 두 번째 받은편지함이 된다.
    */
-  async inbox(input: { projectId: string; userId: string }): Promise<InboxCard[]> {
+  async inbox(input: {
+    projectId: string;
+    userId: string;
+    /** 사람 전용 게이트의 축 — 전역 경로(EP-APR-01)와 같은 규칙이다(D-05 · REQ-API-123) */
+    actor: Actor;
+  }): Promise<InboxCard[]> {
+    assertHuman(input.actor, 'inbox', '/inbox');
     const { rows } = await this.db.execute<InboxCard>(sql`
       SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
              s.key AS subject_key,
@@ -188,11 +204,13 @@ export class ApprovalService {
     /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
     actor: Actor;
     userId: string;
-    state?: 'pending' | 'decided' | null;
+    /** 어휘는 `APPROVAL_INBOX_STATES` — 판정은 아래에서 한다(REQ-API-126) */
+    state?: string | null;
     projectSlug?: string | null;
   }): Promise<Record<string, unknown>[]> {
     assertHuman(input.actor, 'inbox', '/inbox');
-    const decided = input.state === 'decided';
+    const decided =
+      assertVocab([input.state ?? 'pending'], APPROVAL_INBOX_STATES, 'state')[0] === 'decided';
     const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
     const projectFilter =
       input.projectSlug == null ? sql`` : sql` AND p.slug = ${input.projectSlug}`;
@@ -320,12 +338,24 @@ export class ApprovalService {
     return projectId;
   }
 
-  /** EP-QST-01 — 열린 질문 목록(프로젝트 소속). */
+  /**
+   * EP-QST-01 — 질문 목록(프로젝트 소속). 기본은 `open` 이다.
+   *
+   * **어휘 판정이 여기 있다**(REQ-API-126). 예전에는 표면이 `status === 'answered' ? … : 'open'`
+   * 로 접어, `?status=cancelled` 가 **열린 질문 목록을 200 으로** 돌려줬다 — REQ-API-109 가
+   * 만든 상태를 조회할 길이 없으면서 물어본 쪽은 걸러진 목록이라고 믿는다.
+   * 시그니처를 `string` 으로 넓히는 것이 요점이다: 리터럴 유니온은 컴파일러를 막지
+   * **호출자(HTTP·MCP)를 막지 않는다.**
+   */
   async questions(input: {
     projectId: string;
-    status?: 'open' | 'answered' | null;
+    status?: string | null;
   }): Promise<Record<string, unknown>[]> {
-    const status = input.status ?? 'open';
+    const status = assertVocab(
+      [input.status ?? 'open'],
+      questionStatus.enumValues,
+      'status',
+    )[0] as string;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT q.id, q.title, q.body_md, q.options, q.urgency::text AS urgency,
              q.status::text AS status, q.answer_key, q.answer_md, q.asked_at, q.answered_at,
@@ -466,6 +496,10 @@ export class ApprovalService {
   /**
    * EP-APR-04 게이트 면제 — **면제도 결재 레코드다**(FR-10).
    * 사유가 없으면 CHECK 가 막는다(4.3 §2.8). 기록되지 않는 면제는 면제가 아니라 구멍이다.
+   *
+   * **사람 전용이고 판정은 여기다**(REQ-API-123). 역할 문턱(`@RequireRole`)만으로는 막히지
+   * 않는다 — PAT 도 소유자의 멤버십 역할로 그 문턱을 지난다(`project-access.guard.ts`).
+   * 게이트가 사유 검사보다 앞이라 에이전트 호출은 DB 를 한 번도 건드리지 않는다.
    */
   async bypass(input: {
     projectId: string;
@@ -473,7 +507,9 @@ export class ApprovalService {
     subjectId: string;
     userId: string;
     reason: string;
+    actor: Actor;
   }): Promise<{ approval_id: string }> {
+    assertHuman(input.actor, 'bypass');
     if (input.reason.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.waiver_reason_required'), {
         kind: 'bypass_reason_required',
@@ -493,7 +529,7 @@ export class ApprovalService {
         subjectType: 'approval',
         subjectId: approvalId,
         actorUserId: input.userId,
-        isAgent: false,
+        isAgent: input.actor.isAgent,
         payload: { reason: input.reason },
       });
       return { approval_id: approvalId };
@@ -558,9 +594,14 @@ export class ApprovalService {
     projectId: string,
     userId: string,
   ): Promise<void> {
+    // 조직 단위 멤버십은 **그 조직의 것만** 센다(2026-09-07 · REQ-API-125). 다른 조직의
+    // 사람이 이 프로젝트의 "둘째 사람" 으로 세어지면 완화가 필요한 자리에서 꺼지고,
+    // 반대로 그 사람이 승인할 수 있는 것도 아니다 — 아무도 결재를 끝낼 수 없게 된다.
     const { rows } = await tx.execute<{ n: number }>(sql`
-      SELECT count(DISTINCT user_id)::int AS n FROM membership
-       WHERE project_id = ${projectId} OR project_id IS NULL
+      SELECT count(DISTINCT m.user_id)::int AS n FROM membership m
+        JOIN project p ON p.id = ${projectId}
+       WHERE m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
     `);
     if ((rows[0]?.n ?? 1) < 2) {
       this.logger.warn(`소규모 완화 — 자기 승인을 허용한다(감사 기록됨) user=${userId}`);

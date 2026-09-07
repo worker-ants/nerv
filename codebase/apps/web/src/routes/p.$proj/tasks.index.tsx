@@ -10,6 +10,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { DelegationForm } from '../../features/task-board/delegation-form.js';
 import { leaseRemaining, relativeTime } from '../../features/session-monitor/format.js';
+import { blockedReasonText } from '../../lib/format.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
 import { useMe, useProject, useTaskLane } from '../../lib/queries.js';
 import { cn } from '../../lib/utils.js';
@@ -507,9 +508,15 @@ function TaskCard({
           </div>
         </div>
       )}
+      {/* **식별자가 아니라 사람 말이다**(2026-09-07 · REQ-WEB-143). 카드가 코드의 이름을
+          그대로 찍고 있었다 — `awaiting_answer` 는 어휘의 값이지 읽으라고 만든 문장이
+          아니다. 어휘 밖의 값(옛 자유 텍스트)은 원문 그대로 보인다 */}
       {lane === 'blocked' && (
-        <p className="mt-1.5 rounded-nerv-sm bg-status-danger-soft px-1.5 py-1 text-2xs text-status-danger">
-          {String(task['blocked_reason'] ?? '')}
+        <p
+          data-testid="card-blocked-reason"
+          className="mt-1.5 rounded-nerv-sm bg-status-danger-soft px-1.5 py-1 text-2xs text-status-danger"
+        >
+          {blockedReasonText(t, task['blocked_reason'])}
         </p>
       )}
     </article>

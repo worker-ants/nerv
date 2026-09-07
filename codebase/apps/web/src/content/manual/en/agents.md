@@ -21,6 +21,7 @@ What an agent may do is decided by **the token** (issuing one is step 1 of [Inst
 - **`spec:evidence` exists for CI.** It can only attach PR and test evidence to a requirement — a build pipeline's token needs nothing else. It cannot touch drafts or tasks.
 - **Project settings, archive and restore cannot be done with a token**, not even with the admin role. Lowering a gate policy carries the same weight as bypassing a gate, so a person does it on the web.
 - **`spec:approve` and `approval:decide` cannot be granted to a token.** They are **visible but locked** on the issuing screen. Dropping them from the list would leave the question "why can't a token approve?" unanswered anywhere on screen; something visible and unpickable teaches the rule. Approval is something a person does.
+- **Answering a question, bypassing a gate and reading the inbox cannot be done with a token either**, not even with the admin role. An agent answering its own question is the same as having no human gate at all. A person answers, in the inbox on the web.
 - A token can never be broader than the role. The role at issue time is the ceiling.
 - The list records last use and last host. If you see a host you do not recognise, revoke it right there.
 

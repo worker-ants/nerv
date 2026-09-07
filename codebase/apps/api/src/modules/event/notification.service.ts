@@ -18,6 +18,7 @@ import {
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
+import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { ValkeyService } from './valkey.service.js';
@@ -235,27 +236,40 @@ export class NotificationService {
       return approval.assignee_user_id === event.actor_user_id ? [] : [approval.assignee_user_id];
     }
     if (approval.assignee_role !== null) {
+      // **조직 경계**(2026-09-07 · REQ-API-125). `project_id IS NULL` 은 "조직 단위 멤버십" 인데
+      // 어느 조직인지를 보지 않으면 **다른 조직의** 같은 역할 보유자에게 이 프로젝트의 스펙
+      // 키·제목이 알림으로 간다. `assertMembership`(2026-08-24)·자기 승인 admin 판정(09-02)이
+      // 같은 자리에서 같은 실수를 했다 — 판정마다 따로 고쳐 온 것이 이 결함의 모양이다.
       const { rows: members } = await this.db.execute<{ user_id: string }>(sql`
-        SELECT DISTINCT user_id FROM membership
-         WHERE (project_id = ${event.project_id} OR project_id IS NULL)
-           AND role = ${approval.assignee_role}::member_role
-           ${event.actor_user_id === null ? sql`` : sql`AND user_id <> ${event.actor_user_id}`}
+        SELECT DISTINCT m.user_id FROM membership m
+          JOIN project p ON p.id = ${event.project_id}
+         WHERE m.org_id = p.org_id
+           AND (m.project_id = p.id OR m.project_id IS NULL)
+           AND m.role = ${approval.assignee_role}::member_role
+           ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
       `);
       return members.map((r) => r.user_id);
     }
     return null;
   }
 
-  /** 지정이 없을 때의 기본 수신자 — 프로젝트의 admin·planner. */
+  /**
+   * 지정이 없을 때의 기본 수신자 — **그 조직의** 프로젝트 admin·planner(REQ-API-125).
+   *
+   * 조직 단위 멤버십(`project_id IS NULL`)은 조직을 함께 봐야 한다 — 보지 않으면 A 조직의
+   * planner 가 B 조직 프로젝트의 알림을 받는다(FR-14 의 경계가 여기서 샜다).
+   */
   private async roleQueue(event: {
     project_id: string;
     actor_user_id: string | null;
   }): Promise<string[]> {
     const { rows } = await this.db.execute<{ user_id: string }>(sql`
-      SELECT DISTINCT user_id FROM membership
-       WHERE (project_id = ${event.project_id} OR project_id IS NULL)
-         AND role IN ('admin', 'planner')
-         ${event.actor_user_id === null ? sql`` : sql`AND user_id <> ${event.actor_user_id}`}
+      SELECT DISTINCT m.user_id FROM membership m
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role IN ('admin', 'planner')
+         ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
     `);
     return rows.map((r) => r.user_id);
   }
@@ -278,7 +292,8 @@ export class NotificationService {
    */
   async list(input: {
     userId: string;
-    state?: 'unread' | 'read' | null;
+    /** 어휘 판정은 아래 `assertVocab` 이 한다 — 표면이 접으면 여기까지 오지 않는다(REQ-API-126) */
+    state?: string | null;
     limit?: number;
     /** 이 시각보다 **앞선** 것 — 목록의 마지막 항목이 다음 쪽의 시작이다 */
     before?: string | null;
@@ -288,12 +303,20 @@ export class NotificationService {
         ? sql``
         : // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
           sql` AND n.state = ${assertVocab([input.state], notificationState.enumValues, 'state')[0]}::notification_state`;
-    // strict 비교라 같은 시각의 행을 건너뛸 수 있다 — 알림은 초 단위로 몰리지 않으므로
-    // 여기서는 감수하고, 정확한 페이지네이션이 필요해지면 (created_at, id) 복합 커서로 간다.
+    // **커서는 (created_at, id) 다**(§1.6 · REQ-API-124). 예전 주석은 "같은 시각의 행을
+    // 건너뛸 수 있지만 감수한다" 였는데, REQ-API-083 이 이 목록에도 "겹치지도 빠뜨리지도
+    // 않는 다음 쪽" 을 이미 약속하고 있었다 — 감수는 요구사항과 어긋난 채였다.
+    // 한 이벤트가 여러 수신자에게 파생되면 같은 `created_at` 이 여럿이다.
+    const cursor = decodeCursor(input.before ?? undefined);
+    const cursorAt = cursorTimestamp(cursor?.[0]);
+    const cursorRowId = cursorId(cursor?.[1]);
+    const legacyAt = cursor === null ? cursorTimestamp(input.before) : null;
     const beforeFilter =
-      input.before == null || input.before === ''
-        ? sql``
-        : sql` AND n.created_at < ${input.before}::timestamptz`;
+      cursorAt !== null && cursorRowId !== null
+        ? sql` AND (n.created_at, n.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
+        : legacyAt !== null
+          ? sql` AND n.created_at < ${legacyAt}::timestamptz`
+          : sql``;
     const limit = Math.min(input.limit ?? 50, 200);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT n.id, n.state::text AS state, n.importance::text AS importance,
@@ -313,7 +336,7 @@ export class NotificationService {
        WHERE n.user_id = ${input.userId}${stateFilter}${beforeFilter}
          -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
          AND p.archived_at IS NULL
-       ORDER BY n.created_at DESC
+       ORDER BY n.created_at DESC, n.id DESC
        LIMIT ${limit + 1}
     `);
     // 한 건 더 받아 **다음 쪽이 있는지**를 안다 — 총계를 세면 매 요청이 전량 스캔이다
@@ -321,7 +344,10 @@ export class NotificationService {
     const last = items[items.length - 1];
     return {
       items,
-      next_cursor: rows.length > limit && last !== undefined ? String(last['created_at']) : null,
+      next_cursor:
+        rows.length > limit && last !== undefined
+          ? encodeCursor([String(last['created_at']), String(last['id'])])
+          : null,
     };
   }
 

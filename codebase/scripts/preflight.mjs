@@ -23,7 +23,7 @@
 //
 //   pnpm preflight          — CI 의 check 잡 (기본)
 //   pnpm preflight --l2     — L2 까지 (실제 Postgres · .env 필요)
-//   pnpm preflight --fast   — 게이트 셋을 건너뛴다(빠른 반복용 — push 전에는 쓰지 않는다)
+//   pnpm preflight --fast   — 게이트를 전부 건너뛴다(빠른 반복용 — push 전에는 쓰지 않는다)
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -183,7 +183,10 @@ if (failed !== null) {
 }
 
 if (fast) {
-  console.log(`\n${DIM}--fast 였다 — 게이트 셋은 돌지 않았다. push 전에는 그냥 돌린다.${OFF}`);
+  const gates = steps.filter((s) => s.gate === true).length;
+  console.log(
+    `\n${DIM}--fast 였다 — 게이트 ${gates}개는 돌지 않았다. push 전에는 그냥 돌린다.${OFF}`,
+  );
 } else if (!withL2) {
   console.log(`\n${DIM}CI 의 check 잡과 같은 범위다. L2 까지 보려면 --l2.${OFF}`);
 }

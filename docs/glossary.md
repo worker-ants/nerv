@@ -29,7 +29,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV 문서 세트·화면 문구·매뉴얼·스킬이 공유하는 **용어의 정본**이다 — 한국어와 영어 둘 다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 **치환되는 옛 표현**과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다. 상태값의 목록과 결정 번호(D-01~D-14)·요구사항 번호(FR/NFR)는 여기가 아니라 [1.2 문제 정의와 요구사항](01-problem/pain-points.md)이 정본이고, 이 문서는 그 값들을 **무엇이라 부를지**만 정한다.
 >
-> 문서 버전 v0.4 · 2026-09-06 · HTML 파생본: [glossary.html](html/glossary.html)
+> 문서 버전 v0.5 · 2026-09-07 · HTML 파생본: [glossary.html](html/glossary.html)
+>
+> v0.5 변경(2026-09-07 — 사전의 `코드` 열 절반이 실재하지 않는 이름이었다, 개선 계획 첫 스프린트): **새 표제어 없음 — §2 의 `코드` 열 스물둘을 실물로 고친다.** 이 사전은 §0.2 에서 "식별자는 번역하지 않고 그대로 둔다" 고 선언해 놓고, 정작 그 식별자를 적는 열에 **없는 이름**을 싣고 있었다. 두 종류다 — ① **복수형**: 테이블은 전부 snake_case 단수인데(`organizations`·`projects`·`specs`·`spec_versions`·`requirements`·`change_requests`·`tasks`·`claims`·`findings`·`approvals`·`questions`·`notifications`·`agent_sessions`·`activities`·`invitations`) 열여섯 자리가 복수였다. ② **아예 없는 이름**: `agent_tokens`(실물 `api_token`) · `baselines`(`spec_baseline`) · `reviews`(`review_session`) · `gate_policies`(`project.gate_policy` — 테이블이 아니라 jsonb 열이다) · `stable_key`(그런 열은 없다 — 표시 키는 `spec.key`·`task.key` 이고 요구사항만 `ref` 다) · `claims.spec_ids`·`file_globs`(`claim.scope_spec_ids`·`scope_file_globs`) · `heartbeat_at`(`last_heartbeat_at`). **이 열은 "코드에서 무엇을 찾아야 하는가" 에 답하는 자리**라, 없는 이름을 적으면 찾는 사람이 못 찾고 사전이 사전이기를 그만둔다. 표 머리에 그 규율을 한 줄로 못 박았다. 곁들여 §0.2 와 §2.6 의 예시 `spec_versions` 도 단수로 고쳤다(같은 문서가 같은 실수를 세 자리에서 하고 있었다).
 >
 > v0.4 변경(2026-09-06 — 치환 구역에 저장소 루트가 없었다, 정합성 대조 → 사람 지시): §1.1 이 "옛 표현은 저장소에 남아 있지 않다" 고 선언했는데 **루트 `README.md` 에 둘이 살아 있었다**(`HTML 판` · `안정 ID` — 둘 다 변경 기록이 아니라 본문). 구역 여섯이 `docs/` 와 `codebase/` 를 나눈 것이라 저장소 루트를 훑지 않은 것이 원인이다. 고치고, **다음 치환은 구역에 저장소 루트를 넣는다**는 것을 표 아래 적었다.
 >
@@ -55,7 +57,7 @@ referenced_by:
 
 ### 0.2 코드 식별자는 번역 대상이 아니다
 
-`scope` · `baseline` · `lease_expires_at` · `spec_versions` · `AGENT_SCOPES` 는 **API·DB 계약**이다. 이 사전이 움직이는 것은 **사람과 에이전트가 읽는 한국어**뿐이고, 식별자는 그대로 둔다. 그래서 아래 치환표의 어느 행도 마이그레이션을 요구하지 않는다.
+`scope` · `baseline` · `lease_expires_at` · `spec_version` · `AGENT_SCOPES` 는 **API·DB 계약**이다. 이 사전이 움직이는 것은 **사람과 에이전트가 읽는 한국어**뿐이고, 식별자는 그대로 둔다. 그래서 아래 치환표의 어느 행도 마이그레이션을 요구하지 않는다.
 
 ### 0.3 우선순위
 
@@ -105,17 +107,19 @@ referenced_by:
 
 한 줄 뜻은 **이 저장소 안에서의 쓰임**이다. `코드` 열은 데이터베이스·API 식별자로 번역하지 않는다.
 
+> **`코드` 열에는 실재하는 식별자만 적는다**(2026-09-07 정정). 이 열의 절반이 실재하지 않는 이름이었다 — 테이블은 전부 **snake_case 단수**인데(`organization`·`spec`·`task`…, 이름 규약의 정본은 [4.3 데이터베이스 스키마](04-mvp/database.md) §1) 열여섯 자리가 복수형으로 적혀 있었고, `agent_tokens`·`baselines`·`reviews`·`gate_policies`·`stable_key`·`claims.spec_ids`·`heartbeat_at` 은 **복수형조차 아니라 아예 없는 이름**이었다. 사전의 이 열은 "코드에서 무엇을 찾아야 하는가" 에 답하는 자리라, 없는 이름을 적으면 찾는 사람이 못 찾는다 — 이 사전이 §0.2 에서 "식별자는 그대로 둔다" 고 선언한 것과도 어긋난다. 테이블·열·enum·상수를 구별해 실물로 다시 적었다.
+
 ### 2.1 조직 · 사람 · 권한
 
 | 한국어 | 영문 | 코드 | 뜻 |
 | --- | --- | --- | --- |
-| **조직** | organization | `organizations` | 테넌트의 가장 바깥 칸. 사람·프로젝트·결제가 여기에 매인다 |
-| **프로젝트** | project | `projects` | 스펙·작업·리뷰가 사는 단위. 주소의 `slug` 가 이것을 가리킨다 |
+| **조직** | organization | `organization` | 테넌트의 가장 바깥 칸. 사람·프로젝트·결제가 여기에 매인다 |
+| **프로젝트** | project | `project` | 스펙·작업·리뷰가 사는 단위. 주소의 `slug` 가 이것을 가리킨다 |
 | **역할** | role | `member_role` | 사람이 조직·프로젝트에서 무엇을 할 수 있는지 정하는 여섯 값 — `admin`·`planner`·`designer`·`developer`·`qa`·`viewer` |
-| **소속** ← 스코프 | membership scope | `memberships.project_id` | 멤버가 **조직 전체**인지 **특정 프로젝트**인지 — 사람이 어디까지 보이는가 |
+| **소속** ← 스코프 | membership scope | `membership.project_id` | 멤버가 **조직 전체**인지 **특정 프로젝트**인지 — 사람이 어디까지 보이는가 |
 | **권한** ← 스코프 | scope | `AGENT_SCOPES`·`HUMAN_ONLY_SCOPES` | 토큰이 할 수 있는 일. `resource:action` 표기로 10종이고, 그 위에 토큰이 가질 수 없는 **사람 전용 권한** 둘(`spec:approve`·`approval:decide`)이 있다 |
-| **토큰** | personal access token | `agent_tokens` | 에이전트가 사람을 대신해 들고 다니는 열쇠. 발급 직후 한 번만 원문이 보이고, 역할보다 넓어질 수 없다. 약어 `PAT` 는 명세에서만 쓰고 화면에는 내지 않는다 |
-| **초대** | invitation | `invitations` | 이메일·역할·소속을 정해 만든 링크. 받는 사람이 로그인하면 자동으로 수락된다 |
+| **토큰** | personal access token | `api_token` | 에이전트가 사람을 대신해 들고 다니는 열쇠. 발급 직후 한 번만 원문이 보이고, 역할보다 넓어질 수 없다. 약어 `PAT` 는 명세에서만 쓰고 화면에는 내지 않는다 |
+| **초대** | invitation | `invitation` | 이메일·역할·소속을 정해 만든 링크. 받는 사람이 로그인하면 자동으로 수락된다 |
 
 **스코프 세 갈래를 나눈 이유.** 한 낱말이 같은 설정 화면의 두 탭에서 서로 다른 것을 가리키고 있었다 — 토큰 탭의 "스코프" 는 권한, 멤버 탭의 "스코프" 는 소속이었고, 오류 문구 "이미 같은 스코프의 멤버입니다" 는 그 문장만 보고 어느 쪽인지 알 수 없었다. 세 번째 뜻(클레임의 범위)은 **화면이 이미 "범위" 로 갈아탄 뒤**였다(`event.claim.conflict_warn` = "범위 겹침 경고") — 채택어 "작업 범위" 는 새 말이 아니라 그 갈라짐을 사전이 따라잡는 것이다.
 
@@ -123,14 +127,14 @@ referenced_by:
 
 | 한국어 | 영문 | 코드 | 뜻 |
 | --- | --- | --- | --- |
-| **스펙** | spec | `specs` | 단일 진실로 관리되는 문서 한 편. 화면 내비게이션의 이름이기도 하다 |
-| **버전** ← 판 | version | `spec_versions` | 스펙의 한 시점. 초안 → 검토 중 → 승인됨 → 대체됨·폐기됨의 다섯 상태를 갖는다. 승인된 버전은 고칠 수 없고, 고치려면 **다음 버전**을 시작한다 |
+| **스펙** | spec | `spec` | 단일 진실로 관리되는 문서 한 편. 화면 내비게이션의 이름이기도 하다 |
+| **버전** ← 판 | version | `spec_version` | 스펙의 한 시점. 초안 → 검토 중 → 승인됨 → 대체됨·폐기됨의 다섯 상태를 갖는다. 승인된 버전은 고칠 수 없고, 고치려면 **다음 버전**을 시작한다 |
 | **판** | edition · pass | — | 두 가지로 남는다 — ① **판본**: 같은 내용을 다른 형태로 낸 것("전체 화면 판"·"markdown 판"). ② **회차**: 한 번 도는 것("임베딩 한 판" — `NERV_EMBED_PASS_MS`). 둘 다 **버전과 다른 말**이다 — 아래 참고 |
-| **요구사항** | requirement | `requirements` | 스펙 안의 검증 가능한 한 줄. EARS 문형을 쓰고 `REQ-…` 번호를 갖는다 |
-| **기준선** ← 베이스라인 | baseline | `baselines` | 문서를 어느 버전으로 읽을지 정해 둔, 이름 붙은 묶음. 고르지 않으면 각 문서를 최신 승인본으로 읽는다 |
+| **요구사항** | requirement | `requirement` | 스펙 안의 검증 가능한 한 줄. EARS 문형을 쓰고 `REQ-…` 번호를 갖는다 |
+| **기준선** ← 베이스라인 | baseline | `spec_baseline`·`spec_baseline_item` | 문서를 어느 버전으로 읽을지 정해 둔, 이름 붙은 묶음. 고르지 않으면 각 문서를 최신 승인본으로 읽는다 |
 | **워크플로우** ← 워크플로 | workflow | `spec_version_status` | 버전이 상태를 옮겨 가는 규칙과, 그 사이에 놓인 승인 게이트 |
-| **변경 요청** | change request | `change_requests` | 승인된 문서를 고치자는 제안. 위험도(`low`·`normal`·`high`)와 출처(사람·에이전트·스펙 드리프트)를 단다 |
-| **고정 ID** ← 안정 ID·안정 키 | stable id · stable key | `stable_key` | 문서를 옮기거나 이름을 바꿔도 변하지 않는 값 — `SPC-…`·`REQ-…`·`TSK-…` |
+| **변경 요청** | change request | `change_request` | 승인된 문서를 고치자는 제안. 위험도(`low`·`normal`·`high`)와 출처(사람·에이전트·스펙 드리프트)를 단다 |
+| **고정 ID** ← 안정 ID·안정 키 | stable id · stable key | `spec.key`·`task.key`·`requirement.ref` · 찾는 규칙은 `DISPLAY_KEY_PATTERN` | 문서를 옮기거나 이름을 바꿔도 변하지 않는 값. **`stable_key` 라는 이름의 열은 없다**(2026-09-07 정정) — 표시 키는 `<프로젝트 키>-<타입>-<base32 6자>`(예 `CLV-T-ZWHNB0`)이고 요구사항만 `ref` 를 쓴다. 형식의 정본은 [3.3 데이터 모델](03-proposal/data-model.md) §5.1 이다 |
 
 **"판" 과 "버전" 을 가른 이유.** 전수 323곳 중 **34곳이 버전이 아니었다** — 판본 뜻 아홉과 **회차 뜻 스물다섯**이다. 회차 뜻은 반영하면서야 드러났다(`임베딩 한 판의 시간 상한`) — 기계적으로 밀었다면 "임베딩 한 버전의 시간 상한" 이 됐을 것이다. 판본 뜻의 가장 분명한 증거는 모든 문서의 머리글이다 — `> 문서 버전 v0.3 · 2026-09-05 · HTML 판: [...]` 은 **한 줄 안에 둘이 함께 있고 서로 다른 것을 가리킨다**. 일괄 치환하면 "문서 버전 … HTML 버전:" 이 되어 뒤엣것이 무엇인지 알 수 없어진다. 그래서 버전 뜻 **279곳**만 옮기고, `HTML 판`·`html 판` **40곳**은 **"HTML 파생본"** 으로 바꿨다 — 이 저장소가 이미 md 를 원본, html 을 파생본이라 부르기 때문이다([README](README.md) 관리 규약).
 
@@ -140,13 +144,13 @@ referenced_by:
 
 | 한국어 | 영문 | 코드 | 뜻 |
 | --- | --- | --- | --- |
-| **작업** | task | `tasks` | 사람이나 에이전트가 실제로 수행하는 단위. `TSK-…` 번호를 갖는다 |
-| **클레임** | claim | `claims` | 한 세션이 작업을 **쥐는 것**. 원자적이라 둘이 동시에 같은 작업을 쥘 수 없다(`D-04`) |
+| **작업** | task | `task` | 사람이나 에이전트가 실제로 수행하는 단위. `<프로젝트 키>-T-…` 번호를 갖는다 |
+| **클레임** | claim | `claim` | 한 세션이 작업을 **쥐는 것**. 원자적이라 둘이 동시에 같은 작업을 쥘 수 없다(`D-04`) |
 | **맡음** ← 클레임 | claimed | `task_status` | 보드에서 **클레임된 상태**를 가리키는 칸 이름 — 아래 참고 |
-| **리스** | lease | `lease_expires_at` | 클레임이 **살아 있는 시간**. 기본 30분이고, 하트비트로 갱신하지 않으면 만료돼 작업이 풀린다 |
+| **리스** | lease | `claim.lease_expires_at` | 클레임이 **살아 있는 시간**. 기본 30분이고, 하트비트로 갱신하지 않으면 만료돼 작업이 풀린다 |
 | **남은 시간 · 점유 시간** ← 리스 | lease | — | 사람이 읽는 자리에서 "리스" 대신 쓰는 말. 배지는 "남은 시간 {remaining}", 오류는 "점유 시간이 지났거나…" |
-| **작업 범위** ← 스코프 | claim scope | `claims.spec_ids`·`file_globs` | 클레임이 선언하는 **건드릴 스펙과 파일**. 겹침 판정의 입력이다 |
-| **하트비트** | heartbeat | `heartbeat_at` | 세션이 살아 있음을 알리는 주기 신호. 끊기면 무응답으로 넘어가고 클레임이 회수된다 |
+| **작업 범위** ← 스코프 | claim scope | `claim.scope_spec_ids`·`claim.scope_file_globs` | 클레임이 선언하는 **건드릴 스펙과 파일**. 겹침 판정의 입력이다 |
+| **하트비트** | heartbeat | `claim.last_heartbeat_at`·`agent_session.last_heartbeat_at` | 세션이 살아 있음을 알리는 주기 신호. 끊기면 무응답으로 넘어가고 클레임이 회수된다 |
 | **지문** | content hash | `content_hash` | 읽은 내용이 그 사이에 바뀌지 않았음을 확인하는 값. **리스가 시간을 지키고 지문이 내용을 지킨다** |
 | **증적** | evidence | `evidence_kind` | 작업이 실제로 끝났음을 가리키는 자료 — 코드 경로·테스트·PR·커밋·리뷰·사용 안내의 여섯 종 |
 
@@ -158,22 +162,22 @@ referenced_by:
 
 | 한국어 | 영문 | 코드 | 뜻 |
 | --- | --- | --- | --- |
-| **리뷰** | review | `reviews` | 코드·정합성·스펙 커버리지·머지 네 종의 검토. 사람이 아니라 **플랫폼의 개체**다(`D-07`) |
-| **발견** | finding | `findings` | 리뷰가 집어낸 항목 하나. 심각도 셋(`critical`·`warning`·`info`)과 상태 넷(열림·수정됨·기각·유예)을 갖는다 |
-| **처분** | resolution | `resolution_kind` | 발견을 어떻게 닫았는지 — 수정·기각·유예·에스컬레이션. 근거를 반드시 적는다 |
-| **게이트** | gate | `gate_policies` | 사람의 승인이 있어야 지날 수 있는 지점. 위험 신호가 쌓이면 티어가 오른다 |
+| **리뷰** | review | `review_session`·`reviewer_report` | 코드·정합성·스펙 커버리지·머지 네 종의 검토. 사람이 아니라 **플랫폼의 개체**다(`D-07`) |
+| **발견** | finding | `finding` | 리뷰가 집어낸 항목 하나. 심각도 셋(`critical`·`warning`·`info`)과 상태 넷(열림·수정됨·기각·유예)을 갖는다 |
+| **처분** | resolution | `resolution.kind`(enum `resolution_kind`) | 발견을 어떻게 닫았는지 — 수정·스펙 수정·기각·유예·에스컬레이션 다섯. 근거를 반드시 적는다. **저장의 유예는 `deferred` 이고 표면은 그것을 `wont_fix` 라 부른다**(어휘 목록의 정본은 [1.2 문제 정의와 요구사항](01-problem/pain-points.md) §4.1) |
+| **게이트** | gate | `project.gate_policy`(jsonb · 스키마는 `GatePolicySchema`) | 사람의 승인이 있어야 지날 수 있는 지점. 위험 신호가 쌓이면 티어가 오른다 |
 | **에스컬레이션** | escalate | `escalate_reason` | 에이전트가 스스로 판단하지 않고 사람에게 올리는 것. 사유 다섯 중 하나를 단다 |
 
 ### 2.5 승인 · 소통
 
 | 한국어 | 영문 | 코드 | 뜻 |
 | --- | --- | --- | --- |
-| **받은 요청** ← 승인함 | inbox | `approvals` | 내 결정을 기다리는 것들이 모이는 곳. **알림과 다르다** — 알림은 이미 일어난 일이다 |
+| **받은 요청** ← 승인함 | inbox | `approval` | 내 결정을 기다리는 것들이 모이는 곳. **알림과 다르다** — 알림은 이미 일어난 일이다 |
 | **승인** | approval | `approval_decision` | 사람만 내릴 수 있는 결정 — 승인·반려·코멘트. 토큰에 위임되지 않는다(`D-08`) |
-| **질문** | question | `questions` | 에이전트가 막혔을 때 사람에게 묻는 것. 사람이 답하거나, **만든 세션이 스스로 취소**할 수 있다 |
-| **알림** | notification | `notifications` | 이미 일어난 일을 알리는 것. 즉시와 모아 보기 두 등급이 있다 |
-| **세션** | agent session | `agent_sessions` | 에이전트가 일하는 한 번의 회차. 대기·활동 중·응답 대기·무응답·종료·오류의 여섯 상태. 사람의 로그인 세션과 이름이 겹치므로 **명세에서는 "에이전트 세션" 으로 늘여 쓴다** |
-| **활동** | activity | `activities` | 프로젝트에서 벌어진 일의 시간순 기록. 감사 로그이자 사람이 읽는 피드다 |
+| **질문** | question | `question` | 에이전트가 막혔을 때 사람에게 묻는 것. 사람이 답하거나, **만든 세션이 스스로 취소**할 수 있다 |
+| **알림** | notification | `notification` | 이미 일어난 일을 알리는 것. 즉시와 모아 보기 두 등급이 있다 |
+| **세션** | agent session | `agent_session` | 에이전트가 일하는 한 번의 회차. 대기·활동 중·응답 대기·무응답·종료·오류의 여섯 상태. 사람의 로그인 세션과 이름이 겹치므로 **명세에서는 "에이전트 세션" 으로 늘여 쓴다** |
+| **활동** | activity | `activity` | 프로젝트에서 벌어진 일의 시간순 기록. 감사 로그이자 사람이 읽는 피드다 |
 
 ### 2.6 영어 — 영문 열도 정본이다 (2026-09-05 신설)
 
@@ -183,7 +187,7 @@ referenced_by:
 | 규칙 | 정한 것 | 왜 |
 | --- | --- | --- |
 | **철자는 -ize 계열** | `organization` · `center` (❌ `organisation`·`centre`) | 코드 식별자가 이미 `organization`·`org_id`·`graph.panel.center` 다. 그전에는 카탈로그가 **기능 경계로 갈려** 있었다 — `invite`·`onboarding` 은 -ise, 나머지는 -ize |
-| **`version`, `revision` 아님** | 스펙의 한 시점은 `version` | 한국어의 판 → 버전과 같은 결정이고 DB 도 `spec_versions` 다. **MCP 프로토콜의 `revision` 은 별개**라 그대로 둔다(`error.mcp.bad_revision`) |
+| **`version`, `revision` 아님** | 스펙의 한 시점은 `version` | 한국어의 판 → 버전과 같은 결정이고 DB 도 `spec_version` 이다. **MCP 프로토콜의 `revision` 은 별개**라 그대로 둔다(`error.mcp.bad_revision`) |
 | **`scope` 는 뜻마다 수식어** | 아래 넷 | 한국어는 세 낱말로 갈랐지만 영어의 `scope` 는 **첫 번째 뜻에서 API 식별자 자체**라 버릴 수 없다 |
 
 | 뜻 | 영어 | 한국어 |

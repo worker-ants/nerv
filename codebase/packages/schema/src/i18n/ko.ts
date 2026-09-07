@@ -111,6 +111,7 @@ export const ko = {
   'error.comment.not_found': '코멘트를 찾을 수 없습니다.',
   'error.human_only.approve': '승인은 사람만 할 수 있습니다.',
   'error.human_only.baseline': '기준선 생성은 사람만 할 수 있습니다.',
+  'error.human_only.bypass': '게이트 면제는 사람만 할 수 있습니다.',
   'error.db.check_violation': '허용되지 않는 값입니다 — 제약 "{constraint}" 을 확인하세요.',
   'error.db.foreign_key_violation':
     '가리키는 대상이 없습니다 — {fields}. 먼저 그것부터 만들거나 값을 바꾸세요.',
@@ -178,7 +179,7 @@ export const ko = {
     '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
   'session.detail': '상세',
-  'session.timeline_truncated': '앞쪽 활동이 더 있습니다 — 최근 것부터 보이는 중입니다',
+  'session.timeline_more': '앞쪽 활동 더 보기',
   'spec.derived_tasks': '파생 Task',
   'spec.derived_tasks.all': '보드에서 전체 보기',
   'spec.derived_tasks.empty': '이 문서에서 나온 작업이 아직 없습니다',
@@ -722,7 +723,7 @@ export const ko = {
   'invite.title': '초대',
   'login.email': '이메일',
   'login.no_account': '계정이 없나요? 가입 ▸',
-  'login.invite_note': '초대 링크로 오셨나요? 로그인하면 초대가 자동으로 수락됩니다.',
+  'login.invite_note': '초대 링크로 오셨나요? 로그인한 뒤 초대 카드에서 [수락]을 누르세요.',
   'login.password': '비밀번호',
   'login.submit': '로그인',
   'login.submitting': '확인 중…',
@@ -1010,7 +1011,6 @@ export const ko = {
   'tasks.summary.blocked': '막힘',
   'tasks.title': '작업 보드',
   // ── S5 세션 모니터 (screens.md §2.6) ─────────────────────────────────────────
-  'session.activity': 'Activity',
   'session.back_to_board': '← 세션 보드',
   'session.branch': '브랜치',
   'session.claim_history': '클레임 이력',

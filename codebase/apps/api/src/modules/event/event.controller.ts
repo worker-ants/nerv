@@ -50,7 +50,7 @@ export class EventController {
   ): Promise<unknown> {
     return this.notifications.list({
       userId: userOf(req),
-      state: state === 'read' ? 'read' : state === 'unread' ? 'unread' : null,
+      state: state ?? null,
       before: before ?? null,
       // 커서가 없으면 목록은 50 에서 끝나는 벽이다(REQ-API-083)
       ...((): { limit?: number } => {

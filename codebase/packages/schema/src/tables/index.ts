@@ -1,4 +1,4 @@
-// drizzle 테이블 선언 32종의 배럴 — 분할은 모듈 소유와 같다(codebase.md §2.3 · §3.1).
+// drizzle 테이블 선언 33종의 배럴 — 분할은 모듈 소유와 같다(codebase.md §2.3 · §3.1).
 //
 // DDL 정본은 docs/04-mvp/database.md §2, 필드 의미 정본은 docs/03-proposal/data-model.md 다.
 // drizzle.config.ts 의 `schema` 가 이 파일을 가리킨다.
@@ -25,5 +25,5 @@ export * from './event.js'; // event · notification
 export * from './idempotency.js'; // idempotency_key (표면 공용 멱등 저장소 — api.md §1.5)
 
 // 도메인 엔티티가 아니다 — 재생성 가능한 검색 인덱스의 물리 테이블(database.md §2.15).
-// 32종 카운트에 들지 않지만 마이그레이션에는 포함돼야 하므로 배럴에서 재수출한다.
+// 33종 카운트에 들지 않지만 마이그레이션에는 포함돼야 하므로 배럴에서 재수출한다.
 export * from './search.js'; // spec_chunk_embedding

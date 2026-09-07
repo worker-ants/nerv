@@ -134,7 +134,7 @@ describe('동봉된 raw SQL — 생성기가 만들어주지 않는 부분 (§1.
     ]);
   });
 
-  it('nerv_* 함수 4종과 트리거 2종이 존재한다 (§2.13)', async () => {
+  it('nerv_* 함수 5종과 트리거 3종이 존재한다 (§2.13)', async () => {
     const fns = await withClient(db.url, async (c) => {
       const { rows } = await c.query<{ proname: string }>(
         `SELECT proname FROM pg_proc WHERE proname LIKE 'nerv\\_%' ORDER BY proname`,
@@ -143,6 +143,8 @@ describe('동봉된 raw SQL — 생성기가 만들어주지 않는 부분 (§1.
     });
     expect(fns).toEqual([
       'nerv_ensure_month_partitions',
+      // 2026-09-07 — 감사 로그의 불변성을 DB 가 지킨다(REQ-DB-023)
+      'nerv_event_immutable',
       'nerv_glob_overlap',
       'nerv_spec_version_freeze',
       'nerv_touch_updated_at',
@@ -154,7 +156,11 @@ describe('동봉된 raw SQL — 생성기가 만들어주지 않는 부분 (§1.
       );
       return rows.map((r) => r.tgname);
     });
-    expect(triggers).toEqual(['spec_version_freeze', 'task_touch_updated_at']);
+    // `event_append_only` 는 파티션 부모에 걸리고 PG13+ 가 파티션에 복제한다 — 이름이
+    // 여럿 나오므로 집합으로 본다
+    expect(new Set(triggers)).toEqual(
+      new Set(['event_append_only', 'spec_version_freeze', 'task_touch_updated_at']),
+    );
   });
 });
 

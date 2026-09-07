@@ -98,7 +98,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM task_dependency');
   await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM notification');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
 });
 
 interface Res {
@@ -270,6 +270,52 @@ describe('EP-NTF-01 — 알림은 50 에서 끝나지 않는다', () => {
   });
 });
 
+/**
+ * **커서는 불투명하고, 낡은 커서는 화면을 깨뜨리지 않는다**(§1.6 · REQ-API-124).
+ *
+ * HTTP 로 한 번 더 보는 이유는 seek 자체가 아니라 **번역**이다: 커서가 그대로 시각으로
+ * 새어 나가면 클라이언트가 그 구조를 읽기 시작하고, 그 순간 정렬을 바꿀 자유가 사라진다.
+ * 그리고 해독되지 않는 커서는 `::timestamptz` 캐스팅에서 22007 로 죽어 **진짜 500** 이었다.
+ */
+describe('이벤트 커서의 HTTP 번역 (EP-EVT-01 · §1.6)', () => {
+  // 이 스위트는 자기 이벤트를 세운다 — 바깥 `beforeEach` 가 `TRUNCATE event` 를 하므로
+  // 안쪽도 `beforeEach` 여야 한다(바깥이 먼저 돈다). `beforeAll` 로 두면 조용히 0건을 센다.
+  beforeEach(async () => {
+    for (let i = 0; i < 3; i += 1) {
+      await pool.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, is_agent, occurred_at)
+         VALUES ($1,$2,'spec.recheck_requested','spec',$3,false,'2026-09-07 00:00:00+00')`,
+        [newId(), projectId, newId()],
+      );
+    }
+  });
+
+  it('next_cursor 는 시각 그대로가 아니다 — 불투명 문자열이다', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/events?limit=1');
+    expect(res.status).toBe(200);
+    const body = res.body as { items: unknown[]; next_cursor: string | null };
+    expect(body.items).toHaveLength(1);
+    if (body.next_cursor !== null) {
+      expect(Number.isNaN(Date.parse(body.next_cursor))).toBe(true);
+    }
+  });
+
+  it('망가진 커서는 500 이 아니라 처음부터다 — 낡은 커서로 화면을 깨뜨리지 않는다', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/events?limit=2&before=%25%25%25');
+    expect(res.status).toBe(200);
+    expect((res.body as { items: unknown[] }).items.length).toBeGreaterThan(0);
+  });
+
+  it('옛 형식(맨 타임스탬프)도 한 릴리스 동안 받는다', async () => {
+    const res = await call(
+      'GET',
+      `/api/v1/projects/clemvion/events?limit=2&before=${encodeURIComponent('2999-01-01T00:00:00Z')}`,
+    );
+    expect(res.status).toBe(200);
+    expect((res.body as { items: unknown[] }).items.length).toBeGreaterThan(0);
+  });
+});
+
 describe('오타는 400 이다 (§1.4j · REQ-API-074)', () => {
   it.each([
     ['tasks?status=doing', '/api/v1/projects/clemvion/tasks?status=doing', 'status'],
@@ -280,6 +326,22 @@ describe('오타는 400 이다 (§1.4j · REQ-API-074)', () => {
     ],
     ['specs/:spec?v=abc', '/api/v1/projects/clemvion/specs/SPC-RBAC?v=abc', 'v'],
     ['events?limit=abc', '/api/v1/projects/clemvion/events?limit=abc', 'limit'],
+    // 2026-09-07(REQ-API-126) — 표면이 삼항으로 **기본값에 접던** 자리들. 접기는 500 보다
+    // 나쁘다: 사람은 걸러진 화면이라고 믿으면서 걸러지지 않은 목록을 읽는다.
+    ['questions?status=closed', '/api/v1/projects/clemvion/questions?status=closed', 'status'],
+    ['me/notifications?state=foo', '/api/v1/me/notifications?state=foo', 'state'],
+    [
+      'comments?status=closed',
+      '/api/v1/projects/clemvion/specs/SPC-RBAC/comments?status=closed',
+      'status',
+    ],
+    [
+      'relations?direction=inbound',
+      '/api/v1/projects/clemvion/specs/SPC-RBAC/relations?direction=inbound',
+      'direction',
+    ],
+    // 카탈로그 밖의 이벤트 이름 — 오타가 "그런 일이 없었다" 로 읽히던 자리다
+    ['events?type=spec.aproved', '/api/v1/projects/clemvion/events?type=spec.aproved', 'type'],
   ])('%s → 400 이고 허용 목록을 준다', async (_name, url, field) => {
     const res = await call('GET', url);
     expect(res.status).toBe(400);
@@ -1425,6 +1487,11 @@ describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', 
     ['POST', '/api/v1/projects/clemvion/specs/SPC-HUMAN/restore', {}],
     ['PATCH', '/api/v1/projects/clemvion/specs/SPC-HUMAN', { title: '새 제목' }],
     ['GET', '/api/v1/approvals', undefined],
+    // 2026-09-07 — 전표가 사람 전용이라 적어 두고 도메인 판정이 없던 셋(REQ-API-123).
+    // 답변은 질문이 없어도 게이트가 먼저 답한다 — 그것이 검사 대상이다.
+    ['GET', '/api/v1/projects/clemvion/inbox', undefined],
+    ['POST', '/api/v1/projects/clemvion/gates/bypass', { subject_id: newId(), reason: '검사' }],
+    ['POST', `/api/v1/projects/clemvion/questions/${newId()}/answer`, { answer_key: 'a' }],
   ] as const)('%s %s 는 에이전트 토큰에 HUMAN_ONLY 로 답한다', async (method, url, payload) => {
     // adminToken 은 PAT 다 — PAT 주체는 에이전트다(사람은 세션 쿠키로 온다)
     const res = await call(method as 'GET' | 'POST' | 'PATCH', url, {
@@ -1435,6 +1502,24 @@ describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', 
     expect(body['code']).toBe(NERV_ERROR.HUMAN_ONLY);
     // 막기만 하고 길을 안 주면 에이전트는 같은 호출을 재시도한다
     expect((body['details'] as Record<string, unknown>)['action']).toBeDefined();
+  });
+
+  /**
+   * **어느 문턱이 막았는가.** 답변 라우트의 권한은 `spec:read` 이고 그것은 **모든 PAT 가
+   * 가진 값**이라 권한 축은 에이전트를 거르지 못한다 — 2026-09-06 대조가 짚은 자리다.
+   * 읽기 권한뿐인 토큰으로 불러 `missing_scope` 가 아니라 `human_only` 가 나오는 것을
+   * 본다: 그것이 "판정이 도메인에 있다" 의 증거다(REQ-API-123).
+   */
+  it('답변은 권한이 아니라 사람 전용 게이트에서 막힌다 — spec:read 만 가진 토큰도', async () => {
+    const res = await call('POST', `/api/v1/projects/clemvion/questions/${newId()}/answer`, {
+      token: narrowToken,
+      payload: { answer_key: 'a' },
+    });
+    const body = res.body as Record<string, unknown>;
+    expect(res.status).toBe(403);
+    expect(body['code']).toBe(NERV_ERROR.HUMAN_ONLY);
+    expect((body['details'] as Record<string, unknown>)['kind']).toBe('human_only');
+    expect((body['details'] as Record<string, unknown>)['action']).toBe('inbox_decide');
   });
 
   /**

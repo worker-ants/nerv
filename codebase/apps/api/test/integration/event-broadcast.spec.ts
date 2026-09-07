@@ -271,3 +271,44 @@ async function seedProject(p: pg.Pool): Promise<string> {
   void sql;
   return id;
 }
+
+/**
+ * **append-only 를 DB 가 지킨다**(2026-09-07 · REQ-DB-023 · D-10 · FR-16).
+ *
+ * 이 규칙은 여기까지 **코드 규약뿐**이었다 — `event` 에 쓰는 경로가 하나라는 사실에
+ * 기대고 있었다. `spec_version` 은 같은 성질을 트리거로 못 박았는데(0000) 정작 감사
+ * 로그가 그렇지 않았다. 사람이 psql 을 열어 한 줄 고치면 감사는 그것을 모른다.
+ */
+describe('event 는 append-only 다 (REQ-DB-023)', () => {
+  async function seedEvent(): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO event (id, project_id, type, subject_type, subject_id, is_agent)
+       VALUES ($1,$2,'spec.recheck_requested','spec',$3,false)`,
+      [id, projectId, newId()],
+    );
+    return id;
+  }
+
+  it('UPDATE 는 거부된다 — 이미 남은 사실은 고쳐지지 않는다', async () => {
+    const id = await seedEvent();
+    await expect(
+      pool.query(`UPDATE event SET type = 'spec.approved' WHERE id = $1`, [id]),
+    ).rejects.toMatchObject({ code: '23514' });
+  });
+
+  it('DELETE 는 거부된다 — 지워진 감사는 감사가 아니다', async () => {
+    const id = await seedEvent();
+    await expect(pool.query(`DELETE FROM event WHERE id = $1`, [id])).rejects.toMatchObject({
+      code: '23514',
+    });
+  });
+
+  it('TRUNCATE 와 파티션 DROP 은 막지 않는다 — 보존과 스크래치의 정당한 길이다', async () => {
+    await seedEvent();
+    // 행 트리거는 TRUNCATE 를 보지 않는다: 흔적이 남고 범위가 선언적인 지우기다
+    await expect(pool.query('TRUNCATE event')).resolves.toBeDefined();
+    const { rows } = await pool.query<{ n: string }>('SELECT count(*) AS n FROM event');
+    expect(rows[0]?.n).toBe('0');
+  });
+});

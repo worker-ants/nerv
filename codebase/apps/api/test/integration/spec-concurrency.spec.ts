@@ -65,9 +65,11 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await pool.query('UPDATE spec SET current_version_id = NULL');
-  for (const table of ['spec_relation', 'spec_chunk_embedding', 'spec_version', 'spec', 'event']) {
+  for (const table of ['spec_relation', 'spec_chunk_embedding', 'spec_version', 'spec']) {
     await pool.query(`DELETE FROM ${table}`);
   }
+  // event 는 append-only 라 지울 수 없다(REQ-DB-023) — 통째로 비우는 길만 열려 있다
+  await pool.query('TRUNCATE event');
 });
 
 async function seed(): Promise<void> {

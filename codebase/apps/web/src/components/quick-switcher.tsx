@@ -1,8 +1,10 @@
 // 전역 퀵 스위처 ⌘K — 정본: screens.md §1.3a (REQ-WEB-040)
 //
 // 대규모 프로젝트의 **기본 이동 수단**이다. 트리 스크롤 대신 타이핑 → Enter 로 어디서든
-// 어디로든 간다. 고정 ID(SPC-·REQ-·TSK-)는 검색을 거치지 않고 직행한다 — 사람이 ID 를
-// 칠 때는 "찾아줘"가 아니라 "열어줘"라는 뜻이기 때문이다(서버 파이프라인 ①과 같은 규칙).
+// 어디로든 간다. **키를 그대로 치면 직행한다** — 사람이 키를 칠 때는 "찾아줘"가 아니라
+// "열어줘"라는 뜻이기 때문이다(서버 파이프라인 ①과 같은 규칙). 키 형식은 프로젝트가
+// 정하고(`<PRJ>-<타입>-<base32 6>` — 3.3 §5.1) 접두를 여기서 가정하지 않는다: 예전에는
+// `TSK-` 접두로 Task 를 갈랐는데 실데이터에 그 접두를 가진 Task 가 **한 건도 없었다**.
 //
 // 최근 방문·핀은 localStorage 다 — 뷰 상태 등급이고 서버 동기화는 Phase 2(§1.3a).
 
@@ -21,6 +23,8 @@ export interface SwitcherHit {
   type: string;
   doc_status: string | null;
   anchor: string | null;
+  /** 무엇에 맞았나 — 서버가 준다(`spec`·`requirement`·`task`). 없으면 스펙으로 본다 */
+  kind?: string;
 }
 
 const RECENT_KEY = 'nerv.quickswitcher.recent';
@@ -123,7 +127,8 @@ export function QuickSwitcher({
       rememberVisit(hit);
       onClose();
       if (projectSlug === undefined) return;
-      if (hit.key.startsWith('TSK-')) {
+      // 접두가 아니라 **서버가 말한 종류**로 간다 — 키 형식은 프로젝트마다 다르다
+      if (hit.kind === 'task') {
         void navigate({ to: '/p/$proj/tasks/$task', params: { proj: projectSlug, task: hit.key } });
         return;
       }

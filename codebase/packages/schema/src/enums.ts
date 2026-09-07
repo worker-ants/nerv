@@ -1,4 +1,4 @@
-// pgEnum 선언 38종 — DDL 정본: docs/04-mvp/database.md §2.1
+// pgEnum 선언 39종 — DDL 정본: docs/04-mvp/database.md §2.1
 //
 // **값 문자열은 data-model.md §2 필드 표와 문자 단위로 일치한다** — `claude-code` 처럼
 // 하이픈이 든 값도 그대로 enum 라벨이다(database.md §1.3).
@@ -98,6 +98,22 @@ export const BLOCKED_REASONS = [
 ] as const;
 
 export type BlockedReason = (typeof BLOCKED_REASONS)[number];
+
+/**
+ * 이 값이 **어휘 안의 것인가** — 화면이 라벨을 붙일지 원문을 그대로 보일지 가르는 판정.
+ *
+ * 열이 아직 `text` 라(위 주석) 2026-09-06 이전에 저장된 자유 텍스트가 그대로 남아 있다.
+ * 그런 값에 `blocked.<값>` 문구 키를 만들어 붙이면 카탈로그에 없으므로 번역기가 **키
+ * 자체를 돌려주고**(`translator.ts` 의 마지막 폴백), 화면에는 `blocked.막힌 이유` 같은
+ * 문자열이 뜬다 — 사람이 적은 사유가 있는데도 그것을 못 보게 된다.
+ *
+ * 판정을 여기 두는 이유는 어휘의 정본이 여기이기 때문이다(REQ-CB-006). 화면마다
+ * `BLOCKED_REASONS.includes(...)` 를 다시 쓰면 어휘가 늘 때 함께 늘지 않는다.
+ */
+export function isBlockedReason(value: unknown): value is BlockedReason {
+  return typeof value === 'string' && (BLOCKED_REASONS as readonly string[]).includes(value);
+}
+
 export const dependencyKind = pgEnum('dependency_kind', ['blocks', 'relates']);
 export const claimStatus = pgEnum('claim_status', ['active', 'released', 'expired', 'revoked']);
 /**
@@ -153,6 +169,17 @@ export const claimReleaseReason = pgEnum('claim_release_reason', [
 export const CLAIM_RELEASE_INPUTS = ['done', 'handoff', 'abandon'] as const;
 /** 이름은 `ClaimReleaseReason` 이다 — `ClaimReleaseInput` 은 전표가 요청 스키마에 쓰는 이름이다(§1.7) */
 export type ClaimReleaseReason = (typeof CLAIM_RELEASE_INPUTS)[number];
+
+/**
+ * 받은 요청 목록의 `state` — **pg enum 이 아니라 파생 어휘다**(결재의 `decision IS NULL` 여부).
+ * 그래도 정본은 여기다: 표면이 리터럴로 들고 있으면 검사도 리터럴로 다시 적게 된다.
+ */
+export const APPROVAL_INBOX_STATES = ['pending', 'decided'] as const;
+export type ApprovalInboxState = (typeof APPROVAL_INBOX_STATES)[number];
+
+/** 관계 목록의 방향 — 같은 이유로 여기 둔다(EP-SPEC-18) */
+export const SPEC_RELATION_DIRECTIONS = ['out', 'in', 'both'] as const;
+export type SpecRelationDirection = (typeof SPEC_RELATION_DIRECTIONS)[number];
 
 // ── 세션·활동 ─────────────────────────────────────────────────────────────
 export const agentType = pgEnum('agent_type', ['claude-code', 'codex', 'web', 'other']);

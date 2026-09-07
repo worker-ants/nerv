@@ -106,7 +106,9 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
     ['/p/clemvion/tasks', '작업 보드'],
     ['/p/clemvion/tasks/CLV-T-0CFQC2', 'CLV-T-0CFQC2'],
     ['/p/clemvion/sessions', '세션 모니터'],
-    ['/p/clemvion/sessions/S-b7e9', 'Activity'],
+    // 상세의 제목도 카탈로그에서 온다 — `Activity` 한 낱말이 코드에 굳어 있었고,
+    // 로케일을 바꿔도 그 자리만 영어로 남았다(2026-09-07 · REQ-CB-022)
+    ['/p/clemvion/sessions/S-b7e9', '활동'],
   ])('프로젝트 경로 %s 가 렌더된다', async (path, title) => {
     renderAt(path);
     await waitFor(() => expect(screen.getAllByText(title).length).toBeGreaterThan(0));
@@ -148,6 +150,54 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
       await waitFor(() => expect(screen.getByText(title, { selector: 'h1' })).toBeDefined());
       unmount();
     }
+  });
+});
+
+// 2026-09-07 — 상세의 막힘 카드가 **어휘 밖의 값에도** 문구 키를 만들어 붙였다.
+// 카탈로그에 없는 키는 번역기가 키 자체를 돌려주므로(마지막 폴백) 화면에 `blocked.…` 가
+// 그대로 떴다 — 사람이 적어 둔 사유가 있는데 그것을 못 보게 하는 모양이다.
+describe('막힘 사유는 사람 말이다 (REQ-WEB-143)', () => {
+  /** 상세 응답에 막힘 파생을 실어 준다(REQ-API-118) */
+  function stubTask(reason: string): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const path = String(url);
+        const json = path.includes('/tasks/')
+          ? {
+              id: 't-1',
+              key: 'CLV-T-0CFQC2',
+              title: '막힌 작업',
+              status: 'blocked',
+              blocked_reason: reason,
+              blocked_resolution: { reason, satisfied: false, pending: [] },
+              claims: [],
+              evidence: [],
+            }
+          : path.includes('/projects')
+            ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
+            : path.includes('/me')
+              ? { id: 'u-1', display_name: '지민', memberships: [] }
+              : { items: [], summary: {}, next_cursor: null, memberships: [], count: 0 };
+        return { ok: true, status: 200, json: async () => json };
+      }),
+    );
+  }
+
+  it('어휘 안의 값은 라벨로 — 식별자를 그대로 찍지 않는다', async () => {
+    stubTask('awaiting_answer');
+    renderAt('/p/clemvion/tasks/CLV-T-0CFQC2');
+    const reason = await screen.findByTestId('blocked-reason');
+    expect(reason.textContent).toBe('답변 대기');
+    expect(document.body.textContent).not.toContain('blocked.');
+  });
+
+  it('어휘 밖의 값은 **원문 그대로** — 옛 자유 텍스트가 키에 삼켜지지 않는다', async () => {
+    stubTask('디자인 확정 대기');
+    renderAt('/p/clemvion/tasks/CLV-T-0CFQC2');
+    const reason = await screen.findByTestId('blocked-reason');
+    expect(reason.textContent).toBe('디자인 확정 대기');
+    expect(document.body.textContent).not.toContain('blocked.');
   });
 });
 

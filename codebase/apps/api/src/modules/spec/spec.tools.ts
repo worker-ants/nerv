@@ -160,8 +160,8 @@ export class SpecTools implements NervToolProvider {
         required: ['from', 'to', 'kind'],
         properties: {
           project: { type: 'string' },
-          from: { type: 'string', description: 'spec key (SPC-…) or UUID' },
-          to: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+          from: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
+          to: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
           kind: { type: 'string', enum: ['refines', 'depends_on', 'duplicates', 'supersedes'] },
           // **상대 문서의 지문** — 관계를 더할 때는 필수다(§1.4h). 읽지 않고 선언한 관계는
           // 그래프에 거짓을 심는다. 지울 때는 요구하지 않는다.
@@ -198,7 +198,7 @@ export class SpecTools implements NervToolProvider {
         type: 'object',
         properties: {
           project: { type: 'string' },
-          spec_id: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+          spec_id: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
           filename: { type: 'string' },
           content_type: {
             type: 'string',
@@ -296,7 +296,7 @@ export class SpecTools implements NervToolProvider {
         type: 'object',
         properties: {
           // 키·UUID 둘 다 받는다(§1.4b) — 도구마다 기준이 다르면 에이전트가 실패로 배운다
-          spec_id: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+          spec_id: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
           version: { type: 'integer' },
           // **주변 문서를 그 세트로 읽는다**(REQ-API-087 · spec-workflow §3.6).
           // Task 가 기준선 맥락이면 `nerv_task_next` 응답이 이 이름을 실어 준다.
@@ -366,7 +366,7 @@ export class SpecTools implements NervToolProvider {
         properties: {
           spec_id: {
             type: 'string',
-            description: 'existing spec — key (SPC-…) or UUID. omit to create a new one',
+            description: 'existing spec — key (e.g. SUD-DSN-UI) or UUID. omit to create a new one',
           },
           // **이름이 둘이다.** 카탈로그(3.4 §2.3)·REST·웹은 `body_markdown` 을 쓰는데 이
           // 도구만 `body_md` 였다 — 스킬 문장대로 부른 호출은 본문이 빈 문자열이 되어
@@ -402,7 +402,7 @@ export class SpecTools implements NervToolProvider {
               type: 'object',
               required: ['to', 'kind', 'base_hash'],
               properties: {
-                to: { type: 'string', description: 'spec key (SPC-…) or UUID' },
+                to: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
                 kind: {
                   type: 'string',
                   enum: ['refines', 'depends_on', 'duplicates', 'supersedes'],

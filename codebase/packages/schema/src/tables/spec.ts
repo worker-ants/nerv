@@ -81,7 +81,11 @@ export const specVersion = pgTable(
     bodyMd: text('body_md').notNull(),
     /** sha256(body_md) — 무변경 저장 차단 */
     contentHash: bytea('content_hash').notNull(),
-    /** 낙관적 동시성. 불일치 = 409 NERV_PRECONDITION */
+    /**
+     * **파생 계보다** — 서버가 새 버전을 만들 때 직전 버전으로 채운다(`spec.service`).
+     * 낙관적 동시성의 전제조건은 이 열이 아니라 `base_hash` 이고, 불일치하면 409 를
+     * 주는 것도 그쪽이다(2026-09-07 정정 — 이 주석이 두 개념을 하나로 적고 있었다).
+     */
     baseVersionId: uuid('base_version_id'),
     changeSummaryMd: text('change_summary_md'),
     authorUserId: uuid('author_user_id')

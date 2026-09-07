@@ -58,7 +58,7 @@ beforeEach(async () => {
   // FK 순서대로 지운다 — event.actor_session_id 가 agent_session 을 참조한다
   await pool.query('DELETE FROM activity');
   await pool.query('DELETE FROM notification');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
   await pool.query('DELETE FROM claim');
   await pool.query('DELETE FROM agent_session');
   await pool.query(`UPDATE task SET status = 'ready' WHERE id = $1`, [taskId]);

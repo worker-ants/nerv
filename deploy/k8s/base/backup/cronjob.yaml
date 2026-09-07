@@ -1,7 +1,9 @@
 # 일 1회 Postgres 백업 — codebase.md §6.5 (REQ-CB-019)
 #
-# 유일한 SoT 가 Postgres 라서 이것 하나가 백업의 전부다. RPO 24h 는 파일럿 규모의 시작값이고
-# (NFR-04 에서 수용), 실측 후 조정한다.
+# **백업 대상은 Postgres 와 첨부 오브젝트다**(§6.5 · 2026-09-07 정정). 스펙 첨부는
+# 재생성되지 않는데 이 잡은 `mc` 없는 이미지로 돌아 첨부를 **한 번도 백업한 적이 없었다** —
+# 스크립트는 경고 한 줄을 남기고 계속했고, 그 줄을 읽는 사람은 없었다(REQ-CB-031).
+# RPO 24h 는 파일럿 규모의 시작값이고(NFR-04 에서 수용), 실측 후 조정한다.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -17,6 +19,15 @@ spec:
       template:
         spec:
           restartPolicy: Never
+          initContainers:
+            # `mc` 를 심는다 — 백업용 이미지를 따로 빌드하지 않는 이유는 아래와 같다(백업이
+            # 앱 배포 주기에 묶이면 안 된다). 태그를 고정하는 것은 백업이 조용히 바뀌지
+            # 않게 하기 위해서다.
+            - name: mc-tool
+              image: quay.io/minio/mc:RELEASE.2026-08-12T09-27-31Z
+              command: ['cp', '/usr/bin/mc', '/tools/mc']
+              volumeMounts:
+                - { name: tools, mountPath: /tools }
           containers:
             - name: backup
               # postgres 클라이언트만 필요하다 — 애플리케이션 이미지를 쓰지 않는 이유는
@@ -24,14 +35,24 @@ spec:
               image: postgres:17-alpine
               command: ['/bin/sh', '/scripts/nerv-backup.sh']
               envFrom:
+                # S3 엔드포인트·버킷은 설정에, 자격증명은 시크릿에 있다 — 둘 다 있어야
+                # 첨부를 미러한다(없으면 스크립트가 종료 코드 2 로 말한다)
+                - configMapRef: { name: nerv-config }
                 - secretRef: { name: nerv-secrets }
               env:
                 - name: NERV_BACKUP_DIR
                   value: /backups
+                - name: PATH
+                  value: /tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+                - name: MC_CONFIG_DIR
+                  value: /tmp/.mc
               volumeMounts:
                 - { name: scripts, mountPath: /scripts }
                 - { name: backups, mountPath: /backups }
+                - { name: tools, mountPath: /tools }
           volumes:
+            - name: tools
+              emptyDir: {}
             - name: scripts
               configMap:
                 name: nerv-backup-scripts

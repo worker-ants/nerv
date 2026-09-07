@@ -100,7 +100,7 @@ export function NewSpecDialog({
               autoFocus
               data-testid="new-spec-key"
               onChange={(e) => setKey(e.target.value)}
-              placeholder="SPC-…"
+              placeholder="KEY-…"
               className="font-mono"
             />
           </Field>

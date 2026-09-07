@@ -28,6 +28,32 @@ export function decodeCursor(raw: string | undefined): (string | number | null)[
   }
 }
 
+/**
+ * 커서에서 꺼낸 **시각 부분**이 시각인가 — 아니면 `null`(= 처음부터).
+ *
+ * `decodeCursor` 는 JSON 배열이기만 하면 통과시키므로 `['x','y']` 같은 값이 그대로
+ * `::timestamptz` 로 들어가면 22007 로 죽는다. 그 SQLSTATE 는 `db-error.ts` 의 표에 없어
+ * **진짜 500** 이 된다 — 낡은 커서 하나가 화면을 깨뜨리는 것은 이 파일이 이미 거부한 일이다.
+ *
+ * 드라이버가 준 **텍스트 그대로** 다룬다: drizzle 의 node-postgres 세션은 TIMESTAMPTZ 를
+ * 문자열로 주고(`2026-09-04 12:39:34.615061+00`), `new Date(...).toISOString()` 왕복은
+ * µs 를 ms 로 잘라 동률 판정(`=`)을 깨뜨린다. 세션·알림 열은 `now()` 로 써서 µs 다.
+ */
+export function cursorTimestamp(part: unknown): string | null {
+  if (typeof part !== 'string' || part === '') return null;
+  return /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:?\d{2})?|Z)?$/.test(part)
+    ? part
+    : null;
+}
+
+/** 커서에서 꺼낸 **id 부분** — uuid 모양이 아니면 `null`(같은 이유로 캐스팅 전에 거른다) */
+export function cursorId(part: unknown): string | null {
+  if (typeof part !== 'string') return null;
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(part)
+    ? part
+    : null;
+}
+
 /** `limit` 기본 30 · 최대 100 (§1.6). 범위 밖은 자른다 — 거절하면 쓰는 쪽이 번거롭다. */
 export function pageLimit(raw: string | number | undefined): number {
   const n = typeof raw === 'string' ? Number.parseInt(raw, 10) : raw;
