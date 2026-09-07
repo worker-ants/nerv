@@ -1000,6 +1000,47 @@ describe('E13-S03 인앱 알림 — 결정이 필요한 것만 (§6.2·§6.6)', 
     expect(await notifications.route()).toBeGreaterThan(0);
   });
 
+  /**
+   * 2026-09-07(REQ-API-125) — 조직 단위 멤버십(`project_id IS NULL`)을 조직 구분 없이 세면
+   * **다른 조직의** admin·planner 에게 이 프로젝트의 알림이 간다. `assertMembership`(08-24)·
+   * 자기 승인 admin 판정(09-02)이 같은 자리에서 같은 실수를 했다 — 셋째 자리다.
+   */
+  it('다른 조직의 planner 에게는 알림이 가지 않는다 — 조직 경계', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const otherOrg = newId();
+    const outsider = newId();
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'other','다른조직')`, [
+      otherOrg,
+    ]);
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'outsider@example.com','바깥','active')`,
+      [outsider],
+    );
+    // 조직 단위 planner — 자기 조직 전체를 보는 사람이지 이 프로젝트의 사람이 아니다
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,NULL,$3,'planner')`,
+      [newId(), otherOrg, outsider],
+    );
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'question.created',$3,true,'question',$4)`,
+      [newId(), projectId, reviewer, newId()],
+    );
+    expect(await notifications.route()).toBeGreaterThan(0);
+
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM notification WHERE user_id = $1`,
+      [outsider],
+    );
+    expect(rows[0]?.n).toBe(0);
+    // 같은 조직의 사람은 받는다 — 경계를 세우면서 신호까지 끄면 안 된다
+    const { rows: inside } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM notification WHERE user_id = $1`,
+      [planner],
+    );
+    expect(inside[0]?.n).toBeGreaterThan(0);
+  });
+
   it('카탈로그에 없는 이벤트는 알림을 만들지 않는다 — 기본값이 "안 만든다"다', async () => {
     const notifications = new NotificationService(drizzle(pool));
     await pool.query(

@@ -236,27 +236,40 @@ export class NotificationService {
       return approval.assignee_user_id === event.actor_user_id ? [] : [approval.assignee_user_id];
     }
     if (approval.assignee_role !== null) {
+      // **조직 경계**(2026-09-07 · REQ-API-125). `project_id IS NULL` 은 "조직 단위 멤버십" 인데
+      // 어느 조직인지를 보지 않으면 **다른 조직의** 같은 역할 보유자에게 이 프로젝트의 스펙
+      // 키·제목이 알림으로 간다. `assertMembership`(2026-08-24)·자기 승인 admin 판정(09-02)이
+      // 같은 자리에서 같은 실수를 했다 — 판정마다 따로 고쳐 온 것이 이 결함의 모양이다.
       const { rows: members } = await this.db.execute<{ user_id: string }>(sql`
-        SELECT DISTINCT user_id FROM membership
-         WHERE (project_id = ${event.project_id} OR project_id IS NULL)
-           AND role = ${approval.assignee_role}::member_role
-           ${event.actor_user_id === null ? sql`` : sql`AND user_id <> ${event.actor_user_id}`}
+        SELECT DISTINCT m.user_id FROM membership m
+          JOIN project p ON p.id = ${event.project_id}
+         WHERE m.org_id = p.org_id
+           AND (m.project_id = p.id OR m.project_id IS NULL)
+           AND m.role = ${approval.assignee_role}::member_role
+           ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
       `);
       return members.map((r) => r.user_id);
     }
     return null;
   }
 
-  /** 지정이 없을 때의 기본 수신자 — 프로젝트의 admin·planner. */
+  /**
+   * 지정이 없을 때의 기본 수신자 — **그 조직의** 프로젝트 admin·planner(REQ-API-125).
+   *
+   * 조직 단위 멤버십(`project_id IS NULL`)은 조직을 함께 봐야 한다 — 보지 않으면 A 조직의
+   * planner 가 B 조직 프로젝트의 알림을 받는다(FR-14 의 경계가 여기서 샜다).
+   */
   private async roleQueue(event: {
     project_id: string;
     actor_user_id: string | null;
   }): Promise<string[]> {
     const { rows } = await this.db.execute<{ user_id: string }>(sql`
-      SELECT DISTINCT user_id FROM membership
-       WHERE (project_id = ${event.project_id} OR project_id IS NULL)
-         AND role IN ('admin', 'planner')
-         ${event.actor_user_id === null ? sql`` : sql`AND user_id <> ${event.actor_user_id}`}
+      SELECT DISTINCT m.user_id FROM membership m
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role IN ('admin', 'planner')
+         ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
     `);
     return rows.map((r) => r.user_id);
   }

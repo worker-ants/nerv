@@ -59,8 +59,9 @@ function canApproveSql(userId: string): SQL {
                   AND (m.project_id = a.project_id
                        OR (m.project_id IS NULL AND m.org_id = (
                              SELECT org_id FROM project WHERE id = a.project_id))))
-    OR (SELECT count(DISTINCT user_id) FROM membership
-         WHERE project_id = a.project_id OR project_id IS NULL) < 2
+    OR (SELECT count(DISTINCT m.user_id) FROM membership m
+         WHERE m.org_id = (SELECT org_id FROM project WHERE id = a.project_id)
+           AND (m.project_id = a.project_id OR m.project_id IS NULL)) < 2
   ) AS can_approve`;
 }
 
@@ -570,9 +571,14 @@ export class ApprovalService {
     projectId: string,
     userId: string,
   ): Promise<void> {
+    // 조직 단위 멤버십은 **그 조직의 것만** 센다(2026-09-07 · REQ-API-125). 다른 조직의
+    // 사람이 이 프로젝트의 "둘째 사람" 으로 세어지면 완화가 필요한 자리에서 꺼지고,
+    // 반대로 그 사람이 승인할 수 있는 것도 아니다 — 아무도 결재를 끝낼 수 없게 된다.
     const { rows } = await tx.execute<{ n: number }>(sql`
-      SELECT count(DISTINCT user_id)::int AS n FROM membership
-       WHERE project_id = ${projectId} OR project_id IS NULL
+      SELECT count(DISTINCT m.user_id)::int AS n FROM membership m
+        JOIN project p ON p.id = ${projectId}
+       WHERE m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
     `);
     if ((rows[0]?.n ?? 1) < 2) {
       this.logger.warn(`소규모 완화 — 자기 승인을 허용한다(감사 기록됨) user=${userId}`);
