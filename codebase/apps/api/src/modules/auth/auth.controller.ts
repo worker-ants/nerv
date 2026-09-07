@@ -145,6 +145,8 @@ export class AuthController {
       role: input.role,
       // 앞의 assertAdminOfMembership 이 이미 admin 임을 확인했다
       actorRoles: ['admin'],
+      // 권한 상승은 누가 했는지가 감사의 질문이다(REQ-API-151)
+      actorUserId: principal.userId,
     });
   }
 
@@ -156,7 +158,11 @@ export class AuthController {
   ): Promise<{ ok: true }> {
     const principal = principalOf(req);
     await this.auth.assertAdminOfMembership(id, principal.userId);
-    return this.auth.removeMembership({ membershipId: id, actorRoles: ['admin'] });
+    return this.auth.removeMembership({
+      membershipId: id,
+      actorRoles: ['admin'],
+      actorUserId: principal.userId,
+    });
   }
 
   /** EP-PRJ-01 */
@@ -200,7 +206,10 @@ export class AuthController {
       });
     }
     const input = parseBody(TokenCreateInput, body);
-    const project = await this.auth.resolveProject(input.project);
+    const project = await this.auth.resolveProject(input.project, {
+      orgSlug: input.org ?? null,
+      userId: principal.userId,
+    });
     if (project === null) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',

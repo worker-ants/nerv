@@ -9,7 +9,9 @@ import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { csv } from '../../common/query-vocab.js';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
+import { wrapSpecBody, wrapText } from '../../mcp/untrusted.js';
 import { SearchService } from './search.service.js';
+import type { SearchResult } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import { SpecService } from './spec.service.js';
 import { SpecRelationService } from './spec-relation.service.js';
@@ -224,7 +226,11 @@ export class SpecTools implements NervToolProvider {
       handler: async (input, ctx) => {
         const attachmentId = input['attachment_id'];
         if (typeof attachmentId === 'string' && attachmentId !== '') {
-          return this.attachments.commit({ projectId: ctx.projectId, attachmentId });
+          return this.attachments.commit({
+            projectId: ctx.projectId,
+            attachmentId,
+            actor: { userId: ctx.principal.userId, sessionId: ctx.sessionId ?? null },
+          });
         }
         const specKey = String(input['spec_id'] ?? '');
         const filename = String(input['filename'] ?? '');
@@ -273,8 +279,8 @@ export class SpecTools implements NervToolProvider {
         required: ['q'],
       },
       // 검색 방식은 서버 내부 판정이다 — MCP 도 REST 와 같은 파이프라인·같은 순위다(§2.2b).
-      handler: async (input, ctx) =>
-        this.searches.search({
+      handler: async (input, ctx) => {
+        const found = await this.searches.search({
           projectId: ctx.projectId,
           query: String(input['q'] ?? ''),
           ...(typeof input['limit'] === 'number' ? { limit: input['limit'] } : {}),
@@ -284,7 +290,10 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['requirement_id'] === 'string'
             ? { requirementRef: input['requirement_id'] }
             : {}),
-        }),
+        });
+        // 스니펫도 본문에서 잘라 온 사용자 생성 텍스트다 — 한 경로만 감싸면 나머지가 구멍이다
+        return wrapSnippets(found);
+      },
     },
     {
       name: 'nerv_spec_get',
@@ -319,13 +328,14 @@ export class SpecTools implements NervToolProvider {
             field: 'baseline',
           });
         }
-        return this.specs.get({
+        const spec = await this.specs.get({
           projectId: ctx.projectId,
           specKey: String(input['spec_id'] ?? ''),
           versionNo: version,
           baseline,
           include: Array.isArray(input['include']) ? (input['include'] as string[]) : null,
         });
+        return wrapUserText(spec);
       },
     },
     {
@@ -526,4 +536,59 @@ export class SpecTools implements NervToolProvider {
         }),
     },
   ];
+}
+
+/**
+ * `nerv_spec_get` 응답의 사용자 생성 본문을 비신뢰 경계로 감싼다(REQ-API-153).
+ *
+ * **감싸는 것은 셋이다** — 문서 본문 · 요구사항 문장 · 코멘트 본문. 사람이 쓴 글이고,
+ * 그 안에 에이전트를 향한 지시가 섞여 들어올 수 있는 자리다. 나머지 필드(키·상태·번호·
+ * 관계)는 서버가 만든 값이라 감싸지 않는다 — 전부 감싸면 경계가 무엇을 뜻하는지 사라진다.
+ */
+function wrapUserText(spec: Record<string, unknown>): Record<string, unknown> {
+  const key = typeof spec['key'] === 'string' ? spec['key'] : null;
+  const versionNo = typeof spec['version_no'] === 'number' ? spec['version_no'] : null;
+  const meta = { key, versionNo };
+
+  const requirements = Array.isArray(spec['requirements'])
+    ? (spec['requirements'] as Record<string, unknown>[]).map((r) => ({
+        ...r,
+        ...(typeof r['statement_md'] === 'string'
+          ? { statement_md: wrapSpecBody(r['statement_md'], meta) }
+          : {}),
+      }))
+    : spec['requirements'];
+
+  const comments = Array.isArray(spec['comments'])
+    ? (spec['comments'] as Record<string, unknown>[]).map((c) => ({
+        ...c,
+        ...(typeof c['body_md'] === 'string' ? { body_md: wrapSpecBody(c['body_md'], meta) } : {}),
+      }))
+    : spec['comments'];
+
+  return {
+    ...spec,
+    ...(typeof spec['body_md'] === 'string'
+      ? { body_md: wrapSpecBody(spec['body_md'], meta) }
+      : {}),
+    ...(requirements === undefined ? {} : { requirements }),
+    ...(comments === undefined ? {} : { comments }),
+  };
+}
+
+/**
+ * 검색 결과의 `snippet` — 본문에서 잘라 온 사용자 생성 텍스트다.
+ *
+ * `nerv:text` 인 이유는 **조각이라 되짚을 주소가 없기 때문**이다: 문서의 어느 버전을
+ * 잘랐는지 응답이 말하지 않으므로 `id`(스펙 키)까지만 싣는다. `related` 는 서버가 만든
+ * 메타(키·제목·관계 종류)뿐이라 감싸지 않는다.
+ */
+function wrapSnippets(found: SearchResult): SearchResult {
+  return {
+    ...found,
+    items: found.items.map((row) => ({
+      ...row,
+      snippet: wrapText('snippet', row.snippet, { id: row.key }),
+    })),
+  };
 }

@@ -22,6 +22,11 @@ let pool: pg.Pool;
 let app: NestFastifyApplication;
 let projectId: string;
 let taskId: string;
+/** 두 조직이 같은 slug('shared')를 쓴다 — REQ-API-152 */
+let sharedHereId: string;
+let sharedTwinId: string;
+let sharedHereTaskId: string;
+let sharedTwinTaskId: string;
 
 beforeAll(async () => {
   db = await createScratchDb('nerv_webhook');
@@ -50,7 +55,7 @@ beforeEach(async () => {
 
 async function post(
   payload: Record<string, unknown>,
-  options: { event?: string; signature?: string | null } = {},
+  options: { event?: string; signature?: string | null; org?: string; proj?: string } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const raw = JSON.stringify(payload);
   const signature =
@@ -65,7 +70,9 @@ async function post(
 
   const res = await app.inject({
     method: 'POST',
-    url: '/ingest/webhooks/github/clemvion',
+    url: `/ingest/webhooks/github/${options.proj ?? 'clemvion'}${
+      options.org === undefined ? '' : `?org=${options.org}`
+    }`,
     headers,
     payload: raw,
   });
@@ -227,4 +234,90 @@ async function seed(): Promise<void> {
      VALUES ($1,$2,$3,'위젯','in_progress','목표','PR','도구','경계')`,
     [taskId, projectId, taskKey()],
   );
+
+  // **두 조직이 같은 slug('shared')를 쓴다**(REQ-API-152). 두 번째 조직 slug 을 'aaa' 로
+  // 두는 것은 의도다 — 정렬상 'nerv' 보다 앞이라, 좁히지 않는 해소는 이쪽을 고른다. 웹훅은
+  // 주체가 없어 멤버십으로 막히지도 않으므로, 그 오답은 **남의 프로젝트에 붙은 증적**이다.
+  const twinOrgId = newId();
+  sharedHereId = newId();
+  sharedTwinId = newId();
+  sharedHereTaskId = newId();
+  sharedTwinTaskId = newId();
+  await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'aaa','쌍둥이')`, [
+    twinOrgId,
+  ]);
+  await pool.query(
+    `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHN','여기 공유')`,
+    [sharedHereId, orgId],
+  );
+  await pool.query(
+    `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHA','저기 공유')`,
+    [sharedTwinId, twinOrgId],
+  );
+  for (const [project, task, prefix] of [
+    [sharedHereId, sharedHereTaskId, 'SHN'],
+    [sharedTwinId, sharedTwinTaskId, 'SHA'],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'공유 위젯','in_progress','목표','PR','도구','경계')`,
+      [task, project, displayKey(prefix, 'T', task)],
+    );
+  }
 }
+
+/**
+ * **웹훅은 주체가 없다**(2026-09-07 · REQ-API-152).
+ *
+ * HMAC 시크릿은 전역 env 하나라 서명이 조직을 가려 주지 못하고, `@Public` 경로라 멤버십
+ * 판정도 없다. 그래서 slug 해소가 첫 행을 고르면 **막히는 대신 남의 프로젝트에 증적이
+ * 붙는다** — 그 증적은 FR-10 게이트의 입력이다. 좁힐 근거가 `?org=` 뿐이라 없으면 거절한다.
+ */
+describe('조직이 모호한 웹훅 (REQ-API-152)', () => {
+  it('한정자가 없으면 409 이고 증적은 어디에도 붙지 않는다', async () => {
+    const res = await post(
+      {
+        pull_request: {
+          title: displayKey('SHA', 'T', sharedTwinTaskId),
+          html_url: 'https://github.com/acme/app/pull/101',
+        },
+      },
+      { proj: 'shared' },
+    );
+    expect(res.status).toBe(409);
+    expect(res.body['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect(res.body['details']).toMatchObject({ kind: 'ambiguous_project', orgs: ['aaa', 'nerv'] });
+
+    const { rows } = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM evidence`);
+    expect(rows[0]?.n).toBe(0);
+  });
+
+  /**
+   * 둘을 **한 검사 안에서** 본다 — 하나만 여는 구현은 행 순서가 어떻든 여기를 통과할 수 없다.
+   */
+  it('`?org=` 가 조직을 가리키면 그 조직의 프로젝트에 붙는다 — 양쪽 다', async () => {
+    const twinKey = displayKey('SHA', 'T', sharedTwinTaskId);
+    const twin = await post(
+      { pull_request: { title: twinKey, html_url: 'https://github.com/acme/app/pull/102' } },
+      { org: 'aaa', proj: 'shared' },
+    );
+    expect(twin.status).toBe(201);
+    expect(twin.body['matched_task']).toBe(twinKey);
+
+    const hereKey = displayKey('SHN', 'T', sharedHereTaskId);
+    const here = await post(
+      { pull_request: { title: hereKey, html_url: 'https://github.com/acme/app/pull/103' } },
+      { org: 'nerv', proj: 'shared' },
+    );
+    expect(here.status).toBe(201);
+
+    const { rows } = await pool.query<{ task_id: string; project_id: string }>(
+      `SELECT task_id, project_id FROM evidence ORDER BY created_at`,
+    );
+    expect(rows).toEqual([
+      { task_id: sharedTwinTaskId, project_id: sharedTwinId },
+      { task_id: sharedHereTaskId, project_id: sharedHereId },
+    ]);
+  });
+});

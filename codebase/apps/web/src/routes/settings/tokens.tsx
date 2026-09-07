@@ -65,7 +65,9 @@ function TokensTab(): React.JSX.Element {
     mutationFn: () =>
       apiFetch<{ token: string; prefix: string }>('/me/tokens', {
         method: 'POST',
-        body: { project: projectSlug ?? '', name, scopes: granted },
+        // 조직도 함께 보낸다 — 같은 slug 가 두 조직에 있으면 slug 만으로는 어느
+        // 프로젝트에 바인딩할지 정해지지 않는다(REQ-API-152).
+        body: { project: projectSlug ?? '', org: orgSlug ?? undefined, name, scopes: granted },
       }),
     onSuccess: (result) => {
       setIssued(result.token);

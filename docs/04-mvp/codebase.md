@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.29 · 2026-09-07 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.30 · 2026-09-07 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.30 변경(2026-09-07 — 추정이 판정이었다, 개선 계획 넷째 스프린트): **REQ-CB-033·034 신설 · §5.2 전표 두 행 · §5.2a 운영 행 · §5.3·§5.4 전문.** ① **임베딩 차원 상수가 두 벌이었다** — `embedding.client.ts` 가 `EMBEDDING_DIMENSIONS = 1024` 를 다시 선언해, 스키마의 `vector(N)` 을 바꾸는 날 API 의 검사만 옛 값으로 남아 **모든 배치가 거절된다**(REQ-CB-006 이 금지한 재선언이다). ② **`dimensions` 전송을 주소로 추정했다** — 코드 주석이 스스로 그렇게 적고 있었고, Azure OpenAI·LiteLLM·사내 게이트웨이 뒤의 `text-embedding-3-small` 은 그 주소가 아니라 1536 차원이 돌아와 **검색이 오류 없이 렉시컬로 degrade** 했다. `NERV_EMBED_SEND_DIMENSIONS` 로 명시한다 — **운영 OpenAI 배치는 이 값을 켜야 한다**(사람 확인 · 켜지 않으면 다음 배치부터 전량 거절). ③ **공개 S3 주소로 `https://…/s3` 를 예시로 걸고 있었다** — presigned URL 은 SigV4 로 경로까지 서명하므로 앞문이 접두를 벗기면 서명이 깨지고, 벗기지 않으면 MinIO 가 그 아래에서 S3 API 를 서빙하지 않는다. 문서대로 설정한 배치에서 PUT 은 SPA 의 index.html 을 200 으로 받았다. **별도 호스트**로 고치고, 앞문에 `/s3/` 를 여는 것이 고치는 길이 아님을 nginx 템플릿 주석에 남긴다.
 >
 > v1.29 변경(2026-09-07 — 백업이 첨부를 한 번도 담지 않았다, 개선 계획 첫 스프린트): **REQ-CB-031·032 신설 · §6.5 표 개정.** ① **첨부 백업**: §6.5 표는 MinIO 를 "내용물이 리뷰 프롬프트 blob 뿐이라 유실 허용 · 기본 off" 라 적는데, 2026-09-01 부터 그 버킷에는 **재생성되지 않는 스펙 첨부**가 들어 있다. 스크립트는 그것을 알고 `mc` 로 미러하려 했지만 CronJob 의 이미지(`postgres:17-alpine`)에 `mc` 가 없어 **매일 경고 한 줄을 남기고 건너뛰었다** — 그 줄을 읽는 사람은 없다. `mc` 를 initContainer 로 심고(백업이 앱 배포 주기에 묶이지 않게 별도 이미지·태그 고정), 엔드포인트가 설정됐는데 `mc` 가 없으면 **종료 코드 2 로 실패한다**. 우회는 `NERV_BACKUP_SKIP_BLOBS=1` 하나뿐이다 — 건너뛰는 것이 결정일 수는 있어도 사고여서는 안 된다. ② **보존 잡의 접기가 덮어쓰기였다**: jsonb `||` 는 같은 키를 더하지 않는다 — 활동이 컷오프를 여러 실행에 걸쳐 넘는 세션은 두 번째 실행에서 첫 집계가 통째로 사라지고 마지막 몫만 남았다(수는 남아 있으니 아무도 눈치채지 못한다). 키별 합산으로 바꾸고, 합산은 재실행에 멱등하지 않으므로 **접기와 삭제를 한 트랜잭션**에 묶었다. ③ **`prompt_expires_at` 을 읽는다**: 삽입 시점에 채워 두고 아무도 읽지 않아 흔적이던 열이다 — 이제 프로젝트 정책과 그 열 중 **먼저 오는 쪽**이 만료다.
 >
@@ -815,6 +817,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090/v1` | api(질의 임베딩) · worker(`embedding.job`) | **OpenAI 호환 base URL(`/v1`까지)** — 프로필 §5.2a. compose 내부 기본은 `http://embed:11434/v1`. 무응답 시 검색은 렉시컬 degrade(REQ-API-026) |
 | `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | `/v1/embeddings`의 `model` 인자 · 재임베딩 관리(`spec_chunk_embedding.model` — [4.3](database.md) §2.15) | 제공자·모델 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
 | `NERV_EMBED_API_KEY` | 외부 제공자 시 | — | `Authorization: Bearer` 헤더 | **secret** — 로컬 TEI는 불요. k8s는 `nerv-secrets`(§6.2) |
+| `NERV_EMBED_SEND_DIMENSIONS` | 운영 OpenAI 는 **필수** | `false` | api(질의 임베딩) · worker(`embedding.job`) — `EmbeddingClient.fromEnv` | 요청에 `dimensions` 를 실을 것인가. 1024 를 그대로 내는 모델(bge-m3)은 `false`, 절단이 필요한 모델(`text-embedding-3-*`)은 **`true`**. 2026-09-07 까지 주소에 `api.openai.com` 이 있는지로 **추정**했다 — 게이트웨이(Azure·LiteLLM·사내) 뒤의 같은 모델은 그 주소가 아니라 1536 차원이 돌아왔고, 검색은 오류 없이 렉시컬로 degrade 했다(REQ-CB-033) |
 | `NERV_EMBED_PORT` | | `8090` | compose 포트 노출(127.0.0.1 한정) | 로컬 프로필 전용 |
 | `NERV_EMBED_TIMEOUT_MS` | | `30000` | 제공자 한 요청의 상한 | **가장 느린 프로필이 기준이다** — 아래 §5.2b |
 | `NERV_EMBED_BATCH_CHARS` | | `6000` | 한 요청에 싣는 문자 예산 | 빠른 제공자(OpenAI)는 올려서 왕복을 줄인다 |
@@ -829,7 +832,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY` | 첨부 쓸 때 | — | api · worker | **앱이 읽는 자격증명은 이 둘이다.** `MINIO_ROOT_*` 는 compose 가 MinIO 에 주는 값이라 로컬 프로세스(`pnpm dev`)에는 조립해 주는 주체가 없었다 — 문서대로 따라간 개발자는 첨부가 꺼진 API 를 띄웠다(2026-09-02) |
 | `NERV_SEED_PASSWORD` | | `nerv-dev-1234` | seed | 개발 시드 사용자의 비밀번호(§5.1 `db:seed`) — `.env.example` 에는 없다 |
 | `NERV_SHOT_DIR` · `NERV_SHOT_SCHEME` | | — | web(E2E) | 브라우저 스크린샷 산출 위치·스킴. 코드가 읽는데 전표에도 `.env.example` 에도 없던 자리다(2026-09-06 보완) |
-| `NERV_S3_PUBLIC_ENDPOINT` | | (없으면 `NERV_S3_ENDPOINT`) | api | 에이전트가 받는 presigned PUT 주소의 호스트. 내부 주소로 서명하면 개발자 장비에서 해소되지 않아 **에이전트 업로드가 모든 배치에서 불통**이었다 |
+| `NERV_S3_PUBLIC_ENDPOINT` | | (없으면 `NERV_S3_ENDPOINT`) | api | 에이전트가 받는 presigned PUT 주소의 호스트. 내부 주소로 서명하면 개발자 장비에서 해소되지 않아 **에이전트 업로드가 모든 배치에서 불통**이었다. **경로 접두는 안 된다**(REQ-CB-034) — presigned 서명이 경로를 포함하므로 `https://…/s3` 는 앞문이 접두를 벗기면 `SignatureDoesNotMatch` 이고 벗기지 않으면 MinIO 가 그 아래에서 S3 API 를 서빙하지 않는다. **별도 호스트**(`https://s3.<도메인>`)를 적는다. 경로가 있으면 기동 로그가 그 사실을 말한다 |
 | `NERV_S3_REGION` | | `us-east-1` | api | S3 호환 서명용 |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
 | `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다 |
@@ -849,7 +852,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | --- | --- | --- | --- | --- |
 | **로컬**(기본값) | ollama — compose `embed` 서비스(CPU) | `http://embed:11434/v1` | `bge-m3` | 네이티브 1024차원(F16). API 키 불요. 외부 전송 0. **amd64·arm64 모두 기동**(2026-08-23 개정 — 아래 점화 기록) |
 | **스테이징** | LM Studio(OpenAI 호환 서버) | `http://<lmstudio-host>:1234/v1` | bge-m3 계열(GGUF) | 1024차원 확인 후 사용. `embed` 서비스 미기동 |
-| **운영** | OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | **`dimensions: 1024` 필수**(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021). `NERV_EMBED_API_KEY` 필수 |
+| **운영** | OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | **`NERV_EMBED_SEND_DIMENSIONS=true` 필수**(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021·033. **2026-09-07 부터 이 값을 켜지 않으면 1536 차원이 돌아와 전 배치가 거절된다** — 그전에는 주소로 추정했다). `NERV_EMBED_API_KEY` 필수 |
 
 - **차원은 전 프로필 1024 고정**이다 — `spec_chunk_embedding.embedding vector(1024)`([4.3](database.md) §2.15)와 HNSW 인덱스가 차원에 묶이므로, 1024를 내지 못하는 제공자·모델은 프로필로 쓸 수 없다(REQ-CB-021이 적재 시 검증).
 - **환경 간 벡터는 호환되지 않는다** — 모델이 다르면 벡터 공간이 다르다. 각 환경의 인덱스는 자기 `model` 값에 묶이고([4.3](database.md) §2.15 규칙 3), 프로필 전환은 전량 재임베딩이다. DB를 환경 간 복사하는 경우(스테이징 복제 등)에도 임베딩 행은 버리고 재생성한다.
@@ -921,6 +924,8 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `referenced_by` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
 | **REQ-CB-031** | WHILE `NERV_S3_ENDPOINT` 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(`mc`)이 없으면 **종료 코드 2 로 실패한다** — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. `NERV_BACKUP_SKIP_BLOBS=1` 만이 명시적 우회다 | 엔드포인트가 있고 `mc` 가 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트) |
 | **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다 | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL |
+| **REQ-CB-033** | WHEN 임베딩 요청을 만들면 THE SYSTEM SHALL `dimensions` 를 실을지를 **`NERV_EMBED_SEND_DIMENSIONS` 에서만** 읽고 제공자 주소로 추정하지 않는다 — 게이트웨이 뒤의 같은 모델은 주소가 다르고, 절단이 빠지면 오류 없이 다른 차원이 돌아와 **검색이 조용히 렉시컬로 degrade** 한다. WHILE 차원을 검사하는 동안 THE SYSTEM SHALL 그 값을 `@nerv/schema` 의 `EMBEDDING_DIMENSIONS`(DDL 이 쓰는 그 상수)에서 읽고 재선언하지 않는다(REQ-CB-006) |
+| **REQ-CB-034** | WHILE `NERV_S3_PUBLIC_ENDPOINT` 가 설정된 동안 THE SYSTEM SHALL 그 주소에 경로가 있으면 기동 로그로 경고한다 — presigned 서명은 경로를 포함하므로 접두 프록시(`https://…/s3`) 뒤의 S3 는 `SignatureDoesNotMatch` 로 끝나고, 배포 산출물은 그 자리에 **별도 호스트**를 적는다. WHERE 앞문(nginx·Ingress)에 S3 경로를 여는 것은 금지다 — 기술적으로 막힌 길이라 다음 사람이 그것을 고치는 길로 믿지 않게 주석으로 남긴다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 
 ---
@@ -1052,9 +1057,12 @@ services:
       NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
       NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-bge-m3}
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
+      # 요청에 dimensions 를 실을 것인가 — 호스트로 추정하지 않는다(§5.2a · REQ-CB-033)
+      NERV_EMBED_SEND_DIMENSIONS: ${NERV_EMBED_SEND_DIMENSIONS:-false}
       NERV_S3_ENDPOINT: http://minio:9000
-      # 에이전트가 받는 서명 주소는 밖에서 열려야 한다 — 없으면 내부 주소로 서명된다
-      NERV_S3_PUBLIC_ENDPOINT: ${NERV_S3_PUBLIC_ENDPOINT:-}
+      # 에이전트가 받는 서명 주소는 밖에서 열려야 한다 — 기본은 호스트에서 열리는 minio 포트다.
+      # 밖에서 쓰려면 **별도 호스트**로 바꾼다(경로 접두는 서명이 깨진다 — REQ-CB-033).
+      NERV_S3_PUBLIC_ENDPOINT: ${NERV_S3_PUBLIC_ENDPOINT:-http://localhost:${MINIO_PORT:-9000}}
       NERV_GITHUB_WEBHOOK_SECRET: ${NERV_GITHUB_WEBHOOK_SECRET:-}
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -1088,9 +1096,12 @@ services:
       NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
       NERV_EMBED_MODEL: ${NERV_EMBED_MODEL:-bge-m3}
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
+      # 요청에 dimensions 를 실을 것인가 — 호스트로 추정하지 않는다(§5.2a · REQ-CB-033)
+      NERV_EMBED_SEND_DIMENSIONS: ${NERV_EMBED_SEND_DIMENSIONS:-false}
       NERV_S3_ENDPOINT: http://minio:9000
-      # 에이전트가 받는 서명 주소는 밖에서 열려야 한다 — 없으면 내부 주소로 서명된다
-      NERV_S3_PUBLIC_ENDPOINT: ${NERV_S3_PUBLIC_ENDPOINT:-}
+      # 에이전트가 받는 서명 주소는 밖에서 열려야 한다 — 기본은 호스트에서 열리는 minio 포트다.
+      # 밖에서 쓰려면 **별도 호스트**로 바꾼다(경로 접두는 서명이 깨진다 — REQ-CB-033).
+      NERV_S3_PUBLIC_ENDPOINT: ${NERV_S3_PUBLIC_ENDPOINT:-http://localhost:${MINIO_PORT:-9000}}
       NERV_GITHUB_WEBHOOK_SECRET: ${NERV_GITHUB_WEBHOOK_SECRET:-}
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -1215,6 +1226,11 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
   }
+
+  # S3 는 이 앞문 뒤에 두지 않는다 — location 을 여는 것이 '고치는 길' 이 아니다(REQ-CB-034).
+  # presigned URL 은 SigV4 로 경로(`/<버킷>/<키>`)까지 서명하므로 `/s3/` 같은 접두 프록시는
+  # 앞문이 접두를 벗기면 SignatureDoesNotMatch 이고, 벗기지 않으면 MinIO 가 그 접두 아래에서
+  # S3 API 를 서빙하지 않는다. 공개 S3 주소(`NERV_S3_PUBLIC_ENDPOINT`)는 **별도 호스트**다(§5.2).
 
   # SSE — 단방향 이벤트 스트림, 버퍼링 금지 (REQ-CB-014)
   location /sse/ {

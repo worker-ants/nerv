@@ -12,11 +12,15 @@ import { Injectable } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { orgQualifier } from '../../common/project-access.guard.js';
 import { AuthService } from '../auth/auth.service.js';
 import type { Principal } from '../auth/auth.service.js';
 
 export interface SseRequest {
   params?: Record<string, string | undefined>;
+  /** `?org=` 가 먼저 쓰인다 — EventSource 는 헤더를 싣지 못한다(REQ-API-152) */
+  headers?: Record<string, string | undefined>;
+  query?: Record<string, unknown>;
   nervPrincipal?: Principal;
   /** 가드가 해소해 컨트롤러에 넘긴다 — 컨트롤러는 다시 조회하지 않는다 */
   nervSseProjectId?: string;
@@ -38,7 +42,11 @@ export class SseAccessGuard implements CanActivate {
     const slug = req.params?.['proj'];
     if (slug === undefined) return true; // /sse/me 는 본인 스트림이라 프로젝트 판정이 없다
 
-    const project = await this.auth.resolveProject(slug);
+    const project = await this.auth.resolveProject(slug, {
+      orgSlug: orgQualifier(req),
+      userId: principal.userId,
+      projectId: principal.projectId,
+    });
     if (project === null) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',

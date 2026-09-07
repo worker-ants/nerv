@@ -6,13 +6,15 @@
 // 토큰은 (사용자, 프로젝트, 역할, 소속) 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을
 // 넘지 못한다(D-08). 그 성질들을 실제 DB 상대로 확인한다 — 해시 저장·원문 미저장 포함.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, newId, NERV_EVENT } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AuthService, hashToken } from '../../src/modules/auth/auth.service.js';
 import { dbConstraintError } from '../../src/common/db-error.js';
+import { EventService } from '../../src/modules/event/event.service.js';
+import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -28,7 +30,12 @@ beforeAll(async () => {
   db = await createScratchDb('nerv_auth');
   await runMigrations(db.url);
   pool = new pg.Pool({ connectionString: db.url });
-  auth = new AuthService(drizzle(pool));
+  // 감사 축을 보려면 이벤트 서비스를 함께 준다(REQ-API-151) — 없으면 조용히 지나간다
+  const silent = {
+    publish: async () => false,
+    subscribe: async () => undefined,
+  } as unknown as ValkeyService;
+  auth = new AuthService(drizzle(pool), new EventService(drizzle(pool), silent));
   await seed();
 });
 
@@ -657,3 +664,195 @@ async function seed(): Promise<void> {
     [newId(), orgId, projectId, userId],
   );
 }
+
+/**
+ * **권한 상승과 토큰 발급은 보안 조사의 첫 질문이다**(2026-09-07 · REQ-API-151 · FR-16).
+ * "누가 언제 이 사람을 admin 으로 올렸나" · "이 토큰은 누가 발급했나" — 답할 표가 없었다.
+ */
+describe('감사 축 — 권한·토큰·프로젝트 (REQ-API-151)', () => {
+  async function eventsOf(type: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await pool.query<Record<string, unknown>>(
+      `SELECT type, subject_type, subject_id, actor_user_id, from_state, to_state, payload
+         FROM event WHERE type = $1 ORDER BY occurred_at DESC`,
+      [type],
+    );
+    return rows;
+  }
+
+  it('토큰 발급과 폐기가 남는다 — 값은 남기지 않는다', async () => {
+    await pool.query('TRUNCATE event');
+    const issued = await auth.issueToken({
+      projectId,
+      userId,
+      name: '감사 토큰',
+      scopes: ['spec:read'],
+    });
+
+    const created = await eventsOf(NERV_EVENT.TOKEN_CREATED);
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ subject_type: 'api_token', actor_user_id: userId });
+    const payload = created[0]?.['payload'] as Record<string, unknown>;
+    expect(payload['scopes']).toEqual(['spec:read']);
+    // 원문은 어디에도 없다 — 접두만이 감사가 묻는 것이다
+    expect(JSON.stringify(payload)).not.toContain(issued.token);
+
+    await auth.revokeToken(issued.tokenId, userId);
+    const revoked = await eventsOf(NERV_EVENT.TOKEN_REVOKED);
+    expect(revoked).toHaveLength(1);
+    expect((revoked[0]?.['payload'] as Record<string, unknown>)['owner_user_id']).toBe(userId);
+  });
+
+  it('역할 변경이 from/to 와 함께 남는다 — 권한 상승이 보이는 자리다', async () => {
+    await pool.query('TRUNCATE event');
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM membership WHERE user_id = $1 AND project_id = $2`,
+      [userId, projectId],
+    );
+    const membershipId = rows[0]!.id;
+    const before = await pool.query<{ role: string }>(
+      `SELECT role::text AS role FROM membership WHERE id = $1`,
+      [membershipId],
+    );
+
+    await auth.updateMembership({
+      membershipId,
+      role: 'admin',
+      actorRoles: ['admin'],
+      actorUserId: userId,
+    });
+
+    const updated = await eventsOf(NERV_EVENT.MEMBER_UPDATED);
+    expect(updated).toHaveLength(1);
+    expect(updated[0]).toMatchObject({
+      subject_type: 'membership',
+      subject_id: membershipId,
+      actor_user_id: userId,
+      from_state: before.rows[0]!.role,
+      to_state: 'admin',
+    });
+  });
+
+  it('멤버 제거도 남는다 — 어떤 역할이 사라졌는지까지', async () => {
+    await pool.query('TRUNCATE event');
+    const membershipId = newId();
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id=$2),$2,$3,'developer')`,
+      [membershipId, projectId, outsiderId],
+    );
+
+    await auth.removeMembership({ membershipId, actorRoles: ['admin'], actorUserId: userId });
+
+    const removed = await eventsOf(NERV_EVENT.MEMBER_REMOVED);
+    expect(removed).toHaveLength(1);
+    expect(removed[0]).toMatchObject({ from_state: 'developer', actor_user_id: userId });
+  });
+
+  it('감사가 없다고 인증이 멈추지 않는다 — 이벤트 서비스가 없어도 발급은 된다', async () => {
+    const bare = new AuthService(drizzle(pool));
+    await expect(
+      bare.issueToken({ projectId, userId, name: '무감사', scopes: ['spec:read'] }),
+    ).resolves.toMatchObject({ prefix: expect.any(String) });
+  });
+});
+
+/**
+ * **slug 는 조직 안에서만 유일하다**(2026-09-07 · REQ-API-152).
+ *
+ * DDL 의 유일 제약은 `(org_id, slug)` 인데 해소는 첫 행을 골랐다 — 두 번째 조직의 동명
+ * 프로젝트는 자기 사람에게 `not_member` 로 보였고, 주체가 없는 웹훅은 막히지도 않고 남의
+ * 프로젝트에 증적을 붙였다. 좁힐 근거가 없으면 첫 행이 아니라 거절이다.
+ */
+describe('slug 해소의 조직 경계 (REQ-API-152)', () => {
+  let orgA: string;
+  let orgB: string;
+  let sharedA: string;
+  let sharedB: string;
+  let onlyB: string;
+  let bothOrgs: string;
+
+  beforeAll(async () => {
+    orgA = newId();
+    orgB = newId();
+    sharedA = newId();
+    sharedB = newId();
+    onlyB = newId();
+    bothOrgs = newId();
+
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'org-a','A')`, [orgA]);
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'org-b','B')`, [orgB]);
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHA','공유 A')`,
+      [sharedA, orgA],
+    );
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHB','공유 B')`,
+      [sharedB, orgB],
+    );
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'onlyb@example.com','비만','active')`,
+      [onlyB],
+    );
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'twoorgs@example.com','양쪽','active')`,
+      [bothOrgs],
+    );
+    // B 에만 있는 사람 · 양쪽에 조직 전역으로 있는 사람
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'developer')`,
+      [newId(), orgB, sharedB, onlyB],
+    );
+    for (const org of [orgA, orgB]) {
+      await pool.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,NULL,$3,'admin')`,
+        [newId(), org, bothOrgs],
+      );
+    }
+  });
+
+  it('좁힐 근거가 없으면 첫 행이 아니라 거절이다 — orgs 를 함께 준다', async () => {
+    const err = await auth.resolveProject('shared').then(
+      () => null,
+      (e: unknown) => e as { code: string; details: Record<string, unknown> },
+    );
+    expect(err?.code).toBe(NERV_ERROR.PRECONDITION);
+    expect(err?.details['kind']).toBe('ambiguous_project');
+    expect(err?.details['orgs']).toEqual(['org-a', 'org-b']);
+  });
+
+  it('한정자가 조직을 가리키면 그 조직의 프로젝트다', async () => {
+    expect(await auth.resolveProject('shared', { orgSlug: 'org-b' })).toMatchObject({
+      id: sharedB,
+      key: 'SHB',
+      orgSlug: 'org-b',
+    });
+  });
+
+  it('PAT 바인딩이 가장 강한 근거다 — 토큰은 slug 가 아니라 id 를 들고 있다', async () => {
+    expect(await auth.resolveProject('shared', { projectId: sharedA })).toMatchObject({
+      id: sharedA,
+      orgSlug: 'org-a',
+    });
+  });
+
+  it('주체가 속한 행이 하나면 그 행이다 — 자기 프로젝트가 not_member 로 보이던 자리', async () => {
+    expect(await auth.resolveProject('shared', { userId: onlyB })).toMatchObject({ id: sharedB });
+  });
+
+  it('양쪽 조직 사람은 소속으로도 좁혀지지 않는다 — 그때는 거절이다', async () => {
+    await expect(auth.resolveProject('shared', { userId: bothOrgs })).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+    });
+    // 한정자를 주면 그 사람도 열린다
+    expect(
+      await auth.resolveProject('shared', { userId: bothOrgs, orgSlug: 'org-a' }),
+    ).toMatchObject({ id: sharedA });
+  });
+
+  it('후보가 하나면 오늘과 같다 — 멤버십 판정(403)은 여기서 내지 않는다', async () => {
+    expect(await auth.resolveProject('clemvion', { userId: outsiderId })).toMatchObject({
+      id: projectId,
+      orgSlug: 'nerv',
+    });
+  });
+});

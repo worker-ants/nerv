@@ -83,6 +83,11 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 
+  # S3 는 이 앞문 뒤에 두지 않는다 — location 을 여는 것이 '고치는 길' 이 아니다(REQ-CB-034).
+  # presigned URL 은 SigV4 로 경로(`/<버킷>/<키>`)까지 서명하므로 `/s3/` 같은 접두 프록시는
+  # 앞문이 접두를 벗기면 SignatureDoesNotMatch 이고, 벗기지 않으면 MinIO 가 그 접두 아래에서
+  # S3 API 를 서빙하지 않는다. 공개 S3 주소(`NERV_S3_PUBLIC_ENDPOINT`)는 **별도 호스트**다(§5.2).
+
   # SSE — 단방향 이벤트 스트림, 버퍼링 금지 (REQ-CB-014)
   location /sse/ {
     set $nerv_api ${NERV_API_UPSTREAM};

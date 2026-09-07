@@ -8,13 +8,14 @@
 // 2단계**로 올린다 — MCP 응답에 수백 KB base64 를 실으면 그 세션의 컨텍스트 예산이
 // 그것으로 찬다(사람 결정 2026-09-01).
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import {
   ATTACHMENT_MAX_BYTES,
   ATTACHMENT_READ_MAX_BYTES,
   msg,
   NERV_ERROR,
+  NERV_EVENT,
   newId,
 } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
@@ -22,6 +23,8 @@ import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { StorageService } from '../../common/storage.service.js';
+import { EventService } from '../event/event.service.js';
+import type { NervEventName } from '@nerv/schema';
 
 /**
  * 받는 형식 — **화이트리스트다**(무엇을 뺄까가 아니라 무엇만 넣을까).
@@ -60,10 +63,44 @@ export const READABLE_TYPES: ReadonlySet<string> = new Set(['text/html', 'text/p
 
 @Injectable()
 export class AttachmentService {
+  private readonly logger = new Logger(AttachmentService.name);
+
   constructor(
     private readonly storage: StorageService,
     @InjectDb() private readonly db: NervDb,
+    /**
+     * 감사 축(REQ-API-151) — 첨부가 붙고 떨어진 사실은 S3 가 화면에 알려 주지 못한다.
+     * 테스트가 이 서비스를 직접 만들므로 없을 수 있다.
+     */
+    @Optional() private readonly events?: EventService,
   ) {}
+
+  /** 첨부의 사실 한 줄 — 실패해도 첨부 자체는 되돌리지 않는다(감사가 앞서지 않는다). */
+  private async audit(input: {
+    projectId: string;
+    type: NervEventName;
+    attachmentId: string;
+    actor: { userId: string; sessionId: string | null };
+    payload: Record<string, unknown>;
+  }): Promise<void> {
+    if (this.events === undefined) return;
+    try {
+      await this.events.transact(async (_tx, emit) => {
+        await emit({
+          type: input.type,
+          projectId: input.projectId,
+          subjectType: 'attachment',
+          subjectId: input.attachmentId,
+          actorUserId: input.actor.userId,
+          actorSessionId: input.actor.sessionId,
+          isAgent: input.actor.sessionId !== null,
+          payload: input.payload,
+        });
+      });
+    } catch (error) {
+      this.logger.warn(`감사 이벤트를 남기지 못했다(${input.type}): ${String(error)}`);
+    }
+  }
 
   /** 목록 — **확정된 것만**. 올리다 만 행은 목록에 없다 */
   async list(input: { projectId: string; specKey: string }): Promise<Record<string, unknown>[]> {
@@ -170,9 +207,16 @@ export class AttachmentService {
   async commit(input: {
     projectId: string;
     attachmentId: string;
+    /** 누가 붙였는가 — 감사 축(REQ-API-151) */
+    actor?: { userId: string; sessionId: string | null };
   }): Promise<Record<string, unknown>> {
-    const { rows } = await this.db.execute<{ storage_key: string; committed_at: unknown }>(sql`
-      SELECT storage_key, committed_at FROM attachment
+    const { rows } = await this.db.execute<{
+      storage_key: string;
+      committed_at: unknown;
+      spec_id: string;
+      content_type: string | null;
+    }>(sql`
+      SELECT storage_key, committed_at, spec_id, content_type FROM attachment
        WHERE id = ${input.attachmentId} AND project_id = ${input.projectId}
     `);
     const row = rows[0];
@@ -201,6 +245,15 @@ export class AttachmentService {
       UPDATE attachment SET committed_at = now(), bytes = ${head.bytes}
        WHERE id = ${input.attachmentId}
     `);
+    if (input.actor !== undefined) {
+      await this.audit({
+        projectId: input.projectId,
+        type: NERV_EVENT.SPEC_ATTACHMENT_ADDED,
+        attachmentId: input.attachmentId,
+        actor: input.actor,
+        payload: { spec_id: row.spec_id, content_type: row.content_type, bytes: head.bytes },
+      });
+    }
     // 확정 응답이 **받는 주소를 준다**(2026-09-04 · REQ-API-089). 스킬은 "확정하면 응답의
     // `url` 을 본문에 넣으라" 고 지시하는데 이 응답에 그 필드가 없었다 — 실사용 에이전트가
     // 목록을 따로 불러 메웠다. 지시가 가리키는 필드는 지시가 가리키는 자리에 있어야 한다.
@@ -308,12 +361,27 @@ export class AttachmentService {
       : { storageKey: row.storage_key, filename: row.filename, contentType: row.content_type };
   }
 
-  async remove(input: { projectId: string; attachmentId: string }): Promise<{ ok: true }> {
+  async remove(input: {
+    projectId: string;
+    attachmentId: string;
+    /** 누가 뗐는가 — 감사 축(REQ-API-151) */
+    actor?: { userId: string; sessionId: string | null };
+  }): Promise<{ ok: true }> {
     const found = await this.open(input);
     if (found !== null) await this.storage.remove(found.storageKey);
-    await this.db.execute(
-      sql`DELETE FROM attachment WHERE id = ${input.attachmentId} AND project_id = ${input.projectId}`,
+    const { rows } = await this.db.execute<{ spec_id: string }>(
+      sql`DELETE FROM attachment WHERE id = ${input.attachmentId} AND project_id = ${input.projectId}
+          RETURNING spec_id`,
     );
+    if (input.actor !== undefined && rows[0] !== undefined) {
+      await this.audit({
+        projectId: input.projectId,
+        type: NERV_EVENT.SPEC_ATTACHMENT_REMOVED,
+        attachmentId: input.attachmentId,
+        actor: input.actor,
+        payload: { spec_id: rows[0].spec_id },
+      });
+    }
     return { ok: true };
   }
 

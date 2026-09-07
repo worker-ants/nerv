@@ -19,6 +19,9 @@ import type { RoutePermission } from './route-permission.js';
 
 export interface ProjectRequest {
   params?: Record<string, string | undefined>;
+  /** `X-Nerv-Org` — 같은 slug 가 여러 조직에 있을 때의 한정자다(REQ-API-152) */
+  headers?: Record<string, string | undefined>;
+  query?: Record<string, unknown>;
   nervPrincipal?: Principal;
   /** 가드가 해소해 컨트롤러에 넘긴다 */
   nervProjectId?: string;
@@ -44,7 +47,13 @@ export class ProjectAccessGuard implements CanActivate {
     const slug = req.params?.['proj'];
     if (slug === undefined || slug === '') return true;
 
-    const project = await this.auth.resolveProject(slug);
+    // 조직 한정자는 **권한의 근거가 아니라 해소의 근거**다 — 어느 프로젝트를 말하는지만
+    // 정하고, 그 프로젝트를 볼 수 있는지는 아래 두 판정이 따로 낸다(REQ-API-152).
+    const project = await this.auth.resolveProject(slug, {
+      orgSlug: orgQualifier(req),
+      userId: principal.userId,
+      projectId: principal.projectId,
+    });
     if (project === null) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',
@@ -116,4 +125,19 @@ export class ProjectAccessGuard implements CanActivate {
       );
     }
   }
+}
+
+/**
+ * 헤더가 먼저다 — 질의는 주소에 남아 공유되지만 헤더는 그 요청에만 실린다.
+ * 표면이 읽고 도메인에 값으로 넘긴다(D-05) — 가드가 조직을 판정하지는 않는다.
+ */
+export function orgQualifier(req: {
+  headers?: Record<string, string | undefined>;
+  query?: Record<string, unknown>;
+}): string | null {
+  const header = req.headers?.['x-nerv-org'];
+  if (typeof header === 'string' && header.trim() !== '') return header.trim();
+  const query = req.query?.['org'];
+  if (typeof query === 'string' && query.trim() !== '') return query.trim();
+  return null;
 }

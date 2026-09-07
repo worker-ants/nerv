@@ -53,7 +53,7 @@
     <h1>백로그</h1>
     <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
     <div class="meta-line">
-      <span>버전 v0.40 (2026-09-07)</span>
+      <span>버전 v0.44 (2026-09-07)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 14 · 스토리 62 · E2E 시나리오 5</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -119,7 +119,7 @@
   <table>
     <thead><tr><th>ID</th><th>들어온 것</th><th><b>남은 것</b></th></tr></thead>
     <tbody>
-      <tr><td>E03-S02</td><td>PAT 해시 저장·프로젝트 소속·검증</td><td>better-auth <b>api-key 플러그인 대신 자체 <code>api_token</code> 테이블</b>(이탈 근거는 <code>auth.service.ts</code> 머리 주석) · <b>발급 CLI 없음</b>(웹 설정 화면이 유일한 발급 경로)</td></tr>
+      <tr><td>E03-S02</td><td>PAT 해시 저장·프로젝트 소속·검증 · <b>발급이 조직을 받는다</b>(EP-TOK-02 <code>org</code> — <a href="api.html">4.4</a> REQ-API-152)</td><td>better-auth <b>api-key 플러그인 대신 자체 <code>api_token</code> 테이블</b>(이탈 근거는 <code>auth.service.ts</code> 머리 주석) · <b>발급 CLI 없음</b>(웹 설정 화면이 유일한 발급 경로)</td></tr>
       <tr><td>E06-S03</td><td>마이그레이션 파이프라인 양쪽 경로가 실제로 돈다</td><td><b>스파이크 리포트 자체</b>(후보 2안 비교·롤백 절차·선정 근거)</td></tr>
       <tr><td>E06-S04</td><td>리비전 협상·병행 서빙 코드</td><td>Claude Code·Codex <b>두 클라이언트 실측 리포트</b></td></tr>
       <tr><td>E06-S06</td><td>degrade 경로·1024차원 검증</td><td><b>3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정</b>(<a href="api.html">4.4 API</a>가 임베딩 p95 를 아직 보류로 둔다)</td></tr>
@@ -170,6 +170,10 @@
       <tr><td>EARS 작성 표면</td><td><code>spec-check.service.ts</code>(0건 경고) · <code>spec.service.ts</code>·<code>spec.controller.ts</code>(EP-REQ-04) · <code>plugin/skills/spec</code>(형식 절)</td><td>형식이 정규식 한 줄에만 있어 승인본 65건에 요구사항이 0건이었다(2026-09-07 · <a href="api.html">4.4</a> REQ-API-144·145)</td></tr>
       <tr><td>done 게이트 정책 · 리뷰 링크</td><td><code>zod/policy.ts</code>(<code>done_gate</code>) · <code>task.service.ts</code>(<code>assertDoneGate</code>) · <code>evidence-locator.ts</code>(신설) · <code>review.service.ts</code>(활성 클레임에서 task_id)</td><td>게이트가 자기 신고 문자열 1건으로 열렸고 리뷰 1,992건 중 Task 링크가 2건이었다(2026-09-07 · <a href="api.html">4.4</a> REQ-API-146~148)</td></tr>
       <tr><td>알림 등급·수신자</td><td><code>notification.service.ts</code>(등급 필터·둘로 세기·owner_role 수신자) · <code>event.controller.ts</code> · <code>app-shell.tsx</code>·<code>routes/notifications.tsx</code></td><td>배지가 배경 활동까지 세어 결정 99건이 767건에 묻혔다(2026-09-07 · <a href="api.html">4.4</a> REQ-API-149·150)</td></tr>
+      <tr><td>권한·토큰의 감사</td><td><code>event/event-core.module.ts</code>(신설) · <code>auth.service.ts</code>·<code>invitation.service.ts</code>·<code>attachment.service.ts</code> · <code>events.ts</code></td><td>FR-16 이 요구하는 축이 멤버십·토큰·프로젝트 변경에서 비어 있었다(2026-09-07 · <a href="api.html">4.4</a> REQ-API-151)</td></tr>
+      <tr><td>임베딩 차원·절단·공개 S3 주소</td><td><code>embedding.client.ts</code> · <code>common/storage.service.ts</code>(+<code>storage.service.spec.ts</code>) · <code>search.service.ts</code> · <code>deploy/**</code>·<code>.env.example</code></td><td>차원 상수가 두 벌이었고 절단 여부를 <b>주소로 추정</b>했다(게이트웨이 뒤에서 조용히 degrade) · 공개 S3 주소 예시 <code>…/s3</code> 는 서명이 깨지는 길이다(<a href="codebase.html">4.2</a> REQ-CB-033·034 · <a href="api.html">4.4</a> REQ-API-154)</td></tr>
+      <tr><td>MCP 비신뢰 래핑 실물</td><td><code>mcp/untrusted.ts</code>(신설) · <code>spec.tools.ts</code> · <code>question.tools.ts</code> · <code>task.tools.ts</code> · <code>spec.service.ts</code>(포장 거절)</td><td>문서 세 곳과 스킬 다섯이 2026-08 부터 "경계 안에 온다" 고 적었고 <b>서버에는 없었다</b> — E03-S03 은 도구의 존재만 세고 E12-S01 은 스킬 문장만 센다(<a href="api.html">4.4</a> REQ-API-153)</td></tr>
+      <tr><td>slug 해소의 조직 경계</td><td><code>auth.service.ts</code>(<code>resolveProject(slug, prefer)</code>) · <code>common/project-access.guard.ts</code>(<code>orgQualifier</code>) · <code>sse-access.guard.ts</code> · <code>webhook.controller.ts</code> · <code>auth.controller.ts</code> · <code>web/src/lib/last-org.ts</code>(신설)</td><td>유일 제약은 <code>(org_id, slug)</code> 인데 해소는 첫 행을 골랐다 — 두 번째 조직 사람은 자기 프로젝트에서 403 을 봤고, 웹훅은 막히지도 않고 남의 프로젝트에 증적을 붙였다(<a href="api.html">4.4</a> REQ-API-152)</td></tr>
       <tr><td>자라는 목록의 커서</td><td><code>session.service.ts</code> · <code>event.service.ts</code></td><td>activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120)</td></tr>
     </tbody>
   </table>

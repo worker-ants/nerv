@@ -108,6 +108,18 @@ describe('EP-MIR-01 — md 미러', () => {
     expect(markdown).toContain('# 웹챗 위젯');
   });
 
+  /**
+   * **비신뢰 경계는 MCP 표면에서만 씌운다**(REQ-API-153 · api.md §4). 미러는 사람과 에디터가
+   * 읽는 파일이고 `.nerv/cache/` 에 그대로 떨어진다 — 거기에 태그가 박히면 그것은 표시가
+   * 아니라 본문의 일부가 된다.
+   */
+  it('미러 본문은 감싸이지 않는다 — 경계는 MCP 표면의 것이다', async () => {
+    await approvedSpec('SPC-MIRROR-PLAIN', '# 원문\n\n본문');
+    const markdown = await specs.mirrorMarkdown({ projectId, specKey: 'SPC-MIRROR-PLAIN' });
+    expect(markdown).not.toContain('nerv:spec');
+    expect(markdown).not.toContain('trust="untrusted"');
+  });
+
   it('requirement ref 목록을 싣는다 — 파일만 봐도 무엇을 약속했는지 안다', async () => {
     await approvedSpec('SPC-REQ-LIST', '# 문서');
     const { rows } = await pool.query<{ id: string; spec_id: string }>(

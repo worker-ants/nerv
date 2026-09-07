@@ -1,6 +1,6 @@
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.20",
+  "version": "0.2.21",
   "license": "Apache-2.0"
 }

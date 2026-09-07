@@ -4,6 +4,7 @@
 import { Injectable } from '@nestjs/common';
 import { BLOCKED_REASONS, LEASE_TTL_SECONDS, TASK_TRANSITION_TARGETS } from '@nerv/schema';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
+import { wrapText } from '../../mcp/untrusted.js';
 import { requireSession } from '../session/session.tools.js';
 import { TaskService } from './task.service.js';
 import type { ClaimActor } from './task.service.js';
@@ -228,7 +229,10 @@ export class TaskTools implements NervToolProvider {
             ? { leaseSeconds: input['lease_seconds'] }
             : {}),
         });
-        return TaskService.toHeartbeatResult(beat);
+        // 답변은 하트비트 역채널로도 온다 — 한 경로만 감싸면 반대 경로가 구멍이다(REQ-API-153).
+        // **사람의 지시(`instructions`)와 리뷰 코멘트는 감싸지 않는다**: 그것은 따라야 할
+        // 것이고, 따라야 할 것을 "데이터일 뿐" 이라고 표시하면 경계가 반대로 쓰인다.
+        return wrapPendingAnswers(TaskService.toHeartbeatResult(beat));
       },
     },
     {
@@ -365,4 +369,22 @@ function claimActor(ctx: ToolContext): ClaimActor {
 /** 빈 문자열은 값이 아니다 — 지우려는 것과 말하지 않은 것을 같게 두지 않는다. */
 function str(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/** 하트비트 `pending[]` 중 답변 본문만 비신뢰 경계로 감싼다(REQ-API-153) */
+function wrapPendingAnswers<T extends { pending: unknown[] }>(result: T): T {
+  return {
+    ...result,
+    pending: result.pending.map((item) => {
+      if (typeof item !== 'object' || item === null) return item;
+      const row = item as Record<string, unknown>;
+      if (typeof row['answer_md'] !== 'string') return row;
+      return {
+        ...row,
+        answer_md: wrapText('answer', row['answer_md'], {
+          question_id: typeof row['question_id'] === 'string' ? row['question_id'] : null,
+        }),
+      };
+    }),
+  };
 }

@@ -9,6 +9,7 @@
 // 본 것 → 첫 프로젝트** 순이다.
 
 import { useEffect, useMemo, useState } from 'react';
+import { readLastOrg, writeLastOrg } from './last-org.js';
 import { rows, useMe, useProjects } from './queries.js';
 import { rolesInProject } from './session.js';
 
@@ -83,7 +84,6 @@ export function useCanIntervene(projectSlug: string | null, sessionUserId: unkno
  * 읽기·쓰기 모두 실패를 삼키고 `null` 로 떨어진다.
  */
 const LAST_PROJECT_KEY = 'nerv.last-project';
-const LAST_ORG_KEY = 'nerv.last-org';
 
 /**
  * 고른 조직을 적어 둔다 — `/o/:org` 가 부른다.
@@ -92,21 +92,11 @@ const LAST_ORG_KEY = 'nerv.last-org';
  * 적지 않으면 전환은 리다이렉트만 남고 **바뀐 것이 없다.**
  */
 export function rememberOrg(slug: string): void {
-  try {
-    localStorage.setItem(LAST_ORG_KEY, slug);
-  } catch {
-    // 기억하지 못해도 화면은 돈다 — 첫 조직으로 떨어질 뿐이다
-  }
+  writeLastOrg(slug);
 }
 
 function useLastOrg(): string | null {
-  const [remembered] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(LAST_ORG_KEY);
-    } catch {
-      return null;
-    }
-  });
+  const [remembered] = useState<string | null>(() => readLastOrg());
   return remembered;
 }
 

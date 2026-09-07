@@ -156,10 +156,16 @@ export class SearchService {
         ? narrowed
         : await this.filterByRequirement(input.projectId, narrowed, input.requirementRef);
 
-    let items = scopedToSpec.slice(0, limit);
-    if (input.references != null && input.references !== '') {
-      items = await this.filterByReference(input.projectId, items, input.references);
-    }
+    // **역참조도 자르기 전에** 건다(2026-09-07 · REQ-API-154). 여기만 예외였다 — 종류·상태·
+    // 요구사항은 위에서 걸리는데 `references` 만 slice **뒤**라, 그 문서를 참조하는 스펙이
+    // 상위 limit 밖에 있으면 **있는데도 빈 결과**가 됐다. REQ-API-099 가 고친 결함('걸러지지
+    // 않았는데 걸러졌다고 믿는다')의 거울상이다.
+    const referenced =
+      input.references == null || input.references === ''
+        ? scopedToSpec
+        : await this.filterByReference(input.projectId, scopedToSpec, input.references);
+
+    const items = referenced.slice(0, limit);
 
     // ⑤ 관계 확장 — 별도 그룹이다. "언급되지 않았지만 걸려 있는 스펙"을 에이전트가 컨텍스트에
     //    넣을 수 있게 하되, 질의 일치가 아니므로 본 랭킹에는 섞지 않는다.

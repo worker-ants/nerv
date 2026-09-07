@@ -32,6 +32,11 @@ let token: string;
 let otherToken: string;
 let projectId: string;
 let otherProjectId: string;
+/** 두 조직이 같은 slug('shared')를 쓴다 — REQ-API-152 */
+let sharedHereId: string;
+let sharedTwinId: string;
+let sharedHereToken: string;
+let sharedTwinToken: string;
 let userId: string;
 /** SSE 는 실제 소켓을 요구한다(@Sse() 가 setKeepAlive 를 부른다) — inject 로는 태울 수 없다 */
 let port: number;
@@ -55,6 +60,12 @@ beforeAll(async () => {
   token = (await auth.issueToken({ projectId, userId, name: 'rt', scopes: ['spec:read'] })).token;
   otherToken = (
     await auth.issueToken({ projectId: otherProjectId, userId, name: 'rt2', scopes: ['spec:read'] })
+  ).token;
+  sharedHereToken = (
+    await auth.issueToken({ projectId: sharedHereId, userId, name: 'rt3', scopes: ['spec:read'] })
+  ).token;
+  sharedTwinToken = (
+    await auth.issueToken({ projectId: sharedTwinId, userId, name: 'rt4', scopes: ['spec:read'] })
   ).token;
 });
 
@@ -247,6 +258,29 @@ describe('SSE 계약 (EP-SSE-01·02 · api.md §3.5)', () => {
     expect((await body('/sse/projects/nope', { authorization: `Bearer ${token}` })).status).toBe(
       409,
     );
+  });
+
+  /**
+   * **두 스트림이 동시에 열려야 한다**(REQ-API-152). 해소가 slug 의 첫 행을 고르던 동안
+   * 같은 slug 를 쓰는 두 조직 중 한쪽만 열렸다 — 어느 쪽이 열리는지는 행 순서가 정했고,
+   * 못 연 쪽은 403 을 봤다. 그래서 둘을 **한 검사 안에서** 본다: 하나만 여는 구현으로는
+   * 행 순서가 어떻든 이 검사를 통과할 수 없다.
+   */
+  it('같은 slug 가 두 조직에 있어도 각자의 스트림이 열린다 (REQ-API-152)', async () => {
+    // PAT 은 slug 이 아니라 id 를 들고 있다 — 바인딩이 좁힌다
+    const here = await request('/sse/projects/shared', {
+      authorization: `Bearer ${sharedHereToken}`,
+    });
+    expect(here.status).toBe(200);
+    here.close();
+
+    // EventSource 는 헤더를 싣지 못한다 — 한정자는 질의로도 온다
+    const twin = await request('/sse/projects/shared?org=aaa', {
+      authorization: `Bearer ${sharedTwinToken}`,
+    });
+    expect(twin.status).toBe(200);
+    expect(twin.contentType).toContain('text/event-stream');
+    twin.close();
   });
 
   it('스트림이 열리고 방송이 끝까지 흘러온다 — 팬아웃 경로 전체', async () => {
@@ -494,4 +528,30 @@ async function seed(): Promise<void> {
     `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'developer')`,
     [newId(), orgId, otherProjectId, userId],
   );
+
+  // **같은 slug 를 쓰는 두 조직**(REQ-API-152). 두 번째 조직 slug 을 'aaa' 로 두는 것은
+  // 의도다 — 정렬상 'nerv' 보다 앞이라, 좁히지 않는 해소는 이쪽을 고른다.
+  const twinOrgId = newId();
+  sharedHereId = newId();
+  sharedTwinId = newId();
+  await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'aaa','쌍둥이')`, [
+    twinOrgId,
+  ]);
+  await pool.query(
+    `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHN','여기 공유')`,
+    [sharedHereId, orgId],
+  );
+  await pool.query(
+    `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHA','저기 공유')`,
+    [sharedTwinId, twinOrgId],
+  );
+  for (const [org, project] of [
+    [orgId, sharedHereId],
+    [twinOrgId, sharedTwinId],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'developer')`,
+      [newId(), org, project, userId],
+    );
+  }
 }

@@ -113,6 +113,25 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   // 갱신하면 숫자는 늘어나는데 목록은 그대로다.
   [E.NOTIFICATION_CREATED]: () => [queryKeys.myNotifications(), queryKeys.inbox()],
 
+  // **감사 축의 열둘**(2026-09-07 · REQ-API-151). 화면이 다시 읽어야 하는 것은 서로 다르다 —
+  // 멤버십은 설정의 명부, 토큰은 토큰 표, 프로젝트는 그 프로젝트의 머리, 첨부는 스펙 상세다.
+  // 피드는 넷 다 다시 읽는다(감사 축이 곧 피드다).
+  [E.PROJECT_CREATED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  [E.PROJECT_UPDATED]: (e) => [
+    queryKeys.project(e.project_id),
+    queryKeys.projectEvents(e.project_id),
+  ],
+  [E.PROJECT_ARCHIVED]: (e) => [queryKeys.project(e.project_id)],
+  [E.PROJECT_RESTORED]: (e) => [queryKeys.project(e.project_id)],
+  // 명부는 조직 단위 키라 봉투의 프로젝트만으로는 좁힐 수 없다 — 피드와 함께 통째로 다시 읽는다
+  [E.MEMBER_ADDED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  [E.MEMBER_UPDATED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  [E.MEMBER_REMOVED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  [E.TOKEN_CREATED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
+  [E.TOKEN_REVOKED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
+  [E.SPEC_ATTACHMENT_ADDED]: (e) => [queryKeys.projectSpecTree(e.project_id)],
+  [E.SPEC_ATTACHMENT_REMOVED]: (e) => [queryKeys.projectSpecTree(e.project_id)],
+
   [E.GATE_BYPASSED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.GATE_FAILOPEN]: (e) => [queryKeys.projectEvents(e.project_id)],
 

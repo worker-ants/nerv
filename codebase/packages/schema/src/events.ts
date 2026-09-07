@@ -101,6 +101,31 @@ export const NERV_EVENT = {
   IMPORT_APPLIED: 'import.applied',
   /** ★ 알림 파생 — 배지 카운트 갱신용 (P1) */
   NOTIFICATION_CREATED: 'notification.created',
+
+  // ── 테넌시·권한·토큰 (2026-09-07 · REQ-API-151) ─────────────────────────
+  //
+  // **권한 상승과 토큰 발급은 보안 조사의 첫 질문이다** — "누가 언제 이 사람을 admin 으로
+  // 올렸나", "이 토큰은 누가 발급했나". 그런데 답할 표가 없었다: FR-16 은 "모든 상태 전이가
+  // 액터와 함께 남는다" 인데 멤버십·토큰·프로젝트 변경은 그 축 밖에 있었다.
+  //
+  // **프로젝트 범위의 사실부터 남긴다**(사람 결정). `event.project_id` 가 NOT NULL 이라
+  // 조직 단위 멤버십(`project_id IS NULL`)과 조직 자체의 변경은 이 표에 담기지 않는다 —
+  // 담으려면 열을 nullable 로 바꾸는 결정이 먼저다.
+  PROJECT_CREATED: 'project.created',
+  PROJECT_UPDATED: 'project.updated',
+  PROJECT_ARCHIVED: 'project.archived',
+  PROJECT_RESTORED: 'project.restored',
+  /** 멤버십이 생겼다 — 초대 수락도 같은 이름이다(들어온 문이 다를 뿐 같은 사실이다) */
+  MEMBER_ADDED: 'member.added',
+  /** 역할이 바뀌었다 — `from_state`·`to_state` 가 그 역할이다(권한 상승이 여기 보인다) */
+  MEMBER_UPDATED: 'member.updated',
+  MEMBER_REMOVED: 'member.removed',
+  /** 토큰 발급 — 값은 남기지 않는다. 접두·권한·만료만이 감사가 묻는 것이다 */
+  TOKEN_CREATED: 'token.created',
+  TOKEN_REVOKED: 'token.revoked',
+  /** 첨부 — S3 는 자기에게 무엇이 올라왔는지 화면에 알려 주지 못한다 */
+  SPEC_ATTACHMENT_ADDED: 'spec.attachment_added',
+  SPEC_ATTACHMENT_REMOVED: 'spec.attachment_removed',
 } as const;
 
 /**

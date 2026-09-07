@@ -1029,6 +1029,37 @@ describe('E09-S10 하이브리드 검색', () => {
     });
     expect(filtered.items.map((i) => i.key)).toEqual(['SPC-RF-002']);
   });
+
+  /**
+   * **자르기 전에 거른다**(2026-09-07 · REQ-API-154). 필터 넷 중 종류·상태·요구사항은
+   * `limit` 앞에서 걸리는데 `references` 만 뒤에서 걸렸다 — 참조하는 문서가 상위 `limit`
+   * 밖이면 **있는데도 빈 결과**다. "이걸 고치면 무엇이 흔들리나" 에 답하려고 만든 필터가
+   * 조용히 "아무것도 안 흔들린다" 고 답하던 셈이다.
+   */
+  it('references 는 자르기 전에 걸린다 — 상위 limit 밖의 참조도 나온다', async () => {
+    const core = await draft('SPC-RL-001', '# 잘림 규약\n\n본문', '잘림 규약');
+    await approve(core.versionId);
+    // 질의어를 그대로 담은 잡음 문서 셋 — 참조 문서보다 위에 온다
+    for (const n of [1, 2, 3]) {
+      const noise = await draft(`SPC-RL-N0${n}`, `# 잘림 규약 잡음 ${n}\n\n잘림 규약`, '잘림 규약');
+      await approve(noise.versionId);
+    }
+    const user = await draft(
+      'SPC-RL-002',
+      '# 사용처\n\n[잘림 규약](SPC-RL-001) 을 따른다',
+      '사용처',
+    );
+    await approve(user.versionId);
+
+    // limit 2 — 후보 풀(limit*3)에는 들어오지만 상위 2 안에는 없다. 자른 뒤에 걸면 빈 목록이다.
+    const filtered = await search.search({
+      projectId,
+      query: '잘림 규약',
+      references: 'SPC-RL-001',
+      limit: 2,
+    });
+    expect(filtered.items.map((i) => i.key)).toEqual(['SPC-RL-002']);
+  });
 });
 
 // ── E09-S11 임베딩 파이프라인 ────────────────────────────────────────────────
