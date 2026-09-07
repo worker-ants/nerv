@@ -6,6 +6,7 @@
 
 import { acceptLanguageHeader } from './i18n.js';
 import type { NervErrorCode } from '@nerv/schema';
+import { readLastOrg } from './last-org.js';
 
 export interface NervErrorBody {
   ok: false;
@@ -82,6 +83,11 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     'accept-language': acceptLanguageHeader(),
   };
   if (body !== undefined) headers['content-type'] = 'application/json';
+  // 같은 slug 가 두 조직에 있으면 서버는 어느 쪽인지 모른다(REQ-API-152). 웹은 안다 —
+  // 헤더에 실어 주지 않으면 화면이 열리는 대신 409 `ambiguous_project` 가 뜬다.
+  // 값이 없으면(조직을 고른 적이 없거나 localStorage 가 막혔으면) 싣지 않는다.
+  const org = readLastOrg();
+  if (org !== null && org !== '') headers['X-Nerv-Org'] = org;
   if (idempotencyKey !== undefined) headers['Idempotency-Key'] = idempotencyKey;
 
   let res: Response;

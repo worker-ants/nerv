@@ -65,6 +65,26 @@ export interface Principal {
   tokenId: string | null;
 }
 
+/**
+ * slug 해소가 여러 조직에 걸릴 때 좁히는 근거(REQ-API-152).
+ *
+ * 셋 다 **선택**이다 — 없으면 없는 대로 좁히고, 그래도 하나로 안 되면 거절한다.
+ * 헤더(`X-Nerv-Org`)·질의(`?org=`)는 표면이 읽어 `orgSlug` 로 넘긴다(D-05).
+ */
+export interface ProjectPreference {
+  orgSlug?: string | null;
+  userId?: string | null;
+  projectId?: string | null;
+}
+
+export interface ResolvedProject {
+  id: string;
+  key: string;
+  archivedAt: string | null;
+  /** 어느 조직의 프로젝트를 골랐는지 — 부르는 쪽이 그 사실을 말할 수 있게 함께 싣는다 */
+  orgSlug: string;
+}
+
 /** PAT 원문 형식 — `nerv_` + 32바이트 난수의 base64url (api.md §1.3) */
 const TOKEN_PREFIX = 'nerv_';
 const TOKEN_BYTES = 32;
@@ -1129,17 +1149,71 @@ export class AuthService {
    * (사람 보고 · 실측 409). 보관의 뜻은 "목록에서 뺀다"이지 "없앤다"가 아니다 —
    * 스펙 아카이브와 같은 규약이다. 보관 여부는 함께 실어 보내 화면이 그 사실을 말할 수
    * 있게 한다.
+   *
+   * **slug 는 조직 안에서만 유일하다**(2026-09-07 정정 · REQ-API-152). DDL 의 유일 제약은
+   * `(org_id, slug)` 인데 이 질의는 `WHERE slug = …` 의 **첫 행**을 골랐다 — 두 번째 조직이
+   * 같은 slug 를 쓰면 REST·SSE·토큰 발급은 남의 프로젝트를 해소한 뒤 `not_member` 로 막히고
+   * (없는 프로젝트가 아니라 **자기 프로젝트**를 못 여는 것이다), 주체가 없는 웹훅은 막히지도
+   * 않고 **남의 프로젝트에 증적을 붙인다**. 첫 행은 조용한 오답이라 여기서는 좁히거나
+   * 거절한다 — 한정자(`X-Nerv-Org`·`?org=`) → PAT 바인딩 → 주체의 소속 순이고, 그래도
+   * 하나가 아니면 `ambiguous_project` 다(§1.4e "조용한 성공을 만들지 않는다").
    */
   async resolveProject(
     slug: string,
-  ): Promise<{ id: string; key: string; archivedAt: string | null } | null> {
+    prefer: ProjectPreference = {},
+  ): Promise<ResolvedProject | null> {
+    const orgSlug = prefer.orgSlug ?? null;
     const { rows } = await this.db.execute<{
       id: string;
       key: string;
       archived_at: string | null;
-    }>(sql`SELECT id, key, archived_at::text FROM project WHERE slug = ${slug}`);
-    const row = rows[0];
-    return row === undefined ? null : { id: row.id, key: row.key, archivedAt: row.archived_at };
+      org_slug: string;
+    }>(sql`
+      SELECT p.id, p.key, p.archived_at::text, o.slug AS org_slug
+        FROM project p
+        JOIN organization o ON o.id = p.org_id
+       WHERE p.slug = ${slug}
+         ${orgSlug === null ? sql`` : sql`AND o.slug = ${orgSlug}`}
+       ORDER BY o.slug
+    `);
+    const toProject = (row: (typeof rows)[number]): ResolvedProject => ({
+      id: row.id,
+      key: row.key,
+      archivedAt: row.archived_at,
+      orgSlug: row.org_slug,
+    });
+
+    if (rows.length === 0) return null;
+    // 후보가 하나면 오늘과 같다 — 비멤버·타 프로젝트 PAT 의 403 은 뒤의 판정이 낸다.
+    if (rows.length === 1) return toProject(rows[0] as (typeof rows)[number]);
+
+    // ① PAT 이 바인딩된 프로젝트. 토큰은 slug 가 아니라 id 를 들고 있으므로 가장 강한 근거다.
+    const boundId = prefer.projectId ?? null;
+    const bound = boundId === null ? undefined : rows.find((r) => r.id === boundId);
+    if (bound !== undefined) return toProject(bound);
+
+    // ② 주체가 속한 행이 정확히 하나. 멤버십의 경계는 assertMembership 과 같은 모양이다.
+    const userId = prefer.userId ?? null;
+    if (userId !== null) {
+      const { rows: mine } = await this.db.execute<{ id: string }>(sql`
+        SELECT DISTINCT p.id
+          FROM project p
+          JOIN organization o ON o.id = p.org_id
+          JOIN membership m ON m.org_id = p.org_id AND (m.project_id = p.id OR m.project_id IS NULL)
+         WHERE p.slug = ${slug} AND m.user_id = ${userId}
+           ${orgSlug === null ? sql`` : sql`AND o.slug = ${orgSlug}`}
+      `);
+      if (mine.length === 1) {
+        const only = rows.find((r) => r.id === mine[0]?.id);
+        if (only !== undefined) return toProject(only);
+      }
+    }
+
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.ambiguous', { slug }), {
+      kind: 'ambiguous_project',
+      slug,
+      orgs: rows.map((r) => r.org_slug),
+    });
   }
 }
 

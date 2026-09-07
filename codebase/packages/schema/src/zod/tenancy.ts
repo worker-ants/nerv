@@ -69,6 +69,12 @@ export const MemberUpdateInput = z.object({ role: z.string().min(1) }).strict();
 export const TokenCreateInput = z
   .object({
     project: z.string().min(1),
+    /**
+     * 같은 slug 가 여러 조직에 있을 때의 한정자(REQ-API-152). 없으면 주체의 소속으로
+     * 좁히고, 그래도 여럿이면 발급이 아니라 `ambiguous_project` 다 — 남의 조직
+     * 프로젝트에 바인딩된 토큰은 조용한 오답이다.
+     */
+    org: z.string().min(1).optional(),
     name: z.string().default('agent'),
     scopes: z.array(z.string()).default([]),
     expires_at: z.string().nullish(),

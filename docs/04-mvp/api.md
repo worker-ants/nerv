@@ -26,7 +26,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.19 · 2026-09-07 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.20 · 2026-09-07 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.20 변경(2026-09-07 — slug 이 조직을 몰랐다, 개선 계획 넷째 스프린트): **REQ-API-152 신설 · §1.2 규칙 · 전표 세 행.** 유일 제약은 `(org_id, slug)` 인데 해소는 `WHERE slug = …` 의 **첫 행**을 골랐다 — 조직 축이 판정마다 따로 새던 자국의 넷째다(`assertMembership` 2026-08-24 · 자기 승인 admin 2026-09-02 · 알림 수신자와 소규모 count 2026-09-07). 귀결이 표면마다 다르다: **REST·SSE·토큰 발급은 막힌다** — 두 번째 조직 사람이 자기 프로젝트 주소에서 403 `not_member` 를 보는데, 없는 프로젝트가 아니라 **있는 프로젝트를 못 여는** 실패라 화면에 단서가 없다. **웹훅은 막히지도 않는다** — `@Public` 경로이고 HMAC 시크릿이 전역 env 하나라 서명이 조직을 가려 주지 못해, 남의 조직 프로젝트에 **증적이 붙는다**(FR-10 게이트의 입력이다). 좁히는 순서는 한정자(`X-Nerv-Org`·`?org=`) → PAT 바인딩 → 주체의 소속이고, 그래도 하나가 아니면 409 `ambiguous_project` 다 — 첫 행은 조용한 오답이다(§1.4e). 주소가 박제된 곳이 셋이라(미러 §2.8 · 스킬의 프로젝트 링크 · GitHub 웹훅 URL) 경로에 조직 세그먼트를 넣는 대신 한정자로 푼다(사람 결정).
 >
 > v1.19 변경(2026-09-07 — 권한 상승이 감사 밖에 있었다): **REQ-API-151 신설 · §3.3 이벤트 열둘.** FR-16 은 "모든 상태 전이가 액터와 함께 append-only 로 남는다" 인데 **멤버십·토큰·프로젝트 변경은 그 축 밖**이었다 — "누가 언제 이 사람을 admin 으로 올렸나", "이 토큰은 누가 발급했나" 는 보안 조사의 첫 질문이고, 답할 표가 없었다. `project.*`(4) · `member.*`(3) · `token.*`(2) · `spec.attachment_*`(2)를 신설한다. **프로젝트 범위의 사실부터 남긴다**(사람 결정) — `event.project_id` 가 NOT NULL 이라 조직 단위 멤버십과 조직 자체의 변경은 담기지 않는다. 담으려면 그 열을 nullable 로 바꾸는 결정이 먼저다. 토큰 이벤트에 **값은 없다**: 접두·권한·만료가 감사가 묻는 것이고 원문은 발급 응답 뒤로 어디에도 없다. 감사 실패가 인증을 멈추지는 않는다 — 이벤트는 커밋된 사실 뒤에 따로 내고, 실패는 로그로 남긴다.
 >
@@ -246,6 +248,7 @@ flowchart LR
 - MCP는 `/mcp` 단일 엔드포인트이며 프로토콜 리비전 병행 서빙 규약은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6을 따른다(이 문서는 재정의하지 않는다).
 - markdown 미러(`/api/projects/{p}/specs/{id}.md` · `/api/projects/{p}/llms.txt`)는 [시스템 아키텍처](../03-proposal/architecture.md) §2.4의 경로 문자열을 **그대로, 버전 프리픽스 없이** 유지한다 — `llms.txt` 인덱스와 에이전트 로컬 캐시(`.nerv/cache/`)에 링크가 박제되는 경로라 v2 전환에도 불변이어야 한다(§2.8).
 - 경로 파라미터: `{proj}` = `project.slug`(예: `clemvion`) — URL·MCP `project` 인자용 소문자 kebab 식별자로 `UNIQUE (org_id, slug)`, 표시 접두 `key`(예: `CLV`)와는 **별개 필드**다([데이터 모델](../03-proposal/data-model.md) §2.1). `{spec}`·`{task}`·`{sid}` = 표시 키 또는 내부 uuid 모두 허용, `{ver}` = SpecVersion uuid, `{no}` = `version_no` 정수. 표시 키 발급 규칙(`<project.key>-<타입>-<base32 6자>`)은 [데이터 모델](../03-proposal/data-model.md) §5.1 정본이고, 본문 예시는 기존 문서의 표기 예시(`SPC-CWC-007`·`CLV-T-1KTDCK` 등, [화면 설계](../03-proposal/ui-wireframes.md) §1.4)를 그대로 쓴다.
+- **`{proj}` 는 조직 안에서만 유일하다**(2026-09-07 정정 · REQ-API-152). 유일 제약이 `(org_id, slug)` 인데 해소는 `WHERE slug = …` 의 **첫 행**을 골랐다 — 두 번째 조직이 같은 slug 를 쓰면 그 조직 사람은 자기 프로젝트 주소에서 403 `not_member` 를 보고(없는 프로젝트가 아니라 **있는 프로젝트를 못 여는** 실패라 화면에 단서가 없다), 주체가 없는 웹훅은 막히지도 않고 **남의 프로젝트에 증적을 붙인다**. 좁히는 순서는 셋이다 — **조직 한정자**(`X-Nerv-Org` 헤더 또는 `?org=` 질의. 헤더가 먼저다) → **PAT 이 바인딩된 프로젝트**(토큰은 slug 이 아니라 id 를 들고 있다) → **주체가 소속된 유일한 행**. 그래도 하나로 좁혀지지 않으면 409 `NERV_PRECONDITION`(`kind:"ambiguous_project"` · `orgs[]`)으로 거절한다 — 첫 행을 고르는 것은 조용한 오답이다(§1.4e). 후보가 하나면 오늘과 같고, 멤버십 판정(403)은 해소가 아니라 그 뒤의 판정이 낸다. 한정자는 **권한의 근거가 아니라 해소의 근거**다(`X-Nerv-Project` 와 같은 등급 — §1.3).
 
 ### 1.3 인증 — 2경로
 
@@ -809,7 +812,7 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | EP-MBR-03 | `PATCH /api/v1/memberships/{id}` | admin | `MemberUpdateInput`(role 변경) | `MemberResult` | ★`member.updated` |
 | EP-MBR-04 | `DELETE /api/v1/memberships/{id}` | admin | — | `{ok:true}` | ★`member.removed` |
 | EP-TOK-01 | `GET /api/v1/me/tokens` | 본인 | — | `Page<TokenSummary>`(prefix·scopes·last_used_at, 원문 없음) | — |
-| EP-TOK-02 | `POST /api/v1/me/tokens` | 본인(역할이 허용하는 권한의 부분집합만) | `TokenCreateInput`(project, name, scopes[], **`expires_at`** — 전표가 오래 `expires` 라 적었는데 `.strict()` 라 그 이름은 무시가 아니라 **400** 이다) | `TokenCreateResult`(**원문 1회 반환**) — 발급은 역할과 교집합하지 않고 저장한다. 상한은 §1.6a 대로 **검증 시점**에 걸린다: 발급 때 잘라 두면 나중에 역할이 넓어져도 토큰이 좁은 채로 남는다. 화면은 역할 밖 권한을 **보이되 잠근다**(2026-09-02 사람 결정 — 켜 놓고 쓸 수 없는 토큰이 나오던 자리다) | ★`token.created` |
+| EP-TOK-02 | `POST /api/v1/me/tokens` | 본인(역할이 허용하는 권한의 부분집합만) | `TokenCreateInput`(project, **`org?`**(같은 slug 가 여러 조직에 있을 때의 한정자 — §1.2 · REQ-API-152), name, scopes[], **`expires_at`** — 전표가 오래 `expires` 라 적었는데 `.strict()` 라 그 이름은 무시가 아니라 **400** 이다) | `TokenCreateResult`(**원문 1회 반환**) — 발급은 역할과 교집합하지 않고 저장한다. 상한은 §1.6a 대로 **검증 시점**에 걸린다: 발급 때 잘라 두면 나중에 역할이 넓어져도 토큰이 좁은 채로 남는다. 화면은 역할 밖 권한을 **보이되 잠근다**(2026-09-02 사람 결정 — 켜 놓고 쓸 수 없는 토큰이 나오던 자리다) | ★`token.created` |
 | EP-TOK-03 | `DELETE /api/v1/me/tokens/{id}` | 본인 또는 admin | — | `{ok:true}`(즉시 폐기, `revoked_at` 기록) | ★`token.revoked` |
 | EP-TOK-04 | `GET /api/v1/orgs/{org}/tokens` | admin | `TokenAdminListQuery` — 질의 인자는 **없다**(2026-09-06 정정: `project`·`user`·`cursor` 는 컨트롤러가 읽지 않는다) | `Page<TokenAdminSummary>`(소유자·prefix·scopes·last_used_at, 원문 없음) — S8 admin의 조직 전체 토큰 표([화면 설계](../03-proposal/ui-wireframes.md) §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝 | — |
 
@@ -1109,12 +1112,13 @@ basis_superseded: false
 
 | ID | 메서드 · 경로 | 인증 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-WHK-01 | `POST /ingest/webhooks/github/{proj}` | **HMAC 서명**(`X-Hub-Signature-256`, 시크릿 `NERV_GITHUB_WEBHOOK_SECRET`) — PAT 아님 | GitHub `pull_request`·`push` 페이로드 원문 | `{ok, event, matched_task, evidence_id, skipped_reason}` | ★`evidence.added`(수집 시) |
+| EP-WHK-01 | `POST /ingest/webhooks/github/{proj}?org=` | **HMAC 서명**(`X-Hub-Signature-256`, 시크릿 `NERV_GITHUB_WEBHOOK_SECRET`) — PAT 아님 | GitHub `pull_request`·`push` 페이로드 원문(`?org=` 는 같은 slug 를 쓰는 조직이 둘 이상일 때의 한정자 — §1.2) | `{ok, event, matched_task, evidence_id, skipped_reason}` | ★`evidence.added`(수집 시) |
 
 - **인증이 다른 이유**: GitHub은 우리 토큰을 들고 있지 않다. 그래서 이 라우트만 세션·PAT 가드 밖이고, 대신 서명 검증을 통과하지 못하면 아무것도 하지 않는다. 시크릿이 설정돼 있지 않으면 **거부**한다 — 검증 없는 웹훅은 누구나 증적을 만들 수 있는 문이고, 증적은 done 게이트의 입력이다(FR-10). 서명은 **원문 바이트**로 계산하므로 API는 rawBody를 보존한다.
 - **연결 축은 Task 키**다. 브랜치·PR 제목·본문·커밋 메시지 어디에 있든 **표시 키**(`<project.key>-T-<base32 6자>` — 예 `CLV-T-ZWHNB0`, 형식 정본은 [데이터 모델](../03-proposal/data-model.md) §5.1)를 찾으면 그 Task에 붙인다 — 커밋 메시지 규약을 새로 만들지 않는 이유는, 규약이 늘수록 지켜지지 않기 때문이다. 찾는 규칙은 `@nerv/schema` 의 `DISPLAY_KEY_PATTERN` 한 곳이다(2026-09-07 정정 — 이 문단이 오래 옛 표기 `TSK-…` 를 적었고, **코드가 실제로 그 옛 형식을 찾던 동안 매칭은 0건**이었다: 2026-08-23 에 키가 바뀐 뒤로 FR-13 이 현행 키로 발급된 어떤 Task 에서도 동작하지 않았고, 테스트만 손으로 `TSK-` 키를 넣어 통과하고 있었다).
 - **판정하지 않는다.** PR이 열렸다는 사실을 `evidence`(kind=`pr`/`commit`, source=`ci`)로 남길 뿐 Task 상태를 옮기거나 커버리지를 올리지 않는다 — 리뷰 커버리지 판정은 Phase 2(FR-09)이고, "무엇이 완료됐나"는 사람·게이트의 판단이다.
 - **재전송이 정상이다.** 같은 (task, kind, locator) 증적은 한 번만 만들고, 두 번째부터는 `skipped_reason`에 멱등 사실을 담아 200으로 답한다. Task를 못 찾은 경우도 200 + 사유다 — GitHub 배달 로그가 곧 디버깅 경로이고, 4xx로 답하면 GitHub이 무의미한 재전송을 반복한다.
+- **조직이 모호하면 409 다**(2026-09-07 신설 · REQ-API-152). 이 표면만 주체가 없고 HMAC 시크릿은 전역 env 하나라 **서명이 조직을 가려 주지 못한다** — 같은 slug 를 쓰는 조직이 둘이면 좁힐 근거가 `?org=` 뿐이고, 없으면 남의 프로젝트에 증적을 붙이는 대신 `ambiguous_project` 로 거절한다. Task 못 찾음과 다른 답을 주는 것은 결함의 종류가 다르기 때문이다: 못 찾음은 정상 트래픽이라 200 이지만, 조직 모호는 **사람이 웹훅 URL 을 고쳐야 끝나는 설정 오류**라 배달 로그에 빨갛게 보이는 편이 낫다.
 
 ### 2.10 임포트 (EP-IMP — [4.7 스펙 임포터](importer.md) §3.2)
 
@@ -1313,7 +1317,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 
 | ID | 메서드 · 경로 | 권한 | 응답 |
 | --- | --- | --- | --- |
-| EP-SSE-01 | `GET /sse/projects/{proj}` | 프로젝트 멤버(세션 쿠키) 또는 해당 프로젝트에 바인딩된 PAT | `text/event-stream` — `project:{id}` 룸과 동일한 이벤트 흐름(§3.3 표) |
+| EP-SSE-01 | `GET /sse/projects/{proj}?org=` | 프로젝트 멤버(세션 쿠키) 또는 해당 프로젝트에 바인딩된 PAT | `text/event-stream` — `project:{id}` 룸과 동일한 이벤트 흐름(§3.3 표). `?org=` 는 §1.2 의 조직 한정자이고 **여기서는 질의가 실질**이다 — `EventSource` 는 헤더를 싣지 못한다 |
 | EP-SSE-02 | `GET /sse/me` | 본인(세션 쿠키) 또는 PAT(소유 사용자 기준) | `text/event-stream` — `user:{id}` 룸과 동일한 이벤트 흐름 |
 
 - **이벤트 형식**: 메시지마다 `event:` = Event `type`(예: `spec.approved`), `id:` = event id, `data:` = §3.3의 최소 봉투 JSON. 본문 데이터는 싣지 않는다 — 상세는 수신자가 자기 권한으로 REST/MCP 재조회한다.
@@ -1432,6 +1436,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-149 | WHEN 알림 목록(EP-NTF-01)에 `importance` 가 오면 THE SYSTEM SHALL 그 등급만 반환하고(어휘 밖은 400), WHEN 안 읽은 수(EP-NTF-04)를 조회하면 THE SYSTEM SHALL 전체와 `immediate` 둘을 반환한다 | `?importance=immediate` 는 그 등급만 · `urgent` 는 400 · 수는 둘 |
 | REQ-API-150 | WHEN `spec.recheck_requested` 알림을 파생하면 THE SYSTEM SHALL 그 스펙의 `owner_role` 보유자에게 보내고, WHERE `owner_role` 이 비어 있으면 THE SYSTEM SHALL 기본 역할 큐로 보낸다 | owner_role 이 qa 면 qa 에게만 |
 | REQ-API-151 | WHEN 프로젝트·멤버십·토큰·첨부가 만들어지거나 바뀌거나 지워지면 THE SYSTEM SHALL 그 사실을 액터와 함께 이벤트로 남긴다(역할 변경은 `from_state`·`to_state` 에 역할을, 토큰은 접두·권한·만료만). WHERE 그 변경이 프로젝트에 속하지 않으면(조직 단위 멤버십) THE SYSTEM SHALL 남기지 않는다. WHERE 이벤트 기록이 실패하면 THE SYSTEM SHALL 원래 변경을 되돌리지 않고 로그에 남긴다 | 토큰 발급·폐기가 남고 값은 없다 · 역할 변경의 from/to · 멤버 제거의 from · 이벤트 서비스가 없어도 발급은 된다 |
+| REQ-API-152 | WHEN 경로의 `{proj}` slug 가 여러 조직의 프로젝트와 일치하면 THE SYSTEM SHALL 조직 한정자(`X-Nerv-Org` 헤더 또는 `?org=` 질의) → PAT 이 바인딩된 프로젝트 → 주체가 소속된 유일한 행 순으로 좁히고, 하나로 좁혀지지 않으면 409 `NERV_PRECONDITION`(`kind:"ambiguous_project"` · `orgs[]`)으로 거부한다 — REST·SSE·웹훅·토큰 발급 네 호출자가 **한 함수**를 쓴다. WHILE 후보가 하나뿐이면 THE SYSTEM SHALL 오늘과 같이 해소하고 멤버십 판정(403)은 그 뒤의 판정이 낸다 | 해소 6건(한정자·바인딩·소속·양쪽 소속·후보 하나) · REST 4건 · SSE 1건 · 웹훅 2건 |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 묶어 둔 버전**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다 |

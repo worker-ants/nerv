@@ -755,3 +755,104 @@ describe('감사 축 — 권한·토큰·프로젝트 (REQ-API-151)', () => {
     ).resolves.toMatchObject({ prefix: expect.any(String) });
   });
 });
+
+/**
+ * **slug 는 조직 안에서만 유일하다**(2026-09-07 · REQ-API-152).
+ *
+ * DDL 의 유일 제약은 `(org_id, slug)` 인데 해소는 첫 행을 골랐다 — 두 번째 조직의 동명
+ * 프로젝트는 자기 사람에게 `not_member` 로 보였고, 주체가 없는 웹훅은 막히지도 않고 남의
+ * 프로젝트에 증적을 붙였다. 좁힐 근거가 없으면 첫 행이 아니라 거절이다.
+ */
+describe('slug 해소의 조직 경계 (REQ-API-152)', () => {
+  let orgA: string;
+  let orgB: string;
+  let sharedA: string;
+  let sharedB: string;
+  let onlyB: string;
+  let bothOrgs: string;
+
+  beforeAll(async () => {
+    orgA = newId();
+    orgB = newId();
+    sharedA = newId();
+    sharedB = newId();
+    onlyB = newId();
+    bothOrgs = newId();
+
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'org-a','A')`, [orgA]);
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'org-b','B')`, [orgB]);
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHA','공유 A')`,
+      [sharedA, orgA],
+    );
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHB','공유 B')`,
+      [sharedB, orgB],
+    );
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'onlyb@example.com','비만','active')`,
+      [onlyB],
+    );
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'twoorgs@example.com','양쪽','active')`,
+      [bothOrgs],
+    );
+    // B 에만 있는 사람 · 양쪽에 조직 전역으로 있는 사람
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'developer')`,
+      [newId(), orgB, sharedB, onlyB],
+    );
+    for (const org of [orgA, orgB]) {
+      await pool.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,NULL,$3,'admin')`,
+        [newId(), org, bothOrgs],
+      );
+    }
+  });
+
+  it('좁힐 근거가 없으면 첫 행이 아니라 거절이다 — orgs 를 함께 준다', async () => {
+    const err = await auth.resolveProject('shared').then(
+      () => null,
+      (e: unknown) => e as { code: string; details: Record<string, unknown> },
+    );
+    expect(err?.code).toBe(NERV_ERROR.PRECONDITION);
+    expect(err?.details['kind']).toBe('ambiguous_project');
+    expect(err?.details['orgs']).toEqual(['org-a', 'org-b']);
+  });
+
+  it('한정자가 조직을 가리키면 그 조직의 프로젝트다', async () => {
+    expect(await auth.resolveProject('shared', { orgSlug: 'org-b' })).toMatchObject({
+      id: sharedB,
+      key: 'SHB',
+      orgSlug: 'org-b',
+    });
+  });
+
+  it('PAT 바인딩이 가장 강한 근거다 — 토큰은 slug 가 아니라 id 를 들고 있다', async () => {
+    expect(await auth.resolveProject('shared', { projectId: sharedA })).toMatchObject({
+      id: sharedA,
+      orgSlug: 'org-a',
+    });
+  });
+
+  it('주체가 속한 행이 하나면 그 행이다 — 자기 프로젝트가 not_member 로 보이던 자리', async () => {
+    expect(await auth.resolveProject('shared', { userId: onlyB })).toMatchObject({ id: sharedB });
+  });
+
+  it('양쪽 조직 사람은 소속으로도 좁혀지지 않는다 — 그때는 거절이다', async () => {
+    await expect(auth.resolveProject('shared', { userId: bothOrgs })).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+    });
+    // 한정자를 주면 그 사람도 열린다
+    expect(
+      await auth.resolveProject('shared', { userId: bothOrgs, orgSlug: 'org-a' }),
+    ).toMatchObject({ id: sharedA });
+  });
+
+  it('후보가 하나면 오늘과 같다 — 멤버십 판정(403)은 여기서 내지 않는다', async () => {
+    expect(await auth.resolveProject('clemvion', { userId: outsiderId })).toMatchObject({
+      id: projectId,
+      orgSlug: 'nerv',
+    });
+  });
+});

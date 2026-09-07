@@ -154,6 +154,8 @@ export const en = {
   'error.org.not_empty':
     'An organization that has projects cannot be deleted. Archiving does not change that — an archived project still counts here.',
   'error.org.not_found': 'Organization not found.',
+  'error.project.ambiguous':
+    'Project "{slug}" exists in more than one organization — specify the organization.',
   'error.project.missing_fields': 'slug, key and name are required.',
   'error.plugin.no_archive': 'The plugin archive is not part of this deployment.',
   'error.project.not_found': 'Project not found.',

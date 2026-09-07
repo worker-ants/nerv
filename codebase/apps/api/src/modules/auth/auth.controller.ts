@@ -206,7 +206,10 @@ export class AuthController {
       });
     }
     const input = parseBody(TokenCreateInput, body);
-    const project = await this.auth.resolveProject(input.project);
+    const project = await this.auth.resolveProject(input.project, {
+      orgSlug: input.org ?? null,
+      userId: principal.userId,
+    });
     if (project === null) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
         kind: 'not_found',

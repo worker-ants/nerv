@@ -159,6 +159,7 @@ export const ko = {
   'error.org.not_empty':
     '프로젝트가 있는 조직은 지울 수 없습니다. 보관해도 마찬가지입니다 — 보관한 프로젝트도 여기서는 남아 있는 것으로 셉니다.',
   'error.org.not_found': '조직을 찾을 수 없습니다.',
+  'error.project.ambiguous': '"{slug}" 프로젝트가 여러 조직에 있습니다 — 조직을 지정하세요.',
   'error.project.missing_fields': 'slug·key·name 이 필요합니다.',
   'error.plugin.no_archive': '플러그인 아카이브가 배포에 포함되지 않았습니다.',
   'error.project.not_found': '프로젝트를 찾을 수 없습니다.',

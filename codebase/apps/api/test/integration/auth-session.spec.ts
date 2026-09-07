@@ -226,3 +226,126 @@ describe('개발 시드 계정 — 자격증명이 도메인 행과 함께 심�
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
   });
 });
+
+/**
+ * **같은 slug 가 두 조직에 있을 때 웹이 열려야 한다**(2026-09-07 · REQ-API-152).
+ *
+ * 해소가 `WHERE slug = …` 의 첫 행을 고르던 동안, 두 번째 조직의 사람은 자기 프로젝트
+ * 주소에서 403 `not_member` 를 봤다 — **없는 프로젝트가 아니라 있는 프로젝트를 못 여는**
+ * 실패라 원인을 짐작할 단서가 화면에 없다. 여기서 보는 것은 그 번역이다: 주체의 소속으로
+ * 좁혀지는가, 좁혀지지 않으면 409 로 말하는가, 한정자를 실으면 열리는가.
+ */
+describe('slug 이 두 조직에 있을 때의 REST 표면 (REQ-API-152)', () => {
+  let orgAlpha: string;
+  let orgBeta: string;
+  let sharedAlpha: string;
+  let sharedBeta: string;
+  let betaCookie: string;
+  let bothCookie: string;
+  let bothId: string;
+
+  async function signIn(email: string, name: string): Promise<{ cookie: string; id: string }> {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-up/email',
+      headers: { 'content-type': 'application/json' },
+      payload: { email, password: PASSWORD, name },
+    });
+    expect(res.statusCode).toBe(200);
+    const setCookie = res.headers['set-cookie'];
+    const raw = Array.isArray(setCookie) ? setCookie.join(';') : String(setCookie);
+    const { rows } = await pool.query<{ id: string }>(`SELECT id FROM "user" WHERE email = $1`, [
+      email,
+    ]);
+    return { cookie: raw.split(';')[0] ?? '', id: rows[0]?.id ?? '' };
+  }
+
+  beforeAll(async () => {
+    orgAlpha = newId();
+    orgBeta = newId();
+    sharedAlpha = newId();
+    sharedBeta = newId();
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'alpha','알파')`, [
+      orgAlpha,
+    ]);
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'beta','베타')`, [
+      orgBeta,
+    ]);
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHA','공유 알파')`,
+      [sharedAlpha, orgAlpha],
+    );
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'shared','SHB','공유 베타')`,
+      [sharedBeta, orgBeta],
+    );
+
+    const beta = await signIn('beta-only@example.com', '베타만');
+    betaCookie = beta.cookie;
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
+      [newId(), orgBeta, sharedBeta, beta.id],
+    );
+
+    const both = await signIn('two-orgs@example.com', '양쪽');
+    bothCookie = both.cookie;
+    bothId = both.id;
+    for (const [org, project] of [
+      [orgAlpha, sharedAlpha],
+      [orgBeta, sharedBeta],
+    ]) {
+      await pool.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'admin')`,
+        [newId(), org, project, both.id],
+      );
+    }
+  });
+
+  it('주체의 소속이 하나면 그 조직의 프로젝트가 열린다 — 403 이 아니다', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/shared',
+      headers: { cookie: betaCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as Record<string, unknown>)['id']).toBe(sharedBeta);
+  });
+
+  it('양쪽 소속이면 한정자 없이 409 다 — 첫 행을 고르는 것은 조용한 오답이다', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/shared',
+      headers: { cookie: bothCookie },
+    });
+    expect(res.statusCode).toBe(409);
+    const body = res.json() as Record<string, unknown>;
+    expect(body['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect(body['details']).toMatchObject({ kind: 'ambiguous_project', orgs: ['alpha', 'beta'] });
+  });
+
+  it('`X-Nerv-Org` 를 실으면 그 조직이 열린다 — 웹이 아는 것을 서버에 말해 준다', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/shared',
+      headers: { cookie: bothCookie, 'x-nerv-org': 'alpha' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as Record<string, unknown>)['id']).toBe(sharedAlpha);
+  });
+
+  it('토큰 발급도 조직을 받는다 — 남의 조직 프로젝트에 바인딩된 토큰은 조용한 오답이다', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/me/tokens',
+      headers: { cookie: bothCookie, 'content-type': 'application/json' },
+      payload: { project: 'shared', org: 'beta', name: '베타 토큰', scopes: ['spec:read'] },
+    });
+    expect(res.statusCode).toBe(201);
+
+    const { rows } = await pool.query<{ project_id: string }>(
+      `SELECT project_id FROM api_token WHERE user_id = $1 AND name = '베타 토큰'`,
+      [bothId],
+    );
+    expect(rows[0]?.project_id).toBe(sharedBeta);
+  });
+});
