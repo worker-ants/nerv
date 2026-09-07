@@ -28,6 +28,7 @@ import {
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
+import { evidenceExistsSql } from './impl-status.js';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
@@ -1508,9 +1509,11 @@ export class SpecService {
              count(*) FILTER (WHERE r.impl_status IN ('implemented', 'verified'))::int AS implemented,
              count(*) FILTER (WHERE r.impl_status = 'verified')::int AS verified,
              count(*) FILTER (WHERE r.impl_status = 'in_progress')::int AS in_progress,
+             -- **파생과 같은 술어로 센다**(2026-09-07 · REQ-API-141). 여기만 요구사항에 직접
+             -- 붙은 증적을 봐서, 정상 경로(증적은 Task 에 붙는다)로 끝낸 요구사항을
+             -- 대시보드가 "증적 결손" 으로 찍었다 — 파생은 implemented 라고 말하는 동안.
              count(*) FILTER (
-               WHERE r.impl_status = 'implemented'
-                 AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.requirement_id = r.id)
+               WHERE r.impl_status = 'implemented' AND NOT ${evidenceExistsSql()}
              )::int AS evidence_missing,
              count(*) FILTER (
                WHERE r.impl_status = 'unimplemented'

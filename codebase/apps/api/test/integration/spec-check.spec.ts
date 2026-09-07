@@ -75,8 +75,13 @@ afterAll(async () => {
 beforeEach(async () => {
   await pool.query('UPDATE spec SET current_version_id = NULL');
   await pool.query('DELETE FROM evidence');
-  await pool.query('DELETE FROM requirement');
+  // **FK 순서대로 지운다.** task.source_requirement_id 가 requirement 를 참조하므로 Task 를
+  // 먼저 지워야 한다 — 순서가 뒤집혀 있으면 요구사항에 매달린 Task 를 만드는 검사 하나가
+  // 그 뒤 스위트 전체를 FK 위반으로 무너뜨린다(2026-09-07 실측).
+  await pool.query('DELETE FROM finding');
+  await pool.query('DELETE FROM review_session');
   await pool.query('DELETE FROM task');
+  await pool.query('DELETE FROM requirement');
   await pool.query('DELETE FROM spec_version');
   await pool.query('DELETE FROM spec');
   await pool.query('DELETE FROM notification');
@@ -213,6 +218,125 @@ describe('E09-S02 제출 게이트 — 검사가 제출을 막는다', () => {
     await expect(
       specs.submitReview({ projectId, specVersionId: versionId, userId: planner }),
     ).resolves.toBeDefined();
+  });
+});
+
+/**
+ * **구현 축은 파생값이다**(D-03 · 2026-09-07 · REQ-API-141). `verified` 는 오래 "스키마가
+ * 담지 못한다" 고 적혀 있었는데 열은 처음부터 있었다(`evidence.verified_by` ·
+ * `finding.requirement_id`) — QA 페르소나의 유일한 판정에 길이 없었다.
+ */
+describe('구현 축 파생 — verified 와 회수 (REQ-API-141)', () => {
+  async function requirementWithTask(
+    ref: string,
+    taskStatus = 'in_progress',
+  ): Promise<{ requirementId: string; taskId: string }> {
+    const { specId, versionId } = await draft(`SPC-${ref}`, '# 문서');
+    const requirementId = newId();
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,$4,'WHEN x THE SYSTEM SHALL y','must',$5,$5)`,
+      [requirementId, projectId, specId, ref, versionId],
+    );
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_requirement_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'작업',$4::task_status,$5,'목표','PR','도구','경계')`,
+      [taskId, projectId, `TSK-${ref}`, taskStatus, requirementId],
+    );
+    return { requirementId, taskId };
+  }
+
+  async function statusOf(requirementId: string): Promise<string | null> {
+    const { rows } = await pool.query<{ s: string }>(
+      `SELECT impl_status::text AS s FROM requirement WHERE id = $1`,
+      [requirementId],
+    );
+    return rows[0]?.s ?? null;
+  }
+
+  it('검증 증적이 서명돼 있고 열린 critical 이 없으면 verified 다', async () => {
+    const { requirementId, taskId } = await requirementWithTask('REQ-VER-1');
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source, verified_by, verified_at)
+       VALUES ($1,$2,$3,'test','spec-check.spec.ts','agent',$4,now())`,
+      [newId(), projectId, taskId, planner],
+    );
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId: planner,
+      roles: ['planner'],
+      specImpact: { none: true },
+    });
+    expect(await statusOf(requirementId)).toBe('verified');
+  });
+
+  it('서명 없는 증적은 implemented 까지다 — 검증은 사람이 한 것이어야 한다', async () => {
+    const { requirementId, taskId } = await requirementWithTask('REQ-VER-2');
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'test','spec-check.spec.ts','agent')`,
+      [newId(), projectId, taskId],
+    );
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId: planner,
+      roles: ['planner'],
+      specImpact: { none: true },
+    });
+    expect(await statusOf(requirementId)).toBe('implemented');
+  });
+
+  it('열린 critical 발견이 있으면 verified 가 아니다', async () => {
+    const { requirementId, taskId } = await requirementWithTask('REQ-VER-3');
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source, verified_by, verified_at)
+       VALUES ($1,$2,$3,'test','t','agent',$4,now())`,
+      [newId(), projectId, taskId, planner],
+    );
+    // 발견은 리뷰 라운드에 매달린다 — 최소 라운드를 하나 세운다
+    const sessionRow = newId();
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, kind, trigger, branch, head_sha, base_sha,
+                                   changeset_hash)
+       VALUES ($1,$2,'code','manual','main','abc123','def456',$3::bytea)`,
+      [sessionRow, projectId, Buffer.from('changeset')],
+    );
+    await pool.query(
+      `INSERT INTO finding (id, project_id, requirement_id, severity, status, title,
+                            fingerprint, category, first_session_id, last_session_id)
+       VALUES ($1,$2,$3,'critical','open','열린 지적',$4::bytea,'correctness',$5,$5)`,
+      [newId(), projectId, requirementId, Buffer.from('critical-open-1'), sessionRow],
+    );
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId: planner,
+      roles: ['planner'],
+      specImpact: { none: true },
+    });
+    expect(await statusOf(requirementId)).toBe('implemented');
+  });
+
+  it('전이가 구현 축을 움직인다 — done 만이 아니다', async () => {
+    const { requirementId, taskId } = await requirementWithTask('REQ-DERIVE-1', 'ready');
+    expect(await statusOf(requirementId)).toBe('unimplemented');
+
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'in_progress',
+      userId: planner,
+      roles: ['planner'],
+    });
+    expect(await statusOf(requirementId)).toBe('in_progress');
   });
 });
 

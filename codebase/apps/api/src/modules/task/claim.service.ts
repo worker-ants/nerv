@@ -13,6 +13,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
+import { recomputeImplStatus } from '../spec/impl-status.js';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { toDate } from '../../common/database.module.js';
@@ -105,14 +106,14 @@ export class ClaimService {
            SET status = 'ready', delegate_session_id = NULL, updated_at = now()
           FROM expired e
          WHERE t.id = e.task_id AND t.status IN ('claimed', 'in_progress')
-        RETURNING t.id
+        RETURNING t.id, t.source_requirement_id
       )
       SELECT e.id, e.task_id, e.project_id, e.agent_session_id, e.user_id, e.prev_status,
-             (m.id IS NOT NULL) AS task_moved
+             (m.id IS NOT NULL) AS task_moved, m.source_requirement_id
         FROM expired e
    LEFT JOIN moved m ON m.id = e.task_id
     `);
-    return this.finalize(emit, rows, 'expired');
+    return this.finalize(tx, emit, rows, 'expired');
   }
 
   /**
@@ -146,14 +147,14 @@ export class ClaimService {
            SET status = 'ready', delegate_session_id = NULL, updated_at = now()
           FROM closed e
          WHERE t.id = e.task_id AND t.status IN ('claimed', 'in_progress')
-        RETURNING t.id
+        RETURNING t.id, t.source_requirement_id
       )
       SELECT e.id, e.task_id, e.project_id, e.agent_session_id, e.user_id, e.prev_status,
-             (m.id IS NOT NULL) AS task_moved
+             (m.id IS NOT NULL) AS task_moved, m.source_requirement_id
         FROM closed e
    LEFT JOIN moved m ON m.id = e.task_id
     `);
-    return this.finalize(emit, rows, input.reason, input.actor);
+    return this.finalize(tx, emit, rows, input.reason, input.actor);
   }
 
   /**
@@ -165,6 +166,7 @@ export class ClaimService {
    * 액터로 적으면 피드에서 그 세션의 줄이 끊긴다(`session.stale`·`finish` 가 이미 같은 모양이다).
    */
   private async finalize(
+    tx: Tx,
     emit: EmitFn,
     rows: ReleasedClaim[],
     reason: string,
@@ -196,6 +198,12 @@ export class ClaimService {
           toState: 'ready',
           payload: { reason },
         });
+        // **회수도 구현 축을 움직인다**(2026-09-07 · REQ-API-141). 되돌아간 Task 가 큐로 가면
+        // 그 요구사항은 더 이상 진행 중이 아닐 수 있다 — 재파생하지 않으면 아무도 하지 않는
+        // 일이 대시보드에서 계속 진행 중이다.
+        if (typeof row.source_requirement_id === 'string') {
+          await recomputeImplStatus(tx, row.source_requirement_id);
+        }
       }
     }
     if (rows.length > 0) {

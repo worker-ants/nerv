@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.11 (2026-09-07)</span>
+      <span>버전 v0.12 (2026-09-07)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -240,9 +240,11 @@
       <tr><td><code>unimplemented</code></td><td>연결된 Task가 없거나 전부 <code>backlog</code>/<code>ready</code></td></tr>
       <tr><td><code>in_progress</code></td><td>파생 Task 중 하나 이상이 <code>claimed</code>/<code>in_progress</code>/<code>in_review</code></td></tr>
       <tr><td><code>implemented</code></td><td>파생 Task 전부 <code>done</code> <b>그리고</b> Evidence(코드 경로·커밋·PR) 1건 이상 연결</td></tr>
-      <tr><td><code>verified</code></td><td><code>implemented</code> + QA 역할의 검증 Evidence 1건 이상, 해당 커밋 범위에 open <code>critical</code> finding 0</td></tr>
+      <tr><td><code>verified</code></td><td><code>implemented</code> + 검증자가 서명한 Evidence(<code>kind=test</code> · <code>verified_by</code>) 1건 이상, 그 요구사항에 open <code>critical</code> finding 0</td></tr>
     </tbody>
   </table></div>
+
+  <blockquote><p><b><code>verified</code> 의 범위는 요구사항이다</b>(2026-09-07 구현). 표가 적은 "해당 커밋 범위" 는 커밋과 발견을 잇는 축이 Phase 2 라 아직 없다 — 지금은 그 요구사항에 열린 <code>critical</code> 이 없는지를 본다. 강등도 하지 않는다: 이미 <code>verified</code> 인 행은 내리지 않으므로 발견 하나가 열릴 때마다 검증 사실이 지워졌다 붙는 일이 없다.</p></blockquote>
 
   <p>clemvion이 <code>CCH-SE-02</code>를 놓친 사각 — "문서는 implemented인데 그 안의 한 요구사항은 미구현" — 은 상태의 단위를 요구사항으로 내리는 것만으로 사라진다.</p>
 
