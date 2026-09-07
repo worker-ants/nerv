@@ -90,22 +90,15 @@ async function drain(
 describe('이벤트 피드 — 같은 시각이 쪽 경계에 걸려도 (EP-EVT-01)', () => {
   it('한 트랜잭션이 낸 이벤트 다섯을 limit 2 로 끝까지 넘기면 전량이 정확히 한 번씩 나온다', async () => {
     // 실측에서 이 모양이 이벤트의 25% 였다 — 한 트랜잭션이 여러 건을 내면 같은 ms 에 몰린다.
-    // `occurred_at` 은 emit 마다 `new Date()` 라 여기서는 못으로 박아 그 조건을 만든다.
-    await events.transact(async (_tx, emit) => {
-      for (let i = 0; i < 5; i += 1) {
-        await emit({
-          type: NERV_EVENT.SPEC_RECHECK_REQUESTED,
-          projectId,
-          subjectType: 'spec',
-          subjectId: newId(),
-          actorUserId: userId,
-        });
-      }
-    });
-    await pool.query(
-      `UPDATE event SET occurred_at = '2026-09-07 00:00:00+00' WHERE project_id = $1`,
-      [projectId],
-    );
+    // 그 조건을 직접 만든다: `occurred_at` 은 emit 마다 `new Date()` 이고, event 는
+    // append-only 라(REQ-DB-023) 나중에 고칠 수도 없다 — 처음부터 같은 값으로 넣는다.
+    for (let i = 0; i < 5; i += 1) {
+      await pool.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, is_agent, occurred_at)
+         VALUES ($1,$2,$3,'spec',$4,$5,false,'2026-09-07 00:00:00+00')`,
+        [newId(), projectId, NERV_EVENT.SPEC_RECHECK_REQUESTED, newId(), userId],
+      );
+    }
     const { rows } = await pool.query<{ n: number }>(
       `SELECT count(DISTINCT occurred_at)::int AS n FROM event WHERE project_id = $1`,
       [projectId],

@@ -73,7 +73,7 @@ beforeEach(async () => {
   // notification.event_id 는 **논리 FK** 라(4.3 §2.10) event 를 지워도 따라 지워지지 않는다.
   // 남겨두면 다음 테스트가 앞 테스트의 알림을 자기 것으로 본다.
   await pool.query('DELETE FROM notification');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
   await pool.query(`UPDATE agent_session SET state = 'active'`);
 });
 

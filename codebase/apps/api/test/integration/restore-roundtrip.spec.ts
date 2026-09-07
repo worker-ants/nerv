@@ -91,8 +91,15 @@ afterAll(async () => {
 
 describe.skipIf(!HAS_PG_TOOLS)('①~⑤ 절차', () => {
   it('① 백업 — 덤프가 만들어지고 읽힌다(목록 확인까지)', () => {
+    // 이 왕복이 보는 것은 Postgres 다 — 첨부는 `mc` 가 있어야 하고 CI 러너에는 없다.
+    // **명시적으로 건너뛴다**(REQ-CB-031): 우회가 있다는 사실 자체를 검사가 쓴다.
     const out = execFileSync('bash', [join(SCRIPTS, 'nerv-backup.sh')], {
-      env: { ...process.env, DATABASE_URL: source.url, NERV_BACKUP_DIR: backupDir },
+      env: {
+        ...process.env,
+        DATABASE_URL: source.url,
+        NERV_BACKUP_DIR: backupDir,
+        NERV_BACKUP_SKIP_BLOBS: '1',
+      },
       encoding: 'utf8',
     });
     expect(out).toContain('backup:');

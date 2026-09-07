@@ -228,7 +228,7 @@ describe('라운드가 들어온 사실을 알린다 (REQ-API-061)', () => {
   }
 
   it('발견이 0건이어도 난다 — "봤고 문제가 없었다" 도 라운드다', async () => {
-    await pool.query('DELETE FROM event');
+    await pool.query('TRUNCATE event');
     await reviews.submit(submitInput({ findings: [] }));
     const events = await eventsOf(NERV_EVENT_PHASE2.REVIEW_SUBMITTED);
     expect(events).toHaveLength(1);
@@ -239,7 +239,7 @@ describe('라운드가 들어온 사실을 알린다 (REQ-API-061)', () => {
 
   it('같은 지적이 합쳐진 라운드도 난다 — 관측 횟수와 라운드가 바뀐다', async () => {
     await reviews.submit(submitInput({ findings: [CRITICAL] }));
-    await pool.query('DELETE FROM event');
+    await pool.query('TRUNCATE event');
     await reviews.submit(submitInput({ headSha: 'bbbb222', findings: [CRITICAL] }));
 
     const events = await eventsOf(NERV_EVENT_PHASE2.REVIEW_SUBMITTED);

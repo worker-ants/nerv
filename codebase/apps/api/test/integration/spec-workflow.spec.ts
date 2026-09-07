@@ -63,7 +63,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM spec_version');
   await pool.query('DELETE FROM spec');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
 });
 
 async function newDraft(

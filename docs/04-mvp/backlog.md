@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.26 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.27 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.27 변경(2026-09-07 — 첫 스프린트 ⑥): §1.4 셋째 표에 **append-only 트리거** 한 줄([4.3](database.md) REQ-DB-023).
 >
 > v0.26 변경(2026-09-07 — 첫 스프린트 ⑤): §1.4 셋째 표에 **첨부 백업·보존** 한 줄([4.2](codebase.md) REQ-CB-031·032).
 >
@@ -147,6 +149,7 @@ referenced_by:
 | 조직 경계 — 알림 수신자·소규모 완화 count | `notification.service.ts`(`approvalTargets`·`roleQueue`) · `approval.service.ts`(`canApproveSql`·`assertSelfApprovalAllowed`) | `project_id IS NULL` 을 조직 없이 세던 자리 셋 — 다른 조직으로 알림이 샜다(2026-09-07 · [4.4](api.md) REQ-API-125) |
 | 질의 어휘를 접지 않는다 | `common/query-vocab.ts` 를 쓰는 다섯 표면 · `event.service.ts`(`type`) · `enums.ts`(파생 어휘 둘) | `?status=cancelled` 가 열린 목록을 200 으로 돌려주던 자리(2026-09-07 · [4.4](api.md) REQ-API-126) |
 | 첨부 백업·보존 접기·blob 만료 | `deploy/scripts/nerv-backup.sh` · `deploy/k8s/base/backup/cronjob.yaml` · `worker/jobs/retention.job.ts` | 백업이 첨부를 한 번도 담지 않았고 접기가 같은 키를 덮어썼다(2026-09-07 · [4.2](codebase.md) REQ-CB-031·032) |
+| 감사 로그 append-only 트리거 | `drizzle/0022_event_append_only.sql` · `test/integration/event-broadcast.spec.ts` | FR-16 의 불변성이 코드 규약뿐이었다(2026-09-07 · [4.3](database.md) REQ-DB-023) |
 | 자라는 목록의 커서 | `session.service.ts` · `event.service.ts` | activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120) |
 
 #### 이 절은 언제 갱신되는가

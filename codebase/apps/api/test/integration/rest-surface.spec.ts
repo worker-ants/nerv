@@ -98,7 +98,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM task_dependency');
   await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM notification');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
 });
 
 interface Res {
@@ -278,7 +278,7 @@ describe('EP-NTF-01 — 알림은 50 에서 끝나지 않는다', () => {
  * 그리고 해독되지 않는 커서는 `::timestamptz` 캐스팅에서 22007 로 죽어 **진짜 500** 이었다.
  */
 describe('이벤트 커서의 HTTP 번역 (EP-EVT-01 · §1.6)', () => {
-  // 이 스위트는 자기 이벤트를 세운다 — 바깥 `beforeEach` 가 `DELETE FROM event` 를 하므로
+  // 이 스위트는 자기 이벤트를 세운다 — 바깥 `beforeEach` 가 `TRUNCATE event` 를 하므로
   // 안쪽도 `beforeEach` 여야 한다(바깥이 먼저 돈다). `beforeAll` 로 두면 조용히 0건을 센다.
   beforeEach(async () => {
     for (let i = 0; i < 3; i += 1) {

@@ -45,7 +45,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await pool.query('DELETE FROM evidence');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
 });
 
 async function post(

@@ -155,6 +155,13 @@
       "when": 1788673236111,
       "tag": "0021_claim_release_server_reasons",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788673237111,
+      "tag": "0022_event_append_only",
+      "breakpoints": true
     }
   ]
 }

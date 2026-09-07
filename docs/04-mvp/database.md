@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 33종** — 2026-09-06 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 33 + 인프라 4(`auth_session`·`auth_account`·`auth_verification`·`spec_chunk_embedding`, §2.15·§2.16). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.35 · 2026-09-06 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.36 · 2026-09-07 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.36 변경(2026-09-07 — 감사 로그의 불변성이 규약뿐이었다, 개선 계획 첫 스프린트): **REQ-DB-023 신설 · §2.13 에 트리거 하나.** FR-16 은 "모든 상태 전이가 append-only 로 남는다" 고 적는데, `event` 의 그 성질을 지키는 것은 **쓰는 경로가 하나라는 사실**뿐이었다 — 같은 성질의 `spec_version` 은 0000 부터 트리거로 못 박혀 있는데 정작 감사 축이 그렇지 않았다. `BEFORE UPDATE OR DELETE` 트리거를 파티션 부모에 걸어 DB 가 지키게 한다(`0022_event_append_only.sql`). **막지 않는 둘을 명시한다**: `TRUNCATE`(스크래치 DB 를 비우는 유일한 길)와 파티션 `DROP`(§2.14 보존 정책의 정당한 지우기) — 흔적이 남고 범위가 선언적이라 "행 하나를 몰래 고치는 것" 과 성질이 다르다. L2 열 곳의 `DELETE FROM event` 를 `TRUNCATE` 로 바꿨다.
 >
 > v0.35 변경(2026-09-06 — 결정 다섯을 닫는다, 사람 결정): **마이그레이션 `0021`.** `claim_release_reason` 에 서버 판정 값 둘을 더한다 — `session_end`(세션이 끝나며 회수) · `stopped`(사람이 중단해 회수). 0019 가 인계와 포기를 갈랐는데 **같은 결함이 두 경로에 그대로 남아** 둘 다 `manual` 이었다. `handoff`·`abandon` 에 얹지 않는 이유는 그 둘이 **고른** 값이고 이 둘은 **판정된** 값이기 때문이다 — 축이 다른 것을 같은 이름에 넣으면 0019 가 고친 오류를 반대 방향으로 반복한다. `manual` 은 걷지 않고(과거를 위조하지 않는다), `conflict` 는 남기되 **생산자가 없다는 사실**을 `enums.ts` 가 적는다 — 이 설계에서 겹침은 회수가 아니라 거절이다(D-04).
 >
@@ -926,6 +928,25 @@ CREATE TRIGGER task_touch_updated_at
   BEFORE UPDATE ON task
   FOR EACH ROW EXECUTE FUNCTION nerv_touch_updated_at();
 
+-- 감사 로그는 append-only 다 (2026-09-07 · REQ-DB-023 · D-10 · FR-16).
+-- 이 규칙은 여기까지 **코드 규약뿐**이었다 — `event` 에 쓰는 경로가 하나(`EventService.emit`)
+-- 라는 사실에 기대고 있었다. 같은 성질의 `spec_version` 은 위에서 트리거로 못 박혀 있는데
+-- 정작 감사 로그가 그렇지 않았다: 사람이 psql 로 한 줄 고치면 감사는 그것을 모른다.
+--
+-- **TRUNCATE 와 파티션 DROP 은 막지 않는다** — 보존 정책의 월 파티션 드랍(§2.14)과
+-- 스크래치 DB 비우기가 그 길이다. 둘은 흔적이 남고 범위가 선언적이라 성질이 다르다.
+-- 행 트리거는 파티션 부모에 걸고, PG13+ 가 기존·이후 파티션에 복제한다.
+CREATE OR REPLACE FUNCTION nerv_event_immutable() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'event 는 append-only 다 — % 는 허용되지 않는다 (D-10 · FR-16)', TG_OP
+    USING ERRCODE = 'check_violation';
+END $$;
+
+CREATE TRIGGER event_append_only
+  BEFORE UPDATE OR DELETE ON event
+  FOR EACH ROW EXECUTE FUNCTION nerv_event_immutable();
+
 -- scope 겹침 검사의 glob 교차 판정 — data-model §4.6이 호출하는 nerv_glob_overlap의 MVP 구현.
 -- spec-workflow §4.4 globs_can_intersect 의사코드의 직역: 보수적 판정(과검출은 경고, 미검출은 사고).
 CREATE OR REPLACE FUNCTION nerv_glob_overlap(g1 text, g2 text) RETURNS boolean
@@ -1510,6 +1531,7 @@ COMMIT;
 | REQ-DB-007 | WHEN `spec_impact IS NULL`인 `task`를 `done`으로 UPDATE하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + `{"none": true}` 통과 1건 |
 | REQ-DB-008 | WHEN 기준선 생성 트랜잭션에 `approved`가 아닌 `spec_version` 항목이 포함되면 THE SYSTEM SHALL 생성 전체를 거부하고, WHEN 생성된 기준선의 항목 변경(UPDATE/DELETE)이 시도되면 THE SYSTEM SHALL 거부한다 — 세트 변경은 새 기준선 생성으로만 한다 | draft 항목 포함 생성 거부 1건 + 항목 변경 거부 1건 + 핀 대상 superseded 후 조회 불변 1건 |
 | REQ-DB-022 | WHEN `requirement_id`·`spec_version_id`·`task_id`가 전부 NULL인 `evidence`를 INSERT하면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 부정 1건 + 각 앵커 단독 통과 3건 |
+| REQ-DB-023 | WHEN `event` 행에 UPDATE·DELETE 가 시도되면 THE SYSTEM SHALL 트리거로 거부한다(`check_violation`) — 감사 로그의 불변성이 코드 규약이 아니라 DB 의 성질이어야 한다(D-10 · FR-16). `TRUNCATE` 와 파티션 `DROP` 은 예외다(보존·스크래치의 정당한 길) | UPDATE·DELETE 각 23514 · TRUNCATE 는 통과 · `pg_trigger` 에 `event_append_only` |
 | REQ-DB-009 | WHEN `nerv_ensure_month_partitions(대상 월)`을 호출하면 THE SYSTEM SHALL `event`·`activity`의 해당 월 파티션과 activity 파티션별 `(session_id, seq)` unique 인덱스를 생성하고, 재호출 시 오류 없이 통과한다 | 함수 2회 호출 후 카탈로그 조회 |
 | REQ-DB-010 | WHEN 같은 사용자에게 같은 권한의 **같은 역할**을 두 번 배정하면 THE SYSTEM SHALL unique 위반으로 거부한다 — 역할이 다르면 허용한다(겸직, 2026-08-23 개정 · `membership_user_scope_role_uq`) | 같은 역할 중복 1건 · 다른 역할 추가 1건 |
 | REQ-DB-011 | WHEN `status <> 'draft'`인 `spec_version`에 `edit_lease_user_id`·`edit_lease_session_id`·`edit_lease_expires_at` 중 하나라도 non-NULL을 쓰면 THE SYSTEM SHALL CHECK 위반으로 거부한다 | 3필드 각각 1건 |

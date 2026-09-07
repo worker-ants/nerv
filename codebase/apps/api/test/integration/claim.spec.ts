@@ -90,7 +90,7 @@ beforeEach(async () => {
   // 이 스위트가 질문을 만든다. 증적과 같은 이유로 Task 보다 먼저 지운다.
   await pool.query('DELETE FROM question');
   await pool.query('DELETE FROM task');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
 });
 
 // ── E04-S01 원자적 클레임 ───────────────────────────────────────────────────

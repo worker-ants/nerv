@@ -67,7 +67,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM spec_version');
   await pool.query('DELETE FROM spec');
   await pool.query('DELETE FROM notification');
-  await pool.query('DELETE FROM event');
+  await pool.query('TRUNCATE event');
 });
 
 async function approvedSpec(key: string, body: string): Promise<void> {
