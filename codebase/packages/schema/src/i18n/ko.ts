@@ -242,6 +242,8 @@ export const ko = {
     '링크가 가리키는 {key} 를 이 프로젝트에서 찾을 수 없습니다 — 오타이거나 아직 안 쓴 문서입니다.',
   'check.no_relations':
     '이 문서는 어떤 문서와도 이어져 있지 않습니다 — 가리킬 문서가 있으면 본문에 링크로 답니다.',
+  'check.no_requirements':
+    '요구사항이 한 줄도 없습니다 — feature 문서는 무엇을 약속하는지 적어야 지켜졌는지 물을 수 있습니다.',
   'check.version_not_found': '버전을 찾을 수 없습니다.',
   'export.index_lead': '> NERV 스펙 트리 색인. 각 항목은 승인된 최신 버전의 md 미러를 가리킨다.',
   'export.index_specs': '## 스펙',

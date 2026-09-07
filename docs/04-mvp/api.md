@@ -26,7 +26,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.15 · 2026-09-07 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.16 · 2026-09-07 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.16 변경(2026-09-07 — 요구사항을 쓸 자리가 없었다, 개선 계획 셋째 스프린트): **REQ-API-144·145 신설 · EP-REQ-04 신설.** ① `feature` 문서에 **요구사항이 한 줄도 없으면 경고**한다 — 형식을 어긴 줄은 잡으면서 줄이 아예 없는 것은 잡지 않아, 실측 승인본 65건에 요구사항이 0건이었다. 약속을 적지 않은 문서는 지켜졌는지 물을 수 없고 구현 축은 셀 것이 없다. 차단이 아니라 경고인 이유는 임포트한 문서가 전부 막히면 이관 자체가 멈추기 때문이다. ② **다음 요구사항 ID 를 서버가 발급한다**([3.1 비전](../03-proposal/vision.md)이 "서버가 발급한 고정 ID" 를 적어 둔 자리다) — 예약하지는 않는다: 이 값은 제안이고 실제 소유는 승인된 본문이 정한다.
 >
 > v1.15 변경(2026-09-07 — 상세가 근거를 UUID 로 줬다, 개선 계획 셋째 스프린트): **REQ-API-142·143 신설 · EP-TASK-04·EP-SES-01·EP-REQ-03 개정.** ① 작업 상세가 **출처 요구사항의 고정 ID·문장**, **클레임의 선언 범위**, **그 작업을 지난 리뷰**를 함께 싣는다 — 화면이 UUID 원문을 그리고 리뷰는 어디에도 없어서, 근거 칸이 있어도 근거가 되지 않았다(FR-13 양방향 드릴다운이 한 방향만이었다). ② 세션 목록이 **리스 만료 시각**을 준다 — 서버가 준 "남은 초" 는 받은 순간에 이미 낡아 카운트다운이 재조회마다 튄다. `lease_remaining_seconds` 는 호환으로 남긴다. ③ **검증 증적**: `kind=test` 증적을 qa·admin 이 올리면 그 자리에서 `verified_by` 가 붙고 파생이 `verified` 를 판정한다(REQ-API-141 의 입력 쪽이다). 에이전트 세션이 올린 것은 서명이 아니다 — 자기 산출물을 자기가 검증했다고 말하는 것과 같다.
 >
@@ -273,6 +275,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | EP-TASK-03 · 05 | 역할만 | 역할 **AND** `task:update` | MCP `nerv_task_create`·`nerv_task_update` 가 이미 그 권한을 요구했다. **같은 작업의 권한이 경로마다 달랐다** — 토큰에서 빼도 REST 로는 그대로 됐다 |
 | EP-REQ-03 | 역할만 | 역할 **AND** `spec:evidence` | 전표가 "CI는 PAT"라고 적어 둔 자리다. 증적만 올리는 CI 토큰을 좁게 발급할 방법이 없었다 |
+| EP-REQ-04 | `GET /api/v1/projects/{proj}/requirements/next-ref` | 전 역할(`spec:read`) | `prefix`(대문자 토막 — 보통 스펙 키의 가운데) | `{ ref: 'REQ-<접두>-NNN', prefix }` — 그 접두의 최대 번호 + 1. **예약하지 않는다**(제안이고, 소유는 승인된 본문이 정한다) | — |
 | EP-PRJ-04 · 05 | 역할만 | **사람 전용** | 아래 |
 
 **`spec:evidence` 를 새로 만든 이유**(사람 결정). 기존 권한을 재사용하면 CI 토큰이 필요 이상을 갖는다 — `spec:draft` 면 초안 덮어쓰기(도구 5종)까지, `task:update` 면 Task 생성·전이·클레임 해제까지 딸려온다. 증적은 그 둘 어느 쪽도 아니고, 최소권한이 실제로 성립하려면 자기 이름이 있어야 한다. MCP 도구 대응은 없다 — REST 축이다(§1.3).
@@ -1411,6 +1414,8 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-141 | WHEN 요구사항에 매달린 Task 가 전이·회수되거나 증적이 등록되면 THE SYSTEM SHALL `impl_status` 를 다시 파생하고, WHERE 파생 Task 가 전부 `done` 이며 검증자가 서명한 `test` 증적이 있고 그 요구사항에 열린 `critical` 발견이 없으면 THE SYSTEM SHALL `verified` 로 올린다(이미 `verified` 인 행은 내리지 않는다). 증적 존재 판정은 파생과 커버리지가 같은 술어를 쓴다 | 서명 증적이면 verified · 서명 없으면 implemented · 열린 critical 이면 implemented · `in_progress` 전이와 회수에도 재파생 |
 | REQ-API-142 | WHEN 작업 상세(EP-TASK-04)를 조회하면 THE SYSTEM SHALL 출처 요구사항의 고정 ID·문장, 각 클레임의 선언 범위와 리스 만료 시각, 그 작업을 지난 리뷰 라운드(열린 critical 수 포함)를 함께 반환한다. WHEN 세션 목록(EP-SES-01)을 조회하면 THE SYSTEM SHALL 리스 만료 시각을 함께 반환한다 | 상세에 `source_requirement_ref`·`scope_file_globs`·`reviews` · 세션 목록에 `lease_expires_at` |
 | REQ-API-143 | WHEN `kind=test` 증적을 qa·admin 역할의 사람이 등록하면 THE SYSTEM SHALL `verified_by`·`verified_at` 을 함께 기록하고 응답에 `verified: true` 를 싣는다. WHERE 에이전트 세션이 등록했으면 THE SYSTEM SHALL 서명하지 않는다 | qa 의 test 증적은 서명됨 · 세션 등록은 서명 없음 · 서명 뒤 파생이 verified |
+| REQ-API-144 | WHEN `feature` 스펙의 사전 검토가 돌면 THE SYSTEM SHALL 요구사항 줄이 하나도 없을 때 `requirement-shape` 경고를 낸다(차단은 아니다). WHERE 문서 타입이 `convention`·`adr`·`area`·`vision` 이면 THE SYSTEM SHALL 그 경고를 내지 않는다 | 요구사항 0건 feature 는 경고 1건이고 verdict 는 block 이 아니다 · 있으면 경고 0건 |
+| REQ-API-145 | WHEN EP-REQ-04 가 접두와 함께 오면 THE SYSTEM SHALL 그 접두의 최대 번호 + 1 을 세 자리로 채워 돌려준다. WHERE 접두가 어휘 밖이면 THE SYSTEM SHALL 400 으로 거절한다 | 없으면 001 · 007 다음은 008 · 빈 접두는 400 |
 | REQ-API-099 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `type`·`status` 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 **자르기 전에** 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05) | 종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건 |
 | REQ-API-100 | WHEN EP-SPEC-08 에 `relations` 가, EP-TASK-07 에 `progress`·`stats` 가, EP-TASK-08 에 `state_note` 가 오면 THE SYSTEM SHALL **REST 에서도** 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05) | REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건 |
 | REQ-API-098 | WHEN EP-SPEC-01·19 에 `baseline` 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 `version_no`·`doc_status` 를 **그 세트가 묶어 둔 버전**의 것으로 싣는다 — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL `invalid_input`(`field="baseline"`)으로 거절한다 — 조용히 전체로 떨어지면 그 세트를 읽었다고 믿는다. WHILE `baseline` 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다 |

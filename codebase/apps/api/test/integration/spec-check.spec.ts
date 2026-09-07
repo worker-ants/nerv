@@ -226,6 +226,52 @@ describe('E09-S02 제출 게이트 — 검사가 제출을 막는다', () => {
  * 담지 못한다" 고 적혀 있었는데 열은 처음부터 있었다(`evidence.verified_by` ·
  * `finding.requirement_id`) — QA 페르소나의 유일한 판정에 길이 없었다.
  */
+/**
+ * **EARS 를 배울 자리**(2026-09-07 · REQ-API-144·145). 형식을 어긴 줄은 잡으면서 줄이 아예
+ * 없는 것은 잡지 않았고(sudoku 승인본 65건에 요구사항 0건), 다음 번호를 발급하는 자리도
+ * 없었다 — 비전이 "서버가 발급한 고정 ID" 를 적어 두었는데.
+ */
+describe('요구사항 작성 표면 (REQ-API-144·145)', () => {
+  it('요구사항이 한 줄도 없는 feature 문서는 경고를 받는다', async () => {
+    const { versionId } = await draft('SPC-EMPTY-REQ', '# 문서\n\n본문만 있고 약속이 없다');
+    const result = await checks.check({ projectId, specVersionId: versionId });
+    const shape = result.findings.filter((f) => f.checker === 'requirement-shape');
+    expect(shape).toHaveLength(1);
+    expect(shape[0]).toMatchObject({ severity: 'warning', anchor: null });
+    // 경고지 차단이 아니다 — 임포트한 문서가 전부 막히면 이관 자체가 멈춘다
+    expect(result.verdict).not.toBe('block');
+  });
+
+  it('요구사항이 있으면 그 경고는 없다', async () => {
+    const { versionId } = await draft(
+      'SPC-HAS-REQ',
+      '# 문서\n\n- REQ-HAS-001 WHEN 조건이면 THE SYSTEM SHALL 동작한다',
+    );
+    const result = await checks.check({ projectId, specVersionId: versionId });
+    expect(result.findings.filter((f) => f.checker === 'requirement-shape')).toEqual([]);
+  });
+
+  it('다음 ID 는 서버가 발급한다 — 접두의 최대 번호 다음이다', async () => {
+    const first = await specs.nextRequirementRef({ projectId, prefix: 'NEW' });
+    expect(first.ref).toBe('REQ-NEW-001');
+
+    const { specId, versionId } = await draft('SPC-REF-SEQ', '# 문서');
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-NEW-007','문장','must',$4,$4)`,
+      [newId(), projectId, specId, versionId],
+    );
+    expect((await specs.nextRequirementRef({ projectId, prefix: 'new' })).ref).toBe('REQ-NEW-008');
+  });
+
+  it('접두가 어휘 밖이면 거절한다 — 조용히 고쳐 주지 않는다', async () => {
+    await expect(specs.nextRequirementRef({ projectId, prefix: '' })).rejects.toMatchObject({
+      details: { kind: 'invalid_input', field: 'prefix' },
+    });
+  });
+});
+
 describe('구현 축 파생 — verified 와 회수 (REQ-API-141)', () => {
   async function requirementWithTask(
     ref: string,

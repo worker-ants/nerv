@@ -1564,6 +1564,37 @@ export class SpecService {
     };
   }
 
+  /**
+   * EP-REQ-04 — **다음 요구사항 ID 는 서버가 발급한다**(2026-09-07 · REQ-API-145).
+   *
+   * [3.1 비전](../../../../docs/03-proposal/vision.md)이 "서버가 발급한 고정 ID" 를 적어 두었는데
+   * 발급하는 자리가 없었다. 사람과 에이전트가 각자 다음 번호를 세면 같은 번호가 둘 나오고
+   * (그때는 `requirement-shape` 가 중복으로 막는다), 막힌 쪽은 다시 세어야 한다.
+   *
+   * 접두는 부르는 쪽이 정한다(보통 스펙 키의 가운데 토막) — 서버는 그 접두의 최대 번호에
+   * 1을 더한다. **예약하지 않는다**: 이 값은 제안이고, 실제 소유는 승인된 본문이 정한다.
+   */
+  async nextRequirementRef(input: {
+    projectId: string;
+    prefix: string;
+  }): Promise<{ ref: string; prefix: string }> {
+    const prefix = input.prefix.trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9]{0,15}$/.test(prefix)) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'prefix',
+        value: input.prefix,
+      });
+    }
+    const { rows } = await this.db.execute<{ max: number | null }>(sql`
+      SELECT max(substring(ref from '[0-9]+$')::int) AS max
+        FROM requirement
+       WHERE project_id = ${input.projectId} AND ref LIKE ${`REQ-${prefix}-%`}
+    `);
+    const next = (rows[0]?.max ?? 0) + 1;
+    return { ref: `REQ-${prefix}-${String(next).padStart(3, '0')}`, prefix };
+  }
+
   /** EP-REQ-01 */
   async requirements(input: {
     projectId: string;

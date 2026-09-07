@@ -164,6 +164,16 @@ allowed-tools:
 4. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
    `resolved_in_version_id`)로 닫는다. 반영하지 않기로 한 코멘트는 닫지 말고 사유를 보고한다.
 
+### 요구사항 줄의 형식 — 이것이 문서의 값어치다
+
+`feature` 스펙 본문에는 **요구사항 줄**이 있어야 한다. 형식은 하나다 —
+`- REQ-<접두>-<번호 3자리> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다`.
+
+- **ID 는 서버가 발급한다.** 다음 번호는 EP-REQ-04(`requirements/next-ref`)가 준다. 직접 세지 않는다: 같은 번호를 둘이 세면 `requirement-shape` 가 중복으로 막는다. 접두는 보통 스펙 키의 가운데 토막이다(`SPC-CWC-007` → `CWC`).
+- **문형은 WHEN·WHILE·IF 셋 중 하나로 시작해 THE SYSTEM SHALL 로 잇는다.** 어긴 줄은 경고다.
+- **한 줄도 없으면 그것도 경고다**(2026-09-07). 약속을 적지 않은 문서는 지켜졌는지 물을 수 없고, 구현 축은 셀 것이 없다. 승인본 65건에 요구사항 0건이던 실측이 그 자리다.
+- 규약·ADR·영역 문서(`convention`·`adr`·`area`·`vision`)는 요구사항이 없는 것이 정상이라 이 경고를 받지 않는다.
+
 ### check — 사전 검토 셀프서비스
 `nerv_spec_check`(`spec_version_id`) — 5검사기(cross-spec / rationale-continuity /
 convention-compliance / requirement-shape / task-coherence) 결과를 warning/block과 앵커

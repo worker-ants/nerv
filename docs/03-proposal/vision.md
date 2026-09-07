@@ -10,6 +10,7 @@ referenced_by:
   - 03-proposal/ui-wireframes.md
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
+  - 04-mvp/api.md
   - 04-mvp/plugin.md
   - README.md
   - ../README.md

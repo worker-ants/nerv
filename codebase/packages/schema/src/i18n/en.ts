@@ -238,6 +238,8 @@ export const en = {
     'A link points at {key}, which does not exist in this project — a typo, or a document not written yet.',
   'check.no_relations':
     'This document is connected to nothing — if it refers to another spec, link it in the body.',
+  'check.no_requirements':
+    'No requirement lines — a feature spec has to state what it promises before anyone can ask whether it was kept.',
   'check.version_not_found': 'Version not found.',
   'export.index_lead':
     '> NERV spec tree index. Each entry points at the md mirror of the latest approved version.',
