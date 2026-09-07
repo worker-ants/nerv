@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v0.84 (2026-09-07)</span>
+      <span>버전 v0.85 (2026-09-07)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1170,7 +1170,7 @@
     <li><span class="marker">4</span><span><b>활성 클레임</b> — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. <code>FR-06</code>. 출처 줄의 기준 버전(<code>@v4</code>)이 superseded면 <b>재브리핑 배지</b>(⟳ 기준 버전 v4 → 최신 v5)가 뜬다 — <code>rebrief_required_at</code>·spec-workflow §3.3. <code>REQ-WEB-036</code></span></li>
     <li><span class="marker">5</span><span><b>의존 그래프</b> — 미해소 의존은 ready 불가 사유로 표기. <code>FR-05</code></span></li>
     <li><span class="marker">6</span><span><b>Evidence</b> — PR·커밋 링크(FR-13). 리뷰 커버리지 표시는 Phase 2.</span></li>
-    <li><span class="marker">7</span><span><b>전이 버튼</b> — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003).</span></li>
+    <li><span class="marker">7</span><span><b>전이 버튼</b> — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003). [완료로 전이] 는 활성 클레임 보유자·담당자·planner·admin 에게만 활성이고(<a href="api.html">4.4</a> REQ-API-130), 활성 클레임이 없는 <code>claimed</code>·<code>진행 중</code> 작업에는 <b>되돌리기 단추</b>가 함께 선다 — 4요소가 차 있으면 [준비됨으로 되돌리기], 비어 있으면 [백로그로 되돌리기](REQ-WEB-144).</span></li>
   </ul>
 
   <blockquote><p><b>막힘 사유는 고르는 것이다</b>(2026-09-06 · REQ-API-117). <code>blocked</code> 전이의 사유 칸은 자유 텍스트가 아니라 어휘 4종(<code>awaiting_answer</code>·<code>dependency_broken</code>·<code>spec_conflict</code>·<code>external</code>)의 셀렉트다 — 같은 뜻을 사람마다 다른 문자열로 적으면 <b>막힘을 세는 순간 그 수가 사실이 아니게 된다</b>. 어휘의 정본은 <code>@nerv/schema</code> 의 <code>BLOCKED_REASONS</code> 이고 화면은 그것을 그린다(§1.8 — 화면은 서버가 받을 것만 보인다).</p>
@@ -1212,6 +1212,7 @@ export const TaskCreateInput = z.object({
       <tr><td>REQ-WEB-017</td><td>WHEN <code>claimed</code>/<code>in_progress</code> 카드를 렌더링하면 THE SYSTEM SHALL <code>lease_expires_at</code> 기준 리스 잔여를 카운트다운으로 표시하고, 잔여 2분 미만이면 호박색으로 전환한다(D-04)</td></tr>
       <tr><td>REQ-WEB-018</td><td>WHEN 서버가 상태 전이를 거부하면 THE SYSTEM SHALL 카드를 원 위치로 되돌리고 거부 사유를 툴팁으로 표시한다(FR-10)</td></tr>
       <tr><td>REQ-WEB-036</td><td>WHEN <code>rebrief_required_at</code>이 세팅된 Task를 렌더링하면 THE SYSTEM SHALL 보드 카드와 상세 패널에 재브리핑 배지(기준 버전 → 최신 approved 버전)를 표시하고, 위임 명세 재확인·기준 버전 갱신(EP-TASK-05) 경로를 제공한다</td></tr>
+      <tr><td>REQ-WEB-144</td><td>WHILE 작업이 <code>claimed</code>·<code>in_progress</code> 이고 활성 클레임이 없는 동안 THE SYSTEM SHALL [준비됨으로 되돌리기](위임 명세 4요소 충족 — 임포트 자리표시자는 미충족이다) 또는 [백로그로 되돌리기](미충족) 단추를 보이고, WHEN 호출자가 활성 클레임 보유자·담당자·planner·admin 이 아니면 THE SYSTEM SHALL [완료로 전이] 를 숨기지 않고 비활성화하며 사유를 툴팁으로 표기한다(REQ-WEB-003)</td></tr>
     </tbody>
   </table></div>
 

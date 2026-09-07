@@ -4,7 +4,12 @@
 // 증적. 조건 5(스펙 영향)가 clemvion 에서 가장 잘 작동한 규칙의 이식이라, "없음"도 명시적으로
 // 고르게 만든다. 빈 선언을 허용하면 규칙이 사라진다.
 
-import { BLOCKED_REASONS, blockedReasonLabelKey, statusLabelKey } from '@nerv/schema';
+import {
+  BLOCKED_REASONS,
+  blockedReasonLabelKey,
+  isDelegationFilled,
+  statusLabelKey,
+} from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +21,8 @@ import { blockedReasonText } from '../../lib/format.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rows, useMe, useProject, useTask } from '../../lib/queries.js';
+import { rolesInProject } from '../../lib/session.js';
+import { useScope } from '../../lib/scope.js';
 import { useApiError } from '../../lib/api-errors.js';
 import {
   Button,
@@ -38,6 +45,7 @@ function TaskDetail(): React.JSX.Element {
   const detail = useTask(proj, task);
   const project = useProject(proj);
   const me = useMe();
+  const { orgSlug } = useScope(proj);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
@@ -72,6 +80,31 @@ function TaskDetail(): React.JSX.Element {
   const heldByOther = rows(data['claims']).some(
     (c) => c['status'] === 'active' && c['user_id'] !== meId,
   );
+
+  /**
+   * **완료로 옮길 수 있는 사람은 넷이다**(REQ-API-130 · REQ-WEB-141). 서버가 그렇게 판정하므로
+   * 화면은 미리 잠근다 — 숨기지 않고 비활성으로, 사유를 툴팁에 적어서(REQ-WEB-003).
+   * 누를 수 없는 단추가 왜 그런지 말하지 않으면 사람은 화면이 고장 났다고 읽는다.
+   */
+  const privileged = rolesInProject(me.data, orgSlug, proj).some(
+    (r) => r === 'planner' || r === 'admin',
+  );
+  const isAssignee = data['assignee_user_id'] === meId && meId !== undefined;
+  const canFinish = myClaim !== undefined || isAssignee || privileged;
+
+  /**
+   * **아무도 쥐지 않은 진행 중** — 임포트가 만든 24건이 그 모양이었다(2026-09-06 실측).
+   * `next()` 에도 안 보이고(ready 가 아니라) 잡을 수도 없어서 아무에게도 닿지 않는다.
+   * 되돌리는 문이 웹에 없었다. 서버가 받을 것만 보인다(§1.8): 위임 명세 4요소가 차 있으면
+   * `ready`, 임포트 자리표시자처럼 비어 있으면 `backlog` 다 — 전자를 눌러 봐야 서버가
+   * 4요소로 거절한다.
+   */
+  const orphan =
+    (status === 'claimed' || status === 'in_progress') && !heldByOther && myClaim === undefined;
+  const delegationFilled = (
+    ['goal_md', 'output_format_md', 'tools_sources_md', 'boundaries_md'] as const
+  ).every((field) => isDelegationFilled(typeof data[field] === 'string' ? data[field] : null));
+  const revertTarget: 'ready' | 'backlog' = delegationFilled ? 'ready' : 'backlog';
 
   const claim = useMutation({
     // **웹에서도 잡을 수 있어야 한다**(screens.md:903 화면 요소 "사람 클레임").
@@ -127,7 +160,7 @@ function TaskDetail(): React.JSX.Element {
   });
 
   const transition = useMutation({
-    mutationFn: (next: 'done' | 'blocked' | 'in_progress') =>
+    mutationFn: (next: 'done' | 'blocked' | 'ready' | 'backlog') =>
       apiFetch<Record<string, unknown>>(
         `/projects/${proj}/tasks/${String(data['id'])}/transition`,
         {
@@ -161,9 +194,15 @@ function TaskDetail(): React.JSX.Element {
     onError: (error: Error) => {
       // 거부는 **화면에 남는다**(REQ-WEB-018). 상태는 그대로이고(낙관적 갱신을 하지 않으므로
       // 되돌릴 것도 없다) 무엇이 빠졌는지가 버튼 옆에 붙는다.
-      const missing =
-        error instanceof NervApiError && Array.isArray(error.body.details['missing'])
-          ? (error.body.details['missing'] as string[])
+      // `missing` 은 위임 명세 4요소, `pending` 은 끝나지 않은 선행 작업이다(REQ-API-131).
+      // 둘 다 "무엇을 하면 되는가" 라서 같은 자리에 남긴다 — 이름만 다르다.
+      const details = error instanceof NervApiError ? error.body.details : {};
+      const missing = Array.isArray(details['missing'])
+        ? (details['missing'] as (string | { label?: string; field?: string })[]).map((m) =>
+            typeof m === 'string' ? m : (m.label ?? m.field ?? ''),
+          )
+        : Array.isArray(details['pending'])
+          ? (details['pending'] as string[])
           : [];
       setRejection({ message: error.message, missing });
       pushToast({ tone: 'warn', message: error.message });
@@ -455,16 +494,28 @@ function TaskDetail(): React.JSX.Element {
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
               <Button
                 variant="primary"
-                disabled={status === 'done' || transition.isPending}
+                disabled={status === 'done' || transition.isPending || !canFinish}
                 onClick={() => transition.mutate('done')}
                 title={
-                  rejection === null
-                    ? undefined
-                    : t('task.last_rejection', { message: rejection.message })
+                  !canFinish
+                    ? t('task.done_needs_claim')
+                    : rejection === null
+                      ? undefined
+                      : t('task.last_rejection', { message: rejection.message })
                 }
               >
                 {t('task.to_done')}
               </Button>
+              {orphan && (
+                <Button
+                  variant="ghost"
+                  data-testid="revert-task"
+                  disabled={transition.isPending}
+                  onClick={() => transition.mutate(revertTarget)}
+                >
+                  {t(revertTarget === 'ready' ? 'task.to_ready' : 'task.to_backlog')}
+                </Button>
+              )}
               <span aria-hidden="true" className="h-5 w-px bg-border" />
               {/* **자유 텍스트가 아니라 어휘 4종이다**(2026-09-06 · REQ-API-117). 예전에는
                   아무 문장이나 받아 서버에 그대로 실었고, 그러면 막힘 필터가 그 순간부터
