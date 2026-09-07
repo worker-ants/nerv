@@ -7,7 +7,7 @@
 // 차원 검증(REQ-CB-021)도 여기서만 제대로 볼 수 있다 — 1023차원을 내는 제공자를
 // 실물로 구하는 것보다 스텁이 정확하다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { EMBEDDING_DIMENSIONS, NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
@@ -27,7 +27,7 @@ import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
-const DIMENSIONS = 1024;
+const DIMENSIONS = EMBEDDING_DIMENSIONS;
 
 /** 결정적 임베딩 — 텍스트의 문자 분포를 1024차원에 접어 넣는다. 같은 입력 = 같은 벡터. */
 function fakeEmbedding(text: string, dimensions = DIMENSIONS): number[] {
@@ -234,6 +234,40 @@ describe('E09-S11 임베딩 적재', () => {
       sendDimensions: true,
     }).embed(['테스트']);
     expect(lastRequest?.['dimensions']).toBe(1024);
+  });
+
+  /**
+   * **추정은 판정이 아니다**(2026-09-07 · REQ-CB-033). `fromEnv()` 가 주소에
+   * `api.openai.com` 이 있는지로 절단 여부를 갈랐다 — 게이트웨이(Azure·LiteLLM·사내) 뒤의
+   * 같은 모델은 그 주소가 아니고, 절단이 빠지면 1536 차원이 돌아와 **오류 없이** 검색이
+   * 렉시컬로 degrade 한다. 조용한 degrade 는 사람에게 "결과가 원래 이렇다" 로 보인다.
+   */
+  it('dimensions 전송은 env 가 정한다 — 주소로 추정하지 않는다 (REQ-CB-033)', () => {
+    const saved = {
+      url: process.env['NERV_EMBED_URL'],
+      flag: process.env['NERV_EMBED_SEND_DIMENSIONS'],
+    };
+    try {
+      // 게이트웨이 뒤의 OpenAI 모델 — 주소로는 알 수 없고, env 가 켜져 있으면 보낸다
+      process.env['NERV_EMBED_URL'] = 'https://llm-gw.internal/v1';
+      process.env['NERV_EMBED_SEND_DIMENSIONS'] = 'true';
+      expect(EmbeddingClient.fromEnv()).toMatchObject({ options: { sendDimensions: true } });
+
+      // 주소가 OpenAI 라도 env 가 꺼져 있으면 보내지 않는다 — 판정 축은 하나다
+      process.env['NERV_EMBED_URL'] = 'https://api.openai.com/v1';
+      process.env['NERV_EMBED_SEND_DIMENSIONS'] = 'false';
+      expect(EmbeddingClient.fromEnv()).toMatchObject({ options: { sendDimensions: false } });
+    } finally {
+      if (saved.url === undefined) delete process.env['NERV_EMBED_URL'];
+      else process.env['NERV_EMBED_URL'] = saved.url;
+      if (saved.flag === undefined) delete process.env['NERV_EMBED_SEND_DIMENSIONS'];
+      else process.env['NERV_EMBED_SEND_DIMENSIONS'] = saved.flag;
+    }
+  });
+
+  it('차원 검사는 스키마의 상수를 쓴다 — 재선언하지 않는다 (REQ-CB-006)', () => {
+    // DDL 의 vector(N) 과 같은 값이어야 한다 — 두 벌이면 스키마를 바꾼 날 전 배치가 거절된다
+    expect(EMBEDDING_DIMENSIONS).toBe(DIMENSIONS);
   });
 });
 

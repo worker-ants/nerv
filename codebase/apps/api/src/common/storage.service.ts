@@ -65,6 +65,11 @@ export class StorageService implements OnModuleInit {
       publicEndpoint === undefined || publicEndpoint === ''
         ? this.client
         : new S3Client({ ...options, endpoint: publicEndpoint });
+    const warning =
+      publicEndpoint === undefined || publicEndpoint === ''
+        ? null
+        : publicEndpointWarning(publicEndpoint);
+    if (warning !== null) this.logger.warn(warning);
   }
 
   /**
@@ -153,4 +158,31 @@ export class StorageService implements OnModuleInit {
     }
     return this.client;
   }
+}
+
+/**
+ * 공개 S3 주소에 **경로가 있으면 서명이 깨진다**(2026-09-07 · REQ-CB-034).
+ *
+ * presigned URL 은 SigV4 로 canonical URI(`/<버킷>/<키>`)까지 서명한다. 앞문에서 `/s3` 접두를
+ * 벗기면 MinIO 는 `/<버킷>/<키>` 로 서명을 다시 계산해 `SignatureDoesNotMatch` 로 끝나고,
+ * 벗기지 않으면 MinIO 가 그 접두 아래에서 S3 API 를 서빙하지 않는다. 어느 쪽이든 막힌 길이라
+ * 공개 주소는 **별도 호스트**여야 한다 — 문서·배포 산출물이 오래 `https://…/s3` 를 예시로
+ * 걸고 있었고, 그대로 설정한 배치에서 PUT 은 SPA 의 index.html 을 200 으로 받았다.
+ *
+ * 서명을 바꾸지 않고 경고만 내는 이유는 이것이 **설정의 문제**라서다 — 코드가 할 수 있는
+ * 것은 원인을 읽을 수 있게 하는 것뿐이다. 판정만 따로 두는 것은 검사를 위해서다.
+ *
+ * @returns 경고 문구, 문제가 없으면 `null`
+ */
+export function publicEndpointWarning(endpoint: string): string | null {
+  let path: string;
+  try {
+    path = new URL(endpoint).pathname;
+  } catch {
+    // eslint-disable-next-line no-restricted-syntax -- 운영자용 설정 경고다(REQ-CB-022 예외)
+    return 'NERV_S3_PUBLIC_ENDPOINT 를 URL 로 읽을 수 없다 — presigned 주소가 깨진다.';
+  }
+  if (path === '/' || path === '') return null;
+  // eslint-disable-next-line no-restricted-syntax -- 운영자용 설정 경고다(REQ-CB-022 예외)
+  return 'NERV_S3_PUBLIC_ENDPOINT 에 경로가 있다 — presigned 서명은 경로를 포함하므로 접두 프록시 뒤의 S3 는 SignatureDoesNotMatch 로 끝난다(별도 호스트를 쓴다).';
 }

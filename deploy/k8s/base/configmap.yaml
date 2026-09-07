@@ -14,10 +14,15 @@ data:
   NERV_S3_ENDPOINT: 'http://nerv-minio:9000'
   # 에이전트가 받는 presigned PUT 주소 — 클러스터 밖에서 열리는 주소여야 한다.
   # 내부 주소로 서명하면 개발자 장비의 에이전트가 그 호스트를 해소하지 못한다.
-  NERV_S3_PUBLIC_ENDPOINT: 'https://nerv.example.com/s3'
+  # **Ingress 의 경로가 아니라 별도 호스트다**(REQ-CB-034): presigned PUT 은 SigV4 로 경로까지
+  # 서명하므로 `/s3` 접두를 앞문에서 벗기면 서명이 깨지고, MinIO 는 접두 아래에서 S3 API 를
+  # 서빙하지 않는다. 그 호스트의 Ingress/LB 는 조직 S3(또는 MinIO 오버레이) 쪽에서 낸다.
+  NERV_S3_PUBLIC_ENDPOINT: 'https://s3.nerv.example.com'
   NERV_S3_BUCKET: 'nerv-blobs'
   NERV_S3_FORCE_PATH_STYLE: 'true'
   # 임베딩 제공자 프로필(§5.2a) — 자가호스팅이면 http://nerv-embed/v1,
   # 외부 제공자면 그 base URL 로 바꾸고 base/embed/ 를 오버레이에서 제외한다.
   NERV_EMBED_URL: 'http://nerv-embed/v1'
   NERV_EMBED_MODEL: 'bge-m3'
+  # 절단이 필요한 모델(text-embedding-3-*)을 쓰는 오버레이에서 'true'(§5.2a · REQ-CB-033)
+  NERV_EMBED_SEND_DIMENSIONS: 'false'

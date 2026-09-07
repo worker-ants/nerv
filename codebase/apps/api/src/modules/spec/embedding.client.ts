@@ -5,13 +5,14 @@
 // 로컬 ollama · 스테이징 LM Studio · 운영 OpenAI 가 전부 같은 표면을 노출하므로, 코드는
 // 제공자를 모르고 env 3키(URL·MODEL·API_KEY)만 본다. 제공자 교체는 재임베딩이지 배포가 아니다.
 //
-// 차원은 전 프로필 1024 고정이다(REQ-CB-021) — spec_chunk_embedding.embedding vector(1024)와
-// HNSW 인덱스가 차원에 묶이므로, 1024를 내지 못하는 제공자는 프로필로 쓸 수 없다.
+// 차원은 전 프로필 고정이다(REQ-CB-021) — spec_chunk_embedding.embedding vector(N)와
+// HNSW 인덱스가 차원에 묶이므로, 그 값을 내지 못하는 제공자는 프로필로 쓸 수 없다.
+// **그 값의 정본은 `@nerv/schema` 의 `EMBEDDING_DIMENSIONS` 다**(DDL 이 쓰는 바로 그 상수).
+// 여기서 다시 선언하면(2026-09-07 까지 그랬다) 스키마를 바꾼 날 API 의 검사만 옛 값으로
+// 남아 **모든 배치가 거절된다** — 재선언 금지(REQ-CB-006)가 막으려는 것이 그것이다.
 
 import { Logger } from '@nestjs/common';
-
-/** 전 프로필 고정 차원 — 4.3 §2.15 · REQ-CB-021 */
-export const EMBEDDING_DIMENSIONS = 1024;
+import { EMBEDDING_DIMENSIONS } from '@nerv/schema';
 
 /**
  * 기본 타임아웃 — **가장 느린 프로필이 기준이다.**
@@ -28,7 +29,12 @@ export interface EmbeddingClientOptions {
   baseUrl: string;
   model: string;
   apiKey?: string | undefined;
-  /** OpenAI 프로필은 Matryoshka 절단을 위해 dimensions 를 함께 보낸다(§5.2a) */
+  /**
+   * 요청에 `dimensions` 를 실을 것인가 — **env `NERV_EMBED_SEND_DIMENSIONS` 가 정한다**
+   * (§5.2a · REQ-CB-032). 호스트로 추정하지 않는다: 같은 모델이 Azure OpenAI·LiteLLM·사내
+   * 게이트웨이 뒤에 있으면 주소에 `api.openai.com` 이 없고, 그때 절단이 빠지면 1536 차원이
+   * 돌아와 **검색이 조용히 렉시컬로 degrade** 한다.
+   */
   sendDimensions?: boolean;
   timeoutMs?: number;
 }
@@ -115,16 +121,24 @@ export class EmbeddingClient {
     }
   }
 
-  /** env 3키로 프로필을 만든다(§5.2a) — 코드는 제공자를 모른다. */
+  /** env 로 프로필을 만든다(§5.2a) — 코드는 제공자를 모른다. */
   static fromEnv(): EmbeddingClient {
     const baseUrl = process.env['NERV_EMBED_URL'] ?? 'http://localhost:8090/v1';
+    const sendDimensions = process.env['NERV_EMBED_SEND_DIMENSIONS'] === 'true';
+    // **호스트는 판정에 쓰지 않고 경고에만 쓴다.** 추정으로 동작을 가르면 게이트웨이 뒤의
+    // 같은 모델에서 조용히 틀리지만, 대표적인 오설정을 말해 주지 않으면 사람은 검색이
+    // degrade 된 이유를 영영 모른다 — 그 둘은 다른 물음이다.
+    if (!sendDimensions && baseUrl.includes('api.openai.com')) {
+      new Logger(EmbeddingClient.name).warn(
+        // eslint-disable-next-line no-restricted-syntax -- 운영자용 설정 경고다(REQ-CB-022 예외)
+        'NERV_EMBED_SEND_DIMENSIONS 가 켜져 있지 않다 — OpenAI 프로필은 절단이 필요하다(§5.2a).',
+      );
+    }
     return new EmbeddingClient({
       baseUrl,
       model: process.env['NERV_EMBED_MODEL'] ?? 'bge-m3',
       apiKey: process.env['NERV_EMBED_API_KEY'],
-      // OpenAI 는 절단이 필요하다. 판정은 URL 이 아니라 키 존재로 하지 않는다 —
-      // 명시적으로 표시하는 편이 낫지만 env 가 3키뿐이므로 호스트로 추정한다.
-      sendDimensions: baseUrl.includes('api.openai.com'),
+      sendDimensions,
     });
   }
 }
