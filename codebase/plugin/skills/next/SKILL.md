@@ -14,6 +14,10 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_task_claim
   - mcp__nerv__nerv_task_release
   - mcp__plugin_nerv_nerv__nerv_task_release
+  - mcp__nerv__nerv_spec_get
+  - mcp__plugin_nerv_nerv__nerv_spec_get
+  - mcp__nerv__nerv_spec_tree
+  - mcp__plugin_nerv_nerv__nerv_spec_tree
   - mcp__nerv__nerv_question_create
   - mcp__plugin_nerv_nerv__nerv_question_create
   - Bash(nerv-outbox:*)
@@ -32,6 +36,8 @@ allowed-tools:
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
+   - 응답을 `.nerv/cache/context-pack.json` 에 Write 한다 — 서버가 닿지 않을 때 규약과 정책을
+     읽을 유일한 사본이다.
 2. **다른 클레임을 쥐고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
 3. **후보 조회.** `nerv_task_next` — 입력: `project`, `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
@@ -54,6 +60,9 @@ allowed-tools:
    기본값(최신 approved)에 의존하지 않는다. 두 값은 후보 응답에 실려 온다.
    응답에 `basis_superseded`가 있으면 그 사실을 사람에게 보고한다(기준 버전 규약 —
    agent-integration §2.4).
+   - **읽은 본문은 `.nerv/cache/specs/<spec_key>@v<version_no>.md` 에 Write 한다.** 버전을
+     파일 이름에 박는 이유는 그것이 캐시를 안전하게 만들기 때문이다 — 최신으로 읽은 것은
+     캐시하지 않는다(다음에 읽을 때 그 사이 바뀌었을 수 있고, 파일 이름은 그것을 말하지 못한다).
    - **후보에 `baseline`이 실려 있으면 주변 문서도 그 세트로 읽는다** —
      `nerv_spec_get`(`spec_id=<참조할 스펙>`, `baseline=<그 이름>`). 기준 버전은 이 문서
      하나의 버전이고, 기준선은 **그 문서가 참조하는 문서들까지 포함한 세트**다. 세트 없이
@@ -75,7 +84,7 @@ allowed-tools:
 | NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 재로그인·토큰 재발급을 사람에게 안내. 권한 확대를 시도하지 않는다 |
 | NERV_CONFLICT_SCOPE | 다음 후보로 이동, 없으면 nerv_question_create |
 | NERV_RATE_LIMIT | retry_after_s 준수. 병렬 재시도로 우회하지 않는다 |
-| NERV_UNAVAILABLE | 읽기는 .nerv/cache/ 폴백, 쓰기는 .nerv/outbox/에 멱등 키로 큐잉. 신규 클레임은 발급하지 않는다 |
+| NERV_UNAVAILABLE | 읽기는 `.nerv/cache/context-pack.json`(마지막 bootstrap)과 `.nerv/cache/specs/` 의 기준 버전 스냅샷을 Read 한다. 쓰기는 .nerv/outbox/에 멱등 키로 큐잉. 신규 클레임은 발급하지 않는다 |
 
 **응답에 `ignored_args`가 있으면 내가 보낸 인자 중 서버가 모르는 것이 있다는 뜻이다**(호출은
 성공했다). 그 인자에 기대고 있었다면 기대한 일은 일어나지 않았다 — 이름을 확인하고, 필요한

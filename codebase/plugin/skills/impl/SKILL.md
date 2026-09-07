@@ -16,6 +16,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_task_create
   - mcp__nerv__nerv_task_release
   - mcp__plugin_nerv_nerv__nerv_task_release
+  - mcp__nerv__nerv_spec_get
+  - mcp__plugin_nerv_nerv__nerv_spec_get
   - mcp__nerv__nerv_question_create
   - mcp__plugin_nerv_nerv__nerv_question_create
   - Bash(nerv-outbox:*)
@@ -44,18 +46,27 @@ allowed-tools:
     지적을 접으라는 뜻이면 `nerv_finding_resolve`(`dismissed`)로 닫고, 고치라는 뜻이면
     그 자리에서 고쳐 `fixed` + 커밋으로 닫는다. **읽고 아무것도 하지 않는 것이 가장 나쁘다** —
     사람은 답을 기다리고 있다.
+  - `approval_decided`(내가 낸 검토 요청·critical 하향 카드에 사람이 결정했다 — `approval_id`·
+    `subject_type`·`decision`·`decided_by`·`comment_md` 가 함께 온다) → `subject_type` 으로 갈린다.
+    `finding` 이고 `approve` 면 막혔던 `nerv_finding_resolve` 를 **같은 인자로** 다시 부른다.
+    `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다 — 우회하지 않는다.
+    `spec_version` 이면 결과를 보고한다(`approve` 는 approved, `reject` 는 draft 로 복귀했다는 뜻).
+    **같은 결재는 1시간 동안 매 하트비트에 다시 온다** — `approval_id` 로 한 번만 처리한다.
   - steer 지시 → 지시를 다음 행동에 즉시 반영.
   - stop 지시 → 현재 편집을 안전 지점까지 마무리하고
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.
   - `basis_superseded`(기준 버전이 밀려났다 — `spec_key`·`basis_version_no`·`latest_version_no`
     가 함께 온다) → **임의로 최신 버전으로 갈아타지 않는다.** `nerv_spec_get`(`spec_id`,
     `version=<latest_version_no>`)로 새 버전을 읽어 내 Requirement 가 MODIFIED/REMOVED 인지 본다.
+    읽은 본문은 `.nerv/cache/specs/<spec_key>@v<latest_version_no>.md` 에도 Write 한다.
     그렇다면 `nerv_task_update`(`status=blocked`, `blocked_reason=spec_conflict`) 또는
     /nerv:question 으로 확인을 구하고, 아니면 기준 버전대로 계속 진행하며 사람의 재브리핑을
     기다린다(agent-integration §2.4). **이 항목은 사라지지 않는다** — 전달되면 끝나는 답변과
     달리 기준 드리프트는 사람이 재브리핑할 때까지 남는 **상태**라 매 하트비트에 다시 온다.
-- 응답 요약(`task_id` · `status` · `lease_expires_at` · `scope_overlaps`)을
-  `.nerv/cache/claim.json`에 **응답의 키 이름 그대로** 기록한다 — statusline이 이 파일만 읽는다.
+- statusline 이 읽을 요약을 `.nerv/cache/claim.json` 에 **응답의 키 이름 그대로** 기록한다.
+  값의 출처가 응답마다 다르다: `task_id`·`claim_id` 는 **클레임 응답**에서, `status` 는 마지막
+  `nerv_task_update` 응답에서, `lease_expires_at`·`scope_overlaps` 는 **하트비트 응답**에서 —
+  하트비트 응답에는 `task_id` 도 `status` 도 없다.
   `scope_overlaps`는 **지금** 내 범위와 겹치는 활성 클레임 수(block·warn)다. 클레임 응답의
   겹침은 *잡던 순간*의 사실이므로 그것을 캐시에 박아 두지 않는다 — 겹침은 뒤에 생긴다.
 - 리스 TTL은 30분(하트비트 30회분 여유)이다. 일시적 네트워크 실패로 하트비트가 몇 번
@@ -121,9 +132,9 @@ allowed-tools:
 | --- | --- |
 | NERV_LEASE_EXPIRED | 리스 만료 후 쓰기 시도 — 재클레임을 1회 시도하고, 실패하면 산출물(커밋·노트)만 제출하고 종료한다 |
 | NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지 |
-| NERV_APPROVAL_REQUIRED | 승인 대기 — 폴링, 그동안 다른 작업 금지 |
+| NERV_APPROVAL_REQUIRED | 재시도하지 않는다. `approval_id` 와 함께 사람에게 보고하고 멈춘다 — 결정은 하트비트 `pending` 의 `approval_decided` 로 온다(승인을 읽는 도구는 없다). 그동안 새 작업을 클레임하지 않는다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
-| NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉. 신규 클레임 발급 금지 |
+| NERV_UNAVAILABLE | 읽기는 `.nerv/cache/context-pack.json`(마지막 bootstrap)과 `.nerv/cache/specs/` 의 기준 버전 스냅샷을 Read 한다. 쓰기는 .nerv/outbox/ 멱등 큐잉. 신규 클레임 발급 금지 |
 
 **응답에 `ignored_args`가 있으면 내가 보낸 인자 중 서버가 모르는 것이 있다는 뜻이다**(호출은
 성공했다). 그 인자에 기대고 있었다면 기대한 일은 일어나지 않았다 — 이름을 확인하고, 필요한

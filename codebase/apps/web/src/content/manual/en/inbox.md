@@ -24,7 +24,7 @@ When an agent hits something it must not decide on its own, it **stops** and ask
 
 Answering **wakes the session immediately.**
 
-**Not every question stops an agent.** There are two urgencies (`blocking` and `normal`); only `blocking` halts the session, while `normal` keeps going while it waits. The card does not show which one it is, so to see who is actually standing still, look for `awaiting_input` on the **sessions** screen.
+**Not every question stops an agent.** There are two urgencies (`blocking` and `normal`); only `blocking` halts the session, while `normal` keeps going while it waits. The card does not show which one it is, so to see who is actually standing still, look for `awaiting_input` on the **sessions** screen. **Review requests and `critical` downgrades raised by an agent park a session in the same way** — decide, and that session gets the result on its next heartbeat.
 
 ## Deciding
 

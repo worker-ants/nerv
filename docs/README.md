@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v2.80 · 2026-09-07 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v2.81 · 2026-09-07 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v2.81 변경(2026-09-07 — 둘째 스프린트 ⑥, 사람 지시): **플러그인 0.2.19.** 스킬이 지시하는 것과 서버·패키지가 실제로 하는 것을 여덟 자리에서 다시 맞췄다 — 허용 목록에 없는 도구를 부르게 해 헤드리스에서 거부되던 자리 셋, 존재하지 않는 승인 폴링을 가르치던 자리 셋(이제 하트비트 `approval_decided` 로 통일), 약속만 하고 아무도 쓰지 않던 오프라인 캐시 파일 둘, 하트비트 응답에 없는 값을 캐시에 적으라던 문장, 404 로 삼켜지던 Codex `notify`, 실행되지 않는 관리형 statusline 경로([4.6](04-mvp/plugin.md) v0.62).
 >
 > v2.80 변경(2026-09-07 — 둘째 스프린트 ⑤, 사람 지시): **REQ-API-133~135 신설.** A3 승인을 기다리던 에이전트는 승인이 나도 **영영 듣지 못했다** — 서버→세션 방향의 보장 채널은 하트비트 하나인데 결재 결정이 거기 실리지 않았고, `NERV_APPROVAL_REQUIRED` 는 "하트비트로 확인하라" 고 말하면서 그 결과를 싣지 않았다. 이제 `approval_decided` 가 역채널을 타고, 사람을 기다리는 세션(T2·T3 제출 · critical 하향 · 플랜 승인)은 `awaiting_input` 으로 서며 결정이 나면 깨어난다 — 다른 대기 사유가 남아 있으면 깨우지 않는다. 답변에는 누가 언제 정했는지를 함께 싣는다([4.4](04-mvp/api.md) v1.11 · [3.4](03-proposal/agent-integration.md) v0.29).
 >
@@ -376,9 +378,9 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.38` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v1.11` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v0.85` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.61` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.62` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.21` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v0.32` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v0.33` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

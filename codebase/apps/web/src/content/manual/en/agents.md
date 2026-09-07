@@ -41,7 +41,7 @@ Every tool carries a risk tier.
 
 - **A1** — reads. Called without approval.
 - **A2** — writes, within a reversible range.
-- **A3** — **requires human approval.** Requesting review (`nerv_spec_submit_review`) and lowering a `critical` live here. A3 tools appear on no skill's pre-approved list.
+- **A3** — **requires human approval.** Requesting review (`nerv_spec_submit_review`) and lowering a `critical` live here. A3 tools appear on no skill's pre-approved list. **The decision comes back on the requesting session's next heartbeat** — approve, reject or comment alike, so that session knows what to do next.
 
 ## Importing documents
 

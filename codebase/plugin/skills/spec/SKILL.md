@@ -177,8 +177,11 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 ### submit — 검토 요청 (A3 · 사람 승인 필수)
 1. 먼저 check를 돌려 block이 없음을 확인한다.
 2. `nerv_spec_submit_review`(`spec_version_id`)를 호출한다. 이 도구는 allowed-tools에 없다 — **매 호출 사람 승인을 거치는 것이 정상이다.**
-   승인 대기(`NERV_APPROVAL_REQUIRED`)면 `approval_id`로 상태를 폴링하고,
-   그동안 다른 작업을 시작하지 않는다.
+   **성공 응답이 `status: in_review` 와 `approval_id`·`web_url`(받은 요청)이다** — 이 도구는
+   `NERV_APPROVAL_REQUIRED` 를 내지 않는다. 결정을 기다리는 동안 이 세션은 `awaiting_input`
+   이고, 결과는 두 길로 온다: /nerv:impl 루프 중이면 하트비트 `pending` 의 `approval_decided`,
+   아니면 `nerv_spec_get`(`spec_id`)의 `status`(approved 또는 draft 로 복귀). 승인을 읽는
+   도구는 없다. 그동안 다른 작업을 시작하지 않는다.
 3. 성공 응답의 `web_url`을 터미널에 표시한다. 같은 `spec_version_id` 재호출은 기존
    pending Approval을 재사용하므로 받은 요청 카드가 중복 생성되지 않는다.
 
@@ -189,7 +192,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문과 web_url 이 온다 |
 | NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 안 실었다 — nerv_spec_get 의 `content_hash` 를 실어 다시 부른다 |
 | NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
-| NERV_APPROVAL_REQUIRED | 승인 대기 진입 — approval_id 폴링, 그동안 다른 작업 금지 |
+| NERV_APPROVAL_REQUIRED | 이 스킬의 도구는 내지 않는다 — 오면 `approval_id` 를 사람에게 보고하고 멈춘다 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
 | NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉. **단 `details.kind` 가 `storage_unconfigured` 면 큐잉하지 않는다** — 서버에 스토리지 설정이 없다는 뜻이라 재시도로 풀리지 않는다. `details.missing` 의 환경변수를 사람에게 그대로 전한다 |
