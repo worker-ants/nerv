@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.42 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.43 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.43 변경(2026-09-07 — 넷째 스프린트 ②): §1.4 셋째 표에 **MCP 비신뢰 래핑 실물** 한 줄([4.4](api.md) REQ-API-153). 어느 스토리도 서버 래핑을 소유하지 않았다 — 도구의 존재(E03-S03)와 스킬의 문장(E12-S01)만 세어져 있었다.
 >
 > v0.42 변경(2026-09-07 — 넷째 스프린트 ①): §1.4 셋째 표에 **slug 해소의 조직 경계** 한 줄([4.4](api.md) REQ-API-152). E03-S02 의 '들어온 것' 에 EP-TOK-02 의 `org` 를 적는다.
 >
@@ -194,6 +196,7 @@ referenced_by:
 | done 게이트 정책 · 리뷰 링크 | `zod/policy.ts`(`done_gate`) · `task.service.ts`(`assertDoneGate`) · `evidence-locator.ts`(신설) · `review.service.ts`(활성 클레임에서 task_id) | 게이트가 자기 신고 문자열 1건으로 열렸고 리뷰 1,992건 중 Task 링크가 2건이었다(2026-09-07 · [4.4](api.md) REQ-API-146~148) |
 | 알림 등급·수신자 | `notification.service.ts`(등급 필터·둘로 세기·owner_role 수신자) · `event.controller.ts` · `app-shell.tsx`·`routes/notifications.tsx` | 배지가 배경 활동까지 세어 결정 99건이 767건에 묻혔다(2026-09-07 · [4.4](api.md) REQ-API-149·150) |
 | 권한·토큰의 감사 | `event/event-core.module.ts`(신설) · `auth.service.ts`·`invitation.service.ts`·`attachment.service.ts` · `events.ts` | FR-16 이 요구하는 축이 멤버십·토큰·프로젝트 변경에서 비어 있었다(2026-09-07 · [4.4](api.md) REQ-API-151) |
+| MCP 비신뢰 래핑 실물 | `mcp/untrusted.ts`(신설) · `spec.tools.ts` · `question.tools.ts` · `task.tools.ts` · `spec.service.ts`(포장 거절) | 문서 세 곳과 스킬 다섯이 2026-08 부터 "경계 안에 온다" 고 적었고 **서버에는 없었다** — E03-S03 은 도구의 존재만 세고 E12-S01 은 스킬 문장만 센다([4.4](api.md) REQ-API-153) |
 | slug 해소의 조직 경계 | `auth.service.ts`(`resolveProject(slug, prefer)`) · `common/project-access.guard.ts`(`orgQualifier`) · `sse-access.guard.ts` · `webhook.controller.ts` · `auth.controller.ts` · `web/src/lib/last-org.ts`(신설) | 유일 제약은 `(org_id, slug)` 인데 해소는 첫 행을 골랐다 — 두 번째 조직 사람은 자기 프로젝트에서 403 을 봤고, 웹훅은 막히지도 않고 남의 프로젝트에 증적을 붙였다([4.4](api.md) REQ-API-152) |
 | 자라는 목록의 커서 | `session.service.ts` · `event.service.ts` | activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120) |
 

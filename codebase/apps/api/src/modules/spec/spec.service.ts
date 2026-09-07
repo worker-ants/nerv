@@ -29,6 +29,7 @@ import {
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { evidenceExistsSql } from './impl-status.js';
+import { isWrappedBody } from '../../mcp/untrusted.js';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
@@ -653,6 +654,17 @@ export class SpecService {
   }
 
   async draftUpsert(input: DraftUpsertInput): Promise<Record<string, unknown>> {
+    // **포장은 본문이 아니다**(REQ-API-153). 편집 절차가 `nerv_spec_get` → 고침 → upsert 라,
+    // MCP 가 씌운 비신뢰 경계를 벗기지 않고 그대로 보내면 본문에 태그가 박제된다. 조용히
+    // 벗기지 않는 것은 결정이다(§1.4e) — 벗기면 "경계 안에 무엇을 넣어도 저장된다" 가 되고,
+    // 그때부터 그 경계는 아무것도 뜻하지 않는다. REST(EP-SPEC-08)도 같은 판정을 지난다(D-05).
+    if (input.bodyMd !== undefined && isWrappedBody(input.bodyMd)) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.wrapped_body'), {
+        kind: 'invalid_input',
+        field: 'body_md',
+        reason: 'wrapped_body',
+      });
+    }
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
     const specTypeValue =
       input.type === undefined ? null : assertVocab([input.type], specType.enumValues, 'type')[0];

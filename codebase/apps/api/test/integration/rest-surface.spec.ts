@@ -1664,6 +1664,18 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     expect((withTasks.body as Record<string, unknown>)['tasks']).toEqual(expect.any(Array));
   });
 
+  /**
+   * **경계는 MCP 표면의 것이다**(REQ-API-153 · api.md §4). REST 는 웹이 읽고 화면이 그린다 —
+   * 여기에 태그가 실리면 사람이 본문에서 그것을 본다.
+   */
+  it('EP-SPEC-03 — REST 본문은 감싸이지 않는다', async () => {
+    const res = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS');
+    expect(res.status).toBe(200);
+    const body = String((res.body as Record<string, unknown>)['body_md']);
+    expect(body.startsWith('# 본문')).toBe(true);
+    expect(body).not.toContain('nerv:spec');
+  });
+
   it('EP-SPEC-05 — 버전 스냅샷은 같은 번호에 같은 응답이다', async () => {
     const res = await call('GET', '/api/v1/projects/clemvion/specs/SPC-PATHS/versions/1');
     expect(res.status).toBe(200);

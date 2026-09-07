@@ -1,8 +1,10 @@
 // MCP — nerv_question_create. 사람의 답변(EP-QST-02)은 REST 전용이다(api.md §4).
 import { Injectable } from '@nestjs/common';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
+import { wrapText } from '../../mcp/untrusted.js';
 import { requireSession } from '../session/session.tools.js';
 import { QuestionService } from './question.service.js';
+import type { QuestionResult } from './question.service.js';
 
 /**
  * `blocking` 과 `urgency` 는 **같은 축이다**(data-model §2.7 — 질문의 열은 `urgency` 하나다).
@@ -65,7 +67,7 @@ export class QuestionTools implements NervToolProvider {
           task_id?: string;
           finding_id?: string;
         };
-        return this.questions.create({
+        const result = await this.questions.create({
           projectId: ctx.projectId,
           sessionId: requireSession(ctx),
           title: String(input['question'] ?? ''),
@@ -80,6 +82,9 @@ export class QuestionTools implements NervToolProvider {
             : {}),
           idempotencyKey: ctx.idempotencyKey,
         });
+        // **답변도 사람이 쓴 텍스트다**(REQ-API-153). 이 도구는 long-poll 이라 답이 여기로
+        // 돌아온다 — 하트비트 역채널만 감싸면 반대 경로가 그대로 구멍이다.
+        return wrapAnswer(result);
       },
     },
     {
@@ -115,4 +120,19 @@ export class QuestionTools implements NervToolProvider {
         }),
     },
   ];
+}
+
+/**
+ * 질문 응답의 `answer_md` 를 비신뢰 경계로 감싼다(REQ-API-153).
+ *
+ * `answer_key`(고른 선택지)는 감싸지 않는다 — 그것은 우리가 준 목록에서 고른 값이지 사람이
+ * 쓴 글이 아니다. 답변자·시각도 서버가 적은 사실이다.
+ */
+function wrapAnswer(result: QuestionResult): QuestionResult {
+  return result.answer_md === null
+    ? result
+    : {
+        ...result,
+        answer_md: wrapText('answer', result.answer_md, { question_id: result.question_id }),
+      };
 }
