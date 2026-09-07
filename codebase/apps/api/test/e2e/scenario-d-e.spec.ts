@@ -179,12 +179,26 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
     });
 
     if (submitted.status === 'in_review') {
-      // T2·T3 — 사람 승인. **지시자≠승인자**라 다른 사람이 눌러야 한다
-      await specs.approve({
-        projectId: stack.projectId,
-        specVersionId: versionId,
-        approverUserId: reviewer,
-      });
+      // T2·T3 — 사람 승인. **지시자≠승인자**라 다른 사람이 눌러야 하고, 문은 결재 카드
+      // 하나다(2026-09-07 · `SpecService.approve` 는 두 번째 구현이라 지웠다).
+      const { ApprovalService } = await import('../../src/modules/approval/approval.service.js');
+      const approvals = stack.app.get(ApprovalService);
+      for (;;) {
+        const { rows: slots } = await stack.pool.query<{ id: string }>(
+          `SELECT id FROM approval WHERE subject_id = $1 AND decision IS NULL
+            ORDER BY assignee_role NULLS FIRST LIMIT 1`,
+          [versionId],
+        );
+        const card = slots[0];
+        if (card === undefined) break;
+        await approvals.decide({
+          actor: { userId: reviewer, isAgent: false },
+          projectId: stack.projectId,
+          approvalId: card.id,
+          userId: reviewer,
+          decision: 'approve',
+        });
+      }
     }
 
     const { rows: approved } = await stack.pool.query<{ status: string }>(

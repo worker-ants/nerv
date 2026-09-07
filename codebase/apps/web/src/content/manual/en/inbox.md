@@ -28,18 +28,20 @@ Answering **wakes the session immediately.**
 
 ## Deciding
 
-**Only admins and planners can decide.** The card is visible to every project member, but approving and rejecting belong to those two — the server refuses anyone else. **Answering a question**, on the other hand, is open to anyone who can read.
+**The default queue is admins and planners.** On top of that, when a card names a **discipline** (the second approver on a T3 document — designer for `design`, qa for `feature`, developer for `convention` and `adr`), that discipline decides it too. **Answering a question**, by contrast, is open to anyone who can read.
+
+**The inbox only shows what is waiting on you.** Cards used to be visible to every member, which made them read as your own work even without the right to decide — now they reach the assignee, that discipline, the default queue and admins.
 
 An approval card offers three things: **approve, reject, comment**. **A rejection requires a reason** — without one the requester cannot tell what to do next. A comment does not force one, though for the same reason it is better to give one.
 
 **A question card is different** — it has one button, [Send answer], and `a` and `r` do nothing there.
 
-**You usually cannot approve your own request.** On such a card the approve button does not open. What this guards against is **an agent passing its own output**, so there are two exceptions.
+**What is yours is usually not yours to approve.** A card is yours in any of three ways: you **requested** it, you **wrote** the draft, or **your session** wrote it. Having someone else submit it changes nothing: what this guards against is **passing your own work through yourself**, and looking only at the requester lets one favour walk around that. Two exceptions:
 
 - **admin** — a human admin signing their own judgement is a different act. An org-level admin counts too.
-- **A project with fewer than two members** — without this path, **no approval would ever finish** in a solo project.
+- **When nobody else can approve that card** — without this path, **no approval would ever finish** in a solo project. What is counted is not members but **people who could decide**.
 
-Both exceptions are written to the audit trail. Whether the button opens is decided by the server and carried on the card, so the screen does not judge it separately.
+Both exceptions are written to the audit trail (including which of the three ways made it yours). Whether the button opens is decided by the server and carried on the card, so the screen does not judge it again — **and when it is locked, the card says why.**
 
 **Reject and comment are open to the requester too.** Only approval is held back. And **leaving a comment returns the document to draft** — that is what makes it fixable and resubmittable.
 

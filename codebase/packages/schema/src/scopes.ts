@@ -155,3 +155,43 @@ export function canCreateSpecType(roles: readonly string[], type: string): boole
     return allowed === undefined ? false : allowed === null || allowed.includes(type);
   });
 }
+
+/**
+ * 그 권한을 가진 역할 목록 — **역할 큐의 정본**(2026-09-07 · REQ-API-136).
+ *
+ * `approval:decide` 큐가 코드 두 곳에 하드코딩돼 있었다(`approval.service` 의 주석은
+ * "역할 큐 목록을 여기 다시 적지 않는다" 고 적어 두고, `notification.service` 는
+ * `role IN ('admin','planner')` 를 적고 있었다). 목록이 두 벌이면 한쪽만 고쳐진다 —
+ * `ROLE_SCOPES` 에서 파생해 한 벌로 만든다.
+ */
+export function rolesWithScope(scope: RoleScope): string[] {
+  return Object.entries(ROLE_SCOPES)
+    .filter(([, scopes]) => scopes.includes(scope))
+    .map(([role]) => role);
+}
+
+/**
+ * **스펙 타입별 둘째 승인자의 직군**(2026-09-07 · REQ-API-138).
+ *
+ * 정본은 [1.6 역할과 권한 매트릭스](../../../../docs/01-problem/pain-points.md) 의 "스펙/CR
+ * 승인·거절" 행이다 — 그 행의 ○ 는 **"지정 시"** 라는 뜻이지 전역 권한이 아니다. 그래서
+ * `ROLE_SCOPES` 를 넓히지 않고 결재 행의 슬롯(`approval.assignee_role`)으로 실현한다:
+ * designer 가 지정 없이 모든 design 문서를 결재하게 되면 ○ 가 ● 로 바뀌는 것이고,
+ * 그것은 매트릭스를 고치는 결정이지 구현이 아니다.
+ */
+export const SPEC_APPROVER_ROLES: Readonly<Record<string, string>> = {
+  vision: 'admin',
+  area: 'planner',
+  feature: 'qa',
+  design: 'designer',
+  convention: 'developer',
+  adr: 'developer',
+};
+
+/**
+ * **검토 요청(in_review 제출)을 할 수 있는 역할** — 작성자 본인은 역할과 무관하게 할 수 있다.
+ *
+ * 매트릭스의 "in_review 제출" ● 열이다. 이 문이 없던 동안 아무나 남의 초안을 제출할 수
+ * 있었고, 그러면 **작성자가 자기 초안을 승인**할 수 있었다(요청자만 비교했기 때문이다).
+ */
+export const SPEC_SUBMIT_ROLES = ['admin', 'planner'] as const;

@@ -125,6 +125,32 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
     typeof card['can_approve'] === 'boolean'
       ? card['can_approve']
       : card['self_requested'] !== true;
+  /**
+   * **왜 못 누르는가**(2026-09-07 · REQ-WEB-145). 서버가 이유를 함께 준다 —
+   * 화면은 그것을 문장으로 바꾸기만 한다. 이유 없는 잠긴 단추는 고장 난 화면으로 읽힌다.
+   */
+  const lockReason = ((): string | null => {
+    if (canApprove || isQuestion) return null;
+    const reason = card['can_approve_reason'];
+    switch (reason) {
+      case 'author':
+        return t('inbox.card.cannot_approve.author');
+      case 'session_owner':
+        return t('inbox.card.cannot_approve.session_owner');
+      case 'missing_role':
+      case 'not_in_role_queue':
+        return t('inbox.card.cannot_approve.missing_role');
+      case 'already_approved':
+        return t('inbox.card.cannot_approve.already_approved');
+      case 'not_assignee':
+        return t('inbox.card.cannot_approve.not_assignee');
+      case 'self_requested':
+        return t('inbox.card.self_requested');
+      default:
+        // 서버가 이유를 주지 않는 옛 응답 — 예전 문구로 물러선다
+        return card['self_requested'] === true ? t('inbox.card.self_requested') : null;
+    }
+  })();
   const id = String(card['id']);
   const context = questionContext(card);
   // 선택지는 서버가 jsonb 로 준다 — 배열이 아니면 없는 것으로 본다(카드 하나가 목록을 죽이지 않게)
@@ -438,7 +464,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
       {/* **판정은 서버가 한다**(`can_approve`) — 완화가 둘로 늘면서(소규모·admin) 화면이
           규칙을 다시 구현하면 두 벌이 되고, 두 벌이 되면 언젠가 한쪽만 고친다.
           내가 요청한 것인데 승인도 가능하면 그 사실만 조용히 적는다(admin 이 그 자리다). */}
-      {card['self_requested'] === true && !isQuestion && (
+      {!isQuestion && (card['self_requested'] === true || lockReason !== null) && (
         <p
           data-testid="self-requested-note"
           className={cn(
@@ -448,7 +474,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
               : 'bg-status-waiting-soft text-status-waiting',
           )}
         >
-          {canApprove ? t('inbox.card.self_requested_admin') : t('inbox.card.self_requested')}
+          {canApprove ? t('inbox.card.self_requested_admin') : lockReason}
         </p>
       )}
 
@@ -479,7 +505,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
                 data-testid="approve"
                 disabled={decide.isPending || !canApprove}
                 onClick={() => decide.mutate('approve')}
-                title={canApprove ? undefined : t('inbox.card.self_requested_title')}
+                title={canApprove ? undefined : (lockReason ?? undefined)}
               >
                 {t('inbox.key.approve')}
               </Button>

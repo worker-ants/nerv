@@ -17,6 +17,7 @@ import {
 } from '@nerv/schema';
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
+import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { InjectDb } from '../../common/database.module.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
@@ -285,7 +286,11 @@ export class NotificationService {
   }
 
   /**
-   * 지정이 없을 때의 기본 수신자 — **그 조직의** 프로젝트 admin·planner(REQ-API-125).
+   * 지정이 없을 때의 기본 수신자 — **그 조직의** `approval:decide` 보유 역할(REQ-API-125·136).
+   *
+   * 목록을 여기 적지 않는다(2026-09-07). `('admin','planner')` 를 하드코딩하고 있었는데
+   * 바로 옆 `approval.service` 의 주석은 "역할 큐 목록을 여기 다시 적지 않는다" 고 적어
+   * 두고 있었다 — 두 벌이면 역할이 늘 때 한쪽만 고쳐지고, 그때 새 역할은 알림을 못 받는다.
    *
    * 조직 단위 멤버십(`project_id IS NULL`)은 조직을 함께 봐야 한다 — 보지 않으면 A 조직의
    * planner 가 B 조직 프로젝트의 알림을 받는다(FR-14 의 경계가 여기서 샜다).
@@ -299,7 +304,10 @@ export class NotificationService {
         JOIN project p ON p.id = ${event.project_id}
        WHERE m.org_id = p.org_id
          AND (m.project_id = p.id OR m.project_id IS NULL)
-         AND m.role IN ('admin', 'planner')
+         AND m.role::text IN (${sql.join(
+           DECIDER_ROLES.map((r) => sql`${r}`),
+           sql`, `,
+         )})
          ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
     `);
     return rows.map((r) => r.user_id);

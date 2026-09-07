@@ -189,3 +189,47 @@ describe('질문의 선택지는 누를 수 있어야 한다', () => {
     expect(screen.queryByTestId('question-options')).toBeNull();
   });
 });
+
+/**
+ * **잠긴 단추에는 이유가 있어야 한다**(2026-09-07 · REQ-WEB-145 · screens §1.5).
+ * 서버가 `can_approve_reason` 을 주고 화면은 그것을 문장으로 바꾼다 — 화면이 규칙을 다시
+ * 구현하면 두 벌이 되고, 두 벌이 되면 잠긴 단추와 서버의 답이 갈라진다.
+ */
+describe('REQ-WEB-145 — 못 누르는 이유를 말한다', () => {
+  const locked = (reason: string): Record<string, unknown> => ({
+    ...APPROVAL,
+    can_approve: false,
+    can_approve_reason: reason,
+  });
+
+  it('내가 쓴 초안이면 그렇게 말한다 — 요청자 문구가 아니다', () => {
+    renderCard(locked('author'));
+    expect(screen.getByTestId('self-requested-note').textContent).toContain('내가 쓴 초안');
+    const approve = screen.getByTestId('approve') as HTMLButtonElement;
+    expect(approve.disabled).toBe(true);
+    expect(approve.title).toContain('내가 쓴 초안');
+  });
+
+  it('내 세션이 쓴 초안이면 그렇게 말한다', () => {
+    renderCard(locked('session_owner'));
+    expect(screen.getByTestId('self-requested-note').textContent).toContain('내 세션이 쓴 초안');
+  });
+
+  it('역할이 아니면 역할 이야기를 한다 — 자기 요청 문구를 보이지 않는다', () => {
+    renderCard(locked('missing_role'));
+    const note = screen.getByTestId('self-requested-note').textContent ?? '';
+    expect(note).toContain('역할');
+    expect(note).not.toContain('요청한');
+  });
+
+  it('이미 승인했으면 둘째 승인이 남의 몫임을 말한다', () => {
+    renderCard(locked('already_approved'));
+    expect(screen.getByTestId('self-requested-note').textContent).toContain('이미 승인');
+  });
+
+  it('누를 수 있으면 잠금 문구가 없다', () => {
+    renderCard({ ...APPROVAL, can_approve: true, can_approve_reason: null });
+    expect(screen.queryByTestId('self-requested-note')).toBeNull();
+    expect((screen.getByTestId('approve') as HTMLButtonElement).disabled).toBe(false);
+  });
+});

@@ -104,7 +104,9 @@ If the result holds even one **block**, [Request review] is locked. The server r
 
 **Requesting review does not always reach a person.** A gate grades the document, and at the low grades (T0, T1) it goes **straight to `approved`** with no approval step — the screen says the gate passed. A card appears in the inbox at T2 and T3 (grades are in the [settings](/help/settings) chapter).
 
-When a person does decide, authors cannot approve their own specs — **except in a project with fewer than two members.** Being unable to move at all in a project you work alone in is worse, and anything that passes that way is recorded in the audit log.
+When a person does decide, authors cannot approve their own specs — **except when nobody else could approve that document.** Being unable to move at all in a project you work alone in is worse, and anything that passes that way is recorded in the audit log.
+
+**Submitting for review is for the author, a planner or an admin.** Having someone else submit it makes them the requester, but the author still cannot approve it — the server looks at all three: requester, author, and the owner of the session that wrote it.
 
 To start the next version from an approved document, press **New draft** in the document header.
 

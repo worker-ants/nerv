@@ -20,6 +20,7 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   newId,
+  SPEC_SUBMIT_ROLES,
   specType,
   specVersionStatus,
   text,
@@ -954,6 +955,8 @@ export class SpecService {
     specVersionId: string;
     userId: string;
     sessionId?: string | null;
+    /** 제출 권한의 축 — 표면이 실어 준다(2026-09-07 · REQ-API-139) */
+    roles?: readonly string[];
   }): Promise<{
     status: string;
     gate: GateDecision;
@@ -967,8 +970,10 @@ export class SpecService {
         spec_id: string;
         status: string;
         spec_type: string;
+        author_user_id: string;
       }>(sql`
-        SELECT sv.id, sv.spec_id, sv.status::text AS status, s.type::text AS spec_type
+        SELECT sv.id, sv.spec_id, sv.status::text AS status, s.type::text AS spec_type,
+               sv.author_user_id
           FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
          WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
          FOR UPDATE OF sv
@@ -988,6 +993,22 @@ export class SpecService {
             status: version.status,
           },
         );
+      }
+
+      // **제출은 작성자 본인 또는 planner·admin 이다**(2026-09-07 · REQ-API-139).
+      //
+      // 이 문이 없던 동안 아무나 남의 초안을 제출할 수 있었고, 그것이 지시자≠승인자 규칙의
+      // 구멍이었다: 남이 제출해 주면 요청자는 그 남이 되고 **작성자는 자기 초안을 승인**할
+      // 수 있었다. 세 축 판정(REQ-API-136)이 그 뒷문을 닫았고, 이 문은 앞문을 닫는다.
+      if (
+        version.author_user_id !== input.userId &&
+        !(input.roles ?? []).some((r) => (SPEC_SUBMIT_ROLES as readonly string[]).includes(r))
+      ) {
+        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.spec.submit_not_author'), {
+          kind: 'not_author',
+          author_user_id: version.author_user_id,
+          allowed_roles: SPEC_SUBMIT_ROLES,
+        });
       }
 
       // 사전 검토 — block 이 있으면 제출 자체가 막힌다(§1.2 전이 가드).
@@ -1092,56 +1113,6 @@ export class SpecService {
   }
 
   /**
-   * 승인 — **사람 전용**이다(A4). 지시자≠승인자를 여기서 강제한다(D-06 · §2.3).
-   * 소규모 완화(멤버 2인 미만이면 차단 대신 감사 이벤트)는 정본이 정한 예외다.
-   */
-  async approve(input: {
-    projectId: string;
-    specVersionId: string;
-    approverUserId: string;
-  }): Promise<{ status: string }> {
-    return this.events.transact(async (tx, emit) => {
-      const { rows } = await tx.execute<{
-        spec_id: string;
-        status: string;
-        author_user_id: string;
-        spec_type: string;
-      }>(sql`
-        SELECT sv.spec_id, sv.status::text AS status, sv.author_user_id, s.type::text AS spec_type
-          FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
-         WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
-         FOR UPDATE OF sv
-      `);
-      const version = rows[0];
-      if (version === undefined || version.status !== 'in_review') {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_in_review'), {
-          kind: 'not_in_review',
-          status: version?.status ?? null,
-        });
-      }
-
-      await this.assertDifferentApprover(tx, input, version.author_user_id);
-
-      const gate = await this.assessGate(
-        tx,
-        input.projectId,
-        version.spec_id,
-        version.spec_type,
-        input.specVersionId,
-      );
-      await this.approveInTx(tx, emit, {
-        projectId: input.projectId,
-        specVersionId: input.specVersionId,
-        specId: version.spec_id,
-        approverUserId: input.approverUserId,
-        actor: { userId: input.approverUserId, sessionId: null, isAgent: false },
-        gate,
-      });
-      return { status: 'approved' };
-    });
-  }
-
-  /**
    * 받은편지함의 결정이 부르는 자리 — **남의 트랜잭션 안에서** 같은 전이를 한다.
    *
    * 공개 `approve()`/`reject()` 는 스스로 트랜잭션을 연다. 결재 결정과 문서 전이는
@@ -1214,44 +1185,6 @@ export class SpecService {
       fromState: 'in_review',
       toState: 'draft',
       payload: { comment: input.comment },
-    });
-  }
-
-  /** 거절 — in_review → draft. 리스는 다시 열린다. */
-  async reject(input: {
-    projectId: string;
-    specVersionId: string;
-    reviewerUserId: string;
-    comment: string;
-  }): Promise<{ status: string }> {
-    return this.events.transact(async (tx, emit) => {
-      // **프로젝트가 경계다.** 예전에는 이 UPDATE 만 `spec` 조인이 없어, 다른 프로젝트의
-      // in_review 버전 id 를 실으면 그 문서가 draft 로 되돌아갔다(같은 파일의
-      // `approve`·`submitReview`·`rejectInTxForApproval` 은 전부 조인하고 있었다).
-      const { rows } = await tx.execute<{ id: string }>(sql`
-        UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
-          FROM spec s
-         WHERE sv.id = ${input.specVersionId} AND sv.status = 'in_review'
-           AND s.id = sv.spec_id AND s.project_id = ${input.projectId}
-        RETURNING sv.id
-      `);
-      if (rows.length === 0) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_in_review'), {
-          kind: 'not_in_review',
-        });
-      }
-      await emit({
-        type: NERV_EVENT.SPEC_REJECTED,
-        projectId: input.projectId,
-        subjectType: 'spec_version',
-        subjectId: input.specVersionId,
-        subjectKey: await this.keyOfVersion(tx, input.specVersionId),
-        actorUserId: input.reviewerUserId,
-        fromState: 'in_review',
-        toState: 'draft',
-        payload: { comment: input.comment },
-      });
-      return { status: 'draft' };
     });
   }
 
@@ -2166,33 +2099,6 @@ export class SpecService {
         payload: { because_of: input.specId },
       });
     }
-  }
-
-  /**
-   * 지시자≠승인자 (D-06 · §2.3).
-   * **CHECK 로 내리지 않은 이유**가 여기 있다 — 소규모 완화가 있어서다: 멤버가 2인 미만이면
-   * 차단 대신 통과시키고 감사 이벤트를 남긴다. 하드 제약이면 1인 팀이 아무것도 승인할 수 없다.
-   */
-  private async assertDifferentApprover(
-    tx: Tx,
-    input: { projectId: string; approverUserId: string },
-    authorUserId: string,
-  ): Promise<void> {
-    if (input.approverUserId !== authorUserId) return;
-
-    const { rows } = await tx.execute<{ n: number }>(sql`
-      SELECT count(DISTINCT user_id)::int AS n FROM membership
-       WHERE project_id = ${input.projectId} OR project_id IS NULL
-    `);
-    const members = rows[0]?.n ?? 1;
-    if (members < 2) {
-      this.logger.warn(`소규모 완화 — 멤버 ${members}인이라 자기 승인을 허용한다(감사 기록됨)`);
-      return;
-    }
-    throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.self_approve_spec'), {
-      kind: 'self_approval',
-      author_user_id: authorUserId,
-    });
   }
 
   /** pending Approval 재사용 — 같은 초안을 다시 제출해도 카드가 늘지 않는다(§2.5). */

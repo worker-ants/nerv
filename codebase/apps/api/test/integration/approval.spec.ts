@@ -36,6 +36,10 @@ let questions: QuestionService;
 let projectId: string;
 let planner: string;
 let reviewer: string;
+let designer: string;
+let developer: string;
+let qa: string;
+let viewer: string;
 let sessionId: string;
 
 beforeAll(async () => {
@@ -298,7 +302,9 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
       }),
     ).rejects.toMatchObject({
       code: NERV_ERROR.FORBIDDEN,
-      details: { kind: 'self_approval', allowed_roles: ['admin'] },
+      // 대신 누를 수 있는 사람을 말한다 — 목록의 정본은 `ROLE_SCOPES` 다(2026-09-07 ·
+      // 그전에는 admin 만 적어, planner 가 있는데도 없다고 말했다)
+      details: { kind: 'self_approval', allowed_roles: ['admin', 'planner'] },
     });
   });
 
@@ -450,6 +456,175 @@ describe('결재가 남기는 사실 (REQ-API-128)', () => {
     expect(await pool.query(`SELECT 1 FROM event WHERE type = 'question.answered'`)).toMatchObject({
       rowCount: 0,
     });
+  });
+});
+
+/**
+ * **지시자≠승인자는 세 축이다**(2026-09-07 · REQ-API-136 · spec-workflow §2.3).
+ *
+ * 요청자만 비교하던 동안 구멍이 있었다: 작성자가 남에게 제출을 부탁하면 요청자는 그 남이
+ * 되고, 작성자는 자기 초안을 자기 손으로 승인할 수 있었다.
+ */
+describe('지시자≠승인자 세 축 (REQ-API-136)', () => {
+  /** 남이 제출한 초안 — 요청자와 작성자가 다른 상황을 만든다 */
+  async function draftSubmittedByOther(
+    key: string,
+    authorUserId: string,
+    authorSessionId: string | null = null,
+  ): Promise<{ versionId: string; approvalId: string }> {
+    const created = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key,
+      title: key,
+      type: 'feature',
+      bodyMd: `# ${key}\n\n본문`,
+      userId: authorUserId,
+    });
+    const versionId = created['spec_version_id'] as string;
+    if (authorSessionId !== null) {
+      await pool.query(`UPDATE spec_version SET author_session_id = $1 WHERE id = $2`, [
+        authorSessionId,
+        versionId,
+      ]);
+    }
+    await pool.query(
+      `UPDATE spec_version SET status='in_review', submitted_at = now(),
+              edit_lease_user_id = NULL, edit_lease_session_id = NULL, edit_lease_expires_at = NULL
+        WHERE id = $1`,
+      [versionId],
+    );
+    // 제출한 사람은 reviewer 다 — 요청자 축은 그 사람이 된다
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: reviewer,
+    });
+    return { versionId, approvalId: approval_id };
+  }
+
+  it('남이 제출해 줘도 작성자는 자기 초안을 승인하지 못한다', async () => {
+    const { approvalId } = await draftSubmittedByOther('SPC-AXIS-AUTHOR', planner);
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'self_approval', self_kind: 'author' },
+    });
+
+    // 거절·코멘트는 여전히 할 수 있다 — 막는 것은 승인뿐이다
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId,
+        userId: planner,
+        decision: 'comment',
+        comment: '내가 쓴 것이지만 이 부분은 다시 본다',
+      }),
+    ).resolves.toMatchObject({ decision: 'comment' });
+  });
+
+  it('내 세션이 쓴 초안도 내 것이다 — 자기가 시킨 것을 자기가 통과시키지 않는다', async () => {
+    const { approvalId } = await draftSubmittedByOther(
+      'SPC-AXIS-SESSION',
+      reviewer,
+      sessionId, // sessionId 의 소유자는 planner 다
+    );
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'self_approval', self_kind: 'session_owner' },
+    });
+  });
+
+  it('카드가 이유를 함께 준다 — 잠긴 단추에는 이유가 있어야 한다', async () => {
+    const { approvalId } = await draftSubmittedByOther('SPC-AXIS-REASON', planner);
+    const mine = (
+      await approvals.inbox({ projectId, userId: planner, actor: person(planner) })
+    ).find((c) => c.id === approvalId);
+    expect(mine).toMatchObject({ can_approve: false, can_approve_reason: 'author' });
+
+    const theirs = (
+      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })
+    ).find((c) => c.id === approvalId);
+    // 요청자 축 — 제출한 사람은 reviewer 다
+    expect(theirs).toMatchObject({ can_approve: false, can_approve_reason: 'self_requested' });
+  });
+});
+
+describe('내 큐만 온다 (REQ-API-137)', () => {
+  it('결재권이 없는 사람의 받은 요청에는 카드가 없다', async () => {
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+    });
+    expect(await approvals.inbox({ projectId, userId: viewer, actor: person(viewer) })).toEqual([]);
+    expect(await approvals.inbox({ projectId, userId: qa, actor: person(qa) })).toEqual([]);
+    // 기본 큐(admin·planner)에는 온다
+    expect(
+      (await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })).length,
+    ).toBe(1);
+  });
+
+  it('직군 슬롯은 그 직군에게만 간다 — planner 도 대신 내리지 못한다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: reviewer,
+      assigneeRole: 'designer',
+    });
+
+    const forDesigner = (
+      await approvals.inbox({ projectId, userId: designer, actor: person(designer) })
+    ).find((c) => c.id === approval_id);
+    expect(forDesigner).toMatchObject({ can_approve: true, assignee_role: 'designer' });
+
+    expect(
+      (await approvals.inbox({ projectId, userId: planner, actor: person(planner) })).find(
+        (c) => c.id === approval_id,
+      ),
+    ).toBeUndefined();
+
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId: approval_id,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'not_in_role_queue', role: 'designer' },
+    });
+
+    await expect(
+      approvals.decide({
+        actor: person(designer),
+        projectId,
+        approvalId: approval_id,
+        userId: designer,
+        decision: 'approve',
+      }),
+    ).resolves.toMatchObject({ decision: 'approve' });
   });
 });
 
@@ -1376,6 +1551,10 @@ async function seed(): Promise<void> {
   projectId = newId();
   planner = newId();
   reviewer = newId();
+  designer = newId();
+  developer = newId();
+  qa = newId();
+  viewer = newId();
   sessionId = newId();
   await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'nerv','NERV')`, [orgId]);
   for (const [id, email, name] of [
@@ -1395,6 +1574,23 @@ async function seed(): Promise<void> {
     await pool.query(
       `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
       [newId(), orgId, projectId, user],
+    );
+  }
+  // 직군 넷 — 매트릭스의 ○(지정 시)와 역할 큐를 보려면 그 역할의 사람이 있어야 한다
+  for (const [id, email, name, role] of [
+    [designer, 'dana@example.com', '다나', 'designer'],
+    [developer, 'minu@example.com', '민우', 'developer'],
+    [qa, 'sora@example.com', '소라', 'qa'],
+    [viewer, 'hyun@example.com', '현', 'viewer'],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,$3,'active')`,
+      [id, email, name],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,$2,$3,$4,$5::member_role)`,
+      [newId(), orgId, projectId, id, role],
     );
   }
   await pool.query(

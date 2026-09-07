@@ -22,7 +22,13 @@ import {
 } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { SQL } from 'drizzle-orm';
+import {
+  DECIDER_ROLES,
+  canApproveReasonSql,
+  canApproveSql,
+  eligibleSql,
+  selfKindOf,
+} from './approval-policy.js';
 import { InjectDb } from '../../common/database.module.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -49,29 +55,16 @@ export interface InboxCard extends Record<string, unknown> {
   self_requested: boolean;
   /** 지시자≠승인자 규칙과 그 완화(소규모·admin)를 서버가 판정한 결과 */
   can_approve: boolean;
+  /**
+   * **왜 못 누르는가**(2026-09-07 · REQ-API-137). 잠긴 단추에 이유가 없으면 사람은 화면이
+   * 고장 났다고 읽는다 — `author`·`session_owner`·`self_requested`·`missing_role`·
+   * `not_in_role_queue`·`not_assignee`·`already_approved` 중 하나이고, 누를 수 있으면 NULL 이다.
+   */
+  can_approve_reason: string | null;
+  /** 직군 슬롯(있으면) — 이 카드가 어느 역할 큐의 것인가 */
+  assignee_role: string | null;
   /** stale 판정용 — 결정 시점에 내용이 바뀌었는지 본다 */
   content_hash: string | null;
-}
-
-/**
- * 이 사람이 이 결재를 **승인할 수 있는가** — 지시자≠승인자 규칙과 그 완화 둘을 한 식으로.
- *
- * **판정은 서버 한 곳이다**(D-05). 예전에는 화면이 `self_requested` 만 보고 단추를 껐는데,
- * 완화가 둘로 늘면(소규모·admin) 화면이 규칙을 다시 구현해야 한다 — 그러면 두 벌이 되고,
- * 두 벌이 되면 언젠가 한쪽만 고친다. 화면은 이 불리언을 그대로 읽는다.
- */
-function canApproveSql(userId: string): SQL {
-  return sql`(
-    a.requested_by_user_id <> ${userId}
-    OR EXISTS (SELECT 1 FROM membership m
-                WHERE m.user_id = ${userId} AND m.role = 'admin'
-                  AND (m.project_id = a.project_id
-                       OR (m.project_id IS NULL AND m.org_id = (
-                             SELECT org_id FROM project WHERE id = a.project_id))))
-    OR (SELECT count(DISTINCT m.user_id) FROM membership m
-         WHERE m.org_id = (SELECT org_id FROM project WHERE id = a.project_id)
-           AND (m.project_id = a.project_id OR m.project_id IS NULL)) < 2
-  ) AS can_approve`;
 }
 
 @Injectable()
@@ -95,6 +88,7 @@ export class ApprovalService {
     projectId: string,
     userId: string,
     assigneeUserId: string | null,
+    assigneeRole: string | null,
   ): Promise<void> {
     const roles = await this.auth.assertMembership(userId, projectId);
     if (assigneeUserId !== null) {
@@ -103,6 +97,17 @@ export class ApprovalService {
         kind: 'not_assignee',
         roles,
       });
+    }
+    // **직군 슬롯**(2026-09-07 · REQ-API-138). 매트릭스의 ○ 는 "지정 시" 라는 뜻이고, 그 지정이
+    // 이 열이다 — 슬롯에 역할이 적혀 있으면 그 역할(또는 admin)만 내린다. planner 라고 해서
+    // designer 자리의 결재를 대신 내리면 직군 교차라는 게이트의 뜻이 사라진다.
+    if (assigneeRole !== null) {
+      if ((roles as readonly string[]).includes(assigneeRole) || roles.includes('admin')) return;
+      throw new NervError(
+        NERV_ERROR.FORBIDDEN,
+        msg('error.approval.not_in_role_queue', { role: assigneeRole }),
+        { kind: 'not_in_role_queue', role: assigneeRole, roles },
+      );
     }
     if (scopesForRoles(roles).has('approval:decide')) return;
     throw new NervError(
@@ -179,15 +184,21 @@ export class ApprovalService {
              a.requested_at::text AS requested_at,
              sv.body_md,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
+             a.assignee_role::text AS assignee_role,
              ${canApproveSql(input.userId)},
+             ${canApproveReasonSql(input.userId)},
              encode(sv.content_hash, 'hex') AS content_hash
         FROM approval a
         JOIN "user" u ON u.id = a.requested_by_user_id
    LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
    LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
        WHERE a.project_id = ${input.projectId}
          AND a.decision IS NULL
-         AND (a.assignee_user_id IS NULL OR a.assignee_user_id = ${input.userId})
+         -- **내 결정을 기다리는 것만**(§6.6 원칙 3 · 2026-09-07 · REQ-API-137). 예전에는
+         -- 지정 승인자만 걸러서, 결재권이 없는 사람의 목록에도 카드가 있었다 — 그 사람은
+         -- 그것을 자기 일로 읽고, 배지는 "내가 막고 있는 것" 을 세지 못한다.
+         AND ${eligibleSql(input.userId)}
        ORDER BY a.requested_at DESC
     `);
     return rows;
@@ -221,7 +232,9 @@ export class ApprovalService {
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
              u.display_name AS requested_by,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
+             a.assignee_role::text AS assignee_role,
              ${canApproveSql(input.userId)},
+             ${canApproveReasonSql(input.userId)},
              s.key AS spec_key, s.title AS spec_title, sv.version_no,
              encode(sv.content_hash, 'hex') AS content_hash,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
@@ -230,12 +243,19 @@ export class ApprovalService {
         JOIN "user" u ON u.id = a.requested_by_user_id
    LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
    LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
        WHERE ${stateFilter}${projectFilter}
          -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
          -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
          -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
          AND p.archived_at IS NULL
-         AND (a.assignee_user_id IS NULL OR a.assignee_user_id = ${input.userId})
+         -- 내 큐만 — 지정·역할 슬롯·기본 큐(REQ-API-137)
+         AND ${eligibleSql(input.userId)}
+         -- **거절로 draft 가 된 문서의 남은 슬롯은 대기가 아니다**(2026-09-07). 슬롯이
+         -- 여럿인 결재에서 하나가 reject 되면 문서는 draft 로 돌아가는데, 결정되지 않은
+         -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
+         -- 사람이 계속 결재하게 된다.
+         AND (sv.id IS NULL OR sv.status = 'in_review')
          AND EXISTS (
            SELECT 1 FROM membership m
             WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
@@ -298,7 +318,9 @@ export class ApprovalService {
              a.is_bypass, a.bypass_reason,
              p.slug AS project_slug, u.display_name AS requested_by,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
+             a.assignee_role::text AS assignee_role,
              ${canApproveSql(input.userId)},
+             ${canApproveReasonSql(input.userId)},
              s.key AS spec_key, s.title AS spec_title, sv.version_no, sv.body_md,
              sv.change_summary_md, encode(sv.content_hash, 'hex') AS content_hash
         FROM approval a
@@ -306,6 +328,7 @@ export class ApprovalService {
         JOIN "user" u ON u.id = a.requested_by_user_id
    LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
    LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
        WHERE a.id = ${input.approvalId}
          AND EXISTS (
            SELECT 1 FROM membership m
@@ -403,15 +426,24 @@ export class ApprovalService {
         requested_by_user_id: string;
         requested_by_session_id: string | null;
         assignee_user_id: string | null;
+        assignee_role: string | null;
         decision: string | null;
         content_hash: string | null;
+        author_user_id: string | null;
+        author_owner_user_id: string | null;
+        subject_status: string | null;
+        submitted_at: string | null;
       }>(sql`
         SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
                a.requested_by_user_id, a.requested_by_session_id,
-               a.assignee_user_id, a.decision::text AS decision,
-               encode(sv.content_hash, 'hex') AS content_hash
+               a.assignee_user_id, a.assignee_role::text AS assignee_role,
+               a.decision::text AS decision,
+               encode(sv.content_hash, 'hex') AS content_hash,
+               sv.author_user_id, owner.user_id AS author_owner_user_id,
+               sv.status::text AS subject_status, sv.submitted_at::text AS submitted_at
           FROM approval a
      LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+     LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
          WHERE a.id = ${input.approvalId} AND a.project_id = ${input.projectId}
          FOR UPDATE OF a
       `);
@@ -426,7 +458,12 @@ export class ApprovalService {
       // 예전에는 이 문이 "사람인가" 하나였다 — 전역 경로(`/api/v1/approvals/...`)라
       // 프로젝트 가드가 소속을 채우지 않고 지나가고, 서비스는 멤버십만 확인했다.
       // 그래서 `viewer` 도 스펙 승인을 확정할 수 있었다(그 다음은 문서가 approved 다).
-      await this.assertMayDecide(input.projectId, input.userId, approval.assignee_user_id);
+      await this.assertMayDecide(
+        input.projectId,
+        input.userId,
+        approval.assignee_user_id,
+        approval.assignee_role,
+      );
 
       if (approval.decision !== null) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.already_decided'), {
@@ -448,12 +485,19 @@ export class ApprovalService {
         });
       }
 
-      // 지시자≠승인자 — approve 에만 적용한다(코멘트·거절은 요청자도 할 수 있다)
-      const selfApprove =
-        input.decision === 'approve' && approval.requested_by_user_id === input.userId;
-      if (selfApprove) {
-        await this.assertSelfApprovalAllowed(tx, input.projectId, input.userId);
+      // **지시자≠승인자는 세 축이다**(2026-09-07 · REQ-API-136 · spec-workflow §2.3).
+      //
+      // 요청자만 비교하던 동안 구멍이 하나 있었다: 작성자가 남에게 제출을 부탁하면 요청자는
+      // 그 남이 되고, 작성자는 자기 초안을 자기 손으로 승인할 수 있었다. 에이전트가 쓴
+      // 초안도 같다 — 그 세션의 소유자가 승인하면 사람이 검토한 것이 아니라 자기가 시킨
+      // 것을 자기가 통과시킨 것이다(D-01 이 막으려는 바로 그것).
+      //
+      // approve 에만 적용한다 — 코멘트·거절은 요청자도 작성자도 할 수 있다.
+      const selfKind = selfKindOf(approval, input.userId);
+      if (input.decision === 'approve' && selfKind !== null) {
+        await this.assertSelfApprovalAllowed(tx, input.projectId, input.userId, approval, selfKind);
       }
+      const selfApprove = selfKind !== null && input.decision === 'approve';
 
       await tx.execute(sql`
         UPDATE approval
@@ -519,7 +563,7 @@ export class ApprovalService {
           decision: input.decision,
           subject_type: approval.subject_type,
           subject_id: approval.subject_id,
-          ...(selfApprove ? { self_approved: true } : {}),
+          ...(selfApprove ? { self_approved: true, self_kind: selfKind } : {}),
         },
       });
 
@@ -619,6 +663,11 @@ export class ApprovalService {
      */
     requestedBySessionId?: string | null;
     assigneeUserId?: string | null;
+    /**
+     * **직군 슬롯**(2026-09-07 · REQ-API-138). 매트릭스의 ○ 는 "지정 시" 라는 뜻이고 이 열이
+     * 그 지정이다 — 이 값이 있으면 그 역할(과 admin)만 이 카드를 내린다.
+     */
+    assigneeRole?: string | null;
   }): Promise<{ approval_id: string; reused: boolean }> {
     return this.events.transact(async (tx, emit) => {
       const { rows: existing } = await tx.execute<{ id: string }>(sql`
@@ -632,10 +681,11 @@ export class ApprovalService {
       const approvalId = newId();
       await tx.execute(sql`
         INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                              requested_by_session_id, assignee_user_id)
+                              requested_by_session_id, assignee_user_id, assignee_role)
         VALUES (${approvalId}, ${input.projectId}, ${input.subjectType}::approval_subject_type,
                 ${input.subjectId}, ${input.requestedByUserId},
-                ${input.requestedBySessionId ?? null}, ${input.assigneeUserId ?? null})
+                ${input.requestedBySessionId ?? null}, ${input.assigneeUserId ?? null},
+                ${input.assigneeRole ?? null}::member_role)
       `);
       await emit({
         type: NERV_EVENT.APPROVAL_REQUESTED,
@@ -671,17 +721,27 @@ export class ApprovalService {
     tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
     projectId: string,
     userId: string,
+    approval: { requested_by_user_id: string; author_user_id: string | null },
+    selfKind: 'requester' | 'author' | 'session_owner',
   ): Promise<void> {
-    // 조직 단위 멤버십은 **그 조직의 것만** 센다(2026-09-07 · REQ-API-125). 다른 조직의
-    // 사람이 이 프로젝트의 "둘째 사람" 으로 세어지면 완화가 필요한 자리에서 꺼지고,
-    // 반대로 그 사람이 승인할 수 있는 것도 아니다 — 아무도 결재를 끝낼 수 없게 된다.
+    // **소규모 완화의 축은 멤버 수가 아니라 승인 가능한 사람 수다**(2026-09-07 · §2.3 문장
+    // 그대로: "승인 가능한 다른 역할이 없으면 자동 완화"). 멤버를 세면 viewer 다섯이 있는
+    // 프로젝트에서 완화가 꺼지고, 그 다섯 중 누구도 결재를 내릴 수 없어 문서가 갇힌다.
+    // 조직 단위 멤버십은 **그 조직의 것만** 센다(REQ-API-125).
     const { rows } = await tx.execute<{ n: number }>(sql`
       SELECT count(DISTINCT m.user_id)::int AS n FROM membership m
         JOIN project p ON p.id = ${projectId}
        WHERE m.org_id = p.org_id
          AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role::text IN (${sql.join(
+           DECIDER_ROLES.map((r) => sql`${r}`),
+           sql`, `,
+         )})
+         AND m.user_id <> ${userId}
+         AND m.user_id <> ${approval.requested_by_user_id}
+         AND (${approval.author_user_id}::uuid IS NULL OR m.user_id <> ${approval.author_user_id})
     `);
-    if ((rows[0]?.n ?? 1) < 2) {
+    if ((rows[0]?.n ?? 0) === 0) {
       this.logger.warn(`소규모 완화 — 자기 승인을 허용한다(감사 기록됨) user=${userId}`);
       return;
     }
@@ -701,10 +761,19 @@ export class ApprovalService {
       return;
     }
 
-    throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.self_approve'), {
+    // 축마다 다른 문장을 준다 — "요청자는 승인할 수 없습니다" 를 작성자에게 보이면
+    // 그 사람은 자기가 요청하지 않았다는 것을 알기 때문에 화면이 틀렸다고 읽는다.
+    const key =
+      selfKind === 'author'
+        ? 'error.auth.self_approve_author'
+        : selfKind === 'session_owner'
+          ? 'error.auth.self_approve_session_owner'
+          : 'error.auth.self_approve';
+    throw new NervError(NERV_ERROR.FORBIDDEN, msg(key), {
       kind: 'self_approval',
+      self_kind: selfKind,
       // 막다른 길에 세우지 않는다 — 누가 할 수 있는지 말한다
-      allowed_roles: ['admin'],
+      allowed_roles: DECIDER_ROLES,
     });
   }
 }

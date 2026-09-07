@@ -287,6 +287,8 @@ export class SpecController {
       projectId: projectOf(req),
       specVersionId: ver,
       userId: principal.userId,
+      // 제출 권한의 축은 서비스가 본다(D-05) — 표면은 역할을 나르기만 한다
+      roles: principal.roles,
     });
   }
 

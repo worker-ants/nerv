@@ -473,6 +473,8 @@ export class SpecTools implements NervToolProvider {
           specVersionId: String(input['spec_version_id'] ?? ''),
           userId: ctx.principal.userId,
           sessionId: ctx.sessionId,
+          // 에이전트 세션은 소유자의 userId 로 초안을 쓰므로 보통 작성자 본인 경로로 지난다
+          roles: ctx.principal.roles,
         }),
     },
     {
