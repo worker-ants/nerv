@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v0.87 (2026-09-07)</span>
+      <span>버전 v0.88 (2026-09-07)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1217,6 +1217,7 @@ export const TaskCreateInput = z.object({
       <tr><td>REQ-WEB-146</td><td>WHILE 필요 승인자가 둘 이상인 카드가 보이는 동안 THE SYSTEM SHALL <code>{given}/{required}</code> 배지와 직군 큐를 표기하고, WHEN 승인 응답의 <code>quorum.satisfied</code> 가 거짓이면 THE SYSTEM SHALL 아직 확정되지 않았음을 알린다</td><td>1/2 배지 · 한 명이면 배지 없음 · 미충족 토스트</td></tr>
       <tr><td>REQ-WEB-147</td><td>WHEN 사용자가 승인본의 요구사항 줄에서 [이 요구사항으로 작업 만들기]를 누르면 THE SYSTEM SHALL 그 출처를 주소에 실어 [새 작업] 폼을 열고 출처를 고정 표기하며, WHILE 폼을 직접 열었으면 THE SYSTEM SHALL 스펙·<b>승인본 버전</b>·요구사항 피커를 제공한다(선택). WHERE 보고 있는 버전이 승인본이 아니면 THE SYSTEM SHALL 파생 링크 대신 사유를 표기한다</td><td>주소로 연 폼은 출처 고정 · 승인본만 목록에 · 생성에만 싣고 수정에는 싣지 않는다</td></tr>
       <tr><td>REQ-WEB-148</td><td>WHEN 작업 상세를 렌더링하면 THE SYSTEM SHALL 출처 요구사항을 고정 ID와 문장으로, 활성 클레임을 남은 리스와 선언 범위와 함께, 그 작업을 지난 리뷰를 열린 critical 수와 함께 표기한다. 리스는 만료 시각에서 매초 다시 센다</td><td>UUID 가 아니라 REQ-… · 리뷰 없으면 문장으로 · 열린 critical 은 눈에 띈다</td></tr>
+      <tr><td>REQ-WEB-149</td><td>WHEN 헤더 배지를 그리면 THE SYSTEM SHALL 안 읽은 <b>immediate</b> 수만 표기하고(REQ-WEB-035 개정), WHILE 알림 센터를 보는 동안 THE SYSTEM SHALL 결정 대기 수를 따로 보이며 등급으로 좁혀 보는 문을 제공한다</td><td>배지는 immediate · 필터가 서버에 <code>importance</code> 를 싣는다</td></tr>
     </tbody>
   </table></div>
 

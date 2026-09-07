@@ -151,7 +151,12 @@ export function AppShell({
 
   const banner = connectionBanner(t, state, offline);
   const pending = inbox.data?.length ?? 0;
-  const unreadCount = unread.data?.count ?? 0;
+  /**
+   * **배지는 결정이 필요한 것만 센다**(2026-09-07 · REQ-WEB-149 · FR-12). 전체 unread 를
+   * 세던 동안 실측 767건 중 99건만 결정이고, 나머지는 배경 활동이었다 — 배지가 그것을
+   * 함께 세면 "내가 막고 있는 것" 이 아니라 "무슨 일이 있었나" 가 된다.
+   */
+  const unreadCount = unread.data?.immediate ?? 0;
 
   return (
     <div className="min-h-screen bg-bg text-text">

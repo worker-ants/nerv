@@ -873,6 +873,9 @@ export const en = {
   'notif.read': 'Read',
   'notif.title': 'Notifications',
   'notif.unread': 'Unread',
+  'notif.filter.all': 'All',
+  'notif.filter.immediate': 'Needs a decision',
+  'notif.immediate_badge': '{count} awaiting your decision',
   'notif.read_all': 'Mark all read',
   'notif.unread_badge': '{count} unread',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────

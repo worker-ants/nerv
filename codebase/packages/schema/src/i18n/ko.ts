@@ -867,6 +867,9 @@ export const ko = {
   'notif.read': '읽음',
   'notif.title': '알림',
   'notif.unread': '읽지 않음',
+  'notif.filter.all': '전체',
+  'notif.filter.immediate': '결정이 필요한 것',
+  'notif.immediate_badge': '결정 대기 {count}건',
   'notif.read_all': '모두 읽음',
   'notif.unread_badge': '읽지 않음 {count}',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────

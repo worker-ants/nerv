@@ -4,6 +4,7 @@
 // 여기서는 "무엇이 · 어디서 · 언제"만 보이면 되고, 자세한 것은 딥링크가 데려간다.
 
 import { eventLabelKey } from '@nerv/schema';
+import { useState } from 'react';
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -46,7 +47,12 @@ export function deepLinkFor(n: Record<string, unknown>): string {
 
 function NotificationScreen(): React.JSX.Element {
   const t = useT();
-  const notifications = useNotifications();
+  /**
+   * **등급으로 나눠 본다**(2026-09-07 · REQ-WEB-149 · FR-12). 실측 unread 767건 중 결정이
+   * 필요한 것은 99건이다 — 한 줄에 섞으면 그 99건은 배경 활동에 묻힌다.
+   */
+  const [onlyImmediate, setOnlyImmediate] = useState(false);
+  const notifications = useNotifications(onlyImmediate ? 'immediate' : undefined);
   const unreadCount = useUnreadCount();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -71,6 +77,7 @@ function NotificationScreen(): React.JSX.Element {
   // **배지는 받아 온 것이 아니라 진짜 수를 센다**(2026-09-03). 예전에는 로드된 50건 안에서
   // 세어 "읽지 않음 50" 을 보이면서 헤더는 479 를 보였다 — 같은 화면이 두 수를 말했다.
   const unread = unreadCount.data?.count ?? 0;
+  const immediate = unreadCount.data?.immediate ?? 0;
 
   return (
     <PageBody>
@@ -80,6 +87,21 @@ function NotificationScreen(): React.JSX.Element {
           unread > 0 ? (
             <span className="flex items-center gap-2">
               <StatusBadge token="waiting" label={t('notif.unread_badge', { count: unread })} />
+              {/* 결정이 필요한 수는 따로 센다 — 그것이 배지가 세는 값이다 */}
+              {immediate > 0 && (
+                <StatusBadge
+                  token="danger"
+                  label={t('notif.immediate_badge', { count: immediate })}
+                />
+              )}
+              <Button
+                size="sm"
+                variant={onlyImmediate ? 'primary' : 'ghost'}
+                data-testid="filter-immediate"
+                onClick={() => setOnlyImmediate((v) => !v)}
+              >
+                {onlyImmediate ? t('notif.filter.all') : t('notif.filter.immediate')}
+              </Button>
               {/* 수 바로 옆이다 — 그 수를 보고 누르는 단추라 목록 밖에 두면 찾지 못한다 */}
               <Button
                 size="sm"

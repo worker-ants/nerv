@@ -62,19 +62,23 @@ const ITEMS = [
 }));
 
 let posted: string[] = [];
+/** 어떤 주소를 물었는가 — 등급 필터가 서버 축을 쓰는지 보는 검사가 이 값을 읽는다 */
+let asked: string[] = [];
 
 beforeEach(() => {
   posted = [];
+  asked = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: { method?: string }) => {
       const u = String(url);
+      asked.push(u);
       if (init?.method === 'POST') {
         posted.push(u);
         return { ok: true, status: 200, json: async () => ({ ok: true, marked: 2 }) };
       }
       if (u.includes('unread-count')) {
-        return { ok: true, status: 200, json: async () => ({ count: 695 }) };
+        return { ok: true, status: 200, json: async () => ({ count: 695, immediate: 12 }) };
       }
       if (u.includes('/me/notifications')) {
         return { ok: true, status: 200, json: async () => ({ items: ITEMS, next_cursor: null }) };
@@ -163,5 +167,19 @@ describe('일괄 읽음 (REQ-WEB-137)', () => {
     );
     renderAt('/notifications');
     await waitFor(() => expect(screen.queryByTestId('mark-all-read')).toBeNull());
+  });
+});
+
+/**
+ * **등급으로 나눠 본다**(2026-09-07 · REQ-WEB-149 · FR-12). 배지가 전체 unread 를 세면
+ * 결정이 필요한 것이 배경 활동에 묻힌다 — 실측 767건 중 99건이 결정이었다.
+ */
+describe('REQ-WEB-149 — 결정이 필요한 것만 세고, 나눠 본다', () => {
+  it('결정 대기 수를 따로 보이고 필터가 서버에 그 축을 싣는다', async () => {
+    renderAt('/notifications');
+    await screen.findByText(/결정 대기 12건/);
+
+    fireEvent.click(screen.getByTestId('filter-immediate'));
+    await waitFor(() => expect(asked.some((u) => u.includes('importance=immediate'))).toBe(true));
   });
 });
