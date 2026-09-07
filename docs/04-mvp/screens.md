@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.90 · 2026-09-07 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v0.91 · 2026-09-07 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v0.91 변경(2026-09-07 — 스스로 정본이라 선언한 표가 실물의 절반을 몰랐다, 개선 계획 여덟째 스프린트): **새 요구사항 없음 — §1.4 무효화 매핑 표 정정.** 이 표는 머리말에서 "이벤트 매핑" 의 정의라고 선언하는데, 코드의 `event-invalidation.ts` MAP 이 다루는 **49종 중 18종이 표에 없었다**(감사 이벤트 아홉 · 스펙 메타·첨부 다섯 · 증적·결재·질문 취소·임포트 넷). 표를 보고 "이 이벤트는 화면을 갱신하지 않는다" 고 읽은 사람은 틀린 결론에 이른다. 리뷰 계열 넷은 "Phase 2 라 매핑 없음" 이라 적혀 있었지만 **배선은 2026-08-23~24 에 들어왔다** — 남은 것은 `cr.opened` 하나뿐이다.
 >
 > v0.90 변경(2026-09-07 — 관계 패널의 확장은 커서가 아니다, 개선 계획 넷째 스프린트): **새 요구사항 없음.** §2.4 관계 패널이 "20건 초과는 커서 페이지네이션" 이라 적었는데 관계는 **유한 목록**이고([4.4](api.md) §1.6) 2026-09-07 부터 상한도 없다(REQ-API-155) — [전체 보기]는 전량을 연다.
 >
@@ -315,7 +317,17 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
 | `gate.bypassed` · `gate.failopen` | `['project', projId, 'events']` + 게이트 배너/카운터 | `project:{id}`(bypassed는 admin `user:{id}`에도) |
-| `finding.opened` `finding.resolved` `cr.opened` | — Phase 2(S6·CR) | — |
+| ★`spec.meta_updated` ★`spec.archived` ★`spec.restored` | 스펙 축과 같다 — `['spec', specKey]` · `['spec', specKey, 'versions']` · `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']` | `project:{id}` |
+| ★`spec.attachment_added` ★`spec.attachment_removed` | `['project', projId, 'spec-tree']` | `project:{id}` |
+| ★`evidence.added` | `['task', taskKey]` · `['project', projId, 'tasks']` · `['project', projId, 'coverage']` | `project:{id}` |
+| ★`approval.decided` | `['inbox']` + 헤더 배지 | `user:{id}` + `project:{id}` |
+| ★`question.cancelled` | `['inbox']` · `['project', projId, 'sessions']` | `user:{id}` + `project:{id}` |
+| ★`import.applied` | `['project', projId, 'spec-tree']` · `['project', projId, 'tasks']` | `project:{id}` |
+| ★`project.created` ★`project.updated` ★`project.archived` ★`project.restored` | `['project', projId]`(설정 변경·보관·복원) · `['project', projId, 'events']` | `project:{id}` |
+| ★`member.added` ★`member.updated` ★`member.removed` | `['project', projId, 'events']` — 감사 피드가 곧 그 사실이 보이는 자리다 | `project:{id}` |
+| ★`token.created` ★`token.revoked` | `['me', 'tokens']` · `['project', projId, 'events']` | `project:{id}` |
+| `review.submitted` `finding.opened` `finding.resolved` `finding.commented` | `['project', projId, 'findings']` · `['project', projId, 'gate-coverage']` · `['finding', findingId, 'comments']` — **Phase 2 인데 배선은 들어와 있다**(2026-08-23~24 · §2.6a · REQ-WEB-066) | `project:{id}` |
+| `cr.opened` | — 화면 없음(CR 은 Phase 2 이고 아직 소비자가 없다) | — |
 
 세션 상세의 Activity 스트림과 하트비트·diff 갱신은 알림을 만들지 않고 `project:{id}` 룸으로만 흐른다(spec-workflow §6.3 말미). 리스 잔여·경과 시간 카운트다운은 서버 push가 아니라 응답의 `lease_expires_at`·`started_at`을 기준으로 한 클라이언트 시계 렌더링이다.
 
@@ -1031,18 +1043,26 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 - **폼·검증** — 위임 명세 4요소는 zod로도 강제한다(서버 검증의 프론트 미러):
 
 ```ts
-// packages/schema — TaskCreateInput (발췌)
-export const TaskCreateInput = z.object({
-  title: z.string().min(1),
-  body_md: z.string().optional(),
-  source_spec_version_id: z.string().uuid(),
-  source_requirement_id: z.string().uuid().optional(),
-  priority: z.enum(['P0', 'P1', 'P2', 'P3']),
-  goal_md: z.string().min(1, '목표(REQ ID 포함)는 필수'),
-  output_format_md: z.string().min(1, '산출물 형식은 필수'),
-  tools_sources_md: z.string().min(1, '도구·출처는 필수'),
-  boundaries_md: z.string().min(1, '경계는 필수'),
-});
+// packages/schema/src/zod/task.ts — TaskCreateInput (2026-09-07 실물 대조)
+//
+// **표면은 4요소를 필수로 받지 않는다.** 이 발췌는 오래 `min(1, '목표는 필수')` 를
+// 보여 줬는데, 그것은 스키마가 아니라 **화면의 판정**이다(폼이 막는다). 서버가 4요소를
+// 요구하는 자리는 생성이 아니라 `ready` 전이다 — backlog 로는 비어 있는 채로 들어올 수
+// 있어야 임포트가 성립한다(REQ-IMP-009).
+export const TaskCreateInput = z
+  .object({
+    title: z.string().min(1),
+    body_md: z.string().nullish(),
+    source_spec_version_id: z.string().nullish(),
+    baseline: z.string().nullish(),
+    source_requirement_id: z.string().nullish(),
+    priority: z.string().nullish(),
+    goal_md: z.string().nullish(),
+    output_format_md: z.string().nullish(),
+    tools_sources_md: z.string().nullish(),
+    boundaries_md: z.string().nullish(),
+  })
+  .strict();   // 모르는 키는 400 — 조용히 버리지 않는다
 ```
 
 - **done 전이**: MVP의 서버 게이트는 `spec_impact` 선언 + Evidence 연결이다. 리뷰 커버리지 판정(FR-10 게이트 전체)은 Phase 2(로드맵 §3 비범위) — 카드의 "리뷰 n/n" 표시는 Phase 2에 함께 온다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다.
@@ -1136,7 +1156,7 @@ export const TaskCreateInput = z.object({
 - **빈 상태**: 열린 발견 0 — "열린 발견이 없습니다" + `nerv_review_submit` 안내(막다른 길 금지 — §1.5).
 - **어디에 대한 지적인가로 거른다**(2026-09-01 — 사람 요청 · REQ-WEB-128). severity(얼마나 급한가)·category(무슨 종류인가) 옆에 **무엇을 고쳐야 하는가**의 축을 둔다 — 필터 넷(codebase·spec·task·process)은 [4.4](api.md) §2.11 의 정의를 그대로 쓴다. 값을 **서버가 유추했으면 카드가 그렇게 적는다**: 밝히지 않으면 사람은 그것을 지적한 쪽이 정한 값으로 읽고, 짐작을 근거로 다음 행동을 고른다.
 - **재연결은 붙는 것으로 끝나지 않는다**(2026-09-01 — 사람 보고 · REQ-WEB-127). 서버를 재기동하면 "재연결이 안 된다"고 보였는데, 소켓은 사실 붙고 있었다 — 붙은 뒤 **어느 룸에도 없었을** 뿐이다. join 은 화면 effect 가 했고 그 effect 는 `projectId` 가 바뀔 때만 돌기 때문이다(재연결은 그것을 바꾸지 않는다). 이벤트 0건은 사람 눈에 끊긴 것과 같다. **룸은 연결의 성질이지 화면의 성질이 아니다** — 연결이 그것을 기억하고 스스로 되찾는다. 재시도는 무제한이고 간격은 1분에서 멈춘다(사람 결정): 서버 재기동이 5분 걸려도 새로고침이 필요 없고, 오래 끊긴 뒤에도 붙는 데 1분 넘게 기다리지 않는다. 흔들림(jitter)을 남기는 이유는 서버가 살아난 순간 모든 클라이언트가 동시에 덮치지 않게 하기 위해서다.
-- **시안은 문서에 매단다**(2026-09-01 — 사람 요청 · REQ-WEB-125). 레일에 첨부 탭을 두고 이미지는 미리보기로 그린다 — 시안은 파일 이름이 아니라 그림으로 알아본다. 올린 뒤 **본문에 넣는 길을 같은 자리에** 둔다: 매달기만 하고 끝나면 문서를 읽는 사람은 그 그림을 못 본다. 올린 주체가 사람인지 에이전트인지도 함께 적는다(FR-16).
+- **시안은 문서에 매단다**(2026-09-01 — 사람 요청 · REQ-WEB-125). 레일에 첨부 탭을 두고 이미지는 미리보기로 그린다 — 시안은 파일 이름이 아니라 그림으로 알아본다. 올린 뒤 **본문에 넣는 길을 같은 자리에** 둔다: 매달기만 하고 끝나면 문서를 읽는 사람은 그 그림을 못 본다. **넣는 문법은 종류가 정한다**(2026-09-07 · 사람 결정) — 그림은 `![…](…)`, 그 밖은 `[…](…)` 다. 모든 파일에 이미지 문법을 넣던 동안 PDF·CSV 를 삽입하면 본문에 **깨진 이미지 자리**가 생겼고, 누른 사람은 자기가 잘못 올렸다고 읽었다. 올린 주체가 사람인지 에이전트인지도 함께 적는다(FR-16).
 - **이미지가 왕복에서 사라지고 있었다**(REQ-WEB-126). 편집기에 image 노드가 없어 `![…](…)` 이 파싱에서 버려졌고, 사람이 그 문서를 열어 한 글자만 고치면 **모든 이미지가 삭제됐다**(저장은 성공하면서). §3.2 규칙 4 를 이미지가 어기고 있었는데 **테스트가 없어 아무도 못 봤다** — 첨부 기능과 무관하게 그 자체로 결함이었다.
 - **세션 레일이 "Bash / Bash" 를 383번 반복했다**(2026-09-01 — 사람 보고 · REQ-WEB-123·124). 화면 잘못이 아니라 **적재가 그것만 남겼다**: `title = tool_name` 이고 페이로드는 `tool_use_id` 뿐이었다(실측 443건 중 86%가 Bash). 원문 보관으로 정책을 바꾸고(4.4 REQ-API-065) 화면은 셋을 한다 — **묶고**(같은 도구 연속, 횟수를 적는다) · **실패를 튀게 하고**(예전에는 성패조차 몰랐다) · **펼치면 원문**(접힘이 기본이다 — 383건이 다 펼쳐지면 지금보다 나쁘다). 원문이 권한 때문에 안 왔으면 **그 사실을 적는다**: 빈칸은 "없다" 로 읽힌다.
 - **한 일이 위, 도구 로그가 아래다**(REQ-WEB-124). 이 화면의 첫 물음은 "무슨 도구를 썼나" 가 아니라 **"무엇을 하는 중이고 막혀 있나"** 다. 궤적은 새로 저장하는 것이 없다 — 이벤트가 이미 세션 id 를 달고 있고(`actor_session_id`), 세션 축으로 읽은 적이 없었을 뿐이다.
@@ -1227,12 +1247,20 @@ MVP 카드 유형은 **5종**이다(2026-09-06 현황) — **스펙 승인 · �
 - **폼·검증**:
 
 ```ts
-// packages/schema — ApprovalDecisionInput (발췌)
-export const ApprovalDecisionInput = z.discriminatedUnion('decision', [
-  z.object({ decision: z.literal('approve'), comment_md: z.string().optional() }),
-  z.object({ decision: z.literal('reject'),  comment_md: z.string().min(1, '거절 사유는 필수') }),
-  z.object({ decision: z.literal('comment'), comment_md: z.string().min(1) }),
-]);
+// packages/schema/src/zod/review.ts — ApprovalDecisionInput (2026-09-07 실물 대조)
+//
+// 이 발췌는 오래 `discriminatedUnion` 과 `comment_md` 를 보여 줬는데 **둘 다 실물이
+// 아니다**: 필드 이름은 `comment` 이고, 스키마는 결정 값으로 분기하지 않는다.
+// **거절 사유 필수는 현재 화면(`approval-card.tsx`)만 지킨다** — 서버 쪽 검사는 열린
+// 결정이다. 문서가 스키마에 있다고 적어 두면 다른 표면(MCP·CLI)이 그것을 믿는다.
+export const ApprovalDecisionInput = z
+  .object({
+    decision: z.string().default('comment'),
+    comment: z.string().nullish(),
+    // 무엇을 보고 결정했는가 — 그 사이 본문이 바뀌었으면 서버가 막는다(§1.4g 와 같은 축)
+    seen_content_hash: z.string().nullish(),
+  })
+  .strict();
 ```
 
 | ID | 수용 기준(EARS) |
@@ -1476,7 +1504,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 
 | Tailwind 토큰 | 원본 변수 | 라이트 | 다크 | 행동 축 의미(ui-wireframes §3.1) |
 | --- | --- | --- | --- | --- |
-| `status.idle` | `--gray-soft` 계열 | `#eceef2` (텍스트 `#5b667a`) | `#232837` (`#a3adc2`) | 회색 — 아직 아무 일도 없음 |
+| `status.idle` | `--gray-soft` 계열 | `#f1f1ef` (텍스트 `#787774`) | `#2a2a2a` (`#9b9a97`) | 회색 — 아직 아무 일도 없음. **§4.4 중립 램프에서 파생한다**(2026-09-07 실물 대조 — 이 행이 오래 램프 밖의 값을 적고 있었고, 그 값은 저장소 어디에도 없다) |
 | `status.action` | `--accent` | `#4f46e5` | `#818cf8` | 남색 — 사람의 행동 대기 |
 | `status.waiting` | `--warn` | `#b45309` | `#fbbf24` | 호박 — 검토·응답 대기 |
 | `status.agent` | `--purple` | `#7c3aed` | `#c4b5fd` | 보라 — 에이전트 점유·수행 중 |

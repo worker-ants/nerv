@@ -146,7 +146,16 @@ export function AttachmentPanel({
                   <button
                     type="button"
                     data-testid="attach-insert"
-                    onClick={() => onInsert(`![${String(item['filename'])}](${url})`)}
+                    onClick={() =>
+                      // **그림이 아닌 것은 링크다**(2026-09-07 · 사람 결정). 삽입 단추가
+                      // 모든 파일에 이미지 문법을 넣어, PDF·CSV 를 삽입하면 본문에 깨진
+                      // 이미지 자리가 생겼다 — 누른 사람은 자기가 잘못 올렸다고 읽는다.
+                      onInsert(
+                        isImage
+                          ? `![${String(item['filename'])}](${url})`
+                          : `[${String(item['filename'])}](${url})`,
+                      )
+                    }
                     className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
                   >
                     {t('spec.attach.insert')}
