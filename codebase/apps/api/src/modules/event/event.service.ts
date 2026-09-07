@@ -11,11 +11,12 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import { EVENTS_CHANNEL, newId } from '@nerv/schema';
+import { EVENTS_CHANNEL, NERV_EVENT_NAMES, newId } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { event } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { ValkeyService } from './valkey.service.js';
 
@@ -127,9 +128,15 @@ export class EventService {
     // 맨 배열이라 **"다음이 있는가" 를 클라이언트가 알 길이 없었다** — 전표는 `Page<X>` 라
     // 적고 있었으니 §1.6 선언이 이 자리에서도 거짓이었다.
     const limit = Math.min(input.limit ?? 50, 200);
-    const types = input.types ?? null;
+    // 카탈로그 밖의 이름은 **거절이다**(REQ-API-126). 예전에는 그대로 `IN` 에 실려
+    // `?type=spec.aproved` 가 빈 목록을 200 으로 돌려줬다 — 오타가 "그런 일이 없었다" 로
+    // 읽히는 자리다. 이벤트 이름의 정본은 `@nerv/schema` 의 카탈로그다(REQ-CB-006).
+    const types =
+      input.types == null || input.types.length === 0
+        ? null
+        : assertVocab(input.types, NERV_EVENT_NAMES, 'type');
     const typeFilter =
-      types === null || types.length === 0
+      types === null
         ? sql``
         : sql` AND e.type IN (${sql.join(
             types.map((t) => sql`${t}`),

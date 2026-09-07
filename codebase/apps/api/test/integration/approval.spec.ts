@@ -979,6 +979,38 @@ describe('E13-S02 질문 — 멱등 재호출이 곧 폴링이다', () => {
  * 애초에 stale 이 생길 수 없다. 그것 자체가 좋은 성질이고, stale 검증은 아직 가변인
  * 대상(draft·plan)에서만 의미가 있다.
  */
+/**
+ * **접는 것도 무시다**(2026-09-07 · REQ-API-126). 표면이 `status === 'answered' ? … : 'open'`
+ * 으로 접던 동안 `?status=cancelled` 는 **열린 질문 목록**을 200 으로 돌려줬다 — REQ-API-109 가
+ * 만든 상태를 조회할 길이 없으면서, 물어본 쪽은 걸러진 목록이라고 믿는다.
+ */
+describe('E13-S02 질문 목록의 어휘 (REQ-API-126)', () => {
+  it('cancelled 를 물으면 취소된 것만 준다 — 열린 목록으로 접지 않는다', async () => {
+    const open = await questions.create({ projectId, sessionId, title: '열린 질문' });
+    const toCancel = await questions.create({ projectId, sessionId, title: '취소할 질문' });
+    await questions.cancel({
+      projectId,
+      questionId: toCancel.question_id,
+      userId: planner,
+      isAgent: false,
+    });
+
+    const cancelled = await approvals.questions({ projectId, status: 'cancelled' });
+    expect(cancelled.map((q) => q['id'])).toEqual([toCancel.question_id]);
+
+    const opened = await approvals.questions({ projectId, status: 'open' });
+    expect(opened.map((q) => q['id'])).toContain(open.question_id);
+    expect(opened.map((q) => q['id'])).not.toContain(toCancel.question_id);
+  });
+
+  it('어휘 밖의 값은 400 이고 허용 목록을 준다', async () => {
+    await expect(approvals.questions({ projectId, status: 'closed' })).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'invalid_input', field: 'status' },
+    });
+  });
+});
+
 describe('E13-S03 인앱 알림 — 결정이 필요한 것만 (§6.2·§6.6)', () => {
   it('critical·high 는 알림을 만들고 low 는 만들지 않는다', async () => {
     const notifications = new NotificationService(drizzle(pool));

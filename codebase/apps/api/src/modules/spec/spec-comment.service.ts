@@ -100,7 +100,8 @@ export class SpecCommentService {
   async list(input: {
     projectId: string;
     specKey: string;
-    status?: 'open' | 'resolved' | null;
+    /** 어휘 판정은 아래 `assertVocab` 이 한다(REQ-API-126) */
+    status?: string | null;
   }): Promise<Record<string, unknown>[]> {
     const statusFilter =
       input.status == null

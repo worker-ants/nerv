@@ -41,14 +41,14 @@ export class ApprovalController {
     return this.approvals.inbox({ projectId, userId, actor });
   }
 
-  /** EP-QST-01 — 열린 질문 목록 */
+  /** EP-QST-01 — 질문 목록(기본 `open` · 어휘 판정은 서비스가 한다 · REQ-API-126) */
   @RequireScope('spec:read')
   @Get('questions')
   questionList(@Req() req: ProjectRequest, @Query('status') status?: string): Promise<unknown> {
     const { projectId } = human(req);
     return this.approvals.questions({
       projectId,
-      status: status === 'answered' ? 'answered' : 'open',
+      status: status ?? null,
     });
   }
 
@@ -172,7 +172,7 @@ export class ApprovalInboxController {
     return this.approvals.inboxGlobal({
       actor,
       userId,
-      state: state === 'decided' ? 'decided' : 'pending',
+      state: state ?? null,
       projectSlug: project ?? null,
     });
   }

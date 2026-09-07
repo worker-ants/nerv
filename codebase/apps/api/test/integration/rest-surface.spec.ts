@@ -326,6 +326,22 @@ describe('오타는 400 이다 (§1.4j · REQ-API-074)', () => {
     ],
     ['specs/:spec?v=abc', '/api/v1/projects/clemvion/specs/SPC-RBAC?v=abc', 'v'],
     ['events?limit=abc', '/api/v1/projects/clemvion/events?limit=abc', 'limit'],
+    // 2026-09-07(REQ-API-126) — 표면이 삼항으로 **기본값에 접던** 자리들. 접기는 500 보다
+    // 나쁘다: 사람은 걸러진 화면이라고 믿으면서 걸러지지 않은 목록을 읽는다.
+    ['questions?status=closed', '/api/v1/projects/clemvion/questions?status=closed', 'status'],
+    ['me/notifications?state=foo', '/api/v1/me/notifications?state=foo', 'state'],
+    [
+      'comments?status=closed',
+      '/api/v1/projects/clemvion/specs/SPC-RBAC/comments?status=closed',
+      'status',
+    ],
+    [
+      'relations?direction=inbound',
+      '/api/v1/projects/clemvion/specs/SPC-RBAC/relations?direction=inbound',
+      'direction',
+    ],
+    // 카탈로그 밖의 이벤트 이름 — 오타가 "그런 일이 없었다" 로 읽히던 자리다
+    ['events?type=spec.aproved', '/api/v1/projects/clemvion/events?type=spec.aproved', 'type'],
   ])('%s → 400 이고 허용 목록을 준다', async (_name, url, field) => {
     const res = await call('GET', url);
     expect(res.status).toBe(400);

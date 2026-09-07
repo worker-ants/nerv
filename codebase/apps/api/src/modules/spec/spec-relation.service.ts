@@ -10,7 +10,7 @@
 // 것은 정상적인 집필 순서다.
 
 import { Injectable } from '@nestjs/common';
-import { msg, NERV_ERROR, newId, specRelationKind } from '@nerv/schema';
+import { msg, NERV_ERROR, newId, SPEC_RELATION_DIRECTIONS, specRelationKind } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import { assertVocab } from '../../common/query-vocab.js';
@@ -346,12 +346,19 @@ export class SpecRelationService {
   async list(input: {
     projectId: string;
     specKey: string;
-    direction?: 'out' | 'in' | 'both';
+    /** 어휘는 `SPEC_RELATION_DIRECTIONS` — 판정은 아래에서 한다(REQ-API-126) */
+    direction?: string | null;
     kind?: string | null;
     limit?: number;
   }): Promise<{ items: RelationEntry[]; total: number }> {
+    // **어휘 판정이 조회보다 앞이다** — 오타는 대상이 있든 없든 오타다. 뒤에 두면 같은
+    // 잘못된 요청이 대상에 따라 400 이 되기도 409 가 되기도 한다(REQ-API-126).
+    const direction = assertVocab(
+      [input.direction ?? 'both'],
+      SPEC_RELATION_DIRECTIONS,
+      'direction',
+    )[0];
     const specId = await this.specIdOf(input.projectId, input.specKey);
-    const direction = input.direction ?? 'both';
     const kindFilter =
       input.kind == null
         ? sql``

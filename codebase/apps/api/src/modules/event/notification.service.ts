@@ -292,7 +292,8 @@ export class NotificationService {
    */
   async list(input: {
     userId: string;
-    state?: 'unread' | 'read' | null;
+    /** 어휘 판정은 아래 `assertVocab` 이 한다 — 표면이 접으면 여기까지 오지 않는다(REQ-API-126) */
+    state?: string | null;
     limit?: number;
     /** 이 시각보다 **앞선** 것 — 목록의 마지막 항목이 다음 쪽의 시작이다 */
     before?: string | null;

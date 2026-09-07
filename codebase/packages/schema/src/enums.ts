@@ -154,6 +154,17 @@ export const CLAIM_RELEASE_INPUTS = ['done', 'handoff', 'abandon'] as const;
 /** 이름은 `ClaimReleaseReason` 이다 — `ClaimReleaseInput` 은 전표가 요청 스키마에 쓰는 이름이다(§1.7) */
 export type ClaimReleaseReason = (typeof CLAIM_RELEASE_INPUTS)[number];
 
+/**
+ * 받은 요청 목록의 `state` — **pg enum 이 아니라 파생 어휘다**(결재의 `decision IS NULL` 여부).
+ * 그래도 정본은 여기다: 표면이 리터럴로 들고 있으면 검사도 리터럴로 다시 적게 된다.
+ */
+export const APPROVAL_INBOX_STATES = ['pending', 'decided'] as const;
+export type ApprovalInboxState = (typeof APPROVAL_INBOX_STATES)[number];
+
+/** 관계 목록의 방향 — 같은 이유로 여기 둔다(EP-SPEC-18) */
+export const SPEC_RELATION_DIRECTIONS = ['out', 'in', 'both'] as const;
+export type SpecRelationDirection = (typeof SPEC_RELATION_DIRECTIONS)[number];
+
 // ── 세션·활동 ─────────────────────────────────────────────────────────────
 export const agentType = pgEnum('agent_type', ['claude-code', 'codex', 'web', 'other']);
 export const sessionState = pgEnum('session_state', [

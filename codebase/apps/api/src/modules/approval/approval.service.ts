@@ -10,7 +10,16 @@
 // OWASP ASI09 가 명명한 공격 표면이고, 원문 우선 표시가 그에 대한 구조적 방어다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { approvalDecision, msg, NERV_ERROR, NERV_EVENT, newId, scopesForRoles } from '@nerv/schema';
+import {
+  APPROVAL_INBOX_STATES,
+  approvalDecision,
+  msg,
+  NERV_ERROR,
+  NERV_EVENT,
+  newId,
+  questionStatus,
+  scopesForRoles,
+} from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -195,11 +204,13 @@ export class ApprovalService {
     /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
     actor: Actor;
     userId: string;
-    state?: 'pending' | 'decided' | null;
+    /** 어휘는 `APPROVAL_INBOX_STATES` — 판정은 아래에서 한다(REQ-API-126) */
+    state?: string | null;
     projectSlug?: string | null;
   }): Promise<Record<string, unknown>[]> {
     assertHuman(input.actor, 'inbox', '/inbox');
-    const decided = input.state === 'decided';
+    const decided =
+      assertVocab([input.state ?? 'pending'], APPROVAL_INBOX_STATES, 'state')[0] === 'decided';
     const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
     const projectFilter =
       input.projectSlug == null ? sql`` : sql` AND p.slug = ${input.projectSlug}`;
@@ -327,12 +338,24 @@ export class ApprovalService {
     return projectId;
   }
 
-  /** EP-QST-01 — 열린 질문 목록(프로젝트 소속). */
+  /**
+   * EP-QST-01 — 질문 목록(프로젝트 소속). 기본은 `open` 이다.
+   *
+   * **어휘 판정이 여기 있다**(REQ-API-126). 예전에는 표면이 `status === 'answered' ? … : 'open'`
+   * 로 접어, `?status=cancelled` 가 **열린 질문 목록을 200 으로** 돌려줬다 — REQ-API-109 가
+   * 만든 상태를 조회할 길이 없으면서 물어본 쪽은 걸러진 목록이라고 믿는다.
+   * 시그니처를 `string` 으로 넓히는 것이 요점이다: 리터럴 유니온은 컴파일러를 막지
+   * **호출자(HTTP·MCP)를 막지 않는다.**
+   */
   async questions(input: {
     projectId: string;
-    status?: 'open' | 'answered' | null;
+    status?: string | null;
   }): Promise<Record<string, unknown>[]> {
-    const status = input.status ?? 'open';
+    const status = assertVocab(
+      [input.status ?? 'open'],
+      questionStatus.enumValues,
+      'status',
+    )[0] as string;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT q.id, q.title, q.body_md, q.options, q.urgency::text AS urgency,
              q.status::text AS status, q.answer_key, q.answer_md, q.asked_at, q.answered_at,
