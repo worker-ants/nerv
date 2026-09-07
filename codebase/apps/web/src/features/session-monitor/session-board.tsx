@@ -52,6 +52,9 @@ export function SessionBoard({
     isError: boolean;
     data: SessionBoardResult | undefined;
     refetch: () => unknown;
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    fetchNextPage: () => unknown;
   };
 
   if (query.isLoading) {
@@ -142,6 +145,24 @@ export function SessionBoard({
           />
         ))}
       </div>
+      {/*
+        **벽 대신 문**(REQ-WEB-150). 보드는 서버 기본 상한에서 끝났고, 그 끝은 오류도 빈
+        상태도 아니라 "이게 전부" 로 읽힌다 — 스트립이 "종료 47건" 이라 적은 옆에서.
+        단추는 더 받을 것이 있을 때만 그린다: 눌러도 아무 일이 없는 단추는 두지 않는다.
+      */}
+      {query.hasNextPage && (
+        <div className="flex justify-center pt-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            data-testid="sessions-load-more"
+            disabled={query.isFetchingNextPage}
+            onClick={() => void query.fetchNextPage()}
+          >
+            {query.isFetchingNextPage ? t('common.loading') : t('sessions.more')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

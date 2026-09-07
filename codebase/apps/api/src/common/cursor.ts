@@ -60,3 +60,17 @@ export function pageLimit(raw: string | number | undefined): number {
   if (n === undefined || Number.isNaN(n)) return PAGE_LIMIT_DEFAULT;
   return Math.min(PAGE_LIMIT_MAX, Math.max(1, n));
 }
+
+/**
+ * **유한 목록의 봉투**(§1.6 · REQ-API-120).
+ *
+ * 자라지 않는 목록(한 문서의 버전·코멘트·관계, 한 프로젝트의 기준선)은 커서가 아니라
+ * **총계**를 준다 — 쪽이 없으니 `next_cursor` 는 거짓말이 되고, 맨 배열은 화면이 "이게
+ * 전부인가" 를 물을 자리를 없앤다. 상한이 없으므로 `total` 은 곧 실제 건수다.
+ *
+ * 표면에서 감싸고 서비스는 배열을 그대로 둔다 — 도메인 안쪽(`diff()` · `include=comments`)이
+ * 같은 서비스를 쓰고, 봉투로 번역하는 것은 표면의 일이다(D-05).
+ */
+export function finiteList<T>(items: T[]): { items: T[]; total: number } {
+  return { items, total: items.length };
+}

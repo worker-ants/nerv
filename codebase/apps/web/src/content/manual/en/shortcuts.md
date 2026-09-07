@@ -1,6 +1,6 @@
 ## ⌘K — finding a document
 
-`⌘K` (`Ctrl+K` on Windows and Linux) opens the quick switcher. It finds **specs and requirements** by name — not screens, not settings.
+`⌘K` (`Ctrl+K` on Windows and Linux) opens the quick switcher. It finds **specs and requirements** by name, and **pasting a stable ID** jumps straight to that document, requirement, or task (tasks are found by key only). It does not find screens or settings.
 
 **It only works inside a project.** On screens whose address carries no project — home, the inbox, notifications, settings — the panel opens but neither search nor navigation does anything.
 

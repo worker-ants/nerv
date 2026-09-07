@@ -99,6 +99,9 @@ export interface RelationEntry extends Record<string, unknown> {
   version_no: number | null;
 }
 
+/** `include=relations` 요약이 싣는 미리보기 수 — 전량은 EP-SPEC-18 이 준다 */
+const SUMMARY_ITEMS = 20;
+
 @Injectable()
 export class SpecRelationService {
   constructor(@InjectDb() private readonly db: NervDb) {}
@@ -349,7 +352,6 @@ export class SpecRelationService {
     /** 어휘는 `SPEC_RELATION_DIRECTIONS` — 판정은 아래에서 한다(REQ-API-126) */
     direction?: string | null;
     kind?: string | null;
-    limit?: number;
   }): Promise<{ items: RelationEntry[]; total: number }> {
     // **어휘 판정이 조회보다 앞이다** — 오타는 대상이 있든 없든 오타다. 뒤에 두면 같은
     // 잘못된 요청이 대상에 따라 400 이 되기도 409 가 되기도 한다(REQ-API-126).
@@ -364,8 +366,6 @@ export class SpecRelationService {
         ? sql``
         : // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
           sql` AND r.kind = ${assertVocab([input.kind], specRelationKind.enumValues, 'kind')[0]}::spec_relation_kind`;
-    const limit = Math.min(input.limit ?? 50, 200);
-
     const outQ = sql`
       SELECT r.kind::text AS kind, 'out' AS direction, s.id AS spec_id, s.key, s.title,
              sv.status::text AS doc_status, sv.version_no
@@ -385,10 +385,17 @@ export class SpecRelationService {
     const query =
       direction === 'out' ? outQ : direction === 'in' ? inQ : sql`${outQ} UNION ALL ${inQ}`;
 
+    // **상한이 없다**(2026-09-07 · REQ-API-155). 관계 수는 스펙 수에 묶인 유한값이고
+    // (실측 최대 93), 관계 탭·영향 미리보기의 목적은 **완전한** 역참조 목록이다 — "이걸
+    // 고치면 무엇이 흔들리나" 에 답하는 화면에서 상한은 조용한 오답이다.
+    //
+    // 예전에는 `LIMIT 51` 뒤 `rows.length` 라 `total = min(총계, 51)` 이었고, 정렬이
+    // `direction` 먼저라 'in' 이 'out' 을 밀어냈다 — 관계가 50건을 넘는 문서에서 웹은
+    // **"역참조 50 · 레퍼런스 0"** 을 그렸다(실측 data-model: in 50 · out 43).
     const { rows } = await this.db.execute<RelationEntry>(sql`
-      SELECT * FROM (${query}) rel ORDER BY direction, kind, key LIMIT ${limit + 1}
+      SELECT * FROM (${query}) rel ORDER BY direction, kind, key
     `);
-    return { items: rows.slice(0, limit), total: rows.length };
+    return { items: rows, total: rows.length };
   }
 
   /** EP-SPEC-03 `include=relations` — 총계 + 상위 N 요약. 전량은 EP-SPEC-18 이다. */
@@ -396,16 +403,13 @@ export class SpecRelationService {
     projectId: string;
     specKey: string;
   }): Promise<{ out_count: number; in_count: number; items: RelationEntry[] }> {
-    const { items } = await this.list({ ...input, direction: 'both', limit: 20 });
-    const specId = await this.specIdOf(input.projectId, input.specKey);
-    const { rows } = await this.db.execute<{ out_count: string; in_count: string }>(sql`
-      SELECT (SELECT count(*) FROM spec_relation WHERE from_spec_id = ${specId}) AS out_count,
-             (SELECT count(*) FROM spec_relation WHERE to_spec_id = ${specId}) AS in_count
-    `);
+    // 전량을 한 번 받아 **그 배열에서 센다** — 따로 `count(*)` 를 돌리면 두 질의가 서로
+    // 다른 시점을 보고, 그때 요약의 수와 목록의 길이가 어긋난다.
+    const all = await this.list({ ...input, direction: 'both' });
     return {
-      out_count: Number(rows[0]?.out_count ?? 0),
-      in_count: Number(rows[0]?.in_count ?? 0),
-      items,
+      out_count: all.items.filter((r) => r.direction === 'out').length,
+      in_count: all.items.filter((r) => r.direction === 'in').length,
+      items: all.items.slice(0, SUMMARY_ITEMS),
     };
   }
 

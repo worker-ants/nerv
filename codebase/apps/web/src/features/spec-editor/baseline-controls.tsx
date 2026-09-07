@@ -21,9 +21,12 @@ export interface Baseline {
 }
 
 export function useBaselines(projectSlug: string): ReturnType<typeof useQuery<Baseline[]>> {
-  return useQuery<Baseline[]>({
+  // 유한 목록이라 `{items, total}` 봉투로 온다(REQ-API-155) — 훅이 풀어 준다
+  return useQuery({
     queryKey: ['project', projectSlug, 'baselines'],
-    queryFn: () => apiFetch<Baseline[]>(`/projects/${projectSlug}/baselines`),
+    queryFn: () =>
+      apiFetch<{ items: Baseline[]; total: number }>(`/projects/${projectSlug}/baselines`),
+    select: (data) => data.items,
   });
 }
 

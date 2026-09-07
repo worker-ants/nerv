@@ -3,6 +3,7 @@ id: SPC-MVP-BACKLOG
 status: approved
 updated: 2026-09-06
 referenced_by:
+  - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md
   - 04-mvp/api.md
@@ -17,7 +18,13 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.44 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.47 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.47 변경(2026-09-07 — 클레임 이후를 아무도 태우지 않았다, 개선 계획 넷째 스프린트): **§5.6 시나리오 F 신설.** A~C 는 `nerv_bootstrap`·`nerv_task_claim` 까지만 태우고 웹 e2e 는 보드·세션·받은 요청을 열지 않아, 클레임 **이후**의 계약(하트비트 역채널 · done 게이트 · SessionEnd 회수)이 **한 세션 안에서 이어지는지**는 어느 검사도 보지 않았다 — 조각이 각각 초록인 것과 여정이 이어지는 것은 다른 사실이다. [3.7 로드맵](../03-proposal/roadmap.md) 성공 기준 0-8("도구만으로 완주")에 판정 수단이 없던 이유이기도 하다.
+>
+> v0.46 변경(2026-09-07 — 넷째 스프린트 ⑤): §1.4 셋째 표에 **유한 목록의 총계 · 관계 상한 제거** 한 줄([4.4](api.md) REQ-API-155).
+>
+> v0.45 변경(2026-09-07 — 넷째 스프린트 ④): §1.4 셋째 표에 **잔재 걷기와 손잡이 · 세션 보드 [더 보기]** 한 줄([4.2](codebase.md) REQ-CB-035 · [4.5](screens.md) REQ-WEB-150).
 >
 > v0.44 변경(2026-09-07 — 넷째 스프린트 ③): §1.4 셋째 표에 **임베딩 차원·절단·공개 S3 주소** 한 줄([4.2](codebase.md) REQ-CB-033·034 · [4.4](api.md) REQ-API-154).
 >
@@ -139,7 +146,7 @@ referenced_by:
 | E14 운영·연동 | 3 | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` |
 | **합계** | **65** | **9** | `backlog` 0 |
 
-§5 의 **E2E 수용 시나리오 A~E 도 다섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts`.
+§5 의 **E2E 수용 시나리오 A~F 도 여섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts` · `scenario-f-journey.spec.ts`(2026-09-07 신설 — 그전까지 A~C 는 클레임까지만 태웠고 그 **이후**의 계약은 L2 조각들만 봤다).
 
 #### 부분 구현 열 — 남은 것을 적어 둔다
 
@@ -198,6 +205,8 @@ referenced_by:
 | done 게이트 정책 · 리뷰 링크 | `zod/policy.ts`(`done_gate`) · `task.service.ts`(`assertDoneGate`) · `evidence-locator.ts`(신설) · `review.service.ts`(활성 클레임에서 task_id) | 게이트가 자기 신고 문자열 1건으로 열렸고 리뷰 1,992건 중 Task 링크가 2건이었다(2026-09-07 · [4.4](api.md) REQ-API-146~148) |
 | 알림 등급·수신자 | `notification.service.ts`(등급 필터·둘로 세기·owner_role 수신자) · `event.controller.ts` · `app-shell.tsx`·`routes/notifications.tsx` | 배지가 배경 활동까지 세어 결정 99건이 767건에 묻혔다(2026-09-07 · [4.4](api.md) REQ-API-149·150) |
 | 권한·토큰의 감사 | `event/event-core.module.ts`(신설) · `auth.service.ts`·`invitation.service.ts`·`attachment.service.ts` · `events.ts` | FR-16 이 요구하는 축이 멤버십·토큰·프로젝트 변경에서 비어 있었다(2026-09-07 · [4.4](api.md) REQ-API-151) |
+| 유한 목록의 총계 · 관계 상한 제거 | `common/cursor.ts`(`finiteList`) · `spec.controller.ts` 세 핸들러 · `spec-relation.service.ts` · `queries.ts`·`baseline-controls.tsx` | 넷 중 셋이 맨 배열이었고 관계는 `LIMIT 51` 이라 `total` 이 자른 수였다 — 웹은 "역참조 50 · 레퍼런스 0" 을 그렸다([4.4](api.md) REQ-API-155) |
+| 잔재 걷기와 손잡이 · 세션 보드 [더 보기] | `sse.controller.ts`(keep-alive 손잡이) · `queries.ts`(`useSessions` 커서) · `session-board.tsx` · i18n·매뉴얼·주석 넷 | 태우지 않은 정정은 다시 갈린다(keep-alive 형식) · 보드가 서버 상한에서 끝나 스트립의 숫자와 어긋났다([4.2](codebase.md) REQ-CB-035 · [4.5](screens.md) REQ-WEB-150) |
 | 임베딩 차원·절단·공개 S3 주소 | `embedding.client.ts` · `common/storage.service.ts`(+`storage.service.spec.ts`) · `search.service.ts` · `deploy/**`·`.env.example` | 차원 상수가 두 벌이었고 절단 여부를 **주소로 추정**했다(게이트웨이 뒤에서 조용히 degrade) · 공개 S3 주소 예시 `…/s3` 는 서명이 깨지는 길이다([4.2](codebase.md) REQ-CB-033·034 · [4.4](api.md) REQ-API-154) |
 | MCP 비신뢰 래핑 실물 | `mcp/untrusted.ts`(신설) · `spec.tools.ts` · `question.tools.ts` · `task.tools.ts` · `spec.service.ts`(포장 거절) | 문서 세 곳과 스킬 다섯이 2026-08 부터 "경계 안에 온다" 고 적었고 **서버에는 없었다** — E03-S03 은 도구의 존재만 세고 E12-S01 은 스킬 문장만 센다([4.4](api.md) REQ-API-153) |
 | slug 해소의 조직 경계 | `auth.service.ts`(`resolveProject(slug, prefer)`) · `common/project-access.guard.ts`(`orgQualifier`) · `sse-access.guard.ts` · `webhook.controller.ts` · `auth.controller.ts` · `web/src/lib/last-org.ts`(신설) | 유일 제약은 `(org_id, slug)` 인데 해소는 첫 행을 골랐다 — 두 번째 조직 사람은 자기 프로젝트에서 403 을 봤고, 웹훅은 막히지도 않고 남의 프로젝트에 증적을 붙였다([4.4](api.md) REQ-API-152) |
@@ -516,6 +525,24 @@ W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(
 | 4 | 2회 연속 재실행 | 두 번째 실행의 신규 생성 레코드 **0**(0-7) |
 | 5 | 배치 전송 중 강제 타임아웃 후 같은 명령 재실행 | 같은 `Idempotency-Key` 재전송으로 중복 레코드 **0**(REQ-IMP-013) |
 | 6 | `import:write` 없는 PAT로 `--apply` | 403 거부, 레코드 생성 0(REQ-API-017) |
+
+### 5.6 시나리오 F — 도구만으로 완주 (성공 기준 0-8)
+
+- **대상 스토리**: E03-S03 · E04-S01~S03 · E09-S05 · E13-S02. **등장**: 두 에이전트(Claude Code 1세션 · Codex 1세션)가 **REST 를 한 번도 쓰지 않고** 도구만으로 한 작업을 끝까지 가져간다. 판정은 설문이 아니라 이벤트 로그와 DB 상태다.
+- **왜 따로 두나**: A~C 는 `nerv_bootstrap`·`nerv_task_claim` 까지만 태운다 — 클레임 **이후**의 계약(하트비트 역채널 · done 게이트 · SessionEnd 회수)이 **한 세션 안에서 이어지는지**는 어느 검사도 보지 않았다. 조각이 각각 초록인 것과 여정이 이어지는 것은 다른 사실이다. 두 에이전트 종류를 각각 걷는 이유도 같다: 계약이 한 클라이언트에만 맞아 있으면 그것은 계약이 아니라 그 클라이언트의 습관이다.
+
+| 단계 | 행위 | 판정 |
+| --- | --- | --- |
+| 1 | `nerv_bootstrap`(`external_session_id` 포함) | 세션 uuid 반환 — 훅이 그 external id 로 세션을 찾는다 |
+| 2 | `nerv_task_next` | 만든 Task 가 후보에 있다 |
+| 3 | `nerv_task_claim`(scope · idempotency_key) | `claim_id` 반환 |
+| 4 | `nerv_task_heartbeat` | `pending: []` — 빈 배열이지 없는 필드가 아니다 |
+| 5 | `nerv_question_create`(`urgency: blocking`) | 세션 상태 `awaiting_input` |
+| 6 | 사람이 답한다(웹 경로 — PAT 로는 부를 수 없다 · D-08) | 세션 상태 `active` · `question.answered` 1건 |
+| 7 | `nerv_task_heartbeat` | `pending[]` 에 `question_answered` — **다음 하트비트에도 남는다**(1시간 창: 한 번 주고 지우면 그 사이 끊긴 세션은 답을 영영 못 받는다) |
+| 8 | `nerv_review_submit`(findings 0) | 활성 클레임의 Task 로 이어진다([4.4](api.md) REQ-API-148) |
+| 9 | `nerv_task_update`(`done` + 증적 + `spec_impact`) | `task.done` 1건 — 셋 중 하나라도 빠지면 게이트가 막는다 |
+| 10 | `POST /ingest/hooks/session-end` | 202 · 세션 `complete` · **활성 클레임 0**(남으면 그 Task 는 리스 만료까지 잠긴다) |
 
 ---
 

@@ -918,7 +918,8 @@ export const en = {
   'specs.degraded': 'Semantic search is off for now — these are keyword results only.',
   'specs.expand': 'Expand',
   'specs.no_results': 'No results.',
-  'specs.no_results_hint': 'You can also search by stable ID (SPC-…, REQ-…).',
+  'specs.no_results_hint':
+    'You can also search by stable ID — a spec key, requirement ref, or task key.',
   'specs.related': 'Reached through relations',
   'specs.related_hint': 'Not matched by your query but connected — a reason to look, not a match.',
   'specs.results': '{count} results',
@@ -1122,6 +1123,7 @@ export const en = {
   'sessions.none_hint_pre': 'Install the plugin and call',
   'sessions.none_in_state': 'No sessions are {state}.',
   'sessions.show_all': 'Show all',
+  'sessions.more': 'Load more',
   'sessions.none_running': 'No sessions are running.',
   'sessions.title': 'Session monitor',
   'steer.confirm_body':
@@ -1197,7 +1199,7 @@ export const en = {
   'switcher.key_open': '↵ open',
   'switcher.label': 'Quick switcher',
   'switcher.no_results': 'No results — try different words.',
-  'switcher.placeholder': 'Search specs and tasks, or paste a stable ID (SPC-…, TSK-…)',
+  'switcher.placeholder': 'Search specs and tasks, or paste a stable ID',
   'switcher.pin': 'Pin to the top',
   'switcher.unpin': 'Unpin',
   'switcher.recent': 'Recently visited documents collect here.',

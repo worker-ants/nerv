@@ -97,7 +97,7 @@ describe('⌘K 로 열리고 Esc 로 닫힌다 — 전 라우트 공통', () => 
     const dialog = await screen.findByTestId('quick-switcher');
     expect(dialog).toBeDefined();
 
-    fireEvent.keyDown(screen.getByPlaceholderText(/번호/), { key: 'Escape' });
+    fireEvent.keyDown(screen.getByPlaceholderText(/고정 ID/), { key: 'Escape' });
     expect(screen.queryByTestId('quick-switcher')).toBeNull();
   });
 

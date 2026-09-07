@@ -171,9 +171,7 @@ export const requirement = pgTable(
   (t) => [
     uniqueIndex('requirement_ref_uq').on(t.projectId, t.ref),
     index('requirement_spec_impl').on(t.specId, t.implStatus),
-    // EARS 문장 검색(api.md §2.2b).
-    // ※ database.md §2.12 는 이 인덱스를 `requirement(text ...)` 로 적었으나 requirement 에
-    //    `text` 컬럼은 없다 — 인용 대상은 EARS 문장이므로 statement_md 가 맞다(문서 결함 정정).
+    // EARS 문장 검색(api.md §2.2b · database.md §2.12).
     index('requirement_statement_trgm').using('gin', sql`${t.statementMd} gin_trgm_ops`),
   ],
 );

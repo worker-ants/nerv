@@ -181,6 +181,37 @@ describe('SessionBoard — 상태 3종 (screens.md §1.5)', () => {
     vi.unstubAllGlobals();
   });
 
+  /**
+   * **벽 대신 문**(2026-09-07 · REQ-WEB-150). 컨트롤러는 `cursor` 를 처음부터 주고 있었는데
+   * 웹은 어디서도 보내지 않아 보드가 서버 기본 상한에서 끝났다 — 스트립이 "종료 47건" 이라
+   * 적은 옆에서, 그 끝은 오류도 빈 상태도 아니라 **"이게 전부"** 로 읽힌다.
+   */
+  it('다음 쪽이 있으면 [더 보기] 로 이어 받는다', async () => {
+    const second: Card = { ...base, id: 's-2', user_name: '유나', hostname: 'mac-03' };
+    const fetchMock = vi.fn(async (url: unknown) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        String(url).includes('cursor=')
+          ? { items: [second], summary: { active: 2 }, next_cursor: null }
+          : { items: [base], summary: { active: 2 }, next_cursor: 'c-1' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    await renderBoard();
+
+    await waitFor(() => expect(screen.getByTestId('sessions-load-more')).toBeDefined());
+    expect(screen.getAllByTestId('session-card')).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId('sessions-load-more'));
+    await waitFor(() => expect(screen.getAllByTestId('session-card')).toHaveLength(2));
+    // 이어 붙인다 — 갈아 끼우지 않는다(먼저 온 것이 사라지면 그것도 "이게 전부" 다)
+    expect(screen.getByText(/도현/)).toBeDefined();
+    expect(screen.getByText(/유나/)).toBeDefined();
+    // 끝에 닿으면 단추도 사라진다 — 눌러도 아무 일이 없는 단추는 두지 않는다
+    expect(screen.queryByTestId('sessions-load-more')).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
   it('에러는 인라인 카드 + 다시 시도 — 전역 토스트로 중복 알리지 않는다', async () => {
     vi.stubGlobal(
       'fetch',

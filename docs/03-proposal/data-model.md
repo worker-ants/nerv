@@ -21,6 +21,7 @@ referenced_by:
   - 04-mvp/backlog.md
   - glossary.md
   - README.md
+  - ../README.md
   - ../AGENTS.md
 ---
 # 데이터 모델

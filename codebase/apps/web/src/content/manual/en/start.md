@@ -60,4 +60,4 @@ One person can be `admin` in the organization and `developer` on a project. **Ho
 2. Skim the **spec tree** on the left. What this project decided to build is in there.
 3. Open **Tasks** and look at the `ready` lane — that is what can be picked up right now.
 4. If you are connecting an agent, issue a token under **Settings → Tokens** and install the plugin — the procedure is in [Installing the plugin](/help/install), what fits together with what is in [Agents](/help/agents).
-5. To find a document, press **⌘K**. It finds **specs and requirements** by name — not screens or settings — and it only works **inside a project**.
+5. To find a document, press **⌘K**. It finds **specs and requirements** by name, and pasting a stable ID jumps straight to it — not screens or settings — and it only works **inside a project**.

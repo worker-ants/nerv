@@ -25,8 +25,19 @@ import type { BroadcastEnvelope } from './event-subscriber.service.js';
 import { FanoutService } from './fanout.service.js';
 import type { RoomName } from './fanout.service.js';
 
-/** keep-alive 주기 — api.md §3.5. 에이전트 하트비트 60초와는 무관하다 */
-const KEEPALIVE_MS = 25_000;
+/**
+ * keep-alive 주기 — api.md §3.5. 에이전트 하트비트 60초와는 무관하다.
+ *
+ * **상수가 아니라 손잡이다**(2026-09-07 · REQ-CB-035). 앞문의 유휴 타임아웃이 25초보다
+ * 짧으면 스트림이 조용히 끊기는데, 그때 고칠 수 있는 것이 재배포뿐이면 손잡이가 없는
+ * 것과 같다(`NERV_LOG_LEVEL` 이 같은 이유로 배선됐다). 검사도 이 값을 낮춰 **계약을
+ * 실제로 태운다** — `: ping` 코멘트가 아니라 `event: ping` 메시지라는 사실은 오래 문서
+ * 셋이 틀리게 적고 있었고, 태우지 않으면 다시 갈린다.
+ */
+function keepaliveMs(): number {
+  const raw = Number(process.env['NERV_SSE_KEEPALIVE_MS']);
+  return Number.isFinite(raw) && raw > 0 ? raw : 25_000;
+}
 
 interface SseMessage {
   /** Event `type` — 클라이언트는 이 이름으로 듣는다 */
@@ -102,7 +113,7 @@ export class SseController {
       // 메시지로 내보내므로, 클라이언트가 무시할 수 있는 ping 타입으로 보낸다.
       const keepalive = setInterval(() => {
         observer.next({ type: 'ping', id: '', data: '{}' });
-      }, KEEPALIVE_MS);
+      }, keepaliveMs());
 
       return () => {
         clearInterval(keepalive);
