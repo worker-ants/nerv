@@ -24,6 +24,9 @@ vi.mock('socket.io-client', () => ({
 /** 레인별로 무엇을 요청했는지 기록한다 — 요청 자체가 검사 대상이다 */
 let asked: string[] = [];
 
+/** blocked 카드에 실릴 사유 — 검사마다 갈아 끼운다 */
+let blockedReason = 'awaiting_answer';
+
 function task(id: string, status: string): Record<string, unknown> {
   return {
     id,
@@ -32,11 +35,13 @@ function task(id: string, status: string): Record<string, unknown> {
     status,
     priority: 'P2',
     delegation_complete: true,
+    ...(status === 'blocked' ? { blocked_reason: blockedReason } : {}),
   };
 }
 
 beforeEach(() => {
   asked = [];
+  blockedReason = 'awaiting_answer';
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
@@ -148,5 +153,25 @@ describe('레인 구성 (§2.5)', () => {
       .getAllByTestId(/^column-/)
       .map((n) => n.dataset['testid']?.replace('column-', ''));
     expect(order).toEqual(['blocked', 'ready', 'claimed', 'in_progress', 'in_review', 'done']);
+  });
+});
+
+// 2026-09-07 — 카드가 `awaiting_answer` 를 **그대로** 찍고 있었다. 그것은 어휘의 값이지
+// 읽으라고 만든 문장이 아니다. 라벨은 처음부터 카탈로그에 있었고(`blocked.*`), 카드가
+// 그것을 쓰지 않았을 뿐이다.
+describe('막힘 사유는 사람 말이다 (REQ-WEB-143)', () => {
+  it('어휘 안의 값은 라벨로 — 식별자가 카드에 남지 않는다', async () => {
+    await renderBoard();
+    const card = await screen.findByTestId('card-blocked-reason');
+    expect(card.textContent).toBe('답변 대기');
+    expect(screen.queryByText('awaiting_answer')).toBeNull();
+  });
+
+  it('어휘 밖의 값은 **원문 그대로** — 키 문자열이 화면에 새지 않는다', async () => {
+    blockedReason = '외주 답신 대기';
+    await renderBoard();
+    const card = await screen.findByTestId('card-blocked-reason');
+    expect(card.textContent).toBe('외주 답신 대기');
+    expect(document.body.textContent).not.toContain('blocked.');
   });
 });

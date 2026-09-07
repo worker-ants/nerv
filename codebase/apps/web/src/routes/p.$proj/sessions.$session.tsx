@@ -3,40 +3,33 @@
 // 타임라인에 **사람의 개입이 에이전트의 행동과 같은 줄에 섞여** 보인다(steer/stop 이
 // elicitation 으로 적재된다). 그게 이 화면의 값어치다 — "왜 이 세션이 방향을 틀었나"의 답이
 // 다른 화면에 있으면 아무도 찾아보지 않는다.
+//
+// **레일과 같은 것을 그린다**(2026-09-07 · REQ-WEB-142). 2026-09-06 까지 이 화면은
+// 자기만의 단순 목록이었다 — 묶기도, 실패 강조도, 원문 펼침도, 잘림 표시도, 궤적도
+// 없었다. 화면이 좁으면 레일이 접히고 매뉴얼은 "그때는 상세로 들어가 보라" 고 적는데,
+// 도착한 곳이 **덜 보여 주는 화면**이었다. 목록의 정본은 `ActivityTimeline` 이다.
 
 import { statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import {
+  ActivityTimeline,
+  SessionTrajectory,
+} from '../../features/session-monitor/activity-timeline.js';
 import { SteerPanel } from '../../features/session-monitor/steer-panel.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
-import { rows, useSessionDetail, useSessionTimeline } from '../../lib/queries.js';
+import { rows, useSessionDetail } from '../../lib/queries.js';
 import { useCanIntervene } from '../../lib/scope.js';
-import {
-  Card,
-  EmptyState,
-  Mono,
-  PageBody,
-  PageHeader,
-  SectionTitle,
-} from '../../components/ui/primitives.js';
+import { Card, PageBody, PageHeader, SectionTitle } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
 export const Route = createFileRoute('/p/$proj/sessions/$session')({ component: SessionDetail });
-
-const TYPE_ICON: Record<string, string> = {
-  thought: '💭',
-  action: '⚙️',
-  elicitation: '🙋',
-  response: '💬',
-  error: '⛔',
-};
 
 function SessionDetail(): React.JSX.Element {
   const t = useT();
   const { proj, session } = Route.useParams();
   const detail = useSessionDetail(proj, session);
-  const timeline = useSessionTimeline(proj, session);
 
   const data = detail.data ?? {};
   const state = String(data['state'] ?? '');
@@ -98,38 +91,18 @@ function SessionDetail(): React.JSX.Element {
           />
         </Card>
 
+        {/* **위에는 한 일, 아래에 도구 로그** — 레일과 같은 순서다(REQ-WEB-124).
+            이 화면의 첫 물음도 "무슨 도구를 썼나" 가 아니다 */}
+        <section>
+          <SectionTitle>{t('sessions.rail.trajectory')}</SectionTitle>
+          <SessionTrajectory projectSlug={proj} sessionId={session} />
+        </section>
+
         <section>
           {/* 사람의 개입이 에이전트의 행동과 **같은 줄에** 섞인다 — 세로선 하나로 묶어야
               "왜 방향을 틀었나"가 위아래로 읽힌다 */}
-          <SectionTitle>Activity</SectionTitle>
-          <ol className="flex flex-col border-l border-border pl-3">
-            {rows(timeline.data?.items).map((item) => (
-              <li key={String(item['id'])} className="relative py-1.5 text-sm">
-                <span
-                  aria-hidden="true"
-                  className="absolute -left-[1.05rem] text-xs"
-                  style={{ top: '0.4rem' }}
-                >
-                  {TYPE_ICON[String(item['type'])] ?? '·'}
-                </span>
-                <div className="flex items-baseline gap-2">
-                  <Mono>#{String(item['seq'])}</Mono>
-                  <span className="min-w-0 flex-1">
-                    <span className="font-medium">{String(item['title'] ?? item['type'])}</span>
-                    {item['body_md'] !== null && item['body_md'] !== undefined && (
-                      <span className="ml-1 text-text-mute">{String(item['body_md'])}</span>
-                    )}
-                  </span>
-                  {item['tool_name'] !== null && item['tool_name'] !== undefined && (
-                    <Mono>{String(item['tool_name'])}</Mono>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
-          {rows(timeline.data?.items).length === 0 && (
-            <EmptyState icon="·" title={t('session.no_activity')} />
-          )}
+          <SectionTitle>{t('sessions.rail.activity')}</SectionTitle>
+          <ActivityTimeline projectSlug={proj} sessionId={session} />
         </section>
 
         <section>

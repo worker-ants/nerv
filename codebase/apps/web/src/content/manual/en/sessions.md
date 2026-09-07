@@ -2,7 +2,7 @@ A session is **one agent, running now**. The session monitor answers "what is go
 
 ## Reading the monitor
 
-The list is on the left; the **activity rail** for the selected session is on the right. Pick a row and its activity streams right there — a monitor that makes you navigate elsewhere to see why something stalled is not a monitor. On a narrow screen the rail folds away; open **Details** on the card to see the activity there.
+The list is on the left; the **activity rail** for the selected session is on the right. Pick a row and its activity streams right there — a monitor that makes you navigate elsewhere to see why something stalled is not a monitor. On a narrow screen the rail folds away; open **Details** on the card to see the activity there — **the detail screen draws the same thing as the rail** (what it did, the activity, run collapsing, raw payloads, [Load earlier activity]). Moving to a narrow screen does not cost you anything you could see.
 
 Each session carries whose machine it is on, which agent is running (`claude-code` · `codex` · `web` · `other`), and which task it has claimed. `other` is where a session that did not name its kind lands.
 
@@ -35,6 +35,8 @@ Two things make it readable.
 
 - **Runs of the same tool collapse** (`×12`). A different tool in between means a different phase, so those are not merged.
 - **Failures never collapse.** Hidden inside a group, the marker made to stand out loses its point.
+
+The list arrives most recent first, one page at a time. When there is more before it, **[Load earlier activity]** sits at the top of the list, and pressing it **prepends** the older entries. Keep pressing and you can walk a long session all the way back to its start.
 
 Expanding a line shows the **raw payload** (tool input and response). Raw payloads are visible **only to the session's owner and to admins** — secrets are masked at ingest, but masking is never perfect, so the audience is narrowed too.
 

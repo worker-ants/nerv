@@ -21,7 +21,7 @@ type KeyBuilder = (e: NervEventEnvelope) => NervQueryKey[];
 /**
  * 스펙 축 — **키로 잡는다**(2026-08-29 정정).
  *
- * 화면의 쿼리 키는 고정 ID(`SPC-…`)인데 봉투의 `subject_id` 는 버전·스펙 UUID 라
+ * 화면의 쿼리 키는 고정 ID(스펙 키)인데 봉투의 `subject_id` 는 버전·스펙 UUID 라
  * 축이 달랐다. `['spec', <버전UUID>]` 를 무효화해도 `['spec','SPC-CWC-007']` 에는 닿지
  * 않는다 — 그래서 상세 화면이 **한 번도** 다시 읽히지 않았다. 서버가 `subject_key` 를
  * 싣게 됐으므로(api.md §3.3) 그것을 쓰고, 없으면 예전대로 id 로 떨어진다.

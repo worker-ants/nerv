@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v0.83 · 2026-09-06 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v0.84 · 2026-09-07 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v0.84 변경(2026-09-07 — 같은 것을 두 벌로 그리던 자리 셋, 개선 계획 첫 스프린트): **REQ-WEB-141·142·143 신설 · §1.8·§1.9·§2.5·§2.6 개정.** ① **세션 상세가 레일과 다른 것을 그렸다** — 레일에는 묶기·실패 강조·원문 펼침·잘림 표시가 있는데 상세는 자기만의 단순 목록이라 그 넷이 전부 없었다. 화면이 좁으면 레일이 접히고 매뉴얼은 "그때는 상세로 들어가라" 고 적는데, **도착한 곳이 덜 보여 주는 화면**이었다. 목록을 `ActivityTimeline` 한 곳으로 모으고 궤적 절도 상세에 둔다(§1.9 ④-2). ② **잘렸다고 말만 했다** — v0.83 이 넣은 "앞쪽 활동이 더 있습니다" 한 줄에는 갈 길이 없었고, 443건 세션의 초반은 표시가 생긴 뒤에도 닿지 않는 곳이었다. 알림·발견 큐가 이미 닫은 형태(REQ-WEB-131)로 **[앞쪽 활동 더 보기]** 를 둔다 — 쪽은 과거로 가므로 받아 온 것이 **위로** 붙는다. ③ **"지금 조직" 을 §1.8 이 `useScope()` 한 곳이라 적는데 조직·프로젝트 탭만 멤버십 행에서 따로 골랐다**(`primaryMembership()` — 프로젝트 소속 행을 먼저 집는다). 헤더에서 조직을 바꿔도 그 탭은 첫 조직을 고치고 있었다 — §1.8 이 자기 머리에 적어 둔 사고("화면마다 다시 쓰면 그때마다 조금씩 다르게 틀린다")의 다섯 번째 사례다. 곁들여 그 표의 "지금 조직" 규칙을 실물(기억한 조직 → 첫 조직 · v0.80 ⑤)에 맞춘다. ④ **막힘 사유가 사람 말이 아니었다** — 보드 카드는 `awaiting_answer` 를 그대로 찍었고(어휘의 값이지 문장이 아니다), 상세는 반대로 **어휘 밖의 값에도** 문구 키를 만들어 붙여 옛 자유 텍스트 사유가 `blocked.…` 라는 키 문자열로 화면에 샜다. 어휘면 라벨, 어휘 밖이면 **원문 그대로** 다.
 >
 > v0.83 변경(2026-09-06 — 남은 화면 셋, 사람 결정): ① **세션 타임라인이 잘렸다는 것을 말한다**(4.4 REQ-API-120) — 200건에서 조용히 잘리고 화면은 "이게 전부" 라 말했다. 이 문서 자신이 443건 세션을 실측으로 적어 두고 있었다. ② **재브리핑을 해소하는 [기준 갱신]**(REQ-API-121) — 배지만 있고 끄는 길이 없던 자리다. ③ **`?ai=1` 의 뜻을 못 박았다**(REQ-API-122 — `delegate_session_id`): 보드가 답하는 물음이 "지금 무엇이 도는가" 이기 때문이고, 정의를 적지 않으면 같은 이름이 두 뜻을 갖는다.
 >
@@ -420,12 +422,14 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 
 | 무엇 | 규칙 | 어디 |
 | --- | --- | --- |
-| 지금 조직 | 내가 속한 첫 조직 | `lib/scope.ts` `useScope()` |
+| 지금 조직 | **마지막으로 고른 조직 → 내가 속한 첫 조직**(`nerv.last-org`) | `lib/scope.ts` `useScope()` |
 | 지금 프로젝트 | **라우트 → 마지막으로 본 것 → 첫 프로젝트** | 같음 (`nerv.last-project`) |
 | 조직에서의 역할 | 그 조직 멤버십 전부의 합집합 | `lib/session.ts` `rolesInOrg()` |
 | 프로젝트에서의 역할 | 프로젝트 소속 ∪ **같은 조직의** 조직 소속 | 같음 `rolesInProject()` |
 
 **한 곳에서만 정한다.** 화면마다 "내 멤버십에서 하나 고른다"를 다시 쓰면 그때마다 조금씩 다르게 틀린다 — 게이트 정책 탭은 존재하지도 않는 `membership.role`(단수)을 읽어 **누구에게나** 읽기 전용이었고(`Membership` 이 `Record<string, unknown>` 을 확장해 타입이 잡지 못했다), 토큰 탭은 멤버십의 `project_slug` 가 `null` 이라 발급 버튼이 영영 비활성이었다.
+
+**다섯 번째 사례(2026-09-07 배선).** 조직·프로젝트 탭(§2.8)만 `primaryMembership()` 으로 조직을 따로 골랐다 — 그 함수는 **프로젝트 소속 행을 먼저** 집으므로, 헤더에서 두 번째 조직을 골라도 그 탭은 첫 조직의 이름을 보이고 첫 조직을 고쳤다. **한 화면이 두 조직을 가리키면 이름을 바꾼 사람은 자기가 무엇을 바꿨는지 모른다.** 그 탭도 `useScope()` 를 쓴다.
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
@@ -444,7 +448,6 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `FindingQueue` · `FindingFilters` | `FindingCard` + `FindingRail`(`features/review-center/`) |
 | `GateCoverageTable` | `GateCoverage` |
 | `SessionStrip` · `SessionSteerInput` · `SteerDialog` · `StopDialog` | `SessionSummaryStrip` · `SteerPanel`(`features/session-monitor/`) |
-| `ActivityTimeline` | `ActivityRail` |
 | `TaskDetailPanel` · `TaskCreateDialog` | `DelegationForm`(`features/task-board/`) + 라우트 `p.$proj/tasks.$task.tsx` |
 | `SpecMetaDialog` | `MetaDialog` |
 | `NewSpecButton` | `NewSpecDialog` |
@@ -462,6 +465,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 **④ 기능째 없다**(○ 미구현 — 2026-09-06 실측): `FailOpenBanner` · `ScopeChips`(§2.6) · `ImplStatusCard`(§2.3) · `VersionPicker` · `DiffToggle` · `EditLeaseBadge` · `CommentThread`(§2.4 — 기능은 라우트 안에 인라인) · `ImpactPreview` · `ArchiveConfirmDialog` · `BlockedLane` · `InboxFilterRail` · `ProcessedTrail` · `SlaBadge` · `StatusPanel` · `SubmitReviewButton`.
 
 **④-1 2026-09-06 에 들어온 것**: `SourceViewToggle`·`SourceView`(`features/spec-editor/source-view.tsx`) · `RequirementPanel`·`DerivedTaskPanel`(`requirement-panel.tsx`) · `TerminalHandoffCard`(`terminal-handoff.tsx`) — 넷 다 §2.4 가 이름까지 적어 두고 저장소에는 없던 것들이다.
+
+**④-2 2026-09-07 에 들어온 것**: `ActivityTimeline`·`SessionTrajectory`(`features/session-monitor/activity-timeline.tsx`). 이 이름은 ① 표에서 `ActivityRail` 로 짝지어져 있었는데, **짝이 아니라 부분이었다** — 레일은 활동 목록을 자기 안에 들고 있었고 세션 상세는 같은 것을 자기만의 단순 목록으로 따로 그렸다(묶기·실패 강조·원문 펼침·잘림 표시가 하나도 없었다). 목록을 이 이름으로 떼어 내 **두 화면이 같은 것을 그린다**(REQ-WEB-142). `ActivityRail` 은 남는다 — 레일이 레일인 부분(누구의 세션인가 · 개입 · 두 층의 배치)이 그것이다.
 
 > **이름을 맞추지 않는 이유.** 저장소 쪽 이름을 명세에 맞춰 바꾸면 코드 변경이 되고, 명세 쪽을 바꾸면 다른 절 수십 곳의 인용이 깨진다. 이름은 그대로 두고 **대응을 한 곳에서 밝히는 편**이 싸다 — 그 대신 이 표가 낡으면 다시 셀 수 없게 되므로, 컴포넌트를 더하거나 이름을 바꾸면 여기도 고친다.
 
@@ -495,8 +500,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 │                                                  │
 │   [              로그인              ]      (2)  │
 │                                                  │
-│   초대 링크로 오셨나요? 로그인하면 초대가        │
-│   자동으로 수락됩니다.                      (3)  │
+│   초대 링크로 오셨나요? 로그인한 뒤 초대        │
+│   [수락]을 누르세요.                       (3)  │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -958,6 +963,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | --- | --- |
 | REQ-WEB-054 | WHILE 보관 보기가 꺼져 있으면 THE SYSTEM SHALL `done_at` 이 `TASK_DONE_WINDOW_DAYS` 를 지난 작업을 보드에서 제외한다 |
 | REQ-WEB-055 | WHEN 보드가 열리면 THE SYSTEM SHALL 레인마다 따로 조회하고, 상태를 지정하지 않은 전량 조회를 하지 않는다 |
+| REQ-WEB-143 | WHEN 보드 카드 또는 작업 상세가 `blocked_reason` 을 보이면 THE SYSTEM SHALL 그 값이 `BLOCKED_REASONS` 안이면 그 어휘의 라벨(카탈로그 `blocked.*`)로, 어휘 밖이면 **저장된 원문 그대로** 표시한다 — 식별자도 문구 키도 화면에 나오지 않는다. WHERE 어휘 판정이 필요하면 THE SYSTEM SHALL `@nerv/schema` 의 판정을 쓰고 화면에서 어휘 목록을 다시 적지 않는다 |
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
@@ -998,6 +1004,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 4. **활성 클레임** — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. `FR-06`. 출처 줄의 기준 버전(`@v4`)이 superseded면 **재브리핑 배지**(⟳ 기준 버전 v4 → 최신 v5)가 뜬다 — `rebrief_required_at`·spec-workflow §3.3. `REQ-WEB-036`
 
 > **막힘 사유는 고르는 것이다**(2026-09-06 · REQ-API-117). `blocked` 전이의 사유 칸은 자유 텍스트가 아니라 어휘 4종(`awaiting_answer`·`dependency_broken`·`spec_conflict`·`external`)의 셀렉트다 — 같은 뜻을 사람마다 다른 문자열로 적으면 **막힘을 세는 순간 그 수가 사실이 아니게 된다**. 어휘의 정본은 `@nerv/schema` 의 `BLOCKED_REASONS` 이고 화면은 그것을 그린다(§1.8 — 화면은 서버가 받을 것만 보인다).
+
+> **보일 때는 사람 말로 보인다**(2026-09-07 · REQ-WEB-143). 고르는 칸은 처음부터 라벨을 그렸는데 **읽는 자리 둘이 각자 틀렸다**: 보드 카드는 `awaiting_answer` 를 그대로 찍었고(어휘의 값이지 읽으라고 만든 문장이 아니다), 상세의 막힘 카드는 반대로 **어휘 밖의 값에도** 문구 키를 만들어 붙여, 어휘가 생기기 전에 저장된 자유 텍스트 사유가 `blocked.…` 라는 **키 문자열**로 화면에 샜다(번역기의 마지막 폴백은 키 자체다). 규칙은 하나다 — **어휘면 라벨, 어휘 밖이면 원문 그대로.** 열이 아직 `text` 라 옛 값이 실재하고, 사람이 적어 둔 사유가 있는데 그것을 못 보게 하는 쪽이 둘 중 더 나쁘다. 판정의 정본은 `@nerv/schema` 의 `isBlockedReason()` 이다(REQ-CB-006 — 화면마다 어휘 목록을 다시 쓰면 어휘가 늘 때 함께 늘지 않는다).
 
 > **그리고 무엇이 되면 풀리는지를 화면이 말한다**(REQ-API-118). 상세에 `막힘 — 무엇이 되면 풀리는가` 카드가 서고, 서버가 파생해 보낸 `blocked_resolution` 을 그대로 그린다 — 아직 막고 있는 것들(열린 질문 · 미완 선행 Task · 밀려난 기준 버전)을 링크로, 다 풀렸으면 **"이제 풀 수 있습니다"** 배지를. 그 배지가 필요한 이유는 `blocked_reason` 을 **아무도 자동으로 지우지 않기** 때문이다: 의존이 끝나도 사람이 다시 눌러야 풀리는데, 그 사실을 화면이 말하지 않으면 아무도 누르지 않는다. `satisfied: null`(서버가 판정할 수 없는 사유)은 목록 대신 **왜 판정할 수 없는지**를 적는다 — "아직 막혀 있다" 와 같은 회색으로 그리면 사람은 판정이 있었다고 읽는다.
 
@@ -1068,6 +1076,7 @@ export const TaskCreateInput = z.object({
 | 세션 보드 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (state 필터: `pending / active / awaiting_input / complete / error / stale`) | 요약 스트립 = 상태별 집계 — **여섯 전부를 어휘 순서로**, 0 인 상태도 싣는다(REQ-WEB-139) |
 | 세션 상세 | EP-SES-02 `GET /api/v1/projects/{proj}/sessions/{sid}` | `agent_session` 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id |
 | Activity 타임라인 | EP-SES-03 `GET /api/v1/projects/{proj}/sessions/{sid}/activities` (커서) | `thought / action / elicitation / response / error` 5종 — 불변 레코드(D-10) |
+| 작업 궤적 | EP-SES-05 `GET /api/v1/projects/{proj}/sessions/{sid}/trajectory` | "무엇을 했나"(REQ-API-068). **활동 위**에 선다 — 레일에도 상세에도(REQ-WEB-124·142) |
 | steer / stop | EP-SES-04 `POST /api/v1/projects/{proj}/sessions/{sid}/steer` (`kind`: steer/stop) — **권한은 세션 소유자·admin 이다.** 화면도 그렇게 그린다(2026-09-06 배선): 소유자·admin 이 아니면 입력칸과 두 버튼이 잠기고 **왜 잠겼는지**를 말한다(§1.8·REQ-WEB-003). 끝난 세션과 남의 세션은 **다른 문구**다 — 기다리면 되는 일과 아닌 일은 다르다. 소유 판정의 축은 목록·상세가 함께 싣는 `user_id` 다 | 지시는 다음 `nerv_task_heartbeat` 응답의 `pending`에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내 |
 
 - **실시간**: `project:{id}` 룸 — `session.started` `session.stale` `session.complete` `session.steered` → 보드, Activity 스트림·하트비트/diff 갱신도 같은 룸으로 흐른다(알림 아님 — spec-workflow §6.3). 하트비트 표기는 상대 시각만(ui-wireframes §3.3).
@@ -1077,9 +1086,13 @@ export const TaskCreateInput = z.object({
 - **요약 스트립은 필터다**(2026-08-30 — 사람 요청 · REQ-WEB-116). 숫자가 보이면 사람은 그것을 누른다 — 예전에는 눌러도 아무 일이 없어서, "종료 12건"을 보고 그 열둘이 무엇인지 알려면 목록 전체를 훑어야 했다. 거르는 것은 **서버**다(엔드포인트가 처음부터 `?state=` 를 받는다): 목록은 200건에서 잘리므로 화면에서 거르면 "12건"이라 적어 놓고 일부만 보이는 화면이 된다. **숫자는 필터를 따라가지 않는다** — 스트립이 전체 그림이고 목록이 그 조각이라는 관계가 그래야 성립한다. 고른 것을 다시 누르면 풀린다(켜는 길과 끄는 길이 같은 자리다).
 - **0 인 상태도 자리를 지킨다**(2026-09-05 — 사람 요청 · REQ-WEB-139). 집계는 `GROUP BY` 라 그 프로젝트에 **실제로 있는 상태만** 돌아왔다(실측: sudoku 는 `complete` 27 · `stale` 20 둘뿐이라 나머지 넷이 화면에 없었다). 그러면 스트립의 폭과 칸이 프로젝트마다 달라 눈이 매번 자리를 다시 찾고, 무엇보다 **"오류 0건" 과 "오류라는 상태가 없음" 을 구별할 수 없다.** 여섯을 어휘 순서로 싣되(서버가 채운다 — `GROUP BY` 는 순서를 약속하지 않는다) 0 인 칸은 물러서고 눌리지 않는다: 눌러도 빈 목록이 나오는 단추는 두지 않는다.
 - **빈 상태**: 활성 세션 0 — "실행 중인 세션이 없습니다" + 플러그인 온보딩 링크([plugin.md](plugin.md) §4). **걸러서 비어 있는 것은 다르다**: 그때 부트스트랩 안내를 띄우면 사람은 자기가 필터를 켠 사실을 잊고 "세션이 사라졌다"고 읽는다 — "그 상태인 세션이 없습니다" + [전부 보기]다.
+- **세션 상세는 레일의 축소판이 아니다**(2026-09-07 — REQ-WEB-142). 레일은 넓은 화면의 향상이고 좁은 화면에서는 접힌다(REQ-WEB-132) — 그때 사람이 가는 곳이 세션 상세인데, 2026-09-06 까지 그 화면은 자기만의 단순 목록이라 **묶기·실패 강조·원문 펼침·잘림 표시가 하나도 없었고 궤적도 없었다.** 좁은 화면으로 옮겨 갔다는 이유로 볼 수 있는 것이 줄면 그 접힘은 향상이 아니라 손실이다. 두 화면이 같은 컴포넌트를 그린다 — 소제목만 각 화면의 위계를 따른다(레일은 `SectionLabel`, 상세는 `SectionTitle`).
+- **잘렸다고 말만 하지 않는다**(2026-09-07 — REQ-WEB-141). v0.83 이 넣은 "앞쪽 활동이 더 있습니다" 한 줄은 사실을 알렸지만 **거기로 가는 길을 주지 않았다** — 443건 세션의 초반은 표시가 생긴 뒤에도 닿지 않는 곳이었다. 알림·발견 큐가 이미 같은 자리를 닫아 두었다(REQ-WEB-131). 그 줄을 **[앞쪽 활동 더 보기]** 로 바꾼다. **쪽은 과거로 간다** — 서버가 `seq DESC` 로 seek 하므로 받아 온 것은 더 오래된 것이고, 그래서 단추는 목록 **맨 위**에 서고 새 쪽은 **위로** 붙는다. 아래에 두면 누른 결과가 화면 밖 위쪽에 나타나 "아무 일도 없었다" 로 보인다.
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
+| REQ-WEB-141 | WHEN 세션 활동 목록에 앞쪽(더 오래된) 활동이 남아 있으면 THE SYSTEM SHALL 목록 맨 위에 [앞쪽 활동 더 보기]를 두고, 누르면 EP-SES-03 의 `cursor` 로 다음 쪽을 받아 **이미 그린 것 위에** 이어 붙인다(갈아치우지 않는다). WHILE 마지막 쪽이면 THE SYSTEM SHALL 그 단추를 감춘다 — 눌러도 아무것도 오지 않는 단추는 두지 않는다 |
+| REQ-WEB-142 | WHEN 세션 상세(`/p/:proj/sessions/:sid`)가 활동을 보이면 THE SYSTEM SHALL 활동 레일과 **같은 컴포넌트**로 그린다 — 같은 묶기·같은 실패 표시·같은 원문 펼침·같은 [더 보기]이고, 작업 궤적도 같은 순서(궤적이 위)로 함께 보인다. 레일이 접히는 폭에서 사람이 가는 곳이 이 화면이므로, 여기서 볼 수 있는 것이 레일보다 적어서는 안 된다 |
 | REQ-WEB-019 | WHEN 세션 카드를 렌더링하면 THE SYSTEM SHALL 사용자·hostname·에이전트 종류·하트비트 상대 시각·리스 잔여·diff 통계를 표기하며, hostname이 없는 세션은 렌더링하지 않는다(ui-wireframes §3.3) |
 | REQ-WEB-020 | WHEN 세션이 `stale`로 전이되면 THE SYSTEM SHALL 카드에 회수된 Task ID와 "무활동 임계 30:00 초과 → 자동 전이"를 표시한다(D-13) |
 | REQ-WEB-116 | WHEN 세션 요약 스트립의 상태를 고르면 THE SYSTEM SHALL 그 상태의 세션만 목록에 담고(서버 질의), 다시 누르면 푼다. WHILE 필터가 켜져 있으면 THE SYSTEM SHALL 요약 숫자는 프로젝트 전체를 유지하고, 결과가 없을 때 "세션 없음"이 아니라 **그 상태가 없다**고 적는다 |
@@ -1232,6 +1245,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 | 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` — 키 스키마 정본: [4.4 API 명세](api.md) §2.1a) | MVP 편집 항목 = `spec_gate.*` 2키: 티어 경계(`tier_boundaries`)·동적 강화(`dynamic_escalation`). 둘 다 2026-09-02 부터 **판정이 실제로 읽는다** — 그 전까지 판정은 상수를 썼다. `t1_objection_hours` 는 같은 날 걷었다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). `failopen`·`retention`은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수([4.2](codebase.md) §3.2 `SESSION_STALE_SECONDS`), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. 리뷰 커버리지 게이트 행·fail-open 임계는 Phase 2와 함께 활성화 |
 
 - **토큰 발급 흐름**: 발급 다이얼로그(`TokenCreateInput`: `project`·`name`·`scopes[]`·`expires`) → 성공 시 **원문 1회 표시**(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 `prefix`만. 권한 체크박스는 `@nerv/schema` 의 `AGENT_SCOPES`(10종)를 그대로 쓰고, `spec:approve`·`approval:decide`는 **체크박스 비활성**(사람 전용 — 시스템 불변식). **내 역할에 없는 권한도 보이되 잠긴다**(§1.8) — 그리고 **잠긴 것은 발급 본문에도 실리지 않는다**(REQ-WEB-134 · 2026-09-04): 초기 선택값이 상수라, `task:claim` 이 없는 역할에게 그 칸이 꺼져 보이면서 본문에는 실려 갔다. 화면이 자기가 한 일을 잘못 말하면 토큰 목록의 권한 표를 믿을 수 없게 된다.
+- **조직·프로젝트 탭이 다루는 조직은 헤더가 고른 그 조직이다**(2026-09-07 배선 · REQ-WEB-076 · §1.8). 이 탭만 `primaryMembership()` 으로 따로 골랐고, 그 함수는 프로젝트 소속 행을 먼저 집으므로 **헤더에서 두 번째 조직을 골라도 첫 조직의 이름을 보이고 첫 조직을 고쳤다.** 조직이 하나뿐인 동안에는 드러나지 않는 종류의 결함이고, 드러나는 순간에는 이미 남의 조직 이름을 바꾼 뒤다.
 - **컴포넌트**: `SettingsTabs` · `MemberMatrix` · `MemberAddDialog` · `TokenTable` · `TokenIssueDialog` · `TokenRevealOnce` · `GatePolicyForm` · 권한 비확대 고지문("토큰은 사용자 권한을 상속하며 절대 확대하지 않는다" — NFR-03 · D-08).
 - **빈 상태**: 토큰 0개 — 플러그인 온보딩 절차 링크([plugin.md](plugin.md) §4).
 

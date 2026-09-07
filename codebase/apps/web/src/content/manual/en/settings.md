@@ -2,7 +2,9 @@ Settings has four tabs: **Organization & projects, Members, Tokens and Gate poli
 
 ## Organization & projects
 
-Of the two header selects, it is the **project** you create, rename and put away here (there is effectively one organization today, so there is little to switch between).
+Of the two header selects, it is the **project** you create, rename and put away here.
+
+**The organization this tab acts on is the one picked in the header.** With more than one organization, switching it in the header is what switches what this tab edits — a screen that points at two organizations at once leaves you unsure which one you just renamed.
 
 **Creating, editing and putting away are all `admin` work.** Without that role, [New project] and the [Show archived] toggle are not rendered at all, and the edit and archive buttons are disabled.
 

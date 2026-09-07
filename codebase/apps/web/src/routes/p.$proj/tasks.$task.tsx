@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { StatusBadge } from '../../components/status-badge.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
 import { apiFetch, NervApiError } from '../../lib/api.js';
+import { blockedReasonText } from '../../lib/format.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rows, useMe, useProject, useTask } from '../../lib/queries.js';
@@ -278,8 +279,12 @@ function TaskDetail(): React.JSX.Element {
             <SectionTitle>{t('task.blocked.title')}</SectionTitle>
             <div className="flex flex-col gap-2 text-sm">
               <p>
-                <span className="font-medium">
-                  {t(blockedReasonLabelKey(String(blocked['reason'])))}
+                {/* **어휘 밖이면 원문 그대로**(2026-09-07 · REQ-WEB-143). 무조건 문구 키를
+                    만들어 붙였더니, 어휘가 생기기 전에 저장된 자유 텍스트 사유에서
+                    카탈로그에 없는 키가 만들어져 화면에 `blocked.…` 가 그대로 떴다 —
+                    사람이 적어 둔 사유가 있는데 그것을 못 보게 하는 모양이다 */}
+                <span data-testid="blocked-reason" className="font-medium">
+                  {blockedReasonText(t, blocked['reason'])}
                 </span>
                 {blocked['satisfied'] === true && (
                   <span

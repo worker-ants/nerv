@@ -121,6 +121,44 @@ describe('되돌릴 수 없는 일에는 확인이 선다', () => {
   });
 });
 
+// 2026-09-07 — 이 탭만 `primaryMembership()` 으로 조직을 따로 골랐다. 그 함수는
+// **프로젝트 소속 행을 먼저** 집으므로, 헤더에서 두 번째 조직을 골라도 여기는 첫 조직을
+// 그렸다 — 한 화면이 두 조직을 가리키면 이름을 바꾼 사람은 자기가 무엇을 바꿨는지 모른다.
+describe('지금 조직은 한 곳에서 정한다 (REQ-WEB-076)', () => {
+  /** 조직 둘 — 첫 행이 프로젝트 소속이라 `primaryMembership()` 은 늘 이쪽을 집는다 */
+  const TWO_ORGS = {
+    id: 'u-1',
+    display_name: '지민',
+    memberships: [
+      { org_slug: 'default', org_name: 'default', project_slug: 'clemvion', roles: ['admin'] },
+      { org_slug: 'acme', org_name: 'Acme', project_slug: null, roles: ['admin'] },
+    ],
+  };
+
+  it('헤더가 고른 조직을 그린다 — 멤버십 행에서 따로 고르지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const path = String(url);
+        const json = path.includes('/projects')
+          ? []
+          : path.includes('/me')
+            ? TWO_ORGS
+            : { items: [], memberships: [], count: 0, summary: {} };
+        return { ok: true, status: 200, json: async () => json };
+      }),
+    );
+    // 헤더의 조직 select 가 남기는 것과 같은 자리다(`lib/scope.ts`)
+    localStorage.setItem('nerv.last-org', 'acme');
+    await renderTab(false);
+
+    await waitFor(() =>
+      expect((screen.getByTestId('org-name') as HTMLInputElement).value).toBe('Acme'),
+    );
+    expect(screen.getByText('acme')).toBeDefined();
+  });
+});
+
 describe('새 프로젝트 — 이름에서 slug·key 를 만들어 준다', () => {
   it('셋을 손으로 채우게 하지 않는다', async () => {
     stub([]);

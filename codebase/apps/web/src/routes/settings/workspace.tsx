@@ -16,7 +16,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useProjects } from '../../lib/queries.js';
-import { primaryMembership, rolesInOrg } from '../../lib/session.js';
+import { useScope } from '../../lib/scope.js';
+import { rolesInOrg } from '../../lib/session.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import {
@@ -36,8 +37,11 @@ export const Route = createFileRoute('/settings/workspace')({ component: Workspa
 function WorkspaceTab(): React.JSX.Element {
   const t = useT();
   const me = useMe();
-  const membership = me.data === undefined ? null : primaryMembership(me.data);
-  const orgSlug = membership?.org_slug ?? null;
+  // **지금 조직은 `useScope()` 한 곳에서 온다**(§1.8 · REQ-WEB-076 · 2026-09-07 배선).
+  // 여기만 `primaryMembership()` 으로 따로 골랐고, 그 함수는 **프로젝트 소속 행을 먼저**
+  // 집는다 — 그래서 헤더에서 두 번째 조직을 골라도 이 탭은 첫 조직을 고치고 있었다.
+  // 한 화면이 두 조직을 가리키면 이름을 바꾼 사람은 자기가 무엇을 바꿨는지 모른다.
+  const { orgSlug, orgName } = useScope();
   // 조직 권한은 **그 조직의 모든 멤버십을 합쳐** 본다 — 한 행만 보면 조직
   // admin 인데 프로젝트에서 planner 인 사람이 잠긴다(겸직은 합집합이다)
   const isAdmin = rolesInOrg(me.data, orgSlug).includes('admin');
@@ -57,12 +61,7 @@ function WorkspaceTab(): React.JSX.Element {
       )}
       {/* **데이터가 온 뒤에 그린다.** `useState(name)` 은 첫 렌더의 값을 붙잡으므로
           me 가 늦게 오면 입력칸이 빈 채로 굳는다 — key 로 다시 만든다 */}
-      <OrgSection
-        key={membership?.org_name ?? ''}
-        orgSlug={orgSlug}
-        name={membership?.org_name ?? ''}
-        canEdit={isAdmin}
-      />
+      <OrgSection key={orgName ?? ''} orgSlug={orgSlug} name={orgName ?? ''} canEdit={isAdmin} />
       <ProjectSection
         orgSlug={orgSlug}
         projects={projectRows}
