@@ -824,7 +824,25 @@ export class TaskService {
   }
 
   async claim(input: ClaimInput): Promise<ClaimResult> {
+    // **상한을 넘기면 거절한다 — 조용히 깎지 않는다**(2026-09-07 · REQ-API-127).
+    //
+    // 리스 길이는 "자동 회수까지 얼마나 기다리는가" 이고 그것은 조정 규칙이다(D-04).
+    // 부른 쪽이 24시간을 달라고 했는데 서버가 말없이 30분으로 바꾸면, 그 세션은 자기
+    // 리스가 24시간이라고 믿은 채로 회수당한다 — REQ-API-112 가 막은 "조용한 변환" 이다.
+    // 판정이 여기 있는 이유는 표면이 둘이기 때문이다: zod 와 도구 스키마가 각자 막아도
+    // 서비스를 직접 부르는 경로(임포터·테스트·다음 표면)는 그 밖이다.
     const ttl = input.leaseSeconds ?? LEASE_TTL_SECONDS;
+    if (ttl > LEASE_TTL_SECONDS) {
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.claim.lease_too_long', { max: LEASE_TTL_SECONDS }),
+        {
+          kind: 'invalid_input',
+          field: 'lease_seconds',
+          max: LEASE_TTL_SECONDS,
+        },
+      );
+    }
 
     // **플랜 승인 게이트는 트랜잭션 밖이다**(G2 · D-06 ② · REQ-API-095).
     //
@@ -882,7 +900,7 @@ export class TaskService {
       // 돌 때까지 아무도 잡을 수 없다 — 워커가 지연되거나 죽어 있으면 그대로 멈춘다.
       // D-13 의 "사람 개입 0회"는 그 창을 허용하지 않으므로 회수를 앞으로 당긴다.
       // 회수 자체는 이 트랜잭션 안에서 일어나므로 원자성은 그대로다.
-      await this.claims.reclaimExpired(tx, task.project_id);
+      await this.claims.reclaimExpired(tx, emit, task.project_id);
 
       const { rows: fresh } = await tx.execute<{ status: string }>(
         sql`SELECT status::text AS status FROM task WHERE id = ${taskId}`,

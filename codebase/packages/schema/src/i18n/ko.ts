@@ -102,6 +102,8 @@ export const ko = {
   'error.baseline.not_approved': 'approved 가 아닌 버전이 포함돼 있습니다 — 전체를 거부합니다.',
   'error.baseline.not_found': '기준선을 찾을 수 없습니다.',
   'error.claim.lease_expired': '점유 시간이 지났거나 활성 클레임이 아닙니다.',
+  'error.claim.lease_too_long':
+    '리스는 최대 {max}초입니다 — 더 긴 값은 조정 규칙을 바꾸는 일이라 받지 않습니다.',
   'error.claim.not_active': '활성 클레임이 아닙니다.',
   'error.claim.not_owner': '이 클레임의 보유자가 아닙니다.',
   'error.claim.scope_conflict': '같은 스펙 문서를 다른 세션이 이미 잡고 있습니다.',
@@ -177,6 +179,8 @@ export const ko = {
   'inbox.subject.spec_version': '스펙 승인 요청',
   'mcp.arg.relation_base_hash':
     '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
+  'mcp.arg.lease_seconds':
+    '리스 길이(초) — 최대 1800. 더 긴 값은 거절한다: 자동 회수까지의 시간을 늘리는 것은 조정 규칙을 바꾸는 일이다.',
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
   'session.detail': '상세',
   'session.timeline_more': '앞쪽 활동 더 보기',

@@ -6,7 +6,7 @@
 // 동시성은 mock 으로 검증하지 않는다(codebase.md §4.3). 여기서 도는 것은 실제 Postgres 의
 // 행 잠금·조건부 UPDATE·부분 unique 다 — 그 셋이 함께 동작해야 "중복 클레임 0건"이 성립한다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
@@ -26,6 +26,7 @@ let db: ScratchDb;
 let pool: pg.Pool;
 let tasks: TaskService;
 let claims: ClaimService;
+let events: EventService;
 let questions: QuestionService;
 let sessions: SessionService;
 let drizzleDb: ReturnType<typeof drizzle>;
@@ -56,12 +57,12 @@ beforeAll(async () => {
     subscribe: async () => undefined,
     failureCount: 0,
   } as unknown as ValkeyService;
-  const events = new EventService(drizzleDb, silentValkey);
+  events = new EventService(drizzleDb, silentValkey);
 
   claims = new ClaimService();
   // 하트비트 역채널은 이 스위트의 관심사가 아니다 — 질문이 없으면 빈 목록이다.
   questions = new QuestionService(events, drizzleDb);
-  sessions = new SessionService(events, drizzleDb);
+  sessions = new SessionService(events, drizzleDb, new ClaimService());
   // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트도 그 서비스를 들고 있어야 한다
   // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트는 그 게이트에 닿지 않지만
   // 서비스는 들고 있어야 한다(SpecService·AuthService 는 이 경로에서 쓰이지 않는다)
@@ -416,8 +417,8 @@ describe('E04-S04 만료 자동 회수 (성공 기준 0-4)', () => {
       [claim.claimId],
     );
 
-    const reclaimed = await drizzleDb.transaction(async (tx) => claims.reclaimExpired(tx));
-    expect(reclaimed).toBe(1);
+    const reclaimed = await events.transact(async (tx, emit) => claims.reclaimExpired(tx, emit));
+    expect(reclaimed).toHaveLength(1);
 
     expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('ready');
     expect(await scalarText(`SELECT status::text FROM claim WHERE id='${claim.claimId}'`)).toBe(
@@ -458,6 +459,71 @@ describe('E04-S04 만료 자동 회수 (성공 기준 0-4)', () => {
       claimInput(t2, sessionHana, hana, { specIds: [specA], fileGlobs: [] }),
     );
     expect(r.warnings).toEqual([]);
+  });
+});
+
+/**
+ * **회수도 상태 전이다**(2026-09-07 · REQ-API-127 · FR-16). 여기까지 회수 경로는 아무 흔적을
+ * 남기지 않았다 — 실데이터에서 회수 3건에 `claim.%` 이벤트 0건이었다. 사람이 내려놓은 것은
+ * 이벤트를 남기고 서버가 뺏은 것은 남기지 않는다면, 감사에 남는 것은 덜 중요한 쪽이다.
+ */
+describe('회수·해제가 남기는 사실 (REQ-API-127)', () => {
+  it('만료 회수는 claim.released 와 task.ready 를 남긴다 — 액터는 쥐고 있던 세션이다', async () => {
+    const taskId = await makeTask('CLV-T-EV0001');
+    const claim = await tasks.claim(
+      claimInput(taskId, sessionHana, hana, { specIds: [], fileGlobs: ['ev/**'] }),
+    );
+    await pool.query(
+      `UPDATE claim SET lease_expires_at = now() - interval '1 second' WHERE id=$1`,
+      [claim.claimId],
+    );
+    await pool.query('TRUNCATE event');
+
+    const reclaimed = await events.transact(async (tx, emit) => claims.reclaimExpired(tx, emit));
+    expect(reclaimed).toHaveLength(1);
+
+    const { rows } = await pool.query<{ type: string; is_agent: boolean; actor: string | null }>(
+      `SELECT type, is_agent, actor_session_id AS actor FROM event ORDER BY type`,
+    );
+    expect(rows.map((r) => r.type)).toEqual([NERV_EVENT.CLAIM_RELEASED, NERV_EVENT.TASK_READY]);
+    // 리스를 놓친 것은 **그 세션의 일**이다 — 서버를 액터로 적으면 피드에서 줄이 끊긴다
+    expect(rows.every((r) => r.is_agent && r.actor === sessionHana)).toBe(true);
+  });
+
+  it('세션이 stale 이 되면 클레임도 함께 회수된다 — 리스 만료를 기다리지 않는다', async () => {
+    const taskId = await makeTask('CLV-T-EV0002');
+    const claim = await tasks.claim(
+      claimInput(taskId, sessionHana, hana, { specIds: [], fileGlobs: ['stale/**'] }, 1800),
+    );
+    // 세션만 오래 조용하게 만든다 — 리스는 아직 30분 남아 있다
+    await pool.query(
+      `UPDATE agent_session SET last_heartbeat_at = now() - interval '2 hours' WHERE id=$1`,
+      [sessionHana],
+    );
+    await pool.query('TRUNCATE event');
+
+    expect(await sessions.markStale()).toBeGreaterThan(0);
+
+    const { rows } = await pool.query<{ status: string; reason: string | null }>(
+      `SELECT status::text AS status, release_reason::text AS reason FROM claim WHERE id=$1`,
+      [claim.claimId],
+    );
+    expect(rows[0]).toMatchObject({ status: 'released', reason: 'stale' });
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('ready');
+    const { rows: kinds } = await pool.query<{ type: string }>(
+      `SELECT DISTINCT type FROM event ORDER BY type`,
+    );
+    expect(kinds.map((k) => k.type)).toContain(NERV_EVENT.CLAIM_RELEASED);
+    expect(kinds.map((k) => k.type)).toContain(NERV_EVENT.TASK_READY);
+  });
+
+  it('리스 상한을 넘기면 거절한다 — 조용히 깎지 않는다', async () => {
+    const taskId = await makeTask('CLV-T-EV0003');
+    await expect(
+      tasks.claim(
+        claimInput(taskId, sessionHana, hana, { specIds: [], fileGlobs: ['cap/**'] }, 7200),
+      ),
+    ).rejects.toBeDefined();
   });
 });
 

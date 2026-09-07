@@ -96,6 +96,8 @@ export const en = {
     'It contains versions that are not approved — the whole request is rejected.',
   'error.baseline.not_found': 'Baseline not found.',
   'error.claim.lease_expired': 'The lease expired, or this is not an active claim.',
+  'error.claim.lease_too_long':
+    'A lease can be at most {max} seconds — a longer one changes the coordination rule, so it is refused.',
   'error.claim.not_active': 'Not an active claim.',
   'error.claim.not_owner': 'You do not hold this claim.',
   'error.claim.scope_conflict': 'Another session already holds the same spec document.',
@@ -172,6 +174,8 @@ export const en = {
   'inbox.subject.spec_version': 'Spec approval request',
   'mcp.arg.relation_base_hash':
     'fingerprint of the target document — content_hash from nerv_spec_get. required when adding a relation',
+  'mcp.arg.lease_seconds':
+    'Lease length in seconds — 1800 max. Longer values are rejected: stretching the time to automatic reclaim changes the coordination rule.',
   'mcp.arg.takeover':
     'seize an edit lease held by someone else — the way out when a dead session still holds it',
   'session.detail': 'Details',

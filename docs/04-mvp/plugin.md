@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.59 · 2026-09-06 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.60 · 2026-09-07 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.60 변경(2026-09-07 — 리스 상한을 스킬이 안다, 개선 계획 둘째 스프린트): **패키지 0.2.16 → 0.2.17.** `lease_seconds` 는 이제 **상한이 1800초이고 넘기면 거절된다**([4.4](api.md) REQ-API-127) — 예전 문장은 "더 긴 리스를 요청한다" 였고, 그대로 따르면 요청이 400 으로 막힌다. 서버가 조용히 깎지 않기로 한 결정(REQ-API-112 와 같은 축)이라 스킬도 그 사실을 알아야 한다.
 >
 > v0.59 변경(2026-09-06 — 스킬이 실행할 것을 실제로 열어 준다, 사람 결정): **패키지 0.2.15 → 0.2.16.** ① **오프라인 폴백을 실행할 도구가 어느 스킬에도 없었다** — 다섯 스킬 전부가 `.nerv/outbox/` 큐잉·`.nerv/cache/` 기록을 지시하는데 `allowed-tools` 에 `Bash`·`Write` 가 있는 스킬이 0개라, REQ-PLG-011~013·016 의 전 경로가 매 호출 승인 프롬프트를 타거나 실행되지 않았다. **좁혀서 연다**: `Bash(nerv-outbox:*)` · `Read(.nerv/**)` · `Write(.nerv/**)`(spec 은 서버 주소로 고정한 `curl` 하나 더). `Bash` 를 통째로 넣지 않은 이유는 이 저장소가 A3 도구를 목록에서 빼는 방식으로 사람 승인을 강제해 왔기 때문이다 — 같은 파일에 임의 셸을 열면 그 설계가 무의미해진다. ② **`basis_superseded` 가 실제로 온다**(4.4 REQ-API-119) — 스킬이 기다리던 신호라 무엇을 할지까지 적었다. ③ **정책 버전·`policy.stale` 을 걷었다** — 그 개념 자체가 서버에 없다(`gate_policy` 기본값이 `{}` 이고 버전을 올릴 주체·시점이 정해진 적이 없다). 없는 것을 기다리라고 적는 것이 유령이고, 정책 버전을 진짜 도입할 때 함께 세운다.
 >
@@ -104,7 +106,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.16
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.17
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -126,12 +128,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.16)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전(0.2.17)과 **게이트 정책 버전은 별개다.** 정책 버전은 `nerv_bootstrap` 응답에 실려 오고, 플러그인이 가정한 규약과 불일치하면 진행은 허용하되 `policy.stale` 이벤트가 남는다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -510,9 +512,10 @@ allowed-tools:
   가능하면 `stats{added,removed,files}`. 타이머가 없으므로 이렇게 근사한다:
   **도구 호출·작업 단위 경계마다 마지막 하트비트 시각을 확인하고, 60초가 지났으면
   다음 행동 전에 하트비트를 먼저 보낸다.** 첫 하트비트는 클레임 직후다.
-- **한 번의 행동이 60초를 훌쩍 넘을 것을 알면** 클레임·하트비트에 `lease_seconds` 로 더 긴
-  리스를 요청한다(기본 1800초). 늘리는 것은 남에게 그만큼 오래 잠긴다는 뜻이라, 필요한 만큼만
-  달라고 한다 — 끝나면 `nerv_task_release` 로 곧바로 놓는다.
+- **한 번의 행동이 60초를 훌쩍 넘을 것을 알면** 클레임·하트비트에 `lease_seconds` 로 리스를
+  조정한다(기본이자 **상한**이 1800초 — 그보다 큰 값은 거절된다. 상한을 넘겨 달라고 하는 것은
+  자동 회수까지의 시간을 늘리는 일이라 조정 규칙을 바꾸는 것이다). 리스를 쥐고 있는 동안은
+  남에게 그만큼 잠긴다 — 끝나면 `nerv_task_release` 로 곧바로 놓는다.
 - 하트비트 응답은 리스 연장(`lease_expires_at` 갱신)이자 **서버 → 세션 유일 보장 채널**이다.
   응답의 `pending`을 즉시 처리한다:
   - 질문 답변 도착 → 답변 내용대로 재개.

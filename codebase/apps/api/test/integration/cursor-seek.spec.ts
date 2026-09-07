@@ -15,6 +15,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { NotificationService } from '../../src/modules/event/notification.service.js';
+import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -44,7 +45,7 @@ beforeAll(async () => {
   valkey = new SilentValkey();
   events = new EventService(drizzleDb, valkey);
   notifications = new NotificationService(drizzleDb, valkey);
-  sessions = new SessionService(events, drizzleDb);
+  sessions = new SessionService(events, drizzleDb, new ClaimService());
 
   const orgId = newId();
   projectId = newId();

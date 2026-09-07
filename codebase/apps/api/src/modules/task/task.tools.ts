@@ -2,7 +2,7 @@
 // 클레임 엔진은 E04 에서 구현됐고 L2 가 지킨다 — 여기는 번역만 한다(REQ-CB-003).
 
 import { Injectable } from '@nestjs/common';
-import { BLOCKED_REASONS } from '@nerv/schema';
+import { BLOCKED_REASONS, LEASE_TTL_SECONDS } from '@nerv/schema';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { requireSession } from '../session/session.tools.js';
 import { TaskService } from './task.service.js';
@@ -164,7 +164,12 @@ export class TaskTools implements NervToolProvider {
               file_globs: { type: 'array', items: { type: 'string' } },
             },
           },
-          lease_seconds: { type: 'integer' },
+          lease_seconds: {
+            type: 'integer',
+            minimum: 1,
+            maximum: LEASE_TTL_SECONDS,
+            description: 'mcp.arg.lease_seconds',
+          },
           session_id: { type: 'string', description: 'mcp.arg.session_id' },
           idempotency_key: { type: 'string' },
         },
@@ -204,7 +209,12 @@ export class TaskTools implements NervToolProvider {
           progress: { type: 'string' },
           // 카탈로그(3.4 §2.3)가 처음부터 적고 있던 셋 — 스키마에도 없어 조용히 버려졌다
           stats: { type: 'object' },
-          lease_seconds: { type: 'integer' },
+          lease_seconds: {
+            type: 'integer',
+            minimum: 1,
+            maximum: LEASE_TTL_SECONDS,
+            description: 'mcp.arg.lease_seconds',
+          },
         },
         required: ['claim_id'],
       },

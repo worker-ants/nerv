@@ -58,7 +58,7 @@ beforeAll(async () => {
     new ClaimService(),
     events,
     new QuestionService(events, drizzleDb),
-    new SessionService(events, drizzleDb),
+    new SessionService(events, drizzleDb, new ClaimService()),
     // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트는 그 게이트에 닿지 않지만
     // 서비스는 들고 있어야 한다(AuthService 는 이 경로에서 쓰이지 않는다)
     new ApprovalService(events, specs, null as never, drizzleDb),

@@ -147,6 +147,14 @@ export const claimReleaseReason = pgEnum('claim_release_reason', [
   'session_end',
   'stopped',
   /**
+   * 세션이 무활동으로 `stale` 이 되며 서버가 거뒀다(2026-09-07 · D-13 · 0023).
+   *
+   * `expired` 와 갈라 두는 이유는 **판정한 이유가 다르기 때문**이다 — `expired` 는 시간이
+   * 지난 것이고 이것은 세션이 사라진 것이다. 리스가 stale 임계보다 길면 둘은 다른 시점에
+   * 일어난다. 0021 이 세운 원칙("판정된 값은 판정한 이유대로 적는다")이 그대로 적용된다.
+   */
+  'stale',
+  /**
    * **생산자가 없다**(2026-09-06 확인 — `apps/api/src` 전체에서 쓰기 0건).
    *
    * 이 설계에서 겹침은 **회수가 아니라 거절**이다: 두 번째 클레임이 `NERV_CONFLICT_SCOPE`

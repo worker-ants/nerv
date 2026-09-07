@@ -11,14 +11,29 @@
 // 안 보여 신뢰할 수 없다"는 이유로 제거됐다(#576). 서버는 모든 세션의 선언을 본다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR } from '@nerv/schema';
+import { msg, newId, LEASE_TTL_SECONDS, NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
+import type { EventService } from '../event/event.service.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
+type EmitFn = Parameters<Parameters<EventService['transact']>[0]>[1];
+
+/** 회수·해제로 닫힌 클레임 한 건 — 이벤트 둘이 이 값에서 나온다 */
+export interface ReleasedClaim extends Record<string, unknown> {
+  id: string;
+  task_id: string;
+  project_id: string;
+  agent_session_id: string | null;
+  user_id: string;
+  /** 회수 직전의 Task 상태 — `task.ready` 의 `from_state` 다 */
+  prev_status: string;
+  /** Task 가 실제로 ready 로 옮겨졌는가(done 이었으면 아니다) */
+  task_moved: boolean;
+}
 
 export interface ClaimScope {
   /** 이 작업이 건드릴 스펙 */
@@ -65,27 +80,128 @@ export class ClaimService {
    * 만료 리스 회수 — 비교 대상을 "살아있는" 클레임으로 좁히기 위해 겹침 검사보다 먼저 돈다
    * (spec-workflow §4.3 단계 1). 워커의 lease-reaper 잡도 같은 메서드를 쓴다.
    *
-   * @returns 회수된 클레임 수
+   * **회수도 상태 전이다**(2026-09-07 · REQ-API-127 · FR-16). 여기까지 이 경로는 아무
+   * 흔적을 남기지 않았다 — 실데이터에서 회수 3건에 이벤트 0건이었고, 그러면 "내 Task 가
+   * 왜 남에게 갔나" 를 물었을 때 답할 것이 로그뿐이다. 사람이 내려놓은 것(`release`)은
+   * 이벤트를 남기고 서버가 뺏은 것은 남기지 않는다면, 감사에 남는 것은 **덜 중요한 쪽**이다.
+   *
+   * @returns 회수된 클레임들
    */
-  async reclaimExpired(tx: Tx, projectId?: string): Promise<number> {
+  async reclaimExpired(tx: Tx, emit: EmitFn, projectId?: string): Promise<ReleasedClaim[]> {
     const scope = projectId === undefined ? sql`` : sql` AND c.project_id = ${projectId}`;
 
     // 회수는 두 단계다: 클레임을 expired 로 닫고, 그 Task 를 ready 로 되돌린다.
     // 산출물·Activity 는 보존한다(spec-workflow §4.5 회수 동작).
-    const { rows } = await tx.execute<{ task_id: string }>(sql`
+    const { rows } = await tx.execute<ReleasedClaim>(sql`
       WITH expired AS (
         UPDATE claim c
            SET status = 'expired', released_at = now(), release_reason = 'expired'
          WHERE c.status = 'active' AND c.lease_expires_at <= now()${scope}
-        RETURNING c.task_id
+        RETURNING c.id, c.task_id, c.project_id, c.agent_session_id, c.user_id,
+                  (SELECT t.status::text FROM task t WHERE t.id = c.task_id) AS prev_status
+      ),
+      moved AS (
+        UPDATE task t
+           SET status = 'ready', delegate_session_id = NULL, updated_at = now()
+          FROM expired e
+         WHERE t.id = e.task_id AND t.status IN ('claimed', 'in_progress')
+        RETURNING t.id
       )
-      UPDATE task t
-         SET status = 'ready', delegate_session_id = NULL
+      SELECT e.id, e.task_id, e.project_id, e.agent_session_id, e.user_id, e.prev_status,
+             (m.id IS NOT NULL) AS task_moved
         FROM expired e
-       WHERE t.id = e.task_id AND t.status IN ('claimed', 'in_progress')
-      RETURNING t.id AS task_id
+   LEFT JOIN moved m ON m.id = e.task_id
     `);
-    return rows.length;
+    return this.finalize(emit, rows, 'expired');
+  }
+
+  /**
+   * 세션이 끝나서·멈춰서·사라져서 놓는다 — 세 경로가 **같은 함수**를 쓴다.
+   *
+   * 셋이 각자 SQL 을 들고 있던 동안 `task.ready` 는 stop 에서만 났고 `markStale` 은
+   * 클레임을 아예 건드리지 않았다(D-13 이 요구하는 회수가 세션 축에만 있었다).
+   * 같은 사실을 세 자리에 적으면 언젠가 한 자리만 고친다.
+   */
+  async releaseBySession(
+    tx: Tx,
+    emit: EmitFn,
+    input: {
+      sessionId: string;
+      reason: 'session_end' | 'stopped' | 'stale';
+      /** 회수를 일으킨 주체 — 사람이 멈춘 것과 서버가 거둔 것은 다르다 */
+      actor: { userId: string; isAgent: boolean };
+    },
+  ): Promise<ReleasedClaim[]> {
+    const { rows } = await tx.execute<ReleasedClaim>(sql`
+      WITH closed AS (
+        UPDATE claim c
+           SET status = 'released', released_at = now(),
+               release_reason = ${input.reason}::claim_release_reason
+         WHERE c.agent_session_id = ${input.sessionId} AND c.status = 'active'
+        RETURNING c.id, c.task_id, c.project_id, c.agent_session_id, c.user_id,
+                  (SELECT t.status::text FROM task t WHERE t.id = c.task_id) AS prev_status
+      ),
+      moved AS (
+        UPDATE task t
+           SET status = 'ready', delegate_session_id = NULL, updated_at = now()
+          FROM closed e
+         WHERE t.id = e.task_id AND t.status IN ('claimed', 'in_progress')
+        RETURNING t.id
+      )
+      SELECT e.id, e.task_id, e.project_id, e.agent_session_id, e.user_id, e.prev_status,
+             (m.id IS NOT NULL) AS task_moved
+        FROM closed e
+   LEFT JOIN moved m ON m.id = e.task_id
+    `);
+    return this.finalize(emit, rows, input.reason, input.actor);
+  }
+
+  /**
+   * 회수·해제가 남기는 사실은 **둘**이다 — 클레임이 닫혔다(`claim.released`)와 Task 가
+   * 다시 큐에 섰다(`task.ready`). 뒤엣것을 빠뜨리면 보드는 큐가 늘어난 것을 모른다.
+   *
+   * 액터는 **클레임을 쥐고 있던 세션**이다(2026-09-07 사람 결정). FR-16 의 `is_agent` 는
+   * "이 전이가 에이전트의 일인가" 를 묻고, 리스를 놓친 것은 그 세션의 일이다 — 서버를
+   * 액터로 적으면 피드에서 그 세션의 줄이 끊긴다(`session.stale`·`finish` 가 이미 같은 모양이다).
+   */
+  private async finalize(
+    emit: EmitFn,
+    rows: ReleasedClaim[],
+    reason: string,
+    actor?: { userId: string; isAgent: boolean },
+  ): Promise<ReleasedClaim[]> {
+    for (const row of rows) {
+      const actorUserId = actor?.userId ?? row.user_id;
+      const isAgent = actor?.isAgent ?? row.agent_session_id !== null;
+      await emit({
+        type: NERV_EVENT.CLAIM_RELEASED,
+        projectId: row.project_id,
+        subjectType: 'claim',
+        subjectId: row.id,
+        actorUserId,
+        actorSessionId: row.agent_session_id,
+        isAgent,
+        payload: { reason },
+      });
+      if (row.task_moved) {
+        await emit({
+          type: NERV_EVENT.TASK_READY,
+          projectId: row.project_id,
+          subjectType: 'task',
+          subjectId: row.task_id,
+          actorUserId,
+          actorSessionId: row.agent_session_id,
+          isAgent,
+          fromState: row.prev_status,
+          toState: 'ready',
+          payload: { reason },
+        });
+      }
+    }
+    if (rows.length > 0) {
+      this.logger.log(`클레임 ${rows.length}건 회수(${reason}) — Task 를 ready 로 되돌렸다`);
+    }
+    return rows;
   }
 
   /**

@@ -162,6 +162,13 @@
       "when": 1788673237111,
       "tag": "0022_event_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788751595745,
+      "tag": "0023_claim_release_stale",
+      "breakpoints": true
     }
   ]
 }

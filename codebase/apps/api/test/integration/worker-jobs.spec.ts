@@ -63,8 +63,10 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
   const lock = new AdvisoryLock(pool);
   const runner = new JobRunner(
     lock,
-    new LeaseReaperJob(new ClaimService(), drizzleDb),
-    new SessionStaleJob(new SessionService(new EventService(drizzleDb, silent), drizzleDb)),
+    new LeaseReaperJob(new ClaimService(), new EventService(drizzleDb, silent)),
+    new SessionStaleJob(
+      new SessionService(new EventService(drizzleDb, silent), drizzleDb, new ClaimService()),
+    ),
     new NotificationJob(new NotificationService(drizzleDb)),
     new EmbeddingJob(new EmbeddingService(drizzleDb)),
     new RetentionJob(drizzleDb),

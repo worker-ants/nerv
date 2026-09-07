@@ -212,14 +212,12 @@ describe.skipIf(!AVAILABLE)('시나리오 C — 리스 만료 자동 회수 (성
     // (worker-jobs.spec.ts 가 그것을 지킨다), 클레임 경로도 같은 메서드를 먼저 부른다 —
     // 회수 규칙이 두 벌이 아니라는 것이 D-05 의 실물이다.
     const { ClaimService } = await import('../../src/modules/task/claim.service.js');
-    const { NERV_DB } = await import('../../src/common/database.module.js');
-    const db = stack.app.get<{ transaction: <T>(fn: (tx: never) => Promise<T>) => Promise<T> }>(
-      NERV_DB,
-    );
-    const reclaimedCount = await db.transaction(async (tx) =>
-      stack.app.get(ClaimService).reclaimExpired(tx),
-    );
-    expect(reclaimedCount).toBeGreaterThan(0);
+    const { EventService } = await import('../../src/modules/event/event.service.js');
+    // 회수는 이벤트를 남긴다(REQ-API-127) — 그래서 `EventService.transact` 로 연다
+    const reclaimedClaims = await stack.app
+      .get(EventService)
+      .transact(async (tx, emit) => stack.app.get(ClaimService).reclaimExpired(tx, emit));
+    expect(reclaimedClaims.length).toBeGreaterThan(0);
 
     const { rows } = await stack.pool.query<{ status: string; claims: number }>(
       `SELECT t.status::text AS status,
