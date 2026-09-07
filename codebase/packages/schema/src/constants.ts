@@ -115,6 +115,16 @@ export const WORKER_ADVISORY_LOCK_KEY = 1852796534n;
  *
  * 16 MiB 는 최악(50 × 300 KB)에 여유를 둔 값이다. 더 큰 이관은 `--batch-size` 로 줄인다.
  */
+/**
+ * 임포트가 `done` 으로 적재하는 Task 의 스펙 영향 선언 — **모른다는 표시**다.
+ *
+ * `{"none": true}` 는 "영향 없음을 확인했다" 는 **사람의 선언**이라, 임포터가 그것을 지어
+ * 넣으면 거짓 부정이 된다(2026-09-07 · 사람 결정). done 게이트는 키 이름을 보지 않고
+ * 비어 있지 않음만 보므로 판정에는 영향이 없고, 나중에 사람이 그 Task 를 열었을 때
+ * "확인한 적 없다" 는 사실이 남는다.
+ */
+export const IMPORT_SPEC_IMPACT_UNKNOWN = { unknown: true } as const;
+
 export const MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
 
 /**

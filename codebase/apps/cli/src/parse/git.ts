@@ -119,3 +119,24 @@ export function addedAtMap(root: string, pathspec: string): Map<string, string> 
   }
   return out;
 }
+
+/**
+ * 스캔 뿌리의 현재 HEAD — **리포트와 매니페스트가 "무엇을 읽었나" 를 말하는 값**이다.
+ *
+ * 2026-09-07 까지 세 리포트가 이 값을 `null` 로 고정해 두고 있었다(`rootCommit: null`).
+ * 리포트는 그 필드를 렌더까지 하고 있었으므로 사람은 **커밋 없는 임포트 기록**을 읽었고,
+ * 매니페스트도 같은 값을 받아 재실행 때 "그때 무엇을 읽었는지" 를 되짚을 수 없었다.
+ *
+ * git 저장소가 아니어도 실패가 아니다 — 체크아웃 사본이 아닌 트리를 임포트하는 것은
+ * 정상이고(시나리오 E 0단계는 네트워크도 없이 돈다), 그때는 `null` 이 사실이다.
+ */
+export function headOf(root: string): string | null {
+  try {
+    return execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}

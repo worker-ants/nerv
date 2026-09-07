@@ -34,6 +34,36 @@ export const ko = {
   'blocked.dependency_broken': '선행 의존이 깨짐',
   'blocked.external': '저장소 밖의 사정',
   'blocked.spec_conflict': '기준 스펙과 어긋남',
+  'cli.hint.area_body_missing':
+    '영역 디렉터리에 본문 파일을 두거나, 본문 없는 노드로 두어도 되는지 확인한다',
+  'cli.hint.count_mismatch':
+    '프로파일의 기대 총수를 확인하고, 스캔 뿌리(`--root`)와 제외 글롭이 맞는지 본다 — 수가 다르면 다른 트리를 읽고 있는 것이다',
+  'cli.hint.dist_mismatch':
+    '분포가 기대와 다른 것뿐이다 — 프로파일의 `expect` 를 실물에 맞추거나 그대로 둔다',
+  'cli.hint.done_at_unrecovered':
+    '완료 시각이 중요하면 원본에 적는다 — 보관 창 판정이 적재 시각을 기준으로 흐려진다',
+  'cli.hint.frontmatter_missing':
+    '문서 축이 기본값으로 적재된다 — 고른 값이 필요하면 원본에 frontmatter 를 적는다',
+  'cli.hint.id_collision': '두 문서 중 하나의 고정 ID 를 바꾼다 — 같은 키로는 둘 다 적재할 수 없다',
+  'cli.hint.impl_status_doc_copied':
+    '요구사항 단위로 구현 상태를 확정한다 — 문서 status 를 그대로 복사한 값이다',
+  'cli.hint.map_conflict': '`nerv import rebuild-map` 으로 매니페스트를 되짓고 다시 돌린다',
+  'cli.hint.pending_plan_unresolved': '그 계획이 Task 로 적재된 뒤 다시 돌린다',
+  'cli.hint.plan_many_refs': '무엇을 구현한 것인지 계획 본문에 요구사항 하나로 적는다',
+  'cli.hint.plan_spec_unresolved':
+    '계획이 가리키는 경로가 이번 스캔에 들어오는지 본다 — 스펙 패스를 먼저 돌리면 해소된다',
+  'cli.hint.profile_invalid':
+    '프로파일 이름 또는 파일을 고친다 — 잘못된 매핑으로 전건을 적재하는 것보다 시작 전에 멈추는 편이 싸다',
+  'cli.hint.req_id_duplicate': '중복된 요구사항 ID 중 하나를 새 번호로 옮긴다 — 첫 정의만 적재됐다',
+  'cli.hint.req_priority_missing': '우선순위를 원본에 적는다 — NULL 로 적재됐다',
+  'cli.hint.research_doc': '참고 문서라 Task 를 만들지 않았다 — 그대로 두면 된다',
+  'cli.hint.review_no_snapshot': '리뷰를 커밋한 뒤 다시 돌린다 — 스냅샷 없는 리뷰는 받을 수 없다',
+  'cli.hint.review_tableless': '산문 형식 SUMMARY 다 — 사람이 읽고 발견을 표로 옮긴다',
+  'cli.hint.server_rejected':
+    '`details` 의 코드를 보고 원본을 고친 뒤 다시 돌린다 — 배치의 나머지는 적재됐다',
+  'cli.hint.server_unauthorized':
+    '토큰을 다시 발급하고 `import:write` 권한이 있는지 확인한다 — 권한을 넓히려 재시도하지 않는다',
+  'cli.hint.status_unknown': '원본의 status 값을 어휘 안의 값으로 고친다',
   'cli.reason.frontmatter_missing':
     'frontmatter 가 없다 — 문서 축은 기본값으로 적재된다(고른 값이 아니다)',
   'cli.reason.map_conflict':

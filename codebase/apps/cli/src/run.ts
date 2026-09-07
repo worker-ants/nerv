@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { classifyPlan } from './parse/plan.js';
 import { branchFromRetryState, parseReviewSummary } from './parse/review.js';
-import { addedAtMap, snapshotMap, snapshotOf } from './parse/git.js';
+import { addedAtMap, headOf, snapshotMap, snapshotOf } from './parse/git.js';
 import { parseFrontmatter, splitStatus } from './parse/frontmatter.js';
 import { extractRequirements } from './parse/requirements.js';
 import { scan } from './parse/scan.js';
@@ -73,7 +73,7 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
   const report: ImportReport = {
     profile: profile.profile,
     root: options.root,
-    rootCommit: null,
+    rootCommit: headOf(options.root),
     scanned: files.length,
     // 합성된 area 노드는 원본 파일이 아니다 — 변환율의 분자에 넣으면 100% 를 넘는다
     converted: loadable.filter((item) => sourcePaths.has(item.source_path)).length,
@@ -137,7 +137,7 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
         disposition: 'aborted',
       });
     }
-    if (entries.some((e) => e.disposition === 'aborted')) return report;
+    if (halted(entries)) return report;
 
     if (options.apply) {
       // ① 트리 골격 → ② 본문 순서. 부모가 먼저 있어야 자식이 붙는다
@@ -145,7 +145,12 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
       // **나눠 보낸다**(importer.md §3.1 `--batch-size`). 한 번에 보내면 본문이 몸집을
       // 키워 서버가 413 으로 끊는다 — clemvion 136건이 그랬다(실측 2026-08-23).
       for (const chunk of chunked(orderByParent(loadable), options.batchSize)) {
-        await client.specs({ profile: profile.profile, kind: 'structure', items: chunk });
+        await client.specs({
+          profile: profile.profile,
+          kind: 'structure',
+          items: chunk,
+          ...(report.rootCommit === null ? {} : { root_commit: report.rootCommit }),
+        });
       }
       const applied: ImportBatchResult['items'] = [];
       // 본문은 **바뀐 것만** 보낸다. 골격은 부모가 먼저 있어야 하므로 전건을 보낸다
@@ -154,8 +159,14 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
       for (const chunk of chunked(changed, options.batchSize)) {
         // 문서는 **파일 1건 = 트랜잭션 1건**이라(§3.5) 순서가 결과를 바꾸지 않는다
         applied.push(
-          ...(await client.specs({ profile: profile.profile, kind: 'document', items: chunk }))
-            .items,
+          ...(
+            await client.specs({
+              profile: profile.profile,
+              kind: 'document',
+              items: chunk,
+              ...(report.rootCommit === null ? {} : { root_commit: report.rootCommit }),
+            })
+          ).items,
         );
       }
       // 관계 — 문서가 서로를 가리키는 선. **문서 적재 뒤에 보낸다**: 양끝이 다 있어야
@@ -172,7 +183,7 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
             line: null,
             rule: 'server-rejected',
             reason: item.detail ?? t()('cli.reason.load_failed'),
-            disposition: 'manual',
+            disposition: 'skipped',
           });
           continue;
         }
@@ -208,7 +219,7 @@ async function runRebuildMap(options: CliOptions, profile: ImportProfile): Promi
   const report: ImportReport = {
     profile: profile.profile,
     root: options.root,
-    rootCommit: null,
+    rootCommit: headOf(options.root),
     scanned: 0,
     converted: 0,
     entries,
@@ -320,8 +331,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       entries.push({
         file: task.source_path,
         line: null,
-        rule: 'pending-plan-unresolved',
-
+        rule: 'plan-spec-unresolved',
         reason: t()('cli.reason.plan_spec_unresolved', { paths: task.spec_paths.join(', ') }),
         disposition: 'skipped',
       });
@@ -338,8 +348,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       entries.push({
         file: task.source_path,
         line: null,
-        rule: 'link-unresolved',
-
+        rule: 'plan-many-refs',
         reason: t()('cli.reason.plan_many_refs', { count: task.requirement_refs.length }),
         disposition: 'manual',
       });
@@ -351,8 +360,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       entries.push({
         file: task.source_path,
         line: null,
-        rule: 'owner-unmapped',
-
+        rule: 'done-at-unrecovered',
         reason: t()('cli.reason.plan_no_done_at'),
         disposition: 'manual',
       });
@@ -366,6 +374,15 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
       depends_on: [],
       ...(specKey === undefined ? {} : { source_spec_key: specKey }),
       ...(doneAt === null ? {} : { done_at: doneAt }),
+      // **계산해 놓고 버리던 셋**(2026-09-07 · REQ-IMP-027·028). 파서는 이 값들을 원본에서
+      // 읽어 놓고 계약에 실을 자리가 없어 흘렸다 — 서버는 그때마다 기본값을 채웠고,
+      // 화면은 그 기본값을 **사람이 고른 값**으로 그렸다.
+      //
+      // 미표기는 보내지 않는다: 여기서 `null` 을 명시하는 것과 키를 빼는 것은 서버에서
+      // 같은 결과(NULL·now())이지만, **없는 것을 없다고 적는 편**이 계약을 읽는 쪽에 낫다.
+      ...(task.priority === null ? {} : { priority: task.priority as ImportTaskItem['priority'] }),
+      ...(task.started === null ? {} : { created_at: task.started }),
+      ...(task.spec_impact === null ? {} : { spec_impact: task.spec_impact }),
     });
   }
 
@@ -377,12 +394,17 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
   const report: ImportReport = {
     profile: profile.profile,
     root: options.root,
-    rootCommit: null,
+    rootCommit: headOf(options.root),
     scanned: files.length,
     converted: loadable.length,
     entries,
     expectation: checkPlanExpectations(profile, files.length, statusCounts, entries),
   };
+
+  // **abort 는 세 패스 모두에서 문을 닫는다**(2026-09-07 · REQ-IMP-023). spec 패스만
+  // 게이트를 걸고 있었고, plan·review 는 `aborted` 항목을 리포트에 적은 뒤 **그대로 전송**
+  // 했다 — 중단이라 적어 놓고 중단하지 않으면 그 등급은 이름만 남는다.
+  if (halted(entries)) return report;
 
   if (options.server !== undefined && options.token !== undefined && options.apply) {
     const client = new ImportClient({
@@ -395,7 +417,15 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
     // 스키마 위반으로 거절했다(실측 2026-08-23). 본문 크기가 아니라 항목 수의 벽이다.
     const applied: ImportBatchResult['items'] = [];
     for (const chunk of chunked(loadable, options.batchSize)) {
-      applied.push(...(await client.tasks({ profile: profile.profile, items: chunk })).items);
+      applied.push(
+        ...(
+          await client.tasks({
+            profile: profile.profile,
+            items: chunk,
+            ...(report.rootCommit === null ? {} : { root_commit: report.rootCommit }),
+          })
+        ).items,
+      );
     }
 
     // 요구사항 ↔ Task 링크는 **Task 가 다 들어온 뒤에** 보낸다 — 양끝이 있어야 해소된다.
@@ -427,7 +457,7 @@ async function runPlanImport(options: CliOptions, profile: ImportProfile): Promi
           line: null,
           rule: 'server-rejected',
           reason: item.detail ?? t()('cli.reason.load_failed'),
-          disposition: 'manual',
+          disposition: 'skipped',
         });
       }
     }
@@ -488,8 +518,7 @@ async function runReviewImport(options: CliOptions, profile: ImportProfile): Pro
       entries.push({
         file: file.path,
         line: null,
-        rule: 'server-rejected',
-
+        rule: 'review-no-snapshot',
         reason: t()('cli.reason.review_no_snapshot'),
         disposition: 'skipped',
       });
@@ -506,8 +535,7 @@ async function runReviewImport(options: CliOptions, profile: ImportProfile): Pro
       entries.push({
         file: file.path,
         line: null,
-        rule: 'server-rejected',
-
+        rule: 'review-tableless',
         reason: t()('cli.reason.review_tableless'),
         disposition: 'manual',
       });
@@ -531,12 +559,15 @@ async function runReviewImport(options: CliOptions, profile: ImportProfile): Pro
   const report: ImportReport = {
     profile: profile.profile,
     root: options.root,
-    rootCommit: null,
+    rootCommit: headOf(options.root),
     scanned: files.length,
     converted: items.length,
     entries,
     expectation: checkReviewExpectations(profile, files.length, findingCount, entries),
   };
+
+  // spec·plan 과 같은 게이트다(REQ-IMP-023)
+  if (halted(entries)) return report;
 
   if (options.server !== undefined && options.token !== undefined && options.apply) {
     const client = new ImportClient({
@@ -546,7 +577,15 @@ async function runReviewImport(options: CliOptions, profile: ImportProfile): Pro
     });
     const applied: ImportBatchResult['items'] = [];
     for (const chunk of chunked(items, options.batchSize)) {
-      applied.push(...(await client.reviews({ profile: profile.profile, items: chunk })).items);
+      applied.push(
+        ...(
+          await client.reviews({
+            profile: profile.profile,
+            items: chunk,
+            ...(report.rootCommit === null ? {} : { root_commit: report.rootCommit }),
+          })
+        ).items,
+      );
     }
     for (const item of applied) {
       if (item.status === 'error') {
@@ -555,7 +594,7 @@ async function runReviewImport(options: CliOptions, profile: ImportProfile): Pro
           line: null,
           rule: 'server-rejected',
           reason: item.detail ?? t()('cli.reason.load_failed'),
-          disposition: 'manual',
+          disposition: 'skipped',
         });
       }
     }
@@ -726,9 +765,9 @@ function convert(
       file: file.path,
       line: null,
       rule: 'status-unknown',
-
       reason: t()('cli.reason.unknown_status', { value: rawStatus }),
-      disposition: 'manual',
+      // 어휘 밖 값은 **적재에서 빼고 계속**이다 — 사람이 고칠 것은 원본이지 이 실행이 아니다
+      disposition: 'skipped',
     });
     return null;
   }
@@ -915,9 +954,10 @@ function checkExpectations(
         file: t()('cli.report.aggregate'),
         line: null,
         rule: 'dist-mismatch',
-
         reason: t()('cli.reason.status_dist', { status, expected, actual }),
-        disposition: 'skipped',
+        // 전표(§4.1)가 warn 이라 적는다 — 분포가 기대와 다른 것은 **아무것도 잘못되지
+        // 않은 사실**이라 종료 코드를 올리지 않는다(그 코드를 게이트로 쓰는 쪽이 있다)
+        disposition: 'warn',
       });
     }
   }
@@ -932,6 +972,17 @@ function checkExpectations(
  * 네 곳(structure·document·links·tasks)이다. 각자 지키게 하면 한 곳이 빠졌을 때 드러나지
  * 않는다 — 실제로 tasks 가 그랬다(실측 2026-08-23).
  */
+/**
+ * **abort 는 전송 전에 문을 닫는다**(REQ-IMP-023).
+ *
+ * 세 패스가 각자 이 판정을 적으면 언젠가 한 곳이 빠진다 — 실제로 그랬다: spec 패스만
+ * 게이트가 있었고 plan·review 는 `aborted` 를 적은 채 그대로 보냈다. 등급이 무엇을 뜻하는지는
+ * 한 곳에서만 정한다.
+ */
+function halted(entries: readonly ReportEntry[]): boolean {
+  return entries.some((e) => e.disposition === 'aborted');
+}
+
 function chunked<T>(items: readonly T[], requested: number): T[][] {
   const size = Math.min(IMPORT_BATCH_MAX, Math.max(1, requested));
   const out: T[][] = [];
@@ -1024,9 +1075,11 @@ function withoutDuplicateTaskKeys(
         file: path,
         line: null,
         rule: 'id-collision',
-
         reason: t()('cli.reason.duplicate_key', { key, count: paths.length }),
-        disposition: 'aborted',
+        // **항목 제외이지 실행 중단이 아니다**(2026-09-07 · 사람 결정). 코드는 처음부터
+        // 그 항목만 빼고 계속했는데 등급만 `aborted` 였다 — 등급은 종료 코드와 재실행 큐를
+        // 가르는 축이라 뜻이 하나여야 한다. 신호는 남는다: skipped 도 종료 코드 1 이다.
+        disposition: 'skipped',
       });
     }
   }
@@ -1057,9 +1110,11 @@ function withoutDuplicateKeys(
         file: path,
         line: null,
         rule: 'id-collision',
-
         reason: t()('cli.reason.duplicate_key', { key, count: paths.length }),
-        disposition: 'aborted',
+        // **항목 제외이지 실행 중단이 아니다**(2026-09-07 · 사람 결정). 코드는 처음부터
+        // 그 항목만 빼고 계속했는데 등급만 `aborted` 였다 — 등급은 종료 코드와 재실행 큐를
+        // 가르는 축이라 뜻이 하나여야 한다. 신호는 남는다: skipped 도 종료 코드 1 이다.
+        disposition: 'skipped',
       });
     }
   }
@@ -1174,8 +1229,7 @@ function buildAreaTree(
     entries.push({
       file: dir,
       line: null,
-      rule: 'title-missing',
-
+      rule: 'area-body-missing',
       reason: t()('cli.reason.area_without_body', { file: bodyFile ?? '' }),
       disposition: 'manual',
     });

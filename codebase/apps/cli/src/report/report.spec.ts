@@ -3,7 +3,9 @@
 
 import { setLocaleForTesting } from '../i18n.js';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { conversionRate, exitCode, renderJsonl, renderMarkdown } from './index.js';
+import { readFileSync } from 'node:fs';
+import { conversionRate, exitCode, renderJsonl, renderMarkdown, RULES } from './index.js';
+import type { Disposition, Rule } from './index.js';
 import type { ImportReport } from './index.js';
 
 const base: ImportReport = {
@@ -94,5 +96,45 @@ describe('리포트', () => {
 
   it('실패가 없으면 "없음" 이라고 적는다 — 빈 표를 두지 않는다', () => {
     expect(renderMarkdown(base)).toContain('없음');
+  });
+});
+
+/**
+ * **전표와 코드가 갈리면 여기서 잡힌다**(2026-09-07 · REQ-IMP-024).
+ *
+ * §4.1 의 규칙 전표는 사람이 읽는 계약이고 `RULES` 는 그 계약의 코드 쪽 짝이다. 둘이
+ * 갈리면 등급이 문서와 다르게 매겨지고 — 전표가 warn 이라 적은 것이 코드에서 `skipped`
+ * 면 정상 실행이 종료 코드 1 이 된다 — 그 사실을 아무도 모른 채 게이트가 늘 빨갛다.
+ * 실제로 세 자리가 갈려 있었다(`dist-mismatch`·`status-unknown`·`title-missing`).
+ */
+describe('규칙 전표가 문서와 같다 (importer.md §4.1)', () => {
+  const doc = readFileSync(
+    new URL('../../../../../docs/04-mvp/importer.md', import.meta.url).pathname,
+    'utf8',
+  );
+  /** 전표 행: `| \`slug\` [/ \`slug\`] | class | 조건 |` */
+  const declared = new Map<string, string>();
+  for (const line of doc.split('\n')) {
+    const row = /^\| ((?:`[a-z-]+`(?: \/ )?)+) \| (abort|skip|manual|warn) \|/.exec(line);
+    if (row === null) continue;
+    for (const slug of row[1]?.match(/[a-z-]+(?=`)/g) ?? []) {
+      declared.set(slug, row[2] as string);
+    }
+  }
+  const CLASS: Record<string, Disposition> = {
+    abort: 'aborted',
+    skip: 'skipped',
+    manual: 'manual',
+    warn: 'warn',
+  };
+
+  it('전표를 읽어 냈다 — 정규식이 표를 놓치면 이 검사는 아무것도 세지 않는다', () => {
+    expect(declared.size).toBeGreaterThan(15);
+  });
+
+  it.each(Object.keys(RULES))('%s 의 등급이 전표와 같다', (slug) => {
+    const want = declared.get(slug);
+    expect(want, `전표에 \`${slug}\` 행이 없다`).toBeDefined();
+    expect(RULES[slug as Rule]).toBe(CLASS[want as string]);
   });
 });

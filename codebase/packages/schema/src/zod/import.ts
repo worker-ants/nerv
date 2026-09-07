@@ -190,6 +190,30 @@ export const importTaskItemSchema = z.object({
    * 완료일이 없으므로 임포터가 git 에서 되찾는다(importer.md §2.6d).
    */
   done_at: z.string().nullable().optional(),
+  /**
+   * 우선순위 — **미표기는 보내지 않는다**(2026-09-07 · REQ-IMP-027).
+   *
+   * 계획 문서는 우선순위를 적지 않는데 열이 `NOT NULL DEFAULT 'P2'` 라 481건이 전부
+   * `P2` 로 적재됐고, 보드는 그것을 **사람이 고른 값**으로 그렸다. 0024 가 열을 열었으므로
+   * 이제 미표기는 NULL 이다 — `P2` 의 축약이 아니라 표기가 없었다는 사실이다.
+   */
+  priority: z.enum(['P0', 'P1', 'P2', 'P3']).nullable().optional(),
+  /**
+   * 원본이 적은 생성 시각 — `done_at` 과 같은 이유다(적재 시각이 아니다).
+   *
+   * 계획의 `started:` 를 임포터가 계산해 놓고 **계약에 실을 자리가 없어 버리고 있었다**
+   * (2026-09-07 실측). 비우면 서버가 `now()` 로 채운다.
+   */
+  created_at: z.string().nullable().optional(),
+  /**
+   * 스펙 영향 선언 — **done 게이트의 입력**이다(REQ-API-146).
+   *
+   * 서버는 `done` 으로 적재하는 Task 에 `{"none": true}` 를 넣고 있었는데, 그것은
+   * "영향 없음을 **확인했다**" 는 선언이라 지어 넣으면 **거짓 부정**이다. 임포터가
+   * 계산한 값이 있으면 그것을 싣고, 없으면 서버가 `{"unknown": true}` 로 적는다 —
+   * 게이트는 키 이름을 보지 않고 비어 있지 않음만 보므로 판정은 그대로다.
+   */
+  spec_impact: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export const importTaskBatchInputSchema = z.object({

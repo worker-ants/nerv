@@ -15,10 +15,24 @@ export const BUILTIN_PROFILES: Record<string, ImportProfile> = {
   'nerv-docs': nervDocsProfile,
 };
 
+/**
+ * 프로파일을 읽지 못했다 — **시작 전에 멈추는 실패**다(REQ-IMP-025).
+ *
+ * 보통의 예외와 갈라 두는 이유는 종료 코드다: 이것은 "완료했으나 수동 확인" 이 아니라
+ * **중단**(2)이고, 그 사실이 리포트에도 한 줄로 남아야 한다. 예전에는 리포트 없이 죽어
+ * 종료 코드 1 로 나갔다 — 가장 흔한 실패(프로파일 이름 오타)가 그렇게 오독됐다.
+ */
+export class ProfileError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProfileError';
+  }
+}
+
 export function loadBuiltin(name: string): ImportProfile {
   const profile = BUILTIN_PROFILES[name];
   if (profile === undefined) {
-    throw new Error(
+    throw new ProfileError(
       t()('cli.err.unknown_profile', {
         name,
         available: Object.keys(BUILTIN_PROFILES).join(', '),
@@ -37,7 +51,7 @@ export function loadProfileFile(path: string): ImportProfile {
   const parsed: unknown = path.endsWith('.json') ? JSON.parse(raw) : parseSimpleYaml(raw);
   const result = importProfileSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(
+    throw new ProfileError(
       t()('cli.err.profile_schema', { path, issues: JSON.stringify(result.error.issues) }),
     );
   }
@@ -63,7 +77,7 @@ export function parseSimpleYaml(text: string): unknown {
     const parent = stack.at(-1)?.node ?? root;
 
     const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(content);
-    if (match === null) throw new Error(t()('cli.err.profile_yaml', { content }));
+    if (match === null) throw new ProfileError(t()('cli.err.profile_yaml', { content }));
 
     const [, key, value] = match;
     if (key === undefined) continue;

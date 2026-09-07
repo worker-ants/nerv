@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.47 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.48 · 2026-09-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.48 변경(2026-09-07 — 여섯째 스프린트 ①): §1.4 셋째 표에 **임포터의 abort 게이트 · 규칙 전표 대조 · 계약 세 열** 한 줄([4.7](importer.md) REQ-IMP-023~028 · [4.3](database.md) 0024).
 >
 > v0.47 변경(2026-09-07 — 클레임 이후를 아무도 태우지 않았다, 개선 계획 넷째 스프린트): **§5.6 시나리오 F 신설.** A~C 는 `nerv_bootstrap`·`nerv_task_claim` 까지만 태우고 웹 e2e 는 보드·세션·받은 요청을 열지 않아, 클레임 **이후**의 계약(하트비트 역채널 · done 게이트 · SessionEnd 회수)이 **한 세션 안에서 이어지는지**는 어느 검사도 보지 않았다 — 조각이 각각 초록인 것과 여정이 이어지는 것은 다른 사실이다. [3.7 로드맵](../03-proposal/roadmap.md) 성공 기준 0-8("도구만으로 완주")에 판정 수단이 없던 이유이기도 하다.
 >
@@ -205,6 +207,7 @@ referenced_by:
 | done 게이트 정책 · 리뷰 링크 | `zod/policy.ts`(`done_gate`) · `task.service.ts`(`assertDoneGate`) · `evidence-locator.ts`(신설) · `review.service.ts`(활성 클레임에서 task_id) | 게이트가 자기 신고 문자열 1건으로 열렸고 리뷰 1,992건 중 Task 링크가 2건이었다(2026-09-07 · [4.4](api.md) REQ-API-146~148) |
 | 알림 등급·수신자 | `notification.service.ts`(등급 필터·둘로 세기·owner_role 수신자) · `event.controller.ts` · `app-shell.tsx`·`routes/notifications.tsx` | 배지가 배경 활동까지 세어 결정 99건이 767건에 묻혔다(2026-09-07 · [4.4](api.md) REQ-API-149·150) |
 | 권한·토큰의 감사 | `event/event-core.module.ts`(신설) · `auth.service.ts`·`invitation.service.ts`·`attachment.service.ts` · `events.ts` | FR-16 이 요구하는 축이 멤버십·토큰·프로젝트 변경에서 비어 있었다(2026-09-07 · [4.4](api.md) REQ-API-151) |
+| 임포터의 abort 게이트 · 규칙 전표 대조 · 계약 세 열 | `cli/src/run.ts`(`halted`) · `report/index.ts`(`RULES`·`hintFor`·`withHints`) · `index.ts`(`failureReport`) · `parse/git.ts`(`headOf`) | 중단이라 적어 놓고 plan·review 는 그대로 전송했다 · 전표와 코드의 등급이 세 자리 갈렸다 · `hint` 는 채우는 코드가 0곳이었다 · `root_commit` 은 `null` 고정이었다 · 파서가 계산한 셋(우선순위·시작 시각·스펙 영향)을 계약에 실을 자리가 없어 버렸다([4.7](importer.md) REQ-IMP-023~028 · 0024) |
 | 유한 목록의 총계 · 관계 상한 제거 | `common/cursor.ts`(`finiteList`) · `spec.controller.ts` 세 핸들러 · `spec-relation.service.ts` · `queries.ts`·`baseline-controls.tsx` | 넷 중 셋이 맨 배열이었고 관계는 `LIMIT 51` 이라 `total` 이 자른 수였다 — 웹은 "역참조 50 · 레퍼런스 0" 을 그렸다([4.4](api.md) REQ-API-155) |
 | 잔재 걷기와 손잡이 · 세션 보드 [더 보기] | `sse.controller.ts`(keep-alive 손잡이) · `queries.ts`(`useSessions` 커서) · `session-board.tsx` · i18n·매뉴얼·주석 넷 | 태우지 않은 정정은 다시 갈린다(keep-alive 형식) · 보드가 서버 상한에서 끝나 스트립의 숫자와 어긋났다([4.2](codebase.md) REQ-CB-035 · [4.5](screens.md) REQ-WEB-150) |
 | 임베딩 차원·절단·공개 S3 주소 | `embedding.client.ts` · `common/storage.service.ts`(+`storage.service.spec.ts`) · `search.service.ts` · `deploy/**`·`.env.example` | 차원 상수가 두 벌이었고 절단 여부를 **주소로 추정**했다(게이트웨이 뒤에서 조용히 degrade) · 공개 S3 주소 예시 `…/s3` 는 서명이 깨지는 길이다([4.2](codebase.md) REQ-CB-033·034 · [4.4](api.md) REQ-API-154) |

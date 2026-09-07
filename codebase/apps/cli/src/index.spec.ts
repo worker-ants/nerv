@@ -5,8 +5,12 @@
 // 부르지 않아 **아무도 몰랐다**(2026-09-06 대조). 지시대로 친 사람이 받은 것은 usage
 // 에러였고, 그 에러가 다시 되지 않는 형태를 알려 줬다.
 
-import { describe, expect, it } from 'vitest';
-import { parseArgs } from './index.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { main, parseArgs } from './index.js';
+import { NERV_ERROR } from '@nerv/schema';
 import { setLocaleForTesting } from './i18n.js';
 
 describe('nerv import <kind> (§3.1)', () => {
@@ -40,5 +44,80 @@ describe('nerv import <kind> (§3.1)', () => {
   it('docs 는 nerv-docs 프로파일이 기본이다(§5 도그푸딩)', () => {
     expect(parseArgs(['import', 'docs', '--project', 'p']).profile).toBe('nerv-docs');
     expect(parseArgs(['import', 'spec', '--project', 'p']).profile).toBe('clemvion');
+  });
+});
+
+/**
+ * **리포트 없이 죽지 않는다**(2026-09-07 · REQ-IMP-025).
+ *
+ * 가장 흔한 실패 둘 — 토큰 만료·권한 부족과 프로파일 이름 오타 — 이 예외로 그대로 나가면
+ * 종료 코드가 1 이 되고, 그것은 이 CLI 의 어휘에서 **"완료했으나 수동 확인"** 이다.
+ * 아무것도 적재되지 않았는데 그렇게 읽히면 다음 사람은 있지도 않은 리포트를 뒤진다.
+ */
+describe('중단은 중단으로 보고한다 (REQ-IMP-025)', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'nerv-exit-'));
+    mkdirSync(join(root, 'spec'), { recursive: true });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('모르는 프로파일은 종료 코드 2 이고 리포트가 남는다', async () => {
+    const reportDir = join(root, 'report');
+    const code = await main([
+      'import',
+      'spec',
+      '--profile',
+      'no-such-profile',
+      '--root',
+      root,
+      '--project',
+      'p',
+      '--report-dir',
+      reportDir,
+    ]);
+    expect(code).toBe(2);
+    const jsonl = readFileSync(join(reportDir, 'report.jsonl'), 'utf8');
+    expect(jsonl).toContain('profile-invalid');
+    expect(jsonl).toContain('aborted');
+  });
+
+  it('401 은 종료 코드 2 이고 권한을 넓히려 재시도하지 않는다', async () => {
+    let calls = 0;
+    vi.stubGlobal('fetch', async () => {
+      calls += 1;
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({ ok: false, code: NERV_ERROR.UNAUTHENTICATED, message: '만료' }),
+      };
+    });
+    writeFileSync(join(root, 'spec', 'a.md'), '---\nid: SPC-A\n---\n\n# A\n\n본문\n');
+    const reportDir = join(root, 'report2');
+    const code = await main([
+      'import',
+      'spec',
+      '--profile',
+      'nerv-docs',
+      '--root',
+      root,
+      '--project',
+      'p',
+      '--report-dir',
+      reportDir,
+      '--server',
+      'http://stub',
+      '--token',
+      'nerv_x',
+      '--apply',
+    ]);
+    expect(code).toBe(2);
+    expect(readFileSync(join(reportDir, 'report.jsonl'), 'utf8')).toContain('server-unauthorized');
+    // 4xx 는 재시도하지 않는다 — 만료된 토큰으로 다시 부르는 것은 답이 아니다
+    expect(calls).toBe(1);
   });
 });

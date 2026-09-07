@@ -11,7 +11,7 @@
 //     실패로 응답에 담기고 배치 전체를 되돌리지 않는다(REQ-API-018).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { NERV_EVENT, newId, text } from '@nerv/schema';
+import { IMPORT_SPEC_IMPACT_UNKNOWN, NERV_EVENT, newId, text } from '@nerv/schema';
 import { displayKey } from '@nerv/schema/keys';
 import type {
   ImportBatchResult,
@@ -190,6 +190,7 @@ export class ImportService {
           await tx.execute(sql`
             INSERT INTO task (id, project_id, key, title, body_md, status, source_spec_version_id,
                               assignee_user_id, blocked_reason, done_at, spec_impact,
+                              priority, created_at,
                               goal_md, output_format_md, tools_sources_md, boundaries_md)
             VALUES (${taskId}, ${actor.projectId}, ${key}, ${item.title}, ${item.body_md},
                     ${item.status}::task_status, ${specVersionId},
@@ -199,7 +200,19 @@ export class ImportService {
                         ? sql`coalesce(${item.done_at ?? null}::timestamptz, now())`
                         : sql`NULL`
                     },
-                    ${item.status === 'done' ? sql`'{"none": true}'::jsonb` : sql`NULL`},
+                    ${
+                      // **지어 넣지 않는다**(2026-09-07 · REQ-IMP-028). 원본이 계산한 선언이
+                      // 있으면 그것을 쓰고, 없으면 `{"unknown": true}` 다 — `{"none": true}` 는
+                      // "영향 없음을 확인했다" 는 사람의 선언이라 임포터가 적으면 거짓 부정이다.
+                      item.spec_impact != null
+                        ? sql`${JSON.stringify(item.spec_impact)}::jsonb`
+                        : item.status === 'done'
+                          ? sql`${JSON.stringify(IMPORT_SPEC_IMPACT_UNKNOWN)}::jsonb`
+                          : sql`NULL`
+                    },
+                    -- 미표기는 NULL 이다(0024) — P2 로 채우면 고른 적 없는 값이 고른 것으로 보인다
+                    ${item.priority ?? null}::task_priority,
+                    coalesce(${item.created_at ?? null}::timestamptz, now()),
                     ${provenance}, ${provenance}, ${provenance}, ${provenance})
           `);
           return { source_path: item.source_path, status: 'ok', task_id: taskId } as const;

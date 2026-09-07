@@ -42,7 +42,14 @@ export const task = pgTable(
     title: text('title').notNull(),
     bodyMd: text('body_md'),
     status: taskStatus('status').notNull().default('backlog'),
-    priority: taskPriority('priority').notNull().default('P2'),
+    /**
+     * **미표기는 NULL 이다**(2026-09-07 · REQ-IMP-027 · 0020 이 요구사항에서 한 판단과 같다).
+     *
+     * 열이 `NOT NULL DEFAULT 'P2'` 인 동안 임포터는 원본이 우선순위를 적은 적 없는 계획
+     * 481건을 전부 `P2` 로 적재했고, 보드는 그것을 **사람이 고른 값**으로 그렸다.
+     * NULL 은 `P2` 의 축약이 아니라 **표기가 없었다는 사실**이다 — 정렬에서는 뒤로 간다.
+     */
+    priority: taskPriority('priority').default('P2'),
     /**
      * 기준 버전(agent-integration §2.4). NULL 은 임포트 레거시 전용이고,
      * 신규 생성 표면(REST·MCP)의 zod 는 이 값을 필수로 받는다.

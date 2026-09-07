@@ -133,7 +133,9 @@ describe('task 표시 ID — 충돌하면 조용히 덮어쓰지 않는다', () 
       entries as never,
     );
     expect(kept.map((k) => k.source_path)).toEqual(['plan/complete/y.md']);
-    expect(entries.filter((e) => e.disposition === 'aborted')).toHaveLength(2);
+    // **항목 제외이지 실행 중단이 아니다**(2026-09-07 · 사람 결정 — §4.1 전표).
+    // 종료 코드는 skipped 라도 1 이라 신호는 남는다.
+    expect(entries.filter((e) => e.disposition === 'skipped')).toHaveLength(2);
   });
 
   // 스펙 쪽 버전(判)에는 테스트가 없었다 — 그런데 2026-08-30 부터 스펙 키는 **DB 가 강제하는
@@ -157,6 +159,8 @@ describe('task 표시 ID — 충돌하면 조용히 덮어쓰지 않는다', () 
     );
     expect(kept.map((k) => k.key)).toEqual(['SPC-ONLY']);
     // 둘 다 이름이 남는다 — 조용히 사라지는 것이 이 함수가 막는 것이다
-    expect(entries.filter((e) => e.disposition === 'aborted')).toHaveLength(2);
+    // **항목 제외이지 실행 중단이 아니다**(2026-09-07 · 사람 결정 — §4.1 전표).
+    // 종료 코드는 skipped 라도 1 이라 신호는 남는다.
+    expect(entries.filter((e) => e.disposition === 'skipped')).toHaveLength(2);
   });
 });
