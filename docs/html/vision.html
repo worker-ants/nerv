@@ -53,7 +53,7 @@
     <h1>비전과 핵심 시나리오</h1>
     <p class="lead">NERV(가칭)는 <b>스펙이 단일 진실이 되고, 에이전트가 조정되고, 사람이 게이트를 지키는</b> 협업 플랫폼이다. 파일 기반 SDD 도구들은 문서 어휘를 표준화했지만 멀티유저 조정은 공식적으로 포기했고(Spec Kit #497·#2116, OpenSpec #435 “closed as not planned”), clemvion은 그 상한을 7,600줄 훅과 <code>review/</code> 13,777개 md·131MB로 실증했다. 이 문서는 3대 가치, 4개 직군의 하루 시나리오, 핵심 여정 3개, Build vs Buy 판단, 그리고 계측 가능한 성공 지표를 정의한다.</p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-09-02)</span>
+      <span>버전 v0.4 (2026-09-07)</span>
       <span>원본: <code>docs/03-proposal/vision.md</code></span>
       <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="architecture.html">3.2</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
     </div>
@@ -210,7 +210,7 @@
     <thead><tr><th style="white-space:nowrap">시각</th><th>개입 지점</th><th>일어나는 일</th></tr></thead>
     <tbody>
       <tr><td>09:10</td><td><span class="badge human">S1 홈 대시보드</span></td><td>로그인하면 숫자 배지 세 개 — 승인 대기 2건, 답변 대기 질문 1건, 내 프로젝트 카드에 “활성 세션 3”. 어젯밤 도현의 에이전트가 남긴 질문이 아직 열려 있다는 게 한눈에 보인다.</td></tr>
-      <tr><td>09:25</td><td><span class="badge human">S3 스펙 상세</span></td><td>새 기능 “웹챗 위젯 임베드 v2”를 쓴다. 좌측 트리에서 <code>7-channel-web-chat</code> 영역을 골라 <code>feature</code> 타입 스펙을 만들고, 우측 패널에서 요구사항 3개를 EARS 템플릿으로 등록한다 — <i>WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다</i>. 각각 서버 발급 고정 ID(<code>REQ-CWC-031</code>)를 받는다(FR-03).</td></tr>
+      <tr><td>09:25</td><td><span class="badge human">S3 스펙 상세</span></td><td>새 기능 “웹챗 위젯 임베드 v2”를 쓴다. 좌측 트리에서 <code>7-channel-web-chat</code> 영역을 골라 <code>feature</code> 타입 스펙을 만들고, 우측 패널에서 요구사항 3개를 EARS 템플릿으로 등록한다 <i>(현황 2026-09-07 — 요구사항은 <b>본문 줄에서 추출된다</b>: 패널은 그것을 보여 주고 구현 상태를 잇는다. 다음 ID 를 서버가 발급하는 길은 열렸지만(<a href="api.html">4.4 API</a> EP-REQ-04) 웹이 아직 부르지 않는다)</i> — <i>WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다</i>. 각각 서버 발급 고정 ID(<code>REQ-CWC-031</code>)를 받는다(FR-03).</td></tr>
       <tr><td>09:50</td><td><span class="badge human">S3 스펙 상세</span></td><td>“검토 요청”. 자동 사전 검토가 돈다(clemvion의 consistency-check 5관점을 플랫폼 서비스로 이식). 경고 2건 — 타 문서와 문구 불일치, Rationale 누락. 첫 번째는 참조 링크로 바꾸고(중복 서술이 drift의 근원, D-09) 두 번째를 채운 뒤 재제출. 문서 상태 <span class="badge draft">draft</span> → <span class="badge review">in_review</span> (D-02).</td></tr>
       <tr><td>10:05</td><td><span class="badge human">S7 받은 요청</span> <span class="badge agent">nerv_question_create</span></td><td>어제 열린 질문 카드: <i>“세션 복원을 localStorage로 할지 서버 세션으로 할지 — 스펙에 명시 없음. (A)/(B)/(C) 스펙에 남길 질문”</i>. (B)를 고르고 한 줄 코멘트. 즉시 “요청 세션 <code>mac-02/claude-code</code>에 전달됨” 표시 — 도현의 세션이 <code>awaiting_input</code>에서 풀렸다는 뜻이다(FR-11).</td></tr>
       <tr><td>11:20</td><td>터미널 · Claude Code<br><span class="badge agent">nerv_spec_check</span> <span class="badge agent">nerv_spec_comment_resolve</span></td><td>서연의 코멘트를 반영하려고 S3 웹 에디터에 새 draft 버전을 열어 둔 참이지만, 코멘트를 EARS 문장으로 옮기는 일은 에이전트가 빠르다. 터미널에서 <code>/nerv:spec edit SPC-CWC-007</code>로 초안을 이어쓴다. 에이전트가 <code>nerv_spec_get</code>을 <code>include=comments</code>로 호출해 open 코멘트를 읽고, 빈 상태·오프라인 두 케이스를 EARS 요구사항 수정안으로 만든다 — <i>WHEN 복원할 이전 대화가 없으면 THE SYSTEM SHALL 빈 상태 안내를 보여준다</i> 식이다. 문구를 다듬어 승낙하면 <code>nerv_spec_draft_upsert</code>가 <b>웹 에디터의 리스를 알리며 멈춰 서고</b>, 지민이 이어받겠다고 하자 같은 호출에 <code>takeover</code> 를 실어 저장한다(D-04의 문서 축 확장). 열어 둔 웹 탭에는 인계 알림이 뜬다 — 리스 보유자는 <code>(사용자, 세션)</code> 이라 지민의 웹 탭과 터미널 세션은 다른 자리다. 이어서 <code>nerv_spec_check</code>로 09:50에 제출하며 강제로 돌던 그 사전 검토를 제출 전에 셀프서비스로 미리 돌려 <b>경고 0</b>을 확인하고, 반영된 코멘트는 <code>nerv_spec_comment_resolve</code>로 닫는다. 응답의 <code>web_url</code>(S3 딥링크)을 열면 방금 저장한 draft가 웹에 그대로 보이고, 이 스펙 작성 세션도 S5 세션 보드에 구현 세션들과 나란히 뜬다(FR-07·FR-08). <b>기획자의 도구가 화면이냐 터미널이냐는 경계가 아니다 — 경계는 계정·역할·리스이고(D-08·D-04), 어느 표면이든 같은 draft·같은 게이트를 지난다.</b></td></tr>
@@ -320,7 +320,7 @@
       <tr><td>11:00</td><td><span class="badge human">S2 프로젝트 개요</span></td><td>커버리지 게이지에서 <code>verified</code>가 낮은 영역을 드릴다운. <code>REQ-CWC-018</code>은 implemented지만 연결된 테스트 증적이 없다 → 검증 Task를 만든다(FR-13).</td></tr>
       <tr><td>14:00</td><td><span class="badge human">S4 작업 보드</span></td><td>검증을 마친 요구사항을 <code>implemented → verified</code>로. 이 전이는 qa(및 admin) 역할만 가능하다(FR-14). 커버리지 숫자가 즉시 바뀐다.</td></tr>
       <tr><td>15:30</td><td><span class="badge human">S6 리뷰 센터</span></td><td>게이트 현황: <code>feature/widget-v2</code> 커버됨, <code>hotfix/session-restore</code>에 <b>BYPASS 기록 1건</b> — 어제 밤 배포에서 게이트를 면제한 사람과 사유가 남아 있다. 그 커밋 범위에 사후 리뷰를 예약한다. <b>면제가 조용히 일어나지 않는다는 것 자체가 기능</b>이다(D-14·FR-10).</td></tr>
-      <tr><td>16:20</td><td><span class="badge human">S8 설정·멤버</span></td><td>게이트 정책 조정 — 저위험 변경(오탈자·주석)은 자동 통과, 인증·결제 경로 변경은 사람 승인 필수. 위험 분류(P0~P3)를 게이트 티어에 직결하는 설계는 필드 리포트의 권고를 정책 UI로 옮긴 것이다.</td></tr>
+      <tr><td>16:20</td><td><span class="badge human">S8 설정·멤버</span></td><td>게이트 정책 조정 — 저위험 변경(오탈자·주석)은 자동 통과, 인증·결제 경로 변경은 사람 승인 필수. 위험 분류(P0~P3)를 게이트 티어에 직결하는 설계는 필드 리포트의 권고를 정책 UI로 옮긴 것이다. <i>(현황 2026-09-07 — <b>게이트 정책 편집은 admin 전용</b>이라 하나(QA)는 admin 을 겸하거나 admin 에게 요청한다: 화면은 비활성 + 사유, 서버는 403)</i></td></tr>
     </tbody>
   </table></div>
 

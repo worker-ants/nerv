@@ -234,6 +234,36 @@ describe('패키지 구성', () => {
     expect(existsSync(join(here, path))).toBe(true);
   });
 
+  /**
+   * **README 는 배달되는 목록의 표지다** — 그런데 목록을 손으로 적으므로, 파일이 늘거나
+   * 줄면 조용히 낡는다. 설치한 사람이 그 표지를 보고 "이 플러그인에는 무엇이 있나" 를
+   * 읽으므로, 빠진 줄은 **없는 파일**로 읽힌다.
+   */
+  it('README 가 배달되는 파일을 전부 적는다', () => {
+    const readme = file('README.md');
+    for (const path of [
+      '.claude-plugin/plugin.json',
+      '.claude-plugin/marketplace.json',
+      'hooks/hooks.json',
+      'hooks/hooks.http.json',
+      'agents/nerv-spec-writer.md',
+      'codex/config.toml',
+      'codex/AGENTS.md',
+      'statusline/nerv-statusline.sh',
+      'managed-settings.example.json',
+    ]) {
+      expect(readme, `README 가 ${path} 를 적지 않는다`).toContain(path);
+    }
+    // 스킬 다섯도 이름으로 적힌다 — 수를 세지 않고 이름을 맞춘다(중괄호 목록 표기도 받는다)
+    for (const skill of SKILLS)
+      expect(readme, `README 가 ${skill} 스킬을 적지 않는다`).toContain(skill);
+  });
+
+  it('README 제목의 버전이 매니페스트와 같다 — 버전이 곧 배달이다 (REQ-PLG-017)', () => {
+    const manifest = JSON.parse(readShipped('.claude-plugin/plugin.json')) as { version: string };
+    expect(file('README.md').split('\n')[0]).toContain(`v${manifest.version}`);
+  });
+
   it('스펙 작성 서브에이전트는 코드 쓰기 도구를 갖지 않는다 — 역할 분리가 존재 이유다', () => {
     const frontmatter = file('agents/nerv-spec-writer.md').split('---')[1] ?? '';
     for (const forbidden of ['Write', 'Edit', 'Bash']) {

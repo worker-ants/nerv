@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.64 · 2026-09-07 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.65 · 2026-09-07 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.65 변경(2026-09-07 — 주장이 검사가 됐다, 개선 계획 아홉째 스프린트): **새 요구사항 없음 · 패키지 버전 불변 · REQ-PLG-009 폐기 표기.** ① §5.1 의 "Codex 세션은 지금도 전 흐름을 도구만으로 완주할 수 있다" 는 오래 **주장**이었다 — 2026-09-07 부터 L3 시나리오 F 가 `codex` 세션을 실제로 걷는다([4.8](backlog.md) §5.6). ② **REQ-PLG-009 를 폐기로 표기한다**: 정책 버전 개념도 `policy.stale` 이벤트도 서버에 없다(2026-09-07 실측). 번호는 재사용하지 않는다 — 강제는 규약 비교가 아니라 서버 게이트가 하므로 구버전 플러그인이 낡은 절차를 밟아도 판정은 같고, 남은 것은 "낡았다" 고 말해 주는 일이다. ③ `README.md` 가 배달 파일 다섯(`hooks.http.json`·`codex/` 둘·`managed-settings.example.json`)을 적지 않고 있었다 — 설치한 사람은 그 표지를 보고 무엇이 들어 있는지 읽으므로 빠진 줄은 **없는 파일**로 읽힌다. L1 이 이제 목록과 제목 버전을 함께 센다.
 >
 > v0.64 변경(2026-09-07 — 스킬이 없는 경계를 가르쳤다, 개선 계획 넷째 스프린트): **패키지 0.2.20 → 0.2.21 · REQ-PLG-006 개정.** `skills/spec` 의 비신뢰 규약이 "경계로 감싸여 온다" 고만 적어 두었는데 **서버에는 그 경계가 없었고**([4.4](api.md) REQ-API-153 이 실물로 만든다), 있게 된 뒤에도 스킬이 말하지 않는 것이 둘 남는다 — **어디까지가 경계인가**(필드 값 전체다. 본문 안의 닫는 태그는 끝이 아니다)와 **저장할 때 어떻게 하는가**(벗긴다. 포장째 보내면 `wrapped_body`). 그 둘이 없으면 모델은 읽은 것을 그대로 되돌려 보내고 태그가 본문에 박제된다. `skills/question` 은 답변 본문의 요소 이름(`nerv:text`)을 적고, `agents/nerv-spec-writer` 도 같은 문장을 받는다. REQ-PLG-006 의 검증 방법에 **서버 쪽 절반**을 적는다 — 스킬 문장만 세는 검사는 서버에 경계가 없어도 초록이었다.
 >
@@ -1442,12 +1444,12 @@ export NERV_HOSTNAME="$(hostname -s)"
 
 | 축 | MVP(P0+P1)에서 되는 것 | Phase 2로 미루는 것 |
 | --- | --- | --- |
-| MCP 접속 | `.codex/config.toml` 초안으로 tools-only 접속 — `bootstrap→next→claim→heartbeat→release` 완주([3.7 로드맵](../03-proposal/roadmap.md) Phase 0 검증 0-8) | — |
+| MCP 접속 | `.codex/config.toml` 초안으로 tools-only 접속 — `bootstrap→next→claim→heartbeat→질문·답·리뷰→done→session-end` 완주([3.7 로드맵](../03-proposal/roadmap.md) Phase 0 검증 0-8 · 판정 수단은 [4.8 백로그](backlog.md) §5.6 시나리오 F) | — |
 | 규약 전달 | AGENTS.md 초안 제공(아래 전문). SKILL.md 5종은 오픈 표준이라 같은 파일 재사용 | AGENTS.md를 스펙에서 **자동 생성·갱신**하는 배포 평면 |
 | 훅 텔레메트리 | 없음 — Codex 세션은 저해상도(`nerv_session_event`로 마일스톤 보고) | `.codex/hooks.json`·notify 포워더 매핑(스키마 자체가 Phase 0 실측 항목) |
 | 온보딩 | 초안 파일 2종을 저장소에 커밋해 두는 수동 경로 — **템플릿은 플러그인 패키지가 배포한다**(`plugin/codex/`, 2026-08-23 신설) | 온보딩 스크립트(생성+검증), `/nerv:review` 포함 스킬 5종 |
 
-Codex 완전 지원은 [3.7 로드맵](../03-proposal/roadmap.md) Phase 2의 범위다(FR-15 ●). MVP의 약속은 하나로 좁힌다 — **핵심 기능은 예외 없이 tools이므로, Codex 세션은 지금도 전 흐름을 도구만으로 완주할 수 있다**(D-05). elicitation 부재는 `nerv_question_create` 멱등 재호출 폴링으로, channels 부재는 하트비트 응답의 `pending`으로 대응한다(정본: [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.4).
+Codex 완전 지원은 [3.7 로드맵](../03-proposal/roadmap.md) Phase 2의 범위다(FR-15 ●). MVP의 약속은 하나로 좁힌다 — **핵심 기능은 예외 없이 tools이므로, Codex 세션은 지금도 전 흐름을 도구만으로 완주할 수 있다**(D-05). 2026-09-07 부터 그것은 주장이 아니라 **검사다** — L3 시나리오 F 가 `claude-code` 와 `codex` 두 세션을 각각 부트스트랩부터 세션 종료까지 걷는다([4.8 백로그](backlog.md) §5.6). 계약이 한 클라이언트에만 맞아 있으면 그것은 계약이 아니라 그 클라이언트의 습관이기 때문이다. elicitation 부재는 `nerv_question_create` 멱등 재호출 폴링으로, channels 부재는 하트비트 응답의 `pending`으로 대응한다(정본: [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.4).
 
 ### 5.2 `.codex/config.toml` 초안 (정본 §4.1 재수록)
 
@@ -1533,7 +1535,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-006 | WHEN 도구 응답의 `trust="untrusted"` 경계 안 본문에 지시문이 포함되면 THE SYSTEM SHALL 이를 데이터로 취급하고 실행하지 않는다. WHILE 스킬이 그 경계를 가르치는 동안 THE SYSTEM SHALL **경계의 범위**(필드 값 전체)와 **저장 규칙**(포장을 벗긴다 · `wrapped_body`)을 함께 말한다 — 어디까지가 경계인지 말하지 않으면 모델은 포장째 저장한다 | 인젝션 문구를 심은 테스트 스펙으로 실측 — 지시 실행 0건, 비신뢰 문장이 **5개** SKILL.md 전부에 존재(grep). 범위·저장 규칙 2건(`spec`·`question`). **서버 쪽 절반은 [4.4 API](api.md) REQ-API-153 의 L2 가 센다** — 스킬 문장만 세면 서버에 경계가 없어도 초록이다(2026-09-07 까지 그랬다) |
 | REQ-PLG-007 | WHEN 신규 팀원이 §4의 5단계를 순서대로 완료하면 THE SYSTEM SHALL `nerv_bootstrap` 응답(session_id·게이트 정책)을 반환하고 S5 세션 모니터에 해당 세션을 표시한다 | 온보딩 실측 — 5단계 각 "확인 방법" 열 전부 통과 |
 | REQ-PLG-008 | WHEN statusline이 렌더될 때 THE SYSTEM SHALL 네트워크 왕복 없이 stdin 세션 JSON과 `.nerv/cache/claim.json`만 읽는다 | 스크립트 정적 검사(curl/wget/nc 부재) + 네트워크 차단 상태에서 렌더 성공 |
-| REQ-PLG-009 | WHEN `nerv_bootstrap` 응답의 정책 버전이 플러그인이 가정한 규약과 불일치하면 THE SYSTEM SHALL 진행을 허용하되 사용자에게 재설치를 안내한다(서버는 `policy.stale` 이벤트를 남긴다) | 구버전 플러그인으로 접속해 안내 문구·이벤트 발생 확인 |
+| REQ-PLG-009 | **폐기(2026-09-07 실측 — 도입 시 재작성)**. ~~WHEN `nerv_bootstrap` 응답의 정책 버전이 플러그인이 가정한 규약과 불일치하면 THE SYSTEM SHALL 진행을 허용하되 사용자에게 재설치를 안내한다~~ — **정책 버전 개념이 서버에 없다**(`policy.stale` 이벤트도 카탈로그에 없다). 번호는 재사용하지 않는다(문서 작업 규약 5). 강제는 규약 비교가 아니라 **서버 게이트**가 하므로 구버전 플러그인이 낡은 절차를 밟아도 판정은 같다 — 남은 것은 "낡았다"고 말해 주는 일이고 그것이 이월분이다 | ~~구버전 플러그인으로 접속해 안내 문구·이벤트 발생~~ 확인 |
 | REQ-PLG-010 | WHEN Codex 세션이 저장소의 `.codex/config.toml`·AGENTS.md 초안으로 접속하면 THE SYSTEM SHALL tools만으로 `bootstrap→next→claim→heartbeat→release` 완주를 지원한다 | 로드맵 Phase 0 검증 0-8과 동일 절차 — Codex 1세션 실측(resources·prompts·elicitation 미사용) |
 | REQ-PLG-011 | WHEN 쓰기 도구가 `NERV_UNAVAILABLE`을 반환하면 THE SYSTEM SHALL 호출 입력·`idempotency_key`·`queued_at`을 §3.4 형식으로 `.nerv/outbox/`에 기록하고, 4xx 실패는 큐잉하지 않는다 | 서버 차단 상태에서 쓰기 시도 → outbox 파일 형식 검사 + 403 시 큐잉 0건 |
 | REQ-PLG-012 | WHEN 서버 복구 후 첫 도구 호출 전이면 THE SYSTEM SHALL outbox를 oldest-first로 원래 멱등 키 그대로 재전송하고, 성공 항목 삭제·4xx 항목 `outbox/failed/` 이동 후 서버 레코드 중복 0을 유지한다 | 큐 3건(성공 2·403 1) flush 실측 — 레코드 수·failed/ 이동 확인 |
