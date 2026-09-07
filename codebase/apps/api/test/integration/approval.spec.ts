@@ -637,10 +637,37 @@ describe('T3 정족수 (REQ-API-140)', () => {
     const { versionId } = await t3Submitted('SPC-QUORUM-1');
     expect((await slots(versionId)).map((r) => r.role)).toEqual([null, 'developer']);
 
+    // 슬롯마다 이벤트가 하나씩이다 — 알림 수신자가 그 행의 지정·직군으로 갈리기 때문이다.
+    // 같은 트랜잭션이라 `occurred_at` 이 같으니 순서가 아니라 **집합**으로 본다.
     const { rows } = await pool.query<{ payload: Record<string, unknown> }>(
-      `SELECT payload FROM event WHERE type = 'approval.requested' ORDER BY occurred_at DESC LIMIT 1`,
+      `SELECT e.payload FROM event e JOIN approval a ON a.id = e.subject_id
+        WHERE e.type = 'approval.requested' AND a.subject_id = $1`,
+      [versionId],
     );
-    expect(rows[0]?.payload).toMatchObject({ required_approvers: 2, role_slot: 'developer' });
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.payload['required_approvers'] === 2)).toBe(true);
+    expect(new Set(rows.map((r) => r.payload['role_slot'] ?? null))).toEqual(
+      new Set([null, 'developer']),
+    );
+  });
+
+  it('둘째 슬롯의 직군에게도 알림이 간다 — 안 누르면 문서는 확정되지 않는다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const { versionId } = await t3Submitted('SPC-QUORUM-7');
+    expect(await notifications.route()).toBeGreaterThan(0);
+
+    const { rows } = await pool.query<{ user_id: string; role: string | null }>(
+      `SELECT DISTINCT n.user_id, a.assignee_role::text AS role
+         FROM notification n
+         JOIN event e ON e.id = n.event_id
+         JOIN approval a ON a.id = e.subject_id
+        WHERE e.type = 'approval.requested' AND a.subject_id = $1`,
+      [versionId],
+    );
+    // 직군 슬롯의 알림은 그 직군에게만 간다
+    expect(rows.filter((r) => r.role === 'developer').map((r) => r.user_id)).toEqual([developer]);
+    // 기본 슬롯은 결재 큐로 간다(요청자 자신은 빠진다)
+    expect(rows.filter((r) => r.role === null).map((r) => r.user_id)).toContain(reviewer);
   });
 
   it('카드가 몇 명 중 몇 명인지 싣는다 — 화면이 그 값을 그린다', async () => {

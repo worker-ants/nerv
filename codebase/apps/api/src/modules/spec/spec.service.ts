@@ -1088,26 +1088,34 @@ export class SpecService {
         requiredApprovers: gate.requiredApprovers,
       });
       const approvalId = cards.approvalId;
-      await emit({
-        type: NERV_EVENT.APPROVAL_REQUESTED,
-        projectId: input.projectId,
-        subjectType: 'approval',
-        subjectId: approvalId,
-        actorUserId: input.userId,
-        actorSessionId: input.sessionId ?? null,
-        isAgent: input.sessionId != null,
-        payload: {
-          gate_tier: gate.tier,
-          required_approvers: cards.slots,
-          // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
-          // 게이트가 있다고 믿는 사람에게 없는 게이트를 주는 것과 같다
-          ...(cards.relaxed ? { quorum_relaxed: true, quorum_wanted: gate.requiredApprovers } : {}),
-          ...(cards.slots > 1 && cards.roleSlot === null && SPEC_APPROVER_ROLES[version.spec_type]
-            ? { role_slot_fallback: SPEC_APPROVER_ROLES[version.spec_type] }
-            : {}),
-          ...(cards.roleSlot === null ? {} : { role_slot: cards.roleSlot }),
-        },
-      });
+      // **슬롯마다 낸다**(2026-09-07). 알림 수신자는 그 결재 행의 지정·직군으로 정해지므로
+      // (`notification.service#approvalTargets`) 첫 슬롯만 이벤트를 내면 둘째 자리의 직군은
+      // 자기 카드가 생긴 것을 모른다 — 그 사람이 누르지 않으면 문서는 확정되지 않는다.
+      for (const slot of cards.created.length > 0
+        ? cards.created
+        : [{ id: approvalId, role: null }])
+        await emit({
+          type: NERV_EVENT.APPROVAL_REQUESTED,
+          projectId: input.projectId,
+          subjectType: 'approval',
+          subjectId: slot.id,
+          actorUserId: input.userId,
+          actorSessionId: input.sessionId ?? null,
+          isAgent: input.sessionId != null,
+          payload: {
+            gate_tier: gate.tier,
+            required_approvers: cards.slots,
+            // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
+            // 게이트가 있다고 믿는 사람에게 없는 게이트를 주는 것과 같다
+            ...(cards.relaxed
+              ? { quorum_relaxed: true, quorum_wanted: gate.requiredApprovers }
+              : {}),
+            ...(cards.slots > 1 && cards.roleSlot === null && SPEC_APPROVER_ROLES[version.spec_type]
+              ? { role_slot_fallback: SPEC_APPROVER_ROLES[version.spec_type] }
+              : {}),
+            ...(slot.role === null ? {} : { role_slot: slot.role }),
+          },
+        });
 
       // **기다리는 세션은 기다린다고 말한다**(2026-09-07 · REQ-API-134 · FR-11).
       //
@@ -2128,7 +2136,14 @@ export class SpecService {
       /** 필요 승인자 수 — 게이트가 정한다(T3 는 2, 그 밖은 1) */
       requiredApprovers: number;
     },
-  ): Promise<{ approvalId: string; slots: number; roleSlot: string | null; relaxed: boolean }> {
+  ): Promise<{
+    approvalId: string;
+    slots: number;
+    roleSlot: string | null;
+    relaxed: boolean;
+    /** 이번 호출이 **새로 만든** 슬롯 — 알림은 이 목록으로 나간다 */
+    created: { id: string; role: string | null }[];
+  }> {
     const { rows: existing } = await tx.execute<{ id: string; assignee_role: string | null }>(sql`
       SELECT id, assignee_role::text AS assignee_role FROM approval
        WHERE project_id = ${input.projectId} AND subject_type = 'spec_version'
@@ -2174,6 +2189,7 @@ export class SpecService {
     }
 
     let first = existing[0]?.id ?? null;
+    const created: { id: string; role: string | null }[] = [];
     for (let i = existing.length; i < required; i += 1) {
       const approvalId = newId();
       // 슬롯 1 은 기본 큐(NULL), 둘째부터가 직군 슬롯이다
@@ -2185,9 +2201,10 @@ export class SpecService {
                 ${input.requestedByUserId}, ${input.requestedBySessionId},
                 ${role}::member_role)
       `);
+      created.push({ id: approvalId, role });
       first ??= approvalId;
     }
-    return { approvalId: first!, slots: required, roleSlot, relaxed };
+    return { approvalId: first!, slots: required, roleSlot, relaxed, created };
   }
 
   /**
