@@ -170,3 +170,40 @@ describe('레일의 가로 스크롤 (2026-09-08 · 사람 보고)', () => {
     }
   });
 });
+
+// ── 폭의 상한 (2026-09-08 · 사람 지시) ───────────────────────────────────────
+//
+// 컨테이너 80rem + 본문 44rem 두 겹이라 창을 1512px 위로 넓혀도 늘어나는 것은 여백뿐이었고
+// 레일은 오른쪽 끝에서 한참 떨어져 섰다. 상한을 걷은 것이 이 변경이라, 여기서 지키는 것은
+// **상한이 다시 생기지 않는 것**이다 — 실제 폭이 자라는지는 L3 가 잰다(jsdom 은 못 잰다).
+describe('폭의 상한 (2026-09-08 · 사람 지시)', () => {
+  it('레일이 든 격자에도 본문 칸에도 폭 상한이 없다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
+    const grid = screen.getByTestId('rail-tabs').closest('aside')?.parentElement;
+    expect(grid?.className).toContain('grid');
+    expect(grid?.className).not.toMatch(/\bmax-w-/);
+
+    // 셸도 `<main>` 을 쓰므로 이름이 아니라 **격자 안의 그 칸**을 집는다
+    const body = screen.getByTestId('spec-body');
+    expect(body.className).not.toMatch(/\bmax-w-/);
+    // 가운데 정렬도 남아 있으면 안 된다 — 트랙을 다 쓰지 않고 다시 가운데로 몰린다
+    expect(body.className).not.toMatch(/\bmx-auto\b/);
+  });
+
+  it('바닥은 2열이 되는 폭부터만 둔다 — 1열에서 바닥을 두면 페이지가 가로로 밀린다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
+    const body = screen.getByTestId('spec-body');
+    expect(body.className).toContain('min-w-0');
+    expect(body.className).toContain('lg:min-w-[26rem]');
+  });
+});
+
+// 셸이 이미 `<main>` 을 그린다 — 페이지가 또 쓰면 랜드마크가 겹쳐 두 개가 되고,
+// 스크린 리더는 "본문" 이 둘이라고 읽는다(다른 라우트는 전부 셸의 것 하나만 쓴다).
+describe('랜드마크는 하나다', () => {
+  it('스펙 상세가 <main> 을 또 만들지 않는다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('spec-body')).not.toBeNull());
+    expect(document.querySelectorAll('main')).toHaveLength(1);
+    expect(screen.getByTestId('spec-body').tagName).toBe('DIV');
+  });
+});

@@ -61,3 +61,42 @@ test('레일이 좁아도 옆으로 미는 것은 탭 줄뿐이고, 마지막 �
   expect(box!.x).toBeGreaterThanOrEqual(strip!.x - 1);
   expect(box!.x + box!.width).toBeLessThanOrEqual(strip!.x + strip!.width + 1);
 });
+
+// 상한이 두 겹이었다 — 컨테이너 80rem 과 본문 44rem. 그래서 창을 1512px 위로 넓혀도
+// 늘어나는 것은 좌우 여백뿐이었고 레일은 오른쪽 끝에서 한참 떨어져 섰다(사람 지시
+// 2026-09-08 · 4.5 §2.4d 점화 기록). 상한을 걷었다는 것은 **폭을 재야** 확인된다 —
+// 클래스 이름만 보는 검사는 격자가 실제로 자라는지 말하지 못한다.
+test('창을 넓히면 본문이 따라 넓어지고 레일은 오른쪽 끝에 붙어 있다', async ({ page }) => {
+  await page.goto('/p/clemvion/specs/SPC-CWC-007');
+  await expect(page.getByTestId('spec-body')).toBeVisible({ timeout: 15000 });
+
+  const measure = async (width: number): Promise<Record<string, number>> => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.waitForTimeout(200);
+    return page.evaluate(() => {
+      const at = (sel: string): DOMRect =>
+        (document.querySelector(sel) as HTMLElement).getBoundingClientRect();
+      const rail = (document.querySelector('[data-testid="rail-tabs"]') as HTMLElement).closest(
+        'aside',
+      ) as HTMLElement;
+      const doc = document.documentElement;
+      return {
+        body: Math.round(at('[data-testid="spec-body"]').width),
+        railRightGap: Math.round(doc.clientWidth - rail.getBoundingClientRect().right),
+        docOverflow: doc.scrollWidth - doc.clientWidth,
+      };
+    });
+  };
+
+  const narrow = await measure(1280);
+  const wide = await measure(1920);
+
+  // 레일은 페이지 좌우 여백(px-6 = 24px)만 남기고 오른쪽 끝에 붙는다
+  expect(narrow['railRightGap']).toBeLessThanOrEqual(26);
+  expect(wide['railRightGap']).toBeLessThanOrEqual(26);
+  // 창이 640px 넓어지면 본문도 그만큼 넓어진다 — 상한이 남아 있으면 여기서 멈춘다
+  expect(wide['body'] - narrow['body']).toBeGreaterThan(500);
+  // 그리고 어느 폭에서도 문서가 가로로 밀리지 않는다(REQ-WEB-151)
+  expect(narrow['docOverflow']).toBeLessThanOrEqual(1);
+  expect(wide['docOverflow']).toBeLessThanOrEqual(1);
+});
