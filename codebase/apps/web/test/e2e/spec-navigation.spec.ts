@@ -163,3 +163,49 @@ test('잘린 쪽만 흐리다 — 끝까지 밀면 그쪽 페이드는 사라진
   await expect(page.getByTestId('rail-tabs-fade-start')).toBeVisible();
   await expect(page.getByTestId('rail-tabs-fade-end')).toHaveCount(0);
 });
+
+// 스크롤 상자가 문서 전체였다 — 본문이 길면(clemvion `data-model` 50,685px = 화면 56장)
+// 바퀴를 어디서 굴리든 페이지가 움직였고, 곁레일은 `sticky` 가 붙는 자리에 닿기 전까지
+// 본문과 **함께** 위로 밀렸다(사람 지시 2026-09-08 · REQ-WEB-156). 이 판정은 실제로
+// 스크롤이 일어나야 성립한다 — jsdom 은 무엇이 흐르는 상자인지 재지 못하고 클래스
+// 이름밖에 못 본다(이 파일 머리의 이유와 같다).
+test('본문을 내려도 페이지와 레일은 제자리다 — 흐르는 것은 본문 칸뿐이다', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/p/clemvion/specs/SPC-CWC-007');
+  await expect(page.getByTestId('spec-body')).toBeVisible({ timeout: 15000 });
+
+  // 시드 문서는 짧아 본문이 넘치지 않는다(사람이 본 것은 화면 56장짜리 문서다).
+  // 높이를 만들어 준 뒤 내린다 — 여기서 재는 것은 본문의 내용이 아니라 **무엇이
+  // 흐르는 상자인가** 라는 배치의 사실이다.
+  await page.getByTestId('spec-body').evaluate((body) => {
+    const filler = document.createElement('div');
+    filler.style.height = '3000px';
+    body.appendChild(filler);
+  });
+
+  const moved = await page.getByTestId('spec-body').evaluate((body) => {
+    const rail = (document.querySelector('[data-testid="rail-tabs"]') as HTMLElement).closest(
+      'aside',
+    ) as HTMLElement;
+    const title = document.querySelector('[data-testid="spec-title"]') as HTMLElement;
+    const doc = document.documentElement;
+    const railTop = rail.getBoundingClientRect().top;
+    body.scrollTop = 600;
+    return {
+      scrolled: Math.round(body.scrollTop),
+      docOverflow: doc.scrollHeight - doc.clientHeight,
+      railShift: Math.abs(Math.round(rail.getBoundingClientRect().top - railTop)),
+      // 붙지 않으면 제목은 내린 만큼 위로(음수) 밀려난다 — 본문 칸 꼭대기와의 거리로 잰다
+      titleGap: Math.round(title.getBoundingClientRect().top - body.getBoundingClientRect().top),
+    };
+  });
+
+  // 전제 — 본문 칸이 실제로 흘렀다(흐르지 않았으면 나머지는 아무것도 증명하지 않는다)
+  expect(moved.scrolled).toBeGreaterThan(0);
+  // 페이지에는 스크롤이 없다: 본문이 아무리 길어도 문서가 자라지 않는다
+  expect(moved.docOverflow).toBeLessThanOrEqual(1);
+  // 레일은 따라 움직이지 않는다 — 이것이 사람이 본 그 결함이다
+  expect(moved.railShift).toBeLessThanOrEqual(1);
+  // 그리고 제목은 본문 칸 꼭대기에 그대로 붙어 있다
+  expect(moved.titleGap).toBeLessThanOrEqual(1);
+});
