@@ -100,3 +100,42 @@ test('창을 넓히면 본문이 따라 넓어지고 레일은 오른쪽 끝에 
   expect(narrow['docOverflow']).toBeLessThanOrEqual(1);
   expect(wide['docOverflow']).toBeLessThanOrEqual(1);
 });
+
+// 레일 머리(탭 줄 + 방향 하위 탭)는 레일을 내려도 위에 붙어 있어야 한다 — 관계 93건짜리
+// 문서에서 목록을 내리면 "지금 어느 탭인가" 와 "방향을 바꾸려면 어디로" 가 함께 사라졌다
+// (사람 지시 2026-09-08 · REQ-WEB-153). `position: sticky` 는 **스크롤 상자 기준**이라
+// 실제로 붙는지는 스크롤이 일어나야 보인다 — jsdom 이 못 보는 자리다.
+//
+// 시드 문서는 관계 0건이라 레일이 넘치지 않는다(사람이 본 것은 93건짜리 문서다). 그래서
+// 높이를 만들어 준 뒤 스크롤한다 — 여기서 재는 것은 목록의 내용이 아니라 **레일이
+// 스크롤될 때 머리가 제자리에 있는가** 라는 배치의 사실이다.
+test('레일을 내려도 탭 줄과 방향 하위 탭은 위에 붙어 있다', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/p/clemvion/specs/SPC-CWC-007');
+  await expect(page.getByTestId('rail-head')).toBeVisible({ timeout: 15000 });
+
+  await page.getByTestId('rail-body').evaluate((body) => {
+    const filler = document.createElement('div');
+    filler.style.height = '1200px';
+    body.appendChild(filler);
+  });
+
+  const pinned = await page.getByTestId('rail-head').evaluate((head) => {
+    const rail = head.parentElement as HTMLElement;
+    rail.scrollTop = 400;
+    return {
+      scrolled: Math.round(rail.scrollTop),
+      // 붙지 않으면 머리는 스크롤한 만큼 **위로**(음수) 밀려난다 — 절댓값으로 잰다
+      gap: Math.abs(
+        Math.round(head.getBoundingClientRect().top - rail.getBoundingClientRect().top),
+      ),
+      subTabs: document.querySelector('[data-testid="rel-tab-all"]') !== null,
+    };
+  });
+
+  // 전제 — 레일이 실제로 스크롤됐고, 방향 하위 탭도 머리에 있다
+  expect(pinned.scrolled).toBeGreaterThan(0);
+  expect(pinned.subTabs).toBe(true);
+  // 그리고 머리는 레일 꼭대기에 그대로 있다(붙지 않으면 스크롤한 만큼 위로 밀려난다)
+  expect(pinned.gap).toBeLessThanOrEqual(1);
+});

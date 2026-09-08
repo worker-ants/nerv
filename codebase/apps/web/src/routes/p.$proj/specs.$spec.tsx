@@ -833,37 +833,56 @@ function SpecDetail(): React.JSX.Element {
         {/* **탭이다**(시안). 버전·역참조·코멘트를 세로로 쌓으면 레일이 세 화면 길이가
             되고, 그때 코멘트는 스크롤 끝의 소문이 된다. 한 번에 하나를 보이되 수는
             탭 이름 옆에 미리 적는다 — 눌러 보기 전에 "있는지"는 알아야 한다. */}
-        <div
-          data-testid="rail-tabs"
-          className="flex shrink-0 overflow-x-auto border-b border-border"
-        >
-          {(
-            [
-              ['relations', t('spec.rail.relations'), relationItems.length],
-              // **약속이 레일의 두 번째 질문이다** — "이 문서가 무엇을 약속했고 누가
-              // 지키고 있나"(D-03 · FR-13). 그 답이 화면 어디에도 없었다.
-              ['requirements', t('spec.requirements'), rows(requirements.data).length],
-              ['versions', t('spec.versions'), rows(versions.data).length],
-              ['attachments', t('spec.attachments'), rows(attachments.data).length],
-              ['comments', t('spec.comments'), rows(comments.data).length],
-            ] as const
-          ).map(([key, label, count]) => (
-            <button
-              key={key}
-              type="button"
-              data-testid={`rail-tab-${key}`}
-              onClick={() => setRailTab(key)}
-              className={cn(
-                'flex shrink-0 items-center gap-[5px] border-b-2 px-[11px] pt-1 pb-2.5 text-sm whitespace-nowrap transition-colors',
-                railTab === key
-                  ? 'border-text font-semibold text-text'
-                  : 'border-transparent text-text-faint hover:text-text',
-              )}
-            >
-              {label}
-              <span className="text-2xs text-text-ghost tabular-nums">{count}</span>
-            </button>
-          ))}
+        {/* **머리는 스크롤에서 빠진다**(2026-09-08 — 사람 지시 · REQ-WEB-153). 관계가
+            93건인 문서에서 목록을 내리면 탭 줄이 화면 위로 사라졌고, 그때 "지금 어느
+            탭인가"와 "방향을 바꾸려면 어디로"가 함께 사라진다 — 돌아가려면 레일을
+            끝까지 되감아야 했다. 레일이 자기 안에서 스크롤하므로(위) 그 상자에 붙인다.
+            배경을 깔지 않으면 목록이 글자 위로 비쳐 지나간다. */}
+        <div data-testid="rail-head" className="shrink-0 bg-bg lg:sticky lg:top-0 lg:z-10">
+          <div data-testid="rail-tabs" className="flex overflow-x-auto border-b border-border">
+            {(
+              [
+                ['relations', t('spec.rail.relations'), relationItems.length],
+                // **약속이 레일의 두 번째 질문이다** — "이 문서가 무엇을 약속했고 누가
+                // 지키고 있나"(D-03 · FR-13). 그 답이 화면 어디에도 없었다.
+                ['requirements', t('spec.requirements'), rows(requirements.data).length],
+                ['versions', t('spec.versions'), rows(versions.data).length],
+                ['attachments', t('spec.attachments'), rows(attachments.data).length],
+                ['comments', t('spec.comments'), rows(comments.data).length],
+              ] as const
+            ).map(([key, label, count]) => (
+              <button
+                key={key}
+                type="button"
+                data-testid={`rail-tab-${key}`}
+                onClick={() => setRailTab(key)}
+                className={cn(
+                  'flex shrink-0 items-center gap-[5px] border-b-2 px-[11px] pt-1 pb-2.5 text-sm whitespace-nowrap transition-colors',
+                  railTab === key
+                    ? 'border-text font-semibold text-text'
+                    : 'border-transparent text-text-faint hover:text-text',
+                )}
+              >
+                {label}
+                <span className="text-2xs text-text-ghost tabular-nums">{count}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* **하위 탭은 방향으로 가른다**(사람 지시 2026-08-24). 관계가 스무 건이
+              넘으면 "이 문서를 고치면 무엇이 흔들리나"와 "이 문서가 무엇에 기대나"가
+              한 목록에 섞여, 둘 중 하나를 보려면 목록 전체를 훑어야 한다.
+              수는 **누르기 전에** 적는다 — 빈 탭을 열어 보게 하지 않는다.
+              이 줄도 머리에 있다 — 방향을 바꾸는 손잡이가 목록과 함께 떠나면
+              목록을 다 내려간 사람은 되감아야 방향을 바꾼다. */}
+          {railTab === 'relations' && (
+            <RelationTabs
+              value={relTab}
+              onChange={setRelTab}
+              counts={{ all: relationItems.length, in: backlinks.length, out: outgoing.length }}
+              className="px-1 pt-2 pb-2"
+            />
+          )}
         </div>
 
         <div
@@ -872,17 +891,6 @@ function SpecDetail(): React.JSX.Element {
         >
           {railTab === 'relations' && (
             <>
-              {/* **하위 탭은 방향으로 가른다**(사람 지시 2026-08-24). 관계가 스무 건이
-                  넘으면 "이 문서를 고치면 무엇이 흔들리나"와 "이 문서가 무엇에 기대나"가
-                  한 목록에 섞여, 둘 중 하나를 보려면 목록 전체를 훑어야 한다.
-                  수는 **누르기 전에** 적는다 — 빈 탭을 열어 보게 하지 않는다. */}
-              <RelationTabs
-                value={relTab}
-                onChange={setRelTab}
-                counts={{ all: relationItems.length, in: backlinks.length, out: outgoing.length }}
-                className="px-1 pb-1.5"
-              />
-
               {shownRelations.length === 0 && (
                 <p className="px-2 text-text-faint">{t('common.not_yet')}</p>
               )}
