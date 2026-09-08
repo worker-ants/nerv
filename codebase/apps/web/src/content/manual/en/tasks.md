@@ -26,7 +26,7 @@ The screen for a blocked task also shows **what would unblock it**: whatever is 
 
 **Sending a task back to ready is also a judgement.** The four parts of the delegation brief must be filled in and every blocking task must be finished (a task imported with "source had no delegation brief" in those fields counts as **empty**). If an active claim is held, **release it or stop the session first** before moving the task back to ready or backlog.
 
-By default `backlog` is folded away; **Show backlog** brings it back. The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
+**Show backlog is on by default.** A task is always created in `backlog` and only moves to `ready` once the four parts of the delegation brief are filled in, so a task you just created lives in that lane. Turn **Show backlog** off to see only what is flowing; that choice stays in the address (`?backlog=0`). The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
 
 ## The four parts of a brief
 

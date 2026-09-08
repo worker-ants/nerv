@@ -95,12 +95,11 @@ async function renderBoard() {
 const laneOf = (u: string): string => new URL(u, 'http://x').searchParams.get('status') ?? '';
 
 describe('레인 구성 (§2.5)', () => {
-  it('정본의 5레인을 그리고 backlog 는 레인이 아니다', async () => {
+  it('정본의 5레인을 그린다', async () => {
     await renderBoard();
     for (const lane of ['ready', 'claimed', 'in_progress', 'in_review', 'done']) {
       expect(screen.getByTestId(`column-${lane}`)).toBeTruthy();
     }
-    expect(screen.queryByTestId('column-backlog')).toBeNull();
   });
 
   it('레인마다 따로 요청한다 — 한 목록을 받아 화면에서 가르지 않는다', async () => {
@@ -110,11 +109,13 @@ describe('레인 구성 (§2.5)', () => {
     expect(asked.filter((u) => laneOf(u) === '')).toEqual([]);
   });
 
-  it('백로그 토글을 켜야 backlog 레인이 생긴다', async () => {
+  // 기본이 꺼짐이던 시절에는 방금 만든 Task(생성은 언제나 backlog · FR-05)가 어느
+  // 레인에도 없어 "티켓이 안 보인다"가 됐다 — 2026-09-08 에 기본을 켜짐으로 뒤집었다.
+  it('backlog 레인은 기본으로 보이고, 토글을 꺼야 사라진다', async () => {
     await renderBoard();
-    expect(screen.queryByTestId('column-backlog')).toBeNull();
+    expect(screen.getByTestId('column-backlog')).toBeTruthy();
     fireEvent.click(screen.getByTestId('filter-backlog'));
-    await waitFor(() => expect(screen.getByTestId('column-backlog')).toBeTruthy());
+    await waitFor(() => expect(screen.queryByTestId('column-backlog')).toBeNull());
   });
 
   it('보관 토글은 done 레인에만 `include_archived` 를 싣는다', async () => {
@@ -149,10 +150,20 @@ describe('레인 구성 (§2.5)', () => {
   it('막힘이 맨 앞이다 — 흐름보다 먼저 풀어야 할 것이기 때문', async () => {
     await renderBoard();
     // 흐름 끝(6번째)에 두면 1440px 화면에서도 잘려 "있긴 한데 안 보인다"가 된다.
+    // `backlog` 는 흐름 밖의 필터 레인이라 그 앞에 선다(REQ-WEB-155 로 기본이 켜짐이 됐다) —
+    // **흐름 안에서** 맨 앞인 것이 `blocked` 라는 것이 이 검사가 지키는 것이다.
     const order = screen
       .getAllByTestId(/^column-/)
       .map((n) => n.dataset['testid']?.replace('column-', ''));
-    expect(order).toEqual(['blocked', 'ready', 'claimed', 'in_progress', 'in_review', 'done']);
+    expect(order).toEqual([
+      'backlog',
+      'blocked',
+      'ready',
+      'claimed',
+      'in_progress',
+      'in_review',
+      'done',
+    ]);
   });
 });
 
