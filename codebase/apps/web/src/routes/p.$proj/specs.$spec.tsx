@@ -6,9 +6,10 @@
 
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
+import { scrollEdges, type ScrollEdges } from '../../lib/scroll-edges.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
 import {
@@ -127,6 +128,13 @@ function SpecDetail(): React.JSX.Element {
   const [railTab, setRailTab] = useState<
     'relations' | 'requirements' | 'versions' | 'attachments' | 'comments'
   >('relations');
+  /**
+   * 탭 줄의 양 끝 — 잘린 쪽을 흐려 "더 있다" 를 말한다(2026-09-08 · REQ-WEB-154).
+   * 줄이 스크롤 상자가 된 뒤에도(REQ-WEB-151) 잘렸다는 **표시**가 없었다: macOS 는
+   * 쉬는 동안 스크롤 막대를 숨기므로, 사람은 잘린 탭을 목록의 끝으로 읽는다.
+   */
+  const railTabsRef = useRef<HTMLDivElement>(null);
+  const [tabEdges, setTabEdges] = useState<ScrollEdges>('none');
   /**
    * 소스 보기 — 원문 md 를 그대로 본다(REQ-WEB-031 · §3.2 규칙 2).
    *
@@ -342,6 +350,34 @@ function SpecDetail(): React.JSX.Element {
   const backlinks = relationItems.filter((r) => r['direction'] === 'in');
   const outgoing = relationItems.filter((r) => r['direction'] !== 'in');
   const shownRelations = relTab === 'in' ? backlinks : relTab === 'out' ? outgoing : relationItems;
+
+  /**
+   * 탭 줄이 어느 쪽으로 잘렸는지 다시 잰다. 스크롤할 때 · 창이 바뀔 때 · **수가 들어올 때**
+   * 셋이다 — 마지막이 빠지면 처음 그린 빈 수(0)로 잰 결과가 그대로 남아, 데이터가 도착해
+   * 줄이 넓어져도 페이드가 없다.
+   */
+  const railTabWidths = [
+    relationItems.length,
+    rows(requirements.data).length,
+    rows(versions.data).length,
+    rows(attachments.data).length,
+    rows(comments.data).length,
+  ].join(',');
+  useEffect(() => {
+    const el = railTabsRef.current;
+    if (el === null) return undefined;
+    const read = (): void => {
+      setTabEdges(scrollEdges(el.scrollLeft, el.scrollWidth, el.clientWidth));
+    };
+    read();
+    el.addEventListener('scroll', read, { passive: true });
+    window.addEventListener('resize', read);
+    return () => {
+      el.removeEventListener('scroll', read);
+      window.removeEventListener('resize', read);
+    };
+    // 활성 탭은 굵어져 줄 폭이 달라진다 — 그것도 다시 재는 계기다
+  }, [railTabWidths, railTab]);
   // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다.
   // **합집합으로 본다**: 멤버십 한 행만 보면 조직 단위 admin 이 어느 프로젝트에서도
   // 역할이 없는 사람이 되어, 서버가 허용할 편집을 화면이 막는다(실측 2026-08-24).
@@ -839,34 +875,63 @@ function SpecDetail(): React.JSX.Element {
             끝까지 되감아야 했다. 레일이 자기 안에서 스크롤하므로(위) 그 상자에 붙인다.
             배경을 깔지 않으면 목록이 글자 위로 비쳐 지나간다. */}
         <div data-testid="rail-head" className="shrink-0 bg-bg lg:sticky lg:top-0 lg:z-10">
-          <div data-testid="rail-tabs" className="flex overflow-x-auto border-b border-border">
-            {(
-              [
-                ['relations', t('spec.rail.relations'), relationItems.length],
-                // **약속이 레일의 두 번째 질문이다** — "이 문서가 무엇을 약속했고 누가
-                // 지키고 있나"(D-03 · FR-13). 그 답이 화면 어디에도 없었다.
-                ['requirements', t('spec.requirements'), rows(requirements.data).length],
-                ['versions', t('spec.versions'), rows(versions.data).length],
-                ['attachments', t('spec.attachments'), rows(attachments.data).length],
-                ['comments', t('spec.comments'), rows(comments.data).length],
-              ] as const
-            ).map(([key, label, count]) => (
-              <button
-                key={key}
-                type="button"
-                data-testid={`rail-tab-${key}`}
-                onClick={() => setRailTab(key)}
-                className={cn(
-                  'flex shrink-0 items-center gap-[5px] border-b-2 px-[11px] pt-1 pb-2.5 text-sm whitespace-nowrap transition-colors',
-                  railTab === key
-                    ? 'border-text font-semibold text-text'
-                    : 'border-transparent text-text-faint hover:text-text',
-                )}
-              >
-                {label}
-                <span className="text-2xs text-text-ghost tabular-nums">{count}</span>
-              </button>
-            ))}
+          {/* **잘린 쪽을 흐린다**(2026-09-08 — 사람 지시 · REQ-WEB-154). 줄이 스크롤
+              상자가 된 뒤에도 잘렸다는 **표시**가 없었다 — macOS 는 쉬는 동안 막대를
+              숨기므로, 사람은 잘린 탭을 목록의 끝으로 읽는다. 페이드는 줄 **위에**
+              덮는다: 줄 자신에 마스크를 씌우면 밑줄(`border-b`)까지 흐려진다.
+              그래서 `bottom-px` 로 그 1px 을 비켜 준다. */}
+          <div className="relative">
+            <div
+              ref={railTabsRef}
+              data-testid="rail-tabs"
+              data-edges={tabEdges}
+              className="flex overflow-x-auto border-b border-border"
+            >
+              {(
+                [
+                  ['relations', t('spec.rail.relations'), relationItems.length],
+                  // **약속이 레일의 두 번째 질문이다** — "이 문서가 무엇을 약속했고 누가
+                  // 지키고 있나"(D-03 · FR-13). 그 답이 화면 어디에도 없었다.
+                  ['requirements', t('spec.requirements'), rows(requirements.data).length],
+                  ['versions', t('spec.versions'), rows(versions.data).length],
+                  ['attachments', t('spec.attachments'), rows(attachments.data).length],
+                  ['comments', t('spec.comments'), rows(comments.data).length],
+                ] as const
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  data-testid={`rail-tab-${key}`}
+                  onClick={() => setRailTab(key)}
+                  className={cn(
+                    'flex shrink-0 items-center gap-[5px] border-b-2 px-[11px] pt-1 pb-2.5 text-sm whitespace-nowrap transition-colors',
+                    railTab === key
+                      ? 'border-text font-semibold text-text'
+                      : 'border-transparent text-text-faint hover:text-text',
+                  )}
+                >
+                  {label}
+                  <span className="text-2xs text-text-ghost tabular-nums">{count}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* 페이드는 **신호**라 뜻이 있을 때만 있다 — 끝에 닿았는데 남아 있으면
+                "더 있다" 는 거짓말이 된다(판정은 `scrollEdges` 한 곳). */}
+            {(tabEdges === 'start' || tabEdges === 'both') && (
+              <span
+                aria-hidden="true"
+                data-testid="rail-tabs-fade-start"
+                className="pointer-events-none absolute top-0 bottom-px left-0 w-6 bg-gradient-to-r from-bg to-transparent"
+              />
+            )}
+            {(tabEdges === 'end' || tabEdges === 'both') && (
+              <span
+                aria-hidden="true"
+                data-testid="rail-tabs-fade-end"
+                className="pointer-events-none absolute top-0 right-0 bottom-px w-6 bg-gradient-to-l from-bg to-transparent"
+              />
+            )}
           </div>
 
           {/* **하위 탭은 방향으로 가른다**(사람 지시 2026-08-24). 관계가 스무 건이

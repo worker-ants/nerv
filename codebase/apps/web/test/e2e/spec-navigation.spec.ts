@@ -139,3 +139,27 @@ test('레일을 내려도 탭 줄과 방향 하위 탭은 위에 붙어 있다',
   // 그리고 머리는 레일 꼭대기에 그대로 있다(붙지 않으면 스크롤한 만큼 위로 밀려난다)
   expect(pinned.gap).toBeLessThanOrEqual(1);
 });
+
+// 페이드는 "이쪽에 더 있다" 는 신호다 — 실제 폭이 있어야 판정이 성립하므로 여기서 잰다
+// (판정 자체는 `lib/scroll-edges.ts` 가, 배선은 L1 이 태운다 · REQ-WEB-154).
+test('잘린 쪽만 흐리다 — 끝까지 밀면 그쪽 페이드는 사라진다', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/p/clemvion/specs/SPC-CWC-007');
+  const tabs = page.getByTestId('rail-tabs');
+  await expect(tabs).toBeVisible({ timeout: 15000 });
+
+  // 전제 — 탭 줄이 실제로 넘친다(넘치지 않으면 흐릴 것도 없다)
+  expect(await tabs.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0);
+
+  // 처음에는 오른쪽만
+  await expect(page.getByTestId('rail-tabs-fade-end')).toBeVisible();
+  await expect(page.getByTestId('rail-tabs-fade-start')).toHaveCount(0);
+
+  // 끝까지 밀면 왼쪽만 — 닿았는데 오른쪽이 남으면 "더 있다" 는 거짓말이 된다
+  await tabs.evaluate((el) => {
+    el.scrollLeft = el.scrollWidth;
+    el.dispatchEvent(new Event('scroll'));
+  });
+  await expect(page.getByTestId('rail-tabs-fade-start')).toBeVisible();
+  await expect(page.getByTestId('rail-tabs-fade-end')).toHaveCount(0);
+});

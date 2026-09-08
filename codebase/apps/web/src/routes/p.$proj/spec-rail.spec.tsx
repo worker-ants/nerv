@@ -241,3 +241,38 @@ describe('레일 머리 고정 (REQ-WEB-153)', () => {
     await waitFor(() => expect(screen.queryByTestId('rel-tab-all')).toBeNull());
   });
 });
+
+// ── 잘린 쪽을 흐린다 (2026-09-08 · 사람 지시) ────────────────────────────────
+//
+// 줄이 스크롤 상자가 된 뒤에도(REQ-WEB-151) 잘렸다는 **표시**가 없었다 — macOS 는 쉬는
+// 동안 막대를 숨기므로 사람은 잘린 탭을 목록의 끝으로 읽는다. 판정은 `scrollEdges` 한
+// 곳이고(거기서 경계값을 태운다) 여기서 보는 것은 **그 판정이 화면에 배선됐는가** 다.
+describe('탭 줄의 페이드 (REQ-WEB-154)', () => {
+  it('잘리지 않았으면 어느 쪽도 흐리지 않는다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
+    expect(screen.getByTestId('rail-tabs').getAttribute('data-edges')).toBe('none');
+    expect(screen.queryByTestId('rail-tabs-fade-start')).toBeNull();
+    expect(screen.queryByTestId('rail-tabs-fade-end')).toBeNull();
+  });
+
+  it('오른쪽이 잘리면 그쪽만, 끝까지 밀면 왼쪽만 흐린다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
+    const tabs = screen.getByTestId('rail-tabs');
+    // jsdom 은 레이아웃을 재지 않는다 — 폭을 심어 **배선**을 태운다(폭 자체는 L3 가 잰다)
+    Object.defineProperty(tabs, 'clientWidth', { value: 200, configurable: true });
+    Object.defineProperty(tabs, 'scrollWidth', { value: 400, configurable: true });
+    fireEvent.scroll(tabs);
+
+    await waitFor(() => expect(tabs.getAttribute('data-edges')).toBe('end'));
+    expect(screen.queryByTestId('rail-tabs-fade-end')).not.toBeNull();
+    expect(screen.queryByTestId('rail-tabs-fade-start')).toBeNull();
+
+    Object.defineProperty(tabs, 'scrollLeft', { value: 200, configurable: true });
+    fireEvent.scroll(tabs);
+
+    await waitFor(() => expect(tabs.getAttribute('data-edges')).toBe('start'));
+    expect(screen.queryByTestId('rail-tabs-fade-start')).not.toBeNull();
+    // 끝에 닿았는데 남아 있으면 "더 있다" 는 거짓말이 된다
+    expect(screen.queryByTestId('rail-tabs-fade-end')).toBeNull();
+  });
+});
