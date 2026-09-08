@@ -26,7 +26,11 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.24 · 2026-09-07 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.26 · 2026-09-08 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.26 변경(2026-09-08 — 막으려던 것은 스크립트인데 잃은 것은 그림이었다, 사람 지시): **REQ-API-070 개정(SVG) · EP-SPEC-22 행.** v1.25 를 붙이며 같은 자리에서 드러났다 — `default-src 'none'` 은 **SVG 안의 `<style>` 도** 막는다. 그래서 직접 연 SVG 시안은 도형이 기본색으로 그려졌고(실측 2026-09-08 — 브라우저가 인라인 스타일 차단을 콘솔에 적는다), 그리기 도구가 내보낸 시안이 정확히 그 모양이다. 첨부 화이트리스트가 SVG 를 받는 이유가 "시안에 가장 유용하다" 인데 그 시안이 색을 잃고 있었던 셈이다. **스크립트는 그대로 받지 않는다** — `allow-scripts` 도 `script-src` 도 주지 않으므로 sandbox 와 `default-src 'none'` 둘에 막힌 채이고, 여는 것은 자기 안의 `style` 과 글꼴·이미지뿐이다. 래스터 이미지·pdf·txt·zip 은 잠긴 정책 그대로다(그리기에 CSP 가 관여하지 않는다).
+>
+> v1.25 변경(2026-09-08 — 시안을 열면 빈 화면이었다, 사람 지시): **REQ-API-070 개정 · §1.4k 산문 · EP-SPEC-22 행.** 내려주기가 형식과 무관하게 `sandbox; default-src 'none'` 한 줄을 걸어 **`text/html` 첨부는 열어도 아무것도 그려지지 않았다**(실사용 보고 — 콘솔에 "frame is sandboxed and the 'allow-scripts' permission is not set" 만 남는다). 그 형식을 화이트리스트에 들인 이유가 "리포트 한 장·디자인 시안"(v0.67)인데 **그 형식만 유일하게 볼 수 없는** 첨부였던 셈이다 — 받아 두고 열 수 없는 파일은 첨부가 아니다. 이제 정책을 형식이 정한다: html 은 `sandbox allow-scripts allow-popups allow-modals` 와 스킴 기반 자원 허용으로 **격리 안에서 그려지고**, 나머지는 예전 그대로 잠긴다(특히 **SVG** — 이미지로 위장한 스크립트가 더 어려운 경우이고, 시안을 그리는 데 스크립트가 필요하지도 않다). **`allow-same-origin` 은 어떤 이유로도 더하지 않는다**: dev 는 웹과 API 가 같은 오리진으로 보이고(vite 프록시) 배치도 앞문 하나를 지나므로, 그 낱말이 붙는 순간 업로드된 html 은 **앱 자신의 XSS** 가 된다. 같은 이유로 `allow-forms`(앱 주소에 선 위장 로그인) · `allow-top-navigation` · `allow-popups-to-escape-sandbox` 도 주지 않는다 — 열지 않은 것은 되돌릴 수 있지만, 연 것은 이미 열려 있다. 판정은 한 곳이다(`attachmentCsp` · D-05).
 >
 > v1.24 변경(2026-09-07 — 총계가 총계가 아니었다, 개선 계획 넷째 스프린트): **REQ-API-155 신설 · §1.6 · 전표 네 행.** §1.6 이 "유한한 것은 총계를 준다" 고 정한 뒤에도 넷 중 셋(버전·코멘트·기준선)이 **맨 배열**이었고 — 배열은 화면에서 "이게 전부인가" 를 물을 자리를 없앤다 — 남은 하나(관계)는 봉투는 맞는데 **상한이 있었다**: `LIMIT 51` 뒤 `rows.length` 라 `total = min(총계, 51)` 이고, 정렬이 `direction` 먼저라 'in' 이 'out' 을 통째로 밀어냈다. 관계가 50건을 넘는 문서에서 웹은 **"역참조 50 · 레퍼런스 0"** 을 그렸다(실측 [3.3 데이터 모델](../03-proposal/data-model.md): in 50 · out 43). "이걸 고치면 무엇이 흔들리나" 에 답하려고 만든 화면이 흔들리는 것의 절반을 숨긴 셈이다. 전표 두 자리가 적던 "§1.6 예외" 는 §1.6 에 없던 예외다.
 >
@@ -628,6 +632,10 @@ HTTP 상태 매핑:
 
 **읽기는 서버를 거친다.** presigned GET 을 주면 그 주소가 권한 밖으로 새고, 첨부가 공개면 스펙 권한이 무의미해진다. **SVG 를 허용하되**(시안에 가장 유용하다 — 사람 결정) 스크립트 위험은 서빙이 막는다: `<img src>` 로 부른 SVG 는 스크립트를 실행하지 않고, 주소를 직접 연 경우를 위해 `nosniff` 와 CSP sandbox 를 붙인다.
 
+**격리와 실명(失明)은 다른 일이다**(2026-09-08 — 실사용 보고 · 사람 지시). 그 한 줄이 형식을 가리지 않아 **html 첨부는 열어도 빈 화면**이었다 — 브라우저는 `allow-scripts` 가 없다고만 말하고, 사람은 그것을 자기가 잘못 올린 것으로 읽는다. 그래서 정책을 형식이 정한다: `text/html` 은 `allow-scripts`(와 `allow-popups`·`allow-modals`), 그리고 스킴 기반 자원 허용으로 **격리 안에서 그려진다**. 불투명 오리진은 그대로라 앱의 쿠키·저장소에 닿지 못하고, 앱으로 보내는 요청은 전부 교차 오리진이다. **`allow-same-origin` 은 더하지 않는다** — 그 낱말이 붙으면 문서가 앱과 같은 오리진이 되어 업로드된 html 이 곧 앱의 XSS 가 된다(dev 는 vite 프록시, 배치는 앞문 하나라 오리진이 갈리지 않는다). `allow-forms`·`allow-top-navigation`·`allow-popups-to-escape-sandbox` 도 같은 이유로 없다. 판정은 한 곳이다(`attachmentCsp`) — 헤더를 붙이는 자리가 늘 때 정책이 두 벌이 되면 한쪽만 고치는 날이 온다.
+
+**같은 한 줄이 SVG 에서는 그림을 지우고 있었다**(2026-09-08 — 실측). `default-src 'none'` 은 **SVG 안의 `<style>` 까지** 막으므로, 직접 연 시안은 도형이 기본색으로 그려진다 — 막으려던 것은 스크립트인데 잃은 것은 그림이다. SVG 에는 **스크립트 없이 그리는 정책**을 준다: `allow-scripts` 도 `script-src` 도 없어 스크립트는 sandbox 와 `default-src 'none'` 둘에 막힌 채이고, 여는 것은 자기 안의 `style` 과 글꼴·이미지뿐이다. 래스터 이미지·pdf·txt·zip 은 잠긴 정책 그대로다 — 그리기에 CSP 가 관여하지 않는다.
+
 **곁들여 드러난 결함**: 편집기에 image 노드가 없어 `![…](…)` 이 왕복에서 **통째로 사라지고 있었다**(실측). 에이전트가 이미지를 넣은 문서를 사람이 열어 한 글자만 고치면 그 순간 모든 이미지가 삭제됐다 — 저장은 성공하면서. §3.2 규칙 4("화이트리스트 밖 구문은 본문을 재작성하지 않는다")를 이미지가 어기고 있었고, **테스트가 없어 아무도 못 봤다**.
 
 **훅 페이로드는 원문을 보관한다**(2026-09-01 — 사람 결정). 예전에는 `tool_name` 만 남겼고(코드 주석이 D-07 을 인용했는데 D-07 은 "AI 리뷰는 플랫폼 엔티티다" 라 이 사안과 무관하다 — **문서에 규칙이 없었다**), 그 결과 세션 타임라인이 **"Bash / Bash" 를 383번** 반복했다(실측 443건 중 86%). 무엇을 했는지도, 성공했는지도 알 수 없었다.
@@ -681,7 +689,7 @@ HTTP 상태 매핑:
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-069 | WHEN 스펙에 파일을 첨부하면 THE SYSTEM SHALL 형식 화이트리스트(그림 png·jpeg·gif·webp·svg · 문서 pdf·**html**·**txt** · 묶음 **zip** — 2026-09-04 확장)와 파일당 10MB 를 강제하고, 올린 주체가 사람인지 에이전트인지 함께 기록한다. WHEN 첨부 스토리지가 **설정되지 않았으면** THE SYSTEM SHALL `NERV_UNAVAILABLE`(`kind:'storage_unconfigured'`, `missing[]`)로 거절한다 — `internal` 로 뭉개면 호출자는 그것을 일시 장애로 읽고 영원히 재시도한다 |
-| REQ-API-070 | WHEN 첨부를 내려주면 THE SYSTEM SHALL **서버를 거쳐** 멤버십을 확인한 뒤 스트리밍하고, `nosniff` 와 CSP sandbox 를 붙인다 |
+| REQ-API-070 | WHEN 첨부를 내려주면 THE SYSTEM SHALL **서버를 거쳐** 멤버십을 확인한 뒤 스트리밍하고, `nosniff` 와 CSP sandbox 를 붙인다. WHEN 그 첨부가 `text/html` 이면 THE SYSTEM SHALL sandbox 에 `allow-scripts` 를 주어 시안이 그려지게 하되 **`allow-same-origin`·`allow-forms`·`allow-top-navigation`·`allow-popups-to-escape-sandbox` 는 주지 않는다**(2026-09-08) — 오리진을 여는 순간 업로드된 html 이 앱 자신의 XSS 가 된다. WHEN 그 첨부가 `image/svg+xml` 이면 THE SYSTEM SHALL 스크립트는 계속 막은 채(sandbox·`default-src` 둘 다) 자기 안의 `style`·글꼴·이미지만 허용한다 — 그 한 줄이 SVG 안의 `<style>` 까지 막아 시안이 기본색으로 그려졌다 |
 | REQ-API-071 | WHEN 에이전트가 첨부를 올리면 THE SYSTEM SHALL presigned PUT 주소를 주고, **확정 요청 시 실제 업로드를 확인한 뒤에만** 목록에 넣는다. WHEN 확정 시점의 크기가 상한을 넘으면 THE SYSTEM SHALL 오브젝트를 지우고 거부한다 |
 | REQ-API-065 | WHEN 도구 훅이 들어오면 THE SYSTEM SHALL `tool_input`·`tool_response` **원문**을 적재하되 비밀(이름·모양·주소 자격·비밀 파일 응답)을 **적재 시점에** 가리고, 가린 자리에 사유를 남긴다. 필드는 64KB·행은 256KB 를 넘지 않게 자르되 **끝을 남긴다** |
 | REQ-API-066 | WHEN 활동 타임라인을 조회하면 THE SYSTEM SHALL 원문(`tool_input`·`tool_response`)을 **세션 본인과 admin 에게만** 주고, 그 밖에는 제목·성패·도구만 준다. WHEN 보는 사람을 알 수 없으면 THE SYSTEM SHALL 원문을 주지 않는다 |
@@ -884,7 +892,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SPEC-19 | `GET /api/v1/projects/{proj}/specs/graph` | 전 역할(`spec:read`) | `SpecGraphQuery`(include_archived — 기본 false, **`baseline`** — 그 세트에 담긴 문서만 그때 핀된 버전으로. EP-SPEC-01 과 같은 판정이고 REQ-API-098 이 요구한 것인데 전표가 이 행에만 적지 않았다) | `SpecGraphResult`(`nodes[]` 트리와 같은 모양 + `edges[]` from_id·to_id·kind) — 전역 관계 그래프를 **한 응답**으로. 둘을 나눠 받으면 그 사이의 변화가 끝점 없는 간선으로 남는다. 화면 정본 [4.5](screens.md) §2.4a | — |
 | EP-SPEC-20 | `GET /api/v1/projects/{proj}/specs/{spec}/attachments` | 전 역할(`spec:read`) | — | `AttachmentListResult`(항목마다 `id`·`filename`·`content_type`·`bytes`·**`url`**(받는 주소 — REQ-API-089)) | — |
 | EP-SPEC-21 | `POST /api/v1/projects/{proj}/specs/{spec}/attachments` | `spec:draft` | **multipart** — 2단계(등록 → 확정). 화이트리스트: 이미지·`text/html`·`text/plain`·`text/markdown`·`application/pdf`·`application/zip` | `AttachmentResult`(확정 응답도 목록과 **같은 `url` 을 준다** — REQ-API-089) | ★`spec.attachment_added` |
-| EP-SPEC-22 | `GET /api/v1/projects/{proj}/attachments/{id}` | 전 역할(`spec:read`) | — | 파일 본문 — 내려받기는 `CSP: sandbox` + `nosniff` 를 건다 | — |
+| EP-SPEC-22 | `GET /api/v1/projects/{proj}/attachments/{id}` | 전 역할(`spec:read`) | — | 파일 본문 — 내려받기는 `CSP: sandbox` + `nosniff` 를 건다(`text/html` 만 `allow-scripts` · `image/svg+xml` 은 스크립트 없이 그리기만 · REQ-API-070) | — |
 | EP-SPEC-23 | `DELETE /api/v1/projects/{proj}/attachments/{id}` | `spec:draft` | — | `204` | ★`spec.attachment_removed` |
 
 스펙 **승인·거절 엔드포인트는 이 절에 없다.** `in_review → approved/rejected` 전이는 받은 요청의 결정(EP-APR-03) 한 경로뿐이며, 이는 MCP에 `nerv_spec_approve`가 존재하지 않는 것([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1 원칙 3)과 같은 설계다. 표면이 달라도 사람 전용 게이트는 하나다.

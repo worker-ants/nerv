@@ -31,7 +31,7 @@ import type { NervEventName } from '@nerv/schema';
  *
  * SVG 를 허용한다(사람 결정) — 시안에 가장 유용하다. 스크립트 위험은 **서빙 쪽**이 막는다:
  * `<img src>` 로 부른 SVG 는 스크립트를 실행하지 않고, 직접 열었을 때를 위해 응답에
- * CSP sandbox 와 `nosniff` 를 붙인다(REQ-API-070).
+ * CSP sandbox 와 `nosniff` 를 붙인다(REQ-API-070 · 정책은 `attachmentCsp`).
  */
 export const ALLOWED_TYPES: Readonly<Record<string, string>> = {
   'image/png': 'png',
@@ -44,13 +44,83 @@ export const ALLOWED_TYPES: Readonly<Record<string, string>> = {
   // 매달린다 — 리포트 한 장(html), 로그·추출물(txt), 여러 파일 묶음(zip).
   //
   // `text/html` 을 받는 것이 위험해 보이지만 **이미 `image/svg+xml` 을 받고 있고**
-  // 그쪽이 더 어려운 경우다(SVG 는 이미지로 위장한 스크립트다). 내려받기 경로가 둘 다
-  // 같은 방어를 건다(EP-SPEC-22): `Content-Security-Policy: sandbox; default-src 'none'`
-  // 로 스크립트를 막고 불투명 오리진에 가두며, `nosniff` 로 타입 추측을 끈다.
+  // 그쪽이 더 어려운 경우다(SVG 는 이미지로 위장한 스크립트다). 방어는 내려받기
+  // (EP-SPEC-22)에 있다 — 정책 정본은 이 파일의 `attachmentCsp` 다: 불투명 오리진에
+  // 가두고 `nosniff` 로 타입 추측을 끄되, html 은 그 안에서 **그려진다**.
   'text/html': 'html',
   'text/plain': 'txt',
   'application/zip': 'zip',
 };
+
+/**
+ * 내려주기의 방어 — **오리진을 열지 않은 채로 그린다**(REQ-API-070 · 2026-09-08 사람 지시).
+ *
+ * 예전 정책은 형식과 무관하게 `sandbox; default-src 'none'` 한 줄이었고, 그것이 **html
+ * 시안을 열 수 없게** 만들었다(실사용 보고): 화면은 빈 채로 서고 콘솔에 "frame is
+ * sandboxed and the 'allow-scripts' permission is not set" 만 남는다. 시안은 보라고
+ * 올리는 것이라(그래서 내려주기가 `inline` 이다) 그리지 못하는 시안은 첨부가 아니다.
+ *
+ * 그래서 `text/html` 에만 **스크립트를 열되 오리진은 닫아 둔다**. 낱말 하나의 차이가 이
+ * 결정의 전부다.
+ *
+ * - `allow-scripts` 만 주면 문서는 **불투명 오리진**에 남는다 — 앱의 쿠키·localStorage 를
+ *   읽지 못하고, 앱으로 보내는 요청은 전부 교차 오리진이라(`Origin: null`) CORS 를 켜지
+ *   않은 이 서버에서는 응답을 읽지 못한다. 격리는 그대로다.
+ * - `allow-same-origin` 을 함께 주면 그 격리가 통째로 사라진다. dev 는 웹과 API 가 같은
+ *   오리진으로 보이고(vite 프록시) 배치도 앞문 하나를 지나므로, 그 순간 업로드된 html 은
+ *   **앱 자신의 XSS** 가 된다. 이것만은 어떤 이유로도 더하지 않는다.
+ *
+ * 같은 이유로 셋을 주지 않는다 — `allow-forms`(앱 주소에 선 위장 로그인이 입력을 남의
+ * 서버로 보낸다. 자기 안에서 `preventDefault` 로 처리하는 폼은 이것 없이도 돈다) ·
+ * `allow-top-navigation` · `allow-popups-to-escape-sandbox`(팝업이 격리를 벗는다).
+ *
+ * **SVG 는 스크립트를 끝까지 받지 않는다** — 이미지로 위장한 스크립트가 더 어려운 경우이고,
+ * 시안을 그리는 데 스크립트가 필요하지도 않다. 다만 잠긴 정책이 그리기까지 막고 있었다:
+ * `default-src 'none'` 은 **SVG 안의 `<style>` 도** 막아, 직접 열면 도형이 기본색으로
+ * 그려졌다(실측 2026-09-08 — 그리기 도구가 내보낸 시안이 그 모양이다). 막으려던 것은
+ * 스크립트인데 잃은 것은 그림이었다. 그래서 SVG 에는 **스크립트 없이 그리는 정책**을 준다:
+ * `allow-scripts` 도 `script-src` 도 없으므로 스크립트는 sandbox 와 `default-src 'none'`
+ * 둘에 막힌 채다.
+ *
+ * 래스터 이미지·pdf·txt·zip 은 잠긴 정책 그대로다 — 그리기에 CSP 가 관여하지 않는다.
+ */
+const CSP_LOCKED = "sandbox; default-src 'none'";
+
+const CSP_HTML = [
+  'sandbox allow-scripts allow-popups allow-modals',
+  // 자원은 **스킴으로** 연다. 불투명 오리진에서 `'self'` 는 아무것과도 맞지 않아 —
+  // 첨부가 같은 서버의 다른 첨부를 부르는 것조차 `'self'` 로는 열리지 않는다.
+  // 열지 않은 것은 `default-src 'none'` 을 물려받는다(`object-src` 가 그것이다).
+  "default-src 'none'",
+  "script-src 'unsafe-inline' 'unsafe-eval' https: http: blob: data:",
+  "style-src 'unsafe-inline' https: http: data:",
+  'img-src https: http: data: blob:',
+  'font-src https: http: data:',
+  'media-src https: http: data: blob:',
+  'connect-src https: http: data: blob:',
+  'frame-src https: http: data: blob:',
+  'worker-src blob: data:',
+].join('; ');
+
+/** 스크립트는 없이 **그리기만** 연다 — SVG 의 자리다 */
+const CSP_DRAWN = [
+  'sandbox',
+  "default-src 'none'",
+  "style-src 'unsafe-inline' https: http: data:",
+  'img-src https: http: data: blob:',
+  'font-src https: http: data:',
+].join('; ');
+
+/**
+ * 응답에 실을 CSP — **형식이 정한다**. 판정이 한 곳인 이유는 헤더를 붙이는 자리가 늘 때
+ * 정책이 두 벌이 되지 않게 하려는 것이다(D-05 와 같은 이유다).
+ */
+export function attachmentCsp(contentType: string): string {
+  const type = (contentType.split(';')[0] ?? '').trim().toLowerCase();
+  if (type === 'text/html') return CSP_HTML;
+  if (type === 'image/svg+xml') return CSP_DRAWN;
+  return CSP_LOCKED;
+}
 
 /** 파일당 10MB — 스펙당 합계는 제한하지 않는다(사람 결정). 값의 정본은 상수 파일이다 */
 export const MAX_BYTES = ATTACHMENT_MAX_BYTES;

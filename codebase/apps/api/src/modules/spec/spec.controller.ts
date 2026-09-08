@@ -51,7 +51,7 @@ import { BaselineService } from './baseline.service.js';
 import { SearchService } from './search.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import { SpecRelationService } from './spec-relation.service.js';
-import { AttachmentService } from './attachment.service.js';
+import { AttachmentService, attachmentCsp } from './attachment.service.js';
 import { StorageService } from '../../common/storage.service.js';
 import { finiteList } from '../../common/cursor.js';
 import { SpecService } from './spec.service.js';
@@ -629,8 +629,8 @@ export class SpecController {
    * EP-SPEC-22 — 첨부 내려받기. **서버를 거친다**(REQ-API-070).
    *
    * presigned GET 을 주면 그 URL 이 권한 밖으로 새고, 첨부 주소가 공개면 스펙 권한이
-   * 무의미해진다. SVG 를 허용하므로(사람 결정) 응답에 **CSP sandbox 와 nosniff** 를 붙인다 —
-   * `<img src>` 로 부른 SVG 는 스크립트를 실행하지 않지만, 주소를 직접 연 경우가 남는다.
+   * 무의미해진다. 응답에 **CSP sandbox 와 nosniff** 를 붙이되 그 정책은 형식이 정한다
+   * (정본: `attachmentCsp`) — html 시안은 격리 안에서 **그려지고**, 나머지는 잠긴 채다.
    */
   @RequireScope('spec:read')
   @Get('attachments/:id')
@@ -655,7 +655,7 @@ export class SpecController {
     void reply
       .header('content-type', found.contentType)
       .header('x-content-type-options', 'nosniff')
-      .header('content-security-policy', "sandbox; default-src 'none'")
+      .header('content-security-policy', attachmentCsp(found.contentType))
       // 이름은 남기되 브라우저가 열게 둔다 — 시안은 보라고 올리는 것이다
       .header(
         'content-disposition',

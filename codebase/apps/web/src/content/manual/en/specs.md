@@ -85,6 +85,8 @@ Attachments hang on the **document, not the version**. Rewriting the draft leave
 
 Reading also goes through the server — **project members** see them, not whoever has the URL.
 
+`html` attachments **open rendered** — mockups and reports run their scripts. The page opens **isolated** while they do: it cannot reach your session or any other NERV screen, and anything that would send what you typed back out (a form submission) stays blocked. Every other format, `svg` included, renders without scripts.
+
 ## The edit lease
 
 If two people edit one document at once, one person's writing disappears. So editing takes a **lease**.
