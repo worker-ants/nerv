@@ -808,11 +808,21 @@ function SpecDetail(): React.JSX.Element {
       {/* **레일도 스스로 스크롤한다.** `sticky` 로 붙여만 두면 내용이 화면보다 길 때
           아래쪽이 영영 닿지 않는다 — 역참조 18건이면 이미 그렇다(실측 2026-08-23).
           높이를 뷰포트에 묶고 넘치면 레일 안에서 흐르게 한다. */}
-      <aside className="flex flex-col text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:max-h-[calc(100vh-var(--spacing-header)-3rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
+      {/* **가로는 레일이 아니라 안의 두 칸이 맡는다**(2026-09-08 — 사람 보고). CSS 에서
+          한 축이 `visible` 이 아니면 다른 축도 `auto` 가 되므로, 세로만 흐르게 하려던
+          `overflow-y-auto` 가 레일 전체를 **가로 스크롤 상자**로 만들었다 — 탭 다섯이
+          17rem 을 넘치자 레일 바닥에 가로 막대가 서고, 그것을 밀면 탭과 본문이 **함께**
+          옆으로 밀렸다(고정된 탭 줄 없이 목록만 어긋난다). 레일의 가로는 잠그고 탭 줄과
+          본문이 각자 자기 안에서 민다 — 스크롤 상자가 되면 `min-height:auto` 가 0 이
+          되므로 둘 다 `shrink-0` 이어야 세로로 찌그러지지 않는다. */}
+      <aside className="flex min-w-0 flex-col text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:max-h-[calc(100vh-var(--spacing-header)-3rem)] lg:self-start lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1">
         {/* **탭이다**(시안). 버전·역참조·코멘트를 세로로 쌓으면 레일이 세 화면 길이가
             되고, 그때 코멘트는 스크롤 끝의 소문이 된다. 한 번에 하나를 보이되 수는
             탭 이름 옆에 미리 적는다 — 눌러 보기 전에 "있는지"는 알아야 한다. */}
-        <div className="flex border-b border-border">
+        <div
+          data-testid="rail-tabs"
+          className="flex shrink-0 overflow-x-auto border-b border-border"
+        >
           {(
             [
               ['relations', t('spec.rail.relations'), relationItems.length],
@@ -830,7 +840,7 @@ function SpecDetail(): React.JSX.Element {
               data-testid={`rail-tab-${key}`}
               onClick={() => setRailTab(key)}
               className={cn(
-                'flex items-center gap-[5px] border-b-2 px-[11px] pt-1 pb-2.5 text-sm transition-colors',
+                'flex shrink-0 items-center gap-[5px] border-b-2 px-[11px] pt-1 pb-2.5 text-sm whitespace-nowrap transition-colors',
                 railTab === key
                   ? 'border-text font-semibold text-text'
                   : 'border-transparent text-text-faint hover:text-text',
@@ -842,7 +852,10 @@ function SpecDetail(): React.JSX.Element {
           ))}
         </div>
 
-        <div className="flex flex-col gap-1 pt-2.5">
+        <div
+          data-testid="rail-body"
+          className="flex shrink-0 flex-col gap-1 overflow-x-auto pt-2.5"
+        >
           {railTab === 'relations' && (
             <>
               {/* **하위 탭은 방향으로 가른다**(사람 지시 2026-08-24). 관계가 스무 건이

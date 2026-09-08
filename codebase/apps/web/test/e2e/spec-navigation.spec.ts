@@ -28,3 +28,36 @@ test('다른 스펙으로 옮기면 본문이 그 문서 것으로 바뀐다', a
   await expect(body).not.toHaveText(first, { timeout: 15000 });
   await expect(body).toContainText('세션 복원');
 });
+
+// 레일 탭 다섯(관계·요구사항·버전·첨부·코멘트)은 17rem 레일보다 넓다 — 그 자체는 정상이고,
+// 문제는 **무엇이 밀리느냐**였다: 세로만 흐르게 하려던 `overflow-y-auto` 가 CSS 규칙상
+// 가로도 `auto` 로 만들어(한 축이 visible 이 아니면 다른 축도 auto 다) 레일 전체가 가로
+// 스크롤 상자가 됐고, 바닥의 막대를 밀면 탭 줄과 목록이 **함께** 옆으로 갔다(사람 보고
+// 2026-09-08). 이 판정은 실제 폭이 있어야 성립한다 — jsdom 은 scrollWidth 를 재지 않아
+// 클래스 이름밖에 못 본다(이 파일 머리의 이유와 같다).
+test('레일이 좁아도 옆으로 미는 것은 탭 줄뿐이고, 마지막 탭에 닿는다', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/p/clemvion/specs/SPC-CWC-007');
+  const tabs = page.getByTestId('rail-tabs');
+  await expect(tabs).toBeVisible({ timeout: 15000 });
+
+  const overflow = await tabs.evaluate((el) => ({
+    tabs: el.scrollWidth - el.clientWidth,
+    rail: ((r) => (r === null ? -1 : r.scrollWidth - r.clientWidth))(el.closest('aside')),
+  }));
+  // 넘치지 않으면 이 테스트가 검사할 것이 없다 — 전제부터 확인한다(시드 실측 37px)
+  expect(overflow.tabs).toBeGreaterThan(0);
+  // 레일은 옆으로 밀리지 않는다: 목록이 탭을 따라 움직이면 고정된 탭 줄이 아니다
+  expect(overflow.rail).toBeLessThanOrEqual(1);
+
+  // 그리고 밀면 끝에 닿아야 한다 — 스크롤 상자인데 마지막 탭이 잘려 있으면 고친 것이 아니다
+  await tabs.evaluate((el) => {
+    el.scrollLeft = el.scrollWidth;
+  });
+  const last = page.getByTestId('rail-tab-comments');
+  const [box, strip] = [await last.boundingBox(), await tabs.boundingBox()];
+  expect(box).not.toBeNull();
+  expect(strip).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(strip!.x - 1);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(strip!.x + strip!.width + 1);
+});

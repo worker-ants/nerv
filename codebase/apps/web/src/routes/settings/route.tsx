@@ -16,8 +16,12 @@ export const Route = createFileRoute('/settings')({
 // 같은 속성을 두고 붙는데, 이길지는 클래스 순서가 아니라 **생성된 CSS 순서**가 정한다.
 // TanStack Router 가 붙여 주는 `data-status="active"` 를 variant 로 쓰면 그 다툼이 사라진다
 // (variant 유틸리티는 항상 뒤에 나온다).
+// **탭은 줄지도 접히지도 않는다**(2026-09-08 · REQ-WEB-151). 좁은 칸에서 탭 줄이 할 일은
+// 뭉개지는 것이 아니라 미는 것이다 — 줄바꿈된 탭은 두 줄짜리 탭 하나가 되고, 그때 활성
+// 밑줄은 어느 글자 아래에도 맞지 않는다. 줄 자신은 아래 `<nav>` 가 스크롤 상자로 받는다.
 const TAB =
-  'border-b-2 border-transparent px-1 pb-2 text-sm text-text-mute transition-colors hover:text-text ' +
+  'shrink-0 border-b-2 border-transparent px-1 pb-2 text-sm whitespace-nowrap text-text-mute ' +
+  'transition-colors hover:text-text ' +
   'data-[status=active]:border-status-action data-[status=active]:font-medium data-[status=active]:text-text';
 
 function SettingsShell(): React.JSX.Element {
@@ -28,7 +32,12 @@ function SettingsShell(): React.JSX.Element {
       <p className="mb-2 text-2xs font-semibold tracking-wide text-text-faint uppercase">
         {t('settings.title')}
       </p>
-      <nav className="mb-5 flex gap-4 border-b border-border">
+      {/* 넘치면 **줄 안에서** 민다 — 페이지를 옆으로 밀면 제목·본문까지 함께 간다
+          (S3 곁레일에서 실제로 그랬다 · REQ-WEB-151) */}
+      <nav
+        data-testid="settings-tabs"
+        className="mb-5 flex gap-4 overflow-x-auto border-b border-border"
+      >
         {/* 조직·프로젝트가 먼저다 — 멤버·토큰·게이트는 그 안에서 정하는 것들이다 */}
         <Link to="/settings/workspace" className={TAB}>
           {t('settings.tab.workspace')}
