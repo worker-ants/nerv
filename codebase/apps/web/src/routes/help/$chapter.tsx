@@ -52,8 +52,12 @@ function ManualChapterScreen(): React.JSX.Element {
         <div
           data-testid="manual-body"
           onClick={onBodyClick}
-          // 앵커로 뛰면 제목이 고정 헤더 밑으로 숨는다 — 뛰는 자리에 헤더만큼 여백을 준다
-          className="prose-nerv max-w-[46rem] [&_h2]:scroll-mt-[calc(var(--spacing-header)+1.5rem)]"
+          // 앵커로 뛰면 제목이 위에 붙은 것 밑으로 숨는다 — 뛰는 자리에 그만큼 여백을 준다.
+          // 그 "위에 붙은 것" 이 폭에 따라 다르다(2026-09-08 · REQ-WEB-157): 본문이 자기
+          // 상자 안에서 흐르는 폭(`md`)에서는 상자 위가 곧 헤더 아래라 페이지 여백만큼이면
+          // 되고, 페이지가 흐르는 좁은 화면에서는 셸 헤더가 그 자리를 덮는다.
+          className="prose-nerv max-w-[46rem] [&_h2]:scroll-mt-[calc(var(--spacing-header)+1.5rem)]
+            md:[&_h2]:scroll-mt-6"
           dangerouslySetInnerHTML={{ __html: doc.html }}
         />
 
@@ -80,8 +84,11 @@ function ManualChapterScreen(): React.JSX.Element {
         </nav>
       </PageBody>
 
+      {/* "이 문서 안" 은 본문 칸 **안에** 있다 — 붙는 자리도 그 상자의 꼭대기다
+          (2026-09-08 · REQ-WEB-157). 이 목차가 보이는 폭(`xl`)은 본문이 자기 안에서
+          흐르는 폭(`md`)보다 넓으므로, 여기서 셸 헤더를 기준으로 붙일 일은 없다. */}
       {doc.headings.length > 1 && (
-        <aside className="sticky top-header hidden h-fit w-[196px] shrink-0 py-11 pr-6 xl:block">
+        <aside className="sticky top-0 hidden h-fit w-[196px] shrink-0 py-11 pr-6 xl:block">
           <p className="mb-2 text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase">
             {t('help.on_this_page')}
           </p>

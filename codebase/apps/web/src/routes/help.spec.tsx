@@ -124,3 +124,47 @@ describe('매뉴얼 라우트', () => {
     await waitFor(() => expect(screen.getByText('그런 장이 없습니다.')).toBeDefined());
   });
 });
+
+// ── 본문의 스크롤 상자 (2026-09-08 · 사람 지시 · REQ-WEB-157) ────────────────
+//
+// S3 와 같은 규약이다(§2.4 · REQ-WEB-156): 스크롤 상자가 페이지면 차례 위에서 굴린
+// 바퀴가 본문을 움직이고, 그때 두 칸은 나란히 놓인 두 칸이 아니다. jsdom 은 레이아웃을
+// 재지 않으므로 여기서 태우는 것은 **어디가 스크롤 상자이고 무엇이 그 상자에 붙는가**
+// 라는 계약이다 — 실제로 페이지가 가만히 있는지는 L3 가 잰다.
+describe('매뉴얼의 스크롤 상자 (REQ-WEB-157)', () => {
+  it('차례가 있는 폭부터 화면 높이를 쥐고, 차례와 본문이 각자 흐른다', async () => {
+    renderAt('/help/tasks');
+    await waitFor(() => expect(screen.getByTestId('manual-content')).toBeDefined());
+    const content = screen.getByTestId('manual-content');
+    const row = content.parentElement;
+    expect(row?.className).toContain('md:h-[calc(100dvh-var(--spacing-header))]');
+    expect(row?.className).toContain('md:overflow-hidden');
+    expect(content.className).toContain('md:overflow-y-auto');
+    // 차례도 자기 안에서 흐른다 — 열 장이 화면보다 길어지면 아래쪽에 닿지 못한다
+    const toc = row?.querySelector('aside');
+    expect(toc?.className).toContain('overflow-y-auto');
+    // 페이지가 흐르지 않으므로 뷰포트에 손수 묶던 계산식은 남지 않는다
+    expect(toc?.className).not.toMatch(/sticky/);
+    expect(toc?.className).not.toMatch(/h-\[calc/);
+  });
+
+  it('"이 문서 안" 은 본문 상자의 꼭대기에 붙는다 — 셸 헤더가 기준이 아니다', async () => {
+    renderAt('/help/tasks');
+    await waitFor(() => expect(screen.getByText('이 문서 안')).toBeDefined());
+    const aside = screen.getByText('이 문서 안').closest('aside');
+    expect(aside?.className).toContain('sticky');
+    expect(aside?.className).toContain('top-0');
+    // 이 목차가 보이는 폭(xl)은 본문이 자기 안에서 흐르는 폭(md)보다 넓다
+    expect(aside?.className).not.toContain('top-header');
+  });
+
+  it('앵커로 뛰는 자리의 여백은 위에 붙은 것을 따라간다', async () => {
+    renderAt('/help/tasks');
+    await waitFor(() => expect(screen.getByTestId('manual-body')).toBeDefined());
+    const cls = screen.getByTestId('manual-body').className;
+    // 페이지가 흐르는 좁은 화면에서는 셸 헤더가 그 자리를 덮는다
+    expect(cls).toContain('[&_h2]:scroll-mt-[calc(var(--spacing-header)+1.5rem)]');
+    // 본문이 자기 상자 안에서 흐르면 상자 위가 곧 헤더 아래다 — 페이지 여백만큼이면 된다
+    expect(cls).toContain('md:[&_h2]:scroll-mt-6');
+  });
+});
