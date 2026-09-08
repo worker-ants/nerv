@@ -169,3 +169,20 @@ describe('새 프로젝트 — 이름에서 slug·key 를 만들어 준다', () 
     expect((screen.getByTestId('project-key') as HTMLInputElement).value).toBe('ACM');
   });
 });
+
+// 설정 탭 줄도 S3 곁레일과 같은 모양이다 — 좁은 칸에서 넘칠 수 있고, 그때 밀려야 하는
+// 것은 페이지가 아니라 줄 자신이다(REQ-WEB-151). 지금 넷은 대개 한 줄에 들어가지만
+// 탭이 늘거나 로케일이 길어지면 넘치고, 그 순간을 잡을 계기가 없으면 아무도 모른다.
+describe('설정 탭 줄의 가로 (REQ-WEB-151)', () => {
+  it('줄이 자기 안에서 밀고, 탭은 줄지도 접히지도 않는다', async () => {
+    stub([{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', archived_at: null }]);
+    await renderTab();
+
+    const nav = screen.getByTestId('settings-tabs');
+    expect(nav.className).toContain('overflow-x-auto');
+    for (const tab of nav.querySelectorAll('a')) {
+      expect(tab.className).toContain('shrink-0');
+      expect(tab.className).toContain('whitespace-nowrap');
+    }
+  });
+});

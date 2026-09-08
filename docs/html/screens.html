@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v0.91 (2026-09-07)</span>
+      <span>버전 v0.92 (2026-09-08)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -759,6 +759,7 @@
     <li><b>폼·검증</b>: <code>SpecDraftUpsertInput</code>(zod — <code>packages/schema</code>, MCP 도구 인자와 공유): <code>body_markdown</code>·<code>base_hash</code>·<code>change_summary</code>(min 1), 새 스펙 생성은 <code>SpecCreateInput</code>(<code>parent_id</code>·<code>type</code> 6종 enum·<code>title</code> min 1·<code>body_markdown</code>). 코멘트 <code>CommentCreateInput</code>: <code>anchor</code>(min 1)·<code>body_md</code>(min 1).</li>
     <li><b>요구사항과 파생 Task</b>(레일 <code>요구사항</code> 탭 — 2026-09-06 배선): <code>RequirementPanel</code> 이 EP-REQ-01 로 이 문서의 요구사항을 싣고 각 행에 파생 Task·증적 수를 단다 — <b>Task 도 증적도 0 인 "빈 약속"은 붉게 세운다</b>(FR-13: 커버리지 숫자는 몇 건인지만 말하고 <i>어느 요구사항인지</i>는 말하지 못한다). 그 아래 <code>DerivedTaskPanel</code> 이 EP-TASK-01 <code>?spec=</code> 으로 흐르는 작업(ready·in_progress·blocked)을 싣고, [보드에서 전체 보기]는 <b>같은 서버 필터</b>를 쓰는 <code>/p/:proj/tasks?spec=</code> 로 간다.</li>
     <li><b>소스 보기</b>(<code>SourceViewToggle</code>): 원문 md 를 그대로 보이는 read-only 뷰. §3.2 규칙 2·REQ-WEB-031 의 "저장 실패 시 <b>소스 보기와 함께</b> 실패 리포트" 가 이것이다 — 왕복 검증이 실패하면 리포트 안에 토글이 함께 뜬다. 에디터가 못 그리는 것이 정확히 저장을 막는 것이라, 그때 필요한 것은 렌더링이 아니라 바이트다.</li>
+    <li><b>레일의 가로는 탭 줄과 본문이 나눠 맡는다</b>(2026-09-08 — 사람 보고 · REQ-WEB-151). 탭 다섯이 17rem 레일보다 넓은 것 자체는 정상이다. 결함은 <b>세로만 흐르게 하려던 설정이 가로도 함께 열었다</b>는 것이다 — CSS 에서 한 축이 <code>visible</code> 이 아니면 다른 축도 <code>auto</code> 가 되므로 레일 전체가 가로 스크롤 상자가 됐고, 바닥의 막대를 밀면 탭 줄과 목록이 <b>함께</b> 옆으로 갔다. 탭 줄이 따라 움직이면 지금 어느 탭을 보고 있는지가 화면에서 사라진다. 레일의 가로는 잠그고 <b>탭 줄과 본문이 각자 자기 안에서</b> 민다. 세로는 그대로 레일이 맡는다(REQ-WEB-059) — 두 축의 주인이 다르다. 같은 모양이 S8 설정 탭 줄에도 있어(§2.8) 함께 고쳤다 — 거기는 아직 넘치지 않지만 탭이 늘거나 로케일이 길어지면 같은 자리다.</li>
     <li><b>빈 상태</b>: 요구사항 0건 — "이 버전에는 요구사항 블록이 없습니다" + EARS 안내 링크.</li>
   </ul>
 
@@ -787,6 +788,7 @@
       <tr><td>REQ-WEB-077</td><td>WHEN 관계 목록을 표시하면 THE SYSTEM SHALL 전체·역참조·레퍼런스 하위 탭과 <b>각 탭의 건수</b>를 함께 보이고, 고른 방향의 항목만 목록에 남긴다</td></tr>
       <tr><td>REQ-WEB-078</td><td>WHEN 전체 탭에 두 방향이 함께 있으면 THE SYSTEM SHALL 역참조 무리를 먼저 놓고 두 무리 사이에 구분선을 두며, 역참조 설명을 그 무리의 <b>머리</b>에 표시한다</td></tr>
       <tr><td>REQ-WEB-044</td><td>WHEN 스펙 트리 노드가 200개를 넘으면 THE SYSTEM SHALL 가상 스크롤로 창 밖을 렌더하지 않아 최초 페인트가 전체 트리 렌더를 요구하지 않게 한다 (2026-08-29 정정 — "폴더 단위 지연 로드(<code>depth=1</code>)" 삭제: EP-SPEC-01 은 전 계층을 한 응답으로 주므로 지연 로드는 존재한 적이 없고, 깊이 기본값은 성능 장치가 아니라 §2.4b 의 <b>자리별 역할</b>이다)</td></tr>
+      <tr><td>REQ-WEB-151</td><td>WHILE 탭 줄 또는 그 아래 내용이 놓인 칸보다 넓으면 THE SYSTEM SHALL <b>그 칸 안에서</b> 가로로 스크롤해 모든 탭·내용에 닿게 하고, 바깥 상자(곁레일·페이지)는 가로로 밀지 않는다 — 탭 줄과 내용의 가로 스크롤은 서로 독립이고, 탭은 줄지도 줄바꿈하지도 않는다(REQ-WEB-059 의 가로 축)</td></tr>
     </tbody>
   </table></div>
 
@@ -1465,6 +1467,7 @@ export const ApprovalDecisionInput = z
     <li><b>토큰 발급 흐름</b>: 발급 다이얼로그(<code>TokenCreateInput</code>: <code>project</code>·<code>name</code>·<code>scopes[]</code>·<code>expires</code>) → 성공 시 <b>원문 1회 표시</b>(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 <code>prefix</code>만. 권한 체크박스는 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(10종)를 그대로 쓰고, <code>spec:approve</code>·<code>approval:decide</code>는 <b>체크박스 비활성</b>(사람 전용 — 시스템 불변식). <b>내 역할에 없는 권한도 보이되 잠긴다</b>(§1.8) — 그리고 <b>잠긴 것은 발급 본문에도 실리지 않는다</b>(REQ-WEB-134 · 2026-09-04): 초기 선택값이 상수라, <code>task:claim</code> 이 없는 역할에게 그 칸이 꺼져 보이면서 본문에는 실려 갔다. 화면이 자기가 한 일을 잘못 말하면 토큰 목록의 권한 표를 믿을 수 없게 된다.</li>
     <li><b>조직·프로젝트 탭이 다루는 조직은 헤더가 고른 그 조직이다</b>(2026-09-07 배선 · REQ-WEB-076 · §1.8). 이 탭만 <code>primaryMembership()</code> 으로 따로 골랐고, 그 함수는 프로젝트 소속 행을 먼저 집으므로 <b>헤더에서 두 번째 조직을 골라도 첫 조직의 이름을 보이고 첫 조직을 고쳤다.</b> 조직이 하나뿐인 동안에는 드러나지 않는 종류의 결함이고, 드러나는 순간에는 이미 남의 조직 이름을 바꾼 뒤다.</li>
     <li><b>컴포넌트</b>: <code>SettingsTabs</code> · <code>MemberMatrix</code> · <code>MemberAddDialog</code> · <code>TokenTable</code> · <code>TokenIssueDialog</code> · <code>TokenRevealOnce</code> · <code>GatePolicyForm</code> · 권한 비확대 고지문("토큰은 사용자 권한을 상속하며 절대 확대하지 않는다" — NFR-03 · D-08).</li>
+    <li><b>탭 줄은 자기 안에서 민다</b>(2026-09-08 · REQ-WEB-151). 넷이 지금은 대개 한 줄에 들어가지만, 넘칠 때 밀려야 하는 것은 페이지가 아니라 줄 자신이다 — 페이지가 밀리면 제목·본문까지 함께 간다(S3 곁레일에서 실제로 그랬다 · §2.4). 탭은 줄바꿈하지 않는다: 두 줄이 된 탭 아래에서 활성 밑줄은 어느 글자에도 맞지 않는다.</li>
     <li><b>빈 상태</b>: 토큰 0개 — 플러그인 온보딩 절차 링크(<a href="plugin.html">plugin.md</a> §4).</li>
   </ul>
 

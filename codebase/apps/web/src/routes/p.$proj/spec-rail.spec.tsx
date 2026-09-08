@@ -139,3 +139,34 @@ describe('관계 하위 탭 (2026-08-24 · 사람 지시)', () => {
     await waitFor(() => expect(screen.queryByText('고치면 흔들리는 문서')).toBeNull());
   });
 });
+
+// ── 레일의 가로 (2026-09-08 · 사람 보고) ─────────────────────────────────────
+//
+// 탭 다섯이 17rem 레일보다 넓어 잘렸고, 세로만 흐르게 하려던 `overflow-y-auto` 가
+// (한 축이 visible 이 아니면 다른 축도 auto 가 되므로) 레일 전체를 가로 스크롤 상자로
+// 만들어 **탭과 본문이 함께** 옆으로 밀렸다. jsdom 은 레이아웃을 재지 않으므로 여기서
+// 태우는 것은 그 계약의 클래스다 — 스크롤 상자가 어디인지와, 그 상자가 세로로
+// 찌그러지지 않는지.
+describe('레일의 가로 스크롤 (2026-09-08 · 사람 보고)', () => {
+  it('탭 줄과 본문이 각자 흐른다 — 레일 전체가 옆으로 밀리지 않는다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
+    const tabs = screen.getByTestId('rail-tabs');
+    const body = screen.getByTestId('rail-body');
+    // 레일의 가로는 **명시로** 잠근다 — 안 적으면 세로를 열 때 가로가 딸려 열린다
+    expect(tabs.closest('aside')?.className).toContain('lg:overflow-x-hidden');
+    for (const box of [tabs, body]) {
+      expect(box.className).toContain('overflow-x-auto');
+      // 스크롤 상자는 `min-height: auto` 가 0 이라, 세로로 넘치는 레일 안에서 눌린다
+      expect(box.className).toContain('shrink-0');
+    }
+  });
+
+  it('탭은 줄지도 접히지도 않는다 — 좁으면 미는 것이지 뭉개는 것이 아니다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-tab-relations')).not.toBeNull());
+    for (const key of ['relations', 'requirements', 'versions', 'attachments', 'comments']) {
+      const cls = screen.getByTestId(`rail-tab-${key}`).className;
+      expect(cls).toContain('shrink-0');
+      expect(cls).toContain('whitespace-nowrap');
+    }
+  });
+});
