@@ -154,11 +154,11 @@ describe('레일의 가로 스크롤 (2026-09-08 · 사람 보고)', () => {
     const body = screen.getByTestId('rail-body');
     // 레일의 가로는 **명시로** 잠근다 — 안 적으면 세로를 열 때 가로가 딸려 열린다
     expect(tabs.closest('aside')?.className).toContain('lg:overflow-x-hidden');
-    for (const box of [tabs, body]) {
-      expect(box.className).toContain('overflow-x-auto');
-      // 스크롤 상자는 `min-height: auto` 가 0 이라, 세로로 넘치는 레일 안에서 눌린다
+    for (const box of [tabs, body]) expect(box.className).toContain('overflow-x-auto');
+    // 스크롤 상자는 `min-height: auto` 가 0 이라, 세로로 넘치는 레일 안에서 눌린다.
+    // 레일의 직계 칸 둘(머리·본문)이 그 대상이다 — 탭 줄은 머리 안에 있다.
+    for (const box of [screen.getByTestId('rail-head'), body])
       expect(box.className).toContain('shrink-0');
-    }
   });
 
   it('탭은 줄지도 접히지도 않는다 — 좁으면 미는 것이지 뭉개는 것이 아니다', async () => {
@@ -205,5 +205,39 @@ describe('랜드마크는 하나다', () => {
     await waitFor(() => expect(screen.queryByTestId('spec-body')).not.toBeNull());
     expect(document.querySelectorAll('main')).toHaveLength(1);
     expect(screen.getByTestId('spec-body').tagName).toBe('DIV');
+  });
+});
+
+// ── 머리는 스크롤에서 빠진다 (2026-09-08 · 사람 지시) ────────────────────────
+//
+// 관계 93건짜리 문서에서 목록을 내리면 탭 줄과 방향 하위 탭이 함께 화면 위로 사라졌다.
+// 그때 잃는 것은 "지금 어느 탭인가" 와 "방향을 바꾸려면 어디로" 둘이고, 되찾으려면
+// 레일을 끝까지 되감아야 한다. 여기서 지키는 것은 **머리가 한 상자에 모여 있는가** 다 —
+// 실제로 붙어 있는지는 스크롤이 있어야 보이므로 L3 가 잰다.
+describe('레일 머리 고정 (REQ-WEB-153)', () => {
+  it('탭 줄과 방향 하위 탭이 같은 머리 상자에 있다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rel-tab-all')).not.toBeNull());
+    const head = screen.getByTestId('rail-head');
+    expect(head.contains(screen.getByTestId('rail-tabs'))).toBe(true);
+    expect(head.contains(screen.getByTestId('rel-tab-all'))).toBe(true);
+    // 본문 안에 남아 있으면 본문이 스크롤 상자라 레일 기준으로 붙지 못한다
+    expect(screen.getByTestId('rail-body').contains(screen.getByTestId('rel-tab-all'))).toBe(false);
+  });
+
+  it('머리는 레일의 직계 칸이고, 레일 기준으로 붙으며 배경을 깐다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-head')).not.toBeNull());
+    const head = screen.getByTestId('rail-head');
+    // 스크롤 상자(레일)의 직계라야 그 상자 기준으로 붙는다
+    expect(head.parentElement).toBe(head.closest('aside'));
+    expect(head.className).toContain('lg:sticky');
+    expect(head.className).toContain('lg:top-0');
+    // 배경이 없으면 목록이 글자 위로 비쳐 지나간다
+    expect(head.className).toContain('bg-bg');
+  });
+
+  it('관계가 아닌 탭에서는 방향 하위 탭이 머리에 남지 않는다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-tab-versions')).not.toBeNull());
+    fireEvent.click(screen.getByTestId('rail-tab-versions'));
+    await waitFor(() => expect(screen.queryByTestId('rel-tab-all')).toBeNull());
   });
 });
