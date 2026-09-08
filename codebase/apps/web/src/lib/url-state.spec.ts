@@ -53,10 +53,12 @@ describe('작업 보드의 주소', () => {
   });
 
   it('보기 토글도 주소에 남는다 — 새로고침이 필터를 풀지 않는다', () => {
-    expect(parseBoard({ backlog: '1', archived: '1' })).toMatchObject({
-      backlog: true,
+    // 백로그는 **기본이 켜짐**이라(2026-09-08) 주소에 남는 것은 끈 상태뿐이다.
+    expect(parseBoard({ backlog: '0', archived: '1' })).toMatchObject({
+      backlog: false,
       archived: true,
     });
+    expect(parseBoard({ backlog: '1' })).not.toHaveProperty('backlog');
   });
 
   it('빈 값은 무시한다 — 서버에 빈 필터를 보내 아무것도 없다고 말하지 않는다', () => {

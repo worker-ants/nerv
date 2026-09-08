@@ -41,7 +41,8 @@ export const Route = createFileRoute('/p/$proj/tasks/')({
     spec?: string;
     assignee?: string;
     ai?: true;
-    backlog?: true;
+    /** 기본이 켜짐이라 **끈 상태만** 주소에 남는다(`?backlog=0`) */
+    backlog?: false;
     archived?: true;
     /** S3 의 "이 버전에서 파생" — 주소가 폼의 초기값이다(REQ-WEB-147) */
     from_version?: string;
@@ -56,7 +57,9 @@ export const Route = createFileRoute('/p/$proj/tasks/')({
       ? { assignee: search['assignee'] }
       : {}),
     ...(search['ai'] === true || search['ai'] === '1' ? { ai: true as const } : {}),
-    ...(search['backlog'] === true || search['backlog'] === '1' ? { backlog: true as const } : {}),
+    ...(search['backlog'] === false || search['backlog'] === '0'
+      ? { backlog: false as const }
+      : {}),
     ...(search['archived'] === true || search['archived'] === '1'
       ? { archived: true as const }
       : {}),
@@ -83,8 +86,8 @@ export const Route = createFileRoute('/p/$proj/tasks/')({
  * 아래에 두면 보드를 다 지나 스크롤해야 닿고, 흐름 끝에 두면 여섯 번째 칸이라 1440px
  * 화면에서도 잘린다 — 둘 다 "있긴 한데 안 보인다"이다. 막힌 일은 **가장 먼저 보여야
  * 하는 것**이지 각주가 아니라서 흐름(ready→done) 앞에 세운다: "이것부터 풀고 나머지를
- * 보라"가 이 보드가 할 말이다. `backlog` 는 여전히 필터다 — 아직 시작되지 않은 일은
- * "지금 흐르고 있는 것"이 아니다.
+ * 보라"가 이 보드가 할 말이다. `backlog` 는 여전히 필터이지만 **기본이 켜짐**이다
+ * (2026-09-08) — 끄면 방금 만든 Task 가 어느 레인에도 없다.
  */
 /** 레인 하나가 처음 그리는 카드 수 — 시안은 4장 + "+N개 더" 다 */
 const LANE_CAP = 8;
@@ -128,18 +131,23 @@ function TaskBoard(): React.JSX.Element {
   const projectId = project.data?.['id'];
   const [editing, setEditing] = useState<string | null>(null);
   const navigate = useNavigate();
-  // 백로그와 보관은 **끄고 시작한다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
+  // 보관은 **끄고 시작한다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
+  //
+  // **백로그는 켜고 시작한다**(2026-09-08, 사람 판단). 생성은 언제나 `backlog` 이므로
+  // (EP-TASK-03 · FR-05) 방금 만든 Task 는 승격 전까지 이 레인에만 있다 — 기본이 꺼짐이면
+  // 만든 사람에게는 "티켓이 사라진" 것으로 보인다. 주소에는 **끈 상태만** 남는다(`?backlog=0`).
   const {
     spec,
     assignee,
     ai: agentOnly = false,
-    backlog: showBacklog = false,
+    backlog: backlogParam,
     archived: showArchived = false,
     from_version: fromVersion,
     from_spec: fromSpec,
     from_version_no: fromVersionNo,
     requirement: fromRequirement,
   } = Route.useSearch();
+  const showBacklog = backlogParam ?? true;
   /**
    * **S3 에서 온 파생**(REQ-WEB-147). 스펙 상세의 "이 버전에서 파생" 이 주소로 보낸 값이
    * 그대로 폼의 초기값이 된다 — 그래야 링크를 공유해도 같은 화면이 열린다(D-09).
@@ -163,11 +171,11 @@ function TaskBoard(): React.JSX.Element {
     backlog?: boolean;
     archived?: boolean;
     ai?: boolean;
-  }): { spec?: string; assignee?: string; ai?: true; backlog?: true; archived?: true } => ({
+  }): { spec?: string; assignee?: string; ai?: true; backlog?: false; archived?: true } => ({
     ...(spec === undefined ? {} : { spec }),
     ...(assignee === undefined ? {} : { assignee }),
     ...((patch.ai ?? agentOnly) ? { ai: true as const } : {}),
-    ...((patch.backlog ?? showBacklog) ? { backlog: true as const } : {}),
+    ...((patch.backlog ?? showBacklog) ? {} : { backlog: false as const }),
     ...((patch.archived ?? showArchived) ? { archived: true as const } : {}),
   });
   const toBoard = (search: ReturnType<typeof searchWith>): void =>
