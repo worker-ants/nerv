@@ -276,3 +276,52 @@ describe('탭 줄의 페이드 (REQ-WEB-154)', () => {
     expect(screen.queryByTestId('rail-tabs-fade-end')).toBeNull();
   });
 });
+
+// ── 본문의 스크롤 상자 (2026-09-08 · 사람 지시 · REQ-WEB-156) ────────────────
+//
+// 스크롤 상자가 문서 전체였다 — 본문이 길면 바퀴를 어디서 굴리든 페이지가 움직였고,
+// 레일은 `sticky` 가 붙는 자리에 닿기 전까지 본문과 함께 위로 밀렸다. 화면 높이를
+// 확정하고 두 칸이 각자 흐르게 한 것이 이 변경이다. jsdom 은 레이아웃을 재지 않으므로
+// 여기서 태우는 것은 **어디가 스크롤 상자이고 무엇이 그 상자에 붙는가** 라는 계약이고,
+// 실제로 페이지가 가만히 있는지는 L3 가 잰다.
+describe('본문의 스크롤 상자 (REQ-WEB-156)', () => {
+  it('격자가 화면 높이를 쥐고, 행이 내용만큼 자라지 않는다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('spec-body')).not.toBeNull());
+    const grid = screen.getByTestId('spec-body').parentElement;
+    expect(grid?.className).toContain('lg:h-[calc(100dvh-var(--spacing-header))]');
+    // 암시 행은 `auto` 라 내용만큼 자란다 — 높이만 잡으면 안쪽 스크롤이 서지 않는다
+    expect(grid?.className).toContain('lg:grid-rows-[minmax(0,1fr)]');
+    expect(grid?.className).toContain('lg:overflow-hidden');
+  });
+
+  it('본문 칸은 세로만 연다 — 가로까지 열면 제목과 본문이 함께 옆으로 밀린다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('spec-body')).not.toBeNull());
+    const body = screen.getByTestId('spec-body');
+    expect(body.className).toContain('lg:overflow-y-auto');
+    // 레일에서 겪은 그 모양이다(REQ-WEB-151) — 가로는 **명시로** 잠근다
+    expect(body.className).toContain('lg:overflow-x-hidden');
+    expect(body.className).toContain('lg:h-full');
+  });
+
+  it('레일은 격자 행에서 높이를 받는다 — 붙일 것이 없는 자리에 `sticky` 를 두지 않는다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
+    const rail = screen.getByTestId('rail-tabs').closest('aside');
+    expect(rail?.className).toContain('lg:h-full');
+    expect(rail?.className).toContain('lg:overflow-y-auto');
+    // 페이지가 스크롤하지 않으므로 뷰포트에 손수 묶던 계산식 둘은 남지 않는다
+    expect(rail?.className).not.toMatch(/lg:sticky/);
+    expect(rail?.className).not.toMatch(/lg:max-h-/);
+  });
+
+  it('제목은 스크롤 상자가 어디냐를 따라 붙고, 위 여백은 메타 줄이 든다', async () => {
+    await waitFor(() => expect(screen.queryByTestId('spec-title')).not.toBeNull());
+    const title = screen.getByTestId('spec-title');
+    // 1열은 페이지가, 2열은 본문 칸이 스크롤 상자다
+    expect(title.className).toContain('top-header');
+    expect(title.className).toContain('lg:top-0');
+    // `sticky` 는 margin 상자를 가둔다 — 제목에 `mt` 가 남으면 붙었을 때 그만큼
+    // 틈이 생기고, 그 틈으로 흐르는 본문이 비쳐 지나간다
+    expect(title.className).not.toMatch(/\bmt-/);
+    expect(title.previousElementSibling?.className).toContain('mb-[7px]');
+  });
+});

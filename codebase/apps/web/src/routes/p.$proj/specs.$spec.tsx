@@ -392,7 +392,20 @@ function SpecDetail(): React.JSX.Element {
     // 컨테이너 80rem + 본문 44rem 이라 1512px 위로는 늘어나는 것이 여백뿐이었고,
     // 레일은 오른쪽 끝에서 한참 떨어진 채 섰다. 상한을 걷어 레일이 끝에 붙고 본문이
     // 창을 따라 넓어진다 — 좌우 24px(`px-6`)은 보드·목록(`PageBody wide`)과 같은 값이다.
-    <div className="grid w-full gap-6 px-6 py-6 lg:grid-cols-[1fr_17rem]">
+    // **본문도 자기 상자 안에서 흐른다**(2026-09-08 — 사람 지시 · REQ-WEB-156). 여태
+    // 스크롤 상자는 문서 전체였다: 본문이 길면(clemvion `data-model` 50,685px = 화면 56장)
+    // 바퀴를 어디서 굴리든 페이지가 움직였고, 곁레일은 `sticky` 로 붙어 있을 뿐이라 붙는
+    // 자리에 닿기 전까지 본문과 **함께** 위로 밀렸다 — 문서를 읽는 동안 옆의 것이
+    // 움직이면 그것은 나란히 놓은 두 칸이 아니다. 화면 높이를 확정하고 본문·레일이
+    // 각자 자기 안에서 흐른다(§2.4a 그래프 패널이 먼저 쓴 그 규약이다).
+    // 행에 `minmax(0,1fr)` 을 적어야 한다 — 격자의 암시 행은 `auto` 라 내용만큼 자라고,
+    // 그러면 칸이 상자보다 커져 **안쪽 스크롤이 서지 않는다**(높이만 잡으면 헛돈다).
+    // 높이를 묶는 것은 2열일 때뿐이다: 1열(좁은 화면)에서 두 칸을 각각 가두면 스크롤이
+    // 두 겹이 되고, 안쪽 스크롤은 바깥 스크롤에 가려 있다는 것 자체가 보이지 않는다.
+    <div
+      className="grid w-full gap-6 px-6 py-6 lg:h-[calc(100dvh-var(--spacing-header))]
+        lg:grid-cols-[1fr_17rem] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden"
+    >
       {/* **본문은 창을 따라 넓어진다**(2026-09-08 — 사람 지시 · 2026-08-23 의 44rem 을
           뒤집는다 · 4.5 §2.4d 점화 기록). 읽는 폭을 지키려던 상한이 실제로는 낭비를
           만들었다 — 1280px 에서 본문 폭은 예전과 같고, 그 위로만 넓어진다.
@@ -406,7 +419,10 @@ function SpecDetail(): React.JSX.Element {
           `<main>` 이 아니라 `<div>` 다 — 셸이 이미 `<main>` 으로 감싸고 있어(app-shell.tsx)
           여기서 또 쓰면 랜드마크가 **겹쳐 두 개**가 되고, 그것은 유효하지 않은 문서다.
           다른 라우트는 전부 셸의 것 하나만 쓴다. */}
-      <div data-testid="spec-body" className="min-w-0 lg:min-w-[26rem]">
+      <div
+        data-testid="spec-body"
+        className="min-w-0 lg:h-full lg:min-w-[26rem] lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1"
+      >
         {/* 시안의 문서 머리: **메타 줄 → 큰 제목 → 곁줄** 세 층이다. 제목 옆에 배지를
             늘어놓던 이전 배치는 제목이 배지들과 폭을 다퉜다 — 문서의 이름은 문서에서
             가장 큰 글자여야 하고(33px), 신원(키·타입·버전)은 그 위에 조용히 눕는다.
@@ -414,7 +430,7 @@ function SpecDetail(): React.JSX.Element {
             붙어 있으므로, 150px 짜리 머리 안에 제목을 두면 머리가 화면을 떠날 때 제목도
             같이 떠난다(실측 2026-08-27 — 그래서 처음 시도가 동작하지 않았다). 제목이
             본문 끝까지 붙어 있으려면 본문만큼 긴 상자의 자식이어야 한다. */}
-        <div className="flex flex-wrap items-center gap-[7px]">
+        <div className="mb-[7px] flex flex-wrap items-center gap-[7px]">
           <StatusBadge
             token={
               (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
@@ -480,11 +496,17 @@ function SpecDetail(): React.JSX.Element {
         {/* **이름은 화면을 떠나지 않는다**(2026-08-27 — 사람 요청). 스펙 본문은 길다
             (clemvion 실측: `data-model` 50,685px = 화면 56장). 몇 장만 내려가도 지금
             보는 것이 어느 문서인지가 화면에서 사라지고, 트리에서 눌러 들어온 사람은
-            되짚을 것이 스크롤바밖에 없다. 셸 헤더 바로 아래에 붙고, 아래로 흐르는
-            본문을 덮어야 하므로 배경은 **불투명**하다. */}
+            되짚을 것이 스크롤바밖에 없다. 아래로 흐르는 본문을 덮어야 하므로 배경은
+            **불투명**하다.
+
+            붙는 자리는 **스크롤 상자가 어디냐**를 따라간다(2026-09-08 · REQ-WEB-156):
+            2열에서는 본문 칸이 그 상자라 그 꼭대기(`top-0`)에, 1열에서는 페이지가
+            스크롤하므로 셸 헤더 아래(`top-header`)에 붙는다. 그리고 위 여백은
+            **메타 줄이 든다** — 제목에 `mt` 를 주면 `sticky` 는 margin 상자를 가두므로
+            붙었을 때 그만큼 틈이 남고, 그 틈으로 흐르는 본문이 비쳐 지나간다. */}
         <h1
           data-testid="spec-title"
-          className="sticky top-header z-20 mt-[7px] bg-bg pt-1.5 pb-0.5 text-3xl font-bold tracking-[-0.026em]
+          className="sticky top-header z-20 bg-bg pt-1.5 pb-0.5 text-3xl font-bold tracking-[-0.026em] lg:top-0
             after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2
             after:bg-gradient-to-b after:from-bg after:to-transparent after:content-['']"
         >
@@ -853,11 +875,15 @@ function SpecDetail(): React.JSX.Element {
         />
       )}
 
-      {/* 우측이 이 화면의 무게중심이다 — 화면을 내려도 따라와야 "무엇이 흔들리나"를
+      {/* 우측이 이 화면의 무게중심이다 — 본문을 내려도 제자리에 있어야 "무엇이 흔들리나"를
           본문과 나란히 볼 수 있다 */}
       {/* **레일도 스스로 스크롤한다.** `sticky` 로 붙여만 두면 내용이 화면보다 길 때
           아래쪽이 영영 닿지 않는다 — 역참조 18건이면 이미 그렇다(실측 2026-08-23).
-          높이를 뷰포트에 묶고 넘치면 레일 안에서 흐르게 한다. */}
+          높이를 뷰포트에 묶고 넘치면 레일 안에서 흐르게 한다.
+          **그 높이는 이제 격자 행이 준다**(2026-09-08 · REQ-WEB-156). 페이지가 스크롤하던
+          동안에는 `sticky` + `max-h` 로 뷰포트에 손수 묶어야 했지만, 본문이 자기 안에서
+          흐르게 된 뒤로 페이지에는 스크롤이 없다 — 붙일 것이 없는 자리의 `sticky` 는
+          아무 일도 하지 않으면서 계산식 둘을 남긴다(같은 값을 두 곳에 적으면 갈린다). */}
       {/* **가로는 레일이 아니라 안의 두 칸이 맡는다**(2026-09-08 — 사람 보고). CSS 에서
           한 축이 `visible` 이 아니면 다른 축도 `auto` 가 되므로, 세로만 흐르게 하려던
           `overflow-y-auto` 가 레일 전체를 **가로 스크롤 상자**로 만들었다 — 탭 다섯이
@@ -865,7 +891,7 @@ function SpecDetail(): React.JSX.Element {
           옆으로 밀렸다(고정된 탭 줄 없이 목록만 어긋난다). 레일의 가로는 잠그고 탭 줄과
           본문이 각자 자기 안에서 민다 — 스크롤 상자가 되면 `min-height:auto` 가 0 이
           되므로 둘 다 `shrink-0` 이어야 세로로 찌그러지지 않는다. */}
-      <aside className="flex min-w-0 flex-col text-sm lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)] lg:max-h-[calc(100vh-var(--spacing-header)-3rem)] lg:self-start lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1">
+      <aside className="flex min-w-0 flex-col text-sm lg:h-full lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1">
         {/* **탭이다**(시안). 버전·역참조·코멘트를 세로로 쌓으면 레일이 세 화면 길이가
             되고, 그때 코멘트는 스크롤 끝의 소문이 된다. 한 번에 하나를 보이되 수는
             탭 이름 옆에 미리 적는다 — 눌러 보기 전에 "있는지"는 알아야 한다. */}
