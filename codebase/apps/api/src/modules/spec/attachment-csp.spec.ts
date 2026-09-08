@@ -41,10 +41,29 @@ describe('html — 격리 안에서 그린다', () => {
   });
 });
 
+describe('svg — 스크립트 없이 그린다', () => {
+  const csp = attachmentCsp('image/svg+xml');
+
+  // 막으려던 것은 스크립트인데 `default-src 'none'` 은 **SVG 안의 `<style>`** 까지
+  // 막고 있었다 — 직접 열면 도형이 기본색으로 그려진다(실측). 그리기만 연다.
+  it('자기 안의 style·글꼴·이미지는 그린다', () => {
+    expect(csp).toContain("style-src 'unsafe-inline'");
+    expect(csp).toContain('font-src');
+    expect(csp).toContain('img-src');
+  });
+
+  it('스크립트는 두 겹으로 막힌다 — sandbox 에도, script-src 자리에도 길이 없다', () => {
+    expect(csp).not.toContain('allow-scripts');
+    expect(csp).not.toContain('script-src');
+    expect(csp).toContain("default-src 'none'");
+  });
+});
+
 describe('나머지 형식 — 잠긴 채다', () => {
-  // **SVG 가 이 표의 이유다** — 이미지로 위장한 스크립트가 더 어려운 경우이고,
-  // 시안을 그리는 데 스크립트가 필요하지도 않다.
-  it.each(Object.keys(ALLOWED_TYPES).filter((type) => type !== 'text/html'))('%s', (type) => {
+  // 래스터 이미지·pdf·txt·zip 은 그리기에 CSP 가 관여하지 않는다.
+  it.each(
+    Object.keys(ALLOWED_TYPES).filter((type) => type !== 'text/html' && type !== 'image/svg+xml'),
+  )('%s', (type) => {
     expect(attachmentCsp(type)).toBe("sandbox; default-src 'none'");
   });
 

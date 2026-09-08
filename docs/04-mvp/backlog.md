@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.56 · 2026-09-08 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.57 · 2026-09-08 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.57 변경(2026-09-08 — 사람 지시): 그 줄을 **SVG 까지** 넓힌다 — 같은 한 줄이 SVG 안의 `<style>` 도 막고 있었다([4.4](api.md) REQ-API-070).
 >
 > v0.56 변경(2026-09-08 — 사람 지시): §1.4 셋째 표에 **html 첨부의 CSP** 한 줄([4.4](api.md) REQ-API-070).
 >
@@ -228,7 +230,7 @@ referenced_by:
 | S3 폭 상한 둘 · 겹친 랜드마크 | `routes/p.$proj/specs.$spec.tsx` · `spec-rail.spec.tsx` · `apps/web/test/e2e/spec-navigation.spec.ts` | 컨테이너 80rem + 본문 44rem 이라 **1512px 위로는 여백만 늘었다** — 레일이 오른쪽 끝에 붙지 않았다. 셸 밖에 `<main>` 이 하나 더 있던 것도 함께([4.5](screens.md) REQ-WEB-152) |
 | 레일 머리 고정 — 탭 줄과 방향 하위 탭 | `routes/p.$proj/specs.$spec.tsx` · `spec-rail.spec.tsx` · `apps/web/test/e2e/spec-navigation.spec.ts` | 관계 93건 문서에서 목록을 내리면 탭이 **함께** 사라져 되감아야 돌아왔다 — 하위 탭은 본문 칸이 스크롤 상자라 옮겨야 했다([4.5](screens.md) REQ-WEB-153) |
 | 탭 줄의 잘림 표시 — 넘친 쪽만 흐린다 | `lib/scroll-edges.ts`(신설) · `routes/p.$proj/specs.$spec.tsx` · `lib/scroll-edges.spec.ts` · `spec-rail.spec.tsx` · `apps/web/test/e2e/spec-navigation.spec.ts` | 밀 수는 있는데 **밀 수 있다는 신호**가 없었다 — macOS 는 막대를 숨긴다([4.5](screens.md) REQ-WEB-154) |
-| html 첨부의 CSP — 격리 안에서 그린다 | `spec/attachment.service.ts`(`attachmentCsp`) · `spec.controller.ts` · `spec/attachment-csp.spec.ts`(신설) | 형식을 가리지 않는 `sandbox` 한 줄이라 **html 시안은 열어도 빈 화면**이었다 — 스크립트만 열고 `allow-same-origin` 은 끝까지 닫는다([4.4](api.md) REQ-API-070) |
+| html 첨부의 CSP — 격리 안에서 그린다 | `spec/attachment.service.ts`(`attachmentCsp`) · `spec.controller.ts` · `spec/attachment-csp.spec.ts`(신설) | 형식을 가리지 않는 `sandbox` 한 줄이라 **html 시안은 열어도 빈 화면**이었고 SVG 는 자기 `<style>` 을 잃었다 — html 은 스크립트를 열되 `allow-same-origin` 은 끝까지 닫고, SVG 는 스크립트 없이 그리기만 연다([4.4](api.md) REQ-API-070) |
 | 정본 표와 실물의 대조 게이트 둘 | `apps/web/src/lib/event-invalidation.spec.ts` · `apps/api/src/tree-canon.spec.ts` | [4.5](screens.md) §1.4 는 MAP 49종 중 18종을, [4.2](codebase.md) §2.2 는 51개 파일을 몰랐다 — 사람이 손으로 쓰는 표는 코드가 자랄 때 조용히 낡는다 |
 | 프로파일 YAML 부분집합 · 매니페스트의 frontmatter | `cli/src/profiles/index.ts`(인라인 토크나이저·블록 리스트) · `profiles/nerv-docs.ts` · `parse/frontmatter.ts`(`raw`·`unparsable`) · `manifest.ts` · `run.ts`(`preservedOf`) | §1.4 의 유일한 예시가 첫 인라인 맵에서 죽었다 · 원문 해시가 본문에만 있었다 · nerv-docs 가 §5.1 과 다섯 자리 달랐다([4.7](importer.md) REQ-IMP-029·030) |
 | 임포터의 abort 게이트 · 규칙 전표 대조 · 계약 세 열 | `cli/src/run.ts`(`halted`) · `report/index.ts`(`RULES`·`hintFor`·`withHints`) · `index.ts`(`failureReport`) · `parse/git.ts`(`headOf`) | 중단이라 적어 놓고 plan·review 는 그대로 전송했다 · 전표와 코드의 등급이 세 자리 갈렸다 · `hint` 는 채우는 코드가 0곳이었다 · `root_commit` 은 `null` 고정이었다 · 파서가 계산한 셋(우선순위·시작 시각·스펙 영향)을 계약에 실을 자리가 없어 버렸다([4.7](importer.md) REQ-IMP-023~028 · 0024) |

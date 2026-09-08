@@ -74,8 +74,15 @@ export const ALLOWED_TYPES: Readonly<Record<string, string>> = {
  * 서버로 보낸다. 자기 안에서 `preventDefault` 로 처리하는 폼은 이것 없이도 돈다) ·
  * `allow-top-navigation` · `allow-popups-to-escape-sandbox`(팝업이 격리를 벗는다).
  *
- * 나머지 형식은 예전 정책 그대로다 — 특히 **SVG**: 이미지로 위장한 스크립트가 더 어려운
- * 경우이고, 시안을 그리는 데 스크립트가 필요하지도 않다.
+ * **SVG 는 스크립트를 끝까지 받지 않는다** — 이미지로 위장한 스크립트가 더 어려운 경우이고,
+ * 시안을 그리는 데 스크립트가 필요하지도 않다. 다만 잠긴 정책이 그리기까지 막고 있었다:
+ * `default-src 'none'` 은 **SVG 안의 `<style>` 도** 막아, 직접 열면 도형이 기본색으로
+ * 그려졌다(실측 2026-09-08 — 그리기 도구가 내보낸 시안이 그 모양이다). 막으려던 것은
+ * 스크립트인데 잃은 것은 그림이었다. 그래서 SVG 에는 **스크립트 없이 그리는 정책**을 준다:
+ * `allow-scripts` 도 `script-src` 도 없으므로 스크립트는 sandbox 와 `default-src 'none'`
+ * 둘에 막힌 채다.
+ *
+ * 래스터 이미지·pdf·txt·zip 은 잠긴 정책 그대로다 — 그리기에 CSP 가 관여하지 않는다.
  */
 const CSP_LOCKED = "sandbox; default-src 'none'";
 
@@ -95,13 +102,24 @@ const CSP_HTML = [
   'worker-src blob: data:',
 ].join('; ');
 
+/** 스크립트는 없이 **그리기만** 연다 — SVG 의 자리다 */
+const CSP_DRAWN = [
+  'sandbox',
+  "default-src 'none'",
+  "style-src 'unsafe-inline' https: http: data:",
+  'img-src https: http: data: blob:',
+  'font-src https: http: data:',
+].join('; ');
+
 /**
  * 응답에 실을 CSP — **형식이 정한다**. 판정이 한 곳인 이유는 헤더를 붙이는 자리가 늘 때
  * 정책이 두 벌이 되지 않게 하려는 것이다(D-05 와 같은 이유다).
  */
 export function attachmentCsp(contentType: string): string {
   const type = (contentType.split(';')[0] ?? '').trim().toLowerCase();
-  return type === 'text/html' ? CSP_HTML : CSP_LOCKED;
+  if (type === 'text/html') return CSP_HTML;
+  if (type === 'image/svg+xml') return CSP_DRAWN;
+  return CSP_LOCKED;
 }
 
 /** 파일당 10MB — 스펙당 합계는 제한하지 않는다(사람 결정). 값의 정본은 상수 파일이다 */
