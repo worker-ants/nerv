@@ -56,10 +56,13 @@ beforeEach(() => {
       return { ok: true, status: 200, json: async () => json };
     }),
   );
+});
 
+/** 주소가 레일의 진실이라(REQ-WEB-163) 검사도 주소에서 시작한다 */
+function renderAt(path = '/p/clemvion/specs/SPC-CWC-007'): void {
   const router = createRouter({
     routeTree,
-    history: createMemoryHistory({ initialEntries: ['/p/clemvion/specs/SPC-CWC-007'] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
   });
   render(
     <LocaleProvider locale="ko">
@@ -72,7 +75,7 @@ beforeEach(() => {
       </QueryClientProvider>
     </LocaleProvider>,
   );
-});
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -86,6 +89,8 @@ function railLinks(): number {
 }
 
 describe('관계 하위 탭 (2026-08-24 · 사람 지시)', () => {
+  beforeEach(() => renderAt());
+
   it('세 탭이 수를 **누르기 전에** 말한다 — 빈 탭을 열어 보게 하지 않는다', async () => {
     await waitFor(() => expect(screen.getByTestId('rel-tab-all').textContent).toContain('3'));
     expect(screen.getByTestId('rel-tab-in').textContent).toContain('2');
@@ -148,6 +153,8 @@ describe('관계 하위 탭 (2026-08-24 · 사람 지시)', () => {
 // 태우는 것은 그 계약의 클래스다 — 스크롤 상자가 어디인지와, 그 상자가 세로로
 // 찌그러지지 않는지.
 describe('레일의 가로 스크롤 (2026-09-08 · 사람 보고)', () => {
+  beforeEach(() => renderAt());
+
   it('탭 줄과 본문이 각자 흐른다 — 레일 전체가 옆으로 밀리지 않는다', async () => {
     await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
     const tabs = screen.getByTestId('rail-tabs');
@@ -177,6 +184,8 @@ describe('레일의 가로 스크롤 (2026-09-08 · 사람 보고)', () => {
 // 레일은 오른쪽 끝에서 한참 떨어져 섰다. 상한을 걷은 것이 이 변경이라, 여기서 지키는 것은
 // **상한이 다시 생기지 않는 것**이다 — 실제 폭이 자라는지는 L3 가 잰다(jsdom 은 못 잰다).
 describe('폭의 상한 (2026-09-08 · 사람 지시)', () => {
+  beforeEach(() => renderAt());
+
   it('레일이 든 격자에도 본문 칸에도 폭 상한이 없다', async () => {
     await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
     const grid = screen.getByTestId('rail-tabs').closest('aside')?.parentElement;
@@ -201,6 +210,8 @@ describe('폭의 상한 (2026-09-08 · 사람 지시)', () => {
 // 셸이 이미 `<main>` 을 그린다 — 페이지가 또 쓰면 랜드마크가 겹쳐 두 개가 되고,
 // 스크린 리더는 "본문" 이 둘이라고 읽는다(다른 라우트는 전부 셸의 것 하나만 쓴다).
 describe('랜드마크는 하나다', () => {
+  beforeEach(() => renderAt());
+
   it('스펙 상세가 <main> 을 또 만들지 않는다', async () => {
     await waitFor(() => expect(screen.queryByTestId('spec-body')).not.toBeNull());
     expect(document.querySelectorAll('main')).toHaveLength(1);
@@ -215,6 +226,8 @@ describe('랜드마크는 하나다', () => {
 // 레일을 끝까지 되감아야 한다. 여기서 지키는 것은 **머리가 한 상자에 모여 있는가** 다 —
 // 실제로 붙어 있는지는 스크롤이 있어야 보이므로 L3 가 잰다.
 describe('레일 머리 고정 (REQ-WEB-153)', () => {
+  beforeEach(() => renderAt());
+
   it('탭 줄과 방향 하위 탭이 같은 머리 상자에 있다', async () => {
     await waitFor(() => expect(screen.queryByTestId('rel-tab-all')).not.toBeNull());
     const head = screen.getByTestId('rail-head');
@@ -248,6 +261,8 @@ describe('레일 머리 고정 (REQ-WEB-153)', () => {
 // 동안 막대를 숨기므로 사람은 잘린 탭을 목록의 끝으로 읽는다. 판정은 `scrollEdges` 한
 // 곳이고(거기서 경계값을 태운다) 여기서 보는 것은 **그 판정이 화면에 배선됐는가** 다.
 describe('탭 줄의 페이드 (REQ-WEB-154)', () => {
+  beforeEach(() => renderAt());
+
   it('잘리지 않았으면 어느 쪽도 흐리지 않는다', async () => {
     await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
     expect(screen.getByTestId('rail-tabs').getAttribute('data-edges')).toBe('none');
@@ -285,6 +300,8 @@ describe('탭 줄의 페이드 (REQ-WEB-154)', () => {
 // 여기서 태우는 것은 **어디가 스크롤 상자이고 무엇이 그 상자에 붙는가** 라는 계약이고,
 // 실제로 페이지가 가만히 있는지는 L3 가 잰다.
 describe('본문의 스크롤 상자 (REQ-WEB-156)', () => {
+  beforeEach(() => renderAt());
+
   it('격자가 화면 높이를 쥐고, 행이 내용만큼 자라지 않는다', async () => {
     await waitFor(() => expect(screen.queryByTestId('spec-body')).not.toBeNull());
     const grid = screen.getByTestId('spec-body').parentElement;
@@ -323,5 +340,30 @@ describe('본문의 스크롤 상자 (REQ-WEB-156)', () => {
     // 틈이 생기고, 그 틈으로 흐르는 본문이 비쳐 지나간다
     expect(title.className).not.toMatch(/\bmt-/);
     expect(title.previousElementSibling?.className).toContain('mb-[7px]');
+  });
+});
+
+/**
+ * **레일도 주소의 축이다**(REQ-WEB-163 · screens.md §2.4).
+ *
+ * 코멘트가 달렸다는 알림이 본문만 열어 주면, 정작 읽으러 온 코멘트는 레일 다섯 탭 중
+ * 하나에 접혀 있다 — "무슨 일이 있었다" 만 알리고 끝나는 알림이다(ui-wireframes §4.5).
+ */
+describe('레일 탭을 주소가 고른다', () => {
+  it('?rail=comments 로 열면 코멘트 자리가 펴져 있다', async () => {
+    renderAt('/p/clemvion/specs/SPC-CWC-007?rail=comments');
+    await waitFor(() => expect(screen.queryByTestId('rail-panel-comments')).not.toBeNull());
+  });
+
+  it('인자가 없으면 관계다 — 기본은 바뀌지 않았다', async () => {
+    renderAt();
+    await waitFor(() => expect(screen.queryByTestId('rel-tab-all')).not.toBeNull());
+    expect(screen.queryByTestId('rail-panel-comments')).toBeNull();
+  });
+
+  /** 어휘 밖 값은 버린다 — 모르는 탭 이름에 화면을 맞출 자리가 없다 */
+  it('모르는 값은 기본으로 떨어진다 — 빈 레일을 보이지 않는다', async () => {
+    renderAt('/p/clemvion/specs/SPC-CWC-007?rail=그런탭은없다');
+    await waitFor(() => expect(screen.queryByTestId('rel-tab-all')).not.toBeNull());
   });
 });

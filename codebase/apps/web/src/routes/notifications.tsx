@@ -3,7 +3,7 @@
 // 알림은 event 참조다 — 문구를 행에 굳혀 저장하지 않고 조회 시점에 만든다(D-10).
 // 여기서는 "무엇이 · 어디서 · 언제"만 보이면 되고, 자세한 것은 딥링크가 데려간다.
 
-import { eventLabelKey } from '@nerv/schema';
+import { eventLabelKey, NERV_EVENT } from '@nerv/schema';
 import { useState } from 'react';
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
@@ -26,23 +26,58 @@ import {
 
 export const Route = createFileRoute('/notifications')({ component: NotificationScreen });
 
+/** 알림이 데려갈 곳 — 경로와 **뷰 상태**(ui-wireframes §1.4: "승인 요청 알림에 그대로 붙는다") */
+export interface NotificationTarget {
+  to: string;
+  search?: Record<string, string>;
+}
+
 /**
- * 알림 → 대상 경로. 알림은 event 참조라 **여기서 링크를 만든다**(행에 굳혀 저장하지 않는다).
+ * 알림 → 대상. 알림은 event 참조라 **여기서 링크를 만든다**(행에 굳혀 저장하지 않는다).
  * 대상이 사라졌거나 모르는 종류면 프로젝트 개요로 보낸다 — 막다른 길을 만들지 않는다(§1.5).
+ *
+ * **뷰 상태까지 싣는다**(REQ-WEB-163). ui-wireframes §4.5 는 "무슨 일이 있었다" 만 알리고
+ * 끝나는 알림은 만들지 않는다고 적는데, 스펙 알림이 정확히 그랬다 — "v4 가 승인됐다" 를
+ * 전하고 1,000줄짜리 본문을 열어, 바뀐 자리는 사람이 눈으로 찾아야 했다. 바뀐 자리를
+ * 아는 화면(EP-SPEC-06 · `?diff=`)은 처음부터 있었고 알림만 그 길을 몰랐다.
  */
-export function deepLinkFor(n: Record<string, unknown>): string {
+export function deepLinkFor(n: Record<string, unknown>): NotificationTarget {
   const project = String(n['project_slug'] ?? '');
-  if (project === '') return '/';
+  if (project === '') return { to: '/' };
+  const type = String(n['event_type'] ?? '');
   if (typeof n['spec_key'] === 'string' && n['spec_key'] !== '') {
-    return `/p/${project}/specs/${n['spec_key']}`;
+    return { to: `/p/${project}/specs/${n['spec_key']}`, ...specView(n, type) };
   }
   if (typeof n['task_key'] === 'string' && n['task_key'] !== '') {
-    return `/p/${project}/tasks/${n['task_key']}`;
+    return { to: `/p/${project}/tasks/${n['task_key']}` };
   }
-  const type = String(n['event_type'] ?? '');
-  if (type.startsWith('approval.') || type.startsWith('question.')) return '/inbox';
-  if (type.startsWith('session.') || type.startsWith('claim.')) return `/p/${project}/sessions`;
-  return `/p/${project}`;
+  if (type.startsWith('approval.') || type.startsWith('question.')) return { to: '/inbox' };
+  if (type.startsWith('session.') || type.startsWith('claim.')) {
+    return { to: `/p/${project}/sessions` };
+  }
+  return { to: `/p/${project}` };
+}
+
+/**
+ * 스펙 알림이 열어야 하는 **자리**.
+ *
+ * `spec.comment_added` 는 **두 곳에서 난다**. 갈라 주는 것은 `subject_type` 이다:
+ *   - `spec`         — 본문에 달린 코멘트(`spec_comment` 행이 있다) → 코멘트 레일
+ *   - `spec_version` — 리뷰 결정 "코멘트"(문서를 draft 로 되돌린다). **행이 없다** —
+ *                      코멘트는 이벤트 payload 에만 있으므로 레일을 열면 **빈 목록**이다.
+ *                      그 알림이 데려가야 하는 곳은 되돌아온 문서 자신이다.
+ *
+ * 그 밖의 스펙 버전 알림(승인·반려)은 직전 버전과의 diff 로 간다. v1 은 이전이 없으니
+ * 본문이 곧 그 버전이라 아무것도 붙이지 않는다 — 뜻 없는 인자를 주소에 남기지 않는다.
+ * 버전이 없는 알림(재검토 요청은 subject 가 `spec` 이다)도 본문이다.
+ */
+function specView(n: Record<string, unknown>, type: string): { search?: Record<string, string> } {
+  if (type === NERV_EVENT.SPEC_COMMENT_ADDED) {
+    return n['subject_type'] === 'spec' ? { search: { rail: 'comments' } } : {};
+  }
+  const version = Number(n['version_no']);
+  if (!Number.isInteger(version) || version < 2) return {};
+  return { search: { diff: `v${String(version - 1)}..v${String(version)}` } };
 }
 
 function NotificationScreen(): React.JSX.Element {
@@ -141,7 +176,7 @@ function NotificationScreen(): React.JSX.Element {
               // 따로 두면 사람은 링크만 누르고 배지는 영원히 줄지 않는다.
               onClick={() => {
                 if (n['state'] === 'unread') markRead.mutate(String(n['id']));
-                void navigate({ to: deepLinkFor(n) });
+                void navigate(deepLinkFor(n));
               }}
               className="group flex cursor-pointer items-center gap-3 border-b border-border px-2 py-2.5 text-sm last:border-0 hover:bg-bg-hover data-[state=read]:text-text-mute"
             >
