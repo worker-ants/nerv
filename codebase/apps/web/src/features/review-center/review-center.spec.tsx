@@ -85,11 +85,24 @@ const GATE = { items: GATE_ROWS, total: 441 };
 let posted: { url: string; body: unknown }[] = [];
 /** 이 사람의 역할 — 권한 축이 둘로 갈리는 것을 보려면 갈아 끼울 수 있어야 한다 */
 let roles: string[] = ['qa'];
+/**
+ * 곁레일이 서는 폭인가(`xl` 이상). **jsdom 에는 `matchMedia` 가 없어** 그대로 두면 훅이
+ * 늘 좁은 화면으로 읽는다 — 폭이 이 화면의 배치를 가르는 축이 된 뒤로(REQ-WEB-161) 둘 다
+ * 태워야 하므로 여기서 손잡이로 만든다. 기본은 넓은 화면이다(이 파일의 나머지가 보는 배치).
+ */
+let wide = true;
 
 beforeEach(() => {
   localStorage.clear();
   posted = [];
   roles = ['qa'];
+  wide = true;
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: wide,
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
@@ -505,5 +518,46 @@ describe('세 칸의 스크롤 상자 (REQ-WEB-158)', () => {
     expect(content.contains(screen.getByTestId('gate-coverage'))).toBe(true);
     // 큐와 **같은 칸**이다 — 둘이 한 상자에서 이어 읽힌다
     expect(content.contains(screen.getAllByTestId('finding-card')[0]!)).toBe(true);
+  });
+});
+
+/**
+ * **레일은 넓은 화면의 향상이지 유일한 경로가 아니다**(2026-09-10 — 사람 보고 · REQ-WEB-161).
+ *
+ * 곁레일은 `xl`(1280px) 부터만 서는데, 그 아래에서는 발견을 눌러도 카드 배경만 옅게 바뀌고
+ * 레일이 펴는 것(갈래·심볼·전체 경로·코멘트·Task 승격)에 닿을 길이 **아예 없었다** —
+ * 1024~1279px 는 노트북의 흔한 폭이다. §2.6 이 세션에서 이미 정한 규칙이다(REQ-WEB-132·142).
+ */
+describe('좁은 화면에서도 고른 하나를 편다 (REQ-WEB-161)', () => {
+  it('곁레일이 서지 않으면 그 카드 아래에서 편다', async () => {
+    wide = false;
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+
+    const inline = await screen.findByTestId('finding-rail-inline');
+    // 카드 아래다 — 목록 어딘가가 아니라 고른 그 줄이어야 "이것의 상세" 로 읽힌다
+    expect(screen.getAllByTestId('finding-card')[0]!.parentElement?.contains(inline)).toBe(true);
+    // 레일이 펴는 것에 실제로 닿는다(카드가 자르는 심볼·승격 단추)
+    expect(within(inline).getByTestId('promote-task')).toBeDefined();
+    expect(within(inline).getByTestId('finding-comments')).toBeDefined();
+  });
+
+  it('한 벌만 그린다 — 두 벌이면 코멘트 입력의 상태가 갈린다', async () => {
+    wide = false;
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+
+    expect(screen.getAllByTestId('finding-rail')).toHaveLength(1);
+    expect(screen.queryByTestId('review-rail')).toBeNull();
+  });
+
+  it('넓은 화면에서는 곁레일에만 있다 — 카드 아래에 또 그리지 않는다', async () => {
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+
+    expect(screen.queryByTestId('finding-rail-inline')).toBeNull();
+    expect(screen.getByTestId('review-rail').contains(screen.getByTestId('finding-rail'))).toBe(
+      true,
+    );
   });
 });

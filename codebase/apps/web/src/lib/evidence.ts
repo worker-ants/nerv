@@ -14,6 +14,8 @@
 // 다른 호스트에서는 링크가 404 로 끝나지만, 그것은 사람이 보고 알 수 있는 실패다 — 반대로
 // 링크를 아예 만들지 않으면 아무도 그 저장소가 다른 모양이라는 것조차 모른다.
 
+import { isManualChapter } from './manual-chapters.js';
+
 /** 커밋 SHA — `evidence-locator.ts` 의 `COMMIT` 과 같은 모양이다(그쪽이 이미 거른다) */
 const COMMIT = /^[0-9a-f]{7,40}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -111,8 +113,20 @@ export function evidenceTarget(input: {
       return UUID.test(locator)
         ? { href: `/p/${input.projectSlug}/reviews?finding=${locator}`, external: false }
         : null;
-    // `test`·`user_guide` 는 저장소마다 모양이 달라 데려갈 곳을 짐작할 수 없다.
-    // 짐작해서 만든 링크는 **틀린 곳으로 데려간다** — 글자로 두는 편이 정직하다.
+    // **매뉴얼의 장은 짐작이 아니라 대조다**(2026-09-10 · REQ-WEB-161). `user_guide` 도 오래
+    // "모양을 알 수 없다" 로 두었는데, 장 이름의 정본은 `manual-chapters.ts` 에 실재한다 —
+    // 목록에 있는 것만 링크로 만들면 틀린 곳으로 데려갈 일이 없다. `/help/tasks` 처럼 경로째
+    // 적어 둔 값도 받는다(사람이 화면에서 본 주소를 그대로 붙이는 것이 가장 흔하다).
+    case 'user_guide': {
+      const chapter =
+        locator
+          .replace(/^\/?help\//, '')
+          .replace(/^\/+|\/+$/g, '')
+          .split(/[#?]/)[0] ?? '';
+      return isManualChapter(chapter) ? { href: `/help/${chapter}`, external: false } : null;
+    }
+    // `test` 는 저장소마다 모양이 달라 데려갈 곳을 짐작할 수 없다. 짐작해서 만든 링크는
+    // **틀린 곳으로 데려간다** — 글자로 두는 편이 정직하다.
     default:
       return null;
   }

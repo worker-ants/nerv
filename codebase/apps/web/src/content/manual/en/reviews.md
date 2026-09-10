@@ -28,7 +28,7 @@ Findings carry one of three severities: `critical` · `warning` · `info`. `open
 
 `spec_change` exists for honesty. Recording a documentation fix as `fixed` claims the code was changed; recording it as `dismissed` claims it was a false positive. Neither is true. When someone later asks "what resolved these findings", this distinction is the answer.
 
-**Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens (on a narrow screen the rail folds away). Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the resolution**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog.
+**Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens. **On a narrow screen it opens under that card instead of on a rail** — the place changes, what you see does not. Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the resolution**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog.
 
 Resolutions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.**
 

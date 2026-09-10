@@ -79,9 +79,31 @@ describe('evidenceTarget — 갈 곳이 있는 것만 링크가 된다', () => {
     expect(evidenceTarget({ ...repo, kind: 'review', locator: '2라운드에서 봤음' })).toBeNull();
   });
 
-  it('test·user_guide 는 모양이 저장소마다 달라 짐작하지 않는다', () => {
+  it('test 는 모양이 저장소마다 달라 짐작하지 않는다', () => {
     expect(evidenceTarget({ ...repo, kind: 'test', locator: 'claim.spec.ts > 원자성' })).toBeNull();
+  });
+
+  /**
+   * **매뉴얼의 장은 짐작이 아니라 대조다**(2026-09-10 · REQ-WEB-161). 장 이름의 정본이
+   * `manual-chapters.ts` 에 실재하므로, 목록에 있는 것만 링크로 만들면 틀릴 일이 없다.
+   */
+  it('user_guide 는 실재하는 장일 때만 매뉴얼로 간다', () => {
+    for (const locator of ['tasks', '/help/tasks', 'help/tasks', '/help/tasks/']) {
+      expect(evidenceTarget({ ...repo, kind: 'user_guide', locator })).toEqual({
+        href: '/help/tasks',
+        external: false,
+      });
+    }
+    // 앵커·질의는 장을 가리키는 데 쓰이지 않는다 — 장만 뽑는다
+    expect(evidenceTarget({ ...repo, kind: 'user_guide', locator: '/help/reviews#gate' })).toEqual({
+      href: '/help/reviews',
+      external: false,
+    });
+  });
+
+  it('목록에 없는 이름은 글자로 남는다 — 없는 장으로 데려가지 않는다', () => {
     expect(evidenceTarget({ ...repo, kind: 'user_guide', locator: '작업 장' })).toBeNull();
+    expect(evidenceTarget({ ...repo, kind: 'user_guide', locator: '/help/onboarding' })).toBeNull();
   });
 
   it('빈 locator 와 모르는 종류는 조용히 글자로 남는다', () => {
