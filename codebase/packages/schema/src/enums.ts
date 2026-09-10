@@ -309,6 +309,37 @@ export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 export const evidenceKind = pgEnum('evidence_kind', EVIDENCE_KINDS);
 export const evidenceSource = pgEnum('evidence_source', ['agent', 'human', 'ci']);
 
+// ── 저장소 ────────────────────────────────────────────────────────────────
+/**
+ * 프로젝트의 저장소가 **어느 모양의 호스트**에 있는가 (2026-09-10 · REQ-API-158).
+ *
+ * 이 값이 정하는 것은 접속이 아니라 **주소의 모양**이다. 증적의 커밋·코드 경로를 링크로
+ * 만들 때(`[4.5](screens.md)` REQ-WEB-159) 여태 GitHub 모양 하나만 만들었고, 자체 호스팅
+ * GitLab 은 경로에 `/-/` 가 끼므로 그 링크가 404 로 끝났다 — 링크가 생긴 뒤로는 "없는
+ * 편이 나은" 종류의 오답이다.
+ *
+ * **검증은 여전히 호스트를 보지 않는다**(`evidence-locator.ts` — "GitHub 를 박지 않는다").
+ * 그쪽은 무엇을 받아들일지의 규칙이고 이쪽은 **표시 규칙**이다. 값은 사람이 고른다:
+ * 도메인으로 추정하면 자체 호스팅에서 반드시 틀린다(`git.example.com` 은 아무것도 말하지
+ * 않는다).
+ *
+ * 기본은 `github` 다 — 지금 만들어져 있는 링크가 전부 그 모양이므로, 기본값을 다른 것으로
+ * 두면 아무도 고르지 않은 값 때문에 오늘 되던 링크가 내일 깨진다.
+ *
+ * 늘리는 자리는 둘이다: 이 목록과 주소를 만드는 한 함수(`apps/web/src/lib/evidence.ts`).
+ * 모양을 확인하지 못한 호스트를 넣지 않는다 — 짐작한 주소는 틀린 곳으로 데려간다.
+ */
+export const REPO_HOSTS = ['github', 'gitlab'] as const;
+
+export type RepoHost = (typeof REPO_HOSTS)[number];
+
+export const repoHost = pgEnum('repo_host', REPO_HOSTS);
+
+/** 어휘 안의 값인가 — 화면·서비스가 목록을 다시 적지 않게 한다(REQ-CB-006) */
+export function isRepoHost(value: unknown): value is RepoHost {
+  return typeof value === 'string' && (REPO_HOSTS as readonly string[]).includes(value);
+}
+
 // ── 알림 ──────────────────────────────────────────────────────────────────
 export const notificationImportance = pgEnum('notification_importance', ['immediate', 'digest']);
 export const notificationChannel = pgEnum('notification_channel', ['inapp', 'slack', 'email']);

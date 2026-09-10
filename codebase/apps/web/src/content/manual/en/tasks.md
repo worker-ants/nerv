@@ -68,7 +68,9 @@ The **Evidence** list on a task is the record that something was put up to be se
 
 **Evidence that carries its own repository goes there instead.** Evidence attached by CI records which repository it came from, so in a project that uses several repositories the link lands in the repository that actually holds the commit. When it is not recorded, the project's repository URL is used.
 
-**Some rows are not clickable.** Test names and user guides are written differently in every repository, so we do not guess where they lead — leaving them as text is more honest than a link to the wrong place. Commits and code paths need the **project repository URL**; when it is empty those rows stay as text and the screen says why.
+**User-guide evidence opens a chapter of this manual.** Write the chapter name (`tasks`) or the whole address (`/help/tasks`) and that chapter opens — a name that is not a chapter stays as text.
+
+**Some rows are not clickable.** Test names are written differently in every repository, so we do not guess where they lead — leaving them as text is more honest than a link to the wrong place. Commits and code paths need the **project repository URL**; when it is empty those rows stay as text and the screen says why.
 
 ## Requirement links
 

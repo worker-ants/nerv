@@ -17,9 +17,11 @@ referenced_by:
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 32 + **부속 5**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **39종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 32 + **부속 5**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.40 · 2026-09-07 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.41 · 2026-09-10 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.41 변경(2026-09-10 — 링크가 404 로 끝났다, 사람 결정): **마이그레이션 0026 — `project.repo_host` 신설**(`repo_host` enum: `github`·`gitlab`). 증적의 커밋·코드 경로를 링크로 만들면서([4.5](screens.md) REQ-WEB-159) 여태 **GitHub 모양 하나**만 만들었는데, 자체 호스팅 GitLab 은 경로에 `/-/` 가 끼므로 그 링크가 404 로 끝난다 — 링크가 생긴 뒤로는 "없는 편이 나은" 종류의 오답이다. **값은 사람이 고른다**: 도메인으로 추정하면 자체 호스팅에서 반드시 틀린다(`git.example.com` 은 아무것도 말하지 않는다). 그리고 이 값은 **접속에 쓰이지 않는다** — 서버는 대상 저장소에 접근하지 않고([4.1](scope.md) §5) 정하는 것은 주소의 모양뿐이다. 기본이 `github` 인 이유는 지금 만들어져 있는 링크가 전부 그 모양이라, 다른 기본값은 **아무도 고르지 않은 값 때문에 오늘 되던 링크를 깨뜨리기** 때문이다(`NOT NULL DEFAULT 'github'` — 기존 행도 그대로 눕는다). 늘리는 자리는 둘이다: 이 enum 과 주소를 만드는 한 함수([4.4](api.md) REQ-API-158).
 >
 > v0.40 변경(2026-09-07 — 아무 데도 없는 Task 24건, 개선 계획 일곱째 스프린트 · 사람 결정): **마이그레이션 0025 — 임포트가 만든 고아 진행 중을 backlog 로.** `claimed`/`in_progress` 인데 활성 클레임이 없는 Task 24건이 있었다(실측 2026-09-06). 그 Task 들은 **아무 데도 없다**: 큐(ready)에도 안 보이고, 활성 클레임이 없으니 리스 만료로 회수되지도 않으며, 세션 보드에도 뜨지 않는다 — 상태만 "진행 중" 이라 사람은 누군가 하고 있다고 읽는다. `ready` 가 아니라 `backlog` 인 이유는 4요소가 placeholder 라서다: ready 로 올리면 근거 없는 브리프가 에이전트 큐에 들어간다(REQ-IMP-009 와 같은 원칙). **placeholder 문자열은 지우지 않는다** — 그것이 "임포트로 들어왔고 명세가 없다" 는 유일한 표시이고, backlog 는 4요소 CHECK 의 대상이 아니다. 데이터 마이그레이션이라 스키마 스냅샷 대조로는 무엇을 했는지 알 수 없어 L2 가 따로 태운다([4.7](importer.md) REQ-IMP-031).
 >
@@ -120,7 +122,7 @@ referenced_by:
 
 서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 **33개**(도메인 32 + 부속 `idempotency_key` 1 — §2.3a·§2.3b 포함) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
-### 2.1 확장과 enum 39종
+### 2.1 확장과 enum 40종
 
 ```sql
 -- 0000_init.sql · §1 — 확장
@@ -186,6 +188,7 @@ CREATE TYPE question_urgency        AS ENUM ('blocking', 'normal');
 CREATE TYPE question_status         AS ENUM ('open', 'answered', 'cancelled', 'expired');
 CREATE TYPE evidence_kind           AS ENUM ('code_path', 'test', 'pr', 'commit', 'review', 'user_guide');
 CREATE TYPE evidence_source         AS ENUM ('agent', 'human', 'ci');
+CREATE TYPE repo_host               AS ENUM ('github', 'gitlab');  -- 주소의 모양만 정한다 — 0026 · api.md REQ-API-158
 CREATE TYPE notification_importance AS ENUM ('immediate', 'digest');
 CREATE TYPE notification_channel    AS ENUM ('inapp', 'slack', 'email');
 CREATE TYPE notification_state      AS ENUM ('unread', 'read', 'archived');
@@ -224,6 +227,7 @@ CREATE TABLE project (
   description    text,
   repo_url       text,
   default_branch text,
+  repo_host      repo_host NOT NULL DEFAULT 'github',  -- 주소의 **모양**만 정한다(접속 아님) — 0026 · api.md REQ-API-158
   gate_policy    jsonb NOT NULL DEFAULT '{}', -- 위험도별 게이트 임계(D-06), fail-open 격상 임계(D-14)
   retention      jsonb NOT NULL DEFAULT '{}', -- Activity·프롬프트 보존 기간(data-model §5.4)
   archived_at    timestamptz,

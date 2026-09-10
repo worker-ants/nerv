@@ -396,6 +396,8 @@ export const en = {
   'settings.workspace.project_new': '+ New project',
   'settings.workspace.project_slug': 'Slug',
   'settings.workspace.projects': 'Projects',
+  'settings.workspace.repo_host': 'Repository kind',
+  'settings.workspace.repo_host_hint': 'Only shapes the links — the server never connects.',
   'settings.workspace.repo_url': 'Repository URL',
   'settings.workspace.repo_url_hint': 'Commits and code paths in evidence open on top of this URL.',
   'settings.workspace.restore': 'Restore',

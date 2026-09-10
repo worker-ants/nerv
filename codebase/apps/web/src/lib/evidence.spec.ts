@@ -79,9 +79,31 @@ describe('evidenceTarget — 갈 곳이 있는 것만 링크가 된다', () => {
     expect(evidenceTarget({ ...repo, kind: 'review', locator: '2라운드에서 봤음' })).toBeNull();
   });
 
-  it('test·user_guide 는 모양이 저장소마다 달라 짐작하지 않는다', () => {
+  it('test 는 모양이 저장소마다 달라 짐작하지 않는다', () => {
     expect(evidenceTarget({ ...repo, kind: 'test', locator: 'claim.spec.ts > 원자성' })).toBeNull();
+  });
+
+  /**
+   * **매뉴얼의 장은 짐작이 아니라 대조다**(2026-09-10 · REQ-WEB-161). 장 이름의 정본이
+   * `manual-chapters.ts` 에 실재하므로, 목록에 있는 것만 링크로 만들면 틀릴 일이 없다.
+   */
+  it('user_guide 는 실재하는 장일 때만 매뉴얼로 간다', () => {
+    for (const locator of ['tasks', '/help/tasks', 'help/tasks', '/help/tasks/']) {
+      expect(evidenceTarget({ ...repo, kind: 'user_guide', locator })).toEqual({
+        href: '/help/tasks',
+        external: false,
+      });
+    }
+    // 앵커·질의는 장을 가리키는 데 쓰이지 않는다 — 장만 뽑는다
+    expect(evidenceTarget({ ...repo, kind: 'user_guide', locator: '/help/reviews#gate' })).toEqual({
+      href: '/help/reviews',
+      external: false,
+    });
+  });
+
+  it('목록에 없는 이름은 글자로 남는다 — 없는 장으로 데려가지 않는다', () => {
     expect(evidenceTarget({ ...repo, kind: 'user_guide', locator: '작업 장' })).toBeNull();
+    expect(evidenceTarget({ ...repo, kind: 'user_guide', locator: '/help/onboarding' })).toBeNull();
   });
 
   it('빈 locator 와 모르는 종류는 조용히 글자로 남는다', () => {
@@ -151,6 +173,50 @@ describe('evidenceTarget — 증적이 선 저장소가 프로젝트 것을 이�
         repo: 'worker-ants/other',
       }),
     ).toBeNull();
+  });
+});
+
+/**
+ * **주소의 모양은 프로젝트가 고른다**(2026-09-10 · REQ-WEB-162 · REQ-API-158). GitHub 모양
+ * 하나만 만들던 동안 자체 호스팅 GitLab 링크는 404 로 끝났다 — 경로에 `/-/` 가 끼기 때문이다.
+ */
+describe('evidenceTarget — 호스트가 경로의 모양을 정한다', () => {
+  const gitlab = { ...repo, repoUrl: 'https://gitlab.example.com/team/svc', repoHost: 'gitlab' };
+
+  it('gitlab 은 커밋·파일 경로에 `/-/` 가 낀다', () => {
+    expect(evidenceTarget({ ...gitlab, kind: 'commit', locator: 'a1b2c3d' })).toEqual({
+      href: 'https://gitlab.example.com/team/svc/-/commit/a1b2c3d',
+      external: true,
+    });
+    expect(evidenceTarget({ ...gitlab, kind: 'code_path', locator: 'src/a.ts:7' })).toEqual({
+      href: 'https://gitlab.example.com/team/svc/-/blob/main/src/a.ts#L7',
+      external: true,
+    });
+  });
+
+  it('github 은 오늘과 같다 — 기본값이 바뀌면 되던 링크가 깨진다', () => {
+    expect(
+      evidenceTarget({ ...repo, repoHost: 'github', kind: 'commit', locator: 'a1b2c3d' }),
+    ).toEqual({ href: 'https://github.com/nerv/nerv/commit/a1b2c3d', external: true });
+  });
+
+  it('안 주거나 어휘 밖이면 github 로 읽는다 — 짐작하지 않고 기본으로 눕는다', () => {
+    const expected = { href: 'https://github.com/nerv/nerv/commit/a1b2c3d', external: true };
+    expect(evidenceTarget({ ...repo, kind: 'commit', locator: 'a1b2c3d' })).toEqual(expected);
+    for (const host of [null, 'gitea', '']) {
+      expect(
+        evidenceTarget({ ...repo, repoHost: host, kind: 'commit', locator: 'a1b2c3d' }),
+      ).toEqual(expected);
+    }
+  });
+
+  it('PR·리뷰·매뉴얼은 호스트와 무관하다 — 경로를 만들지 않는 종류다', () => {
+    expect(
+      evidenceTarget({ ...gitlab, kind: 'pr', locator: 'https://gitlab.example.com/mr/3' })?.href,
+    ).toBe('https://gitlab.example.com/mr/3');
+    expect(evidenceTarget({ ...gitlab, kind: 'user_guide', locator: 'tasks' })?.href).toBe(
+      '/help/tasks',
+    );
   });
 });
 

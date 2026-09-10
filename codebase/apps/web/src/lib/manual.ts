@@ -8,6 +8,7 @@
 // 매뉴얼은 없는 것보다 나쁘다 — 없는 문서는 사람을 헤매게 하지만, 틀린 문서는 확신을 준다.
 
 import type { Locale, MessageKey } from '@nerv/schema';
+import type { ManualChapterId } from './manual-chapters.js';
 
 /**
  * 장 제목 키만 따로 좁힌다.
@@ -42,13 +43,19 @@ import startKo from '../content/manual/ko/start.md?raw';
 import tasksKo from '../content/manual/ko/tasks.md?raw';
 
 export interface ManualChapter {
-  /** 주소의 한 조각 — `/help/tasks`. 로케일과 무관하다 */
-  readonly id: string;
+  /** 주소의 한 조각 — `/help/tasks`. 로케일과 무관하고 **정본은 `manual-chapters.ts` 다** */
+  readonly id: ManualChapterId;
   readonly titleKey: ManualTitleKey;
   readonly body: Readonly<Record<Locale, string>>;
 }
 
-/** 목차 — 배열 순서가 곧 읽는 순서이고 이전·다음 링크의 순서다 */
+/**
+ * 목차 — 배열 순서가 곧 읽는 순서이고 이전·다음 링크의 순서다.
+ *
+ * **id 의 정본은 `manual-chapters.ts` 다**(2026-09-10 · REQ-WEB-161). 본문 없이 목록만
+ * 필요한 자리가 생겨(증적이 가리키는 장) 그쪽으로 갈랐다 — 여기를 import 하면 매뉴얼 전문이
+ * 딸려 온다. 타입이 두 목록을 묶으므로 한쪽만 늘면 컴파일이 막는다.
+ */
 export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
   { id: 'start', titleKey: 'help.ch.start', body: { ko: startKo, en: startEn } },
   { id: 'specs', titleKey: 'help.ch.specs', body: { ko: specsKo, en: specsEn } },

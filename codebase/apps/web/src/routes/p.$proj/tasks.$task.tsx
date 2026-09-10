@@ -73,6 +73,9 @@ function TaskDetail(): React.JSX.Element {
   const repoUrl = typeof project.data?.['repo_url'] === 'string' ? project.data['repo_url'] : null;
   const defaultBranch =
     typeof project.data?.['default_branch'] === 'string' ? project.data['default_branch'] : null;
+  /** 주소의 모양(REQ-WEB-162) — 어휘 밖이면 `evidenceTarget` 이 기본으로 읽는다 */
+  const repoHost =
+    typeof project.data?.['repo_host'] === 'string' ? project.data['repo_host'] : null;
   /** 무엇이 되면 풀리는가 — 서버가 파생해 보낸다(REQ-API-118). 막히지 않았으면 null */
   const blocked =
     typeof data['blocked_resolution'] === 'object' && data['blocked_resolution'] !== null
@@ -613,6 +616,7 @@ function TaskDetail(): React.JSX.Element {
                 locator: String(e['locator']),
                 repoUrl,
                 defaultBranch,
+                repoHost,
                 // 이 증적이 선 저장소가 따로 있으면 그것이 이긴다(REQ-API-157)
                 repo: typeof e['repo'] === 'string' ? e['repo'] : null,
                 projectSlug: proj,
