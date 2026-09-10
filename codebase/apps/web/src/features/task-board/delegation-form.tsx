@@ -46,6 +46,12 @@ export type DelegationInput = z.infer<typeof delegationSchema>;
 
 export interface DelegationFormProps {
   projectSlug: string;
+  /**
+   * 프로젝트 축(`lib/queries.ts` 의 "프로젝트 축" 규약). 스펙 트리와 무효화가
+   * 둘 다 이 값으로 잡히므로, 없으면 출처 피커는 부르지 않고 저장 뒤 보드도
+   * 갱신되지 않는다 — slug 로 대신 잡지 않는다.
+   */
+  projectId: string | undefined;
   taskKey: string | null;
   onDone: () => void;
   /** S3 에서 "이 버전에서 파생" 으로 들어온 경우 — 피커 대신 고정 표기다 */
@@ -54,6 +60,7 @@ export interface DelegationFormProps {
 
 export function DelegationForm({
   projectSlug,
+  projectId,
   taskKey,
   onDone,
   initial,
@@ -96,7 +103,7 @@ export function DelegationForm({
   // 출처 피커 — 스펙을 고르면 그 문서의 **승인본만** 버전 목록에 선다(D-02: 승인되지 않은
   // 버전에서 일을 파생하면 그 일은 아직 합의되지 않은 약속 위에 선다).
   const [sourceSpec, setSourceSpec] = useState(initial?.specKey ?? '');
-  const specs = useSpecTree(projectSlug);
+  const specs = useSpecTree(projectSlug, projectId);
   const versions = useSpecVersions(projectSlug, sourceSpec);
   const requirements = useRequirements(projectSlug, sourceSpec);
   const approved = rows(versions.data).filter((v) => v['status'] === 'approved');
@@ -129,7 +136,7 @@ export function DelegationForm({
       });
     },
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectSlug) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId ?? '') });
       // 승격 여부를 알려준다 — 폼을 채운 사람이 알고 싶은 것은 저장 여부가 아니라 그것이다.
       pushToast({
         tone: 'ok',

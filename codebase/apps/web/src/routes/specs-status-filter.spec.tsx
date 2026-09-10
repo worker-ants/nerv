@@ -27,6 +27,9 @@ vi.mock('socket.io-client', () => ({
 //  뿌리(approved) ─ 가지(approved) ─ 잎(draft)     ← 부모가 draft 가 아닌 자리
 //                 └ 형제(draft)
 //  외딴(approved)                                   ← 걸리는 것이 아래에 하나도 없는 가지
+/** `/projects/<slug>` 하나 — 하위 경로(`/specs/tree` 등)와 가른다 */
+const ONE_PROJECT = /\/projects\/[^/?]+$/;
+
 const NODES = [
   {
     id: 'r',
@@ -85,7 +88,9 @@ beforeEach(() => {
       json: async () =>
         String(url).includes('/specs/tree')
           ? NODES
-          : { items: [], memberships: [], count: 0, summary: {} },
+          : ONE_PROJECT.test(String(url))
+            ? { id: 'p-1', slug: 'demo', key: 'DEMO', name: 'demo' }
+            : { items: [], memberships: [], count: 0, summary: {} },
     })),
   );
 });
@@ -259,7 +264,9 @@ describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () 
               { items: [{ id: 'b-1', name: 'R1', item_count: 3 }], total: 1 }
             : String(url).includes('/specs/tree')
               ? NODES
-              : { items: [], memberships: [], count: 0, summary: {} },
+              : ONE_PROJECT.test(String(url))
+                ? { id: 'p-1', slug: 'demo', key: 'DEMO', name: 'demo' }
+                : { items: [], memberships: [], count: 0, summary: {} },
       })),
     );
     await renderList('/p/demo/specs');
@@ -286,7 +293,9 @@ describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () 
           json: async () =>
             String(url).includes('/specs/tree')
               ? NODES
-              : { items: [], memberships: [], count: 0, summary: {} },
+              : ONE_PROJECT.test(String(url))
+                ? { id: 'p-1', slug: 'demo', key: 'DEMO', name: 'demo' }
+                : { items: [], memberships: [], count: 0, summary: {} },
         };
       }),
     );

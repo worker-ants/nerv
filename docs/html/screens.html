@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.02 (2026-09-10)</span>
+      <span>버전 v1.03 (2026-09-10)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -314,6 +314,28 @@
       <tr><td>REQ-WEB-100</td><td>WHILE 프로젝트 화면에 머무는 동안 THE SYSTEM SHALL 그 프로젝트의 스펙 변경 이벤트를 받아 스펙 트리·목록·상세를 새로고침 없이 갱신하고, 다른 사람·에이전트가 일으킨 변경이면 무엇이 바뀌었는지 토스트로 알린다</td></tr>
     </tbody>
   </table></div>
+
+    <h4>축은 <b><code>project.id</code> 하나</b>다 — 늦게 오는 값을 키에 섞지 않는다 (2026-09-10 정정 — 실측)</h4>
+
+  <p>2026-08-29 정정은 셸이 <code>projectId</code> 를 넘기게 해서 세 번째 행을 닫았는데, <b>훅 안의 폴백은 그대로 남아 있었다</b> — <code>queryKey: [...projectSpecTree(projectId ?? slug), …]</code>. <code>projectId</code> 는 프로젝트 조회가 끝나야 오므로, 한 번의 로드 안에서 키가 slug → id 로 <b>바뀐다</b>. TanStack Query 에게 그것은 다른 쿼리라 <b>같은 URL 을 두 번 부른다.</b></p>
+
+  <p>실측(2026-09-10 · E2E 스택):</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>라우트</th><th>고치기 전</th><th>고친 뒤</th></tr></thead>
+    <tbody>
+      <tr><td><code>/p/:proj/reviews</code></td><td>11건(트리·발견 큐·게이트 현황이 <b>각각 두 번</b>)</td><td><b>8건 · 중복 0</b></td></tr>
+      <tr><td><code>/p/:proj/tasks</code></td><td>16건(트리가 두 번)</td><td><b>15건 · 중복 0</b></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>낭비보다 나쁜 것이 둘 있다. ① 먼저 그려진 slug 축 사본은 아무도 구독하지 않는 유령이 되는데, 무효화 키는 위 표대로 <code>project_id</code> 로만 만들어지므로 그 사본은 <b>영영 무효화되지 않는다</b> — 이 절이 2026-08-29 에 고친 바로 그 어긋남이 캐시 안에 남아 있던 셈이다. ② 사람 눈에는 목록이 떴다 사라졌다 다시 뜨는 <b>깜빡임</b>이다(2026-08-23 에 작업 보드에서 실측하고 <code>useTasks</code> 만 고쳤다 — 형제 훅 일곱은 같은 모양으로 남아 있었다).</p>
+
+  <p>그래서 규약은 하나다: <b>키는 id 축으로만 잡고, id 가 오기 전에는 부르지 않는다</b>(<code>enabled</code>). 첫 그림이 한 왕복 늦어지는 것은 대가로 받는다 — 그 대신 깜빡임이 없고, 최종 도달 시각은 같다.</p>
+
+  <div class="callout note"><span class="ico">ℹ️</span><div class="body">
+    <p>이 폴백은 <b>테스트 픽스처의 결함도 가리고 있었다.</b> L1 셋이 <code>/projects/&lt;slug&gt;</code> 응답에 <code>id</code> 를 싣지 않거나(서버는 언제나 싣는다) 단수 조회에 목록 배열을 흘리고 있었는데, 키가 slug 로 떨어져 준 덕에 통과하고 있었다. 축을 하나로 만들자 그 셋이 즉시 드러났다.</p>
+  </div></div>
 
 <h3>1.5 공통 상태·에러 규약</h3>
 
