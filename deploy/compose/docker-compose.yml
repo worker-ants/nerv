@@ -10,9 +10,20 @@ name: nerv
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17    # postgres:17 + pgvector 동봉 (4.3 §2.1 확장 — 4.1 §2.1 검색 스택)
+    image: pgvector/pgvector:pg18    # postgres:18 + pgvector 동봉 (4.3 §2.1 확장 — 4.1 §2.1 검색 스택)
     restart: unless-stopped
     environment:
+      # **pg18 이미지는 데이터 경로를 옮겼다** — PGDATA 가 메이저별 하위 디렉터리
+      # (/var/lib/postgresql/18/docker)로 가고 선언 볼륨도 상위(/var/lib/postgresql)로 올라갔다.
+      # 아래 마운트를 그대로 두고 이 줄을 빼면 **빈 볼륨이어도** 기동이 거부된다
+      # ("there appears to be PostgreSQL data in: /var/lib/postgresql/data (unused mount/volume)").
+      # 옛 경로를 명시해 마운트를 유지한다 — 볼륨 이름과 백업 절차가 그대로 성립한다.
+      #
+      # 옛 pg17 볼륨이 남아 있으면 `FATAL: database files are incompatible with server` 로
+      # **시끄럽게** 죽는다(데이터는 그대로 남는다). 개발 볼륨은 버리고 다시 만든다:
+      #   pnpm compose:down && docker volume rm nerv_pgdata && pnpm compose:up
+      # 살릴 데이터가 있으면 pg17 에서 `pg_dump -Fc` 를 떠 pg18 에 복원한다(deploy/scripts).
+      PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: ${POSTGRES_DB:-nerv}
       POSTGRES_USER: ${POSTGRES_USER:-nerv}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}

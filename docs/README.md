@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v3.21 · 2026-09-10 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v3.22 · 2026-09-10 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v3.22 변경(2026-09-10 — Postgres 를 pg18 로 옮긴다, 실측 → 사람 결정): **새 요구사항 없음 — 이미지 메이저만 올린다.** 스택 결정([4.1](04-mvp/scope.md) §2.1 의 "Postgres")은 그대로이고, 소관인 이미지 요건([4.2](04-mvp/codebase.md) §5.3)만 pg18 로 간다. 판단은 실행으로 했다 — pg18 컨테이너에 마이그레이션 27건이 그대로 적용되고 확장 4종·HNSW·trgm/FTS 인덱스가 전부 서며, L2 스위트 **810개가 건너뜀 없이 통과**하고, pgvector 는 pg17 이미지와 **같은 0.8.6** 이라 인덱스를 다시 만들 필요가 없다. **앱 코드·SQL·드라이버는 한 줄도 고치지 않았다.** 고친 것은 이미지를 적은 자리(compose 둘 · CI · 백업 CronJob)와 그 이미지를 다루는 절차이고, 그중 둘은 **조용히 꺼지는** 자리였다: `pg_dump` 는 자기보다 새 메이저의 서버를 거부하므로 클라이언트를 함께 올리지 않으면 백업은 매일 실패하고 CI 의 백업 왕복(REQ-CB-019)은 실패가 아니라 `describe.skipIf` 의 조용한 skip 이 된다 · pg18 이미지는 PGDATA 를 옮겨 옛 마운트를 그대로 두면 **빈 볼륨이어도** 기동이 거부된다(compose 둘 다 옛 경로를 명시한다). **개발 볼륨은 이어지지 않는다** — 옛 pg17 볼륨은 `FATAL: database files are incompatible with server` 로 시끄럽게 죽으므로 버리고 다시 만든다([4.2](04-mvp/codebase.md) v1.36 · [4.8](04-mvp/backlog.md) v0.71).
 >
 > v3.21 변경(2026-09-10 — 축을 사람이 지키는 것을 그만둔다, 사람 결정): **새 요구사항 없음 — 프로젝트 축에 브랜드 타입.** 쿼리 키의 프로젝트 축(id)과 slug 가 똑같이 `string` 이라 **틀릴 방법이 있었고, 틀려도 조용했다** — 타입도 lint 도 통과하고 화면만 안 바뀐다. 같은 결함이 **네 번** 반복됐고 전수 확인을 했다고 보고한 뒤에도 남아 있었다. `ProjectId` 브랜드와 `asProjectId()` 하나를 두어 slug 를 넘기는 코드가 **컴파일되지 않게** 한다(값은 그대로 문자열 · 런타임 비용 0 · slug 축은 해소용 `projectBySlug` 하나뿐이다). **도입하자마자 grep 이 못 찾던 두 자리를 짚었다** — `specs.$spec.tsx` 의 `projectUuid` 가 문서 도착 전에는 slug 였고(복구 무효화가 닿지 않았다), `sessions.index.tsx` 가 세션 보드에 slug 를 넘기고 있었다. 곁들여 손으로 적던 narrowing 여덟 곳과 지역 헬퍼 둘이 하나로 모였다([4.5](04-mvp/screens.md) v1.05).
 >
@@ -454,13 +456,13 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.23` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.35` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.36` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.42` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v1.29` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v1.05` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.65` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.22` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v0.70` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v0.71` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 
