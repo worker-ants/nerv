@@ -7,6 +7,10 @@
 //
 // 이 스위트가 세는 것은 하나다: **쪽을 끝까지 넘겨 모은 집합이 전량과 같은가.** 같은 시각을
 // 일부러 만들어(한 트랜잭션이 여러 건을 내는 실제 모양) 그 경계에 쪽을 걸치게 한다.
+//
+// 시각은 **두 모양으로** 만든다 — 정확히 같은 값(동률은 `id` 로 갈린다)과, 같은 ms 안에서
+// µs 만 다른 값. 뒤엣것이 없으면 커서가 시각을 ms 로 잘라 싣는 결함이 **초록으로 지나간다**:
+// 소수부가 없는 정각만 넣어 두면 잘라도 값이 그대로라 아무 검사도 그것을 세지 않는다.
 
 import { NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
@@ -97,18 +101,36 @@ describe('이벤트 피드 — 같은 시각이 쪽 경계에 걸려도 (EP-EVT-
     // 실측에서 이 모양이 이벤트의 25% 였다 — 한 트랜잭션이 여러 건을 내면 같은 ms 에 몰린다.
     // 그 조건을 직접 만든다: `occurred_at` 은 emit 마다 `new Date()` 이고, event 는
     // append-only 라(REQ-DB-023) 나중에 고칠 수도 없다 — 처음부터 같은 값으로 넣는다.
-    for (let i = 0; i < 5; i += 1) {
+    //
+    // **두 모양을 한 번에 지난다**(2026-09-10 보강). 예전 이 배열은 다섯이 모두 정각
+    // `00:00:00+00` 이라 동률(`id` 로 갈리는가)만 셌고, **µs 가 잘리는가는 세지 않았다** —
+    // 소수부가 없으니 ms 로 잘라도 값이 그대로라 잘리는 결함이 이 검사를 그냥 통과했다.
+    // 실제로 작업 목록이 겪은 결함(`new Date(...).toISOString()` 왕복 · main `6e4b48f`)을
+    // 이 두 자리에 그대로 심어 보면 예전 배열에서는 여덟 검사가 전부 초록이었다.
+    // 그래서 같은 ms 안에 두 무리를 함께 둔다 — 정확히 같은 값 한 쌍(동률)과, µs 만 다른 셋.
+    const occurredAt = [
+      '2026-09-07 00:00:00.123456+00',
+      '2026-09-07 00:00:00.123456+00', // 앞 행과 정확히 같다 — 갈리는 것은 `id` 뿐이다
+      '2026-09-07 00:00:00.123457+00',
+      '2026-09-07 00:00:00.123458+00',
+      '2026-09-07 00:00:00.123459+00',
+    ];
+    for (const at of occurredAt) {
       await pool.query(
         `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, is_agent, occurred_at)
-         VALUES ($1,$2,$3,'spec',$4,$5,false,'2026-09-07 00:00:00+00')`,
-        [newId(), projectId, NERV_EVENT.SPEC_RECHECK_REQUESTED, newId(), userId],
+         VALUES ($1,$2,$3,'spec',$4,$5,false,$6)`,
+        [newId(), projectId, NERV_EVENT.SPEC_RECHECK_REQUESTED, newId(), userId, at],
       );
     }
-    const { rows } = await pool.query<{ n: number }>(
-      `SELECT count(DISTINCT occurred_at)::int AS n FROM event WHERE project_id = $1`,
+    const { rows } = await pool.query<{ ms: number; us: number }>(
+      `SELECT count(DISTINCT date_trunc('milliseconds', occurred_at))::int AS ms,
+              count(DISTINCT occurred_at)::int AS us
+         FROM event WHERE project_id = $1`,
       [projectId],
     );
-    expect(rows[0]?.n).toBe(1); // 전제: 다섯이 같은 시각이다
+    // 전제가 성립하지 않으면 이 검사는 아무것도 세지 않는다 — 밀리초는 하나, 값은 넷이다
+    expect(rows[0]?.ms).toBe(1);
+    expect(rows[0]?.us).toBe(4);
 
     const seen = await drain((cursor) => events.feed({ projectId, limit: 2, before: cursor }));
     expect(seen).toHaveLength(5);
@@ -150,13 +172,33 @@ describe('알림 목록 — 한 이벤트가 여러 수신자에게 파생될 �
         );
       }
     });
-    // 같은 시각으로 못 박는다 — 파생 시각이 흩어지면 이 검사가 아무것도 세지 않는다
+    // 시각을 못 박는다 — 파생 시각이 흩어지면 이 검사가 아무것도 세지 않는다.
+    // 이벤트 피드와 같은 이유로 **같은 ms 안에 동률 한 쌍과 µs 만 다른 셋**을 함께 둔다:
+    // 예전에는 다섯이 모두 정각이라 µs 가 잘려도 값이 그대로여서 이 검사가 통과했다.
+    // 파생 알림은 `created_at` 기본값이 `now()`(트랜잭션 시각)라 실제로 이 모양이 된다.
+    const createdAt = [
+      '2026-09-07 00:00:00.123456+00',
+      '2026-09-07 00:00:00.123456+00', // 앞 행과 정확히 같다 — 갈리는 것은 `id` 뿐이다
+      '2026-09-07 00:00:00.123457+00',
+      '2026-09-07 00:00:00.123458+00',
+      '2026-09-07 00:00:00.123459+00',
+    ];
     await pool.query(
       `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at)
-       SELECT gen_random_uuid(), $1, $2, e.id, 'immediate', 'inapp', 'unread', '2026-09-07 00:00:00+00'
-         FROM unnest($3::uuid[]) AS e(id)`,
-      [projectId, userId, eventIds],
+       SELECT gen_random_uuid(), $1, $2, e.id, 'immediate', 'inapp', 'unread', e.at
+         FROM unnest($3::uuid[], $4::timestamptz[]) AS e(id, at)`,
+      [projectId, userId, eventIds, createdAt],
     );
+    const { rows: shape } = await pool.query<{ ms: number; us: number }>(
+      `SELECT count(DISTINCT date_trunc('milliseconds', created_at))::int AS ms,
+              count(DISTINCT created_at)::int AS us
+         FROM notification WHERE user_id = $1`,
+      [userId],
+    );
+    // 전제: 밀리초는 하나, 값은 넷이다 — 아니면 아래 drain 은 경계를 지나지 않는다
+    expect(shape[0]?.ms).toBe(1);
+    expect(shape[0]?.us).toBe(4);
+
     const seen = await drain((cursor) => notifications.list({ userId, limit: 2, before: cursor }));
     expect(seen).toHaveLength(5);
     expect(new Set(seen).size).toBe(5);
@@ -167,14 +209,24 @@ describe('세션 보드 — 커서 열과 정렬 열이 같은가 (EP-SES-01)', 
   it('하트비트가 뒤섞인 세션 일곱을 limit 2 로 넘기면 겹치지도 빠지지도 않는다', async () => {
     // 나중에 시작했지만 하트비트가 오래된 세션(유령 세션의 전형)을 일부러 만든다 —
     // 예전 커서(`started_at`)로는 그 세션이 2쪽에서 통째로 빠졌다.
+    //
+    // **시각은 같은 ms 안의 µs 로 둔다**(2026-09-10 보강). 예전 배열은 일곱이 모두 정각이라
+    // 소수부가 없어, 커서가 시각을 ms 로 자르는 결함을 심어도 이 검사가 통과했다 — 이 커서는
+    // 시각을 **둘**(하트비트 · 시작) 싣기 때문에 둘 다 같은 ms 안에서 갈리게 만든다.
+    // 예전이 세던 것은 그대로 남는다: NULL 무리 · 하트비트 정확한 동률 · 유령 세션.
     const rows: [string, string, string | null][] = [
-      [newId(), '2026-09-01 10:00:00+00', '2026-09-05 10:00:00+00'],
-      [newId(), '2026-09-02 10:00:00+00', '2026-09-05 09:00:00+00'],
-      [newId(), '2026-09-03 10:00:00+00', '2026-09-05 11:00:00+00'],
-      [newId(), '2026-09-04 10:00:00+00', null],
-      [newId(), '2026-09-05 10:00:00+00', '2026-09-05 09:00:00+00'],
-      [newId(), '2026-09-06 10:00:00+00', null],
-      [newId(), '2026-09-07 10:00:00+00', '2026-09-05 09:00:00+00'],
+      // 하트비트가 같은 ms 안에서 µs 로만 갈리는 짝 (하트비트 정밀도)
+      [newId(), '2026-09-01 10:00:00.123456+00', '2026-09-05 11:00:00.123456+00'],
+      [newId(), '2026-09-02 10:00:00.123456+00', '2026-09-05 11:00:00.123457+00'],
+      // 셋이 하트비트가 **정확히** 같다 — 갈리는 것은 (started_at, id) 다
+      [newId(), '2026-09-03 10:00:00.123456+00', '2026-09-05 09:00:00.123456+00'],
+      // 이 둘은 가장 늦게 시작했는데 하트비트는 가장 오래됐다(유령 세션) —
+      // 그리고 서로 started_at 이 같은 ms 안에서 µs 로만 갈린다 (시작 시각 정밀도)
+      [newId(), '2026-09-07 10:00:00.123456+00', '2026-09-05 09:00:00.123456+00'],
+      [newId(), '2026-09-07 10:00:00.123457+00', '2026-09-05 09:00:00.123456+00'],
+      // NULL 무리도 started_at 이 같은 ms 안에서 µs 로만 갈린다
+      [newId(), '2026-09-06 10:00:00.123456+00', null],
+      [newId(), '2026-09-06 10:00:00.123457+00', null],
     ];
     for (const [id, startedAt, heartbeat] of rows) {
       await pool.query(
@@ -184,6 +236,24 @@ describe('세션 보드 — 커서 열과 정렬 열이 같은가 (EP-SES-01)', 
         [id, projectId, userId, startedAt, heartbeat],
       );
     }
+    const { rows: shape } = await pool.query<{
+      hb_ms: number;
+      hb_us: number;
+      st_ms: number;
+      st_us: number;
+      nulls: number;
+    }>(
+      `SELECT count(DISTINCT date_trunc('milliseconds', last_heartbeat_at))::int AS hb_ms,
+              count(DISTINCT last_heartbeat_at)::int                          AS hb_us,
+              count(DISTINCT date_trunc('milliseconds', started_at))::int      AS st_ms,
+              count(DISTINCT started_at)::int                                  AS st_us,
+              count(*) FILTER (WHERE last_heartbeat_at IS NULL)::int           AS nulls
+         FROM agent_session WHERE project_id = $1`,
+      [projectId],
+    );
+    // 전제가 성립하지 않으면 아래 drain 은 정밀도 경계를 지나지 않는다 —
+    // 하트비트는 ms 둘에 값 셋, 시작 시각은 ms 다섯에 값 일곱, NULL 무리는 둘이다
+    expect(shape[0]).toMatchObject({ hb_ms: 2, hb_us: 3, st_ms: 5, st_us: 7, nulls: 2 });
     const seen = await drain((cursor) =>
       sessions.board({ projectId, limit: 2, cursor: cursor ?? undefined }),
     );

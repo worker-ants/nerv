@@ -163,7 +163,12 @@ export class EventService {
 
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT e.id, e.type, e.subject_type::text AS subject_type, e.subject_id,
-             e.from_state, e.to_state, e.payload, e.is_agent, e.occurred_at,
+             e.from_state, e.to_state, e.payload, e.is_agent,
+             -- 커서가 이 값을 그대로 싣는다 — **정밀도를 드라이버에 맡기지 않는다**(작업 목록·세션 보드와 같은 규칙).
+             -- 지금 값이 µs 까지 오는 것은 drizzle 의 node-postgres 세션이 timestamptz 파서를
+             -- 항등으로 덮기 때문이고, 그것은 전표가 아니라 그 라이브러리의 내부 사정이다.
+             -- 그 덮개가 걷히는 날 값은 ms 로 잘리고, 커서의 동률 판정이 조용히 깨진다.
+             e.occurred_at::text AS occurred_at,
              u.display_name AS actor_name, se.hostname, se.agent_type::text AS agent_type,
              se.external_session_id
         FROM event e
