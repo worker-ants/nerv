@@ -50,6 +50,8 @@ function renderEditor(onChange = vi.fn(), readOnly = false): void {
           readOnly={readOnly}
           onChange={onChange}
           projectSlug="sudoku"
+          // 앱은 언제나 함께 넘긴다(specs.$spec.tsx) — 트리 쿼리가 이 축으로 잡힌다
+          projectId="p-1"
           specKey="SUD-SELF"
         />
       </QueryClientProvider>

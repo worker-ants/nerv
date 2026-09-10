@@ -22,6 +22,9 @@ vi.mock('socket.io-client', () => ({
   }),
 }));
 
+/** `/projects/<slug>` 하나 — `/projects/<slug>/specs/tree` 같은 하위 경로와 가른다 */
+const ONE_PROJECT = /\/projects\/[^/?]+$/;
+
 const NODES = [
   {
     id: 'r',
@@ -62,7 +65,11 @@ beforeEach(() => {
       json: async () =>
         String(url).includes('/specs/tree')
           ? NODES
-          : { items: [], memberships: [], count: 0, summary: {} },
+          : // **프로젝트 조회는 `id` 를 실은 객체다.** 트리 쿼리의 캐시 키가 그 id 축이라
+            // (queries.ts "프로젝트 축"), 여기서 id 를 빼면 화면은 아무것도 부르지 않는다.
+            ONE_PROJECT.test(String(url))
+            ? { id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }
+            : { items: [], memberships: [], count: 0, summary: {} },
     })),
   );
 });
@@ -88,6 +95,12 @@ async function renderTree(path: string) {
     </LocaleProvider>,
   );
   await screen.findAllByText('뿌리');
+  // **펼침 초깃값은 데이터가 온 *다음* effect 에서 정해진다**(spec-tree.tsx). 그래서
+  // '뿌리' 가 뜬 렌더는 아직 접힌 상태이고, 거기서 바로 읽으면 "자식이 없다" 로 보인다.
+  // 펼침이 정해진 렌더까지 기다린다. 트리 둘은 같은 데이터·같은 커밋에서 함께 정해지므로
+  // 한쪽이 자식을 그렸으면 다른 쪽도 정해진 뒤다 — **둘 다** 를 기다리지는 않는다:
+  // 사이드바를 접어 둔 채 다시 여는 검사가 있고, 거기서는 자식이 하나뿐인 것이 정답이다.
+  await screen.findAllByText('자식');
   // 이 라우트는 트리를 **둘** 그린다(§1.3) — 사이드바(rail)가 앞, 전수 목록(full)이 뒤다.
   // 둘의 초깃값이 다른 것이 설계이므로 검사도 둘을 갈라서 한다.
   const trees = screen.getAllByTestId('spec-tree');

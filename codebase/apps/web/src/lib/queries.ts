@@ -113,6 +113,24 @@ export function useUnreadCount(): UseQueryResult<{ count: number; immediate: num
   });
 }
 
+/**
+ * **프로젝트 축은 `project.id` 하나다.**
+ *
+ * 아래 훅들은 URL 을 slug 로 만들고 캐시 키를 id 로 만든다. 그 id 는 프로젝트 조회가
+ * 끝나야 오는데, 키를 `projectId ?? slug` 로 잡으면 한 번의 로드 안에서 키가 slug → id 로
+ * **바뀌고**, TanStack Query 에게 그것은 다른 쿼리라 **같은 URL 을 두 번 부른다**
+ * (실측 2026-09-10: `/p/:proj/reviews` 한 로드가 11건이고 그중 3건이 중복이었다 —
+ * 트리·발견 큐·게이트 현황).
+ *
+ * 낭비보다 나쁜 것이 둘 더 있다. ① 먼저 그려진 slug 축 사본은 아무도 구독하지 않는 유령이
+ * 되는데, `event-invalidation.ts` 는 키를 `project_id` 로만 만들므로 그 사본은 **영영
+ * 무효화되지 않는다**. ② 사람 눈에는 목록이 떴다 사라졌다 다시 뜨는 깜빡임이다 —
+ * 2026-08-23 에 `useTasks` 에서 실측하고 고친 그 결함인데, **형제 훅들은 같은 모양으로
+ * 남아 있었다**.
+ *
+ * 그래서 규약은 하나다: **키는 id 축으로만 잡고, id 가 오기 전에는 부르지 않는다.**
+ */
+
 export function useSpecTree(
   slug: string,
   projectId?: string,
@@ -128,12 +146,14 @@ export function useSpecTree(
   const pin = baseline === undefined || baseline === '' ? '' : baseline;
   return useQuery({
     // 세트가 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다
-    queryKey: [...queryKeys.projectSpecTree(projectId ?? slug), includeArchived, pin],
+    queryKey: [...queryKeys.projectSpecTree(projectId ?? ''), includeArchived, pin],
     queryFn: () =>
       apiFetch<Row[]>(
         `/projects/${slug}/specs/tree?include_archived=${String(includeArchived)}` +
           (pin === '' ? '' : `&baseline=${encodeURIComponent(pin)}`),
       ),
+    // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
+    enabled: projectId !== undefined,
   });
 }
 
@@ -226,7 +246,7 @@ export function useSpecGraph(
 ): UseQueryResult<SpecGraph> {
   const pin = baseline === undefined || baseline === '' ? '' : baseline;
   return useQuery({
-    queryKey: [...queryKeys.projectSpecGraph(projectId ?? slug), includeArchived, pin],
+    queryKey: [...queryKeys.projectSpecGraph(projectId ?? ''), includeArchived, pin],
     queryFn: () =>
       apiFetch<SpecGraph>(
         `/projects/${slug}/specs/graph?include_archived=${String(includeArchived)}` +
@@ -383,7 +403,7 @@ export function useSessions(
 ): UseInfiniteQueryResult<SessionBoardResponse> {
   const refetchInterval = useLivePolling();
   return useInfiniteQuery({
-    queryKey: [...queryKeys.projectSessions(projectId ?? slug), state ?? 'all'],
+    queryKey: [...queryKeys.projectSessions(projectId ?? ''), state ?? 'all'],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
       if (state != null && state !== '') params.set('state', state);
@@ -405,6 +425,8 @@ export function useSessions(
       next_cursor: data.pages[data.pages.length - 1]?.next_cursor ?? null,
     }),
     refetchInterval,
+    // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
+    enabled: projectId !== undefined,
   });
 }
 
@@ -471,8 +493,10 @@ export function flatTimeline(
 
 export function useCoverage(slug: string, projectId?: string): UseQueryResult<Row> {
   return useQuery({
-    queryKey: [...queryKeys.project(projectId ?? slug), 'coverage'],
+    queryKey: [...queryKeys.project(projectId ?? ''), 'coverage'],
     queryFn: () => apiFetch<Row>(`/projects/${slug}/coverage`),
+    // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
+    enabled: projectId !== undefined,
   });
 }
 
@@ -488,11 +512,13 @@ export function useCoverage(slug: string, projectId?: string): UseQueryResult<Ro
 export function useEvents(slug: string, projectId?: string): UseQueryResult<Row[]> {
   const refetchInterval = useLivePolling();
   return useQuery({
-    queryKey: queryKeys.projectEvents(projectId ?? slug),
+    queryKey: queryKeys.projectEvents(projectId ?? ''),
     queryFn: () =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(`/projects/${slug}/events?limit=30`),
     select: (data) => data.items,
     refetchInterval,
+    // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
+    enabled: projectId !== undefined,
   });
 }
 
@@ -546,7 +572,7 @@ export function useFindings(
   if (filters.tag.length > 0) base.set('tag', filters.tag.join(','));
   if (filters.area.length > 0) base.set('area', filters.area.join(','));
   return useInfiniteQuery({
-    queryKey: [...queryKeys.projectFindings(projectId ?? slug), filters],
+    queryKey: [...queryKeys.projectFindings(projectId ?? ''), filters],
     queryFn: ({ pageParam }) => {
       const query = new URLSearchParams(base);
       if (pageParam !== null) query.set('cursor', String(pageParam));
@@ -555,6 +581,8 @@ export function useFindings(
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor ?? null,
     refetchInterval,
+    // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
+    enabled: projectId !== undefined,
   });
 }
 
@@ -577,9 +605,11 @@ export function useGateCoverage(
 ): UseQueryResult<GateCoverageResponse> {
   const refetchInterval = useLivePolling();
   return useQuery({
-    queryKey: queryKeys.projectGateCoverage(projectId ?? slug),
+    queryKey: queryKeys.projectGateCoverage(projectId ?? ''),
     queryFn: () => apiFetch<GateCoverageResponse>(`/projects/${slug}/gates/reviews`),
     refetchInterval,
+    // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
+    enabled: projectId !== undefined,
   });
 }
 

@@ -226,6 +226,7 @@ function TaskBoard(): React.JSX.Element {
         <div className="mb-4">
           <DelegationForm
             projectSlug={proj}
+            projectId={id}
             taskKey={editing === 'new' || editing === null ? null : editing}
             {...(derived === null ? {} : { initial: derived })}
             onDone={() => {

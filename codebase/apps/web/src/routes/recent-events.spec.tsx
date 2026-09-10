@@ -25,6 +25,9 @@ vi.mock('socket.io-client', () => ({
   }),
 }));
 
+/** `/projects/<slug>` 하나 — 목록·하위 경로와 가른다 */
+const ONE_PROJECT = /\/projects\/[^/?]+$/;
+
 const EVENTS = {
   items: [
     {
@@ -87,9 +90,14 @@ beforeEach(() => {
             // `/projects` 를 포함하므로, 순서를 바꾸면 세션 보드가 맨 배열을 받는다.
             path.includes('/sessions')
             ? { items: [], summary: {}, next_cursor: null }
-            : path.includes('/projects')
-              ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
-              : { items: [], summary: {}, next_cursor: null, memberships: [], count: 0 };
+            : // **단수 조회(`/projects/<slug>`)는 객체이고 목록은 배열이다.** 둘을 같은
+              // 배열로 흘리면 `project.data?.['id']` 가 undefined 라, id 축으로 잡히는
+              // 훅들(queries.ts "프로젝트 축")이 아무것도 부르지 않는다.
+              ONE_PROJECT.test(path)
+              ? { id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }
+              : path.includes('/projects')
+                ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
+                : { items: [], summary: {}, next_cursor: null, memberships: [], count: 0 };
       return { ok: true, status: 200, json: async () => json };
     }),
   );

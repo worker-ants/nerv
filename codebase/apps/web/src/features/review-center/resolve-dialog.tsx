@@ -69,7 +69,8 @@ export function ResolveDialog({
       }),
     onSuccess: () => {
       // 큐와 게이트 현황은 같은 사실의 두 얼굴이다 — 함께 다시 읽는다
-      const key = projectId ?? projectSlug;
+      // 프로젝트 축뿐이다 — slug 로 잡으면 아무 캐시도 맞지 않는다(queries.ts 규약)
+      const key = projectId ?? '';
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectFindings(key) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectGateCoverage(key) });
       pushToast({ tone: 'ok', message: t('reviews.resolve.done') });
