@@ -27,8 +27,12 @@ x-e2e-db: &e2e-db
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg18
     environment:
+      # pg18 이미지의 기본 PGDATA 는 /var/lib/postgresql/18/docker 다 — 옛 경로를 명시하지 않으면
+      # 아래 tmpfs 가 **데이터 경로가 아니게 되어** 조용히 무의미해진다(테스트는 통과하고 느려질 뿐이다).
+      # compose 본편(docker-compose.yml)과 같은 손잡이를 쓴다.
+      PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: nerv
       POSTGRES_USER: nerv
       POSTGRES_PASSWORD: e2e

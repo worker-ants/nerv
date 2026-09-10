@@ -32,7 +32,12 @@ spec:
             - name: backup
               # postgres 클라이언트만 필요하다 — 애플리케이션 이미지를 쓰지 않는 이유는
               # 백업이 앱 배포 주기에 묶이면 안 되기 때문이다.
-              image: postgres:17-alpine
+              #
+              # **메이저는 서버와 짝을 맞춘다.** `pg_dump` 는 자기보다 새 메이저의 서버를 거부한다
+              # (`aborting because of server version mismatch`) — 클라이언트가 낮으면 이 잡은
+              # 매일 실패하고, 그 실패를 읽는 사람은 대개 없다. 반대(클라이언트 ≥ 서버)는 허용되므로
+              # 서버를 올리기 **전에** 이쪽을 올린다. 외부 Postgres 가 17 이어도 18 클라이언트로 뜬다.
+              image: postgres:18-alpine
               command: ['/bin/sh', '/scripts/nerv-backup.sh']
               envFrom:
                 # S3 엔드포인트·버킷은 설정에, 자격증명은 시크릿에 있다 — 둘 다 있어야

@@ -32,7 +32,11 @@ const SCRIPTS = join(import.meta.dirname, '../../../../../deploy/scripts');
  * 정확히 그 조합이고, 그래서 L2 잡이 매번 붉었다(실측 2026-09-02).
  *
  * 건너뛰기는 **로컬 장비를 위한 것이지 CI 의 면제가 아니다** — CI 는 짝을 맞춘다
- * (.github/workflows/ci.yml 이 postgresql-client-17 을 설치한다).
+ * (.github/workflows/ci.yml 이 postgresql-client-18 을 설치한다).
+ *
+ * **서버 메이저를 올릴 때 이 줄을 같이 본다**(2026-09-10 · pg17 → pg18). 서버만 올리면
+ * 이 검사가 실패가 아니라 조용한 skip 으로 바뀌어, 초록인데 REQ-CB-019 를 아무도
+ * 검증하지 않는 상태가 된다 — 건너뛴 사유는 아래 console.warn 한 줄에만 남는다.
  */
 function majorOf(text: string): number | null {
   const m = /(\d+)/.exec(text);

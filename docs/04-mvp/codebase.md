@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.35 · 2026-09-10 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.36 · 2026-09-10 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.36 변경(2026-09-10 — Postgres 를 pg18 로 옮긴다, 실측 → 사람 결정): **새 요구사항 없음 — §4.5·§5.3 의 pg 메이저를 18 로.** 스택 결정([4.1](scope.md) §2.1 의 "Postgres")은 그대로다 — 이 문서가 소관인 **이미지 요건**만 올린다. 판단은 실측으로 했다: pg18 컨테이너에 마이그레이션 27건이 그대로 적용되고(확장 4종·HNSW·trgm/FTS 인덱스 전부 생성), L2 스위트 **810개가 전부 통과**하며(건너뛴 것 0), pgvector 는 pg17 이미지와 **같은 0.8.6** 이라 인덱스 재구축이 필요 없다. 앱 코드·SQL·드라이버는 한 줄도 고치지 않았다. **고친 것은 이미지를 적은 자리와 그 이미지를 다루는 절차**이고, 그중 둘은 조용히 꺼지는 자리였다: ① **백업 클라이언트** — `pg_dump` 는 자기보다 새 메이저의 서버를 거부하므로 `postgres:17-alpine` 인 채로 서버만 올리면 백업 CronJob 이 매일 실패한다(반대 방향은 허용되므로 클라이언트를 먼저 올린다). CI 도 같은 이유로 `postgresql-client-18` 이다 — 낮은 채로 두면 백업 왕복(REQ-CB-019)이 실패가 아니라 **`describe.skipIf` 의 조용한 skip** 이 되어, 초록인데 아무도 검증하지 않는 상태가 된다. ② **데이터 경로** — pg18 이미지는 PGDATA 를 `/var/lib/postgresql/18/docker` 로 옮기고 선언 볼륨을 상위로 올렸다. 지금 마운트를 그대로 두면 **빈 볼륨이어도** 기동이 거부되므로 compose 둘 다 `PGDATA` 로 옛 경로를 명시한다(e2e 는 이 줄이 없으면 tmpfs 가 데이터 경로가 아니게 되어 조용히 무의미해진다). **개발 볼륨은 이어지지 않는다** — 옛 pg17 볼륨이 남아 있으면 `FATAL: database files are incompatible with server` 로 시끄럽게 죽는다(데이터는 남는다). 버리고 다시 만들거나(`docker volume rm nerv_pgdata`) pg17 에서 덤프를 떠 복원한다 — pg17 → pg18 덤프/복원은 테이블 47·인덱스 126·행 수까지 일치함을 실측했다.
 >
 > v1.35 변경(2026-09-10 — 한 사람의 쿼터가 스위트의 상한이었다, 사람 결정): **새 요구사항 없음 — §4.3 "관측 스펙은 자기 신원으로 돈다" 신설.** 쿼터의 주체는 사용자라, 스위트 전체가 한 사람으로 돌면 그 한도(600/분)가 곧 **스위트가 자랄 수 있는 상한**이 된다 — 검사를 더할수록 남의 검사가 깨지는 구조다. 판정이 하나도 없는 관측 스펙 둘(`audit`·`shots`)을 조직 admin 으로 옮긴다: `jimin` **375~382 → 209**, `admin` **183**. 곁들여 얻은 것이 더 크다 — `jimin` 은 조직 admin 이 아니라 `/settings/members`·`/settings/gates` 가 **잠긴 컨트롤만** 관측돼 왔고 스크린샷 목록에는 그 둘이 아예 없었다. 둘을 넣어 실제 폼(역할 토글·초대·tier 입력)을 처음으로 그림에 담는다(스위트 36 → 38). 잠긴 쪽의 판정은 L1 이 태운다.
 >
@@ -762,7 +764,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg17   # compose와 동일 이미지 (§5.3) — vector 확장이 마이그레이션에 필요
+        image: pgvector/pgvector:pg18   # compose와 동일 이미지 (§5.3) — vector 확장이 마이그레이션에 필요
         env: { POSTGRES_PASSWORD: ci }
         ports: ["5432:5432"]
       valkey:                  # **L2 는 방송 규약도 본다**(REQ-CB-004) — 커밋 후 PUBLISH 순서는 mock 으로 확인되지 않는다
@@ -773,8 +775,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version-file: codebase/.nvmrc }
       - run: corepack enable && pnpm install --frozen-lockfile
-      # 서버(pg17)와 **짝이 맞는** 클라이언트. 러너 기본은 pg16 이라 pg_dump 가 즉시 죽는다
-      - run: sudo apt-get install -y postgresql-client-17   # (pgdg 저장소 추가는 실물 참조)
+      # 서버와 **짝이 맞는** 클라이언트. 낮으면 pg_dump 가 죽거나(구버전) 조용히 skip 된다
+      - run: sudo apt-get install -y postgresql-client-18   # (pgdg 저장소 추가는 실물 참조)
       - run: pnpm build      # migrate 는 dist/migrate.js 를 쓴다 — compose·k8s 와 같은 경로
       - run: pnpm db:migrate && pnpm test:integration
         env:
@@ -1049,9 +1051,13 @@ name: nerv
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17    # postgres:17 + pgvector 동봉 (4.3 §2.1 확장 — 4.1 §2.1 검색 스택)
+    image: pgvector/pgvector:pg18    # postgres:18 + pgvector 동봉 (4.3 §2.1 확장 — 4.1 §2.1 검색 스택)
     restart: unless-stopped
     environment:
+      # pg18 이미지는 PGDATA 를 /var/lib/postgresql/18/docker 로 옮겼다 — 이 줄이 없으면
+      # 아래 마운트 때문에 **빈 볼륨이어도** 기동이 거부된다. 옛 pg17 볼륨은 이어지지 않는다
+      # (FATAL: database files are incompatible with server — 버리고 다시 만든다)
+      PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: ${POSTGRES_DB:-nerv}
       POSTGRES_USER: ${POSTGRES_USER:-nerv}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}

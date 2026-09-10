@@ -130,7 +130,7 @@ jobs:
     services:
       postgres:
         # compose 와 동일 이미지 (§5.3) — vector 확장이 마이그레이션에 필요하다
-        image: pgvector/pgvector:pg17
+        image: pgvector/pgvector:pg18
         env:
           POSTGRES_PASSWORD: ci
         ports: ['5432:5432']
@@ -155,10 +155,14 @@ jobs:
           node-version-file: codebase/.nvmrc
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      # **서버와 짝이 맞는 클라이언트.** 러너 기본은 pg16 이고 서비스는 pg17 이라
-      # `pg_dump` 가 "server version mismatch" 로 즉시 죽었다 — 백업 왕복(REQ-CB-019)이
-      # CI 에서 한 번도 통과한 적이 없었던 이유다(2026-09-02 실측).
-      - name: PostgreSQL 17 클라이언트
+      # **서버와 짝이 맞는 클라이언트.** 러너 기본 클라이언트는 서비스 이미지보다 낮고,
+      # `pg_dump` 는 자기보다 새 메이저의 서버를 거부한다("server version mismatch") —
+      # 백업 왕복(REQ-CB-019)이 CI 에서 한 번도 통과한 적이 없었던 이유다(2026-09-02 실측).
+      #
+      # **이 줄은 서비스 이미지와 함께 올린다.** 낮은 채로 두면 실패가 아니라 조용한 skip 이 된다
+      # (restore-roundtrip.spec.ts 의 `describe.skipIf`) — 초록인데 REQ-CB-019 를 아무도
+      # 검증하지 않는 상태다. 건너뛰기는 로컬 장비를 위한 것이지 CI 의 면제가 아니다.
+      - name: PostgreSQL 18 클라이언트
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
@@ -167,7 +171,7 @@ jobs:
             https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
+          sudo apt-get install -y postgresql-client-18
       # migrate 는 빌드 산출물(dist/migrate.js)을 쓴다 — compose·k8s 와 같은 코드 경로다
       - run: pnpm build
       - run: pnpm db:migrate && pnpm test:integration
