@@ -23,6 +23,7 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   newId,
+  REPO_HOSTS,
   RetentionSchema,
 } from '@nerv/schema';
 import type { AgentScope } from '@nerv/schema';
@@ -558,6 +559,7 @@ export class AuthService {
   async project(projectId: string): Promise<Record<string, unknown>> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT p.id, p.slug, p.key, p.name, p.description, p.repo_url, p.default_branch,
+             p.repo_host::text AS repo_host,
              p.gate_policy, p.retention, p.archived_at, o.slug AS org_slug, o.name AS org_name,
              (SELECT count(*) FROM agent_session se
                WHERE se.project_id = p.id AND se.state IN ('pending','active','awaiting_input'))::int
@@ -596,6 +598,7 @@ export class AuthService {
     description?: string | null;
     repoUrl?: string | null;
     defaultBranch?: string | null;
+    repoHost?: string | null;
     gatePolicy?: Record<string, unknown> | null;
     retention?: Record<string, unknown> | null;
   }): Promise<Record<string, unknown>> {
@@ -623,6 +626,12 @@ export class AuthService {
     // 그 둘 중 하나를 잊는 것이 "설정했는데 안 먹는다" 의 흔한 모양이다.
     const clears = (value: string | null | undefined): boolean =>
       typeof value === 'string' && value.trim() === '';
+    // **어휘 밖은 거절이지 500 이 아니다**(REQ-API-112). 판정이 도메인에 있는 이유도 같다:
+    // 표면이 둘(REST·웹 폼)이고 서비스를 직접 부르는 경로(임포터·테스트)는 그 밖이다.
+    const repoHost =
+      input.repoHost == null
+        ? null
+        : (assertVocab([input.repoHost], REPO_HOSTS, 'repo_host')[0] ?? null);
     await this.db.execute(sql`
       UPDATE project
          SET name = coalesce(${input.name ?? null}, name),
@@ -631,6 +640,8 @@ export class AuthService {
                              ELSE coalesce(${input.repoUrl?.trim() ?? null}, repo_url) END,
              default_branch = CASE WHEN ${clears(input.defaultBranch)} THEN NULL
                                    ELSE coalesce(${input.defaultBranch?.trim() ?? null}, default_branch) END,
+             -- **호스트는 비울 수 없다**(NOT NULL) — 안 보내면 그대로, 보내면 어휘 안의 값이다
+             repo_host = coalesce(${repoHost}::repo_host, repo_host),
              gate_policy = coalesce(${gatePolicy == null ? null : JSON.stringify(gatePolicy)}::jsonb, gate_policy),
              retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention)
        WHERE id = ${input.projectId}
@@ -643,6 +654,7 @@ export class AuthService {
         ['description', input.description],
         ['repo_url', input.repoUrl],
         ['default_branch', input.defaultBranch],
+        ['repo_host', input.repoHost],
         ['gate_policy', input.gatePolicy],
         ['retention', input.retention],
       ] as const

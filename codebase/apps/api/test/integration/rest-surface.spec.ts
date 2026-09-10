@@ -224,6 +224,31 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
     expect((await read())['default_branch']).toBe('main');
   });
 
+  /**
+   * **주소의 모양은 프로젝트가 고른다**(2026-09-10 · REQ-API-158). 값이 정하는 것은 접속이
+   * 아니라 증적 링크의 모양이다 — 서버는 대상 저장소에 접근하지 않는다(4.1 §5).
+   */
+  it('저장소 종류는 기본이 github 이고, 어휘 밖은 거절이며, 비울 수 없다', async () => {
+    const auth = app.get(AuthService);
+    const actor = { userId: adminId, isAgent: false };
+
+    // 열이 `NOT NULL DEFAULT 'github'` 이라 옛 행도 오늘과 같은 링크를 만든다
+    expect((await auth.project(projectId))['repo_host']).toBe('github');
+
+    await auth.updateProject({ projectId, roles: ['admin'], actor, repoHost: 'gitlab' });
+    expect((await auth.project(projectId))['repo_host']).toBe('gitlab');
+
+    // 안 보내면 그대로다 — 이름만 고치는 호출이 모양을 되돌리면 안 된다
+    await auth.updateProject({ projectId, roles: ['admin'], actor, name: 'clemvion' });
+    expect((await auth.project(projectId))['repo_host']).toBe('gitlab');
+
+    // 어휘 밖은 500 이 아니라 거절이다(REQ-API-112)
+    await expect(
+      auth.updateProject({ projectId, roles: ['admin'], actor, repoHost: 'gitea' }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+    expect((await auth.project(projectId))['repo_host']).toBe('gitlab');
+  });
+
   it('보관·복구도 사람 전용이다 — 프로젝트를 목록에서 지우는 일은 같은 무게다', async () => {
     for (const path of ['archive', 'restore']) {
       const res = await call('POST', `/api/v1/projects/clemvion/${path}`, { payload: {} });

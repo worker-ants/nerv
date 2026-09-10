@@ -99,8 +99,9 @@ describe('enum 선언 (database.md §2.1)', () => {
     (e) => typeof e === 'function' && 'enumName' in e && 'enumValues' in e,
   );
 
-  it('39종이다', () => {
-    expect(declaredEnums).toHaveLength(39);
+  // 2026-09-10 · 39 → 40: `repo_host` 신설(마이그레이션 0026 · api.md REQ-API-158)
+  it('40종이다', () => {
+    expect(declaredEnums).toHaveLength(40);
   });
 
   it('하이픈이 든 clemvion 계승 어휘를 그대로 쓴다 (data-model §2.6)', () => {

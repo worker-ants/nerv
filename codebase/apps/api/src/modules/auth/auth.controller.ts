@@ -283,6 +283,7 @@ export class ProjectController {
       description: input.description ?? null,
       repoUrl: input.repo_url ?? null,
       defaultBranch: input.default_branch ?? null,
+      repoHost: input.repo_host ?? null,
       gatePolicy: input.gate_policy ?? null,
       retention: input.retention ?? null,
     });

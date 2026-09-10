@@ -14,7 +14,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { memberRole, userState } from '../enums.js';
+import { memberRole, repoHost, userState } from '../enums.js';
 import { bytea, citext, createdAt, idPk, ts } from './_columns.js';
 
 export const organization = pgTable('organization', {
@@ -55,6 +55,13 @@ export const project = pgTable(
     description: text('description'),
     repoUrl: text('repo_url'),
     defaultBranch: text('default_branch'),
+    /**
+     * 저장소 주소의 **모양**을 정한다(2026-09-10 · REQ-API-158). 접속에는 쓰이지 않는다 —
+     * 서버는 대상 저장소에 접근하지 않는다([4.1](scope.md) §5). 증적의 커밋·코드 경로를
+     * 링크로 만들 때만 본다. 기본이 `github` 인 이유는 지금 만들어져 있는 링크가 전부 그
+     * 모양이라, 다른 기본값은 아무도 고르지 않은 값 때문에 오늘 되던 링크를 깨뜨린다.
+     */
+    repoHost: repoHost('repo_host').notNull().default('github'),
     /** 위험도별 게이트 임계(D-06), fail-open 격상 임계(D-14). 키 스키마는 api.md §2.1a */
     gatePolicy: jsonb('gate_policy').notNull().default({}),
     /** Activity·프롬프트 보존 기간(data-model §5.4) */

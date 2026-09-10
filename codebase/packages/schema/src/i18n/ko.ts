@@ -391,6 +391,8 @@ export const ko = {
   'settings.workspace.project_new': '+ 새 프로젝트',
   'settings.workspace.project_slug': 'slug',
   'settings.workspace.projects': '프로젝트',
+  'settings.workspace.repo_host': '저장소 종류',
+  'settings.workspace.repo_host_hint': '주소의 모양만 정합니다 — 서버는 접속하지 않습니다.',
   'settings.workspace.repo_url': '저장소 주소',
   'settings.workspace.repo_url_hint': '증적의 커밋·코드 경로가 이 주소 위에서 열립니다.',
   'settings.workspace.restore': '복구',

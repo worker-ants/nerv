@@ -72,9 +72,9 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     );
   });
 
-  it('enum 39종이 생성된다 (§2.1)', async () => {
+  it('enum 40종이 생성된다 (§2.1)', async () => {
     const count = await scalar(`SELECT count(*)::int FROM pg_type WHERE typtype = 'e'`);
-    expect(count).toBe(39);
+    expect(count).toBe(40);
   });
 });
 
