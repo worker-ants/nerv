@@ -18,6 +18,7 @@ import { useT } from '../../lib/i18n.js';
 import { rows, useFindings, useGateCoverage, useMe, useProject } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
+import { useMediaQuery } from '../../lib/use-media-query.js';
 import { cn } from '../../lib/utils.js';
 import {
   Card,
@@ -84,6 +85,16 @@ function ReviewCenter(): React.JSX.Element {
   // 화면만 `review:resolve` 로 잠가서, developer 는 권한이 있는데 누를 수 없었다 —
   // 지적을 받은 사람이 그것을 자기 백로그로 넘기지 못하던 자리다(2026-09-05 감사).
   const canPromote = scopesForRoles(roles).has('task:update');
+  // **레일은 넓은 화면의 향상이지 유일한 경로가 아니다**(2026-09-10 — 사람 보고 · REQ-WEB-161).
+  // 곁레일은 `xl`(1280px) 부터만 서는데, 그 아래에서는 발견을 눌러도 **카드 배경만** 옅게
+  // 바뀌고 레일이 펴는 것(갈래·심볼·전체 경로·코멘트·Task 승격)에 닿을 길이 아예 없었다 —
+  // 1024~1279px 는 노트북의 흔한 폭이다. §2.6 이 세션에서 이미 정한 규칙이고(REQ-WEB-132·142),
+  // 거기서 쓴 처방도 같다: **같은 컴포넌트를 다른 자리에** 그린다.
+  //
+  // `hidden`/`block` 두 벌이 아니라 **하나를 옮긴다** — 두 벌을 그리면 DOM 에 둘이 남아
+  // 코멘트 입력 같은 내부 상태가 갈리고, 읽는 도구(접근성 트리·테스트)는 둘 다 본다.
+  // 폭의 기준은 `xl` 과 같은 값이다(80rem) — 두 곳에 적은 값이 갈리지 않게 한 곳만 본다.
+  const wideRail = useMediaQuery('(min-width: 80rem)');
 
   // facet 은 필터에만 달렸으므로 첫 쪽의 것이 전체를 말한다 — 쪽마다 다시 세지 않는다
   const facets = queue.data?.pages[0]?.facets;
@@ -254,6 +265,23 @@ function ReviewCenter(): React.JSX.Element {
                       />
                     </div>
                   )}
+                  {/* 곁레일이 서지 않는 폭에서는 고른 하나를 **그 카드 아래에서** 편다 —
+                      좁은 화면으로 옮겨 갔다는 이유로 볼 수 있는 것이 줄면 그 접힘은
+                      향상이 아니라 손실이다(§2.6 REQ-WEB-142 가 세션에서 적은 그 문장이다) */}
+                  {!wideRail && selectedId === String(finding['id']) && (
+                    <div
+                      data-testid="finding-rail-inline"
+                      className="border-t border-border bg-bg-sunken/40 px-4 py-3"
+                    >
+                      <FindingRail
+                        finding={finding}
+                        projectSlug={proj}
+                        projectId={id}
+                        canResolve={canResolve}
+                        canPromote={canPromote}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </Card>
@@ -277,7 +305,7 @@ function ReviewCenter(): React.JSX.Element {
 
         {/* 고른 하나를 펴는 레일 — 카드가 자르는 것(경로·심볼·갈래·처분 근거)이 여기 있다.
             고르지 않았으면 세우지 않는다: 빈 패널은 화면 폭을 버리는 것이다(§2.5 와 같은 규칙) */}
-        {selected !== null && (
+        {selected !== null && wideRail && (
           // **레일의 틀은 서 있고 내용이 그 안에서 흐른다**(REQ-WEB-158). `sticky top-4` 는
           // 페이지가 흐른다는 전제 위의 임시 방편이었다 — 붙일 것이 없는 자리의 `sticky` 는
           // 아무 일도 하지 않는다. 스크롤을 바깥 `aside` 가 아니라 **카드에** 두는 이유는

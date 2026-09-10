@@ -13,11 +13,24 @@ import {
   FIRST_CHAPTER,
   MANUAL_CHAPTERS,
 } from './manual.js';
+import { MANUAL_CHAPTER_IDS, isManualChapter } from './manual-chapters.js';
 import { renderDoc } from './markdown.js';
 
 const LOCALES = ['ko', 'en'] as const;
 
 describe('매뉴얼 목차', () => {
+  /**
+   * **id 의 정본은 `manual-chapters.ts` 다**(2026-09-10 · REQ-WEB-161). 본문 없이 목록만
+   * 필요한 자리가 생겨(증적이 가리키는 장) 갈랐다 — `manual.ts` 를 import 하는 것은 매뉴얼
+   * 전문을 그 청크로 끌고 오는 일이다. 두 목록이 갈리면 매뉴얼이 그 장을 못 찾거나 증적
+   * 링크가 죽은 곳을 가리킨다. 타입은 한 방향만 막으므로 나머지는 여기서 본다.
+   */
+  it('id 목록과 목차가 같은 것을 같은 순서로 말한다', () => {
+    expect(MANUAL_CHAPTERS.map((chapter) => chapter.id)).toEqual([...MANUAL_CHAPTER_IDS]);
+    for (const id of MANUAL_CHAPTER_IDS) expect(isManualChapter(id)).toBe(true);
+    expect(isManualChapter('onboarding')).toBe(false);
+  });
+
   it('장 id 는 유일하고 첫 장은 실재한다', () => {
     const ids = MANUAL_CHAPTERS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);

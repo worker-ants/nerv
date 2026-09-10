@@ -35,6 +35,7 @@ const EVIDENCE = [
   { id: 'e-5', kind: 'test', locator: 'claim.spec.ts > 원자적 클레임', source: 'ci' },
   // 웹훅이 `repository.full_name` 을 적어 둔 증적 — 저장소가 프로젝트 것과 다르다
   { id: 'e-6', kind: 'commit', locator: 'f6e5d4c', repo: 'worker-ants/other', source: 'ci' },
+  { id: 'e-7', kind: 'user_guide', locator: '/help/tasks', source: 'human' },
 ];
 
 /** 프로젝트에 저장소 주소가 있는가 — 커밋·코드 경로가 갈 곳을 갖는 조건이다 */
@@ -132,7 +133,7 @@ describe('증적은 보러 갈 수 있다 (REQ-WEB-159)', () => {
     expect(hrefOf(FINDING_ID)).toBe(`/p/clemvion/reviews?finding=${FINDING_ID}`);
     // 테스트 이름은 저장소마다 모양이 달라 데려갈 곳이 없다 — 누를 수 없는 링크를 그리지 않는다
     expect(hrefOf('claim.spec.ts > 원자적 클레임')).toBeNull();
-    expect(screen.getAllByTestId('evidence-link')).toHaveLength(5);
+    expect(screen.getAllByTestId('evidence-link')).toHaveLength(6);
   });
 
   it('새 탭으로 연다 — 이 화면에서 done 전이를 채우는 중이다', async () => {
@@ -186,5 +187,16 @@ describe('증적 종류 셀렉트 (REQ-WEB-160)', () => {
     await renderTask();
     const select = screen.getByDisplayValue('pr') as HTMLSelectElement;
     expect([...select.options].map((o) => o.value)).toEqual([...EVIDENCE_KINDS]);
+  });
+});
+
+/**
+ * **매뉴얼의 장은 짐작이 아니라 대조다**(2026-09-10 · REQ-WEB-161). `user_guide` 도 오래
+ * "모양을 알 수 없다" 로 두었는데, 장 이름의 정본은 `manual-chapters.ts` 에 실재한다.
+ */
+describe('사용자 가이드 증적 (REQ-WEB-161)', () => {
+  it('실재하는 장이면 매뉴얼로 간다', async () => {
+    await renderTask();
+    expect(hrefOf('/help/tasks')).toBe('/help/tasks');
   });
 });
