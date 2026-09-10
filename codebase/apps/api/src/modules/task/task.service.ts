@@ -929,18 +929,34 @@ export class TaskService {
       // 사실을 모르면 조정이 일어나지 않는다.
       if (error instanceof NervError && error.code === NERV_ERROR.CONFLICT_SCOPE) {
         const details = error.details as { task_id?: string; overlaps?: unknown };
-        await this.events.transact(async (_tx, emit) =>
-          emit({
-            type: NERV_EVENT.CLAIM_CONFLICT_BLOCKED,
-            projectId: input.projectId,
-            subjectType: 'task',
-            subjectId: String(details.task_id ?? input.taskId),
-            actorUserId: input.userId,
-            actorSessionId: input.sessionId,
-            isAgent: input.sessionId !== null,
-            payload: { overlaps: details.overlaps ?? [] },
-          }),
-        );
+        // **기록이 원래 오류를 덮지 않는다**(2026-09-10 · REQ-API-156). 주체는 `event.subject_id`
+        // 가 `uuid` 열이라 **해소된 id 여야 한다** — 대체값이 `input.taskId` 였고 그것은 키일 수
+        // 있어서, 키로 부른 클레임이 겹침에 걸리면 이 자리가 `22P02` 로 터졌다. 그리고 여기는
+        // `catch` 안이라 그 터짐이 **`CONFLICT_SCOPE` 를 통째로 대체한다**: 막힌 쪽은 "겹쳤다"
+        // 대신 캐스팅 오류를 받고, 기록도 남지 않는다. 던진 자리가 언제나 해소된 `task_id` 를
+        // 싣지만(§1.4b) 그것을 기대로 두지 않는다 — 없으면 기록만 건너뛰고, 남기다 실패해도
+        // 삼킨다. 이 경로에서 사람이 알아야 할 사실은 **겹쳤다는 것**이다.
+        const subjectId = details.task_id;
+        if (subjectId === undefined) {
+          this.logger.warn(`클레임 차단 기록 생략 — 주체 id 없음: task=${input.taskId}`);
+        } else {
+          await this.events
+            .transact(async (_tx, emit) =>
+              emit({
+                type: NERV_EVENT.CLAIM_CONFLICT_BLOCKED,
+                projectId: input.projectId,
+                subjectType: 'task',
+                subjectId,
+                actorUserId: input.userId,
+                actorSessionId: input.sessionId,
+                isAgent: input.sessionId !== null,
+                payload: { overlaps: details.overlaps ?? [] },
+              }),
+            )
+            .catch((emitError: unknown) => {
+              this.logger.warn(`클레임 차단 기록 실패: ${String(emitError)}`);
+            });
+        }
       }
       throw error;
     }
@@ -1645,7 +1661,7 @@ export class TaskService {
       }
 
       if (input.status === 'done') {
-        const gate = await this.assertDoneGate(tx, input);
+        const gate = await this.assertDoneGate(tx, taskId, input.projectId, input.specImpact);
         if (!gate.ok) {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.done_gate'), {
             kind: 'done_gate',
@@ -1755,14 +1771,25 @@ export class TaskService {
    * 판정 불가는 실패가 아니라 fail-open + 관측이다(D-14) — 여기서는 판정에 필요한 데이터가
    * 전부 서버에 있으므로 그 경로가 열리지 않는다.
    */
+  /**
+   * **게이트는 해소된 것만 본다**(2026-09-10 · REQ-API-156). 예전 시그니처는 `transition()`
+   * 의 `input` 을 통째로 받았고, 그래서 `taskId` 가 **키인 채로** 세 질의에 들어갔다 —
+   * 키로 `done` 을 부르면 `evidence.task_id = 'SUD-T-…'` 가 `22P02` 로 터졌고, 그 그물이
+   * (REQ-API-106) 그것을 400 으로 내려 **서버 결함이 호출자의 입력 오류로 보였다.** 두 줄
+   * 아래의 `UPDATE` 는 같은 블록에서 해소된 id 를 옳게 쓰고 있었으니 빠진 것은 여기 하나였다.
+   * 참조가 아니라 **id 를 받는 시그니처**로 못 박아 같은 실수가 다시 가능하지 않게 한다.
+   */
   private async assertDoneGate(
     tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
-    input: { projectId: string; taskId: string; specImpact?: Record<string, unknown> | null },
+    /** `resolveTaskId()` 를 지난 UUID 다 — 키를 넘기면 타입이 막지 못하니 이름으로 못 박는다 */
+    taskId: string,
+    projectId: string,
+    specImpact: Record<string, unknown> | null | undefined,
   ): Promise<{ ok: boolean; missing: string[] }> {
     const missing: string[] = [];
 
     // 조건 5 — 스펙 영향 선언. none sentinel 을 허용하되 선언 자체는 필수다
-    const impact = input.specImpact;
+    const impact = specImpact;
     if (impact === null || impact === undefined || Object.keys(impact).length === 0) {
       missing.push(text('task.missing.spec_impact'));
     }
@@ -1770,7 +1797,7 @@ export class TaskService {
     // **강화는 프로젝트가 켠다**(2026-09-07 · REQ-API-146). 기본은 오늘과 같다 —
     // 서버가 일괄로 켜면 오늘 통과하던 작업이 내일 막히고, 그 이유를 아무도 고르지 않았다.
     const { rows: policyRows } = await tx.execute<{ gate_policy: unknown }>(
-      sql`SELECT gate_policy FROM project WHERE id = ${input.projectId}`,
+      sql`SELECT gate_policy FROM project WHERE id = ${projectId}`,
     );
     const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
     const policy = parsed.success
@@ -1784,7 +1811,7 @@ export class TaskService {
       policy.evidence_source === 'ci_or_human' ? sql` AND source IN ('ci', 'human')` : sql``;
     const { rows } = await tx.execute<{ n: number }>(
       sql`SELECT count(*)::int AS n FROM evidence
-           WHERE task_id = ${input.taskId}${sourceFilter}`,
+           WHERE task_id = ${taskId}${sourceFilter}`,
     );
     if ((rows[0]?.n ?? 0) === 0) {
       missing.push(
@@ -1799,7 +1826,7 @@ export class TaskService {
     if (policy.review_coverage) {
       const { rows: waived } = await tx.execute<{ n: number }>(sql`
         SELECT count(*)::int AS n FROM approval
-         WHERE is_bypass AND subject_type = 'gate_bypass' AND subject_id = ${input.taskId}
+         WHERE is_bypass AND subject_type = 'gate_bypass' AND subject_id = ${taskId}
       `);
       if ((waived[0]?.n ?? 0) === 0) {
         const { rows: reviews } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
@@ -1809,7 +1836,7 @@ export class TaskService {
                                   AND f.severity = 'critical' AND f.status = 'open')), 0)::int
                    AS open_critical
             FROM review_session rs
-           WHERE rs.task_id = ${input.taskId} AND rs.state <> 'running'
+           WHERE rs.task_id = ${taskId} AND rs.state <> 'running'
         `);
         if ((reviews[0]?.rounds ?? 0) === 0) missing.push(text('task.missing.review_coverage'));
         else if ((reviews[0]?.open_critical ?? 0) > 0) {

@@ -459,3 +459,51 @@ describe('승격은 처분과 다른 축이다 (07)', () => {
     expect(within(rail).getByTestId('promote-task').hasAttribute('disabled')).toBe(true);
   });
 });
+
+// ── 세 칸의 스크롤 상자 (2026-09-10 · 사람 지시 · REQ-WEB-158) ────────────────────
+//
+// 스크롤 상자가 페이지였다 — 큐가 화면보다 길면 바퀴를 **레일 위에서 굴려도 움직이는
+// 것은 큐**였고(레일이 더 흘릴 것이 없으면 스크롤은 페이지로 넘어간다), 게이트 현황은
+// 세 칸을 다 지난 바닥에 따로 누워 있었다. jsdom 은 레이아웃을 재지 않으므로 여기서
+// 태우는 것은 **어디가 스크롤 상자이고 무엇이 어느 칸에 사는가** 라는 계약이다 —
+// 실제로 페이지가 가만히 있는지는 L3 가 잰다(§2.4 REQ-WEB-156 과 같은 나눔).
+describe('세 칸의 스크롤 상자 (REQ-WEB-158)', () => {
+  it('페이지가 화면 높이를 쥐고, 머리 아래의 줄만 남은 높이를 나눈다', async () => {
+    await renderCenter();
+    const content = await screen.findByTestId('review-content');
+    const row = content.parentElement;
+    const page = row?.parentElement;
+    expect(page?.className).toContain('lg:h-[calc(100dvh-var(--spacing-header))]');
+    expect(page?.className).toContain('lg:overflow-hidden');
+    // 높이만 잡으면 헛돈다 — 줄이 `min-h-0` 이 아니면 칸이 상자보다 커져 안쪽 스크롤이
+    // 서지 않는다(격자의 `minmax(0,1fr)` 과 같은 이유다)
+    expect(row?.className).toContain('lg:min-h-0');
+    expect(row?.className).toContain('lg:flex-1');
+  });
+
+  it('세 칸이 각자 세로만 연다 — 가로까지 열면 칸이 통째로 옆으로 밀린다', async () => {
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+    for (const id of ['review-filters', 'review-content']) {
+      const box = screen.getByTestId(id);
+      expect(box.className).toContain('lg:overflow-y-auto');
+      // REQ-WEB-151 이 레일에서 겪은 그 모양이다 — 가로는 **명시로** 잠근다
+      expect(box.className).toContain('lg:overflow-x-hidden');
+      expect(box.className).toContain('lg:h-full');
+    }
+    // 레일은 틀이 서 있고 **내용이 그 안에서** 흐른다 — 테두리까지 함께 흘러 올라가지 않는다
+    const rail = screen.getByTestId('review-rail');
+    expect(rail.className).toContain('xl:h-full');
+    expect(rail.firstElementChild?.className).toContain('xl:overflow-y-auto');
+    // 페이지가 스크롤하지 않으므로 붙일 것이 없다 — 그 자리의 `sticky` 는 아무 일도 안 한다
+    expect(rail.innerHTML).not.toContain('sticky');
+  });
+
+  it('게이트 현황은 컨텐츠 칸 안에 산다 — 칸을 가둔 뒤에도 닿는 길이 있어야 한다', async () => {
+    await renderCenter();
+    const content = await screen.findByTestId('review-content');
+    expect(content.contains(screen.getByTestId('gate-coverage'))).toBe(true);
+    // 큐와 **같은 칸**이다 — 둘이 한 상자에서 이어 읽힌다
+    expect(content.contains(screen.getAllByTestId('finding-card')[0]!)).toBe(true);
+  });
+});

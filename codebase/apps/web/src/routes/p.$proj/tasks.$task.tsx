@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { StatusBadge } from '../../components/status-badge.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
 import { apiFetch, NervApiError } from '../../lib/api.js';
+import { evidenceTarget, needsRepoUrl } from '../../lib/evidence.js';
 import { blockedReasonText } from '../../lib/format.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -65,6 +66,12 @@ function TaskDetail(): React.JSX.Element {
   const status = String(data['status'] ?? '');
   const projectId = project.data?.['id'];
   const meId = me.data?.id;
+  const evidence = rows(data['evidence']);
+  // 증적이 데려갈 곳을 만드는 데 드는 둘 — 저장소 주소와 기준 갈래(REQ-WEB-159).
+  // 프로젝트 응답(EP-PRJ-03)이 처음부터 싣고 있었고 이 화면이 읽은 적이 없었다.
+  const repoUrl = typeof project.data?.['repo_url'] === 'string' ? project.data['repo_url'] : null;
+  const defaultBranch =
+    typeof project.data?.['default_branch'] === 'string' ? project.data['default_branch'] : null;
   /** 무엇이 되면 풀리는가 — 서버가 파생해 보낸다(REQ-API-118). 막히지 않았으면 null */
   const blocked =
     typeof data['blocked_resolution'] === 'object' && data['blocked_resolution'] !== null
@@ -587,22 +594,62 @@ function TaskDetail(): React.JSX.Element {
           </div>
         </Card>
 
+        {/* **증적은 보러 갈 수 있어야 한다**(2026-09-10 — 사람 지시 · REQ-WEB-159). 명세
+            §2.5 (6) 은 처음부터 "PR·커밋 링크" 라고 적었는데 화면은 종류와 위치를 글자로만
+            그렸다 — 증적은 "보일 것을 붙였다" 는 약속이고, 그것을 확인하는 길이 없으면
+            약속이 절반만 지켜진다. **새 탭으로 연다**: 여기서 done 전이를 하는 중이라
+            같은 탭에서 나가면 채워 둔 폼(스펙 영향·증적)이 사라진다. */}
         <Card>
           <SectionTitle>{t('task.evidence')}</SectionTitle>
           <ul className="flex flex-col">
-            {rows(data['evidence']).map((e) => (
-              <li
-                key={String(e['id'])}
-                className="flex gap-2 border-b border-border py-1.5 text-xs last:border-0"
-              >
-                <span className="w-20 shrink-0 font-mono text-text-faint">{String(e['kind'])}</span>
-                <span className="truncate">{String(e['locator'])}</span>
-              </li>
-            ))}
-            {rows(data['evidence']).length === 0 && (
+            {evidence.map((e) => {
+              const target = evidenceTarget({
+                kind: String(e['kind']),
+                locator: String(e['locator']),
+                repoUrl,
+                defaultBranch,
+                projectSlug: proj,
+              });
+              return (
+                <li
+                  key={String(e['id'])}
+                  data-testid="task-evidence"
+                  className="flex gap-2 border-b border-border py-1.5 text-xs last:border-0"
+                >
+                  <span className="w-20 shrink-0 font-mono text-text-faint">
+                    {String(e['kind'])}
+                  </span>
+                  {target === null ? (
+                    <span className="truncate">{String(e['locator'])}</span>
+                  ) : (
+                    <a
+                      href={target.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      data-testid="evidence-link"
+                      title={t('task.evidence_open')}
+                      className="truncate text-link hover:underline"
+                    >
+                      {String(e['locator'])}
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+            {evidence.length === 0 && (
               <li className="text-sm text-text-faint">{t('common.not_yet')}</li>
             )}
           </ul>
+          {/* 링크가 아닌 이유 중 사람이 고칠 수 있는 것 하나는 화면이 말한다 — 빈칸은
+              "링크 없는 증적" 으로 읽히지 "설정이 비었다" 로 읽히지 않는다(§1.5) */}
+          {needsRepoUrl(
+            evidence.map((e) => ({ kind: String(e['kind']) })),
+            repoUrl,
+          ) && (
+            <p data-testid="evidence-no-repo" className="mt-2 text-2xs text-text-faint">
+              {t('task.evidence_no_repo')}
+            </p>
+          )}
         </Card>
 
         {/* **리뷰는 Task 에서도 보인다**(2026-09-07 · REQ-WEB-148 · FR-13 양방향 드릴다운).
