@@ -209,14 +209,24 @@ describe('세션 보드 — 커서 열과 정렬 열이 같은가 (EP-SES-01)', 
   it('하트비트가 뒤섞인 세션 일곱을 limit 2 로 넘기면 겹치지도 빠지지도 않는다', async () => {
     // 나중에 시작했지만 하트비트가 오래된 세션(유령 세션의 전형)을 일부러 만든다 —
     // 예전 커서(`started_at`)로는 그 세션이 2쪽에서 통째로 빠졌다.
+    //
+    // **시각은 같은 ms 안의 µs 로 둔다**(2026-09-10 보강). 예전 배열은 일곱이 모두 정각이라
+    // 소수부가 없어, 커서가 시각을 ms 로 자르는 결함을 심어도 이 검사가 통과했다 — 이 커서는
+    // 시각을 **둘**(하트비트 · 시작) 싣기 때문에 둘 다 같은 ms 안에서 갈리게 만든다.
+    // 예전이 세던 것은 그대로 남는다: NULL 무리 · 하트비트 정확한 동률 · 유령 세션.
     const rows: [string, string, string | null][] = [
-      [newId(), '2026-09-01 10:00:00+00', '2026-09-05 10:00:00+00'],
-      [newId(), '2026-09-02 10:00:00+00', '2026-09-05 09:00:00+00'],
-      [newId(), '2026-09-03 10:00:00+00', '2026-09-05 11:00:00+00'],
-      [newId(), '2026-09-04 10:00:00+00', null],
-      [newId(), '2026-09-05 10:00:00+00', '2026-09-05 09:00:00+00'],
-      [newId(), '2026-09-06 10:00:00+00', null],
-      [newId(), '2026-09-07 10:00:00+00', '2026-09-05 09:00:00+00'],
+      // 하트비트가 같은 ms 안에서 µs 로만 갈리는 짝 (하트비트 정밀도)
+      [newId(), '2026-09-01 10:00:00.123456+00', '2026-09-05 11:00:00.123456+00'],
+      [newId(), '2026-09-02 10:00:00.123456+00', '2026-09-05 11:00:00.123457+00'],
+      // 셋이 하트비트가 **정확히** 같다 — 갈리는 것은 (started_at, id) 다
+      [newId(), '2026-09-03 10:00:00.123456+00', '2026-09-05 09:00:00.123456+00'],
+      // 이 둘은 가장 늦게 시작했는데 하트비트는 가장 오래됐다(유령 세션) —
+      // 그리고 서로 started_at 이 같은 ms 안에서 µs 로만 갈린다 (시작 시각 정밀도)
+      [newId(), '2026-09-07 10:00:00.123456+00', '2026-09-05 09:00:00.123456+00'],
+      [newId(), '2026-09-07 10:00:00.123457+00', '2026-09-05 09:00:00.123456+00'],
+      // NULL 무리도 started_at 이 같은 ms 안에서 µs 로만 갈린다
+      [newId(), '2026-09-06 10:00:00.123456+00', null],
+      [newId(), '2026-09-06 10:00:00.123457+00', null],
     ];
     for (const [id, startedAt, heartbeat] of rows) {
       await pool.query(
@@ -226,6 +236,24 @@ describe('세션 보드 — 커서 열과 정렬 열이 같은가 (EP-SES-01)', 
         [id, projectId, userId, startedAt, heartbeat],
       );
     }
+    const { rows: shape } = await pool.query<{
+      hb_ms: number;
+      hb_us: number;
+      st_ms: number;
+      st_us: number;
+      nulls: number;
+    }>(
+      `SELECT count(DISTINCT date_trunc('milliseconds', last_heartbeat_at))::int AS hb_ms,
+              count(DISTINCT last_heartbeat_at)::int                          AS hb_us,
+              count(DISTINCT date_trunc('milliseconds', started_at))::int      AS st_ms,
+              count(DISTINCT started_at)::int                                  AS st_us,
+              count(*) FILTER (WHERE last_heartbeat_at IS NULL)::int           AS nulls
+         FROM agent_session WHERE project_id = $1`,
+      [projectId],
+    );
+    // 전제가 성립하지 않으면 아래 drain 은 정밀도 경계를 지나지 않는다 —
+    // 하트비트는 ms 둘에 값 셋, 시작 시각은 ms 다섯에 값 일곱, NULL 무리는 둘이다
+    expect(shape[0]).toMatchObject({ hb_ms: 2, hb_us: 3, st_ms: 5, st_us: 7, nulls: 2 });
     const seen = await drain((cursor) =>
       sessions.board({ projectId, limit: 2, cursor: cursor ?? undefined }),
     );
