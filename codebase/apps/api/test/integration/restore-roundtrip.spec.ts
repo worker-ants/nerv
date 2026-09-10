@@ -71,6 +71,23 @@ if (!HAS_PG_TOOLS) {
   console.warn(`[restore-roundtrip] 건너뜀 — ${PG_TOOLS.reason}`);
 }
 
+/**
+ * **면제를 말로만 두지 않는다.** 위 주석은 2026-09-02 부터 "CI 는 짝을 맞춘다" 고 적어 왔는데,
+ * 실제로는 그날 이후 **한 번도 맞은 적이 없었다** — 러너에 `postgresql-client-17` 을 깔아도
+ * PATH 의 `pg_dump` 는 선설치된 PG16 클러스터를 보는 래퍼(`pg_wrapper`)라 16 으로 남았다.
+ * 그래서 이 스위트는 실패가 아니라 **조용한 skip** 이 됐고, 잡은 계속 초록이었다
+ * (2026-09-10 실측 — main `feb94e1` 의 CI 로그에도 `pg_dump 16 는 서버 17 를…` 이 남아 있다).
+ *
+ * 초록인데 REQ-CB-019 를 아무도 검증하지 않는 상태가 **여드레** 갔다. 그 침묵을 없앤다:
+ * `NERV_REQUIRE_PG_TOOLS=1` 인 환경(CI)에서는 건너뛰기가 곧 실패다. 로컬 장비는 그대로 건너뛴다.
+ */
+if (!HAS_PG_TOOLS && process.env['NERV_REQUIRE_PG_TOOLS'] === '1') {
+  throw new Error(
+    `[restore-roundtrip] ${PG_TOOLS.reason} — NERV_REQUIRE_PG_TOOLS=1 에서는 건너뛰지 않는다. ` +
+      '서버와 짝이 맞는 클라이언트를 PATH 에 올린다(.github/workflows/ci.yml · REQ-CB-019).',
+  );
+}
+
 let source: ScratchDb;
 let restored: ScratchDb;
 let backupDir: string;

@@ -23,7 +23,13 @@ import {
   taskStatus,
   text,
 } from '@nerv/schema';
-import { decodeCursor, encodeCursor, pageLimit } from '../../common/cursor.js';
+import {
+  cursorId,
+  cursorTimestamp,
+  decodeCursor,
+  encodeCursor,
+  pageLimit,
+} from '../../common/cursor.js';
 import { displayKey } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -247,16 +253,27 @@ export class TaskService {
     // 표기가 없었다는 사실이고, `ORDER BY t.priority` 는 그것을 맨 뒤로 보낸다(PG 의 ASC
     // 기본이 NULLS LAST 다). 커서도 **그 정렬을 술어로 그대로** 써야 한다 — 행 비교
     // (`>`)는 NULL 앞에서 UNKNOWN 이 되어 남은 쪽을 통째로 잃는다.
+    //
+    // **세 자리를 캐스팅 전에 거른다**(2026-09-10 · `common/cursor.ts` 가 이미 그러라고
+    // 적어 둔 규칙인데 이 목록만 따르지 않았다). 낡거나 망가진 커서가 그대로 `::timestamptz`·
+    // `::uuid`·`::task_priority` 로 들어가면 22007·22P02 가 되고, 커서 하나가 화면을 통째로
+    // 깨뜨린다. 한 자리라도 어긋나면 **처음부터** 보여 준다 — 이벤트·알림·세션과 같은 태도다.
     const after = decodeCursor(input.cursor);
-    const afterPriority = after === null || after[0] === null ? null : String(after[0]);
-    const tail =
-      after === null
-        ? sql``
-        : sql`(t.updated_at < ${String(after[1])}::timestamptz
-            OR (t.updated_at = ${String(after[1])}::timestamptz
-                AND t.id > ${String(after[2])}::uuid))`;
+    const afterAt = cursorTimestamp(after?.[1]);
+    const afterRowId = cursorId(after?.[2]);
+    // `null` 은 미표기 무리(정당한 값)이고 `undefined` 는 어휘 밖(커서가 망가졌다)이다 — 둘은 다르다
+    const afterPriority =
+      after === null || after[0] === null
+        ? null
+        : (taskPriority.enumValues as readonly string[]).includes(String(after[0]))
+          ? String(after[0])
+          : undefined;
+    const usable = after !== null && afterAt !== null && afterRowId !== null;
+    const tail = sql`(t.updated_at < ${afterAt}::timestamptz
+            OR (t.updated_at = ${afterAt}::timestamptz
+                AND t.id > ${afterRowId}::uuid))`;
     const seek =
-      after === null
+      !usable || afterPriority === undefined
         ? sql``
         : afterPriority === null
           ? // 이미 NULL 무리 안이다 — 그 뒤는 같은 무리의 나머지뿐이다
@@ -270,7 +287,10 @@ export class TaskService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.id, t.key, t.title, t.status::text AS status, t.priority::text AS priority,
              t.assignee_user_id, u.display_name AS assignee_name,
-             t.rebrief_required_at, t.blocked_reason, t.updated_at,
+             t.rebrief_required_at, t.blocked_reason,
+             -- 커서가 이 값을 그대로 싣는다 — **정밀도를 드라이버에 맡기지 않는다**(세션 보드와 같은 규칙).
+             -- 타입 파서가 끼어 Date 가 되는 날 µs 가 조용히 잘리고 커서가 행을 건너뛴다.
+             t.updated_at::text AS updated_at,
              s.key AS spec_key, s.id AS source_spec_id, sv.version_no AS basis_version_no,
              (sv.status = 'superseded') AS basis_superseded,
              c.id AS claim_id, c.agent_session_id AS claim_session_id, c.lease_expires_at,
@@ -295,7 +315,14 @@ export class TaskService {
         ? encodeCursor([
             // 미표기는 커서에서도 NULL 이다 — 문자열 'null' 로 접으면 다음 쪽이 어긋난다
             last['priority'] == null ? null : String(last['priority']),
-            new Date(String(last['updated_at'])).toISOString(),
+            // **드라이버가 준 텍스트 그대로**(2026-09-10 · `common/cursor.ts` 가 적어 둔 규칙).
+            // `new Date(...).toISOString()` 왕복은 µs 를 ms 로 잘라 `=` 동률 판정을 깨뜨린다:
+            // 경계 행이 `.41567` 인데 커서에 `.415` 가 실리면, 같은 ms 안의 `.41523` 은
+            // `< .415` 도 `= .415` 도 아니어서 **영영 나오지 않는다.** `updated_at` 기본값이
+            // `now()`(트랜잭션 시각)라 한 트랜잭션 안은 값이 정확히 같아 `id` 타이브레이크가
+            // 먹지만, 임포터처럼 **트랜잭션을 빠르게 이어 만든 행들**이 그 창에 빠졌다
+            // (실측: L2 전체 7회 중 1회 — `정렬 미표기1` 한 건이 사라졌다).
+            String(last['updated_at']),
             String(last['id']),
           ])
         : null;
