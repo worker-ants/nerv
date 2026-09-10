@@ -20,6 +20,7 @@ import { useSpec } from '../../lib/queries.js';
 import type { Row } from '../../lib/queries.js';
 import { SpecLinkPicker } from '../spec-editor/spec-link-picker.js';
 import { Button, Field, Input, Textarea } from '../../components/ui/primitives.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 export type ResolveAction = 'fixed' | 'spec_change' | 'dismissed' | 'wont_fix';
 
@@ -31,7 +32,7 @@ export function ResolveDialog({
   onDone,
 }: {
   projectSlug: string;
-  projectId: string | undefined;
+  projectId: ProjectId | undefined;
   finding: Row;
   action: ResolveAction;
   onDone: () => void;
@@ -70,9 +71,12 @@ export function ResolveDialog({
     onSuccess: () => {
       // 큐와 게이트 현황은 같은 사실의 두 얼굴이다 — 함께 다시 읽는다
       // 프로젝트 축뿐이다 — slug 로 잡으면 아무 캐시도 맞지 않는다(queries.ts 규약)
-      const key = projectId ?? '';
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projectFindings(key) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projectGateCoverage(key) });
+      // 축이 없으면 무효화하지 않는다 — 빈 축으로 부르면 아무 캐시에도 닿지 않고,
+      // 그 침묵이 정확히 이 표시가 없애려는 결함이다(query-keys.ts `ProjectId`).
+      if (projectId !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectFindings(projectId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectGateCoverage(projectId) });
+      }
       pushToast({ tone: 'ok', message: t('reviews.resolve.done') });
       onDone();
     },

@@ -20,6 +20,7 @@ import { SEVERITY_TOKEN } from '../../components/status-token.js';
 import { useT } from '../../lib/i18n.js';
 import { relativeTime } from '../../lib/format.js';
 import type { Row } from '../../lib/queries.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 export function FindingRail({
   finding,
@@ -30,7 +31,7 @@ export function FindingRail({
 }: {
   finding: Row;
   projectSlug: string;
-  projectId?: string | undefined;
+  projectId?: ProjectId | undefined;
   /** 처분과 **코멘트** 둘 다의 기준 — 서버가 코멘트에도 `review:resolve` 를 요구한다 */
   canResolve: boolean;
   /** 승격은 작업을 만드는 일이라 `task:update` 가 기준이다(처분과 다른 축) */
@@ -67,9 +68,11 @@ export function FindingRail({
       // 프로젝트 축뿐이다 — slug 로 잡으면 아무 캐시도 맞지 않는다(queries.ts "프로젝트 축").
       // 호출부 둘이 늘 `projectId` 를 넘기므로 이 폴백은 실제로 탄 적이 없지만, 남겨 두면
       // 다음 사람이 "slug 도 되는 축" 으로 읽는다 — 같은 부류가 이미 네 번째다(4.5 §1.4).
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.projectFindings(projectId ?? ''),
-      });
+      // 축이 없으면 무효화하지 않는다 — 빈 축으로 부르면 아무 캐시에도 닿지 않고,
+      // 그 침묵이 정확히 이 표시가 없애려는 결함이다(query-keys.ts `ProjectId`).
+      if (projectId !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectFindings(projectId) });
+      }
       pushToast({
         tone: 'ok',
         message:

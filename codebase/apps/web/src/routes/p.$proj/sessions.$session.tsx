@@ -23,6 +23,7 @@ import { rows, useProject, useSessionDetail } from '../../lib/queries.js';
 import { useCanIntervene } from '../../lib/scope.js';
 import { Card, PageBody, PageHeader, SectionTitle } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 export const Route = createFileRoute('/p/$proj/sessions/$session')({ component: SessionDetail });
 
@@ -88,9 +89,7 @@ function SessionDetail(): React.JSX.Element {
           <SectionTitle>{t('sessions.intervene')}</SectionTitle>
           <SteerPanel
             projectSlug={proj}
-            projectId={
-              typeof project.data?.['id'] === 'string' ? (project.data['id'] as string) : undefined
-            }
+            projectId={asProjectId(project.data?.['id'])}
             sessionId={session}
             state={state}
             canIntervene={canIntervene}

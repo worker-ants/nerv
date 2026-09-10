@@ -23,6 +23,8 @@ import {
   SummaryStrip,
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
+import { asProjectId } from '../../lib/query-keys.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 export const Route = createFileRoute('/p/$proj/tasks/')({
   /**
@@ -161,7 +163,7 @@ function TaskBoard(): React.JSX.Element {
           versionNo: Number(fromVersionNo ?? 0),
           ...(fromRequirement === undefined ? {} : { requirementId: fromRequirement }),
         };
-  const id = typeof projectId === 'string' ? projectId : undefined;
+  const id = asProjectId(projectId);
   const filters = {
     ...(spec === undefined ? {} : { spec }),
     ...(agentOnly ? { ai: true } : {}),
@@ -338,7 +340,7 @@ function Lane({
   onEdit,
 }: {
   proj: string;
-  projectId: string | undefined;
+  projectId: ProjectId | undefined;
   lane: Lane;
   includeArchived: boolean;
   filters: { spec?: string; ai?: boolean };

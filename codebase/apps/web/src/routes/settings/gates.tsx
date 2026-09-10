@@ -68,7 +68,7 @@ function GatesTab(): React.JSX.Element {
         },
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.project(slug) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectBySlug(slug) });
       pushToast({ tone: 'ok', message: t('settings.gates.saved') });
     },
     onError: onApiError,

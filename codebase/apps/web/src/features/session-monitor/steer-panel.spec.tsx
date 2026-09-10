@@ -11,6 +11,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RealtimeProvider } from '../../lib/realtime.js';
 import { SteerPanel } from './steer-panel.js';
+import { asProjectId } from '../../lib/query-keys.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 vi.mock('socket.io-client', () => ({
   io: () => ({
@@ -26,7 +28,7 @@ afterEach(cleanup);
 function panel(props: {
   canIntervene: boolean;
   state?: string;
-  projectId?: string | undefined;
+  projectId?: ProjectId | undefined;
 }): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -35,7 +37,7 @@ function panel(props: {
         <RealtimeProvider>
           <SteerPanel
             projectSlug="clemvion"
-            projectId={'projectId' in props ? props.projectId : 'p-1'}
+            projectId={'projectId' in props ? props.projectId : asProjectId('p-1')}
             sessionId="s-1"
             state={props.state ?? 'active'}
             canIntervene={props.canIntervene}
@@ -86,7 +88,7 @@ describe('개입 뒤 무효화의 축', () => {
       'fetch',
       vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ reclaimed: 1 }) })),
     );
-    const client = panel({ canIntervene: true, projectId: 'p-1' });
+    const client = panel({ canIntervene: true, projectId: asProjectId('p-1') });
     const spy = vi.spyOn(client, 'invalidateQueries');
 
     fireEvent.click(screen.getByTestId('stop-button'));

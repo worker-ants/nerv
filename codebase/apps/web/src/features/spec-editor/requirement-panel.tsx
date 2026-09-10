@@ -16,6 +16,7 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { REQUIREMENT_TOKEN } from '../../components/status-token.js';
 import { statusLabelKey } from '@nerv/schema';
 import type { StatusToken } from '../../components/status-badge.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 export function RequirementPanel({
   projectSlug,
@@ -120,7 +121,7 @@ export function DerivedTaskPanel({
   specKey,
 }: {
   projectSlug: string;
-  projectId: string | undefined;
+  projectId: ProjectId | undefined;
   specKey: string;
 }): React.JSX.Element {
   const t = useT();

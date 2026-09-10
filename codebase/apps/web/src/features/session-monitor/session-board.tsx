@@ -13,6 +13,7 @@ import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
 import { cn } from '../../lib/utils.js';
 import { Button, EmptyState, Skeleton } from '../../components/ui/primitives.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 /** 어휘와 **순서**의 정본은 `@nerv/schema` 다 — 화면이 목록을 새로 만들지 않는다 */
 const SESSION_STATES = sessionState.enumValues;
@@ -29,7 +30,7 @@ const SUMMARY_DOT: Record<string, string> = {
 
 export interface SessionBoardProps {
   projectSlug: string;
-  projectId: string;
+  projectId: ProjectId | undefined;
   /** master-detail — 선택된 세션 id 와 선택 콜백(시안 §2.5) */
   selectedId?: string | undefined;
   onSelect?: ((id: string) => void) | undefined;

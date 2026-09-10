@@ -14,6 +14,7 @@ import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
 import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
+import { asProjectId } from '../lib/query-keys.js';
 
 export const Route = createFileRoute('/')({ component: HomeScreen });
 
@@ -28,7 +29,7 @@ function HomeScreen(): React.JSX.Element {
   const scope = useScope();
   const primary = scope.project;
   const primarySlug = scope.projectSlug ?? '';
-  const primaryId = typeof primary?.['id'] === 'string' ? primary['id'] : undefined;
+  const primaryId = asProjectId(primary?.['id']);
   const events = useEvents(primarySlug, primaryId);
   const coverage = useCoverage(primarySlug, primaryId);
 

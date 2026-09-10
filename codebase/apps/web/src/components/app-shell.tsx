@@ -24,6 +24,7 @@ import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { SpecTree } from './spec-tree.js';
 import { MenuItem, Popover } from './ui/primitives.js';
+import { asProjectId } from '../lib/query-keys.js';
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -607,9 +608,7 @@ export function AppShell({
             <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-border pt-3">
               <SpecTree
                 projectSlug={projectSlug}
-                {...(typeof shellProject.data?.['id'] === 'string'
-                  ? { projectId: shellProject.data['id'] as string }
-                  : {})}
+                projectId={asProjectId(shellProject.data?.['id'])}
                 variant="rail"
                 activeKey={activeSpecKey}
                 heading={t('shell.spec_tree')}

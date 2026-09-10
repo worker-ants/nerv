@@ -7,7 +7,8 @@ import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import type { UseQueryResult, UseInfiniteQueryResult, InfiniteData } from '@tanstack/react-query';
 import { apiFetch } from './api.js';
 import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
-import { queryKeys } from './query-keys.js';
+import { PENDING_PROJECT, queryKeys } from './query-keys.js';
+import type { ProjectId } from './query-keys.js';
 import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
 import type { Me } from './session.js';
@@ -55,7 +56,8 @@ export function useProjects(
 
 export function useProject(slug: string): UseQueryResult<Row> {
   return useQuery({
-    queryKey: queryKeys.project(slug),
+    // **slug 축**이다 — 이 쿼리가 slug 를 id 로 바꿔 준다(query-keys.ts `projectBySlug`)
+    queryKey: queryKeys.projectBySlug(slug),
     queryFn: () => apiFetch<Row>(`/projects/${slug}`),
     // **프로젝트가 없으면 묻지 않는다.** 셸은 전역 화면(홈·받은 요청·설정)에서도 이 훅을
     // 부르는데 그때 slug 가 빈 문자열이라 `/projects/` 로 나갔고, 서버는 그것을
@@ -133,7 +135,7 @@ export function useUnreadCount(): UseQueryResult<{ count: number; immediate: num
 
 export function useSpecTree(
   slug: string,
-  projectId?: string,
+  projectId?: ProjectId,
   includeArchived = false,
   /**
    * 기준선 — 고르면 **그 세트가 담은 문서만**, 그때 핀된 버전으로 온다(REQ-API-098).
@@ -146,7 +148,7 @@ export function useSpecTree(
   const pin = baseline === undefined || baseline === '' ? '' : baseline;
   return useQuery({
     // 세트가 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다
-    queryKey: [...queryKeys.projectSpecTree(projectId ?? ''), includeArchived, pin],
+    queryKey: [...queryKeys.projectSpecTree(projectId ?? PENDING_PROJECT), includeArchived, pin],
     queryFn: () =>
       apiFetch<Row[]>(
         `/projects/${slug}/specs/tree?include_archived=${String(includeArchived)}` +
@@ -239,14 +241,14 @@ export function useSpecAttachments(slug: string, specKey: string): UseQueryResul
 
 export function useSpecGraph(
   slug: string,
-  projectId: string | undefined,
+  projectId: ProjectId | undefined,
   includeArchived = false,
   /** 표·그래프도 같은 세트를 본다 — 탭을 옮겼다고 목록이 달라지면 그것이 혼동이다 */
   baseline?: string,
 ): UseQueryResult<SpecGraph> {
   const pin = baseline === undefined || baseline === '' ? '' : baseline;
   return useQuery({
-    queryKey: [...queryKeys.projectSpecGraph(projectId ?? ''), includeArchived, pin],
+    queryKey: [...queryKeys.projectSpecGraph(projectId ?? PENDING_PROJECT), includeArchived, pin],
     queryFn: () =>
       apiFetch<SpecGraph>(
         `/projects/${slug}/specs/graph?include_archived=${String(includeArchived)}` +
@@ -317,7 +319,7 @@ export function useSpecRelations(
  */
 export function useTaskLane(
   slug: string,
-  projectId: string | undefined,
+  projectId: ProjectId | undefined,
   lane: string,
   options?: { includeArchived?: boolean; assignee?: string; spec?: string; ai?: boolean },
 ): UseQueryResult<{ items: Row[]; next_cursor: string | null }> {
@@ -335,7 +337,14 @@ export function useTaskLane(
     // 화면에서는 목록이 나타났다 사라졌다 다시 나타나는 깜빡임이다(실측 2026-08-23).
     // 무효화가 project_id 로 키를 만드므로(event-invalidation.ts) id 축이 정답이고,
     // 오기 전까지는 아예 부르지 않는다.
-    queryKey: [...queryKeys.projectTasks(projectId ?? ''), lane, archived, assignee, spec, ai],
+    queryKey: [
+      ...queryKeys.projectTasks(projectId ?? PENDING_PROJECT),
+      lane,
+      archived,
+      assignee,
+      spec,
+      ai,
+    ],
     queryFn: () =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(
         `/projects/${slug}/tasks?status=${lane}` +
@@ -398,12 +407,12 @@ export interface SessionBoardResponse {
  */
 export function useSessions(
   slug: string,
-  projectId?: string,
+  projectId?: ProjectId,
   state?: string | null,
 ): UseInfiniteQueryResult<SessionBoardResponse> {
   const refetchInterval = useLivePolling();
   return useInfiniteQuery({
-    queryKey: [...queryKeys.projectSessions(projectId ?? ''), state ?? 'all'],
+    queryKey: [...queryKeys.projectSessions(projectId ?? PENDING_PROJECT), state ?? 'all'],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
       if (state != null && state !== '') params.set('state', state);
@@ -491,9 +500,9 @@ export function flatTimeline(
   return [...(data?.pages ?? [])].reverse().flatMap((page) => rows(page.items));
 }
 
-export function useCoverage(slug: string, projectId?: string): UseQueryResult<Row> {
+export function useCoverage(slug: string, projectId?: ProjectId): UseQueryResult<Row> {
   return useQuery({
-    queryKey: [...queryKeys.project(projectId ?? ''), 'coverage'],
+    queryKey: [...queryKeys.project(projectId ?? PENDING_PROJECT), 'coverage'],
     queryFn: () => apiFetch<Row>(`/projects/${slug}/coverage`),
     // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
     enabled: projectId !== undefined,
@@ -509,10 +518,10 @@ export function useCoverage(slug: string, projectId?: string): UseQueryResult<Ro
  *
  * `select` 로 `items` 를 풀어 호출부(`rows(events.data)`)를 그대로 둔다.
  */
-export function useEvents(slug: string, projectId?: string): UseQueryResult<Row[]> {
+export function useEvents(slug: string, projectId?: ProjectId): UseQueryResult<Row[]> {
   const refetchInterval = useLivePolling();
   return useQuery({
-    queryKey: queryKeys.projectEvents(projectId ?? ''),
+    queryKey: queryKeys.projectEvents(projectId ?? PENDING_PROJECT),
     queryFn: () =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(`/projects/${slug}/events?limit=30`),
     select: (data) => data.items,
@@ -563,7 +572,7 @@ export function useFindings(
     tag: readonly string[];
     area: readonly string[];
   },
-  projectId?: string,
+  projectId?: ProjectId,
 ): UseInfiniteQueryResult<InfiniteData<FindingQueueResponse>> {
   const refetchInterval = useLivePolling();
   const base = new URLSearchParams();
@@ -572,7 +581,7 @@ export function useFindings(
   if (filters.tag.length > 0) base.set('tag', filters.tag.join(','));
   if (filters.area.length > 0) base.set('area', filters.area.join(','));
   return useInfiniteQuery({
-    queryKey: [...queryKeys.projectFindings(projectId ?? ''), filters],
+    queryKey: [...queryKeys.projectFindings(projectId ?? PENDING_PROJECT), filters],
     queryFn: ({ pageParam }) => {
       const query = new URLSearchParams(base);
       if (pageParam !== null) query.set('cursor', String(pageParam));
@@ -601,11 +610,11 @@ export function useFindingComments(
 
 export function useGateCoverage(
   slug: string,
-  projectId?: string,
+  projectId?: ProjectId,
 ): UseQueryResult<GateCoverageResponse> {
   const refetchInterval = useLivePolling();
   return useQuery({
-    queryKey: queryKeys.projectGateCoverage(projectId ?? ''),
+    queryKey: queryKeys.projectGateCoverage(projectId ?? PENDING_PROJECT),
     queryFn: () => apiFetch<GateCoverageResponse>(`/projects/${slug}/gates/reviews`),
     refetchInterval,
     // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)

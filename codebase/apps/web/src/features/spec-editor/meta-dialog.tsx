@@ -15,10 +15,11 @@ import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { Button, Field, Input } from '../../components/ui/primitives.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 export interface MetaDialogProps {
   projectSlug: string;
-  projectId: string | undefined;
+  projectId: ProjectId | undefined;
   specKey: string;
   title: string;
   /** planner·admin 만 편집한다 — 그 외 역할에는 비활성 + 사유(REQ-WEB-003·038) */

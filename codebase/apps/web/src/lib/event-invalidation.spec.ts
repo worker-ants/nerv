@@ -6,6 +6,10 @@ import { NERV_EVENT, NERV_EVENT_NAMES, NERV_EVENT_PHASE2 } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { invalidationKeysFor, mappedEventNames, NO_SCREEN_YET } from './event-invalidation.js';
 import { queryKeys } from './query-keys.js';
+import { asProjectId } from './query-keys.js';
+
+/** 픽스처의 프로젝트 축 — 봉투의 `project_id` 와 같은 값이어야 키가 맞는다 */
+const PRJ = asProjectId('prj-1')!;
 
 function envelope(type: NervEventName, over: Partial<NervEventEnvelope> = {}): NervEventEnvelope {
   return {
@@ -35,9 +39,9 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     expect(keys).toEqual([
       queryKeys.spec('SPC-CWC-007'),
       queryKeys.specVersions('SPC-CWC-007'),
-      queryKeys.projectSpecTree('prj-1'),
+      queryKeys.projectSpecTree(PRJ),
       // 표·그래프도 스펙이 생기면 낡는다(2026-09-02 — 어떤 이벤트에도 걸려 있지 않았다)
-      queryKeys.projectSpecGraph('prj-1'),
+      queryKeys.projectSpecGraph(PRJ),
     ]);
   });
 
@@ -53,8 +57,8 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     expect(keys).toEqual([
       queryKeys.spec('spc-7'),
       queryKeys.specVersions('spc-7'),
-      queryKeys.projectSpecTree('prj-1'),
-      queryKeys.projectSpecGraph('prj-1'),
+      queryKeys.projectSpecTree(PRJ),
+      queryKeys.projectSpecGraph(PRJ),
     ]);
   });
 
@@ -70,17 +74,17 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     const task = invalidationKeysFor(
       envelope(NERV_EVENT.TASK_DONE, { subject_id: 'task-uuid', subject_key: 'CLV-T-7QF3K2' }),
     );
-    expect(task).toEqual([queryKeys.projectTasks('prj-1'), queryKeys.task('CLV-T-7QF3K2')]);
+    expect(task).toEqual([queryKeys.projectTasks(PRJ), queryKeys.task('CLV-T-7QF3K2')]);
   });
 
   it('Task 축 전이는 보드와 개별 Task 를 무효화한다', () => {
     const keys = invalidationKeysFor(envelope(NERV_EVENT.TASK_CLAIMED, { subject_id: 'tsk-3' }));
-    expect(keys).toEqual([queryKeys.projectTasks('prj-1'), queryKeys.task('tsk-3')]);
+    expect(keys).toEqual([queryKeys.projectTasks(PRJ), queryKeys.task('tsk-3')]);
   });
 
   it('클레임 해제는 보드와 세션 보드를 함께 무효화한다', () => {
     const keys = invalidationKeysFor(envelope(NERV_EVENT.CLAIM_RELEASED));
-    expect(keys).toEqual([queryKeys.projectTasks('prj-1'), queryKeys.projectSessions('prj-1')]);
+    expect(keys).toEqual([queryKeys.projectTasks(PRJ), queryKeys.projectSessions(PRJ)]);
   });
 
   it('승인 요청·질문 생성은 받은 요청을 무효화한다', () => {
@@ -108,8 +112,8 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     // 판정은 `pending` 인 화면이 남는다.
     const opened = NERV_EVENT_PHASE2.FINDING_OPENED as unknown as NervEventName;
     expect(invalidationKeysFor(envelope(opened))).toEqual([
-      queryKeys.projectFindings('prj-1'),
-      queryKeys.projectGateCoverage('prj-1'),
+      queryKeys.projectFindings(PRJ),
+      queryKeys.projectGateCoverage(PRJ),
     ]);
   });
 

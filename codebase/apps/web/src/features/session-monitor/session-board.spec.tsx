@@ -26,6 +26,7 @@ import { RealtimeProvider } from '../../lib/realtime.js';
 import { SessionBoard } from './session-board.js';
 import { SessionCard } from './session-card.js';
 import type { SessionCard as Card } from './types.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 afterEach(cleanup);
 
@@ -75,7 +76,7 @@ async function renderBoard(
   const rootRoute = createRootRoute({
     component: () => (
       <RealtimeProvider>
-        <SessionBoard projectSlug="clemvion" projectId="p-1" {...props} />
+        <SessionBoard projectSlug="clemvion" projectId={asProjectId('p-1')} {...props} />
       </RealtimeProvider>
     ),
   });

@@ -24,6 +24,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { Markdown } from 'tiptap-markdown';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/utils.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 /** 화이트리스트 — md 로 표현 가능한 것만(§3.1). 색·밑줄·이미지 업로드는 확장하지 않는다. */
 export const EDITOR_EXTENSIONS = [
@@ -61,7 +62,7 @@ export interface SpecEditorProps {
   onChange: (markdown: string, roundTrip: RoundTripResult) => void;
   /** 스펙 링크를 만들 때 쓰는 주소 축 — 없으면 링크 버튼도 없다 */
   projectSlug?: string | undefined;
-  projectId?: string | undefined;
+  projectId?: ProjectId | undefined;
   /** 편집 중인 문서 — 자기 자신은 고를 수 없다 */
   specKey?: string | undefined;
 }

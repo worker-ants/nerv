@@ -13,6 +13,7 @@ import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { Button, Input } from '../../components/ui/primitives.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 export interface SteerPanelProps {
   projectSlug: string;
@@ -22,7 +23,7 @@ export interface SteerPanelProps {
    * 보드가 그대로 남는다. 실시간이 붙어 있으면 이벤트가 가려 주지만, 끊긴 동안(D-14)에는
    * 사람이 방금 누른 것의 결과를 보지 못한다.
    */
-  projectId: string | undefined;
+  projectId: ProjectId | undefined;
   sessionId: string;
   state: string;
   /**
@@ -65,7 +66,11 @@ export function SteerPanel({
     onSuccess: (result, kind) => {
       setMessage('');
       setConfirming(false);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projectSessions(projectId ?? '') });
+      // 축이 없으면 무효화하지 않는다 — 빈 축으로 부르면 아무 캐시에도 닿지 않고,
+      // 그 침묵이 정확히 이 표시가 없애려는 결함이다(query-keys.ts `ProjectId`).
+      if (projectId !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectSessions(projectId) });
+      }
       pushToast({
         tone: 'ok',
         message:
