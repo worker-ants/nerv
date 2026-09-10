@@ -839,11 +839,14 @@ jobs:
       - run: corepack enable &amp;&amp; pnpm install --frozen-lockfile
       # 서버와 **짝이 맞는** 클라이언트. 낮으면 pg_dump 가 죽거나(구버전) 조용히 skip 된다
       - run: sudo apt-get install -y postgresql-client-18   # (pgdg 저장소 추가는 실물 참조)
+      # **설치만으로는 PATH 가 안 바뀐다** — /usr/bin/pg_dump 는 선설치 PG16 클러스터를 보는 래퍼다
+      - run: echo /usr/lib/postgresql/18/bin &gt;&gt; "$GITHUB_PATH"
       - run: pnpm build      # migrate 는 dist/migrate.js 를 쓴다 — compose·k8s 와 같은 경로
       - run: pnpm db:migrate &amp;&amp; pnpm test:integration
         env:
           DATABASE_URL: "postgres://postgres:ci@localhost:5432/postgres"
           NERV_VALKEY_URL: "redis://localhost:6379"
+          NERV_REQUIRE_PG_TOOLS: "1"   # 건너뛰기는 로컬의 편의지 CI 의 면제가 아니다 — skip 이 곧 실패
   e2e:                         # 매 PR + merge_group + 야간 — L3 (2026-09-06: PR 레인 추가)
     runs-on: ubuntu-latest
     steps:

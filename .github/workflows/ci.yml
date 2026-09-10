@@ -172,12 +172,19 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-client-18
+          # **설치만으로는 PATH 가 바뀌지 않는다.** /usr/bin/pg_dump 는 pg_wrapper 이고,
+          # 러너에 선설치된 PG16 클러스터를 보고 16 을 고른다 — 2026-09-02 에 client-17 을
+          # 깔고도 백업 왕복이 여드레 동안 조용히 skip 된 이유다(2026-09-10 실측).
+          echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       # migrate 는 빌드 산출물(dist/migrate.js)을 쓴다 — compose·k8s 와 같은 코드 경로다
       - run: pnpm build
       - run: pnpm db:migrate && pnpm test:integration
         env:
           DATABASE_URL: postgres://postgres:ci@localhost:5432/postgres
           NERV_VALKEY_URL: redis://localhost:6379
+          # 건너뛰기는 로컬 장비의 편의지 CI 의 면제가 아니다 — 여기서는 skip 이 곧 실패다.
+          # 이 줄이 없으면 클라이언트가 어긋난 날 잡은 초록인 채로 REQ-CB-019 만 사라진다.
+          NERV_REQUIRE_PG_TOOLS: '1'
 
   e2e:
     name: e2e (L3 · compose 스택)
