@@ -1091,6 +1091,9 @@ export const en = {
   'task.claim_scope': 'Declared scope',
   'task.claim_lease': '{remaining} of lease left',
   'task.evidence': 'Evidence',
+  'task.evidence_no_repo':
+    'Commits and code paths need the project repository URL, which is not set yet.',
+  'task.evidence_open': 'Opens in a new tab',
   'task.evidence_placeholder': 'Where the evidence is (PR URL, commit SHA, test ID)',
   'task.form.edit': 'Edit task — {key}',
   'task.form.lead_post': '. Otherwise it stays in the backlog.',

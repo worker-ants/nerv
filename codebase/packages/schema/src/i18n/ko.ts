@@ -1072,6 +1072,9 @@ export const ko = {
   'task.claim_scope': '선언한 범위',
   'task.claim_lease': '리스 {remaining} 남음',
   'task.evidence': '증적',
+  'task.evidence_no_repo':
+    '커밋·코드 경로는 프로젝트의 저장소 주소가 있어야 열 수 있습니다 — 아직 비어 있습니다.',
+  'task.evidence_open': '새 탭에서 엽니다',
   'task.evidence_placeholder': '증적 위치 (PR URL · 커밋 SHA · 테스트 ID)',
   'task.form.edit': '작업 수정 — {key}',
   'task.form.lead_post': '로 승격합니다. 비면 backlog 에 남습니다.',

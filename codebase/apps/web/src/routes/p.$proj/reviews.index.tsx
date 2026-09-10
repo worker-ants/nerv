@@ -119,14 +119,34 @@ function ReviewCenter(): React.JSX.Element {
     set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
   return (
-    <PageBody wide>
+    // **세 칸이 각자 자기 안에서 흐른다**(2026-09-10 — 사람 지시 · REQ-WEB-158). 여태
+    // 스크롤 상자는 문서 전체였다: 발견 큐는 50건이면 이미 화면보다 길고(실측 clemvion
+    // 18,650건), 그래서 바퀴를 **레일 위에서 굴려도 움직이는 것은 큐**였다 — 레일이 더
+    // 흘릴 것이 없으면 스크롤은 페이지로 넘어간다. 고른 발견을 펴 놓고 목록을 훑는 것이
+    // 이 화면의 손놀림인데, 그때 옆의 것이 함께 밀리면 나란히 놓은 두 칸이 아니다.
+    // §2.4 가 S3 에서 먼저 쓴 그 규약이다(REQ-WEB-156).
+    //
+    // 머리(제목·요약 스트립)는 스크롤에서 빠지고, 남은 높이를 세 칸이 나눠 갖는다 —
+    // 가운데 칸이 `flex-1`(basis 0)이라 머리가 줄어들 압력을 받지 않는다. 묶는 것은
+    // **2열이 되는 폭(`lg`)부터**다: 1열에서 칸을 각각 가두면 스크롤이 두 겹이 되고,
+    // 안쪽 스크롤은 바깥 스크롤에 가려 있다는 것 자체가 보이지 않는다.
+    <PageBody
+      wide
+      className="lg:flex lg:h-[calc(100dvh-var(--spacing-header))] lg:flex-col lg:overflow-hidden"
+    >
       <PageHeader title={t('reviews.title')} />
-      <SummaryStrip className="mb-5" metrics={summary} />
+      <SummaryStrip className="mb-5 lg:shrink-0" metrics={summary} />
 
       {/* 필터 | 큐 — **가로로 나란히**다(2026-08-23 사람 판단, §2.5 와 같은 규칙).
           아래에 두면 목록을 다 지나 스크롤해야 닿는다 */}
-      <div className="flex flex-col gap-4 lg:flex-row">
-        <aside className="w-full shrink-0 lg:w-52">
+      <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden">
+        {/* 필터도 자기 안에서 흐른다 — 태그 facet 이 길면 여기부터 넘친다.
+            가로는 **명시로** 잠근다: 한 축이 `visible` 이 아니면 다른 축도 `auto` 가 되므로
+            세로만 열려던 설정이 이 칸을 가로 스크롤 상자로 만든다(REQ-WEB-151 의 그 모양) */}
+        <aside
+          data-testid="review-filters"
+          className="w-full shrink-0 lg:h-full lg:w-52 lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1"
+        >
           <FacetGroup
             label={t('reviews.filter.severity')}
             values={SEVERITIES}
@@ -181,7 +201,14 @@ function ReviewCenter(): React.JSX.Element {
           )}
         </aside>
 
-        <div className="min-w-0 flex-1">
+        {/* **게이트 현황도 여기 산다**(2026-09-10 — 사람 지시 · REQ-WEB-158). 예전에는 세
+            칸을 다 지난 뒤 페이지 바닥에 따로 누웠는데, 그러면 그 표에 닿는 유일한 길이
+            **페이지 스크롤**이라 칸을 각자 가두는 순간 아무도 닿지 못한다. 큐와 같은 물음의
+            다른 축이므로(무엇이 위험한가 ↔ 어디까지 덮였나) 같은 칸에서 이어 읽는다. */}
+        <div
+          data-testid="review-content"
+          className="min-w-0 flex-1 lg:h-full lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1"
+        >
           <SectionTitle>
             {t('reviews.queue.title')}
             {truncated && (
@@ -242,13 +269,21 @@ function ReviewCenter(): React.JSX.Element {
               {t('reviews.queue.more')}
             </button>
           )}
+
+          <div className="mt-6">
+            <GateCoverage rows={gateRows} total={gate.data?.total ?? gateRows.length} />
+          </div>
         </div>
 
         {/* 고른 하나를 펴는 레일 — 카드가 자르는 것(경로·심볼·갈래·처분 근거)이 여기 있다.
             고르지 않았으면 세우지 않는다: 빈 패널은 화면 폭을 버리는 것이다(§2.5 와 같은 규칙) */}
         {selected !== null && (
-          <aside className="hidden w-[340px] shrink-0 xl:block">
-            <div className="sticky top-4 rounded-nerv border border-border bg-bg-elev px-4 py-3.5">
+          // **레일의 틀은 서 있고 내용이 그 안에서 흐른다**(REQ-WEB-158). `sticky top-4` 는
+          // 페이지가 흐른다는 전제 위의 임시 방편이었다 — 붙일 것이 없는 자리의 `sticky` 는
+          // 아무 일도 하지 않는다. 스크롤을 바깥 `aside` 가 아니라 **카드에** 두는 이유는
+          // 테두리까지 함께 흘러 올라가지 않게 하기 위해서다.
+          <aside data-testid="review-rail" className="hidden w-[340px] shrink-0 xl:block xl:h-full">
+            <div className="rounded-nerv border border-border bg-bg-elev px-4 py-3.5 xl:h-full xl:overflow-x-hidden xl:overflow-y-auto">
               <FindingRail
                 finding={selected}
                 projectSlug={proj}
@@ -259,10 +294,6 @@ function ReviewCenter(): React.JSX.Element {
             </div>
           </aside>
         )}
-      </div>
-
-      <div className="mt-6">
-        <GateCoverage rows={gateRows} total={gate.data?.total ?? gateRows.length} />
       </div>
     </PageBody>
   );

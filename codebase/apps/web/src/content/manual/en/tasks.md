@@ -62,6 +62,12 @@ This is not a status — it is a **window computed from the completion time**. A
 
 **`done` cannot be undone.** A request to move a finished task into another lane is refused — completion is a state closed over evidence and spec impact, and reopening it is a new decision. When work remains, **make a new task**.
 
+## Click the evidence
+
+The **Evidence** list on a task is the record that something was put up to be seen. Entries that have somewhere to go **open in a new tab** when you click them — a PR goes to the address recorded on it, a commit or a code path goes to that spot in the project repository, and a review goes to that finding in the review center. The new tab matters because you may be filling in a transition to done on this screen; leaving in the same tab loses the spec impact and evidence you typed.
+
+**Some rows are not clickable.** Test names and user guides are written differently in every repository, so we do not guess where they lead — leaving them as text is more honest than a link to the wrong place. Commits and code paths need the **project repository URL**; when it is empty those rows stay as text and the screen says why.
+
 ## Requirement links
 
 A task can point at the requirement it implemented. What that link moves is one number on the project screen — **empty promises**, the count of unimplemented requirements no task has taken on. Without links that number is not zero but at its **maximum**.

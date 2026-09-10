@@ -364,6 +364,70 @@ describe('done 게이트 정책 (REQ-API-146·147)', () => {
       details: { kind: 'invalid_input', field: 'locator', reason: 'commit_shape' },
     });
   });
+
+  /**
+   * **키로도 닫힌다**(2026-09-10 · REQ-API-156). 게이트가 `transition()` 의 `input` 을 통째로
+   * 받는 동안 `task_id` 는 **키인 채로** 세 질의에 들어갔고, `evidence.task_id = 'SUD-T-…'` 가
+   * `22P02` 로 터졌다 — 22P02 그물(REQ-API-106)이 그것을 400 으로 내려 **서버 결함이 호출자의
+   * 입력 오류로 보였다.** 여기 있던 done 케이스가 전부 UUID 로만 전이했기 때문에(위 헬퍼가
+   * UUID 를 돌려준다) 도구 스키마가 광고하는 키 경로는 한 번도 지나가지 않았다 — 그 틈이 이
+   * 결함이 산 자리다. 아래 셋이 그 틈을 메운다.
+   */
+  it('표시 키로도 done 까지 간다 — 기본 정책 (REQ-API-038 · REQ-API-156)', async () => {
+    await policy(null);
+    await taskWithEvidence('TSK-GATE-KEY', 'agent');
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId: 'TSK-GATE-KEY',
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        specImpact: { none: true },
+      }),
+    ).resolves.toMatchObject({ status: 'done', gate: { ok: true, missing: [] } });
+  });
+
+  it('표시 키로도 done 까지 간다 — review_coverage 를 켠 프로젝트 (REQ-API-156)', async () => {
+    // 잠복해 있던 둘(`approval`·`review_session`)은 이 정책을 켠 프로젝트에서만 실행된다 —
+    // 지금 안 터진다고 두면 커버리지를 켜는 첫 프로젝트가 밟는다
+    await policy({ evidence_source: 'any', review_coverage: true });
+    const taskId = await taskWithEvidence('TSK-GATE-KEY-REV', 'human');
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                             is_bypass, bypass_reason)
+       VALUES ($1,$2,'gate_bypass',$3,$4,true,'긴급 배포')`,
+      [newId(), projectId, taskId, planner],
+    );
+    await expect(
+      tasks.transition({
+        projectId,
+        taskId: 'TSK-GATE-KEY-REV',
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        specImpact: { none: true },
+      }),
+    ).resolves.toMatchObject({ status: 'done' });
+  });
+
+  it('키로 불러 게이트가 미충족이면 캐스팅 오류가 아니라 done_gate 가 온다 (REQ-API-156)', async () => {
+    await policy(null);
+    await taskWithEvidence('TSK-GATE-KEY-MISS', 'agent');
+    const error = (await tasks
+      .transition({
+        projectId,
+        taskId: 'TSK-GATE-KEY-MISS',
+        status: 'done',
+        userId: planner,
+        roles: ['planner'],
+        // 조건 5(스펙 영향 선언)를 비운다 — 게이트가 무엇이 빠졌는지 말해야 한다
+      })
+      .catch((e: unknown) => e)) as { code: string; details: { kind: string; missing: string[] } };
+    expect(error.code).toBe(NERV_ERROR.PRECONDITION);
+    expect(error.details.kind).toBe('done_gate');
+    expect(error.details.missing.length).toBeGreaterThan(0);
+  });
 });
 
 describe('요구사항 작성 표면 (REQ-API-144·145)', () => {

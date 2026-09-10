@@ -47,12 +47,18 @@ export function GateCoverage({
           </span>
         )}
       </p>
+      {/* **좁은 칸에 맞춰 다시 잰다**(2026-09-10 — 사람 지시 · REQ-WEB-158). 이 표는 페이지
+          바닥에서 화면 폭을 통째로 쓰다가 발견 큐와 같은 칸으로 들어왔다 — 고정 폭 셋이
+          400px 를 먼저 가져가면 브랜치 이름이 한 글자 폭으로 찌그러진다(§2.5 가 세션 줄에서
+          겪은 그 모양이다). 실제로 드는 값으로 줄인다: 커버 리뷰는 `sha7 · nR`, 해소는
+          `n/m`, 판정은 배지 하나다. 브랜치는 남는 폭을 다 갖고 길면 **줄 안에서** 접는다 —
+          `overflow-x-auto`(프리미티브) 는 마지막 방어선이지 기본 배치가 아니다. */}
       <Table
         head={
           <>
             <Th>{t('reviews.gate.branch')}</Th>
-            <Th className="w-56">{t('reviews.gate.review')}</Th>
-            <Th className="w-20">{t('reviews.gate.resolved')}</Th>
+            <Th className="w-32">{t('reviews.gate.review')}</Th>
+            <Th className="w-16">{t('reviews.gate.resolved')}</Th>
             <Th className="w-24">{t('reviews.gate.verdict')}</Th>
           </>
         }
@@ -62,7 +68,7 @@ export function GateCoverage({
           const bypasses = Array.isArray(row['bypasses']) ? (row['bypasses'] as Row[]) : [];
           return (
             <Tr key={String(row['branch'])}>
-              <Td className="font-mono text-xs">
+              <Td className="font-mono text-xs break-all">
                 {String(row['branch'])}
                 {/* **면제는 같은 줄에 펼친다.** 목록 어딘가가 아니라 그 브랜치 옆에
                     있어야 한다 — 면제가 조용히 일어나지 않는 것 자체가 기능이다 */}
