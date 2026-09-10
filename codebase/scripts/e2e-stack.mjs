@@ -131,6 +131,57 @@ async function slotStillOurs(state) {
   }
 }
 
+/**
+ * **실행 전에 스택을 기동 직후 상태로 되돌린다.**
+ *
+ * compose 파일이 약속한 것은 "매 실행이 같은 한 벌에서 출발한다" 인데, tmpfs 가 지키는
+ * 것은 **매 기동**까지였다 — 컨테이너가 살아 있는 동안은 행도 쌓이고 쿼터도 남는다.
+ * 그 둘이 다르다는 것을 실측이 말한다(2026-09-10, 같은 스택에 연속 실행):
+ *
+ * ① **Valkey 의 요청 쿼터**(`nerv:rl:*` · api.md §1.8 — 웹 세션은 사용자당 600/분).
+ *    웹 L3 한 번이 시드 사용자 **한 명**으로 435~465 요청을 쓴다. 한 번은 600 밑이지만
+ *    두 번이 같은 고정 창에 떨어지면 넘고, 넘는 순간부터 창이 끝날 때까지 **모든** 요청이
+ *    429 다.
+ * ② **api 프로세스 메모리의 인증 쿼터**(better-auth · IP당 `/sign-in/email` 10/분).
+ *    웹 L3 한 번이 로그인 5회(준비 1 + 실패 1 + 가입 뒤 1 + 실시간 1 + 로그아웃 1)를 쓴다.
+ *    그래서 **세 번째 연속 실행은 `global-setup` 로그인에서 죽는다**. 저장소가 프로세스
+ *    메모리라 지우는 방법은 api 를 다시 띄우는 것뿐이다.
+ * ③ **DB 의 가입 계정**(`shell.spec.ts` 가 실행마다 새 주소로 하나씩 남긴다 — 6 → 7 → 8).
+ *    판정을 바꾸지는 않지만 "같은 한 벌" 은 아니다.
+ *
+ * 쿼터가 바닥나면 빨강은 **그때 마침 돌던 테스트**에 앉는다. 그래서 재실행마다 다른
+ * 테스트가 깨졌다(실측: `global-setup` 로그인 · `review-scroll` 발견 카드 · `shell`
+ * 로그아웃) — 자기 변경과 아무 상관 없는 자리에 앉는 빨강이 가장 나쁜 신호다. CI 는 늘
+ * 새 스택 위에서 한 번만 돌아 이것을 보지 못한다. 되돌리는 쪽이 로컬과 CI 를 같은 것으로
+ * 만든다. 판정은 하나도 건드리지 않는다 — 지우는 것은 잔량뿐이다.
+ *
+ * **`up --wait api` 가 migrate·seed 를 다시 돌린다**(한 번짜리 의존이다). 그것이 ③ 을
+ * 지우는 자리이고 의도한 것이다 — 대신 **이 스택의 DB 는 매 실행 초기화된다**. 손으로
+ * 넣어 둔 행은 다음 `pnpm test:e2e` 가 가져간다(이 스택은 원래 매 실행 폐기 대상이다).
+ *
+ * Valkey 는 쿼터 키만 지운다 — `FLUSHALL` 은 나중에 누가 다른 것을 두면 그것까지 조용히
+ * 가져간다. 실패는 삼킨다: 스택이 안 떠 있는 경우가 대부분이고, 그 사정은 러너 자신이 더
+ * 정확하게 말한다(웹·API 양쪽에 안내가 있다).
+ */
+function resetToBootState(state) {
+  const clearQuotaKeys =
+    "local n=0 for _,k in ipairs(redis.call('keys','nerv:rl:*')) do redis.call('del',k) n=n+1 end return n";
+  try {
+    compose(state, ['exec', '-T', 'valkey', 'valkey-cli', 'EVAL', clearQuotaKeys, '0'], {
+      stdio: 'ignore',
+    });
+    compose(state, ['restart', '-t', '3', 'api'], { stdio: 'ignore' });
+    // 시드 재적재 + 건강해질 때까지 대기. `restart` 는 기다려 주지 않아서, 안 기다리면
+    // 첫 로그인이 아직 안 뜬 서버를 두드리고 그 실패가 이번엔 `global-setup` 에 앉는다.
+    compose(state, ['up', '-d', '--wait', 'api'], { stdio: 'ignore' });
+  } catch {
+    process.stderr.write(
+      'E2E 스택을 기동 직후 상태로 되돌리지 못했습니다 — 떠 있지 않거나 응답하지 않습니다.\n' +
+        '  연속 실행이라면 앞 실행이 쓴 분당 쿼터가 남아 429 로 깨질 수 있습니다(pnpm e2e:up).\n',
+    );
+  }
+}
+
 function requireState(id) {
   const state = readState(id);
   if (state === null) {
@@ -167,6 +218,7 @@ switch (command) {
   case 'run': {
     // 테스트를 **할당된 환경 안에서** 돌린다 — 포트를 사람이 옮겨 적지 않는다
     const state = requireState(id);
+    resetToBootState(state);
     execFileSync(rest[0], rest.slice(1), {
       stdio: 'inherit',
       env: { ...process.env, ...envFor(state) },
