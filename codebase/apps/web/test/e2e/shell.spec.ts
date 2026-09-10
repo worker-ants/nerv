@@ -10,6 +10,10 @@ import { STORAGE_STATE } from './global-setup.js';
 // 이 스펙은 한국어 화면을 검사한다 — 기계의 locale 에 따라 대상이 바뀌지 않게 못 박는다
 test.use({ locale: 'ko-KR' });
 
+// **실행마다 다른 주소다** — 고정값으로 바꾸지 않는다. 이 테스트가 보는 것은 실제 가입
+// 경로이고, 같은 스택에 두 번째로 돌면 고정 주소는 "이미 있는 계정"에 부딪힌다. 남는
+// 계정 한 건은 시드의 사실을 바꾸지 않으므로 지우지 않는다(실측 2026-09-10: 재실행마다
+// `user` 6 → 7 → 8, 판정에는 영향 없음).
 const EMAIL = `e2e-${Date.now()}@example.com`;
 const PASSWORD = 'nerv-e2e-password';
 
