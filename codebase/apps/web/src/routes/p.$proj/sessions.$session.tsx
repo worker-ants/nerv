@@ -19,7 +19,7 @@ import {
 import { SteerPanel } from '../../features/session-monitor/steer-panel.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
-import { rows, useSessionDetail } from '../../lib/queries.js';
+import { rows, useProject, useSessionDetail } from '../../lib/queries.js';
 import { useCanIntervene } from '../../lib/scope.js';
 import { Card, PageBody, PageHeader, SectionTitle } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
@@ -30,6 +30,9 @@ function SessionDetail(): React.JSX.Element {
   const t = useT();
   const { proj, session } = Route.useParams();
   const detail = useSessionDetail(proj, session);
+  // 개입 뒤 세션 목록 무효화가 id 축이라 필요하다(4.5 §1.4). 셸이 이미 같은 키로 받아 둔
+  // 값이라 요청이 늘지 않는다 — `useProject` 는 slug 로 잡히는 **해소용** 쿼리다.
+  const project = useProject(proj);
 
   const data = detail.data ?? {};
   const state = String(data['state'] ?? '');
@@ -85,6 +88,9 @@ function SessionDetail(): React.JSX.Element {
           <SectionTitle>{t('sessions.intervene')}</SectionTitle>
           <SteerPanel
             projectSlug={proj}
+            projectId={
+              typeof project.data?.['id'] === 'string' ? (project.data['id'] as string) : undefined
+            }
             sessionId={session}
             state={state}
             canIntervene={canIntervene}

@@ -7,7 +7,7 @@
 
 import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RealtimeProvider } from '../../lib/realtime.js';
 import { SteerPanel } from './steer-panel.js';
@@ -23,7 +23,11 @@ vi.mock('socket.io-client', () => ({
 
 afterEach(cleanup);
 
-function panel(props: { canIntervene: boolean; state?: string }): void {
+function panel(props: {
+  canIntervene: boolean;
+  state?: string;
+  projectId?: string | undefined;
+}): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <LocaleProvider locale="ko">
@@ -31,6 +35,7 @@ function panel(props: { canIntervene: boolean; state?: string }): void {
         <RealtimeProvider>
           <SteerPanel
             projectSlug="clemvion"
+            projectId={'projectId' in props ? props.projectId : 'p-1'}
             sessionId="s-1"
             state={props.state ?? 'active'}
             canIntervene={props.canIntervene}
@@ -39,6 +44,7 @@ function panel(props: { canIntervene: boolean; state?: string }): void {
       </QueryClientProvider>
     </LocaleProvider>,
   );
+  return client;
 }
 
 describe('steer 패널의 권한 축', () => {
@@ -63,5 +69,34 @@ describe('steer 패널의 권한 축', () => {
     panel({ canIntervene: true, state: 'complete' });
     expect(screen.getByText('종료된 세션입니다')).toBeTruthy();
     expect(screen.queryByTestId('steer-forbidden')).toBeNull();
+  });
+});
+
+/**
+ * **무효화는 `project.id` 축으로 나간다**(4.5 §1.4 · `lib/queries.ts` "프로젝트 축").
+ *
+ * 세션 목록 캐시가 id 축인데 이 패널은 slug 로 무효화하고 있었다 — 그래서 중단 뒤에도
+ * 보드가 그대로였다. 실시간이 붙어 있으면 이벤트가 가려 주므로 **끊긴 동안에만 드러나고**,
+ * 그때는 사람이 방금 누른 것의 결과를 보지 못한다. 축이 어긋난 무효화는 조용히 아무 일도
+ * 하지 않으므로, 이 검사는 키를 눈으로 본다 — 같은 부류가 세 번째다.
+ */
+describe('개입 뒤 무효화의 축', () => {
+  it('세션 목록을 id 축으로 무효화한다 — slug 로 잡으면 아무 캐시도 맞지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ reclaimed: 1 }) })),
+    );
+    const client = panel({ canIntervene: true, projectId: 'p-1' });
+    const spy = vi.spyOn(client, 'invalidateQueries');
+
+    fireEvent.click(screen.getByTestId('stop-button'));
+    // 사유가 없으면 확인 버튼이 잠겨 있다(REQ-WEB-021) — 그것을 지나야 무효화까지 간다
+    fireEvent.change(screen.getByTestId('stop-reason'), { target: { value: '겹침 정리' } });
+    fireEvent.click(screen.getByTestId('stop-confirm-button'));
+
+    await waitFor(() => {
+      expect(spy).toHaveBeenCalledWith({ queryKey: ['project', 'p-1', 'sessions'] });
+    });
+    vi.unstubAllGlobals();
   });
 });
