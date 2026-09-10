@@ -289,7 +289,8 @@ export class TaskService {
              t.assignee_user_id, u.display_name AS assignee_name,
              t.rebrief_required_at, t.blocked_reason,
              -- 커서가 이 값을 그대로 싣는다 — **정밀도를 드라이버에 맡기지 않는다**(세션 보드와 같은 규칙).
-             -- 타입 파서가 끼어 Date 가 되는 날 µs 가 조용히 잘리고 커서가 행을 건너뛴다.
+             -- 지금 µs 가 오는 것은 drizzle 이 질의마다 timestamptz 파서를 항등으로 덮기 때문이고
+             -- (common/database.module.ts), 그 덮개가 걷히는 날 µs 가 조용히 잘려 행을 건너뛴다.
              t.updated_at::text AS updated_at,
              s.key AS spec_key, s.id AS source_spec_id, sv.version_no AS basis_version_no,
              (sv.status = 'superseded') AS basis_superseded,

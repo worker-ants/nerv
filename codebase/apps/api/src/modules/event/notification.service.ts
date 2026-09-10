@@ -400,7 +400,12 @@ export class NotificationService {
     const limit = Math.min(input.limit ?? 50, 200);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT n.id, n.state::text AS state, n.importance::text AS importance,
-             n.channel::text AS channel, n.created_at, n.read_at, n.event_id,
+             n.channel::text AS channel,
+             -- 커서가 이 값을 그대로 싣는다 — **정밀도를 드라이버에 맡기지 않는다**(이벤트 피드와 같은 규칙).
+             -- 파생 알림은 한 이벤트에서 같은 ms 안에 여럿 생기므로, µs 가 잘리면 그 무리의
+             -- 일부가 어느 쪽 부등호에도 걸리지 않는 창에 빠져 **영영 나오지 않는다**.
+             n.created_at::text AS created_at,
+             n.read_at, n.event_id,
              e.type AS event_type, e.subject_type::text AS subject_type, e.subject_id,
              e.to_state, e.is_agent, e.occurred_at,
              u.display_name AS actor_name,
