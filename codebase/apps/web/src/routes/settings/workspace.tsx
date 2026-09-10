@@ -9,6 +9,7 @@
 // 조직은 **비어 있을 때만** 지운다: 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계(프로젝트
 // 보관)를 하나 세운다.
 
+import { REPO_HOSTS } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
@@ -30,6 +31,7 @@ import {
   Input,
   Mono,
   SectionTitle,
+  Select,
 } from '../../components/ui/primitives.js';
 
 export const Route = createFileRoute('/settings/workspace')({ component: WorkspaceTab });
@@ -370,6 +372,10 @@ function ProjectRow({
   // OAuth 도 clone 도 없고, 이미 있는 두 칸을 사람이 채울 수 있게 할 뿐이다.
   const [repoUrl, setRepoUrl] = useState(text(project['repo_url']));
   const [defaultBranch, setDefaultBranch] = useState(text(project['default_branch']));
+  // **주소의 모양은 고르는 것이지 추정하는 것이 아니다**(2026-09-10 · REQ-WEB-162).
+  // 도메인으로 짐작하면 자체 호스팅에서 반드시 틀린다 — `git.example.com` 은 GitHub 인지
+  // GitLab 인지 아무것도 말하지 않는다. 열이 `NOT NULL DEFAULT 'github'` 이라 빈 값은 없다.
+  const [repoHost, setRepoHost] = useState(text(project['repo_host']) || 'github');
   const [editing, setEditing] = useState(false);
 
   const save = useMutation({
@@ -379,7 +385,12 @@ function ProjectRow({
         // **빈 칸은 "지운다" 가 아니라 "비운다" 다.** 서버는 `coalesce(…, repo_url)` 로
         // null 을 "안 건드림" 으로 읽으므로(EP-PRJ-04), 사람이 지운 값을 그대로 보내려면
         // 빈 문자열이어야 한다 — null 을 보내면 지운 티가 안 나고 옛 주소가 살아남는다.
-        body: { name, repo_url: repoUrl.trim(), default_branch: defaultBranch.trim() },
+        body: {
+          name,
+          repo_url: repoUrl.trim(),
+          default_branch: defaultBranch.trim(),
+          repo_host: repoHost,
+        },
       }),
     onSuccess: () => {
       setEditing(false);
@@ -429,6 +440,25 @@ function ProjectRow({
               onChange={(e) => setRepoUrl(e.target.value)}
               className="min-w-64 font-mono"
             />
+          </Field>
+          {/* 값이 정하는 것은 **주소의 모양**이지 접속이 아니다 — 서버는 이 저장소에
+              접속하지 않는다. 어휘의 정본은 `@nerv/schema` 의 `REPO_HOSTS` 다(REQ-CB-006) */}
+          <Field
+            label={t('settings.workspace.repo_host')}
+            hint={t('settings.workspace.repo_host_hint')}
+          >
+            <Select
+              data-testid="project-repo-host"
+              value={repoHost}
+              onChange={(e) => setRepoHost(e.target.value)}
+              className="w-32"
+            >
+              {REPO_HOSTS.map((host) => (
+                <option key={host} value={host}>
+                  {host}
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field
             label={t('settings.workspace.default_branch')}

@@ -9,6 +9,7 @@ import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '../../lib/i18n.js';
 import { RealtimeProvider } from '../../lib/realtime.js';
+import { REPO_HOSTS } from '@nerv/schema';
 import { rolesInOrg } from '../../lib/session.js';
 import { routeTree } from '../../routeTree.gen';
 
@@ -194,35 +195,36 @@ describe('설정 탭 줄의 가로 (REQ-WEB-151)', () => {
  * 작업 상세의 증적 링크가 "저장소 주소가 없습니다" 라고 말해 놓고 **고칠 곳을 알려 주지
  * 못했다**(§1.5 가 금지하는 막다른 길이다).
  */
+/** PATCH 본문을 잡아 둔다 — 무엇을 보냈는가가 검사 대상이다 */
+function stubWithPatch(project: Record<string, unknown>): { sent: unknown[] } {
+  const sent: unknown[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
+      const path = String(url);
+      if (init?.method === 'PATCH') {
+        sent.push(JSON.parse(init.body ?? '{}'));
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      }
+      const json = path.includes('/projects') ? [project] : path.includes('/me') ? ME : {};
+      return { ok: true, status: 200, json: async () => json };
+    }),
+  );
+  return { sent };
+}
+
+const PROJECT = {
+  id: 'p-1',
+  slug: 'clemvion',
+  key: 'CLV',
+  name: 'clemvion',
+  archived_at: null,
+  repo_url: 'https://github.com/nerv/nerv',
+  default_branch: 'main',
+  repo_host: 'github',
+};
+
 describe('프로젝트의 저장소 주소 (REQ-WEB-160)', () => {
-  /** PATCH 본문을 잡아 둔다 — 무엇을 보냈는가가 검사 대상이다 */
-  function stubWithPatch(project: Record<string, unknown>): { sent: unknown[] } {
-    const sent: unknown[] = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
-        const path = String(url);
-        if (init?.method === 'PATCH') {
-          sent.push(JSON.parse(init.body ?? '{}'));
-          return { ok: true, status: 200, json: async () => ({ ok: true }) };
-        }
-        const json = path.includes('/projects') ? [project] : path.includes('/me') ? ME : {};
-        return { ok: true, status: 200, json: async () => json };
-      }),
-    );
-    return { sent };
-  }
-
-  const PROJECT = {
-    id: 'p-1',
-    slug: 'clemvion',
-    key: 'CLV',
-    name: 'clemvion',
-    archived_at: null,
-    repo_url: 'https://github.com/nerv/nerv',
-    default_branch: 'main',
-  };
-
   it('고치기를 열면 지금 값이 칸에 있고, 저장하면 함께 나간다', async () => {
     const { sent } = stubWithPatch(PROJECT);
     await renderTab();
@@ -287,5 +289,34 @@ describe('프로젝트의 저장소 주소 (REQ-WEB-160)', () => {
     const edit = screen.getByTestId('project-edit');
     expect(edit.hasAttribute('disabled')).toBe(true);
     expect(edit.getAttribute('title')).not.toBeNull();
+  });
+});
+
+/**
+ * **주소의 모양은 고르는 것이지 추정하는 것이 아니다**(2026-09-10 · REQ-WEB-162).
+ * 도메인으로 짐작하면 자체 호스팅에서 반드시 틀린다 — `git.example.com` 은 GitHub 인지
+ * GitLab 인지 아무것도 말하지 않는다.
+ */
+describe('저장소 종류 (REQ-WEB-162)', () => {
+  it('어휘를 그대로 보이고 고른 값이 함께 나간다 — 화면이 목록을 다시 적지 않는다', async () => {
+    const { sent } = stubWithPatch(PROJECT);
+    await renderTab();
+    fireEvent.click(screen.getByTestId('project-edit'));
+
+    const select = screen.getByTestId('project-repo-host') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual([...REPO_HOSTS]);
+    expect(select.value).toBe('github');
+
+    fireEvent.change(select, { target: { value: 'gitlab' } });
+    fireEvent.click(screen.getByTestId('project-save'));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ repo_host: 'gitlab' });
+  });
+
+  it('값이 없는 옛 프로젝트는 github 으로 선다 — 오늘 되던 링크가 깨지지 않는다', async () => {
+    stubWithPatch({ ...PROJECT, repo_host: undefined });
+    await renderTab();
+    fireEvent.click(screen.getByTestId('project-edit'));
+    expect((screen.getByTestId('project-repo-host') as HTMLSelectElement).value).toBe('github');
   });
 });

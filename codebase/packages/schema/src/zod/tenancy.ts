@@ -41,6 +41,8 @@ export const ProjectUpdateInput = z
     description: z.string().nullish(),
     repo_url: z.string().nullish(),
     default_branch: z.string().nullish(),
+    /** 어휘 판정은 도메인이 한다(`REPO_HOSTS`) — 여기서는 문자열이라는 것만 본다 */
+    repo_host: z.string().nullish(),
     /** 키 스키마는 `policy.ts` 가 정본이다 — 여기서는 객체라는 것만 본다 */
     gate_policy: z.record(z.string(), z.unknown()).nullish(),
     retention: z.record(z.string(), z.unknown()).nullish(),

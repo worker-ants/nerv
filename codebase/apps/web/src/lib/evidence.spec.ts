@@ -176,6 +176,50 @@ describe('evidenceTarget — 증적이 선 저장소가 프로젝트 것을 이�
   });
 });
 
+/**
+ * **주소의 모양은 프로젝트가 고른다**(2026-09-10 · REQ-WEB-162 · REQ-API-158). GitHub 모양
+ * 하나만 만들던 동안 자체 호스팅 GitLab 링크는 404 로 끝났다 — 경로에 `/-/` 가 끼기 때문이다.
+ */
+describe('evidenceTarget — 호스트가 경로의 모양을 정한다', () => {
+  const gitlab = { ...repo, repoUrl: 'https://gitlab.example.com/team/svc', repoHost: 'gitlab' };
+
+  it('gitlab 은 커밋·파일 경로에 `/-/` 가 낀다', () => {
+    expect(evidenceTarget({ ...gitlab, kind: 'commit', locator: 'a1b2c3d' })).toEqual({
+      href: 'https://gitlab.example.com/team/svc/-/commit/a1b2c3d',
+      external: true,
+    });
+    expect(evidenceTarget({ ...gitlab, kind: 'code_path', locator: 'src/a.ts:7' })).toEqual({
+      href: 'https://gitlab.example.com/team/svc/-/blob/main/src/a.ts#L7',
+      external: true,
+    });
+  });
+
+  it('github 은 오늘과 같다 — 기본값이 바뀌면 되던 링크가 깨진다', () => {
+    expect(
+      evidenceTarget({ ...repo, repoHost: 'github', kind: 'commit', locator: 'a1b2c3d' }),
+    ).toEqual({ href: 'https://github.com/nerv/nerv/commit/a1b2c3d', external: true });
+  });
+
+  it('안 주거나 어휘 밖이면 github 로 읽는다 — 짐작하지 않고 기본으로 눕는다', () => {
+    const expected = { href: 'https://github.com/nerv/nerv/commit/a1b2c3d', external: true };
+    expect(evidenceTarget({ ...repo, kind: 'commit', locator: 'a1b2c3d' })).toEqual(expected);
+    for (const host of [null, 'gitea', '']) {
+      expect(
+        evidenceTarget({ ...repo, repoHost: host, kind: 'commit', locator: 'a1b2c3d' }),
+      ).toEqual(expected);
+    }
+  });
+
+  it('PR·리뷰·매뉴얼은 호스트와 무관하다 — 경로를 만들지 않는 종류다', () => {
+    expect(
+      evidenceTarget({ ...gitlab, kind: 'pr', locator: 'https://gitlab.example.com/mr/3' })?.href,
+    ).toBe('https://gitlab.example.com/mr/3');
+    expect(evidenceTarget({ ...gitlab, kind: 'user_guide', locator: 'tasks' })?.href).toBe(
+      '/help/tasks',
+    );
+  });
+});
+
 describe('needsRepoUrl — 링크가 아닌 이유 중 사람이 고칠 수 있는 것', () => {
   it('저장소 주소가 비었고 커밋·코드 경로 증적이 있으면 말한다', () => {
     expect(needsRepoUrl([{ kind: 'commit' }], null)).toBe(true);
