@@ -1,9 +1,12 @@
 // 문서 대조용 실물 덤프 — 판정이 아니라 관측이다.
 import { expect, test } from '@playwright/test';
-import { STORAGE_STATE } from './global-setup.js';
+import { ADMIN_STORAGE_STATE } from './global-setup.js';
 
 // 저장된 세션을 쓴다 — 이 스위트의 목적은 화면 구조 관측이지 로그인 검증이 아니다.
-test.use({ storageState: STORAGE_STATE, locale: 'ko-KR' });
+// **관측 신원은 조직 admin 이다**(`ADMIN_STORAGE_STATE` 주석에 이유 둘: 쿼터를 나누고,
+// 잠긴 채로만 찍히던 설정 화면을 열린 상태로 훑는다). 이 스위트는 판정이 없으므로
+// 신원이 바뀌어도 깨질 것이 없다 — 바뀌는 것은 덤프에 무엇이 보이느냐뿐이다.
+test.use({ storageState: ADMIN_STORAGE_STATE, locale: 'ko-KR' });
 
 const ROUTES = [
   '/',
