@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.64 · 2026-09-10 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.65 · 2026-09-10 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.65 변경(2026-09-10 — 사람 지시): §1.4 셋째 표에 **시드의 증적과 그 길을 지나는 L3**([4.3](database.md) v0.42) 한 줄.
 >
 > v0.64 변경(2026-09-10 — 사람 결정): §1.4 셋째 표에 **저장소 종류가 주소의 모양을 정한다**([4.4](api.md) REQ-API-158 · [4.5](screens.md) REQ-WEB-162 · 마이그레이션 0026) 한 줄.
 >
@@ -252,6 +254,7 @@ referenced_by:
 | 저장소 주소를 넣을 자리 · 증적이 선 저장소 | `routes/settings/workspace.tsx` · `auth.service.ts`(빈 값은 비운다) · `task.service.ts`(증적 `repo`) · `lib/evidence.ts` · `packages/schema/src/enums.ts`(`EVIDENCE_KINDS`) · 스펙 넷 · 매뉴얼 ko·en | REQ-WEB-159 가 "저장소 주소가 비어 있습니다" 라고 말하는데 **채울 칸이 화면에 없었다**(막다른 길 — §1.5) · 증적이 자기 `repo` 를 못 실어 저장소가 둘 이상이면 남의 저장소로 데려갔다 · 종류 셀렉트가 여섯 중 넷이었다([4.5](screens.md) REQ-WEB-160 · [4.4](api.md) REQ-API-157) |
 | 좁은 화면에서도 고른 발견을 편다 | `routes/p.$proj/reviews.index.tsx` · `lib/use-media-query.ts`(신설) · `lib/manual-chapters.ts`(신설) · `lib/evidence.ts` · `review-center.spec.tsx` · `manual.spec.ts` · `lib/evidence.spec.ts` | 곁레일이 `xl` 부터라 1024~1279px 에서는 **눌러도 카드 배경만 바뀌었다** — 같은 컴포넌트를 카드 아래에서 편다(§2.6 REQ-WEB-132·142 와 같은 규칙) · `user_guide` 증적은 실재하는 장일 때만 매뉴얼로 잇는다([4.5](screens.md) REQ-WEB-161) |
 | 저장소 종류가 주소의 모양을 정한다 | `drizzle/0026_project_repo_host.sql` · `packages/schema/src/enums.ts`(`REPO_HOSTS`) · `tables/tenancy.ts` · `auth.service.ts`·`auth.controller.ts` · `zod/tenancy.ts` · `routes/settings/workspace.tsx` · `lib/evidence.ts` · L1 8건 · L2 1건 | 증적 링크가 **GitHub 모양 하나**로만 만들어져 자체 호스팅 GitLab 에서는 404 로 끝났다 — 값은 사람이 고르고(추정하면 자체 호스팅에서 반드시 틀린다) **접속에는 쓰이지 않는다**([4.3](database.md) v0.41 · [4.4](api.md) REQ-API-158 · [4.5](screens.md) REQ-WEB-162) |
+| 시드의 증적 · 그 길을 지나는 L3 | `packages/schema/seed/dev-seed.sql`(증적 7건) · `test/integration/seed.spec.ts` · `apps/web/test/e2e/task-evidence.spec.ts`(신설) · `review-scroll.spec.ts` | 시드가 리뷰·활동·질문을 다 심으면서 **증적만 0건**이라, 증적 카드에 붙인 링크가 시드로는 한 번도 그려진 적이 없었다 — 종류 여섯을 심고 그 길을 L3 가 지난다. 곁들여 좁은 폭의 발견 상세(REQ-WEB-161) L3 도 세웠다: 미뤄 둔 근거("시드에 발견이 0건")가 사실이 아니었다([4.3](database.md) v0.42) |
 | 백로그 보기의 기본을 켜짐으로 | `routes/p.$proj/tasks.index.tsx` · `routes/task-board-lanes.spec.tsx` · `lib/url-state.spec.ts` · 매뉴얼 ko·en | 생성은 언제나 `backlog` 인데 보드가 그 레인을 접고 열어, **방금 만든 티켓이 어느 레인에도 없었다** — 주소에는 끈 상태만 남는다(`?backlog=0` · [4.5](screens.md) REQ-WEB-155) |
 | html 첨부의 CSP — 격리 안에서 그린다 | `spec/attachment.service.ts`(`attachmentCsp`) · `spec.controller.ts` · `spec/attachment-csp.spec.ts`(신설) | 형식을 가리지 않는 `sandbox` 한 줄이라 **html 시안은 열어도 빈 화면**이었고 SVG 는 자기 `<style>` 을 잃었다 — html 은 스크립트를 열되 `allow-same-origin` 은 끝까지 닫고, SVG 는 스크립트 없이 그리기만 연다([4.4](api.md) REQ-API-070) |
 | 정본 표와 실물의 대조 게이트 둘 | `apps/web/src/lib/event-invalidation.spec.ts` · `apps/api/src/tree-canon.spec.ts` | [4.5](screens.md) §1.4 는 MAP 49종 중 18종을, [4.2](codebase.md) §2.2 는 51개 파일을 몰랐다 — 사람이 손으로 쓰는 표는 코드가 자랄 때 조용히 낡는다 |

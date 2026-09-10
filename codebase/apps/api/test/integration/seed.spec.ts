@@ -115,6 +115,25 @@ describe('개발 시드 (database.md §4)', () => {
       `SELECT count(DISTINCT branch)::text AS n FROM review_session`,
     );
     expect(branches[0]?.n).toBe('2');
+    // S4 작업 상세의 증적(2026-09-10) — 이 표만 비어 있어서, 증적 카드에 붙은 링크가
+    // 시드로는 한 번도 그려진 적이 없었다. 종류 여섯을 전부 쓴다: 링크가 되는 넷과
+    // 매뉴얼로 가는 하나, 그리고 **링크가 되지 않는 하나**(test).
+    expect(await count('evidence')).toBe(7);
+    const { rows: kinds } = await pool.query<{ kind: string }>(
+      `SELECT DISTINCT kind::text AS kind FROM evidence ORDER BY kind`,
+    );
+    expect(kinds.map((k) => k.kind)).toEqual([
+      'code_path',
+      'commit',
+      'pr',
+      'review',
+      'test',
+      'user_guide',
+    ]);
+    // 하나는 다른 저장소에 선다 — 그 경로가 화면에 실제로 그려지는 유일한 자리다
+    expect(await count('evidence', `WHERE repo IS NOT NULL`)).toBe(1);
+    // 요구사항에도 하나 매달아 둔다 — S3 요구사항 탭의 증적 수가 0 이 아니게 된다(FR-13)
+    expect(await count('evidence', `WHERE requirement_id IS NOT NULL`)).toBe(1);
   });
 
   it('같은 지적이 두 라운드에 걸쳐 하나로 남는다 — 화면의 dedup 표기가 시드에서 보인다', async () => {
