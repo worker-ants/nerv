@@ -13,11 +13,15 @@ import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { createApp } from '../../src/main.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { NotificationService } from '../../src/modules/event/notification.service.js';
 import { ClaimService } from '../../src/modules/task/claim.service.js';
+import { TaskService } from '../../src/modules/task/task.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
+import { encodeCursor } from '../../src/common/cursor.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -185,5 +189,73 @@ describe('세션 보드 — 커서 열과 정렬 열이 같은가 (EP-SES-01)', 
     );
     expect(seen).toHaveLength(rows.length);
     expect(new Set(seen).size).toBe(rows.length);
+  }, 30_000);
+});
+
+describe('작업 목록 — 같은 밀리초 안에서 마이크로초까지 (EP-TSK-01)', () => {
+  // TaskService 는 DI 그래프가 깊어(승인·질문·세션) 손으로 조립하지 않는다 — 앱에서 꺼낸다.
+  // `list()` 가 만지는 것은 `this.db` 뿐이라 이 스위트의 성격(SQL 의 seek)은 그대로다.
+  let app: NestFastifyApplication;
+  let tasks: TaskService;
+
+  beforeAll(async () => {
+    process.env['DATABASE_URL'] = db.url;
+    process.env['NERV_VALKEY_URL'] ??= 'redis://localhost:6379';
+    app = await createApp();
+    await app.init();
+    tasks = app.get(TaskService);
+
+    // **같은 밀리초, 다른 마이크로초.** `updated_at` 기본값은 `now()`(트랜잭션 시각)이라
+    // 한 트랜잭션 안의 행은 값이 정확히 같지만, 임포터처럼 트랜잭션을 빠르게 이어 만들면
+    // 같은 ms 안에서 µs 만 다른 행들이 생긴다 — 커서가 ms 로 잘라 싣던 시절 그 창에
+    // 빠진 행은 **영영 나오지 않았다**(실측 2026-09-10: 전체 L2 7회 중 1회 재현).
+    // 미표기(NULL) 무리까지 걸치게 해 경계도 함께 지난다.
+    const rows: [string, string, string | null][] = [
+      [newId(), '2026-09-07 00:00:00.123456+00', 'P0'],
+      [newId(), '2026-09-07 00:00:00.123457+00', 'P0'],
+      [newId(), '2026-09-07 00:00:00.123458+00', null],
+      [newId(), '2026-09-07 00:00:00.123459+00', null],
+      [newId(), '2026-09-07 00:00:00.123460+00', null],
+    ];
+    for (const [i, [id, updatedAt, priority]] of rows.entries()) {
+      await pool.query(
+        `INSERT INTO task (id, project_id, key, title, status, priority, updated_at)
+         VALUES ($1,$2,$3,$4,'backlog',$5::task_priority,$6)`,
+        [id, projectId, `CLV-T-C000${i}`, `µs ${updatedAt}`, priority, updatedAt],
+      );
+    }
+    const { rows: check } = await pool.query<{ ms: number; us: number }>(
+      `SELECT count(DISTINCT date_trunc('milliseconds', updated_at))::int AS ms,
+              count(DISTINCT updated_at)::int AS us
+         FROM task WHERE project_id = $1`,
+      [projectId],
+    );
+    // 전제가 성립하지 않으면 이 검사는 아무것도 세지 않는다 — 밀리초는 하나, 값은 다섯이다
+    expect(check[0]?.ms).toBe(1);
+    expect(check[0]?.us).toBe(5);
+  }, 120_000);
+
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  it('마이크로초만 다른 작업 다섯을 limit 1 로 넘기면 전량이 정확히 한 번씩 나온다', async () => {
+    const seen = await drain((cursor) =>
+      tasks.list({ projectId, limit: 1, cursor: cursor ?? undefined }),
+    );
+    expect(seen).toHaveLength(5);
+    expect(new Set(seen).size).toBe(5);
+  }, 30_000);
+
+  it('망가진 커서는 처음부터 준다 — 22007·22P02 로 화면을 깨뜨리지 않는다', async () => {
+    // 형식이 맞는 JSON 배열이라 `decodeCursor` 는 통과시킨다 — 걸러야 하는 쪽은 캐스팅 앞이다
+    const broken = encodeCursor(['P0', '그런 시각은 없다', '그런 uuid 도 없다']);
+    const res = await tasks.list({ projectId, limit: 1, cursor: broken });
+    expect(res.items.length).toBeGreaterThan(0);
+
+    // 어휘 밖 우선순위도 마찬가지다(`::task_priority` 는 22P02 로 죽는다)
+    const badPriority = encodeCursor(['P9', '2026-09-07 00:00:00.123460+00', newId()]);
+    const res2 = await tasks.list({ projectId, limit: 1, cursor: badPriority });
+    expect(res2.items.length).toBeGreaterThan(0);
   }, 30_000);
 });
