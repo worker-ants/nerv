@@ -58,13 +58,17 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({
    */
   validateSearch: (
     search: Record<string, unknown>,
-  ): { v?: number; diff?: string; baseline?: string } => ({
+  ): { v?: number; diff?: string; baseline?: string; rail?: RailTab } => ({
     ...(typeof search['v'] === 'string' || typeof search['v'] === 'number'
       ? { v: Number(search['v']) }
       : {}),
     ...(typeof search['diff'] === 'string' && DIFF_RE.test(search['diff'])
       ? { diff: search['diff'] }
       : {}),
+    // **레일도 주소의 축이다**(REQ-WEB-163). 알림이 "코멘트가 달렸다" 를 전하면서 본문만
+    // 열어 주면, 정작 읽으러 온 코멘트는 레일 다섯 탭 중 하나에 접혀 있다. 어휘 밖 값은
+    // 버린다 — 탭 이름은 닫힌 집합이라 모르는 값에 화면을 맞출 자리가 없다.
+    ...(isRailTab(search['rail']) ? { rail: search['rail'] } : {}),
     // 목록에서 고른 기준선을 그대로 물고 온다 — 상세도 같은 세트를 읽어야 한다(REQ-WEB-135)
     ...(typeof search['baseline'] === 'string' && search['baseline'] !== ''
       ? { baseline: search['baseline'] }
@@ -75,6 +79,14 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({
 
 /** `v2..v3` — 양쪽 다 있어야 한 쌍이다 */
 const DIFF_RE = /^v(\d+)\.\.v(\d+)$/;
+
+/** 레일 탭 어휘 — 주소(`?rail=`)와 상태가 같은 집합을 쓴다 */
+const RAIL_TABS = ['relations', 'requirements', 'versions', 'attachments', 'comments'] as const;
+export type RailTab = (typeof RAIL_TABS)[number];
+
+function isRailTab(value: unknown): value is RailTab {
+  return typeof value === 'string' && (RAIL_TABS as readonly string[]).includes(value);
+}
 
 /** 주소의 `diff` 를 두 수로 — 항상 **오래된 쪽 → 새 쪽**이다(added/removed 는 순서가 뜻이다) */
 function parseDiff(value: string | undefined): { from: number; to: number } | null {
@@ -125,10 +137,20 @@ function SpecDetail(): React.JSX.Element {
   const [takeover, setTakeover] = useState(false);
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
-  // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다
-  const [railTab, setRailTab] = useState<
-    'relations' | 'requirements' | 'versions' | 'attachments' | 'comments'
-  >('relations');
+  // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다.
+  //
+  // **진실은 주소다**(REQ-WEB-163) — `?v`·`?diff` 와 같은 규칙이고, 이유도 같다. 상태로만
+  // 들고 있으면 두 가지가 안 된다: 알림이 "코멘트가 달렸다" 를 전하면서 그 코멘트로
+  // 데려가지 못하고(레일 다섯 탭 중 하나에 접혀 있다), 사람이 탭을 옮긴 뒤 복사한 주소가
+  // 자기가 보던 화면을 열지 않는다.
+  //
+  // 옮기는 것은 **이력에 쌓지 않는다**(`replace`) — 탭 하나 누를 때마다 뒤로가기가 한 칸씩
+  // 늘면 그 단추는 문서를 떠나는 데 쓸 수 없게 된다. 다른 축(`v`·`diff`·`baseline`)은
+  // 그대로 물고 간다: 레일을 옮겼다고 보던 버전이 바뀌면 안 된다.
+  const railTab: RailTab = search.rail ?? 'relations';
+  const setRailTab = (key: RailTab): void => {
+    void navigate({ to: '.', search: (prev) => ({ ...prev, rail: key }), replace: true });
+  };
   /**
    * 탭 줄의 양 끝 — 잘린 쪽을 흐려 "더 있다" 를 말한다(2026-09-08 · REQ-WEB-154).
    * 줄이 스크롤 상자가 된 뒤에도(REQ-WEB-151) 잘렸다는 **표시**가 없었다: macOS 는
@@ -1143,7 +1165,7 @@ function SpecDetail(): React.JSX.Element {
           )}
 
           {railTab === 'comments' && (
-            <div className="px-2">
+            <div className="px-2" data-testid="rail-panel-comments">
               <CommentList
                 projectSlug={proj}
                 specKey={spec}

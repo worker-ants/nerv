@@ -4,7 +4,7 @@
 // "워커가 두 개 떠도 하나만 돈다"이고, 그것을 mock 으로 확인하면 아무 의미가 없다 —
 // pg_try_advisory_lock 의 의미론 자체가 검증 대상이라 실제 Postgres 커넥션 2개로 본다.
 
-import { newId, PARTITION_MONTHS_AHEAD, WORKER_ADVISORY_LOCK_KEY } from '@nerv/schema';
+import { NERV_EVENT, newId, PARTITION_MONTHS_AHEAD, WORKER_ADVISORY_LOCK_KEY } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
@@ -141,6 +141,81 @@ describe('알림 라우팅은 창에 막히지 않는다 (REQ-API-064 계열)', 
       [importantId],
     );
     expect(rows[0]?.n).toBe(1);
+  });
+
+  /**
+   * **알림이 diff 주소를 만들 수 있어야 한다**(REQ-API-159 · REQ-WEB-163).
+   *
+   * 화면은 "v4 가 승인됐다" 를 알면서 "v3 과 무엇이 다른가" 로는 데려갈 수 없었다 —
+   * 조인은 이미 있었고 **응답에 그 칸이 없었을 뿐**이다. 여기서 세는 것은 두 가지다:
+   * 스펙 버전 알림에 번호가 실리는가, 그리고 **버전이 없는 알림은 NULL 인가**.
+   * 뒤엣것이 중요하다 — 0 이나 1 로 채우면 화면이 있지도 않은 diff 로 데려간다.
+   */
+  it('알림 목록이 스펙 버전 알림에 version_no 를 싣고, 아닌 것은 NULL 로 둔다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const orgId = newId();
+    const projectId = newId();
+    const userId = newId();
+    // 행위자는 자기 알림을 받지 않는다(`roleQueue` 가 자신을 뺀다) — 둘이어야 이 검사가 센다
+    const actorId = newId();
+    const specId = newId();
+    const v2 = newId();
+    await poolA.query(`INSERT INTO organization (id, slug, name) VALUES ($1,$2,'버전')`, [
+      orgId,
+      `ver-${orgId.slice(-6)}`,
+    ]);
+    await poolA.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,'버전')`,
+      [projectId, orgId, `ver-${projectId.slice(-6)}`, `V${projectId.slice(-2).toUpperCase()}`],
+    );
+    for (const id of [userId, actorId]) {
+      await poolA.query(
+        `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'x','active')`,
+        [id, `${id.slice(-6)}@example.com`],
+      );
+      await poolA.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
+        [newId(), orgId, projectId, id],
+      );
+    }
+    await poolA.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature','VER-SPEC','문서')`,
+      [specId, projectId],
+    );
+    // 두 벌을 만든다 — 승인 알림이 가리키는 것은 **둘째 버전**이라야 diff 축이 성립한다
+    for (const [id, no, status] of [
+      [newId(), 1, 'superseded'],
+      [v2, 2, 'approved'],
+    ] as const) {
+      await poolA.query(
+        `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+         VALUES ($1,$2,$3,$4,'# 본문', digest('x','sha256'), $5)`,
+        [id, specId, no, status, userId],
+      );
+    }
+    // 승인은 spec_version 을 가리키고, 재검토 요청은 **spec** 을 가리킨다(§3.3 전파)
+    for (const [type, subjectType, subjectId] of [
+      [NERV_EVENT.SPEC_APPROVED, 'spec_version', v2],
+      [NERV_EVENT.SPEC_RECHECK_REQUESTED, 'spec', specId],
+    ] as const) {
+      await poolA.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
+         VALUES ($1,$2,$3,$4,$5,$6, now())`,
+        [newId(), projectId, type, subjectType, subjectId, actorId],
+      );
+    }
+
+    const notifications = new NotificationService(drizzle(poolA));
+    await notifications.route();
+    const page = await notifications.list({ userId, limit: 50 });
+    const byType = new Map(page.items.map((n) => [String(n['event_type']), n]));
+
+    expect(byType.get(NERV_EVENT.SPEC_APPROVED)?.['version_no']).toBe(2);
+    // 버전이 없는 알림은 **없다고 말한다** — 화면은 그때 본문으로 간다
+    expect(byType.get(NERV_EVENT.SPEC_RECHECK_REQUESTED)?.['version_no']).toBeNull();
+    // 두 알림 모두 스펙 키는 해소된다(딥링크의 경로 부분이 이 값이다)
+    expect(byType.get(NERV_EVENT.SPEC_APPROVED)?.['spec_key']).toBe('VER-SPEC');
+    expect(byType.get(NERV_EVENT.SPEC_RECHECK_REQUESTED)?.['spec_key']).toBe('VER-SPEC');
   });
 });
 

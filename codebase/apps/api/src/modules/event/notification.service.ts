@@ -410,7 +410,13 @@ export class NotificationService {
              e.to_state, e.is_agent, e.occurred_at,
              u.display_name AS actor_name,
              p.slug AS project_slug, p.name AS project_name,
-             s.key AS spec_key, s.title AS spec_title, t.key AS task_key, t.title AS task_title
+             s.key AS spec_key, s.title AS spec_title, t.key AS task_key, t.title AS task_title,
+             -- **알림이 diff 주소를 만들 수 있게 버전 번호를 싣는다**(REQ-API-159 · REQ-WEB-163).
+             -- 이 조인은 이미 있었다 — 없던 것은 이 한 칸이고, 그래서 화면은 "v4 가 승인됐다" 를
+             -- 알면서 "v3 과 무엇이 다른가" 로는 데려갈 수 없었다(본문 전체를 열 뿐이다).
+             -- 대상이 스펙 버전이 아닌 알림(재검토 요청은 subject 가 spec 이다)은 NULL 이고,
+             -- 그때 화면은 본문으로 간다 — **없는 것과 1 은 다르다.**
+             sv.version_no AS version_no
         FROM notification n
         JOIN project p ON p.id = n.project_id
    LEFT JOIN event e ON e.id = n.event_id

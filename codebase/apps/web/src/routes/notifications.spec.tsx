@@ -15,6 +15,7 @@ import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NERV_EVENT } from '@nerv/schema';
 import { LocaleProvider } from '../lib/i18n.js';
+import { deepLinkFor } from './notifications.js';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
 
@@ -102,11 +103,10 @@ afterEach(() => {
   cleanup();
 });
 
-function renderAt(path: string): void {
-  const router = createRouter({
-    routeTree,
-    history: createMemoryHistory({ initialEntries: [path] }),
-  });
+/** 히스토리를 돌려준다 — 도착한 **주소**를 세는 검사가 그것을 읽는다(라우터 제네릭을 타지 않는다) */
+function renderAt(path: string): ReturnType<typeof createMemoryHistory> {
+  const history = createMemoryHistory({ initialEntries: [path] });
+  const router = createRouter({ routeTree, history });
   render(
     <LocaleProvider locale="ko">
       <QueryClientProvider
@@ -118,6 +118,7 @@ function renderAt(path: string): void {
       </QueryClientProvider>
     </LocaleProvider>,
   );
+  return history;
 }
 
 describe('알림 목록 — 읽음과 안읽음이 같은 열에 선다', () => {
@@ -181,5 +182,138 @@ describe('REQ-WEB-149 — 결정이 필요한 것만 세고, 나눠 본다', () 
 
     fireEvent.click(screen.getByTestId('filter-immediate'));
     await waitFor(() => expect(asked.some((u) => u.includes('importance=immediate'))).toBe(true));
+  });
+});
+
+/**
+ * **알림은 "무슨 일이 있었다" 로 끝나지 않는다**(REQ-WEB-163 · ui-wireframes §4.5).
+ *
+ * 스펙 알림이 정확히 그랬다 — "v4 가 승인됐다" 를 전하고 본문 전체를 열어, 바뀐 자리는
+ * 사람이 눈으로 찾아야 했다. 바뀐 자리를 아는 화면(`?diff=`)은 처음부터 있었고 알림만
+ * 그 길을 몰랐다.
+ *
+ * 이 결함은 **조용하다** — 주소가 틀려도 화면은 열리고 사람은 "원래 이런가 보다" 한다.
+ * 그래서 검사가 세는 것은 화면이 아니라 **주소**다.
+ */
+describe('REQ-WEB-163 — 알림이 뷰 상태까지 싣는다', () => {
+  const spec = (over: Record<string, unknown>): Record<string, unknown> => ({
+    project_slug: 'clemvion',
+    spec_key: 'SPC-CWC-007',
+    ...over,
+  });
+
+  it('승인 알림은 직전 버전과의 diff 로 간다', () => {
+    expect(deepLinkFor(spec({ event_type: NERV_EVENT.SPEC_APPROVED, version_no: 4 }))).toEqual({
+      to: '/p/clemvion/specs/SPC-CWC-007',
+      search: { diff: 'v3..v4' },
+    });
+  });
+
+  it('반려 알림도 같은 축이다 — 무엇을 고쳐야 하는지가 diff 에 있다', () => {
+    expect(deepLinkFor(spec({ event_type: NERV_EVENT.SPEC_REJECTED, version_no: 2 }))).toEqual({
+      to: '/p/clemvion/specs/SPC-CWC-007',
+      search: { diff: 'v1..v2' },
+    });
+  });
+
+  it('v1 은 이전이 없다 — 뜻 없는 인자를 주소에 남기지 않는다', () => {
+    // 본문이 곧 그 버전이다. `?diff=v0..v1` 은 존재하지 않는 비교이고
+    // `?v=1` 은 기본 화면과 같은 것을 가리키는 군더더기다.
+    expect(deepLinkFor(spec({ event_type: NERV_EVENT.SPEC_APPROVED, version_no: 1 }))).toEqual({
+      to: '/p/clemvion/specs/SPC-CWC-007',
+    });
+  });
+
+  it('버전이 없는 알림은 본문이다 — 재검토 요청은 subject 가 spec 이다', () => {
+    expect(
+      deepLinkFor(spec({ event_type: NERV_EVENT.SPEC_RECHECK_REQUESTED, subject_type: 'spec' })),
+    ).toEqual({ to: '/p/clemvion/specs/SPC-CWC-007' });
+  });
+
+  /**
+   * `spec.comment_added` 는 **두 곳에서 난다**. 갈라 주는 것은 `subject_type` 이고,
+   * 이 둘을 섞으면 한쪽이 반드시 틀린다 — 그리고 틀린 쪽은 빈 화면으로 끝난다.
+   */
+  it('본문 코멘트는 코멘트 레일을 연다', () => {
+    expect(
+      deepLinkFor(spec({ event_type: NERV_EVENT.SPEC_COMMENT_ADDED, subject_type: 'spec' })),
+    ).toEqual({ to: '/p/clemvion/specs/SPC-CWC-007', search: { rail: 'comments' } });
+  });
+
+  it('리뷰 결정 "코멘트" 는 레일을 열지 않는다 — 그 코멘트는 목록에 없다', () => {
+    // 이쪽은 `spec_comment` 행을 만들지 않는다(코멘트가 이벤트 payload 에만 있다).
+    // 레일을 열면 **빈 목록**이 뜨고, 읽으러 온 사람은 사라진 코멘트를 찾게 된다.
+    // 문서는 draft 로 되돌아왔으므로 데려갈 곳은 그 문서 자신이다.
+    expect(
+      deepLinkFor(
+        spec({
+          event_type: NERV_EVENT.SPEC_COMMENT_ADDED,
+          subject_type: 'spec_version',
+          version_no: 3,
+        }),
+      ),
+    ).toEqual({ to: '/p/clemvion/specs/SPC-CWC-007' });
+  });
+
+  it('스펙이 아닌 알림은 그대로다 — 이 변경이 다른 축을 건드리지 않았다', () => {
+    expect(
+      deepLinkFor({
+        project_slug: 'clemvion',
+        task_key: 'CLV-T-0CFQC2',
+        event_type: NERV_EVENT.TASK_BLOCKED,
+      }),
+    ).toEqual({ to: '/p/clemvion/tasks/CLV-T-0CFQC2' });
+    expect(
+      deepLinkFor({ project_slug: 'clemvion', event_type: NERV_EVENT.APPROVAL_REQUESTED }),
+    ).toEqual({ to: '/inbox' });
+  });
+
+  /**
+   * 위 검사들은 **객체**를 세고, 이것은 라우터가 그 객체를 **주소로** 만드는지를 센다.
+   * 둘은 다른 사실이다 — `to` 에 질의 문자열을 이어 붙이던 시절이면 위는 통과하고
+   * 이것이 붉어진다.
+   */
+  it('행을 누르면 그 주소로 실제로 간다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const u = String(url);
+        if (u.includes('unread-count')) {
+          return { ok: true, status: 200, json: async () => ({ count: 1, immediate: 0 }) };
+        }
+        if (u.includes('/me/notifications')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [
+                {
+                  id: 'n9',
+                  state: 'read',
+                  event_type: NERV_EVENT.SPEC_APPROVED,
+                  subject_type: 'spec_version',
+                  version_no: 4,
+                  spec_key: 'SPC-CWC-007',
+                  project_slug: 'clemvion',
+                  occurred_at: '2026-09-10T00:00:00Z',
+                },
+              ],
+              next_cursor: null,
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], memberships: [], count: 0, summary: {} }),
+        };
+      }),
+    );
+    const history = renderAt('/notifications');
+    await waitFor(() => expect(screen.getAllByTestId('notification-row')).toHaveLength(1));
+
+    fireEvent.click(screen.getAllByTestId('notification-row')[0] as HTMLElement);
+    await waitFor(() => expect(history.location.pathname).toBe('/p/clemvion/specs/SPC-CWC-007'));
+    expect(history.location.search).toContain('diff=v3..v4');
   });
 });

@@ -66,6 +66,8 @@ The shortcuts do nothing while the cursor is in a text field — typing `a` in a
 
 The notification center is for **what you missed**. If the inbox is "what I must do", notifications are "what I should know". The unread count sits on the header badge and clears as you read.
 
+**Opening a notification lands on what changed.** A notification that a spec was approved or rejected takes you to the **difference from the previous version**, not the document body — you no longer read a document from the top to find what moved. A first version has nothing to compare against, so it opens the body. A notification that someone commented opens with the **comments panel already showing**.
+
 When there are unread ones, a **[Mark all read]** sits beside the count — if clearing them one at a time is the only way, the badge soon becomes a badge nobody reads. It tells you how many it marked. With nothing unread the button is not shown.
 
 The list does not arrive all at once — **[Load more]** at the bottom continues it.
