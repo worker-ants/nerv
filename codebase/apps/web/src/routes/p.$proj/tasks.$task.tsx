@@ -40,6 +40,7 @@ import {
   Textarea,
 } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 export const Route = createFileRoute('/p/$proj/tasks/$task')({ component: TaskDetail });
 
@@ -65,7 +66,7 @@ function TaskDetail(): React.JSX.Element {
 
   const data = detail.data ?? {};
   const status = String(data['status'] ?? '');
-  const projectId = project.data?.['id'];
+  const projectId = asProjectId(project.data?.['id']);
   const meId = me.data?.id;
   const evidence = rows(data['evidence']);
   // 증적이 데려갈 곳을 만드는 데 드는 둘 — 저장소 주소와 기준 갈래(REQ-WEB-159).
@@ -197,7 +198,9 @@ function TaskDetail(): React.JSX.Element {
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.task(task) });
       if (typeof projectId === 'string') {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId) });
+        if (projectId !== undefined) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId) });
+        }
       }
       pushToast({
         tone: 'ok',

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '../../lib/i18n.js';
 import { SpecEditor } from './editor.js';
 import { specLinkHref } from './spec-link-picker.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 const NODES = [
   { id: 'a', key: 'SUD-AREA-PLAY', title: '게임플레이 · 실시간 동기화', type: 'area' },
@@ -51,7 +52,7 @@ function renderEditor(onChange = vi.fn(), readOnly = false): void {
           onChange={onChange}
           projectSlug="sudoku"
           // 앱은 언제나 함께 넘긴다(specs.$spec.tsx) — 트리 쿼리가 이 축으로 잡힌다
-          projectId="p-1"
+          projectId={asProjectId('p-1')}
           specKey="SUD-SELF"
         />
       </QueryClientProvider>

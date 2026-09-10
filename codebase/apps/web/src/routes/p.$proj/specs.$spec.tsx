@@ -49,6 +49,7 @@ import { useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { Avatar, Button, Input, Mono, Textarea } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 export const Route = createFileRoute('/p/$proj/specs/$spec')({
   /**
@@ -303,8 +304,10 @@ function SpecDetail(): React.JSX.Element {
 
   // **복구는 이 화면에만 있다**(REQ-WEB-105). 보관한 문서는 목록·트리에서 빠지므로
   // 되살릴 손잡이를 목록에 둘 수 없다 — 주소로 들어온 이 자리가 그 손잡이의 유일한 집이다.
-  const projectUuid =
-    typeof detail.data?.['project_id'] === 'string' ? detail.data['project_id'] : proj;
+  // **slug 로 떨어뜨리지 않는다**(2026-09-10 · 브랜드 타입이 짚은 자리). 예전에는 문서가
+  // 도착하기 전 `proj`(slug)를 대신 담았고, 그동안의 무효화는 아무 캐시에도 닿지 않았다 —
+  // 조용히 아무 일도 하지 않는 그 부류다(4.5 §1.4). 없으면 없는 채로 둔다.
+  const projectUuid = asProjectId(detail.data?.['project_id']);
   const restore = useMutation({
     mutationFn: () =>
       apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/restore`, {
@@ -314,8 +317,10 @@ function SpecDetail(): React.JSX.Element {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
       // 목록으로 돌아오는 것이 복구의 요점이다 — 트리와 표(그래프 응답)를 함께 새로 받는다
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecTree(projectUuid) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecGraph(projectUuid) });
+      if (projectUuid !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecTree(projectUuid) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecGraph(projectUuid) });
+      }
       pushToast({ tone: 'ok', message: t('spec.restore_done') });
     },
     onError: (error: Error) => {
@@ -862,9 +867,7 @@ function SpecDetail(): React.JSX.Element {
       {metaOpen && (
         <MetaDialog
           projectSlug={proj}
-          projectId={
-            typeof detail.data?.['project_id'] === 'string' ? detail.data['project_id'] : undefined
-          }
+          projectId={projectUuid}
           specKey={spec}
           title={String(detail.data?.['title'] ?? spec)}
           // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다.

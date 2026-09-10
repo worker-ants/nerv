@@ -11,10 +11,11 @@ import { useMemo, useRef, useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { rows, useSpecTree } from '../../lib/queries.js';
 import { Input, Mono, Popover } from '../../components/ui/primitives.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 export interface SpecLinkPickerProps {
   projectSlug: string;
-  projectId?: string | undefined;
+  projectId?: ProjectId | undefined;
   /** 지금 편집 중인 문서 — 자기 자신은 고를 수 없다(자기 참조는 관계가 아니다) */
   excludeKey?: string | undefined;
   onPick: (spec: { key: string; title: string }) => void;

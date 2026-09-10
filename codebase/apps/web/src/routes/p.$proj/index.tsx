@@ -19,6 +19,7 @@ import {
   Skeleton,
 } from '../../components/ui/primitives.js';
 import type { SessionCard as SessionCardData } from '../../features/session-monitor/types.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 export const Route = createFileRoute('/p/$proj/')({ component: ProjectOverview });
 
@@ -26,9 +27,9 @@ function ProjectOverview(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const project = useProject(proj);
-  const coverage = useCoverage(proj, projectIdOf(project.data));
-  const sessions = useSessions(proj, projectIdOf(project.data));
-  const events = useEvents(proj, projectIdOf(project.data));
+  const coverage = useCoverage(proj, asProjectId(project.data?.['id']));
+  const sessions = useSessions(proj, asProjectId(project.data?.['id']));
+  const events = useEvents(proj, asProjectId(project.data?.['id']));
   const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
   const active = (sessions.data?.items ?? []) as unknown as SessionCardData[];
 
@@ -189,10 +190,4 @@ function Metric({
       </dd>
     </div>
   );
-}
-
-/** 프로젝트 UUID — 쿼리 키가 이벤트 봉투의 project_id 와 같은 축이어야 갱신이 산다. */
-function projectIdOf(project: Record<string, unknown> | undefined): string | undefined {
-  const id = project?.['id'];
-  return typeof id === 'string' ? id : undefined;
 }

@@ -39,6 +39,7 @@ import {
   Skeleton,
 } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 export const Route = createFileRoute('/p/$proj/specs/')({
   // 보관 보기는 **뷰 상태**라 주소에 남는다(§2.4 (3)) — 링크로 건네면 상대도 같은 목록을 본다
@@ -136,12 +137,7 @@ function SpecListScreen(): React.JSX.Element {
   });
 
   const projectId = project.data?.['id'];
-  const graph = useSpecGraph(
-    proj,
-    typeof projectId === 'string' ? projectId : undefined,
-    archived,
-    baseline,
-  );
+  const graph = useSpecGraph(proj, asProjectId(projectId), archived, baseline);
 
   // 그래프를 보는 동안에만 화면 높이를 **확정한다**. `min-h` 로 두면 `flex-1` 자식이
   // 내용만큼 자라는데, 이웃 93개짜리 문서를 고르는 순간 패널이 4,771px 이 되고 캔버스도
@@ -373,7 +369,7 @@ function SpecListScreen(): React.JSX.Element {
             <Card padded={false} className="p-3">
               <SpecTree
                 projectSlug={proj}
-                projectId={typeof projectId === 'string' ? projectId : undefined}
+                projectId={asProjectId(projectId)}
                 variant="full"
                 includeArchived={archived}
                 statuses={statuses}

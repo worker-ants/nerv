@@ -30,6 +30,7 @@ import {
   SummaryStrip,
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 export const Route = createFileRoute('/p/$proj/reviews/')({
   // **발견 하나를 가리킬 주소가 필요하다**(2026-08-31 — 사람 요청). 받은 요청의 질문 카드가
@@ -59,7 +60,7 @@ function ReviewCenter(): React.JSX.Element {
   const project = useProject(proj);
   const me = useMe();
   const projectId = project.data?.['id'];
-  const id = typeof projectId === 'string' ? projectId : undefined;
+  const id = asProjectId(projectId);
 
   // 큐는 **열린 것으로 시작한다** — 처분한 것까지 함께 보이면 큐가 큐이기를 그만둔다
   const [severity, setSeverity] = useState<string[]>([]);

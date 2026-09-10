@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.04 · 2026-09-10 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.05 · 2026-09-10 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.05 변경(2026-09-10 — 축을 사람이 지키는 것을 그만둔다, 사람 결정): **새 요구사항 없음 — §1.4 "축을 타입이 지킨다" 신설.** 같은 결함이 **네 번** 반복됐고 전수 확인을 했다고 보고한 뒤에도 남아 있었다 — 두 축이 똑같이 `string` 이라 틀릴 방법이 있었고, 틀려도 조용했기 때문이다. `ProjectId` 브랜드 타입과 `asProjectId()` 하나를 두어 **slug 를 넘기는 코드가 컴파일되지 않게** 한다(값은 그대로 문자열 · 런타임 비용 0). 해소용 `useProject` 만 slug 축이므로 키 함수를 `projectBySlug` 로 갈랐다. **도입하자마자 grep 이 못 찾던 두 자리를 짚었다**: `specs.$spec.tsx` 의 `projectUuid` 가 문서 도착 전에는 slug 였고(복구 무효화가 닿지 않았다), `sessions.index.tsx` 가 세션 보드에 slug 를 넘기고 있었다. 곁들여 손으로 적던 narrowing 여덟 곳과 지역 헬퍼 둘이 `asProjectId` 하나로 모였다.
 >
 > v1.04 변경(2026-09-10 — 축이 어긋난 무효화의 마지막 한 자리, 사람 지시): **새 요구사항 없음 — §1.4 후속 한 문단.** v1.03 이 조회를 id 축으로 통일한 뒤 `invalidateQueries` 를 전수로 세어 보니 **세션 개입 패널 하나만 slug 축**이었다 — steer·stop 뒤 세션 목록 무효화가 아무 캐시에도 닿지 않았고, 실시간이 붙어 있으면 이벤트가 가려 주므로 **끊긴 동안에만** 드러난다. `SteerPanel`·`ActivityRail` 에 `projectId` 를 통과시키고, 축이 어긋난 무효화는 조용히 아무 일도 하지 않으므로 **L1 이 키를 눈으로 보게 했다**(되돌리면 빨개지는 것을 확인했다).
 >
@@ -393,6 +395,30 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 **남아 있던 마지막 한 자리는 무효화 쪽이었다**(2026-09-10 · 같은 날 후속). 조회를 id 축으로 통일한 뒤 `invalidateQueries` 를 전수로 세어 보니 **세션 개입 패널 하나만 slug 축**이었다 — steer·stop 뒤 세션 목록 무효화가 아무 캐시에도 닿지 않았다. 실시간이 붙어 있으면 이벤트가 가려 주므로 **끊긴 동안(D-14)에만 드러나고**, 그때는 사람이 방금 누른 것의 결과를 보지 못한다. 축이 어긋난 무효화는 조용히 아무 일도 하지 않으므로 **L1 이 이제 키를 눈으로 본다**(`steer-panel.spec.tsx` — 같은 부류가 세 번째다).
 
 > 이 폴백은 **테스트 픽스처의 결함도 가리고 있었다.** L1 셋이 `/projects/<slug>` 응답에 `id` 를 싣지 않거나(서버는 언제나 싣는다) 단수 조회에 목록 배열을 흘리고 있었는데, 키가 slug 로 떨어져 준 덕에 통과하고 있었다. 축을 하나로 만들자 그 셋이 즉시 드러났다.
+
+#### 축을 **타입이** 지킨다 (2026-09-10 · 사람 결정)
+
+위의 정정 셋은 전부 사람이 찾아서 고친 것이다. 그런데 **네 번째가 또 나왔고**(발견 승격), 전수 확인을 했다고 보고한 뒤에도 남아 있었다. 원인은 하나다 — 두 축이 똑같이 `string` 이라 **틀릴 방법이 있었다.** 틀려도 타입도 lint 도 통과하고 화면만 조용히 안 바뀌므로, 찾는 일은 언제나 사람의 주의력에 달려 있었다.
+
+그래서 축에 표시를 붙인다.
+
+```ts
+export type ProjectId = string & { readonly __projectId: unique symbol };
+export function asProjectId(value: unknown): ProjectId | undefined;  // 만드는 유일한 길
+projectSpecTree: (projId: ProjectId) => ['project', projId, 'specTree'] as const;
+projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소용 하나만 slug 축
+```
+
+값은 그대로 문자열이고 런타임 비용이 없다. 바뀌는 것은 **slug 를 넘기는 코드가 컴파일되지 않는다**는 것뿐이다.
+
+**도입하자마자 grep 이 못 찾던 두 자리를 짚었다** — 둘 다 `?? slug` 가 아니라 다른 모양이어서 앞선 전수 확인을 그대로 통과했던 자리다.
+
+| 자리 | 무엇이었나 |
+| --- | --- |
+| `specs.$spec.tsx` | `const projectUuid = … ? detail.data['project_id'] : proj` — **이름은 `projectUuid` 인데 문서가 도착하기 전에는 slug 였다.** 그동안의 복구 무효화는 아무 캐시에도 닿지 않았다 |
+| `sessions.index.tsx` | `projectId={… ? projectId : proj}` — 세션 보드에 **slug 를 넘기고** 있었다 |
+
+곁들여 화면마다 손으로 적던 `typeof x === 'string' ? x : undefined` 여덟 곳이 `asProjectId(x)` 하나로 모였고, 같은 일을 하던 지역 헬퍼 둘(`projectIdOf`)이 사라졌다. 축이 없을 때 무효화를 건너뛰는 자리도 **명시적인 `if` 로** 드러난다 — 빈 축으로 부르면 아무 캐시에도 닿지 않고, 그 침묵이 이 표시가 없애려는 결함이기 때문이다.
 
 ### 1.5 공통 상태·에러 규약
 

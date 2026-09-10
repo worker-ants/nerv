@@ -10,13 +10,21 @@
 import { NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { queryKeys } from './query-keys.js';
-import type { NervQueryKey } from './query-keys.js';
+import type { NervQueryKey, ProjectId } from './query-keys.js';
 
 const E = NERV_EVENT;
 const P2 = NERV_EVENT_PHASE2;
 
+/**
+ * **봉투의 `project_id` 는 계약상 프로젝트 UUID 다**(api.md §3.3) — 서버가 그 열에서
+ * 직접 싣는다. 그래서 축 표시를 여기서 한 번만 붙이고, 아래 매핑 서른다섯 줄은 그대로
+ * `e.project_id` 를 쓴다. 표시를 자리마다 붙이면 그 자리마다 **표시를 지울 수도 있게**
+ * 되므로, 좁히는 곳은 `invalidationKeysFor` 하나다.
+ */
+type EventWithProjectAxis = Omit<NervEventEnvelope, 'project_id'> & { project_id: ProjectId };
+
 /** subject_id 를 그 이벤트의 주체 키로 해석하는 규칙(§1.4 표의 두 번째 열). */
-type KeyBuilder = (e: NervEventEnvelope) => NervQueryKey[];
+type KeyBuilder = (e: EventWithProjectAxis) => NervQueryKey[];
 
 /**
  * 스펙 축 — **키로 잡는다**(2026-08-29 정정).
@@ -171,7 +179,8 @@ export const NO_SCREEN_YET: readonly NervEventName[] = [P2.CR_OPENED];
 /** 이 이벤트를 받으면 어떤 쿼리를 다시 읽어야 하는가. 모르는 이벤트면 빈 배열이다. */
 export function invalidationKeysFor(event: NervEventEnvelope): NervQueryKey[] {
   const build = MAP[event.type];
-  return build === undefined ? [] : build(event);
+  // 축 표시를 붙이는 **유일한 자리**다(위 `EventWithProjectAxis` 주석).
+  return build === undefined ? [] : build(event as EventWithProjectAxis);
 }
 
 /** 매핑을 가진 이벤트 이름 목록 — 테스트와 개발 도구용. */

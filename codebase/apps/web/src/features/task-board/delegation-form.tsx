@@ -21,6 +21,7 @@ import { rows, useRequirements, useSpecTree, useSpecVersions, useTask } from '..
 import { useState } from 'react';
 import type { MessageKey, Translator } from '@nerv/schema';
 import { Button, Field, Input, Select, Textarea } from '../../components/ui/primitives.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 /** 4요소는 공백만으로 채워질 수 없다 — 형식적 충족을 막는 최소선이다. */
 export const delegationSchema = z.object({
@@ -51,7 +52,7 @@ export interface DelegationFormProps {
    * 둘 다 이 값으로 잡히므로, 없으면 출처 피커는 부르지 않고 저장 뒤 보드도
    * 갱신되지 않는다 — slug 로 대신 잡지 않는다.
    */
-  projectId: string | undefined;
+  projectId: ProjectId | undefined;
   taskKey: string | null;
   onDone: () => void;
   /** S3 에서 "이 버전에서 파생" 으로 들어온 경우 — 피커 대신 고정 표기다 */
@@ -136,7 +137,11 @@ export function DelegationForm({
       });
     },
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId ?? '') });
+      // 축이 없으면 무효화하지 않는다 — 빈 축으로 부르면 아무 캐시에도 닿지 않고,
+      // 그 침묵이 정확히 이 표시가 없애려는 결함이다(query-keys.ts `ProjectId`).
+      if (projectId !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId) });
+      }
       // 승격 여부를 알려준다 — 폼을 채운 사람이 알고 싶은 것은 저장 여부가 아니라 그것이다.
       pushToast({
         tone: 'ok',

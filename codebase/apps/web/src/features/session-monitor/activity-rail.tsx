@@ -21,6 +21,7 @@ import { SteerPanel } from './steer-panel.js';
 import { relativeTime } from './format.js';
 import { useCanIntervene } from '../../lib/scope.js';
 import type { SessionCard } from './types.js';
+import type { ProjectId } from '../../lib/query-keys.js';
 
 export function ActivityRail({
   projectSlug,
@@ -30,7 +31,7 @@ export function ActivityRail({
 }: {
   projectSlug: string;
   /** 개입 패널의 무효화가 이 축으로 잡힌다 — 통과만 시킨다(SteerPanelProps 주석) */
-  projectId: string | undefined;
+  projectId: ProjectId | undefined;
   card: SessionCard;
   now?: number;
 }): React.JSX.Element {

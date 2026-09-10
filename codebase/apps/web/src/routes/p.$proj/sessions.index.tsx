@@ -16,6 +16,7 @@ import { SessionBoard } from '../../features/session-monitor/session-board.js';
 import { useProject, useSessions } from '../../lib/queries.js';
 import { PageBody, PageHeader } from '../../components/ui/primitives.js';
 import type { SessionCard } from '../../features/session-monitor/types.js';
+import { asProjectId } from '../../lib/query-keys.js';
 
 export const Route = createFileRoute('/p/$proj/sessions/')({ component: SessionMonitor });
 
@@ -25,7 +26,7 @@ function SessionMonitor(): React.JSX.Element {
   const project = useProject(proj);
   // 스트립에서 고른 상태 — 목록과 레일이 **같은 조각**을 봐야 하므로 여기가 그 자리다
   const [state, setState] = useState<string | null>(null);
-  const sessions = useSessions(proj, projectIdOf(project.data), state);
+  const sessions = useSessions(proj, asProjectId(project.data?.['id']), state);
   const projectId = project.data?.['id'];
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -40,7 +41,7 @@ function SessionMonitor(): React.JSX.Element {
           <PageHeader title={t('sessions.title')} />
           <SessionBoard
             projectSlug={proj}
-            projectId={typeof projectId === 'string' ? projectId : proj}
+            projectId={asProjectId(projectId)}
             selectedId={focused?.id}
             onSelect={setSelectedId}
             state={state}
@@ -56,15 +57,13 @@ function SessionMonitor(): React.JSX.Element {
       {/* 오른쪽 레일 — 시안 372px. 세션이 없으면 레일도 없다(빈 패널을 세우지 않는다) */}
       {focused !== null && (
         <aside className="hidden w-[372px] shrink-0 border-l border-border bg-bg-sunken/40 px-[22px] py-7 lg:block">
-          <ActivityRail projectSlug={proj} projectId={projectIdOf(project.data)} card={focused} />
+          <ActivityRail
+            projectSlug={proj}
+            projectId={asProjectId(project.data?.['id'])}
+            card={focused}
+          />
         </aside>
       )}
     </div>
   );
-}
-
-/** 프로젝트 UUID — 쿼리 키가 이벤트 봉투의 project_id 와 같은 축이어야 갱신이 산다. */
-function projectIdOf(project: Record<string, unknown> | undefined): string | undefined {
-  const id = project?.['id'];
-  return typeof id === 'string' ? id : undefined;
 }

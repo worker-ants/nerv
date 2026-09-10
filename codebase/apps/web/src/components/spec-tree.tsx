@@ -23,6 +23,7 @@ import { cn } from '../lib/utils.js';
 import { Input } from './ui/primitives.js';
 import { SPEC_VERSION_TOKEN } from './status-token.js';
 import type { StatusToken } from './status-badge.js';
+import type { ProjectId } from '../lib/query-keys.js';
 
 export interface TreeNode {
   id: string;
@@ -44,7 +45,7 @@ export interface SpecTreeProps {
   heading?: string;
   projectSlug: string;
   /** 쿼리 키를 이벤트 봉투와 같은 축(UUID)에 맞추기 위한 값 — 없으면 slug 로 떨어진다 */
-  projectId?: string | undefined;
+  projectId?: ProjectId | undefined;
   variant?: SpecTreeVariant;
   activeKey?: string | undefined;
   /** 보관한 문서까지 담는다 — 전수 목록 화면의 토글이 이것을 켠다(REQ-WEB-105) */
