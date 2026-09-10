@@ -799,6 +799,34 @@ describe('작업 상세가 싣는 것 (REQ-API-142)', () => {
     expect(reviews).toHaveLength(1);
     expect(reviews[0]).toMatchObject({ branch: 'feat/x', open_critical: 0 });
   });
+
+  /**
+   * **증적은 자기 저장소를 싣는다**(2026-09-10 · REQ-API-157). 열은 "멀티 저장소 대비" 로
+   * 처음부터 있었고 GitHub 웹훅이 `repository.full_name` 을 채우는데(`webhook.service.ts`)
+   * 상세가 그것을 고르지 않아, 화면은 증적 **전부**를 프로젝트의 저장소 하나로 읽었다 —
+   * 저장소가 둘 이상인 프로젝트에서 커밋 링크가 조용히 남의 저장소를 가리킨다.
+   */
+  it('증적에 `repo` 가 함께 온다 — 없으면 null 이고 화면이 프로젝트 것으로 읽는다', async () => {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'CLV-T-EV0001','증적','in_progress','목표','PR','도구','경계')`,
+      [taskId, projectId],
+    );
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, repo, source)
+       VALUES ($1,$2,$3,'commit','a1b2c3d','worker-ants/other','ci'),
+              ($4,$2,$3,'pr','https://git.example.com/pr/9',NULL,'human')`,
+      [newId(), projectId, taskId, newId()],
+    );
+
+    const detail = await tasks.get({ projectId, taskKey: 'CLV-T-EV0001' });
+    const evidence = detail['evidence'] as Record<string, unknown>[];
+    expect(evidence).toHaveLength(2);
+    expect(evidence.find((e) => e['kind'] === 'commit')?.['repo']).toBe('worker-ants/other');
+    expect(evidence.find((e) => e['kind'] === 'pr')?.['repo']).toBeNull();
+  });
 });
 
 describe('전이의 문지기 (REQ-API-129~132)', () => {

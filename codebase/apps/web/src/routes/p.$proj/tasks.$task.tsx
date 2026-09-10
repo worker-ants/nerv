@@ -6,6 +6,7 @@
 
 import {
   BLOCKED_REASONS,
+  EVIDENCE_KINDS,
   blockedReasonLabelKey,
   isDelegationFilled,
   statusLabelKey,
@@ -514,8 +515,12 @@ function TaskDetail(): React.JSX.Element {
               />
             )}
             <div className="flex gap-2">
+              {/* **어휘는 `@nerv/schema` 가 정본이다**(2026-09-10 · REQ-WEB-160 · REQ-CB-006).
+                  여섯 중 넷을 여기 손으로 적어 두어 `review`·`user_guide` 증적은 웹에서
+                  붙일 길이 없었다 — 서버는 처음부터 여섯을 받는데. 손으로 적은 목록은
+                  어휘가 늘어도 함께 늘지 않는다. */}
               <Select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}>
-                {['pr', 'commit', 'test', 'code_path'].map((k) => (
+                {EVIDENCE_KINDS.map((k) => (
                   <option key={k} value={k}>
                     {k}
                   </option>
@@ -608,6 +613,8 @@ function TaskDetail(): React.JSX.Element {
                 locator: String(e['locator']),
                 repoUrl,
                 defaultBranch,
+                // 이 증적이 선 저장소가 따로 있으면 그것이 이긴다(REQ-API-157)
+                repo: typeof e['repo'] === 'string' ? e['repo'] : null,
                 projectSlug: proj,
               });
               return (

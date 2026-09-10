@@ -90,6 +90,70 @@ describe('evidenceTarget — 갈 곳이 있는 것만 링크가 된다', () => {
   });
 });
 
+/**
+ * **증적은 자기 저장소를 알 수 있다**(2026-09-10 · REQ-WEB-160 · REQ-API-157).
+ * `evidence.repo` 는 GitHub 웹훅이 적는 `repository.full_name`(`org/repo`) — 주소가 아니라
+ * **경로**다. 그래서 호스트는 프로젝트 주소에서 빌리고 경로만 갈아 끼운다.
+ */
+describe('evidenceTarget — 증적이 선 저장소가 프로젝트 것을 이긴다', () => {
+  it('`org/repo` 는 프로젝트 주소의 호스트 위에 얹힌다', () => {
+    expect(
+      evidenceTarget({ ...repo, kind: 'commit', locator: 'a1b2c3d', repo: 'worker-ants/other' }),
+    ).toEqual({
+      href: 'https://github.com/worker-ants/other/commit/a1b2c3d',
+      external: true,
+    });
+  });
+
+  it('code_path 도 같은 저장소를 본다', () => {
+    expect(
+      evidenceTarget({
+        ...repo,
+        kind: 'code_path',
+        locator: 'src/a.ts',
+        repo: 'worker-ants/other',
+      }),
+    ).toEqual({
+      href: 'https://github.com/worker-ants/other/blob/main/src/a.ts',
+      external: true,
+    });
+  });
+
+  it('절대 주소가 들어 있으면 그것이 답이다 — 다른 수집 경로가 URL 을 넣었을 수 있다', () => {
+    expect(
+      evidenceTarget({
+        ...repo,
+        kind: 'commit',
+        locator: 'a1b2c3d',
+        repo: 'https://git.example.com/team/svc.git',
+      }),
+    ).toEqual({ href: 'https://git.example.com/team/svc/commit/a1b2c3d', external: true });
+  });
+
+  it('비어 있으면 프로젝트 것을 쓴다 — 대부분의 증적이 그렇다', () => {
+    const project = { href: 'https://github.com/nerv/nerv/commit/a1b2c3d', external: true };
+    // 아예 안 넘긴 자리
+    expect(evidenceTarget({ ...repo, kind: 'commit', locator: 'a1b2c3d' })).toEqual(project);
+    for (const own of [null, '  ']) {
+      expect(evidenceTarget({ ...repo, kind: 'commit', locator: 'a1b2c3d', repo: own })).toEqual(
+        project,
+      );
+    }
+  });
+
+  it('프로젝트 주소가 없으면 repo 가 있어도 갈 곳이 없다 — 호스트를 지어내지 않는다', () => {
+    expect(
+      evidenceTarget({
+        ...repo,
+        repoUrl: null,
+        kind: 'commit',
+        locator: 'a1b2c3d',
+        repo: 'worker-ants/other',
+      }),
+    ).toBeNull();
+  });
+});
+
 describe('needsRepoUrl — 링크가 아닌 이유 중 사람이 고칠 수 있는 것', () => {
   it('저장소 주소가 비었고 커밋·코드 경로 증적이 있으면 말한다', () => {
     expect(needsRepoUrl([{ kind: 'commit' }], null)).toBe(true);

@@ -341,6 +341,11 @@ function ProjectForm({
   );
 }
 
+/** 널 가능한 열을 입력칸의 값으로 — `String(null)` 은 칸에 `"null"` 을 적는다 */
+function text(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
 function ProjectRow({
   project,
   canEdit,
@@ -356,10 +361,26 @@ function ProjectRow({
   const slug = String(project['slug']);
   const archived = project['archived_at'] !== null && project['archived_at'] !== undefined;
   const [name, setName] = useState(String(project['name']));
+  // **저장소 주소를 넣을 자리가 화면에 없었다**(2026-09-10 — 사람 보고 · REQ-WEB-160).
+  // 두 열은 처음부터 있었고 `PATCH /projects/{slug}` 도 처음부터 받았는데(EP-PRJ-04) 채울
+  // 문이 API 뿐이라, 작업 상세의 증적 링크(REQ-WEB-159)가 "저장소 주소가 없습니다" 라고
+  // 말해 놓고 **고칠 곳을 알려 주지 못했다** — 막다른 길이다(§1.5).
+  //
+  // 이것은 로드맵이 Phase 2 로 미룬 **git 연동 탭이 아니다**([4.1](scope.md) §3.4): 웹훅도
+  // OAuth 도 clone 도 없고, 이미 있는 두 칸을 사람이 채울 수 있게 할 뿐이다.
+  const [repoUrl, setRepoUrl] = useState(text(project['repo_url']));
+  const [defaultBranch, setDefaultBranch] = useState(text(project['default_branch']));
   const [editing, setEditing] = useState(false);
 
   const save = useMutation({
-    mutationFn: () => apiFetch(`/projects/${slug}`, { method: 'PATCH', body: { name } }),
+    mutationFn: () =>
+      apiFetch(`/projects/${slug}`, {
+        method: 'PATCH',
+        // **빈 칸은 "지운다" 가 아니라 "비운다" 다.** 서버는 `coalesce(…, repo_url)` 로
+        // null 을 "안 건드림" 으로 읽으므로(EP-PRJ-04), 사람이 지운 값을 그대로 보내려면
+        // 빈 문자열이어야 한다 — null 을 보내면 지운 티가 안 나고 옛 주소가 살아남는다.
+        body: { name, repo_url: repoUrl.trim(), default_branch: defaultBranch.trim() },
+      }),
     onSuccess: () => {
       setEditing(false);
       onChanged();
@@ -387,21 +408,55 @@ function ProjectRow({
       )}
     >
       {editing ? (
-        <>
-          <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-64" />
-          <Button
-            variant="primary"
-            size="sm"
-            data-testid="project-save"
-            disabled={name.trim() === '' || save.isPending}
-            onClick={() => save.mutate()}
+        <FieldRow className="w-full">
+          <Field label={t('settings.workspace.project_name')}>
+            <Input
+              data-testid="project-name-edit"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="max-w-64"
+            />
+          </Field>
+          {/* 증적의 커밋·코드 경로가 이 주소 위에서 열린다 — 왜 채우는지를 칸 옆에 적는다 */}
+          <Field
+            label={t('settings.workspace.repo_url')}
+            hint={t('settings.workspace.repo_url_hint')}
           >
-            {t('common.save')}
-          </Button>
-          <Button size="sm" onClick={() => setEditing(false)}>
-            {t('common.cancel')}
-          </Button>
-        </>
+            <Input
+              data-testid="project-repo-url"
+              value={repoUrl}
+              placeholder="https://github.com/org/repo"
+              onChange={(e) => setRepoUrl(e.target.value)}
+              className="min-w-64 font-mono"
+            />
+          </Field>
+          <Field
+            label={t('settings.workspace.default_branch')}
+            hint={t('settings.workspace.default_branch_hint')}
+          >
+            <Input
+              data-testid="project-default-branch"
+              value={defaultBranch}
+              placeholder="main"
+              onChange={(e) => setDefaultBranch(e.target.value)}
+              className="w-32 font-mono"
+            />
+          </Field>
+          <FieldRowAction className="flex gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="project-save"
+              disabled={name.trim() === '' || save.isPending}
+              onClick={() => save.mutate()}
+            >
+              {t('common.save')}
+            </Button>
+            <Button size="sm" onClick={() => setEditing(false)}>
+              {t('common.cancel')}
+            </Button>
+          </FieldRowAction>
+        </FieldRow>
       ) : (
         <>
           <span className="min-w-0 flex-1 truncate font-medium">{String(project['name'])}</span>

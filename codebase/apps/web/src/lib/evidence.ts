@@ -29,11 +29,36 @@ export interface EvidenceTarget {
 }
 
 /** `https://github.com/org/repo.git/` → `https://github.com/org/repo` */
-function repoBase(repoUrl: string | null): string | null {
+function trimRepoUrl(repoUrl: string | null): string | null {
   const raw = repoUrl?.trim() ?? '';
   if (raw === '') return null;
   const trimmed = raw.replace(/\/+$/, '').replace(/\.git$/, '');
   return trimmed === '' ? null : trimmed;
+}
+
+/**
+ * 이 증적이 선 저장소의 주소.
+ *
+ * **증적은 자기 저장소를 알 수 있다**(2026-09-10 · REQ-WEB-160 · REQ-API-157).
+ * `evidence.repo` 는 "멀티 저장소 대비" 로 있는 열이고 GitHub 웹훅이 거기에
+ * `repository.full_name`(`worker-ants/nerv`)을 적는다 — 주소가 아니라 **경로**다.
+ * 그래서 호스트는 프로젝트의 `repo_url` 에서 빌리고 경로만 갈아 끼운다: 저장소가 둘 이상인
+ * 프로젝트에서 커밋 링크가 남의 저장소를 가리키던 자리다.
+ *
+ * 프로젝트 주소가 없으면 `repo` 가 있어도 갈 곳이 없다 — 호스트를 지어낼 수는 없다.
+ */
+function repoBase(repoUrl: string | null, repo: string | null | undefined): string | null {
+  const projectBase = trimRepoUrl(repoUrl);
+  if (projectBase === null) return null;
+  const own = repo?.trim() ?? '';
+  if (own === '') return projectBase;
+  // 이미 절대 주소면 그것이 답이다(옛 값·다른 수집 경로가 URL 을 넣었을 수 있다)
+  if (/^https?:\/\//i.test(own)) return trimRepoUrl(own);
+  try {
+    return `${new URL(projectBase).origin}/${own.replace(/^\/+/, '').replace(/\.git$/, '')}`;
+  } catch {
+    return projectBase;
+  }
 }
 
 /**
@@ -46,12 +71,14 @@ export function evidenceTarget(input: {
   /** 프로젝트의 저장소 주소(`project.repo_url`) — 없으면 커밋·코드 경로는 갈 곳이 없다 */
   repoUrl: string | null;
   defaultBranch: string | null;
+  /** 이 증적이 선 저장소(`evidence.repo` — 대개 `org/repo`). 없으면 프로젝트 것을 쓴다 */
+  repo?: string | null;
   /** NERV 안으로 데려갈 때 쓰는 프로젝트 slug */
   projectSlug: string;
 }): EvidenceTarget | null {
   const locator = input.locator.trim();
   if (locator === '') return null;
-  const base = repoBase(input.repoUrl);
+  const base = repoBase(input.repoUrl, input.repo);
 
   switch (input.kind) {
     // PR 은 **절대 URL 임을 서버가 이미 검증한다**(REQ-API-147) — 그대로 연다.
@@ -97,6 +124,6 @@ export function evidenceTarget(input: {
  * 빈칸은 "링크가 없는 증적" 으로 읽히지, "설정이 비었다" 로 읽히지 않는다(§1.5).
  */
 export function needsRepoUrl(items: readonly { kind: string }[], repoUrl: string | null): boolean {
-  if (repoBase(repoUrl) !== null) return false;
+  if (trimRepoUrl(repoUrl) !== null) return false;
   return items.some((e) => e.kind === 'commit' || e.kind === 'code_path');
 }

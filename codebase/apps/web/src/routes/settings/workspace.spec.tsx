@@ -186,3 +186,106 @@ describe('설정 탭 줄의 가로 (REQ-WEB-151)', () => {
     }
   });
 });
+
+/**
+ * **저장소 주소를 넣을 자리가 화면에 없었다**(2026-09-10 — 사람 보고 · REQ-WEB-160).
+ *
+ * 두 열은 처음부터 있었고 `PATCH /projects/{slug}` 도 처음부터 받았는데 채울 문이 API 뿐이라,
+ * 작업 상세의 증적 링크가 "저장소 주소가 없습니다" 라고 말해 놓고 **고칠 곳을 알려 주지
+ * 못했다**(§1.5 가 금지하는 막다른 길이다).
+ */
+describe('프로젝트의 저장소 주소 (REQ-WEB-160)', () => {
+  /** PATCH 본문을 잡아 둔다 — 무엇을 보냈는가가 검사 대상이다 */
+  function stubWithPatch(project: Record<string, unknown>): { sent: unknown[] } {
+    const sent: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
+        const path = String(url);
+        if (init?.method === 'PATCH') {
+          sent.push(JSON.parse(init.body ?? '{}'));
+          return { ok: true, status: 200, json: async () => ({ ok: true }) };
+        }
+        const json = path.includes('/projects') ? [project] : path.includes('/me') ? ME : {};
+        return { ok: true, status: 200, json: async () => json };
+      }),
+    );
+    return { sent };
+  }
+
+  const PROJECT = {
+    id: 'p-1',
+    slug: 'clemvion',
+    key: 'CLV',
+    name: 'clemvion',
+    archived_at: null,
+    repo_url: 'https://github.com/nerv/nerv',
+    default_branch: 'main',
+  };
+
+  it('고치기를 열면 지금 값이 칸에 있고, 저장하면 함께 나간다', async () => {
+    const { sent } = stubWithPatch(PROJECT);
+    await renderTab();
+    fireEvent.click(screen.getByTestId('project-edit'));
+
+    expect((screen.getByTestId('project-repo-url') as HTMLInputElement).value).toBe(
+      'https://github.com/nerv/nerv',
+    );
+    expect((screen.getByTestId('project-default-branch') as HTMLInputElement).value).toBe('main');
+
+    fireEvent.change(screen.getByTestId('project-repo-url'), {
+      target: { value: 'https://git.example.com/team/svc' },
+    });
+    fireEvent.change(screen.getByTestId('project-default-branch'), { target: { value: 'trunk' } });
+    fireEvent.click(screen.getByTestId('project-save'));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({
+      name: 'clemvion',
+      repo_url: 'https://git.example.com/team/svc',
+      default_branch: 'trunk',
+    });
+  });
+
+  it('비어 있던 값도 칸에 `null` 이라고 적히지 않는다', async () => {
+    stubWithPatch({ ...PROJECT, repo_url: null, default_branch: null });
+    await renderTab();
+    fireEvent.click(screen.getByTestId('project-edit'));
+
+    expect((screen.getByTestId('project-repo-url') as HTMLInputElement).value).toBe('');
+    expect((screen.getByTestId('project-default-branch') as HTMLInputElement).value).toBe('');
+  });
+
+  it('지운 값은 빈 문자열로 나간다 — 서버가 그것을 "비운다" 로 읽는다(REQ-API-157)', async () => {
+    const { sent } = stubWithPatch(PROJECT);
+    await renderTab();
+    fireEvent.click(screen.getByTestId('project-edit'));
+    fireEvent.change(screen.getByTestId('project-repo-url'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByTestId('project-save'));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    // null 을 보내면 서버의 `coalesce` 가 "안 건드림" 으로 읽어 옛 주소가 살아남는다
+    expect(sent[0]).toMatchObject({ repo_url: '' });
+  });
+
+  it('권한이 없으면 고치기 자체가 잠긴다 — 숨기지 않고 사유를 붙인다(REQ-WEB-003)', async () => {
+    const viewer = {
+      ...ME,
+      memberships: [
+        { org_slug: 'default', org_name: 'default', project_slug: null, roles: ['viewer'] },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const path = String(url);
+        const json = path.includes('/projects') ? [PROJECT] : path.includes('/me') ? viewer : {};
+        return { ok: true, status: 200, json: async () => json };
+      }),
+    );
+    await renderTab();
+    const edit = screen.getByTestId('project-edit');
+    expect(edit.hasAttribute('disabled')).toBe(true);
+    expect(edit.getAttribute('title')).not.toBeNull();
+  });
+});
