@@ -11,6 +11,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EVIDENCE_KINDS } from '@nerv/schema';
 import { LocaleProvider } from '../../lib/i18n.js';
 import { RealtimeProvider } from '../../lib/realtime.js';
 import { routeTree } from '../../routeTree.gen';
@@ -32,6 +33,8 @@ const EVIDENCE = [
   { id: 'e-3', kind: 'code_path', locator: 'apps/web/src/lib/evidence.ts:12', source: 'agent' },
   { id: 'e-4', kind: 'review', locator: FINDING_ID, source: 'agent' },
   { id: 'e-5', kind: 'test', locator: 'claim.spec.ts > 원자적 클레임', source: 'ci' },
+  // 웹훅이 `repository.full_name` 을 적어 둔 증적 — 저장소가 프로젝트 것과 다르다
+  { id: 'e-6', kind: 'commit', locator: 'f6e5d4c', repo: 'worker-ants/other', source: 'ci' },
 ];
 
 /** 프로젝트에 저장소 주소가 있는가 — 커밋·코드 경로가 갈 곳을 갖는 조건이다 */
@@ -129,7 +132,7 @@ describe('증적은 보러 갈 수 있다 (REQ-WEB-159)', () => {
     expect(hrefOf(FINDING_ID)).toBe(`/p/clemvion/reviews?finding=${FINDING_ID}`);
     // 테스트 이름은 저장소마다 모양이 달라 데려갈 곳이 없다 — 누를 수 없는 링크를 그리지 않는다
     expect(hrefOf('claim.spec.ts > 원자적 클레임')).toBeNull();
-    expect(screen.getAllByTestId('evidence-link')).toHaveLength(4);
+    expect(screen.getAllByTestId('evidence-link')).toHaveLength(5);
   });
 
   it('새 탭으로 연다 — 이 화면에서 done 전이를 채우는 중이다', async () => {
@@ -156,5 +159,32 @@ describe('증적은 보러 갈 수 있다 (REQ-WEB-159)', () => {
   it('저장소 주소가 있으면 없는 문제를 말하지 않는다', async () => {
     await renderTask();
     expect(screen.queryByTestId('evidence-no-repo')).toBeNull();
+  });
+});
+
+/**
+ * **증적이 선 저장소가 프로젝트 것을 이긴다**(2026-09-10 · REQ-WEB-160 · REQ-API-157).
+ * `evidence.repo` 는 처음부터 있던 열이고 웹훅이 채우는데 상세가 그것을 싣지 않아, 화면은
+ * 증적 전부를 프로젝트의 저장소 하나로 읽었다 — 저장소가 둘 이상인 프로젝트에서 커밋 링크가
+ * 조용히 남의 저장소를 가리킨다.
+ */
+describe('증적이 선 저장소 (REQ-WEB-160)', () => {
+  it('자기 저장소를 단 증적은 그쪽으로 간다 — 호스트는 프로젝트 주소에서 빌린다', async () => {
+    await renderTask();
+    expect(hrefOf('f6e5d4c')).toBe('https://github.com/worker-ants/other/commit/f6e5d4c');
+    // 저장소를 달지 않은 증적은 그대로 프로젝트 것을 본다
+    expect(hrefOf('a1b2c3d')).toBe('https://github.com/nerv/nerv/commit/a1b2c3d');
+  });
+});
+
+/**
+ * **어휘의 정본은 `@nerv/schema` 다**(REQ-CB-006). 폼이 여섯 중 넷을 손으로 적어 두어
+ * `review`·`user_guide` 증적은 웹에서 붙일 길이 없었다 — 서버는 처음부터 여섯을 받는데.
+ */
+describe('증적 종류 셀렉트 (REQ-WEB-160)', () => {
+  it('어휘 여섯을 전부 고를 수 있고, 화면이 목록을 다시 적지 않는다', async () => {
+    await renderTask();
+    const select = screen.getByDisplayValue('pr') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual([...EVIDENCE_KINDS]);
   });
 });

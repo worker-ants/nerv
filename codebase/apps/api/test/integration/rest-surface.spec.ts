@@ -193,6 +193,37 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
     });
   });
 
+  /**
+   * **빈 문자열은 "안 건드림" 이 아니라 비운다**(2026-09-10 · REQ-API-157). 화면이 저장소
+   * 주소를 편집할 수 있게 된 뒤로(REQ-WEB-160) 사람은 잘못 적은 주소를 지울 수도 있어야
+   * 하는데, `coalesce` 는 null 을 "안 건드림" 으로 읽어 지우는 뜻을 실을 자리가 없었다.
+   */
+  it('저장소 주소는 채우고 · 안 보내면 그대로 · 빈 값이면 비운다', async () => {
+    const auth = app.get(AuthService);
+    const actor = { userId: adminId, isAgent: false };
+    const read = async (): Promise<Record<string, unknown>> => auth.project(projectId);
+
+    await auth.updateProject({
+      projectId,
+      roles: ['admin'],
+      actor,
+      repoUrl: '  https://github.com/nerv/nerv  ',
+      defaultBranch: 'main',
+    });
+    // 앞뒤 공백은 눕힌다 — 주소 끝의 공백은 이어 붙일 때 404 가 된다
+    expect((await read())['repo_url']).toBe('https://github.com/nerv/nerv');
+    expect((await read())['default_branch']).toBe('main');
+
+    // 안 보낸 것은 건드리지 않는다(이름만 고치는 호출이 주소를 지우면 안 된다)
+    await auth.updateProject({ projectId, roles: ['admin'], actor, name: 'clemvion' });
+    expect((await read())['repo_url']).toBe('https://github.com/nerv/nerv');
+
+    // 빈 값은 **비운다** — `''` 로 남기면 "없음" 의 표현이 둘이 된다
+    await auth.updateProject({ projectId, roles: ['admin'], actor, repoUrl: '   ' });
+    expect((await read())['repo_url']).toBeNull();
+    expect((await read())['default_branch']).toBe('main');
+  });
+
   it('보관·복구도 사람 전용이다 — 프로젝트를 목록에서 지우는 일은 같은 무게다', async () => {
     for (const path of ['archive', 'restore']) {
       const res = await call('POST', `/api/v1/projects/clemvion/${path}`, { payload: {} });

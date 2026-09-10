@@ -616,12 +616,21 @@ export class AuthService {
     const retention =
       input.retention == null ? null : parsePolicy(RetentionSchema, input.retention, 'retention');
 
+    // **빈 문자열은 "안 건드림" 이 아니라 비운다**(2026-09-10 · REQ-API-157). 화면이 저장소
+    // 주소와 기준 갈래를 편집할 수 있게 된 뒤로(REQ-WEB-160) 사람은 잘못 적은 주소를 **지울**
+    // 수도 있어야 하는데, `coalesce` 는 null 을 "안 건드림" 으로 읽으므로 지우는 뜻을 실을
+    // 자리가 없었다. 빈 값은 NULL 로 눕힌다 — `''` 와 NULL 이 섞이면 읽는 쪽이 둘 다 봐야 하고,
+    // 그 둘 중 하나를 잊는 것이 "설정했는데 안 먹는다" 의 흔한 모양이다.
+    const clears = (value: string | null | undefined): boolean =>
+      typeof value === 'string' && value.trim() === '';
     await this.db.execute(sql`
       UPDATE project
          SET name = coalesce(${input.name ?? null}, name),
              description = coalesce(${input.description ?? null}, description),
-             repo_url = coalesce(${input.repoUrl ?? null}, repo_url),
-             default_branch = coalesce(${input.defaultBranch ?? null}, default_branch),
+             repo_url = CASE WHEN ${clears(input.repoUrl)} THEN NULL
+                             ELSE coalesce(${input.repoUrl?.trim() ?? null}, repo_url) END,
+             default_branch = CASE WHEN ${clears(input.defaultBranch)} THEN NULL
+                                   ELSE coalesce(${input.defaultBranch?.trim() ?? null}, default_branch) END,
              gate_policy = coalesce(${gatePolicy == null ? null : JSON.stringify(gatePolicy)}::jsonb, gate_policy),
              retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention)
        WHERE id = ${input.projectId}

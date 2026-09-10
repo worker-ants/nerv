@@ -283,14 +283,30 @@ export const questionStatus = pgEnum('question_status', [
 ]);
 
 // ── 증적 ──────────────────────────────────────────────────────────────────
-export const evidenceKind = pgEnum('evidence_kind', [
+/**
+ * 증적의 종류 — **어휘의 정본이 여기 하나다**(REQ-CB-006 · 2026-09-10 · REQ-WEB-160).
+ *
+ * 열은 pg enum 이므로 `evidenceKind.enumValues` 로도 같은 목록을 얻지만, 그 값을 읽으려면
+ * 브라우저 번들이 drizzle 을 물어야 한다. 목록을 먼저 두고 enum 이 그것을 쓰게 하면 정본은
+ * 하나인 채로 화면도 맨 배열을 읽는다.
+ *
+ * **화면이 이 목록을 다시 적지 않게 하려고 만들었다.** 작업 상세의 증적 폼이 여섯 중 넷을
+ * 손으로 적어 두고 있었고(`pr`·`commit`·`test`·`code_path`), 그래서 `review`·`user_guide`
+ * 증적은 웹에서 붙일 길이 없었다 — 서버는 처음부터 여섯을 받는데. 어휘가 늘어도 손으로 적은
+ * 목록은 함께 늘지 않는다(`BLOCKED_REASONS` 가 막은 것과 같은 형태다).
+ */
+export const EVIDENCE_KINDS = [
   'code_path',
   'test',
   'pr',
   'commit',
   'review',
   'user_guide',
-]);
+] as const;
+
+export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
+
+export const evidenceKind = pgEnum('evidence_kind', EVIDENCE_KINDS);
 export const evidenceSource = pgEnum('evidence_source', ['agent', 'human', 'ci']);
 
 // ── 알림 ──────────────────────────────────────────────────────────────────

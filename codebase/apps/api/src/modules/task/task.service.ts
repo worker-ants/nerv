@@ -359,8 +359,12 @@ export class TaskService {
         FROM task_dependency d JOIN task dt ON dt.id = d.depends_on_task_id
        WHERE d.task_id = ${taskId}
     `);
+    // **`repo` 도 싣는다**(2026-09-10 · REQ-API-157). 열은 "멀티 저장소 대비" 로 처음부터
+    // 있었고 GitHub 웹훅이 `repository.full_name` 을 채우는데(`webhook.service.ts`),
+    // 상세가 그것을 고르지 않아 화면은 증적 전부를 **프로젝트의 저장소 하나**로 읽었다 —
+    // 저장소가 둘 이상인 프로젝트에서 커밋 링크가 조용히 남의 저장소를 가리킨다.
     const { rows: evidence } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT id, kind::text AS kind, locator, source::text AS source, created_at
+      SELECT id, kind::text AS kind, locator, repo, source::text AS source, created_at
         FROM evidence WHERE task_id = ${taskId} ORDER BY created_at
     `);
 
