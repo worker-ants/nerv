@@ -16,6 +16,13 @@ import { Button, Input } from '../../components/ui/primitives.js';
 
 export interface SteerPanelProps {
   projectSlug: string;
+  /**
+   * 프로젝트 축(`lib/queries.ts` 의 "프로젝트 축" 규약 · 4.5 §1.4). 세션 목록 캐시가
+   * 이 축으로 잡히므로, slug 로 무효화하면 **아무 캐시도 맞지 않는다** — steer·stop 뒤에
+   * 보드가 그대로 남는다. 실시간이 붙어 있으면 이벤트가 가려 주지만, 끊긴 동안(D-14)에는
+   * 사람이 방금 누른 것의 결과를 보지 못한다.
+   */
+  projectId: string | undefined;
   sessionId: string;
   state: string;
   /**
@@ -30,6 +37,7 @@ export interface SteerPanelProps {
 
 export function SteerPanel({
   projectSlug,
+  projectId,
   sessionId,
   state,
   canIntervene,
@@ -57,7 +65,7 @@ export function SteerPanel({
     onSuccess: (result, kind) => {
       setMessage('');
       setConfirming(false);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projectSessions(projectSlug) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectSessions(projectId ?? '') });
       pushToast({
         tone: 'ok',
         message:

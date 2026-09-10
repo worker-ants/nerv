@@ -56,7 +56,7 @@ function SessionMonitor(): React.JSX.Element {
       {/* 오른쪽 레일 — 시안 372px. 세션이 없으면 레일도 없다(빈 패널을 세우지 않는다) */}
       {focused !== null && (
         <aside className="hidden w-[372px] shrink-0 border-l border-border bg-bg-sunken/40 px-[22px] py-7 lg:block">
-          <ActivityRail projectSlug={proj} card={focused} />
+          <ActivityRail projectSlug={proj} projectId={projectIdOf(project.data)} card={focused} />
         </aside>
       )}
     </div>

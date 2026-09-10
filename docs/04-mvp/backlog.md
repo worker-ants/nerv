@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.67 · 2026-09-10 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.68 · 2026-09-10 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.68 변경(2026-09-10 — 사람 지시): §1.4 셋째 표에 **개입 뒤 무효화도 id 축으로**([4.5](screens.md) §1.4) 한 줄.
 >
 > v0.67 변경(2026-09-10 — 사람 지시): §1.4 셋째 표에 **프로젝트 축을 id 하나로**([4.5](screens.md) §1.4) 한 줄.
 >
@@ -259,6 +261,7 @@ referenced_by:
 | 좁은 화면에서도 고른 발견을 편다 | `routes/p.$proj/reviews.index.tsx` · `lib/use-media-query.ts`(신설) · `lib/manual-chapters.ts`(신설) · `lib/evidence.ts` · `review-center.spec.tsx` · `manual.spec.ts` · `lib/evidence.spec.ts` | 곁레일이 `xl` 부터라 1024~1279px 에서는 **눌러도 카드 배경만 바뀌었다** — 같은 컴포넌트를 카드 아래에서 편다(§2.6 REQ-WEB-132·142 와 같은 규칙) · `user_guide` 증적은 실재하는 장일 때만 매뉴얼로 잇는다([4.5](screens.md) REQ-WEB-161) |
 | 저장소 종류가 주소의 모양을 정한다 | `drizzle/0026_project_repo_host.sql` · `packages/schema/src/enums.ts`(`REPO_HOSTS`) · `tables/tenancy.ts` · `auth.service.ts`·`auth.controller.ts` · `zod/tenancy.ts` · `routes/settings/workspace.tsx` · `lib/evidence.ts` · L1 8건 · L2 1건 | 증적 링크가 **GitHub 모양 하나**로만 만들어져 자체 호스팅 GitLab 에서는 404 로 끝났다 — 값은 사람이 고르고(추정하면 자체 호스팅에서 반드시 틀린다) **접속에는 쓰이지 않는다**([4.3](database.md) v0.41 · [4.4](api.md) REQ-API-158 · [4.5](screens.md) REQ-WEB-162) |
 | 시드의 증적 · 그 길을 지나는 L3 | `packages/schema/seed/dev-seed.sql`(증적 7건) · `test/integration/seed.spec.ts` · `apps/web/test/e2e/task-evidence.spec.ts`(신설) · `review-scroll.spec.ts` | 시드가 리뷰·활동·질문을 다 심으면서 **증적만 0건**이라, 증적 카드에 붙인 링크가 시드로는 한 번도 그려진 적이 없었다 — 종류 여섯을 심고 그 길을 L3 가 지난다. 곁들여 좁은 폭의 발견 상세(REQ-WEB-161) L3 도 세웠다: 미뤄 둔 근거("시드에 발견이 0건")가 사실이 아니었다([4.3](database.md) v0.42) |
+| 개입 뒤 무효화도 id 축으로 | `features/session-monitor/steer-panel.tsx`·`activity-rail.tsx` · `routes/p.$proj/sessions.index.tsx`·`sessions.$session.tsx` · `steer-panel.spec.tsx`(축 검사 신설) | 조회를 id 축으로 통일한 뒤 `invalidateQueries` 전수에서 **하나만 slug 축**으로 남아 있었다 — steer·stop 뒤 세션 목록 무효화가 아무 캐시에도 닿지 않았고, 실시간이 가려 줘 **끊긴 동안에만** 드러난다. 조용히 아무 일도 안 하는 결함이라 L1 이 키를 본다([4.5](screens.md) §1.4) |
 | 프로젝트 축을 id 하나로 | `lib/queries.ts`(훅 일곱 · `enabled`) · `features/task-board/delegation-form.tsx` · `routes/p.$proj/tasks.index.tsx` · `features/review-center/resolve-dialog.tsx` · L1 픽스처 넷 | 키가 한 로드 안에서 slug → id 로 바뀌어 **같은 URL 을 두 번** 불렀다(reviews 11건 중 3건). 유령이 된 slug 축 사본은 무효화(`project_id`)에 닿지 않고, 사람 눈에는 깜빡임이었다 — 2026-08-23 에 `useTasks` 만 고친 그 결함이다. 실측 reviews 11 → 8 · tasks 16 → 15 · L3 스위트 435~465 → 375~382([4.5](screens.md) §1.4) |
 | L3 가 재실행에 멱등해진다 | `scripts/e2e-stack.mjs`(`resetToBootState`) · `apps/web/test/e2e/shell.spec.ts`(주석) | 같은 스택에 두 번 돌리면 빨갛고 **빨강이 매번 다른 테스트에 앉았다** — 컨테이너가 사는 동안 남는 쿼터 둘(Valkey 요청 435~465/600 · api 메모리의 인증 로그인 5/10)과 가입 계정이 다음 실행의 전제를 바꾼다. 러너가 실행 전에 기동 직후로 되돌린다(+6초 · 연속 4회 36/36 초록 · [4.2](codebase.md) §4.3) |
 | 백로그 보기의 기본을 켜짐으로 | `routes/p.$proj/tasks.index.tsx` · `routes/task-board-lanes.spec.tsx` · `lib/url-state.spec.ts` · 매뉴얼 ko·en | 생성은 언제나 `backlog` 인데 보드가 그 레인을 접고 열어, **방금 만든 티켓이 어느 레인에도 없었다** — 주소에는 끈 상태만 남는다(`?backlog=0` · [4.5](screens.md) REQ-WEB-155) |

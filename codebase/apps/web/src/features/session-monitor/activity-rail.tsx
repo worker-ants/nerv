@@ -24,10 +24,13 @@ import type { SessionCard } from './types.js';
 
 export function ActivityRail({
   projectSlug,
+  projectId,
   card,
   now = Date.now(),
 }: {
   projectSlug: string;
+  /** 개입 패널의 무효화가 이 축으로 잡힌다 — 통과만 시킨다(SteerPanelProps 주석) */
+  projectId: string | undefined;
   card: SessionCard;
   now?: number;
 }): React.JSX.Element {
@@ -57,6 +60,7 @@ export function ActivityRail({
       <div className="mt-4">
         <SteerPanel
           projectSlug={projectSlug}
+          projectId={projectId}
           sessionId={card.id}
           state={card.state}
           canIntervene={canIntervene}
