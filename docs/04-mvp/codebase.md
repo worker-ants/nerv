@@ -1,7 +1,7 @@
 ---
 id: SPC-MVP-CODEBASE
 status: approved
-updated: 2026-09-10
+updated: 2026-09-13
 referenced_by:
   - 04-mvp/scope.md
   - 04-mvp/database.md
@@ -17,7 +17,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.37 · 2026-09-10 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.38 · 2026-09-13 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.38 변경(2026-09-13 — 계약을 말로만 적어 두고 있었다, 사람 지시): **새 요구사항 없음 — §6.2 트리 전수화 · 예시 매니페스트 넷 · dev 공개 주소 결함.** ① **`nerv-secrets` 의 키 집합은 base 의 세 워크로드가 `envFrom` 으로 계약하는데, 그 집합이 적힌 곳은 주석 한 줄뿐이었고 그 주석조차 문서 안에서 갈려 있었다** — `base/kustomization.yaml` 은 다섯, 바로 아래 문단은 넷이라 적었다. 여섯으로 통일한다: 빠져 있던 것은 `NERV_GITHUB_WEBHOOK_SECRET` 으로, §5.2 전표는 api 소비자로 적는데 k8s 어디에도 없었다 — **비면 EP-WHK-01 이 모든 배송을 401 로 거절한다.** ② 채워 넣을 모양을 `overlays/<env>/secret.example.yaml`·`configmap.example.yaml` 넷이 보여 준다. **오버레이에 두고, 어느 `resources:`·`patches:` 에도 넣지 않는다** — base 에 두면 `base/configmap.yaml` 의 복제본이 되고, 적용 대상에 넣으면 자리표시자가 실제로 배포된다(서버는 기동하되 서명·인증·첨부가 조용히 틀린다). ③ **dev 오버레이가 `NERV_PUBLIC_URL` 을 패치하지 않아 prod 호스트를 쓰고 있었다** — 세션 쿠키·CORS 의 기준이자 플러그인 카탈로그가 배포하는 주소라, 어긋나면 로그인이 실패하거나 성공한 뒤 에이전트의 플러그인이 다른 서버를 가리킨다. `configmap-host.yaml` 로 `ingress-host.yaml` 과 같이 움직이게 했다. ④ §6.2 트리가 스스로 트리라 적으면서 **`base/backup/` 을 통째로, `overlays/dev/replicas.yaml` 을 빠뜨리고 있었다**(둘 다 실물이고, backup 은 같은 문서가 CI 게이트의 근거로 인용하는 자리다) — 실물 전수로 채웠다.
 >
 > v1.37 변경(2026-09-10 — 초록이 백업 왕복을 건너뛰고 있었다, 실측): **새 요구사항 없음 — §4.5 CI 에 PATH 한 줄과 `NERV_REQUIRE_PG_TOOLS`.** v1.36 이 CI 클라이언트를 18 로 올렸는데, 그 CI 가 **초록으로 돌면서 백업 왕복(REQ-CB-019)은 건너뛰었다**(`[restore-roundtrip] 건너뜀 — pg_dump 16 는 서버 18 를 덤프하지 못한다` · 실측 2026-09-10). **설치한 것과 PATH 에 오른 것은 다르다** — 러너의 `/usr/bin/pg_dump` 는 `pg_wrapper` 이고 선설치된 PG16 클러스터를 보고 16 을 고른다. 그리고 이것은 이번에 생긴 결함이 아니다: 2026-09-02 의 "integration 에 pg17 클라이언트"(v1.11)는 **빨강을 초록으로 바꿨을 뿐 검사를 살리지는 못했고**, 그날 이후 여드레 동안 REQ-CB-019 는 CI 에서 한 번도 검증되지 않았다(main `feb94e1` 의 로그에 같은 줄이 있다). 그동안 스펙의 주석은 "CI 는 짝을 맞춘다" 고 적고 있었다 — **말로만 맞춘 셈이다.** 둘을 고친다: ① `$GITHUB_PATH` 에 `/usr/lib/postgresql/18/bin` 을 얹어 래퍼를 앞지른다 ② `NERV_REQUIRE_PG_TOOLS=1` 인 환경(CI)에서는 **건너뛰기가 곧 실패**다(로컬 장비는 그대로 건너뛴다 — 그 편의가 원래 의도였다). ①만 고치면 다음에 서버 메이저가 움직이는 날 같은 침묵이 그대로 돌아온다.
 >
@@ -1123,7 +1125,13 @@ services:
     # api·worker 는 embed 를 기다리지 않는다 — 무응답이면 렉시컬 degrade (REQ-API-026)
 
   minio:
-    image: minio/minio:latest        # 운영은 RELEASE 태그·다이제스트로 고정할 것
+    # 도커허브의 minio/minio 는 2026-09-11 부터 당길 수 없다("pull access denied …
+    # repository does not exist") — 저장소는 그대로인데 레지스트리가 바뀌어 09-10 초록이던
+    # 커밋이 09-11 야간부터 빨갛다. quay.io 로 옮긴다: 같은 저장소의 백업 CronJob 이
+    # 이미 quay.io/minio/mc 를 쓰고 있었고, 여기만 도커허브에 남아 있었다.
+    # **`latest` 로 되돌리지 않는다** — 남의 레지스트리의 움직이는 태그는 우리 저장소를
+    # 건드리지 않고도 과거 커밋의 빌드까지 소급해 깨뜨린다. 그것이 이번에 일어난 일이다.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -1513,17 +1521,30 @@ deploy/k8s/
       service.yaml               # nerv-web :80 (name: http)
     migrate/
       job.yaml                   # §6.3 전문
+    backup/
+      cronjob.yaml               # CronJob nerv-backup — 일 1회 (§6.5)
+      nerv-backup.sh             # deploy/scripts/nerv-backup.sh 의 바이트 사본 — CI 가 diff 로 강제
     ingress.yaml                 # §6.3 전문 — WS 업그레이드 · 타임아웃
   overlays/
     dev/
-      kustomization.yaml         # 이미지 태그 · host(dev) · replica 1 패치
+      kustomization.yaml         # 이미지 태그 · host(dev) · configmap · replica 1 패치
       ingress-host.yaml
+      configmap-host.yaml        # NERV_PUBLIC_URL 을 자기 Ingress host 로 (아래 ★)
+      replicas.yaml              # api·web replicas 1
+      configmap.example.yaml     # ☆ 적용 대상 아님 — 환경마다 바꿀 키의 템플릿
+      secret.example.yaml        # ☆ 적용 대상 아님 — nerv-secrets 키 여섯의 템플릿
     prod/
       kustomization.yaml         # §6.4 — images: 로 git SHA 고정
       ingress-host.yaml
       api-replicas.yaml
       resources.yaml
+      configmap.example.yaml     # ☆ 적용 대상 아님
+      secret.example.yaml        # ☆ 적용 대상 아님
 ```
+
+**☆ 예시 파일은 오버레이에 두고, 적용 대상에는 넣지 않는다**(2026-09-13 결정). `secret.example.yaml`·`configmap.example.yaml` 은 어느 `kustomization.yaml` 의 `resources:`·`patches:` 에도 없어 **`kubectl kustomize` 산출물에 섞이지 않는다** — 값이 전부 자리표시자인 파일이 실수로 적용되면 서버는 기동하되 서명·인증·첨부가 조용히 틀린 상태가 되므로, 적용되지 않는다는 사실이 이 파일들의 안전장치다. base 가 아니라 오버레이에 두는 이유는 **채워야 하는 값이 환경마다 다르기 때문**이다 — 키 집합은 같아도 임베딩 프로필(자가호스팅 / 외부 제공자)과 S3·공개 주소가 갈린다. base 에 두면 `base/configmap.yaml` 의 복제본이 되어 둘이 갈라진다.
+
+**★ `configmap-host.yaml` 은 예시가 아니라 실제 패치다**(2026-09-13 — 실측으로 찾은 결함). `base/configmap.yaml` 의 `NERV_PUBLIC_URL` 은 prod 호스트(`nerv.example.com`)인데 dev 오버레이는 configmap 을 패치하지 않아, **dev 파드가 자기 Ingress(`nerv.dev.example.com`)가 받지 않는 주소를 공개 주소로 쓰고 있었다.** 그 값은 세션 쿠키·CORS 의 기준이자 **플러그인 카탈로그가 배포하는 서버 주소**라([4.4 API](api.md) §2.11), 어긋나면 로그인이 실패하거나 — 더 나쁘게 — 성공한 뒤 에이전트가 설치한 플러그인이 다른 서버를 가리킨다. `ingress-host.yaml` 의 host 와 항상 같이 움직인다.
 
 `base/kustomization.yaml` 전문:
 
@@ -1531,8 +1552,9 @@ deploy/k8s/
 # NERV 운영 배포 base — 정본: docs/04-mvp/codebase.md §6.2
 #
 # Secret(nerv-secrets: DATABASE_URL · NERV_AUTH_SECRET · NERV_S3_ACCESS_KEY · NERV_S3_SECRET_KEY
-#        · NERV_EMBED_API_KEY)은 base 가 만들지 않는다 — 조직 표준 경로(SOPS·sealed-secrets 등)로
-# 주입하고 이름만 계약한다.
+#        · NERV_EMBED_API_KEY · NERV_GITHUB_WEBHOOK_SECRET)은 base 가 만들지 않는다 —
+# 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 이름만 계약한다.
+# 키 여섯의 예시는 overlays/<env>/secret.example.yaml (적용 대상이 아닌 템플릿이다).
 #
 # embed/ 는 로컬(자가호스팅) 프로필 전용이라 base resources 에 넣지 않는다 —
 # 자가호스팅 오버레이만 추가하고, 외부 제공자 프로필은 configmap 의 NERV_EMBED_URL 만 바꾼다(§5.2a).
@@ -1570,7 +1592,7 @@ configMapGenerator:
       disableNameSuffixHash: true
 ```
 
-Secret(`nerv-secrets`: `DATABASE_URL`·`NERV_AUTH_SECRET`·`NERV_S3_ACCESS_KEY`·`NERV_S3_SECRET_KEY`)은 base가 만들지 않는다 — 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 이름만 계약한다.
+Secret(`nerv-secrets`)은 base가 만들지 않는다 — 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 **이름과 키 집합만 계약한다**. 키는 여섯이다: `DATABASE_URL` · `NERV_AUTH_SECRET` · `NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY` · `NERV_EMBED_API_KEY`(외부 제공자 프로필) · `NERV_GITHUB_WEBHOOK_SECRET`(웹훅을 쓸 때 — **비면 EP-WHK-01 이 모든 배송을 401 로 거절한다**). 각 변수의 뜻·필수 여부는 §5.2 전표가 정본이고, 채워 넣을 모양은 `overlays/<env>/secret.example.yaml` 이 보여 준다(적용 대상이 아니다).
 
 ### 6.3 Deployment · Job · Ingress 스켈레톤
 

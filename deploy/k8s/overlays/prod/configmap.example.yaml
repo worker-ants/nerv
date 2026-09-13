@@ -1,0 +1,49 @@
+# nerv-config 오버레이 패치 예시 — prod. 정본: docs/04-mvp/codebase.md §6.2
+#
+# ★ 이 파일은 적용 대상이 아니다. kustomization.yaml 의 patches 에 없으므로
+#   `kubectl kustomize deploy/k8s/overlays/prod` 산출물에 섞이지 않는다.
+#   **환경마다 반드시 다시 생각해야 하는 키**가 무엇인지 보여 주는 템플릿이다.
+#
+# 값의 전체 집합과 기본값은 base/configmap.yaml 이 갖고, 각 변수의 뜻·필수 여부는
+# docs/04-mvp/codebase.md §5.2 전표가 정본이다. 비밀은 여기 두지 않는다 — secret.example.yaml.
+#
+# base/configmap.yaml 의 값이 이미 prod 를 기준으로 적혀 있어 이 오버레이는 현재
+# configmap 을 패치하지 않는다. **그것은 base 가 prod 와 같다는 뜻이 아니라
+# 자리표시자 호스트가 우연히 같다는 뜻이다** — 실제 배치에서는 아래를 전부 조직의
+# 값으로 바꾼 패치를 kustomization.yaml 의 patches 에 등록한다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nerv-config
+data:
+  # ── ① 환경마다 반드시 바꾼다 ──────────────────────────────────────────────
+  # 세션 쿠키·CORS 의 기준이자 **플러그인 카탈로그가 배포하는 주소**다(4.4 API §2.11).
+  # ingress-host.yaml 의 host 와 어긋나면 로그인이 되지 않거나, 되더라도 에이전트가
+  # 설치한 플러그인이 다른 서버를 가리킨다. 경로 없는 오리진만 적는다.
+  NERV_PUBLIC_URL: 'https://nerv.example.com'
+
+  # 서버가 S3 에 붙는 주소. 조직 S3 를 쓰면 그 엔드포인트로 바꾼다.
+  NERV_S3_ENDPOINT: 'http://nerv-minio:9000'
+  # 에이전트가 받는 presigned PUT 주소 — **클러스터 밖에서 열리는 별도 호스트**여야 한다.
+  # Ingress 의 경로 접두(`/s3`)로는 안 된다: SigV4 가 경로까지 서명한다(REQ-CB-034).
+  NERV_S3_PUBLIC_ENDPOINT: 'https://s3.nerv.example.com'
+  NERV_S3_BUCKET: 'nerv-blobs'
+  # 조직 S3(AWS 등)면 'false' — path-style 은 MinIO 호환을 위한 값이다.
+  NERV_S3_FORCE_PATH_STYLE: 'true'
+  # NERV_S3_REGION: 'us-east-1'
+
+  # ── ② 임베딩 프로필로 정한다(§5.2a) ───────────────────────────────────────
+  # 운영 기본은 외부 제공자다 — base/embed/ 를 resources 에서 제외하고 주소만 바꾼다.
+  NERV_EMBED_URL: 'https://api.openai.com/v1'
+  NERV_EMBED_MODEL: 'text-embedding-3-small'
+  # **운영 OpenAI 배치는 이 값을 켜야 한다**(REQ-CB-033). 끄면 1536 차원이 돌아와
+  # 오류 없이 전 배치가 거절되고 검색이 렉시컬로 degrade 한다 — 조용한 고장이다.
+  NERV_EMBED_SEND_DIMENSIONS: 'true'
+  # 빠른 제공자는 왕복을 줄인다.
+  # NERV_EMBED_BATCH_CHARS: '12000'
+
+  # ── ③ 필요할 때만 더한다(base 에 없는 키 — §5.2) ──────────────────────────
+  # 화면을 baseURL 밖에서 띄울 때만. CSRF 방어선이라 기본은 비운다(쉼표 구분).
+  # NERV_TRUSTED_ORIGINS: 'https://studio.example.com'
+  # 앞문의 유휴 타임아웃이 이 값보다 짧으면 SSE 가 조용히 끊긴다(REQ-CB-035).
+  # NERV_SSE_KEEPALIVE_MS: '25000'

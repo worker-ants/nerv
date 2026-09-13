@@ -1,0 +1,47 @@
+# nerv-config 오버레이 패치 예시 — dev. 정본: docs/04-mvp/codebase.md §6.2
+#
+# ★ 이 파일은 적용 대상이 아니다. kustomization.yaml 의 patches 에 없으므로
+#   `kubectl kustomize deploy/k8s/overlays/dev` 산출물에 섞이지 않는다.
+#   **환경마다 반드시 다시 생각해야 하는 키**가 무엇인지 보여 주는 템플릿이다 —
+#   실제로 이 오버레이가 덮는 값은 configmap-host.yaml 에 있다.
+#
+# 값의 전체 집합과 기본값은 base/configmap.yaml 이 갖고, 각 변수의 뜻·필수 여부는
+# docs/04-mvp/codebase.md §5.2 전표가 정본이다. 비밀은 여기 두지 않는다 — secret.example.yaml.
+#
+# base/configmap.yaml 의 값은 **prod 를 기준으로 적혀 있다.** 그래서 dev 는 최소한
+# 아래 ①을 덮어야 하고, 덮지 않으면 파드는 정상으로 보이면서 틀린 주소로 동작한다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nerv-config
+data:
+  # ── ① 환경마다 반드시 바꾼다 ──────────────────────────────────────────────
+  # 세션 쿠키·CORS 의 기준이자 **플러그인 카탈로그가 배포하는 주소**다(4.4 API §2.11).
+  # ingress-host.yaml 의 host 와 어긋나면 로그인이 되지 않거나, 되더라도 에이전트가
+  # 설치한 플러그인이 다른 서버를 가리킨다. 경로 없는 오리진만 적는다.
+  NERV_PUBLIC_URL: 'https://nerv.dev.example.com'
+
+  # 서버가 S3 에 붙는 주소(클러스터 안).
+  NERV_S3_ENDPOINT: 'http://nerv-minio:9000'
+  # 에이전트가 받는 presigned PUT 주소 — **클러스터 밖에서 열리는 별도 호스트**여야 한다.
+  # Ingress 의 경로 접두(`/s3`)로는 안 된다: SigV4 가 경로까지 서명한다(REQ-CB-034).
+  NERV_S3_PUBLIC_ENDPOINT: 'https://s3.nerv.dev.example.com'
+  # 환경끼리 버킷을 공유하면 dev 가 운영 첨부를 덮는다 — 이름을 가른다.
+  NERV_S3_BUCKET: 'nerv-blobs-dev'
+
+  # ── ② 임베딩 프로필로 정한다(§5.2a) ───────────────────────────────────────
+  # 자가호스팅이면 아래 그대로 두고 base/embed/ 를 resources 에 더한다.
+  # 외부 제공자면 그 base URL 로 바꾸고 secret 의 NERV_EMBED_API_KEY 를 채운다.
+  NERV_EMBED_URL: 'http://nerv-embed/v1'
+  NERV_EMBED_MODEL: 'bge-m3'
+  # text-embedding-3-* 처럼 절단이 필요한 모델을 쓸 때만 'true'(REQ-CB-033).
+  # 게이트웨이 뒤의 같은 모델도 절단이 필요하다 — 주소로 추정하지 않는다.
+  NERV_EMBED_SEND_DIMENSIONS: 'false'
+
+  # ── ③ 필요할 때만 더한다(base 에 없는 키 — §5.2) ──────────────────────────
+  # 화면을 baseURL 밖에서 띄울 때만. CSRF 방어선이라 기본은 비운다(쉼표 구분).
+  # NERV_TRUSTED_ORIGINS: 'https://studio.dev.example.com'
+  # 앞문의 유휴 타임아웃이 이 값보다 짧으면 SSE 가 조용히 끊긴다(REQ-CB-035).
+  # NERV_SSE_KEEPALIVE_MS: '25000'
+  # dev 는 올려 둘 만하다 — 고른 수준과 그보다 심각한 것을 켠다.
+  # NERV_LOG_LEVEL: 'debug'
