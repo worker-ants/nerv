@@ -56,7 +56,7 @@ describe.skipIf(!AVAILABLE)('시나리오 D — 기획자 웹↔터미널 왕복
       userId: jimin,
     });
     const specId = draft['spec_id'] as string;
-    // **끝을 본다.** `web_url` 은 `NERV_PUBLIC_URL` 이 있으면 절대 주소, 없으면 경로다
+    // **끝을 본다.** `web_url` 은 `NERV_WEB_URL` 이 있으면 절대 주소, 없으면 경로다
     // (§1.4g 의 딥링크 — 에이전트는 눌러서 열 수 있어야 한다). 경로 하나로 못박으면
     // 그 변수를 가진 기계에서만 깨지는 검사가 된다.
     expect(String(draft['web_url'])).toMatch(/\/p\/clemvion\/specs\/SPC-CWC-007$/);

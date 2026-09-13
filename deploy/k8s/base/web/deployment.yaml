@@ -18,9 +18,11 @@ spec:
             - { containerPort: 80, name: http }
           env:
             - { name: NERV_API_UPSTREAM, value: 'nerv-api:8080' }
-            - name: NERV_PUBLIC_ORIGIN # /mcp Origin 1차 검증 기준 — 최종 강제는 앱 가드(REQ-CB-013)
+            # /mcp Origin 1차 검증 기준 — 최종 강제는 앱 가드(REQ-CB-013).
+            # 브라우저가 싣는 Origin 은 화면이 뜬 주소이므로 NERV_WEB_URL 이다(REQ-CB-036).
+            - name: NERV_PUBLIC_ORIGIN
               valueFrom:
-                configMapKeyRef: { name: nerv-config, key: NERV_PUBLIC_URL }
+                configMapKeyRef: { name: nerv-config, key: NERV_WEB_URL }
           readinessProbe:
             httpGet: { path: /, port: http }
             initialDelaySeconds: 3

@@ -1801,7 +1801,13 @@ export class SpecService {
    *
    * 에이전트가 초안을 저장하고 "확인해주세요"라고만 말하면 사람은 그 문서를 찾아 들어가야
    * 한다. 링크 하나가 그 왕복을 없앤다 — 터미널과 웹이 같은 초안을 오가는 D-09 의 실물이다.
-   * 절대 URL 은 `NERV_PUBLIC_URL` 이 있을 때만 만든다(환경마다 호스트가 다르다).
+   * **이것은 사람이 눌러 여는 주소다** — 그래서 `NERV_WEB_URL` 이다(2026-09-13 · REQ-CB-036).
+   * 이름이 하나였을 때는 화면 주소와 API 주소가 같은 값이라 이 자리가 어느 쪽을 원하는지
+   * 보이지 않았다. 화면을 CDN 으로 내보내면 그 둘은 다른 호스트가 되고, 그때 이 링크가
+   * API 오리진을 가리키면 에이전트가 대화에 붙인 링크가 **열리지 않는다.**
+   *
+   * 절대 URL 은 값이 있을 때만 만든다 — 기본값으로 채우지 않는다(환경마다 호스트가 다르고,
+   * 없는 배치에서는 경로가 맞는 답이다). 그래서 `webUrlFromEnv()` 를 쓰지 않고 직접 읽는다.
    */
   private async webUrl(tx: Tx, projectId: string, specId: string): Promise<string> {
     const { rows } = await tx.execute<{ slug: string; key: string }>(sql`
@@ -1810,7 +1816,7 @@ export class SpecService {
     `);
     const row = rows[0];
     const path = row === undefined ? '/' : `/p/${row.slug}/specs/${row.key}`;
-    const base = process.env['NERV_PUBLIC_URL'];
+    const base = process.env['NERV_WEB_URL'];
     return base === undefined || base === '' ? path : `${base.replace(/\/$/, '')}${path}`;
   }
 

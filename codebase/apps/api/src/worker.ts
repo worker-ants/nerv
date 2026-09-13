@@ -8,6 +8,7 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { logLevelsFromEnv } from './common/log-level.js';
+import { assertPublicUrlRetired } from './common/origins.js';
 import type { INestApplicationContext } from '@nestjs/common';
 import { WorkerAppModule } from './app.module.js';
 import { JobRunner } from './worker/job-runner.js';
@@ -39,6 +40,9 @@ function jobTickMs(): number {
 }
 
 async function bootstrap(): Promise<void> {
+  // api 와 **같은 검사**다 — configmap 하나를 셋이 `envFrom` 으로 나눠 쓰므로(§6.3) 옛 이름을
+  // 가진 배치는 워커도 틀렸다. 한쪽만 거부하면 절반만 멈춘 배포가 된다(REQ-CB-037).
+  assertPublicUrlRetired();
   const worker = await createWorker();
   worker.enableShutdownHooks();
 

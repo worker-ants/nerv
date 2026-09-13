@@ -7,6 +7,7 @@ referenced_by:
   - 04-mvp/database.md
   - 04-mvp/api.md
   - 04-mvp/screens.md
+  - 04-mvp/plugin.md
   - 04-mvp/importer.md
   - 04-mvp/backlog.md
   - README.md
@@ -17,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.38 · 2026-09-13 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.39 · 2026-09-13 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.39 변경(2026-09-13 — 한 이름이 두 뜻을 겸하고 있었다, 사람 결정): **REQ-CB-036·037 신설 · REQ-CB-013 개정.** `NERV_PUBLIC_URL` 하나가 **화면의 주소이자 API·플러그인 카탈로그의 주소**였고, 둘이 우연히 같은 오리진이라 맞고 있었을 뿐이다 — 이 저장소는 같은 부류로 이미 한 번 데었다(`NERV_S3_PUBLIC_ENDPOINT` 가 별도 호스트가 된 이유가 정확히 그것이다 · REQ-CB-034). 화면을 CDN 으로 내보내고 API 를 외부에 공개하기로 결정했으므로([4.1](scope.md) §2.3 — 2026-09-13 사람 확정), 호스트를 가르기 **전에** 이름을 가른다: `NERV_WEB_URL`(사람이 브라우저로 여는 주소) · `NERV_API_URL`(프로그램이 붙는 주소) **둘 다 신설**하고 옛 이름은 걷는다. **한쪽이 옛 이름을 물려받지 않는 이유**는 "어느 뜻을 물려받았는가" 가 소비자마다 다시 물어야 할 질문이 되기 때문이다. ① 여섯 소비자를 배정했다 — 겹쳐 있어 보이지 않던 자리가 하나 드러났다: **스펙 딥링크는 사람이 눌러 여는 주소**라 `NERV_WEB_URL` 이어야 하고, 지금까지 API 주소와 같은 값이어서 그 사실이 어디에도 적혀 있지 않았다. ② 옛 이름은 **조용히 사라지지 않는다**(REQ-CB-037) — 그것만 설정된 배치는 기동을 거부한다. 기본값으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 것을 `localhost:8080` 으로 서명된 쿠키를 받고서야 안다. `NERV_LOG_LEVEL` 이 겪은 유령 설정의 **반대 방향**이다. ③ 전표는 "설정할 수 있는 손잡이" 의 목록이라 걷힌 이름은 그 표의 것이 아니어서 §5.2 에 **걷힌 이름 표**를 따로 두고, `check-env-table.mjs` 가 세는 것을 넷 → **여섯**으로 늘렸다(걷힌 이름을 읽는 코드가 실재하는가 · 걷힌 이름이 `.env.example` 에 남지 않았는가 — 약속한 거부가 없으면 그것도 유령이다). ④ **두 값이 같은 오리진인 동안 동작은 한 줄도 바뀌지 않는다** — CORS·쿠키 도메인·런타임 설정 로더·실제 호스트 전환은 [4.1](scope.md) §2.3 의 2~4단계다. ⑤ 곁들여 **§5.3 compose 전문이 실물과 갈려 있었다** — `postgres` 서비스의 PGDATA 주석이 10줄에서 3줄로 줄어 있었다(v1.23 이 같은 블록을 실물 전량으로 교체한 뒤 생긴 드리프트다). 이 블록은 스스로 "전문" 이라 적으므로 다시 바이트로 맞췄다. ※ 남은 것: 그 2~4단계 전부(E14-S04 가 부분 — [4.8](backlog.md) §1.4).
 >
 > v1.38 변경(2026-09-13 — 계약을 말로만 적어 두고 있었다, 사람 지시): **새 요구사항 없음 — §6.2 트리 전수화 · 예시 매니페스트 넷 · dev 공개 주소 결함.** ① **`nerv-secrets` 의 키 집합은 base 의 세 워크로드가 `envFrom` 으로 계약하는데, 그 집합이 적힌 곳은 주석 한 줄뿐이었고 그 주석조차 문서 안에서 갈려 있었다** — `base/kustomization.yaml` 은 다섯, 바로 아래 문단은 넷이라 적었다. 여섯으로 통일한다: 빠져 있던 것은 `NERV_GITHUB_WEBHOOK_SECRET` 으로, §5.2 전표는 api 소비자로 적는데 k8s 어디에도 없었다 — **비면 EP-WHK-01 이 모든 배송을 401 로 거절한다.** ② 채워 넣을 모양을 `overlays/<env>/secret.example.yaml`·`configmap.example.yaml` 넷이 보여 준다. **오버레이에 두고, 어느 `resources:`·`patches:` 에도 넣지 않는다** — base 에 두면 `base/configmap.yaml` 의 복제본이 되고, 적용 대상에 넣으면 자리표시자가 실제로 배포된다(서버는 기동하되 서명·인증·첨부가 조용히 틀린다). ③ **dev 오버레이가 `NERV_PUBLIC_URL` 을 패치하지 않아 prod 호스트를 쓰고 있었다** — 세션 쿠키·CORS 의 기준이자 플러그인 카탈로그가 배포하는 주소라, 어긋나면 로그인이 실패하거나 성공한 뒤 에이전트의 플러그인이 다른 서버를 가리킨다. `configmap-host.yaml` 로 `ingress-host.yaml` 과 같이 움직이게 했다. ④ §6.2 트리가 스스로 트리라 적으면서 **`base/backup/` 을 통째로, `overlays/dev/replicas.yaml` 을 빠뜨리고 있었다**(둘 다 실물이고, backup 은 같은 문서가 CI 게이트의 근거로 인용하는 자리다) — 실물 전수로 채웠다.
 >
@@ -314,6 +317,7 @@ apps/api/src/
     log-level.ts                  # 두 진입점이 같은 함수로 읽는다 (NERV_LOG_LEVEL · §5.2)
     mcp-origin.guard.ts           # /mcp Origin 검증의 최종 강제 지점 (REQ-CB-013)
     nerv-exception.filter.ts      # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
+    origins.ts                    # 우리 주소 둘 — 화면(NERV_WEB_URL)·API(NERV_API_URL) 와 걷힌 이름의 기동 거부 (§5.2 · REQ-CB-036·037)
     parse-body.ts                 # zod 검증 한 곳 — .strict() 위반은 400 이다
     project-access.guard.ts       # 프로젝트 경로 접근 판정 — slug 해소 + 권한 + 멤버십 (REQ-API-152)
     project-scope.interceptor.ts  # 요청 컨텍스트의 project_id 자동 주입 — 권한 없는 질의 컴파일 불가 원칙
@@ -919,7 +923,8 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `POSTGRES_PORT` | | `5432` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 DB 접근 |
 | `DATABASE_URL` | dev 루프 시 | `postgres://nerv:<pw>@localhost:5432/nerv` | api · worker · migrate · drizzle-kit | compose 내부에서는 `postgres` 호스트로 자동 조립 |
 | `NERV_API_PORT` | | `8080` | api | |
-| `NERV_PUBLIC_URL` | | `http://localhost:8080` | api(세션 쿠키·CORS 기준 · **플러그인 카탈로그의 주소** [4.4](api.md) §2.11) · web(`/mcp` Origin 1차 검증) | 경로 없는 오리진만 |
+| `NERV_WEB_URL` | | `http://localhost:8080` | api(스펙 딥링크의 절대 URL · `/mcp` Origin 대조 대상 둘 중 하나) · web 컨테이너(nginx 의 `/mcp` Origin 1차 검증 — `NERV_PUBLIC_ORIGIN` 으로 받는다) | **사람이 브라우저로 여는 주소.** 경로 없는 오리진만 |
+| `NERV_API_URL` | | `http://localhost:8080` | api(better-auth `baseURL`·`trustedOrigins` 기준 · **플러그인 카탈로그의 주소** [4.4](api.md) §2.11 · `/api/auth/*` 요청 절대화 기준 · `/mcp` Origin 대조 대상 둘 중 하나) | **프로그램이 붙는 주소.** 경로 없는 오리진만 |
 | `NERV_PLUGIN_DIST` | | (실행 파일 기준 `plugin-dist/`) | api(플러그인 아카이브를 읽는 자리) | 이미지가 `ENV` 로 준다 — 경로를 실행 위치로 추측하지 않는다 |
 | `NERV_TRUSTED_ORIGINS` | | (비움) | api(better-auth) | baseURL 밖에서 화면을 띄울 때만 추가(쉼표 구분) — CSRF 방어선이라 기본은 비운다. 개발 루프는 화면이 Vite(:5173)·API 가 :8080 이라 오리진이 달라 `http://localhost:5173` 이 필요하다. compose 는 둘이 같아 불요 |
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
@@ -955,6 +960,16 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_LOG_LEVEL` | | `log`(=`info`) | api · worker | 두 진입점이 `common/log-level.ts` 한 함수로 읽는다(2026-09-06 배선). 고른 수준과 **그보다 심각한 것**을 켠다 — `verbose` · `debug` · `log` · `warn` · `error` · `fatal`. `info`·`warning`·`trace`·`critical` 은 별칭으로 받는다(compose·k8s 가 이미 `info` 를 넘긴다). 모르는 값은 기본으로 떨어지되 **한 줄 남긴다** — 오타로 로그가 꺼지면 그 사실을 알려 줄 로그도 없다 |
 
 **에이전트 장비 쪽 변수는 이 전표가 아니다.** `NERV_TOKEN`(PAT)·`NERV_PROJECT`·`NERV_HOSTNAME`은 세션이 도는 개발자 장비의 환경이며, 정본은 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3·§4.1, 발급·설치 절차는 [4.6 플러그인과 온보딩](plugin.md)이다.
+
+#### 걷힌 이름 — 설정돼 있으면 기동을 거부한다
+
+위 표는 **운영자가 설정할 수 있는 손잡이**의 목록이라 걷힌 이름은 그 표의 것이 아니다. 그런데 서버는 그 이름을 여전히 읽는다 — **기동을 거부하기 위해서**다. 기본값으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 사실을 틀린 주소로 서명된 쿠키를 받고서야 안다(REQ-CB-037). 그래서 표를 따로 둔다: 여기 있는 이름은 `.env.example` 에도 배포 산출물에도 없어야 하고(있으면 그대로 복사한 사람이 뜨지 않는 서버를 받는다), 대신 **읽는 코드가 반드시 있어야 한다** — 없으면 이 표가 약속한 거부가 유령이다. `check-env-table.mjs` 가 그 둘을 대조한다.
+
+| 걷힌 이름 | 걷은 날 | 대신 쓰는 것 | 만나면 |
+| --- | --- | --- | --- |
+| `NERV_PUBLIC_URL` | 2026-09-13 | `NERV_WEB_URL` · `NERV_API_URL` (위 전표) | 새 둘이 다 비어 있으면 api·worker 가 **기동을 거부한다** — 두 이름에 무엇을 넣으라는 문구와 함께. 하나라도 새 이름이 있으면 뜨되 "읽지 않는 값" 이라고 한 줄 남긴다(REQ-CB-037) |
+
+**왜 이름을 물려주지 않았는가.** 한 이름이 화면의 주소와 API 의 주소를 겸하고 있었고, 둘이 우연히 같은 오리진이라 맞고 있었을 뿐이다. 한쪽이 옛 이름을 물려받으면 "어느 뜻을 물려받았는가" 가 소비자마다 다시 물어야 할 질문이 된다. 둘 다 새 이름이면 그 질문이 없다 — 대가는 **기존 배치가 전부 깨진다**는 것이고, 위 거부가 그 대가를 침묵이 아니라 문구로 바꾼다. 결정 기록은 [4.1 MVP 범위와 스택 확정](scope.md) §2.3.
 
 ### 5.2a 임베딩 제공자 프로필 — OpenAI 호환 단일 계약
 
@@ -1040,6 +1055,8 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-034** | WHILE `NERV_S3_PUBLIC_ENDPOINT` 가 설정된 동안 THE SYSTEM SHALL 그 주소에 경로가 있으면 기동 로그로 경고한다 — presigned 서명은 경로를 포함하므로 접두 프록시(`https://…/s3`) 뒤의 S3 는 `SignatureDoesNotMatch` 로 끝나고, 배포 산출물은 그 자리에 **별도 호스트**를 적는다. WHERE 앞문(nginx·Ingress)에 S3 경로를 여는 것은 금지다 — 기술적으로 막힌 길이라 다음 사람이 그것을 고치는 길로 믿지 않게 주석으로 남긴다 |
 | **REQ-CB-035** | WHILE SSE 스트림이 열려 있는 동안 THE SYSTEM SHALL keep-alive 를 **`event: ping` · `data: {}` 메시지**로 보내고(코멘트 라인 `: ping` 이 아니다 — rxjs 로 흘리므로 Nest 가 메시지로 낸다), 그 주기를 `NERV_SSE_KEEPALIVE_MS` 로 바꿀 수 있게 한다 — 앞문의 유휴 타임아웃이 더 짧은 배치에서 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
+| **REQ-CB-036** | WHEN 서버가 자기 주소를 필요로 하면 THE SYSTEM SHALL **사람이 브라우저로 여는 주소는 `NERV_WEB_URL`, 프로그램이 붙는 주소는 `NERV_API_URL`** 에서 읽고 한 이름이 두 뜻을 겸하지 않는다 — 스펙 딥링크는 `NERV_WEB_URL`, better-auth `baseURL`·`trustedOrigins` 기준과 플러그인 카탈로그의 주소와 `/api/auth/*` 요청 절대화 기준은 `NERV_API_URL`, `/mcp` Origin 대조는 **둘 다**(REQ-CB-013). WHILE 두 값이 같은 오리진인 동안 THE SYSTEM SHALL 갈랐을 때와 **같은 응답**을 낸다 — 이름을 가르는 것과 호스트를 가르는 것은 다른 변경이다 |
+| **REQ-CB-037** | WHEN 걷힌 이름 `NERV_PUBLIC_URL` 이 설정돼 있고 `NERV_WEB_URL`·`NERV_API_URL` 이 **둘 다 비어 있으면** THE SYSTEM SHALL api·worker 의 기동을 거부하고(비영 종료) 두 이름에 무엇을 넣어야 하는지를 문구로 말한다 — 기본값(`http://localhost:8080`)으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 사실을 **그 주소로 서명된 쿠키를 받고서야** 안다. WHERE 새 이름이 하나라도 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다 | 옛 이름만 있는 env 로 `assertPublicUrlRetired()` 가 던지고 문구에 두 이름과 넣을 값이 실린다 · 새 이름이 하나라도 있으면 던지지 않고 경고 한 줄 |
 
 ---
 
@@ -1061,9 +1078,16 @@ services:
     image: pgvector/pgvector:pg18    # postgres:18 + pgvector 동봉 (4.3 §2.1 확장 — 4.1 §2.1 검색 스택)
     restart: unless-stopped
     environment:
-      # pg18 이미지는 PGDATA 를 /var/lib/postgresql/18/docker 로 옮겼다 — 이 줄이 없으면
-      # 아래 마운트 때문에 **빈 볼륨이어도** 기동이 거부된다. 옛 pg17 볼륨은 이어지지 않는다
-      # (FATAL: database files are incompatible with server — 버리고 다시 만든다)
+      # **pg18 이미지는 데이터 경로를 옮겼다** — PGDATA 가 메이저별 하위 디렉터리
+      # (/var/lib/postgresql/18/docker)로 가고 선언 볼륨도 상위(/var/lib/postgresql)로 올라갔다.
+      # 아래 마운트를 그대로 두고 이 줄을 빼면 **빈 볼륨이어도** 기동이 거부된다
+      # ("there appears to be PostgreSQL data in: /var/lib/postgresql/data (unused mount/volume)").
+      # 옛 경로를 명시해 마운트를 유지한다 — 볼륨 이름과 백업 절차가 그대로 성립한다.
+      #
+      # 옛 pg17 볼륨이 남아 있으면 `FATAL: database files are incompatible with server` 로
+      # **시끄럽게** 죽는다(데이터는 그대로 남는다). 개발 볼륨은 버리고 다시 만든다:
+      #   pnpm compose:down && docker volume rm nerv_pgdata && pnpm compose:up
+      # 살릴 데이터가 있으면 pg17 에서 `pg_dump -Fc` 를 떠 pg18 에 복원한다(deploy/scripts).
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: ${POSTGRES_DB:-nerv}
       POSTGRES_USER: ${POSTGRES_USER:-nerv}
@@ -1172,7 +1196,10 @@ services:
     environment:
       NODE_ENV: production
       NERV_API_PORT: "8080"
-      NERV_PUBLIC_URL: ${NERV_PUBLIC_URL:-http://localhost:8080}
+      # 우리 주소는 둘이다(§5.2 · REQ-CB-036) — 앞문 하나가 화면과 API 를 함께 서빙하므로
+      # compose 에서는 같은 값이다. 옛 이름(NERV_PUBLIC_URL)만 있으면 api 가 기동을 거부한다.
+      NERV_WEB_URL: ${NERV_WEB_URL:-http://localhost:8080}
+      NERV_API_URL: ${NERV_API_URL:-http://localhost:8080}
       NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
@@ -1246,7 +1273,9 @@ services:
     restart: unless-stopped
     environment:
       NERV_API_UPSTREAM: api:8080
-      NERV_PUBLIC_ORIGIN: ${NERV_PUBLIC_URL:-http://localhost:8080}
+      # 앞문이 자기 오리진으로 /mcp Origin 을 1차 검증한다 — 브라우저가 싣는 Origin 은
+      # 화면이 뜬 주소이므로 NERV_WEB_URL 이다. 최종 강제는 앱 가드이고 그쪽은 둘 다 허용한다.
+      NERV_PUBLIC_ORIGIN: ${NERV_WEB_URL:-http://localhost:8080}
     ports:
       - "${NERV_HTTP_PORT:-8080}:80"   # TLS 는 호스트 앞단(조직 LB·프록시)에서 종료
     depends_on:
@@ -1504,7 +1533,7 @@ deploy/k8s/
   base/
     kustomization.yaml
     namespace.yaml               # Namespace nerv
-    configmap.yaml               # 비밀 아닌 설정 — NERV_PUBLIC_URL · NERV_S3_BUCKET · NERV_VALKEY_URL(redis://nerv-valkey:6379) …
+    configmap.yaml               # 비밀 아닌 설정 — NERV_WEB_URL · NERV_API_URL · NERV_S3_BUCKET · NERV_VALKEY_URL(redis://nerv-valkey:6379) …
     api/
       deployment.yaml            # §6.3 전문
       service.yaml               # nerv-api :8080 (name: http)
@@ -1529,7 +1558,7 @@ deploy/k8s/
     dev/
       kustomization.yaml         # 이미지 태그 · host(dev) · configmap · replica 1 패치
       ingress-host.yaml
-      configmap-host.yaml        # NERV_PUBLIC_URL 을 자기 Ingress host 로 (아래 ★)
+      configmap-host.yaml        # NERV_WEB_URL · NERV_API_URL 을 자기 Ingress host 로 (아래 ★)
       replicas.yaml              # api·web replicas 1
       configmap.example.yaml     # ☆ 적용 대상 아님 — 환경마다 바꿀 키의 템플릿
       secret.example.yaml        # ☆ 적용 대상 아님 — nerv-secrets 키 여섯의 템플릿
@@ -1544,7 +1573,7 @@ deploy/k8s/
 
 **☆ 예시 파일은 오버레이에 두고, 적용 대상에는 넣지 않는다**(2026-09-13 결정). `secret.example.yaml`·`configmap.example.yaml` 은 어느 `kustomization.yaml` 의 `resources:`·`patches:` 에도 없어 **`kubectl kustomize` 산출물에 섞이지 않는다** — 값이 전부 자리표시자인 파일이 실수로 적용되면 서버는 기동하되 서명·인증·첨부가 조용히 틀린 상태가 되므로, 적용되지 않는다는 사실이 이 파일들의 안전장치다. base 가 아니라 오버레이에 두는 이유는 **채워야 하는 값이 환경마다 다르기 때문**이다 — 키 집합은 같아도 임베딩 프로필(자가호스팅 / 외부 제공자)과 S3·공개 주소가 갈린다. base 에 두면 `base/configmap.yaml` 의 복제본이 되어 둘이 갈라진다.
 
-**★ `configmap-host.yaml` 은 예시가 아니라 실제 패치다**(2026-09-13 — 실측으로 찾은 결함). `base/configmap.yaml` 의 `NERV_PUBLIC_URL` 은 prod 호스트(`nerv.example.com`)인데 dev 오버레이는 configmap 을 패치하지 않아, **dev 파드가 자기 Ingress(`nerv.dev.example.com`)가 받지 않는 주소를 공개 주소로 쓰고 있었다.** 그 값은 세션 쿠키·CORS 의 기준이자 **플러그인 카탈로그가 배포하는 서버 주소**라([4.4 API](api.md) §2.11), 어긋나면 로그인이 실패하거나 — 더 나쁘게 — 성공한 뒤 에이전트가 설치한 플러그인이 다른 서버를 가리킨다. `ingress-host.yaml` 의 host 와 항상 같이 움직인다.
+**★ `configmap-host.yaml` 은 예시가 아니라 실제 패치다**(2026-09-13 — 실측으로 찾은 결함). `base/configmap.yaml` 의 공개 주소는 prod 호스트(`nerv.example.com`)인데 dev 오버레이는 configmap 을 패치하지 않아, **dev 파드가 자기 Ingress(`nerv.dev.example.com`)가 받지 않는 주소를 공개 주소로 쓰고 있었다.** 그 값은 세션 쿠키의 기준이자 **플러그인 카탈로그가 배포하는 서버 주소**라([4.4 API](api.md) §2.11), 어긋나면 로그인이 실패하거나 — 더 나쁘게 — 성공한 뒤 에이전트가 설치한 플러그인이 다른 서버를 가리킨다. `ingress-host.yaml` 의 host 와 항상 같이 움직인다. **패치는 두 키를 함께 덮는다**(`NERV_WEB_URL`·`NERV_API_URL` — §5.2): 하나만 덮으면 나머지 하나가 prod 호스트로 남아, 같은 파드가 두 개의 '우리 주소' 를 갖는다.
 
 `base/kustomization.yaml` 전문:
 
@@ -1771,7 +1800,7 @@ kubectl -n nerv rollout status deploy/nerv-web                                  
 | **REQ-CB-010** | WHEN 새 이미지가 k8s에 배포될 때, THE SYSTEM SHALL `nerv-migrate` Job의 성공 완료를 확인한 뒤에만 Deployment 롤아웃을 완료 판정한다(위 절차 (3)→(4) 순서 고정). |
 | **REQ-CB-011** | WHEN `nerv-worker` 인스턴스가 어떤 이유로든 2개 이상 동시에 떠 있을 때, THE SYSTEM SHALL `pg_advisory_lock(WORKER_ADVISORY_LOCK_KEY)`을 보유한 1개만 잡 루프를 실행한다 — replica 1은 배포 규칙이고, lock이 최종 방어선이다. |
 | **REQ-CB-012** | WHEN 이미지가 빌드되면, THE SYSTEM SHALL `nerv-api`·`nerv-worker`·`nerv-web` 3종에 같은 git SHA 태그를 붙이고 그 태그를 재사용(overwrite)하지 않는다. |
-| **REQ-CB-013** | WHEN `POST /mcp` 요청의 `Origin` 헤더가 존재하고 `NERV_PUBLIC_URL`의 오리진과 다를 때, THE SYSTEM SHALL 앱 가드에서 403을 반환한다 — 전단(nginx·Ingress)의 차단 여부와 무관하게. |
+| **REQ-CB-013** | WHEN `POST /mcp` 요청의 `Origin` 헤더가 존재하고 **`NERV_API_URL`·`NERV_WEB_URL` 어느 오리진과도 다를 때**, THE SYSTEM SHALL 앱 가드에서 403을 반환한다 — 전단(nginx·Ingress)의 차단 여부와 무관하게. (2026-09-13 개정 — 규칙은 그대로이고 **대조 대상만 둘**이 됐다: 전에는 이름 하나가 화면과 API 의 주소를 겸해 대조 대상도 하나로 보였다. 두 이름이 같은 값이면 판정은 한 건도 달라지지 않는다 — REQ-CB-036) |
 | **REQ-CB-014** | WHEN 웹 클라이언트가 WebSocket을 연결할 때, THE SYSTEM SHALL websocket 전송만 협상하며(폴링 폴백 없음), 모든 프록시 계층(§5.4·§6.3)은 업그레이드 헤더와 read/send 타임아웃 3600초를 유지한다. WHEN 클라이언트가 `/sse/*` 스트림을 연결할 때, THE SYSTEM SHALL 모든 프록시 계층에서 응답 버퍼링을 끄고 read 타임아웃 3600초를 유지한다. |
 
 ### 6.4 이미지 태깅과 overlay

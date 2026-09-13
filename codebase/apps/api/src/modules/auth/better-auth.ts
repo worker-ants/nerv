@@ -11,15 +11,22 @@
 import { RATE_LIMIT_AUTH_PER_MIN, RATE_LIMIT_SIGN_IN_PER_MIN, newId } from '@nerv/schema';
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
+import { apiUrlFromEnv } from '../../common/origins.js';
 
 /**
  * baseURL 외에 추가로 신뢰할 오리진 — `NERV_TRUSTED_ORIGINS`(쉼표 구분, §5.2 전표).
  *
  * 이 목록은 CSRF 방어선이다. 늘리는 것은 **환경이 실제로 다른 오리진에서 화면을 띄울 때**
  * 뿐이고, 그 판단은 운영 주체가 env 로 명시한다 — 코드가 추측하지 않는다.
+ *
+ * 기준은 `baseURL`(=`NERV_API_URL`)이다 — 아래 옵션과 **같은 값**이어야 한다. `NERV_WEB_URL`
+ * 을 자동으로 더하지 않는다: 그것은 쿠키 도메인·CORS 와 한 묶음의 결정이라 2단계의 몫이고
+ * (docs/04-mvp/scope.md §2.3), 지금 더하면 이번 단계가 "동작은 한 줄도 바뀌지 않는다"를 깬다.
+ * 두 호스트가 실제로 갈리기 전까지 다른 오리진에서 화면을 띄우는 배치는 여전히
+ * `NERV_TRUSTED_ORIGINS` 로 명시한다(개발 루프의 `http://localhost:5173` 이 그 자리다).
  */
 function trustedOrigins(): string[] {
-  const base = process.env['NERV_PUBLIC_URL'] ?? 'http://localhost:8080';
+  const base = apiUrlFromEnv();
   const extra = (process.env['NERV_TRUSTED_ORIGINS'] ?? '')
     .split(',')
     .map((origin) => origin.trim())
@@ -35,7 +42,8 @@ export function createBetterAuth(pool: pg.Pool) {
   return betterAuth({
     // 서명 키가 없으면 개발 기본값으로 뜬다 — 운영 배포는 env 검증이 먼저 막는다(§5.2 필수 키).
     secret: secret === '' ? 'dev-only-insecure-secret-change-me' : secret,
-    baseURL: process.env['NERV_PUBLIC_URL'] ?? 'http://localhost:8080',
+    // 세션 핸들러가 사는 오리진이다 — 화면 주소가 아니라 API 주소다(REQ-CB-036).
+    baseURL: apiUrlFromEnv(),
     basePath: '/api/auth',
     // 브라우저의 Origin 이 baseURL 과 다를 수 있다 — **개발 루프가 그렇다**: 화면은 Vite(:5173)
     // 에서 뜨고 API 는 :8080 이라, 프록시를 거쳐도 Origin 은 :5173 로 남는다. baseURL 만
