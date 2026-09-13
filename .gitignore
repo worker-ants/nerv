@@ -1,1 +1,5 @@
 .idea/
+
+# lychee 가 링크 검사 때 만드는 캐시 — 야간 CI 는 자기 러너에서 쓰고 버린다.
+# 사람이 로컬에서 같은 검사를 돌리면(docker lycheeverse/lychee) 여기 떨어진다.
+.lycheecache
