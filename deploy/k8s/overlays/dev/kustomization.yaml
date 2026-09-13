@@ -8,4 +8,5 @@ images:
   - { name: nerv-web, newTag: 'dev' }
 patches:
   - path: ingress-host.yaml
+  - path: configmap-host.yaml
   - path: replicas.yaml
