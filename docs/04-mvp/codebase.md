@@ -1125,7 +1125,13 @@ services:
     # api·worker 는 embed 를 기다리지 않는다 — 무응답이면 렉시컬 degrade (REQ-API-026)
 
   minio:
-    image: minio/minio:latest        # 운영은 RELEASE 태그·다이제스트로 고정할 것
+    # 도커허브의 minio/minio 는 2026-09-11 부터 당길 수 없다("pull access denied …
+    # repository does not exist") — 저장소는 그대로인데 레지스트리가 바뀌어 09-10 초록이던
+    # 커밋이 09-11 야간부터 빨갛다. quay.io 로 옮긴다: 같은 저장소의 백업 CronJob 이
+    # 이미 quay.io/minio/mc 를 쓰고 있었고, 여기만 도커허브에 남아 있었다.
+    # **`latest` 로 되돌리지 않는다** — 남의 레지스트리의 움직이는 태그는 우리 저장소를
+    # 건드리지 않고도 과거 커밋의 빌드까지 소급해 깨뜨린다. 그것이 이번에 일어난 일이다.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
