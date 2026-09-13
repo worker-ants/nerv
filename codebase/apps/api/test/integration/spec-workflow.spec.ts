@@ -983,14 +983,15 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
     expect(after[0]?.n).toBe(1);
   });
 
-  // 딥링크는 `NERV_PUBLIC_URL` 이 있으면 절대 URL, 없으면 상대 경로다(spec.service.webUrl).
+  // 딥링크는 `NERV_WEB_URL` 이 있으면 절대 URL, 없으면 상대 경로다(spec.service.webUrl).
+  // **화면 주소다** — 사람이 눌러 여는 링크이므로 API 주소가 아니다(2026-09-13 · REQ-CB-036).
   // 그런데 테스트는 상대 경로만 고정 기대값으로 두고 있었고, 개발 루프는 `.env` 를 쓰라고
   // 안내한다(codebase.md §5.1) — **문서대로 환경을 꾸민 사람에게만 빨간 테스트**였다.
   // CI 는 그 변수를 넣지 않아 통과했다. 이제 테스트가 환경을 스스로 고정하고 양쪽을 본다.
   async function webUrlWith(base: string | undefined, key: string): Promise<unknown> {
-    const before = process.env['NERV_PUBLIC_URL'];
-    if (base === undefined) delete process.env['NERV_PUBLIC_URL'];
-    else process.env['NERV_PUBLIC_URL'] = base;
+    const before = process.env['NERV_WEB_URL'];
+    if (base === undefined) delete process.env['NERV_WEB_URL'];
+    else process.env['NERV_WEB_URL'] = base;
     try {
       const result = await specs.draftUpsert({
         roles: ['planner'],
@@ -1003,8 +1004,8 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
       });
       return result['web_url'];
     } finally {
-      if (before === undefined) delete process.env['NERV_PUBLIC_URL'];
-      else process.env['NERV_PUBLIC_URL'] = before;
+      if (before === undefined) delete process.env['NERV_WEB_URL'];
+      else process.env['NERV_WEB_URL'] = before;
     }
   }
 
@@ -1032,8 +1033,8 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
       bodyMd: `# 딥링크2\n\n${'본문 문장. '.repeat(200)}`,
       userId: planner,
     });
-    const before = process.env['NERV_PUBLIC_URL'];
-    delete process.env['NERV_PUBLIC_URL'];
+    const before = process.env['NERV_WEB_URL'];
+    delete process.env['NERV_WEB_URL'];
     try {
       const result = await specs.submitReview({
         projectId,
@@ -1044,7 +1045,7 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
         result.status === 'in_review' ? '/inbox' : '/p/clemvion/specs/SPC-LINK2',
       );
     } finally {
-      if (before !== undefined) process.env['NERV_PUBLIC_URL'] = before;
+      if (before !== undefined) process.env['NERV_WEB_URL'] = before;
     }
   });
 });

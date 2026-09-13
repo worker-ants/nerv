@@ -1,6 +1,6 @@
 # dev 의 공개 주소를 자기 Ingress 호스트에 맞춘다.
 #
-# base/configmap.yaml 의 NERV_PUBLIC_URL 은 prod 호스트(nerv.example.com)라,
+# base/configmap.yaml 의 두 주소는 prod 호스트(nerv.example.com)라,
 # 이 패치가 없으면 dev 파드가 **자기 Ingress 가 받지 않는 주소**를 공개 주소로 쓴다.
 # 그 값은 세션 쿠키·CORS 의 기준이자 플러그인 카탈로그가 배포하는 서버 주소여서,
 # 어긋나면 로그인이 실패하거나 — 더 나쁘게 — 성공한 뒤 에이전트가 설치한 플러그인이
@@ -10,4 +10,5 @@ kind: ConfigMap
 metadata:
   name: nerv-config
 data:
-  NERV_PUBLIC_URL: 'https://nerv.dev.example.com'
+  NERV_WEB_URL: 'https://nerv.dev.example.com'
+  NERV_API_URL: 'https://nerv.dev.example.com'

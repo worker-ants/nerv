@@ -26,7 +26,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.31 · 2026-09-10 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.32 · 2026-09-13 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.32 변경(2026-09-13 — 카탈로그 주소의 이름이 갈렸다, 사람 결정): **새 요구사항 없음 — REQ-API-086 의 변수 이름만 개정.** `NERV_PUBLIC_URL` 이 화면 주소와 API 주소를 겸하다 둘로 갈렸고([4.2](codebase.md) §5.2 · REQ-CB-036), 카탈로그와 zip 을 서빙하는 것은 api 이므로 §2.11 의 주소 출처는 **`NERV_API_URL`** 이다. **판정은 한 줄도 바뀌지 않는다** — 요청의 `Host`·`X-Forwarded-*` 를 읽지 않는다는 규칙도, 설치 가능 조건(https·비루프백) 경고도 그대로다. CORS 규약은 이 문서에 아직 없다 — [4.1](scope.md) §2.3 의 2단계다.
 >
 > v1.31 변경(2026-09-10 — 알림이 diff 로 데려갈 수 없었다, 사람 지시): **REQ-API-159 신설 · EP-NTF-01 응답 한 칸.** 알림 목록은 스펙 키까지 해소해 주면서 **버전 번호를 주지 않았다** — 그래서 화면은 "v4 가 승인됐다" 를 알면서 "v3 과 무엇이 다른가" 로는 데려갈 수 없었고, 본문 전체를 여는 것 말고 할 수 있는 일이 없었다([4.5](screens.md) REQ-WEB-163 이 그 화면 쪽이다). **조인은 이미 있었다**(`spec_version sv`) — 없던 것은 셀렉트의 한 칸이다. 대상이 스펙 버전이 아닌 알림(재검토 요청은 subject 가 `spec` 이다)은 **NULL 로 둔다**: 0 이나 1 로 채우면 화면이 있지도 않은 diff 로 데려간다 — 없는 것과 1 은 다르다.
 >
@@ -1221,12 +1223,12 @@ basis_superseded: false
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-PLG-01 | `GET /plugin/marketplace.json` | **무인증** | — | 마켓플레이스 카탈로그(`name`·`owner`·`plugins[]`). 플러그인 소스는 `{source:"archive", url, sha256}` 이고 `url` 은 **`NERV_PUBLIC_URL` 로 만든 절대 주소**다 | — |
+| EP-PLG-01 | `GET /plugin/marketplace.json` | **무인증** | — | 마켓플레이스 카탈로그(`name`·`owner`·`plugins[]`). 플러그인 소스는 `{source:"archive", url, sha256}` 이고 `url` 은 **`NERV_API_URL` 로 만든 절대 주소**다 | — |
 | EP-PLG-02 | `GET /plugin/{name}-{version}.zip` | **무인증** | — | `application/zip`. 이름이 이 배포의 것과 다르면 `NERV_PRECONDITION`(`kind:'not_found'`) | — |
 
 **왜 서버가 카탈로그를 만드는가.** git 마켓플레이스는 모두에게 같은 파일을 준다. 그래서 서버 주소가 예시값이 아닌 배치는 받은 뒤에 고쳐야 했고, 실측된 유일한 실사용 설치가 `.mcp.json` 을 손으로 다시 쓰고 훅 6종을 갈아 끼웠다([4.6](plugin.md) v0.29). **패키지가 배포 가능한 물건이 아니면 사람은 포크한다.** 서버가 만들면 주소는 언제나 그 서버의 것이고, 플러그인이 말하는 MCP 리비전·도구 이름·훅 엔드포인트가 **그 서버의 것임이 구조적으로 보장된다.**
 
-**주소는 `NERV_PUBLIC_URL` 에서만 온다.** 요청의 `Host` 를 읽지 않는다 — 서버는 `Host` 를 검증하지 않으므로(실측 2026-09-04) 그것을 카탈로그에 실으면 응답이 "이 서버가 내어준, 남의 zip 을 가리키는 카탈로그" 가 되고, 앞단에 캐시가 있으면 남에게 서빙된다. `sha256` 은 그것을 막지 못한다(공격자가 URL 을 바꾸면 해시도 함께 바꾼다). 게다가 어댑터에 `trustProxy` 가 없어 TLS 종단 뒤에서 요청 스킴은 `http` 로 읽히는데 아카이브 소스는 HTTPS 전용이다 — 요청에서 읽으면 **운영에서만 깨진다.** 저장소는 이미 이 판정을 했다([codebase.md](codebase.md) REQ-CB-013 · `mcp-origin.guard.ts`).
+**주소는 `NERV_API_URL` 에서만 온다**(2026-09-13 — 이름이 갈렸다: 카탈로그와 zip 을 서빙하는 것은 api 이므로 화면 주소 `NERV_WEB_URL` 이 아니다 · [4.2](codebase.md) §5.2 · REQ-CB-036). 요청의 `Host` 를 읽지 않는다 — 서버는 `Host` 를 검증하지 않으므로(실측 2026-09-04) 그것을 카탈로그에 실으면 응답이 "이 서버가 내어준, 남의 zip 을 가리키는 카탈로그" 가 되고, 앞단에 캐시가 있으면 남에게 서빙된다. `sha256` 은 그것을 막지 못한다(공격자가 URL 을 바꾸면 해시도 함께 바꾼다). 게다가 어댑터에 `trustProxy` 가 없어 TLS 종단 뒤에서 요청 스킴은 `http` 로 읽히는데 아카이브 소스는 HTTPS 전용이다 — 요청에서 읽으면 **운영에서만 깨진다.** 저장소는 이미 이 판정을 했다([codebase.md](codebase.md) REQ-CB-013 · `mcp-origin.guard.ts`).
 
 **상대경로를 쓰지 않는다.** URL 로 받은 카탈로그는 그 파일 하나만 내려받으므로 `./` 는 가리킬 대상이 없다. git 경로용 카탈로그(`plugin/.claude-plugin/marketplace.json`)만 상대경로를 쓰고, 두 카탈로그의 이름·버전이 갈라지지 않는 것은 테스트가 지킨다.
 
@@ -1240,13 +1242,13 @@ basis_superseded: false
 Archive URLs must use https:// and must not point at a loopback, link-local, or cloud-metadata host
 ```
 
-**두 단계 사이에서 갈라진다** — 추가는 되고 설치가 안 된다. 그래서 운영자는 "마켓플레이스는 붙었는데 왜 설치가 안 되지"를 혼자 좇게 된다. 서버가 카탈로그를 만들 때 `NERV_PUBLIC_URL` 이 그 조건을 못 맞추면 **운영자 로그에 먼저 경고한다.** 개발 기본값(`http://localhost:8080`)은 의도적으로 설치 불가이고, 개발은 수동 경로를 쓰므로 문제가 아니다.
+**두 단계 사이에서 갈라진다** — 추가는 되고 설치가 안 된다. 그래서 운영자는 "마켓플레이스는 붙었는데 왜 설치가 안 되지"를 혼자 좇게 된다. 서버가 카탈로그를 만들 때 `NERV_API_URL` 이 그 조건을 못 맞추면 **운영자 로그에 먼저 경고한다.** 개발 기본값(`http://localhost:8080`)은 의도적으로 설치 불가이고, 개발은 수동 경로를 쓰므로 문제가 아니다.
 
 **무인증인 이유.** 인증 헤더를 붙이는 `headersHelper` 는 관리형 settings 에 등록한 마켓플레이스에만 걸리고, 사람이 `/plugin marketplace add <url>` 로 직접 치는 경로에는 붙지 않는다. 손으로 설치하는 길을 남기려면 공개여야 한다. 공개해도 되는 이유는 패키지에 비밀이 없기 때문이다 — 서버 주소는 들어가지만 토큰은 `.nerv/env` 에 있고 그것은 패키지가 아니다([4.6](plugin.md) §3.3).
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
-| REQ-API-086 | WHEN 마켓플레이스 카탈로그를 요청하면 THE SYSTEM SHALL 인증 없이 200 으로 응답하고, 플러그인 소스의 `url` 을 **`NERV_PUBLIC_URL` 로만** 구성한다 — 요청의 `Host`·`X-Forwarded-*` 를 읽지 않는다. WHILE 카탈로그를 만드는 동안 THE SYSTEM SHALL `version` 을 `plugin.json` 에서 가져오고 `sha256` 을 **실제로 서빙할 바이트**에서 계산한다. WHEN 배포에 아카이브가 없으면 THE SYSTEM SHALL 빈 카탈로그가 아니라 `NERV_PRECONDITION`(`kind:'not_found'`)으로 거절한다 |
+| REQ-API-086 | WHEN 마켓플레이스 카탈로그를 요청하면 THE SYSTEM SHALL 인증 없이 200 으로 응답하고, 플러그인 소스의 `url` 을 **`NERV_API_URL` 로만** 구성한다 — 요청의 `Host`·`X-Forwarded-*` 를 읽지 않는다. WHILE 카탈로그를 만드는 동안 THE SYSTEM SHALL `version` 을 `plugin.json` 에서 가져오고 `sha256` 을 **실제로 서빙할 바이트**에서 계산한다. WHEN 배포에 아카이브가 없으면 THE SYSTEM SHALL 빈 카탈로그가 아니라 `NERV_PRECONDITION`(`kind:'not_found'`)으로 거절한다 |
 
 ## 3. 실시간 채널 계약 — WebSocket + SSE
 

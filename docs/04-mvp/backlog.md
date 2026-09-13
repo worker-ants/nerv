@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.74 · 2026-09-10 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.75 · 2026-09-13 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.75 변경(2026-09-13 — 공개 주소를 둘로 가른다, 사람 확정): **E14-S04 신설**(스토리 74 → 75 · `done` 65 · 부분 **10**). 화면과 API 를 서브도메인 둘로 가르는 일이 스토리로 없었다 — [4.1](scope.md) §2.3 이 확정 셋과 네 단계를 적는데 백로그가 그것을 세지 않으면 임포트된 Task 에도 없다. **1단계는 들어왔고 2~4단계가 남았다**: 이름을 갈랐고(`NERV_WEB_URL`·`NERV_API_URL` · 옛 이름은 기동 거부 — [4.2](codebase.md) REQ-CB-036·037) 두 값이 같은 오리진이라 동작은 바뀌지 않았다. 남은 것을 §1.4 부분 표에 전수로 적는다 — CORS·쿠키 도메인 · 웹의 런타임 설정 로더 · 실제 호스트 전환. **"완료" 로 뭉뚱그리면 남은 셋이 영영 보이지 않는다.**
 >
 > v0.74 변경(2026-09-10 — 사람 지시): §1.4 셋째 표에 **알림이 바뀐 자리로 데려간다**를 더한다. 어느 스토리에도 속하지 않는다 — 명세가 이미 약속한 동작을 구현이 지키지 않던 자리이고, 새 요구사항 둘(REQ-WEB-163 · REQ-API-159)은 사람이 번호를 떼도록 허락한 것이다([4.4](api.md) v1.31 · [4.5](screens.md) v1.06).
 >
@@ -197,8 +199,8 @@ referenced_by:
 | E11 plan 임포터 | 2 | — | `apps/cli/src/parse/plan.ts` · `apps/cli/src/run.ts` |
 | E12 플러그인 v1 + 훅 수집기 | 5 | 1 | `plugin/skills/`(6종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` |
 | E13 받은 요청·질문·알림 | 3 | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
-| E14 운영·연동 | 3 | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` |
-| **합계** | **65** | **9** | `backlog` 0 |
+| E14 운영·연동 | 3 | 1 | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
+| **합계** | **65** | **10** | `backlog` 0 |
 
 §5 의 **E2E 수용 시나리오 A~F 도 여섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts` · `scenario-f-journey.spec.ts`(2026-09-07 신설 — 그전까지 A~C 는 클레임까지만 태웠고 그 **이후**의 계약은 L2 조각들만 봤다).
 
@@ -216,6 +218,7 @@ referenced_by:
 | E08-S05 | 칸반 레인·위임 명세 4요소 zod 폼 | **승인된 SpecVersion 에서 파생하는 웹 경로** — `delegation-form.tsx` 의 스키마에 `source_spec_version_id` 가 없어 파생은 REST·MCP 로만 된다 |
 | E08-S10 | 가상 스크롤·필터·관계 패널·degraded 배너 | **`depth` 지연 로드** — 서버는 그 인자를 받는데 `useSpecTree` 가 넘기지 않는다 |
 | E09-S03 | 지시자≠승인자 차단 | **리뷰어 자동 지정** — `ApprovalService.request()` 를 부르는 곳이 `assigneeUserId` 를 넘기지 않아 결재 카드는 언제나 `assignee_user_id = NULL` 로 만들어진다(그 열이 채워지는 것은 결재 시점의 `COALESCE` 뿐이라 *지정*이 아니라 *기록*이다) |
+| E14-S04 | **1단계** — `NERV_WEB_URL`·`NERV_API_URL` 둘 신설, 옛 이름 걷기와 **기동 거부**(`common/origins.ts` · `origins.spec.ts` · REQ-CB-036·037), 여섯 소비자 배정(딥링크는 화면 주소 · 세션 핸들러·카탈로그·요청 절대화는 API 주소 · `/mcp` Origin 은 둘 다), compose·k8s 두 키, 전표 게이트가 걷힌 이름을 센다 | **2~4단계 전부**([4.1](scope.md) §2.3) — ② API 의 CORS 와 쿠키 `domain`(저장소 전체에 `enableCors` 호출 **0건**이고 L2 가 프리플라이트를 아직 세지 않는다) ③ 웹의 런타임 설정 로더(`import.meta.env` 사용 0건 · `api.ts`·`session.ts`·`ws.ts` 가 여전히 상대 경로다) ④ DNS·인증서·Ingress host·CDN 과 `base/web/` 을 오버레이로 내리는 일, `plugin/hooks/hooks.http.json` 의 하드코딩된 주소 |
 | E12-S03 | statusline · 마켓플레이스 · 관리형 settings | 수용 기준의 **"활성화 여부를 서버에서 확인"**(플러그인 버전 보고) 경로. ※ `.mcp.json` 미동봉은 남은 것이 아니라 **결정**이다(REQ-PLG-001 개정 — 패키지 테스트가 부재를 강제한다) |
 
 #### 스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리
@@ -484,6 +487,7 @@ FR-11 ◐(3유형) + FR-12 ◐(인앱). 성공 기준 1-1(플랫폼 밖 승인 0
 | E14-S01 | k8s 배포 — kustomize base/overlays, 이미지 3종(`nerv-api`·`nerv-worker`·`nerv-web`) + Valkey Deployment, 마이그레이션 Job, Ingress WebSocket 업그레이드·SSE 버퍼링 해제·타임아웃 상향, 워커 replica 1 | [4.2 코드베이스와 배포](codebase.md) §6 · [4.1 범위·스택](scope.md) §2 | WHEN overlay를 적용하면, THE SYSTEM SHALL 마이그레이션 Job 완료 후에만 신규 버전 파드를 승격한다 | E01-S04 · E06-S03 · E06-S05 |
 | E14-S02 | 백업·복구 왕복 검증 — §6.5 절차(①pg_restore→②migrate→④롤아웃→⑤정합 검증) 실측 + 왕복 로그. E06-S05 결과가 관리형이면 ①을 스냅샷+PITR로 대체 | [4.2 코드베이스와 배포](codebase.md) §6.5(REQ-CB-019) · NFR-01 · [3.7 로드맵](../03-proposal/roadmap.md) §3.4(1-9) | WHEN 백업본으로 §6.5 절차를 실행하면, THE SYSTEM SHALL 추가 수동 개입 없이 데이터 손실 0의 왕복을 1회 이상 성공시킨다 | E14-S01 · E06-S05 |
 | E14-S03 | GitHub 웹훅·Task↔PR 링크 — PR·커밋 웹훅 수신, evidence 수집(리뷰 커버리지 판정은 Phase 2) | [3.7 로드맵](../03-proposal/roadmap.md) §3.2 · FR-13 · [3.3 데이터 모델](../03-proposal/data-model.md) §2.8 | WHEN PR 웹훅이 도착하면, THE SYSTEM SHALL Task에 PR 링크를 `evidence`로 수집한다 | E05-S04 |
+| E14-S04 | 공개 주소 분리 — 화면(`app.`)과 API(`api.`)를 서브도메인 둘로 가른다. 4단계: ① env 이름 둘 신설·옛 이름 걷기 ② CORS·쿠키 도메인 ③ 웹의 런타임 설정 로더 ④ DNS·인증서·Ingress·CDN 전환(플러그인 훅 주소는 이때 버전과 함께) | [4.1 범위·스택](scope.md) §2.3 · [4.2 코드베이스와 배포](codebase.md) §5.2(REQ-CB-036·037) · NFR-01 | WHEN 서버가 자기 주소를 필요로 하면, THE SYSTEM SHALL 화면 주소와 API 주소를 **다른 이름**에서 읽는다<br>WHEN 걷힌 이름만 설정된 배치가 기동하면, THE SYSTEM SHALL 기본값으로 떨어지지 않고 **거부한다**<br>WHILE 두 주소가 갈린 동안, THE SYSTEM SHALL 웹이 쿠키 인증으로 API 를 호출할 수 있게 한다 | E14-S01 |
 
 ---
 

@@ -6,14 +6,15 @@
 // (4.6 v0.29). **패키지가 배포 가능한 물건이 아니면 사람은 포크한다.** 서버가 만들면
 // 주소는 언제나 그 서버의 것이다.
 //
-// 주소의 출처는 `NERV_PUBLIC_URL` **하나**다. 요청의 `Host` 를 읽지 않는다 — 저장소는 이미
+// 주소의 출처는 `NERV_API_URL` **하나**다. 카탈로그와 zip 을 서빙하는 것이 api 이므로
+// 화면 주소(`NERV_WEB_URL`)가 아니다(REQ-CB-036). 요청의 `Host` 는 읽지 않는다 — 저장소는 이미
 // "우리 주소는 설정값이지 요청이 말하는 것이 아니다" 로 판정해 뒀고(`mcp-origin.guard.ts` ·
 // REQ-CB-013), 여기서 반대로 하면 같은 저장소가 두 개의 '우리 주소' 를 갖게 된다.
 
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { NERV_PUBLIC_URL } from '../../common/mcp-origin.guard.js';
+import { NERV_API_URL, apiUrlFromEnv } from '../../common/origins.js';
 import { pluginArchivePath, pluginManifestPath } from './plugin.paths.js';
 
 /** 카탈로그가 파생되는 원본 — `plugin/.claude-plugin/plugin.json` 의 읽는 부분만. */
@@ -41,15 +42,15 @@ export interface MarketplaceCatalog {
  * *"Archive URLs must use https:// and must not point at a loopback, link-local, or
  * cloud-metadata host"*. 카탈로그 추가(`marketplace add`)는 http·localhost 로도 성공하므로
  * **설치 직전에야 드러난다.** 개발에서는 정상이지만(수동 경로를 쓴다) 운영에서 `http://` 나
- * 내부 주소가 `NERV_PUBLIC_URL` 에 들어가면 사람은 "추가는 됐는데 설치가 안 된다" 를 만난다.
+ * 내부 주소가 `NERV_API_URL` 에 들어가면 사람은 "추가는 됐는데 설치가 안 된다" 를 만난다.
  * 그래서 서버가 먼저 말한다.
  */
-export function installableFrom(publicUrl: string): { ok: boolean; reason?: string } {
+export function installableFrom(apiUrl: string): { ok: boolean; reason?: string } {
   let url: URL;
   try {
-    url = new URL(publicUrl);
+    url = new URL(apiUrl);
   } catch {
-    return { ok: false, reason: `주소를 해석할 수 없습니다: ${publicUrl}` };
+    return { ok: false, reason: `주소를 해석할 수 없습니다: ${apiUrl}` };
   }
   if (url.protocol !== 'https:') {
     return { ok: false, reason: `아카이브 URL 은 https 여야 합니다(현재 ${url.protocol}//).` };
@@ -84,8 +85,8 @@ export class PluginService {
 
   constructor(
     @Optional()
-    @Inject(NERV_PUBLIC_URL)
-    private readonly publicUrl: string = process.env['NERV_PUBLIC_URL'] ?? 'http://localhost:8080',
+    @Inject(NERV_API_URL)
+    private readonly apiUrl: string = apiUrlFromEnv(),
   ) {}
 
   /**
@@ -145,7 +146,7 @@ export class PluginService {
     const archive = await this.archive();
     const manifest = await this.manifest();
     if (archive === null || manifest === null) return null;
-    const base = this.publicUrl.replace(/\/+$/, '');
+    const base = this.apiUrl.replace(/\/+$/, '');
 
     // 카탈로그는 내주되, 이 주소로는 설치가 안 된다는 사실을 운영자 로그에 남긴다.
     // 조용히 두면 "추가는 됐는데 설치가 안 된다" 를 사람이 혼자 좇게 된다.
@@ -153,7 +154,7 @@ export class PluginService {
     if (!installable.ok && !this.warned) {
       this.warned = true;
       this.logger.warn(
-        `NERV_PUBLIC_URL(${base})로는 플러그인이 설치되지 않습니다 — ${installable.reason ?? ''} ` +
+        `NERV_API_URL(${base})로는 플러그인이 설치되지 않습니다 — ${installable.reason ?? ''} ` +
           // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그다(REQ-CB-022 예외): 배포 설정 오류를 알리는 문구이며 화면에 나가지 않는다
           '카탈로그 추가까지는 되고 설치에서 거부됩니다(4.6 §3.5).',
       );

@@ -2,13 +2,18 @@
 //
 // 전단(nginx §5.4 · Ingress §6.3)의 차단 여부와 **무관하게** 앱에서 최종 강제한다.
 // Ingress 스니펫 주입이 조직 보안 정책상 비활성인 클러스터가 많아 전단에 의존하지 않는다.
-// 규칙: Origin 헤더가 없으면(비브라우저 클라이언트) 통과, 있으면 NERV_PUBLIC_URL 의
-// 오리진과 정확히 같아야 통과. 다르면 403.
+// 규칙: Origin 헤더가 없으면(비브라우저 클라이언트) 통과, 있으면 **우리 오리진 둘**
+// (`NERV_API_URL` · `NERV_WEB_URL`) 중 하나와 정확히 같아야 통과. 다르면 403.
+//
+// **규칙은 그대로이고 대조 대상만 둘이 됐다**(2026-09-13 · REQ-CB-036). 전에는 이름 하나가
+// 화면과 API 의 주소를 겸해서 대조 대상도 하나였다 — 둘이 같은 오리진이라 그렇게 보였을
+// 뿐이다. 이름을 가른 뒤에도 같은 값을 가리키면 판정은 한 건도 달라지지 않는다.
 
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from './nerv-exception.filter.js';
+import { NERV_API_URL, NERV_WEB_URL, apiUrlFromEnv, webUrlFromEnv } from './origins.js';
 
 /** URL 에서 스킴+호스트+포트만 남긴다. 파싱 불가면 null. */
 export function originOf(value: string | undefined): string | null {
@@ -20,15 +25,15 @@ export function originOf(value: string | undefined): string | null {
   }
 }
 
-/** 오리진 기준값 주입 토큰. 미주입이면 env → 기본값 순서로 떨어진다(.env 전표 §5.2). */
-export const NERV_PUBLIC_URL = Symbol('NERV_PUBLIC_URL');
-
 @Injectable()
 export class McpOriginGuard implements CanActivate {
   constructor(
     @Optional()
-    @Inject(NERV_PUBLIC_URL)
-    private readonly publicUrl: string = process.env['NERV_PUBLIC_URL'] ?? 'http://localhost:8080',
+    @Inject(NERV_API_URL)
+    private readonly apiUrl: string = apiUrlFromEnv(),
+    @Optional()
+    @Inject(NERV_WEB_URL)
+    private readonly webUrl: string = webUrlFromEnv(),
   ) {}
 
   /**
@@ -50,9 +55,12 @@ export class McpOriginGuard implements CanActivate {
   check(originHeader: string | undefined): boolean {
     if (originHeader === undefined || originHeader === '') return true; // 비브라우저 클라이언트
 
-    const allowed = originOf(this.publicUrl);
+    // 같은 값을 가리키는 두 이름은 한 오리진이다 — 거절 문구가 같은 주소를 두 번 적지 않게 접는다.
+    const allowed = [...new Set([originOf(this.apiUrl), originOf(this.webUrl)])].filter(
+      (origin): origin is string => origin !== null,
+    );
     const actual = originOf(originHeader);
-    if (allowed !== null && actual === allowed) return true;
+    if (actual !== null && allowed.includes(actual)) return true;
 
     throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.mcp.bad_origin'), {
       kind: 'mcp_origin',

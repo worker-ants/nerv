@@ -15,6 +15,7 @@ import { McpOriginGuard } from './common/mcp-origin.guard.js';
 import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
 import { logLevelsFromEnv } from './common/log-level.js';
+import { apiUrlFromEnv, assertPublicUrlRetired } from './common/origins.js';
 import { RateLimitGuard } from './common/rate-limit.guard.js';
 import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
 
@@ -56,7 +57,8 @@ export async function createApp(): Promise<NestFastifyApplication> {
   if (auth !== null) {
     const fastify = app.getHttpAdapter().getInstance();
     fastify.all('/api/auth/*', async (request, reply) => {
-      const url = new URL(request.url, process.env['NERV_PUBLIC_URL'] ?? 'http://localhost:8080');
+      // 들어온 요청을 절대화하는 기준이다 — 이 핸들러가 사는 오리진, 즉 API 주소다(REQ-CB-036).
+      const url = new URL(request.url, apiUrlFromEnv());
       const headers = new Headers();
       for (const [key, value] of Object.entries(request.headers)) {
         if (typeof value === 'string') headers.append(key, value);
@@ -88,6 +90,9 @@ export async function createApp(): Promise<NestFastifyApplication> {
 }
 
 async function bootstrap(): Promise<void> {
+  // 걷힌 이름을 만나면 여기서 멈춘다 — 기본값으로 뜨면 운영자는 틀린 주소로 서명된 쿠키를
+  // 받고서야 안다(REQ-CB-037). 던지면 엔트리가 비영 종료한다.
+  assertPublicUrlRetired();
   const app = await createApp();
   const port = Number(process.env['NERV_API_PORT'] ?? 8080);
   await app.listen({ port, host: '0.0.0.0' });

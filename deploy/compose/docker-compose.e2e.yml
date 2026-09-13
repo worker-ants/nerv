@@ -108,7 +108,8 @@ services:
     environment:
       NODE_ENV: production          # 운영과 같은 조립을 검증한다 — 테스트라고 느슨하게 두지 않는다
       NERV_API_PORT: "8080"
-      NERV_PUBLIC_URL: http://localhost:${NERV_E2E_HTTP_PORT:-19000}
+      NERV_WEB_URL: http://localhost:${NERV_E2E_HTTP_PORT:-19000}
+      NERV_API_URL: http://localhost:${NERV_E2E_HTTP_PORT:-19000}
       NERV_AUTH_SECRET: e2e-only-secret-not-for-any-real-deployment
       NERV_LOG_LEVEL: warn          # 실패 로그만 보이게 — 통과한 실행의 로그는 잡음이다
       DATABASE_URL: *e2e-db

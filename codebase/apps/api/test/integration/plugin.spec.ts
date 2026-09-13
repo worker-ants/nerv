@@ -17,7 +17,9 @@ import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
 const WORKSPACE = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const PUBLIC_URL = 'https://nerv.test.example.com';
+const API_URL = 'https://api.nerv.test.example.com';
+// 화면 주소를 **다른 값**으로 둔다 — 카탈로그가 그것을 집으면 이 스위트가 잡는다(REQ-CB-036).
+const WEB_URL = 'https://app.nerv.test.example.com';
 
 let db: ScratchDb;
 let app: NestFastifyApplication;
@@ -29,7 +31,8 @@ beforeAll(async () => {
   db = await createScratchDb('nerv_plugin');
   process.env['DATABASE_URL'] = db.url;
   process.env['NERV_VALKEY_URL'] ??= 'redis://localhost:6379';
-  process.env['NERV_PUBLIC_URL'] = PUBLIC_URL;
+  process.env['NERV_API_URL'] = API_URL;
+  process.env['NERV_WEB_URL'] = WEB_URL;
   app = await createApp();
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
@@ -38,7 +41,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await app.close();
   await db.drop();
-  delete process.env['NERV_PUBLIC_URL'];
+  delete process.env['NERV_API_URL'];
+  delete process.env['NERV_WEB_URL'];
 });
 
 function manifest(): { name: string; version: string } {
@@ -78,11 +82,12 @@ describe('EP-PLG-01 — 마켓플레이스 카탈로그', () => {
     const body = await catalog();
     const source = body.plugins[0]?.source;
     expect(source?.source).toBe('archive');
-    expect(source?.url.startsWith(`${PUBLIC_URL}/plugin/`)).toBe(true);
+    expect(source?.url.startsWith(`${API_URL}/plugin/`)).toBe(true);
+    expect(source?.url).not.toContain('app.nerv.test.example.com'); // 화면 주소가 아니다
     expect(source?.url).not.toContain('./');
   });
 
-  it('주소는 NERV_PUBLIC_URL 에서만 온다 — 요청의 Host 를 읽지 않는다', async () => {
+  it('주소는 NERV_API_URL 에서만 온다 — 요청의 Host 를 읽지 않는다', async () => {
     // 서버는 Host 를 검증하지 않는다(실측). 그것을 카탈로그에 실으면 이 응답이
     // "이 서버가 내어준, 남의 zip 을 가리키는 카탈로그" 가 된다.
     const res = await app.inject({
@@ -91,7 +96,7 @@ describe('EP-PLG-01 — 마켓플레이스 카탈로그', () => {
       headers: { host: 'evil.example.com' },
     });
     const body = res.json() as Catalog;
-    expect(body.plugins[0]?.source.url.startsWith(PUBLIC_URL)).toBe(true);
+    expect(body.plugins[0]?.source.url.startsWith(API_URL)).toBe(true);
     expect(JSON.stringify(body)).not.toContain('evil.example.com');
   });
 

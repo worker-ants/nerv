@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.65 · 2026-09-07 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.66 · 2026-09-13 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.66 변경(2026-09-13 — 카탈로그 주소의 이름이 갈렸다, 사람 결정): **새 요구사항 없음 · 배달되는 파일 변경 없음(`plugin.json` 버전 그대로).** §3.5 가 인용하는 변수 이름이 걷힌 옛 이름에서 **`NERV_API_URL`** 로 갈렸다([4.2](codebase.md) §5.2 · REQ-CB-036). `hooks/hooks.http.json` 의 하드코딩된 주소는 **아직 바꾸지 않는다** — 훅은 설치한 쪽의 사본이 도므로 서버보다 먼저 배달되면 옛 주소를 가리킨다. 그 변경은 실제 호스트 전환과 **같은 단계**에서 `plugin.json` 버전과 함께 간다([4.1](scope.md) §2.3 의 4단계 · REQ-PLG-017).
 >
 > v0.65 변경(2026-09-07 — 주장이 검사가 됐다, 개선 계획 아홉째 스프린트): **새 요구사항 없음 · 패키지 0.2.21 → 0.2.22 · REQ-PLG-009 폐기 표기.** ① §5.1 의 "Codex 세션은 지금도 전 흐름을 도구만으로 완주할 수 있다" 는 오래 **주장**이었다 — 2026-09-07 부터 L3 시나리오 F 가 `codex` 세션을 실제로 걷는다([4.8](backlog.md) §5.6). ② **REQ-PLG-009 를 폐기로 표기한다**: 정책 버전 개념도 `policy.stale` 이벤트도 서버에 없다(2026-09-07 실측). 번호는 재사용하지 않는다 — 강제는 규약 비교가 아니라 서버 게이트가 하므로 구버전 플러그인이 낡은 절차를 밟아도 판정은 같고, 남은 것은 "낡았다" 고 말해 주는 일이다. ③ `README.md` 가 배달 파일 다섯(`hooks.http.json`·`codex/` 둘·`managed-settings.example.json`)을 적지 않고 있었다 — 설치한 사람은 그 표지를 보고 무엇이 들어 있는지 읽으므로 빠진 줄은 **없는 파일**로 읽힌다. L1 이 이제 목록과 제목 버전을 함께 센다. **README 도 배달되는 파일이라 버전을 올린다**(REQ-PLG-017): 처음에는 "문서라 불변" 으로 두었는데 게이트가 그것을 잡았다 — 설치본의 표지가 낡은 채로 남으면 그것이 곧 잘못된 목록이다.
 >
@@ -1345,7 +1347,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 **저장소 루트에 `.claude-plugin/` 을 두는 것이 REQ-CB-015 와 어긋나지 않는다.** 그 규약이 막는 것은 **애플리케이션 코드**가 `codebase/` 밖으로, **배포 산출물**이 `deploy/` 밖으로 나가는 것이고, 루트에는 "세 구역과 규약·메타 파일" 을 허용한다. `.claude-plugin/` 은 저장소가 도구에게 자기를 설명하는 매니페스트이고 그 자리에는 이미 `.claude/`·`.github/` 가 있다 — 네 번째 구역이 아니라 그 옆자리다.
 
 
-**설치되는 주소는 따로 있다**(2026-09-04 · 실기기 실측). 카탈로그 추가는 `http://localhost` 로도 성공하지만 **설치가 거부된다** — `Archive URLs must use https:// and must not point at a loopback, link-local, or cloud-metadata host`. 두 단계 사이에서 갈라지므로 운영에서 `NERV_PUBLIC_URL` 이 `http://` 이거나 내부 주소면 "추가는 됐는데 설치가 안 된다" 가 된다. 서버가 카탈로그를 만들 때 그 사실을 로그에 먼저 경고한다. 개발 기본값은 설치 불가이고 그것이 맞다 — 개발은 위 표의 **수동** 경로를 쓴다.
+**설치되는 주소는 따로 있다**(2026-09-04 · 실기기 실측). 카탈로그 추가는 `http://localhost` 로도 성공하지만 **설치가 거부된다** — `Archive URLs must use https:// and must not point at a loopback, link-local, or cloud-metadata host`. 두 단계 사이에서 갈라지므로 운영에서 `NERV_API_URL` 이 `http://` 이거나 내부 주소면 "추가는 됐는데 설치가 안 된다" 가 된다. 서버가 카탈로그를 만들 때 그 사실을 로그에 먼저 경고한다. 개발 기본값은 설치 불가이고 그것이 맞다 — 개발은 위 표의 **수동** 경로를 쓴다.
 
 **버전을 올리지 않으면 아무도 갱신받지 못한다.** Claude Code 는 카탈로그의 `version` 이 바뀔 때만 새 아카이브를 받는다 — zip 을 바꾸고 `plugin/.claude-plugin/plugin.json` 의 `version` 을 그대로 두면 이미 설치한 사람은 **캐시된 사본을 계속 쓴다. 오류도 경고도 없이.** 그래서 릴리스의 첫 줄은 언제나 버전이다.
 

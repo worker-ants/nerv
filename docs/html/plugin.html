@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>5종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.65 (2026-09-07)</span>
+      <span>버전 v0.66 (2026-09-13)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1272,7 +1272,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
 
   <p><b>저장소 루트에 <code>.claude-plugin/</code> 을 두는 것이 REQ-CB-015 와 어긋나지 않는다.</b> 그 규약이 막는 것은 <b>애플리케이션 코드</b>가 <code>codebase/</code> 밖으로, <b>배포 산출물</b>이 <code>deploy/</code> 밖으로 나가는 것이고, 루트에는 "세 구역과 규약·메타 파일" 을 허용한다. <code>.claude-plugin/</code> 은 저장소가 도구에게 자기를 설명하는 매니페스트이고 그 자리에는 이미 <code>.claude/</code>·<code>.github/</code> 가 있다 — 네 번째 구역이 아니라 그 옆자리다.</p>
 
-  <p><b>설치되는 주소는 따로 있다</b>(2026-09-04 · 실기기 실측). 카탈로그 추가는 <code>http://localhost</code> 로도 성공하지만 <b>설치가 거부된다</b> — <code>Archive URLs must use https:// and must not point at a loopback, link-local, or cloud-metadata host</code>. 두 단계 사이에서 갈라지므로 운영에서 <code>NERV_PUBLIC_URL</code> 이 <code>http://</code> 이거나 내부 주소면 "추가는 됐는데 설치가 안 된다" 가 된다. 서버가 카탈로그를 만들 때 그 사실을 로그에 먼저 경고한다. 개발 기본값은 설치 불가이고 그것이 맞다 — 개발은 위 표의 <b>수동</b> 경로를 쓴다.</p>
+  <p><b>설치되는 주소는 따로 있다</b>(2026-09-04 · 실기기 실측). 카탈로그 추가는 <code>http://localhost</code> 로도 성공하지만 <b>설치가 거부된다</b> — <code>Archive URLs must use https:// and must not point at a loopback, link-local, or cloud-metadata host</code>. 두 단계 사이에서 갈라지므로 운영에서 <code>NERV_API_URL</code> 이 <code>http://</code> 이거나 내부 주소면 "추가는 됐는데 설치가 안 된다" 가 된다. 서버가 카탈로그를 만들 때 그 사실을 로그에 먼저 경고한다. 개발 기본값은 설치 불가이고 그것이 맞다 — 개발은 위 표의 <b>수동</b> 경로를 쓴다.</p>
 
   <p><b>버전을 올리지 않으면 아무도 갱신받지 못한다.</b> Claude Code 는 카탈로그의 <code>version</code> 이 바뀔 때만 새 아카이브를 받는다 — zip 을 바꾸고 <code>plugin/.claude-plugin/plugin.json</code> 의 <code>version</code> 을 그대로 두면 이미 설치한 사람은 <b>캐시된 사본을 계속 쓴다. 오류도 경고도 없이.</b> 그래서 릴리스의 첫 줄은 언제나 버전이다.</p>
 

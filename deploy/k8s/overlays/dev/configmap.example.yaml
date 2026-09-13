@@ -16,10 +16,13 @@ metadata:
   name: nerv-config
 data:
   # ── ① 환경마다 반드시 바꾼다 ──────────────────────────────────────────────
-  # 세션 쿠키·CORS 의 기준이자 **플러그인 카탈로그가 배포하는 주소**다(4.4 API §2.11).
+  # 우리 주소 둘(4.2 §5.2 · REQ-CB-036) — 경로 없는 오리진만 적는다.
+  #   NERV_WEB_URL: 사람이 브라우저로 여는 주소. 스펙 딥링크가 이것으로 절대화된다
+  #   NERV_API_URL: 세션 쿠키 baseURL · **플러그인 카탈로그가 배포하는 주소**(4.4 API §2.11)
   # ingress-host.yaml 의 host 와 어긋나면 로그인이 되지 않거나, 되더라도 에이전트가
-  # 설치한 플러그인이 다른 서버를 가리킨다. 경로 없는 오리진만 적는다.
-  NERV_PUBLIC_URL: 'https://nerv.dev.example.com'
+  # 설치한 플러그인이 다른 서버를 가리킨다. 지금은 한 호스트라 두 값이 같다.
+  NERV_WEB_URL: 'https://nerv.dev.example.com'
+  NERV_API_URL: 'https://nerv.dev.example.com'
 
   # 서버가 S3 에 붙는 주소(클러스터 안).
   NERV_S3_ENDPOINT: 'http://nerv-minio:9000'

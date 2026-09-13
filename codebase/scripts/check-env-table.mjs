@@ -8,14 +8,24 @@
 //     (운영자가 로그 레벨을 바꿔도 아무 일이 일어나지 않았다. 유령 설정이다)
 //   - `NERV_S3_ENDPOINT` 행이 **두 번** 있고 "필수" 열이 서로 달랐다
 //
-// 세는 것은 넷이다.
-//   ① 코드가 읽는 변수가 전표에 있는가 — 없으면 운영자가 존재를 알 길이 없다
+// 세는 것은 여섯이다.
+//   ① 코드가 읽는 변수가 전표(또는 걷힌 이름 표)에 있는가 — 없으면 운영자가 존재를 알 길이 없다
 //   ② `.env.example` 의 키가 전표에 있는가
 //   ③ 한 변수가 전표에 두 번 나오지 않는가 — 두 행이 다른 말을 하면 어느 쪽이 계약인가
 //   ④ 전표가 소비자를 `api`·`worker`·`web` 이라 적은 변수를 그 코드가 실제로 읽는가
+//   ⑤ **걷힌 이름을 코드가 실제로 읽는가** — 읽지 않으면 그 거부는 유령이다(2026-09-13 신설)
+//   ⑥ 걷힌 이름이 `.env.example` 에 없는가 — 있으면 운영자에게 기동 거부를 배포하는 셈이다
 //
 // 값이나 기본값은 대조하지 않는다. 그것은 렌더러를 다시 만드는 일이고, 실제로 어긋난
 // 것은 언제나 **있고 없음**이었다.
+//
+// ## 걷힌 이름이 왜 따로 있는가 (2026-09-13)
+//
+// `NERV_PUBLIC_URL` 은 화면 주소와 API 주소를 겸하다가 둘로 갈렸다(REQ-CB-036). 전표는
+// **운영자가 설정할 수 있는 손잡이**의 목록이라 걷힌 이름은 그 표의 것이 아니다 — 그런데
+// 서버는 그 이름을 여전히 읽는다: **기동을 거부하기 위해서**다(REQ-CB-037). ① 을 그대로
+// 두면 그 읽기가 "전표에 없는 변수를 읽는다" 로 잡히고, 이름을 전표에 남기면 아직 쓸 수
+// 있는 손잡이로 읽힌다. 둘 다 거짓이므로 표를 하나 더 둔다.
 //
 // 사용: node scripts/check-env-table.mjs
 
@@ -33,7 +43,12 @@ const OWNED = /^(?:(?:NERV|POSTGRES|VALKEY|MINIO)_[A-Z0-9_]+|DATABASE_URL)$/;
 
 // -- 전표 --------------------------------------------------------------------
 const doc = readFileSync(DOC, 'utf8');
-const section = doc.slice(doc.indexOf('### 5.2 `.env` 변수 전표'), doc.indexOf('### 5.2a'));
+const whole = doc.slice(doc.indexOf('### 5.2 `.env` 변수 전표'), doc.indexOf('### 5.2a'));
+// 걷힌 이름 표는 같은 절 안에 있지만 **다른 표**다 — 경계에서 자른다.
+const RETIRED_HEAD = '#### 걷힌 이름';
+const cut = whole.indexOf(RETIRED_HEAD);
+const section = cut === -1 ? whole : whole.slice(0, cut);
+const retiredSection = cut === -1 ? '' : whole.slice(cut);
 const declared = new Map();
 const consumers = new Map();
 // 한 행이 변수 둘을 함께 적는 자리가 있다(`NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY`) —
@@ -52,12 +67,30 @@ for (const row of section.split('\n').filter((line) => line.startsWith('|'))) {
 }
 if (declared.size === 0) fail.push('§5.2 전표를 찾지 못했다 — 절이 사라졌거나 표 모양이 바뀌었다');
 
+// -- 걷힌 이름 --------------------------------------------------------------
+const retired = new Set();
+for (const row of retiredSection.split('\n').filter((line) => line.startsWith('|'))) {
+  const firstCell = row.slice(1).split('|')[0] ?? '';
+  for (const m of firstCell.matchAll(/`([A-Z][A-Z0-9_]*)`/g)) {
+    if (declared.has(m[1])) {
+      fail.push(
+        `\`${m[1]}\` 이 §5.2 전표와 걷힌 이름 표에 **둘 다** 있다 — 쓸 수 있는 손잡이인가 아닌가`,
+      );
+    }
+    retired.add(m[1]);
+  }
+}
+
 // -- .env.example ------------------------------------------------------------
 for (const line of readFileSync(ENV_EXAMPLE, 'utf8').split('\n')) {
   const m = /^\s*#?\s*([A-Z][A-Z0-9_]*)=/.exec(line);
   if (m === null) continue;
   const name = m[1];
-  if (OWNED.test(name) && !declared.has(name)) {
+  if (!OWNED.test(name)) continue;
+  // ⑥ 걷힌 이름을 실물 전표에 남기면, 그대로 복사한 운영자는 **기동 거부**를 받는다.
+  if (retired.has(name)) {
+    fail.push(`.env.example 에 걷힌 이름 \`${name}\` 이 남았다 — 그대로 쓰면 서버가 뜨지 않는다`);
+  } else if (!declared.has(name)) {
     fail.push(`.env.example 의 \`${name}\` 이 §5.2 전표에 없다`);
   }
 }
@@ -97,11 +130,24 @@ for (const root of SERVER_ROOTS.map((d) => join(CODEBASE, d))) {
 }
 
 for (const [name, where] of [...readBy].sort()) {
-  if (!declared.has(name)) {
+  if (!declared.has(name) && !retired.has(name)) {
     fail.push(
       `코드가 \`${name}\` 을 읽는데 §5.2 전표에 없다 (${where}) — 운영자는 그 존재를 모른다`,
     );
   }
+}
+
+// -- ⑤ 걷힌 이름의 거부가 실재하는가 -----------------------------------------
+//
+// **약속한 거부가 없으면 그것은 유령이다.** 표가 "설정돼 있으면 기동을 거부한다" 고 적는데
+// 읽는 코드가 없으면, 옛 이름을 그대로 둔 배치가 조용히 기본값으로 떠서 운영자는 자기
+// 설정이 무시된다는 사실을 틀린 주소로 서명된 쿠키를 받고서야 안다(REQ-CB-037 의 전제).
+for (const name of retired) {
+  if (readBy.has(name)) continue;
+  fail.push(
+    `걷힌 이름 \`${name}\` 을 읽는 코드가 없다 — 표는 기동 거부를 약속하는데 ` +
+      `그 거부가 어디에도 없다(옛 이름을 둔 배치가 조용히 기본값으로 뜬다)`,
+  );
 }
 
 // -- ④ 반대 방향 — 전표가 적은 소비자가 실재하는가 ---------------------------
@@ -139,4 +185,7 @@ if (fail.length > 0) {
   process.exit(1);
 }
 
-console.log(`.env 전표 정합 — 전표 ${declared.size}행 · 코드가 읽는 변수 ${readBy.size}개`);
+console.log(
+  `.env 전표 정합 — 전표 ${declared.size}행 · 걷힌 이름 ${retired.size}개 · ` +
+    `코드가 읽는 변수 ${readBy.size}개`,
+);
