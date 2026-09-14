@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.45 (2026-09-14)</span>
+      <span>버전 v1.46 (2026-09-14)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~040</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -927,7 +927,9 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
     </tbody>
   </table></div>
 
-  <p>런처가 하는 일 넷: ① <code>.env</code> 가 없으면 <b>먼저 멈추고 안내한다</b>(없는 것과 안 읽은 것은 다른 문제인데 에러 메시지가 같아진다) ② 저장소 루트에서 <code>tsc -b --watch</code> 를 돌려 참조 전체(schema → api → cli)를 빌드한다 ③ <code>dist/main.js</code> 가 <b>생긴 뒤에</b> API 를 띄운다(빈 체크아웃의 첫 실행이 실패하지 않게) ④ 하나가 죽으면 전부 내린다 — 반쯤 살아 있는 루프가 가장 헷갈린다.</p>
+  <p>런처가 하는 일 다섯: ① <code>.env</code> 가 없으면 <b>먼저 멈추고 안내한다</b>(없는 것과 안 읽은 것은 다른 문제인데 에러 메시지가 같아진다 — 파일을 대신 만들지는 않는다: <code>AGENTS.md</code> 구현 작업 규약 8) ② 저장소 루트에서 <code>tsc -b --watch</code> 를 돌려 참조 전체(schema → api → cli)를 빌드한다 ③ <code>dist/main.js</code> 가 <b>생긴 뒤에</b> API 를 띄운다(빈 체크아웃의 첫 실행이 실패하지 않게) ④ 하나가 죽으면 전부 내린다 — 반쯤 살아 있는 루프가 가장 헷갈린다 ⑤ Vite 는 <b><code>apps/web</code> 의 shim</b> 으로 띄우고 없으면 먼저 멈춘다(2026-09-14 신설).</p>
+
+  <p><b>⑤ 가 왜 있나</b>(실측). <code>vite</code> 는 <code>apps/web</code> 의 의존이고 이 저장소에는 호이스팅 설정이 없으므로 pnpm 은 <b>루트 <code>node_modules/.bin</code> 에 <code>vite</code> 를 만들지 않는다.</b> 런처는 오래 그 루트 경로를 불렀고, 옛 레이아웃이 남긴 고아 shim 이 그 자리에 있어서 돌았을 뿐이다 — <code>pnpm install</code> 은 그 파일을 관리하지도 지우지도 않는다. 그래서 두 가지가 조용히 성립했다: <b>새로 클론한 장비에는 처음부터 없고</b>, 있던 장비에서도 store 의 peer 해시가 바뀌는 순간 죽는다. 루트 devDependency 를 하나 더한 날(<code>yaml</code>) 그 해시가 <code>vite@8.2.2_…_tsx@4.23.12</code> → <code>…_yaml@2.9.1</code> 로 바뀌어 낡은 shim 이 없는 경로를 열었고, 사람이 받은 것은 <code>Cannot find module …/vite/bin/vite.js</code> 였다.</p>
 
   <p>루트 <code>package.json</code> 스크립트 표:</p>
 
