@@ -187,7 +187,7 @@ for (const [name, consumer] of consumers) {
 //
 // **전표의 모든 변수에 걸면 소음이 된다.** compose 가 내부 주소를 일부러 박는 자리가 있다
 // (`NERV_S3_ENDPOINT: http://minio:9000` — 컨테이너 안에서만 쓰는 이름이라 손잡이가 아니다).
-// 그래서 **층을 정하는 것들만** 본다: 포트 셋과 공개 오리진 둘.
+// 그래서 **층을 정하는 것들만** 본다: 리슨 포트 둘과 공개 오리진 둘.
 const LAYER_PORTS = ['NERV_API_PORT', 'NERV_WEB_PORT'];
 
 // 앞문이 api 를 찾아가는 주소. **전표의 손잡이가 아니다** — 이미지 내부 배선이고 값은
@@ -295,7 +295,7 @@ if (defaultOrigin !== undefined && frontDoor !== undefined) {
   if (port !== null && port !== frontDoor) {
     fail.push(
       `common/origins.ts 의 DEFAULT_ORIGIN(${defaultOrigin}) 포트가 ` +
-        `NERV_HTTP_PORT(${frontDoor})와 다르다 — 공개 주소 기본값이 앞문을 가리키지 않는다`,
+        `NERV_WEB_PORT(${frontDoor})와 다르다 — 공개 주소 기본값이 앞문을 가리키지 않는다`,
     );
   }
 }

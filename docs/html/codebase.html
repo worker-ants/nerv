@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.43 (2026-09-14)</span>
+      <span>버전 v1.44 (2026-09-14)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~039</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -983,7 +983,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 
   <p><b>층이 하나 줄었다</b>(2026-09-14 · REQ-CB-039). 앞문에는 이름이 둘이었다 — 호스트에 내보내는 포트(<code>NERV_HTTP_PORT</code>)와 리슨하는 포트(<code>NERV_WEB_PORT</code>)다. 층이 실제로 다르긴 하지만, 컨테이너 안의 포트를 운영자가 따로 정할 이유가 없고 이름이 둘이면 "어느 것을 바꾸는가" 가 매번 표에서 확인해야 할 질문이 된다 — 이 절이 없애려던 바로 그 성질이다. 그래서 <code>NERV_HTTP_PORT</code> 를 <b>걷고</b> compose 가 <code>${NERV_WEB_PORT}:${NERV_WEB_PORT}</code> 로 내보낸다. 다른 포트로 내보내려는 배치는 그 값을 바꾸면 안팎이 함께 옮겨 간다.</p>
 
-  <p><b>세 포트는 자기 층의 모든 자리를 정한다</b>(2026-09-14 · REQ-CB-038). 그 전에는 <code>NERV_API_PORT</code> 가 전표에 있고 코드가 읽는데도 <b>아무 배치에서도 듣지 않았다</b> — compose 가 <code>"8080"</code> 을 박아 두었고 업스트림·헬스체크도 그 숫자를 따로 적었으며, 개발 루프에서는 <code>vite.config.ts</code> 의 프록시 대상이 박혀 있어 포트를 옮기면 API 만 옮겨 갔다. 이제 compose·이미지·개발 루프가 한 변수에서 조립하고, 리터럴이 되돌아오면 게이트가 잡는다(⑦). <b>k8s 는 예외다</b> — <code>containerPort</code> 는 정적 필드라 ConfigMap 값을 참조할 수 없어 두 곳을 함께 고쳐야 하고, 어긋남은 게이트가 센다(⑨).</p>
+  <p><b>두 리슨 포트가 자기 층의 모든 자리를 정한다</b>(2026-09-14 · REQ-CB-038). 그 전에는 <code>NERV_API_PORT</code> 가 전표에 있고 코드가 읽는데도 <b>아무 배치에서도 듣지 않았다</b> — compose 가 <code>"8080"</code> 을 박아 두었고 업스트림·헬스체크도 그 숫자를 따로 적었으며, 개발 루프에서는 <code>vite.config.ts</code> 의 프록시 대상이 박혀 있어 포트를 옮기면 API 만 옮겨 갔다. 이제 compose·이미지·개발 루프가 한 변수에서 조립하고, 리터럴이 되돌아오면 게이트가 잡는다(⑦). <b>k8s 는 예외다</b> — <code>containerPort</code> 는 정적 필드라 ConfigMap 값을 참조할 수 없어 두 곳을 함께 고쳐야 하고, 어긋남은 게이트가 센다(⑨).</p>
 
   <p><b>개발 루프에서는 그 둘이 실제로 갈린다.</b> 화면은 Vite(<code>:5173</code>)에 뜨고 API 는 <code>:8080</code> 이라 <code>NERV_WEB_URL</code> 은 <code>http://localhost:5173</code> 이어야 한다 — <code>:8080</code> 으로 두면 에이전트가 붙여 주는 스펙 딥링크(E10-S04)가 <b>화면을 서빙하지 않는 API</b> 를 가리켜 404 다(SPA 는 앞문의 몫이고 api 는 정적 자산을 서빙하지 않는다). 이름을 가른 이유(REQ-CB-036)가 이미 실물로 드러나 있는 자리인데, 아래 표의 기본값 열은 compose 경로의 값이라 그 사실이 어디에도 적혀 있지 않았다. <code>NERV_API_URL</code> 은 개발 루프에서도 <code>:8080</code>(API 프로세스) 그대로이고, 오리진이 갈리는 몫은 <code>NERV_TRUSTED_ORIGINS</code> 가 받는다.</p>
 

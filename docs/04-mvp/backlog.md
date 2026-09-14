@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.78 · 2026-09-14 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.79 · 2026-09-14 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.79 변경(2026-09-14 — 미룬 것을 적지 않으면 미룬 것이 아니다, 사람 지시): **E14-S04 의 남은 것에 `/mcp` 가드·앞문의 비대칭을 더한다.** 신뢰 오리진 파서를 손대면서([4.2](codebase.md) v1.41) 허용 목록의 **구성**은 2단계의 몫이라 두고 갔는데, 그 미룸이 어디에도 적혀 있지 않았다 — 적지 않은 미룸은 다음 사람에게 결함으로 보인다. 가드는 `NERV_TRUSTED_ORIGINS` 를 보지 않고(웹의 `/mcp` 호출 0건이라 실해는 없다) 앞문의 `map` 은 오리진 하나만 받는다.
 >
 > v0.78 변경(2026-09-14 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **앞문에 이름이 둘이었다**를 더한다. 포트 작업의 마지막 단계이고 어느 스토리에도 속하지 않는다 — 앞문을 호스트에 내보내는 포트와 리슨하는 포트가 이름 둘이었고, 하나로 합쳤다. REQ-CB-039 신설([4.2](codebase.md) v1.43).
 >
@@ -224,7 +226,7 @@ referenced_by:
 | E08-S05 | 칸반 레인·위임 명세 4요소 zod 폼 | **승인된 SpecVersion 에서 파생하는 웹 경로** — `delegation-form.tsx` 의 스키마에 `source_spec_version_id` 가 없어 파생은 REST·MCP 로만 된다 |
 | E08-S10 | 가상 스크롤·필터·관계 패널·degraded 배너 | **`depth` 지연 로드** — 서버는 그 인자를 받는데 `useSpecTree` 가 넘기지 않는다 |
 | E09-S03 | 지시자≠승인자 차단 | **리뷰어 자동 지정** — `ApprovalService.request()` 를 부르는 곳이 `assigneeUserId` 를 넘기지 않아 결재 카드는 언제나 `assignee_user_id = NULL` 로 만들어진다(그 열이 채워지는 것은 결재 시점의 `COALESCE` 뿐이라 *지정*이 아니라 *기록*이다) |
-| E14-S04 | **1단계** — `NERV_WEB_URL`·`NERV_API_URL` 둘 신설, 옛 이름 걷기와 **기동 거부**(`common/origins.ts` · `origins.spec.ts` · REQ-CB-036·037), 여섯 소비자 배정(딥링크는 화면 주소 · 세션 핸들러·카탈로그·요청 절대화는 API 주소 · `/mcp` Origin 은 둘 다), compose·k8s 두 키, 전표 게이트가 걷힌 이름을 센다 | **2~4단계 전부**([4.1](scope.md) §2.3) — ② API 의 CORS 와 쿠키 `domain`(저장소 전체에 `enableCors` 호출 **0건**이고 L2 가 프리플라이트를 아직 세지 않는다) ③ 웹의 런타임 설정 로더(`import.meta.env` 사용 0건 · `api.ts`·`session.ts`·`ws.ts` 가 여전히 상대 경로다) ④ DNS·인증서·Ingress host·CDN 과 `base/web/` 을 오버레이로 내리는 일, `plugin/hooks/hooks.http.json` 의 하드코딩된 주소 |
+| E14-S04 | **1단계** — `NERV_WEB_URL`·`NERV_API_URL` 둘 신설, 옛 이름 걷기와 **기동 거부**(`common/origins.ts` · `origins.spec.ts` · REQ-CB-036·037), 여섯 소비자 배정(딥링크는 화면 주소 · 세션 핸들러·카탈로그·요청 절대화는 API 주소 · `/mcp` Origin 은 둘 다), compose·k8s 두 키, 전표 게이트가 걷힌 이름을 센다 | **2~4단계 전부**([4.1](scope.md) §2.3) — ② API 의 CORS 와 쿠키 `domain`(저장소 전체에 `enableCors` 호출 **0건**이고 L2 가 프리플라이트를 아직 세지 않는다). 여기에 **`/mcp` 가드와 앞문의 비대칭**도 함께 온다(2026-09-14 미룸): 가드는 `NERV_API_URL`·`NERV_WEB_URL` 둘만 보고 `NERV_TRUSTED_ORIGINS` 를 보지 않으며 — 웹의 `/mcp` 호출이 0건이라 지금은 실해가 없다 — 앞문 nginx 의 `map` 은 오리진 **하나**만 받는다(envsubst 가 변수를 한 줄로만 치환하고, 중복 값이 들어가면 nginx 가 기동을 거부한다). 허용 목록의 **구성**을 바꾸는 것이 2단계의 몫이라 파서만 먼저 손댔다([4.2](codebase.md) v1.41). ③ 웹의 런타임 설정 로더(`import.meta.env` 사용 0건 · `api.ts`·`session.ts`·`ws.ts` 가 여전히 상대 경로다) ④ DNS·인증서·Ingress host·CDN 과 `base/web/` 을 오버레이로 내리는 일, `plugin/hooks/hooks.http.json` 의 하드코딩된 주소 |
 | E12-S03 | statusline · 마켓플레이스 · 관리형 settings | 수용 기준의 **"활성화 여부를 서버에서 확인"**(플러그인 버전 보고) 경로. ※ `.mcp.json` 미동봉은 남은 것이 아니라 **결정**이다(REQ-PLG-001 개정 — 패키지 테스트가 부재를 강제한다) |
 
 #### 스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리
