@@ -15,6 +15,9 @@ kind: ConfigMap
 metadata:
   name: nerv-config
 data:
+  # 리슨 포트 둘(NERV_API_PORT · NERV_WEB_PORT)은 **여기서 바꿀 값이 아니다** —
+  # 환경마다 다를 이유가 없고, 바꾸려면 base 의 containerPort 도 함께 가야 한다(§6.2).
+
   # ── ① 환경마다 반드시 바꾼다 ──────────────────────────────────────────────
   # 우리 주소 둘(4.2 §5.2 · REQ-CB-036) — 경로 없는 오리진만 적는다.
   #   NERV_WEB_URL: 사람이 브라우저로 여는 주소. 스펙 딥링크가 이것으로 절대화된다

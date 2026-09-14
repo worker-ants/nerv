@@ -8,16 +8,27 @@
 //     (운영자가 로그 레벨을 바꿔도 아무 일이 일어나지 않았다. 유령 설정이다)
 //   - `NERV_S3_ENDPOINT` 행이 **두 번** 있고 "필수" 열이 서로 달랐다
 //
-// 세는 것은 여섯이다.
+// 세는 것은 열이다.
 //   ① 코드가 읽는 변수가 전표(또는 걷힌 이름 표)에 있는가 — 없으면 운영자가 존재를 알 길이 없다
 //   ② `.env.example` 의 키가 전표에 있는가
 //   ③ 한 변수가 전표에 두 번 나오지 않는가 — 두 행이 다른 말을 하면 어느 쪽이 계약인가
 //   ④ 전표가 소비자를 `api`·`worker`·`web` 이라 적은 변수를 그 코드가 실제로 읽는가
 //   ⑤ **걷힌 이름을 코드가 실제로 읽는가** — 읽지 않으면 그 거부는 유령이다(2026-09-13 신설)
 //   ⑥ 걷힌 이름이 `.env.example` 에 없는가 — 있으면 운영자에게 기동 거부를 배포하는 셈이다
+//   ⑦ **리터럴이 손잡이를 무력화하지 않는가** — 배포 산출물이 포트를 박아 두면 전표의
+//     그 행은 있는데 듣지 않는 손잡이다(2026-09-14 신설 · REQ-CB-038)
+//   ⑧ `.env.example` 의 공개 오리진 포트가 앞문 포트와 맞는가 — 앞문을 옮기고 주소를
+//     안 옮긴 배치는 틀린 주소로 서명된 쿠키를 받는다
+//   ⑨ k8s 의 ConfigMap 포트와 매니페스트의 `containerPort` 가 같은가 — 정적 필드라
+//     설정에서 받을 수 없고, 갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다
+//   ⑩ 그 포트들의 기본값이 이미지 `ENV` 와 전표에서 같은가
 //
-// 값이나 기본값은 대조하지 않는다. 그것은 렌더러를 다시 만드는 일이고, 실제로 어긋난
-// 것은 언제나 **있고 없음**이었다.
+// **값을 대조하는 범위는 포트와 오리진뿐이다.** 이 스크립트는 오래 "값이나 기본값은
+// 대조하지 않는다 — 그것은 렌더러를 다시 만드는 일이고 실제로 어긋난 것은 언제나 있고
+// 없음이었다" 고 적어 두었고, 그 말은 여전히 맞다. 예외를 좁게 두는 이유는 2026-09-14 에
+// **있고 없음이 아닌 어긋남**을 실제로 만났기 때문이다: `NERV_API_PORT` 는 전표에 있고 코드가
+// 읽는데 compose 가 `"8080"` 을 박아 두어 **아무 배치에서도 듣지 않았다.** 층을 정하는 값은
+// 여러 자리가 같은 숫자를 따로 적어야 하므로, 그 일치만 센다. 범위를 넓히면 렌더러가 된다.
 //
 // ## 걷힌 이름이 왜 따로 있는가 (2026-09-13)
 //
@@ -31,6 +42,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 
 const CODEBASE = resolve(import.meta.dirname, '..');
 const REPO = resolve(CODEBASE, '..');
@@ -171,6 +183,164 @@ for (const [name, consumer] of consumers) {
   );
 }
 
+// -- ⑦⑧⑨⑩ 층을 정하는 손잡이가 실제로 듣는가 (REQ-CB-038) -------------------
+//
+// **전표의 모든 변수에 걸면 소음이 된다.** compose 가 내부 주소를 일부러 박는 자리가 있다
+// (`NERV_S3_ENDPOINT: http://minio:9000` — 컨테이너 안에서만 쓰는 이름이라 손잡이가 아니다).
+// 그래서 **층을 정하는 것들만** 본다: 리슨 포트 둘과 공개 오리진 둘.
+const LAYER_PORTS = ['NERV_API_PORT', 'NERV_WEB_PORT'];
+
+// 앞문이 api 를 찾아가는 주소. **전표의 손잡이가 아니다** — 이미지 내부 배선이고 값은
+// `NERV_API_PORT` 에서 조립된다. 이름을 상수로 두는 이유는 위 READS 정규식이 이 파일에서
+// `env['...']` 꼴을 보면 "코드가 읽는 변수" 로 세고, 그러면 ① 이 자기 자신을 잡기 때문이다.
+const UPSTREAM = 'NERV_API_UPSTREAM';
+
+/** 파일이 없으면 판정하지 않는다 — 모르는 것을 실패로 만들면 소음이 된다. */
+function yamlOrNull(rel) {
+  const full = resolve(REPO, rel);
+  try {
+    return parseYaml(readFileSync(full, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/** 문자열 안에 `${NAME` 이 있는가 — compose 치환이 걸렸다는 뜻이다. */
+const substitutes = (value, name) => String(value).includes(`\${${name}`);
+
+// ⑦ compose 가 포트를 박아 두지 않았는가
+let composeSeen = 0;
+for (const rel of ['deploy/compose/docker-compose.yml', 'deploy/compose/docker-compose.e2e.yml']) {
+  const doc = yamlOrNull(rel);
+  if (doc === null || typeof doc.services !== 'object') continue;
+  for (const [service, spec] of Object.entries(doc.services ?? {})) {
+    const env = spec?.environment ?? {};
+    if (typeof env !== 'object' || Array.isArray(env)) continue;
+    for (const name of LAYER_PORTS) {
+      if (!(name in env)) continue;
+      composeSeen += 1;
+      if (!substitutes(env[name], name)) {
+        fail.push(
+          `${rel} 의 \`${service}.environment.${name}\` 이 리터럴 \`${env[name]}\` 이다 — ` +
+            `전표는 손잡이라고 적는데 .env 값이 여기 닿지 않는다(${name} 를 치환으로 쓴다)`,
+        );
+      }
+    }
+    // 업스트림·헬스체크·publish 는 같은 포트를 **따로** 적는 자리다 — 한 곳만 고치면 깨진다.
+    if (typeof env[UPSTREAM] === 'string' && !substitutes(env[UPSTREAM], 'NERV_API_PORT')) {
+      fail.push(
+        `${rel} 의 \`${service}.environment.${UPSTREAM}\` 이 api 포트를 따로 적는다 ` +
+          `(\`${env[UPSTREAM]}\`) — NERV_API_PORT 에서 조립한다`,
+      );
+    }
+    for (const part of spec?.healthcheck?.test ?? []) {
+      if (typeof part !== 'string' || !part.includes('127.0.0.1:')) continue;
+      if (!substitutes(part, 'NERV_API_PORT')) {
+        fail.push(
+          `${rel} 의 \`${service}.healthcheck\` 가 api 포트를 따로 적는다 — NERV_API_PORT 에서 조립한다`,
+        );
+      }
+    }
+    // 앞문(NERV_WEB_PORT 를 받는 서비스)의 publish 는 컨테이너 쪽을 그 변수로 적어야 한다.
+    if ('NERV_WEB_PORT' in env) {
+      for (const mapping of spec?.ports ?? []) {
+        if (typeof mapping === 'string' && !substitutes(mapping, 'NERV_WEB_PORT')) {
+          fail.push(
+            `${rel} 의 \`${service}.ports\` 가 앞문 포트를 따로 적는다(\`${mapping}\`) — ` +
+              `컨테이너 쪽을 NERV_WEB_PORT 로 적는다`,
+          );
+        }
+      }
+    }
+  }
+}
+if (composeSeen === 0) {
+  fail.push(
+    'compose 에서 포트 손잡이를 한 자리도 읽지 못했다 — 검사가 비었다(파일 모양이 바뀌었나)',
+  );
+}
+
+// ⑧ `.env.example` 의 공개 오리진 포트가 앞문 포트와 맞는가
+const example = new Map();
+for (const line of readFileSync(ENV_EXAMPLE, 'utf8').split('\n')) {
+  const m = /^\s*([A-Z][A-Z0-9_]*)=(.*)$/.exec(line);
+  if (m !== null) example.set(m[1], m[2].trim());
+}
+/** 오리진의 포트 — 없으면 스킴 기본값. 파싱 불가면 null. */
+function portOf(origin) {
+  try {
+    const url = new URL(origin);
+    return url.port !== '' ? url.port : url.protocol === 'https:' ? '443' : '80';
+  } catch {
+    return null;
+  }
+}
+const frontDoor = example.get('NERV_WEB_PORT');
+for (const name of ['NERV_WEB_URL', 'NERV_API_URL']) {
+  const value = example.get(name);
+  if (value === undefined || frontDoor === undefined) continue;
+  const port = portOf(value);
+  if (port !== null && port !== frontDoor) {
+    fail.push(
+      `.env.example 의 \`${name}\`(${value}) 포트가 NERV_WEB_PORT(${frontDoor})와 다르다 — ` +
+        `공개 주소 둘은 앞문을 가리킨다(앞문을 옮기면 두 주소도 함께 옮긴다)`,
+    );
+  }
+}
+// 같은 값을 코드도 들고 있다 — 포트를 옮기고 이것을 두면 틀린 주소로 서명된 쿠키가 나간다.
+const originsSrc = readFileSync(resolve(CODEBASE, 'apps/api/src/common/origins.ts'), 'utf8');
+const defaultOrigin = /DEFAULT_ORIGIN = '([^']+)'/.exec(originsSrc)?.[1];
+if (defaultOrigin !== undefined && frontDoor !== undefined) {
+  const port = portOf(defaultOrigin);
+  if (port !== null && port !== frontDoor) {
+    fail.push(
+      `common/origins.ts 의 DEFAULT_ORIGIN(${defaultOrigin}) 포트가 ` +
+        `NERV_WEB_PORT(${frontDoor})와 다르다 — 공개 주소 기본값이 앞문을 가리키지 않는다`,
+    );
+  }
+}
+
+// ⑨ k8s — ConfigMap 의 포트와 매니페스트의 containerPort 가 같은가
+//
+// **여기가 유일한 방어선이다.** `containerPort` 는 정적 필드라 ConfigMap 값을 참조할 수 없고,
+// 둘이 갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다. Service 의 `port` 는 서비스 자신의
+// 포트(외부에서 부르는 번호)라 대조 대상이 아니다 — `targetPort` 가 이름으로 따라간다.
+const configMap = yamlOrNull('deploy/k8s/base/configmap.yaml')?.data ?? null;
+if (configMap !== null) {
+  for (const [name, rel] of [
+    ['NERV_API_PORT', 'deploy/k8s/base/api/deployment.yaml'],
+    ['NERV_WEB_PORT', 'deploy/k8s/base/web/deployment.yaml'],
+  ]) {
+    const declared = configMap[name];
+    const doc = yamlOrNull(rel);
+    const ports = doc?.spec?.template?.spec?.containers?.[0]?.ports ?? [];
+    const container = ports[0]?.containerPort;
+    if (declared === undefined || container === undefined) continue;
+    if (String(declared) !== String(container)) {
+      fail.push(
+        `k8s 의 ${name}(${declared} · base/configmap.yaml)과 ${rel} 의 ` +
+          `containerPort(${container})가 다르다 — 정적 필드라 설정에서 받을 수 없고, ` +
+          `갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다`,
+      );
+    }
+  }
+}
+
+// ⑩ 이미지 ENV 의 기본값이 전표(=.env.example)와 같은가
+const dockerfileWeb = readFileSync(resolve(REPO, 'deploy/docker/Dockerfile.web'), 'utf8');
+const imageWebPort = /ENV NERV_WEB_PORT=(\d+)/.exec(dockerfileWeb)?.[1];
+const declaredWebPort = example.get('NERV_WEB_PORT');
+if (
+  imageWebPort !== undefined &&
+  declaredWebPort !== undefined &&
+  imageWebPort !== declaredWebPort
+) {
+  fail.push(
+    `Dockerfile.web 의 ENV NERV_WEB_PORT(${imageWebPort})가 .env.example(${declaredWebPort})과 ` +
+      `다르다 — 이 기본값이 \`listen ;\` 을 막는 방어선이라 전표와 같아야 한다`,
+  );
+}
+
 if (fail.length > 0) {
   console.error(
     [
@@ -187,5 +357,5 @@ if (fail.length > 0) {
 
 console.log(
   `.env 전표 정합 — 전표 ${declared.size}행 · 걷힌 이름 ${retired.size}개 · ` +
-    `코드가 읽는 변수 ${readBy.size}개`,
+    `코드가 읽는 변수 ${readBy.size}개 · compose 포트 손잡이 ${composeSeen}자리`,
 );

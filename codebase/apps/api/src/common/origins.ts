@@ -14,11 +14,17 @@
 // 다시 물어야 할 질문이 된다. 그 대가로 기존 배치가 전부 깨지므로 아래가 거부한다(REQ-CB-037).
 
 /**
- * 두 이름의 공통 기본값 — 개발 루프의 한 포트.
+ * 두 이름의 공통 기본값 — **compose 앞문의 주소**다(`NERV_HTTP_PORT` 의 기본값 · §5.2 전표).
  *
  * compose 는 앞문 하나가 화면과 API 를 함께 서빙하므로 두 값이 같다. **같은 값이라
  * 이름을 가른 의미가 없는 것이 아니다** — 소비자가 어느 뜻을 쓰는지가 코드에 적혀야
  * 나중에 호스트를 가를 때 고칠 자리를 찾을 수 있다.
+ *
+ * **개발 루프에는 그 앞문이 없다**(2026-09-14 정정 — 이 주석은 8080 을 "개발 루프의 한
+ * 포트" 라 적고 있었다). 화면은 Vite 의 :5173 에 뜨고 API 는 :8080 이라 두 주소가 실제로
+ * 갈리므로, 그 배치는 `NERV_WEB_URL=http://localhost:5173` 을 명시해야 한다 — 이 기본값에
+ * 맡기면 스펙 딥링크가 **화면을 서빙하지 않는 API** 를 가리켜 404 다. 즉 이름을 가른
+ * 이유(REQ-CB-036)는 앞으로의 도메인 분리가 아니라 개발 루프에 이미 실물로 있다.
  */
 export const DEFAULT_ORIGIN = 'http://localhost:8080';
 
@@ -36,6 +42,68 @@ export function apiUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string {
 export function webUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string {
   const value = (env['NERV_WEB_URL'] ?? '').trim();
   return value === '' ? DEFAULT_ORIGIN : value;
+}
+
+/**
+ * URL 에서 스킴+호스트+포트만 남긴다. 파싱 불가면 null.
+ *
+ * `/mcp` Origin 가드와 아래 신뢰 오리진 파서가 **같은 함수로** 오리진을 읽는다 — 여기 둔
+ * 이유가 그것이다(2026-09-14 이동). 전에는 가드 파일에 있었는데 그러면 이 파일이 가드를
+ * import 해야 하고, 가드는 이미 이 파일을 import 하므로 고리가 된다.
+ */
+export function originOf(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 추가로 신뢰할 오리진 목록 — `NERV_TRUSTED_ORIGINS`(§5.2 전표).
+ *
+ * **구분자가 쉼표뿐이었다**(2026-09-14). 전표도 파서도 "쉼표 구분" 이었는데, 오리진을 한 줄에
+ * 하나씩 적는 것이 k8s ConfigMap·compose 의 여러 줄 문자열에서는 자연스러운 모양이다 —
+ * 그렇게 적은 배치에서는 목록 전체가 **한 덩어리의 못 쓰는 값**이 된다. 쉼표·공백·줄바꿈을
+ * 모두 구분자로 받는다.
+ *
+ * **오리진으로 정규화한다.** `https://app.example.com/` 처럼 끝 슬래시가 붙거나 경로가 딸린
+ * 값은 better-auth 의 대조에서 조용히 빗나간다 — 사람은 "적었는데 막힌다" 만 본다.
+ *
+ * **스킴이 없는 값은 버린다.** `localhost:5173` 은 URL 로 파싱된다(`localhost:` 가 스킴이 된다).
+ * 그러나 그 오리진은 불투명 오리진, 즉 **문자열 `"null"`** 이다. 그대로 목록에 넣으면 브라우저가
+ * `Origin: null` 을 싣는 요청(샌드박스 iframe · 일부 리다이렉트)이 통과한다 — 스킴을 빠뜨린
+ * 오타 하나가 CSRF 방어선에 구멍을 내는 셈이다.
+ *
+ * **버리는 것도 조용히 하지 않는다.** 사람은 자기가 적은 값이 목록에 없다는 사실을 알아야
+ * 한다 — 모르면 열어 둔 줄 알고 있는 오리진이 실은 없는 것이 된다.
+ *
+ * 목록의 **구성은 바꾸지 않는다** — `NERV_WEB_URL` 을 자동으로 더하지 않는다. 그것은 쿠키
+ * 도메인·CORS 와 한 묶음의 결정이라 2단계의 몫이다(docs/04-mvp/scope.md §2.3).
+ */
+export function trustedOriginsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
+  const out: string[] = [];
+  for (const value of (env['NERV_TRUSTED_ORIGINS'] ?? '').split(/[\s,]+/)) {
+    if (value === '') continue;
+    const origin = originOf(value);
+    // 로거를 세우기 전에 불릴 수 있어 `console` 이다(아래 assertPublicUrlRetired 와 같은 이유).
+    if (origin === null || origin === 'null') {
+      console.warn(
+        `NERV_TRUSTED_ORIGINS 의 "${value}" 은 오리진이 아니어서 버립니다 — ` +
+          `스킴부터 적으십시오(예 https://app.example.com).`,
+      );
+      continue;
+    }
+    if (origin !== value) {
+      console.warn(
+        `NERV_TRUSTED_ORIGINS 의 "${value}" 을 오리진 "${origin}" 으로 읽습니다 — ` +
+          `경로·질의·끝 슬래시는 대조에 쓰이지 않습니다.`,
+      );
+    }
+    out.push(origin);
+  }
+  return [...new Set(out)];
 }
 
 /* eslint-disable no-restricted-syntax -- 운영자용 설정 오류다(REQ-CB-022 예외): 기동 거부 사유와
@@ -81,6 +149,57 @@ export function assertPublicUrlRetired(env: NodeJS.ProcessEnv = process.env): vo
       '서명된 쿠키를 받고서야 설정이 틀렸다는 것을 알게 되기 때문입니다.',
     ].join('\n'),
   );
+}
+
+/**
+ * 걷힌 이름 둘째 — `NERV_HTTP_PORT` (REQ-CB-039).
+ *
+ * **한 이름이 두 층을 겸하고 있었다.** 앞문을 호스트에 내보내는 포트와 앞문이 리슨하는
+ * 포트가 한 값으로 맞고 있었을 뿐이다 — `NERV_PUBLIC_URL` 과 같은 부류다(REQ-CB-036). 층을
+ * 가른 뒤에는 `NERV_WEB_PORT` 하나가 둘을 함께 정한다(컨테이너 안팎이 같은 포트다).
+ *
+ * **compose 는 모르는 변수를 조용히 무시한다.** 그래서 그냥 걷으면 옛 이름을 둔 배치가
+ * 아무 말 없이 기본값으로 뜬다 — 약속한 거부가 유령이 된다. 거부를 실물로 만들려면
+ * compose 가 이 이름을 api 에 넘겨야 하고(§5.3 의 `NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}`),
+ * 그 넘김이 없으면 이 함수는 아무것도 보지 못한다. 대가는 명시해 둔다: **compose 를 거치지
+ * 않는 배치**(맨 `docker run` · 다른 오케스트레이터)에서는 옛 이름이 여전히 조용히 무시된다.
+ *
+ * 판정 모양은 `assertPublicUrlRetired` 와 같다 — 새 이름이 비어 있을 때만 거부한다.
+ */
+export function assertHttpPortRetired(env: NodeJS.ProcessEnv = process.env): void {
+  const retired = (env['NERV_HTTP_PORT'] ?? '').trim();
+  if (retired === '') return;
+
+  const webPort = (env['NERV_WEB_PORT'] ?? '').trim();
+  if (webPort !== '') {
+    // 로거를 세우기 전이라 `console` 이다.
+    console.warn(
+      `NERV_HTTP_PORT 은 걷힌 이름입니다 — 읽지 않습니다(현재 값 "${retired}"). ` +
+        `쓰이는 것은 NERV_WEB_PORT="${webPort}" 입니다. 배포 설정에서 옛 이름을 지우십시오(4.2 §5.2).`,
+    );
+    return;
+  }
+
+  throw new Error(
+    [
+      `NERV_HTTP_PORT("${retired}")은 걷힌 이름입니다 — 기동을 거부합니다.`,
+      '이 이름은 앞문을 호스트에 내보내는 포트와 앞문이 리슨하는 포트를 겸하고 있었고,',
+      '한 이름으로 합쳐졌습니다(4.2 §5.2). 지금 값을 그대로 넣으면 동작은 바뀌지 않습니다:',
+      `  NERV_WEB_PORT=${retired}   # 앞문이 리슨하는 포트 — compose 는 같은 포트로 내보낸다`,
+      '그 다음 NERV_HTTP_PORT 를 지우십시오.',
+      '기본값으로 떨어뜨리지 않는 이유는, 그러면 이 배치가 옛 포트로 열린 줄 알고 있다가',
+      '앞문에 닿지 않는 주소를 사람에게 주게 되기 때문입니다.',
+    ].join('\n'),
+  );
+}
+
+/**
+ * 걷힌 이름 전부를 한 자리에서 본다 — 엔트리(api·worker)가 기동 전에 부른다.
+ * 문구는 이름마다 달라야 해서(무엇을 어디에 넣으라는 말이 다르다) 판정은 각자 한다.
+ */
+export function assertRetiredNames(env: NodeJS.ProcessEnv = process.env): void {
+  assertPublicUrlRetired(env);
+  assertHttpPortRetired(env);
 }
 
 /* eslint-enable no-restricted-syntax */

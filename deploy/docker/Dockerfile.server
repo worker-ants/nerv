@@ -36,6 +36,8 @@ ENV NERV_PLUGIN_DIST=/app/plugin-dist
 
 # → nerv-api  (migrate.js 도 이 이미지에 포함)
 FROM runtime AS api
+# 문서용 선언이다 — 실제 리슨 포트는 NERV_API_PORT 가 정한다(전표 §5.2). 값이 어긋나도
+# 동작은 바뀌지 않으므로 조용히 낡을 수 있는 자리다.
 EXPOSE 8080
 CMD ["node", "dist/main.js"]
 

@@ -87,6 +87,11 @@ function envFor(state) {
     NERV_E2E_PG_PORT: String(state.ports.pg),
     NERV_E2E_VALKEY_PORT: String(state.ports.valkey),
     NERV_E2E_BASE_URL: `http://localhost:${state.ports.http}`,
+    // 컨테이너 안의 리슨 포트는 **세션과 무관하게 고정**이다 — 세션마다 다를 이유가 없고,
+    // 여기서 못 박지 않으면 개발자 셸에 NERV_WEB_PORT 가 있을 때 E2E 가 그 값을 물려받는다
+    // (e2e 는 `--env-file` 을 쓰지 않아 셸 환경이 그대로 compose 에 간다).
+    NERV_WEB_PORT: '8080',
+    NERV_API_PORT: '8080',
     NERV_E2E_DATABASE_URL: `postgres://nerv:e2e@localhost:${state.ports.pg}/nerv`,
     // 하네스가 스크래치 DB 를 만들 때 쓰는 것과 같은 값 — 두 곳에 적지 않는다
     DATABASE_URL: `postgres://nerv:e2e@localhost:${state.ports.pg}/nerv`,

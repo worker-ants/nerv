@@ -6,7 +6,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { NERV_ERROR } from '@nerv/schema';
-import { McpOriginGuard, originOf } from './mcp-origin.guard.js';
+import { McpOriginGuard } from './mcp-origin.guard.js';
+import { originOf } from './origins.js';
 
 const API = 'https://api.nerv.example.com';
 const WEB = 'https://app.nerv.example.com';

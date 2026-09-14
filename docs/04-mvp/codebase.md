@@ -1,7 +1,7 @@
 ---
 id: SPC-MVP-CODEBASE
 status: approved
-updated: 2026-09-13
+updated: 2026-09-14
 referenced_by:
   - 04-mvp/scope.md
   - 04-mvp/database.md
@@ -18,7 +18,17 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.39 · 2026-09-13 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.44 · 2026-09-14 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.44 변경(2026-09-14 — 낡은 셈과 걷힌 이름을 말하는 문구, 사람 지시): **새 요구사항 없음 — 잔여 둘.** ① `NERV_HTTP_PORT` 를 걷어 리슨 포트가 둘이 됐는데 §5.2 가 "**세 포트**" 라 적고 있었다. ② `.env` 전표 게이트의 실패 문구 하나가 **걷힌 이름**을 말했다 — `DEFAULT_ORIGIN` 의 포트가 어긋날 때 "`NERV_HTTP_PORT` 와 다르다" 고 알렸으므로, 그 문구를 따라간 운영자는 **서버가 기동을 거부하는 이름**을 설정한다. 검사가 고치는 법을 틀리게 알려 주는 것은 검사가 없는 것보다 나쁘다. 문구를 나눠 쓴 줄(`포트가 ` + `NERV_HTTP_PORT(`)이라 v1.43 의 일괄 치환이 이 한 자리를 지나쳤다.
+>
+> v1.43 변경(2026-09-14 — 앞문에 이름이 둘이었다, 사람 확정): **REQ-CB-039 신설 · `NERV_HTTP_PORT` 걷기.** 포트 작업의 마지막 단계다. 앞문에는 이름이 둘이었다 — 호스트에 내보내는 포트와 리슨하는 포트다. 층이 실제로 다르긴 하지만 **컨테이너 안의 포트를 운영자가 따로 정할 이유가 없고**, 이름이 둘이면 "어느 것을 바꾸는가" 가 매번 표에서 확인해야 할 질문이 된다 — 이 절이 v1.40 에서 없애려던 바로 그 성질이다. `NERV_HTTP_PORT` 를 걷고 compose 가 `${NERV_WEB_PORT}:${NERV_WEB_PORT}` 로 안팎을 같은 포트로 낸다. ① 거부 모양은 REQ-CB-037 과 같다 — 새 이름이 비어 있을 때만 거부하고, 있으면 경고 한 줄이다. ② **거부가 실물이려면 compose 가 옛 이름을 api 에 넘겨야 한다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지 않으면 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다(`NERV_LOG_LEVEL` 이 겪은 그 침묵이다). §5.3 이 `NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}` 를 넘긴다. ③ **대가를 명시한다**: compose 를 거치지 않는 배치(맨 `docker run` · 다른 오케스트레이터)에서는 옛 이름이 여전히 조용히 무시된다 — REQ-CB-037 도 같은 한계를 갖고, 그래서 걷힌 이름 표가 그 사실을 적는다. ④ 엔트리는 `assertRetiredNames()` 하나를 부른다(문구는 이름마다 달라야 해서 판정은 각자 한다) — 걷힌 이름이 늘면 그 한 자리만 늘린다. ⑤ 게이트 ⑧ 의 기준을 `NERV_HTTP_PORT` → `NERV_WEB_PORT` 로 옮겼다.
+>
+> v1.42 변경(2026-09-14 — 손잡이가 있는데 아무 배치에서도 듣지 않았다, 사람 확정): **REQ-CB-038 신설 · `NERV_WEB_PORT` 신설 · 게이트가 세는 것 여섯 → 열.** v1.40·v1.41 이 깐 지도의 본체다. `NERV_API_PORT` 는 전표에 있고 코드가 읽는데 **어느 배치에서도 듣지 않았다** — compose 가 `"8080"` 을 박아 두었고 업스트림·헬스체크가 그 숫자를 따로 적었으며, 개발 루프에서는 `vite.config.ts` 의 프록시 대상이 박혀 있어 포트를 옮기면 API 만 옮겨 갔다. 앞문이 리슨하는 포트에는 **이름조차 없었다**(`listen 80` 리터럴). ① 세 포트가 자기 층의 모든 자리를 정한다 — compose 둘·이미지 둘·개발 루프·k8s 를 한 변수에서 조립하게 했고, `listen ${NERV_WEB_PORT}` 는 nginx 가 파일을 읽기 **전에** envsubst 가 갈아 두기 때문에 성립한다(nginx 자신은 `listen` 에서 변수를 못 읽는다 — 대가는 변수가 비면 `listen ;` 으로 기동 실패라는 것이고 이미지 `ENV` 기본값이 그 방어선이다). ② **Vite 는 `codebase/.env` 를 읽지 않는다** — `pnpm dev` 가 읽어 자식에게 넘기지 않으면 전표에 있는 손잡이가 개발 루프에서만 듣지 않는다. ③ **한 `.env` 가 두 위상을 섬기는 대가**가 드러났다: compose 값(`NERV_WEB_PORT=8080`)으로 `pnpm dev` 를 돌리면 Vite 가 api 와 같은 포트를 잡는다. 기본값을 경로별로 두고(compose `8080` · 개발 루프 `5173`) 런처가 충돌을 **먼저 거부한다** — `EADDRINUSE` 는 원인을 가리키지 않는다. ④ **k8s 는 포트를 설정에서 받을 수 없다**(`containerPort` 는 정적 필드다). ConfigMap 과 매니페스트를 함께 고치고, 어긋남은 게이트가 센다 — 갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다. ⑤ 게이트에 넷을 더했다(⑦ 리터럴이 손잡이를 무력화하는가 · ⑧ 공개 오리진 포트가 앞문 포트와 맞는가(`DEFAULT_ORIGIN` 포함) · ⑨ ConfigMap ↔ `containerPort` · ⑩ 이미지 `ENV` 기본값). **값을 대조하는 범위는 포트와 오리진뿐이다** — 스크립트가 "값이나 기본값은 대조하지 않는다" 고 선언해 둔 자리에 좁은 예외를 두고 그 이유를 같은 자리에 적었다. 매니페스트를 읽어야 하므로 `yaml` 을 devDependency 로 들였다. ⑥ §5.3·§5.4 의 "전문" 블록을 실물과 바이트로 다시 맞췄다. ※ 남은 것: `NERV_HTTP_PORT` 걷기(다음 커밋 · REQ-CB-039).
+>
+> v1.41 변경(2026-09-14 — 전표가 적은 소비자가 하나 적었고 구분자가 하나뿐이었다, 사람 지시): **새 요구사항 없음 — §5.2 두 행 · 신뢰 오리진 파서 · `.env.example` 에 `NERV_S3_REGION`.** 포트 손잡이 작업(v1.40 이 지도를 깐 그 일)의 **1단계**이고, 판정이 바뀌는 것은 신뢰 오리진 하나뿐이다. ① **`NERV_S3_REGION` 이 `.env.example` 에만 없었다** — 코드가 읽고(`storage.service.ts` 생성자) 전표에도 있는데 실물 전표에서 빠져 있어, MinIO 아닌 S3 를 쓰는 운영자는 그 손잡이의 존재를 알 길이 없었다. 곁들여 그 행의 **소비자가 `api` 만 적혀 있던 것을 `api · worker` 로 정정**했다: `StorageService` 는 `WorkerModule` → `SpecModule` 로 워커의 모듈 그래프에도 올라 생성자에서 같은 값을 읽는다. **게이트 ④ 는 이것을 잡지 못한다** — `api` 만 적혀 있어도 읽는 코드가 있으므로 통과한다(소비자가 *덜* 적힌 어긋남은 지금 아무도 세지 않는다). ② **`NERV_TRUSTED_ORIGINS` 의 구분자가 쉼표뿐이었다.** 다중 등록 자체는 처음부터 동작했지만, 오리진을 한 줄에 하나씩 적는 것이 k8s ConfigMap 의 여러 줄 문자열에서는 자연스러운 모양이고 그렇게 적은 배치에서는 **목록 전체가 한 덩어리의 못 쓰는 값**이 됐다. 쉼표·공백·줄바꿈을 다 받고, 값을 경로 없는 오리진으로 정규화하며, **스킴을 빠뜨린 값은 버린다** — `localhost:5173` 은 URL 로 파싱되지만 그 오리진은 불투명 오리진, 즉 문자열 `"null"` 이라 그대로 두면 `Origin: null` 을 싣는 요청이 통과한다. 스킴을 빠뜨린 오타 하나가 CSRF 방어선에 구멍을 내는 자리였다. 정규화도 버림도 **조용히 하지 않는다**: 사람은 자기가 적은 값이 목록에 없다는 사실을 알아야 한다. ③ `originOf` 를 가드 파일에서 `common/origins.ts` 로 옮겼다 — 두 곳이 **같은 함수로** 오리진을 읽어야 판정이 갈리지 않고, 반대 방향(파서가 가드를 import)은 고리가 된다. **가드의 판정은 한 건도 바뀌지 않았다**(불투명 오리진 거부는 새 파서에만 있다). ④ **목록의 구성은 그대로다** — `NERV_WEB_URL` 을 자동으로 더하지 않으며, L1 이 그 사실을 태운다([4.1](scope.md) §2.3 2단계의 몫이고, 앞당기면 1단계가 선언한 "동작은 한 줄도 바뀌지 않는다" 를 깬다). L1 스위트 여덟을 붙였다.
+>
+> v1.40 변경(2026-09-14 — 한 숫자를 세 뜻으로 읽고 있었다, 사람 지시): **새 요구사항 없음 — §5.2 전표의 주소·포트 넷을 층으로 가른다 · `.env.example` 을 구역 여덟으로 재편.** `NERV_WEB_URL`·`NERV_API_URL`·`NERV_API_PORT`·`NERV_HTTP_PORT` 가 **다 `8080`** 이었고, 전표는 그 넷이 왜 같은지도 무엇이 다른지도 적지 않았다 — `NERV_API_PORT`·`NERV_HTTP_PORT` 두 행의 **설명 칸이 비어 있었다.** 층은 셋이다: 앞문의 호스트 공개 포트 · API 프로세스의 리슨 포트 · 앞문을 가리키는 공개 오리진 둘. 적어 두자 실물 셋이 드러났다. ① **`NERV_API_PORT` 는 compose 에서 `.env` 를 읽지 않는다** — `api` 서비스에 `"8080"` 으로 박혀 있고 앞문·헬스체크도 그 포트를 본다. 즉 개발 루프 전용 손잡이인데 **거기서도 바꾸면 조용히 깨진다**(`vite.config.ts` 의 프록시 대상과 `origins.ts` 의 `DEFAULT_ORIGIN` 이 `localhost:8080` 으로 박혀 있어 API 만 옮겨 간다). ② 공개 주소 둘이 따라가는 것은 **`NERV_HTTP_PORT`** 이고 `NERV_API_PORT` 가 아니다 — 전표에 없던 결합이라 앞문 포트를 옮긴 운영자는 두 주소를 함께 옮길 이유를 알 수 없었다. ③ **개발 루프에서 두 주소는 이미 갈려 있다** — 화면이 Vite(`:5173`)·API 가 `:8080` 이므로 `NERV_WEB_URL` 은 `:5173` 이어야 하고, `:8080` 으로 둔 배치에서는 스펙 딥링크(E10-S04)가 **화면을 서빙하지 않는 API** 를 가리켜 404 다. `.env.example` 과 `origins.ts` 는 "개발 루프도 앞문 하나가 둘을 함께 서빙한다" 고 적고 있었는데, 같은 파일의 `NERV_TRUSTED_ORIGINS` 주석이 그 반대를 말하고 있었다(이름을 가른 REQ-CB-036 의 근거가 이미 실물로 있던 셈이다). 곁들여 `.env.example` 을 **구역 여덟**으로 재편했다 — 주소·포트 넷을 한 구역에 모으고, 소속이 어긋나 있던 셋을 옮겼다(`NERV_WORKER_TICK_MS` 가 임베딩 구역에 · `NERV_GITHUB_WEBHOOK_SECRET`·`NERV_EXPORT_DIR` 이 MinIO 구역에 있었다). **값은 한 줄도 바꾸지 않았다** — 바꾼 것은 구역과 설명이다.
 >
 > v1.39 변경(2026-09-13 — 한 이름이 두 뜻을 겸하고 있었다, 사람 결정): **REQ-CB-036·037 신설 · REQ-CB-013 개정.** `NERV_PUBLIC_URL` 하나가 **화면의 주소이자 API·플러그인 카탈로그의 주소**였고, 둘이 우연히 같은 오리진이라 맞고 있었을 뿐이다 — 이 저장소는 같은 부류로 이미 한 번 데었다(`NERV_S3_PUBLIC_ENDPOINT` 가 별도 호스트가 된 이유가 정확히 그것이다 · REQ-CB-034). 화면을 CDN 으로 내보내고 API 를 외부에 공개하기로 결정했으므로([4.1](scope.md) §2.3 — 2026-09-13 사람 확정), 호스트를 가르기 **전에** 이름을 가른다: `NERV_WEB_URL`(사람이 브라우저로 여는 주소) · `NERV_API_URL`(프로그램이 붙는 주소) **둘 다 신설**하고 옛 이름은 걷는다. **한쪽이 옛 이름을 물려받지 않는 이유**는 "어느 뜻을 물려받았는가" 가 소비자마다 다시 물어야 할 질문이 되기 때문이다. ① 여섯 소비자를 배정했다 — 겹쳐 있어 보이지 않던 자리가 하나 드러났다: **스펙 딥링크는 사람이 눌러 여는 주소**라 `NERV_WEB_URL` 이어야 하고, 지금까지 API 주소와 같은 값이어서 그 사실이 어디에도 적혀 있지 않았다. ② 옛 이름은 **조용히 사라지지 않는다**(REQ-CB-037) — 그것만 설정된 배치는 기동을 거부한다. 기본값으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 것을 `localhost:8080` 으로 서명된 쿠키를 받고서야 안다. `NERV_LOG_LEVEL` 이 겪은 유령 설정의 **반대 방향**이다. ③ 전표는 "설정할 수 있는 손잡이" 의 목록이라 걷힌 이름은 그 표의 것이 아니어서 §5.2 에 **걷힌 이름 표**를 따로 두고, `check-env-table.mjs` 가 세는 것을 넷 → **여섯**으로 늘렸다(걷힌 이름을 읽는 코드가 실재하는가 · 걷힌 이름이 `.env.example` 에 남지 않았는가 — 약속한 거부가 없으면 그것도 유령이다). ④ **두 값이 같은 오리진인 동안 동작은 한 줄도 바뀌지 않는다** — CORS·쿠키 도메인·런타임 설정 로더·실제 호스트 전환은 [4.1](scope.md) §2.3 의 2~4단계다. ⑤ 곁들여 **§5.3 compose 전문이 실물과 갈려 있었다** — `postgres` 서비스의 PGDATA 주석이 10줄에서 3줄로 줄어 있었다(v1.23 이 같은 블록을 실물 전량으로 교체한 뒤 생긴 드리프트다). 이 블록은 스스로 "전문" 이라 적으므로 다시 바이트로 맞췄다. ※ 남은 것: 그 2~4단계 전부(E14-S04 가 부분 — [4.8](backlog.md) §1.4).
 >
@@ -915,6 +925,20 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 
 `.env.example`이 이 표의 실물이다. 필수 3개 외에는 전부 기본값으로 동작한다.
 
+**주소와 포트가 같은 `8080` 인 것은 우연이다.** 층이 셋으로 다르고, 경로마다 듣는 것이 다르다. 한 숫자를 세 뜻으로 읽는 자리라 `.env.example` 도 이 다섯을 한 구역에 모아 둔다.
+
+- `NERV_WEB_PORT` — 앞문(nginx)이 **리슨하는** 포트이고, compose 는 **같은 포트로** 호스트에 내보낸다. 개발 루프에서는 Vite 가 그 포트에 뜬다.
+- `NERV_API_PORT` — API **프로세스**가 리슨하는 포트. 앞문의 업스트림과 헬스체크가 같은 값을 쓴다.
+- `NERV_WEB_URL` · `NERV_API_URL` — **앞문을 가리키는 공개 오리진 둘**이다. 그래서 `NERV_WEB_PORT` 를 바꾸면 이 둘의 포트도 함께 바꾼다 — `NERV_API_PORT` 를 따라가지 않는다. `check-env-table.mjs` 가 그 일치를 센다(⑧).
+
+**층이 하나 줄었다**(2026-09-14 · REQ-CB-039). 앞문에는 이름이 둘이었다 — 호스트에 내보내는 포트(`NERV_HTTP_PORT`)와 리슨하는 포트(`NERV_WEB_PORT`)다. 층이 실제로 다르긴 하지만, 컨테이너 안의 포트를 운영자가 따로 정할 이유가 없고 이름이 둘이면 "어느 것을 바꾸는가" 가 매번 표에서 확인해야 할 질문이 된다 — 이 절이 없애려던 바로 그 성질이다. 그래서 `NERV_HTTP_PORT` 를 **걷고** compose 가 `${NERV_WEB_PORT}:${NERV_WEB_PORT}` 로 내보낸다. 다른 포트로 내보내려는 배치는 그 값을 바꾸면 안팎이 함께 옮겨 간다.
+
+**두 리슨 포트가 자기 층의 모든 자리를 정한다**(2026-09-14 · REQ-CB-038). 그 전에는 `NERV_API_PORT` 가 전표에 있고 코드가 읽는데도 **아무 배치에서도 듣지 않았다** — compose 가 `"8080"` 을 박아 두었고 업스트림·헬스체크도 그 숫자를 따로 적었으며, 개발 루프에서는 `vite.config.ts` 의 프록시 대상이 박혀 있어 포트를 옮기면 API 만 옮겨 갔다. 이제 compose·이미지·개발 루프가 한 변수에서 조립하고, 리터럴이 되돌아오면 게이트가 잡는다(⑦). **k8s 는 예외다** — `containerPort` 는 정적 필드라 ConfigMap 값을 참조할 수 없어 두 곳을 함께 고쳐야 하고, 어긋남은 게이트가 센다(⑨).
+
+**개발 루프에서는 그 둘이 실제로 갈린다.** 화면은 Vite(`:5173`)에 뜨고 API 는 `:8080` 이라 `NERV_WEB_URL` 은 `http://localhost:5173` 이어야 한다 — `:8080` 으로 두면 에이전트가 붙여 주는 스펙 딥링크(E10-S04)가 **화면을 서빙하지 않는 API** 를 가리켜 404 다(SPA 는 앞문의 몫이고 api 는 정적 자산을 서빙하지 않는다). 이름을 가른 이유(REQ-CB-036)가 이미 실물로 드러나 있는 자리인데, 아래 표의 기본값 열은 compose 경로의 값이라 그 사실이 어디에도 적혀 있지 않았다. `NERV_API_URL` 은 개발 루프에서도 `:8080`(API 프로세스) 그대로이고, 오리진이 갈리는 몫은 `NERV_TRUSTED_ORIGINS` 가 받는다.
+
+**한 `.env` 가 두 위상을 섬기는 대가가 `NERV_WEB_PORT` 에 있다.** compose 에서 맞는 값(`8080`)이 든 `.env` 로 `pnpm dev` 를 돌리면 Vite 가 api 와 **같은 포트를 잡는다** — `NERV_WEB_URL` 때는 틀린 딥링크로 끝났지만 이번엔 기동이 깨진다. 그래서 기본값을 경로별로 두고(compose `8080` · 개발 루프 `5173`), `pnpm dev` 가 두 포트가 같으면 **먼저 멈추고 이유를 말한다**. 그냥 띄우면 사람이 받는 것은 원인을 가리키지 않는 `EADDRINUSE` 이거나 반쪽만 살아 있는 루프다.
+
 | 변수 | 필수 | 기본값(개발) | 소비자 | 설명 |
 | --- | --- | --- | --- | --- |
 | `POSTGRES_USER` | | `nerv` | compose `postgres` · `DATABASE_URL` 조립 | |
@@ -922,11 +946,12 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `POSTGRES_DB` | | `nerv` | compose `postgres` | |
 | `POSTGRES_PORT` | | `5432` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 DB 접근 |
 | `DATABASE_URL` | dev 루프 시 | `postgres://nerv:<pw>@localhost:5432/nerv` | api · worker · migrate · drizzle-kit | compose 내부에서는 `postgres` 호스트로 자동 조립 |
-| `NERV_API_PORT` | | `8080` | api | |
-| `NERV_WEB_URL` | | `http://localhost:8080` | api(스펙 딥링크의 절대 URL · `/mcp` Origin 대조 대상 둘 중 하나) · web 컨테이너(nginx 의 `/mcp` Origin 1차 검증 — `NERV_PUBLIC_ORIGIN` 으로 받는다) | **사람이 브라우저로 여는 주소.** 경로 없는 오리진만 |
-| `NERV_API_URL` | | `http://localhost:8080` | api(better-auth `baseURL`·`trustedOrigins` 기준 · **플러그인 카탈로그의 주소** [4.4](api.md) §2.11 · `/api/auth/*` 요청 절대화 기준 · `/mcp` Origin 대조 대상 둘 중 하나) | **프로그램이 붙는 주소.** 경로 없는 오리진만 |
+| `NERV_API_PORT` | | `8080` | api · compose · 이미지 · k8s ConfigMap | API **프로세스**가 리슨하는 포트. 앞문의 업스트림(`NERV_API_UPSTREAM`)과 헬스체크가 **같은 변수에서 조립된다** — 세 자리가 숫자를 따로 적던 자리이고, 리터럴이 되돌아오면 게이트 ⑦ 이 잡는다. k8s 는 `containerPort` 와 함께 고친다(게이트 ⑨) |
+| `NERV_WEB_PORT` | | `8080`(개발 루프 `5173`) | compose `web` · 이미지 `ENV` · web(Vite dev 서버) · k8s ConfigMap | 앞문(nginx)이 **리슨하는** 포트이고 compose 는 **같은 포트로** 호스트에 내보낸다. 개발 루프에서는 Vite 가 그 포트에 뜬다. **공개 주소 둘이 가리키는 곳이 여기다**(게이트 ⑧). nginx 템플릿의 `listen` 이 envsubst 로 이 값을 받으므로 **비면 앞문이 기동에 실패한다**(이미지 `ENV` 기본값이 그 방어선이고 게이트 ⑩ 이 전표와 대조한다). 개발 루프의 기본값만 `5173` 인 이유는 위 문단이 적는다 |
+| `NERV_WEB_URL` | | `http://localhost:8080` | api(스펙 딥링크의 절대 URL · `/mcp` Origin 대조 대상 둘 중 하나) · web 컨테이너(nginx 의 `/mcp` Origin 1차 검증 — `NERV_PUBLIC_ORIGIN` 으로 받는다) | **사람이 브라우저로 여는 주소.** 경로 없는 오리진만. 기본값은 compose 경로의 값이다 — **개발 루프에서는 `http://localhost:5173`** 이다(화면이 Vite 에 뜬다 · 위 문단) |
+| `NERV_API_URL` | | `http://localhost:8080` | api(better-auth `baseURL`·`trustedOrigins` 기준 · **플러그인 카탈로그의 주소** [4.4](api.md) §2.11 · `/api/auth/*` 요청 절대화 기준 · `/mcp` Origin 대조 대상 둘 중 하나) | **프로그램이 붙는 주소.** 경로 없는 오리진만. compose 에서는 앞문(`NERV_HTTP_PORT`)을 가리키고, 개발 루프에서는 API 프로세스(`NERV_API_PORT`)를 그대로 가리킨다 |
 | `NERV_PLUGIN_DIST` | | (실행 파일 기준 `plugin-dist/`) | api(플러그인 아카이브를 읽는 자리) | 이미지가 `ENV` 로 준다 — 경로를 실행 위치로 추측하지 않는다 |
-| `NERV_TRUSTED_ORIGINS` | | (비움) | api(better-auth) | baseURL 밖에서 화면을 띄울 때만 추가(쉼표 구분) — CSRF 방어선이라 기본은 비운다. 개발 루프는 화면이 Vite(:5173)·API 가 :8080 이라 오리진이 달라 `http://localhost:5173` 이 필요하다. compose 는 둘이 같아 불요 |
+| `NERV_TRUSTED_ORIGINS` | | (비움) | api(better-auth) | baseURL 밖에서 화면을 띄울 때만 추가(쉼표 구분) — CSRF 방어선이라 기본은 비운다. 개발 루프는 화면이 Vite(:5173)·API 가 :8080 이라 오리진이 달라 `http://localhost:5173` 이 필요하다. compose 는 둘이 같아 불요. 구분자는 **쉼표·공백·줄바꿈** 셋 다다(2026-09-14 — 쉼표뿐이라 오리진을 한 줄에 하나씩 적은 배치에서는 목록 전체가 한 덩어리의 못 쓰는 값이 됐다. k8s ConfigMap 의 여러 줄 문자열이 그 모양이다). 값은 **경로 없는 오리진으로 정규화**되고, **스킴을 빠뜨린 값은 버려진다** — `localhost:5173` 은 URL 로 파싱되지만 그 오리진은 불투명 오리진, 즉 문자열 `"null"` 이라 그대로 목록에 넣으면 `Origin: null` 을 싣는 요청(샌드박스 iframe · 일부 리다이렉트)이 통과한다. 정규화한 사실도 버린 사실도 **기동 로그가 한 줄로 말한다** — 모르면 열어 둔 줄 아는 오리진이 실은 없는 것이 된다. 읽는 것은 `common/origins.ts` 의 `trustedOriginsFromEnv` 이고 `/mcp` 가드와 **같은 함수로** 오리진을 읽는다. 목록의 **구성은 그대로다** — `NERV_WEB_URL` 을 자동으로 더하지 않는다([4.1](scope.md) §2.3 2단계의 몫) |
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
 | `VALKEY_PORT` | | `6379` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 Valkey 접근 |
 | `NERV_VALKEY_URL` | dev 루프 시 | `redis://localhost:6379` | api · worker | 실시간 방송 MQ(§2.1). compose 내부에서는 `redis://valkey:6379`로 자동 조립(Valkey는 RESP 프로토콜 — `redis://` 스킴) |
@@ -949,12 +974,11 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_SEED_PASSWORD` | | `nerv-dev-1234` | seed | 개발 시드 사용자의 비밀번호(§5.1 `db:seed`) — `.env.example` 에는 없다 |
 | `NERV_SHOT_DIR` · `NERV_SHOT_SCHEME` | | — | web(E2E) | 브라우저 스크린샷 산출 위치·스킴. 코드가 읽는데 전표에도 `.env.example` 에도 없던 자리다(2026-09-06 보완) |
 | `NERV_S3_PUBLIC_ENDPOINT` | | (없으면 `NERV_S3_ENDPOINT`) | api | 에이전트가 받는 presigned PUT 주소의 호스트. 내부 주소로 서명하면 개발자 장비에서 해소되지 않아 **에이전트 업로드가 모든 배치에서 불통**이었다. **경로 접두는 안 된다**(REQ-CB-034) — presigned 서명이 경로를 포함하므로 `https://…/s3` 는 앞문이 접두를 벗기면 `SignatureDoesNotMatch` 이고 벗기지 않으면 MinIO 가 그 아래에서 S3 API 를 서빙하지 않는다. **별도 호스트**(`https://s3.<도메인>`)를 적는다. 경로가 있으면 기동 로그가 그 사실을 말한다 |
-| `NERV_S3_REGION` | | `us-east-1` | api | S3 호환 서명용 |
+| `NERV_S3_REGION` | | `us-east-1` | api · worker | S3 호환 서명용. MinIO 는 아무 값이나 받지만 **실제 S3·R2·GCS 호환은 이 값으로 서명을 검증**하므로 틀리면 `SignatureDoesNotMatch` 다. 소비자를 `api` 만 적고 있었는데 `StorageService` 는 워커의 모듈 그래프(`WorkerModule` → `SpecModule`)에도 올라 **생성자에서 이 값을 읽는다**(2026-09-14 정정 — 게이트 ④ 는 `api` 만 적혀 있어도 통과하므로 이 종류의 어긋남은 아무도 세지 않는다) |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
 | `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다 |
 | `NERV_S3_BUCKET` | | `nerv-blobs` | api · worker | api가 기동 시 없으면 생성한다(2026-09-02 — 전표는 그렇게 적었는데 코드가 없었다) |
 | `NERV_S3_FORCE_PATH_STYLE` | | `true` | api · worker | minio 호환 |
-| `NERV_HTTP_PORT` | | `8080` | compose `web` 공개 포트 | |
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |
 | `NERV_SSE_KEEPALIVE_MS` | | `25000` | api(`sse.controller.ts`) | SSE keep-alive 주기(§3.5 · REQ-CB-035). **앞문의 유휴 타임아웃이 이 값보다 짧으면 스트림이 조용히 끊긴다** — 그때 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다(`NERV_LOG_LEVEL` 과 같은 이유로 상수에서 꺼냈다). 값이 없거나 양수가 아니면 기본값이다. L2 가 이 값을 낮춰 keep-alive 형식(`event: ping` · `data: {}`)을 실제로 태운다 |
 | `NERV_LOG_LEVEL` | | `log`(=`info`) | api · worker | 두 진입점이 `common/log-level.ts` 한 함수로 읽는다(2026-09-06 배선). 고른 수준과 **그보다 심각한 것**을 켠다 — `verbose` · `debug` · `log` · `warn` · `error` · `fatal`. `info`·`warning`·`trace`·`critical` 은 별칭으로 받는다(compose·k8s 가 이미 `info` 를 넘긴다). 모르는 값은 기본으로 떨어지되 **한 줄 남긴다** — 오타로 로그가 꺼지면 그 사실을 알려 줄 로그도 없다 |
@@ -968,6 +992,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | 걷힌 이름 | 걷은 날 | 대신 쓰는 것 | 만나면 |
 | --- | --- | --- | --- |
 | `NERV_PUBLIC_URL` | 2026-09-13 | `NERV_WEB_URL` · `NERV_API_URL` (위 전표) | 새 둘이 다 비어 있으면 api·worker 가 **기동을 거부한다** — 두 이름에 무엇을 넣으라는 문구와 함께. 하나라도 새 이름이 있으면 뜨되 "읽지 않는 값" 이라고 한 줄 남긴다(REQ-CB-037) |
+| `NERV_HTTP_PORT` | 2026-09-14 | `NERV_WEB_PORT` (위 전표) | 앞문을 호스트에 내보내는 포트와 리슨하는 포트를 겸하고 있었고, 한 이름으로 합쳐졌다 — compose 는 안팎을 같은 포트로 낸다. `NERV_WEB_PORT` 가 비어 있으면 **기동을 거부한다**(REQ-CB-039). **거부가 실물이려면 compose 가 이 이름을 api 에 넘겨야 한다** — compose 는 모르는 변수를 조용히 무시하므로 §5.3 이 `NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}` 를 넘긴다. 대가는 명시한다: compose 를 거치지 않는 배치(맨 `docker run`·다른 오케스트레이터)에서는 옛 이름이 여전히 조용히 무시된다 |
 
 **왜 이름을 물려주지 않았는가.** 한 이름이 화면의 주소와 API 의 주소를 겸하고 있었고, 둘이 우연히 같은 오리진이라 맞고 있었을 뿐이다. 한쪽이 옛 이름을 물려받으면 "어느 뜻을 물려받았는가" 가 소비자마다 다시 물어야 할 질문이 된다. 둘 다 새 이름이면 그 질문이 없다 — 대가는 **기존 배치가 전부 깨진다**는 것이고, 위 거부가 그 대가를 침묵이 아니라 문구로 바꾼다. 결정 기록은 [4.1 MVP 범위와 스택 확정](scope.md) §2.3.
 
@@ -1056,6 +1081,8 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-035** | WHILE SSE 스트림이 열려 있는 동안 THE SYSTEM SHALL keep-alive 를 **`event: ping` · `data: {}` 메시지**로 보내고(코멘트 라인 `: ping` 이 아니다 — rxjs 로 흘리므로 Nest 가 메시지로 낸다), 그 주기를 `NERV_SSE_KEEPALIVE_MS` 로 바꿀 수 있게 한다 — 앞문의 유휴 타임아웃이 더 짧은 배치에서 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 | **REQ-CB-036** | WHEN 서버가 자기 주소를 필요로 하면 THE SYSTEM SHALL **사람이 브라우저로 여는 주소는 `NERV_WEB_URL`, 프로그램이 붙는 주소는 `NERV_API_URL`** 에서 읽고 한 이름이 두 뜻을 겸하지 않는다 — 스펙 딥링크는 `NERV_WEB_URL`, better-auth `baseURL`·`trustedOrigins` 기준과 플러그인 카탈로그의 주소와 `/api/auth/*` 요청 절대화 기준은 `NERV_API_URL`, `/mcp` Origin 대조는 **둘 다**(REQ-CB-013). WHILE 두 값이 같은 오리진인 동안 THE SYSTEM SHALL 갈랐을 때와 **같은 응답**을 낸다 — 이름을 가르는 것과 호스트를 가르는 것은 다른 변경이다 |
+| **REQ-CB-039** | WHEN 걷힌 이름 `NERV_HTTP_PORT` 가 설정돼 있고 `NERV_WEB_PORT` 가 비어 있으면 THE SYSTEM SHALL api·worker 의 기동을 거부하고 새 이름에 무엇을 넣어야 하는지를 문구로 말한다. WHERE 새 이름이 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다. WHILE 그 거부가 실물이려면 compose 가 옛 이름을 api 에 넘겨야 하므로 THE SYSTEM SHALL §5.3 에서 그 이름을 전달한다 — compose 는 모르는 변수를 **조용히 무시**하므로 넘기지 않으면 약속한 거부가 유령이다 | 옛 이름만 있는 env 로 `assertHttpPortRetired()` 가 던지고 문구에 `NERV_WEB_PORT=<값>` 이 실린다 · 새 이름이 있으면 던지지 않고 경고 한 줄 · `check-env-table.mjs` 가 걷힌 이름을 읽는 코드의 실재(⑤)와 `.env.example` 부재(⑥)를 센다 |
+| **REQ-CB-038** | WHEN 배포 산출물(compose · 이미지 · k8s)이 api·web 의 리슨 포트를 정할 때 THE SYSTEM SHALL 그 값을 `NERV_API_PORT`·`NERV_WEB_PORT` 에서 조립하고, 같은 포트를 가리키는 모든 자리(업스트림 · 헬스체크 · publish · `containerPort`)가 한 변수에서 나오게 한다. WHERE 정적 매니페스트가 변수를 받을 수 없으면(k8s 의 `containerPort`) THE SYSTEM SHALL ConfigMap 의 값과 매니페스트의 포트가 어긋날 때 CI 를 실패시킨다 — 갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다. WHILE 개발 루프에서는 화면과 API 가 다른 포트에 떠야 하므로, THE SYSTEM SHALL 두 포트가 같으면 `pnpm dev` 가 기동을 거부하고 이유를 말한다 | `.env` 의 포트를 바꾼 compose 스택이 그 포트로 서고 헬스체크가 통과한다 · `pnpm dev` 가 바뀐 포트로 Vite·api 를 띄우고 같은 포트면 비영 종료한다 · 배포 산출물에 포트 리터럴을 되돌린 트리와 ConfigMap↔매니페스트를 어긋나게 만든 트리에서 `check-env-table.mjs` 가 실패한다 |
 | **REQ-CB-037** | WHEN 걷힌 이름 `NERV_PUBLIC_URL` 이 설정돼 있고 `NERV_WEB_URL`·`NERV_API_URL` 이 **둘 다 비어 있으면** THE SYSTEM SHALL api·worker 의 기동을 거부하고(비영 종료) 두 이름에 무엇을 넣어야 하는지를 문구로 말한다 — 기본값(`http://localhost:8080`)으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 사실을 **그 주소로 서명된 쿠키를 받고서야** 안다. WHERE 새 이름이 하나라도 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다 | 옛 이름만 있는 env 로 `assertPublicUrlRetired()` 가 던지고 문구에 두 이름과 넣을 값이 실린다 · 새 이름이 하나라도 있으면 던지지 않고 경고 한 줄 |
 
 ---
@@ -1195,7 +1222,10 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NERV_API_PORT: "8080"
+      NERV_API_PORT: ${NERV_API_PORT:-8080}
+      # 걷힌 이름을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지 않으면
+      # 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다(REQ-CB-039).
+      NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}
       # 우리 주소는 둘이다(§5.2 · REQ-CB-036) — 앞문 하나가 화면과 API 를 함께 서빙하므로
       # compose 에서는 같은 값이다. 옛 이름(NERV_PUBLIC_URL)만 있으면 api 가 기동을 거부한다.
       NERV_WEB_URL: ${NERV_WEB_URL:-http://localhost:8080}
@@ -1226,7 +1256,13 @@ services:
       valkey:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:${NERV_API_PORT:-8080}/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -1272,12 +1308,15 @@ services:
       dockerfile: deploy/docker/Dockerfile.web
     restart: unless-stopped
     environment:
-      NERV_API_UPSTREAM: api:8080
+      NERV_API_UPSTREAM: api:${NERV_API_PORT:-8080}
       # 앞문이 자기 오리진으로 /mcp Origin 을 1차 검증한다 — 브라우저가 싣는 Origin 은
       # 화면이 뜬 주소이므로 NERV_WEB_URL 이다. 최종 강제는 앱 가드이고 그쪽은 둘 다 허용한다.
       NERV_PUBLIC_ORIGIN: ${NERV_WEB_URL:-http://localhost:8080}
+      # 앞문이 리슨하는 포트 — 템플릿의 `listen` 이 이 값으로 치환된다(REQ-CB-038)
+      NERV_WEB_PORT: ${NERV_WEB_PORT:-8080}
     ports:
-      - "${NERV_HTTP_PORT:-8080}:80"   # TLS 는 호스트 앞단(조직 LB·프록시)에서 종료
+      # 컨테이너 안팎이 같은 포트다 — 층이 하나 줄었다(걷힌 이름 NERV_HTTP_PORT · REQ-CB-039).
+      - "${NERV_WEB_PORT:-8080}:${NERV_WEB_PORT:-8080}"   # TLS 는 호스트 앞단(조직 LB·프록시)에서 종료
     depends_on:
       - api
 
@@ -1298,8 +1337,13 @@ nginx 공식 이미지의 envsubst 템플릿 기능을 쓴다 — 기동 시 `${
 # 정본: docs/04-mvp/codebase.md §5.4
 #
 # nginx 공식 이미지의 envsubst 템플릿 기능을 쓴다 — 기동 시 ${NERV_API_UPSTREAM}·
-# ${NERV_PUBLIC_ORIGIN} 이 치환된 뒤 로드되므로, compose(api:8080)와 k8s(nerv-api:8080)가
+# ${NERV_PUBLIC_ORIGIN}·${NERV_WEB_PORT} 가 치환된 뒤 로드되므로, compose 와 k8s 가
 # 같은 이미지를 쓴다.
+#
+# **`listen` 에 변수를 쓸 수 있는 이유가 그 치환이다.** nginx 자신은 `listen` 에서 변수를
+# 해석하지 못하지만, envsubst 는 nginx 가 파일을 읽기 **전에** 텍스트를 갈아 둔다. 대가는
+# 변수가 비면 `listen ;` 이 되어 앞문이 기동에 실패한다는 것이고, 그 방어선은 이미지의
+# `ENV NERV_WEB_PORT` 기본값이다(Dockerfile.web · 전표 §5.2).
 map $http_upgrade $connection_upgrade {
   default upgrade;
   ""      close;
@@ -1320,7 +1364,7 @@ map $http_origin $nerv_mcp_origin_ok {
 resolver 127.0.0.11 ipv6=off valid=10s;
 
 server {
-  listen 80;
+  listen ${NERV_WEB_PORT};
   server_name _;
   root /usr/share/nginx/html;
 
@@ -1492,6 +1536,8 @@ ENV NERV_PLUGIN_DIST=/app/plugin-dist
 
 # → nerv-api  (migrate.js 도 이 이미지에 포함)
 FROM runtime AS api
+# 문서용 선언이다 — 실제 리슨 포트는 NERV_API_PORT 가 정한다(전표 §5.2). 값이 어긋나도
+# 동작은 바뀌지 않으므로 조용히 낡을 수 있는 자리다.
 EXPOSE 8080
 CMD ["node", "dist/main.js"]
 
@@ -1504,6 +1550,8 @@ CMD ["node", "dist/worker.js"]
 
 ```dockerfile
 # deploy/docker/Dockerfile.web — nerv-web
+# 정본: docs/04-mvp/codebase.md §6.1
+#
 # 빌드 컨텍스트는 저장소 루트 — 소스는 codebase/, nginx 템플릿은 deploy/docker/nginx/ 다.
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
@@ -1522,8 +1570,12 @@ RUN pnpm install --frozen-lockfile --offline \
 FROM nginx:1.27-alpine
 COPY deploy/docker/nginx/default.conf.template /etc/nginx/templates/
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-ENV NERV_API_UPSTREAM=api:8080 \
+# 셋 다 템플릿이 치환하는 값이다(nginx/default.conf.template). NERV_WEB_PORT 의 기본값은
+# **비워 둘 수 없다** — 비면 `listen ;` 으로 앞문이 기동에 실패한다.
+ENV NERV_WEB_PORT=8080 \
+    NERV_API_UPSTREAM=api:8080 \
     NERV_PUBLIC_ORIGIN=http://localhost:8080
+EXPOSE 8080
 ```
 
 ### 6.2 kustomize 트리

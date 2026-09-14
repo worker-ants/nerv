@@ -18,10 +18,13 @@
 //   - API 는 dist 가 **생긴 뒤에** 떠야 한다. 빈 체크아웃에서 순서가 없으면 첫 실행이 실패한다.
 //
 // compose 스택과 달리 여기서는 env 를 넣어 주는 오케스트레이터가 없다 —
-// `.env` 를 읽는 책임이 프로세스 자신에게 있다.
+// `.env` 를 읽는 책임이 프로세스 자신에게 있다. 노드 엔트리는 `--env-file-if-exists` 로
+// 스스로 읽지만 **Vite 는 `codebase/.env` 를 읽지 않는다**(자기 앱 폴더의 `VITE_*` 만 본다).
+// 그래서 이 런처가 `.env` 를 읽어 자식에게 넘긴다 — 넘기지 않으면 `NERV_WEB_PORT`·
+// `NERV_API_PORT` 가 전표에 있는데 개발 루프에서만 듣지 않는 손잡이가 된다(REQ-CB-038).
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -67,6 +70,47 @@ if (NEEDS_BUILD && !existsSync(ENV_FILE)) {
   process.stderr.write(
     `.env 가 없습니다: ${ENV_FILE}\n` +
       '  cp .env.example .env  후 필수 3개(POSTGRES_PASSWORD · MINIO_ROOT_PASSWORD · NERV_AUTH_SECRET)를 채우세요.\n' +
+      '  전표 정본: docs/04-mvp/codebase.md §5.2\n',
+  );
+  process.exit(1);
+}
+
+/**
+ * `.env` 를 읽어 **비어 있는 자리에만** 얹는다 — 셸에 이미 있는 값이 이긴다.
+ * `node --env-file-if-exists` 와 같은 우선순위여서 자식 둘이 같은 값을 본다.
+ */
+function loadEnvFile() {
+  if (!existsSync(ENV_FILE)) return;
+  for (const line of readFileSync(ENV_FILE, 'utf8').split('\n')) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (m === null) continue;
+    if (process.env[m[1]] !== undefined) continue;
+    process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
+  }
+}
+loadEnvFile();
+
+/** 양의 정수만 받는다 — compose 의 `${VAR:-}` 가 빈 문자열을 넘기는 자리가 있다. */
+function port(name, fallback) {
+  const raw = (process.env[name] ?? '').trim();
+  const value = Number(raw);
+  return raw === '' || !Number.isInteger(value) || value <= 0 ? fallback : value;
+}
+
+// 개발 루프의 기본값이다 — compose 경로는 둘 다 8080 이고, 그 값을 그대로 쓰면 아래가 막는다.
+const WEB_PORT = port('NERV_WEB_PORT', 5173);
+const API_PORT = port('NERV_API_PORT', 8080);
+
+// **같은 포트면 먼저 멈춘다.** `.env` 하나가 compose 와 개발 루프를 함께 섬기므로, compose
+// 값(NERV_WEB_PORT=8080)이 든 `.env` 로 `pnpm dev` 를 돌리면 Vite 가 api 와 부딪힌다.
+// 그냥 띄우면 사람이 받는 것은 원인을 가리키지 않는 EADDRINUSE 이거나, 먼저 뜬 쪽만
+// 살아 있는 반쪽 루프다(이 파일이 막으려는 바로 그 상태다 — 위 ④).
+if (ONLY.has('api') && ONLY.has('web') && WEB_PORT === API_PORT) {
+  process.stderr.write(
+    `화면과 API 가 같은 포트(:${WEB_PORT})를 잡으려 합니다 — 개발 루프에서는 둘이 달라야 합니다.\n` +
+      `  NERV_WEB_PORT=${WEB_PORT} · NERV_API_PORT=${API_PORT}\n` +
+      '  .env 의 NERV_WEB_PORT 를 개발 루프 값(5173)으로 두거나 지우세요.\n' +
+      '  compose 경로의 값(둘 다 8080)은 앞문이 화면과 API 를 함께 서빙하기 때문입니다.\n' +
       '  전표 정본: docs/04-mvp/codebase.md §5.2\n',
   );
   process.exit(1);
@@ -149,4 +193,10 @@ if (NEEDS_BUILD) {
   }
 }
 
-process.stdout.write(`[dev] 띄웁니다: ${[...ONLY].join(' · ')}\n`);
+// 실제로 잡은 포트를 적는다 — 손잡이가 듣는지를 사람이 로그 한 줄로 확인할 수 있어야 한다.
+const where = [
+  ONLY.has('web') ? `web :${WEB_PORT}` : null,
+  ONLY.has('api') ? `api :${API_PORT}` : null,
+  ONLY.has('worker') ? 'worker' : null,
+].filter((part) => part !== null);
+process.stdout.write(`[dev] 띄웁니다: ${where.join(' · ')}\n`);
