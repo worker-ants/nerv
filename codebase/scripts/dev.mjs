@@ -173,8 +173,24 @@ if (NEEDS_BUILD) {
 // ③ 웹은 빌드를 기다릴 이유가 없다 — Vite 가 소스를 직접 읽는다.
 //    `.bin` 항목은 JS 가 아니라 **셔뱅 달린 셸 shim** 이라 node 로 열면 안 된다(실측:
 //    `SyntaxError: missing ) after argument list`) — 실행 파일로 그대로 띄운다.
+//
+//    **shim 은 `apps/web` 의 것을 쓴다**(2026-09-14 정정). `vite` 는 `apps/web` 의 의존이고
+//    이 저장소에는 호이스팅 설정이 없으므로 pnpm 은 **루트 `.bin` 에 `vite` 를 만들지 않는다** —
+//    전에 여기 있던 루트 경로는 옛 레이아웃이 남긴 고아 파일을 가리키고 있었고, `pnpm install`
+//    은 그 파일을 관리하지도 지우지도 않는다. 그래서 두 가지가 조용히 성립했다: 새로 클론한
+//    장비에서는 처음부터 없고, 있던 장비에서도 **store 의 peer 해시가 바뀌는 순간 죽는다**
+//    (루트 devDependency 를 하나 더한 날 `vite@8.2.2_…_tsx@4.23.12` → `…_yaml@2.9.1` 로 바뀌어
+//    낡은 shim 이 없는 경로를 열었다 — `Cannot find module …/vite/bin/vite.js`).
 if (ONLY.has('web')) {
-  run('[web]  ', join(ROOT, 'node_modules/.bin/vite'), [], { cwd: join(ROOT, 'apps/web') });
+  const vite = join(ROOT, 'apps/web/node_modules/.bin/vite');
+  if (!existsSync(vite)) {
+    // 없는 것과 깨진 것은 다른 문제다 — 그 둘의 메시지가 같으면 사람이 원인을 못 읽는다.
+    process.stderr.write(
+      `Vite 실행 파일이 없습니다: ${vite}\n  codebase/ 에서 pnpm install 을 먼저 돌리세요.\n`,
+    );
+    shutdown(1);
+  }
+  run('[web]  ', vite, [], { cwd: join(ROOT, 'apps/web') });
 }
 
 if (NEEDS_BUILD) {
