@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.46 · 2026-09-14 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.47 · 2026-09-14 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.47 변경(2026-09-14 — `main` 은 보호된 브랜치다, 사람 확정): **새 요구사항 없음 — §4.4 의 빈틈 하나와 브랜치 정리 한 줄.** §4.4 는 오래 "`main` 직접 push 금지, PR 필수" 라고만 적었다 — **직접 커밋은 막지 않았다.** 그 빈틈이 실제로 사고를 냈다: 문서 커밋을 로컬 `main` 에 하고 push 하지 않은 채 브랜치를 따서 **다음 PR 이 그 커밋을 함께 싣고** 올라갔고(squash 뒤 로컬 `main` 만 갈라져 남았다), [AGENTS.md](../../AGENTS.md) 쪽은 그보다 느슨해 "문서 커밋은 `main` 직접 커밋을 허용한다" 고 적고 있었다 — **정본보다 규약이 느슨한 상태**였다. 둘을 "직접 커밋도 push 도 하지 않는다" 로 맞추고, 문서 변경도 예외가 아님을 명시했다. 곁들여 **머지 뒤 브랜치를 지운다**를 적었다: squash 머지라 `git branch -d` 가 "not fully merged" 로 거부하므로 내용으로 확인하고 `-D` 로 지운다는 절차까지 — 그 거부를 만난 사람이 매번 다시 판단하지 않게.
 >
 > v1.46 변경(2026-09-14 — `pnpm dev` 가 새 장비에서 뜨지 않았다, 사람 보고): **새 요구사항 없음 — §5.1 런처가 하는 일 넷 → 다섯.** 런처가 Vite 를 **루트 `node_modules/.bin/vite`** 로 띄웠는데, `vite` 는 `apps/web` 의 의존이고 이 저장소에는 호이스팅 설정이 없어서 **pnpm 은 그 자리에 shim 을 만들지 않는다.** 옛 레이아웃이 남긴 고아 파일이 있어서 돌았을 뿐이고, `pnpm install` 은 그것을 관리하지도 지우지도 않는다 — 그래서 **새로 클론한 장비에는 처음부터 없었고**, 있던 장비에서도 store 의 peer 해시가 바뀌는 순간 죽었다. 루트 devDependency 를 하나 더한 날(`yaml` · v1.42) 해시가 `…_tsx@4.23.12` → `…_yaml@2.9.1` 로 바뀌어 낡은 shim 이 없는 경로를 열었고, 사람이 받은 것은 `Cannot find module …/vite/bin/vite.js` 였다. `apps/web` 의 shim 을 쓰고, 없으면 **먼저 멈추고 `pnpm install` 을 안내한다** — 없는 것과 깨진 것의 메시지가 같으면 원인을 읽을 자리가 없다(런처가 존재하는 그 이유다). 곁들여 ① 에 "파일을 대신 만들지는 않는다"(규약 8)를 이었다.
 >
@@ -727,7 +729,8 @@ L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시
 ### 4.4 커밋·브랜치
 
 - 커밋: Conventional Commits — `feat|fix|docs|refactor|test|chore(scope)` , scope는 워크스페이스 이름(`api`·`web`·`schema`·`deploy`). 현행 저장소 관례(`docs: …`)와 연속.
-- 브랜치: `feat/…`·`fix/…`·`docs/…`. `main` 직접 push 금지, PR 필수.
+- 브랜치: `feat/…`·`fix/…`·`docs/…`. **`main` 은 보호된 브랜치다** — 직접 **커밋도 push 도** 하지 않고 PR 로만 들어간다(2026-09-14 사람 확정 · 문서 변경도 예외가 아니다). push 만 막고 직접 커밋을 두면 미push 커밋이 남은 채로 다음 브랜치를 따게 되고, **그 PR 이 남의 커밋을 함께 싣는다**(실측).
+- 브랜치는 **머지된 뒤 지운다**(원격·로컬 양쪽). squash 머지라 `git branch -d` 는 "not fully merged" 로 거부하므로 내용으로 확인하고(`git diff <브랜치> main` 이 비었는가) `-D` 로 지운다.
 - PR 본문에 관련 Task ID(`TSK-…`)와 스펙 고정 ID(`SPC-…`·`REQ-…`)를 남긴다 — NERV 가동 후 evidence 연결의 원료다(FR-13).
 
 ---
