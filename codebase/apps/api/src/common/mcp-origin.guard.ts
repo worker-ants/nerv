@@ -13,17 +13,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from './nerv-exception.filter.js';
-import { NERV_API_URL, NERV_WEB_URL, apiUrlFromEnv, webUrlFromEnv } from './origins.js';
-
-/** URL 에서 스킴+호스트+포트만 남긴다. 파싱 불가면 null. */
-export function originOf(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
+import { NERV_API_URL, NERV_WEB_URL, apiUrlFromEnv, originOf, webUrlFromEnv } from './origins.js';
 
 @Injectable()
 export class McpOriginGuard implements CanActivate {

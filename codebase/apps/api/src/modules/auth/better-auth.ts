@@ -11,10 +11,12 @@
 import { RATE_LIMIT_AUTH_PER_MIN, RATE_LIMIT_SIGN_IN_PER_MIN, newId } from '@nerv/schema';
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
-import { apiUrlFromEnv } from '../../common/origins.js';
+import { apiUrlFromEnv, trustedOriginsFromEnv } from '../../common/origins.js';
 
 /**
- * baseURL 외에 추가로 신뢰할 오리진 — `NERV_TRUSTED_ORIGINS`(쉼표 구분, §5.2 전표).
+ * baseURL 외에 추가로 신뢰할 오리진 — `NERV_TRUSTED_ORIGINS`(쉼표·공백·줄바꿈 구분, §5.2 전표).
+ * 값을 읽고 오리진으로 정규화하는 것은 `common/origins.ts` 의 `trustedOriginsFromEnv` 다 —
+ * `/mcp` 가드와 **같은 함수로** 오리진을 읽어야 두 곳의 판정이 갈리지 않는다.
  *
  * 이 목록은 CSRF 방어선이다. 늘리는 것은 **환경이 실제로 다른 오리진에서 화면을 띄울 때**
  * 뿐이고, 그 판단은 운영 주체가 env 로 명시한다 — 코드가 추측하지 않는다.
@@ -27,11 +29,7 @@ import { apiUrlFromEnv } from '../../common/origins.js';
  */
 function trustedOrigins(): string[] {
   const base = apiUrlFromEnv();
-  const extra = (process.env['NERV_TRUSTED_ORIGINS'] ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter((origin) => origin !== '');
-  return [...new Set([base, ...extra])];
+  return [...new Set([base, ...trustedOriginsFromEnv()])];
 }
 
 /** 반환 타입은 옵션 리터럴에 의존한다 — 추론에 맡긴다(명시하면 타입이 좁아 대입이 깨진다). */
