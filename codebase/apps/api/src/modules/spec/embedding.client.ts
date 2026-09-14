@@ -52,6 +52,14 @@ export class EmbeddingClient {
   async embed(inputs: string[]): Promise<number[][]> {
     if (inputs.length === 0) return [];
 
+    // **제공자가 없으면 호출하지 않고 실패한다**(REQ-CB-040). `embedOrNull` 이 이것을
+    // 렉시컬 degrade 로 바꾸고(REQ-API-026), 색인 경로는 리포트의 `error` 로 받는다.
+    // 빈 주소로 fetch 하면 결말은 같지만 사람이 받는 것은 URL 파싱 오류다 — 무엇을
+    // 설정하지 않았는지 말해 주지 않는다.
+    if (this.options.baseUrl.trim() === '') {
+      throw new Error(`NERV_EMBED_URL 이 비어 있다 — 임베딩 제공자가 설정되지 않았다(§5.2a).`);
+    }
+
     const headers: Record<string, string> = { 'content-type': 'application/json' };
     if (this.options.apiKey !== undefined && this.options.apiKey !== '') {
       headers['authorization'] = `Bearer ${this.options.apiKey}`;
@@ -123,7 +131,18 @@ export class EmbeddingClient {
 
   /** env 로 프로필을 만든다(§5.2a) — 코드는 제공자를 모른다. */
   static fromEnv(): EmbeddingClient {
-    const baseUrl = process.env['NERV_EMBED_URL'] ?? 'http://localhost:8090/v1';
+    // **미설정과 빈 값은 다르다**(REQ-CB-040). 미설정은 개발 루프의 기본값이고, 빈 값은
+    // **제공자 없음**이다 — 서비스 주소를 비운 배치를 기본값으로 떨어뜨리면 컨테이너가
+    // 자기 안의 :8090 을 찌르고, 사람은 검색이 degrade 된 이유를 연결 거부 로그에서
+    // 거꾸로 짚어야 한다. k8s ConfigMap 이 손잡이를 비워 두는 방식이 그것이다(§6.2).
+    const configured = process.env['NERV_EMBED_URL'];
+    const baseUrl = configured === undefined ? 'http://localhost:8090/v1' : configured.trim();
+    if (baseUrl === '') {
+      new Logger(EmbeddingClient.name).warn(
+        // eslint-disable-next-line no-restricted-syntax -- 운영자용 설정 경고다(REQ-CB-022 예외)
+        'NERV_EMBED_URL 이 비어 있다 — 임베딩이 꺼진다(검색은 렉시컬로 degrade · §5.2a).',
+      );
+    }
     const sendDimensions = process.env['NERV_EMBED_SEND_DIMENSIONS'] === 'true';
     // **호스트는 판정에 쓰지 않고 경고에만 쓴다.** 추정으로 동작을 가르면 게이트웨이 뒤의
     // 같은 모델에서 조용히 틀리지만, 대표적인 오설정을 말해 주지 않으면 사람은 검색이

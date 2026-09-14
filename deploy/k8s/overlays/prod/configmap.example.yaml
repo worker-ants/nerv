@@ -29,6 +29,9 @@ data:
   NERV_API_URL: 'https://nerv.example.com'
 
   # 서버가 S3 에 붙는 주소. 조직 S3 를 쓰면 그 엔드포인트로 바꾼다.
+  # base 는 이 값을 **비워 둔다**(REQ-CB-040) — `nerv-minio` Service 를 만드는 매니페스트가
+  # 없어서 그 주소를 기본값으로 두면 없는 서비스를 가리킨다. 비면 첨부가 꺼지고 기동
+  # 로그가 그 사실을 남긴다. 조직의 S3(또는 MinIO 를 올리는 오버레이) 주소를 여기 적는다.
   NERV_S3_ENDPOINT: 'http://nerv-minio:9000'
   # 에이전트가 받는 presigned PUT 주소 — **클러스터 밖에서 열리는 별도 호스트**여야 한다.
   # Ingress 의 경로 접두(`/s3`)로는 안 된다: SigV4 가 경로까지 서명한다(REQ-CB-034).
@@ -40,6 +43,8 @@ data:
 
   # ── ② 임베딩 프로필로 정한다(§5.2a) ───────────────────────────────────────
   # 운영 기본은 외부 제공자다 — base/embed/ 를 resources 에서 제외하고 주소만 바꾼다.
+  # base 는 이 값을 **비워 둔다**(REQ-CB-040) — 비면 임베딩이 꺼지고 검색은 렉시컬로
+  # degrade 한다. 외부 제공자면 그 base URL 을 적는다 — SEND_DIMENSIONS 도 함께 본다.
   NERV_EMBED_URL: 'https://api.openai.com/v1'
   NERV_EMBED_MODEL: 'text-embedding-3-small'
   # **운영 OpenAI 배치는 이 값을 켜야 한다**(REQ-CB-033). 끄면 1536 차원이 돌아와

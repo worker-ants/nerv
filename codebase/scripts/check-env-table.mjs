@@ -8,7 +8,7 @@
 //     (운영자가 로그 레벨을 바꿔도 아무 일이 일어나지 않았다. 유령 설정이다)
 //   - `NERV_S3_ENDPOINT` 행이 **두 번** 있고 "필수" 열이 서로 달랐다
 //
-// 세는 것은 열이다.
+// 세는 것은 열하나다.
 //   ① 코드가 읽는 변수가 전표(또는 걷힌 이름 표)에 있는가 — 없으면 운영자가 존재를 알 길이 없다
 //   ② `.env.example` 의 키가 전표에 있는가
 //   ③ 한 변수가 전표에 두 번 나오지 않는가 — 두 행이 다른 말을 하면 어느 쪽이 계약인가
@@ -22,6 +22,8 @@
 //   ⑨ k8s 의 ConfigMap 포트와 매니페스트의 `containerPort` 가 같은가 — 정적 필드라
 //     설정에서 받을 수 없고, 갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다
 //   ⑩ 그 포트들의 기본값이 이미지 `ENV` 와 전표에서 같은가
+//   ⑪ **걷힌 이름이 compose 의 api·worker 에 전달되는가** — compose 는 env 를 키 목록으로
+//     넘기므로, 넘기지 않으면 옛 이름을 둔 배치가 조용히 기본값으로 뜬다(2026-09-14 신설)
 //
 // **값을 대조하는 범위는 포트와 오리진뿐이다.** 이 스크립트는 오래 "값이나 기본값은
 // 대조하지 않는다 — 그것은 렌더러를 다시 만드는 일이고 실제로 어긋난 것은 언제나 있고
@@ -339,6 +341,27 @@ if (
     `Dockerfile.web 의 ENV NERV_WEB_PORT(${imageWebPort})가 .env.example(${declaredWebPort})과 ` +
       `다르다 — 이 기본값이 \`listen ;\` 을 막는 방어선이라 전표와 같아야 한다`,
   );
+}
+
+// -- ⑪ 걷힌 이름이 compose 의 api·worker 에 전달되는가 ------------------------
+//
+// **⑤ 가 "읽는 코드가 있는가" 를 세는 것으로는 부족했다.** 코드가 읽어도 그 이름이 컨테이너
+// env 에 들어가지 않으면 거부는 발화하지 않는다 — compose 는 env 를 **키 목록**으로 넘기므로
+// 적지 않은 이름은 `.env` 에 있어도 전달되지 않는다(k8s 는 `envFrom` 이 ConfigMap 전체를
+// 넘기므로 이 문제가 없다). 2026-09-14 실측에서 `NERV_PUBLIC_URL` 은 어느 서비스에도 없어
+// **거부가 한 번도 발화할 수 없었고**, `NERV_HTTP_PORT` 는 api 에만 있었다.
+const composeMain = yamlOrNull('deploy/compose/docker-compose.yml');
+for (const svc of ['api', 'worker']) {
+  const env = composeMain?.services?.[svc]?.environment;
+  if (env === undefined || typeof env !== 'object' || Array.isArray(env)) continue;
+  for (const name of retired) {
+    if (name in env) continue;
+    fail.push(
+      `deploy/compose/docker-compose.yml 의 \`${svc}\` 가 걷힌 이름 \`${name}\` 을 받지 않는다 — ` +
+        `전표는 api·worker 의 기동 거부를 약속하는데 그 이름이 컨테이너에 들어가지 않으면 ` +
+        `거부는 발화하지 않는다(\`${name}: \${${name}:-}\` 로 넘긴다)`,
+    );
+  }
 }
 
 if (fail.length > 0) {

@@ -131,8 +131,10 @@ services:
     environment:
       NODE_ENV: production
       NERV_API_PORT: ${NERV_API_PORT:-8080}
-      # 걷힌 이름을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지 않으면
-      # 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다(REQ-CB-039).
+      # 걷힌 이름 둘을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지
+      # 않으면 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다
+      # (REQ-CB-037 · 039). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.
+      NERV_PUBLIC_URL: ${NERV_PUBLIC_URL:-}
       NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}
       # 우리 주소는 둘이다(§5.2 · REQ-CB-036) — 앞문 하나가 화면과 API 를 함께 서빙하므로
       # compose 에서는 같은 값이다. 옛 이름(NERV_PUBLIC_URL)만 있으면 api 가 기동을 거부한다.
@@ -184,6 +186,20 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      # **워커도 인증 키를 받는다.** AuthModule 이 워커 그래프에 있어(task·session·event·spec)
+      # `AuthService` 가 생성자에서 better-auth 를 만든다 — 키가 없으면 개발용 기본 키로
+      # 떨어지고, api 와 worker 가 **서로 다른 서명 키**를 들고 돈다. k8s 는 `envFrom` 으로
+      # 워커도 받으므로 compose 만 다른 모양이었다(2026-09-14).
+      NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
+      # 공개 주소 둘 — 워커가 만드는 응답에 딥링크가 실릴 수 있고, 걷힌 이름 판정의
+      # "새 이름이 있는가" 도 이 값들을 본다(REQ-CB-036 · 037).
+      NERV_WEB_URL: ${NERV_WEB_URL:-http://localhost:8080}
+      NERV_API_URL: ${NERV_API_URL:-http://localhost:8080}
+      # 걷힌 이름 둘을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지
+      # 않으면 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다
+      # (REQ-CB-037 · 039). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.
+      NERV_PUBLIC_URL: ${NERV_PUBLIC_URL:-}
+      NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379

@@ -16,6 +16,7 @@ resources:
   - api/deployment.yaml
   - api/service.yaml
   - worker/deployment.yaml
+  - worker/pvc.yaml
   - valkey/deployment.yaml
   - valkey/service.yaml
   - web/deployment.yaml

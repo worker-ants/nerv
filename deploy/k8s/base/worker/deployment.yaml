@@ -22,4 +22,10 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { memory: 512Mi }
+          # md 미러 산출 위치 — ConfigMap 의 NERV_EXPORT_DIR 과 **같은 경로여야 한다**(§6.2)
+          volumeMounts:
+            - { name: mirror, mountPath: /mirror }
+      volumes:
+        - name: mirror
+          persistentVolumeClaim: { claimName: nerv-mirror }
       # HTTP 포트·프로브 없음 — 잡 루프 실패는 프로세스 종료 → 재시작으로 처리

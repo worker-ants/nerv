@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.44 · 2026-09-14 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.45 · 2026-09-14 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.45 변경(2026-09-14 — 환경 구성 전수 점검의 후속, 사람 확정): **REQ-CB-040 신설 · 게이트 열하나 · 미러 PVC.** 구성 파일 37개를 전수로 훑어 여섯을 고쳤다. ① **dev 오버레이가 S3 공개 주소·버킷을 패치하지 않아 운영 값을 쓰고 있었다** — 렌더 결과가 `https://s3.nerv.example.com` · `nerv-blobs` 였다. 공개 주소 둘에서 고친 것과 같은 부류이고 이쪽이 더 나쁘다: 그 호스트가 실재하고 자격증명이 통하면 dev 첨부가 **운영 버킷에 쓰인다**(예시 파일이 스스로 경고해 둔 일이다). ② **compose 의 worker 에 `NERV_AUTH_SECRET` 이 없었다** — AuthModule 이 워커 그래프에 있어 `AuthService` 가 생성자에서 better-auth 를 만들고, 키가 없으면 개발용 기본 키로 떨어져 **api 와 worker 가 서로 다른 서명 키**를 들고 돌았다. 코드 주석이 약속한 "운영 배포는 env 검증이 먼저 막는다" 는 api 에만 있었다. k8s 는 `envFrom` 으로 워커도 받으므로 compose 만 다른 모양이었다. ③ **걷힌 이름의 거부가 compose 에서 반만 실물이었다** — compose 는 env 를 **키 목록**으로 넘기므로 `NERV_PUBLIC_URL` 은 어느 서비스에도 없어 거부가 한 번도 발화할 수 없었고 `NERV_HTTP_PORT` 는 api 에만 있었다. 양쪽에 넘기고, **게이트 ⑪** 이 그 전달을 센다(⑤ 의 "읽는 코드가 있는가" 로는 부족했다 — 코드가 읽어도 컨테이너 env 에 없으면 거부는 없다). ④ **ConfigMap 에 손잡이를 전량 노출한다**(사람 결정) — `NERV_S3_REGION`·`NERV_SSE_KEEPALIVE_MS`·`NERV_TRUSTED_ORIGINS`·임베딩 예산 넷·`NERV_WORKER_TICK_MS`·`NERV_EXPORT_DIR`. `envFrom` 이라 키를 더하면 듣지만, **더할 수 있다는 사실 자체를 ConfigMap 이 보여 주지 않으면 발견할 길이 없다**. ⑤ **미러 PVC 신설**(사람 결정) — `NERV_EXPORT_DIR` 이 어느 배치에도 없어 md 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다. 파생물이라 백업 대상이 아니다(§6.5 에 한 행). ⑥ **없는 서비스를 가리키는 기본값을 비운다**(사람 결정 · REQ-CB-040) — `nerv-minio:9000`·`nerv-embed/v1` 은 그 Service 를 만드는 매니페스트가 base·오버레이 어디에도 없는데 **그럴듯해서** 운영자는 배선이 끝난 줄 알았다. 비우려면 코드가 빈 값을 부재로 읽어야 해서(`undefined` 만 보면 빈 값이 통과해 endpoint 가 `''` 인 클라이언트가 만들어진다) 판정을 trim 기준으로 옮기고 L1 13건을 붙였다. **미설정과 빈 값은 다르다** — 앞은 개발 루프의 기본값, 뒤는 "없음" 이다.
 >
 > v1.44 변경(2026-09-14 — 낡은 셈과 걷힌 이름을 말하는 문구, 사람 지시): **새 요구사항 없음 — 잔여 둘.** ① `NERV_HTTP_PORT` 를 걷어 리슨 포트가 둘이 됐는데 §5.2 가 "**세 포트**" 라 적고 있었다. ② `.env` 전표 게이트의 실패 문구 하나가 **걷힌 이름**을 말했다 — `DEFAULT_ORIGIN` 의 포트가 어긋날 때 "`NERV_HTTP_PORT` 와 다르다" 고 알렸으므로, 그 문구를 따라간 운영자는 **서버가 기동을 거부하는 이름**을 설정한다. 검사가 고치는 법을 틀리게 알려 주는 것은 검사가 없는 것보다 나쁘다. 문구를 나눠 쓴 줄(`포트가 ` + `NERV_HTTP_PORT(`)이라 v1.43 의 일괄 치환이 이 한 자리를 지나쳤다.
 >
@@ -955,7 +957,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_AUTH_SECRET` | **필수** | — | api(better-auth 서명) | `openssl rand -base64 32` |
 | `VALKEY_PORT` | | `6379` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 Valkey 접근 |
 | `NERV_VALKEY_URL` | dev 루프 시 | `redis://localhost:6379` | api · worker | 실시간 방송 MQ(§2.1). compose 내부에서는 `redis://valkey:6379`로 자동 조립(Valkey는 RESP 프로토콜 — `redis://` 스킴) |
-| `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090/v1` | api(질의 임베딩) · worker(`embedding.job`) | **OpenAI 호환 base URL(`/v1`까지)** — 프로필 §5.2a. compose 내부 기본은 `http://embed:11434/v1`. 무응답 시 검색은 렉시컬 degrade(REQ-API-026) |
+| `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090/v1` | api(질의 임베딩) · worker(`embedding.job`) | **OpenAI 호환 base URL(`/v1`까지)** — 프로필 §5.2a. compose 내부 기본은 `http://embed:11434/v1`. 무응답 시 검색은 렉시컬 degrade(REQ-API-026). **미설정과 빈 값은 다르다**(2026-09-14 · REQ-CB-040): 미설정은 개발 루프의 기본값(`:8090`)이고 **빈 값은 제공자 없음**이라 임베딩이 꺼진다 — 서비스 주소를 비운 배치를 기본값으로 떨어뜨리면 컨테이너가 자기 안의 포트를 찌르고, 사람은 degrade 의 이유를 연결 거부 로그에서 거꾸로 짚어야 한다. k8s ConfigMap 이 이 키를 비워 두는 이유가 그것이다 |
 | `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | `/v1/embeddings`의 `model` 인자 · 재임베딩 관리(`spec_chunk_embedding.model` — [4.3](database.md) §2.15) | 제공자·모델 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
 | `NERV_EMBED_API_KEY` | 외부 제공자 시 | — | `Authorization: Bearer` 헤더 | **secret** — 로컬 TEI는 불요. k8s는 `nerv-secrets`(§6.2) |
 | `NERV_EMBED_SEND_DIMENSIONS` | 운영 OpenAI 는 **필수** | `false` | api(질의 임베딩) · worker(`embedding.job`) — `EmbeddingClient.fromEnv` | 요청에 `dimensions` 를 실을 것인가. 1024 를 그대로 내는 모델(bge-m3)은 `false`, 절단이 필요한 모델(`text-embedding-3-*`)은 **`true`**. 2026-09-07 까지 주소에 `api.openai.com` 이 있는지로 **추정**했다 — 게이트웨이(Azure·LiteLLM·사내) 뒤의 같은 모델은 그 주소가 아니라 1536 차원이 돌아왔고, 검색은 오류 없이 렉시컬로 degrade 했다(REQ-CB-033) |
@@ -969,14 +971,14 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `MINIO_ROOT_PASSWORD` | **필수** | — | compose `minio` · S3 자격증명 | |
 | `MINIO_PORT` | | `9000` | compose 포트 노출(127.0.0.1 한정) | 개발 루프(`pnpm dev`)의 S3 접근 |
 | `MINIO_CONSOLE_PORT` | | `9001` | compose 포트 노출(127.0.0.1 한정) | minio 웹 콘솔 |
-| `NERV_S3_ENDPOINT` | 첨부 쓸 때 | — | api · worker | 서버가 S3 에 붙는 주소. compose 는 `http://minio:9000` |
+| `NERV_S3_ENDPOINT` | 첨부 쓸 때 | — | api · worker | 서버가 S3 에 붙는 주소. compose 는 `http://minio:9000`. **빈 값은 부재다**(2026-09-14 · REQ-CB-040) — 이 값과 자격증명 둘 중 하나라도 비면 첨부가 **꺼지고** 기동 로그가 그 사실을 남긴다. k8s ConfigMap 은 이 키를 두고 값을 비워 둔다: `nerv-minio` Service 를 만드는 매니페스트가 없어서 그 주소를 기본값으로 두면 **없는 서비스를 가리킨다** |
 | `NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY` | 첨부 쓸 때 | — | api · worker | **앱이 읽는 자격증명은 이 둘이다.** `MINIO_ROOT_*` 는 compose 가 MinIO 에 주는 값이라 로컬 프로세스(`pnpm dev`)에는 조립해 주는 주체가 없었다 — 문서대로 따라간 개발자는 첨부가 꺼진 API 를 띄웠다(2026-09-02) |
 | `NERV_SEED_PASSWORD` | | `nerv-dev-1234` | seed | 개발 시드 사용자의 비밀번호(§5.1 `db:seed`) — `.env.example` 에는 없다 |
 | `NERV_SHOT_DIR` · `NERV_SHOT_SCHEME` | | — | web(E2E) | 브라우저 스크린샷 산출 위치·스킴. 코드가 읽는데 전표에도 `.env.example` 에도 없던 자리다(2026-09-06 보완) |
 | `NERV_S3_PUBLIC_ENDPOINT` | | (없으면 `NERV_S3_ENDPOINT`) | api | 에이전트가 받는 presigned PUT 주소의 호스트. 내부 주소로 서명하면 개발자 장비에서 해소되지 않아 **에이전트 업로드가 모든 배치에서 불통**이었다. **경로 접두는 안 된다**(REQ-CB-034) — presigned 서명이 경로를 포함하므로 `https://…/s3` 는 앞문이 접두를 벗기면 `SignatureDoesNotMatch` 이고 벗기지 않으면 MinIO 가 그 아래에서 S3 API 를 서빙하지 않는다. **별도 호스트**(`https://s3.<도메인>`)를 적는다. 경로가 있으면 기동 로그가 그 사실을 말한다 |
 | `NERV_S3_REGION` | | `us-east-1` | api · worker | S3 호환 서명용. MinIO 는 아무 값이나 받지만 **실제 S3·R2·GCS 호환은 이 값으로 서명을 검증**하므로 틀리면 `SignatureDoesNotMatch` 다. 소비자를 `api` 만 적고 있었는데 `StorageService` 는 워커의 모듈 그래프(`WorkerModule` → `SpecModule`)에도 올라 **생성자에서 이 값을 읽는다**(2026-09-14 정정 — 게이트 ④ 는 `api` 만 적혀 있어도 통과하므로 이 종류의 어긋남은 아무도 세지 않는다) |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
-| `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다 |
+| `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다. k8s 는 `nerv-mirror` PVC 를 `/mirror` 에 붙이고 ConfigMap 이 그 경로를 준다(§6.2) — 2026-09-14 까지 이 값이 **어느 배치에도 없어** 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다 |
 | `NERV_S3_BUCKET` | | `nerv-blobs` | api · worker | api가 기동 시 없으면 생성한다(2026-09-02 — 전표는 그렇게 적었는데 코드가 없었다) |
 | `NERV_S3_FORCE_PATH_STYLE` | | `true` | api · worker | minio 호환 |
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |
@@ -1081,6 +1083,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-035** | WHILE SSE 스트림이 열려 있는 동안 THE SYSTEM SHALL keep-alive 를 **`event: ping` · `data: {}` 메시지**로 보내고(코멘트 라인 `: ping` 이 아니다 — rxjs 로 흘리므로 Nest 가 메시지로 낸다), 그 주기를 `NERV_SSE_KEEPALIVE_MS` 로 바꿀 수 있게 한다 — 앞문의 유휴 타임아웃이 더 짧은 배치에서 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 | **REQ-CB-036** | WHEN 서버가 자기 주소를 필요로 하면 THE SYSTEM SHALL **사람이 브라우저로 여는 주소는 `NERV_WEB_URL`, 프로그램이 붙는 주소는 `NERV_API_URL`** 에서 읽고 한 이름이 두 뜻을 겸하지 않는다 — 스펙 딥링크는 `NERV_WEB_URL`, better-auth `baseURL`·`trustedOrigins` 기준과 플러그인 카탈로그의 주소와 `/api/auth/*` 요청 절대화 기준은 `NERV_API_URL`, `/mcp` Origin 대조는 **둘 다**(REQ-CB-013). WHILE 두 값이 같은 오리진인 동안 THE SYSTEM SHALL 갈랐을 때와 **같은 응답**을 낸다 — 이름을 가르는 것과 호스트를 가르는 것은 다른 변경이다 |
+| **REQ-CB-040** | WHEN 외부 서비스의 주소를 받는 설정(`NERV_S3_ENDPOINT` · `NERV_EMBED_URL`)이 **빈 값**이면 THE SYSTEM SHALL 그것을 부재로 읽어 그 기능을 끄고(첨부 비활성 · 임베딩 비활성 → 렉시컬 degrade) 무엇이 설정되지 않았는지 기동 로그에 남긴다 — 배치가 "설정하지 않음" 을 넘기는 모양은 키의 부재·ConfigMap 의 빈 값·compose 의 `${VAR:-}` 셋이고, `undefined` 만 보면 뒤의 둘이 통과해 **기능이 꺼지는 대신 요청마다 깨진다**. WHERE 주소가 미설정이면 THE SYSTEM SHALL 개발 루프의 기본값을 쓴다 — 미설정과 빈 값은 다른 뜻이다 | 빈 문자열·공백만 있는 값으로 `StorageService.available` 이 false 다 · 빈 `NERV_EMBED_URL` 로 `embed()` 가 이름을 말하며 던지고 `embedOrNull()` 이 null 을 준다 · 미설정은 기본값으로 선다 |
 | **REQ-CB-039** | WHEN 걷힌 이름 `NERV_HTTP_PORT` 가 설정돼 있고 `NERV_WEB_PORT` 가 비어 있으면 THE SYSTEM SHALL api·worker 의 기동을 거부하고 새 이름에 무엇을 넣어야 하는지를 문구로 말한다. WHERE 새 이름이 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다. WHILE 그 거부가 실물이려면 compose 가 옛 이름을 api 에 넘겨야 하므로 THE SYSTEM SHALL §5.3 에서 그 이름을 전달한다 — compose 는 모르는 변수를 **조용히 무시**하므로 넘기지 않으면 약속한 거부가 유령이다 | 옛 이름만 있는 env 로 `assertHttpPortRetired()` 가 던지고 문구에 `NERV_WEB_PORT=<값>` 이 실린다 · 새 이름이 있으면 던지지 않고 경고 한 줄 · `check-env-table.mjs` 가 걷힌 이름을 읽는 코드의 실재(⑤)와 `.env.example` 부재(⑥)를 센다 |
 | **REQ-CB-038** | WHEN 배포 산출물(compose · 이미지 · k8s)이 api·web 의 리슨 포트를 정할 때 THE SYSTEM SHALL 그 값을 `NERV_API_PORT`·`NERV_WEB_PORT` 에서 조립하고, 같은 포트를 가리키는 모든 자리(업스트림 · 헬스체크 · publish · `containerPort`)가 한 변수에서 나오게 한다. WHERE 정적 매니페스트가 변수를 받을 수 없으면(k8s 의 `containerPort`) THE SYSTEM SHALL ConfigMap 의 값과 매니페스트의 포트가 어긋날 때 CI 를 실패시킨다 — 갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다. WHILE 개발 루프에서는 화면과 API 가 다른 포트에 떠야 하므로, THE SYSTEM SHALL 두 포트가 같으면 `pnpm dev` 가 기동을 거부하고 이유를 말한다 | `.env` 의 포트를 바꾼 compose 스택이 그 포트로 서고 헬스체크가 통과한다 · `pnpm dev` 가 바뀐 포트로 Vite·api 를 띄우고 같은 포트면 비영 종료한다 · 배포 산출물에 포트 리터럴을 되돌린 트리와 ConfigMap↔매니페스트를 어긋나게 만든 트리에서 `check-env-table.mjs` 가 실패한다 |
 | **REQ-CB-037** | WHEN 걷힌 이름 `NERV_PUBLIC_URL` 이 설정돼 있고 `NERV_WEB_URL`·`NERV_API_URL` 이 **둘 다 비어 있으면** THE SYSTEM SHALL api·worker 의 기동을 거부하고(비영 종료) 두 이름에 무엇을 넣어야 하는지를 문구로 말한다 — 기본값(`http://localhost:8080`)으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 사실을 **그 주소로 서명된 쿠키를 받고서야** 안다. WHERE 새 이름이 하나라도 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다 | 옛 이름만 있는 env 로 `assertPublicUrlRetired()` 가 던지고 문구에 두 이름과 넣을 값이 실린다 · 새 이름이 하나라도 있으면 던지지 않고 경고 한 줄 |
@@ -1590,7 +1593,8 @@ deploy/k8s/
       deployment.yaml            # §6.3 전문
       service.yaml               # nerv-api :8080 (name: http)
     worker/
-      deployment.yaml            # §6.3 전문 — replicas 1 · Recreate
+      deployment.yaml            # §6.3 전문 — replicas 1 · Recreate · nerv-mirror 마운트
+      pvc.yaml                   # md 미러 산출 볼륨(RWO 5Gi) — 파생물이라 백업 대상이 아니다(§6.5)
     valkey/
       deployment.yaml            # §6.3 전문 — replicas 1 · 무영속 pub/sub 전용
       service.yaml               # nerv-valkey :6379 (name: redis)
@@ -1648,6 +1652,7 @@ resources:
   - api/deployment.yaml
   - api/service.yaml
   - worker/deployment.yaml
+  - worker/pvc.yaml
   - valkey/deployment.yaml
   - valkey/service.yaml
   - web/deployment.yaml
@@ -1723,9 +1728,9 @@ metadata:
   name: nerv-worker
   labels: { app: nerv-worker }
 spec:
-  replicas: 1                      # 고정 — HPA 대상 제외 (REQ-CB-011)
+  replicas: 1 # 고정 — HPA 대상 제외 (REQ-CB-011)
   strategy:
-    type: Recreate                 # 롤링 중 2개 동시 실행 창 제거
+    type: Recreate # 롤링 중 2개 동시 실행 창 제거
   selector:
     matchLabels: { app: nerv-worker }
   template:
@@ -1741,6 +1746,12 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { memory: 512Mi }
+          # md 미러 산출 위치 — ConfigMap 의 NERV_EXPORT_DIR 과 **같은 경로여야 한다**(§6.2)
+          volumeMounts:
+            - { name: mirror, mountPath: /mirror }
+      volumes:
+        - name: mirror
+          persistentVolumeClaim: { claimName: nerv-mirror }
       # HTTP 포트·프로브 없음 — 잡 루프 실패는 프로세스 종료 → 재시작으로 처리
 ```
 
@@ -1890,6 +1901,7 @@ patches:
 | **Postgres** | `pg_dump -Fc`(custom format) → 오브젝트 스토리지 업로드. cron Job(`nerv-backup`) | 일 1회 · 보존 14일 | 유일한 SoT — 스펙·Task·이벤트 전부. RPO = 24h 시작값(파일럿 규모 NFR-04에서 수용, 실측 후 조정) |
 | **MinIO**(첨부 오브젝트) | 버킷 미러(`mc mirror`) — 같은 CronJob 이 Postgres 덤프 뒤에 이어서 한다 | **일 1회**(Postgres 와 같은 판) | **재생성되지 않는다**(2026-09-07 정정 · REQ-CB-031). 2026-09-01 부터 이 버킷에는 스펙 첨부(디자인 시안·PDF)의 실체가 있고 DB 에는 `storage_key` 만 남는다 — 복원하면 행은 살아나고 파일은 전부 404 인데 검증은 행 수만 세므로 "손실 0" 이라 말한다. 리뷰 프롬프트 blob(TTL 30일)은 그 버킷의 일부일 뿐이다. `NERV_S3_ENDPOINT` 가 설정됐는데 `mc` 가 없으면 백업은 **실패한다** |
 | **Valkey** | 백업하지 않는다 | — | 무영속 방송 버스 — 유실 시 클라이언트 재조회로 복구(D-14, [4.4](api.md) §3.4) |
+| **md 미러**(`nerv-mirror` PVC) | 백업하지 않는다 | — | DB 의 승인 문서에서 다시 만드는 **파생물**이다(export 잡) — 잃으면 다음 판이 채운다. 첨부와 다른 성질이라 볼륨을 따로 둔다 |
 | **embed 모델 캐시**(로컬 프로필 시) | 백업하지 않는다 | — | 모델 가중치는 재다운로드, `spec_chunk_embedding`은 재임베딩으로 재생성([4.3](database.md) §2.15). 외부 제공자 프로필은 해당 없음 |
 
 절차의 실물은 `deploy/scripts/nerv-backup.sh`(①)·`deploy/scripts/nerv-restore.sh`(①+⑤ 검증)이고, k8s 에서는 `base/backup/cronjob.yaml`(CronJob `nerv-backup` — 일 1회)이 같은 스크립트를 configMap 으로 마운트해 돈다. **검증이 절차의 일부다**: 복원 스크립트는 복원 후 원본과의 **실제 행 수**를 대조하고(통계 뷰 `n_live_tup` 이 아니다 — 복원 직후에는 통계가 비어 있어 "손실 0"과 "아직 세지 않았다"를 구분할 수 없다), 불일치면 비영 종료한다. 왕복 자체는 L2 테스트(`restore-roundtrip.spec.ts`)가 매 PR 에 재현한다.

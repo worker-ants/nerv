@@ -150,6 +150,9 @@ services:
       target: worker
     environment:
       NODE_ENV: production
+      # api 와 **같은 서명 키**를 쓴다 — AuthModule 이 워커 그래프에 있어 워커도
+      # better-auth 를 만든다(2026-09-14).
+      NERV_AUTH_SECRET: e2e-only-secret-not-for-any-real-deployment
       NERV_LOG_LEVEL: warn
       DATABASE_URL: *e2e-db
       NERV_VALKEY_URL: redis://valkey:6379

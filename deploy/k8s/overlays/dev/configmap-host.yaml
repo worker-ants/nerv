@@ -12,3 +12,9 @@ metadata:
 data:
   NERV_WEB_URL: 'https://nerv.dev.example.com'
   NERV_API_URL: 'https://nerv.dev.example.com'
+  # **첨부도 자기 환경을 가리켜야 한다**(2026-09-14). 이 둘을 패치하지 않아 dev 파드가
+  # 에이전트에게 **운영 S3 호스트·운영 버킷**으로 서명한 presigned PUT 을 주고 있었다 —
+  # 위의 공개 주소 둘에서 고친 것과 같은 부류이고 이쪽이 더 나쁘다: 그 호스트가 실재하고
+  # 자격증명이 통하면 dev 첨부가 **운영 버킷에 쓰인다.**
+  NERV_S3_PUBLIC_ENDPOINT: 'https://s3.nerv.dev.example.com'
+  NERV_S3_BUCKET: 'nerv-blobs-dev'
