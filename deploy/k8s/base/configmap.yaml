@@ -4,6 +4,12 @@ kind: ConfigMap
 metadata:
   name: nerv-config
 data:
+  # 리슨 포트 둘 — **바꾸려면 매니페스트의 containerPort 도 함께 바꾼다.** k8s 의
+  # containerPort 는 정적 필드라 이 값을 참조할 수 없어서, 여기만 고치면 파드는 다른 포트로
+  # 리슨하고 Service 는 옛 포트로 보낸다 — **전 트래픽이 죽는데 롤아웃은 성공으로 보인다.**
+  # 어긋남은 CI 가 잡는다(check-env-table.mjs ⑨ · REQ-CB-038). 환경마다 바꿀 값이 아니다.
+  #   NERV_API_PORT  → base/api/deployment.yaml 의 containerPort
+  #   NERV_WEB_PORT  → base/web/deployment.yaml 의 containerPort (앞문의 listen)
   NERV_API_PORT: '8080'
   NERV_WEB_PORT: '8080'
   # 우리 주소는 둘이다(§5.2 · REQ-CB-036). 지금은 한 호스트가 경로로 화면과 API 를 나눠
