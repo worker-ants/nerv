@@ -15,8 +15,14 @@ spec:
         - name: web
           image: nerv-web # nginx + Vite 산출물 (§6.1 Dockerfile.web)
           ports:
-            - { containerPort: 80, name: http }
+            # 앞문이 리슨하는 포트다 — ConfigMap 의 NERV_WEB_PORT 와 **같아야 한다**.
+            # k8s 는 이 값을 설정에서 받을 수 없어(정적 필드) 어긋나면 전 트래픽이 죽는데
+            # 롤아웃은 성공으로 보인다 — 대조는 check-env-table.mjs 가 한다(REQ-CB-038).
+            - { containerPort: 8080, name: http }
           env:
+            - name: NERV_WEB_PORT
+              valueFrom:
+                configMapKeyRef: { name: nerv-config, key: NERV_WEB_PORT }
             - { name: NERV_API_UPSTREAM, value: 'nerv-api:8080' }
             # /mcp Origin 1차 검증 기준 — 최종 강제는 앱 가드(REQ-CB-013).
             # 브라우저가 싣는 Origin 은 화면이 뜬 주소이므로 NERV_WEB_URL 이다(REQ-CB-036).

@@ -107,7 +107,7 @@ services:
     image: nerv-api:${NERV_TAG:-e2e}
     environment:
       NODE_ENV: production          # 운영과 같은 조립을 검증한다 — 테스트라고 느슨하게 두지 않는다
-      NERV_API_PORT: "8080"
+      NERV_API_PORT: ${NERV_API_PORT:-8080}
       NERV_WEB_URL: http://localhost:${NERV_E2E_HTTP_PORT:-19000}
       NERV_API_URL: http://localhost:${NERV_E2E_HTTP_PORT:-19000}
       NERV_AUTH_SECRET: e2e-only-secret-not-for-any-real-deployment
@@ -131,7 +131,13 @@ services:
       valkey:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:${NERV_API_PORT:-8080}/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -165,10 +171,12 @@ services:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.web
     environment:
-      NERV_API_UPSTREAM: api:8080
+      NERV_API_UPSTREAM: api:${NERV_API_PORT:-8080}
       NERV_PUBLIC_ORIGIN: http://localhost:${NERV_E2E_HTTP_PORT:-19000}
+      NERV_WEB_PORT: ${NERV_WEB_PORT:-8080}
     ports:
-      - "127.0.0.1:${NERV_E2E_HTTP_PORT:-19000}:80"
+      # 호스트 포트는 세션마다 다르고(슬롯), 앞문의 리슨 포트는 개발 compose 와 같다.
+      - "127.0.0.1:${NERV_E2E_HTTP_PORT:-19000}:${NERV_WEB_PORT:-8080}"
     depends_on:
       api:
         condition: service_healthy

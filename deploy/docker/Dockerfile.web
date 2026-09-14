@@ -19,5 +19,9 @@ RUN pnpm install --frozen-lockfile --offline \
 FROM nginx:1.27-alpine
 COPY deploy/docker/nginx/default.conf.template /etc/nginx/templates/
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-ENV NERV_API_UPSTREAM=api:8080 \
+# 셋 다 템플릿이 치환하는 값이다(nginx/default.conf.template). NERV_WEB_PORT 의 기본값은
+# **비워 둘 수 없다** — 비면 `listen ;` 으로 앞문이 기동에 실패한다.
+ENV NERV_WEB_PORT=8080 \
+    NERV_API_UPSTREAM=api:8080 \
     NERV_PUBLIC_ORIGIN=http://localhost:8080
+EXPOSE 8080
