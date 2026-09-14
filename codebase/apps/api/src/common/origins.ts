@@ -151,4 +151,55 @@ export function assertPublicUrlRetired(env: NodeJS.ProcessEnv = process.env): vo
   );
 }
 
+/**
+ * 걷힌 이름 둘째 — `NERV_HTTP_PORT` (REQ-CB-039).
+ *
+ * **한 이름이 두 층을 겸하고 있었다.** 앞문을 호스트에 내보내는 포트와 앞문이 리슨하는
+ * 포트가 한 값으로 맞고 있었을 뿐이다 — `NERV_PUBLIC_URL` 과 같은 부류다(REQ-CB-036). 층을
+ * 가른 뒤에는 `NERV_WEB_PORT` 하나가 둘을 함께 정한다(컨테이너 안팎이 같은 포트다).
+ *
+ * **compose 는 모르는 변수를 조용히 무시한다.** 그래서 그냥 걷으면 옛 이름을 둔 배치가
+ * 아무 말 없이 기본값으로 뜬다 — 약속한 거부가 유령이 된다. 거부를 실물로 만들려면
+ * compose 가 이 이름을 api 에 넘겨야 하고(§5.3 의 `NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}`),
+ * 그 넘김이 없으면 이 함수는 아무것도 보지 못한다. 대가는 명시해 둔다: **compose 를 거치지
+ * 않는 배치**(맨 `docker run` · 다른 오케스트레이터)에서는 옛 이름이 여전히 조용히 무시된다.
+ *
+ * 판정 모양은 `assertPublicUrlRetired` 와 같다 — 새 이름이 비어 있을 때만 거부한다.
+ */
+export function assertHttpPortRetired(env: NodeJS.ProcessEnv = process.env): void {
+  const retired = (env['NERV_HTTP_PORT'] ?? '').trim();
+  if (retired === '') return;
+
+  const webPort = (env['NERV_WEB_PORT'] ?? '').trim();
+  if (webPort !== '') {
+    // 로거를 세우기 전이라 `console` 이다.
+    console.warn(
+      `NERV_HTTP_PORT 은 걷힌 이름입니다 — 읽지 않습니다(현재 값 "${retired}"). ` +
+        `쓰이는 것은 NERV_WEB_PORT="${webPort}" 입니다. 배포 설정에서 옛 이름을 지우십시오(4.2 §5.2).`,
+    );
+    return;
+  }
+
+  throw new Error(
+    [
+      `NERV_HTTP_PORT("${retired}")은 걷힌 이름입니다 — 기동을 거부합니다.`,
+      '이 이름은 앞문을 호스트에 내보내는 포트와 앞문이 리슨하는 포트를 겸하고 있었고,',
+      '한 이름으로 합쳐졌습니다(4.2 §5.2). 지금 값을 그대로 넣으면 동작은 바뀌지 않습니다:',
+      `  NERV_WEB_PORT=${retired}   # 앞문이 리슨하는 포트 — compose 는 같은 포트로 내보낸다`,
+      '그 다음 NERV_HTTP_PORT 를 지우십시오.',
+      '기본값으로 떨어뜨리지 않는 이유는, 그러면 이 배치가 옛 포트로 열린 줄 알고 있다가',
+      '앞문에 닿지 않는 주소를 사람에게 주게 되기 때문입니다.',
+    ].join('\n'),
+  );
+}
+
+/**
+ * 걷힌 이름 전부를 한 자리에서 본다 — 엔트리(api·worker)가 기동 전에 부른다.
+ * 문구는 이름마다 달라야 해서(무엇을 어디에 넣으라는 말이 다르다) 판정은 각자 한다.
+ */
+export function assertRetiredNames(env: NodeJS.ProcessEnv = process.env): void {
+  assertPublicUrlRetired(env);
+  assertHttpPortRetired(env);
+}
+
 /* eslint-enable no-restricted-syntax */
