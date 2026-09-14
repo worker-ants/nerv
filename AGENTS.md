@@ -58,7 +58,8 @@ nerv/
 ## git 규약
 
 - 커밋: Conventional Commits — `feat|fix|docs|refactor|test|chore(scope)`. scope 는 워크스페이스 이름(`api`·`web`·`schema`·`deploy`), 문서 작업은 `docs:`.
-- 구현 코드는 브랜치(`feat/…`·`fix/…`) + PR 필수, `main` 직접 push 금지([4.2](docs/04-mvp/codebase.md) §4.4). 문서 커밋은 현행 관례상 `main` 직접 커밋을 허용한다.
+- **`main` 은 보호된 브랜치다 — 예외가 없다**(2026-09-14 사람 확정). 문서든 코드든 **브랜치를 따고 PR 로** 올린다(`feat/…`·`fix/…`·`docs/…` · [4.2](docs/04-mvp/codebase.md) §4.4). `main` 에 **직접 커밋도 push 도 하지 않는다** — 전에는 문서 커밋에 한해 직접 커밋을 허용했고, 그 예외가 실제로 사고를 냈다: 문서 커밋을 로컬 `main` 에 하고 push 하지 않은 채 브랜치를 따서, **다음 PR 이 그 커밋을 함께 싣고** 올라갔다(squash 뒤 로컬 `main` 만 갈라져 남았다). 예외를 두면 "이건 문서니까" 가 매번 판단거리가 된다.
+- 브랜치는 **머지된 뒤 지운다**(원격·로컬 양쪽). squash 머지라 `git branch -d` 는 "not fully merged" 로 거부하므로, **내용으로 확인하고**(`git diff <브랜치> main` 이 비었는가) `-D` 로 지운다.
 - PR 본문에 관련 Task 키(`<PRJ>-T-…` — 표시 키 규칙은 [3.3 데이터 모델](docs/03-proposal/data-model.md) §5.1)와 스펙 키·요구사항 번호(`REQ-…`)를 남긴다.
 
 ## 에이전트 행동 원칙
