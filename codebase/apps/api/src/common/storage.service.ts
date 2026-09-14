@@ -41,12 +41,16 @@ export class StorageService implements OnModuleInit {
   private readonly signer: S3Client | null;
 
   constructor() {
-    const endpoint = process.env['NERV_S3_ENDPOINT'];
-    const accessKeyId = process.env['NERV_S3_ACCESS_KEY'];
-    const secretAccessKey = process.env['NERV_S3_SECRET_KEY'];
+    // **빈 문자열도 부재다**(2026-09-14 · REQ-CB-040). 배치가 "설정하지 않음" 을 넘기는
+    // 모양은 셋이다 — 키가 없거나, k8s ConfigMap 이 값을 비워 두거나, compose 가
+    // `${VAR:-}` 로 빈 값을 넘긴다. `undefined` 만 보면 뒤의 둘이 통과해 endpoint 가
+    // `''` 인 클라이언트가 만들어지고, 첨부는 **꺼지는 대신 요청마다 깨진다.**
+    const endpoint = (process.env['NERV_S3_ENDPOINT'] ?? '').trim();
+    const accessKeyId = (process.env['NERV_S3_ACCESS_KEY'] ?? '').trim();
+    const secretAccessKey = (process.env['NERV_S3_SECRET_KEY'] ?? '').trim();
     // **설정이 없으면 조용히 죽지 않는다.** 스토리지가 없는 배치에서도 나머지는 돌아야
     // 하므로 여기서 던지지 않고, 부르는 쪽이 `available` 로 판정해 사람에게 말한다.
-    if (endpoint === undefined || accessKeyId === undefined || secretAccessKey === undefined) {
+    if (endpoint === '' || accessKeyId === '' || secretAccessKey === '') {
       // eslint-disable-next-line no-restricted-syntax -- 운영자용 설정 경고다(REQ-CB-022 예외)
       this.logger.warn('NERV_S3_* 가 없다 — 첨부 기능이 꺼진다(ENDPOINT·ACCESS_KEY·SECRET_KEY)');
       this.client = null;

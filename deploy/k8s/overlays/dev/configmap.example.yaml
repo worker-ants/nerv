@@ -28,9 +28,14 @@ data:
   NERV_API_URL: 'https://nerv.dev.example.com'
 
   # 서버가 S3 에 붙는 주소(클러스터 안).
+  # base 는 이 값을 **비워 둔다**(REQ-CB-040) — `nerv-minio` Service 를 만드는 매니페스트가
+  # 없어서 그 주소를 기본값으로 두면 없는 서비스를 가리킨다. 비면 첨부가 꺼지고 기동
+  # 로그가 그 사실을 남긴다. 조직의 S3(또는 MinIO 를 올리는 오버레이) 주소를 여기 적는다.
   NERV_S3_ENDPOINT: 'http://nerv-minio:9000'
   # 에이전트가 받는 presigned PUT 주소 — **클러스터 밖에서 열리는 별도 호스트**여야 한다.
   # Ingress 의 경로 접두(`/s3`)로는 안 된다: SigV4 가 경로까지 서명한다(REQ-CB-034).
+  # 이 둘은 **configmap-host.yaml 이 실제로 덮는다**(2026-09-14) — 덮지 않던 동안 dev 는
+  # 운영 S3 호스트·운영 버킷을 쓰고 있었다.
   NERV_S3_PUBLIC_ENDPOINT: 'https://s3.nerv.dev.example.com'
   # 환경끼리 버킷을 공유하면 dev 가 운영 첨부를 덮는다 — 이름을 가른다.
   NERV_S3_BUCKET: 'nerv-blobs-dev'
@@ -38,6 +43,8 @@ data:
   # ── ② 임베딩 프로필로 정한다(§5.2a) ───────────────────────────────────────
   # 자가호스팅이면 아래 그대로 두고 base/embed/ 를 resources 에 더한다.
   # 외부 제공자면 그 base URL 로 바꾸고 secret 의 NERV_EMBED_API_KEY 를 채운다.
+  # base 는 이 값을 **비워 둔다**(REQ-CB-040) — 비면 임베딩이 꺼지고 검색은 렉시컬로
+  # degrade 한다. 자가호스팅이면 embed/ 를 이 오버레이의 resources 에 더하고 그 Service 주소를 적는다.
   NERV_EMBED_URL: 'http://nerv-embed/v1'
   NERV_EMBED_MODEL: 'bge-m3'
   # text-embedding-3-* 처럼 절단이 필요한 모델을 쓸 때만 'true'(REQ-CB-033).

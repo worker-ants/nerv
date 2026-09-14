@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v3.34 · 2026-09-14 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v3.35 · 2026-09-14 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v3.35 변경(2026-09-14 — 환경 구성 전수 점검, 사람 지시·확정): **REQ-CB-040 신설 · `.env` 전표 게이트 열 → 열하나 · 미러 PVC.** local·docker·k8s 구성 파일 **37개**를 전수로 훑어 여섯을 고쳤다. ① **dev 오버레이가 S3 공개 주소·버킷을 패치하지 않아 운영 값을 쓰고 있었다**(렌더 결과 `https://s3.nerv.example.com` · `nerv-blobs`) — 공개 주소 둘에서 고친 것과 같은 부류이고, 그 호스트가 실재하고 자격증명이 통하면 dev 첨부가 **운영 버킷에 쓰인다**(예시 파일이 스스로 경고해 둔 일이다). ② **compose 의 worker 에 `NERV_AUTH_SECRET` 이 없어 api 와 worker 가 서로 다른 서명 키를 들고 돌았다** — AuthModule 이 워커 그래프에 있어 워커도 better-auth 를 만든다. ③ **걷힌 이름의 거부가 compose 에서 반만 실물이었다** — compose 는 env 를 키 목록으로 넘기므로 `NERV_PUBLIC_URL` 은 어느 서비스에도 없어 **한 번도 발화할 수 없었고** `NERV_HTTP_PORT` 는 api 에만 있었다. 양쪽에 넘기고 게이트 ⑪ 이 그 전달을 센다 — "읽는 코드가 있는가"(⑤)로는 부족했다. ④ ConfigMap 에 손잡이를 **전량 노출**한다(사람 결정) — `envFrom` 이라 키를 더하면 듣지만 더할 수 있다는 사실을 ConfigMap 이 보여 주지 않으면 발견할 길이 없다. ⑤ **미러 PVC 신설**(사람 결정) — `NERV_EXPORT_DIR` 이 어느 배치에도 없어 md 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다. ⑥ **없는 서비스를 가리키는 기본값을 비운다**(사람 결정 · REQ-CB-040) — `nerv-minio:9000`·`nerv-embed/v1` 은 그 Service 를 만드는 매니페스트가 없는데 그럴듯해서 운영자는 배선이 끝난 줄 알았다. 비우려면 코드가 **빈 값을 부재로** 읽어야 해서 판정을 trim 기준으로 옮겼다(`undefined` 만 보면 빈 값이 통과해 기능이 꺼지는 대신 요청마다 깨진다). **미설정과 빈 값은 다르다** — 앞은 개발 루프의 기본값, 뒤는 "없음" 이다([4.2](04-mvp/codebase.md) v1.45 · [4.8](04-mvp/backlog.md) v0.80).
 >
 > v3.34 변경(2026-09-14 — 낡은 셈 둘과 적지 않은 미룸, 사람 지시): **새 요구사항 없음 — 포트 작업의 잔여 셋.** ① `NERV_HTTP_PORT` 를 걷은 뒤 [4.2](04-mvp/codebase.md) §5.2 가 "**세 포트**는 자기 층의 모든 자리를 정한다" 고 적고 있었다 — 둘이다. ② `.env` 전표 게이트의 실패 문구 하나가 **걷힌 이름**(`NERV_HTTP_PORT`)을 말했다: 그 문구를 따라간 운영자는 서버가 기동을 거부하는 이름을 설정한다. 검사가 고치는 법을 틀리게 알려 주는 것은 검사가 없는 것보다 나쁘다. ③ 신뢰 오리진 파서를 손대면서 **허용 목록의 구성은 2단계의 몫이라 두고 간 미룸**이 어디에도 적혀 있지 않았다 — 적지 않은 미룸은 다음 사람에게 결함으로 보인다. [4.8](04-mvp/backlog.md) E14-S04 의 남은 것에 `/mcp` 가드와 앞문의 비대칭을 적었다([4.2](04-mvp/codebase.md) v1.44 · [4.8](04-mvp/backlog.md) v0.79).
 >
@@ -480,13 +482,13 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.24` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.44` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.45` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.42` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v1.32` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v1.07` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.66` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.22` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v0.79` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v0.80` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 
