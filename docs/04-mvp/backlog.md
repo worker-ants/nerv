@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.87 · 2026-09-20 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.88 · 2026-09-20 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.88 변경(2026-09-20 — 설치가 설정까지 간다, 사람 지시): §1.4 셋째 표에 **`nerv-init`** 한 줄([4.6](plugin.md) REQ-PLG-018 · §3.7 · 패키지 0.3.0). 스토리 수·`done` 수는 그대로다 — E12-S03 이 적어 둔 "`.mcp.json` 미동봉은 남은 것이 아니라 **결정**이다" 도 그대로고, 바뀐 것은 그 파일을 **누가 만드는가**뿐이다.
 >
 > v0.87 변경(2026-09-20 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **네임스페이스 없이 렌더되던 셋**을 더한다. `base/web/` 의 Deployment·Service·Ingress 가 네임스페이스 없이 렌더되고 있었고 어느 스토리에도 속하지 않는다 — `base/kustomization.yaml` 의 `namespace: nerv` 는 그 kustomization 의 resources 에만 미치는데 오버레이는 `../../base/web` 을 따로 더한다. 게이트가 이제 그것을 센다(REQ-CB-046 일곱째)([4.2](codebase.md) v1.52).
 >
@@ -326,6 +328,7 @@ referenced_by:
 | 자라는 목록의 커서 | `session.service.ts` · `event.service.ts` | activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120) |
 | 세션 쓰기의 오리진 대조 | `common/session-origin.guard.ts`(신설) · `main.ts` 전역 가드 · `cors-cookie.spec.ts` | 쿠키는 브라우저가 **알아서 싣는** 자격증명이다 — CORS 는 응답을 읽는 것만 막고 `SameSite=Lax` 는 같은 사이트의 다른 호스트를 막지 않는다(쿠키 도메인을 넓힌 배치가 그 모양이다). 그 자리의 방어선이 운영 약속뿐이던 것을 서버 판정으로 옮겼다(2026-09-20 사람 확정 · REQ-CB-043) |
 | 네임스페이스 없이 렌더되던 셋 | `deploy/k8s/base/web/kustomization.yaml`(`namespace: nerv`) · `codebase/scripts/check-k8s-render.mjs`(일곱째 검사) | `base` 의 `namespace` 는 **그 kustomization 의 resources 에만** 미치는데 오버레이는 `../../base/web` 을 따로 더한다 — 셋이 네임스페이스 없이 렌더됐고 `kubectl` 은 그것을 **호출한 쪽의 기본값**으로 보낸다. 배포 파이프라인이 `forbidden` 으로 막히며 드러났고, **권한이 있었다면 막히지도 않고 엉뚱한 네임스페이스에 떴다**(2026-09-20 실측 · [4.2](codebase.md) REQ-CB-046) |
+| 설치가 설정까지 간다 — `nerv-init` | `plugin/bin/nerv-init`(신설) · `plugin/hooks/hooks.json`·`hooks.http.json`(SessionStart 감지) · `plugin-package.spec.ts`(실제 실행 L1 6건) · `apps/api/test/integration/plugin.spec.ts`(실행 비트) · 매뉴얼 ko·en | 플러그인을 설치해도 **손작업 셋**이 남아 있었다(`.mcp.json`·`settings.local.json` 의 `env`·`.gitignore` — 실측: 이 저장소 자신도 `.mcp.json` 없이 돌고 있었다). `.mcp.json` 을 담지 않는 결정은 그대로고(REQ-PLG-001 개정), **파일 대신 그 파일을 쓰는 스크립트**를 담는다. 덮지 않는 것과 훅이 쓰지 않는 것이 규율이다([4.6](plugin.md) REQ-PLG-018 · v0.68) |
 
 #### 이 절은 언제 갱신되는가
 

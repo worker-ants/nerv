@@ -14,6 +14,12 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
             "timeout": 20
+          },
+          {
+            "$comment": "설정이 덜 된 저장소에만 말한다 — 쓰지는 않는다(4.6 §3.7).",
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-init\" --check",
+            "timeout": 5
           }
         ]
       }

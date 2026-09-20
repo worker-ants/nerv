@@ -164,7 +164,12 @@ describe('EP-PLG-02 — 아카이브', () => {
       i = buf.indexOf(Buffer.from('PK\x01\x02', 'binary'), i + 4);
     }
 
-    for (const exec of ['bin/nerv-hook-forward', 'bin/nerv-outbox', 'bin/nerv-env.sh']) {
+    for (const exec of [
+      'bin/nerv-hook-forward',
+      'bin/nerv-outbox',
+      'bin/nerv-env.sh',
+      'bin/nerv-init',
+    ]) {
       expect(modes.has(exec)).toBe(true);
       expect((modes.get(exec) ?? 0) & 0o111).not.toBe(0);
     }

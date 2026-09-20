@@ -6,7 +6,9 @@
 //
 // 그래서 이 테스트는 파일 존재만 보지 않고 **문서에서 다시 추출해 바이트 비교**한다.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -230,6 +232,7 @@ describe('패키지 구성', () => {
     'agents/nerv-spec-writer.md',
     'bin/nerv-hook-forward',
     'bin/nerv-outbox',
+    'bin/nerv-init',
     'hooks/hooks.http.json',
     'managed-settings.example.json',
     'README.md',
@@ -254,6 +257,7 @@ describe('패키지 구성', () => {
       'codex/AGENTS.md',
       'statusline/nerv-statusline.sh',
       'managed-settings.example.json',
+      'bin/nerv-init',
     ]) {
       expect(readme, `README 가 ${path} 를 적지 않는다`).toContain(path);
     }
@@ -372,5 +376,121 @@ describe('Codex 초안 2종 (REQ-PLG-010)', () => {
     // 두면 이 저장소에서 도는 Codex 세션이 예시 URL 로 접속하려 든다.
     // 템플릿으로 배포하고 쓰는 쪽이 복사하는 것이 맞다.
     expect(existsSync(join(repoRoot, '.codex', 'config.toml'))).toBe(false);
+  });
+});
+
+/**
+ * REQ-PLG-018 — 설치 부트스트랩 (4.6 §3.7)
+ *
+ * **여기서는 스크립트를 실제로 돌린다.** 파일 존재나 문자열 대조로는 이 요구의 핵심을
+ * 셀 수 없기 때문이다: 핵심은 *무엇을 쓰는가* 가 아니라 **무엇을 쓰지 않는가** 다.
+ * 남의 `settings.local.json` 을 덮는 설치 스크립트는 설치가 아니라 사고이고(규약 8 ·
+ * 2026-09-14 에 그 대가를 치렀다), 그 사고는 실행해 봐야만 보인다.
+ */
+describe('REQ-PLG-018 — nerv-init 이 덮지 않는다', () => {
+  const script = join(here, 'bin/nerv-init');
+
+  /** NERV_* 가 없는 환경에서 돌린다 — 러너의 환경이 판정에 새어 들어오지 않게 */
+  function run(args: string[], cwd: string): string {
+    return execFileSync(script, args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, NERV_SERVER: '', NERV_PROJECT: '', NERV_TOKEN: '' },
+    });
+  }
+
+  const repo = () => mkdtempSync(join(tmpdir(), 'nerv-init-'));
+
+  it('빈 저장소에 세 자리를 만든다', () => {
+    const dir = repo();
+    run(
+      ['--dir', dir, '--project', 'clemvion', '--token', 'sk-test', '--server', 'https://api.test'],
+      dir,
+    );
+
+    expect(readFileSync(join(dir, '.mcp.json'), 'utf8')).toContain(
+      '${NERV_SERVER:-https://api.nerv.example.com}/mcp',
+    );
+    const settings = JSON.parse(readFileSync(join(dir, '.claude/settings.local.json'), 'utf8'));
+    expect(settings.env).toEqual({
+      NERV_SERVER: 'https://api.test',
+      NERV_PROJECT: 'clemvion',
+      NERV_TOKEN: 'sk-test',
+    });
+    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toContain('.nerv/');
+  });
+
+  it('이미 있는 값은 덮지 않는다 — 인자로 다른 값을 줘도 파일이 이긴다', () => {
+    const dir = repo();
+    mkdirSync(join(dir, '.claude'));
+    writeFileSync(
+      join(dir, '.claude/settings.local.json'),
+      JSON.stringify({
+        permissions: { allow: ['Bash(pnpm test:*)'] },
+        env: { NERV_TOKEN: '사람이-넣은-것' },
+      }),
+    );
+    writeFileSync(join(dir, '.mcp.json'), '{ "mcpServers": { "other": {} } }\n');
+    writeFileSync(join(dir, '.gitignore'), 'node_modules\n');
+
+    const out = run(['--dir', dir, '--project', 'clemvion', '--token', 'sk-새것'], dir);
+
+    const settings = JSON.parse(readFileSync(join(dir, '.claude/settings.local.json'), 'utf8'));
+    expect(settings.env.NERV_TOKEN).toBe('사람이-넣은-것'); // 덮지 않았다
+    expect(settings.permissions.allow).toEqual(['Bash(pnpm test:*)']); // 남의 키도 잃지 않았다
+    expect(settings.env.NERV_PROJECT).toBe('clemvion'); // 빈 칸은 채웠다
+    // 남의 .mcp.json 은 한 바이트도 건드리지 않는다 — 대신 더할 항목을 찍어 준다
+    expect(readFileSync(join(dir, '.mcp.json'), 'utf8')).toBe(
+      '{ "mcpServers": { "other": {} } }\n',
+    );
+    expect(out).toContain('덮지 않았다');
+    expect(out).toContain('인자와 다른 값이 이미 있다');
+    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe(
+      'node_modules\n# NERV 플러그인 — 캐시·오프라인 큐·Codex 환경 파일\n.nerv/\n',
+    );
+  });
+
+  it('다시 돌려도 같다 — .gitignore 가 자라지 않는다', () => {
+    const dir = repo();
+    const args = ['--dir', dir, '--project', 'p', '--token', 'sk-1'];
+    run(args, dir);
+    const before = readFileSync(join(dir, '.gitignore'), 'utf8');
+    const out = run(args, dir);
+    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe(before);
+    expect(out).not.toContain('썼다');
+  });
+
+  /**
+   * **흔적이 없으면 침묵한다.** 플러그인은 기계에 하나라 NERV 와 무관한 저장소에서도
+   * 세션마다 돈다 — 거기서 설정을 재촉하면 그 줄은 곧 아무도 읽지 않는 줄이 된다.
+   */
+  it('--check 는 쓰지 않는다 — 흔적 없는 저장소에서는 한 글자도 내지 않는다', () => {
+    const dir = repo();
+    expect(run(['--dir', dir, '--check'], dir)).toBe('');
+    for (const path of ['.mcp.json', '.claude/settings.local.json', '.gitignore']) {
+      expect(existsSync(join(dir, path)), `--check 가 ${path} 를 만들었다`).toBe(false);
+    }
+  });
+
+  it('--check 는 덜 된 것만 말하고 사람이 돌릴 명령을 준다', () => {
+    const dir = repo();
+    mkdirSync(join(dir, '.nerv')); // 흔적: 이 저장소는 NERV 를 쓴다
+    const out = run(['--dir', dir, '--check'], dir);
+    expect(out).toContain('.mcp.json 에 nerv 서버가 없다');
+    expect(out).toContain('bin/nerv-init');
+    expect(existsSync(join(dir, '.mcp.json'))).toBe(false);
+  });
+
+  it('훅 둘 다 세션 시작에서 --check 를 부른다 — 쓰지 않는 감지', () => {
+    for (const name of ['hooks/hooks.json', 'hooks/hooks.http.json']) {
+      const parsed = JSON.parse(file(name)) as {
+        hooks: Record<string, { hooks: { command?: string }[] }[]>;
+      };
+      const commands = (parsed.hooks['SessionStart'] ?? []).flatMap((group) =>
+        group.hooks.map((hook) => hook.command ?? ''),
+      );
+      expect(commands.some((c) => c.includes('nerv-init') && c.includes('--check'))).toBe(true);
+    }
   });
 });

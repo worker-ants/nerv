@@ -4,7 +4,8 @@
 // 서버가 이 파일을 `/plugin/<이름>-<버전>.zip` 으로 서빙하고 기동 시 sha256 을 계산한다
 // (`modules/plugin/plugin.service.ts`). 여기서 지켜야 할 것이 셋이다.
 //
-//   ① **실행 비트.** `bin/nerv-hook-forward` 와 `bin/nerv-outbox` 는 훅이 직접 실행한다.
+//   ① **실행 비트.** `bin/nerv-hook-forward`·`bin/nerv-outbox`·`bin/nerv-init` 은 훅이나
+//      사람이 직접 실행한다.
 //      zip 이 모드를 잃으면 설치는 성공하고 훅만 조용히 죽는다 — 가장 나쁜 실패 모양이다.
 //      그래서 external attributes 상위 16비트에 유닉스 모드를 싣는다.
 //   ② **결정성.** 타임스탬프를 고정해 같은 소스가 같은 바이트를 낸다. 정확성에 필요하진

@@ -28,6 +28,8 @@ The role matters: **a token can never be broader than the role.** As a `viewer` 
 
 ## 2. Environment variables
 
+**This chapter is the by-hand route.** If you install the plugin first (3-A), the single command at the end of that chapter writes these files and the next chapter's `.mcp.json` **for you** — and never overwrites a value that is already there. Follow this chapter when you want to know what it writes, or prefer to write it yourself.
+
 **These values belong to a project, not to a machine.** Exported in your shell profile they are machine-wide, so the machine can only serve one project — switch projects and you edit the profile and restart every session. Put them **inside the working repository** instead.
 
 ### Default — the repository's `.claude/settings.local.json`
@@ -90,7 +92,7 @@ Two lines inside Claude Code.
 
 To take what this server ships instead, change only the first line — `add https://<this server>/plugin/marketplace.json`. They are **two transports for the same marketplace**, so the install command is unchanged (don't register both at once).
 
-Then **restart**. You should see `nerv` v0.2.23 listed as active under `/plugin`.
+Then **restart**. You should see `nerv` v0.3.0 listed as active under `/plugin`.
 
 The server builds the catalogue itself, so **there is nothing to edit after you install** — its own address is already in there. If your deployment uses an internal git marketplace instead, put that git URL in and install `nerv@nerv-internal`.
 
@@ -109,9 +111,22 @@ Four things get installed.
 | statusline                  | Puts your current claim, remaining lease and declared-scope overlaps on the prompt line |
 | Subagent `nerv-spec-writer` | A narrow agent whose only job is drafting specs                                         |
 
-**The `nerv_*` tools are not among those four** — the `.mcp.json` below has to be in place before you have them.
+**The `nerv_*` tools are not among those four** — your repository needs a `.mcp.json` before you have them. Its address and token differ per project, so the plugin does not ship that file.
 
-**The MCP server is separate.** Its address and token differ per project, so the plugin does not ship it — put a `.mcp.json` at your repository root. Without that file you have no `nerv_*` tools.
+**It ships the command that writes it instead.** Run this once in your working repository and three things go up together: `.mcp.json`, the environment variables in `.claude/settings.local.json`, and `.nerv/` in `.gitignore`. The token is asked for without echoing it to the screen.
+
+```bash
+cd <your repository>
+"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)"
+```
+
+**It never overwrites a value that is already there.** If a token is on file it stays, and the command says so — change it by editing that file yourself. If a `.mcp.json` exists but has no `nerv` entry, the file is left untouched and the entry to add is printed for you.
+
+In a repository where the setup is incomplete, the session start tells you what is missing. **It only tells you — it writes nothing**: setup is yours to start. In a repository with no sign of NERV at all it stays quiet.
+
+Afterwards, **restart Claude Code** — a newly created `.mcp.json` is read then.
+
+By hand, this is the content (read it together with chapter 2):
 
 ```json
 {
@@ -194,7 +209,7 @@ The skill calls `nerv_bootstrap` first, recommends the next task, and takes you 
 
 | Symptom                                   | Usually this                                                                                                                                                         |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nerv` missing from `/mcp`                | You did not restart after installing                                                                                                                                 |
+| `nerv` missing from `/mcp`                | You did not restart after installing, or the repository has no `.mcp.json` — run the command in 3-A once                                                             |
 | Cannot reach the server                   | A typo in `url`, or you are off the internal network — check the address with your administrator                                                                     |
 | `NERV_UNAUTHENTICATED`                    | `NERV_TOKEN` is empty or was revoked. Issue a new one under Settings → Tokens                                                                                        |
 | `NERV_FORBIDDEN`, missing scope           | The token's scopes are too narrow, or the role it was issued under cannot do that                                                                                    |

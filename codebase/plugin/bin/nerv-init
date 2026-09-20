@@ -1,0 +1,292 @@
+#!/usr/bin/env bash
+# nerv-init — 작업 저장소에 NERV 설정 세 자리를 만든다 (plugin.md §3.7 · REQ-PLG-018)
+#
+# **왜 파일이 아니라 스크립트인가.** 서버 주소·토큰은 프로젝트마다 다른 값이라 여러
+# 프로젝트가 공유하는 플러그인이 파일로 담을 수 없다(REQ-PLG-001 개정 · §3.3). 담을 수 없는
+# 것과 손으로 만들어야 하는 것은 다르다 — 스크립트는 파일이 아니라 실행이라, 그 저장소
+# 안에서 그 저장소의 값으로 쓴다. 훅이 플러그인에 남을 수 있는 이유와 같다.
+#
+# 세 자리를 만든다:
+#   ① <저장소>/.mcp.json                    — MCP 접속 (§3.3 템플릿 그대로)
+#   ② <저장소>/.claude/settings.local.json  — NERV_* 환경변수 (Claude Code 의 유일한 자리)
+#   ③ <저장소>/.gitignore                   — `.nerv/` 무시 (REQ-PLG-013)
+#
+# **이미 있는 값은 덮지 않는다.** 빈 칸만 채우고, 값이 있으면 그대로 두고 말한다(JSON 은
+# 다시 찍으므로 들여쓰기는 바뀔 수 있다 — 값과 키는 하나도 잃지 않는다).
+# 이 저장소는 그 반대를 한 번 해서 되살릴 수 없는 자격증명을 잃었다(AGENTS.md 규약 8 ·
+# 2026-09-14). 설정 파일은 남의 작업이 들어 있는 자리다 — 설치 스크립트가 그것을 지우면
+# 설치가 사고가 된다.
+#
+# 사용:
+#   nerv-init [--dir <경로>] [--server <URL>] [--project <슬러그>] [--token <PAT>]
+#   nerv-init --check    # 아무것도 쓰지 않고 상태만 말한다 (SessionStart 훅이 부른다)
+#
+# 토큰은 인자로 주지 않으면 **가려서 묻는다**(TTY 일 때) — 셸 히스토리에 남기지 않으려고.
+# 비대화형에서 값이 없으면 그 칸은 적지 않는다: 자리표시자를 적으면 "설정됐다" 고 보인다.
+set -uo pipefail
+
+default_server="https://api.nerv.example.com"
+
+dir=""; server=""; project=""; token=""; mode="write"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dir) dir="${2:?--dir 뒤에 경로}"; shift 2 ;;
+    --server) server="${2:?--server 뒤에 URL}"; shift 2 ;;
+    --project) project="${2:?--project 뒤에 슬러그}"; shift 2 ;;
+    --token) token="${2:?--token 뒤에 PAT}"; shift 2 ;;
+    --check) mode="check"; shift ;;
+    -h | --help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "nerv-init: 모르는 인자 $1 (--help)" >&2; exit 2 ;;
+  esac
+done
+
+# 대상 저장소 — 훅에서 부를 때는 Claude Code 가 프로젝트 루트를 준다
+root="${dir:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+if [ ! -d "$root" ]; then
+  echo "nerv-init: 그런 디렉터리가 없다 — $root" >&2
+  exit 2
+fi
+mcp="$root/.mcp.json"
+settings="$root/.claude/settings.local.json"
+ignore="$root/.gitignore"
+
+# 프로젝트별 환경(.nerv/env) — Codex 폴백이지만 읽는 값은 같다(§3.3).
+# **대상 저장소의 것을 읽는다** — 로더의 기본 경로는 cwd 상대라 `--dir` 로 남의 저장소를
+# 가리켰을 때 엉뚱한 파일을 읽는다. 사람이 이미 정했으면 그것을 이긴다고 보지 않는다.
+export NERV_ENV_FILE="${NERV_ENV_FILE:-$root/.nerv/env}"
+. "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"
+
+# -- settings.local.json 의 env 읽기 -----------------------------------------
+# JSON 은 셸로 읽지 않는다. node 도 python3 도 없으면 **읽지 못했다고 말하고** 환경변수만
+# 본다 — 못 읽은 것을 "없다" 로 적으면 있는 값을 덮자고 권하게 된다.
+runtime=""
+if command -v node >/dev/null 2>&1; then runtime="node"
+elif command -v python3 >/dev/null 2>&1; then runtime="python3"; fi
+
+read_settings_env() { # <파일> → KEY=VALUE 줄들
+  [ -f "$1" ] || return 0
+  case "$runtime" in
+    node) node -e '
+const fs = require("fs");
+const file = process.argv[1];
+let doc = {};
+try { doc = JSON.parse(fs.readFileSync(file, "utf8") || "{}"); } catch (e) { process.exit(0); }
+const env = doc && doc.env;
+if (env && typeof env === "object") {
+  for (const key of Object.keys(env)) if (key.startsWith("NERV_")) console.log(key + "=" + env[key]);
+}
+' "$1" ;;
+    python3) python3 -c '
+import json, sys
+try:
+    doc = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    sys.exit(0)
+env = doc.get("env") if isinstance(doc, dict) else None
+if isinstance(env, dict):
+    for key, value in env.items():
+        if key.startswith("NERV_"):
+            print(key + "=" + str(value))
+' "$1" ;;
+  esac
+}
+
+settings_server=""; settings_project=""; settings_token=""
+while IFS='=' read -r key value; do
+  case "$key" in
+    NERV_SERVER) settings_server="$value" ;;
+    NERV_PROJECT) settings_project="$value" ;;
+    NERV_TOKEN) settings_token="$value" ;;
+  esac
+done < <(read_settings_env "$settings")
+
+# 인자로 **명시한** 값 — 아래에서 파일의 값과 다르면 그 사실을 말한다
+arg_server="$server"; arg_project="$project"; arg_token="$token"
+
+# 값의 출처 — 인자 > 환경(관리형·셸·.nerv/env) > 이미 적힌 settings
+pick() { for v in "$@"; do [ -n "$v" ] && { printf '%s' "$v"; return; }; done; }
+server="$(pick "$server" "${NERV_SERVER:-}" "$settings_server")"
+project="$(pick "$project" "${NERV_PROJECT:-}" "$settings_project")"
+token="$(pick "$token" "${NERV_TOKEN:-}" "$settings_token")"
+
+mcp_has_nerv() { [ -f "$mcp" ] && grep -q '"nerv"' "$mcp"; }
+
+# -- --check : 아무것도 쓰지 않는다 -------------------------------------------
+#
+# **쓰려는 흔적이 없으면 조용히 지나간다.** 플러그인은 기계에 하나라 NERV 와 무관한
+# 저장소에서도 세션마다 돈다 — 거기서 설정을 재촉하면 그 줄은 곧 아무도 읽지 않는 줄이 된다.
+if [ "$mode" = "check" ]; then
+  trace="no"
+  mcp_has_nerv && trace="yes"
+  [ -d "$root/.nerv" ] && trace="yes"
+  [ -n "$settings_server$settings_project$settings_token" ] && trace="yes"
+  [ -n "${NERV_TOKEN:-}${NERV_PROJECT:-}" ] && trace="yes"
+  [ "$trace" = "no" ] && exit 0
+
+  missing=()
+  mcp_has_nerv || missing+=(".mcp.json 에 nerv 서버가 없다 — NERV 도구가 이 세션에 붙지 않는다")
+  [ -n "$token" ] || missing+=("NERV_TOKEN 이 비어 있다 — 붙어도 401 로 끝난다")
+  [ -n "$project" ] || missing+=("NERV_PROJECT 가 비어 있다")
+  [ ${#missing[@]} -eq 0 ] && exit 0
+
+  echo "NERV 설정이 덜 됐다:"
+  for line in "${missing[@]}"; do echo "  - $line"; done
+  echo "사람에게 이 명령을 안내한다(에이전트가 대신 실행하지 않는다 — 토큰을 묻는다):"
+  echo "  \"${CLAUDE_PLUGIN_ROOT:-<플러그인 경로>}/bin/nerv-init\""
+  echo "설정이 설 때까지 nerv_* 도구를 부르지 않는다 — 없는 도구를 부르면 승인 프롬프트만 쌓인다."
+  exit 0
+fi
+
+# -- 쓰기 ---------------------------------------------------------------------
+[ -n "$server" ] || server="$default_server"
+if [ -t 0 ]; then
+  [ -n "$project" ] || { printf '프로젝트 슬러그(예: clemvion): '; read -r project; }
+  if [ -z "$token" ]; then
+    printf '에이전트 토큰(웹 설정 → 토큰 → 발급 · 화면에 찍지 않는다): '
+    read -rs token; printf '\n'
+  fi
+fi
+
+wrote=""; kept=""; show_mcp_entry="no"
+# bash 3.2 는 set -u 에서 빈 배열을 펴지 못한다 — 줄을 모아 두고 한 번에 찍는다
+note_wrote() { wrote="${wrote}  썼다   ${1}\n"; }
+note_kept() { kept="${kept}  그대로 ${1}\n"; }
+
+# 인자로 준 값이 파일에 이미 있는 다른 값과 부딪치면 **파일이 이긴다** — 그리고 말한다.
+conflict() { # <이름> <인자값> <파일값>
+  [ -n "$2" ] && [ -n "$3" ] && [ "$2" != "$3" ] &&
+    note_kept "settings.local.json 의 $1 — 인자와 다른 값이 이미 있다. 바꾸려면 그 파일을 직접 고친다"
+  return 0
+}
+conflict NERV_SERVER "$arg_server" "$settings_server"
+conflict NERV_PROJECT "$arg_project" "$settings_project"
+conflict NERV_TOKEN "$arg_token" "$settings_token"
+
+# ① .mcp.json — 없을 때만 쓴다. 있으면 한 줄도 건드리지 않는다.
+if [ -f "$mcp" ]; then
+  if mcp_has_nerv; then note_kept ".mcp.json — nerv 서버가 이미 있다"
+  else
+    note_kept ".mcp.json — 있지만 nerv 서버가 없다. 덮지 않았다 — 아래 항목을 손으로 더한다"
+    show_mcp_entry="yes"
+  fi
+else
+  cat > "$mcp" <<'MCP'
+{
+  "mcpServers": {
+    "nerv": {
+      "type": "http",
+      "url": "${NERV_SERVER:-https://api.nerv.example.com}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NERV_TOKEN}",
+        "X-NERV-Project": "${NERV_PROJECT}"
+      }
+    }
+  }
+}
+MCP
+  note_wrote ".mcp.json"
+fi
+
+# ② .claude/settings.local.json — 빈 칸만 채운다(기존 키·값은 그대로)
+if [ -z "$runtime" ]; then
+  note_kept "settings.local.json — node 도 python3 도 없어 JSON 을 다루지 못했다. 아래 블록을 손으로 넣는다"
+else
+  mkdir -p "$root/.claude"
+  pairs=("NERV_SERVER=$server")
+  [ -n "$project" ] && pairs+=("NERV_PROJECT=$project")
+  [ -n "$token" ] && pairs+=("NERV_TOKEN=$token")
+  case "$runtime" in
+    node) added="$(node -e '
+const fs = require("fs");
+const [file, ...pairs] = process.argv.slice(1);
+let doc = {};
+if (fs.existsSync(file)) {
+  const raw = fs.readFileSync(file, "utf8").trim();
+  if (raw !== "") {
+    try { doc = JSON.parse(raw); } catch (e) { console.error("파싱 실패"); process.exit(3); }
+  }
+}
+if (typeof doc !== "object" || doc === null || Array.isArray(doc)) { console.error("객체가 아니다"); process.exit(3); }
+if (typeof doc.env !== "object" || doc.env === null || Array.isArray(doc.env)) doc.env = {};
+const added = [];
+for (const pair of pairs) {
+  const at = pair.indexOf("=");
+  const key = pair.slice(0, at);
+  const value = pair.slice(at + 1);
+  if (doc.env[key] !== undefined && doc.env[key] !== "") continue;
+  doc.env[key] = value;
+  added.push(key);
+}
+fs.writeFileSync(file, JSON.stringify(doc, null, 2) + "\n");
+console.log(added.join(" "));
+' "$settings" "${pairs[@]}")" ;;
+    python3) added="$(python3 -c '
+import json, os, sys
+file = sys.argv[1]
+doc = {}
+if os.path.exists(file):
+    raw = open(file, encoding="utf-8").read().strip()
+    if raw:
+        try:
+            doc = json.loads(raw)
+        except Exception:
+            sys.stderr.write("파싱 실패")
+            sys.exit(3)
+if not isinstance(doc, dict):
+    sys.stderr.write("객체가 아니다")
+    sys.exit(3)
+if not isinstance(doc.get("env"), dict):
+    doc["env"] = {}
+added = []
+for pair in sys.argv[2:]:
+    key, _, value = pair.partition("=")
+    if doc["env"].get(key):
+        continue
+    doc["env"][key] = value
+    added.append(key)
+open(file, "w", encoding="utf-8").write(json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
+print(" ".join(added))
+' "$settings" "${pairs[@]}")" ;;
+  esac
+  status=$?
+  if [ $status -ne 0 ]; then
+    note_kept "settings.local.json — 읽지 못하는 JSON 이라 건드리지 않았다. 사람이 본다"
+  else
+    # 토큰이 든다 — 남이 읽을 수 있는 채로 두지 않는다
+    chmod 600 "$settings" 2>/dev/null
+    [ -n "$added" ] && note_wrote "settings.local.json: $added" || note_kept "settings.local.json — 세 값이 이미 있다"
+  fi
+fi
+
+# ③ .gitignore — `.nerv/` 한 줄 (REQ-PLG-013)
+if [ -f "$ignore" ] && grep -qE '^\.nerv/?$' "$ignore"; then
+  note_kept ".gitignore — .nerv/ 가 이미 있다"
+else
+  [ -f "$ignore" ] && [ -n "$(tail -c 1 "$ignore")" ] && printf '\n' >> "$ignore"
+  printf '%s\n' '# NERV 플러그인 — 캐시·오프라인 큐·Codex 환경 파일' '.nerv/' >> "$ignore"
+  note_wrote ".gitignore: .nerv/"
+fi
+
+echo "NERV 설정 — $root"
+printf %b "$wrote" "$kept"
+if [ "$show_mcp_entry" = "yes" ]; then
+  echo
+  echo "$mcp 의 mcpServers 에 더할 항목:"
+  cat <<'ENTRY'
+    "nerv": {
+      "type": "http",
+      "url": "${NERV_SERVER:-https://api.nerv.example.com}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NERV_TOKEN}",
+        "X-NERV-Project": "${NERV_PROJECT}"
+      }
+    }
+ENTRY
+fi
+if [ -z "$token" ]; then
+  echo
+  echo "토큰이 없다 — NERV_TOKEN 을 settings.local.json 의 env 에 넣어야 붙는다."
+  echo "웹 설정 → 토큰 → 발급(값은 그때 한 번만 보인다) 뒤 다시 이 명령을 돌리면 빈 칸만 찬다."
+fi
+echo
+echo "다음: Claude Code 를 다시 띄우고 /mcp 에서 nerv 가 connected 인지 본다. 그다음 /nerv:next."

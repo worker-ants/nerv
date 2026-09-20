@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.67 · 2026-09-20 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.68 · 2026-09-20 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.68 변경(2026-09-20 — 설치가 설정까지 간다, 사람 지시): **REQ-PLG-018 신설 · §3.7 신설 · 패키지 0.2.23 → 0.3.0.** 설치를 마쳐도 **온보딩에 손작업 셋이 남아 있었다** — `.mcp.json`·`settings.local.json` 의 `env`·`.gitignore` 다(실측: 이 저장소 자신도 `.mcp.json` 없이 돌고 있었다). `.mcp.json` 을 플러그인이 담지 않는 **결정은 그대로다**(REQ-PLG-001 개정 · §3.3) — 담을 수 없는 것과 손으로 만들어야 하는 것은 다르므로, 파일 대신 **그 파일을 쓰는 스크립트**(`bin/nerv-init`)를 담는다. 훅이 플러그인에 남을 수 있는 이유와 같다: 스크립트는 파일이 아니라 실행이라 그 저장소의 값으로 쓴다. 규율 둘을 못 박는다 — **이미 있는 값은 덮지 않고**(인자로 다른 값을 줘도 파일이 이기고, 부딪친 사실을 말한다 · `AGENTS.md` 규약 8 · 2026-09-14), **훅은 감지만 하고 쓰지 않는다**(흔적이 없는 저장소에서는 침묵한다 — 플러그인은 기계에 하나라 NERV 와 무관한 저장소에서도 돈다). §4 의 단계 순서가 바뀌었다: 스크립트가 배달물이라 **플러그인 설치가 먼저**고 옛 2·2a 가 3단계 한 명령이 됐다(손으로 하던 길은 그대로 남긴다).
 >
 > v0.67 변경(2026-09-20 — 공개 주소 분리 4단계 ②, 사람 지시): **새 요구사항 없음 · 패키지 0.2.22 → 0.2.23 · 배달되는 주소 13곳이 `api.` 로.** 화면과 API 가 호스트로 갈렸으므로([4.1](scope.md) §2.3 · [4.2](codebase.md) §6.3), 플러그인이 들고 있던 하드코딩된 주소는 **API 호스트**다 — 훅 여섯(`/ingest/hooks/*`)·관리형 settings 의 `NERV_SERVER` 와 허용 URL 다섯·Codex 의 `/mcp`·카탈로그의 `owner.url` 이다. **버전과 함께 간다**(REQ-PLG-017): 설치한 쪽은 `plugin.json` 의 버전이 오를 때만 새 사본을 받으므로, 주소만 바꾸면 이미 설치한 세션은 옛 주소로 계속 쏜다 — 그 호스트에는 `/ingest` 가 없다. **순서도 그래서다**([4.2](codebase.md) §6.3a 5번): 서버 쪽 호스트가 먼저 서고 이 배달이 나중이다. 먼저 바꾸면 배달만 되고 서버는 옛 주소다. 곁들여 매뉴얼 ko·en 의 설치 장(주소 다섯씩·버전 한 줄)과 [3.4](../03-proposal/agent-integration.md) 의 예시 주소 셋을 같은 값으로 맞췄다.
 >
@@ -120,7 +122,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.23
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.0
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -133,6 +135,7 @@ nerv-plugin/
     # nerv-code-reviewer.md       (P2) 리뷰 도구 2종과 함께 추가
     # nerv-consistency-checker.md (P2)
   bin/nerv-hook-forward           # 훅 헤더 토큰 주입 폴백 · Codex 공용 (§3.1 주의)
+  bin/nerv-init                   # 설치 부트스트랩 — 저장소의 설정 세 자리를 만든다 (§3.7)
   statusline/nerv-statusline.sh   # 클레임·리스·겹침 표시 (§3.2)
 ```
 
@@ -142,12 +145,12 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.23",
+  "version": "0.3.0",
   "license": "Apache-2.0"
 }
 ```
 
-플러그인 버전(0.2.22)과 **게이트 정책 버전은 별개다.** **게이트 정책 버전은 아직 없다**(2026-09-07 실측 — `nerv_bootstrap` 은 `gate_policy` **본문**을 주고, 버전도 `policy.stale` 이벤트도 서버에 없다 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3 · REQ-PLG-009 폐기). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전과 **게이트 정책 버전은 별개다.** **게이트 정책 버전은 아직 없다**(2026-09-07 실측 — `nerv_bootstrap` 은 `gate_policy` **본문**을 주고, 버전도 `policy.stale` 이벤트도 서버에 없다 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3 · REQ-PLG-009 폐기). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -157,7 +160,8 @@ nerv-plugin/
 | 스킬 `/nerv:import` | ❌ **걷어냄**(2026-09-06 · §2.5) — 배달되지 않는 CLI 를 부르는 스킬이었다. 옛 근거: 2026-08-22 추가 — 임포터 실행 모델이 CLI+API로 확정되면서 사람이 도는 절차(dry-run → 리포트 확인 → `--apply`)를 스킬로 배포한다([4.7 스펙 임포터](importer.md) §3.6). 로드맵 Phase 1 "clemvion 임포터"(FR-17 ◐)의 실행 경로이며 새 도구를 추가하지 않는다 |
 | 스킬 `/nerv:review` | ✅ 포함 — Phase 2 로 계획했으나 **2026-08-23 배포**(§2.6) | `nerv_review_submit`·`nerv_finding_resolve`가 P2 도구다. MVP 약속은 `next`·`spec`·`impl`·`question`·`import` 다섯이었는데, `review` 가 앞당겨 들어오고 `import` 가 걷히며(2026-09-06 · §2.5) **패키지도 다섯**이 됐다 |
 | `hooks/hooks.json` (SessionStart·PostToolUse·SubagentStart/Stop·Stop·SessionEnd) | ✅ 포함 | Phase 1 플러그인 v1 번들 |
-| `.mcp.json` | ❌ 제외 | **쓰는 쪽 저장소가 갖는다**(2026-09-04) — 서버 주소·토큰이 프로젝트별 값이고, 플러그인이 제공한 것은 그 프로젝트의 `env` 를 읽지 못한다(§3.3). 전문은 §3.3 템플릿 |
+| `.mcp.json` | ❌ 제외 — 대신 **`bin/nerv-init` 이 저장소에 만든다**(2026-09-20 · §3.7) | **쓰는 쪽 저장소가 갖는다**(2026-09-04) — 서버 주소·토큰이 프로젝트별 값이고, 플러그인이 제공한 것은 그 프로젝트의 `env` 를 읽지 못한다(§3.3). 전문은 §3.3 템플릿. **담을 수 없는 것과 손으로 만들어야 하는 것은 다르다** — 파일 대신 그 파일을 쓰는 스크립트를 담는다 |
+| `bin/nerv-init` (+ SessionStart 감지) | ✅ 포함(2026-09-20) | 설치 뒤 남던 손작업 셋(`.mcp.json`·`env`·`.gitignore`)을 한 명령으로 옮긴다. **이미 있는 값은 덮지 않고**, 훅은 감지만 하고 쓰지 않는다(§3.7 · REQ-PLG-018) |
 | statusline | ✅ 포함 | 서버 사실의 로컬 투영 — 네트워크 왕복 없음 |
 | `bin/nerv-hook-forward` | ✅ 포함 | 훅 헤더 `${NERV_TOKEN}` 확장이 실측 불가로 판명될 때의 폴백 경로(Phase 0 실측 항목) |
 | 서브에이전트 `nerv-spec-writer` | ✅ 포함 | 스펙 초안 전용 — 코드 쓰기 도구 미보유 역할 분리 |
@@ -878,6 +882,12 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
             "timeout": 20
+          },
+          {
+            "$comment": "설정이 덜 된 저장소에만 말한다 — 쓰지는 않는다(4.6 §3.7).",
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-init\" --check",
+            "timeout": 5
           }
         ]
       }
@@ -987,6 +997,12 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-outbox\" flush",
             "timeout": 20
+          },
+          {
+            "$comment": "설정이 덜 된 저장소에만 말한다 — 쓰지는 않는다(4.6 §3.7).",
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-init\" --check",
+            "timeout": 5
           }
         ]
       }
@@ -1142,6 +1158,8 @@ printf '  %s · ctx %s%%%s\n' \
 ### 3.3 `.mcp.json` 템플릿과 환경변수 전표
 
 **`.mcp.json` 은 플러그인이 담지 않는다**(2026-09-04 개정 — 사람 결정). 아래는 **쓰는 쪽 저장소가 자기 루트에 두는 템플릿**이다.
+
+**손으로 두지 않아도 된다**(2026-09-20 · §3.7): `bin/nerv-init` 이 이 템플릿을 그대로 쓴다. 담는 자리가 바뀐 것은 아니다 — 파일은 여전히 그 저장소의 것이고, 플러그인이 담는 것은 **그 파일을 쓰는 스크립트**다.
 
 이유는 실측이다(§3.3 "어디에 두는가" 표): **플러그인이 제공한 `.mcp.json` 은 그 프로젝트의 `settings.local.json` `env` 를 읽지 못한다.** 그래서 `${NERV_SERVER:-…}` 가 언제나 기본값으로 떨어져 `api.nerv.example.com` 으로 갔다 — 어느 프로젝트에서도 붙을 수 없는 파일이 세션마다 연결 실패 하나를 남기고 있었다. 프로젝트가 같은 파일을 자기 루트에 두면 그 확장이 정상 동작한다(도구 22종 연결 확인).
 
@@ -1390,20 +1408,69 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 
 **갱신은 그래도 사람이 시작한다.** 버전을 올려도 쓰는 쪽이 `/plugin marketplace update` 를 부르기 전까지는 옛 사본이다. 버전은 *덮어쓸 근거*를 만들 뿐 밀어 넣지 않는다 — 그래서 서버·GitHub 어느 경로든 **버전을 올리는 것이 유일한 배달 신호**다.
 
+### 3.7 설치 부트스트랩 — `bin/nerv-init` (2026-09-20 신설 — 사람 결정)
+
+**결정은 그대로다**(§3.3 · REQ-PLG-001 개정): `.mcp.json` 과 `NERV_*` 는 **쓰는 쪽 저장소**가 갖는다. 바뀐 것은 그 파일을 **누가 만드는가**다 — 2026-09-04 이후 온보딩에는 "저장소 루트에 `.mcp.json` 을 둔다"는 손작업이 남아 있었고, 손으로 만드는 단계는 **빠뜨리거나 틀리게 만드는 단계**다(실측: 이 저장소 자신도 `.mcp.json` 없이 돌고 있었다).
+
+**담을 수 없는 것과 손으로 만들어야 하는 것은 다르다.** 플러그인은 파일 대신 **그 파일을 쓰는 스크립트**를 담는다 — 훅이 플러그인에 남을 수 있었던 이유와 같다(§3.3): 스크립트는 파일이 아니라 실행이라, 그 저장소 안에서 그 저장소의 값으로 쓴다.
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/bin/nerv-init"                       # 대화형 — 토큰은 가려서 묻는다
+"${CLAUDE_PLUGIN_ROOT}/bin/nerv-init" --project clemvion    # 비대화형 — 값은 인자·환경에서
+"${CLAUDE_PLUGIN_ROOT}/bin/nerv-init" --check               # 쓰지 않는다. 상태만 말한다
+```
+
+**`${CLAUDE_PLUGIN_ROOT}` 는 사람의 셸에서 풀리지 않는다** — 플러그인 컴포넌트(훅·statusline·MCP 설정) 안에서만 치환된다(§3.3 의 2026-09-02 정정과 같은 함정이다). 그래서 **경로를 말해 주는 일은 훅이 한다**: `--check` 가 찍는 명령 줄에는 그 세션의 플러그인 루트가 이미 풀려 있다. 세션 없이 직접 찾으려면 설치 캐시에서 고른다(버전마다 디렉터리가 하나씩 선다 — §3.6).
+
+```bash
+"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)"
+```
+
+만드는 자리는 셋이고, 전부 §3.3 이 이미 정한 자리다.
+
+| 자리 | 없으면 | 이미 있으면 |
+| --- | --- | --- |
+| `<저장소>/.mcp.json` | §3.3 템플릿 그대로 쓴다 | **건드리지 않는다.** `nerv` 항목이 없으면 더할 항목을 찍어 주고 멈춘다 |
+| `<저장소>/.claude/settings.local.json` 의 `env` | `NERV_SERVER`·`NERV_PROJECT`·`NERV_TOKEN` 을 담아 만든다(`chmod 600`) | **빈 칸만 채운다.** 다른 키·다른 값은 하나도 잃지 않는다(JSON 을 다시 찍으므로 들여쓰기는 바뀔 수 있다) |
+| `<저장소>/.gitignore` | `.nerv/` 를 더한다(REQ-PLG-013) | 그대로 둔다 |
+
+**이미 있는 값은 덮지 않는다 — 인자로 다른 값을 줘도 파일이 이긴다.** 대신 부딪친 사실을 말한다("인자와 다른 값이 이미 있다. 바꾸려면 그 파일을 직접 고친다"). 조용히 덮는 설치 스크립트는 설치가 아니라 사고다: 이 저장소는 그 반대를 한 번 해서 **되살릴 수 없는 자격증명을 잃었다**(`AGENTS.md` 규약 8 · 2026-09-14). `settings.local.json` 은 그 사람의 권한 규칙이 사는 자리이기도 하다.
+
+값의 출처는 **인자 > 환경(관리형 settings·셸·`.nerv/env`) > 파일에 이미 적힌 값 > 기본값**이다(§3.3 의 우선순위와 같은 순서). 토큰은 인자로 주지 않으면 TTY 에서 **가려서 묻고**(셸 히스토리에 남기지 않는다), 비대화형에서 없으면 **그 칸은 적지 않는다** — 자리표시자를 적으면 "설정됐다"고 보인다. JSON 을 다룰 `node` 도 `python3` 도 없으면 `settings.local.json` 은 건드리지 않고 넣을 블록을 찍는다.
+
+#### 훅은 감지만 한다 — 쓰지 않는다
+
+`SessionStart` 에 `nerv-init --check` 가 하나 더 붙는다(§3.1 전문의 셋째 항목 · http 변형도 같다).
+
+- **쓰지 않는다.** 훅이 파일을 만들면 그 저장소의 상태가 사람 모르게 바뀐다. 설정은 사람이 시작한다.
+- **흔적이 없으면 조용하다.** 플러그인은 기계에 하나라 NERV 와 무관한 저장소에서도 세션마다 돈다. `.mcp.json` 의 `nerv`·`.nerv/`·`NERV_*` 중 **하나도 없으면** 아무 말도 하지 않는다 — 재촉하는 줄은 곧 아무도 읽지 않는 줄이 된다.
+- **덜 된 것만 말한다.** 무엇이 없는지, 사람이 돌릴 명령은 무엇인지, 그리고 **그때까지 `nerv_*` 도구를 부르지 말라**는 것. 없는 도구를 부르면 승인 프롬프트만 쌓인다.
+- 실패해도 세션을 막지 않는다(`exit 0`) — 훅은 텔레메트리·안내 평면이고 게이트는 서버가 유지한다(§3.1).
+
+**그 세션에서 바로 붙지는 않는다.** 새로 생긴 `.mcp.json` 은 Claude Code 가 다시 뜰 때 읽히고, 프로젝트 MCP 서버는 신뢰 프롬프트를 한 번 탄다. 그래서 스크립트의 마지막 줄은 재시작과 `/mcp` 확인을 말한다 — 그 두 줄이 없으면 사람은 "만들었는데 안 붙는다"에서 멈춘다.
+
 ## 4. 사람 온보딩 절차
 
-목표: 신규 팀원이 아래 5단계로 **첫 `nerv_bootstrap` 성공**까지 도달한다. 관리 기기는 3단계(플러그인 설치)가 관리형 settings로 자동이므로 1·2·4·5만 수행한다.
+목표: 신규 팀원이 아래 5단계로 **첫 `nerv_bootstrap` 성공**까지 도달한다. 관리 기기는 2단계(플러그인 설치)가 관리형 settings로 자동이므로 1·3·4·5만 수행한다.
+
+**순서가 바뀌었다**(2026-09-20 · §3.7): 설정을 만드는 것이 `bin/nerv-init` 이고 그것은 플러그인이 배달하는 파일이라, **플러그인 설치가 먼저**다. 옛 2·2a 단계(환경변수·`.mcp.json` 을 손으로)는 한 명령이 됐다 — 손으로 하던 길은 아래에 그대로 남긴다(그 명령이 무엇을 만드는지가 곧 그 길이다).
 
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 환경변수 | 아래 블록을 저장소 `.claude/settings.local.json` 의 `env` 에 둔다 — **Claude Code 의 유일한 자리다**(§3.3). `.nerv/env` 는 Codex 폴백이라 지금은 쓰지 않는다 | `/mcp` 연결 확인 |
-| 2a | MCP 설정 | 저장소 루트에 `.mcp.json` 을 둔다(§3.3 템플릿 그대로). **플러그인은 이 파일을 담지 않는다** — 서버 주소·토큰이 프로젝트마다 다르기 때문이다 | `/mcp` 에 `nerv` connected |
-| 3 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.2.16 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.0 활성 표시 |
+| 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
 
-2단계 블록 — **프로젝트별**(권장, Claude Code):
+3단계 명령 — 설치 캐시에서 고른다(셸에서는 `${CLAUDE_PLUGIN_ROOT}` 가 풀리지 않는다 · §3.7):
+
+```bash
+cd <작업 저장소>
+"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)"
+```
+
+그 명령이 만드는 것 — **프로젝트별**(권장, Claude Code). 손으로 둘 때도 같은 내용이다:
 
 ```jsonc
 // <작업 저장소>/.claude/settings.local.json — 기본 gitignore 대상
@@ -1547,7 +1614,8 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-017 | WHEN 배포되는 플러그인 파일(`skills/`·`hooks/`·`agents/`·`commands/`·매니페스트)이 바뀌면 THE SYSTEM SHALL 같은 변경에서 `.claude-plugin/plugin.json` 의 `version` 을 올리고, 카탈로그 둘·`plugin/README.md`·매뉴얼(ko·en)의 표기를 함께 맞춘다 — **버전이 곧 배달이다**: 같은 버전이면 이미 설치한 쪽은 오류도 경고도 없이 옛 사본을 계속 읽는다. WHILE PR 이 검사되는 동안 THE SYSTEM SHALL 버전이 오르지 않은 패키지 변경을 **실패로 막는다**(`scripts/check-plugin-version.mjs`) | 스킬 1줄만 고치고 버전을 그대로 둔 커밋에서 check 잡 실패(2026-09-04 실제 이력으로 재현 확인) |
 | REQ-PLG-016 | WHEN 세션이 시작되면 THE SYSTEM SHALL `.nerv/outbox/` 를 `queued_at` 순으로 비우고, 실패한 항목은 남긴 채 세션을 진행한다 | 서버 중단 중 큐잉 1건 → 서버 복구 후 세션 시작 1회: 첫 도구 호출 이전에 전송 완료, 중복 실행 0건 |
 | REQ-PLG-015 | WHEN `nerv_finding_resolve`가 `NERV_APPROVAL_REQUIRED`를 반환하면 THE SYSTEM SHALL 재시도하지 않고 `approval_id`와 함께 사람에게 보고한 뒤 멈춘다 | critical → wont_fix 1회 실측: 재호출 0건 + 보고에 approval_id 포함 |
-| REQ-PLG-013 | WHEN 플러그인이 설치되면 THE SYSTEM SHALL `.gitignore`에 `.nerv/`를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다 | 설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측 |
+| REQ-PLG-013 | WHEN 플러그인이 설치되면 THE SYSTEM SHALL `.gitignore`에 `.nerv/`를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다 | 설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측. `.gitignore` 쪽은 `bin/nerv-init` 이 실행한다(§3.7) |
+| REQ-PLG-018 | WHEN 사람이 작업 저장소에서 `bin/nerv-init` 을 실행하면 THE SYSTEM SHALL `.mcp.json`·`.claude/settings.local.json` 의 `env`(`NERV_SERVER`·`NERV_PROJECT`·`NERV_TOKEN`)·`.gitignore` 의 `.nerv/` 중 **없는 것만** 만들고, 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다. WHILE 세션이 시작되는 동안 THE SYSTEM SHALL `--check` 로 덜 된 설정을 보고하되 **아무것도 쓰지 않고**, 설정의 흔적(`.mcp.json` 의 `nerv`·`.nerv/`·`NERV_*`)이 하나도 없는 저장소에서는 침묵한다 | L1(`plugin-package.spec.ts`) — 임시 저장소 넷에서 실제 실행: 빈 저장소(파일 셋 생성) · 남의 `settings.local.json`(다른 키·기존 값 보존) · 다시 실행(멱등) · 흔적 없는 저장소의 `--check`(출력 0바이트) |
 
 ---
 
