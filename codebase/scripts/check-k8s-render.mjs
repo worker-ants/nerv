@@ -7,7 +7,14 @@
 // `kubectl apply` 도 롤아웃도 전부 성공한다 — 죽는 것은 **트래픽뿐**이고, 그것은 배포가
 // 끝난 뒤에야 드러난다. 이 저장소가 포트에서 겪은 것과 같은 부류다(REQ-CB-038).
 //
-// 세는 것은 여섯이다.
+// 세는 것은 일곱이다.
+//   ⑦ 은 2026-09-20 에 더했다 — `base/web/` 의 셋(Deployment·Service·Ingress)이 **네임스페이스
+//   없이** 렌더되고 있었다. `base/kustomization.yaml` 의 `namespace: nerv` 는 그 kustomization 의
+//   resources 에만 미치는데, 오버레이는 `../../base/web` 을 **따로** 더하기 때문이다. 그러면
+//   `kubectl` 이 호출한 쪽의 기본 네임스페이스로 보낸다 — 배포 파이프라인의 에이전트 파드가
+//   자기 네임스페이스로 `nerv-web` 을 보내 forbidden 으로 막혔고, **거기 권한이 있었다면 막히지도
+//   않고 엉뚱한 네임스페이스에 떴을 것이다.** ①과 같은 부류다: 렌더는 성공한다.
+//
 //   ① 모든 Ingress 규칙에 경로가 **한 개 이상** 있는가 — 0개는 전 요청이 기본 백엔드다
 //   ② API 호스트(`nerv`)가 표면 여섯(/api·/mcp·/ingest·/ws·/sse·/plugin)을 전부 갖는가
 //   ③ 화면 호스트(`nerv-web`)가 `/` 하나를 갖고 **API 경로를 갖지 않는가**
@@ -17,6 +24,8 @@
 //   ⑤ 화면을 파드로 세우는 배치는 Deployment·Service·Ingress **셋을 함께** 갖는가
 //      — 파드만 있고 Ingress 가 없으면 화면이 뜨는데 아무도 닿지 못한다
 //   ⑥ TLS 가 그 호스트를 덮는가 — 인증서에 없는 호스트는 브라우저가 먼저 막는다
+//   ⑦ 네임스페이스를 가진 리소스가 **하나도 빠짐없이** 같은 네임스페이스에 있고, 그것이
+//      렌더된 Namespace 와 같은 이름인가 — 없는 문서는 호출한 쪽의 기본값으로 간다
 //
 // 사용: node scripts/check-k8s-render.mjs
 
@@ -28,6 +37,8 @@ const REPO = resolve(import.meta.dirname, '..', '..');
 const OVERLAYS = ['dev', 'prod'];
 /** API 호스트가 받아야 하는 표면 — 하나라도 빠지면 그 표면만 조용히 죽는다(§6.3). */
 const API_PATHS = ['/api', '/mcp', '/ingest', '/ws', '/sse', '/plugin'];
+/** 네임스페이스를 갖지 않는 것이 정상인 kind — 나머지는 전부 ⑦ 의 대상이다. */
+const CLUSTER_SCOPED = new Set(['Namespace']);
 const fail = [];
 
 /** kustomize 렌더 — 실패는 그 자체로 결함이다(옛 게이트가 보던 것도 이것이다). */
@@ -145,6 +156,32 @@ for (const overlay of OVERLAYS) {
       );
     }
   }
+
+  // ⑦ 네임스페이스 — 빠진 문서는 **호출한 쪽의 기본 네임스페이스**로 간다
+  const namespaced = docs.filter((d) => !CLUSTER_SCOPED.has(d.kind));
+  const missing = namespaced.filter((d) => !d.metadata?.namespace);
+  for (const doc of missing) {
+    fail.push(
+      `${where}: ${doc.kind}/${doc.metadata?.name} 에 namespace 가 없다 — ` +
+        `kubectl 이 호출한 쪽의 기본 네임스페이스로 보낸다(권한이 있으면 막히지도 않고 엉뚱한 곳에 뜬다). ` +
+        `오버레이가 resources 에 따로 더한 디렉터리는 base 의 namespace 가 미치지 않는다`,
+    );
+  }
+  // 있는 것들은 한 곳이어야 하고, 그곳이 렌더된 Namespace 여야 한다
+  const namespaces = [...new Set(namespaced.map((d) => d.metadata?.namespace).filter(Boolean))];
+  if (namespaces.length > 1) {
+    fail.push(
+      `${where}: 리소스가 네임스페이스 ${namespaces.length}곳에 흩어져 있다(${namespaces.join(' · ')}) — ` +
+        `한 배치는 한 곳에 떠야 Service·Ingress 가 파드를 찾는다`,
+    );
+  }
+  const declared = docs.find((d) => d.kind === 'Namespace')?.metadata?.name;
+  if (declared !== undefined && namespaces.length === 1 && namespaces[0] !== declared) {
+    fail.push(
+      `${where}: 리소스는 ${namespaces[0]} 에 있는데 렌더된 Namespace 는 ${declared} 다 — ` +
+        `만드는 곳과 뜨는 곳이 다르다`,
+    );
+  }
 }
 
 if (fail.length > 0) {
@@ -155,5 +192,5 @@ if (fail.length > 0) {
 }
 
 console.log(
-  `k8s 렌더 정합 — 오버레이 ${OVERLAYS.length}개 · 호스트 둘(api·app) · 표면 ${API_PATHS.length}종`,
+  `k8s 렌더 정합 — 오버레이 ${OVERLAYS.length}개 · 호스트 둘(api·app) · 표면 ${API_PATHS.length}종 · 네임스페이스 하나`,
 );

@@ -9,8 +9,17 @@
 #
 # **여기에 kustomization.yaml 이 있는 이유**는 kustomize 가 루트 밖의 *파일*은 거절하고
 # *디렉터리*는 받기 때문이다 — 오버레이가 파일 셋을 하나씩 가리킬 수 없다.
+#
+# **`namespace` 를 여기서도 선언한다.** `base/kustomization.yaml` 의 `namespace: nerv` 는
+# 그 kustomization 의 resources 에만 미치고, 오버레이가 `resources` 에 **따로 더한** 이
+# 디렉터리는 그 범위 밖이다 — 빠뜨리면 셋이 네임스페이스 없이 렌더되고, `kubectl` 이
+# 그것을 **호출한 쪽의 기본 네임스페이스**로 보낸다. 2026-09-20 실측: 배포 파이프라인의
+# 에이전트 파드가 자기 네임스페이스로 `nerv-web` 을 보내 forbidden 으로 막혔다 —
+# **거기 권한이 있었다면 막히지도 않고 엉뚱한 네임스페이스에 떴을 것이다.**
+# 렌더는 성공하고 문법도 멀쩡하다(REQ-CB-046 이 이제 렌더 결과에서 이것을 센다).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: nerv
 resources:
   - deployment.yaml
   - service.yaml
