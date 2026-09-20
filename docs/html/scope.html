@@ -53,7 +53,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 <b>22종</b>(P0 8 + P1 14 · 카탈로그 24종 — 리뷰 2종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.24 (2026-09-13)</span>
+      <span>버전 v0.25 (2026-09-20)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: approved</span>
       <span class="refs">참조하는 문서: <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -226,7 +226,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>확정</th><th>무엇</th><th>결정일</th><th>딸려 오는 것</th></tr></thead>
     <tbody>
-      <tr><td>호스트 이름</td><td><code>app.nerv.example.com</code>(웹) · <code>api.nerv.example.com</code>(API)</td><td>2026-09-13</td><td><b>같은 등록 도메인 아래여야 한다.</b> 쿠키를 <code>Domain=.nerv.example.com</code> 으로 상위에 두면 두 호스트가 같은 사이트라 <code>SameSite=Lax</code> 가 그대로 선다. 완전히 다른 등록 도메인은 <code>SameSite=None; Secure</code> 를 강제하고, 그 순간 CSRF 방어가 브라우저의 sameSite 에서 <b>우리 허용목록 하나</b>로 옮겨온다. <b>대가</b>: 그 도메인 아래의 모든 서브도메인이 세션 쿠키를 읽으므로, 신뢰하지 않는 호스트를 그 아래 두지 않는다는 것이 이 결정에 딸려 오는 운영 약속이다</td></tr>
+      <tr><td>호스트 이름</td><td><code>app.nerv.example.com</code>(웹) · <code>api.nerv.example.com</code>(API)</td><td>2026-09-13</td><td><b>같은 등록 도메인 아래여야 한다.</b> 두 호스트가 같은 사이트이므로 <code>SameSite=Lax</code> 가 그대로 선다 — <code>SameSite</code> 가 보는 것은 오리진이 아니라 <b>사이트</b>라, 세션 쿠키를 상위 도메인으로 올리지 않아도(호스트 전용이어도) 화면이 API 를 부를 때 쿠키가 실린다(2026-09-20 정정 — 이 칸은 상위 도메인 쿠키를 그 조건인 것처럼 적고 있었다. 상위 도메인은 손잡이다 · <a href="codebase.html">4.2</a> §5.2c). 완전히 다른 등록 도메인은 <code>SameSite=None; Secure</code> 를 강제하고, 그 순간 CSRF 방어가 브라우저의 sameSite 에서 <b>우리 허용목록 하나</b>로 옮겨온다. <b>대가</b>: 그 도메인 아래의 모든 서브도메인이 세션 쿠키를 읽으므로, 신뢰하지 않는 호스트를 그 아래 두지 않는다는 것이 이 결정에 딸려 오는 운영 약속이다</td></tr>
       <tr><td>env 이름</td><td><code>NERV_WEB_URL</code> · <code>NERV_API_URL</code> <b>둘 다 신설</b>, 옛 이름은 <b>걷는다</b></td><td>2026-09-13</td><td>한쪽이 옛 이름을 물려받으면 "어느 뜻을 물려받았는가" 가 소비자마다 다시 물어야 할 질문이 된다. <b>대가</b>: 기존 배치가 전부 깨진다 — 그래서 옛 이름만 설정된 서버는 <b>기동을 거부한다</b>(<a href="codebase.html">4.2</a> §5.2 걷힌 이름 · REQ-CB-036·037)</td></tr>
       <tr><td>웹 파드</td><td><code>base/web/</code> 를 <b>base resources 에서 내리고 파일은 남긴다</b> — 파드가 필요한 오버레이만 그것을 더한다</td><td>2026-09-13</td><td><code>base/embed/</code> 가 이미 쓰는 패턴이다(파일은 base 에 있고 <code>resources:</code> 에는 없다). CDN 배치는 웹 파드 없이 서고, 자가호스팅(NFR-01)은 오버레이가 <code>web/</code> 와 <code>/</code> → <code>nerv-web</code> ingress 규칙을 함께 더해 선다 — <b>ingress 도 같이 갈린다</b>: base 는 API 경로만 갖고 <code>/</code> 규칙은 자가호스팅 오버레이의 몫이다</td></tr>
     </tbody>
@@ -238,7 +238,7 @@
     <thead><tr><th>단계</th><th>무엇</th><th>상태</th></tr></thead>
     <tbody>
       <tr><td>1</td><td><b>이름 둘을 신설하고 옛 이름을 걷는다</b> — 도메인은 그대로. 여섯 소비자가 어느 쪽을 쓰는지만 정한다. 두 값이 같은 오리진이므로 <b>동작은 한 줄도 바뀌지 않는다</b></td><td><b>완료</b>(2026-09-13 · <a href="codebase.html">4.2</a> REQ-CB-036·037)</td></tr>
-      <tr><td>2</td><td>CORS 와 쿠키 도메인을 세운다 — 같은 오리진에서는 프리플라이트가 일어나지 않으므로 현재 동작은 그대로다. 허용 오리진은 코드가 추측하지 않고 <code>NERV_WEB_URL</code> + <code>NERV_TRUSTED_ORIGINS</code> 의 합집합이며, better-auth 의 <code>trustedOrigins</code> 와 <b>같은 목록</b>이어야 한다(두 곳이 갈리면 로그인은 되는데 API 가 막힌다). 와일드카드는 쓰지 않는다 — <code>credentials: true</code> 와 <code>*</code> 는 함께 서지 않는다</td><td>남음</td></tr>
+      <tr><td>2</td><td>CORS 와 쿠키 도메인을 세운다 — 같은 오리진에서는 프리플라이트가 일어나지 않으므로 현재 동작은 그대로다. 허용 오리진은 코드가 추측하지 않고 <code>NERV_WEB_URL</code> + <code>NERV_TRUSTED_ORIGINS</code> 의 합집합이며, better-auth 의 <code>trustedOrigins</code> 와 <b>같은 목록</b>이어야 한다(두 곳이 갈리면 로그인은 되는데 API 가 막힌다). 와일드카드는 쓰지 않는다 — <code>credentials: true</code> 와 <code>*</code> 는 함께 서지 않는다. <b>쿠키 도메인은 손잡이로 둔다</b>(<code>NERV_COOKIE_DOMAIN</code> · 기본 비움): 같은 등록 도메인 아래면 호스트 전용 쿠키로 <code>Lax</code> 가 그대로 서므로 상위 도메인은 넓힐 때만 적고, 두 주소의 공통 상위가 아니면 기동을 거부한다</td><td><b>완료</b>(2026-09-20 · <a href="codebase.html">4.2</a> §5.2c · REQ-CB-041·042)</td></tr>
       <tr><td>3</td><td>웹을 <b>런타임 설정</b>으로 부팅시킨다 — 빌드 타임(<code>VITE_*</code>)에 구우면 환경마다 다른 번들이 되어 "같은 산출물을 승격한다" 가 깨진다. SPA 가 자기 오리진에서 설정 하나를 읽고, 배포는 그 파일만 환경에 맞게 놓는다</td><td>남음</td></tr>
       <tr><td>4</td><td>새 호스트 둘을 세우고 전환한다 — DNS·인증서·Ingress·CDN. <b>옛 호스트는 지우지 않고 남긴다</b>(되돌리는 길이 그것이다). 플러그인 훅의 하드코딩된 주소는 이 단계에서 <code>plugin.json</code> 버전과 <b>함께</b> 간다(<a href="plugin.html">4.6</a> · REQ-PLG-017) — 먼저 바꾸면 배달만 되고 서버는 옛 주소다</td><td>남음</td></tr>
     </tbody>

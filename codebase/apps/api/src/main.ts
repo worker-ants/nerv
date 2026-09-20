@@ -5,6 +5,7 @@ import { ATTACHMENT_MAX_BYTES, MAX_REQUEST_BODY_BYTES } from '@nerv/schema';
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
+import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -15,7 +16,13 @@ import { McpOriginGuard } from './common/mcp-origin.guard.js';
 import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
 import { logLevelsFromEnv } from './common/log-level.js';
-import { apiUrlFromEnv, assertRetiredNames } from './common/origins.js';
+import { REPLAYED_HEADER } from './common/idempotency.service.js';
+import {
+  allowedOriginsFromEnv,
+  apiUrlFromEnv,
+  assertCookieDomain,
+  assertRetiredNames,
+} from './common/origins.js';
 import { RateLimitGuard } from './common/rate-limit.guard.js';
 import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
 
@@ -45,6 +52,49 @@ export async function createApp(): Promise<NestFastifyApplication> {
     // 남의 창을 채운다.
     app.get(RateLimitGuard),
   );
+
+  // CORS — **화면이 API 와 다른 오리진에 뜨는 배치의 생사가 여기 달렸다**(REQ-CB-041 ·
+  // docs/04-mvp/scope.md §2.3 2단계). 같은 오리진에서는 프리플라이트가 일어나지 않으므로
+  // 한 호스트가 화면과 API 를 함께 서빙하는 지금 배치에서는 **동작이 바뀌지 않는다.**
+  //
+  // 허용목록은 `allowedOriginsFromEnv`(= `NERV_WEB_URL` + `NERV_TRUSTED_ORIGINS`) 하나이고
+  // **better-auth 의 `trustedOrigins` 와 같은 목록**이다 — 두 곳이 갈리면 로그인은 되는데
+  // 그 다음 요청이 전부 막히거나 그 반대이고, 어느 쪽도 원인을 가리키지 않는다.
+  //
+  // 목록은 **기동 때 한 번** 읽는다 — 이 저장소의 다른 설정도 전부 기동 시점의 값이다.
+  const allowedOrigins = new Set(allowedOriginsFromEnv());
+  await app.register(cors, {
+    // `Origin` 이 없는 요청(에이전트·CLI·서버 대 서버)은 **CORS 의 대상이 아니다** — 통과시키고
+    // 헤더를 붙이지 않는다. 여기서 막으면 브라우저가 아니라 CLI 가 죽는다.
+    //
+    // 목록 밖의 오리진에는 **헤더를 붙이지 않을 뿐** 오류를 내지 않는다: 막는 것은 브라우저의
+    // 몫이고, 5xx 로 답하면 "서버가 고장났다" 로 읽힌다 — 고장난 것은 부르는 쪽의 오리진이다.
+    origin: (origin, cb) => cb(null, origin === undefined || allowedOrigins.has(origin)),
+    // 세션 쿠키를 싣는 요청이라 필수다. **`*` 와 함께 설 수 없다**(브라우저가 거절한다) —
+    // 허용목록이 와일드카드일 수 없는 이유가 이것이다.
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    // **화면이 실제로 싣는 헤더만** 적는다(`apps/web/src/lib/api.ts`) — 목록에 없는 헤더는
+    // 프리플라이트에서 거절되고, 그 요청은 서버에 도달조차 하지 않는다.
+    //   accept · accept-language · content-type — 모든 요청
+    //   authorization — PAT 경로(브라우저 밖이지만 같은 표면이다)
+    //   idempotency-key — 상태를 바꾸는 요청(§1.5) · x-nerv-org — 같은 slug 한정자(REQ-API-152)
+    // `/mcp`·`/ingest` 의 헤더(`mcp-session-id` 등)는 없다 — 브라우저 클라이언트가 없는
+    // 표면이다(api.md §1.1 표면 전표). 그런 클라이언트를 지원하게 되면 이 목록이 함께 자란다.
+    allowedHeaders: [
+      'accept',
+      'accept-language',
+      'authorization',
+      'content-type',
+      'idempotency-key',
+      'x-nerv-org',
+    ],
+    // 화면이 **읽어야 하는** 응답 헤더. 적지 않으면 브라우저 JS 에서 보이지 않는다 —
+    // 기본 노출은 여섯 개뿐이고 우리 둘은 거기 없다. 429 의 대기 시간과 멱등 재생 표시다.
+    exposedHeaders: [REPLAYED_HEADER, 'Retry-After'],
+    // 프리플라이트 캐시. 값이 더 커도 브라우저가 자기 상한으로 자른다(Safari 600s·Chrome 7200s).
+    maxAge: 600,
+  });
 
   // 첨부 업로드는 multipart 다(§2.10) — 파일당 10MB 는 서비스가 다시 보지만, 여기서도
   // 막아야 그보다 큰 요청이 메모리에 들어오지 않는다.
@@ -93,6 +143,9 @@ async function bootstrap(): Promise<void> {
   // 걷힌 이름을 만나면 여기서 멈춘다 — 기본값으로 뜨면 운영자는 틀린 주소로 서명된 쿠키를
   // 받고서야 안다(REQ-CB-037). 던지면 엔트리가 비영 종료한다.
   assertRetiredNames();
+  // 쿠키 도메인도 여기서 본다 — Nest 초기화 중에 던지면 `abortOnError` 기본값이 프로세스를
+  // abort 시켜(SIGABRT) 운영자가 받는 것이 문구가 아니라 덤프가 된다(REQ-CB-042).
+  assertCookieDomain();
   const app = await createApp();
   const port = Number(process.env['NERV_API_PORT'] ?? 8080);
   await app.listen({ port, host: '0.0.0.0' });

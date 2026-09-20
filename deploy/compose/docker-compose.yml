@@ -140,6 +140,12 @@ services:
       # compose 에서는 같은 값이다. 옛 이름(NERV_PUBLIC_URL)만 있으면 api 가 기동을 거부한다.
       NERV_WEB_URL: ${NERV_WEB_URL:-http://localhost:8080}
       NERV_API_URL: ${NERV_API_URL:-http://localhost:8080}
+      # 허용 오리진 추가분과 세션 쿠키의 Domain — 앞문 하나인 compose 에서는 보통 둘 다
+      # 비어 있다(REQ-CB-041 · 042). **그래도 넘긴다**: compose 는 env 를 키 목록으로
+      # 넘기므로, 여기 없으면 `.env` 에 적어도 컨테이너에 닿지 않는다 — 손잡이가 있는데
+      # 아무 배치에서도 듣지 않던 자리와 같은 부류다(REQ-CB-038).
+      NERV_TRUSTED_ORIGINS: ${NERV_TRUSTED_ORIGINS:-}
+      NERV_COOKIE_DOMAIN: ${NERV_COOKIE_DOMAIN:-}
       NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
@@ -195,6 +201,10 @@ services:
       # "새 이름이 있는가" 도 이 값들을 본다(REQ-CB-036 · 037).
       NERV_WEB_URL: ${NERV_WEB_URL:-http://localhost:8080}
       NERV_API_URL: ${NERV_API_URL:-http://localhost:8080}
+      # api 와 **같은 값으로** 넘긴다 — 워커도 `AuthService` 를 그래프에 갖고 그 생성자가
+      # 쿠키 도메인을 검증한다. 한쪽만 받으면 절반만 거부하는 배포가 된다(REQ-CB-042).
+      NERV_TRUSTED_ORIGINS: ${NERV_TRUSTED_ORIGINS:-}
+      NERV_COOKIE_DOMAIN: ${NERV_COOKIE_DOMAIN:-}
       # 걷힌 이름 둘을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지
       # 않으면 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다
       # (REQ-CB-037 · 039). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.

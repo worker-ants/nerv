@@ -10,6 +10,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
+import { DEFAULT_ORIGIN } from '../../src/common/origins.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -166,7 +167,11 @@ describe('세션 쿠키로 도메인 표면에 든다', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/sign-out',
-      headers: { cookie, 'content-type': 'application/json' },
+      // **오리진이 필요하다**(2026-09-20 · REQ-CB-041). 쿠키를 실은 상태 변경 요청은
+      // 허용목록과 대조된다 — 브라우저는 POST 에 `Origin` 을 언제나 싣는다. 전에는
+      // 라이브러리가 테스트 환경에서 이 검증을 스스로 꺼서 헤더 없이도 통과했고,
+      // 그 말은 L2 가 운영과 다른 자세를 보고 있었다는 뜻이다(better-auth.ts 주석).
+      headers: { cookie, origin: DEFAULT_ORIGIN, 'content-type': 'application/json' },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
