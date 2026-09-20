@@ -1,7 +1,7 @@
 ---
 id: SPC-MVP-CODEBASE
 status: approved
-updated: 2026-09-14
+updated: 2026-09-20
 referenced_by:
   - 04-mvp/scope.md
   - 04-mvp/database.md
@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.51 · 2026-09-20 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.52 · 2026-09-20 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.52 변경(2026-09-20 — 네임스페이스 없이 렌더되던 셋, 실측 → 사람 지시): **새 요구사항 없음 — REQ-CB-046 에 일곱째 검사 추가 · `base/web` 의 `namespace` · §6.2 전문 재동기화.** ① **`base/web/` 의 셋(Deployment·Service·Ingress)이 네임스페이스 없이 렌더되고 있었다.** `base/kustomization.yaml` 의 `namespace: nerv` 는 **그 kustomization 의 resources 에만** 미치는데, 오버레이는 `../../base/web` 을 `resources` 에 **따로** 더하고 오버레이 자체에는 `namespace:` 가 없었다(dev·prod 둘 다). 네임스페이스 없는 문서는 `kubectl` 이 **호출한 쪽의 기본값**으로 보낸다 — 배포 파이프라인의 에이전트 파드가 자기 네임스페이스로 `nerv-web` 을 보내 `forbidden` 으로 막히면서 드러났고, **거기 권한이 있었다면 막히지도 않고 엉뚱한 네임스페이스에 떴을 것이다.** 고친 것은 `base/web/kustomization.yaml` 의 `namespace: nerv` 한 줄이다. ② **게이트가 그것을 센다**(REQ-CB-046 일곱째): 네임스페이스를 갖는 리소스가 하나도 빠짐없이 **한 곳**에 있고, 그곳이 렌더된 `Namespace` 와 같은 이름인가. v1.51 이 고친 "경로 0개" 와 같은 부류다 — 렌더도 `apply` 도 문법은 멀쩡하고, 틀린 것은 **어디에 뜨는가**뿐이라 배포가 끝난 뒤에 드러난다. ③ **§6.2 의 `base/kustomization.yaml` 전문이 실물과 갈라져 있었다** — v1.51 이 `web/` 을 base resources 밖으로 옮기면서 산문만 고치고 전문에 `web/deployment.yaml`·`web/service.yaml` 두 줄을 남겼다(v1.22·v1.50 이 고친 것과 같은 드리프트다). 실물에서 그대로 가져와 바이트로 맞췄다.
 >
 > v1.51 변경(2026-09-20 — 공개 주소 분리 4단계 ①, 사람 지시): **REQ-CB-045·046 신설 · §6.3 앞문 둘 · §6.3a 전환 절차 신설 · 게이트가 렌더 결과를 센다.** ① **base 는 API 호스트만 안다**: `ingress.yaml` 이 `api.` 의 표면 여섯이 되고, 화면의 `/` 규칙과 웹 파드는 `base/web/`(Deployment·Service·Ingress) 한 덩어리로 base resources 밖에 섰다 — CDN 배치는 그것을 안 더하고, 자가호스팅 오버레이는 `../../base/web` 으로 더한다([4.1](scope.md) §2.3 의 "웹 파드" 확정 실물). ② **렌더 결과를 센다**(REQ-CB-046): 게이트는 오래 `kubectl kustomize … > /dev/null` 두 줄이었고 그것은 문법만 본다. 그 사이 **두 오버레이의 Ingress 경로가 0개**였다 — 호스트만 바꾸려던 전략적 병합 패치가 `spec.rules` 목록을 통째로 덮었기 때문이고, 렌더도 `apply` 도 롤아웃도 성공한다(죽는 것은 트래픽뿐이다 · 포트에서 겪은 REQ-CB-038 과 같은 부류다). 오버레이는 JSON6902 로 **호스트 문자열만** 바꾼다. ③ ConfigMap 의 공개 주소 둘이 `app.`/`api.` 로 갈렸고, **그 값과 Ingress 호스트의 일치**를 게이트가 센다 — 어긋나면 쿠키가 닿지 않는 호스트로 서명되고 CORS 목록도 어긋난다. ④ **§6.3a 전환 절차**를 적었다(DNS → 인증서 → 오버레이·ConfigMap → 옛 호스트를 남긴 채 이전 → 플러그인 버전 → 옛 호스트 걷기). 되돌리는 길은 3번 하나를 되돌리는 것이고, 플러그인이 마지막인 이유는 되돌릴 때 버전을 한 번 더 올려야 하기 때문이다. ※ 남은 것: 플러그인의 하드코딩된 주소와 `plugin.json` 버전(4단계 ② · [4.6](plugin.md) REQ-PLG-017).
 >
@@ -1100,7 +1102,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 | **REQ-CB-036** | WHEN 서버가 자기 주소를 필요로 하면 THE SYSTEM SHALL **사람이 브라우저로 여는 주소는 `NERV_WEB_URL`, 프로그램이 붙는 주소는 `NERV_API_URL`** 에서 읽고 한 이름이 두 뜻을 겸하지 않는다 — 스펙 딥링크는 `NERV_WEB_URL`, better-auth `baseURL`·`trustedOrigins` 기준과 플러그인 카탈로그의 주소와 `/api/auth/*` 요청 절대화 기준은 `NERV_API_URL`, `/mcp` Origin 대조는 **둘 다**(2026-09-20 부터 `NERV_TRUSTED_ORIGINS` 도 함께 · REQ-CB-013 · REQ-CB-041). WHILE 두 값이 같은 오리진인 동안 THE SYSTEM SHALL 갈랐을 때와 **같은 응답**을 낸다 — 이름을 가르는 것과 호스트를 가르는 것은 다른 변경이다 |
 | **REQ-CB-045** | WHERE 화면과 API 가 호스트로 갈린 배치이면 THE SYSTEM SHALL base 의 Ingress 를 **API 호스트만**(표면 여섯) 으로 두고, 화면의 `/` 규칙과 웹 파드(Deployment·Service·Ingress)를 **한 덩어리로** base resources 밖에 두어 화면을 파드로 세우는 배치만 더하게 한다 — CDN 배치는 화면을 CDN 이 서빙하고 그 배치에는 웹 파드도 `app.` 규칙도 없다. WHILE 두 호스트가 서 있는 동안 THE SYSTEM SHALL 화면 호스트가 API 경로를 **겸하지 않는다** — 겸하면 호스트를 가른 의미가 없다 | 자가호스팅 오버레이의 렌더에 Ingress 둘·웹 파드·Service 가 함께 있고, API 호스트에 표면 여섯이·화면 호스트에 `/` 하나가 있다 · 화면 호스트에 API 경로가 없다 |
-| **REQ-CB-046** | WHEN 배포 산출물 게이트가 돌면 THE SYSTEM SHALL `kubectl kustomize` 의 **렌더 결과**를 검사한다 — 모든 Ingress 규칙에 경로가 한 개 이상 있는가 · API 호스트가 표면 여섯을 갖는가 · ConfigMap 의 공개 주소 둘이 그 Ingress 호스트와 같은가 · 화면을 파드로 세우는 배치가 Deployment·Service·Ingress 셋을 함께 갖는가 · TLS 가 그 호스트를 덮는가. WHERE 렌더가 성공하기만 하면 THE SYSTEM SHALL 그것을 통과로 보지 않는다 — 렌더도 `apply` 도 롤아웃도 성공하는데 트래픽만 죽는 배치가 실제로 있었다(2026-09-20 실측: 두 오버레이의 Ingress 경로가 0개) | 전략적 병합으로 `rules` 를 덮는 패치를 되돌린 트리에서 `check-k8s-render.mjs` 가 실패하고 문구가 경로 0개를 말한다 · 주소와 호스트를 어긋나게 만든 트리에서도 실패한다 |
+| **REQ-CB-046** | WHEN 배포 산출물 게이트가 돌면 THE SYSTEM SHALL `kubectl kustomize` 의 **렌더 결과**를 검사한다 — 모든 Ingress 규칙에 경로가 한 개 이상 있는가 · API 호스트가 표면 여섯을 갖는가 · ConfigMap 의 공개 주소 둘이 그 Ingress 호스트와 같은가 · 화면을 파드로 세우는 배치가 Deployment·Service·Ingress 셋을 함께 갖는가 · TLS 가 그 호스트를 덮는가 · **네임스페이스를 갖는 리소스가 하나도 빠짐없이 한 네임스페이스에 있고 그곳이 렌더된 Namespace 와 같은 이름인가**. WHERE 렌더가 성공하기만 하면 THE SYSTEM SHALL 그것을 통과로 보지 않는다 — 렌더도 `apply` 도 롤아웃도 성공하는데 트래픽만 죽는 배치가 실제로 있었다(2026-09-20 실측: 두 오버레이의 Ingress 경로가 0개). **네임스페이스 없는 문서는 `kubectl` 이 호출한 쪽의 기본값으로 보낸다** — 권한이 없으면 forbidden 으로 막히고, 있으면 막히지도 않고 엉뚱한 네임스페이스에 뜬다(2026-09-20 실측: `base/web/` 의 셋) | 전략적 병합으로 `rules` 를 덮는 패치를 되돌린 트리에서 `check-k8s-render.mjs` 가 실패하고 문구가 경로 0개를 말한다 · 주소와 호스트를 어긋나게 만든 트리에서도 실패한다 · `base/web/kustomization.yaml` 의 `namespace` 를 지운 트리에서 오버레이 2종 × 리소스 3개로 실패한다 |
 | **REQ-CB-044** | WHEN 화면이 부팅하면 THE SYSTEM SHALL API 주소를 **런타임 설정**(`/config.json` 의 `api_url`)에서 읽고 그 값을 읽은 **뒤에** 첫 화면을 그린다 — 빌드 타임에 구우면 환경마다 다른 번들이 되어 같은 산출물을 승격할 수 없다. WHERE 그 파일이 없거나 값이 비었거나 오리진으로 읽히지 않으면 THE SYSTEM SHALL **같은 오리진**(상대 경로)으로 돌고 화면을 세운다 — 설정 실패는 폴백이지 오류가 아니다. WHILE 앞문이 그 응답을 만드는 동안 THE SYSTEM SHALL 이미지가 `NERV_API_URL` 을 빈 값으로라도 **정의해 둔다**(envsubst 는 정의된 이름만 치환한다) | 설정이 준 주소로 REST·`/api/auth/*`·WebSocket 이 나간다 · 없는 파일·200 짜리 HTML·빈 값·스킴 없는 값·네트워크 실패가 전부 같은 오리진으로 떨어진다(L1) · 앞문의 `/config.json` 응답에 `${` 가 남지 않고 `Cache-Control: no-store` 다(L3) |
 | **REQ-CB-043** | WHILE 요청이 **세션 쿠키로 인증**하는 동안, WHEN 그 요청이 상태를 바꾸는 메서드(`GET`·`HEAD`·`OPTIONS` 밖)이면 THE SYSTEM SHALL `Origin` 이 허용 목록(§5.2c)에 있을 때만 통과시키고, **헤더가 없으면 거절한다** — 쿠키는 브라우저가 알아서 싣는 자격증명이라 남의 탭이 보낸 요청에도 실리고, CORS 는 응답을 읽는 것만 막는다. WHERE 자격증명이 PAT 이면 THE SYSTEM SHALL 이 판정을 적용하지 않는다(헤더에 직접 실리는 자격증명은 CSRF 가 아니다). WHERE 경로가 `/mcp` 이면 THE SYSTEM SHALL 그 가드에 맡긴다(REQ-CB-013 — 규칙이 다르다) | 쿠키 + 목록 밖 오리진의 `POST` 가 403 이고 코드가 `NERV_FORBIDDEN` 이다 · 쿠키 + `Origin` 없는 `POST` 도 403 이다 · 같은 요청이 화면 오리진이면 오리진으로 막히지 않는다 · 쿠키 + 목록 밖 오리진의 `GET` 은 200 이다 · PAT + 목록 밖 오리진은 인증 판정으로만 떨어진다(401) |
 | **REQ-CB-041** | WHEN 브라우저가 다른 오리진에서 API 를 부르면 THE SYSTEM SHALL 허용 오리진을 `NERV_WEB_URL` 과 `NERV_TRUSTED_ORIGINS` 의 **합집합 한 목록**에서 읽고, CORS 와 better-auth 의 `trustedOrigins` 가 **같은 목록**을 보게 한다 — 두 곳이 갈리면 로그인은 되는데 그 다음 요청이 전부 막히거나 그 반대이고, 어느 쪽도 원인을 가리키지 않는다. WHERE 요청에 `Origin` 이 없으면(에이전트·CLI) THE SYSTEM SHALL 그대로 통과시키고, 목록 밖 오리진이면 **헤더를 붙이지 않을 뿐 오류를 내지 않는다**. WHILE 세션 쿠키를 싣는 요청인 동안 THE SYSTEM SHALL 와일드카드를 쓰지 않는다 — `credentials: true` 와 `*` 는 함께 서지 않는다 | L2 가 프리플라이트 응답의 `Access-Control-Allow-Origin`·`-Credentials`·`-Headers`·`Vary` 를 세고, 목록 밖 오리진에는 그 헤더가 없다 · 화면 오리진의 로그인이 200 이고 목록 밖 오리진의 로그인이 403 이다(같은 목록의 실물 증거) · `Origin` 없는 요청이 200 이다 |
@@ -1735,6 +1737,7 @@ deploy/k8s/
       service.yaml               # nerv-embed :80 (name: http) — 자가호스팅 시 NERV_EMBED_URL=http://nerv-embed/v1
     web/                         # ★ 화면을 **파드로** 세우는 배치만 더한다(자가호스팅 · 4.1 §2.3 4단계)
       kustomization.yaml         #   오버레이가 `../../base/web` 으로 더한다 — kustomize 는 루트 밖의 파일을 거절하고 디렉터리는 받는다
+                                 #   **namespace: nerv 를 여기서도 선언한다** — base 의 것은 이 디렉터리에 미치지 않는다(REQ-CB-046)
       deployment.yaml            # nginx · NERV_API_UPSTREAM=nerv-api:8080 · NERV_API_URL(화면의 /config.json)
       service.yaml               # nerv-web :80 (name: http)
       ingress.yaml               # §6.3 전문 — app. 호스트의 `/` 하나. CDN 배치는 이 셋을 안 더한다
@@ -1779,6 +1782,11 @@ deploy/k8s/
 #
 # embed/ 는 로컬(자가호스팅) 프로필 전용이라 base resources 에 넣지 않는다 —
 # 자가호스팅 오버레이만 추가하고, 외부 제공자 프로필은 configmap 의 NERV_EMBED_URL 만 바꾼다(§5.2a).
+#
+# **web/ 도 같은 자리다**(2026-09-20 · 4.1 §2.3 4단계 확정). 화면과 API 가 호스트로 갈린
+# 뒤로 base 는 **API 호스트만** 안다 — `ingress.yaml` 은 `api.` 이고, 화면의 `app.` 규칙과
+# 웹 파드는 `web/` 한 덩어리로 갈라져 나갔다. CDN 배치는 그것을 더하지 않고(화면은 CDN 이
+# 서빙한다), 자가호스팅 배치의 오버레이는 `resources` 에 `../../base/web` 을 더한다.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: nerv
@@ -1791,8 +1799,6 @@ resources:
   - worker/pvc.yaml
   - valkey/deployment.yaml
   - valkey/service.yaml
-  - web/deployment.yaml
-  - web/service.yaml
   - migrate/job.yaml
   - backup/cronjob.yaml
   - ingress.yaml
