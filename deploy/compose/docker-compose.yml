@@ -248,6 +248,10 @@ services:
       NERV_PUBLIC_ORIGIN: ${NERV_WEB_URL:-http://localhost:8080}
       # 앞문이 리슨하는 포트 — 템플릿의 `listen` 이 이 값으로 치환된다(REQ-CB-038)
       NERV_WEB_PORT: ${NERV_WEB_PORT:-8080}
+      # 화면이 부팅 때 읽는 API 주소 — 앞문이 `/config.json` 으로 내어 준다(4.1 §2.3 3단계).
+      # compose 는 앞문 하나가 화면과 API 를 함께 서빙하므로 이 값은 자기 주소이고, 화면은
+      # 결국 같은 오리진으로 돈다. **비워 두면 상대 경로로 돈다** — 그것도 맞는 동작이다.
+      NERV_API_URL: ${NERV_API_URL:-http://localhost:8080}
     ports:
       # 컨테이너 안팎이 같은 포트다 — 층이 하나 줄었다(걷힌 이름 NERV_HTTP_PORT · REQ-CB-039).
       - "${NERV_WEB_PORT:-8080}:${NERV_WEB_PORT:-8080}"   # TLS 는 호스트 앞단(조직 LB·프록시)에서 종료

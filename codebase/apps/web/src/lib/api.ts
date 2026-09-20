@@ -5,6 +5,7 @@
 // 인증은 세션 쿠키라 credentials: 'include' 면 충분하다(웹은 PAT 를 쓰지 않는다).
 
 import { acceptLanguageHeader } from './i18n.js';
+import { apiBase } from './config.js';
 import type { NervErrorCode } from '@nerv/schema';
 import { readLastOrg } from './last-org.js';
 
@@ -39,7 +40,12 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
-const BASE = '/api/v1';
+/**
+ * REST 의 base path. **주소는 런타임 설정이 정한다**(REQ-CB-036 · 4.1 §2.3 3단계) —
+ * `apiBase()` 가 비어 있으면 상대 경로라 지금까지와 같은 오리진이고, 배포가 `/config.json`
+ * 에 API 주소를 놓아 두면 그 절대 주소로 나간다.
+ */
+const base = (): string => `${apiBase()}/api/v1`;
 
 /**
  * 플랫폼에 닿는가 — 배너 2단계의 ②를 켜는 스위치다(screens.md §1.3 · NFR-05).
@@ -92,7 +98,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${base()}${path}`, {
       method,
       headers,
       credentials: 'include',

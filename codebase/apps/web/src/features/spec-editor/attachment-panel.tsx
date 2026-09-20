@@ -8,6 +8,7 @@
 
 import { useRef, useState } from 'react';
 import { useApiError } from '../../lib/api-errors.js';
+import { apiBase } from '../../lib/config.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useSpecAttachments } from '../../lib/queries.js';
@@ -44,11 +45,10 @@ export function AttachmentPanel({
       const form = new FormData();
       form.append('file', file, file.name);
       // multipart 는 `apiFetch` 의 JSON 경로를 타지 않는다 — content-type 을 브라우저가 정한다
-      const res = await fetch(`/api/v1/projects/${projectSlug}/specs/${specKey}/attachments`, {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
-      });
+      const res = await fetch(
+        `${apiBase()}/api/v1/projects/${projectSlug}/specs/${specKey}/attachments`,
+        { method: 'POST', body: form, credentials: 'include' },
+      );
       if (!res.ok) throw new Error(String((await res.json())?.error?.message ?? res.statusText));
       return (await res.json()) as Record<string, unknown>;
     },

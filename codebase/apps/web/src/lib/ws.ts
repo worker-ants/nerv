@@ -10,6 +10,7 @@
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { WS_ERROR_EVENT } from '@nerv/schema';
+import { apiBase } from './config.js';
 import type { NervEventEnvelope } from '@nerv/schema';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
@@ -35,7 +36,10 @@ export { MAX_PROJECT_ROOMS } from '@nerv/schema';
 const joined = new Set<string>();
 
 export function connectNervSocket(handlers: NervSocketHandlers): Socket {
-  const socket = io({
+  // **주소는 런타임 설정이 정한다**(4.1 §2.3 3단계). 비어 있으면 인자를 넘기지 않는다 —
+  // socket.io 는 그때 화면이 뜬 오리진에 붙고, 그것이 지금까지의 동작이다.
+  const base = apiBase();
+  const socket = io(base === '' ? undefined : base, {
     path: '/ws',
     transports: ['websocket'], // 폴링 폴백 off
     withCredentials: true, // 핸드셰이크는 better-auth 세션 쿠키로 검증된다
