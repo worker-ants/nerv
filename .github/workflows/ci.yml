@@ -73,12 +73,13 @@ jobs:
       - name: 배포 산출물 정합
         # ① 백업 스크립트 사본(k8s configMapGenerator 용)이 정본과 갈라지지 않는지
         #    — 갈라지면 운영에서 도는 절차와 문서가 달라진다
-        # ② kustomize 오버레이 2종이 실제로 빌드되는지(REQ-CB-010 의 전제)
+        # ② 오버레이 2종이 **무엇을 렌더하는지**(REQ-CB-010 의 전제 · REQ-CB-046)
+        #    — 전에는 `> /dev/null` 이라 "문법이 맞는가" 만 봤고, 그 사이 두 오버레이의
+        #    Ingress 경로가 0개였다: 렌더도 롤아웃도 성공하고 트래픽만 죽는다(2026-09-20 실측).
         working-directory: .
         run: |
           diff deploy/scripts/nerv-backup.sh deploy/k8s/base/backup/nerv-backup.sh
-          kubectl kustomize deploy/k8s/overlays/dev > /dev/null
-          kubectl kustomize deploy/k8s/overlays/prod > /dev/null
+          node codebase/scripts/check-k8s-render.mjs
 
       # **백로그가 저장소를 설명하는가**(AGENTS.md 문서 작업 규약 6 · REQ-CB-029).
       # 4.8 §1.4 의 현황 표가 실제 스토리와 어긋나면 막는다 — 그 문서는 첫 임포트 대상이라

@@ -7,6 +7,11 @@
 #
 # embed/ 는 로컬(자가호스팅) 프로필 전용이라 base resources 에 넣지 않는다 —
 # 자가호스팅 오버레이만 추가하고, 외부 제공자 프로필은 configmap 의 NERV_EMBED_URL 만 바꾼다(§5.2a).
+#
+# **web/ 도 같은 자리다**(2026-09-20 · 4.1 §2.3 4단계 확정). 화면과 API 가 호스트로 갈린
+# 뒤로 base 는 **API 호스트만** 안다 — `ingress.yaml` 은 `api.` 이고, 화면의 `app.` 규칙과
+# 웹 파드는 `web/` 한 덩어리로 갈라져 나갔다. CDN 배치는 그것을 더하지 않고(화면은 CDN 이
+# 서빙한다), 자가호스팅 배치의 오버레이는 `resources` 에 `../../base/web` 을 더한다.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: nerv
@@ -19,8 +24,6 @@ resources:
   - worker/pvc.yaml
   - valkey/deployment.yaml
   - valkey/service.yaml
-  - web/deployment.yaml
-  - web/service.yaml
   - migrate/job.yaml
   - backup/cronjob.yaml
   - ingress.yaml

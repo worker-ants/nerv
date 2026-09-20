@@ -1,0 +1,17 @@
+# 화면을 **파드로** 세우는 배치의 조각 — 자가호스팅(NFR-01)이 더한다 (4.1 §2.3 4단계)
+#
+# base resources 에 없는 이유는 배포 지형이 둘이기 때문이다.
+#   - **CDN 배치**: 화면은 CDN 이 서빙한다. 이 조각을 더하지 않으면 웹 파드도 `app.`
+#     Ingress 도 서지 않고, `/config.json` 은 CDN 에 놓는 정적 파일이다(4.2 §5.2d).
+#   - **자가호스팅 배치**: 오버레이가 `resources` 에 `../../base/web` 을 더한다.
+#     그러면 Deployment·Service·Ingress 셋이 함께 온다 — **셋은 한 덩어리다**:
+#     파드만 더하고 Ingress 를 잊으면 화면이 뜨는데 아무도 닿지 못한다.
+#
+# **여기에 kustomization.yaml 이 있는 이유**는 kustomize 가 루트 밖의 *파일*은 거절하고
+# *디렉터리*는 받기 때문이다 — 오버레이가 파일 셋을 하나씩 가리킬 수 없다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml

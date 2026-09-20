@@ -1,0 +1,16 @@
+# 화면 호스트만 갈아 끼운다 — **JSON6902 로 문자열 둘** (4.1 §2.3 4단계 · REQ-CB-046)
+#
+# **전략적 병합 패치로는 안 된다.** Ingress 의 `spec.rules` 는 병합 키가 없는 목록이라
+# 패치가 그 목록을 **통째로 덮는다** — 2026-09-20 까지 이 오버레이가 정확히 그 모양이었고,
+# 렌더 결과에 **경로가 0개**였다(base 는 7개다). `kubectl kustomize` 는 성공하고 롤아웃도
+# 성공하는데 전 요청이 기본 백엔드로 떨어진다. 게이트가 렌더 성공만 보고 **무엇이
+# 렌더됐는지**는 보지 않던 자리이고, 이제 `check-k8s-render.mjs` 가 센다.
+#
+# 이 값은 ConfigMap 의 `NERV_WEB_URL` 과 **같이 움직여야 한다** — 어긋나면 쿠키가 다른
+# 호스트로 서명되고 CORS 허용 목록도 어긋난다(그 일치도 게이트가 센다).
+- op: replace
+  path: /spec/rules/0/host
+  value: app.nerv.example.com
+- op: replace
+  path: /spec/tls/0/hosts/0
+  value: app.nerv.example.com

@@ -65,8 +65,9 @@ const steps = [
       '-c',
       [
         'diff deploy/scripts/nerv-backup.sh deploy/k8s/base/backup/nerv-backup.sh',
-        'kubectl kustomize deploy/k8s/overlays/dev > /dev/null',
-        'kubectl kustomize deploy/k8s/overlays/prod > /dev/null',
+        // 렌더 **결과**를 센다 — `> /dev/null` 두 줄은 "문법이 맞는가" 만 봤고, 그동안 두
+        // 오버레이의 Ingress 경로가 0개였다(2026-09-20 실측 · REQ-CB-046).
+        'node codebase/scripts/check-k8s-render.mjs',
       ].join(' && '),
     ],
   },
