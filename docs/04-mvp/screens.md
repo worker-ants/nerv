@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.07 · 2026-09-13 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.08 · 2026-09-20 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.08 변경(2026-09-20 — 공개 주소 분리의 뒤처리, 사람 지시): **화면 명세는 한 줄도 바뀌지 않았다 — 주소창의 호스트만 `app.` 으로.** 화면이 사는 주소는 `NERV_WEB_URL` 이고 그것이 `app.` 으로 갈렸다([4.1](scope.md) §2.3 · [4.2](codebase.md) §6.3). 여섯 자리(로그인·온보딩·스펙 목록·작업 상세 패널·알림 센터·제품 매뉴얼)이고, 오른쪽에 붙는 괄호 글의 자리는 공백으로 맞췄다. **API 를 부르는 주소는 이 문서의 것이 아니다** — 화면은 부팅 때 `/config.json` 에서 그것을 읽는다([4.2](codebase.md) §5.2d).
 >
 > v1.05 변경(2026-09-10 — 축을 사람이 지키는 것을 그만둔다, 사람 결정): **새 요구사항 없음 — §1.4 "축을 타입이 지킨다" 신설.** 같은 결함이 **네 번** 반복됐고 전수 확인을 했다고 보고한 뒤에도 남아 있었다 — 두 축이 똑같이 `string` 이라 틀릴 방법이 있었고, 틀려도 조용했기 때문이다. `ProjectId` 브랜드 타입과 `asProjectId()` 하나를 두어 **slug 를 넘기는 코드가 컴파일되지 않게** 한다(값은 그대로 문자열 · 런타임 비용 0). 해소용 `useProject` 만 slug 축이므로 키 함수를 `projectBySlug` 로 갈랐다. **도입하자마자 grep 이 못 찾던 두 자리를 짚었다**: `specs.$spec.tsx` 의 `projectUuid` 가 문서 도착 전에는 slug 였고(복구 무효화가 닿지 않았다), `sessions.index.tsx` 가 세션 보드에 slug 를 넘기고 있었다. 곁들여 손으로 적던 narrowing 여덟 곳과 지역 헬퍼 둘이 `asProjectId` 하나로 모였다.
 >
@@ -586,7 +588,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | 온보딩(조직 0개) | better-auth organization 플러그인 경로(`/api/auth/*` — 조직 생성·초대 수락) 후 EP-ORG-01로 재확인 |
 
 ```text
-로그인 — nerv.example.com/login
+로그인 — app.nerv.example.com/login
 ┌──────────────────────────────────────────────────┐
 │                                                  │
 │                    ⬢ NERV                        │
@@ -609,7 +611,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 3. **초대 수락 경로** — 초대 링크 진입 시 로그인 후 `InviteAcceptCard`로 이어진다(온보딩 ① 대체).
 
 ```text
-온보딩 — nerv.example.com/onboarding          (소속 조직 0개일 때만 진입)
+온보딩 — app.nerv.example.com/onboarding      (소속 조직 0개일 때만 진입)
 ┌──────────────────────────────────────────────────────────────┐
 │  ● ① 조직 만들기 ──── ○ ② 역할 확인 ──── ○ ③ 다음 행동      │
 ├──────────────────────────────────────────────────────────────┤
@@ -727,7 +729,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 **하위 뷰: 스펙 목록** (`/p/:proj/specs`) — 사이드바 트리(`SpecTree`)의 전체 화면 판이다. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 
 ```text
-스펙 목록 — nerv.example.com/p/clemvion/specs
+스펙 목록 — app.nerv.example.com/p/clemvion/specs
 ┌──────────────────────────────────────────────────────────────────────┐
 │ 스펙   [+ 새 스펙](1) [기준선 ▾](4) [기준선 생성] [보관] [🔍 검색…]     │
 │ ─ 트리 탭: [상태 ▾] [종류 ▾] [트리 필터] [펼치기][접기]  표시 N/전체 M ─  │
@@ -1091,7 +1093,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 **하위 뷰: 작업 상세 패널** (`/p/:proj/tasks/:task`) — 보드 위 오버레이. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 
 ```text
-작업 상세 패널 — nerv.example.com/p/clemvion/tasks/CLV-T-1KTDCK   (보드 위 오버레이)
+작업 상세 패널 — app.nerv.example.com/p/clemvion/tasks/CLV-T-1KTDCK (보드 위 오버레이)
 ┌──────────────────────────────────────────────── [닫기 ✕] ──┐
 │ CLV-T-1KTDCK · 위젯 상태별 렌더링      🕐 in_progress  (1) │
 │ 출처: SPC-CWC-007 @v4 ▸ · REQ-CWC-031 ▸               (2) │
@@ -1414,7 +1416,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 인앱 알림 피드다(FR-12 ◐ — Slack·메일·다이제스트는 Phase 2). 받은 요청과 역할이 다르다 — **받은 요청은 "내 결정을 기다리는 것", 알림은 "내가 알아야 하는 것"**(spec-workflow §6.6 원칙 3). 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 
 ```text
-알림 센터 — nerv.example.com/notifications
+알림 센터 — app.nerv.example.com/notifications
 ┌──────────────────────────────────────────────────────────────────┐
 │ 알림   [전체 | 안읽음 (5)]                                  (1)  │
 ├──────────────────────────────────────────────────────────────────┤
@@ -1453,7 +1455,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 제품을 **쓰는 사람**을 위한 문서다. `docs/`의 명세와는 다른 문서다 — 명세는 무엇을 왜 만드는지의 기록이고, 매뉴얼은 만들어진 것을 어떻게 쓰는지의 안내다. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 
 ```text
-제품 매뉴얼 — nerv.example.com/help/tasks
+제품 매뉴얼 — app.nerv.example.com/help/tasks
 ┌──────────────────────────────────────────────────────────────────┐
 │ ⬢ NERV  default▾ clemvion▾ │ 홈 프로젝트 받은 요청 알림   🔍  [?] 지민▾│ (1)
 ├────────────┬─────────────────────────────────────┬───────────────┤

@@ -53,7 +53,7 @@
     <h1>화면 설계 (와이어프레임)</h1>
     <p class="lead">NERV 웹 화면 8종의 정보 구조 · 고충실도 와이어프레임 · 상태 표현 규칙 · 인터랙션 규약. 설계의 축은 하나다 — <b>화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.</b></p>
     <div class="meta-line">
-      <span>버전 v0.4 (2026-09-06)</span>
+      <span>버전 v0.5 (2026-09-20)</span>
       <span>원본: <code>docs/03-proposal/ui-wireframes.md</code></span>
       <span>주로 다루는 결정: D-02 · D-06 · D-08 · D-13 · D-14</span>
       <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -310,7 +310,7 @@
   <h3>2.1 S1 홈 대시보드</h3>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/</div></div>
     <div class="wf-body">
       <div class="wf-side">
         <div class="wf-nav-item on">🏠 홈</div>
@@ -420,7 +420,7 @@
   <h3>2.2 S2 프로젝트 개요</h3>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion</div></div>
     <div class="wf-body">
       <div class="wf-side">
         <div class="wf-nav-item on">📊 개요</div>
@@ -493,7 +493,7 @@
   <h3>2.3 S3 스펙 상세 <span class="badge human">고충실도</span></h3>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/specs/SPC-CWC-007</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion/specs/SPC-CWC-007</div></div>
     <div class="wf-body">
       <div class="wf-side" style="width:160px">
         <div class="wf-nav-group">스펙 트리 <span class="marker">1</span></div>
@@ -628,7 +628,7 @@
   <h3>2.4 S4 작업 보드</h3>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/tasks</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion/tasks</div></div>
     <div class="wf-body">
       <div class="wf-main">
         <div class="wf-topbar">
@@ -725,7 +725,7 @@
   <p>세션 카드는 이 제안서에서 가장 자주 인용되는 화면이다. 업계 관례는 <b>상태 · diff 통계 · 브랜치 · 실시간 로그 · 원클릭 attach</b> 5요소로 수렴했고(Conductor의 "see at a glance", Claude Code on the web의 <code>+42 −18</code> 세션 목록, GitHub mission control, Jules activity feed), NERV는 여기에 <b>hostname · 에이전트 종류 · 하트비트 · 클레임한 Task · 리스 잔여</b>를 더한다. 이 다섯 가지가 clemvion에서 로컬 파일에 갇혀 있던 정보다.</p>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/sessions</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion/sessions</div></div>
     <div class="wf-body">
       <div class="wf-main">
         <div class="wf-topbar">
@@ -825,7 +825,7 @@
   </div>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/sessions/S-8f31</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion/sessions/S-8f31</div></div>
     <div class="wf-body">
       <div class="wf-main">
         <div class="wf-topbar">
@@ -877,7 +877,7 @@
   <h3>2.6 S6 리뷰 센터</h3>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/reviews</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion/reviews</div></div>
     <div class="wf-body">
       <div class="wf-side" style="width:170px">
         <div class="wf-nav-group">필터 <span class="marker">1</span></div>
@@ -946,7 +946,7 @@
   <h3>2.7 S7 받은 요청 (Inbox) <span class="badge human">고충실도</span></h3>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/inbox</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/inbox</div></div>
     <div class="wf-body">
       <div class="wf-side" style="width:176px">
         <div class="wf-nav-group">유형 <span class="marker">1</span></div>
@@ -1054,7 +1054,7 @@
   <h3>2.8 S8 설정 · 멤버 · 토큰</h3>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/settings/members</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/settings/members</div></div>
     <div class="wf-body">
       <div class="wf-main">
         <div class="wf-tabs">

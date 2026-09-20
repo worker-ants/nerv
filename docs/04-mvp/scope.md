@@ -3,9 +3,11 @@ id: SPC-MVP-SCOPE
 status: approved
 updated: 2026-09-06
 referenced_by:
+  - 02-research/integration-tech.md
   - 03-proposal/architecture.md
   - 03-proposal/data-model.md
   - 03-proposal/agent-integration.md
+  - 03-proposal/ui-wireframes.md
   - 03-proposal/roadmap.md
   - 04-mvp/codebase.md
   - 04-mvp/database.md

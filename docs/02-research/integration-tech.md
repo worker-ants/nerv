@@ -13,7 +13,9 @@ referenced_by:
 
 > **요약** — Claude Code는 훅 31종·MCP 클라이언트·스킬·서브에이전트·플러그인·헤드리스·Agent SDK·OTel까지 여덟 개의 공식 연동 표면을 열어두고 있고, 그중 `type:"http"` 훅 하나만으로 세션 전 생명주기를 래퍼 스크립트 없이 NERV(가칭) 수집 엔드포인트로 직접 POST할 수 있다. Codex도 MCP·훅(11종)·notify·OTel·비대화형 실행·AGENTS.md에서 거의 대칭이지만 **MCP의 resources·prompts·elicitation을 소비하지 못하고, 플러그인 마켓플레이스급 일괄 배포 체계가 없으며, cloud 태스크 생성 API가 문서화되어 있지 않다.** 이 격차가 D-05의 tools-first 설계를 강제한다 — 스펙 조회·클레임·리뷰 제출 같은 핵심 동작은 전부 MCP tools로 만들고 resources/prompts/elicitation/channels는 Claude 전용 향상으로만 얹는다. 수집은 훅(실시간 제어)과 OTel(정량 관측)의 이중 파이프라인으로 가되, 훅 페이로드의 `prompt_id`와 OTel 이벤트의 `prompt.id`가 같은 UUID라는 공식 조인 키가 있어 두 평면을 하나의 AgentSession으로 합칠 수 있다. 이 문서는 FR-15와 D-05의 1차 근거이며, 실제 도구 카탈로그·플러그인 구성·세션 시퀀스는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md)로 이어진다.
 >
-> 문서 버전 v0.3 · 2026-09-04 · HTML 파생본: [integration-tech.html](../html/integration-tech.html)
+> 문서 버전 v0.4 · 2026-09-20 · HTML 파생본: [integration-tech.html](../html/integration-tech.html)
+>
+> v0.4 변경(2026-09-20 — 공개 주소 분리의 뒤처리, 사람 지시): **조사 결과는 한 줄도 바뀌지 않았다 — 예시 주소의 호스트만 `api.` 로.** 화면과 API 가 호스트로 갈렸으므로([4.1](../04-mvp/scope.md) §2.3), 이 문서의 예시가 가리키는 것은 **API 호스트**다. **경로는 그대로 둔다** — `/ingest/claude/hook`·`/ingest/claude/gate` 는 이 조사 시점의 모양이고 지금 실물은 `/ingest/hooks/*` 다([4.4](../04-mvp/api.md) §2.9 가 그 자리를 가리킨다). 조사 문서는 **그때 무엇을 확인했는지**의 기록이라 그 자리를 지금 값으로 덮으면 기록이 아니게 된다 — 호스트만 맞춘 이유가 그것이고, 실물을 찾는 사람은 [4.6](../04-mvp/plugin.md) 을 본다.
 >
 > v0.3 변경(2026-09-05 — 용어 사전 반영, 사람 지시): [용어 사전](../glossary.md)의 채택어로 이 문서의 낱말을 옮긴다 — 기준선(← 베이스라인) · 워크플로우(← 워크플로) · 권한/소속/작업 범위(← 스코프) · 버전(← 판) · 고정 ID(← 안정 ID·키). **뜻은 바뀌지 않는다** — 코드·API 식별자는 그대로다.
 >
@@ -130,7 +132,7 @@ Claude Code는 현재 **31개 훅 이벤트**를 제공한다. 세션·턴·툴�
       { "matcher": "startup|resume|fork",
         "hooks": [{
           "type": "http",
-          "url": "https://nerv.example.com/ingest/claude/hook",
+          "url": "https://api.nerv.example.com/ingest/claude/hook",
           "headers": {
             "Authorization": "Bearer ${NERV_TOKEN}",
             "X-NERV-Host": "mbp-kim",
@@ -140,13 +142,13 @@ Claude Code는 현재 **31개 훅 이벤트**를 제공한다. 세션·턴·툴�
     ],
     "PostToolUse": [
       { "matcher": "Write|Edit|MultiEdit",
-        "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/hook", "async": true }] }
+        "hooks": [{ "type": "http", "url": "https://api.nerv.example.com/ingest/claude/hook", "async": true }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/gate" }] }
+      { "hooks": [{ "type": "http", "url": "https://api.nerv.example.com/ingest/claude/gate" }] }
     ],
     "SessionEnd": [
-      { "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/hook" }] }
+      { "hooks": [{ "type": "http", "url": "https://api.nerv.example.com/ingest/claude/hook" }] }
     ]
   }
 }
@@ -165,7 +167,7 @@ Claude Code는 현재 **31개 훅 이벤트**를 제공한다. 세션·턴·툴�
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "https://nerv.example.com/mcp",
+      "url": "https://api.nerv.example.com/mcp",
       "headers": { "Authorization": "Bearer ${NERV_TOKEN}" }
     }
   }
@@ -242,7 +244,7 @@ Claude Code는 현재 **31개 훅 이벤트**를 제공한다. 세션·턴·툴�
     "OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.nerv.example.com",
     "OTEL_RESOURCE_ATTRIBUTES": "department=eng,team.id=platform"
   },
-  "allowedHttpHookUrls": ["https://nerv.example.com/ingest/claude/hook"],
+  "allowedHttpHookUrls": ["https://api.nerv.example.com/ingest/claude/hook"],
   "extraKnownMarketplaces": { "nerv": "git.example.com/nerv/plugins" },
   "enabledPlugins": { "nerv@nerv": true },
   "strictKnownMarketplaces": true,
@@ -352,7 +354,7 @@ Codex는 `~/.codex/config.toml`(전역) 또는 **신뢰된** 프로젝트의 `.c
 ```toml
 # <repo>/.codex/config.toml  — 저장소 온보딩으로 배포
 [mcp_servers.nerv]
-url = "https://nerv.example.com/mcp"
+url = "https://api.nerv.example.com/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "clemvion" }
 
