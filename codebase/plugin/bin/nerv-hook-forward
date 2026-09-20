@@ -25,7 +25,7 @@ else
   # Claude 경로는 stdin 으로 온다
   payload="$(cat)"
 fi
-base="${NERV_SERVER:-https://nerv.example.com}"
+base="${NERV_SERVER:-https://api.nerv.example.com}"
 # 본문이 비면 보내지 않는다 — 서버의 빈 훅 처리를 늘리는 것보다 여기서 멈추는 편이 낫다
 [[ -z "${payload}" ]] && exit 0
 

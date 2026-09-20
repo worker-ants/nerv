@@ -6,11 +6,11 @@ This is how you connect Claude Code or Codex to NERV. When you are done, an agen
 
 You need to know three things.
 
-| What                    | Where to find it                           | Example                    |
-| ----------------------- | ------------------------------------------ | -------------------------- |
-| The NERV server address | Ask your administrator                     | `https://nerv.example.com` |
-| The project slug        | The segment after `/p/` in the address bar | `clemvion`                 |
-| Your role               | Settings → Members                         | `developer`                |
+| What                    | Where to find it                           | Example                        |
+| ----------------------- | ------------------------------------------ | ------------------------------ |
+| The NERV server address | Ask your administrator                     | `https://api.nerv.example.com` |
+| The project slug        | The segment after `/p/` in the address bar | `clemvion`                     |
+| Your role               | Settings → Members                         | `developer`                    |
 
 The role matters: **a token can never be broader than the role.** As a `viewer` you cannot issue a token that claims tasks.
 
@@ -35,7 +35,7 @@ The role matters: **a token can never be broader than the role.** As a `viewer` 
 ```jsonc
 {
   "env": {
-    "NERV_SERVER": "https://nerv.example.com",
+    "NERV_SERVER": "https://api.nerv.example.com",
     "NERV_PROJECT": "clemvion",
     "NERV_TOKEN": "<the token from step 1>",
   },
@@ -51,7 +51,7 @@ This file is **git-ignored by default**, so the token is not committed. Every re
 `.nerv/env` is a fallback for outside Claude Code (Codex). The plugin's scripts read it.
 
 ```bash
-NERV_SERVER=https://nerv.example.com
+NERV_SERVER=https://api.nerv.example.com
 NERV_PROJECT=clemvion
 NERV_TOKEN=<the token from step 1>
 ```
@@ -90,7 +90,7 @@ Two lines inside Claude Code.
 
 To take what this server ships instead, change only the first line — `add https://<this server>/plugin/marketplace.json`. They are **two transports for the same marketplace**, so the install command is unchanged (don't register both at once).
 
-Then **restart**. You should see `nerv` v0.2.22 listed as active under `/plugin`.
+Then **restart**. You should see `nerv` v0.2.23 listed as active under `/plugin`.
 
 The server builds the catalogue itself, so **there is nothing to edit after you install** — its own address is already in there. If your deployment uses an internal git marketplace instead, put that git URL in and install `nerv@nerv-internal`.
 
@@ -118,7 +118,7 @@ Four things get installed.
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "${NERV_SERVER:-https://nerv.example.com}/mcp",
+      "url": "${NERV_SERVER:-https://api.nerv.example.com}/mcp",
       "headers": {
         "Authorization": "Bearer ${NERV_TOKEN}",
         "X-NERV-Project": "${NERV_PROJECT}"
@@ -148,7 +148,7 @@ In the copied `.codex/config.toml`, change three things to your own values: `url
 
 ```toml
 [mcp_servers.nerv]
-url = "https://nerv.example.com/mcp"
+url = "https://api.nerv.example.com/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "clemvion" }
 startup_timeout_sec = 20

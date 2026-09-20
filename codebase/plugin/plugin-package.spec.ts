@@ -153,7 +153,8 @@ describe('배포 — 서버 주소가 포크 없이 바뀐다 (PLG-04 · 2026-09
   // 읽는 모양인지는 지켜야 한다 — 쓰는 쪽이 그대로 복사하는 물건이기 때문이다.
   it('문서의 `.mcp.json` 템플릿이 NERV_SERVER 를 읽는다 — 기본값은 그대로다', () => {
     const template = fenceAfter('### 3.3 `.mcp.json` 템플릿', '```');
-    expect(template).toContain('${NERV_SERVER:-https://nerv.example.com}/mcp');
+    // 기본값의 호스트가 `api.` 로 옮겨 갔다(2026-09-20 · 4.1 §2.3 4단계) — MCP 는 API 표면이다
+    expect(template).toContain('${NERV_SERVER:-https://api.nerv.example.com}/mcp');
     expect(template).toContain('${NERV_TOKEN}');
   });
 
@@ -216,7 +217,9 @@ describe('관리형 settings — 훅 URL 통제 (agent-integration §3.4 · §6.
       allowedHttpHookUrls: string[];
     };
     for (const url of settings.allowedHttpHookUrls) {
-      expect(url.startsWith('https://nerv.example.com/')).toBe(true);
+      // **호스트가 `api.` 로 옮겨 갔다**(2026-09-20 · 4.1 §2.3 4단계). 훅은 API 표면이고
+      // 화면과 호스트가 갈렸다 — 화면 주소로 훅을 쏘면 그 호스트에는 `/ingest` 가 없다.
+      expect(url.startsWith('https://api.nerv.example.com/')).toBe(true);
     }
   });
 });

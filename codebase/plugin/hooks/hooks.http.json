@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session",
+            "url": "https://api.nerv.example.com/ingest/hooks/session",
             "headers": {
               "Authorization": "Bearer ${NERV_TOKEN}",
               "X-NERV-Project": "${NERV_PROJECT}",
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/tool",
+            "url": "https://api.nerv.example.com/ingest/hooks/tool",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 3
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "url": "https://api.nerv.example.com/ingest/hooks/subagent",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 3
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "url": "https://api.nerv.example.com/ingest/hooks/subagent",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 3
@@ -70,7 +70,7 @@
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/stop",
+            "url": "https://api.nerv.example.com/ingest/hooks/stop",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 8
@@ -83,7 +83,7 @@
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session-end",
+            "url": "https://api.nerv.example.com/ingest/hooks/session-end",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 5
