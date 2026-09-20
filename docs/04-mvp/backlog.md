@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.82 · 2026-09-20 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.83 · 2026-09-20 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.83 변경(2026-09-20 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **세션 쓰기의 오리진 대조**를 더한다. 2단계에서 "결정하지 않았다" 로 남겨 둔 것을 사람이 확정한 것이고(REQ-CB-043) 어느 스토리에도 속하지 않는다 — 쿠키는 브라우저가 알아서 싣는 자격증명이라 CORS 도 `SameSite=Lax` 도 그 자리를 다 막지 못한다([4.2](codebase.md) v1.49).
 >
 > v0.82 변경(2026-09-20 — 공개 주소 분리 2단계, 사람 지시): **E14-S04 의 현황을 2단계까지 옮긴다**(스토리 수·`done` 수 불변 · 여전히 부분이다). 들어온 것: 허용 오리진 **한 목록**(CORS·better-auth·`/mcp` 가드가 같은 출처에서 읽는다 — [4.2](codebase.md) REQ-CB-041)과 세션 쿠키의 `Domain` 손잡이(REQ-CB-042), 그리고 그 둘을 브라우저 없이 세는 L2. 2026-09-14 에 적어 둔 미룸 하나가 여기서 닫힌다 — `/mcp` 가드가 `NERV_TRUSTED_ORIGINS` 를 보지 않던 비대칭이다. **앞문 nginx 의 `map` 은 그대로 오리진 하나만 안다**(치환이 한 줄이고 같은 값 두 줄이면 기동을 거부한다) — 최종 강제가 앱 가드라 실해는 없고, 이 사실은 남은 것 칸에 그대로 둔다. 남은 것은 **3·4단계**다: 웹의 런타임 설정 로더(`api.ts`·`session.ts`·`ws.ts` 가 여전히 상대 경로다)와 DNS·인증서·Ingress·CDN 전환.
 >
@@ -315,6 +317,7 @@ referenced_by:
 | MCP 비신뢰 래핑 실물 | `mcp/untrusted.ts`(신설) · `spec.tools.ts` · `question.tools.ts` · `task.tools.ts` · `spec.service.ts`(포장 거절) | 문서 세 곳과 스킬 다섯이 2026-08 부터 "경계 안에 온다" 고 적었고 **서버에는 없었다** — E03-S03 은 도구의 존재만 세고 E12-S01 은 스킬 문장만 센다([4.4](api.md) REQ-API-153) |
 | slug 해소의 조직 경계 | `auth.service.ts`(`resolveProject(slug, prefer)`) · `common/project-access.guard.ts`(`orgQualifier`) · `sse-access.guard.ts` · `webhook.controller.ts` · `auth.controller.ts` · `web/src/lib/last-org.ts`(신설) | 유일 제약은 `(org_id, slug)` 인데 해소는 첫 행을 골랐다 — 두 번째 조직 사람은 자기 프로젝트에서 403 을 봤고, 웹훅은 막히지도 않고 남의 프로젝트에 증적을 붙였다([4.4](api.md) REQ-API-152) |
 | 자라는 목록의 커서 | `session.service.ts` · `event.service.ts` | activity 443건이 200 에서 잘리고 화면은 "이게 전부" 라 말했다(4.4 REQ-API-120) |
+| 세션 쓰기의 오리진 대조 | `common/session-origin.guard.ts`(신설) · `main.ts` 전역 가드 · `cors-cookie.spec.ts` | 쿠키는 브라우저가 **알아서 싣는** 자격증명이다 — CORS 는 응답을 읽는 것만 막고 `SameSite=Lax` 는 같은 사이트의 다른 호스트를 막지 않는다(쿠키 도메인을 넓힌 배치가 그 모양이다). 그 자리의 방어선이 운영 약속뿐이던 것을 서버 판정으로 옮겼다(2026-09-20 사람 확정 · REQ-CB-043) |
 
 #### 이 절은 언제 갱신되는가
 

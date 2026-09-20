@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.48 · 2026-09-20 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.49 · 2026-09-20 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.49 변경(2026-09-20 — 쿠키로 오는 쓰기를 서버가 대조한다, 사람 확정): **REQ-CB-043 신설 · §5.2c 의 "한계" 를 규칙으로.** v1.48 이 "그 약속 대신 서버가 판정하게 만드는 것은 새 결정이므로 사람이 정한다" 고 적어 둔 자리를 채운다. **CORS 도 `SameSite=Lax` 도 그 자리를 다 막지 못한다** — CORS 는 응답을 읽는 것을 막을 뿐 요청이 가는 것은 막지 않고, `SameSite` 는 오리진이 아니라 **사이트**를 보므로 같은 등록 도메인 아래의 다른 호스트는 그대로 통과한다(쿠키 도메인을 넓힌 배치가 정확히 그 모양이다). 규칙은 셋이다 — ① 세션 쿠키로 인증하는 요청만 본다(PAT 면제) ② 상태를 바꾸는 메서드만 본다(읽기는 CORS 뒤) ③ `Origin` 이 있어야 하고 허용 목록에 있어야 한다. **③ 의 "없으면 거절" 이 `/mcp` 가드와 다른 점이다**: 그쪽은 비브라우저 클라이언트가 정상 소비자이고, 여기는 세션 쿠키가 계약상 브라우저의 것이다([4.4](api.md) §1.3). 실물은 `common/session-origin.guard.ts` 이고 전역 가드 순서는 `/mcp` 오리진 → **세션 오리진** → 인증 → 쿼터다("어디서" 가 "누가" 보다 먼저다). L2 가 다섯을 센다.
 >
 > v1.48 변경(2026-09-20 — 공개 주소 분리 2단계, 사람 지시): **REQ-CB-041·042 신설 · §5.2c 신설 · 전표에 `NERV_COOKIE_DOMAIN` 한 행.** 1단계는 이름만 갈랐고([4.1](scope.md) §2.3), 화면이 API 와 **다른 오리진에 뜨는 순간 필요한 것**이 둘 남아 있었다 — CORS 와 세션 쿠키다. ① **허용 오리진은 한 목록이다**(REQ-CB-041): `NERV_WEB_URL` + `NERV_TRUSTED_ORIGINS` 의 합집합을 CORS 와 better-auth 가 **같은 함수**에서 읽는다. 두 곳이 갈리면 증상이 사람을 엉뚱한 곳으로 보낸다 — CORS 만 좁으면 로그인은 되는데 그 다음 요청이 전부 막히고, better-auth 만 좁으면 로그인만 `INVALID_ORIGIN` 이다. 1단계가 "동작이 한 줄도 바뀌지 않는다" 를 지키느라 목록에서 빼 두었던 화면 주소가 이 단계에서 들어간다(개발 루프가 `NERV_TRUSTED_ORIGINS` 로 같은 주소를 한 번 더 적던 중복이 그래서 걷힌다). ② **쿠키 도메인은 손잡이지 필수가 아니다**(REQ-CB-042): 서브도메인 둘이 같은 등록 도메인 아래이기만 하면 `SameSite=Lax` 는 **사이트**를 보므로 호스트 전용 쿠키로 그대로 선다. `NERV_COOKIE_DOMAIN` 은 쿠키를 한 호스트보다 **넓게** 둘 때의 것이고, 두 공개 주소의 공통 상위가 아니면 **기동을 거부한다** — 틀린 `Domain` 은 브라우저가 조용히 버려서 "로그인은 200 인데 세션이 없다" 로만 드러난다. ③ **라이브러리의 테스트 모드를 껐다**(실측 · better-auth 1.7.1): 옵션을 비워 두면 `isTest()` 일 때 오리진 검증을 스스로 끈다 — 운영과 동작은 같지만 **L2 가 방어선을 끈 채 초록을 본다.** `disableOriginCheck: false` 를 명시하고, 그 덕에 L2 가 허용목록 밖 오리진의 거절을 실제로 센다. ④ L2 가 **브라우저 없이** 프리플라이트 응답 헤더와 `Set-Cookie` 의 `Domain` 을 직접 센다(§2.3 이 2단계에 요구한 검증이다 — 개발 루프는 같은 오리진이라 이 경로가 한 번도 돌지 않는다). ※ 남은 것: 3단계(웹의 런타임 설정 로더)와 4단계(DNS·인증서·Ingress·CDN 전환) — [4.8](backlog.md) §1.4 의 E14-S04 가 부분으로 센다.
 >
@@ -334,6 +336,7 @@ apps/api/src/
     idempotency.service.ts        # 멱등 저장소 — 표면 공용
     log-level.ts                  # 두 진입점이 같은 함수로 읽는다 (NERV_LOG_LEVEL · §5.2)
     mcp-origin.guard.ts           # /mcp Origin 검증의 최종 강제 지점 (REQ-CB-013)
+    session-origin.guard.ts       # 세션 쿠키 쓰기 요청의 Origin 대조 (REQ-CB-043)
     nerv-exception.filter.ts      # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
     origins.ts                    # 우리 주소 둘 — 화면(NERV_WEB_URL)·API(NERV_API_URL) 와 걷힌 이름의 기동 거부 (§5.2 · REQ-CB-036·037)
     parse-body.ts                 # zod 검증 한 곳 — .strict() 위반은 400 이다
@@ -1093,6 +1096,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-035** | WHILE SSE 스트림이 열려 있는 동안 THE SYSTEM SHALL keep-alive 를 **`event: ping` · `data: {}` 메시지**로 보내고(코멘트 라인 `: ping` 이 아니다 — rxjs 로 흘리므로 Nest 가 메시지로 낸다), 그 주기를 `NERV_SSE_KEEPALIVE_MS` 로 바꿀 수 있게 한다 — 앞문의 유휴 타임아웃이 더 짧은 배치에서 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 | **REQ-CB-036** | WHEN 서버가 자기 주소를 필요로 하면 THE SYSTEM SHALL **사람이 브라우저로 여는 주소는 `NERV_WEB_URL`, 프로그램이 붙는 주소는 `NERV_API_URL`** 에서 읽고 한 이름이 두 뜻을 겸하지 않는다 — 스펙 딥링크는 `NERV_WEB_URL`, better-auth `baseURL`·`trustedOrigins` 기준과 플러그인 카탈로그의 주소와 `/api/auth/*` 요청 절대화 기준은 `NERV_API_URL`, `/mcp` Origin 대조는 **둘 다**(2026-09-20 부터 `NERV_TRUSTED_ORIGINS` 도 함께 · REQ-CB-013 · REQ-CB-041). WHILE 두 값이 같은 오리진인 동안 THE SYSTEM SHALL 갈랐을 때와 **같은 응답**을 낸다 — 이름을 가르는 것과 호스트를 가르는 것은 다른 변경이다 |
+| **REQ-CB-043** | WHILE 요청이 **세션 쿠키로 인증**하는 동안, WHEN 그 요청이 상태를 바꾸는 메서드(`GET`·`HEAD`·`OPTIONS` 밖)이면 THE SYSTEM SHALL `Origin` 이 허용 목록(§5.2c)에 있을 때만 통과시키고, **헤더가 없으면 거절한다** — 쿠키는 브라우저가 알아서 싣는 자격증명이라 남의 탭이 보낸 요청에도 실리고, CORS 는 응답을 읽는 것만 막는다. WHERE 자격증명이 PAT 이면 THE SYSTEM SHALL 이 판정을 적용하지 않는다(헤더에 직접 실리는 자격증명은 CSRF 가 아니다). WHERE 경로가 `/mcp` 이면 THE SYSTEM SHALL 그 가드에 맡긴다(REQ-CB-013 — 규칙이 다르다) | 쿠키 + 목록 밖 오리진의 `POST` 가 403 이고 코드가 `NERV_FORBIDDEN` 이다 · 쿠키 + `Origin` 없는 `POST` 도 403 이다 · 같은 요청이 화면 오리진이면 오리진으로 막히지 않는다 · 쿠키 + 목록 밖 오리진의 `GET` 은 200 이다 · PAT + 목록 밖 오리진은 인증 판정으로만 떨어진다(401) |
 | **REQ-CB-041** | WHEN 브라우저가 다른 오리진에서 API 를 부르면 THE SYSTEM SHALL 허용 오리진을 `NERV_WEB_URL` 과 `NERV_TRUSTED_ORIGINS` 의 **합집합 한 목록**에서 읽고, CORS 와 better-auth 의 `trustedOrigins` 가 **같은 목록**을 보게 한다 — 두 곳이 갈리면 로그인은 되는데 그 다음 요청이 전부 막히거나 그 반대이고, 어느 쪽도 원인을 가리키지 않는다. WHERE 요청에 `Origin` 이 없으면(에이전트·CLI) THE SYSTEM SHALL 그대로 통과시키고, 목록 밖 오리진이면 **헤더를 붙이지 않을 뿐 오류를 내지 않는다**. WHILE 세션 쿠키를 싣는 요청인 동안 THE SYSTEM SHALL 와일드카드를 쓰지 않는다 — `credentials: true` 와 `*` 는 함께 서지 않는다 | L2 가 프리플라이트 응답의 `Access-Control-Allow-Origin`·`-Credentials`·`-Headers`·`Vary` 를 세고, 목록 밖 오리진에는 그 헤더가 없다 · 화면 오리진의 로그인이 200 이고 목록 밖 오리진의 로그인이 403 이다(같은 목록의 실물 증거) · `Origin` 없는 요청이 200 이다 |
 | **REQ-CB-042** | WHERE `NERV_COOKIE_DOMAIN` 이 설정되면 THE SYSTEM SHALL 세션 쿠키를 그 도메인으로 세우고, **두 공개 주소의 공통 상위가 아니거나 IP 이거나 라벨이 하나이면 기동을 거부한다** — 틀린 `Domain` 은 브라우저가 조용히 버려서 로그인은 200 인데 세션이 없는 상태로만 드러난다. WHILE 값이 비어 있는 동안 THE SYSTEM SHALL 쿠키를 **호스트 전용**으로 둔다(같은 등록 도메인 아래의 서브도메인 둘은 그대로 선다 — `SameSite=Lax` 는 오리진이 아니라 사이트를 본다). WHEN 거부하면 THE SYSTEM SHALL Nest 초기화 **전에** 판정해 문구를 남긴다 — 초기화 중의 예외는 `abortOnError` 기본값이 프로세스를 abort 시켜 덤프만 남는다 | 설정한 배치의 `Set-Cookie` 에 `Domain=<값>` 이 붙고 `HttpOnly`·`SameSite=Lax`·`Secure` 가 그대로다 · 비운 배치의 `Set-Cookie` 에 `Domain` 이 없다 · 공통 상위가 아닌 값으로 better-auth 생성과 `assertCookieDomain()` 이 둘 다 던지고 문구에 두 주소와 고치는 법이 실린다 |
 | **REQ-CB-040** | WHEN 외부 서비스의 주소를 받는 설정(`NERV_S3_ENDPOINT` · `NERV_EMBED_URL`)이 **빈 값**이면 THE SYSTEM SHALL 그것을 부재로 읽어 그 기능을 끄고(첨부 비활성 · 임베딩 비활성 → 렉시컬 degrade) 무엇이 설정되지 않았는지 기동 로그에 남긴다 — 배치가 "설정하지 않음" 을 넘기는 모양은 키의 부재·ConfigMap 의 빈 값·compose 의 `${VAR:-}` 셋이고, `undefined` 만 보면 뒤의 둘이 통과해 **기능이 꺼지는 대신 요청마다 깨진다**. WHERE 주소가 미설정이면 THE SYSTEM SHALL 개발 루프의 기본값을 쓴다 — 미설정과 빈 값은 다른 뜻이다 | 빈 문자열·공백만 있는 값으로 `StorageService.available` 이 false 다 · 빈 `NERV_EMBED_URL` 로 `embed()` 가 이름을 말하며 던지고 `embedOrNull()` 이 null 을 준다 · 미설정은 기본값으로 선다 |
@@ -1125,7 +1129,19 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 
 **검증은 L2 가 브라우저 없이 한다**(`apps/api/test/integration/cors-cookie.spec.ts`). 개발 루프는 앞문 하나라 이 경로가 한 번도 돌지 않으므로([4.1](scope.md) §2.3 이 그 대가를 명시한다), 세는 것은 실물 응답이다 — 프리플라이트의 `Access-Control-Allow-*`·`Vary`, 목록 밖 오리진에 헤더가 없다는 것, 화면 오리진의 로그인이 통과하고 목록 밖 오리진의 로그인이 403 이라는 것, 그리고 `Set-Cookie` 의 `Domain`(설정하면 붙고 비우면 없다).
 
-**한계를 적어 둔다.** 오리진 검증은 better-auth 의 `/api/auth/*` 표면이 하고, `/api/v1` 은 브라우저의 CORS·`SameSite=Lax` 뒤에 있다. 쿠키 도메인을 넓히면 그 도메인 아래의 호스트는 **같은 사이트**라 `SameSite` 가 막지 않으므로, 그때의 방어선은 "신뢰하지 않는 호스트를 그 아래 두지 않는다" 는 운영 약속이다. 그 약속 대신 서버가 판정하게 만드는 것(쿠키 인증 요청의 `Origin` 대조)은 이 단계의 결정이 아니다 — 새 결정이므로 사람이 정한다.
+**쿠키로 오는 쓰기는 서버가 대조한다**(2026-09-20 사람 확정 · REQ-CB-043). 그 전에는 오리진 검증을 better-auth 의 `/api/auth/*` 표면만 했고, `/api/v1` 은 브라우저의 CORS·`SameSite=Lax` 뒤에 있었다. 둘 다 그 자리를 다 막지 못한다 — **CORS 는 응답을 읽는 것을 막을 뿐 요청이 가는 것은 막지 않고**, `SameSite=Lax` 는 오리진이 아니라 **사이트**를 보므로 같은 등록 도메인 아래의 다른 호스트는 그대로 통과한다(쿠키 도메인을 넓힌 배치가 정확히 그 모양이다). 그 자리의 방어선이 "신뢰하지 않는 호스트를 그 아래 두지 않는다" 는 운영 약속 하나뿐이었다.
+
+규칙은 셋이고 실물은 `common/session-origin.guard.ts` 다.
+
+| 무엇 | 판정 | 왜 |
+| --- | --- | --- |
+| 자격증명 | **세션 쿠키로 인증하는 요청만** 본다 | PAT 는 부르는 쪽이 헤더에 직접 싣는다 — 브라우저가 알아서 싣지 않으므로 CSRF 가 아니다. 에이전트·CLI 는 그대로 돈다 |
+| 메서드 | `GET`·`HEAD`·`OPTIONS` 는 지나간다 | 상태를 바꾸지 않고, 읽기의 방어선은 CORS 다(응답을 읽지 못한다) |
+| `Origin` | **있어야 하고** 허용 목록에 있어야 한다 — 없으면 거절 | 세션 쿠키는 계약상 브라우저의 것이고([4.4 API](api.md) §1.3), 브라우저는 상태 변경 요청에 `Origin` 을 언제나 싣는다. 헤더 없이 쿠키로 쓰는 것은 계약 밖의 호출이므로 PAT 를 쓴다 |
+
+`/mcp` 는 자기 가드가 본다(REQ-CB-013) — 규칙이 다르다: 그쪽은 **비브라우저 클라이언트가 정상 소비자**라 헤더 없는 요청을 통과시킨다. 같은 요청을 두 번 판정하지 않도록 이 가드는 `/mcp` 를 지나친다.
+
+**남은 한계.** 읽기(`GET`)는 여전히 브라우저의 CORS 뒤에 있다 — 응답을 읽지 못할 뿐 요청은 서버에 닿는다. 그리고 이 판정의 기준은 **허용 목록**이므로, 목록에 든 오리진이 침해되면 방어선도 함께 무너진다: 목록을 늘리는 것은 그만큼의 신뢰를 더하는 일이다.
 
 ### 5.3 `docker-compose.yml` 전문
 

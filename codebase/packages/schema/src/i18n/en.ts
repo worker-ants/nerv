@@ -105,6 +105,8 @@ export const en = {
   'error.auth.admin_only_import': 'Only admins can run imports.',
   'error.auth.admin_only_policy': 'Only admins can change gate policy and retention settings.',
   'error.auth.author_only': 'Only the author can edit this.',
+  'error.auth.bad_origin':
+    'This request came from another origin — session-authenticated requests must come from the app origin.',
   'error.auth.hook_missing': 'Hook credentials are missing.',
   'error.auth.human_only_scope': 'Human-only scopes cannot be granted to a token.',
   'error.auth.invalid': 'Invalid credentials.',

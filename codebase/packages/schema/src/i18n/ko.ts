@@ -109,6 +109,8 @@ export const ko = {
   'error.auth.admin_only_import': '임포트는 admin 만 가능합니다.',
   'error.auth.admin_only_policy': '게이트 정책·보존 설정은 admin 만 바꿉니다.',
   'error.auth.author_only': '작성자만 수정할 수 있습니다.',
+  'error.auth.bad_origin':
+    '다른 주소에서 온 요청입니다 — 세션으로 인증하는 요청은 화면 주소에서만 보낼 수 있습니다.',
   'error.auth.hook_missing': '훅 자격증명이 없습니다.',
   'error.auth.human_only_scope': '사람 전용 권한은 토큰에 부여할 수 없습니다.',
   'error.auth.invalid': '자격증명이 유효하지 않습니다.',

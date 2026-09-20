@@ -342,7 +342,9 @@ describe('slug 이 두 조직에 있을 때의 REST 표면 (REQ-API-152)', () =>
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/me/tokens',
-      headers: { cookie: bothCookie, 'content-type': 'application/json' },
+      // 쿠키로 인증하는 **쓰기**는 오리진을 대조한다(REQ-CB-043) — 브라우저는 POST 에
+      // `Origin` 을 언제나 싣는다. 헤더 없이 쿠키로 쓰는 것은 계약 밖의 호출이다.
+      headers: { cookie: bothCookie, origin: DEFAULT_ORIGIN, 'content-type': 'application/json' },
       payload: { project: 'shared', org: 'beta', name: '베타 토큰', scopes: ['spec:read'] },
     });
     expect(res.statusCode).toBe(201);
