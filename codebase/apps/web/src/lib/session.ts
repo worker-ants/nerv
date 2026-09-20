@@ -5,6 +5,7 @@
 
 import type { MessageKey, Translator } from '@nerv/schema';
 import { apiFetch } from './api.js';
+import { apiBase } from './config.js';
 
 export interface Membership extends Record<string, unknown> {
   id: string;
@@ -43,7 +44,7 @@ export interface AuthFailure {
 }
 
 async function authFetch(path: string, body: Record<string, unknown>): Promise<Response> {
-  return fetch(`/api/auth${path}`, {
+  return fetch(`${apiBase()}/api/auth${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'include',

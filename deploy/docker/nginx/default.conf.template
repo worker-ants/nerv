@@ -41,6 +41,22 @@ server {
     add_header Cache-Control "public, max-age=31536000, immutable";
   }
 
+  # 런타임 설정 — 화면이 부팅 때 읽는 배포 설정 하나다(4.1 §2.3 3단계 · apps/web/src/lib/config.ts).
+  #
+  # **빌드 타임에 굽지 않는 이유가 이 자리다**: 번들은 환경마다 같고, 환경마다 다른 것은
+  # 앞문이 내어 주는 이 응답뿐이다. 그래서 같은 이미지를 dev → prod 로 승격할 수 있다.
+  # CDN 배치(4단계)에는 앞문이 없으므로 같은 내용의 정적 파일을 이 경로에 놓는다.
+  #
+  # **캐시하지 않는다.** 이 값이 주소를 정하므로, 옛 사본을 쥔 탭은 옛 API 로 간다.
+  #
+  # 값이 비면 `{"api_url":""}` 이고 화면은 **같은 오리진**으로 돈다 — 한 호스트가 화면과
+  # API 를 함께 서빙하는 지금 배치가 그것이다.
+  location = /config.json {
+    default_type application/json;
+    add_header Cache-Control "no-store";
+    return 200 '{"api_url":"${NERV_API_URL}"}';
+  }
+
   location /api/ {
     # **API 는 서버가 선언한 상한을 그대로 통과시켜야 한다** — `MAX_REQUEST_BODY_BYTES`
     # (16 MiB, packages/schema/src/constants.ts). 여기에 값이 없으면 nginx 기본값 1 MiB 가

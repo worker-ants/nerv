@@ -16,14 +16,18 @@ const socket = {
   emit,
 };
 const ioOptions: Record<string, unknown>[] = [];
+/** `io(url, opts)` 의 첫 인자 — 런타임 설정이 정하는 주소다(4.1 §2.3 3단계) */
+const ioUrls: (string | undefined)[] = [];
 
 vi.mock('socket.io-client', () => ({
-  io: (opts: Record<string, unknown>) => {
+  io: (url: string | undefined, opts: Record<string, unknown>) => {
+    ioUrls.push(url);
     ioOptions.push(opts);
     return socket;
   },
 }));
 
+const { resetRuntimeConfigForTesting } = await import('./config.js');
 const { connectNervSocket, forgetRooms, joinProjectRoom, leaveProjectRoom, joinedRoomsForTesting } =
   await import('./ws.js');
 
@@ -35,7 +39,24 @@ beforeEach(() => {
   handlers.clear();
   emit.mockClear();
   ioOptions.length = 0;
+  ioUrls.length = 0;
+  resetRuntimeConfigForTesting();
   forgetRooms();
+});
+
+describe('붙는 주소 — 런타임 설정이 정한다 (4.1 §2.3 3단계)', () => {
+  it('설정이 비면 **인자를 넘기지 않는다** — 화면이 뜬 오리진에 붙는 지금까지의 동작이다', () => {
+    connect();
+    expect(ioUrls[0]).toBeUndefined();
+  });
+
+  it('API 주소가 설정되면 그 주소로 붙는다 — 화면과 다른 호스트일 수 있다', () => {
+    resetRuntimeConfigForTesting({ apiBase: 'https://api.nerv.example.com' });
+    connect();
+    expect(ioUrls[0]).toBe('https://api.nerv.example.com');
+    // 핸드셰이크는 세션 쿠키로 검증된다 — 오리진이 갈려도 쿠키가 실려야 한다
+    expect(ioOptions[0]).toMatchObject({ withCredentials: true });
+  });
 });
 
 describe('룸 기억 — 소켓보다 먼저 온 join (2026-09-02)', () => {
