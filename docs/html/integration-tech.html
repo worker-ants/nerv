@@ -53,7 +53,7 @@
     <h1>Claude Code/Codex 연동 기술 — 표면 목록과 NERV 결선도</h1>
     <p class="lead">Claude Code는 훅 31종·MCP 클라이언트·스킬·서브에이전트·플러그인·헤드리스·Agent SDK·OTel까지 여덟 개의 공식 연동 표면을 열어두고 있고, 그중 <code>type:"http"</code> 훅 하나만으로 세션 전 생명주기를 래퍼 스크립트 없이 NERV 수집 엔드포인트로 직접 POST할 수 있다. Codex도 거의 대칭이지만 <b>MCP의 resources·prompts·elicitation을 소비하지 못하고, 마켓플레이스급 일괄 배포 체계가 없으며, cloud 태스크 생성 API가 문서화되어 있지 않다</b> — 이 격차가 D-05의 tools-first 설계를 강제한다. FR-15와 D-05의 1차 근거.</p>
     <div class="meta-line">
-      <span>버전 v0.3 (2026-09-04)</span>
+      <span>버전 v0.4 (2026-09-20)</span>
       <span>원본: <code>docs/02-research/integration-tech.md</code></span>
       <span>1차 소스: 웹 딥리서치 노트 1건(공식 문서 26개 출처, 확인일 2026-08-13)</span>
       <span class="refs">참조하는 문서: <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="plugin.html">4.6</a> · <a href="index.html">개요</a></span>
@@ -257,7 +257,7 @@
       { "matcher": "startup|resume|fork",
         "hooks": [{
           "type": "http",
-          "url": "https://nerv.example.com/ingest/claude/hook",
+          "url": "https://api.nerv.example.com/ingest/claude/hook",
           "headers": {
             "Authorization": "Bearer ${NERV_TOKEN}",
             "X-NERV-Host": "mbp-kim",
@@ -267,13 +267,13 @@
     ],
     "PostToolUse": [
       { "matcher": "Write|Edit|MultiEdit",
-        "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/hook", "async": true }] }
+        "hooks": [{ "type": "http", "url": "https://api.nerv.example.com/ingest/claude/hook", "async": true }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/gate" }] }
+      { "hooks": [{ "type": "http", "url": "https://api.nerv.example.com/ingest/claude/gate" }] }
     ],
     "SessionEnd": [
-      { "hooks": [{ "type": "http", "url": "https://nerv.example.com/ingest/claude/hook" }] }
+      { "hooks": [{ "type": "http", "url": "https://api.nerv.example.com/ingest/claude/hook" }] }
     ]
   }
 }</code></pre>
@@ -293,7 +293,7 @@
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "https://nerv.example.com/mcp",
+      "url": "https://api.nerv.example.com/mcp",
       "headers": { "Authorization": "Bearer ${NERV_TOKEN}" }
     }
   }
@@ -377,7 +377,7 @@
     "OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.nerv.example.com",
     "OTEL_RESOURCE_ATTRIBUTES": "department=eng,team.id=platform"
   },
-  "allowedHttpHookUrls": ["https://nerv.example.com/ingest/claude/hook"],
+  "allowedHttpHookUrls": ["https://api.nerv.example.com/ingest/claude/hook"],
   "extraKnownMarketplaces": { "nerv": "git.example.com/nerv/plugins" },
   "enabledPlugins": { "nerv@nerv": true },
   "strictKnownMarketplaces": true,
@@ -543,7 +543,7 @@
 
 <pre><code># &lt;repo&gt;/.codex/config.toml  — 저장소 온보딩으로 배포
 [mcp_servers.nerv]
-url = "https://nerv.example.com/mcp"
+url = "https://api.nerv.example.com/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "clemvion" }
 
@@ -727,7 +727,7 @@ exit 0</code></pre>
   <p>수집이 만들어내는 최종 산출물은 결국 화면이다 — S5 세션 모니터의 모든 열은 위 표면에서 그대로 온다.</p>
 
   <div class="wf">
-    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">nerv.example.com/p/clemvion/sessions</div></div>
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion/sessions</div></div>
     <div class="wf-body">
       <div class="wf-side">
         <div class="wf-nav-item">🏠 대시보드</div>
