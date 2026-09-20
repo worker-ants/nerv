@@ -2,14 +2,14 @@
   "name": "nerv-internal",
   "owner": {
     "name": "NERV",
-    "url": "https://nerv.example.com"
+    "url": "https://api.nerv.example.com"
   },
   "plugins": [
     {
       "name": "nerv",
       "source": "./",
       "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-      "version": "0.2.22"
+      "version": "0.2.23"
     }
   ]
 }

@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **23종**(2026-09-04 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.31 · 2026-09-07 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.32 · 2026-09-20 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.32 변경(2026-09-20 — 공개 주소 분리 4단계 ②, 사람 지시): **새 요구사항 없음 — 예시 주소 셋이 `api.` 로.** 화면과 API 가 호스트로 갈렸으므로([4.1](../04-mvp/scope.md) §2.3), MCP 엔드포인트와 Codex 예시가 가리키는 것은 **API 호스트**다. 판정도 구조도 바뀌지 않는다 — 배달되는 실물은 [4.6](../04-mvp/plugin.md) 이 갖고 그쪽이 같은 값으로 갔다.
 >
 > v0.31 변경(2026-09-07 — 카탈로그가 도구를 잘못 설명했다, 개선 계획 아홉째 스프린트): **새 요구사항 없음 — §2.3 카탈로그 네 행 · 정책 버전 표기.** 이 카탈로그는 **모델이 읽는 정본**이고, 문서에만 있는 인자는 스킬이 그것을 쓰라고 말하게 만들며 그 호출은 `ignored_args` 로 조용히 버려진다. 네 자리가 갈려 있었다 — `nerv_spec_attach` 의 `bytes`(받은 적 없다) · `nerv_session_event` 의 `ts`(시각은 서버가 적는다)와 "서버 지시" 응답(그 채널은 하트비트다) · `nerv_spec_relate` 의 `base_hash`(**필수인데 카탈로그에 없었다**) · `nerv_bootstrap` 의 자율성 레벨·컨텍스트 팩 ETag(도입되지 않았다). **L2 가 이제 카탈로그와 도구 스키마를 대조한다.** 곁들여 **정책 버전** 개념을 미도입으로 표기한다 — `policy.stale` 이벤트도 카탈로그에 없고, 강제는 규약 비교가 아니라 서버 게이트가 한다.
 >
@@ -139,7 +141,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 ### 2.1 설계 원칙 다섯 가지
 
-1. **하나의 원격 서버, 하나의 엔드포인트.** `https://nerv.example.com/mcp` 한 곳에 Streamable HTTP로 붙는다. 저장소에 커밋되는 설정은 `.mcp.json`(Claude)과 `.codex/config.toml`(Codex) 두 파일뿐이다.
+1. **하나의 원격 서버, 하나의 엔드포인트.** `https://api.nerv.example.com/mcp` 한 곳에 Streamable HTTP로 붙는다. 저장소에 커밋되는 설정은 `.mcp.json`(Claude)과 `.codex/config.toml`(Codex) 두 파일뿐이다.
 2. **도구 이름은 동사구, 접두사는 `nerv_`.** 도구 정의는 지연 로딩되므로 서버 `instructions` 필드가 검색 힌트로 중요하다(2KB에서 잘림). 핵심 5종(`nerv_bootstrap`·`nerv_task_next`·`nerv_task_claim`·`nerv_task_heartbeat`·`nerv_question_create`)은 상시 로딩으로 표시한다.
 3. **승인 권한을 가진 도구는 만들지 않는다.** `spec:approve`와 `approval:decide`는 어떤 자율성 레벨에서도 사람 전용이므로, 카탈로그에 `nerv_spec_approve` 같은 도구가 **존재하지 않는 것**이 설계다.
 4. **모든 상태 변경은 멱등 키를 받는다.** 재시도·오프라인 아웃박스 재전송·네트워크 중복이 상시 발생하기 때문이다. 저장소는 REST 와 **공용**이며 규약 정본은 [4.4 API 명세](../04-mvp/api.md) §1.5다. 예외가 둘 있다(2026-09-02 구현 확인): 읽기(A1) 도구는 재실행에 부작용이 없어 저장소를 거치지 않고, `nerv_question_create` 는 **같은 키의 재호출이 곧 폴링**이라(§5.3) 공용 재생을 건너뛴다 — 최초 응답을 되돌려주면 답이 달린 뒤에도 영원히 `open` 을 받는다.
@@ -396,7 +398,7 @@ nerv-plugin/
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "https://nerv.example.com/mcp",
+      "url": "https://api.nerv.example.com/mcp",
       "headers": { "X-NERV-Project": "${NERV_PROJECT}" }
     }
   }
@@ -482,7 +484,7 @@ sequenceDiagram
 ```toml
 # <repo>/.codex/config.toml — NERV 온보딩 스크립트가 생성 · 저장소에 커밋
 [mcp_servers.nerv]
-url = "https://nerv.example.com/mcp"
+url = "https://api.nerv.example.com/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "clemvion" }
 startup_timeout_sec = 20

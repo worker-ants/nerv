@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.66 · 2026-09-13 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.67 · 2026-09-20 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.67 변경(2026-09-20 — 공개 주소 분리 4단계 ②, 사람 지시): **새 요구사항 없음 · 패키지 0.2.22 → 0.2.23 · 배달되는 주소 13곳이 `api.` 로.** 화면과 API 가 호스트로 갈렸으므로([4.1](scope.md) §2.3 · [4.2](codebase.md) §6.3), 플러그인이 들고 있던 하드코딩된 주소는 **API 호스트**다 — 훅 여섯(`/ingest/hooks/*`)·관리형 settings 의 `NERV_SERVER` 와 허용 URL 다섯·Codex 의 `/mcp`·카탈로그의 `owner.url` 이다. **버전과 함께 간다**(REQ-PLG-017): 설치한 쪽은 `plugin.json` 의 버전이 오를 때만 새 사본을 받으므로, 주소만 바꾸면 이미 설치한 세션은 옛 주소로 계속 쏜다 — 그 호스트에는 `/ingest` 가 없다. **순서도 그래서다**([4.2](codebase.md) §6.3a 5번): 서버 쪽 호스트가 먼저 서고 이 배달이 나중이다. 먼저 바꾸면 배달만 되고 서버는 옛 주소다. 곁들여 매뉴얼 ko·en 의 설치 장(주소 다섯씩·버전 한 줄)과 [3.4](../03-proposal/agent-integration.md) 의 예시 주소 셋을 같은 값으로 맞췄다.
 >
 > v0.66 변경(2026-09-13 — 카탈로그 주소의 이름이 갈렸다, 사람 결정): **새 요구사항 없음 · 배달되는 파일 변경 없음(`plugin.json` 버전 그대로).** §3.5 가 인용하는 변수 이름이 걷힌 옛 이름에서 **`NERV_API_URL`** 로 갈렸다([4.2](codebase.md) §5.2 · REQ-CB-036). `hooks/hooks.http.json` 의 하드코딩된 주소는 **아직 바꾸지 않는다** — 훅은 설치한 쪽의 사본이 도므로 서버보다 먼저 배달되면 옛 주소를 가리킨다. 그 변경은 실제 호스트 전환과 **같은 단계**에서 `plugin.json` 버전과 함께 간다([4.1](scope.md) §2.3 의 4단계 · REQ-PLG-017).
 >
@@ -118,7 +120,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.22
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.23
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -140,7 +142,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "license": "Apache-2.0"
 }
 ```
@@ -959,7 +961,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 덧붙여 **"셸을 실행하지 않는다" 는 위안은 어느 변형에도 없었다** — http 변형의 SessionStart 에도 `bin/nerv-outbox flush` 가 command 훅으로 이미 들어 있다. 바뀐 것은 위험의 종류가 아니라 범위다.
 
-`.mcp.json` 은 변형이 필요 없다 — `url` 이 `${VAR}` 확장을 받으므로 `${NERV_SERVER:-https://nerv.example.com}/mcp` 하나로 둘 다 된다.
+`.mcp.json` 은 변형이 필요 없다 — `url` 이 `${VAR}` 확장을 받으므로 `${NERV_SERVER:-https://api.nerv.example.com}/mcp` 하나로 둘 다 된다.
 
 ```json
 {
@@ -971,7 +973,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session",
+            "url": "https://api.nerv.example.com/ingest/hooks/session",
             "headers": {
               "Authorization": "Bearer ${NERV_TOKEN}",
               "X-NERV-Project": "${NERV_PROJECT}",
@@ -995,7 +997,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/tool",
+            "url": "https://api.nerv.example.com/ingest/hooks/tool",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 3
@@ -1008,7 +1010,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "url": "https://api.nerv.example.com/ingest/hooks/subagent",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 3
@@ -1021,7 +1023,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/subagent",
+            "url": "https://api.nerv.example.com/ingest/hooks/subagent",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 3
@@ -1034,7 +1036,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/stop",
+            "url": "https://api.nerv.example.com/ingest/hooks/stop",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 8
@@ -1047,7 +1049,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         "hooks": [
           {
             "type": "http",
-            "url": "https://nerv.example.com/ingest/hooks/session-end",
+            "url": "https://api.nerv.example.com/ingest/hooks/session-end",
             "headers": { "Authorization": "Bearer ${NERV_TOKEN}" },
             "allowedEnvVars": ["NERV_TOKEN"],
             "timeout": 5
@@ -1141,7 +1143,7 @@ printf '  %s · ctx %s%%%s\n' \
 
 **`.mcp.json` 은 플러그인이 담지 않는다**(2026-09-04 개정 — 사람 결정). 아래는 **쓰는 쪽 저장소가 자기 루트에 두는 템플릿**이다.
 
-이유는 실측이다(§3.3 "어디에 두는가" 표): **플러그인이 제공한 `.mcp.json` 은 그 프로젝트의 `settings.local.json` `env` 를 읽지 못한다.** 그래서 `${NERV_SERVER:-…}` 가 언제나 기본값으로 떨어져 `nerv.example.com` 으로 갔다 — 어느 프로젝트에서도 붙을 수 없는 파일이 세션마다 연결 실패 하나를 남기고 있었다. 프로젝트가 같은 파일을 자기 루트에 두면 그 확장이 정상 동작한다(도구 22종 연결 확인).
+이유는 실측이다(§3.3 "어디에 두는가" 표): **플러그인이 제공한 `.mcp.json` 은 그 프로젝트의 `settings.local.json` `env` 를 읽지 못한다.** 그래서 `${NERV_SERVER:-…}` 가 언제나 기본값으로 떨어져 `api.nerv.example.com` 으로 갔다 — 어느 프로젝트에서도 붙을 수 없는 파일이 세션마다 연결 실패 하나를 남기고 있었다. 프로젝트가 같은 파일을 자기 루트에 두면 그 확장이 정상 동작한다(도구 22종 연결 확인).
 
 그리고 이것이 값의 성질과도 맞는다 — **서버 주소와 토큰은 프로젝트마다 다르다.** 플러그인은 여러 프로젝트가 공유하는 물건이라 애초에 담을 수 없는 값이었다. 훅이 같은 값을 쓰면서도 플러그인에 담겨 있는 이유는 훅은 **파일이 아니라 스크립트**라, 실행 시점에 그 프로젝트의 환경을 읽기 때문이다.
 
@@ -1150,7 +1152,7 @@ printf '  %s · ctx %s%%%s\n' \
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "${NERV_SERVER:-https://nerv.example.com}/mcp",
+      "url": "${NERV_SERVER:-https://api.nerv.example.com}/mcp",
       "headers": {
         "Authorization": "Bearer ${NERV_TOKEN}",
         "X-NERV-Project": "${NERV_PROJECT}"
@@ -1191,7 +1193,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | 훅(포워더·outbox) | ✔ | `.nerv/env` 를 치우고 세션을 돌려도 세션이 정상 등록됐다 |
 | statusline | ✔ | 훅과 같은 방식으로 Claude Code 가 띄운다 |
 | **프로젝트** `.mcp.json` | ✔ | 헤더의 `${NERV_TOKEN}` 이 풀려 도구 22종이 붙었다 |
-| **플러그인이 제공한** `.mcp.json` | **✘** | `${NERV_SERVER:-…}` 가 기본값으로 떨어져 `nerv.example.com` 으로 갔다 |
+| **플러그인이 제공한** `.mcp.json` | **✘** | `${NERV_SERVER:-…}` 가 기본값으로 떨어져 `api.nerv.example.com` 으로 갔다 |
 
 마지막 줄이 중요하다. **같은 `${VAR}` 문법인데 플러그인이 제공한 것만 프로젝트 환경을 못 본다.** 그래서 서버 주소·토큰처럼 **프로젝트마다 다른 값을 쓰는 MCP 설정은 프로젝트가 갖는다** — 플러그인은 여러 프로젝트가 공유하는 물건이라 애초에 담을 수 없는 값이다.
 
@@ -1319,7 +1321,7 @@ outbox 항목 형식(1파일 = 1호출):
 서버가 자기 카탈로그와 아카이브를 준다. 계약 정본은 [4.4 API 명세](api.md) §2.11(EP-PLG-01·02 · REQ-API-086)이고, 여기서는 **왜 그리고 어떻게 쓰는가**를 적는다.
 
 ```bash
-/plugin marketplace add https://nerv.example.com/plugin/marketplace.json
+/plugin marketplace add https://api.nerv.example.com/plugin/marketplace.json
 /plugin install nerv@nerv
 ```
 
@@ -1407,7 +1409,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 // <작업 저장소>/.claude/settings.local.json — 기본 gitignore 대상
 {
   "env": {
-    "NERV_SERVER": "https://nerv.example.com",
+    "NERV_SERVER": "https://api.nerv.example.com",
     "NERV_PROJECT": "clemvion",
     "NERV_TOKEN": "<S8에서 발급한 PAT — 발급 시 1회만 표시>"
   }
@@ -1418,7 +1420,7 @@ Codex·CLI·statusline 까지 한 파일로 덮으려면 같은 값을 `.nerv/en
 
 ```bash
 # <작업 저장소>/.nerv/env — .nerv/ 는 이미 .gitignore 대상이다(REQ-PLG-013)
-NERV_SERVER=https://nerv.example.com
+NERV_SERVER=https://api.nerv.example.com
 NERV_PROJECT=clemvion
 NERV_TOKEN=<S8에서 발급한 PAT>
 ```
@@ -1458,7 +1460,7 @@ Codex 완전 지원은 [3.7 로드맵](../03-proposal/roadmap.md) Phase 2의 범
 ```toml
 # <repo>/.codex/config.toml — NERV 온보딩 스크립트가 생성 · 저장소에 커밋
 [mcp_servers.nerv]
-url = "https://nerv.example.com/mcp"
+url = "https://api.nerv.example.com/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "clemvion" }
 startup_timeout_sec = 20
@@ -1482,7 +1484,7 @@ log_user_prompt = false
 
 MVP에서는 `notify`·`[otel]` 줄이 동작하지 않아도 무방하다 — **`notify` 는 수신 엔드포인트가 없어 주석 처리한 채로 배포한다**(2026-09-07 · 포워더가 `POST /ingest/hooks/notify` 로 보내는데 컨트롤러의 경로는 session·tool·subagent·stop·session-end 다섯뿐이다) — MCP 블록만으로 완주가 성립한다. 저장소의 `.codex/config.toml`은 신뢰된 프로젝트에서만 읽히므로 최초 1회 신뢰 승인이 필요하다.
 
-**템플릿을 어디에 두는가(2026-08-23 정정).** 두 파일이 있어야 할 곳은 NERV 저장소가 아니라 **쓰는 쪽 저장소**다. NERV 저장소 루트에 `.codex/config.toml` 을 두면 이 저장소에서 도는 Codex 세션이 예시 URL(`nerv.example.com`)로 접속하려 든다. 그래서 플러그인 패키지가 `plugin/codex/{config.toml, AGENTS.md, README.md}` 로 **템플릿을 배포하고 사람이 복사한다** — 그것이 §5.1 이 말한 "수동 경로"의 실물이다. 이 절과 §5.2 의 전문이 그 템플릿의 정본이며, 플러그인 패키지 테스트가 둘의 정합을 지킨다.
+**템플릿을 어디에 두는가(2026-08-23 정정).** 두 파일이 있어야 할 곳은 NERV 저장소가 아니라 **쓰는 쪽 저장소**다. NERV 저장소 루트에 `.codex/config.toml` 을 두면 이 저장소에서 도는 Codex 세션이 예시 URL(`api.nerv.example.com`)로 접속하려 든다. 그래서 플러그인 패키지가 `plugin/codex/{config.toml, AGENTS.md, README.md}` 로 **템플릿을 배포하고 사람이 복사한다** — 그것이 §5.1 이 말한 "수동 경로"의 실물이다. 이 절과 §5.2 의 전문이 그 템플릿의 정본이며, 플러그인 패키지 테스트가 둘의 정합을 지킨다.
 
 ### 5.3 AGENTS.md 초안 (정본 §4.3 재수록)
 

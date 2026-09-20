@@ -6,11 +6,11 @@ Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전�
 
 세 가지를 알아 둬야 합니다.
 
-| 무엇           | 어디서                   | 예                         |
-| -------------- | ------------------------ | -------------------------- |
-| NERV 서버 주소 | 관리자에게               | `https://nerv.example.com` |
-| 프로젝트 slug  | 주소창의 `/p/` 다음 조각 | `clemvion`                 |
-| 내 역할        | 설정 → 멤버              | `developer`                |
+| 무엇           | 어디서                   | 예                             |
+| -------------- | ------------------------ | ------------------------------ |
+| NERV 서버 주소 | 관리자에게               | `https://api.nerv.example.com` |
+| 프로젝트 slug  | 주소창의 `/p/` 다음 조각 | `clemvion`                     |
+| 내 역할        | 설정 → 멤버              | `developer`                    |
 
 역할이 중요합니다 — **토큰은 역할보다 넓어질 수 없습니다.** `viewer`로는 작업을 클레임하는 토큰을 만들 수 없습니다.
 
@@ -35,7 +35,7 @@ Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전�
 ```jsonc
 {
   "env": {
-    "NERV_SERVER": "https://nerv.example.com",
+    "NERV_SERVER": "https://api.nerv.example.com",
     "NERV_PROJECT": "clemvion",
     "NERV_TOKEN": "<1단계에서 받은 토큰>",
   },
@@ -51,7 +51,7 @@ Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전�
 `.nerv/env` 는 Claude Code 밖(Codex)을 위한 폴백입니다. 플러그인의 스크립트들이 이 파일을 읽습니다.
 
 ```bash
-NERV_SERVER=https://nerv.example.com
+NERV_SERVER=https://api.nerv.example.com
 NERV_PROJECT=clemvion
 NERV_TOKEN=<1단계에서 받은 토큰>
 ```
@@ -90,7 +90,7 @@ Claude Code 안에서 두 줄입니다. **주소는 이 서버의 주소**입니
 
 이 서버가 배포한 것을 받고 싶으면 첫 줄만 바꿉니다 — `add https://<이 서버>/plugin/marketplace.json`. 둘은 **같은 마켓플레이스의 두 전송로**라 설치 명령은 그대로입니다(둘을 동시에 등록하지는 않습니다).
 
-그리고 **재시작**합니다. `/plugin` 목록에 `nerv` v0.2.22이 활성으로 보이면 됩니다.
+그리고 **재시작**합니다. `/plugin` 목록에 `nerv` v0.2.23이 활성으로 보이면 됩니다.
 
 서버가 카탈로그를 직접 만들기 때문에 **받은 뒤에 고칠 것이 없습니다** — 서버 주소가 이미 들어 있습니다. 사내 git 마켓플레이스를 쓰는 배치라면 그 git URL 을 대신 넣습니다(`/plugin install nerv@nerv-internal`).
 
@@ -118,7 +118,7 @@ Claude Code 안에서 두 줄입니다. **주소는 이 서버의 주소**입니
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "${NERV_SERVER:-https://nerv.example.com}/mcp",
+      "url": "${NERV_SERVER:-https://api.nerv.example.com}/mcp",
       "headers": {
         "Authorization": "Bearer ${NERV_TOKEN}",
         "X-NERV-Project": "${NERV_PROJECT}"
@@ -148,7 +148,7 @@ cp <플러그인>/codex/AGENTS.md   <내 저장소>/AGENTS.md
 
 ```toml
 [mcp_servers.nerv]
-url = "https://nerv.example.com/mcp"
+url = "https://api.nerv.example.com/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "clemvion" }
 startup_timeout_sec = 20

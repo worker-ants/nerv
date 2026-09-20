@@ -24,13 +24,11 @@ data:
   #   NERV_WEB_URL: 사람이 브라우저로 여는 주소. 스펙 딥링크가 이것으로 절대화된다
   #   NERV_API_URL: 세션 쿠키 baseURL · **플러그인 카탈로그가 배포하는 주소**(4.4 API §2.11)
   # ingress-api-host.yaml·ingress-web-host.yaml 의 host 와 어긋나면 로그인이 되지 않거나, 되더라도 에이전트가
-  # 설치한 플러그인이 다른 서버를 가리킨다. 지금은 한 호스트라 두 값이 같다.
-  NERV_WEB_URL: 'https://nerv.example.com'
-  NERV_API_URL: 'https://nerv.example.com'
-  # 서브도메인으로 가른 배치는 여기서 둘이 갈린다(4.1 §2.3 4단계) —
-  #   NERV_WEB_URL: 'https://app.nerv.example.com'
-  #   NERV_API_URL: 'https://api.nerv.example.com'
-  # 그때 **CORS 는 따로 설정할 것이 없다**: 허용 오리진은 NERV_WEB_URL + 아래 추가분의
+  # 설치한 플러그인이 다른 서버를 가리킨다. **게이트가 그 일치를 센다**(check-k8s-render.mjs · REQ-CB-046).
+  # 호스트는 둘이다(4.1 §2.3 4단계) — 화면은 `app.`, API 는 `api.` 다.
+  NERV_WEB_URL: 'https://app.nerv.example.com'
+  NERV_API_URL: 'https://api.nerv.example.com'
+  # **CORS 는 따로 설정할 것이 없다**: 허용 오리진은 NERV_WEB_URL + 아래 추가분의
   # 합집합이고 better-auth 도 같은 목록을 본다(REQ-CB-041). 화면을 그 둘 밖에서도 띄운다면
   # 그 오리진만 추가분에 적는다 — 코드는 추측하지 않는다.
   # NERV_TRUSTED_ORIGINS: 'https://studio.nerv.example.com'

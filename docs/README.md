@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v3.42 · 2026-09-20 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v3.43 · 2026-09-20 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v3.43 변경(2026-09-20 — 공개 주소 분리 4단계 ②, 사람 지시): **새 요구사항 없음 · 플러그인 패키지 0.2.22 → 0.2.23 · 배달되는 주소 13곳이 `api.` 로.** 화면과 API 가 호스트로 갈렸으므로, 플러그인이 들고 있던 하드코딩된 주소는 **API 호스트**입니다 — 훅 여섯(`/ingest/hooks/*`)·관리형 settings 의 `NERV_SERVER` 와 허용 URL 다섯·Codex 의 `/mcp`·카탈로그 `owner.url` 입니다. **버전과 함께 갑니다**(REQ-PLG-017): 설치한 쪽은 버전이 오를 때만 새 사본을 받으므로 주소만 바꾸면 이미 설치한 세션이 옛 주소로 계속 쏘고, 그 호스트에는 `/ingest` 가 없습니다. 순서도 그래서입니다 — 서버 쪽 호스트(4단계 ①)가 먼저 서고 이 배달이 나중입니다([4.2](04-mvp/codebase.md) §6.3a 5번). 곁들여 매뉴얼 ko·en 의 설치 장과 [3.4](03-proposal/agent-integration.md) 의 예시 주소를 같은 값으로 맞췄습니다. **네 단계가 저장소 쪽에서는 전부 닫혔습니다** — [4.8](04-mvp/backlog.md) 의 E14-S04 가 `done` 으로 갔고(부분 10 → 9), 실제 전환(DNS·인증서·CDN)은 운영 주체의 몫이며 절차와 되돌리는 길은 [4.2](04-mvp/codebase.md) §6.3a 가 적습니다([4.6](04-mvp/plugin.md) v0.67 · [4.1](04-mvp/scope.md) v0.29 · [4.8](04-mvp/backlog.md) v0.86 · [3.4](03-proposal/agent-integration.md) v0.32).
 >
 > v3.42 변경(2026-09-20 — 공개 주소 분리 4단계 ①, 사람 지시): **REQ-CB-045·046 신설 · [4.2](04-mvp/codebase.md) §6.3a 전환 절차 신설.** ① **k8s 지형이 갈렸습니다** — base 는 `api.` 호스트의 표면 여섯만 갖고, 화면의 `/` 규칙과 웹 파드는 `base/web/`(Deployment·Service·Ingress) 한 덩어리로 base resources 밖에 섰습니다. CDN 배치는 그것을 더하지 않고, 자가호스팅은 오버레이가 `../../base/web` 으로 더합니다([4.1](04-mvp/scope.md) §2.3 의 "웹 파드" 확정 실물입니다). ② **게이트가 렌더 결과를 셉니다**(REQ-CB-046). 그 전에는 `kubectl kustomize … > /dev/null` 두 줄이라 문법만 봤고, 그 사이 **두 오버레이의 Ingress 경로가 0개**였습니다 — 호스트만 바꾸려던 전략적 병합 패치가 `spec.rules` 목록을 통째로 덮었기 때문이고, 렌더도 `apply` 도 롤아웃도 성공합니다(죽는 것은 트래픽뿐입니다). 오버레이는 이제 JSON6902 로 호스트 문자열만 바꿉니다. ③ ConfigMap 의 공개 주소 둘과 Ingress 호스트의 **일치**도 그 게이트가 셉니다 — 어긋나면 쿠키가 닿지 않는 호스트로 서명되고 CORS 목록도 어긋납니다. ④ **전환 절차**를 적었습니다(DNS → 인증서 → 오버레이·ConfigMap → 옛 호스트를 남긴 채 이전 → 플러그인 버전 → 옛 호스트 걷기). 되돌리는 길은 세 번째 하나를 되돌리는 것이고, 플러그인이 마지막인 이유는 되돌릴 때 버전을 한 번 더 올려야 하기 때문입니다. **남은 것은 플러그인의 주소와 버전**입니다([4.2](04-mvp/codebase.md) v1.51 · [4.1](04-mvp/scope.md) v0.28 · [4.8](04-mvp/backlog.md) v0.85).
 >
@@ -486,7 +488,7 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [3.1 비전과 핵심 시나리오](03-proposal/vision.md) | `v0.4` | 한 줄 정의·3대 가치·포지셔닝("SDD 도구들의 Linear"), 직군별 페르소나 4종의 하루, 핵심 여정 3개, **Build vs Buy 비교**, 성공 지표 |
 | [3.2 시스템 아키텍처](03-proposal/architecture.md) | `v0.5` | 컴포넌트 구성(웹·API·MCP 게이트웨이·훅 수집기·DB·워커), **저장 전략(DB 단일 진실 + md 미러 + git export)**, 데이터 흐름 시퀀스 4종, 기술 스택 선정·대안 비교, 보안·확장 |
 | [3.3 데이터 모델](03-proposal/data-model.md) | `v0.15` | ERD 전체와 엔티티 상세(Spec/SpecVersion/Requirement, Task/Claim, AgentSession/Activity, ReviewSession/Finding, Approval/Question, Event…), clemvion frontmatter 매핑, 검증 질의 |
-| [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.31` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
+| [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.32` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
 | [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | `v0.12` | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
 | [3.6 화면 설계](03-proposal/ui-wireframes.md) | `v0.4` | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·받은 요청·설정) — HTML 파생본은 실제 렌더링 목업 |
 | [3.7 로드맵](03-proposal/roadmap.md) | `v0.8` | Phase 0 PoC(조정 검증) → 1 MVP → 2 리뷰·연동 확장 → 3 고도화, 각 단계 성공 기준·리스크·clemvion 마이그레이션 계획 |
@@ -495,14 +497,14 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
-| [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.28` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
+| [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.29` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
 | [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.51` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.42` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v1.34` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v1.07` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.66` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.67` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.22` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v0.85` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v0.86` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

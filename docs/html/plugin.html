@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>5종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.66 (2026-09-13)</span>
+      <span>버전 v0.67 (2026-09-20)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -80,7 +80,7 @@
   <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
 <pre><code>nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.22
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.2.23
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -100,7 +100,7 @@
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;nerv&quot;,
   &quot;description&quot;: &quot;NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다&quot;,
-  &quot;version&quot;: &quot;0.2.22&quot;,
+  &quot;version&quot;: &quot;0.2.23&quot;,
   &quot;license&quot;: &quot;Apache-2.0&quot;
 }</code></pre>
 
@@ -901,7 +901,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         &quot;hooks&quot;: [
           {
             &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session&quot;,
+            &quot;url&quot;: &quot;https://api.nerv.example.com/ingest/hooks/session&quot;,
             &quot;headers&quot;: {
               &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot;,
               &quot;X-NERV-Project&quot;: &quot;${NERV_PROJECT}&quot;,
@@ -925,7 +925,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         &quot;hooks&quot;: [
           {
             &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/tool&quot;,
+            &quot;url&quot;: &quot;https://api.nerv.example.com/ingest/hooks/tool&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
             &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
             &quot;timeout&quot;: 3
@@ -938,7 +938,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         &quot;hooks&quot;: [
           {
             &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
+            &quot;url&quot;: &quot;https://api.nerv.example.com/ingest/hooks/subagent&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
             &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
             &quot;timeout&quot;: 3
@@ -951,7 +951,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         &quot;hooks&quot;: [
           {
             &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/subagent&quot;,
+            &quot;url&quot;: &quot;https://api.nerv.example.com/ingest/hooks/subagent&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
             &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
             &quot;timeout&quot;: 3
@@ -964,7 +964,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         &quot;hooks&quot;: [
           {
             &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/stop&quot;,
+            &quot;url&quot;: &quot;https://api.nerv.example.com/ingest/hooks/stop&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
             &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
             &quot;timeout&quot;: 8
@@ -977,7 +977,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
         &quot;hooks&quot;: [
           {
             &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://nerv.example.com/ingest/hooks/session-end&quot;,
+            &quot;url&quot;: &quot;https://api.nerv.example.com/ingest/hooks/session-end&quot;,
             &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot; },
             &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;],
             &quot;timeout&quot;: 5
@@ -1073,7 +1073,7 @@ printf '  %s · ctx %s%%%s\n' \
   &quot;mcpServers&quot;: {
     &quot;nerv&quot;: {
       &quot;type&quot;: &quot;http&quot;,
-      &quot;url&quot;: &quot;${NERV_SERVER:-https://nerv.example.com}/mcp&quot;,
+      &quot;url&quot;: &quot;${NERV_SERVER:-https://api.nerv.example.com}/mcp&quot;,
       &quot;headers&quot;: {
         &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot;,
         &quot;X-NERV-Project&quot;: &quot;${NERV_PROJECT}&quot;
@@ -1120,7 +1120,7 @@ printf '  %s · ctx %s%%%s\n' \
       <tr><td>훅(포워더·outbox)</td><td>✔</td><td><code>.nerv/env</code> 를 치우고 세션을 돌려도 세션이 정상 등록됐다</td></tr>
       <tr><td>statusline</td><td>✔</td><td>훅과 같은 방식으로 Claude Code 가 띄운다</td></tr>
       <tr><td><b>프로젝트</b> <code>.mcp.json</code></td><td>✔</td><td>헤더의 <code>${NERV_TOKEN}</code> 이 풀려 도구 22종이 붙었다</td></tr>
-      <tr><td><b>플러그인이 제공한</b> <code>.mcp.json</code></td><td><b>✘</b></td><td><code>${NERV_SERVER:-…}</code> 가 기본값으로 떨어져 <code>nerv.example.com</code> 으로 갔다</td></tr>
+      <tr><td><b>플러그인이 제공한</b> <code>.mcp.json</code></td><td><b>✘</b></td><td><code>${NERV_SERVER:-…}</code> 가 기본값으로 떨어져 <code>api.nerv.example.com</code> 으로 갔다</td></tr>
     </tbody>
   </table></div>
 
@@ -1240,7 +1240,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
 
   <p>서버가 자기 카탈로그와 아카이브를 준다. 계약 정본은 <a href="api.html">4.4 API 명세</a> §2.11(EP-PLG-01·02 · REQ-API-086)이고, 여기서는 <b>왜 그리고 어떻게 쓰는가</b>를 적는다.</p>
 
-  <pre><code>/plugin marketplace add https://nerv.example.com/plugin/marketplace.json
+  <pre><code>/plugin marketplace add https://api.nerv.example.com/plugin/marketplace.json
 /plugin install nerv@nerv</code></pre>
 
   <p><b>포크의 원인이 사라진다.</b> v0.29 가 실측으로 기록한 것이 이것이다 — 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다. git 마켓플레이스는 모두에게 <b>같은 파일</b>을 준다. 서버가 만들면 주소는 언제나 그 서버의 것이고, 받는 쪽이 고칠 것이 없다.</p>
@@ -1340,7 +1340,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
 <pre><code>// &lt;작업 저장소&gt;/.claude/settings.local.json — 기본 gitignore 대상
 {
   "env": {
-    "NERV_SERVER": "https://nerv.example.com",
+    "NERV_SERVER": "https://api.nerv.example.com",
     "NERV_PROJECT": "clemvion",
     "NERV_TOKEN": "&lt;S8에서 발급한 PAT — 발급 시 1회만 표시&gt;"
   }
@@ -1349,7 +1349,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
   <p>Codex·CLI·statusline 까지 한 파일로 덮으려면 같은 값을 <code>.nerv/env</code> 에 둔다:</p>
 
 <pre><code># &lt;작업 저장소&gt;/.nerv/env — .nerv/ 는 이미 .gitignore 대상이다(REQ-PLG-013)
-NERV_SERVER=https://nerv.example.com
+NERV_SERVER=https://api.nerv.example.com
 NERV_PROJECT=clemvion
 NERV_TOKEN=&lt;S8에서 발급한 PAT&gt;</code></pre>
 
@@ -1391,7 +1391,7 @@ export NERV_HOSTNAME="$(hostname -s)"</code></pre>
 
 <pre><code># &lt;repo&gt;/.codex/config.toml — NERV 온보딩 스크립트가 생성 · 저장소에 커밋
 [mcp_servers.nerv]
-url = "https://nerv.example.com/mcp"
+url = "https://api.nerv.example.com/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "clemvion" }
 startup_timeout_sec = 20
@@ -1414,7 +1414,7 @@ log_user_prompt = false</code></pre>
 
   <p>MVP에서는 <code>notify</code>·<code>[otel]</code> 줄이 동작하지 않아도 무방하다 — <b><code>notify</code> 는 수신 엔드포인트가 없어 주석 처리한 채로 배포한다</b>(2026-09-07 · 포워더가 <code>POST /ingest/hooks/notify</code> 로 보내는데 컨트롤러의 경로는 session·tool·subagent·stop·session-end 다섯뿐이다) — MCP 블록만으로 완주가 성립한다. 저장소의 <code>.codex/config.toml</code>은 신뢰된 프로젝트에서만 읽히므로 최초 1회 신뢰 승인이 필요하다.</p>
 
-    <p><b>템플릿을 어디에 두는가(2026-08-23 정정).</b> 두 파일이 있어야 할 곳은 NERV 저장소가 아니라 <b>쓰는 쪽 저장소</b>다. NERV 저장소 루트에 <code>.codex/config.toml</code> 을 두면 이 저장소에서 도는 Codex 세션이 예시 URL(<code>nerv.example.com</code>)로 접속하려 든다. 그래서 플러그인 패키지가 <code>plugin/codex/{config.toml, AGENTS.md, README.md}</code> 로 <b>템플릿을 배포하고 사람이 복사한다</b> — 그것이 §5.1 이 말한 "수동 경로"의 실물이다.</p>
+    <p><b>템플릿을 어디에 두는가(2026-08-23 정정).</b> 두 파일이 있어야 할 곳은 NERV 저장소가 아니라 <b>쓰는 쪽 저장소</b>다. NERV 저장소 루트에 <code>.codex/config.toml</code> 을 두면 이 저장소에서 도는 Codex 세션이 예시 URL(<code>api.nerv.example.com</code>)로 접속하려 든다. 그래서 플러그인 패키지가 <code>plugin/codex/{config.toml, AGENTS.md, README.md}</code> 로 <b>템플릿을 배포하고 사람이 복사한다</b> — 그것이 §5.1 이 말한 "수동 경로"의 실물이다.</p>
 
 <h3>5.3 AGENTS.md 초안 (정본 §4.3 재수록)</h3>
 
