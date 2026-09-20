@@ -1,4 +1,4 @@
-# nerv-plugin v0.2.23
+# nerv-plugin v0.3.0
 
 NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md)**
 이고, 이 디렉터리는 그 문서 §1~§3 전문의 실물이다 — 두 쪽이 다르면 문서가 옳고 여기가 결함이다.
@@ -14,6 +14,7 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 | `agents/nerv-spec-writer.md`                       | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음)                         | §1.1           |
 | `statusline/nerv-statusline.sh`                    | 클레임·리스·겹침 표시                                                    | §3.2           |
 | `bin/nerv-hook-forward`                            | 훅 헤더 토큰 확장이 안 되는 호스트용 폴백                                | §3.1 주의      |
+| `bin/nerv-init`                                    | 설치 부트스트랩 — 저장소의 설정 세 자리를 만든다(덮지 않는다)            | §3.7           |
 | `bin/nerv-outbox`                                  | 오프라인 쓰기 큐(enqueue·flush·status)                                   | §3.4           |
 | `hooks/hooks.http.json`                            | 훅 헤더 토큰 확장이 되는 호스트용 변형(`type:"http"`)                    | §3.1           |
 | `codex/config.toml`                                | Codex 용 MCP 접속 템플릿 — 자동 생성·갱신은 Phase 2 다                   | §5.2           |
@@ -31,25 +32,32 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 ## 설치 (사람 온보딩 5단계 — §4)
 
 ```bash
-# 1) 웹 S8 설정 → 에이전트 토큰 발급 (원문은 1회만 표시된다)
-# 2) 환경변수
-export NERV_TOKEN="<S8에서 발급한 PAT>"
-export NERV_PROJECT="clemvion"
-export NERV_HOSTNAME="$(hostname -s)"
-
-# 3) 플러그인 설치 (관리 기기는 관리형 settings 로 자동)
+# 1) 웹 설정 → 에이전트 토큰 발급 (원문은 1회만 표시된다)
+# 2) 플러그인 설치 (관리 기기는 관리형 settings 로 자동)
 #    /plugin marketplace add <사내 마켓플레이스 git URL>
 #    /plugin install nerv@nerv-internal   → 재시작
 #    (GitHub 경로는 /plugin marketplace add worker-ants/nerv → /plugin install nerv@nerv)
-# 4) 작업 저장소에 .mcp.json 을 둔다 — **플러그인은 이 파일을 담지 않는다**(REQ-PLG-001 개정,
-#    2026-09-04). 서버 주소·프로젝트는 저장소마다 다르고, 플러그인이 준 파일은 그 저장소의
-#    settings.local.json env 를 읽지 못해 언제나 기본값으로 떨어졌다. 전문은 4.6 §3.3.
-# 5) /mcp 로 nerv 서버 connected 확인
-# 6) /nerv:next 실행 — 스킬이 nerv_bootstrap 부터 호출한다
+
+# 3) 작업 저장소에서 한 번 — .mcp.json · settings.local.json 의 env · .gitignore 를 만든다.
+#    셸에서는 ${CLAUDE_PLUGIN_ROOT} 가 풀리지 않으므로 설치 캐시에서 고른다(4.6 §3.7).
+cd <작업 저장소>
+"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)"
+
+# 4) Claude Code 재시작 → /mcp 로 nerv 서버 connected 확인
+# 5) /nerv:next 실행 — 스킬이 nerv_bootstrap 부터 호출한다
 ```
 
-설치 시 작업 저장소의 `.gitignore` 에 `.nerv/` 를 추가한다(REQ-PLG-013) — 캐시·큐가 커밋되면
-그 자체가 clemvion 식 git 비대화(P6)다.
+`nerv-init` 은 **이미 있는 값을 덮지 않는다** — 인자로 다른 값을 줘도 파일이 이기고, 부딪친
+사실을 말한다. 남의 `settings.local.json` 에는 그 사람의 권한 규칙이 산다. `.gitignore` 의
+`.nerv/` 도 여기서 선다(REQ-PLG-013) — 캐시·큐가 커밋되면 그 자체가 clemvion 식 git 비대화(P6)다.
+
+`.mcp.json` 자체는 **여전히 플러그인이 담지 않는다**(REQ-PLG-001 개정, 2026-09-04): 서버 주소·
+토큰은 저장소마다 다르고, 플러그인이 준 파일은 그 저장소의 `settings.local.json` `env` 를 읽지
+못해 언제나 기본값으로 떨어졌다. 담을 수 없는 것과 손으로 만들어야 하는 것이 다를 뿐이다 —
+플러그인이 담는 것은 파일이 아니라 **그 파일을 쓰는 스크립트**다.
+
+설정이 덜 된 저장소에서는 세션 시작 훅(`nerv-init --check`)이 무엇이 없는지 말한다. **쓰지는
+않는다** — 설정은 사람이 시작한다. NERV 를 쓰는 흔적이 하나도 없는 저장소에서는 침묵한다.
 
 ## 마켓플레이스 없이 쓰는 저장소 — 사본을 다시 맞추는 법
 
