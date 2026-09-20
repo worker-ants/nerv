@@ -9,6 +9,7 @@
 // 사람을 엉뚱한 곳으로 보낸다 — 로그인은 되는데 그 다음 요청이 전부 막히거나 그 반대다.
 // 그래서 **화면 오리진으로 로그인까지 태운다**: 헤더만 세면 목록이 둘인 것을 못 잡는다.
 
+import { NERV_ERROR } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -211,6 +212,79 @@ describe('CORS 허용목록 — 코드가 추측하지 않는다 (REQ-CB-041)', 
     const cookie = sessionCookie(res.headers['set-cookie'] as string | string[] | undefined);
     expect(cookie).not.toBe('');
     expect(cookie.toLowerCase()).not.toContain('domain=');
+  });
+});
+
+describe('세션 쿠키 쓰기 요청의 Origin 대조 — /api/v1 (REQ-CB-043)', () => {
+  let app: NestFastifyApplication;
+  let cookie: string;
+
+  beforeAll(async () => {
+    delete process.env['NERV_COOKIE_DOMAIN'];
+    app = await boot();
+    const signIn = await app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-in/email',
+      headers: { 'content-type': 'application/json', origin: WEB },
+      payload: { email: EMAIL, password: PASSWORD },
+    });
+    expect(signIn.statusCode).toBe(200);
+    cookie =
+      sessionCookie(signIn.headers['set-cookie'] as string | string[] | undefined).split(';')[0] ??
+      '';
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  /** 쓰기 한 건 — 인가까지 가면 이 사용자는 멤버가 아니라 다른 코드로 떨어진다. 여기서 보는 것은 오리진 판정뿐이다. */
+  function write(
+    headers: Record<string, string>,
+  ): Promise<{ statusCode: number; json: () => unknown }> {
+    return app.inject({
+      method: 'POST',
+      url: '/api/v1/me/tokens',
+      headers: { 'content-type': 'application/json', ...headers },
+      payload: { project: 'clemvion', name: '토큰', scopes: ['spec:read'] },
+    });
+  }
+
+  const code = (res: { json: () => unknown }): unknown =>
+    (res.json() as Record<string, unknown>)['code'];
+
+  it('**남의 오리진에서 온 쓰기를 막는다** — 쿠키는 브라우저가 알아서 싣는 자격증명이다', async () => {
+    const res = await write({ cookie, origin: EVIL });
+    expect(res.statusCode).toBe(403);
+    expect(code(res)).toBe(NERV_ERROR.FORBIDDEN);
+  });
+
+  it('`Origin` 없는 쿠키 쓰기도 막는다 — 세션 쿠키는 계약상 브라우저의 것이다', async () => {
+    const res = await write({ cookie });
+    expect(res.statusCode).toBe(403);
+    expect(code(res)).toBe(NERV_ERROR.FORBIDDEN);
+  });
+
+  it('화면 오리진의 쓰기는 오리진 때문에 막히지 않는다 — 그 다음은 인가의 몫이다', async () => {
+    const res = await write({ cookie, origin: WEB });
+    // 이 사용자는 프로젝트 멤버가 아니므로 인가에서 떨어진다 — **오리진 판정은 지났다**는 것이
+    // 이 검사의 전부다(같은 403 이어도 코드가 다르다면 여기서 막힌 것이 아니다).
+    expect(code(res)).not.toBe(NERV_ERROR.FORBIDDEN);
+  });
+
+  it('**읽기는 지나간다** — 상태를 바꾸지 않고, 응답을 읽는 것은 브라우저의 CORS 가 막는다', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { cookie, origin: EVIL },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('**PAT 는 면제다** — 헤더에 직접 실리는 자격증명이라 CSRF 가 아니다', async () => {
+    const res = await write({ authorization: 'Bearer nerv_not_a_real_token', origin: EVIL });
+    // 토큰이 가짜라 인증에서 떨어진다 — 오리진 때문이 아니라는 것이 요점이다
+    expect(res.statusCode).toBe(401);
+    expect(code(res)).toBe(NERV_ERROR.UNAUTHENTICATED);
   });
 });
 

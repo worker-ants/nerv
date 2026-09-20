@@ -13,6 +13,7 @@ import { AppModule } from './app.module.js';
 import { AuthGuard } from './common/auth.guard.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { McpOriginGuard } from './common/mcp-origin.guard.js';
+import { SessionOriginGuard } from './common/session-origin.guard.js';
 import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
 import { logLevelsFromEnv } from './common/log-level.js';
@@ -47,6 +48,9 @@ export async function createApp(): Promise<NestFastifyApplication> {
   // AuthGuard 는 AuthService 를 주입받으므로 컨테이너에서 꺼낸다.
   app.useGlobalGuards(
     new McpOriginGuard(),
+    // 세션 쿠키로 오는 **쓰기**는 오리진을 대조한다(REQ-CB-043) — 쿠키는 브라우저가 알아서
+    // 싣는 자격증명이라 남의 탭이 보낸 요청에도 실린다. 여기도 인증보다 먼저다.
+    new SessionOriginGuard(),
     new AuthGuard(app.get(Reflector), app.get(AuthService)),
     // 쿼터는 주체를 알아야 세므로 인증 뒤다(§1.8) — 앞에 두면 인증도 안 된 요청이
     // 남의 창을 채운다.
