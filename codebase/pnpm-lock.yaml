@@ -44,6 +44,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1123.0
         version: 3.1123.0
+      '@fastify/cors':
+        specifier: ^11.3.0
+        version: 11.3.0
       '@fastify/multipart':
         specifier: ^10.1.1
         version: 10.1.1

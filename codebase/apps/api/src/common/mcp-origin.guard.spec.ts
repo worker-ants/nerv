@@ -1,8 +1,10 @@
 // REQ-CB-013 — POST /mcp 의 Origin 검증은 전단(nginx·Ingress) 차단 여부와 무관하게
 // 앱 가드가 최종 강제한다. 규칙 정본: docs/04-mvp/codebase.md §2.4·§6.3
 //
-// 2026-09-13 부터 대조 대상이 **둘**이다(`NERV_API_URL` · `NERV_WEB_URL` — REQ-CB-036).
-// 규칙은 그대로다: 헤더 없으면 통과, 있으면 우리 오리진 중 하나와 정확히 같아야 통과.
+// 2026-09-13 부터 대조 대상이 **둘**이고(`NERV_API_URL` · `NERV_WEB_URL` — REQ-CB-036),
+// 2026-09-20 부터 `NERV_TRUSTED_ORIGINS` 가 함께 든다(REQ-CB-041 — 허용 오리진을 세 곳이
+// 한 출처에서 읽는다). 규칙은 그대로다: 헤더 없으면 통과, 있으면 우리 오리진 중 하나와
+// 정확히 같아야 통과.
 
 import { describe, expect, it } from 'vitest';
 import { NERV_ERROR } from '@nerv/schema';
@@ -25,6 +27,17 @@ describe('McpOriginGuard', () => {
 
   it('**NERV_WEB_URL 과 같은 오리진도 통과시킨다** — 화면이 사는 곳이 다른 호스트일 수 있다', () => {
     expect(guard.check(WEB)).toBe(true);
+  });
+
+  it('**NERV_TRUSTED_ORIGINS 의 오리진도 통과시킨다** — 세 표면이 같은 목록을 본다(REQ-CB-041)', () => {
+    const STUDIO = 'https://studio.example.com';
+    // 운영자가 "여기서도 화면을 띄운다" 고 선언한 오리진이다 — CORS·better-auth 가 이미
+    // 그것을 통과시키는데 이 가드만 막으면, 같은 화면이 표면마다 다르게 취급된다.
+    const wide = new McpOriginGuard(API, WEB, [STUDIO]);
+    expect(wide.check(STUDIO)).toBe(true);
+    expect(() => wide.check('https://evil.example.com')).toThrowError(
+      expect.objectContaining({ code: NERV_ERROR.FORBIDDEN }),
+    );
   });
 
   it('둘 다 아니면 NERV_FORBIDDEN 으로 막는다', () => {

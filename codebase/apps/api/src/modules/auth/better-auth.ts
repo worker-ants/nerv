@@ -11,25 +11,28 @@
 import { RATE_LIMIT_AUTH_PER_MIN, RATE_LIMIT_SIGN_IN_PER_MIN, newId } from '@nerv/schema';
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
-import { apiUrlFromEnv, trustedOriginsFromEnv } from '../../common/origins.js';
+import { allowedOriginsFromEnv, apiUrlFromEnv, cookieDomainFromEnv } from '../../common/origins.js';
 
 /**
- * baseURL 외에 추가로 신뢰할 오리진 — `NERV_TRUSTED_ORIGINS`(쉼표·공백·줄바꿈 구분, §5.2 전표).
- * 값을 읽고 오리진으로 정규화하는 것은 `common/origins.ts` 의 `trustedOriginsFromEnv` 다 —
- * `/mcp` 가드와 **같은 함수로** 오리진을 읽어야 두 곳의 판정이 갈리지 않는다.
+ * baseURL 외에 추가로 신뢰할 오리진 — **CORS 허용목록과 같은 목록이다**(2026-09-20 ·
+ * REQ-CB-041 · docs/04-mvp/scope.md §2.3 2단계). 목록을 만드는 것은 `common/origins.ts` 의
+ * `allowedOriginsFromEnv`(= `NERV_WEB_URL` + `NERV_TRUSTED_ORIGINS`)이고, `/mcp` 가드도
+ * 같은 파일의 함수로 오리진을 읽는다 — 세 곳의 판정이 갈리지 않는 방법은 한 출처뿐이다.
+ *
+ * **전에는 `NERV_WEB_URL` 이 여기 없었다.** 1단계는 "동작이 한 줄도 바뀌지 않는다" 가
+ * 조건이라 목록의 구성을 건드리지 않았고, 화면이 다른 오리진에 뜨는 배치(개발 루프의
+ * `http://localhost:5173`)는 `NERV_TRUSTED_ORIGINS` 로 **한 번 더** 적어야 했다. 2단계는
+ * 그 중복을 걷는다 — 화면 주소는 이미 `NERV_WEB_URL` 이 알고 있다.
  *
  * 이 목록은 CSRF 방어선이다. 늘리는 것은 **환경이 실제로 다른 오리진에서 화면을 띄울 때**
  * 뿐이고, 그 판단은 운영 주체가 env 로 명시한다 — 코드가 추측하지 않는다.
  *
- * 기준은 `baseURL`(=`NERV_API_URL`)이다 — 아래 옵션과 **같은 값**이어야 한다. `NERV_WEB_URL`
- * 을 자동으로 더하지 않는다: 그것은 쿠키 도메인·CORS 와 한 묶음의 결정이라 2단계의 몫이고
- * (docs/04-mvp/scope.md §2.3), 지금 더하면 이번 단계가 "동작은 한 줄도 바뀌지 않는다"를 깬다.
- * 두 호스트가 실제로 갈리기 전까지 다른 오리진에서 화면을 띄우는 배치는 여전히
- * `NERV_TRUSTED_ORIGINS` 로 명시한다(개발 루프의 `http://localhost:5173` 이 그 자리다).
+ * `baseURL`(=`NERV_API_URL`)은 better-auth 가 언제나 자기 신뢰 목록에 넣지만, 여기서도
+ * 명시한다 — 목록을 읽는 사람이 "API 자신은 어디 있나" 를 라이브러리 구현에서 찾지 않게.
  */
 function trustedOrigins(): string[] {
   const base = apiUrlFromEnv();
-  return [...new Set([base, ...trustedOriginsFromEnv()])];
+  return [...new Set([base, ...allowedOriginsFromEnv()])];
 }
 
 /** 반환 타입은 옵션 리터럴에 의존한다 — 추론에 맡긴다(명시하면 타입이 좁아 대입이 깨진다). */
@@ -37,6 +40,9 @@ export type NervAuth = ReturnType<typeof createBetterAuth>;
 
 export function createBetterAuth(pool: pg.Pool) {
   const secret = process.env['NERV_AUTH_SECRET'] ?? '';
+  // 값이 틀렸으면 여기서 던진다 — api·worker 둘 다 이 생성자를 거치므로 기동 거부가 양쪽에
+  // 선다(브라우저가 Domain 쿠키를 조용히 버리는 것보다 뜨지 않는 편이 싸다 · REQ-CB-042).
+  const cookieDomain = cookieDomainFromEnv();
   return betterAuth({
     // 서명 키가 없으면 개발 기본값으로 뜬다 — 운영 배포는 env 검증이 먼저 막는다(§5.2 필수 키).
     secret: secret === '' ? 'dev-only-insecure-secret-change-me' : secret,
@@ -46,14 +52,30 @@ export function createBetterAuth(pool: pg.Pool) {
     // 브라우저의 Origin 이 baseURL 과 다를 수 있다 — **개발 루프가 그렇다**: 화면은 Vite(:5173)
     // 에서 뜨고 API 는 :8080 이라, 프록시를 거쳐도 Origin 은 :5173 로 남는다. baseURL 만
     // 신뢰하면 로그인이 `INVALID_ORIGIN` 으로 막힌다(실측 — compose 는 둘이 같아서 안 보였다).
-    // 기본값을 비워 두는 것이 중요하다: 운영에서는 baseURL 하나만 신뢰한다(CSRF 방어선).
+    // 2026-09-20 부터 화면 주소가 목록에 **자동으로** 들어가므로 그 배치는 따로 적지 않아도
+    // 된다(REQ-CB-041). 목록이 더 자라는 것은 운영자가 `NERV_TRUSTED_ORIGINS` 로 명시할 때뿐이다.
     trustedOrigins: trustedOrigins(),
     // 커넥션 풀을 그대로 넘긴다 — drizzle 어댑터를 쓰면 better-auth 가 끌고 오는
     // drizzle peer 집합이 @nerv/schema 의 것과 갈라져 같은 테이블 타입이 둘이 된다(실측).
     // 테이블·컬럼 이름은 아래 modelName·fields 매핑이 정한다.
     database: pool,
-    // id 는 UUIDv7 이다 — 도메인 전체가 그것을 쓰고(REQ-DB-003), user.id 는 uuid 컬럼이다.
-    advanced: { database: { generateId: (): string => newId() } },
+    advanced: {
+      // id 는 UUIDv7 이다 — 도메인 전체가 그것을 쓰고(REQ-DB-003), user.id 는 uuid 컬럼이다.
+      database: { generateId: (): string => newId() },
+      // **오리진 검증을 NODE_ENV 에 맡기지 않는다**(2026-09-20 실측 · better-auth 1.7.1).
+      // 이 옵션을 비워 두면 라이브러리가 `isTest()` 일 때 검증을 **스스로 끈다**
+      // (`skipOriginCheck: … isTest() ? true : false`). 운영에서는 켜져 있으니 동작은
+      // 같지만, 그러면 **L2 가 끈 채로 초록을 본다** — 위 목록이 CSRF 방어선이라고
+      // 적어 두고 그 방어선을 한 번도 태우지 않는 셈이다. 켜 두고 검사가 세게 한다.
+      disableOriginCheck: false,
+      // 쿠키를 한 호스트보다 넓게 둘 것인가는 `NERV_COOKIE_DOMAIN` 이 정한다(REQ-CB-042).
+      // **비어 있으면 키 자체를 넣지 않는다** — 옵션만 켜고 도메인을 비우면 better-auth 가
+      // baseURL 의 호스트를 도메인으로 써서(실물 `createCookieGetter`), 호스트 전용이던
+      // 쿠키가 `Domain=api.…` 로 바뀐다. "비움 = 지금까지의 동작" 이 깨지는 자리다.
+      ...(cookieDomain === null
+        ? {}
+        : { crossSubDomainCookies: { enabled: true, domain: cookieDomain } }),
+    },
     // 한도를 코드에 적어 둔다 — 기본값에 맡기면 값이 어디에도 없고 문구도 우리 것이 아니다.
     // 주체가 IP 인 이유는 로그인 전에는 토큰도 세션도 없기 때문이다(api.md §1.8).
     rateLimit: {

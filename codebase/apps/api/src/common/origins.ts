@@ -31,6 +31,8 @@ export const DEFAULT_ORIGIN = 'http://localhost:8080';
 /** 오리진 기준값 주입 토큰 — 미주입이면 env → 기본값 순서로 떨어진다(§5.2 전표). */
 export const NERV_API_URL = Symbol('NERV_API_URL');
 export const NERV_WEB_URL = Symbol('NERV_WEB_URL');
+/** 추가 허용 오리진 **목록**의 주입 토큰 — 값이 배열이라 토큰 없이는 Nest 가 해소하지 못한다. */
+export const NERV_TRUSTED_ORIGINS = Symbol('NERV_TRUSTED_ORIGINS');
 
 /** 프로그램이 붙는 주소. */
 export function apiUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string {
@@ -79,8 +81,9 @@ export function originOf(value: string | undefined): string | null {
  * **버리는 것도 조용히 하지 않는다.** 사람은 자기가 적은 값이 목록에 없다는 사실을 알아야
  * 한다 — 모르면 열어 둔 줄 알고 있는 오리진이 실은 없는 것이 된다.
  *
- * 목록의 **구성은 바꾸지 않는다** — `NERV_WEB_URL` 을 자동으로 더하지 않는다. 그것은 쿠키
- * 도메인·CORS 와 한 묶음의 결정이라 2단계의 몫이다(docs/04-mvp/scope.md §2.3).
+ * **이 함수가 목록 전부는 아니다**(2026-09-20 · REQ-CB-041). 허용 오리진은
+ * `NERV_WEB_URL` 과의 합집합이고, 그 합집합을 만드는 것은 `allowedOriginsFromEnv` 다 —
+ * CORS 와 better-auth 가 **같은 목록**을 봐야 하기 때문이다(docs/04-mvp/scope.md §2.3 2단계).
  */
 export function trustedOriginsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
   const out: string[] = [];
@@ -106,6 +109,56 @@ export function trustedOriginsFromEnv(env: NodeJS.ProcessEnv = process.env): str
   return [...new Set(out)];
 }
 
+/**
+ * 브라우저가 이 API 를 부를 수 있는 오리진 전부 — **CORS 와 better-auth 가 같은 목록을 본다**
+ * (2026-09-20 · REQ-CB-041 · docs/04-mvp/scope.md §2.3 2단계).
+ *
+ * **"같은 목록" 이 이 단계의 핵심이다.** 두 곳이 갈리면 증상이 사람을 엉뚱한 곳으로 보낸다 —
+ * CORS 만 좁으면 **로그인은 되는데 그 다음 요청이 전부 막히고**, better-auth 만 좁으면
+ * 프리플라이트는 통과하는데 로그인만 `INVALID_ORIGIN` 이다. 어느 쪽도 원인을 가리키지 않는다.
+ *
+ * 구성은 `NERV_WEB_URL` + `NERV_TRUSTED_ORIGINS` 의 합집합이고 **코드는 추측하지 않는다** —
+ * 와일드카드도, 요청의 `Origin` 을 그대로 비추는 것도 없다: `credentials: true` 와 `*` 는
+ * 함께 설 수 없고(브라우저가 거절한다), 비추는 순간 그것은 허용목록이 아니라 개방이다.
+ *
+ * **`NERV_API_URL` 은 여기 없다.** 자기 자신에게 보내는 요청은 애초에 CORS 가 아니고,
+ * better-auth 는 `baseURL` 을 언제나 자기 신뢰 목록에 넣는다(실물 확인 — `getTrustedOrigins`).
+ */
+export function allowedOriginsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
+  const parsed = originOf(webUrlFromEnv(env));
+  // 스킴을 빠뜨린 값(`app.nerv.example.com:8080`)은 URL 로 **파싱은 된다** — 호스트가 스킴이
+  // 되고 오리진은 불투명, 즉 문자열 `"null"` 이다. 그대로 목록에 넣으면 `Origin: null` 을
+  // 싣는 요청(샌드박스 iframe · 일부 리다이렉트)이 통과한다(`NERV_TRUSTED_ORIGINS` 와 같은 함정).
+  const web = parsed === 'null' ? null : parsed;
+  if (web === null) {
+    // 로거를 세우기 전에 불릴 수 있어 `console` 이다(아래 기동 거부들과 같은 이유).
+    console.warn(
+      `NERV_WEB_URL("${webUrlFromEnv(env)}")을 오리진으로 읽지 못해 허용 오리진에서 뺍니다 — ` +
+        // eslint-disable-next-line no-restricted-syntax -- 운영자용 기동 로그다(REQ-CB-022 예외): 화면에 나가지 않는다
+        '스킴부터 적으십시오(예 https://app.example.com).',
+    );
+  }
+  return [...new Set([...(web === null ? [] : [web]), ...trustedOriginsFromEnv(env)])];
+}
+
+/** `sub.example.com` 이 `example.com` 아래인가 — 라벨 경계에서만 맞는다(`notexample.com` 은 아니다). */
+function isUnder(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+/** 호스트가 IP 인가 — IP 에는 `Domain` 속성을 붙일 수 없다(브라우저가 쿠키를 버린다). */
+function isIpHost(host: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || host.startsWith('[');
+}
+
+/** 호스트만 꺼낸다 — 파싱 불가면 null. */
+function hostOf(value: string): string | null {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
 /* eslint-disable no-restricted-syntax -- 운영자용 설정 오류다(REQ-CB-022 예외): 기동 거부 사유와
    고치는 법을 적는 문구이며 화면에 나가지 않는다. 카탈로그 키로는 배포 설정 오류를 말할 수 없다. */
 
@@ -200,6 +253,87 @@ export function assertHttpPortRetired(env: NodeJS.ProcessEnv = process.env): voi
 export function assertRetiredNames(env: NodeJS.ProcessEnv = process.env): void {
   assertPublicUrlRetired(env);
   assertHttpPortRetired(env);
+}
+
+/**
+ * 세션 쿠키의 `Domain` — `NERV_COOKIE_DOMAIN`(§5.2 전표 · REQ-CB-042).
+ *
+ * **비우는 것이 기본이고, 비면 호스트 전용 쿠키다** — 지금까지의 동작이 그것이다.
+ *
+ * **서브도메인으로 가른다고 이 값이 필요해지는 것은 아니다.** 세션 쿠키는 API 호스트가
+ * 내주고 브라우저는 **그 호스트로 보내는 요청에** 도로 싣는다. `SameSite=Lax` 가 보는 것은
+ * 오리진이 아니라 **사이트**라, 두 호스트가 같은 등록 도메인 아래면 그대로 선다 — 4.1 §2.3
+ * 의 확정이 "같은 등록 도메인 아래여야 한다" 인 이유가 그것이다. 이 손잡이는 쿠키를 한
+ * 호스트보다 **넓게** 두어야 할 때의 것이다(같은 도메인 아래의 다른 화면·프리뷰가 같은
+ * 세션을 써야 하는 배치).
+ *
+ * **넓히는 것은 공짜가 아니다** — 그 도메인 아래의 모든 호스트가 세션 쿠키를 받게 되므로,
+ * 신뢰하지 않는 호스트를 그 아래 두지 않는다는 운영 약속이 함께 간다(4.1 §2.3 의 "대가").
+ *
+ * **틀린 값은 조용하다 — 그래서 기동을 거부한다.** 브라우저는 자기 호스트의 상위가 아닌
+ * `Domain` 쿠키를 **버리면서 아무 말도 하지 않는다**: 로그인 응답은 200 인데 다음 요청에
+ * 세션이 없고, 사람이 보는 것은 "로그인이 안 된다" 하나다. 뜨기 전에 잡는 편이 싸다.
+ *
+ * 앞의 점은 값의 일부가 아니다 — `.example.com` 과 `example.com` 은 같은 뜻이고(RFC 6265
+ * 는 앞의 점을 무시한다), 전표에 어느 모양으로 적혀 있든 여기서 한 모양으로 읽는다.
+ */
+export function cookieDomainFromEnv(env: NodeJS.ProcessEnv = process.env): string | null {
+  const raw = (env['NERV_COOKIE_DOMAIN'] ?? '').trim();
+  if (raw === '') return null;
+
+  const domain = raw.replace(/^\./, '').toLowerCase();
+  const webUrl = webUrlFromEnv(env);
+  const apiUrl = apiUrlFromEnv(env);
+  const hosts = [
+    { name: 'NERV_WEB_URL', host: hostOf(webUrl) },
+    { name: 'NERV_API_URL', host: hostOf(apiUrl) },
+  ];
+
+  const why = (reason: string): never => {
+    throw new Error(
+      [
+        `NERV_COOKIE_DOMAIN("${raw}")으로는 세션 쿠키를 세울 수 없습니다 — 기동을 거부합니다.`,
+        reason,
+        `  NERV_WEB_URL=${webUrl}`,
+        `  NERV_API_URL=${apiUrl}`,
+        '두 주소의 **공통 상위 도메인**을 적거나(예 두 호스트가 app.nerv.example.com ·',
+        'api.nerv.example.com 이면 nerv.example.com), 이 값을 비우십시오 — 비우면 쿠키는',
+        '호스트 전용이 되고, 두 호스트가 같은 등록 도메인 아래이기만 하면 그대로 동작합니다.',
+        '거부하는 이유는, 틀린 값을 그대로 띄우면 브라우저가 쿠키를 조용히 버려서',
+        '로그인은 200 인데 세션이 없는 상태를 사람이 "로그인이 안 된다" 로만 만나기 때문입니다.',
+      ].join('\n'),
+    );
+  };
+
+  if (isIpHost(domain)) why('IP 주소에는 Domain 속성을 붙일 수 없습니다.');
+
+  for (const { name, host } of hosts) {
+    if (host === null) why(`${name} 을 URL 로 읽지 못했습니다.`);
+    else if (!isUnder(host, domain)) {
+      why(`"${domain}" 은 ${name} 의 호스트("${host}")의 상위가 아닙니다.`);
+    }
+  }
+
+  // 라벨이 하나인 값(`com`·`example`)은 두 호스트의 상위일 수는 있어도 **브라우저가 받지
+  // 않는다** — 공개 접미사이기 때문이다. 다만 두 호스트가 실제로 그 한 라벨이면(개발 루프의
+  // `localhost`) 그것은 호스트 전용 쿠키와 같은 뜻이라 통과시킨다.
+  if (!domain.includes('.') && !hosts.every(({ host }) => host === domain)) {
+    why(`"${domain}" 은 라벨이 하나입니다 — 브라우저는 공개 접미사에 쿠키를 세우지 않습니다.`);
+  }
+
+  return domain;
+}
+
+/**
+ * 쿠키 도메인을 **Nest 초기화 전에** 본다 — 엔트리(api·worker)가 부른다.
+ *
+ * 값을 읽는 자리는 better-auth 를 만드는 생성자이므로 거기서도 던지지만, 그때는 이미
+ * Nest 의 초기화 중이다 — `NestFactory` 의 기본값이 `abortOnError: true` 라 초기화 중의
+ * 예외는 **프로세스를 abort 시킨다**(SIGABRT · 스택 덤프). 운영자가 받아야 하는 것은
+ * 무엇을 어떻게 고치라는 문구지 덤프가 아니라서, 뜨기 전에 한 번 더 본다.
+ */
+export function assertCookieDomain(env: NodeJS.ProcessEnv = process.env): void {
+  cookieDomainFromEnv(env);
 }
 
 /* eslint-enable no-restricted-syntax */

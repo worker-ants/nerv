@@ -8,10 +8,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_ORIGIN,
+  allowedOriginsFromEnv,
   apiUrlFromEnv,
   assertHttpPortRetired,
   assertPublicUrlRetired,
   assertRetiredNames,
+  cookieDomainFromEnv,
   trustedOriginsFromEnv,
   webUrlFromEnv,
 } from './origins.js';
@@ -154,8 +156,129 @@ describe('NERV_TRUSTED_ORIGINS — 여러 개를 어떻게 읽는가', () => {
     expect(trustedOriginsFromEnv({ NERV_TRUSTED_ORIGINS: '  ,  ' })).toEqual([]);
   });
 
-  it('**구성은 바꾸지 않는다** — 화면 주소를 자동으로 더하지 않는다(2단계의 몫)', () => {
+  it('이 함수만으로는 화면 주소를 더하지 않는다 — 합집합은 allowedOriginsFromEnv 의 몫이다', () => {
     expect(trustedOriginsFromEnv({ NERV_WEB_URL: 'https://app.nerv.example.com' })).toEqual([]);
+  });
+});
+
+describe('allowedOriginsFromEnv — CORS 와 better-auth 가 보는 한 목록 (REQ-CB-041)', () => {
+  it('화면 주소가 **자동으로 들어간다** — 2단계가 바꾼 것이 이것이다', () => {
+    expect(allowedOriginsFromEnv({ NERV_WEB_URL: 'https://app.nerv.example.com' })).toEqual([
+      'https://app.nerv.example.com',
+    ]);
+  });
+
+  it('추가 오리진과 합쳐지고 중복은 한 번만 남는다', () => {
+    expect(
+      allowedOriginsFromEnv({
+        NERV_WEB_URL: 'https://app.nerv.example.com',
+        NERV_TRUSTED_ORIGINS: 'https://studio.example.com https://app.nerv.example.com',
+      }),
+    ).toEqual(['https://app.nerv.example.com', 'https://studio.example.com']);
+  });
+
+  it('**API 주소는 목록에 없다** — 자기 자신에게 보내는 요청은 CORS 가 아니다', () => {
+    const list = allowedOriginsFromEnv({
+      NERV_WEB_URL: 'https://app.nerv.example.com',
+      NERV_API_URL: 'https://api.nerv.example.com',
+    });
+    expect(list).not.toContain('https://api.nerv.example.com');
+  });
+
+  it('경로·끝 슬래시는 오리진으로 정규화된다 — 대조는 오리진끼리 한다', () => {
+    expect(allowedOriginsFromEnv({ NERV_WEB_URL: 'https://app.nerv.example.com/specs/' })).toEqual([
+      'https://app.nerv.example.com',
+    ]);
+  });
+
+  it('읽지 못한 화면 주소는 목록에서 빠지되 **한 줄 남긴다** — 조용히 비면 원인이 없다', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(allowedOriginsFromEnv({ NERV_WEB_URL: 'app.nerv.example.com' })).toEqual([]);
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('NERV_COOKIE_DOMAIN — 세션 쿠키의 Domain (REQ-CB-042)', () => {
+  const HOSTS = {
+    NERV_WEB_URL: 'https://app.nerv.example.com',
+    NERV_API_URL: 'https://api.nerv.example.com',
+  };
+
+  it('**비우는 것이 기본이다** — 비면 호스트 전용 쿠키이고 지금까지의 동작이다', () => {
+    expect(cookieDomainFromEnv({ ...HOSTS })).toBeNull();
+    expect(cookieDomainFromEnv({ ...HOSTS, NERV_COOKIE_DOMAIN: '' })).toBeNull();
+    expect(cookieDomainFromEnv({ ...HOSTS, NERV_COOKIE_DOMAIN: '  ' })).toBeNull();
+  });
+
+  it('두 호스트의 공통 상위면 그대로 쓴다 — 앞의 점은 값의 일부가 아니다(RFC 6265)', () => {
+    expect(cookieDomainFromEnv({ ...HOSTS, NERV_COOKIE_DOMAIN: 'nerv.example.com' })).toBe(
+      'nerv.example.com',
+    );
+    expect(cookieDomainFromEnv({ ...HOSTS, NERV_COOKIE_DOMAIN: '.NERV.example.com' })).toBe(
+      'nerv.example.com',
+    );
+  });
+
+  it('**한쪽 호스트의 상위가 아니면 기동을 거부한다** — 브라우저는 그 쿠키를 조용히 버린다', () => {
+    expect(() =>
+      cookieDomainFromEnv({ ...HOSTS, NERV_COOKIE_DOMAIN: 'app.nerv.example.com' }),
+    ).toThrow(/기동을 거부/);
+  });
+
+  it('라벨 경계로만 상위다 — `example.com` 은 `notexample.com` 의 상위가 아니다', () => {
+    expect(() =>
+      cookieDomainFromEnv({
+        NERV_WEB_URL: 'https://app.example.com',
+        NERV_API_URL: 'https://api.notexample.com',
+        NERV_COOKIE_DOMAIN: 'example.com',
+      }),
+    ).toThrow(/기동을 거부/);
+  });
+
+  it('거부 문구가 **두 주소와 고치는 법**을 말한다 — 무엇이 틀렸는지만으로는 부족하다', () => {
+    let message = '';
+    try {
+      cookieDomainFromEnv({ ...HOSTS, NERV_COOKIE_DOMAIN: 'other.example.com' });
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain('NERV_WEB_URL=https://app.nerv.example.com');
+    expect(message).toContain('NERV_API_URL=https://api.nerv.example.com');
+    expect(message).toContain('비우'); // 비우면 호스트 전용으로 그대로 동작한다는 길
+  });
+
+  it('공개 접미사(라벨 하나)는 거부한다 — 브라우저가 받지 않는다', () => {
+    expect(() =>
+      cookieDomainFromEnv({
+        NERV_WEB_URL: 'https://app.com',
+        NERV_API_URL: 'https://api.com',
+        NERV_COOKIE_DOMAIN: 'com',
+      }),
+    ).toThrow(/공개 접미사/);
+  });
+
+  it('IP 호스트는 거부한다 — IP 에는 Domain 을 붙일 수 없다', () => {
+    expect(() =>
+      cookieDomainFromEnv({
+        NERV_WEB_URL: 'http://10.0.0.1:8080',
+        NERV_API_URL: 'http://10.0.0.1:8080',
+        NERV_COOKIE_DOMAIN: '10.0.0.1',
+      }),
+    ).toThrow(/IP 주소/);
+  });
+
+  it('두 호스트가 그 한 라벨 자신이면 통과한다 — 개발 루프의 `localhost`', () => {
+    expect(
+      cookieDomainFromEnv({
+        NERV_WEB_URL: 'http://localhost:5173',
+        NERV_API_URL: 'http://localhost:8080',
+        NERV_COOKIE_DOMAIN: 'localhost',
+      }),
+    ).toBe('localhost');
   });
 });
 
