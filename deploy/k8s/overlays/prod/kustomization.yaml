@@ -2,6 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
+  # **자가호스팅 배치라 화면을 파드로 세운다**(4.1 §2.3 4단계 확정 · NFR-01) — Deployment·
+  # Service·`app.` Ingress 셋이 한 덩어리로 온다. CDN 배치는 이 줄을 지우고 화면을 CDN 에
+  # 올린 뒤 `/config.json` 을 그 자리에 놓는다(4.2 §5.2d).
+  - ../../base/web
 images:
   - name: nerv-api
     newName: registry.example.com/nerv/nerv-api
@@ -13,6 +17,11 @@ images:
     newName: registry.example.com/nerv/nerv-web
     newTag: '<git-sha>'
 patches:
-  - path: ingress-host.yaml
+  # 호스트는 **문자열만** 갈아 끼운다 — 전략적 병합은 `rules` 목록을 통째로 덮어
+  # 경로를 0개로 만든다(REQ-CB-046 · 각 파일의 주석이 실측을 적는다).
+  - path: ingress-api-host.yaml
+    target: { kind: Ingress, name: nerv }
+  - path: ingress-web-host.yaml
+    target: { kind: Ingress, name: nerv-web }
   - path: api-replicas.yaml
   - path: resources.yaml

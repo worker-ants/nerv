@@ -12,13 +12,17 @@ data:
   #   NERV_WEB_PORT  → base/web/deployment.yaml 의 containerPort (앞문의 listen)
   NERV_API_PORT: '8080'
   NERV_WEB_PORT: '8080'
-  # 우리 주소는 둘이다(§5.2 · REQ-CB-036). 지금은 한 호스트가 경로로 화면과 API 를 나눠
-  # 서빙하므로 같은 값이고, **가른 값을 받을 준비는 서 있다**(4.1 §2.3 2단계 — CORS 허용
-  # 목록과 쿠키 도메인 · REQ-CB-041 · 042). 남은 것은 3단계(웹의 런타임 설정)와 4단계
-  # (DNS·인증서·Ingress·CDN 전환)이고, 두 값을 `app.` / `api.` 로 바꾸는 자리가 여기다.
+  # 우리 주소는 둘이고 **호스트가 갈렸다**(§5.2 · REQ-CB-036 · 4.1 §2.3 4단계).
+  # 이 두 값이 배치의 중심이다 — 하나를 바꾸면 셋이 함께 움직인다:
+  #   ① 화면이 부팅 때 읽는 API 주소(`/config.json` · REQ-CB-044)
+  #   ② CORS 허용 오리진과 better-auth 신뢰 목록(REQ-CB-041)
+  #   ③ 플러그인 카탈로그가 배포하는 주소(4.4 §2.11)
+  # **Ingress 의 호스트와 반드시 같아야 한다**(ingress.yaml · web/ingress.yaml) — 어긋나면
+  # 쿠키가 닿지 않는 호스트로 서명되고 CORS 목록도 어긋난다. 게이트가 그 일치를 센다
+  # (check-k8s-render.mjs · REQ-CB-046).
   # 걷힌 이름(NERV_PUBLIC_URL)이 남아 있고 이 둘이 비면 api·worker 가 기동을 거부한다.
-  NERV_WEB_URL: 'https://nerv.example.com'
-  NERV_API_URL: 'https://nerv.example.com'
+  NERV_WEB_URL: 'https://app.nerv.example.com'
+  NERV_API_URL: 'https://api.nerv.example.com'
   NERV_LOG_LEVEL: 'info'
   NERV_VALKEY_URL: 'redis://nerv-valkey:6379'
   # **비워 두는 것이 기본이다**(2026-09-14 · REQ-CB-040). 전에는 `http://nerv-minio:9000`

@@ -1,17 +1,17 @@
 # dev 의 공개 주소를 자기 Ingress 호스트에 맞춘다.
 #
-# base/configmap.yaml 의 두 주소는 prod 호스트(nerv.example.com)라,
+# base/configmap.yaml 의 두 주소는 prod 호스트(app./api.nerv.example.com)라,
 # 이 패치가 없으면 dev 파드가 **자기 Ingress 가 받지 않는 주소**를 공개 주소로 쓴다.
 # 그 값은 세션 쿠키·CORS 의 기준이자 플러그인 카탈로그가 배포하는 서버 주소여서,
 # 어긋나면 로그인이 실패하거나 — 더 나쁘게 — 성공한 뒤 에이전트가 설치한 플러그인이
-# 다른 서버를 가리킨다. ingress-host.yaml 의 host 와 항상 같이 움직여야 한다.
+# 다른 서버를 가리킨다. ingress-api-host.yaml·ingress-web-host.yaml 의 host 와 항상 같이 움직여야 한다(게이트가 그 일치를 센다 · REQ-CB-046).
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: nerv-config
 data:
-  NERV_WEB_URL: 'https://nerv.dev.example.com'
-  NERV_API_URL: 'https://nerv.dev.example.com'
+  NERV_WEB_URL: 'https://app.nerv.dev.example.com'
+  NERV_API_URL: 'https://api.nerv.dev.example.com'
   # **첨부도 자기 환경을 가리켜야 한다**(2026-09-14). 이 둘을 패치하지 않아 dev 파드가
   # 에이전트에게 **운영 S3 호스트·운영 버킷**으로 서명한 presigned PUT 을 주고 있었다 —
   # 위의 공개 주소 둘에서 고친 것과 같은 부류이고 이쪽이 더 나쁘다: 그 호스트가 실재하고

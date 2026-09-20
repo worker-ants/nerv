@@ -1,0 +1,31 @@
+# 화면 호스트의 앞문 — `app.<도메인>` (4.1 §2.3 4단계 · REQ-CB-045)
+#
+# **이 파일은 base resources 에 없다.** 웹 파드를 세우는 배치만 `../../base/web` 을
+# 더한다(자가호스팅 · NFR-01). CDN 배치는 화면을 CDN 이 서빙하므로 이 Ingress 도 웹
+# 파드도 없고, `/config.json` 은 CDN 에 놓는 정적 파일이다(4.2 §5.2d).
+#
+# **API 경로는 여기 없다.** 화면과 API 가 호스트로 갈렸으므로 브라우저는 `api.` 를 직접
+# 부른다(그 허락은 CORS 가 한다 — 4.2 §5.2c). 이 호스트로 오는 것은 SPA 의 정적 자산과
+# `/config.json` 뿐이고, 그 둘은 웹 파드의 nginx 가 낸다(§5.4 템플릿).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nerv-web
+  annotations:
+    # SPA 와 설정 파일만 지나간다 — SSE·WebSocket 도 큰 본문도 이 호스트로 오지 않는다.
+    # 값을 비워 두면 컨트롤러 기본값(1m)이 서는데, 그것으로 충분하다.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '60'
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [app.nerv.example.com]
+      secretName: nerv-web-tls
+  rules:
+    - host: app.nerv.example.com
+      http:
+        paths:
+          - {
+              path: /,
+              pathType: Prefix,
+              backend: { service: { name: nerv-web, port: { name: http } } },
+            }

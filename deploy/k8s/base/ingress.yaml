@@ -1,6 +1,17 @@
+# API 호스트의 앞문 — `api.<도메인>` (4.1 §2.3 4단계 · REQ-CB-045)
+#
+# **base 는 API 호스트만 갖는다.** 화면의 `/` 규칙은 `base/web/ingress.yaml` 로 갈라져
+# 나갔고, 그것은 base resources 에 없다 — CDN 배치는 웹 파드 없이 서고(화면은 CDN 이
+# 서빙한다), 자가호스팅 배치는 오버레이가 `../../base/web` 을 **더해서** 세운다.
+#
 # WebSocket 은 /ws (socket.io 어댑터의 path 설정값 — 계약 정본 docs/04-mvp/api.md §3.1).
 # /mcp Origin 검증의 최종 강제는 앱 가드(mcp-origin.guard.ts)다 — Ingress 스니펫 주입은
 # 조직 보안 정책상 비활성인 클러스터가 많아 의존하지 않는다(REQ-CB-013).
+#
+# **호스트는 오버레이가 갈아 끼운다** — JSON6902 로 `host` 문자열 하나만 바꾼다.
+# 전략적 병합 패치로 `rules` 를 덮으면 **경로가 통째로 사라진다**: 2026-09-20 까지 두
+# 오버레이가 정확히 그 모양이었고, 렌더는 성공하는데 경로가 0개라 전 요청이 기본 백엔드로
+# 떨어졌다(REQ-CB-046 이 그 렌더 결과를 센다).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -17,10 +28,10 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [nerv.example.com]
-      secretName: nerv-tls
+    - hosts: [api.nerv.example.com]
+      secretName: nerv-api-tls
   rules:
-    - host: nerv.example.com
+    - host: api.nerv.example.com
       http:
         paths:
           - {
@@ -52,9 +63,4 @@ spec:
               path: /plugin,
               pathType: Prefix,
               backend: { service: { name: nerv-api, port: { name: http } } },
-            }
-          - {
-              path: /,
-              pathType: Prefix,
-              backend: { service: { name: nerv-web, port: { name: http } } },
             }
