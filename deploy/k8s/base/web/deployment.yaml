@@ -29,6 +29,13 @@ spec:
             - name: NERV_PUBLIC_ORIGIN
               valueFrom:
                 configMapKeyRef: { name: nerv-config, key: NERV_WEB_URL }
+            # 화면이 부팅 때 읽는 API 주소 — 앞문이 `/config.json` 으로 내어 준다
+            # (4.1 §2.3 3단계 · apps/web/src/lib/config.ts). **한 호스트 배치에서는 자기
+            # 주소이고 화면은 결국 같은 오리진으로 돈다** — 호스트를 가르는 4단계에서
+            # 이 값만 `api.` 로 옮기면 화면이 그쪽을 부른다(번들은 그대로다).
+            - name: NERV_API_URL
+              valueFrom:
+                configMapKeyRef: { name: nerv-config, key: NERV_API_URL }
           readinessProbe:
             httpGet: { path: /, port: http }
             initialDelaySeconds: 3

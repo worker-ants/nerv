@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.49 · 2026-09-20 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.50 · 2026-09-20 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.50 변경(2026-09-20 — 공개 주소 분리 3단계, 사람 지시): **REQ-CB-044 신설 · §5.2d 신설 · §5.3·§5.4·§6.1 전문 재동기화.** 화면이 API 주소를 **런타임에** 읽는다 — 빌드 타임(`VITE_*`)에 구우면 환경마다 다른 번들이 되어 "같은 산출물을 승격한다" 가 깨진다. ① 앞문이 `/config.json` 을 내어 주고(`location = /config.json` · `no-store`), 화면은 부팅 때 그것을 읽은 **뒤에** 그린다 — 그리기 시작하면 첫 화면이 곧바로 요청을 보내고, 그때 주소가 기본값이면 그 요청만 다른 곳으로 간다. ② **없으면 같은 오리진이다**: 파일 없음·빈 값·200 짜리 HTML(개발 루프의 Vite 가 그렇게 답한다)·스킴 없는 값·네트워크 실패가 전부 폴백이고, 3단계는 "가를 수 있게 한다" 이지 "가른다" 가 아니다. ③ **이미지의 `ENV` 기본값이 방어선이다** — nginx 의 envsubst 는 정의된 이름만 치환하므로, `NERV_API_URL` 이 환경에 없으면 `${NERV_API_URL}` 이 문자 그대로 실려 나가고 화면은 조용히 폴백한다(주소를 설정한 줄 아는 운영자만 남는다). ④ **곁들여 전문 셋을 실물과 다시 맞췄다**: v1.48 이 compose 의 api·worker 에 두 키를 더하면서 §5.3 블록을 두고 갔다 — 이 문서의 "전문" 은 바이트로 같아야 한다(v1.22 가 같은 드리프트를 고친 자리다). §5.4·§6.1 은 이번 변경이 함께 고쳤다. ※ 남은 것: 4단계(DNS·인증서·Ingress·CDN 전환 · 플러그인 훅 주소) — [4.8](backlog.md) §1.4 의 E14-S04.
 >
 > v1.49 변경(2026-09-20 — 쿠키로 오는 쓰기를 서버가 대조한다, 사람 확정): **REQ-CB-043 신설 · §5.2c 의 "한계" 를 규칙으로.** v1.48 이 "그 약속 대신 서버가 판정하게 만드는 것은 새 결정이므로 사람이 정한다" 고 적어 둔 자리를 채운다. **CORS 도 `SameSite=Lax` 도 그 자리를 다 막지 못한다** — CORS 는 응답을 읽는 것을 막을 뿐 요청이 가는 것은 막지 않고, `SameSite` 는 오리진이 아니라 **사이트**를 보므로 같은 등록 도메인 아래의 다른 호스트는 그대로 통과한다(쿠키 도메인을 넓힌 배치가 정확히 그 모양이다). 규칙은 셋이다 — ① 세션 쿠키로 인증하는 요청만 본다(PAT 면제) ② 상태를 바꾸는 메서드만 본다(읽기는 CORS 뒤) ③ `Origin` 이 있어야 하고 허용 목록에 있어야 한다. **③ 의 "없으면 거절" 이 `/mcp` 가드와 다른 점이다**: 그쪽은 비브라우저 클라이언트가 정상 소비자이고, 여기는 세션 쿠키가 계약상 브라우저의 것이다([4.4](api.md) §1.3). 실물은 `common/session-origin.guard.ts` 이고 전역 가드 순서는 `/mcp` 오리진 → **세션 오리진** → 인증 → 쿼터다("어디서" 가 "누가" 보다 먼저다). L2 가 다섯을 센다.
 >
@@ -1096,6 +1098,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-035** | WHILE SSE 스트림이 열려 있는 동안 THE SYSTEM SHALL keep-alive 를 **`event: ping` · `data: {}` 메시지**로 보내고(코멘트 라인 `: ping` 이 아니다 — rxjs 로 흘리므로 Nest 가 메시지로 낸다), 그 주기를 `NERV_SSE_KEEPALIVE_MS` 로 바꿀 수 있게 한다 — 앞문의 유휴 타임아웃이 더 짧은 배치에서 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다 |
 | **REQ-CB-027** | WHEN 임베딩 한 판이 끝나면, THE SYSTEM SHALL 그 판이 무언가를 했거나 시간 상한에서 끊겼으면 다음 판을 `NERV_EMBED_EVERY_MS` 뒤에, 아무것도 하지 않았거나 오류로 끝났으면 5분 뒤에 실행한다. |
 | **REQ-CB-036** | WHEN 서버가 자기 주소를 필요로 하면 THE SYSTEM SHALL **사람이 브라우저로 여는 주소는 `NERV_WEB_URL`, 프로그램이 붙는 주소는 `NERV_API_URL`** 에서 읽고 한 이름이 두 뜻을 겸하지 않는다 — 스펙 딥링크는 `NERV_WEB_URL`, better-auth `baseURL`·`trustedOrigins` 기준과 플러그인 카탈로그의 주소와 `/api/auth/*` 요청 절대화 기준은 `NERV_API_URL`, `/mcp` Origin 대조는 **둘 다**(2026-09-20 부터 `NERV_TRUSTED_ORIGINS` 도 함께 · REQ-CB-013 · REQ-CB-041). WHILE 두 값이 같은 오리진인 동안 THE SYSTEM SHALL 갈랐을 때와 **같은 응답**을 낸다 — 이름을 가르는 것과 호스트를 가르는 것은 다른 변경이다 |
+| **REQ-CB-044** | WHEN 화면이 부팅하면 THE SYSTEM SHALL API 주소를 **런타임 설정**(`/config.json` 의 `api_url`)에서 읽고 그 값을 읽은 **뒤에** 첫 화면을 그린다 — 빌드 타임에 구우면 환경마다 다른 번들이 되어 같은 산출물을 승격할 수 없다. WHERE 그 파일이 없거나 값이 비었거나 오리진으로 읽히지 않으면 THE SYSTEM SHALL **같은 오리진**(상대 경로)으로 돌고 화면을 세운다 — 설정 실패는 폴백이지 오류가 아니다. WHILE 앞문이 그 응답을 만드는 동안 THE SYSTEM SHALL 이미지가 `NERV_API_URL` 을 빈 값으로라도 **정의해 둔다**(envsubst 는 정의된 이름만 치환한다) | 설정이 준 주소로 REST·`/api/auth/*`·WebSocket 이 나간다 · 없는 파일·200 짜리 HTML·빈 값·스킴 없는 값·네트워크 실패가 전부 같은 오리진으로 떨어진다(L1) · 앞문의 `/config.json` 응답에 `${` 가 남지 않고 `Cache-Control: no-store` 다(L3) |
 | **REQ-CB-043** | WHILE 요청이 **세션 쿠키로 인증**하는 동안, WHEN 그 요청이 상태를 바꾸는 메서드(`GET`·`HEAD`·`OPTIONS` 밖)이면 THE SYSTEM SHALL `Origin` 이 허용 목록(§5.2c)에 있을 때만 통과시키고, **헤더가 없으면 거절한다** — 쿠키는 브라우저가 알아서 싣는 자격증명이라 남의 탭이 보낸 요청에도 실리고, CORS 는 응답을 읽는 것만 막는다. WHERE 자격증명이 PAT 이면 THE SYSTEM SHALL 이 판정을 적용하지 않는다(헤더에 직접 실리는 자격증명은 CSRF 가 아니다). WHERE 경로가 `/mcp` 이면 THE SYSTEM SHALL 그 가드에 맡긴다(REQ-CB-013 — 규칙이 다르다) | 쿠키 + 목록 밖 오리진의 `POST` 가 403 이고 코드가 `NERV_FORBIDDEN` 이다 · 쿠키 + `Origin` 없는 `POST` 도 403 이다 · 같은 요청이 화면 오리진이면 오리진으로 막히지 않는다 · 쿠키 + 목록 밖 오리진의 `GET` 은 200 이다 · PAT + 목록 밖 오리진은 인증 판정으로만 떨어진다(401) |
 | **REQ-CB-041** | WHEN 브라우저가 다른 오리진에서 API 를 부르면 THE SYSTEM SHALL 허용 오리진을 `NERV_WEB_URL` 과 `NERV_TRUSTED_ORIGINS` 의 **합집합 한 목록**에서 읽고, CORS 와 better-auth 의 `trustedOrigins` 가 **같은 목록**을 보게 한다 — 두 곳이 갈리면 로그인은 되는데 그 다음 요청이 전부 막히거나 그 반대이고, 어느 쪽도 원인을 가리키지 않는다. WHERE 요청에 `Origin` 이 없으면(에이전트·CLI) THE SYSTEM SHALL 그대로 통과시키고, 목록 밖 오리진이면 **헤더를 붙이지 않을 뿐 오류를 내지 않는다**. WHILE 세션 쿠키를 싣는 요청인 동안 THE SYSTEM SHALL 와일드카드를 쓰지 않는다 — `credentials: true` 와 `*` 는 함께 서지 않는다 | L2 가 프리플라이트 응답의 `Access-Control-Allow-Origin`·`-Credentials`·`-Headers`·`Vary` 를 세고, 목록 밖 오리진에는 그 헤더가 없다 · 화면 오리진의 로그인이 200 이고 목록 밖 오리진의 로그인이 403 이다(같은 목록의 실물 증거) · `Origin` 없는 요청이 200 이다 |
 | **REQ-CB-042** | WHERE `NERV_COOKIE_DOMAIN` 이 설정되면 THE SYSTEM SHALL 세션 쿠키를 그 도메인으로 세우고, **두 공개 주소의 공통 상위가 아니거나 IP 이거나 라벨이 하나이면 기동을 거부한다** — 틀린 `Domain` 은 브라우저가 조용히 버려서 로그인은 200 인데 세션이 없는 상태로만 드러난다. WHILE 값이 비어 있는 동안 THE SYSTEM SHALL 쿠키를 **호스트 전용**으로 둔다(같은 등록 도메인 아래의 서브도메인 둘은 그대로 선다 — `SameSite=Lax` 는 오리진이 아니라 사이트를 본다). WHEN 거부하면 THE SYSTEM SHALL Nest 초기화 **전에** 판정해 문구를 남긴다 — 초기화 중의 예외는 `abortOnError` 기본값이 프로세스를 abort 시켜 덤프만 남는다 | 설정한 배치의 `Set-Cookie` 에 `Domain=<값>` 이 붙고 `HttpOnly`·`SameSite=Lax`·`Secure` 가 그대로다 · 비운 배치의 `Set-Cookie` 에 `Domain` 이 없다 · 공통 상위가 아닌 값으로 better-auth 생성과 `assertCookieDomain()` 이 둘 다 던지고 문구에 두 주소와 고치는 법이 실린다 |
@@ -1142,6 +1145,27 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 `/mcp` 는 자기 가드가 본다(REQ-CB-013) — 규칙이 다르다: 그쪽은 **비브라우저 클라이언트가 정상 소비자**라 헤더 없는 요청을 통과시킨다. 같은 요청을 두 번 판정하지 않도록 이 가드는 `/mcp` 를 지나친다.
 
 **남은 한계.** 읽기(`GET`)는 여전히 브라우저의 CORS 뒤에 있다 — 응답을 읽지 못할 뿐 요청은 서버에 닿는다. 그리고 이 판정의 기준은 **허용 목록**이므로, 목록에 든 오리진이 침해되면 방어선도 함께 무너진다: 목록을 늘리는 것은 그만큼의 신뢰를 더하는 일이다.
+
+### 5.2d 화면의 런타임 설정 — 번들은 하나, 환경은 파일 하나 (2026-09-20 신설)
+
+[4.1 MVP 범위와 스택 확정](scope.md) §2.3 의 **3단계**다. 화면이 API 주소를 알아야 하는데, 그것을 **빌드 타임에 구우면**(`VITE_*`) 환경마다 다른 번들이 된다 — dev 에서 통과한 그 파일이 운영에 올라가는 것이 아니라 운영용으로 다시 빌드한 **다른 파일**이 올라가고, "같은 산출물을 승격한다" 가 깨진다. 그래서 번들은 하나이고, **환경마다 다른 것은 배포가 놓는 파일 하나**다.
+
+| 자리 | 무엇 |
+| --- | --- |
+| 파일 | `/config.json` — 화면과 **같은 오리진**에서 읽는다(설정을 읽으러 다른 곳에 묻지 않는다) |
+| 내용 | `{"api_url":"<NERV_API_URL>"}` — 지금 들어 있는 값은 주소 하나다 |
+| compose·k8s | 앞문(nginx)이 그 자리에서 내어 준다(§5.4 `location = /config.json`). 값은 web 컨테이너의 `NERV_API_URL` 이고, **이미지의 `ENV` 기본값이 방어선이다** — nginx 이미지의 envsubst 는 환경에 **정의된 이름만** 치환하므로 이름이 없으면 `${NERV_API_URL}` 이 문자 그대로 실려 나간다 |
+| CDN(4단계) | 앞문이 없으므로 같은 내용의 **정적 파일**을 그 경로에 놓는다 |
+| 개발 루프 | 그 파일이 **없다** — Vite 는 모르는 경로에 `index.html` 을 200 으로 주므로, 로더는 상태 코드가 아니라 **파싱까지 해 보고** 실패하면 폴백한다 |
+| 캐시 | `no-store` — 이 값이 주소를 정하므로 옛 사본을 쥔 탭은 옛 API 로 간다 |
+
+**없으면 같은 오리진이다.** 파일이 없거나, 값이 비었거나, 읽지 못했으면 화면은 상대 경로로 돈다 — 그것이 지금까지의 동작이고, 3단계는 "가를 수 있게 한다" 이지 "가른다" 가 아니다. 실패를 오류로 만들지 않는 이유도 같다: 파일이 없는 배치가 정상 경로이고, 잘못 놓인 파일은 같은 오리진으로 도는 편이 흰 화면보다 낫다. 대신 **왜 폴백했는지는 콘솔에 남긴다**(스킴을 빠뜨린 값처럼 사람이 적은 값이 버려질 때다).
+
+**설정을 읽고 나서 그린다**(`main.tsx` 가 `await` 한다). 그리기 시작하면 첫 화면이 곧바로 요청을 보내는데, 그때 주소가 아직 기본값이면 그 요청만 다른 곳으로 간다 — 같은 오리진 배치에서는 우연히 맞고 호스트를 가른 배치에서만 틀리는, 가장 늦게 발견되는 종류의 어긋남이다. 읽은 값은 `apiBase()` 로 **동기**로 꺼낸다: 요청을 보내는 자리마다 설정을 기다리면 await 가 하나씩 늘고 그 사이에 나간 요청은 다른 주소로 간다.
+
+주소를 쓰는 자리는 넷이다 — `lib/api.ts`(REST) · `lib/session.ts`(`/api/auth/*`) · `lib/ws.ts`(socket.io 의 접속 주소) · `features/spec-editor/attachment-panel.tsx`(multipart 업로드는 `apiFetch` 의 JSON 경로를 타지 않는다). **값이 비면 인자를 넘기지 않는다**(`io()`) — 그때 socket.io 는 화면이 뜬 오리진에 붙는다.
+
+검증은 L1 이 폴백 전수를 세고(`lib/config.spec.ts` — 없는 파일·200 짜리 HTML·빈 값·스킴 없는 값·네트워크 실패), L3 가 **앞문이 실제로 그 응답을 내어 주는가**를 본다(`test/e2e/runtime-config.spec.ts` — 치환이 남긴 `${` 가 없는가·`no-store` 인가). 같은 오리진 배치에서는 절대 주소와 상대 경로의 결과가 같아 브라우저 밖에서 둘을 구별할 수 없으므로, L3 가 세는 것은 거기까지다.
 
 ### 5.3 `docker-compose.yml` 전문
 
@@ -1279,13 +1303,21 @@ services:
     environment:
       NODE_ENV: production
       NERV_API_PORT: ${NERV_API_PORT:-8080}
-      # 걷힌 이름을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지 않으면
-      # 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다(REQ-CB-039).
+      # 걷힌 이름 둘을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지
+      # 않으면 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다
+      # (REQ-CB-037 · 039). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.
+      NERV_PUBLIC_URL: ${NERV_PUBLIC_URL:-}
       NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}
       # 우리 주소는 둘이다(§5.2 · REQ-CB-036) — 앞문 하나가 화면과 API 를 함께 서빙하므로
       # compose 에서는 같은 값이다. 옛 이름(NERV_PUBLIC_URL)만 있으면 api 가 기동을 거부한다.
       NERV_WEB_URL: ${NERV_WEB_URL:-http://localhost:8080}
       NERV_API_URL: ${NERV_API_URL:-http://localhost:8080}
+      # 허용 오리진 추가분과 세션 쿠키의 Domain — 앞문 하나인 compose 에서는 보통 둘 다
+      # 비어 있다(REQ-CB-041 · 042). **그래도 넘긴다**: compose 는 env 를 키 목록으로
+      # 넘기므로, 여기 없으면 `.env` 에 적어도 컨테이너에 닿지 않는다 — 손잡이가 있는데
+      # 아무 배치에서도 듣지 않던 자리와 같은 부류다(REQ-CB-038).
+      NERV_TRUSTED_ORIGINS: ${NERV_TRUSTED_ORIGINS:-}
+      NERV_COOKIE_DOMAIN: ${NERV_COOKIE_DOMAIN:-}
       NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
@@ -1332,6 +1364,24 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      # **워커도 인증 키를 받는다.** AuthModule 이 워커 그래프에 있어(task·session·event·spec)
+      # `AuthService` 가 생성자에서 better-auth 를 만든다 — 키가 없으면 개발용 기본 키로
+      # 떨어지고, api 와 worker 가 **서로 다른 서명 키**를 들고 돈다. k8s 는 `envFrom` 으로
+      # 워커도 받으므로 compose 만 다른 모양이었다(2026-09-14).
+      NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
+      # 공개 주소 둘 — 워커가 만드는 응답에 딥링크가 실릴 수 있고, 걷힌 이름 판정의
+      # "새 이름이 있는가" 도 이 값들을 본다(REQ-CB-036 · 037).
+      NERV_WEB_URL: ${NERV_WEB_URL:-http://localhost:8080}
+      NERV_API_URL: ${NERV_API_URL:-http://localhost:8080}
+      # api 와 **같은 값으로** 넘긴다 — 워커도 `AuthService` 를 그래프에 갖고 그 생성자가
+      # 쿠키 도메인을 검증한다. 한쪽만 받으면 절반만 거부하는 배포가 된다(REQ-CB-042).
+      NERV_TRUSTED_ORIGINS: ${NERV_TRUSTED_ORIGINS:-}
+      NERV_COOKIE_DOMAIN: ${NERV_COOKIE_DOMAIN:-}
+      # 걷힌 이름 둘을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지
+      # 않으면 옛 이름을 둔 배치가 아무 말 없이 기본값으로 뜨고 약속한 거부가 유령이 된다
+      # (REQ-CB-037 · 039). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.
+      NERV_PUBLIC_URL: ${NERV_PUBLIC_URL:-}
+      NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
@@ -1370,6 +1420,10 @@ services:
       NERV_PUBLIC_ORIGIN: ${NERV_WEB_URL:-http://localhost:8080}
       # 앞문이 리슨하는 포트 — 템플릿의 `listen` 이 이 값으로 치환된다(REQ-CB-038)
       NERV_WEB_PORT: ${NERV_WEB_PORT:-8080}
+      # 화면이 부팅 때 읽는 API 주소 — 앞문이 `/config.json` 으로 내어 준다(4.1 §2.3 3단계).
+      # compose 는 앞문 하나가 화면과 API 를 함께 서빙하므로 이 값은 자기 주소이고, 화면은
+      # 결국 같은 오리진으로 돈다. **비워 두면 상대 경로로 돈다** — 그것도 맞는 동작이다.
+      NERV_API_URL: ${NERV_API_URL:-http://localhost:8080}
     ports:
       # 컨테이너 안팎이 같은 포트다 — 층이 하나 줄었다(걷힌 이름 NERV_HTTP_PORT · REQ-CB-039).
       - "${NERV_WEB_PORT:-8080}:${NERV_WEB_PORT:-8080}"   # TLS 는 호스트 앞단(조직 LB·프록시)에서 종료
@@ -1430,6 +1484,22 @@ server {
   }
   location /assets/ {
     add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  # 런타임 설정 — 화면이 부팅 때 읽는 배포 설정 하나다(4.1 §2.3 3단계 · apps/web/src/lib/config.ts).
+  #
+  # **빌드 타임에 굽지 않는 이유가 이 자리다**: 번들은 환경마다 같고, 환경마다 다른 것은
+  # 앞문이 내어 주는 이 응답뿐이다. 그래서 같은 이미지를 dev → prod 로 승격할 수 있다.
+  # CDN 배치(4단계)에는 앞문이 없으므로 같은 내용의 정적 파일을 이 경로에 놓는다.
+  #
+  # **캐시하지 않는다.** 이 값이 주소를 정하므로, 옛 사본을 쥔 탭은 옛 API 로 간다.
+  #
+  # 값이 비면 `{"api_url":""}` 이고 화면은 **같은 오리진**으로 돈다 — 한 호스트가 화면과
+  # API 를 함께 서빙하는 지금 배치가 그것이다.
+  location = /config.json {
+    default_type application/json;
+    add_header Cache-Control "no-store";
+    return 200 '{"api_url":"${NERV_API_URL}"}';
   }
 
   location /api/ {
@@ -1626,11 +1696,17 @@ RUN pnpm install --frozen-lockfile --offline \
 FROM nginx:1.27-alpine
 COPY deploy/docker/nginx/default.conf.template /etc/nginx/templates/
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-# 셋 다 템플릿이 치환하는 값이다(nginx/default.conf.template). NERV_WEB_PORT 의 기본값은
+# 넷 다 템플릿이 치환하는 값이다(nginx/default.conf.template). NERV_WEB_PORT 의 기본값은
 # **비워 둘 수 없다** — 비면 `listen ;` 으로 앞문이 기동에 실패한다.
+#
+# **NERV_API_URL 은 비어 있어도 여기 있어야 한다**(4.1 §2.3 3단계). nginx 이미지의 envsubst 는
+# **환경에 정의된 이름만** 치환하므로, 이름이 없으면 `/config.json` 응답에 `${NERV_API_URL}`
+# 이 문자 그대로 실려 나간다 — 화면은 그것을 오리진으로 읽지 못해 같은 오리진으로 폴백하고,
+# 주소를 설정한 줄 아는 운영자만 남는다. 빈 값은 "같은 오리진" 이라는 뜻이다.
 ENV NERV_WEB_PORT=8080 \
     NERV_API_UPSTREAM=api:8080 \
-    NERV_PUBLIC_ORIGIN=http://localhost:8080
+    NERV_PUBLIC_ORIGIN=http://localhost:8080 \
+    NERV_API_URL=""
 EXPOSE 8080
 ```
 
