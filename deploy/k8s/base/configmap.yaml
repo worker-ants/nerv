@@ -47,6 +47,7 @@ data:
   NERV_EMBED_MODEL: 'bge-m3'
   # 절단이 필요한 모델(text-embedding-3-*)을 쓰는 오버레이에서 'true'(§5.2a · REQ-CB-033)
   NERV_EMBED_SEND_DIMENSIONS: 'false'
+  NERV_EMBED_TRUNCATE: 'false'
   # ── 손잡이 전량 — 비우면 코드 기본값이다(전표 §5.2) ─────────────────────
   # **여기 없으면 운영자는 그 손잡이의 존재를 모른다.** `envFrom` 이라 키를 더하면 듣지만,
   # 더할 수 있다는 사실 자체를 ConfigMap 이 보여 주지 않으면 발견할 길이 없다(2026-09-14).
