@@ -10,6 +10,7 @@ import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/rea
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RealtimeProvider } from '../lib/realtime.js';
+import { resetRuntimeConfigForTesting } from '../lib/config.js';
 import { routeTree } from '../routeTree.gen';
 
 vi.mock('socket.io-client', () => ({
@@ -67,6 +68,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  // 배포 설정은 모듈 상태다 — 남기면 다음 테스트가 앞 테스트의 API 주소를 물려받는다
+  resetRuntimeConfigForTesting();
   cleanup();
 });
 
@@ -158,6 +161,34 @@ describe('설치 장의 환경값 (REQ-WEB-165)', () => {
     const body = screen.getByTestId('manual-body');
     expect(body.querySelectorAll('[data-copy]').length).toBe(body.querySelectorAll('pre').length);
     expect(body.querySelector('[data-copy]')?.textContent).toBe('복사');
+  });
+
+  /**
+   * **화면 주소와 API 주소가 갈린 배치**(REQ-CB-036 · 4.2 §6.3a). 설치 장이 말하는 다섯
+   * 자리는 전부 **프로그램이 붙는 주소**다 — `NERV_SERVER`(훅이 `/ingest` 로 쏜다) ·
+   * `.mcp.json` 의 `/mcp` · 마켓플레이스 카탈로그 · Codex 의 `/mcp` · 첫 표. 그래서
+   * 채우는 값은 `/config.json` 의 `api_url` 이고 **지금 뜬 주소가 아니다.**
+   *
+   * 이 구분은 둘이 같은 배치에서는 드러나지 않는다 — 한 호스트짜리 스택에서는 두 값이
+   * 같아서 어느 쪽을 읽든 초록이다. 그래서 갈린 값을 여기서 넣어 본다.
+   */
+  it('화면과 API 가 다른 호스트면 API 주소로 채운다 — 주소창의 주소가 아니다', async () => {
+    resetRuntimeConfigForTesting({ apiBase: 'https://api.split.test' });
+    renderAt('/help/install');
+    await waitFor(() =>
+      expect(screen.getByTestId('manual-env-card').textContent).toContain('admin'),
+    );
+
+    expect(screen.getByTestId('manual-env-card').textContent).toContain('https://api.split.test');
+    const text = screen.getByTestId('manual-body').textContent ?? '';
+    // 다섯 자리가 전부 API 주소다
+    expect(text).toContain('"NERV_SERVER": "https://api.split.test"');
+    expect(text).toContain('https://api.split.test/plugin/marketplace.json');
+    expect(text).toContain('${NERV_SERVER:-https://api.split.test}/mcp');
+    expect(text).toContain('url = "https://api.split.test/mcp"');
+    expect(text).toContain('--server https://api.split.test');
+    // 화면이 뜬 주소는 한 자리도 들어가지 않는다
+    expect(text).not.toContain(window.location.origin);
   });
 
   it('다른 장에는 값 카드가 없다 — 채울 값이 없는 장에 카드가 서면 잡음이다', async () => {
