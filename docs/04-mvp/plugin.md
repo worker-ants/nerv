@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.69 · 2026-09-21 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.70 · 2026-09-21 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.70 변경(2026-09-21 — 기본 경로를 서버로 뒤집는다, 사람 지시): **새 요구사항 없음 · v0.35 의 순위를 뒤집는다 · §3.5 표·§4 2단계.** v0.35(2026-09-04 · 사람 결정)는 GitHub 을 "가장 간단 · 대부분의 경우" 로 올렸고 근거는 실측이었다 — 서버 경로는 https·비-루프백·**신뢰된 CA** 셋을 다 요구한다. 그 근거는 그대로지만 **기본이 달라졌다**: ① 서버가 주는 것은 **그 서버에 맞는 버전**이다(카탈로그를 그 서버가 만든다). GitHub 은 언제나 `main` 의 것이라, 옛 이미지로 도는 자가호스팅은 서버가 기대하지 않는 판을 받는다 — 스킬·훅이 서버보다 앞선 사실을 말하는 상태이고, 그것은 조용하다. ② 밖으로 나갈 수 없는 망에서는 GitHub 이 아예 경로가 아니다. GitHub 은 **조건이 붙은 폴백**으로 내린다. 그리고 **그 조건에 CA 를 적었다** — 여태 v0.35 의 변경 기록에만 있고 §3.5 본문에는 없었다. [4.5](screens.md) REQ-WEB-165 의 카드는 https·루프백까지만 보므로, **사내 CA 로 낸 인증서는 카드가 깨끗한 채 설치만 실패한다**: 매뉴얼이 그 사실을 적는다. 곁들여 §3.5 의 "받은 뒤에 고칠 것이 없습니다" 를 고쳤다 — `nerv-init`(v0.68) 이후로는 **두 경로 모두** 받은 파일이 같고 주소는 `NERV_SERVER` 가 정한다.
 >
 > v0.69 변경(2026-09-21 — 추가는 되고 설치만 막히는 것을 화면도 말한다, 사람 지시): **새 요구사항 없음 · 판정 변화 없음 — §3.5 에 판정의 정본을 적는다.** 설치 가능한 아카이브 주소인지의 판정이 `apps/api` 안에만 있었는데, 설치 장의 값 카드가 같은 사실을 말해야 했다([4.5](screens.md) REQ-WEB-165) — `apps/web` 은 `apps/api` 를 import 하지 않으므로(REQ-CB-001) `@nerv/schema` 의 `checkPluginInstallUrl()` 하나로 옮겼다([4.2](codebase.md) v1.53). **조건이 둘이라는 것을 문장으로 적었다**: https 가 아니거나, 호스트가 루프백·링크로컬이거나. 그래서 https 의 공개 호스트(정상 운영)에서는 한 번도 걸리지 않는다 — 이 절이 그 말을 하지 않아 "https 면 막힌다" 로 읽힐 여지가 있었다.
 >
@@ -1345,16 +1347,22 @@ outbox 항목 형식(1파일 = 1호출):
 /plugin install nerv@nerv
 ```
 
-**포크의 원인이 사라진다.** v0.29 가 실측으로 기록한 것이 이것이다 — 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다. git 마켓플레이스는 모두에게 **같은 파일**을 준다. 서버가 만들면 주소는 언제나 그 서버의 것이고, 받는 쪽이 고칠 것이 없다.
+**이것이 기본 경로다**(2026-09-21 · 사람 지시). 매뉴얼의 설치 장도 이 두 줄을 먼저 보이고, 그 자리에는 이 배치의 주소가 채워져 나간다([4.5](screens.md) REQ-WEB-165).
+
+**포크의 원인이 사라진다.** v0.29 가 실측으로 기록한 것이 이것이다 — 패키지가 서버 주소를 못 바꿔 실사용자가 전면 포크했다. git 마켓플레이스는 모두에게 **같은 파일**을 준다. 서버가 만들면 카탈로그는 언제나 그 서버의 것이다.
+
+**받는 파일 자체는 두 경로가 같다**(2026-09-21 정정). `nerv-init`(§3.7) 이 생긴 뒤로 주소는 `NERV_SERVER` 가 정하고 패키지의 하드코딩 값은 폴백일 뿐이라, "받은 뒤에 고칠 것이 없다" 는 **GitHub 경로에서도 참이다.** 서버 경로가 주는 것은 다른 것이다 — **그 서버에 맞는 버전**이다. GitHub 은 언제나 `main` 의 것이므로, 옛 이미지로 도는 자가호스팅은 서버가 기대하지 않는 판을 받는다(스킬·훅이 서버보다 앞선 사실을 말하는 상태이고 그것은 조용하다).
 
 **네 경로가 공존한다** — 같은 플러그인을 어디서 받아 오느냐의 차이다.
 
 | 경로 | 어떻게 | 언제 쓰나 |
 | --- | --- | --- |
-| **GitHub**(가장 간단) | `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` | 서버가 없어도 되고 인증서도 필요 없다. 대부분의 경우 |
-| **마켓플레이스 URL** | `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `nerv@nerv` | 플랫폼이 서 있고 그 서버의 것을 받고 싶을 때 |
+| **마켓플레이스 URL**(기본) | `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `nerv@nerv` | **버전이 그 서버에 맞는다.** 밖으로 나갈 수 없는 망에서는 이 길뿐이다(2026-09-21 사람 지시로 기본이 됐다 — v0.35 의 순위를 뒤집었다) |
+| **GitHub**(폴백) | `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` | 서버 경로가 막힐 때 — 아래 셋 중 하나라도 없으면 그렇다. 서버가 안 떠 있어도 된다 |
 | 로컬 경로 | `/plugin marketplace add <클론 경로>/codebase/plugin` → `nerv@nerv-internal` | 이 저장소를 고치면서 바로 시험할 때 |
 | 수동 | 저장소를 클론해 `.claude/settings.json` 이 절대경로로 `bin/` 을 부른다 | 마켓플레이스를 쓰지 않는 저장소(§ README 재동기화 절차) |
+
+**서버 경로는 셋을 다 요구한다 — https · 비-루프백 · 신뢰된 CA**(2026-09-04 실측: 사내 CA 배치에서 `NODE_EXTRA_CA_CERTS` 까지 있어야 설치됐다). 앞의 둘은 서버가 스스로 판정해 운영자 로그와 설치 장의 값 카드에 미리 말하지만(`checkPluginInstallUrl` · [4.2](codebase.md) §1.2 · [4.5](screens.md) REQ-WEB-165), **셋째는 아무도 미리 말할 수 없다** — 브라우저도 서버도 에이전트 기계의 신뢰 저장소를 모른다. 그래서 카드가 깨끗한데 설치만 인증서 오류로 끝나는 배치가 있고, 매뉴얼의 설치 장이 그 경우를 GitHub 폴백과 함께 적는다.
 
 **카탈로그가 셋인 이유.** Claude Code 는 `marketplace.json` 을 **저장소 루트에서만** 찾는다 — 서브디렉터리를 가리키는 문법이 없다(git URL 의 `#` 는 경로가 아니라 **브랜치 ref** 다: `#codebase/plugin` 은 `Remote branch not found` 로 끝난다 — 2026-09-04 실측). 그래서 GitHub 경로용 카탈로그는 저장소 루트에 있고 `./codebase/plugin` 을 가리킨다. 상대경로는 **마켓플레이스 루트**(= 저장소 루트) 기준이다.
 
@@ -1462,7 +1470,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add worker-ants/nerv` → `/plugin install nerv@nerv` → 재시작. 그 서버의 것을 받고 싶으면 GitHub 대신 `https://<서버>/plugin/marketplace.json` 을 넣는다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.0 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.0 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
