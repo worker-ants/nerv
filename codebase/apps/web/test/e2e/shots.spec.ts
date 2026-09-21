@@ -39,6 +39,9 @@ const SHOTS: [string, string][] = [
   ['/settings/gates', 'settings-gates'],
   // 매뉴얼도 화면이다 — 디자인 확인에서 빠지면 여기만 아무도 안 본 채로 배포된다
   ['/help/tasks', 'manual'],
+  // 설치 장은 다른 장에 없는 것을 인다(값 카드·복사 단추 · REQ-WEB-165) — 한 장만 찍으면
+  // 그 둘은 그림에 없다. 이 저장소가 좁은 폭에서 배운 것과 같은 이유다.
+  ['/help/install', 'manual-install'],
 ];
 
 const SHOT_DIR = process.env['NERV_SHOT_DIR'] ?? '/tmp/nerv-shots';

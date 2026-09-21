@@ -72,6 +72,13 @@ export const queryKeys = {
    */
   myTokens: () => ['me', 'tokens'] as const,
   orgMembers: (orgSlug: string) => ['org', orgSlug, 'members'] as const,
+
+  /**
+   * 이 서버가 배달하는 플러그인 카탈로그(EP-PLG-01). **이벤트가 무효화하지 않는 유일한
+   * 축이다** — 카탈로그는 이미지가 바뀔 때만 바뀌고, 그것은 이 탭이 살아 있는 동안
+   * 일어나지 않는다. 그래도 여기 적는 이유는 이 파일이 키의 정본이기 때문이다.
+   */
+  pluginCatalog: () => ['plugin', 'catalog'] as const,
 } as const;
 
 export type NervQueryKey = readonly unknown[];

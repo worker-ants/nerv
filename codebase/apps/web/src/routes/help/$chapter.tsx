@@ -7,7 +7,9 @@ import { useLocale, useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { chapterNeighbours, findChapter } from '../../lib/manual.js';
+import { fillManualVars, useManualVars } from '../../lib/manual-vars.js';
 import { renderDoc } from '../../lib/markdown.js';
+import { COPIED_MS, InstallEnvCard } from '../../features/manual/install-env.js';
 import { EmptyState, PageBody } from '../../components/ui/primitives.js';
 
 export const Route = createFileRoute('/help/$chapter')({ component: ManualChapterScreen });
@@ -19,8 +21,14 @@ function ManualChapterScreen(): React.JSX.Element {
   const { chapter: chapterId } = Route.useParams();
   const chapter = findChapter(chapterId);
   const source = chapter?.body[locale] ?? '';
-  // 장이나 언어가 바뀔 때만 다시 판다 — 스크롤 한 번에 문서를 다시 파싱할 이유가 없다
-  const doc = useMemo(() => renderDoc(source), [source]);
+  // **버전은 설치 장에서만 묻는다** — 그 장 말고는 `{{version}}` 을 쓰는 곳이 없다.
+  const vars = useManualVars(chapterId === 'install');
+  const copyLabel = t('help.copy');
+  // 장·언어·값이 바뀔 때만 다시 판다 — 스크롤 한 번에 문서를 다시 파싱할 이유가 없다
+  const doc = useMemo(
+    () => renderDoc(fillManualVars(source, vars), { copyLabel }),
+    [source, vars, copyLabel],
+  );
   const { previous, next } = chapterNeighbours(chapterId);
 
   if (chapter === undefined) {
@@ -38,6 +46,11 @@ function ManualChapterScreen(): React.JSX.Element {
    */
   const onBodyClick = (event: React.MouseEvent<HTMLDivElement>): void => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    const copy = (event.target as HTMLElement).closest<HTMLElement>('[data-copy]');
+    if (copy !== null) {
+      copyBlock(copy, copyLabel, t('help.copied'));
+      return;
+    }
     const anchor = (event.target as HTMLElement).closest('a');
     const href = anchor?.getAttribute('href') ?? '';
     if (!href.startsWith('/')) return;
@@ -49,6 +62,11 @@ function ManualChapterScreen(): React.JSX.Element {
     <div className="flex">
       <PageBody>
         <h1 className="mb-5 text-2xl font-bold tracking-[-0.02em]">{t(chapter.titleKey)}</h1>
+
+        {/* 설치 장만 값 카드를 인다 — 본문의 자리표시자를 채운 값이 어디서 왔는지를
+            말하는 자리다(§2.10 · REQ-WEB-165). 다른 장에는 채울 값이 없다. */}
+        {chapterId === 'install' && <InstallEnvCard vars={vars} />}
+
         <div
           data-testid="manual-body"
           onClick={onBodyClick}
@@ -105,4 +123,24 @@ function ManualChapterScreen(): React.JSX.Element {
       )}
     </div>
   );
+}
+
+/**
+ * 코드블록 하나를 클립보드로 — 단추의 글자를 잠깐 바꿔 **눌렸다는 것을 보인다.**
+ *
+ * 이 단추는 `renderDoc` 이 낸 HTML 안에 있어 React 가 쥐고 있지 않다(본문은
+ * `dangerouslySetInnerHTML` 로 붙는다). 그래서 상태가 아니라 DOM 을 직접 되돌린다 —
+ * 같은 이유로 되돌릴 책임도 여기에 있다.
+ */
+function copyBlock(button: HTMLElement, label: string, copiedLabel: string): void {
+  const text = button.parentElement?.querySelector('pre')?.textContent ?? '';
+  if (text === '') return;
+  void navigator.clipboard?.writeText(text).then(() => {
+    button.textContent = copiedLabel;
+    setTimeout(() => {
+      // 그 사이에 장이 바뀌어 이 단추가 사라졌을 수 있다 — 떨어져 나간 노드에 쓰는 것은
+      // 아무 일도 아니지만, 살아 있으면 원래 글자로 돌아와야 한다.
+      button.textContent = label;
+    }, COPIED_MS);
+  });
 }

@@ -4,13 +4,15 @@ Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전�
 
 ## 시작하기 전에
 
-세 가지를 알아 둬야 합니다.
+세 가지를 알아 둬야 하는데 **셋 다 이 화면이 이미 압니다** — 바로 위 카드의 값이 그것이고, 아래의 명령과 파일은 전부 그 값으로 채워져 있습니다. 그대로 복사하시면 됩니다.
 
-| 무엇           | 어디서                   | 예                             |
-| -------------- | ------------------------ | ------------------------------ |
-| NERV 서버 주소 | 관리자에게               | `https://api.nerv.example.com` |
-| 프로젝트 slug  | 주소창의 `/p/` 다음 조각 | `clemvion`                     |
-| 내 역할        | 설정 → 멤버              | `developer`                    |
+| 무엇           | 어디서 오나                  | 이 배치의 값  |
+| -------------- | ---------------------------- | ------------- |
+| NERV 서버 주소 | 관리자가 정한 `NERV_API_URL` | `{{server}}`  |
+| 프로젝트 slug  | 헤더에서 고른 프로젝트       | `{{project}}` |
+| 내 역할        | 설정 → 멤버                  | `{{role}}`    |
+
+**주소창에 보이는 주소가 아닐 수 있습니다.** 화면과 API 를 다른 호스트에 둔 배치에서는 주소창이 `app.…` 이고 에이전트가 붙는 곳은 `api.…` 입니다 — 위 표의 값이 그 값입니다.
 
 역할이 중요합니다 — **토큰은 역할보다 넓어질 수 없습니다.** `viewer`로는 작업을 클레임하는 토큰을 만들 수 없습니다.
 
@@ -37,8 +39,8 @@ Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전�
 ```jsonc
 {
   "env": {
-    "NERV_SERVER": "https://api.nerv.example.com",
-    "NERV_PROJECT": "clemvion",
+    "NERV_SERVER": "{{server}}",
+    "NERV_PROJECT": "{{project}}",
     "NERV_TOKEN": "<1단계에서 받은 토큰>",
   },
 }
@@ -53,8 +55,8 @@ Claude Code나 Codex를 NERV에 붙이는 절차입니다. 끝나면 에이전�
 `.nerv/env` 는 Claude Code 밖(Codex)을 위한 폴백입니다. 플러그인의 스크립트들이 이 파일을 읽습니다.
 
 ```bash
-NERV_SERVER=https://api.nerv.example.com
-NERV_PROJECT=clemvion
+NERV_SERVER={{server}}
+NERV_PROJECT={{project}}
 NERV_TOKEN=<1단계에서 받은 토큰>
 ```
 
@@ -68,7 +70,7 @@ NERV_TOKEN=<1단계에서 받은 토큰>
 
 ```bash
 export NERV_TOKEN="<1단계에서 받은 토큰>"
-export NERV_PROJECT="clemvion"
+export NERV_PROJECT="{{project}}"
 ```
 
 `NERV_HOSTNAME`은 세션 화면에 "누구의 어떤 기계인지"로 뜨는 값입니다. **적어 두는 편이 낫습니다.** 훅 중 서버로 바로 쏘는 것들은 이 변수를 그대로 싣기 때문에, 비어 있으면 기계 이름 없는 세션이 목록에 남습니다. 두 대 이상에서 돌리기 시작하면 그때부터 어느 세션이 어느 기계인지 알 수 없습니다.
@@ -83,16 +85,16 @@ export NERV_HOSTNAME="$(hostname -s)"
 
 ## 3-A. Claude Code에 플러그인 설치
 
-Claude Code 안에서 두 줄입니다. **주소는 이 서버의 주소**입니다 — 브라우저 주소창에 있는 그것입니다.
+Claude Code 안에서 두 줄입니다.
 
 ```text
 /plugin marketplace add worker-ants/nerv
 /plugin install nerv@nerv
 ```
 
-이 서버가 배포한 것을 받고 싶으면 첫 줄만 바꿉니다 — `add https://<이 서버>/plugin/marketplace.json`. 둘은 **같은 마켓플레이스의 두 전송로**라 설치 명령은 그대로입니다(둘을 동시에 등록하지는 않습니다).
+이 서버가 배포한 것을 받고 싶으면 첫 줄만 바꿉니다 — `add {{server}}/plugin/marketplace.json`. 둘은 **같은 마켓플레이스의 두 전송로**라 설치 명령은 그대로입니다(둘을 동시에 등록하지는 않습니다).
 
-그리고 **재시작**합니다. `/plugin` 목록에 `nerv` v0.3.0이 활성으로 보이면 됩니다.
+그리고 **재시작**합니다. `/plugin` 목록에 `nerv` v{{version}}이 활성으로 보이면 됩니다.
 
 서버가 카탈로그를 직접 만들기 때문에 **받은 뒤에 고칠 것이 없습니다** — 서버 주소가 이미 들어 있습니다. 사내 git 마켓플레이스를 쓰는 배치라면 그 git URL 을 대신 넣습니다(`/plugin install nerv@nerv-internal`).
 
@@ -113,11 +115,12 @@ Claude Code 안에서 두 줄입니다. **주소는 이 서버의 주소**입니
 
 **`nerv_*` 도구는 이 넷에 들어 있지 않습니다** — 저장소에 `.mcp.json` 이 있어야 씁니다. 서버 주소와 토큰이 프로젝트마다 다르기 때문에 플러그인이 그 파일을 담지 않습니다.
 
-**담지 않는 대신, 만들어 주는 명령을 담습니다.** 작업 저장소에서 한 번 돌리면 `.mcp.json` · `.claude/settings.local.json` 의 환경변수 · `.gitignore` 의 `.nerv/` 가 한꺼번에 섭니다. 토큰은 화면에 찍지 않고 가려서 묻습니다.
+**담지 않는 대신, 만들어 주는 명령을 담습니다.** 작업 저장소에서 한 번 돌리면 `.mcp.json` · `.claude/settings.local.json` 의 환경변수 · `.gitignore` 의 `.nerv/` 가 한꺼번에 섭니다. **주소와 프로젝트는 이 배치의 값으로 채워 뒀으니** 남은 것은 토큰뿐이고, 그것은 화면에 찍지 않고 가려서 묻습니다.
 
 ```bash
 cd <작업 저장소>
-"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)"
+"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)" \
+  --server {{server}} --project {{project}}
 ```
 
 **이미 있는 값은 덮지 않습니다.** 토큰이 이미 적혀 있으면 그대로 두고 그 사실을 말합니다 — 바꾸려면 그 파일을 직접 고칩니다. `.mcp.json` 이 이미 있는데 `nerv` 항목만 없으면, 그 파일을 건드리지 않고 **더할 항목을 찍어 줍니다.**
@@ -133,7 +136,7 @@ cd <작업 저장소>
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "${NERV_SERVER:-https://api.nerv.example.com}/mcp",
+      "url": "${NERV_SERVER:-{{server}}}/mcp",
       "headers": {
         "Authorization": "Bearer ${NERV_TOKEN}",
         "X-NERV-Project": "${NERV_PROJECT}"
@@ -163,9 +166,9 @@ cp <플러그인>/codex/AGENTS.md   <내 저장소>/AGENTS.md
 
 ```toml
 [mcp_servers.nerv]
-url = "https://api.nerv.example.com/mcp"
+url = "{{server}}/mcp"
 bearer_token_env_var = "NERV_TOKEN"
-http_headers = { "X-NERV-Project" = "clemvion" }
+http_headers = { "X-NERV-Project" = "{{project}}" }
 startup_timeout_sec = 20
 
 # 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않습니다
@@ -210,7 +213,7 @@ Claude Code 라면 세션 카드는 `nerv_bootstrap` 을 부르기 **전에** �
 | 증상                               | 대개는 이것                                                                                                                            |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `/mcp`에 `nerv`가 없다             | 설치 후 재시작을 안 했거나, 저장소에 `.mcp.json` 이 없습니다 — 3-A 의 명령을 한 번 돌리세요                                            |
-| 서버에 닿지 못한다                 | `url` 오타 또는 사내망 밖 — 관리자에게 주소를 확인하세요                                                                               |
+| 서버에 닿지 못한다                 | `url` 오타 또는 사내망 밖 — 이 장 머리의 카드가 적은 주소와 대조하세요                                                                 |
 | `NERV_UNAUTHENTICATED`             | `NERV_TOKEN`이 비었거나 폐기됐습니다. 설정 → 토큰에서 다시 발급                                                                        |
 | `NERV_FORBIDDEN` · 권한 부족       | 토큰 권한이 좁거나, 발급 시점 역할이 그 일을 못 합니다                                                                                 |
 | 도구는 되는데 프로젝트가 안 보인다 | **그 토큰이 다른 프로젝트에서 발급됐습니다.** 프로젝트는 토큰에 박혀 있어 헤더로 바꿀 수 없습니다 — 그 프로젝트에서 토큰을 새로 냅니다 |

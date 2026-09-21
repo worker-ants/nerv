@@ -32,6 +32,27 @@ describe('renderDoc', () => {
     expect(headings[0]?.text).toBe('굵은 코드 제목');
   });
 
+  it('복사 단추는 글자를 줬을 때만 붙는다 — 복사할 이유가 없는 자리의 단추는 잡음이다', () => {
+    const plain = renderDoc('```\ncode\n```');
+    expect(plain.html).not.toContain('data-copy');
+
+    const withButton = renderDoc('```\ncode\n```', { copyLabel: '복사' });
+    expect(withButton.html).toContain('class="nerv-code"');
+    expect(withButton.html).toContain('data-copy');
+    expect(withButton.html).toContain('>복사</button>');
+  });
+
+  it('단추 글자도 이스케이프된다 — 붙는 HTML 에 태그가 낄 자리를 만들지 않는다', () => {
+    const { html } = renderDoc('```\ncode\n```', { copyLabel: '<b>복사</b>' });
+    expect(html).not.toContain('<b>복사</b>');
+    expect(html).toContain('&lt;b&gt;');
+  });
+
+  it('인라인 코드에는 단추가 붙지 않는다 — 한 낱말을 복사하려고 단추를 두지 않는다', () => {
+    const { html } = renderDoc('본문 안의 `코드` 한 낱말', { copyLabel: '복사' });
+    expect(html).not.toContain('data-copy');
+  });
+
   it('표·목록·코드 블록을 구분해 낸다 (REQ-WEB-047)', () => {
     const { html } = renderDoc('| a | b |\n| --- | --- |\n| 1 | 2 |\n\n- 하나\n\n```\ncode\n```');
     expect(html).toContain('<table>');

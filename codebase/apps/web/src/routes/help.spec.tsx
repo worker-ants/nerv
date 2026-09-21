@@ -10,6 +10,7 @@ import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/rea
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RealtimeProvider } from '../lib/realtime.js';
+import { resetRuntimeConfigForTesting } from '../lib/config.js';
 import { routeTree } from '../routeTree.gen';
 
 vi.mock('socket.io-client', () => ({
@@ -67,6 +68,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  // 배포 설정은 모듈 상태다 — 남기면 다음 테스트가 앞 테스트의 API 주소를 물려받는다
+  resetRuntimeConfigForTesting();
   cleanup();
 });
 
@@ -122,6 +125,76 @@ describe('매뉴얼 라우트', () => {
   it('없는 장은 빈 화면이 아니라 없다고 말한다', async () => {
     renderAt('/help/no-such-chapter');
     await waitFor(() => expect(screen.getByText('그런 장이 없습니다.')).toBeDefined());
+  });
+});
+
+// ── 설치 장은 이 배치의 값으로 말한다 (REQ-WEB-165) ──────────────────────────
+//
+// 설치 장은 서버 주소와 프로젝트를 열 자리에서 말한다. 그 값이 예시로 박혀 있으면 읽은
+// 사람이 열 번 고쳐 넣어야 하고, 하나라도 빠뜨리면 그 자리가 조용히 남의 서버를 가리킨다.
+// 여기서 태우는 것은 **채워진다는 것**과 **예시가 남지 않는다는 것** 둘이다.
+describe('설치 장의 환경값 (REQ-WEB-165)', () => {
+  it('값 카드가 서고 본문의 자리표시자가 이 배치의 값으로 채워진다', async () => {
+    renderAt('/help/install');
+    // 프로젝트·역할은 조회가 끝나야 온다 — 그 전에는 예시값이 서 있고, 그것이 설계다
+    await waitFor(() =>
+      expect(screen.getByTestId('manual-env-card').textContent).toContain('admin'),
+    );
+
+    // 화면과 API 가 한 호스트인 배치라 지금 뜬 오리진이 곧 그 주소다(`/config.json` 없음)
+    const origin = window.location.origin;
+    const card = screen.getByTestId('manual-env-card');
+    expect(card.textContent).toContain(origin);
+    expect(card.textContent).toContain('clemvion');
+
+    const body = screen.getByTestId('manual-body');
+    expect(body.textContent).not.toContain('{{');
+    expect(body.textContent).not.toContain('api.nerv.example.com');
+    expect(body.textContent).toContain(`${origin}/plugin/marketplace.json`);
+    // 설치 명령도 채워져 나간다 — 이것이 "그대로 복사하면 된다" 의 실물이다
+    expect(body.textContent).toContain(`--server ${origin} --project clemvion`);
+  });
+
+  it('코드블록마다 복사 단추가 붙는다 — 매뉴얼의 코드블록은 복사하라고 있는 것이다', async () => {
+    renderAt('/help/install');
+    await waitFor(() => expect(screen.getByTestId('manual-body')).toBeDefined());
+    const body = screen.getByTestId('manual-body');
+    expect(body.querySelectorAll('[data-copy]').length).toBe(body.querySelectorAll('pre').length);
+    expect(body.querySelector('[data-copy]')?.textContent).toBe('복사');
+  });
+
+  /**
+   * **화면 주소와 API 주소가 갈린 배치**(REQ-CB-036 · 4.2 §6.3a). 설치 장이 말하는 다섯
+   * 자리는 전부 **프로그램이 붙는 주소**다 — `NERV_SERVER`(훅이 `/ingest` 로 쏜다) ·
+   * `.mcp.json` 의 `/mcp` · 마켓플레이스 카탈로그 · Codex 의 `/mcp` · 첫 표. 그래서
+   * 채우는 값은 `/config.json` 의 `api_url` 이고 **지금 뜬 주소가 아니다.**
+   *
+   * 이 구분은 둘이 같은 배치에서는 드러나지 않는다 — 한 호스트짜리 스택에서는 두 값이
+   * 같아서 어느 쪽을 읽든 초록이다. 그래서 갈린 값을 여기서 넣어 본다.
+   */
+  it('화면과 API 가 다른 호스트면 API 주소로 채운다 — 주소창의 주소가 아니다', async () => {
+    resetRuntimeConfigForTesting({ apiBase: 'https://api.split.test' });
+    renderAt('/help/install');
+    await waitFor(() =>
+      expect(screen.getByTestId('manual-env-card').textContent).toContain('admin'),
+    );
+
+    expect(screen.getByTestId('manual-env-card').textContent).toContain('https://api.split.test');
+    const text = screen.getByTestId('manual-body').textContent ?? '';
+    // 다섯 자리가 전부 API 주소다
+    expect(text).toContain('"NERV_SERVER": "https://api.split.test"');
+    expect(text).toContain('https://api.split.test/plugin/marketplace.json');
+    expect(text).toContain('${NERV_SERVER:-https://api.split.test}/mcp');
+    expect(text).toContain('url = "https://api.split.test/mcp"');
+    expect(text).toContain('--server https://api.split.test');
+    // 화면이 뜬 주소는 한 자리도 들어가지 않는다
+    expect(text).not.toContain(window.location.origin);
+  });
+
+  it('다른 장에는 값 카드가 없다 — 채울 값이 없는 장에 카드가 서면 잡음이다', async () => {
+    renderAt('/help/tasks');
+    await waitFor(() => expect(screen.getByTestId('manual-body')).toBeDefined());
+    expect(screen.queryByTestId('manual-env-card')).toBeNull();
   });
 });
 

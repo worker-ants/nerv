@@ -271,6 +271,20 @@ describe('패키지 구성', () => {
     expect(file('README.md').split('\n')[0]).toContain(`v${manifest.version}`);
   });
 
+  /**
+   * 매뉴얼의 설치 장은 버전을 **카탈로그에서 받아** 말한다(REQ-WEB-165). 그런데 카탈로그에
+   * 닿지 못하는 배치·개발 루프에서는 번들에 든 값이 그 자리에 서므로, 그 값이 낡으면
+   * "v0.2.x 가 보이면 됩니다" 라고 적힌 화면을 보며 0.3.x 를 설치한 사람이 자기가 뭘
+   * 잘못했는지 찾는다. 예전에는 매뉴얼 두 벌에 손으로 적힌 값이었고 지킬 검사가 없었다.
+   */
+  it('매뉴얼의 폴백 버전이 매니페스트와 같다 — 카탈로그에 닿지 못하면 이 값이 선다', () => {
+    const manifest = JSON.parse(readShipped('.claude-plugin/plugin.json')) as { version: string };
+    const vars = readFileSync(join(repoRoot, 'codebase/apps/web/src/lib/manual-vars.ts'), 'utf8');
+    expect(vars, 'MANUAL_EXAMPLE.version 이 매니페스트와 다르다').toContain(
+      `version: '${manifest.version}'`,
+    );
+  });
+
   it('스펙 작성 서브에이전트는 코드 쓰기 도구를 갖지 않는다 — 역할 분리가 존재 이유다', () => {
     const frontmatter = file('agents/nerv-spec-writer.md').split('---')[1] ?? '';
     for (const forbidden of ['Write', 'Edit', 'Bash']) {
