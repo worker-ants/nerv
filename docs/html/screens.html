@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.13 (2026-09-21)</span>
+      <span>버전 v1.14 (2026-09-21)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -879,7 +879,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>접힌 가지의 <b>자식 수</b></td><td>눌러 보기 전에 뒤에 무엇이 있는지 안다</td></tr>
       <tr><td>보는 문서까지 <b>조상 자동 펼침 + 스크롤</b></td><td>딥링크로 들어오면 트리에서 내 위치를 알 수 없다. 활성 키는 라우트 파라미터가 유일한 출처라 앱 셸이 넘긴다</td></tr>
       <tr><td>펼침 상태 <b>보존</b>(<code>localStorage</code>, 프로젝트별)</td><td>문서를 옮길 때마다 다시 펼치는 것은 반복 노동이다</td></tr>
-      <tr><td>전체 펼치기/접기</td><td>141노드 규모에서는 훑기가 필요하다. 좁은 사이드바에는 두지 않는다</td></tr>
+      <tr><td>전체 펼치기/접기</td><td>141노드 규모에서는 훑기가 필요하다. <b>레일에도 둔다</b>(2026-09-21 개정 · REQ-WEB-171 — 아래 "레일의 조작")</td></tr>
     </tbody>
   </table></div>
 
@@ -933,6 +933,29 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     </tbody>
   </table></div>
 
+  <h4>레일의 조작 — 가장 중요한 것이 가장 안 보였다 (2026-09-21 — 사람 보고)</h4>
+
+  <p><b>캐럿이 줄에서 가장 안 보이는 것이었다.</b> 펴기/접기 표식은 <code>text-2xs</code>(10.5px) 글꼴 글리프(<code>▾</code>/<code>▸</code>)였고 색이 <code>text-text-faint</code>(#9b9a97) 라 <b>바로 옆 제목(<code>text-text-mute</code> #787774)보다 흐렸다</b> — 줄에서 유일한 조작이 줄에서 가장 흐린 것이었다. 타깃은 16×26 으로 24×24 최소에 못 미쳤고, 되먹임은 글자색뿐이라 "여기가 단추" 라는 표시가 없었으며, <code>aria-expanded</code> 가 없어 스크린 리더는 지금 펴져 있는지를 읽지 못했다.</p>
+
+  <ul>
+    <li><b>글꼴 글리프를 버리고 chevron 을 그린다.</b> 글리프는 폰트마다 크기와 베이스라인이 달라 줄마다 흔들린다.</li>
+    <li><b>방향은 회전으로 말한다.</b> 두 글자를 구별하는 것보다 같은 도형이 90° 도는 편이 눈에 빠르고, 전환이 그 변화를 한 번 더 짚는다.</li>
+    <li><b>타깃 24px · 대비 한 단 · 호버 배경.</b> 줄 클릭은 그대로 문서로 간다 — 캐럿만 토글이고, 넓어진 것은 그 캐럿의 자리다.</li>
+    <li><b><code>aria-expanded</code> 를 준다.</b> <code>aria-label</code> 은 <i>다음에 일어날 일</i>이라 지금 상태를 말하지 못한다.</li>
+  </ul>
+
+  <p><b>전체 펴기/접기를 레일에도 둔다.</b> 위 표의 2026-08-23 결정("좁은 사이드바에는 두지 않는다")을 <b>개정한다</b> — 그 판단은 레일 기본값이 깊이 1이던 시절의 것이고, 2026-08-30 에 기본이 <b>전부 펼침</b>이 되면서 전제가 뒤집혔다: 141편이 모두 펼쳐진 좁은 레일에서 필요한 것은 오히려 접을 수단이다.</p>
+
+  <p><b>단추 둘 대신 토글 하나다.</b> 좁은 머리줄에 둘을 나란히 두면 빽빽해지고, 하나면 그 아이콘이 <b>지금 상태까지</b> 말한다(하나라도 펴져 있으면 다음 조작은 접기다). 전수 목록(<code>full</code>)은 글자 단추 둘을 그대로 둔다 — 폭이 있고 두 조작이 각각 자주 쓰인다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><b>REQ-WEB-170</b></td><td>WHEN 트리 줄의 펴기/접기 표식을 그리면 THE SYSTEM SHALL <b>24×24 이상의 타깃</b>과 본문 글자 이상의 대비를 주고, 호버·포커스에 배경으로 되먹임하며, 펼침 여부를 <code>aria-expanded</code> 로 말한다. WHEN 상태가 바뀌면 THE SYSTEM SHALL 같은 도형의 <b>방향</b>으로 그것을 보인다(두 글리프를 갈아 끼우지 않는다)</td></tr>
+      <tr><td><b>REQ-WEB-171</b></td><td>WHEN 사이드바 트리를 그리면 THE SYSTEM SHALL 머리줄에 <b>전체 펴기/접기 토글 하나</b>를 두고, 하나라도 펴져 있으면 접기로·모두 접혀 있으면 펴기로 동작하며 그 상태를 아이콘과 이름으로 함께 말한다. WHERE 접을 가지가 없으면 THE SYSTEM SHALL 그 토글을 두지 않는다</td></tr>
+    </tbody>
+  </table></div>
+
   <h4>전수의 경계 — 보관한 문서는 어디에도 없었다 (2026-08-29 — 실측)</h4>
 
   <p>"전부 있다"고 말하려면 <b>경계도 말해야 한다.</b> 보관은 그 경계다.</p>
@@ -976,7 +999,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <thead><tr><th></th><th>그대로 다른 것</th></tr></thead>
     <tbody>
       <tr><td>밀도</td><td>레일 26px 줄 · 13px 글자, 상태는 <b>평소와 다른 것만</b> 점으로(REQ-WEB-057)</td></tr>
-      <tr><td>조작</td><td>트리 필터와 전체 펼치기/접기는 전수 목록에만 — 좁은 사이드바에는 두지 않는다</td></tr>
+      <tr><td>조작</td><td>트리 필터는 전수 목록에만. <b>전체 펴기/접기는 둘 다 있다</b>(2026-09-21 개정 · REQ-WEB-171) — 전수 목록은 글자 단추 둘, 레일은 머리줄의 토글 하나다</td></tr>
       <tr><td>펼침 상태</td><td>자리별로 보존한다(REQ-WEB-104) — 한쪽에서 접은 것이 다른 쪽을 바꾸지 않는다</td></tr>
     </tbody>
   </table></div>
@@ -1777,7 +1800,13 @@ export const ApprovalDecisionInput = z
 
   <p>저장 쪽은 이미 되어 있었다: TipTap 왕복에서 <code>```mermaid</code> 펜스는 <b>언어 태그까지 무손실</b>이다(실측 2026-08-30, 2회 왕복 동일). 즉 데이터는 처음부터 온전히 남았고 <b>빠져 있던 것은 그리는 쪽과 말해 주는 쪽</b>이다.</p>
 
-  <p><code>codeBlock</code> 노드뷰가 <code>language === 'mermaid'</code> 인 블록을 <b>읽기 화면에서만</b> 그림으로 그린다. 편집 중에 그리지 않는 이유는 타이핑 중의 코드가 대부분 문법이 깨져 있기 때문이다 — 그때 미리보기는 계속 오류만 띄운다(clemvion 이 mermaid 린트 훅을 붙였던 이유가 그것이다).</p>
+  <p><code>codeBlock</code> 노드뷰가 <code>language === 'mermaid'</code> 인 블록을 <b>기본으로 그림으로 그린다</b>(2026-09-21 개정 · REQ-WEB-169). 문서 상태와 무관하다.</p>
+
+  <p><b>그리는 축이 틀려 있었다.</b> 2026-09-21 까지 조건은 <code>!editor.isEditable</code> 이었는데, 그 값은 "내가 지금 이 블록을 치고 있는가" 가 아니라 <b>"이 문서가 초안인가"</b> 다(§2.4 — <code>docStatus === 'draft'</code> 이고 리스가 없으면 누가 열든 편집 가능이다). 그래서 <b>초안은 읽는 사람에게도 코드로 보였고</b>, 초안이야말로 에이전트가 다이어그램을 써 넣는 자리다 — 이 절을 만든 계기 자체가 거기서 일어난 일이다.</p>
+
+  <p><b>블록마다 [코드]·[그림] 토글이 있다</b>(2026-09-21 사람 결정). 옛 조건이 막으려던 것은 타이핑 중의 깨진 문법에 미리보기가 계속 오류를 띄우는 일인데(clemvion 이 mermaid 린트 훅을 붙였던 이유가 그것이다), <b>토글이 그것을 더 잘 막는다</b> — 고치는 동안에는 [코드] 쪽에 있으므로 그릴 일이 없다. 토글은 그 블록의 보는 방식이지 문서의 내용이 아니라 저장되지 않는다.</p>
+
+  <p><b>그릴 때는 편집 내용을 내놓지 않는다.</b> contentDOM 이 없는 노드뷰를 ProseMirror 는 잎처럼 다루므로 그림 안에 커서가 숨어들지 않는다 — 감춘 채로 두면 사람이 화살표로 내려가다 <b>보이지 않는 자리에 캐럿을 잃는다</b>. 원본은 문서 모델에 그대로 있고([코드]를 누르면 다시 편집할 수 있다), 직렬화가 읽는 것은 DOM 이 아니다.</p>
 
   <ul>
     <li><b>번들은 동적으로 내려받는다.</b> mermaid 는 약 500KB라, 그림이 실제로 그려질 때만 로드한다 — 스펙 화면 전체가 그 비용을 지지 않는다.</li>
@@ -1789,7 +1818,8 @@ export const ApprovalDecisionInput = z
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
-      <tr><td><b>REQ-WEB-113</b></td><td>WHEN 읽기 화면에서 언어가 <code>mermaid</code> 인 코드블록을 만나면 THE SYSTEM SHALL 그것을 다이어그램으로 그린다. WHILE 편집 중이거나 문법이 틀렸으면 THE SYSTEM SHALL 코드를 그대로 보이고, 틀린 경우에는 그 사실을 함께 적는다</td></tr>
+      <tr><td><b>REQ-WEB-113</b></td><td>(2026-09-21 개정 — "읽기 화면에서만" 을 걷는다) WHEN 언어가 <code>mermaid</code> 인 코드블록을 만나면 THE SYSTEM SHALL 그것을 다이어그램으로 그린다. WHILE 문법이 틀렸으면 THE SYSTEM SHALL 코드를 그대로 보이고 그 사실을 함께 적는다</td></tr>
+      <tr><td><b>REQ-WEB-169</b></td><td>WHEN <code>mermaid</code> 블록을 그리면 THE SYSTEM SHALL <b>문서 상태와 무관하게 그림을 기본으로</b> 하고, 블록마다 코드와 그림을 오가는 수단을 둔다 — 그 선택은 보는 방식이라 문서에 저장하지 않는다. WHILE 그림을 보이는 동안 THE SYSTEM SHALL 그 블록의 편집 내용을 DOM 에 내놓지 않는다(보이지 않는 자리에 캐럿이 서면 안 된다). WHEN 블록이 비어 있으면 THE SYSTEM SHALL 오류가 아니라 코드 자리로 둔다</td></tr>
     </tbody>
   </table></div>
 

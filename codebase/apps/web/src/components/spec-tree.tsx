@@ -129,6 +129,76 @@ export function defaultExpanded(nodes: TreeNode[]): Set<string> {
  * 가지 하나를 접은 것이 전수 목록의 첫 화면을 부분으로 만든다(같은 화면에 106과 141이
  * 동시에 뜨던 원인 — 실측 2026-08-29).
  */
+/**
+ * 펴기/접기 표식 — REQ-WEB-170.
+ *
+ * **글꼴 글리프(`▾`/`▸`)를 쓰지 않는다.** 2026-09-21 까지 이 자리는 `text-2xs`(10.5px)
+ * 삼각형 글자였고 색은 `text-text-faint` 라 **바로 옆 제목(`text-text-mute`)보다 흐렸다** —
+ * 줄에서 가장 중요한 조작이 가장 안 보였다(사람 보고). 글리프는 폰트마다 크기와 베이스라인이
+ * 달라 줄마다 흔들리기도 한다.
+ *
+ * **방향은 회전으로 말한다.** 두 글자(`▾`·`▸`)를 구별하는 것보다 같은 도형이 90° 도는 편이
+ * 눈에 빠르고, 애니메이션이 그 변화를 한 번 더 짚어 준다.
+ */
+function Chevron({ open }: { open: boolean }): React.JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={cn('transition-transform duration-150', open ? 'rotate-90' : undefined)}
+    >
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+/**
+ * 전체 펴기/접기 아이콘 — REQ-WEB-171.
+ *
+ * 화살표 둘이 **모이거나 벌어진다**: 접기는 위아래에서 가운데로, 펴기는 가운데에서 밖으로.
+ * 글자 없이도 방향이 읽히는 것이 좁은 머리줄의 조건이다.
+ *
+ * **가운데 선을 두지 않는다**(2026-09-21 실측). 처음에는 두 화살표 사이에 가로선을 그었는데,
+ * 14px 에서 선과 두 꼭짓점이 겹쳐 **별표(✳)처럼** 보였다 — 방향이 읽히기는커녕 무슨 도형인지
+ * 알 수 없었다. 스크린샷으로 보기 전에는 몰랐던 자리다.
+ */
+function FoldAll({ collapsed }: { collapsed: boolean }): React.JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {collapsed ? (
+        // 펴기 — 가운데에서 위아래로 벌어진다
+        <>
+          <path d="M7 9l5-5 5 5" />
+          <path d="M7 15l5 5 5-5" />
+        </>
+      ) : (
+        // 접기 — 위아래에서 가운데로 모인다
+        <>
+          <path d="M7 4l5 5 5-5" />
+          <path d="M7 20l5-5 5 5" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function storageKeyFor(projectSlug: string, variant: SpecTreeVariant): string {
   return `nerv.tree.${projectSlug}.${variant}`;
 }
@@ -323,6 +393,10 @@ export function SpecTree({
 
   const shown = visible.length;
   const total = nodes.length;
+  /** 접을 것이 있는가 — 가지가 하나도 없는 트리에 서는 토글은 아무 일도 하지 않는다 */
+  const hasBranches = nodes.some((node) => (byParent.get(node.id) ?? []).length > 0);
+  /** 하나라도 펴져 있으면 다음 조작은 **접기**다 — 아이콘이 지금 상태를 말한다 */
+  const anyOpen = open.size > 0;
 
   // 200 노드를 넘으면 창 밖은 그리지 않는다 — 최초 페인트가 전체 트리를 요구하지 않게.
   const virtualized = shown > VIRTUAL_THRESHOLD;
@@ -339,15 +413,19 @@ export function SpecTree({
       <div className="group flex items-center rounded-nerv-sm hover:bg-bg-hover">
         {/* 자식이 없어도 자리를 비운다 — 삼각형 유무로 들여쓰기가 어긋나면
             트리가 계단처럼 보인다 */}
-        {children.length === 0 && <span aria-hidden="true" className="w-4 shrink-0" />}
+        {children.length === 0 && <span aria-hidden="true" className="size-6 shrink-0" />}
         {children.length > 0 && (
           <button
             type="button"
+            data-testid="tree-toggle"
             aria-label={isOpen ? t('specs.collapse') : t('specs.expand')}
-            className="w-4 shrink-0 text-2xs text-text-faint hover:text-text"
+            // 상태를 **이름이 아니라 상태로** 말한다 — aria-label 만으로는 스크린 리더가
+            // "지금 펴져 있는가" 를 읽지 못한다(라벨은 다음에 일어날 일이다)
+            aria-expanded={isOpen}
+            className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute hover:bg-bg-active hover:text-text"
             onClick={() => toggle(node.id)}
           >
-            {isOpen ? '▾' : '▸'}
+            <Chevron open={isOpen} />
           </button>
         )}
         <Link
@@ -427,17 +505,37 @@ export function SpecTree({
       className={cn(variant === 'rail' ? 'flex min-h-0 flex-1 flex-col' : undefined)}
     >
       {heading !== undefined && (
-        <div className="mb-1 flex items-center justify-between px-2">
-          <span className="text-2xs font-semibold tracking-[0.07em] text-text-ghost uppercase">
+        <div className="mb-1 flex items-center gap-1 px-2">
+          <span className="flex-1 truncate text-2xs font-semibold tracking-[0.07em] text-text-ghost uppercase">
             {heading}
           </span>
+          {/* **전체 펴기/접기는 레일에도 있다**(2026-09-21 — 사람 요청 · REQ-WEB-171).
+              §2.4b 가 2026-08-23 에 "좁은 사이드바에는 두지 않는다" 고 적었는데, 그 판단은
+              레일 기본값이 깊이 1이던 시절의 것이다 — 2026-08-30 에 기본이 **전부 펼침**이
+              되면서 전제가 뒤집혔다: 141편이 모두 펼쳐진 좁은 레일에서 필요한 것은 오히려
+              접을 수단이다.
+              **단추 둘 대신 토글 하나다.** 좁은 자리에서 둘을 나란히 두면 머리줄이 빽빽해지고,
+              하나면 그 아이콘이 **지금 상태까지** 말한다(전수 목록 쪽은 글자 단추 둘 그대로 —
+              폭이 있고 두 조작이 각각 자주 쓰인다). */}
+          {hasBranches && (
+            <button
+              type="button"
+              data-testid="tree-toggle-all"
+              aria-label={anyOpen ? t('specs.collapse_all') : t('specs.expand_all')}
+              title={anyOpen ? t('specs.collapse_all') : t('specs.expand_all')}
+              onClick={() => setOpen(anyOpen ? new Set() : defaultExpanded(nodes))}
+              className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute hover:bg-bg-active hover:text-text"
+            >
+              <FoldAll collapsed={!anyOpen} />
+            </button>
+          )}
           {/* **수는 둘이다.** 총계만 적으면 트리는 141 을 약속하고 106 만 지킨다.
               접었을 때 무엇이 감춰졌는지가 이 수로 보인다(REQ-WEB-102) */}
           <span
             data-testid="tree-count"
             aria-label={t('specs.count.shown_total', { shown, total })}
             title={t('specs.count.shown_total', { shown, total })}
-            className="text-2xs text-text-ghost tabular-nums"
+            className="shrink-0 text-2xs text-text-ghost tabular-nums"
           >
             {t('specs.count.short', { shown, total })}
           </span>

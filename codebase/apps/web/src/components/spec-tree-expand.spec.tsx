@@ -186,3 +186,48 @@ describe('전수 목록 — 목록에 없으면 열람도 없다 (REQ-WEB-101)',
     expect(full.getByTestId('tree-count').textContent).toBe('표시 1 / 전체 3');
   });
 });
+
+// ── 레일의 조작 — 2026-09-21 사람 보고 ────────────────────────────────────────
+//
+// "좌측의 스펙 목록에 펴기/접기 버튼이 너무 작고 텍스트와 구분이 쉽지 않다. 전체
+// 펴기/접기 버튼도 있었으면 한다."
+//
+// 캐럿은 `text-2xs`(10.5px) 글리프였고 색이 `text-text-faint` 라 **바로 옆 제목보다
+// 흐렸다** — 줄에서 가장 중요한 조작이 가장 안 보였다(REQ-WEB-170). 전체 토글은
+// 전수 목록에만 있었는데(§2.4b "좁은 사이드바에는 두지 않는다" · 2026-08-23), 그 판단은
+// 레일 기본이 깊이 1이던 시절의 것이다 — 전부 펼침이 기본이 된 뒤로는 접을 수단이
+// 오히려 레일에 필요하다(REQ-WEB-171).
+
+describe('레일의 펴기/접기 (REQ-WEB-170·171)', () => {
+  it('캐럿은 24px 타깃이고 지금 상태를 aria 로 말한다', async () => {
+    const { rail } = await renderTree('/p/demo/specs');
+    const caret = rail.getAllByTestId('tree-toggle')[0]!;
+    // 10.5px 글리프가 아니라 **단추**다 — `size-6` 이 24×24 를 만든다(WCAG 2.5.8)
+    expect(caret.className).toContain('size-6');
+    // 라벨은 "다음에 일어날 일" 이라 지금 상태를 말하지 못한다 — 그래서 둘 다 둔다
+    expect(caret.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(caret);
+    expect(rail.getAllByTestId('tree-toggle')[0]!.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('머리줄의 토글 하나가 전부 접고 전부 편다', async () => {
+    const { rail } = await renderTree('/p/demo/specs');
+    const all = rail.getByTestId('tree-toggle-all');
+    // 하나라도 펴져 있으면 다음 조작은 접기다 — 아이콘이 지금 상태를 말한다
+    expect(all.getAttribute('aria-label')).toBe('전체 접기');
+
+    fireEvent.click(all);
+    expect(rail.queryByText('자식')).toBeNull();
+    expect(rail.getByTestId('tree-toggle-all').getAttribute('aria-label')).toBe('전체 펼치기');
+
+    fireEvent.click(rail.getByTestId('tree-toggle-all'));
+    expect(rail.queryByText('손자')).not.toBeNull();
+  });
+
+  it('접으면 머리의 수도 같이 줄어든다 — 무엇이 감춰졌는지가 그 수다', async () => {
+    const { rail } = await renderTree('/p/demo/specs');
+    expect(rail.getByTestId('tree-count').textContent).toBe('3 / 3');
+    fireEvent.click(rail.getByTestId('tree-toggle-all'));
+    expect(rail.getByTestId('tree-count').textContent).toBe('1 / 3');
+  });
+});
