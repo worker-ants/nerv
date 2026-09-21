@@ -85,20 +85,22 @@ The value is **for display only**. A header can say anything, so it never enters
 
 ## 3-A. Install the plugin in Claude Code
 
-Two lines inside Claude Code.
+Two lines inside Claude Code. **You take what this server ships.**
 
 ```text
-/plugin marketplace add worker-ants/nerv
+/plugin marketplace add {{server}}/plugin/marketplace.json
 /plugin install nerv@nerv
 ```
 
-To take what this server ships instead, change only the first line — `add {{server}}/plugin/marketplace.json`. They are **two transports for the same marketplace**, so the install command is unchanged (don't register both at once).
-
 Then **restart**. You should see `nerv` v{{version}} listed as active under `/plugin`.
 
-The server builds the catalogue itself, so **there is nothing to edit after you install** — its own address is already in there. If your deployment uses an internal git marketplace instead, put that git URL in and install `nerv@nerv-internal`.
+You take it from here because **the version then matches this server** — the server builds the catalogue itself, so what you get is always the build this server expects. On a network that cannot reach out, it is also the only way.
 
-> If the install is refused with `Archive URLs must use https://…`, this server is **not on https, or is on an internal address**. Adding the marketplace succeeding and the install failing is the expected shape of that problem — ask an administrator to check the server's public URL setting.
+> **If the install fails from this address, take it from GitHub instead** — change only the first line to `add worker-ants/nerv`. The install command is unchanged and **the files you get are the same** (they are two transports for one marketplace — don't register both at once).
+>
+> The server path needs all three of **https, a public address, and a trusted CA**. A refusal reading `Archive URLs must use https://…` is one of the first two (the card above says so in advance); a certificate error is the third — **a certificate from an internal CA is invisible to the browser, so the card cannot know about it.**
+
+If your deployment uses an internal git marketplace instead, put that git URL in and install `nerv@nerv-internal`.
 
 **Two things have to be there already** — the hook forwarder uses `curl`, and the statusline and outbox use `jq`. Without them nothing errors; they simply **do nothing, quietly.**
 

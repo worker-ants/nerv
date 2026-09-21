@@ -85,20 +85,22 @@ export NERV_HOSTNAME="$(hostname -s)"
 
 ## 3-A. Claude Code에 플러그인 설치
 
-Claude Code 안에서 두 줄입니다.
+Claude Code 안에서 두 줄입니다. **이 서버가 배포하는 것을 받습니다.**
 
 ```text
-/plugin marketplace add worker-ants/nerv
+/plugin marketplace add {{server}}/plugin/marketplace.json
 /plugin install nerv@nerv
 ```
 
-이 서버가 배포한 것을 받고 싶으면 첫 줄만 바꿉니다 — `add {{server}}/plugin/marketplace.json`. 둘은 **같은 마켓플레이스의 두 전송로**라 설치 명령은 그대로입니다(둘을 동시에 등록하지는 않습니다).
-
 그리고 **재시작**합니다. `/plugin` 목록에 `nerv` v{{version}}이 활성으로 보이면 됩니다.
 
-서버가 카탈로그를 직접 만들기 때문에 **받은 뒤에 고칠 것이 없습니다** — 서버 주소가 이미 들어 있습니다. 사내 git 마켓플레이스를 쓰는 배치라면 그 git URL 을 대신 넣습니다(`/plugin install nerv@nerv-internal`).
+이쪽으로 받는 이유는 **버전이 이 서버에 맞기** 때문입니다 — 카탈로그를 이 서버가 직접 만들므로, 받는 것은 언제나 이 서버가 기대하는 판입니다. 밖으로 나갈 수 없는 망에서는 이 길뿐이기도 합니다.
 
-> 설치가 `Archive URLs must use https://…` 로 거부되면 이 서버가 **https 가 아니거나 내부 주소**입니다. 마켓플레이스 추가까지는 되고 설치에서 막히는 것이 정상 동작입니다 — 관리자에게 서버 공개 주소 설정을 확인해 달라고 하세요.
+> **이 주소로 설치가 안 되면 GitHub 에서 받습니다** — 첫 줄만 `add worker-ants/nerv` 로 바꿉니다. 설치 명령은 그대로이고 **받는 파일도 같습니다**(같은 마켓플레이스의 두 전송로입니다 — 둘을 동시에 등록하지는 않습니다).
+>
+> 서버 경로는 **https · 공개 주소 · 신뢰된 CA** 셋을 다 요구합니다. `Archive URLs must use https://…` 로 거부되면 앞의 둘이고(위 카드가 그것은 미리 말합니다), 인증서 오류로 끝나면 셋째입니다 — **사내 CA 로 낸 인증서는 브라우저에서 알 수 없어 카드도 모릅니다.**
+
+사내 git 마켓플레이스를 쓰는 배치라면 그 git URL 을 대신 넣습니다(`/plugin install nerv@nerv-internal`).
 
 **미리 있어야 하는 것 둘** — 훅 포워더는 `curl`, statusline 과 아웃박스는 `jq` 를 씁니다. 없으면 오류를 내지 않고 **조용히 아무 일도 하지 않습니다.**
 
