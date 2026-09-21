@@ -87,6 +87,30 @@ describe('PAT 발급 (EP-TOK-02)', () => {
     expect(dump.rows[0]?.n).toBe(1);
   });
 
+  it('발급 응답은 자기가 어느 프로젝트의 것인지 말한다 (REQ-API-160)', async () => {
+    // **원문은 이 응답 한 번뿐이다.** 값만 돌려주던 동안, 받은 사람이 들고 나가는 것은
+    // 문자열 하나였고 그것이 어느 프로젝트·어떤 권한·언제까지인지는 창을 닫는 순간
+    // 사라졌다(목록에는 원문이 없어 대조할 것도 접두뿐이다 — 2026-09-21 사람 보고).
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const issued = await auth.issueToken({
+      projectId,
+      userId,
+      name: 'mac-02/claude-code',
+      scopes: ['spec:read'],
+      expiresAt,
+    });
+
+    const { rows } = await pool.query<{ slug: string; name: string }>(
+      `SELECT slug, name FROM project WHERE id = $1`,
+      [projectId],
+    );
+    expect(issued.project.slug).toBe(rows[0]?.slug);
+    expect(issued.project.name).toBe(rows[0]?.name);
+    expect(issued.name).toBe('mac-02/claude-code');
+    expect(issued.expires_at).toBe(expiresAt.toISOString());
+    expect(issued.scopes).toEqual(['spec:read']);
+  });
+
   it('사람 전용 권한은 부여 자체가 불가능하다 — 정책이 아니라 불변식이다', async () => {
     await expect(
       auth.issueToken({

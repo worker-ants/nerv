@@ -635,6 +635,22 @@ export function useTokens(): UseQueryResult<Row[]> {
 }
 
 /**
+ * EP-TOK-04 — 조직 전체 토큰(admin). "누가 어느 프로젝트에 무슨 토큰을 갖고 있나" 는
+ * 내 목록으로는 답이 나오지 않는 물음이고, 서버는 2026-08 부터 답할 수 있었다.
+ *
+ * **admin 일 때만 부른다.** 서버가 admin 을 강제하므로 아니면 403 인데, 그 403 은
+ * 화면에 아무것도 더해 주지 않으면서 오류 토스트만 띄운다 — 볼 수 없는 것을 부르지 않는
+ * 쪽이 "권한이 없으면 화면에 그 자리가 없다" 는 §1.8 과도 맞는다.
+ */
+export function useOrgTokens(orgSlug: string | null, isAdmin: boolean): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: ['org', orgSlug, 'tokens'],
+    queryFn: () => apiFetch<Row[]>(`/orgs/${orgSlug ?? ''}/tokens`),
+    enabled: isAdmin && orgSlug !== null,
+  });
+}
+
+/**
  * **내게 온 초대** — 홈·온보딩·알림 세 화면이 같은 값을 쓴다(EP-INV-06).
  *
  * 알림 테이블을 타지 않는 이유가 있다: `notification.project_id` 는 NOT NULL 인데 조직
