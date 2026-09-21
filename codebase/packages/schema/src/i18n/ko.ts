@@ -777,6 +777,12 @@ export const ko = {
   'help.ch.tasks': '작업',
   'help.copied': '복사했습니다',
   'help.copy': '복사',
+  'help.env.blocked_loopback':
+    '이 주소로는 플러그인이 설치되지 않습니다 — 루프백·링크로컬 주소({detail})는 거부됩니다. 마켓플레이스 추가까지는 되고 설치에서 막힙니다.',
+  'help.env.blocked_not_https':
+    '이 주소로는 플러그인이 설치되지 않습니다 — 아카이브 URL 은 https 여야 하는데 지금은 {detail} 입니다. 마켓플레이스 추가까지는 되고 설치에서 막힙니다.',
+  'help.env.blocked_unparsable':
+    '이 주소로는 플러그인이 설치되지 않습니다 — 주소를 해석할 수 없습니다({detail}). 관리자에게 서버 공개 주소 설정을 확인해 달라고 하세요.',
   'help.env.example': '예시',
   'help.env.hint':
     '“예시”라고 붙은 값은 이 화면이 아직 모르는 것입니다 — 채워진 값은 이 배치의 실제 값이라 그대로 쓰시면 됩니다.',

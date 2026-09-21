@@ -191,6 +191,35 @@ describe('설치 장의 환경값 (REQ-WEB-165)', () => {
     expect(text).not.toContain(window.location.origin);
   });
 
+  /**
+   * **`marketplace add` 는 되고 `install` 만 거부된다**(실측 2026-09-04). 말해 주지
+   * 않으면 사람은 "추가는 됐는데 설치가 안 된다" 를 혼자 좇는다 — 화면이 서버가 허용할
+   * 것을 미리 말하는 자리다(§1.8). 판정의 정본은 `@nerv/schema` 이고 서버도 같은 것을
+   * 본다(REQ-CB-006).
+   */
+  it('설치가 안 되는 주소면 카드가 먼저 말한다 — https 가 아니다', async () => {
+    resetRuntimeConfigForTesting({ apiBase: 'http://api.split.test' });
+    renderAt('/help/install');
+    await waitFor(() => expect(screen.getByTestId('manual-env-blocked')).toBeDefined());
+    expect(screen.getByTestId('manual-env-blocked').textContent).toContain('https');
+    // 무엇이 문제인지 값으로 말한다 — "설정을 확인하세요" 만으로는 어디를 볼지 모른다
+    expect(screen.getByTestId('manual-env-blocked').textContent).toContain('http://');
+  });
+
+  it('루프백도 거부된다 — 개발 루프가 정확히 그 자리다', async () => {
+    resetRuntimeConfigForTesting({ apiBase: 'https://localhost:8443' });
+    renderAt('/help/install');
+    await waitFor(() => expect(screen.getByTestId('manual-env-blocked')).toBeDefined());
+    expect(screen.getByTestId('manual-env-blocked').textContent).toContain('localhost');
+  });
+
+  it('설치되는 주소에는 그 줄이 없다 — 정상 운영에서는 한 번도 안 보인다', async () => {
+    resetRuntimeConfigForTesting({ apiBase: 'https://api.split.test' });
+    renderAt('/help/install');
+    await waitFor(() => expect(screen.getByTestId('manual-env-card')).toBeDefined());
+    expect(screen.queryByTestId('manual-env-blocked')).toBeNull();
+  });
+
   it('다른 장에는 값 카드가 없다 — 채울 값이 없는 장에 카드가 서면 잡음이다', async () => {
     renderAt('/help/tasks');
     await waitFor(() => expect(screen.getByTestId('manual-body')).toBeDefined());

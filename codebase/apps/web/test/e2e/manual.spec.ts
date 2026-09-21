@@ -100,6 +100,12 @@ test('설치 장의 주소가 이 배치의 주소다 — 예시 주소가 남�
   // 자리표시자가 그대로 찍히면 채우는 쪽이 끊긴 것이다 — 빈칸보다 이쪽이 더 흔하다
   expect(text).not.toMatch(/\{\{\w+\}\}/);
 
+  // **이 스택은 http://localhost 다 — 설치가 거부되는 바로 그 주소다**(4.6 §3.5).
+  // 판정은 L1 이 전수로 세지만(`help.spec.tsx`), 그 판정이 읽는 값은 앞문이 만든
+  // `/config.json` 이라 여기서만 끝까지 이어진다. 정상 운영(https + 공개 호스트)에서는
+  // 이 줄이 보이지 않는다.
+  await expect(page.getByTestId('manual-env-blocked')).toContainText('https');
+
   // 코드블록은 복사하라고 있는 것이다 — 단추가 붙었고 눌러서 글자가 바뀌는지까지 본다
   const copy = body.locator('[data-copy]').first();
   await expect(copy).toHaveText('복사');

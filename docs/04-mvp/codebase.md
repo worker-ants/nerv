@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.52 · 2026-09-20 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.53 · 2026-09-21 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.53 변경(2026-09-21 — 표면 둘이 같은 판정을 봐야 했다, 사람 지시): **새 요구사항 없음 · REQ-CB-006 의 적용례 하나 · §1.2 표와 §3.1 트리 정정.** 설치 가능한 아카이브 주소인지의 판정(`checkPluginInstallUrl` — [4.6](plugin.md) §3.5 의 실측 제약)이 `apps/api` 안에 있었는데, 화면도 같은 사실을 말해야 했다([4.5](screens.md) REQ-WEB-165 — 설치 장의 값 카드). `apps/web` 은 `apps/api` 를 import 하지 않으므로(REQ-CB-001) 판정이 갈 곳은 `@nerv/schema` 다. **두 벌로 두는 길은 없다** — 두면 한쪽만 고쳐지고, 그때 어느 쪽이 맞는지는 아무도 모른다. 곁들여 **이 문서가 이미 뒤처져 있던 두 자리를 고쳤다**: ① §1.2 의 `packages/schema` 행이 "하지 않는 일" 을 "순수 선언 + 마이그레이터 + 번역기만" 으로 적고 있었는데 `evidence-locator.ts`(2026-09-07)·`redact.ts` 는 그 셋 중 어느 것도 아니다 — **표면이 공유하는 순수 판정**이 네 번째 부류라고 적었다(경계는 그대로다: 던지지 않고 문구를 모른다). ② §3.1 의 `packages/schema` 트리에 그 판정 둘이 빠져 있었다.
 >
 > v1.52 변경(2026-09-20 — 네임스페이스 없이 렌더되던 셋, 실측 → 사람 지시): **새 요구사항 없음 — REQ-CB-046 에 일곱째 검사 추가 · `base/web` 의 `namespace` · §6.2 전문 재동기화.** ① **`base/web/` 의 셋(Deployment·Service·Ingress)이 네임스페이스 없이 렌더되고 있었다.** `base/kustomization.yaml` 의 `namespace: nerv` 는 **그 kustomization 의 resources 에만** 미치는데, 오버레이는 `../../base/web` 을 `resources` 에 **따로** 더하고 오버레이 자체에는 `namespace:` 가 없었다(dev·prod 둘 다). 네임스페이스 없는 문서는 `kubectl` 이 **호출한 쪽의 기본값**으로 보낸다 — 배포 파이프라인의 에이전트 파드가 자기 네임스페이스로 `nerv-web` 을 보내 `forbidden` 으로 막히면서 드러났고, **거기 권한이 있었다면 막히지도 않고 엉뚱한 네임스페이스에 떴을 것이다.** 고친 것은 `base/web/kustomization.yaml` 의 `namespace: nerv` 한 줄이다. ② **게이트가 그것을 센다**(REQ-CB-046 일곱째): 네임스페이스를 갖는 리소스가 하나도 빠짐없이 **한 곳**에 있고, 그곳이 렌더된 `Namespace` 와 같은 이름인가. v1.51 이 고친 "경로 0개" 와 같은 부류다 — 렌더도 `apply` 도 문법은 멀쩡하고, 틀린 것은 **어디에 뜨는가**뿐이라 배포가 끝난 뒤에 드러난다. ③ **§6.2 의 `base/kustomization.yaml` 전문이 실물과 갈라져 있었다** — v1.51 이 `web/` 을 base resources 밖으로 옮기면서 산문만 고치고 전문에 `web/deployment.yaml`·`web/service.yaml` 두 줄을 남겼다(v1.22·v1.50 이 고친 것과 같은 드리프트다). 실물에서 그대로 가져와 바이트로 맞췄다.
 >
@@ -224,7 +226,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | `apps/web` | `@nerv/web` | S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화 | 비즈니스 규칙 판정(전부 API에 위임 — [3.2](../03-proposal/architecture.md) §1.3) |
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
 | `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~06 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
-| `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), 마이그레이션 파일 | 런타임 로직(순수 선언 + 마이그레이터 + 번역기만 — §3.4가 근거) |
+| `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), **표면이 공유하는 순수 판정**(§3.1), 마이그레이션 파일 | 런타임 로직(위 넷 + 마이그레이터만 — §3.4가 근거). 판정은 **던지지 않고 문구를 모른다** — 에러로 옮기는 것도 화면 문구로 옮기는 것도 표면의 일이다 |
 | `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 5종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
@@ -517,6 +519,9 @@ packages/schema/
     constants.ts                 # §3.2 상수 전표
     events.ts                    # 이벤트 이름 리터럴 유니온 — `<리소스>.<동사>` (정본: 3.5 §6)
     errors.ts                    # NERV_* 에러 코드 리터럴 유니온 (정본: 3.4 §2.7)
+    evidence-locator.ts          # 증적 locator 형식 판정 — REST·MCP 가 같은 것을 본다 (정본: 4.4 §2.4)
+    plugin-install.ts            # 설치 가능한 아카이브 주소인가 — API 로그와 설치 장 카드가
+                                 #   같은 것을 본다 (정본: 4.6 §3.5 · 4.5 REQ-WEB-165)
     i18n/                        # §3.4 문구 카탈로그 — 웹·API·CLI 공용
       ko.ts                      #   원본(키 집합의 정본) · en.ts 는 같은 키를 타입으로 강제받는다
       translator.ts              #   자리표시자 치환 + 타입 (순수 함수)

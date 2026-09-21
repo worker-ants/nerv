@@ -7,15 +7,34 @@
 // 본문의 자리표시자는 `manual-vars.ts` 가 채운다. 이 카드는 **그 값들이 어디서 왔는지**를
 // 한자리에서 말한다 — 채워진 값과 예시값이 같은 활자로 섞여 있으면, 복사해도 되는지
 // 판단할 길이 없다.
+//
+// 그리고 **그 주소로 설치가 되는지도 여기서 말한다**(§1.8 — 화면은 서버가 허용할 것을
+// 미리 말한다). `marketplace add` 는 http·루프백으로도 성공하고 `install` 만 거부하므로,
+// 말해 주지 않으면 사람은 "추가는 됐는데 설치가 안 된다" 를 혼자 좇는다(실측 2026-09-04).
+// 판정의 정본은 `@nerv/schema` 하나이고 서버도 같은 것을 본다(REQ-CB-006) — 두 벌이면
+// 한쪽만 고쳐지고, 그때 어느 쪽이 맞는지는 아무도 모른다.
 
 import { useState } from 'react';
+import { checkPluginInstallUrl } from '@nerv/schema';
 import type { MessageKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import type { ManualVarName, ManualVars } from '../../lib/manual-vars.js';
 import { Button, Card } from '../../components/ui/primitives.js';
 
-/** 이 카드가 부르는 이름들 — 전부 자리표시자가 없어 `t()` 가 인자를 요구하지 않는다. */
-type EnvLabelKey = Extract<MessageKey, `help.env.${string}`>;
+/**
+ * 줄 이름 넷 — **`help.env.` 전체로 두지 않는다.** 이 접두사에는 `{detail}` 을 받는
+ * `blocked_*` 도 있고, 합집합으로 두면 자리표시자도 합집합이 되어 `t(row.labelKey)` 가
+ * "인자를 더 달라" 로 컴파일되지 않는다(`manual.ts` 의 `ManualTitleKey` 와 같은 함정).
+ */
+type EnvLabelKey = Extract<MessageKey, `help.env.${'server' | 'project' | 'role' | 'version'}`>;
+
+/** 막힌 이유 → 문구. 이유가 늘면 여기서 컴파일이 막힌다 — 조용히 빈 줄이 되지 않는다. */
+type BlockedKey = Extract<MessageKey, `help.env.blocked_${string}`>;
+const BLOCKED: Readonly<Record<'unparsable' | 'not_https' | 'loopback', BlockedKey>> = {
+  unparsable: 'help.env.blocked_unparsable',
+  not_https: 'help.env.blocked_not_https',
+  loopback: 'help.env.blocked_loopback',
+};
 
 /** 카드가 싣는 넷 — 순서가 설치 장이 묻는 순서다(주소 → 프로젝트 → 역할, 그리고 버전). */
 const ROWS: readonly { name: ManualVarName; labelKey: EnvLabelKey }[] = [
@@ -30,6 +49,8 @@ export function InstallEnvCard({ vars }: { vars: ManualVars }): React.JSX.Elemen
   // 하나라도 예시가 섞였으면 그 사실을 문장으로 말한다 — 배지만으로는 "예시" 가 무슨
   // 뜻인지(내가 뭘 해야 채워지는지) 알 수 없다.
   const anyExample = ROWS.some((row) => !vars.known[row.name]);
+  // **예시값은 판정하지 않는다** — 그 주소는 이 배치의 것이 아니라 문서의 글자다.
+  const blocked = vars.known.server ? checkPluginInstallUrl(vars.values.server) : { ok: true };
 
   return (
     <Card data-testid="manual-env-card" className="mb-6">
@@ -53,6 +74,18 @@ export function InstallEnvCard({ vars }: { vars: ManualVars }): React.JSX.Elemen
         ))}
       </dl>
       {anyExample && <p className="mt-2.5 text-xs text-text-faint">{t('help.env.hint')}</p>}
+
+      {/* 빨강이 아니라 주의다 — 이 배치가 고장 난 것이 아니라 **이 한 경로**가 막힌
+          것이고, 개발 루프는 손으로 넣는 길을 쓰라고 명세가 적어 둔 자리다(4.6 §3.5). */}
+      {!blocked.ok && blocked.reason !== undefined && (
+        <p
+          data-testid="manual-env-blocked"
+          className="mt-2.5 rounded-nerv border border-status-waiting/30 bg-status-waiting-soft px-2.5
+            py-1.5 text-xs text-status-waiting"
+        >
+          {t(BLOCKED[blocked.reason], { detail: blocked.detail ?? '' })}
+        </p>
+      )}
     </Card>
   );
 }
