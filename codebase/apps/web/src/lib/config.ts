@@ -43,6 +43,25 @@ export function apiBase(): string {
   return current.apiBase;
 }
 
+/**
+ * 서버가 준 **API 상대 주소**를 이 배치의 API 오리진에 붙인다 — 첨부처럼 `fetch` 가 아니라
+ * `<img src>`·`<a href>` 로 브라우저가 직접 부르는 주소가 여기를 탄다.
+ *
+ * **저장되는 것은 상대 주소이고 붙이는 것은 볼 때다.** 서버는 첨부 주소를
+ * `/api/v1/projects/{slug}/attachments/{id}` 로 준다(docs/04-mvp/api.md REQ-API-089)
+ * — 그 모양이 정본인 이유는 소비자마다 앞에 붙일 것이 다르기 때문이다:
+ * 에이전트는 `$NERV_SERVER`, 화면은 이 함수다. 본문(md)에 절대 주소를 박으면 그 문서가
+ * 이 배치에 묶여, 도메인을 바꾼 날 옛 스펙의 그림이 전부 깨진다.
+ *
+ * **`fetch` 는 이 함수를 타지 않는다** — 그쪽은 `apiFetch`(`api.ts`)가 이미 같은 일을 한다.
+ * 여기가 필요한 자리는 브라우저가 주소를 **스스로 해소하는** 자리뿐이고, 그 자리에서
+ * 상대 주소는 화면이 뜬 오리진으로 간다 — 호스트를 가른 배치에서는 그쪽에 API 가 없다
+ * (docs/04-mvp/scope.md §2.3 4단계).
+ */
+export function apiHref(path: string): string {
+  return `${current.apiBase}${path}`;
+}
+
 /** 테스트가 모듈 상태를 되돌린다 — 남으면 다음 테스트가 앞 테스트의 배포 설정을 물려받는다. */
 export function resetRuntimeConfigForTesting(config: RuntimeConfig = SAME_ORIGIN): void {
   current = config;
