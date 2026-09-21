@@ -210,8 +210,74 @@ describe('E09-S11 임베딩 적재', () => {
     stubDimensions = 768;
     try {
       const report = await embeddings.runOnce({ projectId });
-      expect(report.error).toContain('1024');
+      expect(report.error).toContain('짧습니다');
       expect(report.chunks_embedded).toBe(0);
+    } finally {
+      stubDimensions = DIMENSIONS;
+    }
+  });
+
+  /**
+   * **긴 벡터는 잘라 맞출 수 있다**(2026-09-22 사람 보고 · REQ-CB-047).
+   *
+   * 운영에서 `text-embedding-qwen3-embedding-8b`(네이티브 4096)를 붙였더니 전 배치가
+   * 거절됐다. pgvector 에서 4096 은 **인덱스를 만들 수 없으므로**(실측 0.8.6: hnsw 는
+   * `vector` 2000 · `halfvec` 4000 이 상한) 차원 고정을 푸는 것으로는 풀리지 않는다 —
+   * MRL 모델이면 받는 쪽에서 자르는 것이 그 모델의 공식 경로다.
+   */
+  it('MRL 절단을 켜면 긴 벡터가 스키마 차원으로 들어온다 (REQ-CB-047)', async () => {
+    stubDimensions = 4096;
+    try {
+      const [vector] = await new EmbeddingClient({
+        baseUrl: `http://127.0.0.1:${stubPort}/v1`,
+        model: 'stub-4096',
+        truncate: true,
+      }).embed(['테스트']);
+      expect(vector).toHaveLength(EMBEDDING_DIMENSIONS);
+      // **재정규화가 빠지면 코사인 점수가 틀린다** — 자른 벡터의 길이는 1 이 아니다
+      const norm = Math.sqrt((vector ?? []).reduce((sum, v) => sum + v * v, 0));
+      expect(norm).toBeCloseTo(1, 10);
+    } finally {
+      stubDimensions = DIMENSIONS;
+    }
+  });
+
+  it('절단이 꺼져 있으면 왜 막혔는지와 손잡이를 말한다 (REQ-CB-047)', async () => {
+    stubDimensions = 4096;
+    try {
+      // `dimensions` 를 실었는데도 길게 왔다 = **제공자가 그 인자를 무시했다**
+      const err = await new EmbeddingClient({
+        baseUrl: `http://127.0.0.1:${stubPort}/v1`,
+        model: 'stub-4096',
+        sendDimensions: true,
+      })
+        .embed(['테스트'])
+        .then(
+          () => null,
+          (e: unknown) => String(e),
+        );
+      expect(err).toContain('4096');
+      expect(err).toContain('무시했다');
+      expect(err).toContain('NERV_EMBED_TRUNCATE');
+    } finally {
+      stubDimensions = DIMENSIONS;
+    }
+  });
+
+  it('짧은 벡터는 절단을 켜도 거절한다 — 늘릴 방법이 없다 (REQ-CB-047)', async () => {
+    stubDimensions = 768;
+    try {
+      const err = await new EmbeddingClient({
+        baseUrl: `http://127.0.0.1:${stubPort}/v1`,
+        model: 'stub-768',
+        truncate: true,
+      })
+        .embed(['테스트'])
+        .then(
+          () => null,
+          (e: unknown) => String(e),
+        );
+      expect(err).toContain('짧습니다');
     } finally {
       stubDimensions = DIMENSIONS;
     }

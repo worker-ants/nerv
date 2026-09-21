@@ -36,6 +36,18 @@ export interface EmbeddingClientOptions {
    * 돌아와 **검색이 조용히 렉시컬로 degrade** 한다.
    */
   sendDimensions?: boolean;
+  /**
+   * 받은 벡터가 **목표보다 길면** 앞에서 잘라 쓸 것인가 — env `NERV_EMBED_TRUNCATE`
+   * (§5.2a · REQ-CB-047). 기본은 꺼져 있다.
+   *
+   * **MRL(Matryoshka) 로 학습한 모델에서만 켠다.** 그런 모델은 앞쪽 차원에 굵은 정보가
+   * 실리도록 훈련돼 있어서, 자르고 다시 정규화한 벡터가 그 길이로 학습된 벡터와 같은
+   * 구실을 한다 — OpenAI 의 `text-embedding-3` 가 `dimensions` 인자로 서버에서 하는 일이
+   * 정확히 이것이고, Qwen3-Embedding 계열도 32~4096 사용자 지정 차원을 같은 방식으로
+   * 지원한다. **MRL 이 아닌 모델에서 켜면 검색 품질이 조용히 나빠진다** — 그래서 기본이
+   * 꺼짐이고, 켜는 것은 모델 카드를 본 사람의 결정이다.
+   */
+  truncate?: boolean;
   timeoutMs?: number;
 }
 
@@ -106,14 +118,39 @@ export class EmbeddingClient {
 
     // REQ-CB-021 — 차원이 다르면 적재 자체를 막는다. 여기서 통과시키면 INSERT 가
     // 실패하거나(운 좋으면) 인덱스가 조용히 망가진다(운 나쁘면).
-    for (const vector of vectors) {
-      if (vector.length !== EMBEDDING_DIMENSIONS) {
-        throw new Error(
-          `임베딩 차원이 ${EMBEDDING_DIMENSIONS} 가 아닙니다(${vector.length}) — 이 제공자는 프로필로 쓸 수 없다`,
-        );
-      }
+    return vectors.map((vector) => this.fit(vector));
+  }
+
+  /**
+   * 받은 벡터를 스키마 차원에 맞춘다 — 맞출 수 없으면 **그 이유와 손잡이**를 말하고 막는다.
+   *
+   * **거절만 하면 사람은 왜 막혔는지를 모른다**(2026-09-22 사람 보고 · REQ-CB-047). 예전
+   * 문구는 "이 제공자는 프로필로 쓸 수 없다" 하나였는데, 실제 상황은 셋이고 손잡이가
+   * 각각 다르다 — `dimensions` 를 보내지 않았거나 · 보냈는데 제공자가 무시했거나 ·
+   * 모델이 애초에 그 값보다 짧거나. 셋을 구별해 적는다.
+   */
+  private fit(vector: number[]): number[] {
+    if (vector.length === EMBEDDING_DIMENSIONS) return vector;
+
+    // **짧은 것은 늘릴 방법이 없다.** 0 으로 채우면 차원은 맞지만 그 벡터는 거짓이다.
+    if (vector.length < EMBEDDING_DIMENSIONS) {
+      throw new Error(
+        `임베딩 차원이 ${EMBEDDING_DIMENSIONS} 보다 짧습니다(${vector.length}) — ` +
+          `${this.options.model} 은(는) 이 프로필로 쓸 수 없다(짧은 벡터는 늘릴 수 없다).`,
+      );
     }
-    return vectors;
+
+    if (this.options.truncate === true) return truncateTo(vector, EMBEDDING_DIMENSIONS);
+
+    const asked = this.options.sendDimensions === true;
+    throw new Error(
+      `임베딩 차원이 ${EMBEDDING_DIMENSIONS} 가 아닙니다(${vector.length}) — ` +
+        (asked
+          ? `요청에 dimensions: ${EMBEDDING_DIMENSIONS} 를 실었는데 제공자가 그것을 무시했다. `
+          : `NERV_EMBED_SEND_DIMENSIONS 가 꺼져 있어 요청에 dimensions 를 싣지 않았다. `) +
+        `${this.options.model} 이 MRL(Matryoshka) 모델이면 NERV_EMBED_TRUNCATE=true 로 받는 쪽에서 ` +
+        `자르고, 아니면 ${EMBEDDING_DIMENSIONS} 차원을 내는 모델로 바꾼다(§5.2a).`,
+    );
   }
 
   /**
@@ -153,11 +190,38 @@ export class EmbeddingClient {
         'NERV_EMBED_SEND_DIMENSIONS 가 켜져 있지 않다 — OpenAI 프로필은 절단이 필요하다(§5.2a).',
       );
     }
+    const truncate = process.env['NERV_EMBED_TRUNCATE'] === 'true';
+    const model = process.env['NERV_EMBED_MODEL'] ?? 'bge-m3';
+    // **자른다는 사실은 켤 때 한 번 말한다**(REQ-CB-047). 조용히 자르면 나중에 검색
+    // 품질을 의심할 때 볼 곳이 없다 — 벡터는 눈으로 확인할 수 있는 물건이 아니다.
+    if (truncate) {
+      new Logger(EmbeddingClient.name).log(
+        `NERV_EMBED_TRUNCATE 가 켜져 있다 — ${model} 의 벡터를 ${EMBEDDING_DIMENSIONS} 차원으로 ` +
+          `자르고 다시 정규화한다. MRL 로 학습한 모델에서만 뜻이 있다(§5.2a).`,
+      );
+    }
     return new EmbeddingClient({
       baseUrl,
-      model: process.env['NERV_EMBED_MODEL'] ?? 'bge-m3',
+      model,
       apiKey: process.env['NERV_EMBED_API_KEY'],
       sendDimensions,
+      truncate,
     });
   }
+}
+
+/**
+ * 앞 `size` 차원만 남기고 **다시 정규화한다** — MRL 절단의 정의다.
+ *
+ * **재정규화가 빠지면 코사인 거리가 틀린다.** 자른 벡터의 길이는 1 이 아니고, pgvector 의
+ * `<=>` 는 벡터 정규화를 전제하지 않는 대신 내적을 두 길이로 나눈다 — 길이가 제각각이면
+ * 같은 방향의 두 문서가 다른 점수를 받는다. OpenAI 도 `dimensions` 를 줄여 받을 때 서버에서
+ * 같은 일을 한다고 문서에 적는다.
+ *
+ * 길이가 0 인 벡터는 나눌 수 없다 — 그대로 둔다(그 입력은 애초에 검색되지 않는다).
+ */
+export function truncateTo(vector: number[], size: number): number[] {
+  const head = vector.slice(0, size);
+  const norm = Math.sqrt(head.reduce((sum, v) => sum + v * v, 0));
+  return norm === 0 ? head : head.map((v) => v / norm);
 }

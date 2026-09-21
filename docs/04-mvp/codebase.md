@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.53 · 2026-09-21 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.54 · 2026-09-22 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.54 변경(2026-09-22 — 4096 차원 모델이 전 배치 거절을 냈다, 사람 보고): **REQ-CB-047 신설 · REQ-CB-021 개정 · §5.2 전표 한 행 · §5.2a 산문.** 운영에서 `text-embedding-qwen3-embedding-8b`(네이티브 **4096**)를 붙였더니 임베딩이 통째로 멈췄다. **차원 고정을 푸는 것으로는 풀리지 않는다** — 실측(pgvector 0.8.6)으로 hnsw 인덱스의 상한은 `vector` **2000** · `halfvec` **4000** 이라 4096 은 **어느 쪽으로도 인덱스를 만들 수 없다**(컬럼으로 담는 것만 되고, 그러면 검색이 매번 전체 스캔이다). MRL(Matryoshka)로 학습한 모델이면 **앞에서 자르고 다시 정규화하는 것이 그 모델의 공식 경로**이므로(Qwen3-Embedding 은 32~4096 사용자 지정 차원을 그렇게 지원하고, OpenAI 의 `dimensions` 가 서버에서 하는 일도 같다) 받는 쪽에 옵트인 손잡이를 둔다 — `NERV_EMBED_TRUNCATE`. **기본은 꺼짐이다**: MRL 이 아닌 모델에서 켜면 검색 품질이 조용히 나빠지고, 그 판단은 모델 카드를 본 사람의 것이다. 곁들여 **거절 문구가 원인과 손잡이를 말한다** — 예전에는 "이 제공자는 프로필로 쓸 수 없다" 하나였는데 실제 상황은 셋이고 손잡이가 각각 다르다(`dimensions` 를 안 보냈다 · 보냈는데 제공자가 무시했다 · 모델이 애초에 짧다). 그리고 `embedding.job.ts` 가 다시 선언하고 있던 `dimensions = 1024` 를 걷었다(아무도 읽지 않는 사본이고, 스키마를 바꾼 날 혼자 낡는다 — REQ-CB-006).
 >
 > v1.53 변경(2026-09-21 — 표면 둘이 같은 판정을 봐야 했다, 사람 지시): **새 요구사항 없음 · REQ-CB-006 의 적용례 하나 · §1.2 표와 §3.1 트리 정정.** 설치 가능한 아카이브 주소인지의 판정(`checkPluginInstallUrl` — [4.6](plugin.md) §3.5 의 실측 제약)이 `apps/api` 안에 있었는데, 화면도 같은 사실을 말해야 했다([4.5](screens.md) REQ-WEB-165 — 설치 장의 값 카드). `apps/web` 은 `apps/api` 를 import 하지 않으므로(REQ-CB-001) 판정이 갈 곳은 `@nerv/schema` 다. **두 벌로 두는 길은 없다** — 두면 한쪽만 고쳐지고, 그때 어느 쪽이 맞는지는 아무도 모른다. 곁들여 **이 문서가 이미 뒤처져 있던 두 자리를 고쳤다**: ① §1.2 의 `packages/schema` 행이 "하지 않는 일" 을 "순수 선언 + 마이그레이터 + 번역기만" 으로 적고 있었는데 `evidence-locator.ts`(2026-09-07)·`redact.ts` 는 그 셋 중 어느 것도 아니다 — **표면이 공유하는 순수 판정**이 네 번째 부류라고 적었다(경계는 그대로다: 던지지 않고 문구를 모른다). ② §3.1 의 `packages/schema` 트리에 그 판정 둘이 빠져 있었다.
 >
@@ -984,6 +986,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | `/v1/embeddings`의 `model` 인자 · 재임베딩 관리(`spec_chunk_embedding.model` — [4.3](database.md) §2.15) | 제공자·모델 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
 | `NERV_EMBED_API_KEY` | 외부 제공자 시 | — | `Authorization: Bearer` 헤더 | **secret** — 로컬 TEI는 불요. k8s는 `nerv-secrets`(§6.2) |
 | `NERV_EMBED_SEND_DIMENSIONS` | 운영 OpenAI 는 **필수** | `false` | api(질의 임베딩) · worker(`embedding.job`) — `EmbeddingClient.fromEnv` | 요청에 `dimensions` 를 실을 것인가. 1024 를 그대로 내는 모델(bge-m3)은 `false`, 절단이 필요한 모델(`text-embedding-3-*`)은 **`true`**. 2026-09-07 까지 주소에 `api.openai.com` 이 있는지로 **추정**했다 — 게이트웨이(Azure·LiteLLM·사내) 뒤의 같은 모델은 그 주소가 아니라 1536 차원이 돌아왔고, 검색은 오류 없이 렉시컬로 degrade 했다(REQ-CB-033) |
+| `NERV_EMBED_TRUNCATE` | 아니요 | `false` | api(질의 임베딩) · worker(`embedding.job`) — `EmbeddingClient.fromEnv` | 받은 벡터가 스키마 차원(`EMBEDDING_DIMENSIONS`)보다 **길 때** 앞에서 자르고 다시 정규화할 것인가. **MRL(Matryoshka)로 학습한 모델에서만 켠다** — 그렇지 않은 모델에서 켜면 검색 품질이 조용히 나빠진다(REQ-CB-047). 짧은 벡터는 이 값과 무관하게 거절이다(늘릴 방법이 없다). 켜면 기동 때 그 사실을 로그에 한 번 남긴다 |
 | `NERV_EMBED_PORT` | | `8090` | compose 포트 노출(127.0.0.1 한정) | 로컬 프로필 전용 |
 | `NERV_EMBED_TIMEOUT_MS` | | `30000` | 제공자 한 요청의 상한 | **가장 느린 프로필이 기준이다** — 아래 §5.2b |
 | `NERV_EMBED_BATCH_CHARS` | | `6000` | 한 요청에 싣는 문자 예산 | 빠른 제공자(OpenAI)는 올려서 왕복을 줄인다 |
@@ -1029,9 +1032,15 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | --- | --- | --- | --- | --- |
 | **로컬**(기본값) | ollama — compose `embed` 서비스(CPU) | `http://embed:11434/v1` | `bge-m3` | 네이티브 1024차원(F16). API 키 불요. 외부 전송 0. **amd64·arm64 모두 기동**(2026-08-23 개정 — 아래 점화 기록) |
 | **스테이징** | LM Studio(OpenAI 호환 서버) | `http://<lmstudio-host>:1234/v1` | bge-m3 계열(GGUF) | 1024차원 확인 후 사용. `embed` 서비스 미기동 |
-| **운영** | OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | **`NERV_EMBED_SEND_DIMENSIONS=true` 필수**(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021·033. **2026-09-07 부터 이 값을 켜지 않으면 1536 차원이 돌아와 전 배치가 거절된다** — 그전에는 주소로 추정했다). `NERV_EMBED_API_KEY` 필수 |
+| **운영** | OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | **`NERV_EMBED_SEND_DIMENSIONS=true` 필수**(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021·033. **제공자가 그 인자를 무시하면** `NERV_EMBED_TRUNCATE` 로 받는 쪽에서 자른다 — REQ-CB-047. **2026-09-07 부터 이 값을 켜지 않으면 1536 차원이 돌아와 전 배치가 거절된다** — 그전에는 주소로 추정했다). `NERV_EMBED_API_KEY` 필수 |
 
-- **차원은 전 프로필 1024 고정**이다 — `spec_chunk_embedding.embedding vector(1024)`([4.3](database.md) §2.15)와 HNSW 인덱스가 차원에 묶이므로, 1024를 내지 못하는 제공자·모델은 프로필로 쓸 수 없다(REQ-CB-021이 적재 시 검증).
+- **차원은 전 프로필 1024 고정**이다 — `spec_chunk_embedding.embedding vector(1024)`([4.3](database.md) §2.15)와 HNSW 인덱스가 차원에 묶인다. 그 값보다 **짧은** 벡터를 내는 모델은 프로필로 쓸 수 없다(늘릴 방법이 없다 — REQ-CB-021이 적재 시 검증). **긴 벡터는 잘라 맞출 수 있다**(2026-09-22 · REQ-CB-047 — 아래).
+- **긴 벡터를 자르는 손잡이 — `NERV_EMBED_TRUNCATE`**(기본 꺼짐).
+  - **왜 필요한가.** 운영에서 `text-embedding-qwen3-embedding-8b`(네이티브 4096)를 붙이자 전 배치가 거절됐다. 그런데 **차원 고정을 푸는 것이 답이 아니다** — 실측(pgvector 0.8.6)으로 hnsw 인덱스의 상한은 `vector` **2000** · `halfvec` **4000** 이라 **4096 은 어느 쪽으로도 인덱스를 만들 수 없다.** 컬럼으로 담는 것은 되지만(최대 16,000) 그러면 검색이 매번 전체 스캔이다.
+  - **왜 자르는 것이 정답인가.** MRL(Matryoshka Representation Learning)로 학습한 모델은 앞쪽 차원에 굵은 정보가 실리도록 훈련돼 있어, **앞에서 자르고 다시 정규화한 벡터가 그 길이로 학습된 벡터와 같은 구실**을 한다. Qwen3-Embedding 은 32~4096 사용자 지정 차원을 그렇게 지원하고([모델 카드](https://huggingface.co/Qwen/Qwen3-Embedding-8B) — 2026-09-22 확인), OpenAI 의 `dimensions` 인자가 서버에서 하는 일도 같다.
+  - **왜 기본이 꺼짐인가.** MRL 이 아닌 모델에서 켜면 **검색 품질이 조용히 나빠진다** — 오류가 나지 않으므로 아무도 모른다. 켜는 것은 모델 카드를 본 사람의 결정이고, 켜면 기동 때 그 사실을 로그에 한 번 남긴다(벡터는 눈으로 확인할 수 있는 물건이 아니다).
+  - **재정규화가 빠지면 안 된다.** 자른 벡터의 길이는 1 이 아니고, `<=>`(코사인)는 내적을 두 길이로 나누므로 길이가 제각각이면 같은 방향의 두 문서가 다른 점수를 받는다.
+  - **짧은 것은 이 손잡이와 무관하다** — 0 으로 채우면 차원은 맞지만 그 벡터는 거짓이다.
 - **환경 간 벡터는 호환되지 않는다** — 모델이 다르면 벡터 공간이 다르다. 각 환경의 인덱스는 자기 `model` 값에 묶이고([4.3](database.md) §2.15 규칙 3), 프로필 전환은 전량 재임베딩이다. DB를 환경 간 복사하는 경우(스테이징 복제 등)에도 임베딩 행은 버리고 재생성한다.
 - **로컬 프로필의 첫 기동은 모델을 받는다**(~1.2GB). ollama 는 요청 시 자동으로 받지 않으므로(실측: `model not found, try pulling it first`) `embed` 서비스가 기동 직후 한 번 `pull` 하고, **모델이 실제로 응답할 때만 healthy** 로 표시한다 — 서버만 떠 있는 상태를 준비됐다고 부르면 그 사이의 임베딩이 전부 조용히 실패한다.
 
@@ -1337,6 +1346,7 @@ services:
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       # 요청에 dimensions 를 실을 것인가 — 호스트로 추정하지 않는다(§5.2a · REQ-CB-033)
       NERV_EMBED_SEND_DIMENSIONS: ${NERV_EMBED_SEND_DIMENSIONS:-false}
+      NERV_EMBED_TRUNCATE: ${NERV_EMBED_TRUNCATE:-false}
       NERV_S3_ENDPOINT: http://minio:9000
       # 에이전트가 받는 서명 주소는 밖에서 열려야 한다 — 기본은 호스트에서 열리는 minio 포트다.
       # 밖에서 쓰려면 **별도 호스트**로 바꾼다(경로 접두는 서명이 깨진다 — REQ-CB-033).
@@ -1400,6 +1410,7 @@ services:
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       # 요청에 dimensions 를 실을 것인가 — 호스트로 추정하지 않는다(§5.2a · REQ-CB-033)
       NERV_EMBED_SEND_DIMENSIONS: ${NERV_EMBED_SEND_DIMENSIONS:-false}
+      NERV_EMBED_TRUNCATE: ${NERV_EMBED_TRUNCATE:-false}
       NERV_S3_ENDPOINT: http://minio:9000
       # 에이전트가 받는 서명 주소는 밖에서 열려야 한다 — 기본은 호스트에서 열리는 minio 포트다.
       # 밖에서 쓰려면 **별도 호스트**로 바꾼다(경로 접두는 서명이 깨진다 — REQ-CB-033).
@@ -2118,7 +2129,8 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 | --- | --- |
 | **REQ-CB-019** | WHEN 백업본으로 §6.5 절차 ①~⑤를 실행하면, THE SYSTEM SHALL 추가 수동 개입 없이 로그인·스펙 조회·클레임이 동작하는 인스턴스에 도달하고, 백업 시각 이전 커밋 데이터의 손실 0을 행 수 대조로 검증 가능하게 한다(성공 기준 1-9). `spec_chunk_embedding`은 복원 대상이 아니어도 무방하다 — 재임베딩으로 재생성한다([4.3](database.md) §2.15). |
 | **REQ-CB-020** | WHEN 임베딩(질의·인덱싱)이 수행될 때, THE SYSTEM SHALL `NERV_EMBED_URL`에 대한 **OpenAI 호환 `/v1/embeddings` 단일 클라이언트**만 사용하고 제공자별 분기·전용 SDK를 두지 않는다 — 제공자(자가호스팅/LM Studio/OpenAI)는 env 3키로만 결정되며 코드 기본값은 자가호스팅이다(§5.2a — 2026-08-22 개정: "자가호스팅만" 조항은 같은 날 폐기, 외부 전송은 운영 주체의 env 명시 선택). |
-| **REQ-CB-021** | WHEN 임베딩 응답의 벡터 차원이 1024가 아니면, THE SYSTEM SHALL 해당 배치를 적재하지 않고 오류로 기록한다 — OpenAI 프로필은 요청에 `dimensions: 1024`를 항상 포함한다(§5.2a). |
+| **REQ-CB-021** | (2026-09-22 개정 — 긴 벡터는 잘라 맞출 수 있다) WHEN 임베딩 응답의 벡터 차원이 스키마 차원과 다르면, THE SYSTEM SHALL 해당 배치를 적재하지 않고 오류로 기록한다 — 다만 **길고** `NERV_EMBED_TRUNCATE` 가 켜져 있으면 잘라 맞춘다(REQ-CB-047). OpenAI 프로필은 요청에 `dimensions`를 항상 포함한다(§5.2a). |
+| **REQ-CB-047** | WHERE `NERV_EMBED_TRUNCATE` 가 켜져 있고 받은 벡터가 스키마 차원보다 **길면**, THE SYSTEM SHALL 앞에서 그 차원만큼 자르고 **다시 정규화**해 적재한다(MRL 절단). WHERE 받은 벡터가 스키마 차원보다 **짧으면**, THE SYSTEM SHALL 그 값과 무관하게 거절한다 — 늘린 벡터는 거짓이다. WHEN 차원이 맞지 않아 거절하면, THE SYSTEM SHALL **어느 경우인지와 무엇을 하면 되는지**를 문장에 담는다(`dimensions` 미전송 · 제공자가 무시함 · 모델이 짧음 셋을 구별한다). WHEN 절단이 켜진 채 기동하면, THE SYSTEM SHALL 그 사실을 로그에 한 번 남긴다 — 조용히 자르면 검색 품질을 의심할 때 볼 곳이 없다 |
 
 ---
 

@@ -155,6 +155,7 @@ services:
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       # 요청에 dimensions 를 실을 것인가 — 호스트로 추정하지 않는다(§5.2a · REQ-CB-033)
       NERV_EMBED_SEND_DIMENSIONS: ${NERV_EMBED_SEND_DIMENSIONS:-false}
+      NERV_EMBED_TRUNCATE: ${NERV_EMBED_TRUNCATE:-false}
       NERV_S3_ENDPOINT: http://minio:9000
       # 에이전트가 받는 서명 주소는 밖에서 열려야 한다 — 기본은 호스트에서 열리는 minio 포트다.
       # 밖에서 쓰려면 **별도 호스트**로 바꾼다(경로 접두는 서명이 깨진다 — REQ-CB-033).
@@ -218,6 +219,7 @@ services:
       NERV_EMBED_API_KEY: ${NERV_EMBED_API_KEY:-}
       # 요청에 dimensions 를 실을 것인가 — 호스트로 추정하지 않는다(§5.2a · REQ-CB-033)
       NERV_EMBED_SEND_DIMENSIONS: ${NERV_EMBED_SEND_DIMENSIONS:-false}
+      NERV_EMBED_TRUNCATE: ${NERV_EMBED_TRUNCATE:-false}
       NERV_S3_ENDPOINT: http://minio:9000
       # 에이전트가 받는 서명 주소는 밖에서 열려야 한다 — 기본은 호스트에서 열리는 minio 포트다.
       # 밖에서 쓰려면 **별도 호스트**로 바꾼다(경로 접두는 서명이 깨진다 — REQ-CB-033).
