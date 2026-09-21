@@ -31,7 +31,10 @@ function ManualShell(): React.JSX.Element {
       {/* 차례는 사이드바와 같은 무게로 가라앉힌다 — 본문이 문서고 이쪽은 여백에 가깝다.
           높이는 상자가 준다(`h-full`) — `sticky` 로 뷰포트에 손수 묶던 계산식은 페이지가
           흐르지 않게 된 뒤로 할 일이 없다(같은 값을 두 곳에 적으면 갈린다). */}
-      <aside className="hidden w-sidebar shrink-0 overflow-y-auto border-r border-border bg-bg-sunken/40 px-2 py-3 md:block md:h-full">
+      <aside
+        data-testid="manual-toc"
+        className="hidden w-sidebar shrink-0 overflow-y-auto border-r border-border bg-bg-sunken/40 px-2 py-3 md:block md:h-full"
+      >
         <p className="px-2 pb-2 text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase">
           {t('help.title')}
         </p>

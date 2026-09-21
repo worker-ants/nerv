@@ -56,7 +56,10 @@ test('차례 위에서 굴린 바퀴는 본문을 움직이지 않는다', async
   await page.goto('/help/tasks');
   await expect(page.getByTestId('manual-body')).toBeVisible({ timeout: 15000 });
 
-  const toc = await page.locator('aside').first().boundingBox();
+  // **자리가 아니라 이름으로 집는다** — 위 테스트가 적어 둔 그 규칙이다. `aside` 의
+  // 첫째로 집던 동안 셸의 사이드바가 그 자리에 들어왔고(2026-09-21 · REQ-WEB-164),
+  // 프로젝트 밖에서는 그것이 접혀 있어 `boundingBox()` 가 `null` 이었다.
+  const toc = await page.getByTestId('manual-toc').boundingBox();
   expect(toc).not.toBeNull();
   await page.mouse.move(toc!.x + toc!.width / 2, toc!.y + toc!.height / 2);
   await page.mouse.wheel(0, 400);
