@@ -9,9 +9,16 @@ import { ADMIN_STORAGE_STATE } from './global-setup.js';
 // 잠긴 컨트롤만 찍혀서, 디자인 확인의 대상인 실제 폼을 아무도 본 적이 없었다.
 const SCHEME = process.env['NERV_SHOT_SCHEME'] === 'dark' ? 'dark' : 'light';
 
+// **좁은 폭도 찍는다**(2026-09-21 · REQ-WEB-164). 이 목록이 1440px 하나였던 동안 휴대폰
+// 폭의 화면은 **한 번도 그림으로 남은 적이 없고**, 그래서 헤더가 겹쳐 있고 프로젝트 메뉴로
+// 갈 길이 없다는 것을 사람이 실제 기기에서 볼 때까지 아무도 몰랐다. `NERV_SHOT_VIEWPORT=mobile`
+// 로 바꾼다 — 세로는 fullPage 가 늘리므로 값은 폭만 의미가 있다.
+const MOBILE = process.env['NERV_SHOT_VIEWPORT'] === 'mobile';
+const VIEWPORT = MOBILE ? { width: 390, height: 844 } : { width: 1440, height: 900 };
+
 test.use({
   storageState: ADMIN_STORAGE_STATE,
-  viewport: { width: 1440, height: 900 },
+  viewport: VIEWPORT,
   locale: 'ko-KR',
   colorScheme: SCHEME,
 });
@@ -34,13 +41,26 @@ const SHOTS: [string, string][] = [
   ['/help/tasks', 'manual'],
 ];
 
+const SHOT_DIR = process.env['NERV_SHOT_DIR'] ?? '/tmp/nerv-shots';
+
 for (const [route, name] of SHOTS) {
   test(`shot ${name}`, async ({ page }) => {
     await page.goto(route);
     await page.waitForTimeout(600);
-    await page.screenshot({
-      path: `${process.env['NERV_SHOT_DIR'] ?? '/tmp/nerv-shots'}/${name}.png`,
-      fullPage: true,
-    });
+    await page.screenshot({ path: `${SHOT_DIR}/${name}.png`, fullPage: true });
+  });
+}
+
+// 좁은 폭에서만 존재하는 화면이 하나 있다 — **열린 서랍**(REQ-WEB-164). 닫힌 모습만
+// 찍으면 그 폭의 내비게이션은 여전히 아무도 본 적이 없는 것이 된다.
+//
+// **선언 자체를 가른다.** `test.skip(조건, …)` 을 파일 바닥에 두면 그것은 이 테스트가
+// 아니라 **파일 전체**를 건너뛴다 — 넓은 폭의 그림 열한 장이 함께 사라진다(실측).
+if (MOBILE) {
+  test('shot drawer', async ({ page }) => {
+    await page.goto('/p/clemvion');
+    await page.getByTestId('nav-drawer-toggle').click();
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${SHOT_DIR}/drawer.png` });
   });
 }

@@ -34,6 +34,15 @@ Home, inbox, notifications and settings are organization-wide, so their addresse
 
 **To get back home, press the `NERV` logo at the top left.** There is no separate menu item for it — the logo is that link.
 
+## Narrow screens — phones and tablets
+
+On a narrow screen the project sidebar moves into a **drawer, opened by the [☰] at the far left of the header**. It is the **same one** that sits fixed beside the content on a wide screen, so the drawer holds the very same things: overview, specs, tasks, sessions, reviews, and the spec tree. A narrower screen does not mean less to see.
+
+- The drawer **closes itself once you go somewhere.** To close it where you are, press the [✕] at its top right, press the dimmed area outside it, or press `Esc`.
+- What the header folds away at that width is **wording**, not function: inbox and notifications become glyphs and **keep their count badges** (a number you have to open something to see is not a badge). Search shrinks to a single magnifier, and pressing it opens the same quick switcher.
+- The **organization picker and help move into the drawer**, since they gave up their place in the header. The project picker stays in the header.
+- Widen the window and the drawer closes as the sidebar takes its place again.
+
 ## Roles
 
 | Role        | What it can do                                                                                              |

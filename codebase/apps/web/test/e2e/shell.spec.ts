@@ -123,14 +123,18 @@ test.describe('시드 세션', () => {
   });
 
   test('프로젝트 사이드바는 /p/:proj/* 에서만 나온다 (§1.3)', async ({ page }) => {
-    // 받은 요청은 조직 소속 화면이라 사이드바가 없는 것이 맞다
+    // 받은 요청은 조직 소속 화면이라 사이드바가 없는 것이 맞다.
+    //
+    // **세는 것이 아니라 보이는가를 본다**(2026-09-21 · REQ-WEB-164). 좁은 화면의 서랍이
+    // 같은 `<aside>` 한 벌이 된 뒤로 그 요소는 프로젝트 밖에서도 DOM 에 있다 — 이 폭에서
+    // 보이지 않을 뿐이다. 애초에 이 테스트가 지키려던 것도 "몇 개인가"가 아니었다.
     await page.goto('/inbox');
     await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
-    await expect(page.locator('aside')).toHaveCount(0);
+    await expect(page.getByTestId('nav-rail')).toBeHidden();
 
     // 프로젝트에 들어가면 탭과 스펙 트리가 함께 선다
     await page.goto('/p/clemvion');
-    await expect(page.locator('aside')).toHaveCount(1);
+    await expect(page.getByTestId('nav-rail')).toBeVisible();
     await expect(page.getByTestId('spec-tree')).toHaveCount(1);
 
     // S3 도 마찬가지다 — 좌측 트리는 셸이 소유하므로 중복 렌더가 없어야 한다(대조에서 발견)
@@ -141,5 +145,43 @@ test.describe('시드 세션', () => {
     // 문서가 규정한다(§2.4). 그래서 여기서만 둘이고, 그건 의도다.
     await page.goto('/p/clemvion/specs');
     await expect(page.getByTestId('spec-tree')).toHaveCount(2);
+  });
+
+  // **폭의 판정은 여기서만 성립한다** — jsdom 은 폭을 재지 않으므로 "헤더가 겹쳤다"도
+  // "사이드바가 없다"도 L1 에서는 보이지 않는다(REQ-WEB-151 이 같은 이유로 여기 있다).
+  test('좁은 화면 — 헤더가 넘치지 않고 서랍이 프로젝트 탭을 연다 (REQ-WEB-164)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/p/clemvion');
+    await expect(page.getByTestId('user-menu')).toBeVisible();
+
+    // ① 사이드바는 접히고 [☰] 가 그 자리를 대신한다
+    await expect(page.getByTestId('nav-rail')).toBeHidden();
+    const toggle = page.getByTestId('nav-drawer-toggle');
+    await expect(toggle).toBeVisible();
+
+    // ② 헤더가 제 폭 안에 든다. 2026-09-21 까지 이 값은 양수였고, 넘친 것이 잘리지 않고
+    //    **겹쳐 그려져** 헤더의 글자를 아무도 읽을 수 없었다.
+    const overflow = await page.evaluate(() => {
+      const header = document.querySelector('header');
+      return {
+        header: header === null ? -1 : header.scrollWidth - header.clientWidth,
+        page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    expect(overflow.header).toBeLessThanOrEqual(0);
+    expect(overflow.page).toBeLessThanOrEqual(0);
+
+    // ③ 서랍이 프로젝트 탭과 스펙 트리를 연다 — 그 폭에서 갈 길이 사라지지 않는다
+    await toggle.click();
+    const rail = page.getByTestId('nav-rail');
+    await expect(rail).toBeVisible();
+    await expect(page.getByTestId('spec-tree')).toHaveCount(1);
+    await rail.getByRole('link', { name: /리뷰/ }).click();
+    await page.waitForURL(/\/p\/clemvion\/reviews/);
+
+    // ④ 떠났으면 닫힌다 — 열린 채로 남으면 그 아래 화면에 손이 닿지 않는다
+    await expect(rail).toBeHidden();
   });
 });
