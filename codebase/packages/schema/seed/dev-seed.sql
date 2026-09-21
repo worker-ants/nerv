@@ -97,14 +97,17 @@ INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash
                           author_user_id, approved_at, approved_by_user_id,
                           superseded_by_version_id) VALUES
   -- SPC-CWC-007 v3 (superseded) → v4 (approved) — S3 diff v3..v4의 재료
+  -- v4 본문에 **mermaid 블록이 하나 있다**(2026-09-21 · REQ-WEB-169). 렌더되는 면인데
+  -- 디자인 확인용 스크린샷에 한 번도 들어간 적이 없었다 — 이 저장소가 좁은 폭에서 배운
+  -- 것과 같은 이유다(REQ-WEB-164: 그림으로 남은 적이 없으면 깨져도 아무도 모른다).
   ('01990a66-0000-7000-8000-000000000051', '01990a66-0000-7000-8000-000000000042', 3,
    'superseded', E'# 웹챗 위젯 임베드\n\n(v3 본문)', digest(E'# 웹챗 위젯 임베드\n\n(v3 본문)', 'sha256'),
    '01990a66-0000-7000-8000-000000000011', now() - interval '9 days',
    '01990a66-0000-7000-8000-000000000012', '01990a66-0000-7000-8000-000000000052'),
   ('01990a66-0000-7000-8000-000000000052', '01990a66-0000-7000-8000-000000000042', 4,
    'approved',
-   E'# 웹챗 위젯 임베드 v2\n\n## 요구사항\n\n- REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다\n',
-   digest(E'# 웹챗 위젯 임베드 v2\n\n## 요구사항\n\n- REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다\n', 'sha256'),
+   E'# 웹챗 위젯 임베드 v2\n\n## 요구사항\n\n- REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다\n\n## 복원 흐름\n\n```mermaid\ngraph TD\n  A[방문자] --> B[위젯 열기]\n  B --> C{세션 쿠키}\n  C -->|있다| D[이전 대화 복원]\n  C -->|없다| E[새 대화 시작]\n```\n',
+   digest(E'# 웹챗 위젯 임베드 v2\n\n## 요구사항\n\n- REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다\n\n## 복원 흐름\n\n```mermaid\ngraph TD\n  A[방문자] --> B[위젯 열기]\n  B --> C{세션 쿠키}\n  C -->|있다| D[이전 대화 복원]\n  C -->|없다| E[새 대화 시작]\n```\n', 'sha256'),
    '01990a66-0000-7000-8000-000000000011', now() - interval '2 days',
    '01990a66-0000-7000-8000-000000000012', NULL),
   ('01990a66-0000-7000-8000-000000000053', '01990a66-0000-7000-8000-000000000043', 1,

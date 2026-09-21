@@ -19,6 +19,8 @@ An `area` may hold a place in the tree with no body of its own. For the rest, th
 
 The tree in the left sidebar holds **every document, expanded**. A place that lists things and lists only some of them leaves you unable to tell a missing document from a collapsed one. The `141 / 141` in its header is **how many are showing / how many there are**; collapse a branch and that number drops, telling you what is now hidden.
 
+The **chevron** in front of a branch folds and unfolds that branch. The **fold icon** in the header applies to **all of them** — if anything is open it collapses everything, and if everything is collapsed it expands it all. What you fold is remembered, and the sidebar and the spec list screen remember it **separately**.
+
 To see all of them, go to **Specs** in the left menu. That screen is the **complete list** — it opens with every document expanded, and collapsing is something you do, not the default. **A document that is not there is not in this project.**
 
 Both the tree tab and the table tab print `Showing N of M`. When the two numbers differ, that many are collapsed or filtered out by the tree filter.
@@ -86,6 +88,15 @@ Attachments hang on the **document, not the version**. Rewriting the draft leave
 Reading also goes through the server — **project members** see them, not whoever has the URL.
 
 `html` attachments **open rendered** — mockups and reports run their scripts. The page opens **isolated** while they do: it cannot reach your session or any other NERV screen, and anything that would send what you typed back out (a form submission) stays blocked. Every other format, `svg` included, renders without scripts.
+
+## Diagrams
+
+A ` ```mermaid ` code block in the body **renders as a diagram.** There is no reason to draw ASCII art — the syntax is [mermaid](https://mermaid.js.org) as-is.
+
+- **The diagram is the default**, on approved documents and drafts alike.
+- **[Code]** at the top right of the block brings the source back; edit it there. **[Diagram]** returns.
+- Bad syntax leaves the code standing and **says it is wrong** — never a place with neither a picture nor words.
+- What is saved is always the code. The diagram is a way of looking, not part of the document.
 
 ## The edit lease
 
