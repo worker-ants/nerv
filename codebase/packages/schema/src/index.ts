@@ -5,6 +5,7 @@
 
 export * from './constants.js';
 export * from './evidence-locator.js';
+export * from './plugin-install.js';
 export * from './redact.js';
 export * from './ids.js';
 export * from './scopes.js';

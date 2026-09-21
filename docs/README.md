@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v3.48 · 2026-09-21 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v3.49 · 2026-09-21 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v3.49 변경(2026-09-21 — 추가는 되고 설치만 막히는 것을 화면도 말합니다, 사람 지시): **새 요구사항 없음 · REQ-WEB-165 개정 · 판정 한 벌을 `@nerv/schema` 로.** v3.48 의 값 카드는 "이 주소다" 까지만 말했습니다. 그런데 `claude plugin marketplace add` 는 `http://`·`localhost` 로도 **성공하고 `install` 만 거부됩니다**(실측 2026-09-04) — 두 단계 사이에서 갈라지므로, 말해 주지 않으면 사람은 카드의 주소를 그대로 복사해 놓고 "추가는 됐는데 설치가 안 된다" 를 혼자 좇습니다. [4.5](04-mvp/screens.md) §1.8 이 이미 정한 규칙이 여기에 적용되지 않은 자리입니다(**화면은 서버가 허용할 것을 미리 말한다**). 카드가 그 판정을 함께 입니다. 거부 조건은 **둘**이고 서로 다릅니다 — https 가 **아니거나**, 호스트가 루프백·링크로컬이거나. 그래서 **정상 운영(https + 공개 호스트)에서는 이 줄이 한 번도 보이지 않습니다.** 판정은 `apps/api` 안에 있었는데 `apps/web` 은 `apps/api` 를 import 하지 않으므로(REQ-CB-001) `@nerv/schema` 의 `checkPluginInstallUrl()` 하나로 옮겼습니다 — 두 벌이면 한쪽만 고쳐지고 그때 어느 쪽이 맞는지는 아무도 모릅니다(REQ-CB-006). 곁들여 [4.2](04-mvp/codebase.md) 가 이미 뒤처져 있던 두 자리를 고쳤습니다: §1.2 의 `packages/schema` 행이 "순수 선언 + 마이그레이터 + 번역기만" 이라고 적고 있었는데 `evidence-locator.ts`(2026-09-07)는 그 셋 중 어느 것도 아니고, §3.1 트리에도 그 판정들이 빠져 있었습니다([4.5](04-mvp/screens.md) v1.11 · [4.2](04-mvp/codebase.md) v1.53 · [4.6](04-mvp/plugin.md) v0.69 · [4.8](04-mvp/backlog.md) v0.91).
 >
 > v3.48 변경(2026-09-21 — 설치하려면 주소를 사람에게 물어봐야 했습니다, 사람 지시): **REQ-WEB-165 신설.** 매뉴얼의 플러그인 설치 장이 "NERV 서버 주소 — **관리자에게**" 라고 적고, 예시 주소와 예시 슬러그를 **열 자리**에 박아 두고 있었습니다(첫 표 · `settings.local.json` · `.nerv/env` · 셸 프로필 · 마켓플레이스 주소 · `nerv-init` · `.mcp.json` · Codex `config.toml`). **그 값은 화면이 이미 들고 있었습니다** — 부팅 때 `/config.json` 에서 읽는 `api_url` 이 그것이고(REQ-CB-044), 프로젝트와 역할도 헤더가 고른 것으로 압니다. 사람에게 묻게 한 것은 문서의 선택이었지 모르는 값이어서가 아니었습니다. 게다가 주소를 둘로 가른 뒤로(v3.42~v3.44) "브라우저 주소창에 있는 그것" 은 **틀린 안내**였습니다 — 주소창은 `app.` 이고 에이전트가 붙는 곳은 `api.` 입니다. 본문의 자리표시자 넷을 렌더 직전에 이 배치의 값으로 채우고, 장 머리에 **그 값이 어디서 왔는지** 말하는 카드를 두며, 코드블록마다 복사 단추를 답니다. **모르면 예시값이 서고 예시라고 말합니다** — 빈칸이나 `{{server}}` 가 보이는 것이 더 나쁩니다. 플러그인 버전만 카탈로그(EP-PLG-01)에 묻는데 그것은 **덤**이라 실패하면 조용히 번들 값으로 떨어집니다 — "매뉴얼은 서버가 아플 때도 읽힌다" 는 계약은 그대로입니다([4.5](04-mvp/screens.md) v1.10 · [4.8](04-mvp/backlog.md) v0.90).
 >
@@ -508,13 +510,13 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.29` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.52` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.53` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.42` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v1.34` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
-| [4.5 화면 명세](04-mvp/screens.md) | `v1.10` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.68` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계 |
+| [4.5 화면 명세](04-mvp/screens.md) | `v1.11` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.69` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.22` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v0.90` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v0.91` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

@@ -14,6 +14,8 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { checkPluginInstallUrl } from '@nerv/schema';
+import type { PluginInstallVerdict } from '@nerv/schema';
 import { NERV_API_URL, apiUrlFromEnv } from '../../common/origins.js';
 import { pluginArchivePath, pluginManifestPath } from './plugin.paths.js';
 
@@ -36,37 +38,20 @@ export interface MarketplaceCatalog {
 }
 
 /**
- * 이 주소로 실제 설치가 되는가.
+ * 판정을 운영자용 한 문장으로 — **화면 문구가 아니다**(REQ-CB-022 예외).
  *
- * **실측(2026-09-04)**: `claude plugin install` 이 아카이브 URL 을 검증한다 —
- * *"Archive URLs must use https:// and must not point at a loopback, link-local, or
- * cloud-metadata host"*. 카탈로그 추가(`marketplace add`)는 http·localhost 로도 성공하므로
- * **설치 직전에야 드러난다.** 개발에서는 정상이지만(수동 경로를 쓴다) 운영에서 `http://` 나
- * 내부 주소가 `NERV_API_URL` 에 들어가면 사람은 "추가는 됐는데 설치가 안 된다" 를 만난다.
- * 그래서 서버가 먼저 말한다.
+ * 판정 자체는 `@nerv/schema` 의 `checkPluginInstallUrl()` 이고, 화면은 같은 판정을 자기
+ * 카탈로그 문구로 옮긴다(REQ-WEB-165). 여기서 만드는 것은 서버 로그 한 줄뿐이다.
  */
-export function installableFrom(apiUrl: string): { ok: boolean; reason?: string } {
-  let url: URL;
-  try {
-    url = new URL(apiUrl);
-  } catch {
-    return { ok: false, reason: `주소를 해석할 수 없습니다: ${apiUrl}` };
+function blockedReason(verdict: PluginInstallVerdict): string {
+  switch (verdict.reason) {
+    case 'not_https':
+      return `아카이브 URL 은 https 여야 합니다(현재 ${verdict.detail ?? ''}).`;
+    case 'loopback':
+      return `루프백·링크로컬 주소로는 설치되지 않습니다(${verdict.detail ?? ''}).`;
+    default:
+      return `주소를 해석할 수 없습니다: ${verdict.detail ?? ''}`;
   }
-  if (url.protocol !== 'https:') {
-    return { ok: false, reason: `아카이브 URL 은 https 여야 합니다(현재 ${url.protocol}//).` };
-  }
-  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  const loopback =
-    host === 'localhost' ||
-    host === '::1' ||
-    host.endsWith('.localhost') ||
-    /^127\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^fe80:/.test(host);
-  if (loopback) {
-    return { ok: false, reason: `루프백·링크로컬 주소로는 설치되지 않습니다(${host}).` };
-  }
-  return { ok: true };
 }
 
 export interface PluginArchive {
@@ -150,11 +135,11 @@ export class PluginService {
 
     // 카탈로그는 내주되, 이 주소로는 설치가 안 된다는 사실을 운영자 로그에 남긴다.
     // 조용히 두면 "추가는 됐는데 설치가 안 된다" 를 사람이 혼자 좇게 된다.
-    const installable = installableFrom(base);
+    const installable = checkPluginInstallUrl(base);
     if (!installable.ok && !this.warned) {
       this.warned = true;
       this.logger.warn(
-        `NERV_API_URL(${base})로는 플러그인이 설치되지 않습니다 — ${installable.reason ?? ''} ` +
+        `NERV_API_URL(${base})로는 플러그인이 설치되지 않습니다 — ${blockedReason(installable)} ` +
           // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그다(REQ-CB-022 예외): 배포 설정 오류를 알리는 문구이며 화면에 나가지 않는다
           '카탈로그 추가까지는 되고 설치에서 거부됩니다(4.6 §3.5).',
       );

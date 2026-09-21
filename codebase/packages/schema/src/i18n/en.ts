@@ -787,6 +787,12 @@ export const en = {
   'help.ch.tasks': 'Tasks',
   'help.copied': 'Copied',
   'help.copy': 'Copy',
+  'help.env.blocked_loopback':
+    'The plugin will not install from this address — loopback and link-local addresses ({detail}) are refused. Adding the marketplace still works; the install is what fails.',
+  'help.env.blocked_not_https':
+    'The plugin will not install from this address — archive URLs must use https, and this one is {detail}. Adding the marketplace still works; the install is what fails.',
+  'help.env.blocked_unparsable':
+    "The plugin will not install from this address — it cannot be parsed as a URL ({detail}). Ask an administrator to check the server's public URL setting.",
   'help.env.example': 'example',
   'help.env.hint':
     "A value tagged “example” is one this screen does not know yet — the filled-in ones are this deployment's own, so use them as they are.",
