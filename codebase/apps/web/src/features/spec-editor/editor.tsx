@@ -15,7 +15,9 @@ import { SpecLinkPicker, specLinkHref } from './spec-link-picker.js';
 import StarterKit from '@tiptap/starter-kit';
 import { CodeBlock } from '@tiptap/extension-code-block';
 import { Image } from '@tiptap/extension-image';
+import { Link } from '@tiptap/extension-link';
 import { ReactNodeViewRenderer } from '@tiptap/react';
+import { apiHref } from '../../lib/config.js';
 import { MermaidBlock } from './mermaid-block.js';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
@@ -26,15 +28,46 @@ import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/utils.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
+/**
+ * 본문에 남은 **API 상대 주소**를 그릴 때만 이 배치의 API 오리진에 붙인다 — REQ-WEB-166.
+ *
+ * 첨부를 본문에 넣으면 주소는 `/api/v1/projects/{slug}/attachments/{id}` 로 남는다
+ * (docs/04-mvp/api.md REQ-API-089). **그 모양으로 남는 것이 옳다** —
+ * 절대 주소를 박으면 문서가 배치에 묶여, 도메인을 바꾼 날 옛 스펙의 그림이 전부 깨진다.
+ * 대신 브라우저가 그 주소를 **스스로 해소하는** 자리(`<img src>`·`<a href>`)에서만 붙인다:
+ * 상대 경로면 화면이 뜬 오리진으로 가는데, 호스트를 가른 배치에는 그쪽에 API 가 없다.
+ *
+ * **바꾸는 것은 DOM 뿐이고 노드의 attrs 는 그대로다** — md 직렬화는 attrs 를 읽으므로
+ * 왕복(§3.2 규칙 2)에 닿지 않는다. 한 호스트 배치에서는 `apiHref` 가 항등이라 이 함수가
+ * 있어도 없어도 같다.
+ */
+function withApiOrigin<T extends Record<string, unknown>>(attrs: T, key: 'src' | 'href'): T {
+  const value = attrs[key];
+  if (typeof value !== 'string' || !value.startsWith('/api/')) return attrs;
+  return { ...attrs, [key]: apiHref(value) };
+}
+
 /** 화이트리스트 — md 로 표현 가능한 것만(§3.1). 색·밑줄·이미지 업로드는 확장하지 않는다. */
 export const EDITOR_EXTENSIONS = [
-  // StarterKit 이 link 를 포함한다 — 따로 추가하면 확장 이름이 중복돼 경고가 나고
-  // 마크 처리 순서가 흔들린다(실측: 왕복 스파이크에서 경고로 드러났다).
+  // **StarterKit 의 것을 갈아 끼운다 — 더하지 않는다.** StarterKit 은 link 도 codeBlock 도
+  // 자기 안에 갖고 있어서, 같은 이름을 **더하면** 확장 이름이 중복돼 경고가 나고 마크
+  // 처리 순서가 흔들린다(실측: 왕복 스파이크에서 경고로 드러났다). 그래서 둘은 `false` 로
+  // 빼고 바로 아래에서 같은 이름으로 다시 세운다 — 이름이 하나뿐이라 순서도 그대로다.
   //
-  // **codeBlock 만 갈아 끼운다**(2026-08-30). 코드블록 자체는 StarterKit 의 것과 같고,
-  // 붙는 것은 노드뷰 하나뿐이다 — `language` 가 `mermaid` 면 읽을 때 그림으로 그린다.
-  // md 직렬화는 건드리지 않는다(왕복 스파이크가 그것을 지킨다).
-  StarterKit.configure({ link: { openOnClick: false }, codeBlock: false }),
+  // 갈아 끼우는 이유는 각각 하나씩이다: codeBlock 은 노드뷰(2026-08-30 — `language` 가
+  // `mermaid` 면 읽을 때 그림으로 그린다), link 는 renderHTML(아래). **둘 다 md 직렬화는
+  // 건드리지 않는다** — 직렬화는 노드·마크의 attrs 를 읽고, 우리가 바꾸는 것은 DOM 뿐이다.
+  StarterKit.configure({ link: false, codeBlock: false }),
+  Link.extend({
+    renderHTML(props) {
+      const patched = { ...props, HTMLAttributes: withApiOrigin(props.HTMLAttributes, 'href') };
+      return this.parent?.(patched) ?? ['a', patched.HTMLAttributes, 0];
+    },
+  }).configure({
+    // **읽기 전용 본문에서는 브라우저의 기본 동작이 링크를 연다**(그때만 contenteditable 이
+    // 아니다). 편집 중에는 누른 자리에 커서가 서야 하므로 tiptap 의 클릭 핸들러는 달지 않는다.
+    openOnClick: false,
+  }),
   CodeBlock.extend({
     addNodeView: () => ReactNodeViewRenderer(MermaidBlock),
   }),
@@ -42,7 +75,14 @@ export const EDITOR_EXTENSIONS = [
   // `![시안](…)` 이 파싱 단계에서 버려졌고, 사람이 그 문서를 열어 한 글자만 고치면 그
   // 순간 모든 이미지가 삭제됐다 — 저장은 성공하면서. §3.2 규칙 4("화이트리스트 밖 구문은
   // 본문을 재작성하지 않는다")를 이미지가 어기고 있었던 것이다.
-  Image.configure({ inline: true, allowBase64: false }),
+  //
+  // **주소는 그릴 때 이 배치의 것이 된다**(2026-09-21 · REQ-WEB-166 — `withApiOrigin` 주석).
+  Image.extend({
+    renderHTML(props) {
+      const patched = { ...props, HTMLAttributes: withApiOrigin(props.HTMLAttributes, 'src') };
+      return this.parent?.(patched) ?? ['img', patched.HTMLAttributes];
+    },
+  }).configure({ inline: true, allowBase64: false }),
   Table.configure({ resizable: false }),
   TableRow,
   TableHeader,

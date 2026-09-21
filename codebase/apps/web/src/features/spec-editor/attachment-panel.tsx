@@ -8,7 +8,7 @@
 
 import { useRef, useState } from 'react';
 import { useApiError } from '../../lib/api-errors.js';
-import { apiBase } from '../../lib/config.js';
+import { apiBase, apiHref } from '../../lib/config.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useSpecAttachments } from '../../lib/queries.js';
@@ -115,7 +115,14 @@ export function AttachmentPanel({
       <ul className="flex flex-col gap-2">
         {items.map((item) => {
           const id = String(item['id']);
-          const url = `/api/v1/projects/${projectSlug}/attachments/${id}`;
+          // **본문에 남는 주소와 브라우저가 부르는 주소가 다르다.** 서버가 주는 주소는
+          // 상대 경로이고(REQ-API-089) 본문(md)에는 그대로 들어간다 — 절대 주소를 박으면
+          // 그 문서가 이 배치에 묶인다. 대신 화면이 **자기가 부를 때만** 오리진을 붙인다:
+          // `<img src>`·`<a href>` 는 `apiFetch` 를 타지 않아, 상대 경로면 브라우저가
+          // 화면이 뜬 오리진으로 해소한다 — 호스트를 가른 배치에는 그쪽에 API 가 없다
+          // (REQ-WEB-166 · 2026-09-21 사람 보고: 첨부 링크가 `app.` 호스트로 갔다).
+          const path = `/api/v1/projects/${projectSlug}/attachments/${id}`;
+          const url = apiHref(path);
           const isImage = String(item['content_type']).startsWith('image/');
           return (
             <li key={id} data-testid="attachment" className="rounded-nerv border border-border p-2">
@@ -152,8 +159,8 @@ export function AttachmentPanel({
                       // 이미지 자리가 생겼다 — 누른 사람은 자기가 잘못 올렸다고 읽는다.
                       onInsert(
                         isImage
-                          ? `![${String(item['filename'])}](${url})`
-                          : `[${String(item['filename'])}](${url})`,
+                          ? `![${String(item['filename'])}](${path})`
+                          : `[${String(item['filename'])}](${path})`,
                       )
                     }
                     className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
