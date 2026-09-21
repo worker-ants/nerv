@@ -209,3 +209,32 @@ test('본문을 내려도 페이지와 레일은 제자리다 — 흐르는 것�
   // 그리고 제목은 본문 칸 꼭대기에 그대로 붙어 있다
   expect(moved.titleGap).toBeLessThanOrEqual(1);
 });
+
+// 다이어그램 배율 — REQ-WEB-172 (2026-09-22 사람 보고)
+//
+// **jsdom 으로는 잡을 수 없다.** 검사하는 것이 "확대하면 넘친 만큼 스크롤할 수 있는가" 라
+// 레이아웃이 실제로 재어져야 한다 — 첫 구현이 `transform: scale()` 이었고, 그것은 그리기에만
+// 걸려 상자가 그대로라 **커진 부분에 닿을 수가 없었다**. L1 은 그 결함을 통과시켰다.
+test('다이어그램을 확대하면 넘친 만큼 밀 수 있다', async ({ page }) => {
+  await page.goto('/p/clemvion/specs/SPC-CWC-007');
+  const figure = page.getByTestId('mermaid-figure');
+  await expect(figure).toBeVisible({ timeout: 15000 });
+
+  // 처음은 칸에 들어간다 — 가로로 넘칠 것이 없다
+  const fit = await figure.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(fit).toBeLessThanOrEqual(1);
+
+  for (let i = 0; i < 4; i += 1) await page.getByTestId('mermaid-zoom-in').click();
+  await expect(page.getByTestId('mermaid-zoom-fit')).toHaveText('244%');
+
+  // 넘쳤고, 그 넘친 만큼 **이 상자가** 민다(페이지가 아니다)
+  const overflow = await figure.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(overflow).toBeGreaterThan(50);
+  await figure.evaluate((el) => el.scrollTo({ left: 9999 }));
+  expect(await figure.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+
+  // 숫자를 누르면 100% 로 돌아오고 넘친 것도 사라진다
+  await page.getByTestId('mermaid-zoom-fit').click();
+  await expect(page.getByTestId('mermaid-zoom-fit')).toHaveText('100%');
+  expect(await figure.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+});

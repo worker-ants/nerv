@@ -21,6 +21,13 @@
 // 두면 사람이 화살표로 내려가다 **보이지 않는 자리에 캐럿을 잃는다**. 원본은 문서 모델에
 // 그대로 있고(직렬화가 읽는 것은 DOM 이 아니다) [코드]를 누르면 다시 편집할 수 있다.
 //
+// **그림은 항상 칸 폭에 맞춰 줄어들고 있었다**(2026-09-22 — 사람 보고 · REQ-WEB-172).
+// mermaid 의 `useMaxWidth` 기본값이 `true` 라 출력 SVG 가 담긴 칸에 맞춰 축소되므로,
+// 노드가 많은 다이어그램은 **글자를 읽을 수 없는 크기**로 그려졌다 — 스펙 상세는 2열이라
+// 본문 칸이 더 좁다. 그리고 상자에 걸어 둔 `overflow-x-auto` 는 넘칠 일이 없어 **한 번도
+// 동작한 적이 없었다**. 셋을 준다: 원본 크기로 그리고(넘치면 스크롤), 배율 컨트롤을 두고,
+// 전체화면으로 연다 — 큰 그림을 보려고 문서를 떠나지 않아도 되는 것이 요점이다.
+//
 // mermaid 는 번들이 크다(~500KB). **동적 import** 라 mermaid 블록이 실제로 그려질 때만
 // 내려받는다 — 스펙 화면 전체가 그 비용을 지지 않는다.
 
@@ -35,6 +42,117 @@ let seq = 0;
 
 const PRE = 'rounded-nerv border border-border bg-code-bg p-3 font-mono text-xs text-code-text';
 
+/** 배율 한 칸 — 곱셈이라 어느 배율에서 눌러도 같은 비율로 움직인다. */
+const STEP = 1.25;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 4;
+
+/**
+ * 그림 자체 — SVG 문자열을 붙이고 배율을 건다.
+ *
+ * **`zoom` 으로 키운다. `transform: scale()` 이 아니다**(2026-09-22 실측). 변환은 그리기에만
+ * 걸리고 **레이아웃 상자는 그대로**라, 확대해도 스크롤이 생기지 않아 커진 부분에 닿을 수가
+ * 없었다 — 스크린샷으로 보기 전에는 몰랐던 자리다. `zoom` 은 상자까지 함께 키우므로 넘친
+ * 만큼 그대로 밀린다. SVG 의 `width`/`height` 를 고쳐 쓰지 않는 것은 그대로다: mermaid 가
+ * 계산해 둔 좌표계와 어긋나고, 다시 그리면 값이 되돌아온다.
+ *
+ * **가운데 정렬은 `mx-auto` 로 한다.** 스크롤 상자에 `justify-center` 를 걸면 넘쳤을 때
+ * 내용의 **왼쪽이 앞으로 잘려** 되돌아갈 수 없다(자동 여백은 그 자리에서 0 이 된다).
+ */
+function Figure({
+  svg,
+  scale,
+  bare = false,
+}: {
+  svg: string;
+  scale: number;
+  bare?: boolean;
+}): React.JSX.Element {
+  return (
+    <div
+      data-testid={bare ? 'mermaid-figure-full' : 'mermaid-figure'}
+      className={
+        bare
+          ? 'min-w-fit'
+          : // 원본 크기로 그리므로 넘칠 수 있다 — 그때 미는 것은 이 상자다(REQ-WEB-172)
+            'min-w-0 overflow-auto rounded-nerv border border-border bg-bg-elev px-3 py-4'
+      }
+    >
+      {/* mermaid 의 출력은 SVG 문자열이다. securityLevel:'strict' 가 스크립트와
+          외부 참조를 걷어낸 뒤의 것이라 그대로 붙인다 */}
+      <div
+        className="mx-auto w-fit [&_svg]:h-auto"
+        style={{ zoom: scale }}
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    </div>
+  );
+}
+
+/** 배율 컨트롤 — [−] [맞추기] [+] 와 전체화면. 글자 없이 읽히도록 이름은 `aria-label` 에. */
+function MermaidControls({
+  scale,
+  onScale,
+  onFullscreen,
+  full,
+}: {
+  scale: number;
+  onScale: (next: number) => void;
+  onFullscreen: () => void;
+  full: boolean;
+}): React.JSX.Element {
+  const t = useT();
+  const btn =
+    'flex size-6 items-center justify-center rounded-nerv-sm border border-border bg-bg-elev text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-40';
+  return (
+    <>
+      <button
+        type="button"
+        data-testid="mermaid-zoom-out"
+        aria-label={t('spec.mermaid_zoom_out')}
+        title={t('spec.mermaid_zoom_out')}
+        disabled={scale <= MIN_SCALE}
+        onClick={() => onScale(Math.max(MIN_SCALE, scale / STEP))}
+        className={btn}
+      >
+        −
+      </button>
+      {/* 지금 배율을 **숫자로** 적는다 — 몇 번 눌렀는지 세게 하지 않는다 */}
+      <button
+        type="button"
+        data-testid="mermaid-zoom-fit"
+        aria-label={t('spec.mermaid_zoom_fit')}
+        title={t('spec.mermaid_zoom_fit')}
+        onClick={() => onScale(1)}
+        className="rounded-nerv-sm border border-border bg-bg-elev px-1.5 py-0.5 text-2xs text-text-mute tabular-nums hover:border-border-strong hover:text-text"
+      >
+        {Math.round(scale * 100)}%
+      </button>
+      <button
+        type="button"
+        data-testid="mermaid-zoom-in"
+        aria-label={t('spec.mermaid_zoom_in')}
+        title={t('spec.mermaid_zoom_in')}
+        disabled={scale >= MAX_SCALE}
+        onClick={() => onScale(Math.min(MAX_SCALE, scale * STEP))}
+        className={btn}
+      >
+        +
+      </button>
+      <button
+        type="button"
+        data-testid="mermaid-fullscreen-toggle"
+        aria-label={full ? t('spec.mermaid_fullscreen_close') : t('spec.mermaid_fullscreen')}
+        title={full ? t('spec.mermaid_fullscreen_close') : t('spec.mermaid_fullscreen')}
+        onClick={onFullscreen}
+        className={btn}
+      >
+        {full ? '\u2715' : '\u2921'}
+      </button>
+    </>
+  );
+}
+
 export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
   const t = useT();
   const { resolved } = useTheme();
@@ -47,6 +165,14 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
   const [showCode, setShowCode] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  /**
+   * 배율 — **보는 방식이지 문서의 내용이 아니라** 저장되지 않는다([코드] 토글과 같은 규칙).
+   * 본문 안과 전체화면이 **각자 기억한다**: 전체화면에서 키운 배율이 닫은 뒤 좁은 칸에
+   * 그대로 남으면, 사람이 한 적 없는 일이 일어난 것으로 보인다.
+   */
+  const [scale, setScale] = useState(1);
+  const [full, setFull] = useState(false);
+  const [fullScale, setFullScale] = useState(1);
   const idRef = useRef(`mermaid-${(seq += 1)}`);
 
   // 빈 블록은 그릴 것이 없다 — ```mermaid 를 막 친 순간이 그것이라, 그때 오류를 띄우면
@@ -64,6 +190,17 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
           // 앱의 테마를 따른다 — 밝은 화면에 검은 상자가 뜨면 그것부터 눈에 띈다
           theme: resolved === 'dark' ? 'dark' : 'default',
           securityLevel: 'strict',
+          // **원본 크기로 그린다**(REQ-WEB-172). 기본값 `true` 는 SVG 를 담긴 칸에 맞춰
+          // 줄이는데, 그러면 큰 다이어그램일수록 글자가 작아진다 — 넘치는 것은 스크롤과
+          // 배율이 받는다. 다이어그램 종류마다 따로 있는 값이라 최상위에 한 번 적는다.
+          flowchart: { useMaxWidth: false },
+          sequence: { useMaxWidth: false },
+          gantt: { useMaxWidth: false },
+          class: { useMaxWidth: false },
+          state: { useMaxWidth: false },
+          er: { useMaxWidth: false },
+          journey: { useMaxWidth: false },
+          pie: { useMaxWidth: false },
         });
         const { svg: out } = await mermaid.render(idRef.current, code);
         if (alive) {
@@ -98,9 +235,20 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
 
   return (
     <NodeViewWrapper data-testid="mermaid-block" className="relative my-4">
-      {/* 토글은 **편집 내용이 아니다** — `contentEditable={false}` 가 그 경계다.
+      {/* 컨트롤은 **편집 내용이 아니다** — `contentEditable={false}` 가 그 경계다.
           그림 위에 얹지 않고 오른쪽 위 모서리에 둔다: 도형과 겹치면 둘 다 읽기 어렵다 */}
-      <div contentEditable={false} className="absolute top-1.5 right-1.5 z-10">
+      <div
+        contentEditable={false}
+        className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1"
+      >
+        {drawn && (
+          <MermaidControls
+            scale={scale}
+            onScale={setScale}
+            onFullscreen={() => setFull(true)}
+            full={false}
+          />
+        )}
         <button
           type="button"
           data-testid="mermaid-toggle"
@@ -120,17 +268,33 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
       )}
 
       {drawn ? (
-        <div
-          data-testid="mermaid-figure"
-          className="flex justify-center overflow-x-auto rounded-nerv border border-border bg-bg-elev px-3 py-4"
-        >
-          {/* mermaid 의 출력은 SVG 문자열이다. securityLevel:'strict' 가 스크립트와
-              외부 참조를 걷어낸 뒤의 것이라 그대로 붙인다 */}
-          <div
-            className="[&_svg]:h-auto [&_svg]:max-w-full"
-            dangerouslySetInnerHTML={{ __html: svg }}
-          />
-        </div>
+        <>
+          <Figure svg={svg} scale={scale} />
+          {/* **전체화면은 문서를 떠나지 않는 길이다**(REQ-WEB-172). 2열 본문 칸은 큰 그림을
+              담을 틀이 아니고, 그렇다고 새 탭으로 내보내면 읽던 자리를 잃는다. */}
+          {full && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('spec.mermaid_fullscreen')}
+              data-testid="mermaid-fullscreen"
+              className="fixed inset-0 z-50 flex flex-col bg-bg"
+              onKeyDown={(e) => e.key === 'Escape' && setFull(false)}
+            >
+              <div className="flex shrink-0 items-center justify-end gap-1 border-b border-border px-3 py-2">
+                <MermaidControls
+                  scale={fullScale}
+                  onScale={setFullScale}
+                  onFullscreen={() => setFull(false)}
+                  full
+                />
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto p-4">
+                <Figure svg={svg} scale={fullScale} bare />
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         // 코드 그대로 — [코드]를 눌렀거나, 문법이 깨졌거나, 아직 빈 블록일 때의 자리다.
         // **여기에만 `NodeViewContent` 가 있다**: 편집할 수 있는 자리가 곧 보이는 자리다.

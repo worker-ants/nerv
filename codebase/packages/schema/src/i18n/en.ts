@@ -581,7 +581,7 @@ export const en = {
   'error.review.role_required': 'A reviewer role is required.',
   'error.review.head_required': 'A review must name the commit it examined (head_sha).',
   'error.spec.meta_change_not_allowed':
-    'Spec metadata cannot be changed here — use EP-SPEC-15 to move or rename.',
+    'Spec metadata (title, parent, type) cannot be changed here — the tree is governed, so a person changes it on the web (EP-SPEC-15). Resend the body alone.',
   'error.spec.key_taken':
     'A document already uses that key — read and continue that one instead of creating a new one (restore it if archived).',
   'error.spec.missing_fields': 'A new spec needs key, title and type.',
@@ -1061,6 +1061,11 @@ export const en = {
   'spec.impact_send': 'Send the review request',
   'spec.impact_tasks': '{count} derived tasks — a new basis version means a re-brief',
   'spec.impact_title': 'What this change shakes',
+  'spec.mermaid_zoom_in': 'Zoom in',
+  'spec.mermaid_zoom_out': 'Zoom out',
+  'spec.mermaid_zoom_fit': 'Fit to column',
+  'spec.mermaid_fullscreen': 'Full screen',
+  'spec.mermaid_fullscreen_close': 'Close full screen',
   'spec.mermaid_code': 'Code',
   'spec.mermaid_code_title': 'Show this diagram as source — edit it here.',
   'spec.mermaid_figure': 'Diagram',

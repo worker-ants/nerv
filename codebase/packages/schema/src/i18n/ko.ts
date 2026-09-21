@@ -571,7 +571,7 @@ export const ko = {
   'error.review.role_required': '리뷰어 역할이 필요합니다.',
   'error.review.head_required': '리뷰에는 검토한 커밋(head_sha)이 필요합니다.',
   'error.spec.meta_change_not_allowed':
-    '스펙 메타는 이 경로로 바꿀 수 없습니다 — 이동·개명은 EP-SPEC-15 입니다.',
+    '스펙 메타(제목·부모·타입)는 이 경로로 바꿀 수 없습니다 — 트리는 거버넌스 대상이라 사람이 웹에서 바꿉니다(EP-SPEC-15). 본문만 다시 보내십시오.',
   'error.spec.key_taken':
     '이미 그 키를 쓰는 문서가 있습니다 — 새로 만들지 말고 그 문서를 읽고 이어 쓰세요(보관된 문서면 복구합니다).',
   'error.spec.missing_fields': '새 스펙에는 key·title·type 이 필요합니다.',
@@ -1043,6 +1043,11 @@ export const ko = {
   'spec.impact_send': '검토 요청 보내기',
   'spec.impact_tasks': '파생 Task {count}건 — 기준 버전이 바뀌면 재브리핑',
   'spec.impact_title': '이 변경이 흔드는 것',
+  'spec.mermaid_zoom_in': '확대',
+  'spec.mermaid_zoom_out': '축소',
+  'spec.mermaid_zoom_fit': '칸에 맞추기',
+  'spec.mermaid_fullscreen': '전체화면',
+  'spec.mermaid_fullscreen_close': '전체화면 닫기',
   'spec.mermaid_code': '코드',
   'spec.mermaid_code_title': '이 다이어그램의 원본 코드를 봅니다 — 고치려면 여기서 고칩니다.',
   'spec.mermaid_figure': '그림',

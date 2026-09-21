@@ -294,9 +294,12 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
       structuredContent?: Record<string, unknown>;
     };
     expect(err.isError).toBe(true);
-    expect((err.structuredContent?.['details'] as Record<string, unknown>)?.['kind']).toBe(
-      'meta_change_not_allowed',
-    );
+    const details = err.structuredContent?.['details'] as Record<string, unknown>;
+    expect(details?.['kind']).toBe('meta_change_not_allowed');
+    // **거절만 하고 길을 주지 않으면 그것이 막다른 길이다**(REQ-API-161 · 2026-09-22
+    // 사람 물음). 메타는 사람이 웹에서 바꾸는데, 그 주소가 응답에 없으면 에이전트는
+    // 사람에게 청할 수조차 없다 — 그때 남는 선택지가 하나도 없다.
+    expect(String(details?.['web_url'])).toContain('/specs/');
   });
 
   it('역할이 만들 수 있는 타입을 가른다 — developer 는 feature 를 못 만든다', async () => {

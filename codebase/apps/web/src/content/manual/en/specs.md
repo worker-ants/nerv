@@ -96,7 +96,9 @@ A ` ```mermaid ` code block in the body **renders as a diagram.** There is no re
 - **The diagram is the default**, on approved documents and drafts alike.
 - **[Code]** at the top right of the block brings the source back; edit it there. **[Diagram]** returns.
 - Bad syntax leaves the code standing and **says it is wrong** — never a place with neither a picture nor words.
-- What is saved is always the code. The diagram is a way of looking, not part of the document.
+- **You can make it bigger.** `−` and `+` at the top right change the scale, and the number between them snaps back to 100%. When a diagram is wider than the column, pan it where it stands.
+- **Full screen** (`⤡`) gives the diagram the whole window — not a new tab, so closing it leaves you where you were reading. The scale in the body and in full screen are remembered separately.
+- What is saved is always the code. Neither the diagram nor the scale is part of the document — both are ways of looking.
 
 ## The edit lease
 
