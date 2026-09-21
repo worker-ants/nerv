@@ -53,7 +53,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 <b>22종</b>(P0 8 + P1 14 · 카탈로그 24종 — 리뷰 2종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.29 (2026-09-20)</span>
+      <span>버전 v0.30 (2026-09-22)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: approved</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -192,7 +192,7 @@
       <tr><td>Drizzle</td><td>마이그레이션 운영 부담이 임계를 넘을 때</td><td>Prisma/Kysely 재평가</td></tr>
       <tr><td>better-auth</td><td>엔터프라이즈 SSO 요구 유입</td><td>Keycloak 연동 검토</td></tr>
       <tr><td>Valkey pub/sub(무영속 단일 인스턴스)</td><td>방송 유실로 인한 재조회 비용이 실측 임계를 넘거나 이벤트 재전송(replay) 요구가 생길 때</td><td>Valkey Streams(적재형)·HA(센티널/관리형) 재검토</td></tr>
-      <tr><td>TipTap</td><td>md 직렬화 왕복 손실 실측 발생</td><td>Milkdown 재검토</td></tr>
+      <tr><td>TipTap</td><td>md 직렬화 왕복 손실 실측 발생</td><td>Milkdown 재검토 — <b>2026-09-22 종료</b>(조건 소멸: 웹이 md 를 되돌려 보내지 않는다 · 아래 점화 기록 ②)</td></tr>
       <tr><td>Vitest + Playwright</td><td>L3 유지 비용이 개발 흐름을 끊는 수준으로 증가</td><td>E2E 범위 축소(시나리오 5종 고정) 또는 러너 통합 재검토</td></tr>
       <tr><td>임베딩 제공자 프로필(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI)</td><td>질의 임베딩 p95가 검색 응답 목표(보류 — E06-S06 실측 후 확정, <a href="api.html">4.4</a> §2.2b)를 잠식, 검색 만족도 실측 미달, 또는 운영 API 비용·정책 변화</td><td>제공자·모델은 env 교체 + 재임베딩으로 해소(코드 불변 — OpenAI 호환 단일 계약). 그래도 부족하면 전용 검색엔진 재검토(그 전에는 재론 금지)</td></tr>
       <tr><td>실시간 공동 편집 미도입</td><td>버전 충돌(409 재시도) 주 20건 이상 또는 동시 편집 요구 반복(로드맵 §5.1)</td><td>Yjs + Hocuspocus</td></tr>
@@ -214,7 +214,8 @@
       <tr><td>연속 인용문 병합 + 강조 이스케이프 중복</td><td>빈 <code>&gt;</code> 로 분리된 인용 문단이 하나로 합쳐지고 <code>**</code>가 <code>\*\*</code>로 늘어난다</td><td><code>04-mvp/importer.md</code></td></tr>
     </table></div>
     <p><b>그럼에도 MVP는 TipTap으로 진행한다.</b> 근거는 손실이 데이터에 도달하지 못한다는 것이다 — 저장 전 왕복 검증이 불안정 직렬화를 차단하고(REQ-WEB-031), 사용자는 소스 보기와 터미널 경로(<code>/nerv:spec</code>)로 안내된다. 즉 현재 상태는 "편집기가 특정 문서를 못 연다"이지 "저장이 문서를 망친다"가 아니다.</p>
-    <p><b>스택 교체는 사람의 결정이다.</b> Milkdown 재검토는 이 기록을 입력으로 하되 착수 여부는 확정하지 않는다. 재검토를 시작한다면 판단 기준은 두 가지여야 한다: ① 위 2유형이 Milkdown에서 해소되는가 ② 교체 비용이 "차단된 문서를 터미널로 편집한다"는 현재의 우회보다 싼가. 스파이크 리포트 산출물은 <code>apps/web/.spike/tiptap-roundtrip.md</code>이고 매 실행마다 갱신된다(수치가 떨어지면 회귀로 막힌다).</p>
+    <p><b>2026-09-22 — 이 트리거는 종료됐다(조건 소멸).</b> 웹에서 스펙 본문 편집을 걷으면서(<a href="screens.html">4.5</a> REQ-WEB-173) 웹은 md 를 <b>화면으로 옮기기만</b> 하고 되돌려 보내지 않는다. 직렬화가 호출되지 않으므로 위 2유형이 <b>데이터에 닿을 경로 자체가 없어졌고</b>, 저장 게이트(REQ-WEB-031)도 막을 저장이 없어 함께 폐지됐다. 위의 실측과 최소 재현은 그대로 둔다 — 이제 <b>편집기의 충실도를 기록하는 스파이크</b>이지 게이트가 아니다. <b>조건이 사라진 것과 조건이 충족되지 않은 것은 다르다</b>: 언젠가 웹이 다시 md 를 쓰게 되면 이 줄이 그대로 되살아난다.</p>
+  <p><b>스택 교체는 사람의 결정이다.</b> Milkdown 재검토는 이 기록을 입력으로 하되 착수 여부는 확정하지 않는다. 재검토를 시작한다면 판단 기준은 두 가지여야 한다: ① 위 2유형이 Milkdown에서 해소되는가 ② 교체 비용이 "차단된 문서를 터미널로 편집한다"는 현재의 우회보다 싼가. 스파이크 리포트 산출물은 <code>apps/web/.spike/tiptap-roundtrip.md</code>이고 매 실행마다 갱신된다(수치가 떨어지면 회귀로 막힌다).</p>
   </div></div>
 
   <p>운영 Postgres의 위치(클러스터 외부 권장 vs CloudNativePG)는 확정이 아니라 <b>백로그 확인 태스크</b>다 — <a href="backlog.html">4.8 백로그</a>에 스토리로 등재한다.</p>

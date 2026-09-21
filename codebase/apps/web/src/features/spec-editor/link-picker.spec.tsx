@@ -1,14 +1,16 @@
-// 스펙 링크 넣기 (screens.md §3.1a · REQ-WEB-109)
+// 스펙 고르개 (screens.md §3.1a · REQ-WEB-109)
 //
-// 관계는 본문의 링크에서만 만들어진다. 웹에서 링크를 넣는 길이 URL 을 손으로 붙이는
-// 것뿐이면 사람이 쓴 문서는 계속 산문으로 남는다 — 그러면 규약을 에이전트에게만 지키게 한다.
+// **2026-09-22 부터 이 고르개는 본문에 링크를 넣지 않는다**(사람 결정 · REQ-WEB-173).
+// 웹에서 본문을 고치는 경로를 걷어냈기 때문이다 — 본문의 링크는 이제 에이전트가 쓴다.
+// 컴포넌트는 남는다: 리뷰 센터의 처분 다이얼로그가 "어느 스펙을 고칠 것인가" 를 고를 때
+// 같은 것을 쓴다(`review-center/resolve-dialog.tsx`). 그래서 이 파일이 지키는 것은
+// **고르개 자신의 계약**이다 — 무엇이 목록에 오르고, 무엇이 빠지고, 고르면 무엇이 오는가.
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '../../lib/i18n.js';
-import { SpecEditor } from './editor.js';
-import { specLinkHref } from './spec-link-picker.js';
+import { SpecLinkPicker, specLinkHref } from './spec-link-picker.js';
 import { asProjectId } from '../../lib/query-keys.js';
 
 const NODES = [
@@ -17,15 +19,7 @@ const NODES = [
   { id: 'c', key: 'SUD-SELF', title: '나 자신', type: 'feature' },
 ];
 
-// jsdom 은 레이아웃을 계산하지 않아 `getClientRects` 가 없다. ProseMirror 는 선택을 옮긴 뒤
-// 그 자리로 스크롤하려고 그것을 부르는데, 그 호출이 **트랜잭션 바깥의 비동기**라 던지면
-// 테스트가 아니라 러너가 잡는다(간헐 실패로 나타났다 — 실측 2026-08-30).
 beforeEach(() => {
-  Element.prototype.getClientRects ??= () =>
-    ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList;
-  Range.prototype.getClientRects ??= () =>
-    ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList;
-  Range.prototype.getBoundingClientRect ??= () => new DOMRect();
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => ({
@@ -40,20 +34,19 @@ afterEach(() => {
   cleanup();
 });
 
-function renderEditor(onChange = vi.fn(), readOnly = false): void {
+function renderPicker(onPick = vi.fn()): void {
   render(
     <LocaleProvider locale="ko">
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
       >
-        <SpecEditor
-          value={'# 문서\n\n협동은 보드가 하나다.'}
-          readOnly={readOnly}
-          onChange={onChange}
+        <SpecLinkPicker
           projectSlug="sudoku"
-          // 앱은 언제나 함께 넘긴다(specs.$spec.tsx) — 트리 쿼리가 이 축으로 잡힌다
+          // 앱은 언제나 함께 넘긴다 — 트리 쿼리가 이 축으로 잡힌다
           projectId={asProjectId('p-1')}
-          specKey="SUD-SELF"
+          excludeKey="SUD-SELF"
+          onPick={onPick}
+          onClose={() => undefined}
         />
       </QueryClientProvider>
     </LocaleProvider>,
@@ -66,15 +59,9 @@ describe('링크 대상 형태', () => {
   });
 });
 
-describe('스펙 링크 고르기', () => {
-  it('편집할 수 있을 때만 버튼이 있다 — 읽기 화면에 쓰기 도구를 두지 않는다', () => {
-    renderEditor(vi.fn(), true);
-    expect(screen.queryByTestId('editor-link-spec')).toBeNull();
-  });
-
+describe('스펙 고르기', () => {
   it('목록에서 자기 자신은 빠진다 — 자기 참조는 관계가 아니다', async () => {
-    renderEditor();
-    fireEvent.click(screen.getByTestId('editor-link-spec'));
+    renderPicker();
     await waitFor(() => expect(screen.getAllByTestId('link-option').length).toBeGreaterThan(0));
     const labels = screen.getAllByTestId('link-option').map((b) => b.textContent);
     expect(labels.some((l) => l?.includes('SUD-AREA-PLAY'))).toBe(true);
@@ -82,25 +69,24 @@ describe('스펙 링크 고르기', () => {
   });
 
   it('제목·키로 좁힌다', async () => {
-    renderEditor();
-    fireEvent.click(screen.getByTestId('editor-link-spec'));
+    renderPicker();
     await waitFor(() => expect(screen.getAllByTestId('link-option').length).toBe(2));
     fireEvent.change(screen.getByPlaceholderText('제목·키로 찾기'), { target: { value: '협동' } });
     await waitFor(() => expect(screen.getAllByTestId('link-option').length).toBe(1));
     expect(screen.getByTestId('link-option').textContent).toContain('협동 모드');
   });
 
-  it('고르면 본문에 링크가 들어간다 — 그 링크가 곧 관계다', async () => {
-    const onChange = vi.fn();
-    renderEditor(onChange);
-    fireEvent.click(screen.getByTestId('editor-link-spec'));
+  it('고르면 그 문서가 온다 — 키와 제목 둘 다', async () => {
+    const onPick = vi.fn();
+    renderPicker(onPick);
     await waitFor(() => expect(screen.getAllByTestId('link-option').length).toBe(2));
     fireEvent.click(
       screen.getAllByTestId('link-option').find((b) => b.textContent?.includes('협동 모드'))!,
     );
 
-    await waitFor(() => expect(onChange).toHaveBeenCalled());
-    const markdown = onChange.mock.calls.at(-1)?.[0] as string;
-    expect(markdown).toContain('[협동 모드](/p/sudoku/specs/SUD-FTR-COOP)');
+    await waitFor(() => expect(onPick).toHaveBeenCalled());
+    const picked = onPick.mock.calls.at(-1)?.[0] as { key: string; title: string };
+    expect(picked.key).toBe('SUD-FTR-COOP');
+    expect(picked.title).toBe('협동 모드');
   });
 });

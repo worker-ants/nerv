@@ -19,7 +19,6 @@ const SpecTable = lazy(async () => ({
 }));
 import { useQuery } from '@tanstack/react-query';
 import { SpecTree } from '../../components/spec-tree.js';
-import { NewSpecDialog } from '../../features/spec-editor/new-spec-dialog.js';
 import { BaselineSelect, FreezeDialog } from '../../features/spec-editor/baseline-controls.js';
 
 import { StatusBadge } from '../../components/status-badge.js';
@@ -122,7 +121,6 @@ function SpecListScreen(): React.JSX.Element {
   // 다른 라우트로 가르면 둘을 오가며 비교할 수 없다.
   const [view, setView] = useState<'tree' | 'table' | 'graph'>('tree');
   // 웹에서 문서를 **시작하는** 문(2026-09-03 신설). 이것이 없는 동안 목록은 읽기 전용이었다.
-  const [creating, setCreating] = useState(false);
   // 동결은 사람의 거버넌스 행위다(EP-SPEC-12) — 서버가 역할을 최종 판정하므로 화면은
   // 문을 열어 두고, 권한이 없으면 서버가 거절한 사유를 그대로 보인다.
   const [freezing, setFreezing] = useState(false);
@@ -280,16 +278,11 @@ function SpecListScreen(): React.JSX.Element {
               });
             }}
           >
-            {/* **만드는 문이 목록에 있다**(2026-09-03 신설 · REQ-WEB-043). 읽을 수는 있는데
-                시작할 수 없는 화면은 기획자에게 읽기 전용 제품이다 — P7 의 첫 걸음이다. */}
-            <Button
-              type="button"
-              variant="primary"
-              data-testid="new-spec"
-              onClick={() => setCreating(true)}
-            >
-              {t('specs.new')}
-            </Button>
+            {/* **만드는 문이 여기 없다**(2026-09-22 사람 결정 · REQ-WEB-173). 문서를 시작하는
+                것도 본문을 쓰는 일이라 에이전트가 한다 — 웹은 읽고·결정하고·매단다.
+                2026-09-03 에 이 자리에 문을 둔 이유(REQ-WEB-043 — "읽을 수는 있는데 시작할 수
+                없는 화면")는 **그때 웹이 유일한 손이었기 때문**이고, 지금은 터미널 경로가
+                그 손이다(§2.4 산문). */}
             {/* 기준선 — 고르면 목록·상세가 그 세트의 버전을 읽는다(REQ-WEB-135).
              **이 자리가 없어서 실사용 기준선이 0개였다**(실측 2026-09-04) */}
             <BaselineSelect
@@ -483,7 +476,6 @@ function SpecListScreen(): React.JSX.Element {
           </section>
         </div>
       )}
-      {creating && <NewSpecDialog projectSlug={proj} onClose={() => setCreating(false)} />}
       {freezing && <FreezeDialog projectSlug={proj} onClose={() => setFreezing(false)} />}
     </PageBody>
   );

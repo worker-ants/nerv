@@ -437,9 +437,6 @@ export const ko = {
   'spec.requirements.derive_disabled': '승인본이 아니라 파생할 수 없습니다',
   'spec.requirements.empty': '이 버전에는 요구사항 블록이 없습니다.',
   'spec.requirements.no_priority': '우선순위 없음',
-  'spec.source_view': '소스',
-  'spec.source_view_title':
-    '원문 md 를 그대로 봅니다 — 저장이 막혔을 때 무엇이 문제인지 여기서 보입니다',
   'specs.baseline': '기준선',
   'specs.baseline_current': '기준선 없음',
   'specs.baseline_hint':
@@ -1052,6 +1049,12 @@ export const ko = {
   'spec.mermaid_code_title': '이 다이어그램의 원본 코드를 봅니다 — 고치려면 여기서 고칩니다.',
   'spec.mermaid_figure': '그림',
   'spec.mermaid_figure_title': '코드를 그림으로 되돌립니다.',
+  'spec.body_agent_only': '본문은 에이전트가 씁니다 — 아래 [터미널에서 이어쓰기]의 명령을 쓰세요.',
+  'spec.body_source': '소스',
+  'spec.body_tabs': '본문 보기',
+  'spec.body_viewer': '뷰어',
+  'spec.source_copy': '복사',
+  'spec.source_copied': '복사됨',
   'spec.mermaid_failed': '다이어그램을 그리지 못했습니다 — 문법을 확인하세요.',
   'spec.lease_mine': '✏️ 편집 중 — {name} · 웹 · 자동 갱신(30분)',
   'spec.lease_mine_anon': '나',

@@ -29,10 +29,12 @@ const DIAGRAM = '# 제목\n\n```mermaid\ngraph TD\n  A-->B\n```\n';
 
 afterEach(cleanup);
 
-function draw(value: string, readOnly = true): void {
+// **`readOnly` 인자가 없다**(2026-09-22 · REQ-WEB-173) — 웹의 본문은 언제나 읽기 전용이다.
+// 이 파일의 "초안에서도 그림이다" 는 이제 구조가 보장한다: 가를 축 자체가 사라졌다.
+function draw(value: string): void {
   render(
     <LocaleProvider locale="ko">
-      <SpecEditor value={value} readOnly={readOnly} onChange={() => undefined} />
+      <SpecEditor value={value} />
     </LocaleProvider>,
   );
 }
@@ -48,12 +50,12 @@ describe('mermaid 블록', () => {
     // 이 한 줄이 2026-09-21 보고의 전부다: 예전에는 편집 가능한 문서면 코드로 남았고,
     // `editable` 은 역할이 아니라 **문서 상태**(draft + 리스 없음)라 초안을 **읽는**
     // 사람에게도 코드가 보였다.
-    draw(DIAGRAM, false);
+    draw(DIAGRAM);
     await waitFor(() => expect(screen.getByTestId('mermaid-figure')).toBeTruthy());
   });
 
   it('[코드]를 누르면 원본이 서고, 다시 누르면 그림으로 돌아온다', async () => {
-    draw(DIAGRAM, false);
+    draw(DIAGRAM);
     await waitFor(() => expect(screen.getByTestId('mermaid-figure')).toBeTruthy());
 
     fireEvent.click(screen.getByTestId('mermaid-toggle'));

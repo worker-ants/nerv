@@ -16,7 +16,7 @@ import {
   DerivedTaskPanel,
   RequirementPanel,
 } from '../../features/spec-editor/requirement-panel.js';
-import { SourceView, SourceViewToggle } from '../../features/spec-editor/source-view.js';
+import { SourceView } from '../../features/spec-editor/source-view.js';
 import { TerminalHandoffCard } from '../../features/spec-editor/terminal-handoff.js';
 import { VersionDiff } from '../../features/spec-editor/version-diff.js';
 import { AttachmentPanel } from '../../features/spec-editor/attachment-panel.js';
@@ -24,8 +24,7 @@ import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
-import { NERV_ERROR, statusLabelKey } from '@nerv/schema';
-import { baseHashFor, changedByOthers } from '../../lib/edit-basis.js';
+import { statusLabelKey } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -42,7 +41,6 @@ import {
   useRequirements,
   useSpecVersions,
 } from '../../lib/queries.js';
-import type { RoundTripResult } from '../../features/spec-editor/editor.js';
 import { relativeTime } from '../../lib/format.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
@@ -58,7 +56,7 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({
    */
   validateSearch: (
     search: Record<string, unknown>,
-  ): { v?: number; diff?: string; baseline?: string; rail?: RailTab } => ({
+  ): { v?: number; diff?: string; baseline?: string; rail?: RailTab; body?: BodyTab } => ({
     ...(typeof search['v'] === 'string' || typeof search['v'] === 'number'
       ? { v: Number(search['v']) }
       : {}),
@@ -69,6 +67,9 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({
     // 열어 주면, 정작 읽으러 온 코멘트는 레일 다섯 탭 중 하나에 접혀 있다. 어휘 밖 값은
     // 버린다 — 탭 이름은 닫힌 집합이라 모르는 값에 화면을 맞출 자리가 없다.
     ...(isRailTab(search['rail']) ? { rail: search['rail'] } : {}),
+    // **본문을 보는 방식도 주소의 축이다**(REQ-WEB-173). 소스를 보고 있는 화면을 그대로
+    // 넘겨줄 수 있어야 한다 — "거기 원문 몇 번째 줄" 이 오가는 대화가 그것이다.
+    ...(isBodyTab(search['body']) ? { body: search['body'] } : {}),
     // 목록에서 고른 기준선을 그대로 물고 온다 — 상세도 같은 세트를 읽어야 한다(REQ-WEB-135)
     ...(typeof search['baseline'] === 'string' && search['baseline'] !== ''
       ? { baseline: search['baseline'] }
@@ -88,6 +89,20 @@ function isRailTab(value: unknown): value is RailTab {
   return typeof value === 'string' && (RAIL_TABS as readonly string[]).includes(value);
 }
 
+/**
+ * 본문을 보는 방식 — **뷰어와 소스 둘뿐이다**(2026-09-22 사람 결정 · REQ-WEB-173).
+ *
+ * 편집 탭은 없다. 웹에서 본문을 고치는 경로를 걷어냈기 때문이다 — 본문은 에이전트가 쓴다
+ * (§3.1 개정). 둘을 탭으로 가르는 이유는 **축을 사람의 의도로 바꾸기 위해서**다: 예전에는
+ * 읽는 면과 고치는 면이 같은 편집기였고 둘을 가르는 것이 "이 문서가 초안인가" 였다.
+ */
+const BODY_TABS = ['viewer', 'source'] as const;
+export type BodyTab = (typeof BODY_TABS)[number];
+
+function isBodyTab(value: unknown): value is BodyTab {
+  return typeof value === 'string' && (BODY_TABS as readonly string[]).includes(value);
+}
+
 /** 주소의 `diff` 를 두 수로 — 항상 **오래된 쪽 → 새 쪽**이다(added/removed 는 순서가 뜻이다) */
 function parseDiff(value: string | undefined): { from: number; to: number } | null {
   const m = value === undefined ? null : DIFF_RE.exec(value);
@@ -96,9 +111,6 @@ function parseDiff(value: string | undefined): { from: number; to: number } | nu
   const b = Number(m[2]);
   return { from: Math.min(a, b), to: Math.max(a, b) };
 }
-
-/** 리스 갱신 주기 — 하트비트 상수와 같은 값을 쓴다(§3.4 "갱신"). */
-const LEASE_REFRESH_MS = 60_000;
 
 function SpecDetail(): React.JSX.Element {
   const t = useT();
@@ -125,16 +137,6 @@ function SpecDetail(): React.JSX.Element {
   // 옛 버전 전문 — 지금 버전이 아닌 것을 볼 때만 부른다
   const pastVersion = useSpecVersion(proj, spec, viewing, viewing !== null);
 
-  const [draft, setDraft] = useState<string | null>(null);
-  const [roundTrip, setRoundTrip] = useState<RoundTripResult | null>(null);
-  const [leaseHolder, setLeaseHolder] = useState<string | null>(null);
-  const [conflict, setConflict] = useState<Record<string, unknown> | null>(null);
-  /**
-   * **리스를 뺏었다.** 리스 보유자는 이제 세션이라(§1.4h), 죽은 에이전트 세션이 쥔 30분짜리
-   * 리스에 사람이 갇히는 것이 가장 흔한 상황이다. 눌러도 본문이 위험하지 않은 이유는
-   * `base_hash` 가 따로 지키기 때문이다 — 리스는 신호이고 지문이 자물쇠다.
-   */
-  const [takeover, setTakeover] = useState(false);
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
   // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다.
@@ -159,28 +161,27 @@ function SpecDetail(): React.JSX.Element {
   const railTabsRef = useRef<HTMLDivElement>(null);
   const [tabEdges, setTabEdges] = useState<ScrollEdges>('none');
   /**
-   * 소스 보기 — 원문 md 를 그대로 본다(REQ-WEB-031 · §3.2 규칙 2).
-   *
-   * 왕복 검증이 실패하면 **자동으로 켠다.** "저장을 막았습니다" 만 띄우고 무엇이
-   * 문제인지 볼 길을 주지 않으면 사람은 그 자리에서 막힌다 — 에디터가 못 그리는 것이
-   * 정확히 저장을 막는 것이라, 그때 필요한 것은 렌더링이 아니라 바이트다.
+   * 본문을 보는 방식 — **주소가 진실이다**(REQ-WEB-173 · §1.4 뷰 상태 규약).
+   * 기본은 뷰어이고, `?body=source` 면 원문 md 가 선다.
    */
-  const [sourceView, setSourceView] = useState(false);
+  const bodyTab: BodyTab = search.body ?? 'viewer';
+  const setBodyTab = (key: BodyTab): void => {
+    void navigate({
+      to: '.',
+      // 기본값은 **주소에 남기지 않는다** — 뜻 없는 인자를 주소에 남기지 않는 규칙이
+      // 이미 있다(REQ-WEB-163 의 "v1 에는 아무 인자도 붙이지 않는다").
+      search: ({ body: _drop, ...rest }) => (key === 'viewer' ? rest : { ...rest, body: key }),
+      replace: true,
+    });
+  };
   // 관계 안의 두 방향은 **다른 질문**이다: 역참조는 "고치면 무엇이 흔들리나",
   // 레퍼런스는 "이 문서가 무엇에 기대나". 섞어 놓으면 둘 다 훑어야 답이 나온다.
   const [relTab, setRelTab] = useState<RelationDirection>('all');
 
   // **스펙이 바뀌면 이 화면의 상태는 전부 남의 것이 된다.** 라우트 파라미터만 바뀌면
-  // 리액트는 같은 컴포넌트를 재사용하므로 `draft`·리스 보유자·충돌이 그대로 살아남는다.
-  // 화면으로는 앞 문서의 본문이 계속 보였고(실측 2026-08-23 — 트리로 이동하면 제목만
-  // 바뀌고 본문은 앞 문서였다), 더 나쁜 것은 **저장이다**: 앞 문서의 draft 를 들고 있는
-  // 채로 저장하면 남의 본문을 이 문서에 덮어쓴다.
+  // 리액트는 같은 컴포넌트를 재사용하므로 열어 둔 것이 그대로 살아남는다 — 앞 문서의
+  // 영향 미리보기가 다음 문서 위에 떠 있으면, 거기 적힌 수는 이 문서의 것이 아니다.
   useEffect(() => {
-    setDraft(null);
-    setRoundTrip(null);
-    setLeaseHolder(null);
-    setConflict(null);
-    setTakeover(false);
     setShowImpact(false);
     setMetaOpen(false);
     setRailTab('relations');
@@ -191,118 +192,6 @@ function SpecDetail(): React.JSX.Element {
   const isArea = String(detail.data?.['type'] ?? '') === 'area';
   const docStatus = String(detail.data?.['doc_status'] ?? 'draft');
   const versionId = String(detail.data?.['version_id'] ?? '');
-  /**
-   * **읽은 본문의 지문** — 저장이 이것을 되돌려 주어야 서버가 "그 사이 아무도 안 바꿨다"를
-   * 확인한다(api.md §1.4g). 저장에 성공하면 응답의 새 지문으로 갈아탄다: 갈아타지 않으면
-   * 두 번째 자동 저장이 자기 자신을 낡은 것으로 판정한다.
-   */
-  const [baseHash, setBaseHash] = useState<string | null>(null);
-  // 다른 문서로 옮기면 앞 문서의 지문을 들고 가지 않는다(§2.4e 와 같은 이유다)
-  useEffect(() => setBaseHash(null), [spec]);
-  const readHash =
-    typeof detail.data?.['content_hash'] === 'string'
-      ? (detail.data['content_hash'] as string)
-      : null;
-
-  /**
-   * **내가 편집을 시작한 시점의 지문**을 붙잡는다.
-   *
-   * 예전에는 첫 저장 전까지 `readHash`(라이브 쿼리 값)를 그대로 보냈다. 그런데 그 쿼리는
-   * `spec.draft_updated` 로 무효화·재조회되므로, 다른 사람·에이전트가 같은 초안을 저장하면
-   * `readHash` 가 **상대의 새 지문으로 갱신된다.** 내 화면의 본문은 옛 내용 그대로인데
-   * 다음 저장은 최신 지문을 실어 보내므로 서버의 비교-교환이 통과한다 — §1.4g 가 막으려던
-   * "두 편집자 중 한쪽 글이 사라지는" 일이 웹에서 그대로 재현됐다.
-   *
-   * 그래서 기준은 라이브 값이 아니라 **내가 처음 본 값**이다. 그 사이 문서가 바뀌었다면
-   * 저장은 409 로 돌아오고, 그것이 정확히 우리가 원하는 답이다.
-   */
-  const [openedHash, setOpenedHash] = useState<string | null>(null);
-  useEffect(() => setOpenedHash(null), [spec]);
-  useEffect(() => {
-    // 문서를 처음 읽은 그 순간의 지문 하나만 붙잡는다(이후 재조회는 이 값을 바꾸지 않는다)
-    if (openedHash === null && readHash !== null) setOpenedHash(readHash);
-  }, [openedHash, readHash]);
-
-  /** 내가 본 뒤로 남이 저장했는가 — 배너로 알린다(조용히 덮지 않기 위해서다) */
-  const staleByOthers = changedByOthers({
-    editing: draft !== null,
-    opened: openedHash,
-    live: readHash,
-  });
-  const editable = docStatus === 'draft' && leaseHolder === null;
-
-  /**
-   * 승인본에서 **다음 버전을 시작한다**(2026-09-03 신설 · WEB-02).
-   *
-   * 승인본은 읽기 전용이 맞다(D-02 — 가변 구간은 draft 하나뿐). 문제는 그 다음이 없었다는
-   * 것이다: 웹에는 새 초안으로 가는 문이 없어서 **승인된 문서 132개를 웹에서 고칠 수
-   * 없었다**(실측 2026-09-03). 터미널이 유일한 길이면 P7 은 문서에만 있다.
-   *
-   * 서버 경로는 처음부터 있었다 — 열린 draft 가 없으면 `versionNo+1` 짜리 새 draft 를
-   * 만든다. 본문은 지금 읽는 버전을 그대로 얹고, 지문은 그 버전의 것을 보낸다(§1.4g).
-   */
-  const startDraft = useMutation({
-    mutationFn: () =>
-      apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/draft`, {
-        method: 'PUT',
-        body: {
-          body_markdown: String(detail.data?.['body_md'] ?? ''),
-          base_hash: String(detail.data?.['content_hash'] ?? ''),
-        },
-      }),
-    onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.specVersions(spec) });
-      pushToast({
-        tone: 'ok',
-        message: t('spec.new_draft_started', { version: String(result['version_no'] ?? '') }),
-      });
-    },
-    onError: onApiError,
-  });
-
-  const save = useMutation({
-    mutationFn: (markdown: string) =>
-      apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/draft`, {
-        method: 'PUT',
-        body: {
-          body_markdown: markdown,
-          // 무엇을 보고 썼는가 — 이것 하나가 낙관적 동시성의 전부다(§1.4g).
-          // 계보(`base_version`)는 서버가 채운다: 부른 쪽이 아는 사실이 아니다.
-          base_hash: baseHashFor({ saved: baseHash, opened: openedHash, live: readHash }),
-          ...(takeover ? { takeover: true } : {}),
-        },
-      }),
-    onSuccess: (result) => {
-      setConflict(null);
-      // 저장이 성공하면 **내가 방금 만든 내용**이 새 기준이다 — 갈아타지 않으면
-      // 다음 자동 저장이 자기 자신을 낡은 것으로 판정한다
-      if (typeof result['content_hash'] === 'string') setBaseHash(result['content_hash']);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.specVersions(spec) });
-      const relationSync = result['relations'] as { unknown?: string[] } | undefined;
-      const unknownRefs = relationSync?.unknown ?? [];
-      pushToast({
-        tone: 'ok',
-        message:
-          unknownRefs.length === 0
-            ? t('spec.saved')
-            : t('spec.saved_unknown_refs', { refs: unknownRefs.join(', ') }),
-      });
-    },
-    onError: (error: Error) => {
-      if (error instanceof NervApiError && error.code === NERV_ERROR.PRECONDITION) {
-        setConflict(error.body.details);
-        return;
-      }
-      if (error instanceof NervApiError && error.code === NERV_ERROR.DRAFT_LEASED) {
-        setLeaseHolder(String(error.body.details['holder'] ?? t('spec.lease_other_default')));
-        return;
-      }
-      pushToast({ tone: 'warn', message: error.message });
-    },
-  });
-
   const submit = useMutation({
     mutationFn: () =>
       apiFetch<Record<string, unknown>>(`/projects/${proj}/spec-versions/${versionId}/submit`, {
@@ -361,13 +250,6 @@ function SpecDetail(): React.JSX.Element {
       pushToast({ tone: 'warn', message: error.message });
     },
   });
-
-  // 리스 주기 갱신 — 에디터가 열려 있는 동안 저장 없이도 붙잡고 있어야 한다(REQ-WEB-029)
-  useEffect(() => {
-    if (!editable || draft === null) return;
-    const timer = setInterval(() => save.mutate(draft), LEASE_REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [draft, editable, save]);
 
   const relationItems = relations.data?.items ?? [];
   // 참조 갱신 — 서버 판정(REQ-WEB-037). 배지는 이 값만 본다.
@@ -566,109 +448,6 @@ function SpecDetail(): React.JSX.Element {
           </div>
         )}
 
-        {/* 내가 리스를 쥐고 있다는 사실을 보인다(REQ-WEB-029) — 안 보이면 사람은 자기가
-            문서를 잠그고 있는 줄 모르고 자리를 뜬다 */}
-        {leaseHolder === null && editable && draft !== null && (
-          <div
-            data-testid="lease-badge"
-            className="mb-2 rounded-nerv bg-status-action-soft px-3 py-1.5 text-sm text-status-action"
-          >
-            {t('spec.lease_mine', { name: me.data?.display_name ?? t('spec.lease_mine_anon') })}
-          </div>
-        )}
-
-        {leaseHolder !== null && (
-          <div
-            data-testid="lease-banner"
-            className="mb-2 flex flex-wrap items-center gap-2 rounded-nerv bg-status-waiting-soft px-3 py-1.5 text-sm text-status-waiting"
-          >
-            <span>{t('spec.lease_other', { name: leaseHolder })}</span>
-            <button
-              type="button"
-              data-testid="lease-takeover"
-              onClick={() => {
-                // 예전에는 "요청"만 보냈다(보유자가 놓아야 이뤄진다는 규칙). 리스가 사용자
-                // 단위였을 때는 그래도 됐다 — 상대는 사람이었으니까. 이제 보유자는 세션이고,
-                // 가장 흔한 보유자는 **응답하지 않는 죽은 세션**이다. 요청은 도착하지 않는다.
-                setTakeover(true);
-                setLeaseHolder(null);
-                pushToast({ tone: 'ok', message: t('spec.lease_taken') });
-              }}
-              className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5"
-            >
-              {t('spec.lease_takeover')}
-            </button>
-          </div>
-        )}
-
-        {staleByOthers && conflict === null && (
-          <div
-            data-testid="changed-by-others"
-            className="mb-2 rounded-nerv border border-status-waiting bg-status-waiting-soft px-3 py-2.5 text-sm"
-          >
-            <p className="font-medium text-status-waiting">{t('spec.changed_by_others')}</p>
-            <p className="text-text-mute">{t('spec.changed_by_others_body')}</p>
-          </div>
-        )}
-
-        {conflict !== null && (
-          <div
-            data-testid="conflict-dialog"
-            className="mb-2 rounded-nerv border border-status-danger bg-status-danger-soft px-3 py-2.5 text-sm"
-          >
-            <p className="font-medium text-status-danger">{t('spec.conflict_title')}</p>
-            <p className="text-text-mute">
-              {t('spec.conflict_body_pre')} <b>{t('spec.conflict_body_strong')}</b>
-              {t('spec.conflict_body_post')}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                data-testid="conflict-reload"
-                className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-1"
-                onClick={() => {
-                  // 내 편집분을 버리고 서버 최신으로 간다 — 명시적으로 고른 경우에만
-                  setConflict(null);
-                  setDraft(null);
-                  void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
-                }}
-              >
-                {t('spec.conflict_reload')}
-              </button>
-              <button
-                type="button"
-                data-testid="conflict-copy"
-                className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-1"
-                onClick={() => {
-                  // 클립보드가 막힌 환경도 있다 — 실패해도 본문은 화면에 그대로 있다
-                  void navigator.clipboard?.writeText(draft ?? body).catch(() => undefined);
-                  pushToast({ tone: 'ok', message: t('spec.conflict_copied') });
-                }}
-              >
-                {t('spec.conflict_copy')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 왕복 경고는 **편집 중일 때만** 뜬다. 읽기 전용 문서에서 "저장을 막았습니다"는
-            막을 저장이 없는데 경고하는 것이라 사람을 혼란스럽게 한다(REQ-WEB-031 은 저장
-            경로의 규칙이다). 읽기 전용에서는 소스 보기 토글이 같은 역할을 한다. */}
-        {editable && draft !== null && roundTrip !== null && !roundTrip.stable && (
-          // §3.2 규칙 2 — 직렬화가 불안정하면 저장을 막는다
-          <div
-            data-testid="roundtrip-error"
-            className="mb-2 rounded-nerv border border-status-danger bg-status-danger-soft px-3 py-2 text-sm text-status-danger"
-          >
-            <p>{t('spec.roundtrip_unstable')}</p>
-            {/* **리포트와 소스를 같이 낸다**(REQ-WEB-031). 막았다는 말만 남기면 사람은
-                무엇을 고쳐야 하는지 알 길이 없다 */}
-            <div className="mt-1.5">
-              <SourceViewToggle on={sourceView} onToggle={() => setSourceView(!sourceView)} />
-            </div>
-          </div>
-        )}
-
         {check.data !== undefined && rows(check.data['findings']).length > 0 && (
           <section
             data-testid="check-findings"
@@ -761,11 +540,6 @@ function SpecDetail(): React.JSX.Element {
             <SpecEditor
               key={`v${String(viewing)}`}
               value={String(pastVersion.data?.['body_md'] ?? '')}
-              readOnly
-              projectSlug={proj}
-              projectId={projectUuid}
-              specKey={spec}
-              onChange={() => undefined}
             />
           </>
         )}
@@ -784,52 +558,53 @@ function SpecDetail(): React.JSX.Element {
           </div>
         )}
 
-        {/* **문서마다 새 편집기다.** 본문이 앞 문서로 남던 결함을 고치는 것은 위의 상태
-            초기화이고(실측으로 갈라 확인했다), 이 `key` 가 막는 것은 다른 것이다:
-            TipTap 인스턴스가 살아남으면 **되돌리기 이력도 살아남아** 문서 B 에서 ⌘Z 를
-            누르면 문서 A 의 글이 돌아온다. 이력은 문서에 속한다. */}
-        {compare === null && viewing === null && sourceView && <SourceView body={draft ?? body} />}
+        {/* **본문을 보는 방식은 탭이다**(2026-09-22 사람 결정 · REQ-WEB-173). 예전에는
+            읽는 면과 고치는 면이 **같은 편집기**였고 둘을 가르는 것이 "이 문서가 초안인가"
+            였다 — 사람의 의도가 아니라 문서의 상태가 축이었던 것이고, 그 혼동이 초안의
+            mermaid 가 코드로 보이던 결함을 만들었다(REQ-WEB-169). 이제 축은 둘뿐이다. */}
+        {compare === null && viewing === null && (
+          <div
+            className="mb-2 flex items-center gap-1"
+            role="tablist"
+            aria-label={t('spec.body_tabs')}
+          >
+            {BODY_TABS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                data-testid={`body-tab-${key}`}
+                aria-selected={bodyTab === key}
+                onClick={() => setBodyTab(key)}
+                className={cn(
+                  'rounded-nerv-sm px-2 py-0.5 text-xs',
+                  bodyTab === key
+                    ? 'bg-bg-active font-medium text-text'
+                    : 'text-text-mute hover:bg-bg-hover hover:text-text',
+                )}
+              >
+                {t(key === 'viewer' ? 'spec.body_viewer' : 'spec.body_source')}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {compare === null && viewing === null && !sourceView && (
-          <SpecEditor
-            key={spec}
-            value={draft ?? body}
-            readOnly={!editable}
-            projectSlug={proj}
-            projectId={projectUuid}
-            specKey={spec}
-            onChange={(markdown, result) => {
-              setDraft(markdown);
-              setRoundTrip(result);
-            }}
-          />
+        {/* **문서마다 새 편집기다.** TipTap 인스턴스가 살아남으면 문서 B 를 열어도
+            앞 문서의 그림·스크롤이 남는다. 이력은 문서에 속한다. */}
+        {compare === null && viewing === null && bodyTab === 'source' && <SourceView body={body} />}
+
+        {compare === null && viewing === null && bodyTab === 'viewer' && (
+          <SpecEditor key={spec} value={body} />
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          {/* 승인본에는 **다음 버전으로 가는 문**을 둔다 — 없으면 웹은 읽기 전용이다(WEB-02) */}
-          {docStatus === 'approved' && (
-            <Button
-              variant="primary"
-              data-testid="start-draft"
-              title={t('spec.new_draft_hint')}
-              disabled={startDraft.isPending}
-              onClick={() => startDraft.mutate()}
-            >
-              {t('spec.new_draft')}
-            </Button>
-          )}
-          <Button
-            variant="primary"
-            disabled={
-              !editable ||
-              draft === null ||
-              save.isPending ||
-              (roundTrip !== null && !roundTrip.stable)
-            }
-            onClick={() => draft !== null && save.mutate(draft)}
-          >
-            {t('common.save')}
-          </Button>
+          {/* **본문을 쓰는 단추가 여기 없다**(2026-09-22 사람 결정 · REQ-WEB-173).
+              웹은 읽고·결정하고·매다는 자리이고 본문은 에이전트가 쓴다. 그 사실을 화면이
+              말하지 않으면 사람은 고칠 곳을 찾아 헤맨다 — §1.5 가 금지하는 막다른 길이다.
+              **갈 곳까지 같은 자리에서 준다**: 레일 바닥의 터미널 카드가 그 명령이다. */}
+          <span data-testid="body-read-only" className="text-xs text-text-mute">
+            {t('spec.body_agent_only')}
+          </span>
           <Button
             data-testid="submit-review"
             disabled={
@@ -1124,20 +899,7 @@ function SpecDetail(): React.JSX.Element {
           )}
 
           {railTab === 'attachments' && (
-            <AttachmentPanel
-              projectSlug={proj}
-              specKey={spec}
-              canEdit={editable}
-              // 편집 중일 때만 본문에 넣는다 — 읽기 전용 화면에서 넣기를 주면 눌러도 아무 일이 없다
-              {...(editable
-                ? {
-                    onInsert: (markdown: string) => {
-                      setDraft(`${draft ?? body}\n\n${markdown}`);
-                      pushToast({ tone: 'ok', message: t('spec.attach.done') });
-                    },
-                  }
-                : {})}
-            />
+            <AttachmentPanel projectSlug={proj} specKey={spec} canEdit={canEditMeta} />
           )}
 
           {railTab === 'requirements' && (
