@@ -125,6 +125,48 @@ describe('매뉴얼 라우트', () => {
   });
 });
 
+// ── 설치 장은 이 배치의 값으로 말한다 (REQ-WEB-165) ──────────────────────────
+//
+// 설치 장은 서버 주소와 프로젝트를 열 자리에서 말한다. 그 값이 예시로 박혀 있으면 읽은
+// 사람이 열 번 고쳐 넣어야 하고, 하나라도 빠뜨리면 그 자리가 조용히 남의 서버를 가리킨다.
+// 여기서 태우는 것은 **채워진다는 것**과 **예시가 남지 않는다는 것** 둘이다.
+describe('설치 장의 환경값 (REQ-WEB-165)', () => {
+  it('값 카드가 서고 본문의 자리표시자가 이 배치의 값으로 채워진다', async () => {
+    renderAt('/help/install');
+    // 프로젝트·역할은 조회가 끝나야 온다 — 그 전에는 예시값이 서 있고, 그것이 설계다
+    await waitFor(() =>
+      expect(screen.getByTestId('manual-env-card').textContent).toContain('admin'),
+    );
+
+    // 화면과 API 가 한 호스트인 배치라 지금 뜬 오리진이 곧 그 주소다(`/config.json` 없음)
+    const origin = window.location.origin;
+    const card = screen.getByTestId('manual-env-card');
+    expect(card.textContent).toContain(origin);
+    expect(card.textContent).toContain('clemvion');
+
+    const body = screen.getByTestId('manual-body');
+    expect(body.textContent).not.toContain('{{');
+    expect(body.textContent).not.toContain('api.nerv.example.com');
+    expect(body.textContent).toContain(`${origin}/plugin/marketplace.json`);
+    // 설치 명령도 채워져 나간다 — 이것이 "그대로 복사하면 된다" 의 실물이다
+    expect(body.textContent).toContain(`--server ${origin} --project clemvion`);
+  });
+
+  it('코드블록마다 복사 단추가 붙는다 — 매뉴얼의 코드블록은 복사하라고 있는 것이다', async () => {
+    renderAt('/help/install');
+    await waitFor(() => expect(screen.getByTestId('manual-body')).toBeDefined());
+    const body = screen.getByTestId('manual-body');
+    expect(body.querySelectorAll('[data-copy]').length).toBe(body.querySelectorAll('pre').length);
+    expect(body.querySelector('[data-copy]')?.textContent).toBe('복사');
+  });
+
+  it('다른 장에는 값 카드가 없다 — 채울 값이 없는 장에 카드가 서면 잡음이다', async () => {
+    renderAt('/help/tasks');
+    await waitFor(() => expect(screen.getByTestId('manual-body')).toBeDefined());
+    expect(screen.queryByTestId('manual-env-card')).toBeNull();
+  });
+});
+
 // ── 본문의 스크롤 상자 (2026-09-08 · 사람 지시 · REQ-WEB-157) ────────────────
 //
 // S3 와 같은 규약이다(§2.4 · REQ-WEB-156): 스크롤 상자가 페이지면 차례 위에서 굴린

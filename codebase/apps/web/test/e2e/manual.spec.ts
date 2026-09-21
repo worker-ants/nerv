@@ -75,3 +75,34 @@ test('차례 위에서 굴린 바퀴는 본문을 움직이지 않는다', async
     })),
   ).toEqual({ page: 0, content: 0 });
 });
+
+// ── 설치 장은 이 배치의 값으로 말한다 (screens.md §2.10 · REQ-WEB-165) ───────
+//
+// **여기서만 확인할 수 있는 것은 "앞문이 내어 준 주소가 실제로 문서에 들어가는가" 다.**
+// 치환과 폴백 판정은 L1 이 전수로 세지만(`lib/manual-vars.spec.ts`), 그 값의 출처는
+// nginx 가 만든 `/config.json` 이다(`runtime-config.spec.ts`) — 그 둘이 이어져 있는지는
+// 실물 스택에서만 보인다. 끊겨 있으면 문서는 조용히 예시 주소를 보여 주고, 그것을
+// 복사한 사람은 남의 서버를 가리키게 된다.
+test('설치 장의 주소가 이 배치의 주소다 — 예시 주소가 남지 않는다', async ({ page, baseURL }) => {
+  // 복사 단추를 실제로 누른다 — Chromium 은 권한 없이 `clipboard.writeText` 를 거절한다
+  await page.context().grantPermissions(['clipboard-write']);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/help/install');
+  await expect(page.getByTestId('manual-env-card')).toBeVisible({ timeout: 15000 });
+
+  const origin = new URL(baseURL ?? '').origin;
+  await expect(page.getByTestId('manual-env-card')).toContainText(origin);
+
+  const body = page.getByTestId('manual-body');
+  const text = (await body.textContent()) ?? '';
+  expect(text).toContain(origin);
+  expect(text).not.toContain('api.nerv.example.com');
+  // 자리표시자가 그대로 찍히면 채우는 쪽이 끊긴 것이다 — 빈칸보다 이쪽이 더 흔하다
+  expect(text).not.toMatch(/\{\{\w+\}\}/);
+
+  // 코드블록은 복사하라고 있는 것이다 — 단추가 붙었고 눌러서 글자가 바뀌는지까지 본다
+  const copy = body.locator('[data-copy]').first();
+  await expect(copy).toHaveText('복사');
+  await copy.click();
+  await expect(copy).toHaveText('복사했습니다');
+});

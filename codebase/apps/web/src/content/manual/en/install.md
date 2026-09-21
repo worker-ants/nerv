@@ -4,13 +4,15 @@ This is how you connect Claude Code or Codex to NERV. When you are done, an agen
 
 ## Before you start
 
-You need to know three things.
+You need to know three things, and **this screen already knows all three** — they are the values on the card just above, and every command and file below is filled in with them. Copy them as they are.
 
-| What                    | Where to find it                           | Example                        |
-| ----------------------- | ------------------------------------------ | ------------------------------ |
-| The NERV server address | Ask your administrator                     | `https://api.nerv.example.com` |
-| The project slug        | The segment after `/p/` in the address bar | `clemvion`                     |
-| Your role               | Settings → Members                         | `developer`                    |
+| What                    | Where it comes from                       | This deployment |
+| ----------------------- | ----------------------------------------- | --------------- |
+| The NERV server address | `NERV_API_URL`, set by your administrator | `{{server}}`    |
+| The project slug        | The project selected in the header        | `{{project}}`   |
+| Your role               | Settings → Members                        | `{{role}}`      |
+
+**It may not be the address in your address bar.** Where the screen and the API sit on different hosts, the address bar says `app.…` while agents connect to `api.…` — the value above is the one that matters.
 
 The role matters: **a token can never be broader than the role.** As a `viewer` you cannot issue a token that claims tasks.
 
@@ -37,8 +39,8 @@ The role matters: **a token can never be broader than the role.** As a `viewer` 
 ```jsonc
 {
   "env": {
-    "NERV_SERVER": "https://api.nerv.example.com",
-    "NERV_PROJECT": "clemvion",
+    "NERV_SERVER": "{{server}}",
+    "NERV_PROJECT": "{{project}}",
     "NERV_TOKEN": "<the token from step 1>",
   },
 }
@@ -53,8 +55,8 @@ This file is **git-ignored by default**, so the token is not committed. Every re
 `.nerv/env` is a fallback for outside Claude Code (Codex). The plugin's scripts read it.
 
 ```bash
-NERV_SERVER=https://api.nerv.example.com
-NERV_PROJECT=clemvion
+NERV_SERVER={{server}}
+NERV_PROJECT={{project}}
 NERV_TOKEN=<the token from step 1>
 ```
 
@@ -68,7 +70,7 @@ The shell profile still works. It is the weakest place, so either of the above o
 
 ```bash
 export NERV_TOKEN="<the token from step 1>"
-export NERV_PROJECT="clemvion"
+export NERV_PROJECT="{{project}}"
 ```
 
 `NERV_HOSTNAME` is what the sessions screen shows as "whose machine this is". **Set it.** The hooks that post straight to the server send this variable verbatim, so leaving it empty leaves sessions in the list with no machine name. The moment you run on a second machine, you can no longer tell which session is where.
@@ -90,9 +92,9 @@ Two lines inside Claude Code.
 /plugin install nerv@nerv
 ```
 
-To take what this server ships instead, change only the first line — `add https://<this server>/plugin/marketplace.json`. They are **two transports for the same marketplace**, so the install command is unchanged (don't register both at once).
+To take what this server ships instead, change only the first line — `add {{server}}/plugin/marketplace.json`. They are **two transports for the same marketplace**, so the install command is unchanged (don't register both at once).
 
-Then **restart**. You should see `nerv` v0.3.0 listed as active under `/plugin`.
+Then **restart**. You should see `nerv` v{{version}} listed as active under `/plugin`.
 
 The server builds the catalogue itself, so **there is nothing to edit after you install** — its own address is already in there. If your deployment uses an internal git marketplace instead, put that git URL in and install `nerv@nerv-internal`.
 
@@ -113,11 +115,12 @@ Four things get installed.
 
 **The `nerv_*` tools are not among those four** — your repository needs a `.mcp.json` before you have them. Its address and token differ per project, so the plugin does not ship that file.
 
-**It ships the command that writes it instead.** Run this once in your working repository and three things go up together: `.mcp.json`, the environment variables in `.claude/settings.local.json`, and `.nerv/` in `.gitignore`. The token is asked for without echoing it to the screen.
+**It ships the command that writes it instead.** Run this once in your working repository and three things go up together: `.mcp.json`, the environment variables in `.claude/settings.local.json`, and `.nerv/` in `.gitignore`. **The address and the project are already filled in with this deployment's own values**, so only the token is left — and it is asked for without echoing it to the screen.
 
 ```bash
 cd <your repository>
-"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)"
+"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)" \
+  --server {{server}} --project {{project}}
 ```
 
 **It never overwrites a value that is already there.** If a token is on file it stays, and the command says so — change it by editing that file yourself. If a `.mcp.json` exists but has no `nerv` entry, the file is left untouched and the entry to add is printed for you.
@@ -133,7 +136,7 @@ By hand, this is the content (read it together with chapter 2):
   "mcpServers": {
     "nerv": {
       "type": "http",
-      "url": "${NERV_SERVER:-https://api.nerv.example.com}/mcp",
+      "url": "${NERV_SERVER:-{{server}}}/mcp",
       "headers": {
         "Authorization": "Bearer ${NERV_TOKEN}",
         "X-NERV-Project": "${NERV_PROJECT}"
@@ -163,9 +166,9 @@ In the copied `.codex/config.toml`, change three things to your own values: `url
 
 ```toml
 [mcp_servers.nerv]
-url = "https://api.nerv.example.com/mcp"
+url = "{{server}}/mcp"
 bearer_token_env_var = "NERV_TOKEN"
-http_headers = { "X-NERV-Project" = "clemvion" }
+http_headers = { "X-NERV-Project" = "{{project}}" }
 startup_timeout_sec = 20
 
 # The human approval lane — A3 tools never run unapproved
@@ -210,7 +213,7 @@ The skill calls `nerv_bootstrap` first, recommends the next task, and takes you 
 | Symptom                                   | Usually this                                                                                                                                                         |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nerv` missing from `/mcp`                | You did not restart after installing, or the repository has no `.mcp.json` — run the command in 3-A once                                                             |
-| Cannot reach the server                   | A typo in `url`, or you are off the internal network — check the address with your administrator                                                                     |
+| Cannot reach the server                   | A typo in `url`, or you are off the internal network — check it against the address on the card at the top of this chapter                                           |
 | `NERV_UNAUTHENTICATED`                    | `NERV_TOKEN` is empty or was revoked. Issue a new one under Settings → Tokens                                                                                        |
 | `NERV_FORBIDDEN`, missing scope           | The token's scopes are too narrow, or the role it was issued under cannot do that                                                                                    |
 | Tools work but the project is not visible | **That token was issued for a different project.** The project is bound into the token and no header changes it — issue a new token in the project you want          |

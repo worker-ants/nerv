@@ -22,7 +22,45 @@ export interface RenderedDoc {
   readonly headings: readonly DocHeading[];
 }
 
+export interface RenderOptions {
+  /**
+   * 코드블록에 붙일 복사 단추의 글자. **없으면 단추를 붙이지 않는다** — 이 렌더러는
+   * 매뉴얼 말고도 쓰이고, 복사할 이유가 없는 자리에 단추가 서면 그냥 잡음이다.
+   */
+  readonly copyLabel?: string;
+}
+
+/** 렌더 한 번에 딸려 다니는 값 — markdown-it 이 규칙에 그대로 넘긴다. */
+interface DocEnv {
+  copyLabel?: string;
+}
+
 const md = new MarkdownIt({ html: false, linkify: false, typographer: false, breaks: false });
+
+/**
+ * 코드블록에 복사 단추를 붙인다 — **매뉴얼의 코드블록은 복사하라고 있는 것이다.**
+ *
+ * 설치 장은 이 배치의 값으로 채워져 나오므로(`manual-vars.ts`) 그 블록들은 그대로
+ * 붙여 넣으면 되는 글자다. 그런데 `pre` 안을 드래그로 긁으면 줄바꿈과 들여쓰기가
+ * 섞여 들어온다 — 여러 줄짜리 명령이 특히 그렇다.
+ *
+ * 단추는 **글자만 우리 것이고 클릭은 본문 위임 핸들러가 받는다**(`help/$chapter.tsx`).
+ * 여기서 이벤트를 심지 않는 이유는 이 결과가 `dangerouslySetInnerHTML` 로 붙기 때문이다 —
+ * 붙는 HTML 에 스크립트가 낄 자리를 만들지 않는 것이 이 파일의 계약이다(`html: false`).
+ */
+const renderFence =
+  md.renderer.rules.fence ??
+  ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
+
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const html = renderFence(tokens, idx, options, env, self);
+  const label = (env as DocEnv).copyLabel;
+  if (label === undefined) return html;
+  return (
+    `<div class="nerv-code">${html}` +
+    `<button type="button" class="nerv-copy" data-copy>${md.utils.escapeHtml(label)}</button></div>`
+  );
+};
 
 /**
  * 본문을 HTML 로, `##` 목록을 목차로.
@@ -31,8 +69,10 @@ const md = new MarkdownIt({ html: false, linkify: false, typographer: false, bre
  * 같은 절의 앵커가 로케일마다 달라져, 한국어로 복사한 링크가 영어 화면에서 아무 데도
  * 가리키지 못한다 — 매뉴얼은 링크로 주고받는 문서라 그 차이가 바로 드러난다.
  */
-export function renderDoc(source: string): RenderedDoc {
-  const env = {};
+export function renderDoc(source: string, options: RenderOptions = {}): RenderedDoc {
+  const env: DocEnv = {
+    ...(options.copyLabel === undefined ? {} : { copyLabel: options.copyLabel }),
+  };
   const tokens = md.parse(source, env);
   const headings: DocHeading[] = [];
 

@@ -325,6 +325,29 @@ body {
   font-size: inherit;
 }
 
+/* 복사 단추 — 코드블록 오른쪽 위. `markdown.ts` 의 fence 규칙이 이 두 클래스를 낸다.
+   **숨기지 않는다**: hover 로만 드러나면 손가락으로 읽는 화면에는 없는 것과 같다.
+   배경을 코드블록과 같은 색으로 두어, 긴 줄이 가로로 흘러 단추 밑을 지나가도 글자가
+   겹쳐 보이지 않는다. */
+.nerv-code {
+  position: relative;
+}
+.nerv-copy {
+  position: absolute;
+  top: 1.15em;
+  right: 0.5em;
+  padding: 0.15em 0.5em;
+  border-radius: var(--radius-nerv-sm);
+  background: var(--color-code-bg);
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.nerv-copy:hover {
+  color: var(--color-text);
+}
+
 .prose-nerv blockquote {
   margin: 0.8em 0;
   padding: 0.1em 0 0.1em 1em;
