@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.70 · 2026-09-21 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.71 · 2026-09-22 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.71 변경(2026-09-22 — 스킬이 경계를 말하지 않았다, 사람 물음): **새 요구사항 없음 · spec 스킬의 edit 절차에 한 단계 · 패키지 0.3.0 → 0.3.1.** 제목·부모·타입은 `nerv_spec_draft_upsert` 로 바꿀 수 없고(409 `meta_change_not_allowed` · [4.4](api.md) REQ-API-021) 그 이유도 분명한데, **스킬은 그 제약을 한 줄도 적지 않았다** — 에이전트가 알 수 있는 길이 409 를 받아 보는 것뿐이었고, 그때 본문도 함께 버려진다. edit 절차에 그 사실과 **그때 할 일**(본문만 저장하고 옮길 곳을 사람에게 말한다)을 적는다. 서버 쪽에서는 그 409 가 `web_url` 을 함께 주게 했다(같은 날 · REQ-API-161).
 >
 > v0.70 변경(2026-09-21 — 기본 경로를 서버로 뒤집는다, 사람 지시): **새 요구사항 없음 · v0.35 의 순위를 뒤집는다 · §3.5 표·§4 2단계.** v0.35(2026-09-04 · 사람 결정)는 GitHub 을 "가장 간단 · 대부분의 경우" 로 올렸고 근거는 실측이었다 — 서버 경로는 https·비-루프백·**신뢰된 CA** 셋을 다 요구한다. 그 근거는 그대로지만 **기본이 달라졌다**: ① 서버가 주는 것은 **그 서버에 맞는 버전**이다(카탈로그를 그 서버가 만든다). GitHub 은 언제나 `main` 의 것이라, 옛 이미지로 도는 자가호스팅은 서버가 기대하지 않는 판을 받는다 — 스킬·훅이 서버보다 앞선 사실을 말하는 상태이고, 그것은 조용하다. ② 밖으로 나갈 수 없는 망에서는 GitHub 이 아예 경로가 아니다. GitHub 은 **조건이 붙은 폴백**으로 내린다. 그리고 **그 조건에 CA 를 적었다** — 여태 v0.35 의 변경 기록에만 있고 §3.5 본문에는 없었다. [4.5](screens.md) REQ-WEB-165 의 카드는 https·루프백까지만 보므로, **사내 CA 로 낸 인증서는 카드가 깨끗한 채 설치만 실패한다**: 매뉴얼이 그 사실을 적는다. 곁들여 §3.5 의 "받은 뒤에 고칠 것이 없습니다" 를 고쳤다 — `nerv-init`(v0.68) 이후로는 **두 경로 모두** 받은 파일이 같고 주소는 `NERV_SERVER` 가 정한다.
 >
@@ -126,7 +128,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.0
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.1
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -149,7 +151,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "Apache-2.0"
 }
 ```
@@ -464,9 +466,15 @@ allowed-tools:
    **리스 보유자는 세션이다** — 같은 사람의 다른 세션이나 웹 탭이 쥐고 있으면 자동 인계되지
    않고 `NERV_DRAFT_LEASED` 가 온다. 상대가 죽은 세션이라 응답하지 않으면 `takeover: true` 로
    이어받는다(뺏어도 본문은 `base_hash` 가 지킨다 — 리스는 신호이고 지문이 자물쇠다).
-3. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
+3. **제목·부모·타입은 이 호출로 바꾸지 못한다.** 기존 문서에 현재와 다른 값을 실으면
+   `meta_change_not_allowed`(409)가 오고 **본문도 저장되지 않는다** — 트리는 거버넌스
+   대상이라 사람이 웹에서 바꾼다(EP-SPEC-15). 그 셋을 정할 수 있는 것은 **새 문서를 만들
+   때뿐**이다(위 create 2). 옮기거나 이름을 바꿔야 한다고 판단했으면 **본문만 저장하고,
+   무엇을 어디로 옮겨야 하는지를 사람에게 말한다** — 409 응답의 `web_url` 이 그 문서의
+   자리다. 애초에 그 셋은 기존 문서를 고칠 때 **싣지 않는 것**이 맞다.
+4. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
    사람에게 보여준다.
-4. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
+5. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
    `resolved_in_version_id`)로 닫는다. 반영하지 않기로 한 코멘트는 닫지 말고 사유를 보고한다.
 
 ### 요구사항 줄의 형식 — 이것이 문서의 값어치다
@@ -1470,7 +1478,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.0 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.1 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |

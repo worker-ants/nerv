@@ -713,7 +713,7 @@ export class SpecService {
         // EP-SPEC-15 가 전담한다(api.md §2.2). 조용히 무시하지 않는 이유는 그쪽이 더
         // 나쁘기 때문이다: 부른 쪽은 옮겨졌다고 믿고 다음 일을 한다.
         // 같은 값이면 통과시킨다 — 멱등 재호출이 여기서 걸리면 안 된다.
-        await this.assertMetaUnchanged(tx, specId, input);
+        await this.assertMetaUnchanged(tx, input.projectId, specId, input);
       }
 
       const draft = await this.currentDraft(tx, specId);
@@ -2288,9 +2288,16 @@ export class SpecService {
   /**
    * 기존 스펙에 온 메타가 현재 값과 다른지 본다(REQ-API-021). 같으면 통과 — 멱등
    * 재호출은 같은 본문·같은 메타로 다시 오기 때문이다.
+   *
+   * **거절만 하고 길을 주지 않으면 그것이 막다른 길이다**(2026-09-22 · REQ-API-161).
+   * 메타는 거버넌스 축이라 본문 저장 호출이 바꿀 수 없는 것이 맞지만(§2.2), 에이전트가
+   * 받는 것이 409 하나뿐이면 **어디로 가야 하는지가 응답 어디에도 없다** — 그때 남는
+   * 선택지는 사람에게 묻는 것이고, 묻는 데 필요한 주소조차 에이전트에게 없다.
+   * 그 문서의 웹 주소를 함께 싣는다(`nerv_spec_draft_upsert` 성공 응답이 이미 주는 그 값).
    */
   private async assertMetaUnchanged(
     tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
+    projectId: string,
     specId: string,
     input: DraftUpsertInput,
   ): Promise<void> {
@@ -2310,6 +2317,7 @@ export class SpecService {
       kind: 'meta_change_not_allowed',
       fields: changed,
       endpoint: 'EP-SPEC-15',
+      web_url: await this.webUrl(tx, projectId, specId),
     });
   }
 }

@@ -167,9 +167,15 @@ allowed-tools:
    **리스 보유자는 세션이다** — 같은 사람의 다른 세션이나 웹 탭이 쥐고 있으면 자동 인계되지
    않고 `NERV_DRAFT_LEASED` 가 온다. 상대가 죽은 세션이라 응답하지 않으면 `takeover: true` 로
    이어받는다(뺏어도 본문은 `base_hash` 가 지킨다 — 리스는 신호이고 지문이 자물쇠다).
-3. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
+3. **제목·부모·타입은 이 호출로 바꾸지 못한다.** 기존 문서에 현재와 다른 값을 실으면
+   `meta_change_not_allowed`(409)가 오고 **본문도 저장되지 않는다** — 트리는 거버넌스
+   대상이라 사람이 웹에서 바꾼다(EP-SPEC-15). 그 셋을 정할 수 있는 것은 **새 문서를 만들
+   때뿐**이다(위 create 2). 옮기거나 이름을 바꿔야 한다고 판단했으면 **본문만 저장하고,
+   무엇을 어디로 옮겨야 하는지를 사람에게 말한다** — 409 응답의 `web_url` 이 그 문서의
+   자리다. 애초에 그 셋은 기존 문서를 고칠 때 **싣지 않는 것**이 맞다.
+4. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
    사람에게 보여준다.
-4. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
+5. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
    `resolved_in_version_id`)로 닫는다. 반영하지 않기로 한 코멘트는 닫지 말고 사유를 보고한다.
 
 ### 요구사항 줄의 형식 — 이것이 문서의 값어치다

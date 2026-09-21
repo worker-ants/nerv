@@ -9,7 +9,7 @@
 // 초안인가" 이지 "내가 지금 치고 있는가" 가 아니다. 그런데 초안이야말로 에이전트가
 // 다이어그램을 써 넣는 자리다. 이 파일이 지키는 것은 그 뒤집힌 기본값이다.
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '../../lib/i18n.js';
 import { SpecEditor } from './editor.js';
@@ -78,5 +78,51 @@ describe('mermaid 블록', () => {
     draw('# 제목\n\n```mermaid\n망가진 문법\n```\n');
     await waitFor(() => expect(screen.getByTestId('mermaid-failed')).toBeTruthy());
     expect(screen.getByTestId('editor-content').textContent).toContain('망가진 문법');
+  });
+});
+
+// ── 배율과 전체화면 — 2026-09-22 사람 보고 (REQ-WEB-172) ─────────────────────
+//
+// "github 과 같이 확대·축소 컨트롤 패널이 있는 게 좋지 않을까". 기전은 mermaid 의
+// `useMaxWidth` 기본값(`true`)이다 — 출력 SVG 가 **언제나 담긴 칸 폭에 맞춰 줄어들어**
+// 노드가 많은 다이어그램은 글자를 읽을 수 없었고, 상자의 `overflow-x-auto` 는 넘칠 일이
+// 없어 한 번도 동작하지 않았다.
+
+describe('배율과 전체화면', () => {
+  it('처음은 100% 이고, 키우면 그 값이 컨트롤에 적힌다', async () => {
+    draw(DIAGRAM);
+    await waitFor(() => expect(screen.getByTestId('mermaid-figure')).toBeTruthy());
+    // 몇 번 눌렀는지 세게 하지 않는다 — 지금 배율이 숫자로 서 있다
+    expect(screen.getByTestId('mermaid-zoom-fit').textContent).toBe('100%');
+
+    fireEvent.click(screen.getByTestId('mermaid-zoom-in'));
+    expect(screen.getByTestId('mermaid-zoom-fit').textContent).toBe('125%');
+
+    fireEvent.click(screen.getByTestId('mermaid-zoom-fit'));
+    expect(screen.getByTestId('mermaid-zoom-fit').textContent).toBe('100%');
+  });
+
+  it('전체화면은 새 탭이 아니라 이 문서 위에 선다 — 읽던 자리를 잃지 않는다', async () => {
+    draw(DIAGRAM);
+    await waitFor(() => expect(screen.getByTestId('mermaid-figure')).toBeTruthy());
+    expect(screen.queryByTestId('mermaid-fullscreen')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('mermaid-fullscreen-toggle'));
+    const full = screen.getByTestId('mermaid-fullscreen');
+    expect(within(full).getByTestId('mermaid-figure-full')).toBeTruthy();
+
+    // 배율은 **각자 기억한다** — 전체화면에서 키운 값이 닫은 뒤 좁은 칸에 남으면
+    // 사람이 한 적 없는 일이 일어난 것으로 보인다
+    fireEvent.click(within(full).getByTestId('mermaid-zoom-in'));
+    expect(within(full).getByTestId('mermaid-zoom-fit').textContent).toBe('125%');
+    fireEvent.click(within(full).getByTestId('mermaid-fullscreen-toggle'));
+    expect(screen.queryByTestId('mermaid-fullscreen')).toBeNull();
+    expect(screen.getByTestId('mermaid-zoom-fit').textContent).toBe('100%');
+  });
+
+  it('그림이 없으면 배율 컨트롤도 없다 — 조절할 것이 없는 자리의 단추는 잡음이다', async () => {
+    draw('# 제목\n\n```mermaid\n망가진 문법\n```\n');
+    await waitFor(() => expect(screen.getByTestId('mermaid-failed')).toBeTruthy());
+    expect(screen.queryByTestId('mermaid-zoom-in')).toBeNull();
   });
 });

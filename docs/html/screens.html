@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.14 (2026-09-21)</span>
+      <span>버전 v1.15 (2026-09-22)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1806,6 +1806,8 @@ export const ApprovalDecisionInput = z
 
   <p><b>블록마다 [코드]·[그림] 토글이 있다</b>(2026-09-21 사람 결정). 옛 조건이 막으려던 것은 타이핑 중의 깨진 문법에 미리보기가 계속 오류를 띄우는 일인데(clemvion 이 mermaid 린트 훅을 붙였던 이유가 그것이다), <b>토글이 그것을 더 잘 막는다</b> — 고치는 동안에는 [코드] 쪽에 있으므로 그릴 일이 없다. 토글은 그 블록의 보는 방식이지 문서의 내용이 아니라 저장되지 않는다.</p>
 
+  <p><b>그림은 원본 크기로 그린다</b>(2026-09-22 개정 · REQ-WEB-172). mermaid 의 <code>useMaxWidth</code> 기본값이 <code>true</code> 라 출력 SVG 가 <b>언제나 담긴 칸 폭에 맞춰 줄어들었고</b>, 노드가 많은 다이어그램은 글자를 읽을 수 없었다 — 스펙 상세는 2열이라 본문 칸이 더 좁다. 그림 상자에 걸어 둔 <code>overflow-x-auto</code> 는 넘칠 일이 없어 <b>한 번도 동작한 적이 없었다</b>. 원본 크기로 그리고(넘치면 그 상자가 민다), <b>배율 컨트롤</b>과 <b>전체화면</b>을 둔다. 배율은 <code>transform: scale()</code> 하나다 — SVG 의 width 를 고치면 mermaid 가 계산해 둔 좌표계와 어긋나고 다시 그릴 때 되돌아온다. <b>배율은 저장하지 않는다</b>(토글과 같은 규칙)이고 본문 안과 전체화면이 각자 기억한다.</p>
+
   <p><b>그릴 때는 편집 내용을 내놓지 않는다.</b> contentDOM 이 없는 노드뷰를 ProseMirror 는 잎처럼 다루므로 그림 안에 커서가 숨어들지 않는다 — 감춘 채로 두면 사람이 화살표로 내려가다 <b>보이지 않는 자리에 캐럿을 잃는다</b>. 원본은 문서 모델에 그대로 있고([코드]를 누르면 다시 편집할 수 있다), 직렬화가 읽는 것은 DOM 이 아니다.</p>
 
   <ul>
@@ -1820,6 +1822,7 @@ export const ApprovalDecisionInput = z
     <tbody>
       <tr><td><b>REQ-WEB-113</b></td><td>(2026-09-21 개정 — "읽기 화면에서만" 을 걷는다) WHEN 언어가 <code>mermaid</code> 인 코드블록을 만나면 THE SYSTEM SHALL 그것을 다이어그램으로 그린다. WHILE 문법이 틀렸으면 THE SYSTEM SHALL 코드를 그대로 보이고 그 사실을 함께 적는다</td></tr>
       <tr><td><b>REQ-WEB-169</b></td><td>WHEN <code>mermaid</code> 블록을 그리면 THE SYSTEM SHALL <b>문서 상태와 무관하게 그림을 기본으로</b> 하고, 블록마다 코드와 그림을 오가는 수단을 둔다 — 그 선택은 보는 방식이라 문서에 저장하지 않는다. WHILE 그림을 보이는 동안 THE SYSTEM SHALL 그 블록의 편집 내용을 DOM 에 내놓지 않는다(보이지 않는 자리에 캐럿이 서면 안 된다). WHEN 블록이 비어 있으면 THE SYSTEM SHALL 오류가 아니라 코드 자리로 둔다</td></tr>
+      <tr><td><b>REQ-WEB-172</b></td><td>WHEN <code>mermaid</code> 다이어그램을 그리면 THE SYSTEM SHALL <b>원본 크기로</b> 그리고, 넘치면 그 그림 상자 안에서 밀게 한다 — 담긴 칸에 맞춰 줄이지 않는다(글자가 읽히지 않는다). WHEN 그림이 서 있으면 THE SYSTEM SHALL 배율을 키우고 줄이고 되돌리는 수단과 <b>지금 배율</b>을 함께 보이고, <b>전체화면</b>으로 여는 길을 준다 — 그 길은 이 문서를 떠나지 않는다. WHILE 배율을 바꾸는 동안 THE SYSTEM SHALL 그것을 문서에 저장하지 않고, 본문 안과 전체화면의 값을 따로 기억한다. WHERE 그릴 그림이 없으면 THE SYSTEM SHALL 그 컨트롤을 두지 않는다</td></tr>
     </tbody>
   </table></div>
 
