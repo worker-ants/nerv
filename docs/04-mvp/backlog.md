@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.95 · 2026-09-22 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.96 · 2026-09-22 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.96 변경(2026-09-22 — 웹의 본문 편집을 걷는다, 사람 결정): §1.4 셋째 표에 한 줄([4.5](screens.md) REQ-WEB-173 · v1.16). **스토리 수·`done` 수는 그대로지만 뜻이 바뀐 자리가 있다** — E06-S03(웹 에디터)·E06-S04(초안 리스)가 세던 것이 웹에서 없어졌다. 스토리를 되돌리지 않는 이유는 **그 일이 안 된 것이 아니라 그 자리가 옮겨 갔기** 때문이다(터미널 경로 = [4.6](plugin.md) spec 스킬). 되돌리면 백로그는 "아직 못 했다" 를 뜻하게 되고, 그것은 사실이 아니다.
 >
 > v0.95 변경(2026-09-22 — 스토리 없이 들어온 구현 하나, 사람 물음): §1.4 셋째 표에 **거절 뒤의 길과 다이어그램 배율** 한 줄([4.5](screens.md) REQ-WEB-172 · [4.4](api.md) REQ-API-161). 스토리 수·`done` 수는 그대로다.
 >
@@ -349,6 +351,7 @@ referenced_by:
 | 토큰이 어느 프로젝트의 것인지 | `apps/web/src/routes/settings/tokens.tsx` · `tokens.spec.tsx`(신설 L1 7건) · `lib/queries.ts`(`useOrgTokens`) · `apps/api/src/modules/auth/auth.service.ts`(발급 응답 · EP-TOK-04 열) · `test/integration/auth.spec.ts`(L2 1건) · i18n 22 · 매뉴얼 ko·en | 토큰은 프로젝트 하나에 묶이는데 **화면이 그 말을 한 번도 하지 않았다**(사람 보고) — 발급 대상은 헤더가 고른 값이었고, 원문 카드는 값만 보였고, 목록에는 프로젝트 열이 없었다(서버는 처음부터 싣고 있었다). 고를 때·받을 때·나중에 세 자리에서 말하고, 만료 입력·죽은 토큰 접기·**admin 의 조직 전체 표**(EP-TOK-04 — 서버만 있고 부르는 화면이 없었다)를 함께 닫는다 |
 | 본문의 mermaid 와 트리의 펴기/접기 | `apps/web/src/features/spec-editor/mermaid-block.tsx` · `mermaid.spec.tsx` · `apps/web/src/components/spec-tree.tsx`(chevron · 레일 토글) · `spec-tree-expand.spec.tsx`(신설 L1 3건) · `packages/schema/seed/dev-seed.sql`(본문에 mermaid 하나) · i18n 4 · 매뉴얼 ko·en | mermaid 렌더러는 2026-08-30 부터 있었는데 조건이 `!editor.isEditable` 이라 **초안에서는 코드로 보였다** — 그 값은 "치고 있는가" 가 아니라 "이 문서가 초안인가" 이고, 초안이야말로 에이전트가 다이어그램을 써 넣는 자리다. 기본을 그림으로 뒤집고 블록마다 토글을 둔다. 곁들여 트리의 캐럿(10.5px 글리프 · 옆 제목보다 흐렸다)을 24px chevron 으로 바꾸고 레일에 전체 펴기/접기 토글을 둔다([4.5](screens.md) REQ-WEB-169·170·171 · §2.4b 의 2026-08-23 결정을 개정했다) |
 | 거절 뒤의 길 · 다이어그램 배율 | `apps/api/src/modules/spec/spec.service.ts`(409 에 `web_url`) · `plugin/skills/spec/SKILL.md`(edit 절차 한 단계 · 패키지 0.3.1) · `apps/web/src/features/spec-editor/mermaid-block.tsx`(`useMaxWidth:false` · 배율 · 전체화면) · `mermaid.spec.tsx`(신설 L1 3건)·`spec-navigation.spec.ts`(신설 L3 1건 — 배율은 레이아웃이 재어져야 잡힌다) · i18n 9 · 매뉴얼 ko·en | 메타를 못 바꾸는 이유는 분명한데 **거절 뒤의 길이 없었다** — 409 에 그 문서 주소가 없어 에이전트가 사람에게 청할 수도 없었고, 스킬은 그 경계를 한 줄도 적지 않았다. 그리고 mermaid 의 `useMaxWidth` 기본값 때문에 다이어그램이 **항상 칸 폭에 맞춰 축소**돼 글자를 읽을 수 없었다(그림 상자의 `overflow-x-auto` 는 넘칠 일이 없어 한 번도 동작하지 않았다) |
+| 웹의 스펙 본문은 읽기다 | `apps/web/src/routes/p.$proj/specs.$spec.tsx`(−450줄) · `features/spec-editor/editor.tsx`(렌더 전용) · `source-view.tsx`(탭 + 복사) · `routes/p.$proj/specs.index.tsx`([새 스펙] 제거) · `new-spec-dialog.tsx` 삭제 · `spec-read-only.spec.tsx`(신설 L1 8건) · `editor.spec.tsx`·`link-picker.spec.tsx`·`mermaid.spec.tsx`·`spec-rail.spec.tsx` 재작성 · i18n 6 · 매뉴얼 ko·en | **웹에서 본문 편집 기능을 제거한다 — 무조건 에이전트로**(사람 결정). 명세가 이미 그쪽으로 기울어 있었다: §3.1 이 "소스를 직접 고치는 경로는 MVP 에 없다 — 터미널 경로가 그 역할이다" 라고 적었고, 왕복 손실 실측(22편 중 19편만 안정)의 우회로도 "차단된 문서를 터미널로 편집한다" 였다. 본문은 뷰어·소스 2탭이 되고, 저장 단추가 있던 자리는 **누가 쓰는지와 갈 곳**을 말한다. 곁들여 Milkdown 재검토 트리거가 조건 소멸로 종료됐다([4.1](scope.md) v0.30) |
 
 #### 이 절은 언제 갱신되는가
 

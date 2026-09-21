@@ -6,7 +6,7 @@
 
 import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createMemoryHistory,
@@ -16,7 +16,7 @@ import {
 } from '@tanstack/react-router';
 import { RealtimeProvider } from '../../lib/realtime.js';
 import { RequirementPanel } from './requirement-panel.js';
-import { SourceView, SourceViewToggle } from './source-view.js';
+import { SourceView } from './source-view.js';
 import { TerminalHandoffCard } from './terminal-handoff.js';
 
 vi.mock('socket.io-client', () => ({
@@ -108,19 +108,17 @@ describe('요구사항 패널', () => {
   });
 });
 
-describe('소스 보기 (REQ-WEB-031)', () => {
-  it('원문을 그대로 낸다 — 저장을 막은 것이 무엇인지는 렌더링이 아니라 바이트에 있다', async () => {
+describe('소스 보기 (REQ-WEB-173)', () => {
+  it('원문을 그대로 낸다 — 에디터가 못 그리는 것을 확인하는 자리는 바이트다', async () => {
     await withProviders(<SourceView body={'| a \\| b |\n| --- |'} />);
     expect(screen.getByTestId('source-view').textContent).toContain('\\|');
   });
 
-  it('토글은 눌린 상태를 말한다 — 색만으로 구분하지 않는다', async () => {
-    const onToggle = vi.fn();
-    await withProviders(<SourceViewToggle on={true} onToggle={onToggle} />);
-    const button = screen.getByTestId('source-view-toggle');
-    expect(button.getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(button);
-    expect(onToggle).toHaveBeenCalled();
+  it('토글이 아니라 탭이다 — 이 컴포넌트에 남은 단추는 복사 하나다', async () => {
+    await withProviders(<SourceView body={'# 제목'} />);
+    // 보는 방식을 가르는 것은 라우트의 `body-tab-*` 이고, 여기 있던 토글은 사라졌다
+    expect(screen.queryByTestId('source-view-toggle')).toBeNull();
+    expect(screen.getByTestId('source-copy')).toBeTruthy();
   });
 });
 

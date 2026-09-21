@@ -28,6 +28,9 @@ const SHOTS: [string, string][] = [
   ['/inbox', 'inbox'],
   ['/p/clemvion', 'project'],
   ['/p/clemvion/specs/SPC-CWC-007', 'spec'],
+  // 소스 탭은 2026-09-22 에 생긴 면이다(REQ-WEB-173). 뷰어만 찍으면 그 탭은 **한 번도
+  // 그림으로 남지 않는다** — 이 저장소가 좁은 폭에서 배운 것과 같은 이유다(REQ-WEB-164).
+  ['/p/clemvion/specs/SPC-CWC-007?body=source', 'spec-source'],
   ['/p/clemvion/tasks', 'tasks'],
   ['/p/clemvion/sessions', 'sessions'],
   ['/p/clemvion/reviews', 'reviews'],

@@ -100,16 +100,28 @@ A ` ```mermaid ` code block in the body **renders as a diagram.** There is no re
 - **Full screen** (`⤡`) gives the diagram the whole window — not a new tab, so closing it leaves you where you were reading. The scale in the body and in full screen are remembered separately.
 - What is saved is always the code. Neither the diagram nor the scale is part of the document — both are ways of looking.
 
-## The edit lease
+## Who writes the body
 
-If two people edit one document at once, one person's writing disappears. So editing takes a **lease**.
+**You do not edit the body on the web.** This is where you read, decide and attach — agents write the body.
 
-- The lease is taken on your **first save**, not when you open the document (30 minutes), and it renews itself while you type.
-- Which means **you also find out someone else holds it by saving.** A save on a document held by someone else is refused; the screen then turns read-only and names the holder.
-- A **Take over** button sits right there. It does not send a request — pressing it **takes the lease on the spot**, and nothing arrives on the other person's screen. It is the way out of a lease held by a session that has died.
-- If you walk away, the lease expires and the next person can take it.
+The [Continue in the terminal] card below the document holds the command. Copy it, paste it in a terminal, and the agent opens that document and carries on.
 
-If the base version changed while you were writing, the save is refused and the screen hands your text back. **You choose the next step** — **Copy** takes your writing with you, **Reload** brings in the newest version. Nothing is overwritten quietly, and nothing is discarded quietly either.
+```text
+claude "/nerv:spec edit SPC-CWC-007"
+```
+
+**Why it is set up this way.** A web editor has to render markdown _and_ turn it back into markdown, and the way back was never complete — a pipe inside a table cell, or consecutive block quotes, left documents **the editor would open but refuse to save** (3 of 22 measured), and the advice at that point was "fix it in the terminal". One road that works beats two roads that each work halfway.
+
+What stays on the web is **what a person does**: requesting review, approving, metadata (title, parent), archiving and restoring, attachments, comments.
+
+## Two ways to look at the body
+
+The **Reader / Source** tabs above the body choose how you look at it.
+
+- **Reader** — read it as a picture. Tables and links are live, and ` ```mermaid ` renders as a diagram.
+- **Source** — the raw markdown. **[Copy]** at the top right takes the whole thing — handing it to an agent by dragging across it mixes up the line breaks and indentation.
+
+The tab you pick **stays in the address** (`?body=source`), so the link you send opens on the same view.
 
 ## Checks and submission
 

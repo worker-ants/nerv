@@ -240,7 +240,10 @@ describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () 
 
   it('머리의 동작 줄에는 세 탭에 공통인 것만 남는다', async () => {
     await renderList('/p/demo/specs');
-    const actions = screen.getByTestId('new-spec').closest('form');
+    // **[새 스펙]은 이 줄에 없다**(2026-09-22 · REQ-WEB-173) — 문서를 시작하는 것도
+    // 본문을 쓰는 일이라 에이전트가 한다. 줄의 기준점은 남아 있는 것으로 잡는다.
+    expect(screen.queryByTestId('new-spec')).toBeNull();
+    const actions = screen.getByTestId('freeze-baseline').closest('form');
     expect(actions).not.toBeNull();
     for (const id of ['freeze-baseline', 'show-archived']) {
       expect(actions?.querySelector(`[data-testid="${id}"]`)).not.toBeNull();

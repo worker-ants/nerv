@@ -442,8 +442,6 @@ export const en = {
   'spec.requirements.derive_disabled': 'Not an approved version — cannot derive',
   'spec.requirements.empty': 'This version has no requirement block.',
   'spec.requirements.no_priority': 'no priority',
-  'spec.source_view': 'Source',
-  'spec.source_view_title': 'Shows the raw md — when a save is blocked, this is where you see why',
   'specs.baseline': 'Baseline',
   'specs.baseline_current': 'No baseline',
   'specs.baseline_hint':
@@ -1070,6 +1068,13 @@ export const en = {
   'spec.mermaid_code_title': 'Show this diagram as source — edit it here.',
   'spec.mermaid_figure': 'Diagram',
   'spec.mermaid_figure_title': 'Draw the source as a diagram again.',
+  'spec.body_agent_only':
+    'Agents write the body — use the command under [Continue in the terminal].',
+  'spec.body_source': 'Source',
+  'spec.body_tabs': 'Body view',
+  'spec.body_viewer': 'Reader',
+  'spec.source_copy': 'Copy',
+  'spec.source_copied': 'Copied',
   'spec.mermaid_failed': 'Could not draw the diagram — check the syntax.',
   'spec.lease_mine': '✏️ Editing — {name} · web · auto-renewed (30 min)',
   'spec.lease_mine_anon': 'you',
