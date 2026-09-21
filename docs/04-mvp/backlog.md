@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.92 · 2026-09-21 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.93 · 2026-09-21 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v0.93 변경(2026-09-21 — 스토리 없이 들어온 구현 하나, 사람 보고): §1.4 셋째 표에 **토큰이 어느 프로젝트의 것인지** 한 줄([4.5](screens.md) REQ-WEB-167·168 · [4.4](api.md) REQ-API-160). 스토리 수·`done` 수는 그대로다 — E01-S05(토큰 발급·폐기)가 세는 것은 "발급하고 폐기한다" 이고, **발급한 뒤에 그것을 관리한다**는 그 스토리가 세지 않은 자리다(프로젝트가 여럿이 되기 전에는 물음 자체가 없었다).
 >
 > v0.92 변경(2026-09-21 — 스토리 없이 들어온 수정 하나, 사람 보고): §1.4 셋째 표에 **첨부 주소의 오리진** 한 줄([4.5](screens.md) REQ-WEB-166 · v1.12). 스토리 수·`done` 수는 그대로다 — E06-S05(첨부)가 세는 것은 "올리고 본문에 넣는다" 이고, **그것이 어느 호스트로 가는가**는 그 스토리가 세지 않은 자리다(주소를 가르기 전에는 갈릴 것이 없었다).
 >
@@ -340,6 +342,7 @@ referenced_by:
 | 매뉴얼이 이 배치의 값으로 말한다 | `apps/web/src/lib/manual-vars.ts`(신설) · `features/manual/install-env.tsx`(신설) · `lib/markdown.ts`(복사 단추) · `routes/help/$chapter.tsx` · `packages/schema/src/plugin-install.ts`(`apps/api` 에서 옮김 · 스펙도 함께) · `manual-vars.spec.ts`(신설 L1) · `plugin-package.spec.ts`(폴백 버전 대조) · i18n 둘 · 매뉴얼 ko·en | 설치 장이 "NERV 서버 주소 — **관리자에게**" 라고 적고 있었는데 그 값은 화면이 이미 들고 있었고(`/config.json` 의 `api_url`), 주소를 둘로 가른 뒤로는 "브라우저 주소창에 있는 그것" 이 **틀린 안내**였다(주소창은 `app.` · 에이전트는 `api.`). 열 자리의 예시값을 자리표시자로 바꿔 렌더 때 채운다 — 하나라도 빠뜨리면 그 자리만 조용히 남의 서버를 가리킨다. 카드는 **그 주소로 설치가 되는지도** 말한다: `marketplace add` 는 되고 `install` 만 거부되므로 말해 주지 않으면 사람이 혼자 좇는다. 판정은 `@nerv/schema` 하나로 옮겨 서버 로그와 화면이 같은 것을 본다([4.5](screens.md) REQ-WEB-165 · [4.2](codebase.md) §1.2 · [4.6](plugin.md) §3.5) |
 | 설치가 설정까지 간다 — `nerv-init` | `plugin/bin/nerv-init`(신설) · `plugin/hooks/hooks.json`·`hooks.http.json`(SessionStart 감지) · `plugin-package.spec.ts`(실제 실행 L1 6건) · `apps/api/test/integration/plugin.spec.ts`(실행 비트) · 매뉴얼 ko·en | 플러그인을 설치해도 **손작업 셋**이 남아 있었다(`.mcp.json`·`settings.local.json` 의 `env`·`.gitignore` — 실측: 이 저장소 자신도 `.mcp.json` 없이 돌고 있었다). `.mcp.json` 을 담지 않는 결정은 그대로고(REQ-PLG-001 개정), **파일 대신 그 파일을 쓰는 스크립트**를 담는다. 덮지 않는 것과 훅이 쓰지 않는 것이 규율이다([4.6](plugin.md) REQ-PLG-018 · v0.68) |
 | 첨부 주소가 API 오리진으로 간다 | `apps/web/src/lib/config.ts`(`apiHref`) · `features/spec-editor/attachment-panel.tsx` · `features/spec-editor/editor.tsx`(Image·Link renderHTML) · `attachment-origin.spec.tsx`(신설 L1 4건) | 첨부 링크가 **`app.` 호스트**로 갔다(사람 보고) — 화면이 주소를 손으로 조립하면서 런타임 설정의 API 오리진을 빼먹었고, 한 호스트 배치에서는 두 주소가 같아 **아무도 못 봤다**. 가른 배치에서는 그쪽에 `/api` 가 없고 프록시해도 세션 쿠키가 API 호스트의 것이라 401 이다. **저장은 상대, 렌더는 절대** — 본문에 절대 주소를 박으면 문서가 이 배치에 묶인다([4.5](screens.md) REQ-WEB-166 · [4.4](api.md) REQ-API-089 · 규칙은 REQ-WEB-165 가 매뉴얼에 이미 적어 둔 것이다) |
+| 토큰이 어느 프로젝트의 것인지 | `apps/web/src/routes/settings/tokens.tsx` · `tokens.spec.tsx`(신설 L1 7건) · `lib/queries.ts`(`useOrgTokens`) · `apps/api/src/modules/auth/auth.service.ts`(발급 응답 · EP-TOK-04 열) · `test/integration/auth.spec.ts`(L2 1건) · i18n 22 · 매뉴얼 ko·en | 토큰은 프로젝트 하나에 묶이는데 **화면이 그 말을 한 번도 하지 않았다**(사람 보고) — 발급 대상은 헤더가 고른 값이었고, 원문 카드는 값만 보였고, 목록에는 프로젝트 열이 없었다(서버는 처음부터 싣고 있었다). 고를 때·받을 때·나중에 세 자리에서 말하고, 만료 입력·죽은 토큰 접기·**admin 의 조직 전체 표**(EP-TOK-04 — 서버만 있고 부르는 화면이 없었다)를 함께 닫는다 |
 
 #### 이 절은 언제 갱신되는가
 

@@ -820,7 +820,8 @@ export class AuthService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.id, t.name, t.prefix, t.scopes, t.expires_at, t.revoked_at, t.last_used_at,
              t.last_used_hostname,
-             u.display_name AS owner, p.slug AS project_slug
+             t.created_at,
+             u.display_name AS owner, p.slug AS project_slug, p.name AS project_name
         FROM api_token t
         JOIN project p ON p.id = t.project_id
         JOIN organization o ON o.id = p.org_id
@@ -863,7 +864,22 @@ export class AuthService {
     name: string;
     scopes: string[];
     expiresAt?: Date | null;
-  }): Promise<{ tokenId: string; token: string; prefix: string; scopes: AgentScope[] }> {
+  }): Promise<{
+    tokenId: string;
+    token: string;
+    prefix: string;
+    scopes: AgentScope[];
+    name: string;
+    expires_at: string | null;
+    /**
+     * **이 토큰이 어느 프로젝트의 것인가** — REQ-API-160.
+     *
+     * 원문은 이 응답에서 한 번만 나가고 그 뒤로 어디에도 없다. 그 한 번에 "무엇에 쓰는
+     * 것인지" 가 함께 있지 않으면, 받은 사람은 값만 들고 나가 나중에 그것이 어느
+     * 프로젝트의 토큰인지 되짚지 못한다(목록에는 원문이 없으니 대조할 것도 접두뿐이다).
+     */
+    project: { slug: string; name: string };
+  }> {
     const humanOnly = input.scopes.filter(isHumanOnlyScope);
     if (humanOnly.length > 0) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.human_only_scope'), {
@@ -912,7 +928,22 @@ export class AuthService {
       payload: { prefix, scopes, expires_at: input.expiresAt?.toISOString() ?? null },
     });
 
-    return { tokenId, token: raw, prefix, scopes };
+    // 발급된 뒤에 한 번 읽는다 — 응답이 자기가 무엇인지 말하기 위한 값이고(REQ-API-160),
+    // 실패할 수 없는 조회다(바로 위에서 이 id 로 행을 넣었다).
+    const { rows: projectRows } = await this.db.execute<{ slug: string; name: string }>(sql`
+      SELECT slug, name FROM project WHERE id = ${input.projectId}
+    `);
+    const project = projectRows[0] ?? { slug: '', name: '' };
+
+    return {
+      tokenId,
+      token: raw,
+      prefix,
+      scopes,
+      name: input.name,
+      expires_at: input.expiresAt?.toISOString() ?? null,
+      project,
+    };
   }
 
   /**
