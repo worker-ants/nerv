@@ -31,7 +31,7 @@ import { cn } from '../../lib/utils.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { Button } from '../../components/ui/primitives.js';
-import { runLayout } from './layout.js';
+import { LABEL_FONT_SIZE, LABEL_MIN_ZOOMED, declutterLabels, runLayout } from './layout.js';
 
 cytoscape.use(fcose);
 
@@ -340,7 +340,9 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
             'background-color': (n: cytoscape.NodeSingular) =>
               cssVar(typeColorToken(String(n.data('type')))),
             label: 'data(label)',
-            'font-size': 9,
+            // 글자 크기와 그리기 시작하는 배율의 정본은 `layout.ts` 다 — 배치가 "이름이
+            // 그려진다" 를 판정할 때 같은 값을 봐야 한다(두 벌이면 한쪽만 바뀐다)
+            'font-size': LABEL_FONT_SIZE,
             color: cssVar('--color-text-mute'),
             'text-valign': 'bottom',
             'text-margin-y': 3,
@@ -351,7 +353,7 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
             // 9px 라벨이 화면에는 3.8px 로 찍힌다(실측 2026-08-27 · 노드 125개). 그건
             // 글자가 아니라 얼룩이고, 얼룩 125개가 그림을 덮으면 구조가 안 보인다.
             // 가까이 가면(배율 0.89 이상) 이름이 돌아온다.
-            'min-zoomed-font-size': 8,
+            'min-zoomed-font-size': LABEL_MIN_ZOOMED,
             width: 'data(weight)',
             height: 'data(weight)',
           },
@@ -400,6 +402,13 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
           selector: ':parent.faded',
           style: { opacity: 0.4, 'text-opacity': 0.4 },
         },
+        // **가려서 못 읽는 것도 못 읽는 것이다**(2026-09-22 · REQ-WEB-095 개정). 겹친 이름
+        // 중 자리를 잃은 쪽을 지운다 — 판정은 화면 좌표로 `declutterLabels` 가 한다.
+        // 고른 문서는 언제나 이기므로 `.picked` 와 다툴 일이 없다.
+        {
+          selector: 'node.crowded',
+          style: { 'text-opacity': 0 },
+        },
         {
           selector: 'node.linked',
           style: {
@@ -438,6 +447,20 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
     });
 
     letAreasPan(cy);
+    // 다시 세야 하는 때는 둘이다 — **노드를 끌었을 때**(자리가 바뀐다)와 **배율이 이름이
+    // 나타나는 문턱을 넘나들 때**. 배율 자체는 답을 바꾸지 않는다: 이름도 그림과 함께
+    // 커지므로 누가 누구를 가리는지는 그대로다(패닝도 같은 이유로 그대로다).
+    // 끌기는 프레임마다 이벤트를 내므로 한 프레임에 한 번으로 접는다.
+    let frame = 0;
+    const relabel = (): void => {
+      if (frame !== 0) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (cyRef.current !== null) declutterLabels(cy);
+      });
+    };
+    cy.on('zoom', relabel);
+    cy.on('position', 'node', relabel);
     // 배치는 여기서 시작한다 — 생성자에 맡기지 않는 이유는 fcose 가 낸 답을 **정리해서**
     // 써야 하기 때문이다(형제 영역 겹침 제거·다지기 · layout.ts)
     runLayout(cy);
@@ -460,6 +483,7 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
     applyHighlight(cy, selectedRef.current);
     return () => {
       cyRef.current = null;
+      if (frame !== 0) cancelAnimationFrame(frame);
       cy.destroy();
     };
   }, [edges, focus, grouped, nodes, visible]);
@@ -471,6 +495,8 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
     const cy = cyRef.current;
     if (cy === null) return;
     applyHighlight(cy, selected);
+    // 가라앉은 것은 자리를 다투지 않는다 — 하나를 고르면 그 이웃의 이름이 되살아난다
+    declutterLabels(cy);
     cy.resize();
     ensureVisible(cy, selected);
   }, [selected]);

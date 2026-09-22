@@ -40,7 +40,7 @@ describe('개발 시드 (database.md §4)', () => {
     expect(result).toEqual({
       organizations: 1,
       projects: 1,
-      specs: 3,
+      specs: 20,
       tasks: 3,
       claims: 3,
       sessions: 3,
@@ -67,7 +67,28 @@ describe('개발 시드 (database.md §4)', () => {
   it('문서 세트가 쓰는 표시 ID 가 그대로 심긴다', async () => {
     // DB 콜레이션에 기대지 않는다 — en_US 로케일은 대소문자를 섞어 정렬한다. JS 에서 정렬한다.
     const specKeys = (await rows<{ key: string }>(`SELECT key FROM spec`)).map((r) => r.key).sort();
-    expect(specKeys).toEqual(['SPC-CWC-007', 'SPC-CWC-012', 'channel-web-chat']);
+    expect(specKeys).toEqual([
+      'ADR-CWC-003',
+      'ADR-OPS-001',
+      'ADR-SRC-002',
+      'SPC-ACC-002',
+      'SPC-ACC-007',
+      'SPC-ACC-011',
+      'SPC-CWC-007',
+      'SPC-CWC-012',
+      'SPC-CWC-015',
+      'SPC-OPS-004',
+      'SPC-OPS-006',
+      'SPC-OPS-009',
+      'SPC-SRC-003',
+      'SPC-SRC-005',
+      'SPC-SRC-008',
+      'SPC-VIS-001',
+      'account-access',
+      'channel-web-chat',
+      'ops-observability',
+      'search-index',
+    ]);
 
     const taskKeys = (await rows<{ key: string }>(`SELECT key FROM task`)).map((r) => r.key).sort();
     expect(taskKeys).toEqual(['CLV-T-0CFQC2', 'CLV-T-1KTDCK', 'CLV-T-TRA25N']);
@@ -103,8 +124,16 @@ describe('개발 시드 (database.md §4)', () => {
     // S1 홈 — 읽지 않은 알림 1
     expect(await count('notification', `WHERE state = 'unread'`)).toBe(1);
     // S3 스펙 상세 — SPC-CWC-007 은 v3 superseded → v4 approved (diff 재료)
-    expect(await count('spec_version', `WHERE status = 'approved'`)).toBe(2);
     expect(await count('spec_version', `WHERE status = 'superseded'`)).toBe(1);
+    // 승인본 열여섯 = 기존 둘 + 2026-09-22 에 넓힌 트리의 열넷. **영역(area) 넷만 본문이
+    // 없다** — 임포터의 골격 배치와 같다. 트리는 차는데 누르면 빈 문서인 상태를 만들지
+    // 않으려고 나머지 전부에 승인본 하나씩을 준다.
+    expect(await count('spec_version', `WHERE status = 'approved'`)).toBe(16);
+    const { rows: bodyless } = await pool.query<{ type: string }>(`
+      SELECT DISTINCT s.type::text AS type FROM spec s
+       WHERE NOT EXISTS (SELECT 1 FROM spec_version v WHERE v.spec_id = s.id)
+    `);
+    expect(bodyless.map((r) => r.type)).toEqual(['area']);
     // S6 리뷰 센터(2026-08-23) — 열린 발견 3(severity 3종) · 브랜치 2 · 면제 1.
     // 세션 상세와 같은 이유로 여기 넣는다: 비어 있으면 "정리된 finding" 이라는 이
     // 화면의 값어치가 개발 환경에서 한 번도 보이지 않는다.
@@ -134,6 +163,50 @@ describe('개발 시드 (database.md §4)', () => {
     expect(await count('evidence', `WHERE repo IS NOT NULL`)).toBe(1);
     // 요구사항에도 하나 매달아 둔다 — S3 요구사항 탭의 증적 수가 0 이 아니게 된다(FR-13)
     expect(await count('evidence', `WHERE requirement_id IS NOT NULL`)).toBe(1);
+  });
+
+  it('관계 그래프가 그릴 것이 있다 — 영역 4 · 종류 6 · 관계 28 (2026-09-22)', async () => {
+    // **이 표가 비어 있던 동안 그래프 탭은 언제나 빈 상태였다.** `spec_relation` 이
+    // 0건이라 캔버스가 아예 마운트되지 않았고, 그래서 밀도가 유일한 설계 문제인 그
+    // 화면이 디자인 확인용 스크린샷에 한 번도 들어간 적이 없다([4.5](screens.md) §2.4a).
+    // Activity·증적에서 겪은 것과 같은 형태다 — 화면에 길을 내고도 그 길을 지나가는
+    // 데이터가 없으면 L3 도 스크린샷도 그 길을 보지 못한다.
+    expect(await count('spec_relation')).toBe(28);
+    expect(await count('spec', `WHERE type = 'area'`)).toBe(4);
+
+    // 종류 여섯을 전부 쓴다 — 하나라도 비면 범례의 그 색은 개발 환경에서 한 번도
+    // 그려지지 않는다(REQ-WEB-176: 범례는 **그려진 것만** 적는다)
+    const types = await rows<{ type: string }>(`SELECT DISTINCT type::text AS type FROM spec`);
+    expect(types.map((t) => t.type).sort()).toEqual([
+      'adr',
+      'area',
+      'convention',
+      'design',
+      'feature',
+      'vision',
+    ]);
+
+    // 관계 종류도 한 낱말만 반복하지 않는다 — 패널이 줄마다 적는 것이 그 값이다
+    const kinds = await rows<{ kind: string }>(
+      `SELECT DISTINCT kind::text AS kind FROM spec_relation ORDER BY kind`,
+    );
+    expect(kinds.map((k) => k.kind)).toEqual(['depends_on', 'references', 'refines']);
+
+    // 영역을 **건너는** 간선이 있어야 상자끼리 밀어내는 정리 패스가 할 일이 생긴다
+    // (REQ-WEB-174·175). 같은 영역 안에서만 이으면 상자 넷은 서로를 만나지 않는다.
+    const { rows: crossing } = await pool.query<{ n: number }>(`
+      SELECT count(*)::int AS n FROM spec_relation r
+        JOIN spec f ON f.id = r.from_spec_id
+        JOIN spec t ON t.id = r.to_spec_id
+       WHERE coalesce(f.parent_id, f.id) <> coalesce(t.parent_id, t.id)
+    `);
+    expect(crossing[0]?.n).toBe(17);
+
+    // 피참조 수가 갈려야 차수 기반 크기가 눈에 띈다 — 고르면 노드가 전부 같은 크기다
+    const { rows: hub } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM spec_relation GROUP BY to_spec_id ORDER BY n DESC LIMIT 1`,
+    );
+    expect(hub[0]?.n).toBeGreaterThanOrEqual(5);
   });
 
   it('같은 지적이 두 라운드에 걸쳐 하나로 남는다 — 화면의 dedup 표기가 시드에서 보인다', async () => {
@@ -217,6 +290,7 @@ async function snapshot(): Promise<Record<string, unknown>> {
     'agent_session',
     'spec',
     'spec_version',
+    'spec_relation',
     'requirement',
     'requirement_version',
     'task',

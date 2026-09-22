@@ -209,6 +209,8 @@ The graph's controls sit in the **top-left of the canvas** — view scope (whole
 
 Zoomed out, **document names are not drawn.** A hundred labels too small to read cover the picture in smudges — zoom in and the names come back. Area names stay at any zoom.
 
+**When two names overlap, only one is drawn.** A name you cannot read because something covers it is just as unreadable, so the one with more backlinks keeps its label. Zooming in does **not** bring the hidden one back — the text grows with the picture, so the overlap is unchanged. Use one of three things instead: **click the node** (a selected document always shows its name, and once the rest fades its neighbors' names come back), **drag them apart**, or read the **table tab**. The panel on the right spells the names out anyway.
+
 ## Archiving
 
 Archiving can be **refused** — a document with live children, or with a task of its own that someone is holding, is blocked. The screen then lists what blocked it.

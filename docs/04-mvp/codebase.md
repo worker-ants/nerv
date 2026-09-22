@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.54 · 2026-09-22 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.55 · 2026-09-22 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.55 변경(2026-09-22 — 문서가 실은 파일 사본이 갈라져 있었다, 실측): **REQ-CB-048 신설.** [4.3](database.md) §4 는 개발 시드 SQL **전문**을 코드 블록으로 싣는데, 2026-09-21 에 시드 본문에 넣은 mermaid 블록(REQ-WEB-169)이 거기 반영된 적이 없었다 — 사람은 문서를 읽고 실행되는 것은 파일이라 **문서가 틀린 채로 확신을 주고 있었다.** 못 잡은 이유는 그물의 모양이다: 규약 1 의 검사(`check-md-html.mjs`)가 세는 것은 버전 · 절 번호 · 고정 ID 이고 **코드 블록 안쪽은 아무 검사도 보지 않는다.** 처방은 이 저장소가 같은 자리에서 이미 고른 것이다 — 스킬과 [4.6](plugin.md) 을 `plugin/plugin-package.spec.ts` 가 바이트로 대조하듯, 시드도 L1 이 바이트로 댄다(`packages/schema/src/seed.spec.ts`). **게이트 수는 그대로다** — L1 이라 preflight·CI 가 이미 돈다.
 >
 > v1.54 변경(2026-09-22 — 4096 차원 모델이 전 배치 거절을 냈다, 사람 보고): **REQ-CB-047 신설 · REQ-CB-021 개정 · §5.2 전표 한 행 · §5.2a 산문.** 운영에서 `text-embedding-qwen3-embedding-8b`(네이티브 **4096**)를 붙였더니 임베딩이 통째로 멈췄다. **차원 고정을 푸는 것으로는 풀리지 않는다** — 실측(pgvector 0.8.6)으로 hnsw 인덱스의 상한은 `vector` **2000** · `halfvec` **4000** 이라 4096 은 **어느 쪽으로도 인덱스를 만들 수 없다**(컬럼으로 담는 것만 되고, 그러면 검색이 매번 전체 스캔이다). MRL(Matryoshka)로 학습한 모델이면 **앞에서 자르고 다시 정규화하는 것이 그 모델의 공식 경로**이므로(Qwen3-Embedding 은 32~4096 사용자 지정 차원을 그렇게 지원하고, OpenAI 의 `dimensions` 가 서버에서 하는 일도 같다) 받는 쪽에 옵트인 손잡이를 둔다 — `NERV_EMBED_TRUNCATE`. **기본은 꺼짐이다**: MRL 이 아닌 모델에서 켜면 검색 품질이 조용히 나빠지고, 그 판단은 모델 카드를 본 사람의 것이다. 곁들여 **거절 문구가 원인과 손잡이를 말한다** — 예전에는 "이 제공자는 프로필로 쓸 수 없다" 하나였는데 실제 상황은 셋이고 손잡이가 각각 다르다(`dimensions` 를 안 보냈다 · 보냈는데 제공자가 무시했다 · 모델이 애초에 짧다). 그리고 `embedding.job.ts` 가 다시 선언하고 있던 `dimensions = 1024` 를 걷었다(아무도 읽지 않는 사본이고, 스키마를 바꾼 날 혼자 낡는다 — REQ-CB-006).
 >
@@ -166,6 +168,9 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
       check-plugin-version.mjs  #   배달되는 파일이 바뀌면 version 도 올랐는가 (REQ-PLG-017)
       check-backlog-status.mjs  #   4.8 §1.4 현황 표가 스토리와 맞는가 (REQ-CB-029)
       check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1)
+                                #   — **코드 블록 안쪽은 보지 않는다**: 문서가 실은 파일 사본은
+                                #     L1 이 바이트로 댄다(`packages/schema/src/seed.spec.ts` ·
+                                #     `plugin/plugin-package.spec.ts` · REQ-CB-048)
       check-env-table.mjs       #   §5.2 전표와 코드가 읽는 변수가 맞는가
       check-doc-links.mjs       #   문서 간 링크·역참조·맨 참조·절 실재 (REQ-CB-030) — `--fix` 가 역참조를 다시 쓴다
       pack-plugin.mjs           #   플러그인 zip — 이미지 빌드가 /plugin-dist 에 심는다 (§6.1)
@@ -2131,6 +2136,7 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 | **REQ-CB-020** | WHEN 임베딩(질의·인덱싱)이 수행될 때, THE SYSTEM SHALL `NERV_EMBED_URL`에 대한 **OpenAI 호환 `/v1/embeddings` 단일 클라이언트**만 사용하고 제공자별 분기·전용 SDK를 두지 않는다 — 제공자(자가호스팅/LM Studio/OpenAI)는 env 3키로만 결정되며 코드 기본값은 자가호스팅이다(§5.2a — 2026-08-22 개정: "자가호스팅만" 조항은 같은 날 폐기, 외부 전송은 운영 주체의 env 명시 선택). |
 | **REQ-CB-021** | (2026-09-22 개정 — 긴 벡터는 잘라 맞출 수 있다) WHEN 임베딩 응답의 벡터 차원이 스키마 차원과 다르면, THE SYSTEM SHALL 해당 배치를 적재하지 않고 오류로 기록한다 — 다만 **길고** `NERV_EMBED_TRUNCATE` 가 켜져 있으면 잘라 맞춘다(REQ-CB-047). OpenAI 프로필은 요청에 `dimensions`를 항상 포함한다(§5.2a). |
 | **REQ-CB-047** | WHERE `NERV_EMBED_TRUNCATE` 가 켜져 있고 받은 벡터가 스키마 차원보다 **길면**, THE SYSTEM SHALL 앞에서 그 차원만큼 자르고 **다시 정규화**해 적재한다(MRL 절단). WHERE 받은 벡터가 스키마 차원보다 **짧으면**, THE SYSTEM SHALL 그 값과 무관하게 거절한다 — 늘린 벡터는 거짓이다. WHEN 차원이 맞지 않아 거절하면, THE SYSTEM SHALL **어느 경우인지와 무엇을 하면 되는지**를 문장에 담는다(`dimensions` 미전송 · 제공자가 무시함 · 모델이 짧음 셋을 구별한다). WHEN 절단이 켜진 채 기동하면, THE SYSTEM SHALL 그 사실을 로그에 한 번 남긴다 — 조용히 자르면 검색 품질을 의심할 때 볼 곳이 없다 |
+| **REQ-CB-048** | WHEN 문서가 저장소의 파일 전문을 코드 블록으로 실으면, THE SYSTEM SHALL 그 둘이 같은지 **바이트로** 대조하는 검사를 둔다 — 정본은 파일이고 블록은 사본이므로 갈라지면 문서를 고친다. **규약 1 의 검사는 코드 블록 안쪽을 보지 않는다**(버전·절 번호·고정 ID 만 센다): [4.3](database.md) §4 의 개발 시드 SQL 사본은 그 눈먼 자리에서 실제로 갈라져 있었고(2026-09-21 의 mermaid 본문이 반영된 적이 없었다) 아무 빨강도 뜨지 않았다 |
 
 ---
 
