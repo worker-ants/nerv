@@ -9,7 +9,17 @@
 
 import cytoscape from 'cytoscape';
 import { describe, expect, it } from 'vitest';
-import { compactAreas, extent, gravitate, pack, relax, type PackItem } from './layout.js';
+import {
+  LABEL_ZOOM,
+  compactAreas,
+  crowdedLabels,
+  extent,
+  gravitate,
+  pack,
+  relax,
+  type LabelBox,
+  type PackItem,
+} from './layout.js';
 
 const box = (cx: number, cy: number, w = 40, h = 40): PackItem => ({ cx, cy, w, h });
 
@@ -216,5 +226,52 @@ describe('영역 상자는 형제끼리 겹치지 않는다 (2026-09-22 · 사�
     });
     expect(worstOverlap(items)).toBe(0);
     cy.destroy();
+  });
+});
+
+describe('겹치는 이름 (2026-09-22 · 사람 보고)', () => {
+  // **가려서 못 읽는 것도 못 읽는 것이다.** 겹친 이름 중 하나는 지워야 하고, 남는 쪽은
+  // 매번 같아야 한다 — 누를 때마다 다른 이름이 사라지면 그림을 읽는 일이 어지러워진다.
+  const at = (id: string, rank: number, x: number, y: number, w = 90, h = 12): LabelBox => ({
+    id,
+    rank,
+    x1: x - w / 2,
+    x2: x + w / 2,
+    y1: y - h / 2,
+    y2: y + h / 2,
+  });
+
+  it('떨어져 있으면 아무것도 가리지 않는다', () => {
+    expect(crowdedLabels([at('a', 1, 0, 0), at('b', 1, 200, 0)]).size).toBe(0);
+  });
+
+  it('겹치면 피참조가 많은 쪽이 남는다 — 허브의 이름이 먼저다', () => {
+    const hidden = crowdedLabels([at('작다', 18, 0, 0), at('허브', 40, 40, 0)]);
+    expect([...hidden]).toEqual(['작다']);
+  });
+
+  it('같은 무게면 id 로 가른다 — 같은 그림에서 같은 이름이 남는다', () => {
+    const first = crowdedLabels([at('b', 20, 0, 0), at('a', 20, 40, 0)]);
+    const again = crowdedLabels([at('a', 20, 40, 0), at('b', 20, 0, 0)]);
+    expect([...first]).toEqual(['b']);
+    expect([...again]).toEqual([...first]);
+  });
+
+  it('자리를 차지한 이름만 다음 것을 막는다 — 가려진 것 뒤에는 자리가 남는다', () => {
+    // a 가 b 를 가린다. c 는 b 와만 겹치므로 — b 는 이미 없으므로 — 그려져야 한다.
+    const hidden = crowdedLabels([at('a', 30, 0, 0), at('b', 20, 60, 0), at('c', 10, 120, 0)]);
+    expect([...hidden]).toEqual(['b']);
+  });
+
+  it('세로로만 어긋나도 겹치면 가린다 — 이름은 노드 아래 한 줄이다', () => {
+    expect(crowdedLabels([at('a', 2, 0, 0), at('b', 1, 0, 6)]).size).toBe(1);
+  });
+});
+
+describe('이름이 그려지는 배율', () => {
+  it('9px 글자가 8px 로 찍히는 배율이다 — 스타일과 같은 값을 쓴다', () => {
+    // 이 수가 배치의 판정("이름의 자리를 잡아 둘까")과 화면의 판정("이름을 그릴까")을
+    // 한 곳에서 잇는다. 두 벌로 적으면 한쪽만 바뀌는 날 둘이 어긋난다.
+    expect(LABEL_ZOOM).toBeCloseTo(8 / 9, 10);
   });
 });
