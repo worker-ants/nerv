@@ -11,6 +11,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
+import { relativeTime } from '../../lib/format.js';
 import { rows, useMe, useMembers, useOrgInvitations } from '../../lib/queries.js';
 import { rolesInOrg } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
@@ -214,6 +215,8 @@ function InviteSection({
   const [role, setRole] = useState<string>('developer');
   const [scope, setScope] = useState<'org' | 'project'>('org');
   const [link, setLink] = useState<string | null>(null);
+  /** 서버가 메일을 줄 세웠는가 — 메일이 꺼진 배치에서는 false 이고, 그때는 링크가 유일한 길이다 */
+  const [mailed, setMailed] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const refresh = (): void => {
@@ -222,12 +225,13 @@ function InviteSection({
 
   const send = useMutation({
     mutationFn: () =>
-      apiFetch<{ token: string }>(`/orgs/${orgSlug ?? ''}/invitations`, {
+      apiFetch<{ token: string; queued: boolean }>(`/orgs/${orgSlug ?? ''}/invitations`, {
         method: 'POST',
         body: { email, role, project: scope === 'project' ? projectSlug : null },
       }),
     onSuccess: (result) => {
       setLink(`${window.location.origin}/invite/${result.token}`);
+      setMailed(result.queued);
       setCopied(false);
       setEmail('');
       refresh();
@@ -305,7 +309,11 @@ function InviteSection({
           data-testid="invite-link"
           className="mb-3 rounded-nerv border border-border bg-status-action-soft px-3 py-2"
         >
-          <p className="text-xs text-status-action">{t('invite.link_once')}</p>
+          {/* **보냈다와 전달하세요는 다른 말이다.** 둘을 같은 문구로 덮으면 한쪽은 반드시
+              거짓이고, 그때 사람은 오지 않는 메일을 기다린다(2026-09-22). */}
+          <p className="text-xs text-status-action">
+            {mailed ? t('invite.mailed') : t('invite.link_once')}
+          </p>
           <div className="mt-1.5 flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate font-mono text-xs">{link}</code>
             <Button
@@ -336,6 +344,13 @@ function InviteSection({
               </span>
               <span className="w-16 text-xs text-text-mute">
                 {t(`invite.${String(row['state'])}` as never)}
+              </span>
+              {/* 안 보낸 것과 보냈는데 안 온 것은 다른 문제다 — 화면이 가르지 못하면
+                  admin 이 같은 초대를 세 번 만든다 */}
+              <span className="w-24 text-xs text-text-faint">
+                {row['last_sent_at'] === null || row['last_sent_at'] === undefined
+                  ? t('invite.unsent')
+                  : t('invite.sent_at', { when: relativeTime(t, String(row['last_sent_at'])) })}
               </span>
               {row['state'] === 'pending' && (
                 <Button

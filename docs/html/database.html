@@ -51,9 +51,9 @@
 
   <header class="page-header">
     <h1>데이터베이스 스키마</h1>
-    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 37개</b>다 — 도메인 32 + <b>부속 5</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
+    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 38개</b>다 — 도메인 32 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.43 (2026-09-22)</span>
+      <span>버전 v0.44 (2026-09-22)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -1105,6 +1105,56 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
     <tr><th>ID</th><th>수용 기준(EARS)</th></tr>
     <tr><td><code>REQ-DB-018</code></td><td>WHEN 세션 쿠키로 API가 호출되면 THE SYSTEM SHALL <code>auth_session</code>을 검증해 도메인 <code>user.id</code>를 주체로 해소하고, 역할은 <code>membership</code>에서만 읽는다</td></tr>
     <tr><td><code>REQ-DB-019</code></td><td>WHILE 인증 인프라 테이블이 비어 있어도 THE SYSTEM SHALL 도메인 데이터 조회·백업 복구를 정상 수행한다(인증 테이블은 백업 대상에서 제외 가능)</td></tr>
+  </table></div>
+
+  <h3>2.17 메일 아웃박스 — <code>email_outbox</code> (도메인 엔티티 아님 · 2026-09-22 신설)</h3>
+
+  <p><b>표면은 행을 넣고, 워커가 보낸다.</b> 인라인 발송을 고르지 않은 이유가 셋이다. ① better-auth 문서 자신이 발송을 <code>await</code> 하지 말라고 적는다 — 응답 시간이 "그 이메일이 존재하는가"를 흘린다(타이밍 공격). ② SMTP 는 느리고 죽는다: 사내 메일 서버가 잠깐 막히면 초대 만들기가 함께 막히고, 보낸 것과 못 보낸 것을 나중에 셀 방법이 없다. ③ <b>이 저장소에는 이미 그 배관이 있다</b> — 워커 · advisory lock 단일 실행(REQ-CB-011) · 잡 루프 · 보존 잡. 새 개념이 아니라 여덟 번째 잡이다(<a href="codebase.html">4.2</a> §2.2 <code>mail.job.ts</code>).</p>
+
+  <p><b><code>notification</code> 을 재사용하지 않는다.</b> 그 표는 <code>project_id</code>·<code>event_id</code>·<code>user_id</code> 가 전부 NOT NULL 인데, 초대받은 사람은 <b>계정조차 없을 수 있고</b> 어느 프로젝트에도 속하지 않았다. 억지로 끼우면 그 세 열이 거짓말을 한다 — <code>notification_channel</code> 에 <code>email</code> 이 있는 것은 FR-12 의 <b>알림</b> 메일 채널을 위한 자리이고, 그것은 Phase 2 의 별개 일이다(<a href="scope.html">4.1</a> FR-12).</p>
+
+  <p><b>본문은 넣을 때 만들어져 들어온다.</b> 워커는 렌더링하지 않는다 — 템플릿이 바뀌어도 이미 줄 서 있던 메일의 내용은 바뀌지 않아야 하고, 그래야 "그 사람이 받은 것"과 "지금 보이는 것"이 같다. 로케일은 <b>받는 사람</b>의 것이다(초대한 사람의 것이 아니다).</p>
+
+  <p><code>email_kind</code> 세 값을 한 번에 만드는 것은 의도다 — <code>ALTER TYPE … ADD VALUE</code> 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 지금 쓰는 것은 <code>invite</code> 하나다.</p>
+
+  <pre><code>CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password');
+
+CREATE TABLE email_outbox (
+  id              uuid PRIMARY KEY,
+  kind            email_kind  NOT NULL,
+  to_email        citext      NOT NULL,
+  locale          text        NOT NULL DEFAULT 'ko',   -- 받는 사람의 언어
+  subject         text        NOT NULL,
+  body_text       text        NOT NULL,                -- 평문이 정본이다
+  body_html       text,                                -- 없으면 평문만 보낸다
+  ref_type        text,                                -- 'invitation' | 'user' (FK 아님)
+  ref_id          uuid,
+  attempts        int         NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz NOT NULL DEFAULT '1970-01-01',
+  sent_at         timestamptz,
+  failed_at       timestamptz,                         -- 상한까지 실패해 포기한 시각
+  last_error      text,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+-- 잡이 집는 줄만 보는 부분 인덱스 — 보낸 것이 쌓여도 큐 조회 비용은 그대로다
+CREATE INDEX email_outbox_due ON email_outbox (next_attempt_at)
+  WHERE sent_at IS NULL AND failed_at IS NULL;
+-- 보존 잡이 보낸 지 오래된 것을 치운다(본문에 살아 있는 링크가 들어 있다)
+CREATE INDEX email_outbox_sent ON email_outbox (sent_at);
+
+-- 초대는 자기 발송 시각을 따로 갖는다 — 보존 잡이 위 큐를 치워도 답이 남아야 한다
+ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
+
+  <p><b>집는 법은 Task 클레임과 같다</b> — <code>FOR UPDATE SKIP LOCKED</code>. 워커는 advisory lock 으로 하나만 돌지만, 배포 중 두 파드가 겹치는 짧은 구간에도 같은 메일이 두 번 나가면 안 된다. 집는 순간 <code>next_attempt_at</code> 을 1분 뒤로 밀어, 보내는 동안 다음 틱이 같은 줄을 다시 집지 않게 한다. 실패하면 2의 거듭제곱으로 뒤로 밀고(1·2·4·8·16분 — 상한까지 31분), 상한(<code>MAIL_MAX_ATTEMPTS</code> = 5)을 넘으면 <code>failed_at</code> 을 적고 멈춘다. <b>포기한 줄을 지우지 않는다</b> — 왜 안 갔는지가 기록이고, 그것이 없으면 "보냈는데 안 왔다"와 "애초에 못 보냈다"를 아무도 가르지 못한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td><code>REQ-DB-024</code></td><td>WHEN 메일을 보내야 하는 일이 생기면 THE SYSTEM SHALL 그 일을 만든 트랜잭션 안에서 <code>email_outbox</code> 에 행을 넣고, 발송은 워커가 따로 수행한다 — 표면은 SMTP 를 기다리지 않는다</td></tr>
+      <tr><td><code>REQ-DB-025</code></td><td>WHILE 발송 설정(<code>NERV_SMTP_URL</code>)이 비어 있으면 THE SYSTEM SHALL 아웃박스에 행을 넣지 않는다 — 보낼 수 없는 줄이 쌓이면 설정을 켠 날 밀린 메일이 한꺼번에 나간다</td></tr>
+      <tr><td><code>REQ-DB-026</code></td><td>WHEN 발송이 실패하면 THE SYSTEM SHALL 지수 백오프로 다시 시도하고, 상한을 넘으면 행을 <b>지우지 않고</b> 실패 시각과 사유를 남긴다</td></tr>
+    </tbody>
   </table></div>
 
   <h2 id="sec-3">3. 이벤트 방송 규약 — Valkey nerv_events</h2>

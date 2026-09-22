@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.55 · 2026-09-22 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.56 · 2026-09-22 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.56 변경(2026-09-22 — 메일을 붙인다, **사람 결정**): **§2.2 트리에 `modules/mail/` 넷과 여덟 번째 잡 · §5.2 전표 네 줄.** 가입 인증과 초대 메일을 위해 SMTP 를 들인다 — 스택 표([4.1](scope.md) §2.1)에 발신 계층 한 행이 서고, 라이브러리는 **nodemailer** 다(제공자 SDK 를 들이면 그 배치가 그 제공자에 묶인다). **표면은 행을 넣고 워커가 보낸다**: 인라인 발송은 better-auth 문서 자신이 말리고(응답 시간이 이메일의 존재를 흘린다), SMTP 는 느리고 죽으며, 이 저장소에는 이미 워커·advisory lock·잡 루프가 있다 — 새 개념이 아니라 여덟 번째 잡이다. 설정은 **비어 있으면 꺼진다**(`NERV_GITHUB_WEBHOOK_SECRET` 과 같은 규약) — 다만 켜 놓고 `NERV_MAIL_FROM` 을 비우면 **기동을 거부한다**: 보내는 사람 없는 메일은 거절되거나 스팸함으로 가고, 둘 다 "보냈다고 믿는데 닿지 않는" 모양이라 뜨지 않는 편이 싸다(REQ-CB-042 와 같은 판단).
 >
 > v1.55 변경(2026-09-22 — 문서가 실은 파일 사본이 갈라져 있었다, 실측): **REQ-CB-048 신설.** [4.3](database.md) §4 는 개발 시드 SQL **전문**을 코드 블록으로 싣는데, 2026-09-21 에 시드 본문에 넣은 mermaid 블록(REQ-WEB-169)이 거기 반영된 적이 없었다 — 사람은 문서를 읽고 실행되는 것은 파일이라 **문서가 틀린 채로 확신을 주고 있었다.** 못 잡은 이유는 그물의 모양이다: 규약 1 의 검사(`check-md-html.mjs`)가 세는 것은 버전 · 절 번호 · 고정 ID 이고 **코드 블록 안쪽은 아무 검사도 보지 않는다.** 처방은 이 저장소가 같은 자리에서 이미 고른 것이다 — 스킬과 [4.6](plugin.md) 을 `plugin/plugin-package.spec.ts` 가 바이트로 대조하듯, 시드도 L1 이 바이트로 댄다(`packages/schema/src/seed.spec.ts`). **게이트 수는 그대로다** — L1 이라 preflight·CI 가 이미 돈다.
 >
@@ -447,6 +449,11 @@ apps/api/src/
       task.tools.ts          # MCP — nerv_task_* 5종
       webhook.controller.ts  # GitHub 웹훅 ingest — HMAC (EP-WHK-01)
       webhook.service.ts     # 서명 검증 + Task 키 매칭 (FR-13)
+    mail/
+      mail.config.ts         # 발신 설정 — 비어 있으면 꺼진다 (§5.2 · 2026-09-22)
+      mail.module.ts         # 넣는 쪽과 내보내는 쪽을 함께 판다
+      mail.outbox.ts         # email_outbox 에 넣고·집고·표시한다 (4.3 §2.17)
+      mail.sender.ts         # nodemailer — SMTP 로 나가는 자리는 여기 하나다
   worker/
     advisory-lock.ts  # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)
     job-runner.ts     # 잡 루프 — advisory lock 아래에서 하나만 돈다
@@ -455,6 +462,7 @@ apps/api/src/
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
       export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
       lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
+      mail.job.ts           # 아웃박스 → SMTP — 초대·인증 메일 (4.3 §2.17, 2026-09-22)
       notification.job.ts   # event → notification 라우팅 (인앱, Slack·메일은 P2)
       partition.job.ts      # event·activity 월 파티션 선생성 — 하루 1회 (4.3 §2.14, REQ-DB-021)
       retention.job.ts      # blob TTL 30일 · Activity 보존 정책 집행
@@ -1010,6 +1018,10 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_REGION` | | `us-east-1` | api · worker | S3 호환 서명용. MinIO 는 아무 값이나 받지만 **실제 S3·R2·GCS 호환은 이 값으로 서명을 검증**하므로 틀리면 `SignatureDoesNotMatch` 다. 소비자를 `api` 만 적고 있었는데 `StorageService` 는 워커의 모듈 그래프(`WorkerModule` → `SpecModule`)에도 올라 **생성자에서 이 값을 읽는다**(2026-09-14 정정 — 게이트 ④ 는 `api` 만 적혀 있어도 통과하므로 이 종류의 어긋남은 아무도 세지 않는다) |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
 | `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다. k8s 는 `nerv-mirror` PVC 를 `/mirror` 에 붙이고 ConfigMap 이 그 경로를 준다(§6.2) — 2026-09-14 까지 이 값이 **어느 배치에도 없어** 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다 |
+| `NERV_SMTP_URL` | | — | worker | **메일 발신의 스위치다**(2026-09-22 · 사람 결정). `smtps://user:pass@smtp.example.com:465`. 비면 보내지 않고 **아웃박스에 쌓지도 않는다** — 보낼 수 없는 줄이 조용히 자라면 SMTP 를 켠 날 몇 달 치가 한꺼번에 나간다. compose 기본값은 `smtp://mailpit:1025`(개발용 받이 · 받은 편지함 `:8025`) |
+| `NERV_MAIL_FROM` | SMTP 를 켜면 | — | worker | `NERV <no-reply@example.com>`. SMTP 를 켜 놓고 비우면 **기동을 거부한다** — 보내는 사람 없는 메일은 거절되거나 스팸함으로 가고, 둘 다 "보냈다고 믿는데 닿지 않는" 모양이다(`NERV_COOKIE_DOMAIN` 과 같은 규약) |
+| `NERV_MAIL_REPLY_TO` | | — | worker | 사람이 답장할 주소. `no-reply` 로만 두면 "이 메일 뭐죠" 가 갈 곳이 없다 |
+| `NERV_MAIL_DRY_RUN` | | `false` | worker | 아웃박스는 쌓고 보내지는 않는다. 로그에 **수신자와 제목만** 남긴다 — 본문을 찍으면 그 로그를 읽는 사람이 곧 그 초대를 수락할 수 있는 사람이 된다. 첫 배포에서 무엇이 나갈지 먼저 보는 용도다 |
 | `NERV_S3_BUCKET` | | `nerv-blobs` | api · worker | api가 기동 시 없으면 생성한다(2026-09-02 — 전표는 그렇게 적었는데 코드가 없었다) |
 | `NERV_S3_FORCE_PATH_STYLE` | | `true` | api · worker | minio 호환 |
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |

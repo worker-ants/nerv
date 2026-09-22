@@ -813,6 +813,9 @@ export const ko = {
   'invite.expired': '만료됨',
   'invite.expires_days': '{days}일 뒤 만료',
   'invite.for_email': '초대받은 계정: {email}',
+  'invite.mailed': '메일을 보냈습니다 — 링크는 아래에도 남습니다.',
+  'invite.sent_at': '{when} 발송',
+  'invite.unsent': '미발송',
   'invite.link_once': '이 링크는 **지금 한 번만** 보입니다 — 복사해서 전달하세요.',
   'invite.mine_body': '{org} 이(가) 당신을 {role} 로 초대했습니다.',
   'invite.mine_title': '받은 초대',
@@ -1316,6 +1319,16 @@ export const ko = {
   'task.form.err.output': '산출물 형식을 적어주세요(예: PR).',
   'task.form.err.title': '제목이 필요합니다.',
   'task.form.err.tools': '쓸 도구·참고할 출처를 적어주세요.',
+  // ── 메일 본문 (2026-09-22 · database.md §2.17) ──────────────────────────────
+  // **받는 사람의 언어로 렌더한다** — 초대한 사람의 것이 아니다(`email_outbox.locale`).
+  //
+  // **자리표시자 뒤에 조사를 붙이지 않는다.** 조직 이름도 역할도 받침이 있을 수도 없을 수도
+  // 있어서 `{org} 이(가)`·`{role} 로` 는 값에 따라 어색해지거나 틀린다(실측: 시드의 조직
+  // 이름이 `default` 라 "default 이(가)" 로 나갔다). `에서`·`에`·`입니다` 처럼 받침을 가리지
+  // 않는 말로 문장을 짠다.
+  'mail.invite.subject': '[NERV] {org} 에서 함께 일하자고 초대했습니다',
+  'mail.invite.body':
+    '{inviter} 님이 {org} 에 초대했습니다 — 역할은 {role} 입니다.\n\n아래 주소를 열어 수락하세요.\n{url}\n\n이 링크는 {days}일 뒤 만료되고, 초대받은 주소({email})로 로그인했을 때만 수락됩니다.\n계정이 아직 없으면 먼저 가입한 뒤 같은 주소로 돌아오면 됩니다.\n\n모르는 초대라면 이 메일을 지우면 됩니다 — 아무 일도 일어나지 않습니다.',
   // ── 스펙 관계 그래프 (screens.md §2.4a) ────────────────────────────────────────
   'graph.counts': '노드 {nodes} · 간선 {edges}',
   'graph.empty': '관계가 아직 없습니다.',

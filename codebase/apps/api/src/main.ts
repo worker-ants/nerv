@@ -26,6 +26,7 @@ import {
 } from './common/origins.js';
 import { RateLimitGuard } from './common/rate-limit.guard.js';
 import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
+import { assertMailConfig } from './modules/mail/mail.config.js';
 
 export async function createApp(): Promise<NestFastifyApplication> {
   // rawBody 를 켠다 — GitHub 웹훅의 HMAC 은 **원문 바이트**로 계산되므로 파싱 후
@@ -150,6 +151,9 @@ async function bootstrap(): Promise<void> {
   // 쿠키 도메인도 여기서 본다 — Nest 초기화 중에 던지면 `abortOnError` 기본값이 프로세스를
   // abort 시켜(SIGABRT) 운영자가 받는 것이 문구가 아니라 덤프가 된다(REQ-CB-042).
   assertCookieDomain();
+  // 메일도 같은 자리에서 본다 — SMTP 를 켜 놓고 보내는 사람을 비우면 "보냈다고 믿는데 닿지
+  // 않는" 배치가 되고, 그것은 뜨지 않는 것보다 나쁘다(2026-09-22 · codebase.md §5.2).
+  assertMailConfig();
   const app = await createApp();
   const port = Number(process.env['NERV_API_PORT'] ?? 8080);
   await app.listen({ port, host: '0.0.0.0' });

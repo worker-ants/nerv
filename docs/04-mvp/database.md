@@ -17,9 +17,11 @@ referenced_by:
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 37개**다 — 도메인 32 + **부속 5**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 38개**다 — 도메인 32 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.43 · 2026-09-22 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.44 · 2026-09-22 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.44 변경(2026-09-22 — 메일을 붙인다, **사람 결정**): **§2.17 신설 · REQ-DB-024~026 · 마이그레이션 0027.** 가입 인증과 초대 메일을 위한 발송 큐 `email_outbox` 와 `invitation.last_sent_at` 한 열이다. **표면은 행을 넣고 워커가 보낸다** — 인라인 발송은 better-auth 문서 자신이 말리고(응답 시간이 이메일의 존재를 흘린다), SMTP 는 느리고 죽으며, 이 저장소에는 이미 워커·advisory lock·잡 루프가 있다. **`notification` 을 재사용하지 않는 이유**는 그 표의 `project_id`·`event_id`·`user_id` 가 전부 NOT NULL 인데 초대받은 사람은 계정조차 없을 수 있기 때문이다 — 억지로 끼우면 세 열이 거짓말을 한다. 집는 법은 Task 클레임과 같고(`FOR UPDATE SKIP LOCKED`), 실패는 2의 거듭제곱으로 밀리며(상한까지 31분), **포기한 줄은 지우지 않는다**: 왜 안 갔는지가 없으면 "보냈는데 안 왔다" 와 "애초에 못 보냈다" 를 아무도 가르지 못한다([4.1](scope.md) v0.31 · [4.2](codebase.md) v1.56 · [4.4](api.md) v1.37).
 >
 > v0.43 변경(2026-09-22 — 길을 내고도 그 길을 지나가는 데이터가 없었다, 두 번째: **관계 그래프**): **새 요구사항 없음 · §4 개발 시드.** 스펙이 셋뿐이고 `spec_relation` 이 **0건**이라 관계 그래프 탭은 언제나 "관계가 아직 없습니다" 였다 — 캔버스가 아예 마운트되지 않았고, 그래서 **밀도가 유일한 설계 문제인 화면이**([4.5](screens.md) §2.4a) **디자인 확인용 스크린샷에 한 번도 들어간 적이 없다.** v0.42(증적)·2026-08-23(Activity)에서 겪은 것과 **같은 형태의 세 번째**다. 트리를 **문서 20 · 영역 4 · 종류 6 · 관계 28**로 넓혔다 — 영역이 하나뿐이면 상자끼리 밀어내는 정리 패스(REQ-WEB-174·175)가 할 일이 없고, 종류가 둘뿐이면 범례가 두 줄로 끝나며(REQ-WEB-176), 피참조 수가 고르면 차수 기반 크기가 아무 차이도 내지 않는다. 그래서 영역을 **건너는** 간선을 28 중 17로, 피참조 수를 0~6으로 갈랐다. **영역 넷만 본문이 없다**(임포터의 골격 배치와 같은 모양이다 — 나머지는 승인본 하나씩을 갖는다). 곁들여 **이 문서의 SQL 사본이 이미 갈라져 있던 것**을 고쳤다: 2026-09-21 에 시드 본문에 넣은 mermaid 블록(REQ-WEB-169)이 여기 반영된 적이 없었다 — 규약 1 이 보는 것은 버전·절 번호·고정 ID 라 **코드 블록의 드리프트는 아무 검사도 보지 않았다.** 그 자리에 바이트 대조 게이트를 세운다(REQ-CB-048).
 >
@@ -1148,6 +1150,55 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 | --- | --- |
 | REQ-DB-018 | WHEN 세션 쿠키로 API가 호출되면 THE SYSTEM SHALL `auth_session`을 검증해 도메인 `user.id`를 주체로 해소하고, 역할은 `membership`에서만 읽는다 |
 | REQ-DB-019 | WHILE 인증 인프라 테이블이 비어 있어도 THE SYSTEM SHALL 도메인 데이터 조회·백업 복구를 정상 수행한다(인증 테이블은 백업 대상에서 제외 가능) |
+
+### 2.17 메일 아웃박스 — `email_outbox` (도메인 엔티티 아님 · 2026-09-22 신설)
+
+**표면은 행을 넣고, 워커가 보낸다.** 인라인 발송을 고르지 않은 이유가 셋이다. ① better-auth 문서 자신이 발송을 `await` 하지 말라고 적는다 — 응답 시간이 "그 이메일이 존재하는가"를 흘린다(타이밍 공격). ② SMTP 는 느리고 죽는다: 사내 메일 서버가 잠깐 막히면 초대 만들기가 함께 막히고, 보낸 것과 못 보낸 것을 나중에 셀 방법이 없다. ③ **이 저장소에는 이미 그 배관이 있다** — 워커 · advisory lock 단일 실행(REQ-CB-011) · 잡 루프 · 보존 잡. 새 개념이 아니라 여덟 번째 잡이다([4.2](codebase.md) §2.2 `mail.job.ts`).
+
+**`notification` 을 재사용하지 않는다.** 그 표는 `project_id`·`event_id`·`user_id` 가 전부 NOT NULL 인데, 초대받은 사람은 **계정조차 없을 수 있고** 어느 프로젝트에도 속하지 않았다. 억지로 끼우면 그 세 열이 거짓말을 한다 — `notification_channel` 에 `email` 이 있는 것은 FR-12 의 **알림** 메일 채널을 위한 자리이고, 그것은 Phase 2 의 별개 일이다([4.1](scope.md) FR-12).
+
+**본문은 넣을 때 만들어져 들어온다.** 워커는 렌더링하지 않는다 — 템플릿이 바뀌어도 이미 줄 서 있던 메일의 내용은 바뀌지 않아야 하고, 그래야 "그 사람이 받은 것"과 "지금 보이는 것"이 같다. 로케일은 **받는 사람**의 것이다(초대한 사람의 것이 아니다).
+
+`email_kind` 세 값을 한 번에 만드는 것은 의도다 — `ALTER TYPE … ADD VALUE` 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 지금 쓰는 것은 `invite` 하나다.
+
+```sql
+CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password');
+
+CREATE TABLE email_outbox (
+  id              uuid PRIMARY KEY,
+  kind            email_kind  NOT NULL,
+  to_email        citext      NOT NULL,
+  locale          text        NOT NULL DEFAULT 'ko',   -- 받는 사람의 언어
+  subject         text        NOT NULL,
+  body_text       text        NOT NULL,                -- 평문이 정본이다
+  body_html       text,                                -- 없으면 평문만 보낸다
+  ref_type        text,                                -- 'invitation' | 'user' (FK 아님)
+  ref_id          uuid,
+  attempts        int         NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz NOT NULL DEFAULT '1970-01-01',
+  sent_at         timestamptz,
+  failed_at       timestamptz,                         -- 상한까지 실패해 포기한 시각
+  last_error      text,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+-- 잡이 집는 줄만 보는 부분 인덱스 — 보낸 것이 쌓여도 큐 조회 비용은 그대로다
+CREATE INDEX email_outbox_due ON email_outbox (next_attempt_at)
+  WHERE sent_at IS NULL AND failed_at IS NULL;
+-- 보존 잡이 보낸 지 오래된 것을 치운다(본문에 살아 있는 링크가 들어 있다)
+CREATE INDEX email_outbox_sent ON email_outbox (sent_at);
+
+-- 초대는 자기 발송 시각을 따로 갖는다 — 보존 잡이 위 큐를 치워도 답이 남아야 한다
+ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
+```
+
+**집는 법은 Task 클레임과 같다** — `FOR UPDATE SKIP LOCKED`. 워커는 advisory lock 으로 하나만 돌지만, 배포 중 두 파드가 겹치는 짧은 구간에도 같은 메일이 두 번 나가면 안 된다. 집는 순간 `next_attempt_at` 을 1분 뒤로 밀어, 보내는 동안 다음 틱이 같은 줄을 다시 집지 않게 한다. 실패하면 2의 거듭제곱으로 뒤로 밀고(1·2·4·8·16분 — 상한까지 31분), 상한(`MAIL_MAX_ATTEMPTS` = 5)을 넘으면 `failed_at` 을 적고 멈춘다. **포기한 줄을 지우지 않는다** — 왜 안 갔는지가 기록이고, 그것이 없으면 "보냈는데 안 왔다"와 "애초에 못 보냈다"를 아무도 가르지 못한다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-DB-024 | WHEN 메일을 보내야 하는 일이 생기면 THE SYSTEM SHALL 그 일을 만든 트랜잭션 안에서 `email_outbox` 에 행을 넣고, 발송은 워커가 따로 수행한다 — 표면은 SMTP 를 기다리지 않는다 |
+| REQ-DB-025 | WHILE 발송 설정(`NERV_SMTP_URL`)이 비어 있으면 THE SYSTEM SHALL 아웃박스에 행을 넣지 않는다 — 보낼 수 없는 줄이 쌓이면 설정을 켠 날 밀린 메일이 한꺼번에 나간다 |
+| REQ-DB-026 | WHEN 발송이 실패하면 THE SYSTEM SHALL 지수 백오프로 다시 시도하고, 상한을 넘으면 행을 **지우지 않고** 실패 시각과 사유를 남긴다 |
 
 ---
 

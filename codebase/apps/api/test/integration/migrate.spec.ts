@@ -47,7 +47,7 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     expect(after).toEqual(before);
   });
 
-  it('도메인 테이블 33종 + 검색 인덱스 1종이 존재한다', async () => {
+  it('도메인 테이블 33종 + 인프라 5종이 존재한다', async () => {
     const names = await withClient(db.url, async (c) => {
       const { rows } = await c.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables
@@ -57,24 +57,28 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
       );
       return rows.map((r) => r.table_name);
     });
-    // 33 도메인 엔티티 + 인프라 4종(엔티티 아님):
+    // 33 도메인 엔티티 + 인프라 5종(엔티티 아님):
     //   spec_chunk_embedding(§2.15) · auth_session·auth_account·auth_verification(§2.16)
+    //   · email_outbox(§2.17 — 2026-09-22. 보내고 나면 치우는 발송 큐다)
     // 30번째는 `invitation` 이다(2026-08-27 · 사람 결정 — 조직 초대)
     // 31번째는 `finding_comment` 다(2026-08-30 · 사람 결정 — 리뷰 피드백 흐름)
     // 32번째는 `attachment` 다(2026-09-01 · 사람 결정 — 디자인 시안 첨부)
     // 33번째는 `idempotency_key` 다(2026-09-02 — api.md §1.5 의 저장소. REST 헤더와 MCP
     //   입력이 같은 행을 본다)
-    expect(names).toHaveLength(37);
+    expect(names).toHaveLength(38);
     expect(names).toContain('idempotency_key');
     expect(names).toContain('spec_chunk_embedding');
+    expect(names).toContain('email_outbox');
     expect(names).toEqual(
       expect.arrayContaining(['auth_session', 'auth_account', 'auth_verification']),
     );
   });
 
-  it('enum 40종이 생성된다 (§2.1)', async () => {
+  // 41번째는 `email_kind` 다(2026-09-22 · §2.17) — 값 셋을 한 번에 만든다:
+  // `ALTER TYPE … ADD VALUE` 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없다.
+  it('enum 41종이 생성된다 (§2.1)', async () => {
     const count = await scalar(`SELECT count(*)::int FROM pg_type WHERE typtype = 'e'`);
-    expect(count).toBe(40);
+    expect(count).toBe(41);
   });
 });
 

@@ -49,6 +49,21 @@ services:
       timeout: 3s
       retries: 30
 
+  mailpit:                        # L3 가 **도착한 메일**을 읽는 자리 (2026-09-22)
+    # 아웃박스에 줄이 섰다는 것과 사람이 받았다는 것은 다른 일이다. 여기까지 와야
+    # 제목·본문·수신자가 실제로 무엇이었는지를 검사가 볼 수 있다(4.3 §2.17).
+    image: axllent/mailpit:v1.28
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "127.0.0.1:${NERV_E2E_MAIL_PORT:-19003}:8025"   # 받은 편지함 API·UI
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
   valkey:
     image: valkey/valkey:8-alpine
     command: ["valkey-server", "--save", "", "--appendonly", "no"]
@@ -123,6 +138,8 @@ services:
       NERV_S3_BUCKET: nerv-blobs
       NERV_S3_FORCE_PATH_STYLE: "true"
       NERV_GITHUB_WEBHOOK_SECRET: e2e-webhook-secret
+      NERV_SMTP_URL: smtp://mailpit:1025
+      NERV_MAIL_FROM: NERV <no-reply@e2e.invalid>
     depends_on:
       seed:
         condition: service_completed_successfully
@@ -162,10 +179,14 @@ services:
       NERV_S3_SECRET_KEY: e2epassword
       NERV_S3_BUCKET: nerv-blobs
       NERV_S3_FORCE_PATH_STYLE: "true"
+      NERV_SMTP_URL: smtp://mailpit:1025
+      NERV_MAIL_FROM: NERV <no-reply@e2e.invalid>
     depends_on:
       seed:
         condition: service_completed_successfully
       valkey:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
 
   web:

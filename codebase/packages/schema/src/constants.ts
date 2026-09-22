@@ -321,3 +321,15 @@ export function isDelegationFilled(value: string | null | undefined): boolean {
 const DELEGATION_PLACEHOLDERS = new Set(
   [ko['import.delegation_missing'], en['import.delegation_missing']].map((v) => v.trim()),
 );
+
+// ── 메일 발송 (2026-09-22 · 사람 결정 · database.md §2.17) ──────────────────
+/**
+ * 한 통을 몇 번까지 시도하는가. 백오프가 2의 거듭제곱(1·2·4·8·16분)이라 **상한까지 31분**이다.
+ * 더 늘리면 죽은 서버를 며칠씩 두드리고, 줄이면 잠깐 막힌 서버 때문에 초대가 영영 안 간다.
+ */
+export const MAIL_MAX_ATTEMPTS = 5;
+/**
+ * 한 틱에 집는 통 수. 밀린 큐를 한 번에 비우려 들면 메일 서버의 속도 제한에 걸리고,
+ * 그때 실패한 줄이 전부 백오프로 물러나 **오히려 더 늦게** 나간다.
+ */
+export const MAIL_BATCH_SIZE = 20;

@@ -344,3 +344,14 @@ export function isRepoHost(value: unknown): value is RepoHost {
 export const notificationImportance = pgEnum('notification_importance', ['immediate', 'digest']);
 export const notificationChannel = pgEnum('notification_channel', ['inapp', 'slack', 'email']);
 export const notificationState = pgEnum('notification_state', ['unread', 'read', 'archived']);
+
+// ── 메일 (2026-09-22 · 사람 결정) ──────────────────────────────────────────
+/**
+ * 아웃박스에 실리는 메일의 종류.
+ *
+ * **셋을 한 번에 선언한다.** 지금 실제로 쓰는 것은 `invite` 하나인데도 그런 이유는
+ * PostgreSQL 의 `ALTER TYPE … ADD VALUE` 가 트랜잭션 안에서 그 값을 곧바로 쓸 수 없기
+ * 때문이다 — drizzle 마이그레이션은 트랜잭션으로 도므로, 값을 나중에 더하려면 마이그레이션을
+ * 둘로 쪼개야 한다. 어휘를 먼저 정해 두는 편이 싸다(가입 검증·재설정은 다음 단계다).
+ */
+export const emailKind = pgEnum('email_kind', ['verify_email', 'invite', 'reset_password']);

@@ -49,6 +49,23 @@ services:
       timeout: 3s
       retries: 6
 
+  mailpit:                           # 개발용 SMTP 받이 — 나간 메일을 잡아 웹으로 보여 준다
+    # **보내는 것과 받는 것을 한 기계에서 본다.** 메일은 "보냈다" 까지만 확인하면 절반이고,
+    # 실제로 어떤 글자가 도착했는지는 받아 봐야 안다 — 이 저장소가 스크린샷에서 배운 것과
+    # 같은 이유다. 운영에는 없다(compose 전용 · k8s 산출물에 대응물이 없는 유일한 서비스다).
+    image: axllent/mailpit:v1.28
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"     # 개발 받이다 — 인증을 흉내 내지 않는다
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"   # 받은 편지함
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
   embed:                             # 로컬 프로필 전용 임베딩 서빙(OpenAI 호환 /v1/embeddings 노출).
     profiles: ["local-embed"]        #   외부 제공자(LM Studio·OpenAI) 프로필에서는 기동하지 않는다 (§5.2a)
     # 이미지가 ollama 인 이유는 **개발자의 기계에서 도는 것**이 이 프로필의 존재 이유이기
@@ -165,6 +182,12 @@ services:
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
       NERV_S3_FORCE_PATH_STYLE: "true"
+      # 메일 — 비면 보내지 않는다(2026-09-22). 기본이 아래 mailpit 이라 개발 루프에서
+      # 초대 메일이 실제로 나가고, 받은 편지함은 http://localhost:8025 에서 본다.
+      NERV_SMTP_URL: ${NERV_SMTP_URL:-smtp://mailpit:1025}
+      NERV_MAIL_FROM: ${NERV_MAIL_FROM:-NERV <no-reply@nerv.example.com>}
+      NERV_MAIL_REPLY_TO: ${NERV_MAIL_REPLY_TO:-}
+      NERV_MAIL_DRY_RUN: ${NERV_MAIL_DRY_RUN:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -229,6 +252,12 @@ services:
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
       NERV_S3_FORCE_PATH_STYLE: "true"
+      # 메일 — 비면 보내지 않는다(2026-09-22). 기본이 아래 mailpit 이라 개발 루프에서
+      # 초대 메일이 실제로 나가고, 받은 편지함은 http://localhost:8025 에서 본다.
+      NERV_SMTP_URL: ${NERV_SMTP_URL:-smtp://mailpit:1025}
+      NERV_MAIL_FROM: ${NERV_MAIL_FROM:-NERV <no-reply@nerv.example.com>}
+      NERV_MAIL_REPLY_TO: ${NERV_MAIL_REPLY_TO:-}
+      NERV_MAIL_DRY_RUN: ${NERV_MAIL_DRY_RUN:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully

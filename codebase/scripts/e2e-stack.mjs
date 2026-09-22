@@ -58,7 +58,7 @@ async function allocateSlot(id) {
     Number.parseInt(createHash('sha256').update(id).digest('hex').slice(0, 8), 16) % BAND_SLOTS;
   for (let i = 0; i < BAND_SLOTS; i += 1) {
     const base = BAND_START + ((start + i) % BAND_SLOTS) * SLOT_STRIDE;
-    const ports = { http: base, pg: base + 1, valkey: base + 2 };
+    const ports = { http: base, pg: base + 1, valkey: base + 2, mail: base + 3 };
     const free = await Promise.all(Object.values(ports).map(isFree));
     if (free.every(Boolean)) return ports;
   }
@@ -86,6 +86,8 @@ function envFor(state) {
     NERV_E2E_HTTP_PORT: String(state.ports.http),
     NERV_E2E_PG_PORT: String(state.ports.pg),
     NERV_E2E_VALKEY_PORT: String(state.ports.valkey),
+    // 받은 편지함(mailpit) — L3 가 이 주소로 "실제로 도착했는가" 를 읽는다(2026-09-22)
+    NERV_E2E_MAIL_PORT: String(state.ports.mail ?? state.ports.valkey + 1),
     NERV_E2E_BASE_URL: `http://localhost:${state.ports.http}`,
     // 컨테이너 안의 리슨 포트는 **세션과 무관하게 고정**이다 — 세션마다 다를 이유가 없고,
     // 여기서 못 박지 않으면 개발자 셸에 NERV_WEB_PORT 가 있을 때 E2E 가 그 값을 물려받는다
@@ -119,7 +121,8 @@ async function up(id) {
     `E2E 스택 준비됨 — ${state.project}\n` +
       `  웹      ${envFor(state).NERV_E2E_BASE_URL}\n` +
       `  DB      localhost:${ports.pg}\n` +
-      `  valkey  localhost:${ports.valkey}\n`,
+      `  valkey  localhost:${ports.valkey}\n` +
+      `  메일    http://localhost:${ports.mail ?? ports.valkey + 1}  (받은 편지함)\n`,
   );
 }
 

@@ -6,10 +6,12 @@ import { InvitationService } from './invitation.service.js';
 import { AuthService } from './auth.service.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { EventCoreModule } from '../event/event-core.module.js';
+import { MailModule } from '../mail/mail.module.js';
 
 @Module({
   // 권한·토큰·프로젝트의 변경도 감사에 남는다(REQ-API-151) — 의존 없는 핵만 들인다
-  imports: [EventCoreModule],
+  // 초대 메일은 초대를 만든 트랜잭션 안에서 줄을 선다(2026-09-22)
+  imports: [EventCoreModule, MailModule],
   controllers: [AuthController, ProjectController, InvitationController],
   providers: [AuthService, InvitationService, ProjectAccessGuard],
   exports: [AuthService, InvitationService],
