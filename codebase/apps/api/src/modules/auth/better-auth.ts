@@ -12,6 +12,7 @@ import { RATE_LIMIT_AUTH_PER_MIN, RATE_LIMIT_SIGN_IN_PER_MIN, newId } from '@ner
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
 import { allowedOriginsFromEnv, apiUrlFromEnv, cookieDomainFromEnv } from '../../common/origins.js';
+import { requireEmailVerificationFromEnv } from '../mail/mail.config.js';
 
 /**
  * baseURL 외에 추가로 신뢰할 오리진 — **CORS 허용목록과 같은 목록이다**(2026-09-20 ·
@@ -38,7 +39,23 @@ function trustedOrigins(): string[] {
 /** 반환 타입은 옵션 리터럴에 의존한다 — 추론에 맡긴다(명시하면 타입이 좁아 대입이 깨진다). */
 export type NervAuth = ReturnType<typeof createBetterAuth>;
 
-export function createBetterAuth(pool: pg.Pool) {
+/**
+ * 인증 메일을 줄 세우는 쪽 — `MailOutbox` 의 두 메서드만 쓴다.
+ *
+ * 인터페이스로 받는 이유는 이 파일이 **Nest 밖**이기 때문이다(순수 함수다). 서비스를 그대로
+ * import 하면 이 모듈이 DI 그래프에 끌려 들어가고, 그러면 테스트가 better-auth 를 만들 때마다
+ * DB 를 세워야 한다.
+ */
+export interface VerificationMail {
+  enqueueVerifyEmail(input: {
+    email: string;
+    name: string;
+    token: string;
+    locale?: string | null;
+  }): Promise<boolean>;
+}
+
+export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
   const secret = process.env['NERV_AUTH_SECRET'] ?? '';
   // 값이 틀렸으면 여기서 던진다 — api·worker 둘 다 이 생성자를 거치므로 기동 거부가 양쪽에
   // 선다(브라우저가 Domain 쿠키를 조용히 버리는 것보다 뜨지 않는 편이 싸다 · REQ-CB-042).
@@ -87,14 +104,33 @@ export function createBetterAuth(pool: pg.Pool) {
       customRules: {
         '/sign-in/email': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
         '/sign-up/email': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
+        // 재발송도 같은 한도다 — 남의 주소를 골라 두드리면 그 사람의 메일함이 시끄러워진다
+        '/send-verification-email': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
       },
     },
     emailAndPassword: {
       enabled: true,
-      // MVP 초대는 기존 사용자 배정이라 메일 발송 경로가 없다(screens.md §2.1) —
-      // 검증 메일을 요구하면 아무도 로그인하지 못한다. 메일은 Phase 2 다.
-      requireEmailVerification: false,
+      // **강제한다**(2026-09-22 사람 결정). 다만 강제는 메일을 보낼 수 있을 때만 성립하므로
+      // 기본값을 SMTP 에서 유도한다 — 판정은 `mail.config.ts` 한 곳이고, 메일 없이 켜 둔
+      // 배치는 기동 단계에서 이미 거부됐다(`assertMailConfig`).
+      requireEmailVerification: requireEmailVerificationFromEnv(),
       minPasswordLength: 8,
+    },
+    emailVerification: {
+      // 가입하면 바로 나간다 — 따로 누를 것을 두지 않는다
+      sendOnSignUp: true,
+      // 확인한 사람을 다시 로그인시키지 않는다. 링크를 연 브라우저가 곧 그 사람이다.
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, token }): Promise<void> => {
+        // **기다리지 않는다.** better-auth 문서 자신이 그렇게 적는다 — 발송을 await 하면
+        // 응답 시간이 "그 이메일이 존재하는가" 를 흘린다. 우리는 애초에 보내지 않고
+        // 줄만 세우므로(§2.17) 이 호출은 INSERT 하나다.
+        await mail?.enqueueVerifyEmail({
+          email: user.email,
+          name: user.name,
+          token,
+        });
+      },
     },
     user: {
       modelName: 'user',

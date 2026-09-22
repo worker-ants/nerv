@@ -7,7 +7,13 @@ import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { authFailureText, landingFor, primaryMembership, signIn } from '../lib/session.js';
+import {
+  authFailureText,
+  landingFor,
+  primaryMembership,
+  resendVerification,
+  signIn,
+} from '../lib/session.js';
 import { fetchMe } from '../lib/session.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { Button, Field, Input } from '../components/ui/primitives.js';
@@ -28,14 +34,20 @@ function LoginScreen(): React.JSX.Element {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 미확인 계정이면 다시 보낼 길을 준다 — 비밀번호를 다시 치는 것은 답이 아니다 */
+  const [unverified, setUnverified] = useState(false);
+  const [resent, setResent] = useState(false);
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setUnverified(false);
     const failure = await signIn({ email, password });
     if (failure !== null) {
       setError(authFailureText(t, failure));
+      // **자격증명 오류와 갈라 둔다**(2026-09-22): 이 사람이 할 일은 메일함을 여는 것이다
+      setUnverified(failure.unverified === true);
       setPassword(''); // 비밀번호 필드만 초기화한다(REQ-WEB-005)
       setBusy(false);
       return;
@@ -101,6 +113,22 @@ function LoginScreen(): React.JSX.Element {
             >
               ⚠ {error}
             </p>
+          )}
+          {/* 미확인 계정에게 비밀번호를 다시 치라고 하는 것은 아무 도움이 안 된다 —
+              할 일은 메일함을 여는 것이고, 메일이 없으면 다시 받는 것이다(REQ-WEB-180) */}
+          {unverified && (
+            <button
+              type="button"
+              data-testid="login-resend"
+              disabled={resent}
+              className="rounded-nerv-sm px-2 py-1 text-left text-sm text-link hover:underline disabled:text-text-mute disabled:no-underline"
+              onClick={() => {
+                setResent(true);
+                void resendVerification(email);
+              }}
+            >
+              {resent ? t('auth.resent') : t('auth.resend')}
+            </button>
           )}
           <Button type="submit" variant="primary" disabled={busy} className="mt-1 h-9 w-full">
             {busy ? t('login.submitting') : t('login.submit')}

@@ -38,6 +38,7 @@ import type { NervEventName } from '@nerv/schema';
 import type pg from 'pg';
 import { InjectDb, NERV_PG_POOL } from '../../common/database.module.js';
 import { createBetterAuth } from './better-auth.js';
+import { MailOutbox } from '../mail/mail.outbox.js';
 import type { NervAuth } from './better-auth.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -112,8 +113,14 @@ export class AuthService {
      */
     @Optional() private readonly events?: EventService,
     @Inject(NERV_PG_POOL) pool?: pg.Pool,
+    /**
+     * 인증 메일을 줄 세우는 쪽(2026-09-22). `@Optional()` 인 이유는 위 `events` 와 같다 —
+     * 테스트가 이 서비스를 모듈 없이 직접 만든다. 없으면 메일이 나가지 않을 뿐이고,
+     * 그 배치에서는 `requireEmailVerification` 도 꺼져 있다(`mail.config.ts` 가 유도한다).
+     */
+    @Optional() mail?: MailOutbox,
   ) {
-    if (pool !== undefined) this.betterAuth = createBetterAuth(pool);
+    if (pool !== undefined) this.betterAuth = createBetterAuth(pool, mail);
   }
 
   /** better-auth 핸들러(`/api/auth/*`)를 마운트하는 컨트롤러가 쓴다. */

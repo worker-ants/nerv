@@ -21,7 +21,7 @@ import { sql } from 'drizzle-orm';
 import { newId } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
-import { webUrlFromEnv } from '../../common/origins.js';
+import { apiUrlFromEnv, webUrlFromEnv } from '../../common/origins.js';
 import { mailEnabled } from './mail.config.js';
 
 /** 워커가 집어 가는 한 줄 */
@@ -81,6 +81,42 @@ export class MailOutbox {
               ${renderMessage(msg('mail.invite.subject', values), locale)},
               ${renderMessage(msg('mail.invite.body', values), locale)},
               'invitation', ${input.invitationId})
+    `);
+    return true;
+  }
+
+  /**
+   * 가입 이메일 인증 메일을 줄 세운다(2026-09-22 · 사람 결정 "강제").
+   *
+   * **트랜잭션을 받지 않는다** — better-auth 가 이 콜백을 자기 요청 처리 안에서 부르고,
+   * 그 트랜잭션은 우리 것이 아니다. 초대와 달리 "행은 만들어졌는데 메일만 없는" 상태가
+   * 생길 수 없으므로(사용자 행은 better-auth 가 이미 커밋했다) 따로 넣어도 된다.
+   *
+   * **링크는 API 주소로 선다.** 초대와 반대인데, 이유가 있다: 토큰을 확인하는 것은
+   * better-auth 의 엔드포인트(`/api/auth/verify-email`)이고 사람이 여는 것은 그 주소다.
+   * 확인이 끝나면 `callbackURL` 로 되돌리는데 **그쪽이 화면 주소**다 — 그 한 칸을 비우면
+   * 사람은 API 호스트의 빈 페이지에 떨어진다.
+   */
+  async enqueueVerifyEmail(input: {
+    email: string;
+    name: string;
+    token: string;
+    locale?: string | null;
+  }): Promise<boolean> {
+    if (!mailEnabled()) return false;
+    const locale: Locale = isLocale(input.locale) ? input.locale : DEFAULT_LOCALE;
+    const api = apiUrlFromEnv().replace(/\/+$/, '');
+    const back = `${webUrlFromEnv().replace(/\/+$/, '')}/`;
+    const url =
+      `${api}/api/auth/verify-email` +
+      `?token=${encodeURIComponent(input.token)}&callbackURL=${encodeURIComponent(back)}`;
+    const values = { name: input.name === '' ? input.email : input.name, url };
+    await this.db.execute(sql`
+      INSERT INTO email_outbox (id, kind, to_email, locale, subject, body_text, ref_type)
+      VALUES (${newId()}, 'verify_email', ${input.email}, ${locale},
+              ${renderMessage(msg('mail.verify.subject'), locale)},
+              ${renderMessage(msg('mail.verify.body', values), locale)},
+              'user')
     `);
     return true;
   }

@@ -12,6 +12,7 @@ import {
   mailDryRunFromEnv,
   mailEnabled,
   mailFromFromEnv,
+  requireEmailVerificationFromEnv,
   smtpUrlFromEnv,
 } from './mail.config.js';
 
@@ -70,5 +71,36 @@ describe('재시도 간격', () => {
 
   it('0회에서도 음수가 되지 않는다 — 과거로 미는 간격은 즉시 재시도다', () => {
     expect(backoffMinutes(0)).toBeGreaterThan(0);
+  });
+});
+
+describe('가입 이메일 인증 강제 (2026-09-22 · 사람 결정)', () => {
+  // **강제는 메일을 보낼 수 있을 때만 성립한다.** 그래서 기본값을 SMTP 에서 유도한다 —
+  // 이 유도가 없으면 둘 중 하나가 된다: 메일을 붙인 배치가 강제되지 않거나(결정과 다르다),
+  // 메일이 없는 배치가 아무도 가입하지 못하는 서버가 된다.
+  it('비어 있으면 SMTP 를 따른다 — 메일이 있으면 강제, 없으면 아니다', () => {
+    expect(requireEmailVerificationFromEnv(env({}))).toBe(false);
+    expect(requireEmailVerificationFromEnv(env({ NERV_SMTP_URL: 'smtp://x:25' }))).toBe(true);
+  });
+
+  it('명시하면 그 값이 이긴다 — 메일을 쓰면서 가입은 막지 않는 배치가 있을 수 있다', () => {
+    expect(
+      requireEmailVerificationFromEnv(
+        env({ NERV_SMTP_URL: 'smtp://x:25', NERV_REQUIRE_EMAIL_VERIFICATION: 'false' }),
+      ),
+    ).toBe(false);
+    expect(requireEmailVerificationFromEnv(env({ NERV_REQUIRE_EMAIL_VERIFICATION: 'true' }))).toBe(
+      true,
+    );
+  });
+
+  it('메일 없이 강제를 켜면 기동을 거부한다 — 아무도 가입하지 못하는 서버다', () => {
+    expect(() => assertMailConfig(env({ NERV_REQUIRE_EMAIL_VERIFICATION: 'true' }))).toThrow(
+      /NERV_SMTP_URL/,
+    );
+  });
+
+  it('메일도 강제도 없는 배치는 그대로 뜬다 — 오늘까지의 동작이다', () => {
+    expect(() => assertMailConfig(env({}))).not.toThrow();
   });
 });

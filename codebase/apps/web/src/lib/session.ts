@@ -41,6 +41,12 @@ export interface AuthFailure {
   message?: string;
   /** 우리가 만든 문구. 화면이 로케일을 알 때 문장이 된다 */
   key?: AuthMessageKey;
+  /**
+   * **이메일을 아직 확인하지 않았다**(2026-09-22). 다른 실패와 갈라 두는 이유는 사람이 할 일이
+   * 다르기 때문이다 — 비밀번호가 틀린 사람은 다시 치면 되지만, 이 사람은 메일함을 열거나
+   * 다시 보내야 한다. 같은 "로그인 실패" 로 뭉뚱그리면 영영 들어오지 못한다.
+   */
+  unverified?: true;
 }
 
 async function authFetch(path: string, body: Record<string, unknown>): Promise<Response> {
@@ -72,6 +78,17 @@ export async function signUp(input: {
   return failure(res);
 }
 
+/**
+ * 인증 메일을 다시 보낸다(2026-09-22).
+ *
+ * **성공과 실패를 가르지 않는다** — 없는 주소에 대해 "그런 계정 없습니다" 라고 답하면 그것이
+ * 곧 계정 존재 확인기가 된다. 화면은 언제나 "보냈습니다" 로 말하고, 한도는 서버가 건다.
+ */
+export async function resendVerification(email: string): Promise<void> {
+  // 확인이 끝나면 앱 첫 화면으로 돌아온다 — 메일의 링크가 그 주소를 싣는다
+  await authFetch('/send-verification-email', { email, callbackURL: `${window.location.origin}/` });
+}
+
 export async function signOut(): Promise<void> {
   await authFetch('/sign-out', {});
 }
@@ -79,6 +96,10 @@ export async function signOut(): Promise<void> {
 async function failure(res: Response): Promise<AuthFailure> {
   try {
     const body = (await res.json()) as { message?: string; code?: string };
+    // 미확인 계정은 **자격증명 오류가 아니다** — 화면이 다른 길을 줘야 한다(재발송).
+    if (body.code === 'EMAIL_NOT_VERIFIED') {
+      return { key: 'auth.email_unverified', unverified: true };
+    }
     // better-auth 의 영문 코드를 그대로 노출하지 않는다 — 사용자가 읽을 문장이어야 한다.
     if (res.status === 401 || res.status === 403) return { key: 'auth.bad_credentials' };
     return body.message === undefined ? { key: 'auth.sign_in_failed' } : { message: body.message };

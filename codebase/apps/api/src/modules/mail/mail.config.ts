@@ -34,6 +34,23 @@ export function mailEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 /**
+ * 가입 이메일 인증을 강제하는가 — **강제는 메일을 보낼 수 있을 때만 성립한다**
+ * (2026-09-22 사람 결정: "강제").
+ *
+ * 그래서 기본값을 SMTP 에서 **유도한다**: 메일이 있는 배치는 강제이고, 없는 배치는 애초에
+ * 인증 메일을 보낼 수 없으므로 강제할 수도 없다. 명시적으로 적으면 그 값이 이긴다 —
+ * `false` 로 끄는 길이 있어야 "메일은 쓰지만 가입은 막지 않는" 배치가 가능하고, `true` 로
+ * 켜 놓고 SMTP 를 비우면 아래 `assertMailConfig` 가 **기동을 거부한다**(아무도 가입하지
+ * 못하는 서버가 조용히 서는 것보다 뜨지 않는 편이 싸다).
+ */
+export function requireEmailVerificationFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = (env['NERV_REQUIRE_EMAIL_VERIFICATION'] ?? '').trim().toLowerCase();
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return mailEnabled(env);
+}
+
+/**
  * 기동 시 한 번 — **켜 놓고 비운 자리**를 여기서 잡는다.
  *
  * SMTP 를 설정했는데 보내는 사람이 없으면 메일 서버가 거절하거나(RFC 상 `From` 은 필수다)
@@ -41,7 +58,21 @@ export function mailEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
  * 않는 편이 싸다 — `NERV_COOKIE_DOMAIN` 에서 이미 고른 규약이다(REQ-CB-042).
  */
 export function assertMailConfig(env: NodeJS.ProcessEnv = process.env): void {
-  if (!mailEnabled(env)) return;
+  if (!mailEnabled(env)) {
+    // 메일이 없는데 인증을 강제하면 **아무도 가입하지 못한다** — 인증 메일을 보낼 길이
+    // 없기 때문이다. 유도값이 아니라 사람이 손으로 `true` 를 적은 경우에만 여기 온다.
+    if (requireEmailVerificationFromEnv(env)) {
+      /* eslint-disable no-restricted-syntax -- 운영자용 설정 오류다(REQ-CB-022 예외): 기동 거부
+         사유는 화면이 아니라 컨테이너 로그에 나가고, 읽는 사람은 배포한 사람이다. */
+      throw new Error(
+        'NERV_REQUIRE_EMAIL_VERIFICATION 이 켜져 있는데 NERV_SMTP_URL 이 비어 있습니다 — ' +
+          '인증 메일을 보낼 길이 없어 아무도 가입하지 못합니다. ' +
+          'SMTP 를 설정하거나 이 값을 false 로 두세요 (codebase.md §5.2)',
+      );
+      /* eslint-enable no-restricted-syntax */
+    }
+    return;
+  }
   if (mailFromFromEnv(env) === null) {
     /* eslint-disable no-restricted-syntax -- 운영자용 설정 오류다(REQ-CB-022 예외): 기동 거부
        사유는 화면이 아니라 컨테이너 로그에 나가고, 읽는 사람은 배포한 사람이다. */
