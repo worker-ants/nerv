@@ -9,6 +9,9 @@
 //      좌표계에 그리면 선이 영역 안/밖으로 갈리면서 구조가 드러난다(fcose 가 그것을 안다)
 //   ② **중심 모드** — 한 문서에서 1~2 hop 만. 전역은 지도이고 중심은 답이다
 //   ③ **차수 기반 크기** — 허브가 커서 눈에 먼저 들어오게. 색은 상태 토큰을 그대로 쓴다
+//   ④ **배치를 정리한다** — fcose 는 형제 영역이 겹치지 않는다고 보장하지 않는다. 겹친 상자는
+//      없는 계층으로 읽히므로, 배치 뒤 한 벌 더 돌려 형제끼리 밀어내고 빈자리를 다진다
+//      (`layout.ts` · 2026-09-22 사람 보고)
 //
 // **노드를 누르는 것은 "연다"가 아니라 "고른다"이다**(사람 지시 2026-08-24). 예전에는 탭
 // 한 번이 곧 문서 이동이라, 그래프에서 무엇 하나를 자세히 보려면 화면을 떠나야 했고
@@ -25,6 +28,7 @@ import { cn } from '../../lib/utils.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { Button } from '../../components/ui/primitives.js';
+import { runLayout } from './layout.js';
 
 cytoscape.use(fcose);
 
@@ -191,25 +195,6 @@ function applyHighlight(cy: cytoscape.Core, key: string | null): void {
  * 영역 상자는 노드가 아니라 **배경**이다. `panify()` 가 그 위의 드래그를 패닝으로 넘긴다
  * (누르기는 그대로 — 클릭 한 번은 여전히 그 영역 문서를 고른다).
  */
-/**
- * 배치 옵션 — 첫 그림과 [다시 배치]가 **같은 값**을 쓴다.
- *
- * `randomize` 라 누를 때마다 다른 답이 나온다. 그것이 이 버튼의 쓸모다: 밀집한 자리는
- * 한 번 더 굴리면 풀리고, 손으로 끌어 흐트러뜨린 뒤 되돌리는 길도 여기 하나다.
- */
-const LAYOUT = {
-  name: 'fcose',
-  // 밀도가 높을수록 밀어내는 힘을 키운다 — 기본값으로는 중앙에 뭉친다
-  nodeRepulsion: 9000,
-  idealEdgeLength: 90,
-  nestingFactor: 0.2,
-  animate: false,
-  randomize: true,
-  // 맞춤 여백을 기본값(30)보다 좁힌다 — 고립된 무리 하나가 멀리 떨어져 있으면 그 빈 공간까지
-  // 화면에 넣느라 정작 빽빽한 본체가 작게 맞춰진다. 여백을 줄이면 같은 픽셀로 그림이 커진다.
-  padding: 16,
-} as cytoscape.LayoutOptions;
-
 export function letAreasPan(cy: cytoscape.Core): void {
   cy.nodes(':parent').panify();
 }
@@ -385,7 +370,6 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
           },
         },
       ],
-      layout: LAYOUT,
       // **끄는 것은 배치이지 재배치가 아니다**(2026-08-27 — 사람 지시). 노드를 끌면 그림 위의
       // 자리만 바뀐다: 부모도 정렬 키도 서버로 가지 않는다. 문서를 옮기는 경로는 여전히
       // 트리 하나뿐이고, 그래프는 데이터를 쓰지 않는다는 뜻에서 읽기 전용이다.
@@ -394,6 +378,9 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
     });
 
     letAreasPan(cy);
+    // 배치는 여기서 시작한다 — 생성자에 맡기지 않는 이유는 fcose 가 낸 답을 **정리해서**
+    // 써야 하기 때문이다(형제 영역 겹침 제거·다지기 · layout.ts)
+    runLayout(cy);
 
     if (focus !== null) {
       const node = cy.nodes().filter((n) => n.data('key') === focus);
@@ -439,7 +426,8 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
    * 때문이다. 강조 클래스는 노드에 붙어 있으므로 자리가 바뀌어도 따라간다.
    */
   const relayout = (): void => {
-    cyRef.current?.layout(LAYOUT).run();
+    const cy = cyRef.current;
+    if (cy !== null) runLayout(cy);
   };
 
   const panelOpen = selectedNode !== undefined;
