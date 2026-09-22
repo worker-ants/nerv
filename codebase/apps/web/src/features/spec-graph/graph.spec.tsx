@@ -5,7 +5,13 @@
 
 import cytoscape from 'cytoscape';
 import { describe, expect, it } from 'vitest';
-import { connectionsOf, letAreasPan, neighborhoodForTesting } from './graph.js';
+import {
+  connectionsOf,
+  legendFor,
+  letAreasPan,
+  neighborhoodForTesting,
+  nodeSize,
+} from './graph.js';
 
 const nodes = ['a', 'b', 'c', 'd', 'z'].map((k) => ({
   id: k,
@@ -113,5 +119,61 @@ describe('영역 상자 위의 드래그 (2026-08-27 · 사람 보고)', () => {
     expect(cy.$id('loose').grabbable()).toBe(true);
     expect(cy.$id('area').grabbable()).toBe(false);
     cy.destroy();
+  });
+});
+
+describe('범례가 말하는 것 (2026-09-22 · 사람 보고)', () => {
+  // 범례는 **그림에서 나와야** 한다. 손으로 적은 목록이면 화면과 갈라지는 날이 오고,
+  // 그날 범례는 없느니만 못하다 — 틀린 것은 확신을 준다.
+  const typed = [
+    { id: 'v', key: 'v', title: 'v', type: 'vision', parent_id: null, doc_status: null },
+    { id: 'a', key: 'a', title: 'a', type: 'area', parent_id: null, doc_status: null },
+    { id: 'f', key: 'f', title: 'f', type: 'feature', parent_id: 'a', doc_status: null },
+  ];
+  const all = new Set(typed.map((n) => n.id));
+
+  it('그려진 종류만 적는다 — 중심 모드에서 범례가 저절로 짧아지는 이유다', () => {
+    expect(legendFor(typed, new Set(['v']), false)).toEqual({ types: ['vision'], areaBox: false });
+  });
+
+  it('순서는 트리의 뼈대부터다 — 화면마다 다른 순서로 서지 않는다', () => {
+    expect(legendFor(typed, all, false).types).toEqual(['vision', 'area', 'feature']);
+  });
+
+  it('상자로 선 영역은 색 목록에서 빠지고 상자 표식이 대신 선다', () => {
+    // 자식이 함께 그려지면 영역은 동그라미가 아니라 옅은 상자다 — 그때 "영역 = 파랑" 은
+    // 화면에 없는 색을 가리킨다.
+    expect(legendFor(typed, all, true)).toEqual({
+      types: ['vision', 'feature'],
+      areaBox: true,
+    });
+  });
+
+  it('자식이 화면 밖이면 영역도 동그라미다 — 그때는 색 목록으로 돌아온다', () => {
+    expect(legendFor(typed, new Set(['v', 'a']), true)).toEqual({
+      types: ['vision', 'area'],
+      areaBox: false,
+    });
+  });
+
+  it('그릴 것이 없으면 범례도 비어 있다', () => {
+    expect(legendFor(typed, new Set<string>(), true)).toEqual({ types: [], areaBox: false });
+  });
+});
+
+describe('노드 크기 (차수 기반)', () => {
+  it('역참조가 많을수록 크다 — 허브가 먼저 눈에 들어온다', () => {
+    expect(nodeSize(3)).toBeGreaterThan(nodeSize(0));
+  });
+
+  it('상한이 있다 — 허브 하나가 화면을 먹지 않게', () => {
+    // clemvion 최다 피참조는 52건이다. 상한이 없으면 그 하나가 지름 100px 을 넘고
+    // 옆의 문서들은 점이 된다. **같은 크기로 멈춘다는 사실을 안내가 말한다.**
+    expect(nodeSize(52)).toBe(nodeSize(16.25));
+    expect(nodeSize(52)).toBe(44);
+  });
+
+  it('역참조가 없어도 보이는 크기다 — 0 은 사라지는 뜻이 아니다', () => {
+    expect(nodeSize(0)).toBe(18);
   });
 });

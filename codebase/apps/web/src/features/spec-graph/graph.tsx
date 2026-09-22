@@ -12,6 +12,9 @@
 //   ④ **배치를 정리한다** — fcose 는 형제 영역이 겹치지 않는다고 보장하지 않는다. 겹친 상자는
 //      없는 계층으로 읽히므로, 배치 뒤 한 벌 더 돌려 형제끼리 밀어내고 빈자리를 다진다
 //      (`layout.ts` · 2026-09-22 사람 보고)
+//   ⑤ **범례를 세운다** — 앞의 셋은 전부 *부호*다. 부호를 읽는 표가 없으면 색과 크기는
+//      장식으로 보이고, 장식으로 보이는 것은 아무 질문에도 답하지 않는다
+//      (2026-09-22 사람 보고 · REQ-WEB-176)
 //
 // **노드를 누르는 것은 "연다"가 아니라 "고른다"이다**(사람 지시 2026-08-24). 예전에는 탭
 // 한 번이 곧 문서 이동이라, 그래프에서 무엇 하나를 자세히 보려면 화면을 떠나야 했고
@@ -71,6 +74,60 @@ const TYPE_COLOR: Record<string, string> = {
   convention: '--color-status-done',
   adr: '--color-status-danger',
 };
+
+/**
+ * 범례가 색을 늘어놓는 순서이자, **범례에 없는 색이 화면에 뜨지 않는다**는 보증이다.
+ * `TYPE_COLOR` 의 키 순서를 그대로 쓴다 — 순서를 따로 적어 두면 종류를 하나 더할 때
+ * 한쪽만 고쳐지고, 그날 화면에는 있는데 범례에는 없는 색이 생긴다.
+ */
+const TYPE_ORDER = Object.keys(TYPE_COLOR);
+
+/** 종류 → 색 토큰. 캔버스와 범례가 **같은 한 곳**에서 읽는다(hex 를 베껴 적으면 조용히 갈라진다) */
+function typeColorToken(type: string): string {
+  return TYPE_COLOR[type] ?? '--color-text-mute';
+}
+
+/** 범례·패널의 색 점 — CSS 는 토큰을 그대로 읽는다(canvas 와 달리 `var()` 를 이해한다) */
+function typeColorVar(type: string): string {
+  return `var(${typeColorToken(type)})`;
+}
+
+/**
+ * 노드 지름 — **지금 그려진 것 중** 이 문서를 가리키는 문서 수로 정한다(차수 기반 크기).
+ *
+ * **상한이 있다.** clemvion 최다 피참조는 52건이라(실측) 상한이 없으면 그 하나가 지름
+ * 100px 을 넘고 옆의 문서들은 점이 된다. 16건부터는 전부 같은 크기다 — 그래서 범례가
+ * "많을수록 큼" 까지만 말하고 안내가 "한 크기에서 멈춘다" 를 덧붙인다. 말하지 않으면
+ * 같은 크기의 둘을 **같은 값**으로 읽는다.
+ */
+export function nodeSize(indegree: number): number {
+  return 18 + Math.min(26, indegree * 1.6);
+}
+
+/**
+ * 범례가 말해야 하는 것 — **그려진 것만**이다.
+ *
+ * 영역(`area`)은 자식이 함께 그려지면 동그라미가 아니라 **옅은 상자**로 선다(compound
+ * 부모). 그때 범례가 "영역 = 보라" 라고 적으면 화면에 없는 색을 가리키는 것이고,
+ * **틀린 범례는 없는 범례보다 나쁘다** — 틀린 것은 확신을 준다. 상자로 선 종류는 색
+ * 목록에서 빼고 상자 표식을 따로 세운다.
+ *
+ * 중심 모드에서 범례가 저절로 짧아지는 것도 같은 규칙의 결과다.
+ */
+export function legendFor(
+  nodes: readonly GraphNode[],
+  visible: ReadonlySet<string>,
+  grouped: boolean,
+): { types: string[]; areaBox: boolean } {
+  const shown = nodes.filter((n) => visible.has(n.id));
+  const boxes = new Set(
+    grouped
+      ? shown.map((n) => n.parent_id).filter((id): id is string => id !== null && visible.has(id))
+      : [],
+  );
+  const drawn = new Set(shown.filter((n) => !boxes.has(n.id)).map((n) => n.type));
+  return { types: TYPE_ORDER.filter((type) => drawn.has(type)), areaBox: boxes.size > 0 };
+}
 
 /**
  * 토큰 값을 실제 색으로 읽는다 — canvas 렌더러는 `var(--x)` 를 이해하지 못한다.
@@ -241,6 +298,9 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
     [edges, focus, hops, nodes],
   );
 
+  /** 범례는 **그림에서 나온다** — 손으로 적은 목록이면 화면과 갈라지는 날이 온다 */
+  const legend = useMemo(() => legendFor(nodes, visible, grouped), [grouped, nodes, visible]);
+
   useEffect(() => {
     const el = container.current;
     if (el === null) return;
@@ -263,7 +323,7 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
             label: n.title,
             key: n.key,
             type: n.type,
-            weight: 18 + Math.min(26, (degree.get(n.id) ?? 0) * 1.6),
+            weight: nodeSize(degree.get(n.id) ?? 0),
             ...(grouped && n.parent_id !== null && shownIds.has(n.parent_id)
               ? { parent: n.parent_id }
               : {}),
@@ -278,7 +338,7 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
           selector: 'node',
           style: {
             'background-color': (n: cytoscape.NodeSingular) =>
-              cssVar(TYPE_COLOR[String(n.data('type'))] ?? '--color-text-mute'),
+              cssVar(typeColorToken(String(n.data('type')))),
             label: 'data(label)',
             'font-size': 9,
             color: cssVar('--color-text-mute'),
@@ -531,7 +591,14 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
             data-testid="graph-help-panel"
             className="absolute top-14 left-2 z-10 max-w-[420px] rounded-nerv border border-border bg-bg-elev px-3 py-2.5 text-xs leading-[1.6] text-text-mute shadow-popover"
           >
-            {t('graph.hint')}
+            {/* **읽는 법이 먼저다.** 조작은 만져 보면 알게 되지만 색과 크기는 그림에서
+                읽어 낼 수 없다 — 범례가 한 줄로 말하는 것을 여기서 끝까지 적는다(크기에
+                상한이 있다는 것 · 중심 모드는 그려진 것만 센다는 것). 범례에 넣기에는
+                긴 단서이고, 넣으면 범례가 안내가 된다. */}
+            <p className="mb-0.5 font-semibold text-text">{t('graph.hint.read_label')}</p>
+            <p>{t('graph.hint.read')}</p>
+            <p className="mt-2 mb-0.5 font-semibold text-text">{t('graph.hint.act_label')}</p>
+            <p>{t('graph.hint')}</p>
             <Link
               to="/help/$chapter"
               params={{ chapter: 'specs' }}
@@ -541,6 +608,7 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
             </Link>
           </div>
         )}
+        <GraphLegend types={legend.types} areaBox={legend.areaBox} />
         {/* 건수는 지도의 축척 표기처럼 **아래 모서리**에 — 조종기와 눈이 부딪히지 않는다 */}
         <span className="pointer-events-none absolute right-2 bottom-2 rounded-nerv-sm bg-bg-elev/80 px-1.5 py-0.5 text-2xs text-text-faint">
           {t('graph.counts', { nodes: shownCount, edges: edges.length })}
@@ -571,7 +639,20 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
                 ✕
               </button>
             </div>
-            <p className="mt-0.5 truncate font-mono text-2xs text-text-faint">{selectedNode.key}</p>
+            {/* 캔버스에서 본 그 색이다. 범례가 표라면 이 줄은 **대조**다 — 색 하나를
+                범례에서 되짚는 대신 고른 것에 이름이 붙는다(REQ-WEB-033: 색만으로
+                구분하지 않는다) */}
+            <p className="mt-0.5 flex items-center gap-1.5 text-2xs text-text-faint">
+              <span
+                aria-hidden="true"
+                className="size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: typeColorVar(selectedNode.type) }}
+              />
+              <span className="shrink-0">
+                {t(`specs.type.${selectedNode.type}` as 'specs.type.feature')}
+              </span>
+              <span className="truncate font-mono">{selectedNode.key}</span>
+            </p>
             <button
               type="button"
               onClick={() => {
@@ -622,6 +703,65 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
           )}
         </aside>
       )}
+    </div>
+  );
+}
+
+/**
+ * 범례 — 지도의 **열쇠**다.
+ *
+ * **조작 안내와 달리 접지 않는다.** 물음표 뒤로 접은 것은 "한 번 읽으면 끝" 인 제스처이고,
+ * 색과 크기는 그림을 읽는 **내내 대조하는 것**이다. 접어 두면 화면을 훑는 동안 물음표를
+ * 여닫게 되고, 그건 안내가 아니라 방해다.
+ *
+ * 자리값은 공짜다 — 캔버스 **위에** 얹으므로 페이지 세로를 한 줄도 먹지 않고(REQ-WEB-097),
+ * 건수 표기와 마주 보는 왼쪽 아래 모서리는 배치가 거의 쓰지 않는 자리다. 폭도 스스로
+ * 줄어든다: 그려진 종류만 적으므로 중심 모드에서는 저절로 짧아진다.
+ *
+ * 포인터를 받지 않는다 — 캔버스의 끌기·확대 제스처를 삼키면 지도 위의 표가 지도를 막는다.
+ */
+function GraphLegend({
+  types,
+  areaBox,
+}: {
+  types: readonly string[];
+  areaBox: boolean;
+}): React.JSX.Element | null {
+  const t = useT();
+  // 그릴 것이 없으면 범례도 없다 — 빈 상자는 "여기 뭔가 있었다" 로 읽힌다
+  if (types.length === 0 && !areaBox) return null;
+  return (
+    <div
+      data-testid="graph-legend"
+      className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-9rem)] flex-wrap items-center gap-x-2.5 gap-y-1 rounded-nerv border border-border bg-bg-elev/80 px-2 py-1 text-2xs text-text-mute backdrop-blur-sm"
+    >
+      {types.map((type) => (
+        <span key={type} className="flex items-center gap-1">
+          <span
+            aria-hidden="true"
+            className="size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: typeColorVar(type) }}
+          />
+          {t(`specs.type.${type}` as 'specs.type.feature')}
+        </span>
+      ))}
+      {areaBox && (
+        <span className="flex items-center gap-1">
+          {/* 영역은 동그라미가 아니라 상자로 선다 — 표식도 상자여야 한다 */}
+          <span
+            aria-hidden="true"
+            className="size-2 shrink-0 rounded-[2px] border border-border-strong bg-bg-sunken"
+          />
+          {t('specs.type.area')}
+        </span>
+      )}
+      {/* 좁은 폭에서는 범례가 줄바꿈되고, 그때 이 선은 줄 끝에 홀로 남아 뜻을 잃는다 */}
+      <span aria-hidden="true" className="hidden h-3 w-px bg-border sm:block" />
+      <span className="flex items-center gap-1">
+        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-text-mute" />
+        <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full bg-text-mute" />
+        {t('graph.legend.size')}
+      </span>
     </div>
   );
 }

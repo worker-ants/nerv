@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.17 (2026-09-22)</span>
+      <span>버전 v1.18 (2026-09-22)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1128,6 +1128,33 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
 
   <p>간격은 둘이다 — <b>영역 안에서는 16px</b>, <b>영역 상자를 늘어놓을 때는 12px</b>(상자는 자기 여백을 이미 갖는다. 그 값은 <b>cytoscape 에서 재서 쓴다</b> — 베껴 적으면 라이브러리와 조용히 갈라지고, 갈라진 날 상자는 밀어냈다고 계산해 놓고 화면에서는 겹친다). 좁힐수록 그림은 커지고 이름은 서로를 가리는데, 전체 보기의 맞춤 배율은 이름이 나타나는 배율(0.89)보다 낮으므로 <b>겹칠 이름은 애초에 그려지지 않는다</b>(REQ-WEB-095). 가까이 간 자리를 푸는 손잡이는 위의 셋 그대로다.</p>
 
+  <h4>색과 크기가 무슨 뜻인지 화면이 말하지 않았다 (2026-09-22 개정 — 사람 보고)</h4>
+
+  <p>밀도 대응 셋은 전부 <b>부호</b>다 — 색은 종류, 크기는 차수, 옅은 상자는 영역. 그런데 <b>그 부호를 읽는 표가 화면에 없었다.</b> 물음표 뒤의 안내는 조작만 적었고(누르기·끌기·휠·화살표) 매뉴얼도 같았다. 그래서 색과 크기는 장식으로 보였고, <b>장식으로 보이는 것은 아무 질문에도 답하지 않는다</b> — "이 크고 빨간 것이 무엇인가" 에 답할 수 없으면 허브를 크게 그린 이유가 사라진다.</p>
+
+  <p>곁들여 이 화면은 §4.3 의 규칙 하나를 어기고 있었다 — <b>색만으로 구분하지 않는다</b>(REQ-WEB-033). 여섯 색에 라벨이 붙은 자리가 화면 어디에도 없었다.</p>
+
+  <p>배정은 이렇다(§4.2 의 상태 토큰을 그대로 쓴다 — 그래프만 다른 색 체계를 갖지 않는다).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>종류</th><th>토큰</th><th>종류</th><th>토큰</th></tr></thead>
+    <tbody>
+      <tr><td><code>vision</code></td><td><code>status.action</code></td><td><code>design</code></td><td><code>status.waiting</code></td></tr>
+      <tr><td><code>area</code></td><td><code>status.agent</code></td><td><code>convention</code></td><td><code>status.done</code></td></tr>
+      <tr><td><code>feature</code></td><td><code>status.progress</code></td><td><code>adr</code></td><td><code>status.danger</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>셋을 둔다.</p>
+
+  <ol>
+    <li><b>범례는 캔버스 왼쪽 아래에 늘 서 있다.</b> 조작 안내를 물음표 뒤로 접은 판단(v0.36)은 그것이 <b>한 번 읽으면 끝인 것</b>이어서였다. 색과 크기는 그림을 읽는 <b>내내 대조하는 것</b>이라 같은 판단이 적용되지 않는다 — 접어 두면 화면을 훑는 동안 물음표를 여닫게 되고, 그건 안내가 아니라 방해다. <b>자리값은 치르지 않는다</b>: 캔버스 위에 얹으므로 페이지 세로를 한 줄도 먹지 않고(REQ-WEB-097), 건수 표기와 마주 보는 왼쪽 아래는 배치가 거의 쓰지 않는 모서리다. 포인터는 받지 않는다 — 지도 위의 표가 지도의 제스처를 삼키면 안 된다.</li>
+    <li><b>범례는 그려진 것만 적는다.</b> 손으로 적은 목록은 화면과 갈라지는 날이 오고, <b>틀린 범례는 없는 범례보다 나쁘다</b>(틀린 것은 확신을 준다). 특히 <b>영역</b>이 그렇다: 자식이 함께 그려지면 영역은 동그라미가 아니라 옅은 상자로 서므로(compound 부모), 그때 "영역 = 보라" 는 화면에 없는 색을 가리킨다 — 색 목록에서 빼고 <b>상자 표식</b>을 따로 세운다. 중심 모드에서 범례가 저절로 짧아지는 것도 같은 규칙의 결과다.</li>
+    <li><b>한 줄에 담기지 않는 단서는 안내가 맡는다.</b> 크기에는 <b>상한</b>이 있다 — 역참조 16건부터 전부 같은 크기다(clemvion 최다 피참조는 52건이라 상한이 없으면 그 하나가 지름 100px 을 넘고 옆의 문서들은 점이 된다). 그리고 크기가 세는 것은 <b>그려진 것</b>이라 중심 모드에서는 같은 문서가 작아 보인다. 둘을 범례에 넣으면 범례가 안내가 되므로, 물음표 패널을 <b>읽는 법 · 조작</b> 두 문단으로 가른다. <b>정확한 건수는 패널의 <code>역참조</code> 탭</b>에 있다 — 그쪽은 그려진 범위가 아니라 실제 관계 전부를 센다(REQ-WEB-081).</li>
+  </ol>
+
+  <p>그리고 <b>고른 문서의 종류를 패널 머리가 적는다</b>(색 점 + 라벨 + 키 한 줄). 범례가 표라면 이 줄은 <b>대조</b>다 — 색 하나를 범례에서 되짚는 대신 고른 것에 이름이 붙는다.</p>
+
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
@@ -1145,6 +1172,8 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>REQ-WEB-097</td><td>WHILE 관계 그래프를 보고 있으면 THE SYSTEM SHALL 캔버스 조종기·건수·조작 안내를 캔버스 위에 겹쳐 두어 페이지 행을 차지하지 않게 하고, 겹쳐 둔 요소가 캔버스의 끌기·확대 제스처를 가로채지 않게 한다</td></tr>
       <tr><td>REQ-WEB-174</td><td>WHEN 관계 그래프의 배치를 계산하면 THE SYSTEM SHALL 같은 부모를 둔 형제(영역 상자·문서 노드)가 서로 겹치지 않도록 정리한 뒤 그린다 — 겹친 상자는 데이터에 없는 부모·자식으로 읽힌다</td></tr>
       <tr><td>REQ-WEB-175</td><td>WHEN 배치를 정리하면 THE SYSTEM SHALL 서로의 상대 위치(누가 누구 옆에 있는가)를 유지한 채 남는 빈자리만 줄이고, 캔버스 종횡비를 겨냥해 맞춤 배율을 높인다</td></tr>
+      <tr><td>REQ-WEB-176</td><td>WHILE 관계 그래프를 보고 있으면 THE SYSTEM SHALL 캔버스 위 범례에 <b>지금 그려진</b> 문서 종류의 색 표식과 라벨, 그리고 크기가 뜻하는 것을 적고 — 그려지지 않은 종류와 상자로 선 종류는 색 목록에 넣지 않는다 — 그 범례가 캔버스의 끌기·확대 제스처를 가로채지 않게 한다</td></tr>
+      <tr><td>REQ-WEB-177</td><td>WHEN 그래프의 안내를 열면 THE SYSTEM SHALL 조작과 함께 <b>읽는 법</b>(색·크기·크기의 상한·그려진 것만 센다는 것·흐려짐)을 적고, WHEN 노드를 고르면 THE SYSTEM SHALL 그 문서의 종류를 패널 머리에 색 표식과 라벨로 적는다</td></tr>
     </tbody>
   </table></div>
 
