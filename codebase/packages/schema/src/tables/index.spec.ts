@@ -16,12 +16,15 @@ const allTables = Object.values(tables).filter((t) => is(t, PgTable)) as PgTable
 /**
  * 인프라 테이블은 도메인 엔티티가 아니다 — 32종 카운트와 ERD 에 들지 않는다.
  *   · spec_chunk_embedding : 원문에서 재생성 가능한 검색 인덱스(database.md §2.15)
+ *   · email_outbox         : 보내고 나면 치우는 발송 큐(§2.17 · 2026-09-22). 사람도 화면도
+ *                            이 표를 읽지 않는다 — 워커가 집어 가는 줄이다.
  *   · auth_*               : 확정 스택(better-auth)이 요구하는 인증 인프라(§2.16).
  *                            전부 지워도 사람은 다시 로그인하면 되고 도메인 데이터는 그대로다.
  * 마이그레이션에는 포함되므로 배럴에는 있지만 이 카운트에서는 뺀다.
  */
 const NON_ENTITY_TABLES = new Set([
   'spec_chunk_embedding',
+  'email_outbox',
   'auth_session',
   'auth_account',
   'auth_verification',
@@ -82,10 +85,10 @@ describe('테이블 선언 (database.md §2)', () => {
     }
   });
 
-  it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16)', () => {
+  it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16 · §2.17)', () => {
     const all = allTables.map((t) => getTableName(t));
-    // 33 엔티티 + 인프라 4종(검색 인덱스 1 + 인증 3)
-    expect(all).toHaveLength(37);
+    // 33 엔티티 + 인프라 5종(검색 인덱스 1 + 인증 3 + 발송 큐 1 — 2026-09-22)
+    expect(all).toHaveLength(38);
     for (const infra of NON_ENTITY_TABLES) {
       expect(all).toContain(infra);
       expect(tableNames).not.toContain(infra);
@@ -100,8 +103,9 @@ describe('enum 선언 (database.md §2.1)', () => {
   );
 
   // 2026-09-10 · 39 → 40: `repo_host` 신설(마이그레이션 0026 · api.md REQ-API-158)
-  it('40종이다', () => {
-    expect(declaredEnums).toHaveLength(40);
+  // 2026-09-22 · 40 → 41: `email_kind` 신설(마이그레이션 0027 · database.md §2.17)
+  it('41종이다', () => {
+    expect(declaredEnums).toHaveLength(41);
   });
 
   it('하이픈이 든 clemvion 계승 어휘를 그대로 쓴다 (data-model §2.6)', () => {

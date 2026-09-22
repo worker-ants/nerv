@@ -1,4 +1,4 @@
-// 잡 루프 — advisory lock 보유 시에만 6종을 각자의 주기로 돌린다 (E04-S04)
+// 잡 루프 — advisory lock 보유 시에만 8종을 각자의 주기로 돌린다 (E04-S04)
 // 정본: codebase.md §2.2(잡 목록) · REQ-CB-011(단일 실행)
 //
 // **주기는 새 결정이 아니라 기존 상수에서 유도한다.** 리스 회수·stale 판정은 하트비트
@@ -14,6 +14,7 @@ import { AdvisoryLock } from './advisory-lock.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
+import { MailJob } from './jobs/mail.job.js';
 import { RetentionJob } from './jobs/retention.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
 import { PartitionJob } from './jobs/partition.job.js';
@@ -45,10 +46,14 @@ export class JobRunner {
     retention: RetentionJob,
     exporter: ExportJob,
     partition: PartitionJob,
+    mail: MailJob,
   ) {
     const heartbeat = HEARTBEAT_INTERVAL_SECONDS * 1000;
     this.schedule = [
       { name: leaseReaper.name, everyMs: heartbeat, run: () => leaseReaper.run(), lastRunAt: null },
+      // 메일도 하트비트 간격이다 — 새 주기를 만들지 않는다(§2.2). 그러면 "보내기까지의
+      // 상한" 이 1분이고, 사람이 초대를 만들고 상대가 메일함을 여는 시간보다 짧다.
+      { name: mail.name, everyMs: heartbeat, run: () => mail.run(), lastRunAt: null },
       {
         name: sessionStale.name,
         everyMs: heartbeat,

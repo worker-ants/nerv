@@ -37,6 +37,14 @@ export const invitation = pgTable(
     expiresAt: ts('expires_at').notNull(),
     acceptedAt: ts('accepted_at'),
     acceptedUserId: uuid('accepted_user_id').references(() => user.id),
+    /**
+     * 초대 메일이 마지막으로 **나간** 시각(2026-09-22). 아웃박스의 `sent_at` 을 보지 않는
+     * 이유는 보존 잡이 보낸 행을 치우기 때문이다 — 그러면 "보냈는가" 의 답이 사라진다.
+     *
+     * NULL 과 값이 있는 것은 **다른 문제**다: 안 보낸 것과 보냈는데 안 온 것을 화면이
+     * 가르지 못하면 admin 이 같은 초대를 세 번 만든다.
+     */
+    lastSentAt: ts('last_sent_at'),
     revokedAt: ts('revoked_at'),
     createdAt: createdAt(),
   },

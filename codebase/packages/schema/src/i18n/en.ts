@@ -824,6 +824,9 @@ export const en = {
   'invite.expired': 'Expired',
   'invite.expires_days': 'Expires in {days} days',
   'invite.for_email': 'Invited account: {email}',
+  'invite.mailed': 'Mail sent — the link is also below.',
+  'invite.sent_at': 'sent {when}',
+  'invite.unsent': 'not sent',
   'invite.link_once': 'This link is shown **once, now** — copy it and pass it on.',
   'invite.mine_body': '{org} invited you as {role}.',
   'invite.mine_title': 'Invitations',
@@ -1344,6 +1347,10 @@ export const en = {
   'task.form.err.output': 'Write the output format (e.g. a PR).',
   'task.form.err.title': 'A title is required.',
   'task.form.err.tools': 'Write which tools and sources to use.',
+  // ── 메일 본문 (2026-09-22 · database.md §2.17) ──────────────────────────────
+  'mail.invite.subject': '[NERV] {org} invited you to work together',
+  'mail.invite.body':
+    '{inviter} invited you to {org} as {role}.\n\nOpen this link to accept:\n{url}\n\nThe link expires in {days} days, and it only works while you are signed in as {email}.\nNo account yet? Sign up first, then come back to the same link.\n\nIf you were not expecting this, just delete this mail — nothing happens.',
   // ── 스펙 관계 그래프 (screens.md §2.4a) ────────────────────────────────────────
   'graph.counts': '{nodes} nodes · {edges} edges',
   'graph.empty': 'No relations yet.',

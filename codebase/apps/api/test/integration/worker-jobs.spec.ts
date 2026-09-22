@@ -16,6 +16,9 @@ import { EventService } from '../../src/modules/event/event.service.js';
 import { JobRunner } from '../../src/worker/job-runner.js';
 import { LeaseReaperJob } from '../../src/worker/jobs/lease-reaper.job.js';
 import { NotificationJob } from '../../src/worker/jobs/notification.job.js';
+import { MailJob } from '../../src/worker/jobs/mail.job.js';
+import { MailOutbox } from '../../src/modules/mail/mail.outbox.js';
+import { MailSender } from '../../src/modules/mail/mail.sender.js';
 import { PartitionJob } from '../../src/worker/jobs/partition.job.js';
 import { NotificationService } from '../../src/modules/event/notification.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
@@ -82,6 +85,9 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
       drizzleDb,
     ),
     new PartitionJob(drizzleDb),
+    // 메일 잡은 SMTP 가 꺼진 배치에서 아무것도 하지 않는다(2026-09-22) — 이 스위트가
+    // 보는 것은 잡 루프의 단일 실행이지 발송이 아니므로 실물 그대로 넣는다.
+    new MailJob(new MailOutbox(drizzleDb), new MailSender()),
   );
   return { runner, lock };
 }

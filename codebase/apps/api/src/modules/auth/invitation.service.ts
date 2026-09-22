@@ -8,6 +8,10 @@
 //   ① **초대한 이메일로만** 수락된다(사람 결정) — 링크는 메신저를 타고 흐르고, 새면
 //      아무나 들어온다. 토큰만으로 받아 주면 그 링크가 곧 조직의 열쇠가 된다.
 //   ② **7일**이면 만료된다(`INVITATION_TTL_DAYS`) — 되찾는 길(재발급)이 있으므로 짧게.
+//
+// **메일은 자동으로 나간다**(2026-09-22 · 사람 결정). 그전에는 admin 이 링크를 손으로 날랐다.
+// 그런데 **토큰 원문은 응답에 그대로 남긴다** — 메일이 꺼졌거나 막힌 배치에서도 [복사] 경로가
+// 살아 있어야 한다. 없는 기능을 만들자고 있는 기능을 걷지 않는다.
 
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { INVITATION_TTL_DAYS, memberRole, msg, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
@@ -20,6 +24,7 @@ import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { AuthService, hashToken } from './auth.service.js';
+import { MailOutbox } from '../mail/mail.outbox.js';
 
 /** 링크에 실리는 값 — 주소에 그대로 들어가므로 url-safe 여야 한다 */
 function newToken(): string {
@@ -34,6 +39,8 @@ export interface InvitationRow extends Record<string, unknown> {
   org_name: string;
   project_slug: string | null;
   expires_at: string;
+  /** 메일이 마지막으로 나간 시각. NULL 이면 아직 안 나갔다(또는 메일이 꺼진 배치다) */
+  last_sent_at: string | null;
   state: 'pending' | 'accepted' | 'revoked' | 'expired';
 }
 
@@ -44,6 +51,8 @@ export class InvitationService {
   constructor(
     @InjectDb() private readonly db: NervDb,
     @Inject(AuthService) private readonly auth: AuthService,
+    /** 발송 큐 — 감사 축과 같은 이유로 선택이다(테스트가 이 서비스를 직접 만든다) */
+    @Optional() private readonly mail?: MailOutbox,
     /** 감사 축(REQ-API-151) — 테스트가 이 서비스를 직접 만들므로 없을 수 있다 */
     @Optional() private readonly events?: EventService,
   ) {}
@@ -98,14 +107,31 @@ export class InvitationService {
 
     const token = newToken();
     const id = newId();
-    await this.db.execute(sql`
-      INSERT INTO invitation
-        (id, org_id, project_id, email, role, token_hash, invited_by_user_id, expires_at)
-      VALUES (${id}, ${org.id}, ${projectId}, ${email}, ${role}::member_role,
-              ${hashToken(token)}, ${input.actorUserId},
-              now() + ${`${INVITATION_TTL_DAYS} days`}::interval)
-    `);
-    return { id, email, role: input.role, token, expires_in_days: INVITATION_TTL_DAYS };
+    // **초대 행과 메일을 한 트랜잭션에 넣는다.** 갈라 두면 초대는 만들어졌는데 메일만
+    // 사라지는 상태가 생기고, 그때 화면은 "보냈다" 고 말한다.
+    let queued = false;
+    await this.db.transaction(async (tx: NervDb) => {
+      await tx.execute(sql`
+        INSERT INTO invitation
+          (id, org_id, project_id, email, role, token_hash, invited_by_user_id, expires_at)
+        VALUES (${id}, ${org.id}, ${projectId}, ${email}, ${role}::member_role,
+                ${hashToken(token)}, ${input.actorUserId},
+                now() + ${`${INVITATION_TTL_DAYS} days`}::interval)
+      `);
+      queued =
+        (await this.mail?.enqueueInvite(tx, {
+          token,
+          email,
+          orgName: org.name,
+          role: input.role,
+          inviterName: await this.displayName(tx, input.actorUserId),
+          invitationId: id,
+          locale: null,
+        })) ?? false;
+    });
+    // `queued` 를 응답에 싣는다 — 화면이 "메일을 보냈습니다" 와 "링크를 전달하세요" 를
+    // 갈라 말할 수 있어야 한다. 둘을 같은 문구로 덮으면 한쪽은 반드시 거짓이다.
+    return { id, email, role: input.role, token, expires_in_days: INVITATION_TTL_DAYS, queued };
   }
 
   /** EP-INV-02 — 조직의 초대 목록(admin). 수락·회수된 것도 기록으로 보인다 */
@@ -261,6 +287,9 @@ export class InvitationService {
     return sql`
       SELECT i.id, i.email, i.role::text AS role, i.expires_at::text AS expires_at,
              i.created_at::text AS created_at,
+             -- 안 보낸 것과 보냈는데 안 온 것은 **다른 문제**다. 화면이 그 둘을 가르지
+             -- 못하면 admin 이 같은 초대를 세 번 만든다(2026-09-22).
+             i.last_sent_at::text AS last_sent_at,
              o.slug AS org_slug, o.name AS org_name,
              p.slug AS project_slug,
              u.display_name AS invited_by,
@@ -304,12 +333,15 @@ export class InvitationService {
     return invite;
   }
 
-  private async assertOrgAdmin(userId: string, orgSlug: string): Promise<{ id: string }> {
-    const { rows } = await this.db.execute<{ id: string; roles: string[] }>(sql`
-      SELECT o.id, array_agg(DISTINCT m.role::text) AS roles FROM organization o
+  private async assertOrgAdmin(
+    userId: string,
+    orgSlug: string,
+  ): Promise<{ id: string; name: string }> {
+    const { rows } = await this.db.execute<{ id: string; name: string; roles: string[] }>(sql`
+      SELECT o.id, o.name, array_agg(DISTINCT m.role::text) AS roles FROM organization o
         JOIN membership m ON m.org_id = o.id AND m.user_id = ${userId}
        WHERE o.slug = ${orgSlug}
-       GROUP BY o.id
+       GROUP BY o.id, o.name
     `);
     const org = rows[0];
     if (org === undefined) {
@@ -320,7 +352,16 @@ export class InvitationService {
     if (!org.roles.includes('admin')) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only'), { kind: 'admin' });
     }
-    return { id: org.id };
+    return { id: org.id, name: org.name };
+  }
+
+  /** 메일에 적히는 초대한 사람 — 이름이 없으면 이메일을 쓴다(빈 자리를 남기지 않는다) */
+  private async displayName(tx: NervDb, userId: string): Promise<string> {
+    const { rows } = await tx.execute<{ name: string | null; email: string }>(
+      sql`SELECT display_name AS name, email FROM "user" WHERE id = ${userId}`,
+    );
+    const row = rows[0];
+    return row === undefined ? '' : (row.name ?? row.email);
   }
 
   private async resolveProjectId(orgId: string, slug: string | null): Promise<string | null> {
