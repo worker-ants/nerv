@@ -70,3 +70,18 @@ if (MOBILE) {
     await page.screenshot({ path: `${SHOT_DIR}/drawer.png` });
   });
 }
+
+// **관계 그래프는 탭 안에 있어서 주소로 갈 수 없다.** 그래서 목록 화면을 찍어도 이 화면은
+// 그림으로 남지 않았고, 시드에 `spec_relation` 이 0건이던 동안에는 눌러도 빈 상태였다
+// (2026-09-22 에 영역 4 · 종류 6 · 관계 28 을 심었다 — database.md §4). 밀도가 유일한
+// 설계 문제인 화면이라(§2.4a), 색·크기·범례·영역 상자가 실제로 어떻게 보이는지는
+// 캔버스를 찍어야만 안다. 좁은 폭에서도 접히지 않으므로 두 폭 다 찍는다.
+test('shot spec-graph', async ({ page }) => {
+  await page.goto('/p/clemvion/specs');
+  await page.getByTestId('view-graph').click();
+  await page.getByTestId('spec-graph').waitFor();
+  // fcose 가 낸 답을 정리 패스가 한 벌 더 돈다(REQ-WEB-174·175) — 그 전에 찍으면
+  // 겹친 상자가 그림에 남는다
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${SHOT_DIR}/spec-graph.png` });
+});
