@@ -1348,6 +1348,16 @@ export const en = {
   'task.form.err.title': 'A title is required.',
   'task.form.err.tools': 'Write which tools and sources to use.',
   // ── 메일 본문 (2026-09-22 · database.md §2.17) ──────────────────────────────
+  'auth.email_unverified':
+    'Your email is not confirmed yet. Open the link in the mail and you will be signed in.',
+  'auth.resend': 'Resend the confirmation mail',
+  'auth.resent': 'Sent — check your inbox (and the spam folder).',
+  'signup.check_mail': 'Confirmation mail sent',
+  'signup.check_mail_body':
+    'Open the link we sent to {email} and you will be confirmed and signed in. If you do not see it, check the spam folder.',
+  'mail.verify.subject': '[NERV] Confirm your email address',
+  'mail.verify.body':
+    'Welcome, {name}.\n\nOpen this link to confirm your email — you will be signed in right away.\n{url}\n\nYou cannot sign in until it is confirmed: we ask once whether the address is really yours.\nIf the mail is missing, check the spam folder; you can also resend it from the sign-in screen.\n\nIf you did not sign up, just delete this mail — the account can do nothing until it is confirmed.',
   'mail.invite.subject': '[NERV] {org} invited you to work together',
   'mail.invite.body':
     '{inviter} invited you to {org} as {role}.\n\nOpen this link to accept:\n{url}\n\nThe link expires in {days} days, and it only works while you are signed in as {email}.\nNo account yet? Sign up first, then come back to the same link.\n\nIf you were not expecting this, just delete this mail — nothing happens.',

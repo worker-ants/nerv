@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.56 · 2026-09-22 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.57 · 2026-09-22 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.57 변경(2026-09-22 — 가입 이메일 인증을 강제한다, **사람 결정**): **§5.2 전표 한 줄 — `NERV_REQUIRE_EMAIL_VERIFICATION`.** 기본값이 **다른 키에서 유도된다**는 점이 이 행의 전부다: **강제는 메일을 보낼 수 있을 때만 성립하므로** 비우면 `NERV_SMTP_URL` 유무를 따른다. 명시하면 그 값이 이기고, `true` 인데 SMTP 가 비면 **기동을 거부한다** — 아무도 가입하지 못하는 서버가 조용히 서는 것보다 뜨지 않는 편이 싸다(`NERV_COOKIE_DOMAIN`·`NERV_MAIL_FROM` 과 같은 규약).
 >
 > v1.56 변경(2026-09-22 — 메일을 붙인다, **사람 결정**): **§2.2 트리에 `modules/mail/` 넷과 여덟 번째 잡 · §5.2 전표 네 줄.** 가입 인증과 초대 메일을 위해 SMTP 를 들인다 — 스택 표([4.1](scope.md) §2.1)에 발신 계층 한 행이 서고, 라이브러리는 **nodemailer** 다(제공자 SDK 를 들이면 그 배치가 그 제공자에 묶인다). **표면은 행을 넣고 워커가 보낸다**: 인라인 발송은 better-auth 문서 자신이 말리고(응답 시간이 이메일의 존재를 흘린다), SMTP 는 느리고 죽으며, 이 저장소에는 이미 워커·advisory lock·잡 루프가 있다 — 새 개념이 아니라 여덟 번째 잡이다. 설정은 **비어 있으면 꺼진다**(`NERV_GITHUB_WEBHOOK_SECRET` 과 같은 규약) — 다만 켜 놓고 `NERV_MAIL_FROM` 을 비우면 **기동을 거부한다**: 보내는 사람 없는 메일은 거절되거나 스팸함으로 가고, 둘 다 "보냈다고 믿는데 닿지 않는" 모양이라 뜨지 않는 편이 싸다(REQ-CB-042 와 같은 판단).
 >
@@ -1022,6 +1024,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_MAIL_FROM` | SMTP 를 켜면 | — | worker | `NERV <no-reply@example.com>`. SMTP 를 켜 놓고 비우면 **기동을 거부한다** — 보내는 사람 없는 메일은 거절되거나 스팸함으로 가고, 둘 다 "보냈다고 믿는데 닿지 않는" 모양이다(`NERV_COOKIE_DOMAIN` 과 같은 규약) |
 | `NERV_MAIL_REPLY_TO` | | — | worker | 사람이 답장할 주소. `no-reply` 로만 두면 "이 메일 뭐죠" 가 갈 곳이 없다 |
 | `NERV_MAIL_DRY_RUN` | | `false` | worker | 아웃박스는 쌓고 보내지는 않는다. 로그에 **수신자와 제목만** 남긴다 — 본문을 찍으면 그 로그를 읽는 사람이 곧 그 초대를 수락할 수 있는 사람이 된다. 첫 배포에서 무엇이 나갈지 먼저 보는 용도다 |
+| `NERV_REQUIRE_EMAIL_VERIFICATION` | | **`NERV_SMTP_URL` 에서 유도** | api | 가입 이메일 인증을 강제할 것인가(2026-09-22 · 사람 결정 "강제"). **강제는 메일을 보낼 수 있을 때만 성립하므로** 비우면 SMTP 유무를 따른다 — 메일이 있는 배치는 강제이고, 없는 배치는 인증 메일을 보낼 길이 없어 강제할 수도 없다. 명시하면 그 값이 이기고, **`true` 인데 SMTP 가 비면 기동을 거부한다**(아무도 가입하지 못하는 서버가 조용히 서는 것보다 뜨지 않는 편이 싸다) |
 | `NERV_S3_BUCKET` | | `nerv-blobs` | api · worker | api가 기동 시 없으면 생성한다(2026-09-02 — 전표는 그렇게 적었는데 코드가 없었다) |
 | `NERV_S3_FORCE_PATH_STYLE` | | `true` | api · worker | minio 호환 |
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |

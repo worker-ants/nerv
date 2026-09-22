@@ -5,17 +5,17 @@
 // 번들·라우터 초기화·nginx 폴백에서 깨지는 일이 있고, 그건 사용자가 첫 화면에서 만난다.
 
 import { expect, test } from '@playwright/test';
-import { STORAGE_STATE } from './global-setup.js';
+import { SEEDED_EMAIL, SEEDED_PASSWORD, STORAGE_STATE } from './global-setup.js';
 
 // 이 스펙은 한국어 화면을 검사한다 — 기계의 locale 에 따라 대상이 바뀌지 않게 못 박는다
 test.use({ locale: 'ko-KR' });
 
-// **실행마다 다른 주소다** — 고정값으로 바꾸지 않는다. 이 테스트가 보는 것은 실제 가입
-// 경로이고, 같은 스택에 두 번째로 돌면 고정 주소는 "이미 있는 계정"에 부딪힌다. 남는
-// 계정 한 건은 시드의 사실을 바꾸지 않으므로 지우지 않는다(실측 2026-09-10: 재실행마다
-// `user` 6 → 7 → 8, 판정에는 영향 없음).
-const EMAIL = `e2e-${Date.now()}@example.com`;
-const PASSWORD = 'nerv-e2e-password';
+// **여기서는 시드 계정으로 로그인한다**(2026-09-22 개정). 예전에는 매 실행마다 새 계정을
+// 만들어 들어왔는데, 가입 이메일 인증을 강제한 뒤로 갓 만든 계정은 **확인 전까지 로그인할 수
+// 없다** — 이 스위트가 보려는 것은 "셸이 서는가 · 쿠키가 도는가" 이지 가입 절차가 아니다.
+// 가입 → 확인 메일 → 링크 → 진입의 전 구간은 `signup-verify.spec.ts` 가 본다.
+const EMAIL = SEEDED_EMAIL;
+const PASSWORD = SEEDED_PASSWORD;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -38,23 +38,14 @@ test('로그인 실패 사유는 폼 안에 뜨고 비밀번호만 지워진다 
   await expect(page.getByLabel('이메일')).toHaveValue('nobody@example.com');
 });
 
-test('가입 → 로그인 → 셸 진입 · ⌘K 퀵 스위처 (REQ-WEB-006 · REQ-WEB-040)', async ({
-  page,
-  request,
-}) => {
-  // better-auth 핸들러로 계정을 만든다 — 화면의 가입 경로는 MVP 에 없다(초대는 기존 사용자 배정)
-  const signUp = await request.post('/api/auth/sign-up/email', {
-    data: { email: EMAIL, password: PASSWORD, name: 'E2E 사용자' },
-  });
-  expect(signUp.ok()).toBe(true);
-
+test('로그인 → 셸 진입 · ⌘K 퀵 스위처 (REQ-WEB-006 · REQ-WEB-040)', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('이메일').fill(EMAIL);
   await page.getByLabel('비밀번호').fill(PASSWORD);
   await page.getByRole('button', { name: /로그인/ }).click();
 
-  // 조직 0개 → 온보딩으로 착지한다(REQ-WEB-006)
-  await page.waitForURL(/\/onboarding|\/inbox|\/$/);
+  // 역할별 첫 화면으로 착지한다 — 조직이 0개면 온보딩이다(REQ-WEB-006)
+  await page.waitForURL(/\/onboarding|\/inbox|\/p\/|\/$/);
   // 셸이 떴다는 것만 본다 — 로고 **글리프**를 문자로 못 박으면 조형을 바꿀 때마다
   // 깨진다(실측 2026-08-23: 글리프를 사각형 마크로 바꾸며 깨졌다). 이 테스트가 지키려는
   // 것은 브랜드 표기가 아니라 "가입 뒤 셸에 착지한다"이다.

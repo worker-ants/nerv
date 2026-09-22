@@ -29,13 +29,17 @@ INSERT INTO organization (id, slug, name) VALUES
 --   ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin 이 모든 자리에 앉아 있게 된다
 --   ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다
 -- 그래서 조직 소속(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
-INSERT INTO "user" (id, email, display_name, state) VALUES
-  ('01990a66-0000-7000-8000-000000000010', 'admin@example.com',  '관리자', 'active'),
-  ('01990a66-0000-7000-8000-000000000011', 'jimin@example.com',  '지민', 'active'),
-  ('01990a66-0000-7000-8000-000000000012', 'seoyeon@example.com','서연', 'active'),
-  ('01990a66-0000-7000-8000-000000000013', 'dohyun@example.com', '도현', 'active'),
-  ('01990a66-0000-7000-8000-000000000014', 'yuna@example.com',   '유나', 'active'),
-  ('01990a66-0000-7000-8000-000000000015', 'hana@example.com',   '하나', 'active');
+-- **확인된 계정으로 심는다**(2026-09-22). 가입 이메일 인증을 강제하기로 한 뒤로
+-- `email_verified` 가 거짓이면 그 계정은 로그인할 수 없다 — 시드는 화면을 열어 보라고
+-- 있는 것이라, 심어 놓고 못 들어가는 계정은 심지 않은 것과 같다. 마이그레이션 0028 의
+-- 백필은 그 시점의 행만 보므로 여기서 다시 세운다(시드는 TRUNCATE 후 재삽입이다).
+INSERT INTO "user" (id, email, display_name, state, email_verified) VALUES
+  ('01990a66-0000-7000-8000-000000000010', 'admin@example.com',  '관리자', 'active', true),
+  ('01990a66-0000-7000-8000-000000000011', 'jimin@example.com',  '지민', 'active', true),
+  ('01990a66-0000-7000-8000-000000000012', 'seoyeon@example.com','서연', 'active', true),
+  ('01990a66-0000-7000-8000-000000000013', 'dohyun@example.com', '도현', 'active', true),
+  ('01990a66-0000-7000-8000-000000000014', 'yuna@example.com',   '유나', 'active', true),
+  ('01990a66-0000-7000-8000-000000000015', 'hana@example.com',   '하나', 'active', true);
 
 INSERT INTO project (id, org_id, slug, key, name, repo_url, default_branch) VALUES
   ('01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000001',

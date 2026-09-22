@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 38개</b>다 — 도메인 32 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.44 (2026-09-22)</span>
+      <span>버전 v0.45 (2026-09-22)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -1213,6 +1213,8 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
 
   <p>예시 데이터 한 벌은 기존 문서 세트와 동일하다(vision §2·ui-wireframes §S4/S5) — 프로젝트 clemvion, 스펙 <code>SPC-CWC-007</code>(웹챗 위젯 임베드)·<code>SPC-CWC-012</code>(세션 복원 API), <code>REQ-CWC-031</code>, <code>CLV-T-0CFQC2</code>=하나/mac-07, <code>CLV-T-1KTDCK</code>=도현/mac-02, <code>CLV-T-TRA25N</code>=유나/linux-ci-01/codex, 세션 <code>S-b7e9</code> 등. 표시 문자열은 각 테이블의 <code>key</code>(spec·task) · <code>ref</code>(requirement) · <code>external_session_id</code>(agent_session)로 심는다. 시드는 <b>개발 전용</b>이며 <code>pnpm db:seed</code>가 TRUNCATE 후 재삽입하므로 몇 번을 실행해도 같은 상태다(REQ-DB-002). UUID는 가독성을 위한 고정값(UUIDv7 형식)이다.</p>
 
+  <p><b>시드 계정은 확인된 상태다(2026-09-22 정정).</b> 가입 이메일 인증을 강제하기로 한 뒤로 <code>user.email_verified</code> 가 거짓인 계정은 <b>로그인할 수 없다.</b> 마이그레이션 0028 이 그 시점의 기존 계정을 백필하지만 시드는 TRUNCATE 후 재삽입이라 그 뒤에 다시 심긴다 — 그래서 시드가 직접 참으로 세운다. 이 한 줄이 빠지면 개발 환경 전체가 로그인 화면에서 멈춘다(실측: E2E 전역 셋업이 거기서 30초를 기다리다 죽었다). 시드는 화면을 열어 보라고 있는 것이므로, <b>심어 놓고 못 들어가는 계정은 심지 않은 것과 같다.</b></p>
+
   <p><b>관계 그래프가 그릴 것을 심는다(2026-09-22 정정).</b> 스펙이 셋뿐이고 <code>spec_relation</code> 이 <b>0건</b>이던 동안, 스펙 목록의 관계 그래프 탭은 언제나 "관계가 아직 없습니다" 였다 — 캔버스가 아예 마운트되지 않아, <b>밀도가 유일한 설계 문제인 그 화면이</b>(<a href="screens.html">4.5</a> §2.4a) <b>디자인 확인용 스크린샷에 한 번도 들어간 적이 없다.</b> 아래 Activity·증적에서 두 번 겪은 것과 같은 형태이고 귀결도 같다: 화면에 길을 내고도 그 길을 지나가는 데이터가 없으면 L3 도 스크린샷도 그 길을 보지 못한다. 그래서 트리를 <b>문서 20 · 영역 4 · 종류 6 · 관계 28</b>로 넓힌다 — 셋 다 그림이 말해야 하는 것이다: 영역이 하나뿐이면 상자끼리 밀어내는 정리 패스(REQ-WEB-174·175)가 할 일이 없고, 종류가 둘뿐이면 범례가 두 줄로 끝나며(REQ-WEB-176), 피참조 수가 고르면 차수 기반 크기가 아무 차이도 내지 않는다. 그래서 영역을 <b>건너는</b> 간선을 28 중 17로 두고 피참조 수를 0~6으로 갈랐다. <b>영역(<code>area</code>) 넷만 본문이 없다</b> — 임포터의 골격 배치와 같은 모양이고(<a href="importer.html">4.7</a>), 나머지는 승인본 하나씩을 갖는다(트리는 차는데 누르면 빈 문서인 상태를 만들지 않는다).</p>
 
   <p><b>증적도 심는다(2026-09-10 정정).</b> 이 표만 비어 있었다 — 시드가 리뷰·활동·질문을 다 심으면서 <code>evidence</code> 는 0건이라, 작업 상세의 증적 카드가 개발 환경에서 늘 "아직 없습니다" 였다. Activity 에서 겪은 것과 같은 형태이고 귀결은 하나 더 나쁘다: <b>화면에 길을 내고도 그 길을 지나가는 데이터가 없으면 L3 도 스크린샷도 그 길을 보지 못한다</b>(증적 링크 — <a href="screens.html">4.5</a> REQ-WEB-159~162). 종류 <b>여섯을 전부</b> 쓰고, 그중 하나는 일부러 <b>링크가 되지 않는 것</b>(<code>test</code>)이다 — 평문으로 남는 자리가 하나는 있어야 "짐작해서 링크를 만들지 않는다" 는 규칙이 눈에 보인다. 하나는 <code>repo</code> 를 달아 다른 저장소를 가리키고(<a href="api.html">4.4</a> REQ-API-157), 하나는 요구사항에도 매단다(FR-13).</p>
@@ -1252,13 +1254,17 @@ INSERT INTO organization (id, slug, name) VALUES
 --   ① 지시자≠승인자(D-06) 같은 규칙을 시연할 때 admin 이 모든 자리에 앉아 있게 된다
 --   ② 새 조직을 꾸릴 때 "어느 계정이 관리용인가"가 인물 설정에 묻힌다
 -- 그래서 조직 소속(project_id NULL) 멤버십을 가진 admin 을 따로 둔다.
-INSERT INTO "user" (id, email, display_name, state) VALUES
-  ('01990a66-0000-7000-8000-000000000010', 'admin@example.com',  '관리자', 'active'),
-  ('01990a66-0000-7000-8000-000000000011', 'jimin@example.com',  '지민', 'active'),
-  ('01990a66-0000-7000-8000-000000000012', 'seoyeon@example.com','서연', 'active'),
-  ('01990a66-0000-7000-8000-000000000013', 'dohyun@example.com', '도현', 'active'),
-  ('01990a66-0000-7000-8000-000000000014', 'yuna@example.com',   '유나', 'active'),
-  ('01990a66-0000-7000-8000-000000000015', 'hana@example.com',   '하나', 'active');
+-- **확인된 계정으로 심는다**(2026-09-22). 가입 이메일 인증을 강제하기로 한 뒤로
+-- `email_verified` 가 거짓이면 그 계정은 로그인할 수 없다 — 시드는 화면을 열어 보라고
+-- 있는 것이라, 심어 놓고 못 들어가는 계정은 심지 않은 것과 같다. 마이그레이션 0028 의
+-- 백필은 그 시점의 행만 보므로 여기서 다시 세운다(시드는 TRUNCATE 후 재삽입이다).
+INSERT INTO "user" (id, email, display_name, state, email_verified) VALUES
+  ('01990a66-0000-7000-8000-000000000010', 'admin@example.com',  '관리자', 'active', true),
+  ('01990a66-0000-7000-8000-000000000011', 'jimin@example.com',  '지민', 'active', true),
+  ('01990a66-0000-7000-8000-000000000012', 'seoyeon@example.com','서연', 'active', true),
+  ('01990a66-0000-7000-8000-000000000013', 'dohyun@example.com', '도현', 'active', true),
+  ('01990a66-0000-7000-8000-000000000014', 'yuna@example.com',   '유나', 'active', true),
+  ('01990a66-0000-7000-8000-000000000015', 'hana@example.com',   '하나', 'active', true);
 
 INSERT INTO project (id, org_id, slug, key, name, repo_url, default_branch) VALUES
   ('01990a66-0000-7000-8000-000000000021', '01990a66-0000-7000-8000-000000000001',
