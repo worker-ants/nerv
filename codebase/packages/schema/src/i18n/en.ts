@@ -1350,8 +1350,13 @@ export const en = {
   'graph.empty_hint': 'Links between spec bodies show up here as edges.',
   'graph.group_by_area': 'Group by area',
   'graph.hint':
-    'Click a node to highlight its neighbours and open its relations on the right · drag a node to move it, drag the background to move the view · scroll to zoom (names appear as you get closer) · arrows point at what is referenced',
-  'graph.help': 'How to use this',
+    'Click a node to highlight its neighbors and open its relations on the right · drag a node to move it, drag the background to move the view · scroll to zoom (names appear as you get closer) · arrows point at what is referenced',
+  'graph.hint.act_label': 'Gestures',
+  'graph.hint.read':
+    'Color is the document type — the legend sits at the bottom-left of the canvas · size is how many documents point at it (more backlinks, bigger node). Only what is drawn is counted, so nodes shrink in centered mode, and the most-referenced documents all stop at one size · pale rectangles are areas, and everything outside the selection and its neighbors fades',
+  'graph.hint.read_label': 'Reading it',
+  'graph.help': 'How to read this',
+  'graph.legend.size': 'Size = backlinks',
   'graph.help_more': 'More in the Specs chapter of the manual ▸',
   'graph.hops': '{n} hop',
   'graph.relayout': 'Re-layout',

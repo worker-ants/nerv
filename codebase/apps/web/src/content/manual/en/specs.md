@@ -193,13 +193,17 @@ The **Relations** tab in the right rail shows both, and its sub-tabs split them 
 
 The number beside each tab name is how many that direction holds. You can see the count before clicking, so there is never a reason to open an empty tab.
 
-The **relations graph** shows the same thing as a picture — the `Relations` tab on the spec list screen. Clicking a node does **not** open that document: it highlights the node and everything linked to it, and opens a panel on the right with its name and its neighbours (backlinks / references). To go to a document, **click its name in the panel.** Click the background or press `Esc` to let go.
+The **relations graph** shows the same thing as a picture — the `Relations` tab on the spec list screen. Clicking a node does **not** open that document: it highlights the node and everything linked to it, and opens a panel on the right with its name and its neighbors (backlinks / references). To go to a document, **click its name in the panel.** Click the background or press `Esc` to let go.
+
+**Color is the document type, size is the backlink count.** The **legend at the bottom-left** of the canvas spells both out — vision, feature, design, convention and decision each have their own color, and an area is drawn as a pale rectangle rather than a circle, so the legend shows it as a rectangle too. Only the types actually drawn appear in the legend.
+
+A bigger node means more documents point at it. Two things keep you from misreading it — the most-referenced documents all **stop at one size** (there is a cap, so a single hub cannot swallow the picture), and size counts only **what is currently drawn**, so the same document looks smaller in centered mode. **For the exact number, click the node** and read the `Backlinks` tab in the panel on the right. The panel header also carries the selected document's color dot and type, so you never have to walk back to the legend.
 
 **Drag the background to move the view**, scroll to zoom. Dragging inside an area box (the pale rectangle around a group of documents) moves the view too — selecting the box is a **single click**.
 
 **Sibling area boxes never overlap.** So a box drawn inside another box really is a parent-child relationship — you never have to squint to tell nesting from a collision.
 
-The graph's controls sit in the **top-left of the canvas** — view scope (whole project / around this doc), area grouping, [Re-layout], and a **`?`** that opens the gesture help. Node and edge counts sit in the bottom-right corner.
+The graph's controls sit in the **top-left of the canvas** — view scope (whole project / around this doc), area grouping, [Re-layout], and a **`?`** that opens both **how to read** the picture (color, size, fading) and the gestures. Node and edge counts sit in the bottom-right corner; the legend sits in the bottom-left.
 
 **Nodes can be dragged.** Use it to pull apart a crowded spot; the new position lives only in this view — it does not change where the document sits in the tree, and redrawing the graph (center mode, area grouping) restores the computed layout. **[Re-layout]** recomputes the arrangement: every run gives a different picture, which is what untangles a knot — and it is also how you undo your own dragging.
 
