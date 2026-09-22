@@ -197,6 +197,8 @@ The **relations graph** shows the same thing as a picture — the `Relations` ta
 
 **Drag the background to move the view**, scroll to zoom. Dragging inside an area box (the pale rectangle around a group of documents) moves the view too — selecting the box is a **single click**.
 
+**Sibling area boxes never overlap.** So a box drawn inside another box really is a parent-child relationship — you never have to squint to tell nesting from a collision.
+
 The graph's controls sit in the **top-left of the canvas** — view scope (whole project / around this doc), area grouping, [Re-layout], and a **`?`** that opens the gesture help. Node and edge counts sit in the bottom-right corner.
 
 **Nodes can be dragged.** Use it to pull apart a crowded spot; the new position lives only in this view — it does not change where the document sits in the tree, and redrawing the graph (center mode, area grouping) restores the computed layout. **[Re-layout]** recomputes the arrangement: every run gives a different picture, which is what untangles a knot — and it is also how you undo your own dragging.

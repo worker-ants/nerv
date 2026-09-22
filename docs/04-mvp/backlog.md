@@ -1,7 +1,7 @@
 ---
 id: SPC-MVP-BACKLOG
 status: approved
-updated: 2026-09-20
+updated: 2026-09-22
 referenced_by:
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
@@ -18,9 +18,11 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v0.97 · 2026-09-22 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v0.98 · 2026-09-22 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
-> v0.97 변경(2026-09-22 — 스토리 없이 들어온 수정 하나, 사람 보고): §1.4 셋째 표에 **긴 벡터 절단** 한 줄([4.2](codebase.md) REQ-CB-047 · v1.54). 스토리 수·`done` 수는 그대로다 — E06-S06(임베딩 프로필)이 세는 것은 "제공자를 env 로 고른다" 이고, **그 제공자가 내는 차원이 스키마와 다를 때 어떻게 하는가**는 그 스토리가 세지 않은 자리다.
+> v0.98 변경(2026-09-22 — 스토리 없이 들어온 수정 하나, 사람 보고): §1.4 셋째 표에 **겹쳐 그려지던 영역 상자** 한 줄([4.5](screens.md) REQ-WEB-174·175 · v1.17). 스토리 수·`done` 수는 그대로다 — 관계 그래프 자체가 어느 스토리에도 없다(가장 가까운 E08-S10 이 세는 것은 트리 스케일과 S3 관계 패널이다). **화면이 데이터에 없는 계층을 말하고 있었다**는 것이 이 줄의 내용이고, 그것은 기능의 유무가 아니라 그림의 정직함에 관한 자리다.
+>
+> > v0.97 변경(2026-09-22 — 스토리 없이 들어온 수정 하나, 사람 보고): §1.4 셋째 표에 **긴 벡터 절단** 한 줄([4.2](codebase.md) REQ-CB-047 · v1.54). 스토리 수·`done` 수는 그대로다 — E06-S06(임베딩 프로필)이 세는 것은 "제공자를 env 로 고른다" 이고, **그 제공자가 내는 차원이 스키마와 다를 때 어떻게 하는가**는 그 스토리가 세지 않은 자리다.
 >
 > v0.96 변경(2026-09-22 — 웹의 본문 편집을 걷는다, 사람 결정): §1.4 셋째 표에 한 줄([4.5](screens.md) REQ-WEB-173 · v1.16). **스토리 수·`done` 수는 그대로지만 뜻이 바뀐 자리가 있다** — E06-S03(웹 에디터)·E06-S04(초안 리스)가 세던 것이 웹에서 없어졌다. 스토리를 되돌리지 않는 이유는 **그 일이 안 된 것이 아니라 그 자리가 옮겨 갔기** 때문이다(터미널 경로 = [4.6](plugin.md) spec 스킬). 되돌리면 백로그는 "아직 못 했다" 를 뜻하게 되고, 그것은 사실이 아니다.
 >
@@ -355,6 +357,7 @@ referenced_by:
 | 거절 뒤의 길 · 다이어그램 배율 | `apps/api/src/modules/spec/spec.service.ts`(409 에 `web_url`) · `plugin/skills/spec/SKILL.md`(edit 절차 한 단계 · 패키지 0.3.1) · `apps/web/src/features/spec-editor/mermaid-block.tsx`(`useMaxWidth:false` · 배율 · 전체화면) · `mermaid.spec.tsx`(신설 L1 3건)·`spec-navigation.spec.ts`(신설 L3 1건 — 배율은 레이아웃이 재어져야 잡힌다) · i18n 9 · 매뉴얼 ko·en | 메타를 못 바꾸는 이유는 분명한데 **거절 뒤의 길이 없었다** — 409 에 그 문서 주소가 없어 에이전트가 사람에게 청할 수도 없었고, 스킬은 그 경계를 한 줄도 적지 않았다. 그리고 mermaid 의 `useMaxWidth` 기본값 때문에 다이어그램이 **항상 칸 폭에 맞춰 축소**돼 글자를 읽을 수 없었다(그림 상자의 `overflow-x-auto` 는 넘칠 일이 없어 한 번도 동작하지 않았다) |
 | 긴 벡터를 잘라 맞춘다 | `apps/api/src/modules/spec/embedding.client.ts`(`truncateTo`·`fit`) · `embedding.client.spec.ts`(신설 L1 5건) · `test/integration/embedding-stub.spec.ts`(신설 L2 3건) · `worker/jobs/embedding.job.ts`(재선언 제거) · `.env.example`·compose·k8s ConfigMap | 운영에서 `text-embedding-qwen3-embedding-8b`(네이티브 4096)를 붙이자 **전 배치가 거절**됐다. 차원 고정을 푸는 것으로는 풀리지 않는다 — 실측(pgvector 0.8.6)으로 hnsw 상한이 `vector` 2000 · `halfvec` 4000 이라 **4096 은 어느 쪽으로도 인덱스가 안 된다**. MRL 모델이면 앞에서 자르고 재정규화하는 것이 그 모델의 공식 경로라 `NERV_EMBED_TRUNCATE` 를 옵트인으로 둔다(기본 꺼짐 — MRL 이 아니면 품질이 조용히 나빠진다). 거절 문구도 원인과 손잡이를 말한다 |
 | 웹의 스펙 본문은 읽기다 | `apps/web/src/routes/p.$proj/specs.$spec.tsx`(−450줄) · `features/spec-editor/editor.tsx`(렌더 전용) · `source-view.tsx`(탭 + 복사) · `routes/p.$proj/specs.index.tsx`([새 스펙] 제거) · `new-spec-dialog.tsx` 삭제 · `spec-read-only.spec.tsx`(신설 L1 8건) · `editor.spec.tsx`·`link-picker.spec.tsx`·`mermaid.spec.tsx`·`spec-rail.spec.tsx` 재작성 · i18n 6 · 매뉴얼 ko·en | **웹에서 본문 편집 기능을 제거한다 — 무조건 에이전트로**(사람 결정). 명세가 이미 그쪽으로 기울어 있었다: §3.1 이 "소스를 직접 고치는 경로는 MVP 에 없다 — 터미널 경로가 그 역할이다" 라고 적었고, 왕복 손실 실측(22편 중 19편만 안정)의 우회로도 "차단된 문서를 터미널로 편집한다" 였다. 본문은 뷰어·소스 2탭이 되고, 저장 단추가 있던 자리는 **누가 쓰는지와 갈 곳**을 말한다. 곁들여 Milkdown 재검토 트리거가 조건 소멸로 종료됐다([4.1](scope.md) v0.30) |
+| 겹쳐 그려지던 영역 상자 | `apps/web/src/features/spec-graph/layout.ts`(신설) · `layout.spec.ts`(신설 L1 15건) · `graph.tsx`(배치 진입점 일원화) | 부모·자식이 아닌데 **영역 상자가 겹쳐 보이고**, 멀리 떨어진 스펙이 화면을 비워 두고 있었다(사람 보고). fcose 는 compound 를 알지만 **형제 상자가 겹치지 않는다고 보장하지 않는다** — 밀고 당기는 것은 노드끼리이고 상자는 그 자국일 뿐인데, 영역을 건너는 간선이 1,230 중 801 이라 힘이 자식을 남의 영역까지 끌고 간다. 배치 뒤 한 벌 더 돌아 형제를 짧은 쪽으로 밀어내고·줄였다 밀기로 다지고·남은 구멍으로 먼 것을 당긴다. 실브라우저 14회 평균: 겹친 형제 33.8쌍 → 0(영역끼리 20.1 → 0) · 맞춤 배율 0.472 → 0.529 · 노드가 덮는 면적 0.042 → 0.074 · 배치 115ms → 224ms |
 
 #### 이 절은 언제 갱신되는가
 
