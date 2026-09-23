@@ -23,14 +23,19 @@ In the link picker, `↓` moves down into the results and `Enter` takes the firs
 
 ## Inbox
 
-| Key       | Action             |
-| --------- | ------------------ |
-| `j` · `k` | Move between cards |
-| `a`       | Approve            |
-| `r`       | Reject             |
-| `c`       | Write a comment    |
+| Key       | Action                    |
+| --------- | ------------------------- |
+| `j` · `k` | Move between cards        |
+| `a`       | Approve                   |
+| `r`       | Reject                    |
+| `c`       | Write a comment           |
+| `x`       | Add to the selection      |
+| `⇧X`      | Select everything visible |
+| `⇧A`      | Approve the selection     |
+| `⇧R`      | Reject the selection      |
+| `Esc`     | Clear the selection       |
 
-They do nothing while the cursor is in a text field.
+They do nothing while the cursor is in a text field. The bulk keys are **uppercase** so they cannot collide with the single-card ones — the difference between one card and twenty should cost at least a `Shift`. While the confirmation list is open, `a`, `r` and `c` are inert.
 
 **On a question card, `a` and `r` are inert.** A question is answered, not approved or rejected, so only `c` opens.
 

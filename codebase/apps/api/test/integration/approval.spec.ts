@@ -1919,3 +1919,240 @@ describe('알림의 등급과 수신자 (REQ-API-149·150)', () => {
     expect(rows.map((r) => r.user_id)).toEqual([qa]);
   });
 });
+
+/**
+ * EP-APR-06 일괄 결정 — 저위험 경계 · 부분 실패 · 감사 (REQ-API-162~164 · 2026-09-22 사람 결정)
+ *
+ * **일괄 승인은 본문을 열지 않고 누르는 조작이다.** 그래서 이 블록이 지키는 것은 "되는가"
+ * 가 아니라 그 조작에 달아 둔 브레이크다 — 무엇이 빠지는가(T3·면제) · 누구는 예외인가
+ * (admin) · 한 건의 실패가 나머지를 되돌리지 않는가 · 감사가 일괄을 셀 수 있는가.
+ */
+describe('일괄 결정 (EP-APR-06 · REQ-API-162~164)', () => {
+  /** 승인 대기 상태의 스펙 버전 하나 — 제출이 놓는 것과 같은 순서로 흉내 낸다 */
+  async function pending(key: string, slots = 1): Promise<{ versionId: string; ids: string[] }> {
+    const created = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key,
+      title: key,
+      type: 'feature',
+      bodyMd: `# ${key}\n\n본문`,
+      userId: planner,
+    });
+    const versionId = created['spec_version_id'] as string;
+    await pool.query(
+      `UPDATE spec_version SET status = 'in_review', submitted_at = now(),
+              edit_lease_user_id = NULL, edit_lease_session_id = NULL, edit_lease_expires_at = NULL
+        WHERE id = $1`,
+      [versionId],
+    );
+    // 슬롯이 곧 정족수다(`ensurePendingApproval` 과 같은 모양) — T3 는 둘이다
+    const ids: string[] = [];
+    for (let i = 0; i < slots; i += 1) {
+      const id = newId();
+      await pool.query(
+        `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+         VALUES ($1,$2,'spec_version',$3,$4)`,
+        [id, projectId, versionId, planner],
+      );
+      ids.push(id);
+    }
+    return { versionId, ids };
+  }
+
+  /** 대기 중인 게이트 면제 요청 — 실데이터에 있는 모양 그대로(제목 재료가 없는 카드다) */
+  async function pendingBypassRequest(): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+       VALUES ($1,$2,'gate_bypass',$3,$4)`,
+      [id, projectId, newId(), planner],
+    );
+    return id;
+  }
+
+  async function statusOf(versionId: string): Promise<string> {
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    return rows[0]!.status;
+  }
+
+  /** admin 한 명을 잠깐 들인다 — 시드에 없고, 남기면 다른 검사의 승인자 수가 바뀐다 */
+  async function withAdmin(fn: (adminId: string) => Promise<void>): Promise<void> {
+    const adminId = newId();
+    const { rows } = await pool.query<{ org_id: string }>(
+      `SELECT org_id FROM project WHERE id = $1`,
+      [projectId],
+    );
+    const orgId = rows[0]!.org_id;
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'관리자','active')`,
+      [adminId, `admin-${adminId}@example.com`],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'admin')`,
+      [newId(), orgId, projectId, adminId],
+    );
+    try {
+      await fn(adminId);
+    } finally {
+      // **소속만 거둔다.** 승인자 수를 세는 것은 `membership` 이라 이걸로 원상태가 된다.
+      // 사용자 행은 남긴다 — 방금 내린 결재가 `assignee_user_id` 로 그를 가리키고 있어
+      // (그게 결재가 남긴 기록이다) 지우면 FK 가 막는다.
+      await pool.query(`DELETE FROM membership WHERE user_id = $1`, [adminId]);
+    }
+  }
+
+  it('저위험만 지나간다 — T3(정족수 2)는 일괄에서 빠지고 나머지는 승인된다', async () => {
+    const low = await pending('SPC-BULK-LOW');
+    const high = await pending('SPC-BULK-T3', 2);
+
+    const out = await approvals.decideBulk({
+      actor: person(reviewer),
+      userId: reviewer,
+      decision: 'approve',
+      items: [{ id: low.ids[0]! }, { id: high.ids[0]! }],
+    });
+
+    expect(out.decided).toBe(1);
+    expect(out.failed).toBe(1);
+    expect(out.results.find((r) => r.id === high.ids[0])?.kind).toBe('bulk_quorum');
+    expect(await statusOf(low.versionId)).toBe('approved');
+    // **막힌 카드는 그대로 대기다** — 일괄이 건드리지 못했다고 사라지면 안 된다
+    expect(await statusOf(high.versionId)).toBe('in_review');
+  });
+
+  it('게이트 면제 요청은 일괄 승인에서 빠진다 — 면제가 조용히 일어나지 않는 것이 기능이다', async () => {
+    const bypassId = await pendingBypassRequest();
+
+    const out = await approvals.decideBulk({
+      actor: person(reviewer),
+      userId: reviewer,
+      decision: 'approve',
+      items: [{ id: bypassId }],
+    });
+
+    expect(out.decided).toBe(0);
+    expect(out.results[0]?.kind).toBe('bulk_gate_bypass');
+    const { rows } = await pool.query<{ decision: string | null }>(
+      `SELECT decision::text AS decision FROM approval WHERE id = $1`,
+      [bypassId],
+    );
+    expect(rows[0]!.decision).toBeNull();
+  });
+
+  it('admin 은 둘 다 면제다 — 2026-09-22 사람 결정', async () => {
+    const high = await pending('SPC-BULK-ADMIN-T3', 2);
+    const bypassId = await pendingBypassRequest();
+
+    await withAdmin(async (adminId) => {
+      const out = await approvals.decideBulk({
+        actor: person(adminId),
+        userId: adminId,
+        decision: 'approve',
+        items: [{ id: high.ids[0]! }, { id: bypassId }],
+      });
+      expect(out.failed).toBe(0);
+      expect(out.decided).toBe(2);
+    });
+  });
+
+  it('한 건의 stale 이 나머지를 되돌리지 않는다 — 건마다 제 트랜잭션이다', async () => {
+    const a = await pending('SPC-BULK-FRESH');
+    const b = await pending('SPC-BULK-STALE');
+
+    const out = await approvals.decideBulk({
+      actor: person(reviewer),
+      userId: reviewer,
+      decision: 'approve',
+      items: [
+        { id: a.ids[0]!, seenContentHash: await hashOfVersion(a.versionId) },
+        // 카드를 연 뒤 본문이 바뀐 것과 같다 — 이 검사가 일괄의 **구멍을 막는 자리**다
+        { id: b.ids[0]!, seenContentHash: 'deadbeef' },
+      ],
+    });
+
+    expect(out.decided).toBe(1);
+    expect(out.results.find((r) => r.id === b.ids[0])?.kind).toBe('stale_approval');
+    expect(await statusOf(a.versionId)).toBe('approved');
+    expect(await statusOf(b.versionId)).toBe('in_review');
+  });
+
+  it('거절은 고른 것 전부다 — 서버가 막는 것은 승인뿐이다(EP-APR-03)', async () => {
+    const high = await pending('SPC-BULK-REJ-T3', 2);
+
+    const out = await approvals.decideBulk({
+      actor: person(reviewer),
+      userId: reviewer,
+      decision: 'reject',
+      comment: '범위가 넓습니다',
+      items: [{ id: high.ids[0]! }],
+    });
+
+    expect(out.decided).toBe(1);
+    // 거절은 문서를 되돌린다 — 갇히지 않는다(REQ-API-063)
+    expect(await statusOf(high.versionId)).toBe('draft');
+  });
+
+  it('감사가 일괄을 셀 수 있다 — 건별 이벤트에 `bulk`·`batch_id` 가 남는다', async () => {
+    const a = await pending('SPC-BULK-AUDIT-1');
+    const b = await pending('SPC-BULK-AUDIT-2');
+
+    const out = await approvals.decideBulk({
+      actor: person(reviewer),
+      userId: reviewer,
+      decision: 'approve',
+      items: [{ id: a.ids[0]! }, { id: b.ids[0]! }],
+    });
+
+    const { rows } = await pool.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM event WHERE type = $1 ORDER BY occurred_at`,
+      [NERV_EVENT.APPROVAL_DECIDED],
+    );
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.payload['bulk']).toBe(true);
+      expect(row.payload['batch_id']).toBe(out.batch_id);
+    }
+  });
+
+  it('없는 id 하나가 배치를 죽이지 않는다 — uuid 가 아니어도 그 한 건만 실패다', async () => {
+    const a = await pending('SPC-BULK-BADID');
+
+    const out = await approvals.decideBulk({
+      actor: person(reviewer),
+      userId: reviewer,
+      decision: 'approve',
+      items: [{ id: 'not-a-uuid' }, { id: a.ids[0]! }],
+    });
+
+    expect(out.results[0]?.kind).toBe('not_found');
+    expect(out.decided).toBe(1);
+  });
+
+  it('에이전트는 일괄도 부를 수 없다 — 결정은 사람 전용이다(REQ-API-123)', async () => {
+    const a = await pending('SPC-BULK-AGENT');
+    await expect(
+      approvals.decideBulk({
+        actor: agent(reviewer),
+        userId: reviewer,
+        decision: 'approve',
+        items: [{ id: a.ids[0]! }],
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.HUMAN_ONLY });
+  });
+
+  it('일괄이 받는 결정은 승인·거절 둘뿐이다 — `comment` 는 어휘 밖이다', async () => {
+    const a = await pending('SPC-BULK-CMT');
+    await expect(
+      approvals.decideBulk({
+        actor: person(reviewer),
+        userId: reviewer,
+        decision: 'comment',
+        items: [{ id: a.ids[0]! }],
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION });
+  });
+});

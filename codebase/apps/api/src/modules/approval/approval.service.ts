@@ -20,11 +20,14 @@ import {
   questionStatus,
   scopesForRoles,
 } from '@nerv/schema';
+import type { Message, NervErrorCode } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import {
   DECIDER_ROLES,
+  bulkBlockReasonSql,
   canApproveReasonSql,
+  canBulkApproveSql,
   quorumSql,
   canApproveSql,
   eligibleSql,
@@ -42,6 +45,29 @@ import { SpecService } from '../spec/spec.service.js';
 import { AuthService } from '../auth/auth.service.js';
 
 export type ApprovalDecision = 'approve' | 'reject' | 'comment';
+
+/**
+ * 일괄이 받는 결정 — 어휘에서 `comment` 만 뺀다(EP-APR-06).
+ *
+ * 목록을 손으로 적지 않고 enum 에서 깎아 내는 이유는 D-05 와 같다: 결정 어휘가 늘면
+ * 여기도 함께 늘어야 하고, 손으로 적은 목록은 그때 조용히 옛 어휘로 남는다.
+ */
+const BULK_DECISIONS = approvalDecision.enumValues.filter((d) => d !== 'comment');
+
+/** 일괄 결정의 항목별 결과 — **200 이 전부 성공을 뜻하지 않는다**(REQ-API-164) */
+export interface BulkDecisionResult {
+  id: string;
+  ok: boolean;
+  code?: NervErrorCode;
+  /** `already_decided`·`stale_approval`·`bulk_quorum` 등 — 화면이 이 값으로 문장을 고른다 */
+  kind?: string | null;
+  /**
+   * 사람에게 보일 문장의 **재료**다. 렌더는 로케일을 아는 표면이 한다 — 도메인 서비스는
+   * 요청 로케일을 모르고, 알아야 한다면 판정과 표현이 한 자리에 섞인다(D-05).
+   */
+  descriptor?: Message;
+  quorum?: { given: number; required: number; satisfied: boolean };
+}
 
 export interface InboxCard extends Record<string, unknown> {
   id: string;
@@ -256,6 +282,11 @@ export class ApprovalService {
              a.assignee_role::text AS assignee_role,
              ${canApproveSql(input.userId)},
              ${canApproveReasonSql(input.userId)},
+             -- 일괄 판정도 **서버가 한다**(REQ-API-163). 화면이 "정족수 1 이고 면제가
+             -- 아니면 저위험" 을 다시 구현하면 두 벌이 되고, admin 완화가 낀 규칙은 두 벌이
+             -- 되는 순간 한쪽만 고쳐진다 — can_approve 가 서버 판정인 이유와 같은 자리다.
+             ${canBulkApproveSql(input.userId)},
+             ${bulkBlockReasonSql(input.userId)},
              ${quorumColumnsSql()},
              s.key AS spec_key, s.title AS spec_title, sv.version_no,
              encode(sv.content_hash, 'hex') AS content_hash,
@@ -437,6 +468,12 @@ export class ApprovalService {
     comment?: string;
     /** 카드를 연 시점의 내용 지문. 없으면 검사하지 않는다(코멘트 결정 등) */
     seenContentHash?: string | null;
+    /**
+     * 일괄의 한 건인가(EP-APR-06). **감사가 셀 수 있어야 하는 사실**이라 결정 이벤트에 싣는다 —
+     * 일괄 승인은 본문을 열지 않고 누르는 조작이고, 그것이 얼마나 일어나는지 셀 수 없으면
+     * 반사적 승인(OWASP ASI09 가 지목한 consent fatigue)은 감사에서 단건과 구별되지 않는다.
+     */
+    batchId?: string;
   }): Promise<{
     decision: ApprovalDecision;
     subject_type: string;
@@ -614,6 +651,7 @@ export class ApprovalService {
           subject_type: approval.subject_type,
           subject_id: approval.subject_id,
           ...(selfApprove ? { self_approved: true, self_kind: selfKind } : {}),
+          ...(input.batchId === undefined ? {} : { bulk: true, batch_id: input.batchId }),
         },
       });
 
@@ -624,6 +662,153 @@ export class ApprovalService {
         ...(quorum === null ? {} : { quorum }),
       };
     });
+  }
+
+  /**
+   * EP-APR-06 — **일괄 결정**(2026-09-22 · REQ-API-162~164 · 사람 결정).
+   *
+   * **판정을 두 벌로 만들지 않는다**(D-05). 이 메서드가 하는 일은 자격을 한 번 묻고
+   * `decide()` 를 건마다 그대로 부르는 것뿐이다 — 지시자≠승인자·정족수·역할 큐·stale
+   * 차단은 전부 그 안에 있고, 여기서 다시 판정하면 언젠가 한쪽만 고쳐진다.
+   *
+   * 규율 넷:
+   *   ① **건마다 제 트랜잭션.** 한 건의 실패가 나머지를 되돌리면 안 된다. 그래서 일괄의
+   *      응답은 "성공/실패" 가 아니라 **항목별 결과**이고, 200 이 전부 성공을 뜻하지 않는다.
+   *   ② **순차로 돈다.** 같은 대상의 슬롯이 섞여 들어오면 병렬은 `FOR UPDATE` 로 서로를
+   *      기다린다. 상한(`BULK_DECISION_LIMIT`)이 그 시간을 잡는다.
+   *   ③ **`seen_content_hash` 는 건마다 간다.** 일괄이 이 검사를 건너뛰면 일괄 승인은
+   *      stale 승인 차단(OWASP ASI09 방어)의 구멍이 된다.
+   *   ④ **승인·거절만이다.** 화면이 내는 조작이 그 둘이고, 일괄 `comment` 는 아무도
+   *      요청하지 않은 셋째 경로다(그것도 카드를 대기에서 치운다).
+   */
+  async decideBulk(input: {
+    actor: Actor;
+    userId: string;
+    decision: ApprovalDecision;
+    comment?: string;
+    items: { id: string; seenContentHash?: string | null }[];
+  }): Promise<{
+    ok: true;
+    batch_id: string;
+    decided: number;
+    failed: number;
+    results: BulkDecisionResult[];
+  }> {
+    // 어휘의 정본은 `approval_decision` 이고, 일괄은 **그중 둘**이다(위 규율 ④).
+    const decision = assertVocab([input.decision], BULK_DECISIONS, 'decision')[0] as
+      'approve' | 'reject';
+    assertHuman(input.actor, 'inbox_decide', '/inbox');
+
+    // **못 생긴 id 하나가 배치를 죽이지 않게.** uuid 가 아닌 값을 그대로 넘기면 Postgres 가
+    // 22P02 로 질의 전체를 거절한다 — 그 한 건만 `not_found` 로 떨어뜨리고 나머지는 돈다.
+    const isUuid = (v: string): boolean =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    const ids = [...new Set(input.items.map((item) => item.id))].filter(isUuid);
+
+    // 자격은 **목록과 같은 식**으로 한 번에 묻는다(`canBulkApproveSql`). 멤버십 조건도
+    // `detail()` 과 같다 — 못 보는 프로젝트의 결재는 여기서도 없는 것이다.
+    const eligible = new Map<string, { projectId: string; canBulk: boolean; reason: string }>();
+    if (ids.length > 0) {
+      const { rows } = await this.db.execute<{
+        id: string;
+        project_id: string;
+        can_bulk_approve: boolean;
+        bulk_block_reason: string | null;
+      }>(sql`
+        SELECT a.id, a.project_id,
+               ${canBulkApproveSql(input.userId)},
+               ${bulkBlockReasonSql(input.userId)}
+          FROM approval a
+     LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+     LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
+         WHERE a.id IN (${sql.join(
+           ids.map((id) => sql`${id}::uuid`),
+           sql`, `,
+         )})
+           AND EXISTS (
+             SELECT 1 FROM membership m
+              JOIN project p ON p.id = a.project_id
+              WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
+                AND (m.project_id IS NULL OR m.project_id = p.id)
+           )
+      `);
+      for (const row of rows)
+        eligible.set(row.id, {
+          projectId: row.project_id,
+          canBulk: row.can_bulk_approve,
+          reason: row.bulk_block_reason ?? 'bulk_not_eligible',
+        });
+    }
+
+    const batchId = newId();
+    const results: BulkDecisionResult[] = [];
+    for (const item of input.items) {
+      const row = eligible.get(item.id);
+      if (row === undefined) {
+        results.push({
+          id: item.id,
+          ok: false,
+          code: NERV_ERROR.PRECONDITION,
+          kind: 'not_found',
+          descriptor: msg('error.approval.not_found'),
+        });
+        continue;
+      }
+      // **거절은 일괄 자격을 묻지 않는다.** 서버가 막는 것은 승인뿐이고(EP-APR-03),
+      // 저위험 조건은 "본문을 안 읽고 통과시키는" 승인에만 뜻이 있다. 거절은 문서를
+      // 되돌리는 쪽이라 같은 위험을 만들지 않는다.
+      if (decision === 'approve' && !row.canBulk) {
+        results.push({
+          id: item.id,
+          ok: false,
+          code: NERV_ERROR.FORBIDDEN,
+          kind: row.reason,
+          descriptor: msg('error.approval.bulk_not_eligible'),
+        });
+        continue;
+      }
+      try {
+        const decided = await this.decide({
+          actor: input.actor,
+          projectId: row.projectId,
+          approvalId: item.id,
+          userId: input.userId,
+          decision,
+          batchId,
+          ...(input.comment === undefined ? {} : { comment: input.comment }),
+          ...(item.seenContentHash == null ? {} : { seenContentHash: item.seenContentHash }),
+        });
+        results.push({
+          id: item.id,
+          ok: true,
+          ...(decided.quorum === undefined ? {} : { quorum: decided.quorum }),
+        });
+      } catch (error) {
+        if (!(error instanceof NervError)) throw error;
+        results.push({
+          id: item.id,
+          ok: false,
+          code: error.code,
+          kind: typeof error.details['kind'] === 'string' ? error.details['kind'] : null,
+          descriptor: error.descriptor,
+        });
+      }
+    }
+
+    const decided = results.filter((r) => r.ok).length;
+    // **일괄이 일어났다는 사실 자체를 남긴다.** 건별 이벤트에도 `batch_id` 가 붙지만,
+    // 전부 실패한 배치는 건별 이벤트가 하나도 없어 감사에서 사라진다 — 반사적 승인을
+    // 세려면 "몇 건을 한 번에 눌렀나" 가 성공 여부와 별개로 남아야 한다.
+    this.logger.log(
+      `일괄 결정 ${batchId} — ${decision} ${decided}/${results.length} (user ${input.userId})`,
+    );
+    return {
+      ok: true,
+      batch_id: batchId,
+      decided,
+      failed: results.length - decided,
+      results,
+    };
   }
 
   /**

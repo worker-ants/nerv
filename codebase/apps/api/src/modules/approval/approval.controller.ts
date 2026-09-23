@@ -6,11 +6,14 @@
 
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import {
+  ApprovalBulkDecisionInput,
   ApprovalDecisionInput,
   GateBypassInput,
   msg,
+  negotiateLocale,
   NERV_ERROR,
   QuestionAnswerInput,
+  renderMessage,
 } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { parseBody } from '../../common/parse-body.js';
@@ -182,6 +185,42 @@ export class ApprovalInboxController {
   detail(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
     const actor = globalActor(req);
     return this.approvals.detail({ approvalId: id, userId: actor.userId, actor });
+  }
+
+  /**
+   * EP-APR-06 — **일괄 결정**(2026-09-22 · REQ-API-162~164).
+   *
+   * `:id/decision` 보다 **위에 선언한다** — 세그먼트 수가 달라 실제로 겹치지는 않지만,
+   * 읽는 사람에게 "전역 컬렉션에 대한 동작" 이 개별 항목보다 먼저 오는 편이 낫다.
+   *
+   * 이 자리가 하는 일은 번역뿐이다(D-05): 본문을 검증하고, 서비스가 돌려준 항목별
+   * **문구 재료를 요청 로케일로 렌더**한다. 도메인은 로케일을 모른다.
+   */
+  @Post('decisions')
+  async decideBulk(
+    @Req() req: ProjectRequest,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const actor = globalActor(req);
+    const input = parseBody(ApprovalBulkDecisionInput, body);
+    const locale = negotiateLocale(req.headers?.['accept-language'] ?? null);
+    const outcome = await this.approvals.decideBulk({
+      actor,
+      userId: actor.userId,
+      decision: input.decision as ApprovalDecision,
+      items: input.items.map((item) => ({
+        id: item.id,
+        ...(item.seen_content_hash == null ? {} : { seenContentHash: item.seen_content_hash }),
+      })),
+      ...(input.comment == null ? {} : { comment: input.comment }),
+    });
+    return {
+      ...outcome,
+      results: outcome.results.map(({ descriptor, ...rest }) => ({
+        ...rest,
+        ...(descriptor === undefined ? {} : { message: renderMessage(descriptor, locale) }),
+      })),
+    };
   }
 
   /** EP-APR-03 — 결정. **사람 전용**이고, 지시자≠승인자 판정은 서비스 안에 있다 */

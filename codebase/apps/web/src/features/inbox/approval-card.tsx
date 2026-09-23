@@ -92,14 +92,42 @@ function subjectLinkOf(
   return null;
 }
 
+/** 일괄 결정에서 이 카드가 못 지나간 이유(REQ-WEB-183) — 서버가 준 것을 그대로 싣는다 */
+export interface CardFailure {
+  kind: string | null;
+  message: string;
+}
+
 export interface ApprovalCardProps {
   card: Record<string, unknown>;
   compact?: boolean;
   /** 받은 요청이 포커스한 카드 — j/k 로 옮겨온 카드에 a/r/c 가 꽂힌다(REQ-WEB-025) */
   active?: boolean;
+  /**
+   * 단축키만 끈다 — 일괄 확인 패널이 열려 있는 동안이다(REQ-WEB-182).
+   *
+   * `active` 를 내리는 것으로 대신하지 않는 이유: 그러면 포커스 표시까지 함께 사라져,
+   * 확인을 취소한 사람이 자기가 어디 있었는지 잃는다.
+   */
+  keysOff?: boolean;
+  /** 일괄 선택 대상인가 — 대기 탭의 승인 카드에만 선다(질문·처리됨에는 없다) */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggle?: (id: string) => void;
+  /** 방금 일괄에서 실패한 카드 — 왜 안 됐는지 카드가 말한다 */
+  failure?: CardFailure;
 }
 
-export function ApprovalCard({ card, compact, active }: ApprovalCardProps): React.JSX.Element {
+export function ApprovalCard({
+  card,
+  compact,
+  active,
+  keysOff,
+  selectable,
+  selected,
+  onToggle,
+  failure,
+}: ApprovalCardProps): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
@@ -247,7 +275,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
   });
 
   useEffect(() => {
-    if (active !== true) return;
+    if (active !== true || keysOff === true) return;
     const onKey = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement | null;
       if (target !== null && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
@@ -265,7 +293,7 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, card, decide, isQuestion, decided]);
+  }, [active, keysOff, card, decide, isQuestion, decided]);
 
   return (
     <article
@@ -279,6 +307,18 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
       )}
     >
       <header className="flex flex-wrap items-center gap-2 text-sm">
+        {/* **선택은 결정이 아니다.** 체크박스는 일괄에 넣는 표시일 뿐이라 여기서 아무것도
+            움직이지 않는다 — 움직이는 것은 아래 확인 패널을 지난 뒤다(REQ-WEB-181) */}
+        {selectable === true && (
+          <input
+            type="checkbox"
+            data-testid="bulk-select"
+            aria-label={t('inbox.bulk.select_card')}
+            checked={selected === true}
+            onChange={() => onToggle?.(id)}
+            className="size-3.5 shrink-0 accent-status-action"
+          />
+        )}
         <StatusBadge
           token={isQuestion ? 'waiting' : 'action'}
           label={isQuestion ? t('inbox.card.question') : t('inbox.key.approve')}
@@ -494,6 +534,19 @@ export function ApprovalCard({ card, compact, active }: ApprovalCardProps): Reac
             </p>
           )}
         </>
+      )}
+
+      {/* **일괄에서 빠진 카드는 그 사실을 말한다**(REQ-WEB-183). 20건을 눌렀는데 18건만
+          사라지고 둘이 조용히 남으면, 사람은 그 둘을 처리했다고 믿거나 화면이 고장 났다고
+          읽는다 — 어느 쪽이든 목록을 못 믿게 되는 자리다. */}
+      {failure !== undefined && (
+        <p
+          role="status"
+          data-testid="bulk-failure"
+          className="mt-2 rounded-nerv-sm bg-status-danger-soft px-2 py-1 text-xs text-status-danger"
+        >
+          {t('inbox.bulk.item_failed', { reason: failure.message })}
+        </p>
       )}
 
       {/* **판정은 서버가 한다**(`can_approve`) — 완화가 둘로 늘면서(소규모·admin) 화면이

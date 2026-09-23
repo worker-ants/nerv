@@ -132,7 +132,7 @@ export function otherApproverCountSql(userId: string): SQL {
  * 화면은 이 불리언을 그대로 읽는다(REQ-WEB-118). 화면이 규칙을 다시 구현하면 두 벌이
  * 되고, 두 벌이 되면 잠긴 단추와 서버의 답이 갈라진다.
  */
-export function canApproveSql(userId: string): SQL {
+export function canApproveExpr(userId: string): SQL {
   return sql`(
     ${eligibleSql(userId)}
     AND ${notAlreadyApprovedSql(userId)}
@@ -141,7 +141,11 @@ export function canApproveSql(userId: string): SQL {
       OR ${isAdminSql(userId)}
       OR ${otherApproverCountSql(userId)} = 0
     )
-  ) AS can_approve`;
+  )`;
+}
+
+export function canApproveSql(userId: string): SQL {
+  return sql`${canApproveExpr(userId)} AS can_approve`;
 }
 
 /**
@@ -150,7 +154,7 @@ export function canApproveSql(userId: string): SQL {
  * 순서가 뜻을 만든다: 자격이 없으면 그것이 먼저이고(역할·지정), 자격이 있는데 막히는
  * 이유는 세 축과 "이미 승인함" 이다.
  */
-export function canApproveReasonSql(userId: string): SQL {
+export function canApproveReasonExpr(userId: string): SQL {
   return sql`(CASE
     WHEN ${isAdminSql(userId)} AND NOT ${notAlreadyApprovedSql(userId)} THEN 'already_approved'
     WHEN ${isAdminSql(userId)} THEN NULL
@@ -164,7 +168,72 @@ export function canApproveReasonSql(userId: string): SQL {
     WHEN sv.author_user_id = ${userId} THEN 'author'
     WHEN owner.user_id = ${userId} THEN 'session_owner'
     ELSE NULL
-  END) AS can_approve_reason`;
+  END)`;
+}
+
+export function canApproveReasonSql(userId: string): SQL {
+  return sql`${canApproveReasonExpr(userId)} AS can_approve_reason`;
+}
+
+/**
+ * 이번 라운드에 세워진 **슬롯 수** — 정족수의 분모다.
+ *
+ * `quorumColumnsSql` 과 일괄 판정이 같은 값을 봐야 해서 조각으로 뽑았다. 두 벌이면
+ * 목록이 "두 사람 필요" 라고 말하는 카드를 일괄이 저위험으로 읽는 날이 온다.
+ */
+export function approvalsRequiredExpr(): SQL {
+  return sql`COALESCE((SELECT count(*)::int FROM approval q
+             WHERE q.subject_type = a.subject_type AND q.subject_id = a.subject_id
+               AND NOT q.is_bypass
+               AND (sv.submitted_at IS NULL OR q.requested_at >= sv.submitted_at
+                    OR q.decided_at >= sv.submitted_at)), 1)`;
+}
+
+/**
+ * **이 카드를 일괄로 승인할 수 있는가**(2026-09-22 · REQ-API-163 · 사람 결정).
+ *
+ * 단건 승인 가능(`canApproveExpr`) 위에 저위험 조건을 얹는다. 저위험의 축은
+ * [D-06](../../../../../docs/01-problem/pain-points.md)의 게이트 티어인데 `gate_tier` 는
+ * 결재 행에 없고 이벤트 payload 에만 있다 — 남은 대리 지표가 **슬롯 수**다. T3 는 슬롯이
+ * 둘이라 여기서 갈린다.
+ *
+ * 빼는 것 둘:
+ *   - **정족수 2 이상(T3)** — 직군 교차 2인이 D-06 이 고위험이라 말하는 표시다.
+ *   - **`gate_bypass`** — *면제가 조용히 일어나지 않는 것 자체가 기능이다*(ui-wireframes §2.6).
+ *
+ * **admin 은 둘 다 면제된다**(2026-09-22 사람 결정). 저장소의 다른 완화와 같은 자리이고
+ * (`assertMayDecide` 도 admin 은 지정·역할 큐를 지난다), 그 대신 일괄로 지나간 결정은
+ * `bulk:true`·`batch_id` 로 감사에 남는다 — 예외를 허용하는 것과 감추는 것은 다른 일이다.
+ *
+ * 질문 카드는 애초에 `approval` 행이 아니라 이 식에 오지 않는다(답은 건마다 다르다).
+ */
+export function canBulkApproveExpr(userId: string): SQL {
+  return sql`(
+    ${canApproveExpr(userId)}
+    AND (
+      ${isAdminSql(userId)}
+      OR (a.subject_type <> 'gate_bypass' AND ${approvalsRequiredExpr()} <= 1)
+    )
+  )`;
+}
+
+export function canBulkApproveSql(userId: string): SQL {
+  return sql`${canBulkApproveExpr(userId)} AS can_bulk_approve`;
+}
+
+/**
+ * **왜 일괄에서 빠지는가** — 체크박스가 꺼져 있는 이유도 이유가 있어야 한다(§1.5).
+ *
+ * 단건이 막히는 이유가 먼저다(그게 더 근본적인 차단이다). 그 다음이 일괄 전용의 둘이다.
+ */
+export function bulkBlockReasonSql(userId: string): SQL {
+  return sql`(CASE
+    WHEN NOT ${canApproveExpr(userId)} THEN ${canApproveReasonExpr(userId)}
+    WHEN ${isAdminSql(userId)} THEN NULL
+    WHEN a.subject_type = 'gate_bypass' THEN 'bulk_gate_bypass'
+    WHEN ${approvalsRequiredExpr()} > 1 THEN 'bulk_quorum'
+    ELSE NULL
+  END) AS bulk_block_reason`;
 }
 
 /** 자기 승인의 종류 — 감사에 남는 값이다(어느 축으로 자기 것인가). */
@@ -213,11 +282,7 @@ export function quorumSql(subjectId: string, submittedAt: string | null): SQL {
  */
 export function quorumColumnsSql(): SQL {
   return sql`
-    COALESCE((SELECT count(*)::int FROM approval q
-               WHERE q.subject_type = a.subject_type AND q.subject_id = a.subject_id
-                 AND NOT q.is_bypass
-                 AND (sv.submitted_at IS NULL OR q.requested_at >= sv.submitted_at
-                      OR q.decided_at >= sv.submitted_at)), 1) AS approvals_required,
+    ${approvalsRequiredExpr()} AS approvals_required,
     COALESCE((SELECT count(DISTINCT q.assignee_user_id)::int FROM approval q
                WHERE q.subject_type = a.subject_type AND q.subject_id = a.subject_id
                  AND q.decision = 'approve' AND NOT q.is_bypass
