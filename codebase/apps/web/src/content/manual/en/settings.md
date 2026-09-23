@@ -23,13 +23,15 @@ Only an `admin` sends invitations — for every other role this section is not s
 
 Under **Invitations** on the Members tab, pick an email, a role and a membership scope, and you get an **invitation link**.
 
-- **The link is shown once, right there.** The server cannot produce it again — copy it and pass it on (there is no automatic email yet).
+- **The mail goes out on its own** — where this server has a mail sender configured, the invitation link is sent to that address and the screen says **"Mail sent"**. Where it does not, the screen says **"copy it and pass it on"** instead — covering both with one wording makes one of them a lie, and then someone waits for mail that is not coming.
+- **The link is shown once, right there.** Sent or not, the link sits on the same card, and the server cannot produce it again — on a deployment without mail, **[Copy link]** and pass it on yourself.
 - **Only the invited email can accept.** If the link reaches someone else, it does not let them in.
 - It **expires after 7 days**. Just make a new one.
 - It is the **same link** whether or not they already have an account. Without one they sign up and are returned to the invitation automatically.
+- **The list of sent invitations says when each one last went out** (**Unsent** if it never did). Not sent and sent-but-not-arrived are different problems, and an admin who cannot tell them apart makes the same invitation three times.
 - Sent it by mistake? **Revoke** it from the list. Revoking keeps the record — who invited whom is part of the audit trail.
 
-On the receiving side the invitation shows as a card on **Home, Getting started and Notifications**, and can be accepted right there.
+On the receiving side the invitation shows as a card on **Home, Getting started and Notifications**, and can be accepted right there. **Someone without an account has to sign up and confirm their email before they can accept** — on a deployment that can send mail; the steps are under "Creating an account" in [Getting started](/help/start).
 
 ## Members
 
