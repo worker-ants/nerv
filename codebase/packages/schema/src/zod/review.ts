@@ -95,6 +95,37 @@ export const ApprovalDecisionInput = z
   })
   .strict();
 
+/**
+ * EP-APR-06 — **일괄 결정**(REQ-API-162).
+ *
+ * 항목마다 `seen_content_hash` 를 따로 싣는 것이 이 스키마의 요점이다. 일괄이 그 검사를
+ * 건너뛰면 일괄 승인은 stale 승인 차단(§2.6 · OWASP ASI09 방어)의 **구멍**이 된다 —
+ * 본문이 바뀐 한 건만 막히고 나머지는 지나가야 한다.
+ *
+ * 상한 50 은 서버가 쥔다. 화면이 쥐면 그 상수는 화면의 것이 되고, 다른 표면이 생기는
+ * 순간 두 벌이 된다.
+ */
+export const BULK_DECISION_LIMIT = 50;
+
+export const ApprovalBulkDecisionInput = z
+  .object({
+    decision: z.string().default('comment'),
+    /** 거절 사유는 전 건에 같은 한 벌이 간다 — 사유가 건마다 다르면 그것은 일괄이 아니다 */
+    comment: z.string().nullish(),
+    items: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            seen_content_hash: z.string().nullish(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(BULK_DECISION_LIMIT),
+  })
+  .strict();
+
 /** EP-QST-02 — 답변. 선택지를 골랐으면 키, 자유 서술이면 본문 */
 export const QuestionAnswerInput = z
   .object({

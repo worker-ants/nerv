@@ -47,18 +47,42 @@ Both exceptions are written to the audit trail (including which of the three way
 
 **Reject and comment are open to the requester too.** Only approval is held back. And **leaving a comment returns the document to draft** — that is what makes it fixable and resubmittable.
 
+## Deciding several at once
+
+The checkbox on the left of a pending card lets you pick several and approve or reject them in one go. Question cards and decided cards have no checkbox — a question is answered rather than approved, and a decided card is a record.
+
+**What you picked and what gets approved can differ.** That is why the selection bar shows both, as in `3 selected · 2 can be approved`. Two kinds are left out of bulk approval:
+
+- **Documents that need two approvers (T3)** — the point of that gate is that two different people look; passing it in a list leaves only the name.
+- **Gate waiver requests** — a waiver not happening quietly is itself the feature.
+
+**Admins can decide both of those in bulk.** In exchange, decisions made in bulk are recorded as such (marked `bulk` with a batch id) in the audit trail — allowing an exception and hiding it are different things.
+
+**Rejection applies to everything you picked**, because only approval is held back. A bulk rejection still **requires a reason**, and that one reason is recorded on every item.
+
+Pressing the button does not send anything yet: it **lists what you are about to decide**. Since you are deciding without opening the bodies, that list is the scope of what you agreed to.
+
+**Anything that did not go through stays in the list.** That happens when the body changed after you opened the card, when someone already decided it, or when it is not yours to approve — those cards stay selected with the reason shown in place, and the toast says `Decided 7, 2 left`. One blocked item does not stop the rest.
+
+You can pick up to **50** at a time, and [Everything visible] picks only what is **on screen right now**.
+
 Decided cards move to the **Decided** tab. Nothing is deleted, so what was decided, when and how stays readable later. Cards in that tab carry no decision buttons or input boxes; in place of the waiting time they say **what was decided, and when**.
 
 ## Keyboard
 
-| Key       | Action                  |
-| --------- | ----------------------- |
-| `j` · `k` | Move between cards      |
-| `a`       | Approve                 |
-| `r`       | Reject                  |
-| `c`       | Jump to the comment box |
+| Key       | Action                         |
+| --------- | ------------------------------ |
+| `j` · `k` | Move between cards             |
+| `a`       | Approve                        |
+| `r`       | Reject                         |
+| `c`       | Jump to the comment box        |
+| `x`       | Add this card to the selection |
+| `⇧X`      | Select everything visible      |
+| `⇧A`      | Approve the selection          |
+| `⇧R`      | Reject the selection           |
+| `Esc`     | Clear the selection            |
 
-The shortcuts do nothing while the cursor is in a text field — typing `a` in a comment must never approve anything.
+The shortcuts do nothing while the cursor is in a text field — typing `a` in a comment must never approve anything. The bulk keys are **uppercase** for the same reason: the difference between one card and twenty should cost at least a `Shift`. While the confirmation list is open, `a`, `r` and `c` are inert.
 
 ## Notifications
 
