@@ -1,7 +1,7 @@
 ---
 id: SPC-MVP-CODEBASE
 status: approved
-updated: 2026-09-20
+updated: 2026-09-24
 referenced_by:
   - 04-mvp/scope.md
   - 04-mvp/database.md
@@ -18,7 +18,13 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.57 · 2026-09-22 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.60 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.60 변경(2026-09-24 — 번호가 같은데 약속이 달랐다, 전수 대조 → 사람 확정): **REQ-CB-051 신설 · 규약 1 의 검사가 세는 것 넷 → 다섯 · §1.1 트리와 §4.5 CI 주석 한 줄씩.** md 23편과 html 23편을 전수로 대조했고, **파생본의 수용 기준 둘이 개정 전 문장인 채로 있었다.** `REQ-CB-015` 는 배포 산출물을 아직 `codebase/` 에 두라 말했다(2026-08-22 개정 전 — 같은 파일의 §1.1 트리와 서문은 `deploy/` 라 적어 **문서가 자기와 모순했다**). `REQ-CB-021` 은 머리에 "(2026-09-22 개정 — 긴 벡터는 잘라 맞출 수 있다)" 라 써 놓고 본문은 개정 전 규칙("1024 가 아니면 거절")을 실어 `NERV_EMBED_TRUNCATE`·REQ-CB-047 이 빠져 있었다 — **"개정했다" 고 적힌 문서가 개정 전 규칙을 싣는 것이 가장 나쁜 모양이다**(§5.2a 운영 프로필 행도 같은 문장을 잃고 있었다). **둘 다 게이트가 초록인 채로 지났다**: 검사가 번호가 **있는지**만 셌기 때문이다. 이제 첫 칸이 고정 ID 인 표 행을 번호로 짝지어 문장을 견준다(REQ-CB-051). 닮은 정도 **0.7** 이 경계인 이유는 실측이다 — 어긋난 둘이 0.52·0.58 이고, 파생본이 근거 괄호를 줄여 실은 나머지는 전부 **0.75 이상**이었다: 줄이는 자유는 남기고 다른 말을 하는 것만 막는다. **고정 ID 가 없는 표 행은 여전히 사람이 지킨다** — 같은 대조가 [4.1](scope.md) FR-12 에서 찾은 자리가 그것이다(v0.33).
+>
+> v1.59 변경(2026-09-24 — 메일 접속 정보를 여섯 키로 나눈다, **사람 결정**): **REQ-CB-050 신설 · `NERV_SMTP_URL` 을 걷는다 · §5.2 전표 다섯 줄.** `NERV_SMTP_URL` 한 줄이 호스트·포트·TLS·사용자·비밀번호를 겸하고 있었고, `NERV_MAIL_HOST`·`_PORT`·`_SECURE`·`_USER`·`_PASS` 로 갈렸다. **v1.58 의 k8s 작업이 뒤집은 이유를 드러냈다**: 자격증명이 문자열 안에 섞여 있어 URL 은 통째로 Secret 으로 가야 하고, 그러면 호스트도 포트도 TLS 여부도 ConfigMap 에 적을 수 없다 — **운영자는 이 배치가 어디로 보내는지 설정을 읽어서는 알 수 없었다.** 나누면 Secret 으로 가는 것은 **인증 두 키(`NERV_MAIL_USER`·`_PASS`)뿐이고 주소 셋과 보내는 사람은 ConfigMap 에서 보인다.** 사용자 이름은 비밀이 아닌데도 비밀번호와 함께 두는데, 코드가 그 한 벌을 원자로 다루기 때문이다(한쪽만 있으면 기동 거부) — 갈라 두면 ConfigMap 과 Secret 이 서로 다른 배관으로 들어와 한쪽만 채워진 상태가 실제로 생긴다(`NERV_S3_ACCESS_KEY` 가 같은 자리다). 쪼개기를 미루던 때의 반대 이유("사람은 그중 하나, 대개 TLS 를 틀린다")는 그 자체로 맞아서, **`NERV_MAIL_SECURE` 는 비우면 포트에서 유도한다**(465 면 암묵 TLS, 그 밖은 STARTTLS) — `NERV_REQUIRE_EMAIL_VERIFICATION` 과 같은 관용구다. 같은 이유로 **포트를 읽을 수 없으면 기본값으로 떨어지지 않고 기동을 거부하고**(조용히 587 로 가면 오타가 영영 드러나지 않는다), **`_USER`·`_PASS` 는 둘 다이거나 둘 다 아니다**(한쪽만 있으면 nodemailer 가 인증 없이 붙고, 릴레이가 받아 주면 비밀번호가 읽히지 않는다는 사실이 드러나지 않는다). 스위치는 `NERV_MAIL_HOST` 다. 옛 이름은 **걷힌 이름 표로 옮겨 기동을 거부하며**(REQ-CB-050 · `NERV_PUBLIC_URL`·`NERV_HTTP_PORT` 와 같은 규약), 거부 문구가 그 URL 을 풀어 여섯 줄로 적어 준다 — **비밀번호만 빼고**(기동 로그를 읽는 사람이 곧 그 릴레이를 쓸 수 있는 사람이 된다). 곁들여 **워커도 `assertMailConfig()` 를 부른다** — 보내는 것은 워커인데 검사가 api 에만 있어 **절반만 거부하는 배포**였다(REQ-CB-042 가 `NERV_COOKIE_DOMAIN` 에서 피한 모양이다).
+>
+> v1.58 변경(2026-09-24 — 메일 설정이 compose 에만 있었다, 실측 → 사람 확정): **REQ-CB-049 신설 · §6.2 Secret 키 여섯 → 일곱.** v1.56~57 이 메일 키 다섯을 전표와 `.env.example` 과 compose 에 넣고 **k8s 를 두고 갔다** — `base/configmap.yaml` 에도 `overlays/*/secret.example.yaml` 에도 한 줄이 없었다. `envFrom` 이라 **파드는 정상으로 뜨고 꺼지는 것은 기능뿐이다**: 초대 메일이 나가지 않고 아웃박스에 **쌓이지도 않으며**(보낼 수 없는 줄이 자라면 메일을 켠 날 몇 달 치가 한꺼번에 나간다), 메일 설정에서 유도되는 **가입 이메일 인증 강제가 함께 내려앉아** 2026-09-22 사람 결정 "강제" 가 k8s 배치에서만 성립하지 않는다. **이 결함은 세 번째다** — 2026-09-13 `NERV_GITHUB_WEBHOOK_SECRET`(비면 모든 웹훅이 401), 2026-09-14 `NERV_EXPORT_DIR`(미러가 어떤 배포에서도 산출되지 않았다), 이번 메일 다섯. 셋 다 **compose 는 완비, k8s 는 전무**였고 셋 다 사람이 눈으로 찾았다. 그래서 **게이트 ⑫**(REQ-CB-049)가 이제 그것을 센다: 전표가 소비자를 api·worker 라 적은 키는 `base/configmap.yaml`·`overlays/*/secret.example.yaml`·이미지 `ENV` 셋 중 하나가 줘야 한다. 셋째가 있는 이유는 `NERV_PLUGIN_DIST` 다 — 전표 행 자신이 "이미지가 ENV 로 준다" 고 적고 `Dockerfile.server` 가 실제로 준다. **예외 목록을 박는 대신 주는 자리를 센다.**
 >
 > v1.57 변경(2026-09-22 — 가입 이메일 인증을 강제한다, **사람 결정**): **§5.2 전표 한 줄 — `NERV_REQUIRE_EMAIL_VERIFICATION`.** 기본값이 **다른 키에서 유도된다**는 점이 이 행의 전부다: **강제는 메일을 보낼 수 있을 때만 성립하므로** 비우면 `NERV_SMTP_URL` 유무를 따른다. 명시하면 그 값이 이기고, `true` 인데 SMTP 가 비면 **기동을 거부한다** — 아무도 가입하지 못하는 서버가 조용히 서는 것보다 뜨지 않는 편이 싸다(`NERV_COOKIE_DOMAIN`·`NERV_MAIL_FROM` 과 같은 규약).
 >
@@ -171,7 +177,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
       preflight.mjs             #   CI check 잡 열한 단계를 같은 순서로 (AGENTS.md 규약 7)
       check-plugin-version.mjs  #   배달되는 파일이 바뀌면 version 도 올랐는가 (REQ-PLG-017)
       check-backlog-status.mjs  #   4.8 §1.4 현황 표가 스토리와 맞는가 (REQ-CB-029)
-      check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1)
+      check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1 · REQ-CB-051)
                                 #   — **코드 블록 안쪽은 보지 않는다**: 문서가 실은 파일 사본은
                                 #     L1 이 바이트로 댄다(`packages/schema/src/seed.spec.ts` ·
                                 #     `plugin/plugin-package.spec.ts` · REQ-CB-048)
@@ -806,7 +812,7 @@ jobs:
           node codebase/scripts/check-k8s-render.mjs
       - name: 백로그 현황 정합   # 4.8 §1.4 의 표가 실제 스토리와 맞는가(REQ-CB-029)
         run: node scripts/check-backlog-status.mjs
-      - name: md ↔ html 정합     # 파일 짝 · 버전 · 절 번호 · 본문의 고정 ID(관리 규약 1)
+      - name: md ↔ html 정합     # 파일 짝 · 버전 · 절 번호 · 고정 ID · ID 행 본문(관리 규약 1 · REQ-CB-051)
         run: node scripts/check-md-html.mjs
       - name: .env 전표 정합     # 전표가 소비자를 적으면 계약이다 — 유령 설정을 잡는다(§5.2)
         run: node scripts/check-env-table.mjs
@@ -1020,11 +1026,14 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_REGION` | | `us-east-1` | api · worker | S3 호환 서명용. MinIO 는 아무 값이나 받지만 **실제 S3·R2·GCS 호환은 이 값으로 서명을 검증**하므로 틀리면 `SignatureDoesNotMatch` 다. 소비자를 `api` 만 적고 있었는데 `StorageService` 는 워커의 모듈 그래프(`WorkerModule` → `SpecModule`)에도 올라 **생성자에서 이 값을 읽는다**(2026-09-14 정정 — 게이트 ④ 는 `api` 만 적혀 있어도 통과하므로 이 종류의 어긋남은 아무도 세지 않는다) |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
 | `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다. k8s 는 `nerv-mirror` PVC 를 `/mirror` 에 붙이고 ConfigMap 이 그 경로를 준다(§6.2) — 2026-09-14 까지 이 값이 **어느 배치에도 없어** 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다 |
-| `NERV_SMTP_URL` | | — | worker | **메일 발신의 스위치다**(2026-09-22 · 사람 결정). `smtps://user:pass@smtp.example.com:465`. 비면 보내지 않고 **아웃박스에 쌓지도 않는다** — 보낼 수 없는 줄이 조용히 자라면 SMTP 를 켠 날 몇 달 치가 한꺼번에 나간다. compose 기본값은 `smtp://mailpit:1025`(개발용 받이 · 받은 편지함 `:8025`) |
-| `NERV_MAIL_FROM` | SMTP 를 켜면 | — | worker | `NERV <no-reply@example.com>`. SMTP 를 켜 놓고 비우면 **기동을 거부한다** — 보내는 사람 없는 메일은 거절되거나 스팸함으로 가고, 둘 다 "보냈다고 믿는데 닿지 않는" 모양이다(`NERV_COOKIE_DOMAIN` 과 같은 규약) |
-| `NERV_MAIL_REPLY_TO` | | — | worker | 사람이 답장할 주소. `no-reply` 로만 두면 "이 메일 뭐죠" 가 갈 곳이 없다 |
-| `NERV_MAIL_DRY_RUN` | | `false` | worker | 아웃박스는 쌓고 보내지는 않는다. 로그에 **수신자와 제목만** 남긴다 — 본문을 찍으면 그 로그를 읽는 사람이 곧 그 초대를 수락할 수 있는 사람이 된다. 첫 배포에서 무엇이 나갈지 먼저 보는 용도다 |
-| `NERV_REQUIRE_EMAIL_VERIFICATION` | | **`NERV_SMTP_URL` 에서 유도** | api | 가입 이메일 인증을 강제할 것인가(2026-09-22 · 사람 결정 "강제"). **강제는 메일을 보낼 수 있을 때만 성립하므로** 비우면 SMTP 유무를 따른다 — 메일이 있는 배치는 강제이고, 없는 배치는 인증 메일을 보낼 길이 없어 강제할 수도 없다. 명시하면 그 값이 이기고, **`true` 인데 SMTP 가 비면 기동을 거부한다**(아무도 가입하지 못하는 서버가 조용히 서는 것보다 뜨지 않는 편이 싸다) |
+| `NERV_MAIL_HOST` | | — | api · worker | **메일 발신의 스위치다**(2026-09-22 결정 · 2026-09-24 이 이름으로). 비면 보내지 않고 **아웃박스에 쌓지도 않는다** — 보낼 수 없는 줄이 조용히 자라면 메일을 켠 날 몇 달 치가 한꺼번에 나간다. 호스트를 스위치로 고른 이유는 그것만이 없어서는 안 되는 값이기 때문이다(포트·TLS 는 기본값이 서고, 사용자·비밀번호는 인증 없는 사내 릴레이에서 아예 빈다). compose 기본값은 `mailpit`(개발용 받이 · 받은 편지함 `:8025`) |
+| `NERV_MAIL_PORT` | | `587` | api · worker | submission(STARTTLS) 포트다. 25 를 기본으로 두지 않는 이유는 그것이 **서버 간 릴레이** 포트이고 클라우드 사업자 대부분이 막아 두기 때문이다. **읽을 수 없는 값이면 기동을 거부한다** — 조용히 587 로 떨어지면 운영자는 자기 오타를 영영 모른다 |
+| `NERV_MAIL_SECURE` | | **포트에서 유도** | api · worker | 접속하자마자 TLS 인가(465)와 평문으로 열어 `STARTTLS` 로 올리는가(587·25)의 구분이다. **비우면 포트가 정한다** — 465 면 참, 그 밖은 거짓. 기본값을 두지 않는 이유는 여기가 사람이 가장 자주 틀리는 자리이고, 바꿔 적으면 연결이 걸린 채 타임아웃하거나 핸드셰이크가 깨지는데 **어느 쪽도 원인을 가리키지 않기** 때문이다. 명시하면 그 값이 이긴다(비표준 포트에서 암묵 TLS 를 받는 게이트웨이가 있다) |
+| `NERV_MAIL_USER` · `NERV_MAIL_PASS` | | — | api · worker | 릴레이 인증. **둘 다 있거나 둘 다 없어야 하고, 한쪽만 있으면 기동을 거부한다** — nodemailer 는 짝이 맞지 않으면 `auth` 를 만들지 못해 **인증 없이 붙고**, 사내 릴레이가 그대로 받아 주면 비밀번호가 읽히지 않는다는 사실이 영영 드러나지 않는다. **k8s 는 이 둘을 `nerv-secrets` 에 함께 둔다**(§6.2) — 사용자 이름은 비밀이 아니지만 비밀번호와 한 벌이고, 갈라 두면 ConfigMap 과 Secret 이 서로 다른 배관으로 들어와 **한쪽만 채워진 상태가 실제로 생긴다**(`NERV_S3_ACCESS_KEY` 가 같은 자리다). 주소 셋(`_HOST`·`_PORT`·`_SECURE`)은 ConfigMap 이다. 전에는 URL 한 줄이라 통째로 Secret 이었고, 그래서 운영자는 이 배치가 **어디로 보내는지** 설정을 읽어서는 알 수 없었다 |
+| `NERV_MAIL_FROM` | 호스트를 켜면 | — | api · worker | `NERV <no-reply@example.com>`. 호스트를 켜 놓고 비우면 **기동을 거부한다** — 보내는 사람 없는 메일은 거절되거나 스팸함으로 가고, 둘 다 "보냈다고 믿는데 닿지 않는" 모양이다(`NERV_COOKIE_DOMAIN` 과 같은 규약). k8s ConfigMap 은 이 키를 두고 **값을 비워 둔다** — 그럴듯한 자리표시자를 두면 그 주소로 실제 초대가 나가고 받는 사람은 실재하지 않는 도메인에서 온 메일을 본다(REQ-CB-040 과 같은 판단) |
+| `NERV_MAIL_REPLY_TO` | | — | api · worker | 사람이 답장할 주소. `no-reply` 로만 두면 "이 메일 뭐죠" 가 갈 곳이 없다 |
+| `NERV_MAIL_DRY_RUN` | | `false` | api · worker | 아웃박스는 쌓고 보내지는 않는다. 로그에 **수신자와 제목만** 남긴다 — 본문을 찍으면 그 로그를 읽는 사람이 곧 그 초대를 수락할 수 있는 사람이 된다. 첫 배포에서 무엇이 나갈지 먼저 보는 용도다 |
+| `NERV_REQUIRE_EMAIL_VERIFICATION` | | **`NERV_MAIL_HOST` 에서 유도** | api | 가입 이메일 인증을 강제할 것인가(2026-09-22 · 사람 결정 "강제"). **강제는 메일을 보낼 수 있을 때만 성립하므로** 비우면 호스트 유무를 따른다 — 메일이 있는 배치는 강제이고, 없는 배치는 인증 메일을 보낼 길이 없어 강제할 수도 없다. 명시하면 그 값이 이기고, **`true` 인데 호스트가 비면 기동을 거부한다**(아무도 가입하지 못하는 서버가 조용히 서는 것보다 뜨지 않는 편이 싸다) |
 | `NERV_S3_BUCKET` | | `nerv-blobs` | api · worker | api가 기동 시 없으면 생성한다(2026-09-02 — 전표는 그렇게 적었는데 코드가 없었다) |
 | `NERV_S3_FORCE_PATH_STYLE` | | `true` | api · worker | minio 호환 |
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |
@@ -1041,6 +1050,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | --- | --- | --- | --- |
 | `NERV_PUBLIC_URL` | 2026-09-13 | `NERV_WEB_URL` · `NERV_API_URL` (위 전표) | 새 둘이 다 비어 있으면 api·worker 가 **기동을 거부한다** — 두 이름에 무엇을 넣으라는 문구와 함께. 하나라도 새 이름이 있으면 뜨되 "읽지 않는 값" 이라고 한 줄 남긴다(REQ-CB-037) |
 | `NERV_HTTP_PORT` | 2026-09-14 | `NERV_WEB_PORT` (위 전표) | 앞문을 호스트에 내보내는 포트와 리슨하는 포트를 겸하고 있었고, 한 이름으로 합쳐졌다 — compose 는 안팎을 같은 포트로 낸다. `NERV_WEB_PORT` 가 비어 있으면 **기동을 거부한다**(REQ-CB-039). **거부가 실물이려면 compose 가 이 이름을 api 에 넘겨야 한다** — compose 는 모르는 변수를 조용히 무시하므로 §5.3 이 `NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}` 를 넘긴다. 대가는 명시한다: compose 를 거치지 않는 배치(맨 `docker run`·다른 오케스트레이터)에서는 옛 이름이 여전히 조용히 무시된다 |
+| `NERV_SMTP_URL` | 2026-09-24 | `NERV_MAIL_HOST` · `_PORT` · `_SECURE` · `_USER` · `_PASS` (위 전표) | 한 줄이 호스트·포트·TLS·사용자·비밀번호를 겸하고 있었다 — **자격증명이 문자열 안에 섞여 있어 배포에서 통째로 비밀이 되고, 운영자는 이 배치가 어디로 보내는지 설정을 읽어서는 알 수 없었다.** `NERV_MAIL_HOST` 가 비어 있으면 **기동을 거부하고**, 거부 문구가 그 URL 을 풀어 다섯 줄로 적어 준다 — **비밀번호만 빼고**(기동 로그를 읽을 수 있는 사람이 곧 그 릴레이를 쓸 수 있는 사람이 된다). "메일 꺼짐" 으로 떨어뜨리지 않는 이유는 그러면 초대가 나가지 않는다는 것을 **아무도 받지 못했다는 신고로** 알게 되고, 아웃박스에 줄조차 쌓이지 않아 뒤늦게 보낼 수도 없기 때문이다(REQ-CB-050). `NERV_HTTP_PORT` 와 같은 대가가 있다 — compose 가 이 이름을 넘겨야 거부가 실물이고(§5.3), compose 를 거치지 않는 배치에서는 여전히 조용히 무시된다 |
 
 **왜 이름을 물려주지 않았는가.** 한 이름이 화면의 주소와 API 의 주소를 겸하고 있었고, 둘이 우연히 같은 오리진이라 맞고 있었을 뿐이다. 한쪽이 옛 이름을 물려받으면 "어느 뜻을 물려받았는가" 가 소비자마다 다시 물어야 할 질문이 된다. 둘 다 새 이름이면 그 질문이 없다 — 대가는 **기존 배치가 전부 깨진다**는 것이고, 위 거부가 그 대가를 침묵이 아니라 문구로 바꾼다. 결정 기록은 [4.1 MVP 범위와 스택 확정](scope.md) §2.3.
 
@@ -1127,6 +1137,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-026** | WHILE 임베딩 한 판이 시간 상한을 넘기면, THE SYSTEM SHALL 그 판을 멈추고 진행 상황을 보고하며 다음 틱에서 남은 문서부터 이어간다 — 다른 잡의 주기를 굶기지 않는다. |
 | **REQ-CB-028** | WHEN PR 의 check 잡이 돌면 THE SYSTEM SHALL `pnpm format:check` 를 실행하고, 서식이 어긋난 파일이 하나라도 있으면 **실패한다** — 돌지 않는 검사는 없는 검사다: 이 스크립트는 처음부터 있었는데 CI 가 부르지 않아 7개 파일이 이틀간(2026-09-02 → 09-04) 실패한 채로 그 사이 커밋들을 받았다 | 서식이 어긋난 파일 1개를 넣은 PR 이 check 에서 실패 |
 | **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
+| **REQ-CB-051** | WHEN check 잡이 돌면 THE SYSTEM SHALL md 와 html 의 표에서 **첫 칸이 고정 ID 인 행**을 번호로 짝지어 나머지 칸의 문장을 견주고, 닮은 정도가 **0.7 미만**이면 실패한다 — 파생본은 근거를 담은 괄호를 줄여 실을 수 있지만 **같은 번호가 다른 것을 약속해서는 안 된다**. 규약 1 의 검사는 그때까지 번호가 **있는지**만 셌고, 그 눈먼 자리에서 `REQ-CB-015` 는 파생본에서 배포 산출물을 아직 `codebase/` 에 두라 말했고(2026-08-22 개정 전 문장 — 같은 파일 §1.1 트리는 `deploy/` 라 적어 **문서가 자기와 모순했다**) `REQ-CB-021` 은 "(2026-09-22 개정)" 이라 써 놓고 개정 전 규칙을 실었다(2026-09-24 전수 대조). **게이트 수는 그대로다** — 규약 1 의 검사가 세는 것이 넷에서 다섯으로 는다 | 두 요구의 파생본 문장을 개정 전으로 되돌린 트리에서 `check-md-html.mjs` 가 0.52·0.58 로 실패한다 · 근거 괄호를 줄여 실은 행들(실측 최저 0.75)은 통과한다 |
 | **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `referenced_by` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
 | **REQ-CB-031** | WHILE `NERV_S3_ENDPOINT` 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(`mc`)이 없으면 **종료 코드 2 로 실패한다** — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. `NERV_BACKUP_SKIP_BLOBS=1` 만이 명시적 우회다 | 엔드포인트가 있고 `mc` 가 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트) |
 | **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다 | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL |
@@ -1137,6 +1148,8 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-036** | WHEN 서버가 자기 주소를 필요로 하면 THE SYSTEM SHALL **사람이 브라우저로 여는 주소는 `NERV_WEB_URL`, 프로그램이 붙는 주소는 `NERV_API_URL`** 에서 읽고 한 이름이 두 뜻을 겸하지 않는다 — 스펙 딥링크는 `NERV_WEB_URL`, better-auth `baseURL`·`trustedOrigins` 기준과 플러그인 카탈로그의 주소와 `/api/auth/*` 요청 절대화 기준은 `NERV_API_URL`, `/mcp` Origin 대조는 **둘 다**(2026-09-20 부터 `NERV_TRUSTED_ORIGINS` 도 함께 · REQ-CB-013 · REQ-CB-041). WHILE 두 값이 같은 오리진인 동안 THE SYSTEM SHALL 갈랐을 때와 **같은 응답**을 낸다 — 이름을 가르는 것과 호스트를 가르는 것은 다른 변경이다 |
 | **REQ-CB-045** | WHERE 화면과 API 가 호스트로 갈린 배치이면 THE SYSTEM SHALL base 의 Ingress 를 **API 호스트만**(표면 여섯) 으로 두고, 화면의 `/` 규칙과 웹 파드(Deployment·Service·Ingress)를 **한 덩어리로** base resources 밖에 두어 화면을 파드로 세우는 배치만 더하게 한다 — CDN 배치는 화면을 CDN 이 서빙하고 그 배치에는 웹 파드도 `app.` 규칙도 없다. WHILE 두 호스트가 서 있는 동안 THE SYSTEM SHALL 화면 호스트가 API 경로를 **겸하지 않는다** — 겸하면 호스트를 가른 의미가 없다 | 자가호스팅 오버레이의 렌더에 Ingress 둘·웹 파드·Service 가 함께 있고, API 호스트에 표면 여섯이·화면 호스트에 `/` 하나가 있다 · 화면 호스트에 API 경로가 없다 |
 | **REQ-CB-046** | WHEN 배포 산출물 게이트가 돌면 THE SYSTEM SHALL `kubectl kustomize` 의 **렌더 결과**를 검사한다 — 모든 Ingress 규칙에 경로가 한 개 이상 있는가 · API 호스트가 표면 여섯을 갖는가 · ConfigMap 의 공개 주소 둘이 그 Ingress 호스트와 같은가 · 화면을 파드로 세우는 배치가 Deployment·Service·Ingress 셋을 함께 갖는가 · TLS 가 그 호스트를 덮는가 · **네임스페이스를 갖는 리소스가 하나도 빠짐없이 한 네임스페이스에 있고 그곳이 렌더된 Namespace 와 같은 이름인가**. WHERE 렌더가 성공하기만 하면 THE SYSTEM SHALL 그것을 통과로 보지 않는다 — 렌더도 `apply` 도 롤아웃도 성공하는데 트래픽만 죽는 배치가 실제로 있었다(2026-09-20 실측: 두 오버레이의 Ingress 경로가 0개). **네임스페이스 없는 문서는 `kubectl` 이 호출한 쪽의 기본값으로 보낸다** — 권한이 없으면 forbidden 으로 막히고, 있으면 막히지도 않고 엉뚱한 네임스페이스에 뜬다(2026-09-20 실측: `base/web/` 의 셋) | 전략적 병합으로 `rules` 를 덮는 패치를 되돌린 트리에서 `check-k8s-render.mjs` 가 실패하고 문구가 경로 0개를 말한다 · 주소와 호스트를 어긋나게 만든 트리에서도 실패한다 · `base/web/kustomization.yaml` 의 `namespace` 를 지운 트리에서 오버레이 2종 × 리소스 3개로 실패한다 |
+| **REQ-CB-049** | WHEN `.env` 전표 게이트가 돌면 THE SYSTEM SHALL §5.2 가 소비자를 `api`·`worker` 라 적은 키가 **`base/configmap.yaml` · `overlays/*/secret.example.yaml` · 이미지 `ENV` 셋 중 한 곳에 실재하는지** 세고, 어디에도 없으면 실패시킨다. WHERE 키가 없어도 파드는 정상으로 뜨므로 THE SYSTEM SHALL 그것을 통과로 보지 않는다 — `envFrom` 은 없는 키를 조용히 넘기고 **꺼지는 것은 기능뿐이다.** 이 결함은 세 번 되풀이됐다: `NERV_GITHUB_WEBHOOK_SECRET`(2026-09-13 · 비면 모든 웹훅이 401) · `NERV_EXPORT_DIR`(2026-09-14 · 미러가 어떤 배포에서도 산출되지 않았다) · 메일 키 다섯(2026-09-24 · 초대가 나가지 않고 아웃박스에 쌓이지도 않는다). 셋 다 compose 는 완비였고 셋 다 사람이 눈으로 찾았다. WHILE 이미지가 `ENV` 로 주는 키가 있는 동안 THE SYSTEM SHALL 그것을 **주는 자리로 세고** 예외 목록을 두지 않는다(`NERV_PLUGIN_DIST` — 환경마다 바꿀 손잡이가 아니다) | 메일 키 다섯을 k8s 에서 지운 트리에서 `check-env-table.mjs` 가 다섯 건으로 실패하고 문구가 세 자리를 모두 말한다 · `NERV_PLUGIN_DIST` 는 `Dockerfile.server` 의 `ENV` 만으로 통과한다 |
+| **REQ-CB-050** | WHEN 걷힌 이름 `NERV_SMTP_URL` 이 설정돼 있고 `NERV_MAIL_HOST` 가 비어 있으면 THE SYSTEM SHALL api·worker 의 기동을 거부하고, **그 URL 을 풀어 새 다섯 키에 무엇을 넣어야 하는지를 값과 함께** 문구로 말한다. WHILE 그 문구를 만드는 동안 THE SYSTEM SHALL **비밀번호를 싣지 않는다** — 기동 로그를 읽을 수 있는 사람이 곧 그 릴레이를 쓸 수 있는 사람이 된다. WHERE 새 이름이 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다. WHERE 접속 설정이 켜져 있으면 THE SYSTEM SHALL `NERV_MAIL_PORT` 를 포트로 읽을 수 없을 때와 `NERV_MAIL_USER`·`NERV_MAIL_PASS` 중 **한쪽만** 있을 때도 기동을 거부한다 — 앞은 조용히 기본값으로 떨어지면 오타가 영영 드러나지 않고, 뒤는 nodemailer 가 인증 없이 붙어 릴레이가 받아 주면 비밀번호가 읽히지 않는다는 사실이 드러나지 않는다. WHILE `NERV_MAIL_SECURE` 가 비어 있는 동안 THE SYSTEM SHALL 그 값을 **포트에서 유도한다**(465 면 참) | 옛 이름만 있는 env 로 `assertSmtpUrlRetired()` 가 던지고 문구에 다섯 키가 값과 함께 실리며 비밀번호는 실리지 않는다 · 새 이름이 있으면 던지지 않고 경고 한 줄 · 포트 오타와 인증 한쪽만으로 `assertMailConfig()` 가 던진다 · 465/587/25 에서 `smtpSecureFromEnv()` 가 참/거짓/거짓이다 · api·worker 두 엔트리가 모두 `assertMailConfig()` 를 부른다 |
 | **REQ-CB-044** | WHEN 화면이 부팅하면 THE SYSTEM SHALL API 주소를 **런타임 설정**(`/config.json` 의 `api_url`)에서 읽고 그 값을 읽은 **뒤에** 첫 화면을 그린다 — 빌드 타임에 구우면 환경마다 다른 번들이 되어 같은 산출물을 승격할 수 없다. WHERE 그 파일이 없거나 값이 비었거나 오리진으로 읽히지 않으면 THE SYSTEM SHALL **같은 오리진**(상대 경로)으로 돌고 화면을 세운다 — 설정 실패는 폴백이지 오류가 아니다. WHILE 앞문이 그 응답을 만드는 동안 THE SYSTEM SHALL 이미지가 `NERV_API_URL` 을 빈 값으로라도 **정의해 둔다**(envsubst 는 정의된 이름만 치환한다) | 설정이 준 주소로 REST·`/api/auth/*`·WebSocket 이 나간다 · 없는 파일·200 짜리 HTML·빈 값·스킴 없는 값·네트워크 실패가 전부 같은 오리진으로 떨어진다(L1) · 앞문의 `/config.json` 응답에 `${` 가 남지 않고 `Cache-Control: no-store` 다(L3) |
 | **REQ-CB-043** | WHILE 요청이 **세션 쿠키로 인증**하는 동안, WHEN 그 요청이 상태를 바꾸는 메서드(`GET`·`HEAD`·`OPTIONS` 밖)이면 THE SYSTEM SHALL `Origin` 이 허용 목록(§5.2c)에 있을 때만 통과시키고, **헤더가 없으면 거절한다** — 쿠키는 브라우저가 알아서 싣는 자격증명이라 남의 탭이 보낸 요청에도 실리고, CORS 는 응답을 읽는 것만 막는다. WHERE 자격증명이 PAT 이면 THE SYSTEM SHALL 이 판정을 적용하지 않는다(헤더에 직접 실리는 자격증명은 CSRF 가 아니다). WHERE 경로가 `/mcp` 이면 THE SYSTEM SHALL 그 가드에 맡긴다(REQ-CB-013 — 규칙이 다르다) | 쿠키 + 목록 밖 오리진의 `POST` 가 403 이고 코드가 `NERV_FORBIDDEN` 이다 · 쿠키 + `Origin` 없는 `POST` 도 403 이다 · 같은 요청이 화면 오리진이면 오리진으로 막히지 않는다 · 쿠키 + 목록 밖 오리진의 `GET` 은 200 이다 · PAT + 목록 밖 오리진은 인증 판정으로만 떨어진다(401) |
 | **REQ-CB-041** | WHEN 브라우저가 다른 오리진에서 API 를 부르면 THE SYSTEM SHALL 허용 오리진을 `NERV_WEB_URL` 과 `NERV_TRUSTED_ORIGINS` 의 **합집합 한 목록**에서 읽고, CORS 와 better-auth 의 `trustedOrigins` 가 **같은 목록**을 보게 한다 — 두 곳이 갈리면 로그인은 되는데 그 다음 요청이 전부 막히거나 그 반대이고, 어느 쪽도 원인을 가리키지 않는다. WHERE 요청에 `Origin` 이 없으면(에이전트·CLI) THE SYSTEM SHALL 그대로 통과시키고, 목록 밖 오리진이면 **헤더를 붙이지 않을 뿐 오류를 내지 않는다**. WHILE 세션 쿠키를 싣는 요청인 동안 THE SYSTEM SHALL 와일드카드를 쓰지 않는다 — `credentials: true` 와 `*` 는 함께 서지 않는다 | L2 가 프리플라이트 응답의 `Access-Control-Allow-Origin`·`-Credentials`·`-Headers`·`Vary` 를 세고, 목록 밖 오리진에는 그 헤더가 없다 · 화면 오리진의 로그인이 200 이고 목록 밖 오리진의 로그인이 403 이다(같은 목록의 실물 증거) · `Origin` 없는 요청이 200 이다 |
@@ -1791,7 +1804,7 @@ deploy/k8s/
       configmap-host.yaml        # NERV_WEB_URL · NERV_API_URL 을 자기 Ingress host 로 (아래 ★)
       replicas.yaml              # api·web replicas 1
       configmap.example.yaml     # ☆ 적용 대상 아님 — 환경마다 바꿀 키의 템플릿
-      secret.example.yaml        # ☆ 적용 대상 아님 — nerv-secrets 키 여섯의 템플릿
+      secret.example.yaml        # ☆ 적용 대상 아님 — nerv-secrets 키 여덟의 템플릿
     prod/
       kustomization.yaml         # §6.4 — images: 로 git SHA 고정 · resources 에 ../../base/web
       ingress-api-host.yaml      # JSON6902 — api. 호스트 문자열만
@@ -1812,9 +1825,9 @@ deploy/k8s/
 # NERV 운영 배포 base — 정본: docs/04-mvp/codebase.md §6.2
 #
 # Secret(nerv-secrets: DATABASE_URL · NERV_AUTH_SECRET · NERV_S3_ACCESS_KEY · NERV_S3_SECRET_KEY
-#        · NERV_EMBED_API_KEY · NERV_GITHUB_WEBHOOK_SECRET)은 base 가 만들지 않는다 —
+#        · NERV_EMBED_API_KEY · NERV_GITHUB_WEBHOOK_SECRET · NERV_MAIL_USER · NERV_MAIL_PASS)은 base 가 만들지 않는다 —
 # 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 이름만 계약한다.
-# 키 여섯의 예시는 overlays/<env>/secret.example.yaml (적용 대상이 아닌 템플릿이다).
+# 키 여덟의 예시는 overlays/<env>/secret.example.yaml (적용 대상이 아닌 템플릿이다).
 #
 # embed/ 는 로컬(자가호스팅) 프로필 전용이라 base resources 에 넣지 않는다 —
 # 자가호스팅 오버레이만 추가하고, 외부 제공자 프로필은 configmap 의 NERV_EMBED_URL 만 바꾼다(§5.2a).
@@ -1856,7 +1869,7 @@ configMapGenerator:
       disableNameSuffixHash: true
 ```
 
-Secret(`nerv-secrets`)은 base가 만들지 않는다 — 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 **이름과 키 집합만 계약한다**. 키는 여섯이다: `DATABASE_URL` · `NERV_AUTH_SECRET` · `NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY` · `NERV_EMBED_API_KEY`(외부 제공자 프로필) · `NERV_GITHUB_WEBHOOK_SECRET`(웹훅을 쓸 때 — **비면 EP-WHK-01 이 모든 배송을 401 로 거절한다**). 각 변수의 뜻·필수 여부는 §5.2 전표가 정본이고, 채워 넣을 모양은 `overlays/<env>/secret.example.yaml` 이 보여 준다(적용 대상이 아니다).
+Secret(`nerv-secrets`)은 base가 만들지 않는다 — 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 **이름과 키 집합만 계약한다**. 키는 여덟이다: `DATABASE_URL` · `NERV_AUTH_SECRET` · `NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY` · `NERV_EMBED_API_KEY`(외부 제공자 프로필) · `NERV_GITHUB_WEBHOOK_SECRET`(웹훅을 쓸 때 — **비면 EP-WHK-01 이 모든 배송을 401 로 거절한다**) · `NERV_MAIL_USER` · `NERV_MAIL_PASS`(릴레이가 인증을 요구할 때 — 2026-09-24). **메일 여섯 중 여기 오는 것은 인증 두 키뿐이고, 주소 셋과 보내는 사람은 ConfigMap 이 든다** — 그래야 운영자가 이 배치가 **어디로 보내는지** 설정을 읽어서 알 수 있다(전에는 `NERV_SMTP_URL` 한 줄에 전부 섞여 있어 통째로 여기 와야 했고, 그래서 알 수 없었다). **사용자 이름은 비밀이 아닌데도 여기 있다** — 비밀번호와 한 벌이고 코드가 그 한 벌을 원자로 다루기 때문이다(한쪽만 있으면 기동을 거부한다). 갈라 두면 ConfigMap 과 Secret 이 서로 다른 배관으로 들어와 **한쪽만 채워진 상태가 실제로 생긴다**. `NERV_S3_ACCESS_KEY` 가 같은 이유로 여기 있다: 식별자인데 짝과 함께 간다. 각 변수의 뜻·필수 여부는 §5.2 전표가 정본이고, 채워 넣을 모양은 `overlays/<env>/secret.example.yaml` 이 보여 준다(적용 대상이 아니다).
 
 ### 6.3 Deployment · Job · Ingress 스켈레톤
 

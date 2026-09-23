@@ -53,10 +53,10 @@
     <h1>clemvion 하네스 분석 — 1인용 SDD+TDD 하네스가 도달한 곳과 그 상한</h1>
     <p class="lead">규약을 사람의 규율이 아니라 훅·빌드 가드로 기계 강제하는 1인용 Claude Code 하네스의 구성 요소를 전수 조사하고, 계승할 자산과 여러 세션·여러 사람으로 확장하는 순간 무너지는 구조적 한계를 전부 실측 근거로 분리한다.</p>
     <div class="meta-line">
-      <span>버전 v0.2 (2026-08-13)</span>
+      <span>버전 v0.3 (2026-09-24)</span>
       <span>원본: <code>docs/01-problem/clemvion-analysis.md</code></span>
       <span>근거: <code>/Volumes/project/private/clemvion</code> READ-ONLY 실측 (2026-08-13)</span>
-      <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="importer.html">4.7</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
+      <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
     </div>
   </header>
 
@@ -760,6 +760,7 @@ user_guide:               # 선택, 가드 미적용 (R-10)
       <tr><td>라우터 오판 사고</td><td>리뷰어 14개 전부 false, "문서만 변경" 판정 — 실제로는 새 Python 모듈 포함</td><td><code>clemvion:.claude/workflows/ai-review.js</code> (2026-07-23)</td></tr>
       <tr><td>문서 간 중복 서술 drift</td><td><code>9a4d3e32b</code> "종결 이벤트 계약을 한 곳으로 — <b>네 문서가 각자 필드를 열거하고 있었다</b>", <code>c37a3732c</code> "<b>모방한 쪽이 맞고 원본이 틀렸다</b>"</td><td><code>clemvion:spec/</code> git 이력</td></tr>
       <tr><td>스펙 약속 vs 구현 갭</td><td><code>2a698f360</code> "spec이 <code>필수</code>로 약속한 update dedup이 통째로 미구현(CCH-SE-02)" — 문서 단위 status의 허점</td><td>동일</td></tr>
+      <tr><td>문서 정리 커밋 비중</td><td>스펙 터치 커밋 <b>857개 중 <code>docs(spec)</code> 211개</b>(4.5개월) — 상당 부분이 사후 정합화</td><td>동일</td></tr>
       <tr><td>완료 plan의 깨진 링크</td><td><b>135건 용인</b>(complete/는 시점 기록이라 옛 경로 유지 허용)</td><td><code>clemvion:.claude/docs/plan-lifecycle.md</code></td></tr>
     </tbody>
   </table></div>

@@ -1152,7 +1152,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
       <tr><td><code>REQ-DB-024</code></td><td>WHEN 메일을 보내야 하는 일이 생기면 THE SYSTEM SHALL 그 일을 만든 트랜잭션 안에서 <code>email_outbox</code> 에 행을 넣고, 발송은 워커가 따로 수행한다 — 표면은 SMTP 를 기다리지 않는다</td></tr>
-      <tr><td><code>REQ-DB-025</code></td><td>WHILE 발송 설정(<code>NERV_SMTP_URL</code>)이 비어 있으면 THE SYSTEM SHALL 아웃박스에 행을 넣지 않는다 — 보낼 수 없는 줄이 쌓이면 설정을 켠 날 밀린 메일이 한꺼번에 나간다</td></tr>
+      <tr><td><code>REQ-DB-025</code></td><td>WHILE 발송 설정(<code>NERV_MAIL_HOST</code>)이 비어 있으면 THE SYSTEM SHALL 아웃박스에 행을 넣지 않는다 — 보낼 수 없는 줄이 쌓이면 설정을 켠 날 밀린 메일이 한꺼번에 나간다</td></tr>
       <tr><td><code>REQ-DB-026</code></td><td>WHEN 발송이 실패하면 THE SYSTEM SHALL 지수 백오프로 다시 시도하고, 상한을 넘으면 행을 <b>지우지 않고</b> 실패 시각과 사유를 남긴다</td></tr>
     </tbody>
   </table></div>

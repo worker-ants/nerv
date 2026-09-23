@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.12 (2026-09-07)</span>
+      <span>버전 v0.13 (2026-09-24)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -512,6 +512,16 @@
     </svg>
     <div class="cap">그림 4. 위험도 4축 점수 → 게이트 티어(D-06). 세션 실패율·재시도 초과는 티어를 +1 한다.</div>
   </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>티어</th><th>예시</th></tr></thead>
+    <tbody>
+      <tr><td><b>T0</b> 자동 통과</td><td>오탈자, 링크 정정, 표 정렬</td></tr>
+      <tr><td><b>T1</b> 소프트 게이트</td><td>기존 문서의 문구 명확화, 예시 추가</td></tr>
+      <tr><td><b>T2</b> 하드 게이트</td><td>요구사항 문구 변경, 신규 feature 스펙</td></tr>
+      <tr><td><b>T3</b> 강화 게이트</td><td>규약 변경, 승인된 요구사항 삭제, 권한 모델 변경</td></tr>
+    </tbody>
+  </table></div>
 
   <div class="table-wrap"><table>
     <thead><tr><th>축</th><th>0점</th><th>1점</th><th>2점</th></tr></thead>
@@ -1151,7 +1161,7 @@ SELECT EXISTS (
     <tbody>
       <tr><td>승인(스펙/CR/플랜/게이트 면제)</td><td>Review</td><td>요구사항 단위 델타 원문, 영향 분석(파생 Task·진행 중 클레임), 게이트 티어와 산출 근거</td></tr>
       <tr><td>질문</td><td>Question</td><td>질문 원문, 선택지, 대기 중인 세션(사용자·hostname·경과)</td></tr>
-      <tr><td>통지</td><td>Notify</td><td>무엇이 왜 바뀌었는지 + 문서 링크</td></tr>
+      <tr><td>통지</td><td>Notify</td><td>무엇이 왜 바뀌었는지 + 문서 링크(T1 의 이의제기 창은 §2.4 ②로 걷혔다)</td></tr>
     </tbody>
   </table></div>
 
