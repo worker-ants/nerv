@@ -333,3 +333,16 @@ export const MAIL_MAX_ATTEMPTS = 5;
  * 그때 실패한 줄이 전부 백오프로 물러나 **오히려 더 늦게** 나간다.
  */
 export const MAIL_BATCH_SIZE = 20;
+/**
+ * SMTP submission 포트 — `NERV_MAIL_PORT` 를 비우면 이 값이다(2026-09-24 · §5.2).
+ *
+ * 25 를 기본으로 두지 않는 이유는 그것이 **서버 간 릴레이** 포트이고 클라우드 사업자
+ * 대부분이 막아 두기 때문이다. 587 은 평문으로 열어 `STARTTLS` 로 올린다.
+ */
+export const MAIL_SUBMISSION_PORT = 587;
+/**
+ * 암묵 TLS 포트 — 접속하자마자 TLS 다. `NERV_MAIL_SECURE` 를 비우면 포트가 이 값일 때만
+ * 참이 된다. 587·25 와 바꿔 적으면 연결이 걸린 채 타임아웃하거나 핸드셰이크가 깨지는데,
+ * 어느 쪽도 원인을 가리키지 않는다 — 그래서 사람이 고르지 않고 포트가 정하게 둔다.
+ */
+export const MAIL_IMPLICIT_TLS_PORT = 465;

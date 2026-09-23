@@ -65,3 +65,24 @@ data:
   # NERV_SSE_KEEPALIVE_MS: '25000'
   # dev 는 올려 둘 만하다 — 고른 수준과 그보다 심각한 것을 켠다.
   # NERV_LOG_LEVEL: 'debug'
+
+  # ── ④ 메일(2026-09-22 · 접속 정보는 2026-09-24 부터 여섯 키다 · §5.2) ────
+  # **스위치는 `NERV_MAIL_HOST` 다** — 비면 메일이 꺼지고 가입 이메일 인증 강제도 함께
+  # 꺼진다. 비밀인 것은 `NERV_MAIL_PASS` 하나이고 nerv-secrets 의 몫이다.
+  # **dev 가 진짜 사람에게 초대 메일을 보내지 않게 한다** — 버킷 이름을 가른 것과 같은
+  # 이유다(위 ①). 둘 중 하나를 고른다:
+  #   ⓐ 호스트를 비워 메일을 끈다 — 초대는 [복사] 경로로 전달한다(4.4 §1.6)
+  #   ⓑ 호스트는 적고 DRY_RUN 을 'true' 로 — 아웃박스는 쌓이고 나가지는 않는다.
+  #      로그에 수신자와 제목만 남아, 무엇이 나갈지 먼저 볼 수 있다
+  # NERV_MAIL_HOST: 'smtp.dev.example.com'
+  # 비우면 587. 읽을 수 없는 값이면 기동을 거부한다.
+  # NERV_MAIL_PORT: '587'
+  # 비우면 포트에서 유도한다(465 면 'true') — 여기를 손으로 적을 이유는 비표준 포트에서
+  # 암묵 TLS 를 받는 게이트웨이뿐이다.
+  # NERV_MAIL_SECURE: ''
+  # 인증 두 키(USER·PASS)는 **한 벌이라 nerv-secrets 에 함께** 있다 — 여기 적지 않는다.
+  # NERV_MAIL_DRY_RUN: 'true'
+  # 보내는 사람 — 호스트를 적으면 **반드시 채운다**(비우면 기동을 거부한다).
+  # 운영과 다른 도메인을 쓰면 받는 사람이 dev 메일임을 한눈에 안다.
+  # NERV_MAIL_FROM: 'NERV (dev) <no-reply@nerv.dev.example.com>'
+  # NERV_MAIL_REPLY_TO: 'nerv-dev@example.com'

@@ -36,13 +36,13 @@ beforeAll(async () => {
   outbox = new MailOutbox(orm);
   invitations = new InvitationService(orm, new AuthService(orm), outbox);
   // 메일이 꺼져 있으면 아무것도 줄 서지 않는다 — 이 스위트는 켜진 배치를 본다
-  process.env['NERV_SMTP_URL'] = 'smtp://mailpit:1025';
+  process.env['NERV_MAIL_HOST'] = 'mailpit';
   process.env['NERV_MAIL_FROM'] = 'NERV <no-reply@example.com>';
   await seed();
 });
 
 afterAll(async () => {
-  delete process.env['NERV_SMTP_URL'];
+  delete process.env['NERV_MAIL_HOST'];
   delete process.env['NERV_MAIL_FROM'];
   await pool.end();
   await db.drop();
@@ -110,8 +110,8 @@ describe('초대와 메일은 한 트랜잭션이다 (EP-INV-01)', () => {
   });
 
   it('메일이 꺼진 배치에서는 줄 서지 않는다 — 보낼 수 없는 줄을 쌓지 않는다', async () => {
-    const saved = process.env['NERV_SMTP_URL'];
-    delete process.env['NERV_SMTP_URL'];
+    const saved = process.env['NERV_MAIL_HOST'];
+    delete process.env['NERV_MAIL_HOST'];
     try {
       const made = await invite('other@example.com');
       // 초대 자체는 그대로 만들어진다 — 오늘의 [복사] 경로가 살아 있다
@@ -122,7 +122,7 @@ describe('초대와 메일은 한 트랜잭션이다 (EP-INV-01)', () => {
       );
       expect(rows[0]?.n).toBe(0);
     } finally {
-      process.env['NERV_SMTP_URL'] = saved;
+      process.env['NERV_MAIL_HOST'] = saved;
     }
   });
 });

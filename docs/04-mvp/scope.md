@@ -24,7 +24,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 **22종**(P0 8 + P1 14 · 카탈로그 24종 — 리뷰 2종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.31 · 2026-09-22 · HTML 파생본: [scope.html](../html/scope.html)
+> 문서 버전 v0.32 · 2026-09-24 · HTML 파생본: [scope.html](../html/scope.html)
+>
+> v0.32 변경(2026-09-24 — 발신 스택의 스위치 이름이 바뀐다): **새 결정 없음.** §2.1 스택 표의 발신(메일) 행이 가리키는 설정 이름을 `NERV_SMTP_URL` 에서 `NERV_MAIL_HOST` 로 고쳤다 — 접속 정보가 여섯 키로 나뉘었다([4.2](codebase.md) §5.2 · REQ-CB-050). 스택 자체(nodemailer · SMTP)는 그대로다. 곁들여 **파생본에 이 행이 통째로 없던 것**을 채웠다(v0.31 이 md 만 고쳤다 — 규약 1 의 검사는 버전·절·고정 ID 만 보므로 ID 없는 표 행은 그대로 샌다).
 >
 > v0.31 변경(2026-09-22 — 메일을 붙인다, **사람 결정**): **§2.1 스택 표에 발신 계층 한 행 · FR-12 행 정정.** "확정, 재논의 금지" 표에 없던 계층이라 결정이 필요했고, 셋이 함께 정해졌다 — **① nodemailer(SMTP) 추가 ② 가입 이메일 인증 강제(기존 계정은 백필) ③ 초대 메일 자동 발송.** 제공자 SDK 를 들이지 않는 이유는 배치가 그 제공자에 묶이기 때문이다: SMTP 하나면 사내 메일 서버도 SES 도 Resend 도 같은 계약이다. 곁들여 FR-12 행이 "메일은 Phase 2" 라고만 적어 두어 새 사실과 어긋났다 — **알림의 메일 채널은 여전히 Phase 2** 이고 이번에 들어온 것은 가입 인증과 초대 메일이다(중요도·수신 설정이 함께 필요한 쪽은 별개의 일이다).
 >
@@ -147,7 +149,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | DB | **Postgres** + **Drizzle** | Postgres 2026-08-13 · Drizzle 2026-08-20 | 스키마는 `packages/schema`에 TS로 선언, drizzle-kit 마이그레이션. 복잡 질의는 raw `sql` 1급 |
 | 검색 | **하이브리드** — Postgres FTS(`simple`) + **pg_trgm**(한국어·부분 일치) + **pgvector**(HNSW·cosine) + 임베딩(**OpenAI 호환 `/v1/embeddings` 단일 계약**, 1024차원 고정) + **관계 확장(graph RAG)** | 2026-08-22 (제공자 추상화 같은 날 개정) | 파이프라인(ID 직행 → 렉시컬+벡터 RRF 병합 → 1-hop 관계 확장)은 [4.4 API 명세](api.md) §2.2b 정본. **임베딩 제공자는 env 프로필** — 로컬 TEI(CPU·compose `embed`) / 스테이징 LM Studio / 운영 OpenAI(`text-embedding-3-small`, `dimensions=1024`). 프로필 정본 [4.2](codebase.md) §5.2a. 기본값은 자가호스팅이고 외부 전송은 운영 주체의 env 명시 선택(REQ-CB-020). 제공자 무응답 시 렉시컬 degrade(REQ-API-026) |
 | 인증 | **better-auth** | 2026-08-20 | organization 플러그인(조직·멤버십), api-key 플러그인 기반 PAT(해시 저장·프로젝트 소속). OAuth 2.1 리소스 서버는 Phase 2 |
-| 발신(메일) | **nodemailer(SMTP)** — 가입 이메일 인증 · 초대 메일 | 2026-09-22 | 제공자 SDK 를 들이지 않는다: SMTP 하나면 사내 메일 서버·SES·Resend·Postmark 가 같은 계약이고, 갈아도 코드가 그대로다. **표면은 `email_outbox` 에 행을 넣고 워커가 보낸다**([4.3](database.md) §2.17) — 인라인 발송은 응답 시간으로 이메일의 존재를 흘리고, 실패를 기록할 곳도 없다. 비어 있으면 꺼진다(`NERV_SMTP_URL`) |
+| 발신(메일) | **nodemailer(SMTP)** — 가입 이메일 인증 · 초대 메일 | 2026-09-22 | 제공자 SDK 를 들이지 않는다: SMTP 하나면 사내 메일 서버·SES·Resend·Postmark 가 같은 계약이고, 갈아도 코드가 그대로다. **표면은 `email_outbox` 에 행을 넣고 워커가 보낸다**([4.3](database.md) §2.17) — 인라인 발송은 응답 시간으로 이메일의 존재를 흘리고, 실패를 기록할 곳도 없다. 비어 있으면 꺼진다(`NERV_MAIL_HOST` — 접속 정보는 여섯 키다. 2026-09-24 부터, [4.2](codebase.md) §5.2) |
 | 실시간 | **WebSocket + SSE 다중 채널**, 방송 MQ **Valkey pub/sub** (NestJS `@WebSocketGateway` socket.io + `@Sse()` 스트림) | WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21 | WS(`/ws`)는 웹 SPA 전용 — **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요), 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. SSE(`/sse/*`)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증([4.4 API 명세](api.md) §3.5). 팬아웃: EventService가 커밋 후 Valkey `nerv_events`에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
 | 에디터 | **TipTap + markdown 직렬화** | 2026-08-20 | 지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글 |
 | 그래프 시각화 | **Cytoscape.js + fcose** — 스펙 관계 그래프([4.5](screens.md) §2.4a) | 2026-08-23 | compound(영역 묶음) 레이아웃이 도입 이유다 — 자체 구현하면 그것이 곧 레이아웃 엔진을 쓰는 일이 된다. MIT · 코어 의존 0. gzip 172KB라 **탭 진입 시 지연 로드**한다(목록 청크 552KB → 5KB 실측). 재검토 트리거: 노드 1,000을 넘어 canvas 렌더가 버거워지면 WebGL(sigma)로 옮긴다 |

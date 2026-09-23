@@ -182,9 +182,19 @@ services:
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
       NERV_S3_FORCE_PATH_STYLE: "true"
-      # 메일 — 비면 보내지 않는다(2026-09-22). 기본이 아래 mailpit 이라 개발 루프에서
+      # 메일 — 호스트가 비면 보내지 않는다(2026-09-22). 기본이 아래 mailpit 이라 개발 루프에서
       # 초대 메일이 실제로 나가고, 받은 편지함은 http://localhost:8025 에서 본다.
-      NERV_SMTP_URL: ${NERV_SMTP_URL:-smtp://mailpit:1025}
+      # 접속 정보 다섯(2026-09-24) — mailpit 은 인증을 요구하지 않아 USER·PASS 가 빈다.
+      NERV_MAIL_HOST: ${NERV_MAIL_HOST:-mailpit}
+      NERV_MAIL_PORT: ${NERV_MAIL_PORT:-1025}
+      # 비우면 포트에서 유도한다(465 면 true) — mailpit 은 평문이라 false 다.
+      NERV_MAIL_SECURE: ${NERV_MAIL_SECURE:-}
+      NERV_MAIL_USER: ${NERV_MAIL_USER:-}
+      NERV_MAIL_PASS: ${NERV_MAIL_PASS:-}
+      # 걷힌 이름을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지 않으면
+      # URL 을 둔 배치가 아무 말 없이 메일이 꺼진 채로 뜨고 약속한 거부가 유령이 된다
+      # (REQ-CB-050). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.
+      NERV_SMTP_URL: ${NERV_SMTP_URL:-}
       NERV_MAIL_FROM: ${NERV_MAIL_FROM:-NERV <no-reply@nerv.example.com>}
       NERV_MAIL_REPLY_TO: ${NERV_MAIL_REPLY_TO:-}
       NERV_MAIL_DRY_RUN: ${NERV_MAIL_DRY_RUN:-false}
@@ -253,9 +263,19 @@ services:
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
       NERV_S3_FORCE_PATH_STYLE: "true"
-      # 메일 — 비면 보내지 않는다(2026-09-22). 기본이 아래 mailpit 이라 개발 루프에서
+      # 메일 — 호스트가 비면 보내지 않는다(2026-09-22). 기본이 아래 mailpit 이라 개발 루프에서
       # 초대 메일이 실제로 나가고, 받은 편지함은 http://localhost:8025 에서 본다.
-      NERV_SMTP_URL: ${NERV_SMTP_URL:-smtp://mailpit:1025}
+      # 접속 정보 다섯(2026-09-24) — mailpit 은 인증을 요구하지 않아 USER·PASS 가 빈다.
+      NERV_MAIL_HOST: ${NERV_MAIL_HOST:-mailpit}
+      NERV_MAIL_PORT: ${NERV_MAIL_PORT:-1025}
+      # 비우면 포트에서 유도한다(465 면 true) — mailpit 은 평문이라 false 다.
+      NERV_MAIL_SECURE: ${NERV_MAIL_SECURE:-}
+      NERV_MAIL_USER: ${NERV_MAIL_USER:-}
+      NERV_MAIL_PASS: ${NERV_MAIL_PASS:-}
+      # 걷힌 이름을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지 않으면
+      # URL 을 둔 배치가 아무 말 없이 메일이 꺼진 채로 뜨고 약속한 거부가 유령이 된다
+      # (REQ-CB-050). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.
+      NERV_SMTP_URL: ${NERV_SMTP_URL:-}
       NERV_MAIL_FROM: ${NERV_MAIL_FROM:-NERV <no-reply@nerv.example.com>}
       NERV_MAIL_REPLY_TO: ${NERV_MAIL_REPLY_TO:-}
       NERV_MAIL_DRY_RUN: ${NERV_MAIL_DRY_RUN:-false}

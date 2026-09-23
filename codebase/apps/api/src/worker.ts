@@ -9,6 +9,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { logLevelsFromEnv } from './common/log-level.js';
 import { assertCookieDomain, assertRetiredNames } from './common/origins.js';
+import { assertMailConfig } from './modules/mail/mail.config.js';
 import type { INestApplicationContext } from '@nestjs/common';
 import { WorkerAppModule } from './app.module.js';
 import { JobRunner } from './worker/job-runner.js';
@@ -45,6 +46,9 @@ async function bootstrap(): Promise<void> {
   assertRetiredNames();
   // 워커도 AuthService 를 그래프에 갖는다 — 같은 값으로 뜨지 않으면 여기서 멈춘다(REQ-CB-042).
   assertCookieDomain();
+  // **메일을 실제로 보내는 것은 여기다.** 2026-09-22~24 동안 이 검사는 api 에만 있어서
+  // 보내는 사람이 없는 배치는 api 가 거부하고 워커는 그대로 떴다 — 절반만 거부하는 배포다.
+  assertMailConfig();
   const worker = await createWorker();
   worker.enableShutdownHooks();
 
