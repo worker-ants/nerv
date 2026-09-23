@@ -14,6 +14,7 @@ import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
 import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
+import { subjectFallback } from '../features/inbox/approval-card.js';
 import { asProjectId } from '../lib/query-keys.js';
 
 export const Route = createFileRoute('/')({ component: HomeScreen });
@@ -193,6 +194,21 @@ function HomeScreen(): React.JSX.Element {
 }
 
 /**
+ * 이 줄이 가리키는 문서의 표시 키 — 목록 질의는 스펙 승인에만 키를 JOIN 한다.
+ *
+ * `subject_key` 는 이 응답에 없는 필드다(카드 상세 쪽 이름이다). 남겨 두는 이유는 하나 —
+ * 없는 이름을 지우는 것과 **키가 없는 카드**(플랜·발견·면제)를 가르는 것은 다른 일이고,
+ * 여기서 필요한 것은 후자다: 키가 없으면 그 칸은 비운다.
+ */
+function subjectKeyOf(card: Record<string, unknown>): string | null {
+  for (const field of ['spec_key', 'task_key', 'subject_key']) {
+    const value = card[field];
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return null;
+}
+
+/**
  * 오늘 할 일 한 줄 — 시안의 행 구조: 표식(26px 사각) · 제목/메타 · 긴급 칩 · 경과.
  * 유형이 표식의 색과 왼쪽 룰을 정한다: 승인은 남색, 질문은 호박색(세션이 멈춰 있다).
  */
@@ -200,6 +216,7 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
   const t = useT();
   const isQuestion = card['subject_type'] === 'question';
   const blocking = isQuestion && card['urgency'] === 'blocking';
+  const subjectKey = subjectKeyOf(card);
   return (
     <li>
       <Link
@@ -225,14 +242,22 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
           {isQuestion ? '?' : '✓'}
         </span>
         <span className="min-w-0 flex-1">
+          {/* **어휘를 그대로 찍지 않는다**(2026-09-24). 폴백이 `subject_type` 이라 승인 카드는
+              이 줄에 **`spec_version` 이라고** 떴다 — DB 의 enum 값이다. 2026-09-24 까지
+              시드에 대기 결재가 한 건도 없어(질문 하나뿐이었고 그쪽은 `body_md` 가 있다)
+              아무도 그 줄을 본 적이 없다. 받은 요청 카드는 이미 `subjectFallback` 로 같은
+              자리를 메우고 있었다 — 판정이 아니라 **표기**라 그 함수를 여기서도 쓴다. */}
           <span className="block truncate text-base leading-[1.45] font-medium tracking-[-0.008em]">
-            {String(card['body_md'] ?? card['subject_key'] ?? card['subject_type'])}
+            {String(
+              card['body_md'] ??
+                card['spec_title'] ??
+                card['subject_key'] ??
+                subjectFallback(t, card['subject_type']),
+            )}
           </span>
           <span className="mt-0.5 block truncate text-xs text-text-faint">
             {String(card['requested_by'] ?? '')}
-            {card['subject_key'] !== null && card['subject_key'] !== undefined && (
-              <> · {String(card['subject_key'])}</>
-            )}
+            {subjectKey !== null && <> · {subjectKey}</>}
           </span>
         </span>
         {blocking && (

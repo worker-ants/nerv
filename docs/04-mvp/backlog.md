@@ -1,11 +1,12 @@
 ---
 id: SPC-MVP-BACKLOG
 status: approved
-updated: 2026-09-22
+updated: 2026-09-24
 referenced_by:
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md
+  - 04-mvp/database.md
   - 04-mvp/api.md
   - 04-mvp/screens.md
   - 04-mvp/plugin.md
@@ -18,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.04 · 2026-09-22 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.05 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.05 변경(2026-09-24 — 스토리 없이 들어온 구현 하나, **사람 지시**): §1.4 셋째 표에 **받은 요청이 늘 빈 상태로만 찍혔다** 한 줄([4.3](database.md) v0.46). 스토리 수·`done` 수는 그대로다 — 이 줄은 시드와 L3 이고 스토리가 아니다.
 >
 > v1.04 변경(2026-09-22 — 스토리 없이 들어온 구현 하나, **사람 결정**): §1.4 셋째 표에 **받은 요청 일괄 결정** 한 줄([3.6](../03-proposal/ui-wireframes.md) v0.6 · [4.4](api.md) v1.39 · [4.5](screens.md) v1.22). 스토리 수·`done` 수는 그대로다 — E13(받은 요청·질문·알림)의 세 스토리가 세는 것은 카드·질문·알림이고, **한 번에 여러 건을 결정하는 길**은 어느 스토리에도 없다. 들어온 김에 정본의 조건 한 줄도 고쳤다: *같은 스펙*은 정족수 슬롯이라 그대로 구현하면 일괄이 자기 규칙에 막힌다.
 >
@@ -376,6 +379,7 @@ referenced_by:
 | 작은 프로젝트에서는 이름이 서로를 덮었다 | `apps/web/src/features/spec-graph/layout.ts`(이름의 자리 · `crowdedLabels`·`declutterLabels`) · `layout.spec.ts`(L1 6건 추가) · `graph.tsx`(`.crowded` · 배율·끌기·고르기에 다시 센다) | **바로 윗줄이 그 화면을 처음 찍자마자 드러난 자리다.** [4.5](screens.md) v0.36 의 "겹칠 이름은 애초에 그려지지 않는다"(REQ-WEB-095)는 전체 보기의 맞춤 배율이 문턱(0.89)보다 낮다는 데 기댄 말이고, 그 전제는 **노드 141개**의 이야기다 — 스물이면 배율이 1을 넘어 이름이 전부 그려지고 서로를 덮는다. **배치**는 이름이 그려질 때에만 이름의 자리까지 잡아 두고(아니면 되돌린다 — 큰 그래프는 이 길을 지나가지 않는다), **화면**은 그러고도 겹치는 이름을 그리지 않는다(피참조가 많은 쪽이 남는다). 배율은 답을 바꾸지 않으므로 가려진 이름은 누르거나·끌거나·표에서 읽는다([4.5](screens.md) REQ-WEB-178 신설 · REQ-WEB-095 개정 · v1.19) |
 | 메일을 붙였다 — 초대가 자동으로 나간다 | `packages/schema/src/tables/mail.ts`·`enums.ts`(`email_kind`) · `drizzle/0027_email_outbox.sql` · `apps/api/src/modules/mail/`(설정·아웃박스·발신기·모듈) · `worker/jobs/mail.job.ts` · `modules/auth/invitation.service.ts`(같은 트랜잭션에서 줄 세운다) · `apps/web/src/routes/settings/members.tsx`(보낸 시각·보냄/전달 문구) · `deploy/compose`(mailpit) · L1 9건 · L2 11건 | **사람 결정 2026-09-22 — 셋을 함께 정했다**: nodemailer(SMTP) 스택 추가 · 가입 이메일 인증 강제(기존 계정 백필 승인) · 초대 메일 자동 발송. 이 줄은 그중 **배관과 초대**다(가입 인증은 다음 차례). 그전에는 admin 이 링크를 손으로 날랐다. 표면은 행을 넣고 워커가 보낸다 — 인라인 발송은 응답 시간으로 이메일의 존재를 흘리고(better-auth 문서 자신이 말린다) 실패를 적을 곳도 없다. 설정이 비면 꺼지되 **켜 놓고 보내는 사람을 비우면 기동을 거부한다**([4.1](scope.md) v0.31 · [4.3](database.md) REQ-DB-024~026 · [4.4](api.md) v1.37 · [4.5](screens.md) REQ-WEB-179) |
 | 가입은 이메일 확인까지다 | `apps/api/src/modules/auth/better-auth.ts`(`emailVerification` · 강제) · `modules/mail/mail.config.ts`(`requireEmailVerificationFromEnv` · 기동 거부) · `mail.outbox.ts`(`enqueueVerifyEmail`) · `drizzle/0028_email_verified_backfill.sql` · `packages/schema/seed/dev-seed.sql`(확인된 계정) · `apps/web/src/routes/{signup,login}.tsx`·`lib/session.ts`(미확인 분기·재발송) · L1 4건 추가 · L2 1건 추가 · L3 2건 신설 | **사람 결정 2026-09-22 의 둘째 항목**(강제 · 기존 계정 백필 승인). 바로 윗줄의 배관 위에 가입 인증을 얹었다. **강제는 메일을 보낼 수 있을 때만 성립하므로** 기본값을 SMTP 에서 유도하고, `true` 인데 SMTP 가 비면 기동을 거부한다. 기존 계정은 마이그레이션 0028 이 **그 시점까지 존재하던 것만** 확인 처리한다(규칙은 오늘부터다). 시드도 확인 상태로 심는다 — 그러지 않으면 개발 환경 전체가 로그인 화면에서 멈춘다(실측). 화면은 설정을 알지 않고 **서버의 403 `EMAIL_NOT_VERIFIED` 를 보고** 길을 연다([4.3](database.md) v0.45 · [4.4](api.md) v1.38 · [4.5](screens.md) REQ-WEB-180) |
+| 받은 요청이 늘 빈 상태로만 찍혔다 | `packages/schema/seed/dev-seed.sql`(검토 중인 개정판 4 · 결재 슬롯 5) · `apps/api/test/integration/seed.spec.ts`(L2 계약 갱신 + 섞임 한 건) · `apps/web/test/e2e/inbox-bulk.spec.ts`(신설 L3 2건) · `apps/web/src/routes/index.tsx`(홈 한 줄의 제목) · `home-today.spec.tsx`(신설 L1 3건) | 시드의 `approval` 은 **한 행뿐이었고 그것도 이미 결정이 끝난 면제**라 S7 받은 요청은 L3 에서도 스크린샷에서도 늘 빈 상태였다 — 바로 앞 v1.04 의 일괄 승인·거절은 들어온 날부터 그 길을 **한 번도 지나가지 못했다.** Activity(2026-08-23)·증적(2026-09-10)·관계 그래프(2026-09-22)와 **같은 형태의 네 번째**다. 저위험 셋(정족수 1 — 일괄로 지나간다)과 T3 하나(슬롯 2 — 빠지고 `0/2 승인` 배지가 선다)를 섞어 심었다: 저위험만 심으면 **빠지는 길**이 시드에 없고 T3 만 심으면 일괄이 아무것도 지나가지 못한다. 요청자·작성자를 L3 신원(지민)과 갈라 둔 것이 그 카드를 **누를 수 있게** 하는 조건이다 — 셋 중 하나라도 걸리면 카드는 있는데 아무것도 못 누르는 화면이 되고, 그건 빈 화면보다 나쁘다. **심자마자 하나가 드러났다**: S1 홈의 "오늘 할 일" 한 줄은 제목 폴백이 `subject_type` 이라 승인 카드를 **`spec_version` 이라고** 적고 있었다(DB 의 enum 값이다) — 질문 하나만 있던 동안은 그쪽에 `body_md` 가 있어 아무도 본 적이 없다. 받은 요청 카드가 같은 자리에 이미 쓰던 `subjectFallback` 을 여기서도 쓴다(REQ-WEB-133 이 적어 둔 표기 규칙이다 — 새 요구사항이 아니다)([4.3](database.md) §4 · v0.46) |
 
 #### 이 절은 언제 갱신되는가
 

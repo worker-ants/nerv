@@ -126,8 +126,11 @@ describe('개발 시드 (database.md §4)', () => {
         WHERE NOT EXISTS (SELECT 1 FROM activity a WHERE a.session_id = s.id)`,
     );
     expect(perSession[0]?.n).toBe('0');
-    // S7 받은 요청 — 열린 질문 1
+    // S7 받은 요청 — 열린 질문 1 · **대기 중인 결재 슬롯 5**(대상 넷 · 2026-09-24).
+    // 세는 것이 행이라 T3 의 두 슬롯이 둘로 잡힌다 — 대상별 모양은 아래 한 건짜리
+    // 테스트가 따로 본다. 여기서는 "비어 있지 않다" 만 본다.
     expect(await count('question', `WHERE status = 'open'`)).toBe(1);
+    expect(await count('approval', `WHERE decision IS NULL`)).toBe(5);
     // S1 홈 — 읽지 않은 알림 1
     expect(await count('notification', `WHERE state = 'unread'`)).toBe(1);
     // S3 스펙 상세 — SPC-CWC-007 은 v3 superseded → v4 approved (diff 재료)
@@ -214,6 +217,74 @@ describe('개발 시드 (database.md §4)', () => {
       `SELECT count(*)::int AS n FROM spec_relation GROUP BY to_spec_id ORDER BY n DESC LIMIT 1`,
     );
     expect(hub[0]?.n).toBeGreaterThanOrEqual(5);
+  });
+
+  it('받은 요청이 섞여 있다 — 저위험 셋 · T3 하나 (2026-09-24)', async () => {
+    // **대기 중인 결재가 한 건도 없었다.** `approval` 은 한 행뿐이었고 그것도 결정이 끝난
+    // 면제라, S7 받은 요청은 L3 에서도 스크린샷에서도 **늘 빈 상태**로만 찍혔다 — 그래서
+    // 일괄 승인·거절([4.5](screens.md) REQ-WEB-181~183)은 L1·L2 만 덮은 채 그 길을 한 번도
+    // 지나가지 못했다. Activity·증적·관계 그래프와 같은 형태의 네 번째다.
+    //
+    // **섞임이 계약이다.** 저위험만 심으면 일괄에서 **빠지는 길**이 시드에 없고, T3 만
+    // 심으면 일괄이 아무것도 지나가지 못한다.
+    const quorums = await rows<{ slots: number; n: number }>(`
+      SELECT slots, count(*)::int AS n FROM (
+        SELECT subject_id, count(*)::int AS slots FROM approval
+         WHERE decision IS NULL AND NOT is_bypass GROUP BY subject_id
+      ) q GROUP BY slots ORDER BY slots
+    `);
+    // 정족수 1 인 대상 셋(일괄로 지나간다) · 슬롯 2 인 대상 하나(T3 — 빠진다)
+    expect(quorums).toEqual([
+      { slots: 1, n: 3 },
+      { slots: 2, n: 1 },
+    ]);
+
+    // 슬롯 2 는 **문서 타입의 직군**이다(`SPEC_APPROVER_ROLES` — design → designer).
+    // 실물이 세우는 모양과 다르면 시드가 보여 주는 화면과 제출했을 때 서는 화면이 갈린다.
+    const slotRoles = await rows<{ assignee_role: string | null }>(`
+      SELECT a.assignee_role::text AS assignee_role FROM approval a
+       WHERE a.decision IS NULL
+         AND a.subject_id IN (SELECT subject_id FROM approval
+                               WHERE decision IS NULL GROUP BY subject_id HAVING count(*) = 2)
+       ORDER BY a.assignee_role NULLS FIRST
+    `);
+    expect(slotRoles.map((r) => r.assignee_role)).toEqual([null, 'designer']);
+
+    // 다섯 슬롯이 모두 **검토 중인** 문서를 가리킨다 — 받은 요청은 `in_review` 만 싣는다
+    // (거절로 draft 가 된 문서의 남은 슬롯은 대기가 아니다 · `approval.service`)
+    expect(
+      await count(
+        'approval a',
+        `JOIN spec_version sv ON sv.id = a.subject_id
+          WHERE a.decision IS NULL AND sv.status = 'in_review'`,
+      ),
+    ).toBe(5);
+
+    // **요청자도 작성자도 지민이 아니다.** 지민은 L3·개발 환경이 들어오는 신원이고,
+    // 지시자≠승인자는 세 축이다(요청자 · 작성자 · 작성 세션 소유자 — `approval-policy`).
+    // 하나라도 지민이면 `can_approve` 가 거짓이 되어 **카드는 있는데 아무것도 누를 수 없는
+    // 화면**이 된다 — 그건 빈 화면보다 나쁘다.
+    const jimin = `(SELECT id FROM "user" WHERE email = 'jimin@example.com')`;
+    expect(
+      await count(
+        'approval a',
+        `JOIN spec_version sv ON sv.id = a.subject_id
+          WHERE a.decision IS NULL
+            AND (a.requested_by_user_id = ${jimin}
+                 OR sv.author_user_id = ${jimin}
+                 OR EXISTS (SELECT 1 FROM agent_session s
+                             WHERE s.id = sv.author_session_id AND s.user_id = ${jimin}))`,
+      ),
+    ).toBe(0);
+
+    // 하나는 **한 시간을 넘겨 기다린다** — 그래야 대기 시간의 경고색(REQ-WEB-024)이
+    // 개발 환경에서 한 번은 그려진다. 전부 갓 들어온 것이면 그 색은 코드에만 있다.
+    expect(
+      await count(
+        'approval',
+        `WHERE decision IS NULL AND requested_at < now() - interval '1 hour'`,
+      ),
+    ).toBeGreaterThan(0);
   });
 
   it('같은 지적이 두 라운드에 걸쳐 하나로 남는다 — 화면의 dedup 표기가 시드에서 보인다', async () => {
@@ -303,6 +374,9 @@ async function snapshot(): Promise<Record<string, unknown>> {
     'task',
     'claim',
     'question',
+    // 결재는 **두 자리에서** 심긴다(대기 슬롯 다섯 · 결정된 면제 하나) — 한쪽만 멱등이면
+    // 재실행이 행을 불린다. 스냅샷이 세는 표에 없으면 그것을 아무도 못 본다.
+    'approval',
     'event',
     'notification',
   ];
