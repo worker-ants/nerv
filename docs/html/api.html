@@ -53,7 +53,7 @@
     <h1>API 명세</h1>
     <p class="lead">NERV MVP의 대외 계약 정본. REST(<code>/api/v1</code>)·MCP(<code>/mcp</code>)·WebSocket(<code>/ws</code>)·SSE(<code>/sse</code>) 네 표면이 <b>같은 도메인 서비스를 DI로 공유</b>한다는 결정(D-05)을 공통 규약, 리소스별 엔드포인트 전표, 실시간 채널 계약 — <b>WebSocket + SSE 다중 채널</b>(팬아웃 MQ는 Valkey pub/sub), MCP 도구 24종 ↔ 서비스 ↔ REST 대응 표, EARS 수용 기준(REQ-API-*)으로 실물화한다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 <b>이미 파싱된 결과만 받는</b> 경로다 — 규칙 정본은 <a href="importer.html">4.7 스펙 임포터</a>. 도구 정의는 <a href="agent-integration.html">3.4</a> §2, 이벤트 이름은 <a href="spec-workflow.html">3.5</a> §6, 필드 의미는 3.3이 정본이며 이 문서는 재정의하지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v1.39 (2026-09-22)</span>
+      <span>버전 v1.40 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/api.md</code></span>
       <span>ID: <code>SPC-MVP-API</code> · status: approved</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -687,7 +687,7 @@
       <tr><td>REQ-API-067</td><td>WHEN 보존 잡이 오래된 Activity 를 지우면 THE SYSTEM SHALL 지우기 전에 세션별 도구 횟수를 <code>agent_session.activity_summary</code> 에 접어 둔다</td></tr>
       <tr><td>REQ-API-068</td><td>WHEN 세션의 작업 궤적을 조회하면 THE SYSTEM SHALL 그 세션이 낸 이벤트를 시간순으로 주되(<code>session.*</code> 제외) 대상의 고정 ID를 함께 되찾아 준다</td></tr>
       <tr><td>REQ-API-064</td><td>WHEN 버전 diff 를 조회하는데 대상 스펙에 <code>requirement</code> 행이 없으면 THE SYSTEM SHALL 두 본문에서 요구사항을 읽어 같은 모양(<code>ref</code>·<code>statement_md</code>·<code>delta</code>)으로 델타를 만든다</td></tr>
-      <tr><td>REQ-API-063</td><td>WHEN 결재 결정이 기록되면 THE SYSTEM SHALL <b>같은 트랜잭션에서</b> 대상의 상태 전이를 적용한다 — <code>spec_version</code> 은 승인 시 <code>approved</code>, 거절·<b>코멘트</b> 시 <code>draft</code>(2026-09-02 — 코멘트가 문서를 <code>in_review</code> 에 가두고 있었다). WHEN 대상이 이미 그 상태가 아니면 THE SYSTEM SHALL 결정을 남기고 전이만 건너뛴다</td></tr>
+      <tr><td>REQ-API-063</td><td>WHEN 결재 결정이 기록되면 THE SYSTEM SHALL <b>같은 트랜잭션에서</b> 대상의 상태 전이를 적용한다 — <code>spec_version</code> 은 승인 시 <code>approved</code>, 거절·<b>코멘트</b> 시 <code>draft</code>(2026-09-02 — 코멘트가 문서를 <code>in_review</code> 에 가두고 있었다: 카드는 결정됨으로 사라지고 그 상태는 편집도 재제출도 불가라 되살릴 길이 없었다. <a href="spec-workflow.html">3.5</a> §2.5 의 "comment → 편집 → 재제출" 이 성립하려면 편집 가능한 상태여야 한다). WHEN 대상이 이미 그 상태가 아니면 THE SYSTEM SHALL 결정을 남기고 전이만 건너뛴다</td></tr>
       <tr><td>REQ-API-061</td><td>WHEN 리뷰 라운드가 제출되면 THE SYSTEM SHALL 새 발견이 0건이어도 <code>review.submitted</code> 를 방송한다(라운드 번호·새/병합 수·block). WHEN 임포트가 과거 리뷰를 적재하면 THE SYSTEM SHALL 이 이벤트를 내지 않는다</td></tr>
       <tr><td>REQ-API-062</td><td>WHEN 요청자가 자기 결재를 승인하려 하면 THE SYSTEM SHALL 그 사람이 그 프로젝트·조직의 <code>admin</code> 이거나 멤버가 2인 미만일 때만 허용하고, 허용한 사실을 이벤트 페이로드(<code>self_approved</code>)에 남긴다. WHEN 결재 카드를 조회하면 THE SYSTEM SHALL 이 판정을 <code>can_approve</code> 로 실어 준다</td></tr>
       <tr><td>REQ-API-060</td><td>WHEN 스펙을 고쳐 해결한 발견이 <code>spec_change</code> 로 처분되면 THE SYSTEM SHALL 그 프로젝트의 <code>spec_version_id</code> 를 증거로 요구하고, 없거나 남의 것이면 거부한다. WHEN <code>fixed</code> 가 커밋 없이 오면 THE SYSTEM SHALL 거부하면서 <code>spec_change</code> 라는 다른 길을 응답에 적는다</td></tr>
@@ -848,7 +848,7 @@
 
   <p>S8 게이트 정책 탭의 MVP 편집 항목은 <code>spec_gate.*</code> 3키다(<a href="screens.html">4.5 화면 명세</a> §2.8) — <code>failopen</code>·<code>retention</code>은 표시만 하고 편집은 admin의 API 직접 호출로 남긴다(편집 UI는 Phase 2).</p>
 
-  <p>멤버 초대 메일 발송은 Phase 2 알림 채널(메일)과 함께 온다 — MVP의 EP-MBR-02는 기존 사용자 배정만 담당한다(<a href="roadmap.html">3.7 로드맵</a> FR-12 배정과 정합).</p>
+  <p>멤버 초대 메일은 <b>EP-INV-01 이 보낸다</b>(2026-09-22 · 사람 결정 · §2.1b) — EP-MBR-02 는 기존 사용자 배정만 담당한다(<a href="roadmap.html">3.7 로드맵</a> FR-12 배정과 정합). 알림을 메일로 보내는 것(FR-12 의 메일 채널)은 여전히 Phase 2 다.</p>
 
   <h3 id="ep-spec">2.2 스펙·버전·코멘트 (S3)</h3>
 
@@ -1208,14 +1208,14 @@ basis_superseded: false
       <tr><td>토큰</td><td><b>해시만 저장</b>한다(PAT 와 같은 규율 · D-08). 원문은 생성 응답에 한 번 나가고 그 뒤로 서버는 그것을 모른다</td></tr>
       <tr><td>중복</td><td>대기 중 초대는 소속당 하나(부분 unique). 다시 부르면 앞의 것을 회수하고 새로 만든다 — 오타를 고치는 것이 실제 사용이다</td></tr>
       <tr><td>회수·수락</td><td><b>지우지 않는다.</b> 상태만 바뀐다 — 누가 누구를 불렀는지가 기록이다</td></tr>
-      <tr><td>메일</td><td><b>Phase 2.</b> MVP 에서는 admin 이 링크를 직접 전달한다 — 없는 기능을 있는 것처럼 그리지 않는다</td></tr>
+      <tr><td>메일</td><td><b>자동으로 나간다</b>(2026-09-22 · 사람 결정). 초대 행과 메일이 <b>한 트랜잭션</b>에 들어가고(<a href="database.html">4.3</a> §2.17 <code>email_outbox</code>), 워커가 보낸다. <b>토큰 원문은 응답에 그대로 남긴다</b> — 메일이 꺼졌거나 막힌 배치에서도 [복사] 경로가 살아 있어야 한다. 응답의 <code>queued</code> 가 둘을 가른다: 화면은 "메일을 보냈습니다" 와 "링크를 전달하세요" 를 갈라 말해야 하고, 둘을 같은 문구로 덮으면 한쪽은 반드시 거짓이다</td></tr>
     </tbody>
   </table></div>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>메서드·경로</th><th>권한</th><th>요청</th><th>응답</th></tr></thead>
     <tbody>
-      <tr><td>EP-INV-01</td><td><code>POST /api/v1/orgs/{org}/invitations</code></td><td>admin</td><td><code>{email, role, project?}</code></td><td><code>{id, email, role, token, expires_in_days}</code> — <b>토큰 원문은 여기서 한 번만</b></td></tr>
+      <tr><td>EP-INV-01</td><td><code>POST /api/v1/orgs/{org}/invitations</code></td><td>admin</td><td><code>{email, role, project?}</code></td><td><code>{id, email, role, token, expires_in_days, queued}</code> — <b>토큰 원문은 여기서 한 번만</b>. <code>queued</code> 는 메일을 줄 세웠는지다</td></tr>
       <tr><td>EP-INV-02</td><td><code>GET /api/v1/orgs/{org}/invitations</code></td><td>admin</td><td>—</td><td>초대 목록(<code>pending</code>·<code>accepted</code>·<code>revoked</code>·<code>expired</code>)</td></tr>
       <tr><td>EP-INV-03</td><td><code>DELETE /api/v1/invitations/{id}</code></td><td>admin</td><td>—</td><td><code>{ok:true}</code> — 회수(기록은 남는다)</td></tr>
       <tr><td>EP-INV-04</td><td><code>GET /api/v1/invitations/{token}</code></td><td><b>공개</b></td><td>—</td><td>조직·역할·상태 + <code>email_hint</code>(가려서)</td></tr>
@@ -1367,7 +1367,7 @@ basis_superseded: false
       <tr><td>★<code>member.added</code> · ★<code>member.updated</code> · ★<code>member.removed</code></td><td>멤버십 변경 — <code>from_state</code>·<code>to_state</code> 가 역할이다(권한 상승이 보이는 자리 · 조직 단위 멤버십은 담기지 않는다)</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td>★<code>token.created</code> · ★<code>token.revoked</code></td><td>PAT 발급·폐기 — <b>값은 남기지 않는다</b>(접두·권한·만료만)</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td>★<code>spec.attachment_added</code> · ★<code>spec.attachment_removed</code></td><td>첨부 확정·삭제 — S3 는 자기에게 무엇이 올라왔는지 알려 주지 못한다</td><td><code>project:{id}</code></td><td>P2</td></tr>
-      <tr><td><code>finding.opened</code> · <code>finding.resolved</code> · <code>cr.opened</code></td><td>리뷰·CR — <b>Phase 2</b>(S6·review 도구 2종과 함께)</td><td><code>project:{id}</code></td><td>P2</td></tr>
+      <tr><td><code>finding.opened</code> · <code>finding.resolved</code> · <code>cr.opened</code></td><td>리뷰·CR(2026-08-23 구현 — <code>cr.opened</code> 만 Phase 2 로 남았다)</td><td><code>project:{id}</code></td><td>P2</td></tr>
       <tr><td><code>evidence.added</code></td><td>증적 등록 — REST·MCP·웹훅 세 경로 모두(2026-09-06 배선 · REQ-API-115)</td><td><code>project:{id}</code></td><td>P1</td></tr>
       <tr><td><code>review.submitted</code></td><td>리뷰 라운드 제출 — S6 가 새로고침 없이 알게 하려고 신설(v0.41)</td><td><code>project:{id}</code></td><td>P2</td></tr>
       <tr><td><code>finding.commented</code></td><td>발견 코멘트(EP-REV-05)</td><td><code>project:{id}</code></td><td>P2</td></tr>
@@ -1531,7 +1531,7 @@ basis_superseded: false
       <tr><td>REQ-API-099</td><td>WHEN EP-SPEC-02·<code>nerv_spec_search</code> 에 <code>type</code>·<code>status</code> 가 오면 THE SYSTEM SHALL 그 값으로 결과를 좁히되 <b>자르기 전에</b> 거르고, 어휘 밖 값은 400 으로 거절한다 — 전표는 처음부터 이 필터를 적었는데 두 표면 어디에도 없어 보낸 쪽은 걸러지지 않은 전체를 받고도 걸러졌다고 믿었다(2026-09-05)</td><td>종류 필터 1건 · 상태 필터 1건 · 어휘 밖 400 1건</td></tr>
       <tr><td>REQ-API-100</td><td>WHEN EP-SPEC-08 에 <code>relations</code> 가, EP-TASK-07 에 <code>progress</code>·<code>stats</code> 가, EP-TASK-08 에 <code>state_note</code> 가 오면 THE SYSTEM SHALL <b>REST 에서도</b> 그것을 반영한다 — 셋 다 서비스는 받고 MCP 만 넘기고 있어 같은 요청에 두 표면이 다르게 답했다(D-05 · 2026-09-05)</td><td>REST 관계 1건 · 하트비트 본문 1건 · 인수인계 노트 1건</td></tr>
       <tr><td>REQ-API-098</td><td>WHEN EP-SPEC-01·19 에 <code>baseline</code> 이 오면 THE SYSTEM SHALL 그 세트가 담은 스펙만 반환하고 각 노드의 <code>version_no</code>·<code>doc_status</code> 를 <b>그 세트가 묶어 둔 버전</b>의 것으로 싣는다. WHEN 그 이름의 기준선이 없으면 THE SYSTEM SHALL <code>invalid_input</code>(<code>field="baseline"</code>)으로 거절한다. WHILE <code>baseline</code> 이 없는 동안 THE SYSTEM SHALL 각 문서의 현재 버전으로 준다</td></tr>
-      <tr><td>REQ-API-097</td><td>WHEN 파생 Task 가 클레임되거나 전이하거나 그 요구사항에 증적이 등록되면 THE SYSTEM SHALL 그 Requirement 의 <code>impl_status</code> 를 <b>다시 파생한다</b> — 하나 이상이 <code>claimed</code>/<code>in_progress</code>/<code>in_review</code> 면 <code>in_progress</code>, 전부 <code>done</code> <b>이고</b> 증적 1건 이상이면 <code>implemented</code>, 그 밖에는 <code>unimplemented</code> 다. WHILE 이미 <code>verified</code> 인 동안, 그리고 파생 Task 가 하나도 없는 동안 THE SYSTEM SHALL 값을 바꾸지 않는다</td></tr>
+      <tr><td>REQ-API-097</td><td>WHEN 파생 Task 가 클레임되거나 전이하거나 그 요구사항에 증적이 등록되면 THE SYSTEM SHALL 그 Requirement 의 <code>impl_status</code> 를 <b>다시 파생한다</b> — 하나 이상이 <code>claimed</code>/<code>in_progress</code>/<code>in_review</code> 면 <code>in_progress</code>, 전부 <code>done</code> <b>이고</b> 증적(요구사항 또는 그 파생 Task 에 붙은 것) 1건 이상이면 <code>implemented</code>, 그 밖에는 <code>unimplemented</code> 다. WHILE 이미 <code>verified</code> 인 동안 THE SYSTEM SHALL 값을 바꾸지 않는다(그 칸의 조건은 지금 스키마가 담지 못한다). WHILE 파생 Task 가 하나도 없는 동안 THE SYSTEM SHALL 값을 바꾸지 않는다 — 임포터가 문서에서 읽어 넣은 값을 쓸어버리지 않기 위해서다</td></tr>
       <tr><td>REQ-API-096</td><td>WHEN SpecVersion 이 <code>approved</code> 로 전이하면 THE SYSTEM SHALL 그 본문에서 요구사항 줄(<code>REQ-…</code> + EARS)을 읽어 <code>requirement</code> 행을 만들거나 갱신하고, <b>본문에서 사라진 요구사항은 지우지 않고</b> <code>removed_in_version_id</code> 에 그 버전을 적는다. WHILE 본문이 우선순위를 담지 않는 동안 THE SYSTEM SHALL <code>must</code> 로 시작한다. <b>추출은 저장 응답의 델타와 같은 함수를 쓴다</b> — 두 벌이면 요구사항의 정의가 갈라진다</td></tr>
       <tr><td>REQ-API-095</td><td>WHEN <code>ready</code> 인 Task 를 클레임하는데 그 Task 의 기준 스펙 버전에서 나온 파생 Task 가 <b>4건 이상</b>이거나 그 버전의 게이트 티어가 <b>T3</b> 이면 THE SYSTEM SHALL 클레임을 <code>NERV_PRECONDITION</code>(<code>details.kind="plan_approval_required"</code>)으로 거절하고, <b>거절하기 전에</b> 그 Task 를 대상으로 하는 <code>plan</code> 결재를 만든다. WHEN 그 결재가 승인되면 THE SYSTEM SHALL 다음 클레임을 통과시킨다. WHILE 기준 스펙 버전이 없거나 판정이 실패하는 동안 THE SYSTEM SHALL 막지 않는다(fail-open)</td></tr>
       <tr><td>REQ-API-094</td><td>WHILE PAT 로 인증하는 동안 <code>X-NERV-Project</code> 헤더가 실려 오면 THE SYSTEM SHALL 그 값을 토큰이 묶인 프로젝트의 슬러그와 견주고, 다르면 <code>NERV_FORBIDDEN</code>(<code>details.kind="project_mismatch"</code>)으로 거절하며 <b>헤더의 값과 토큰의 값을 모두</b> 싣는다 — 조용히 토큰 쪽으로 진행하면 잘못 설정된 세션이 <b>엉뚱한 프로젝트에 쓴다</b>. WHILE 헤더가 없거나 비어 있는 동안 THE SYSTEM SHALL 토큰만 보고 진행한다</td></tr>

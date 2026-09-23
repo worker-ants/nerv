@@ -53,7 +53,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 <b>22종</b>(P0 8 + P1 14 · 카탈로그 24종 — 리뷰 2종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.32 (2026-09-24)</span>
+      <span>버전 v0.33 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: approved</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -278,7 +278,7 @@
       <tr><td>FR-09</td><td>리뷰 수집</td><td>○</td><td>○</td><td>○</td><td>—</td><td>ReviewSession→Finding→Resolution 은 Phase 2 로 계획했으나 <b>2026-08-23 이후 전부 들어왔다</b>(§5 착수 기록) — 서버·도구·REST 7종·S6 리뷰 센터 화면·<code>/nerv:review</code> 스킬(패키지에 배포됨)·소급 임포터까지. 남은 것은 게이트의 리뷰 커버리지 조건이다(FR-10 행)</td></tr>
       <tr><td>FR-10</td><td>게이트 판정 API</td><td>◐</td><td>○</td><td>◐</td><td>Task <code>done</code> 전이 조건 판정</td><td>리뷰 커버리지 조건·커밋 범위 판정은 Phase 2</td></tr>
       <tr><td>FR-11</td><td>받은 요청(Inbox)</td><td>◐</td><td>○</td><td>◐</td><td>스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트</td><td>CR·에스컬레이션 카드(5유형 완성)는 Phase 2</td></tr>
-      <tr><td>FR-12</td><td>알림</td><td>◐</td><td>○</td><td>◐</td><td>인앱 알림</td><td>Slack·메일·다이제스트는 Phase 2</td></tr>
+      <tr><td>FR-12</td><td>알림</td><td>◐</td><td>○</td><td>◐</td><td>인앱 알림</td><td>Slack·다이제스트는 Phase 2. <b>알림의 메일 채널도 Phase 2 다</b> — 2026-09-22 에 들어온 SMTP 는 가입 인증과 초대 메일이고(§2.1 발신 행), 알림을 메일로 보내는 것은 중요도·수신 설정이 함께 필요한 별개의 일이다</td></tr>
       <tr><td>FR-13</td><td>증적·커버리지</td><td>◐</td><td>○</td><td>◐</td><td>PR·커밋 웹훅 수신, Task↔PR 링크</td><td>커버리지 계산·대시보드는 Phase 2</td></tr>
       <tr><td>FR-14</td><td>멀티테넌시</td><td>●</td><td>◐</td><td>●</td><td>Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정)</td><td>—</td></tr>
       <tr><td>FR-15</td><td>에이전트 연동</td><td>◐</td><td>◐</td><td>◐</td><td>MCP tools P0 8종 + P1 14종 = <b>22종</b>(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + statusline — <code>.mcp.json</code> 은 담지 않는다, 2026-09-04 REQ-PLG-001 개정), 훅 수집기</td><td>Codex 완전 지원·<code>AGENTS.md</code> 배포·OAuth 2.1은 Phase 2(§5)</td></tr>

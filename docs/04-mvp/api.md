@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.39 · 2026-09-22 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.40 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.40 변경(2026-09-24 — v1.37 이 파생본에 닿지 않았다, 전수 대조): **새 요구사항 없음 · 파생본 넷과 EP-INV-01 행 한 칸.** `api.html` 에 `email_outbox` 도 `queued` 도 **한 번도 나오지 않았다** — v1.37(초대 메일 자동 발송)이 md 만 고쳤다. 그래서 파생본은 §2.1b 메일 행에서 "**Phase 2.** MVP 에서는 admin 이 링크를 직접 전달한다" 라 말하고 §2.2 산문에서도 "Phase 2 알림 채널과 함께 온다" 라 말했는데, **같은 문서의 v1.38(가입 이메일 확인)은 이미 반영돼 있어** 읽는 사람은 메일이 있다는 말과 없다는 말을 한 문서에서 함께 봤다. 곁들여 둘: §3.3 이벤트 표의 리뷰·CR 행이 "Phase 2" 인 채였고(2026-08-23 구현 · `cr.opened` 만 남았다), REQ-API-097 의 파생본에서 **증적의 범위를 정하는 괄호**("요구사항 또는 그 파생 Task 에 붙은 것")와 WHILE 둘을 가르는 문장이 빠져 있었다. **md 쪽도 한 칸 고쳤다** — v1.37 이 "EP-INV-01 응답에 `queued`" 라 선언했는데 정작 그 행의 응답 칸에는 없었다.
 >
 > v1.39 변경(2026-09-22 — 받은 요청을 한 건씩만 비울 수 있었다, **사람 결정**): **REQ-API-162~164 신설 · EP-APR-06 신설 · EP-APR-01 응답 두 열.** [3.6](../03-proposal/ui-wireframes.md) §4.1 은 처음부터 일괄 처리를 허용했는데(그림에도 `[일괄 ☐]` 가 있다) MVP 명세가 그것을 받지 않아 **구현이 단건뿐**이었다. 들이면서 그 문장의 조건 하나를 **정정한다**: 정본이 적은 *같은 스펙*은 지금 모델에서 **정족수 슬롯**이고(`ensurePendingApproval`), 한 사람은 같은 대상에 한 번만 승인한다(REQ-API-140) — 그대로 두면 일괄은 1건 성공 + 나머지 `already_approved` 가 된다. 축은 *같은 유형 × 서로 다른 대상 × 정족수 1* 이다. **저위험의 실물 축은 슬롯 수다** — `gate_tier` 는 결재 행에 없고 이벤트 payload 에만 있어서, 남은 대리 지표가 그것이다(T3 은 슬롯이 둘이다). 게이트 면제 요청도 뺀다(*면제가 조용히 일어나지 않는 것 자체가 기능이다*). **admin 은 둘 다 면제**이고(2026-09-22 사람 결정), 그 대신 일괄로 지나간 결정은 `bulk:true`·`batch_id` 로 감사에 남는다 — 예외를 허용하는 것과 감추는 것은 다른 일이다. 표면은 `decide()` 를 건마다 부르는 **얇은 루프**다(D-05): 지시자≠승인자·정족수·역할 큐·stale 차단이 전부 그 안에 있고, 여기서 다시 판정하면 언젠가 한쪽만 고쳐진다. **`seen_content_hash` 는 건마다 간다** — 일괄이 그 검사를 건너뛰면 일괄 승인이 stale 차단(§2.6)의 구멍이 된다([4.5](screens.md) REQ-WEB-181~183 · v1.22).
 >
@@ -1233,7 +1235,7 @@ basis_superseded: false
 
 | ID | 메서드·경로 | 권한 | 요청 | 응답 |
 | --- | --- | --- | --- | --- |
-| EP-INV-01 | `POST /api/v1/orgs/{org}/invitations` | admin | `{email, role, project?}` | `{id, email, role, token, expires_in_days}` — **토큰 원문은 여기서 한 번만** |
+| EP-INV-01 | `POST /api/v1/orgs/{org}/invitations` | admin | `{email, role, project?}` | `{id, email, role, token, expires_in_days, queued}` — **토큰 원문은 여기서 한 번만**. `queued` 는 메일을 줄 세웠는지다 |
 | EP-INV-02 | `GET /api/v1/orgs/{org}/invitations` | admin | — | 초대 목록(`pending`·`accepted`·`revoked`·`expired`) |
 | EP-INV-03 | `DELETE /api/v1/invitations/{id}` | admin | — | `{ok:true}` — 회수(기록은 남는다) |
 | EP-INV-04 | `GET /api/v1/invitations/{token}` | **공개** | — | 조직·역할·상태 + `email_hint`(가려서) |
