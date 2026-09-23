@@ -8,7 +8,7 @@
 //     (운영자가 로그 레벨을 바꿔도 아무 일이 일어나지 않았다. 유령 설정이다)
 //   - `NERV_S3_ENDPOINT` 행이 **두 번** 있고 "필수" 열이 서로 달랐다
 //
-// 세는 것은 열하나다.
+// 세는 것은 열둘이다.
 //   ① 코드가 읽는 변수가 전표(또는 걷힌 이름 표)에 있는가 — 없으면 운영자가 존재를 알 길이 없다
 //   ② `.env.example` 의 키가 전표에 있는가
 //   ③ 한 변수가 전표에 두 번 나오지 않는가 — 두 행이 다른 말을 하면 어느 쪽이 계약인가
@@ -24,6 +24,9 @@
 //   ⑩ 그 포트들의 기본값이 이미지 `ENV` 와 전표에서 같은가
 //   ⑪ **걷힌 이름이 compose 의 api·worker 에 전달되는가** — compose 는 env 를 키 목록으로
 //     넘기므로, 넘기지 않으면 옛 이름을 둔 배치가 조용히 기본값으로 뜬다(2026-09-14 신설)
+//   ⑫ **전표가 api·worker 소비자라 적은 키를 k8s 가 주는가** — compose 에 배선하고 k8s 를
+//     두고 가는 결함이 세 번 되풀이됐다(웹훅 키·미러 경로·메일 다섯). `envFrom` 이라
+//     파드는 정상으로 뜨고 그 기능만 꺼진다(2026-09-22 신설 · REQ-CB-049)
 //
 // **값을 대조하는 범위는 포트와 오리진뿐이다.** 이 스크립트는 오래 "값이나 기본값은
 // 대조하지 않는다 — 그것은 렌더러를 다시 만드는 일이고 실제로 어긋난 것은 언제나 있고
@@ -364,6 +367,50 @@ for (const svc of ['api', 'worker']) {
   }
 }
 
+// -- ⑫ 전표의 api·worker 손잡이가 k8s 에 실재하는가 (2026-09-22 신설 · REQ-CB-049) -----
+//
+// **compose 에 배선하고 k8s 를 두고 가는 것이 이 저장소의 되풀이되는 결함이다.**
+// 2026-09-13 `NERV_GITHUB_WEBHOOK_SECRET` 이 k8s 어디에도 없었고(비면 EP-WHK-01 이 모든
+// 배송을 401 로 거절한다), 2026-09-14 `NERV_EXPORT_DIR` 이 어느 배치에도 없어 md 미러는
+// 명세에 있으면서 **어떤 배포에서도 산출되지 않았다.** 2026-09-22 메일 다섯도 같은
+// 자리였다 — compose 는 완비, k8s 는 전무였다.
+//
+// **`envFrom` 이라 조용하다.** 키가 없어도 파드는 정상으로 뜨고 꺼지는 것은 기능뿐이다:
+// 초대 메일이 나가지 않고 아웃박스에 쌓이지도 않으며, SMTP 에서 유도되는 가입 이메일
+// 인증 강제가 함께 내려앉는다. ⑨⑩ 은 포트를, check-k8s-render 는 주소를 세는데
+// **키의 실재를 세는 자리가 없었다** — 그래서 세 번 같은 모양으로 새어 나갔다.
+//
+// 소비자가 api·worker 인 전표 키는 셋 중 하나가 준다:
+//   base/configmap.yaml · overlays/<env>/secret.example.yaml · 이미지의 `ENV`
+// 셋째가 있는 이유는 `NERV_PLUGIN_DIST` 다 — 전표 행 자신이 "이미지가 ENV 로 준다" 고
+// 적고 `Dockerfile.server` 가 실제로 준다. 환경마다 바꿀 손잡이가 아니라 ConfigMap 의
+// 것이 아니다. **예외 목록을 박는 대신 주는 자리를 세면** 그 구분이 저절로 선다.
+const givenByK8s = new Set(Object.keys(configMap ?? {}));
+for (const overlay of ['dev', 'prod']) {
+  const doc = yamlOrNull(`deploy/k8s/overlays/${overlay}/secret.example.yaml`);
+  for (const key of Object.keys(doc?.stringData ?? {})) givenByK8s.add(key);
+}
+for (const rel of ['deploy/docker/Dockerfile.server', 'deploy/docker/Dockerfile.web']) {
+  const text = readFileSync(resolve(REPO, rel), 'utf8');
+  for (const m of text.matchAll(/^ENV\s+([A-Z][A-Z0-9_]*)=/gm)) givenByK8s.add(m[1]);
+}
+if (givenByK8s.size === 0) {
+  fail.push('k8s 에서 설정 키를 한 자리도 읽지 못했다 — 검사가 비었다(파일 모양이 바뀌었나)');
+}
+let k8sChecked = 0;
+for (const [name, consumer] of consumers) {
+  // ④ 와 같은 제외다 — `compose`·`E2E`·`drizzle-kit`·`이미지` 만 적힌 행은 k8s 의 것이 아니다.
+  if (/compose|E2E|drizzle-kit|이미지/.test(consumer)) continue;
+  if (!/\b(?:api|worker)\b/.test(consumer)) continue;
+  k8sChecked += 1;
+  if (givenByK8s.has(name)) continue;
+  fail.push(
+    `§5.2 가 \`${name}\` 의 소비자를 "${consumer.trim()}" 이라 적는데 k8s 어디에도 없다 — ` +
+      `base/configmap.yaml 도 overlays/*/secret.example.yaml 도 이미지 ENV 도 주지 않는다. ` +
+      `\`envFrom\` 이라 파드는 정상으로 뜨고 그 기능만 조용히 꺼진다`,
+  );
+}
+
 if (fail.length > 0) {
   console.error(
     [
@@ -380,5 +427,6 @@ if (fail.length > 0) {
 
 console.log(
   `.env 전표 정합 — 전표 ${declared.size}행 · 걷힌 이름 ${retired.size}개 · ` +
-    `코드가 읽는 변수 ${readBy.size}개 · compose 포트 손잡이 ${composeSeen}자리`,
+    `코드가 읽는 변수 ${readBy.size}개 · compose 포트 손잡이 ${composeSeen}자리 · ` +
+    `k8s 가 줘야 하는 키 ${k8sChecked}개`,
 );

@@ -11,9 +11,10 @@ import { createTransport } from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import {
   mailDryRunFromEnv,
+  mailEnabled,
   mailFromFromEnv,
   mailReplyToFromEnv,
-  smtpUrlFromEnv,
+  smtpTransportFromEnv,
 } from './mail.config.js';
 
 export interface OutgoingMail {
@@ -30,13 +31,13 @@ export class MailSender {
 
   /** 보낼 수 있는가 — 잡이 매 틱 묻는다(운영 중 env 가 바뀌지는 않지만 판정을 한 곳에 둔다) */
   get enabled(): boolean {
-    return smtpUrlFromEnv() !== null;
+    return mailEnabled();
   }
 
   async send(mail: OutgoingMail): Promise<void> {
-    const url = smtpUrlFromEnv();
+    const transport = smtpTransportFromEnv();
     // eslint-disable-next-line no-restricted-syntax -- 운영자용 오류다(REQ-CB-022 예외): 잡의 로그로만 나간다
-    if (url === null) throw new Error('NERV_SMTP_URL 이 없습니다 — 보낼 수 없습니다.');
+    if (transport === null) throw new Error('NERV_MAIL_HOST 가 없습니다 — 보낼 수 없습니다.');
 
     // **마른 실행은 보내지 않고 남긴다.** 본문은 찍지 않는다 — 링크가 로그에 남으면 그
     // 로그를 읽을 수 있는 사람이 곧 그 초대를 수락할 수 있는 사람이 된다.
@@ -45,7 +46,14 @@ export class MailSender {
       return;
     }
 
-    this.transport ??= createTransport(url);
+    // `auth: null` 을 그대로 넘기면 nodemailer 가 인증을 시도하다 실패한다 — 인증 없는
+    // 사내 릴레이에서는 키 자체를 빼야 한다(한쪽만 설정한 배치는 기동 단계에서 이미 거부됐다).
+    this.transport ??= createTransport({
+      host: transport.host,
+      port: transport.port,
+      secure: transport.secure,
+      ...(transport.auth === null ? {} : { auth: transport.auth }),
+    });
     await this.transport.sendMail({
       from: mailFromFromEnv() ?? undefined,
       ...(mailReplyToFromEnv() === null ? {} : { replyTo: mailReplyToFromEnv() ?? undefined }),

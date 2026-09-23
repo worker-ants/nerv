@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 38개**다 — 도메인 32 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.45 · 2026-09-22 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.46 · 2026-09-24 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.46 변경(2026-09-24 — 발송 설정의 스위치 이름이 바뀐다): **새 요구사항 없음 — REQ-DB-025 의 키 이름.** 아웃박스에 행을 넣을지 판정하는 설정이 `NERV_SMTP_URL` 에서 `NERV_MAIL_HOST` 로 바뀌었다(접속 정보가 여섯 키로 나뉘었다 — [4.2](codebase.md) §5.2 · REQ-CB-050). **판정도 동작도 그대로다**: 비면 넣지 않는다.
 >
 > v0.45 변경(2026-09-22 — 가입 이메일 인증을 강제한다, **사람 결정**): **새 요구사항 없음 · 마이그레이션 0028 · §4 시드 산문.** 인증을 강제하면 `email_verified` 가 거짓인 계정은 로그인할 수 없는데, 그 열의 기본값은 `false` 이고 **지금 있는 계정은 아무도 확인 절차를 거친 적이 없다** — 그대로 켜면 기존 사용자가 전부 잠긴다. 0028 이 **그 시점까지 존재하던 계정만** 참으로 세운다(규칙은 오늘부터 적용된다 — 이후 가입자는 기본값으로 들어와 메일을 받는다). 시드도 같은 이유로 계정을 확인 상태로 심는다: TRUNCATE 후 재삽입이라 백필 뒤에 다시 만들어지고, 그대로 두면 개발 환경 전체가 로그인 화면에서 멈춘다(실측).
 >
@@ -1199,7 +1201,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-DB-024 | WHEN 메일을 보내야 하는 일이 생기면 THE SYSTEM SHALL 그 일을 만든 트랜잭션 안에서 `email_outbox` 에 행을 넣고, 발송은 워커가 따로 수행한다 — 표면은 SMTP 를 기다리지 않는다 |
-| REQ-DB-025 | WHILE 발송 설정(`NERV_SMTP_URL`)이 비어 있으면 THE SYSTEM SHALL 아웃박스에 행을 넣지 않는다 — 보낼 수 없는 줄이 쌓이면 설정을 켠 날 밀린 메일이 한꺼번에 나간다 |
+| REQ-DB-025 | WHILE 발송 설정(`NERV_MAIL_HOST`)이 비어 있으면 THE SYSTEM SHALL 아웃박스에 행을 넣지 않는다 — 보낼 수 없는 줄이 쌓이면 설정을 켠 날 밀린 메일이 한꺼번에 나간다 |
 | REQ-DB-026 | WHEN 발송이 실패하면 THE SYSTEM SHALL 지수 백오프로 다시 시도하고, 상한을 넘으면 행을 **지우지 않고** 실패 시각과 사유를 남긴다 |
 
 ---

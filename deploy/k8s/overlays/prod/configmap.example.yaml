@@ -65,3 +65,27 @@ data:
   # ── ③ 필요할 때만 더한다(base 에 없는 키 — §5.2) ──────────────────────────
   # 앞문의 유휴 타임아웃이 이 값보다 짧으면 SSE 가 조용히 끊긴다(REQ-CB-035).
   # NERV_SSE_KEEPALIVE_MS: '25000'
+
+  # ── ④ 메일(2026-09-22 · 접속 정보는 2026-09-24 부터 여섯 키다 · §5.2) ────
+  # **스위치는 `NERV_MAIL_HOST` 다** — 비면 메일이 꺼지고 **가입 이메일 인증 강제도 함께
+  # 꺼진다**(2026-09-22 사람 결정 "강제" 가 그 배치에서만 성립하지 않는다). 운영은 채우는
+  # 것이 기본이다. 비밀인 것은 `NERV_MAIL_PASS` 하나이고 nerv-secrets 의 몫이다 — 호스트·
+  # 포트·TLS·사용자를 여기 적어 두면 **어디로 보내는지가 설정에 드러난다.**
+  NERV_MAIL_HOST: 'smtp.example.com'
+  # 비우면 587(submission · STARTTLS). 암묵 TLS 릴레이면 465 다.
+  NERV_MAIL_PORT: '465'
+  # 비우면 위 포트에서 유도한다(465 면 'true') — 손으로 적는 것은 비표준 포트에서 암묵
+  # TLS 를 받는 게이트웨이일 때뿐이다. 바꿔 적으면 연결이 걸린 채 타임아웃한다.
+  # NERV_MAIL_SECURE: 'true'
+  # 인증 두 키(USER·PASS)는 **한 벌이라 nerv-secrets 에 함께** 있다 — 여기 적지 않는다.
+  # 보내는 사람 — 호스트를 적으면 **반드시 채운다**. 비우면 api·worker 가 기동을 거부한다:
+  # 보내는 사람 없는 메일은 거절되거나 스팸함으로 간다.
+  NERV_MAIL_FROM: 'NERV <no-reply@nerv.example.com>'
+  # 사람이 답장할 주소 — no-reply 로만 두면 "이 메일 뭐죠" 가 갈 곳이 없다.
+  NERV_MAIL_REPLY_TO: 'support@example.com'
+  # **첫 배포는 'true' 로 두고 무엇이 나가는지 먼저 본다**(로그에 수신자와 제목만 남는다).
+  # 확인이 끝나면 'false' 로 내린다 — 켜 둔 채로 두면 초대가 아웃박스에만 쌓인다.
+  NERV_MAIL_DRY_RUN: 'false'
+  # 비우면 호스트 유무를 따른다 — 운영은 메일이 있으므로 강제다. 명시하면 그 값이 이기고,
+  # 'true' 인데 호스트가 비면 기동을 거부한다.
+  # NERV_REQUIRE_EMAIL_VERIFICATION: 'true'
