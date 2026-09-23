@@ -62,6 +62,23 @@ On a narrow screen the project sidebar moves into a **drawer, opened by the [☰
 
 One person can be `admin` in the organization and `developer` on a project. **Holding both is a union** — you get the permissions of both seats.
 
+## Creating an account — signing up ends with the confirmation mail
+
+Fill in a name, an email and a password on the sign-up screen and the account is created — then you are asked **once whether the address is really yours.** You get in after confirming it.
+
+1. Press [Sign up] and the form is replaced by **"Confirmation mail sent"**, which says which address it went to. The form is not left behind: there is nothing to type again.
+2. Open the link in the mail. **Confirming signs you in right there** — you do not retype the password you just chose.
+3. Signing in before confirming is refused with **"Your email is not confirmed yet."** That does **not** mean the password is wrong, so do not retype it — what is left to do is open your inbox.
+
+- **If the mail is missing, check the spam folder.** If it is not there either, use **[Resend the confirmation mail]**, which sits on both the sign-up and the sign-in screen. One press turns it into "Sent" and it will not press again on that screen — reload the page to get it back.
+- **Resending uses the same limit as signing in (10 per minute).** Hammering somebody else's address would fill their inbox.
+- **An unconfirmed account can do nothing.** If a confirmation mail arrives and you never signed up, just delete it.
+- **Coming in from an invitation link works the same way.** Once confirmed, you are returned to that invitation (see "Inviting people" in [Settings](/help/settings)).
+
+**Some servers skip this step entirely.** Email confirmation is required **only where the server can send mail** — on a deployment with no mail sender configured (an empty `NERV_MAIL_HOST`), signing up takes you straight in, and neither the notice above nor [Resend] is ever shown. The point is to avoid a server that demands a confirmation it cannot send: configured that way, the server refuses to start at all.
+
+**Accounts that were already in use are not asked again.** Accounts that existed before this rule reached the server were treated as confirmed — making a new rule retroactive charges people who did nothing wrong. The rule applies to sign-ups after it.
+
 ## Your first five minutes
 
 0. If you were sent an invitation link, open that first — signing in accepts the invitation. If you do not belong to an organization yet, signing in takes you to **Get started**, where any invitation waiting for you sits as a card.
