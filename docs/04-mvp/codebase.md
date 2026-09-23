@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.59 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.60 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.60 변경(2026-09-24 — 번호가 같은데 약속이 달랐다, 전수 대조 → 사람 확정): **REQ-CB-051 신설 · 규약 1 의 검사가 세는 것 넷 → 다섯 · §1.1 트리와 §4.5 CI 주석 한 줄씩.** md 23편과 html 23편을 전수로 대조했고, **파생본의 수용 기준 둘이 개정 전 문장인 채로 있었다.** `REQ-CB-015` 는 배포 산출물을 아직 `codebase/` 에 두라 말했다(2026-08-22 개정 전 — 같은 파일의 §1.1 트리와 서문은 `deploy/` 라 적어 **문서가 자기와 모순했다**). `REQ-CB-021` 은 머리에 "(2026-09-22 개정 — 긴 벡터는 잘라 맞출 수 있다)" 라 써 놓고 본문은 개정 전 규칙("1024 가 아니면 거절")을 실어 `NERV_EMBED_TRUNCATE`·REQ-CB-047 이 빠져 있었다 — **"개정했다" 고 적힌 문서가 개정 전 규칙을 싣는 것이 가장 나쁜 모양이다**(§5.2a 운영 프로필 행도 같은 문장을 잃고 있었다). **둘 다 게이트가 초록인 채로 지났다**: 검사가 번호가 **있는지**만 셌기 때문이다. 이제 첫 칸이 고정 ID 인 표 행을 번호로 짝지어 문장을 견준다(REQ-CB-051). 닮은 정도 **0.7** 이 경계인 이유는 실측이다 — 어긋난 둘이 0.52·0.58 이고, 파생본이 근거 괄호를 줄여 실은 나머지는 전부 **0.75 이상**이었다: 줄이는 자유는 남기고 다른 말을 하는 것만 막는다. **고정 ID 가 없는 표 행은 여전히 사람이 지킨다** — 같은 대조가 [4.1](scope.md) FR-12 에서 찾은 자리가 그것이다(v0.33).
 >
 > v1.59 변경(2026-09-24 — 메일 접속 정보를 여섯 키로 나눈다, **사람 결정**): **REQ-CB-050 신설 · `NERV_SMTP_URL` 을 걷는다 · §5.2 전표 다섯 줄.** `NERV_SMTP_URL` 한 줄이 호스트·포트·TLS·사용자·비밀번호를 겸하고 있었고, `NERV_MAIL_HOST`·`_PORT`·`_SECURE`·`_USER`·`_PASS` 로 갈렸다. **v1.58 의 k8s 작업이 뒤집은 이유를 드러냈다**: 자격증명이 문자열 안에 섞여 있어 URL 은 통째로 Secret 으로 가야 하고, 그러면 호스트도 포트도 TLS 여부도 ConfigMap 에 적을 수 없다 — **운영자는 이 배치가 어디로 보내는지 설정을 읽어서는 알 수 없었다.** 나누면 Secret 으로 가는 것은 **인증 두 키(`NERV_MAIL_USER`·`_PASS`)뿐이고 주소 셋과 보내는 사람은 ConfigMap 에서 보인다.** 사용자 이름은 비밀이 아닌데도 비밀번호와 함께 두는데, 코드가 그 한 벌을 원자로 다루기 때문이다(한쪽만 있으면 기동 거부) — 갈라 두면 ConfigMap 과 Secret 이 서로 다른 배관으로 들어와 한쪽만 채워진 상태가 실제로 생긴다(`NERV_S3_ACCESS_KEY` 가 같은 자리다). 쪼개기를 미루던 때의 반대 이유("사람은 그중 하나, 대개 TLS 를 틀린다")는 그 자체로 맞아서, **`NERV_MAIL_SECURE` 는 비우면 포트에서 유도한다**(465 면 암묵 TLS, 그 밖은 STARTTLS) — `NERV_REQUIRE_EMAIL_VERIFICATION` 과 같은 관용구다. 같은 이유로 **포트를 읽을 수 없으면 기본값으로 떨어지지 않고 기동을 거부하고**(조용히 587 로 가면 오타가 영영 드러나지 않는다), **`_USER`·`_PASS` 는 둘 다이거나 둘 다 아니다**(한쪽만 있으면 nodemailer 가 인증 없이 붙고, 릴레이가 받아 주면 비밀번호가 읽히지 않는다는 사실이 드러나지 않는다). 스위치는 `NERV_MAIL_HOST` 다. 옛 이름은 **걷힌 이름 표로 옮겨 기동을 거부하며**(REQ-CB-050 · `NERV_PUBLIC_URL`·`NERV_HTTP_PORT` 와 같은 규약), 거부 문구가 그 URL 을 풀어 여섯 줄로 적어 준다 — **비밀번호만 빼고**(기동 로그를 읽는 사람이 곧 그 릴레이를 쓸 수 있는 사람이 된다). 곁들여 **워커도 `assertMailConfig()` 를 부른다** — 보내는 것은 워커인데 검사가 api 에만 있어 **절반만 거부하는 배포**였다(REQ-CB-042 가 `NERV_COOKIE_DOMAIN` 에서 피한 모양이다).
 >
@@ -175,7 +177,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
       preflight.mjs             #   CI check 잡 열한 단계를 같은 순서로 (AGENTS.md 규약 7)
       check-plugin-version.mjs  #   배달되는 파일이 바뀌면 version 도 올랐는가 (REQ-PLG-017)
       check-backlog-status.mjs  #   4.8 §1.4 현황 표가 스토리와 맞는가 (REQ-CB-029)
-      check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1)
+      check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1 · REQ-CB-051)
                                 #   — **코드 블록 안쪽은 보지 않는다**: 문서가 실은 파일 사본은
                                 #     L1 이 바이트로 댄다(`packages/schema/src/seed.spec.ts` ·
                                 #     `plugin/plugin-package.spec.ts` · REQ-CB-048)
@@ -810,7 +812,7 @@ jobs:
           node codebase/scripts/check-k8s-render.mjs
       - name: 백로그 현황 정합   # 4.8 §1.4 의 표가 실제 스토리와 맞는가(REQ-CB-029)
         run: node scripts/check-backlog-status.mjs
-      - name: md ↔ html 정합     # 파일 짝 · 버전 · 절 번호 · 본문의 고정 ID(관리 규약 1)
+      - name: md ↔ html 정합     # 파일 짝 · 버전 · 절 번호 · 고정 ID · ID 행 본문(관리 규약 1 · REQ-CB-051)
         run: node scripts/check-md-html.mjs
       - name: .env 전표 정합     # 전표가 소비자를 적으면 계약이다 — 유령 설정을 잡는다(§5.2)
         run: node scripts/check-env-table.mjs
@@ -1135,6 +1137,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-026** | WHILE 임베딩 한 판이 시간 상한을 넘기면, THE SYSTEM SHALL 그 판을 멈추고 진행 상황을 보고하며 다음 틱에서 남은 문서부터 이어간다 — 다른 잡의 주기를 굶기지 않는다. |
 | **REQ-CB-028** | WHEN PR 의 check 잡이 돌면 THE SYSTEM SHALL `pnpm format:check` 를 실행하고, 서식이 어긋난 파일이 하나라도 있으면 **실패한다** — 돌지 않는 검사는 없는 검사다: 이 스크립트는 처음부터 있었는데 CI 가 부르지 않아 7개 파일이 이틀간(2026-09-02 → 09-04) 실패한 채로 그 사이 커밋들을 받았다 | 서식이 어긋난 파일 1개를 넣은 PR 이 check 에서 실패 |
 | **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
+| **REQ-CB-051** | WHEN check 잡이 돌면 THE SYSTEM SHALL md 와 html 의 표에서 **첫 칸이 고정 ID 인 행**을 번호로 짝지어 나머지 칸의 문장을 견주고, 닮은 정도가 **0.7 미만**이면 실패한다 — 파생본은 근거를 담은 괄호를 줄여 실을 수 있지만 **같은 번호가 다른 것을 약속해서는 안 된다**. 규약 1 의 검사는 그때까지 번호가 **있는지**만 셌고, 그 눈먼 자리에서 `REQ-CB-015` 는 파생본에서 배포 산출물을 아직 `codebase/` 에 두라 말했고(2026-08-22 개정 전 문장 — 같은 파일 §1.1 트리는 `deploy/` 라 적어 **문서가 자기와 모순했다**) `REQ-CB-021` 은 "(2026-09-22 개정)" 이라 써 놓고 개정 전 규칙을 실었다(2026-09-24 전수 대조). **게이트 수는 그대로다** — 규약 1 의 검사가 세는 것이 넷에서 다섯으로 는다 | 두 요구의 파생본 문장을 개정 전으로 되돌린 트리에서 `check-md-html.mjs` 가 0.52·0.58 로 실패한다 · 근거 괄호를 줄여 실은 행들(실측 최저 0.75)은 통과한다 |
 | **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `referenced_by` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
 | **REQ-CB-031** | WHILE `NERV_S3_ENDPOINT` 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(`mc`)이 없으면 **종료 코드 2 로 실패한다** — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. `NERV_BACKUP_SKIP_BLOBS=1` 만이 명시적 우회다 | 엔드포인트가 있고 `mc` 가 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트) |
 | **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다 | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL |

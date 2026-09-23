@@ -12,9 +12,17 @@
 //              = `docs/README.md` 목차의 `버전` 열
 //   ③ 절 번호 — `## 4.` · `### 4.1` 의 번호가 순서까지 같은가
 //   ④ 고정 ID 집합 — **본문에서** 한쪽에만 있는 번호가 없는가
+//   ⑤ 고정 ID 행의 **본문** — 같은 번호가 양쪽에서 같은 것을 약속하는가
 //
-// 본문 문장을 전부 대조하지는 않는다. 그것은 렌더러를 다시 만드는 일이고, 실제로 어긋난
-// 것은 언제나 **머리·제목·번호** 였다 — 사람이 손으로 옮기다 빠뜨리는 자리가 그곳이다.
+// 본문 문장을 전부 대조하지는 않는다. 그것은 렌더러를 다시 만드는 일이고, 파생본은 산문을
+// 줄여 싣는 자유를 갖는다(그림·카드·목업은 파생본에만 있다). 대조하는 것은 **수용 기준**뿐이다.
+//
+// **⑤ 는 2026-09-24 전수 대조가 세운 검사다.** ④ 까지는 번호가 **있는지**만 셌고 그 번호가
+// **무엇을 약속하는지**는 보지 않았다 — 그래서 둘이 초록인 채로 지났다: `REQ-CB-015` 는
+// 파생본에서 배포 산출물을 아직 `codebase/` 에 두라고 말하고 있었고(2026-08-22 개정 전
+// 문장 · 같은 파일의 §1.1 트리는 `deploy/` 라 적어 **문서가 자기와 모순했다**),
+// `REQ-CB-021` 은 머리에 "(2026-09-22 개정 — 긴 벡터는 잘라 맞출 수 있다)" 라 써 놓고
+// 본문은 개정 전 규칙("1024 가 아니면 거절")을 실었다. **번호가 같으면 약속도 같아야 한다.**
 //
 // 사용: node scripts/check-md-html.mjs
 
@@ -87,6 +95,81 @@ for (const m of readFileSync(join(DOCS, 'README.md'), 'utf8').matchAll(
 }
 
 const ID = /\b(?:REQ|EP|SPC|TSK)-[A-Z]+-\d+\b/g;
+
+/** 고정 ID 행이 갈렸다고 볼 경계 — 아래는 §(5) 주석의 실측이 세운 값이다 */
+const ID_ROW_MIN = 0.7;
+/** 행의 첫 칸이 이것이면 고정 ID 행이다(`REQ-API-105b` 같은 꼬리도 받는다) */
+const ROW_ID = /^(?:REQ|EP|SPC|TSK)-[A-Z]+-\d+[a-z]?$/;
+
+/** md 본문의 표 행 — 코드펜스와 정렬 행은 뺀다 */
+function tableRowsOfMd(body) {
+  const rows = [];
+  for (const line of body.replace(/^```[\s\S]*?^```/gm, '').split('\n')) {
+    const t = line.trimStart();
+    if (!t.startsWith('|')) continue;
+    const cells = t
+      .replace(/^\|/, '')
+      .replace(/\|\s*$/, '')
+      .split('|')
+      .map(norm);
+    if (cells.every((c) => /^:?-+:?$/.test(c.replace(/\s/g, '')))) continue;
+    rows.push(cells);
+  }
+  return rows;
+}
+
+/** html 본문의 표 행 */
+function tableRowsOfHtml(body) {
+  return [...body.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) =>
+    [...m[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((c) => norm(c[1])),
+  );
+}
+
+/** 첫 칸이 고정 ID 인 행만 — 같은 번호가 두 번 나오면 처음 것을 쓴다 */
+function idRows(rows) {
+  const out = new Map();
+  for (const cells of rows) {
+    const id = (cells[0] ?? '').replace(/\s/g, '');
+    if (!ROW_ID.test(id) || out.has(id)) continue;
+    out.set(id, cells.slice(1));
+  }
+  return out;
+}
+
+/**
+ * 대조용 — 공백·따옴표 같은 표기 자유도를 걷는다.
+ *
+ * **꺾쇠 자리표시자는 통째로 걷는다**(`<hostname>`·`<타입>` 따위). 위의 `norm` 이 md 에서는
+ * 그것을 태그로 보고 지우는데 html 에서는 `&lt;…&gt;` 라 살아남아, 같은 문장이 양쪽에서
+ * 다르게 읽힌다 — 자리표시자의 **이름**은 그래서 이 검사가 보지 못한다(그 대신 그 이름이
+ * 빠졌는지는 ④ 의 고정 ID 나 사람의 눈이 본다).
+ */
+const compareKey = (cells) =>
+  cells
+    .join(' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/[·‧∙•]/g, '·')
+    .replace(/[—–‒-]/g, '-')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, '')
+    .toLowerCase();
+
+/** 3-gram 자카드 — 줄여 실은 것과 다른 말을 하는 것을 가른다 */
+function similarity(a, b) {
+  if (a === b) return 1;
+  const grams = (s) => {
+    const set = new Set();
+    for (let i = 0; i < s.length - 2; i++) set.add(s.slice(i, i + 3));
+    return set;
+  };
+  const A = grams(a),
+    B = grams(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let inter = 0;
+  for (const g of A) if (B.has(g)) inter++;
+  return inter / (A.size + B.size - inter);
+}
 
 /**
  * 머리(요약 · 변경 기록)를 떼고 **본문만** 남긴다.
@@ -162,6 +245,29 @@ for (const md of mdFiles) {
       `${name}: html 에만 있는 고정 ID ${extra.length}개 - ${extra.slice(0, 6).join(' · ')}`,
     );
   }
+
+  // -- (5) 고정 ID 행의 본문 -------------------------------------------------
+  //
+  // 표의 첫 칸이 고정 ID 인 행을 **번호로 짝지어** 나머지 칸을 견준다. 문장을 글자까지
+  // 맞추라고 하지 않는다 — 파생본은 근거를 담은 괄호를 줄여 싣고, 그것은 표기 선택이다.
+  // 임계 아래로 갈리는 것은 줄인 것이 아니라 **다른 말을 하는 것**이다(실측 2026-09-24:
+  // 어긋난 둘이 0.52·0.58 이고, 줄여 실은 나머지는 전부 0.75 이상이었다).
+  const mdRows = idRows(tableRowsOfMd(mdBody(source)));
+  const htmlRows = idRows(tableRowsOfHtml(htmlBody(html)));
+  for (const [id, mdCells] of mdRows) {
+    const htmlCells = htmlRows.get(id);
+    if (htmlCells === undefined) continue; // 존재는 ④ 가 본다
+    const a = compareKey(mdCells),
+      b = compareKey(htmlCells);
+    if (a === b) continue;
+    const score = similarity(a, b);
+    if (score >= ID_ROW_MIN) continue;
+    fail.push(
+      `${name}: ${id} 의 수용 기준이 md 와 html 에서 다르다 (닮은 정도 ${score.toFixed(2)} < ${ID_ROW_MIN})\n` +
+        `      md   ${mdCells.join(' | ').slice(0, 180)}\n` +
+        `      html ${htmlCells.join(' | ').slice(0, 180)}`,
+    );
+  }
 }
 
 if (fail.length > 0) {
@@ -178,4 +284,6 @@ if (fail.length > 0) {
   process.exit(1);
 }
 
-console.log(`md ↔ html 정합 - 문서 ${mdFiles.length}편 (파일 짝 · 버전 · 절 번호 · 고정 ID)`);
+console.log(
+  `md ↔ html 정합 - 문서 ${mdFiles.length}편 (파일 짝 · 버전 · 절 번호 · 고정 ID · ID 행 본문)`,
+);

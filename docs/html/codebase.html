@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.59 (2026-09-24)</span>
+      <span>버전 v1.60 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~046</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -109,7 +109,7 @@
       preflight.mjs             #   CI check 잡 열한 단계를 같은 순서로 (AGENTS.md 규약 7)
       check-plugin-version.mjs  #   배달되는 파일이 바뀌면 version 도 올랐는가 (REQ-PLG-017)
       check-backlog-status.mjs  #   4.8 §1.4 현황 표가 스토리와 맞는가 (REQ-CB-029)
-      check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1)
+      check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1 · REQ-CB-051)
                                 #   — **코드 블록 안쪽은 보지 않는다**: 문서가 실은 파일 사본은
                                 #     L1 이 바이트로 댄다(`packages/schema/src/seed.spec.ts` ·
                                 #     `plugin/plugin-package.spec.ts` · REQ-CB-048)
@@ -191,7 +191,7 @@
     <tbody>
       <tr><td><b>REQ-CB-001</b></td><td>WHEN <code>apps/*</code>의 코드가 다른 워크스페이스를 import할 때, THE SYSTEM SHALL <code>packages/*</code>만 허용하고 <code>apps/*</code> 간 import는 lint 에러로 차단한다(<code>eslint.config.js</code>의 <code>no-restricted-imports</code>).</td></tr>
       <tr><td><b>REQ-CB-002</b></td><td>WHEN 로컬·CI·컨테이너 이미지가 Node/pnpm을 결정할 때, THE SYSTEM SHALL <code>.nvmrc</code>(Node LTS)와 루트 <code>package.json</code>의 <code>packageManager</code> 필드를 단일 정본으로 사용한다 — 버전이 세 곳에서 달라지는 순간이 결함이다.</td></tr>
-      <tr><td><b>REQ-CB-015</b></td><td>WHEN 구현 코드(애플리케이션·패키지·배포 산출물·스크립트)가 저장소에 추가될 때, THE SYSTEM SHALL 저장소 루트의 <code>codebase/</code> 하위에만 배치한다 — <code>docs/</code>에는 문서와 그 파생물(html)만, 저장소 루트에는 에이전트 규약 파일(<code>AGENTS.md</code>·<code>CLAUDE.md</code>)과 저장소 메타 파일만 둔다.</td></tr>
+      <tr><td><b>REQ-CB-015</b></td><td>(2026-08-22 개정) WHEN 애플리케이션·패키지 코드와 그 스크립트가 저장소에 추가될 때, THE SYSTEM SHALL 저장소 루트의 <code>codebase/</code> 하위에만 배치한다. WHEN 배포 산출물(compose·Dockerfile·nginx 템플릿·kustomize)이 추가될 때, THE SYSTEM SHALL 저장소 루트의 <code>deploy/</code> 하위에 배치한다 — <code>docs/</code>에는 문서와 그 파생물(html)만, 저장소 루트에는 이 두 구역과 에이전트 규약 파일(<code>AGENTS.md</code>·<code>CLAUDE.md</code>)·저장소 메타 파일만 둔다.</td></tr>
     </tbody>
   </table></div>
 
@@ -819,7 +819,7 @@ jobs:
           node codebase/scripts/check-k8s-render.mjs
       - name: 백로그 현황 정합   # 4.8 §1.4 의 표가 실제 스토리와 맞는가(REQ-CB-029)
         run: node scripts/check-backlog-status.mjs
-      - name: md ↔ html 정합     # 파일 짝 · 버전 · 절 번호 · 본문의 고정 ID(관리 규약 1)
+      - name: md ↔ html 정합     # 파일 짝 · 버전 · 절 번호 · 고정 ID · ID 행 본문(관리 규약 1 · REQ-CB-051)
         run: node scripts/check-md-html.mjs
       - name: .env 전표 정합     # 전표가 소비자를 적으면 계약이다 — 유령 설정을 잡는다(§5.2)
         run: node scripts/check-env-table.mjs
@@ -1081,7 +1081,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
     <tbody>
       <tr><td><b>로컬</b>(기본값)</td><td>ollama — compose <code>embed</code> 서비스(CPU)</td><td><code>http://embed:11434/v1</code></td><td><code>bge-m3</code></td><td>네이티브 1024차원(F16). API 키 불요. 외부 전송 0. <b>amd64·arm64 모두 기동</b>(2026-08-23 개정 — 아래 점화 기록)</td></tr>
       <tr><td><b>스테이징</b></td><td>LM Studio(OpenAI 호환 서버)</td><td><code>http://&lt;lmstudio-host&gt;:1234/v1</code></td><td>bge-m3 계열(GGUF)</td><td>1024차원 확인 후 사용. <code>embed</code> 서비스 미기동</td></tr>
-      <tr><td><b>운영</b></td><td>OpenAI</td><td><code>https://api.openai.com/v1</code></td><td><code>text-embedding-3-small</code></td><td><b><code>NERV_EMBED_SEND_DIMENSIONS=true</code> 필수</b>(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021·033. <b>2026-09-07 부터 이 값을 켜지 않으면 1536 차원이 돌아와 전 배치가 거절된다</b> — 그전에는 주소로 추정했다). <code>NERV_EMBED_API_KEY</code> 필수</td></tr>
+      <tr><td><b>운영</b></td><td>OpenAI</td><td><code>https://api.openai.com/v1</code></td><td><code>text-embedding-3-small</code></td><td><b><code>NERV_EMBED_SEND_DIMENSIONS=true</code> 필수</b>(Matryoshka 절단 — 스키마 vector(1024) 고정, REQ-CB-021·033. <b>제공자가 그 인자를 무시하면</b> <code>NERV_EMBED_TRUNCATE</code> 로 받는 쪽에서 자른다 — REQ-CB-047. <b>2026-09-07 부터 이 값을 켜지 않으면 1536 차원이 돌아와 전 배치가 거절된다</b> — 그전에는 주소로 추정했다). <code>NERV_EMBED_API_KEY</code> 필수</td></tr>
     </tbody>
   </table></div>
 
@@ -1165,6 +1165,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
       <tr><td><b>REQ-CB-026</b></td><td>WHILE 임베딩 한 판이 시간 상한을 넘기면, THE SYSTEM SHALL 그 판을 멈추고 진행 상황을 보고하며 다음 틱에서 남은 문서부터 이어간다 — 다른 잡의 주기를 굶기지 않는다.</td></tr>
       <tr><td><b>REQ-CB-028</b></td><td>WHEN PR 의 check 잡이 돌면 THE SYSTEM SHALL <code>pnpm format:check</code> 를 실행하고, 서식이 어긋난 파일이 하나라도 있으면 <b>실패한다</b> — 돌지 않는 검사는 없는 검사다: 이 스크립트는 처음부터 있었는데 CI 가 부르지 않아 7개 파일이 이틀간(2026-09-02 → 09-04) 실패한 채로 그 사이 커밋들을 받았다</td><td>서식이 어긋난 파일 1개를 넣은 PR 이 check 에서 실패</td></tr>
       <tr><td><b>REQ-CB-029</b></td><td>WHEN check 잡이 돌면 THE SYSTEM SHALL <a href="backlog.html">4.8 백로그</a> §1.4 의 현황 표가 <b>실제 스토리와 맞는지</b> 검사하고 어긋나면 실패한다 — 에픽별 <code>done + 부분</code> 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, <b>부분으로 센 수만큼 "남은 것" 이 적혀 있는가</b>, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 <code>backlog</code>다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06)</td><td>합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패</td></tr>
+      <tr><td><b>REQ-CB-051</b></td><td>WHEN check 잡이 돌면 THE SYSTEM SHALL md 와 html 의 표에서 <b>첫 칸이 고정 ID 인 행</b>을 번호로 짝지어 나머지 칸의 문장을 견주고, 닮은 정도가 <b>0.7 미만</b>이면 실패한다 — 파생본은 근거를 담은 괄호를 줄여 실을 수 있지만 <b>같은 번호가 다른 것을 약속해서는 안 된다</b>. 규약 1 의 검사는 그때까지 번호가 <b>있는지</b>만 셌고, 그 눈먼 자리에서 <code>REQ-CB-015</code> 는 파생본에서 배포 산출물을 아직 <code>codebase/</code> 에 두라 말했고(2026-08-22 개정 전 문장 — 같은 파일 §1.1 트리는 <code>deploy/</code> 라 적어 <b>문서가 자기와 모순했다</b>) <code>REQ-CB-021</code> 은 "(2026-09-22 개정)" 이라 써 놓고 개정 전 규칙을 실었다(2026-09-24 전수 대조). <b>게이트 수는 그대로다</b> — 규약 1 의 검사가 세는 것이 넷에서 다섯으로 는다</td><td>두 요구의 파생본 문장을 개정 전으로 되돌린 트리에서 <code>check-md-html.mjs</code> 가 0.52·0.58 로 실패한다 · 근거 괄호를 줄여 실은 행들(실측 최저 0.75)은 통과한다</td></tr>
       <tr><td><b>REQ-CB-030</b></td><td>WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(<code>docs/**/*.md</code> 와 <code>docs/html/*.html</code>)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter <code>referenced_by</code> 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 <code>§N.N</code> 절의 부재 — 하나라도 있으면 <b>실패한다</b>. 인라인 링크·역참조 규칙의 정본은 <a href="index.html">docs/README</a> 관리 규약이고, <code>scripts/check-doc-links.mjs --fix</code> 가 역참조와 파생본 머리를 다시 쓴다</td></tr>
       <tr><td><b>REQ-CB-031</b></td><td>WHILE <code>NERV_S3_ENDPOINT</code> 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(<code>mc</code>)이 없으면 <b>종료 코드 2 로 실패한다</b> — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. <code>NERV_BACKUP_SKIP_BLOBS=1</code> 만이 명시적 우회다</td><td>엔드포인트가 있고 <code>mc</code> 가 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트)</td></tr>
       <tr><td><b>REQ-CB-032</b></td><td>WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 <b>키별로 더하고</b>(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 <code>prompt_expires_at</code> 중 <b>먼저 오는 쪽</b>을 만료로 본다</td><td>두 판에 걸쳐 접은 세션의 합이 5(옛 <code>||</code> 는 3) · 정책이 남았어도 <code>prompt_expires_at</code> 이 지난 행의 <code>prompt_blob_uri</code> 가 NULL</td></tr>
@@ -2186,7 +2187,7 @@ kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
     <tbody>
       <tr><td><b>REQ-CB-019</b></td><td>WHEN 백업본으로 §6.5 절차 ①~⑤를 실행하면, THE SYSTEM SHALL 추가 수동 개입 없이 로그인·스펙 조회·클레임이 동작하는 인스턴스에 도달하고, 백업 시각 이전 커밋 데이터의 손실 0을 행 수 대조로 검증 가능하게 한다(성공 기준 1-9). <code>spec_chunk_embedding</code>은 복원 대상이 아니어도 무방하다 — 재임베딩으로 재생성한다(<a href="database.html">4.3</a> §2.15).</td></tr>
       <tr><td><b>REQ-CB-020</b></td><td>WHEN 임베딩(질의·인덱싱)이 수행될 때, THE SYSTEM SHALL <code>NERV_EMBED_URL</code>에 대한 <b>OpenAI 호환 <code>/v1/embeddings</code> 단일 클라이언트</b>만 사용하고 제공자별 분기·전용 SDK를 두지 않는다 — 제공자(자가호스팅/LM Studio/OpenAI)는 env 3키로만 결정되며 코드 기본값은 자가호스팅이다(§5.2a — 2026-08-22 개정: "자가호스팅만" 조항은 같은 날 폐기, 외부 전송은 운영 주체의 env 명시 선택).</td></tr>
-      <tr><td><b>REQ-CB-021</b></td><td>(2026-09-22 개정 — 긴 벡터는 잘라 맞출 수 있다) WHEN 임베딩 응답의 벡터 차원이 1024가 아니면, THE SYSTEM SHALL 해당 배치를 적재하지 않고 오류로 기록한다 — OpenAI 프로필은 요청에 <code>dimensions: 1024</code>를 항상 포함한다(§5.2a).</td></tr>
+      <tr><td><b>REQ-CB-021</b></td><td>(2026-09-22 개정 — 긴 벡터는 잘라 맞출 수 있다) WHEN 임베딩 응답의 벡터 차원이 스키마 차원과 다르면, THE SYSTEM SHALL 해당 배치를 적재하지 않고 오류로 기록한다 — 다만 <b>길고</b> <code>NERV_EMBED_TRUNCATE</code> 가 켜져 있으면 잘라 맞춘다(REQ-CB-047). OpenAI 프로필은 요청에 <code>dimensions</code>를 항상 포함한다(§5.2a).</td></tr>
       <tr><td><b>REQ-CB-047</b></td><td>WHERE <code>NERV_EMBED_TRUNCATE</code> 가 켜져 있고 받은 벡터가 스키마 차원보다 <b>길면</b>, THE SYSTEM SHALL 앞에서 그 차원만큼 자르고 <b>다시 정규화</b>해 적재한다(MRL 절단). WHERE 받은 벡터가 스키마 차원보다 <b>짧으면</b>, THE SYSTEM SHALL 그 값과 무관하게 거절한다 — 늘린 벡터는 거짓이다. WHEN 차원이 맞지 않아 거절하면, THE SYSTEM SHALL <b>어느 경우인지와 무엇을 하면 되는지</b>를 문장에 담는다(<code>dimensions</code> 미전송 · 제공자가 무시함 · 모델이 짧음 셋을 구별한다). WHEN 절단이 켜진 채 기동하면, THE SYSTEM SHALL 그 사실을 로그에 한 번 남긴다 — 조용히 자르면 검색 품질을 의심할 때 볼 곳이 없다</td></tr>
       <tr><td><b>REQ-CB-048</b></td><td>WHEN 문서가 저장소의 파일 전문을 코드 블록으로 실으면, THE SYSTEM SHALL 그 둘이 같은지 <b>바이트로</b> 대조하는 검사를 둔다 — 정본은 파일이고 블록은 사본이므로 갈라지면 문서를 고친다. <b>규약 1 의 검사는 코드 블록 안쪽을 보지 않는다</b>(버전·절 번호·고정 ID 만 센다): <a href="database.html">4.3</a> §4 의 개발 시드 SQL 사본은 그 눈먼 자리에서 실제로 갈라져 있었고(2026-09-21 의 mermaid 본문이 반영된 적이 없었다) 아무 빨강도 뜨지 않았다</td></tr>
     </tbody>
