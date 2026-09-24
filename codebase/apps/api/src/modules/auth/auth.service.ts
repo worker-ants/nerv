@@ -9,8 +9,9 @@
 // ※ 구현 근거 하나를 남긴다. 4.1 §2.1 은 PAT 를 "better-auth api-key 플러그인 기반"이라 적었고
 //   4.3 §2.2 는 `api_token` 테이블(token_hash·prefix·scopes)을 DDL 로 확정했다. 두 저장 스키마는
 //   서로 다르다 — better-auth 의 apiKey 테이블을 함께 쓰면 토큰이 두 곳에 살게 된다.
-//   **DDL 이 실물 정본이므로 api_token 을 쓴다.** better-auth 는 웹 세션(organization 플러그인)
-//   경로에서 도입한다(E08-S01). 문서에 이 갈래의 판정을 남길 필요가 있다.
+//   **DDL 이 실물 정본이므로 api_token 을 쓴다.** better-auth 는 웹 세션만 맡는다 — organization
+//   플러그인도 켜지 않는다(4.3 §2.16). 이 판정은 2026-09-24 에 문서로 올라갔다(4.1 §2.1 인증 행
+//   v0.34 · 사람 결정) — 스택은 그대로 better-auth 이고, 바뀐 것은 무엇을 맡기느냐의 서술이다.
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';

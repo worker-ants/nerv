@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.28 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.29 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.29 변경(2026-09-24 — 온보딩의 데이터 소스가 없는 경로를 가리켰다): **새 요구사항 없음 · §2.1 두 줄 정정.** 조직 생성·초대 수락을 "better-auth organization 플러그인 경로" 로 적었는데 그 플러그인은 켜져 있지 않다 — 실물은 EP-ORG-03 · EP-INV-05 다([4.1](scope.md) v0.34).
 >
 > v1.28 변경(2026-09-24 — 플러그인이 켜졌는지 서버가 몰랐다, 백로그 E12-S03): **REQ-WEB-189 신설 · §2.6 데이터 소스 한 줄.** 관리형 settings 로 배포하는 사람이 묻는 것은 하나 — **어느 기계가 아직 꺼져 있는가.** 세션 모니터 머리 아래에 `플러그인 켜짐 N / M 호스트` 를 두고, 펼치면 꺼진 기계가 위다. 이 화면에 두는 이유: 꺼진 기계의 세션은 여기서 흔적이 얇다(훅이 없어 활동·브랜치가 비어 있다) — "왜 이 세션은 비어 있나" 를 묻는 자리에서 답이 보여야 한다([4.4](api.md) EP-SES-06).
 >
@@ -641,7 +643,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | --- | --- |
 | 로그인 폼 | `POST /api/auth/*` (better-auth 핸들러 — 이메일+비밀번호) |
 | 로그인 사용자·역할 확인 | EP-AUTH-01 `GET /api/v1/me` · EP-ORG-01 `GET /api/v1/orgs` |
-| 온보딩(조직 0개) | better-auth organization 플러그인 경로(`/api/auth/*` — 조직 생성·초대 수락) 후 EP-ORG-01로 재확인 |
+| 온보딩(조직 0개) | 조직 생성 EP-ORG-03 `POST /api/v1/orgs` · 초대 수락 EP-INV-05 `POST /api/v1/invitations/{token}/accept` 후 EP-ORG-01로 재확인(2026-09-24 정정 — better-auth organization 플러그인 경로가 아니다) |
 
 ```text
 로그인 — app.nerv.example.com/login
@@ -685,7 +687,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 └──────────────────────────────────────────────────────────────┘
 ```
 
-1. **조직 생성**(`OrgCreateForm`) — better-auth organization 플러그인 경로. 첫 프로젝트를 같이 만든다.
+1. **조직 생성**(`OrgCreateForm`) — EP-ORG-03(2026-09-24 정정 — better-auth organization 플러그인 경로가 아니다: 조직은 도메인 테이블이 소유한다). 첫 프로젝트를 같이 만든다.
 2. **초대 수락**(`InviteAcceptCard`) — 조직 생성과 배타적 분기. MVP 초대는 기존 사용자 배정이다(메일 발송은 Phase 2 — [api.md](api.md) §2.1).
 3. **역할 확인** — `membership.roles`(복수 — 겸직이 있으므로 합집합이다, §1.8) 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.
 4. **다음 행동** — 역할별 첫 화면 규칙(ui-wireframes §1.5, qa는 MVP에서 작업 보드로)대로 착지 링크. 에이전트 연결(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4로 링크만 둔다.

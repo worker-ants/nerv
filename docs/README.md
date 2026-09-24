@@ -13,7 +13,7 @@ referenced_by:
 >
 > 문서 버전 v3.75 · 2026-09-24 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
 >
-> v3.75 변경(2026-09-24 — 플러그인이 켜졌는지 서버가 몰랐습니다, 백로그 E12-S03): **REQ-API-168 · REQ-WEB-189 · REQ-PLG-019 · EP-SES-06 신설 · 마이그레이션 0030 · 패키지 0.3.1 → 0.3.2.** 세션은 훅(플러그인)으로도 MCP(플러그인 없이)로도 들어오는데 둘을 가르는 칸이 없어, 관리형 settings 로 배포한 뒤 "어느 기계가 켜졌는가" 에 답하지 못했습니다 — E12-S03 의 마지막 남은 줄입니다. 세션 훅이 `X-NERV-Plugin` 으로 자기 버전을 싣고, 서버가 기계(사람 + hostname)마다 **가장 최근 세션**으로 켜짐·꺼짐을 판정하며, 세션 모니터가 꺼진 기계부터 보입니다. Claude Code 세션만 셉니다 — Codex 는 플러그인이 없어도 정상입니다. 곁들여 **PAT 발급 CLI 를 걷습니다**(사람 결정 — 발급은 사람 전용이고 에이전트가 스스로 발급하지 못하게 하는 것이 의도입니다 · [3.7](03-proposal/roadmap.md) v0.9)([4.2](04-mvp/codebase.md) v1.62 · [4.3](04-mvp/database.md) v0.49 · [4.4](04-mvp/api.md) v1.46 · [4.5](04-mvp/screens.md) v1.28 · [4.6](04-mvp/plugin.md) v0.72 · [4.8](04-mvp/backlog.md) v1.16).
+> v3.75 변경(2026-09-24 — 플러그인이 켜졌는지 서버가 몰랐습니다, 백로그 E12-S03): **REQ-API-168 · REQ-WEB-189 · REQ-PLG-019 · EP-SES-06 신설 · 마이그레이션 0030 · 패키지 0.3.1 → 0.3.2.** 세션은 훅(플러그인)으로도 MCP(플러그인 없이)로도 들어오는데 둘을 가르는 칸이 없어, 관리형 settings 로 배포한 뒤 "어느 기계가 켜졌는가" 에 답하지 못했습니다 — E12-S03 의 마지막 남은 줄입니다. 세션 훅이 `X-NERV-Plugin` 으로 자기 버전을 싣고, 서버가 기계(사람 + hostname)마다 **가장 최근 세션**으로 켜짐·꺼짐을 판정하며, 세션 모니터가 꺼진 기계부터 보입니다. Claude Code 세션만 셉니다 — Codex 는 플러그인이 없어도 정상입니다. 곁들여 **PAT 발급 CLI 를 걷습니다**(사람 결정 — 발급은 사람 전용이고 에이전트가 스스로 발급하지 못하게 하는 것이 의도입니다 · [3.7](03-proposal/roadmap.md) v0.9). 그리고 **인증 행을 실물에 맞춥니다**(사람 결정) — PAT 는 better-auth api-key 플러그인이 아니라 **자체 `api_token` 테이블**이고, organization 플러그인은 켜져 있지 않습니다. 둘 다 코드가 처음부터 옳았고 문서만 낡아 있었습니다 — E03-S02 가 닫힙니다(70·5 · [4.1](04-mvp/scope.md) v0.34)([4.2](04-mvp/codebase.md) v1.62 · [4.3](04-mvp/database.md) v0.49 · [4.4](04-mvp/api.md) v1.46 · [4.5](04-mvp/screens.md) v1.28 · [4.6](04-mvp/plugin.md) v0.72 · [4.8](04-mvp/backlog.md) v1.16).
 >
 > v3.74 변경(2026-09-24 — 백로그의 부분 둘이 이미 끝나 있었습니다): **새 요구사항 없음.** E08-S05(승인본에서 Task 파생하는 웹 경로)는 2026-09-07 에 이미 들어와 있었고, E08-S10 의 남은 것(`depth` 지연 로드)은 요구 자체가 2026-08-29 에 걷혔습니다. 둘 다 지키는 검사가 없어 백로그가 고쳐지지 않았습니다 — 두 스토리의 수용 기준을 L1 로 못 박고 `done` 으로 옮깁니다(66·9 → 68·7 · [4.8](04-mvp/backlog.md) v1.15).
 >
@@ -561,11 +561,11 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
-| [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.33` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.62` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.34` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.63` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.49` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
-| [4.4 API 명세](04-mvp/api.md) | `v1.46` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
-| [4.5 화면 명세](04-mvp/screens.md) | `v1.28` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
+| [4.4 API 명세](04-mvp/api.md) | `v1.47` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
+| [4.5 화면 명세](04-mvp/screens.md) | `v1.29` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.72` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.22` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
 | [4.8 백로그](04-mvp/backlog.md) | `v1.16` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
