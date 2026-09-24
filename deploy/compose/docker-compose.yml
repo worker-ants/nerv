@@ -105,12 +105,14 @@ services:
     # minio/minio 는 2026-09-11 에, 그 대신 쓰던 quay.io/minio/minio 는 2026-09-24 에 당길
     # 수 없게 됐다(익명 pull 이 401). 공식 후속인 quay.io/minio/aistor/minio 는 라이선스
     # 없이는 뜨기만 하고 S3 요청을 전부 거절한다("All S3 operations are denied" — 실측).
-    # 그래서 커뮤니티 포크 pgsty/minio(Pigsty)의 릴리스 태그를 쓴다(2026-09-24 사람 결정) —
-    # 개발·e2e 전용이라 운영 자격증명을 받지 않는다. 안에 mc 가 있어 헬스체크는 그대로다.
+    # 그래서 MinIO 포크 pgsty/silo(PGSTY 유지 · AGPL-3.0)의 릴리스 태그를 쓴다(2026-09-24
+    # 사람 결정). 서버 바이너리 이름만 silo 이고 `server …` 인자와 MINIO_* env 는 그대로
+    # 받으며, 옛 이미지가 쓴 볼륨을 그대로 읽는다(실측). 안에 mc 가 있어 헬스체크도 그대로다.
+    # 운영 백업 CronJob 도 같은 이미지의 mc 를 심는다.
     # **`latest` 로 되돌리지 않는다** — 남의 레지스트리의 움직이는 태그는 우리 저장소를
     # 건드리지 않고도 과거 커밋의 빌드까지 소급해 깨뜨린다. 고정 태그도 저장소 자체가
     # 거둬지면 소용없다는 것을 두 번 겪었다 — 그래서 출처를 바꾼 이유를 여기 남긴다.
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:

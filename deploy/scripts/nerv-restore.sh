@@ -73,22 +73,13 @@ fi
 # 있고 그것은 이 덤프에 없다 — 그래서 "손실 0" 을 말하기 전에 실물을 센다.
 attachments="$(psql "$DATABASE_URL" -tAc "SELECT count(*) FROM attachment WHERE committed_at IS NOT NULL" 2>/dev/null || echo 0)"
 if [[ "${attachments:-0}" != "0" ]]; then
-  if [[ -n "${NERV_S3_ENDPOINT:-}" ]] && command -v rclone >/dev/null 2>&1; then
-    # 원격 정의는 nerv-backup.sh 의 `nerv_s3_remote` 와 같다 — env 로만, 앱과 같은 주소 모양으로
-    export RCLONE_CONFIG_NERVDST_TYPE=s3 RCLONE_CONFIG_NERVDST_PROVIDER=Other
-    export RCLONE_CONFIG_NERVDST_ENDPOINT="$NERV_S3_ENDPOINT"
-    export RCLONE_CONFIG_NERVDST_ACCESS_KEY_ID="${NERV_S3_ACCESS_KEY:-}"
-    export RCLONE_CONFIG_NERVDST_SECRET_ACCESS_KEY="${NERV_S3_SECRET_KEY:-}"
-    export RCLONE_CONFIG_NERVDST_REGION="${NERV_S3_REGION:-us-east-1}"
-    if [[ "${NERV_S3_FORCE_PATH_STYLE:-}" == "false" ]]; then
-      export RCLONE_CONFIG_NERVDST_FORCE_PATH_STYLE=false
-    else
-      export RCLONE_CONFIG_NERVDST_FORCE_PATH_STYLE=true
-    fi
-    objects="$(rclone --config "" lsf --recursive --files-only "NERVDST:${NERV_S3_BUCKET:-nerv-blobs}" 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ -n "${NERV_S3_ENDPOINT:-}" ]] && command -v mc >/dev/null 2>&1; then
+    mc alias set nerv-restore-dst "$NERV_S3_ENDPOINT" \
+      "${NERV_S3_ACCESS_KEY:-}" "${NERV_S3_SECRET_KEY:-}" >/dev/null
+    objects="$(mc ls --recursive "nerv-restore-dst/${NERV_S3_BUCKET:-nerv-blobs}" 2>/dev/null | wc -l | tr -d ' ')"
     echo "첨부: DB ${attachments}건 · 스토리지 ${objects}개"
     if [[ "${objects:-0}" -lt "${attachments}" ]]; then
-      echo "첨부 파일이 모자랍니다 — 백업의 blobs/ 를 버킷으로 되돌리세요(nerv-backup.sh 가 동기화합니다 · codebase.md §6.5 ③)" >&2
+      echo "첨부 파일이 모자랍니다 — 백업의 blobs/ 를 버킷으로 되돌리세요(nerv-backup.sh 가 미러합니다)" >&2
       exit 1
     fi
   else
