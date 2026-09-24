@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.64 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.65 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.65 변경(2026-09-24 — 로그를 필드로 거를 수 없었다, **사람 결정**): **REQ-CB-053 신설 · §5.2 전표 한 줄(`NERV_LOG_FORMAT`) · §5.5 · §5.3 전문 재동기화.** 로깅 개선 세 단계의 둘째다. `NERV_LOG_FORMAT=json` 이면 api·worker 가 **한 줄에 JSON 하나**를 찍는다(Nest 내장 `ConsoleLogger` 의 `json` 모드 — 새 의존성 없음). 접근 로그는 문장과 함께 필드(`route`·`status`·`duration_ms`·`code`·`user_id` …)를 줄의 최상위에 싣고, 요청 안의 줄에는 `req_id` 가 붙는다. **비면 `text`** 다 — 개발 루프(`pnpm dev`)는 사람이 터미널에서 읽는다. 컨테이너 배치는 compose(`${NERV_LOG_FORMAT:-json}`)와 k8s ConfigMap 이 `json` 을 넘긴다. 모르는 값은 `NERV_LOG_LEVEL` 과 같은 규칙으로 기본으로 떨어지되 한 줄 남긴다. 그리고 **§5.5 의 "싣지 않는 것" 을 L1 이 센다** — 두 형식의 실제 로거가 stdout 에 쓴 바이트에 자격증명·쿼리·본문·이메일·표시 이름이 없는가. 곁들여 **§5.3 compose 전문이 실물과 갈려 있었다** — `mailpit` 서비스와 api·worker 의 메일 키가 통째로 없었다(v1.56~v1.59 의 메일 작업이 파일만 고쳤다). 이 블록은 스스로 "전문" 이라 적으므로 실물 전량으로 다시 맞췄다(v1.39·v1.50 이 같은 드리프트를 고친 자리다). ※ 남은 것: MCP 도구 호출·워커 잡·WebSocket 한 줄 — [4.8](backlog.md) §1.4 셋째 표.
 >
 > v1.64 변경(2026-09-24 — 호출된 API 가 로그에 한 줄도 없었다, **사람 보고 → 사람 결정**): **REQ-CB-052 신설 · §5.5 신설 · §5.4 전문 · §2.2 트리 세 줄.** 운영 api 컨테이너 로그에 요청이 남지 않아 디버깅할 수 없었다 — Fastify 는 `logger` 옵션이 없으면 로그를 끄고 Nest 는 요청을 기록하지 않아, 남는 것은 처리되지 않은 예외(500)뿐이었다. 4xx 문의("권한이 없다고 나온다")는 로그로 확인할 길이 없었다. 로깅 개선을 세 단계로 나눴고(로거는 **Nest 내장 `ConsoleLogger`** — 새 의존성 없음, 사람 결정) 이것이 첫 단계다: ① 요청마다 접근 로그 한 줄(라우트 템플릿 · 상태 · 소요 · 표면 · 에러 코드 · 주체 id) ② 요청 ID(`X-Request-Id`) — 앞문이 넘기고, api 가 응답에 되돌리며, 그 요청 안에서 남긴 **모든 로그 줄**에 붙는다(서비스 코드는 모른다 — D-05) ③ 앞문 nginx 의 접근 로그에도 같은 ID. ※ 남은 것: JSON 형식(`NERV_LOG_FORMAT`)과 비밀 차단 검사, MCP 도구 호출·워커 잡·WebSocket 한 줄 — §5.5 끝과 [4.8](backlog.md) §1.4 셋째 표.
 >
@@ -370,7 +372,7 @@ apps/api/src/
     idempotency.service.ts        # 멱등 저장소 — 표면 공용
     log-level.ts                  # 두 진입점이 같은 함수로 읽는다 (NERV_LOG_LEVEL · §5.2)
     mcp-origin.guard.ts           # /mcp Origin 검증의 최종 강제 지점 (REQ-CB-013)
-    nerv-logger.ts                # 전역 로거 — 요청 안의 줄에 요청 ID 를 붙인다 (§5.5)
+    nerv-logger.ts                # 전역 로거 — 요청 ID 와 형식(NERV_LOG_FORMAT · text/json), 두 진입점 공용 (§5.5)
     session-origin.guard.ts       # 세션 쿠키 쓰기 요청의 Origin 대조 (REQ-CB-043)
     nerv-exception.filter.ts      # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
     origins.ts                    # 우리 주소 둘 — 화면(NERV_WEB_URL)·API(NERV_API_URL) 와 걷힌 이름의 기동 거부 (§5.2 · REQ-CB-036·037)
@@ -1052,6 +1054,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_TAG` | | `dev` | compose 이미지 태그 | 운영 태깅은 §6.4 |
 | `NERV_SSE_KEEPALIVE_MS` | | `25000` | api(`sse.controller.ts`) | SSE keep-alive 주기(§3.5 · REQ-CB-035). **앞문의 유휴 타임아웃이 이 값보다 짧으면 스트림이 조용히 끊긴다** — 그때 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다(`NERV_LOG_LEVEL` 과 같은 이유로 상수에서 꺼냈다). 값이 없거나 양수가 아니면 기본값이다. L2 가 이 값을 낮춰 keep-alive 형식(`event: ping` · `data: {}`)을 실제로 태운다 |
 | `NERV_LOG_LEVEL` | | `log`(=`info`) | api · worker | 두 진입점이 `common/log-level.ts` 한 함수로 읽는다(2026-09-06 배선). 고른 수준과 **그보다 심각한 것**을 켠다 — `verbose` · `debug` · `log` · `warn` · `error` · `fatal`. `info`·`warning`·`trace`·`critical` 은 별칭으로 받는다(compose·k8s 가 이미 `info` 를 넘긴다). 모르는 값은 기본으로 떨어지되 **한 줄 남긴다** — 오타로 로그가 꺼지면 그 사실을 알려 줄 로그도 없다 |
+| `NERV_LOG_FORMAT` | | `text` | api · worker | `text` · `json`(2026-09-24 · §5.5 · REQ-CB-053). `json` 은 **한 줄에 JSON 하나**라 수집기가 필드(`req_id`·`status`·`route` …)로 거른다. **비면 `text`** — 개발 루프는 사람이 읽는다. 컨테이너 배치는 compose(`${NERV_LOG_FORMAT:-json}`)와 k8s ConfigMap 이 `json` 을 넘긴다. 모르는 값은 기본으로 떨어지되 한 줄 남긴다(`NERV_LOG_LEVEL` 과 같은 규칙) |
 
 **에이전트 장비 쪽 변수는 이 전표가 아니다.** `NERV_TOKEN`(PAT)·`NERV_PROJECT`·`NERV_HOSTNAME`은 세션이 도는 개발자 장비의 환경이며, 정본은 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3·§4.1, 발급·설치 절차는 [4.6 플러그인과 온보딩](plugin.md)이다.
 
@@ -1172,6 +1175,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-038** | WHEN 배포 산출물(compose · 이미지 · k8s)이 api·web 의 리슨 포트를 정할 때 THE SYSTEM SHALL 그 값을 `NERV_API_PORT`·`NERV_WEB_PORT` 에서 조립하고, 같은 포트를 가리키는 모든 자리(업스트림 · 헬스체크 · publish · `containerPort`)가 한 변수에서 나오게 한다. WHERE 정적 매니페스트가 변수를 받을 수 없으면(k8s 의 `containerPort`) THE SYSTEM SHALL ConfigMap 의 값과 매니페스트의 포트가 어긋날 때 CI 를 실패시킨다 — 갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다. WHILE 개발 루프에서는 화면과 API 가 다른 포트에 떠야 하므로, THE SYSTEM SHALL 두 포트가 같으면 `pnpm dev` 가 기동을 거부하고 이유를 말한다 | `.env` 의 포트를 바꾼 compose 스택이 그 포트로 서고 헬스체크가 통과한다 · `pnpm dev` 가 바뀐 포트로 Vite·api 를 띄우고 같은 포트면 비영 종료한다 · 배포 산출물에 포트 리터럴을 되돌린 트리와 ConfigMap↔매니페스트를 어긋나게 만든 트리에서 `check-env-table.mjs` 가 실패한다 |
 | **REQ-CB-037** | WHEN 걷힌 이름 `NERV_PUBLIC_URL` 이 설정돼 있고 `NERV_WEB_URL`·`NERV_API_URL` 이 **둘 다 비어 있으면** THE SYSTEM SHALL api·worker 의 기동을 거부하고(비영 종료) 두 이름에 무엇을 넣어야 하는지를 문구로 말한다 — 기본값(`http://localhost:8080`)으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 사실을 **그 주소로 서명된 쿠키를 받고서야** 안다. WHERE 새 이름이 하나라도 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다 | 옛 이름만 있는 env 로 `assertPublicUrlRetired()` 가 던지고 문구에 두 이름과 넣을 값이 실린다 · 새 이름이 하나라도 있으면 던지지 않고 경고 한 줄 |
 | **REQ-CB-052** | WHEN api 가 HTTP 요청의 응답을 마치거나 그 연결이 끊기면 THE SYSTEM SHALL 요청마다 접근 로그 한 줄(메서드 · 라우트 템플릿 · 상태 · 소요 · 표면 · 에러 코드 · 주체 id)을 남기고, 요청 ID(`X-Request-Id` — 받은 값이 모양에 맞으면 그 값, 아니면 새 값)를 응답 헤더와 **그 요청 안에서 남긴 모든 로그 줄**에 싣는다 — 쿼리 문자열·본문·자격증명 헤더·이메일은 싣지 않는다. 운영 api 로그에 호출된 API 가 한 줄도 남지 않았다(2026-09-24 사람 보고 · §5.5) | 가드가 401 로 거절한 요청이 `code=NERV_UNAUTHENTICATED` 와 받은 요청 ID 로 한 줄 남고 쿼리 값은 없다(L2 `access-log.spec.ts`) · 끊긴 스트림이 `aborted=1` 로 한 줄 남는다(L1) |
+| **REQ-CB-053** | WHERE `NERV_LOG_FORMAT=json` 인 배치에서 THE SYSTEM SHALL api·worker 의 로그를 **한 줄에 JSON 하나**로 찍고 — 색 코드 없이, 요청 안의 줄에는 `req_id` 를, 접근 로그에는 문장과 함께 필드(`route`·`status`·`duration_ms`·`surface`·`code`·주체 id)를 줄의 최상위에 싣는다 — 값이 비면 `text` 로, 모르는 값이면 한 줄 경고 뒤 `text` 로 선다. 어느 형식이든 §5.5 의 "싣지 않는 것" 은 줄에 없다. 운영 로그를 필드로 거를 수 없었다(2026-09-24 사람 결정) | 가드가 거절한 요청이 `JSON.parse` 되는 한 줄로 남고 `req_id`·`code`·`route` 가 필드다(L2 `access-log.spec.ts`) · 두 형식의 실제 로거 출력에 Bearer·쿠키·멱등 키·쿼리·본문의 이메일·비밀번호·표시 이름이 없다(L1) |
 
 ---
 
@@ -1287,6 +1291,23 @@ services:
       timeout: 3s
       retries: 6
 
+  mailpit:                           # 개발용 SMTP 받이 — 나간 메일을 잡아 웹으로 보여 준다
+    # **보내는 것과 받는 것을 한 기계에서 본다.** 메일은 "보냈다" 까지만 확인하면 절반이고,
+    # 실제로 어떤 글자가 도착했는지는 받아 봐야 안다 — 이 저장소가 스크린샷에서 배운 것과
+    # 같은 이유다. 운영에는 없다(compose 전용 · k8s 산출물에 대응물이 없는 유일한 서비스다).
+    image: axllent/mailpit:v1.28
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"     # 개발 받이다 — 인증을 흉내 내지 않는다
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"   # 받은 편지함
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
   embed:                             # 로컬 프로필 전용 임베딩 서빙(OpenAI 호환 /v1/embeddings 노출).
     profiles: ["local-embed"]        #   외부 제공자(LM Studio·OpenAI) 프로필에서는 기동하지 않는다 (§5.2a)
     # 이미지가 ollama 인 이유는 **개발자의 기계에서 도는 것**이 이 프로필의 존재 이유이기
@@ -1386,6 +1407,7 @@ services:
       NERV_COOKIE_DOMAIN: ${NERV_COOKIE_DOMAIN:-}
       NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
+      NERV_LOG_FORMAT: ${NERV_LOG_FORMAT:-json}   # 컨테이너는 수집기가 읽는다 — 한 줄에 JSON 하나 (§5.5)
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
       NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
@@ -1403,6 +1425,23 @@ services:
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
       NERV_S3_FORCE_PATH_STYLE: "true"
+      # 메일 — 호스트가 비면 보내지 않는다(2026-09-22). 기본이 아래 mailpit 이라 개발 루프에서
+      # 초대 메일이 실제로 나가고, 받은 편지함은 http://localhost:8025 에서 본다.
+      # 접속 정보 다섯(2026-09-24) — mailpit 은 인증을 요구하지 않아 USER·PASS 가 빈다.
+      NERV_MAIL_HOST: ${NERV_MAIL_HOST:-mailpit}
+      NERV_MAIL_PORT: ${NERV_MAIL_PORT:-1025}
+      # 비우면 포트에서 유도한다(465 면 true) — mailpit 은 평문이라 false 다.
+      NERV_MAIL_SECURE: ${NERV_MAIL_SECURE:-}
+      NERV_MAIL_USER: ${NERV_MAIL_USER:-}
+      NERV_MAIL_PASS: ${NERV_MAIL_PASS:-}
+      # 걷힌 이름을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지 않으면
+      # URL 을 둔 배치가 아무 말 없이 메일이 꺼진 채로 뜨고 약속한 거부가 유령이 된다
+      # (REQ-CB-050). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.
+      NERV_SMTP_URL: ${NERV_SMTP_URL:-}
+      NERV_MAIL_FROM: ${NERV_MAIL_FROM:-NERV <no-reply@nerv.example.com>}
+      NERV_MAIL_REPLY_TO: ${NERV_MAIL_REPLY_TO:-}
+      NERV_MAIL_DRY_RUN: ${NERV_MAIL_DRY_RUN:-false}
+      NERV_REQUIRE_EMAIL_VERIFICATION: ${NERV_REQUIRE_EMAIL_VERIFICATION:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -1450,6 +1489,7 @@ services:
       NERV_PUBLIC_URL: ${NERV_PUBLIC_URL:-}
       NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
+      NERV_LOG_FORMAT: ${NERV_LOG_FORMAT:-json}   # 컨테이너는 수집기가 읽는다 — 한 줄에 JSON 하나 (§5.5)
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
       NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
@@ -1467,6 +1507,23 @@ services:
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
       NERV_S3_FORCE_PATH_STYLE: "true"
+      # 메일 — 호스트가 비면 보내지 않는다(2026-09-22). 기본이 아래 mailpit 이라 개발 루프에서
+      # 초대 메일이 실제로 나가고, 받은 편지함은 http://localhost:8025 에서 본다.
+      # 접속 정보 다섯(2026-09-24) — mailpit 은 인증을 요구하지 않아 USER·PASS 가 빈다.
+      NERV_MAIL_HOST: ${NERV_MAIL_HOST:-mailpit}
+      NERV_MAIL_PORT: ${NERV_MAIL_PORT:-1025}
+      # 비우면 포트에서 유도한다(465 면 true) — mailpit 은 평문이라 false 다.
+      NERV_MAIL_SECURE: ${NERV_MAIL_SECURE:-}
+      NERV_MAIL_USER: ${NERV_MAIL_USER:-}
+      NERV_MAIL_PASS: ${NERV_MAIL_PASS:-}
+      # 걷힌 이름을 **넘겨 준다** — compose 는 모르는 변수를 조용히 무시하므로, 넘기지 않으면
+      # URL 을 둔 배치가 아무 말 없이 메일이 꺼진 채로 뜨고 약속한 거부가 유령이 된다
+      # (REQ-CB-050). 값이 없는 배치에서는 빈 문자열로 와서 아무 일도 하지 않는다.
+      NERV_SMTP_URL: ${NERV_SMTP_URL:-}
+      NERV_MAIL_FROM: ${NERV_MAIL_FROM:-NERV <no-reply@nerv.example.com>}
+      NERV_MAIL_REPLY_TO: ${NERV_MAIL_REPLY_TO:-}
+      NERV_MAIL_DRY_RUN: ${NERV_MAIL_DRY_RUN:-false}
+      NERV_REQUIRE_EMAIL_VERIFICATION: ${NERV_REQUIRE_EMAIL_VERIFICATION:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -1695,6 +1752,7 @@ server {
 | 수준 | 같은 파일 | 5xx `error` · 401·403·429 `warn`(사람이 문의해 오는 4xx 라 수준만으로 걸러 본다) · 프리플라이트 `verbose` · 나머지 `log` |
 | 요청 ID | `common/request-context.ts` | 받은 `X-Request-Id` 가 `[A-Za-z0-9._:-]{8,128}` 이면 그 값, 아니면 새로 만든다(개행·공백을 받으면 가짜 로그 줄을 끼워 넣을 수 있다). 응답 헤더로 되돌리고 CORS 노출 헤더에 든다([4.4](api.md) §1.3b) |
 | 로그 맥락 | `common/nerv-logger.ts` | 요청 안에서 남긴 모든 줄에 `[req=…]` 가 붙는다 — AsyncLocalStorage 가 요청 ID 를 들고 로거가 읽는다. 서비스 코드는 모른다(D-05) |
+| 형식 | `common/nerv-logger.ts` — `NERV_LOG_FORMAT` | `text`(기본 — 개발 루프) · `json`(컨테이너 배치 — compose·k8s 가 넘긴다). `json` 은 한 줄에 JSON 하나이고 고정 키는 `level`·`pid`·`timestamp`(epoch ms)·`message`·`context`·`stack`·`req_id` 다. 접근 로그는 여기에 `event: "access"` 와 필드를 펼친다 — 구조화 필드는 고정 키를 덮지 못한다 |
 | 앞문 | §5.4 | 받은 `X-Request-Id` 를, 없으면 `$request_id` 를 넘기고 자기 접근 로그에도 싣는다. ingress-nginx 는 기본 설정으로 같은 일을 한다(`X-Request-ID` 생성·전달) |
 
 **싣지 않는 것**: 쿼리 문자열(라우트 템플릿만 — `/api/v1/projects/:proj/tasks`) · 요청·응답 본문 · `Authorization`·`Cookie`·`Idempotency-Key` · 이메일과 표시 이름(사람은 `user_id` 로만 가리킨다). 이 줄은 수집기로 흘러가고, 거기서 누가 읽을지는 이 저장소가 정하지 않는다.
@@ -1703,7 +1761,9 @@ server {
 
 **클라이언트 주소는 `X-Forwarded-For` 의 마지막 항목이다** — 앞문은 받은 값 뒤에 자기가 본 주소를 덧붙이므로 맨 앞은 클라이언트가 적어 보낸 값이다. 앞문이 하나인 배치를 전제한다.
 
-※ 남은 것(다음 두 단계): ② `NERV_LOG_FORMAT=json|text` — 운영 기본을 JSON 한 줄로(내장 `ConsoleLogger` 의 `json` 모드 · §5.2 전표와 `check-env-table.mjs`) 하고 "싣지 않는 것" 을 L1 으로 센다. ③ MCP `tools/call` 마다 한 줄(도구 · 결과 코드 · 소요 — HTTP 줄만으로는 전부 `POST /mcp 200` 이다), 워커 잡의 시작·끝 한 줄, WebSocket 연결·해제 한 줄.
+"싣지 않는 것" 은 L1 이 센다 — 두 형식의 실제 로거가 stdout 에 쓴 바이트에 Bearer·쿠키·멱등 키·쿼리·본문·이메일·표시 이름이 없는가(REQ-CB-053). 가짜 로거로 세면 로거가 무엇을 **받았는가** 만 보고, 그것을 어떻게 펼쳤는가는 못 본다.
+
+※ 남은 것(셋째 단계): MCP `tools/call` 마다 한 줄(도구 · 결과 코드 · 소요 — HTTP 줄만으로는 전부 `POST /mcp 200` 이다), 워커 잡의 시작·끝 한 줄, WebSocket 연결·해제 한 줄.
 
 ---
 

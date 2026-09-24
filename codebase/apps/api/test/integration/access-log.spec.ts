@@ -35,7 +35,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** stdout 에 쓰인 `[Access]` 줄 — 응답이 끝난 뒤 `close` 에서 쓰이므로 한 틱 기다린다 */
+/** stdout 에 쓰인 접근 로그 줄 — 응답이 끝난 뒤 `close` 에서 쓰이므로 한 틱 기다린다 */
 async function accessLines(send: () => Promise<unknown>): Promise<string[]> {
   const written: string[] = [];
   const original = process.stdout.write.bind(process.stdout);
@@ -49,7 +49,8 @@ async function accessLines(send: () => Promise<unknown>): Promise<string[]> {
   }) as typeof process.stderr.write);
   await send();
   await new Promise((resolve) => setImmediate(resolve));
-  return written.filter((line) => line.includes('[Access]'));
+  // text 는 `[Access]`, json 은 `"context":"Access"` 다
+  return written.filter((line) => line.includes('[Access]') || line.includes('"context":"Access"'));
 }
 
 describe('접근 로그 — Nest 앱 배선', () => {
@@ -88,5 +89,52 @@ describe('접근 로그 — Nest 앱 배선', () => {
   it('/healthz 는 남기지 않는다', async () => {
     const lines = await accessLines(() => app.inject({ method: 'GET', url: '/healthz' }));
     expect(lines).toHaveLength(0);
+  });
+});
+
+/**
+ * `NERV_LOG_FORMAT=json` — 운영 컨테이너의 모양이다(§5.3 · §6 이 넘긴다 · REQ-CB-053).
+ * 로거는 `createApp` 이 env 에서 세우므로 앱을 하나 더 띄운다. 이 파일의 마지막 스위트다 —
+ * 전역 로거가 json 으로 바뀐 채 남는다.
+ */
+describe('접근 로그 — json 한 줄', () => {
+  let jsonApp: NestFastifyApplication;
+
+  beforeAll(async () => {
+    process.env['NERV_LOG_FORMAT'] = 'json';
+    jsonApp = await createApp();
+    await jsonApp.init();
+    await jsonApp.getHttpAdapter().getInstance().ready();
+  });
+
+  afterAll(async () => {
+    delete process.env['NERV_LOG_FORMAT'];
+    await jsonApp.close();
+  });
+
+  it('가드가 거절한 요청이 필드로 갈린 JSON 한 줄이다', async () => {
+    const id = 'l2-access-json-0001';
+    const lines = await accessLines(() =>
+      jsonApp.inject({
+        method: 'GET',
+        url: '/api/v1/me/notifications?q=secret-value',
+        headers: { 'x-request-id': id },
+      }),
+    );
+    expect(lines).toHaveLength(1);
+    const line = lines[0] ?? '';
+    expect(line.trimEnd()).not.toContain('\n');
+    expect(line).not.toContain('secret-value');
+    expect(JSON.parse(line)).toMatchObject({
+      level: 'warn',
+      context: 'Access',
+      req_id: id,
+      event: 'access',
+      method: 'GET',
+      route: '/api/v1/me/notifications',
+      status: 401,
+      surface: 'rest',
+      code: NERV_ERROR.UNAUTHENTICATED,
+    });
   });
 });

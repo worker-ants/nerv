@@ -165,6 +165,7 @@ services:
       NERV_COOKIE_DOMAIN: ${NERV_COOKIE_DOMAIN:-}
       NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
+      NERV_LOG_FORMAT: ${NERV_LOG_FORMAT:-json}   # 컨테이너는 수집기가 읽는다 — 한 줄에 JSON 하나 (§5.5)
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
       NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체
@@ -246,6 +247,7 @@ services:
       NERV_PUBLIC_URL: ${NERV_PUBLIC_URL:-}
       NERV_HTTP_PORT: ${NERV_HTTP_PORT:-}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
+      NERV_LOG_FORMAT: ${NERV_LOG_FORMAT:-json}   # 컨테이너는 수집기가 읽는다 — 한 줄에 JSON 하나 (§5.5)
       DATABASE_URL: postgres://${POSTGRES_USER:-nerv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nerv}
       NERV_VALKEY_URL: redis://valkey:6379
       NERV_EMBED_URL: ${NERV_EMBED_URL:-http://embed:11434/v1}   # 프로필 §5.2a — 외부 제공자 시 .env 로 교체

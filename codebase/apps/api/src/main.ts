@@ -17,8 +17,7 @@ import { McpOriginGuard } from './common/mcp-origin.guard.js';
 import { SessionOriginGuard } from './common/session-origin.guard.js';
 import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
-import { logLevelsFromEnv } from './common/log-level.js';
-import { NervLogger } from './common/nerv-logger.js';
+import { nervLoggerFromEnv } from './common/nerv-logger.js';
 import { registerAccessLog } from './common/access-log.js';
 import { REQUEST_ID_HEADER, requestIdFrom } from './common/request-context.js';
 import { REPLAYED_HEADER } from './common/idempotency.service.js';
@@ -48,7 +47,7 @@ export async function createApp(): Promise<NestFastifyApplication> {
       // 전표(§5.2)가 소비자를 "api · worker" 라 적어 둔 변수다 — 2026-09-06 까지
       // 읽는 코드가 없어 값을 바꿔도 아무 일이 없었다.
       // 로거는 요청 안에서 남긴 줄에 요청 ID 를 붙인다(§5.5) — 서비스 코드는 모른다.
-      logger: new NervLogger({ logLevels: logLevelsFromEnv() }),
+      logger: nervLoggerFromEnv(),
     },
   );
 
