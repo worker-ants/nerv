@@ -269,6 +269,8 @@ export const en = {
   'settings.members.scope_rule':
     'Organization-wide rows can be changed by organization admins only; project rows also by that project’s admins. Rows you cannot change are read-only.',
   'settings.members.title_org': '{org} members & roles',
+  'settings.workspace.org_admin_only':
+    'Only organization admins can rename or delete the organization or create projects — a project’s admins can also edit that project’s row.',
   'shell.inbox_all_orgs': 'Inbox — every organization',
   'shell.notifications_all_orgs': 'Notifications — every organization',
   'shell.org_label': 'Organization: {name}',

@@ -1772,9 +1772,22 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
   });
 
   it('EP-PRJ-02 — 프로젝트를 만들면 만든 사람이 admin 멤버가 된다', async () => {
+    // **만드는 것은 조직 admin 이다**(2026-09-24 · REQ-API-171). 이 스위트의 admin 은 clemvion
+    // **프로젝트의** admin 이라 새 규칙에서는 조직에 프로젝트를 늘릴 수 없다 — 먼저 그것을 본다
+    const denied = await call('POST', '/api/v1/orgs/nerv/projects', {
+      payload: { slug: 'new-proj', key: 'NEW', name: '새 프로젝트' },
+    });
+    expect(denied.status).toBe(403);
+    // 이 검사 동안만 조직 admin 으로 — 뒤 검사들의 전제(프로젝트 admin)는 건드리지 않는다
+    const orgAdminRow = newId();
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,NULL,$3,'admin')`,
+      [orgAdminRow, orgId, adminId],
+    );
     const res = await call('POST', '/api/v1/orgs/nerv/projects', {
       payload: { slug: 'new-proj', key: 'NEW', name: '새 프로젝트' },
     });
+    await pool.query(`DELETE FROM membership WHERE id = $1`, [orgAdminRow]);
     expect(res.status).toBe(201);
 
     const { rows } = await pool.query<{ role: string }>(

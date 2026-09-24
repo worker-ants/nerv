@@ -318,7 +318,10 @@ export class AuthService {
         org: orgSlug,
       });
     }
-    this.assertAdmin(org.roles as MembershipRole[]);
+    // **조직 수준 조작은 조직 admin 만**(2026-09-24 사람 결정 · REQ-API-171). 예전에는 그 조직
+    // 어디서든 admin 이면 됐다 — 한 프로젝트를 맡긴 사람이 조직 이름을 바꾸고 조직을 지울 수
+    // 있었다. 판정은 멤버십·초대와 같은 한 곳이다(`assertCanManageScope` · 조직 전체 범위)
+    await this.assertCanManageScope(userId, org.id, null);
     return org.id;
   }
 
@@ -349,7 +352,9 @@ export class AuthService {
         org: input.orgSlug,
       });
     }
-    this.assertAdmin(org.roles as MembershipRole[]);
+    // 새 프로젝트는 조직 수준 조작이다 — 조직 admin 만(REQ-API-171). 프로젝트 admin 이 조직에
+    // 프로젝트를 늘리면 그 사람이 맡지 않은 자리가 생긴다
+    await this.assertCanManageScope(input.userId, org.id, null);
     if (input.slug.trim() === '' || input.key.trim() === '' || input.name.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.missing_fields'), {
         kind: 'missing_fields',

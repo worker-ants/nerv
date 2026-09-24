@@ -151,3 +151,29 @@ describe('초대 (EP-INV-01·03)', () => {
     ).toBe(true);
   });
 });
+
+// ── 조직 수준 조작도 조직 admin 만 — REQ-API-171 (2026-09-24 사람 결정) ─────────────────
+//
+// 결정 4 를 멤버십·초대에 적용한 뒤 남아 있던 자리다. 조직 이름·삭제·새 프로젝트는 여전히
+// "조직 어디서든 admin" 으로 판정되어, 한 프로젝트의 admin 이 조직 이름을 바꿀 수 있었다.
+describe('조직 수준 조작 (EP-ORG-04·05 · EP-PRJ-02)', () => {
+  it('프로젝트 admin 은 조직 이름을 바꿀 수 없다 — 조직 admin 은 바꾼다', async () => {
+    expect(
+      await forbidden(auth.updateOrg({ userId: sudokuAdmin, orgSlug: 'acme', name: '딴이름' })),
+    ).toBe(true);
+    await expect(
+      auth.updateOrg({ userId: orgAdmin, orgSlug: 'acme', name: '에이스' }),
+    ).resolves.toBeDefined();
+  });
+
+  it('프로젝트 admin 은 조직을 지울 수 없다 — 권한에서 먼저 막힌다(프로젝트가 남았다는 이유가 아니라)', async () => {
+    expect(await forbidden(auth.deleteOrg({ userId: sudokuAdmin, orgSlug: 'acme' }))).toBe(true);
+  });
+
+  it('프로젝트 admin 은 새 프로젝트를 만들 수 없다 — 조직 admin 은 만든다', async () => {
+    const make = (userId: string, slug: string, key: string) =>
+      auth.createProject({ userId, orgSlug: 'acme', slug, key, name: slug });
+    expect(await forbidden(make(sudokuAdmin, 'side', 'SID'))).toBe(true);
+    await expect(make(orgAdmin, 'main-app', 'MAP')).resolves.toBeDefined();
+  });
+});

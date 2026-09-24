@@ -3,7 +3,7 @@
 // 검사하는 것은 두 가지다: **권한 판정이 겸직을 합치는가**, 그리고 **되돌릴 수 없는
 // 일 앞에 확인이 서는가**.
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -318,5 +318,57 @@ describe('저장소 종류 (REQ-WEB-162)', () => {
     await renderTab();
     fireEvent.click(screen.getByTestId('project-edit'));
     expect((screen.getByTestId('project-repo-host') as HTMLSelectElement).value).toBe('github');
+  });
+});
+
+// ── 조직 수준 조작은 조직 admin 만 — REQ-API-171 (2026-09-24 사람 결정) ───────────────
+//
+// 조직 이름·삭제·새 프로젝트가 "조직 어디서든 admin" 으로 열려 있어, 한 프로젝트의 admin 이
+// 조직 이름을 바꿀 수 있었다. 프로젝트 줄은 그 프로젝트의 admin 도 고친다(EP-PRJ-04·05).
+describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () => {
+  const PROJECT_ADMIN = {
+    id: 'u-2',
+    display_name: '지민',
+    memberships: [
+      { org_slug: 'default', org_name: 'default', project_slug: 'sudoku', roles: ['admin'] },
+    ],
+  };
+  const PROJECTS = [
+    { id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', archived_at: null },
+    { id: 'p-2', slug: 'sudoku', key: 'SUD', name: 'sudoku', archived_at: null },
+  ];
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const path = String(url);
+        const json = path.includes('/projects')
+          ? PROJECTS
+          : path.includes('/me')
+            ? PROJECT_ADMIN
+            : { items: [], memberships: [], count: 0, summary: {} };
+        return { ok: true, status: 200, json: async () => json };
+      }),
+    );
+  });
+
+  it('조직 이름·삭제·새 프로젝트는 잠기고, 그렇다고 말한다', async () => {
+    await renderTab(false);
+    await waitFor(() => expect(screen.getAllByTestId('project-row')).toHaveLength(2));
+    expect((screen.getByTestId('org-name') as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByTestId('org-delete') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId('project-new')).toBeNull();
+    expect(screen.getByText(/조직 이름·삭제와 새 프로젝트는 조직 admin 만/)).toBeDefined();
+  });
+
+  it('자기 프로젝트 줄은 열리고 남의 프로젝트 줄은 잠긴다', async () => {
+    await renderTab(false);
+    await waitFor(() => expect(screen.getAllByTestId('project-row')).toHaveLength(2));
+    const rows = screen.getAllByTestId('project-row');
+    const edit = (row: HTMLElement) => within(row).getByTestId('project-edit') as HTMLButtonElement;
+    const byName = (name: string) => rows.find((r) => r.textContent?.includes(name))!;
+    expect(edit(byName('sudoku')).disabled).toBe(false);
+    expect(edit(byName('clemvion')).disabled).toBe(true);
   });
 });

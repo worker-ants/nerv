@@ -6,7 +6,7 @@ Of the two header selects, it is the **project** you create, rename and put away
 
 **The organization this tab acts on is the one picked in the header.** With more than one organization, switching it in the header is what switches what this tab edits — a screen that points at two organizations at once leaves you unsure which one you just renamed.
 
-**Creating, editing and putting away are all `admin` work.** Without that role, [New project] and the [Show archived] toggle are not rendered at all, and the edit and archive buttons are disabled.
+**Creating, editing and putting away are `admin` work, and which admin depends on what you change.** Renaming or deleting the organization and [New project] are for **organization admins** (people whose organization-wide role is admin) only. Editing or archiving a project row is for organization admins and **that project's admins** — a project admin sees only their own project's row unlocked, with the organization name and other projects locked. With admin nowhere, the [Show archived] toggle is not shown either.
 
 - **Create a project** — type a name and the address (slug) and key follow from it. The key is the short prefix on **task** numbers (`CLV-T-3F92A1`). A spec key is unrelated — a person writes it when creating the document.
 - **Rename** — only the name changes. **The slug does not** — addresses and API paths are built on it, so changing it would break every link already out in the world.
