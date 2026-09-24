@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 38개**다 — 도메인 32 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.47 · 2026-09-24 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.48 · 2026-09-24 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.48 변경(2026-09-24 — 누가 결정했는가가 경로마다 다른 열에 있었다, **사람 결정**): **새 요구사항 없음 · §2.8 `approval.decided_by_user_id` · 마이그레이션 0029 · §4 시드.** 처리됨 탭이 **결정이 문서를 움직인 순간 그 기록을 잃었다** — 승인하면 `approved`, 거절하면 `draft` 라 대기 탭을 위해 쓴 `sv.status = 'in_review'` 에서 함께 탈락했다. 실측 2026-09-24: 넷을 결정하니 둘만 남았고 그 둘은 **문서를 안 움직인 것과 남이 낸 면제**였다. 매뉴얼은 그동안 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 약속하고 있었다 — 틀린 문서가 확신을 준 자리다. 고치려고 보니 **"누가 결정했는가" 가 한 곳에 없었다**: `decide()` 는 `assignee_user_id` 를 COALESCE 로 채우고, 게이트 면제는 그 열을 비운 채 `requested_by_user_id` 만 남기며, 지정 카드를 admin 이 대신 결정하면 그 열은 **결정자가 아닌 사람**을 가리킨 채 남는다. 한 사실이 세 곳에 흩어져 있으니 어느 쪽을 읽어도 틀린다(D-05 가 판정에 대해 말하는 것과 같은 자리다). 열 하나를 두고 두 경로가 함께 채우며, `CHECK (decision IS NULL OR decided_by_user_id IS NOT NULL)` 로 DB 가 붙잡는다 — `approval_bypass_reason_ck` 를 세운 것과 같은 이유다. **백필의 정답은 이미 `event` 에 있다**(`approval.decided`·`gate.bypassed` 의 `actor_user_id`) — 지정 카드를 admin 이 결정한 경우까지 옳게 답하는 것은 감사 로그뿐이고, 이벤트가 없는 옛 행만 두 열로 떨어진다([4.4](api.md) REQ-API-165 · [4.5](screens.md) REQ-WEB-184).
 >
 > v0.47 변경(2026-09-24 — 길을 내고도 그 길을 지나가는 데이터가 없었다, **네 번째: 받은 요청**): **새 요구사항 없음 · §4 개발 시드.** `approval` 은 **한 행뿐이었고 그것도 이미 결정이 끝난 면제**였다 — 대기 중인 결재가 **한 건도 없었다.** 그래서 S7 받은 요청은 L3 에서도 디자인 확인용 스크린샷에서도 **늘 빈 상태**로만 찍혔고, 2026-09-22 에 들어온 일괄 승인·거절([4.5](screens.md) REQ-WEB-181~183 · [4.4](api.md) REQ-API-162~164)은 L1·L2 만 덮은 채 그 길을 한 번도 지나가지 못했다. Activity(2026-08-23)·증적(v0.42)·관계 그래프(v0.43)와 **같은 형태의 네 번째**다. **검토 중인 개정판 넷**과 그 위의 **결재 슬롯 다섯**을 심는다 — **저위험 셋**(정족수 1 · 일괄로 지나간다)과 **T3 하나**(슬롯 2 · 일괄에서 빠진다). 섞임이 계약이다: 저위험만 심으면 일괄에서 **빠지는 길**이 시드에 없고, T3 만 심으면 일괄이 아무것도 지나가지 못한다. 슬롯의 모양은 실물이 세우는 것 그대로고(슬롯 1 기본 큐 · 슬롯 2 는 문서 타입의 직군), **작성자도 요청자도 지민이 아니다** — 지시자≠승인자 세 축 중 하나라도 걸리면 `can_approve` 가 거짓이 되어 카드는 있는데 아무것도 누를 수 없는 화면이 된다. 그 길을 지나가는 L3 도 함께 세웠다(`inbox-bulk.spec.ts` — 체크박스 → 확인 목록 → 토스트 · [4.8](backlog.md) v1.08).
 >
@@ -741,6 +743,7 @@ CREATE TABLE approval (
   assignee_user_id        uuid REFERENCES "user"(id),
   assignee_role           member_role,         -- 역할 큐로 열어두는 경우
   decision                approval_decision,   -- NULL = 대기
+  decided_by_user_id      uuid REFERENCES "user"(id), -- 누가 눌렀는가(0029) — 큐와 다른 축이다
   comment_md              text,
   requested_at            timestamptz NOT NULL DEFAULT now(),
   due_at                  timestamptz,
@@ -748,7 +751,9 @@ CREATE TABLE approval (
   is_bypass               boolean NOT NULL DEFAULT false, -- 게이트 면제도 결재 레코드(FR-10)
   bypass_reason           text,
   created_at              timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT approval_bypass_reason_ck CHECK (NOT is_bypass OR bypass_reason IS NOT NULL)
+  CONSTRAINT approval_bypass_reason_ck CHECK (NOT is_bypass OR bypass_reason IS NOT NULL),
+  -- 결정된 행에는 결정자가 있다 — 없으면 그 행은 처리됨 탭에서 사라지고, 사라진 것은 아무도 못 본다
+  CONSTRAINT approval_decided_by_ck CHECK (decision IS NULL OR decided_by_user_id IS NOT NULL)
 );
 
 CREATE TABLE question (                        -- 세션은 awaiting_input으로 대기(P7의 핵심)
@@ -937,6 +942,7 @@ CREATE INDEX finding_queue ON finding (project_id, status, severity);           
 
 -- 승인·이벤트·알림
 CREATE INDEX approval_inbox ON approval (project_id, assignee_user_id) WHERE decision IS NULL; -- 받은 요청(§4.7)
+CREATE INDEX approval_decided ON approval (project_id, decided_by_user_id) WHERE decision IS NOT NULL; -- 처리됨(§4.7)
 CREATE INDEX event_project_time ON event (project_id, occurred_at DESC);           -- 피드
 CREATE INDEX event_subject      ON event (subject_type, subject_id, occurred_at);  -- 감사(§4.8)
 CREATE INDEX notification_inbox ON notification (user_id, state, created_at DESC); -- 보조: 수신함
@@ -1287,7 +1293,8 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 -- 스펙 목록의 트리·표·**관계 그래프**(영역 4 · 종류 6 · 관계 28) ·
 -- S4 작업 보드(in_progress 2 · blocked 1) · S5 세션 모니터(active 2 · awaiting_input 1) ·
 -- S6 리뷰 센터(열린 발견 3 · 브랜치 2 · 면제 1) ·
--- S7 받은 요청(대기 결재 — 저위험 3 · T3 1(슬롯 2) · 질문 카드 1) ·
+-- S7 받은 요청(대기 결재 — 저위험 3 · T3 1(슬롯 2) · 질문 카드 1 ·
+--              처리됨 — 지민이 승인한 1 · 하나가 낸 면제 1) ·
 -- S4 작업 상세의 증적(6건 — 종류 여섯을 전부)이 전부 비어 있지 않게 뜬다.
 
 BEGIN;
@@ -1440,10 +1447,13 @@ INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash
    digest(E'# 웹챗 위젯 임베드 v2\n\n## 요구사항\n\n- REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다\n\n## 복원 흐름\n\n```mermaid\ngraph TD\n  A[방문자] --> B[위젯 열기]\n  B --> C{세션 쿠키}\n  C -->|있다| D[이전 대화 복원]\n  C -->|없다| E[새 대화 시작]\n```\n', 'sha256'),
    '01990a66-0000-7000-8000-000000000011', now() - interval '2 days',
    '01990a66-0000-7000-8000-000000000012', NULL),
+  -- **이 한 편만 작성자가 다르다**(2026-09-24). 아래 `approval` 이 "지민이 5일 전에 승인했다"
+  -- 는 기록을 남기는데, 나머지처럼 지민이 작성자면 그 기록은 **지시자≠승인자를 어긴 것**이
+  -- 되고 시드가 금지된 상태를 시연하게 된다. 하나가 쓰고 지민이 승인한 한 편을 둔다.
   ('01990a66-0000-7000-8000-000000000053', '01990a66-0000-7000-8000-000000000043', 1,
    'approved', E'# 세션 복원 API\n\n(v1 본문)', digest(E'# 세션 복원 API\n\n(v1 본문)', 'sha256'),
-   '01990a66-0000-7000-8000-000000000011', now() - interval '5 days',
-   '01990a66-0000-7000-8000-000000000012', NULL);
+   '01990a66-0000-7000-8000-000000000015', now() - interval '5 days',
+   '01990a66-0000-7000-8000-000000000011', NULL);
 
 UPDATE spec SET current_version_id = '01990a66-0000-7000-8000-000000000052'
   WHERE id = '01990a66-0000-7000-8000-000000000042';
@@ -1713,6 +1723,26 @@ INSERT INTO approval (id, project_id, subject_type, subject_id,
    'spec_version', '01990a66-0000-7000-8000-000000000454',
    '01990a66-0000-7000-8000-000000000015', 'designer', now() - interval '3 hours');
 
+-- 처리됨 탭 — **끝난 것도 한 건은 있어야 한다**(2026-09-24).
+--
+-- 그 탭이 답하는 질문은 "내가 결정한 것" 이고(`decided_by_user_id` · 0029), 시드에 그런
+-- 행이 없으면 개발 환경에서 그 탭은 언제나 "아직 처리한 항목이 없습니다" 다 — 대기 쪽에
+-- 길을 내면서 같은 화면의 다른 탭을 비워 두는 것은 이 시드가 네 번 반복한 실수다.
+-- 면제 한 건이 있지만 그것은 하나의 것이라 **지민(L3·개발 환경의 신원)에게는 보이지
+-- 않는다** — 보이지 않는 것으로는 그 길을 지나갈 수 없다.
+--
+-- 위 `spec_version` 의 SPC-CWC-012 v1 과 한 이야기다: 하나가 올리고 지민이 5일 전에
+-- 승인했으며, 그래서 그 문서가 `approved` 다. 결재와 문서가 같은 사실을 말해야 한다.
+INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                      assignee_user_id, decision, comment_md, requested_at, decided_at,
+                      decided_by_user_id) VALUES
+  ('01990a66-0000-7000-8000-000000000f16', '01990a66-0000-7000-8000-000000000021',
+   'spec_version', '01990a66-0000-7000-8000-000000000053',
+   '01990a66-0000-7000-8000-000000000015', '01990a66-0000-7000-8000-000000000011',
+   'approve', '복원 실패 시 재시도 횟수는 다음 판에서 정한다.',
+   now() - interval '5 days' - interval '40 minutes', now() - interval '5 days',
+   '01990a66-0000-7000-8000-000000000011');
+
 -- Activity 타임라인 (§2.6 · S5 세션 상세 — ui-wireframes §2.5 둘째 그림) ------
 --
 -- 이 화면의 값어치는 **사람의 개입이 에이전트의 행동과 같은 줄에 섞이는 것**인데,
@@ -1865,12 +1895,16 @@ INSERT INTO resolution (id, finding_id, kind, commit_sha, rationale_md, actor_us
    'fixed', 'e91ba7c2', '재시도 3회 + 지수 백오프로 구현하고 스펙에 절을 추가했다.',
    '01990a66-0000-7000-8000-000000000015');
 
--- 게이트 면제 — **면제도 결재 레코드다**(FR-10). 리뷰 세션을 주체로 붙는다
+-- 게이트 면제 — **면제도 결재 레코드다**(FR-10). 리뷰 세션을 주체로 붙는다.
+-- `decided_by_user_id` 는 **낸 사람과 같다**(2026-09-24 · 0029) — 묻지 않고 지나가는 것이
+-- 면제이므로 요청자가 곧 결정자다. 그 열이 비면 CHECK 가 막고, 막히지 않았더라도 그 행은
+-- 누구의 처리됨 탭에도 뜨지 않는다(사라진 것은 아무도 못 본다).
 INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                      decision, decided_at, is_bypass, bypass_reason) VALUES
+                      decision, decided_at, decided_by_user_id, is_bypass, bypass_reason) VALUES
   ('01990a66-0000-7000-8000-000000000f03', '01990a66-0000-7000-8000-000000000021',
    'gate_bypass', '01990a66-0000-7000-8000-0000000000f3',
-   '01990a66-0000-7000-8000-000000000015', 'approve', now() - interval '1 day', true,
+   '01990a66-0000-7000-8000-000000000015', 'approve', now() - interval '1 day',
+   '01990a66-0000-7000-8000-000000000015', true,
    '핫픽스 배포, 사후 리뷰 예약');
 
 -- 증적 (S4 작업 상세 — screens.md §2.5 ⑥) ---------------------------------

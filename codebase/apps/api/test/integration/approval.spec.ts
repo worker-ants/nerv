@@ -1790,6 +1790,190 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
   });
 });
 
+/**
+ * **처리됨 탭은 "내가 결정한 것" 에 답한다**(2026-09-24 · 사람 결정 · REQ-API-165).
+ *
+ * 한 `WHERE` 절이 두 탭을 겸하는 동안 이 탭은 **결정이 문서를 움직인 순간 그 기록을
+ * 잃었다**: 승인하면 `approved`, 거절하면 `draft` 라 대기 탭을 위해 쓴 `sv.status =
+ * 'in_review'` 에서 함께 탈락했다. 실측 2026-09-24 — 시드에서 넷을 결정하니 처리됨에
+ * 둘만 남았고, 그 둘은 **문서를 안 움직인 것과 남이 낸 면제**였다. 매뉴얼은 그동안
+ * "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 적고 있었다.
+ *
+ * 그리고 자격 판정도 갈랐다. `eligibleSql` 은 "이 카드가 **내 큐인가**" 를 묻는 식이라
+ * 결정된 카드에 물으면 엉뚱한 답이 나온다 — 남이 낸 면제가 내 처리됨에 뜨고 내가 끝낸
+ * 것은 빠졌다. 결정자는 이제 `decided_by_user_id` 한 열에 남는다(마이그레이션 0029).
+ */
+describe('처리됨 탭 — 내가 결정한 것 (REQ-API-165)', () => {
+  /**
+   * 남이 올린 스펙 결재 하나 — **세 축이 전부 planner 가 아니어야** 결정이 된다
+   * (요청자 reviewer · 작성자 designer · 작성 세션 없음 · `approval-policy` 의 notSelfSql).
+   */
+  async function pendingSpec(): Promise<{ versionId: string; approvalId: string }> {
+    const versionId = await makeSpecVersion('# 처리됨\n\n본문', 'in_review');
+    await pool.query(
+      `UPDATE spec_version SET author_user_id = $2, submitted_at = now() WHERE id = $1`,
+      [versionId, designer],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: reviewer,
+    });
+    return { versionId, approvalId: approval_id };
+  }
+
+  const decidedOf = (userId: string): Promise<Record<string, unknown>[]> =>
+    approvals.inboxGlobal({ actor: person(userId), userId, state: 'decided' });
+
+  it('승인해서 문서가 approved 로 가도 기록은 남는다 — 이 자리가 비어 있었다', async () => {
+    const { versionId, approvalId } = await pendingSpec();
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId,
+      userId: planner,
+      decision: 'approve',
+    });
+    // 문서는 옮겨 갔다 — 그래도 결재 기록은 처리됨에 있어야 한다
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    expect(rows[0]?.status).toBe('approved');
+
+    const decided = await decidedOf(planner);
+    expect(decided.map((c) => c['id'])).toContain(approvalId);
+    expect(decided.find((c) => c['id'] === approvalId)?.['decision']).toBe('approve');
+  });
+
+  it('거절해서 문서가 draft 로 돌아가도 남는다 — 거절이야말로 나중에 읽는 기록이다', async () => {
+    const { versionId, approvalId } = await pendingSpec();
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId,
+      userId: planner,
+      decision: 'reject',
+      comment: '재시도 횟수를 적어 주세요',
+    });
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    expect(rows[0]?.status).toBe('draft');
+    expect((await decidedOf(planner)).map((c) => c['id'])).toContain(approvalId);
+  });
+
+  it('남이 결정한 것은 내 처리됨에 없다 — 빈 상태 문구가 "내가" 라고 적는다', async () => {
+    const { approvalId } = await pendingSpec();
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId,
+      userId: planner,
+      decision: 'approve',
+    });
+    // reviewer 도 planner 역할이라 **대기 큐는 같았다** — 그래서 예전에는 남의 결정이
+    // 자기 처리됨에 떴다. 기준이 큐가 아니라 결정자로 바뀐 자리다.
+    expect((await decidedOf(reviewer)).map((c) => c['id'])).not.toContain(approvalId);
+  });
+
+  it('면제도 낸 사람의 처리됨에 있다 — 낸 사람이 곧 결정한 사람이다', async () => {
+    const { approval_id } = await approvals.bypass({
+      actor: person(planner),
+      projectId,
+      userId: planner,
+      subjectType: 'spec_version',
+      subjectId: await makeSpecVersion('# 면제\n\n본문'),
+      reason: '핫픽스 배포, 사후 리뷰 예약',
+    });
+    expect((await decidedOf(planner)).map((c) => c['id'])).toContain(approval_id);
+    expect((await decidedOf(reviewer)).map((c) => c['id'])).not.toContain(approval_id);
+  });
+
+  it('지정 카드를 admin 이 대신 결정하면 admin 의 처리됨에 뜬다 — 지정된 사람이 아니라', async () => {
+    // `assignee_user_id` 는 COALESCE 라 **지정된 사람을 지킨다**. 그 열을 결정자로 읽으면
+    // admin 은 자기가 내린 결정을 못 보고 지정된 사람은 내리지 않은 결정을 본다.
+    const adminId = newId();
+    await pool.query(
+      // 주소는 유일해야 한다 — 이 파일의 다른 검사도 admin 을 하나씩 만든다
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'대표','active')`,
+      [adminId, `admin-${adminId}@example.com`],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, $2, $3, 'admin' FROM project WHERE id = $2`,
+      [newId(), projectId, adminId],
+    );
+    const versionId = await makeSpecVersion('# 지정\n\n본문', 'in_review');
+    await pool.query(
+      `UPDATE spec_version SET author_user_id = $2, submitted_at = now() WHERE id = $1`,
+      [versionId, designer],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: reviewer,
+      assigneeUserId: designer,
+    });
+    await approvals.decide({
+      actor: person(adminId),
+      projectId,
+      approvalId: approval_id,
+      userId: adminId,
+      decision: 'approve',
+    });
+
+    expect((await decidedOf(adminId)).map((c) => c['id'])).toContain(approval_id);
+    expect((await decidedOf(designer)).map((c) => c['id'])).not.toContain(approval_id);
+  });
+
+  it('처리됨은 **결정한 순서**로 선다 — 요청 시각으로 세우면 오래된 요청이 묻힌다', async () => {
+    const older = await pendingSpec();
+    const newer = await pendingSpec();
+    // 오래 묵은 요청을 방금 결정한다 — 요청 시각 정렬이면 이것이 아래로 간다
+    await pool.query(`UPDATE approval SET requested_at = now() - interval '9 days' WHERE id = $1`, [
+      older.approvalId,
+    ]);
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId: newer.approvalId,
+      userId: planner,
+      decision: 'approve',
+    });
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId: older.approvalId,
+      userId: planner,
+      decision: 'approve',
+    });
+
+    const ids = (await decidedOf(planner)).map((c) => c['id']);
+    expect(ids.indexOf(older.approvalId)).toBeLessThan(ids.indexOf(newer.approvalId));
+  });
+
+  it('대기 탭은 그대로다 — 갈라 놓은 것이 대기 쪽을 건드리지 않았다', async () => {
+    const { approvalId } = await pendingSpec();
+    const pending = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    expect(pending.map((c) => c['id'])).toContain(approvalId);
+    // 결정하면 대기에서 빠지고 처리됨으로 옮겨 간다
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId,
+      userId: planner,
+      decision: 'approve',
+    });
+    const after = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    expect(after.map((c) => c['id'])).not.toContain(approvalId);
+    expect((await decidedOf(planner)).map((c) => c['id'])).toContain(approvalId);
+  });
+});
+
 async function makeSpecVersion(body: string, status = 'draft'): Promise<string> {
   const specId = newId();
   const versionId = newId();

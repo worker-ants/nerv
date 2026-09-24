@@ -429,9 +429,11 @@ describe('E04-S03 하트비트·리스 연장', () => {
     });
     // 이 세션이 올린 결재가 방금 승인됐다 — 결재 서비스의 판정 경로는 approval.spec 이 본다
     await pool.query(
+      // 결정된 행에는 **결정자가 있어야 한다**(0029 의 CHECK) — 지정 승인자가 곧 눌렀다
       `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                             requested_by_session_id, assignee_user_id, decision, decided_at)
-       VALUES ($1,$2,'plan',$3,$4,$5,$6,'approve', now())`,
+                             requested_by_session_id, assignee_user_id, decision, decided_at,
+                             decided_by_user_id)
+       VALUES ($1,$2,'plan',$3,$4,$5,$6,'approve', now(), $6)`,
       [newId(), projectId, newId(), hana, sessionHana, dohyun],
     );
     await sessions.steer({
@@ -1300,9 +1302,10 @@ describe('G2 플랜 승인 — 대형 작업은 착수 전에 사람을 거친�
     });
 
     await pool.query(
-      `UPDATE approval SET decision = 'approve', decided_at = now()
+      // 결정자를 함께 적는다 — 0029 의 CHECK 가 비어 있는 결정을 막는다
+      `UPDATE approval SET decision = 'approve', decided_at = now(), decided_by_user_id = $2
         WHERE subject_type = 'plan' AND subject_id = $1`,
-      [first],
+      [first, dohyun],
     );
     await expect(tasks.claim(claimInput(first, sessionHana, hana))).resolves.toMatchObject({
       replayed: false,

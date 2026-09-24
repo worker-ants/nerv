@@ -287,6 +287,34 @@ describe('개발 시드 (database.md §4)', () => {
     ).toBeGreaterThan(0);
   });
 
+  it('처리됨 탭도 비어 있지 않다 — 대기에 길을 내고 옆 탭을 비워 두지 않는다 (2026-09-24)', async () => {
+    // 그 탭이 답하는 질문은 **내가 결정한 것**(`decided_by_user_id` · 마이그레이션 0029)
+    // 이라, 결정자가 지민이 아니면 L3·개발 환경의 신원에게는 언제나 "아직 처리한 항목이
+    // 없습니다" 다. 면제 하나는 하나의 것이므로 지민의 것 하나를 따로 심는다.
+    const jimin = `(SELECT id FROM "user" WHERE email = 'jimin@example.com')`;
+    expect(await count('approval', `WHERE decision IS NOT NULL`)).toBe(2);
+    expect(
+      await count('approval', `WHERE decision IS NOT NULL AND decided_by_user_id = ${jimin}`),
+    ).toBe(1);
+
+    // **결정된 행에는 결정자가 있다** — CHECK 가 막지만, 시드가 그 자리를 비우고도
+    // 지나가던 모양(면제)을 여기서 한 번 더 센다
+    expect(
+      await count('approval', `WHERE decision IS NOT NULL AND decided_by_user_id IS NULL`),
+    ).toBe(0);
+
+    // **결재와 문서가 같은 사실을 말한다.** 지민이 승인한 그 건의 문서는 approved 이고
+    // 승인자도 지민이다 — 둘이 갈리면 시드가 서로 다른 두 이야기를 하게 된다.
+    const { rows } = await pool.query<{ ok: boolean }>(`
+      SELECT (sv.status = 'approved'
+              AND sv.approved_by_user_id = a.decided_by_user_id
+              AND sv.author_user_id <> a.decided_by_user_id) AS ok
+        FROM approval a JOIN spec_version sv ON sv.id = a.subject_id
+       WHERE a.decision IS NOT NULL AND a.subject_type = 'spec_version'
+    `);
+    expect(rows.map((r) => r.ok)).toEqual([true]);
+  });
+
   it('같은 지적이 두 라운드에 걸쳐 하나로 남는다 — 화면의 dedup 표기가 시드에서 보인다', async () => {
     // 라운드 체인(1→2)과 occurrence_count 2 가 함께 있어야 "3회 관측" 같은 표기가
     // 개발 환경에서 실제로 뜬다. 한 라운드만 심으면 그 표기는 코드에만 있는 것이 된다.

@@ -614,9 +614,12 @@ describe('FR-09 처분 — 하향은 사람의 승인을 거친다(A3)', () => {
     );
     expect(cards[0]?.sid).toBe(agentSessionId);
 
-    await pool.query(`UPDATE approval SET decision = 'approve', decided_at = now() WHERE id = $1`, [
-      cards[0]?.id,
-    ]);
+    // 결정자를 함께 적는다 — 0029 의 CHECK 가 비어 있는 결정을 막는다
+    await pool.query(
+      `UPDATE approval SET decision = 'approve', decided_at = now(), decided_by_user_id = $2
+        WHERE id = $1`,
+      [cards[0]?.id, userId],
+    );
     // 깨우는 것은 `decide()` 의 일이라 여기서는 역채널이 그 결정을 싣는지만 본다
     const pending = await approvals.pendingDecisionsFor(agentSessionId);
     expect(pending[0]).toMatchObject({
@@ -664,8 +667,9 @@ describe('FR-09 처분 — 하향은 사람의 승인을 거친다(A3)', () => {
     ).rejects.toMatchObject({ code: NERV_ERROR.APPROVAL_REQUIRED });
 
     await pool.query(
-      `UPDATE approval SET decision = 'approve', decided_at = now() WHERE subject_id = $1`,
-      [findingId],
+      `UPDATE approval SET decision = 'approve', decided_at = now(), decided_by_user_id = $2
+        WHERE subject_id = $1`,
+      [findingId, userId],
     );
     const out = await reviews.resolve({
       projectId,
@@ -892,9 +896,10 @@ describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)',
     // 문자열을 직접 가리킬 수 없다. 브랜치는 그 세션에서 나온다.
     const { rows: session } = await pool.query('SELECT id FROM review_session LIMIT 1');
     await pool.query(
+      // 면제는 **낸 사람이 곧 결정한 사람**이다(0029)
       `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                             decision, decided_at, is_bypass, bypass_reason)
-       VALUES ($1,$2,'gate_bypass',$3,$4,'approve',now(),true,$5)`,
+                             decision, decided_at, decided_by_user_id, is_bypass, bypass_reason)
+       VALUES ($1,$2,'gate_bypass',$3,$4,'approve',now(),$4,true,$5)`,
       [newId(), projectId, session[0].id, userId, '핫픽스 배포, 사후 리뷰 예약'],
     );
     const gate = await reviews.gateCoverage(projectId);

@@ -10,6 +10,11 @@
 // 스크린샷에서도 **늘 빈 상태**로만 찍혔다 — 일괄 승인·거절은 들어온 날부터 이 길을 한 번도
 // 지나가지 못했다. 시드가 저위험 셋과 T3 하나를 심고 나서야 길이 생겼다(database.md §4).
 //
+// **처리됨 탭도 여기서 본다**(2026-09-24). 한 `WHERE` 절이 두 탭을 겸하는 동안 그 탭은
+// 결정이 문서를 움직인 순간 기록째 잃었다 — 승인하면 `approved`, 거절하면 `draft` 라 대기
+// 탭을 위해 쓴 `sv.status = 'in_review'` 에서 함께 탈락했다. 이 스위트가 지나가는 길이 바로
+// 그 자리다: 일괄로 둘을 승인하고, 그 둘이 처리됨에 있는지 본다(마이그레이션 0029).
+//
 // **이 스위트는 시드를 쓰고 — 고친다.** 승인한 둘은 목록에서 사라진다. `test:e2e` 는 매 실행
 // 앞서 스택을 기동 직후 상태로 되돌리므로(시드 재적재 · `scripts/e2e-stack.mjs`) 연속 실행이
 // 서로를 밟지 않는다. 저위험을 **셋** 심은 것도 그래서다: 둘을 쓰고도 하나가 남아, 뒤에 도는
@@ -62,6 +67,21 @@ test('받은 요청에 섞인 카드가 선다 — 저위험 셋 · T3 하나 ·
   ).toHaveCount(0);
 });
 
+test('처리됨 탭은 내가 결정한 것만 싣는다 (REQ-WEB-184)', async ({ page }) => {
+  // 시드가 심는 것 둘 — **지민이 승인한 SPC-CWC-012** 와 **하나가 낸 게이트 면제**다.
+  // 뒤엣것은 지민이 결정하지 않았으므로 여기 오면 안 된다: 예전에는 자격 판정이 "이 카드가
+  // 내 큐인가" 라 남이 낸 면제가 뜨고 내가 끝낸 것은 빠졌다(database.md §4).
+  await page.goto('/inbox?state=decided');
+  await expect(page.getByTestId('approval-card').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId('approval-card')).toHaveCount(1);
+  await expect(card(page, 'SPC-CWC-012')).toHaveCount(1);
+  await expect(page.getByText('게이트 우회 요청')).toHaveCount(0);
+  // 기록이지 조작 대상이 아니다 — 단추도 체크박스도 없고, 대기 시간 대신 결정 시각이 선다
+  await expect(page.getByTestId('approve')).toHaveCount(0);
+  await expect(page.getByTestId('bulk-select')).toHaveCount(0);
+  await expect(page.getByTestId('decided-at')).toBeVisible();
+});
+
 test('체크박스로 고른 둘을 한 번에 승인한다 — T3 는 확인 목록에서 빠진다 (REQ-WEB-181~183)', async ({
   page,
 }) => {
@@ -110,4 +130,17 @@ test('체크박스로 고른 둘을 한 번에 승인한다 — T3 는 확인 �
   // 고른 것이 전부 지나갔으니 선택도 비었다 — 실패한 것만 선택에 남는다(REQ-WEB-183)
   await expect(page.getByTestId('bulk-bar')).toHaveCount(0);
   await expect(page.getByTestId('bulk-failure')).toHaveCount(0);
+
+  // **사라진 것은 어디로 갔는지가 화면에 있어야 한다**(REQ-WEB-184). 승인이 문서를
+  // `approved` 로 옮기는데, 처리됨 탭이 대기 탭의 조건(`in_review`)을 함께 쓰던 동안
+  // **끝난 결재는 그 순간 기록째 사라졌다** — 매뉴얼은 "지워지지 않으므로 나중에도 읽을
+  // 수 있습니다" 라고 적고 있었다(2026-09-24 실측 · 마이그레이션 0029).
+  await page.goto('/inbox?state=decided');
+  await expect(page.getByTestId('approval-card').first()).toBeVisible({ timeout: 15000 });
+  await expect(card(page, BULK_A)).toHaveCount(1);
+  await expect(card(page, BULK_B)).toHaveCount(1);
+  // 결정된 카드는 기록이지 조작 대상이 아니다 — 단추도 체크박스도 없다
+  await expect(card(page, BULK_A).getByTestId('approve')).toHaveCount(0);
+  await expect(card(page, BULK_A).getByTestId('bulk-select')).toHaveCount(0);
+  await expect(card(page, BULK_A).getByTestId('decided-at')).toBeVisible();
 });
