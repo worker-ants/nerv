@@ -21,7 +21,7 @@ referenced_by:
 >
 > 문서 버전 v1.16 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
-> v1.16 변경(2026-09-24 — E12-S03 의 마지막 줄): §1.4 **E12 5·1 → 6·—, 합계 68·7 → 69·6.** 남은 것이던 "활성화 여부를 서버에서 확인" 이 들어왔다 — 세션 훅이 `X-NERV-Plugin` 으로 플러그인 버전을 싣고, 세션 모니터가 기계마다 켜짐·꺼짐을 보인다([4.4](api.md) EP-SES-06 · REQ-API-168 · [4.5](screens.md) REQ-WEB-189 · [4.6](plugin.md) REQ-PLG-019). `.mcp.json` 미동봉은 남은 것이 아니라 **결정**이라는 기록은 스토리 행에 그대로 있다.
+> v1.16 변경(2026-09-24 — E12-S03 의 마지막 줄): §1.4 **E12 5·1 → 6·—, 합계 68·7 → 69·6.** 남은 것이던 "활성화 여부를 서버에서 확인" 이 들어왔다 — 세션 훅이 `X-NERV-Plugin` 으로 플러그인 버전을 싣고, 세션 모니터가 기계마다 켜짐·꺼짐을 보인다([4.4](api.md) EP-SES-06 · REQ-API-168 · [4.5](screens.md) REQ-WEB-189 · [4.6](plugin.md) REQ-PLG-019). `.mcp.json` 미동봉은 남은 것이 아니라 **결정**이라는 기록은 스토리 행에 그대로 있다. 곁들여 **E03-S02 의 "발급 CLI" 를 걷는다**(사람 결정) — 발급은 사람 전용이고 에이전트가 스스로 발급하지 못하게 하는 것이 의도다. E03-S02 는 **부분 그대로다**: 남은 것 하나(better-auth api-key 플러그인 대신 자체 `api_token` 테이블 — 확정 스택과의 이탈)가 남는다.
 >
 > v1.15 변경(2026-09-24 — 부분 둘이 이미 끝나 있었다): §1.4 **E08 8·2 → 10·—, 합계 66·9 → 68·7.** E08-S05 의 남은 것("위임 폼 스키마에 `source_spec_version_id` 가 없어 파생은 REST·MCP 로만 된다")은 2026-09-07 에 이미 들어와 있었다 — 스펙 상세의 "이 버전에서 파생" 이 주소로 폼의 출처를 채우고 저장이 그것을 싣는다. E08-S10 의 남은 것("`depth` 지연 로드")은 **요구 자체가 2026-08-29 에 걷혔다**([4.5](screens.md) REQ-WEB-044 정정 — 전 계층을 한 응답으로 주고 규모는 가상 스크롤이 진다). 스토리 행의 문구와 수용 기준도 그 정정에 맞췄다. **둘 다 지키는 검사가 없어서** 백로그도 고쳐지지 않았다 — `task-derive.spec.tsx`(4건)·`spec-scale.spec.tsx`(4건)가 두 스토리의 수용 기준을 못 박는다. 이 절의 게이트는 수를 셀 뿐 "남은 것" 이 아직 유효한지는 보지 않는다(`check-backlog-status.mjs` 머리 주석).
 >
@@ -293,7 +293,7 @@ referenced_by:
 
 | ID | 들어온 것 | **남은 것** |
 | --- | --- | --- |
-| E03-S02 | PAT 해시 저장·프로젝트 소속·검증 · **발급이 조직을 받는다**(EP-TOK-02 `org` — [4.4](api.md) REQ-API-152) | better-auth **api-key 플러그인 대신 자체 `api_token` 테이블**(이탈 근거는 `auth.service.ts` 머리 주석) · **발급 CLI 없음**(웹 설정 화면이 유일한 발급 경로) |
+| E03-S02 | PAT 해시 저장·프로젝트 소속·검증 · **발급이 조직을 받는다**(EP-TOK-02 `org` — [4.4](api.md) REQ-API-152) | better-auth **api-key 플러그인 대신 자체 `api_token` 테이블**(이탈 근거는 `auth.service.ts` 머리 주석) · ~~발급 CLI 없음~~ — **남은 것이 아니라 결정이다**(2026-09-24 · 사람 결정 — 발급은 사람 전용이고 웹 설정 화면이 유일한 경로다. 에이전트가 스스로 발급하지 못하게 하는 것이 의도다 · [3.7](../03-proposal/roadmap.md) v0.9) |
 | E06-S03 | 마이그레이션 파이프라인 양쪽 경로가 실제로 돈다 | **스파이크 리포트 자체**(후보 2안 비교·롤백 절차·선정 근거) |
 | E06-S04 | 리비전 협상·병행 서빙 코드 | Claude Code·Codex **두 클라이언트 실측 리포트** |
 | E06-S06 | degrade 경로·1024차원 검증 | **3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정**([4.4 API](api.md)가 임베딩 p95 를 아직 보류로 둔다) |
@@ -452,7 +452,7 @@ Streamable HTTP 게이트웨이와 P0 도구 8종. tools-only 완주(성공 기�
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
 | E03-S01 | Streamable HTTP MCP 게이트웨이 — tools-first, `/mcp` Origin 검증 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.1·§2.6 · [4.4 API 명세](api.md) §4 | WHEN Claude Code 또는 Codex 클라이언트가 접속하면, THE SYSTEM SHALL resources·prompts·elicitation 없이 tools만으로 카탈로그를 노출한다 | E01-S02 · E06-S04 |
-| E03-S02 | PAT 발급·검증 — better-auth api-key 플러그인, 해시 저장·프로젝트 소속, 발급 CLI | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5·§6.1 · [4.1 범위·스택](scope.md) §2 | WHEN 폐기된 PAT 또는 권한 밖 프로젝트로 호출하면, THE SYSTEM SHALL `NERV_UNAUTHENTICATED` 또는 `NERV_FORBIDDEN`으로 거부한다 | E02-S01 |
+| E03-S02 | PAT 발급·검증 — better-auth api-key 플러그인, 해시 저장·프로젝트 소속, ~~발급 CLI~~(2026-09-24 제외 — 사람 결정: 발급은 사람 전용이고 웹 설정 화면이 유일한 경로다) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5·§6.1 · [4.1 범위·스택](scope.md) §2 | WHEN 폐기된 PAT 또는 권한 밖 프로젝트로 호출하면, THE SYSTEM SHALL `NERV_UNAUTHENTICATED` 또는 `NERV_FORBIDDEN`으로 거부한다 | E02-S01 |
 | E03-S03 | P0 도구 8종 — `nerv_bootstrap` `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get` `nerv_task_next` `nerv_task_claim` `nerv_task_heartbeat` `nerv_task_release` | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3 · [3.7 로드맵](../03-proposal/roadmap.md) §2.2 | WHEN 세션이 `nerv_bootstrap`을 첫 도구 호출로 실행하면, THE SYSTEM SHALL session_id·규약 요약·활성 클레임·게이트 정책을 반환한다<br>WHEN 같은 `session_id`로 재호출하면, THE SYSTEM SHALL 동일 스냅샷을 반환한다(멱등) | E03-S01 · E03-S02 · E04-S01 · E04-S03 |
 | E03-S04 | 에러 규약 — `NERV_*` 코드 체계와 next_actions를 담은 구조화 에러, REST HTTP 상태 매핑 재사용 | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.7 · [4.4 API 명세](api.md) §1 | WHEN 도구 호출이 실패하면, THE SYSTEM SHALL `NERV_*` 코드·사유·next_actions를 담은 구조화 에러를 반환한다 | E03-S01 |
 
