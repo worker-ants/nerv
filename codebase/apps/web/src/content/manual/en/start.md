@@ -32,6 +32,8 @@ The two selects at the left of the header are the membership scope you are looki
 
 Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There the header shows the **project you looked at last** — an empty slot reads as "you cannot pick one", which would not be true.
 
+**Switching the organization switches everything with it.** The header's project becomes **the project you last looked at in that organization** (its first project if you have not been there yet), and "Switched to …" appears briefly. The last project is remembered per organization, so coming back to the original one brings back what you were looking at there. Accepting an invitation does the same: you move to the organization you joined, and a project invitation opens that project.
+
 **To get back home, press the `NERV` logo at the top left.** There is no separate menu item for it — the logo is that link.
 
 ## Narrow screens — phones and tablets

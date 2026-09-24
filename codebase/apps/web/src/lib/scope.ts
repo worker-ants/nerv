@@ -8,8 +8,14 @@
 // 규칙은 헤더의 select 두 개와 같다: 조직은 내가 속한 첫 곳, 프로젝트는 **라우트 → 마지막으로
 // 본 것 → 첫 프로젝트** 순이다.
 
-import { useEffect, useMemo, useState } from 'react';
-import { readLastOrg, writeLastOrg } from './last-org.js';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import {
+  readLastOrg,
+  readLastProject,
+  subscribeScope,
+  writeLastOrg,
+  writeLastProject,
+} from './last-org.js';
 import { rows, useMe, useProjects } from './queries.js';
 import { rolesInProject } from './session.js';
 
@@ -41,8 +47,16 @@ export function useScope(routeProjectSlug?: string | undefined): Scope {
   const rememberedOrg = useLastOrg();
   const currentOrg = orgs.find((o) => o.slug === rememberedOrg) ?? orgs[0] ?? null;
 
-  const projects = rows(useProjects(currentOrg?.slug ?? null).data);
-  const remembered = useLastProject(routeProjectSlug);
+  const projectsQuery = useProjects(currentOrg?.slug ?? null);
+  const projects = rows(projectsQuery.data);
+  const remembered = useLastProject(
+    currentOrg?.slug ?? null,
+    routeProjectSlug,
+    // 라우트의 프로젝트가 **이 조직의 것일 때만** 기억한다 — 목록이 오기 전에는 판정하지 않는다
+    projectsQuery.data === undefined
+      ? undefined
+      : projects.some((p) => p['slug'] === routeProjectSlug),
+  );
   const projectSlug =
     routeProjectSlug ??
     (projects.some((p) => p['slug'] === remembered) ? remembered : null) ??
@@ -74,16 +88,15 @@ export function useCanIntervene(projectSlug: string | null, sessionUserId: unkno
 }
 
 /**
- * 마지막으로 본 프로젝트를 기억한다.
+ * 마지막으로 본 프로젝트를 기억한다 — **조직마다**(2026-09-24 · REQ-WEB-190).
  *
  * 홈·받은 요청·알림·설정은 조직 전역이라 라우트에 프로젝트가 없다. 기억이 없으면 그 화면들에서
  * 헤더의 프로젝트 칸이 매번 비고, **빈 칸은 "선택할 수 없다"로 읽힌다** — 실제로는 고를
  * 수 있는데도.
  *
- * localStorage 가 막힌 환경(사파리 프라이빗 등)에서도 화면은 그대로 돌아야 한다 —
- * 읽기·쓰기 모두 실패를 삼키고 `null` 로 떨어진다.
+ * 저장은 `last-org.ts` 한 곳이고 이 훅들은 **듣는다.** 예전에는 마운트할 때 `useState` 로 한 번
+ * 읽고 끝이라, 한 번만 마운트되는 헤더가 조직 전환을 끝내 몰랐다(사람 보고).
  */
-const LAST_PROJECT_KEY = 'nerv.last-project';
 
 /**
  * 고른 조직을 적어 둔다 — `/o/:org` 가 부른다.
@@ -96,28 +109,25 @@ export function rememberOrg(slug: string): void {
 }
 
 function useLastOrg(): string | null {
-  const [remembered] = useState<string | null>(() => readLastOrg());
-  return remembered;
+  return useSyncExternalStore(subscribeScope, readLastOrg, () => null);
 }
 
-function useLastProject(projectSlug: string | undefined): string | null {
-  const [remembered, setRemembered] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(LAST_PROJECT_KEY);
-    } catch {
-      return null;
-    }
-  });
+function useLastProject(
+  orgSlug: string | null,
+  routeProjectSlug: string | undefined,
+  routeInOrg: boolean | undefined,
+): string | null {
+  const remembered = useSyncExternalStore(
+    subscribeScope,
+    () => readLastProject(orgSlug),
+    () => null,
+  );
 
   useEffect(() => {
-    if (projectSlug === undefined || projectSlug === remembered) return;
-    setRemembered(projectSlug);
-    try {
-      localStorage.setItem(LAST_PROJECT_KEY, projectSlug);
-    } catch {
-      // 기억하지 못해도 화면은 돈다 — 라우트가 아는 동안은 라우트가 정본이다
-    }
-  }, [projectSlug, remembered]);
+    if (routeProjectSlug === undefined || routeInOrg !== true) return;
+    // 기억이 막혀도 화면은 돈다 — 라우트가 아는 동안은 라우트가 정본이다
+    writeLastProject(orgSlug, routeProjectSlug);
+  }, [orgSlug, routeProjectSlug, routeInOrg]);
 
   return remembered;
 }

@@ -9,6 +9,7 @@
 //
 // 셸 밖이다 — 아직 이 조직의 멤버가 아니라서 헤더의 두 select 가 가리킬 것이 없다.
 
+import { acceptedLanding } from '../components/invitation-cards.js';
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -43,9 +44,11 @@ function InviteScreen(): React.JSX.Element {
 
   const accept = useMutation({
     mutationFn: () => apiFetch(`/invitations/${token}/accept`, { method: 'POST' }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       queryClient.setQueryData(queryKeys.me(), await fetchMe());
-      void navigate({ to: '/' });
+      // 카드에서 수락한 것과 같은 착지점이다 — 들어간 조직으로 옮겨 간다(REQ-WEB-190)
+      const accepted = result as Record<string, unknown>;
+      void navigate(acceptedLanding(String(accepted['org_slug'] ?? ''), accepted['project_slug']));
     },
   });
 

@@ -39,12 +39,17 @@ export function InvitationCards({
     // 이메일 대조는 링크 경로와 같은 자리에서 같은 규칙으로 걸린다(EP-INV-05b).
     mutationFn: (id: string) => apiFetch(`/me/invitations/${id}/accept`, { method: 'POST' }),
     onSuccess: async (result) => {
-      const org = String((result as Record<string, unknown>)['org_slug'] ?? '');
+      const accepted = result as Record<string, unknown>;
+      const org = String(accepted['org_slug'] ?? '');
+      const project = accepted['project_slug'];
       // me 를 다시 읽어야 헤더의 조직 select 가 방금 들어간 조직을 안다
       queryClient.setQueryData(queryKeys.me(), await fetchMe());
       void queryClient.invalidateQueries({ queryKey: ['me', 'invitations'] });
       pushToast({ tone: 'ok', message: t('invite.accepted_toast', { org }) });
-      void navigate({ to: '/' });
+      // **들어간 조직으로 옮겨 간다**(2026-09-24 · REQ-WEB-190). `/` 로만 보내던 동안 이미 다른
+      // 조직에 속한 사람은 옛 조직의 홈에 섰고 수락이 됐는지 알 수 없었다. 프로젝트 초대면
+      // 그 프로젝트가 착지점이다.
+      void navigate(acceptedLanding(org, project));
     },
     onError: onApiError,
   });
@@ -87,4 +92,16 @@ export function InvitationCards({
       ))}
     </section>
   );
+}
+
+/** 수락한 초대의 착지점 — 조직 전환(`/o/:org`)을 거쳐, 프로젝트 초대면 그 프로젝트로 */
+export function acceptedLanding(
+  org: string,
+  project: unknown,
+): { to: '/o/$org'; params: { org: string }; search: { next?: string } } {
+  return {
+    to: '/o/$org',
+    params: { org },
+    search: typeof project === 'string' && project !== '' ? { next: `/p/${project}` } : {},
+  };
 }
