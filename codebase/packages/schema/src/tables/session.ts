@@ -35,6 +35,13 @@ export const agentSession = pgTable(
       .references(() => user.id),
     agentType: agentType('agent_type').notNull(),
     agentVersion: text('agent_version'),
+    /**
+     * **이 세션을 연 플러그인의 버전**(2026-09-24 · E12-S03 · REQ-API-168). 훅 포워더가
+     * `X-NERV-Plugin` 으로 싣는다 — 그래서 **값이 있다는 것 자체가 "플러그인이 켜져 있었다"** 의
+     * 증거다. MCP 로만 들어온 세션(플러그인 없이 `nerv_bootstrap`)은 NULL 로 남는다.
+     * `agent_version` 과 다르다 — 그쪽은 하네스(Claude Code 자신)의 버전이다.
+     */
+    pluginVersion: text('plugin_version'),
     /** 누구의 어느 머신인가 — P8 의 핵심 필드 */
     hostname: text('hostname').notNull(),
     cwd: text('cwd'),

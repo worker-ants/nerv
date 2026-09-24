@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.15 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.16 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.16 변경(2026-09-24 — E12-S03 의 마지막 줄): §1.4 **E12 5·1 → 6·—, 합계 68·7 → 69·6.** 남은 것이던 "활성화 여부를 서버에서 확인" 이 들어왔다 — 세션 훅이 `X-NERV-Plugin` 으로 플러그인 버전을 싣고, 세션 모니터가 기계마다 켜짐·꺼짐을 보인다([4.4](api.md) EP-SES-06 · REQ-API-168 · [4.5](screens.md) REQ-WEB-189 · [4.6](plugin.md) REQ-PLG-019). `.mcp.json` 미동봉은 남은 것이 아니라 **결정**이라는 기록은 스토리 행에 그대로 있다.
 >
 > v1.15 변경(2026-09-24 — 부분 둘이 이미 끝나 있었다): §1.4 **E08 8·2 → 10·—, 합계 66·9 → 68·7.** E08-S05 의 남은 것("위임 폼 스키마에 `source_spec_version_id` 가 없어 파생은 REST·MCP 로만 된다")은 2026-09-07 에 이미 들어와 있었다 — 스펙 상세의 "이 버전에서 파생" 이 주소로 폼의 출처를 채우고 저장이 그것을 싣는다. E08-S10 의 남은 것("`depth` 지연 로드")은 **요구 자체가 2026-08-29 에 걷혔다**([4.5](screens.md) REQ-WEB-044 정정 — 전 계층을 한 응답으로 주고 규모는 가상 스크롤이 진다). 스토리 행의 문구와 수용 기준도 그 정정에 맞췄다. **둘 다 지키는 검사가 없어서** 백로그도 고쳐지지 않았다 — `task-derive.spec.tsx`(4건)·`spec-scale.spec.tsx`(4건)가 두 스토리의 수용 기준을 못 박는다. 이 절의 게이트는 수를 셀 뿐 "남은 것" 이 아직 유효한지는 보지 않는다(`check-backlog-status.mjs` 머리 주석).
 >
@@ -278,10 +280,10 @@ referenced_by:
 | E09 스펙 워크플로우·승인 게이트 | 11 | 1 | `0000_init.sql`(동결 트리거) · `spec/gate-tier.ts` · `spec/search.service.ts`(RRF) |
 | E10 기획자 터미널 경로 | 4 | — | `spec.service.ts`(`NERV_DRAFT_LEASED`·takeover) · `spec-comment.service.ts` |
 | E11 plan 임포터 | 2 | — | `apps/cli/src/parse/plan.ts` · `apps/cli/src/run.ts` |
-| E12 플러그인 v1 + 훅 수집기 | 5 | 1 | `plugin/skills/`(6종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` |
+| E12 플러그인 v1 + 훅 수집기 | 6 | — | `plugin/skills/`(6종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` · `plugin-coverage.spec.ts`(활성화 현황) |
 | E13 받은 요청·질문·알림 | 3 | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
 | E14 운영·연동 | 4 | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
-| **합계** | **68** | **7** | `backlog` 0 |
+| **합계** | **69** | **6** | `backlog` 0 |
 
 §5 의 **E2E 수용 시나리오 A~F 도 여섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts` · `scenario-f-journey.spec.ts`(2026-09-07 신설 — 그전까지 A~C 는 클레임까지만 태웠고 그 **이후**의 계약은 L2 조각들만 봤다).
 
@@ -297,7 +299,6 @@ referenced_by:
 | E06-S06 | degrade 경로·1024차원 검증 | **3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정**([4.4 API](api.md)가 임베딩 p95 를 아직 보류로 둔다) |
 | E06-S07 | command 폴백이 기본 변형으로 배포됨 | 기록된 근거는 훅 `url` 의 `${VAR}` **미**확장이지 **`headers` 확장 자체의 실측이 아니다**([4.6 플러그인](plugin.md) §3.1이 아직 "1차 문서에서 확인 못함"이라 적는다) |
 | E09-S03 | 지시자≠승인자 차단 | **리뷰어 자동 지정** — `ApprovalService.request()` 를 부르는 곳이 `assigneeUserId` 를 넘기지 않아 결재 카드는 언제나 `assignee_user_id = NULL` 로 만들어진다(그 열이 채워지는 것은 결재 시점의 `COALESCE` 뿐이라 *지정*이 아니라 *기록*이다) |
-| E12-S03 | statusline · 마켓플레이스 · 관리형 settings | 수용 기준의 **"활성화 여부를 서버에서 확인"**(플러그인 버전 보고) 경로. ※ `.mcp.json` 미동봉은 남은 것이 아니라 **결정**이다(REQ-PLG-001 개정 — 패키지 테스트가 부재를 강제한다) |
 
 #### 스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리
 

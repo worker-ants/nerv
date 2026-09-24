@@ -65,6 +65,7 @@ export class IngestController {
     @Headers('x-nerv-agent') agent: string | undefined,
     @Headers('x-nerv-branch') branch: string | undefined,
     @Headers('x-nerv-worktree') worktree: string | undefined,
+    @Headers('x-nerv-plugin') plugin: string | undefined,
     @Body() body: HookPayload,
   ): Promise<{
     ok: true;
@@ -89,6 +90,9 @@ export class IngestController {
       branch: nonEmpty(branch),
       worktreePath: nonEmpty(worktree),
       externalSessionId: body.session_id ?? null,
+      // **플러그인이 켜져 있었다는 증거**(2026-09-24 · E12-S03 · REQ-API-168). 포워더가 자기
+      // `plugin.json` 에서 읽어 싣는다 — 이 값이 있는 세션만 "활성" 으로 센다.
+      pluginVersion: pluginVersionOf(plugin),
     });
 
     const claims = await this.sessions.activeClaimSummary(result.session_id);
@@ -264,4 +268,16 @@ function normalizeAgentType(value: string | undefined): 'claude-code' | 'codex' 
 /** 빈 헤더는 값이 아니다 — 없는 것과 빈 문자열을 같게 두면 카드가 빈 칸을 "말한 값" 으로 읽는다. */
 function nonEmpty(value: string | undefined): string | null {
   return value === undefined || value.trim() === '' ? null : value.trim();
+}
+
+/**
+ * 헤더의 플러그인 버전 — 모양이 맞을 때만 받는다.
+ *
+ * 헤더는 누구나 실을 수 있는 값이라 그대로 저장하면 화면이 임의 문자열을 그린다. 버전의
+ * 모양(`0.3.2` · `1.0.0-rc.1`)만 받고 나머지는 **없는 것**으로 본다 — 틀린 값을 "켜짐" 으로
+ * 세는 것보다 "알 수 없음" 으로 두는 편이 활성화율을 덜 속인다.
+ */
+export function pluginVersionOf(value: string | undefined): string | null {
+  const v = value?.trim() ?? '';
+  return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]{1,32})?$/.test(v) ? v : null;
 }

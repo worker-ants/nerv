@@ -1224,6 +1224,14 @@ export const ko = {
   'sessions.show_all': '전부 보기',
   'sessions.more': '더 보기',
   'sessions.none_running': '실행 중인 세션이 없습니다.',
+  'sessions.plugin.empty': '최근 {days}일 안에 Claude Code 세션을 연 기계가 없습니다.',
+  'sessions.plugin.off': '꺼짐',
+  'sessions.plugin.off_hint':
+    '꺼진 기계는 플러그인 없이 MCP 로만 들어왔습니다 — 훅이 없으니 활동·브랜치가 세션 화면에 남지 않습니다.',
+  'sessions.plugin.on': '켜짐 · v{version}',
+  'sessions.plugin.summary': '플러그인 켜짐 {active} / {total} 호스트',
+  'sessions.plugin.window':
+    '최근 {days}일 안에 Claude Code 세션을 연 기계를 셉니다. 기계마다 가장 최근 세션으로 판정합니다.',
   'sessions.title': '세션 모니터',
   'steer.confirm_body':
     '활성 클레임이 즉시 회수되고 작업은 ready 로 돌아갑니다. 사유는 세션 타임라인에 남아 상대가 무엇 때문에 끊겼는지 알 수 있습니다.',

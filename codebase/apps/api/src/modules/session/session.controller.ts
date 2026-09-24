@@ -11,7 +11,7 @@ import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { msg, NERV_ERROR, SessionSteerInput } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { SessionService } from './session.service.js';
-import type { SessionCard } from './session.service.js';
+import type { PluginCoverage, SessionCard } from './session.service.js';
 
 @Controller('api/v1/projects/:proj/sessions')
 @UseGuards(ProjectAccessGuard)
@@ -52,6 +52,18 @@ export class SessionController {
     // 커서 페이지네이션 봉투(api.md §1.6). **`null` 고정이 아니다**(2026-09-06 · REQ-API-120)
     // — 세션은 프로젝트 수명과 함께 자라므로 "한 페이지에 들어간다" 는 언젠가 거짓이 된다.
     return { items: board.items, summary, next_cursor: board.next_cursor };
+  }
+
+  /**
+   * EP-SES-06 — 플러그인 활성화 현황(2026-09-24 · E12-S03 · REQ-API-168).
+   *
+   * 보드와 같은 권한이다: 이 목록이 싣는 것(사람·hostname·마지막 시각)은 세션 카드가 이미
+   * 보이는 것이고, 새로 드러나는 것은 "플러그인을 켰는가" 한 칸뿐이다.
+   */
+  @RequireScope('spec:read')
+  @Get('plugin-coverage')
+  async pluginCoverage(@Req() req: ProjectRequest): Promise<PluginCoverage> {
+    return this.sessions.pluginCoverage(req.nervProjectId ?? '');
   }
 
   /** EP-SES-03 — seq 순 타임라인 */

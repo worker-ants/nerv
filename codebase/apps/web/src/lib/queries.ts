@@ -448,6 +448,40 @@ export interface SessionBoardResponse {
  * 상태도 아니라 **"이게 전부"** 로 읽힌다(REQ-API-120 이 활동 목록에서 막은 것과 같은
  * 모양이다). 알림·발견 큐가 이미 같은 자리를 [더 보기]로 닫아 두었다.
  */
+/** 플러그인 활성화 현황의 한 줄 — 사람 + 기계 (EP-SES-06) */
+export interface PluginHost {
+  user_id: string;
+  user_name: string;
+  hostname: string;
+  last_seen_at: string;
+  plugin_version: string | null;
+  active: boolean;
+}
+
+export interface PluginCoverage {
+  window_days: number;
+  total: number;
+  active: number;
+  hosts: PluginHost[];
+}
+
+/**
+ * 플러그인 활성화 현황 — EP-SES-06 · REQ-WEB-189 (2026-09-24 · E12-S03).
+ *
+ * 세션 보드와 **같은 축 아래**에 둔다: 세션 이벤트가 보드를 무효화하면 이것도 함께 새로 읽는다
+ * (새 기계가 세션을 열면 분모가 바뀐다). 폴링은 하지 않는다 — 분 단위로 바뀌는 수가 아니다.
+ */
+export function usePluginCoverage(
+  slug: string,
+  projectId?: ProjectId,
+): UseQueryResult<PluginCoverage> {
+  return useQuery({
+    queryKey: [...queryKeys.projectSessions(projectId ?? PENDING_PROJECT), 'plugin-coverage'],
+    queryFn: () => apiFetch<PluginCoverage>(`/projects/${slug}/sessions/plugin-coverage`),
+    enabled: projectId !== undefined,
+  });
+}
+
 export function useSessions(
   slug: string,
   projectId?: ProjectId,

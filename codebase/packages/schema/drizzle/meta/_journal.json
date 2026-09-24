@@ -211,6 +211,13 @@
       "when": 1790207238674,
       "tag": "0029_approval_decided_by",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790219925536,
+      "tag": "0030_session_plugin_version",
+      "breakpoints": true
     }
   ]
 }

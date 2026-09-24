@@ -10,6 +10,15 @@ The card carries four more things — the **remaining lease** (it changes colour
 
 The list does not arrive all at once. When there is more, **[Load more]** sits below it, and pressing it **appends** the next page — the rows you were already looking at stay put. The counts in the summary above are independent of the filter and the page: they count the **whole project**, because the summary is the whole picture and the list is a slice of it.
 
+### Machines with the plugin on
+
+**`Plugin on N / M hosts`** above the list counts, among the machines that opened a Claude Code session in the last 30 days, how many have the NERV plugin on. Press it to unfold one line per machine — **On (version) · Off**, whose machine it is, and when it was last seen — with **machines that are off at the top**.
+
+- **Each machine is judged by its most recent session.** A machine that had the plugin on and then turned it off counts as off.
+- **A machine that is off came in over MCP only, without the plugin.** It can still claim work, but with no hooks its sessions leave no activity or branch on this screen. If a session looks oddly empty, look here first. To turn it on, see [Installing the plugin](/help/install).
+- **Codex is not counted.** The plugin belongs to Claude Code, so Codex running without it is normal.
+- This works **from plugin 0.3.2**. Older versions do not report themselves and show as off — update with `/plugin marketplace update` and the next session shows as on.
+
 ## Statuses
 
 | Status           | Meaning                                                                                                                              |

@@ -1249,6 +1249,14 @@ export const en = {
   'sessions.show_all': 'Show all',
   'sessions.more': 'Load more',
   'sessions.none_running': 'No sessions are running.',
+  'sessions.plugin.empty': 'No machine has opened a Claude Code session in the last {days} days.',
+  'sessions.plugin.off': 'Off',
+  'sessions.plugin.off_hint':
+    'Machines marked off came in over MCP only, without the plugin — with no hooks, their activity and branch never reach the session screen.',
+  'sessions.plugin.on': 'On · v{version}',
+  'sessions.plugin.summary': 'Plugin on {active} / {total} hosts',
+  'sessions.plugin.window':
+    "Counts machines that opened a Claude Code session in the last {days} days, judged by each machine's most recent session.",
   'sessions.title': 'Session monitor',
   'steer.confirm_body':
     'The active claim is reclaimed at once and the task returns to ready. Your reason stays on the session timeline so they can see why it stopped.',
