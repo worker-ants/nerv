@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.69 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.70 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.70 변경(2026-09-24 — 받은 요청을 믿고 누를 수 없었다): **§2.2 트리 한 줄.** `modules/event/request-notifications.ts` — 결재·질문이 닫히면 그 요청의 알림을 모든 수신자에게서 닫고, 이미 닫힌 요청의 알림은 읽은 채로 파생한다([4.4](api.md) REQ-API-176).
 >
 > v1.69 변경(2026-09-24 — MinIO 이미지를 당길 수 없게 됐다, **사람 결정**): **§3 compose 전문 · 백업 CronJob 의 `mc` 출처.** MinIO 는 2025-10 부터 소스로만 배포하고, 도커허브의 `minio/minio`·`minio/mc` 를 2026-09-11 에, 그 대신 쓰던 `quay.io/minio/minio`·`quay.io/minio/mc` 를 2026-09-24 에 거뒀다(익명 pull 401) — 그날 e2e 가 스택을 띄우지 못했고, 운영 백업 CronJob 의 initContainer 도 노드 캐시가 없으면 당길 이미지가 없다. 공식 후속 `quay.io/minio/aistor/minio` 는 받아지지만 **라이선스 없이는 S3 요청을 전부 거절한다**("All S3 operations are denied" — 실측). 개발 compose·e2e 서버와 백업 CronJob 의 `mc` 를 **MinIO 포크 `pgsty/silo`**(PGSTY 유지 · AGPL-3.0)의 한 릴리스 태그로 옮긴다 — 서버 바이너리 이름만 `silo` 이고 `server …` 인자·`MINIO_*` env·`mc` 는 그대로라 스크립트와 설정은 바뀌지 않는다. 옛 이미지가 쓴 볼륨을 그대로 읽고, 그 `mc` 가 CronJob 과 같은 조건(`postgres:18-alpine` · 읽기 전용 루트)에서 미러·삭제 반영·실패 종료를 해낸다(실측). 스택은 그대로다 — [4.1](scope.md) §2 의 인프라 서비스는 여전히 MinIO(호환 포크)이고, 바뀐 것은 그 빌드를 누가 내는가다.
 >
@@ -427,6 +429,7 @@ apps/api/src/
       event.service.ts             # event 행 삽입(도메인 트랜잭션 안) + 커밋 후 Valkey PUBLISH (REQ-CB-004)
       fanout.service.ts            # 룸 계산 + 구독자 팬아웃 (WS·SSE 공용)
       notification.service.ts
+      request-notifications.ts     # 요청(결재·질문)이 닫히면 그 알림도 닫는다 — 결정·답변·취소와 파생이 함께 쓴다 (REQ-API-176)
       sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
       sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
       valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리

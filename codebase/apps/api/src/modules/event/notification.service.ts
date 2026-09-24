@@ -23,6 +23,7 @@ import { InjectDb } from '../../common/database.module.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
+import { requestAlreadyClosed } from './request-notifications.js';
 import { ValkeyService } from './valkey.service.js';
 
 /** 중요도 티어 — 채널·배칭 규칙을 이것이 결정한다(§6.2) */
@@ -128,12 +129,18 @@ export class NotificationService {
         // 카탈로그 밖 · 배경 활동은 알림이 아니다 — 건너뛰되 **커서는 지나간다**
         if (tier !== null && tier !== 'low') {
           const recipients = await this.recipientsFor(event);
+          // **이미 닫힌 요청의 알림은 읽은 채로 만든다**(REQ-API-176). 파생은 워커가 나중에 하므로
+          // 그 사이 결정·답변이 먼저 나면, 닫는 쪽이 읽음으로 바꿀 행이 아직 없었다 — 그러면 처리된
+          // 요청의 안 읽은 알림이 뒤늦게 생겨 배지를 올린다. 기록은 남기고 수에는 넣지 않는다
+          const closed = await requestAlreadyClosed(this.db, event);
           for (const userId of recipients) {
             await this.db.execute(sql`
-              INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state)
+              INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state,
+                                        read_at)
               VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
                       ${tier === 'critical' || tier === 'high' ? 'immediate' : 'digest'}::notification_importance,
-                      'inapp', 'unread')
+                      'inapp', ${closed ? 'read' : 'unread'}::notification_state,
+                      ${closed ? sql`now()` : sql`NULL`})
             `);
             created += 1;
           }
@@ -144,7 +151,7 @@ export class NotificationService {
           //
           // 방송하는 것은 **원본 이벤트가 아니라 `notification.created`** 다. 원본을 개인
           // 룸에도 흘리면 프로젝트 룸에 이미 있는 사람이 같은 봉투를 두 번 받는다.
-          if (recipients.length > 0) await this.announce(event, recipients);
+          if (recipients.length > 0 && !closed) await this.announce(event, recipients);
         }
         cursor = event.occurred_at;
       }
@@ -420,7 +427,13 @@ export class NotificationService {
              -- 알면서 "v3 과 무엇이 다른가" 로는 데려갈 수 없었다(본문 전체를 열 뿐이다).
              -- 대상이 스펙 버전이 아닌 알림(재검토 요청은 subject 가 spec 이다)은 NULL 이고,
              -- 그때 화면은 본문으로 간다 — **없는 것과 1 은 다르다.**
-             sv.version_no AS version_no
+             sv.version_no AS version_no,
+             -- **그 요청이 닫혔는가**(2026-09-24 · REQ-API-176). 승인 요청·질문 알림은 받은 요청의
+             -- 그림자인데, 누가 먼저 처리해도 행은 여전히 "승인 요청" 이라고 말했다 — 누르면 이미
+             -- 없는 카드를 찾아갔다. 결정(승인·거절·코멘트) 또는 답변·취소와 그것을 한 사람을 싣는다
+             coalesce(ap.decision::text,
+                      CASE WHEN qq.status <> 'open' THEN qq.status::text END) AS resolution,
+             coalesce(adu.display_name, qdu.display_name) AS resolved_by
         FROM notification n
         JOIN project p ON p.id = n.project_id
    LEFT JOIN event e ON e.id = n.event_id
@@ -428,6 +441,10 @@ export class NotificationService {
    LEFT JOIN spec_version sv ON sv.id = e.subject_id AND e.subject_type = 'spec_version'
    LEFT JOIN spec s ON s.id = coalesce(sv.spec_id, CASE WHEN e.subject_type = 'spec' THEN e.subject_id END)
    LEFT JOIN task t ON t.id = e.subject_id AND e.subject_type = 'task'
+   LEFT JOIN approval ap ON ap.id = e.subject_id AND e.subject_type = 'approval'
+   LEFT JOIN "user" adu ON adu.id = ap.decided_by_user_id
+   LEFT JOIN question qq ON qq.id = e.subject_id AND e.subject_type = 'question'
+   LEFT JOIN "user" qdu ON qdu.id = qq.answered_by_user_id
        WHERE n.user_id = ${input.userId}${stateFilter}${importanceFilter}${beforeFilter}
          -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
          AND p.archived_at IS NULL

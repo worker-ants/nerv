@@ -54,7 +54,14 @@ export function deepLinkFor(n: Record<string, unknown>): NotificationTarget {
   if (typeof n['task_key'] === 'string' && n['task_key'] !== '') {
     return { to: `/p/${project}/tasks/${n['task_key']}` };
   }
-  if (type.startsWith('approval.') || type.startsWith('question.')) return { to: '/inbox' };
+  // **그 카드로 간다**(REQ-WEB-204). 맨 `/inbox` 는 첫 카드에 서서, 사람은 방금 누른 요청을
+  // 목록에서 다시 찾아야 했다. 이미 처리된 요청이면 받은 요청이 그렇다고 말한다
+  if (type.startsWith('approval.') || type.startsWith('question.')) {
+    const subject = n['subject_id'];
+    return typeof subject === 'string' && subject !== ''
+      ? { to: '/inbox', search: { focus: subject } }
+      : { to: '/inbox' };
+  }
   if (type.startsWith('session.') || type.startsWith('claim.')) {
     return { to: `/p/${project}/sessions` };
   }
@@ -81,6 +88,22 @@ function specView(n: Record<string, unknown>, type: string): { search?: Record<s
   const version = Number(n['version_no']);
   if (!Number.isInteger(version) || version < 2) return {};
   return { search: { diff: `v${String(version - 1)}..v${String(version)}` } };
+}
+
+/** 요청이 닫힌 방식 — 결재 결정 셋과 질문의 답변·취소 */
+function resolutionLabel(t: ReturnType<typeof useT>, value: string): string {
+  switch (value) {
+    case 'approve':
+      return t('inbox.decision.approve');
+    case 'reject':
+      return t('inbox.decision.reject');
+    case 'comment':
+      return t('inbox.decision.comment');
+    case 'cancelled':
+      return t('notif.resolution.cancelled');
+    default:
+      return t('notif.resolution.answered');
+  }
 }
 
 function NotificationScreen(): React.JSX.Element {
@@ -206,6 +229,19 @@ function NotificationScreen(): React.JSX.Element {
               <span className="min-w-0 flex-1 truncate">
                 <span className="font-medium text-text">{t(eventLabelKey(type))}</span>
                 {key !== '' && <Mono className="ml-2">{key}</Mono>}
+                {/* **처리된 요청은 그렇다고 말한다**(REQ-WEB-204 · REQ-API-176). 누가 먼저 처리해도
+                    행은 여전히 "승인 요청" 이라, 누르면 이미 없는 카드를 찾아갔다 */}
+                {typeof n['resolution'] === 'string' && (
+                  <span
+                    data-testid="notification-resolved"
+                    className="ml-2 text-xs text-text-faint"
+                  >
+                    {t('notif.resolved', {
+                      what: resolutionLabel(t, n['resolution']),
+                      who: String(n['resolved_by'] ?? '—'),
+                    })}
+                  </span>
+                )}
               </span>
               {/* 좁은 화면에서도 남긴다 — 어느 프로젝트의 알림인지는 줄의 절반이다(REQ-WEB-192) */}
               <ScopeBadge

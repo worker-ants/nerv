@@ -106,16 +106,74 @@ function questionContext(card: Record<string, unknown>): {
   return out;
 }
 
-/** 승인 카드가 가리키는 문서 — 지금은 스펙 한 종류다(작업 결재는 없다) */
-function subjectLinkOf(
-  card: Record<string, unknown>,
-): { key: string; to: string; params: Record<string, string> } | null {
+/**
+ * 카드가 **화면에 보이는가**(2026-09-24 — UI/UX 검토 · REQ-WEB-204).
+ *
+ * 키보드 커서와 사람이 보고 있는 카드가 갈려, 트랙패드로 다섯째 카드까지 내려가 읽은 사람이 `a` 를
+ * 누르면 **화면 위로 밀려난 첫째 카드**가 승인됐다. 결정 키는 보이는 카드에만 꽂힌다 — 보이지 않으면
+ * 첫 키는 그 카드를 데려와 보여 줄 뿐 아무것도 결정하지 않는다.
+ *
+ * 레이아웃이 없는 환경(크기 0)은 판정하지 않는다 — 그런 자리에서 막으면 키가 영영 안 먹는다.
+ */
+export function inView(el: Element | null): boolean {
+  if (el === null) return false;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return true;
+  const visible = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
+  // 카드의 절반 또는 화면 높이의 삼분의 일 이상 보여야 "보고 있다" 로 친다
+  return visible >= Math.min(r.height / 2, window.innerHeight / 3);
+}
+
+/**
+ * 승인 카드가 가리키는 것 — 스펙 · 플랜(그 작업) · 발견(리뷰 센터의 그 발견).
+ * 예전에는 스펙 하나뿐이라(주석은 "작업 결재는 없다" 였다 — 사실이 아니었다) 플랜·발견 카드가
+ * 대상을 가리키지 않았다(REQ-WEB-204).
+ */
+function subjectLinkOf(card: Record<string, unknown>): {
+  key: string;
+  to: string;
+  params: Record<string, string>;
+  path: string;
+  search?: Record<string, string>;
+} | null {
   const proj = String(card['project_slug'] ?? '');
+  if (proj === '') return null;
   const specKey = card['spec_key'];
-  if (proj !== '' && typeof specKey === 'string' && specKey !== '') {
-    return { key: specKey, to: '/p/$proj/specs/$spec', params: { proj, spec: specKey } };
+  if (typeof specKey === 'string' && specKey !== '') {
+    return {
+      key: specKey,
+      to: '/p/$proj/specs/$spec',
+      params: { proj, spec: specKey },
+      path: `/p/${proj}/specs/${specKey}`,
+    };
+  }
+  const taskKey = card['task_key'];
+  if (card['subject_type'] === 'plan' && typeof taskKey === 'string' && taskKey !== '') {
+    return {
+      key: taskKey,
+      to: '/p/$proj/tasks/$task',
+      params: { proj, task: taskKey },
+      path: `/p/${proj}/tasks/${taskKey}`,
+    };
+  }
+  const findingId = card['finding_id'];
+  if (card['subject_type'] === 'finding' && typeof findingId === 'string' && findingId !== '') {
+    return {
+      key: findingId.slice(0, 8),
+      to: '/p/$proj/reviews',
+      params: { proj },
+      path: `/p/${proj}/reviews?finding=${findingId}`,
+      search: { finding: findingId },
+    };
   }
   return null;
+}
+
+/** 스펙 카드의 변경분 — 직전 버전과의 diff 주소(알림과 같은 규칙 · REQ-WEB-163). v1 이면 없다 */
+function diffSearchOf(card: Record<string, unknown>): Record<string, string> | undefined {
+  const version = Number(card['version_no']);
+  if (!Number.isInteger(version) || version < 2) return undefined;
+  return { diff: `v${String(version - 1)}..v${String(version)}` };
 }
 
 /**
@@ -214,6 +272,9 @@ export function ApprovalCard({
   const [comment, setComment] = useState('');
   const [reasonRequired, setReasonRequired] = useState(false);
   const commentRef = useRef<HTMLTextAreaElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
+  /** 보이지 않는 카드에 결정 키가 왔다 — 데려와 잠깐 강조한다 */
+  const [nudged, setNudged] = useState(false);
   const isQuestion = card['subject_type'] === 'question';
   // 결정된 카드인가 — 처리됨 탭의 카드는 조작 대상이 아니라 기록이다(2026-09-03)
   const decided = (card['decision'] ?? null) as string | null;
@@ -225,7 +286,7 @@ export function ApprovalCard({
     String(card['project_slug'] ?? ''),
     subjectLink?.params['spec'] ?? '',
     typeof card['version_no'] === 'number' ? card['version_no'] : null,
-    showBody && subjectLink !== null,
+    showBody && subjectLink?.to === '/p/$proj/specs/$spec',
   );
   // 서버가 판정한 값이다 — 예전 판정(`self_requested !== true`)은 완화를 몰랐다.
   // 낡은 응답에는 이 필드가 없을 수 있으니 그때만 예전 규칙으로 떨어진다.
@@ -358,11 +419,7 @@ export function ApprovalCard({
         ...(subjectLink === null
           ? {}
           : {
-              href: inOrgHref(
-                card['org_slug'],
-                `/p/${encodeURIComponent(subjectLink.params['proj'] ?? '')}/specs/${encodeURIComponent(subjectLink.key)}`,
-                currentOrg,
-              ),
+              href: inOrgHref(card['org_slug'], subjectLink.path, currentOrg),
               hrefLabel: t('shell.toast.open'),
             }),
       });
@@ -398,6 +455,13 @@ export function ApprovalCard({
       // 아래에서 "누를 수 있는 것은 할 수 있다는 뜻이어야 한다" 고 적어 두고 키에는
       // 적용하지 않은 자리다(2026-09-05 감사).
       if (decided !== null) return;
+      if ((e.key === 'a' || e.key === 'r') && !isQuestion && !inView(articleRef.current)) {
+        // **보이지 않는 카드는 결정하지 않는다**(REQ-WEB-204) — 데려와 보여 줄 뿐이다
+        articleRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+        setNudged(true);
+        window.setTimeout(() => setNudged(false), 1500);
+        return;
+      }
       if (e.key === 'a' && !isQuestion && canApprove) requestDecision('approve');
       if (e.key === 'r' && !isQuestion) requestDecision('reject');
       if (e.key === 'c') {
@@ -411,10 +475,15 @@ export function ApprovalCard({
 
   return (
     <article
+      ref={articleRef}
+      // 코멘트 칸에서 Esc 로 나오면 포커스가 여기로 온다 — 카드 단축키가 다시 먹는다
+      tabIndex={-1}
       data-testid="approval-card"
       data-kind={isQuestion ? 'question' : 'approval'}
+      data-nudged={nudged || undefined}
       className={cn(
-        'rounded-nerv border bg-bg-elev px-3 py-2.5 transition-colors',
+        'rounded-nerv border bg-bg-elev px-3 py-2.5 transition-colors outline-none',
+        nudged && 'bg-status-action-soft',
         // 포커스된 카드는 **왼쪽 띠**로 표시한다 — 링을 두르면 카드가 떠 보이고,
         // 목록을 j/k 로 훑을 때 카드가 하나씩 튀어오르는 것처럼 읽힌다
         active === true ? 'border-border-strong' : 'border-border',
@@ -443,9 +512,11 @@ export function ApprovalCard({
           <CardLink
             orgSlug={card['org_slug']}
             currentOrg={currentOrg}
-            path={`/p/${subjectLink.params['proj'] ?? ''}/specs/${subjectLink.key}`}
+            path={subjectLink.path}
             to={subjectLink.to}
             params={subjectLink.params}
+            {...(subjectLink.search === undefined ? {} : { search: subjectLink.search })}
+            testId="subject-link"
           >
             <Mono>{subjectLink.key}</Mono>
           </CardLink>
@@ -457,11 +528,22 @@ export function ApprovalCard({
           {String(
             card['title'] ??
               card['spec_title'] ??
+              card['task_title'] ??
+              card['finding_title'] ??
               // "(제목 없음)" 은 사람에게 아무것도 말하지 않는다(실측 2026-09-03: 처리됨
               // 카드가 그랬다) — 종류의 이름이라도 말한다.
               subjectFallback(t, card['subject_type']),
           )}
         </span>
+        {/* **세션을 멈춰 세운 질문**은 행동하는 카드에서도 그렇다고 말한다 — 홈의 줄에만 있었다 */}
+        {isQuestion && card['urgency'] === 'blocking' && (
+          <span
+            data-testid="card-blocking"
+            className="shrink-0 rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 text-xs font-medium text-status-waiting"
+          >
+            {t('home.todo.blocking')}
+          </span>
+        )}
         {/* **어느 조직·프로젝트의 일인가**(REQ-WEB-192) — 받은 요청은 조직을 가로지른다 */}
         <ScopeBadge
           className="shrink-0"
@@ -515,6 +597,33 @@ export function ApprovalCard({
           </span>
         )}
       </header>
+
+      {!isQuestion && (
+        // **누가 · 어느 세션이 · 무엇을**(2026-09-24 — UI/UX 검토 · REQ-WEB-204). 요청자·세션 줄은
+        // 질문 카드에만 있었고, 플랜·발견 카드는 대상조차 가리키지 않았다 — critical 하향 승인이
+        // 무엇을 내리는지 모른 채 켜져 있었다
+        <div className="mt-1.5 flex flex-col gap-1 text-xs text-text-mute">
+          <p data-testid="request-line" className="flex flex-wrap items-center gap-x-1.5">
+            <span>
+              {t('inbox.card.requested_by', { who: String(card['requested_by'] ?? '—') })}
+            </span>
+            {typeof card['requested_hostname'] === 'string' && (
+              <span className="font-mono text-text-faint">
+                · {card['requested_hostname']} · {String(card['requested_agent_type'] ?? '')}
+              </span>
+            )}
+            {card['session_waiting'] === true && (
+              <span
+                data-testid="session-waiting"
+                className="rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 font-medium text-status-waiting"
+              >
+                {t('inbox.card.session_waiting')}
+              </span>
+            )}
+          </p>
+          <TargetLine card={card} currentOrg={currentOrg} />
+        </div>
+      )}
 
       {isQuestion && (
         // 세션 신원 3요소 — 누구의 어느 머신이 멈춰 있는지(REQ-WEB-008 · D-13)
@@ -575,7 +684,7 @@ export function ApprovalCard({
           **목록을 무겁게 하지 않으려고 펼칠 때 받아 온다**: 결재 목록에 본문을 싣는 것과
           펼친 하나를 받는 것은 다른 비용이다. 그리고 **검토 중인 그 버전**을 받는다 —
           카드가 보여준 것과 승인되는 것이 같아야 한다(§2.3). */}
-      {!(compact ?? false) && !isQuestion && subjectLink !== null && (
+      {!(compact ?? false) && !isQuestion && subjectLink?.to === '/p/$proj/specs/$spec' && (
         <div className="mt-2">
           <button
             type="button"
@@ -661,6 +770,21 @@ export function ApprovalCard({
                   ? t('inbox.card.answer_placeholder')
                   : t('inbox.card.comment_placeholder')
               }
+              // **칸 안에서도 키보드로 끝낸다**(REQ-WEB-204). 범례는 "키보드로 완결" 을 약속하는데,
+              // c 로 들어온 칸에는 보낼 키도 나올 키도 없었다(입력 칸에서는 카드 단축키가 꺼진다)
+              onKeyDown={(e) => {
+                const mod = e.metaKey || e.ctrlKey;
+                if (e.key === 'Enter' && mod) {
+                  e.preventDefault();
+                  if (isQuestion) {
+                    if (comment.trim() !== '') requestDecision('approve');
+                  } else requestDecision(e.shiftKey ? 'reject' : 'comment');
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  articleRef.current?.focus();
+                }
+              }}
               data-testid="decision-comment"
               className="mt-2"
               rows={2}
@@ -773,4 +897,79 @@ function decisionLabel(t: Translator, decision: Decision): string {
   if (decision === 'approve') return t('inbox.decision.approve');
   if (decision === 'reject') return t('inbox.decision.reject');
   return t('inbox.decision.comment');
+}
+
+/**
+ * 대상 줄 — 유형마다 **무엇을** 결정하는지(REQ-WEB-204).
+ *   스펙: `v{n}` · 게이트 티어 · 변경 요약 · [변경분 보기 ▸](직전 버전과의 diff)
+ *   플랜: 그 작업의 키·제목 · 발견: 발견의 심각도·제목(머리의 링크가 리뷰 센터의 그 발견으로 간다)
+ */
+function TargetLine({
+  card,
+  currentOrg,
+}: {
+  card: Record<string, unknown>;
+  currentOrg: string | null;
+}): React.JSX.Element | null {
+  const t = useT();
+  const proj = String(card['project_slug'] ?? '');
+  const specKey = card['spec_key'];
+  if (typeof specKey === 'string' && specKey !== '') {
+    const diff = diffSearchOf(card);
+    const version = card['version_no'];
+    return (
+      <div data-testid="target-line" className="flex flex-col gap-0.5">
+        <p className="flex flex-wrap items-center gap-x-1.5">
+          {typeof version === 'number' && <span className="font-mono text-text">v{version}</span>}
+          {typeof card['gate_tier'] === 'string' && (
+            <span
+              data-testid="gate-tier"
+              className="rounded-nerv-sm border border-border px-1 font-mono text-2xs"
+            >
+              {card['gate_tier']}
+            </span>
+          )}
+          {diff !== undefined && (
+            <CardLink
+              orgSlug={card['org_slug']}
+              currentOrg={currentOrg}
+              path={`/p/${proj}/specs/${specKey}?diff=${diff['diff'] ?? ''}`}
+              to="/p/$proj/specs/$spec"
+              params={{ proj, spec: specKey }}
+              search={diff}
+              testId="diff-link"
+            >
+              {t('inbox.card.view_diff')}
+            </CardLink>
+          )}
+        </p>
+        {typeof card['change_summary_md'] === 'string' && card['change_summary_md'] !== '' && (
+          <p data-testid="change-summary" className="line-clamp-2 text-text-mute">
+            {card['change_summary_md']}
+          </p>
+        )}
+      </div>
+    );
+  }
+  if (card['subject_type'] === 'plan' && typeof card['task_key'] === 'string') {
+    return (
+      <p data-testid="target-line">
+        {t('inbox.card.plan_for', {
+          key: card['task_key'],
+          title: String(card['task_title'] ?? ''),
+        })}
+      </p>
+    );
+  }
+  if (card['subject_type'] === 'finding' && typeof card['finding_title'] === 'string') {
+    return (
+      <p data-testid="target-line">
+        {t('inbox.card.finding_of', {
+          severity: String(card['finding_severity'] ?? ''),
+          title: card['finding_title'],
+        })}
+      </p>
+    );
+  }
+  return null;
 }

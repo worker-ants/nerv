@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 38개**다 — 도메인 32 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.49 · 2026-09-24 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.50 · 2026-09-24 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.50 변경(2026-09-24 — 받은 요청을 믿고 누를 수 없었다): **새 요구사항 없음 · 마이그레이션 0031 — 이미 닫힌 요청의 알림을 닫는다.** 결재 요청·질문은 받은 요청과 알림 두 곳에서 세는데, 결정·답변·취소가 그 요청의 알림을 닫게 된 것은 이 변경부터다([4.4](api.md) REQ-API-176). 그 전에 처리된 요청의 알림은 안 읽은 채로 남아 배지를 올린다 — 이 마이그레이션이 도는 시점에 **이미 닫힌** 요청(결정된 결재 · `open` 이 아닌 질문)을 가리키는 `approval.requested`·`question.created` 알림만 읽음으로 바꾼다. 열린 요청의 알림은 건드리지 않고, `read_at` 은 알 수 없는 "실제로 닫힌 때" 대신 적용 시각이다. §2.10 의 "notification 생성 경로가 워커 하나뿐" 은 그대로다 — 이 변경이 더한 것은 상태 전이이지 생성 경로가 아니다.
 >
 > v0.49 변경(2026-09-24 — 플러그인이 켜졌는지 서버가 몰랐다, 백로그 E12-S03): **새 요구사항 없음 · §2.6 `agent_session.plugin_version` · 마이그레이션 0030.** 훅이 `X-NERV-Plugin` 으로 실은 버전을 남긴다 — 값이 있다는 것 자체가 "플러그인이 켜져 있었다" 의 증거라 **백필하지 않는다**(옛 세션이 플러그인으로 열렸는지는 이제 알 수 없고, 추정으로 채우면 활성화율이 거짓이 된다 · [4.4](api.md) REQ-API-168).
 >

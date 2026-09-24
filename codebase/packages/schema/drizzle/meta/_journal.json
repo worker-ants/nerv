@@ -218,6 +218,13 @@
       "when": 1790219925536,
       "tag": "0030_session_plugin_version",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790254083441,
+      "tag": "0031_close_request_notifications",
+      "breakpoints": true
     }
   ]
 }

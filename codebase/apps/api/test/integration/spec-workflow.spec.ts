@@ -1041,8 +1041,11 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
         specVersionId: draft['spec_version_id'] as string,
         userId: planner,
       });
+      // 받은 요청이면 **그 카드**로 간다(REQ-API-177) — 맨 `/inbox` 는 첫 카드에 섰다
       expect(result.web_url).toBe(
-        result.status === 'in_review' ? '/inbox' : '/p/clemvion/specs/SPC-LINK2',
+        result.status === 'in_review'
+          ? `/inbox?focus=${String((result as { approval_id?: string }).approval_id)}`
+          : '/p/clemvion/specs/SPC-LINK2',
       );
     } finally {
       if (before !== undefined) process.env['NERV_WEB_URL'] = before;

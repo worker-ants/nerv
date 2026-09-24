@@ -48,6 +48,7 @@ import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
 import { EventService } from '../event/event.service.js';
+import { closeRequestNotifications } from '../event/request-notifications.js';
 import { SpecService } from '../spec/spec.service.js';
 import { AuthService } from '../auth/auth.service.js';
 
@@ -442,10 +443,29 @@ export class ApprovalService {
              ${verdictColumns}
              ${quorumColumnsSql()},
              s.key AS spec_key, s.title AS spec_title, sv.version_no,
+             -- **무엇을 · 누가 · 왜**(2026-09-24 — UI/UX 검토 · REQ-API-177). 카드는 종류 이름과 대기
+             -- 시간만 말했다 — 플랜·발견 카드는 대상조차 가리키지 않았고(critical 하향 승인이 무엇을
+             -- 내리는지 모른 채 켜져 있었다), 스펙 카드는 몇 번째 버전인지·무엇이 왜 바뀌었는지·어느
+             -- 세션이 이 결재 때문에 멈춰 있는지를 말하지 않았다. 이미 있는 행에서 잇기만 한다
+             sv.change_summary_md,
+             rs.hostname AS requested_hostname, rs.agent_type::text AS requested_agent_type,
+             (rs.state = 'awaiting_input') AS session_waiting,
+             pt.key AS task_key, pt.title AS task_title,
+             CASE WHEN a.subject_type = 'finding' THEN a.subject_id END AS finding_id,
+             f.title AS finding_title, f.severity::text AS finding_severity,
+             -- 게이트 티어는 요청 이벤트의 payload 에 남는다(스펙 제출이 판정한 그 값)
+             (SELECT e.payload->>'gate_tier' FROM event e
+               WHERE e.type = ${NERV_EVENT.APPROVAL_REQUESTED} AND e.subject_id = a.id
+                 AND e.payload ? 'gate_tier'
+               ORDER BY e.occurred_at DESC
+               LIMIT 1) AS gate_tier,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
         ${approvalFrom}
         JOIN "user" u ON u.id = a.requested_by_user_id
    LEFT JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN agent_session rs ON rs.id = a.requested_by_session_id
+   LEFT JOIN task pt ON pt.id = a.subject_id AND a.subject_type = 'plan'
+   LEFT JOIN finding f ON f.id = a.subject_id AND a.subject_type = 'finding'
        ${approvalWhere}${approvalSeek}
        ORDER BY ${orderBy}
        LIMIT ${limit + 1}
@@ -538,6 +558,8 @@ export class ApprovalService {
              a.decision::text AS decision, a.comment_md, a.requested_at, a.decided_at,
              a.is_bypass, a.bypass_reason,
              p.slug AS project_slug, u.display_name AS requested_by,
+             -- 누가 결정했는가 — 받은 요청이 "찾던 카드는 이미 처리됐다" 를 말할 때 쓴다(REQ-WEB-204)
+             (SELECT du.display_name FROM "user" du WHERE du.id = a.decided_by_user_id) AS decided_by,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
              a.assignee_role::text AS assignee_role,
              ${canApproveSql(input.userId)},
@@ -806,6 +828,9 @@ export class ApprovalService {
              )
         `);
       }
+
+      // 요청의 그림자 알림을 함께 닫는다 — 받은 요청 배지만 줄고 알림 배지는 남던 자리(REQ-API-176)
+      await closeRequestNotifications(tx, 'approval', input.approvalId);
 
       await emit({
         // **결재는 결재다**(2026-09-07 · REQ-API-128). 대상이 질문이든 스펙이든 이 자리가

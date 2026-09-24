@@ -14,6 +14,13 @@ Lowering a `critical` review finding also arrives here as a card (see [Reviews](
 
 **A gate bypass** is recorded here too. It is not a card that asks anything, though — it is the record of something already done, so it lands straight in the Decided tab **of whoever made it**, rather than in the waiting one: a bypass goes through without asking, so the person who made it is the person who decided it.
 
+### What a card tells you
+
+An approval card carries two more lines under its header.
+
+- **Request line** — who asked, the machine and agent kind if an agent session raised it, and **"A session is waiting on this"** when that session is stopped until you decide.
+- **Target line** — what you are deciding. For a spec: **which version** it is, its risk grade (T0–T3), the author's **change summary**, and **[View changes ▸]**, which opens the difference from the previous version (a first version has no such link — there is nothing to compare against). For a plan approval: **which task** the plan is for. For a `critical` downgrade: **which finding** is being lowered. The key in the header takes you to that task or finding.
+
 ### Which organization and project it belongs to
 
 The inbox gathers from **every organization and project you belong to**, so each card carries, on its right, the **name of the project** it belongs to. If you are in more than one organization, the organization's name comes first so it reads "organization / project", and anything outside the organization picked in the header is shown in an **accent colour** — so you do not read another organization's approval as one of this organization's. Items with no project say "Whole organization". Home's to-do list and notifications use the same marking.
@@ -28,7 +35,7 @@ When an agent hits something it must not decide on its own, it **stops** and ask
 
 Answering **wakes the session immediately.**
 
-**Not every question stops an agent.** There are two urgencies (`blocking` and `normal`); only `blocking` halts the session, while `normal` keeps going while it waits. The card does not show which one it is, so to see who is actually standing still, look for `awaiting_input` on the **sessions** screen. **Review requests and `critical` downgrades raised by an agent park a session in the same way** — decide, and that session gets the result on its next heartbeat.
+**Not every question stops an agent.** There are two urgencies (`blocking` and `normal`); only `blocking` halts the session, while `normal` keeps going while it waits. A `blocking` question carries a **Blocking** mark in its header (the same mark as on Home's today list). **Review requests and `critical` downgrades raised by an agent park a session in the same way** — decide, and that session gets the result on its next heartbeat.
 
 ## Deciding
 
@@ -88,7 +95,23 @@ Decided cards move to the **Decided** tab. That tab carries **what you decided**
 | `⇧R`      | Reject the selection           |
 | `Esc`     | Clear the selection            |
 
+Inside the comment or answer box there are three more.
+
+| Key   | Action                                            |
+| ----- | ------------------------------------------------- |
+| `⌘↵`  | Send the comment (or the answer, on a question)   |
+| `⌘⇧↵` | Reject, with what you wrote as the reason         |
+| `Esc` | Leave the box for the card — shortcuts work again |
+
+On Windows and Linux, use `Ctrl` instead of `⌘`.
+
+**Keys land on the highlighted card** — the one with the bar on its left. Not only `j`/`k` move it: **clicking a card, or entering a box or button inside it,** makes that card the one. **`a`, `r` and `x` do not decide a card that is off screen** — the first press brings the card into view and highlights it briefly; press again once you have seen it. This stops a card you are not looking at from being approved while you scroll and read another.
+
 The shortcuts do nothing while the cursor is in a text field — typing `a` in a comment must never approve anything. The bulk keys are **uppercase** for the same reason: the difference between one card and twenty should cost at least a `Shift`. While the confirmation list is open, `a`, `r` and `c` are inert.
+
+## Links that land on the card
+
+**Home's today list, notifications, and the address an agent prints in its terminal take you to that card in the inbox** (`/inbox?focus=…`). If it is further down the list it is loaded and found for you, and the card is highlighted briefly. **If it is not in the list at all, the screen says why** — an approval already decided shows who decided what and when; otherwise it says the request was handled already or is not in your inbox.
 
 ## Notifications
 
@@ -97,6 +120,8 @@ The shortcuts do nothing while the cursor is in a text field — typing `a` in a
 The notification center is for **what you missed**. If the inbox is "what I must do", notifications are "what I should know". The unread count sits on the header badge and clears as you read.
 
 **Opening a notification lands on what changed.** A notification that a spec was approved or rejected takes you to the **difference from the previous version**, not the document body — you no longer read a document from the top to find what moved. A first version has nothing to compare against, so it opens the body. A notification that someone commented opens with the **comments panel already showing**.
+
+**Handling a request in the inbox also marks its notification read.** Approval requests and questions are counted in two places, the inbox and notifications; whoever handles one — even another approver in the queue, first — marks that request's notifications read for everyone. You do not have to clear both badges. In the notification list the row gains **"(handled · Jimin, Approval)"**, saying who closed it and how.
 
 When there are unread ones, a **[Mark all read]** sits beside the count — if clearing them one at a time is the only way, the badge soon becomes a badge nobody reads. It tells you how many it marked. With nothing unread the button is not shown.
 
