@@ -6,7 +6,8 @@
 import { eventLabelKey, NERV_EVENT } from '@nerv/schema';
 import { useState } from 'react';
 import { useT } from '../lib/i18n.js';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router';
+import { inOrgHref, useScope } from '../lib/scope.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
@@ -24,6 +25,7 @@ import {
   Skeleton,
 } from '../components/ui/primitives.js';
 import { ScopeBadge } from '../components/scope-badge.js';
+import { ErrorState, failedWithoutData } from '../components/query-state.js';
 
 export const Route = createFileRoute('/notifications')({ component: NotificationScreen });
 
@@ -91,6 +93,8 @@ function NotificationScreen(): React.JSX.Element {
   const notifications = useNotifications(onlyImmediate ? 'immediate' : undefined);
   const unreadCount = useUnreadCount();
   const navigate = useNavigate();
+  const router = useRouter();
+  const { orgSlug } = useScope();
   const queryClient = useQueryClient();
 
   const markRead = useMutation({
@@ -162,7 +166,10 @@ function NotificationScreen(): React.JSX.Element {
       {/* 이 한 줄이 알림과 받은 요청의 경계다 — 목록 옆에 두어야 목록을 보며 읽는다 */}
       <p className="mb-1.5 text-2xs text-text-faint">{t('notif.lead')}</p>
       {notifications.isLoading && <Skeleton rows={5} />}
-      {!notifications.isLoading && items.length === 0 && (
+      {failedWithoutData(notifications) && (
+        <ErrorState error={notifications.error} onRetry={() => void notifications.refetch()} />
+      )}
+      {notifications.data !== undefined && items.length === 0 && (
         <EmptyState icon="○" title={t('notif.empty')} hint={t('notif.empty_hint')} />
       )}
       <ul className="flex flex-col">
@@ -178,7 +185,12 @@ function NotificationScreen(): React.JSX.Element {
               // 따로 두면 사람은 링크만 누르고 배지는 영원히 줄지 않는다.
               onClick={() => {
                 if (n['state'] === 'unread') markRead.mutate(String(n['id']));
-                void navigate(deepLinkFor(n));
+                const target = deepLinkFor(n);
+                const href = `${target.to}${target.search === undefined ? '' : `?${new URLSearchParams(target.search).toString()}`}`;
+                const routed = inOrgHref(n['org_slug'], href, orgSlug);
+                // 다른 조직의 알림이면 조직을 바꾸고 그 자리로 간다(REQ-WEB-199)
+                if (routed !== href) router.history.push(routed);
+                else void navigate(target);
               }}
               className="group flex cursor-pointer items-center gap-3 border-b border-border px-2 py-2.5 text-sm last:border-0 hover:bg-bg-hover data-[state=read]:text-text-mute"
             >

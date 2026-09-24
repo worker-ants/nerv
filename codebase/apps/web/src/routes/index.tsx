@@ -22,6 +22,7 @@ import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
 import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
+import { ErrorState, failedWithoutData } from '../components/query-state.js';
 import { subjectFallback } from '../features/inbox/approval-card.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { ScopeBadge } from '../components/scope-badge.js';
@@ -51,6 +52,9 @@ function HomeScreen(): React.JSX.Element {
     dateStyle: 'full',
   }).format(new Date());
   const name = me.data?.display_name ?? '';
+  // **"없다" 는 받아 온 뒤에만 말한다**(REQ-WEB-198). 예전에는 받은 요청을 불러오지 못하거나
+  // 아직 불러오는 중에도 수가 0 으로 읽혀 "밀린 결정이 없어요" 가 떴다 — 결재가 쌓인 채로.
+  const inboxFailed = failedWithoutData(inbox);
   const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
   const reqTotal = Number(totals['total'] ?? 0);
 
@@ -75,11 +79,22 @@ function HomeScreen(): React.JSX.Element {
       {/* 날짜 → 인사말. 인사말이 곧 요약이다 — 결정이 없으면 그렇게 말한다 */}
       <div className="text-sm text-text-faint">{today}</div>
       <h1 className="mt-2 text-[1.9375rem] leading-[1.18] font-bold tracking-[-0.026em]">
-        {me.data === undefined
-          ? t('home.title_anon')
-          : waiting === 0
-            ? t('home.greeting_clear', { name })
-            : t('home.greeting_pending', { name, count: waiting })}
+        {me.data === undefined ? (
+          t('home.title_anon')
+        ) : inboxFailed ? (
+          t('home.greeting_failed', { name })
+        ) : inbox.data === undefined ? (
+          // 모르는 동안은 아무 말도 하지 않는다 — 골격이 자리를 지킨다
+          <span
+            data-testid="greeting-skeleton"
+            aria-label={t('common.loading')}
+            className="inline-block h-[1em] w-2/3 max-w-[28rem] animate-pulse rounded-nerv bg-bg-sunken align-middle"
+          />
+        ) : waiting === 0 ? (
+          t('home.greeting_clear', { name })
+        ) : (
+          t('home.greeting_pending', { name, count: waiting })
+        )}
       </h1>
 
       {/* **받은 초대가 먼저다.** 아직 들어가지도 않은 조직의 일이라 '오늘 할 일'보다
@@ -99,7 +114,8 @@ function HomeScreen(): React.JSX.Element {
         </div>
 
         {inbox.isLoading && <Skeleton rows={2} />}
-        {!inbox.isLoading && cards.length === 0 && (
+        {inboxFailed && <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()} />}
+        {inbox.data !== undefined && cards.length === 0 && (
           <EmptyState
             icon="✓"
             title={t('home.nothing_waiting')}

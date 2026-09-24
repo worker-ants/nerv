@@ -13,10 +13,16 @@ import { loadRuntimeConfig } from './lib/config.js';
 import { RealtimeProvider } from './lib/realtime.js';
 import { createQueryClient } from './lib/query-client.js';
 import { routeTree } from './routeTree.gen';
+import { RouteErrorPage } from './components/route-states.js';
 import './styles/tokens.css';
 
 const queryClient = createQueryClient();
-const router = createRouter({ routeTree, defaultPreload: 'intent' });
+// 그리다 멈춘 화면은 **그 라우트 자리에만** 선다 — 셸과 다른 화면으로 가는 길은 남는다(REQ-WEB-199)
+const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+  defaultErrorComponent: RouteErrorPage,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

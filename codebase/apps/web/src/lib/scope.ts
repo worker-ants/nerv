@@ -104,6 +104,26 @@ export function useCanIntervene(projectSlug: string | null, sessionUserId: unkno
  * 조직 전환은 화면이 없다(§1.6: "컨텍스트만 바꾸고 홈으로"). 그 컨텍스트를 어디에도
  * 적지 않으면 전환은 리다이렉트만 남고 **바뀐 것이 없다.**
  */
+/**
+ * 다른 조직의 항목으로 가는 주소(REQ-WEB-199) — **조직을 먼저 바꾸고 그 자리로** 간다.
+ *
+ * 받은 요청·알림은 모든 조직을 싣는데, 조직은 주소가 아니라 기억에 있어서 그 항목의 링크를
+ * 그대로 따라가면 서버는 **지금 조직 안에서** 프로젝트를 찾고 "없다" 고 답했다. 전환 라우트는
+ * 기억을 바꾸고 캐시를 비우고 "○○(으)로 전환했습니다" 라고 말한 뒤 `next` 로 착지한다.
+ * 같은 조직이거나 조직을 모르면 주소를 그대로 돌려준다.
+ */
+export function inOrgHref(itemOrg: unknown, href: string, currentOrg: string | null): string {
+  // 지금 조직을 모르면(기억이 없거나 막혔으면) 서버가 한정자 없이 찾는다 — 바꿀 것이 없다
+  if (
+    currentOrg === null ||
+    typeof itemOrg !== 'string' ||
+    itemOrg === '' ||
+    itemOrg === currentOrg
+  )
+    return href;
+  return `/o/${encodeURIComponent(itemOrg)}?next=${encodeURIComponent(href)}`;
+}
+
 export function rememberOrg(slug: string): void {
   writeLastOrg(slug);
 }

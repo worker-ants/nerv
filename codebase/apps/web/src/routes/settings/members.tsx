@@ -25,11 +25,13 @@ import {
   PageHeader,
   SectionTitle,
   Select,
+  Skeleton,
   Table,
   Td,
   Th,
   Tr,
 } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 
 /**
  * 같은 사람·같은 소속의 멤버십을 **한 줄로 묶는다**. 서버는 부여마다 행을 주므로
@@ -183,7 +185,15 @@ function MembersTab(): React.JSX.Element {
         canInvite={canInvite}
       />
 
-      {rows(members.data).length === 0 ? (
+      {/* **"멤버가 없습니다" 는 받아 온 뒤에만 말한다**(REQ-WEB-198) — 로딩 검사가 없던 동안
+          이 탭에 들어갈 때마다 그 문장이 먼저 번쩍였고, 실패하면 그대로 남았다 */}
+      {members.data === undefined ? (
+        failedWithoutData(members) ? (
+          <ErrorState error={members.error} onRetry={() => void members.refetch()} />
+        ) : (
+          <Skeleton rows={4} />
+        )
+      ) : rows(members.data).length === 0 ? (
         <EmptyState icon="👥" title={t('settings.members.empty')} />
       ) : (
         <Table

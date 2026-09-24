@@ -170,6 +170,10 @@ describe('착지 경로', () => {
   it('앱 안의 경로만 받는다 — 프로토콜 상대 주소는 밖으로 나간다', () => {
     expect(safeNext('/p/acme-web')).toBe('/p/acme-web');
     expect(safeNext('//evil.example/x')).toBeUndefined();
+    expect(safeNext('/\\evil.example/x')).toBeUndefined();
+    expect(safeNext('/p/sudoku/specs/SUD-VISION?rail=comments')).toBe(
+      '/p/sudoku/specs/SUD-VISION?rail=comments',
+    );
     expect(safeNext('https://evil.example')).toBeUndefined();
     expect(safeNext(3)).toBeUndefined();
   });

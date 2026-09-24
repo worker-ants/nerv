@@ -36,6 +36,8 @@ The header's **inbox and notification counts cover every organization you belong
 
 **Switching the organization switches everything with it.** The header's project becomes **the project you last looked at in that organization** (its first project if you have not been there yet), and "Switched to …" appears briefly. The last project is remembered per organization, so coming back to the original one brings back what you were looking at there. Accepting an invitation does the same: you move to the organization you joined, and a project invitation opens that project.
 
+**Links to another organization's work switch the organization first.** Pressing a row from another organization in the inbox or notifications, or opening a project address a colleague sent you from another organization, first switches to that organization ("Switched to …") and then lands on that spot — addresses do not carry the organization, so without the switch the lookup would run in the current organization and say the item does not exist. If the organization that has the project cannot be narrowed to one, you pick among the candidates with **Open in …**.
+
 **To get back home, press the `NERV` logo at the top left.** There is no separate menu item for it — the logo is that link.
 
 ## Narrow screens — phones and tablets
@@ -105,3 +107,15 @@ Up to three show at a time. When there are more, "N more" and **Dismiss all** ap
 **A failure is always reported, once.** Actions that explain the reason in place (a blocked task transition, rejecting without a reason) say it there only; everything else says it here. No action fails silently.
 
 **Pressing the same action again runs it again.** Releasing a task and claiming it again, or sending the same instruction twice, goes out as a new request. Only a double press made before the button locks counts as one.
+
+## When something fails to load, or is not there
+
+Screens tell these three cases apart.
+
+- **Loading** — grey placeholders. Nothing is called "empty" yet.
+- **⚠ Could not load this** — the server could not be reached, or it failed. The reason and **Retry** appear in place. A list that looks empty is not empty — Home's greeting does not say "no decisions are waiting" when the inbox could not be read; it says "your inbox could not be loaded". A list that was already showing is kept when a refresh fails.
+- **? Not found** — the task, document, session or project in the address does not exist, or you are not a member of that project. It says what is missing (the key or the address) and gives a way out: **← Back to the list** or **Go home**. If you are not a member it says so — ask an organization admin to add you.
+
+**Settings that failed to load cannot be saved.** Saving a gate policy that was never read would overwrite the server's policy with defaults, so **Save** stays locked until it loads.
+
+**A spec's version list shows the latest 8 first.** If there are more, **Show N older versions** at the end of the list opens the rest.

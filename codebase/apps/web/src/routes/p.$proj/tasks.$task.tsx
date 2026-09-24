@@ -38,8 +38,10 @@ import {
   PageHeader,
   SectionTitle,
   Select,
+  Skeleton,
   Textarea,
 } from '../../components/ui/primitives.js';
+import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
 
@@ -233,15 +235,47 @@ function TaskDetail(): React.JSX.Element {
     },
   });
 
+  const backToBoard = (
+    <Link
+      to="/p/$proj/tasks"
+      params={{ proj }}
+      className="mb-2 inline-block text-xs text-text-mute hover:text-text"
+    >
+      {t('task.back_to_board')}
+    </Link>
+  );
+
+  // **받아 오기 전에는 작업을 그리지 않는다**(REQ-WEB-198 · 199). 예전에는 `detail.data ?? {}`
+  // 로 그려서, 불러오는 동안 키가 제목 자리에 서고 상태 배지에 카탈로그 키 원문
+  // `status.task` 가 떴으며, 없는 키로 들어오면 그 빈 머리가 그대로 남았다.
+  if (detail.data === undefined) {
+    return (
+      <PageBody>
+        {backToBoard}
+        {detail.isError ? (
+          isNotFound(detail.error) ? (
+            <NotFoundState
+              title={t('state.task_not_found', { key: task })}
+              hint={t('state.not_found_item_hint')}
+              action={
+                <Link to="/p/$proj/tasks" params={{ proj }} className="text-sm text-link">
+                  {t('state.back_to_list')}
+                </Link>
+              }
+            />
+          ) : (
+            <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />
+          )
+        ) : (
+          <Skeleton rows={4} />
+        )}
+      </PageBody>
+    );
+  }
+
   return (
     <PageBody>
-      <Link
-        to="/p/$proj/tasks"
-        params={{ proj }}
-        className="mb-2 inline-block text-xs text-text-mute hover:text-text"
-      >
-        {t('task.back_to_board')}
-      </Link>
+      {backToBoard}
       <PageHeader
         title={String(data['title'] ?? task)}
         meta={

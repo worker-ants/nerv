@@ -18,6 +18,7 @@ import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useSpecVersion } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
+import { inOrgHref, useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { Button, Mono, Textarea } from '../../components/ui/primitives.js';
@@ -80,16 +81,27 @@ function questionContext(card: Record<string, unknown>): {
   key: string;
   to: string;
   params: Record<string, string>;
+  path: string;
 }[] {
   const proj = String(card['project_slug'] ?? '');
-  const out: { key: string; to: string; params: Record<string, string> }[] = [];
+  const out: { key: string; to: string; params: Record<string, string>; path: string }[] = [];
   const specKey = card['spec_key'];
   const taskKey = card['task_key'];
   if (typeof specKey === 'string' && specKey !== '') {
-    out.push({ key: specKey, to: '/p/$proj/specs/$spec', params: { proj, spec: specKey } });
+    out.push({
+      key: specKey,
+      to: '/p/$proj/specs/$spec',
+      params: { proj, spec: specKey },
+      path: `/p/${proj}/specs/${specKey}`,
+    });
   }
   if (typeof taskKey === 'string' && taskKey !== '') {
-    out.push({ key: taskKey, to: '/p/$proj/tasks/$task', params: { proj, task: taskKey } });
+    out.push({
+      key: taskKey,
+      to: '/p/$proj/tasks/$task',
+      params: { proj, task: taskKey },
+      path: `/p/${proj}/tasks/${taskKey}`,
+    });
   }
   return out;
 }
@@ -104,6 +116,59 @@ function subjectLinkOf(
     return { key: specKey, to: '/p/$proj/specs/$spec', params: { proj, spec: specKey } };
   }
   return null;
+}
+
+/**
+ * 카드 안의 링크 — **다른 조직의 카드면 조직을 먼저 바꾸고** 그 자리로 간다(REQ-WEB-199).
+ *
+ * 받은 요청은 모든 조직을 싣는데 조직은 주소가 아니라 기억에 있다. 다른 조직 카드의 문서
+ * 링크를 그대로 따라가면 서버는 지금 조직 안에서 프로젝트를 찾고 "없다" 고 답했다.
+ */
+function CardLink({
+  orgSlug,
+  currentOrg,
+  path,
+  to,
+  params,
+  search,
+  testId,
+  children,
+}: {
+  orgSlug: unknown;
+  currentOrg: string | null;
+  /** 같은 곳의 주소 — 조직을 바꾼 뒤 착지할 자리 */
+  path: string;
+  to: string;
+  params: Record<string, string>;
+  search?: Record<string, string>;
+  testId?: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const routed = inOrgHref(orgSlug, path, currentOrg);
+  if (routed !== path && typeof orgSlug === 'string') {
+    return (
+      <Link
+        to="/o/$org"
+        params={{ org: orgSlug }}
+        search={{ next: path }}
+        data-testid={testId}
+        className="text-link hover:underline"
+      >
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <Link
+      to={to}
+      params={params as never}
+      search={search as never}
+      data-testid={testId}
+      className="text-link hover:underline"
+    >
+      {children}
+    </Link>
+  );
 }
 
 /** 일괄 결정에서 이 카드가 못 지나간 이유(REQ-WEB-183) — 서버가 준 것을 그대로 싣는다 */
@@ -155,6 +220,7 @@ export function ApprovalCard({
   const [showBody, setShowBody] = useState(false);
   // 카드의 주어 — 승인은 스펙 한 편이고, 질문은 아래 `context` 가 여럿을 잇는다
   const subjectLink = subjectLinkOf(card);
+  const { orgSlug: currentOrg } = useScope();
   const subject = useSpecVersion(
     String(card['project_slug'] ?? ''),
     subjectLink?.params['spec'] ?? '',
@@ -292,7 +358,11 @@ export function ApprovalCard({
         ...(subjectLink === null
           ? {}
           : {
-              href: `/p/${encodeURIComponent(subjectLink.params['proj'] ?? '')}/specs/${encodeURIComponent(subjectLink.key)}`,
+              href: inOrgHref(
+                card['org_slug'],
+                `/p/${encodeURIComponent(subjectLink.params['proj'] ?? '')}/specs/${encodeURIComponent(subjectLink.key)}`,
+                currentOrg,
+              ),
               hrefLabel: t('shell.toast.open'),
             }),
       });
@@ -370,13 +440,15 @@ export function ApprovalCard({
         {/* **키는 손잡이가 아니라 문이다**(2026-08-31 — 사람 요청). 예전에는 글자였을 뿐이라
             그 문서를 보려면 스펙 목록에서 손으로 찾아야 했다 */}
         {!isQuestion && subjectLink !== null && (
-          <Link
+          <CardLink
+            orgSlug={card['org_slug']}
+            currentOrg={currentOrg}
+            path={`/p/${subjectLink.params['proj'] ?? ''}/specs/${subjectLink.key}`}
             to={subjectLink.to}
-            params={subjectLink.params as never}
-            className="text-link hover:underline"
+            params={subjectLink.params}
           >
             <Mono>{subjectLink.key}</Mono>
-          </Link>
+          </CardLink>
         )}
         {!isQuestion && subjectLink === null && (
           <Mono>{String(card['spec_key'] ?? card['task_key'] ?? '')}</Mono>
@@ -468,28 +540,32 @@ export function ApprovalCard({
       {isQuestion && (context.length > 0 || typeof card['finding_id'] === 'string') && (
         <p data-testid="question-context" className="mt-1 flex flex-wrap gap-2 text-xs">
           {context.map((item) => (
-            <Link
+            <CardLink
               key={item.key}
+              orgSlug={card['org_slug']}
+              currentOrg={currentOrg}
+              path={item.path}
               to={item.to}
-              params={item.params as never}
-              className="text-link hover:underline"
+              params={item.params}
             >
               <Mono>{item.key}</Mono>
-            </Link>
+            </CardLink>
           ))}
           {/* 발견도 갈 곳이 있다 — 예전에는 짧은 id 만 적혀 있어서 그 지적을 보려면
               리뷰 큐에서 손으로 찾아야 했다(2026-08-31 — 사람 요청). 주소가 가리키는
               발견이 이미 처분됐으면 리뷰 센터가 필터를 풀어 보여준다 */}
           {typeof card['finding_id'] === 'string' && card['finding_id'] !== '' && (
-            <Link
+            <CardLink
+              orgSlug={card['org_slug']}
+              currentOrg={currentOrg}
+              path={`/p/${String(card['project_slug'] ?? '')}/reviews?finding=${String(card['finding_id'])}`}
               to="/p/$proj/reviews"
-              params={{ proj: String(card['project_slug'] ?? '') } as never}
-              search={{ finding: String(card['finding_id']) } as never}
-              data-testid="finding-link"
-              className="text-link hover:underline"
+              params={{ proj: String(card['project_slug'] ?? '') }}
+              search={{ finding: String(card['finding_id']) }}
+              testId="finding-link"
             >
               <Mono>{String(card['finding_id']).slice(0, 8)}</Mono>
-            </Link>
+            </CardLink>
           )}
         </p>
       )}

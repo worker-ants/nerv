@@ -22,6 +22,7 @@ import {
   Skeleton,
   SummaryStrip,
 } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import type { ProjectId } from '../../lib/query-keys.js';
@@ -413,6 +414,11 @@ function Lane({
       {/* 로딩은 화면 골격으로 — 스피너 단독 금지(§1.5). 레인마다 따로 부르므로
                   빠른 레인이 먼저 차고 느린 레인만 골격으로 남는다 */}
       {query.isLoading && !collapsed && <Skeleton rows={3} className="[&>div]:h-12" />}
+      {/* **실패는 빈 레인이 아니다**(REQ-WEB-198) — "비어 있음" 을 그리면 사람은 그 레인에
+          일이 없다고 읽는다. 레인마다 따로 부르므로 실패도 그 레인 하나만 말한다 */}
+      {!collapsed && failedWithoutData(query) && (
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+      )}
       {!collapsed && (
         <ul className="flex flex-col gap-1">
           {items.map((task) => (
@@ -420,7 +426,7 @@ function Lane({
               <TaskCard proj={proj} task={task} lane={lane} onEdit={onEdit} />
             </li>
           ))}
-          {all.length === 0 && !query.isLoading && (
+          {all.length === 0 && query.data !== undefined && (
             // 시안의 빈 레인: 점선 상자 — "없는 것"과 "아직 안 온 것"을 가른다
             <li className="rounded-[7px] border border-dashed border-border p-3 text-center text-sm text-text-ghost">
               {t('tasks.empty_column')}

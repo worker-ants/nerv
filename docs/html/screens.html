@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.35 (2026-09-24)</span>
+      <span>버전 v1.36 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -106,7 +106,7 @@
       <tr><td><code>/invite/:token</code></td><td>초대 링크 수락(셸 밖·공개)</td><td><b>이 문서 §2.1</b> (2026-09-05 추가)</td></tr>
       <tr><td><code>/help</code> · <code>/help/:chapter</code></td><td>제품 매뉴얼(10장 · ko·en)</td><td><b>이 문서 §2.10</b> (2026-09-05 추가 — 이 표에 "없음"이 생기면 결함이라 적어 두고 넷이 비어 있었다)</td></tr>
       <tr><td><code>/</code></td><td>S1 홈 대시보드</td><td>인증 필요</td><td>활성 조직 컨텍스트</td></tr>
-      <tr><td><code>/o/:org</code></td><td>조직 전환</td><td>인증 필요</td><td>컨텍스트 전환 후 <code>/</code>로 리다이렉트(멀티 조직)</td></tr>
+      <tr><td><code>/o/:org</code></td><td>조직 전환</td><td>인증 필요</td><td>컨텍스트 전환 후 <code>?next=</code> 의 앱 안 주소(쿼리 포함), 없으면 <code>/</code>로 리다이렉트(멀티 조직 · REQ-WEB-199)</td></tr>
       <tr><td><code>/inbox</code></td><td>S7 받은 요청</td><td>인증 필요</td><td>조직 전역 — 받은 요청은 하나(FR-14)</td></tr>
       <tr><td><code>/notifications</code></td><td>알림 센터(인앱 피드)</td><td>인증 필요</td><td>MVP는 인앱만 — Slack·메일·다이제스트는 Phase 2(로드맵 §1.3 FR-12)</td></tr>
       <tr><td><code>/help</code></td><td>제품 매뉴얼</td><td>인증 필요</td><td>index는 첫 장으로 — 2026-08-24 신설(§2.10)</td></tr>
@@ -384,8 +384,9 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <thead><tr><th>상태</th><th>기본 처리</th></tr></thead>
     <tbody>
       <tr><td>로딩</td><td>화면 골격(skeleton) — 스피너 단독 금지. 목록은 행 3개 골격, 카드는 카드 골격</td></tr>
-      <tr><td>빈</td><td>"막다른 길 금지"(ui-wireframes §3.4) — 빈 문구 + 다음 행동 링크 1개 이상</td></tr>
-      <tr><td>에러</td><td>인라인 에러 카드 + [다시 시도]. 전역 토스트로 중복 알리지 않는다</td></tr>
+      <tr><td>빈</td><td>"막다른 길 금지"(ui-wireframes §3.4) — 빈 문구 + 다음 행동 링크 1개 이상. <b>받아 온 뒤에만</b> 빈 상태다(REQ-WEB-198)</td></tr>
+      <tr><td>에러</td><td>인라인 에러 카드 + [다시 시도]. 전역 토스트로 중복 알리지 않는다. 받아 둔 값이 있으면 그것을 두고 지우지 않는다</td></tr>
+      <tr><td>없음</td><td>무엇이 없는지(키·주소) + 갈 곳 — 목록·홈, 다른 조직에 있으면 그 조직(REQ-WEB-199)</td></tr>
     </tbody>
   </table></div>
 
@@ -411,6 +412,12 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
 
   <p><b>멱등 키는 누름에서 난다</b>(2026-09-24 — UI/UX 검토 · REQ-WEB-195). 서버의 멱등은 "같은 누름의 재전송이 두 번 실행되지 않는다" 를 지키지 "이 작업은 한 번만 잡힌다" 를 지키지 않는다(<a href="api.html">4.4</a> §1.5). 키를 대상에서 만들면 같은 사람의 두 번째 조작이 24시간 동안 첫 응답의 재생이 되고, 화면은 그 재생을 성공으로 그린다 — 사람의 개입이 성공한 것처럼 보이면서 사라지는, 이 제품에서 가장 비싼 거짓 피드백이다. 키는 누를 때 만들고(<code>lib/press-key.ts</code>), 단추가 잠기기 전의 거듭 누름만 같은 키를 받으며, 요청이 끝나면 버린다.</p>
 
+  <p><b>비어 있음 · 없음 · 실패를 가른다</b>(2026-09-24 — UI/UX 검토 · REQ-WEB-198·199). 위 표의 셋은 약속이었지 조건이 아니었다 — 화면 대부분이 <code>!isLoading &amp;&amp; 0건</code> 이면 빈 상태를 그렸고, 그 조건은 실패를 거르지 않는다. 받은 요청을 불러오지 못한 홈은 "밀린 결정이 없어요" 라고 말했다. <b>"없다" 와 "모른다" 는 사람에게 정반대의 행동을 시킨다</b> — 앞의 것은 넘어가라는 말이고 뒤의 것은 다시 보라는 말이다. 그래서 빈 상태의 조건은 "데이터를 받았고 0건" 이고, 한 번도 받지 못한 채 실패했으면 인라인 카드(<code>ErrorState</code> — 문장은 <code>describeApiError</code>)가 말한다. 받아 둔 값이 있는 재조회의 실패는 그 값을 둔다 — 한 번의 실패로 멀쩡한 목록을 지우는 것도 거짓이다. 쓰는 화면은 한 가지를 더 지킨다: 불러오지 못한 값을 기본값으로 그린 채 [저장]을 열어 두면 그 저장은 서버의 값을 기본값으로 덮는다(게이트 정책 탭).</p>
+
+  <p><b>없는 것은 무엇이 없는지 말한다.</b> 없는 작업·문서·세션은 키만 적힌 빈 머리로, 없는 주소는 라우터의 영문 한 줄로, 멤버가 아닌 프로젝트는 방금 만든 빈 프로젝트로 섰다. 서버는 없는 대상을 409 <code>NERV_PRECONDITION</code> + <code>details.kind: "not_found"</code> 로(<a href="api.html">4.4</a> §1.4b), 멤버 아님을 <code>NERV_FORBIDDEN</code> + <code>details.kind: "no_membership"</code> 으로 말하므로 화면은 그 둘을 가려 <b>무엇이 없는지(키·주소)와 갈 곳</b>을 그린다 — 막다른 길 금지가 빈 상태에만 걸린 약속이 아니다. 열 수 없는 프로젝트에서는 사이드바도 그 프로젝트의 탭과 트리를 걷는다(누를 곳이 모두 같은 "없다" 로 간다). 이런 거절은 몇 번을 물어도 같은 답이라 다시 묻지 않는다 — 다시 묻는 동안 화면은 골격을 보이며 "없다" 를 늦게 말했다. 닿지 못한 것(네트워크)과 서버 쪽 실패(5xx)만 한 번 더 묻는다.</p>
+
+  <p><b>다른 조직의 것은 조직을 바꿔 연다.</b> 조직은 주소가 아니라 기억(§1.8)에 있고 서버는 지금 조직 안에서만 찾는다. 그래서 받은 요청·알림처럼 <b>조직을 가로지르는 목록</b>(REQ-WEB-192)의 링크와 붙여넣은 다른 조직 프로젝트의 주소는 "없다" 에 막혔다 — 목록은 다른 조직의 일을 보여 주면서 그리로 가는 길은 막았다. 이제 그런 링크는 조직 전환(<code>/o/:org?next=</code>)을 거친다: 전환이 기억을 바꾸고 캐시를 비우고 "○○(으)로 전환했습니다" 라고 말한 뒤 <b>주소 그대로</b>(알림이 짚은 <code>?rail=comments</code> 같은 뷰 상태까지) 착지한다. 지금 조직에 없는 프로젝트의 주소는 그 프로젝트를 가진 조직이 내 멤버십에서 하나로 정해지면 그리로 옮기고, 아니면 후보를 고르게 한다 — 조용히 옮기지 않는다(전환이 말한다).</p>
+
   <p><b>셸 수용 기준</b></p>
 
   <div class="table-wrap"><table>
@@ -424,6 +431,8 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>REQ-WEB-195</td><td>WHEN 사람이 상태를 바꾸는 조작을 누르면 THE SYSTEM SHALL 그 누름마다 새 멱등 키(<code>Idempotency-Key</code>)를 만들어 싣고 — 대상의 ID·본문으로 키를 만들지 않는다 — 같은 누름이 아직 도는 동안의 거듭 요청에만 같은 키를 쓴다. WHEN 그 거듭 요청이 <code>idempotency_in_flight</code> 로 돌아오면 THE SYSTEM SHALL 그것을 실패로 알리지 않는다 — 결과는 첫 요청이 말한다</td></tr>
       <tr><td>REQ-WEB-196</td><td>WHEN 상태를 바꾸는 요청이 실패하면 THE SYSTEM SHALL 그 실패를 <b>한 번</b> 알린다 — 화면이 제자리에서 말하면 그것만, 아니면 위 표의 기본 동작으로 — 그리고 문장은 <code>describeApiError</code> 를 거쳐 부류·재시도 시각·갈 곳을 잃지 않는다. WHERE 요청 전에 알 수 있는 거절이면(사유 없는 거절) THE SYSTEM SHALL 요청을 보내지 않고 그 입력 칸으로 데려간다</td></tr>
       <tr><td>REQ-WEB-197</td><td>WHEN 토스트를 띄우면 THE SYSTEM SHALL 톤을 기호와 색 줄로 가르고(실패·경고 ⚠ · 내가 한 일 ✓ · 남이 한 일 ℹ) 경고는 <code>role="alert"</code>, 그 밖은 <code>role="status"</code> 로 보조기기에 알리며, 수명을 종류로 정한다(결재 처리 트레일 3분 · 경고 20초 · 그 밖 8초). WHILE 토스트가 셋을 넘으면 THE SYSTEM SHALL 가장 새 셋만 보이고 나머지 수와 [모두 닫기]를 둔다. WHEN 남이 바꾼 문서를 알리면 THE SYSTEM SHALL 같은 문서의 알림을 한 장으로 합치고 그 문서로 가는 링크를 단다. WHEN 결재를 처리하면 THE SYSTEM SHALL 무엇을 처리했는지(키·제목)를 말한다. WHERE 링크가 앱 안 경로면 THE SYSTEM SHALL 앱을 새로 적재하지 않고 옮겨 간다</td></tr>
+      <tr><td>REQ-WEB-198</td><td>WHILE 화면이 읽을 데이터를 한 번도 받지 못했으면 THE SYSTEM SHALL 그 자리에 골격(불러오는 중) 또는 인라인 에러 카드(실패 — <code>describeApiError</code> 의 문장과 [다시 시도])를 그리고, 빈 상태·"없다"·"0건" 을 말하지 않는다 — 홈의 인사말도 받은 요청을 받아 온 뒤에만 "밀린 결정이 없어요" 라고 말한다. WHEN 받아 둔 값이 있는 재조회가 실패하면 THE SYSTEM SHALL 그 값을 지우지 않는다. WHILE 쓰는 화면이 고칠 값을 받아 오지 못했으면 THE SYSTEM SHALL 저장을 막는다 — 기본값으로 서버의 값을 덮지 않는다</td></tr>
+      <tr><td>REQ-WEB-199</td><td>WHEN 연 대상이 없으면(주소 · 프로젝트 · 문서 · 작업 · 세션) THE SYSTEM SHALL 앱 셸 안에서 무엇이 없는지(키·주소)와 갈 곳(목록 · 홈)을 말하고, 멤버가 아닌 프로젝트는 멤버가 아니라고 말하며, 그 프로젝트의 탭·트리를 사이드바에 세우지 않는다. WHEN 서버가 요청을 거절(4xx)하면 THE SYSTEM SHALL 그 읽기를 다시 묻지 않는다. WHEN 다른 조직의 항목으로 가는 링크를 누르거나 지금 조직에 없는 프로젝트의 주소를 열면 THE SYSTEM SHALL 조직 전환(<code>/o/:org?next=</code>)을 거쳐 그 주소(쿼리 포함)에 착지한다 — 그 프로젝트를 가진 조직이 멤버십에서 하나로 정해지면 스스로, 아니면 후보를 고르게 한다. WHERE 목록을 잘라 보이면 THE SYSTEM SHALL 자른 수와 나머지를 여는 길을 보인다</td></tr>
     </tbody>
   </table></div>
 

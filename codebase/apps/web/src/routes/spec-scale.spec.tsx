@@ -70,6 +70,16 @@ beforeEach(() => {
           total: 3,
         });
       if (u.includes('/check')) return ok({ verdict: 'pass', findings: [] });
+      if (u.includes('/specs/doc-7/versions')) {
+        // 버전은 유한 목록이다 — 서버는 전부 준다(EP-SPEC-04)
+        const items = Array.from({ length: 10 }, (_, i) => ({
+          id: `sv-${10 - i}`,
+          version_no: 10 - i,
+          status: i === 0 ? 'draft' : 'superseded',
+          created_at: '2026-09-24T00:00:00Z',
+        }));
+        return ok({ items, total: items.length });
+      }
       if (/\/specs\/doc-7\?/.test(u))
         return ok({
           key: 'doc-7',
@@ -153,5 +163,24 @@ describe('검토 요청 전의 영향 미리보기 (E08-S10)', () => {
     fireEvent.click(await screen.findByTestId('impact-confirm'));
     await waitFor(() => expect(submitted).toHaveLength(1));
     expect(submitted[0]).toContain('/spec-versions/sv-7/submit');
+  });
+});
+
+/**
+ * **잘랐으면 잘랐다고 말한다**(REQ-WEB-199 · 2026-09-24). 버전 탭은 수를 전부 세면서 목록은
+ * 최신 8개에서 말없이 잘랐다 — 아홉째부터는 [열기]를 누를 자리가 없었다.
+ */
+describe('버전 목록의 잘림', () => {
+  it('여덟 개 아래에 "이전 버전 N개 더 보기" 가 서고, 누르면 전부 선다', async () => {
+    renderAt('/p/demo/specs/doc-7');
+    // 탭을 눌러 연다 — `?rail=` 딥링크가 마운트 직후 덮이는 것은 다른 결함이다(검토 SPEC-03 · P08)
+    fireEvent.click(await screen.findByTestId('rail-tab-versions'));
+    const more = await screen.findByTestId('versions-more');
+    expect(more.textContent).toContain('이전 버전 2개 더 보기');
+    expect(screen.queryByTestId('diff-open-2')).toBeNull();
+
+    fireEvent.click(more);
+    await waitFor(() => expect(screen.getByTestId('diff-open-2')).toBeDefined());
+    expect(screen.getByTestId('diff-open-1')).toBeDefined();
   });
 });

@@ -25,6 +25,7 @@ import {
   SectionTitle,
   Select,
 } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 
 export const Route = createFileRoute('/settings/gates')({ component: GatesTab });
 
@@ -53,6 +54,10 @@ function GatesTab(): React.JSX.Element {
   const isAdmin = rolesInProject(me.data, orgSlug, slug === '' ? null : slug).includes('admin');
   const projectName = String(projects.find((p) => p['slug'] === slug)?.['name'] ?? slug);
 
+  // **받아 오기 전에는 저장하지 않는다**(REQ-WEB-198). 저장 본문은 정책 전체를 펼쳐 보내므로
+  // (`...policy`), 불러오는 중·실패 중에 보이던 **기본 정책**을 누르면 그 프로젝트의 정책이
+  // 통째로 기본값으로 덮였다.
+  const loaded = project.data !== undefined;
   const stored = GatePolicySchema.safeParse(project.data?.['gate_policy'] ?? {});
   const policy = stored.success ? stored.data : GatePolicySchema.parse({});
 
@@ -117,6 +122,10 @@ function GatesTab(): React.JSX.Element {
         </p>
       )}
 
+      {failedWithoutData(project) && (
+        <ErrorState error={project.error} onRetry={() => void project.refetch()} />
+      )}
+
       <Card className="flex flex-col gap-4">
         {/* 없으면 비활성 필드가 **고장으로** 읽힌다 — 무엇이 편집 대상인지 먼저 말한다 */}
         <p className="text-xs text-text-mute">{t('settings.gates.lead')}</p>
@@ -143,9 +152,15 @@ function GatesTab(): React.JSX.Element {
         <Button
           variant="primary"
           className="self-start"
-          disabled={!isAdmin || slug === '' || save.isPending}
+          disabled={!isAdmin || slug === '' || !loaded || save.isPending}
           onClick={() => save.mutate()}
-          title={isAdmin ? undefined : t('settings.gates.admin_only_title')}
+          title={
+            !isAdmin
+              ? t('settings.gates.admin_only_title')
+              : loaded
+                ? undefined
+                : t('settings.gates.loading_locked')
+          }
         >
           {t('common.save')}
         </Button>
