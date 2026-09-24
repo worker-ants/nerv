@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.19 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.20 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.20 변경(2026-09-24 — 스토리 없이 들어온 수정 하나, **사람 결정**): §1.4 셋째 표에 **헤더가 범위를 말하지 않았다** 한 줄([4.5](screens.md) REQ-WEB-193). 스토리 수·`done` 수는 그대로다.
 >
 > v1.19 변경(2026-09-24 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **범위를 자리마다 다르게 말했다** 한 줄([4.4](api.md) REQ-API-170 · [4.5](screens.md) REQ-WEB-192). 스토리 수·`done` 수는 그대로다.
 >
@@ -416,6 +418,7 @@ referenced_by:
 | 조직을 바꿔도 헤더가 옛 프로젝트를 가리켰다 | `apps/web/src/lib/last-org.ts`(구독 가능한 저장소 · 조직별 마지막 프로젝트) · `lib/scope.ts`(`useSyncExternalStore`) · `routes/o.$org.tsx`(캐시 무효화 · 토스트 · `?next=`) · `components/invitation-cards.tsx`·`routes/invite.$token.tsx`(수락 후 그 조직으로) · `org-switch.spec.tsx`(8건 — 결함을 되살리면 3건 실패) · 매뉴얼 ko·en `start.md` | 헤더는 한 번만 마운트되는데 지금 조직을 마운트할 때 한 번 읽고 끝이라, 조직을 바꾸면 **본문은 새 조직을 헤더는 옛 조직과 옛 프로젝트를** 가리켰다. 마지막으로 본 프로젝트도 조직과 무관한 키 하나라 두 조직에 같은 slug 가 있으면 옛 것이 골라졌다. 기억을 듣고 조직마다 기억하며 전환이 말하게 했다([4.5](screens.md) REQ-WEB-190). 점검 아티팩트의 PR 1 이다 — 나머지 넷이 이어진다 |
 | 설정이 헤더가 기억한 프로젝트에 썼다 | `apps/web/src/routes/settings/members.tsx`(역할 칩이 그 줄의 범위로 · 줄마다 권한 · 초대 폼의 조직·범위 전부 · 요약 · 초대 표) · `settings/gates.tsx`(프로젝트 선택기 · 제목) · `routes/onboarding.tsx`(없는 필드 · 범위) · `lib/session.ts` `canManageScope` · `apps/api/src/modules/auth/auth.service.ts` `assertCanManageScope` · `invitation.service.ts` · L1 `settings-scope.spec.tsx` 9건 · L2 `scope-admin.spec.ts` 9건 · 매뉴얼 ko·en `settings.md` | 설정의 세 자리가 대상 범위를 헤더가 **기억한** 프로젝트에서 빌려 왔다 — 조직 전체 줄의 칩을 켜면 마지막으로 본 프로젝트에 멤버십이 생겼고, 게이트 정책은 대상을 말하지 않은 채 저장됐고, 초대는 기억된 프로젝트 하나로만 부를 수 있었다. 그리고 한 프로젝트의 admin 이 조직 전체 줄을 바꿀 수 있었다(결정: 조직 전체는 조직 admin 만 · [4.4](api.md) REQ-API-169 · [4.5](screens.md) REQ-WEB-191). 새 검사는 수정 전 코드에서 L1 9건 · L2 5건이 실패한다. 조직·프로젝트 경계 점검의 PR 2 |
 | 범위를 자리마다 다르게 말했다 | `apps/web/src/components/scope-badge.tsx`(신설) · `features/inbox/approval-card.tsx` · `routes/inbox.tsx` · `routes/index.tsx` · `routes/notifications.tsx` · `routes/settings/tokens.tsx` · `components/invitation-cards.tsx`·`routes/invite.$token.tsx`(초대 문장) · `apps/api/src/modules/approval/approval.service.ts`·`event/notification.service.ts`·`auth/auth.service.ts`·`auth/invitation.service.ts`(조직·프로젝트 이름) · L1 `scope-badge.spec.tsx` 8건 · `notifications.spec.tsx` 1건 · L2 네 파일에 단언 · 매뉴얼 ko·en `inbox.md`·`agents.md` | 조직을 가로지르는 목록 다섯이 범위를 제각각(흐린 slug · 좁은 화면에서 숨는 칸 · 없음) 말했고, API 가 조직을 싣지 않아 같은 slug 를 가를 길이 없었다. `ScopeBadge` 한 모양 — 이름 · 조직은 필요할 때만 · 다른 조직이면 강조 — 으로 모으고 API 가 이름을 싣는다([4.4](api.md) REQ-API-170 · [4.5](screens.md) REQ-WEB-192). 조직·프로젝트 경계 점검의 PR 3 |
+| 헤더가 범위를 말하지 않았다 | `apps/web/src/components/app-shell.tsx`(이름표 · 조직 범위 화면의 빈 프로젝트 칸과 "최근" · 배지 이름 · 사이드바 이름) · `components/quick-switcher.tsx`(찾는 범위) · `routes/index.tsx`(최근 활동 — 프로젝트) · `routes/inbox.tsx`·`routes/notifications.tsx`(모든 조직 설명) · L1 `header-scope.spec.tsx` 6건(수정 전 5건 실패) · `org-switch`·`routes`·`app-shell-drawer` 검사를 새 동작에 맞춤 · 매뉴얼 ko·en `start.md` | 두 선택기에 이름표가 없었고, 조직 범위 화면에서 마지막으로 본 프로젝트가 칸에 떠 그 화면이 그 프로젝트의 것처럼 읽혔다. 받은 요청·알림 배지는 모든 조직을 세는데 지금 조직의 수로 읽혔고, ⌘K 는 프로젝트 밖에서 조용히 아무것도 찾지 않았다([4.5](screens.md) REQ-WEB-193). 조직·프로젝트 경계 점검의 PR 4(결정 1·3) |
 
 #### 이 절은 언제 갱신되는가
 

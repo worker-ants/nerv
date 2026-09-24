@@ -176,6 +176,8 @@ export function AppShell({
   const projectRows = scope.projects;
   const currentProjectSlug = scope.projectSlug;
   const currentProject = scope.project;
+  /** 라우트가 프로젝트를 아는가 — 아니면 조직 범위 화면이고, 프로젝트는 빌려 보이지 않는다 */
+  const onProjectRoute = projectSlug !== undefined;
 
   // ⌘K / Ctrl+K — 전 라우트 공통(REQ-WEB-040)
   useEffect(() => {
@@ -282,9 +284,15 @@ export function AppShell({
               <button
                 type="button"
                 data-testid="org-switcher"
+                // **무엇을 고르는 칸인지 이름표를 단다**(2026-09-24 · REQ-WEB-193). 두 선택기가 같은
+                // 모양이라 이름만 보고는 어느 쪽이 조직인지 알 수 없었다
+                aria-label={t('shell.org_label', { name: currentOrg.name ?? currentOrg.slug })}
                 onClick={() => setMenuOpen((open) => (open === 'org' ? null : 'org'))}
-                className={cn(HEADER_LINK, 'flex max-w-40 items-center gap-1 max-md:hidden')}
+                className={cn(HEADER_LINK, 'flex max-w-44 items-center gap-1 max-md:hidden')}
               >
+                <span aria-hidden="true" className="text-2xs text-text-faint max-lg:hidden">
+                  {t('common.org')}
+                </span>
                 <span className="truncate">{currentOrg.name}</span>
                 <span aria-hidden="true" className="text-text-faint">
                   ▾
@@ -324,10 +332,21 @@ export function AppShell({
               헤더가 그 순서를 그대로 보인다. 하나뿐일 때도 select 로 둔다: 예외 케이스가
               없는 쪽이 직관적이라는 것이 사람 판단이다(2026-08-24). */}
           {currentOrg !== null && (
+            <span aria-hidden="true" className="text-text-faint max-md:hidden">
+              /
+            </span>
+          )}
+          {currentOrg !== null && (
             <div className="relative" data-menu-root>
               <button
                 type="button"
                 data-testid="project-switcher"
+                data-borrowed={onProjectRoute ? undefined : 'true'}
+                aria-label={
+                  onProjectRoute && currentProject !== undefined
+                    ? t('shell.project_label', { name: String(currentProject['name']) })
+                    : t('shell.project_none_label')
+                }
                 disabled={projectRows.length === 0}
                 onClick={() => setMenuOpen((open) => (open === 'project' ? null : 'project'))}
                 className={cn(
@@ -337,10 +356,22 @@ export function AppShell({
                   'max-md:max-w-28',
                 )}
               >
-                <span className="truncate">
+                {/* 비어 있을 때는 이름표를 빼다 — "프로젝트 프로젝트 선택" 으로 같은 낱말이 두 번 읽혔다 */}
+                {onProjectRoute && (
+                  <span aria-hidden="true" className="text-2xs text-text-faint max-lg:hidden">
+                    {t('common.project')}
+                  </span>
+                )}
+                {/* **조직 범위 화면에서는 프로젝트를 빌려 보이지 않는다**(2026-09-24 사람 결정 ·
+                    REQ-WEB-193). 홈·받은 요청·알림·설정에서 마지막으로 본 프로젝트가 떠 있으면 그
+                    화면 전체가 그 프로젝트의 것처럼 읽혔다 — 받은 요청은 실제로 모든 조직에 걸친다.
+                    돌아가는 길은 드롭다운 맨 위의 "최근" 이 한 번으로 남긴다 */}
+                <span className={cn('truncate', !onProjectRoute && 'text-text-faint')}>
                   {currentProject === undefined
                     ? t('shell.no_project')
-                    : String(currentProject['name'])}
+                    : onProjectRoute
+                      ? String(currentProject['name'])
+                      : t('shell.pick_project')}
                 </span>
                 <span aria-hidden="true" className="text-text-faint">
                   ▾
@@ -348,6 +379,18 @@ export function AppShell({
               </button>
               {menuOpen === 'project' && (
                 <Popover>
+                  {!onProjectRoute && currentProject !== undefined && (
+                    <Link
+                      to="/p/$proj"
+                      params={{ proj: String(currentProject['slug']) }}
+                      data-testid="project-recent"
+                      onClick={() => setMenuOpen(null)}
+                      className="mb-1 flex items-center gap-2 border-b border-border px-3 pt-1.5 pb-2 text-sm hover:bg-bg-hover"
+                    >
+                      <span className="text-2xs text-text-faint">{t('shell.recent')}</span>
+                      <span className="truncate font-medium">{String(currentProject['name'])}</span>
+                    </Link>
+                  )}
                   {projectRows.map((project) => (
                     <Link
                       key={String(project['id'])}
@@ -356,12 +399,13 @@ export function AppShell({
                       onClick={() => setMenuOpen(null)}
                       className={cn(
                         'flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-bg-hover',
-                        project['slug'] === currentProjectSlug && 'font-medium',
+                        onProjectRoute && project['slug'] === currentProjectSlug && 'font-medium',
                       )}
                     >
-                      {/* 고른 것에 표식을 준다 — 이름만 늘어놓으면 지금 어디인지 다시 읽어야 한다 */}
+                      {/* 고른 것에 표식을 준다 — 이름만 늘어놓으면 지금 어디인지 다시 읽어야 한다.
+                          조직 범위 화면에서는 고른 것이 없다 — 기억은 "최근" 이지 선택이 아니다 */}
                       <span aria-hidden="true" className="w-3 text-text-faint">
-                        {project['slug'] === currentProjectSlug ? '✓' : ''}
+                        {onProjectRoute && project['slug'] === currentProjectSlug ? '✓' : ''}
                       </span>
                       <span className="truncate">{String(project['name'])}</span>
                     </Link>
@@ -407,10 +451,12 @@ export function AppShell({
           {/* **숫자는 좁은 화면에서도 헤더에 남는다**(REQ-WEB-164). 서랍으로 내리면 열어
               봐야 아는 숫자가 되는데, 배지의 전부는 열기 전에 보인다는 것이다 — 글자만
               접고 글리프의 어깨에 그대로 붙인다(`aria-label` 이 이름을 대신 든다). */}
+          {/* 배지는 **모든 조직**을 센다(2026-09-24 사람 결정 · REQ-WEB-193) — 조직 선택기 바로 옆에
+              있어 지금 조직의 수로 읽히므로, 이름이 그 사실을 말한다 */}
           <Link
             to="/inbox"
-            aria-label={t('shell.inbox')}
-            title={t('shell.inbox')}
+            aria-label={t('shell.inbox_all_orgs')}
+            title={t('shell.inbox_all_orgs')}
             className={cn(HEADER_LINK, 'relative flex shrink-0 items-center', ICON_BUTTON)}
             activeProps={{ className: 'bg-bg-active text-text' }}
           >
@@ -427,8 +473,8 @@ export function AppShell({
           </Link>
           <Link
             to="/notifications"
-            aria-label={t('shell.notifications')}
-            title={t('shell.notifications')}
+            aria-label={t('shell.notifications_all_orgs')}
+            title={t('shell.notifications_all_orgs')}
             className={cn(HEADER_LINK, 'relative flex shrink-0 items-center', ICON_BUTTON)}
             activeProps={{ className: 'bg-bg-active text-text' }}
           >
@@ -732,8 +778,10 @@ export function AppShell({
                   >
                     {projectSlug.slice(0, 1)}
                   </span>
+                  {/* 헤더와 **같은 글자**로 — 사이드바는 slug, 헤더는 이름이라 같은 프로젝트가 두
+                      이름으로 불렸다(REQ-WEB-193) */}
                   <span className="truncate text-base font-semibold tracking-[-0.01em]">
-                    {projectSlug}
+                    {String(currentProject?.['name'] ?? projectSlug)}
                   </span>
                 </p>
               </div>
@@ -881,6 +929,7 @@ export function AppShell({
 
       <QuickSwitcher
         projectSlug={projectSlug}
+        projectName={currentProject === undefined ? undefined : String(currentProject['name'])}
         open={switcherOpen}
         onClose={() => setSwitcherOpen(false)}
       />

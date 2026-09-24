@@ -28,9 +28,11 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 
 ## Two axes of membership scope — organization and project
 
-The two selects at the left of the header are the membership scope you are looking at: **organization → project**, in that order, and the header shows the order plainly. The only organizations you can pick are the ones you belong to.
+The two selects at the left of the header are the membership scope you are looking at: **organization / project**, in that order, each with a small "Organization" or "Project" label in front. The only organizations you can pick are the ones you belong to.
 
-Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There the header shows the **project you looked at last** — an empty slot reads as "you cannot pick one", which would not be true.
+Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There the header's project slot says **"Pick a project"** — showing the project you looked at last would make the whole screen read as that project's. The project you looked at last sits at the top of the list as **"Recent"**, one click away. Places that do show one project, like Home's "Recent activity", put that project's name in their title.
+
+The header's **inbox and notification counts cover every organization you belong to** — an approval waiting in another organization is easy to miss if you have to switch to see it — and each row in those lists says which organization and project it belongs to. **⌘K search looks inside the current project only**; the search box says which project, and outside a project it asks you to pick one first.
 
 **Switching the organization switches everything with it.** The header's project becomes **the project you last looked at in that organization** (its first project if you have not been there yet), and "Switched to …" appears briefly. The last project is remembered per organization, so coming back to the original one brings back what you were looking at there. Accepting an invitation does the same: you move to the organization you joined, and a project invitation opens that project.
 

@@ -135,7 +135,8 @@ describe('좁은 화면의 셸 서랍 (REQ-WEB-164)', () => {
   it('배지는 서랍이 아니라 헤더에 남는다 — 열어 봐야 아는 숫자는 배지가 아니다', async () => {
     renderAt('/p/clemvion');
     const rail = await openDrawer();
-    for (const name of ['받은 요청', '알림'] as const) {
+    // 배지는 모든 조직을 센다 — 이름이 그 사실을 말한다(REQ-WEB-193)
+    for (const name of ['받은 요청 — 모든 조직', '알림 — 모든 조직'] as const) {
       const link = screen.getByRole('link', { name });
       expect(rail.contains(link)).toBe(false);
     }

@@ -68,12 +68,15 @@ export function togglePin(hit: SwitcherHit): SwitcherHit[] {
 
 export interface QuickSwitcherProps {
   projectSlug: string | undefined;
+  /** 찾는 범위를 자리표시자가 말한다(REQ-WEB-193) — 프로젝트 밖에서는 아무것도 찾지 않는다 */
+  projectName?: string | undefined;
   open: boolean;
   onClose: () => void;
 }
 
 export function QuickSwitcher({
   projectSlug,
+  projectName,
   open,
   onClose,
 }: QuickSwitcherProps): React.JSX.Element | null {
@@ -169,13 +172,23 @@ export function QuickSwitcher({
               if (hit !== undefined) go(hit);
             }
           }}
-          placeholder={t('switcher.placeholder')}
+          placeholder={
+            projectSlug === undefined
+              ? t('switcher.placeholder_no_project')
+              : t('switcher.placeholder_in', { project: projectName ?? projectSlug })
+          }
           className="w-full border-b border-border bg-transparent px-4 py-3 text-base outline-none placeholder:text-text-faint"
         />
         <ul className="max-h-80 overflow-y-auto py-1">
           {rows.length === 0 && (
             <li className="px-4 py-8 text-center text-sm text-text-faint">
-              {query.trim() === '' ? t('switcher.recent') : t('switcher.no_results')}
+              {/* 프로젝트 밖에서 찾으면 **결과가 없는 것이 아니라 찾지 않은 것**이다 — 예전에는
+                  "결과가 없습니다" 가 떠서 찾는 것이 없다고 읽혔다(REQ-WEB-193) */}
+              {projectSlug === undefined && query.trim() !== ''
+                ? t('switcher.no_project')
+                : query.trim() === ''
+                  ? t('switcher.recent')
+                  : t('switcher.no_results')}
             </li>
           )}
           {rows.map((hit, index) => (
