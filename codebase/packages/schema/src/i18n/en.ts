@@ -242,12 +242,16 @@ export const en = {
   'invite.scope_org_hint':
     'An organization-wide role applies to every project in this organization.',
   'invite.scope_project': 'Project · {name}',
+  'invite.invited_by': 'Invited by {name}',
+  'invite.mine_body_project': '{org} invited you to the {project} project as {role}.',
   'mcp.arg.relation_base_hash':
     'fingerprint of the target document — content_hash from nerv_spec_get. required when adding a relation',
   'mcp.arg.lease_seconds':
     'Lease length in seconds — 1800 max. Longer values are rejected: stretching the time to automatic reclaim changes the coordination rule.',
   'mcp.arg.takeover':
     'seize an edit lease held by someone else — the way out when a dead session still holds it',
+  'scope.elsewhere': 'This belongs to {org}, not the organization selected in the header',
+  'scope.org_wide': 'Whole organization',
   'session.detail': 'Details',
   'session.timeline_more': 'Load earlier activity',
   'settings.gates.project_hint':
@@ -851,7 +855,7 @@ export const en = {
   'invite.sent_at': 'sent {when}',
   'invite.unsent': 'not sent',
   'invite.link_once': 'This link is shown **once, now** — copy it and pass it on.',
-  'invite.mine_body': '{org} invited you as {role}.',
+  'invite.mine_body': '{org} invited you to the whole organization as {role}.',
   'invite.mine_title': 'Invitations',
   'invite.new': '+ Invite',
   'invite.none': 'No invitations sent.',
@@ -1352,7 +1356,7 @@ export const en = {
   'settings.tokens.human_only': 'Human only',
   'settings.tokens.human_only_title': 'A human-only scope — it cannot be granted to a token (D-08)',
   'settings.tokens.issue': 'Issue',
-  'settings.tokens.issued': 'Issued tokens',
+  'settings.tokens.issued': 'My tokens — every organization',
   'settings.tokens.last_host': 'Last host',
   'settings.tokens.last_used': 'Last used',
   'settings.tokens.lead': 'The token is shown once, right after issuing — only the prefix is kept.',

@@ -846,8 +846,11 @@ export class AuthService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.id, t.name, t.prefix, t.scopes, t.expires_at, t.revoked_at, t.last_used_at,
              t.last_used_hostname,
-             t.created_at, p.slug AS project_slug, p.name AS project_name
+             t.created_at, p.slug AS project_slug, p.name AS project_name,
+             -- 내 토큰은 **모든 조직**의 것이다 — 조직을 싣지 않으면 같은 slug 를 가를 수 없다
+             o.slug AS org_slug, o.name AS org_name
         FROM api_token t JOIN project p ON p.id = t.project_id
+        JOIN organization o ON o.id = p.org_id
        WHERE t.user_id = ${userId}
        ORDER BY t.created_at DESC
     `);

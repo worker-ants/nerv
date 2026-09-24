@@ -29,6 +29,7 @@ import {
   Skeleton,
   Textarea,
 } from '../components/ui/primitives.js';
+import { ScopeBadge } from '../components/scope-badge.js';
 
 export const Route = createFileRoute('/inbox')({
   validateSearch: (search: Record<string, unknown>): { state?: 'pending' | 'decided' } => ({
@@ -331,9 +332,13 @@ function InboxScreen(): React.JSX.Element {
                 <span className="min-w-0 flex-1 truncate">
                   {String(card['title'] ?? card['spec_title'] ?? '')}
                 </span>
-                <span className="shrink-0 text-text-faint">
-                  {String(card['project_slug'] ?? '')}
-                </span>
+                <ScopeBadge
+                  className="shrink-0"
+                  orgSlug={card['org_slug']}
+                  orgName={card['org_name']}
+                  projectSlug={card['project_slug']}
+                  projectName={card['project_name']}
+                />
               </li>
             ))}
           </ul>

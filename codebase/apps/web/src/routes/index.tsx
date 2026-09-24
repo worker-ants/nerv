@@ -24,6 +24,7 @@ import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/pri
 import { InvitationCards } from '../components/invitation-cards.js';
 import { subjectFallback } from '../features/inbox/approval-card.js';
 import { asProjectId } from '../lib/query-keys.js';
+import { ScopeBadge } from '../components/scope-badge.js';
 
 export const Route = createFileRoute('/')({ component: HomeScreen });
 
@@ -282,9 +283,19 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
                 subjectFallback(t, card['subject_type']),
             )}
           </span>
-          <span className="mt-0.5 block truncate text-xs text-text-faint">
-            {String(card['requested_by'] ?? '')}
-            {subjectKey !== null && <> · {subjectKey}</>}
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-faint">
+            {/* 오늘 할 일은 조직을 가로지른다 — 범위가 없으면 어느 프로젝트의 일인지 열어 봐야 안다(REQ-WEB-192) */}
+            <ScopeBadge
+              className="shrink-0"
+              orgSlug={card['org_slug']}
+              orgName={card['org_name']}
+              projectSlug={card['project_slug']}
+              projectName={card['project_name']}
+            />
+            <span className="truncate">
+              · {String(card['requested_by'] ?? '')}
+              {subjectKey !== null && <> · {subjectKey}</>}
+            </span>
           </span>
         </span>
         {blocking && (

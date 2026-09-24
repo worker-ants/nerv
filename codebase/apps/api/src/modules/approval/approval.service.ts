@@ -428,6 +428,10 @@ export class ApprovalService {
              -- 표시 값의 정밀도에 커서를 매달면, 그 정밀도가 바뀌는 날 동률 판정이 깨진다
              ${decided ? sql`a.decided_at` : sql`a.requested_at`}::text AS cursor_at,
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
+             -- **어느 조직의 일인가**(2026-09-24 · REQ-API-170). 이 목록은 조직을 가로지르는데
+             -- 조직을 싣지 않아, 두 조직에 같은 slug 가 있으면 화면이 둘을 가를 수 없었다
+             (SELECT o.slug FROM organization o WHERE o.id = p.org_id) AS org_slug,
+             (SELECT o.name FROM organization o WHERE o.id = p.org_id) AS org_name,
              u.display_name AS requested_by,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
              a.assignee_role::text AS assignee_role,
@@ -461,6 +465,10 @@ export class ApprovalService {
              q.asked_at AS requested_at, q.asked_at::text AS cursor_at,
              q.title, q.body_md, q.options, q.urgency::text AS urgency,
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
+             -- **어느 조직의 일인가**(2026-09-24 · REQ-API-170). 이 목록은 조직을 가로지르는데
+             -- 조직을 싣지 않아, 두 조직에 같은 slug 가 있으면 화면이 둘을 가를 수 없었다
+             (SELECT o.slug FROM organization o WHERE o.id = p.org_id) AS org_slug,
+             (SELECT o.name FROM organization o WHERE o.id = p.org_id) AS org_name,
              u.display_name AS requested_by,
              se.hostname, se.agent_type::text AS agent_type, se.external_session_id,
              -- **출처는 카드의 절반이다.** 사람은 에이전트의 요약이 아니라 원문을 보고

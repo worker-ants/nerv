@@ -410,6 +410,10 @@ export class NotificationService {
              e.to_state, e.is_agent, e.occurred_at,
              u.display_name AS actor_name,
              p.slug AS project_slug, p.name AS project_name,
+             -- **어느 조직의 일인가**(2026-09-24 · REQ-API-170). 이 목록은 조직을 가로지르는데
+             -- 조직을 싣지 않아, 두 조직에 같은 slug 가 있으면 화면이 둘을 가를 수 없었다
+             (SELECT o.slug FROM organization o WHERE o.id = p.org_id) AS org_slug,
+             (SELECT o.name FROM organization o WHERE o.id = p.org_id) AS org_name,
              s.key AS spec_key, s.title AS spec_title, t.key AS task_key, t.title AS task_title,
              -- **알림이 diff 주소를 만들 수 있게 버전 번호를 싣는다**(REQ-API-159 · REQ-WEB-163).
              -- 이 조인은 이미 있었다 — 없던 것은 이 한 칸이고, 그래서 화면은 "v4 가 승인됐다" 를

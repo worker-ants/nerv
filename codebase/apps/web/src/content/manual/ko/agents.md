@@ -17,6 +17,7 @@ NERV에 에이전트를 붙이면 Claude Code나 Codex가 스펙을 읽고, 작�
 에이전트가 할 수 있는 일은 **토큰이 정합니다**(발급은 [플러그인 설치](/help/install) 1단계).
 
 - 토큰 값은 **발급 직후 한 번만** 보입니다. 그 자리에서 복사해 두세요.
+- 설정 → 토큰의 **내 토큰** 목록은 **모든 조직**의 토큰을 함께 보입니다. 조직이 둘 이상이면 프로젝트 칸이 "조직 / 프로젝트" 로 어느 조직의 것인지 말합니다.
 - 권한은 `resource:action` 표기이고 **10종**입니다: `spec:read` · `spec:draft` · `spec:meta` · `spec:evidence` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
 - **`spec:evidence` 는 CI 를 위한 것입니다.** 요구사항에 PR·테스트 증적을 붙이는 일만 할 수 있습니다 — 빌드 파이프라인에 주는 토큰은 이것 하나만 켜면 됩니다. 초안도 Task 도 건드리지 못합니다.
 - **프로젝트 설정 변경·보관·복구는 토큰으로 할 수 없습니다.** 역할이 admin 이어도 그렇습니다 — 게이트 정책을 낮추는 일은 게이트 면제와 같은 무게라서 사람이 웹에서 합니다.

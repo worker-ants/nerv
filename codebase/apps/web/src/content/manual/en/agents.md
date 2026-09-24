@@ -17,6 +17,7 @@ Permissions come from the **token, not the skill.** A skill is convenience and r
 What an agent may do is decided by **the token** (issuing one is step 1 of [Installing the plugin](/help/install)).
 
 - The token value is shown **once, right after issuing**. Copy it there and then.
+- The **My tokens** list under Settings → Tokens shows your tokens from **every organization** together. If you are in more than one organization, the project column says which one it belongs to, as "organization / project".
 - Scopes are written `resource:action`, and there are **ten**: `spec:read` · `spec:draft` · `spec:meta` · `spec:evidence` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
 - **`spec:evidence` exists for CI.** It can only attach PR and test evidence to a requirement — a build pipeline's token needs nothing else. It cannot touch drafts or tasks.
 - **Project settings, archive and restore cannot be done with a token**, not even with the admin role. Lowering a gate policy carries the same weight as bypassing a gate, so a person does it on the web.

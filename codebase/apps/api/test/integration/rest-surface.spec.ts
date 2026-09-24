@@ -265,6 +265,9 @@ describe('테넌시 표면 (EP-AUTH-01 · EP-ORG-01 · EP-PRJ-01·03)', () => {
       expect(Object.keys(token)).not.toContain('token');
       expect(Object.keys(token)).not.toContain('token_hash');
       expect(token['prefix']).toMatch(/^nerv_/);
+      // 내 토큰은 모든 조직의 것이다 — 조직을 싣는다(REQ-API-170)
+      expect(token['org_slug']).toBe('nerv');
+      expect(token['org_name']).toBe('NERV');
     }
   });
 

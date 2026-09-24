@@ -358,6 +358,9 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
       (c) => c.id === approval_id,
     );
     expect(others).toMatchObject({ self_requested: false, can_approve: true });
+    // **어느 조직의 일인지 싣는다**(2026-09-24 · REQ-API-170) — 받은 요청은 조직을 가로지른다
+    expect(others).toMatchObject({ org_slug: 'nerv', org_name: 'NERV' });
+    expect(typeof others?.['project_name']).toBe('string');
   });
 
   it('admin 은 자기 요청을 승인한다 — 없으면 어떤 결재도 끝나지 않는 상황이 생긴다', async () => {
@@ -2391,6 +2394,8 @@ describe('알림의 등급과 수신자 (REQ-API-149·150)', () => {
     // 목록도 그 축으로 좁힌다
     const onlyImmediate = await notifications.list({ userId: reviewer, importance: 'immediate' });
     expect(onlyImmediate.items.length).toBe(counted.immediate);
+    // 알림은 조직을 가로지른다 — 어느 조직의 것인지 싣는다(REQ-API-170)
+    expect(onlyImmediate.items[0]).toMatchObject({ org_slug: 'nerv', org_name: 'NERV' });
     // 어휘 밖의 값은 접지 않고 거절한다(REQ-API-126)
     await expect(
       notifications.list({ userId: reviewer, importance: 'urgent' }),

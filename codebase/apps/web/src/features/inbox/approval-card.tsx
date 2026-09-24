@@ -20,6 +20,7 @@ import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { Button, Mono, Textarea } from '../../components/ui/primitives.js';
+import { ScopeBadge } from '../../components/scope-badge.js';
 
 export type Decision = 'approve' | 'reject' | 'comment';
 
@@ -346,9 +347,14 @@ export function ApprovalCard({
               subjectFallback(t, card['subject_type']),
           )}
         </span>
-        <span className="shrink-0 text-xs text-text-mute">
-          {String(card['project_slug'] ?? '')}
-        </span>
+        {/* **어느 조직·프로젝트의 일인가**(REQ-WEB-192) — 받은 요청은 조직을 가로지른다 */}
+        <ScopeBadge
+          className="shrink-0"
+          orgSlug={card['org_slug']}
+          orgName={card['org_name']}
+          projectSlug={card['project_slug']}
+          projectName={card['project_name']}
+        />
         {/* **몇 명 중 몇 명인지 보인다**(2026-09-07 · REQ-WEB-146). T3 는 서로 다른 두 사람이
             승인해야 확정되는데, 카드가 그 사실을 말하지 않으면 첫 승인자는 자기가 마지막
             결재라고 믿는다 — 조용히 약해진 게이트는 없는 게이트보다 나쁘다. */}

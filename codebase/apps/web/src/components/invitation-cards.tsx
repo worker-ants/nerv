@@ -67,17 +67,12 @@ export function InvitationCards({
         <Card key={String(invite['id'])} className="flex flex-wrap items-center gap-3">
           <span className="min-w-0 flex-1">
             <span className="block text-base leading-[1.45] font-medium tracking-[-0.008em]">
-              {t('invite.mine_body', {
-                org: String(invite['org_name'] ?? invite['org_slug']),
-                role: String(invite['role']),
-              })}
+              {/* **어디로 부르는지가 문장 안에 있다**(REQ-WEB-192) — 흐린 둘째 줄의 slug 로만 말하던
+                  동안 프로젝트 초대가 조직 전체 역할처럼 읽혔다 */}
+              {invitationSentence(t, invite)}
             </span>
             <span className="mt-0.5 block text-xs text-text-faint">
-              {invite['project_slug'] === null
-                ? t('invite.scope_org')
-                : String(invite['project_slug'])}
-              {' · '}
-              {String(invite['invited_by'] ?? '')}
+              {t('invite.invited_by', { name: String(invite['invited_by'] ?? '') })}
             </span>
           </span>
           <Button
@@ -104,4 +99,23 @@ export function acceptedLanding(
     params: { org },
     search: typeof project === 'string' && project !== '' ? { next: `/p/${project}` } : {},
   };
+}
+
+/** 초대 한 건의 문장 — 조직 전체와 프로젝트를 문장이 가른다(카드와 `/invite/$token` 이 같이 쓴다) */
+export function invitationSentence(
+  t: ReturnType<typeof useT>,
+  invite: Record<string, unknown>,
+): string {
+  const org = String(invite['org_name'] ?? invite['org_slug'] ?? '');
+  const role = String(invite['role'] ?? '');
+  const project = invite['project_slug'];
+  if (typeof project !== 'string' || project === '') {
+    return t('invite.mine_body', { org, role });
+  }
+  const name = invite['project_name'];
+  return t('invite.mine_body_project', {
+    org,
+    project: typeof name === 'string' && name !== '' ? name : project,
+    role,
+  });
 }

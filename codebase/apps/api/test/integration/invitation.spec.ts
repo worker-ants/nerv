@@ -105,6 +105,8 @@ describe('수락 (EP-INV-04·05)', () => {
     const made = await invite();
     const preview = await invitations.preview(String(made['token']));
     expect(preview).toMatchObject({ org_slug: 'acme', role: 'developer', state: 'pending' });
+    // 링크를 연 사람이 **어느 프로젝트로** 불렸는지 이름으로 읽는다(REQ-API-170) — 조직 초대면 null
+    expect(Object.keys(preview)).toContain('project_name');
     expect(preview['email_hint']).toBe('g***@example.com');
     expect(preview['email_hint']).not.toContain('guest@');
   });

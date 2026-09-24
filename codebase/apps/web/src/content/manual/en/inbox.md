@@ -14,6 +14,10 @@ Lowering a `critical` review finding also arrives here as a card (see [Reviews](
 
 **A gate bypass** is recorded here too. It is not a card that asks anything, though — it is the record of something already done, so it lands straight in the Decided tab **of whoever made it**, rather than in the waiting one: a bypass goes through without asking, so the person who made it is the person who decided it.
 
+### Which organization and project it belongs to
+
+The inbox gathers from **every organization and project you belong to**, so each card carries, on its right, the **name of the project** it belongs to. If you are in more than one organization, the organization's name comes first so it reads "organization / project", and anything outside the organization picked in the header is shown in an **accent colour** — so you do not read another organization's approval as one of this organization's. Items with no project say "Whole organization". Home's to-do list and notifications use the same marking.
+
 ## Question cards
 
 When an agent hits something it must not decide on its own, it **stops** and asks. Those cards carry three more things.

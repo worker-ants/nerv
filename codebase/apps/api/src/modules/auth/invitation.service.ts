@@ -182,6 +182,8 @@ export class InvitationService {
       org_name: invite.org_name,
       org_slug: invite.org_slug,
       project_slug: invite.project_slug,
+      // 링크를 연 사람이 **어느 프로젝트로** 불렸는지 읽을 수 있게 — slug 는 주소의 것이다
+      project_name: invite.project_name,
       role: invite.role,
       email_hint: maskEmail(invite.email),
       state: invite.state,

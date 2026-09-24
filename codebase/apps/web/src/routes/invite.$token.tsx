@@ -9,7 +9,7 @@
 //
 // 셸 밖이다 — 아직 이 조직의 멤버가 아니라서 헤더의 두 select 가 가리킬 것이 없다.
 
-import { acceptedLanding } from '../components/invitation-cards.js';
+import { acceptedLanding, invitationSentence } from '../components/invitation-cards.js';
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,10 +21,11 @@ import { Button, Skeleton } from '../components/ui/primitives.js';
 
 export const Route = createFileRoute('/invite/$token')({ component: InviteScreen });
 
-interface Preview {
+interface Preview extends Record<string, unknown> {
   org_name: string;
   org_slug: string;
   project_slug: string | null;
+  project_name?: string | null;
   role: string;
   email_hint: string;
   state: 'pending' | 'accepted' | 'revoked' | 'expired';
@@ -82,11 +83,9 @@ function InviteScreen(): React.JSX.Element {
 
           {invite !== undefined && (
             <>
+              {/* 카드와 **같은 문장**이다 — 어디로 부르는지가 문장 안에 있다(REQ-WEB-192) */}
               <p className="text-base leading-[1.45] font-medium tracking-[-0.008em]">
-                {t('invite.mine_body', { org: invite.org_name, role: invite.role })}
-              </p>
-              <p className="mt-1 text-xs text-text-faint">
-                {invite.project_slug === null ? t('invite.scope_org') : invite.project_slug}
+                {invitationSentence(t, invite)}
               </p>
               {/* 이메일은 서버가 가려서 준다 — 토큰을 주운 사람에게 초대받은 사람이
                   누구인지 알려 줄 이유가 없다(EP-INV-04) */}
