@@ -22,7 +22,7 @@ import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRole, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { ApprovalService } from './approval.service.js';
-import type { ApprovalDecision, InboxCard } from './approval.service.js';
+import type { ApprovalDecision } from './approval.service.js';
 import { QuestionService } from './question.service.js';
 
 @Controller('api/v1/projects/:proj')
@@ -34,14 +34,26 @@ export class ApprovalController {
   ) {}
 
   /**
-   * 프로젝트 소속 받은 요청 — S2·S4 의 사이드 패널용. 전역 받은 요청은 EP-APR-01 이다.
+   * 프로젝트 소속 받은 요청 — **전역과 같은 목록을 프로젝트로 좁힌 것**이다(EP-APR-01).
    * **사람 전용이고 판정은 서비스에 있다**(REQ-API-123).
    */
   @RequireScope('spec:read')
   @Get('inbox')
-  inbox(@Req() req: ProjectRequest): Promise<InboxCard[]> {
+  inbox(
+    @Req() req: ProjectRequest,
+    @Query('state') state?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ): Promise<unknown> {
     const { projectId, userId, actor } = human(req);
-    return this.approvals.inbox({ projectId, userId, actor });
+    return this.approvals.inbox({
+      projectId,
+      userId,
+      actor,
+      state: state ?? null,
+      cursor: cursor ?? null,
+      limit: limit ?? null,
+    });
   }
 
   /** EP-QST-01 — 질문 목록(기본 `open` · 어휘 판정은 서비스가 한다 · REQ-API-126) */

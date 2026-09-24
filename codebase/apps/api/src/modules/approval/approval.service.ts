@@ -233,42 +233,42 @@ export class ApprovalService {
   }
 
   /**
-   * EP-APR-01 받은 요청 — **내 결정을 기다리는 것만** 센다(§6.6 원칙 3).
-   * 나머지는 피드다. 이 구분이 없으면 배지 숫자가 의미를 잃고 받은 요청이 두 번째 받은편지함이 된다.
+   * EP-APR-05 프로젝트 소속 받은 요청 — **전역과 같은 목록을 프로젝트로 좁힌 것**이다.
+   *
+   * 예전에는 자기 질의를 따로 들고 있었고, 그래서 **같은 질문에 다른 답**을 냈다
+   * (실측 2026-09-24 · 결재 3 + 질문 2 를 심고 나란히 부른 결과):
+   *
+   *   ① **질문을 싣지 않았다** — 전표는 "그 프로젝트의 받은 요청(**결재 + 질문**)" 이라
+   *      적는데 결재만 왔다. S7 이 프로젝트 안에서 읽는 곳이라면서 전역과 다른 목록을
+   *      보여 주고 있었다.
+   *   ② **보관한 프로젝트의 결재를 계속 내보냈다.** 2026-08-27 에 전역 쪽에서 고친 그
+   *      결함이(치운 프로젝트를 사람이 계속 결재하도록 두면 받은 요청을 못 믿게 된다)
+   *      이 표면에는 오지 않았다 — 보관 뒤 전역 0건 · 여기 3건.
+   *   ③ **열이 달라 카드를 그릴 수 없었다.** `waiting_seconds`(카드의 필수 표기 —
+   *      얼마나 기다렸나)·`project_slug`(링크)·`spec_key`·`spec_title` 이 없고 제목은
+   *      `subject_key` 라는 다른 이름으로 왔다.
+   *
+   * 판정이 두 벌이면 언젠가 한쪽만 고쳐진다(D-05) — 실제로 셋 다 그렇게 벌어졌다.
+   * 그래서 질의를 없애고 **전역 표면을 프로젝트로 좁혀 부른다.** 이 표면이 따로 있는
+   * 이유는 주소뿐이다(프로젝트 안에서 읽는 곳).
    */
   async inbox(input: {
     projectId: string;
     userId: string;
     /** 사람 전용 게이트의 축 — 전역 경로(EP-APR-01)와 같은 규칙이다(D-05 · REQ-API-123) */
     actor: Actor;
-  }): Promise<InboxCard[]> {
-    assertHuman(input.actor, 'inbox', '/inbox');
-    const { rows } = await this.db.execute<InboxCard>(sql`
-      SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
-             s.key AS subject_key,
-             u.display_name AS requested_by,
-             a.requested_at::text AS requested_at,
-             sv.body_md,
-             (a.requested_by_user_id = ${input.userId}) AS self_requested,
-             a.assignee_role::text AS assignee_role,
-             ${canApproveSql(input.userId)},
-             ${canApproveReasonSql(input.userId)},
-             ${quorumColumnsSql()},
-             encode(sv.content_hash, 'hex') AS content_hash
-        FROM approval a
-        JOIN "user" u ON u.id = a.requested_by_user_id
-   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
-   LEFT JOIN spec s ON s.id = sv.spec_id
-   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
-       WHERE a.project_id = ${input.projectId}
-         AND a.decision IS NULL
-         -- **내 결정을 기다리는 것만**(§6.6 원칙 3 · 2026-09-07 · REQ-API-137). 예전에는
-         -- 지정 승인자만 걸러서, 결재권이 없는 사람의 목록에도 카드가 있었다 — 그 사람은
-         -- 그것을 자기 일로 읽고, 배지는 "내가 막고 있는 것" 을 세지 못한다.
-         AND ${eligibleSql(input.userId)}
-       ORDER BY a.requested_at DESC
-    `);
-    return rows;
+    state?: string | null;
+    cursor?: string | null;
+    limit?: string | number | null;
+  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null; total: number }> {
+    return this.inboxGlobal({
+      actor: input.actor,
+      userId: input.userId,
+      state: input.state ?? null,
+      projectId: input.projectId,
+      cursor: input.cursor ?? null,
+      limit: input.limit ?? null,
+    });
   }
 
   /**
@@ -285,6 +285,12 @@ export class ApprovalService {
     /** 어휘는 `APPROVAL_INBOX_STATES` — 판정은 아래에서 한다(REQ-API-126) */
     state?: string | null;
     projectSlug?: string | null;
+    /**
+     * 프로젝트를 **id 로** 좁힌다 — 프로젝트 소속 받은 요청(EP-APR-05)이 이 축으로 들어온다.
+     * slug 와 나란히 두는 이유: 전역 표면은 사람이 고른 slug 를 받고, 프로젝트 표면은
+     * 가드가 이미 해소한 id 를 쥐고 있다(다시 해소하면 조직 경계 판정이 두 벌이 된다).
+     */
+    projectId?: string | null;
     /** 불투명 커서(§1.6) — 해독되지 않으면 처음부터다 */
     cursor?: string | null;
     limit?: string | number | null;
@@ -378,7 +384,11 @@ export class ApprovalService {
              ${bulkBlockReasonSql(input.userId)},
              encode(sv.content_hash, 'hex') AS content_hash,`;
     const projectFilter =
-      input.projectSlug == null ? sql`` : sql` AND p.slug = ${input.projectSlug}`;
+      input.projectSlug != null
+        ? sql` AND p.slug = ${input.projectSlug}`
+        : input.projectId != null
+          ? sql` AND p.id = ${input.projectId}`
+          : sql``;
     /**
      * FROM 과 WHERE 를 조각으로 뽑는다 — 목록과 **총계가 같은 조건을 봐야** 하기 때문이다.
      *
