@@ -94,7 +94,7 @@ describe('개입 뒤 무효화의 축', () => {
     fireEvent.click(screen.getByTestId('stop-button'));
     // 사유가 없으면 확인 버튼이 잠겨 있다(REQ-WEB-021) — 그것을 지나야 무효화까지 간다
     fireEvent.change(screen.getByTestId('stop-reason'), { target: { value: '겹침 정리' } });
-    fireEvent.click(screen.getByTestId('stop-confirm-button'));
+    fireEvent.click(screen.getByTestId('stop-confirm'));
 
     await waitFor(() => {
       expect(spy).toHaveBeenCalledWith({ queryKey: ['project', 'p-1', 'sessions'] });
@@ -133,6 +133,46 @@ describe('지시의 멱등 키는 누름마다 새로 난다', () => {
       );
     }
     expect(keys[0]).not.toBe(keys[1]);
+    vi.unstubAllGlobals();
+  });
+});
+
+/**
+ * **중단 사유는 지시와 다른 칸이다**(REQ-WEB-200 · 2026-09-24 · UI/UX 검토 WORK-13).
+ *
+ * 한 상태를 나눠 쓰던 동안 [중단]을 누르면 적어 둔 지시가 사유 칸에 미리 차 있어 그대로 실행하면
+ * 지시가 중단 사유로 남았고, 취소하면 사유로 쓴 글이 지시 칸에 남아 [지시 보내기]로 나갈 수 있었다.
+ */
+describe('중단 사유와 지시', () => {
+  it('적어 둔 지시가 사유 칸으로 넘어가지 않고, 사유가 지시 칸으로 돌아오지 않는다', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        if (init?.method === 'POST') bodies.push(JSON.parse(String(init.body ?? '{}')));
+        return { ok: true, status: 200, json: async () => ({ reclaimed: 1 }) };
+      }),
+    );
+    panel({ canIntervene: true });
+    const steer = screen.getByLabelText('지시') as HTMLInputElement;
+    fireEvent.change(steer, { target: { value: '테스트를 먼저 돌려' } });
+
+    fireEvent.click(screen.getByTestId('stop-button'));
+    const reason = screen.getByTestId('stop-reason') as HTMLInputElement;
+    expect(reason.value).toBe('');
+    // 포커스는 사유 칸이다
+    expect(document.activeElement).toBe(reason);
+    fireEvent.change(reason, { target: { value: '겹침 정리' } });
+    fireEvent.keyDown(reason, { key: 'Escape' });
+    expect(steer.value).toBe('테스트를 먼저 돌려');
+
+    fireEvent.click(screen.getByTestId('stop-button'));
+    fireEvent.change(screen.getByTestId('stop-reason'), { target: { value: '겹침 정리' } });
+    fireEvent.click(screen.getByTestId('stop-confirm'));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({ kind: 'stop', message: '겹침 정리' });
+    // 지시는 보내지 않았으니 그대로 남는다
+    expect(steer.value).toBe('테스트를 먼저 돌려');
     vi.unstubAllGlobals();
   });
 });

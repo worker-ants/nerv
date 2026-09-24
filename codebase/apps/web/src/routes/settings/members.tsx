@@ -12,7 +12,14 @@ import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
 import { relativeTime } from '../../lib/format.js';
-import { rows, useMe, useMembers, useOrgInvitations } from '../../lib/queries.js';
+import {
+  rows,
+  useMe,
+  useMembers,
+  useOrgInvitations,
+  useOrgTokens,
+  useProjects,
+} from '../../lib/queries.js';
 import { canManageScope } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -32,6 +39,8 @@ import {
   Tr,
 } from '../../components/ui/primitives.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
+import { ReadOnlyNotice, scopeAdmins } from '../../components/read-only-notice.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 
 /**
  * 같은 사람·같은 소속의 멤버십을 **한 줄로 묶는다**. 서버는 부여마다 행을 주므로
@@ -40,6 +49,7 @@ import { ErrorState, failedWithoutData } from '../../components/query-state.js';
  */
 interface MemberRow {
   key: string;
+  user_id: string;
   display_name: string;
   email: string;
   project_slug: string | null;
@@ -57,6 +67,7 @@ function groupByMember(raw: Record<string, unknown>[]): MemberRow[] {
     const key = `${email}@${scope}`;
     const row = out.get(key) ?? {
       key,
+      user_id: String(r['user_id'] ?? ''),
       display_name: String(r['display_name']),
       email,
       project_slug: (r['project_slug'] as string | null) ?? null,
@@ -82,6 +93,7 @@ function groupByMember(raw: Record<string, unknown>[]): MemberRow[] {
  * 택했다(열이 늘지 않는다).
  */
 interface MemberGroup {
+  user_id: string;
   email: string;
   display_name: string;
   /** 조직 전체 줄이 먼저, 프로젝트 줄은 이름순 */
@@ -94,6 +106,7 @@ export function groupByPerson(members: MemberRow[]): MemberGroup[] {
   const out = new Map<string, MemberGroup>();
   for (const m of members) {
     const g = out.get(m.email) ?? {
+      user_id: m.user_id,
       email: m.email,
       display_name: m.display_name,
       scopes: [],
@@ -115,6 +128,26 @@ export function groupByPerson(members: MemberRow[]): MemberGroup[] {
   return [...out.values()];
 }
 
+/** 이 사람의 멤버십 행 id 전부 — 한 범위 줄의 것만 고르려면 `scopes` 를 좁혀 넘긴다 */
+function membershipIds(scopes: readonly MemberRow[]): string[] {
+  return scopes.flatMap((m) => Object.values(m.idByRole));
+}
+
+/** 살아 있는 토큰 — 폐기·만료된 것은 이미 끊겼다 */
+function liveTokensOf(tokens: readonly Record<string, unknown>[], userId: string): string[] {
+  return tokens
+    .filter(
+      (token) =>
+        token['owner_id'] === userId &&
+        token['revoked_at'] === null &&
+        !(
+          typeof token['expires_at'] === 'string' &&
+          new Date(token['expires_at']).getTime() <= Date.now()
+        ),
+    )
+    .map((token) => String(token['id']));
+}
+
 export const Route = createFileRoute('/settings/members')({ component: MembersTab });
 
 const ROLES = ['admin', 'planner', 'designer', 'developer', 'qa', 'viewer'] as const;
@@ -124,6 +157,7 @@ function MembersTab(): React.JSX.Element {
   const me = useMe();
   const { orgSlug, orgName, projects } = useScope();
   const members = useMembers(orgSlug);
+  const memberRows = rows(members.data);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
@@ -136,6 +170,21 @@ function MembersTab(): React.JSX.Element {
   // 부를 수 있는 범위 — 조직 admin 이면 조직 전체와 모든 프로젝트, 아니면 자기가 admin 인 프로젝트
   const invitable = projects.filter((p) => canEdit(String(p['slug'])));
   const canInvite = orgAdmin || invitable.length > 0;
+  // 부를 수 있는지는 내 멤버십과 프로젝트 목록이 온 뒤에야 안다 — 그 전에 "잠겼다" 고 말하면
+  // admin 에게도 잠긴 구역이 먼저 번쩍인다(REQ-WEB-198 과 같은 부류)
+  const projectList = useProjects(orgSlug);
+  const inviteKnown = me.data !== undefined && projectList.data !== undefined;
+  // 내보낼 때 그 사람의 토큰도 함께 끊는다 — 조직 전체 토큰 표는 조직 admin 만 읽는다(REQ-API-172)
+  const orgTokens = useOrgTokens(orgSlug, orgAdmin);
+  const myId = me.data?.id;
+  /** 조직 admin 인 사람 — **한 명이면 그 사람의 admin 은 뗄 수 없다**(REQ-API-174) */
+  const orgAdminIds = new Set(
+    memberRows
+      .filter((r) => r['role'] === 'admin' && (r['project_slug'] ?? null) === null)
+      .map((r) => String(r['user_id'] ?? '')),
+  );
+  const lastOrgAdmin = (userId: string): boolean =>
+    orgAdminIds.size === 1 && orgAdminIds.has(userId);
 
   /**
    * 역할 하나를 켜고 끈다. **부여마다 행**이므로 켜기는 추가, 끄기는 삭제다 —
@@ -165,14 +214,44 @@ function MembersTab(): React.JSX.Element {
     onError: onApiError,
   });
 
+  /**
+   * **내보내기**(2026-09-24 — UI/UX 검토 · REQ-WEB-201). 떠난 사람을 표에서 내보낼 길이 없었다 —
+   * 칩을 하나씩 끄면 마지막 칩이 "마지막 역할은 뗄 수 없습니다" 로 잠겼고, 매뉴얼은 "멤버 자체를
+   * 지웁니다" 라고 적었지만 그 단추는 어디에도 없었다. 그 사람의 토큰도 끊는다 — 멤버십이 없으면
+   * 토큰의 권한은 이미 0 이지만(권한은 사람의 부분집합이다 · D-08), 살아 있는 토큰이 표에 남으면
+   * 끊긴 것인지 아무도 모른다.
+   *
+   * 한 번에 지우는 서버 경로는 없다 — 있는 두 문(EP-MBR-04 · EP-TOK-03)을 차례로 부른다. 중간에
+   * 실패하면 거기서 멈추고 표를 다시 읽어, 무엇이 남았는지를 표가 말한다.
+   */
+  const offboard = useMutation({
+    mutationFn: async (input: { membershipIds: string[]; tokenIds: string[] }) => {
+      for (const id of input.tokenIds) {
+        await apiFetch(`/me/tokens/${id}`, { method: 'DELETE' });
+      }
+      for (const id of input.membershipIds) {
+        await apiFetch(`/memberships/${id}`, { method: 'DELETE' });
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'members'] });
+      void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'tokens'] });
+    },
+    onSuccess: () => pushToast({ tone: 'ok', message: t('settings.members.offboard_done') }),
+    onError: onApiError,
+  });
+
   return (
     <section>
       {/* 이 표가 **어느 조직의 것인지** 제목이 말한다 — 헤더의 조직 칸만 보고는 알 수 없다 */}
       <PageHeader title={t('settings.members.title_org', { org: orgName ?? '' })} />
       {!orgAdmin && (
-        <p className="mb-3 rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute">
+        <ReadOnlyNotice
+          className="mb-3"
+          admins={members.data === undefined ? undefined : scopeAdmins(memberRows, null)}
+        >
           {t('settings.members.scope_rule')}
-        </p>
+        </ReadOnlyNotice>
       )}
       {/* **부르는 자리와 관리하는 자리가 같아야 한다.** 멤버 표는 이미 있는 사람만 다루고,
           새 사람을 넣는 길은 화면에 아예 없었다 — 서버의 EP-MBR-02 는 기존 사용자만
@@ -183,6 +262,7 @@ function MembersTab(): React.JSX.Element {
         orgWide={orgAdmin}
         projects={invitable}
         canInvite={canInvite}
+        known={inviteKnown}
       />
 
       {/* **"멤버가 없습니다" 는 받아 온 뒤에만 말한다**(REQ-WEB-198) — 로딩 검사가 없던 동안
@@ -193,7 +273,7 @@ function MembersTab(): React.JSX.Element {
         ) : (
           <Skeleton rows={4} />
         )
-      ) : rows(members.data).length === 0 ? (
+      ) : memberRows.length === 0 ? (
         <EmptyState icon="👥" title={t('settings.members.empty')} />
       ) : (
         <Table
@@ -207,10 +287,11 @@ function MembersTab(): React.JSX.Element {
               <Th>{t('settings.members.email')}</Th>
               <Th className="w-32">{t('settings.members.scope')}</Th>
               <Th className="w-[23rem]">{t('settings.members.role')}</Th>
+              <Th className="w-32" />
             </>
           }
         >
-          {groupByPerson(groupByMember(rows(members.data))).flatMap((person) =>
+          {groupByPerson(groupByMember(memberRows)).flatMap((person) =>
             person.scopes.map((m, index) => (
               <Tr
                 key={m.key}
@@ -239,33 +320,52 @@ function MembersTab(): React.JSX.Element {
                       const inherited =
                         !on && m.project_slug !== null && person.orgRoles.includes(role);
                       const last = on && m.roles.length === 1;
+                      // 조직의 마지막 admin 은 뗄 수 없다 — 서버도 거절한다(REQ-API-174)
+                      const lastAdmin =
+                        on &&
+                        role === 'admin' &&
+                        m.project_slug === null &&
+                        lastOrgAdmin(person.user_id);
                       const editable = canEdit(m.project_slug);
-                      return (
+                      const locked = inherited || !editable || last || lastAdmin;
+                      const toggle = (): void =>
+                        toggleRole.mutate({
+                          userEmail: m.email,
+                          role,
+                          on,
+                          id: m.idByRole[role],
+                          projectSlug: m.project_slug,
+                        });
+                      const chip = (props: {
+                        onClick: () => void;
+                        ref?: React.Ref<HTMLButtonElement>;
+                      }): React.JSX.Element => (
                         <button
                           key={role}
+                          ref={props.ref}
                           type="button"
                           data-testid={`role-${role}`}
                           data-inherited={inherited || undefined}
                           aria-pressed={on}
-                          disabled={inherited || !editable || last || toggleRole.isPending}
-                          title={t(
-                            inherited
-                              ? 'settings.members.role_inherited'
-                              : last
-                                ? 'settings.members.last_role'
-                                : m.project_slug === null
-                                  ? 'settings.members.role_org_admin_only'
-                                  : 'settings.members.role_admin_only',
-                          )}
-                          onClick={() =>
-                            toggleRole.mutate({
-                              userEmail: m.email,
-                              role,
-                              on,
-                              id: m.idByRole[role],
-                              projectSlug: m.project_slug,
-                            })
+                          disabled={locked || toggleRole.isPending}
+                          // **사유는 잠긴 칩에만 단다**(REQ-WEB-003). 조건 없이 달던 동안 admin 이
+                          // 누를 수 있는 칩 위에도 "admin 만 가능합니다" 가 떴다
+                          title={
+                            !locked
+                              ? undefined
+                              : t(
+                                  inherited
+                                    ? 'settings.members.role_inherited'
+                                    : lastAdmin
+                                      ? 'settings.members.last_org_admin'
+                                      : last
+                                        ? 'settings.members.last_role'
+                                        : m.project_slug === null
+                                          ? 'settings.members.role_org_admin_only'
+                                          : 'settings.members.role_admin_only',
+                                )
                           }
+                          onClick={props.onClick}
                           className={cn(
                             'rounded-nerv-sm border px-1.5 py-0.5 text-2xs transition-colors',
                             on
@@ -273,7 +373,7 @@ function MembersTab(): React.JSX.Element {
                               : inherited
                                 ? 'cursor-default border-dashed border-border-strong text-text-mute'
                                 : 'border-border text-text-faint hover:text-text',
-                            !inherited && (!editable || last)
+                            !inherited && (!editable || last || lastAdmin)
                               ? 'cursor-not-allowed opacity-60'
                               : '',
                           )}
@@ -282,8 +382,39 @@ function MembersTab(): React.JSX.Element {
                           {role}
                         </button>
                       );
+                      // **내 admin 을 끄는 것은 한 번 더 묻는다**(REQ-WEB-200) — 끄는 즉시 이
+                      // 화면의 편집이 잠기고, 되돌리려면 다른 admin 에게 부탁해야 한다
+                      if (on && role === 'admin' && person.user_id === myId && !locked) {
+                        return (
+                          <ConfirmAction
+                            key={role}
+                            testIdBase="self-admin"
+                            message={t('settings.members.self_admin_confirm')}
+                            detail={t('settings.members.self_admin_detail')}
+                            confirmLabel={t('settings.members.self_admin_off')}
+                            pending={toggleRole.isPending}
+                            onConfirm={toggle}
+                            trigger={({ open, ref }) => chip({ onClick: open, ref })}
+                          />
+                        );
+                      }
+                      return chip({ onClick: toggle });
                     })}
                   </div>
+                </Td>
+                <Td className="text-right">
+                  <MemberExit
+                    person={person}
+                    row={m}
+                    first={index === 0}
+                    orgAdmin={orgAdmin}
+                    canEditRow={canEdit(m.project_slug)}
+                    isSelf={person.user_id === myId}
+                    lastAdmin={lastOrgAdmin(person.user_id)}
+                    tokens={rows(orgTokens.data)}
+                    pending={offboard.isPending}
+                    onConfirm={(input) => offboard.mutate(input)}
+                  />
                 </Td>
               </Tr>
             )),
@@ -291,6 +422,76 @@ function MembersTab(): React.JSX.Element {
         </Table>
       )}
     </section>
+  );
+}
+
+/**
+ * 한 줄의 나가는 문 — 조직 admin 에게는 묶음의 첫 줄에 **[내보내기…]**(모든 범위 + 토큰),
+ * 프로젝트 admin 에게는 자기 프로젝트 줄에 **[이 프로젝트에서 빼기]**(그 줄의 역할 전부).
+ * 자기 자신과 조직의 마지막 admin 은 비활성 + 사유다(REQ-WEB-003).
+ */
+function MemberExit({
+  person,
+  row,
+  first,
+  orgAdmin,
+  canEditRow,
+  isSelf,
+  lastAdmin,
+  tokens,
+  pending,
+  onConfirm,
+}: {
+  person: MemberGroup;
+  row: MemberRow;
+  first: boolean;
+  orgAdmin: boolean;
+  canEditRow: boolean;
+  isSelf: boolean;
+  lastAdmin: boolean;
+  tokens: readonly Record<string, unknown>[];
+  pending: boolean;
+  onConfirm: (input: { membershipIds: string[]; tokenIds: string[] }) => void;
+}): React.JSX.Element | null {
+  const t = useT();
+  if (orgAdmin) {
+    if (!first) return null;
+    const ids = membershipIds(person.scopes);
+    const tokenIds = liveTokensOf(tokens, person.user_id);
+    return (
+      <ConfirmAction
+        label={t('settings.members.offboard')}
+        testId="member-offboard"
+        disabled={isSelf || lastAdmin}
+        title={t(isSelf ? 'settings.members.offboard_self' : 'settings.members.last_org_admin')}
+        message={t('settings.members.offboard_confirm', { name: person.display_name })}
+        detail={t('settings.members.offboard_detail', {
+          memberships: ids.length,
+          tokens: tokenIds.length,
+        })}
+        confirmLabel={t('settings.members.offboard_run')}
+        pending={pending}
+        onConfirm={() => onConfirm({ membershipIds: ids, tokenIds })}
+      />
+    );
+  }
+  if (row.project_slug === null || !canEditRow) return null;
+  const ids = membershipIds([row]);
+  return (
+    <ConfirmAction
+      label={t('settings.members.remove_from_project')}
+      testId="member-remove-project"
+      disabled={isSelf}
+      title={t('settings.members.offboard_self')}
+      message={t('settings.members.remove_from_project_confirm', {
+        name: person.display_name,
+        project: row.project_name ?? row.project_slug,
+      })}
+      detail={t('settings.members.remove_from_project_detail', { roles: ids.length })}
+      confirmLabel={t('settings.members.remove_from_project')}
+      pending={pending}
+      onConfirm={() => onConfirm({ membershipIds: ids, tokenIds: [] })}
+    />
   );
 }
 
@@ -309,6 +510,7 @@ function InviteSection({
   orgWide,
   projects,
   canInvite,
+  known,
 }: {
   orgSlug: string | null;
   orgName: string | null;
@@ -317,7 +519,9 @@ function InviteSection({
   /** 부를 수 있는 프로젝트 — 조직 admin 이면 전부, 아니면 자기가 admin 인 것 */
   projects: Record<string, unknown>[];
   canInvite: boolean;
-}): React.JSX.Element {
+  /** 부를 수 있는지 판정할 재료가 왔는가 */
+  known: boolean;
+}): React.JSX.Element | null {
   const t = useT();
   const onApiError = useApiError();
   const queryClient = useQueryClient();
@@ -380,7 +584,25 @@ function InviteSection({
     onError: onApiError,
   });
 
-  if (!canInvite) return <></>;
+  // **숨기지 않는다**(REQ-WEB-003 · 2026-09-24). 예전에는 부를 수 없는 사람에게 이 구역이 통째로
+  // 사라져, 초대라는 기능이 있는지조차 알 수 없었다 — 단추는 비활성 + 사유로 선다
+  if (!canInvite) {
+    if (!known) return null;
+    return (
+      <section className="mb-6">
+        <SectionTitle
+          action={
+            <Button size="sm" data-testid="invite-new" disabled title={t('invite.locked')}>
+              {t('invite.new')}
+            </Button>
+          }
+        >
+          {t('invite.title')}
+        </SectionTitle>
+        <p className="text-sm text-text-faint">{t('invite.locked')}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="mb-6">
@@ -524,14 +746,14 @@ function InviteSection({
               </Td>
               <Td>
                 {row['state'] === 'pending' && (
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    disabled={revoke.isPending}
-                    onClick={() => revoke.mutate(String(row['id']))}
-                  >
-                    {t('invite.revoke')}
-                  </Button>
+                  <ConfirmAction
+                    label={t('invite.revoke')}
+                    testId="invite-revoke"
+                    message={t('invite.revoke_confirm', { email: String(row['email']) })}
+                    confirmLabel={t('invite.revoke')}
+                    pending={revoke.isPending}
+                    onConfirm={() => revoke.mutate(String(row['id']))}
+                  />
                 )}
               </Td>
             </Tr>

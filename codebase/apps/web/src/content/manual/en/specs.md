@@ -91,6 +91,8 @@ The **Attachments** tab in the rail holds mockups and documents. Drag files in o
 - Size: **10MB** per file
 - After uploading, **Insert into body** puts it at the cursor — images as images, everything else as a **link**.
 
+**Deleting an attachment cannot be undone, so it asks once more** — the file is removed from storage too, and if the body points to it, that spot breaks.
+
 Attachments hang on the **document, not the version**. Rewriting the draft leaves them in place, and archiving the document takes them along. An external link changes independently of the spec's versions, so "the screen this version describes" cannot be recovered later.
 
 Reading also goes through the server — **project members** see them, not whoever has the URL.
@@ -221,7 +223,9 @@ Zoomed out, **document names are not drawn.** A hundred labels too small to read
 
 ## Archiving
 
-Archiving can be **refused** — a document with live children, or with a task of its own that someone is holding, is blocked. The screen then lists what blocked it.
+**[Archive] in the metadata asks once more** — the document leaves the list and the tree, and the only way back is [Restore] at its own address. Esc closes just that confirmation; press it again to close the metadata window.
+
+Archiving can be **refused** — a document with live children, or with a task of its own that someone is holding, is blocked. The screen then lists what blocked it, and each key takes you to the document or task to sort out.
 
 Archiving is **not deletion.** The document drops out of lists and the tree but its address still works, and links pointing at it stay alive. A spec is the record of what was decided and why — delete it and that record is gone.
 

@@ -759,13 +759,17 @@ export class AuthService {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-106·112)
     const role = assertVocab([input.role], memberRole.enumValues, 'role')[0];
     this.assertAdmin(input.actorRoles);
-    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
-      UPDATE membership m SET role = ${role}::member_role
-       WHERE m.id = ${input.membershipId}
-      RETURNING m.id, m.role::text AS role, m.user_id, m.project_id,
-                (SELECT prev.role::text FROM membership prev WHERE prev.id = m.id) AS from_role
-    `);
-    const updated = rows[0];
+    const updated = await this.db.transaction(async (tx) => {
+      // admin 을 다른 역할로 바꾸는 것도 admin 을 떼는 일이다(REQ-API-174)
+      await this.assertNotLastOrgAdmin(tx, input.membershipId, input.role);
+      const { rows } = await tx.execute<Record<string, unknown>>(sql`
+        UPDATE membership m SET role = ${role}::member_role
+         WHERE m.id = ${input.membershipId}
+        RETURNING m.id, m.role::text AS role, m.user_id, m.project_id,
+                  (SELECT prev.role::text FROM membership prev WHERE prev.id = m.id) AS from_role
+      `);
+      return rows[0];
+    });
     if (updated === undefined) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.not_found'), {
         kind: 'not_found',
@@ -823,6 +827,49 @@ export class AuthService {
     }
   }
 
+  /**
+   * **조직의 마지막 admin 을 떼지 않는다**(2026-09-24 — UI/UX 검토 · REQ-API-174).
+   *
+   * 역할 칩 하나가 멤버십 행 하나라, 조직 admin 이 자기 조직 전체 줄의 admin 칩을 끄면(다른
+   * 역할이 하나 더 있으면 마지막 역할도 아니다) 그 조직에 admin 이 한 명도 남지 않았다. 멤버십을
+   * 다루는 문이 전부 admin 에게만 열려 있으므로 **그 조직은 화면에서도 API 로도 되살릴 길이
+   * 없다** — 되돌릴 수 없는 일은 서버가 막는다(화면의 비활성은 그 뒤의 안내다).
+   *
+   * **조직 행을 잠그고 센다.** 두 admin 이 서로를 동시에 떼면 둘 다 "다른 admin 이 하나 있다"
+   * 를 보고 지나가 0 명이 된다. `FOR NO KEY UPDATE` 는 같은 조직의 이 검사끼리만 줄을 세우고,
+   * 멤버십·프로젝트를 새로 넣는 쪽(외래 키의 `KEY SHARE`)은 막지 않는다. 잠근 뒤의 셈은
+   * 앞 트랜잭션이 커밋한 것을 본다(READ COMMITTED 는 문장마다 새로 본다).
+   *
+   * `nextRole` 이 `null` 이면 삭제, 아니면 그 역할로 바꾸기다. 부르는 쪽이 트랜잭션을 연다.
+   */
+  private async assertNotLastOrgAdmin(
+    tx: Pick<NervDb, 'execute'>,
+    membershipId: string,
+    nextRole: string | null,
+  ): Promise<void> {
+    const { rows } = await tx.execute<{
+      org_id: string;
+      project_id: string | null;
+      role: string;
+    }>(
+      sql`SELECT org_id, project_id, role::text AS role FROM membership WHERE id = ${membershipId}`,
+    );
+    const target = rows[0];
+    if (target === undefined || target.project_id !== null || target.role !== 'admin') return;
+    if (nextRole === 'admin') return;
+    await tx.execute(sql`SELECT 1 FROM organization WHERE id = ${target.org_id} FOR NO KEY UPDATE`);
+    const { rows: others } = await tx.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM membership
+       WHERE org_id = ${target.org_id} AND project_id IS NULL AND role = 'admin'
+         AND id <> ${membershipId}
+    `);
+    if ((others[0]?.n ?? 0) === 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.last_org_admin'), {
+        kind: 'last_org_admin',
+      });
+    }
+  }
+
   /** EP-MBR-04 */
   async removeMembership(input: {
     membershipId: string;
@@ -831,11 +878,14 @@ export class AuthService {
     actorUserId?: string;
   }): Promise<{ ok: true }> {
     this.assertAdmin(input.actorRoles);
-    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
-      DELETE FROM membership WHERE id = ${input.membershipId}
-      RETURNING project_id, user_id, role::text AS role, org_id
-    `);
-    const removed = rows[0];
+    const removed = await this.db.transaction(async (tx) => {
+      await this.assertNotLastOrgAdmin(tx, input.membershipId, null);
+      const { rows } = await tx.execute<Record<string, unknown>>(sql`
+        DELETE FROM membership WHERE id = ${input.membershipId}
+        RETURNING project_id, user_id, role::text AS role, org_id
+      `);
+      return rows[0];
+    });
     if (removed !== undefined && typeof removed['project_id'] === 'string' && input.actorUserId) {
       await this.audit({
         projectId: removed['project_id'],
@@ -876,7 +926,11 @@ export class AuthService {
       SELECT t.id, t.name, t.prefix, t.scopes, t.expires_at, t.revoked_at, t.last_used_at,
              t.last_used_hostname,
              t.created_at,
-             u.display_name AS owner, p.slug AS project_slug, p.name AS project_name
+             u.display_name AS owner,
+             -- 사람을 이름으로 맞추면 동명이인을 가를 수 없다 — 멤버 표의 [내보내기]가 그 사람의
+             -- 토큰을 고르는 축이다(REQ-API-174)
+             t.user_id AS owner_id, u.email AS owner_email,
+             p.slug AS project_slug, p.name AS project_name
         FROM api_token t
         JOIN project p ON p.id = t.project_id
         JOIN organization o ON o.id = p.org_id

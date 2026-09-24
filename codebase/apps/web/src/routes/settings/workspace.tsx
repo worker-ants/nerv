@@ -16,7 +16,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
-import { rows, useMe, useProjects } from '../../lib/queries.js';
+import { rows, useMe, useMembers, useProjects } from '../../lib/queries.js';
 import { useScope } from '../../lib/scope.js';
 import { canManageScope, rolesInProject } from '../../lib/session.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -33,6 +33,8 @@ import {
   SectionTitle,
   Select,
 } from '../../components/ui/primitives.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
+import { ReadOnlyNotice, scopeAdmins } from '../../components/read-only-notice.js';
 
 export const Route = createFileRoute('/settings/workspace')({ component: WorkspaceTab });
 
@@ -60,13 +62,17 @@ function WorkspaceTab(): React.JSX.Element {
   const [showArchived, setShowArchived] = useState(false);
   const projects = useProjects(orgSlug, showArchived);
   const projectRows = rows(projects.data);
+  // 누구에게 부탁할지 — 조직 수준은 조직 admin 이다(REQ-WEB-201)
+  const members = useMembers(orgSlug);
 
   return (
     <section className="flex flex-col gap-8">
       {!isOrgAdmin && (
-        <p className="rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute">
+        <ReadOnlyNotice
+          admins={members.data === undefined ? undefined : scopeAdmins(rows(members.data), null)}
+        >
           {t('settings.workspace.org_admin_only')}
-        </p>
+        </ReadOnlyNotice>
       )}
       {/* **데이터가 온 뒤에 그린다.** `useState(name)` 은 첫 렌더의 값을 붙잡으므로
           me 가 늦게 오면 입력칸이 빈 채로 굳는다 — key 로 다시 만든다 */}
@@ -100,7 +106,18 @@ function OrgSection({
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
   const [draft, setDraft] = useState(name);
-  const [confirming, setConfirming] = useState(false);
+  // **지울 수 있는지는 누르기 전에 말한다**(2026-09-24 — UI/UX 검토 · REQ-WEB-201). 서버는 보관한
+  // 프로젝트까지 세서 거절하는데(`deleteOrg` · 보관해도 마찬가지다), 안내는 "먼저 프로젝트를
+  // 보관하세요" 라고 했다. 따라 한 admin 은 프로젝트를 모두 보관해 **모든 사람의 결재 카드와
+  // 알림을 숨기고도** 조직은 지우지 못했다 — 안내가 남에게 피해가 가는 조작으로 이끌었다.
+  const everything = useProjects(canEdit ? orgSlug : null, true);
+  const all = rows(everything.data);
+  const archivedCount = all.filter(
+    (p) => p['archived_at'] !== null && p['archived_at'] !== undefined,
+  ).length;
+  // 세기 전에는 지울 수 있다고 말하지 않는다 — 목록이 오기 전의 0 은 "없다" 가 아니다(REQ-WEB-198)
+  const counted = everything.data !== undefined;
+  const blockedByProjects = !counted || all.length > 0;
 
   const rename = useMutation({
     mutationFn: () =>
@@ -118,10 +135,7 @@ function OrgSection({
       void queryClient.invalidateQueries({ queryKey: ['me'] });
       void navigate({ to: '/' });
     },
-    onError: (error: Error) => {
-      setConfirming(false);
-      onApiError(error);
-    },
+    onError: onApiError,
   });
 
   return (
@@ -152,39 +166,34 @@ function OrgSection({
         </p>
 
         <div className="border-t border-border pt-3">
-          {!confirming ? (
-            <Button
-              variant="danger"
-              size="sm"
-              data-testid="org-delete"
-              disabled={!canEdit}
-              onClick={() => setConfirming(true)}
-            >
-              {t('settings.workspace.org_delete')}
-            </Button>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              {/* 되돌릴 수 없는 일이라 한 번 더 묻는다 — 그리고 **왜 막힐 수 있는지**를
-                  미리 말한다. 눌러 보고 나서 거절당하는 것보다 낫다 */}
-              <span className="text-sm text-status-danger">
-                {t('settings.workspace.org_delete_confirm')}
-              </span>
-              <Button
-                variant="danger"
-                size="sm"
-                data-testid="org-delete-confirm"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                {t('common.delete')}
-              </Button>
-              <Button size="sm" onClick={() => setConfirming(false)}>
-                {t('common.cancel')}
-              </Button>
-            </div>
-          )}
-          <p className="mt-1.5 text-2xs text-text-faint">
-            {t('settings.workspace.org_delete_rule')}
+          {/* 되돌릴 수 없는 일이라 한 번 더 묻는다 — 이 "같은 자리 두 단계" 가 확인의 한 모양이
+              됐다(REQ-WEB-200 · confirm-action.tsx) */}
+          <ConfirmAction
+            label={t('settings.workspace.org_delete')}
+            testId="org-delete"
+            disabled={!canEdit || blockedByProjects}
+            title={
+              !canEdit
+                ? t('settings.workspace.admin_only')
+                : counted
+                  ? t('settings.workspace.org_delete_blocked', {
+                      n: all.length,
+                      archived: archivedCount,
+                    })
+                  : undefined
+            }
+            message={t('settings.workspace.org_delete_confirm', { org: name })}
+            confirmLabel={t('common.delete')}
+            pending={remove.isPending}
+            onConfirm={() => remove.mutate()}
+          />
+          <p data-testid="org-delete-rule" className="mt-1.5 text-2xs text-text-faint">
+            {canEdit && counted && all.length > 0
+              ? t('settings.workspace.org_delete_blocked', {
+                  n: all.length,
+                  archived: archivedCount,
+                })
+              : t('settings.workspace.org_delete_rule')}
           </p>
         </div>
       </Card>
@@ -225,9 +234,9 @@ function ProjectSection({
     <div>
       <SectionTitle
         action={
-          canSeeArchived ? (
-            <span className="flex items-center gap-3">
-              {/* 보관을 **볼 수 있어야** 복구할 수 있다 — 켜면 목록이 보관까지 담는다 */}
+          <span className="flex items-center gap-3">
+            {/* 보관을 **볼 수 있어야** 복구할 수 있다 — 켜면 목록이 보관까지 담는다 */}
+            {canSeeArchived && (
               <label
                 className="flex cursor-pointer items-center gap-1.5 text-xs text-text-mute"
                 title={t('settings.workspace.show_archived_hint')}
@@ -240,13 +249,19 @@ function ProjectSection({
                 />
                 {t('settings.workspace.show_archived')}
               </label>
-              {canCreate && (
-                <Button size="sm" data-testid="project-new" onClick={() => setCreating(!creating)}>
-                  {creating ? t('common.cancel') : t('settings.workspace.project_new')}
-                </Button>
-              )}
-            </span>
-          ) : undefined
+            )}
+            {/* **숨기지 않는다**(REQ-WEB-003) — 예전에는 조직 admin 이 아니면 단추가 그려지지
+                않아, 프로젝트를 만드는 길이 있는지조차 알 수 없었다 */}
+            <Button
+              size="sm"
+              data-testid="project-new"
+              disabled={!canCreate}
+              title={canCreate ? undefined : t('settings.workspace.project_new_locked')}
+              onClick={() => setCreating(!creating)}
+            >
+              {creating ? t('common.cancel') : t('settings.workspace.project_new')}
+            </Button>
+          </span>
         }
       >
         {t('settings.workspace.projects')}
@@ -524,16 +539,34 @@ function ProjectRow({
           >
             {t('common.edit')}
           </Button>
-          <Button
-            size="sm"
-            variant={archived ? 'default' : 'danger'}
-            data-testid="project-archive"
-            disabled={!canEdit || archive.isPending}
-            title={canEdit ? undefined : t('settings.workspace.admin_only')}
-            onClick={() => archive.mutate()}
-          >
-            {archived ? t('settings.workspace.restore') : t('settings.workspace.archive')}
-          </Button>
+          {archived ? (
+            // 복구는 되돌리는 일이라 묻지 않는다
+            <Button
+              size="sm"
+              data-testid="project-archive"
+              disabled={!canEdit || archive.isPending}
+              title={canEdit ? undefined : t('settings.workspace.admin_only')}
+              onClick={() => archive.mutate()}
+            >
+              {t('settings.workspace.restore')}
+            </Button>
+          ) : (
+            // **보관은 남에게 미친다**(REQ-WEB-200) — 복구할 수 있지만, 그 사이 이 프로젝트의
+            // 결재 카드와 알림이 모든 사람의 화면에서 사라진다. 확인이 그 수를 말한다
+            <ConfirmAction
+              label={t('settings.workspace.archive')}
+              testId="project-archive"
+              disabled={!canEdit}
+              title={t('settings.workspace.admin_only')}
+              message={t('settings.workspace.archive_confirm', { name: String(project['name']) })}
+              detail={t('settings.workspace.archive_detail', {
+                n: Number(project['pending_approvals'] ?? 0),
+              })}
+              confirmLabel={t('settings.workspace.archive')}
+              pending={archive.isPending}
+              onConfirm={() => archive.mutate()}
+            />
+          )}
         </>
       )}
     </li>

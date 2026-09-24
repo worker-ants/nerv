@@ -348,3 +348,32 @@ describe('전이 거부는 인라인 한 곳에서 말한다 (REQ-WEB-196)', () 
     expect(screen.queryAllByTestId('toast')).toHaveLength(0);
   });
 });
+
+/**
+ * **포기는 한 번 묻는다**(REQ-WEB-200 · 2026-09-24 · UI/UX 검토 WORK-13). danger 색이면서 한 번에
+ * 클레임을 놓았다 — 세션 중단과 같은 성질(일을 내려놓고 ready 로 돌린다)인데 그쪽만 물었다.
+ */
+describe('클레임 포기', () => {
+  it('확인 전에는 놓지 않고, 확인하면 포기로 기록한다(인계가 아니다)', async () => {
+    detail = taskDetail({
+      claims: [
+        {
+          id: 'c-1',
+          status: 'active',
+          user_id: ME,
+          lease_expires_at: '2099-01-01T00:00:00Z',
+          scope_spec_ids: [],
+          scope_file_globs: [],
+        },
+      ],
+    });
+    await renderDetail();
+    fireEvent.click(await screen.findByTestId('release-abandon'));
+    expect(posted).toHaveLength(0);
+    expect(screen.getByTestId('release-abandon-confirming').textContent).toContain('ready');
+    fireEvent.click(screen.getByTestId('release-abandon-confirm'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]?.url).toMatch(/\/claims\/c-1\/release$/);
+    expect(posted[0]?.body).toEqual({ reason: 'abandon' });
+  });
+});

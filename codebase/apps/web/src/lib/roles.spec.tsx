@@ -146,9 +146,10 @@ describe('조직 단위 admin 이 admin 으로 대접받는다', () => {
   it('게이트 정책 탭이 편집 가능하다 — `role` 은 없는 필드였고 누구에게나 잠겨 있었다', async () => {
     renderAt('/settings/gates');
     await waitFor(() => expect(screen.getByText('게이트 정책', { selector: 'h1' })).toBeDefined());
-    // 프로젝트 목록이 도착해야 권한이 정해진다 — 그 전에는 저장이 잠겨 있는 것이 맞다
+    // 프로젝트 목록이 도착해야 권한이 정해진다 — 그 전에는 칸이 잠겨 있는 것이 맞다.
+    // [저장]은 바뀐 값이 있어야 켜지므로(REQ-WEB-201) 편집 가능은 칸으로 본다
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: '저장' }).hasAttribute('disabled')).toBe(false),
+      expect((screen.getByTestId('gate-boundary-T1') as HTMLInputElement).disabled).toBe(false),
     );
     expect(screen.queryByText(/역할만 가능합니다/)).toBeNull();
   });
