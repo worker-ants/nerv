@@ -4,7 +4,7 @@ A session is **one agent, running now**. The session monitor answers "what is go
 
 The list is on the left; the **activity rail** for the selected session is on the right. Pick a row and its activity streams right there — a monitor that makes you navigate elsewhere to see why something stalled is not a monitor. On a narrow screen the rail folds away; open **Details** on the card to see the activity there — **the detail screen draws the same thing as the rail** (what it did, the activity, run collapsing, raw payloads, [Load earlier activity]). Moving to a narrow screen does not cost you anything you could see.
 
-Each session carries whose machine it is on, which agent is running (`claude-code` · `codex` · `web` · `other`), and which task it has claimed. `other` is where a session that did not name its kind lands.
+Each session carries whose machine it is on, which agent is running (`claude-code` · `codex` · `web` · `other`), and which task it has claimed. `other` is where a session that did not name its kind lands. That task key **takes you to the task screen** — the same on the card, the rail, and the current task and claim history on the session screen; pressing the link inside a card does not count as picking the card.
 
 The card carries four more things — the **remaining lease** (it changes colour under two minutes, meaning the work is about to be reclaimed), when the last heartbeat was, the `+N −M` this session has changed, and the scope it declared (hover to unfold it). The lease runs 30 minutes, on the **same clock** as a task claim's lease.
 

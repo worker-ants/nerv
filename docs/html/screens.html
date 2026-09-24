@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.41 (2026-09-24)</span>
+      <span>버전 v1.42 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1346,6 +1346,8 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
   <p>칸반 레인: <b><code>blocked</code> / <code>ready</code> / <code>claimed</code> / <code>in_progress</code> / <code>in_review</code> / <code>done(7d)</code></b> — 전부 가로줄이다. <code>backlog</code>는 필터로 노출하되 <b>기본이 켜짐</b>이다(2026-09-08 · REQ-WEB-155).</p>
   <p><b><code>blocked</code> 를 하단 접이식에서 가로줄 맨 앞으로 옮겼다(2026-08-23 — 사람 판단).</b> 하단에 두면 보드를 다 지나 스크롤해야 닿고, 흐름 끝에 두면 여섯 번째 칸이라 1440px 화면에서도 잘린다 — 둘 다 "있긴 한데 안 보인다"이다. 막힌 일은 각주가 아니라 <b>먼저 풀어야 할 것</b>이라 흐름 앞에 세운다. 레인 바탕도 위험색 계열로 옅게 깔아 같은 가로줄에 있어도 성질이 다름을 보인다.</p>
 
+  <p><b>화면이 서로를 가리킨다</b>(2026-09-24 — UI/UX 검토 · REQ-WEB-209). 작업·세션·리뷰가 서로를 Mono 글자로만 가리켰다 — 세션 모니터에서 "mac-02 가 CLV-T-… 를 쥐고 있다" 를 본 사람은 키를 옮겨 적어 ⌘K 에 붙였고, 작업 상세는 쥔 세션의 id 를 적으면서 [세션 보기]가 없었으며, "열린 critical 2건" 을 붉게 적고 그 발견들로 가는 길이 없었다. 시안의 첫 규칙("숫자를 누르면 그 숫자를 만든 레코드로 간다")이 이 영역에서 거의 닫혀 있지 않았다. 키 → 경로를 <b><code>EntityLink</code> 한 곳</b>에서 정한다 — 자리마다 경로를 다시 적으면 그때마다 조금씩 다르게 틀린다. 눌러서 고르는 카드 안의 링크는 고르기와 겹치지 않는다. 보드 카드는 §2.4d 의 결정대로 담당을 이니셜로 두되 <b>이름을 툴팁과 스크린리더로</b> 읽히고, 에이전트가 실행 중이면 세션으로 가는 작은 <b>AI</b> 표식을 둔다— 담당은 사람이고 실행은 에이전트 세션이라 한 칸에 겹치지 않는다(D-08 사람 담당·에이전트 위임 분리).</p>
+
   <p><b>패널은 가로로만 배치한다(2026-08-23).</b> 세로로 쌓인 패널은 스크롤 없이 안 보이고, 그 순간 "지금 무엇이 흐르고 있나"라는 이 화면의 물음에 답하지 못한다.</p>
 
   <p><b>폭이 좁은 자리에 놓이는 목록은 컨테이너 폭을 본다.</b> 뷰포트 미디어 쿼리는 여기서 거짓말을 한다 — 화면은 1440px 인데 세션 줄이 놓인 칸은 350px 일 수 있고(대시보드), 그때 고정 폭 열이 넘쳐 가운데 칸이 한 글자 폭으로 찌그러진다(실측 2026-08-23). <code>@container</code> 로 자기 폭을 보고 좁으면 작업 줄과 사유가 제 줄로 내려간다.</p>
@@ -1503,6 +1505,7 @@ export const TaskCreateInput = z
       <tr><td>REQ-WEB-159</td><td>WHEN 작업 상세가 증적을 그리면 THE SYSTEM SHALL 그 증적이 가리키는 곳으로 가는 링크를 <b>새 탭</b>으로 열고(PR 은 locator, 커밋·코드 경로는 프로젝트 저장소 주소 위에, 리뷰는 그 발견의 리뷰 센터), 데려갈 곳을 만들 수 없는 종류는 링크가 아니라 글자로 둔다. WHERE 커밋·코드 경로 증적이 있는데 프로젝트 저장소 주소가 비어 있으면 THE SYSTEM SHALL 그 사실을 적는다</td><td>넷은 링크 · 테스트 이름은 글자 · 저장소 주소 없으면 사유를 적는다</td></tr>
       <tr><td>REQ-WEB-202</td><td>WHEN 작업 상세를 그리면 THE SYSTEM SHALL 상태로 다음 행동을 정해 머리에 세운다 — 백로그는 4요소가 차 있으면 [준비됨으로 올리기](전이 <code>ready</code> — 서버가 4요소·의존을 판정), 비어 있으면 [위임 명세 채우기] · 준비됨은 [클레임] · 맡음은 [진행 시작] · 진행 중은 [검토 요청]·[완료…] · 검토 중은 [완료…] · 막힘은 [막힘 풀기](해소 판정이 참이면 켜고, <code>null</code> 이면 확인하고 풀기, 거짓이면 잠근다). WHERE 작업이 준비됨이 아니고 리스가 지난 클레임도 없으면 THE SYSTEM SHALL [클레임]을 세우지 않는다. WHEN 4요소가 찬 backlog 카드를 그리면 THE SYSTEM SHALL [준비됨으로 올리기]를 둔다. WHEN 완료 폼을 펼치면 THE SYSTEM SHALL 스펙 영향을 고르지 않은 채 시작해 고르기 전에는 완료를 잠그고, "있음" 이면 메모를 요구하며, 붙은 증적이 없으면 미리 말한다. WHEN 위임 명세 카드를 그리면 THE SYSTEM SHALL 빈 요소와 임포트 자리표시자를 ❌ 로 보이고 그 자리에서 고치는 문을 둔다. WHEN 수정 폼이 채워지지 않았던 요소(빈 칸 · 임포트 자리표시자)를 열면 THE SYSTEM SHALL 그 값이 아니라 빈 칸과 안내로 보이고, 비워 둔 채 저장하면 그 요소를 보내지 않으며(서버가 그대로 둔다), 저장 뒤 아직 비어 있는 요소를 이름으로 말한다 — 원래 내용이 있던 요소는 비울 수 없다. WHEN 작업·클레임 상태, 리뷰 종류·상태, 증적 종류를 보이면 THE SYSTEM SHALL 어휘의 라벨로 보인다(어휘 밖이면 원문)</td></tr>
       <tr><td>REQ-WEB-203</td><td>WHEN 작업 화면이 만들기([+ 새 작업])·위임 명세 고치기([채우기]·[고치기]·[기준 갱신])·상태 옮기기·클레임 단추를 그리면 THE SYSTEM SHALL 서버 가드와 같은 역할·권한 목록(<code>@nerv/schema</code> 의 <code>TASK_CREATE_ROLES</code>·<code>TASK_EDIT_ROLES</code>, <code>task:update</code>·<code>task:claim</code>)으로 판정해 할 수 없는 사람에게는 숨기지 않고 비활성 + 할 수 있는 역할을 적은 사유로 둔다</td></tr>
+      <tr><td>REQ-WEB-209</td><td>WHEN 화면이 작업·세션·스펙·리뷰 브랜치·발견을 키로 가리키면 THE SYSTEM SHALL 그 자리를 그 대상으로 가는 링크로 그리고, 경로는 한 곳에서 정한다. WHEN 작업 상세를 그리면 THE SYSTEM SHALL 담당과 실행 세션을 머리에 보이고, 클레임 줄에서 그 세션으로, 출처 요구사항에서 그 스펙의 요구사항 탭으로, 리뷰 줄에서 그 브랜치의 발견으로 가는 링크를 준다. WHEN 리뷰 센터가 브랜치로 열리면 THE SYSTEM SHALL 그렇게 거른 사실과 푸는 길을 보인다. WHEN 발견이 작업에서 나왔거나 작업으로 올려졌으면 THE SYSTEM SHALL 그 작업으로 가는 링크를 보이고, 올린 뒤의 승격 단추 자리는 그 작업으로 가는 링크가 된다. WHEN 보드 카드가 담당을 이니셜로만 그리면 THE SYSTEM SHALL 그 이름을 툴팁과 스크린리더로 읽히고, 에이전트 세션이 실행 중이면 그 세션으로 가는 표식을 둔다</td></tr>
     </tbody>
   </table></div>
 

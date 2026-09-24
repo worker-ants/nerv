@@ -16,6 +16,8 @@ Lanes are task statuses.
 
 Screens speak in **names** — board lanes, the task screen, sessions and a spec's derived-task list all use the same names. The value in brackets is the identifier the API, the CLI and agents use.
 
+**A board card says whose work it is and who is running it.** The assignee shows only as an initials circle, but hovering shows the name and a screen reader reads it. When an agent session is running the task a small **AI** mark appears; press it to go to that session. Priority shows as a chip **for P0 and P1 only** — on every card it would not be a signal. The source spec key also takes you to that spec.
+
 `in_review` is an **optional** step. Use it on a shared board when you want "the work is out, nobody has checked it yet" to be visible. Going straight from `in_progress` to `done` is fine — what actually gates completion is the evidence and the spec impact, not the lane.
 
 **A blocked reason is picked from four** — waiting on an answer, a dependency broke, conflicts with the base spec, something outside the repo. It is not a free-text box: when the same situation is written differently by different people, **counting how many tasks are blocked stops being true.** Anything more to say goes in a comment or a question.
@@ -45,6 +47,8 @@ The buttons to the right of the task title are **the door from the current statu
 
 **Buttons you cannot press still show** — locked, with the reason on hover (which roles can · someone else holds it · the block is not cleared yet). [Claim] appears only on **Ready** tasks — except a task held only by an expired lease, where pressing it reclaims that claim. On a backlog or blocked task it used to be a button that got refused.
 
+**The header shows the assignee and the runner together.** **Assignee {name}** is the person responsible for the work; **Running on {host} ▸** is the agent session holding the task right now — press it to go to that session. They can be different: people set the assignee, while the runner is whoever holds the claim.
+
 **The finish form opens when you press [Finish…] or when the task is Claimed, In progress or In review.** The spec impact **starts with nothing chosen** — "none" is a choice too, so [Move to done] is locked until you pick. Choose "some" and it turns on only once you write which spec should change and how. If no evidence is attached, the form says so before you press — the done gate requires evidence. Marking a task blocked happens in its own **Mark as blocked** card, where you pick the reason.
 
 ## The four parts of a brief
@@ -62,7 +66,7 @@ If any of them is empty the task cannot be claimed. **Large work takes one more 
 
 **The brief is edited on the task screen.** **[Edit]** on the brief card opens the form in place. Empty parts and import placeholders ("source had no delegation brief") are marked **❌**. In the form those parts open **blank**, with "Missing from the source — needs filling in" shown faintly. Only the parts you fill are saved; a part left blank stays as it was — so you can change just the title. After saving, the screen names the parts that are still empty. A part that already had content cannot be cleared. The rebrief badge has an [Edit] beside it too — when the basis moves, the instructions need reading again. **Planners, developers, admins and qa create tasks; planners, developers and admins edit the brief** (qa turns findings into tasks but does not write briefs). Anyone who cannot sees [+ New task], [Fill it in] and [Edit] locked — so nobody fills in the whole form only to be refused.
 
-The task screen shows that basis in human terms: the requirement's stable ID and sentence, the active claim's remaining lease and declared scope, and the reviews that covered this task (open criticals in red).
+The task screen shows that basis in human terms: the requirement's stable ID and sentence, the active claim's remaining lease and declared scope, and the reviews that covered this task (open criticals in red). All three take you there — the requirement to the **Requirements** tab of its spec, **[View session ▸]** on the claim row to the session holding that claim, and the branch on a review row to the review center filtered to **that branch's findings only**.
 
 ## Claims and leases
 

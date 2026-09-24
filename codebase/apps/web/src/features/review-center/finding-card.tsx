@@ -15,6 +15,7 @@ import { statusLabelKey } from '@nerv/schema';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { StatusBadge } from '../../components/status-badge.js';
+import { EntityLink } from '../../components/entity-link.js';
 import { SEVERITY_TOKEN } from '../../components/status-token.js';
 import { useT } from '../../lib/i18n.js';
 import type { Row } from '../../lib/queries.js';
@@ -65,6 +66,29 @@ export function FindingCard({
       <div className="flex flex-wrap items-start gap-2">
         <StatusBadge token={token} label={t(`severity.${severity}` as 'severity.info')} />
         <h3 className="min-w-0 flex-1 text-sm font-medium text-text">{String(finding['title'])}</h3>
+        {/* **어느 작업에서 나왔고, 어느 작업으로 올렸나**(REQ-WEB-209) — 발견에서 작업으로 갈 길이 없었다 */}
+        {typeof finding['task_key'] === 'string' && (
+          <EntityLink
+            projectSlug={projectSlug}
+            entity={{ kind: 'task', key: finding['task_key'] }}
+            stop
+            testId="finding-task-link"
+            className="text-2xs"
+          >
+            {t('reviews.from_task', { key: finding['task_key'] })}
+          </EntityLink>
+        )}
+        {typeof finding['promoted_task_key'] === 'string' && (
+          <EntityLink
+            projectSlug={projectSlug}
+            entity={{ kind: 'task', key: finding['promoted_task_key'] }}
+            stop
+            testId="finding-promoted-link"
+            className="text-2xs"
+          >
+            {t('reviews.promoted_to', { key: finding['promoted_task_key'] })}
+          </EntityLink>
+        )}
         {status !== 'open' && (
           <StatusBadge token="idle" label={t(statusLabelKey('finding', status))} />
         )}

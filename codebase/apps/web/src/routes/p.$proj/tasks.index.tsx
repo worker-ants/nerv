@@ -41,6 +41,7 @@ import {
   Skeleton,
   SummaryStrip,
 } from '../../components/ui/primitives.js';
+import { EntityLink } from '../../components/entity-link.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { asProjectId } from '../../lib/query-keys.js';
@@ -585,9 +586,54 @@ function TaskCard({
         {/* **누구 것인가를 읽지 않고 알아보게 한다** — 이름을 글자로 늘어놓으면
             줄마다 같은 굵기의 텍스트가 하나 더 늘 뿐이다 */}
         {typeof task['assignee_name'] === 'string' && (
-          <Avatar name={task['assignee_name']} size="sm" />
+          // 이니셜만 서는 자리라 **이름을 툴팁·스크린리더로** 준다(REQ-WEB-209) — 같은 이니셜 둘을 가를 수
+          // 없었고 읽는 도구에는 아무것도 읽히지 않았다. 글자로 늘어놓지는 않는다(§2.4d)
+          <Avatar
+            name={task['assignee_name']}
+            size="sm"
+            label={t('task.meta.assignee', { name: task['assignee_name'] })}
+          />
+        )}
+        {/* **에이전트가 돌리고 있다** — 세션으로 가는 작은 표식(D-08 사람 담당·에이전트 위임 분리 · REQ-WEB-209) */}
+        {typeof task['claim_session_id'] === 'string' &&
+          typeof task['claim_hostname'] === 'string' && (
+            <EntityLink
+              projectSlug={proj}
+              entity={{ kind: 'session', id: task['claim_session_id'] }}
+              testId="task-card-runner"
+              title={t('tasks.card_runner', {
+                host: task['claim_hostname'],
+                agent: String(task['claim_agent_type'] ?? ''),
+              })}
+              className="rounded-nerv-sm bg-status-agent-soft px-1 text-2xs font-medium text-status-agent hover:no-underline"
+            >
+              AI
+            </EntityLink>
+          )}
+        {/* 우선순위는 레인의 정렬 기준이다 — **급한 둘만** 작게 보인다(다 보이면 신호가 아니다) */}
+        {(task['priority'] === 'P0' || task['priority'] === 'P1') && (
+          <span
+            data-testid="task-card-priority"
+            className={cn(
+              'rounded-nerv-sm px-1 text-2xs font-medium',
+              task['priority'] === 'P0'
+                ? 'bg-status-danger-soft text-status-danger'
+                : 'bg-status-waiting-soft text-status-waiting',
+            )}
+          >
+            {String(task['priority'])}
+          </span>
         )}
         <span className="font-mono tracking-[-0.02em] text-text-ghost">{String(task['key'])}</span>
+        {/* 어느 스펙에서 나온 일인가 — 흐리게, 누르면 그 스펙으로 */}
+        {typeof task['spec_key'] === 'string' && (
+          <EntityLink
+            projectSlug={proj}
+            entity={{ kind: 'spec', key: task['spec_key'] }}
+            testId="task-card-spec"
+            className="font-mono text-text-ghost hover:text-link"
+          />
+        )}
         {/* **경과 시간은 오른쪽 끝에 붙는다**(시안 대조 2026-08-23). 카드가 스무 장
             늘어선 칸에서 "얼마나 묵었나"는 세로로 훑히는 값이라 열이 맞아야 읽힌다 —
             메타 줄 가운데에 섞어 두면 카드마다 위치가 달라 매번 찾아야 한다. */}

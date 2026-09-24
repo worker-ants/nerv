@@ -310,6 +310,10 @@ export class TaskService {
              s.key AS spec_key, s.id AS source_spec_id, sv.version_no AS basis_version_no,
              (sv.status = 'superseded') AS basis_superseded,
              c.id AS claim_id, c.agent_session_id AS claim_session_id, c.lease_expires_at,
+             -- **누가 실행하는가**(2026-09-24 · REQ-API-180). 세션 id 만 주면 보드가 "에이전트가 쥐었다"
+             -- 는 말도, 그 세션으로 가는 길도 만들 수 없었다(D-08 담당·실행 분리)
+             cs.hostname AS claim_hostname, cs.agent_type::text AS claim_agent_type,
+             cs.state::text AS claim_session_state,
              -- **승격·전이와 같은 판정이다**(REQ-API-175). "NULL 이 아닌가" 만 보던 동안 임포트
              -- 자리표시자를 찬 것으로 셌고, 되돌린 임포트 작업이 [채우기] 없이 backlog 에 갇혔다
              (${filledSql(sql`t.goal_md`)} AND ${filledSql(sql`t.output_format_md`)}
@@ -322,6 +326,7 @@ export class TaskService {
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN claim c ON c.task_id = t.id AND c.status = 'active'
+   LEFT JOIN agent_session cs ON cs.id = c.agent_session_id
        WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${agent}${spec}${archived}${seek}
        ORDER BY t.priority, t.updated_at DESC, t.id
        LIMIT ${limit + 1}
@@ -363,8 +368,11 @@ export class TaskService {
              (sv.status = 'superseded') AS basis_superseded,
              -- **근거는 사람 말로 보여야 한다**(2026-09-07 · REQ-API-142). 화면이 UUID 원문을
              -- 그리던 자리다 — 요구사항의 고정 ID(REQ-…)가 사람이 아는 이름이다.
-             r.ref AS source_requirement_ref, r.statement_md AS source_requirement_statement
+             r.ref AS source_requirement_ref, r.statement_md AS source_requirement_statement,
+             -- 상세 머리가 **담당**을 이름으로 말한다(REQ-API-180) — 목록은 싣는데 상세는 id 뿐이었다
+             au.display_name AS assignee_name
         FROM task t
+   LEFT JOIN "user" au ON au.id = t.assignee_user_id
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN requirement r ON r.id = t.source_requirement_id

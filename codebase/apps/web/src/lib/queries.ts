@@ -648,6 +648,8 @@ export function useFindings(
     status: readonly string[];
     tag: readonly string[];
     area: readonly string[];
+    /** 한 브랜치의 발견만(REQ-API-180) — 작업 상세의 리뷰 줄·게이트 표가 여기로 온다 */
+    branch?: string | undefined;
   },
   projectId?: ProjectId,
 ): UseInfiniteQueryResult<InfiniteData<FindingQueueResponse>> {
@@ -657,6 +659,7 @@ export function useFindings(
   if (filters.status.length > 0) base.set('status', filters.status.join(','));
   if (filters.tag.length > 0) base.set('tag', filters.tag.join(','));
   if (filters.area.length > 0) base.set('area', filters.area.join(','));
+  if (filters.branch !== undefined && filters.branch !== '') base.set('branch', filters.branch);
   return useInfiniteQuery({
     queryKey: [...queryKeys.projectFindings(projectId ?? PENDING_PROJECT), filters],
     queryFn: ({ pageParam }) => {
