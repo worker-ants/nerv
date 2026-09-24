@@ -9,12 +9,13 @@
 // ③ 지나가지 못한 건은 목록에 남아 이유를 말한다.
 
 import { useT } from '../lib/i18n.js';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ApprovalCard } from '../features/inbox/approval-card.js';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApprovalCard, inView } from '../features/inbox/approval-card.js';
 import type { CardFailure } from '../features/inbox/approval-card.js';
 import { apiFetch } from '../lib/api.js';
+import { relativeTime } from '../lib/format.js';
 import { useApiError } from '../lib/api-errors.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { inboxCards, inboxTotal, useInbox } from '../lib/queries.js';
@@ -33,8 +34,15 @@ import { ScopeBadge } from '../components/scope-badge.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
 
 export const Route = createFileRoute('/inbox')({
-  validateSearch: (search: Record<string, unknown>): { state?: 'pending' | 'decided' } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { state?: 'pending' | 'decided'; focus?: string } => ({
     ...(search['state'] === 'decided' ? { state: 'decided' as const } : {}),
+    // **그 카드로 착지한다**(2026-09-24 — UI/UX 검토 · REQ-WEB-204). 홈의 오늘 할 일 · 알림 ·
+    // 에이전트가 건넨 `web_url` 이 모두 맨 `/inbox` 라, 사람은 방금 누른 요청을 목록에서 다시 찾았다
+    ...(typeof search['focus'] === 'string' && search['focus'] !== ''
+      ? { focus: search['focus'] }
+      : {}),
   }),
   component: InboxScreen,
 });
@@ -64,9 +72,14 @@ function bulkApprovable(card: Row): boolean {
 
 function InboxScreen(): React.JSX.Element {
   const t = useT();
-  const { state = 'pending' } = Route.useSearch();
+  const { state = 'pending', focus } = Route.useSearch();
   const inbox = useInbox(state);
   const [cursor, setCursor] = useState(0);
+  /** 착지한 카드 — 잠깐 강조한다 */
+  const [landed, setLanded] = useState<string | null>(null);
+  /** 찾던 카드가 목록에 끝내 없다 — 이미 처리됐거나 내 큐가 아니다 */
+  const [missing, setMissing] = useState<string | null>(null);
+  const handledFocus = useRef<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const cards = inboxCards(inbox.data);
   const total = inboxTotal(inbox.data);
@@ -156,6 +169,35 @@ function InboxScreen(): React.JSX.Element {
     onError: onApiError,
   });
 
+  // **카드가 줄면 커서를 끌어온다**(REQ-WEB-204). 마지막 카드를 처리하면 커서가 목록 밖에 남아
+  // 활성 카드가 없는데도 범례는 떠 있었다
+  useEffect(() => {
+    if (cards.length > 0 && cursor > cards.length - 1) setCursor(cards.length - 1);
+  }, [cards.length, cursor]);
+
+  /**
+   * `?focus=` 착지 — 받아 온 쪽에 있으면 그 카드로, 없으면 다음 쪽을 이어 받고, 끝내 없으면
+   * 그렇다고 말한다(아래 `FocusMissing`). 한 번만 한다 — 목록이 갱신될 때마다 커서를 빼앗지 않게.
+   */
+  useEffect(() => {
+    if (focus === undefined || handledFocus.current === focus || inbox.data === undefined) return;
+    const index = cards.findIndex((card) => String(card['id']) === focus);
+    if (index >= 0) {
+      handledFocus.current = focus;
+      setMissing(null);
+      setCursor(index);
+      setLanded(focus);
+      window.setTimeout(() => setLanded(null), 2000);
+      return;
+    }
+    if (inbox.hasNextPage === true) {
+      if (!inbox.isFetchingNextPage) void inbox.fetchNextPage();
+      return;
+    }
+    handledFocus.current = focus;
+    setMissing(focus);
+  }, [focus, cards, inbox]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       // 입력 중에는 단축키가 글자를 먹지 않는다
@@ -167,7 +209,9 @@ function InboxScreen(): React.JSX.Element {
       // 대문자는 Shift 를 누른 것이다 — 소문자 a/r/c(단건)와 겹치지 않는다
       if (e.key === 'x') {
         const card = cards[cursor];
-        if (card !== undefined && selectableCard(card)) toggle(String(card['id']));
+        // 보이지 않는 카드는 고르지 않는다 — 결정 키와 같은 규칙이다(REQ-WEB-204)
+        const el = listRef.current?.children[cursor] ?? null;
+        if (card !== undefined && selectableCard(card) && inView(el)) toggle(String(card['id']));
       }
       if (e.key === 'X') setSelected(new Set(selectable.map((card) => String(card['id']))));
       if (e.key === 'A') openConfirm('approve');
@@ -182,7 +226,8 @@ function InboxScreen(): React.JSX.Element {
 
   useEffect(() => {
     const el = listRef.current?.children[cursor];
-    if (el instanceof HTMLElement) el.scrollIntoView({ block: 'nearest' });
+    // 레이아웃이 없는 환경(테스트)에는 이 함수가 없다 — 없으면 옮기지 않는다
+    if (el instanceof HTMLElement) el.scrollIntoView?.({ block: 'nearest' });
   }, [cursor]);
 
   return (
@@ -193,25 +238,31 @@ function InboxScreen(): React.JSX.Element {
         description={t('inbox.scope_all')}
         actions={
           // 탭은 두 개뿐이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 두 링크로 읽힌다
+          // **앱 안에서 옮긴다**(REQ-WEB-204) — `<a href>` 라 누를 때마다 앱 전체가 다시 로드되고
+          // 실시간 연결이 끊겼다 붙었다
           <nav className="flex rounded-nerv-sm border border-border p-0.5 text-xs">
-            <a
-              href="/inbox"
+            <Link
+              to="/inbox"
+              search={{}}
+              data-testid="inbox-tab-pending"
               className={cn(
                 'rounded-nerv-sm px-2.5 py-1',
                 state === 'pending' ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
               )}
             >
               {t('inbox.tab.pending')}
-            </a>
-            <a
-              href="/inbox?state=decided"
+            </Link>
+            <Link
+              to="/inbox"
+              search={{ state: 'decided' }}
+              data-testid="inbox-tab-decided"
               className={cn(
                 'rounded-nerv-sm px-2.5 py-1',
                 state === 'decided' ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
               )}
             >
               {t('inbox.tab.decided')}
-            </a>
+            </Link>
           </nav>
         }
         meta={
@@ -237,6 +288,9 @@ function InboxScreen(): React.JSX.Element {
         <span>
           <Key>c</Key> {t('inbox.key.comment')}
         </span>
+        <span>
+          <Key>⌘↵</Key> {t('inbox.key.send')}
+        </span>
         {state === 'pending' && (
           <>
             <span>
@@ -247,7 +301,11 @@ function InboxScreen(): React.JSX.Element {
             </span>
           </>
         )}
+        {/* 키가 **어느 카드에** 꽂히는지 — 강조된(왼쪽 띠) 카드다. 누르거나 칸에 들어가면 그 카드가 된다 */}
+        <span className="text-text-ghost">{t('inbox.key.applies')}</span>
       </p>
+
+      {missing !== null && <FocusMissing id={missing} />}
 
       {/* **선택 바는 고른 것이 있을 때만 선다.** 늘 떠 있으면 일괄이 기본 조작으로 읽히고,
           받은 요청의 기본은 한 건씩 보는 것이다(그것이 이 화면의 존재 이유다) */}
@@ -400,9 +458,14 @@ function InboxScreen(): React.JSX.Element {
           <li
             key={String(card['id'])}
             data-active={index === cursor}
+            data-landed={landed === String(card['id']) || undefined}
+            // **누르거나 들어간 카드가 커서다**(REQ-WEB-204). j/k 로만 옮겨지던 동안, 다른 카드의
+            // [본문 보기]를 누르고 a 를 치면 커서가 남아 있던 카드가 승인됐다
+            onPointerDownCapture={() => setCursor(index)}
+            onFocusCapture={() => setCursor(index)}
             // 포커스는 **왼쪽 띠**다. 링을 두르면 카드가 떠 보이고, j/k 로 훑을 때
             // 카드가 하나씩 튀어오르는 것처럼 읽힌다
-            className="rounded-nerv border-l-2 border-transparent pl-1 transition-colors data-[active=true]:border-status-action"
+            className="rounded-nerv border-l-2 border-transparent pl-1 transition-colors data-[active=true]:border-status-action data-[landed=true]:bg-status-action-soft"
           >
             <ApprovalCard
               card={card}
@@ -437,6 +500,43 @@ function InboxScreen(): React.JSX.Element {
         </div>
       )}
     </PageBody>
+  );
+}
+
+/**
+ * 찾던 카드가 없다 — **왜 없는지** 말한다(REQ-WEB-204). 결재면 누가 무엇으로 처리했는지를 한 건
+ * 받아 온다(EP-APR-02). 질문이거나 내 것이 아니면 "처리됐거나 받은 요청에 없다" 로 말한다.
+ */
+function FocusMissing({ id }: { id: string }): React.JSX.Element {
+  const t = useT();
+  const detail = useQuery({
+    queryKey: ['approval', id],
+    queryFn: () => apiFetch<Record<string, unknown>>(`/approvals/${id}`),
+    retry: false,
+  });
+  const decision = detail.data?.['decision'];
+  const text =
+    typeof decision === 'string'
+      ? t('inbox.focus.decided', {
+          decision: t(
+            decision === 'approve'
+              ? 'inbox.decision.approve'
+              : decision === 'reject'
+                ? 'inbox.decision.reject'
+                : 'inbox.decision.comment',
+          ),
+          who: String(detail.data?.['decided_by'] ?? '—'),
+          when: relativeTime(t, String(detail.data?.['decided_at'] ?? '')),
+        })
+      : t('inbox.focus.gone');
+  return (
+    <p
+      role="status"
+      data-testid="focus-missing"
+      className="mb-3 rounded-nerv-sm bg-bg-sunken px-3 py-2 text-sm text-text-mute"
+    >
+      {detail.isPending ? t('common.loading') : text}
+    </p>
   );
 }
 

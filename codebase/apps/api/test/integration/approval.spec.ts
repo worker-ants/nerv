@@ -2295,6 +2295,197 @@ describe('받은 요청의 쪽 넘김 (REQ-API-166)', () => {
   });
 });
 
+/**
+ * **요청의 그림자 알림은 요청과 함께 닫힌다**(2026-09-24 — UI/UX 검토 · REQ-API-176).
+ *
+ * 받은 요청에서 카드를 처리하면 받은 요청 배지는 줄었지만 알림 배지는 그대로였다 — 결정 경로
+ * 어디에서도 그 알림을 읽음으로 바꾸지 않았고, 역할 큐의 다른 승인자가 먼저 처리해도 내 알림은
+ * 여전히 "승인 요청" 이었다.
+ */
+describe('요청이 닫히면 그 알림도 닫힌다 (REQ-API-176)', () => {
+  const unreadOf = async (type: string, subjectId: string): Promise<number> =>
+    count(
+      `SELECT count(*)::int AS n FROM notification n JOIN event e ON e.id = n.event_id
+        WHERE e.type = '${type}' AND e.subject_id = '${subjectId}' AND n.state = 'unread'`,
+    );
+  const allOf = async (type: string, subjectId: string): Promise<number> =>
+    count(
+      `SELECT count(*)::int AS n FROM notification n JOIN event e ON e.id = n.event_id
+        WHERE e.type = '${type}' AND e.subject_id = '${subjectId}'`,
+    );
+
+  async function specRequest(): Promise<string> {
+    const versionId = await makeSpecVersion('# 알림\n\n본문', 'in_review');
+    await pool.query(
+      `UPDATE spec_version SET author_user_id = $2, submitted_at = now() WHERE id = $1`,
+      [versionId, designer],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: designer,
+    });
+    return approval_id;
+  }
+
+  it('결정하면 그 요청의 알림이 **모든 수신자**에게서 읽음이 된다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const approvalId = await specRequest();
+    await notifications.route();
+    // 결재 큐(planner·reviewer 등)가 함께 받는다 — 한 사람이 처리하면 모두의 그림자가 닫혀야 한다
+    expect(await unreadOf(NERV_EVENT.APPROVAL_REQUESTED, approvalId)).toBeGreaterThan(1);
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    expect(await unreadOf(NERV_EVENT.APPROVAL_REQUESTED, approvalId)).toBe(0);
+  });
+
+  it('파생보다 결정이 먼저면 알림은 **읽은 채로** 생긴다 — 뒤늦게 배지를 올리지 않는다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const approvalId = await specRequest();
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId,
+      userId: reviewer,
+      decision: 'reject',
+      comment: '다시',
+    });
+    await notifications.route();
+    expect(await allOf(NERV_EVENT.APPROVAL_REQUESTED, approvalId)).toBeGreaterThan(0);
+    expect(await unreadOf(NERV_EVENT.APPROVAL_REQUESTED, approvalId)).toBe(0);
+  });
+
+  it('질문에 답하면 그 질문의 알림이 닫힌다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const made = await questions.create({ projectId, sessionId, title: '어느 쪽으로?' });
+    const questionId = String(
+      (made as Record<string, unknown>)['question_id'] ?? (made as Record<string, unknown>)['id'],
+    );
+    await notifications.route();
+    expect(await unreadOf(NERV_EVENT.QUESTION_CREATED, questionId)).toBeGreaterThan(0);
+    await questions.answer({
+      projectId,
+      questionId,
+      userId: reviewer,
+      actor: person(reviewer),
+      answerMd: '왼쪽',
+    });
+    expect(await unreadOf(NERV_EVENT.QUESTION_CREATED, questionId)).toBe(0);
+  });
+
+  it('알림 목록은 그 요청이 닫혔는지와 누가 닫았는지를 싣는다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const approvalId = await specRequest();
+    await notifications.route();
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    const { items } = await notifications.list({ userId: planner });
+    const row = items.find(
+      (i) => i['event_type'] === NERV_EVENT.APPROVAL_REQUESTED && i['subject_id'] === approvalId,
+    );
+    expect(row).toMatchObject({ resolution: 'approve', resolved_by: '서연' });
+  });
+});
+
+/**
+ * **카드가 무엇을 · 누가 · 왜 를 싣는다**(2026-09-24 — UI/UX 검토 · REQ-API-177). 플랜·발견 카드는
+ * 대상조차 가리키지 않았고, 스펙 카드는 변경 요약·요청 세션·게이트 티어를 싣지 않았다.
+ */
+describe('받은 요청 카드의 대상과 요청 줄 (REQ-API-177)', () => {
+  const inboxOf = async (userId: string): Promise<Record<string, unknown>[]> =>
+    (await approvals.inboxGlobal({ actor: person(userId), userId })).items;
+
+  it('플랜 카드는 그 작업을, 세션이 올렸으면 그 세션과 기다림을 싣는다', async () => {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status) VALUES ($1,$2,'CLV-T-PLAN01','큰 작업','backlog')`,
+      [taskId, projectId],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: taskId,
+      requestedByUserId: planner,
+      requestedBySessionId: sessionId,
+    });
+    await pool.query(`UPDATE agent_session SET state = 'awaiting_input' WHERE id = $1`, [
+      sessionId,
+    ]);
+    const card = (await inboxOf(reviewer)).find((c) => c['id'] === approval_id);
+    expect(card).toMatchObject({
+      task_key: 'CLV-T-PLAN01',
+      task_title: '큰 작업',
+      requested_hostname: 'mac-07',
+      requested_agent_type: 'claude-code',
+      session_waiting: true,
+    });
+  });
+
+  it('발견 카드는 그 발견의 제목·심각도와 갈 곳을 싣는다', async () => {
+    const findingId = newId();
+    const reviewSessionId = newId();
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, branch, base_sha, head_sha, changeset_hash,
+                                   kind, trigger)
+       VALUES ($1,$2,'feat/y','base','head',decode($3,'hex'),'code','manual')`,
+      [reviewSessionId, projectId, findingId.replaceAll('-', '').slice(0, 32)],
+    );
+    await pool.query(
+      `INSERT INTO finding (id, project_id, fingerprint, category, severity, status, title,
+                            first_session_id, last_session_id)
+       VALUES ($1,$2,decode($3,'hex'),'correctness','critical','open','경계 밖 수정',$4,$4)`,
+      [findingId, projectId, findingId.replaceAll('-', '').slice(0, 32), reviewSessionId],
+    );
+    // 발견 결재는 리뷰 서비스가 직접 세운다(critical 하향 · `review.service.ts`) — 같은 모양으로 넣는다
+    const approval_id = newId();
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+       VALUES ($1, $2, 'finding', $3, $4)`,
+      [approval_id, projectId, findingId, planner],
+    );
+    const card = (await inboxOf(reviewer)).find((c) => c['id'] === approval_id);
+    expect(card).toMatchObject({
+      finding_id: findingId,
+      finding_title: '경계 밖 수정',
+      finding_severity: 'critical',
+    });
+  });
+
+  it('스펙 카드는 변경 요약과 게이트 티어를 싣는다', async () => {
+    const versionId = await makeSpecVersion('# 요약\n\n본문', 'in_review');
+    await pool.query(
+      `UPDATE spec_version SET author_user_id = $2, submitted_at = now(),
+              change_summary_md = '경계 절을 좁혔다' WHERE id = $1`,
+      [versionId, designer],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: designer,
+    });
+    // 티어는 스펙 제출이 판정해 요청 이벤트에 싣는다 — event 는 append-only 라 그 이벤트를 흉내 낸다
+    await pool.query(
+      `INSERT INTO event (id, project_id, type, subject_type, subject_id, payload)
+       VALUES ($1, $2, 'approval.requested', 'approval', $3, jsonb_build_object('gate_tier', 'T2'))`,
+      [newId(), projectId, approval_id],
+    );
+    const card = (await inboxOf(reviewer)).find((c) => c['id'] === approval_id);
+    expect(card).toMatchObject({ change_summary_md: '경계 절을 좁혔다', gate_tier: 'T2' });
+  });
+});
+
 async function makeSpecVersion(body: string, status = 'draft'): Promise<string> {
   const specId = newId();
   const versionId = newId();

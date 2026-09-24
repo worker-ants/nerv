@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.68 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.69 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.69 변경(2026-09-24 — 받은 요청을 믿고 누를 수 없었다): **§2.2 트리 한 줄.** `modules/event/request-notifications.ts` — 결재·질문이 닫히면 그 요청의 알림을 모든 수신자에게서 닫고, 이미 닫힌 요청의 알림은 읽은 채로 파생한다([4.4](api.md) REQ-API-176).
 >
 > v1.68 변경(2026-09-24 — 스키마가 뒤처진 채 api 가 떠 있었다, **사람 보고**): **REQ-CB-056 신설 · §3 트리 한 줄 · §5.1 개발 루프 한 문단.** 화면 곳곳에서 500 이 났는데 원인은 하나였다 — 개발 DB 에 마이그레이션이 **31건 중 27건**만 적용돼 있었다(0027~0030 누락). `pnpm dev` 는 마이그레이션을 돌리지 않고, api 는 스키마를 보지 않고 떴으며, 없는 칸을 읽는 질의마다 500 이 됐다(받은 초대 `invitation.last_sent_at` · 처리됨 탭 `approval.decided_by_user_id` · 플러그인 표시 `plugin_version`). 증상은 흩어져 있고 어느 것도 원인을 가리키지 않는다. 이제 api·워커가 기동할 때 적용 이력을 동봉된 순서표와 대조해 **뒤처졌으면 이름과 명령을 말하고 뜨지 않는다**(`common/schema-guard.ts` · 판정은 `@nerv/schema/migrate` 의 `schemaStatus` 한 곳 — drizzle 적용기와 같은 규칙). **앞선 DB 는 막지 않는다** — 롤링 배포 중 옛 파드가 새 스키마 위에서 잠시 도는 것은 expand-contract 가 허용하는 순간이고(§6.3), 개발 DB 를 함께 쓰는 다른 워크트리가 먼저 올린 경우도 같다. DB 에 닿지 못하는 것은 이 검사의 일이 아니라 경고만 남긴다. compose(`migrate` 서비스 선행)·k8s(`nerv-migrate` Job 완료 대기)·E2E(`--wait`)는 이미 마이그레이션이 먼저라 달라지는 것이 없다.
 >
@@ -425,6 +427,7 @@ apps/api/src/
       event.service.ts             # event 행 삽입(도메인 트랜잭션 안) + 커밋 후 Valkey PUBLISH (REQ-CB-004)
       fanout.service.ts            # 룸 계산 + 구독자 팬아웃 (WS·SSE 공용)
       notification.service.ts
+      request-notifications.ts     # 요청(결재·질문)이 닫히면 그 알림도 닫는다 — 결정·답변·취소와 파생이 함께 쓴다 (REQ-API-176)
       sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
       sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
       valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리

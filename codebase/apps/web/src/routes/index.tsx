@@ -23,7 +23,7 @@ import { cn } from '../lib/utils.js';
 import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
-import { subjectFallback } from '../features/inbox/approval-card.js';
+import { subjectFallback, waitedLabel } from '../features/inbox/approval-card.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { ScopeBadge } from '../components/scope-badge.js';
 
@@ -267,8 +267,10 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
   const subjectKey = subjectKeyOf(card);
   return (
     <li>
+      {/* **그 카드로 간다**(REQ-WEB-204) — 어느 줄을 눌러도 같은 `/inbox` 첫 카드에 섰다 */}
       <Link
         to="/inbox"
+        search={{ focus: String(card['id']) }}
         className={cn(
           'flex items-center gap-[13px] border-b border-l-2 border-b-border py-3.5 pr-3 pl-2.5 transition-colors hover:bg-bg-sunken',
           blocking
@@ -291,15 +293,16 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
         </span>
         <span className="min-w-0 flex-1">
           {/* **어휘를 그대로 찍지 않는다**(2026-09-24). 폴백이 `subject_type` 이라 승인 카드는
-              이 줄에 **`spec_version` 이라고** 떴다 — DB 의 enum 값이다. 2026-09-24 까지
-              시드에 대기 결재가 한 건도 없어(질문 하나뿐이었고 그쪽은 `body_md` 가 있다)
-              아무도 그 줄을 본 적이 없다. 받은 요청 카드는 이미 `subjectFallback` 로 같은
-              자리를 메우고 있었다 — 판정이 아니라 **표기**라 그 함수를 여기서도 쓴다. */}
+              이 줄에 **`spec_version` 이라고** 떴다 — DB 의 enum 값이다. 받은 요청 카드는 이미
+              `subjectFallback` 로 같은 자리를 메우고 있었다 — 판정이 아니라 **표기**라 그 함수를
+              여기서도 쓴다. **순서도 카드와 같다**(REQ-WEB-204): 예전에는 질문의 본문을 제목 자리에
+              두어, 누르고 도착한 카드가 같은 요청을 다른 말(제목)로 불렀다 */}
           <span className="block truncate text-base leading-[1.45] font-medium tracking-[-0.008em]">
             {String(
-              card['body_md'] ??
+              card['title'] ??
                 card['spec_title'] ??
-                card['subject_key'] ??
+                card['task_title'] ??
+                card['finding_title'] ??
                 subjectFallback(t, card['subject_type']),
             )}
           </span>
@@ -323,8 +326,16 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
             {t('home.todo.blocking')}
           </span>
         )}
-        <span className="w-[54px] shrink-0 text-right text-xs text-text-ghost">
-          {relativeTime(t, typeof card['requested_at'] === 'string' ? card['requested_at'] : null)}
+        {/* 기다린 시간은 **카드와 같은 말과 같은 색**이다 — 한 시간 넘으면 호박색(REQ-WEB-204) */}
+        <span
+          className={cn(
+            'w-[64px] shrink-0 text-right text-xs',
+            Number(card['waiting_seconds'] ?? 0) >= 3600
+              ? 'font-medium text-status-waiting'
+              : 'text-text-ghost',
+          )}
+        >
+          {waitedLabel(t, Number(card['waiting_seconds'] ?? 0))}
         </span>
       </Link>
     </li>

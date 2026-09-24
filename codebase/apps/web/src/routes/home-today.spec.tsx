@@ -116,7 +116,17 @@ describe('오늘 할 일 한 줄의 제목 (screens.md §2.1)', () => {
     expect(text).not.toContain('plan');
   });
 
-  it('질문은 본문을 그대로 적는다 — 그쪽은 재료가 있다', async () => {
-    expect(await stripText()).toContain('스펙에 명시 없음');
+  // **카드와 같은 이름으로 부른다**(2026-09-24 · REQ-WEB-204). 예전에는 질문의 본문을 제목 자리에
+  // 두어, 누르고 도착한 카드가 같은 요청을 다른 말(제목)로 불렀다
+  it('질문은 받은 요청 카드와 같은 제목으로 적는다', async () => {
+    const text = await stripText();
+    expect(text).toContain('스토리지 선택');
+    expect(text).not.toContain('스펙에 명시 없음');
+  });
+
+  it('줄을 누르면 받은 요청의 **그 카드**로 간다', async () => {
+    renderHome();
+    const link = (await screen.findByText('스토리지 선택')).closest('a');
+    expect(link?.getAttribute('href')).toBe('/inbox?focus=q1');
   });
 });

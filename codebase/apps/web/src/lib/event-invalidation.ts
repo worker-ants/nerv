@@ -110,11 +110,21 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
 
   [E.APPROVAL_REQUESTED]: inboxAxis,
   // 결정이 나면 카드는 수신함에서 사라진다 — 대상(스펙)은 자기 이벤트가 따로 바꾼다
-  [E.APPROVAL_DECIDED]: inboxAxis,
+  // **그 요청의 알림도 함께 닫힌다**(REQ-API-176) — 알림 목록과 배지도 되읽는다. 빠뜨리면 받은
+  // 요청 배지만 줄고 알림 배지는 새로고침 전까지 그대로다
+  [E.APPROVAL_DECIDED]: () => [queryKeys.inbox(), queryKeys.myNotifications()],
   [E.QUESTION_CREATED]: inboxAxis,
-  [E.QUESTION_ANSWERED]: (e) => [queryKeys.inbox(), queryKeys.projectSessions(e.project_id)],
+  [E.QUESTION_ANSWERED]: (e) => [
+    queryKeys.inbox(),
+    queryKeys.myNotifications(),
+    queryKeys.projectSessions(e.project_id),
+  ],
   // 취소도 답변과 같은 자리를 바꾼다 — 수신함에서 사라지고, 기다리던 세션이 깨어난다
-  [E.QUESTION_CANCELLED]: (e) => [queryKeys.inbox(), queryKeys.projectSessions(e.project_id)],
+  [E.QUESTION_CANCELLED]: (e) => [
+    queryKeys.inbox(),
+    queryKeys.myNotifications(),
+    queryKeys.projectSessions(e.project_id),
+  ],
 
   // **받은 요청도 함께 되읽는다.** 이 이벤트는 개인 룸으로 오는 유일한 방송이고(api.md §3.3),
   // 다른 프로젝트 화면에 있는 사람에게는 승인 요청·질문이 닿는 유일한 길이다 — 종만

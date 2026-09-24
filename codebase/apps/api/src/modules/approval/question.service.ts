@@ -19,6 +19,7 @@ import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
+import { closeRequestNotifications } from '../event/request-notifications.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 
@@ -365,6 +366,8 @@ export class QuestionService {
          WHERE id = ${current.agent_session_id} AND state = 'awaiting_input'
       `);
 
+      await closeRequestNotifications(tx, 'question', input.questionId);
+
       await emit({
         type: NERV_EVENT.QUESTION_CANCELLED,
         projectId: input.projectId,
@@ -418,6 +421,8 @@ export class QuestionService {
         UPDATE agent_session SET state = 'active'
          WHERE id = ${question.agent_session_id} AND state = 'awaiting_input'
       `);
+
+      await closeRequestNotifications(tx, 'question', input.questionId);
 
       await emit({
         type: NERV_EVENT.QUESTION_ANSWERED,

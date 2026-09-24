@@ -1143,8 +1143,15 @@ export class SpecService {
         `);
       }
 
-      // T2·T3 은 받은 요청이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다
-      return { status: 'in_review', gate, approval_id: approvalId, web_url: '/inbox' };
+      // T2·T3 은 받은 요청이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다. **그 카드로**
+      // 보낸다(2026-09-24 · REQ-API-177) — 맨 `/inbox` 는 첫 카드에 서서, 사람은 방금 에이전트가
+      // 말한 요청을 목록에서 다시 찾아야 했다
+      return {
+        status: 'in_review',
+        gate,
+        approval_id: approvalId,
+        web_url: this.inboxUrl(approvalId),
+      };
     });
   }
 
@@ -1809,6 +1816,16 @@ export class SpecService {
    * 절대 URL 은 값이 있을 때만 만든다 — 기본값으로 채우지 않는다(환경마다 호스트가 다르고,
    * 없는 배치에서는 경로가 맞는 답이다). 그래서 `webUrlFromEnv()` 를 쓰지 않고 직접 읽는다.
    */
+  /**
+   * 받은 요청의 **그 카드** 주소 — 문서 주소(`webUrl`)와 같은 규칙으로 앞문을 붙인다. 예전에는 이
+   * 자리만 `'/inbox'` 를 그대로 돌려줘, 배포에서도 터미널에 누를 수 없는 상대 경로가 찍혔다.
+   */
+  private inboxUrl(approvalId: string): string {
+    const path = `/inbox?focus=${approvalId}`;
+    const base = process.env['NERV_WEB_URL'];
+    return base === undefined || base === '' ? path : `${base.replace(/\/$/, '')}${path}`;
+  }
+
   private async webUrl(tx: Tx, projectId: string, specId: string): Promise<string> {
     const { rows } = await tx.execute<{ slug: string; key: string }>(sql`
       SELECT p.slug, s.key FROM spec s JOIN project p ON p.id = s.project_id

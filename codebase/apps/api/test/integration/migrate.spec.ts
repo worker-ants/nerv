@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { PARTITION_MONTHS_AHEAD } from '@nerv/schema';
+import { NERV_EVENT, PARTITION_MONTHS_AHEAD } from '@nerv/schema';
 import {
   journalEntries,
   migrationsFolder,
@@ -373,6 +373,114 @@ describe('0025 — 임포트가 만든 고아 진행 중을 backlog 로 (사람 
       expect(statusOf(result.orphan)).toBe('backlog');
       // 사람이 쓴 것은 건드리지 않는다 — 이 마이그레이션의 대상은 placeholder 뿐이다
       expect(statusOf(result.authored)).toBe('in_progress');
+    } finally {
+      await fresh.drop();
+    }
+  });
+});
+
+/**
+ * **0031 도 데이터 마이그레이션이다** — 이미 닫힌 요청의 알림을 닫는다(2026-09-24 · REQ-API-176).
+ *
+ * 결정·답변·취소가 그 요청의 알림을 닫게 된 것은 이 변경부터라, 그 전에 처리된 요청의
+ * 알림은 안 읽은 채로 남아 배지를 올린다. 열린 요청의 알림까지 닫으면 사람이 요청을 놓친다 —
+ * 그래서 닫힌 것만 닫는지를 태운다.
+ */
+describe('0031 — 이미 닫힌 요청의 알림을 닫는다', () => {
+  it('결정된 결재 · 끝난 질문의 알림만 읽음이 되고, 열린 요청과 다른 알림은 그대로다', async () => {
+    const fresh = await createScratchDb('nerv_close_requests');
+    try {
+      await runMigrations(fresh.url);
+      const states = await withClient(fresh.url, async (client) => {
+        const { userId, projectId } = await seedTenancy(client);
+        const sessionId = randomUUID();
+        await client.query(
+          `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname)
+           VALUES ($1,$2,$3,'claude-code','mac')`,
+          [sessionId, projectId, userId],
+        );
+        const approval = async (decided: boolean): Promise<string> => {
+          const id = randomUUID();
+          await client.query(
+            `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                                   decision, decided_by_user_id, decided_at)
+             VALUES ($1,$2,'spec_version',$3,$4,$5::approval_decision,$6,$7)`,
+            [
+              id,
+              projectId,
+              randomUUID(),
+              userId,
+              decided ? 'approve' : null,
+              decided ? userId : null,
+              decided ? new Date() : null,
+            ],
+          );
+          return id;
+        };
+        const question = async (status: string): Promise<string> => {
+          const id = randomUUID();
+          await client.query(
+            `INSERT INTO question (id, project_id, agent_session_id, title, status)
+             VALUES ($1,$2,$3,'어느 쪽?',$4::question_status)`,
+            [id, projectId, sessionId, status],
+          );
+          return id;
+        };
+        // 요청을 연 이벤트와 그 알림 한 줄 — 알림 id 를 돌려준다
+        const notify = async (type: string, subjectType: string, subjectId: string) => {
+          const eventId = randomUUID();
+          await client.query(
+            `INSERT INTO event (id, project_id, type, subject_type, subject_id)
+             VALUES ($1,$2,$3,$4,$5)`,
+            [eventId, projectId, type, subjectType, subjectId],
+          );
+          const id = randomUUID();
+          await client.query(
+            `INSERT INTO notification (id, project_id, user_id, event_id, importance)
+             VALUES ($1,$2,$3,$4,'immediate')`,
+            [id, projectId, userId, eventId],
+          );
+          return id;
+        };
+
+        const ids = {
+          decided: await notify(NERV_EVENT.APPROVAL_REQUESTED, 'approval', await approval(true)),
+          pending: await notify(NERV_EVENT.APPROVAL_REQUESTED, 'approval', await approval(false)),
+          answered: await notify(
+            NERV_EVENT.QUESTION_CREATED,
+            'question',
+            await question('answered'),
+          ),
+          expired: await notify(NERV_EVENT.QUESTION_CREATED, 'question', await question('expired')),
+          open: await notify(NERV_EVENT.QUESTION_CREATED, 'question', await question('open')),
+          // 요청이 아닌 알림 — 결정된 결재를 가리켜도 요청을 연 이벤트가 아니면 건드리지 않는다
+          other: await notify(NERV_EVENT.APPROVAL_DECIDED, 'approval', await approval(true)),
+        };
+
+        const sql = readFileSync(
+          join(migrationsFolder(), '0031_close_request_notifications.sql'),
+          'utf8',
+        );
+        await client.query(sql);
+        await client.query(sql); // 멱등 — 두 번째는 0건이다
+
+        const { rows } = await client.query<{ id: string; state: string; read: boolean }>(
+          `SELECT id, state::text AS state, read_at IS NOT NULL AS read
+             FROM notification WHERE id = ANY($1)`,
+          [Object.values(ids)],
+        );
+        const byId = new Map(rows.map((r) => [r.id, r.read ? r.state : `${r.state}(no read_at)`]));
+        return Object.fromEntries(Object.entries(ids).map(([k, id]) => [k, byId.get(id)]));
+      });
+
+      expect(states).toEqual({
+        decided: 'read',
+        pending: 'unread(no read_at)',
+        answered: 'read',
+        expired: 'read',
+        open: 'unread(no read_at)',
+        other: 'unread(no read_at)',
+      });
     } finally {
       await fresh.drop();
     }
