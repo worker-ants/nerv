@@ -19,15 +19,25 @@ import type { OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websocket
 import { NERV_ERROR, WS_ERROR_EVENT } from '@nerv/schema';
 import { AuthService } from '../auth/auth.service.js';
 import type { Principal } from '../auth/auth.service.js';
+import { requestContext, requestIdFrom } from '../../common/request-context.js';
 import { FanoutService, MAX_PROJECT_ROOMS } from './fanout.service.js';
 import type { RoomName } from './fanout.service.js';
+import { wsLevel, wsMessage } from './ws-log.js';
+import type { WsAction, WsLogFields } from './ws-log.js';
 
 interface NervSocket {
   id: string;
   handshake: { headers: Record<string, string | undefined> };
   emit: (event: string, payload: unknown) => void;
   disconnect: (close?: boolean) => void;
-  data: { principal?: Principal; rooms?: Set<RoomName>; off?: () => void };
+  data: {
+    principal?: Principal;
+    rooms?: Set<RoomName>;
+    off?: () => void;
+    /** 연결의 ID — 앞문이 업그레이드 요청에 실은 `X-Request-Id`(ws-log.ts) */
+    requestId?: string;
+    connectedAt?: number;
+  };
 }
 
 interface JoinAck {
@@ -58,8 +68,11 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * 미인증 브라우저 탭 하나가 API 를 크래시 루프에 빠뜨렸다(실측).
    */
   async handleConnection(socket: NervSocket): Promise<void> {
+    socket.data.requestId = requestIdFrom(socket.handshake.headers['x-request-id']);
+    socket.data.connectedAt = performance.now();
     const cookie = socket.handshake.headers['cookie'];
     if (cookie === undefined || !cookie.includes('better-auth.session_token=')) {
+      this.record(socket, 'reject', { code: NERV_ERROR.UNAUTHENTICATED });
       socket.emit(WS_ERROR_EVENT, { code: NERV_ERROR.UNAUTHENTICATED });
       socket.disconnect(true);
       return;
@@ -75,16 +88,42 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         rooms,
         deliver: (envelope) => socket.emit(envelope.type, envelope),
       });
+      this.record(socket, 'connect', { userId: principal.userId });
     } catch (error) {
-      socket.emit(WS_ERROR_EVENT, {
-        code: error instanceof Error && 'code' in error ? error.code : NERV_ERROR.UNAUTHENTICATED,
-      });
+      const code =
+        error instanceof Error && 'code' in error ? error.code : NERV_ERROR.UNAUTHENTICATED;
+      this.record(socket, 'reject', { code: String(code) });
+      socket.emit(WS_ERROR_EVENT, { code });
       socket.disconnect(true);
     }
   }
 
   handleDisconnect(socket: NervSocket): void {
     socket.data.off?.();
+    // 받아들인 연결만 해제 줄을 남긴다 — 거절은 이미 한 줄이다
+    if (socket.data.principal === undefined) return;
+    const startedAt = socket.data.connectedAt;
+    this.record(socket, 'disconnect', {
+      userId: socket.data.principal.userId,
+      rooms: socket.data.rooms?.size ?? 0,
+      ...(startedAt === undefined ? {} : { durationMs: Math.round(performance.now() - startedAt) }),
+    });
+  }
+
+  /** 연결 한 줄 — 연결의 ID 로 요청 맥락에 들어가 남긴다(ws-log.ts · §5.5) */
+  private record(
+    socket: NervSocket,
+    action: WsAction,
+    fields: Omit<WsLogFields, 'socketId'> = {},
+  ): void {
+    const run = (): void => {
+      this.logger[wsLevel(action, fields.code ?? null)](
+        wsMessage(action, { socketId: socket.id, ...fields }),
+      );
+    };
+    const id = socket.data.requestId;
+    if (id === undefined) run();
+    else requestContext.run({ requestId: id }, run);
   }
 
   /** 클라이언트 emit 1/2 — 프로젝트 룸 참가. 서버가 멤버십을 검사한다. */
@@ -101,22 +140,36 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const room = String(body.room ?? '');
     const projectId = room.startsWith('project:') ? room.slice('project:'.length) : null;
-    if (projectId === null) return { ok: false, code: NERV_ERROR.PRECONDITION };
+    if (projectId === null) return this.joined(socket, null, NERV_ERROR.PRECONDITION);
 
     const projectRooms = [...rooms].filter((r) => r.startsWith('project:'));
     if (projectRooms.length >= MAX_PROJECT_ROOMS) {
-      return { ok: false, code: NERV_ERROR.RATE_LIMIT };
+      return this.joined(socket, room, NERV_ERROR.RATE_LIMIT);
     }
 
     try {
       await this.auth.assertMembership(principal.userId, projectId);
     } catch {
       // 비멤버는 ack 로 거절한다 — 연결은 끊지 않는다(§3.2)
-      return { ok: false, code: NERV_ERROR.FORBIDDEN };
+      return this.joined(socket, room, NERV_ERROR.FORBIDDEN);
     }
 
     rooms.add(`project:${projectId}`);
-    return { ok: true, room };
+    return this.joined(socket, room, null);
+  }
+
+  /** 룸 참가의 ack 와 한 줄 — 받아들인 참가는 debug, 거절은 기본 수준에서 보인다 */
+  private joined(socket: NervSocket, room: string | null, code: string | null): JoinAck {
+    // 룸 이름은 부르는 쪽이 적은 문자열이다 — 모양이 맞을 때만 줄에 싣는다(개행으로 가짜 줄을
+    // 끼워 넣지 못하게)
+    const loggable = room !== null && LOGGABLE_ROOM.test(room) ? room : null;
+    this.record(socket, 'join', {
+      userId: socket.data.principal?.userId ?? null,
+      room: loggable,
+      code,
+    });
+    if (code !== null) return { ok: false, code };
+    return { ok: true, room: room ?? '' };
   }
 
   /** 클라이언트 emit 2/2 — 프로젝트 화면을 떠나면 보낸다. */
@@ -128,6 +181,8 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { ok: true, room };
   }
 }
+
+const LOGGABLE_ROOM = /^(?:project|user):[A-Za-z0-9-]{1,64}$/;
 
 function isRoom(value: string): value is RoomName {
   return value.startsWith('project:') || value.startsWith('user:');

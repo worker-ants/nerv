@@ -11,7 +11,7 @@ import { request as httpRequest } from 'node:http';
 import { WS_ERROR_EVENT, NERV_ERROR, NERV_EVENT, newId, sessionState } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
@@ -480,6 +480,65 @@ describe('WS 룸 join (api.md §3.2)', () => {
       payload: { code: NERV_ERROR.UNAUTHENTICATED },
     });
     expect(emitted[0]?.event).not.toBe('connect_error');
+  });
+
+  it('연결·거절·해제가 한 줄씩 남고, 앞문이 준 요청 ID 로 이어진다 (REQ-CB-054)', async () => {
+    const gateway = app.get(WsGateway);
+    const written: string[] = [];
+    const original = process.stdout.write.bind(process.stdout);
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(((
+      chunk: unknown,
+      ...rest: unknown[]
+    ) => {
+      written.push(String(chunk));
+      return original(chunk as string, ...(rest as []));
+    }) as typeof process.stdout.write);
+    // 세션 검증은 이 스위트의 관심이 아니다 — 받아들여진 연결의 줄을 보려고 세운다
+    const verify = vi.spyOn(app.get(AuthService), 'verify').mockResolvedValue({
+      userId,
+      displayName: '지민',
+      isAgent: false,
+      projectId: null,
+      roles: [],
+      scopes: [],
+      tokenId: null,
+    });
+    try {
+      const socket = {
+        id: 'sock-accepted',
+        handshake: {
+          headers: {
+            cookie: 'better-auth.session_token=stub',
+            'x-request-id': 'ws-l2-request-0001',
+          },
+        },
+        emit: () => undefined,
+        disconnect: () => undefined,
+        data: {},
+      };
+      await gateway.handleConnection(socket as never);
+      gateway.handleDisconnect(socket as never);
+      await gateway.handleConnection({
+        id: 'sock-rejected',
+        handshake: { headers: {} },
+        emit: () => undefined,
+        disconnect: () => undefined,
+        data: {},
+      } as never);
+    } finally {
+      spy.mockRestore();
+      verify.mockRestore();
+    }
+    const lines = written.filter((line) => line.includes('[WsGateway]'));
+    const connect = lines.find((line) => line.includes('ws connect sid=sock-accepted'));
+    expect(connect).toContain(`user=${userId}`);
+    expect(connect).toContain('[req=ws-l2-request-0001]');
+    const disconnect = lines.find((line) => line.includes('ws disconnect sid=sock-accepted'));
+    expect(disconnect).toContain('[req=ws-l2-request-0001]');
+    expect(disconnect).toMatch(/rooms=1 \d+ms/);
+    const reject = lines.find((line) => line.includes('ws reject sid=sock-rejected'));
+    expect(reject).toContain(`code=${NERV_ERROR.UNAUTHENTICATED}`);
+    expect(reject).toContain('WARN');
   });
 
   it('인증 전 join 은 거절한다', async () => {

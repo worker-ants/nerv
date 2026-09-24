@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { AGENT_SCOPES, NERV_ERROR, REST_ONLY_SCOPES, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
@@ -1512,6 +1512,34 @@ describe('E03-S04 에러 규약 — 구조화 결과', () => {
     );
     expect(result).toMatchObject({ ok: false, code: NERV_ERROR.FORBIDDEN });
     expect(result['details']).toMatchObject({ kind: 'missing_scope', required: 'task:claim' });
+  });
+
+  it('호출마다 운영자 로그 한 줄 — 접근 로그로는 전부 `POST /mcp 200` 이다 (REQ-CB-054)', async () => {
+    const written: string[] = [];
+    const original = process.stdout.write.bind(process.stdout);
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(((
+      chunk: unknown,
+      ...rest: unknown[]
+    ) => {
+      written.push(String(chunk));
+      return original(chunk as string, ...(rest as []));
+    }) as typeof process.stdout.write);
+    try {
+      await callTool('nerv_task_claim', { task_id: newId() }, { token: readOnlyToken });
+      await callTool('nerv_nope_not_a_tool', {});
+    } finally {
+      spy.mockRestore();
+    }
+    const lines = written.filter((line) => line.includes('[McpController]'));
+    const denied = lines.find((line) => line.includes('tools/call nerv_task_claim'));
+    expect(denied).toContain(`tools/call nerv_task_claim ${NERV_ERROR.FORBIDDEN}`);
+    expect(denied).toContain('kind=missing_scope');
+    expect(denied).toContain('WARN');
+    expect(denied).toMatch(/\[req=[^\]]+\]/); // 같은 요청의 접근 로그와 이어진다
+    // 모르는 이름은 부르는 쪽이 적은 문자열이다 — 줄에 싣지 않는다
+    const unknown = lines.find((line) => line.includes('tools/call (unknown)'));
+    expect(unknown).toContain('kind=unknown_tool');
+    expect(lines.join('')).not.toContain('nerv_nope_not_a_tool');
   });
 
   it('실패는 프로토콜 에러가 아니라 도구 결과다 — 모델이 읽고 다음 행동을 고른다', async () => {

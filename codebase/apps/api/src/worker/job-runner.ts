@@ -11,6 +11,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HEARTBEAT_INTERVAL_SECONDS } from '@nerv/schema';
 import { AdvisoryLock } from './advisory-lock.js';
+import { jobLevel, jobMessage } from './job-log.js';
+import type { JobOutcome } from './job-log.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
@@ -109,13 +111,18 @@ export class JobRunner {
       const everyMs = typeof job.everyMs === 'function' ? job.everyMs() : job.everyMs;
       if (job.lastRunAt !== null && now - job.lastRunAt < everyMs) continue;
       job.lastRunAt = now;
+      const startedAt = performance.now();
+      let outcome: JobOutcome;
       try {
-        await job.run();
+        outcome = { ok: true, result: await job.run() };
         ran.push(job.name);
       } catch (error) {
         // 삼키지 않고 기록한다. 잡 하나의 실패가 루프 전체를 멈추면 안 된다.
-        this.logger.warn(`잡 실패 [${job.name}] — ${String(error)}`);
+        outcome = { ok: false, error };
       }
+      // 판마다 한 줄 — 할 일이 없던 판은 debug 다(job-log.ts · §5.5 · REQ-CB-054)
+      const durationMs = Math.round(performance.now() - startedAt);
+      this.logger[jobLevel(outcome)](jobMessage(job.name, durationMs, outcome));
     }
     return ran;
   }
