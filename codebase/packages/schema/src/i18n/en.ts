@@ -1020,10 +1020,12 @@ export const en = {
   'specs.collapse': 'Collapse',
   'specs.degraded': 'Semantic search is off for now — these are keyword results only.',
   'specs.expand': 'Expand',
+  'specs.holds_active': 'The document you are viewing is inside',
   'specs.no_results': 'No results.',
   'specs.no_results_hint':
     'You can also search by stable ID — a spec key, requirement ref, or task key.',
   'specs.related': 'Reached through relations',
+  'specs.reveal_active': 'Go to the document you are viewing',
   'specs.related_hint': 'Not matched by your query but connected — a reason to look, not a match.',
   'specs.results': '{count} results',
   'specs.show_archived': 'Show archived',

@@ -210,24 +210,107 @@ describe('레일의 펴기/접기 (REQ-WEB-170·171)', () => {
     expect(rail.getAllByTestId('tree-toggle')[0]!.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('머리줄의 토글 하나가 전부 접고 전부 편다', async () => {
+  it('머리줄의 단추 둘은 누르면 늘 같은 일을 한다 — 할 일이 없으면 꺼진다', async () => {
     const { rail } = await renderTree('/p/demo/specs');
-    const all = rail.getByTestId('tree-toggle-all');
-    // 하나라도 펴져 있으면 다음 조작은 접기다 — 아이콘이 지금 상태를 말한다
-    expect(all.getAttribute('aria-label')).toBe('전체 접기');
+    const expand = () => rail.getByTestId('tree-expand-all') as HTMLButtonElement;
+    const collapse = () => rail.getByTestId('tree-collapse-all') as HTMLButtonElement;
+    // 이름이 상태에 따라 바뀌지 않는다 — 토글 하나였을 때는 바뀌었다(2026-09-24 분리)
+    expect(expand().getAttribute('aria-label')).toBe('전체 펼치기');
+    expect(collapse().getAttribute('aria-label')).toBe('전체 접기');
+    // 전부 펴져 있으니 펼치기는 할 일이 없다 — 숨기지 않고 끈다(자리가 들썩이지 않게)
+    expect(expand().disabled).toBe(true);
 
-    fireEvent.click(all);
+    fireEvent.click(collapse());
     expect(rail.queryByText('자식')).toBeNull();
-    expect(rail.getByTestId('tree-toggle-all').getAttribute('aria-label')).toBe('전체 펼치기');
+    expect(collapse().disabled).toBe(true);
+    expect(expand().disabled).toBe(false);
 
-    fireEvent.click(rail.getByTestId('tree-toggle-all'));
+    fireEvent.click(expand());
+    expect(rail.queryByText('손자')).not.toBeNull();
+  });
+
+  it('일부만 펴져 있어도 전체 펼치기는 한 번이다', async () => {
+    const { rail } = await renderTree('/p/demo/specs');
+    // 손자의 부모만 접는다 — 이제 "하나라도 펴져 있다"
+    fireEvent.click(rail.getAllByRole('button', { name: '접기' })[1]!);
+    expect(rail.queryByText('손자')).toBeNull();
+    fireEvent.click(rail.getByTestId('tree-expand-all'));
     expect(rail.queryByText('손자')).not.toBeNull();
   });
 
   it('접으면 머리의 수도 같이 줄어든다 — 무엇이 감춰졌는지가 그 수다', async () => {
     const { rail } = await renderTree('/p/demo/specs');
     expect(rail.getByTestId('tree-count').textContent).toBe('3 / 3');
-    fireEvent.click(rail.getByTestId('tree-toggle-all'));
+    fireEvent.click(rail.getByTestId('tree-collapse-all'));
     expect(rail.getByTestId('tree-count').textContent).toBe('1 / 3');
+  });
+});
+
+// ── 하위 문서를 연 채로 접기 — 2026-09-24 사람 보고 ──────────────────────────────
+//
+// "하위 페이지를 열었을 때 전체 또는 상위 경로를 접기하면 접히지 않아."
+//
+// 보고 있는 문서까지의 경로를 펼치는 effect 가 **펼침 상태가 바뀔 때마다** 돌았다. 사람이
+// 조상을 접으면 다음 렌더에서 도로 펴졌고, 전체 접기도 활성 경로만큼 되살아나 토글의
+// 아이콘은 계속 "접기" 였다 — 눌러도 아무 일이 없는 것처럼 보였다(REQ-WEB-186).
+
+/** 스펙 상세에는 트리가 **하나**(레일)다 — 전수 목록은 그 화면에 없다 */
+async function renderRailAt(key: string) {
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: [`/p/demo/specs/${key}`] }),
+  });
+  render(
+    <LocaleProvider locale="ko">
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <RealtimeProvider>
+          <RouterProvider router={router as never} />
+        </RealtimeProvider>
+      </QueryClientProvider>
+    </LocaleProvider>,
+  );
+  await screen.findAllByText('손자');
+  return within(screen.getAllByTestId('spec-tree')[0]!);
+}
+
+describe('하위 문서를 연 채로 접기 (REQ-WEB-186·187)', () => {
+  it('들어오면 그 문서까지의 길이 펴진다 — 저장이 모두 접힘이어도 (REQ-WEB-053)', async () => {
+    localStorage.setItem('nerv.tree.demo.rail', '[]');
+    const rail = await renderRailAt('grand');
+    expect(rail.queryByText('손자')).not.toBeNull();
+  });
+
+  it('조상을 접으면 접힌 채로 남는다 — 도로 펴지지 않는다', async () => {
+    const rail = await renderRailAt('grand');
+    fireEvent.click(rail.getAllByRole('button', { name: '접기' })[0]!);
+    expect(rail.queryByText('자식')).toBeNull();
+    expect(rail.getByTestId('tree-count').textContent).toBe('1 / 3');
+  });
+
+  it('전체 접기가 뿌리까지 접는다', async () => {
+    const rail = await renderRailAt('grand');
+    fireEvent.click(rail.getByTestId('tree-collapse-all'));
+    expect(rail.queryByText('자식')).toBeNull();
+    expect((rail.getByTestId('tree-collapse-all') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('접힌 가지가 보는 문서를 품었으면 그 줄이 말한다', async () => {
+    const rail = await renderRailAt('grand');
+    expect(rail.queryByTestId('tree-holds-active')).toBeNull();
+    fireEvent.click(rail.getByTestId('tree-collapse-all'));
+    const marker = rail.getByTestId('tree-holds-active');
+    expect(marker.closest('a')?.textContent).toContain('뿌리');
+  });
+
+  it('[보고 있는 문서로] 가 길을 다시 펴고, 그것은 사람의 조작이라 남는다', async () => {
+    const rail = await renderRailAt('grand');
+    fireEvent.click(rail.getByTestId('tree-collapse-all'));
+    fireEvent.click(rail.getByTestId('tree-reveal-active'));
+    expect(rail.queryByText('손자')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem('nerv.tree.demo.rail') ?? '[]')).toEqual(
+      expect.arrayContaining(['r', 'c']),
+    );
   });
 });

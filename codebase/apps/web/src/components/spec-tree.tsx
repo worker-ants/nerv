@@ -163,7 +163,8 @@ function Chevron({ open }: { open: boolean }): React.JSX.Element {
  * 전체 펴기/접기 아이콘 — REQ-WEB-171.
  *
  * 화살표 둘이 **모이거나 벌어진다**: 접기는 위아래에서 가운데로, 펴기는 가운데에서 밖으로.
- * 글자 없이도 방향이 읽히는 것이 좁은 머리줄의 조건이다.
+ * 글자 없이도 방향이 읽히는 것이 좁은 머리줄의 조건이다. 단추가 둘로 갈라진 뒤(2026-09-24)
+ * 각 단추는 **제 모양 하나만** 그린다 — 상태에 따라 모양이 바뀌지 않는다.
  *
  * **가운데 선을 두지 않는다**(2026-09-21 실측). 처음에는 두 화살표 사이에 가로선을 그었는데,
  * 14px 에서 선과 두 꼭짓점이 겹쳐 **별표(✳)처럼** 보였다 — 방향이 읽히기는커녕 무슨 도형인지
@@ -195,6 +196,31 @@ function FoldAll({ collapsed }: { collapsed: boolean }): React.JSX.Element {
           <path d="M7 20l5-5 5 5" />
         </>
       )}
+    </svg>
+  );
+}
+
+/**
+ * 지금 보는 문서로 — REQ-WEB-187.
+ *
+ * 과녁(원 + 네 눈금)이다. 접기·펴기의 화살표와 **다른 모양**이어야 한다 — 셋이 나란히 서는
+ * 좁은 머리줄에서 비슷한 도형이 섞이면 무엇을 누르는지 매번 읽어야 한다.
+ */
+function Locate(): React.JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="6" />
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
     </svg>
   );
 }
@@ -309,12 +335,29 @@ export function SpecTree({
     setExpanded(readExpanded(storageKey) ?? defaultExpanded(nodes));
   }, [expanded, nodes, storageKey]);
 
-  // 보고 있는 문서까지의 길을 펼친다 — 딥링크로 들어오면 트리에서 내 위치를 알 수 없다
+  /**
+   * 보고 있는 문서까지의 길을 펼친다 — 딥링크로 들어오면 트리에서 내 위치를 알 수 없다.
+   *
+   * **문서를 옮겼을 때 한 번이다**(2026-09-24 — 사람 보고 · REQ-WEB-186). 이 effect 는
+   * 펼침 상태가 바뀔 때마다 돌았고, 그래서 사람이 조상을 접으면 다음 렌더에서 **도로
+   * 펴졌다** — 하위 문서를 연 채로는 그 위 가지도, 전체 접기도 듣지 않았다. 앞의
+   * `depth === 0` 결함(§2.4b)과 같은 종류다: 상태는 바뀌는데 화면이 안 바뀐다.
+   *
+   * 펼쳐 준 키를 기억해 두고 **같은 문서에서는 다시 펼치지 않는다.** 그 문서가 아직 목록에
+   * 없으면(방금 만든 문서 — 트리 응답이 늦다) 기억하지 않는다: 도착한 뒤에 펼쳐야 한다.
+   */
+  const revealedKey = useRef<string | undefined>(undefined);
+  /** 활성 줄로 스크롤해 달라는 요청 — 경로를 펼친 그 렌더 **뒤에** 옮겨야 줄이 있다 */
+  const [scrollRequest, setScrollRequest] = useState(0);
   useEffect(() => {
     if (activeKey === undefined || expanded === null || nodes.length === 0) return;
+    if (revealedKey.current === activeKey) return;
+    if (!nodes.some((n) => n.key === activeKey)) return;
+    revealedKey.current = activeKey;
     const chain = ancestorsOf(nodes, activeKey);
-    if (chain.every((id) => expanded.has(id))) return;
-    setExpanded((prev) => new Set([...(prev ?? []), ...chain]));
+    if (!chain.every((id) => expanded.has(id)))
+      setExpanded((prev) => new Set([...(prev ?? []), ...chain]));
+    setScrollRequest((n) => n + 1);
   }, [activeKey, expanded, nodes]);
 
   /**
@@ -322,16 +365,33 @@ export function SpecTree({
    *
    * **다음 프레임에 옮긴다.** 트리가 전부 펼쳐지면서 이 줄이 3,697px 짜리 상자의 2,580px
    * 자리에 서게 됐는데, 렌더 직후에 부르면 라우터의 스크롤 복원이 그 뒤에 0 으로 되돌린다
-   * (실측 2026-08-30 — 손으로 부르면 2,005 로 옮겨졌다). 데이터가 늦게 오는 것도 같은
-   * 자리라 `nodes.length` 를 함께 본다.
+   * (실측 2026-08-30 — 손으로 부르면 2,005 로 옮겨졌다).
+   *
+   * **옮기는 것은 요청이 있을 때뿐이다**(2026-09-24). 펼침 상태에 걸어 두었더니 다른 가지를
+   * 접거나 펴기만 해도 목록이 활성 줄로 끌려갔다 — 보던 자리를 사람이 잃는다. 요청은 둘이다:
+   * 문서를 옮겼을 때(위 effect)와 [보고 있는 문서로] 단추(REQ-WEB-187).
+   *
+   * 가상 분기에서는 그 줄이 창 밖이면 DOM 에 없다 — 그때는 줄 번호로 뷰포트를 옮긴다.
    */
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const activeIndexRef = useRef(-1);
   useEffect(() => {
-    if (activeKey === undefined) return undefined;
-    const frame = requestAnimationFrame(() =>
-      activeRef.current?.scrollIntoView({ block: 'nearest' }),
-    );
+    if (scrollRequest === 0) return undefined;
+    const frame = requestAnimationFrame(() => {
+      if (activeRef.current !== null) {
+        activeRef.current.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      const viewport = viewportRef.current;
+      if (viewport !== null && activeIndexRef.current >= 0) {
+        viewport.scrollTop = Math.max(
+          0,
+          activeIndexRef.current * ROW_HEIGHT - viewport.clientHeight / 2,
+        );
+      }
+    });
     return () => cancelAnimationFrame(frame);
-  }, [activeKey, expanded, nodes.length]);
+  }, [scrollRequest]);
 
   const open = expanded ?? new Set<string>();
   const setOpen = (next: Set<string>): void => {
@@ -343,6 +403,20 @@ export function SpecTree({
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setOpen(next);
+  };
+  /** 보고 있는 문서까지의 조상 — 접힌 가지가 그것을 품었는지 가리는 데 쓴다(REQ-WEB-186) */
+  const activeChain = new Set(activeKey === undefined ? [] : ancestorsOf(nodes, activeKey));
+  const activeInTree = activeKey !== undefined && nodes.some((n) => n.key === activeKey);
+  /**
+   * 전체 접기 뒤 제자리로 돌아오는 길 — 조상을 펴고 그 줄로 옮긴다(REQ-WEB-187).
+   *
+   * 사람이 누른 것이므로 **저장한다** — 문서를 옮겨 자동으로 펼친 것과 다르다.
+   */
+  const reveal = (): void => {
+    if (!activeInTree) return;
+    const chain = [...activeChain];
+    if (!chain.every((id) => open.has(id))) setOpen(new Set([...open, ...chain]));
+    setScrollRequest((n) => n + 1);
   };
 
   if (tree.isLoading) {
@@ -393,10 +467,16 @@ export function SpecTree({
 
   const shown = visible.length;
   const total = nodes.length;
-  /** 접을 것이 있는가 — 가지가 하나도 없는 트리에 서는 토글은 아무 일도 하지 않는다 */
-  const hasBranches = nodes.some((node) => (byParent.get(node.id) ?? []).length > 0);
-  /** 하나라도 펴져 있으면 다음 조작은 **접기**다 — 아이콘이 지금 상태를 말한다 */
-  const anyOpen = open.size > 0;
+  activeIndexRef.current = visible.findIndex(({ node }) => node.key === activeKey);
+  /** 가지 — 접고 펼 수 있는 노드. 없으면 전체 조작이 서지 않는다 */
+  const branchIds = nodes.filter((node) => byParent.has(node.id)).map((node) => node.id);
+  const hasBranches = branchIds.length > 0;
+  /**
+   * 할 일이 없는 단추는 **숨기지 않고 끈다**(REQ-WEB-171) — 숨기면 옆 단추가 자리를 옮겨
+   * 같은 자리를 두 번 누른 사람이 다른 조작을 한다.
+   */
+  const allOpen = branchIds.every((id) => open.has(id));
+  const noneOpen = !branchIds.some((id) => open.has(id));
 
   // 200 노드를 넘으면 창 밖은 그리지 않는다 — 최초 페인트가 전체 트리를 요구하지 않게.
   const virtualized = shown > VIRTUAL_THRESHOLD;
@@ -409,6 +489,9 @@ export function SpecTree({
   const row = (node: TreeNode): React.JSX.Element => {
     const children = byParent.get(node.id) ?? [];
     const isOpen = isOpenOf(node);
+    // 접힌 가지가 지금 보는 문서를 품었다 — 표시가 없으면 접는 순간 "내가 어디 있나" 가
+    // 트리에서 사라진다(REQ-WEB-186)
+    const holdsActive = !isOpen && activeChain.has(node.id);
     return (
       <div className="group flex items-center rounded-nerv-sm hover:bg-bg-hover">
         {/* 자식이 없어도 자리를 비운다 — 삼각형 유무로 들여쓰기가 어긋나면
@@ -433,14 +516,24 @@ export function SpecTree({
           params={{ proj: projectSlug, spec: node.key }}
           {...(node.key === activeKey ? { ref: activeRef } : {})}
           data-active={node.key === activeKey}
+          data-holds-active={holdsActive}
+          {...(holdsActive ? { title: t('specs.holds_active') } : {})}
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] pr-1 text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text',
+            'flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] pr-1 text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text data-[holds-active=true]:font-medium data-[holds-active=true]:text-text',
             // 시안: 사이드바 트리는 26px 줄에 13px 글자 — nav(29px)보다 반 단 조밀하다
             variant === 'rail' ? 'h-[26px] text-[13px]' : 'py-1 text-sm',
             // 보관한 것은 목록에 있어도 **같은 무게가 아니다** — 켜서 찾아온 사람에게만 보인다
             node.archived_at != null ? 'text-text-faint' : undefined,
           )}
         >
+          {/* 앞머리 점 — 상태 점(뒤꼬리)과 자리가 달라 섞이지 않는다 */}
+          {holdsActive && (
+            <span
+              data-testid="tree-holds-active"
+              aria-label={t('specs.holds_active')}
+              className="size-1.5 shrink-0 rounded-full bg-link"
+            />
+          )}
           <span className="truncate">{node.title}</span>
           {node.archived_at != null && (
             <StatusBadge token="idle" label={t('specs.archived_badge')} />
@@ -512,22 +605,49 @@ export function SpecTree({
           {/* **전체 펴기/접기는 레일에도 있다**(2026-09-21 — 사람 요청 · REQ-WEB-171).
               §2.4b 가 2026-08-23 에 "좁은 사이드바에는 두지 않는다" 고 적었는데, 그 판단은
               레일 기본값이 깊이 1이던 시절의 것이다 — 2026-08-30 에 기본이 **전부 펼침**이
-              되면서 전제가 뒤집혔다: 141편이 모두 펼쳐진 좁은 레일에서 필요한 것은 오히려
-              접을 수단이다.
-              **단추 둘 대신 토글 하나다.** 좁은 자리에서 둘을 나란히 두면 머리줄이 빽빽해지고,
-              하나면 그 아이콘이 **지금 상태까지** 말한다(전수 목록 쪽은 글자 단추 둘 그대로 —
-              폭이 있고 두 조작이 각각 자주 쓰인다). */}
-          {hasBranches && (
+              되면서 전제가 뒤집혔다.
+              **토글 하나였다가 둘로 갈랐다**(2026-09-24 — 사람 요청). 토글은 "하나라도 펴져
+              있으면 접기" 라는 판정이 맞을 때만 다음 동작을 말한다 — 하위 문서를 연 채로
+              접기가 도로 펴지던 동안 아이콘은 계속 "접기" 였고, 사람은 무엇이 일어날지 알 수
+              없었다. 일부만 펴진 상태에서 전부 펴려면 두 번 눌러야 하기도 했다. 단추 둘은
+              누르면 **늘 같은 일**을 한다. */}
+          {activeInTree && (
             <button
               type="button"
-              data-testid="tree-toggle-all"
-              aria-label={anyOpen ? t('specs.collapse_all') : t('specs.expand_all')}
-              title={anyOpen ? t('specs.collapse_all') : t('specs.expand_all')}
-              onClick={() => setOpen(anyOpen ? new Set() : defaultExpanded(nodes))}
+              data-testid="tree-reveal-active"
+              aria-label={t('specs.reveal_active')}
+              title={t('specs.reveal_active')}
+              onClick={reveal}
               className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute hover:bg-bg-active hover:text-text"
             >
-              <FoldAll collapsed={!anyOpen} />
+              <Locate />
             </button>
+          )}
+          {hasBranches && (
+            <>
+              <button
+                type="button"
+                data-testid="tree-expand-all"
+                aria-label={t('specs.expand_all')}
+                title={t('specs.expand_all')}
+                disabled={allOpen}
+                onClick={() => setOpen(defaultExpanded(nodes))}
+                className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute enabled:hover:bg-bg-active enabled:hover:text-text disabled:text-text-ghost"
+              >
+                <FoldAll collapsed />
+              </button>
+              <button
+                type="button"
+                data-testid="tree-collapse-all"
+                aria-label={t('specs.collapse_all')}
+                title={t('specs.collapse_all')}
+                disabled={noneOpen}
+                onClick={() => setOpen(new Set())}
+                className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute enabled:hover:bg-bg-active enabled:hover:text-text disabled:text-text-ghost"
+              >
+                <FoldAll collapsed={false} />
+              </button>
+            </>
           )}
           {/* **수는 둘이다.** 총계만 적으면 트리는 141 을 약속하고 106 만 지킨다.
               접었을 때 무엇이 감춰졌는지가 이 수로 보인다(REQ-WEB-102) */}
@@ -582,6 +702,7 @@ export function SpecTree({
             variant === 'rail' ? 'h-full' : 'max-h-[70vh]',
           )}
           ref={(el) => {
+            viewportRef.current = el;
             if (el !== null && el.clientHeight !== viewportHeight)
               setViewportHeight(el.clientHeight);
           }}
