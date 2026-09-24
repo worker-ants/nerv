@@ -26,6 +26,8 @@ import { assertToolInput } from './tool-input.js';
 import { ToolRegistry } from './tool-registry.js';
 import type { NervToolDefinition } from './tool-registry.js';
 import type { ToolContext } from './tool-context.js';
+import { toolCallLevel, toolCallMessage, toolCallOutcome } from './tool-call-log.js';
+import type { ToolCallNote } from './tool-call-log.js';
 
 /** 지원 리비전 — 첫 값이 서버 선호다. */
 export const SUPPORTED_REVISIONS = [
@@ -132,11 +134,23 @@ export class McpController {
           })),
         });
 
-      case 'tools/call':
-        return jsonRpc(
-          id,
-          await this.callTool(body.params ?? {}, principal, req.headers, t, locale),
+      case 'tools/call': {
+        // 호출마다 한 줄 — 접근 로그만으로는 전부 `POST /mcp 200` 이다(tool-call-log.ts · §5.5)
+        const note: ToolCallNote = { tool: null, sessionId: null, ignoredArgs: 0 };
+        const startedAt = performance.now();
+        const result = await this.callTool(
+          body.params ?? {},
+          principal,
+          req.headers,
+          t,
+          locale,
+          note,
         );
+        const outcome = toolCallOutcome(result);
+        const durationMs = Math.round(performance.now() - startedAt);
+        this.logger[toolCallLevel(outcome)](toolCallMessage(note, outcome, durationMs));
+        return jsonRpc(id, result);
+      }
 
       default:
         return jsonRpcError(
@@ -173,6 +187,8 @@ export class McpController {
     headers: Record<string, string | undefined>,
     t: Translator,
     locale: Locale,
+    /** 호출 한 줄에 실을 것을 채운다 — 응답에는 영향이 없다 */
+    note: ToolCallNote,
   ): Promise<unknown> {
     const name = String(params['name'] ?? '');
     const args = (params['arguments'] ?? {}) as Record<string, unknown>;
@@ -183,6 +199,7 @@ export class McpController {
         kind: 'unknown_tool',
       });
     }
+    note.tool = tool.name;
 
     // 권한과 입력은 호출 **전에** 검사한다 — 부작용 뒤의 거부는 거부가 아니고,
     // 스키마의 `required` 를 아무도 읽지 않으면 그것은 계약이 아니라 문서일 뿐이다
@@ -193,6 +210,7 @@ export class McpController {
     } catch (error) {
       return this.toStructuredError(error, t, locale);
     }
+    note.ignoredArgs = ignoredArgs.length;
     if (ignoredArgs.length > 0) {
       // 운영자용 로그(REQ-CB-022) — 드리프트는 사람이 스킬·스키마를 고쳐야 사라진다
       this.logger.warn(
@@ -208,6 +226,7 @@ export class McpController {
     } catch (error) {
       return this.toStructuredError(error, t, locale);
     }
+    note.sessionId = session.id;
 
     const ctx: ToolContext = {
       principal,

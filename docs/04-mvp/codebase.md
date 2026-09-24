@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.65 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.66 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.66 변경(2026-09-24 — 접근 로그가 닿지 않는 세 자리): **REQ-CB-054 신설 · §5.5 표 세 줄 · §2.2 트리 세 줄.** 로깅 개선 세 단계의 마지막이다. 접근 로그(REQ-CB-052)는 HTTP 요청마다 한 줄이지만 **닿지 않는 자리가 셋** 남아 있었다. ① **MCP** — JSON-RPC 는 도구의 실패도 200 에 `isError` 로 실으므로 접근 로그로는 전부 `POST /mcp 200` 이다. 에이전트가 같은 호출을 왜 되풀이하는지 로그로 추적할 수 없었다 → `tools/call` 마다 도구 · 결과 코드와 `kind` · 소요 · 세션 · 무시한 인자 수를 한 줄로 남긴다(인자 값·결과 본문·에러 문장은 싣지 않는다). ② **워커 잡** — 처리 건수가 0 보다 클 때만 줄이 있어, 조용한 워커가 할 일이 없었던 것인지 돌지 않은 것인지 가를 수 없었다 → 판마다 한 줄을 남긴다. 할 일이 없던 판은 `debug` 라 기본 수준에서는 일을 한 판과 실패한 판만 보인다. ③ **WebSocket** — 업그레이드는 socket.io 가 직접 받아 Fastify 훅을 거치지 않는다 → 연결 · 거절 · 해제마다 한 줄을 남기고, 앞문이 업그레이드에 실은 `X-Request-Id` 로 연결과 해제를 잇는다. 부르는 쪽이 적은 문자열(모르는 도구 이름 · 룸 이름)은 모양이 맞을 때만 싣는다.
 >
 > v1.65 변경(2026-09-24 — 로그를 필드로 거를 수 없었다, **사람 결정**): **REQ-CB-053 신설 · §5.2 전표 한 줄(`NERV_LOG_FORMAT`) · §5.5 · §5.3 전문 재동기화.** 로깅 개선 세 단계의 둘째다. `NERV_LOG_FORMAT=json` 이면 api·worker 가 **한 줄에 JSON 하나**를 찍는다(Nest 내장 `ConsoleLogger` 의 `json` 모드 — 새 의존성 없음). 접근 로그는 문장과 함께 필드(`route`·`status`·`duration_ms`·`code`·`user_id` …)를 줄의 최상위에 싣고, 요청 안의 줄에는 `req_id` 가 붙는다. **비면 `text`** 다 — 개발 루프(`pnpm dev`)는 사람이 터미널에서 읽는다. 컨테이너 배치는 compose(`${NERV_LOG_FORMAT:-json}`)와 k8s ConfigMap 이 `json` 을 넘긴다. 모르는 값은 `NERV_LOG_LEVEL` 과 같은 규칙으로 기본으로 떨어지되 한 줄 남긴다. 그리고 **§5.5 의 "싣지 않는 것" 을 L1 이 센다** — 두 형식의 실제 로거가 stdout 에 쓴 바이트에 자격증명·쿼리·본문·이메일·표시 이름이 없는가. 곁들여 **§5.3 compose 전문이 실물과 갈려 있었다** — `mailpit` 서비스와 api·worker 의 메일 키가 통째로 없었다(v1.56~v1.59 의 메일 작업이 파일만 고쳤다). 이 블록은 스스로 "전문" 이라 적으므로 실물 전량으로 다시 맞췄다(v1.39·v1.50 이 같은 드리프트를 고친 자리다). ※ 남은 것: MCP 도구 호출·워커 잡·WebSocket 한 줄 — [4.8](backlog.md) §1.4 셋째 표.
 >
@@ -392,6 +394,7 @@ apps/api/src/
     tool-context.ts    # 도구 호출의 주체·세션·멱등 키
     tool-input.ts      # 도구 입력 검증 — 모르는 인자는 ignored_args 로 되돌린다
     tool-registry.ts   # modules/**/*.tools.ts 수집 · zod 입력 검증 · idempotency_key 공통 처리
+    tool-call-log.ts   # tools/call 마다 한 줄 — 접근 로그로는 전부 POST /mcp 200 이다 (§5.5 · REQ-CB-054)
     untrusted.ts       # MCP 응답의 비신뢰 경계 — 표면에서만 감싼다 (REQ-API-153)
   modules/
     approval/
@@ -420,6 +423,7 @@ apps/api/src/
       sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
       valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리
       ws.gateway.ts                # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
+      ws-log.ts                    # 연결·거절·해제 한 줄 — 업그레이드는 접근 로그에 닿지 않는다 (§5.5 · REQ-CB-054)
     import/
       import.controller.ts  # REST — preflight · specs · tasks · links · map
       import.module.ts
@@ -479,6 +483,7 @@ apps/api/src/
   worker/
     advisory-lock.ts  # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)
     job-runner.ts     # 잡 루프 — advisory lock 아래에서 하나만 돈다
+    job-log.ts        # 잡 한 판의 한 줄 — 할 일이 없던 판은 debug (§5.5 · REQ-CB-054)
     worker.module.ts
     jobs/
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
@@ -1176,6 +1181,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-037** | WHEN 걷힌 이름 `NERV_PUBLIC_URL` 이 설정돼 있고 `NERV_WEB_URL`·`NERV_API_URL` 이 **둘 다 비어 있으면** THE SYSTEM SHALL api·worker 의 기동을 거부하고(비영 종료) 두 이름에 무엇을 넣어야 하는지를 문구로 말한다 — 기본값(`http://localhost:8080`)으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 사실을 **그 주소로 서명된 쿠키를 받고서야** 안다. WHERE 새 이름이 하나라도 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다 | 옛 이름만 있는 env 로 `assertPublicUrlRetired()` 가 던지고 문구에 두 이름과 넣을 값이 실린다 · 새 이름이 하나라도 있으면 던지지 않고 경고 한 줄 |
 | **REQ-CB-052** | WHEN api 가 HTTP 요청의 응답을 마치거나 그 연결이 끊기면 THE SYSTEM SHALL 요청마다 접근 로그 한 줄(메서드 · 라우트 템플릿 · 상태 · 소요 · 표면 · 에러 코드 · 주체 id)을 남기고, 요청 ID(`X-Request-Id` — 받은 값이 모양에 맞으면 그 값, 아니면 새 값)를 응답 헤더와 **그 요청 안에서 남긴 모든 로그 줄**에 싣는다 — 쿼리 문자열·본문·자격증명 헤더·이메일은 싣지 않는다. 운영 api 로그에 호출된 API 가 한 줄도 남지 않았다(2026-09-24 사람 보고 · §5.5) | 가드가 401 로 거절한 요청이 `code=NERV_UNAUTHENTICATED` 와 받은 요청 ID 로 한 줄 남고 쿼리 값은 없다(L2 `access-log.spec.ts`) · 끊긴 스트림이 `aborted=1` 로 한 줄 남는다(L1) |
 | **REQ-CB-053** | WHERE `NERV_LOG_FORMAT=json` 인 배치에서 THE SYSTEM SHALL api·worker 의 로그를 **한 줄에 JSON 하나**로 찍고 — 색 코드 없이, 요청 안의 줄에는 `req_id` 를, 접근 로그에는 문장과 함께 필드(`route`·`status`·`duration_ms`·`surface`·`code`·주체 id)를 줄의 최상위에 싣는다 — 값이 비면 `text` 로, 모르는 값이면 한 줄 경고 뒤 `text` 로 선다. 어느 형식이든 §5.5 의 "싣지 않는 것" 은 줄에 없다. 운영 로그를 필드로 거를 수 없었다(2026-09-24 사람 결정) | 가드가 거절한 요청이 `JSON.parse` 되는 한 줄로 남고 `req_id`·`code`·`route` 가 필드다(L2 `access-log.spec.ts`) · 두 형식의 실제 로거 출력에 Bearer·쿠키·멱등 키·쿼리·본문의 이메일·비밀번호·표시 이름이 없다(L1) |
+| **REQ-CB-054** | WHEN MCP `tools/call` 이 끝나거나, 워커 잡 한 판이 끝나거나, WebSocket 연결이 받아들여지거나 거절되거나 끊기면 THE SYSTEM SHALL 그마다 로그 한 줄을 남긴다 — 도구 호출은 도구 · 결과 코드와 `kind` · 소요 · 세션을(인자 값·결과 본문·에러 문장은 싣지 않는다), 잡은 이름 · 소요 · 결과 수치를(할 일이 없던 판은 `debug`), WebSocket 은 소켓 · 사용자 · 거절 코드 · 연결 시간을 싣고, 앞문이 준 `X-Request-Id` 로 연결과 해제를 잇는다. 셋 다 접근 로그(REQ-CB-052)가 닿지 않는 자리다 — MCP 실패는 200 에 실리고, 잡은 요청이 아니며, WebSocket 은 Fastify 훅을 거치지 않는다(2026-09-24) | 권한 부족 도구 호출이 `tools/call <도구> NERV_FORBIDDEN kind=missing_scope` 로 같은 요청의 접근 로그와 같은 `req_id` 를 달고 남는다 · 모르는 도구 이름은 줄에 없다(L2 `mcp.spec.ts`) · 받아들인 연결과 그 해제가 같은 `req_id` 로 남는다(L2 `realtime.spec.ts`) · 일을 한 판·빈 판·실패한 판이 각각 `log`·`debug`·`warn` 이다(L1 `job-log.spec.ts`) |
 
 ---
 
@@ -1754,6 +1760,9 @@ server {
 | 로그 맥락 | `common/nerv-logger.ts` | 요청 안에서 남긴 모든 줄에 `[req=…]` 가 붙는다 — AsyncLocalStorage 가 요청 ID 를 들고 로거가 읽는다. 서비스 코드는 모른다(D-05) |
 | 형식 | `common/nerv-logger.ts` — `NERV_LOG_FORMAT` | `text`(기본 — 개발 루프) · `json`(컨테이너 배치 — compose·k8s 가 넘긴다). `json` 은 한 줄에 JSON 하나이고 고정 키는 `level`·`pid`·`timestamp`(epoch ms)·`message`·`context`·`stack`·`req_id` 다. 접근 로그는 여기에 `event: "access"` 와 필드를 펼친다 — 구조화 필드는 고정 키를 덮지 못한다 |
 | 앞문 | §5.4 | 받은 `X-Request-Id` 를, 없으면 `$request_id` 를 넘기고 자기 접근 로그에도 싣는다. ingress-nginx 는 기본 설정으로 같은 일을 한다(`X-Request-ID` 생성·전달) |
+| MCP 도구 호출 | `mcp/tool-call-log.ts` — `tools/call` 마다 | `tools/call <도구> <ok 또는 코드> 소요 kind=… session=… ignored_args=…`. JSON-RPC 는 실패도 200 이라 접근 로그만으로는 전부 `POST /mcp 200` 이다 — 같은 `req_id` 로 이어진다. 인자 값·결과 본문·에러 문장은 싣지 않는다. 모르는 도구 이름은 `(unknown)` 이다(부르는 쪽이 적은 문자열이다). 수준은 접근 로그와 같은 결 — `UNAVAILABLE` 은 `error`, 권한·인증·쿼터는 `warn` |
+| 워커 잡 | `worker/job-log.ts` — 판마다 | `잡 <이름> 소요 <결과 수치…>` · 실패는 `잡 실패 [<이름>] 소요 — 원인`. 결과는 수치·참거짓만 싣는다. **할 일이 없던 판은 `debug`** — 기본 수준에서는 일을 한 판과 실패한 판만 보이고, "돌기는 하는가" 는 `NERV_LOG_LEVEL=debug` 로 연다 |
+| WebSocket | `modules/event/ws-log.ts` — 연결·거절·해제 | `ws <connect · reject · disconnect> sid=… user=… code=… rooms=… 소요`. 업그레이드는 socket.io 가 직접 받아 접근 로그에 닿지 않는다. 앞문이 업그레이드에 실은 `X-Request-Id` 가 연결의 ID 라 연결과 해제가 같은 `req_id` 다. 룸 참가는 거절만 기본 수준에서 보인다 |
 
 **싣지 않는 것**: 쿼리 문자열(라우트 템플릿만 — `/api/v1/projects/:proj/tasks`) · 요청·응답 본문 · `Authorization`·`Cookie`·`Idempotency-Key` · 이메일과 표시 이름(사람은 `user_id` 로만 가리킨다). 이 줄은 수집기로 흘러가고, 거기서 누가 읽을지는 이 저장소가 정하지 않는다.
 
@@ -1763,7 +1772,7 @@ server {
 
 "싣지 않는 것" 은 L1 이 센다 — 두 형식의 실제 로거가 stdout 에 쓴 바이트에 Bearer·쿠키·멱등 키·쿼리·본문·이메일·표시 이름이 없는가(REQ-CB-053). 가짜 로거로 세면 로거가 무엇을 **받았는가** 만 보고, 그것을 어떻게 펼쳤는가는 못 본다.
 
-※ 남은 것(셋째 단계): MCP `tools/call` 마다 한 줄(도구 · 결과 코드 · 소요 — HTTP 줄만으로는 전부 `POST /mcp 200` 이다), 워커 잡의 시작·끝 한 줄, WebSocket 연결·해제 한 줄.
+**접근 로그가 닿지 않는 자리 셋**(REQ-CB-054)은 위 표의 마지막 세 줄이다 — MCP 는 실패도 200 이고, 잡은 요청이 아니며, WebSocket 업그레이드는 Fastify 훅을 거치지 않는다.
 
 ---
 
