@@ -774,7 +774,12 @@ export class ReviewService {
     // **두 번 올리지 않는다.** 두 번째 호출은 이미 만든 것을 돌려준다 — 같은 지적으로
     // Task 가 둘 생기면 그 둘은 서로를 모른 채 각자 done 이 된다.
     if (found.promoted_task_id !== null) {
-      return { task_id: found.promoted_task_id, created: false };
+      // **어느 작업인지 말한다**(2026-09-24 · REQ-API-180). id 만 주던 동안 화면은 "이미 Task 로 올린
+      // 발견입니다" 만 적고 그 작업으로 가는 길을 주지 못했다
+      const { rows: existing } = await this.db.execute<{ key: string }>(
+        sql`SELECT key FROM task WHERE id = ${found.promoted_task_id}`,
+      );
+      return { task_id: found.promoted_task_id, key: existing[0]?.key ?? null, created: false };
     }
 
     const task = await this.tasks.create({
@@ -1002,6 +1007,11 @@ export class ReviewService {
     tag?: readonly string[];
     /** 어디에 대한 지적인가 — 사람이 다음에 할 행동으로 가른 축(REQ-API-073) */
     area?: readonly string[];
+    /**
+     * 어느 브랜치의 리뷰에서 나온 것인가(2026-09-24 · REQ-API-180) — 작업 상세의 리뷰 줄과 게이트 표가
+     * 그 브랜치의 발견으로 곧장 온다. 마지막으로 본 라운드(`last_session_id`)의 브랜치로 거른다
+     */
+    branch?: string | null;
     limit?: number;
     /** 다음 쪽의 시작 — 앞 응답의 `next_cursor` 를 그대로 되돌려 준다 */
     cursor?: string | null;
@@ -1015,6 +1025,8 @@ export class ReviewService {
     const status = normalizeFilter(input.status, FINDING_STATUSES, 'status');
     const area = normalizeFilter(input.area, FINDING_AREAS, 'area');
     const tags = (input.tag ?? []).filter((t) => t.trim() !== '');
+    const branch =
+      typeof input.branch === 'string' && input.branch.trim() !== '' ? input.branch : null;
     // 상한은 계약이 정한다 — clemvion 실측 18,650 발견을 한 응답에 담으면 화면이
     // 3만 픽셀이 된다(실측 2026-08-24). 잘린 사실은 facet 총계가 말한다.
     const limit = Math.min(
@@ -1049,9 +1061,14 @@ export class ReviewService {
              res.kind::text AS resolution_kind, res.rationale_md AS resolution_rationale,
              res.commit_sha AS resolution_commit, res.spec_version_id AS resolution_spec_version_id,
              res.created_at AS resolved_at,
-             ru.display_name AS resolved_by_name
+             ru.display_name AS resolved_by_name,
+             -- **어느 작업에서 나왔고, 어느 작업으로 올렸나**(REQ-API-180). 발견 → 작업으로 갈 길이 없었고,
+             -- 화면은 promoted_task_key 로 "올림" 을 그리려 했지만 값이 오지 않아 단추가 늘 켜져 있었다
+             rt.key AS task_key, pt.key AS promoted_task_key
         FROM finding f
         JOIN review_session rs ON rs.id = f.last_session_id
+        LEFT JOIN task rt ON rt.id = rs.task_id
+        LEFT JOIN task pt ON pt.id = f.promoted_task_id
         LEFT JOIN spec_version sv ON sv.id = f.spec_version_id
         LEFT JOIN spec s ON s.id = sv.spec_id
         LEFT JOIN requirement r ON r.id = f.requirement_id
@@ -1065,6 +1082,7 @@ export class ReviewService {
          ${this.filter('f.status', status, 'finding_status')}
          ${this.filter('f.area', area, 'finding_area')}
          ${tags.length === 0 ? sql`` : sql`AND f.tags && ${sqlArray(tags, 'text')}`}
+         ${this.branchFilter(branch)}
          ${cursorFilter}
        ORDER BY f.severity, f.created_at DESC, f.id
        LIMIT ${limit + 1}
@@ -1090,12 +1108,25 @@ export class ReviewService {
           status,
           area,
           tags,
+          branch,
           severity: [],
         }),
-        status: await this.facet(input.projectId, 'status', { severity, area, tags, status: [] }),
+        status: await this.facet(input.projectId, 'status', {
+          severity,
+          area,
+          tags,
+          branch,
+          status: [],
+        }),
         // 각 차원은 **자기 선택을 뺀** 나머지 필터로 센다 — 그래야 "이걸 켜면 몇 건인가" 다
-        area: await this.facet(input.projectId, 'area', { severity, status, tags, area: [] }),
-        tag: await this.facetTags(input.projectId, severity, status),
+        area: await this.facet(input.projectId, 'area', {
+          severity,
+          status,
+          tags,
+          branch,
+          area: [],
+        }),
+        tag: await this.facetTags(input.projectId, severity, status, branch),
       },
     };
   }
@@ -1116,6 +1147,14 @@ export class ReviewService {
     return sql`AND ${sql.raw(column)} IN (${list})`;
   }
 
+  /** 브랜치로 거른다 — 목록과 facet 이 **같은 규칙**을 써야 "이걸 켜면 몇 건" 이 맞는다 */
+  private branchFilter(branch: string | null) {
+    return branch === null
+      ? sql``
+      : sql`AND EXISTS (SELECT 1 FROM review_session brs
+                         WHERE brs.id = f.last_session_id AND brs.branch = ${branch})`;
+  }
+
   private async facet(
     projectId: string,
     dimension: 'severity' | 'status' | 'area',
@@ -1124,6 +1163,7 @@ export class ReviewService {
       status: readonly string[];
       area: readonly string[];
       tags: readonly string[];
+      branch: string | null;
     },
   ): Promise<Record<string, number>> {
     const { rows } = await this.db.execute<{ k: string; n: number }>(sql`
@@ -1134,6 +1174,7 @@ export class ReviewService {
          ${this.filter('f.status', filters.status, 'finding_status')}
          ${this.filter('f.area', filters.area, 'finding_area')}
          ${filters.tags.length === 0 ? sql`` : sql`AND f.tags && ${sqlArray(filters.tags, 'text')}`}
+         ${this.branchFilter(filters.branch)}
        GROUP BY 1
     `);
     return Object.fromEntries(rows.map((r) => [r.k, r.n]));
@@ -1143,6 +1184,7 @@ export class ReviewService {
     projectId: string,
     severity: readonly string[],
     status: readonly string[],
+    branch: string | null,
   ): Promise<Record<string, number>> {
     const { rows } = await this.db.execute<{ k: string; n: number }>(sql`
       SELECT tag AS k, count(*)::int AS n
@@ -1150,6 +1192,7 @@ export class ReviewService {
        WHERE f.project_id = ${projectId}
          ${this.filter('f.severity', severity, 'finding_severity')}
          ${this.filter('f.status', status, 'finding_status')}
+         ${this.branchFilter(branch)}
        GROUP BY 1
     `);
     return Object.fromEntries(rows.map((r) => [r.k, r.n]));

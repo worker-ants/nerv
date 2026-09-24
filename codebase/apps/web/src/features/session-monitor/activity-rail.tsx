@@ -16,6 +16,7 @@
 import { useT } from '../../lib/i18n.js';
 import { Link } from '@tanstack/react-router';
 import { Avatar, SectionLabel } from '../../components/ui/primitives.js';
+import { EntityLink } from '../../components/entity-link.js';
 import { ActivityTimeline, SessionTrajectory } from './activity-timeline.js';
 import { SteerPanel } from './steer-panel.js';
 import { relativeTime } from './format.js';
@@ -56,6 +57,17 @@ export function ActivityRail({
       <div className="mt-1.5 ml-8 text-xs text-text-faint">
         {relativeTime(t, card.started_at, now)} · {card.agent_type}
       </div>
+      {/* 레일 머리에 **무엇을 쥐었나** — 세션 상세 링크만 있고 작업은 표시조차 없었다(REQ-WEB-209) */}
+      {card.task_key !== null && (
+        <div
+          data-testid="rail-task"
+          className="mt-1 ml-8 flex min-w-0 items-center gap-1.5 text-xs"
+        >
+          <span className="shrink-0 text-text-faint">{t('session.meta.current_task')}</span>
+          <EntityLink projectSlug={projectSlug} entity={{ kind: 'task', key: card.task_key }} />
+          <span className="min-w-0 truncate text-text-mute">{card.task_title}</span>
+        </div>
+      )}
 
       {/* 개입은 레일에 있다 — 보고 있는 세션에 지시하는 것이 자연스러운 동선이다 */}
       <div className="mt-4">

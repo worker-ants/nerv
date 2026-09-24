@@ -59,6 +59,7 @@ export class ReviewController {
     @Query('area') area?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
+    @Query('branch') branch?: string,
   ): Promise<unknown> {
     return this.reviews.findings({
       projectId: req.nervProjectId!,
@@ -67,6 +68,7 @@ export class ReviewController {
       ...(csv(severity) === undefined ? {} : { severity: csv(severity)! }),
       ...(csv(tag) === undefined ? {} : { tag: csv(tag)! }),
       ...(csv(area) === undefined ? {} : { area: csv(area)! }),
+      branch: branch ?? null,
       cursor: cursor ?? null,
       // 숫자가 아니면 400 이다(§1.4j) — NaN 을 상한 계산에 넣으면 조용히 기본값이 된다
       ...((): { limit?: number } => {

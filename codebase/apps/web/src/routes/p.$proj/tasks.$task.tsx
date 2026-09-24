@@ -57,7 +57,9 @@ import {
   Select,
   Skeleton,
   Textarea,
+  Avatar,
 } from '../../components/ui/primitives.js';
+import { EntityLink } from '../../components/entity-link.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
@@ -123,6 +125,8 @@ function TaskDetail(): React.JSX.Element {
   // **리스가 지난 클레임은 쥔 것이 아니다** — 서버는 클레임할 때 그것을 먼저 회수한다(`claimInTx`).
   // 살아 있는 것과 지난 것을 가르지 않으면 되찾을 수 있는 작업의 [클레임]이 잠긴다
   const active = rows(data['claims']).filter((c) => c['status'] === 'active');
+  // 지금 돌리는 세션 — 머리의 "실행" 이 가리킨다(에이전트 클레임만 · 사람 클레임은 담당이 말한다)
+  const runner = active.find((c) => typeof c['agent_session_id'] === 'string');
   const live = active.filter((c) => (secondsUntil(c['lease_expires_at'], now) ?? 0) > 0);
   const heldByOther = live.some((c) => c['user_id'] !== meId);
   const liveClaim: 'none' | 'mine' | 'other' =
@@ -349,6 +353,27 @@ function TaskDetail(): React.JSX.Element {
               token={(TASK_TOKEN[status as keyof typeof TASK_TOKEN] ?? 'idle') as StatusToken}
               label={t(statusLabelKey('task', status))}
             />
+            {/* **누구의 일이고 누가 돌리는가**(D-08 · REQ-WEB-209) — 담당(책임)과 실행(에이전트 세션)을
+                따로 적는다. 머리는 키·상태뿐이라 둘 다 없었다 */}
+            {typeof data['assignee_name'] === 'string' && (
+              <span
+                data-testid="task-assignee"
+                className="flex items-center gap-1 text-xs text-text-mute"
+              >
+                <Avatar name={data['assignee_name']} size="sm" />
+                {t('task.meta.assignee', { name: data['assignee_name'] })}
+              </span>
+            )}
+            {runner !== undefined && typeof runner['agent_session_id'] === 'string' && (
+              <EntityLink
+                projectSlug={proj}
+                entity={{ kind: 'session', id: runner['agent_session_id'] }}
+                testId="task-runner"
+                className="text-xs"
+              >
+                {t('task.meta.runner', { host: String(runner['hostname'] ?? '') })}
+              </EntityLink>
+            )}
           </>
         }
         actions={
@@ -424,7 +449,18 @@ function TaskDetail(): React.JSX.Element {
             <Element label={t('task.basis.requirement')}>
               {typeof data['source_requirement_ref'] === 'string' ? (
                 <span data-testid="requirement-ref" className="flex flex-col gap-0.5">
-                  <Mono>{String(data['source_requirement_ref'])}</Mono>
+                  {/* 그 요구사항이 적힌 **스펙의 요구사항 탭**으로 간다(REQ-WEB-209) */}
+                  {typeof data['spec_key'] === 'string' ? (
+                    <EntityLink
+                      projectSlug={proj}
+                      entity={{ kind: 'spec', key: data['spec_key'], rail: 'requirements' }}
+                      testId="requirement-link"
+                    >
+                      <Mono>{String(data['source_requirement_ref'])}</Mono>
+                    </EntityLink>
+                  ) : (
+                    <Mono>{String(data['source_requirement_ref'])}</Mono>
+                  )}
                   {typeof data['source_requirement_statement'] === 'string' && (
                     <span className="line-clamp-2 text-xs text-text-mute">
                       {String(data['source_requirement_statement'])}
@@ -688,6 +724,16 @@ function TaskDetail(): React.JSX.Element {
                     </span>
                     <span className="text-text-mute">{String(claim['agent_type'] ?? '')}</span>
                     <Mono>{String(claim['external_session_id'] ?? '')}</Mono>
+                    {/* 이 작업을 쥔 세션이 **지금 무엇을 하는지** 보러 간다(명세 그림의 [세션 보기 ▸]) */}
+                    {typeof claim['agent_session_id'] === 'string' && (
+                      <EntityLink
+                        projectSlug={proj}
+                        entity={{ kind: 'session', id: claim['agent_session_id'] }}
+                        testId="claim-session-link"
+                      >
+                        {t('task.claim_session_link')}
+                      </EntityLink>
+                    )}
                     {/* **리스는 흐른다**(SCR-06) — 만료 시각에서 매초 다시 센다 */}
                     {remaining !== null && (
                       <span data-testid="claim-lease" className="text-text-faint">
@@ -924,7 +970,14 @@ function TaskDetail(): React.JSX.Element {
                 data-testid="task-review"
                 className="flex flex-wrap items-center gap-2 border-b border-border py-1.5 text-xs last:border-0"
               >
-                <Mono>{String(r['branch'])}</Mono>
+                {/* 그 브랜치의 **발견으로** 간다 — "열린 critical 2건" 을 붉게 적고 그 발견들로 가는 길이 없었다 */}
+                <EntityLink
+                  projectSlug={proj}
+                  entity={{ kind: 'findings', branch: String(r['branch']) }}
+                  testId="review-branch-link"
+                >
+                  <Mono>{String(r['branch'])}</Mono>
+                </EntityLink>
                 <span className="text-text-faint">
                   {reviewKindText(t, r['kind'])} · R{String(r['round_no'])} ·{' '}
                   {reviewStateText(t, r['state'])}

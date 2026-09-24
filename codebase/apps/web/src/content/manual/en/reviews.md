@@ -28,7 +28,7 @@ Findings carry one of three severities: `critical` · `warning` · `info`. `open
 
 `spec_change` exists for honesty. Recording a documentation fix as `fixed` claims the code was changed; recording it as `dismissed` claims it was a false positive. Neither is true. When someone later asks "what resolved these findings", this distinction is the answer.
 
-**Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens. **On a narrow screen it opens under that card instead of on a rail** — the place changes, what you see does not. Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the resolution**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog.
+**Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens. **On a narrow screen it opens under that card instead of on a rail** — the place changes, what you see does not. Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the resolution**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog. Once promoted, that button becomes **a link to the task it created**, and the toast carries [Open] as well. Promoting a finding again does not create another task; it tells you **which task** it already is. Cards in the queue also name the task a finding **came from** (Task {key}) and the task it **was promoted to** (→ {key}); both take you to that task.
 
 Resolutions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.**
 
@@ -51,13 +51,15 @@ Narrow the list with the filters in the **left column** — **severity, area, st
 
 **The default shows only `open`.** That is why a finding you have disposed of is not there; change the status filter to see it. Open a single finding by link from elsewhere and, if it falls outside the default, the screen **drops the status filter once by itself** — so following a link never lands you on an empty page.
 
+**You can also arrive by branch.** Pressing the branch on a task's review row or in the gate table opens the review center filtered to **that branch's findings only**, with "Showing findings from branch … only." above the list next to **[Clear the branch filter]**. The counts beside the filters are counted within that branch too. The branch is the one from the round in which a finding was **last observed**.
+
 **The status filter has no `spec_change` value.** A finding closed by fixing the spec is stored as `fixed`; what it was resolved with is written on the rail.
 
 When the list hits its ceiling and is cut short, the screen states **M of N**. On a result of zero that line gives way to the empty-state message instead.
 
 ## Gate coverage
 
-A gate is the rule that decides whether a change may go out. **One row is one branch**, carrying the reviews that covered it, the resolved ratio and the verdict — a rule that checks nothing is only stamping things as passed. The last 20 branches are shown.
+A gate is the rule that decides whether a change may go out. **One row is one branch**, carrying the reviews that covered it, the resolved ratio and the verdict — a rule that checks nothing is only stamping things as passed. The last 20 branches are shown. Press a branch name to go to that branch's findings.
 
 **The table reports the verdict; it does not block yet.** Enforcement belongs to a later stage, so a red verdict stops nothing today — the screen says as much above the table.
 

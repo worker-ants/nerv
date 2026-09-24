@@ -1086,3 +1086,72 @@ describe('리뷰가 Task 에 이어진다 (REQ-API-148)', () => {
     expect(result.task_id).toBe(other);
   });
 });
+
+describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
+  async function taskRow(key: string): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'작업','in_progress','목표','PR','도구','경계')`,
+      [id, projectId, key],
+    );
+    return id;
+  }
+
+  it('두 번 올리면 **어느 작업인지** 키로 말하고, 목록은 올린 작업의 키를 싣는다', async () => {
+    const result = await reviews.submit(
+      submitInput({ findings: [{ ...CRITICAL, title: '승격 키 확인' }] }),
+    );
+    const findingId = result.findings_new[0]!;
+    const first = await reviews.promote({ projectId, findingId, userId });
+    const second = await reviews.promote({ projectId, findingId, userId });
+    expect(second).toMatchObject({ created: false, key: first['key'] });
+    const { items } = await reviews.findings({ projectId, status: ['open'] });
+    expect(items.find((i) => i['id'] === findingId)?.['promoted_task_key']).toBe(first['key']);
+  });
+
+  it('리뷰가 이어진 작업의 키를 싣는다 — 발견에서 그 작업으로 간다', async () => {
+    await taskRow('TSK-FROMREV');
+    const taskId = (
+      await pool.query<{ id: string }>(`SELECT id FROM task WHERE key = 'TSK-FROMREV'`)
+    ).rows[0]!.id;
+    const result = await reviews.submit({
+      projectId,
+      userId,
+      sessionId: agentSessionId,
+      taskId,
+      kind: 'code',
+      branch: 'feat/from-task',
+      headSha: 'eee555',
+      baseSha: 'fff666',
+      reviewer: { role: 'code', risk: 'low' },
+      findings: [{ severity: 'warning', title: '작업에서 나온 지적', file: 'src/a.ts', line: 1 }],
+    });
+    const { items } = await reviews.findings({ projectId, status: ['open'] });
+    const found = items.find((i) => i['id'] === result.findings_new[0]);
+    expect(found?.['task_key']).toBe('TSK-FROMREV');
+  });
+
+  it('브랜치로 거르면 목록과 facet 이 **그 브랜치만** 센다', async () => {
+    for (const [branch, title] of [
+      ['feat/only-a', '가 브랜치의 지적'],
+      ['feat/only-b', '나 브랜치의 지적'],
+    ] as const) {
+      await reviews.submit({
+        projectId,
+        userId,
+        sessionId: agentSessionId,
+        kind: 'code',
+        branch,
+        headSha: `${branch}-sha`,
+        baseSha: 'base',
+        reviewer: { role: 'code', risk: 'low' },
+        findings: [{ severity: 'info', title, file: 'src/b.ts', line: 2 }],
+      });
+    }
+    const narrowed = await reviews.findings({ projectId, status: ['open'], branch: 'feat/only-a' });
+    expect(narrowed.items.map((i) => i['title'])).toEqual(['가 브랜치의 지적']);
+    expect(narrowed.facets.severity).toEqual({ info: 1 });
+  });
+});

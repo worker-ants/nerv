@@ -7,7 +7,7 @@
 // 이 화면이 대체하는 것은 clemvion 의 `review/**` md 13,777개(131MB)다.
 
 import { scopesForRoles } from '@nerv/schema';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { ErrorState } from '../../components/query-state.js';
 import { useEffect, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
@@ -36,10 +36,15 @@ import { asProjectId } from '../../lib/query-keys.js';
 export const Route = createFileRoute('/p/$proj/reviews/')({
   // **발견 하나를 가리킬 주소가 필요하다**(2026-08-31 — 사람 요청). 받은 요청의 질문 카드가
   // finding 을 짧은 id 로만 적고 있어서, 그 지적을 보려면 큐에서 손으로 찾아야 했다.
-  validateSearch: (search: Record<string, unknown>): { finding?: string } =>
-    typeof search['finding'] === 'string' && search['finding'] !== ''
+  validateSearch: (search: Record<string, unknown>): { finding?: string; branch?: string } => ({
+    ...(typeof search['finding'] === 'string' && search['finding'] !== ''
       ? { finding: search['finding'] }
-      : {},
+      : {}),
+    // 한 브랜치의 발견으로 들어온다(2026-09-24 · REQ-WEB-209) — 작업 상세의 리뷰 줄과 게이트 표가 여기로 온다
+    ...(typeof search['branch'] === 'string' && search['branch'] !== ''
+      ? { branch: search['branch'] }
+      : {}),
+  }),
   component: ReviewCenter,
 });
 
@@ -71,12 +76,13 @@ function ReviewCenter(): React.JSX.Element {
   const [resolving, setResolving] = useState<{ id: string; action: ResolveAction } | null>(null);
   // 레일이 펴는 하나 — 고르지 않았으면 레일을 세우지 않는다(빈 패널을 만들지 않는다)
   // 주소로 지목된 발견이 초기 선택이다 — 링크를 눌러 온 사람은 그것을 보러 온 것이다
-  const { finding: linked } = Route.useSearch();
+  const { finding: linked, branch } = Route.useSearch();
+  const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>(linked ?? null);
   // **더 보기는 배수로 늘린다.** clemvion 실측 18,650건 — 전량을 한 번에 그리면
   // 화면이 3만 픽셀이 된다(실측 2026-08-24). 답은 무한 스크롤이 아니라 **필터**이고,
   // 그래서 "몇 건 중 몇 건인지"를 먼저 말한다(REQ-WEB-067).
-  const queue = useFindings(proj, { severity, status, tag, area }, id);
+  const queue = useFindings(proj, { severity, status, tag, area, branch }, id);
   const gate = useGateCoverage(proj, id);
   // 멤버십 한 행이 아니라 이 프로젝트에서의 역할 **전부**다 — 조직 단위 멤버십만 가진
   // 사람은 한 행 판정에서 아무 역할도 없는 사람이 된다(2026-08-24).
@@ -230,6 +236,26 @@ function ReviewCenter(): React.JSX.Element {
               </span>
             )}
           </SectionTitle>
+          {/* **어느 브랜치로 좁혔는지 말하고, 푸는 길을 둔다** — 주소로 들어온 필터가 보이지 않으면
+              사람은 큐가 왜 이것뿐인지 모른다(REQ-WEB-209) */}
+          {branch !== undefined && (
+            <p
+              data-testid="branch-filter"
+              className="mb-2 flex items-center gap-2 text-xs text-text-mute"
+            >
+              {t('reviews.branch_filter', { branch })}
+              <button
+                type="button"
+                data-testid="branch-filter-clear"
+                className="text-link hover:underline"
+                onClick={() =>
+                  void navigate({ to: '/p/$proj/reviews', params: { proj }, search: {} })
+                }
+              >
+                {t('reviews.branch_clear')}
+              </button>
+            </p>
+          )}
           {queue.isPending ? (
             <div data-testid="finding-queue-skeleton" className="flex flex-col gap-2">
               <Skeleton className="h-16" />
@@ -315,7 +341,11 @@ function ReviewCenter(): React.JSX.Element {
           )}
 
           <div className="mt-6">
-            <GateCoverage rows={gateRows} total={gate.data?.total ?? gateRows.length} />
+            <GateCoverage
+              rows={gateRows}
+              total={gate.data?.total ?? gateRows.length}
+              projectSlug={proj}
+            />
           </div>
         </div>
 

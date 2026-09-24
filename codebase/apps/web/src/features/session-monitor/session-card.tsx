@@ -11,6 +11,7 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { Avatar } from '../../components/ui/primitives.js';
+import { EntityLink } from '../../components/entity-link.js';
 import { cn } from '../../lib/utils.js';
 import { diffStat, identity, leaseRemaining, relativeTime } from './format.js';
 import type { SessionCard as Card } from './types.js';
@@ -109,7 +110,20 @@ export function SessionCard({
           )
         ) : (
           <>
-            <div className="truncate text-sm">{card.task_title}</div>
+            {/* **작업으로 간다**(REQ-WEB-209) — 키를 옮겨 적어 ⌘K 에 붙이던 자리다 */}
+            {projectSlug === undefined ? (
+              <div className="truncate text-sm">{card.task_title}</div>
+            ) : (
+              <EntityLink
+                projectSlug={projectSlug}
+                entity={{ kind: 'task', key: card.task_key }}
+                stop
+                testId="session-task-link"
+                className="block truncate text-sm text-text"
+              >
+                {card.task_title}
+              </EntityLink>
+            )}
             <div className="mt-0.5 flex items-center gap-2 text-2xs text-text-faint">
               <span className="font-mono">{card.task_key}</span>
               {card.branch !== null && <span className="truncate font-mono">{card.branch}</span>}

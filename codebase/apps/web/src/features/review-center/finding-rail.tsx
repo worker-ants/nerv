@@ -16,6 +16,7 @@ import { queryKeys } from '../../lib/query-keys.js';
 import { rows, useFindingComments } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { StatusBadge } from '../../components/status-badge.js';
+import { EntityLink } from '../../components/entity-link.js';
 import { SEVERITY_TOKEN } from '../../components/status-token.js';
 import { useT } from '../../lib/i18n.js';
 import { relativeTime } from '../../lib/format.js';
@@ -73,12 +74,18 @@ export function FindingRail({
       if (projectId !== undefined) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.projectFindings(projectId) });
       }
+      // **어느 작업인지 말하고 그리로 가는 길을 준다**(REQ-WEB-209). 이미 올린 것을 다시 누르면 "이미 올린
+      // 발견입니다" 만 적었다 — 서버가 이제 그 키를 돌려준다(REQ-API-180)
+      const key = typeof result['key'] === 'string' ? result['key'] : null;
       pushToast({
         tone: 'ok',
         message:
           result['created'] === true
-            ? t('reviews.promoted', { key: String(result['key'] ?? '') })
-            : t('reviews.promoted_already'),
+            ? t('reviews.promoted', { key: key ?? '' })
+            : t('reviews.promoted_already', { key: key ?? '' }),
+        ...(key === null
+          ? {}
+          : { href: `/p/${projectSlug}/tasks/${key}`, hrefLabel: t('shell.toast.open') }),
       });
     },
     onError: onApiError,
@@ -195,16 +202,28 @@ export function FindingRail({
             {t('reviews.rail.comment_submit')}
           </button>
           {/* **"나중에 하자" 가 갈 곳** — wont_fix 는 근거만 남기고 큐에서 사라진다 */}
-          <button
-            type="button"
-            data-testid="promote-task"
-            disabled={!canPromote || promoted || promote.isPending}
-            title={canPromote ? undefined : t('reviews.no_permission')}
-            onClick={() => promote.mutate()}
-            className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-50"
-          >
-            {promoted ? t('reviews.promote_done') : t('reviews.promote')}
-          </button>
+          {/* 올린 뒤에는 **그 작업으로 가는 링크**다 — 잠긴 단추만 남던 자리다(REQ-WEB-115 · REQ-WEB-209) */}
+          {promoted ? (
+            <EntityLink
+              projectSlug={projectSlug}
+              entity={{ kind: 'task', key: String(finding['promoted_task_key']) }}
+              testId="promoted-task-link"
+              className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs"
+            >
+              {t('reviews.promoted_to', { key: String(finding['promoted_task_key']) })} ▸
+            </EntityLink>
+          ) : (
+            <button
+              type="button"
+              data-testid="promote-task"
+              disabled={!canPromote || promote.isPending}
+              title={canPromote ? undefined : t('reviews.no_permission')}
+              onClick={() => promote.mutate()}
+              className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-50"
+            >
+              {t('reviews.promote')}
+            </button>
+          )}
         </div>
       </section>
 

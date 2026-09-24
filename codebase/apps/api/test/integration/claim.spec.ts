@@ -1143,6 +1143,23 @@ describe('E04-S05 ready 큐', () => {
 
 // ── 도우미 ─────────────────────────────────────────────────────────────────
 
+describe('작업이 누가 실행하는지·누구의 일인지를 싣는다 (REQ-API-180)', () => {
+  it('목록은 활성 클레임의 세션 — 기계·에이전트·상태 — 를, 상세는 담당 이름을 싣는다', async () => {
+    const taskId = await makeTask('CLV-T-EXEC01');
+    await pool.query(`UPDATE task SET assignee_user_id = $1 WHERE id = $2`, [hana, taskId]);
+    await tasks.claim(claimInput(taskId, sessionDohyun, dohyun));
+    const { items } = await tasks.list({ projectId });
+    expect(items.find((i) => i['key'] === 'CLV-T-EXEC01')).toMatchObject({
+      claim_session_id: sessionDohyun,
+      claim_hostname: 'mac-02',
+      claim_agent_type: 'claude-code',
+      claim_session_state: 'active',
+    });
+    const detail = await tasks.get({ projectId, taskKey: 'CLV-T-EXEC01' });
+    expect(detail['assignee_name']).toBe('하나');
+  });
+});
+
 describe('세션 카드가 한 일과 기다리는 것을 말한다 (REQ-API-179)', () => {
   it('활성 클레임이 없으면 마지막으로 쥔 작업과 **어떻게 끝났는지**를 싣는다', async () => {
     const taskId = await makeTask('CLV-T-LASTCL');

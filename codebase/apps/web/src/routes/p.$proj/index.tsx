@@ -103,7 +103,7 @@ function ProjectOverview(): React.JSX.Element {
               고정 폭 열들이 넘쳐 화면이 깨진다(실측 2026-08-23) */}
           <div className="flex flex-col">
             {active.slice(0, 4).map((card) => (
-              <SessionCard key={card.id} card={card} />
+              <SessionCard key={card.id} card={card} projectSlug={proj} />
             ))}
           </div>
           {active.length === 0 && (

@@ -29,6 +29,7 @@ import {
   SectionTitle,
   Skeleton,
 } from '../../components/ui/primitives.js';
+import { EntityLink } from '../../components/entity-link.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
@@ -114,7 +115,15 @@ function SessionDetail(): React.JSX.Element {
             <Meta label={t('session.branch')}>{String(data['branch'] ?? '—')}</Meta>
             <Meta label={t('session.meta.worktree')}>{String(data['worktree_path'] ?? '—')}</Meta>
             <Meta label={t('session.meta.current_task')}>
-              {String(data['current_task_key'] ?? '—')}
+              {typeof data['current_task_key'] === 'string' ? (
+                <EntityLink
+                  projectSlug={proj}
+                  entity={{ kind: 'task', key: data['current_task_key'] }}
+                  testId="session-current-task"
+                />
+              ) : (
+                '—'
+              )}
             </Meta>
             <Meta label="diff">
               +{String(data['diff_added'] ?? 0)} / -{String(data['diff_removed'] ?? 0)}
@@ -157,7 +166,10 @@ function SessionDetail(): React.JSX.Element {
                 key={String(claim['id'])}
                 className="flex gap-2 border-b border-border py-1.5 text-xs last:border-0"
               >
-                <span className="font-mono">{String(claim['task_key'])}</span>
+                <EntityLink
+                  projectSlug={proj}
+                  entity={{ kind: 'task', key: String(claim['task_key']) }}
+                />
                 <span className="truncate">{String(claim['task_title'])}</span>
                 <span className="ml-auto shrink-0 text-text-faint">
                   {claimStatusText(t, claim['status'])}

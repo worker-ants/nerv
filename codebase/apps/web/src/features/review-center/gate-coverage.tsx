@@ -10,6 +10,7 @@ import { useT } from '../../lib/i18n.js';
 import type { Row } from '../../lib/queries.js';
 import { relativeTime } from '../session-monitor/format.js';
 import { EmptyState, SectionTitle, Table, Td, Th, Tr } from '../../components/ui/primitives.js';
+import { EntityLink } from '../../components/entity-link.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
 const VERDICT_TOKEN: Record<string, StatusToken> = {
@@ -21,9 +22,11 @@ const VERDICT_TOKEN: Record<string, StatusToken> = {
 export function GateCoverage({
   rows: items,
   total,
+  projectSlug,
 }: {
   rows: Row[];
   total: number;
+  projectSlug: string;
 }): React.JSX.Element {
   const t = useT();
   if (items.length === 0) {
@@ -69,7 +72,14 @@ export function GateCoverage({
           return (
             <Tr key={String(row['branch'])}>
               <Td className="font-mono text-xs break-all">
-                {String(row['branch'])}
+                {/* 그 브랜치의 **발견으로** 간다(REQ-WEB-209) — 표의 브랜치가 글자뿐이었다 */}
+                <EntityLink
+                  projectSlug={projectSlug}
+                  entity={{ kind: 'findings', branch: String(row['branch']) }}
+                  testId="gate-branch-link"
+                >
+                  {String(row['branch'])}
+                </EntityLink>
                 {/* **면제는 같은 줄에 펼친다.** 목록 어딘가가 아니라 그 브랜치 옆에
                     있어야 한다 — 면제가 조용히 일어나지 않는 것 자체가 기능이다 */}
                 {bypasses.map((b, i) => (

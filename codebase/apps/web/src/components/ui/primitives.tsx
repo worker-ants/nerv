@@ -507,10 +507,17 @@ export function Avatar({
   name,
   size = 'md',
   className,
+  label,
 }: {
   name: string;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  /**
+   * 이름이 **곁에 적혀 있지 않은** 자리의 말(2026-09-24 · REQ-WEB-209) — 툴팁과 스크린리더 이름이 된다.
+   * 보드 카드처럼 이니셜만 서는 곳에서는 같은 이니셜의 두 사람을 가를 수 없었고, 읽는 도구에는
+   * 아무것도 읽히지 않았다. 이름이 곁에 있으면 주지 않는다 — 같은 이름을 두 번 읽힌다
+   */
+  label?: string | undefined;
 }): React.JSX.Element {
   const initial = name.trim().slice(0, 1) || '?';
   let hash = 0;
@@ -520,7 +527,7 @@ export function Avatar({
     md: 'h-6 w-6 text-2xs',
     lg: 'h-7.5 w-7.5 text-xs',
   };
-  return (
+  const face = (
     <span
       aria-hidden="true"
       className={cn(
@@ -531,6 +538,13 @@ export function Avatar({
       )}
     >
       {initial}
+    </span>
+  );
+  if (label === undefined) return face;
+  return (
+    <span className="inline-flex shrink-0" title={label}>
+      {face}
+      <span className="sr-only">{label}</span>
     </span>
   );
 }
