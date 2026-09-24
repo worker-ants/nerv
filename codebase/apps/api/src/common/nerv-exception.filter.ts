@@ -104,9 +104,14 @@ export class NervExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     // 로케일은 요청에서 온다 — 서비스는 몰랐고, 여기서만 안다
-    const req = host.switchToHttp().getRequest<{ headers?: Record<string, unknown> }>();
+    const req = host.switchToHttp().getRequest<{
+      headers?: Record<string, unknown>;
+      nervErrorCode?: string | null;
+    }>();
     const locale = negotiateLocale(headerOf(req?.headers, 'accept-language'));
     const { status, body } = this.translate(exception, locale);
+    // 접근 로그(access-log.ts)가 이 코드를 싣는다 — 상태만으로는 409 가 어느 전제조건인지 모른다
+    if (req !== undefined && req !== null) req.nervErrorCode = body.code;
     const res = host.switchToHttp().getResponse<{
       status(code: number): { send(payload: unknown): void };
       header(name: string, value: string): void;

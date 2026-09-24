@@ -1,0 +1,210 @@
+// 접근 로그 — 요청마다 한 줄 (정본: docs/04-mvp/codebase.md §5.5 · REQ-CB-052)
+//
+// **운영 api 컨테이너 로그에 호출된 API 가 한 줄도 남지 않았다**(2026-09-24 사람 보고).
+// Fastify 는 `logger` 옵션이 없으면 로그를 끄고, Nest 는 요청을 기록하지 않는다. 남는 것은
+// 처리되지 않은 예외(500)뿐이라 "권한이 없다고 나온다" 같은 4xx 문의는 로그로 확인할 길이
+// 없었다.
+//
+// Nest 인터셉터가 아니라 **Fastify 훅**에 다는 이유: better-auth(`/api/auth/*`)는 Nest 라우트가
+// 아니고, 가드가 거절한 요청은 인터셉터에 닿지 않는다. 훅은 둘 다 본다.
+//
+// **싣지 않는 것**: 쿼리 문자열(라우트 템플릿만 싣는다) · 본문 · `Authorization`·`Cookie` 등
+// 헤더 · 이메일·표시 이름. 사람은 `user_id` 로만 가리킨다 — 이 줄은 수집기로 흘러가고,
+// 거기서는 누가 읽을지 이 저장소가 정하지 않는다.
+
+import { Logger } from '@nestjs/common';
+import type { LogLevel } from '@nestjs/common';
+import type { IncomingHttpHeaders, ServerResponse } from 'node:http';
+import type { Principal } from '../modules/auth/auth.service.js';
+import { REQUEST_ID_HEADER, requestContext } from './request-context.js';
+
+/** 훅이 읽는 요청의 모양 — 가드·필터가 요청 객체에 달아 둔 것까지 */
+export interface AccessRequest {
+  id: string;
+  method: string;
+  url: string;
+  headers: IncomingHttpHeaders;
+  socket?: { remoteAddress?: string | undefined } | undefined;
+  routeOptions?: { url?: string | undefined } | undefined;
+  nervPrincipal?: Principal | undefined;
+  nervProjectId?: string | undefined;
+  nervSseProjectId?: string | undefined;
+  /** 에러 봉투의 코드 — `NervExceptionFilter` 가 단다 */
+  nervErrorCode?: string | null | undefined;
+}
+
+interface AccessReply {
+  raw: ServerResponse;
+}
+
+type Done = (error?: Error) => void;
+
+/** `fastify.addHook` 의 필요한 만큼 — apps/api 는 fastify 를 직접 의존하지 않는다 */
+export interface AccessHookHost {
+  addHook(
+    name: 'onRequest' | 'preHandler',
+    hook: (request: never, reply: never, done: Done) => void,
+  ): unknown;
+}
+
+export interface AccessRecord {
+  method: string;
+  route: string;
+  status: number;
+  durationMs: number;
+  surface: string;
+  /** 응답이 끝나기 전에 연결이 닫혔다 — SSE 는 대개 이렇게 끝난다 */
+  aborted: boolean;
+  code: string | null;
+  userId: string | null;
+  isAgent: boolean | null;
+  tokenId: string | null;
+  projectId: string | null;
+  ip: string | null;
+  bytes: number | null;
+}
+
+/** 로그를 남기지 않는 경로 — 인프라 liveness 는 초마다 온다(§5.4) */
+const SKIPPED = new Set(['/healthz']);
+
+/** 경로 접두 → 표면(api.md §1.1 표면 전표) */
+export function surfaceOf(path: string): string {
+  if (path.startsWith('/api/auth/')) return 'auth';
+  if (path.startsWith('/api/')) return 'rest';
+  if (path === '/mcp' || path.startsWith('/mcp/')) return 'mcp';
+  if (path.startsWith('/ingest/')) return 'ingest';
+  if (path.startsWith('/sse/')) return 'sse';
+  if (path.startsWith('/ws/')) return 'ws';
+  if (path.startsWith('/plugin/')) return 'plugin';
+  return 'other';
+}
+
+/**
+ * 수준 — 5xx 는 서버의 잘못이라 `error`. 401·403·429 는 **사람이 문의해 오는 4xx** 라
+ * `warn` 으로 올려 수준만으로 걸러 볼 수 있게 한다. 나머지는 `log`, 프리플라이트는 `verbose`.
+ */
+export function accessLevel(method: string, status: number): LogLevel {
+  if (status >= 500) return 'error';
+  if (status === 401 || status === 403 || status === 429) return 'warn';
+  if (method === 'OPTIONS') return 'verbose';
+  return 'log';
+}
+
+/**
+ * 클라이언트 주소 — `X-Forwarded-For` 의 **마지막** 항목.
+ *
+ * 앞문(nginx·ingress-nginx)은 받은 값 뒤에 자기가 본 주소를 **덧붙인다**
+ * (`$proxy_add_x_forwarded_for`). 맨 앞은 클라이언트가 적어 보낸 값이라 믿을 수 없고,
+ * 맨 뒤가 우리 앞문이 직접 본 주소다. 앞문이 하나인 배치(§5.4 · §6)를 전제한다.
+ */
+export function clientIp(
+  forwarded: string | string[] | undefined,
+  remote: string | undefined,
+): string | null {
+  const raw = Array.isArray(forwarded) ? forwarded.join(',') : forwarded;
+  const last = raw
+    ?.split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .at(-1);
+  return last ?? remote ?? null;
+}
+
+/** 라우트 템플릿. 매칭되지 않은 요청(404)은 쿼리를 뗀 경로를 싣는다 */
+function routeOf(request: AccessRequest): string {
+  const template = request.routeOptions?.url;
+  if (template !== undefined && template !== '') return template;
+  return (request.url.split('?')[0] ?? '').slice(0, 200);
+}
+
+export function accessRecordOf(
+  request: AccessRequest,
+  raw: ServerResponse,
+  durationMs: number,
+  aborted: boolean,
+): AccessRecord {
+  const principal = request.nervPrincipal;
+  const length = Number(raw.getHeader('content-length'));
+  return {
+    method: request.method,
+    route: routeOf(request),
+    status: raw.statusCode,
+    durationMs,
+    surface: surfaceOf(request.url),
+    aborted,
+    code: request.nervErrorCode ?? null,
+    userId: principal?.userId ?? null,
+    isAgent: principal?.isAgent ?? null,
+    tokenId: principal?.tokenId ?? null,
+    projectId: principal?.projectId ?? request.nervProjectId ?? request.nervSseProjectId ?? null,
+    ip: clientIp(request.headers['x-forwarded-for'], request.socket?.remoteAddress),
+    bytes: Number.isFinite(length) ? length : null,
+  };
+}
+
+/**
+ * 한 줄 — `METHOD 라우트 상태 소요 key=value…`. 앞 넷은 사람이 눈으로 훑는 자리이고
+ * 나머지는 grep 으로 거르는 자리다. 값이 없는 키는 싣지 않는다.
+ */
+export function formatAccessLine(record: AccessRecord): string {
+  const fields: [string, string | number | null][] = [
+    ['surface', record.surface],
+    ['code', record.code],
+    ['user', record.userId],
+    ['agent', record.isAgent === null ? null : record.isAgent ? 1 : 0],
+    ['token', record.tokenId],
+    ['project', record.projectId],
+    ['ip', record.ip],
+    ['bytes', record.bytes],
+  ];
+  const tail = fields
+    .filter((field): field is [string, string | number] => field[1] !== null)
+    .map(([key, value]) => `${key}=${value}`);
+  if (record.aborted) tail.push('aborted=1');
+  return [
+    record.method,
+    record.route,
+    String(record.status),
+    `${record.durationMs}ms`,
+    ...tail,
+  ].join(' ');
+}
+
+/**
+ * 훅 셋을 단다.
+ *
+ * - `onRequest`: 응답 헤더에 요청 ID 를 싣고(raw 에 싣는다 — SSE 는 Fastify 의 `reply.send` 를
+ *   거치지 않고 `writeHead` 로 쓴다), 연결이 닫힐 때 한 줄을 남길 준비를 한다.
+ * - `onRequest`·`preHandler`: 요청 맥락(ALS)에 들어간다. 본문 파싱이 맥락을 잃을 수 있어
+ *   핸들러 직전에 한 번 더 들어간다 — Nest 의 가드·인터셉터·핸들러는 전부 그 뒤다.
+ *
+ * `onResponse` 가 아니라 raw 의 `close` 를 듣는 이유: SSE 처럼 `reply.send` 를 거치지 않는
+ * 응답에서는 `onResponse` 가 오지 않는다. `close` 는 끝났든 끊겼든 한 번 온다.
+ */
+export function registerAccessLog(host: AccessHookHost, logger = new Logger('Access')): void {
+  host.addHook('onRequest', ((request: AccessRequest, reply: AccessReply, done: Done) => {
+    reply.raw.setHeader(REQUEST_ID_HEADER, request.id);
+    const path = request.url.split('?')[0] ?? '';
+    if (!SKIPPED.has(path)) {
+      const startedAt = process.hrtime.bigint();
+      // 끝까지 썼는가는 `finish` 로 센다 — `writableFinished` 는 주입(inject) 응답에서
+      // `close` 시점에 거짓이라 정상 응답을 끊긴 것으로 적었다(L2 실측).
+      let finished = false;
+      reply.raw.once('finish', () => {
+        finished = true;
+      });
+      reply.raw.once('close', () => {
+        const durationMs = Number((process.hrtime.bigint() - startedAt) / 1_000_000n);
+        const record = accessRecordOf(request, reply.raw, durationMs, !finished);
+        const level = accessLevel(record.method, record.status);
+        requestContext.run({ requestId: request.id }, () => {
+          logger[level](formatAccessLine(record));
+        });
+      });
+    }
+    requestContext.run({ requestId: request.id }, () => done());
+  }) as never);
+  host.addHook('preHandler', ((request: AccessRequest, _reply: AccessReply, done: Done) => {
+    requestContext.run({ requestId: request.id }, () => done());
+  }) as never);
+}

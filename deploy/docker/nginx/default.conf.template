@@ -28,10 +28,27 @@ map $http_origin $nerv_mcp_origin_ok {
 #   127.0.0.11 = Docker 내장 DNS. k8s 에서는 클러스터 DNS 가 같은 자리를 대신한다.
 resolver 127.0.0.11 ipv6=off valid=10s;
 
+# 요청 ID — api 가 접근 로그와 응답 헤더에 싣는다(codebase.md §5.5 · REQ-CB-052).
+# 부르는 쪽이 이미 실었으면 그 값을, 없으면 nginx 가 만든 값을 넘긴다 — api 가 모양을
+# 다시 검사하므로 여기서는 거르지 않는다. envsubst 는 정의된 환경변수 이름만 치환하므로
+# `$request_id` 는 그대로 남는다.
+map $http_x_request_id $nerv_request_id {
+  default $http_x_request_id;
+  ""      $request_id;
+}
+
+# 앞문의 접근 로그에도 같은 ID 를 싣는다 — 앞문 줄과 api 줄을 한 키로 잇는다.
+# 쿼리 문자열은 싣지 않는다(`$uri`) — api 의 접근 로그와 같은 규칙이다.
+log_format nerv '$remote_addr - [$time_local] "$request_method $uri $server_protocol" '
+                '$status $body_bytes_sent $request_time req=$nerv_request_id';
+
 server {
   listen ${NERV_WEB_PORT};
   server_name _;
   root /usr/share/nginx/html;
+  # server 에 둔다 — 이미지의 nginx.conf 가 http 에 `access_log … main` 을 이미 두어,
+  # 같은 자리에 하나 더 두면 두 줄씩 남는다. 여기 두면 그것을 덮는다.
+  access_log /dev/stdout nerv;
 
   # SPA — 정적 자산, 나머지 경로는 index.html
   location / {
@@ -68,6 +85,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   location /mcp {
@@ -82,6 +100,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   location /ingest/ {
@@ -91,6 +110,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   # 플러그인 배포 — 무인증 카탈로그와 zip (api.md §2.11 · 4.6 §3.5)
@@ -102,6 +122,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   # S3 는 이 앞문 뒤에 두지 않는다 — location 을 여는 것이 '고치는 길' 이 아니다(REQ-CB-034).
@@ -121,6 +142,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   # WebSocket — socket.io 어댑터의 path 설정값(/ws · 4.4 §3.1), websocket 전송만(폴링 폴백 off)
@@ -135,6 +157,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   location = /healthz {
