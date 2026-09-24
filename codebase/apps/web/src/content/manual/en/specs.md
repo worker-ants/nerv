@@ -19,7 +19,15 @@ An `area` may hold a place in the tree with no body of its own. For the rest, th
 
 The tree in the left sidebar holds **every document, expanded**. A place that lists things and lists only some of them leaves you unable to tell a missing document from a collapsed one. The `141 / 141` in its header is **how many are showing / how many there are**; collapse a branch and that number drops, telling you what is now hidden.
 
-The **chevron** in front of a branch folds and unfolds that branch. The **fold icon** in the header applies to **all of them** — if anything is open it collapses everything, and if everything is collapsed it expands it all. What you fold is remembered, and the sidebar and the spec list screen remember it **separately**.
+The **chevron** in front of a branch folds and unfolds that branch. Branches above the document you are viewing fold too — a folded branch that holds it gets a **blue dot** before its title, so you can tell where you are. Moving to another document unfolds the path to it again.
+
+The header has three buttons.
+
+- **Target** — go to the document you are viewing. It unfolds the branches above it and scrolls to its line. It appears only while you are viewing a document.
+- **Arrows pointing apart** — expand all. Dimmed when everything is already expanded.
+- **Arrows pointing together** — collapse all. It folds down to the roots even while you are viewing a document. Dimmed when everything is already collapsed.
+
+What you fold is remembered, and the sidebar and the spec list screen remember it **separately**.
 
 To see all of them, go to **Specs** in the left menu. That screen is the **complete list** — it opens with every document expanded, and collapsing is something you do, not the default. **A document that is not there is not in this project.**
 
