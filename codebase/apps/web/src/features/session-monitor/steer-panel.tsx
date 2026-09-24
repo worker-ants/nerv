@@ -14,6 +14,7 @@ import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { Button, Input } from '../../components/ui/primitives.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
 export interface SteerPanelProps {
@@ -51,7 +52,11 @@ export function SteerPanel({
   const [message, setMessage] = useState('');
   // stop 은 남의 작업을 끊는 행위다 — 확인 단계와 사유를 함께 요구한다(REQ-WEB-021).
   // 사유가 없으면 상대 세션의 사람은 "왜 끊겼는지" 모른 채 다시 시작하게 된다.
-  const [confirming, setConfirming] = useState(false);
+  //
+  // **사유는 지시와 다른 칸이다**(2026-09-24 — UI/UX 검토 · REQ-WEB-200). 한 상태를 나눠 쓰던
+  // 동안 [중단]을 누르면 적어 둔 지시가 사유 칸에 미리 차 있어 그대로 실행하면 지시가 중단 사유로
+  // 남았고, 취소하면 사유로 쓴 글이 지시 칸에 남아 [지시 보내기]로 나갈 수 있었다. 확인은
+  // 공용 막대(confirm-action.tsx)라 사유 칸에 포커스가 가고 Esc 로 닫힌다.
   const finished = ['complete', 'error'].includes(state);
   // 끝난 세션과 남의 세션은 **막는 이유가 다르다** — 같은 disabled 로 뭉치면 사람은
   // "기다리면 되나" 와 "나는 못 하나" 를 구별할 수 없다. 문구가 그것을 가른다.
@@ -62,16 +67,16 @@ export function SteerPanel({
   // 뜨고 에이전트에게는 가지 않았다. 앞 16자만 같은 두 지시는 서로의 재생으로 막혔다.
   const press = usePressKey('steer');
   const send = useMutation({
-    mutationFn: (kind: 'steer' | 'stop') =>
+    mutationFn: (input: { kind: 'steer' | 'stop'; text: string }) =>
       apiFetch<{ reclaimed: number }>(`/projects/${projectSlug}/sessions/${sessionId}/steer`, {
         method: 'POST',
-        body: { kind, message },
+        body: { kind: input.kind, message: input.text },
         idempotencyKey: press.take(),
       }),
     onSettled: press.release,
-    onSuccess: (result, kind) => {
-      setMessage('');
-      setConfirming(false);
+    onSuccess: (result, { kind }) => {
+      // 지시 칸은 지시를 보냈을 때만 비운다 — 중단 사유는 그 칸의 것이 아니다
+      if (kind === 'steer') setMessage('');
       // 축이 없으면 무효화하지 않는다 — 빈 축으로 부르면 아무 캐시에도 닿지 않고,
       // 그 침묵이 정확히 이 표시가 없애려는 결함이다(query-keys.ts `ProjectId`).
       if (projectId !== undefined) {
@@ -95,25 +100,31 @@ export function SteerPanel({
         disabled={blocked}
         aria-label={t('steer.label')}
       />
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           disabled={blocked || send.isPending || message.trim() === ''}
-          onClick={() => send.mutate('steer')}
+          onClick={() => send.mutate({ kind: 'steer', text: message })}
           title={t('steer.send_title')}
         >
           {t('steer.send')}
         </Button>
-        <Button
-          size="sm"
-          variant="danger"
-          data-testid="stop-button"
-          disabled={blocked || send.isPending}
-          onClick={() => setConfirming(true)}
-          title={t('steer.stop_title')}
-        >
-          {t('steer.stop')}
-        </Button>
+        <ConfirmAction
+          label={t('steer.stop')}
+          testId="stop-button"
+          testIdBase="stop"
+          block
+          className="basis-full"
+          disabled={blocked}
+          // 단추의 뜻(전달과 무관하게 즉시 회수)은 늘 말한다 — 막힌 이유는 옆 문구가 말한다
+          tooltip={t('steer.stop_title')}
+          message={t('steer.confirm_title')}
+          detail={t('steer.confirm_body')}
+          reason={{ label: t('steer.reason_label'), placeholder: t('steer.reason') }}
+          confirmLabel={t('steer.confirm_stop')}
+          pending={send.isPending}
+          onConfirm={(reason) => send.mutate({ kind: 'stop', text: reason })}
+        />
         {finished && <span className="text-xs text-text-faint">{t('steer.finished')}</span>}
         {!finished && !canIntervene && (
           <span data-testid="steer-forbidden" className="text-xs text-text-faint">
@@ -121,40 +132,6 @@ export function SteerPanel({
           </span>
         )}
       </div>
-
-      {confirming && (
-        <div
-          role="dialog"
-          aria-label={t('steer.confirm_dialog')}
-          data-testid="stop-confirm"
-          className="rounded-nerv border border-status-danger bg-status-danger-soft p-3 text-sm"
-        >
-          <p className="font-medium text-status-danger">{t('steer.confirm_title')}</p>
-          <p className="mt-1 text-xs text-text-mute">{t('steer.confirm_body')}</p>
-          <Input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={t('steer.reason')}
-            data-testid="stop-reason"
-            aria-label={t('steer.reason_label')}
-            className="mt-2"
-          />
-          <div className="mt-2 flex gap-2">
-            <Button
-              size="sm"
-              data-testid="stop-confirm-button"
-              disabled={message.trim() === '' || send.isPending}
-              onClick={() => send.mutate('stop')}
-              className="border-transparent bg-status-danger text-white hover:opacity-90"
-            >
-              {t('steer.confirm_stop')}
-            </Button>
-            <Button size="sm" onClick={() => setConfirming(false)}>
-              {t('common.cancel')}
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

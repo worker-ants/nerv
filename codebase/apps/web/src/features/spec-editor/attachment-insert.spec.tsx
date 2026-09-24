@@ -66,3 +66,36 @@ describe('첨부 삽입 문법', () => {
     expect(inserted[1]?.startsWith('!')).toBe(false);
   });
 });
+
+/**
+ * **첨부 삭제는 되돌릴 수 없다**(REQ-WEB-200) — 서버가 저장소 객체와 행을 함께 지운다. 예전에는
+ * 한 번 누르면 지워졌고, 본문이 그 파일을 가리키면 그림이 깨졌다.
+ */
+describe('첨부 삭제', () => {
+  it('확인 전에는 지우지 않는다 — 확인하면 그 첨부 하나를 지운다', async () => {
+    const calls: { method: string; url: string }[] = [];
+    vi.stubGlobal('fetch', async (url: unknown, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', url: String(url) });
+      return { ok: true, status: 200, json: async () => items };
+    });
+    render(
+      <LocaleProvider locale="ko">
+        <QueryClientProvider
+          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        >
+          <RealtimeProvider>
+            <AttachmentPanel projectSlug="clemvion" specKey="SPC-A" canEdit />
+          </RealtimeProvider>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId('attachment')).toHaveLength(2));
+    const first = screen.getAllByTestId('attachment')[0] as HTMLElement;
+    fireEvent.click(within(first).getByTestId('attach-remove'));
+    expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(0);
+    expect(screen.getByTestId('attach-remove-confirming').textContent).toContain('그림.png');
+    fireEvent.click(screen.getByTestId('attach-remove-confirm'));
+    await waitFor(() => expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(1));
+    expect(calls.find((c) => c.method === 'DELETE')?.url).toMatch(/\/attachments\/a-1$/);
+  });
+});

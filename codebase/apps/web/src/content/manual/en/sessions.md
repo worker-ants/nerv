@@ -67,7 +67,7 @@ The heartbeat interval is not a timer either. The agent approximates it at tool 
 
 **Stop** does not deliver an instruction — it **reclaims the work now**. The most common reason to press it is that the session is already dead and cannot heartbeat, and waiting for delivery in that case would do nothing at all.
 
-Stopping is not one press: a confirmation appears and **a reason is required**. Leave it empty and the button stays disabled. Give a reason, confirm, and the claim is released — the task returns to `ready`.
+Stopping is not one press: a confirmation appears and **a reason is required**. Leave it empty and the button stays disabled. The reason field is **separate from the instruction field**, so an instruction you were typing does not become the reason, and cancelling leaves the instruction as it was. Esc closes it. Give a reason, confirm, and the claim is released — the task returns to `ready`.
 
 ## Questions
 

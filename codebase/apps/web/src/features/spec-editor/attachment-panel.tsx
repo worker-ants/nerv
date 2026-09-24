@@ -15,6 +15,7 @@ import { rows, useSpecAttachments } from '../../lib/queries.js';
 import { useT } from '../../lib/i18n.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 
 /** 서버와 같은 화이트리스트 — 고르개가 아닌 것을 보여 주면 올린 뒤에야 거부당한다 */
 const ACCEPT =
@@ -59,11 +60,14 @@ export function AttachmentPanel({
     onError: onApiError,
   });
 
+  // **첨부 삭제는 되돌릴 수 없다** — 서버가 저장소 객체와 행을 함께 지운다. 예전에는 한 번에
+  // 지웠고, 실패해도 말이 없었다(지금은 기본 처리기가 말한다 · REQ-WEB-196)
   const remove = useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/projects/${projectSlug}/attachments/${id}`, { method: 'DELETE' }),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ['spec', specKey, 'attachments'] }),
+    onError: onApiError,
   });
 
   const items = rows(attachments.data);
@@ -169,14 +173,28 @@ export function AttachmentPanel({
                   </button>
                 )}
                 {canEdit && (
-                  <button
-                    type="button"
-                    data-testid="attach-remove"
-                    onClick={() => remove.mutate(id)}
-                    className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-faint hover:text-status-danger"
-                  >
-                    {t('common.delete')}
-                  </button>
+                  <ConfirmAction
+                    testIdBase="attach-remove"
+                    message={t('spec.attach.remove_confirm', {
+                      name: String(item['filename']),
+                    })}
+                    detail={t('spec.attach.remove_detail')}
+                    confirmLabel={t('common.delete')}
+                    pending={remove.isPending}
+                    onConfirm={() => remove.mutate(id)}
+                    trigger={({ open, ref, disabled }) => (
+                      <button
+                        ref={ref}
+                        type="button"
+                        data-testid="attach-remove"
+                        disabled={disabled}
+                        onClick={open}
+                        className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-faint hover:text-status-danger"
+                      >
+                        {t('common.delete')}
+                      </button>
+                    )}
+                  />
                 )}
               </div>
             </li>

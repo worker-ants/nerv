@@ -90,14 +90,51 @@ describe('권한 — 겸직은 합집합이다', () => {
 });
 
 describe('되돌릴 수 없는 일에는 확인이 선다', () => {
-  it('조직 삭제는 한 번 더 묻고, 왜 막힐 수 있는지 미리 말한다', async () => {
-    stub([{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', archived_at: null }]);
-    await renderTab();
+  it('프로젝트가 있으면 조직 삭제는 잠기고, 보관한 것까지 센 수를 말한다', async () => {
+    // 예전 안내는 "먼저 프로젝트를 보관하세요" 였다 — 서버는 보관한 것까지 세서 거절하므로,
+    // 따라 한 admin 은 모든 사람의 결재 카드를 숨기고도 조직을 지우지 못했다(REQ-WEB-201)
+    stub([
+      { id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', archived_at: null },
+      { id: 'p-2', slug: 'old', key: 'OLD', name: '옛', archived_at: '2026-08-01T00:00:00Z' },
+    ]);
+    await renderTab(false);
+    await waitFor(() =>
+      expect((screen.getByTestId('org-delete') as HTMLButtonElement).disabled).toBe(true),
+    );
+    expect(screen.getByTestId('org-delete-rule').textContent).toBe(
+      '프로젝트 2개(보관 1개 포함)가 있어 지울 수 없습니다.',
+    );
+    expect(screen.queryByText(/보관하세요/)).toBeNull();
+  });
 
-    // 규칙을 눌러 보기 전에 읽을 수 있어야 한다 — 거절당하고 나서 아는 것보다 낫다
-    expect(screen.getByText(/프로젝트가 남아 있으면 지울 수 없습니다/)).toBeDefined();
+  it('비어 있는 조직의 삭제는 같은 자리에서 한 번 더 묻는다', async () => {
+    stub([]);
+    await renderTab(false);
+    await waitFor(() =>
+      expect((screen.getByTestId('org-delete') as HTMLButtonElement).disabled).toBe(false),
+    );
     fireEvent.click(screen.getByTestId('org-delete'));
-    expect(screen.getByTestId('org-delete-confirm')).toBeDefined();
+    expect(screen.getByTestId('org-delete-confirming').textContent).toContain('되돌릴 수 없습니다');
+    // 포커스는 [취소]에 — 엔터를 연달아 눌러 지워지지 않게
+    expect(document.activeElement).toBe(screen.getByTestId('org-delete-cancel'));
+  });
+
+  it('프로젝트 보관은 누구에게 미치는지 말하고, 확인 전에는 부르지 않는다', async () => {
+    stub([
+      {
+        id: 'p-1',
+        slug: 'clemvion',
+        key: 'CLV',
+        name: 'clemvion',
+        archived_at: null,
+        pending_approvals: 3,
+      },
+    ]);
+    await renderTab();
+    const calls = (fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.length;
+    fireEvent.click(screen.getByTestId('project-archive'));
+    expect(screen.getByTestId('project-archive-confirming').textContent).toContain('결재 3건');
+    expect((fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.length).toBe(calls);
   });
 
   it('프로젝트는 삭제가 아니라 보관이다 — 그 아래 감사 기록이 달려 있다', async () => {
@@ -358,7 +395,10 @@ describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () =
     await waitFor(() => expect(screen.getAllByTestId('project-row')).toHaveLength(2));
     expect((screen.getByTestId('org-name') as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByTestId('org-delete') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.queryByTestId('project-new')).toBeNull();
+    // **숨기지 않는다**(REQ-WEB-003) — 비활성 + 사유
+    const create = screen.getByTestId('project-new') as HTMLButtonElement;
+    expect(create.disabled).toBe(true);
+    expect(create.title).toBe('새 프로젝트는 조직 admin 이 만듭니다.');
     expect(screen.getByText(/조직 이름·삭제와 새 프로젝트는 조직 admin 만/)).toBeDefined();
   });
 

@@ -119,3 +119,13 @@ Screens tell these three cases apart.
 **Settings that failed to load cannot be saved.** Saving a gate policy that was never read would overwrite the server's policy with defaults, so **Save** stays locked until it loads.
 
 **A spec's version list shows the latest 8 first.** If there are more, **Show N older versions** at the end of the list opens the rest.
+
+## Buttons that ask once more
+
+**Actions that are hard to undo or that reach other people ask once more, in place.** Revoking a token · revoking an invitation · removing a member · turning off your own admin · archiving a project · deleting the organization · archiving a spec · deleting an attachment · abandoning a claim · stopping a session. Pressing one puts **what will happen** (that it cannot be undone, who it reaches) and [Confirm]·[Cancel] where the button was.
+
+- Focus lands on **[Cancel]** — so pressing Enter twice does not run it. For an action that needs a reason (stopping a session), focus lands in the reason field.
+- **Esc** cancels. Inside a window, it closes only the confirmation.
+- Leave a confirmation open and move elsewhere, and it turns back into the button after a moment.
+
+Easily undone actions (turning a role on, restoring) happen at once without asking.

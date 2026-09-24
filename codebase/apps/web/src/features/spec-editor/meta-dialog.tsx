@@ -9,13 +9,15 @@
 
 import { useT } from '../../lib/i18n.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { NERV_ERROR } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { Button, Field, Input } from '../../components/ui/primitives.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
 export interface MetaDialogProps {
@@ -49,6 +51,16 @@ export function MetaDialog({
   const [parentKey, setParentKey] = useState('');
   const [cycleError, setCycleError] = useState<string | null>(null);
   const [blockers, setBlockers] = useState<Blocker[] | null>(null);
+
+  // Esc 로 닫힌다 — 다이얼로그의 기본 기대다(FreezeDialog 와 같은 규율). 안의 확인이 열려 있으면
+  // Esc 는 확인만 닫는다(confirm-action.tsx 가 전파를 멈춘다)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const invalidate = (): void => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.spec(specKey) });
@@ -168,12 +180,33 @@ export function MetaDialog({
           >
             <p className="font-medium text-status-danger">{t('spec.meta.archive_blocked')}</p>
             <ul className="mt-1 text-xs text-text-mute">
+              {/* **정리할 것으로 가는 길**이다 — 누를 수 없는 키 글자만 두면 사람은 그 키를 외워
+                  다른 화면에서 다시 찾아야 했다 */}
               {blockers.map((b) => (
                 <li key={`${b.kind}-${b.key}`}>
                   {b.kind === 'child_spec'
                     ? t('spec.meta.blocker.child')
                     : t('spec.meta.blocker.claim')}{' '}
-                  · {b.key}
+                  ·{' '}
+                  {b.kind === 'child_spec' ? (
+                    <Link
+                      to="/p/$proj/specs/$spec"
+                      params={{ proj: projectSlug, spec: b.key }}
+                      className="font-mono text-link hover:underline"
+                      onClick={onClose}
+                    >
+                      {b.key}
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/p/$proj/tasks/$task"
+                      params={{ proj: projectSlug, task: b.key }}
+                      className="font-mono text-link hover:underline"
+                      onClick={onClose}
+                    >
+                      {b.key}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -189,15 +222,22 @@ export function MetaDialog({
           >
             {t('common.save')}
           </Button>
-          <Button
+          {/* **보관도 한 번 묻는다**(§2.4 "[아카이브…] 확인" · REQ-WEB-200). 예전에는 누르는 즉시
+              보관됐다 — 되살릴 수는 있지만(이 문서 주소의 [복구]) 그 길을 모르는 사람에게는
+              문서가 목록에서 사라진 것이다 */}
+          <ConfirmAction
+            label={t('spec.meta.archive')}
             variant="danger"
-            data-testid="meta-archive"
-            disabled={!canEdit || archive.isPending}
-            onClick={() => archive.mutate()}
+            size="md"
+            testId="meta-archive"
+            disabled={!canEdit}
             title={t('spec.meta.archive_title')}
-          >
-            {t('spec.meta.archive')}
-          </Button>
+            message={t('spec.meta.archive_confirm')}
+            detail={t('spec.meta.archive_confirm_detail')}
+            confirmLabel={t('spec.meta.archive')}
+            pending={archive.isPending}
+            onConfirm={() => archive.mutate()}
+          />
           <Button variant="ghost" className="ml-auto" onClick={onClose}>
             {t('common.close')}
           </Button>

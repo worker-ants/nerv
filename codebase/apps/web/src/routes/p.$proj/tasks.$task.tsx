@@ -41,6 +41,7 @@ import {
   Skeleton,
   Textarea,
 } from '../../components/ui/primitives.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
@@ -487,14 +488,17 @@ function TaskDetail(): React.JSX.Element {
                 >
                   {t('task.release_handoff')}
                 </Button>
-                <Button
-                  data-testid="release-abandon"
-                  variant="danger"
-                  disabled={release.isPending}
-                  onClick={() => release.mutate('abandon')}
-                >
-                  {t('task.release_abandon')}
-                </Button>
+                {/* **포기는 한 번 묻는다**(REQ-WEB-200) — danger 색이면서 한 번에 클레임을 놓았다.
+                    세션 중단과 같은 성질(일을 내려놓고 ready 로 돌린다)인데 그쪽만 물었다 */}
+                <ConfirmAction
+                  label={t('task.release_abandon')}
+                  testId="release-abandon"
+                  message={t('task.release_abandon_confirm')}
+                  detail={t('task.release_abandon_detail')}
+                  confirmLabel={t('task.release_abandon')}
+                  pending={release.isPending}
+                  onConfirm={() => release.mutate('abandon')}
+                />
               </>
             )}
           </div>

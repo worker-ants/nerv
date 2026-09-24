@@ -24,6 +24,7 @@ import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { AGENT_SCOPES, HUMAN_ONLY_SCOPES, scopesForRoles } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
@@ -51,6 +52,7 @@ import {
 } from '../../components/ui/primitives.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { ScopeBadge } from '../../components/scope-badge.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 
 export const Route = createFileRoute('/settings/tokens')({ component: TokensTab });
 
@@ -92,7 +94,6 @@ function TokensTab(): React.JSX.Element {
   const t = useT();
   const tokens = useTokens();
   const queryClient = useQueryClient();
-  const { pushToast } = useRealtime();
   const onApiError = useApiError();
   // **발급 대상은 이 폼이 고른다**(REQ-WEB-167). 예전에는 헤더가 고른 프로젝트였는데,
   // 설정 라우트에는 프로젝트 축이 없어 그 값은 "마지막으로 본 프로젝트" 였다 — 사람은
@@ -150,14 +151,7 @@ function TokensTab(): React.JSX.Element {
     onError: onApiError,
   });
 
-  const revoke = useMutation({
-    mutationFn: (id: string) => apiFetch(`/me/tokens/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['me', 'tokens'] });
-      void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'tokens'] });
-      pushToast({ tone: 'ok', message: t('settings.tokens.revoke_done') });
-    },
-  });
+  const revoke = useRevoke(orgSlug);
 
   // 죽은 토큰은 기본으로 접는다 — 폐기·만료는 목록에서 **자라기만 하는** 줄이고, 관리가
   // 힘들어지는 자리가 정확히 여기다. 지우지는 않는다: 감사가 묻는 것은 지금 살아 있는
@@ -364,13 +358,7 @@ function TokensTab(): React.JSX.Element {
                 </Td>
                 <Td className="text-right">
                   {token['revoked_at'] === null ? (
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => revoke.mutate(String(token['id']))}
-                    >
-                      {t('settings.tokens.revoke')}
-                    </Button>
+                    <RevokeButton token={token} revoke={revoke} />
                   ) : (
                     <span className="text-xs text-text-faint">{t('settings.tokens.revoked')}</span>
                   )}
@@ -381,8 +369,59 @@ function TokensTab(): React.JSX.Element {
         )}
       </div>
 
-      {isAdmin && <OrgTokens tokens={rows(orgTokens.data)} />}
+      {isAdmin && <OrgTokens tokens={rows(orgTokens.data)} revoke={revoke} />}
     </div>
+  );
+}
+
+/**
+ * 폐기 — 내 표와 조직 전체 표가 같은 것을 쓴다(EP-TOK-03 은 본인 또는 조직 admin · REQ-API-173).
+ * 실패는 기본 처리기가 말한다(REQ-WEB-196).
+ */
+function useRevoke(orgSlug: string | null): UseMutationResult<unknown, Error, string> {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const { pushToast } = useRealtime();
+  return useMutation<unknown, Error, string>({
+    mutationFn: (id: string) => apiFetch(`/me/tokens/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['me', 'tokens'] });
+      void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'tokens'] });
+      pushToast({ tone: 'ok', message: t('settings.tokens.revoke_done') });
+    },
+  });
+}
+
+/**
+ * **폐기는 되돌릴 수 없다**(REQ-WEB-200). 예전에는 한 번 누르면 끝이었고, 그 토큰을 쓰던
+ * 기계의 에이전트는 작업 도중 다음 호출부터 401 을 받았다. 확인은 **누가 끊기는지**를 말한다 —
+ * 마지막으로 쓴 기계가 유출 판단과 폐기 판단의 첫 단서다(NFR-03).
+ */
+function RevokeButton({
+  token,
+  revoke,
+}: {
+  token: Record<string, unknown>;
+  revoke: ReturnType<typeof useRevoke>;
+}): React.JSX.Element {
+  const t = useT();
+  const host = token['last_used_hostname'];
+  return (
+    <ConfirmAction
+      label={t('settings.tokens.revoke')}
+      testId="token-revoke"
+      message={t('settings.tokens.revoke_confirm', { name: String(token['name']) })}
+      detail={
+        token['last_used_at'] === null || token['last_used_at'] === undefined
+          ? t('settings.tokens.revoke_detail_unused')
+          : typeof host === 'string' && host !== ''
+            ? t('settings.tokens.revoke_detail_host', { host })
+            : t('settings.tokens.revoke_detail_used')
+      }
+      confirmLabel={t('settings.tokens.revoke')}
+      pending={revoke.isPending}
+      onConfirm={() => revoke.mutate(String(token['id']))}
+    />
   );
 }
 
@@ -473,7 +512,13 @@ function RevealOnce({
  * (2026-09-06 정정 — 컨트롤러가 읽지 않는다), 조직 하나의 토큰은 한 응답에 들어오는
  * 크기다. 없는 인자를 화면이 보내면 조용히 무시되고, 그때 목록은 거른 것처럼 보인다.
  */
-function OrgTokens({ tokens }: { tokens: Record<string, unknown>[] }): React.JSX.Element {
+function OrgTokens({
+  tokens,
+  revoke,
+}: {
+  tokens: Record<string, unknown>[];
+  revoke: ReturnType<typeof useRevoke>;
+}): React.JSX.Element {
   const t = useT();
   const [project, setProject] = useState('');
   const [owner, setOwner] = useState('');
@@ -539,6 +584,10 @@ function OrgTokens({ tokens }: { tokens: Record<string, unknown>[] }): React.JSX
                 <Th>{t('settings.tokens.expires')}</Th>
                 <Th>{t('settings.tokens.last_used')}</Th>
                 <Th>{t('settings.tokens.status')}</Th>
+                {/* **남의 토큰을 끊는 문**(REQ-WEB-201). 이 표는 보이기만 했다 — 서버는 조직
+                    admin 의 폐기를 허용하고(REQ-API-173) 매뉴얼도 그렇다고 적었는데, 떠난 사람의
+                    토큰은 API 를 직접 부를 줄 아는 사람만 끊을 수 있었다 */}
+                <Th />
               </>
             }
           >
@@ -570,6 +619,11 @@ function OrgTokens({ tokens }: { tokens: Record<string, unknown>[] }): React.JSX
                     <span className="text-status-danger">{t('settings.tokens.expired')}</span>
                   ) : (
                     <span className="text-status-ok">{t('settings.tokens.active')}</span>
+                  )}
+                </Td>
+                <Td className="text-right">
+                  {token['revoked_at'] === null && !isExpired(token['expires_at']) && (
+                    <RevokeButton token={token} revoke={revoke} />
                   )}
                 </Td>
               </Tr>

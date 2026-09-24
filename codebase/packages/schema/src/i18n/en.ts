@@ -195,6 +195,8 @@ export const en = {
   'error.mcp.pat_only': 'MCP accepts personal access tokens only.',
   'error.membership.duplicate': 'Already a member at that membership scope.',
   'error.membership.not_found': 'Membership not found.',
+  'error.membership.last_org_admin':
+    'The last organization admin cannot be removed — make someone else an organization admin first.',
   'error.invite.accepted': 'That invitation was already accepted.',
   'error.invite.already_member': '{email} already holds that role.',
   'error.invite.email_mismatch': 'Sign in with the invited account to accept.',
@@ -427,9 +429,9 @@ export const en = {
   'settings.workspace.no_projects': 'No projects yet.',
   'settings.workspace.org': 'Organization',
   'settings.workspace.org_delete': 'Delete organization',
-  'settings.workspace.org_delete_confirm': 'This cannot be undone. Delete it?',
+  'settings.workspace.org_delete_confirm': 'Delete the organization {org} — this cannot be undone.',
   'settings.workspace.org_delete_rule':
-    'An organization with projects cannot be deleted — archive its projects first.',
+    'An organization with any project (archived ones included) cannot be deleted.',
   'settings.workspace.org_name': 'Organization name',
   'settings.workspace.org_renamed': 'Organization renamed.',
   'settings.workspace.project_created': 'Project created.',
@@ -842,6 +844,66 @@ export const en = {
   'settings.gates.loading_locked': 'You can save once the policy has loaded',
   'spec.versions.more': 'Show {n} older versions',
   'spec.versions.less': 'Show only the latest {n}',
+  'settings.readonly.ask': 'To change it, ask {names}.',
+  'settings.readonly.more': '{names} and {n} more',
+  'settings.tokens.revoke_confirm': 'Revoke token "{name}" — this cannot be undone.',
+  'settings.tokens.revoke_detail_host':
+    'Last used on {host} — that agent is cut off from its next call.',
+  'settings.tokens.revoke_detail_used': 'Any agent using this token is cut off from its next call.',
+  'settings.tokens.revoke_detail_unused': 'This token has never been used.',
+  'invite.revoke_confirm':
+    'Revoke the invitation sent to {email} — the link stops working at once.',
+  'invite.locked': 'Invitations are sent by an organization admin or a project admin.',
+  'spec.meta.archive_confirm': 'Archive this document.',
+  'spec.meta.archive_confirm_detail':
+    "It leaves the list and the tree — to bring it back, press [Restore] at this document's address.",
+  'spec.attach.remove_confirm': 'Delete attachment "{name}" — this cannot be undone.',
+  'spec.attach.remove_detail': 'If the body points to this file, that spot breaks.',
+  'task.release_abandon_confirm': 'Abandon your claim on this task.',
+  'task.release_abandon_detail':
+    'The task goes back to ready and is recorded as abandoned, not handed off.',
+  'settings.workspace.org_delete_blocked':
+    'It has {n} projects ({archived} archived), so it cannot be deleted.',
+  'settings.workspace.project_new_locked': 'New projects are created by an organization admin.',
+  'settings.workspace.archive_confirm': 'Archive {name}.',
+  'settings.workspace.archive_detail':
+    'Its {n} pending approvals and its notifications are hidden for everyone — you can restore it from [Show archived].',
+  'settings.members.last_org_admin':
+    "This is the organization's last admin — make someone else an organization admin first.",
+  'settings.members.self_admin_confirm': 'Turn off your own admin role.',
+  'settings.members.self_admin_detail':
+    'Editing on this screen locks at once — getting it back takes another admin.',
+  'settings.members.self_admin_off': 'Turn off',
+  'settings.members.offboard': 'Remove…',
+  'settings.members.offboard_confirm': 'Remove {name} from the organization.',
+  'settings.members.offboard_detail':
+    'Deletes {memberships} memberships and revokes {tokens} live tokens — undoing it takes a new invitation.',
+  'settings.members.offboard_run': 'Remove',
+  'settings.members.offboard_done': 'Removed.',
+  'settings.members.offboard_self': 'You cannot remove yourself.',
+  'settings.members.remove_from_project': 'Remove from this project',
+  'settings.members.remove_from_project_confirm': 'Remove {name} from {project}.',
+  'settings.members.remove_from_project_detail': 'Deletes {roles} roles in this project.',
+  'settings.gates.tier_field': '{tier} starts at',
+  'settings.gates.invalid': 'Boundaries must be whole numbers from 0, with T1 ≤ T2 ≤ T3.',
+  'settings.gates.points': '{range} pts',
+  'settings.gates.points_from': '{n}+ pts',
+  'settings.gates.range_none': 'none',
+  'settings.gates.rule_auto': 'passes automatically',
+  'settings.gates.rule_one': 'one person approves',
+  'settings.gates.rule_two': 'two people from different roles approve',
+  'settings.gates.unsaved': 'Unsaved changes',
+  'settings.gates.change_boundaries': 'Tier boundaries {from} → {to}',
+  'settings.gates.change_dynamic': 'Dynamic escalation {from} → {to}',
+  'settings.gates.on': 'on',
+  'settings.gates.off': 'off',
+  'settings.gates.nothing_changed': 'Nothing has changed',
+  'settings.gates.loosen_confirm':
+    'More changes will pass automatically — fewer will reach a person.',
+  'settings.gates.loosen_save': 'Save anyway',
+  'settings.gates.switch_confirm':
+    'You have unsaved changes — discard them and switch to {project}?',
+  'settings.gates.switch_discard': 'Discard and switch',
   // ── 제품 매뉴얼 (screens.md §2.10) ─────────────────────────────────────────
   'help.ch.agents': 'Agents',
   'help.ch.inbox': 'Inbox and notifications',
@@ -1346,13 +1408,14 @@ export const en = {
   'settings.gates.admin_only_title': 'Only the admin role can edit this',
   'settings.gates.boundaries': 'Tier boundaries (T1/T2/T3 entry scores)',
   'settings.gates.boundaries_hint':
-    'Sum of four axes: side effects, sensitivity, reversibility, blast radius',
+    'A change enters a tier when its four-axis score (side effects · sensitivity · reversibility · blast radius) reaches the boundary. Lower boundaries send more changes to a person.',
   'settings.gates.dynamic': 'Dynamic escalation',
   'settings.gates.dynamic_hint': 'A history of retries or rollbacks pushes the tier up one step',
   'settings.gates.failopen': 'Fail-open observation · read-only',
   'settings.gates.failopen_body':
     'Escalates after {count} in a row within {hours} hours. When it cannot decide it proceeds and records, and repeats push it up (D-14).',
-  'settings.gates.lead': 'The MVP edits two spec_gate keys — the rest is read-only.',
+  'settings.gates.lead':
+    'Here you edit the tier boundaries and dynamic escalation — the fail-open values below are read-only.',
   'settings.gates.saved': 'Gate policy saved.',
   'settings.members.email': 'Email',
   'settings.members.empty': 'No members.',

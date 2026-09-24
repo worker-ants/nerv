@@ -194,6 +194,8 @@ export const ko = {
   'error.mcp.pat_only': 'MCP 는 PAT 로만 호출합니다.',
   'error.membership.duplicate': '이미 같은 소속의 멤버입니다.',
   'error.membership.not_found': '멤버십을 찾을 수 없습니다.',
+  'error.membership.last_org_admin':
+    '조직의 마지막 admin 은 뗄 수 없습니다 — 다른 사람을 먼저 조직 admin 으로 세우세요.',
   'error.invite.accepted': '이미 수락된 초대입니다.',
   'error.invite.already_member': '{email} 은(는) 이미 그 역할로 참여하고 있습니다.',
   'error.invite.email_mismatch': '초대받은 계정으로 로그인해야 수락할 수 있습니다.',
@@ -422,9 +424,9 @@ export const ko = {
   'settings.workspace.no_projects': '프로젝트가 없습니다.',
   'settings.workspace.org': '조직',
   'settings.workspace.org_delete': '조직 삭제',
-  'settings.workspace.org_delete_confirm': '되돌릴 수 없습니다. 정말 지울까요?',
+  'settings.workspace.org_delete_confirm': '조직 {org} 을(를) 지웁니다 — 되돌릴 수 없습니다.',
   'settings.workspace.org_delete_rule':
-    '프로젝트가 남아 있으면 지울 수 없습니다 — 먼저 프로젝트를 보관하세요.',
+    '프로젝트가 하나라도 있으면(보관한 것 포함) 조직을 지울 수 없습니다.',
   'settings.workspace.org_name': '조직 이름',
   'settings.workspace.org_renamed': '조직 이름을 바꿨습니다.',
   'settings.workspace.project_created': '프로젝트를 만들었습니다.',
@@ -831,6 +833,63 @@ export const ko = {
   'settings.gates.loading_locked': '정책을 불러온 뒤에 저장할 수 있습니다',
   'spec.versions.more': '이전 버전 {n}개 더 보기',
   'spec.versions.less': '최근 {n}개만 보기',
+  'settings.readonly.ask': '바꾸려면 {names}에게 요청하세요.',
+  'settings.readonly.more': '{names} 외 {n}명',
+  'settings.tokens.revoke_confirm': '토큰 "{name}" 을(를) 폐기합니다 — 되돌릴 수 없습니다.',
+  'settings.tokens.revoke_detail_host':
+    '{host} 에서 마지막으로 쓴 토큰입니다 — 그 에이전트는 다음 호출부터 끊깁니다.',
+  'settings.tokens.revoke_detail_used': '이 토큰을 쓰는 에이전트는 다음 호출부터 끊깁니다.',
+  'settings.tokens.revoke_detail_unused': '아직 쓰인 적 없는 토큰입니다.',
+  'invite.revoke_confirm': '{email} 에게 보낸 초대를 회수합니다 — 링크가 바로 무효가 됩니다.',
+  'invite.locked': '초대는 조직 admin 또는 프로젝트 admin 이 보냅니다.',
+  'spec.meta.archive_confirm': '이 문서를 보관합니다.',
+  'spec.meta.archive_confirm_detail':
+    '목록과 트리에서 빠집니다 — 되살리려면 이 문서 주소의 [복구]를 누릅니다.',
+  'spec.attach.remove_confirm': '첨부 "{name}" 을(를) 지웁니다 — 되돌릴 수 없습니다.',
+  'spec.attach.remove_detail': '본문이 이 파일을 가리키고 있으면 그 자리가 깨집니다.',
+  'task.release_abandon_confirm': '이 작업의 클레임을 포기합니다.',
+  'task.release_abandon_detail': '작업은 ready 로 돌아가고, 인계가 아니라 포기로 기록됩니다.',
+  'settings.workspace.org_delete_blocked':
+    '프로젝트 {n}개(보관 {archived}개 포함)가 있어 지울 수 없습니다.',
+  'settings.workspace.project_new_locked': '새 프로젝트는 조직 admin 이 만듭니다.',
+  'settings.workspace.archive_confirm': '{name} 을(를) 보관합니다.',
+  'settings.workspace.archive_detail':
+    '대기 중인 결재 {n}건과 알림이 모든 사람의 화면에서 숨겨집니다 — [보관 보기]에서 복구할 수 있습니다.',
+  'settings.members.last_org_admin':
+    '이 조직의 마지막 admin 입니다 — 다른 사람을 먼저 조직 admin 으로 세우세요.',
+  'settings.members.self_admin_confirm': '내 admin 역할을 끕니다.',
+  'settings.members.self_admin_detail':
+    '끄는 즉시 이 화면의 편집이 잠깁니다 — 되돌리려면 다른 admin 에게 부탁해야 합니다.',
+  'settings.members.self_admin_off': '끄기',
+  'settings.members.offboard': '내보내기…',
+  'settings.members.offboard_confirm': '{name} 을(를) 조직에서 내보냅니다.',
+  'settings.members.offboard_detail':
+    '멤버십 {memberships}개를 지우고 살아 있는 토큰 {tokens}개를 폐기합니다 — 되돌리려면 다시 초대해야 합니다.',
+  'settings.members.offboard_run': '내보내기',
+  'settings.members.offboard_done': '내보냈습니다.',
+  'settings.members.offboard_self': '자신은 내보낼 수 없습니다.',
+  'settings.members.remove_from_project': '이 프로젝트에서 빼기',
+  'settings.members.remove_from_project_confirm': '{name} 을(를) {project} 에서 뺍니다.',
+  'settings.members.remove_from_project_detail': '이 프로젝트의 역할 {roles}개를 지웁니다.',
+  'settings.gates.tier_field': '{tier} 진입 점수',
+  'settings.gates.invalid': '경계는 0 이상의 정수이고 T1 ≤ T2 ≤ T3 이어야 합니다.',
+  'settings.gates.points': '{range}점',
+  'settings.gates.points_from': '{n}점 이상',
+  'settings.gates.range_none': '없음',
+  'settings.gates.rule_auto': '자동 통과',
+  'settings.gates.rule_one': '사람 1인 승인',
+  'settings.gates.rule_two': '직군이 다른 2인 승인',
+  'settings.gates.unsaved': '저장하지 않은 변경',
+  'settings.gates.change_boundaries': '티어 경계 {from} → {to}',
+  'settings.gates.change_dynamic': '동적 강화 {from} → {to}',
+  'settings.gates.on': '켜짐',
+  'settings.gates.off': '꺼짐',
+  'settings.gates.nothing_changed': '바뀐 값이 없습니다',
+  'settings.gates.loosen_confirm': '자동 통과가 넓어집니다 — 사람을 거치는 변경이 줄어듭니다.',
+  'settings.gates.loosen_save': '그래도 저장',
+  'settings.gates.switch_confirm':
+    '저장하지 않은 변경이 있습니다 — 버리고 {project}(으)로 옮기겠습니까?',
+  'settings.gates.switch_discard': '버리고 옮기기',
   // ── 제품 매뉴얼 (screens.md §2.10) ─────────────────────────────────────────
   // 장 **제목**만 여기 있다 — 사이드바·도움말 메뉴·문서 머리 세 곳이 같은 이름을 불러야
   // 하기 때문이다. 본문은 apps/web/src/content/manual/<로케일>/<장>.md 가 정본이다.
@@ -1322,13 +1381,15 @@ export const ko = {
   'settings.gates.admin_only_pre': '게이트 정책 편집은',
   'settings.gates.admin_only_title': '이 편집은 admin 역할만 가능합니다',
   'settings.gates.boundaries': '티어 경계 (T1/T2/T3 진입 점수)',
-  'settings.gates.boundaries_hint': '4축 합산: 부수효과 · 민감도 · 되돌림 · 폭발 반경',
+  'settings.gates.boundaries_hint':
+    '4축(부수효과 · 민감도 · 되돌림 · 폭발 반경) 합산 점수가 경계 이상이면 그 티어입니다. 낮출수록 더 많은 변경이 사람을 거칩니다.',
   'settings.gates.dynamic': '동적 강화',
   'settings.gates.dynamic_hint': '재시도·롤백 이력이 있으면 티어를 한 단계 올립니다',
   'settings.gates.failopen': 'fail-open 관측 · 표시 전용',
   'settings.gates.failopen_body':
     '연속 {count}회 · {hours}시간 창에서 격상합니다. 판정 불가일 때 막지 않고 진행하되 기록하고, 반복되면 올린다(D-14).',
-  'settings.gates.lead': 'MVP 편집 항목은 spec_gate 두 키입니다 — 나머지는 표시 전용입니다.',
+  'settings.gates.lead':
+    '여기서는 티어 경계와 동적 강화를 고칩니다 — 아래 fail-open 값은 보기만 합니다.',
   'settings.gates.saved': '게이트 정책을 저장했습니다.',
   'settings.members.email': '이메일',
   'settings.members.empty': '멤버가 없습니다.',

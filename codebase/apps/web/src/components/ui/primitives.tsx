@@ -168,7 +168,7 @@ export function Skeleton({
 
 // ── 조작 ───────────────────────────────────────────────────────────────────
 
-export type ButtonVariant = 'primary' | 'default' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'default' | 'ghost' | 'danger' | 'danger-solid';
 export type ButtonSize = 'sm' | 'md';
 
 const VARIANT: Record<ButtonVariant, string> = {
@@ -177,6 +177,9 @@ const VARIANT: Record<ButtonVariant, string> = {
   default: 'border border-border bg-bg-elev text-text hover:bg-bg-hover',
   ghost: 'border border-transparent text-text-mute hover:bg-bg-hover hover:text-text',
   danger: 'border border-border text-status-danger hover:bg-status-danger-soft',
+  // **확인의 실행 단추다** — 되돌리기 어려운 일을 한 번 더 물은 뒤에만 선다(confirm-action.tsx).
+  // 이 칠이 없던 동안 세션 중단은 클래스를 덮어써 빨갛게 칠했다
+  'danger-solid': 'border border-transparent bg-status-danger text-white hover:opacity-90',
 };
 
 const SIZE: Record<ButtonSize, string> = {

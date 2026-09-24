@@ -255,6 +255,10 @@ describe('게이트 정책 — 고치는 프로젝트를 화면이 고른다', (
     expect(await screen.findByText('게이트 정책 — Clemvion')).toBeDefined();
     fireEvent.change(screen.getByTestId('gates-project'), { target: { value: 'sudoku' } });
     expect(await screen.findByText('게이트 정책 — 스도쿠')).toBeDefined();
+    // 바뀐 값이 있어야 저장이 켜진다(REQ-WEB-201) — 경계를 낮추면 사람을 더 거치는 쪽이라 묻지 않는다
+    const t1 = (await screen.findByTestId('gate-boundary-T1')) as HTMLInputElement;
+    await waitFor(() => expect(t1.disabled).toBe(false));
+    fireEvent.change(t1, { target: { value: '1' } });
     const save = await screen.findByRole('button', { name: '저장' });
     await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(save);
