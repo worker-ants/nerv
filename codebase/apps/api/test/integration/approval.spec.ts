@@ -1956,6 +1956,54 @@ describe('처리됨 탭 — 내가 결정한 것 (REQ-API-165)', () => {
     expect(ids.indexOf(older.approvalId)).toBeLessThan(ids.indexOf(newer.approvalId));
   });
 
+  it('결정에 남긴 말을 함께 싣는다 — 거절 사유를 읽을 곳이 없었다 (REQ-WEB-133)', async () => {
+    const { approvalId } = await pendingSpec();
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId,
+      userId: planner,
+      decision: 'reject',
+      comment: '복원 실패 시 재시도 횟수를 적어 주세요',
+    });
+    const card = (await decidedOf(planner)).find((c) => c['id'] === approvalId);
+    expect(card?.['comment_md']).toBe('복원 실패 시 재시도 횟수를 적어 주세요');
+  });
+
+  it('결정된 카드에 판정을 싣지 않는다 — 누를 것이 없는 카드의 계산이다', async () => {
+    // `can_approve` 계열 넷은 "내가 이것을 누를 수 있는가" 에 답하고, 처리됨 카드에는
+    // 누를 것이 없다. **빼는 것이지 false 로 채우는 것이 아니다** — 거짓 값은 판정으로
+    // 읽히고 화면의 폴백(`typeof card.can_approve === 'boolean'`)이 그것을 그대로 믿는다.
+    const { approvalId } = await pendingSpec();
+    const pendingCard = (
+      await approvals.inboxGlobal({ actor: person(planner), userId: planner })
+    ).find((c) => c['id'] === approvalId);
+    for (const key of ['can_approve', 'can_bulk_approve', 'bulk_block_reason', 'content_hash']) {
+      expect(pendingCard).toHaveProperty(key);
+    }
+
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId,
+      userId: planner,
+      decision: 'approve',
+    });
+    const card = (await decidedOf(planner)).find((c) => c['id'] === approvalId)!;
+    for (const key of [
+      'can_approve',
+      'can_approve_reason',
+      'can_bulk_approve',
+      'bulk_block_reason',
+      'content_hash',
+    ]) {
+      expect(card).not.toHaveProperty(key);
+    }
+    // **정족수는 남긴다** — T3 를 하나 승인하고 둘째를 기다리는 중이라면 그 값은 사실이다
+    expect(card['approvals_required']).toBe(1);
+    expect(card['approvals_given']).toBe(1);
+  });
+
   it('대기 탭은 그대로다 — 갈라 놓은 것이 대기 쪽을 건드리지 않았다', async () => {
     const { approvalId } = await pendingSpec();
     const pending = await approvals.inboxGlobal({ actor: person(planner), userId: planner });

@@ -225,6 +225,7 @@ export const en = {
   'error.relation.stale_target':
     'The target document changed in the meantime — read it again and confirm the relation still holds.',
   'inbox.card.decided_at': '{decision} · {when}',
+  'inbox.card.decision_note': 'Note left with the decision',
   'inbox.subject.change_request': 'Change request',
   'inbox.subject.finding': 'Review finding resolution request',
   'inbox.subject.gate_bypass': 'Gate bypass request',

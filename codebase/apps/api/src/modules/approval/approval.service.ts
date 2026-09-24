@@ -295,6 +295,32 @@ export class ApprovalService {
     // 처리됨은 **언제 결정했는가**로 줄 세운다 — 요청 시각으로 세우면 오늘 결정한 9일 된
     // 요청이 어제 요청 밑에 묻힌다. 대기는 그 반대다(오래 기다린 것이 위로 와야 한다).
     const orderBy = decided ? sql`a.decided_at DESC` : sql`a.requested_at DESC`;
+    /**
+     * **결정된 카드에는 판정을 싣지 않는다**(2026-09-24).
+     *
+     * 이 넷은 "내가 이것을 누를 수 있는가" 에 답하는 값이고 처리됨 카드에는 누를 것이
+     * 없다 — 단추도 체크박스도 그리지 않는다(REQ-WEB-133). 그런데 `can_approve` 계열은
+     * 카드마다 상관 서브쿼리를 넷 세우고, 그중 `otherApproverCountSql` 은 멤버십을 훑는다.
+     * 아무도 읽지 않는 값을 목록 길이만큼 계산하고 있었다.
+     *
+     * 빼는 것이지 `false` 로 채우는 것이 아니다 — 거짓 값은 "누를 수 없다" 라는 **판정**으로
+     * 읽히고, 화면의 폴백(`typeof card.can_approve === 'boolean'`)이 그것을 그대로 믿는다.
+     * 없는 값은 없는 것으로 온다.
+     *
+     * `content_hash` 도 같다: stale 승인 차단(§2.3)이 결정 시점에 쓰는 지문이라 끝난
+     * 카드에는 쓸 곳이 없다. 정족수 둘은 **남긴다** — T3 를 하나 승인하고 둘째를 기다리는
+     * 중이라면 그 카드의 `1/2 승인` 은 처리됨에서도 사실이다.
+     */
+    const verdictColumns = decided
+      ? sql``
+      : sql`${canApproveSql(input.userId)},
+             ${canApproveReasonSql(input.userId)},
+             -- 일괄 판정도 **서버가 한다**(REQ-API-163). 화면이 "정족수 1 이고 면제가
+             -- 아니면 저위험" 을 다시 구현하면 두 벌이 되고, admin 완화가 낀 규칙은 두 벌이
+             -- 되는 순간 한쪽만 고쳐진다 — can_approve 가 서버 판정인 이유와 같은 자리다.
+             ${canBulkApproveSql(input.userId)},
+             ${bulkBlockReasonSql(input.userId)},
+             encode(sv.content_hash, 'hex') AS content_hash,`;
     const projectFilter =
       input.projectSlug == null ? sql`` : sql` AND p.slug = ${input.projectSlug}`;
 
@@ -305,16 +331,13 @@ export class ApprovalService {
              u.display_name AS requested_by,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
              a.assignee_role::text AS assignee_role,
-             ${canApproveSql(input.userId)},
-             ${canApproveReasonSql(input.userId)},
-             -- 일괄 판정도 **서버가 한다**(REQ-API-163). 화면이 "정족수 1 이고 면제가
-             -- 아니면 저위험" 을 다시 구현하면 두 벌이 되고, admin 완화가 낀 규칙은 두 벌이
-             -- 되는 순간 한쪽만 고쳐진다 — can_approve 가 서버 판정인 이유와 같은 자리다.
-             ${canBulkApproveSql(input.userId)},
-             ${bulkBlockReasonSql(input.userId)},
+             -- **결정에 남긴 말**(2026-09-24 · REQ-WEB-133). 거절 사유는 필수인데
+             -- (REQ-WEB-022) 그 문장이 목록 어디에도 실리지 않아, 처리됨 탭에서 가장
+             -- 궁금한 한 줄 — "내가 왜 거절했더라" — 을 읽을 길이 없었다.
+             a.comment_md,
+             ${verdictColumns}
              ${quorumColumnsSql()},
              s.key AS spec_key, s.title AS spec_title, sv.version_no,
-             encode(sv.content_hash, 'hex') AS content_hash,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
         FROM approval a
         JOIN project p ON p.id = a.project_id

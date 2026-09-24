@@ -506,6 +506,23 @@ export function ApprovalCard({
               ))}
             </div>
           )}
+          {/* **결정에 남긴 말은 남는다**(2026-09-24 · REQ-WEB-133). 거절에는 사유가
+              필수인데(REQ-WEB-022) 그 문장을 읽을 곳이 처리됨 탭에 없었다 — 무엇을 언제
+              정했는지는 적히면서 **왜** 가 빠져 있었고, 나중에 그 카드를 여는 사람이
+              찾는 것이 바로 그 한 줄이다. 코멘트 결정(`comment`)의 말도 여기 든다. */}
+          {decided !== null && String(card['comment_md'] ?? '') !== '' && (
+            <div
+              data-testid="decision-note"
+              className="mt-2 rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-sm"
+            >
+              <span className="block text-2xs text-text-faint">
+                {t('inbox.card.decision_note')}
+              </span>
+              <span className="mt-0.5 block whitespace-pre-wrap text-text-mute">
+                {String(card['comment_md'])}
+              </span>
+            </div>
+          )}
           {/* 결정된 카드에는 입력 칸을 두지 않는다(2026-09-03) — 처리됨 탭에서 코멘트를
               적고 [승인] 을 눌러도 서버는 already_decided 로 거절한다. 누를 수 있는 것은
               할 수 있다는 뜻이어야 한다. */}
