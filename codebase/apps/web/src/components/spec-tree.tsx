@@ -22,6 +22,7 @@ import { StatusBadge } from './status-badge.js';
 import { cn } from '../lib/utils.js';
 import { Input } from './ui/primitives.js';
 import { SPEC_VERSION_TOKEN } from './status-token.js';
+import { SpecStartCard } from './spec-start-card.js';
 import type { StatusToken } from './status-badge.js';
 import type { ProjectId } from '../lib/query-keys.js';
 
@@ -430,12 +431,21 @@ export function SpecTree({
   }
 
   if (nodes.length === 0) {
-    // 막다른 길 금지 — 빈 상태에도 다음 행동이 있다(§1.5)
-    return (
+    // 막다른 길 금지 — 빈 상태에도 다음 행동이 있다(§1.5). **목록 화면이 시작하는 길을 말한다**
+    // (REQ-WEB-208) — 사이드바는 한 줄로 그리로 보낸다. 예전에는 둘 다 "첫 스펙 만들기" 로 목록을
+    // 가리켰고, 목록은 같은 문장을 다시 보였다(만드는 문은 2026-09-22 에 걷혔다)
+    return variant === 'full' ? (
+      <SpecStartCard projectSlug={projectSlug} />
+    ) : (
       <div className="text-sm text-text-mute">
         {t('specs.empty')}{' '}
-        <Link to="/p/$proj/specs" params={{ proj: projectSlug }} className="text-link underline">
-          {t('specs.create_first')}
+        <Link
+          to="/p/$proj/specs"
+          params={{ proj: projectSlug }}
+          data-testid="spec-tree-start"
+          className="text-link underline"
+        >
+          {t('specs.start.how')}
         </Link>
       </div>
     );

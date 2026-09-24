@@ -14,12 +14,12 @@
 // 판정의 정본은 `@nerv/schema` 하나이고 서버도 같은 것을 본다(REQ-CB-006) — 두 벌이면
 // 한쪽만 고쳐지고, 그때 어느 쪽이 맞는지는 아무도 모른다.
 
-import { useState } from 'react';
 import { checkPluginInstallUrl } from '@nerv/schema';
 import type { MessageKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import type { ManualVarName, ManualVars } from '../../lib/manual-vars.js';
-import { Button, Card } from '../../components/ui/primitives.js';
+import { Card } from '../../components/ui/primitives.js';
+import { CopyButton } from '../../components/copy-button.js';
 
 /**
  * 줄 이름 넷 — **`help.env.` 전체로 두지 않는다.** 이 접두사에는 `{detail}` 을 받는
@@ -90,31 +90,5 @@ export function InstallEnvCard({ vars }: { vars: ManualVars }): React.JSX.Elemen
   );
 }
 
-/**
- * 값 한 칸을 클립보드로.
- *
- * 본문 코드블록의 단추(`markdown.ts` + 위임 핸들러)와 **같은 일을 다르게 한다** — 저쪽은
- * `dangerouslySetInnerHTML` 이 낸 HTML 이라 React 가 쥘 수 없고, 이쪽은 평범한 컴포넌트다.
- * 글자는 같은 두 키를 쓴다.
- */
-function CopyButton({ value }: { value: string }): React.JSX.Element {
-  const t = useT();
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      size="sm"
-      className="shrink-0"
-      onClick={() => {
-        void navigator.clipboard?.writeText(value).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), COPIED_MS);
-        });
-      }}
-    >
-      {copied ? t('help.copied') : t('help.copy')}
-    </Button>
-  );
-}
-
-/** 복사했다는 표시가 남아 있는 시간 — 본문 코드블록도 같은 값을 쓴다. */
-export const COPIED_MS = 1500;
+// 복사 단추는 토큰 탭·스펙 시작 카드도 쓴다 — 공용 자리로 옮겼다(REQ-WEB-207·208)
+export { COPIED_MS } from '../../components/copy-button.js';

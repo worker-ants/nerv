@@ -8,6 +8,8 @@ Each session carries whose machine it is on, which agent is running (`claude-cod
 
 The card carries four more things — the **remaining lease** (it changes colour under two minutes, meaning the work is about to be reclaimed), when the last heartbeat was, the `+N −M` this session has changed, and the scope it declared (hover to unfold it). The lease runs 30 minutes, on the **same clock** as a task claim's lease.
 
+**A session waiting for input** says what it is waiting for — the title of the open question, or an approval — and **[Open in inbox ↗]** takes you straight to that card. **A session holding no task** names the task it last held (**Reclaimed** if its lease ran out), and a stale session's note names the reclaimed task. With no sessions at all, **Open the install guide · Issue a token** show you how to connect one.
+
 The list does not arrive all at once. When there is more, **[Load more]** sits below it, and pressing it **appends** the next page — the rows you were already looking at stay put. The counts in the summary above are independent of the filter and the page: they count the **whole project**, because the summary is the whole picture and the list is a slice of it.
 
 ### Machines with the plugin on

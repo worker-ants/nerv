@@ -68,7 +68,14 @@ export function describeApiError(t: Translator, error: unknown): ApiErrorAction 
     };
   }
 
-  const { code, message, details, retry_after_s, next_actions } = error.body;
+  // **봉투가 반쪽이어도 무너지지 않는다.** 앞문 프록시나 다른 층이 낸 JSON 500 은 우리 봉투의 칸을
+  // 다 갖고 있지 않다 — 빠진 칸 하나로 실패 카드 자체가 던지면 화면 전체가 하얗게 된다(2026-09-24 실측:
+  // 세션 보드의 실패를 공용 카드로 옮기자 `next_actions` 없는 본문에서 렌더가 멈췄다)
+  const code = error.body.code ?? null;
+  const message = error.body.message ?? '';
+  const details = error.body.details ?? {};
+  const retry_after_s = error.body.retry_after_s ?? null;
+  const next_actions = Array.isArray(error.body.next_actions) ? error.body.next_actions : [];
   const headline = code === null ? message : t(MESSAGE[code] ?? 'apierr.unknown');
   const action: ApiErrorAction = {
     // 부류 → 이 건 순서다. 서버 문장이 비어 있으면 부류만 남는다.

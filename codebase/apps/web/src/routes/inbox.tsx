@@ -12,7 +12,7 @@ import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApprovalCard, inView } from '../features/inbox/approval-card.js';
+import { ApprovalCard, inView, subjectFallback } from '../features/inbox/approval-card.js';
 import type { CardFailure } from '../features/inbox/approval-card.js';
 import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
@@ -445,11 +445,23 @@ function InboxScreen(): React.JSX.Element {
         <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()} />
       )}
 
+      {/* **탭마다 제목이 다르다**(2026-09-24 · REQ-WEB-208). 처리됨 탭이 비어도 "지금 당신을 기다리는 항목이
+          없습니다" 라고 적어 탭과 맞지 않았다. 대기가 비면 최근 처리 셋을 붙인다(ui-wireframes §3.4) —
+          방금 한 일이 어디 갔는지가 빈 목록의 다음 질문이다 */}
       {inbox.data !== undefined && cards.length === 0 && (
         <EmptyState
           icon="✓"
-          title={t('home.nothing_waiting')}
+          title={state === 'pending' ? t('home.nothing_waiting') : t('inbox.empty_decided')}
           hint={state === 'pending' ? t('inbox.empty_pending_hint') : t('inbox.empty_decided_hint')}
+          action={
+            state === 'pending' ? (
+              <RecentDecided />
+            ) : (
+              <Link to="/inbox" className="text-sm text-link hover:underline">
+                {t('inbox.see_pending')} ▸
+              </Link>
+            )
+          }
         />
       )}
 
@@ -546,5 +558,39 @@ function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
     <kbd className="rounded-nerv-sm border border-border bg-bg-sunken px-1 font-mono text-text-mute">
       {children}
     </kbd>
+  );
+}
+
+/** 대기가 비었을 때 — **최근 처리 셋**과 처리됨 탭으로 가는 길(ui-wireframes §3.4 · REQ-WEB-208) */
+function RecentDecided(): React.JSX.Element {
+  const t = useT();
+  const decided = useInbox('decided');
+  const recent = inboxCards(decided.data).slice(0, 3);
+  return (
+    <div data-testid="inbox-recent-decided" className="flex flex-col items-center gap-1.5">
+      {recent.length > 0 && (
+        <ul className="flex flex-col gap-0.5 text-left text-xs text-text-mute">
+          {recent.map((card) => (
+            <li key={String(card['id'])} className="flex items-center gap-2">
+              <span className="shrink-0 text-2xs text-text-faint">
+                {t(`inbox.decision.${String(card['decision'] ?? 'approve')}` as never)}
+              </span>
+              <span className="min-w-0 truncate">
+                {String(
+                  card['title'] ??
+                    card['spec_title'] ??
+                    card['task_title'] ??
+                    card['finding_title'] ??
+                    subjectFallback(t, card['subject_type']),
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Link to="/inbox" search={{ state: 'decided' }} className="text-sm text-link hover:underline">
+        {t('home.see_decided')}
+      </Link>
+    </div>
   );
 }

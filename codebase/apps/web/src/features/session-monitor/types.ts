@@ -23,6 +23,15 @@ export interface SessionCard {
   lease_remaining_seconds: number | null;
   scope_spec_ids: string[];
   scope_file_globs: string[];
+  /** 활성 클레임이 없을 때 마지막으로 쥔 작업(REQ-API-179) — 없으면 null */
+  last_task_key?: string | null;
+  last_task_title?: string | null;
+  last_claim_status?: string | null;
+  last_release_reason?: string | null;
+  /** 입력을 기다리는 세션이 무엇을 기다리는가 — 열린 질문, 없으면 올린 결재 */
+  waiting_question_id?: string | null;
+  waiting_question_title?: string | null;
+  waiting_approval_id?: string | null;
 }
 
 export interface SessionBoardResult {

@@ -124,6 +124,8 @@ claude "/nerv:spec edit SPC-CWC-007"
 
 What stays on the web is **what a person does**: requesting review, approving, metadata (title, parent), archiving and restoring, attachments, comments.
 
+**In a project with no specs at all**, the spec list shows how to start — `claude "/nerv:spec new"` to run in a terminal (with a copy button), **the install guide and issuing a token** if no agent is connected yet, and the CLI importer if you already have documents ("Importing documents" in the [Agents](/help/agents) chapter). The tree in the sidebar sends you there in one line. A role that cannot draft specs (viewer) sees who writes them instead of the command.
+
 ## Two ways to look at the body
 
 The **Reader / Source** tabs above the body choose how you look at it.

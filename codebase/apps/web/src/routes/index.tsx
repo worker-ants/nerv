@@ -136,8 +136,12 @@ function HomeScreen(): React.JSX.Element {
           <EmptyState
             icon="✓"
             title={t('home.nothing_waiting')}
-            hint={
-              <Link to="/inbox" search={{ state: 'decided' }} className="text-link hover:underline">
+            action={
+              <Link
+                to="/inbox"
+                search={{ state: 'decided' }}
+                className="text-sm text-link hover:underline"
+              >
                 {t('home.see_decided')}
               </Link>
             }

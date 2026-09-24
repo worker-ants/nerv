@@ -13,6 +13,8 @@ import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
 import { cn } from '../../lib/utils.js';
 import { Button, EmptyState, Skeleton } from '../../components/ui/primitives.js';
+import { ErrorState } from '../../components/query-state.js';
+import { ConnectAgentLinks } from '../../components/connect-agent-links.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
 /** 어휘와 **순서**의 정본은 `@nerv/schema` 다 — 화면이 목록을 새로 만들지 않는다 */
@@ -51,6 +53,7 @@ export function SessionBoard({
   const query = useSessions(projectSlug, projectId, state) as {
     isLoading: boolean;
     isError: boolean;
+    error: unknown;
     data: SessionBoardResult | undefined;
     refetch: () => unknown;
     hasNextPage: boolean;
@@ -68,15 +71,12 @@ export function SessionBoard({
   }
 
   if (query.isError) {
+    // 실패는 비어 있음과 다른 모양이다(SYS-14 · REQ-WEB-198) — 공용 실패 카드
     return (
-      <EmptyState
-        icon="⚠"
+      <ErrorState
+        error={query.error}
         title={t('sessions.load_failed')}
-        action={
-          <Button size="sm" onClick={() => void query.refetch()}>
-            {t('common.retry')}
-          </Button>
-        }
+        onRetry={() => void query.refetch()}
       />
     );
   }
@@ -98,7 +98,7 @@ export function SessionBoard({
           icon="◌"
           title={t('sessions.none_in_state', { state: t(statusLabelKey('session', state)) })}
           action={
-            onStateChange === undefined ? undefined : (
+            onStateChange === undefined ? null : (
               <Button size="sm" variant="ghost" onClick={() => onStateChange(null)}>
                 {t('sessions.show_all')}
               </Button>
@@ -122,6 +122,7 @@ export function SessionBoard({
             {t('sessions.none_hint_post')}
           </>
         }
+        action={<ConnectAgentLinks />}
       />
     );
   }

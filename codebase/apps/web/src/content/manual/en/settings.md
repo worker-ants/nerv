@@ -56,7 +56,7 @@ Editing members and roles is `admin` only — **organization-wide rows by organi
 
 ## Tokens
 
-Issue and revoke the tokens agents use. The details are in [Agents](/help/agents). Tokens are **bound to a project**, so none can be issued while the organization has no projects — organization admins see **[Create a project]** in that spot.
+Issue and revoke the tokens agents use. **The steps from issuing to connecting are in the [Plugin install](/help/install) chapter**, and help opened from this tab goes there. After issuing, a card gives you **three connection steps** (token · plugin install · one setup line) and turns into **"Connected"** the first time the token is used. Scopes start as the **[Recommended]** set. Tokens are **bound to a project**, so none can be issued while the organization has no projects — organization admins see **[Create a project]** in that spot.
 
 **Revoking cannot be undone, so it asks once more** and names the **machine that last used** the token — the agent there is cut off from its next call. Organization admins also cut off other people's live tokens with the same [Revoke] in the **organization-wide token table** (someone who has left, for example).
 

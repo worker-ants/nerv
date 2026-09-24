@@ -81,7 +81,32 @@ export function SessionCard({
       {/* 좁으면 **제 줄로 내려간다** — 옆으로 찌그러뜨리는 것보다 낫다 */}
       <div className="order-last min-w-0 w-full @2xl:order-none @2xl:w-auto @2xl:flex-1">
         {card.task_key === null ? (
-          <span className="text-sm text-text-faint">{t('session.no_task')}</span>
+          // **끝난 세션도 무엇을 했는지 말한다**(2026-09-24 · REQ-WEB-208). 활성 클레임만 보던 동안
+          // 끝난·유령 세션은 전부 "클레임한 작업 없음" 이었고, 무엇이 회수됐는지(REQ-WEB-020) 몰랐다
+          typeof card.last_task_key === 'string' ? (
+            <span data-testid="session-last-task" className="flex items-center gap-1.5 text-sm">
+              <span className="text-2xs text-text-faint">
+                {card.last_claim_status === 'expired'
+                  ? t('session.reclaimed')
+                  : t('session.last_task')}
+              </span>
+              {projectSlug === undefined ? (
+                <span className="font-mono text-2xs">{card.last_task_key}</span>
+              ) : (
+                <Link
+                  to="/p/$proj/tasks/$task"
+                  params={{ proj: projectSlug, task: card.last_task_key }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="font-mono text-2xs text-link hover:underline"
+                >
+                  {card.last_task_key}
+                </Link>
+              )}
+              <span className="min-w-0 truncate text-text-mute">{card.last_task_title}</span>
+            </span>
+          ) : (
+            <span className="text-sm text-text-faint">{t('session.no_task')}</span>
+          )
         ) : (
           <>
             <div className="truncate text-sm">{card.task_title}</div>
@@ -145,10 +170,42 @@ export function SessionCard({
         </Link>
       )}
 
+      {/* **무엇을 기다리는지** 말한다(REQ-WEB-208) — "입력 대기" 배지만으로는 누가 무엇에 답해야 하는지
+          알 수 없었다. 그 카드로 곧장 간다(REQ-WEB-204 의 `?focus=`) */}
+      {card.state === 'awaiting_input' &&
+        (typeof card.waiting_question_id === 'string' ||
+          typeof card.waiting_approval_id === 'string') && (
+          <span
+            data-testid="session-waiting"
+            className="order-last flex w-full min-w-0 items-center gap-2 text-2xs text-status-waiting"
+          >
+            <span className="min-w-0 truncate">
+              {typeof card.waiting_question_id === 'string'
+                ? t('session.waiting_question', {
+                    title: String(card.waiting_question_title ?? ''),
+                  })
+                : t('session.waiting_approval')}
+            </span>
+            <Link
+              to="/inbox"
+              search={{
+                focus: String(card.waiting_question_id ?? card.waiting_approval_id ?? ''),
+              }}
+              onClick={(e) => e.stopPropagation()}
+              data-testid="session-waiting-link"
+              className="shrink-0 text-link hover:underline"
+            >
+              {t('session.open_in_inbox')}
+            </Link>
+          </span>
+        )}
+
       {card.state === 'stale' && (
-        // 사유는 **감추지 않는다**(REQ-WEB-020) — 좁으면 제 줄로 내려간다
+        // 사유는 **감추지 않는다**(REQ-WEB-020) — 좁으면 제 줄로 내려간다. 회수된 작업이 있으면 그 키를 댄다
         <span className="order-last w-full shrink-0 text-2xs leading-snug text-text-mute @2xl:order-none @2xl:w-40">
-          {t('session.stale_note')}
+          {typeof card.last_task_key === 'string' && card.last_claim_status === 'expired'
+            ? t('session.stale_note_task', { key: card.last_task_key })
+            : t('session.stale_note')}
         </span>
       )}
     </article>

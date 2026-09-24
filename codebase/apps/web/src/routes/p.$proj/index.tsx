@@ -7,6 +7,7 @@ import { eventLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
+import { ConnectAgentLinks } from '../../components/connect-agent-links.js';
 import { relativeTime } from '../../lib/format.js';
 import { rows, useCoverage, useEvents, useProject, useSessions } from '../../lib/queries.js';
 import { cn } from '../../lib/utils.js';
@@ -116,6 +117,7 @@ function ProjectOverview(): React.JSX.Element {
                   {t('project.no_sessions_hint_post')}
                 </>
               }
+              action={<ConnectAgentLinks />}
             />
           )}
         </Card>
@@ -153,7 +155,7 @@ function ProjectOverview(): React.JSX.Element {
           ))}
         </ul>
         {!events.isLoading && rows(events.data).length === 0 && (
-          <EmptyState icon="·" title={t('project.no_events')} />
+          <EmptyState icon="·" title={t('project.no_events')} action={null} />
         )}
       </section>
     </PageBody>
