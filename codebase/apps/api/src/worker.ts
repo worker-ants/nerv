@@ -7,7 +7,7 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { logLevelsFromEnv } from './common/log-level.js';
+import { nervLoggerFromEnv } from './common/nerv-logger.js';
 import { assertCookieDomain, assertRetiredNames } from './common/origins.js';
 import { assertMailConfig } from './modules/mail/mail.config.js';
 import type { INestApplicationContext } from '@nestjs/common';
@@ -17,7 +17,7 @@ import { JobRunner } from './worker/job-runner.js';
 export async function createWorker(): Promise<INestApplicationContext> {
   return NestFactory.createApplicationContext(WorkerAppModule, {
     // api 와 **같은 함수**를 쓴다 — 두 곳에서 따로 파싱하면 기본값이 갈린다(§5.2)
-    logger: logLevelsFromEnv(),
+    logger: nervLoggerFromEnv(),
   });
 }
 

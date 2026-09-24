@@ -11,20 +11,28 @@ import {
   surfaceOf,
 } from './access-log.js';
 import type { AccessRecord } from './access-log.js';
-import { NervLogger } from './nerv-logger.js';
-import { currentRequestId, requestContext, requestIdFrom } from './request-context.js';
+import { nervLoggerFromEnv } from './nerv-logger.js';
+import { currentRequestId, requestIdFrom } from './request-context.js';
 
 interface Line {
   level: string;
+  /** 사람이 읽는 문장 — 구조화 메시지의 `message` */
   message: string;
+  /** 로거가 받은 그대로 — `json` 에서 펼쳐질 필드 */
+  fields: Record<string, unknown>;
   requestId: string | null;
 }
 
 /** 줄을 모으는 가짜 로거 — 남길 때의 요청 맥락까지 적는다 */
 function capture(): { logger: Logger; lines: Line[] } {
   const lines: Line[] = [];
-  const at = (level: string) => (message: string) =>
-    lines.push({ level, message, requestId: currentRequestId() });
+  const at = (level: string) => (message: { message: string }) =>
+    lines.push({
+      level,
+      message: message.message,
+      fields: message as unknown as Record<string, unknown>,
+      requestId: currentRequestId(),
+    });
   const logger = {
     log: at('log'),
     warn: at('warn'),
@@ -101,6 +109,21 @@ describe('접근 로그 — 요청마다 한 줄 (REQ-CB-052)', () => {
     expect(line?.message).not.toContain('secret-value');
     expect(line?.message).not.toContain('aborted'); // 끝까지 쓴 응답이다
     expect(line?.message).not.toContain('NERV'); // 경로의 실제 값이 아니라 템플릿이다
+    // 같은 줄이 `json` 에서 펼칠 필드 — 문장과 같은 값이다(REQ-CB-053)
+    expect(line?.fields).toMatchObject({
+      event: 'access',
+      method: 'GET',
+      route: '/api/projects/:proj/tasks',
+      status: 200,
+      surface: 'rest',
+      user_id: 'u-1',
+      is_agent: true,
+      token_id: 't-1',
+      project_id: 'p-1',
+      ip: '203.0.113.9',
+    });
+    expect(line?.fields).not.toHaveProperty('code'); // 값이 없는 필드는 싣지 않는다
+    expect(line?.fields).not.toHaveProperty('aborted');
     await fastify.close();
   });
 
@@ -243,20 +266,70 @@ describe('접근 로그 — 조각', () => {
   });
 });
 
-describe('NervLogger — 요청 안의 줄에 요청 ID', () => {
-  class Probe extends NervLogger {
-    contextOf(name: string): string {
-      return this.formatContext(name);
-    }
-  }
+/**
+ * **싣지 않는 것**(§5.5 · REQ-CB-053) — 실제 로거(두 형식)가 stdout 에 쓴 바이트를 센다.
+ * 가짜 로거로 세면 "로거가 무엇을 받았는가" 만 보고, 로거가 그것을 어떻게 펼쳤는가는 못 본다.
+ */
+describe('접근 로그 — 싣지 않는 것', () => {
+  const SECRETS = {
+    bearer: 'nerv_pat_secret-bearer-value',
+    cookie: 'secret-cookie-value',
+    idempotency: 'secret-idempotency-value',
+    query: 'secret-query-value',
+    email: 'jimin@example.com',
+    password: 'secret-password-value',
+    displayName: '비밀스러운표시이름',
+  };
 
-  it('요청 밖에서는 붙이지 않는다', () => {
-    expect(new Probe({ colors: false }).contextOf('Task')).toBe('[Task] ');
-  });
-
-  it('요청 안에서는 컨텍스트 뒤에 붙인다 — 서비스 코드는 모른다', () => {
-    const probe = new Probe({ colors: false });
-    const line = requestContext.run({ requestId: 'req-0001' }, () => probe.contextOf('Task'));
-    expect(line).toBe('[Task] [req=req-0001] ');
-  });
+  it.each(['text', 'json'] as const)(
+    '%s — 자격증명·본문·쿼리·이메일·이름이 줄에 없다',
+    async (format) => {
+      const written: string[] = [];
+      const spy = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
+        written.push(String(chunk));
+        return true;
+      }) as typeof process.stdout.write);
+      try {
+        const logger = nervLoggerFromEnv({ NERV_LOG_FORMAT: format, NERV_LOG_LEVEL: 'verbose' });
+        const fastify = new FastifyAdapter({
+          genReqId: (req: { headers: IncomingHttpHeaders }) =>
+            requestIdFrom(req.headers['x-request-id']),
+        }).getInstance();
+        registerAccessLog(fastify, logger as unknown as Logger);
+        fastify.post('/api/v1/projects/:proj/tasks', async (request) => {
+          Object.assign(request, {
+            nervPrincipal: {
+              userId: 'u-1',
+              displayName: SECRETS.displayName,
+              isAgent: false,
+              projectId: null,
+              roles: [],
+              scopes: [],
+              tokenId: null,
+            },
+          });
+          return { email: SECRETS.email }; // 응답 본문도 싣지 않는다
+        });
+        await fastify.ready();
+        await fastify.inject({
+          method: 'POST',
+          url: `/api/v1/projects/NERV/tasks?q=${SECRETS.query}`,
+          headers: {
+            authorization: `Bearer ${SECRETS.bearer}`,
+            cookie: `better-auth.session_token=${SECRETS.cookie}`,
+            'idempotency-key': SECRETS.idempotency,
+            'content-type': 'application/json',
+          },
+          payload: JSON.stringify({ email: SECRETS.email, password: SECRETS.password }),
+        });
+        await settle();
+        await fastify.close();
+      } finally {
+        spy.mockRestore();
+      }
+      const output = written.join('');
+      expect(output).toContain('/api/v1/projects/:proj/tasks'); // 줄은 남았다
+      for (const secret of Object.values(SECRETS)) expect(output).not.toContain(secret);
+    },
+  );
 });

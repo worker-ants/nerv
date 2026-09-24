@@ -1,4 +1,4 @@
-// 접근 로그 — 요청마다 한 줄 (정본: docs/04-mvp/codebase.md §5.5 · REQ-CB-052)
+// 접근 로그 — 요청마다 한 줄 (정본: docs/04-mvp/codebase.md §5.5 · REQ-CB-052·053)
 //
 // **운영 api 컨테이너 로그에 호출된 API 가 한 줄도 남지 않았다**(2026-09-24 사람 보고).
 // Fastify 는 `logger` 옵션이 없으면 로그를 끄고, Nest 는 요청을 기록하지 않는다. 남는 것은
@@ -16,6 +16,7 @@ import { Logger } from '@nestjs/common';
 import type { LogLevel } from '@nestjs/common';
 import type { IncomingHttpHeaders, ServerResponse } from 'node:http';
 import type { Principal } from '../modules/auth/auth.service.js';
+import type { StructuredMessage } from './nerv-logger.js';
 import { REQUEST_ID_HEADER, requestContext } from './request-context.js';
 
 /** 훅이 읽는 요청의 모양 — 가드·필터가 요청 객체에 달아 둔 것까지 */
@@ -171,6 +172,32 @@ export function formatAccessLine(record: AccessRecord): string {
 }
 
 /**
+ * 구조화 메시지 — `text` 에서는 한 줄 문장, `json` 에서는 필드가 줄의 최상위에 펼쳐진다
+ * (`nerv-logger.ts`). 값이 없는 필드는 싣지 않는다 — 문장과 같은 규칙이다.
+ */
+export function accessMessage(record: AccessRecord): StructuredMessage {
+  const fields: Record<string, string | number | boolean | null> = {
+    event: 'access',
+    method: record.method,
+    route: record.route,
+    status: record.status,
+    duration_ms: record.durationMs,
+    surface: record.surface,
+    code: record.code,
+    user_id: record.userId,
+    is_agent: record.isAgent,
+    token_id: record.tokenId,
+    project_id: record.projectId,
+    ip: record.ip,
+    bytes: record.bytes,
+    aborted: record.aborted ? true : null,
+  };
+  const message: StructuredMessage = { message: formatAccessLine(record) };
+  for (const [key, value] of Object.entries(fields)) if (value !== null) message[key] = value;
+  return message;
+}
+
+/**
  * 훅 셋을 단다.
  *
  * - `onRequest`: 응답 헤더에 요청 ID 를 싣고(raw 에 싣는다 — SSE 는 Fastify 의 `reply.send` 를
@@ -198,7 +225,7 @@ export function registerAccessLog(host: AccessHookHost, logger = new Logger('Acc
         const record = accessRecordOf(request, reply.raw, durationMs, !finished);
         const level = accessLevel(record.method, record.status);
         requestContext.run({ requestId: request.id }, () => {
-          logger[level](formatAccessLine(record));
+          logger[level](accessMessage(record));
         });
       });
     }
