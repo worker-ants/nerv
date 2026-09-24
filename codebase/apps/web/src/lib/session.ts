@@ -206,3 +206,26 @@ export function rolesInProject(
   }
   return [...out];
 }
+
+/**
+ * 이 범위의 멤버십·초대를 다룰 수 있는가 — 서버 `AuthService.assertCanManageScope` 와 **같은 규칙**
+ * 이다(REQ-API-169 · REQ-WEB-075: 화면은 서버가 허용할 것을 미리 말한다).
+ *
+ * **조직 전체 범위는 조직 admin 만**(2026-09-24 사람 결정). 조직 admin 은 조직 단위
+ * (`project_slug === null`) admin 멤버십을 가진 사람이고, 프로젝트 범위는 조직 admin 또는 그
+ * 프로젝트의 admin 이다. `rolesInOrg` 로 판정하면 한 프로젝트의 admin 이 조직 전체 줄까지
+ * 편집 가능하게 보인다 — 예전 화면과 서버가 그랬다.
+ */
+export function canManageScope(
+  me: Me | undefined,
+  orgSlug: string | null,
+  projectSlug: string | null,
+): boolean {
+  if (me === undefined || orgSlug === null) return false;
+  return me.memberships.some(
+    (m) =>
+      m.org_slug === orgSlug &&
+      m.roles.includes('admin') &&
+      (m.project_slug === null || (projectSlug !== null && m.project_slug === projectSlug)),
+  );
+}

@@ -38,6 +38,7 @@ export interface InvitationRow extends Record<string, unknown> {
   org_slug: string;
   org_name: string;
   project_slug: string | null;
+  project_name: string | null;
   expires_at: string;
   /** 메일이 마지막으로 나간 시각. NULL 이면 아직 안 나갔다(또는 메일이 꺼진 배치다) */
   last_sent_at: string | null;
@@ -81,6 +82,8 @@ export class InvitationService {
     }
 
     const projectId = await this.resolveProjectId(org.id, input.projectSlug ?? null);
+    // 부를 **범위**로 판정한다 — 조직 전체 초대는 조직 admin 만(REQ-API-169 · AuthService 한 곳)
+    await this.auth.assertCanManageScope(input.actorUserId, org.id, projectId);
 
     const { rows: already } = await this.db.execute<{ n: number }>(sql`
       SELECT count(*)::int AS n FROM membership m
@@ -148,18 +151,17 @@ export class InvitationService {
 
   /** EP-INV-03 — 회수(admin). **지우지 않는다** — 누가 누구를 불렀는지가 기록이다 */
   async revoke(input: { actorUserId: string; invitationId: string }): Promise<{ ok: true }> {
-    const { rows } = await this.db.execute<{ org_slug: string }>(sql`
-      SELECT o.slug AS org_slug FROM invitation i
-        JOIN organization o ON o.id = i.org_id
-       WHERE i.id = ${input.invitationId}
+    const { rows } = await this.db.execute<{ org_id: string; project_id: string | null }>(sql`
+      SELECT org_id, project_id FROM invitation WHERE id = ${input.invitationId}
     `);
-    const orgSlug = rows[0]?.org_slug;
-    if (orgSlug === undefined) {
+    const target = rows[0];
+    if (target === undefined) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.invite.not_found'), {
         kind: 'not_found',
       });
     }
-    await this.assertOrgAdmin(input.actorUserId, orgSlug);
+    // 만든 범위와 같은 규칙으로 거둔다 — 만들 수 없는 초대를 거둘 수 있으면 규칙이 둘이다
+    await this.auth.assertCanManageScope(input.actorUserId, target.org_id, target.project_id);
     await this.db.execute(sql`
       UPDATE invitation SET revoked_at = now()
        WHERE id = ${input.invitationId} AND accepted_at IS NULL AND revoked_at IS NULL
@@ -291,7 +293,7 @@ export class InvitationService {
              -- 못하면 admin 이 같은 초대를 세 번 만든다(2026-09-22).
              i.last_sent_at::text AS last_sent_at,
              o.slug AS org_slug, o.name AS org_name,
-             p.slug AS project_slug,
+             p.slug AS project_slug, p.name AS project_name,
              u.display_name AS invited_by,
              CASE
                WHEN i.revoked_at IS NOT NULL THEN 'revoked'

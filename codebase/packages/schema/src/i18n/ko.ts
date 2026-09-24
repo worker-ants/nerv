@@ -97,6 +97,7 @@ export const ko = {
   'common.create': '만들기',
   'common.delete': '삭제',
   'common.edit': '편집',
+  'common.org': '조직',
   'error.approval.already_approved':
     '이 문서에 이미 승인했습니다 — 둘째 승인은 다른 사람의 몫입니다.',
   'error.approval.already_decided': '이미 결정된 항목입니다.',
@@ -108,6 +109,8 @@ export const ko = {
   'error.approval.bulk_limit': '한 번에 {max}건까지 결정할 수 있습니다.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
   'error.auth.admin_only': 'admin 만 할 수 있습니다.',
+  'error.auth.org_admin_only':
+    '조직 전체 범위는 조직 admin 만 다룰 수 있습니다 — 프로젝트 admin 은 자기 프로젝트만 다룹니다.',
   'error.auth.admin_only_import': '임포트는 admin 만 가능합니다.',
   'error.auth.admin_only_policy': '게이트 정책·보존 설정은 admin 만 바꿉니다.',
   'error.auth.author_only': '작성자만 수정할 수 있습니다.',
@@ -231,6 +234,12 @@ export const ko = {
   'inbox.subject.plan': '플랜 승인 요청',
   'inbox.subject.question': '에이전트 질문',
   'inbox.subject.spec_version': '스펙 승인 요청',
+  'invite.col.sent': '발송',
+  'invite.col.state': '상태',
+  'invite.created_summary': '{email} → {org} / {scope} · {role}',
+  'invite.scope_org_all': '조직 전체(모든 프로젝트)',
+  'invite.scope_org_hint': '조직 전체 역할은 이 조직의 모든 프로젝트에 적용됩니다.',
+  'invite.scope_project': '프로젝트 · {name}',
   'mcp.arg.relation_base_hash':
     '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
   'mcp.arg.lease_seconds':
@@ -238,6 +247,13 @@ export const ko = {
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
   'session.detail': '상세',
   'session.timeline_more': '앞쪽 활동 더 보기',
+  'settings.gates.project_hint':
+    '게이트 정책은 프로젝트마다 따로입니다 — 고친 값은 이 프로젝트에만 적용됩니다.',
+  'settings.gates.title_project': '게이트 정책 — {project}',
+  'settings.members.role_org_admin_only': '조직 전체 역할은 조직 admin 만 바꿀 수 있습니다',
+  'settings.members.scope_rule':
+    '조직 전체 줄은 조직 admin 만, 프로젝트 줄은 그 프로젝트의 admin 도 바꿀 수 있습니다 — 바꿀 수 없는 줄은 읽기 전용입니다.',
+  'settings.members.title_org': '{org} 멤버·역할',
   'spec.derived_tasks': '파생 Task',
   'spec.derived_tasks.all': '보드에서 전체 보기',
   'spec.derived_tasks.empty': '이 문서에서 나온 작업이 아직 없습니다',
@@ -832,7 +848,7 @@ export const ko = {
   'invite.revoke': '회수',
   'invite.revoked': '회수됨',
   'invite.role': '역할',
-  'invite.scope': '소속',
+  'invite.scope': '적용 범위',
   'invite.scope_org': '조직 전체',
   'invite.send': '초대 만들기',
   'invite.sending': '만드는 중…',
@@ -866,7 +882,7 @@ export const ko = {
   'onboarding.step1_slug_hint': '주소에 쓰입니다 (/o/…) — 나중에 바꿀 수 없습니다',
   'onboarding.step1_wait':
     '누군가 이미 조직을 쓰고 있다면 새로 만들지 말고 초대를 받으세요 — 조직이 갈라지면 스펙도 갈라집니다.',
-  'onboarding.step2': '② 당신의 역할: {role}',
+  'onboarding.step2': '② {org} · {scope}에서 당신의 역할: {role}',
   'onboarding.step3': '③ 다음 행동',
   'onboarding.title': '시작하기',
   'onboarding.token_link': '설정 › 에이전트 토큰 ▸',
@@ -1262,10 +1278,8 @@ export const ko = {
   'settings.gates.failopen': 'fail-open 관측 · 표시 전용',
   'settings.gates.failopen_body':
     '연속 {count}회 · {hours}시간 창에서 격상합니다. 판정 불가일 때 막지 않고 진행하되 기록하고, 반복되면 올린다(D-14).',
-  'settings.gates.lead': 'MVP 편집 항목은 spec_gate 3키입니다 — 나머지는 표시 전용입니다.',
+  'settings.gates.lead': 'MVP 편집 항목은 spec_gate 두 키입니다 — 나머지는 표시 전용입니다.',
   'settings.gates.saved': '게이트 정책을 저장했습니다.',
-  'settings.members.admin_only_post': '만 할 수 있습니다 — 아래 목록은 읽기 전용입니다.',
-  'settings.members.admin_only_pre': '역할 변경은',
   'settings.members.email': '이메일',
   'settings.members.empty': '멤버가 없습니다.',
   'settings.members.name': '이름',
@@ -1274,7 +1288,7 @@ export const ko = {
   'settings.members.last_role': '마지막 역할은 뗄 수 없습니다 — 멤버십이 사라집니다',
   'settings.members.role_admin_only': '이 변경은 admin 역할만 가능합니다',
   'settings.members.role_changed': '역할을 바꿨습니다.',
-  'settings.members.scope': '소속',
+  'settings.members.scope': '적용 범위',
   'settings.tab.gates': '게이트 정책',
   'settings.tab.members': '멤버·역할',
   'settings.tab.tokens': '에이전트 토큰',

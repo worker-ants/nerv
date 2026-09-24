@@ -9,7 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { MessageKey } from '@nerv/schema';
 import { useMe } from '../lib/queries.js';
-import { fetchMe, landingFor, primaryMembership } from '../lib/session.js';
+import { fetchMe, landingFor, primaryMembership, rolesInProject } from '../lib/session.js';
 import { apiFetch } from '../lib/api.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { Button, Card, Field, Input, PageBody, PageHeader } from '../components/ui/primitives.js';
@@ -30,6 +30,14 @@ function OnboardingScreen(): React.JSX.Element {
   const t = useT();
   const me = useMe();
   const membership = me.data === undefined ? null : primaryMembership(me.data);
+  /**
+   * 그 범위에서의 역할 **전부** — 한 멤버십 행이 아니라 조직 전체 역할까지 합친 것(REQ-WEB-075).
+   * 한 행만 보이면 조직 전체 planner 이면서 프로젝트 viewer 인 사람이 viewer 로만 읽힌다.
+   */
+  const roles =
+    membership === null
+      ? []
+      : rolesInProject(me.data, membership.org_slug, membership.project_slug);
 
   return (
     <PageBody>
@@ -45,20 +53,28 @@ function OnboardingScreen(): React.JSX.Element {
         <div className="flex flex-col gap-3">
           <Card>
             <h2 className="mb-1 font-medium">
-              {t('onboarding.step2', { role: membership.roles.join(' · ') })}
+              {/* **어느 범위의 역할인지** 함께 말한다(REQ-WEB-191) — 역할만 보이면 그것이 조직
+                  전체의 것인지 한 프로젝트의 것인지 알 수 없다 */}
+              {t('onboarding.step2', {
+                role: roles.join(' · '),
+                org: membership.org_name,
+                scope: membership.project_name ?? t('settings.members.org_wide'),
+              })}
             </h2>
             <p className="text-sm text-text-mute">
               {/* 겸직이면 **앞선 역할**의 안내를 보인다 — 여러 문단을 한꺼번에 읽히지 않는다 */}
-              {t(ROLE_NOTE_KEY[membership.roles[0] ?? ''] ?? 'onboarding.role.unknown')}
+              {t(ROLE_NOTE_KEY[roles[0] ?? ''] ?? 'onboarding.role.unknown')}
             </p>
           </Card>
           <Card>
             <h2 className="mb-1.5 font-medium">{t('onboarding.step3')}</h2>
             <Link
-              to={landingFor(membership.roles, membership.project_slug)}
+              to={landingFor(roles, membership.project_slug)}
               className="text-sm text-link hover:underline"
             >
-              {membership.role === 'developer' || membership.role === 'qa'
+              {/* `membership.role` 은 **없는 필드**였다(멤버십이 나르는 것은 `roles` 배열이다) —
+                  문구는 늘 "받은 요청으로" 였는데 링크는 developer 면 작업 보드로 갔다 */}
+              {landingFor(roles, membership.project_slug).endsWith('/tasks')
                 ? t('onboarding.goto_tasks')
                 : t('onboarding.goto_inbox')}
             </Link>

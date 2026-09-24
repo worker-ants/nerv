@@ -19,9 +19,9 @@ Of the two header selects, it is the **project** you create, rename and put away
 
 ## Inviting people
 
-Only an `admin` sends invitations — for every other role this section is not shown.
+Only an `admin` sends invitations — for every other role this section is not shown. **Inviting to the whole organization is for organization admins only**; a project's admin can invite to that project only.
 
-Under **Invitations** on the Members tab, pick an email, a role and a membership scope, and you get an **invitation link**.
+Under **Invitations** on the Members tab, pick an email, a role and **what it applies to**, and you get an **invitation link**. The form starts by naming **the organization you are inviting into** (switch organizations in the header), and the scope is either "Whole organization (every project)" or one of that organization's projects, **by name**. Once created, a "who → organization / scope · role" summary sits above the link.
 
 - **The mail goes out on its own** — where this server has a mail sender configured, the invitation link is sent to that address and the screen says **"Mail sent"**. Where it does not, the screen says **"copy it and pass it on"** instead — covering both with one wording makes one of them a lie, and then someone waits for mail that is not coming.
 - **The link is shown once, right there.** Sent or not, the link sits on the same card, and the server cannot produce it again — on a deployment without mail, **[Copy link]** and pass it on yourself.
@@ -37,7 +37,9 @@ On the receiving side the invitation shows as a card on **Home, Getting started 
 
 Who is here and in what role. A role can be granted across the whole organization or on a single project. When one person holds both, **permissions are the union**.
 
-Editing members and roles is `admin` only. **A member's last role cannot be removed** — a member with no role can reach nothing while still sitting in the list. To remove someone, remove the member.
+The table's title names **whose members these are**, and the **Applies to** column says, by project **name**, whether a role is organization-wide or for one project. Turning a role chip on adds the role **in that row's scope**.
+
+Editing members and roles is `admin` only — **organization-wide rows by organization admins only**; project rows also by that project's admins. Rows you cannot change have their chips locked. **A member's last role cannot be removed** — a member with no role can reach nothing while still sitting in the list. To remove someone, remove the member.
 
 ## Tokens
 
@@ -45,7 +47,7 @@ Issue and revoke the tokens agents use. The details are in [Agents](/help/agents
 
 ## Gate policy
 
-Gate policy is **per project**, not one set for the whole organization. With no project selected in the header it cannot be saved.
+Gate policy is **per project**, not one set for the whole organization. **Pick the project you are editing with this tab's project picker**; the title, "Gate policy — project name", says which one it is. It starts on the project you last looked at in the header.
 
 Gates decide what a spec change has to go through, according to **how risky it is**. Tiers run T0–T3, and the tier follows from the sum of four risk axes: side effects, sensitivity, reversibility and blast radius.
 
