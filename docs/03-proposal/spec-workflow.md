@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.13 · 2026-09-24 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.14 · 2026-09-24 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.14 변경(2026-09-24 — 초대를 거절할 수 없었다, 사람 결정): **§6.3 표 한 줄.** `invitation.declined` — standard · 부른 사람 · `invitation:{id}`. 프로젝트 초대만 이벤트가 남는다(조직 전체 초대는 `event.project_id` 가 없다 · [4.4](../04-mvp/api.md) REQ-API-178).
 >
 > v0.13 변경(2026-09-24 — 걷은 것을 md 만 아직 말하고 있었다, 전수 대조): **새 결정 없음 · §6.4 카드 표 한 칸 · §2.4 파생본.** ① §6.4 의 통지 카드가 "되돌리기 링크(T1 소프트 게이트의 **이의제기 창**)" 라 적고 있었는데 **같은 문서 §2.4 ②가 그 창을 걷었다**(2026-09-02 · `gate_policy.t1_objection_hours` 는 마이그레이션 `0016` 이 지웠다). 여기서는 파생본이 맞고 **md 가 자기와 모순했다** — 양쪽을 같은 문장으로 맞춘다. ② §2.4 의 티어 표가 파생본에서 그림 4(SVG)로 바뀌며 **예시 칸이 사라져** 있었다: 티어 경계와 처리는 그림이 들지만 "무엇이 T2 인가" 는 들지 못한다. 그림 아래 티어·예시 표를 둔다.
 >
@@ -702,6 +704,7 @@ Event (append-only, D-10)
 | `spec.comment_added` | standard | 스레드 참여자 · 워처 | `spec:{id}:comments` |
 | `spec.recheck_requested`(참조 문서 전파 — §3.3) | standard | 대상 문서 `owner_role` | `spec:{id}:recheck` |
 | `task.ready`(내 영역) | standard | 영역 워처 | `project:{id}:ready` |
+| `invitation.declined`(프로젝트 초대) | standard | 부른 사람 | `invitation:{id}` |
 | `finding.resolved` | standard | 리뷰 요청자 | `review:{id}:resolutions` |
 | `session.started` / `session.complete` | low | 워처 | `session:{id}:lifecycle` |
 | `task.claimed` / `task.done` | low | 워처 | `project:{id}:progress` |

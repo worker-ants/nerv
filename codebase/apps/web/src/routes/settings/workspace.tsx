@@ -13,6 +13,8 @@ import { REPO_HOSTS } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { CreateOrgForm } from '../../features/org/create-org-form.js';
+import { projectKeyFromSlug, slugFromName } from '../../lib/slug.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
@@ -36,7 +38,13 @@ import {
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { ReadOnlyNotice, scopeAdmins } from '../../components/read-only-notice.js';
 
-export const Route = createFileRoute('/settings/workspace')({ component: WorkspaceTab });
+export const Route = createFileRoute('/settings/workspace')({
+  // `?new=1` — **폼이 열린 채로 도착한다**(2026-09-24 · REQ-WEB-205). "새 프로젝트" 를 누르고 온
+  // 사람이 이 탭에서 [+ 새 프로젝트]를 한 번 더 찾아 눌러야 했다
+  validateSearch: (search: Record<string, unknown>): { new?: 1 } =>
+    search['new'] === 1 || search['new'] === '1' ? { new: 1 } : {},
+  component: WorkspaceTab,
+});
 
 function WorkspaceTab(): React.JSX.Element {
   const t = useT();
@@ -46,6 +54,8 @@ function WorkspaceTab(): React.JSX.Element {
   // 집는다 — 그래서 헤더에서 두 번째 조직을 골라도 이 탭은 첫 조직을 고치고 있었다.
   // 한 화면이 두 조직을 가리키면 이름을 바꾼 사람은 자기가 무엇을 바꿨는지 모른다.
   const { orgSlug, orgName } = useScope();
+  const search = Route.useSearch();
+  const navigate = useNavigate();
   // **조직 수준 조작은 조직 admin 만**(2026-09-24 사람 결정 · REQ-API-169 확장). 조직 이름·삭제·
   // 새 프로젝트는 조직 단위 admin 멤버십이 있어야 한다 — 예전에는 그 조직 **어디서든** admin
   // 이면 됐고, 한 프로젝트를 맡긴 사람이 조직 이름을 바꾸고 새 프로젝트를 만들 수 있었다.
@@ -85,7 +95,14 @@ function WorkspaceTab(): React.JSX.Element {
         canEditProject={canEditProject}
         showArchived={showArchived}
         onShowArchived={setShowArchived}
+        // 잠긴 사람에게는 열지 않는다 — 단추가 잠긴 까닭은 위의 안내가 말한다
+        openNew={search.new === 1 && isOrgAdmin}
+        onFormClosed={() => {
+          if (search.new === 1)
+            void navigate({ to: '/settings/workspace', search: {}, replace: true });
+        }}
       />
+      <NewOrgSection />
     </section>
   );
 }
@@ -210,6 +227,8 @@ function ProjectSection({
   canCreate,
   canSeeArchived,
   canEditProject,
+  openNew,
+  onFormClosed,
 }: {
   orgSlug: string | null;
   projects: Record<string, unknown>[];
@@ -221,10 +240,18 @@ function ProjectSection({
   canSeeArchived: boolean;
   /** 프로젝트 줄 — 조직 admin 또는 그 프로젝트의 admin */
   canEditProject: (slug: string) => boolean;
+  /** `?new=1` 로 왔다 — 폼을 연 채로 시작한다 */
+  openNew: boolean;
+  /** 폼이 닫혔다(만들었거나 취소했다) — 주소에서 `?new=1` 을 걷는다 */
+  onFormClosed: () => void;
 }): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreatingState] = useState(openNew);
+  const setCreating = (next: boolean): void => {
+    setCreatingState(next);
+    if (!next) onFormClosed();
+  };
 
   const refresh = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'projects'] });
@@ -270,6 +297,7 @@ function ProjectSection({
       {creating && (
         <ProjectForm
           orgSlug={orgSlug}
+          autoFocus={openNew}
           onDone={() => {
             setCreating(false);
             refresh();
@@ -298,9 +326,12 @@ function ProjectSection({
 /** 새 프로젝트 — slug·key·이름 셋이 필수다(서버가 같은 것을 요구한다 · EP-PRJ-02) */
 function ProjectForm({
   orgSlug,
+  autoFocus,
   onDone,
 }: {
   orgSlug: string | null;
+  /** 이 폼을 열려고 온 사람이다 — 이름 칸에서 시작한다 */
+  autoFocus: boolean;
   onDone: () => void;
 }): React.JSX.Element {
   const t = useT();
@@ -317,7 +348,14 @@ function ProjectForm({
         body: { name, slug, key: key.toUpperCase() },
       }),
     onSuccess: () => {
-      pushToast({ tone: 'ok', message: t('settings.workspace.project_created') });
+      // **만든 곳으로 가는 길을 준다**(REQ-WEB-205). 예전에는 토스트와 폼 닫기뿐이라, 방금 만든
+      // 프로젝트로 들어가는 길을 따로 찾아야 했다
+      pushToast({
+        tone: 'ok',
+        message: t('settings.workspace.project_created'),
+        href: `/p/${slug}`,
+        hrefLabel: t('shell.toast.open'),
+      });
       onDone();
     },
     onError: onApiError,
@@ -327,13 +365,9 @@ function ProjectForm({
   // 변환을 머릿속에서 한다 — 고칠 수 있게 두되 기본값은 준다.
   const onName = (value: string): void => {
     setName(value);
-    const auto = value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
+    const auto = slugFromName(value);
     setSlug(auto);
-    setKey(auto.replace(/-/g, '').slice(0, 3).toUpperCase());
+    setKey(projectKeyFromSlug(auto));
   };
 
   const ready = name.trim() !== '' && slug.trim() !== '' && key.trim() !== '';
@@ -341,7 +375,12 @@ function ProjectForm({
   return (
     <FieldRow className="mb-3 rounded-nerv border border-border bg-bg-elev px-4 py-3">
       <Field label={t('settings.workspace.project_name')}>
-        <Input data-testid="project-name" value={name} onChange={(e) => onName(e.target.value)} />
+        <Input
+          data-testid="project-name"
+          autoFocus={autoFocus}
+          value={name}
+          onChange={(e) => onName(e.target.value)}
+        />
       </Field>
       <Field label={t('settings.workspace.project_slug')} hint={t('settings.workspace.slug_hint')}>
         <Input
@@ -371,6 +410,48 @@ function ProjectForm({
         </Button>
       </FieldRowAction>
     </FieldRow>
+  );
+}
+
+/**
+ * 새 조직 — **누구나** 만든다(EP-ORG-03 · 만든 사람이 admin 이 된다). 2026-09-24 사람 결정(SET-08).
+ *
+ * 헤더 조직 드롭다운은 "조직 관리 · 새 조직" 이라고 약속하는데 이 탭에는 만드는 자리가 없었다 — 조직
+ * 생성 폼은 소속이 0개일 때 온보딩에만 있었다. 접어 둔다: 조직이 갈라지면 스펙도 갈라지므로 자주 누를
+ * 단추가 아니고, 그 경고를 폼 곁에 함께 둔다. 만들면 **그 조직으로 옮겨 간다** — 첫 프로젝트를 같이
+ * 만들었으면 그 프로젝트로, 아니면 이 탭의 프로젝트 만들기로(REQ-WEB-205).
+ */
+function NewOrgSection(): React.JSX.Element {
+  const t = useT();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  return (
+    <div data-testid="new-org">
+      <SectionTitle
+        action={
+          <Button size="sm" data-testid="new-org-toggle" onClick={() => setOpen(!open)}>
+            {open ? t('common.cancel') : t('settings.workspace.new_org_open')}
+          </Button>
+        }
+      >
+        {t('settings.workspace.new_org')}
+      </SectionTitle>
+      <p className="text-sm text-text-mute">{t('settings.workspace.new_org_lead')}</p>
+      {open && (
+        <div className="mt-2 rounded-nerv border border-border bg-bg-elev px-4 py-3">
+          <CreateOrgForm
+            onCreated={(org, project) => {
+              void navigate({
+                to: '/o/$org',
+                params: { org },
+                search: { next: project === null ? '/settings/workspace?new=1' : `/p/${project}` },
+              });
+            }}
+          />
+          <p className="mt-3 text-xs text-text-faint">{t('onboarding.step1_wait')}</p>
+        </div>
+      )}
+    </div>
   );
 }
 

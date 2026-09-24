@@ -3,13 +3,16 @@
 // 여기서 지키는 것 넷: **초대한 이메일로만** · 7일 만료 · 회수 · 수락이 멤버십을 만든다.
 // 첫째가 이 기능의 안전선이다 — 링크는 메신저를 타고 흐르고, 새면 아무나 들어온다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { InvitationService } from '../../src/modules/auth/invitation.service.js';
+import { EventService } from '../../src/modules/event/event.service.js';
+import { NotificationService } from '../../src/modules/event/notification.service.js';
+import type { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -164,6 +167,82 @@ describe('수락 (EP-INV-04·05)', () => {
       `SELECT count(*)::int AS n FROM invitation WHERE revoked_at IS NOT NULL`,
     );
     expect(rows[0]?.n).toBeGreaterThan(0);
+  });
+});
+
+describe('거절 (EP-INV-07 · REQ-API-178)', () => {
+  const silent = {
+    publish: async () => false,
+    subscribe: async () => undefined,
+  } as unknown as ValkeyService;
+  // 거절 알림을 보려면 이벤트 축을 함께 준다 — 없으면 조용히 지나간다
+  const withEvents = (): InvitationService =>
+    new InvitationService(
+      drizzle(pool),
+      new AuthService(drizzle(pool)),
+      undefined,
+      new EventService(drizzle(pool), silent),
+    );
+
+  it('**초대받은 사람만** 거절한다 — 링크를 주운 사람이 남의 초대를 치우지 못한다', async () => {
+    const made = await invite({ role: 'viewer' });
+    await expect(
+      invitations.decline({ token: String(made['token']), userId: strangerId }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN, details: { kind: 'email_mismatch' } });
+    expect((await invitations.preview(String(made['token'])))['state']).toBe('pending');
+  });
+
+  it('거절하면 대기에서 빠지고 **거절됨으로 남는다** — 수락도 다시 거절도 되지 않는다', async () => {
+    const made = await invite({ role: 'viewer' });
+    const token = String(made['token']);
+    expect(await invitations.decline({ token, userId: guestId })).toEqual({
+      ok: true,
+      state: 'declined',
+    });
+    expect(await invitations.mine(guestId)).not.toContainEqual(
+      expect.objectContaining({ id: made['id'] }),
+    );
+    const listed = await invitations.list({ actorUserId: adminId, orgSlug: 'acme' });
+    expect(listed.find((r) => r.id === made['id'])?.state).toBe('declined');
+    await expect(invitations.accept({ token, userId: guestId })).rejects.toMatchObject({
+      details: { kind: 'declined' },
+    });
+    await expect(invitations.decline({ token, userId: guestId })).rejects.toMatchObject({
+      details: { kind: 'declined' },
+    });
+  });
+
+  it('거절한 사람을 **다시 부를 수 있다** — 거절한 초대가 대기 자리를 차지하지 않는다', async () => {
+    const first = await invite({ role: 'viewer' });
+    await invitations.decline({ invitationId: String(first['id']), userId: guestId });
+    const again = await invite({ role: 'viewer' });
+    expect((await invitations.preview(String(again['token'])))['state']).toBe('pending');
+    // 다시 부른 것이 먼저 거절한 기록을 "회수됨" 으로 덮지 않는다 — 누가 끝냈는지가 기록이다
+    const listed = await invitations.list({ actorUserId: adminId, orgSlug: 'acme' });
+    expect(listed.find((r) => r.id === first['id'])?.state).toBe('declined');
+  });
+
+  it('프로젝트 초대를 거절하면 **부른 사람에게만** 알림이 간다', async () => {
+    const service = withEvents();
+    const made = await invite({ projectSlug: 'app', role: 'viewer' });
+    await service.decline({ invitationId: String(made['id']), userId: guestId });
+    const notifications = new NotificationService(drizzle(pool));
+    await notifications.route();
+    const { rows } = await pool.query<{ user_id: string }>(
+      `SELECT n.user_id FROM notification n JOIN event e ON e.id = n.event_id
+        WHERE e.type = $1 AND e.subject_id = $2`,
+      [NERV_EVENT.INVITATION_DECLINED, made['id']],
+    );
+    expect(rows.map((r) => r.user_id)).toEqual([adminId]);
+  });
+
+  it('미리보기는 로그인한 계정이 **이 초대의 것인지**만 말한다 — 주소는 여전히 가린다', async () => {
+    const made = await invite({ role: 'viewer' });
+    const token = String(made['token']);
+    expect((await invitations.preview(token, guestId))['matches_me']).toBe(true);
+    expect((await invitations.preview(token, strangerId))['matches_me']).toBe(false);
+    expect((await invitations.preview(token))['matches_me']).toBeNull();
+    expect((await invitations.preview(token, strangerId))['email_hint']).toBe('g***@example.com');
   });
 });
 

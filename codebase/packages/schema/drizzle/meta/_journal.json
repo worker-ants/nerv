@@ -225,6 +225,13 @@
       "when": 1790254083441,
       "tag": "0031_close_request_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790260895651,
+      "tag": "0032_invitation_declined",
+      "breakpoints": true
     }
   ]
 }

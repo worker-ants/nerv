@@ -23,7 +23,7 @@ import { THEMES, useTheme } from '../lib/theme.js';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
-import { signOut } from '../lib/session.js';
+import { canManageScope, signOut } from '../lib/session.js';
 import { inboxTotal, useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
 import { chapterForRoute } from '../lib/manual.js';
@@ -180,6 +180,8 @@ export function AppShell({
   }, [me.data]);
   const scope = useScope(projectSlug);
   const currentOrg = scope.orgSlug === null ? null : { slug: scope.orgSlug, name: scope.orgName };
+  // 새 프로젝트는 조직 수준 조작이라 조직 admin 만 — 드롭다운의 라벨·목적지가 이것을 따른다(SET-X2)
+  const orgAdmin = canManageScope(me.data, scope.orgSlug, null);
   const projectRows = scope.projects;
   const currentProjectSlug = scope.projectSlug;
   const currentProject = scope.project;
@@ -362,11 +364,12 @@ export function AppShell({
                     ? t('shell.project_label', { name: String(currentProject['name']) })
                     : t('shell.project_none_label')
                 }
-                disabled={projectRows.length === 0}
+                // **0개여도 연다**(2026-09-24 · REQ-WEB-205). 비활성이던 동안 "새 프로젝트" 링크가 이 드롭다운
+                // 안에만 있어서, 하필 프로젝트가 0개일 때 만들러 가는 길이 닫혀 있었다
                 onClick={() => setMenuOpen((open) => (open === 'project' ? null : 'project'))}
                 className={cn(
                   HEADER_LINK,
-                  'flex max-w-44 items-center gap-1 disabled:cursor-not-allowed disabled:opacity-60',
+                  'flex max-w-44 items-center gap-1',
                   // 좁은 화면에서는 조직이 서랍으로 내려가고 이 칸만 남는다 — 폭도 함께 줄인다
                   'max-md:max-w-28',
                 )}
@@ -430,13 +433,21 @@ export function AppShell({
                       {t('shell.no_other_project')}
                     </p>
                   )}
+                  {projectRows.length === 0 && (
+                    <p data-testid="project-none" className="px-3 py-1.5 text-sm text-text-faint">
+                      {t('shell.no_projects_yet')}
+                    </p>
+                  )}
+                  {/* **약속한 것만 적는다**(SET-X2). 조직 admin 이 아니면 도착한 탭에서 [+ 새 프로젝트]가
+                      잠겨 있다 — "새 프로젝트" 를 약속하지 않는다. admin 은 폼이 열린 채로 도착한다 */}
                   <Link
                     to="/settings/workspace"
+                    search={orgAdmin ? { new: 1 } : {}}
                     data-testid="project-new-link"
                     onClick={() => setMenuOpen(null)}
                     className="mt-1 block border-t border-border px-3 pt-2 pb-1.5 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
                   >
-                    {t('shell.new_project')}
+                    {orgAdmin ? t('shell.new_project') : t('shell.project_manage')}
                   </Link>
                 </Popover>
               )}
