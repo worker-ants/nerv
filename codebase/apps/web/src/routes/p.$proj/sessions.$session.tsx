@@ -11,6 +11,7 @@
 
 import { statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
+import { claimStatusText } from '../../lib/format.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   ActivityTimeline,
@@ -158,7 +159,9 @@ function SessionDetail(): React.JSX.Element {
               >
                 <span className="font-mono">{String(claim['task_key'])}</span>
                 <span className="truncate">{String(claim['task_title'])}</span>
-                <span className="ml-auto shrink-0 text-text-faint">{String(claim['status'])}</span>
+                <span className="ml-auto shrink-0 text-text-faint">
+                  {claimStatusText(t, claim['status'])}
+                </span>
               </li>
             ))}
             {rows(data['claims']).length === 0 && (

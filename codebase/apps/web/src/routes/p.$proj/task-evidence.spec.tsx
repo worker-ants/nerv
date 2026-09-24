@@ -185,8 +185,10 @@ describe('증적이 선 저장소 (REQ-WEB-160)', () => {
 describe('증적 종류 셀렉트 (REQ-WEB-160)', () => {
   it('어휘 여섯을 전부 고를 수 있고, 화면이 목록을 다시 적지 않는다', async () => {
     await renderTask();
-    const select = screen.getByDisplayValue('pr') as HTMLSelectElement;
+    // 값은 어휘, 보이는 것은 사람 말이다(REQ-WEB-202)
+    const select = screen.getByDisplayValue('PR') as HTMLSelectElement;
     expect([...select.options].map((o) => o.value)).toEqual([...EVIDENCE_KINDS]);
+    expect([...select.options].map((o) => o.textContent)).not.toContain('user_guide');
   });
 });
 

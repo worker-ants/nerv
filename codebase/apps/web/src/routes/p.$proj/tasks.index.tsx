@@ -1,13 +1,32 @@
 // /p/:proj/tasks → S4 작업 보드 (ui-wireframes §2.4 · screens.md §2.5)
 //
-// **`ready` 로 직접 만들 수 없다**는 규칙이 이 화면의 형태를 정한다(FR-05). 위임 명세 4요소를
-// 채우는 폼이 곧 승격 버튼이고, 미완성 항목은 backlog 칸에 "무엇이 비었는지"와 함께 남는다 —
+// **`ready` 로 직접 만들 수 없다**는 규칙이 이 화면의 형태를 정한다(FR-05). 미완성 항목은
+// backlog 칸에 "무엇이 비었는지"와 [채우기]로 남고, 4요소가 다 찬 backlog 카드에는
+// **[준비됨으로 올리기]** 가 선다 — 사람이 누르면 서버가 4요소·의존을 판정해 큐에 넣는다.
 // 클레임 가능한 작업 = 지시가 완결된 작업이라는 등식이 여기서 눈에 보여야 한다.
+//
+// 2026-09-24 까지는 그 단추가 없었다(REQ-WEB-202). 생성은 언제나 backlog 인데 [채우기]는 4요소가
+// 빈 카드에만 섰고 옆의 "ready 전이" 단추는 늘 잠겨 있어서, 웹에서 4요소를 다 채워 만든 작업은
+// 에이전트의 큐에 영영 닿지 않았다.
 
-import { statusLabelKey, TASK_DONE_WINDOW_DAYS } from '@nerv/schema';
+import {
+  statusLabelKey,
+  rolesWithScope,
+  scopesForRoles,
+  TASK_CREATE_ROLES,
+  TASK_DONE_WINDOW_DAYS,
+  TASK_EDIT_ROLES,
+} from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../../lib/api.js';
+import { useApiError } from '../../lib/api-errors.js';
+import { queryKeys } from '../../lib/query-keys.js';
+import { useRealtime } from '../../lib/realtime.js';
+import { rolesInProject } from '../../lib/session.js';
+import { useScope } from '../../lib/scope.js';
 import { DelegationForm } from '../../features/task-board/delegation-form.js';
 import { leaseRemaining, relativeTime } from '../../features/session-monitor/format.js';
 import { blockedReasonText } from '../../lib/format.js';
@@ -134,6 +153,17 @@ function TaskBoard(): React.JSX.Element {
   const projectId = project.data?.['id'];
   const [editing, setEditing] = useState<string | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { pushToast } = useRealtime();
+  const onApiError = useApiError();
+  const { orgSlug } = useScope(proj);
+  // **역할이 문을 정한다**(REQ-WEB-203). 서버 가드와 같은 목록(`@nerv/schema`)을 본다 — 예전에는
+  // [+ 새 작업]·[채우기]가 누구에게나 켜져 있어, designer 는 폼을 다 채우고 저장한 뒤에야 403 을 받았다
+  const roles = rolesInProject(me.data, orgSlug, proj);
+  const hasRole = (list: readonly string[]): boolean => roles.some((r) => list.includes(r));
+  const rolesOnly = (list: readonly string[]): string =>
+    t('task.next.roles_only', { roles: list.join(' · ') });
+  const canCreate = hasRole(TASK_CREATE_ROLES);
   // 보관은 **끄고 시작한다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
   //
   // **백로그는 켜고 시작한다**(2026-09-08, 사람 판단). 생성은 언제나 `backlog` 이므로
@@ -214,12 +244,47 @@ function TaskBoard(): React.JSX.Element {
     { label: t('tasks.summary.mine'), value: count(mine) },
   ];
 
+  /**
+   * **[준비됨으로 올리기]** — 4요소가 다 찬 backlog 카드의 문(REQ-WEB-202). 서버가 4요소·선행
+   * 의존을 판정하고(전이 `ready` · REQ-API-131), 거절이면 그 사유를 기본 처리기가 말한다.
+   * 생성을 곧장 ready 로 잇지 않는 이유는 규칙(FR-05 "생성은 언제나 backlog")이다 — 사람이 누른다.
+   */
+  const toReady = useMutation({
+    mutationFn: (taskId: string) =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/tasks/${taskId}/transition`, {
+        method: 'POST',
+        body: { status: 'ready' },
+      }),
+    onSuccess: () => {
+      if (id !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(id) });
+      }
+      pushToast({ tone: 'ok', message: t('tasks.to_ready_done') });
+    },
+    onError: onApiError,
+  });
+  const controls: CardControls = {
+    onEdit: setEditing,
+    onToReady: (taskId) => toReady.mutate(taskId),
+    pending: toReady.isPending,
+    editBlock: hasRole(TASK_EDIT_ROLES) ? null : rolesOnly(TASK_EDIT_ROLES),
+    moveBlock: scopesForRoles(roles).has('task:update')
+      ? null
+      : rolesOnly(rolesWithScope('task:update')),
+  };
+
   return (
     <PageBody wide>
       <PageHeader
         title={t('tasks.title')}
         actions={
-          <Button variant="primary" onClick={() => setEditing('new')}>
+          <Button
+            variant="primary"
+            data-testid="task-new"
+            disabled={!canCreate}
+            title={canCreate ? undefined : rolesOnly(TASK_CREATE_ROLES)}
+            onClick={() => setEditing('new')}
+          >
             {t('tasks.new')}
           </Button>
         }
@@ -288,7 +353,7 @@ function TaskBoard(): React.JSX.Element {
             includeArchived={showArchived}
             filters={filters}
             assignee={assignee}
-            onEdit={setEditing}
+            controls={controls}
           />
         ))}
       </div>
@@ -338,7 +403,7 @@ function Lane({
   includeArchived,
   filters,
   assignee,
-  onEdit,
+  controls,
 }: {
   proj: string;
   projectId: ProjectId | undefined;
@@ -346,7 +411,7 @@ function Lane({
   includeArchived: boolean;
   filters: { spec?: string; ai?: boolean };
   assignee: string | undefined;
-  onEdit: (key: string) => void;
+  controls: CardControls;
 }): React.JSX.Element {
   const t = useT();
   // 창은 done 에만 의미가 있다 — 다른 레인에 실어 보내면 쿼리 키만 둘로 갈라진다
@@ -423,7 +488,7 @@ function Lane({
         <ul className="flex flex-col gap-1">
           {items.map((task) => (
             <li key={String(task['id'])}>
-              <TaskCard proj={proj} task={task} lane={lane} onEdit={onEdit} />
+              <TaskCard proj={proj} task={task} lane={lane} controls={controls} />
             </li>
           ))}
           {all.length === 0 && query.data !== undefined && (
@@ -452,16 +517,27 @@ function Lane({
  * 작업 카드. 레인이 이미 상태를 말하므로 카드에 상태 배지를 또 붙이지 않는다 —
  * 붙이면 한 레인에 같은 배지가 열 개 세로로 늘어선다.
  */
+/** 카드가 부르는 문 — 역할 판정은 보드가 한 번 하고 카드는 그 결과를 쓴다 */
+interface CardControls {
+  onEdit: (key: string) => void;
+  onToReady: (taskId: string) => void;
+  pending: boolean;
+  /** 위임 명세를 고칠 수 없는 이유(EP-TASK-05 의 역할) — 없으면 `null` */
+  editBlock: string | null;
+  /** 상태를 옮길 수 없는 이유(`task:update`) — 없으면 `null` */
+  moveBlock: string | null;
+}
+
 function TaskCard({
   proj,
   task,
   lane,
-  onEdit,
+  controls,
 }: {
   proj: string;
   task: Record<string, unknown>;
   lane: Lane;
-  onEdit: (key: string) => void;
+  controls: CardControls;
 }): React.JSX.Element {
   const t = useT();
   // 주의가 필요한 것 = 기준 버전이 지나갔거나 재브리핑이 걸렸거나 막힌 것
@@ -557,18 +633,30 @@ function TaskCard({
           <p data-testid="ready-blocked" className="text-2xs text-status-waiting">
             {t('tasks.ready_blocked')}
           </p>
-          <div className="mt-1 flex items-center gap-2">
-            <Button size="sm" disabled title={t('tasks.ready_blocked_title')}>
-              {t('tasks.ready_transition')}
-            </Button>
-            <button
-              type="button"
-              onClick={() => onEdit(String(task['key']))}
-              className="text-2xs text-link hover:underline"
-            >
-              {t('tasks.fill_brief')}
-            </button>
-          </div>
+          {/* 절대 눌리지 않던 "ready 전이" 단추는 걷었다 — [채우기]가 이 카드의 주 행동이다 */}
+          <Button
+            size="sm"
+            data-testid="card-fill"
+            className="mt-1"
+            disabled={controls.editBlock !== null}
+            title={controls.editBlock ?? t('tasks.ready_blocked_title')}
+            onClick={() => controls.onEdit(String(task['key']))}
+          >
+            {t('tasks.fill_brief')}
+          </Button>
+        </div>
+      )}
+      {lane === 'backlog' && task['delegation_complete'] === true && (
+        <div className="mt-1.5 border-t border-border pt-1.5">
+          <Button
+            size="sm"
+            data-testid="card-to-ready"
+            disabled={controls.moveBlock !== null || controls.pending}
+            title={controls.moveBlock ?? t('task.next.to_ready_hint')}
+            onClick={() => controls.onToReady(String(task['id']))}
+          >
+            {t('task.next.to_ready')}
+          </Button>
         </div>
       )}
       {/* **식별자가 아니라 사람 말이다**(2026-09-07 · REQ-WEB-143). 카드가 코드의 이름을

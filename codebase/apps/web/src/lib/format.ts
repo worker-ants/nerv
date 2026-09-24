@@ -6,8 +6,17 @@
 // 번역기를 인자로 받는다. 여기서 로케일을 직접 읽으면 이 함수는 React 밖에서 못 쓰고,
 // 테스트도 로케일을 갈아끼우지 못한다 — 시간 표기는 순수 함수로 두는 편이 낫다.
 
-import { blockedReasonLabelKey, isBlockedReason } from '@nerv/schema';
-import type { Translator } from '@nerv/schema';
+import {
+  EVIDENCE_KINDS,
+  blockedReasonLabelKey,
+  claimStatus,
+  isBlockedReason,
+  reviewKind,
+  reviewState,
+  statusLabelKey,
+  taskStatus,
+} from '@nerv/schema';
+import type { MessageKey, Translator } from '@nerv/schema';
 
 /** "12초 전" · "3분 전" · "2시간 전" */
 export function relativeTime(t: Translator, iso: string | null, now = Date.now()): string {
@@ -37,4 +46,52 @@ export const DASH = '—';
 export function blockedReasonText(t: Translator, value: unknown): string {
   if (isBlockedReason(value)) return t(blockedReasonLabelKey(value));
   return typeof value === 'string' ? value : '';
+}
+
+/**
+ * **어휘 값을 사람 말로 — 나머지 자리까지**(2026-09-24 — UI/UX 검토 · REQ-WEB-202).
+ *
+ * REQ-WEB-143 이 막힘 사유에서 세운 규칙("식별자가 아니라 사람 말, 어휘 밖이면 원문")이 다른
+ * 자리에는 닿지 않았다. 보드 레인이 "진행 중" 이라 부르는 상태를 작업 상세의 의존 목록은
+ * `in_progress` 로 적었고, 클레임 줄은 `released`, 리뷰 줄은 `code · completed`, 전이 토스트는
+ * "상태를 in_review 로 바꿨습니다", 증적 셀렉트는 `user_guide` 였다. 같은 상태가 화면마다 다른
+ * 이름이면 사람은 둘이 같은 것인지 확인해야 한다.
+ */
+type VocabKey = MessageKey &
+  (
+    | `status.task.${string}`
+    | `claim.status.${string}`
+    | `review.kind.${string}`
+    | `review.state.${string}`
+    | `evidence.kind.${string}`
+  );
+
+function vocabText(
+  t: Translator,
+  values: readonly string[],
+  key: (v: string) => string,
+  value: unknown,
+): string {
+  if (typeof value !== 'string') return '';
+  return values.includes(value) ? t(key(value) as VocabKey) : value;
+}
+
+export function taskStatusText(t: Translator, value: unknown): string {
+  return vocabText(t, taskStatus.enumValues, (v) => statusLabelKey('task', v), value);
+}
+
+export function claimStatusText(t: Translator, value: unknown): string {
+  return vocabText(t, claimStatus.enumValues, (v) => `claim.status.${v}`, value);
+}
+
+export function reviewKindText(t: Translator, value: unknown): string {
+  return vocabText(t, reviewKind.enumValues, (v) => `review.kind.${v}`, value);
+}
+
+export function reviewStateText(t: Translator, value: unknown): string {
+  return vocabText(t, reviewState.enumValues, (v) => `review.state.${v}`, value);
+}
+
+export function evidenceKindText(t: Translator, value: unknown): string {
+  return vocabText(t, EVIDENCE_KINDS, (v) => `evidence.kind.${v}`, value);
 }

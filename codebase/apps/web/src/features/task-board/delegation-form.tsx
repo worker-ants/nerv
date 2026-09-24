@@ -18,7 +18,8 @@ import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rows, useRequirements, useSpecTree, useSpecVersions, useTask } from '../../lib/queries.js';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { isDelegationFilled } from '@nerv/schema';
 import type { MessageKey, Translator } from '@nerv/schema';
 import { Button, Field, Input, Select, Textarea } from '../../components/ui/primitives.js';
 import type { ProjectId } from '../../lib/query-keys.js';
@@ -44,6 +45,31 @@ export const delegationSchema = z.object({
 });
 
 export type DelegationInput = z.infer<typeof delegationSchema>;
+
+const BRIEF_FIELDS = ['goal_md', 'output_format_md', 'tools_sources_md', 'boundaries_md'] as const;
+type BriefField = (typeof BRIEF_FIELDS)[number];
+const BRIEF_LABEL = {
+  goal_md: 'task.brief.goal',
+  output_format_md: 'task.brief.output',
+  tools_sources_md: 'task.brief.tools',
+  boundaries_md: 'task.brief.boundaries',
+} as const satisfies Record<BriefField, MessageKey>;
+
+/**
+ * 수정 폼의 검증 — **채워지지 않았던 칸은 비워 둘 수 있다**(2026-09-24 · REQ-WEB-202).
+ *
+ * 임포트 작업의 네 칸에는 자리표시자 `(임포트 — 원본에 위임 명세 없음)` 이 들어 있다. 그 문장을
+ * 값으로 채워 폼을 열던 동안 두 가지가 틀렸다 — ① 한 칸을 빠뜨려도 "비어 있지 않다" 를 통과해
+ * 저장됐고(서버는 그 칸을 여전히 빈 것으로 봐 backlog 에 남는데, 사람은 다 채웠다고 믿었다),
+ * ② 자리표시자를 조금만 고쳐도(괄호 하나를 지워도) 더는 자리표시자가 아니라 **찬 칸**으로 세어져,
+ * 뜻 없는 지시문으로 ready 에 오를 수 있었다. 이제 그런 칸은 **빈 칸으로 열고**, 비워 둔 채
+ * 저장하면 **보내지 않는다** — 서버의 PATCH 는 오지 않은 칸을 그대로 둔다(EP-TASK-05). 원래
+ * 내용이 있던 칸은 지금처럼 비울 수 없다. 새 작업은 네 칸이 모두 필수다(`delegationSchema`).
+ */
+function editSchema(optional: ReadonlySet<BriefField>): typeof delegationSchema {
+  const loose = Object.fromEntries([...optional].map((field) => [field, z.string()]));
+  return delegationSchema.extend(loose) as unknown as typeof delegationSchema;
+}
 
 export interface DelegationFormProps {
   projectSlug: string;
@@ -72,6 +98,26 @@ export function DelegationForm({
   const onApiError = useApiError();
   const existing = useTask(projectSlug, taskKey ?? '');
 
+  /** 저장된 값 — 없거나 문자열이 아니면 `null` */
+  const stored = (field: BriefField): string | null => {
+    const value = existing.data?.[field];
+    return typeof value === 'string' ? value : null;
+  };
+  /** 수정에서 채워지지 않았던 칸(빈 칸 · NULL · 임포트 자리표시자) — 값이 아니라 빈 칸으로 연다 */
+  const unfilled = new Set<BriefField>(
+    taskKey === null || existing.data === undefined
+      ? []
+      : BRIEF_FIELDS.filter((field) => !isDelegationFilled(stored(field))),
+  );
+  const briefValue = (field: BriefField): string =>
+    unfilled.has(field) ? '' : (stored(field) ?? '');
+  /** 빈 칸의 안내 — 원본에 없던 것인지, 그냥 비어 있던 것인지 */
+  const briefHint = (field: BriefField): string | undefined => {
+    if (!unfilled.has(field)) return undefined;
+    const value = stored(field);
+    return t(value === null || value.trim() === '' ? 'task.brief.empty' : 'task.brief.placeholder');
+  };
+
   // exactOptionalPropertyTypes 아래에서는 `values: undefined` 를 넘길 수 없다 —
   // 조건부 스프레드로 키 자체를 없앤다.
   const loaded =
@@ -79,15 +125,21 @@ export function DelegationForm({
       ? null
       : {
           title: String(existing.data['title'] ?? ''),
-          goal_md: String(existing.data['goal_md'] ?? ''),
-          output_format_md: String(existing.data['output_format_md'] ?? ''),
-          tools_sources_md: String(existing.data['tools_sources_md'] ?? ''),
-          boundaries_md: String(existing.data['boundaries_md'] ?? ''),
+          goal_md: briefValue('goal_md'),
+          output_format_md: briefValue('output_format_md'),
+          tools_sources_md: briefValue('tools_sources_md'),
+          boundaries_md: briefValue('boundaries_md'),
           priority: (existing.data['priority'] as DelegationInput['priority']) ?? 'P2',
         };
 
+  // 검증은 **지금** 채워지지 않은 칸을 본다 — 작업이 늦게 도착하면 그때 다시 정해진다.
+  // 리졸버를 ref 로 부르는 이유는 useForm 이 첫 렌더의 옵션을 붙잡기 때문이다.
+  const schemaRef = useRef(delegationSchema);
+  schemaRef.current = taskKey === null ? delegationSchema : editSchema(unfilled);
+
   const form = useForm<DelegationInput>({
-    resolver: zodResolver(delegationSchema),
+    resolver: (values, context, options) =>
+      zodResolver(schemaRef.current)(values, context, options),
     defaultValues: {
       title: '',
       goal_md: '',
@@ -110,6 +162,15 @@ export function DelegationForm({
   const approved = rows(versions.data).filter((v) => v['status'] === 'approved');
   const locked = initial !== undefined;
 
+  // **열리면 눈이 따라온다**(2026-09-24 · REQ-WEB-202). 보드는 폼을 화면 맨 위에 여는데, 아래로
+  // 내린 채 카드의 [채우기]를 누르면 아무 일도 없어 보였다 — 폼으로 옮기고 제목 칸에 커서를 둔다
+  const formRef = useRef<HTMLFormElement>(null);
+  const { setFocus } = form;
+  useEffect(() => {
+    formRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    setFocus('title');
+  }, [setFocus]);
+
   const save = useMutation({
     mutationFn: async (input: DelegationInput) => {
       const {
@@ -130,23 +191,51 @@ export function DelegationForm({
         });
       }
       // 수정은 출처를 바꾸지 않는다 — EP-TASK-05 가 받지 않는 값이고, 파생의 근거를
-      // 나중에 갈아 끼우는 것은 다른 결정이다.
+      // 나중에 갈아 끼우는 것은 다른 결정이다. **비워 둔 빈 칸은 보내지 않는다** — 보내지 않은
+      // 칸을 서버는 그대로 두고(자리표시자는 자리표시자로 남아 ❌ 로 보인다), 빈 문자열을 보내면
+      // 그 칸을 비운다
+      const body = Object.fromEntries(
+        Object.entries(rest).filter(
+          ([field, value]) =>
+            !(unfilled.has(field as BriefField) && String(value ?? '').trim() === ''),
+        ),
+      );
       return apiFetch<Record<string, unknown>>(`/projects/${projectSlug}/tasks/${taskKey}`, {
         method: 'PATCH',
-        body: rest,
+        body,
       });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, input) => {
       // 축이 없으면 무효화하지 않는다 — 빈 축으로 부르면 아무 캐시에도 닿지 않고,
       // 그 침묵이 정확히 이 표시가 없애려는 결함이다(query-keys.ts `ProjectId`).
       if (projectId !== undefined) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId) });
       }
+      // 상세에서 고쳤으면 상세도 다시 읽는다 — 그 자리에 고친 값이 보여야 한다
+      if (taskKey !== null) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskKey) });
+      }
       // 승격 여부를 알려준다 — 폼을 채운 사람이 알고 싶은 것은 저장 여부가 아니라 그것이다.
+      // 수정이면 **아직 비어 있는 칸을 이름으로** 말한다 — "네 요소가 다 찼으면" 이라고만 하면
+      // 한 칸을 빠뜨린 사람은 다 채웠다고 믿는다
+      const stillEmpty = BRIEF_FIELDS.filter(
+        (field) => unfilled.has(field) && String(input[field] ?? '').trim() === '',
+      );
+      const promoted = result['status'] === 'ready' && existing.data?.['status'] === 'backlog';
       pushToast({
         tone: 'ok',
         message:
-          result['status'] === 'ready' ? t('task.form.promoted') : t('task.form.saved_backlog'),
+          taskKey === null
+            ? t('task.form.saved_backlog')
+            : promoted
+              ? t('task.form.promoted')
+              : stillEmpty.length > 0
+                ? t('task.form.saved_missing', {
+                    fields: stillEmpty.map((field) => t(BRIEF_LABEL[field])).join(' · '),
+                  })
+                : result['status'] === 'backlog'
+                  ? t('task.form.saved_deps_pending')
+                  : t('task.form.saved'),
       });
       onDone();
     },
@@ -155,6 +244,7 @@ export function DelegationForm({
 
   return (
     <form
+      ref={formRef}
       data-testid="delegation-form"
       onSubmit={(e) => void form.handleSubmit((input) => save.mutate(input as DelegationInput))(e)}
       className="flex flex-col gap-3 rounded-nerv border border-border bg-bg-elev p-4"
@@ -162,10 +252,11 @@ export function DelegationForm({
       <h2 className="text-sm font-semibold">
         {taskKey === null ? t('task.form.new') : t('task.form.edit', { key: taskKey })}
       </h2>
-      {/* 4요소가 왜 필수인지 폼이 먼저 말한다 — 저장을 눌러야 알게 되면 늦다 */}
-      <p className="-mt-2 text-xs text-text-mute">
-        {t('task.form.lead_pre')} <code className="font-mono">ready</code>
-        {t('task.form.lead_post')}
+      {/* 4요소가 왜 필수인지, 저장하면 **어디에** 들어가는지 폼이 먼저 말한다 — 새 작업은 언제나
+          backlog 이고(FR-05) 큐에 올리는 것은 보드의 [준비됨으로 올리기]다. 예전 안내("①~④ 가 모두
+          차야 ready 로 승격합니다")는 생성 경로의 실제 동작과 달랐다 */}
+      <p data-testid="delegation-lead" className="-mt-2 text-xs text-text-mute">
+        {t(taskKey === null ? 'task.form.lead_new' : 'task.form.lead_edit')}
       </p>
       {/* **출처 — 가치 사슬의 첫 고리**(REQ-WEB-147). S3 에서 왔으면 고정 표기이고,
           아니면 승인본만 고를 수 있는 피커 셋이다. 선택이라 비워도 저장된다. */}
@@ -245,25 +336,44 @@ export function DelegationForm({
         label={t('task.brief.goal')}
         error={fieldError(t, form.formState.errors.goal_md?.message)}
       >
-        <Textarea {...form.register('goal_md')} rows={2} />
+        <Textarea
+          {...form.register('goal_md')}
+          data-testid="brief-goal_md"
+          placeholder={briefHint('goal_md')}
+          rows={2}
+        />
       </Field>
       <Field
         label={t('task.brief.output')}
         error={fieldError(t, form.formState.errors.output_format_md?.message)}
       >
-        <Input {...form.register('output_format_md')} />
+        <Input
+          {...form.register('output_format_md')}
+          data-testid="brief-output_format_md"
+          placeholder={briefHint('output_format_md')}
+        />
       </Field>
       <Field
         label={t('task.brief.tools')}
         error={fieldError(t, form.formState.errors.tools_sources_md?.message)}
       >
-        <Textarea {...form.register('tools_sources_md')} rows={2} />
+        <Textarea
+          {...form.register('tools_sources_md')}
+          data-testid="brief-tools_sources_md"
+          placeholder={briefHint('tools_sources_md')}
+          rows={2}
+        />
       </Field>
       <Field
         label={t('task.brief.boundaries')}
         error={fieldError(t, form.formState.errors.boundaries_md?.message)}
       >
-        <Textarea {...form.register('boundaries_md')} rows={2} />
+        <Textarea
+          {...form.register('boundaries_md')}
+          data-testid="brief-boundaries_md"
+          placeholder={briefHint('boundaries_md')}
+          rows={2}
+        />
       </Field>
       <div className="flex items-center gap-2 border-t border-border pt-3">
         <Select {...form.register('priority')} aria-label={t('task.form.priority')}>
