@@ -34,6 +34,18 @@ const person = (userId: string) => ({ userId, isAgent: false });
 /** 에이전트 주체 — 같은 자리에서 막히는지 보는 쪽 */
 const agent = (userId: string) => ({ userId, isAgent: true });
 
+/**
+ * EP-APR-05 프로젝트 받은 요청의 **카드만** — 봉투는 전역과 같다(REQ-API-166).
+ *
+ * 이 표면은 2026-09-24 부터 전역 질의를 프로젝트로 좁혀 부른다. 자기 질의를 들고 있던
+ * 동안 **같은 질문에 다른 답**을 냈다(질문을 안 실었고, 보관한 프로젝트를 안 걸렀다).
+ */
+const projectInbox = async (
+  userId: string,
+  actor: { userId: string; isAgent: boolean } = person(userId),
+): Promise<Record<string, unknown>[]> =>
+  (await approvals.inbox({ projectId, userId, actor })).items;
+
 let db: ScratchDb;
 let pool: pg.Pool;
 let approvals: ApprovalService;
@@ -339,14 +351,12 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
       subjectId: newId(),
       requestedByUserId: planner,
     });
-    const mine = (
-      await approvals.inbox({ projectId, userId: planner, actor: person(planner) })
-    ).find((c) => c.id === approval_id);
+    const mine = (await projectInbox(planner, person(planner))).find((c) => c.id === approval_id);
     expect(mine).toMatchObject({ self_requested: true, can_approve: false });
 
-    const others = (
-      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })
-    ).find((c) => c.id === approval_id);
+    const others = (await projectInbox(reviewer, person(reviewer))).find(
+      (c) => c.id === approval_id,
+    );
     expect(others).toMatchObject({ self_requested: false, can_approve: true });
   });
 
@@ -369,9 +379,7 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
     });
 
     // 화면도 같은 답을 받는다 — 단추를 끌지 말지는 서버가 정한다
-    const card = (await approvals.inbox({ projectId, userId: admin, actor: person(admin) })).find(
-      (c) => c.id === approval_id,
-    );
+    const card = (await projectInbox(admin, person(admin))).find((c) => c.id === approval_id);
     expect(card).toMatchObject({ self_requested: true, can_approve: true });
 
     await expect(
@@ -560,14 +568,12 @@ describe('지시자≠승인자 세 축 (REQ-API-136)', () => {
 
   it('카드가 이유를 함께 준다 — 잠긴 단추에는 이유가 있어야 한다', async () => {
     const { approvalId } = await draftSubmittedByOther('SPC-AXIS-REASON', planner);
-    const mine = (
-      await approvals.inbox({ projectId, userId: planner, actor: person(planner) })
-    ).find((c) => c.id === approvalId);
+    const mine = (await projectInbox(planner, person(planner))).find((c) => c.id === approvalId);
     expect(mine).toMatchObject({ can_approve: false, can_approve_reason: 'author' });
 
-    const theirs = (
-      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })
-    ).find((c) => c.id === approvalId);
+    const theirs = (await projectInbox(reviewer, person(reviewer))).find(
+      (c) => c.id === approvalId,
+    );
     // 요청자 축 — 제출한 사람은 reviewer 다
     expect(theirs).toMatchObject({ can_approve: false, can_approve_reason: 'self_requested' });
   });
@@ -673,9 +679,7 @@ describe('T3 정족수 (REQ-API-140)', () => {
   it('카드가 몇 명 중 몇 명인지 싣는다 — 화면이 그 값을 그린다', async () => {
     const { versionId } = await t3Submitted('SPC-QUORUM-6');
     const [first] = await slots(versionId);
-    const before = (
-      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })
-    ).find((c) => c.id === first!.id);
+    const before = (await projectInbox(reviewer, person(reviewer))).find((c) => c.id === first!.id);
     expect(before).toMatchObject({ approvals_required: 2, approvals_given: 0 });
 
     await approvals.decide({
@@ -685,9 +689,9 @@ describe('T3 정족수 (REQ-API-140)', () => {
       userId: reviewer,
       decision: 'approve',
     });
-    const after = (
-      await approvals.inbox({ projectId, userId: developer, actor: person(developer) })
-    ).find((c) => c['assignee_role'] === 'developer');
+    const after = (await projectInbox(developer, person(developer))).find(
+      (c) => c['assignee_role'] === 'developer',
+    );
     expect(after).toMatchObject({ approvals_required: 2, approvals_given: 1 });
   });
 
@@ -838,12 +842,10 @@ describe('내 큐만 온다 (REQ-API-137)', () => {
       subjectId: newId(),
       requestedByUserId: planner,
     });
-    expect(await approvals.inbox({ projectId, userId: viewer, actor: person(viewer) })).toEqual([]);
-    expect(await approvals.inbox({ projectId, userId: qa, actor: person(qa) })).toEqual([]);
+    expect(await projectInbox(viewer, person(viewer))).toEqual([]);
+    expect(await projectInbox(qa, person(qa))).toEqual([]);
     // 기본 큐(admin·planner)에는 온다
-    expect(
-      (await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) })).length,
-    ).toBe(1);
+    expect((await projectInbox(reviewer, person(reviewer))).length).toBe(1);
   });
 
   it('직군 슬롯은 그 직군에게만 간다 — planner 도 대신 내리지 못한다', async () => {
@@ -855,15 +857,13 @@ describe('내 큐만 온다 (REQ-API-137)', () => {
       assigneeRole: 'designer',
     });
 
-    const forDesigner = (
-      await approvals.inbox({ projectId, userId: designer, actor: person(designer) })
-    ).find((c) => c.id === approval_id);
+    const forDesigner = (await projectInbox(designer, person(designer))).find(
+      (c) => c.id === approval_id,
+    );
     expect(forDesigner).toMatchObject({ can_approve: true, assignee_role: 'designer' });
 
     expect(
-      (await approvals.inbox({ projectId, userId: planner, actor: person(planner) })).find(
-        (c) => c.id === approval_id,
-      ),
+      (await projectInbox(planner, person(planner))).find((c) => c.id === approval_id),
     ).toBeUndefined();
 
     await expect(
@@ -899,9 +899,7 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
       subjectId: newId(),
       requestedByUserId: planner,
     });
-    expect(
-      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) }),
-    ).toHaveLength(1);
+    expect(await projectInbox(reviewer, person(reviewer))).toHaveLength(1);
 
     await approvals.decide({
       actor: { userId: planner, isAgent: false },
@@ -910,9 +908,7 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
       userId: reviewer,
       decision: 'approve',
     });
-    expect(
-      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) }),
-    ).toHaveLength(0);
+    expect(await projectInbox(reviewer, person(reviewer))).toHaveLength(0);
   });
 
   it('지정 승인자가 있으면 그 사람에게만 보인다', async () => {
@@ -923,12 +919,8 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
       requestedByUserId: planner,
       assigneeUserId: reviewer,
     });
-    expect(
-      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) }),
-    ).toHaveLength(1);
-    expect(
-      await approvals.inbox({ projectId, userId: planner, actor: person(planner) }),
-    ).toHaveLength(0);
+    expect(await projectInbox(reviewer, person(reviewer))).toHaveLength(1);
+    expect(await projectInbox(planner, person(planner))).toHaveLength(0);
   });
 
   it('카드가 self_requested 를 표시한다 — 내가 올린 것을 내가 승인할 수 없음을 UI 가 안다', async () => {
@@ -938,7 +930,7 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
       subjectId: newId(),
       requestedByUserId: planner,
     });
-    const [card] = await approvals.inbox({ projectId, userId: planner, actor: person(planner) });
+    const [card] = await projectInbox(planner, person(planner));
     expect(card?.self_requested).toBe(true);
   });
 
@@ -959,17 +951,114 @@ describe('E13-S01 받은 요청 — 내 결정을 기다리는 것만 (§6.6 원
 
     expect(second.approval_id).toBe(first.approval_id);
     expect(second.reused).toBe(true);
-    expect(
-      await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) }),
-    ).toHaveLength(1);
+    expect(await projectInbox(reviewer, person(reviewer))).toHaveLength(1);
+  });
+});
+
+/**
+ * **EP-APR-05 는 전역을 프로젝트로 좁힌 것이다**(2026-09-24 · REQ-API-167).
+ *
+ * 자기 질의를 따로 들고 있던 동안 **같은 질문에 다른 답**을 냈다 — 실측(결재 3 + 질문 2):
+ * 프로젝트 표면 3건(`plan` 만) · 전역 표면 5건(`plan`·`question`). 보관한 뒤로는 전역 0건 ·
+ * 프로젝트 3건이었다. 판정이 두 벌이면 언젠가 한쪽만 고쳐진다(D-05) — 셋 다 그렇게 벌어졌다.
+ */
+describe('프로젝트 받은 요청은 전역과 같은 목록이다 (REQ-API-167)', () => {
+  it('질문도 함께 싣는다 — 전표가 "결재 + 질문" 이라 적는다', async () => {
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: reviewer,
+    });
+    await questions.create({ projectId, sessionId, title: '스토리지 선택' });
+
+    const kinds = (await projectInbox(planner)).map((c) => String(c['subject_type']));
+    expect(kinds).toContain('plan');
+    expect(kinds).toContain('question');
+  });
+
+  it('보관한 프로젝트의 결재는 여기에도 오지 않는다 — 전역에서 고친 규칙이 안 닿았다', async () => {
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: reviewer,
+    });
+    expect((await projectInbox(planner)).length).toBeGreaterThan(0);
+
+    await pool.query(`UPDATE project SET archived_at = now() WHERE id = $1`, [projectId]);
+    // **치운 프로젝트를 사람이 계속 결재하도록 두면 받은 요청을 못 믿게 된다**(2026-08-27).
+    // 그 판정이 전역에만 있어서, 같은 목록을 프로젝트 주소로 읽으면 그대로 나왔다.
+    expect(await projectInbox(planner)).toEqual([]);
+    await pool.query(`UPDATE project SET archived_at = NULL WHERE id = $1`, [projectId]);
+  });
+
+  it('카드의 모양이 전역과 같다 — 열이 다르면 같은 컴포넌트가 못 그린다', async () => {
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: reviewer,
+    });
+    const [scoped] = await projectInbox(planner);
+    const { items } = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    const global = items.find((c) => c['id'] === scoped?.['id']);
+    expect(Object.keys(scoped ?? {}).sort()).toEqual(Object.keys(global ?? {}).sort());
+    // 카드가 반드시 싣는 것 — **얼마나 기다렸나**(REQ-WEB-008)와 갈 곳(링크)
+    expect(scoped).toHaveProperty('waiting_seconds');
+    expect(scoped).toHaveProperty('project_slug');
+  });
+
+  it('처리됨도 같은 축으로 읽는다 — 주소만 다른 같은 목록이다', async () => {
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: reviewer,
+    });
+    await approvals.decide({
+      actor: person(planner),
+      projectId,
+      approvalId: approval_id,
+      userId: planner,
+      decision: 'approve',
+    });
+    const decided = await approvals.inbox({
+      projectId,
+      userId: planner,
+      actor: person(planner),
+      state: 'decided',
+    });
+    expect(decided.items.map((c) => c['id'])).toContain(approval_id);
+    expect(decided.total).toBeGreaterThan(0);
+  });
+
+  it('커서도 같다 — 자라는 목록은 여기서도 쪽으로 나뉜다 (REQ-API-166)', async () => {
+    for (let i = 0; i < 7; i += 1) {
+      await approvals.request({
+        projectId,
+        subjectType: 'plan',
+        subjectId: newId(),
+        requestedByUserId: reviewer,
+      });
+    }
+    const first = await approvals.inbox({
+      projectId,
+      userId: planner,
+      actor: person(planner),
+      limit: 3,
+    });
+    expect(first.items).toHaveLength(3);
+    expect(first.total).toBe(7);
+    expect(first.next_cursor).not.toBeNull();
   });
 });
 
 describe('E13-S01 프로젝트 받은 요청도 사람 전용이다 (REQ-API-123)', () => {
   it('에이전트 주체는 프로젝트 받은 요청을 읽지 못한다 — 전역 경로와 같은 규칙', async () => {
-    await expect(
-      approvals.inbox({ projectId, userId: reviewer, actor: agent(reviewer) }),
-    ).rejects.toMatchObject({ code: NERV_ERROR.HUMAN_ONLY });
+    await expect(projectInbox(reviewer, agent(reviewer))).rejects.toMatchObject({
+      code: NERV_ERROR.HUMAN_ONLY,
+    });
   });
 });
 
@@ -984,8 +1073,17 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
       requestedByUserId: planner,
     });
 
-    const [card] = await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) });
-    const seen = card?.content_hash as string;
+    // **지문은 카드 상세에서 읽는다**(EP-APR-02) — 결정 화면이 실제로 읽는 그 자리다.
+    // 목록에서 읽지 않는 이유: 이 픽스처의 대상은 일부러 `draft` 인데(본문이 가변이어야
+    // 본문을 바꿔 볼 수 있다) 받은 요청 목록은 `in_review` 만 싣는다 — 거절로 draft 가 된
+    // 문서의 남은 슬롯은 대기가 아니기 때문이다. 2026-09-24 에 EP-APR-05 가 전역 질의를
+    // 부르게 되면서 이 표면에도 그 규칙이 닿았다(예전에는 draft 대상도 목록에 있었다).
+    const card = await approvals.detail({
+      approvalId: approval_id,
+      userId: reviewer,
+      actor: person(reviewer),
+    });
+    const seen = card['content_hash'] as string;
 
     // 사람이 카드를 보는 동안 초안이 바뀐다
     await pool.query(
@@ -1013,7 +1111,7 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
       subjectId: versionId,
       requestedByUserId: planner,
     });
-    const [card] = await approvals.inbox({ projectId, userId: reviewer, actor: person(reviewer) });
+    const [card] = await projectInbox(reviewer, person(reviewer));
 
     await expect(
       approvals.decide({
