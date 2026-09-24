@@ -508,3 +508,40 @@ describe('REQ-PLG-018 — nerv-init 이 덮지 않는다', () => {
     }
   });
 });
+
+// ── E12-S03 — 플러그인이 켜져 있다는 것은 플러그인만 말할 수 있다 (2026-09-24) ──────────
+//
+// 세션은 훅(플러그인)으로도 MCP `nerv_bootstrap`(플러그인 없이)으로도 들어온다. 서버가 둘을
+// 가르려면 훅이 자기 버전을 실어야 한다 — 포워더가 옆의 `plugin.json` 에서 읽는다.
+describe('REQ-PLG-019 — 세션 훅이 플러그인 버전을 싣는다', () => {
+  const script = join(here, 'bin/nerv-hook-forward');
+
+  /** curl 을 가로채 인자를 적는다 — 실제로 무엇을 보내는지가 검사 대상이다 */
+  function sentHeaders(endpoint: string): string[] {
+    const dir = mkdtempSync(join(tmpdir(), 'nerv-forward-'));
+    const log = join(dir, 'args.txt');
+    writeFileSync(join(dir, 'curl'), `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${log}"\n`, {
+      mode: 0o755,
+    });
+    execFileSync(script, [endpoint], {
+      cwd: dir,
+      input: '{"session_id":"S-1"}',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PATH: `${dir}:${process.env['PATH'] ?? ''}`, NERV_SERVER: 'http://x' },
+    });
+    const args = readFileSync(log, 'utf8').split('\n');
+    return args.filter((_, i) => args[i - 1] === '--header');
+  }
+
+  const version = (JSON.parse(file('.claude-plugin/plugin.json')) as { version: string }).version;
+
+  it('session 훅은 plugin.json 의 버전을 `X-NERV-Plugin` 으로 싣는다', () => {
+    expect(sentHeaders('session')).toContain(`X-NERV-Plugin: ${version}`);
+  });
+
+  it('다른 훅은 싣지 않는다 — 같은 세션이라 읽는 곳이 없다', () => {
+    for (const endpoint of ['tool', 'stop', 'session-end']) {
+      expect(sentHeaders(endpoint).some((h) => h.startsWith('X-NERV-Plugin'))).toBe(false);
+    }
+  });
+});

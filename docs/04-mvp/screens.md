@@ -20,7 +20,11 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.27 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.29 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.29 변경(2026-09-24 — 온보딩의 데이터 소스가 없는 경로를 가리켰다): **새 요구사항 없음 · §2.1 두 줄 정정.** 조직 생성·초대 수락을 "better-auth organization 플러그인 경로" 로 적었는데 그 플러그인은 켜져 있지 않다 — 실물은 EP-ORG-03 · EP-INV-05 다([4.1](scope.md) v0.34).
+>
+> v1.28 변경(2026-09-24 — 플러그인이 켜졌는지 서버가 몰랐다, 백로그 E12-S03): **REQ-WEB-189 신설 · §2.6 데이터 소스 한 줄.** 관리형 settings 로 배포하는 사람이 묻는 것은 하나 — **어느 기계가 아직 꺼져 있는가.** 세션 모니터 머리 아래에 `플러그인 켜짐 N / M 호스트` 를 두고, 펼치면 꺼진 기계가 위다. 이 화면에 두는 이유: 꺼진 기계의 세션은 여기서 흔적이 얇다(훅이 없어 활동·브랜치가 비어 있다) — "왜 이 세션은 비어 있나" 를 묻는 자리에서 답이 보여야 한다([4.4](api.md) EP-SES-06).
 >
 > v1.27 변경(2026-09-24 — 확인 메일의 링크로 들어온 사람이 빈 홈에 섰다, **사람 보고**): **REQ-WEB-188 신설.** 가입하고 확인 링크를 열면 소속이 없는데도 홈에 섰고 조직을 만들 자리가 어디에도 없었다 — 착지 규칙(REQ-WEB-006)을 로그인 폼만 하고 있었고, 확인 링크는 세션을 세우고 곧장 화면으로 돌려보내 그 폼을 거치지 않는다. 확인 링크가 돌아갈 화면도 늘 `/` 였다 — 초대로 가입한 사람이 초대 화면으로 돌아가지 못했다(REQ-WEB-089). 착지 규칙을 도착지(홈)에 두고, 돌아갈 화면은 가입·재발송 요청이 싣는다(§2.1 "확인 메일의 링크로 들어온 사람" · [4.4](api.md) v1.45).
 >
@@ -639,7 +643,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | --- | --- |
 | 로그인 폼 | `POST /api/auth/*` (better-auth 핸들러 — 이메일+비밀번호) |
 | 로그인 사용자·역할 확인 | EP-AUTH-01 `GET /api/v1/me` · EP-ORG-01 `GET /api/v1/orgs` |
-| 온보딩(조직 0개) | better-auth organization 플러그인 경로(`/api/auth/*` — 조직 생성·초대 수락) 후 EP-ORG-01로 재확인 |
+| 온보딩(조직 0개) | 조직 생성 EP-ORG-03 `POST /api/v1/orgs` · 초대 수락 EP-INV-05 `POST /api/v1/invitations/{token}/accept` 후 EP-ORG-01로 재확인(2026-09-24 정정 — better-auth organization 플러그인 경로가 아니다) |
 
 ```text
 로그인 — app.nerv.example.com/login
@@ -683,7 +687,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 └──────────────────────────────────────────────────────────────┘
 ```
 
-1. **조직 생성**(`OrgCreateForm`) — better-auth organization 플러그인 경로. 첫 프로젝트를 같이 만든다.
+1. **조직 생성**(`OrgCreateForm`) — EP-ORG-03(2026-09-24 정정 — better-auth organization 플러그인 경로가 아니다: 조직은 도메인 테이블이 소유한다). 첫 프로젝트를 같이 만든다.
 2. **초대 수락**(`InviteAcceptCard`) — 조직 생성과 배타적 분기. MVP 초대는 기존 사용자 배정이다(메일 발송은 Phase 2 — [api.md](api.md) §2.1).
 3. **역할 확인** — `membership.roles`(복수 — 겸직이 있으므로 합집합이다, §1.8) 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.
 4. **다음 행동** — 역할별 첫 화면 규칙(ui-wireframes §1.5, qa는 MVP에서 작업 보드로)대로 착지 링크. 에이전트 연결(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4로 링크만 둔다.
@@ -1388,6 +1392,7 @@ export const TaskCreateInput = z
 | 세션 상세 | EP-SES-02 `GET /api/v1/projects/{proj}/sessions/{sid}` | `agent_session` 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id |
 | Activity 타임라인 | EP-SES-03 `GET /api/v1/projects/{proj}/sessions/{sid}/activities` (커서) | `thought / action / elicitation / response / error` 5종 — 불변 레코드(D-10) |
 | 작업 궤적 | EP-SES-05 `GET /api/v1/projects/{proj}/sessions/{sid}/trajectory` | "무엇을 했나"(REQ-API-068). **활동 위**에 선다 — 레일에도 상세에도(REQ-WEB-124·142) |
+| 플러그인 활성화 | EP-SES-06 `GET /api/v1/projects/{proj}/sessions/plugin-coverage` | 머리 아래 한 줄 요약 `플러그인 켜짐 N / M 호스트` — 펼치면 **꺼진 기계가 위**다(REQ-WEB-189) |
 | steer / stop | EP-SES-04 `POST /api/v1/projects/{proj}/sessions/{sid}/steer` (`kind`: steer/stop) — **권한은 세션 소유자·admin 이다.** 화면도 그렇게 그린다(2026-09-06 배선): 소유자·admin 이 아니면 입력칸과 두 버튼이 잠기고 **왜 잠겼는지**를 말한다(§1.8·REQ-WEB-003). 끝난 세션과 남의 세션은 **다른 문구**다 — 기다리면 되는 일과 아닌 일은 다르다. 소유 판정의 축은 목록·상세가 함께 싣는 `user_id` 다 | 지시는 다음 `nerv_task_heartbeat` 응답의 `pending`에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내 |
 
 - **실시간**: `project:{id}` 룸 — `session.started` `session.stale` `session.complete` `session.steered` → 보드, Activity 스트림·하트비트/diff 갱신도 같은 룸으로 흐른다(알림 아님 — spec-workflow §6.3). 하트비트 표기는 상대 시각만(ui-wireframes §3.3).
@@ -1411,6 +1416,7 @@ export const TaskCreateInput = z
 | REQ-WEB-116 | WHEN 세션 요약 스트립의 상태를 고르면 THE SYSTEM SHALL 그 상태의 세션만 목록에 담고(서버 질의), 다시 누르면 푼다. WHILE 필터가 켜져 있으면 THE SYSTEM SHALL 요약 숫자는 프로젝트 전체를 유지하고, 결과가 없을 때 "세션 없음"이 아니라 **그 상태가 없다**고 적는다 |
 | REQ-WEB-140 | WHILE 스펙 목록의 세 탭(트리·표·관계 그래프) 사이를 오가는 동안 THE SYSTEM SHALL 화면 머리의 동작 줄을 **같은 구성으로** 유지하고, 그 탭에만 듣는 조작(상태·종류 필터)은 **그 탭 자신의 조작 줄**에 둔다 — 한 탭에서만 칸이 늘면 줄이 넘쳐 그 탭만 배치가 달라지고, 사람은 탭을 옮길 때마다 눈으로 자리를 다시 찾는다 |
 | REQ-WEB-139 | WHEN 세션 요약 스트립을 렌더링하면 THE SYSTEM SHALL `session_state` 여섯을 **어휘 순서 그대로** 표시하고, 그 프로젝트에 하나도 없는 상태도 `0` 으로 자리를 지키게 하되 물러서 보이고 **눌리지 않게** 한다 — 있는 것만 그리면 "오류 0건" 과 "오류라는 상태가 없음" 을 구별할 수 없고, 칸이 프로젝트마다·시각마다 자리를 바꿔 앉는다. WHILE 세션이 하나도 없는 동안 THE SYSTEM SHALL 0 여섯 대신 문장(빈 상태)을 보인다 |
+| REQ-WEB-189 | WHEN 세션 모니터를 렌더링하면 THE SYSTEM SHALL 머리 아래에 최근 창 안의 Claude Code 기계 중 플러그인이 켜진 수와 전체 수를 한 줄로 표시하고, 펼치면 기계마다 켜짐(버전)·꺼짐·사람·마지막 시각을 **꺼진 기계부터** 보이며, 하나라도 꺼져 있으면 꺼진 기계에서 무엇이 빠지는가(훅이 없어 활동·브랜치가 남지 않는다)를 함께 적는다. WHILE 현황을 불러오는 동안 THE SYSTEM SHALL 수를 먼저 그리지 않는다 |
 | REQ-WEB-021 | WHEN 사용자가 stop을 실행하면 THE SYSTEM SHALL 확인 다이얼로그에서 사유를 필수로 받고, 처리 후 해당 Task가 `ready`로 회수된 것을 보드에 반영한다 |
 
 ### 2.6a S6 리뷰 센터 — [ui-wireframes §2.6](../03-proposal/ui-wireframes.md) (**Phase 2**, 2026-08-23 신설)

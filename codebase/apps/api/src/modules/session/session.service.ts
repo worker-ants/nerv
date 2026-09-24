@@ -14,6 +14,7 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   newId,
+  PLUGIN_COVERAGE_WINDOW_DAYS,
   SESSION_STALE_SECONDS,
   sessionEndReason,
   sessionState,
@@ -51,6 +52,11 @@ export interface BootstrapInput {
   /** 하네스 발급 세션 ID — 훅 페이로드 조인 키이자 멱등 키 */
   externalSessionId?: string | null;
   resumeSessionId?: string | null;
+  /**
+   * 이 세션을 연 플러그인의 버전 — **훅만 싣는다**(`X-NERV-Plugin` · REQ-API-168). MCP 경로는
+   * 모른다: 스킬이 부르는 `nerv_bootstrap` 은 플러그인 안에서 불려도 그 사실을 말하지 않는다.
+   */
+  pluginVersion?: string | null;
 }
 
 export interface ActiveClaimSummary extends Record<string, unknown> {
@@ -87,11 +93,33 @@ function assertSessionStates(values: readonly string[]): string[] {
 }
 
 /** S5 카드 한 장 — 신원 3요소 + 클레임 + 리스 잔여 + diff (ui-wireframes §3.3) */
+/** 플러그인 활성화 현황의 한 줄 — 사람 + 기계 (EP-SES-06) */
+export interface PluginHost extends Record<string, unknown> {
+  user_id: string;
+  user_name: string;
+  hostname: string;
+  /** 그 기계의 가장 최근 세션이 마지막으로 살아 있던 시각 */
+  last_seen_at: string;
+  /** 가장 최근 세션이 실어 온 플러그인 버전 — NULL 이면 꺼져 있다 */
+  plugin_version: string | null;
+  active: boolean;
+}
+
+export interface PluginCoverage {
+  /** 이 일수 안에 세션을 연 호스트만 센다(`PLUGIN_COVERAGE_WINDOW_DAYS`) */
+  window_days: number;
+  total: number;
+  active: number;
+  hosts: PluginHost[];
+}
+
 export interface SessionCard extends Record<string, unknown> {
   id: string;
   user_name: string;
   hostname: string;
   agent_type: string;
+  /** 이 세션을 연 플러그인의 버전 — NULL 이면 플러그인 없이 들어왔다(REQ-API-168) */
+  plugin_version: string | null;
   state: string;
   branch: string | null;
   diff_added: number;
@@ -166,7 +194,10 @@ export class SessionService {
            SET branch = coalesce(branch, ${input.branch ?? null}::text),
                worktree_path = coalesce(worktree_path, ${input.worktreePath ?? null}::text),
                model = coalesce(model, ${input.model ?? null}::text),
-               cwd = coalesce(cwd, ${input.cwd ?? null}::text)
+               cwd = coalesce(cwd, ${input.cwd ?? null}::text),
+               -- 플러그인 버전은 **새 값이 이긴다** — 세션 사이에 플러그인을 올렸으면 그것이
+               -- 지금의 사실이다. 새 값이 없으면(MCP 가 채택한 경우) 훅이 남긴 값을 지킨다.
+               plugin_version = coalesce(${input.pluginVersion ?? null}::text, plugin_version)
          WHERE id = ${existing}
       `);
       return this.pack(existing, input.projectId, true);
@@ -177,11 +208,11 @@ export class SessionService {
       await tx.execute(sql`
         INSERT INTO agent_session (id, project_id, user_id, agent_type, agent_version, hostname,
                                    cwd, worktree_path, branch, external_session_id, state, model,
-                                   last_heartbeat_at)
+                                   last_heartbeat_at, plugin_version)
         VALUES (${id}, ${input.projectId}, ${input.userId}, ${agentTypeValue}::agent_type, NULL,
                 ${input.hostname}, ${input.cwd ?? null}, ${input.worktreePath ?? null},
                 ${input.branch ?? null}, ${input.externalSessionId ?? null}, 'active',
-                ${input.model ?? null}, now())
+                ${input.model ?? null}, now(), ${input.pluginVersion ?? null})
       `);
 
       await emit({
@@ -696,7 +727,7 @@ export class SessionService {
 
     const { rows } = await this.db.execute<SessionCard>(sql`
       SELECT s.id, s.user_id, u.display_name AS user_name, s.hostname,
-             s.agent_type::text AS agent_type, s.state::text AS state,
+             s.agent_type::text AS agent_type, s.state::text AS state, s.plugin_version,
              s.branch, s.diff_added, s.diff_removed,
              s.last_heartbeat_at::text AS last_heartbeat_at,
              s.started_at::text AS started_at,
@@ -748,6 +779,49 @@ export class SessionService {
     return Object.fromEntries(
       sessionState.enumValues.map((state) => [state, counted.get(state) ?? 0]),
     );
+  }
+
+  /**
+   * 플러그인 활성화 현황 — EP-SES-06 · REQ-API-168 (2026-09-24 · E12-S03).
+   *
+   * **호스트는 등록되지 않는다.** 세션을 연 적이 있는 기계가 곧 호스트이고, 그 기계에서
+   * 플러그인이 켜져 있었는지는 **가장 최근 세션이 버전을 실어 왔는가**로 판정한다. 한 번이라도
+   * 실어 왔는가로 세지 않는 이유: 켰다가 끈(또는 관리형 settings 에서 빠진) 호스트가 영원히
+   * "켜짐" 으로 남는다 — 지금의 사실을 묻는 질문에 과거의 사실로 답하게 된다.
+   *
+   * **Claude Code 세션만 센다.** 플러그인은 Claude Code 의 것이다 — Codex 세션은 플러그인이
+   * 없어도 정상이고, 세면 분모만 부풀어 활성화율이 거짓으로 낮아진다.
+   *
+   * 호스트의 열쇠는 **사람 + hostname** 이다. 기본 hostname 은 겹친다(`MacBook-Pro` 가 둘인 팀).
+   */
+  async pluginCoverage(projectId: string): Promise<PluginCoverage> {
+    const { rows } = await this.db.execute<PluginHost>(sql`
+      SELECT DISTINCT ON (s.user_id, s.hostname)
+             s.user_id, u.display_name AS user_name, s.hostname,
+             coalesce(s.last_heartbeat_at, s.started_at)::text AS last_seen_at,
+             s.plugin_version,
+             (s.plugin_version IS NOT NULL) AS active
+        FROM agent_session s
+        JOIN "user" u ON u.id = s.user_id
+       WHERE s.project_id = ${projectId}
+         AND s.agent_type = 'claude-code'
+         AND coalesce(s.last_heartbeat_at, s.started_at)
+             > now() - make_interval(days => ${PLUGIN_COVERAGE_WINDOW_DAYS})
+       ORDER BY s.user_id, s.hostname, coalesce(s.last_heartbeat_at, s.started_at) DESC, s.id DESC
+    `);
+    // 꺼진 호스트가 먼저다 — 이 목록을 여는 사람이 찾는 것은 켜야 할 기계다
+    const hosts = [...rows].sort(
+      (a, b) =>
+        Number(a.active) - Number(b.active) ||
+        a.user_name.localeCompare(b.user_name) ||
+        a.hostname.localeCompare(b.hostname),
+    );
+    return {
+      window_days: PLUGIN_COVERAGE_WINDOW_DAYS,
+      total: hosts.length,
+      active: hosts.filter((h) => h.active).length,
+      hosts,
+    };
   }
 
   /**

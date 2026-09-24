@@ -18,7 +18,11 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.61 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.63 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.63 변경(2026-09-24 — 인증 모듈의 한 줄): **§2.2 트리 한 줄 정정.** `auth.service.ts` 는 better-auth 의 organization·api-key 플러그인을 래핑하지 않는다 — PAT 는 자체 `api_token` 테이블이고 better-auth 는 웹 세션만 맡는다([4.1](scope.md) v0.34).
+>
+> v1.62 변경(2026-09-24 — 플러그인 활성화의 창): **§3.2 상수 한 줄.** `PLUGIN_COVERAGE_WINDOW_DAYS` = 30 — 활성화 현황(EP-SES-06)이 보는 세션의 창이다([4.4](api.md) §2.5c · 백로그 E12-S03).
 >
 > v1.61 변경(2026-09-24 — 확인 메일의 링크): **§2.2 트리 한 줄.** `mail/verify-link.ts` — 확인 링크를 만드는 순수 함수를 아웃박스에서 떼어 냈다. `better-auth.ts` 가 그것을 import 하는데 그 파일은 Nest 밖이라 아웃박스 서비스를 끌어올 수 없다([4.5](screens.md) §2.1).
 >
@@ -393,7 +397,7 @@ apps/api/src/
     auth/
       auth.controller.ts        # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
       auth.module.ts
-      auth.service.ts           # better-auth(organization·api-key 플러그인) 래핑, 멤버십·역할 조회
+      auth.service.ts           # PAT(자체 api_token 테이블) 발급·검증, 멤버십·역할 조회 — better-auth 는 웹 세션만
       better-auth.ts            # better-auth 배선 — 세션 쿠키 경로
       invitation.controller.ts  # 조직 초대 표면
       invitation.service.ts     # 초대 발급·수락 — 자동 수락 경로는 없다
@@ -570,6 +574,7 @@ packages/schema/
 | `LEASE_TTL_SECONDS` | `1800` (30분) | Task 클레임·초안 편집 리스 동일 상수 — [3.4](../03-proposal/agent-integration.md) §2.7 |
 | `HEARTBEAT_INTERVAL_SECONDS` | `60` | [3.4](../03-proposal/agent-integration.md) §2.3 `nerv_task_heartbeat` |
 | `SESSION_STALE_SECONDS` | `1800` (30분) | 리스 TTL과 같은 값으로 묶는 이유는 [3.4](../03-proposal/agent-integration.md) §5.2 |
+| `PLUGIN_COVERAGE_WINDOW_DAYS` | `30` | 플러그인 활성화 현황이 보는 세션의 창(2026-09-24 · E12-S03). 호스트는 등록되지 않으므로 창이 없으면 떠난 기계가 분모를 영원히 끈다 — 30일은 파일럿 한 주기(2주 스프린트 둘)다([4.4](api.md) §2.5c) |
 | `REVIEW_PROMPT_BLOB_TTL_DAYS` | `30` | [3.2](../03-proposal/architecture.md) §2.5 |
 | `EVENTS_CHANNEL` | `'nerv_events'` | Valkey pub/sub 방송 채널 — [4.3 데이터베이스 스키마](database.md) §3 |
 | `WORKER_ADVISORY_LOCK_KEY` | 프로젝트 전역 단일 키(bigint 리터럴 1개) | §6.3 — 워커 단일 실행 |

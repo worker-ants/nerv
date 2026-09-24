@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>5종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.71 (2026-09-22)</span>
+      <span>버전 v0.72 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -80,7 +80,7 @@
   <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
 <pre><code>nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.1
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.2
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -101,7 +101,7 @@
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;nerv&quot;,
   &quot;description&quot;: &quot;NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다&quot;,
-  &quot;version&quot;: &quot;0.3.1&quot;,
+  &quot;version&quot;: &quot;0.3.2&quot;,
   &quot;license&quot;: &quot;Apache-2.0&quot;
 }</code></pre>
 
@@ -1220,6 +1220,17 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
 
   <p><b>http 변형에는 이 경로가 없다.</b> <code>type:"http"</code> 훅의 <code>headers</code> 는 상수와 <code>${VAR}</code> 확장만 받으므로 명령을 실행할 자리가 없다 — 기본 변형을 command 로 정한 결정(§3.1)의 네 번째 근거다.</p>
 
+  <h4>플러그인이 켜졌는가는 플러그인만 말한다 — <code>X-NERV-Plugin</code> (2026-09-24 신설 — E12-S03)</h4>
+  <p>세션은 두 길로 들어온다 — 이 훅(플러그인)과 MCP <code>nerv_bootstrap</code>(플러그인 없이도 된다). 서버는 둘을 가를 칸이 없어서, 관리형 settings 로 배포한 뒤 <b>"어느 기계에서 켜졌는가"</b> 에 답하지 못했다(백로그 E12-S03 의 마지막 남은 줄).</p>
+  <p>포워더가 <b>세션을 만드는 훅에서만</b> 자기 버전을 싣는다. 버전은 스크립트 옆의 <code>plugin.json</code> 이 정본이다(§3.6 · REQ-PLG-017) — 그래서 버전을 올리면 헤더도 따라 오른다.</p>
+  <pre><code>manifest="$(dirname "${BASH_SOURCE[0]}")/../.claude-plugin/plugin.json"
+version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${manifest}" | head -n 1)"   # → X-NERV-Plugin</code></pre>
+  <ul>
+    <li><b><code>session</code> 에만 붙인다.</b> 다른 훅은 같은 세션이라 읽는 곳이 없다.</li>
+    <li><b>Codex 에는 없다.</b> Codex 경로에는 <code>plugin.json</code> 이 없어 헤더가 빠진다 — 플러그인은 Claude Code 의 것이고, 없는 것을 있다고 말하지 않는다. 서버도 활성화 현황을 Claude Code 세션만으로 센다(<a href="api.html">4.4 API 명세</a> §2.5c).</li>
+    <li><b>http 변형에는 없다.</b> <code>headers</code> 는 상수와 <code>${VAR}</code> 만 받아 <code>plugin.json</code> 을 읽을 자리가 없다 — 상수로 박으면 버전을 올릴 때마다 한 자리가 더 늘어난다.</li>
+  </ul>
+
   <h3>3.4 오프라인 폴백 실물 — <code>.nerv/cache/</code> · <code>.nerv/outbox/</code></h3>
 
   <p>스킬 5종의 에러 대응 표가 참조하는 <code>NERV_UNAVAILABLE</code> 폴백(NFR-05, <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §5.4 정책 정본)의 파일 실물이다. 위치는 <b>작업 저장소 루트의 <code>.nerv/</code></b>(오버라이드: <code>NERV_CACHE_DIR</code> — §3.3 전표)이며, 플러그인 설치가 <code>.gitignore</code>에 <code>.nerv/</code>를 추가한다 — 캐시·큐가 커밋되면 그 자체가 clemvion식 git 비대화(P6)다.</p>
@@ -1400,7 +1411,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
     <thead><tr><th>#</th><th>단계</th><th>명령/행동</th><th>확인 방법</th></tr></thead>
     <tbody>
       <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 역할 프리셋 기본값(developer: <code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>review:resolve</code> <code>agent-session:launch</code>) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용)</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
-      <tr><td>2</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code> → <code>/plugin install nerv@nerv</code> → 재시작. <b>그 주소로 설치가 안 되면</b>(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — <code>add worker-ants/nerv</code>, 설치 명령은 그대로다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.3.1 활성 표시</td></tr>
+      <tr><td>2</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code> → <code>/plugin install nerv@nerv</code> → 재시작. <b>그 주소로 설치가 안 되면</b>(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — <code>add worker-ants/nerv</code>, 설치 명령은 그대로다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.3.2 활성 표시</td></tr>
       <tr><td>3</td><td>설정</td><td>작업 저장소에서 <code>nerv-init</code> 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. <b>이미 있는 값은 덮지 않는다</b>(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다</td><td><code>.mcp.json</code>·<code>.claude/settings.local.json</code>·<code>.gitignore</code> 셋이 서고, 재시작 뒤 <code>/mcp</code> 에 <code>nerv</code> connected</td></tr>
       <tr><td>4</td><td>연결 확인</td><td>프로젝트 저장소에서 Claude Code 실행 → <code>/mcp</code></td><td><code>nerv</code> 서버 connected, <code>nerv_*</code> 도구 목록 표시</td></tr>
       <tr><td>5</td><td>첫 부트스트랩</td><td><code>/nerv:next</code> 실행(스킬이 <code>nerv_bootstrap</code>부터 호출한다)</td><td>응답에 <code>session_id</code>·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다</td></tr>
@@ -1550,6 +1561,7 @@ log_user_prompt = false</code></pre>
       <tr><td><b>REQ-PLG-015</b></td><td>WHEN <code>nerv_finding_resolve</code>가 <code>NERV_APPROVAL_REQUIRED</code>를 반환하면 THE SYSTEM SHALL 재시도하지 않고 <code>approval_id</code>와 함께 사람에게 보고한 뒤 멈춘다</td><td>critical → wont_fix 1회 실측: 재호출 0건 + 보고에 approval_id 포함</td></tr>
       <tr><td><b>REQ-PLG-013</b></td><td>WHEN 플러그인이 설치되면 THE SYSTEM SHALL <code>.gitignore</code>에 <code>.nerv/</code>를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다</td><td>설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측. <code>.gitignore</code> 쪽은 <code>bin/nerv-init</code> 이 실행한다(§3.7)</td></tr>
       <tr><td><b>REQ-PLG-018</b></td><td>WHEN 사람이 작업 저장소에서 <code>bin/nerv-init</code> 을 실행하면 THE SYSTEM SHALL <code>.mcp.json</code>·<code>.claude/settings.local.json</code> 의 <code>env</code>(<code>NERV_SERVER</code>·<code>NERV_PROJECT</code>·<code>NERV_TOKEN</code>)·<code>.gitignore</code> 의 <code>.nerv/</code> 중 <b>없는 것만</b> 만들고, 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다. WHILE 세션이 시작되는 동안 THE SYSTEM SHALL <code>--check</code> 로 덜 된 설정을 보고하되 <b>아무것도 쓰지 않고</b>, 설정의 흔적(<code>.mcp.json</code> 의 <code>nerv</code>·<code>.nerv/</code>·<code>NERV_*</code>)이 하나도 없는 저장소에서는 침묵한다</td><td>L1(<code>plugin-package.spec.ts</code>) — 임시 저장소 넷에서 실제 실행: 빈 저장소(파일 셋 생성) · 남의 <code>settings.local.json</code>(다른 키·기존 값 보존) · 다시 실행(멱등) · 흔적 없는 저장소의 <code>--check</code>(출력 0바이트)</td></tr>
+      <tr><td><b>REQ-PLG-019</b></td><td>WHEN 세션을 만드는 훅(<code>session</code>)을 보내면 THE SYSTEM SHALL 포워더 옆 <code>plugin.json</code> 의 <code>version</code> 을 <code>X-NERV-Plugin</code> 헤더로 싣고, 다른 훅에는 싣지 않는다</td><td>L1(<code>plugin-package.spec.ts</code>) — <code>curl</code> 을 가로채 실제 실행: <code>session</code> 은 <code>plugin.json</code> 과 같은 값 · <code>tool</code>·<code>stop</code>·<code>session-end</code> 는 헤더 없음</td></tr>
     </tbody>
   </table></div>
 

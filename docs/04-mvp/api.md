@@ -27,7 +27,11 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.45 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.47 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.47 변경(2026-09-24 — 인증 경로의 서술이 실물과 달랐다, **사람 결정**): **새 요구사항 없음 · §1.3 두 칸 정정.** PAT 는 better-auth api-key 플러그인이 아니라 **자체 `api_token` 테이블**이고, 조직·멤버십은 organization 플러그인이 아니라 **도메인 테이블**이다 — 둘 다 코드가 처음부터 그렇게 돌았고 문서만 낡아 있었다([4.1](scope.md) v0.34).
+>
+> v1.46 변경(2026-09-24 — 플러그인이 켜졌는지 서버가 몰랐다, 백로그 E12-S03): **REQ-API-168 · EP-SES-06 신설 · §2.5c 신설.** 세션은 훅(플러그인)으로도 MCP(플러그인 없이)로도 들어오는데 둘을 가르는 칸이 없어, 관리형 settings 로 배포한 뒤 "어느 기계가 켜졌는가" 에 답하지 못했다. 훅이 `X-NERV-Plugin` 으로 자기 버전을 싣고 세션이 그것을 남기며, EP-SES-06 이 기계마다 가장 최근 세션으로 판정한다([4.3](database.md) v0.49 · [4.5](screens.md) REQ-WEB-189 · [4.6](plugin.md) REQ-PLG-019).
 >
 > v1.45 변경(2026-09-24 — 확인 링크가 돌아갈 화면을 버렸다, **사람 보고**): **새 요구사항 없음 · §1.3 인증 경로 한 문장.** 확인 링크를 새로 만들면서 가입 요청의 `callbackURL` 을 버리고 늘 화면의 첫 주소를 넣고 있었다 — 초대로 가입한 사람이 초대 화면으로 돌아가지 못했다. 요청의 값을 담되 **화면 오리진 안일 때만** 담는다([4.5](screens.md) v1.27 REQ-WEB-188).
 >
@@ -305,8 +309,8 @@ flowchart LR
 
 | 경로 | 자격증명 | 대상 | 규약 |
 | --- | --- | --- | --- |
-| **웹 세션** | better-auth 세션 쿠키(HttpOnly·SameSite=Lax) | 브라우저 SPA | 로그인·세션 관리는 better-auth 핸들러(`/api/auth/*`)에 위임한다. `/api/v1`·`/ws`는 이 쿠키를 검증만 한다. 조직·멤버십은 better-auth organization 플러그인, 역할 6종(`admin·planner·designer·developer·qa·viewer`)은 `membership.role`이 정본([데이터 모델](../03-proposal/data-model.md) §2.1) |
-| **PAT** | `Authorization: Bearer <token>` | 에이전트(MCP)·CI·외부 연동·md 미러 | better-auth api-key 플러그인 기반. 토큰은 **(사용자, 프로젝트, 역할, 소속)** 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을 넘지 못한다([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1, D-08). Bearer 헤더 필수, **쿼리스트링 전달 금지**(MCP Authorization 규약 재인용) |
+| **웹 세션** | better-auth 세션 쿠키(HttpOnly·SameSite=Lax) | 브라우저 SPA | 로그인·세션 관리는 better-auth 핸들러(`/api/auth/*`)에 위임한다. `/api/v1`·`/ws`는 이 쿠키를 검증만 한다. 조직·멤버십은 **도메인 테이블**이 소유하고(organization 플러그인은 켜지 않는다 — [4.3](database.md) §2.16), 역할 6종(`admin·planner·designer·developer·qa·viewer`)은 `membership.role`이 정본([데이터 모델](../03-proposal/data-model.md) §2.1) |
+| **PAT** | `Authorization: Bearer <token>` | 에이전트(MCP)·CI·외부 연동·md 미러 | **자체 `api_token` 테이블**(해시·prefix·scopes — [4.3](database.md) §2.2). better-auth api-key 플러그인이 아니다: 그 테이블을 함께 쓰면 토큰이 두 곳에 산다(2026-09-24 문서 정정). 토큰은 **(사용자, 프로젝트, 역할, 소속)** 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을 넘지 못한다([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1, D-08). Bearer 헤더 필수, **쿼리스트링 전달 금지**(MCP Authorization 규약 재인용) |
 
 - **가입은 이메일 확인까지다**(2026-09-22 · 사람 결정). 가입하면 better-auth 가 확인 메일을 줄 세우고(`emailVerification.sendOnSignUp` → [4.3](database.md) §2.17 아웃박스), **확인 전에는 `POST /api/auth/sign-in/email` 이 403 `EMAIL_NOT_VERIFIED` 로 막는다.** 확인 링크는 `GET /api/auth/verify-email?token=…&callbackURL=…` 이고 — 토큰을 확인하는 것은 API 이고 사람이 되돌아가는 곳은 화면이라 **주소 둘이 한 링크에 들어간다** — 확인이 끝나면 곧바로 세션이 선다(`autoSignInAfterVerification`). **돌아갈 화면은 요청이 정한다**(2026-09-24 — 사람 보고) — 가입·재발송이 싣는 `callbackURL` 을 better-auth 가 넘겨주고 서버가 그것을 링크에 담되, **화면 오리진(`NERV_WEB_URL`) 안일 때만**이다. 밖이면 화면의 첫 주소로 떨어진다: 그 값은 메일에 박혀 남의 손에 들릴 수 있어, 다른 호스트를 허락하면 우리 도메인의 링크가 열린 리다이렉트가 된다(better-auth 의 신뢰 오리진은 API 자신까지 담으므로 그것만으로는 좁혀지지 않는다). 전에는 그 값을 버리고 늘 `/` 를 넣어, 초대로 가입한 사람이 초대 화면으로 돌아가지 못했다([4.5](screens.md) REQ-WEB-089 · REQ-WEB-188). 다시 받는 길은 `POST /api/auth/send-verification-email` 이고 로그인과 **같은 한도**를 쓴다(남의 주소를 골라 두드리면 그 사람의 메일함이 시끄러워진다). **강제 여부는 SMTP 에서 유도한다** — 메일이 없는 배치는 확인 메일을 보낼 수 없으므로 강제하지 않고, `NERV_REQUIRE_EMAIL_VERIFICATION=true` 인데 SMTP 가 비면 **기동을 거부한다**([4.2](codebase.md) §5.2).
 - PAT 원문 형식: `nerv_` 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(`api_token.token_hash`), 식별·감사용으로 앞 8자를 `api_token.prefix`에 남긴다([데이터 모델](../03-proposal/data-model.md) §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 **한 번만** 반환된다.
@@ -1078,6 +1082,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | EP-SES-03 | `GET /api/v1/projects/{proj}/sessions/{sid}/activities` | 전 역할 | `ActivityListQuery`(**`cursor`·`limit`**(2026-09-07 정정 — 상한 30/100 의 봉투를 준다. `type[]` 은 여전히 읽지 않는다)) | `Page<ActivityResult>`(seq 순 타임라인, `thought/action/elicitation/response/error`) | — |
 | EP-SES-04 | `POST /api/v1/projects/{proj}/sessions/{sid}/steer` | 세션 소유자·admin | `SessionSteerInput`(kind: steer/stop, message) | `{ok:true}` — steer: 지시는 다음 하트비트 응답의 `pending`으로 전달([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4 역채널). stop: 지시 전달과 별개로 서버가 **즉시** 활성 클레임을 회수하고 Task를 `claimed/in_progress → ready`로 되돌린다([화면 설계](../03-proposal/ui-wireframes.md) §4.2) | ★`session.steered` · stop 시 ★`claim.released` + `task.ready` |
 | EP-SES-05 | `GET /api/v1/projects/{proj}/sessions/{sid}/trajectory` | 전 역할 | `SessionTrajectoryQuery`(**`limit`**) | 세션의 도구 호출 궤적(REQ-API-068 이 요구하는 것) — 새 저장 없이 `event` 를 세션 축으로 읽는다 | — |
+| EP-SES-06 | `GET /api/v1/projects/{proj}/sessions/plugin-coverage` | 전 역할 | — | `PluginCoverage`(`window_days` · `total` · `active` · `hosts[]`(`user_id`·`user_name`·`hostname`·`last_seen_at`·`plugin_version`·`active`) — **꺼진 기계가 먼저**) · 2026-09-24 신설 — §2.5c | — |
 
 세션의 생성·상태 전이는 REST가 아니라 훅 ingest(§2.9)와 MCP `nerv_bootstrap`이 만든다. REST 표면은 조회와 steer만 갖는다 — 세션은 에이전트의 실행 사실이지 웹에서 만드는 리소스가 아니기 때문이다.
 
@@ -1110,6 +1115,24 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-084 | WHEN 훅 이벤트가 `X-NERV-Branch`·`X-NERV-Worktree` 헤더를 실으면 THE SYSTEM SHALL 그 값으로 세션의 `branch`·`worktree_path` 를 갱신하고, 헤더가 없거나 공백뿐이면 **이미 있는 값을 지우지 않는다.** WHILE 세션이 진행 중이면 THE SYSTEM SHALL 도구 훅이 실어 온 값으로 그 두 열을 갱신한다 — 브랜치는 세션 도중 바뀐다 |
+
+#### 2.5c 플러그인이 켜졌는가는 훅이 말한다 (2026-09-24 신설 — E12-S03)
+
+`plugin_version` 을 정하는 것은 **`X-NERV-Plugin` 헤더 하나**다. 본문 자리는 없다 — MCP `nerv_bootstrap` 은 플러그인 안에서 불려도 그 사실을 말하지 않는다.
+
+백로그 E12-S03 의 수용 기준이 "관리형 settings 로 배포하면 참여 호스트의 **활성화 여부를 서버에서 확인** 가능하게 한다" 인데, 서버는 그것을 알 방법이 없었다. 세션은 훅(플러그인)으로도 MCP(플러그인 없이)로도 들어오고, 둘을 가르는 칸이 없었다. 훅 포워더가 옆의 `plugin.json` 에서 자기 버전을 읽어 싣는다([4.6](plugin.md) §3.3) — **값이 있다는 것 자체가 증거다.** 그래서 옛 세션은 백필하지 않는다: 추정으로 채우면 활성화율이 거짓이 된다([4.3](database.md) §2.6 · 마이그레이션 0030).
+
+- **모양이 맞을 때만 받는다**(`0.3.2` · `1.0.0-rc.1`). 헤더는 누구나 실을 수 있는 값이라, 틀린 값을 "켜짐" 으로 세는 것보다 "알 수 없음" 으로 두는 편이 활성화율을 덜 속인다.
+- **새 값이 이긴다.** 같은 세션이 다시 시작하면(resume·compact) 그 사이에 플러그인을 올렸을 수 있다. 새 값이 없으면(스킬의 `nerv_bootstrap` 이 훅 세션을 채택한 경우) 훅이 남긴 값을 지킨다.
+- **현황은 기계마다 가장 최근 세션으로 판정한다**(EP-SES-06). 한 번이라도 실어 왔는가로 세면 켰다가 끈 기계가 영원히 "켜짐" 으로 남는다. 기계의 열쇠는 **사람 + hostname** 이다 — 기본 hostname 은 팀 안에서 겹친다.
+- **Claude Code 세션만 센다.** 플러그인은 Claude Code 의 것이라 Codex 세션은 플러그인이 없어도 정상이고, 세면 분모만 부푼다.
+- **창은 `PLUGIN_COVERAGE_WINDOW_DAYS`(30일)다**([4.2](codebase.md) §3.2). 호스트는 등록되지 않으므로 창이 없으면 한 번 쓰고 떠난 노트북이 분모를 영원히 끈다.
+
+EP-SES-01 의 카드도 `plugin_version` 을 싣는다 — 그 세션을 연 플러그인이 무엇인가는 카드의 성질이다.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-API-168 | WHEN 세션을 만드는 훅이 `X-NERV-Plugin` 헤더를 실으면 THE SYSTEM SHALL 그 값이 버전 모양일 때만 세션의 `plugin_version` 으로 남기고(같은 세션이 다시 시작하면 새 값이 이긴다), 헤더가 없거나 모양이 틀리면 **없는 것으로** 둔다. WHEN MCP `nerv_bootstrap` 이 훅 세션을 채택하면 THE SYSTEM SHALL 그 값을 지우지 않는다. WHEN EP-SES-06 을 조회하면 THE SYSTEM SHALL 최근 `PLUGIN_COVERAGE_WINDOW_DAYS` 일 안에 Claude Code 세션을 연 기계(사람 + hostname)마다 **가장 최근 세션**의 `plugin_version` 으로 켜짐·꺼짐을 판정해 꺼진 기계부터 돌려준다 |
 
 ### 2.6 받은 요청·질문 (S7)
 

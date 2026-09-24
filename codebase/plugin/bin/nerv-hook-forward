@@ -53,6 +53,21 @@ case "${endpoint}" in
     ;;
 esac
 
+# **플러그인이 켜져 있다는 것은 플러그인만 말할 수 있다**(2026-09-24 · E12-S03 · plugin.md §3.1).
+#
+# 세션은 두 길로 들어온다 — 이 훅(플러그인)과 MCP `nerv_bootstrap`(플러그인 없이도 된다).
+# 서버는 둘을 가를 칸이 없어서, 관리형 settings 로 배포한 뒤 "어느 기계에서 켜졌는가" 를
+# 답하지 못했다. 세션을 만드는 훅에서만 자기 버전을 싣는다 — 다른 훅은 같은 세션이다.
+# 버전은 이 스크립트 옆의 `plugin.json` 이 정본이다(REQ-PLG-017). Codex 는 이 파일이 없어
+# 헤더가 빠진다: 플러그인은 Claude Code 의 것이고, 없는 것을 있다고 말하지 않는다.
+if [[ "${endpoint}" == "session" ]]; then
+  manifest="$(dirname "${BASH_SOURCE[0]}")/../.claude-plugin/plugin.json"
+  if [[ -r "${manifest}" ]]; then
+    version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${manifest}" | head -n 1)"
+    [[ -n "${version}" ]] && extra+=(--header "X-NERV-Plugin: ${version}")
+  fi
+fi
+
 # 실패해도 0 으로 끝낸다 — 훅의 실패가 세션을 멈추면 텔레메트리가 조정 경로가 되어버린다.
 response="$(curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" \
   --request POST "${base}/ingest/hooks/${endpoint}" \

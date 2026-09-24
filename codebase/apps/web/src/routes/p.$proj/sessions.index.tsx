@@ -12,6 +12,7 @@ import { useT } from '../../lib/i18n.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ActivityRail } from '../../features/session-monitor/activity-rail.js';
+import { PluginCoverage } from '../../features/session-monitor/plugin-coverage.js';
 import { SessionBoard } from '../../features/session-monitor/session-board.js';
 import { useProject, useSessions } from '../../lib/queries.js';
 import { PageBody, PageHeader } from '../../components/ui/primitives.js';
@@ -39,6 +40,7 @@ function SessionMonitor(): React.JSX.Element {
       <div className="min-w-0 flex-1">
         <PageBody wide>
           <PageHeader title={t('sessions.title')} />
+          <PluginCoverage projectSlug={proj} projectId={asProjectId(projectId)} />
           <SessionBoard
             projectSlug={proj}
             projectId={asProjectId(projectId)}
