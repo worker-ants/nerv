@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.14 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.15 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.15 변경(2026-09-24 — 부분 둘이 이미 끝나 있었다): §1.4 **E08 8·2 → 10·—, 합계 66·9 → 68·7.** E08-S05 의 남은 것("위임 폼 스키마에 `source_spec_version_id` 가 없어 파생은 REST·MCP 로만 된다")은 2026-09-07 에 이미 들어와 있었다 — 스펙 상세의 "이 버전에서 파생" 이 주소로 폼의 출처를 채우고 저장이 그것을 싣는다. E08-S10 의 남은 것("`depth` 지연 로드")은 **요구 자체가 2026-08-29 에 걷혔다**([4.5](screens.md) REQ-WEB-044 정정 — 전 계층을 한 응답으로 주고 규모는 가상 스크롤이 진다). 스토리 행의 문구와 수용 기준도 그 정정에 맞췄다. **둘 다 지키는 검사가 없어서** 백로그도 고쳐지지 않았다 — `task-derive.spec.tsx`(4건)·`spec-scale.spec.tsx`(4건)가 두 스토리의 수용 기준을 못 박는다. 이 절의 게이트는 수를 셀 뿐 "남은 것" 이 아직 유효한지는 보지 않는다(`check-backlog-status.mjs` 머리 주석).
 >
 > v1.14 변경(2026-09-24 — 스토리 없이 들어온 수정 하나, **사람 보고**): §1.4 셋째 표에 **확인 메일의 링크로 들어온 사람이 빈 홈에 섰다** 한 줄([4.5](screens.md) REQ-WEB-188 · [4.4](api.md) v1.45). 스토리 수·`done` 수는 그대로다.
 >
@@ -272,14 +274,14 @@ referenced_by:
 | E05 세션 보드 최소 | 4 | — | `session.service.ts` · `event/ws.gateway.ts` · `event/sse.controller.ts` |
 | E06 스파이크 + 확인·실측 | 3 | 4 | `test/integration/spike-realtime.spec.ts` · `apps/web/.spike/tiptap-roundtrip.md` |
 | E07 spec 임포터 v0 | 5 | — | `apps/cli/src/profiles/` · `report/index.ts` · `modules/import/import.controller.ts` |
-| E08 웹 화면 | 8 | 2 | `routes/p.$proj/specs.$spec.tsx`(버전 diff) · `steer-panel.tsx` · `quick-switcher.tsx` |
+| E08 웹 화면 | 10 | — | `routes/p.$proj/specs.$spec.tsx`(버전 diff · 영향 미리보기) · `steer-panel.tsx` · `quick-switcher.tsx` · `task-derive.spec.tsx` · `spec-scale.spec.tsx` |
 | E09 스펙 워크플로우·승인 게이트 | 11 | 1 | `0000_init.sql`(동결 트리거) · `spec/gate-tier.ts` · `spec/search.service.ts`(RRF) |
 | E10 기획자 터미널 경로 | 4 | — | `spec.service.ts`(`NERV_DRAFT_LEASED`·takeover) · `spec-comment.service.ts` |
 | E11 plan 임포터 | 2 | — | `apps/cli/src/parse/plan.ts` · `apps/cli/src/run.ts` |
 | E12 플러그인 v1 + 훅 수집기 | 5 | 1 | `plugin/skills/`(6종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` |
 | E13 받은 요청·질문·알림 | 3 | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
 | E14 운영·연동 | 4 | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
-| **합계** | **66** | **9** | `backlog` 0 |
+| **합계** | **68** | **7** | `backlog` 0 |
 
 §5 의 **E2E 수용 시나리오 A~F 도 여섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts` · `scenario-f-journey.spec.ts`(2026-09-07 신설 — 그전까지 A~C 는 클레임까지만 태웠고 그 **이후**의 계약은 L2 조각들만 봤다).
 
@@ -294,8 +296,6 @@ referenced_by:
 | E06-S04 | 리비전 협상·병행 서빙 코드 | Claude Code·Codex **두 클라이언트 실측 리포트** |
 | E06-S06 | degrade 경로·1024차원 검증 | **3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정**([4.4 API](api.md)가 임베딩 p95 를 아직 보류로 둔다) |
 | E06-S07 | command 폴백이 기본 변형으로 배포됨 | 기록된 근거는 훅 `url` 의 `${VAR}` **미**확장이지 **`headers` 확장 자체의 실측이 아니다**([4.6 플러그인](plugin.md) §3.1이 아직 "1차 문서에서 확인 못함"이라 적는다) |
-| E08-S05 | 칸반 레인·위임 명세 4요소 zod 폼 | **승인된 SpecVersion 에서 파생하는 웹 경로** — `delegation-form.tsx` 의 스키마에 `source_spec_version_id` 가 없어 파생은 REST·MCP 로만 된다 |
-| E08-S10 | 가상 스크롤·필터·관계 패널·degraded 배너 | **`depth` 지연 로드** — 서버는 그 인자를 받는데 `useSpecTree` 가 넘기지 않는다 |
 | E09-S03 | 지시자≠승인자 차단 | **리뷰어 자동 지정** — `ApprovalService.request()` 를 부르는 곳이 `assigneeUserId` 를 넘기지 않아 결재 카드는 언제나 `assignee_user_id = NULL` 로 만들어진다(그 열이 채워지는 것은 결재 시점의 `COALESCE` 뿐이라 *지정*이 아니라 *기록*이다) |
 | E12-S03 | statusline · 마켓플레이스 · 관리형 settings | 수용 기준의 **"활성화 여부를 서버에서 확인"**(플러그인 버전 보고) 경로. ※ `.mcp.json` 미동봉은 남은 것이 아니라 **결정**이다(REQ-PLG-001 개정 — 패키지 테스트가 부재를 강제한다) |
 
@@ -525,7 +525,7 @@ MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터�
 | E08-S07 | S7 받은 요청 — 스펙 승인·플랜·질문 3유형 카드, 원클릭 승인/거절/코멘트 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S7 · FR-11 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.4 | WHEN 카드에서 결정을 처리하면, THE SYSTEM SHALL 요청 세션을 `awaiting_input`에서 즉시 해제한다 | E08-S01 · E13-S01 |
 | E08-S08 | S8 설정 — 멤버·역할(6종)·에이전트 토큰 발급/폐기·게이트 정책 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) S8 · FR-14 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.6 | WHEN admin이 아닌 역할이 게이트 정책 편집에 접근하면, THE SYSTEM SHALL API와 UI 양쪽에서 거부한다 | E08-S01 · E03-S02 |
 | E08-S09 | 전역 퀵 스위처(⌘K) — 고정 ID 직행·최근 방문·핀(localStorage)·키보드 완결 | [4.5 화면 명세](screens.md) §1.3a(REQ-WEB-040) | WHEN 어느 라우트에서든 ⌘K를 누르면, THE SYSTEM SHALL 마우스 없이 검색·이동을 완결시킨다 | E08-S01 · E09-S10 |
-| E08-S10 | 트리 스케일 + 관계 UI — 지연 로드(depth=1)·가상 스크롤·트리 필터, 검색 결과 뷰(관련도·related 구분·degraded 배너), S3 관계 패널·영향 미리보기 | [4.5 화면 명세](screens.md) §2.4(REQ-WEB-041~044) | WHEN 트리 노드 200개 초과 프로젝트를 열면, THE SYSTEM SHALL 최초 페인트에 전체 트리 로드 없이 렌더한다<br>WHEN 검토 요청을 누르면, THE SYSTEM SHALL 역참조·파생 Task 영향 미리보기를 표시한다 | E08-S04 · E09-S12 |
+| E08-S10 | 트리 스케일 + 관계 UI — 가상 스크롤·트리 필터(2026-09-24 정정 — "지연 로드(depth=1)" 삭제: [4.5](screens.md) REQ-WEB-044 가 2026-08-29 에 걷었다), 검색 결과 뷰(관련도·related 구분·degraded 배너), S3 관계 패널·영향 미리보기 | [4.5 화면 명세](screens.md) §2.4(REQ-WEB-041~044) | WHEN 트리 노드 200개 초과 프로젝트를 열면, THE SYSTEM SHALL 최초 페인트가 전체 트리 렌더를 요구하지 않게 창 밖을 그리지 않는다<br>WHEN 검토 요청을 누르면, THE SYSTEM SHALL 역참조·파생 Task 영향 미리보기를 표시한다 | E08-S04 · E09-S12 |
 
 ### 3.2 E09 — 스펙 워크플로우·승인 게이트
 
