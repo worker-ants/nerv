@@ -809,6 +809,28 @@ export const ko = {
   'shell.toast.open': '열기',
   'shell.toast.more': '외 {n}건',
   'shell.toast.dismiss_all': '모두 닫기',
+  // 불러오는 중·실패·없음을 비어 있음과 가른다(REQ-WEB-198 · 199). 읽기의 실패는 인라인
+  // 카드가 말하고, 없는 것은 무엇이 없는지와 갈 곳을 말한다.
+  'state.load_failed': '불러오지 못했습니다.',
+  'state.render_failed': '화면을 그리다 멈췄습니다.',
+  'state.not_found': '이 주소에는 화면이 없습니다.',
+  'state.not_found_path': '연 주소: {path}',
+  'state.go_home': '홈으로',
+  'state.back_to_list': '← 목록으로',
+  'state.project_not_found': '프로젝트를 찾을 수 없습니다 — {slug}',
+  'state.project_not_found_hint':
+    '지금 조직에는 이 프로젝트가 없습니다. 주소가 맞다면 프로젝트가 있는 조직에서 여세요.',
+  'state.project_in_org': '{org} 에서 열기',
+  'state.not_member': '이 프로젝트의 멤버가 아닙니다 — {slug}',
+  'state.not_member_hint': '조직 admin 에게 멤버로 넣어 달라고 요청하세요.',
+  'state.spec_not_found': '문서를 찾을 수 없습니다 — {key}',
+  'state.task_not_found': '작업을 찾을 수 없습니다 — {key}',
+  'state.session_not_found': '세션을 찾을 수 없습니다.',
+  'state.not_found_item_hint': '키를 확인하거나 목록에서 찾으세요.',
+  'home.greeting_failed': '{name}님, 받은 요청을 불러오지 못했습니다',
+  'settings.gates.loading_locked': '정책을 불러온 뒤에 저장할 수 있습니다',
+  'spec.versions.more': '이전 버전 {n}개 더 보기',
+  'spec.versions.less': '최근 {n}개만 보기',
   // ── 제품 매뉴얼 (screens.md §2.10) ─────────────────────────────────────────
   // 장 **제목**만 여기 있다 — 사이드바·도움말 메뉴·문서 머리 세 곳이 같은 이름을 불러야
   // 하기 때문이다. 본문은 apps/web/src/content/manual/<로케일>/<장>.md 가 정본이다.

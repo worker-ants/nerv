@@ -12,12 +12,14 @@ import {
 } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { AppShell } from '../components/app-shell.js';
+import { NotFoundPage } from '../components/route-states.js';
 import { NervApiError } from '../lib/api.js';
 import { useApiError } from '../lib/api-errors.js';
 import { setMutationErrorHandler } from '../lib/query-client.js';
 import { useMe } from '../lib/queries.js';
 
-export const Route = createRootRoute({ component: RootComponent });
+// 없는 주소는 **셸 안에서** 말한다 — 라이브러리 기본값은 영문 한 줄이었다(REQ-WEB-199)
+export const Route = createRootRoute({ component: RootComponent, notFoundComponent: NotFoundPage });
 
 /** 셸을 두르지 않는 경로 — 로그인 전에는 헤더·사이드바가 의미를 갖지 않는다. */
 const BARE_ROUTES = new Set(['/login', '/signup']);

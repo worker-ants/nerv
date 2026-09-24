@@ -151,6 +151,11 @@ export function AppShell({
   const shellProject = useProject(projectSlug ?? '');
   const activeSessions = Number(shellProject.data?.['active_sessions'] ?? 0);
   const openCritical = Number(shellProject.data?.['open_critical_findings'] ?? 0);
+  // **열 수 없는 프로젝트에는 탭과 트리를 세우지 않는다**(REQ-WEB-199). 없는 프로젝트·멤버가
+  // 아닌 프로젝트에 탭 다섯과 빈 트리를 세우면 그 화면이 방금 만든 빈 프로젝트처럼 읽힌다 —
+  // 본문은 무엇이 틀렸는지 말하고(ProjectShell), 사이드바는 비킨다.
+  const projectBroken = shellProject.isError && shellProject.data === undefined;
+  const sidebarProject = projectBroken ? undefined : projectSlug;
   const { state, offline } = useRealtime();
   const me = useMe();
   const inbox = useInbox();
@@ -729,7 +734,7 @@ export function AppShell({
             'flex-col overflow-hidden border-border px-2 py-3',
             'fixed top-header right-auto bottom-0 left-0 z-40 w-[17.5rem] max-w-[86vw] border-r bg-bg shadow-popover',
             drawerOpen ? 'flex' : 'hidden',
-            projectSlug === undefined
+            sidebarProject === undefined
               ? // 프로젝트 밖(홈·받은 요청·설정)에서는 넓은 화면에 사이드바가 없다.
                 // 좁은 화면의 서랍은 그때도 남는다 — 조직과 도움말이 거기 있다.
                 'md:hidden'
@@ -776,7 +781,7 @@ export function AppShell({
             </div>
           )}
 
-          {projectSlug !== undefined && (
+          {sidebarProject !== undefined && (
             <>
               <div className="px-2 pb-2.5">
                 <p className={RAIL_LABEL}>{t('common.project')}</p>
@@ -786,19 +791,19 @@ export function AppShell({
                     aria-hidden="true"
                     className="inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-status-done text-[9px] font-bold text-white uppercase"
                   >
-                    {projectSlug.slice(0, 1)}
+                    {sidebarProject.slice(0, 1)}
                   </span>
                   {/* 헤더와 **같은 글자**로 — 사이드바는 slug, 헤더는 이름이라 같은 프로젝트가 두
                       이름으로 불렸다(REQ-WEB-193) */}
                   <span className="truncate text-base font-semibold tracking-[-0.01em]">
-                    {String(currentProject?.['name'] ?? projectSlug)}
+                    {String(currentProject?.['name'] ?? sidebarProject)}
                   </span>
                 </p>
               </div>
               <nav className="mt-3 flex flex-col gap-0.5">
                 <Link
                   to="/p/$proj"
-                  params={{ proj: projectSlug }}
+                  params={{ proj: sidebarProject }}
                   className={NAV_ITEM}
                   activeProps={{ className: NAV_ACTIVE }}
                   activeOptions={{ exact: true }}
@@ -810,7 +815,7 @@ export function AppShell({
                 </Link>
                 <Link
                   to="/p/$proj/specs"
-                  params={{ proj: projectSlug }}
+                  params={{ proj: sidebarProject }}
                   className={NAV_ITEM}
                   activeProps={{ className: NAV_ACTIVE }}
                 >
@@ -821,7 +826,7 @@ export function AppShell({
                 </Link>
                 <Link
                   to="/p/$proj/tasks"
-                  params={{ proj: projectSlug }}
+                  params={{ proj: sidebarProject }}
                   className={NAV_ITEM}
                   activeProps={{ className: NAV_ACTIVE }}
                 >
@@ -832,7 +837,7 @@ export function AppShell({
                 </Link>
                 <Link
                   to="/p/$proj/sessions"
-                  params={{ proj: projectSlug }}
+                  params={{ proj: sidebarProject }}
                   className={NAV_ITEM}
                   activeProps={{ className: NAV_ACTIVE }}
                 >
@@ -849,7 +854,7 @@ export function AppShell({
                   아는 숫자면 그 화면을 열기 전에는 아무도 모른다 */}
                 <Link
                   to="/p/$proj/reviews"
-                  params={{ proj: projectSlug }}
+                  params={{ proj: sidebarProject }}
                   className={NAV_ITEM}
                   activeProps={{ className: NAV_ACTIVE }}
                 >
@@ -869,7 +874,7 @@ export function AppShell({
                 늘 있어야 하는 것이 사라지면 그건 네비게이션이 아니다. */}
               <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-border pt-3">
                 <SpecTree
-                  projectSlug={projectSlug}
+                  projectSlug={sidebarProject}
                   projectId={asProjectId(shellProject.data?.['id'])}
                   variant="rail"
                   activeKey={activeSpecKey}

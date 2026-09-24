@@ -46,7 +46,16 @@ import { relativeTime } from '../../lib/format.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
-import { Avatar, Button, Input, Mono, Textarea } from '../../components/ui/primitives.js';
+import {
+  Avatar,
+  Button,
+  Input,
+  Mono,
+  PageBody,
+  Skeleton,
+  Textarea,
+} from '../../components/ui/primitives.js';
+import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
 
@@ -76,7 +85,7 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({
       ? { baseline: search['baseline'] }
       : {}),
   }),
-  component: SpecDetail,
+  component: SpecDetailGate,
 });
 
 /** `v2..v3` — 양쪽 다 있어야 한 쌍이다 */
@@ -111,6 +120,50 @@ function parseDiff(value: string | undefined): { from: number; to: number } | nu
   const a = Number(m[1]);
   const b = Number(m[2]);
   return { from: Math.min(a, b), to: Math.max(a, b) };
+}
+
+/**
+ * **받아 오기 전에는 문서를 그리지 않는다**(REQ-WEB-198 · 199).
+ *
+ * 예전에는 받아 오기 전에도 문서 틀을 그렸다 — 제목 자리에 키가 서고, 상태 배지는 기본값
+ * `draft` 로 "초안" 이라 말했다. 없는 키로 들어오면 그 모양이 그대로 남아 **빈 초안**처럼 보였다.
+ *
+ * 문지기를 따로 두는 이유: 본문 쪽은 레일 탭 줄의 폭을 재는 effect 들이 요소가 마운트된 뒤
+ * 한 번 붙는다. 같은 컴포넌트 안에서 일찍 돌려보내면 요소가 늦게 서도 그 effect 는 다시 돌지
+ * 않는다 — 문서가 도착하면 **새로 마운트**되게 가른다.
+ */
+/** 버전 탭이 먼저 보이는 수 — 나머지는 "이전 버전 N개 더 보기" 뒤에 있다 */
+const VERSION_CAP = 8;
+
+function SpecDetailGate(): React.JSX.Element {
+  const t = useT();
+  const { proj, spec } = Route.useParams();
+  const detail = useSpec(proj, spec, Route.useSearch().baseline);
+  if (detail.data !== undefined) return <SpecDetail />;
+  return (
+    <PageBody>
+      {detail.isError ? (
+        isNotFound(detail.error) ? (
+          <NotFoundState
+            title={t('state.spec_not_found', { key: spec })}
+            hint={t('state.not_found_item_hint')}
+            action={
+              <Link to="/p/$proj/specs" params={{ proj }} className="text-sm text-link">
+                {t('state.back_to_list')}
+              </Link>
+            }
+          />
+        ) : (
+          <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />
+        )
+      ) : (
+        <div data-testid="spec-skeleton" className="flex flex-col gap-3">
+          <div className="h-9 w-1/2 animate-pulse rounded-nerv bg-bg-sunken" />
+          <Skeleton rows={6} />
+        </div>
+      )}
+    </PageBody>
+  );
 }
 
 function SpecDetail(): React.JSX.Element {
@@ -178,6 +231,10 @@ function SpecDetail(): React.JSX.Element {
   // 관계 안의 두 방향은 **다른 질문**이다: 역참조는 "고치면 무엇이 흔들리나",
   // 레퍼런스는 "이 문서가 무엇에 기대나". 섞어 놓으면 둘 다 훑어야 답이 나온다.
   const [relTab, setRelTab] = useState<RelationDirection>('all');
+  // **잘랐으면 잘랐다고 말한다**(REQ-WEB-199). 버전 탭은 수를 전부 세면서 목록은 최신 8개에서
+  // 말없이 잘랐다 — 아홉째부터는 [열기]를 누를 자리가 없었다. 보는 버전이 잘린 구간에 있으면
+  // 펼친 채로 시작한다.
+  const [allVersions, setAllVersions] = useState(false);
 
   // **스펙이 바뀌면 이 화면의 상태는 전부 남의 것이 된다.** 라우트 파라미터만 바뀌면
   // 리액트는 같은 컴포넌트를 재사용하므로 열어 둔 것이 그대로 살아남는다 — 앞 문서의
@@ -294,6 +351,13 @@ function SpecDetail(): React.JSX.Element {
   // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다.
   // **합집합으로 본다**: 멤버십 한 행만 보면 조직 단위 admin 이 어느 프로젝트에서도
   // 역할이 없는 사람이 되어, 서버가 허용할 편집을 화면이 막는다(실측 2026-08-24).
+  const versionRows = rows(versions.data);
+  const olderInView = versionRows.slice(VERSION_CAP).some((v) => {
+    const no = Number(v['version_no']);
+    return no === viewing || no === compare?.to || no === compare?.from;
+  });
+  const showAllVersions = allVersions || olderInView;
+  const versionsShown = showAllVersions ? versionRows.length : VERSION_CAP;
   const canEditMeta = rolesInProject(me.data, orgSlug, proj).some(
     (r) => r === 'planner' || r === 'admin',
   );
@@ -820,85 +884,94 @@ function SpecDetail(): React.JSX.Element {
 
           {railTab === 'versions' && (
             <ul className="flex flex-col gap-1 px-2">
-              {rows(versions.data)
-                .slice(0, 8)
-                .map((v) => (
-                  <li
-                    key={String(v['id'])}
-                    className={cn(
-                      'rounded-nerv-sm py-0.5',
-                      // 지금 보고 있는 버전을 표시한다 — 목록과 본문이 다른 말을 하지 않게
-                      (viewing === Number(v['version_no']) ||
-                        compare?.to === Number(v['version_no'])) &&
-                        'bg-bg-sunken',
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-8 shrink-0 font-mono text-xs text-text-faint">
-                        v{String(v['version_no'])}
-                      </span>
-                      <StatusBadge
-                        token={
-                          (SPEC_VERSION_TOKEN[
-                            String(v['status']) as keyof typeof SPEC_VERSION_TOKEN
-                          ] ?? 'idle') as StatusToken
-                        }
-                        label={t(statusLabelKey('spec', String(v['status'])))}
-                      />
-                      {/* **바뀐 시각**이지 만든 시각이 아니다 — draft 는 같은 행을
+              {versionRows.slice(0, versionsShown).map((v) => (
+                <li
+                  key={String(v['id'])}
+                  className={cn(
+                    'rounded-nerv-sm py-0.5',
+                    // 지금 보고 있는 버전을 표시한다 — 목록과 본문이 다른 말을 하지 않게
+                    (viewing === Number(v['version_no']) ||
+                      compare?.to === Number(v['version_no'])) &&
+                      'bg-bg-sunken',
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 shrink-0 font-mono text-xs text-text-faint">
+                      v{String(v['version_no'])}
+                    </span>
+                    <StatusBadge
+                      token={
+                        (SPEC_VERSION_TOKEN[
+                          String(v['status']) as keyof typeof SPEC_VERSION_TOKEN
+                        ] ?? 'idle') as StatusToken
+                      }
+                      label={t(statusLabelKey('spec', String(v['status'])))}
+                    />
+                    {/* **바뀐 시각**이지 만든 시각이 아니다 — draft 는 같은 행을
                           덮어쓰므로 created_at 을 적으면 방금 고친 문서가 "2시간 전"이 된다 */}
-                      <span className="ml-auto shrink-0 text-2xs text-text-faint">
-                        {relativeTime(t, changedAt(v))}
-                      </span>
-                    </div>
-                    {/* **누를 수 있어야 한다**(2026-09-01 — 사람 요청 · REQ-WEB-121·122).
+                    <span className="ml-auto shrink-0 text-2xs text-text-faint">
+                      {relativeTime(t, changedAt(v))}
+                    </span>
+                  </div>
+                  {/* **누를 수 있어야 한다**(2026-09-01 — 사람 요청 · REQ-WEB-121·122).
                         서버는 처음부터 diff 를 줄 수 있었는데(EP-SPEC-06) 이 목록이
                         글자였을 뿐이라, "무엇이 바뀌었나" 를 화면에서 물을 수 없었다.
                         누르면 **직전과의 차이**(가장 흔한 물음), 옆이 그 버전 전문이다. */}
-                    <div className="mt-0.5 ml-10 flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        data-testid={`diff-open-${String(v['version_no'])}`}
-                        disabled={Number(v['version_no']) <= 1}
-                        title={
-                          Number(v['version_no']) <= 1 ? t('spec.diff.no_previous') : undefined
-                        }
-                        onClick={() =>
-                          void navigate({
-                            to: '.',
-                            search: {
-                              diff: `v${String(Number(v['version_no']) - 1)}..v${String(v['version_no'])}`,
-                            },
-                          })
-                        }
-                        className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-40"
-                      >
-                        {t('spec.diff.open')}
-                      </button>
-                      <button
-                        type="button"
-                        data-testid={`version-open-${String(v['version_no'])}`}
-                        onClick={() =>
-                          void navigate({ to: '.', search: { v: Number(v['version_no']) } })
-                        }
-                        className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
-                      >
-                        {t('spec.version.open')}
-                      </button>
-                    </div>
-                    {/* **무엇을 왜 바꿨나** — 이 줄이 없으면 목록은 번호와 배지뿐이고,
+                  <div className="mt-0.5 ml-10 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      data-testid={`diff-open-${String(v['version_no'])}`}
+                      disabled={Number(v['version_no']) <= 1}
+                      title={Number(v['version_no']) <= 1 ? t('spec.diff.no_previous') : undefined}
+                      onClick={() =>
+                        void navigate({
+                          to: '.',
+                          search: {
+                            diff: `v${String(Number(v['version_no']) - 1)}..v${String(v['version_no'])}`,
+                          },
+                        })
+                      }
+                      className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-40"
+                    >
+                      {t('spec.diff.open')}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`version-open-${String(v['version_no'])}`}
+                      onClick={() =>
+                        void navigate({ to: '.', search: { v: Number(v['version_no']) } })
+                      }
+                      className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
+                    >
+                      {t('spec.version.open')}
+                    </button>
+                  </div>
+                  {/* **무엇을 왜 바꿨나** — 이 줄이 없으면 목록은 번호와 배지뿐이고,
                         draft 는 덮어써지므로 되짚을 diff 도 없다(api.md §2.2) */}
-                    {typeof v['change_summary_md'] === 'string' &&
-                      v['change_summary_md'] !== '' && (
-                        <p
-                          data-testid="version-summary"
-                          className="mt-0.5 ml-10 line-clamp-2 text-xs text-text-mute"
-                        >
-                          {v['change_summary_md']}
-                        </p>
-                      )}
-                  </li>
-                ))}
+                  {typeof v['change_summary_md'] === 'string' && v['change_summary_md'] !== '' && (
+                    <p
+                      data-testid="version-summary"
+                      className="mt-0.5 ml-10 line-clamp-2 text-xs text-text-mute"
+                    >
+                      {v['change_summary_md']}
+                    </p>
+                  )}
+                </li>
+              ))}
+              {versionRows.length > VERSION_CAP && (
+                <li>
+                  <button
+                    type="button"
+                    data-testid="versions-more"
+                    onClick={() => setAllVersions(!showAllVersions)}
+                    className="py-1 text-left text-xs text-text-mute hover:text-text"
+                  >
+                    {showAllVersions
+                      ? t('spec.versions.less', { n: VERSION_CAP })
+                      : t('spec.versions.more', { n: versionRows.length - VERSION_CAP })}
+                  </button>
+                </li>
+              )}
             </ul>
           )}
 

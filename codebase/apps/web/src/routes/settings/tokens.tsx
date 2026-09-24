@@ -43,11 +43,13 @@ import {
   PageHeader,
   SectionTitle,
   Select,
+  Skeleton,
   Table,
   Td,
   Th,
   Tr,
 } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { ScopeBadge } from '../../components/scope-badge.js';
 
 export const Route = createFileRoute('/settings/tokens')({ component: TokensTab });
@@ -300,7 +302,14 @@ function TokensTab(): React.JSX.Element {
             {t('settings.tokens.show_revoked')}
           </label>
         </div>
-        {mine.length === 0 ? (
+        {/* 받아 오기 전에는 "토큰이 없습니다" 가 아니다(REQ-WEB-198) */}
+        {tokens.data === undefined ? (
+          failedWithoutData(tokens) ? (
+            <ErrorState error={tokens.error} onRetry={() => void tokens.refetch()} />
+          ) : (
+            <Skeleton rows={2} />
+          )
+        ) : mine.length === 0 ? (
           <EmptyState
             icon="🔑"
             title={t('settings.tokens.empty')}

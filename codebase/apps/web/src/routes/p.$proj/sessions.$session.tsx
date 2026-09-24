@@ -21,7 +21,14 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
 import { rows, useProject, useSessionDetail } from '../../lib/queries.js';
 import { useCanIntervene } from '../../lib/scope.js';
-import { Card, PageBody, PageHeader, SectionTitle } from '../../components/ui/primitives.js';
+import {
+  Card,
+  PageBody,
+  PageHeader,
+  SectionTitle,
+  Skeleton,
+} from '../../components/ui/primitives.js';
+import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
 
@@ -39,6 +46,37 @@ function SessionDetail(): React.JSX.Element {
   const state = String(data['state'] ?? '');
   const canIntervene = useCanIntervene(proj, data['user_id']);
   const usage = (data['token_usage'] ?? {}) as Record<string, unknown>;
+
+  // 받아 오기 전에는 세션을 그리지 않는다 — 빈 머리는 "없다" 와 "아직" 을 가르지 못한다(REQ-WEB-198 · 199)
+  if (detail.data === undefined) {
+    return (
+      <PageBody>
+        <Link
+          to="/p/$proj/sessions"
+          params={{ proj }}
+          className="mb-2 inline-block text-xs text-text-mute hover:text-text"
+        >
+          {t('session.back_to_board')}
+        </Link>
+        {detail.isError ? (
+          isNotFound(detail.error) ? (
+            <NotFoundState
+              title={t('state.session_not_found')}
+              action={
+                <Link to="/p/$proj/sessions" params={{ proj }} className="text-sm text-link">
+                  {t('state.back_to_list')}
+                </Link>
+              }
+            />
+          ) : (
+            <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />
+          )
+        ) : (
+          <Skeleton rows={4} />
+        )}
+      </PageBody>
+    );
+  }
 
   return (
     <PageBody>

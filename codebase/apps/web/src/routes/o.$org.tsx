@@ -14,17 +14,18 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useT } from '../lib/i18n.js';
 import { useMe } from '../lib/queries.js';
 import { useRealtime } from '../lib/realtime.js';
 import { rememberOrg } from '../lib/scope.js';
 
-/** 앱 안의 경로만 — `//evil.example` 은 프로토콜 상대 주소라 밖으로 나간다 */
+/**
+ * 앱 안의 경로만 — `//evil.example` 은 프로토콜 상대 주소라 밖으로 나간다. 브라우저는 `\` 를
+ * `/` 로 읽으므로 `/\evil.example` 도 같다(착지를 히스토리에 그대로 넘기므로 여기서 막는다).
+ */
 export function safeNext(value: unknown): string | undefined {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
-    ? value
-    : undefined;
+  return typeof value === 'string' && /^\/(?![/\\])/.test(value) ? value : undefined;
 }
 
 export const Route = createFileRoute('/o/$org')({
@@ -41,6 +42,7 @@ function OrgSwitch(): null {
   const t = useT();
   const me = useMe();
   const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   // 개발 모드의 이중 effect 가 토스트를 두 번 띄우지 않게
@@ -58,8 +60,15 @@ function OrgSwitch(): null {
     }
     // 속하지 않은 조직이면 바꾸지 않는다 — 기록만 하면 헤더는 첫 조직으로 떨어지면서
     // "바꿨다" 고 말하게 된다
-    void navigate({ to: (membership === undefined ? '/' : (next ?? '/')) as '/', replace: true });
-  }, [me.data, org, next, navigate, queryClient, pushToast, t]);
+    // **`next` 는 경로만이 아니다** — 알림이 짚은 뷰 상태(`?rail=comments` · `?diff=`)까지 싣는다
+    // (REQ-WEB-199). 라우터의 `to` 는 경로 자리라 쿼리를 함께 주면 경로의 일부로 읽히므로,
+    // 주소 전체를 히스토리에 그대로 넘긴다.
+    if (membership !== undefined && next !== undefined) {
+      router.history.replace(next);
+      return;
+    }
+    void navigate({ to: '/', replace: true });
+  }, [me.data, org, next, navigate, router, queryClient, pushToast, t]);
 
   return null;
 }

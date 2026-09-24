@@ -1,6 +1,7 @@
 // TanStack Query 클라이언트.
 // 진실은 DB 다(D-14) — 캐시는 화면 반응 속도를 위한 것이고, 이벤트가 오면 무효화로 다시 읽는다.
 import { MutationCache, QueryClient } from '@tanstack/react-query';
+import { NervApiError } from './api.js';
 
 /**
  * 실패한 쓰기의 **기본 처리기**(REQ-WEB-196) — 앱 셸이 `useApiError()` 를 여기 걸어 둔다.
@@ -46,7 +47,11 @@ export function createQueryClient(): QueryClient {
         // 실시간 갱신은 WS 이벤트 → invalidate 경로가 담당한다. 폴링은 WS 끊김 시의
         // 폴백일 뿐이며 그 전환은 앱 셸의 연결 상태 배너가 관리한다(REQ-WEB-002).
         refetchOnWindowFocus: false,
-        retry: 1,
+        // **서버가 답한 거절은 다시 묻지 않는다**(REQ-WEB-199). 없는 문서·멤버 아님은 몇 번을
+        // 물어도 같은 답이고, 다시 묻는 동안 화면은 골격을 보이며 "없다" 를 늦게 말한다.
+        // 닿지 못한 것(네트워크)과 서버 쪽 실패(5xx)만 한 번 더 묻는다.
+        retry: (failureCount, error) =>
+          failureCount < 1 && !(error instanceof NervApiError && error.status < 500),
         staleTime: 30_000,
       },
     },
