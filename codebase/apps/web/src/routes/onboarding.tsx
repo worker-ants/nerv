@@ -4,17 +4,14 @@
 // 가야 하는지 말해주지 않으면 사람은 첫 화면에서 멈춘다.
 
 import { useT } from '../lib/i18n.js';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import type { MessageKey } from '@nerv/schema';
 import { useMe } from '../lib/queries.js';
-import { fetchMe, landingFor, primaryMembership, rolesInProject } from '../lib/session.js';
-import { apiFetch } from '../lib/api.js';
-import { describeApiError } from '../lib/api-errors.js';
-import { queryKeys } from '../lib/query-keys.js';
-import { Button, Card, Field, Input, PageBody, PageHeader } from '../components/ui/primitives.js';
+import { canManageScope, landingFor, primaryMembership, rolesInProject } from '../lib/session.js';
+import { Card, PageBody, PageHeader } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
+import { StartChecklist } from '../components/start-checklist.js';
+import { CreateOrgForm } from '../features/org/create-org-form.js';
 
 export const Route = createFileRoute('/onboarding')({ component: OnboardingScreen });
 
@@ -39,6 +36,9 @@ function OnboardingScreen(): React.JSX.Element {
     membership === null
       ? []
       : rolesInProject(me.data, membership.org_slug, membership.project_slug);
+  // 조직을 막 만든 사람(조직 admin)에게는 ③ 이 **시작 체크리스트**다(REQ-WEB-205) — 프로젝트·사람·
+  // 에이전트의 세 걸음. 초대로 들어온 사람에게는 그 셋이 자기 일이 아니다
+  const isOrgAdmin = membership !== null && canManageScope(me.data, membership.org_slug, null);
 
   return (
     <PageBody>
@@ -67,6 +67,7 @@ function OnboardingScreen(): React.JSX.Element {
               {t(ROLE_NOTE_KEY[roles[0] ?? ''] ?? 'onboarding.role.unknown')}
             </p>
           </Card>
+          {isOrgAdmin && <StartChecklist orgSlug={membership.org_slug} dismissible={false} />}
           <Card>
             <h2 className="mb-1.5 font-medium">{t('onboarding.step3')}</h2>
             <Link
@@ -79,12 +80,15 @@ function OnboardingScreen(): React.JSX.Element {
                 ? t('onboarding.goto_tasks')
                 : t('onboarding.goto_inbox')}
             </Link>
-            <p className="mt-2 text-sm text-text-mute">
-              {t('onboarding.connect_agent')}{' '}
-              <Link to="/settings/tokens" className="text-link hover:underline">
-                {t('onboarding.token_link')}
-              </Link>
-            </p>
+            {/* 조직 admin 은 위 체크리스트가 같은 길을 말한다 — 한 화면에 두 번 적지 않는다 */}
+            {!isOrgAdmin && (
+              <p className="mt-2 text-sm text-text-mute">
+                {t('onboarding.connect_agent')}{' '}
+                <Link to="/settings/tokens" className="text-link hover:underline">
+                  {t('onboarding.token_link')}
+                </Link>
+              </p>
+            )}
           </Card>
         </div>
       )}
@@ -104,84 +108,14 @@ function OnboardingScreen(): React.JSX.Element {
  */
 function CreateOrgCard({ email }: { email: string }): React.JSX.Element {
   const t = useT();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  // **이름에서 slug 를 만들어 주되 고칠 수 있게 둔다** — 설정 탭의 프로젝트 폼과 같은
-  // 규칙이다. 한글만 적으면 ASCII 규칙에서 빈 값이 나오는데, slug 는 주소와 API 경로의
-  // 축(D-09)이라 기계가 뭉갠 값을 조용히 확정해 버리면 나중에 되돌릴 수 없다.
-  const onName = (value: string): void => {
-    setName(value);
-    setSlug(
-      value
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, ''),
-    );
-  };
-
-  const create = useMutation({
-    mutationFn: () =>
-      apiFetch('/orgs', { method: 'POST', body: { slug: slug.trim(), name: name.trim() } }),
-    onSuccess: async () => {
-      // me 를 다시 읽어야 헤더의 조직 select 가 방금 만든 조직을 안다
-      queryClient.setQueryData(queryKeys.me(), await fetchMe());
-      void navigate({ to: '/' });
-    },
-    // 폼 아래에서 말한다 — 문장은 표(§1.5)를 거친다(REQ-WEB-196)
-    onError: (e: Error) => setError(describeApiError(t, e).message),
-  });
-
   return (
     <Card>
       <h2 className="mb-1.5 font-medium">{t('onboarding.step1')}</h2>
       <p className="text-sm text-text-mute">{t('onboarding.step1_body')}</p>
-      <form
-        className="mt-3 flex flex-wrap items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setError(null);
-          create.mutate();
-        }}
-      >
-        <div className="min-w-56 flex-1">
-          <Field label={t('onboarding.step1_org_name')}>
-            <Input
-              required
-              data-testid="org-name"
-              value={name}
-              onChange={(e) => onName(e.target.value)}
-              className="h-9"
-            />
-          </Field>
-        </div>
-        <div className="min-w-40 flex-1">
-          <Field
-            label={t('settings.workspace.project_slug')}
-            hint={t('onboarding.step1_slug_hint')}
-          >
-            <Input
-              required
-              data-testid="org-slug"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              className="h-9 font-mono"
-            />
-          </Field>
-        </div>
-        <Button type="submit" variant="primary" disabled={create.isPending} className="h-9">
-          {create.isPending ? t('onboarding.step1_creating') : t('onboarding.step1_create')}
-        </Button>
-      </form>
-      {error !== null && (
-        <p role="alert" className="mt-2 text-sm text-status-danger">
-          ⚠ {error}
-        </p>
-      )}
+      {/* **만든 뒤 떠나지 않는다**(2026-09-24 · REQ-WEB-205). 예전에는 `/` 로 보내 ②역할·③다음 행동을
+          아무도 보지 못했다 — 정상 흐름에서 그 카드에 닿는 사람이 없었다. me 가 새로 읽히면 이 화면이
+          스스로 ②③ 으로 바뀐다 */}
+      <CreateOrgForm onCreated={() => undefined} />
       <p className="mt-3 text-xs text-text-faint">{t('onboarding.step1_wait')}</p>
       <p className="mt-1 text-xs text-text-faint">
         {t('onboarding.step1_email')}{' '}

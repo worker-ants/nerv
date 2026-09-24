@@ -145,6 +145,8 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.MEMBER_ADDED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.MEMBER_UPDATED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.MEMBER_REMOVED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  // 초대 거절 — 그 프로젝트의 활동에 선다. 부른 사람의 초대 목록은 알림을 누르면 다시 읽힌다
+  [E.INVITATION_DECLINED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.TOKEN_CREATED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
   [E.TOKEN_REVOKED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
   [E.SPEC_ATTACHMENT_ADDED]: (e) => [queryKeys.projectSpecTree(e.project_id)],

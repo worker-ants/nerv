@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.55 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.56 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.56 변경(2026-09-24 — 초대를 거절할 수 없었다, **사람 결정**): **REQ-API-178 신설 · EP-INV-02·04 응답 칸 · EP-INV-07·07b 신설 · §3 이벤트 한 줄.** 원치 않는 초대는 거절할 길이 없어 만료(7일)까지 받은 사람의 홈과 알림 맨 위에 서 있었다 — **초대받은 계정만** 거절한다(수락과 같은 두 입구·같은 자물쇠). 거절은 회수와 누가 끝냈는가가 달라 열을 따로 둔다(`declined_at` · [4.3](database.md) 마이그레이션 0032) — 대기 중 초대의 부분 unique 에서도 빠지므로 다시 부를 수 있다. 프로젝트 초대면 `invitation.declined` 가 **부른 사람에게만** standard 알림으로 간다(조직 전체 초대는 `event.project_id` 가 없어 이벤트를 남기지 못한다 — 초대 목록의 상태가 기록이다). 링크 미리보기(EP-INV-04)는 로그인한 채 열면 `matches_me` 와 `expires_at` 을 싣는다 — 가린 이메일만으로는 화면이 계정이 맞는지 판정할 수 없어, 다른 계정으로 연 사람이 [참여하기]를 누른 뒤에야 오류를 봤다([4.5](screens.md) REQ-WEB-206).
 >
 > v1.55 변경(2026-09-24 — 받은 요청을 믿고 누를 수 없었다, UI/UX 검토 P05): **REQ-API-176·177 신설 · EP-APR-01·02 · EP-NTF-01 · EP-SPEC-10 응답 칸.** ① 결재 요청·질문은 받은 요청과 알림 두 곳에서 세는데, 처리해도 알림은 그대로였다 — 결정·답변·취소가 **같은 트랜잭션에서** 그 요청의 알림을 모든 수신자에게서 읽음으로 바꾸고, 파생이 늦어 결정이 먼저면 알림을 읽은 채로 만든다(이미 처리된 요청에 남아 있던 알림은 [4.3](database.md) 마이그레이션 0031 이 닫는다). 알림 목록은 그 요청이 어떻게 누구에게 닫혔는지를 싣는다. ② 카드가 무엇을·누가·왜 를 싣지 않았다(플랜·발견 카드는 대상조차 없었다) — 목록이 요청 세션(기계·에이전트·기다림)·스펙의 변경 요약과 게이트 티어·플랜의 작업·발견의 제목과 심각도를 싣는다. 스펙 제출의 `web_url` 은 받은 요청의 **그 카드**를 가리키고(`/inbox?focus=`), 다른 `web_url` 처럼 `NERV_WEB_URL` 이 있으면 절대 주소다.
 >
@@ -1316,12 +1318,14 @@ basis_superseded: false
 | ID | 메서드·경로 | 권한 | 요청 | 응답 |
 | --- | --- | --- | --- | --- |
 | EP-INV-01 | `POST /api/v1/orgs/{org}/invitations` | 범위의 admin(조직 전체는 **조직 admin** — §2.1b) | `{email, role, project?}` | `{id, email, role, token, expires_in_days, queued}` — **토큰 원문은 여기서 한 번만**. `queued` 는 메일을 줄 세웠는지다 |
-| EP-INV-02 | `GET /api/v1/orgs/{org}/invitations` | admin — 전부는 **조직 admin**, 프로젝트 admin 은 자기 프로젝트의 초대만(§2.1b · REQ-API-173) | — | 초대 목록(`pending`·`accepted`·`revoked`·`expired`) |
+| EP-INV-02 | `GET /api/v1/orgs/{org}/invitations` | admin — 전부는 **조직 admin**, 프로젝트 admin 은 자기 프로젝트의 초대만(§2.1b · REQ-API-173) | — | 초대 목록(`pending`·`accepted`·`revoked`·`declined`·`expired` — `declined` 는 받은 사람이 거절한 것 · REQ-API-178) |
 | EP-INV-03 | `DELETE /api/v1/invitations/{id}` | 범위의 admin(조직 전체는 **조직 admin** — §2.1b) | — | `{ok:true}` — 회수(기록은 남는다) |
-| EP-INV-04 | `GET /api/v1/invitations/{token}` | **공개** | — | 조직·역할·상태 + `email_hint`(가려서) |
+| EP-INV-04 | `GET /api/v1/invitations/{token}` | **공개** | — | 조직·역할·상태·`expires_at` + `email_hint`(가려서) + `matches_me`(로그인한 채 열었을 때만 참·거짓, 아니면 `null` — 주소는 여전히 가린다 · REQ-API-178) |
 | EP-INV-05 | `POST /api/v1/invitations/{token}/accept` | 인증 | — | 멤버십 생성 |
 | EP-INV-05b | `POST /api/v1/me/invitations/{id}/accept` | 인증 | — | 앱 안의 카드에서 수락 — **이메일 대조는 링크 경로와 같다** |
 | EP-INV-06 | `GET /api/v1/me/invitations` | 인증 | — | 내게 온 대기 초대. 화면 셋(홈·온보딩·알림)이 같은 값을 쓴다 |
+| EP-INV-07 | `POST /api/v1/invitations/{token}/decline` | 인증 — **초대받은 계정만**(수락과 같은 이메일 대조) | — | `{ok:true, state:'declined'}` — 거절(지우지 않는다). 대기가 아니면 `NERV_PRECONDITION`(`kind` 가 그 상태), 다른 계정이면 `NERV_FORBIDDEN`(`email_mismatch`) · REQ-API-178 |
+| EP-INV-07b | `POST /api/v1/me/invitations/{id}/decline` | 인증 — 초대받은 계정만 | — | 앱 안의 카드에서 거절 — EP-INV-07 과 같은 판정 |
 
 **미리보기가 공개인 이유**: 로그인 전에도 "어느 조직이 무슨 역할로 부르는가"는 보여야 한다 — 모르는 것에 가입부터 하라고 요구할 수는 없다. 다만 **이메일은 가린다**(`j***@example.com`): 토큰을 주운 사람에게 초대받은 사람이 누구인지 알려 줄 이유가 없다.
 
@@ -1451,6 +1455,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | ★`notification.created` | 알림 파생(배지 카운트 갱신용) | `user:{id}` | P1 |
 | ★`project.created` · ★`project.updated` · ★`project.archived` · ★`project.restored` | 프로젝트 생성·설정 변경·보관·복원(2026-09-07 · REQ-API-151 — `updated` 는 바뀐 **키 목록**만 싣는다) | `project:{id}` | P1 |
 | ★`member.added` · ★`member.updated` · ★`member.removed` | 멤버십 변경 — `from_state`·`to_state` 가 역할이다(권한 상승이 보이는 자리 · 조직 단위 멤버십은 담기지 않는다) | `project:{id}` | P1 |
+| ★`invitation.declined` | 초대받은 사람이 거절했다 — **프로젝트 초대만**(조직 전체 초대는 `event.project_id` 가 없다). payload `invited_by_user_id`·`role` — 부른 사람에게만 standard 알림(REQ-API-178) | `project:{id}` | P1 |
 | ★`token.created` · ★`token.revoked` | PAT 발급·폐기 — **값은 남기지 않는다**(접두·권한·만료만) | `project:{id}` | P1 |
 | ★`spec.attachment_added` · ★`spec.attachment_removed` | 첨부 확정·삭제 — S3 는 자기에게 무엇이 올라왔는지 알려 주지 못한다 | `project:{id}` | P2 |
 | `finding.opened` · `finding.resolved` · `cr.opened` | 리뷰·CR(2026-08-23 구현 — `cr.opened` 만 Phase 2 로 남았다) | `project:{id}` | P2 |
@@ -1573,6 +1578,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-175 | WHEN 작업 목록(EP-TASK-01)이 줄마다 `delegation_complete` 를 실으면 THE SYSTEM SHALL 승격·`ready` 전이와 **같은 판정**으로 계산한다 — NULL · 공백 · 임포트 자리표시자(`import.delegation_missing` 의 모든 로케일 값)는 빈 것이다 |
 | REQ-API-176 | WHEN 결재가 결정되거나(EP-APR-03 · 일괄 포함) 질문이 답변·취소되면 THE SYSTEM SHALL 같은 트랜잭션에서 그 요청을 연 이벤트(`approval.requested`·`question.created`)의 알림을 **모든 수신자**에게서 읽음으로 바꾼다. WHEN 알림을 파생할 때 그 요청이 이미 닫혔으면 THE SYSTEM SHALL 알림을 읽은 상태로 만들고 개인 룸으로 방송하지 않는다. WHEN 알림 목록(EP-NTF-01)이 요청 알림을 돌려주면 THE SYSTEM SHALL 그 요청이 닫힌 방식(`resolution`)과 닫은 사람(`resolved_by`)을 싣는다 |
 | REQ-API-177 | WHEN 받은 요청 목록(EP-APR-01)을 돌려주면 THE SYSTEM SHALL 결재 카드마다 요청 세션의 기계·에이전트 종류와 그 세션이 결재를 기다리는지를, 스펙이면 변경 요약과 게이트 티어를, 플랜이면 그 작업의 키·제목을, 발견이면 그 발견의 id·제목·심각도를 싣는다. WHEN 결재 상세(EP-APR-02)를 돌려주면 THE SYSTEM SHALL 결정한 사람의 이름을 싣는다. WHEN 스펙 제출이 결재를 세우면 THE SYSTEM SHALL `web_url` 로 받은 요청의 그 카드(`/inbox?focus=<approval_id>`)를 주고, `NERV_WEB_URL` 이 있으면 절대 주소로 준다 |
+| REQ-API-178 | WHEN 초대받은 사람이 대기 중 초대를 거절하면(EP-INV-07·07b) THE SYSTEM SHALL 그 계정의 이메일이 초대와 같을 때만 받아 `declined_at` 을 남기고, 그 초대를 대기에서 빼 같은 사람을 다시 부를 수 있게 한다. WHEN 거절한 초대가 프로젝트 초대이면 THE SYSTEM SHALL `invitation.declined` 이벤트를 남기고 부른 사람에게만 알림을 보낸다. WHEN 로그인한 채 링크 미리보기(EP-INV-04)를 부르면 THE SYSTEM SHALL 그 초대가 이 계정의 것인지(`matches_me`)와 만료 시각을 싣되 초대받은 주소는 가린다 |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |

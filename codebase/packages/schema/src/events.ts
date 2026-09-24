@@ -120,6 +120,12 @@ export const NERV_EVENT = {
   /** 역할이 바뀌었다 — `from_state`·`to_state` 가 그 역할이다(권한 상승이 여기 보인다) */
   MEMBER_UPDATED: 'member.updated',
   MEMBER_REMOVED: 'member.removed',
+  /**
+   * 초대받은 사람이 거절했다(2026-09-24 · 사람 결정 · REQ-API-178). **프로젝트 초대만** 남는다 —
+   * `event.project_id` 가 NOT NULL 이라 조직 전체 초대는 이 표에 담기지 않는다(위 머리글). 그쪽은
+   * 초대 목록의 상태(`declined`)가 기록이다. 초대한 사람에게 알림이 간다
+   */
+  INVITATION_DECLINED: 'invitation.declined',
   /** 토큰 발급 — 값은 남기지 않는다. 접두·권한·만료만이 감사가 묻는 것이다 */
   TOKEN_CREATED: 'token.created',
   TOKEN_REVOKED: 'token.revoked',

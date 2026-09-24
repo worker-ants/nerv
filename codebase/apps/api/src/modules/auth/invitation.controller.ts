@@ -7,7 +7,8 @@
 // 보여야 한다. 모르는 것에 가입부터 하라고 요구할 수는 없다.
 
 import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
-import { Public } from '../../common/auth.guard.js';
+import { extractCredential, Public } from '../../common/auth.guard.js';
+import { AuthService } from './auth.service.js';
 import { InvitationService } from './invitation.service.js';
 import { principalOf } from './auth.controller.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -15,7 +16,10 @@ import type { MembershipRole } from './auth.service.js';
 
 @Controller('api/v1')
 export class InvitationController {
-  constructor(private readonly invitations: InvitationService) {}
+  constructor(
+    private readonly invitations: InvitationService,
+    private readonly auth: AuthService,
+  ) {}
 
   /** EP-INV-01 — 초대 생성(admin). 토큰 원문은 이 응답에서 한 번만 나간다 */
   @Post('orgs/:org/invitations')
@@ -45,11 +49,19 @@ export class InvitationController {
     return this.invitations.revoke({ actorUserId: principalOf(req).userId, invitationId: id });
   }
 
-  /** EP-INV-04 — 링크 미리보기(**공개**). 이메일은 가려서 준다 */
+  /**
+   * EP-INV-04 — 링크 미리보기(**공개**). 이메일은 가려서 준다.
+   *
+   * 로그인한 채 열었으면 `matches_me` 를 싣는다(REQ-API-178) — 공개 경로라 가드가 자격증명을
+   * 보지 않으므로 여기서 **있으면** 확인한다. 없거나 무효면 로그인하지 않은 것과 같다(거절하지 않는다)
+   */
   @Public()
   @Get('invitations/:token')
-  preview(@Param('token') token: string): Promise<unknown> {
-    return this.invitations.preview(token);
+  async preview(@Req() req: ProjectRequest, @Param('token') token: string): Promise<unknown> {
+    const credential = extractCredential(req.headers ?? {});
+    const viewer =
+      credential === null ? null : await this.auth.verify(credential).catch(() => null);
+    return this.invitations.preview(token, viewer?.userId ?? null);
   }
 
   /** EP-INV-05 — 수락. 초대한 이메일과 같은 계정만 받는다 */
@@ -67,6 +79,18 @@ export class InvitationController {
   @Post('me/invitations/:id/accept')
   acceptMine(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
     return this.invitations.accept({ invitationId: id, userId: principalOf(req).userId });
+  }
+
+  /** EP-INV-07 — 링크에서 거절. 수락과 같은 자물쇠 — 초대받은 계정만(REQ-API-178) */
+  @Post('invitations/:token/decline')
+  decline(@Req() req: ProjectRequest, @Param('token') token: string): Promise<unknown> {
+    return this.invitations.decline({ token, userId: principalOf(req).userId });
+  }
+
+  /** EP-INV-07b — 앱 안의 카드에서 거절(id) */
+  @Post('me/invitations/:id/decline')
+  declineMine(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    return this.invitations.decline({ invitationId: id, userId: principalOf(req).userId });
   }
 
   /** EP-INV-06 — 내게 온 초대. 홈·온보딩·알림 세 화면이 같은 값을 쓴다 */

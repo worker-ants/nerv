@@ -17,6 +17,7 @@ import {
   useEvents,
   useInbox,
   useMe,
+  useMembers,
 } from '../lib/queries.js';
 import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
@@ -26,6 +27,9 @@ import { ErrorState, failedWithoutData } from '../components/query-state.js';
 import { subjectFallback, waitedLabel } from '../features/inbox/approval-card.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { ScopeBadge } from '../components/scope-badge.js';
+import { StartChecklist } from '../components/start-checklist.js';
+import { ReadOnlyNotice, scopeAdmins } from '../components/read-only-notice.js';
+import { canManageScope } from '../lib/session.js';
 
 export const Route = createFileRoute('/')({ component: HomeScreen });
 
@@ -55,6 +59,11 @@ function HomeScreen(): React.JSX.Element {
   // **"없다" 는 받아 온 뒤에만 말한다**(REQ-WEB-198). 예전에는 받은 요청을 불러오지 못하거나
   // 아직 불러오는 중에도 수가 0 으로 읽혀 "밀린 결정이 없어요" 가 떴다 — 결재가 쌓인 채로.
   const inboxFailed = failedWithoutData(inbox);
+  // **프로젝트가 0개인 조직**(REQ-WEB-205). 조직을 막 만든 사람은 여기 서서 다음 걸음을 찾지 못했다 —
+  // 조직 admin 에게는 시작 체크리스트가, 아닌 사람에게는 누구에게 부탁할지가 선다. 목록을 받은 뒤에만
+  const isOrgAdmin = canManageScope(me.data, scope.orgSlug, null);
+  const noProjects = scope.projectsLoaded && scope.projects.length === 0;
+  const members = useMembers(noProjects && !isOrgAdmin ? scope.orgSlug : null);
   const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
   const reqTotal = Number(totals['total'] ?? 0);
 
@@ -99,8 +108,16 @@ function HomeScreen(): React.JSX.Element {
 
       {/* **받은 초대가 먼저다.** 아직 들어가지도 않은 조직의 일이라 '오늘 할 일'보다
           앞에 선다 — 수락하기 전에는 그 조직의 어떤 것도 보이지 않는다 */}
-      <div className="mt-8">
+      <div className="mt-8 flex flex-col gap-4">
         <InvitationCards />
+        <StartChecklist orgSlug={scope.orgSlug} />
+        {noProjects && !isOrgAdmin && (
+          <ReadOnlyNotice
+            admins={members.data === undefined ? undefined : scopeAdmins(rows(members.data), null)}
+          >
+            {t('home.no_projects')}
+          </ReadOnlyNotice>
+        )}
       </div>
 
       <section className="mt-8" data-testid="today-strip">
@@ -138,105 +155,109 @@ function HomeScreen(): React.JSX.Element {
         )}
       </section>
 
-      <div className="mt-[38px] flex flex-col gap-10 md:flex-row md:gap-11">
-        {/* 최근 활동 — 결정을 끝낸 사람이 흐름을 따라잡는 곳 */}
-        <section className="min-w-0 flex-1">
-          {/* **어느 프로젝트의 활동인지** 말한다(REQ-WEB-193) — 한 프로젝트의 흐름인데 제목만 보면
+      {/* **프로젝트가 없으면 활동도 상태도 없다** — 예전에는 빈 자리에 "알림이 없습니다." 가 떴다
+          (활동은 알림이 아니다). 첫 걸음은 위의 체크리스트·안내가 말한다(REQ-WEB-205) */}
+      {primary !== undefined && (
+        <div className="mt-[38px] flex flex-col gap-10 md:flex-row md:gap-11">
+          {/* 최근 활동 — 결정을 끝낸 사람이 흐름을 따라잡는 곳 */}
+          <section className="min-w-0 flex-1">
+            {/* **어느 프로젝트의 활동인지** 말한다(REQ-WEB-193) — 한 프로젝트의 흐름인데 제목만 보면
               조직 전체의 것처럼 읽혔다 */}
-          <div className="mb-2.5 text-lg font-[650] tracking-[-0.012em]">
-            {primary === undefined
-              ? t('home.recent_activity')
-              : t('home.recent_activity_in', { project: String(primary['name']) })}
-          </div>
-          {events.isLoading && <Skeleton rows={4} />}
-          <ul>
-            {rows(events.data)
-              .slice(0, 8)
-              .map((e) => (
-                <li
-                  key={String(e['id'])}
-                  className="flex items-start gap-2.5 rounded-nerv px-2 py-[9px]"
-                >
-                  {typeof e['actor_name'] === 'string' && e['actor_name'] !== '' ? (
-                    <Avatar name={e['actor_name']} size="md" className="mt-px" />
-                  ) : (
-                    <span
-                      aria-hidden="true"
-                      className="mt-px inline-flex size-6 shrink-0 items-center justify-center rounded-[5px] bg-bg-sunken text-2xs text-text-mute"
-                    >
-                      ·
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1 text-sm leading-normal text-text">
-                    {t(eventLabelKey(String(e['type'])))}
-                    {typeof e['actor_name'] === 'string' && e['actor_name'] !== '' && (
-                      <span className="text-text-faint"> · {String(e['actor_name'])}</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-xs text-text-ghost">
-                    {relativeTime(
-                      t,
-                      typeof e['occurred_at'] === 'string' ? e['occurred_at'] : null,
-                    )}
-                  </span>
-                </li>
-              ))}
-          </ul>
-          {!events.isLoading && rows(events.data).length === 0 && (
-            <p className="px-2 text-sm text-text-faint">{t('home.no_notifications')}</p>
-          )}
-        </section>
-
-        {/* 프로젝트 상태 — 시안의 오른쪽 292px 열 */}
-        {primary !== undefined && (
-          <section className="w-full shrink-0 md:w-[292px]">
-            <Link
-              to="/p/$proj"
-              params={{ proj: primarySlug }}
-              className="mb-2.5 block text-lg font-[650] tracking-[-0.012em] hover:text-link"
-            >
-              {String(primary['name'])}
-            </Link>
-
-            <div className="overflow-hidden rounded-[9px] border border-border">
-              <StatRow label={t('home.stat.requirements')} value={reqTotal} />
-              <StatRow
-                label={t('home.active_sessions')}
-                value={Number(primary['active_sessions'] ?? 0)}
-                tone={Number(primary['active_sessions'] ?? 0) > 0 ? 'progress' : undefined}
-              />
-              <StatRow
-                label={t('home.pending_approvals')}
-                value={Number(primary['pending_approvals'] ?? 0)}
-                tone={Number(primary['pending_approvals'] ?? 0) > 0 ? 'waiting' : undefined}
-                last
-              />
+            <div className="mb-2.5 text-lg font-[650] tracking-[-0.012em]">
+              {primary === undefined
+                ? t('home.recent_activity')
+                : t('home.recent_activity_in', { project: String(primary['name']) })}
             </div>
-
-            {/* 커버리지 — 원자료가 있을 때만 그린다(EP-COV-01 은 MVP 에서 원자료다).
-                0/0 짜리 막대는 "0%" 라는 거짓 신호를 만든다 */}
-            {reqTotal > 0 && (
-              <>
-                <SectionLabel className="mt-6 mb-2.5">{t('home.coverage')}</SectionLabel>
-                <div className="flex flex-col gap-[11px]">
-                  <CoverageBar
-                    label={t('home.coverage.implemented')}
-                    part={Number(totals['implemented'] ?? 0)}
-                    whole={reqTotal}
-                    barClass="bg-status-done"
-                  />
-                  <CoverageBar
-                    label={t('home.coverage.verified')}
-                    part={Number(totals['verified'] ?? 0)}
-                    whole={reqTotal}
-                    barClass="bg-status-ok"
-                  />
-                </div>
-              </>
+            {events.isLoading && <Skeleton rows={4} />}
+            <ul>
+              {rows(events.data)
+                .slice(0, 8)
+                .map((e) => (
+                  <li
+                    key={String(e['id'])}
+                    className="flex items-start gap-2.5 rounded-nerv px-2 py-[9px]"
+                  >
+                    {typeof e['actor_name'] === 'string' && e['actor_name'] !== '' ? (
+                      <Avatar name={e['actor_name']} size="md" className="mt-px" />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="mt-px inline-flex size-6 shrink-0 items-center justify-center rounded-[5px] bg-bg-sunken text-2xs text-text-mute"
+                      >
+                        ·
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1 text-sm leading-normal text-text">
+                      {t(eventLabelKey(String(e['type'])))}
+                      {typeof e['actor_name'] === 'string' && e['actor_name'] !== '' && (
+                        <span className="text-text-faint"> · {String(e['actor_name'])}</span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-xs text-text-ghost">
+                      {relativeTime(
+                        t,
+                        typeof e['occurred_at'] === 'string' ? e['occurred_at'] : null,
+                      )}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+            {!events.isLoading && rows(events.data).length === 0 && (
+              <p className="px-2 text-sm text-text-faint">{t('home.no_activity')}</p>
             )}
           </section>
-        )}
-      </div>
+
+          {/* 프로젝트 상태 — 시안의 오른쪽 292px 열 */}
+          {primary !== undefined && (
+            <section className="w-full shrink-0 md:w-[292px]">
+              <Link
+                to="/p/$proj"
+                params={{ proj: primarySlug }}
+                className="mb-2.5 block text-lg font-[650] tracking-[-0.012em] hover:text-link"
+              >
+                {String(primary['name'])}
+              </Link>
+
+              <div className="overflow-hidden rounded-[9px] border border-border">
+                <StatRow label={t('home.stat.requirements')} value={reqTotal} />
+                <StatRow
+                  label={t('home.active_sessions')}
+                  value={Number(primary['active_sessions'] ?? 0)}
+                  tone={Number(primary['active_sessions'] ?? 0) > 0 ? 'progress' : undefined}
+                />
+                <StatRow
+                  label={t('home.pending_approvals')}
+                  value={Number(primary['pending_approvals'] ?? 0)}
+                  tone={Number(primary['pending_approvals'] ?? 0) > 0 ? 'waiting' : undefined}
+                  last
+                />
+              </div>
+
+              {/* 커버리지 — 원자료가 있을 때만 그린다(EP-COV-01 은 MVP 에서 원자료다).
+                0/0 짜리 막대는 "0%" 라는 거짓 신호를 만든다 */}
+              {reqTotal > 0 && (
+                <>
+                  <SectionLabel className="mt-6 mb-2.5">{t('home.coverage')}</SectionLabel>
+                  <div className="flex flex-col gap-[11px]">
+                    <CoverageBar
+                      label={t('home.coverage.implemented')}
+                      part={Number(totals['implemented'] ?? 0)}
+                      whole={reqTotal}
+                      barClass="bg-status-done"
+                    />
+                    <CoverageBar
+                      label={t('home.coverage.verified')}
+                      part={Number(totals['verified'] ?? 0)}
+                      whole={reqTotal}
+                      barClass="bg-status-ok"
+                    />
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }

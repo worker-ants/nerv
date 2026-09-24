@@ -49,6 +49,8 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.SPEC_COMMENT_ADDED]: 'standard',
   [NERV_EVENT.SPEC_RECHECK_REQUESTED]: 'standard',
   [NERV_EVENT.TASK_READY]: 'standard',
+  // 부른 사람만 받는다 — 결정을 기다리는 일은 아니라 배지를 올리지 않는다(REQ-API-178)
+  [NERV_EVENT.INVITATION_DECLINED]: 'standard',
   [NERV_EVENT.SESSION_STARTED]: 'low',
   [NERV_EVENT.SESSION_COMPLETE]: 'low',
   [NERV_EVENT.TASK_CLAIMED]: 'low',
@@ -224,6 +226,11 @@ export class NotificationService {
       event.type === NERV_EVENT.CLAIM_CONFLICT_WARN
     ) {
       return this.conflictTargets(event);
+    }
+    if (event.type === NERV_EVENT.INVITATION_DECLINED) {
+      // **부른 사람에게만** 간다 — 역할 큐로 흩뿌리면 초대와 무관한 사람들이 남의 초대 결과를 읽는다
+      const inviter = event.payload?.['invited_by_user_id'];
+      return typeof inviter === 'string' && inviter !== event.actor_user_id ? [inviter] : [];
     }
     if (event.type === NERV_EVENT.SPEC_RECHECK_REQUESTED) {
       const owners = await this.specOwnerTargets(event);

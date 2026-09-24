@@ -22,7 +22,7 @@
 
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UseMutationResult } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -231,7 +231,23 @@ function TokensTab(): React.JSX.Element {
             같은 자리에서 말해야 한다 — 예전에는 아무 말 없이 잠겨 있었다. */}
         {project === null && (
           <p data-testid="token-no-project" className="mt-2 text-xs text-status-waiting">
-            {t('settings.tokens.no_project')}
+            {/* **조직 admin 에게는 할 일을 말한다**(2026-09-24 · REQ-WEB-205). 조직을 막 만든 admin 이
+                "admin 에게 소속을 요청하세요" 를 읽었다 — 자기 자신에게 요청하라는 말이었다 */}
+            {isAdmin && projects.length === 0 ? (
+              <>
+                {t('settings.tokens.no_project_admin')}{' '}
+                <Link
+                  to="/settings/workspace"
+                  search={{ new: 1 }}
+                  data-testid="token-create-project"
+                  className="text-link hover:underline"
+                >
+                  {t('home.create_project')} ▸
+                </Link>
+              </>
+            ) : (
+              t('settings.tokens.no_project')
+            )}
           </p>
         )}
         <fieldset className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">

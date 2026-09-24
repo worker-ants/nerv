@@ -8,7 +8,7 @@ Of the two header selects, it is the **project** you create, rename and put away
 
 **Creating, editing and putting away are `admin` work, and which admin depends on what you change.** Renaming or deleting the organization and [New project] are for **organization admins** (people whose organization-wide role is admin) only. Editing or archiving a project row is for organization admins and **that project's admins** — a project admin sees only their own project's row unlocked, with the organization name and other projects locked. With admin nowhere, the [Show archived] toggle is not shown either. [New project] stays **visible but locked** for anyone who is not an organization admin, and the note at the top of the tab **names the organization admins to ask**.
 
-- **Create a project** — type a name and the address (slug) and key follow from it. The key is the short prefix on **task** numbers (`CLV-T-3F92A1`). A spec key is unrelated — a person writes it when creating the document.
+- **Create a project** — type a name and the address (slug) and key follow from it. The key is the short prefix on **task** numbers (`CLV-T-3F92A1`). A spec key is unrelated — a person writes it when creating the document. Coming from **[Manage · new project]** at the bottom of the header's project menu (organization admins), you arrive with this form **already open**. Once created, the message in the lower right carries **[Open]**, which takes you straight into the project.
 - **Rename** — only the name changes. **The slug does not** — addresses and API paths are built on it, so changing it would break every link already out in the world.
 - **Repository kind** — chosen in the same [Edit] (`github` by default, or `gitlab`). It decides only the **shape of the links**: GitLab puts `/-/` in commit and file addresses, so links do not open unless this is set. **The server never connects to the repository.** We do not guess it from the domain for the same reason — a self-hosted address does not say which kind it is.
 - **Repository URL and default branch** — the project row's [Edit] takes these alongside the name. Commits and code paths attached to a task's **evidence** open on top of this URL (see "Click the evidence" in the [Tasks](/help/tasks) chapter) — when it is empty those rows are not clickable and the task screen says so. To remove a wrong URL, **clear the field and save**.
@@ -16,6 +16,7 @@ Of the two header selects, it is the **project** you create, rename and put away
 - An archived project's **notifications and approval cards are hidden.** You should not be kept waiting on decisions for something you put away — they come back when you restore it.
 - You cannot create a new project on the same slug. If an archived project holds that name, the screen says so — **restore** it instead of creating a new one.
 - **Delete an organization** — possible **only while it holds no projects**, because an irreversible act should have a reversible step in front of it. **Archiving does not satisfy that condition, though** — archived projects still count, and the screen offers no way to delete a project. So an organization that ever held a project cannot be deleted from this screen today. In that case [Delete organization] is **locked**, and the line below it says how many projects (how many archived) are in the way — do not archive projects in order to delete the organization. An empty organization is deleted after one more confirmation.
+- **New organization** — **[Create a new organization…]** at the bottom of the tab creates another organization. **Anyone** can create one, and whoever creates it becomes its admin. Fill in a **first project name** as well and the project is created too and you land inside it; leave it empty and the new organization's copy of this tab waits with the project form open. Specs split along with organizations, so if an organization is already in use, being invited to it beats creating a new one. **[Manage · new organization]** in the header's organization menu brings you to this tab.
 
 ## Inviting people
 
@@ -31,8 +32,13 @@ Under **Invitations** on the Members tab, pick an email, a role and **what it ap
 - **The list of sent invitations says when each one last went out** (**Unsent** if it never did). Not sent and sent-but-not-arrived are different problems, and an admin who cannot tell them apart makes the same invitation three times.
 - **You see the invitations you could have sent.** Organization admins see every invitation in the organization; a project’s admin sees only the invitations to that project.
 - Sent it by mistake? **Revoke** it from the list. It asks once more, and the link stops working at once. Revoking keeps the record — who invited whom is part of the audit trail.
+- The list shows each invitation as **Pending · Accepted · Revoked · Declined · Expired**. **Declined** means the invited person turned it down; they can be invited again.
 
 On the receiving side the invitation shows as a card on **Home, Getting started and Notifications**, and can be accepted right there. **Someone without an account has to sign up and confirm their email before they can accept** — on a deployment that can send mail; the steps are under "Creating an account" in [Getting started](/help/start).
+
+The card says **when it expires** ("Expires in 3 days"), and an unwanted invitation is cleared with **[Decline]** — it asks once more, and after declining you need a new invitation to join. **Declining an invitation to a project notifies the person who sent it** (an organization-wide invitation has no notification; it only shows as **Declined** in the sent list). Accepting an invitation that gives you your first membership shows your role and next steps on **Get started** first.
+
+Opening an invitation link shows **which account you are signed in as**. If you opened it **signed in as someone else**, **[Sign in with another account]** stands where [Join] would be — it signs you out and sends you to a sign-in that comes back to the link. An invitation that has ended (expired, revoked, declined) or a link that does not exist shows **Ask the person who invited you for a new link** with **[Go to NERV]**.
 
 ## Members
 
@@ -50,7 +56,7 @@ Editing members and roles is `admin` only — **organization-wide rows by organi
 
 ## Tokens
 
-Issue and revoke the tokens agents use. The details are in [Agents](/help/agents).
+Issue and revoke the tokens agents use. The details are in [Agents](/help/agents). Tokens are **bound to a project**, so none can be issued while the organization has no projects — organization admins see **[Create a project]** in that spot.
 
 **Revoking cannot be undone, so it asks once more** and names the **machine that last used** the token — the agent there is cut off from its next call. Organization admins also cut off other people's live tokens with the same [Revoke] in the **organization-wide token table** (someone who has left, for example).
 

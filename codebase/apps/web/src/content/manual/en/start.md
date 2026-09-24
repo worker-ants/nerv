@@ -30,7 +30,7 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 
 The two selects at the left of the header are the membership scope you are looking at: **organization / project**, in that order, each with a small "Organization" or "Project" label in front. The only organizations you can pick are the ones you belong to.
 
-Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There the header's project slot says **"Pick a project"** — showing the project you looked at last would make the whole screen read as that project's. The project you looked at last sits at the top of the list as **"Recent"**, one click away. Places that do show one project, like Home's "Recent activity", put that project's name in their title.
+Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There the header's project slot says **"Pick a project"** — showing the project you looked at last would make the whole screen read as that project's. The project you looked at last sits at the top of the list as **"Recent"**, one click away. Places that do show one project, like Home's "Recent activity", put that project's name in their title. **The project slot opens even when there are no projects** — it says "No projects yet", with **[Manage · new project]** at the bottom for organization admins (you arrive with the form open) and **[Manage projects]** for everyone else. When the organization has no projects and you are not its admin, Home names the organization admins to ask.
 
 The header's **inbox and notification counts cover every organization you belong to** — an approval waiting in another organization is easy to miss if you have to switch to see it — and each row in those lists says which organization and project it belongs to. **⌘K search looks inside the current project only**; the search box says which project, and outside a project it asks you to pick one first.
 
@@ -88,6 +88,7 @@ Fill in a name, an email and a password on the sign-up screen and the account is
 ## Your first five minutes
 
 0. If you were sent an invitation link, open that first — signing in accepts the invitation. If you do not belong to an organization yet, signing in takes you to **Get started**, where any invitation waiting for you sits as a card.
+   **If you just created an organization**, you stay on Get started, which shows your role and a **setup checklist** (first project · invite people · connect an agent). Fill in a **first project name** when creating the organization and the project is created in the same step. The same checklist sits at the top of Home, and goes away once all three are done or you press **[Dismiss]** (only organization admins see it).
 1. Sign in and check that the **organization and project** in the header are the ones you meant.
 2. Skim the **spec tree** on the left. What this project decided to build is in there.
 3. Open **Tasks** and look at the `ready` lane — that is what can be picked up right now.

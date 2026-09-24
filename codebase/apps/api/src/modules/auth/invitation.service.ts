@@ -42,7 +42,9 @@ export interface InvitationRow extends Record<string, unknown> {
   expires_at: string;
   /** 메일이 마지막으로 나간 시각. NULL 이면 아직 안 나갔다(또는 메일이 꺼진 배치다) */
   last_sent_at: string | null;
-  state: 'pending' | 'accepted' | 'revoked' | 'expired';
+  /** 부른 사람 — 거절 알림이 가는 곳이다(REQ-API-178) */
+  invited_by_user_id: string;
+  state: 'pending' | 'accepted' | 'revoked' | 'declined' | 'expired';
 }
 
 @Injectable()
@@ -105,7 +107,7 @@ export class InvitationService {
       UPDATE invitation SET revoked_at = now()
        WHERE org_id = ${org.id} AND email = ${email}
          AND coalesce(project_id, org_id) = coalesce(${projectId}::uuid, ${org.id}::uuid)
-         AND accepted_at IS NULL AND revoked_at IS NULL
+         AND accepted_at IS NULL AND revoked_at IS NULL AND declined_at IS NULL
     `);
 
     const token = newToken();
@@ -179,6 +181,7 @@ export class InvitationService {
     await this.db.execute(sql`
       UPDATE invitation SET revoked_at = now()
        WHERE id = ${input.invitationId} AND accepted_at IS NULL AND revoked_at IS NULL
+         AND declined_at IS NULL
     `);
     return { ok: true };
   }
@@ -190,8 +193,22 @@ export class InvitationService {
    * 가입부터 하라고 요구할 수는 없다. 다만 **이메일은 가린다**: 토큰을 주운 사람에게
    * 초대받은 사람이 누구인지 알려 줄 이유가 없다.
    */
-  async preview(token: string): Promise<Record<string, unknown>> {
+  async preview(
+    token: string,
+    viewerUserId: string | null = null,
+  ): Promise<Record<string, unknown>> {
     const invite = await this.findByToken(token);
+    // **지금 로그인한 계정이 이 초대의 것인가**(2026-09-24 · REQ-API-178). 가린 이메일만으로는
+    // 화면이 판정할 수 없었고, 다른 계정으로 로그인한 사람은 [참여하기]를 누른 뒤에야 오류를
+    // 봤다. 답은 참·거짓 하나뿐이다 — 초대받은 주소 자체는 여전히 가린다
+    let matchesMe: boolean | null = null;
+    if (viewerUserId !== null) {
+      const { rows } = await this.db.execute<{ email: string }>(
+        sql`SELECT email FROM "user" WHERE id = ${viewerUserId}`,
+      );
+      const email = rows[0]?.email;
+      matchesMe = email === undefined ? null : email.toLowerCase() === invite.email.toLowerCase();
+    }
     return {
       org_name: invite.org_name,
       org_slug: invite.org_slug,
@@ -200,7 +217,9 @@ export class InvitationService {
       project_name: invite.project_name,
       role: invite.role,
       email_hint: maskEmail(invite.email),
+      expires_at: invite.expires_at,
       state: invite.state,
+      matches_me: matchesMe,
     };
   }
 
@@ -215,30 +234,7 @@ export class InvitationService {
     invitationId?: string;
     userId: string;
   }): Promise<Record<string, unknown>> {
-    // **두 입구, 한 판정.** 링크로 온 사람은 토큰을 들고 오고, 앱 안의 카드에서 누른
-    // 사람은 id 를 들고 온다 — 토큰은 해시만 저장하므로 카드가 그것을 알 길이 없다.
-    // 어느 쪽이든 이메일 대조는 **똑같이** 거친다: 그것이 이 기능의 안전선이다.
-    const invite =
-      input.token === undefined
-        ? await this.findById(input.invitationId ?? '')
-        : await this.findByToken(input.token);
-    if (invite.state !== 'pending') {
-      throw new NervError(NERV_ERROR.PRECONDITION, msg(`error.invite.${invite.state}` as never), {
-        kind: invite.state,
-      });
-    }
-
-    const { rows: userRows } = await this.db.execute<{ email: string }>(
-      sql`SELECT email FROM "user" WHERE id = ${input.userId}`,
-    );
-    const email = userRows[0]?.email ?? '';
-    if (email.toLowerCase() !== invite.email.toLowerCase()) {
-      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.invite.email_mismatch'), {
-        kind: 'email_mismatch',
-        expected: maskEmail(invite.email),
-      });
-    }
-
+    const invite = await this.openForInvitee(input);
     const membershipId = newId();
     let created: { project_id: string | null; role: string } | undefined;
     await this.db.transaction(async (tx: NervDb) => {
@@ -282,6 +278,57 @@ export class InvitationService {
   }
 
   /**
+   * EP-INV-07 — **거절**(2026-09-24 · 사람 결정 · REQ-API-178).
+   *
+   * 원치 않는 초대는 거절할 길이 없어 만료(7일)까지 홈·알림 맨 위에 서 있었다. 수락과 같은 두
+   * 입구·같은 자물쇠다 — **초대받은 사람만** 거절한다(토큰을 주운 사람이 남의 초대를 치우면 안
+   * 된다). 지우지 않는다: 누가 누구를 불렀고 어떻게 끝났는지가 기록이다.
+   *
+   * 프로젝트 초대면 부른 사람에게 알림이 간다(`invitation.declined`). 조직 전체 초대는
+   * `event.project_id` 가 NOT NULL 이라 이벤트가 없다 — 초대 목록의 상태가 기록이다.
+   */
+  async decline(input: {
+    token?: string;
+    invitationId?: string;
+    userId: string;
+  }): Promise<{ ok: true; state: 'declined' }> {
+    const invite = await this.openForInvitee(input);
+    const { rows } = await this.db.execute<{ project_id: string | null }>(sql`
+      UPDATE invitation SET declined_at = now()
+       WHERE id = ${invite.id}
+         AND accepted_at IS NULL AND revoked_at IS NULL AND declined_at IS NULL
+      RETURNING project_id
+    `);
+    // 판정과 갱신 사이에 누가 먼저 끝냈으면(수락·회수) 아무것도 하지 않는다 — 그 사실을 말한다
+    if (rows.length === 0) {
+      const now = await this.findById(invite.id);
+      throw new NervError(NERV_ERROR.PRECONDITION, msg(`error.invite.${now.state}` as never), {
+        kind: now.state,
+      });
+    }
+    const projectId = rows[0]?.project_id ?? null;
+    if (projectId !== null && this.events !== undefined) {
+      try {
+        await this.events.transact(async (_tx, emit) => {
+          await emit({
+            type: NERV_EVENT.INVITATION_DECLINED,
+            projectId,
+            subjectType: 'invitation',
+            subjectId: invite.id,
+            actorUserId: input.userId,
+            isAgent: false,
+            toState: 'declined',
+            payload: { invited_by_user_id: invite.invited_by_user_id, role: invite.role },
+          });
+        });
+      } catch (error) {
+        this.logger.warn(`감사 이벤트를 남기지 못했다(invitation.declined): ${String(error)}`);
+      }
+    }
+    return { ok: true, state: 'declined' };
+  }
+
+  /**
    * EP-INV-06 — **내게 온 초대**(인증). 화면 셋(홈·온보딩·알림)이 같은 값을 쓴다.
    *
    * 알림 테이블에 싣지 않는 이유가 있다: `notification.project_id` 는 NOT NULL 인데
@@ -293,13 +340,48 @@ export class InvitationService {
       ${this.selectInvitation()}
         JOIN "user" me ON me.email = i.email
        WHERE me.id = ${userId}
-         AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
+         AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.declined_at IS NULL
+         AND i.expires_at > now()
        ORDER BY i.created_at DESC
     `);
     return rows;
   }
 
   // ── 안쪽 ────────────────────────────────────────────────────────────────
+
+  /**
+   * 초대받은 사람이 **아직 열린** 초대를 들고 왔는가 — 수락과 거절이 같이 쓴다.
+   *
+   * **두 입구, 한 판정.** 링크로 온 사람은 토큰을 들고 오고, 앱 안의 카드에서 누른 사람은 id 를
+   * 들고 온다 — 토큰은 해시만 저장하므로 카드가 그것을 알 길이 없다. 어느 쪽이든 이메일 대조는
+   * **똑같이** 거친다: 그것이 이 기능의 안전선이다.
+   */
+  private async openForInvitee(input: {
+    token?: string;
+    invitationId?: string;
+    userId: string;
+  }): Promise<InvitationRow> {
+    const invite =
+      input.token === undefined
+        ? await this.findById(input.invitationId ?? '')
+        : await this.findByToken(input.token);
+    if (invite.state !== 'pending') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg(`error.invite.${invite.state}` as never), {
+        kind: invite.state,
+      });
+    }
+    const { rows: userRows } = await this.db.execute<{ email: string }>(
+      sql`SELECT email FROM "user" WHERE id = ${input.userId}`,
+    );
+    const email = userRows[0]?.email ?? '';
+    if (email.toLowerCase() !== invite.email.toLowerCase()) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.invite.email_mismatch'), {
+        kind: 'email_mismatch',
+        expected: maskEmail(invite.email),
+      });
+    }
+    return invite;
+  }
 
   private selectInvitation() {
     return sql`
@@ -310,9 +392,10 @@ export class InvitationService {
              i.last_sent_at::text AS last_sent_at,
              o.slug AS org_slug, o.name AS org_name,
              p.slug AS project_slug, p.name AS project_name,
-             u.display_name AS invited_by,
+             u.display_name AS invited_by, i.invited_by_user_id,
              CASE
                WHEN i.revoked_at IS NOT NULL THEN 'revoked'
+               WHEN i.declined_at IS NOT NULL THEN 'declined'
                WHEN i.accepted_at IS NOT NULL THEN 'accepted'
                WHEN i.expires_at <= now() THEN 'expired'
                ELSE 'pending'

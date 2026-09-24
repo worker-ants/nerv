@@ -46,14 +46,21 @@ export const invitation = pgTable(
      */
     lastSentAt: ts('last_sent_at'),
     revokedAt: ts('revoked_at'),
+    /**
+     * 초대받은 사람이 **거절한** 시각(2026-09-24 · 사람 결정). 회수(`revoked_at`)와 가르는 이유는
+     * 누가 끝냈는가가 다르기 때문이다 — 회수는 부른 쪽이, 거절은 불린 쪽이 한다. 한 열에 담으면
+     * admin 은 자기가 거둔 적 없는 초대가 "회수됨" 인 것을 본다.
+     */
+    declinedAt: ts('declined_at'),
     createdAt: createdAt(),
   },
   (t) => [
-    // 같은 사람에게 같은 소속의 초대가 **둘 살아 있지 않게** 한다. 수락·회수된 것은
-    // 기록으로 남아야 하므로 부분 인덱스다 — 지우는 대신 상태를 남긴다.
+    // 같은 사람에게 같은 소속의 초대가 **둘 살아 있지 않게** 한다. 수락·회수·거절된 것은
+    // 기록으로 남아야 하므로 부분 인덱스다 — 지우는 대신 상태를 남긴다. 거절한 초대가 자리를
+    // 차지하면 마음을 바꾼 사람을 다시 부를 수 없다
     uniqueIndex('invitation_pending_uq')
       .on(t.email, sql`coalesce(${t.projectId}, ${t.orgId})`)
-      .where(sql`accepted_at IS NULL AND revoked_at IS NULL`),
+      .where(sql`accepted_at IS NULL AND revoked_at IS NULL AND declined_at IS NULL`),
     // 받는 사람의 화면이 이메일로 자기 초대를 찾는다(EP-INV-06)
     index('invitation_email').on(t.email),
   ],

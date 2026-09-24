@@ -14,10 +14,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { apiFetch } from '../lib/api.js';
 import { fetchMe } from '../lib/session.js';
+import type { Me } from '../lib/session.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { rows, useMyInvitations } from '../lib/queries.js';
 import { useRealtime } from '../lib/realtime.js';
 import { Button, Card } from './ui/primitives.js';
+import { ConfirmAction } from './ui/confirm-action.js';
+import type { Translator } from '@nerv/schema';
 
 export interface InvitationCardsProps {
   /** 온보딩처럼 이미 제목이 있는 자리에서는 머리글을 숨긴다 */
@@ -42,6 +45,9 @@ export function InvitationCards({
       const accepted = result as Record<string, unknown>;
       const org = String(accepted['org_slug'] ?? '');
       const project = accepted['project_slug'];
+      // **첫 소속이면 온보딩의 ②③ 으로 간다**(2026-09-24 · REQ-WEB-205). 곧장 조직으로 떠나면 역할
+      // 설명과 에이전트 연결 안내를 한 번도 보지 못했다 — 그 카드는 처음 들어온 사람을 위한 것이다
+      const first = (queryClient.getQueryData<Me>(queryKeys.me())?.memberships.length ?? 0) === 0;
       // me 를 다시 읽어야 헤더의 조직 select 가 방금 들어간 조직을 안다
       queryClient.setQueryData(queryKeys.me(), await fetchMe());
       void queryClient.invalidateQueries({ queryKey: ['me', 'invitations'] });
@@ -49,7 +55,24 @@ export function InvitationCards({
       // **들어간 조직으로 옮겨 간다**(2026-09-24 · REQ-WEB-190). `/` 로만 보내던 동안 이미 다른
       // 조직에 속한 사람은 옛 조직의 홈에 섰고 수락이 됐는지 알 수 없었다. 프로젝트 초대면
       // 그 프로젝트가 착지점이다.
-      void navigate(acceptedLanding(org, project));
+      void navigate(first ? { to: '/onboarding' } : acceptedLanding(org, project));
+    },
+    onError: onApiError,
+  });
+
+  // **거절할 수 있다**(2026-09-24 · 사람 결정 · REQ-API-178). 원치 않는 초대가 만료(7일)까지 홈과
+  // 알림 맨 위에 서 있었다 — 치울 길이 없었다. 되돌릴 수 없으므로(다시 오려면 새 초대가 필요하다) 묻는다
+  const decline = useMutation({
+    mutationFn: (id: string) => apiFetch(`/me/invitations/${id}/decline`, { method: 'POST' }),
+    onSuccess: (_result, id) => {
+      const invite = rows(invitations.data).find((i) => String(i['id']) === id);
+      void queryClient.invalidateQueries({ queryKey: ['me', 'invitations'] });
+      pushToast({
+        tone: 'ok',
+        message: t('invite.declined_toast', {
+          org: String(invite?.['org_name'] ?? invite?.['org_slug'] ?? ''),
+        }),
+      });
     },
     onError: onApiError,
   });
@@ -73,8 +96,21 @@ export function InvitationCards({
             </span>
             <span className="mt-0.5 block text-xs text-text-faint">
               {t('invite.invited_by', { name: String(invite['invited_by'] ?? '') })}
+              {/* 언제까지 기다려 주는지 — 7일이 지나면 다시 불러야 한다 */}
+              {expiryLabel(t, invite['expires_at']) !== null && (
+                <span data-testid="invite-expiry"> · {expiryLabel(t, invite['expires_at'])}</span>
+              )}
             </span>
           </span>
+          <ConfirmAction
+            label={t('invite.decline')}
+            variant="ghost"
+            testId="invite-decline"
+            message={t('invite.decline_confirm')}
+            confirmLabel={t('invite.decline')}
+            pending={decline.isPending}
+            onConfirm={() => decline.mutate(String(invite['id']))}
+          />
           <Button
             variant="primary"
             data-testid="invite-accept"
@@ -87,6 +123,15 @@ export function InvitationCards({
       ))}
     </section>
   );
+}
+
+/** "3일 뒤 만료" · "오늘 만료" — 값이 없거나 읽을 수 없으면 말하지 않는다 */
+export function expiryLabel(t: Translator, expiresAt: unknown): string | null {
+  if (typeof expiresAt !== 'string') return null;
+  const ms = Date.parse(expiresAt) - Date.now();
+  if (Number.isNaN(ms)) return null;
+  const days = Math.floor(ms / 86_400_000);
+  return days < 1 ? t('invite.expires_today') : t('invite.expires_in', { days });
 }
 
 /** 수락한 초대의 착지점 — 조직 전환(`/o/:org`)을 거쳐, 프로젝트 초대면 그 프로젝트로 */
