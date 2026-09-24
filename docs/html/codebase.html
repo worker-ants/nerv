@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.66 (2026-09-24)</span>
+      <span>버전 v1.67 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~046</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -353,6 +353,7 @@ onlyBuiltDependencies:
   common/
     access-log.ts                 # 접근 로그 — 요청마다 한 줄, Fastify 훅 (§5.5 · REQ-CB-052)
     auth.guard.ts                 # 세션 쿠키(better-auth) / PAT Bearer 2경로 판별
+    client-ip.ts                  # 클라이언트 주소 — 신뢰 프록시 기준, CF-Connecting-IP (§5.5 · REQ-CB-055)
     cursor.ts                     # 커서 인코딩·유한 목록 봉투 — 정렬 키 전부와 id 를 담는다 (api.md §1.6 · REQ-API-124)
     database.module.ts            # drizzle 풀 주입 — 표면이 커넥션을 직접 열지 않는다
     db-error.ts                   # PG SQLSTATE → NERV_* 번역 — 제약 위반이 500 이 되지 않게
@@ -1060,6 +1061,8 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
       <tr><td><code>NERV_SSE_KEEPALIVE_MS</code></td><td></td><td><code>25000</code></td><td>api(<code>sse.controller.ts</code>)</td><td>SSE keep-alive 주기(§3.5 · REQ-CB-035). <b>앞문의 유휴 타임아웃이 이 값보다 짧으면 스트림이 조용히 끊긴다</b> — 그때 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다(<code>NERV_LOG_LEVEL</code> 과 같은 이유로 상수에서 꺼냈다). 값이 없거나 양수가 아니면 기본값이다. L2 가 이 값을 낮춰 keep-alive 형식(<code>event: ping</code> · <code>data: {}</code>)을 실제로 태운다</td></tr>
       <tr><td><code>NERV_LOG_LEVEL</code></td><td></td><td><code>log</code>(=<code>info</code>)</td><td>api · worker</td><td>두 진입점이 <code>common/log-level.ts</code> 한 함수로 읽는다(2026-09-06 배선). 고른 수준과 <b>그보다 심각한 것</b>을 켠다 — <code>verbose</code> · <code>debug</code> · <code>log</code> · <code>warn</code> · <code>error</code> · <code>fatal</code>. <code>info</code>·<code>warning</code>·<code>trace</code>·<code>critical</code> 은 별칭으로 받는다(compose·k8s 가 이미 <code>info</code> 를 넘긴다). 모르는 값은 기본으로 떨어지되 <b>한 줄 남긴다</b> — 오타로 로그가 꺼지면 그 사실을 알려 줄 로그도 없다</td></tr>
       <tr><td><code>NERV_LOG_FORMAT</code></td><td>| <code>text</code></td><td>api · worker</td><td><code>text</code> · <code>json</code>(2026-09-24 · §5.5 · REQ-CB-053). <code>json</code> 은 <b>한 줄에 JSON 하나</b>라 수집기가 필드(<code>req_id</code>·<code>status</code>·<code>route</code> …)로 거른다. <b>비면 <code>text</code></b> — 개발 루프는 사람이 읽는다. 컨테이너 배치는 compose(<code>${NERV_LOG_FORMAT:-json}</code>)와 k8s ConfigMap 이 <code>json</code> 을 넘긴다. 모르는 값은 기본으로 떨어지되 한 줄 남긴다(<code>NERV_LOG_LEVEL</code> 과 같은 규칙)</td></tr>
+      <tr><td><code>NERV_TRUSTED_PROXIES</code></td><td>| loopback·사설 대역</td><td>api</td><td>클라이언트 주소를 가릴 때 <b>믿는 프록시</b>의 CIDR(쉼표·공백 구분, 주소 하나도 된다 · 2026-09-24 · §5.5 · REQ-CB-055). 비면 <code>127.0.0.0/8</code>·<code>10.0.0.0/8</code>·<code>172.16.0.0/12</code>·<code>192.168.0.0/16</code>·<code>::1/128</code>·<code>fc00::/7</code>. 파드 CIDR 이 이 밖(예: <code>100.64.0.0/10</code>)이면 적는다 — 적지 않으면 모든 줄이 ingress 파드 주소가 된다. <b>틀린 항목은 기동을 거부한다</b></td></tr>
+      <tr><td><code>NERV_CLIENT_IP_HEADER</code></td><td>| (비움 — 믿지 않음)</td><td>api</td><td>클라이언트 주소를 싣는 헤더 이름(2026-09-24 · §5.5 · REQ-CB-055). Cloudflare(Tunnel 포함)면 <code>cf-connecting-ip</code>. api 에 직접 붙은 소켓이 신뢰 목록 안일 때만 읽는다. <b>켜기 전에 origin 에 인터넷이 직접 닿지 않는지 본다</b>(§5.5 배치 요건) — 닿으면 누구나 이 헤더를 적어 보낼 수 있다. 헤더 이름 모양이 아니면 기동을 거부한다</td></tr>
     </tbody>
   </table></div>
 
@@ -1197,6 +1200,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
       <tr><td><b>REQ-CB-052</b></td><td>WHEN api 가 HTTP 요청의 응답을 마치거나 그 연결이 끊기면 THE SYSTEM SHALL 요청마다 접근 로그 한 줄(메서드 · 라우트 템플릿 · 상태 · 소요 · 표면 · 에러 코드 · 주체 id)을 남기고, 요청 ID(<code>X-Request-Id</code> — 받은 값이 모양에 맞으면 그 값, 아니면 새 값)를 응답 헤더와 <b>그 요청 안에서 남긴 모든 로그 줄</b>에 싣는다 — 쿼리 문자열·본문·자격증명 헤더·이메일은 싣지 않는다. 운영 api 로그에 호출된 API 가 한 줄도 남지 않았다(2026-09-24 사람 보고 · §5.5)</td><td>가드가 401 로 거절한 요청이 <code>code=NERV_UNAUTHENTICATED</code> 와 받은 요청 ID 로 한 줄 남고 쿼리 값은 없다(L2 <code>access-log.spec.ts</code>) · 끊긴 스트림이 <code>aborted=1</code> 로 한 줄 남는다(L1)</td></tr>
       <tr><td><b>REQ-CB-053</b></td><td>WHERE <code>NERV_LOG_FORMAT=json</code> 인 배치에서 THE SYSTEM SHALL api·worker 의 로그를 <b>한 줄에 JSON 하나</b>로 찍고 — 색 코드 없이, 요청 안의 줄에는 <code>req_id</code> 를, 접근 로그에는 문장과 함께 필드(<code>route</code>·<code>status</code>·<code>duration_ms</code>·<code>surface</code>·<code>code</code>·주체 id)를 줄의 최상위에 싣는다 — 값이 비면 <code>text</code> 로, 모르는 값이면 한 줄 경고 뒤 <code>text</code> 로 선다. 어느 형식이든 §5.5 의 "싣지 않는 것" 은 줄에 없다. 운영 로그를 필드로 거를 수 없었다(2026-09-24 사람 결정)</td><td>가드가 거절한 요청이 <code>JSON.parse</code> 되는 한 줄로 남고 <code>req_id</code>·<code>code</code>·<code>route</code> 가 필드다(L2 <code>access-log.spec.ts</code>) · 두 형식의 실제 로거 출력에 Bearer·쿠키·멱등 키·쿼리·본문의 이메일·비밀번호·표시 이름이 없다(L1)</td></tr>
       <tr><td><b>REQ-CB-054</b></td><td>WHEN MCP <code>tools/call</code> 이 끝나거나, 워커 잡 한 판이 끝나거나, WebSocket 연결이 받아들여지거나 거절되거나 끊기면 THE SYSTEM SHALL 그마다 로그 한 줄을 남긴다 — 도구 호출은 도구 · 결과 코드와 <code>kind</code> · 소요 · 세션을(인자 값·결과 본문·에러 문장은 싣지 않는다), 잡은 이름 · 소요 · 결과 수치를(할 일이 없던 판은 <code>debug</code>), WebSocket 은 소켓 · 사용자 · 거절 코드 · 연결 시간을 싣고, 앞문이 준 <code>X-Request-Id</code> 로 연결과 해제를 잇는다. 셋 다 접근 로그(REQ-CB-052)가 닿지 않는 자리다 — MCP 실패는 200 에 실리고, 잡은 요청이 아니며, WebSocket 은 Fastify 훅을 거치지 않는다(2026-09-24)</td><td>권한 부족 도구 호출이 <code>tools/call &lt;도구&gt; NERV_FORBIDDEN kind=missing_scope</code> 로 같은 요청의 접근 로그와 같은 <code>req_id</code> 를 달고 남는다 · 모르는 도구 이름은 줄에 없다(L2 <code>mcp.spec.ts</code>) · 받아들인 연결과 그 해제가 같은 <code>req_id</code> 로 남는다(L2 <code>realtime.spec.ts</code>) · 일을 한 판·빈 판·실패한 판이 각각 <code>log</code>·<code>debug</code>·<code>warn</code> 이다(L1 <code>job-log.spec.ts</code>)</td></tr>
+      <tr><td><b>REQ-CB-055</b></td><td>WHEN api 가 접근 로그의 클라이언트 주소를 정하면 THE SYSTEM SHALL 신뢰하는 프록시(<code>NERV_TRUSTED_PROXIES</code> — 비면 loopback·사설 대역)를 기준으로 가린다 — api 에 직접 붙은 소켓이 신뢰 목록 밖이면 그 소켓이고 헤더는 무시한다, 안이면 <code>NERV_CLIENT_IP_HEADER</code> 가 설정됐고 값이 IP 일 때 그 값, 아니면 <code>X-Forwarded-For</code> 를 오른쪽부터 읽어 신뢰 hop 을 건너뛴 첫 주소다 — 그리고 어느 경로로 정했는지(<code>ip_source</code>)와 <code>CF-Ray</code> 를 함께 싣는다. WHEN <code>X-Request-Id</code> 가 없거나 모양이 틀리면 THE SYSTEM SHALL 모양이 맞는 <code>CF-Ray</code> 를 요청 ID 로 쓴다. 틀린 CIDR·헤더 이름이면 기동을 거부한다. 운영(Cloudflare Tunnel)의 모든 줄이 cloudflared 의 사설 주소였다(2026-09-24 사람 보고)</td><td>Tunnel 모양(ingress 가 XFF 를 cloudflared 로 덮어씀)에서 <code>CF-Connecting-IP</code> 가 <code>ip</code>·<code>ip_source=header</code> 이고 <code>CF-Ray</code> 가 <code>req_id</code> 다(L2 <code>access-log.spec.ts</code>) · 신뢰 밖 소켓이 보낸 헤더는 무시되고, XFF 맨 앞의 위조 값은 쓰이지 않으며, 틀린 CIDR 은 기동을 거부한다(L1 <code>client-ip.spec.ts</code>)</td></tr>
     </tbody>
   </table></div>
 
@@ -1434,6 +1438,10 @@ services:
       # 아무 배치에서도 듣지 않던 자리와 같은 부류다(REQ-CB-038).
       NERV_TRUSTED_ORIGINS: ${NERV_TRUSTED_ORIGINS:-}
       NERV_COOKIE_DOMAIN: ${NERV_COOKIE_DOMAIN:-}
+      # 클라이언트 주소(REQ-CB-055) — 신뢰 프록시는 비면 loopback·사설 대역이다. 헤더는 비면
+      # 믿지 않는다. Cloudflare Tunnel 뒤라면 cf-connecting-ip 를 적는다(§5.5 배치 요건).
+      NERV_TRUSTED_PROXIES: ${NERV_TRUSTED_PROXIES:-}
+      NERV_CLIENT_IP_HEADER: ${NERV_CLIENT_IP_HEADER:-}
       NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       NERV_LOG_FORMAT: ${NERV_LOG_FORMAT:-json}   # 컨테이너는 수집기가 읽는다 — 한 줄에 JSON 하나 (§5.5)
@@ -1626,19 +1634,23 @@ map $http_origin $nerv_mcp_origin_ok {
 #   127.0.0.11 = Docker 내장 DNS. k8s 에서는 클러스터 DNS 가 같은 자리를 대신한다.
 resolver 127.0.0.11 ipv6=off valid=10s;
 
-# 요청 ID — api 가 접근 로그와 응답 헤더에 싣는다(codebase.md §5.5 · REQ-CB-052).
-# 부르는 쪽이 이미 실었으면 그 값을, 없으면 nginx 가 만든 값을 넘긴다 — api 가 모양을
-# 다시 검사하므로 여기서는 거르지 않는다. envsubst 는 정의된 환경변수 이름만 치환하므로
-# `$request_id` 는 그대로 남는다.
+# 요청 ID — api 가 접근 로그와 응답 헤더에 싣는다(codebase.md §5.5 · REQ-CB-052·055).
+# 부르는 쪽이 실은 `X-Request-Id`, 없으면 Cloudflare 의 `CF-Ray`(오류 화면이 보여 주는 Ray ID),
+# 둘 다 없으면 nginx 가 만든 값을 넘긴다 — api 가 모양을 다시 검사하므로 여기서는 거르지 않는다.
+# envsubst 는 정의된 환경변수 이름만 치환하므로 `$request_id` 등은 그대로 남는다.
+map $http_cf_ray $nerv_fallback_id {
+  default $http_cf_ray;
+  ""      $request_id;
+}
 map $http_x_request_id $nerv_request_id {
   default $http_x_request_id;
-  ""      $request_id;
+  ""      $nerv_fallback_id;
 }
 
 # 앞문의 접근 로그에도 같은 ID 를 싣는다 — 앞문 줄과 api 줄을 한 키로 잇는다.
 # 쿼리 문자열은 싣지 않는다(`$uri`) — api 의 접근 로그와 같은 규칙이다.
 log_format nerv '$remote_addr - [$time_local] "$request_method $uri $server_protocol" '
-                '$status $body_bytes_sent $request_time req=$nerv_request_id';
+                '$status $body_bytes_sent $request_time req=$nerv_request_id cf_ray=$http_cf_ray';
 
 server {
   listen ${NERV_WEB_PORT};
@@ -1776,10 +1788,11 @@ server {
     <tbody>
       <tr><td>접근 로그</td><td><code>common/access-log.ts</code> — Fastify 훅</td><td>요청마다 한 줄 <code>METHOD 라우트 상태 소요 key=value…</code>. 키는 <code>surface</code>·<code>code</code>(에러 봉투의 NERV 코드)·<code>user</code>·<code>agent</code>·<code>token</code>·<code>project</code>·<code>ip</code>·<code>bytes</code>·<code>aborted</code> 이고 값이 없는 키는 싣지 않는다. <code>/healthz</code> 는 남기지 않는다</td></tr>
       <tr><td>수준</td><td>같은 파일</td><td>5xx <code>error</code> · 401·403·429 <code>warn</code>(사람이 문의해 오는 4xx 라 수준만으로 걸러 본다) · 프리플라이트 <code>verbose</code> · 나머지 <code>log</code></td></tr>
-      <tr><td>요청 ID</td><td><code>common/request-context.ts</code></td><td>받은 <code>X-Request-Id</code> 가 <code>[A-Za-z0-9._:-]{8,128}</code> 이면 그 값, 아니면 새로 만든다(개행·공백을 받으면 가짜 로그 줄을 끼워 넣을 수 있다). 응답 헤더로 되돌리고 CORS 노출 헤더에 든다(<a href="api.html">4.4</a> §1.3b)</td></tr>
+      <tr><td>요청 ID</td><td><code>common/request-context.ts</code></td><td>받은 <code>X-Request-Id</code> 가 <code>[A-Za-z0-9._:-]{8,128}</code> 이면 그 값, 아니면 <b><code>CF-Ray</code></b>(같은 모양 검사 — Cloudflare 오류 화면의 Ray ID 로 찾는다 · REQ-CB-055), 둘 다 아니면 새로 만든다(개행·공백을 받으면 가짜 로그 줄을 끼워 넣을 수 있다). 응답 헤더로 되돌리고 CORS 노출 헤더에 든다(<a href="api.html">4.4</a> §1.3b)</td></tr>
       <tr><td>로그 맥락</td><td><code>common/nerv-logger.ts</code></td><td>요청 안에서 남긴 모든 줄에 <code>[req=…]</code> 가 붙는다 — AsyncLocalStorage 가 요청 ID 를 들고 로거가 읽는다. 서비스 코드는 모른다(D-05)</td></tr>
       <tr><td>형식</td><td><code>common/nerv-logger.ts</code> — <code>NERV_LOG_FORMAT</code></td><td><code>text</code>(기본 — 개발 루프) · <code>json</code>(컨테이너 배치 — compose·k8s 가 넘긴다). <code>json</code> 은 한 줄에 JSON 하나이고 고정 키는 <code>level</code>·<code>pid</code>·<code>timestamp</code>(epoch ms)·<code>message</code>·<code>context</code>·<code>stack</code>·<code>req_id</code> 다. 접근 로그는 여기에 <code>event: "access"</code> 와 필드를 펼친다 — 구조화 필드는 고정 키를 덮지 못한다</td></tr>
-      <tr><td>앞문</td><td>§5.4</td><td>받은 <code>X-Request-Id</code> 를, 없으면 <code>$request_id</code> 를 넘기고 자기 접근 로그에도 싣는다. ingress-nginx 는 기본 설정으로 같은 일을 한다(<code>X-Request-ID</code> 생성·전달)</td></tr>
+      <tr><td>앞문</td><td>§5.4</td><td>받은 <code>X-Request-Id</code> 를, 없으면 <code>CF-Ray</code> 를, 그것도 없으면 <code>$request_id</code> 를 넘기고 자기 접근 로그에도 싣는다(<code>cf_ray=</code> 함께). k8s 의 API 호스트는 이 템플릿을 거치지 않는다 — ingress-nginx 는 기본 설정에서 <code>X-Request-ID</code> 를 만들어 넘기는 것으로 문서화돼 있으나 <b>이 저장소에서 실측하지 않았다.</b> 그렇게 하면 ingress 의 ID 가 <code>CF-Ray</code> 보다 먼저라 요청 ID 가 Ray ID 가 아니게 되는데, 그때도 <code>cf_ray</code> 필드로 찾는다</td></tr>
+      <tr><td>클라이언트 주소</td><td><code>common/client-ip.ts</code> — <code>NERV_TRUSTED_PROXIES</code> · <code>NERV_CLIENT_IP_HEADER</code></td><td>① api 에 직접 붙은 소켓이 신뢰 목록 밖이면 그 소켓(헤더는 무시) ② 설정한 헤더의 값이 IP 면 그 값 ③ 아니면 <code>X-Forwarded-For</code> 를 오른쪽부터 읽어 신뢰 hop 을 건너뛴 첫 주소 — 주소가 아닌 칸에서 멈춘다. 줄에 <code>ip_source</code>(<code>socket</code>·<code>header</code>·<code>xff</code>)가 실린다. <code>::ffff:</code> 로 감싼 IPv4 는 편다</td></tr>
       <tr><td>MCP 도구 호출</td><td><code>mcp/tool-call-log.ts</code> — <code>tools/call</code> 마다</td><td><code>tools/call &lt;도구&gt; &lt;ok 또는 코드&gt; 소요 kind=… session=… ignored_args=…</code>. JSON-RPC 는 실패도 200 이라 접근 로그만으로는 전부 <code>POST /mcp 200</code> 이다 — 같은 <code>req_id</code> 로 이어진다. 인자 값·결과 본문·에러 문장은 싣지 않는다. 모르는 도구 이름은 <code>(unknown)</code> 이다(부르는 쪽이 적은 문자열이다). 수준은 접근 로그와 같은 결 — <code>UNAVAILABLE</code> 은 <code>error</code>, 권한·인증·쿼터는 <code>warn</code></td></tr>
       <tr><td>워커 잡</td><td><code>worker/job-log.ts</code> — 판마다</td><td><code>잡 &lt;이름&gt; 소요 &lt;결과 수치…&gt;</code> · 실패는 <code>잡 실패 [&lt;이름&gt;] 소요 — 원인</code>. 결과는 수치·참거짓만 싣는다. <b>할 일이 없던 판은 <code>debug</code></b> — 기본 수준에서는 일을 한 판과 실패한 판만 보이고, "돌기는 하는가" 는 <code>NERV_LOG_LEVEL=debug</code> 로 연다</td></tr>
       <tr><td>WebSocket</td><td><code>modules/event/ws-log.ts</code> — 연결·거절·해제</td><td><code>ws &lt;connect · reject · disconnect&gt; sid=… user=… code=… rooms=… 소요</code>. 업그레이드는 socket.io 가 직접 받아 접근 로그에 닿지 않는다. 앞문이 업그레이드에 실은 <code>X-Request-Id</code> 가 연결의 ID 라 연결과 해제가 같은 <code>req_id</code> 다. 룸 참가는 거절만 기본 수준에서 보인다</td></tr>
@@ -1790,7 +1803,9 @@ server {
 
   <p><b>Nest 인터셉터가 아니라 Fastify 훅인 이유</b>: better-auth(<code>/api/auth/*</code>)는 Nest 라우트가 아니고, 가드가 거절한 요청은 인터셉터에 닿지 않는다 — 문의가 오는 것이 바로 그 401·403 이다. <b><code>onResponse</code> 가 아니라 응답의 <code>close</code> 를 듣는 이유</b>: SSE 는 <code>reply.send</code> 를 거치지 않아 <code>onResponse</code> 가 오지 않는다. 스트림은 끊길 때 <code>aborted=1</code> 로 한 줄이 남고, 소요 시간이 곧 연결 시간이다.</p>
 
-  <p><b>클라이언트 주소는 <code>X-Forwarded-For</code> 의 마지막 항목이다</b> — 앞문은 받은 값 뒤에 자기가 본 주소를 덧붙이므로 맨 앞은 클라이언트가 적어 보낸 값이다. 앞문이 하나인 배치를 전제한다.</p>
+  <p><b>클라이언트 주소는 신뢰하는 프록시를 기준으로 가린다</b>(REQ-CB-055 · 2026-09-24 정정). 전에는 <code>X-Forwarded-For</code> 의 마지막 칸이었고 "앞문이 하나" 를 전제했는데, 운영(Cloudflare Tunnel — <code>엣지 → cloudflared → ingress → api</code>)에서 그 칸은 cloudflared 자신의 주소라 모든 줄이 같은 사설 주소였다. Cloudflare 는 <code>X-Forwarded-For</code> 뒤에 클라이언트를 덧붙이므로 사설 hop 을 건너뛰면 헤더 설정 없이도 맞게 나오지만, ingress 가 그 헤더를 덮어쓰는 설정이면 사슬이 끊긴다 — <code>CF-Connecting-IP</code> 는 덮이지 않고 지나가므로 Tunnel 배치는 <code>NERV_CLIENT_IP_HEADER=cf-connecting-ip</code> 를 켠다.</p>
+
+  <p><b>배치 요건 — 헤더를 믿는 근거는 네트워크다.</b> <code>NERV_CLIENT_IP_HEADER</code> 를 켠 배치에서는 <b>신뢰하는 프록시(ingress·api Service·compose 의 web)에 인터넷이 직접 닿아서는 안 된다</b> — 닿으면 누구나 그 헤더를 적어 보내고, 요청은 신뢰하는 프록시를 거쳐 오므로 api 는 그것을 믿는다. Tunnel 이면 Ingress 컨트롤러의 Service 를 외부에 내지 않고(LoadBalancer·NodePort 없이) cloudflared 가 클러스터 안에서 붙는다. compose 의 web 은 호스트의 모든 인터페이스에 포트를 내므로(§5.3) compose 로 Tunnel 을 받는다면 그 포트를 닫는다.</p>
 
   <p>"싣지 않는 것" 은 L1 이 센다 — 두 형식의 실제 로거가 stdout 에 쓴 바이트에 Bearer·쿠키·멱등 키·쿼리·본문·이메일·표시 이름이 없는가(REQ-CB-053). 가짜 로거로 세면 로거가 무엇을 <b>받았는가</b> 만 보고, 그것을 어떻게 펼쳤는가는 못 본다.</p>
 

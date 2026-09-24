@@ -18,11 +18,23 @@ export const REQUEST_ID_HEADER = 'X-Request-Id';
  */
 const INBOUND_ID = /^[A-Za-z0-9._:-]{8,128}$/;
 
-/** 들어온 헤더 값이 쓸 만하면 그대로, 아니면 새로 만든다 */
-export function requestIdFrom(header: string | string[] | undefined): string {
+type HeaderValue = string | string[] | undefined;
+
+/** 모양이 맞는 헤더 값 — 아니면 null. 로그에 싣기 전에 거르는 자리다 */
+export function acceptedId(header: HeaderValue): string | null {
   const value = Array.isArray(header) ? header[0] : header;
-  if (value !== undefined && INBOUND_ID.test(value)) return value;
-  return randomUUID();
+  return value !== undefined && INBOUND_ID.test(value) ? value : null;
+}
+
+/**
+ * 요청 ID — `X-Request-Id` 가 쓸 만하면 그 값, 아니면 `CF-Ray`, 둘 다 아니면 새로 만든다.
+ *
+ * **CF-Ray 를 두 번째로 받는 이유**(2026-09-24 사람 결정): 운영은 Cloudflare Tunnel 뒤다.
+ * Cloudflare 의 오류 화면과 대시보드는 Ray ID 를 보여 주므로, 사용자가 그 값만 알려 줘도 우리
+ * 로그의 그 요청 줄을 찾는다. 모양 검사(`INBOUND_ID`)는 같다 — `8c1b2e3f4a5b6c7d-ICN` 이 통과한다.
+ */
+export function requestIdFrom(header: HeaderValue, cfRay?: HeaderValue): string {
+  return acceptedId(header) ?? acceptedId(cfRay) ?? randomUUID();
 }
 
 /** 로거가 읽는 요청 맥락. 주체는 가드가 나중에 채우므로 요청 객체를 그대로 든다 */

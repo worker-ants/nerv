@@ -28,19 +28,23 @@ map $http_origin $nerv_mcp_origin_ok {
 #   127.0.0.11 = Docker 내장 DNS. k8s 에서는 클러스터 DNS 가 같은 자리를 대신한다.
 resolver 127.0.0.11 ipv6=off valid=10s;
 
-# 요청 ID — api 가 접근 로그와 응답 헤더에 싣는다(codebase.md §5.5 · REQ-CB-052).
-# 부르는 쪽이 이미 실었으면 그 값을, 없으면 nginx 가 만든 값을 넘긴다 — api 가 모양을
-# 다시 검사하므로 여기서는 거르지 않는다. envsubst 는 정의된 환경변수 이름만 치환하므로
-# `$request_id` 는 그대로 남는다.
+# 요청 ID — api 가 접근 로그와 응답 헤더에 싣는다(codebase.md §5.5 · REQ-CB-052·055).
+# 부르는 쪽이 실은 `X-Request-Id`, 없으면 Cloudflare 의 `CF-Ray`(오류 화면이 보여 주는 Ray ID),
+# 둘 다 없으면 nginx 가 만든 값을 넘긴다 — api 가 모양을 다시 검사하므로 여기서는 거르지 않는다.
+# envsubst 는 정의된 환경변수 이름만 치환하므로 `$request_id` 등은 그대로 남는다.
+map $http_cf_ray $nerv_fallback_id {
+  default $http_cf_ray;
+  ""      $request_id;
+}
 map $http_x_request_id $nerv_request_id {
   default $http_x_request_id;
-  ""      $request_id;
+  ""      $nerv_fallback_id;
 }
 
 # 앞문의 접근 로그에도 같은 ID 를 싣는다 — 앞문 줄과 api 줄을 한 키로 잇는다.
 # 쿼리 문자열은 싣지 않는다(`$uri`) — api 의 접근 로그와 같은 규칙이다.
 log_format nerv '$remote_addr - [$time_local] "$request_method $uri $server_protocol" '
-                '$status $body_bytes_sent $request_time req=$nerv_request_id';
+                '$status $body_bytes_sent $request_time req=$nerv_request_id cf_ray=$http_cf_ray';
 
 server {
   listen ${NERV_WEB_PORT};

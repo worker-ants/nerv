@@ -68,7 +68,10 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * 미인증 브라우저 탭 하나가 API 를 크래시 루프에 빠뜨렸다(실측).
    */
   async handleConnection(socket: NervSocket): Promise<void> {
-    socket.data.requestId = requestIdFrom(socket.handshake.headers['x-request-id']);
+    socket.data.requestId = requestIdFrom(
+      socket.handshake.headers['x-request-id'],
+      socket.handshake.headers['cf-ray'],
+    );
     socket.data.connectedAt = performance.now();
     const cookie = socket.handshake.headers['cookie'];
     if (cookie === undefined || !cookie.includes('better-auth.session_token=')) {

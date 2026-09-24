@@ -102,6 +102,8 @@ describe('접근 로그 — json 한 줄', () => {
 
   beforeAll(async () => {
     process.env['NERV_LOG_FORMAT'] = 'json';
+    // 운영(Cloudflare Tunnel)의 설정이다 — 클라이언트 주소는 CF-Connecting-IP 가 싣는다(REQ-CB-055)
+    process.env['NERV_CLIENT_IP_HEADER'] = 'cf-connecting-ip';
     jsonApp = await createApp();
     await jsonApp.init();
     await jsonApp.getHttpAdapter().getInstance().ready();
@@ -109,6 +111,7 @@ describe('접근 로그 — json 한 줄', () => {
 
   afterAll(async () => {
     delete process.env['NERV_LOG_FORMAT'];
+    delete process.env['NERV_CLIENT_IP_HEADER'];
     await jsonApp.close();
   });
 
@@ -135,6 +138,29 @@ describe('접근 로그 — json 한 줄', () => {
       status: 401,
       surface: 'rest',
       code: NERV_ERROR.UNAUTHENTICATED,
+    });
+  });
+
+  it('Tunnel 뒤 — CF-Connecting-IP 가 ip, CF-Ray 가 요청 ID 다 (REQ-CB-055)', async () => {
+    const ray = '8c1b2e3f4a5b6c7d-ICN';
+    const lines = await accessLines(() =>
+      jsonApp.inject({
+        method: 'GET',
+        url: '/api/v1/me/notifications',
+        headers: {
+          'cf-connecting-ip': '203.0.113.9',
+          'cf-ray': ray,
+          // ingress 가 XFF 를 cloudflared 파드 주소로 덮어쓴 모양
+          'x-forwarded-for': '10.42.1.5',
+        },
+      }),
+    );
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+      req_id: ray,
+      cf_ray: ray,
+      ip: '203.0.113.9',
+      ip_source: 'header',
     });
   });
 });
