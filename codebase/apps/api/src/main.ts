@@ -3,6 +3,7 @@
 
 import { ATTACHMENT_MAX_BYTES, MAX_REQUEST_BODY_BYTES } from '@nerv/schema';
 import 'reflect-metadata';
+import type { IncomingHttpHeaders } from 'node:http';
 import { Logger } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import cors from '@fastify/cors';
@@ -17,6 +18,9 @@ import { SessionOriginGuard } from './common/session-origin.guard.js';
 import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
 import { logLevelsFromEnv } from './common/log-level.js';
+import { NervLogger } from './common/nerv-logger.js';
+import { registerAccessLog } from './common/access-log.js';
+import { REQUEST_ID_HEADER, requestIdFrom } from './common/request-context.js';
 import { REPLAYED_HEADER } from './common/idempotency.service.js';
 import {
   allowedOriginsFromEnv,
@@ -33,14 +37,24 @@ export async function createApp(): Promise<NestFastifyApplication> {
   // 재직렬화한 문자열로는 검증할 수 없다(키 순서·공백이 달라진다).
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ bodyLimit: MAX_REQUEST_BODY_BYTES }),
+    new FastifyAdapter({
+      bodyLimit: MAX_REQUEST_BODY_BYTES,
+      // 요청 ID — 앞문이 넘긴 `X-Request-Id` 를 쓰고, 없거나 모양이 틀리면 만든다(REQ-CB-052)
+      genReqId: (req: { headers: IncomingHttpHeaders }) =>
+        requestIdFrom(req.headers['x-request-id']),
+    }),
     {
       rawBody: true,
       // 전표(§5.2)가 소비자를 "api · worker" 라 적어 둔 변수다 — 2026-09-06 까지
       // 읽는 코드가 없어 값을 바꿔도 아무 일이 없었다.
-      logger: logLevelsFromEnv(),
+      // 로거는 요청 안에서 남긴 줄에 요청 ID 를 붙인다(§5.5) — 서비스 코드는 모른다.
+      logger: new NervLogger({ logLevels: logLevelsFromEnv() }),
     },
   );
+
+  // 접근 로그 — 요청마다 한 줄(§5.5 · REQ-CB-052). 라우트가 서기(`init`) 전에 달아야
+  // better-auth 경로까지 전부 탄다. 운영 로그에 호출된 API 가 한 줄도 없던 자리다.
+  registerAccessLog(app.getHttpAdapter().getInstance());
 
   app.useGlobalFilters(new NervExceptionFilter());
   // 멱등은 **응답을 만드는 일**이라 인터셉터다(§1.5) — 재생은 핸들러를 건너뛴다.
@@ -95,8 +109,9 @@ export async function createApp(): Promise<NestFastifyApplication> {
       'x-nerv-org',
     ],
     // 화면이 **읽어야 하는** 응답 헤더. 적지 않으면 브라우저 JS 에서 보이지 않는다 —
-    // 기본 노출은 여섯 개뿐이고 우리 둘은 거기 없다. 429 의 대기 시간과 멱등 재생 표시다.
-    exposedHeaders: [REPLAYED_HEADER, 'Retry-After'],
+    // 기본 노출은 여섯 개뿐이고 우리 셋은 거기 없다. 429 의 대기 시간과 멱등 재생 표시,
+    // 그리고 문의할 때 대는 요청 ID 다(§5.5).
+    exposedHeaders: [REPLAYED_HEADER, 'Retry-After', REQUEST_ID_HEADER],
     // 프리플라이트 캐시. 값이 더 커도 브라우저가 자기 상한으로 자른다(Safari 600s·Chrome 7200s).
     maxAge: 600,
   });

@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.50 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.51 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.51 변경(2026-09-24 — 요청 ID): **§1.3b 노출 응답 헤더에 `X-Request-Id` 하나.** 모든 응답이 요청 ID 를 싣는다 — 문의할 때 대면 운영 로그의 그 요청 줄을 찾는다. 받은 `X-Request-Id` 가 모양에 맞으면 그 값을 되돌린다. 에러 봉투는 바뀌지 않는다([4.2](codebase.md) §5.5 · REQ-CB-052).
 >
 > v1.50 변경(2026-09-24 — 조직 수준 조작도 조직 admin 만, **사람 결정**): **REQ-API-171 신설 · §2.1b 끝 항목 · EP-ORG-04·05 · EP-PRJ-02 권한 칸.** 결정 넷째를 멤버십·초대에 적용한 뒤 남아 있던 자리다 — 조직 이름·삭제·새 프로젝트가 "조직 어디서든 admin" 이라 한 프로젝트의 admin 이 조직 이름을 바꾸고 프로젝트를 늘릴 수 있었다. 같은 판정(`assertCanManageScope`)을 쓴다. 곁들여 **조직 전체 토큰 표(EP-TOK-04)도 조직 admin 만**이다(REQ-API-172) — 한 프로젝트의 admin 이 조직의 모든 토큰을 볼 수 있었다. 이어 **같은 부류의 나머지 둘도** 좁혔다(REQ-API-173) — 남의 토큰 폐기(EP-TOK-03)는 본인 또는 조직 admin, 초대 목록(EP-INV-02)은 조직 admin 만 전부를 보고 프로젝트 admin 은 자기 프로젝트의 초대만 본다.
 >
@@ -370,7 +372,7 @@ flowchart LR
 | 목록 밖 오리진 | 응답은 정상, **CORS 헤더 없음** | 막는 것은 브라우저다. 5xx 로 답하면 "서버가 고장났다" 로 읽힌다 |
 | 허용 메서드 | `GET` · `HEAD` · `POST` · `PUT` · `PATCH` · `DELETE` · `OPTIONS` | |
 | 허용 요청 헤더 | `accept` · `accept-language` · `authorization` · `content-type` · `idempotency-key` · `x-nerv-org` | 화면이 실제로 싣는 것만이다. 목록에 없는 헤더는 프리플라이트에서 거절되어 **요청이 서버에 닿지 않는다** |
-| 노출 응답 헤더 | `Idempotency-Replayed`(§1.5) · `Retry-After`(§1.8) | 적지 않으면 브라우저 JS 에서 보이지 않는다 — 기본 노출은 여섯 개뿐이다 |
+| 노출 응답 헤더 | `Idempotency-Replayed`(§1.5) · `Retry-After`(§1.8) · `X-Request-Id`(요청 ID — [4.2](codebase.md) §5.5) | 적지 않으면 브라우저 JS 에서 보이지 않는다 — 기본 노출은 여섯 개뿐이다 |
 | 프리플라이트 캐시 | 600초 | 브라우저가 자기 상한으로 자른다 |
 
 - **세션 쿠키는 API 호스트가 내준다.** 화면이 다른 서브도메인에 있어도 그 쿠키는 API 호스트로 가는 요청에 실린다 — `SameSite=Lax` 가 보는 것은 오리진이 아니라 **사이트**이기 때문이고, 그래서 두 호스트가 같은 등록 도메인 아래여야 한다는 것이 배포의 확정이다([4.1](scope.md) §2.3). 쿠키를 상위 도메인으로 넓히는 것은 선택(`NERV_COOKIE_DOMAIN`)이며 그 대가가 같은 문서에 있다.

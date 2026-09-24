@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.63 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.64 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.64 변경(2026-09-24 — 호출된 API 가 로그에 한 줄도 없었다, **사람 보고 → 사람 결정**): **REQ-CB-052 신설 · §5.5 신설 · §5.4 전문 · §2.2 트리 세 줄.** 운영 api 컨테이너 로그에 요청이 남지 않아 디버깅할 수 없었다 — Fastify 는 `logger` 옵션이 없으면 로그를 끄고 Nest 는 요청을 기록하지 않아, 남는 것은 처리되지 않은 예외(500)뿐이었다. 4xx 문의("권한이 없다고 나온다")는 로그로 확인할 길이 없었다. 로깅 개선을 세 단계로 나눴고(로거는 **Nest 내장 `ConsoleLogger`** — 새 의존성 없음, 사람 결정) 이것이 첫 단계다: ① 요청마다 접근 로그 한 줄(라우트 템플릿 · 상태 · 소요 · 표면 · 에러 코드 · 주체 id) ② 요청 ID(`X-Request-Id`) — 앞문이 넘기고, api 가 응답에 되돌리며, 그 요청 안에서 남긴 **모든 로그 줄**에 붙는다(서비스 코드는 모른다 — D-05) ③ 앞문 nginx 의 접근 로그에도 같은 ID. ※ 남은 것: JSON 형식(`NERV_LOG_FORMAT`)과 비밀 차단 검사, MCP 도구 호출·워커 잡·WebSocket 한 줄 — §5.5 끝과 [4.8](backlog.md) §1.4 셋째 표.
 >
 > v1.63 변경(2026-09-24 — 인증 모듈의 한 줄): **§2.2 트리 한 줄 정정.** `auth.service.ts` 는 better-auth 의 organization·api-key 플러그인을 래핑하지 않는다 — PAT 는 자체 `api_token` 테이블이고 better-auth 는 웹 세션만 맡는다([4.1](scope.md) v0.34).
 >
@@ -357,6 +359,7 @@ apps/api/src/
   seed.ts        # 개발 시드 — 자격증명을 도메인 행과 함께 심는다
   worker.ts      # 워커 엔트리 — 같은 AppModule 조립에서 HTTP 표면 제외, 잡 러너만 (REQ-CB-005)
   common/
+    access-log.ts                 # 접근 로그 — 요청마다 한 줄, Fastify 훅 (§5.5 · REQ-CB-052)
     auth.guard.ts                 # 세션 쿠키(better-auth) / PAT Bearer 2경로 판별
     cursor.ts                     # 커서 인코딩·유한 목록 봉투 — 정렬 키 전부와 id 를 담는다 (api.md §1.6 · REQ-API-124)
     database.module.ts            # drizzle 풀 주입 — 표면이 커넥션을 직접 열지 않는다
@@ -367,12 +370,14 @@ apps/api/src/
     idempotency.service.ts        # 멱등 저장소 — 표면 공용
     log-level.ts                  # 두 진입점이 같은 함수로 읽는다 (NERV_LOG_LEVEL · §5.2)
     mcp-origin.guard.ts           # /mcp Origin 검증의 최종 강제 지점 (REQ-CB-013)
+    nerv-logger.ts                # 전역 로거 — 요청 안의 줄에 요청 ID 를 붙인다 (§5.5)
     session-origin.guard.ts       # 세션 쿠키 쓰기 요청의 Origin 대조 (REQ-CB-043)
     nerv-exception.filter.ts      # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
     origins.ts                    # 우리 주소 둘 — 화면(NERV_WEB_URL)·API(NERV_API_URL) 와 걷힌 이름의 기동 거부 (§5.2 · REQ-CB-036·037)
     parse-body.ts                 # zod 검증 한 곳 — .strict() 위반은 400 이다
     project-access.guard.ts       # 프로젝트 경로 접근 판정 — slug 해소 + 권한 + 멤버십 (REQ-API-152)
     project-scope.interceptor.ts  # 요청 컨텍스트의 project_id 자동 주입 — 권한 없는 질의 컴파일 불가 원칙
+    request-context.ts            # 요청 ID(X-Request-Id)와 AsyncLocalStorage (§5.5)
     query-vocab.ts                # 질의 어휘 판정 — 어휘 밖은 400 이지 기본값이 아니다 (REQ-API-126)
     rate-limit.guard.ts           # 분당 상한 (NFR-04)
     rate-limit.service.ts         # 상한 계수기 — Valkey
@@ -1166,6 +1171,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-039** | WHEN 걷힌 이름 `NERV_HTTP_PORT` 가 설정돼 있고 `NERV_WEB_PORT` 가 비어 있으면 THE SYSTEM SHALL api·worker 의 기동을 거부하고 새 이름에 무엇을 넣어야 하는지를 문구로 말한다. WHERE 새 이름이 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다. WHILE 그 거부가 실물이려면 compose 가 옛 이름을 api 에 넘겨야 하므로 THE SYSTEM SHALL §5.3 에서 그 이름을 전달한다 — compose 는 모르는 변수를 **조용히 무시**하므로 넘기지 않으면 약속한 거부가 유령이다 | 옛 이름만 있는 env 로 `assertHttpPortRetired()` 가 던지고 문구에 `NERV_WEB_PORT=<값>` 이 실린다 · 새 이름이 있으면 던지지 않고 경고 한 줄 · `check-env-table.mjs` 가 걷힌 이름을 읽는 코드의 실재(⑤)와 `.env.example` 부재(⑥)를 센다 |
 | **REQ-CB-038** | WHEN 배포 산출물(compose · 이미지 · k8s)이 api·web 의 리슨 포트를 정할 때 THE SYSTEM SHALL 그 값을 `NERV_API_PORT`·`NERV_WEB_PORT` 에서 조립하고, 같은 포트를 가리키는 모든 자리(업스트림 · 헬스체크 · publish · `containerPort`)가 한 변수에서 나오게 한다. WHERE 정적 매니페스트가 변수를 받을 수 없으면(k8s 의 `containerPort`) THE SYSTEM SHALL ConfigMap 의 값과 매니페스트의 포트가 어긋날 때 CI 를 실패시킨다 — 갈리면 전 트래픽이 죽는데 롤아웃은 성공으로 보인다. WHILE 개발 루프에서는 화면과 API 가 다른 포트에 떠야 하므로, THE SYSTEM SHALL 두 포트가 같으면 `pnpm dev` 가 기동을 거부하고 이유를 말한다 | `.env` 의 포트를 바꾼 compose 스택이 그 포트로 서고 헬스체크가 통과한다 · `pnpm dev` 가 바뀐 포트로 Vite·api 를 띄우고 같은 포트면 비영 종료한다 · 배포 산출물에 포트 리터럴을 되돌린 트리와 ConfigMap↔매니페스트를 어긋나게 만든 트리에서 `check-env-table.mjs` 가 실패한다 |
 | **REQ-CB-037** | WHEN 걷힌 이름 `NERV_PUBLIC_URL` 이 설정돼 있고 `NERV_WEB_URL`·`NERV_API_URL` 이 **둘 다 비어 있으면** THE SYSTEM SHALL api·worker 의 기동을 거부하고(비영 종료) 두 이름에 무엇을 넣어야 하는지를 문구로 말한다 — 기본값(`http://localhost:8080`)으로 떨어뜨리면 운영자는 자기 설정이 읽히지 않는다는 사실을 **그 주소로 서명된 쿠키를 받고서야** 안다. WHERE 새 이름이 하나라도 설정돼 있으면 THE SYSTEM SHALL 기동하되 옛 이름이 읽히지 않는 값이라고 한 줄 남긴다 | 옛 이름만 있는 env 로 `assertPublicUrlRetired()` 가 던지고 문구에 두 이름과 넣을 값이 실린다 · 새 이름이 하나라도 있으면 던지지 않고 경고 한 줄 |
+| **REQ-CB-052** | WHEN api 가 HTTP 요청의 응답을 마치거나 그 연결이 끊기면 THE SYSTEM SHALL 요청마다 접근 로그 한 줄(메서드 · 라우트 템플릿 · 상태 · 소요 · 표면 · 에러 코드 · 주체 id)을 남기고, 요청 ID(`X-Request-Id` — 받은 값이 모양에 맞으면 그 값, 아니면 새 값)를 응답 헤더와 **그 요청 안에서 남긴 모든 로그 줄**에 싣는다 — 쿼리 문자열·본문·자격증명 헤더·이메일은 싣지 않는다. 운영 api 로그에 호출된 API 가 한 줄도 남지 않았다(2026-09-24 사람 보고 · §5.5) | 가드가 401 로 거절한 요청이 `code=NERV_UNAUTHENTICATED` 와 받은 요청 ID 로 한 줄 남고 쿼리 값은 없다(L2 `access-log.spec.ts`) · 끊긴 스트림이 `aborted=1` 로 한 줄 남는다(L1) |
 
 ---
 
@@ -1535,10 +1541,27 @@ map $http_origin $nerv_mcp_origin_ok {
 #   127.0.0.11 = Docker 내장 DNS. k8s 에서는 클러스터 DNS 가 같은 자리를 대신한다.
 resolver 127.0.0.11 ipv6=off valid=10s;
 
+# 요청 ID — api 가 접근 로그와 응답 헤더에 싣는다(codebase.md §5.5 · REQ-CB-052).
+# 부르는 쪽이 이미 실었으면 그 값을, 없으면 nginx 가 만든 값을 넘긴다 — api 가 모양을
+# 다시 검사하므로 여기서는 거르지 않는다. envsubst 는 정의된 환경변수 이름만 치환하므로
+# `$request_id` 는 그대로 남는다.
+map $http_x_request_id $nerv_request_id {
+  default $http_x_request_id;
+  ""      $request_id;
+}
+
+# 앞문의 접근 로그에도 같은 ID 를 싣는다 — 앞문 줄과 api 줄을 한 키로 잇는다.
+# 쿼리 문자열은 싣지 않는다(`$uri`) — api 의 접근 로그와 같은 규칙이다.
+log_format nerv '$remote_addr - [$time_local] "$request_method $uri $server_protocol" '
+                '$status $body_bytes_sent $request_time req=$nerv_request_id';
+
 server {
   listen ${NERV_WEB_PORT};
   server_name _;
   root /usr/share/nginx/html;
+  # server 에 둔다 — 이미지의 nginx.conf 가 http 에 `access_log … main` 을 이미 두어,
+  # 같은 자리에 하나 더 두면 두 줄씩 남는다. 여기 두면 그것을 덮는다.
+  access_log /dev/stdout nerv;
 
   # SPA — 정적 자산, 나머지 경로는 index.html
   location / {
@@ -1575,6 +1598,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   location /mcp {
@@ -1589,6 +1613,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   location /ingest/ {
@@ -1598,6 +1623,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   # 플러그인 배포 — 무인증 카탈로그와 zip (api.md §2.11 · 4.6 §3.5)
@@ -1609,6 +1635,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   # S3 는 이 앞문 뒤에 두지 않는다 — location 을 여는 것이 '고치는 길' 이 아니다(REQ-CB-034).
@@ -1628,6 +1655,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   # WebSocket — socket.io 어댑터의 path 설정값(/ws · 4.4 §3.1), websocket 전송만(폴링 폴백 off)
@@ -1642,6 +1670,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $nerv_request_id;
   }
 
   location = /healthz {
@@ -1655,6 +1684,26 @@ server {
 
 
 `/healthz`는 인프라 전용(무인증 liveness)이며 [4.4 API 명세](api.md)의 계약 전표 밖이다.
+
+### 5.5 로깅 — 요청마다 한 줄, 요청 ID 로 잇는다 (2026-09-24 신설)
+
+**운영 api 컨테이너 로그에 호출된 API 가 한 줄도 남지 않았다**(2026-09-24 사람 보고). Fastify 는 `logger` 옵션이 없으면 로그를 끄고, Nest 는 요청을 기록하지 않는다 — 남는 것은 처리되지 않은 예외(500)뿐이었다. 로거는 **Nest 내장 `ConsoleLogger`** 를 그대로 쓴다(사람 결정 — 새 의존성 없음). 전역 로거를 `NervLogger` 로 바꾸면 `new Logger(ctx)` 로 만든 기존 로거 전부가 그리로 간다.
+
+| 무엇 | 어디서 | 규칙 |
+|---|---|---|
+| 접근 로그 | `common/access-log.ts` — Fastify 훅 | 요청마다 한 줄 `METHOD 라우트 상태 소요 key=value…`. 키는 `surface`·`code`(에러 봉투의 NERV 코드)·`user`·`agent`·`token`·`project`·`ip`·`bytes`·`aborted` 이고 값이 없는 키는 싣지 않는다. `/healthz` 는 남기지 않는다 |
+| 수준 | 같은 파일 | 5xx `error` · 401·403·429 `warn`(사람이 문의해 오는 4xx 라 수준만으로 걸러 본다) · 프리플라이트 `verbose` · 나머지 `log` |
+| 요청 ID | `common/request-context.ts` | 받은 `X-Request-Id` 가 `[A-Za-z0-9._:-]{8,128}` 이면 그 값, 아니면 새로 만든다(개행·공백을 받으면 가짜 로그 줄을 끼워 넣을 수 있다). 응답 헤더로 되돌리고 CORS 노출 헤더에 든다([4.4](api.md) §1.3b) |
+| 로그 맥락 | `common/nerv-logger.ts` | 요청 안에서 남긴 모든 줄에 `[req=…]` 가 붙는다 — AsyncLocalStorage 가 요청 ID 를 들고 로거가 읽는다. 서비스 코드는 모른다(D-05) |
+| 앞문 | §5.4 | 받은 `X-Request-Id` 를, 없으면 `$request_id` 를 넘기고 자기 접근 로그에도 싣는다. ingress-nginx 는 기본 설정으로 같은 일을 한다(`X-Request-ID` 생성·전달) |
+
+**싣지 않는 것**: 쿼리 문자열(라우트 템플릿만 — `/api/v1/projects/:proj/tasks`) · 요청·응답 본문 · `Authorization`·`Cookie`·`Idempotency-Key` · 이메일과 표시 이름(사람은 `user_id` 로만 가리킨다). 이 줄은 수집기로 흘러가고, 거기서 누가 읽을지는 이 저장소가 정하지 않는다.
+
+**Nest 인터셉터가 아니라 Fastify 훅인 이유**: better-auth(`/api/auth/*`)는 Nest 라우트가 아니고, 가드가 거절한 요청은 인터셉터에 닿지 않는다 — 문의가 오는 것이 바로 그 401·403 이다. **`onResponse` 가 아니라 응답의 `close` 를 듣는 이유**: SSE 는 `reply.send` 를 거치지 않아 `onResponse` 가 오지 않는다. 스트림은 끊길 때 `aborted=1` 로 한 줄이 남고, 소요 시간이 곧 연결 시간이다.
+
+**클라이언트 주소는 `X-Forwarded-For` 의 마지막 항목이다** — 앞문은 받은 값 뒤에 자기가 본 주소를 덧붙이므로 맨 앞은 클라이언트가 적어 보낸 값이다. 앞문이 하나인 배치를 전제한다.
+
+※ 남은 것(다음 두 단계): ② `NERV_LOG_FORMAT=json|text` — 운영 기본을 JSON 한 줄로(내장 `ConsoleLogger` 의 `json` 모드 · §5.2 전표와 `check-env-table.mjs`) 하고 "싣지 않는 것" 을 L1 으로 센다. ③ MCP `tools/call` 마다 한 줄(도구 · 결과 코드 · 소요 — HTTP 줄만으로는 전부 `POST /mcp 200` 이다), 워커 잡의 시작·끝 한 줄, WebSocket 연결·해제 한 줄.
 
 ---
 
