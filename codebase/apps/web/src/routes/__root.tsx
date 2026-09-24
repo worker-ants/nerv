@@ -13,6 +13,8 @@ import {
 import { useEffect } from 'react';
 import { AppShell } from '../components/app-shell.js';
 import { NervApiError } from '../lib/api.js';
+import { useApiError } from '../lib/api-errors.js';
+import { setMutationErrorHandler } from '../lib/query-client.js';
 import { useMe } from '../lib/queries.js';
 
 export const Route = createRootRoute({ component: RootComponent });
@@ -39,6 +41,14 @@ function RootComponent(): React.JSX.Element {
     .find((slug): slug is string => slug !== undefined);
 
   const unauthenticated = me.isError && me.error instanceof NervApiError && me.error.status === 401;
+
+  // **실패한 쓰기의 기본 처리기**(REQ-WEB-196) — 자기 `onError` 가 없는 쓰기의 실패가
+  // 여기로 온다(`lib/query-client.ts`). 처리기는 라우터·실시간 문맥이 필요해 여기서 건다.
+  const onApiError = useApiError();
+  useEffect(() => {
+    setMutationErrorHandler(onApiError);
+    return () => setMutationErrorHandler(null);
+  }, [onApiError]);
 
   useEffect(() => {
     if (

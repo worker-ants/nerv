@@ -27,11 +27,31 @@ import type { ConnectionState } from './ws.js';
 
 export interface Toast {
   id: string;
+  /**
+   * 모양과 보조기기 알림을 정한다(REQ-WEB-197) — `warn` 은 실패·경고(⚠, `role="alert"`),
+   * `ok` 는 내가 한 일의 결과(✓), `info` 는 남이 한 일(ℹ). 셋 다 같은 흰 상자였던 동안
+   * "권한이 없습니다" 와 "승인했습니다" 를 모양으로 가를 수 없었다.
+   */
   tone: 'warn' | 'info' | 'ok';
   message: string;
-  /** 되돌리기 링크 — 승인 처리 트레일이 쓴다(ui-wireframes §4.1) */
+  /** 누르면 갈 곳 — 앱 안 경로면 새로 적재하지 않는다 */
   href?: string | undefined;
   hrefLabel?: string | undefined;
+  /**
+   * 결재 처리 트레일 — 3분 남는다(ui-wireframes §4.1). 수명은 톤이 아니라 **종류**가 정한다:
+   * 톤으로 정하던 동안 에이전트가 초안을 저장할 때마다 뜨는 알림까지 3분씩 쌓였다.
+   */
+  kind?: 'trail' | undefined;
+  /** 같은 값의 토스트는 한 장으로 합친다 — 같은 문서가 연달아 바뀌면 줄이 쌓이지 않게 */
+  mergeKey?: string | undefined;
+}
+
+/** 수명(REQ-WEB-197) — 결재 트레일 3분 · 경고 20초 · 그 밖 8초 */
+export const TOAST_TTL_MS = { trail: 180_000, warn: 20_000, default: 8_000 } as const;
+
+function ttlOf(toast: Omit<Toast, 'id'>): number {
+  if (toast.kind === 'trail') return TOAST_TTL_MS.trail;
+  return toast.tone === 'warn' ? TOAST_TTL_MS.warn : TOAST_TTL_MS.default;
 }
 
 export interface RealtimeValue {
@@ -40,10 +60,12 @@ export interface RealtimeValue {
   /** REST 자체가 죽었나 — 배너 2단계(오프라인)로 격상한다(NFR-05) */
   offline: boolean;
   setOffline: (offline: boolean) => void;
-  joinProject: (projectId: string) => () => void;
+  /** 프로젝트 룸에 붙는다. slug 를 주면 그 프로젝트의 알림 토스트가 문서 링크를 단다 */
+  joinProject: (projectId: string, projectSlug?: string) => () => void;
   toasts: Toast[];
   pushToast: (toast: Omit<Toast, 'id'>) => void;
   dismissToast: (id: string) => void;
+  dismissAllToasts: () => void;
 }
 
 const RealtimeContext = createContext<RealtimeValue | null>(null);
@@ -98,18 +120,48 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
   const socketRef = useRef<Socket | null>(null);
   const me = useMe();
   const wasConnected = useRef(false);
+  // 룸에 붙은 프로젝트의 slug — 봉투는 id 만 싣는다(D-14). 토스트의 문서 링크가 쓴다.
+  const projectSlugs = useRef(new Map<string, string>());
 
-  const pushToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setToasts((prev) => [...prev, { ...toast, id }]);
-    // 처리됨 트레일은 3분 유지다(ui-wireframes §4.1) — 경고는 그보다 짧게 둔다.
-    const ttl = toast.tone === 'ok' ? 180_000 : 20_000;
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), ttl);
-  }, []);
+  // 토스트마다 걸린 타이머 — 닫거나 합칠 때 옛 타이머가 새 토스트를 지우지 않게 쥔다
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const dismissToast = useCallback((id: string) => {
+    const timer = timers.current.get(id);
+    if (timer !== undefined) clearTimeout(timer);
+    timers.current.delete(id);
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const dismissAllToasts = useCallback(() => {
+    for (const timer of timers.current.values()) clearTimeout(timer);
+    timers.current.clear();
+    setToasts([]);
+  }, []);
+
+  const pushToast = useCallback(
+    (toast: Omit<Toast, 'id'>) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setToasts((prev) => {
+        // **합친다**(REQ-WEB-197). 같은 문서가 연달아 바뀌면 같은 줄이 쌓였다 — 에이전트가
+        // 초안을 저장할 때마다 한 장씩이었다. 옛 장을 지우고 새 장을 맨 아래(가장 새 자리)에 둔다.
+        const merged =
+          toast.mergeKey === undefined ? [] : prev.filter((t) => t.mergeKey === toast.mergeKey);
+        for (const old of merged) {
+          const timer = timers.current.get(old.id);
+          if (timer !== undefined) clearTimeout(timer);
+          timers.current.delete(old.id);
+        }
+        const rest = merged.length === 0 ? prev : prev.filter((t) => !merged.includes(t));
+        return [...rest, { ...toast, id }];
+      });
+      timers.current.set(
+        id,
+        setTimeout(() => dismissToast(id), ttlOf(toast)),
+      );
+    },
+    [dismissToast],
+  );
 
   // onEvent 가 읽으므로 그보다 먼저 잡는다 — "내가 한 일"을 가르는 기준이다
   const userId = me.data?.id;
@@ -136,9 +188,20 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
       if (event.actor_user_id !== null && event.actor_user_id === userId) return;
       const label = NOTIFY[event.type];
       if (label === undefined) return;
+      // **남이 한 일은 `info` 다**(REQ-WEB-197) — 내가 한 일의 ✓ 와 모양이 같으면 무엇이 내
+      // 결과인지 가를 수 없다. 같은 문서는 한 장으로 합치고, 그 문서로 가는 길을 단다.
+      const subject = event.subject_key ?? '';
+      const slug = projectSlugs.current.get(event.project_id);
       pushToast({
-        tone: 'ok',
-        message: translate.current(label, { subject: event.subject_key ?? '' }),
+        tone: 'info',
+        message: translate.current(label, { subject }),
+        mergeKey: `spec:${event.project_id}:${subject}`,
+        ...(slug !== undefined && subject !== ''
+          ? {
+              href: `/p/${slug}/specs/${encodeURIComponent(subject)}`,
+              hrefLabel: translate.current('shell.toast.open'),
+            }
+          : {}),
       });
     },
     [pushToast, queryClient, userId],
@@ -175,18 +238,40 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
     // userId 가 바뀌면(로그인·로그아웃·계정 전환) 소켓을 새로 만든다
   }, [onEvent, queryClient, userId]);
 
+  // 떠날 때 남은 타이머를 거둔다 — 언마운트된 공급자의 setState 를 부르지 않게
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
+
   // 배너 ②를 켜는 유일한 자리(§1.3). 폴백 폴링이 계속 돌므로 되살아나는 것도 여기서 본다.
   useEffect(() => onReachabilityChange((reachable) => setOffline(!reachable)), []);
 
-  const joinProject = useCallback((projectId: string) => {
+  const joinProject = useCallback((projectId: string, projectSlug?: string) => {
     // 소켓이 아직 없어도 **기억은 남긴다** — 붙는 순간 `connect` 핸들러가 되찾는다.
     joinProjectRoom(socketRef.current, projectId);
-    return () => leaveProjectRoom(socketRef.current, projectId);
+    if (projectSlug !== undefined) projectSlugs.current.set(projectId, projectSlug);
+    return () => {
+      leaveProjectRoom(socketRef.current, projectId);
+      projectSlugs.current.delete(projectId);
+    };
   }, []);
 
   const value = useMemo<RealtimeValue>(
-    () => ({ state, offline, setOffline, joinProject, toasts, pushToast, dismissToast }),
-    [state, offline, joinProject, toasts, pushToast, dismissToast],
+    () => ({
+      state,
+      offline,
+      setOffline,
+      joinProject,
+      toasts,
+      pushToast,
+      dismissToast,
+      dismissAllToasts,
+    }),
+    [state, offline, joinProject, toasts, pushToast, dismissToast, dismissAllToasts],
   );
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;

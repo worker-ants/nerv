@@ -120,7 +120,7 @@ function OrgSection({
     },
     onError: (error: Error) => {
       setConfirming(false);
-      pushToast({ tone: 'warn', message: error.message });
+      onApiError(error);
     },
   });
 
@@ -215,7 +215,6 @@ function ProjectSection({
 }): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
-  const { pushToast } = useRealtime();
   const [creating, setCreating] = useState(false);
 
   const refresh = (): void => {
@@ -274,7 +273,6 @@ function ProjectSection({
             project={project}
             canEdit={canEditProject(String(project['slug']))}
             onChanged={refresh}
-            onError={(m) => pushToast({ tone: 'warn', message: m })}
           />
         ))}
       </ul>
@@ -370,14 +368,15 @@ function ProjectRow({
   project,
   canEdit,
   onChanged,
-  onError,
 }: {
   project: Record<string, unknown>;
   canEdit: boolean;
   onChanged: () => void;
-  onError: (message: string) => void;
 }): React.JSX.Element {
   const t = useT();
+  // 실패는 표(§1.5)를 거쳐 말한다(REQ-WEB-196) — 예전에는 `error.message` 만 부모에게 넘겨
+  // 토스트에 그대로 찍었고, 부류·재시도 시각·갈 곳이 그 사이에서 사라졌다.
+  const onApiError = useApiError();
   const slug = String(project['slug']);
   const archived = project['archived_at'] !== null && project['archived_at'] !== undefined;
   const [name, setName] = useState(String(project['name']));
@@ -414,7 +413,7 @@ function ProjectRow({
       setEditing(false);
       onChanged();
     },
-    onError: (error: Error) => onError(error.message),
+    onError: onApiError,
   });
 
   const archive = useMutation({
@@ -424,7 +423,7 @@ function ProjectRow({
         body: {},
       }),
     onSuccess: onChanged,
-    onError: (error: Error) => onError(error.message),
+    onError: onApiError,
   });
 
   return (

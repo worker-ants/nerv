@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { NERV_ERROR } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
+import { useApiError } from '../../lib/api-errors.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { Button, Field, Input } from '../../components/ui/primitives.js';
 import type { ProjectId } from '../../lib/query-keys.js';
@@ -43,6 +44,7 @@ export function MetaDialog({
   const t = useT();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
+  const onApiError = useApiError();
   const [newTitle, setNewTitle] = useState(title);
   const [parentKey, setParentKey] = useState('');
   const [cycleError, setCycleError] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function MetaDialog({
         );
         return;
       }
-      pushToast({ tone: 'warn', message: error.message });
+      onApiError(error);
     },
   });
 
@@ -105,7 +107,7 @@ export function MetaDialog({
         setBlockers(error.body.details['blockers'] as Blocker[]);
         return;
       }
-      pushToast({ tone: 'warn', message: error.message });
+      onApiError(error);
     },
   });
 

@@ -29,6 +29,7 @@ import { cn } from '../lib/utils.js';
 import { chapterForRoute } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
+import { ToastStack } from './toast-stack.js';
 import { documentTitle } from '../lib/document-title.js';
 import { SpecTree } from './spec-tree.js';
 import { MenuItem, Popover } from './ui/primitives.js';
@@ -150,7 +151,7 @@ export function AppShell({
   const shellProject = useProject(projectSlug ?? '');
   const activeSessions = Number(shellProject.data?.['active_sessions'] ?? 0);
   const openCritical = Number(shellProject.data?.['open_critical_findings'] ?? 0);
-  const { state, offline, toasts, dismissToast } = useRealtime();
+  const { state, offline } = useRealtime();
   const me = useMe();
   const inbox = useInbox();
   const unread = useUnreadCount();
@@ -910,31 +911,7 @@ export function AppShell({
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
-      <div data-testid="toast-outlet" className="fixed right-4 bottom-4 z-50 flex flex-col gap-2">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            data-testid="toast"
-            data-tone={toast.tone}
-            className="flex items-center gap-3 rounded-nerv border border-border bg-bg-elev px-3 py-2 text-sm shadow-popover"
-          >
-            <span>{toast.message}</span>
-            {toast.href !== undefined && (
-              <a href={toast.href} className="text-link underline">
-                {toast.hrefLabel ?? t('shell.toast.undo')}
-              </a>
-            )}
-            <button
-              type="button"
-              aria-label={t('shell.dismiss')}
-              className="text-text-faint hover:text-text"
-              onClick={() => dismissToast(toast.id)}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-      </div>
+      <ToastStack />
 
       <QuickSwitcher
         projectSlug={projectSlug}

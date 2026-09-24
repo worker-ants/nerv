@@ -14,6 +14,7 @@ import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, NervApiError } from '../lib/api.js';
+import { describeApiError } from '../lib/api-errors.js';
 import { fetchMe } from '../lib/session.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { useMe } from '../lib/queries.js';
@@ -51,6 +52,8 @@ function InviteScreen(): React.JSX.Element {
       const accepted = result as Record<string, unknown>;
       void navigate(acceptedLanding(String(accepted['org_slug'] ?? ''), accepted['project_slug']));
     },
+    // 셸 밖 화면이라 토스트가 설 자리가 없다 — 실패는 단추 아래에서 말한다
+    meta: { inlineError: true },
   });
 
   const signedIn = me.data !== undefined;
@@ -113,10 +116,7 @@ function InviteScreen(): React.JSX.Element {
                     </Button>
                     {accept.isError && (
                       <p role="alert" className="mt-2 text-sm text-status-danger">
-                        ⚠{' '}
-                        {accept.error instanceof NervApiError
-                          ? accept.error.message
-                          : String(accept.error)}
+                        ⚠ {describeApiError(t, accept.error).message}
                       </p>
                     )}
                   </>

@@ -26,6 +26,7 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
 import { statusLabelKey } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
+import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import {
@@ -192,13 +193,16 @@ function SpecDetail(): React.JSX.Element {
   const isArea = String(detail.data?.['type'] ?? '') === 'area';
   const docStatus = String(detail.data?.['doc_status'] ?? 'draft');
   const versionId = String(detail.data?.['version_id'] ?? '');
+  // 누름마다 새 키다(REQ-WEB-195) — 버전 id 로 만들면 그 버전의 두 번째 제출이 첫 응답의 재생이 된다
+  const submitPress = usePressKey('submit');
   const submit = useMutation({
     mutationFn: () =>
       apiFetch<Record<string, unknown>>(`/projects/${proj}/spec-versions/${versionId}/submit`, {
         method: 'POST',
         body: {},
-        idempotencyKey: `submit-${versionId}`,
+        idempotencyKey: submitPress.take(),
       }),
+    onSettled: submitPress.release,
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
       const gate = result['gate'] as { tier?: string } | undefined;
@@ -247,7 +251,7 @@ function SpecDetail(): React.JSX.Element {
         });
         return;
       }
-      pushToast({ tone: 'warn', message: error.message });
+      onApiError(error);
     },
   });
 

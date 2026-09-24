@@ -14,6 +14,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MessageKey, Translator } from '@nerv/schema';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
+import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useSpecVersion } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -47,6 +48,18 @@ const SUBJECT_FALLBACK = {
 export function subjectFallback(t: Translator, subjectType: unknown): string {
   const key = SUBJECT_FALLBACK[subjectType as keyof typeof SUBJECT_FALLBACK];
   return key === undefined ? t('inbox.card.untitled') : t(key);
+}
+
+/**
+ * 토스트가 부르는 카드의 이름 — 키와 제목. 카드는 결정하는 순간 목록에서 사라지므로
+ * 무엇을 처리했는지는 이 한 줄에만 남는다(REQ-WEB-197).
+ */
+export function subjectLabel(t: Translator, card: Record<string, unknown>): string {
+  const key = String(card['spec_key'] ?? card['task_key'] ?? '');
+  const title = String(
+    card['title'] ?? card['spec_title'] ?? subjectFallback(t, card['subject_type']),
+  );
+  return key === '' ? title : `${key} ${title}`;
 }
 
 export function waitedLabel(t: Translator, seconds: number): string {
@@ -195,13 +208,19 @@ export function ApprovalCard({
    * 그것을 화면이 자유 서술 상자 하나로 받으면, 구조화해서 보낸 쪽의 노력이 사라지고
    * **재해석 드리프트**가 되돌아온다 — 사람이 고른 것과 에이전트가 읽은 것이 갈린다.
    */
+  // 멱등 키는 **누름마다** 새로 만든다(REQ-WEB-195) — 카드 id 로 만들면 같은 카드의 두 번째
+  // 코멘트가 첫 코멘트의 재생이 되거나(같은 글) `idempotency_mismatch` 로 막힌다(다른 글).
+  const answerPress = usePressKey('answer');
+  const decidePress = usePressKey('decision');
+
   const answerWith = useMutation({
     mutationFn: (choice: string) =>
       apiFetch(`/projects/${projectSlug}/questions/${id}/answer`, {
         method: 'POST',
         body: { answer_key: choice, answer_md: comment },
-        idempotencyKey: `answer-${id}`,
+        idempotencyKey: answerPress.take(),
       }),
+    onSettled: answerPress.release,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inbox() });
       pushToast({
@@ -217,18 +236,11 @@ export function ApprovalCard({
 
   const decide = useMutation({
     mutationFn: async (decision: Decision) => {
-      // **거절에는 사유가 필수다**(REQ-WEB-022). 사유 없는 거절은 요청자에게 "다시 해보라"는
-      // 말만 남기고, 그 왕복이 승인 병목(P4)을 만든다. 사유는 알림과 감사 로그 양쪽에 남는다.
-      if (decision === 'reject' && comment.trim() === '') {
-        setReasonRequired(true);
-        throw new Error(t('inbox.card.reason_missing'));
-      }
-      setReasonRequired(false);
       if (isQuestion) {
         return apiFetch(`/projects/${projectSlug}/questions/${id}/answer`, {
           method: 'POST',
           body: { answer_md: comment },
-          idempotencyKey: `answer-${id}`,
+          idempotencyKey: decidePress.take(),
         });
       }
 
@@ -240,9 +252,10 @@ export function ApprovalCard({
           // 카드를 연 시점의 해시를 함께 보낸다 — 그 사이 본문이 바뀌었으면 서버가 막는다.
           seen_content_hash: card['content_hash'],
         },
-        idempotencyKey: `decision-${id}-${decision}`,
+        idempotencyKey: decidePress.take(),
       });
     },
+    onSettled: decidePress.release,
     onSuccess: (result, decision) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inbox() });
       // **아직 확정이 아니면 그렇게 말한다**(2026-09-07 · REQ-WEB-146). T3 는 서로 다른
@@ -261,19 +274,49 @@ export function ApprovalCard({
         });
         return;
       }
-      // 처리됨 트레일 — 3분 유지(ui-wireframes §4.1)
+      // 처리됨 트레일 — 3분 유지(ui-wireframes §4.1). **무엇을** 처리했는지 말한다(REQ-WEB-197):
+      // a 를 다섯 번 누른 사람의 화면에 "승인 처리됐습니다." 다섯 장이 쌓이면 어느 문서였는지
+      // 한 줄도 남지 않는다 — 카드는 목록에서 이미 사라졌다.
       pushToast({
         tone: 'ok',
+        kind: 'trail',
         message: isQuestion
           ? t('inbox.card.delivered', {
               host: String(card['hostname'] ?? '?'),
               agent: String(card['agent_type'] ?? '?'),
             })
-          : t('inbox.card.decided', { decision: decisionLabel(t, decision) }),
+          : t('inbox.card.decided', {
+              subject: subjectLabel(t, card),
+              decision: decisionLabel(t, decision),
+            }),
+        ...(subjectLink === null
+          ? {}
+          : {
+              href: `/p/${encodeURIComponent(subjectLink.params['proj'] ?? '')}/specs/${encodeURIComponent(subjectLink.key)}`,
+              hrefLabel: t('shell.toast.open'),
+            }),
       });
     },
     onError: onApiError,
   });
+
+  /**
+   * **거절에는 사유가 필수다**(REQ-WEB-022). 사유 없는 거절은 요청자에게 "다시 해보라" 는 말만
+   * 남기고, 그 왕복이 승인 병목(P4)을 만든다.
+   *
+   * 이 검사는 **요청 앞에서** 한다(REQ-WEB-196). 예전에는 `mutationFn` 안에서 던져서, 카드 아래의
+   * 빨간 문장과 같은 뜻의 경고 토스트가 한 번 더 떴고 사유 칸으로 가는 길은 없었다 — 보낼 수
+   * 없는 것을 보내 보고 실패를 알리는 대신, 보내지 않고 쓸 자리로 데려간다.
+   */
+  const requestDecision = (decision: Decision): void => {
+    if (!isQuestion && decision === 'reject' && comment.trim() === '') {
+      setReasonRequired(true);
+      commentRef.current?.focus();
+      return;
+    }
+    setReasonRequired(false);
+    decide.mutate(decision);
+  };
 
   useEffect(() => {
     if (active !== true || keysOff === true) return;
@@ -285,8 +328,8 @@ export function ApprovalCard({
       // 아래에서 "누를 수 있는 것은 할 수 있다는 뜻이어야 한다" 고 적어 두고 키에는
       // 적용하지 않은 자리다(2026-09-05 감사).
       if (decided !== null) return;
-      if (e.key === 'a' && !isQuestion && canApprove) decide.mutate('approve');
-      if (e.key === 'r' && !isQuestion) decide.mutate('reject');
+      if (e.key === 'a' && !isQuestion && canApprove) requestDecision('approve');
+      if (e.key === 'r' && !isQuestion) requestDecision('reject');
       if (e.key === 'c') {
         e.preventDefault();
         commentRef.current?.focus();
@@ -294,7 +337,7 @@ export function ApprovalCard({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, keysOff, card, decide, isQuestion, decided]);
+  }, [active, keysOff, card, decide, isQuestion, decided, requestDecision]);
 
   return (
     <article
@@ -604,7 +647,7 @@ export function ApprovalCard({
               variant="primary"
               size="sm"
               disabled={decide.isPending || comment.trim() === ''}
-              onClick={() => decide.mutate('approve')}
+              onClick={() => requestDecision('approve')}
             >
               {t('inbox.card.send_answer')}
             </Button>
@@ -615,7 +658,7 @@ export function ApprovalCard({
                 size="sm"
                 data-testid="approve"
                 disabled={decide.isPending || !canApprove}
-                onClick={() => decide.mutate('approve')}
+                onClick={() => requestDecision('approve')}
                 title={canApprove ? undefined : (lockReason ?? undefined)}
               >
                 {t('inbox.key.approve')}
@@ -628,14 +671,14 @@ export function ApprovalCard({
                 size="sm"
                 data-testid="reject"
                 disabled={decide.isPending}
-                onClick={() => decide.mutate('reject')}
+                onClick={() => requestDecision('reject')}
               >
                 {t('inbox.key.reject')}
               </Button>
               <Button
                 size="sm"
                 disabled={decide.isPending}
-                onClick={() => decide.mutate('comment')}
+                onClick={() => requestDecision('comment')}
               >
                 {t('inbox.key.comment')}
               </Button>

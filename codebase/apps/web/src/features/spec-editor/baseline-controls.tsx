@@ -8,6 +8,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
+import { describeApiError } from '../../lib/api-errors.js';
 import { rows as asRows } from '../../lib/queries.js';
 import { useT } from '../../lib/i18n.js';
 import { Button, Input } from '../../components/ui/primitives.js';
@@ -115,6 +116,8 @@ export function FreezeDialog({
       void queryClient.invalidateQueries({ queryKey: ['project', projectSlug, 'baselines'] });
       onClose();
     },
+    // 실패는 다이얼로그 안에서 말한다 — 기본 처리기(토스트)가 같은 것을 한 번 더 말하지 않게
+    meta: { inlineError: true },
   });
 
   return (
@@ -150,7 +153,9 @@ export function FreezeDialog({
         />
 
         {freeze.isError && (
-          <p className="mb-2 text-xs text-status-danger">{(freeze.error as Error).message}</p>
+          <p role="alert" className="mb-2 text-xs text-status-danger">
+            {describeApiError(t, freeze.error).message}
+          </p>
         )}
 
         <div className="flex justify-end gap-2">

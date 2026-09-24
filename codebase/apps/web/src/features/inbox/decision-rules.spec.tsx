@@ -272,3 +272,62 @@ describe('REQ-WEB-146 — 몇 명 중 몇 명인지 말한다', () => {
     await waitFor(() => expect(screen.getByTestId('toast').textContent).toContain('더 필요합니다'));
   });
 });
+
+/**
+ * **실패는 한 번, 쓸 자리에서 말한다**(REQ-WEB-196 · §1.5). 사유 없는 거절은 요청 안에서
+ * 던져졌고, 카드 아래 빨간 문장과 같은 뜻의 경고 토스트가 한 번 더 떴다 — 그러면서도
+ * 사유 칸으로 가는 길은 주지 않았다.
+ */
+describe('REQ-WEB-196 — 사유 없는 거절은 토스트 없이 사유 칸으로 데려간다', () => {
+  it('인라인 한 곳에서 말하고, 사유 칸에 포커스를 준다', async () => {
+    renderCard(APPROVAL);
+    fireEvent.click(screen.getByRole('button', { name: '거절' }));
+
+    await waitFor(() => expect(screen.getByTestId('reason-required')).toBeDefined());
+    expect(screen.getByTestId('toast').textContent).toBe('');
+    expect(document.activeElement).toBe(screen.getByTestId('decision-comment'));
+  });
+});
+
+/**
+ * **무엇을 처리했는지 말한다**(REQ-WEB-197). 카드는 결정하는 순간 목록에서 사라지므로,
+ * "승인 처리됐습니다." 다섯 장이 쌓이면 어느 문서였는지 한 줄도 남지 않았다.
+ */
+describe('REQ-WEB-197 — 결재 트레일은 대상의 이름을 싣는다', () => {
+  // 스펙 키가 있으면 카드가 라우터 링크를 그리는데 이 검사는 카드만 띄운다 — 키 자리는 작업 키로 본다
+  it('승인 토스트에 대상의 키와 제목이 있다', async () => {
+    renderCard({ ...APPROVAL, task_key: 'CLV-T-AAAAAA' });
+    fireEvent.click(screen.getByRole('button', { name: '승인' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('toast').textContent).toContain('CLV-T-AAAAAA 웹챗 위젯'),
+    );
+  });
+});
+
+/**
+ * **같은 카드의 두 번째 코멘트는 새 누름이다**(REQ-WEB-195). 키가 `decision-<카드>-comment`
+ * 로 고정이던 동안, 같은 글을 다시 달면 첫 응답의 재생이 되고 다른 글을 달면
+ * `idempotency_mismatch` 로 막혔다.
+ */
+describe('REQ-WEB-195 — 결정의 멱등 키는 누름마다 새로 난다', () => {
+  it('코멘트를 두 번 달면 키가 둘이다', async () => {
+    const keys: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init?: { headers?: Record<string, string> }) => {
+        const key = init?.headers?.['Idempotency-Key'];
+        if (key !== undefined) keys.push(key);
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      }),
+    );
+    renderCard(APPROVAL);
+    const comment = screen.getByRole('button', { name: '코멘트' });
+    fireEvent.change(screen.getByTestId('decision-comment'), { target: { value: '범위 확인' } });
+    fireEvent.click(comment);
+    await waitFor(() => expect(keys).toHaveLength(1));
+    await waitFor(() => expect((comment as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(comment);
+    await waitFor(() => expect(keys).toHaveLength(2));
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+});
