@@ -122,6 +122,18 @@ export const ROLE_SCOPES: Readonly<Record<string, readonly RoleScope[]>> = {
 };
 
 /**
+ * **작업을 만들고 고치는 역할**(EP-TASK-03 · EP-TASK-05 — 전표의 권한 열).
+ *
+ * 서버 가드(`RequireRoleAndScope`)와 화면이 **같은 값을 본다**(2026-09-24 — UI/UX 검토 ·
+ * REQ-WEB-203). 화면이 역할을 보지 않던 동안 designer 는 제목과 4요소를 다 적고 저장한 뒤에야
+ * 403 을 받았고, qa 는 리뷰 센터에서 올린 작업의 [채우기]를 다 채운 뒤 403 을 받았다.
+ * 두 목록이 다른 이유는 전표가 그렇게 적었기 때문이다 — qa 는 발견을 작업으로 **올리지만**
+ * 위임 명세는 쓰지 않는다.
+ */
+export const TASK_CREATE_ROLES = ['planner', 'developer', 'admin', 'qa'] as const;
+export const TASK_EDIT_ROLES = ['planner', 'developer', 'admin'] as const;
+
+/**
  * 역할별로 **새로 만들 수 있는 스펙 타입**(EP-SPEC-07 의 ● / ○).
  *
  * `null` 은 제한 없음, `[]` 는 **하나도 못 만든다**는 뜻이다.

@@ -5,7 +5,7 @@
 // 화면(E08)이 이 계약 위에 올라가므로, 여기가 어긋나면 화면은 조용히 빈 상태를 렌더한다.
 
 import { createHash } from 'node:crypto';
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, ko, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -513,6 +513,26 @@ describe('Task 표면 (EP-TASK-01·03·04·05·09)', () => {
     const page = res.body as { items: Record<string, unknown>[]; next_cursor: string | null };
     expect(page.items[0]?.['delegation_complete']).toBe(false);
     expect(page).toHaveProperty('next_cursor');
+  });
+
+  it('임포트 자리표시자는 빈 것으로 센다 — 승격·전이와 같은 판정 (REQ-API-175)', async () => {
+    // "NULL 이 아닌가" 만 보던 동안 자리표시자를 찬 것으로 셌고, 되돌린 임포트 작업이 보드에서
+    // [채우기] 없이 backlog 에 갇혔다 — 서버의 승격은 그것을 빈 것으로 보는데 목록만 달랐다
+    const filled = { output_format_md: 'PR', tools_sources_md: '도구', boundaries_md: '경계' };
+    const placeholder = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      payload: { title: '임포트 자리표시자', goal_md: ko['import.delegation_missing'], ...filled },
+    });
+    const complete = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      payload: { title: '다 찬 것', goal_md: '  목표\n', ...filled },
+    });
+    const res = await call('GET', '/api/v1/projects/clemvion/tasks?status=backlog&limit=100');
+    const page = res.body as { items: Record<string, unknown>[] };
+    const of = (created: { body: unknown }): unknown =>
+      page.items.find((i) => i['key'] === (created.body as Record<string, unknown>)['key'])?.[
+        'delegation_complete'
+      ];
+    expect(of(placeholder)).toBe(false);
+    expect(of(complete)).toBe(true);
   });
 
   it('done 레인은 창 밖의 것을 기본으로 감추고, 토글이 그 창을 연다 (screens.md §2.5)', async () => {

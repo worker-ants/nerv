@@ -4,15 +4,17 @@ A task is one piece of work split out of an approved spec. People and agents loo
 
 Lanes are task statuses.
 
-| Status        | Meaning                        |
-| ------------- | ------------------------------ |
-| `backlog`     | Not up for work yet            |
-| `ready`       | **Can be picked up right now** |
-| `claimed`     | Someone has taken it           |
-| `in_progress` | Being worked on                |
-| `in_review`   | Waiting for review (optional)  |
-| `done`        | Finished                       |
-| `blocked`     | Stuck — with a stated reason   |
+| Screen name (value)         | Meaning                        |
+| --------------------------- | ------------------------------ |
+| Backlog (`backlog`)         | Not up for work yet            |
+| Ready (`ready`)             | **Can be picked up right now** |
+| Claimed (`claimed`)         | Someone has taken it           |
+| In progress (`in_progress`) | Being worked on                |
+| In review (`in_review`)     | Waiting for review (optional)  |
+| Done (`done`)               | Finished                       |
+| Blocked (`blocked`)         | Stuck — with a stated reason   |
+
+Screens speak in **names** — board lanes, the task screen, sessions and a spec's derived-task list all use the same names. The value in brackets is the identifier the API, the CLI and agents use.
 
 `in_review` is an **optional** step. Use it on a shared board when you want "the work is out, nobody has checked it yet" to be visible. Going straight from `in_progress` to `done` is fine — what actually gates completion is the evidence and the spec impact, not the lane.
 
@@ -20,13 +22,30 @@ Lanes are task statuses.
 
 Board cards and the task screen show that reason **by those four names**. A task blocked before the vocabulary existed (prior to 2026-09-06) still carries whatever sentence was typed then, and **that sentence is shown as written** — an old reason is not hidden.
 
-The screen for a blocked task also shows **what would unblock it**: whatever is still holding it (an open question, an unfinished dependency, a superseded base spec) appears as a link, and once nothing is left you get a **Can be unblocked now** badge. The badge does not unblock it for you — moving the task to [In progress] is what clears the block. When the reason is `Something outside the repo`, the server cannot judge it, so a person confirms and unblocks.
+The screen for a blocked task also shows **what would unblock it**: whatever is still holding it (an open question, an unfinished dependency, a superseded base spec) appears as a link, and once nothing is left you get a **Can be unblocked now** badge. The badge does not unblock it for you — press **[Unblock]** at the top of the task screen. The task goes back to **In progress** if someone holds it, otherwise to **Ready** (or **Backlog** if the brief is empty). While something is still holding it the button is locked and says why. When the reason is `Something outside the repo`, the server cannot judge it, so a person confirms with **[Check and unblock]**.
 
 **Four kinds of people can move a task to done** — whoever holds its active claim, the assignee, a planner, or an admin. Agents are stricter: without **a live claim of their own** they cannot call `in progress`, `in review` or `done`. The refusal says whether the task can be claimed again, so the agent knows whether to pick it back up or stop and report. `claimed` is not a lane you move into — claiming is the only way in.
 
 **Sending a task back to ready is also a judgement.** The four parts of the delegation brief must be filled in and every blocking task must be finished (a task imported with "source had no delegation brief" in those fields counts as **empty**). If an active claim is held, **release it or stop the session first** before moving the task back to ready or backlog.
 
-**Show backlog is on by default.** A task is always created in `backlog` and only moves to `ready` once the four parts of the delegation brief are filled in, so a task you just created lives in that lane. Turn **Show backlog** off to see only what is flowing; that choice stays in the address (`?backlog=0`). The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
+**Show backlog is on by default.** A task is always created in `backlog` and only moves to `ready` once the four parts of the delegation brief are filled in, so a task you just created lives in that lane. **If you filled in all four when creating it, press [Move to ready] on its card** — creating alone does not queue it; pressing it has the server check the four parts and the dependencies, then queue it. A card with parts missing shows **[Fill it in]** instead. Turn **Show backlog** off to see only what is flowing; that choice stays in the address (`?backlog=0`). The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
+
+## The next step is at the top of the task screen
+
+The buttons to the right of the task title are **the door from the current status to the next one**.
+
+| Now         | Button at the top                                                                     |
+| ----------- | ------------------------------------------------------------------------------------- |
+| Backlog     | **[Move to ready]** when all four parts are filled, **[Fill in the brief]** otherwise |
+| Ready       | **[Claim]**                                                                           |
+| Claimed     | **[Start work]** · [Finish…]                                                          |
+| In progress | **[Request review]** · [Finish…]                                                      |
+| In review   | **[Finish…]**                                                                         |
+| Blocked     | **[Unblock]** ([Check and unblock] when the server cannot judge the reason)           |
+
+**Buttons you cannot press still show** — locked, with the reason on hover (which roles can · someone else holds it · the block is not cleared yet). [Claim] appears only on **Ready** tasks — except a task held only by an expired lease, where pressing it reclaims that claim. On a backlog or blocked task it used to be a button that got refused.
+
+**The finish form opens when you press [Finish…] or when the task is Claimed, In progress or In review.** The spec impact **starts with nothing chosen** — "none" is a choice too, so [Move to done] is locked until you pick. Choose "some" and it turns on only once you write which spec should change and how. If no evidence is attached, the form says so before you press — the done gate requires evidence. Marking a task blocked happens in its own **Mark as blocked** card, where you pick the reason.
 
 ## The four parts of a brief
 
@@ -41,6 +60,8 @@ If any of them is empty the task cannot be claimed. **Large work takes one more 
 
 **Tasks are derived from approved versions.** On a spec's requirement row, [Create a task from this requirement] opens the new-task form with the source filled in. Opening the form directly lets you pick spec, version and requirement — and the version list shows **approved versions only** (work derived from an unapproved document stands on a promise nobody agreed to yet). The source is optional, but with it set that requirement's implementation status follows this task.
 
+**The brief is edited on the task screen.** **[Edit]** on the brief card opens the form in place. Empty parts and import placeholders ("source had no delegation brief") are marked **❌**. The rebrief badge has an [Edit] beside it too — when the basis moves, the instructions need reading again. **Planners, developers, admins and qa create tasks; planners, developers and admins edit the brief** (qa turns findings into tasks but does not write briefs). Anyone who cannot sees [+ New task], [Fill it in] and [Edit] locked — so nobody fills in the whole form only to be refused.
+
 The task screen shows that basis in human terms: the requirement's stable ID and sentence, the active claim's remaining lease and declared scope, and the reviews that covered this task (open criticals in red).
 
 ## Claims and leases
@@ -49,7 +70,7 @@ Taking a task is a **claim**. A claim carries a 30-minute lease, and the session
 
 - If heartbeats stop, the lease expires and the task returns to `ready`. This is what stops a dead session from holding work forever.
 - Two sessions touching the same declared scope register as an **overlap** — but not always a refusal. There are three grades. **Block** happens only when two sessions declare the **same spec document**, and only then is the second claim refused. **Warn** covers documents joined up or down the spec tree, and two tasks from the same requirement; **info** is anything else that grazes. Neither one stops anyone. **Overlapping file paths alone do not block**: refusing every overlap would let one large module serialise the whole project. **A block notifies whoever claimed first** — the blocked session sees the refusal immediately, but the person who needs to know that scopes are colliding is the one already holding the claim.
-- **You can take and drop work from the web too.** Press [Claim] on the task detail and it is yours — the scope is this task's source spec, and no files are declared. To drop it, pick one of two: **[Hand off]** means someone should pick it up next, **[Abandon]** means you are stopping. They are stored as different reasons, so "why did you put it down" has an answer later. **[Abandon] asks once more** — the task goes back to `ready`.
+- **You can take and drop work from the web too.** Press [Claim] at the top of the task detail and it is yours — the scope is this task's source spec, and no files are declared. To drop it, pick one of two: **[Hand off]** means someone should pick it up next, **[Abandon]** means you are stopping. They are stored as different reasons, so "why did you put it down" has an answer later. **[Abandon] asks once more** — the task goes back to `ready`.
 - A claim is usually released by **whoever holds it** — the agent releases it when it finishes or gives up (`nerv_task_release`). To stop work someone else holds, **Stop** their session: the claim is released on the spot and the task returns to `ready`.
 - **A task in progress that nobody holds can be sent back.** When a `claimed` or `in progress` task has no active claim, the screen offers [Send back to ready] or [Send back to backlog] — the first when the four parts of the delegation brief are filled in, the second when they are not (imported tasks usually are not). Imported tasks sat in that state for a long time: invisible to the queue and impossible to claim, so nobody ever saw them. If an active claim is held, release it or stop the session first.
 - The server allows more than the screen offers — **an admin can release someone else's claim**, and planners and admins can move someone else's task between lanes. Only the door is missing.

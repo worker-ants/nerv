@@ -179,6 +179,8 @@ describe('되돌리기와 완료 잠금 (REQ-WEB-141)', () => {
   it('planner 는 누를 수 있다 — 담당자·클레임 보유자도 같다', async () => {
     roles = ['planner'];
     await renderDetail();
+    // 스펙 영향은 처음에 골라져 있지 않다(REQ-WEB-202) — 고르고 나면 역할만 남는다
+    fireEvent.click(screen.getByTestId('spec-impact-none'));
     const done = screen.getByText(ko['task.to_done']).closest('button');
     expect(done?.disabled).toBe(false);
   });
@@ -186,6 +188,7 @@ describe('되돌리기와 완료 잠금 (REQ-WEB-141)', () => {
   it('담당자면 역할이 없어도 누를 수 있다', async () => {
     detail = taskDetail({ assignee_user_id: ME });
     await renderDetail();
+    fireEvent.click(screen.getByTestId('spec-impact-none'));
     const done = screen.getByText(ko['task.to_done']).closest('button');
     expect(done?.disabled).toBe(false);
   });
@@ -260,6 +263,8 @@ describe('REQ-WEB-148 — 근거·클레임·리뷰 카드', () => {
  */
 describe('클레임의 멱등 키는 누름마다 새로 난다 (REQ-WEB-195)', () => {
   it('두 번 누르면 키가 둘이다 — 대상 id 로 만들지 않는다', async () => {
+    // [클레임]은 잡을 수 있는 작업에만 선다(REQ-WEB-202)
+    detail = taskDetail({ status: 'ready' });
     await renderDetail();
     const claim = await screen.findByTestId('claim-task');
 

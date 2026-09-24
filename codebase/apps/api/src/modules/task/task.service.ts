@@ -14,6 +14,7 @@ import {
   BLOCKED_REASONS,
   checkEvidenceLocator,
   GatePolicySchema,
+  DELEGATION_PLACEHOLDER_TEXTS,
   isDelegationFilled,
   PLAN_APPROVAL_SIBLINGS,
   TASK_LEASE_BOUND_TARGETS,
@@ -111,6 +112,20 @@ export interface ReadyCandidate extends Record<string, unknown> {
 function taskMatch(ref: string): SQL {
   const parsed = entityRef(ref);
   return parsed.id === null ? sql`t.key = ${ref}` : sql`t.id = ${parsed.id}`;
+}
+
+/**
+ * SQL 쪽 `isDelegationFilled` — NULL · 공백 · 임포트 자리표시자는 **빈 것**이다(REQ-API-175).
+ * 판정이 코드(`isDelegationFilled`)와 SQL 두 자리에 있으므로 자리표시자 목록은 한 곳
+ * (`DELEGATION_PLACEHOLDER_TEXTS`)에서 온다. 앞뒤 공백은 JS `trim()` 과 같게 공백·탭·줄바꿈을 걷는다.
+ */
+function filledSql(column: SQL): SQL {
+  const trimmed = sql`btrim(${column}, chr(32) || chr(9) || chr(10) || chr(13))`;
+  const placeholders = sql.join(
+    DELEGATION_PLACEHOLDER_TEXTS.map((text) => sql`${text}`),
+    sql`, `,
+  );
+  return sql`(coalesce(${trimmed}, '') <> '' AND ${trimmed} NOT IN (${placeholders}))`;
 }
 
 @Injectable()
@@ -295,8 +310,11 @@ export class TaskService {
              s.key AS spec_key, s.id AS source_spec_id, sv.version_no AS basis_version_no,
              (sv.status = 'superseded') AS basis_superseded,
              c.id AS claim_id, c.agent_session_id AS claim_session_id, c.lease_expires_at,
-             (t.goal_md IS NOT NULL AND t.output_format_md IS NOT NULL
-              AND t.tools_sources_md IS NOT NULL AND t.boundaries_md IS NOT NULL) AS delegation_complete
+             -- **승격·전이와 같은 판정이다**(REQ-API-175). "NULL 이 아닌가" 만 보던 동안 임포트
+             -- 자리표시자를 찬 것으로 셌고, 되돌린 임포트 작업이 [채우기] 없이 backlog 에 갇혔다
+             (${filledSql(sql`t.goal_md`)} AND ${filledSql(sql`t.output_format_md`)}
+              AND ${filledSql(sql`t.tools_sources_md`)} AND ${filledSql(sql`t.boundaries_md`)})
+               AS delegation_complete
         FROM task t
    -- 담당자는 **이름으로** 준다. id 만 주면 화면이 아무것도 못 그리고, 목록마다
    -- 사용자를 다시 조회하면 N+1 이다(2026-08-23 — 보드 아바타).

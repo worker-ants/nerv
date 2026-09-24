@@ -2,24 +2,41 @@
 //
 // 여기서 done 전이를 한다. **게이트가 요구하는 것을 폼이 먼저 보여준다** — 스펙 영향 선언과
 // 증적. 조건 5(스펙 영향)가 clemvion 에서 가장 잘 작동한 규칙의 이식이라, "없음"도 명시적으로
-// 고르게 만든다. 빈 선언을 허용하면 규칙이 사라진다.
+// 고르게 만든다. 빈 선언을 허용하면 규칙이 사라진다 — 그래서 **처음에는 아무것도 골라져 있지
+// 않다**(2026-09-24 · REQ-WEB-202). 예전에는 "없음" 이 미리 체크돼 있어 건드리지 않고 완료를
+// 눌러도 선언한 것이 됐다.
+//
+// **머리의 단추는 상태가 정한다**(REQ-WEB-202 · `features/task-board/next-actions.ts`).
 
 import {
   BLOCKED_REASONS,
   EVIDENCE_KINDS,
+  TASK_EDIT_ROLES,
   blockedReasonLabelKey,
   isDelegationFilled,
+  rolesWithScope,
+  scopesForRoles,
   statusLabelKey,
 } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StatusBadge } from '../../components/status-badge.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { evidenceTarget, needsRepoUrl } from '../../lib/evidence.js';
-import { blockedReasonText } from '../../lib/format.js';
+import {
+  blockedReasonText,
+  claimStatusText,
+  evidenceKindText,
+  reviewKindText,
+  reviewStateText,
+  taskStatusText,
+} from '../../lib/format.js';
+import { DelegationForm } from '../../features/task-board/delegation-form.js';
+import { nextActions } from '../../features/task-board/next-actions.js';
+import type { NextAction, TransitionTarget } from '../../features/task-board/next-actions.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rows, useMe, useProject, useTask } from '../../lib/queries.js';
@@ -60,8 +77,15 @@ function TaskDetail(): React.JSX.Element {
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
 
-  const [specImpactNone, setSpecImpactNone] = useState(true);
+  /** 스펙 영향 — **고르지 않음이 처음이다**. "없음" 을 미리 골라 두면 그 선택을 화면이 대신한다 */
+  const [specImpact, setSpecImpact] = useState<'unset' | 'none' | 'some'>('unset');
   const [specImpactNote, setSpecImpactNote] = useState('');
+  /** [완료…]를 눌렀다 — 완료 폼은 진행 중인 작업이나 이것이 켜졌을 때만 편다 */
+  const [finishOpen, setFinishOpen] = useState(false);
+  /** 위임 명세를 그 자리에서 고친다(REQ-WEB-202) */
+  const [editingBrief, setEditingBrief] = useState(false);
+  const briefRef = useRef<HTMLDivElement>(null);
+  const gateRef = useRef<HTMLDivElement>(null);
   const [evidenceKind, setEvidenceKind] = useState('pr');
   const [evidenceLocator, setEvidenceLocator] = useState('');
   const [blockedReason, setBlockedReason] = useState('');
@@ -96,34 +120,37 @@ function TaskDetail(): React.JSX.Element {
   const myClaim = rows(data['claims']).find(
     (c) => c['status'] === 'active' && c['user_id'] === meId,
   );
-  const heldByOther = rows(data['claims']).some(
-    (c) => c['status'] === 'active' && c['user_id'] !== meId,
-  );
+  // **리스가 지난 클레임은 쥔 것이 아니다** — 서버는 클레임할 때 그것을 먼저 회수한다(`claimInTx`).
+  // 살아 있는 것과 지난 것을 가르지 않으면 되찾을 수 있는 작업의 [클레임]이 잠긴다
+  const active = rows(data['claims']).filter((c) => c['status'] === 'active');
+  const live = active.filter((c) => (secondsUntil(c['lease_expires_at'], now) ?? 0) > 0);
+  const heldByOther = live.some((c) => c['user_id'] !== meId);
+  const liveClaim: 'none' | 'mine' | 'other' =
+    live.length === 0 ? 'none' : live.some((c) => c['user_id'] === meId) ? 'mine' : 'other';
+  const expiredClaim = live.length === 0 && active.length > 0;
 
   /**
    * **완료로 옮길 수 있는 사람은 넷이다**(REQ-API-130 · REQ-WEB-141). 서버가 그렇게 판정하므로
    * 화면은 미리 잠근다 — 숨기지 않고 비활성으로, 사유를 툴팁에 적어서(REQ-WEB-003).
    * 누를 수 없는 단추가 왜 그런지 말하지 않으면 사람은 화면이 고장 났다고 읽는다.
    */
-  const privileged = rolesInProject(me.data, orgSlug, proj).some(
-    (r) => r === 'planner' || r === 'admin',
-  );
+  const roles = rolesInProject(me.data, orgSlug, proj);
+  const privileged = roles.some((r) => r === 'planner' || r === 'admin');
+  // 위임 명세를 고치는 문(EP-TASK-05)은 planner·developer·admin 만이다 — 서버 가드와 같은 목록
+  const canEditBrief = roles.some((r) => (TASK_EDIT_ROLES as readonly string[]).includes(r));
+  const canMove = scopesForRoles(roles).has('task:update');
   const isAssignee = data['assignee_user_id'] === meId && meId !== undefined;
   const canFinish = myClaim !== undefined || isAssignee || privileged;
 
   /**
    * **아무도 쥐지 않은 진행 중** — 임포트가 만든 24건이 그 모양이었다(2026-09-06 실측).
    * `next()` 에도 안 보이고(ready 가 아니라) 잡을 수도 없어서 아무에게도 닿지 않는다.
-   * 되돌리는 문이 웹에 없었다. 서버가 받을 것만 보인다(§1.8): 위임 명세 4요소가 차 있으면
-   * `ready`, 임포트 자리표시자처럼 비어 있으면 `backlog` 다 — 전자를 눌러 봐야 서버가
-   * 4요소로 거절한다.
+   * 되돌리는 문은 다음 행동 표가 연다 — 4요소가 차 있으면 `ready`, 임포트 자리표시자처럼
+   * 비어 있으면 `backlog` 다(전자를 눌러 봐야 서버가 4요소로 거절한다).
    */
-  const orphan =
-    (status === 'claimed' || status === 'in_progress') && !heldByOther && myClaim === undefined;
   const delegationFilled = (
     ['goal_md', 'output_format_md', 'tools_sources_md', 'boundaries_md'] as const
   ).every((field) => isDelegationFilled(typeof data[field] === 'string' ? data[field] : null));
-  const revertTarget: 'ready' | 'backlog' = delegationFilled ? 'ready' : 'backlog';
 
   // **누름마다 새 키다**(REQ-WEB-195). `claim-<작업 id>` 로 고정하던 동안, 잡았다 놓고 하루 안에
   // 다시 누르면 서버가 첫 응답을 재생해 새 클레임 없이 "잡았습니다" 가 떴다.
@@ -183,7 +210,7 @@ function TaskDetail(): React.JSX.Element {
   });
 
   const transition = useMutation({
-    mutationFn: (next: 'done' | 'blocked' | 'ready' | 'backlog') =>
+    mutationFn: (next: 'done' | 'blocked' | TransitionTarget) =>
       apiFetch<Record<string, unknown>>(
         `/projects/${proj}/tasks/${String(data['id'])}/transition`,
         {
@@ -192,7 +219,8 @@ function TaskDetail(): React.JSX.Element {
             status: next,
             ...(next === 'done'
               ? {
-                  spec_impact: specImpactNone ? { none: true } : { note: specImpactNote },
+                  spec_impact:
+                    specImpact === 'none' ? { none: true } : { note: specImpactNote.trim() },
                   evidence:
                     evidenceLocator.trim() === ''
                       ? []
@@ -212,9 +240,10 @@ function TaskDetail(): React.JSX.Element {
       }
       pushToast({
         tone: 'ok',
-        message: t('task.status_changed', { status: String(result['status']) }),
+        message: t('task.status_changed', { status: taskStatusText(t, result['status']) }),
       });
       setRejection(null);
+      if (result['status'] === 'done') setFinishOpen(false);
     },
     onError: (error: Error) => {
       // 거부는 **화면에 남는다**(REQ-WEB-018). 상태는 그대로이고(낙관적 갱신을 하지 않으므로
@@ -235,6 +264,40 @@ function TaskDetail(): React.JSX.Element {
       setRejection({ message: describeApiError(t, error).message, missing });
     },
   });
+
+  /** 머리의 단추 — 상태가 정한다(REQ-WEB-202) */
+  const actions = nextActions(
+    {
+      status,
+      delegationFilled,
+      unblockSatisfied: blocked === null ? undefined : (blocked['satisfied'] as boolean | null),
+      roles,
+      liveClaim,
+      expiredClaim,
+      canFinish,
+    },
+    t,
+  );
+  const run = (action: NextAction): void => {
+    if (action.kind === 'claim') claim.mutate();
+    else if (action.kind === 'fill_brief') {
+      setEditingBrief(true);
+      briefRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    } else if (action.kind === 'finish') {
+      setFinishOpen(true);
+      gateRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    } else if (action.target !== undefined) transition.mutate(action.target);
+  };
+  /** 완료 폼 — 진행 중인 작업이거나 [완료…]를 눌렀을 때만(backlog·ready 에 늘 펼쳐 두지 않는다) */
+  const showGate =
+    status !== 'done' &&
+    (finishOpen || status === 'claimed' || status === 'in_progress' || status === 'in_review');
+  const finishBlock =
+    specImpact === 'unset'
+      ? t('task.spec_impact_choose')
+      : specImpact === 'some' && specImpactNote.trim() === ''
+        ? t('task.spec_impact_note_required')
+        : null;
 
   const backToBoard = (
     <Link
@@ -288,7 +351,43 @@ function TaskDetail(): React.JSX.Element {
             />
           </>
         }
+        actions={
+          actions.length === 0 ? undefined : (
+            <div data-testid="next-actions" className="flex flex-wrap items-center gap-2">
+              {actions.map((action) => (
+                <Button
+                  key={action.kind}
+                  data-testid={
+                    action.kind === 'claim'
+                      ? 'claim-task'
+                      : action.kind === 'revert'
+                        ? 'revert-task'
+                        : `next-${action.kind}`
+                  }
+                  variant={action.primary ? 'primary' : 'default'}
+                  disabled={action.disabled !== null || transition.isPending || claim.isPending}
+                  title={action.disabled ?? action.hint}
+                  onClick={() => run(action)}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </div>
+          )
+        }
       />
+      {/* 머리의 단추가 거절되면 **그 아래에 남는다**(REQ-WEB-018) — 완료 폼이 닫혀 있어도 */}
+      {rejection !== null && !showGate && (
+        <p
+          role="alert"
+          data-testid="transition-rejected"
+          className="-mt-3 mb-4 rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
+        >
+          {t('task.transition_rejected', { message: rejection.message })}
+          {rejection.missing.length > 0 &&
+            t('task.transition_missing', { missing: rejection.missing.join(', ') })}
+        </p>
+      )}
 
       <div className="flex flex-col gap-4">
         {/* **"왜 이 작업인가" 가 화면에 있어야 한다**(FR-05 · D-03 · screens.md:900,912,931,934).
@@ -349,7 +448,9 @@ function TaskDetail(): React.JSX.Element {
                       className="mr-2 text-link hover:underline"
                     >
                       <Mono>{String(dep['key'])}</Mono>
-                      <span className="ml-1 text-xs text-text-mute">{String(dep['status'])}</span>
+                      <span className="ml-1 text-xs text-text-mute">
+                        {taskStatusText(t, dep['status'])}
+                      </span>
                     </Link>
                   ))}
             </Element>
@@ -367,12 +468,30 @@ function TaskDetail(): React.JSX.Element {
                   <Button
                     size="sm"
                     data-testid="rebrief"
-                    disabled={rebrief.isPending}
+                    disabled={rebrief.isPending || !canEditBrief}
                     onClick={() => rebrief.mutate()}
-                    title={t('task.basis.rebrief_title')}
+                    title={
+                      canEditBrief
+                        ? t('task.basis.rebrief_title')
+                        : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
+                    }
                   >
                     {t('task.basis.rebrief_action')}
                   </Button>
+                  {/* 기준이 옮겨 가면 지시도 다시 읽어야 한다 — 고칠 곳이 **같은 화면에** 있다 */}
+                  {canEditBrief && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="rebrief-edit"
+                      onClick={() => {
+                        setEditingBrief(true);
+                        briefRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+                      }}
+                    >
+                      {t('task.brief.edit')}
+                    </Button>
+                  )}
                 </span>
               )}
             </Element>
@@ -428,7 +547,7 @@ function TaskDetail(): React.JSX.Element {
                         {String(item['title'] ?? '')}
                       </span>
                       <span className="text-2xs text-text-ghost">
-                        {String(item['status'] ?? '')}
+                        {taskStatusText(t, item['status'])}
                       </span>
                     </li>
                   ))}
@@ -441,21 +560,68 @@ function TaskDetail(): React.JSX.Element {
           </Card>
         )}
 
-        <Card>
-          <SectionTitle>{t('task.brief')}</SectionTitle>
-          <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
-            <Element label={t('task.brief.goal')}>{String(data['goal_md'] ?? '—')}</Element>
-            <Element label={t('task.brief.output')}>
-              {String(data['output_format_md'] ?? '—')}
-            </Element>
-            <Element label={t('task.brief.tools')}>
-              {String(data['tools_sources_md'] ?? '—')}
-            </Element>
-            <Element label={t('task.brief.boundaries')}>
-              {String(data['boundaries_md'] ?? '—')}
-            </Element>
-          </div>
-        </Card>
+        {/* **위임 명세는 여기서 고친다**(2026-09-24 — UI/UX 검토 · REQ-WEB-202). 명세는 "같은
+            화면에 고칠 폼이 열려 있다" 고 적었는데 이 카드는 읽기 전용이었다 — 재브리핑 배지가
+            "지시를 다시 확인하세요" 라고 해도, ready 작업의 경계를 고치고 싶어도 고칠 곳이 없었다.
+            빈 요소와 임포트 자리표시자는 ❌ 로 그린다(§2.5 ③). */}
+        <div ref={briefRef}>
+          {editingBrief ? (
+            <DelegationForm
+              projectSlug={proj}
+              projectId={projectId}
+              taskKey={task}
+              onDone={() => setEditingBrief(false)}
+            />
+          ) : (
+            <Card>
+              <SectionTitle
+                action={
+                  <Button
+                    size="sm"
+                    data-testid="brief-edit"
+                    disabled={!canEditBrief || status === 'done'}
+                    title={
+                      canEditBrief
+                        ? undefined
+                        : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
+                    }
+                    onClick={() => setEditingBrief(true)}
+                  >
+                    {t('task.brief.edit')}
+                  </Button>
+                }
+              >
+                {t('task.brief')}
+              </SectionTitle>
+              <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
+                {(
+                  [
+                    ['goal_md', 'task.brief.goal'],
+                    ['output_format_md', 'task.brief.output'],
+                    ['tools_sources_md', 'task.brief.tools'],
+                    ['boundaries_md', 'task.brief.boundaries'],
+                  ] as const
+                ).map(([field, label]) => {
+                  const value = typeof data[field] === 'string' ? data[field] : null;
+                  return (
+                    <Element key={field} label={t(label)}>
+                      {isDelegationFilled(value) ? (
+                        value
+                      ) : (
+                        <span data-testid="brief-missing" className="text-status-danger">
+                          ❌{' '}
+                          {value === null || value.trim() === ''
+                            ? t('task.brief.empty')
+                            : t('task.brief.placeholder')}
+                        </span>
+                      )}
+                    </Element>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+        </div>
 
         <Card>
           <SectionTitle>{t('task.claims')}</SectionTitle>
@@ -464,19 +630,8 @@ function TaskDetail(): React.JSX.Element {
               `task:claim` 을 내주고 있었으므로 빠져 있던 것은 문뿐이다. */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {myClaim === undefined ? (
-              <>
-                <Button
-                  data-testid="claim-task"
-                  variant="primary"
-                  disabled={claim.isPending || heldByOther || status === 'done'}
-                  onClick={() => claim.mutate()}
-                >
-                  {t('task.claim')}
-                </Button>
-                {heldByOther && (
-                  <span className="text-xs text-text-faint">{t('task.claim_held')}</span>
-                )}
-              </>
+              // [클레임]은 머리에 있다 — 잡을 수 있는 상태일 때만(다음 행동 표)
+              heldByOther && <span className="text-xs text-text-faint">{t('task.claim_held')}</span>
             ) : (
               <>
                 {/* 인계와 포기는 **저장에서도 다른 값**이다(마이그레이션 0019) —
@@ -517,7 +672,7 @@ function TaskDetail(): React.JSX.Element {
               return (
                 <li key={String(claim['id'])} className="flex flex-col gap-0.5 text-xs">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{String(claim['status'])}</span>
+                    <span className="font-medium">{claimStatusText(t, claim['status'])}</span>
                     <span className="font-mono">
                       {String(claim['hostname'] ?? t('task.claim_human'))}
                     </span>
@@ -545,82 +700,111 @@ function TaskDetail(): React.JSX.Element {
           </ul>
         </Card>
 
-        <Card>
-          <SectionTitle>{t('task.done_gate')}</SectionTitle>
-          <div className="flex flex-col gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={specImpactNone}
-                onChange={(e) => setSpecImpactNone(e.target.checked)}
-              />
-              {t('task.spec_impact_none')}
-              <span className="text-xs text-text-faint">— {t('task.spec_impact_note')}</span>
-            </label>
-            {!specImpactNone && (
-              <Textarea
-                value={specImpactNote}
-                onChange={(e) => setSpecImpactNote(e.target.value)}
-                placeholder={t('task.spec_impact_placeholder')}
-                rows={2}
-              />
-            )}
-            <div className="flex gap-2">
-              {/* **어휘는 `@nerv/schema` 가 정본이다**(2026-09-10 · REQ-WEB-160 · REQ-CB-006).
+        {showGate && (
+          <div ref={gateRef}>
+            <Card data-testid="done-gate">
+              <SectionTitle>{t('task.done_gate')}</SectionTitle>
+              <div className="flex flex-col gap-3">
+                <fieldset className="flex flex-col gap-1.5 text-sm">
+                  <legend className="mb-1 text-xs font-medium text-text-mute">
+                    {t('task.spec_impact')}
+                    <span className="ml-1 font-normal text-text-faint">
+                      — {t('task.spec_impact_note')}
+                    </span>
+                  </legend>
+                  {(['none', 'some'] as const).map((choice) => (
+                    <label key={choice} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="spec-impact"
+                        data-testid={`spec-impact-${choice}`}
+                        checked={specImpact === choice}
+                        onChange={() => setSpecImpact(choice)}
+                      />
+                      {t(choice === 'none' ? 'task.spec_impact_none' : 'task.spec_impact_some')}
+                    </label>
+                  ))}
+                </fieldset>
+                {specImpact === 'some' && (
+                  <Textarea
+                    data-testid="spec-impact-note"
+                    value={specImpactNote}
+                    onChange={(e) => setSpecImpactNote(e.target.value)}
+                    placeholder={t('task.spec_impact_placeholder')}
+                    rows={2}
+                  />
+                )}
+                <div className="flex gap-2">
+                  {/* **어휘는 `@nerv/schema` 가 정본이다**(2026-09-10 · REQ-WEB-160 · REQ-CB-006).
                   여섯 중 넷을 여기 손으로 적어 두어 `review`·`user_guide` 증적은 웹에서
                   붙일 길이 없었다 — 서버는 처음부터 여섯을 받는데. 손으로 적은 목록은
                   어휘가 늘어도 함께 늘지 않는다. */}
-              <Select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}>
-                {EVIDENCE_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-              </Select>
-              <Input
-                value={evidenceLocator}
-                onChange={(e) => setEvidenceLocator(e.target.value)}
-                placeholder={t('task.evidence_placeholder')}
-                className="min-w-0 flex-1"
-              />
-            </div>
-            {rejection !== null && (
-              <p
-                role="alert"
-                data-testid="transition-rejected"
-                className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
-              >
-                {t('task.transition_rejected', { message: rejection.message })}
-                {rejection.missing.length > 0 &&
-                  t('task.transition_missing', { missing: rejection.missing.join(', ') })}
-              </p>
-            )}
-            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-              <Button
-                variant="primary"
-                disabled={status === 'done' || transition.isPending || !canFinish}
-                onClick={() => transition.mutate('done')}
-                title={
-                  !canFinish
-                    ? t('task.done_needs_claim')
-                    : rejection === null
-                      ? undefined
-                      : t('task.last_rejection', { message: rejection.message })
-                }
-              >
-                {t('task.to_done')}
-              </Button>
-              {orphan && (
-                <Button
-                  variant="ghost"
-                  data-testid="revert-task"
-                  disabled={transition.isPending}
-                  onClick={() => transition.mutate(revertTarget)}
-                >
-                  {t(revertTarget === 'ready' ? 'task.to_ready' : 'task.to_backlog')}
-                </Button>
-              )}
-              <span aria-hidden="true" className="h-5 w-px bg-border" />
+                  <Select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}>
+                    {EVIDENCE_KINDS.map((k) => (
+                      <option key={k} value={k}>
+                        {evidenceKindText(t, k)}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    value={evidenceLocator}
+                    onChange={(e) => setEvidenceLocator(e.target.value)}
+                    placeholder={t('task.evidence_placeholder')}
+                    className="min-w-0 flex-1"
+                  />
+                </div>
+                {/* 붙은 증적이 없으면 **누르기 전에** 말한다 — 게이트가 거절한 뒤에 알면 늦다 */}
+                {evidence.length === 0 && evidenceLocator.trim() === '' && (
+                  <p data-testid="evidence-none-yet" className="text-xs text-status-waiting">
+                    {t('task.evidence_none_yet')}
+                  </p>
+                )}
+                {rejection !== null && (
+                  <p
+                    role="alert"
+                    data-testid="transition-rejected"
+                    className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
+                  >
+                    {t('task.transition_rejected', { message: rejection.message })}
+                    {rejection.missing.length > 0 &&
+                      t('task.transition_missing', { missing: rejection.missing.join(', ') })}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                  <Button
+                    variant="primary"
+                    data-testid="to-done"
+                    disabled={
+                      status === 'done' ||
+                      transition.isPending ||
+                      !canFinish ||
+                      finishBlock !== null
+                    }
+                    onClick={() => transition.mutate('done')}
+                    title={
+                      !canFinish
+                        ? t('task.done_needs_claim')
+                        : finishBlock !== null
+                          ? finishBlock
+                          : rejection === null
+                            ? undefined
+                            : t('task.last_rejection', { message: rejection.message })
+                    }
+                  >
+                    {t('task.to_done')}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* 막힘 표시 — 끝나지도 막히지도 않은 작업에만. 완료 폼과 섞어 두면 backlog·ready 에서도
+            완료 폼이 통째로 펼쳐져 있어야 했다 */}
+        {status !== 'done' && status !== 'blocked' && (
+          <Card>
+            <SectionTitle>{t('task.mark_blocked')}</SectionTitle>
+            <div className="flex flex-wrap items-center gap-2">
               {/* **자유 텍스트가 아니라 어휘 4종이다**(2026-09-06 · REQ-API-117). 예전에는
                   아무 문장이나 받아 서버에 그대로 실었고, 그러면 막힘 필터가 그 순간부터
                   사실을 못 센다 — 같은 뜻을 사람마다 다른 문자열로 적기 때문이다.
@@ -640,15 +824,22 @@ function TaskDetail(): React.JSX.Element {
               </Select>
               <Button
                 variant="danger"
-                disabled={blockedReason.trim() === '' || transition.isPending}
+                data-testid="to-blocked"
+                disabled={blockedReason.trim() === '' || transition.isPending || !canMove}
                 onClick={() => transition.mutate('blocked')}
-                title={t('task.blocked_reason_title')}
+                title={
+                  canMove
+                    ? t('task.blocked_reason_title')
+                    : t('task.next.roles_only', {
+                        roles: rolesWithScope('task:update').join(' · '),
+                      })
+                }
               >
                 {t('task.to_blocked')}
               </Button>
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         {/* **증적은 보러 갈 수 있어야 한다**(2026-09-10 — 사람 지시 · REQ-WEB-159). 명세
             §2.5 (6) 은 처음부터 "PR·커밋 링크" 라고 적었는데 화면은 종류와 위치를 글자로만
@@ -675,8 +866,8 @@ function TaskDetail(): React.JSX.Element {
                   data-testid="task-evidence"
                   className="flex gap-2 border-b border-border py-1.5 text-xs last:border-0"
                 >
-                  <span className="w-20 shrink-0 font-mono text-text-faint">
-                    {String(e['kind'])}
+                  <span className="w-24 shrink-0 text-text-faint">
+                    {evidenceKindText(t, e['kind'])}
                   </span>
                   {target === null ? (
                     <span className="truncate">{String(e['locator'])}</span>
@@ -725,7 +916,8 @@ function TaskDetail(): React.JSX.Element {
               >
                 <Mono>{String(r['branch'])}</Mono>
                 <span className="text-text-faint">
-                  {String(r['kind'])} · R{String(r['round_no'])} · {String(r['state'])}
+                  {reviewKindText(t, r['kind'])} · R{String(r['round_no'])} ·{' '}
+                  {reviewStateText(t, r['state'])}
                 </span>
                 {Number(r['open_critical'] ?? 0) > 0 && (
                   <span data-testid="review-open-critical" className="text-status-danger">

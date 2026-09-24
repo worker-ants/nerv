@@ -318,9 +318,17 @@ export function isDelegationFilled(value: string | null | undefined): boolean {
   return !DELEGATION_PLACEHOLDERS.has(trimmed);
 }
 
-const DELEGATION_PLACEHOLDERS = new Set(
-  [ko['import.delegation_missing'], en['import.delegation_missing']].map((v) => v.trim()),
-);
+/**
+ * 자리표시자 문장 — 로케일마다 하나씩. **SQL 도 이 목록으로 판정한다**(REQ-API-175): 보드 목록의
+ * `delegation_complete` 가 "NULL 이 아닌가" 만 보던 동안 자리표시자를 찬 것으로 셌고, 그래서
+ * 임포트 작업을 backlog 로 되돌리면 [채우기] 없이 갇혔다 — 판정이 두 벌이면 한쪽이 틀린다.
+ */
+export const DELEGATION_PLACEHOLDER_TEXTS: readonly string[] = [
+  ko['import.delegation_missing'],
+  en['import.delegation_missing'],
+].map((v) => v.trim());
+
+const DELEGATION_PLACEHOLDERS = new Set(DELEGATION_PLACEHOLDER_TEXTS);
 
 // ── 메일 발송 (2026-09-22 · 사람 결정 · database.md §2.17) ──────────────────
 /**

@@ -15,6 +15,7 @@ import { Mono, Skeleton } from '../../components/ui/primitives.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { REQUIREMENT_TOKEN } from '../../components/status-token.js';
 import { statusLabelKey } from '@nerv/schema';
+import { taskStatusText } from '../../lib/format.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
@@ -145,7 +146,7 @@ export function DerivedTaskPanel({
           >
             <Mono>{String(task['key'])}</Mono>
             <span className="min-w-0 flex-1 truncate text-xs">{String(task['title'] ?? '')}</span>
-            <span className="text-2xs text-text-ghost">{String(task['status'] ?? '')}</span>
+            <span className="text-2xs text-text-ghost">{taskStatusText(t, task['status'])}</span>
           </Link>
         ))
       )}

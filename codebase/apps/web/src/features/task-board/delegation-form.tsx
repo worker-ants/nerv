@@ -18,7 +18,7 @@ import { apiFetch } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rows, useRequirements, useSpecTree, useSpecVersions, useTask } from '../../lib/queries.js';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MessageKey, Translator } from '@nerv/schema';
 import { Button, Field, Input, Select, Textarea } from '../../components/ui/primitives.js';
 import type { ProjectId } from '../../lib/query-keys.js';
@@ -110,6 +110,15 @@ export function DelegationForm({
   const approved = rows(versions.data).filter((v) => v['status'] === 'approved');
   const locked = initial !== undefined;
 
+  // **열리면 눈이 따라온다**(2026-09-24 · REQ-WEB-202). 보드는 폼을 화면 맨 위에 여는데, 아래로
+  // 내린 채 카드의 [채우기]를 누르면 아무 일도 없어 보였다 — 폼으로 옮기고 제목 칸에 커서를 둔다
+  const formRef = useRef<HTMLFormElement>(null);
+  const { setFocus } = form;
+  useEffect(() => {
+    formRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    setFocus('title');
+  }, [setFocus]);
+
   const save = useMutation({
     mutationFn: async (input: DelegationInput) => {
       const {
@@ -142,6 +151,10 @@ export function DelegationForm({
       if (projectId !== undefined) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.projectTasks(projectId) });
       }
+      // 상세에서 고쳤으면 상세도 다시 읽는다 — 그 자리에 고친 값이 보여야 한다
+      if (taskKey !== null) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskKey) });
+      }
       // 승격 여부를 알려준다 — 폼을 채운 사람이 알고 싶은 것은 저장 여부가 아니라 그것이다.
       pushToast({
         tone: 'ok',
@@ -155,6 +168,7 @@ export function DelegationForm({
 
   return (
     <form
+      ref={formRef}
       data-testid="delegation-form"
       onSubmit={(e) => void form.handleSubmit((input) => save.mutate(input as DelegationInput))(e)}
       className="flex flex-col gap-3 rounded-nerv border border-border bg-bg-elev p-4"
@@ -162,10 +176,11 @@ export function DelegationForm({
       <h2 className="text-sm font-semibold">
         {taskKey === null ? t('task.form.new') : t('task.form.edit', { key: taskKey })}
       </h2>
-      {/* 4요소가 왜 필수인지 폼이 먼저 말한다 — 저장을 눌러야 알게 되면 늦다 */}
-      <p className="-mt-2 text-xs text-text-mute">
-        {t('task.form.lead_pre')} <code className="font-mono">ready</code>
-        {t('task.form.lead_post')}
+      {/* 4요소가 왜 필수인지, 저장하면 **어디에** 들어가는지 폼이 먼저 말한다 — 새 작업은 언제나
+          backlog 이고(FR-05) 큐에 올리는 것은 보드의 [준비됨으로 올리기]다. 예전 안내("①~④ 가 모두
+          차야 ready 로 승격합니다")는 생성 경로의 실제 동작과 달랐다 */}
+      <p data-testid="delegation-lead" className="-mt-2 text-xs text-text-mute">
+        {t(taskKey === null ? 'task.form.lead_new' : 'task.form.lead_edit')}
       </p>
       {/* **출처 — 가치 사슬의 첫 고리**(REQ-WEB-147). S3 에서 왔으면 고정 표기이고,
           아니면 승인본만 고를 수 있는 피커 셋이다. 선택이라 비워도 저장된다. */}
