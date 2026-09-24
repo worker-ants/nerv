@@ -22,10 +22,16 @@ spec:
           initContainers:
             # `mc` 를 심는다 — 백업용 이미지를 따로 빌드하지 않는 이유는 아래와 같다(백업이
             # 앱 배포 주기에 묶이면 안 된다). 태그를 고정하는 것은 백업이 조용히 바뀌지
-            # 않게 하기 위해서다.
+            # 않게 하기 위해서다. 정적 바이너리라 아래 alpine 컨테이너에서 그대로 돈다.
+            #
+            # 2026-09-24 까지는 quay.io/minio/mc 였다. MinIO 가 공개 이미지를 거둬 그 태그를
+            # 당길 수 없게 됐다 — 노드에 캐시가 없으면 이 잡은 ImagePullBackOff 로 멈추고, 그
+            # 실패를 읽는 사람은 대개 없다. 개발·e2e 서버와 같은 출처인 pgsty/silo(MinIO 포크 ·
+            # AGPL-3.0)에 든 mc 를 쓴다(사람 결정). 그 이미지의 /usr/bin/mc 는 mcli 로 가는
+            # 링크라 실체를 복사한다.
             - name: mc-tool
-              image: quay.io/minio/mc:RELEASE.2026-08-12T09-27-31Z
-              command: ['cp', '/usr/bin/mc', '/tools/mc']
+              image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+              command: ['cp', '/usr/bin/mcli', '/tools/mc']
               volumeMounts:
                 - { name: tools, mountPath: /tools }
           containers:
