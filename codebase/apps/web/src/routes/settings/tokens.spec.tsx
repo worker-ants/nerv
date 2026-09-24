@@ -266,4 +266,18 @@ describe('조직 전체 토큰 — admin 만', () => {
     expect(screen.queryByTestId('org-token-project')).toBeNull();
     expect(calls.some((c) => c.path.includes('/orgs/') && c.path.includes('/tokens'))).toBe(false);
   });
+
+  it('프로젝트의 admin 이어도 조직 admin 이 아니면 보지 않는다 — 남의 프로젝트 토큰까지 담는 표다 (REQ-API-172)', async () => {
+    const projectAdmin = {
+      id: 'u-3',
+      display_name: '하나',
+      memberships: [
+        { org_slug: 'default', org_name: 'default', project_slug: 'sudoku', roles: ['admin'] },
+      ],
+    };
+    await renderTab(projectAdmin);
+    await waitFor(() => expect(screen.getByText('clemvion/내 에이전트')).toBeDefined());
+    expect(screen.queryByTestId('org-token-project')).toBeNull();
+    expect(calls.some((c) => c.path.includes('/orgs/') && c.path.includes('/tokens'))).toBe(false);
+  });
 });

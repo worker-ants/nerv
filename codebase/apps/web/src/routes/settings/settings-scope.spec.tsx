@@ -54,6 +54,34 @@ const PROJECTS = [
   { id: 'p-1', slug: 'clemvion', name: 'Clemvion' },
   { id: 'p-2', slug: 'sudoku', name: '스도쿠' },
 ];
+/** 유나는 조직 전체 planner 이면서 sudoku 에서 viewer — 겸직의 흔한 형태다 */
+const GROUPED_MEMBERS = [
+  {
+    id: 'g-1',
+    role: 'viewer',
+    email: 'yuna@example.com',
+    display_name: '유나',
+    project_slug: 'sudoku',
+    project_name: '스도쿠',
+  },
+  {
+    id: 'g-2',
+    role: 'planner',
+    email: 'yuna@example.com',
+    display_name: '유나',
+    project_slug: null,
+    project_name: null,
+  },
+  {
+    id: 'g-3',
+    role: 'developer',
+    email: 'dohyun@example.com',
+    display_name: '도현',
+    project_slug: 'sudoku',
+    project_name: '스도쿠',
+  },
+];
+let members: unknown[] = [];
 const MEMBERS = [
   {
     id: 'm-1',
@@ -80,6 +108,7 @@ beforeEach(() => {
   localStorage.clear();
   sent = [];
   me = ORG_ADMIN;
+  members = MEMBERS;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: RequestInit) => {
@@ -90,7 +119,7 @@ beforeEach(() => {
         return { ok: true, status: 200, json: async () => ({ token: 'tok', queued: false }) };
       }
       const json = path.endsWith('/members')
-        ? MEMBERS
+        ? members
         : path.includes('/invitations')
           ? []
           : /\/orgs\/[^/]+\/projects/.test(path)
@@ -254,5 +283,35 @@ describe('온보딩 — 역할의 범위와 다음 행동', () => {
     const link = await screen.findByRole('link', { name: /작업 보드/ });
     expect(link.getAttribute('href')).toBe('/p/sudoku/tasks');
     expect(screen.getByText('② Default · 스도쿠에서 당신의 역할: developer')).toBeDefined();
+  });
+});
+
+describe('멤버 표는 사람마다 한 묶음 (REQ-WEB-194 · 결정 2)', () => {
+  it('같은 사람의 소속이 한 묶음으로 모이고 이름은 한 번만 — 조직 전체 줄이 먼저다', async () => {
+    members = GROUPED_MEMBERS;
+    renderAt('/settings/members');
+    await screen.findByText('도현');
+    expect(screen.getAllByTestId('member-person').map((e) => e.textContent)).toEqual([
+      '유나',
+      '도현',
+    ]);
+    const scopes = screen.getAllByTestId('member-scope').map((e) => e.textContent);
+    // 프로젝트는 이름, slug 는 흐린 보조로 곁에 선다
+    expect(scopes.slice(0, 2)).toEqual(['조직 전체', '스도쿠sudoku']);
+  });
+
+  it('프로젝트 줄은 조직 전체 역할을 "상속" 으로 보인다 — 꺼진 칩이면 그 권한이 없는 것처럼 읽힌다', async () => {
+    members = GROUPED_MEMBERS;
+    renderAt('/settings/members');
+    await screen.findByText('도현');
+    const rows = screen.getAllByTestId('member-scope').map((e) => e.closest('tr') as HTMLElement);
+    const project = within(rows[1]!).getByTestId('role-planner') as HTMLButtonElement;
+    expect(project.getAttribute('data-inherited')).toBe('true');
+    expect(project.disabled).toBe(true);
+    expect(project.getAttribute('title')).toContain('상속');
+    // 조직 전체 줄의 planner 는 실제로 켜져 있다 — 상속이 아니다
+    expect(within(rows[0]!).getByTestId('role-planner').getAttribute('aria-pressed')).toBe('true');
+    // 조직 역할이 없는 사람에게는 상속 표시가 없다
+    expect(within(rows[2]!).getByTestId('role-planner').getAttribute('data-inherited')).toBeNull();
   });
 });

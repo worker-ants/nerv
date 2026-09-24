@@ -29,7 +29,7 @@ import { AGENT_SCOPES, HUMAN_ONLY_SCOPES, scopesForRoles } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { deployedServerOrigin } from '../../lib/manual-vars.js';
 import { rows, useMe, useOrgTokens, useTokens } from '../../lib/queries.js';
-import { rolesInOrg, rolesInProject } from '../../lib/session.js';
+import { canManageScope, rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRealtime } from '../../lib/realtime.js';
 import {
@@ -98,7 +98,9 @@ function TokensTab(): React.JSX.Element {
   // 그 목록과 같은 값이고(`scope.ts`), 기본값은 지금 보고 있는 프로젝트다.
   const { orgSlug, projectSlug, projects } = useScope();
   const me = useMe();
-  const isAdmin = rolesInOrg(me.data, orgSlug).includes('admin');
+  // 조직 전체 토큰 표는 **조직 admin 만**(2026-09-24 · REQ-API-172) — 조직의 모든 토큰을 보이는
+  // 표라, 한 프로젝트의 admin 이 남의 프로젝트 토큰을 보면 안 된다. 서버와 같은 규칙이다
+  const isAdmin = canManageScope(me.data, orgSlug, null);
   const orgTokens = useOrgTokens(orgSlug, isAdmin);
 
   const [target, setTarget] = useState<string | null>(null);

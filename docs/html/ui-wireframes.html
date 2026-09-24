@@ -53,7 +53,7 @@
     <h1>화면 설계 (와이어프레임)</h1>
     <p class="lead">NERV 웹 화면 8종의 정보 구조 · 고충실도 와이어프레임 · 상태 표현 규칙 · 인터랙션 규약. 설계의 축은 하나다 — <b>화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.</b></p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-09-22)</span>
+      <span>버전 v0.7 (2026-09-24)</span>
       <span>원본: <code>docs/03-proposal/ui-wireframes.md</code></span>
       <span>주로 다루는 결정: D-02 · D-06 · D-08 · D-13 · D-14</span>
       <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -1103,7 +1103,7 @@
   </div>
 
   <ul class="wf-legend">
-    <li><span class="marker">1</span><span><b>멤버 n:n 매트릭스</b> — 사람 × 프로젝트. 역할은 조직 기본값 + 프로젝트별 재정의. <code>FR-14</code></span></li>
+    <li><span class="marker">1</span><span><b>멤버 n:n 매트릭스</b> — 사람 × 프로젝트. 역할은 조직 기본값 + 프로젝트별 재정의. <code>FR-14</code> — <b>2026-09-24 정정(사람 결정)</b>: 프로젝트마다 열을 두는 매트릭스는 프로젝트가 늘면 가로로 넓어진다. 구현은 <b>사람마다 한 묶음</b>이고 그 안에 범위 줄(조직 전체가 먼저, 그다음 프로젝트)을 둔다 — 프로젝트 줄은 조직 전체 역할을 <b>"상속"</b> 으로 흐리게 보인다(<a href="screens.html">4.5 화면 명세</a> REQ-WEB-194). 위 그림의 열 구성은 옛 모양이다</span></li>
     <li><span class="marker">2</span><span><b>토큰 목록</b> — 라벨 · 소유자 · 권한 · 마지막 사용(<b>hostname 포함</b>) · 상태. 토큰은 사용자별로 발급되고 프로젝트로 권한된다. <code>FR-15 · NFR-03 · D-08</code></span></li>
     <li><span class="marker">3</span><span><b>권한 비확대 고지</b> — Asana의 원칙을 UI 문구로 고정한다. 에이전트는 위임한 사람 이상을 볼 수 없다. <code>NFR-03 · D-08</code></span></li>
     <li><span class="marker">4</span><span><b>연동</b> — git forge 웹훅과 Slack 라우팅. 어느 것도 NERV가 대체하지 않는다. <code>FR-12 · FR-15</code></span></li>

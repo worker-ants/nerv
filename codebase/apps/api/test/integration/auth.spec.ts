@@ -371,7 +371,7 @@ describe('조직 경계 — 토큰의 역할·명부·폐기 (2026-09-02 보안 
     expect(rows.length).toBeGreaterThan(0);
   });
 
-  it('토큰 폐기는 본인 또는 admin 이다 (EP-TOK-03)', async () => {
+  it('토큰 폐기는 본인 또는 조직 admin 이다 (EP-TOK-03 · REQ-API-173)', async () => {
     const owner = newId();
     await pool.query(
       `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'owner@example.com','주인','active')`,
@@ -414,8 +414,22 @@ describe('조직 경계 — 토큰의 역할·명부·폐기 (2026-09-02 보안 
     await expect(auth.revokeToken(issued.tokenId, stranger)).rejects.toMatchObject({
       details: { kind: 'not_found' },
     });
-    // admin 은 지운다 — 유출된 토큰을 끊을 사람이 소유자뿐이면 대응이 연락으로 끝난다
-    await auth.revokeToken(issued.tokenId, projectAdmin);
+    // 그 프로젝트의 admin 도 못 지운다 — 남의 토큰은 조직 admin 만(REQ-API-173)
+    await expect(auth.revokeToken(issued.tokenId, projectAdmin)).rejects.toMatchObject({
+      details: { kind: 'not_found' },
+    });
+    // 조직 admin 은 지운다 — 유출된 토큰을 끊을 사람이 소유자뿐이면 대응이 연락으로 끝난다
+    const orgAdmin = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'oadmin@example.com','조직관리','active')`,
+      [orgAdmin],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, NULL, $2, 'admin' FROM project WHERE id = $3`,
+      [newId(), orgAdmin, projectId],
+    );
+    await auth.revokeToken(issued.tokenId, orgAdmin);
     await expect(auth.verifyPat(issued.token)).rejects.toMatchObject({
       code: NERV_ERROR.UNAUTHENTICATED,
     });

@@ -259,10 +259,14 @@ export const ko = {
   'settings.gates.project_hint':
     '게이트 정책은 프로젝트마다 따로입니다 — 고친 값은 이 프로젝트에만 적용됩니다.',
   'settings.gates.title_project': '게이트 정책 — {project}',
+  'settings.members.role_inherited':
+    '조직 전체 역할에서 상속 — 이 프로젝트에서도 이미 가진 역할입니다',
   'settings.members.role_org_admin_only': '조직 전체 역할은 조직 admin 만 바꿀 수 있습니다',
   'settings.members.scope_rule':
     '조직 전체 줄은 조직 admin 만, 프로젝트 줄은 그 프로젝트의 admin 도 바꿀 수 있습니다 — 바꿀 수 없는 줄은 읽기 전용입니다.',
   'settings.members.title_org': '{org} 멤버·역할',
+  'settings.workspace.org_admin_only':
+    '조직 이름·삭제와 새 프로젝트는 조직 admin 만 바꿀 수 있습니다 — 프로젝트 줄은 그 프로젝트의 admin 도 고칠 수 있습니다.',
   'shell.inbox_all_orgs': '받은 요청 — 모든 조직',
   'shell.notifications_all_orgs': '알림 — 모든 조직',
   'shell.org_label': '조직: {name}',

@@ -318,7 +318,10 @@ export class AuthService {
         org: orgSlug,
       });
     }
-    this.assertAdmin(org.roles as MembershipRole[]);
+    // **조직 수준 조작은 조직 admin 만**(2026-09-24 사람 결정 · REQ-API-171). 예전에는 그 조직
+    // 어디서든 admin 이면 됐다 — 한 프로젝트를 맡긴 사람이 조직 이름을 바꾸고 조직을 지울 수
+    // 있었다. 판정은 멤버십·초대와 같은 한 곳이다(`assertCanManageScope` · 조직 전체 범위)
+    await this.assertCanManageScope(userId, org.id, null);
     return org.id;
   }
 
@@ -349,7 +352,9 @@ export class AuthService {
         org: input.orgSlug,
       });
     }
-    this.assertAdmin(org.roles as MembershipRole[]);
+    // 새 프로젝트는 조직 수준 조작이다 — 조직 admin 만(REQ-API-171). 프로젝트 admin 이 조직에
+    // 프로젝트를 늘리면 그 사람이 맡지 않은 자리가 생긴다
+    await this.assertCanManageScope(input.userId, org.id, null);
     if (input.slug.trim() === '' || input.key.trim() === '' || input.name.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.missing_fields'), {
         kind: 'missing_fields',
@@ -500,19 +505,23 @@ export class AuthService {
     actorUserId: string;
     orgSlug: string;
   }): Promise<Record<string, unknown>[]> {
-    const { rows: orgRows } = await this.db.execute<{ roles: string[] }>(sql`
-      SELECT array_agg(DISTINCT m.role::text) AS roles FROM organization o
+    const { rows: orgRows } = await this.db.execute<{ id: string }>(sql`
+      SELECT o.id FROM organization o
         JOIN membership m ON m.org_id = o.id AND m.user_id = ${input.actorUserId}
        WHERE o.slug = ${input.orgSlug}
        GROUP BY o.id
     `);
-    const roles = orgRows[0]?.roles;
-    if (roles === undefined) {
+    const org = orgRows[0];
+    if (org === undefined) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
         kind: 'not_found',
       });
     }
-    return this.orgTokens({ orgSlug: input.orgSlug, actorRoles: roles as MembershipRole[] });
+    // **조직 전체 토큰 표는 조직 admin 만**(2026-09-24 사람 결정 · REQ-API-172). 이 표는 조직의
+    // **모든 사람의 모든 토큰**을 보인다 — 한 프로젝트의 admin 이 남의 프로젝트 토큰까지 보던
+    // 자리다. 판정은 멤버십·초대·조직 수준 조작과 같은 한 곳이다
+    await this.assertCanManageScope(input.actorUserId, org.id, null);
+    return this.orgTokens({ orgSlug: input.orgSlug, actorRoles: ['admin'] });
   }
 
   /**
@@ -995,9 +1004,13 @@ export class AuthService {
   /**
    * 폐기 — 이관 작업이 끝난 import:write 토큰을 지우는 기본 운용 경로다(EP-TOK-03).
    *
-   * **본인 또는 그 프로젝트의 admin.** 전표가 그렇게 적었는데 소유자만 지울 수 있었다 —
+   * **본인 또는 조직 admin.** 전표가 "본인 또는 admin" 이라 적었는데 소유자만 지울 수 있었다 —
    * 유출된 토큰을 admin 이 끊을 길이 없다는 뜻이고, 그때 남는 선택지는 사용자에게
    * 연락하는 것뿐이다.
+   *
+   * **남의 토큰을 끊는 것은 조직 admin 만**(2026-09-24 사람 결정 · REQ-API-173). 한동안 그
+   * 프로젝트의 admin 도 끊을 수 있었는데, 남의 토큰은 조직 전체 토큰 표(조직 admin 만 ·
+   * REQ-API-172)에서만 보인다 — 볼 수 없는 것을 끊을 수 있는 권한은 규칙이 둘이라는 뜻이다.
    */
   async revokeToken(tokenId: string, userId: string): Promise<void> {
     const { rows } = await this.db.execute<{
@@ -1012,7 +1025,8 @@ export class AuthService {
                           JOIN project p ON p.id = t.project_id
                          WHERE m.user_id = ${userId} AND m.role = 'admin'
                            AND m.org_id = p.org_id
-                           AND (m.project_id = p.id OR m.project_id IS NULL)))
+                           -- 조직 admin — 조직 단위(project_id IS NULL) admin 행만(REQ-API-173)
+                           AND m.project_id IS NULL))
       RETURNING t.id, t.project_id, t.user_id
     `);
     if (rows.length === 0) {

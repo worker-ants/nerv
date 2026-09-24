@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useProjects } from '../../lib/queries.js';
 import { useScope } from '../../lib/scope.js';
-import { rolesInOrg } from '../../lib/session.js';
+import { canManageScope, rolesInProject } from '../../lib/session.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import {
@@ -44,9 +44,16 @@ function WorkspaceTab(): React.JSX.Element {
   // 집는다 — 그래서 헤더에서 두 번째 조직을 골라도 이 탭은 첫 조직을 고치고 있었다.
   // 한 화면이 두 조직을 가리키면 이름을 바꾼 사람은 자기가 무엇을 바꿨는지 모른다.
   const { orgSlug, orgName } = useScope();
-  // 조직 권한은 **그 조직의 모든 멤버십을 합쳐** 본다 — 한 행만 보면 조직
-  // admin 인데 프로젝트에서 planner 인 사람이 잠긴다(겸직은 합집합이다)
-  const isAdmin = rolesInOrg(me.data, orgSlug).includes('admin');
+  // **조직 수준 조작은 조직 admin 만**(2026-09-24 사람 결정 · REQ-API-169 확장). 조직 이름·삭제·
+  // 새 프로젝트는 조직 단위 admin 멤버십이 있어야 한다 — 예전에는 그 조직 **어디서든** admin
+  // 이면 됐고, 한 프로젝트를 맡긴 사람이 조직 이름을 바꾸고 새 프로젝트를 만들 수 있었다.
+  const isOrgAdmin = canManageScope(me.data, orgSlug, null);
+  // 프로젝트 줄(이름·저장소·보관)은 **그 프로젝트의** admin 도 — 서버의 EP-PRJ-04·05 와 같은 규칙
+  const canEditProject = (slug: string): boolean =>
+    rolesInProject(me.data, orgSlug, slug).includes('admin');
+  const anyProjectAdmin = (me.data?.memberships ?? []).some(
+    (m) => m.org_slug === orgSlug && m.roles.includes('admin'),
+  );
   // **보관한 프로젝트를 볼 길이 화면에 없었다**(사람 보고 2026-08-27). 복구 버튼은
   // 코드에 있었지만 목록이 보관을 빼고 오니 그 줄이 영영 그려지지 않았고, 그래서
   // 보관은 사실상 되돌릴 수 없는 일이었다.
@@ -56,18 +63,20 @@ function WorkspaceTab(): React.JSX.Element {
 
   return (
     <section className="flex flex-col gap-8">
-      {!isAdmin && (
+      {!isOrgAdmin && (
         <p className="rounded-nerv border border-border bg-bg-sunken px-3 py-2 text-sm text-text-mute">
-          {t('settings.workspace.admin_only')}
+          {t('settings.workspace.org_admin_only')}
         </p>
       )}
       {/* **데이터가 온 뒤에 그린다.** `useState(name)` 은 첫 렌더의 값을 붙잡으므로
           me 가 늦게 오면 입력칸이 빈 채로 굳는다 — key 로 다시 만든다 */}
-      <OrgSection key={orgName ?? ''} orgSlug={orgSlug} name={orgName ?? ''} canEdit={isAdmin} />
+      <OrgSection key={orgName ?? ''} orgSlug={orgSlug} name={orgName ?? ''} canEdit={isOrgAdmin} />
       <ProjectSection
         orgSlug={orgSlug}
         projects={projectRows}
-        canEdit={isAdmin}
+        canCreate={isOrgAdmin}
+        canSeeArchived={isOrgAdmin || anyProjectAdmin}
+        canEditProject={canEditProject}
         showArchived={showArchived}
         onShowArchived={setShowArchived}
       />
@@ -189,13 +198,20 @@ function ProjectSection({
   projects,
   showArchived,
   onShowArchived,
-  canEdit,
+  canCreate,
+  canSeeArchived,
+  canEditProject,
 }: {
   orgSlug: string | null;
   projects: Record<string, unknown>[];
   showArchived: boolean;
   onShowArchived: (next: boolean) => void;
-  canEdit: boolean;
+  /** 새 프로젝트 — 조직 수준이라 조직 admin 만 */
+  canCreate: boolean;
+  /** 보관 보기 — 복구할 수 있는 사람(조직 admin · 어느 프로젝트의 admin)에게 */
+  canSeeArchived: boolean;
+  /** 프로젝트 줄 — 조직 admin 또는 그 프로젝트의 admin */
+  canEditProject: (slug: string) => boolean;
 }): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
@@ -210,7 +226,7 @@ function ProjectSection({
     <div>
       <SectionTitle
         action={
-          canEdit ? (
+          canSeeArchived ? (
             <span className="flex items-center gap-3">
               {/* 보관을 **볼 수 있어야** 복구할 수 있다 — 켜면 목록이 보관까지 담는다 */}
               <label
@@ -225,9 +241,11 @@ function ProjectSection({
                 />
                 {t('settings.workspace.show_archived')}
               </label>
-              <Button size="sm" data-testid="project-new" onClick={() => setCreating(!creating)}>
-                {creating ? t('common.cancel') : t('settings.workspace.project_new')}
-              </Button>
+              {canCreate && (
+                <Button size="sm" data-testid="project-new" onClick={() => setCreating(!creating)}>
+                  {creating ? t('common.cancel') : t('settings.workspace.project_new')}
+                </Button>
+              )}
             </span>
           ) : undefined
         }
@@ -254,7 +272,7 @@ function ProjectSection({
           <ProjectRow
             key={String(project['id'])}
             project={project}
-            canEdit={canEdit}
+            canEdit={canEditProject(String(project['slug']))}
             onChanged={refresh}
             onError={(m) => pushToast({ tone: 'warn', message: m })}
           />

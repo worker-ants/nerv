@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.49 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.50 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.50 변경(2026-09-24 — 조직 수준 조작도 조직 admin 만, **사람 결정**): **REQ-API-171 신설 · §2.1b 끝 항목 · EP-ORG-04·05 · EP-PRJ-02 권한 칸.** 결정 넷째를 멤버십·초대에 적용한 뒤 남아 있던 자리다 — 조직 이름·삭제·새 프로젝트가 "조직 어디서든 admin" 이라 한 프로젝트의 admin 이 조직 이름을 바꾸고 프로젝트를 늘릴 수 있었다. 같은 판정(`assertCanManageScope`)을 쓴다. 곁들여 **조직 전체 토큰 표(EP-TOK-04)도 조직 admin 만**이다(REQ-API-172) — 한 프로젝트의 admin 이 조직의 모든 토큰을 볼 수 있었다. 이어 **같은 부류의 나머지 둘도** 좁혔다(REQ-API-173) — 남의 토큰 폐기(EP-TOK-03)는 본인 또는 조직 admin, 초대 목록(EP-INV-02)은 조직 admin 만 전부를 보고 프로젝트 admin 은 자기 프로젝트의 초대만 본다.
 >
 > v1.49 변경(2026-09-24 — 조직을 가로지르는 목록이 조직을 싣지 않았다): **REQ-API-170 신설 · §2.1c 신설.** 받은 요청·알림·내 토큰이 항목마다 `org_slug`·`org_name`·`project_name` 을, 멤버·초대 목록과 초대 미리보기가 `project_name` 을 싣는다 — 두 조직에 같은 slug 가 있으면 화면이 둘을 가를 길이 없었다. 추가만 하는 변경이다([4.5](screens.md) REQ-WEB-192).
 >
@@ -893,9 +895,9 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | EP-ORG-02 | `GET /api/v1/orgs/{org}` | 조직 멤버 | — | `OrgResult` | — |
 | EP-PRJ-01 | `GET /api/v1/orgs/{org}/projects` | 조직 멤버 | — | `Page<ProjectSummary>` | — |
 | EP-ORG-03 | `POST /api/v1/orgs` | 로그인 사용자 | `OrgCreateInput`(slug, name) | `OrgResult` — 만든 사람이 그 조직의 **admin** 이 된다 | — |
-| EP-ORG-04 | `PATCH /api/v1/orgs/{org}` | admin | `OrgUpdateInput`(name) | `OrgResult` — **slug 는 바꾸지 않는다**(링크의 축 · D-09) | — |
-| EP-ORG-05 | `DELETE /api/v1/orgs/{org}` | admin | — | `{deleted:true}` — **프로젝트가 하나라도 있으면 409**. 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계(프로젝트 보관)를 세운다 | — |
-| EP-PRJ-02 | `POST /api/v1/orgs/{org}/projects` | admin | `ProjectCreateInput` | `ProjectResult` | ★`project.created` |
+| EP-ORG-04 | `PATCH /api/v1/orgs/{org}` | **조직 admin**(§2.1b · REQ-API-171) | `OrgUpdateInput`(name) | `OrgResult` — **slug 는 바꾸지 않는다**(링크의 축 · D-09) | — |
+| EP-ORG-05 | `DELETE /api/v1/orgs/{org}` | **조직 admin**(§2.1b · REQ-API-171) | — | `{deleted:true}` — **프로젝트가 하나라도 있으면 409**. 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계(프로젝트 보관)를 세운다 | — |
+| EP-PRJ-02 | `POST /api/v1/orgs/{org}/projects` | **조직 admin**(§2.1b · REQ-API-171) | `ProjectCreateInput` | `ProjectResult` | ★`project.created` |
 | EP-PRJ-03 | `GET /api/v1/projects/{proj}` | 프로젝트 멤버 | — | `ProjectResult`(게이트 정책 `gate_policy`·보존 `retention`·활성 세션/승인 대기 카운트 포함) | — |
 | EP-PRJ-04 | `PATCH /api/v1/projects/{proj}` | admin **· 사람 전용**(§1.3b — 토큰은 403 `NERV_HUMAN_ONLY`) (게이트 정책·위험도 임계는 admin 전용 — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6 매트릭스) | `ProjectUpdateInput` — **안 보낸 필드는 건드리지 않고, 빈 문자열은 비운다**(`repo_url`·`default_branch` · 2026-09-10 · REQ-API-157). `repo_host` 는 비울 수 없다(NOT NULL) — 어휘 밖은 400(REQ-API-158) | `ProjectResult` | ★`project.updated` |
 | EP-PRJ-05 | `POST /api/v1/projects/{proj}/archive` · `/restore` | admin **· 사람 전용**(§1.3b) | — | `ProjectResult` — **지우지 않고 보관한다**(`archived_at`). 목록에서 빠지되 주소는 살아 있다(EP-SPEC-16·17 과 같은 규약). EP-PRJ-01 은 `include_archived=true` 로만 보관분을 준다 |  — |
@@ -905,8 +907,8 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | EP-MBR-04 | `DELETE /api/v1/memberships/{id}` | 범위의 admin(조직 전체는 **조직 admin** — §2.1b) | — | `{ok:true}` | ★`member.removed` |
 | EP-TOK-01 | `GET /api/v1/me/tokens` | 본인 | — | `Page<TokenSummary>`(prefix·scopes·last_used_at, 원문 없음) | — |
 | EP-TOK-02 | `POST /api/v1/me/tokens` | 본인(역할이 허용하는 권한의 부분집합만) | `TokenCreateInput`(project, **`org?`**(같은 slug 가 여러 조직에 있을 때의 한정자 — §1.2 · REQ-API-152), name, scopes[], **`expires_at`** — 전표가 오래 `expires` 라 적었는데 `.strict()` 라 그 이름은 무시가 아니라 **400** 이다) | `TokenCreateResult`(**원문 1회 반환** + **`project{slug,name}`·`name`·`expires_at`·`scopes`** — REQ-API-160: 원문이 한 번뿐이므로 **그 한 번이 자기를 설명해야 한다**) — 발급은 역할과 교집합하지 않고 저장한다. 상한은 §1.6a 대로 **검증 시점**에 걸린다: 발급 때 잘라 두면 나중에 역할이 넓어져도 토큰이 좁은 채로 남는다. 화면은 역할 밖 권한을 **보이되 잠근다**(2026-09-02 사람 결정 — 켜 놓고 쓸 수 없는 토큰이 나오던 자리다) | ★`token.created` |
-| EP-TOK-03 | `DELETE /api/v1/me/tokens/{id}` | 본인 또는 admin | — | `{ok:true}`(즉시 폐기, `revoked_at` 기록) | ★`token.revoked` |
-| EP-TOK-04 | `GET /api/v1/orgs/{org}/tokens` | admin | `TokenAdminListQuery` — 질의 인자는 **없다**(2026-09-06 정정: `project`·`user`·`cursor` 는 컨트롤러가 읽지 않는다) | `Page<TokenAdminSummary>`(소유자·**프로젝트(slug·name)**·prefix·scopes·expires_at·last_used_at·created_at, 원문 없음 — REQ-API-160) — S8 admin의 조직 전체 토큰 표([화면 설계](../03-proposal/ui-wireframes.md) §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝 | — |
+| EP-TOK-03 | `DELETE /api/v1/me/tokens/{id}` | 본인 또는 **조직 admin**(§2.1b · REQ-API-173) | — | `{ok:true}`(즉시 폐기, `revoked_at` 기록) | ★`token.revoked` |
+| EP-TOK-04 | `GET /api/v1/orgs/{org}/tokens` | **조직 admin**(§2.1b · REQ-API-172) | `TokenAdminListQuery` — 질의 인자는 **없다**(2026-09-06 정정: `project`·`user`·`cursor` 는 컨트롤러가 읽지 않는다) | `Page<TokenAdminSummary>`(소유자·**프로젝트(slug·name)**·prefix·scopes·expires_at·last_used_at·created_at, 원문 없음 — REQ-API-160) — S8 admin의 조직 전체 토큰 표([화면 설계](../03-proposal/ui-wireframes.md) §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝 | — |
 
 #### 2.1a `gate_policy` · `retention` 키 스키마
 
@@ -946,11 +948,16 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 - **조직 admin** 은 조직 단위(`project_id IS NULL`) admin 멤버십을 가진 사람이다. 어느 프로젝트의 admin 이어도 조직 admin 이 아니다.
 - 판정은 `AuthService.assertCanManageScope` **한 곳**이고 다섯 경로(EP-MBR-02·03·04 · EP-INV-01·03)가 같이 쓴다. 대상의 범위는 배정이면 요청의 `project`, 변경·삭제면 그 멤버십의 `project_id`, 회수면 그 초대의 `project_id` 다 — 만들 수 없는 초대를 거둘 수 있으면 규칙이 둘이다.
 - 화면은 같은 규칙으로 줄마다 잠근다([4.5](screens.md) REQ-WEB-191 · REQ-WEB-075).
-- 조직 수준의 다른 조작(EP-ORG-04·05 · EP-PRJ-02)은 여전히 "조직 안의 admin" 으로 판정한다 — 이 결정의 범위는 멤버십과 초대다. 같은 규칙으로 좁힐지는 따로 정한다.
+- **조직 수준 조작도 조직 admin 만이다**(2026-09-24 — 같은 날 사람 결정 · REQ-API-171). 처음에는 이 결정의 범위를 멤버십과 초대로 두고 조직 이름·삭제·새 프로젝트(EP-ORG-04·05 · EP-PRJ-02)를 "조직 안의 admin" 으로 남겼는데, 그러면 한 프로젝트의 admin 이 조직 이름을 바꾸고 조직에 프로젝트를 늘릴 수 있었다. 세 경로도 같은 판정(`assertCanManageScope` · 조직 전체 범위)을 쓴다. 프로젝트 자신의 설정(EP-PRJ-04·05)은 그대로 그 프로젝트의 admin 도 한다.
+- **조직 전체 토큰 표도 조직 admin 만이다**(2026-09-24 — 같은 날 사람 결정 · REQ-API-172). 이 표(EP-TOK-04)는 조직의 **모든 사람의 모든 토큰**을 보인다 — "조직 안 어느 admin" 으로 열려 있던 동안 한 프로젝트의 admin 이 남의 프로젝트 토큰까지 볼 수 있었다. 같은 판정을 쓴다.
+- **같은 부류의 나머지도 조직 admin 만이다**(2026-09-24 — 같은 날 사람 결정 · REQ-API-173). "조직 안 어느 admin" 으로 조직 전체의 것을 열던 판정이 둘 더 남아 있었다. **남의 토큰 폐기(EP-TOK-03)** 는 그 토큰 프로젝트의 admin 도 할 수 있었는데, 남의 토큰은 조직 전체 토큰 표(조직 admin 만)에서만 보인다 — 볼 수 없는 것을 끊는 권한은 규칙이 둘이라는 뜻이라 본인 또는 조직 admin 으로 좁혔다. **초대 목록(EP-INV-02)** 은 조직 안 어느 admin 이든 조직의 모든 초대를 봤다 — 프로젝트 admin 은 자기 프로젝트로 부르고 거두므로(REQ-API-169) 목록을 막지 않고 **자기가 admin 인 프로젝트의 초대만** 보인다(조직 전체 초대·남의 프로젝트 초대는 빠진다). 프로젝트 자신의 일(작업·세션·승인·EP-PRJ-04·05)은 이 부류가 아니다 — 그 프로젝트의 admin 이 계속 한다.
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-169 | WHEN 멤버십을 배정·변경·삭제하거나 초대를 만들거나 거두면 THE SYSTEM SHALL 그 대상의 **범위**로 권한을 판정한다 — 조직 전체 범위는 조직 단위 admin 멤버십을 가진 사람만, 프로젝트 범위는 조직 admin 또는 그 프로젝트의 admin 만 허용하고, 아니면 403 으로 거절한다. THE SYSTEM SHALL 이 판정을 한 곳에서 한다(D-05) |
+| REQ-API-171 | WHEN 조직 이름을 바꾸거나(EP-ORG-04) 조직을 지우거나(EP-ORG-05) 조직에 프로젝트를 만들면(EP-PRJ-02) THE SYSTEM SHALL 조직 단위 admin 멤버십을 가진 사람만 허용하고 아니면 403 으로 거절한다 — 판정은 REQ-API-169 와 같은 한 곳이다 |
+| REQ-API-172 | WHEN 조직 전체 토큰 표(EP-TOK-04)를 조회하면 THE SYSTEM SHALL 조직 단위 admin 멤버십을 가진 사람만 허용하고 아니면 403 으로 거절한다 — 판정은 REQ-API-169 와 같은 한 곳이다 |
+| REQ-API-173 | WHEN 남의 API 토큰을 폐기(EP-TOK-03)하면 THE SYSTEM SHALL 그 토큰의 조직에 조직 단위 admin 멤버십을 가진 사람만 허용하고 아니면 없는 토큰과 같이 거절한다. WHEN 초대 목록(EP-INV-02)을 조회하면 THE SYSTEM SHALL 조직 단위 admin 에게는 조직의 모든 초대를, 프로젝트 admin 에게는 자기가 admin 인 프로젝트의 초대만 돌려준다 |
 
 #### 2.1c 조직을 가로지르는 목록은 범위를 이름으로 싣는다 (2026-09-24 신설 — 조직·프로젝트 경계 점검)
 
@@ -1297,7 +1304,7 @@ basis_superseded: false
 | ID | 메서드·경로 | 권한 | 요청 | 응답 |
 | --- | --- | --- | --- | --- |
 | EP-INV-01 | `POST /api/v1/orgs/{org}/invitations` | 범위의 admin(조직 전체는 **조직 admin** — §2.1b) | `{email, role, project?}` | `{id, email, role, token, expires_in_days, queued}` — **토큰 원문은 여기서 한 번만**. `queued` 는 메일을 줄 세웠는지다 |
-| EP-INV-02 | `GET /api/v1/orgs/{org}/invitations` | admin | — | 초대 목록(`pending`·`accepted`·`revoked`·`expired`) |
+| EP-INV-02 | `GET /api/v1/orgs/{org}/invitations` | admin — 전부는 **조직 admin**, 프로젝트 admin 은 자기 프로젝트의 초대만(§2.1b · REQ-API-173) | — | 초대 목록(`pending`·`accepted`·`revoked`·`expired`) |
 | EP-INV-03 | `DELETE /api/v1/invitations/{id}` | 범위의 admin(조직 전체는 **조직 admin** — §2.1b) | — | `{ok:true}` — 회수(기록은 남는다) |
 | EP-INV-04 | `GET /api/v1/invitations/{token}` | **공개** | — | 조직·역할·상태 + `email_hint`(가려서) |
 | EP-INV-05 | `POST /api/v1/invitations/{token}/accept` | 인증 | — | 멤버십 생성 |

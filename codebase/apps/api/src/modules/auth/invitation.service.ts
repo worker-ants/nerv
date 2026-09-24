@@ -137,12 +137,26 @@ export class InvitationService {
     return { id, email, role: input.role, token, expires_in_days: INVITATION_TTL_DAYS, queued };
   }
 
-  /** EP-INV-02 — 조직의 초대 목록(admin). 수락·회수된 것도 기록으로 보인다 */
+  /**
+   * EP-INV-02 — 조직의 초대 목록(admin). 수락·회수된 것도 기록으로 보인다.
+   *
+   * **조직의 모든 초대는 조직 admin 만 본다**(2026-09-24 사람 결정 · REQ-API-173). 프로젝트
+   * admin 은 자기 프로젝트로 부르고 거둘 수 있으므로(REQ-API-169) 목록을 통째로 막지 않고
+   * **자기가 admin 인 프로젝트의 초대만** 보인다 — 조직 전체 초대와 남의 프로젝트 초대는 빠진다.
+   */
   async list(input: { actorUserId: string; orgSlug: string }): Promise<InvitationRow[]> {
-    await this.assertOrgAdmin(input.actorUserId, input.orgSlug);
+    const org = await this.assertOrgAdmin(input.actorUserId, input.orgSlug);
     const { rows } = await this.db.execute<InvitationRow>(sql`
       ${this.selectInvitation()}
        WHERE o.slug = ${input.orgSlug}
+         AND (
+               EXISTS (SELECT 1 FROM membership m
+                        WHERE m.org_id = ${org.id} AND m.user_id = ${input.actorUserId}
+                          AND m.project_id IS NULL AND m.role = 'admin')
+            OR i.project_id IN (SELECT m.project_id FROM membership m
+                                 WHERE m.org_id = ${org.id} AND m.user_id = ${input.actorUserId}
+                                   AND m.project_id IS NOT NULL AND m.role = 'admin')
+             )
        ORDER BY i.created_at DESC
        LIMIT 100
     `);

@@ -262,11 +262,15 @@ export const en = {
   'settings.gates.project_hint':
     'Each project has its own gate policy — what you save applies to this project only.',
   'settings.gates.title_project': 'Gate policy — {project}',
+  'settings.members.role_inherited':
+    'Inherited from the organization-wide role — already held in this project',
   'settings.members.role_org_admin_only':
     'Only organization admins can change organization-wide roles',
   'settings.members.scope_rule':
     'Organization-wide rows can be changed by organization admins only; project rows also by that project’s admins. Rows you cannot change are read-only.',
   'settings.members.title_org': '{org} members & roles',
+  'settings.workspace.org_admin_only':
+    'Only organization admins can rename or delete the organization or create projects — a project’s admins can also edit that project’s row.',
   'shell.inbox_all_orgs': 'Inbox — every organization',
   'shell.notifications_all_orgs': 'Notifications — every organization',
   'shell.org_label': 'Organization: {name}',
