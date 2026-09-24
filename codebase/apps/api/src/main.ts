@@ -31,6 +31,7 @@ import {
 import { RateLimitGuard } from './common/rate-limit.guard.js';
 import { ProjectScopeInterceptor } from './common/project-scope.interceptor.js';
 import { assertMailConfig } from './modules/mail/mail.config.js';
+import { assertSchemaCurrent } from './common/schema-guard.js';
 
 export async function createApp(): Promise<NestFastifyApplication> {
   // rawBody 를 켠다 — GitHub 웹훅의 HMAC 은 **원문 바이트**로 계산되므로 파싱 후
@@ -174,6 +175,9 @@ async function bootstrap(): Promise<void> {
   // 신뢰 프록시·클라이언트 IP 헤더도 — 틀린 CIDR 을 버리고 뜨면 IP 가 이상하다는 증상만 남고
   // 설정을 가리키지 않는다(REQ-CB-055)
   assertClientIpConfig();
+  // DB 스키마가 이 코드를 따라왔는지 — 뒤처진 채 뜨면 없는 칸을 읽는 질의마다 500 이 되고,
+  // 그 500 은 원인을 가리키지 않는다(2026-09-24 실측 · REQ-CB-056)
+  await assertSchemaCurrent();
   const app = await createApp();
   const port = Number(process.env['NERV_API_PORT'] ?? 8080);
   await app.listen({ port, host: '0.0.0.0' });

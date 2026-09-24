@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.67 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.68 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.68 변경(2026-09-24 — 스키마가 뒤처진 채 api 가 떠 있었다, **사람 보고**): **REQ-CB-056 신설 · §3 트리 한 줄 · §5.1 개발 루프 한 문단.** 화면 곳곳에서 500 이 났는데 원인은 하나였다 — 개발 DB 에 마이그레이션이 **31건 중 27건**만 적용돼 있었다(0027~0030 누락). `pnpm dev` 는 마이그레이션을 돌리지 않고, api 는 스키마를 보지 않고 떴으며, 없는 칸을 읽는 질의마다 500 이 됐다(받은 초대 `invitation.last_sent_at` · 처리됨 탭 `approval.decided_by_user_id` · 플러그인 표시 `plugin_version`). 증상은 흩어져 있고 어느 것도 원인을 가리키지 않는다. 이제 api·워커가 기동할 때 적용 이력을 동봉된 순서표와 대조해 **뒤처졌으면 이름과 명령을 말하고 뜨지 않는다**(`common/schema-guard.ts` · 판정은 `@nerv/schema/migrate` 의 `schemaStatus` 한 곳 — drizzle 적용기와 같은 규칙). **앞선 DB 는 막지 않는다** — 롤링 배포 중 옛 파드가 새 스키마 위에서 잠시 도는 것은 expand-contract 가 허용하는 순간이고(§6.3), 개발 DB 를 함께 쓰는 다른 워크트리가 먼저 올린 경우도 같다. DB 에 닿지 못하는 것은 이 검사의 일이 아니라 경고만 남긴다. compose(`migrate` 서비스 선행)·k8s(`nerv-migrate` Job 완료 대기)·E2E(`--wait`)는 이미 마이그레이션이 먼저라 달라지는 것이 없다.
 >
 > v1.67 변경(2026-09-24 — 앞문이 하나라는 전제가 운영에서 깨져 있었다, **사람 보고 → 사람 결정**): **REQ-CB-055 신설 · §5.2 전표 두 줄 · §5.5 · §5.3·§5.4 전문.** 운영은 Cloudflare Tunnel 뒤다(`엣지 → cloudflared(k8s 파드) → ingress → api`). 접근 로그의 `ip` 는 `X-Forwarded-For` 의 마지막 칸이었는데, 그 칸은 **cloudflared 자신의 사설 주소**라 모든 줄이 같은 값이었다. 클라이언트 주소를 **신뢰하는 프록시**를 기준으로 가린다(`common/client-ip.ts` — 판정은 한 곳, Fastify `trustProxy` 는 켜지 않는다): ① api 에 직접 붙은 소켓이 신뢰 목록 밖이면 그것이 클라이언트이고 헤더는 전부 무시한다 ② `NERV_CLIENT_IP_HEADER`(Tunnel 이면 `cf-connecting-ip`)가 설정돼 있고 값이 IP 면 그 값 ③ 아니면 `X-Forwarded-For` 를 오른쪽부터 읽어 신뢰 hop 을 건너뛴 첫 주소. **신뢰 목록의 기본은 loopback·사설 대역이다**(사람 결정 — `NERV_TRUSTED_PROXIES` 로 바꾼다). 틀린 CIDR·헤더 이름은 **기동을 거부한다**. 새 의존성은 없다(`net.BlockList`). 줄에는 `ip_source`(`socket`·`header`·`xff`)와 `cf_ray` 가 더해진다. 그리고 **`X-Request-Id` 가 없으면 `CF-Ray` 가 요청 ID 다**(사람 결정) — Cloudflare 오류 화면의 Ray ID 로 우리 로그의 그 요청을 찾는다. 앞문 nginx 도 같은 순서로 넘긴다. **헤더를 믿는 근거는 네트워크다** — 신뢰하는 프록시에 인터넷이 직접 닿으면 누구나 `CF-Connecting-IP` 를 적어 보낼 수 있어서, Tunnel 배치의 요건(origin 은 Tunnel 로만 닿는다)을 §5.5 에 적었다. 곁들여 §5.5 앞문 행의 "ingress-nginx 는 기본 설정으로 같은 일을 한다" 는 **실측하지 않은 문장**이라 그렇게 적었다.
 >
@@ -389,6 +391,7 @@ apps/api/src/
     rate-limit.guard.ts           # 분당 상한 (NFR-04)
     rate-limit.service.ts         # 상한 계수기 — Valkey
     route-permission.ts           # 라우트 권한 선언 — 선언 없는 라우트는 거절이다 (REQ-API-075)
+    schema-guard.ts               # 기동 검사 — DB 스키마가 이 코드보다 뒤처졌으면 뜨지 않는다 (§5.1 · REQ-CB-056)
     scope-check.ts                # 권한 판정 정본 — 표면은 위임만 한다 (D-05)
     sql-array.ts                  # 배열 바인딩 — 문자열 이어붙이기를 막는다
     storage.service.ts            # S3 클라이언트 · presigned URL — 공개 주소 경고 (REQ-CB-034)
@@ -932,12 +935,14 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
 ```bash
 pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
 pnpm build                      # 첫 실행에서만 — db:migrate·db:seed 는 빌드 산출물을 실행한다(아래)
-pnpm db:migrate                 # drizzle 마이그레이션 적용
+pnpm db:migrate                 # drizzle 마이그레이션 적용 — 코드를 당겨 온 뒤에도 다시(아래)
 pnpm db:seed                    # 개발 시드 — 로그인 자격증명도 함께 심는다(아래 명령 표)
 pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:all
 ```
 
 **`pnpm build` 가 왜 여기 있나**(2026-08-27 — 실행 중 발견). `db:migrate`·`db:seed` 는 `apps/api/dist/{migrate,seed}.js` 를 실행한다. 그 엔트리를 소스가 아니라 산출물로 두는 것은 의도다 — compose 의 `migrate` 서비스와 k8s 의 `nerv-migrate` Job 이 이미지 안에서 **같은 파일**을 돌리기 때문이고, 그래서 마이그레이션 경로가 개발·로컬·운영에서 갈라지지 않는다(REQ-CB-008). 대신 `dist/` 는 git 에 없고 `pnpm install` 에 빌드 훅도 없어서, **새로 클론한 장비의 첫 실행에서는 그 파일이 아직 없다.** `pnpm dev` 는 스스로 빌드 감시를 띄우므로 이 줄이 필요 없지만, 그 앞의 두 명령은 자기 힘으로 산출물을 만들지 않는다. 두 번째 실행부터는 건너뛰어도 된다.
+
+**코드를 당겨 온 뒤에는 `pnpm db:migrate` 를 다시 돌린다**(2026-09-24 — 사람 보고 · REQ-CB-056). `pnpm dev` 는 마이그레이션을 돌리지 않는다 — 개발 DB 는 워크트리들이 함께 쓰는 것이라(AGENTS.md 구현 규약 8) 어느 브랜치의 루프가 그것을 조용히 올리면 다른 워크트리가 모르는 사이 스키마가 바뀐다. 대신 **api·워커는 스키마가 이 코드보다 뒤처졌으면 뜨지 않는다** — 무엇이 남았는지와 이 명령을 적고 멈춘다. 그 검사가 없던 동안 개발 DB 가 31건 중 27건에서 멈춘 채 api 가 떠 있었고, 화면 여기저기의 500 이 원인을 가리키지 않았다.
 
 **compose 경로(위 블록 6개)는 이 줄이 필요 없다** — 이미지 빌드가 `dist` 를 만들고 `migrate` 서비스가 그것을 실행한다. REQ-CB-009 의 수용 기준은 그대로다.
 
@@ -1188,6 +1193,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-053** | WHERE `NERV_LOG_FORMAT=json` 인 배치에서 THE SYSTEM SHALL api·worker 의 로그를 **한 줄에 JSON 하나**로 찍고 — 색 코드 없이, 요청 안의 줄에는 `req_id` 를, 접근 로그에는 문장과 함께 필드(`route`·`status`·`duration_ms`·`surface`·`code`·주체 id)를 줄의 최상위에 싣는다 — 값이 비면 `text` 로, 모르는 값이면 한 줄 경고 뒤 `text` 로 선다. 어느 형식이든 §5.5 의 "싣지 않는 것" 은 줄에 없다. 운영 로그를 필드로 거를 수 없었다(2026-09-24 사람 결정) | 가드가 거절한 요청이 `JSON.parse` 되는 한 줄로 남고 `req_id`·`code`·`route` 가 필드다(L2 `access-log.spec.ts`) · 두 형식의 실제 로거 출력에 Bearer·쿠키·멱등 키·쿼리·본문의 이메일·비밀번호·표시 이름이 없다(L1) |
 | **REQ-CB-054** | WHEN MCP `tools/call` 이 끝나거나, 워커 잡 한 판이 끝나거나, WebSocket 연결이 받아들여지거나 거절되거나 끊기면 THE SYSTEM SHALL 그마다 로그 한 줄을 남긴다 — 도구 호출은 도구 · 결과 코드와 `kind` · 소요 · 세션을(인자 값·결과 본문·에러 문장은 싣지 않는다), 잡은 이름 · 소요 · 결과 수치를(할 일이 없던 판은 `debug`), WebSocket 은 소켓 · 사용자 · 거절 코드 · 연결 시간을 싣고, 앞문이 준 `X-Request-Id` 로 연결과 해제를 잇는다. 셋 다 접근 로그(REQ-CB-052)가 닿지 않는 자리다 — MCP 실패는 200 에 실리고, 잡은 요청이 아니며, WebSocket 은 Fastify 훅을 거치지 않는다(2026-09-24) | 권한 부족 도구 호출이 `tools/call <도구> NERV_FORBIDDEN kind=missing_scope` 로 같은 요청의 접근 로그와 같은 `req_id` 를 달고 남는다 · 모르는 도구 이름은 줄에 없다(L2 `mcp.spec.ts`) · 받아들인 연결과 그 해제가 같은 `req_id` 로 남는다(L2 `realtime.spec.ts`) · 일을 한 판·빈 판·실패한 판이 각각 `log`·`debug`·`warn` 이다(L1 `job-log.spec.ts`) |
 | **REQ-CB-055** | WHEN api 가 접근 로그의 클라이언트 주소를 정하면 THE SYSTEM SHALL 신뢰하는 프록시(`NERV_TRUSTED_PROXIES` — 비면 loopback·사설 대역)를 기준으로 가린다 — api 에 직접 붙은 소켓이 신뢰 목록 밖이면 그 소켓이고 헤더는 무시한다, 안이면 `NERV_CLIENT_IP_HEADER` 가 설정됐고 값이 IP 일 때 그 값, 아니면 `X-Forwarded-For` 를 오른쪽부터 읽어 신뢰 hop 을 건너뛴 첫 주소다 — 그리고 어느 경로로 정했는지(`ip_source`)와 `CF-Ray` 를 함께 싣는다. WHEN `X-Request-Id` 가 없거나 모양이 틀리면 THE SYSTEM SHALL 모양이 맞는 `CF-Ray` 를 요청 ID 로 쓴다. 틀린 CIDR·헤더 이름이면 기동을 거부한다. 운영(Cloudflare Tunnel)의 모든 줄이 cloudflared 의 사설 주소였다(2026-09-24 사람 보고) | Tunnel 모양(ingress 가 XFF 를 cloudflared 로 덮어씀)에서 `CF-Connecting-IP` 가 `ip`·`ip_source=header` 이고 `CF-Ray` 가 `req_id` 다(L2 `access-log.spec.ts`) · 신뢰 밖 소켓이 보낸 헤더는 무시되고, XFF 맨 앞의 위조 값은 쓰이지 않으며, 틀린 CIDR 은 기동을 거부한다(L1 `client-ip.spec.ts`) |
+| **REQ-CB-056** | WHEN api 또는 워커가 기동하면 THE SYSTEM SHALL DB 의 마이그레이션 적용 이력을 이 코드에 동봉된 순서표와 대조하고 — 판정은 drizzle 적용기와 같은 규칙(이력의 가장 늦은 시각보다 나중인 파일이 남은 것)이다 — **남은 파일이 있으면** 그 이름과 적용 수 · 코드 수, 그리고 `pnpm db:migrate` 를 적어 기동을 거부한다. WHERE DB 가 코드보다 앞서 있으면(롤링 배포의 옛 파드 · 먼저 올린 다른 워크트리) THE SYSTEM SHALL 막지 않는다. WHERE DB 에 닿지 못하면 THE SYSTEM SHALL 경고만 남기고 지금처럼 뜬다. 개발 DB 가 31건 중 27건에서 멈춘 채 api 가 떠, 없는 칸을 읽는 질의마다 500 이 흩어졌다(2026-09-24 실측) | 빈 DB 는 전부가, 마지막 이력 한 줄을 지운 DB 는 그 파일 하나가 남은 것으로 잡힌다(L2 `migrate.spec.ts`) · 남은 것이 있으면 이름과 명령을 말하고 멈추며, 앞선 DB 와 닿지 못하는 DB 는 막지 않는다(L1 `schema-guard.spec.ts` · `packages/schema` `migrate.spec.ts`) |
 
 ---
 

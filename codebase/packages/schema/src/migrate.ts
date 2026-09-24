@@ -4,8 +4,8 @@
 // 왕복 멱등은 drizzle 의 적용 이력 테이블(__drizzle_migrations)이 보장한다 —
 // 이미 적용된 파일은 건너뛰므로 같은 명령을 두 번 실행해도 변경 0건이다(REQ-DB-001).
 
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -50,6 +50,75 @@ export async function runMigrations(databaseUrl: string): Promise<MigrateResult>
       'SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations',
     );
     return { applied: Number(rows[0]?.count ?? 0), partitionsAhead: PARTITION_MONTHS_AHEAD };
+  } finally {
+    await pool.end();
+  }
+}
+
+/** drizzle 이 파일마다 적는 순서표 한 줄 — `when` 이 적용 이력의 `created_at` 과 같은 값이다 */
+export interface JournalEntry {
+  tag: string;
+  when: number;
+}
+
+/** 이 패키지에 동봉된 마이그레이션의 순서표 */
+export function journalEntries(folder: string = migrationsFolder()): JournalEntry[] {
+  const journal = JSON.parse(readFileSync(join(folder, 'meta', '_journal.json'), 'utf8')) as {
+    entries: JournalEntry[];
+  };
+  return journal.entries.map(({ tag, when }) => ({ tag, when }));
+}
+
+/**
+ * 아직 적용되지 않은 마이그레이션 — **drizzle 적용기와 같은 규칙**이다.
+ *
+ * 적용기는 이력의 가장 늦은 `created_at` 보다 나중(`when` 이 큰) 파일만 돌린다. 판정을 따로
+ * 만들면 "검사는 남았다고 하는데 적용기는 할 것이 없다" 는 어긋남이 생긴다. 이력이 코드보다
+ * **앞서** 있는 것(옛 파드가 새 스키마 위에서 도는 롤링 배포 · 다른 워크트리가 먼저 올린 DB)은
+ * 뒤처진 것이 아니다 — expand-contract 가 그 순간을 허용한다(codebase.md §6.3).
+ */
+export function pendingMigrations(
+  entries: readonly JournalEntry[],
+  lastAppliedAt: number | null,
+): string[] {
+  return entries.filter((e) => lastAppliedAt === null || e.when > lastAppliedAt).map((e) => e.tag);
+}
+
+export interface SchemaStatus {
+  /** 이력에 적힌 마이그레이션 수 */
+  applied: number;
+  /** 이 코드에 동봉된 마이그레이션 수 */
+  expected: number;
+  /** 아직 적용되지 않은 파일 — 비어 있어야 코드가 기대하는 스키마다 */
+  pending: string[];
+}
+
+/**
+ * DB 의 스키마가 이 코드를 따라왔는가(REQ-CB-056). 읽기만 한다.
+ *
+ * 이력 테이블이 없으면 한 번도 적용하지 않은 DB 다 — 전부가 남은 것이다.
+ */
+export async function schemaStatus(databaseUrl: string): Promise<SchemaStatus> {
+  const entries = journalEntries();
+  const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    const { rows } = await pool
+      .query<{ applied: number; last: string | null }>(
+        'SELECT count(*)::int AS applied, max(created_at)::text AS last FROM drizzle.__drizzle_migrations',
+      )
+      .catch((error: unknown) => {
+        // 42P01 relation 없음 · 3F000 스키마 없음 — 적용 이력 자체가 없다
+        const code = (error as { code?: string }).code;
+        if (code === '42P01' || code === '3F000') return { rows: [{ applied: 0, last: null }] };
+        throw error;
+      });
+    const row = rows[0];
+    const last = row?.last === null || row?.last === undefined ? null : Number(row.last);
+    return {
+      applied: row?.applied ?? 0,
+      expected: entries.length,
+      pending: pendingMigrations(entries, last),
+    };
   } finally {
     await pool.end();
   }
