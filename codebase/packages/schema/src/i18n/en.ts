@@ -932,7 +932,11 @@ export const en = {
   'task.form.lead_new':
     'Saving puts it in the backlog. Once all four are filled, [Move to ready] on the board queues it — agents only pick up ready tasks.',
   'task.form.lead_edit':
-    'A backlog task moves to ready on save once all four are filled (and its dependencies are done).',
+    'A backlog task moves to ready on save once all four parts are filled (and its dependencies are done). Parts that were empty (import placeholders included) open blank; leave one blank and it stays as it was.',
+  'task.form.saved_missing': 'Saved — still empty: {fields}',
+  'task.form.saved_deps_pending':
+    'Saved — all four parts are filled, but a dependency is not finished, so it stays in the backlog.',
+  'task.form.saved': 'Saved.',
   'claim.status.active': 'Held',
   'claim.status.released': 'Released',
   'claim.status.expired': 'Expired',

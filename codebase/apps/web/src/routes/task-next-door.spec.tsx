@@ -29,6 +29,8 @@ let roles: string[] = ['developer'];
 let detail: Record<string, unknown> = {};
 let lanes: Record<string, Record<string, unknown>[]> = {};
 let posted: { method: string; url: string; body: Record<string, unknown> }[] = [];
+/** 쓰기의 응답 — 검사마다 갈아 끼운다 */
+let reply: Record<string, unknown> = { status: 'ready' };
 
 function task(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -54,6 +56,7 @@ beforeEach(() => {
   detail = task();
   lanes = {};
   posted = [];
+  reply = { status: 'ready' };
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: RequestInit) => {
@@ -61,7 +64,7 @@ beforeEach(() => {
       const method = init?.method ?? 'GET';
       if (method !== 'GET') {
         posted.push({ method, url: u, body: JSON.parse(String(init?.body ?? '{}')) });
-        return { ok: true, status: 200, json: async () => ({ status: 'ready' }) };
+        return { ok: true, status: 200, json: async () => reply };
       }
       if (/\/me(\?|$)/.test(u)) {
         return {
@@ -267,5 +270,86 @@ describe('작업 보드 — 문과 역할 (REQ-WEB-202 · 203)', () => {
     await waitFor(() => expect(fill.disabled).toBe(true));
     // qa 는 작업을 만들 수는 있다(발견을 올린다) — 위임 명세는 쓰지 않는다
     expect((screen.getByTestId('task-new') as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+/**
+ * **비어 있던 칸은 빈 칸으로 연다**(REQ-WEB-202 · 2026-09-24 사람 결정 — 안 C).
+ *
+ * 임포트 자리표시자를 값으로 채워 폼을 열던 동안, 한 칸을 빠뜨려도 저장이 통과했고(서버는 그 칸을
+ * 빈 것으로 봐 backlog 에 남는데 사람은 다 채웠다고 믿었다), 자리표시자를 조금만 고쳐도 찬 칸으로
+ * 세어져 뜻 없는 지시문으로 ready 에 오를 수 있었다.
+ */
+describe('수정 폼 — 비어 있던 칸 (REQ-WEB-202 · 안 C)', () => {
+  const PLACEHOLDER = ko['import.delegation_missing'];
+  const imported = (): Record<string, unknown> =>
+    task({
+      goal_md: PLACEHOLDER,
+      output_format_md: PLACEHOLDER,
+      tools_sources_md: PLACEHOLDER,
+      boundaries_md: PLACEHOLDER,
+    });
+  const patches = (): Record<string, unknown>[] =>
+    posted.filter((p) => p.method === 'PATCH').map((p) => p.body);
+  const save = (): void => {
+    const form = screen.getByTestId('delegation-form');
+    fireEvent.click(within(form).getByRole('button', { name: ko['common.save'] }));
+  };
+
+  it('자리표시자는 값이 아니라 빈 칸과 안내로 열린다', async () => {
+    detail = imported();
+    await renderDetail();
+    fireEvent.click(screen.getByTestId('next-fill_brief'));
+    await screen.findByTestId('delegation-form');
+    for (const field of ['goal_md', 'output_format_md', 'tools_sources_md', 'boundaries_md']) {
+      const input = screen.getByTestId(`brief-${field}`) as HTMLInputElement;
+      await waitFor(() => expect(input.placeholder).toBe(ko['task.brief.placeholder']));
+      expect(input.value).toBe('');
+    }
+  });
+
+  it('한 칸만 채우면 그 칸만 보내고, 아직 비어 있는 칸을 이름으로 말한다', async () => {
+    detail = imported();
+    reply = { status: 'backlog', delegation_complete: false };
+    await renderDetail();
+    fireEvent.click(screen.getByTestId('next-fill_brief'));
+    const goal = (await screen.findByTestId('brief-goal_md')) as HTMLTextAreaElement;
+    await waitFor(() => expect(goal.placeholder).not.toBe(''));
+    fireEvent.change(goal, { target: { value: '로그인 화면의 오류 문구를 고친다' } });
+    save();
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(patches()[0]).toMatchObject({ goal_md: '로그인 화면의 오류 문구를 고친다' });
+    // 비워 둔 칸은 보내지 않는다 — 서버는 오지 않은 칸을 그대로 둔다(자리표시자로 남는다)
+    expect(patches()[0]).not.toHaveProperty('output_format_md');
+    expect(patches()[0]).not.toHaveProperty('boundaries_md');
+    expect(
+      await screen.findByText(/아직 비어 있는 칸: ② 산출물 형식 · ③ 도구·출처 · ④ 경계/),
+    ).toBeDefined();
+  });
+
+  it('제목만 고칠 수 있다 — 네 칸을 채우라고 막지 않는다', async () => {
+    detail = imported();
+    reply = { status: 'backlog', delegation_complete: false };
+    await renderDetail();
+    fireEvent.click(screen.getByTestId('next-fill_brief'));
+    const form = await screen.findByTestId('delegation-form');
+    const title = within(form).getAllByRole('textbox')[0] as HTMLInputElement;
+    await waitFor(() => expect(title.value).toBe('다음 문'));
+    fireEvent.change(title, { target: { value: '다음 문 — 이름만 고침' } });
+    save();
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(patches()[0]).toMatchObject({ title: '다음 문 — 이름만 고침' });
+    expect(Object.keys(patches()[0] ?? {}).filter((k) => k.endsWith('_md'))).toEqual([]);
+  });
+
+  it('원래 내용이 있던 칸은 비울 수 없다', async () => {
+    await renderDetail();
+    fireEvent.click(screen.getByTestId('brief-edit'));
+    const goal = (await screen.findByTestId('brief-goal_md')) as HTMLTextAreaElement;
+    await waitFor(() => expect(goal.value).toBe('목표'));
+    fireEvent.change(goal, { target: { value: '' } });
+    save();
+    expect(await screen.findByText(ko['task.form.err.goal'])).toBeDefined();
+    expect(patches()).toHaveLength(0);
   });
 });

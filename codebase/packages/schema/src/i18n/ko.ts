@@ -916,7 +916,11 @@ export const ko = {
   'task.form.lead_new':
     '저장하면 backlog 에 들어갑니다. 네 요소가 다 찼으면 보드의 [준비됨으로 올리기]로 큐에 올립니다 — 에이전트는 ready 작업만 가져갑니다.',
   'task.form.lead_edit':
-    'backlog 작업은 네 요소가 다 차면 저장과 함께 ready 로 올라갑니다(선행 작업이 끝났을 때).',
+    'backlog 작업은 네 요소가 다 차면 저장과 함께 ready 로 올라갑니다(선행 작업이 끝났을 때). 비어 있던 칸(임포트 자리표시자 포함)은 빈 칸으로 열리고, 비워 둔 채 저장하면 그대로 남습니다.',
+  'task.form.saved_missing': '저장했습니다 — 아직 비어 있는 칸: {fields}',
+  'task.form.saved_deps_pending':
+    '저장했습니다 — 네 요소는 찼지만 선행 작업이 끝나지 않아 backlog 에 있습니다.',
+  'task.form.saved': '저장했습니다.',
   'claim.status.active': '쥐고 있음',
   'claim.status.released': '놓음',
   'claim.status.expired': '만료',

@@ -535,6 +535,38 @@ describe('Task 표면 (EP-TASK-01·03·04·05·09)', () => {
     expect(of(complete)).toBe(true);
   });
 
+  it('PATCH 는 보내지 않은 칸을 그대로 둔다 — 화면이 비워 둔 칸을 보내지 않는 근거 (REQ-WEB-202)', async () => {
+    // 수정 폼은 채워지지 않았던 칸을 빈 칸으로 열고, 비워 둔 채 저장하면 그 칸을 보내지 않는다.
+    // 그러면 서버가 그 칸의 자리표시자를 그대로 둬야 한다 — 빈 문자열로 덮으면 "원본에 없음"
+    // 이라는 출처 기록이 사라진다
+    const placeholder = ko['import.delegation_missing'];
+    const created = await call('POST', '/api/v1/projects/clemvion/tasks', {
+      payload: {
+        title: '임포트 흉내',
+        goal_md: placeholder,
+        output_format_md: placeholder,
+        tools_sources_md: placeholder,
+        boundaries_md: placeholder,
+      },
+    });
+    const key = (created.body as Record<string, unknown>)['key'] as string;
+    const partial = await call('PATCH', `/api/v1/projects/clemvion/tasks/${key}`, {
+      payload: { goal_md: '목표만 채웠다' },
+    });
+    expect((partial.body as Record<string, unknown>)['status']).toBe('backlog');
+    const detail = (await call('GET', `/api/v1/projects/clemvion/tasks/${key}`)).body as Record<
+      string,
+      unknown
+    >;
+    expect(detail['goal_md']).toBe('목표만 채웠다');
+    expect(detail['boundaries_md']).toBe(placeholder);
+    // 나머지를 채우면 그때 올라간다
+    const rest = await call('PATCH', `/api/v1/projects/clemvion/tasks/${key}`, {
+      payload: { output_format_md: 'PR', tools_sources_md: '도구', boundaries_md: '경계' },
+    });
+    expect((rest.body as Record<string, unknown>)['status']).toBe('ready');
+  });
+
   it('done 레인은 창 밖의 것을 기본으로 감추고, 토글이 그 창을 연다 (screens.md §2.5)', async () => {
     // 끝난 일은 시간이 지나면 배경이 된다. clemvion 실측에서 done 이 419/487(86%)이었고
     // 보드가 전량을 한 응답으로 받아 229 KB 였다(2026-08-23).
