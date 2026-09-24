@@ -66,7 +66,7 @@ Pressing the button does not send anything yet: it **lists what you are about to
 
 You can pick up to **50** at a time, and [Everything visible] picks only what is **on screen right now**.
 
-Decided cards move to the **Decided** tab. That tab carries **what you decided** — decisions other people made are in their own lists. Nothing is deleted, so what was decided, when and how stays readable later, and the card stays put after an approval settles the document or a rejection sends it back to draft. Cards in that tab carry no decision buttons or input boxes; in place of the waiting time they say **what was decided, and when**.
+Decided cards move to the **Decided** tab. That tab carries **what you decided** — decisions other people made are in their own lists. Nothing is deleted, so what was decided, when and how stays readable later, and the card stays put after an approval settles the document or a rejection sends it back to draft. Cards in that tab carry no decision buttons or input boxes; in place of the waiting time they say **what was decided, and when**. If a note was left with the decision — a rejection always carries one — that sentence sits on the card too.
 
 ## Keyboard
 

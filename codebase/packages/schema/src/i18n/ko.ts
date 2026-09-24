@@ -223,6 +223,8 @@ export const ko = {
   'error.relation.stale_target':
     '상대 문서가 그 사이 바뀌었습니다 — 다시 읽고 관계가 여전히 맞는지 확인하세요.',
   'inbox.card.decided_at': '{decision} · {when}',
+  /** 처리됨 카드에 남는 한 줄 — 거절 사유가 여기 든다(REQ-WEB-133) */
+  'inbox.card.decision_note': '결정에 남긴 말',
   'inbox.subject.change_request': '변경 요청',
   'inbox.subject.finding': '리뷰 발견 처분 요청',
   'inbox.subject.gate_bypass': '게이트 우회 요청',

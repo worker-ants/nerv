@@ -80,6 +80,10 @@ test('처리됨 탭은 내가 결정한 것만 싣는다 (REQ-WEB-184)', async (
   await expect(page.getByTestId('approve')).toHaveCount(0);
   await expect(page.getByTestId('bulk-select')).toHaveCount(0);
   await expect(page.getByTestId('decided-at')).toBeVisible();
+
+  // **왜 그렇게 정했는지도 남는다**(REQ-WEB-133 · 2026-09-24). 거절 사유는 필수인데
+  // 그 문장을 읽을 곳이 화면 어디에도 없었다 — 목록이 `comment_md` 를 나르지 않았다.
+  await expect(page.getByTestId('decision-note')).toContainText('재시도 횟수');
 });
 
 test('체크박스로 고른 둘을 한 번에 승인한다 — T3 는 확인 목록에서 빠진다 (REQ-WEB-181~183)', async ({

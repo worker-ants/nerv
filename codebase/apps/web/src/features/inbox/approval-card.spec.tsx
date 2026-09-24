@@ -264,6 +264,45 @@ describe('처리됨 탭 — 단추가 없으면 키도 없다', () => {
   });
 });
 
+/**
+ * **결정에 남긴 말**(2026-09-24 · REQ-WEB-133).
+ *
+ * 거절에는 사유가 필수인데(REQ-WEB-022) 그 문장을 읽을 곳이 처리됨 탭에 없었다 —
+ * 무엇을 언제 정했는지는 적히면서 **왜** 가 빠져 있었고, 나중에 그 카드를 여는 사람이
+ * 찾는 것이 바로 그 한 줄이다.
+ */
+describe('결정에 남긴 말 (REQ-WEB-133)', () => {
+  const rejected = {
+    id: 'ap-rejected',
+    subject_type: 'spec_version',
+    spec_key: 'SPC-CWC-007',
+    spec_title: '웹챗 위젯 임베드 v2',
+    requested_at: new Date().toISOString(),
+    decision: 'reject',
+    decided_at: new Date().toISOString(),
+    comment_md: '복원 실패 시 재시도 횟수를 적어 주세요',
+  };
+
+  it('거절 사유가 카드에 남는다', async () => {
+    await renderCard(rejected);
+    expect(screen.getByTestId('decision-note').textContent).toContain('재시도 횟수');
+  });
+
+  it('말이 없으면 빈 상자를 그리지 않는다 — 회색 띠는 "못 불러왔다" 로 읽힌다', async () => {
+    const { comment_md: _c, ...silent } = rejected;
+    await renderCard(silent);
+    expect(screen.queryByTestId('decision-note')).toBeNull();
+  });
+
+  it('대기 카드에는 그리지 않는다 — 거기 있는 것은 기록이 아니라 입력 칸이다', async () => {
+    const { decision: _d, decided_at: _t, ...pending } = rejected;
+    await renderCard(pending);
+    expect(screen.queryByTestId('decision-note')).toBeNull();
+    // 입력 칸은 그대로 있다 — 조건을 너무 넓게 걸지 않았다
+    expect(screen.getByTestId('decision-comment')).toBeDefined();
+  });
+});
+
 describe('제목 없는 대상의 이름 (REQ-WEB-133)', () => {
   // 목록 질의는 `spec_version` 에만 제목을 JOIN 한다 — 나머지는 제목 없이 온다.
   // 2026-09-06 까지 폴백이 `gate_bypass` 하나뿐이라 플랜 결재 카드가 "(제목 없음)" 이었다.
