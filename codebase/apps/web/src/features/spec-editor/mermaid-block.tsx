@@ -40,6 +40,38 @@ import { useTheme } from '../../lib/theme.js';
 /** 같은 페이지에 여럿이 있어도 id 가 겹치지 않게 — mermaid 는 id 로 DOM 을 잡는다 */
 let seq = 0;
 
+/**
+ * mermaid 가 **재면서 그리는 자리** — 화면 밖에 고정된 상자다(2026-09-24 실측).
+ *
+ * `mermaid.render(id, code)` 는 담을 곳을 주지 않으면 글자 폭을 재려고 `<body>` 끝에 임시
+ * 요소(`#d<id>`)를 붙였다가 다 그린 뒤 뗀다. 그 사이 문서가 그 높이만큼(시드 문서에서 150px)
+ * 자라 **페이지 스크롤바가 잠깐 깜빡였고**, 스펙 상세의 "흐르는 것은 본문 칸뿐이다" L3 가
+ * 그 순간을 재면 빨갛게 떴다(15회 중 1회 — REQ-WEB-156). 재려면 레이아웃은 있어야 하므로
+ * `display: none` 이 아니라, 문서 흐름 밖(`position: fixed`)의 보이지 않는 자리에서 잰다.
+ *
+ * 그릴 때마다 **자기 칸**을 하나 받는다 — mermaid 는 받은 칸의 내용을 먼저 비우므로, 둘이
+ * 한 칸을 나눠 쓰면 먼저 그리던 쪽이 지워진다.
+ */
+function measuringSlot(): HTMLDivElement {
+  let host = document.querySelector<HTMLDivElement>('[data-mermaid-host]');
+  if (host === null) {
+    host = document.createElement('div');
+    host.dataset['mermaidHost'] = '';
+    host.setAttribute('aria-hidden', 'true');
+    Object.assign(host.style, {
+      position: 'fixed',
+      top: '0',
+      left: '-100000px',
+      visibility: 'hidden',
+      pointerEvents: 'none',
+    });
+    document.body.appendChild(host);
+  }
+  const slot = document.createElement('div');
+  host.appendChild(slot);
+  return slot;
+}
+
 const PRE = 'rounded-nerv border border-border bg-code-bg p-3 font-mono text-xs text-code-text';
 
 /** 배율 한 칸 — 곱셈이라 어느 배율에서 눌러도 같은 비율로 움직인다. */
@@ -202,7 +234,10 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
           journey: { useMaxWidth: false },
           pie: { useMaxWidth: false },
         });
-        const { svg: out } = await mermaid.render(idRef.current, code);
+        const slot = measuringSlot();
+        const { svg: out } = await mermaid
+          .render(idRef.current, code, slot)
+          .finally(() => slot.remove());
         if (alive) {
           setSvg(out);
           setFailed(false);
