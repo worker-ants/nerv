@@ -1,7 +1,7 @@
 ---
 id: SPC-MVP-SCREENS
 status: approved
-updated: 2026-09-22
+updated: 2026-09-24
 referenced_by:
   - 03-proposal/spec-workflow.md
   - 03-proposal/ui-wireframes.md
@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.22 · 2026-09-22 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.23 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.23 변경(2026-09-24 — 처리됨 탭이 끝난 결재를 잃었다, **사람 결정**): **REQ-WEB-184 신설 · §2.7 데이터 소스에 처리됨 행.** 처리됨 탭이 **결정이 문서를 움직인 순간 그 기록을 잃었다** — 승인하면 `approved`, 거절하면 `draft` 라 대기 탭을 위해 쓴 `sv.status = 'in_review'` 에서 함께 탈락했다. 실측 2026-09-24: 넷을 결정하니 둘만 남았고 그 둘은 **문서를 안 움직인 것과 남이 낸 면제**였다. 매뉴얼은 그동안 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 약속하고 있었다 — 틀린 문서가 확신을 준 자리다. §2.7 의 데이터 소스 표에는 `state=pending` 한 줄뿐이었고 처리됨 목록에 대한 EARS 도 없었다 — REQ-WEB-133 은 *카드가 어떻게 그려지는가*만 말한다. **명세에 없는 면은 검사도 없다**: 그래서 이 탭은 조용히 비어 갈 수 있었다. 그 자리에 행과 기준을 세운다([4.3](database.md) v0.48 · [4.4](api.md) REQ-API-165).
 >
 > v1.22 변경(2026-09-22 — 받은 요청을 한 건씩만 비울 수 있었다, **사람 결정**): **REQ-WEB-181~183 신설 · §2.7 키보드·컴포넌트 줄.** [3.6](../03-proposal/ui-wireframes.md) §4.1 이 처음부터 허용한 일괄 처리를 이 문서가 받지 않고 있었다. 들이되 **일괄 승인은 본문을 열지 않고 누르는 조작**이라 브레이크 셋을 함께 명세한다 — ① 고를 수 있는 것과 승인되는 것이 다르고 그 차이를 **수로 보인다**(판정은 서버의 `can_bulk_approve` 다 · [4.4](api.md) REQ-API-163), ② 누르기 전에 **대상을 한 줄씩 나열**하고 거절 사유는 그대로 필수이며, ③ 지나가지 못한 건은 **목록에 남아 이유를 말한다**. 키는 대문자를 쓴다(`⇧A`·`⇧R`) — 한 건과 스무 건을 가르는 차이는 Shift 만큼은 되어야 한다([4.4](api.md) v1.39 · EP-APR-06).
 >
@@ -1471,6 +1473,7 @@ MVP 카드 유형은 **5종**이다(2026-09-06 현황) — **스펙 승인 · �
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
 | 대기 목록 | EP-APR-01 `GET /api/v1/approvals` (state=pending · 프로젝트 필터 — 유형 필터는 서버가 읽지 않는다) | `approval.subject_type`: `spec_version / plan / question / finding / gate_bypass`(MVP · 2026-09-06 현황) — data-model §2.7 |
+| 처리됨 목록 | EP-APR-01 `GET /api/v1/approvals` (state=decided) | **내가 결정한 것**이다(`decided_by_user_id` — [4.3](database.md) §2.8 · 마이그레이션 0029). 대기 탭의 조건을 함께 쓰면 결정이 문서를 움직인 순간 기록째 사라진다(REQ-API-165) |
 | 결정 | EP-APR-03 `POST /api/v1/approvals/{id}/decision` | `decision`: `approve / reject / comment`(spec-workflow §2.5) |
 | 질문 답변 | EP-QST-02 `POST /api/v1/projects/{proj}/questions/{id}/answer` | `answer_key`(선택지) 또는 `answer_md` — 내부적으로 승인 결정과 한 경로([api.md](api.md) §2.6) |
 | 카드 본문 | EP-APR-01 응답 `ApprovalCard`에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지) | 요약문이 아니라 **원문 우선**(spec-workflow §6.4 — OWASP ASI09 방어) |
@@ -1508,6 +1511,7 @@ export const ApprovalDecisionInput = z
 | REQ-WEB-181 | WHEN 대기 탭의 승인 카드를 렌더하면 THE SYSTEM SHALL 체크박스를 주고(질문·처리됨 카드에는 주지 않는다), WHEN 하나 이상 고르면 THE SYSTEM SHALL 고른 수와 **승인 가능 수를 따로** 보인다 — 고른 것과 승인되는 것이 다를 수 있고 그 차이를 누른 뒤에 알게 하면 안 된다. 승인 가능 판정은 서버가 준 `can_bulk_approve` 를 그대로 읽는다(REQ-API-163 · 화면이 규칙을 다시 구현하지 않는다) |
 | REQ-WEB-182 | WHEN 일괄 승인·거절을 누르면 THE SYSTEM SHALL 확인 단계에서 **대상을 한 줄씩 나열**하고(키·제목·프로젝트) 빠지는 건수를 함께 적으며, 확인을 지나기 전에는 서버를 부르지 않는다. WHEN 거절이면 THE SYSTEM SHALL 사유를 필수로 요구한다(REQ-WEB-022 와 같은 규율 — 전 건에 같은 사유가 남는다). WHILE 확인 단계가 열려 있으면 THE SYSTEM SHALL 단건 단축키(`a`·`r`·`c`)를 받지 않는다 |
 | REQ-WEB-183 | WHEN 일괄 결정의 응답이 부분 실패를 담으면 THE SYSTEM SHALL 실패한 카드만 선택에 남기고 그 카드 자리에 서버가 준 사유를 표시하며, 토스트에 `n건 처리 · m건 남음`을 적는다 — 20건을 눌렀는데 18건만 사라지고 둘이 조용히 남으면 사람은 그 둘을 처리했다고 믿거나 화면이 고장 났다고 읽는다 |
+| REQ-WEB-184 | WHEN 처리됨 탭을 렌더하면 THE SYSTEM SHALL **내가 결정한 것**만 보이고(남이 내린 결정은 내 목록에 없다) 결정이 대상 문서를 움직인 뒤에도 그 카드가 남는다 — 매뉴얼이 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 약속하는 그 목록이다(REQ-API-165 · 카드의 모양은 REQ-WEB-133) |
 
 #### 선택지는 누를 수 있어야 한다 (2026-08-30 — 사람 결정)
 

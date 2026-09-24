@@ -12,7 +12,7 @@ The inbox collects **only what is waiting on your decision**. Count background a
 
 Lowering a `critical` review finding also arrives here as a card (see [Reviews](/help/reviews)).
 
-**A gate bypass** is recorded here too. It is not a card that asks anything, though — it is the record of something already done, so it lands straight in the Decided tab rather than the waiting one.
+**A gate bypass** is recorded here too. It is not a card that asks anything, though — it is the record of something already done, so it lands straight in the Decided tab **of whoever made it**, rather than in the waiting one: a bypass goes through without asking, so the person who made it is the person who decided it.
 
 ## Question cards
 
@@ -66,7 +66,7 @@ Pressing the button does not send anything yet: it **lists what you are about to
 
 You can pick up to **50** at a time, and [Everything visible] picks only what is **on screen right now**.
 
-Decided cards move to the **Decided** tab. Nothing is deleted, so what was decided, when and how stays readable later. Cards in that tab carry no decision buttons or input boxes; in place of the waiting time they say **what was decided, and when**.
+Decided cards move to the **Decided** tab. That tab carries **what you decided** — decisions other people made are in their own lists. Nothing is deleted, so what was decided, when and how stays readable later, and the card stays put after an approval settles the document or a rejection sends it back to draft. Cards in that tab carry no decision buttons or input boxes; in place of the waiting time they say **what was decided, and when**.
 
 ## Keyboard
 

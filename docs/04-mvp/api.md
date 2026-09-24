@@ -1,7 +1,7 @@
 ---
 id: SPC-MVP-API
 status: approved
-updated: 2026-09-06
+updated: 2026-09-24
 referenced_by:
   - 02-research/integration-tech.md
   - 03-proposal/vision.md
@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.40 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.41 · 2026-09-24 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.41 변경(2026-09-24 — 처리됨 탭이 끝난 결재를 잃었다, **사람 결정**): **REQ-API-165 신설 · EP-APR-01 `state=decided`.** 처리됨 탭이 **결정이 문서를 움직인 순간 그 기록을 잃었다** — 승인하면 `approved`, 거절하면 `draft` 라 대기 탭을 위해 쓴 `sv.status = 'in_review'` 에서 함께 탈락했다. 실측 2026-09-24: 넷을 결정하니 둘만 남았고 그 둘은 **문서를 안 움직인 것과 남이 낸 면제**였다. 매뉴얼은 그동안 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 약속하고 있었다 — 틀린 문서가 확신을 준 자리다. 한 `WHERE` 절이 두 탭을 겸하고 있었다. 갈라야 하는 것이 조건 하나만이 아니다 — `eligibleSql` 도 "이 카드가 **내 큐인가**" 를 묻는 식이라 결정된 카드에 물으면 엉뚱한 답이 나온다(남이 낸 면제가 내 처리됨에 뜨고 내가 끝낸 것은 빠졌다). 처리됨이 답하는 질문은 하나다 — **내가 결정한 것**(`decided_by_user_id` · [4.3](database.md) 마이그레이션 0029). 정렬도 `decided_at` 으로 바꾼다: 요청 시각으로 세우면 오늘 결정한 9일 된 요청이 어제 요청 밑에 묻힌다([4.3](database.md) v0.48 · [4.5](screens.md) REQ-WEB-184).
 >
 > v1.40 변경(2026-09-24 — v1.37 이 파생본에 닿지 않았다, 전수 대조): **새 요구사항 없음 · 파생본 넷과 EP-INV-01 행 한 칸.** `api.html` 에 `email_outbox` 도 `queued` 도 **한 번도 나오지 않았다** — v1.37(초대 메일 자동 발송)이 md 만 고쳤다. 그래서 파생본은 §2.1b 메일 행에서 "**Phase 2.** MVP 에서는 admin 이 링크를 직접 전달한다" 라 말하고 §2.2 산문에서도 "Phase 2 알림 채널과 함께 온다" 라 말했는데, **같은 문서의 v1.38(가입 이메일 확인)은 이미 반영돼 있어** 읽는 사람은 메일이 있다는 말과 없다는 말을 한 문서에서 함께 봤다. 곁들여 둘: §3.3 이벤트 표의 리뷰·CR 행이 "Phase 2" 인 채였고(2026-08-23 구현 · `cr.opened` 만 남았다), REQ-API-097 의 파생본에서 **증적의 범위를 정하는 괄호**("요구사항 또는 그 파생 Task 에 붙은 것")와 WHILE 둘을 가르는 문장이 빠져 있었다. **md 쪽도 한 칸 고쳤다** — v1.37 이 "EP-INV-01 응답에 `queued`" 라 선언했는데 정작 그 행의 응답 칸에는 없었다.
 >
@@ -1517,6 +1519,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-162 | WHEN 사람이 일괄 결정을 호출하면(EP-APR-06) THE SYSTEM SHALL **항목마다 독립된 트랜잭션**으로 기존 결정 경로(EP-APR-03)를 그대로 돌리고, 항목별 `seen_content_hash` 를 **건마다** 검사하며, 한 건의 실패가 다른 건을 되돌리지 않게 하고, `{decided, failed, results[]}` 를 200 으로 반환한다 — **200 은 전부 성공을 뜻하지 않는다**. WHERE `items` 가 상한(50)을 넘거나 `decision` 이 `approve`·`reject` 밖이면 THE SYSTEM SHALL 400 으로 거절한다 | 부분 실패(stale 1 + 성공 1) · 승인/거절 밖 어휘 400 |
 | REQ-API-163 | WHEN 일괄 **승인**을 판정하면 THE SYSTEM SHALL 단건 승인 가능(`can_approve`) 위에 저위험 조건을 얹어 **정족수 2 이상(T3)과 `gate_bypass` 를 제외**하고, WHERE 주체가 admin 이면 THE SYSTEM SHALL 그 둘을 면제한다(2026-09-22 사람 결정). WHEN 받은 요청 목록을 주면(EP-APR-01) THE SYSTEM SHALL 같은 판정을 `can_bulk_approve` 와 그 이유(`bulk_block_reason`)로 카드에 실어 **화면이 규칙을 다시 구현하지 않게** 한다. WHERE 결정이 **거절**이면 THE SYSTEM SHALL 이 조건을 보지 않는다 — 서버가 막는 것은 승인뿐이다(EP-APR-03) | T3·면제 제외 2건 · admin 면제 1건 · 거절은 T3 도 지나간다 1건 |
 | REQ-API-164 | WHEN 일괄로 내려진 결정이 이벤트를 남기면 THE SYSTEM SHALL 건별 `approval.decided` 의 payload 에 **`bulk:true` 와 그 배치의 `batch_id`** 를 함께 싣는다 — 일괄 승인은 본문을 열지 않고 누르는 조작이라, **얼마나 일어나는지 셀 수 없으면** 반사적 승인(OWASP ASI09 의 consent fatigue)은 감사에서 단건과 구별되지 않는다(FR-16) | 일괄 2건의 이벤트 둘이 같은 `batch_id` 를 갖는다 |
+| REQ-API-165 | WHEN 받은 요청 목록을 `state=decided` 로 부르면(EP-APR-01) THE SYSTEM SHALL **그 사람이 결정한 결재**(`decided_by_user_id`)만 싣고 결정 시각 내림차순으로 정렬한다 — 대기 탭의 조건(내 큐 · 대상 문서가 `in_review`)을 함께 쓰지 않는다. 승인은 문서를 `approved` 로, 거절은 `draft` 로 옮기므로 그 조건을 공유하면 **끝난 결재가 그 순간 기록째 사라진다**(2026-09-24 실측: 넷을 결정하니 둘만 남았고, 그 둘은 문서를 안 움직인 것과 남이 낸 면제였다). WHEN 결정을 저장하면 THE SYSTEM SHALL 누른 사람을 `decided_by_user_id` 에 남긴다 — 면제는 낸 사람이 곧 결정한 사람이고, `assignee_user_id` 는 **누구의 큐인가**를 말하는 다른 축이다 |
 | REQ-API-157 | WHEN 작업 상세가 증적을 실으면 THE SYSTEM SHALL 그 증적의 `repo` 를 함께 준다 — 없으면 `null` 이고, 읽는 쪽은 그때만 프로젝트의 저장소로 읽는다(값은 주소가 아니라 `org/repo` 경로다 — 호스트는 프로젝트의 `repo_url` 에서 빌린다). WHEN 프로젝트 설정이 `repo_url`·`default_branch` 를 **빈 문자열로** 받으면 THE SYSTEM SHALL 그 값을 NULL 로 비우고 앞뒤 공백을 걷으며, 그 필드를 **보내지 않으면** 지금 값을 건드리지 않는다 | 증적 둘(repo 있음·없음) · 채움·안 보냄·비움 3케이스 |
 | REQ-API-155 | WHEN 유한 목록(EP-SPEC-04 버전 · EP-CMT-01 코멘트 · EP-SPEC-11 기준선 · EP-SPEC-18 관계)을 반환하면 THE SYSTEM SHALL `{items, total}` 봉투로 답하고 **상한을 두지 않는다** — 상한이 있으면 `total` 은 총계가 아니라 자른 수이고, 그 수를 그리는 화면은 자기 숫자로 거짓말을 한다. WHERE 관계 목록이 잘리면 THE SYSTEM SHALL 정렬 순서상 앞선 방향이 뒤의 방향을 통째로 밀어낸다 — 실측으로 "역참조 50 · 레퍼런스 0" 이 그렇게 나왔다 | 넷 다 `total === items.length` · 역참조 60 + 레퍼런스 1 이 전부 나온다 |
 | REQ-API-154 | WHEN EP-SPEC-02·`nerv_spec_search` 에 `references` 가 오면 THE SYSTEM SHALL **`limit` 으로 자르기 전에** 그 필터를 적용한다 — 종류·상태·요구사항 셋은 이미 그랬고 역참조만 뒤에서 걸려, 참조하는 문서가 상위 `limit` 밖에 있으면 **있는데도 빈 결과**가 돌아왔다(REQ-API-099 가 고친 결함의 거울상이다) | 상위 밖의 참조 문서가 나온다 1건 |

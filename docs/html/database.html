@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 38개</b>다 — 도메인 32 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.46 (2026-09-24)</span>
+      <span>버전 v0.48 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -702,6 +702,7 @@ CREATE TABLE resolution (
   assignee_user_id        uuid REFERENCES "user"(id),
   assignee_role           member_role,         -- 역할 큐로 열어두는 경우
   decision                approval_decision,   -- NULL = 대기
+  decided_by_user_id      uuid REFERENCES "user"(id), -- 누가 눌렀는가(0029) — 큐와 다른 축이다
   comment_md              text,
   requested_at            timestamptz NOT NULL DEFAULT now(),
   due_at                  timestamptz,
@@ -709,7 +710,9 @@ CREATE TABLE resolution (
   is_bypass               boolean NOT NULL DEFAULT false, -- 게이트 면제도 결재 레코드(FR-10)
   bypass_reason           text,
   created_at              timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT approval_bypass_reason_ck CHECK (NOT is_bypass OR bypass_reason IS NOT NULL)
+  CONSTRAINT approval_bypass_reason_ck CHECK (NOT is_bypass OR bypass_reason IS NOT NULL),
+  -- 결정된 행에는 결정자가 있다 — 없으면 그 행은 처리됨 탭에서 사라지고, 사라진 것은 아무도 못 본다
+  CONSTRAINT approval_decided_by_ck CHECK (decision IS NULL OR decided_by_user_id IS NOT NULL)
 );
 
 CREATE TABLE question (                        -- 세션은 awaiting_input으로 대기(P7의 핵심)
@@ -890,6 +893,7 @@ CREATE INDEX finding_queue ON finding (project_id, status, severity);           
 
 -- 승인·이벤트·알림
 CREATE INDEX approval_inbox ON approval (project_id, assignee_user_id) WHERE decision IS NULL; -- 받은 요청(§4.7)
+CREATE INDEX approval_decided ON approval (project_id, decided_by_user_id) WHERE decision IS NOT NULL; -- 처리됨(§4.7)
 CREATE INDEX event_project_time ON event (project_id, occurred_at DESC);           -- 피드
 CREATE INDEX event_subject      ON event (subject_type, subject_id, occurred_at);  -- 감사(§4.8)
 CREATE INDEX notification_inbox ON notification (user_id, state, created_at DESC); -- 보조: 수신함
@@ -1215,6 +1219,8 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
 
   <p><b>시드 계정은 확인된 상태다(2026-09-22 정정).</b> 가입 이메일 인증을 강제하기로 한 뒤로 <code>user.email_verified</code> 가 거짓인 계정은 <b>로그인할 수 없다.</b> 마이그레이션 0028 이 그 시점의 기존 계정을 백필하지만 시드는 TRUNCATE 후 재삽입이라 그 뒤에 다시 심긴다 — 그래서 시드가 직접 참으로 세운다. 이 한 줄이 빠지면 개발 환경 전체가 로그인 화면에서 멈춘다(실측: E2E 전역 셋업이 거기서 30초를 기다리다 죽었다). 시드는 화면을 열어 보라고 있는 것이므로, <b>심어 놓고 못 들어가는 계정은 심지 않은 것과 같다.</b></p>
 
+  <p><b>대기 중인 결재를 심는다(2026-09-24 정정).</b> <code>approval</code> 은 <b>한 행뿐이었고 그것도 이미 결정이 끝난 면제</b>였다 — 대기 중인 결재는 <b>한 건도 없었다.</b> 그래서 S7 받은 요청은 L3 에서도 디자인 확인용 스크린샷에서도 <b>늘 빈 상태</b>로만 찍혔고, 2026-09-22 에 들어온 일괄 승인·거절(<a href="screens.html">4.5</a> REQ-WEB-181~183 · <a href="api.html">4.4</a> REQ-API-162~164)은 L1·L2 만 덮은 채 그 길을 한 번도 지나가지 못했다. 아래 Activity·증적·관계 그래프에서 세 번 겪은 것과 <b>같은 형태의 네 번째</b>다. 그래서 <b>검토 중인 개정판 넷</b>과 그 위의 <b>결재 슬롯 다섯</b>을 심는다 — 섞여 있어야 화면이 무언가를 말한다: <b>저위험 셋</b>(정족수 1 · 일괄로 지나간다)과 <b>T3 하나</b>(슬롯 2 · 일괄에서 빠지고 <code>0/2 승인</code> 배지가 선다). 저위험이 하나뿐이면 일괄이 한 건짜리 조작이 되어 아무것도 시연하지 못하고, T3 가 없으면 <b>빠지는 길</b>이 시드에 없다. 슬롯의 모양은 실물이 세우는 것 그대로다 — 슬롯 1 은 기본 큐(<code>assignee_role</code> NULL), 슬롯 2 는 문서 타입의 직군(<code>SPEC_APPROVER_ROLES</code> — <code>design</code> → <code>designer</code>). <b>작성자도 요청자도 지민이 아니다.</b> 지민은 L3·개발 환경이 들어오는 신원인데 지시자≠승인자는 세 축이라(<a href="spec-workflow.html">3.5</a> §2.3 — 요청자·작성자·작성 세션 소유자), 셋 중 하나라도 지민이면 <code>can_approve</code> 가 거짓이 되어 <b>카드는 있는데 아무것도 누를 수 없는 화면</b>이 된다 — 그건 빈 화면보다 나쁘다. 하나는 <b>세 시간째</b> 기다린다(한 시간을 넘긴 카드의 경고색 — <a href="screens.html">4.5</a> REQ-WEB-024 — 도 그려진 적이 없었다). <code>current_version_id</code> 는 승인본에 그대로 둔다: 실물도 기존 스펙에 새 초안을 만들 때 현재 버전을 옮기지 않으므로, 트리와 상세는 승인본을 계속 가리키고 검토 중인 개정판은 받은 요청에서만 보인다.</p>
+
   <p><b>관계 그래프가 그릴 것을 심는다(2026-09-22 정정).</b> 스펙이 셋뿐이고 <code>spec_relation</code> 이 <b>0건</b>이던 동안, 스펙 목록의 관계 그래프 탭은 언제나 "관계가 아직 없습니다" 였다 — 캔버스가 아예 마운트되지 않아, <b>밀도가 유일한 설계 문제인 그 화면이</b>(<a href="screens.html">4.5</a> §2.4a) <b>디자인 확인용 스크린샷에 한 번도 들어간 적이 없다.</b> 아래 Activity·증적에서 두 번 겪은 것과 같은 형태이고 귀결도 같다: 화면에 길을 내고도 그 길을 지나가는 데이터가 없으면 L3 도 스크린샷도 그 길을 보지 못한다. 그래서 트리를 <b>문서 20 · 영역 4 · 종류 6 · 관계 28</b>로 넓힌다 — 셋 다 그림이 말해야 하는 것이다: 영역이 하나뿐이면 상자끼리 밀어내는 정리 패스(REQ-WEB-174·175)가 할 일이 없고, 종류가 둘뿐이면 범례가 두 줄로 끝나며(REQ-WEB-176), 피참조 수가 고르면 차수 기반 크기가 아무 차이도 내지 않는다. 그래서 영역을 <b>건너는</b> 간선을 28 중 17로 두고 피참조 수를 0~6으로 갈랐다. <b>영역(<code>area</code>) 넷만 본문이 없다</b> — 임포터의 골격 배치와 같은 모양이고(<a href="importer.html">4.7</a>), 나머지는 승인본 하나씩을 갖는다(트리는 차는데 누르면 빈 문서인 상태를 만들지 않는다).</p>
 
   <p><b>증적도 심는다(2026-09-10 정정).</b> 이 표만 비어 있었다 — 시드가 리뷰·활동·질문을 다 심으면서 <code>evidence</code> 는 0건이라, 작업 상세의 증적 카드가 개발 환경에서 늘 "아직 없습니다" 였다. Activity 에서 겪은 것과 같은 형태이고 귀결은 하나 더 나쁘다: <b>화면에 길을 내고도 그 길을 지나가는 데이터가 없으면 L3 도 스크린샷도 그 길을 보지 못한다</b>(증적 링크 — <a href="screens.html">4.5</a> REQ-WEB-159~162). 종류 <b>여섯을 전부</b> 쓰고, 그중 하나는 일부러 <b>링크가 되지 않는 것</b>(<code>test</code>)이다 — 평문으로 남는 자리가 하나는 있어야 "짐작해서 링크를 만들지 않는다" 는 규칙이 눈에 보인다. 하나는 <code>repo</code> 를 달아 다른 저장소를 가리키고(<a href="api.html">4.4</a> REQ-API-157), 하나는 요구사항에도 매단다(FR-13).</p>
@@ -1232,7 +1238,9 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
 -- 이 한 벌로 S1 홈(질문 배지 1) · S3 스펙 상세(SPC-CWC-007 v4 + REQ-CWC-031) ·
 -- 스펙 목록의 트리·표·**관계 그래프**(영역 4 · 종류 6 · 관계 28) ·
 -- S4 작업 보드(in_progress 2 · blocked 1) · S5 세션 모니터(active 2 · awaiting_input 1) ·
--- S6 리뷰 센터(열린 발견 3 · 브랜치 2 · 면제 1) · S7 승인함(질문 카드 1) ·
+-- S6 리뷰 센터(열린 발견 3 · 브랜치 2 · 면제 1) ·
+-- S7 받은 요청(대기 결재 — 저위험 3 · T3 1(슬롯 2) · 질문 카드 1 ·
+--              처리됨 — 지민이 승인한 1 · 하나가 낸 면제 1) ·
 -- S4 작업 상세의 증적(6건 — 종류 여섯을 전부)이 전부 비어 있지 않게 뜬다.
 
 BEGIN;
@@ -1385,10 +1393,13 @@ INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash
    digest(E'# 웹챗 위젯 임베드 v2\n\n## 요구사항\n\n- REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다\n\n## 복원 흐름\n\n```mermaid\ngraph TD\n  A[방문자] --&gt; B[위젯 열기]\n  B --&gt; C{세션 쿠키}\n  C --&gt;|있다| D[이전 대화 복원]\n  C --&gt;|없다| E[새 대화 시작]\n```\n', 'sha256'),
    '01990a66-0000-7000-8000-000000000011', now() - interval '2 days',
    '01990a66-0000-7000-8000-000000000012', NULL),
+  -- **이 한 편만 작성자가 다르다**(2026-09-24). 아래 `approval` 이 "지민이 5일 전에 승인했다"
+  -- 는 기록을 남기는데, 나머지처럼 지민이 작성자면 그 기록은 **지시자≠승인자를 어긴 것**이
+  -- 되고 시드가 금지된 상태를 시연하게 된다. 하나가 쓰고 지민이 승인한 한 편을 둔다.
   ('01990a66-0000-7000-8000-000000000053', '01990a66-0000-7000-8000-000000000043', 1,
    'approved', E'# 세션 복원 API\n\n(v1 본문)', digest(E'# 세션 복원 API\n\n(v1 본문)', 'sha256'),
-   '01990a66-0000-7000-8000-000000000011', now() - interval '5 days',
-   '01990a66-0000-7000-8000-000000000012', NULL);
+   '01990a66-0000-7000-8000-000000000015', now() - interval '5 days',
+   '01990a66-0000-7000-8000-000000000011', NULL);
 
 UPDATE spec SET current_version_id = '01990a66-0000-7000-8000-000000000052'
   WHERE id = '01990a66-0000-7000-8000-000000000042';
@@ -1427,6 +1438,65 @@ SELECT v.id, v.spec_id, 1, 'approved', v.body, digest(v.body, 'sha256'),
 UPDATE spec s SET current_version_id = v.id
   FROM spec_version v
  WHERE v.spec_id = s.id AND v.version_no = 1 AND s.current_version_id IS NULL;
+
+-- 검토 중인 개정판 넷 — **받은 요청이 비어 있지 않게 하는 자리다**(2026-09-24 정정).
+--
+-- 대기 중인 결재가 시드에 **한 건도 없었다**: `approval` 은 한 행뿐이었고 그것도 이미
+-- 결정이 끝난 면제였다. 그래서 S7 받은 요청은 L3 에서도 디자인 확인용 스크린샷에서도
+-- **늘 빈 상태**로만 찍혔고, 2026-09-22 에 들어온 일괄 승인·거절(REQ-WEB-181~183)은
+-- L1·L2 만 덮은 채 그 길을 한 번도 지나가지 못했다 — Activity(2026-08-23)·증적
+-- (2026-09-10)·관계 그래프(2026-09-22)와 **같은 형태의 네 번째**다.
+--
+-- **섞여 있어야 화면이 무언가를 말한다.** 저위험 셋(정족수 1 — 일괄로 지나간다)과
+-- T3 하나(슬롯 2 — 일괄에서 빠지고 "0/2" 배지가 선다). 저위험이 하나뿐이면 일괄이
+-- 한 건짜리 조작이 되어 무엇도 시연하지 못하고, T3 가 없으면 **빠지는 길**이 시드에
+-- 없다. 버전은 여기서 세우고 슬롯은 아래 `approval` 이 세운다.
+--
+-- **작성자도 요청자도 지민이 아니다.** 지민은 L3·개발 환경이 들어오는 신원인데,
+-- 지시자≠승인자는 세 축이다(요청자 · 작성자 · 작성 세션 소유자 — `approval-policy.ts`
+-- 의 `notSelfSql`). 셋 중 하나라도 지민이면 `can_approve` 가 거짓이 되어 **카드는 있는데
+-- 아무것도 누를 수 없는 화면**이 된다 — 그건 빈 화면보다 나쁘다. `author_session_id` 는
+-- 비워 둔다(사람이 웹에서 쓴 개정판이다): 에이전트가 쓴 것으로 심으면 그 세션은 실물에서
+-- `awaiting_input` 이 되어야 하고(REQ-API-134), S5 의 상태 한 벌이 함께 흔들린다.
+--
+-- `current_version_id` 는 **건드리지 않는다** — 바로 위 UPDATE 가 v1 로 못 박은 그대로다.
+-- 실물도 그렇다: 기존 스펙에 새 초안을 만들어도 현재 버전은 움직이지 않는다(`spec.service`
+-- 는 스펙을 **새로 만들 때만** 옮긴다). 그래서 트리와 상세는 승인본을 계속 가리키고,
+-- 검토 중인 개정판은 받은 요청에서만 보인다 — 그것이 in_review 의 뜻이다.
+--
+-- `submitted_at` 은 **정족수의 라운드 경계**다(`approvalsRequiredExpr`). 아래 결재의
+-- `requested_at` 보다 뒤에 있으면 그 슬롯은 이번 라운드로 세지 않아 T3 가 조용히 저위험이
+-- 된다 — 같은 시각으로 맞춘다.
+INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
+                          author_user_id, base_version_id, change_summary_md, submitted_at) VALUES
+  -- 저위험 ① — 하나(developer)가 올린 규약 개정
+  ('01990a66-0000-7000-8000-000000000451', '01990a66-0000-7000-8000-000000000213', 2,
+   'in_review',
+   E'# 색인 문서 스키마 규약\n\n색인에 올리는 문서는 `doc_id`·`source`·`updated_at`·`acl` 넷을 반드시 갖는다.\n\n## 개정 — 언어 표기\n\n`lang` 한 열을 더한다. 한국어와 영어가 같은 색인에 섞여 들어오는데 분석기를 고를 근거가 문서에 없었다.\n',
+   digest(E'# 색인 문서 스키마 규약\n\n색인에 올리는 문서는 `doc_id`·`source`·`updated_at`·`acl` 넷을 반드시 갖는다.\n\n## 개정 — 언어 표기\n\n`lang` 한 열을 더한다. 한국어와 영어가 같은 색인에 섞여 들어오는데 분석기를 고를 근거가 문서에 없었다.\n', 'sha256'),
+   '01990a66-0000-7000-8000-000000000015', '01990a66-0000-7000-8000-000000000413',
+   'lang 열을 더한다 — 분석기를 고를 근거가 문서에 없었다', now() - interval '47 minutes'),
+  -- 저위험 ② — 유나(developer)가 올린 feature 개정
+  ('01990a66-0000-7000-8000-000000000452', '01990a66-0000-7000-8000-000000000231', 2,
+   'in_review',
+   E'# 방문자 식별과 세션\n\n익명 방문자에게 세션 쿠키를 주고, 로그인하면 그 세션을 계정에 잇는다.\n\n## 개정 — 쿠키 수명\n\n익명 세션 쿠키는 30일로 자른다. 무기한이면 지우지 않는 한 방문자 하나가 영원히 같은 식별자를 갖는다.\n',
+   digest(E'# 방문자 식별과 세션\n\n익명 방문자에게 세션 쿠키를 주고, 로그인하면 그 세션을 계정에 잇는다.\n\n## 개정 — 쿠키 수명\n\n익명 세션 쿠키는 30일로 자른다. 무기한이면 지우지 않는 한 방문자 하나가 영원히 같은 식별자를 갖는다.\n', 'sha256'),
+   '01990a66-0000-7000-8000-000000000014', '01990a66-0000-7000-8000-000000000431',
+   '익명 세션 쿠키 수명을 30일로 자른다', now() - interval '26 minutes'),
+  -- 저위험 ③ — 도현(developer)이 올린 규약 개정
+  ('01990a66-0000-7000-8000-000000000453', '01990a66-0000-7000-8000-000000000223', 2,
+   'in_review',
+   E'# 로그 필드 규약\n\n모든 로그 줄은 `trace_id`·`visitor_id`·`channel` 을 갖는다. 개인정보는 마스킹 규약을 따른다.\n\n## 개정 — 지연 시간\n\n`latency_ms` 를 더한다. 느린 답변을 찾는 데 로그가 쓰이는데 그 값이 없어 매번 다시 재고 있었다.\n',
+   digest(E'# 로그 필드 규약\n\n모든 로그 줄은 `trace_id`·`visitor_id`·`channel` 을 갖는다. 개인정보는 마스킹 규약을 따른다.\n\n## 개정 — 지연 시간\n\n`latency_ms` 를 더한다. 느린 답변을 찾는 데 로그가 쓰이는데 그 값이 없어 매번 다시 재고 있었다.\n', 'sha256'),
+   '01990a66-0000-7000-8000-000000000013', '01990a66-0000-7000-8000-000000000423',
+   'latency_ms 를 더한다', now() - interval '9 minutes'),
+  -- T3 — 권한 모델이라 민감도가 높다(D-06 4축). 아래에서 슬롯 둘이 선다
+  ('01990a66-0000-7000-8000-000000000454', '01990a66-0000-7000-8000-000000000232', 2,
+   'in_review',
+   E'# 권한 모델 설계\n\n문서의 `acl` 과 방문자의 소속을 색인 단계에서 맞춘다 — 검색 결과에서 걸러 내지 않는다.\n\n## 개정 — 위임 권한\n\n담당자가 자기 권한의 **부분집합**을 남에게 넘길 수 있게 한다. 넘긴 권한은 원래 권한이 사라지면 함께 사라진다.\n',
+   digest(E'# 권한 모델 설계\n\n문서의 `acl` 과 방문자의 소속을 색인 단계에서 맞춘다 — 검색 결과에서 걸러 내지 않는다.\n\n## 개정 — 위임 권한\n\n담당자가 자기 권한의 **부분집합**을 남에게 넘길 수 있게 한다. 넘긴 권한은 원래 권한이 사라지면 함께 사라진다.\n', 'sha256'),
+   '01990a66-0000-7000-8000-000000000015', '01990a66-0000-7000-8000-000000000432',
+   '위임 권한 — 부분집합만, 원본이 사라지면 함께 사라진다', now() - interval '3 hours');
 
 -- 스펙 관계 — 관계 그래프(§2.4a)가 그릴 것 ---------------------------------
 -- **세 가지가 그림에서 갈려야 한다.** ① 영역을 건너는 간선(28 중 13)이 있어야 상자끼리
@@ -1562,6 +1632,62 @@ INSERT INTO question (id, project_id, agent_session_id, task_id, title, body_md,
    '스토리지 선택',
    '임베드 위젯의 세션 복원을 localStorage로 할지 서버 세션으로 할지 — 스펙에 명시 없음',
    '["localStorage", "서버 세션", "스펙에 남길 질문"]', 'blocking', 'open');
+
+-- 대기 중인 결재 — S7 받은 요청의 승인 카드 (2026-09-24) --------------------
+--
+-- **슬롯이 정족수다**(`approval-policy.ts` 의 `approvalsRequiredExpr`): 같은 대상에 남은
+-- 행이 하나면 저위험이고, 둘이면 T3 다. 실물이 세우는 모양 그대로 심는다
+-- (`spec.service.ts` 의 `ensurePendingApproval`) — **슬롯 1 은 기본 큐**(`assignee_role`
+-- NULL: `approval:decide` 를 가진 admin·planner), **슬롯 2 는 문서 타입의 직군**
+-- (`SPEC_APPROVER_ROLES` — design → designer). 손으로 다른 모양을 만들면 시드가 보여 주는
+-- 화면과 실제로 제출했을 때 서는 화면이 갈린다.
+--
+-- 그래서 지민(planner)의 받은 요청에는 **승인 카드 넷**이 선다 — 저위험 셋과 T3 의 슬롯 1.
+-- T3 의 designer 슬롯은 서연의 것이라 지민에게 오지 않는다(그것이 직군 교차의 뜻이다).
+-- 조직 admin 은 넷 다 본다(`isAdminSql` 이 지정·직군 큐를 지난다).
+--
+-- 일괄 승인은 저위험 셋만 지나간다(`canBulkApproveExpr` · REQ-API-163) — T3 는 슬롯이
+-- 둘이라 빠지고, 카드에 "0/2" 배지와 빠진 이유(`bulk_quorum`)가 선다.
+INSERT INTO approval (id, project_id, subject_type, subject_id,
+                      requested_by_user_id, assignee_role, requested_at) VALUES
+  -- 저위험 셋 — 정족수 1. 일괄이 지나가는 길이다
+  ('01990a66-0000-7000-8000-000000000f11', '01990a66-0000-7000-8000-000000000021',
+   'spec_version', '01990a66-0000-7000-8000-000000000451',
+   '01990a66-0000-7000-8000-000000000015', NULL, now() - interval '47 minutes'),
+  ('01990a66-0000-7000-8000-000000000f12', '01990a66-0000-7000-8000-000000000021',
+   'spec_version', '01990a66-0000-7000-8000-000000000452',
+   '01990a66-0000-7000-8000-000000000014', NULL, now() - interval '26 minutes'),
+  ('01990a66-0000-7000-8000-000000000f13', '01990a66-0000-7000-8000-000000000021',
+   'spec_version', '01990a66-0000-7000-8000-000000000453',
+   '01990a66-0000-7000-8000-000000000013', NULL, now() - interval '9 minutes'),
+  -- T3 — 같은 대상에 슬롯 둘. **세 시간째 기다린다**: 한 시간을 넘긴 카드는 대기 시간이
+  -- 경고색으로 뜨는데(REQ-WEB-024), 시드가 전부 갓 들어온 것이면 그 색도 그림에 없다
+  ('01990a66-0000-7000-8000-000000000f14', '01990a66-0000-7000-8000-000000000021',
+   'spec_version', '01990a66-0000-7000-8000-000000000454',
+   '01990a66-0000-7000-8000-000000000015', NULL, now() - interval '3 hours'),
+  ('01990a66-0000-7000-8000-000000000f15', '01990a66-0000-7000-8000-000000000021',
+   'spec_version', '01990a66-0000-7000-8000-000000000454',
+   '01990a66-0000-7000-8000-000000000015', 'designer', now() - interval '3 hours');
+
+-- 처리됨 탭 — **끝난 것도 한 건은 있어야 한다**(2026-09-24).
+--
+-- 그 탭이 답하는 질문은 "내가 결정한 것" 이고(`decided_by_user_id` · 0029), 시드에 그런
+-- 행이 없으면 개발 환경에서 그 탭은 언제나 "아직 처리한 항목이 없습니다" 다 — 대기 쪽에
+-- 길을 내면서 같은 화면의 다른 탭을 비워 두는 것은 이 시드가 네 번 반복한 실수다.
+-- 면제 한 건이 있지만 그것은 하나의 것이라 **지민(L3·개발 환경의 신원)에게는 보이지
+-- 않는다** — 보이지 않는 것으로는 그 길을 지나갈 수 없다.
+--
+-- 위 `spec_version` 의 SPC-CWC-012 v1 과 한 이야기다: 하나가 올리고 지민이 5일 전에
+-- 승인했으며, 그래서 그 문서가 `approved` 다. 결재와 문서가 같은 사실을 말해야 한다.
+INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                      assignee_user_id, decision, comment_md, requested_at, decided_at,
+                      decided_by_user_id) VALUES
+  ('01990a66-0000-7000-8000-000000000f16', '01990a66-0000-7000-8000-000000000021',
+   'spec_version', '01990a66-0000-7000-8000-000000000053',
+   '01990a66-0000-7000-8000-000000000015', '01990a66-0000-7000-8000-000000000011',
+   'approve', '복원 실패 시 재시도 횟수는 다음 판에서 정한다.',
+   now() - interval '5 days' - interval '40 minutes', now() - interval '5 days',
+   '01990a66-0000-7000-8000-000000000011');
 
 -- Activity 타임라인 (§2.6 · S5 세션 상세 — ui-wireframes §2.5 둘째 그림) ------
 --
@@ -1715,12 +1841,16 @@ INSERT INTO resolution (id, finding_id, kind, commit_sha, rationale_md, actor_us
    'fixed', 'e91ba7c2', '재시도 3회 + 지수 백오프로 구현하고 스펙에 절을 추가했다.',
    '01990a66-0000-7000-8000-000000000015');
 
--- 게이트 면제 — **면제도 결재 레코드다**(FR-10). 리뷰 세션을 주체로 붙는다
+-- 게이트 면제 — **면제도 결재 레코드다**(FR-10). 리뷰 세션을 주체로 붙는다.
+-- `decided_by_user_id` 는 **낸 사람과 같다**(2026-09-24 · 0029) — 묻지 않고 지나가는 것이
+-- 면제이므로 요청자가 곧 결정자다. 그 열이 비면 CHECK 가 막고, 막히지 않았더라도 그 행은
+-- 누구의 처리됨 탭에도 뜨지 않는다(사라진 것은 아무도 못 본다).
 INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                      decision, decided_at, is_bypass, bypass_reason) VALUES
+                      decision, decided_at, decided_by_user_id, is_bypass, bypass_reason) VALUES
   ('01990a66-0000-7000-8000-000000000f03', '01990a66-0000-7000-8000-000000000021',
    'gate_bypass', '01990a66-0000-7000-8000-0000000000f3',
-   '01990a66-0000-7000-8000-000000000015', 'approve', now() - interval '1 day', true,
+   '01990a66-0000-7000-8000-000000000015', 'approve', now() - interval '1 day',
+   '01990a66-0000-7000-8000-000000000015', true,
    '핫픽스 배포, 사후 리뷰 예약');
 
 -- 증적 (S4 작업 상세 — screens.md §2.5 ⑥) ---------------------------------
@@ -1792,7 +1922,7 @@ INSERT INTO notification (id, project_id, user_id, event_id, importance, channel
 
 COMMIT;</code></pre>
 
-  <p>이 한 벌로 S1 홈(질문 배지 1), S3 스펙 상세(SPC-CWC-007 v4 approved + REQ-CWC-031), S4 작업 보드(in_progress 2 · blocked 1), S5 세션 모니터(active 2 · awaiting_input 1), <b>S6 리뷰 센터(열린 발견 3 — severity 3종 · 브랜치 2 · 면제 1 · 라운드 체인 1→2로 dedup 표기 1건)</b>, S7 받은 요청(질문 카드 1)이 전부 비어 있지 않게 뜬다 — 화면 개발(<a href="screens.html">4.5 화면 명세</a>)의 로딩/빈/에러 3상태 중 "데이터 있음" 경로를 즉시 확인할 수 있다.</p>
+  <p>이 한 벌로 S1 홈(질문 배지 1), S3 스펙 상세(SPC-CWC-007 v4 approved + REQ-CWC-031), S4 작업 보드(in_progress 2 · blocked 1), S5 세션 모니터(active 2 · awaiting_input 1), <b>S6 리뷰 센터(열린 발견 3 — severity 3종 · 브랜치 2 · 면제 1 · 라운드 체인 1→2로 dedup 표기 1건)</b>, <b>S7 받은 요청(대기 결재 — 저위험 3 · T3 1(슬롯 2) · 질문 카드 1)</b>이 전부 비어 있지 않게 뜬다 — 화면 개발(<a href="screens.html">4.5 화면 명세</a>)의 로딩/빈/에러 3상태 중 "데이터 있음" 경로를 즉시 확인할 수 있다.</p>
 
   <h2 id="sec-5">5. 수용 기준 (REQ-DB-*)</h2>
 

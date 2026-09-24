@@ -41,6 +41,19 @@ export const approval = pgTable(
     assigneeRole: memberRole('assignee_role'),
     /** NULL = 대기 */
     decision: approvalDecision('decision'),
+    /**
+     * **누가 결정했는가** — 경로가 달라도 여기 하나에 남는다(2026-09-24 · 마이그레이션 0029).
+     *
+     * 그 사실이 경로마다 다른 열에 있었다: `decide()` 는 `assignee_user_id` 를 COALESCE 로
+     * 채우고, 게이트 면제는 그 열을 비운 채 `requested_by_user_id` 만 남기며, 지정 카드를
+     * admin 이 대신 결정하면 `assignee_user_id` 는 **지정된 사람**으로 남는다. 한 사실이
+     * 세 곳에 흩어져 있으니 "내가 결정한 것" 을 묻는 화면은 어느 쪽을 봐도 틀렸다 —
+     * 받은 요청의 처리됨 탭이 자기가 끝낸 것은 빼고 남이 낸 면제는 싣고 있었다(실측).
+     *
+     * `assignee_user_id` 와 겸하지 않는 이유: 그 열은 **누구의 큐인가**를 말하고
+     * (결정 전에도 뜻이 있다), 이 열은 **누가 눌렀는가**를 말한다. 둘은 다른 질문이다.
+     */
+    decidedByUserId: uuid('decided_by_user_id').references(() => user.id),
     commentMd: text('comment_md'),
     requestedAt: ts('requested_at')
       .notNull()
@@ -54,10 +67,17 @@ export const approval = pgTable(
   },
   (t) => [
     check('approval_bypass_reason_ck', sql`NOT ${t.isBypass} OR ${t.bypassReason} IS NOT NULL`),
+    // **결정된 행에는 결정자가 있다.** 없으면 그 행은 처리됨 탭에서 사라지는데, 사라진
+    // 것은 아무도 못 본다 — 코드 규약으로 두지 않고 DB 가 붙잡는다.
+    check('approval_decided_by_ck', sql`${t.decision} IS NULL OR ${t.decidedByUserId} IS NOT NULL`),
     // 받은 요청(§4.7) — 내 결정을 기다리는 것만 센다
     index('approval_inbox')
       .on(t.projectId, t.assigneeUserId)
       .where(sql`${t.decision} IS NULL`),
+    // 처리됨(§4.7) — **내가 결정한 것**만 센다. 대기 쪽과 같은 모양의 짝이다
+    index('approval_decided')
+      .on(t.projectId, t.decidedByUserId)
+      .where(sql`${t.decision} IS NOT NULL`),
   ],
 );
 

@@ -1,11 +1,12 @@
 ---
 id: SPC-MVP-BACKLOG
 status: approved
-updated: 2026-09-22
+updated: 2026-09-24
 referenced_by:
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md
+  - 04-mvp/database.md
   - 04-mvp/api.md
   - 04-mvp/screens.md
   - 04-mvp/plugin.md
@@ -18,7 +19,11 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.07 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.09 · 2026-09-24 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.09 변경(2026-09-24 — 스토리 없이 들어온 구현 하나, **사람 결정**): §1.4 셋째 표에 **처리됨 탭이 끝난 결재를 잃었다** 한 줄([4.3](database.md) v0.48 · [4.4](api.md) REQ-API-165 · [4.5](screens.md) REQ-WEB-184). 스토리 수·`done` 수는 그대로다.
+>
+> v1.08 변경(2026-09-24 — 스토리 없이 들어온 구현 하나, **사람 지시**): §1.4 셋째 표에 **받은 요청이 늘 빈 상태로만 찍혔다** 한 줄([4.3](database.md) v0.47). 스토리 수·`done` 수는 그대로다 — 이 줄은 시드와 L3 이고 스토리가 아니다.
 >
 > v1.07 변경(2026-09-24 — md ↔ html 전수 대조, 사람 지시): §1.4 셋째 표에 한 줄. 스토리 없는 구현이다 — 규약 1 의 검사를 **ID 행 본문 대조**까지 넓히고(REQ-CB-051) 대조가 찾은 열 자리를 고쳤다. 스토리 수·`done` 수는 그대로다.
 >
@@ -385,6 +390,8 @@ referenced_by:
 | 번호가 같은데 약속이 달랐다 | `codebase/scripts/check-md-html.mjs`(검사 ⑤ — 표 행 추출·`compareKey`·3-gram 자카드) · 파생본 여섯(`codebase`·`scope`·`api`·`spec-workflow`·`clemvion-analysis`) · md 둘(`api`·`spec-workflow`) | **md 23편 × html 23편 전수 대조**(사람 지시). 규약 1 의 검사는 고정 ID 가 **있는지**만 셌고 **그 번호가 무엇을 약속하는지**는 보지 않았다 — 그 눈먼 자리에서 `REQ-CB-015`(배포 산출물을 아직 `codebase/` 에 두라 말했다)와 `REQ-CB-021`("개정" 이라 써 놓고 개정 전 규칙을 실었다)이 초록인 채로 지났다. 함께 나온 것: `api.html` 에 v1.37(초대 메일)이 닿지 않아 **같은 문서가 메일이 있다는 말과 없다는 말을 함께** 했고, `scope.html` 의 FR-12 는 v0.31 을 받지 못했으며, `spec-workflow.md` 는 자기 §2.4 가 걷은 이의제기 창을 §6.4 에서 아직 말하고 있었다. 검사는 **ID 행 본문 대조**로 넓혔고(경계 0.7 — 어긋난 둘이 0.52·0.58, 줄여 실은 나머지는 0.75 이상) **ID 없는 표 행은 사람이 지킨다** ([4.2](codebase.md) REQ-CB-051 · v1.60 · [4.1](scope.md) v0.33 · [4.4](api.md) v1.40 · [3.5](../03-proposal/spec-workflow.md) v0.13 · [1.1](../01-problem/clemvion-analysis.md) v0.3) |
 | 가입은 이메일 확인까지다 | `apps/api/src/modules/auth/better-auth.ts`(`emailVerification` · 강제) · `modules/mail/mail.config.ts`(`requireEmailVerificationFromEnv` · 기동 거부) · `mail.outbox.ts`(`enqueueVerifyEmail`) · `drizzle/0028_email_verified_backfill.sql` · `packages/schema/seed/dev-seed.sql`(확인된 계정) · `apps/web/src/routes/{signup,login}.tsx`·`lib/session.ts`(미확인 분기·재발송) · L1 4건 추가 · L2 1건 추가 · L3 2건 신설 | **사람 결정 2026-09-22 의 둘째 항목**(강제 · 기존 계정 백필 승인). 바로 윗줄의 배관 위에 가입 인증을 얹었다. **강제는 메일을 보낼 수 있을 때만 성립하므로** 기본값을 SMTP 에서 유도하고, `true` 인데 SMTP 가 비면 기동을 거부한다. 기존 계정은 마이그레이션 0028 이 **그 시점까지 존재하던 것만** 확인 처리한다(규칙은 오늘부터다). 시드도 확인 상태로 심는다 — 그러지 않으면 개발 환경 전체가 로그인 화면에서 멈춘다(실측). 화면은 설정을 알지 않고 **서버의 403 `EMAIL_NOT_VERIFIED` 를 보고** 길을 연다([4.3](database.md) v0.45 · [4.4](api.md) v1.38 · [4.5](screens.md) REQ-WEB-180) |
 | 가입 인증이 매뉴얼에 닿지 않았다 | `apps/web/src/content/manual/{ko,en}/start.md`(계정 만들기 절 신설) · `manual/{ko,en}/settings.md`(초대 절 정정) | **윗줄 둘의 뒤처리다.** 가입 이메일 확인(v1.03)도 초대 메일 자동 발송(v1.02)도 들어왔는데 **제품 매뉴얼은 둘 다 모르고 있었다** — 열 장 ko·en 스무 편에 "이메일 인증" 이 0건이었고, 설정 장은 그 반대를 적고 있었다(**"메일 자동 발송은 아직 없습니다"**). [AGENTS.md](../../AGENTS.md) 구현 규약 5 의 "**틀린 문서는 확신을 준다**" 가 이 자리다: 없는 문서는 사람을 헤매게 하지만, 이 문장을 읽은 admin 은 **나간 메일을 또 손으로 나른다**. 시작하기 장에 확인 메일까지의 세 단계·다시 보내기(로그인과 같은 분당 10회)·기존 계정 백필을 적고, **메일이 꺼진 배치에서는 이 단계가 아예 없다**는 것을 함께 적는다(강제는 `NERV_MAIL_HOST` 에서 유도된다 — 화면이 설정을 알지 않으므로 사람도 화면만 보고는 알 수 없다). 설정 장은 "보냈습니다/전달하세요" 두 문구와 목록의 **마지막 발송 시각·미발송**을 적는다 — 메일이 막힌 배치의 [링크 복사] 경로는 그대로다. 곁들여 ko 설정 장에 같은 줄이 두 번 들어 있던 것을 지웠다([4.4](api.md) §1.3 · [4.5](screens.md) REQ-WEB-180·087·179 · §2.10 갱신 규약) |
+| 받은 요청이 늘 빈 상태로만 찍혔다 | `packages/schema/seed/dev-seed.sql`(검토 중인 개정판 4 · 결재 슬롯 5) · `apps/api/test/integration/seed.spec.ts`(L2 계약 갱신 + 섞임 한 건) · `apps/web/test/e2e/inbox-bulk.spec.ts`(신설 L3 2건) · `apps/web/src/routes/index.tsx`(홈 한 줄의 제목) · `home-today.spec.tsx`(신설 L1 3건) | 시드의 `approval` 은 **한 행뿐이었고 그것도 이미 결정이 끝난 면제**라 S7 받은 요청은 L3 에서도 스크린샷에서도 늘 빈 상태였다 — 바로 앞 v1.04 의 일괄 승인·거절은 들어온 날부터 그 길을 **한 번도 지나가지 못했다.** Activity(2026-08-23)·증적(2026-09-10)·관계 그래프(2026-09-22)와 **같은 형태의 네 번째**다. 저위험 셋(정족수 1 — 일괄로 지나간다)과 T3 하나(슬롯 2 — 빠지고 `0/2 승인` 배지가 선다)를 섞어 심었다: 저위험만 심으면 **빠지는 길**이 시드에 없고 T3 만 심으면 일괄이 아무것도 지나가지 못한다. 요청자·작성자를 L3 신원(지민)과 갈라 둔 것이 그 카드를 **누를 수 있게** 하는 조건이다 — 셋 중 하나라도 걸리면 카드는 있는데 아무것도 못 누르는 화면이 되고, 그건 빈 화면보다 나쁘다. **심자마자 하나가 드러났다**: S1 홈의 "오늘 할 일" 한 줄은 제목 폴백이 `subject_type` 이라 승인 카드를 **`spec_version` 이라고** 적고 있었다(DB 의 enum 값이다) — 질문 하나만 있던 동안은 그쪽에 `body_md` 가 있어 아무도 본 적이 없다. 받은 요청 카드가 같은 자리에 이미 쓰던 `subjectFallback` 을 여기서도 쓴다(REQ-WEB-133 이 적어 둔 표기 규칙이다 — 새 요구사항이 아니다)([4.3](database.md) §4 · v0.47) |
+| 처리됨 탭이 끝난 결재를 잃었다 | `packages/schema/drizzle/0029_approval_decided_by.sql`(열·CHECK·인덱스·백필) · `src/tables/approval.ts` · `apps/api/src/modules/approval/approval.service.ts`(두 탭을 가른다) · `test/integration/approval.spec.ts`(신설 L2 7건) · `seed.spec.ts`(처리됨 계약 한 건) · `apps/web/test/e2e/inbox-bulk.spec.ts`(L3 1건 신설 + 1건 확장) · `packages/schema/seed/dev-seed.sql` | 바로 윗줄이 시드에 대기 결재를 심자마자 드러난 자리다. 한 `WHERE` 절이 두 탭을 겸해서, **결정이 문서를 움직이는 순간**(승인 → `approved` · 거절 → `draft`) 그 기록이 대기 탭의 조건 `sv.status = 'in_review'` 에서 함께 탈락했다 — 실측: 넷을 결정하니 둘만 남았고 그 둘은 문서를 안 움직인 것과 **남이 낸 면제**였다. 매뉴얼은 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 적고 있었다(틀린 문서가 확신을 준 자리다). 고치려고 보니 **"누가 결정했는가" 가 한 곳에 없었다** — `decide()` 는 `assignee_user_id`, 면제는 `requested_by_user_id`, 지정 카드를 admin 이 결정하면 그 열은 결정자가 아닌 사람이다. 열 하나로 모으고 CHECK 로 못 박았으며, 백필은 감사 로그(`approval.decided`·`gate.bypassed` 의 `actor_user_id`)에서 가져온다. 명세에 처리됨 행과 기준이 없던 것도 함께 채웠다 — 명세에 없는 면은 검사도 없다 |
 
 #### 이 절은 언제 갱신되는가
 

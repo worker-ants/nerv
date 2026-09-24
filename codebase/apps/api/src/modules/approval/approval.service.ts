@@ -270,6 +270,31 @@ export class ApprovalService {
     const decided =
       assertVocab([input.state ?? 'pending'], APPROVAL_INBOX_STATES, 'state')[0] === 'decided';
     const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
+    /**
+     * **두 탭은 다른 질문에 답한다**(2026-09-24 · 사람 결정 · REQ-API-165).
+     *
+     * 한 `WHERE` 절이 둘을 겸하는 동안 처리됨 탭은 **결정이 문서를 움직인 순간 그 기록을
+     * 잃었다**: 승인하면 `approved`, 거절하면 `draft` 라 `sv.status = 'in_review'` 에서
+     * 함께 탈락했다. 살아남는 것은 문서를 안 움직인 것(T3 첫 승인)과 스펙이 아닌 것뿐이고,
+     * 그 줄은 **대기 탭을 위해 쓴 것**이다(거절로 draft 가 된 문서의 남은 슬롯은 대기가
+     * 아니다). 실측 2026-09-24: 넷을 결정하니 둘이 사라졌다.
+     *
+     * `eligibleSql` 도 같다 — 그것은 "이 카드가 **내 큐인가**" 를 묻는 식이라 결정된 카드에
+     * 물으면 엉뚱한 답이 나온다. 남이 낸 면제가 내 처리됨에 뜨고 내가 끝낸 것은 빠졌다.
+     * 처리됨이 답해야 하는 질문은 하나다 — **내가 결정한 것**(빈 상태 문구가 그렇게 적고,
+     * 매뉴얼도 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 약속한다).
+     */
+    const scopeFilter = decided
+      ? sql`a.decided_by_user_id = ${input.userId}`
+      : sql`${eligibleSql(input.userId)}
+         -- **거절로 draft 가 된 문서의 남은 슬롯은 대기가 아니다**(2026-09-07). 슬롯이
+         -- 여럿인 결재에서 하나가 reject 되면 문서는 draft 로 돌아가는데, 결정되지 않은
+         -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
+         -- 사람이 계속 결재하게 된다.
+         AND (sv.id IS NULL OR sv.status = 'in_review')`;
+    // 처리됨은 **언제 결정했는가**로 줄 세운다 — 요청 시각으로 세우면 오늘 결정한 9일 된
+    // 요청이 어제 요청 밑에 묻힌다. 대기는 그 반대다(오래 기다린 것이 위로 와야 한다).
+    const orderBy = decided ? sql`a.decided_at DESC` : sql`a.requested_at DESC`;
     const projectFilter =
       input.projectSlug == null ? sql`` : sql` AND p.slug = ${input.projectSlug}`;
 
@@ -302,19 +327,14 @@ export class ApprovalService {
          -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
          -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
          AND p.archived_at IS NULL
-         -- 내 큐만 — 지정·역할 슬롯·기본 큐(REQ-API-137)
-         AND ${eligibleSql(input.userId)}
-         -- **거절로 draft 가 된 문서의 남은 슬롯은 대기가 아니다**(2026-09-07). 슬롯이
-         -- 여럿인 결재에서 하나가 reject 되면 문서는 draft 로 돌아가는데, 결정되지 않은
-         -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
-         -- 사람이 계속 결재하게 된다.
-         AND (sv.id IS NULL OR sv.status = 'in_review')
+         -- 대기는 **내 큐**(지정·역할 슬롯·기본 큐 · REQ-API-137) · 처리됨은 **내가 결정한 것**
+         AND ${scopeFilter}
          AND EXISTS (
            SELECT 1 FROM membership m
             WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
               AND (m.project_id IS NULL OR m.project_id = p.id)
          )
-       ORDER BY a.requested_at DESC
+       ORDER BY ${orderBy}
        LIMIT 100
     `);
 
@@ -591,7 +611,13 @@ export class ApprovalService {
            SET decision = ${decision}::approval_decision,
                comment_md = ${input.comment ?? null},
                decided_at = now(),
-               assignee_user_id = COALESCE(assignee_user_id, ${input.userId})
+               assignee_user_id = COALESCE(assignee_user_id, ${input.userId}),
+               -- **누른 사람은 여기 남는다**(2026-09-24 · 마이그레이션 0029). 바로 위의
+               -- assignee_user_id 로 겸할 수 없다: 지정 카드를 admin 이 대신 결정하면
+               -- COALESCE 가 지정된 사람을 지키므로 그 열은 **결정자가 아닌 사람**을
+               -- 가리킨 채 남는다. 처리됨 탭이 그 열을 읽는 동안 admin 은 자기가 내린
+               -- 결정을 못 보고, 지정된 사람은 자기가 내리지 않은 결정을 봤다.
+               decided_by_user_id = ${input.userId}
          WHERE id = ${input.approvalId}
       `);
 
@@ -870,9 +896,11 @@ export class ApprovalService {
       const approvalId = newId();
       await tx.execute(sql`
         INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                              decision, decided_at, is_bypass, bypass_reason)
+                              decision, decided_at, decided_by_user_id, is_bypass, bypass_reason)
         VALUES (${approvalId}, ${input.projectId}, ${input.subjectType}::approval_subject_type,
-                ${input.subjectId}, ${input.userId}, 'approve', now(), true, ${input.reason})
+                -- 면제는 **낸 사람이 곧 결정한 사람**이다 — 묻지 않고 지나가는 것이 면제다
+                ${input.subjectId}, ${input.userId}, 'approve', now(), ${input.userId},
+                true, ${input.reason})
       `);
       await emit({
         type: NERV_EVENT.GATE_BYPASSED,
