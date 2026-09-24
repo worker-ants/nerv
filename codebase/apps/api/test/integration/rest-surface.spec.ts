@@ -1867,7 +1867,16 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
   });
 
   it('EP-TOK-04 — 조직 전체 토큰 표에도 원문은 없다', async () => {
+    // **이 표는 조직 admin 만 본다**(2026-09-24 · REQ-API-172). 이 스위트의 admin 은 clemvion
+    // **프로젝트의** admin 이라 먼저 거부를 보고, 이 검사 동안만 조직 admin 으로 표를 본다
+    expect((await call('GET', '/api/v1/orgs/nerv/tokens')).status).toBe(403);
+    const orgAdminRow = newId();
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,NULL,$3,'admin')`,
+      [orgAdminRow, orgId, adminId],
+    );
     const res = await call('GET', '/api/v1/orgs/nerv/tokens');
+    await pool.query(`DELETE FROM membership WHERE id = $1`, [orgAdminRow]);
     expect(res.status).toBe(200);
     for (const token of res.body as Record<string, unknown>[]) {
       expect(Object.keys(token)).not.toContain('token');

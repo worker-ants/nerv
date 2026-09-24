@@ -177,3 +177,15 @@ describe('조직 수준 조작 (EP-ORG-04·05 · EP-PRJ-02)', () => {
     await expect(make(orgAdmin, 'main-app', 'MAP')).resolves.toBeDefined();
   });
 });
+
+// ── 조직 전체 토큰 표도 조직 admin 만 — REQ-API-172 (2026-09-24 사람 결정) ──────────────
+describe('조직 전체 토큰 표 (EP-TOK-04)', () => {
+  it('프로젝트 admin 은 조직의 모든 토큰을 볼 수 없다 — 조직 admin 은 본다', async () => {
+    expect(
+      await forbidden(auth.orgTokensBySlug({ actorUserId: sudokuAdmin, orgSlug: 'acme' })),
+    ).toBe(true);
+    await expect(
+      auth.orgTokensBySlug({ actorUserId: orgAdmin, orgSlug: 'acme' }),
+    ).resolves.toBeInstanceOf(Array);
+  });
+});

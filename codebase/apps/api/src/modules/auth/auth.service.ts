@@ -505,19 +505,23 @@ export class AuthService {
     actorUserId: string;
     orgSlug: string;
   }): Promise<Record<string, unknown>[]> {
-    const { rows: orgRows } = await this.db.execute<{ roles: string[] }>(sql`
-      SELECT array_agg(DISTINCT m.role::text) AS roles FROM organization o
+    const { rows: orgRows } = await this.db.execute<{ id: string }>(sql`
+      SELECT o.id FROM organization o
         JOIN membership m ON m.org_id = o.id AND m.user_id = ${input.actorUserId}
        WHERE o.slug = ${input.orgSlug}
        GROUP BY o.id
     `);
-    const roles = orgRows[0]?.roles;
-    if (roles === undefined) {
+    const org = orgRows[0];
+    if (org === undefined) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
         kind: 'not_found',
       });
     }
-    return this.orgTokens({ orgSlug: input.orgSlug, actorRoles: roles as MembershipRole[] });
+    // **조직 전체 토큰 표는 조직 admin 만**(2026-09-24 사람 결정 · REQ-API-172). 이 표는 조직의
+    // **모든 사람의 모든 토큰**을 보인다 — 한 프로젝트의 admin 이 남의 프로젝트 토큰까지 보던
+    // 자리다. 판정은 멤버십·초대·조직 수준 조작과 같은 한 곳이다
+    await this.assertCanManageScope(input.actorUserId, org.id, null);
+    return this.orgTokens({ orgSlug: input.orgSlug, actorRoles: ['admin'] });
   }
 
   /**
