@@ -13,6 +13,7 @@ import { betterAuth } from 'better-auth';
 import type pg from 'pg';
 import { allowedOriginsFromEnv, apiUrlFromEnv, cookieDomainFromEnv } from '../../common/origins.js';
 import { requireEmailVerificationFromEnv } from '../mail/mail.config.js';
+import { returnToOf } from '../mail/verify-link.js';
 
 /**
  * baseURL 외에 추가로 신뢰할 오리진 — **CORS 허용목록과 같은 목록이다**(2026-09-20 ·
@@ -52,6 +53,7 @@ export interface VerificationMail {
     name: string;
     token: string;
     locale?: string | null;
+    returnTo?: string | null;
   }): Promise<boolean>;
 }
 
@@ -121,7 +123,7 @@ export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
       sendOnSignUp: true,
       // 확인한 사람을 다시 로그인시키지 않는다. 링크를 연 브라우저가 곧 그 사람이다.
       autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({ user, token }): Promise<void> => {
+      sendVerificationEmail: async ({ user, url, token }): Promise<void> => {
         // **기다리지 않는다.** better-auth 문서 자신이 그렇게 적는다 — 발송을 await 하면
         // 응답 시간이 "그 이메일이 존재하는가" 를 흘린다. 우리는 애초에 보내지 않고
         // 줄만 세우므로(§2.17) 이 호출은 INSERT 하나다.
@@ -129,6 +131,8 @@ export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
           email: user.email,
           name: user.name,
           token,
+          // 요청이 정한 돌아갈 자리 — 가입·재발송이 싣는다(REQ-WEB-089 · REQ-WEB-188)
+          returnTo: returnToOf(url),
         });
       },
     },

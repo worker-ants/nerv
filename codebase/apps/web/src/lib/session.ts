@@ -72,10 +72,26 @@ export async function signUp(input: {
   email: string;
   password: string;
   name: string;
+  /** 확인 메일의 링크가 끝나고 돌아올 **화면 경로**(`/invite/…`·`/onboarding`) */
+  returnPath: string;
 }): Promise<AuthFailure | null> {
-  const res = await authFetch('/sign-up/email', input);
+  const { returnPath, ...body } = input;
+  const res = await authFetch('/sign-up/email', { ...body, callbackURL: returnUrl(returnPath) });
   if (res.ok) return null;
   return failure(res);
+}
+
+/**
+ * 확인 메일의 링크가 끝나고 돌아올 주소 — **화면 오리진의 절대 주소**다.
+ *
+ * 상대 경로로 보내면 better-auth 가 그것을 **API 호스트** 기준으로 읽는다(확인은 API 가
+ * 한다). 서버도 화면 오리진 밖은 버리지만(`verify-link.ts`), 보내는 쪽이 처음부터 맞게 싣는다.
+ *
+ * 돌아올 자리를 싣는 이유(2026-09-24 — 사람 보고): 전에는 언제나 `/` 였다. 초대로 가입한
+ * 사람이 초대 화면으로 돌아가지 못했고(REQ-WEB-089), 소속이 없는 사람은 빈 홈에 섰다.
+ */
+function returnUrl(path: string): string {
+  return `${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 /**
@@ -84,9 +100,9 @@ export async function signUp(input: {
  * **성공과 실패를 가르지 않는다** — 없는 주소에 대해 "그런 계정 없습니다" 라고 답하면 그것이
  * 곧 계정 존재 확인기가 된다. 화면은 언제나 "보냈습니다" 로 말하고, 한도는 서버가 건다.
  */
-export async function resendVerification(email: string): Promise<void> {
-  // 확인이 끝나면 앱 첫 화면으로 돌아온다 — 메일의 링크가 그 주소를 싣는다
-  await authFetch('/send-verification-email', { email, callbackURL: `${window.location.origin}/` });
+export async function resendVerification(email: string, returnPath: string): Promise<void> {
+  // 처음 메일과 **같은 자리**로 돌아온다 — 다시 받은 메일이 다른 곳으로 보내면 안 된다
+  await authFetch('/send-verification-email', { email, callbackURL: returnUrl(returnPath) });
 }
 
 export async function signOut(): Promise<void> {

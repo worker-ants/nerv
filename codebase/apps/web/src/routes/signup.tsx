@@ -37,12 +37,16 @@ function SignupScreen(): React.JSX.Element {
   const [pending, setPending] = useState(false);
   const [resent, setResent] = useState(false);
 
+  // 확인을 마치고 돌아올 자리 — 초대에서 왔으면 그 초대, 아니면 온보딩이다. 가입한 사람은
+  // 아직 소속이 없으므로 홈이 아니라 조직을 만드는 자리가 다음 걸음이다(REQ-WEB-188).
+  const returnPath = search.redirect ?? '/onboarding';
+
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setBusy(true);
     setError(null);
 
-    const failure = await signUp({ email, password, name });
+    const failure = await signUp({ email, password, name, returnPath });
     if (failure !== null) {
       setError(authFailureText(t, failure));
       setPassword('');
@@ -63,7 +67,7 @@ function SignupScreen(): React.JSX.Element {
     queryClient.setQueryData(queryKeys.me(), await fetchMe());
     // 초대에서 왔으면 그 자리로 돌아간다. 아니면 소속이 없으므로 온보딩으로 — 거기서
     // 조직을 만든다.
-    void navigate({ to: search.redirect ?? '/onboarding' });
+    void navigate({ to: returnPath });
   }
 
   return (
@@ -95,7 +99,7 @@ function SignupScreen(): React.JSX.Element {
               className="h-9 w-full"
               onClick={() => {
                 setResent(true);
-                void resendVerification(email);
+                void resendVerification(email, returnPath);
               }}
             >
               {resent ? t('auth.resent') : t('auth.resend')}

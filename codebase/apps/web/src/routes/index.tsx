@@ -7,7 +7,7 @@
 
 import { eventLabelKey } from '@nerv/schema';
 import { useLocale, useT } from '../lib/i18n.js';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import { relativeTime } from '../lib/format.js';
 import {
   inboxCards,
@@ -52,6 +52,22 @@ function HomeScreen(): React.JSX.Element {
   const name = me.data?.display_name ?? '';
   const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
   const reqTotal = Number(totals['total'] ?? 0);
+
+  /**
+   * **소속이 없으면 여기는 빈 방이다** — 온보딩으로 보낸다(REQ-WEB-006 · REQ-WEB-188).
+   *
+   * 이 판정은 로그인 폼만 하고 있었다(`login.tsx` 의 착지 규칙). 그런데 로그인 폼을 거치지
+   * 않고 들어오는 길이 있다 — **확인 메일의 링크**가 세션을 세우고 곧장 화면으로 돌려보낸다
+   * (`autoSignInAfterVerification`). 가입한 사람은 그 길로 홈에 섰고, 소속이 없으니 헤더에
+   * 조직도 프로젝트도 없어 **조직을 만들 자리가 어디에도 없었다**(2026-09-24 사람 보고 —
+   * 로그아웃하고 다시 로그인하면 그때서야 온보딩이 떴다). 즐겨찾기·로고로 들어와도 같다.
+   * 착지 규칙을 입구마다 두지 않고 **도착지에** 둔다: 입구는 늘어나도 도착지는 여기다.
+   *
+   * 받은 초대는 잃지 않는다 — 온보딩도 같은 초대 카드를 조직 만들기보다 위에 세운다(REQ-WEB-088).
+   */
+  if (me.data !== undefined && me.data.memberships.length === 0) {
+    return <Navigate to="/onboarding" replace />;
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1000px] px-10 pt-11 pb-10">

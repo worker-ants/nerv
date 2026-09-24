@@ -124,7 +124,8 @@ function LoginScreen(): React.JSX.Element {
               className="rounded-nerv-sm px-2 py-1 text-left text-sm text-link hover:underline disabled:text-text-mute disabled:no-underline"
               onClick={() => {
                 setResent(true);
-                void resendVerification(email);
+                // 로그인이 들고 온 자리로 — 없으면 첫 화면이고, 거기서 소속을 보고 가른다(REQ-WEB-188)
+                void resendVerification(email, search.redirect ?? '/');
               }}
             >
               {resent ? t('auth.resent') : t('auth.resend')}
