@@ -101,6 +101,9 @@ const ROUTE_CHAPTERS: readonly (readonly [RegExp, string])[] = [
   [/^\/p\/[^/]+\/sessions(\/|$)/, 'sessions'],
   [/^\/p\/[^/]+\/reviews(\/|$)/, 'reviews'],
   [/^\/(inbox|notifications)(\/|$)/, 'inbox'],
+  // 토큰 탭은 **설치 장**이다(2026-09-24 · SET-10). 설정 장의 토큰 절은 한 줄로 개념 장을 가리키고
+  // 실제 절차는 또 다른 장에 있어, 이 화면에서 도움말을 연 사람은 세 번 건너가야 했다
+  [/^\/settings\/tokens(\/|$)/, 'install'],
   [/^\/settings(\/|$)/, 'settings'],
   // 프로젝트 개요(`/p/:proj`)는 **맨 아래**다 — 위의 하위 화면들이 먼저 맞아야 한다.
   // 그 화면의 구현 현황 다섯 숫자(특히 `증적 결손`·`빈 약속`)를 설명하는 자리가

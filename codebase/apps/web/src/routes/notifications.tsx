@@ -6,7 +6,7 @@
 import { eventLabelKey, NERV_EVENT } from '@nerv/schema';
 import { useState } from 'react';
 import { useT } from '../lib/i18n.js';
-import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { inOrgHref, useScope } from '../lib/scope.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api.js';
@@ -195,7 +195,16 @@ function NotificationScreen(): React.JSX.Element {
         <ErrorState error={notifications.error} onRetry={() => void notifications.refetch()} />
       )}
       {notifications.data !== undefined && items.length === 0 && (
-        <EmptyState icon="○" title={t('notif.empty')} hint={t('notif.empty_hint')} />
+        <EmptyState
+          icon="○"
+          title={t('notif.empty')}
+          hint={t('notif.empty_hint')}
+          action={
+            <Link to="/inbox" className="text-sm text-link hover:underline">
+              {t('notif.empty_action')} ▸
+            </Link>
+          }
+        />
       )}
       <ul className="flex flex-col">
         {items.map((n) => {

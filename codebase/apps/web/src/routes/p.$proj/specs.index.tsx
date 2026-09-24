@@ -378,7 +378,12 @@ function SpecListScreen(): React.JSX.Element {
               <SpecTable nodes={graph.data.nodes} edges={graph.data.edges} projectSlug={proj} />
             </Suspense>
           ) : graph.data.edges.length === 0 ? (
-            <EmptyState icon="◎" title={t('graph.empty')} hint={t('graph.empty_hint')} />
+            <EmptyState
+              icon="◎"
+              action={null}
+              title={t('graph.empty')}
+              hint={t('graph.empty_hint')}
+            />
           ) : (
             <Suspense fallback={<Skeleton rows={6} />}>
               <SpecGraph
@@ -441,9 +446,26 @@ function SpecListScreen(): React.JSX.Element {
               {search.isFetched && (search.data?.items.length ?? 0) === 0 && (
                 <li>
                   <EmptyState
-                    icon="🔍"
+                    icon="○"
                     title={t('specs.no_results')}
                     hint={t('specs.no_results_hint')}
+                    action={
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        data-testid="specs-search-clear"
+                        onClick={() => {
+                          setQuery('');
+                          void navigate({
+                            to: '/p/$proj/specs',
+                            params: { proj },
+                            search: searchWith({ q: null }),
+                          });
+                        }}
+                      >
+                        {t('specs.clear_search')}
+                      </Button>
+                    }
                   />
                 </li>
               )}

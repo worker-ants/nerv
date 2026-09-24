@@ -17,9 +17,9 @@ Press the **☆** at the right of a row to pin that document (★); press it aga
 
 ## Dialogs and panels
 
-`Esc` closes four places — the **New spec** dialog, the **Create baseline** dialog, the **link picker** in a spec body, and the panel for a selected node in the **relationship graph**.
+`Esc` closes — the **Spec metadata** dialog ([⋯ Metadata]), the **Create baseline** dialog, a diagram's **full screen**, the panel for a selected node in the **relationship graph**, and any **ask-once-more confirmation** (same as cancelling it). In a dialog showing a confirmation, `Esc` closes only the confirmation.
 
-In the link picker, `↓` moves down into the results and `Enter` takes the first one.
+When resolving a review finding, in the field that picks a spec, `↓` moves down into the results and `Enter` takes the first one.
 
 ## Inbox
 

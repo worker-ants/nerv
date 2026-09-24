@@ -34,7 +34,15 @@ function ManualChapterScreen(): React.JSX.Element {
   if (chapter === undefined) {
     return (
       <PageBody>
-        <EmptyState icon="?" title={t('help.not_found')} />
+        <EmptyState
+          icon="?"
+          title={t('help.not_found')}
+          action={
+            <Link to="/help" className="text-sm text-link hover:underline">
+              {t('help.back_to_index')} ▸
+            </Link>
+          }
+        />
       </PageBody>
     );
   }

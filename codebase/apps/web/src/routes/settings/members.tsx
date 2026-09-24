@@ -274,7 +274,7 @@ function MembersTab(): React.JSX.Element {
           <Skeleton rows={4} />
         )
       ) : memberRows.length === 0 ? (
-        <EmptyState icon="👥" title={t('settings.members.empty')} />
+        <EmptyState icon="○" title={t('settings.members.empty')} action={null} />
       ) : (
         <Table
           head={

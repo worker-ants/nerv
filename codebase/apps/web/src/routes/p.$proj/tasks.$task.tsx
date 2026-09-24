@@ -540,6 +540,16 @@ function TaskDetail(): React.JSX.Element {
                         >
                           <Mono>{String(item['key'])}</Mono>
                         </Link>
+                      ) : item['kind'] === 'question' && typeof item['id'] === 'string' ? (
+                        // 질문은 **받은 요청의 그 카드로** 간다(REQ-WEB-208) — id 를 글자로만 적던 자리다
+                        <Link
+                          to="/inbox"
+                          search={{ focus: item['id'] }}
+                          data-testid="blocked-question-link"
+                          className="text-xs text-link hover:underline"
+                        >
+                          {t('session.open_in_inbox')}
+                        </Link>
                       ) : (
                         <Mono>{String(item['key'] ?? item['id'] ?? '')}</Mono>
                       )}

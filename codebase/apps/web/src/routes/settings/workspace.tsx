@@ -306,7 +306,17 @@ function ProjectSection({
       )}
 
       {projects.length === 0 && !creating && (
-        <EmptyState icon="◇" title={t('settings.workspace.no_projects')} />
+        <EmptyState
+          icon="◇"
+          title={t('settings.workspace.no_projects')}
+          action={
+            canCreate ? (
+              <Button size="sm" data-testid="project-new-empty" onClick={() => setCreating(true)}>
+                {t('settings.workspace.project_new')}
+              </Button>
+            ) : null
+          }
+        />
       )}
 
       <ul className="flex flex-col">

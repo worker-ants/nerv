@@ -106,7 +106,9 @@ describe('화면 → 장', () => {
     ['/p/clemvion/reviews', 'reviews'],
     ['/inbox', 'inbox'],
     ['/notifications', 'inbox'],
-    ['/settings/tokens', 'settings'],
+    // 토큰 탭은 설치 장 — 발급부터 연결까지의 절차가 거기 있다(SET-10)
+    ['/settings/tokens', 'install'],
+    ['/settings/members', 'settings'],
     // 프로젝트 개요 — 그 화면의 구현 현황 다섯 숫자를 설명하는 자리가 스펙 장이다
     ['/p/clemvion', 'specs'],
   ])('%s → %s 장', (path, chapter) => {

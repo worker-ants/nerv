@@ -707,8 +707,16 @@ export function useMembers(orgSlug: string | null): UseQueryResult<Row[]> {
   });
 }
 
-export function useTokens(): UseQueryResult<Row[]> {
-  return useQuery({ queryKey: ['me', 'tokens'], queryFn: () => apiFetch<Row[]>('/me/tokens') });
+/**
+ * 내 토큰. `pollMs` 는 **방금 발급한 토큰이 연결되기를 기다리는 동안만** 준다(REQ-WEB-207) —
+ * 첫 사용 시각(`last_used_at`)이 채워지면 원문 카드가 "연결됨" 으로 바뀐다.
+ */
+export function useTokens(pollMs: number | false = false): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: ['me', 'tokens'],
+    queryFn: () => apiFetch<Row[]>('/me/tokens'),
+    refetchInterval: pollMs,
+  });
 }
 
 /**

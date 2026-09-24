@@ -85,6 +85,12 @@ describe('에러 코드 → UI 동작', () => {
     expect(action.message).toContain('재클레임');
   });
 
+  it('봉투가 반쪽이어도 무너지지 않는다 — 프록시가 낸 JSON 500 에는 우리 칸이 다 있지 않다', () => {
+    const partial = new NervApiError(500, { message: 'boom' } as never);
+    expect(() => describeApiError(ko, partial)).not.toThrow();
+    expect(describeApiError(ko, partial).message).toContain('boom');
+  });
+
   it('봉투가 없는 실패는 문장만 옮긴다 — 배너 스위치는 도달 판정이 쥐고 있다', () => {
     const action = describeApiError(ko, new TypeError('Failed to fetch'));
     expect(action.escalateBanner).toBe(false);

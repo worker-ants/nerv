@@ -7,7 +7,8 @@
 // 이 화면이 대체하는 것은 clemvion 의 `review/**` md 13,777개(131MB)다.
 
 import { scopesForRoles } from '@nerv/schema';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { ErrorState } from '../../components/query-state.js';
 import { useEffect, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
 import { FindingRail } from '../../features/review-center/finding-rail.js';
@@ -235,13 +236,27 @@ function ReviewCenter(): React.JSX.Element {
               <Skeleton className="h-16" />
             </div>
           ) : queue.isError ? (
-            <EmptyState icon="⚠" title={t('reviews.queue.error')} />
+            // 실패는 비어 있음과 다른 모양이다 — 공용 실패 카드(REQ-WEB-198 · SYS-14)
+            <ErrorState
+              error={queue.error}
+              title={t('reviews.queue.error')}
+              onRetry={() => void queue.refetch()}
+            />
           ) : items.length === 0 ? (
             // 막다른 길을 두지 않는다(§1.5) — 발견이 없으면 **어디서 들어오는지**를 말한다
             <EmptyState
               icon="◈"
               title={t('reviews.queue.empty')}
               hint={t('reviews.queue.empty_hint')}
+              action={
+                <Link
+                  to="/help/$chapter"
+                  params={{ chapter: 'reviews' }}
+                  className="text-sm text-link hover:underline"
+                >
+                  {t('reviews.queue.empty_action')} ▸
+                </Link>
+              }
             />
           ) : (
             <Card className="@container p-0">

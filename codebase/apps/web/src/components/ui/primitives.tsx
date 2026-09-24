@@ -129,7 +129,12 @@ export function EmptyState({
   icon?: string;
   title: string;
   hint?: React.ReactNode;
-  action?: React.ReactNode;
+  /**
+   * 다음 행동 — **필수다**(2026-09-24 · REQ-WEB-208 · §1.5 "빈 문구 + 다음 행동 링크 1개 이상").
+   * 선택 prop 이던 동안 18곳 중 3곳만 지켰고, 빠뜨려도 아무도 몰랐다. 정말 갈 곳이 없는 자리는
+   * `null` 을 **명시한다** — 빠뜨린 것과 고른 것을 타입이 가른다.
+   */
+  action: React.ReactNode | null;
   className?: string;
 }): React.JSX.Element {
   return (
@@ -144,7 +149,7 @@ export function EmptyState({
       </span>
       <p className="text-sm text-text-mute">{title}</p>
       {hint !== undefined && <p className="text-xs text-text-faint">{hint}</p>}
-      {action !== undefined && <div className="mt-2">{action}</div>}
+      {action !== null && <div className="mt-2">{action}</div>}
     </div>
   );
 }

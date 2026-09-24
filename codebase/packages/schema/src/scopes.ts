@@ -26,6 +26,25 @@ export const AGENT_SCOPES = [
 export type AgentScope = (typeof AGENT_SCOPES)[number];
 
 /**
+ * **권장 묶음** — 에이전트가 스킬 다섯(next·spec·impl·question·review)을 쓰는 데 드는 권한
+ * (2026-09-24 · REQ-WEB-207 · plugin.md §4 1단계). 발급 폼의 기본값이다.
+ *
+ * 폼의 기본값이 `spec:read`·`task:claim` 둘이던 동안 그대로 발급한 토큰은 `nerv_bootstrap` 이
+ * 요구하는 `agent-session:launch` 가 없어 설치 4·5단계에서 처음부터 막혔다 — 매뉴얼은 그 함정을
+ * 설명하고 있었지만 화면의 기본값은 그대로였다. 역할에 없는 권한은 발급할 때 교집합으로 빠진다.
+ * `review:resolve`·`spec:meta`·`spec:evidence`·`import:write` 는 넣지 않는다 — 일부 역할의 일이거나
+ * 이관 전용이라 필요한 사람이 직접 고른다.
+ */
+export const AGENT_RECOMMENDED_SCOPES = [
+  'spec:read',
+  'spec:draft',
+  'task:claim',
+  'task:update',
+  'review:submit',
+  'agent-session:launch',
+] as const satisfies readonly AgentScope[];
+
+/**
  * 사람 전용 — 어떤 자율성 레벨에서도 토큰이 가질 수 없다.
  * 카탈로그에 대응 MCP 도구가 **존재하지 않는 것**이 설계다(agent-integration §2.1 원칙 3).
  */

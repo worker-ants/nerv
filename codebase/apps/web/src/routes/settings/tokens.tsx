@@ -25,8 +25,14 @@ import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UseMutationResult } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { AGENT_SCOPES, HUMAN_ONLY_SCOPES, scopesForRoles } from '@nerv/schema';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AGENT_RECOMMENDED_SCOPES,
+  AGENT_SCOPES,
+  checkPluginInstallUrl,
+  HUMAN_ONLY_SCOPES,
+  scopesForRoles,
+} from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { deployedServerOrigin } from '../../lib/manual-vars.js';
 import { rows, useMe, useOrgTokens, useTokens } from '../../lib/queries.js';
@@ -51,6 +57,7 @@ import {
   Tr,
 } from '../../components/ui/primitives.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
+import { CopyButton } from '../../components/copy-button.js';
 import { ScopeBadge } from '../../components/scope-badge.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 
@@ -83,6 +90,8 @@ function day(value: unknown, absent: string): string {
 }
 
 interface Issued {
+  /** 목록의 `id` — 연결됐는지(첫 사용)를 그 줄에서 읽는다 */
+  tokenId: string;
   token: string;
   name: string;
   expires_at: string | null;
@@ -114,7 +123,11 @@ function TokensTab(): React.JSX.Element {
 
   const [name, setName] = useState<string | null>(null);
   const [days, setDays] = useState<number>(0);
-  const [scopes, setScopes] = useState<string[]>(['spec:read', 'task:claim']);
+  // **기본은 권장 묶음이다**(2026-09-24 · REQ-WEB-207). 기본값이 `spec:read`·`task:claim` 둘이던 동안
+  // 그대로 발급한 토큰은 `nerv_bootstrap` 이 요구하는 `agent-session:launch` 가 없어 설치가 처음부터
+  // 막혔다. [직접 고르기]로 바꾸면 그때의 권장 묶음에서 출발해 칸을 고친다
+  const [customScopes, setCustomScopes] = useState(false);
+  const [scopes, setScopes] = useState<string[]>([...AGENT_RECOMMENDED_SCOPES]);
   const [issued, setIssued] = useState<Issued | null>(null);
   const [showRevoked, setShowRevoked] = useState(false);
 
@@ -127,7 +140,8 @@ function TokensTab(): React.JSX.Element {
   // 초기값이 상수라, 역할에 `task:claim` 이 없는 사람에게는 그 칸이 잠긴 채 **체크 해제로**
   // 보이는데 본문에는 실려 갔다. 사용 시점에 역할과 교집합을 내므로 권한이 새지는 않았지만,
   // 발급된 토큰의 권한 표는 그 사람이 고른 적 없는 값을 보여줬다.
-  const granted = scopes.filter((scope) => myScopes.has(scope as never));
+  const chosen: readonly string[] = customScopes ? scopes : AGENT_RECOMMENDED_SCOPES;
+  const granted = chosen.filter((scope) => myScopes.has(scope as never));
 
   const issue = useMutation({
     mutationFn: () =>
@@ -220,6 +234,7 @@ function TokensTab(): React.JSX.Element {
           <FieldRowAction>
             <Button
               variant="primary"
+              data-testid="token-issue"
               disabled={issue.isPending || project === null}
               onClick={() => issue.mutate()}
             >
@@ -250,7 +265,37 @@ function TokensTab(): React.JSX.Element {
             )}
           </p>
         )}
-        <fieldset className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
+        <div
+          role="radiogroup"
+          aria-label={t('settings.tokens.scopes')}
+          className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs"
+        >
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input
+              type="radio"
+              name="scope-preset"
+              data-testid="scope-recommended"
+              checked={!customScopes}
+              onChange={() => setCustomScopes(false)}
+            />
+            {t('settings.tokens.preset_recommended')}
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input
+              type="radio"
+              name="scope-preset"
+              data-testid="scope-custom"
+              checked={customScopes}
+              onChange={() => {
+                setScopes([...granted]);
+                setCustomScopes(true);
+              }}
+            />
+            {t('settings.tokens.preset_custom')}
+          </label>
+          <span className="text-text-faint">{t('settings.tokens.preset_hint')}</span>
+        </div>
+        <fieldset className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs">
           <legend className="sr-only">{t('settings.tokens.scopes')}</legend>
           {AGENT_SCOPES.map((scope) => {
             // 내 역할에 없는 권한은 **보이되 잠긴다**. 사람 전용 권한과 같은 규율이다 —
@@ -269,7 +314,8 @@ function TokensTab(): React.JSX.Element {
                 <input
                   type="checkbox"
                   checked={granted.includes(scope)}
-                  disabled={!mineScope}
+                  // 권장일 때는 묶음을 **보여 주기만** 한다 — 고치려면 [직접 고르기]
+                  disabled={!mineScope || !customScopes}
                   onChange={(e) =>
                     setScopes((prev) =>
                       e.target.checked ? [...prev, scope] : prev.filter((s) => s !== scope),
@@ -321,9 +367,18 @@ function TokensTab(): React.JSX.Element {
           )
         ) : mine.length === 0 ? (
           <EmptyState
-            icon="🔑"
+            icon="◇"
             title={t('settings.tokens.empty')}
             hint={t('settings.tokens.empty_hint')}
+            action={
+              <Link
+                to="/help/$chapter"
+                params={{ chapter: 'install' }}
+                className="text-sm text-link hover:underline"
+              >
+                {t('settings.tokens.install_chapter')} ▸
+              </Link>
+            }
           />
         ) : (
           <Table
@@ -461,14 +516,16 @@ function ProjectCell({ token }: { token: Record<string, unknown> }): React.JSX.E
 }
 
 /**
- * 원문 1회 표시 — REQ-WEB-026.
+ * 발급한 뒤 — **연결 3단계**(2026-09-24 · REQ-WEB-207 · plugin.md §4).
  *
- * **이 카드가 자기를 설명하지 않으면 다시 볼 기회가 없다.** 값만 보여 주던 동안, 받은
- * 사람이 들고 나가는 것은 문자열 하나였고 그것이 어느 프로젝트·어떤 권한의 토큰인지는
- * 창을 닫는 순간 사라졌다(목록에는 원문이 없어 대조할 것도 접두뿐이다). 프로젝트·권한·
- * 만료를 같은 상자에서 말하고, **그대로 붙여넣을 한 줄**을 함께 준다 — 이 값이 갈 곳은
- * 결국 저장소의 설정 세 자리이고(`nerv-init` · docs/04-mvp/plugin.md §3.7), 서버 주소는 화면이
- * 이미 안다(`/config.json` 의 `api_url` · REQ-WEB-165 가 매뉴얼에서 쓰는 그 값이다).
+ * 예전 카드는 원문과 "그대로 붙여넣을 한 줄"(`nerv-init --server … --token …`)을 줬는데 그대로
+ * 따라 하면 붙지 않았다: 그 시점에는 `nerv-init` 을 배달하는 플러그인이 아직 없고, 맨 이름
+ * `nerv-init` 은 셸 PATH 에 없다(설치 캐시에 있다 — §3.7). 원문에는 복사 단추도 없었고, 설치 장으로
+ * 가는 말은 링크가 아니라 글자였다. 순서를 명세대로 세운다 — ① 토큰 ② 플러그인 설치 ③ 설정.
+ *
+ * `--token` 은 한 줄에 둔다(2026-09-24 사람 결정 — 붙여넣기 한 번이 낫다). 셸 기록에 남는다는 사실과
+ * 빼고 실행하면 가려서 묻는다는 길을 곁에 적는다. **연결을 기다린다** — 이 카드가 열려 있는 동안 목록을
+ * 짧게 다시 읽어, 그 토큰이 처음 쓰이면 "연결됨 — 기계" 로 바뀐다.
  */
 function RevealOnce({
   issued,
@@ -479,16 +536,37 @@ function RevealOnce({
 }): React.JSX.Element {
   const t = useT();
   const server = deployedServerOrigin() ?? '';
-  const command = `nerv-init --server ${server} --project ${issued.project.slug} --token ${issued.token}`;
+  // 이 서버 주소로 설치할 수 없으면(https·비루프백·신뢰된 CA) GitHub 으로 받는다 — 설치 장과 같은 판정
+  const direct = server !== '' && checkPluginInstallUrl(server).ok;
+  const marketplace = direct
+    ? `/plugin marketplace add ${server}/plugin/marketplace.json`
+    : '/plugin marketplace add worker-ants/nerv';
+  const install = '/plugin install nerv@nerv';
+  const init = `"$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)" --server ${server} --project ${issued.project.slug} --token ${issued.token}`;
+  const [connected, setConnected] = useState<string | null>(null);
+  const tokens = useTokens(connected === null ? 5000 : false);
+  const row = rows(tokens.data).find((r) => r['id'] === issued.tokenId);
+  const usedAt = row?.['last_used_at'];
+  const host = typeof usedAt === 'string' ? String(row?.['last_used_hostname'] ?? '') : null;
+  // 한 번 연결되면 그대로 둔다 — 폴링도 멈춘다
+  useEffect(() => {
+    if (host !== null && connected === null) setConnected(host);
+  }, [host, connected]);
+
   return (
     <div
       data-testid="issued-token"
       className="mt-3 rounded-nerv border border-status-ok bg-status-ok-soft p-3"
     >
       <p className="text-sm font-medium text-status-ok">{t('settings.tokens.copy_now')}</p>
-      <code className="mt-2 block rounded-nerv-sm bg-code-bg p-2 font-mono text-xs break-all text-code-text">
-        {issued.token}
-      </code>
+
+      <p className="mt-2.5 text-xs font-medium">{t('settings.tokens.step1')}</p>
+      <div className="mt-1 flex items-start gap-2">
+        <code className="min-w-0 flex-1 rounded-nerv-sm bg-code-bg p-2 font-mono text-xs break-all text-code-text">
+          {issued.token}
+        </code>
+        <CopyButton value={issued.token} testId="issued-token-copy" />
+      </div>
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
         <dt className="text-text-mute">{t('settings.tokens.issued_for')}</dt>
         <dd data-testid="issued-project">
@@ -504,16 +582,61 @@ function RevealOnce({
             : issued.expires_at.slice(0, 10)}
         </dd>
       </dl>
-      <p className="mt-2.5 text-xs text-text-mute">{t('settings.tokens.paste')}</p>
-      <code
-        data-testid="issued-command"
-        className="mt-1 block rounded-nerv-sm bg-code-bg p-2 font-mono text-xs break-all text-code-text"
+
+      <p className="mt-3 text-xs font-medium">{t('settings.tokens.step2')}</p>
+      {[marketplace, install].map((line) => (
+        <div key={line} className="mt-1 flex items-start gap-2">
+          <code
+            data-testid="issued-plugin"
+            className="min-w-0 flex-1 rounded-nerv-sm bg-code-bg p-2 font-mono text-xs break-all text-code-text"
+          >
+            {line}
+          </code>
+          <CopyButton value={line} />
+        </div>
+      ))}
+      {!direct && (
+        <p className="mt-1 text-2xs text-text-faint">{t('settings.tokens.step2_github')}</p>
+      )}
+
+      <p className="mt-3 text-xs font-medium">{t('settings.tokens.step3')}</p>
+      <div className="mt-1 flex items-start gap-2">
+        <code
+          data-testid="issued-command"
+          className="min-w-0 flex-1 rounded-nerv-sm bg-code-bg p-2 font-mono text-xs break-all text-code-text"
+        >
+          {init}
+        </code>
+        <CopyButton value={init} testId="issued-command-copy" />
+      </div>
+      <p className="mt-1 text-2xs text-text-faint">{t('settings.tokens.step3_note')}</p>
+
+      <p
+        data-testid="issued-connection"
+        data-connected={connected !== null ? 'true' : undefined}
+        className="mt-3 text-xs"
       >
-        {command}
-      </code>
-      <Button size="sm" variant="ghost" className="mt-1" onClick={onClose}>
-        {t('common.close')}
-      </Button>
+        {connected !== null ? (
+          <span className="font-medium text-status-ok">
+            ✓ {t('settings.tokens.connected', { host: connected === '' ? '—' : connected })}
+          </span>
+        ) : (
+          <span className="text-text-mute">{t('settings.tokens.waiting')}</span>
+        )}
+      </p>
+      <div className="mt-2 flex items-center gap-3">
+        <Link
+          to="/help/$chapter"
+          params={{ chapter: 'install' }}
+          data-testid="issued-install-chapter"
+          className="text-xs text-link hover:underline"
+        >
+          {t('settings.tokens.install_chapter')} ▸
+        </Link>
+        <Button size="sm" variant="ghost" onClick={onClose}>
+          {t('common.close')}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -558,7 +681,7 @@ function OrgTokens({
       <SectionTitle>{t('settings.tokens.org_title')}</SectionTitle>
       <p className="mb-2 text-xs text-text-mute">{t('settings.tokens.org_hint')}</p>
       {tokens.length === 0 ? (
-        <EmptyState icon="🔑" title={t('settings.tokens.org_empty')} />
+        <EmptyState icon="◇" title={t('settings.tokens.org_empty')} action={null} />
       ) : (
         <>
           <div className="mb-2 flex flex-wrap gap-2">

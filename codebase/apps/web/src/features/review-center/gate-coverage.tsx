@@ -30,7 +30,7 @@ export function GateCoverage({
     return (
       <section>
         <SectionTitle>{t('reviews.gate.title')}</SectionTitle>
-        <EmptyState icon="◈" title={t('reviews.gate.empty')} />
+        <EmptyState icon="◈" title={t('reviews.gate.empty')} action={null} />
       </section>
     );
   }

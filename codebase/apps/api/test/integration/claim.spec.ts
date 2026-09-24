@@ -1143,6 +1143,67 @@ describe('E04-S05 ready 큐', () => {
 
 // ── 도우미 ─────────────────────────────────────────────────────────────────
 
+describe('세션 카드가 한 일과 기다리는 것을 말한다 (REQ-API-179)', () => {
+  it('활성 클레임이 없으면 마지막으로 쥔 작업과 **어떻게 끝났는지**를 싣는다', async () => {
+    const taskId = await makeTask('CLV-T-LASTCL');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await tasks.release({
+      claimId: claim.claimId,
+      reason: 'handoff',
+      userId: hana,
+      actor: { projectId, userId: hana, sessionId: sessionHana, isAdmin: false },
+    });
+    const { items } = await sessions.board({ projectId });
+    const card = items.find((c) => c.id === sessionHana);
+    expect(card).toMatchObject({
+      task_key: null,
+      last_task_key: 'CLV-T-LASTCL',
+      last_claim_status: 'released',
+      last_release_reason: 'handoff',
+    });
+  });
+
+  it('활성 클레임이 있으면 "마지막 작업" 을 싣지 않는다 — 지금 작업이 말한다', async () => {
+    const taskId = await makeTask('CLV-T-NOWCL');
+    await tasks.claim(claimInput(taskId, sessionDohyun, dohyun));
+    const { items } = await sessions.board({ projectId });
+    expect(items.find((c) => c.id === sessionDohyun)).toMatchObject({
+      task_key: 'CLV-T-NOWCL',
+      last_task_key: null,
+    });
+  });
+
+  it('입력을 기다리는 세션은 **무엇을** 기다리는지 싣는다 — 열린 질문, 없으면 올린 결재', async () => {
+    const asked = await questions.create({
+      projectId,
+      sessionId: sessionHana,
+      title: '어느 쪽으로?',
+    });
+    const approvalId = newId();
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                             requested_by_session_id)
+       VALUES ($1,$2,'plan',$3,$4,$5)`,
+      [approvalId, projectId, newId(), yuna, sessionYuna],
+    );
+    await pool.query(`UPDATE agent_session SET state = 'awaiting_input' WHERE id = ANY($1)`, [
+      [sessionHana, sessionYuna],
+    ]);
+    const { items } = await sessions.board({ projectId });
+    expect(items.find((c) => c.id === sessionHana)).toMatchObject({
+      waiting_question_id: asked.question_id,
+      waiting_question_title: '어느 쪽으로?',
+      waiting_approval_id: null,
+    });
+    expect(items.find((c) => c.id === sessionYuna)).toMatchObject({
+      waiting_question_id: null,
+      waiting_approval_id: approvalId,
+    });
+    // 기다리지 않는 세션에는 싣지 않는다
+    expect(items.find((c) => c.id === sessionDohyun)?.waiting_question_id).toBeNull();
+  });
+});
+
 function claimInput(
   taskId: string,
   sessionId: string,

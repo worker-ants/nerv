@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.**
 >
-> 문서 버전 v0.72 · 2026-09-24 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.73 · 2026-09-24 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.73 변경(2026-09-24 — 발급 폼의 기본 권한으로는 붙지 않았다): **§4 1단계 한 칸 · 패키지 그대로.** 발급 폼의 기본 권한이 `spec:read`·`task:claim` 둘이라 그대로 발급하면 `nerv_bootstrap` 이 요구하는 `agent-session:launch` 가 없었다 — 화면이 **[권장]** 묶음(`AGENT_RECOMMENDED_SCOPES`)을 기본으로 삼고 발급 뒤 카드가 이 표의 2·3단계(플러그인 설치 → 설치 캐시 경로의 `nerv-init`)를 차례로 준다([4.5](screens.md) REQ-WEB-207). 이 칸이 적던 developer 프리셋은 실물과 두 자리에서 달랐다: 화면에 프리셋이 없었고, `review:resolve` 는 2026-09-02 부터 developer 에게 잠겨 있었다. 배달되는 파일은 바뀌지 않아 버전은 그대로다.
 >
 > v0.72 변경(2026-09-24 — 플러그인이 켜졌는지 서버가 몰랐다, 백로그 E12-S03): **REQ-PLG-019 신설 · §3.3 한 절 · 패키지 0.3.1 → 0.3.2.** 세션은 훅(플러그인)으로도 MCP(플러그인 없이)로도 들어오는데 서버가 둘을 가르지 못해, 관리형 settings 로 배포한 뒤 어느 기계가 켜졌는지 알 수 없었다. 포워더가 세션 훅에서만 옆의 `plugin.json` 버전을 `X-NERV-Plugin` 으로 싣는다([4.4](api.md) REQ-API-168 · EP-SES-06).
 >
@@ -1494,7 +1496,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
-| 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 역할 프리셋 기본값(developer: `spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch`) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용) | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
+| 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 **[권장]** 묶음이 기본이다(`spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `agent-session:launch` — `AGENT_RECOMMENDED_SCOPES` · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 `review:resolve` 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다 | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
 | 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.2 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |

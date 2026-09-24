@@ -136,6 +136,23 @@ export interface SessionCard extends Record<string, unknown> {
   lease_expires_at: string | null;
   scope_spec_ids: string[];
   scope_file_globs: string[];
+  /**
+   * 활성 클레임이 **없을 때** 이 세션이 마지막으로 쥐었던 작업(2026-09-24 · REQ-API-179). 끝난·유령
+   * 세션이 전부 "클레임한 작업 없음" 으로 보여, 무엇이 회수됐는지(REQ-WEB-020) 알 수 없었다.
+   * 활성 클레임이 있으면 모두 `null` 이다 — 그때의 작업은 위의 `task_*` 가 말한다
+   */
+  last_task_key: string | null;
+  last_task_title: string | null;
+  /** 그 클레임이 어떻게 끝났는가 — `released`·`expired` … (회수면 `expired`) */
+  last_claim_status: string | null;
+  last_release_reason: string | null;
+  /**
+   * 세션이 **무엇을 기다리는가**(REQ-API-179) — 입력 대기 배지만으로는 누가 무엇에 답해야 하는지
+   * 알 수 없었다. 열린 질문이 있으면 그것을, 없으면 이 세션이 올린 결정 전 결재를 싣는다
+   */
+  waiting_question_id: string | null;
+  waiting_question_title: string | null;
+  waiting_approval_id: string | null;
 }
 
 export interface BootstrapResult {
@@ -739,11 +756,39 @@ export class SessionService {
              -- 멈춘 것처럼 보이고, 재조회 때마다 튄다. 남은 초는 호환으로 남긴다.
              c.lease_expires_at::text AS lease_expires_at,
              coalesce(c.scope_spec_ids, '{}')::text[]  AS scope_spec_ids,
-             coalesce(c.scope_file_globs, '{}')::text[] AS scope_file_globs
+             coalesce(c.scope_file_globs, '{}')::text[] AS scope_file_globs,
+             lc.last_task_key, lc.last_task_title, lc.last_claim_status, lc.last_release_reason,
+             wq.waiting_question_id, wq.waiting_question_title,
+             CASE WHEN wq.waiting_question_id IS NULL THEN wa.waiting_approval_id END
+               AS waiting_approval_id
         FROM agent_session s
         JOIN "user" u ON u.id = s.user_id
    LEFT JOIN claim c ON c.agent_session_id = s.id AND c.status = 'active'
    LEFT JOIN task t ON t.id = c.task_id
+   -- 마지막 클레임 — 활성 클레임이 없을 때만(있으면 위가 말한다 · REQ-API-179)
+   LEFT JOIN LATERAL (
+        SELECT lt.key AS last_task_key, lt.title AS last_task_title,
+               lcl.status::text AS last_claim_status, lcl.release_reason::text AS last_release_reason
+          FROM claim lcl JOIN task lt ON lt.id = lcl.task_id
+         WHERE lcl.agent_session_id = s.id AND c.id IS NULL
+         ORDER BY lcl.acquired_at DESC
+         LIMIT 1
+   ) lc ON true
+   -- 무엇을 기다리는가 — 열린 질문이 먼저, 없으면 이 세션이 올린 결정 전 결재
+   LEFT JOIN LATERAL (
+        SELECT q.id AS waiting_question_id, q.title AS waiting_question_title
+          FROM question q
+         WHERE q.agent_session_id = s.id AND q.status = 'open'
+         ORDER BY q.asked_at DESC
+         LIMIT 1
+   ) wq ON s.state = 'awaiting_input'
+   LEFT JOIN LATERAL (
+        SELECT a.id AS waiting_approval_id
+          FROM approval a
+         WHERE a.requested_by_session_id = s.id AND a.decision IS NULL
+         ORDER BY a.requested_at DESC
+         LIMIT 1
+   ) wa ON s.state = 'awaiting_input'
        WHERE s.project_id = ${input.projectId}${stateFilter}${seek}
        ORDER BY s.last_heartbeat_at DESC NULLS LAST, s.started_at DESC, s.id DESC
        LIMIT ${limit + 1}
