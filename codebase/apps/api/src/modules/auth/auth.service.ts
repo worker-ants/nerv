@@ -434,6 +434,7 @@ export class AuthService {
         kind: 'not_found',
       });
     }
+    // 권한은 **배정할 범위**로 판정한다 — 범위가 정해진 뒤다(아래 assertCanManageScope)
     this.assertAdmin(org.roles as MembershipRole[]);
 
     const { rows: userRows } = await this.db.execute<{ id: string }>(
@@ -462,6 +463,8 @@ export class AuthService {
         });
       }
     }
+
+    await this.assertCanManageScope(input.actorUserId, org.id, projectId);
 
     const membershipId = newId();
     const { rows: inserted } = await this.db.execute<Record<string, unknown>>(sql`
@@ -517,21 +520,51 @@ export class AuthService {
    * 프로젝트가 없어서(문서 경로가 `/memberships/{id}`) 여기서 되짚는다.
    */
   async assertAdminOfMembership(membershipId: string, actorUserId: string): Promise<void> {
-    const { rows } = await this.db.execute<{ roles: string[] | null }>(sql`
-      -- 행위자의 역할 **전부**. "admin 우선 1건" 정렬은 겸직에서 절반을 잃는다.
-      SELECT array_remove(array_agg(DISTINCT actor.role::text), NULL) AS roles
-        FROM membership target
-   LEFT JOIN membership actor ON actor.org_id = target.org_id AND actor.user_id = ${actorUserId}
-       WHERE target.id = ${membershipId}
-       GROUP BY target.id
+    const { rows } = await this.db.execute<{ org_id: string; project_id: string | null }>(sql`
+      SELECT org_id, project_id FROM membership WHERE id = ${membershipId}
     `);
-    if (rows[0] === undefined) {
+    const target = rows[0];
+    if (target === undefined) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.not_found'), {
         kind: 'not_found',
       });
     }
-    // 행이 없으면 위에서 걸렸다. 여기서 빈 배열은 "대상은 있는데 행위자는 남이다"다.
-    this.assertAdmin((rows[0].roles ?? []) as MembershipRole[]);
+    await this.assertCanManageScope(actorUserId, target.org_id, target.project_id);
+  }
+
+  /**
+   * 이 범위의 멤버십·초대를 다룰 수 있는가 — **판정은 여기 한 곳이다**(D-05 · REQ-API-169).
+   *
+   * **조직 전체 범위는 조직 admin 만**(2026-09-24 사람 결정). 예전에는 그 조직 **어디서든**
+   * admin 이면 됐다 — 한 프로젝트의 admin 이 조직 전체 멤버의 역할을 바꾸고, 조직 전체
+   * 초대를 만들 수 있었다. 조직 admin 은 조직 단위(`project_id IS NULL`) admin 행을 가진
+   * 사람이고, 프로젝트 범위는 조직 admin 또는 **그 프로젝트의** admin 이다.
+   *
+   * 멤버 배정(EP-MBR-02)·역할 변경·삭제(EP-MBR-03·04)·초대 생성·회수(EP-INV-01·03)가 쓴다.
+   */
+  async assertCanManageScope(
+    actorUserId: string,
+    orgId: string,
+    projectId: string | null,
+  ): Promise<void> {
+    const { rows } = await this.db.execute<{
+      org_admin: boolean | null;
+      project_admin: boolean | null;
+    }>(sql`
+      SELECT bool_or(project_id IS NULL AND role = 'admin') AS org_admin,
+             bool_or(${projectId}::uuid IS NOT NULL AND project_id = ${projectId}::uuid
+                     AND role = 'admin') AS project_admin
+        FROM membership
+       WHERE org_id = ${orgId} AND user_id = ${actorUserId}
+    `);
+    const orgAdmin = rows[0]?.org_admin === true;
+    const projectAdmin = rows[0]?.project_admin === true;
+    if (orgAdmin || (projectId !== null && projectAdmin)) return;
+    throw new NervError(
+      NERV_ERROR.FORBIDDEN,
+      msg(projectId === null ? 'error.auth.org_admin_only' : 'error.auth.admin_only'),
+      { kind: 'role_required', required: ['admin'], scope: projectId === null ? 'org' : 'project' },
+    );
   }
 
   /** EP-PRJ-01 — 조직 멤버가 볼 수 있는 프로젝트. 조직 멤버십은 프로젝트 전체를 덮는다. */
@@ -693,7 +726,9 @@ export class AuthService {
     await this.assertOrgMembership(callerUserId, orgSlug);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT m.id, m.role::text AS role, m.created_at, u.id AS user_id, u.email,
-             u.display_name, u.state::text AS user_state, p.slug AS project_slug
+             u.display_name, u.state::text AS user_state, p.slug AS project_slug,
+             -- 화면은 slug 가 아니라 **이름**을 그린다(REQ-WEB-191) — slug 는 주소의 것이다
+             p.name AS project_name
         FROM membership m
         JOIN organization o ON o.id = m.org_id
         JOIN "user" u ON u.id = m.user_id

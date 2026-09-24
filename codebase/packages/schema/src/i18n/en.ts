@@ -93,6 +93,7 @@ export const en = {
   'common.create': 'Create',
   'common.delete': 'Delete',
   'common.edit': 'Edit',
+  'common.org': 'Organization',
   'error.approval.already_approved':
     "You already approved this document — the second approval is someone else's.",
   'error.approval.already_decided': 'This item has already been decided.',
@@ -105,6 +106,8 @@ export const en = {
   'error.approval.bulk_limit': 'You can decide up to {max} items at once.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
   'error.auth.admin_only': 'Only admins can do this.',
+  'error.auth.org_admin_only':
+    'Only organization admins can manage organization-wide access — project admins manage their own project only.',
   'error.auth.admin_only_import': 'Only admins can run imports.',
   'error.auth.admin_only_policy': 'Only admins can change gate policy and retention settings.',
   'error.auth.author_only': 'Only the author can edit this.',
@@ -232,6 +235,13 @@ export const en = {
   'inbox.subject.plan': 'Plan approval request',
   'inbox.subject.question': 'Agent question',
   'inbox.subject.spec_version': 'Spec approval request',
+  'invite.col.sent': 'Sent',
+  'invite.col.state': 'Status',
+  'invite.created_summary': '{email} → {org} / {scope} · {role}',
+  'invite.scope_org_all': 'Whole organization (every project)',
+  'invite.scope_org_hint':
+    'An organization-wide role applies to every project in this organization.',
+  'invite.scope_project': 'Project · {name}',
   'mcp.arg.relation_base_hash':
     'fingerprint of the target document — content_hash from nerv_spec_get. required when adding a relation',
   'mcp.arg.lease_seconds':
@@ -240,6 +250,14 @@ export const en = {
     'seize an edit lease held by someone else — the way out when a dead session still holds it',
   'session.detail': 'Details',
   'session.timeline_more': 'Load earlier activity',
+  'settings.gates.project_hint':
+    'Each project has its own gate policy — what you save applies to this project only.',
+  'settings.gates.title_project': 'Gate policy — {project}',
+  'settings.members.role_org_admin_only':
+    'Only organization admins can change organization-wide roles',
+  'settings.members.scope_rule':
+    'Organization-wide rows can be changed by organization admins only; project rows also by that project’s admins. Rows you cannot change are read-only.',
+  'settings.members.title_org': '{org} members & roles',
   'spec.derived_tasks': 'Derived tasks',
   'spec.derived_tasks.all': 'See all on the board',
   'spec.derived_tasks.empty': 'No tasks have come out of this document yet',
@@ -843,7 +861,7 @@ export const en = {
   'invite.revoke': 'Revoke',
   'invite.revoked': 'Revoked',
   'invite.role': 'Role',
-  'invite.scope': 'Membership scope',
+  'invite.scope': 'Applies to',
   'invite.scope_org': 'Whole organization',
   'invite.send': 'Create invitation',
   'invite.sending': 'Creating…',
@@ -879,7 +897,7 @@ export const en = {
   'onboarding.step1_slug_hint': 'Used in addresses (/o/…) — cannot be changed later',
   'onboarding.step1_wait':
     'If someone already runs an organization here, ask for an invitation rather than making another — split organizations mean split specs.',
-  'onboarding.step2': '② Your role: {role}',
+  'onboarding.step2': '② Your role in {org} · {scope}: {role}',
   'onboarding.step3': '③ What to do next',
   'onboarding.title': 'Get started',
   'onboarding.token_link': 'Settings › Agent tokens ▸',
@@ -1288,10 +1306,8 @@ export const en = {
   'settings.gates.failopen': 'Fail-open observation · read-only',
   'settings.gates.failopen_body':
     'Escalates after {count} in a row within {hours} hours. When it cannot decide it proceeds and records, and repeats push it up (D-14).',
-  'settings.gates.lead': 'The MVP edits three spec_gate keys — the rest is read-only.',
+  'settings.gates.lead': 'The MVP edits two spec_gate keys — the rest is read-only.',
   'settings.gates.saved': 'Gate policy saved.',
-  'settings.members.admin_only_post': 'can change roles — this list is read-only for you.',
-  'settings.members.admin_only_pre': 'Only',
   'settings.members.email': 'Email',
   'settings.members.empty': 'No members.',
   'settings.members.name': 'Name',
@@ -1300,7 +1316,7 @@ export const en = {
   'settings.members.last_role': 'Cannot remove the last role — the membership would disappear',
   'settings.members.role_admin_only': 'Only the admin role can make this change',
   'settings.members.role_changed': 'Role changed.',
-  'settings.members.scope': 'Membership scope',
+  'settings.members.scope': 'Applies to',
   'settings.tab.gates': 'Gate policy',
   'settings.tab.members': 'Members and roles',
   'settings.tab.tokens': 'Agent tokens',

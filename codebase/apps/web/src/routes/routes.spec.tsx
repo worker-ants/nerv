@@ -132,7 +132,8 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
 
   it('/settings 는 멤버 탭으로 리다이렉트한다', async () => {
     renderAt('/settings');
-    await waitFor(() => expect(screen.getByText('멤버·역할', { selector: 'h1' })).toBeDefined());
+    // 제목은 조직을 말한다("{조직} 멤버·역할" · REQ-WEB-191)
+    await waitFor(() => expect(screen.getByText(/멤버·역할$/, { selector: 'h1' })).toBeDefined());
   });
 
   it('/o/:org 는 화면 없이 / 로 리다이렉트한다 (§1.6 — 그림 비대상)', async () => {
@@ -142,9 +143,10 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
 
   it('설정 탭 3종이 전부 있다 — git 연동 탭은 Phase 2 (scope.md §4.1)', async () => {
     for (const [path, title] of [
-      ['/settings/members', '멤버·역할'],
-      ['/settings/tokens', '에이전트 토큰'],
-      ['/settings/gates', '게이트 정책'],
+      // 멤버는 조직을, 게이트는 프로젝트를 제목에 싣는다(REQ-WEB-191)
+      ['/settings/members', /멤버·역할$/],
+      ['/settings/tokens', /^에이전트 토큰$/],
+      ['/settings/gates', /^게이트 정책/],
     ] as const) {
       const { unmount } = renderAt(path);
       await waitFor(() => expect(screen.getByText(title, { selector: 'h1' })).toBeDefined());

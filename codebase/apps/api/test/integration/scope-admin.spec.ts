@@ -1,0 +1,153 @@
+// 조직 전체 범위는 조직 admin 만 — REQ-API-169 (2026-09-24 사람 결정 · 조직·프로젝트 경계 점검)
+//
+// 예전 판정은 "그 조직 **어디서든** admin 이면 된다" 였다. 한 프로젝트의 admin 이 조직 전체
+// 멤버의 역할을 바꾸고, 조직 전체 초대를 만들 수 있었다. 판정은 `AuthService.assertCanManageScope`
+// 한 곳이고 멤버 배정·역할 변경/삭제·초대 생성/회수가 같이 쓴다(D-05). 권한이라 실물로 본다.
+
+import { NERV_ERROR, newId } from '@nerv/schema';
+import { runMigrations } from '@nerv/schema/migrate';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AuthService } from '../../src/modules/auth/auth.service.js';
+import { InvitationService } from '../../src/modules/auth/invitation.service.js';
+import type { NervDb } from '../../src/common/database.module.js';
+import { createScratchDb } from './helpers.js';
+import type { ScratchDb } from './helpers.js';
+
+let db: ScratchDb;
+let pool: pg.Pool;
+let auth: AuthService;
+let invitations: InvitationService;
+const orgAdmin = newId();
+const sudokuAdmin = newId();
+const target = newId();
+let orgId: string;
+let sudokuId: string;
+
+beforeAll(async () => {
+  db = await createScratchDb('nerv_scopeadmin');
+  await runMigrations(db.url);
+  pool = new pg.Pool({ connectionString: db.url });
+  const orm = drizzle(pool) as unknown as NervDb;
+  auth = new AuthService(orm);
+  invitations = new InvitationService(orm, auth);
+
+  orgId = newId();
+  sudokuId = newId();
+  await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'acme','에이스')`, [
+    orgId,
+  ]);
+  await pool.query(
+    `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'sudoku','SUD','스도쿠'), ($3,$2,'clemvion','CLV','clemvion')`,
+    [sudokuId, orgId, newId()],
+  );
+  for (const [id, email, name] of [
+    [orgAdmin, 'org@example.com', '조직관리자'],
+    [sudokuAdmin, 'sudoku@example.com', '스도쿠관리자'],
+    [target, 'yuna@example.com', '유나'],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,$3,'active')`,
+      [id, email, name],
+    );
+  }
+  await pool.query(
+    `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES
+       ($1,$2,NULL,$3,'admin'), ($4,$2,$5,$6,'admin')`,
+    [newId(), orgId, orgAdmin, newId(), sudokuId, sudokuAdmin],
+  );
+});
+
+afterAll(async () => {
+  await pool.end();
+  await db.drop();
+});
+
+/** 권한 거절인가 — 다른 실패(없는 사용자 등)를 권한 통과로 오인하지 않게 코드를 본다 */
+async function forbidden(p: Promise<unknown>): Promise<boolean> {
+  try {
+    await p;
+    return false;
+  } catch (e) {
+    return (e as { code?: string }).code === NERV_ERROR.FORBIDDEN;
+  }
+}
+
+async function membershipOf(projectId: string | null): Promise<string> {
+  const id = newId();
+  await pool.query(
+    `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'viewer')`,
+    [id, orgId, projectId, target],
+  );
+  return id;
+}
+
+describe('멤버 배정 (EP-MBR-02)', () => {
+  const add = (actor: string, project: string | null, role = 'planner') =>
+    auth.addMember({
+      actorUserId: actor,
+      orgSlug: 'acme',
+      email: 'yuna@example.com',
+      role,
+      projectSlug: project,
+    });
+
+  it('프로젝트 admin 은 조직 전체로 배정할 수 없다', async () => {
+    expect(await forbidden(add(sudokuAdmin, null))).toBe(true);
+  });
+
+  it('프로젝트 admin 은 남의 프로젝트에 배정할 수 없다', async () => {
+    expect(await forbidden(add(sudokuAdmin, 'clemvion'))).toBe(true);
+  });
+
+  it('프로젝트 admin 은 자기 프로젝트에 배정한다', async () => {
+    await expect(add(sudokuAdmin, 'sudoku', 'qa')).resolves.toBeDefined();
+  });
+
+  it('조직 admin 은 조직 전체로도 배정한다', async () => {
+    await expect(add(orgAdmin, null, 'designer')).resolves.toBeDefined();
+  });
+});
+
+describe('역할 변경·삭제 (EP-MBR-03·04)', () => {
+  it('조직 전체 멤버십은 프로젝트 admin 이 건드릴 수 없다', async () => {
+    const id = await membershipOf(null);
+    expect(await forbidden(auth.assertAdminOfMembership(id, sudokuAdmin))).toBe(true);
+    await expect(auth.assertAdminOfMembership(id, orgAdmin)).resolves.toBeUndefined();
+  });
+
+  it('자기 프로젝트의 멤버십은 프로젝트 admin 이 다룬다', async () => {
+    const id = await membershipOf(sudokuId);
+    await expect(auth.assertAdminOfMembership(id, sudokuAdmin)).resolves.toBeUndefined();
+  });
+});
+
+describe('초대 (EP-INV-01·03)', () => {
+  const invite = (actor: string, project: string | null, email: string) =>
+    invitations.create({
+      actorUserId: actor,
+      orgSlug: 'acme',
+      email,
+      role: 'viewer',
+      projectSlug: project,
+    });
+
+  it('프로젝트 admin 은 조직 전체 초대를 만들 수 없다', async () => {
+    expect(await forbidden(invite(sudokuAdmin, null, 'a@example.com'))).toBe(true);
+  });
+
+  it('프로젝트 admin 은 자기 프로젝트로 부른다 — 그 초대는 거둘 수도 있다', async () => {
+    const created = (await invite(sudokuAdmin, 'sudoku', 'b@example.com')) as { id: string };
+    await expect(
+      invitations.revoke({ actorUserId: sudokuAdmin, invitationId: created.id }),
+    ).resolves.toEqual({ ok: true });
+  });
+
+  it('조직 admin 이 만든 조직 전체 초대는 프로젝트 admin 이 거둘 수 없다', async () => {
+    const created = (await invite(orgAdmin, null, 'c@example.com')) as { id: string };
+    expect(
+      await forbidden(invitations.revoke({ actorUserId: sudokuAdmin, invitationId: created.id })),
+    ).toBe(true);
+  });
+});

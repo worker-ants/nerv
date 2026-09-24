@@ -1,6 +1,6 @@
 // /settings/gates — S8 게이트 정책 (api.md §2.1a · D-06 · FR-14)
 //
-// MVP 편집 항목은 `spec_gate.*` 3키다 — `failopen`·`retention` 은 표시만 한다(§2.1a).
+// MVP 편집 항목은 `spec_gate.*` 두 키다(`tier_boundaries` · `dynamic_escalation`) — `failopen`·`retention` 은 표시만 한다(§2.1a).
 // **admin 아닌 역할에는 API 와 UI 양쪽이 거부한다**: 여기서는 비활성 + 사유, 서버에서는 403.
 // 둘 중 하나만 있으면 게이트가 우회 가능해지거나 사용자가 이유 없이 막힌다.
 
@@ -23,6 +23,7 @@ import {
   Input,
   PageHeader,
   SectionTitle,
+  Select,
 } from '../../components/ui/primitives.js';
 
 export const Route = createFileRoute('/settings/gates')({ component: GatesTab });
@@ -33,9 +34,15 @@ function GatesTab(): React.JSX.Element {
   // 소속은 헤더의 select 와 같은 규칙으로 정한다(scope.ts) — 예전에는 멤버십 한 행의
   // `project_slug` 를 썼고, 조직 단위 멤버십만 가진 admin 은 그 값이 `null` 이라
   // **자기 조직의 게이트 정책을 아예 열지 못했다**(실측 2026-08-24).
-  const { orgSlug, projectSlug } = useScope();
+  const { orgSlug, projectSlug, projects } = useScope();
+  /**
+   * **고치는 프로젝트를 이 화면이 고른다**(2026-09-24 · REQ-WEB-191). 게이트 정책은 프로젝트의
+   * 것인데, 예전에는 대상이 헤더가 **기억한** 프로젝트였고 제목 어디에도 이름이 없었다 —
+   * admin 이 마지막으로 들렀던 프로젝트의 정책을 모르고 바꿀 수 있었다. 기억은 초깃값일 뿐이다.
+   */
+  const [picked, setPicked] = useState<string | null>(null);
   // 프로젝트가 없으면 편집할 정책도 없다 — 빈 slug 로 서버를 부르지 않는다(조용한 500 의 원인)
-  const slug = projectSlug ?? '';
+  const slug = picked ?? projectSlug ?? '';
   const project = useProject(slug);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
@@ -43,7 +50,8 @@ function GatesTab(): React.JSX.Element {
   // `membership?.role` 은 **없는 필드**였다(멤버십이 나르는 것은 `roles` 배열이다).
   // `Membership` 이 `Record<string, unknown>` 을 확장해 타입이 잡지 못했고, 그래서
   // 이 탭은 누구에게나 읽기 전용이었다 — admin 에게도.
-  const isAdmin = rolesInProject(me.data, orgSlug, projectSlug).includes('admin');
+  const isAdmin = rolesInProject(me.data, orgSlug, slug === '' ? null : slug).includes('admin');
+  const projectName = String(projects.find((p) => p['slug'] === slug)?.['name'] ?? slug);
 
   const stored = GatePolicySchema.safeParse(project.data?.['gate_policy'] ?? {});
   const policy = stored.success ? stored.data : GatePolicySchema.parse({});
@@ -76,7 +84,32 @@ function GatesTab(): React.JSX.Element {
 
   return (
     <section className="flex max-w-2xl flex-col gap-5">
-      <PageHeader title={t('settings.tab.gates')} />
+      <PageHeader
+        title={
+          slug === ''
+            ? t('settings.tab.gates')
+            : t('settings.gates.title_project', { project: projectName })
+        }
+      />
+      <Field label={t('common.project')} hint={t('settings.gates.project_hint')}>
+        <Select
+          data-testid="gates-project"
+          value={slug}
+          onChange={(e) => {
+            setPicked(e.target.value);
+            // 다른 프로젝트의 값을 들고 가면 그 프로젝트에 **옛 프로젝트의 경계**가 저장된다
+            setBoundaries(null);
+            setDynamicEscalation(null);
+          }}
+          className="max-w-xs"
+        >
+          {projects.map((p) => (
+            <option key={String(p['slug'])} value={String(p['slug'])}>
+              {String(p['name'])} ({String(p['slug'])})
+            </option>
+          ))}
+        </Select>
+      </Field>
       {!isAdmin && (
         <p className="rounded-nerv border border-border bg-status-waiting-soft px-3 py-2 text-sm text-status-waiting">
           {t('settings.gates.admin_only_pre')} <code className="font-mono">admin</code>{' '}
