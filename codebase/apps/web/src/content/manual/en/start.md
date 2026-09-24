@@ -67,7 +67,7 @@ One person can be `admin` in the organization and `developer` on a project. **Ho
 Fill in a name, an email and a password on the sign-up screen and the account is created — then you are asked **once whether the address is really yours.** You get in after confirming it.
 
 1. Press [Sign up] and the form is replaced by **"Confirmation mail sent"**, which says which address it went to. The form is not left behind: there is nothing to type again.
-2. Open the link in the mail. **Confirming signs you in right there** — you do not retype the password you just chose.
+2. Open the link in the mail. **Confirming signs you in right there and takes you to Get started, where you create an organization** — you do not retype the password you just chose. Any invitation waiting for you sits there as a card, ahead of everything else. If you signed up from an invitation link, you go back to that invitation instead.
 3. Signing in before confirming is refused with **"Your email is not confirmed yet."** That does **not** mean the password is wrong, so do not retype it — what is left to do is open your inbox.
 
 - **If the mail is missing, check the spam folder.** If it is not there either, use **[Resend the confirmation mail]**, which sits on both the sign-up and the sign-in screen. One press turns it into "Sent" and it will not press again on that screen — reload the page to get it back.

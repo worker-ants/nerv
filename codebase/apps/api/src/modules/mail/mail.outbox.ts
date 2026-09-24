@@ -23,6 +23,7 @@ import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { apiUrlFromEnv, webUrlFromEnv } from '../../common/origins.js';
 import { mailEnabled } from './mail.config.js';
+import { verifyEmailLink } from './verify-link.js';
 
 /** 워커가 집어 가는 한 줄 */
 export interface DueMail extends Record<string, unknown> {
@@ -102,14 +103,17 @@ export class MailOutbox {
     name: string;
     token: string;
     locale?: string | null;
+    /** 확인이 끝나면 돌아갈 화면 — 요청이 실어 온 `callbackURL`(REQ-WEB-089 · REQ-WEB-188) */
+    returnTo?: string | null;
   }): Promise<boolean> {
     if (!mailEnabled()) return false;
     const locale: Locale = isLocale(input.locale) ? input.locale : DEFAULT_LOCALE;
-    const api = apiUrlFromEnv().replace(/\/+$/, '');
-    const back = `${webUrlFromEnv().replace(/\/+$/, '')}/`;
-    const url =
-      `${api}/api/auth/verify-email` +
-      `?token=${encodeURIComponent(input.token)}&callbackURL=${encodeURIComponent(back)}`;
+    const url = verifyEmailLink({
+      api: apiUrlFromEnv(),
+      web: webUrlFromEnv(),
+      token: input.token,
+      returnTo: input.returnTo ?? null,
+    });
     const values = { name: input.name === '' ? input.email : input.name, url };
     await this.db.execute(sql`
       INSERT INTO email_outbox (id, kind, to_email, locale, subject, body_text, ref_type)
