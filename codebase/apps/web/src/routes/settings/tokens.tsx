@@ -48,6 +48,7 @@ import {
   Th,
   Tr,
 } from '../../components/ui/primitives.js';
+import { ScopeBadge } from '../../components/scope-badge.js';
 
 export const Route = createFileRoute('/settings/tokens')({ component: TokensTab });
 
@@ -374,15 +375,22 @@ function TokensTab(): React.JSX.Element {
   );
 }
 
-/** 프로젝트 칸 — 이름으로 읽고 slug 로 대조한다(설정 파일에 적는 것은 slug 다). */
+/**
+ * 프로젝트 칸 — 이름으로 읽고 slug 로 대조한다(설정 파일에 적는 것은 slug 다).
+ *
+ * **내 토큰은 모든 조직의 것이다**(REQ-WEB-192) — 조직이 둘 이상이면 조직이 앞에 선다.
+ * 조직 전체 표(`OrgTokens`)는 한 조직의 것이라 조직을 넘기지 않는다.
+ */
 function ProjectCell({ token }: { token: Record<string, unknown> }): React.JSX.Element {
-  const slug = String(token['project_slug'] ?? '');
-  const name = token['project_name'];
   return (
-    <span className="flex flex-col">
-      <span className="font-medium">{typeof name === 'string' && name !== '' ? name : slug}</span>
-      <span className="font-mono text-2xs text-text-faint">{slug}</span>
-    </span>
+    <ScopeBadge
+      className="text-sm text-text"
+      orgSlug={token['org_slug']}
+      orgName={token['org_name']}
+      projectSlug={token['project_slug'] ?? ''}
+      projectName={token['project_name']}
+      withSlug
+    />
   );
 }
 

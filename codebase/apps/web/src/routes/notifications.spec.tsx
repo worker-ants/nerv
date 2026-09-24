@@ -317,3 +317,47 @@ describe('REQ-WEB-163 — 알림이 뷰 상태까지 싣는다', () => {
     expect(history.location.search).toContain('diff=v3..v4');
   });
 });
+
+// ── 범위 — REQ-WEB-192 (2026-09-24 조직·프로젝트 경계 점검) ─────────────────────────
+//
+// 알림의 프로젝트 칸은 **slug** 였고 좁은 화면에서 숨었다 — API 는 이름을 이미 주고 있었다.
+describe('알림은 어느 조직·프로젝트의 것인지 이름으로 말한다 (REQ-WEB-192)', () => {
+  it('프로젝트 이름을 그리고, 좁은 화면에서도 숨지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const u = String(url);
+        if (u.includes('unread-count')) {
+          return { ok: true, status: 200, json: async () => ({ count: 1 }) };
+        }
+        if (u.includes('/me/notifications')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [
+                {
+                  id: 'n-1',
+                  state: 'unread',
+                  event_type: NERV_EVENT.SPEC_APPROVED,
+                  project_slug: 'clemvion',
+                  project_name: 'Clemvion 본편',
+                  org_slug: 'default',
+                  org_name: 'Default',
+                  spec_key: 'SPC-1',
+                  created_at: new Date().toISOString(),
+                },
+              ],
+              next_cursor: null,
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({ items: [], memberships: [] }) };
+      }),
+    );
+    renderAt('/notifications');
+    const badge = await screen.findByTestId('scope-badge');
+    expect(badge.textContent).toBe('Clemvion 본편');
+    expect(badge.className).not.toContain('hidden');
+  });
+});

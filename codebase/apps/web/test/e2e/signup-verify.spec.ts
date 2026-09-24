@@ -19,6 +19,10 @@ interface Inbox {
 }
 
 test('가입하면 확인 메일이 오고, 링크를 열면 들어간다', async ({ page, request }) => {
+  // 테스트 시한이 기다림(메일 폴링 90초)보다 길어야 한다 — invite-mail.spec 과 같은 결함이다
+  // (2026-09-24 CI 실측: 기본 시한 60초가 폴링보다 먼저 끊었다)
+  test.setTimeout(150_000);
+
   const email = `newbie-${Date.now()}@e2e.invalid`;
   const password = 'nerv-e2e-1234';
 

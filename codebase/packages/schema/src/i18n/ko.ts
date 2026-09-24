@@ -240,11 +240,15 @@ export const ko = {
   'invite.scope_org_all': '조직 전체(모든 프로젝트)',
   'invite.scope_org_hint': '조직 전체 역할은 이 조직의 모든 프로젝트에 적용됩니다.',
   'invite.scope_project': '프로젝트 · {name}',
+  'invite.invited_by': '초대한 사람: {name}',
+  'invite.mine_body_project': '{org} 이(가) 당신을 {project} 프로젝트에 {role} 로 초대했습니다.',
   'mcp.arg.relation_base_hash':
     '상대 문서의 지문 — nerv_spec_get 응답의 content_hash. 관계를 더할 때는 필수다',
   'mcp.arg.lease_seconds':
     '리스 길이(초) — 최대 1800. 더 긴 값은 거절한다: 자동 회수까지의 시간을 늘리는 것은 조정 규칙을 바꾸는 일이다.',
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
+  'scope.elsewhere': '지금 헤더의 조직이 아닌 {org} 의 일입니다',
+  'scope.org_wide': '조직 전체',
   'session.detail': '상세',
   'session.timeline_more': '앞쪽 활동 더 보기',
   'settings.gates.project_hint':
@@ -838,7 +842,7 @@ export const ko = {
   'invite.sent_at': '{when} 발송',
   'invite.unsent': '미발송',
   'invite.link_once': '이 링크는 **지금 한 번만** 보입니다 — 복사해서 전달하세요.',
-  'invite.mine_body': '{org} 이(가) 당신을 {role} 로 초대했습니다.',
+  'invite.mine_body': '{org} 이(가) 당신을 조직 전체에 {role} 로 초대했습니다.',
   'invite.mine_title': '받은 초대',
   'invite.new': '+ 초대하기',
   'invite.none': '보낸 초대가 없습니다.',
@@ -1323,7 +1327,7 @@ export const ko = {
   'settings.tokens.human_only': '사람 전용',
   'settings.tokens.human_only_title': '사람 전용 권한 — 토큰에 부여할 수 없습니다(D-08)',
   'settings.tokens.issue': '발급',
-  'settings.tokens.issued': '발급된 토큰',
+  'settings.tokens.issued': '내 토큰 — 모든 조직',
   'settings.tokens.last_host': '마지막 호스트',
   'settings.tokens.last_used': '마지막 사용',
   'settings.tokens.lead': '원문은 발급 직후 한 번만 보입니다 — 목록에는 prefix 만 남습니다.',

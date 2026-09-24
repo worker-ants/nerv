@@ -23,6 +23,7 @@ import {
   PageHeader,
   Skeleton,
 } from '../components/ui/primitives.js';
+import { ScopeBadge } from '../components/scope-badge.js';
 
 export const Route = createFileRoute('/notifications')({ component: NotificationScreen });
 
@@ -193,9 +194,14 @@ function NotificationScreen(): React.JSX.Element {
                 <span className="font-medium text-text">{t(eventLabelKey(type))}</span>
                 {key !== '' && <Mono className="ml-2">{key}</Mono>}
               </span>
-              <span className="hidden shrink-0 text-xs text-text-mute sm:inline">
-                {String(n['project_slug'] ?? '')}
-              </span>
+              {/* 좁은 화면에서도 남긴다 — 어느 프로젝트의 알림인지는 줄의 절반이다(REQ-WEB-192) */}
+              <ScopeBadge
+                className="max-w-[40%] shrink-0"
+                orgSlug={n['org_slug']}
+                orgName={n['org_name']}
+                projectSlug={n['project_slug']}
+                projectName={n['project_name']}
+              />
               <span className="hidden w-28 shrink-0 truncate text-right text-xs text-text-faint md:inline">
                 {String(n['actor_name'] ?? '')}
                 {n['is_agent'] === true ? ' 🤖' : ''}
