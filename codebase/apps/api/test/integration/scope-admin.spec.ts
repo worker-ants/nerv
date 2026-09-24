@@ -189,3 +189,85 @@ describe('조직 전체 토큰 표 (EP-TOK-04)', () => {
     ).resolves.toBeInstanceOf(Array);
   });
 });
+
+// ── 같은 부류의 나머지도 조직 admin 만 — REQ-API-173 (2026-09-24 사람 결정) ──────────────
+describe('남의 토큰 폐기 (EP-TOK-03)', () => {
+  async function tokenOfTarget(): Promise<string> {
+    // 앞 절이 이미 같은 멤버십을 만들었을 수 있다 — 순서에 기대지 않는다
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'viewer')
+       ON CONFLICT DO NOTHING`,
+      [newId(), orgId, sudokuId, target],
+    );
+    return (
+      await auth.issueToken({
+        projectId: sudokuId,
+        userId: target,
+        name: 'leak',
+        scopes: ['spec:read'],
+      })
+    ).tokenId;
+  }
+  async function revokedAt(tokenId: string): Promise<string | null> {
+    const { rows } = await pool.query<{ revoked_at: string | null }>(
+      `SELECT revoked_at FROM api_token WHERE id = $1`,
+      [tokenId],
+    );
+    return rows[0]?.revoked_at ?? null;
+  }
+
+  it('프로젝트 admin 은 자기 프로젝트라도 남의 토큰을 끊을 수 없다', async () => {
+    const tokenId = await tokenOfTarget();
+    await expect(auth.revokeToken(tokenId, sudokuAdmin)).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+    });
+    expect(await revokedAt(tokenId)).toBeNull();
+  });
+
+  it('조직 admin 은 끊는다 — 본인도 자기 것을 끊는다', async () => {
+    const byOrg = await tokenOfTarget();
+    await expect(auth.revokeToken(byOrg, orgAdmin)).resolves.toBeUndefined();
+    expect(await revokedAt(byOrg)).not.toBeNull();
+    const own = await tokenOfTarget();
+    await expect(auth.revokeToken(own, target)).resolves.toBeUndefined();
+    expect(await revokedAt(own)).not.toBeNull();
+  });
+});
+
+describe('초대 목록 (EP-INV-02)', () => {
+  it('프로젝트 admin 은 자기 프로젝트의 초대만 본다 — 조직 전체·남의 프로젝트 초대는 빠진다', async () => {
+    const mine = (await invitations.create({
+      actorUserId: sudokuAdmin,
+      orgSlug: 'acme',
+      projectSlug: 'sudoku',
+      email: 'mine@example.com',
+      role: 'developer',
+    })) as { id: string };
+    const orgWide = (await invitations.create({
+      actorUserId: orgAdmin,
+      orgSlug: 'acme',
+      projectSlug: null,
+      email: 'orgwide@example.com',
+      role: 'viewer',
+    })) as { id: string };
+    const other = (await invitations.create({
+      actorUserId: orgAdmin,
+      orgSlug: 'acme',
+      projectSlug: 'clemvion',
+      email: 'other@example.com',
+      role: 'viewer',
+    })) as { id: string };
+
+    const seen = (await invitations.list({ actorUserId: sudokuAdmin, orgSlug: 'acme' })).map(
+      (r) => r.id,
+    );
+    expect(seen).toContain(mine.id);
+    expect(seen).not.toContain(orgWide.id);
+    expect(seen).not.toContain(other.id);
+
+    const all = (await invitations.list({ actorUserId: orgAdmin, orgSlug: 'acme' })).map(
+      (r) => r.id,
+    );
+    expect(all).toEqual(expect.arrayContaining([mine.id, orgWide.id, other.id]));
+  });
+});

@@ -29,6 +29,7 @@ Under **Invitations** on the Members tab, pick an email, a role and **what it ap
 - It **expires after 7 days**. Just make a new one.
 - It is the **same link** whether or not they already have an account. Without one they sign up and are returned to the invitation automatically.
 - **The list of sent invitations says when each one last went out** (**Unsent** if it never did). Not sent and sent-but-not-arrived are different problems, and an admin who cannot tell them apart makes the same invitation three times.
+- **You see the invitations you could have sent.** Organization admins see every invitation in the organization; a project’s admin sees only the invitations to that project.
 - Sent it by mistake? **Revoke** it from the list. Revoking keeps the record — who invited whom is part of the audit trail.
 
 On the receiving side the invitation shows as a card on **Home, Getting started and Notifications**, and can be accepted right there. **Someone without an account has to sign up and confirm their email before they can accept** — on a deployment that can send mail; the steps are under "Creating an account" in [Getting started](/help/start).

@@ -819,7 +819,7 @@
       <tr><td>EP-MBR-04</td><td><code>DELETE /api/v1/memberships/{id}</code></td><td>범위의 admin(조직 전체는 <b>조직 admin</b> — §2.1b)</td><td>—</td><td><code>{ok:true}</code></td><td>★<code>member.removed</code></td></tr>
       <tr><td>EP-TOK-01</td><td><code>GET /api/v1/me/tokens</code></td><td>본인</td><td>—</td><td><code>Page&lt;TokenSummary&gt;</code>(prefix·scopes·last_used_at, 원문 없음)</td><td>—</td></tr>
       <tr><td>EP-TOK-02</td><td><code>POST /api/v1/me/tokens</code></td><td>본인(역할이 허용하는 권한의 부분집합만)</td><td><code>TokenCreateInput</code>(project, <b><code>org?</code></b>(같은 slug 가 여러 조직에 있을 때의 한정자 — §1.2 · REQ-API-152), name, scopes[], <b><code>expires_at</code></b> — 전표가 오래 <code>expires</code> 라 적었는데 <code>.strict()</code> 라 그 이름은 무시가 아니라 <b>400</b> 이다)</td><td><code>TokenCreateResult</code>(<b>원문 1회 반환</b> + <b><code>project{slug,name}</code>·<code>name</code>·<code>expires_at</code>·<code>scopes</code></b> — REQ-API-160: 원문이 한 번뿐이므로 <b>그 한 번이 자기를 설명해야 한다</b>) — 발급은 역할과 교집합하지 않고 저장한다. 상한은 §1.6a 대로 <b>검증 시점</b>에 걸린다: 발급 때 잘라 두면 나중에 역할이 넓어져도 토큰이 좁은 채로 남는다. 화면은 역할 밖 권한을 <b>보이되 잠근다</b>(2026-09-02 사람 결정)</td><td>★<code>token.created</code></td></tr>
-      <tr><td>EP-TOK-03</td><td><code>DELETE /api/v1/me/tokens/{id}</code></td><td>본인 또는 admin</td><td>—</td><td><code>{ok:true}</code>(즉시 폐기, <code>revoked_at</code> 기록)</td><td>★<code>token.revoked</code></td></tr>
+      <tr><td>EP-TOK-03</td><td><code>DELETE /api/v1/me/tokens/{id}</code></td><td>본인 또는 <b>조직 admin</b>(§2.1b · REQ-API-173)</td><td>—</td><td><code>{ok:true}</code>(즉시 폐기, <code>revoked_at</code> 기록)</td><td>★<code>token.revoked</code></td></tr>
       <tr><td>EP-TOK-04</td><td><code>GET /api/v1/orgs/{org}/tokens</code></td><td><b>조직 admin</b>(§2.1b · REQ-API-172)</td><td><code>TokenAdminListQuery</code> — 질의 인자는 <b>없다</b>(2026-09-06 정정: <code>project</code>·<code>user</code>·<code>cursor</code> 는 컨트롤러가 읽지 않는다)</td><td><code>Page&lt;TokenAdminSummary&gt;</code>(소유자·<b>프로젝트(slug·name)</b>·prefix·scopes·expires_at·last_used_at·created_at, 원문 없음 — REQ-API-160) — S8 admin의 조직 전체 토큰 표(<a href="ui-wireframes.html">3.6 화면 설계</a> §2.8) 데이터 소스, EP-TOK-03의 admin 폐기와 짝</td><td>—</td></tr>
     </tbody>
   </table></div>
@@ -858,7 +858,8 @@
     <li>판정은 <code>AuthService.assertCanManageScope</code> <b>한 곳</b>이고 다섯 경로(EP-MBR-02·03·04 · EP-INV-01·03)가 같이 쓴다. 대상의 범위는 배정이면 요청의 <code>project</code>, 변경·삭제면 그 멤버십의 <code>project_id</code>, 회수면 그 초대의 <code>project_id</code> 다 — 만들 수 없는 초대를 거둘 수 있으면 규칙이 둘이다.</li>
     <li>화면은 같은 규칙으로 줄마다 잠근다(<a href="screens.html">4.5</a> REQ-WEB-191 · REQ-WEB-075).</li>
     <li><b>조직 수준 조작도 조직 admin 만이다</b>(2026-09-24 — 같은 날 사람 결정 · REQ-API-171). 처음에는 이 결정의 범위를 멤버십과 초대로 두고 조직 이름·삭제·새 프로젝트(EP-ORG-04·05 · EP-PRJ-02)를 "조직 안의 admin" 으로 남겼는데, 그러면 한 프로젝트의 admin 이 조직 이름을 바꾸고 조직에 프로젝트를 늘릴 수 있었다. 세 경로도 같은 판정(<code>assertCanManageScope</code> · 조직 전체 범위)을 쓴다. 프로젝트 자신의 설정(EP-PRJ-04·05)은 그대로 그 프로젝트의 admin 도 한다.</li>
-    <li><b>조직 전체 토큰 표도 조직 admin 만이다</b>(2026-09-24 — 같은 날 사람 결정 · REQ-API-172). 이 표(EP-TOK-04)는 조직의 <b>모든 사람의 모든 토큰</b>을 보인다 — "조직 안 어느 admin" 으로 열려 있던 동안 한 프로젝트의 admin 이 남의 프로젝트 토큰까지 볼 수 있었다. 같은 판정을 쓴다. 토큰 폐기(EP-TOK-03)의 "본인 또는 admin" 은 이 결정의 범위 밖이다.</li>
+    <li><b>조직 전체 토큰 표도 조직 admin 만이다</b>(2026-09-24 — 같은 날 사람 결정 · REQ-API-172). 이 표(EP-TOK-04)는 조직의 <b>모든 사람의 모든 토큰</b>을 보인다 — "조직 안 어느 admin" 으로 열려 있던 동안 한 프로젝트의 admin 이 남의 프로젝트 토큰까지 볼 수 있었다. 같은 판정을 쓴다.</li>
+    <li><b>같은 부류의 나머지도 조직 admin 만이다</b>(2026-09-24 — 같은 날 사람 결정 · REQ-API-173). "조직 안 어느 admin" 으로 조직 전체의 것을 열던 판정이 둘 더 남아 있었다. <b>남의 토큰 폐기(EP-TOK-03)</b> 는 그 토큰 프로젝트의 admin 도 할 수 있었는데, 남의 토큰은 조직 전체 토큰 표(조직 admin 만)에서만 보인다 — 볼 수 없는 것을 끊는 권한은 규칙이 둘이라는 뜻이라 본인 또는 조직 admin 으로 좁혔다. <b>초대 목록(EP-INV-02)</b> 은 조직 안 어느 admin 이든 조직의 모든 초대를 봤다 — 프로젝트 admin 은 자기 프로젝트로 부르고 거두므로(REQ-API-169) 목록을 막지 않고 <b>자기가 admin 인 프로젝트의 초대만</b> 보인다(조직 전체 초대·남의 프로젝트 초대는 빠진다). 프로젝트 자신의 일(작업·세션·승인·EP-PRJ-04·05)은 이 부류가 아니다 — 그 프로젝트의 admin 이 계속 한다.</li>
   </ul>
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
@@ -866,6 +867,7 @@
       <tr><td>REQ-API-169</td><td>WHEN 멤버십을 배정·변경·삭제하거나 초대를 만들거나 거두면 THE SYSTEM SHALL 그 대상의 <b>범위</b>로 권한을 판정한다 — 조직 전체 범위는 조직 단위 admin 멤버십을 가진 사람만, 프로젝트 범위는 조직 admin 또는 그 프로젝트의 admin 만 허용하고, 아니면 403 으로 거절한다. THE SYSTEM SHALL 이 판정을 한 곳에서 한다(D-05)</td></tr>
       <tr><td>REQ-API-171</td><td>WHEN 조직 이름을 바꾸거나(EP-ORG-04) 조직을 지우거나(EP-ORG-05) 조직에 프로젝트를 만들면(EP-PRJ-02) THE SYSTEM SHALL 조직 단위 admin 멤버십을 가진 사람만 허용하고 아니면 403 으로 거절한다 — 판정은 REQ-API-169 와 같은 한 곳이다</td></tr>
       <tr><td>REQ-API-172</td><td>WHEN 조직 전체 토큰 표(EP-TOK-04)를 조회하면 THE SYSTEM SHALL 조직 단위 admin 멤버십을 가진 사람만 허용하고 아니면 403 으로 거절한다 — 판정은 REQ-API-169 와 같은 한 곳이다</td></tr>
+      <tr><td>REQ-API-173</td><td>WHEN 남의 API 토큰을 폐기(EP-TOK-03)하면 THE SYSTEM SHALL 그 토큰의 조직에 조직 단위 admin 멤버십을 가진 사람만 허용하고 아니면 없는 토큰과 같이 거절한다. WHEN 초대 목록(EP-INV-02)을 조회하면 THE SYSTEM SHALL 조직 단위 admin 에게는 조직의 모든 초대를, 프로젝트 admin 에게는 자기가 admin 인 프로젝트의 초대만 돌려준다</td></tr>
     </tbody>
   </table></div>
 
@@ -1264,7 +1266,7 @@ basis_superseded: false
     <thead><tr><th>ID</th><th>메서드·경로</th><th>권한</th><th>요청</th><th>응답</th></tr></thead>
     <tbody>
       <tr><td>EP-INV-01</td><td><code>POST /api/v1/orgs/{org}/invitations</code></td><td>범위의 admin(조직 전체는 <b>조직 admin</b> — §2.1b)</td><td><code>{email, role, project?}</code></td><td><code>{id, email, role, token, expires_in_days, queued}</code> — <b>토큰 원문은 여기서 한 번만</b>. <code>queued</code> 는 메일을 줄 세웠는지다</td></tr>
-      <tr><td>EP-INV-02</td><td><code>GET /api/v1/orgs/{org}/invitations</code></td><td>admin</td><td>—</td><td>초대 목록(<code>pending</code>·<code>accepted</code>·<code>revoked</code>·<code>expired</code>)</td></tr>
+      <tr><td>EP-INV-02</td><td><code>GET /api/v1/orgs/{org}/invitations</code></td><td>admin — 전부는 <b>조직 admin</b>, 프로젝트 admin 은 자기 프로젝트의 초대만(§2.1b · REQ-API-173)</td><td>—</td><td>초대 목록(<code>pending</code>·<code>accepted</code>·<code>revoked</code>·<code>expired</code>)</td></tr>
       <tr><td>EP-INV-03</td><td><code>DELETE /api/v1/invitations/{id}</code></td><td>범위의 admin(조직 전체는 <b>조직 admin</b> — §2.1b)</td><td>—</td><td><code>{ok:true}</code> — 회수(기록은 남는다)</td></tr>
       <tr><td>EP-INV-04</td><td><code>GET /api/v1/invitations/{token}</code></td><td><b>공개</b></td><td>—</td><td>조직·역할·상태 + <code>email_hint</code>(가려서)</td></tr>
       <tr><td>EP-INV-05</td><td><code>POST /api/v1/invitations/{token}/accept</code></td><td>인증</td><td>—</td><td>멤버십 생성</td></tr>
