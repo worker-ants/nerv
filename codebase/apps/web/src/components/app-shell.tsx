@@ -24,7 +24,7 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { signOut } from '../lib/session.js';
-import { useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
+import { inboxTotal, useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
 import { chapterForRoute } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
@@ -234,7 +234,10 @@ export function AppShell({
   }, [drawerOpen]);
 
   const banner = connectionBanner(t, state, offline);
-  const pending = inbox.data?.length ?? 0;
+  // **쪽 길이가 아니라 전체 수다**(2026-09-24 · REQ-API-166). 목록이 커서로 나뉜 뒤로
+  // 첫 쪽 길이를 세면 배지가 30 에서 멈춘다 — 배지와 목록이 어긋나면 지울 수 없는
+  // 숫자가 남는다(알림 배지에서 이미 겪은 자리 · REQ-WEB-035).
+  const pending = inboxTotal(inbox.data);
   /**
    * **배지는 결정이 필요한 것만 센다**(2026-09-07 · REQ-WEB-149 · FR-12). 전체 unread 를
    * 세던 동안 실측 767건 중 99건만 결정이고, 나머지는 배경 활동이었다 — 배지가 그것을

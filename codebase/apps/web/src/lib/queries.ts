@@ -67,13 +67,56 @@ export function useProject(slug: string): UseQueryResult<Row> {
   });
 }
 
-export function useInbox(state: 'pending' | 'decided' = 'pending'): UseQueryResult<Row[]> {
+/** 받은 요청 한 쪽 — 봉투는 §1.6 그대로고 `total` 이 하나 더 있다(REQ-API-166) */
+export interface InboxPage {
+  items: Row[];
+  next_cursor: string | null;
+  /**
+   * **쪽이 아니라 전체 수**다. 쪽을 나누는 순간 "목록 길이 = 전체 수" 가 깨지는데, 받은
+   * 요청은 그 수를 세 자리에서 쓴다(헤더 배지 · 홈의 인사 · "받은 요청 전체 N건").
+   */
+  total: number;
+}
+
+/**
+ * 받은 요청 — **커서로 이어 받는다**(2026-09-24 · REQ-API-166).
+ *
+ * 예전에는 한 번 부르고 끝이라 서버 상한 100건에서 목록이 벽이 됐고, 그 벽이 **오래
+ * 기다린 쪽**을 잘랐다(서버가 최근 100건을 집고 화면이 다시 오래된 순으로 세웠다 —
+ * 실측 2026-09-24: 120건 중 가장 오래 기다린 20건이 통째로 빠졌다). 알림 목록이 2026-09-03
+ * 에 겪은 것과 같은 자리이고, 거기서 배운 대로 **배지와 목록이 같은 수를 보게** 한다.
+ */
+export function useInbox(
+  state: 'pending' | 'decided' = 'pending',
+): UseInfiniteQueryResult<InfiniteData<InboxPage>> {
   const refetchInterval = useLivePolling();
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [...queryKeys.inbox(), state],
-    queryFn: () => apiFetch<Row[]>(`/approvals?state=${state}`),
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ state });
+      if (pageParam !== null) params.set('cursor', String(pageParam));
+      return apiFetch<InboxPage>(`/approvals?${params.toString()}`);
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
     refetchInterval,
   });
+}
+
+/**
+ * 쪽들을 한 목록으로 편다 — 화면은 커서를 모르고 카드만 안다.
+ *
+ * `rows()` 와 나란히 두는 이유는 같다: 서버가 봉투를 주는 계약이지만 화면이 그 계약을
+ * **믿고 크래시하는** 것과 빈 목록으로 버티는 것은 다르다(§1.5).
+ */
+export function inboxCards(data: InfiniteData<InboxPage> | undefined): Row[] {
+  return (data?.pages ?? []).flatMap((page) => rows(page.items));
+}
+
+/** 전체 수 — 첫 쪽이 실어 준다. 아직 안 왔으면 0 이다(숫자를 지어내지 않는다) */
+export function inboxTotal(data: InfiniteData<InboxPage> | undefined): number {
+  const total = data?.pages[0]?.total;
+  return typeof total === 'number' ? total : 0;
 }
 
 /**

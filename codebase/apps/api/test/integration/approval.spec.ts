@@ -804,7 +804,10 @@ describe('T3 정족수 (REQ-API-140)', () => {
     expect(await statusOfVersion(versionId)).toBe('draft');
 
     // 남은 슬롯은 없다(둘 다 결정됐다) — 그리고 문서가 draft 라 대기 목록에도 없다
-    const cards = await approvals.inboxGlobal({ actor: person(reviewer), userId: reviewer });
+    const { items: cards } = await approvals.inboxGlobal({
+      actor: person(reviewer),
+      userId: reviewer,
+    });
     expect(cards.filter((c) => c['subject_id'] === versionId)).toEqual([]);
 
     // 다시 제출하면 새 라운드다 — 옛 approve 는 세지 않는다
@@ -1756,7 +1759,7 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
           userId: reviewer,
           state: 'pending',
         })
-      ).length,
+      ).total,
       feed: (await notifications.list({ userId: reviewer })).items.length,
       unread: (await notifications.unreadCount(reviewer)).count,
     };
@@ -1765,11 +1768,13 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
 
     await archive(true);
     expect(
-      await approvals.inboxGlobal({
-        actor: { userId: planner, isAgent: false },
-        userId: reviewer,
-        state: 'pending',
-      }),
+      (
+        await approvals.inboxGlobal({
+          actor: { userId: planner, isAgent: false },
+          userId: reviewer,
+          state: 'pending',
+        })
+      ).items,
     ).toHaveLength(0);
     expect((await notifications.list({ userId: reviewer })).items).toHaveLength(0);
     // **배지와 목록이 같은 조건으로 센다**(REQ-WEB-035) — 어긋나면 지울 수 없는 숫자가 남는다
@@ -1783,7 +1788,7 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
           userId: reviewer,
           state: 'pending',
         })
-      ).length,
+      ).total,
     ).toBe(before.cards);
     expect((await notifications.list({ userId: reviewer })).items.length).toBe(before.feed);
     expect((await notifications.unreadCount(reviewer)).count).toBe(before.unread);
@@ -1823,8 +1828,8 @@ describe('처리됨 탭 — 내가 결정한 것 (REQ-API-165)', () => {
     return { versionId, approvalId: approval_id };
   }
 
-  const decidedOf = (userId: string): Promise<Record<string, unknown>[]> =>
-    approvals.inboxGlobal({ actor: person(userId), userId, state: 'decided' });
+  const decidedOf = async (userId: string): Promise<Record<string, unknown>[]> =>
+    (await approvals.inboxGlobal({ actor: person(userId), userId, state: 'decided' })).items;
 
   it('승인해서 문서가 approved 로 가도 기록은 남는다 — 이 자리가 비어 있었다', async () => {
     const { versionId, approvalId } = await pendingSpec();
@@ -1977,7 +1982,7 @@ describe('처리됨 탭 — 내가 결정한 것 (REQ-API-165)', () => {
     const { approvalId } = await pendingSpec();
     const pendingCard = (
       await approvals.inboxGlobal({ actor: person(planner), userId: planner })
-    ).find((c) => c['id'] === approvalId);
+    ).items.find((c) => c['id'] === approvalId);
     for (const key of ['can_approve', 'can_bulk_approve', 'bulk_block_reason', 'content_hash']) {
       expect(pendingCard).toHaveProperty(key);
     }
@@ -2006,7 +2011,10 @@ describe('처리됨 탭 — 내가 결정한 것 (REQ-API-165)', () => {
 
   it('대기 탭은 그대로다 — 갈라 놓은 것이 대기 쪽을 건드리지 않았다', async () => {
     const { approvalId } = await pendingSpec();
-    const pending = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    const { items: pending } = await approvals.inboxGlobal({
+      actor: person(planner),
+      userId: planner,
+    });
     expect(pending.map((c) => c['id'])).toContain(approvalId);
     // 결정하면 대기에서 빠지고 처리됨으로 옮겨 간다
     await approvals.decide({
@@ -2016,9 +2024,173 @@ describe('처리됨 탭 — 내가 결정한 것 (REQ-API-165)', () => {
       userId: planner,
       decision: 'approve',
     });
-    const after = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    const { items: after } = await approvals.inboxGlobal({
+      actor: person(planner),
+      userId: planner,
+    });
     expect(after.map((c) => c['id'])).not.toContain(approvalId);
     expect((await decidedOf(planner)).map((c) => c['id'])).toContain(approvalId);
+  });
+});
+
+/**
+ * **받은 요청은 쪽으로 나뉜다**(2026-09-24 · 사람 결정 · REQ-API-166).
+ *
+ * 전표는 처음부터 `Page<ApprovalCard>` 라 적었는데 서비스는 **맨 배열**을 주고
+ * `LIMIT 100` 에서 말없이 잘렸다 — §1.6 선언이 이 자리에서도 거짓이었고, REQ-API-120 이
+ * 이벤트 피드에서 잡은 것과 같은 형태다.
+ *
+ * 그리고 그 상한은 **오래 기다린 쪽**을 잘랐다: 질의가 `requested_at DESC LIMIT 100` 으로
+ * 가장 최근 100건을 집고 화면이 다시 오래된 순으로 세웠다. 실측 2026-09-24(120건 ·
+ * 0~119시간 전): 가장 오래 기다린 20건이 통째로 빠졌다 — 화면이 존재하는 이유를
+ * (REQ-WEB-024: 오래 기다린 것이 위로) 상한이 정확히 뒤집고 있었다.
+ */
+describe('받은 요청의 쪽 넘김 (REQ-API-166)', () => {
+  /** n 건을 서로 다른 시각으로 심는다 — i 가 클수록 오래 기다린 것이다 */
+  async function seedPending(n: number): Promise<void> {
+    for (let i = 0; i < n; i += 1) {
+      await pool.query(
+        `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                               requested_at)
+         VALUES ($1,$2,'plan',$3,$4, now() - ($5 || ' hours')::interval)`,
+        [newId(), projectId, newId(), reviewer, String(i + 1)],
+      );
+    }
+  }
+
+  const pageOf = (
+    cursor: string | null,
+    limit = 5,
+  ): Promise<Awaited<ReturnType<typeof approvals.inboxGlobal>>> =>
+    approvals.inboxGlobal({ actor: person(planner), userId: planner, cursor, limit });
+
+  it('상한이 **오래 기다린 쪽**을 자르지 않는다 — 맨 위가 가장 오래된 것이다', async () => {
+    await seedPending(12);
+    const first = await pageOf(null);
+    expect(first.items).toHaveLength(5);
+    // 12시간 전이 가장 오래 기다린 것이다 — 예전에는 이것이 목록에서 빠졌다
+    const waits = first.items.map((c) => Number(c['waiting_seconds']));
+    expect(waits[0]).toBeGreaterThan(waits[4]!);
+    expect(Math.round(waits[0]! / 3600)).toBe(12);
+  });
+
+  it('총계는 쪽이 아니라 전체다 — 배지가 그 수를 쓴다', async () => {
+    await seedPending(12);
+    const first = await pageOf(null);
+    expect(first.items).toHaveLength(5);
+    expect(first.total).toBe(12);
+  });
+
+  it('커서로 전량을 정확히 한 번씩 훑는다', async () => {
+    await seedPending(12);
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let guard = 0; guard < 10; guard += 1) {
+      const page: Awaited<ReturnType<typeof approvals.inboxGlobal>> = await pageOf(cursor);
+      seen.push(...page.items.map((c) => String(c['id'])));
+      cursor = page.next_cursor;
+      if (cursor === null) break;
+    }
+    expect(seen).toHaveLength(12);
+    expect(new Set(seen).size).toBe(12);
+  });
+
+  it('같은 시각의 행이 쪽 경계에서 사라지지 않는다 (REQ-API-124)', async () => {
+    // T3 제출은 한 트랜잭션에서 슬롯을 여럿 세운다 — **같은 `requested_at`** 이다.
+    // 시각 하나로만 seek 하면 그 무리가 경계에 걸릴 때 남은 것이 어느 쪽에도 안 나온다.
+    for (let i = 0; i < 12; i += 1) {
+      await pool.query(
+        `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                               requested_at)
+         VALUES ($1,$2,'plan',$3,$4, now() - interval '1 hour')`,
+        [newId(), projectId, newId(), reviewer],
+      );
+    }
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let guard = 0; guard < 10; guard += 1) {
+      const page: Awaited<ReturnType<typeof approvals.inboxGlobal>> = await pageOf(cursor);
+      seen.push(...page.items.map((c) => String(c['id'])));
+      cursor = page.next_cursor;
+      if (cursor === null) break;
+    }
+    expect(new Set(seen).size).toBe(12);
+  });
+
+  it('질문도 같은 줄에서 쪽을 탄다 — 두 소스가 한 목록이다', async () => {
+    await seedPending(4);
+    for (let i = 0; i < 4; i += 1) {
+      await questions.create({ projectId, sessionId, title: `질문 ${i}` });
+    }
+    const seen: string[] = [];
+    const kinds = new Set<string>();
+    let cursor: string | null = null;
+    for (let guard = 0; guard < 10; guard += 1) {
+      const page: Awaited<ReturnType<typeof approvals.inboxGlobal>> = await pageOf(cursor, 3);
+      for (const c of page.items) {
+        seen.push(String(c['id']));
+        kinds.add(String(c['subject_type']));
+      }
+      cursor = page.next_cursor;
+      if (cursor === null) break;
+    }
+    expect(new Set(seen).size).toBe(8);
+    expect(kinds.has('question')).toBe(true);
+    expect(kinds.has('plan')).toBe(true);
+  });
+
+  it('처리됨은 **최근 결정부터** 넘어간다 — 기록은 최근 것부터 읽는다', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      const { approval_id } = await approvals.request({
+        projectId,
+        subjectType: 'plan',
+        subjectId: newId(),
+        requestedByUserId: reviewer,
+      });
+      await approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId: approval_id,
+        userId: planner,
+        decision: 'approve',
+      });
+      ids.push(approval_id);
+    }
+    const page = await approvals.inboxGlobal({
+      actor: person(planner),
+      userId: planner,
+      state: 'decided',
+      limit: 4,
+    });
+    expect(page.items).toHaveLength(4);
+    expect(page.total).toBe(6);
+    // 마지막에 결정한 것이 맨 위다
+    expect(page.items[0]?.['id']).toBe(ids.at(-1));
+
+    const second = await approvals.inboxGlobal({
+      actor: person(planner),
+      userId: planner,
+      state: 'decided',
+      cursor: page.next_cursor,
+      limit: 4,
+    });
+    expect(second.items).toHaveLength(2);
+    expect(second.next_cursor).toBeNull();
+  });
+
+  it('해독되지 않는 커서는 처음부터다 — 낡은 커서가 화면을 깨뜨리지 않는다 (§1.6)', async () => {
+    await seedPending(3);
+    const page = await pageOf('그럴듯하지-않은-커서');
+    expect(page.items).toHaveLength(3);
+    expect(page.total).toBe(3);
+  });
+
+  it('커서는 불투명하다 — 조각을 응답에 내보이지 않는다', async () => {
+    await seedPending(3);
+    const page = await pageOf(null, 2);
+    expect(page.next_cursor).not.toBeNull();
+    for (const card of page.items) expect(card).not.toHaveProperty('cursor_at');
   });
 });
 

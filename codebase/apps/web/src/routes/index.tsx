@@ -9,7 +9,15 @@ import { eventLabelKey } from '@nerv/schema';
 import { useLocale, useT } from '../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { relativeTime } from '../lib/format.js';
-import { rows, useCoverage, useEvents, useInbox, useMe } from '../lib/queries.js';
+import {
+  inboxCards,
+  inboxTotal,
+  rows,
+  useCoverage,
+  useEvents,
+  useInbox,
+  useMe,
+} from '../lib/queries.js';
 import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
 import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
@@ -34,7 +42,10 @@ function HomeScreen(): React.JSX.Element {
   const events = useEvents(primarySlug, primaryId);
   const coverage = useCoverage(primarySlug, primaryId);
 
-  const cards = rows(inbox.data);
+  const cards = inboxCards(inbox.data);
+  // 홈은 **다섯 줄만** 그리고 나머지는 받은 요청으로 보낸다 — 그 "나머지" 의 수는
+  // 받아 온 쪽이 아니라 전체 수다(REQ-API-166)
+  const waiting = inboxTotal(inbox.data);
   const today = new Intl.DateTimeFormat(locale === 'ko' ? 'ko-KR' : 'en-US', {
     dateStyle: 'full',
   }).format(new Date());
@@ -49,9 +60,9 @@ function HomeScreen(): React.JSX.Element {
       <h1 className="mt-2 text-[1.9375rem] leading-[1.18] font-bold tracking-[-0.026em]">
         {me.data === undefined
           ? t('home.title_anon')
-          : cards.length === 0
+          : waiting === 0
             ? t('home.greeting_clear', { name })
-            : t('home.greeting_pending', { name, count: cards.length })}
+            : t('home.greeting_pending', { name, count: waiting })}
       </h1>
 
       {/* **받은 초대가 먼저다.** 아직 들어가지도 않은 조직의 일이라 '오늘 할 일'보다
@@ -63,9 +74,9 @@ function HomeScreen(): React.JSX.Element {
       <section className="mt-8" data-testid="today-strip">
         <div className="mb-1 flex items-baseline gap-[9px]">
           <span className="text-lg font-[650] tracking-[-0.012em]">{t('home.waiting_on_you')}</span>
-          {cards.length > 0 && (
+          {waiting > 0 && (
             <span className="text-sm text-text-faint">
-              {t('home.waiting_count', { count: cards.length })}
+              {t('home.waiting_count', { count: waiting })}
             </span>
           )}
         </div>
@@ -87,9 +98,9 @@ function HomeScreen(): React.JSX.Element {
             <TodoRow key={String(card['id'])} card={card} />
           ))}
         </ul>
-        {cards.length > 5 && (
+        {waiting > 5 && (
           <Link to="/inbox" className="mt-2 inline-block text-sm text-text-faint hover:text-link">
-            {t('home.inbox_all', { count: cards.length })}
+            {t('home.inbox_all', { count: waiting })}
           </Link>
         )}
       </section>

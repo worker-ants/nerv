@@ -169,14 +169,19 @@ export class ApprovalInboxController {
     @Req() req: ProjectRequest,
     @Query('state') state?: string,
     @Query('project') project?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
   ): Promise<unknown> {
     const actor = globalActor(req);
     const userId = actor.userId;
+    // 커서·상한은 **번역만 한다** — 해독도 자르기도 서비스의 일이다(D-05 · §1.6)
     return this.approvals.inboxGlobal({
       actor,
       userId,
       state: state ?? null,
       projectSlug: project ?? null,
+      cursor: cursor ?? null,
+      limit: limit ?? null,
     });
   }
 

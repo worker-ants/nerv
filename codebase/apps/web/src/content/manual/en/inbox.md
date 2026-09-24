@@ -66,6 +66,8 @@ Pressing the button does not send anything yet: it **lists what you are about to
 
 You can pick up to **50** at a time, and [Everything visible] picks only what is **on screen right now**.
 
+**The list does not arrive all at once** — **[Load more]** at the bottom fetches the rest. The count in the header, and the badge, are the **total**, not what has arrived. The waiting tab puts **what has waited longest on top**, so what you fetch next is always the less urgent end — you never scroll to the bottom to find something urgent.
+
 Decided cards move to the **Decided** tab. That tab carries **what you decided** — decisions other people made are in their own lists. Nothing is deleted, so what was decided, when and how stays readable later, and the card stays put after an approval settles the document or a rejection sends it back to draft. Cards in that tab carry no decision buttons or input boxes; in place of the waiting time they say **what was decided, and when**. If a note was left with the decision — a rejection always carries one — that sentence sits on the card too.
 
 ## Keyboard

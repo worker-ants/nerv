@@ -51,8 +51,13 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url: unknown) => {
       const u = String(url);
+      // **봉투다**(2026-09-24 · REQ-API-166) — 홈의 수도 `total` 에서 온다
       if (u.includes('/approvals?state=pending')) {
-        return { ok: true, status: 200, json: async () => CARDS };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: CARDS, next_cursor: null, total: CARDS.length }),
+        };
       }
       return {
         ok: true,

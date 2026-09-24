@@ -17,7 +17,7 @@ import type { CardFailure } from '../features/inbox/approval-card.js';
 import { apiFetch } from '../lib/api.js';
 import { useApiError } from '../lib/api-errors.js';
 import { queryKeys } from '../lib/query-keys.js';
-import { rows, useInbox } from '../lib/queries.js';
+import { inboxCards, inboxTotal, useInbox } from '../lib/queries.js';
 import type { Row } from '../lib/queries.js';
 import { useRealtime } from '../lib/realtime.js';
 import { cn } from '../lib/utils.js';
@@ -66,7 +66,8 @@ function InboxScreen(): React.JSX.Element {
   const inbox = useInbox(state);
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
-  const cards = rows(inbox.data);
+  const cards = inboxCards(inbox.data);
+  const total = inboxTotal(inbox.data);
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
@@ -210,8 +211,8 @@ function InboxScreen(): React.JSX.Element {
         meta={
           <span className="rounded-full bg-bg-sunken px-2 py-0.5 text-xs text-text-mute">
             {state === 'pending'
-              ? t('inbox.count_pending', { count: cards.length })
-              : t('inbox.count_decided', { count: cards.length })}
+              ? t('inbox.count_pending', { count: total })
+              : t('inbox.count_decided', { count: total })}
           </span>
         }
       />
@@ -403,6 +404,24 @@ function InboxScreen(): React.JSX.Element {
           </li>
         ))}
       </ul>
+
+      {/* **이게 전부가 아니면 그렇게 말한다**(REQ-API-166). 예전에는 100건에서 말없이
+          잘렸고, 그 상한이 **오래 기다린 쪽**을 잘랐다 — 화면이 존재하는 이유를 뒤집는
+          자리였다(실측 2026-09-24: 120건 중 가장 오래 기다린 20건이 통째로 빠졌다).
+          일괄 선택은 **보이는 것 전체**를 뜻하므로(REQ-WEB-181) 더 받아 온 것까지
+          자연히 포함된다 — 보지 않은 것을 고르게 하는 손잡이를 만들지 않는다. */}
+      {inbox.hasNextPage === true && (
+        <div className="mt-3 flex justify-center">
+          <Button
+            variant="ghost"
+            data-testid="inbox-more"
+            disabled={inbox.isFetchingNextPage}
+            onClick={() => void inbox.fetchNextPage()}
+          >
+            {inbox.isFetchingNextPage ? t('common.loading') : t('tasks.more')}
+          </Button>
+        </div>
+      )}
     </PageBody>
   );
 }
